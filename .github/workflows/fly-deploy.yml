@@ -1,0 +1,53 @@
+name: Fly.io 자동 배포
+
+# main 브랜치 push 시 자동 배포
+on:
+  push:
+    branches:
+      - main
+    paths:
+      # _시스템/ 변경 또는 Dockerfile/fly.toml 변경 시만
+      - '_시스템/**'
+      - '.github/workflows/fly-deploy.yml'
+  # 수동 트리거도 가능 (Actions 탭 → Run workflow)
+  workflow_dispatch:
+
+# 동시 배포 방지 (이전 배포 끝나기 전 새 push 오면 대기)
+concurrency:
+  group: fly-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy to Fly.io
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: 소스 체크아웃
+        uses: actions/checkout@v4
+
+      - name: flyctl 설치
+        uses: superfly/flyctl-actions/setup-flyctl@master
+
+      - name: Fly.io 배포
+        working-directory: ./_시스템
+        run: flyctl deploy --remote-only --ha=false
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+
+      - name: 배포 검증 (헬스체크)
+        run: |
+          echo "Cold start 대기 (10초)..."
+          sleep 10
+          for i in 1 2 3; do
+            if curl -fsS https://modeumjeon-team-share.fly.dev/health > /tmp/health.json; then
+              echo "✅ 헬스체크 성공:"
+              cat /tmp/health.json
+              exit 0
+            fi
+            echo "재시도 $i/3..."
+            sleep 5
+          done
+          echo "❌ 헬스체크 실패"
+          exit 1
