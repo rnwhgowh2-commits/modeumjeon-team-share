@@ -305,6 +305,44 @@ def print_diff_summary(diff: dict[str, list[str]], verbose: bool = False) -> Non
 # ───────────────────────────────────────────────────────────
 # 메인
 # ───────────────────────────────────────────────────────────
+def auto_git_push(counts: dict[str, int]) -> str | None:
+    """변경 사항을 자동으로 git commit + push (GitHub Actions → Fly.io 자동 배포 트리거).
+
+    Returns: 결과 메시지 (성공/실패), 변경 없으면 None.
+    """
+    import subprocess
+    if counts["added"] + counts["updated"] + counts["deleted"] == 0:
+        return None
+    try:
+        # git status 로 stage 대상 있는지 확인
+        result = subprocess.run(
+            ["git", "-C", str(PROJECT_ROOT), "status", "--porcelain"],
+            capture_output=True, text=True, timeout=30,
+        )
+        if result.returncode != 0 or not result.stdout.strip():
+            return None  # 변경 없음 (.gitignore 가 모두 잡았을 수도)
+
+        # add + commit + push
+        subprocess.run(["git", "-C", str(PROJECT_ROOT), "add", "."], check=True, timeout=30)
+        msg = f"Auto-sync: {counts['added']} added, {counts['updated']} updated, {counts['deleted']} deleted"
+        commit = subprocess.run(
+            ["git", "-C", str(PROJECT_ROOT), "commit", "-m", msg],
+            capture_output=True, text=True, timeout=30,
+        )
+        if commit.returncode != 0:
+            # 변경 없거나 .gitignore 가 모두 잡음 — 정상
+            return None
+        push = subprocess.run(
+            ["git", "-C", str(PROJECT_ROOT), "push", "origin", "main"],
+            capture_output=True, text=True, timeout=120,
+        )
+        if push.returncode != 0:
+            return f"⚠️ git push 실패: {push.stderr[:100]}"
+        return f"✅ GitHub push 완료 → Fly.io 자동 배포 시작"
+    except Exception as e:
+        return f"⚠️ git 자동화 에러: {str(e)[:100]}"
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="기존 → 신규 단방향 미러 동기화")
     parser.add_argument("--dry-run", action="store_true", help="변경 출력만, 적용 안 함")
@@ -312,6 +350,7 @@ def main() -> int:
     parser.add_argument("--force", action="store_true", help="승인 없이 적용 (토스트 없이)")
     parser.add_argument("--verbose", "-v", action="store_true", help="변경 파일 목록 출력")
     parser.add_argument("--delete", action="store_true", help="신규에만 있는 파일 삭제 동기화")
+    parser.add_argument("--no-git-push", action="store_true", help="--scheduled/--force 시 자동 git push 끄기")
     args = parser.parse_args()
 
     started_at = dt.datetime.now()
@@ -368,12 +407,21 @@ def main() -> int:
     )
     append_log(log_line)
 
+    # ─── 자동 git push (--scheduled 또는 --force 시 기본 ON) ───
+    git_msg = None
+    if (args.scheduled or args.force) and not args.no_git_push:
+        git_msg = auto_git_push(counts)
+        if git_msg:
+            print(git_msg)
+            append_log(f"{started_at.isoformat(timespec='seconds')} | {git_msg}")
+
     if args.scheduled:
         toast_title = "모음전 동기화 완료"
         toast_msg = (
             f"추가 {counts['added']}, 수정 {counts['updated']}, 삭제 {counts['deleted']}"
             + (f", Schema 변경 {len(diff['schema'])}건 ⚠️" if diff["schema"] else "")
             + (f", 에러 {counts['errors']}건" if counts["errors"] else "")
+            + ("\n→ GitHub push + 자동 배포 시작" if git_msg and "✅" in git_msg else "")
         )
         show_toast(toast_title, toast_msg)
 
