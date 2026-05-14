@@ -182,7 +182,9 @@ def _bundle_summary(s, m: Model) -> dict:
                     func.count(OptionSourceUrl.id).label('cnt'))
             .join(OptionSourceUrl, OptionSourceUrl.source_id == SourceRegistry.id)
             .filter(OptionSourceUrl.canonical_sku.in_(sku_list))
-            .group_by(SourceRegistry.name)
+            # PostgreSQL 호환 — ORDER BY 컬럼은 GROUP BY 에 포함되어야 함
+            # SQLite 는 (name) 만으로 sort_order 자동 추론 가능, PG 는 strict.
+            .group_by(SourceRegistry.name, SourceRegistry.sort_order)
             .order_by(SourceRegistry.sort_order)
             .all()
         )
