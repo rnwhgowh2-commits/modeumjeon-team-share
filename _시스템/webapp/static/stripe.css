@@ -1,0 +1,472 @@
+/* ════════════════════════════════════════════════════════════════
+   Stripe Modern 테마 — 모음전 자동화
+   참고: Stripe / Linear / Apple Mac KR / Nike KR / Cafe24
+   토큰 출처: 디자인/tokens.json (Primary #635BFF, Accent #00D4FF, Inter)
+
+   적용 방식: <html data-theme="stripe">  → 모든 CSS 변수 오버라이드
+   기본 (data-theme=toss 또는 미지정) = toss.css 그대로
+   ════════════════════════════════════════════════════════════════ */
+
+[data-theme="stripe"] {
+  /* === 색상 토큰 (Stripe 시스템) === */
+  --primary: #635BFF;
+  --primary-strong: #4F46E5;
+  --primary-tint: #EEF0FF;
+  --primary-soft: #F3F4FF;
+  --accent: #00D4FF;
+  --accent-tint: #E0FAFF;
+
+  --warn: #F59E0B;
+  --warn-bg: #FEF3C7;
+  --warn-strong: #B45309;
+
+  --success: #10B981;
+  --success-bg: #ECFDF5;
+  --success-strong: #047857;
+
+  --danger: #EF4444;
+  --danger-bg: #FEF2F2;
+  --danger-strong: #B91C1C;
+
+  --info: #00D4FF;
+  --info-tint: #E0FAFF;
+
+  /* Stripe Ink 계열 (#0A2540 기반 그라데이션) */
+  --bg: #FFFFFF;
+  --surface: #FFFFFF;
+  --n100: #F6F9FC;        /* surface */
+  --n200: #E3E8EE;
+  --n300: #C1C9D2;
+  --n400: #8898AA;
+  --n500: #5E6E82;        /* muted+ */
+  --n600: #425466;        /* muted */
+  --n700: #1A2C42;
+  --n800: #0E1F33;
+  --n900: #0A2540;        /* ink */
+
+  /* === 타이포 (Inter + Söhne fallback) === */
+  --font: 'Inter', 'Pretendard', -apple-system, BlinkMacSystemFont, system-ui, Roboto, sans-serif;
+
+  /* === 그림자 (Stripe 토큰) === */
+  --shadow-sm: 0 1px 2px rgba(10,37,64,0.05);
+  --shadow: 0 4px 14px rgba(10,37,64,0.07);
+  --shadow-lg: 0 12px 40px rgba(10,37,64,0.10);
+}
+
+/* ════════════════════════════════════════════════════════════════
+   레이아웃 / 본문 / 사이드바
+   ════════════════════════════════════════════════════════════════ */
+[data-theme="stripe"] body {
+  font-family: var(--font);
+  letter-spacing: -0.005em;
+  background: var(--n100);
+  color: var(--n900);
+}
+
+[data-theme="stripe"] .app {
+  background: linear-gradient(180deg, #F6F9FC 0%, #FFFFFF 200px);
+}
+
+[data-theme="stripe"] .sidebar {
+  background: #FFFFFF;
+  border-right: 1px solid var(--n200);
+  box-shadow: 1px 0 0 rgba(10,37,64,0.02);
+}
+[data-theme="stripe"] .brand {
+  font-family: var(--font);
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  background: linear-gradient(135deg, #635BFF 0%, #00D4FF 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+[data-theme="stripe"] .brand-sub {
+  color: var(--n500);
+  font-weight: 500;
+}
+[data-theme="stripe"] .nav-group-title {
+  color: var(--n400);
+  font-weight: 700;
+  letter-spacing: 0.05em;
+}
+[data-theme="stripe"] .nav-item {
+  border-radius: 8px;
+  font-weight: 500;
+  color: var(--n700);
+  transition: all 0.12s;
+}
+[data-theme="stripe"] .nav-item:hover {
+  background: var(--primary-soft);
+  color: var(--primary);
+}
+[data-theme="stripe"] .nav-item.active {
+  background: linear-gradient(135deg, #635BFF 0%, #7C6FFF 100%);
+  color: #FFFFFF;
+  font-weight: 700;
+  box-shadow: 0 4px 12px rgba(99,91,255,0.25);
+}
+[data-theme="stripe"] .nav-badge {
+  background: rgba(255,255,255,0.2);
+  color: #FFFFFF;
+}
+[data-theme="stripe"] .nav-item:not(.active) .nav-badge {
+  background: var(--n200);
+  color: var(--n700);
+}
+
+/* ════════════════════════════════════════════════════════════════
+   타이포 / 헤딩
+   ════════════════════════════════════════════════════════════════ */
+[data-theme="stripe"] h1 {
+  font-family: var(--font);
+  font-weight: 800;
+  letter-spacing: -0.025em;
+  color: var(--n900);
+}
+[data-theme="stripe"] h2 {
+  font-family: var(--font);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--n900);
+}
+[data-theme="stripe"] h3 { font-weight: 700; letter-spacing: -0.01em; color: var(--n900); }
+[data-theme="stripe"] .greeting { color: var(--n600); font-weight: 500; }
+[data-theme="stripe"] .h2-desc { color: var(--n500); }
+[data-theme="stripe"] .mono { font-family: 'Berkeley Mono', 'JetBrains Mono', 'D2Coding', ui-monospace, monospace; }
+
+/* ════════════════════════════════════════════════════════════════
+   카드 / 섹션 (Stripe Frosted/Soft 카드)
+   ════════════════════════════════════════════════════════════════ */
+[data-theme="stripe"] .card,
+[data-theme="stripe"] .section {
+  background: #FFFFFF;
+  border: 1px solid var(--n200);
+  border-radius: 12px;
+  box-shadow: 0 1px 2px rgba(10,37,64,0.04);
+  transition: all 0.15s;
+}
+[data-theme="stripe"] .card:hover { box-shadow: 0 4px 14px rgba(10,37,64,0.07); }
+
+/* ════════════════════════════════════════════════════════════════
+   버튼 (Stripe Pill + Gradient)
+   ════════════════════════════════════════════════════════════════ */
+[data-theme="stripe"] .btn {
+  font-family: var(--font);
+  border-radius: 8px;
+  font-weight: 600;
+  letter-spacing: -0.005em;
+  border: 1px solid var(--n200);
+  background: #FFFFFF;
+  color: var(--n800);
+  transition: all 0.12s ease-out;
+}
+[data-theme="stripe"] .btn:hover {
+  border-color: var(--primary);
+  color: var(--primary);
+  background: var(--primary-soft);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 14px rgba(99,91,255,0.10);
+}
+[data-theme="stripe"] .btn-primary {
+  background: linear-gradient(135deg, #635BFF 0%, #5046E5 100%);
+  border: none;
+  color: #FFFFFF;
+  box-shadow: 0 4px 14px rgba(99,91,255,0.30);
+}
+[data-theme="stripe"] .btn-primary:hover {
+  background: linear-gradient(135deg, #7066FF 0%, #635BFF 100%);
+  color: #FFFFFF;
+  box-shadow: 0 6px 20px rgba(99,91,255,0.40);
+  transform: translateY(-1px);
+}
+[data-theme="stripe"] .btn-success {
+  background: linear-gradient(135deg, #10B981 0%, #059669 100%);
+  border: none;
+  color: #FFFFFF;
+  box-shadow: 0 4px 14px rgba(16,185,129,0.25);
+}
+[data-theme="stripe"] .btn-success:hover { background: linear-gradient(135deg, #14C896 0%, #10B981 100%); transform: translateY(-1px); color: #FFFFFF; }
+[data-theme="stripe"] .btn-warn {
+  background: linear-gradient(135deg, #F59E0B 0%, #D97706 100%);
+  border: none;
+  color: #FFFFFF;
+}
+[data-theme="stripe"] .btn-danger {
+  background: linear-gradient(135deg, #EF4444 0%, #DC2626 100%);
+  border: none;
+  color: #FFFFFF;
+}
+[data-theme="stripe"] .btn-large { padding: 14px 28px; font-size: 15px; border-radius: 10px; }
+[data-theme="stripe"] .btn-sm { border-radius: 6px; }
+
+/* ════════════════════════════════════════════════════════════════
+   인풋 / 폼
+   ════════════════════════════════════════════════════════════════ */
+[data-theme="stripe"] .field-input,
+[data-theme="stripe"] .inline-edit,
+[data-theme="stripe"] .form-input,
+[data-theme="stripe"] .opt-tree-search,
+[data-theme="stripe"] .qsearch input,
+[data-theme="stripe"] .search-input,
+[data-theme="stripe"] .url-input,
+[data-theme="stripe"] .j1-field-input,
+[data-theme="stripe"] .j1-combo-input {
+  font-family: var(--font);
+  border: 1px solid var(--n200);
+  border-radius: 8px;
+  background: #FFFFFF;
+  color: var(--n900);
+  transition: all 0.12s;
+}
+[data-theme="stripe"] .field-input:focus,
+[data-theme="stripe"] .inline-edit:focus,
+[data-theme="stripe"] .form-input:focus,
+[data-theme="stripe"] .j1-field-input:focus,
+[data-theme="stripe"] .j1-combo-input:focus {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(99,91,255,0.12);
+  outline: none;
+}
+
+[data-theme="stripe"] select.field-input {
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><path d='M4 6.5l4 4 4-4' stroke='%238898AA' stroke-width='1.2' fill='none' stroke-linecap='round' stroke-linejoin='round'/></svg>");
+}
+
+/* ════════════════════════════════════════════════════════════════
+   칩 / 뱃지
+   ════════════════════════════════════════════════════════════════ */
+[data-theme="stripe"] .chip-auto {
+  background: linear-gradient(135deg, #ECFDF5 0%, #D1FAE5 100%);
+  color: #047857;
+}
+[data-theme="stripe"] .chip-manual {
+  background: linear-gradient(135deg, #FEF3C7 0%, #FDE68A 100%);
+  color: #B45309;
+}
+[data-theme="stripe"] .badge-source {
+  background: var(--primary-soft);
+  color: var(--primary-strong);
+}
+[data-theme="stripe"] .amount-auto { color: #047857; }
+
+/* ════════════════════════════════════════════════════════════════
+   테이블
+   ════════════════════════════════════════════════════════════════ */
+[data-theme="stripe"] .opt-table th,
+[data-theme="stripe"] .data-table th,
+[data-theme="stripe"] .tbl th {
+  background: var(--n100);
+  color: var(--n600);
+  font-weight: 700;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  border-bottom: 1px solid var(--n200);
+}
+[data-theme="stripe"] .opt-table td,
+[data-theme="stripe"] .data-table td,
+[data-theme="stripe"] .tbl td {
+  border-bottom: 1px solid var(--n100);
+  color: var(--n800);
+}
+[data-theme="stripe"] .opt-table tr:hover td { background: var(--primary-soft); }
+[data-theme="stripe"] .opt-table tr.selected td,
+[data-theme="stripe"] .tbl tr.selected td {
+  background: var(--primary-soft);
+  border-left: 2px solid var(--primary);
+}
+[data-theme="stripe"] .color-group-row td,
+[data-theme="stripe"] .opt-table .color-group-head {
+  background: linear-gradient(180deg, #F6F9FC 0%, #FFFFFF 100%);
+  border-top: 2px solid var(--primary-tint);
+  font-weight: 800;
+}
+
+/* ════════════════════════════════════════════════════════════════
+   글로벌 액션바 / 일괄 바 / 토글
+   ════════════════════════════════════════════════════════════════ */
+[data-theme="stripe"] .global-actions {
+  background: #FFFFFF;
+  border: 1px solid var(--n200);
+  border-radius: 10px;
+}
+[data-theme="stripe"] .bulk-bar {
+  background: linear-gradient(135deg, #FEF3C7 0%, #FED7AA 100%);
+  border: 1px solid #F59E0B;
+  border-radius: 10px;
+  box-shadow: 0 4px 14px rgba(245,158,11,0.15);
+}
+[data-theme="stripe"] .bulk-bar .count { color: #B45309; }
+
+[data-theme="stripe"] .switch-slider,
+[data-theme="stripe"] .toggle .slider { background: var(--n300); }
+[data-theme="stripe"] .switch input:checked + .switch-slider,
+[data-theme="stripe"] .toggle input:checked + .slider {
+  background: linear-gradient(135deg, #635BFF 0%, #4F46E5 100%);
+  box-shadow: 0 2px 6px rgba(99,91,255,0.3);
+}
+
+/* ════════════════════════════════════════════════════════════════
+   소싱처 카드 (D2 카드 그리드)
+   ════════════════════════════════════════════════════════════════ */
+[data-theme="stripe"] .d2-src {
+  background: #FFFFFF;
+  border: 1px solid var(--n200);
+  border-radius: 8px;
+  transition: all 0.12s;
+}
+[data-theme="stripe"] .d2-src:hover {
+  border-color: var(--primary);
+  box-shadow: 0 4px 14px rgba(99,91,255,0.08);
+}
+[data-theme="stripe"] .d2-src.lowest {
+  background: linear-gradient(135deg, #ECFDF5 0%, #D1FAE5 100%);
+  border-color: #10B981;
+  box-shadow: 0 4px 14px rgba(16,185,129,0.12);
+}
+[data-theme="stripe"] .d2-src.lowest .d2-src-price { color: #047857; }
+[data-theme="stripe"] .d2-src-date { color: #8898AA; }
+
+/* ════════════════════════════════════════════════════════════════
+   J1 슬릭 모달 (Stripe 풍 강화)
+   ════════════════════════════════════════════════════════════════ */
+[data-theme="stripe"] .j1-overlay { background: rgba(10,37,64,0.5); -webkit-backdrop-filter: blur(4px); backdrop-filter: blur(4px); }
+[data-theme="stripe"] .j1-modal {
+  border-radius: 16px;
+  box-shadow: 0 20px 50px rgba(10,37,64,0.25);
+  border: 1px solid var(--n200);
+}
+[data-theme="stripe"] .j1-head {
+  background: linear-gradient(135deg, #F6F9FC 0%, #FFFFFF 100%);
+  border-bottom: 1px solid var(--n200);
+}
+[data-theme="stripe"] .j1-foot {
+  background: var(--n100);
+  border-top: 1px solid var(--n200);
+}
+[data-theme="stripe"] .j1-formula {
+  background: linear-gradient(135deg, #EEF0FF 0%, #F3F4FF 100%);
+  border-left: 3px solid var(--primary);
+  color: var(--n800);
+}
+[data-theme="stripe"] .j1-formula strong { color: var(--primary); }
+[data-theme="stripe"] .j1-info {
+  background: linear-gradient(135deg, #EEF0FF 0%, #E0FAFF 100%);
+  border-left: 3px solid var(--primary);
+  color: var(--n800);
+}
+[data-theme="stripe"] .j1-warn {
+  background: linear-gradient(135deg, #FEF3C7 0%, #FED7AA 100%);
+  border-left: 3px solid #F59E0B;
+  color: #B45309;
+}
+[data-theme="stripe"] .btn-formula {
+  background: linear-gradient(135deg, #EEF0FF 0%, #DDE0FF 100%);
+  color: var(--primary-strong);
+}
+
+/* 콤보박스 */
+[data-theme="stripe"] .j1-combo-dropdown {
+  border: 1px solid var(--n200);
+  border-radius: 10px;
+  box-shadow: 0 12px 40px rgba(10,37,64,0.15);
+}
+[data-theme="stripe"] .j1-combo-item:hover,
+[data-theme="stripe"] .j1-combo-item.active {
+  background: var(--primary-soft);
+  color: var(--primary);
+}
+[data-theme="stripe"] .j1-combo-item.create-new {
+  background: linear-gradient(135deg, #ECFDF5 0%, #D1FAE5 100%);
+  color: #047857;
+}
+
+/* ════════════════════════════════════════════════════════════════
+   KPI 카드 (홈 대시보드 강조)
+   ════════════════════════════════════════════════════════════════ */
+[data-theme="stripe"] .kpi-card {
+  background: linear-gradient(135deg, #FFFFFF 0%, #F6F9FC 100%);
+  border: 1px solid var(--n200);
+  border-radius: 14px;
+  box-shadow: 0 1px 2px rgba(10,37,64,0.04);
+}
+[data-theme="stripe"] .kpi-card:hover {
+  border-color: var(--primary);
+  box-shadow: 0 8px 24px rgba(99,91,255,0.12);
+  transform: translateY(-2px);
+}
+[data-theme="stripe"] .kpi-card.alert {
+  border-left: 4px solid var(--danger);
+  background: linear-gradient(135deg, #FFFFFF 0%, #FEF2F2 100%);
+}
+[data-theme="stripe"] .kpi-value {
+  font-family: var(--font);
+  font-weight: 800;
+  letter-spacing: -0.025em;
+  background: linear-gradient(135deg, #0A2540 0%, #425466 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+[data-theme="stripe"] .kpi-label { color: var(--n500); font-weight: 500; }
+
+/* ════════════════════════════════════════════════════════════════
+   페이지 헤더 / Subtab / Chip / Pill
+   ════════════════════════════════════════════════════════════════ */
+[data-theme="stripe"] .page-header h1 {
+  background: linear-gradient(135deg, #0A2540 0%, #635BFF 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+[data-theme="stripe"] .subtab {
+  font-weight: 600;
+  color: var(--n500);
+}
+[data-theme="stripe"] .subtab.active {
+  color: var(--primary);
+  border-bottom-color: var(--primary);
+}
+[data-theme="stripe"] .chip {
+  border-radius: 8px;          /* sharp 보다 살짝 둥근 — Linear pill */
+  font-weight: 600;
+}
+[data-theme="stripe"] .chip:hover { border-color: var(--primary); color: var(--primary); }
+[data-theme="stripe"] .recent-chip {
+  border-radius: 999px;
+  background: var(--n100);
+  border: 1px solid var(--n200);
+  font-weight: 600;
+  color: var(--n700);
+}
+[data-theme="stripe"] .recent-chip:hover { background: var(--primary-soft); border-color: var(--primary); color: var(--primary); }
+
+/* ════════════════════════════════════════════════════════════════
+   인사이트 / 알림 박스
+   ════════════════════════════════════════════════════════════════ */
+[data-theme="stripe"] .insight {
+  background: linear-gradient(135deg, #EEF0FF 0%, #E0FAFF 100%);
+  color: var(--primary-strong);
+  border-radius: 12px;
+}
+
+/* ════════════════════════════════════════════════════════════════
+   Toast / 검증 행
+   ════════════════════════════════════════════════════════════════ */
+[data-theme="stripe"] .toast {
+  border-radius: 10px;
+  box-shadow: 0 12px 40px rgba(10,37,64,0.15);
+}
+[data-theme="stripe"] .verify-row { background: linear-gradient(180deg, #F6F9FC 0%, #FFFFFF 100%); }
+[data-theme="stripe"] .verify-row td { border-top: 1px dashed var(--primary-tint) !important; }
+
+/* ════════════════════════════════════════════════════════════════
+   테마 토글 버튼 (Stripe 모드에서 보라 강조)
+   ════════════════════════════════════════════════════════════════ */
+[data-theme="stripe"] #theme-toggle-btn {
+  border-color: var(--primary);
+  color: var(--primary);
+  background: var(--primary-soft);
+  box-shadow: 0 4px 14px rgba(99,91,255,0.15);
+}

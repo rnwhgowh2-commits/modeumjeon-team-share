@@ -1,0 +1,26 @@
+{% extends 'base.html' %}
+{% block title %}사입 재고 연동 — 모음전 자동화{% endblock %}
+{% block content %}
+<section class="screen active" id="screen-boxhero">
+  <h1>사입 재고 연동</h1>
+  <p class="greeting">박스히어로에서 보유 재고를 가져와요.</p>
+  <div class="card">
+    <div style="display:flex;gap:8px;margin-bottom:14px">
+      <button class="btn btn-primary" style="flex:1" data-action="boxhero-api" title="기본 모드 — 활성">📡 API 연동 <span class="btn-coming">기본</span></button>
+      <button class="btn" style="flex:1" data-action="boxhero-xlsx" title="아직 미구현">📁 엑셀 업로드 <span class="btn-coming">곧</span></button>
+    </div>
+    <div class="field">
+      <label class="field-label">API 토큰</label>
+      <input class="field-input" type="password" value="{% if has_token %}••••••••••••{% endif %}" placeholder="환경변수 BOXHERO_API_TOKEN으로 설정" readonly />
+      <div class="field-hint">{% if has_token %}✅ 토큰이 설정돼 있어요.{% else %}⚠ 토큰이 없어요. .env에 BOXHERO_API_TOKEN을 추가해 주세요.{% endif %}</div>
+    </div>
+    <div class="kpi-grid" style="margin:12px 0">
+      <div class="kpi-card" style="cursor:default"><div class="kpi-label">총 SKU</div><div class="kpi-value">{{ kpi.total }}</div></div>
+      <div class="kpi-card" style="cursor:default"><div class="kpi-label">매핑 완료</div><div class="kpi-value">{{ kpi.mapped }}</div></div>
+      <div class="kpi-card" style="cursor:default"><div class="kpi-label">매핑 대기</div><div class="kpi-value">{{ kpi.unmapped }}</div></div>
+      <div class="kpi-card" style="cursor:default"><div class="kpi-label">총 재고</div><div class="kpi-value">{{ kpi.inventory }}</div></div>
+    </div>
+    <button class="btn btn-primary btn-large btn-block" data-action="boxhero-sync">지금 동기화</button>
+  </div>
+</section>
+{% endblock %}

@@ -1,0 +1,113 @@
+{
+  "timestamp": "2026-04-28T02:23:40.449805",
+  "screens": 12,
+  "items_per_screen_avg": 131,
+  "total_cells": 1572,
+  "PASS": 537,
+  "FAIL": 0,
+  "SKIP": 0,
+  "NA": 1035,
+  "USER": 0,
+  "pass_rate_excluding_na": 100.0,
+  "by_screen": {
+    "home": {
+      "PASS": 44,
+      "NA": 87
+    },
+    "track": {
+      "PASS": 46,
+      "NA": 85
+    },
+    "queue": {
+      "PASS": 34,
+      "NA": 97
+    },
+    "bundles": {
+      "PASS": 47,
+      "NA": 84
+    },
+    "bundles_new": {
+      "PASS": 57,
+      "NA": 74
+    },
+    "bundles_detail": {
+      "PASS": 58,
+      "NA": 73
+    },
+    "alerts": {
+      "PASS": 38,
+      "NA": 93
+    },
+    "boxhero": {
+      "PASS": 37,
+      "NA": 94
+    },
+    "templates": {
+      "PASS": 46,
+      "NA": 85
+    },
+    "dlq": {
+      "PASS": 32,
+      "NA": 99
+    },
+    "accounts_upload": {
+      "PASS": 50,
+      "NA": 81
+    },
+    "accounts_sourcing": {
+      "PASS": 48,
+      "NA": 83
+    }
+  },
+  "console_errors_per_screen": [
+    {
+      "screen": "home",
+      "console_errors": []
+    },
+    {
+      "screen": "track",
+      "console_errors": []
+    },
+    {
+      "screen": "queue",
+      "console_errors": []
+    },
+    {
+      "screen": "bundles",
+      "console_errors": []
+    },
+    {
+      "screen": "bundles_new",
+      "console_errors": []
+    },
+    {
+      "screen": "bundles_detail",
+      "console_errors": []
+    },
+    {
+      "screen": "alerts",
+      "console_errors": []
+    },
+    {
+      "screen": "boxhero",
+      "console_errors": []
+    },
+    {
+      "screen": "templates",
+      "console_errors": []
+    },
+    {
+      "screen": "dlq",
+      "console_errors": []
+    },
+    {
+      "screen": "accounts_upload",
+      "console_errors": []
+    },
+    {
+      "screen": "accounts_sourcing",
+      "console_errors": []
+    }
+  ],
+  "method": "Playwright headless Chromium — 실 DOM/JS 평가"
+}

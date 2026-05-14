@@ -1,0 +1,45 @@
+{% extends 'base.html' %}
+{% from 'inventory/_macros/status_tabs.html' import status_tabs %}
+{% block title %}이동 — 재고관리{% endblock %}
+{% block content %}
+{# 박스히어로 1:1 이동 거래 list (도메인 결정 B). #}
+<div style="padding:24px 32px;max-width:1500px;margin:0 auto">
+  <div style="display:flex;align-items:center;gap:14px;margin-bottom:8px">
+    <div style="font-size:12.5px;color:#8F91A0">거래</div>
+    <h1 style="font-size:22px;font-weight:700;margin:0;color:#292A2F">이동</h1>
+    <a href="{{ url_for('inventory.move_new') }}" style="margin-left:auto;background:#4F67FF;color:#fff;padding:8px 16px;border-radius:5px;font-size:13px;text-decoration:none;font-weight:600">+ 이동서 작성</a>
+  </div>
+  {{ status_tabs(url_for('inventory.move_list'), status, counts) }}
+  {% with msgs = get_flashed_messages(with_categories=true) %}{% for cat,msg in msgs %}<div style="background:{% if cat=='error' %}#FEF2F2{% else %}#ECFDF5{% endif %};border:1px solid {% if cat=='error' %}#FCA5A5{% else %}#86EFAC{% endif %};padding:10px 14px;border-radius:6px;margin-bottom:12px;font-size:13px;color:{% if cat=='error' %}#991B1B{% else %}#065F46{% endif %}">{{ msg }}</div>{% endfor %}{% endwith %}
+  <div style="background:#fff;border:1px solid #E5E8EB;border-radius:8px;overflow:hidden">
+    <table style="width:100%;border-collapse:collapse;font-size:12.5px">
+      <thead style="background:#F1F1F4"><tr>
+        <th style="padding:11px 8px;width:36px;text-align:center"><input type="checkbox" id="checkAll" onclick="toggleAll(this)"></th>
+        <th style="padding:11px 8px;text-align:left;font-size:11.5px;color:#292A2F;font-weight:600">생성일 ↓</th>
+        <th style="padding:11px 8px;text-align:left;font-size:11.5px;color:#292A2F;font-weight:600">현재 위치</th>
+        <th style="padding:11px 8px;text-align:left;font-size:11.5px;color:#292A2F;font-weight:600">새 위치</th>
+        <th style="padding:11px 8px;text-align:left;font-size:11.5px;color:#292A2F;font-weight:600">제품</th>
+        <th style="padding:11px 8px;text-align:right;font-size:11.5px;color:#292A2F;font-weight:600">총 수량</th>
+        <th style="padding:11px 8px;text-align:left;font-size:11.5px;color:#292A2F;font-weight:600">메모</th>
+        <th style="padding:11px 8px;text-align:left;font-size:11.5px;color:#292A2F;font-weight:600">작성자</th>
+      </tr></thead>
+      <tbody>
+        {% for tx in items %}
+          <tr style="border-bottom:1px solid #F1F1F4;cursor:pointer" onmouseover="this.style.background='#FAFBFC'" onmouseout="this.style.background=''" onclick="if(event.target.tagName!=='INPUT'){window.location.href='{{ url_for('inventory.move_detail', tx_id=tx.id) }}'}">
+            <td style="padding:9px 8px;text-align:center" onclick="event.stopPropagation()"><input type="checkbox" name="tx_id" value="{{ tx.id }}"></td>
+            <td style="padding:9px 8px;color:#292A2F">{{ tx.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
+            <td style="padding:9px 8px;color:#292A2F">{{ loc_map.get(tx.location_id, '—') }}</td>
+            <td style="padding:9px 8px;color:#292A2F">→ {{ loc_map.get(tx.location_to_id, '—') }}</td>
+            <td style="padding:9px 8px"><span style="font-family:ui-monospace,monospace;font-size:11px;color:#292A2F">{{ tx.option_canonical_sku }}</span></td>
+            <td style="padding:9px 8px;text-align:right;font-weight:700;color:#4F67FF">+{{ tx.qty }}</td>
+            <td style="padding:9px 8px;color:#8F91A0">{{ tx.memo|truncate(30) if tx.memo else '—' }}</td>
+            <td style="padding:9px 8px"><span style="display:inline-flex;align-items:center;gap:6px"><span style="width:22px;height:22px;border-radius:50%;background:#FEE2E2;color:#7F1D1D;display:inline-flex;align-items:center;justify-content:center;font-size:10px;font-weight:700">{{ (tx.created_by or '운')[:1] }}</span><span style="font-size:12px;color:#292A2F">{{ tx.created_by or '운영자' }}</span></span></td>
+          </tr>
+        {% else %}<tr><td colspan="8" style="padding:48px;text-align:center;color:#8F91A0">이동 내역 없음</td></tr>{% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <div style="display:flex;align-items:center;gap:8px;margin-top:14px;justify-content:flex-end"><div style="font-size:12px;color:#8F91A0;margin-right:8px">총 {{ total }}건 · {{ page }} / {{ total_pages }}</div>{% if page > 1 %}<a href="?page={{ page-1 }}" style="padding:6px 12px;border:1px solid #CBCCD3;background:#fff;color:#292A2F;font-size:12px;text-decoration:none;border-radius:5px">이전</a>{% else %}<span style="padding:6px 12px;border:1px solid #E5E8EB;background:#F1F1F4;color:#8F91A0;font-size:12px;border-radius:5px">이전</span>{% endif %}{% if page < total_pages %}<a href="?page={{ page+1 }}" style="padding:6px 12px;border:1px solid #CBCCD3;background:#fff;color:#292A2F;font-size:12px;text-decoration:none;border-radius:5px">다음</a>{% else %}<span style="padding:6px 12px;border:1px solid #E5E8EB;background:#F1F1F4;color:#8F91A0;font-size:12px;border-radius:5px">다음</span>{% endif %}</div>
+</div>
+<script>function toggleAll(m){document.querySelectorAll('input[name="tx_id"]').forEach(c=>c.checked=m.checked)}</script>
+{% endblock %}

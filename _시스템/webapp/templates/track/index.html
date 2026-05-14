@@ -1,0 +1,344 @@
+{% extends 'base.html' %}
+{% block title %}가격·재고 추적 — 모음전 자동화{% endblock %}
+{% block content %}
+<header class="page-header">
+  <h1>가격·재고 추적</h1>
+  <p class="subtitle">옵션별 5개 소싱처 가격 흐름과 재고를 비교해 보세요. 차트에 마우스를 올리면 날짜별 가격이 표시됩니다.</p>
+</header>
+
+<section class="card">
+  <form method="get" action="/track" class="track-filter-row">
+    <select class="field-input track-filter" name="model_code" onchange="this.form.submit()" aria-label="모음전 필터">
+      <option value="all" {% if model_code == 'all' %}selected{% endif %}>모음전: 전체</option>
+      {% for m in models %}
+      <option value="{{ m.model_code }}" {% if model_code == m.model_code %}selected{% endif %}>모음전: {{ m.model_code }}</option>
+      {% endfor %}
+    </select>
+    <select class="field-input track-filter" name="color_code" onchange="this.form.submit()" aria-label="색상 필터">
+      <option value="all" {% if color_code == 'all' %}selected{% endif %}>색상: 전체</option>
+      {% for cc, cd in color_options %}
+      <option value="{{ cc }}" {% if color_code == cc %}selected{% endif %}>색상: {{ cd }}</option>
+      {% endfor %}
+    </select>
+    <select class="field-input track-filter" name="days" onchange="this.form.submit()" aria-label="기간 필터">
+      <option value="7" {% if days == 7 %}selected{% endif %}>기간: 최근 7일</option>
+      <option value="30" {% if days == 30 %}selected{% endif %}>기간: 최근 30일</option>
+      <option value="90" {% if days == 90 %}selected{% endif %}>기간: 최근 90일</option>
+    </select>
+  </form>
+</section>
+
+{# 5 소싱처 글로벌 범례 #}
+{% if charts %}
+<div class="chart-legend chart-legend-global">
+  {% for src, label in source_labels.items() %}
+  <span><span class="legend-line" style="background:{{ source_colors.get(src) }}"></span>{{ label }}</span>
+  {% endfor %}
+</div>
+{% endif %}
+
+{% for c in charts %}
+<div class="chart-card" data-sku="{{ c.sku }}" data-y-lo="{{ c.y_lo }}" data-y-hi="{{ c.y_hi }}">
+  <div class="chart-head">
+    <strong>{{ c.sku }}</strong>
+    {% if c.series.lowest %}
+    <span class="badge badge-info">최저가: {{ source_labels.get(c.series.lowest.source, c.series.lowest.source) }} {{ '{:,}'.format(c.series.lowest.price) }}원</span>
+    {% else %}
+    <span class="badge">데이터 수집 중</span>
+    {% endif %}
+  </div>
+  {% if c.series.by_source %}
+  <div class="chart-wrap">
+    <svg class="chart-svg" viewBox="0 0 600 220" preserveAspectRatio="none" role="img" aria-label="{{ c.sku }} 가격 추이">
+      {# 그리드 — 가로 4줄 (Y축) #}
+      <g stroke="var(--n100)" stroke-width="1">
+        <line x1="40" y1="20" x2="580" y2="20"/>
+        <line x1="40" y1="65" x2="580" y2="65"/>
+        <line x1="40" y1="110" x2="580" y2="110"/>
+        <line x1="40" y1="155" x2="580" y2="155"/>
+      </g>
+      {# Y축 라벨 (동적) #}
+      <g class="axis-y" fill="var(--n500)" font-size="10" font-family="var(--font)" text-anchor="end">
+        <text x="35" y="24">{{ '{:,}'.format(c.y_hi) }}</text>
+        <text x="35" y="159">{{ '{:,}'.format(c.y_lo) }}</text>
+      </g>
+      {# X축 라인 + 라벨은 JS에서 동적 생성 #}
+      <line x1="40" y1="180" x2="580" y2="180" stroke="var(--n200)" stroke-width="1"/>
+      <g class="axis-x" fill="var(--n500)" font-size="10" font-family="var(--font)" text-anchor="middle"></g>
+
+      {# 데이터 라인 — 동적 좌표 #}
+      {% set y_range = c.y_hi - c.y_lo %}
+      {% if y_range > 0 %}
+        {% for src, pts in c.series.by_source.items() %}
+          {% if pts|length > 1 %}
+          <polyline class="data-line" data-source="{{ src }}" fill="none"
+                    stroke="{{ source_colors.get(src, '#888') }}"
+                    stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"
+                    points="{% for p in pts %}{{ 40 + loop.index0 * 540 // (pts|length - 1) }},{{ 165 - ((p.price or c.y_lo) - c.y_lo) * 145 // y_range }} {% endfor %}"/>
+          {% elif pts|length == 1 %}
+            {% set p = pts[0] %}
+            <circle cx="310" cy="{{ 165 - ((p.price or c.y_lo) - c.y_lo) * 145 // y_range }}" r="4" fill="{{ source_colors.get(src, '#888') }}"/>
+          {% endif %}
+        {% endfor %}
+      {% endif %}
+
+      {# 호버 가이드 — 수직선 + 점 (JS에서 보이기/숨기기) #}
+      <line class="hover-guide" x1="0" y1="20" x2="0" y2="180" stroke="var(--n400)" stroke-width="1" stroke-dasharray="3,3" visibility="hidden"/>
+      <g class="hover-dots"></g>
+
+      {# 마우스 캐치 영역 #}
+      <rect class="hover-catcher" x="40" y="20" width="540" height="160" fill="transparent" pointer-events="all"/>
+    </svg>
+
+    {# 호버 툴팁 #}
+    <div class="chart-tooltip" hidden>
+      <div class="chart-tooltip-date"></div>
+      <div class="chart-tooltip-rows"></div>
+    </div>
+  </div>
+
+  {# 데이터를 JS 가 읽을 수 있게 임베드 #}
+  <script type="application/json" class="chart-data">{{ {
+    'sku': c.sku,
+    'y_lo': c.y_lo,
+    'y_hi': c.y_hi,
+    'by_source': c.series.by_source,
+    'source_colors': source_colors,
+    'source_labels': source_labels
+  } | tojson }}</script>
+  {% else %}
+  <div class="chart-empty">아직 수집된 가격 이력이 없어요. 다음 사이클에 채워집니다.</div>
+  {% endif %}
+</div>
+{% else %}
+<div class="card chart-empty-card">
+  <p>표시할 옵션이 없어요.</p>
+  <p class="text-muted">모음전을 먼저 등록해 주세요.</p>
+</div>
+{% endfor %}
+{% endblock %}
+
+{% block scripts %}
+<style>
+.track-filter-row { display: flex; flex-wrap: wrap; gap: 10px; margin: 0; }
+.track-filter.field-input { width: auto; min-width: 180px; flex: 0 0 auto; }
+.chart-legend-global { background: var(--surface); border-radius: 10px; padding: 10px 14px; margin-bottom: 10px; box-shadow: var(--shadow-sm); display: flex; gap: 18px; flex-wrap: wrap; font-size: 12.5px; color: var(--n700); font-weight: 600; }
+.chart-legend-global .legend-line { display: inline-block; width: 18px; height: 3px; border-radius: 2px; vertical-align: middle; margin-right: 6px; }
+.chart-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+.chart-empty { font-size: 13px; color: var(--n500); padding: 32px 24px; text-align: center; background: var(--n100); border-radius: 10px; }
+.chart-empty-card { text-align: center; padding: 48px 0; }
+.chart-empty-card p { margin: 0; }
+.chart-empty-card p.text-muted { margin-top: 6px; font-size: 13px; }
+
+/* 인터랙티브 차트 */
+.chart-wrap { position: relative; }
+.chart-svg { display: block; }
+.hover-catcher { cursor: crosshair; }
+
+.chart-tooltip {
+  position: absolute;
+  background: var(--n900);
+  color: white;
+  padding: 10px 14px;
+  border-radius: 10px;
+  font-size: 12.5px;
+  pointer-events: none;
+  box-shadow: var(--shadow-lg);
+  z-index: 10;
+  min-width: 200px;
+  transition: opacity 0.1s;
+}
+.chart-tooltip[hidden] { display: none; }
+.chart-tooltip-date { font-weight: 700; margin-bottom: 6px; padding-bottom: 6px; border-bottom: 1px solid rgba(255,255,255,0.15); font-size: 13px; }
+.chart-tooltip-row { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 2px 0; }
+.chart-tooltip-row .src { display: inline-flex; align-items: center; gap: 6px; opacity: 0.85; }
+.chart-tooltip-row .src::before { content: ''; display: inline-block; width: 10px; height: 2px; border-radius: 1px; background: var(--src-color, #888); }
+.chart-tooltip-row .price { font-weight: 700; }
+.chart-tooltip-row.lowest .price { color: #5BC589; }
+.chart-tooltip-row .stock { font-size: 11px; opacity: 0.6; margin-left: 4px; }
+</style>
+
+<script>
+(() => {
+  const SVG_NS = 'http://www.w3.org/2000/svg';
+  const X_LEFT = 40, X_RIGHT = 580, Y_TOP = 20, Y_BOTTOM = 165, X_LABEL_Y = 195;
+
+  function fmtDate(iso) {
+    if (!iso) return '';
+    const d = new Date(iso);
+    if (isNaN(d.getTime())) return iso.slice(0, 10);
+    const m = (d.getMonth() + 1).toString().padStart(2, '0');
+    const day = d.getDate().toString().padStart(2, '0');
+    return `${m}/${day}`;
+  }
+  function fmtDateLong(iso) {
+    if (!iso) return '';
+    const d = new Date(iso);
+    if (isNaN(d.getTime())) return iso.slice(0, 16);
+    const m = (d.getMonth() + 1).toString().padStart(2, '0');
+    const day = d.getDate().toString().padStart(2, '0');
+    const hh = d.getHours().toString().padStart(2, '0');
+    const mm = d.getMinutes().toString().padStart(2, '0');
+    return `${d.getFullYear()}.${m}.${day} ${hh}:${mm}`;
+  }
+  function fmtPrice(n) {
+    if (n == null) return '—';
+    return n.toLocaleString('ko-KR') + '원';
+  }
+
+  // 모든 좌표가 같은 X 그리드를 공유하도록 가장 긴 시리즈 길이로 정렬
+  function getUnifiedDates(bySource) {
+    // 모든 시리즈를 모아 unique date 정렬 (가장 정확한 X축)
+    const allDates = new Set();
+    Object.values(bySource).forEach(pts => pts.forEach(p => p.at && allDates.add(p.at)));
+    return Array.from(allDates).sort();
+  }
+
+  function initChart(card) {
+    const dataEl = card.querySelector('script.chart-data');
+    if (!dataEl) return;
+    let data;
+    try { data = JSON.parse(dataEl.textContent); } catch { return; }
+    if (!data.by_source) return;
+
+    const unified = getUnifiedDates(data.by_source);
+    if (!unified.length) return;
+
+    const svg = card.querySelector('svg.chart-svg');
+    const xAxisGroup = svg.querySelector('.axis-x');
+    const guide = svg.querySelector('.hover-guide');
+    const dotsGroup = svg.querySelector('.hover-dots');
+    const catcher = svg.querySelector('.hover-catcher');
+    const tooltip = card.querySelector('.chart-tooltip');
+    const tooltipDate = tooltip.querySelector('.chart-tooltip-date');
+    const tooltipRows = tooltip.querySelector('.chart-tooltip-rows');
+
+    // X축 라벨 — 시작/중간/끝 3개
+    const indices = unified.length === 1 ? [0]
+      : unified.length === 2 ? [0, unified.length - 1]
+      : [0, Math.floor(unified.length / 2), unified.length - 1];
+    indices.forEach(i => {
+      const x = unified.length === 1 ? (X_LEFT + X_RIGHT) / 2
+        : X_LEFT + (X_RIGHT - X_LEFT) * i / (unified.length - 1);
+      const t = document.createElementNS(SVG_NS, 'text');
+      t.setAttribute('x', x); t.setAttribute('y', X_LABEL_Y);
+      t.textContent = fmtDate(unified[i]);
+      xAxisGroup.appendChild(t);
+    });
+
+    // X 좌표 → unified index 매핑 함수
+    function xToIndex(x) {
+      if (unified.length === 1) return 0;
+      const ratio = (x - X_LEFT) / (X_RIGHT - X_LEFT);
+      const idx = Math.round(ratio * (unified.length - 1));
+      return Math.max(0, Math.min(unified.length - 1, idx));
+    }
+
+    // index → X 좌표
+    function indexToX(i) {
+      if (unified.length === 1) return (X_LEFT + X_RIGHT) / 2;
+      return X_LEFT + (X_RIGHT - X_LEFT) * i / (unified.length - 1);
+    }
+
+    // price → Y 좌표
+    function priceToY(price) {
+      const range = data.y_hi - data.y_lo;
+      if (range <= 0 || price == null) return Y_BOTTOM;
+      return Y_BOTTOM - (price - data.y_lo) * (Y_BOTTOM - Y_TOP) / range;
+    }
+
+    // 호버 핸들러
+    function onMove(evt) {
+      const rect = svg.getBoundingClientRect();
+      const vbWidth = svg.viewBox.baseVal.width || 600;
+      const vbHeight = svg.viewBox.baseVal.height || 220;
+      const sx = (evt.clientX - rect.left) * vbWidth / rect.width;
+      const sy = (evt.clientY - rect.top) * vbHeight / rect.height;
+      if (sx < X_LEFT || sx > X_RIGHT) { onLeave(); return; }
+
+      const idx = xToIndex(sx);
+      const date = unified[idx];
+      const xPos = indexToX(idx);
+
+      // 가이드라인 이동
+      guide.setAttribute('x1', xPos);
+      guide.setAttribute('x2', xPos);
+      guide.setAttribute('visibility', 'visible');
+
+      // 각 소싱처의 그 시점 값 찾기 (해당 날짜 또는 가장 가까운 직전 값)
+      const rows = [];
+      let lowestPrice = Infinity;
+      let lowestSrc = null;
+      Object.entries(data.by_source).forEach(([src, pts]) => {
+        // 그 날짜와 같은 또는 가장 가까운 직전 시점 찾기
+        let found = null;
+        for (let i = pts.length - 1; i >= 0; i--) {
+          if (pts[i].at <= date) { found = pts[i]; break; }
+        }
+        if (!found && pts.length > 0) found = pts[0];
+        if (found && found.price != null) {
+          rows.push({ src, point: found });
+          if (found.price < lowestPrice) {
+            lowestPrice = found.price;
+            lowestSrc = src;
+          }
+        }
+      });
+
+      // 점 표시 + 툴팁 행 채우기
+      dotsGroup.innerHTML = '';
+      rows.forEach(({ src, point }) => {
+        const c = document.createElementNS(SVG_NS, 'circle');
+        c.setAttribute('cx', xPos);
+        c.setAttribute('cy', priceToY(point.price));
+        c.setAttribute('r', src === lowestSrc ? 5 : 3.5);
+        c.setAttribute('fill', data.source_colors[src] || '#888');
+        c.setAttribute('stroke', 'white');
+        c.setAttribute('stroke-width', src === lowestSrc ? 2 : 1.5);
+        dotsGroup.appendChild(c);
+      });
+
+      // 툴팁 내용
+      tooltipDate.textContent = fmtDateLong(date);
+      tooltipRows.innerHTML = '';
+      // 가격 낮은 순 정렬
+      rows.sort((a, b) => a.point.price - b.point.price);
+      rows.forEach(({ src, point }) => {
+        const row = document.createElement('div');
+        row.className = 'chart-tooltip-row' + (src === lowestSrc ? ' lowest' : '');
+        const color = data.source_colors[src] || '#888';
+        const label = data.source_labels[src] || src;
+        const stockStr = point.stock != null ? ` <span class="stock">재고 ${point.stock}</span>` : '';
+        row.innerHTML = `
+          <span class="src" style="--src-color:${color}">${label}</span>
+          <span class="price">${fmtPrice(point.price)}${stockStr}</span>
+        `;
+        tooltipRows.appendChild(row);
+      });
+
+      // 툴팁 위치 — 마우스 우측, 화면 밖이면 좌측
+      const cardRect = card.getBoundingClientRect();
+      const tipW = tooltip.offsetWidth || 220;
+      let leftPx = evt.clientX - cardRect.left + 14;
+      if (leftPx + tipW > cardRect.width - 8) {
+        leftPx = evt.clientX - cardRect.left - tipW - 14;
+      }
+      tooltip.style.left = leftPx + 'px';
+      tooltip.style.top = (evt.clientY - cardRect.top - 4) + 'px';
+      tooltip.hidden = false;
+    }
+
+    function onLeave() {
+      guide.setAttribute('visibility', 'hidden');
+      dotsGroup.innerHTML = '';
+      tooltip.hidden = true;
+    }
+
+    catcher.addEventListener('mousemove', onMove);
+    catcher.addEventListener('mouseleave', onLeave);
+  }
+
+  document.querySelectorAll('.chart-card').forEach(initChart);
+})();
+</script>
+{% endblock %}

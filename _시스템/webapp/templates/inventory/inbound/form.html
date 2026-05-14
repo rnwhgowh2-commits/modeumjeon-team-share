@@ -1,0 +1,196 @@
+{% extends 'base.html' %}
+{% block title %}입고서 작성{% endblock %}
+{% block content %}
+<div style="padding:24px 32px;max-width:1100px;margin:0 auto">
+
+  <div style="display:flex;align-items:center;gap:14px;margin-bottom:14px">
+    <a href="{{ url_for('inventory.inbound_list') }}" style="font-size:12.5px;color:#3182F6;text-decoration:none">← 입고 목록</a>
+    <h1 style="font-size:22px;font-weight:700;margin:0">📥 입고서 작성</h1>
+    <div style="margin-left:auto;display:flex;gap:18px;font-size:12.5px;color:#4E5968">
+      <span><strong id="kpiItems">0</strong>개 품목</span>
+      <span>총 수량 <strong id="kpiTotalQty" style="color:#0E8056">0</strong></span>
+    </div>
+  </div>
+
+  {% with msgs = get_flashed_messages(with_categories=true) %}{% for cat,msg in msgs %}<div style="background:{% if cat=='error' %}#FEF2F2{% else %}#ECFDF5{% endif %};border:1px solid {% if cat=='error' %}#FCA5A5{% else %}#86EFAC{% endif %};padding:10px 14px;border-radius:6px;margin-bottom:12px;font-size:13px">{{ msg }}</div>{% endfor %}{% endwith %}
+
+  <form method="post" action="{{ url_for('inventory.inbound_create') }}" id="txForm" style="background:#fff;border:1px solid #E5E8EB;border-radius:8px;padding:20px;display:grid;gap:14px">
+
+    <div style="display:grid;grid-template-columns:1fr 2fr 1fr;gap:12px">
+      <div>
+        <label style="display:block;font-size:12px;color:#4E5968;margin-bottom:4px;font-weight:600">위치 *</label>
+        <select name="location_id" required style="width:100%;padding:9px 12px;border:1px solid #D1D6DB;border-radius:5px;font-size:13px">
+          {% for loc in locations %}<option value="{{ loc.id }}">{{ loc.name }}</option>{% endfor %}
+        </select>
+      </div>
+      <div>
+        <label style="display:block;font-size:12px;color:#4E5968;margin-bottom:4px;font-weight:600">거래처</label>
+        <input name="partner_label" placeholder="예: 무신사 / 르무통 자체" style="width:100%;padding:9px 12px;border:1px solid #D1D6DB;border-radius:5px;font-size:13px">
+      </div>
+      <div>
+        <label style="display:block;font-size:12px;color:#4E5968;margin-bottom:4px;font-weight:600">담당자</label>
+        <input name="created_by" placeholder="운영자" style="width:100%;padding:9px 12px;border:1px solid #D1D6DB;border-radius:5px;font-size:13px">
+      </div>
+    </div>
+
+    <!-- 제품 라인 (박스히어로 1:1 — "+ 제품 추가" 버튼으로 모달 열기) -->
+    <div>
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+        <label style="font-size:12px;color:#4E5968;font-weight:600">제품 *</label>
+        <span style="font-size:11px;color:#9CA3AF">박스히어로 식 — [+ 제품 추가] 클릭으로 검색·추가</span>
+        <button type="button" onclick="openProductModal()" style="margin-left:auto;background:#3182F6;color:#fff;border:none;padding:7px 14px;border-radius:5px;font-size:12.5px;font-weight:600;cursor:pointer">+ 제품 추가</button>
+      </div>
+      <table style="width:100%;border-collapse:collapse;font-size:12.5px;border:1px solid #E5E8EB;border-radius:5px;overflow:hidden">
+        <thead style="background:#F9FAFB">
+          <tr>
+            <th style="padding:8px;text-align:left;font-size:11px;color:#6B7684">제품</th>
+            <th style="padding:8px;text-align:right;font-size:11px;color:#6B7684;width:100px">수량</th>
+            <th style="padding:8px;text-align:right;font-size:11px;color:#6B7684;width:130px">단가 매입</th>
+            <th style="padding:8px;text-align:center;font-size:11px;color:#6B7684;width:40px"></th>
+          </tr>
+        </thead>
+        <tbody id="lines">
+          <tr id="emptyRow"><td colspan="4" style="padding:32px;text-align:center;color:#9CA3AF;font-size:12px">제품 없음 — 우측 [+ 제품 추가] 버튼으로 검색·추가하세요</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div>
+      <label style="display:block;font-size:12px;color:#4E5968;margin-bottom:4px;font-weight:600">메모</label>
+      <textarea name="memo" rows="2" placeholder="#태그 입력 시 목록에서 검색 가능 (박스히어로 1:1)" style="width:100%;padding:9px 12px;border:1px solid #D1D6DB;border-radius:5px;font-size:13px"></textarea>
+    </div>
+
+    <div style="display:flex;gap:8px;align-items:center">
+      <a href="{{ url_for('inventory.inbound_list') }}" style="padding:9px 18px;border:1px solid #D1D6DB;border-radius:5px;text-decoration:none;color:#4E5968;font-size:13px">취소</a>
+      <button type="button" onclick="saveDraft()" style="padding:9px 16px;border:1px solid #D1D6DB;background:#F9FAFB;color:#4E5968;border-radius:5px;font-size:13px;font-weight:600;cursor:pointer">💾 임시 저장</button>
+      <button type="submit" id="submitBtn" disabled style="background:#3182F6;color:#fff;padding:9px 22px;border:none;border-radius:5px;font-size:13px;font-weight:600;cursor:pointer;opacity:0.5">📥 입고 완료</button>
+    </div>
+  </form>
+</div>
+
+<!-- 박스히어로 1:1 — 제품 추가 모달 -->
+<div id="productModal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);z-index:100;align-items:center;justify-content:center">
+  <div style="background:#fff;border-radius:10px;width:760px;max-width:90vw;max-height:80vh;display:flex;flex-direction:column;box-shadow:0 10px 40px rgba(0,0,0,0.2)">
+    <div style="padding:18px 22px;border-bottom:1px solid #E5E8EB;display:flex;align-items:center;gap:12px">
+      <h3 style="font-size:16px;font-weight:700;margin:0">제품 추가</h3>
+      <span id="modalCount" style="font-size:11.5px;color:#6B7684">전체 0 / 선택 0</span>
+      <button type="button" onclick="closeProductModal()" style="margin-left:auto;background:none;border:none;color:#9CA3AF;font-size:22px;cursor:pointer">×</button>
+    </div>
+    <div style="padding:14px 22px;border-bottom:1px solid #E5E8EB">
+      <input id="productSearch" type="text" placeholder="이름·SKU·바코드 검색 (실시간)" style="width:100%;padding:9px 12px;border:1px solid #D1D6DB;border-radius:5px;font-size:13px" oninput="filterProducts()">
+    </div>
+    <div style="overflow-y:auto;flex:1;padding:0">
+      <table style="width:100%;border-collapse:collapse;font-size:12.5px">
+        <thead style="background:#F9FAFB;position:sticky;top:0;z-index:1">
+          <tr>
+            <th style="padding:9px;width:36px;text-align:center"><input type="checkbox" id="modalCheckAll" onclick="modalToggleAll(this)"></th>
+            <th style="padding:9px;text-align:left;font-size:11px;color:#6B7684">SKU</th>
+            <th style="padding:9px;text-align:left;font-size:11px;color:#6B7684">색상/사이즈</th>
+            <th style="padding:9px;text-align:left;font-size:11px;color:#6B7684">박스히어로</th>
+            <th style="padding:9px;text-align:right;font-size:11px;color:#6B7684">현재 재고</th>
+            <th style="padding:9px;text-align:right;font-size:11px;color:#6B7684">평균매입가</th>
+          </tr>
+        </thead>
+        <tbody id="modalProductRows"></tbody>
+      </table>
+    </div>
+    <div style="padding:14px 22px;border-top:1px solid #E5E8EB;display:flex;align-items:center;gap:8px">
+      <span id="modalSelected" style="font-size:12px;color:#6B7684">선택 0개</span>
+      <button type="button" onclick="closeProductModal()" style="margin-left:auto;padding:8px 16px;border:1px solid #D1D6DB;background:#fff;color:#4E5968;border-radius:5px;font-size:12.5px;cursor:pointer">취소</button>
+      <button type="button" onclick="addSelected()" style="padding:8px 18px;background:#3182F6;color:#fff;border:none;border-radius:5px;font-size:12.5px;font-weight:600;cursor:pointer">선택 항목 추가</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const OPTIONS = {{ opt_data | tojson }};
+let lines = [];
+
+function openProductModal() {
+  renderModalRows(OPTIONS);
+  document.getElementById('productSearch').value = '';
+  document.getElementById('productModal').style.display = 'flex';
+  setTimeout(() => document.getElementById('productSearch').focus(), 100);
+}
+function closeProductModal() {
+  document.getElementById('productModal').style.display = 'none';
+}
+function filterProducts() {
+  const q = document.getElementById('productSearch').value.trim().toLowerCase();
+  const filtered = OPTIONS.filter(o => !q ||
+    o.sku.toLowerCase().includes(q) || (o.bh||'').toLowerCase().includes(q) ||
+    (o.model||'').toLowerCase().includes(q) || (o.color||'').toLowerCase().includes(q));
+  renderModalRows(filtered);
+}
+function renderModalRows(list) {
+  const tbody = document.getElementById('modalProductRows');
+  tbody.innerHTML = list.slice(0, 200).map(o => `
+    <tr style="border-bottom:1px solid #F2F4F6">
+      <td style="padding:7px 9px;text-align:center"><input type="checkbox" class="modal-pick" value="${o.sku}" data-avg="${o.avg}" onchange="updateSelectedCount()"></td>
+      <td style="padding:7px 9px;font-family:ui-monospace,monospace;font-size:10.5px">${o.sku}</td>
+      <td style="padding:7px 9px">${o.color} / ${o.size}</td>
+      <td style="padding:7px 9px;font-family:ui-monospace,monospace;font-size:10.5px;color:#6B7684">${o.bh || '—'}</td>
+      <td style="padding:7px 9px;text-align:right;font-family:ui-monospace,monospace;color:${o.stock>0?'#7C3AED':'#9CA3AF'}">${o.stock}</td>
+      <td style="padding:7px 9px;text-align:right;font-family:ui-monospace,monospace">${o.avg ? o.avg.toLocaleString() : '—'}</td>
+    </tr>`).join('');
+  document.getElementById('modalCount').textContent = `전체 ${list.length} / 선택 0`;
+  document.getElementById('modalCheckAll').checked = false;
+  updateSelectedCount();
+}
+function modalToggleAll(master) {
+  document.querySelectorAll('.modal-pick').forEach(c => c.checked = master.checked);
+  updateSelectedCount();
+}
+function updateSelectedCount() {
+  const n = document.querySelectorAll('.modal-pick:checked').length;
+  document.getElementById('modalSelected').textContent = `선택 ${n}개`;
+}
+function addSelected() {
+  const picked = [...document.querySelectorAll('.modal-pick:checked')];
+  for (const cb of picked) {
+    if (lines.some(l => l.sku === cb.value)) continue; // 중복 방지
+    lines.push({sku: cb.value, qty: 1, price: parseInt(cb.dataset.avg)||0});
+  }
+  renderLines();
+  closeProductModal();
+}
+function renderLines() {
+  const tbody = document.getElementById('lines');
+  if (!lines.length) {
+    tbody.innerHTML = '<tr id="emptyRow"><td colspan="4" style="padding:32px;text-align:center;color:#9CA3AF;font-size:12px">제품 없음 — 우측 [+ 제품 추가] 버튼으로 검색·추가하세요</td></tr>';
+  } else {
+    tbody.innerHTML = lines.map((l, i) => `
+      <tr style="border-top:1px solid #F2F4F6">
+        <td style="padding:6px 8px;font-family:ui-monospace,monospace;font-size:11px">
+          <input type="hidden" name="option_canonical_sku" value="${l.sku}">
+          ${l.sku}
+        </td>
+        <td style="padding:5px 8px"><input type="number" name="qty" min="1" value="${l.qty}" required onchange="updateKpi()" style="width:100%;padding:6px;border:1px solid #D1D6DB;border-radius:4px;font-size:12px;text-align:right"></td>
+        <td style="padding:5px 8px"><input type="number" name="unit_purchase_price" min="0" value="${l.price}" style="width:100%;padding:6px;border:1px solid #D1D6DB;border-radius:4px;font-size:12px;text-align:right"></td>
+        <td style="padding:5px 8px;text-align:center"><button type="button" onclick="removeLine(${i})" style="background:none;border:none;color:#EF4444;cursor:pointer;font-size:14px">×</button></td>
+      </tr>`).join('');
+  }
+  updateKpi();
+}
+function removeLine(i) {
+  lines.splice(i, 1);
+  renderLines();
+}
+function updateKpi() {
+  const items = lines.length;
+  const totalQty = [...document.querySelectorAll('input[name="qty"]')].reduce((a,el)=>a+(parseInt(el.value)||0), 0);
+  document.getElementById('kpiItems').textContent = items;
+  document.getElementById('kpiTotalQty').textContent = totalQty;
+  const submit = document.getElementById('submitBtn');
+  if (items > 0) { submit.disabled = false; submit.style.opacity = '1'; }
+  else { submit.disabled = true; submit.style.opacity = '0.5'; }
+}
+async function saveDraft() {
+  const fd = new FormData(document.getElementById('txForm'));
+  fd.append('tx_type', 'in');
+  await fetch('{{ url_for("inventory.pending_save") }}', {method:'POST', body:fd, redirect:'manual'});
+  window.location.href = '{{ url_for("inventory.pending_list") }}';
+}
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeProductModal(); });
+</script>
+{% endblock %}

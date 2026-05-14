@@ -1,0 +1,108 @@
+{% extends 'base.html' %}
+{% from 'inventory/_macros/attachments.html' import attachment_dropzone %}
+{% block title %}반품서{% endblock %}
+{% block content %}
+{# 박스히어로 1:1 반품서 (purchase/sale 동일 패턴 + 원본 SO 선택). #}
+<div style="padding:24px 32px;max-width:1100px;margin:0 auto">
+  <div style="display:flex;align-items:center;gap:14px;margin-bottom:14px">
+    <a href="{{ url_for('inventory.return_list') }}" style="font-size:12.5px;color:#4F67FF;text-decoration:none">구매 및 판매 / 반품</a>
+    <h1 style="font-size:22px;font-weight:700;margin:0;color:#292A2F">반품서</h1>
+  </div>
+
+  <form method="post" action="{{ url_for('inventory.return_create') }}" id="txForm" style="background:#fff;border:1px solid #E5E8EB;border-radius:8px;padding:24px;display:grid;gap:18px">
+
+    <div>
+      <label style="display:block;font-size:13px;color:#292A2F;margin-bottom:6px;font-weight:600">원본 판매</label>
+      <select name="sales_order_id" style="width:100%;max-width:480px;padding:10px 12px;border:1px solid #CBCCD3;border-radius:6px;font-size:13.5px;background:#fff">
+        <option value="">— 원본 SO 없이 반품 —</option>
+        {% for so in sales %}<option value="{{ so.id }}">{{ so.so_number or 'SO #' ~ so.id }} — {{ so.partner_label or '無' }} — {{ so.created_at.strftime('%Y-%m-%d') if so.created_at else '' }}</option>{% endfor %}
+      </select>
+    </div>
+
+    <div>
+      <div style="display:flex;align-items:center;margin-bottom:8px">
+        <label style="font-size:13px;color:#292A2F;font-weight:600">반품 품목</label>
+        <button type="button" onclick="openProductModal()" style="margin-left:auto;background:#fff;border:1px solid #CBCCD3;color:#292A2F;padding:6px 12px;border-radius:5px;font-size:12.5px;cursor:pointer">+ 제품 추가</button>
+      </div>
+      <table style="width:100%;border-collapse:collapse;font-size:12.5px;border:1px solid #E5E8EB;border-radius:6px;overflow:hidden">
+        <thead style="background:#F1F1F4">
+          <tr>
+            <th style="padding:10px 8px;text-align:left;font-size:11.5px;color:#292A2F;font-weight:600">제품</th>
+            <th style="padding:10px 8px;text-align:right;font-size:11.5px;color:#292A2F;font-weight:600;width:120px">반품 수량</th>
+            <th style="padding:10px 8px;text-align:center;font-size:11px;color:#8F91A0;width:40px"></th>
+          </tr>
+        </thead>
+        <tbody id="lines"></tbody>
+      </table>
+    </div>
+
+    <div style="display:flex;align-items:center;padding:10px 4px;border-top:1px solid #F1F1F4;border-bottom:1px solid #F1F1F4">
+      <span style="font-size:12.5px;color:#292A2F"><strong id="kpiItems">0</strong>개 품목 / <strong id="kpiTotalQty">0</strong>개</span>
+      <div style="margin-left:auto;display:flex;align-items:center;gap:8px;font-size:13px">
+        <span style="color:#292A2F">환불 금액</span>
+        <input type="number" name="refund_amount" id="refundInput" min="0" value="0" oninput="syncRefund()" style="width:160px;padding:7px 10px;border:1px solid #CBCCD3;border-radius:5px;font-size:13.5px;text-align:right">
+        <span style="color:#8F91A0">원</span>
+      </div>
+    </div>
+
+    <div>
+      <label style="display:block;font-size:13px;color:#292A2F;margin-bottom:6px;font-weight:600">반품 번호</label>
+      <input name="ro_number" placeholder="RO-000000" style="width:430px;max-width:100%;padding:9px 12px;border:1px solid #CBCCD3;border-radius:6px;font-size:13.5px;font-family:ui-monospace,monospace">
+      <div style="font-size:11.5px;color:#8F91A0;margin-top:4px">비워두면 자동으로 생성됩니다.</div>
+    </div>
+
+    <div>
+      <label style="display:block;font-size:13px;color:#292A2F;margin-bottom:6px;font-weight:600">반품일</label>
+      <input type="datetime-local" name="return_date" value="{{ now_local }}" placeholder="현재" style="width:430px;max-width:100%;padding:9px 12px;border:1px solid #CBCCD3;border-radius:6px;font-size:13.5px">
+    </div>
+
+    <div>
+      <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px">
+        <label style="font-size:13px;color:#292A2F;font-weight:600">커스텀 필드</label>
+        <span title="반품서에 사용자 정의 필드를 추가합니다" style="display:inline-flex;align-items:center;justify-content:center;width:14px;height:14px;border-radius:50%;background:#F1F1F4;color:#8F91A0;font-size:9.5px;font-weight:700;cursor:help">i</span>
+      </div>
+      <div id="customFields"></div>
+      <button type="button" onclick="addCustomField()" style="margin-top:6px;margin-left:32px;background:none;border:none;color:#4F67FF;padding:0;font-size:12.5px;font-weight:600;cursor:pointer">+ 커스텀 필드 추가</button>
+    </div>
+
+    {{ attachment_dropzone() }}
+
+    <div>
+      <label style="display:block;font-size:13px;color:#292A2F;margin-bottom:6px;font-weight:600">메모</label>
+      <textarea name="memo" rows="3" placeholder="메모 입력&#10;TIP) #태그 입력 시 목록에서 '태그'로 검색할 수 있습니다." style="width:100%;padding:10px 12px;border:1px solid #CBCCD3;border-radius:6px;font-size:13.5px;resize:vertical;font-family:inherit"></textarea>
+    </div>
+
+    <label style="display:flex;align-items:center;gap:8px;font-size:13px;color:#292A2F;cursor:pointer">
+      <input type="checkbox" name="immediate_inbound" style="accent-color:#4F67FF"> 반품 내역을 저장하고 즉시 입고 환원 처리합니다.
+    </label>
+
+    <div style="display:flex;gap:8px;align-items:center;padding-top:8px;border-top:1px solid #F1F1F4">
+      <button type="submit" id="submitBtn" disabled style="background:#4F67FF;color:#fff;padding:9px 22px;border:none;border-radius:5px;font-size:13.5px;font-weight:600;cursor:pointer;opacity:0.5">저장</button>
+      <button type="submit" name="save_as_draft" value="1" style="background:#fff;border:1px solid #CBCCD3;color:#292A2F;padding:9px 22px;border-radius:5px;font-size:13.5px;font-weight:600;cursor:pointer">임시 저장</button>
+      <a href="{{ url_for('inventory.return_list') }}" style="margin-left:6px;padding:9px 8px;text-decoration:none;color:#8F91A0;font-size:13px">↶ 돌아가기</a>
+    </div>
+  </form>
+</div>
+
+<div id="productModal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);z-index:100;align-items:center;justify-content:center"><div style="background:#fff;border-radius:10px;width:760px;max-width:90vw;max-height:80vh;display:flex;flex-direction:column;box-shadow:0 10px 40px rgba(0,0,0,0.2)"><div style="padding:18px 22px;border-bottom:1px solid #E5E8EB;display:flex;align-items:center;gap:12px"><h3 style="font-size:16px;font-weight:700;margin:0">제품 선택</h3><button type="button" onclick="closeProductModal()" style="margin-left:auto;background:none;border:none;color:#8F91A0;font-size:22px;cursor:pointer">×</button></div><div style="padding:14px 22px;border-bottom:1px solid #E5E8EB"><input id="productSearch" type="text" placeholder="이름, 바코드, 속성 검색" style="width:100%;padding:9px 12px;border:1px solid #CBCCD3;border-radius:5px;font-size:13px" oninput="filterProducts()"></div><div style="overflow-y:auto;flex:1"><table style="width:100%;border-collapse:collapse;font-size:12.5px"><thead style="background:#F1F1F4;position:sticky;top:0"><tr><th style="padding:9px;width:36px;text-align:center"><input type="checkbox" id="modalCheckAll" onclick="modalToggleAll(this)"></th><th style="padding:9px;text-align:left;font-size:11px;color:#292A2F">SKU</th><th style="padding:9px;text-align:left;font-size:11px;color:#292A2F">색상/사이즈</th></tr></thead><tbody id="modalProductRows"></tbody></table></div><div style="padding:14px 22px;border-top:1px solid #E5E8EB;display:flex;align-items:center;gap:8px"><span id="modalSelected" style="font-size:12px;color:#8F91A0">선택 0개</span><button type="button" onclick="closeProductModal()" style="margin-left:auto;padding:8px 16px;border:1px solid #CBCCD3;background:#fff;color:#292A2F;border-radius:5px;font-size:12.5px;cursor:pointer">취소</button><button type="button" onclick="addSelected()" style="padding:8px 18px;background:#4F67FF;color:#fff;border:none;border-radius:5px;font-size:12.5px;font-weight:600;cursor:pointer">선택 추가</button></div></div></div>
+
+<script>
+const OPTIONS = {{ opt_data | tojson }};
+let lines = [];
+function openProductModal(){renderModalRows(OPTIONS);document.getElementById('productSearch').value='';document.getElementById('productModal').style.display='flex'}
+function closeProductModal(){document.getElementById('productModal').style.display='none'}
+function filterProducts(){const q=document.getElementById('productSearch').value.trim().toLowerCase();renderModalRows(OPTIONS.filter(o=>!q||o.sku.toLowerCase().includes(q)||(o.color||'').toLowerCase().includes(q)))}
+function renderModalRows(list){document.getElementById('modalProductRows').innerHTML=list.slice(0,200).map(o=>`<tr style="border-bottom:1px solid #F1F1F4"><td style="padding:7px 9px;text-align:center"><input type="checkbox" class="modal-pick" value="${o.sku}" onchange="updateSelectedCount()"></td><td style="padding:7px 9px;font-family:ui-monospace,monospace;font-size:10.5px">${o.sku}</td><td style="padding:7px 9px">${o.color} / ${o.size}</td></tr>`).join('');document.getElementById('modalCheckAll').checked=false;updateSelectedCount()}
+function modalToggleAll(m){document.querySelectorAll('.modal-pick').forEach(c=>c.checked=m.checked);updateSelectedCount()}
+function updateSelectedCount(){document.getElementById('modalSelected').textContent='선택 '+document.querySelectorAll('.modal-pick:checked').length+'개'}
+function addSelected(){[...document.querySelectorAll('.modal-pick:checked')].forEach(cb=>{if(lines.some(l=>l.sku===cb.value))return;lines.push({sku:cb.value,qty:1})});renderLines();closeProductModal()}
+function renderLines(){const tb=document.getElementById('lines');if(!lines.length){tb.innerHTML='<tr><td colspan="3" style="padding:36px;text-align:center;color:#8F91A0;font-size:12px">반품할 제품을 추가해 주세요</td></tr>';updateKpi();return}tb.innerHTML=lines.map((l,i)=>`<tr style="border-top:1px solid #F1F1F4"><td style="padding:7px 8px;font-family:ui-monospace,monospace;font-size:11px;color:#292A2F"><input type="hidden" name="sku" value="${l.sku}">${l.sku}</td><td style="padding:5px 6px"><input type="number" name="qty" min="1" value="${l.qty}" required onchange="onQtyChange(${i},this.value)" style="width:100%;padding:6px;border:1px solid #CBCCD3;border-radius:4px;font-size:12px;text-align:right"></td><td style="padding:5px 6px;text-align:center"><button type="button" onclick="removeLine(${i})" style="background:none;border:none;color:#8F91A0;cursor:pointer;font-size:14px">×</button></td></tr>`).join('');updateKpi()}
+function onQtyChange(i,val){lines[i].qty=parseInt(val)||0;updateKpi()}
+function removeLine(i){lines.splice(i,1);renderLines()}
+function syncRefund(){/* hidden input 자체 sync */}
+function updateKpi(){document.getElementById('kpiItems').textContent=lines.length;document.getElementById('kpiTotalQty').textContent=lines.reduce((a,l)=>a+(l.qty||0),0);const sb=document.getElementById('submitBtn');sb.disabled=!lines.length;sb.style.opacity=lines.length?'1':'0.5'}
+function addCustomField(){const wrap=document.getElementById('customFields');const div=document.createElement('div');div.style='display:grid;grid-template-columns:auto 1fr 1fr auto;gap:6px;margin-bottom:6px;align-items:center';div.innerHTML='<span style="width:24px;color:#8F91A0">⚏</span><input name="cf_key" placeholder="필드명" style="padding:8px 10px;border:1px solid #CBCCD3;border-radius:5px;font-size:13px"><input name="cf_value" placeholder="필드 값" style="padding:8px 10px;border:1px solid #CBCCD3;border-radius:5px;font-size:13px"><button type="button" onclick="this.parentElement.remove()" style="background:none;border:none;color:#8F91A0;font-size:16px;cursor:pointer">×</button>';wrap.appendChild(div)}
+document.addEventListener('keydown',e=>{if(e.key==='Escape')closeProductModal()});
+renderLines();
+</script>
+{% endblock %}

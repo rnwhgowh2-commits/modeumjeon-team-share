@@ -1,0 +1,94 @@
+# ============================================================
+# 모음전 프로젝트 — .gitignore
+# Git 에 올리지 않을 것 (시크릿·캐시·DB·로그)
+# ============================================================
+
+# ─── 🚨 시크릿 (절대 commit 금지) ───
+.env
+.env.*
+*.env
+**/sourcing_credentials.json
+**/team_settings.json
+**/musinsa_*.json
+**/ssf_*.json
+**/lotteon_*.json
+**/coupang_*.json
+**/smartstore_*.json
+
+# 소싱처 로그인 쿠키 (per-PC, 민감)
+_시스템/data/auth/
+
+# ─── Python ───
+**/__pycache__/
+**/*.pyc
+**/*.pyo
+**/.pytest_cache/
+**/.venv/
+**/venv/
+
+# ─── DB 파일 (Supabase 사용, 로컬 SQLite 미러 불필요) ───
+**/*.db
+**/*.db.bak
+**/*.db.empty_*
+**/*.db-journal
+**/*.db-shm
+**/*.db-wal
+
+# ─── 로그 (재생성됨) ───
+**/*.log
+**/logs/
+sync.log
+_시스템/data/_inspect_*
+_시스템/data/_resolve_*
+
+# ─── Playwright 브라우저 프로필 (2.7GB, 재생성 가능, per-PC) ───
+_시스템/data/profiles/
+_시스템/data/platform_cache/
+_시스템/data/bootstrap/
+_시스템/data/attachments/
+
+# ─── 테스트·데모 산출물 ───
+_시스템/data/demo_*.xlsx
+_시스템/data/*_export_test.xlsx
+_시스템/data/TEST_*.xlsx
+
+# ─── 일회성 스크립트 / 디버그 산출물 ───
+_시스템/data/_v2_gen*.py
+_시스템/_broken_links*.json
+_시스템/_routes_dump.json
+_시스템/_browser_open.py
+
+# ─── 운영 상태 JSON (PC 별로 다름, 컷오버 후 Supabase 로 이전) ───
+# 단, 일부는 참고용으로 commit 해도 무방. 보수적으로 일단 제외.
+_시스템/data/*_live_stock.json
+_시스템/data/bundles.json
+_시스템/data/custom_reports.json
+_시스템/data/sidebar_layout.json
+_시스템/data/purchase_sale_settings.json
+
+# ─── OS / IDE / 에디터 잡파일 ───
+.DS_Store
+Thumbs.db
+desktop.ini
+.vscode/
+.idea/
+*.swp
+*~
+.fleet/
+
+# ─── Docker / 빌드 결과 ───
+.dockerignore  # 이건 이미 _시스템/ 안에 있어 commit OK 지만 중복 방지
+
+# ─── Fly.io ───
+# fly.toml 은 commit OK (시크릿 없음)
+.fly/
+
+# ─── 백업 폴더 ───
+**/백업/
+**/_archive_*/
+**/_backup_*/
+
+# ─── 임시 / 테스트 파일 ───
+tmp_*.py
+*.tmp
+.cache/

@@ -1,0 +1,166 @@
+<!doctype html>
+<html lang="ko"><head>
+<meta charset="utf-8"><title>바코드 인쇄 — {{ template.name }}</title>
+<script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
+<style>
+@page { size:{{ template.paper_w }}mm {{ template.paper_h }}mm; margin:0; }
+body { font-family: -apple-system, "Apple SD Gothic Neo", sans-serif; margin:0; background:#F1F1F4; padding:0; }
+.toolbar { position:fixed; top:8px; right:8px; display:flex; gap:6px; z-index:100; }
+.btn { padding:8px 16px; background:#4F67FF; color:#fff; border:none; border-radius:5px; font-weight:600; cursor:pointer; font-size:13px; }
+.btn.sec { background:#fff; color:#292A2F; border:1px solid #CBCCD3; }
+@media print { .toolbar { display:none; } body { background:#fff; padding:0; } }
+.page {
+  width: {{ template.paper_w }}mm; height: {{ template.paper_h }}mm;
+  position: relative; background:#fff;
+  margin: 6mm auto;
+  page-break-after: always;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+}
+@media print { .page { box-shadow:none; margin:0; } }
+.label {
+  position: absolute;
+  width: {{ template.label_w }}mm;
+  height: {{ template.label_h }}mm;
+  border: {% if cutline %}0.3mm dashed #999{% else %}none{% endif %};
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  text-align: center; box-sizing: border-box; overflow: hidden;
+  background:#fff;
+}
+.label > .ds-wrap { width:100%; height:100%; display:flex; flex-direction:column; align-items:center; justify-content:center; }
+.is-bundle { background: linear-gradient(135deg, #EEF1FE 0%, #fff 50%); }
+.bundle-tag { font-size:5pt; background:#4F67FF; color:#fff; padding:1px 4px; border-radius:2px; font-weight:700; margin-bottom:0.5mm; }
+</style></head>
+<body>
+<div class="toolbar">
+  <button class="btn sec" onclick="window.history.back()">← 돌아가기</button>
+  <button class="btn" onclick="window.print()">🖨 인쇄</button>
+</div>
+{% set per_page = template.per_page %}
+{% set total = rows|length %}
+{% set page_count = (total + per_page - 1) // per_page if total else 1 %}
+{% for p in range(page_count) %}
+  <div class="page">
+    {% for i in range(per_page) %}
+      {% set idx = p * per_page + i %}
+      {% if idx < total %}
+        {% set o = rows[idx] %}
+        {% set col = i % template.cols %}
+        {% set row = i // template.cols %}
+        {% set left = template.margin_left + col * (template.label_w + template.gap_x) %}
+        {% set top = template.margin_top + row * (template.label_h + template.gap_y) %}
+        {% set code = o.boxhero_sku or o.canonical_sku %}
+        {% set is_bundle = o.is_bundle if o.is_bundle is defined else false %}
+        <div class="label{% if is_bundle %} is-bundle{% endif %}" style="left:{{ left }}mm;top:{{ top }}mm"
+             data-name="{{ o.name if o.name else o.canonical_sku }}"
+             data-attr="{% if o.color_display or o.color_code %}{{ o.color_display or o.color_code }}{% endif %}{% if o.size_display or o.size_code %} · {{ o.size_display or o.size_code }}{% endif %}"
+             data-code="{{ code }}"
+             data-bundle="{{ '1' if is_bundle else '0' }}">
+        </div>
+      {% endif %}
+    {% endfor %}
+  </div>
+{% else %}
+  <p style="text-align:center;padding:30px;color:#8F91A0">선택된 항목 없음 — <a href="javascript:history.back()" style="color:#4F67FF">돌아가기</a></p>
+{% endfor %}
+
+<script>
+// ── localStorage 에서 디자인 + 설정 불러오기 ──
+const DESIGN_DEFAULTS = {
+  '1': {name:14, attr:12, code:11, bch:36, pad:6, gap_na:0.3, gap_ab:1.0, gap_bc:0.5, w_name:700, w_attr:400, w_code:400},
+  '3': {name:14, attr:12, code:11, bch:36, pad:6, gap_na:0.5, gap_ab:1.0, gap_bc:0.5, w_name:700, w_attr:400, w_code:400},
+  '5': {name:13, attr:22, code:11, bch:34, pad:6, gap_na:0.5, gap_ab:1.0, gap_bc:0.5, w_name:700, w_attr:700, w_code:400},
+};
+function getDesignState() {
+  try {
+    const s = JSON.parse(localStorage.getItem('labelDesign') || '{}');
+    return {
+      variant: s.variant || '1',
+      settings: { ...DESIGN_DEFAULTS[s.variant || '1'], ...(s.settings || {}) },
+    };
+  } catch (e) {
+    return {variant: '1', settings: {...DESIGN_DEFAULTS['1']}};
+  }
+}
+function asciiSafeCode(raw) {
+  if (/^[\x20-\x7E]+$/.test(raw)) return raw;
+  let h = 0x811c9dc5;
+  for (let i = 0; i < raw.length; i++) {
+    h ^= raw.charCodeAt(i);
+    h = (h * 0x01000193) >>> 0;
+  }
+  return 'AUTO-' + h.toString(36).toUpperCase().padStart(7, '0').slice(0, 7);
+}
+
+const {variant, settings} = getDesignState();
+// 인쇄 시 mm 비율 환산 — pt 입력값 그대로 px 사이즈로 사용 (브라우저 확대 시 비례)
+// 라벨이 작은 경우 px 값을 mm 비율로 미세조정 위해 0.6 배수 적용 (실 인쇄 시 적정)
+const SCALE_FOR_PRINT = 0.6;
+const sName = settings.name * SCALE_FOR_PRINT + 'pt';
+const sAttr = settings.attr * SCALE_FOR_PRINT + 'pt';
+const sCode = settings.code * SCALE_FOR_PRINT + 'pt';
+const sBch = settings.bch * 0.5; // mm 비율로 축소
+const sPad = settings.pad * 0.6 + 'mm';
+// 요소 간 여백 (mm) — 사용자 설정 그대로
+const gNA = (settings.gap_na || 0) + 'mm';
+const gAB = (settings.gap_ab || 0) + 'mm';
+const gBC = (settings.gap_bc || 0) + 'mm';
+// 폰트 굵기 (400/600/700)
+const wName = settings.w_name || 700;
+const wAttr = settings.w_attr || 400;
+const wCode = settings.w_code || 400;
+
+document.querySelectorAll('.label').forEach(el => {
+  const name = el.dataset.name || '';
+  const attr = el.dataset.attr || '';
+  const rawCode = el.dataset.code || '';
+  const code = asciiSafeCode(rawCode);
+  const isAuto = code !== rawCode;
+  const isBundle = el.dataset.bundle === '1';
+
+  // 디자인별 마크업 — 폰트 굵기·요소 간 여백 적용
+  let inner = '';
+  const wrap = `style="width:100%;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:${sPad};text-align:center;background:#fff;color:#000"`;
+  const svg = `<div style="width:100%;display:flex;justify-content:center;margin-top:${gAB};margin-bottom:${gBC}"><svg class="ds-bc" data-code="${code}" data-bch="${sBch}" style="width:90%;height:auto;max-height:${sBch * 1.5}mm"></svg></div>`;
+  const codeStr = code + (isAuto ? ' <span style="color:#F59E0B;font-size:'+(parseFloat(sCode)*0.8)+'pt">★ 자동</span>' : '');
+  const bundleTag = isBundle ? `<div class="bundle-tag">묶음</div>` : '';
+
+  if (variant === '3') {
+    inner = `<div ${wrap}>
+      ${bundleTag}
+      <div style="background:#000;color:#fff;padding:0.5mm 2mm;border-radius:1mm;font-size:${sName};font-weight:${wName};line-height:1.1">${name}</div>
+      <div style="font-size:${sAttr};font-weight:${wAttr};color:#555;line-height:1;margin-top:${gNA}">${attr}</div>
+      ${svg}
+      <div style="font-size:${sCode};font-weight:${wCode};color:#000;font-family:ui-monospace,monospace;line-height:1">${codeStr}</div>
+    </div>`;
+  } else if (variant === '5') {
+    inner = `<div ${wrap}>
+      ${bundleTag}
+      <div style="font-size:${sName};font-weight:${wName};line-height:1.1">${name}</div>
+      <div style="font-size:${sAttr};font-weight:${wAttr};color:#000;line-height:1;margin-top:${gNA}">${attr}</div>
+      ${svg}
+      <div style="font-size:${sCode};font-weight:${wCode};color:#000;font-family:ui-monospace,monospace;line-height:1">${codeStr}</div>
+    </div>`;
+  } else {
+    // 1: 표준
+    inner = `<div ${wrap}>
+      ${bundleTag}
+      <div style="font-size:${sName};font-weight:${wName};line-height:1.1">${name}</div>
+      <div style="font-size:${sAttr};font-weight:${wAttr};color:#555;line-height:1;margin-top:${gNA}">${attr}</div>
+      ${svg}
+      <div style="font-size:${sCode};font-weight:${wCode};color:#000;font-family:ui-monospace,monospace;line-height:1">${codeStr}</div>
+    </div>`;
+  }
+  el.innerHTML = inner;
+});
+
+// JsBarcode 채움
+document.querySelectorAll('svg.ds-bc').forEach(svg => {
+  const c = svg.dataset.code, bh = parseFloat(svg.dataset.bch) * 2;
+  try {
+    JsBarcode(svg, c, {format:'CODE128', width:1.2, height:bh, displayValue:false, margin:0});
+  } catch (e) {
+    svg.outerHTML = '<div style="font-size:5.5pt;color:#EF4444">⚠ ' + c.substring(0,30) + '</div>';
+  }
+});
+</script>
+</body></html>

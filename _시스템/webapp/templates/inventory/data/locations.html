@@ -1,0 +1,54 @@
+{% extends 'base.html' %}
+{% block title %}위치 — 데이터 관리{% endblock %}
+{% block content %}
+{# 박스히어로 1:1 위치 관리 — 핀 색상 + 메모 + 활성 토글. #}
+<div style="padding:24px 32px;max-width:1500px;margin:0 auto">
+  <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px">
+    <div style="font-size:12.5px;color:#8F91A0">데이터 관리</div>
+    <h1 style="font-size:22px;font-weight:700;margin:0;color:#292A2F">위치</h1>
+    <span title="제품 보관·상태 구분 — 그로스 / 기본 위치 / 판매불가 등. 거래 시 위치 의무 선택." style="display:inline-flex;align-items:center;justify-content:center;width:14px;height:14px;border-radius:50%;background:#F1F1F4;color:#8F91A0;font-size:9.5px;font-weight:700;cursor:help">i</span>
+    <span style="font-size:11.5px;color:#8F91A0">총 {{ locations|length }}개</span>
+  </div>
+
+  {% with msgs = get_flashed_messages(with_categories=true) %}{% for cat,msg in msgs %}<div style="background:{% if cat=='error' %}#FEF2F2{% else %}#ECFDF5{% endif %};border:1px solid {% if cat=='error' %}#FCA5A5{% else %}#86EFAC{% endif %};padding:10px 14px;border-radius:6px;margin-bottom:12px;font-size:13px;color:{% if cat=='error' %}#991B1B{% else %}#065F46{% endif %}">{{ msg }}</div>{% endfor %}{% endwith %}
+
+  <div style="background:#fff;border:1px solid #E5E8EB;border-radius:8px;padding:16px 18px;margin-bottom:14px">
+    <form method="post" action="{{ url_for('inventory.data_locations_create') }}" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <input name="name" type="text" placeholder="새 위치 이름 (예: 2층 창고)" required style="flex:1;min-width:200px;padding:9px 12px;border:1px solid #CBCCD3;border-radius:5px;font-size:13px;color:#292A2F">
+      <label style="font-size:12px;color:#292A2F;display:flex;align-items:center;gap:4px"><input name="is_default" type="checkbox" style="accent-color:#4F67FF"> 기본 위치</label>
+      <button type="submit" style="background:#4F67FF;color:#fff;padding:9px 16px;border:none;border-radius:5px;font-size:13px;font-weight:600;cursor:pointer">+ 위치 추가</button>
+    </form>
+  </div>
+
+  <div style="background:#fff;border:1px solid #E5E8EB;border-radius:8px;overflow:hidden">
+    <table style="width:100%;border-collapse:collapse;font-size:12.5px">
+      <thead style="background:#F1F1F4"><tr>
+        <th style="padding:11px 8px;text-align:left;font-size:11.5px;color:#292A2F;font-weight:600;width:60px">정렬</th>
+        <th style="padding:11px 8px;text-align:left;font-size:11.5px;color:#292A2F;font-weight:600">위치명</th>
+        <th style="padding:11px 8px;text-align:center;font-size:11.5px;color:#292A2F;font-weight:600;width:80px">기본</th>
+        <th style="padding:11px 8px;text-align:right;font-size:11.5px;color:#292A2F;font-weight:600;width:200px">작업</th>
+      </tr></thead>
+      <tbody>
+        {% for loc in locations %}
+        <tr style="border-bottom:1px solid #F1F1F4">
+          <td style="padding:9px 8px;color:#8F91A0">{{ loc.sort_order }}</td>
+          <td style="padding:9px 8px">
+            <span style="display:inline-flex;align-items:center;gap:6px">
+              <span style="color:{% if loc.is_default %}#4F67FF{% else %}#F59E0B{% endif %};font-size:13px">📍</span>
+              <form method="post" action="{{ url_for('inventory.data_locations_update', loc_id=loc.id) }}" style="display:inline-flex;gap:6px;align-items:center">
+                <input name="name" value="{{ loc.name }}" style="padding:5px 8px;border:1px solid #E5E8EB;border-radius:4px;font-size:12.5px;min-width:200px;color:#292A2F">
+                <button type="submit" style="background:#fff;border:1px solid #CBCCD3;padding:5px 10px;border-radius:4px;font-size:11.5px;cursor:pointer;color:#292A2F">수정</button>
+              </form>
+            </span>
+          </td>
+          <td style="padding:9px 8px;text-align:center">{% if loc.is_default %}<span style="background:#EEF1FE;color:#4F67FF;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:600">기본</span>{% else %}—{% endif %}</td>
+          <td style="padding:9px 8px;text-align:right">{% if not loc.is_default %}<form method="post" action="{{ url_for('inventory.data_locations_delete', loc_id=loc.id) }}" style="display:inline" onsubmit="return confirm('정말 삭제?')"><button type="submit" style="background:#FEF2F2;color:#991B1B;border:1px solid #FCA5A5;padding:5px 10px;border-radius:4px;font-size:11.5px;cursor:pointer">🗑 삭제</button></form>{% endif %}</td>
+        </tr>
+        {% else %}<tr><td colspan="4" style="padding:48px;text-align:center;color:#8F91A0">위치 없음<form method="post" action="{{ url_for('inventory.data_locations_seed') }}" style="display:inline;margin-left:8px"><button type="submit" style="background:#4F67FF;color:#fff;padding:6px 14px;border:none;border-radius:5px;font-size:12px;cursor:pointer">기본 3 위치 시드</button></form></td></tr>{% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <div style="margin-top:14px;font-size:11px;color:#8F91A0;line-height:1.7">★ 박스히어로 1:1 — 위치는 그로스 / 기본 위치 / 판매불가 같은 보관·상태 구분. 거래 시 위치 의무 선택. 📍 핀 색 — 기본 위치(인디고) / 일반 위치(오렌지).</div>
+</div>
+{% endblock %}

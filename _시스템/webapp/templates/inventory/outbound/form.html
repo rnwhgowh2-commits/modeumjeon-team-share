@@ -1,0 +1,99 @@
+{% extends 'base.html' %}
+{% block title %}출고서 작성{% endblock %}
+{% block content %}
+{# 박스히어로 1:1 출고서 — Bundle 자동 차감 (v1.5+). #}
+<div style="padding:24px 32px;max-width:1100px;margin:0 auto">
+  <div style="display:flex;align-items:center;gap:14px;margin-bottom:14px">
+    <a href="{{ url_for('inventory.outbound_list') }}" style="font-size:12.5px;color:#4F67FF;text-decoration:none">← 출고 목록</a>
+    <h1 style="font-size:22px;font-weight:700;margin:0;color:#292A2F">📤 출고서 작성</h1>
+    <div style="margin-left:auto;display:flex;gap:18px;font-size:12.5px;color:#292A2F">
+      <span><strong id="kpiItems">0</strong>개 품목</span>
+      <span>총 수량 <strong id="kpiTotalQty" style="color:#EF4444">0</strong></span>
+    </div>
+  </div>
+  <form method="post" action="{{ url_for('inventory.outbound_create') }}" id="txForm" style="background:#fff;border:1px solid #E5E8EB;border-radius:8px;padding:20px;display:grid;gap:14px">
+    <div style="display:grid;grid-template-columns:1fr 2fr 1fr;gap:12px">
+      <div><label style="display:block;font-size:12px;color:#292A2F;margin-bottom:4px;font-weight:600">위치 *</label><select name="location_id" required style="width:100%;padding:9px 12px;border:1px solid #CBCCD3;border-radius:5px;font-size:13px;color:#292A2F;background:#fff">{% for loc in locations %}<option value="{{ loc.id }}">{{ loc.name }}</option>{% endfor %}</select></div>
+      <div><label style="display:block;font-size:12px;color:#292A2F;margin-bottom:4px;font-weight:600">고객</label><input name="partner_label" placeholder="예: 스마트스토어 고객" style="width:100%;padding:9px 12px;border:1px solid #CBCCD3;border-radius:5px;font-size:13px;color:#292A2F"></div>
+      <div><label style="display:block;font-size:12px;color:#292A2F;margin-bottom:4px;font-weight:600">담당자</label><input name="created_by" placeholder="운영자" style="width:100%;padding:9px 12px;border:1px solid #CBCCD3;border-radius:5px;font-size:13px;color:#292A2F"></div>
+    </div>
+    <div>
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+        <label style="font-size:12px;color:#292A2F;font-weight:600">제품 *</label>
+        <span style="font-size:11px;color:#8F91A0">묶음 SKU 선택 시 출고 완료 → 자동으로 구성 SKU 차감 (v1.5)</span>
+        <button type="button" onclick="openProductModal()" style="margin-left:auto;background:#4F67FF;color:#fff;border:none;padding:7px 14px;border-radius:5px;font-size:12.5px;font-weight:600;cursor:pointer">+ 제품 추가</button>
+      </div>
+      <table style="width:100%;border-collapse:collapse;font-size:12.5px;border:1px solid #E5E8EB;border-radius:5px;overflow:hidden">
+        <thead style="background:#F1F1F4"><tr>
+          <th style="padding:8px;text-align:left;font-size:11px;color:#292A2F">제품</th>
+          <th style="padding:8px;text-align:right;font-size:11px;color:#292A2F;width:100px">수량</th>
+          <th style="padding:8px;text-align:right;font-size:11px;color:#292A2F;width:130px">판매가</th>
+          <th style="padding:8px;text-align:center;font-size:11px;color:#292A2F;width:40px"></th>
+        </tr></thead>
+        <tbody id="lines"><tr id="emptyRow"><td colspan="4" style="padding:32px;text-align:center;color:#8F91A0;font-size:12px">제품 없음 — [+ 제품 추가] 클릭</td></tr></tbody>
+      </table>
+    </div>
+    <div><label style="display:block;font-size:12px;color:#292A2F;margin-bottom:4px;font-weight:600">메모</label><textarea name="memo" rows="2" placeholder="#태그" style="width:100%;padding:9px 12px;border:1px solid #CBCCD3;border-radius:5px;font-size:13px;color:#292A2F"></textarea></div>
+    <div style="display:flex;gap:8px;align-items:center">
+      <a href="{{ url_for('inventory.outbound_list') }}" style="padding:9px 18px;border:1px solid #CBCCD3;border-radius:5px;text-decoration:none;color:#292A2F;font-size:13px">취소</a>
+      <button type="button" onclick="saveDraft()" style="padding:9px 16px;border:1px solid #CBCCD3;background:#fff;color:#292A2F;border-radius:5px;font-size:13px;font-weight:600;cursor:pointer">💾 임시 저장</button>
+      <button type="submit" id="submitBtn" disabled style="background:#4F67FF;color:#fff;padding:9px 22px;border:none;border-radius:5px;font-size:13px;font-weight:600;cursor:pointer;opacity:0.5">📤 출고 완료</button>
+    </div>
+  </form>
+  <div style="margin-top:14px;font-size:11px;color:#8F91A0">★ 출고 시 평균매입가 박제 (ADR-002 COGS snapshot). 묶음 SKU 자동 차감 (v1.5).</div>
+</div>
+<div id="productModal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);z-index:100;align-items:center;justify-content:center">
+  <div style="background:#fff;border-radius:10px;width:760px;max-width:90vw;max-height:80vh;display:flex;flex-direction:column;box-shadow:0 10px 40px rgba(0,0,0,0.2)">
+    <div style="padding:18px 22px;border-bottom:1px solid #E5E8EB;display:flex;align-items:center;gap:12px"><h3 style="font-size:16px;font-weight:700;margin:0;color:#292A2F">제품 추가</h3><span id="modalCount" style="font-size:11.5px;color:#8F91A0">전체 0 / 선택 0</span><button type="button" onclick="closeProductModal()" style="margin-left:auto;background:none;border:none;color:#8F91A0;font-size:22px;cursor:pointer">×</button></div>
+    <div style="padding:14px 22px;border-bottom:1px solid #E5E8EB">
+      <input id="productSearch" type="text" placeholder="이름·SKU·바코드·묶음 검색" style="width:100%;padding:9px 12px;border:1px solid #CBCCD3;border-radius:5px;font-size:13px;color:#292A2F" oninput="filterProducts()">
+      <div style="display:flex;gap:6px;margin-top:8px">
+        <label style="display:flex;align-items:center;gap:5px;font-size:12px;color:#292A2F"><input type="radio" name="filter_type" value="all" checked onchange="filterProducts()" style="accent-color:#4F67FF">전체</label>
+        <label style="display:flex;align-items:center;gap:5px;font-size:12px;color:#292A2F"><input type="radio" name="filter_type" value="single" onchange="filterProducts()" style="accent-color:#4F67FF">단일 SKU</label>
+        <label style="display:flex;align-items:center;gap:5px;font-size:12px;color:#292A2F"><input type="radio" name="filter_type" value="bundle" onchange="filterProducts()" style="accent-color:#4F67FF">묶음 SKU</label>
+      </div>
+    </div>
+    <div style="overflow-y:auto;flex:1"><table style="width:100%;border-collapse:collapse;font-size:12.5px"><thead style="background:#F1F1F4;position:sticky;top:0"><tr><th style="padding:9px;width:36px;text-align:center"><input type="checkbox" id="modalCheckAll" onclick="modalToggleAll(this)"></th><th style="padding:9px;text-align:left;font-size:11px;color:#292A2F">SKU</th><th style="padding:9px;text-align:left;font-size:11px;color:#292A2F">이름·구성</th><th style="padding:9px;text-align:right;font-size:11px;color:#292A2F">재고</th><th style="padding:9px;text-align:right;font-size:11px;color:#292A2F">평균매입가</th></tr></thead><tbody id="modalProductRows"></tbody></table></div>
+    <div style="padding:14px 22px;border-top:1px solid #E5E8EB;display:flex;align-items:center;gap:8px"><span id="modalSelected" style="font-size:12px;color:#8F91A0">선택 0개</span><button type="button" onclick="closeProductModal()" style="margin-left:auto;padding:8px 16px;border:1px solid #CBCCD3;background:#fff;color:#292A2F;border-radius:5px;font-size:12.5px;cursor:pointer">취소</button><button type="button" onclick="addSelected()" style="padding:8px 18px;background:#4F67FF;color:#fff;border:none;border-radius:5px;font-size:12.5px;font-weight:600;cursor:pointer">선택 항목 추가</button></div>
+  </div>
+</div>
+<script>
+const OPTIONS = {{ opt_data | tojson }};
+let lines = [];
+function openProductModal(){renderModalRows(filtered());document.getElementById('productSearch').value='';document.getElementById('productModal').style.display='flex';setTimeout(()=>document.getElementById('productSearch').focus(),100)}
+function closeProductModal(){document.getElementById('productModal').style.display='none'}
+function filtered(){
+  const q=document.getElementById('productSearch').value.trim().toLowerCase();
+  const t=document.querySelector('input[name=filter_type]:checked')?.value || 'all';
+  return OPTIONS.filter(o=>{
+    if(t==='single' && o.is_bundle) return false;
+    if(t==='bundle' && !o.is_bundle) return false;
+    if(!q) return true;
+    return o.sku.toLowerCase().includes(q)||(o.bh||'').toLowerCase().includes(q)||(o.color||'').toLowerCase().includes(q)||(o.components||'').toLowerCase().includes(q);
+  });
+}
+function filterProducts(){renderModalRows(filtered())}
+function renderModalRows(list){
+  document.getElementById('modalProductRows').innerHTML=list.slice(0,200).map(o=>{
+    const skuColor = o.is_bundle ? '#4F67FF' : '#292A2F';
+    const skuStyle = o.is_bundle ? 'font-weight:600' : '';
+    const nameCell = o.is_bundle
+      ? `<span style="display:inline-block;background:#EEF1FE;color:#1E40AF;padding:2px 6px;border-radius:3px;font-size:10px;margin-right:6px;font-weight:600">묶음</span>${o.color} <span style="color:#8F91A0;font-size:11px">— ${o.components||''}</span>`
+      : `${o.color} / ${o.size}${o.bh?' <span style="font-family:ui-monospace,monospace;font-size:10.5px;color:#8F91A0;margin-left:4px">'+o.bh+'</span>':''}`;
+    const stockCell = o.is_bundle ? '<span style="color:#8F91A0">—</span>' : `<span style="color:${o.stock>0?'#22C55E':'#8F91A0'}">${o.stock}</span>`;
+    const avgCell = o.is_bundle ? '<span style="color:#8F91A0">—</span>' : (o.avg?o.avg.toLocaleString():'—');
+    return `<tr style="border-bottom:1px solid #F1F1F4;${o.is_bundle?'background:#FAFBFC':''}"><td style="padding:7px 9px;text-align:center"><input type="checkbox" class="modal-pick" value="${o.sku}" data-bundle="${o.is_bundle?1:0}" onchange="updateSelectedCount()" style="accent-color:#4F67FF"></td><td style="padding:7px 9px;font-family:ui-monospace,monospace;font-size:10.5px;color:${skuColor};${skuStyle}">${o.sku}</td><td style="padding:7px 9px;color:#292A2F">${nameCell}</td><td style="padding:7px 9px;text-align:right;font-family:ui-monospace,monospace">${stockCell}</td><td style="padding:7px 9px;text-align:right;font-family:ui-monospace,monospace;color:#292A2F">${avgCell}</td></tr>`;
+  }).join('');
+  document.getElementById('modalCount').textContent=`전체 ${list.length} / 선택 0`;
+  document.getElementById('modalCheckAll').checked=false;updateSelectedCount();
+}
+function modalToggleAll(m){document.querySelectorAll('.modal-pick').forEach(c=>c.checked=m.checked);updateSelectedCount()}
+function updateSelectedCount(){document.getElementById('modalSelected').textContent='선택 '+document.querySelectorAll('.modal-pick:checked').length+'개'}
+function addSelected(){[...document.querySelectorAll('.modal-pick:checked')].forEach(cb=>{if(lines.some(l=>l.sku===cb.value))return;lines.push({sku:cb.value,qty:1,price:0,is_bundle:cb.dataset.bundle==='1'})});renderLines();closeProductModal()}
+function renderLines(){const tb=document.getElementById('lines');if(!lines.length){tb.innerHTML='<tr id="emptyRow"><td colspan="4" style="padding:32px;text-align:center;color:#8F91A0;font-size:12px">제품 없음 — [+ 제품 추가] 클릭</td></tr>'}else{tb.innerHTML=lines.map((l,i)=>{const bundleTag=l.is_bundle?'<span style="display:inline-block;background:#EEF1FE;color:#1E40AF;padding:1px 6px;border-radius:3px;font-size:10px;margin-right:6px;font-weight:600">묶음</span>':'';return `<tr style="border-top:1px solid #F1F1F4;${l.is_bundle?'background:#FAFBFC':''}"><td style="padding:6px 8px;font-family:ui-monospace,monospace;font-size:11px;color:#292A2F"><input type="hidden" name="option_canonical_sku" value="${l.sku}">${bundleTag}${l.sku}</td><td style="padding:5px 8px"><input type="number" name="qty" min="1" value="${l.qty}" required onchange="updateKpi()" style="width:100%;padding:6px;border:1px solid #CBCCD3;border-radius:4px;font-size:12px;text-align:right"></td><td style="padding:5px 8px"><input type="number" name="unit_sale_price" min="0" value="${l.price}" style="width:100%;padding:6px;border:1px solid #CBCCD3;border-radius:4px;font-size:12px;text-align:right"></td><td style="padding:5px 8px;text-align:center"><button type="button" onclick="removeLine(${i})" style="background:none;border:none;color:#EF4444;cursor:pointer;font-size:14px">×</button></td></tr>`}).join('')}updateKpi()}
+function removeLine(i){lines.splice(i,1);renderLines()}
+function updateKpi(){document.getElementById('kpiItems').textContent=lines.length;document.getElementById('kpiTotalQty').textContent=[...document.querySelectorAll('input[name="qty"]')].reduce((a,e)=>a+(parseInt(e.value)||0),0);const sb=document.getElementById('submitBtn');sb.disabled=!lines.length;sb.style.opacity=lines.length?'1':'0.5'}
+async function saveDraft(){const fd=new FormData(document.getElementById('txForm'));fd.append('tx_type','out');await fetch('{{ url_for("inventory.pending_save") }}',{method:'POST',body:fd,redirect:'manual'});window.location.href='{{ url_for("inventory.pending_list") }}'}
+document.addEventListener('keydown',e=>{if(e.key==='Escape')closeProductModal()});
+</script>
+{% endblock %}

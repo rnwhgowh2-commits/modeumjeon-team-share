@@ -1,0 +1,531 @@
+{% extends 'base.html' %}
+{% block title %}소싱처 매트릭스 시안 — 모음전 자동화{% endblock %}
+{% block head %}
+<style>
+  .mw { padding: 20px; max-width: 1500px; margin: 0 auto; }
+  .ms { margin-bottom: 60px; padding: 24px; background: #fafbfc; border-radius: 12px; border: 1px solid #eaecef; }
+  .mt { font-size: 22px; font-weight: 700; margin: 0 0 4px; }
+  .mtag { font-size: 13px; color: #666; margin-bottom: 14px; }
+  .pros, .cons, .neut { display: inline-block; font-size: 12px; padding: 3px 10px; border-radius: 12px; margin-right: 6px; font-weight: 600; }
+  .pros { background: #dcfce7; color: #16a34a; }
+  .cons { background: #fee2e2; color: #dc2626; }
+  .neut { background: #e0e7ff; color: #4338ca; }
+
+  /* mock frame */
+  .mf { background: #fff; border: 1px solid #ddd; border-radius: 10px; overflow: hidden; min-height: 480px; }
+  .mh { background: #f7f8fa; border-bottom: 1px solid #eee; padding: 10px 16px; font-size: 12px; color: #666; }
+  .mb { padding: 22px; }
+
+  /* form-ish */
+  .input-sm { padding: 6px 10px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 12.5px; box-sizing: border-box; font-family: ui-monospace, monospace; }
+  .btn-sm-mock { display: inline-block; padding: 5px 12px; background: #2563eb; color: #fff; border: 0; border-radius: 6px; font-weight: 600; cursor: pointer; font-size: 12px; }
+  .btn-ghost-mock { padding: 5px 12px; background: #fff; color: #2563eb; border: 1px solid #2563eb; border-radius: 6px; font-weight: 600; cursor: pointer; font-size: 12px; }
+  .chip-mock { display: inline-block; padding: 2px 8px; border-radius: 999px; background: #e5e7eb; color: #374151; font-size: 11px; margin-right: 4px; font-weight: 600; }
+  .chip-best { background: #dcfce7; color: #15803d; }
+  .chip-stock { background: #dbeafe; color: #1e40af; }
+  .chip-out { background: #fee2e2; color: #b91c1c; }
+
+  /* ── V1 spreadsheet ── */
+  .v1-table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 12.5px; background: #fff; border-radius: 10px; overflow: hidden; border: 1px solid #e5e7eb; }
+  .v1-table th, .v1-table td { padding: 10px 8px; border-bottom: 1px solid #eef0f3; vertical-align: middle; }
+  .v1-table thead th { background: #f9fafb; font-weight: 700; color: #374151; font-size: 12px; text-align: left; position: sticky; top: 0; }
+  .v1-table .col-opt { width: 130px; font-family: ui-monospace, monospace; font-weight: 700; }
+  .v1-table .col-src { width: 220px; }
+  .v1-table .col-add { width: 120px; }
+  .v1-cell-input { width: 100%; }
+  .v1-cell-stat { font-size: 10.5px; color: #6b7280; margin-top: 3px; }
+  .v1-cell-stat .chip-mock { font-size: 10px; padding: 1px 6px; }
+  .v1-toolbar { display: flex; gap: 8px; align-items: center; padding: 12px; background: #f0f7ff; border: 1px solid #bfdbfe; border-radius: 8px; margin-bottom: 12px; font-size: 12.5px; color: #1e40af; }
+  .v1-toolbar.empty { background: #f9fafb; border-color: #e5e7eb; color: #6b7280; }
+
+  /* ── V2 color cards ── */
+  .v2-card { background: #fff; border: 1px solid #e5e7eb; border-radius: 12px; padding: 18px 20px; margin-bottom: 14px; }
+  .v2-head { display: flex; align-items: center; gap: 14px; margin-bottom: 14px; padding-bottom: 12px; border-bottom: 1px solid #f3f4f6; }
+  .v2-color-swatch { width: 20px; height: 20px; border-radius: 50%; border: 1px solid #ddd; }
+  .v2-color-name { font-size: 16px; font-weight: 700; }
+  .v2-sizes-row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-bottom: 14px; font-size: 12.5px; }
+  .v2-size-chip { display: inline-flex; align-items: center; gap: 5px; padding: 5px 12px; border-radius: 999px; border: 1px solid #d1d5db; background: #fff; cursor: pointer; font-weight: 600; font-size: 12px; }
+  .v2-size-chip.on { background: #2563eb; color: #fff; border-color: #2563eb; }
+  .v2-srcs-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+  .v2-srcs-table th { text-align: left; padding: 8px 6px; background: #f9fafb; font-size: 11.5px; color: #6b7280; font-weight: 700; border-bottom: 1px solid #e5e7eb; }
+  .v2-srcs-table td { padding: 8px 6px; border-bottom: 1px solid #f3f4f6; vertical-align: middle; }
+  .v2-srcs-table .col-name { width: 130px; font-weight: 600; }
+  .v2-srcs-table .col-url { }
+  .v2-srcs-table .col-meta { width: 130px; }
+  .v2-srcs-table .col-act { width: 80px; text-align: right; }
+
+  /* ── V3 master-detail ── */
+  .v3-wrap { display: grid; grid-template-columns: 320px 1fr; gap: 16px; }
+  .v3-tree { background: #fff; border: 1px solid #e5e7eb; border-radius: 10px; padding: 12px; max-height: 520px; overflow-y: auto; }
+  .v3-tree-color { font-weight: 700; font-size: 13px; color: #1f2937; padding: 8px 6px; display: flex; align-items: center; gap: 8px; cursor: pointer; }
+  .v3-tree-color:hover { background: #f3f4f6; border-radius: 6px; }
+  .v3-tree-sizes { padding-left: 22px; }
+  .v3-tree-size { display: flex; align-items: center; gap: 8px; padding: 5px 6px; font-size: 12.5px; cursor: pointer; border-radius: 6px; font-family: ui-monospace, monospace; }
+  .v3-tree-size:hover { background: #f3f4f6; }
+  .v3-tree-size.sel { background: #eff6ff; color: #1e40af; font-weight: 600; }
+  .v3-detail { background: #fff; border: 1px solid #e5e7eb; border-radius: 10px; padding: 18px 20px; }
+  .v3-detail-head { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; padding-bottom: 12px; border-bottom: 1px solid #f3f4f6; }
+  .v3-mode-badge { padding: 3px 10px; border-radius: 999px; font-size: 11.5px; font-weight: 700; background: #fef3c7; color: #92400e; }
+  .v3-row-src { display: grid; grid-template-columns: 140px 1fr 110px 110px 70px; gap: 10px; align-items: center; padding: 10px 0; border-bottom: 1px solid #f3f4f6; font-size: 12.5px; }
+  .v3-row-src .src-name { font-weight: 600; }
+  .v3-row-src input { font-family: ui-monospace, monospace; font-size: 12px; }
+  .v3-row-src .meta { color: #6b7280; font-size: 11.5px; }
+  .v3-add-row { padding: 10px 0; }
+
+  /* spec table */
+  .spec { width: 100%; font-size: 12.5px; margin-top: 18px; border-collapse: collapse; background: #fff; border-radius: 8px; overflow: hidden; }
+  .spec th, .spec td { padding: 8px 12px; border-bottom: 1px solid #eef0f3; text-align: left; }
+  .spec th { background: #f9fafb; width: 130px; color: #6b7280; font-size: 11.5px; }
+
+  .legend { font-size: 11.5px; color: #6b7280; padding: 8px 0; line-height: 1.7; }
+</style>
+{% endblock %}
+{% block content %}
+<section class="screen active">
+  <div class="mw">
+    <a class="btn btn-ghost" href="/bundles">← 모음전 목록</a>
+    <h1 style="margin-top:6px">옵션 단위 다중 소싱처 · 디자인 시안 3종</h1>
+    <p class="greeting">옵션마다 N개 소싱처 URL · 동시 적용 · 인라인 편집. 르무통 클래식 (그레이/다크네이비/카멜 × 230~280) 기준으로 36개 옵션 일부를 그렸어요.</p>
+
+    <!-- ════════ #0 공통: 엑셀 업로드 인라인 패널 ════════ -->
+    <div class="ms" style="background:#f0fdf4;border-color:#bbf7d0">
+      <h2 class="mt">#0 공통 — 옵션 ID 매칭 (엑셀 업로드 / API 자동) <span style="font-size:13px;color:#16a34a">— 3시안 모두 위에 동일 배치</span></h2>
+      <p class="mtag">스스/쿠팡 옵션 ID 를 옵션 매트릭스에 채우는 입력원. 같은 페이지 안에 인라인 패널로. SS API 자동 매칭 + 엑셀 업로드 매칭 + 수동 입력 = 3가지 경로.</p>
+      <span class="pros">모달 없음</span><span class="pros">진행률 표시</span><span class="pros">SS·쿠팡 모두 지원</span>
+
+      <div class="mf" style="margin-top:14px">
+        <div class="mh">📍 모음전 / 르무통 클래식 / §5 옵션 매트릭스 상단 패널 — 전체 시안 공통</div>
+        <div class="mb">
+
+          <!-- 진행률 바 -->
+          <div style="background:#fff;border:1px solid #e5e7eb;border-radius:10px;padding:14px 18px;margin-bottom:14px">
+            <div style="display:flex;align-items:center;gap:14px;font-size:13px">
+              <strong>옵션 ID 매칭 진행률</strong>
+              <div style="flex:1;display:flex;gap:10px">
+                <div style="flex:1">
+                  <div style="font-size:11.5px;color:#6b7280;margin-bottom:4px">스마트스토어 <span class="chip-mock chip-best">12 / 36 매칭</span></div>
+                  <div style="background:#e5e7eb;height:8px;border-radius:4px;overflow:hidden"><div style="background:#16a34a;width:33%;height:100%"></div></div>
+                </div>
+                <div style="flex:1">
+                  <div style="font-size:11.5px;color:#6b7280;margin-bottom:4px">쿠팡 <span class="chip-mock" style="background:#fef3c7;color:#92400e">0 / 36</span></div>
+                  <div style="background:#e5e7eb;height:8px;border-radius:4px;overflow:hidden"><div style="background:#f59e0b;width:0%;height:100%"></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 입력 경로 3가지 (탭) -->
+          <div style="display:flex;gap:6px;margin-bottom:0;border-bottom:2px solid #e5e7eb">
+            <div style="padding:10px 18px;border:2px solid #e5e7eb;border-bottom:0;background:#fff;font-weight:700;border-radius:8px 8px 0 0;color:#2563eb;border-color:#2563eb #2563eb #fff">📥 스스 API 자동</div>
+            <div style="padding:10px 18px;font-weight:600;color:#6b7280;cursor:pointer">📁 스스 엑셀 업로드</div>
+            <div style="padding:10px 18px;font-weight:600;color:#6b7280;cursor:pointer">📁 쿠팡 엑셀 업로드</div>
+            <div style="padding:10px 18px;font-weight:600;color:#6b7280;cursor:pointer">✎ 수동 입력</div>
+          </div>
+
+          <!-- 활성 탭: SS API -->
+          <div style="background:#fff;border:2px solid #2563eb;border-top:0;padding:18px;border-radius:0 0 10px 10px">
+            <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px">
+              <strong style="font-size:13px">스마트스토어 API 호출 → 옵션 자동 매칭</strong>
+              <span class="chip-mock">originProductNo: 13153051689</span>
+              <button class="btn-sm-mock" style="margin-left:auto">동기화 실행</button>
+            </div>
+            <div style="background:#f9fafb;padding:12px;border-radius:6px;font-size:12.5px;line-height:1.7">
+              <div>✅ <strong>자동 매칭 12개</strong> — 색상·사이즈 정확히 일치 (그레이-230, 그레이-235, …)</div>
+              <div>⚠ <strong>유사 매칭 8개</strong> — 검토 필요 (예: "차콜 240" → 우리 "다크그레이-240"?)</div>
+              <div>❌ <strong>실패 16개</strong> — 색상명 사전에 없음 (예: "버건디 250" — 색상 사전 등록 후 재매칭)</div>
+            </div>
+            <div style="margin-top:12px">
+              <button class="btn-sm-mock">✅ 12개 자동 매칭 적용</button>
+              <button class="btn-ghost-mock">⚠ 유사 매칭 검토 (8개)</button>
+              <button class="btn-ghost-mock">❌ 실패 항목 색상사전 등록</button>
+            </div>
+          </div>
+
+          <!-- 비활성: 엑셀 미리보기 (다른 탭 클릭 시 보여주는 모습 사전 안내) -->
+          <details style="margin-top:18px">
+            <summary style="cursor:pointer;font-size:12.5px;color:#6b7280;font-weight:700">📁 「스스 엑셀 업로드」 탭 클릭 시 모습 ↓</summary>
+            <div style="margin-top:10px;background:#fff;border:1px dashed #94a3b8;padding:14px;border-radius:8px">
+              <div style="display:flex;gap:10px;align-items:center;margin-bottom:12px">
+                <input type="file" style="font-size:12px" />
+                <button class="btn-ghost-mock">📥 스스 양식 다운로드</button>
+                <span style="font-size:11.5px;color:#6b7280">스마트스토어 admin → 일괄수정 양식</span>
+              </div>
+              <div style="font-size:12.5px;color:#374151;background:#f9fafb;padding:10px;border-radius:6px">
+                <strong>파싱 미리보기</strong> — 상품번호 13153051689 → 옵션 36개 발견<br>
+                <table style="width:100%;font-size:11.5px;margin-top:8px;border-collapse:collapse">
+                  <thead><tr style="background:#fff"><th style="padding:5px;text-align:left;border-bottom:1px solid #ddd">우리 옵션</th><th style="padding:5px;text-align:left;border-bottom:1px solid #ddd">엑셀 옵션값</th><th style="padding:5px;text-align:left;border-bottom:1px solid #ddd">옵션 ID</th><th style="padding:5px;text-align:left;border-bottom:1px solid #ddd">신뢰도</th></tr></thead>
+                  <tbody>
+                    <tr><td style="padding:4px">그레이-230</td><td style="padding:4px">그레이,230</td><td style="padding:4px;font-family:monospace">19387234</td><td style="padding:4px"><span class="chip-mock chip-best">자동</span></td></tr>
+                    <tr><td style="padding:4px">그레이-235</td><td style="padding:4px">그레이,235</td><td style="padding:4px;font-family:monospace">19387235</td><td style="padding:4px"><span class="chip-mock chip-best">자동</span></td></tr>
+                    <tr><td style="padding:4px">다크네이비-230</td><td style="padding:4px">차콜,230</td><td style="padding:4px;font-family:monospace">19387247</td><td style="padding:4px"><span class="chip-mock" style="background:#fef3c7;color:#92400e">유사</span></td></tr>
+                    <tr><td style="padding:4px;color:#9ca3af">⋯ 33개 더</td><td colspan="3"></td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </details>
+
+          <details style="margin-top:8px">
+            <summary style="cursor:pointer;font-size:12.5px;color:#6b7280;font-weight:700">📁 「쿠팡 엑셀 업로드」 탭 클릭 시 모습 ↓</summary>
+            <div style="margin-top:10px;background:#fff;border:1px dashed #94a3b8;padding:14px;border-radius:8px">
+              <div style="display:flex;gap:10px;align-items:center;margin-bottom:12px">
+                <input type="file" style="font-size:12px" />
+                <button class="btn-ghost-mock">📥 쿠팡 양식 다운로드</button>
+                <span style="font-size:11.5px;color:#6b7280">쿠팡 WING → 가격/재고 일괄변경</span>
+              </div>
+              <div style="font-size:12.5px;color:#374151;background:#f9fafb;padding:10px;border-radius:6px">
+                <strong>파싱 미리보기</strong> — 업체상품 ID 15799433488 → 옵션 36행 발견<br>
+                <table style="width:100%;font-size:11.5px;margin-top:8px;border-collapse:collapse">
+                  <thead><tr style="background:#fff"><th style="padding:5px;text-align:left;border-bottom:1px solid #ddd">우리 옵션</th><th style="padding:5px;text-align:left;border-bottom:1px solid #ddd">등록 옵션명 (쿠팡)</th><th style="padding:5px;text-align:left;border-bottom:1px solid #ddd">옵션 ID</th><th style="padding:5px;text-align:left;border-bottom:1px solid #ddd">가격/재고</th></tr></thead>
+                  <tbody>
+                    <tr><td style="padding:4px">블랙-230</td><td style="padding:4px">블랙(아웃솔 : 블랙) 230</td><td style="padding:4px;font-family:monospace">93760604375</td><td style="padding:4px"><span class="chip-mock">128,900 / 재고 5</span></td></tr>
+                    <tr><td style="padding:4px">블랙-235</td><td style="padding:4px">블랙(아웃솔 : 블랙) 235</td><td style="padding:4px;font-family:monospace">93760604376</td><td style="padding:4px"><span class="chip-mock">128,900 / 재고 3</span></td></tr>
+                    <tr><td style="padding:4px;color:#9ca3af">⋯ 34개 더</td><td colspan="3"></td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </details>
+
+          <p class="legend">→ 매칭 적용되면 아래 §5 옵션 매트릭스의 「스스 옵션 ID」 / 「쿠팡 옵션 ID」 컬럼이 자동으로 채워짐. 이후 시안 1·2·3 의 매트릭스에서 추가 편집 가능.</p>
+        </div>
+      </div>
+
+      <table class="spec">
+        <tr><th>입력 경로</th><td>① SS API 자동 (현재 구현됨) ② 스스 엑셀 업로드 (신규) ③ 쿠팡 엑셀 업로드 (신규) ④ 옵션별 수동 입력</td></tr>
+        <tr><th>위치</th><td>§5 옵션 매트릭스 <strong>바로 위 인라인 패널</strong> — 모달 없음</td></tr>
+        <tr><th>결과 반영</th><td>매칭 적용 = Option.naver_option_id / Option.coupang_option_id 일괄 update → 매트릭스 즉시 갱신</td></tr>
+      </table>
+    </div>
+
+    <!-- ════════ 시안 1: Spreadsheet 그리드 ════════ -->
+    <div class="ms">
+      <h2 class="mt">시안 1 — 스프레드시트 그리드 (Excel-style)</h2>
+      <p class="mtag">행=옵션, 열=소싱처. 빠른 키보드 입력. + 소싱처 컬럼 동적 추가. 행 체크박스로 선택 → 일괄 채우기.</p>
+      <span class="pros">엑셀 친숙</span><span class="pros">한눈에 비교</span><span class="cons">소싱처 많아지면 가로 스크롤</span><span class="neut">파워유저향</span>
+
+      <div class="mf" style="margin-top:14px">
+        <div class="mh">📍 모음전 / 르무통 클래식 / §5 옵션 매트릭스 (시안 1)</div>
+        <div class="mb">
+          <!-- toolbar -->
+          <div class="v1-toolbar">
+            <span style="font-weight:700">✓ 3개 옵션 선택됨</span>
+            <span style="color:#1e40af">→ 선택 행에 일괄 적용:</span>
+            <select class="input-sm" style="font-family:inherit">
+              <option>소싱처 선택…</option>
+              <option>르무통 공홈</option>
+              <option>스스 르무통</option>
+              <option>무신사</option>
+            </select>
+            <input class="input-sm" style="flex:1" placeholder="https://..." />
+            <button class="btn-sm-mock">3개 옵션에 적용</button>
+            <button class="btn-ghost-mock">선택 해제</button>
+          </div>
+
+          <div style="overflow-x:auto">
+            <table class="v1-table">
+              <thead>
+                <tr>
+                  <th style="width:32px"><input type="checkbox" /></th>
+                  <th class="col-opt">옵션</th>
+                  <th class="col-src">르무통 공홈 <span style="font-weight:400;color:#6b7280;font-size:10.5px">(N=12)</span></th>
+                  <th class="col-src">스스 르무통 <span style="font-weight:400;color:#6b7280;font-size:10.5px">(N=12)</span></th>
+                  <th class="col-src">무신사 <span style="font-weight:400;color:#6b7280;font-size:10.5px">(N=8)</span></th>
+                  <th class="col-src">SSF <span style="font-weight:400;color:#6b7280;font-size:10.5px">(N=6)</span></th>
+                  <th class="col-add"><button class="btn-ghost-mock" style="padding:3px 10px">+ 소싱처</button></th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr style="background:#eff6ff">
+                  <td><input type="checkbox" checked /></td>
+                  <td class="col-opt">그레이-230</td>
+                  <td><input class="input-sm v1-cell-input" value="lemouton.com/p/123" /><div class="v1-cell-stat"><span class="chip-mock chip-best">115k ✓ 최저</span><span class="chip-mock chip-stock">재고</span></div></td>
+                  <td><input class="input-sm v1-cell-input" value="ss.com/products/123" /><div class="v1-cell-stat"><span class="chip-mock">119k</span><span class="chip-mock chip-stock">재고</span></div></td>
+                  <td><input class="input-sm v1-cell-input" value="musinsa.com/.../456" /><div class="v1-cell-stat"><span class="chip-mock">118k</span><span class="chip-mock chip-stock">재고</span></div></td>
+                  <td><input class="input-sm v1-cell-input" placeholder="—" /><div class="v1-cell-stat">&nbsp;</div></td>
+                  <td></td>
+                </tr>
+                <tr style="background:#eff6ff">
+                  <td><input type="checkbox" checked /></td>
+                  <td class="col-opt">그레이-235</td>
+                  <td><input class="input-sm v1-cell-input" value="lemouton.com/p/123" /><div class="v1-cell-stat"><span class="chip-mock chip-best">115k ✓</span><span class="chip-mock chip-stock">재고</span></div></td>
+                  <td><input class="input-sm v1-cell-input" value="ss.com/products/123" /><div class="v1-cell-stat"><span class="chip-mock">119k</span><span class="chip-mock chip-stock">재고</span></div></td>
+                  <td><input class="input-sm v1-cell-input" value="musinsa.com/.../456" /><div class="v1-cell-stat"><span class="chip-mock">118k</span><span class="chip-mock chip-out">품절</span></div></td>
+                  <td><input class="input-sm v1-cell-input" placeholder="—" /><div class="v1-cell-stat">&nbsp;</div></td>
+                  <td></td>
+                </tr>
+                <tr style="background:#eff6ff">
+                  <td><input type="checkbox" checked /></td>
+                  <td class="col-opt">그레이-240</td>
+                  <td><input class="input-sm v1-cell-input" value="lemouton.com/p/123" /><div class="v1-cell-stat"><span class="chip-mock chip-best">115k ✓</span><span class="chip-mock chip-stock">재고</span></div></td>
+                  <td><input class="input-sm v1-cell-input" value="ss.com/products/123" /><div class="v1-cell-stat"><span class="chip-mock">119k</span><span class="chip-mock chip-stock">재고</span></div></td>
+                  <td><input class="input-sm v1-cell-input" value="musinsa.com/.../456" /><div class="v1-cell-stat"><span class="chip-mock">118k</span><span class="chip-mock chip-stock">재고</span></div></td>
+                  <td><input class="input-sm v1-cell-input" placeholder="—" /><div class="v1-cell-stat">&nbsp;</div></td>
+                  <td></td>
+                </tr>
+                <tr>
+                  <td><input type="checkbox" /></td>
+                  <td class="col-opt">다크네이비-230</td>
+                  <td><input class="input-sm v1-cell-input" value="lemouton.com/p/124" /><div class="v1-cell-stat"><span class="chip-mock chip-best">115k ✓</span><span class="chip-mock chip-stock">재고</span></div></td>
+                  <td><input class="input-sm v1-cell-input" placeholder="—" /><div class="v1-cell-stat">&nbsp;</div></td>
+                  <td><input class="input-sm v1-cell-input" value="musinsa.com/.../457" /><div class="v1-cell-stat"><span class="chip-mock">118k</span><span class="chip-mock chip-stock">재고</span></div></td>
+                  <td><input class="input-sm v1-cell-input" placeholder="—" /><div class="v1-cell-stat">&nbsp;</div></td>
+                  <td></td>
+                </tr>
+                <tr>
+                  <td colspan="7" style="text-align:center;color:#9ca3af;padding:14px">⋯ 32개 옵션 더 ⋯</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <p class="legend">✓ 최저 = 재고 있는 소싱처 중 최저가 (자동 마크). 가격은 소싱처 페이지에서 1시간마다 자동 추출. 행 클릭 = 옵션 디테일 페이지.</p>
+        </div>
+      </div>
+
+      <table class="spec">
+        <tr><th>강점</th><td>소싱처×옵션 한눈에. 같은 컬럼 다중 행 체크 → 1번에 일괄 입력.</td></tr>
+        <tr><th>약점</th><td>소싱처 7~8개 넘으면 가로 스크롤. 셀 작아 모바일 부적합.</td></tr>
+        <tr><th>적합 케이스</th><td>옵션 30+ × 소싱처 3~5 (현재 르무통 클래식 정확히 매치)</td></tr>
+      </table>
+    </div>
+
+    <!-- ════════ 시안 2: 색상 그룹 카드 ════════ -->
+    <div class="ms">
+      <h2 class="mt">시안 2 — 색상 그룹 카드 (Color-grouped, 권장)</h2>
+      <p class="mtag">색상 단위로 카드 묶음. 한 카드 안에 사이즈 칩 + 공유 소싱처 리스트. <strong>"색상별 같은 URL"</strong> 일반 케이스에 가장 자연스러움.</p>
+      <span class="pros">사용자 멘탈모델 일치</span><span class="pros">일괄 적용이 기본 동작</span><span class="pros">모달 없이 인라인</span><span class="cons">옵션별 세부 다른 URL은 disclosure 필요</span>
+
+      <div class="mf" style="margin-top:14px">
+        <div class="mh">📍 모음전 / 르무통 클래식 / §5 옵션 매트릭스 (시안 2)</div>
+        <div class="mb">
+          <!-- 그레이 카드 -->
+          <div class="v2-card">
+            <div class="v2-head">
+              <div class="v2-color-swatch" style="background:#9ca3af"></div>
+              <div class="v2-color-name">그레이</div>
+              <span class="chip-mock">12개 사이즈</span>
+              <span class="chip-mock chip-best">최저가 출처: 르무통 공홈 115k</span>
+              <div style="margin-left:auto">
+                <button class="btn-ghost-mock">접기 ▲</button>
+              </div>
+            </div>
+
+            <div style="font-size:11.5px;color:#6b7280;margin-bottom:6px">사이즈 (체크한 사이즈에만 아래 변경 적용. 기본: 전체)</div>
+            <div class="v2-sizes-row">
+              <span class="v2-size-chip on">✓ 230</span>
+              <span class="v2-size-chip on">✓ 235</span>
+              <span class="v2-size-chip on">✓ 240</span>
+              <span class="v2-size-chip on">✓ 245</span>
+              <span class="v2-size-chip on">✓ 250</span>
+              <span class="v2-size-chip on">✓ 255</span>
+              <span class="v2-size-chip on">✓ 260</span>
+              <span class="v2-size-chip">265</span>
+              <span class="v2-size-chip">270</span>
+              <span class="v2-size-chip">275</span>
+              <span class="v2-size-chip">280</span>
+              <button class="btn-ghost-mock" style="margin-left:6px">전체 선택</button>
+            </div>
+
+            <table class="v2-srcs-table">
+              <thead><tr><th class="col-name">소싱처</th><th class="col-url">URL</th><th class="col-meta">가격 / 재고</th><th class="col-act"></th></tr></thead>
+              <tbody>
+                <tr>
+                  <td class="col-name">🟢 르무통 공홈</td>
+                  <td><input class="input-sm" style="width:100%" value="https://lemouton.com/products/classic-gray" /></td>
+                  <td><span class="chip-mock chip-best">115,000 ✓</span><br><span class="chip-mock chip-stock">재고 12</span></td>
+                  <td><button class="btn-ghost-mock">🗑</button></td>
+                </tr>
+                <tr>
+                  <td class="col-name">🟢 스스 르무통</td>
+                  <td><input class="input-sm" style="width:100%" value="https://smartstore.naver.com/lemouton/products/123" /></td>
+                  <td><span class="chip-mock">119,000</span><br><span class="chip-mock chip-stock">재고 5</span></td>
+                  <td><button class="btn-ghost-mock">🗑</button></td>
+                </tr>
+                <tr>
+                  <td class="col-name">🔵 무신사</td>
+                  <td><input class="input-sm" style="width:100%" value="https://musinsa.com/products/4567890" /></td>
+                  <td><span class="chip-mock">118,000</span><br><span class="chip-mock chip-out">품절</span></td>
+                  <td><button class="btn-ghost-mock">🗑</button></td>
+                </tr>
+                <tr>
+                  <td colspan="4" class="v3-add-row">
+                    <select class="input-sm" style="font-family:inherit"><option>소싱처 선택…</option><option>+ 새 소싱처 등록</option><option>SSF</option><option>롯데온</option><option>29CM</option></select>
+                    <input class="input-sm" placeholder="https://..." style="width:50%;margin-left:6px" />
+                    <button class="btn-sm-mock" style="margin-left:6px">+ 추가</button>
+                    <span style="font-size:11px;color:#6b7280;margin-left:10px">→ 선택된 7개 사이즈에 일괄 추가</span>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+
+            <details style="margin-top:10px">
+              <summary style="font-size:12px;color:#6b7280;cursor:pointer">사이즈별 URL 다른 경우 (예: 작은 사이즈만 다른 페이지)</summary>
+              <div style="padding:10px;background:#f9fafb;border-radius:6px;margin-top:8px;font-size:12px">
+                옵션 행 직접 클릭 → 해당 사이즈만 URL override. 보통 95%+ 케이스는 색상 단위로 충분.
+              </div>
+            </details>
+          </div>
+
+          <!-- 다크네이비 카드 (접힘) -->
+          <div class="v2-card" style="background:#fafbfc">
+            <div class="v2-head" style="border-bottom:0;margin-bottom:0;padding-bottom:0">
+              <div class="v2-color-swatch" style="background:#1e3a8a"></div>
+              <div class="v2-color-name">다크네이비</div>
+              <span class="chip-mock">12개 사이즈</span>
+              <span class="chip-mock chip-best">최저가: 르무통 공홈 115k</span>
+              <span class="chip-mock">소싱처 3개</span>
+              <div style="margin-left:auto"><button class="btn-ghost-mock">펼치기 ▼</button></div>
+            </div>
+          </div>
+
+          <!-- 카멜 카드 (접힘) -->
+          <div class="v2-card" style="background:#fafbfc">
+            <div class="v2-head" style="border-bottom:0;margin-bottom:0;padding-bottom:0">
+              <div class="v2-color-swatch" style="background:#c08d5b"></div>
+              <div class="v2-color-name">카멜</div>
+              <span class="chip-mock">12개 사이즈</span>
+              <span class="chip-mock" style="background:#fef3c7;color:#92400e">소싱처 미입력</span>
+              <div style="margin-left:auto"><button class="btn-ghost-mock">펼치기 ▼</button></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <table class="spec">
+        <tr><th>강점</th><td>"색상별 같은 URL" 사용자 모델 정확. 펼침/접힘으로 화면 정리. 일괄 적용이 자동 (사이즈 칩 = 적용 대상).</td></tr>
+        <tr><th>약점</th><td>색상 50개+ 상품에서는 카드 길어짐 (스크롤). 색상 무관 일괄 작업은 §1 보다 한 단계 더.</td></tr>
+        <tr><th>적합 케이스</th><td>색상 3~10개 × 사이즈 5~15 (르무통 모든 모음전 매치)</td></tr>
+      </table>
+    </div>
+
+    <!-- ════════ 시안 3: Master/Detail Inspector ════════ -->
+    <div class="ms">
+      <h2 class="mt">시안 3 — 좌측 옵션 트리 + 우측 인스펙터 (Master/Detail)</h2>
+      <p class="mtag">좌측 트리에서 옵션 다중 체크 → 우측 패널에 소싱처 편집. 선택 = 일괄 적용 대상. IDE 스타일.</p>
+      <span class="pros">자유로운 다중 선택</span><span class="pros">상세 영역 넓게</span><span class="cons">2-pane = 모바일 비적합</span><span class="cons">학습 비용</span>
+
+      <div class="mf" style="margin-top:14px">
+        <div class="mh">📍 모음전 / 르무통 클래식 / §5 옵션 매트릭스 (시안 3)</div>
+        <div class="mb">
+          <div class="v3-wrap">
+            <!-- 좌: 트리 -->
+            <div class="v3-tree">
+              <div style="font-size:11.5px;color:#6b7280;font-weight:700;padding:4px 6px;margin-bottom:4px">옵션 (체크한 것에 적용)</div>
+              <input class="input-sm" placeholder="🔍 옵션 검색…" style="width:100%;margin-bottom:8px" />
+
+              <div class="v3-tree-color">
+                <input type="checkbox" />
+                <span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#9ca3af"></span>
+                <span>그레이</span>
+                <span style="margin-left:auto;font-size:11px;color:#6b7280">12 / 12 ✓</span>
+              </div>
+              <div class="v3-tree-sizes">
+                <div class="v3-tree-size sel"><input type="checkbox" checked /><span>230</span><span style="margin-left:auto;font-size:10.5px;color:#15803d">3 src</span></div>
+                <div class="v3-tree-size sel"><input type="checkbox" checked /><span>235</span><span style="margin-left:auto;font-size:10.5px;color:#15803d">3 src</span></div>
+                <div class="v3-tree-size sel"><input type="checkbox" checked /><span>240</span><span style="margin-left:auto;font-size:10.5px;color:#15803d">3 src</span></div>
+                <div class="v3-tree-size"><input type="checkbox" /><span>245</span><span style="margin-left:auto;font-size:10.5px;color:#15803d">3 src</span></div>
+                <div class="v3-tree-size"><input type="checkbox" /><span>250</span><span style="margin-left:auto;font-size:10.5px;color:#15803d">3 src</span></div>
+                <div style="font-size:11px;color:#9ca3af;padding:4px 6px">⋯ 7 more</div>
+              </div>
+
+              <div class="v3-tree-color" style="margin-top:6px">
+                <input type="checkbox" />
+                <span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#1e3a8a"></span>
+                <span>다크네이비</span>
+                <span style="margin-left:auto;font-size:11px;color:#6b7280">12 / 12 ✓</span>
+              </div>
+              <div class="v3-tree-color" style="margin-top:6px">
+                <input type="checkbox" />
+                <span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#c08d5b"></span>
+                <span>카멜</span>
+                <span style="margin-left:auto;font-size:11px;color:#92400e">0 / 12 ⚠</span>
+              </div>
+            </div>
+
+            <!-- 우: 디테일 -->
+            <div class="v3-detail">
+              <div class="v3-detail-head">
+                <span class="v3-mode-badge">일괄 편집 — 3개 선택</span>
+                <span style="font-size:12.5px;color:#1f2937">그레이-230, 그레이-235, 그레이-240</span>
+                <button class="btn-ghost-mock" style="margin-left:auto">전체 해제</button>
+              </div>
+
+              <div style="font-size:11.5px;color:#6b7280;margin-bottom:8px">소싱처 (3개 옵션에 동시 적용)</div>
+
+              <div class="v3-row-src">
+                <span class="src-name">🟢 르무통 공홈</span>
+                <input class="input-sm" value="https://lemouton.com/products/classic-gray" />
+                <span class="meta"><span class="chip-mock chip-best">115k ✓</span></span>
+                <span class="meta"><span class="chip-mock chip-stock">재고 OK</span></span>
+                <button class="btn-ghost-mock">🗑</button>
+              </div>
+              <div class="v3-row-src">
+                <span class="src-name">🟢 스스 르무통</span>
+                <input class="input-sm" value="https://smartstore.naver.com/lemouton/products/123" />
+                <span class="meta"><span class="chip-mock">119k</span></span>
+                <span class="meta"><span class="chip-mock chip-stock">재고 OK</span></span>
+                <button class="btn-ghost-mock">🗑</button>
+              </div>
+              <div class="v3-row-src">
+                <span class="src-name">🔵 무신사</span>
+                <input class="input-sm" value="https://musinsa.com/products/4567890" />
+                <span class="meta"><span class="chip-mock">118k</span></span>
+                <span class="meta"><span class="chip-mock chip-out">품절 1</span></span>
+                <button class="btn-ghost-mock">🗑</button>
+              </div>
+
+              <div style="padding:12px;background:#f9fafb;border-radius:8px;margin-top:14px">
+                <div style="font-size:12px;color:#6b7280;font-weight:700;margin-bottom:8px">+ 새 소싱처 추가</div>
+                <div style="display:flex;gap:8px;align-items:center">
+                  <select class="input-sm" style="font-family:inherit;width:160px"><option>소싱처 선택…</option><option>SSF</option><option>롯데온</option><option>29CM</option><option>+ 새 소싱처 등록</option></select>
+                  <input class="input-sm" placeholder="https://..." style="flex:1" />
+                  <button class="btn-sm-mock">3개 옵션에 추가</button>
+                </div>
+              </div>
+
+              <div style="margin-top:14px;padding-top:12px;border-top:1px solid #f3f4f6;font-size:11.5px;color:#6b7280">
+                💡 1개만 선택 시 → 단일 옵션 편집 모드. URL 비어있는 행은 해당 옵션에서만 비움 (덮어쓰기 안 함).
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <table class="spec">
+        <tr><th>강점</th><td>임의 조합 다중 선택 (예: 그레이-230 + 다크네이비-280). 우측 영역 디테일 풍부.</td></tr>
+        <tr><th>약점</th><td>2-pane = 좁은 화면 부적합. "어떤 옵션에 적용되는지" 매번 트리 확인 필요.</td></tr>
+        <tr><th>적합 케이스</th><td>옵션별 URL 자주 다른 경우. 파워 유저 / IDE 익숙 사용자.</td></tr>
+      </table>
+    </div>
+
+    <!-- 비교 요약 -->
+    <div class="ms" style="background:#fffbea;border-color:#fde68a">
+      <h2 class="mt">비교 요약</h2>
+      <table class="spec" style="background:#fff">
+        <thead>
+          <tr style="background:#f9fafb"><th>항목</th><th style="background:#f9fafb">시안 1 — 스프레드시트</th><th style="background:#f9fafb">시안 2 — 색상 카드</th><th style="background:#f9fafb">시안 3 — 인스펙터</th></tr>
+        </thead>
+        <tbody>
+          <tr><th>레이아웃</th><td>표 (행=옵션, 열=소싱처)</td><td>색상별 카드 + 사이즈 칩</td><td>좌 트리 + 우 디테일</td></tr>
+          <tr><th>일괄 적용 트리거</th><td>행 체크박스</td><td>사이즈 칩 (기본 전체)</td><td>트리 다중 체크</td></tr>
+          <tr><th>새 소싱처 추가</th><td>+ 컬럼 (가로 확장)</td><td>+ 행 (카드 안)</td><td>+ 행 (인스펙터 하단)</td></tr>
+          <tr><th>모달 없음</th><td>✅</td><td>✅</td><td>✅</td></tr>
+          <tr><th>색상별 동일 URL 케이스</th><td>3 행 모두 같은 값 입력</td><td>1번 입력 → 모든 사이즈 자동</td><td>색상 체크 → 1번 입력</td></tr>
+          <tr><th>모바일 대응</th><td>가로 스크롤</td><td>자연스러움</td><td>1-pane 전환 필요</td></tr>
+          <tr><th>학습 비용</th><td>낮음 (엑셀 친숙)</td><td>매우 낮음</td><td>중간</td></tr>
+          <tr><th>추천도</th><td>★★★ (고급 사용자)</td><td>★★★★★ (현재 데이터에 최적)</td><td>★★★ (옵션별 디테일 많을 때)</td></tr>
+        </tbody>
+      </table>
+
+      <p style="margin-top:14px;font-size:13px">
+        💡 <strong>제 추천</strong> = <strong>시안 2 (색상 카드)</strong>.
+        이유: ① 사용자가 말씀하신 "한 옵션 구성 = 동일 URL" 패턴이 색상 단위에 정확히 매칭, ② 일괄 적용이 별도 UI 없이 사이즈 칩만으로 자연스러움, ③ 색상 50개 같은 극단 케이스도 카드 접기/펼치기로 대응.
+        다만 시안 1·3 도 각각 강점이 있어 사용자 워크플로우 듣고 결정하면 좋을 것 같아요.
+      </p>
+    </div>
+
+    <a class="btn btn-ghost" href="/bundles">← 모음전 목록</a>
+  </div>
+</section>
+{% endblock %}

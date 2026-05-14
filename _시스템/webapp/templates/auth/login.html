@@ -1,0 +1,33 @@
+{% extends "auth/_base_auth.html" %}
+{% block title %}로그인{% endblock %}
+
+{% block content %}
+  <h1 class="auth-title">로그인</h1>
+  <p class="auth-desc">팀 계정으로 모음전 시스템에 접속</p>
+
+  <form method="post" novalidate>
+    {{ form.hidden_tag() }}
+
+    <div class="field">
+      {{ form.email.label }}
+      {{ form.email(placeholder="name@example.com", autocomplete="email", autofocus=true) }}
+      {% if form.email.errors %}
+        {% for e in form.email.errors %}<div class="field-error">{{ e }}</div>{% endfor %}
+      {% endif %}
+    </div>
+
+    <div class="field">
+      {{ form.password.label }}
+      {{ form.password(placeholder="비밀번호", autocomplete="current-password") }}
+      {% if form.password.errors %}
+        {% for e in form.password.errors %}<div class="field-error">{{ e }}</div>{% endfor %}
+      {% endif %}
+    </div>
+
+    <div class="auth-row">
+      <label>{{ form.remember() }} {{ form.remember.label.text }}</label>
+    </div>
+
+    {{ form.submit(class="btn-primary") }}
+  </form>
+{% endblock %}

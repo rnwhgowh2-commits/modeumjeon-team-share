@@ -1,0 +1,78 @@
+# ==========================================================
+# 동기화 제외 목록 — 기존 → 신규 단방향 미러 시 적용
+# ==========================================================
+# 형식: gitignore 와 유사. 한 줄당 하나의 패턴.
+# - 디렉토리는 끝에 / 권장
+# - 파일은 glob 패턴 (*, ?, **)
+# - 주석은 #
+# ==========================================================
+
+# ─── Python 가상환경·캐시 (재생성 가능) ───
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# ─── DB 파일 (신규는 Supabase 사용, SQLite 미러 불필요) ───
+data/lemouton.db
+data/lemouton.db.empty_*
+data/lemouton*.db.bak
+data/*.db
+data/*.db.*
+
+# ─── 운영 로그·디버그 산출물 ───
+logs/
+data/_inspect_*.log
+data/_resolve_*.log
+data/_v2_gen*.py
+_broken_links*.json
+_routes_dump.json
+_browser_open.py
+
+# ─── 테스트·데모 산출물 ───
+data/demo_*.xlsx
+data/*_export_test.xlsx
+data/TEST_*.xlsx
+
+# ─── Playwright 브라우저 프로필 (재생성 가능, 2.7GB) ───
+# 초기 복사엔 포함하지만 daily 동기화에선 제외 (cache churn 큼)
+# 필요 시 사용자가 "프로필 재동기화" 명령으로 수동 트리거
+data/profiles/
+
+# ─── 신규 전용 — 기존에 없는 파일·디렉토리 (sync 시 영원히 보호) ───
+# Day 2: 인증
+webapp/auth/
+webapp/templates/auth/
+scripts/create_admin.py
+# Day 4: 배포
+Dockerfile
+.dockerignore
+fly.toml
+
+# ─── 신규 전용 라인 패턴 (sync.py 가 line-level 처리) ───
+# config.py:DATABASE_URL
+# config.py:SUPABASE_URL
+# requirements.txt:Flask-Login
+# requirements.txt:psycopg2
+# requirements.txt:gunicorn
+
+# ─── 동기화 자체 산출물 ───
+.sync-ignore
+sync.py
+sync.log
+docs/sync-status.md
+CLAUDE.md
+
+# ─── 환경변수·시크릿 (시스템별 다른 값 — 신규는 Supabase, 기존은 SQLite) ───
+.env
+.env.*
+*.env
+
+# ─── Git·IDE 잡파일 ───
+.git/
+.idea/
+.vscode/
+*.swp
+*~
+Thumbs.db
+.DS_Store

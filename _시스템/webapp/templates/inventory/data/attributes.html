@@ -1,0 +1,94 @@
+{% extends 'base.html' %}
+{% block title %}속성 — 데이터 관리{% endblock %}
+{% block content %}
+{# 박스히어로 1:1 속성 관리 (탭 분리 — 색상/사이즈/카테고리/브랜드/모델/기타) + 5 type. #}
+<div style="padding:24px 32px;max-width:1500px;margin:0 auto">
+  <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px">
+    <div style="font-size:12.5px;color:#8F91A0">데이터 관리</div>
+    <h1 style="font-size:22px;font-weight:700;margin:0;color:#292A2F">속성</h1>
+    <span title="제품에 추가할 사용자 정의 필드 — 색상·사이즈·카테고리·브랜드·모델 등" style="display:inline-flex;align-items:center;justify-content:center;width:14px;height:14px;border-radius:50%;background:#F1F1F4;color:#8F91A0;font-size:9.5px;font-weight:700;cursor:help">i</span>
+    <span style="font-size:11.5px;color:#8F91A0">총 {{ attrs|length }}개</span>
+  </div>
+
+  {# 박스히어로 1:1 탭 분리 #}
+  {% set tab_filter = request.args.get('tab', 'all') %}
+  {% set std_names = ['색상', '사이즈', '카테고리', '브랜드', '모델'] %}
+  <div style="display:flex;gap:0;border-bottom:1px solid #E5E8EB;margin-bottom:14px">
+    {% set tabs = [('all','전체'),('색상','색상'),('사이즈','사이즈'),('카테고리','카테고리'),('브랜드','브랜드'),('모델','모델'),('etc','기타')] %}
+    {% for code, label in tabs %}
+      {% if code == 'all' %}{% set count = attrs|length %}
+      {% elif code == 'etc' %}{% set count = attrs|rejectattr('name','in',std_names)|list|length %}
+      {% else %}{% set count = attrs|selectattr('name','equalto',code)|list|length %}
+      {% endif %}
+      <a href="?tab={{ code }}" style="padding:10px 18px;text-decoration:none;font-size:13px;font-weight:{% if tab_filter == code %}700{% else %}500{% endif %};color:{% if tab_filter == code %}#4F67FF{% else %}#8F91A0{% endif %};border-bottom:2px solid {% if tab_filter == code %}#4F67FF{% else %}transparent{% endif %};margin-bottom:-1px">
+        {{ label }} <span style="font-size:11px;color:#8F91A0">{{ count }}</span>
+      </a>
+    {% endfor %}
+  </div>
+  {% with msgs = get_flashed_messages(with_categories=true) %}{% for cat,msg in msgs %}<div style="background:{% if cat=='error' %}#FEF2F2{% else %}#ECFDF5{% endif %};border:1px solid {% if cat=='error' %}#FCA5A5{% else %}#86EFAC{% endif %};padding:10px 14px;border-radius:6px;margin-bottom:12px;font-size:13px;color:{% if cat=='error' %}#991B1B{% else %}#065F46{% endif %}">{{ msg }}</div>{% endfor %}{% endwith %}
+
+  {# 표준 5종 quick-add (박스히어로 표준 속성 — 색상·사이즈·카테고리·브랜드·모델) #}
+  <div style="background:#fff;border:1px solid #E5E8EB;border-radius:8px;padding:14px 16px;margin-bottom:12px">
+    <div style="display:flex;align-items:center;gap:6px;margin-bottom:10px">
+      <span style="font-size:13px;font-weight:600;color:#292A2F">표준 속성 빠른 추가</span>
+      <span style="font-size:11.5px;color:#8F91A0">— 박스히어로 표준 5종</span>
+    </div>
+    <div style="display:flex;gap:6px;flex-wrap:wrap">
+      {% set existing_names = attrs|map(attribute='name')|list %}
+      {% for std in [('색상','text','🎨'), ('사이즈','text','📏'), ('카테고리','text','📁'), ('브랜드','text','®'), ('모델','text','#')] %}
+        {% if std[0] not in existing_names %}
+          <form method="post" action="{{ url_for('inventory.data_attributes_create') }}" style="display:inline">
+            <input type="hidden" name="name" value="{{ std[0] }}">
+            <input type="hidden" name="type" value="{{ std[1] }}">
+            <button type="submit" style="background:#fff;border:1px solid #4F67FF;color:#4F67FF;padding:6px 12px;border-radius:5px;font-size:12.5px;font-weight:600;cursor:pointer">+ {{ std[2] }} {{ std[0] }}</button>
+          </form>
+        {% else %}
+          <button type="button" disabled style="background:#F1F1F4;border:1px solid #E5E8EB;color:#8F91A0;padding:6px 12px;border-radius:5px;font-size:12.5px;cursor:default">✓ {{ std[2] }} {{ std[0] }}</button>
+        {% endif %}
+      {% endfor %}
+    </div>
+  </div>
+
+  {# 커스텀 추가 #}
+  <div style="background:#fff;border:1px solid #E5E8EB;border-radius:8px;padding:16px 18px;margin-bottom:14px">
+    <form method="post" action="{{ url_for('inventory.data_attributes_create') }}" style="display:flex;gap:8px;align-items:center">
+      <input name="name" placeholder="새 속성 이름 (예: 시즌, 소재, 보증기간 ...)" required style="flex:1;padding:9px 12px;border:1px solid #CBCCD3;border-radius:5px;font-size:13px;color:#292A2F">
+      <select name="type" style="padding:9px 10px;border:1px solid #CBCCD3;border-radius:5px;font-size:13px;color:#292A2F;background:#fff">{% for t in valid_types %}<option value="{{ t }}">{{ t }}</option>{% endfor %}</select>
+      <button type="submit" style="background:#4F67FF;color:#fff;padding:9px 16px;border:none;border-radius:5px;font-size:13px;font-weight:600;cursor:pointer">+ 추가</button>
+    </form>
+    <div style="margin-top:8px;font-size:11.5px;color:#8F91A0">
+      💡 <strong>type 가이드</strong> — text(자유 입력) · number(숫자만) · date(날짜) · barcode(바코드 스캔 인식) · file(이미지·PDF 첨부)
+    </div>
+  </div>
+
+  <div style="background:#fff;border:1px solid #E5E8EB;border-radius:8px;overflow:hidden">
+    <table style="width:100%;border-collapse:collapse;font-size:12.5px">
+      <thead style="background:#F1F1F4"><tr>
+        <th style="padding:11px 8px;text-align:left;font-size:11.5px;color:#292A2F;font-weight:600;width:60px">정렬</th>
+        <th style="padding:11px 8px;text-align:left;font-size:11.5px;color:#292A2F;font-weight:600">속성명</th>
+        <th style="padding:11px 8px;text-align:left;font-size:11.5px;color:#292A2F;font-weight:600;width:120px">유형</th>
+        <th style="padding:11px 8px;text-align:left;font-size:11.5px;color:#292A2F;font-weight:600">설정</th>
+        <th style="padding:11px 8px;text-align:right;font-size:11.5px;color:#292A2F;font-weight:600;width:100px">작업</th>
+      </tr></thead>
+      <tbody>
+        {% set filtered = attrs if tab_filter == 'all' else (attrs|rejectattr('name','in',std_names)|list if tab_filter == 'etc' else attrs|selectattr('name','equalto',tab_filter)|list) %}
+        {% for a in filtered %}<tr style="border-bottom:1px solid #F1F1F4">
+          <td style="padding:9px 8px;color:#8F91A0">{{ a.sort_order }}</td>
+          <td style="padding:9px 8px;font-weight:500;color:#292A2F">
+            {% if a.name == '색상' %}🎨 {% elif a.name == '사이즈' %}📏 {% elif a.name == '카테고리' %}📁 {% elif a.name == '브랜드' %}® {% elif a.name == '모델' %}# {% endif %}{{ a.name }}
+          </td>
+          <td style="padding:9px 8px"><span style="background:#F1F1F4;padding:2px 8px;border-radius:8px;font-size:11px;color:#292A2F;font-family:ui-monospace,monospace">{{ a.type }}</span></td>
+          <td style="padding:9px 8px;font-size:11.5px;color:#8F91A0">
+            {% if a.name == '색상' and a.type == 'text' %}<span style="display:inline-flex;align-items:center;gap:4px"><span style="width:14px;height:14px;border-radius:50%;background:linear-gradient(135deg,#FF6B6B,#4F67FF,#22C55E);border:1px solid #CBCCD3"></span> color picker (UI 자동)</span>
+            {% elif a.type == 'barcode' %}📷 바코드 스캔 인식
+            {% elif a.type == 'file' %}📎 파일 업로드 (이미지·PDF)
+            {% else %}—{% endif %}
+          </td>
+          <td style="padding:9px 8px;text-align:right"><form method="post" action="{{ url_for('inventory.data_attributes_delete', attr_id=a.id) }}" style="display:inline" onsubmit="return confirm('삭제?')"><button type="submit" style="background:#FEF2F2;color:#991B1B;border:1px solid #FCA5A5;padding:5px 10px;border-radius:4px;font-size:11.5px;cursor:pointer">🗑</button></form></td>
+        </tr>{% else %}<tr><td colspan="5" style="padding:48px;text-align:center;color:#8F91A0">{% if tab_filter == 'all' %}속성 없음 — 위 표준 5종 중 추가하거나 직접 추가{% else %}이 탭에 속성 없음{% endif %}</td></tr>{% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <div style="margin-top:14px;font-size:11px;color:#8F91A0;line-height:1.7">★ 박스히어로 1:1 — 5 type (텍스트/숫자/날짜/바코드/파일) + 표준 5종 quick-add (색상·사이즈·카테고리·브랜드·모델). 고정 필드 (SKU·제품명·구매가·판매가)는 수정 ❌.</div>
+</div>
+{% endblock %}

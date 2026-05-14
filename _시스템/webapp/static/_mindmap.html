@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>르무통 재고 업데이트 — 앱 구조 다이어그램</title>
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10.6.1/dist/mermaid.min.js"></script>
+<style>
+  :root {
+    --primary: #3182F6;
+    --bg: #FAFBFC;
+    --surface: #FFFFFF;
+    --border: #EAECEF;
+    --t1: #0B1217;
+    --t3: #6B7684;
+    --t4: #98A1AB;
+    --urgent: #E5394A;
+    --ok: #1AB053;
+  }
+  body { font-family: 'Pretendard', sans-serif; background: var(--bg); color: var(--t1); margin: 0; padding: 32px 48px; max-width: 1400px; margin: 0 auto; }
+  h1 { font-size: 24px; font-weight: 700; margin: 0 0 4px; letter-spacing: -0.02em; }
+  .subtitle { font-size: 14px; color: var(--t3); margin: 0 0 32px; }
+  h2 { font-size: 17px; font-weight: 700; margin: 40px 0 14px; padding-top: 24px; border-top: 1px solid var(--border); }
+  .legend { font-size: 13px; color: var(--t3); margin-bottom: 12px; line-height: 1.7; }
+  .diagram { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 24px; margin-bottom: 16px; overflow: auto; }
+  .toc { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 16px 20px; margin-bottom: 24px; }
+  .toc a { color: var(--primary); text-decoration: none; margin-right: 16px; font-size: 13px; font-weight: 600; }
+  .toc a:hover { text-decoration: underline; }
+  /* mermaid 색상 강제 */
+  .mermaid svg { max-width: 100%; height: auto; }
+</style>
+</head>
+<body>
+
+<h1>르무통 재고 업데이트 — 앱 구조 다이어그램</h1>
+<p class="subtitle">11 페이지 · 1 위저드 · 9 연동 관계 — TOP-DOWN 마인드맵</p>
+
+<div class="toc">
+  <a href="#tree">① 사이드바 트리</a>
+  <a href="#flow">② 화면 간 연동</a>
+  <a href="#wizard">③ 위저드 흐름</a>
+  <a href="#chart">④ 차트 데이터 흐름</a>
+  <a href="#patterns">⑤ 인터랙션 매트릭스</a>
+</div>
+
+
+<h2 id="tree">① 사이드바 트리 — 11 페이지 계층</h2>
+<p class="legend">
+  <span style="color:var(--primary); font-weight:700;">🟦 그룹</span> ·
+  <span style="color:var(--t1); font-weight:700;">⬛ 페이지</span> ·
+  <span style="color:var(--ok); font-weight:700;">🟢 서브 탭</span> ·
+  <span style="color:var(--urgent); font-weight:700;">🔴 긴급 카운트</span>
+</p>
+<div class="diagram">
+<pre class="mermaid">
+flowchart TD
+  classDef group fill:#EFF5FF,stroke:#3182F6,color:#1B64DA,font-weight:700
+  classDef page fill:#FFFFFF,stroke:#0B1217,color:#0B1217
+  classDef subtab fill:#E6F7EE,stroke:#1AB053,color:#1AB053
+  classDef urgent fill:#FCEEF0,stroke:#E5394A,color:#E5394A
+  classDef wiz fill:#FEF3E7,stroke:#F2994A,color:#B25C0F
+
+  Root([르무통<br/>재고 업데이트]):::group
+  Root --> Home[1 · 홈]:::page
+  Root --> Track[2 · 작업 내역 3건]:::page
+  Root --> Queue[3 · 맵핑 내역 5건]:::urgent
+
+  Root --> GSrc{소싱 그룹}:::group
+  GSrc --> SM[4 · 소싱 마스터 3건]:::page
+  GSrc --> SH[5 · 재고/가격 이력]:::page
+
+  SM --> SD[4-1 · 소싱 상세]:::page
+  SD --> SD1[요약 KPI+차트]:::subtab
+  SD --> SD2[옵션 자세히 127]:::subtab
+  SD --> SD3[스크린샷 갤러리]:::subtab
+  SD --> SD4[가격 변동 이력]:::subtab
+  SD --> SD5[URL · 옵션 라벨]:::subtab
+
+  Root --> GSale{판매 그룹}:::group
+  GSale --> B[6 · 모음전 6건]:::page
+
+  Root --> GSet{설정 그룹}:::group
+  GSet --> SubAcc[계정관리]:::group
+  GSet --> SubTpl[템플릿]:::group
+
+  SubAcc --> AM[7 · 판매처 계정 2개]:::page
+  SubAcc --> AS[8 · 소싱처 계정 3개]:::page
+  SubTpl --> TP[9 · 가격 템플릿]:::page
+  SubTpl --> TM[10 · 기타 템플릿]:::page
+
+  TM --> TM1[색상 2건]:::subtab
+  TM --> TM2[사이즈 3건]:::subtab
+  TM --> TM3[콤보 1건]:::subtab
+
+  Root -.위저드.-> Wiz[부속 · 자동 로그인 위저드<br/>4단계 모달]:::wiz
+</pre>
+</div>
+
+
+<h2 id="flow">② 화면 간 연동 — 클릭/네비게이션 흐름</h2>
+<p class="legend">실선: 직접 이동 · 점선: 외부 링크 또는 사이드 이펙트</p>
+<div class="diagram">
+<pre class="mermaid">
+flowchart LR
+  classDef page fill:#FFFFFF,stroke:#0B1217,color:#0B1217
+  classDef ext fill:#FEF3E7,stroke:#F2994A,color:#B25C0F
+  classDef act fill:#EFF5FF,stroke:#3182F6,color:#1B64DA
+
+  Home[홈 KPI 카드]:::page -- 가격변동 클릭 --> SD[소싱 상세]:::page
+  Home -- 미매핑 큐 카드 --> Queue[맵핑 내역]:::page
+  Home -- 활성 모음전 카드 --> B[모음전]:::page
+
+  SM[소싱 마스터]:::page -- 행 펼치기 --> BC[모음전 미니카드]:::page
+  SM -- 상세 → --> SD
+
+  BC -. 마켓 URL ↗ .-> EXT_SS[smartstore.naver.com]:::ext
+  BC -. 마켓 URL ↗ .-> EXT_CP[coupang.com]:::ext
+
+  SD -- 모음전 편집 → --> B
+  SD -- 옵션 셀렉터 변경 --> Chart[차트 + 인사이트<br/>동시 갱신]:::act
+
+  B -- 마켓 ID 클릭 --> CB[클립보드 복사<br/>토스트 표시]:::act
+  B -- 등록 → --> Toast[토스트: 등록 실행]:::act
+
+  AM[판매처 계정]:::page -- + 계정 추가 --> Wiz[자동 로그인<br/>위저드 모달]:::act
+  AS[소싱처 계정]:::page -- + 세션 추가 --> Wiz
+  AM -- ↗ 판매자센터 자동 로그인 --> SimAuto[자동 로그인 시뮬<br/>토스트 2회]:::act
+  AS -- ↗ 자동 재로그인 --> SimAuto
+
+  SH[재고/가격 이력]:::page -- 검색 입력 --> Results[5 시나리오 카드<br/>차트+타임라인]:::act
+  Results -- 카드 클릭 → --> SD
+
+  AnyTab[모든 탭의<br/>토스트 호출] -. localStorage event .-> OtherTab[다른 브라우저 탭<br/>실시간 동기]:::act
+</pre>
+</div>
+
+
+<h2 id="wizard">③ 자동 로그인 위저드 — 4 단계 흐름</h2>
+<div class="diagram">
+<pre class="mermaid">
+flowchart LR
+  classDef step fill:#EFF5FF,stroke:#3182F6,color:#1B64DA,font-weight:700
+  classDef done fill:#E6F7EE,stroke:#1AB053,color:#1AB053
+  classDef end fill:#FCEEF0,stroke:#E5394A,color:#E5394A
+
+  Open([+ 계정 추가 클릭]):::done
+  Open --> S1[1 · 마켓 선택<br/>스마트스토어/쿠팡/11번가]:::step
+  S1 -- 선택 후 자동 진행 --> S2[2 · 자격증명 + 명의<br/>required + email + password<br/>+ datalist + radio]:::step
+  S2 -- validateForm 통과 --> S3[3 · 자동 로그인 실행<br/>Chromium 부팅 시뮬]:::step
+  S3 -- 검증 통과 --> S4[4 · 완료]:::step
+  S4 --> Saved([토스트: 계정 등록됨]):::end
+  S2 -. ESC / 취소 .-> Cancel([닫기]):::end
+</pre>
+</div>
+
+
+<h2 id="chart">④ 차트 데이터 흐름 — 옵션 셀렉터 → 갱신</h2>
+<p class="legend">옵션 dropdown 변경 시 5개 요소가 동시 업데이트됩니다.</p>
+<div class="diagram">
+<pre class="mermaid">
+flowchart TB
+  classDef src fill:#EFF5FF,stroke:#3182F6,color:#1B64DA,font-weight:700
+  classDef out fill:#FFFFFF,stroke:#0B1217,color:#0B1217
+
+  Sel[옵션 셀렉터<br/>블랙-220 / 블랙-230 / 브라운-235 등 5종]:::src
+  Sel --> JS[updateChart옵션키]:::src
+  JS --> D1[chart-subtitle<br/>예 메이트 / 블랙 / 220mm]:::out
+  JS --> D2[르무통 polyline points]:::out
+  JS --> D3[무신사 polyline points]:::out
+  JS --> D4[범례 가격 + 차이 태그<br/>최저가 / +3,000 / 품절]:::out
+  JS --> D5[추천 소싱처 인사이트<br/>르무통 ↔ 무신사 폴백]:::out
+  JS --> D6[차상위 소싱처 인사이트<br/>회원가 / 대체사용]:::out
+</pre>
+</div>
+
+
+<h2 id="patterns">⑤ 인터랙션 패턴 매트릭스 — 페이지별 사용 기능</h2>
+<div class="diagram">
+<table style="width:100%; border-collapse: collapse; font-size: 13px;">
+<thead>
+<tr style="background: var(--bg); border-bottom: 2px solid var(--border);">
+  <th style="text-align:left; padding: 10px;">페이지</th>
+  <th style="text-align:center; padding: 10px;">검색</th>
+  <th style="text-align:center; padding: 10px;">필터칩</th>
+  <th style="text-align:center; padding: 10px;">정렬</th>
+  <th style="text-align:center; padding: 10px;">다중선택</th>
+  <th style="text-align:center; padding: 10px;">페이징</th>
+  <th style="text-align:center; padding: 10px;">펼치기</th>
+  <th style="text-align:center; padding: 10px;">탭</th>
+  <th style="text-align:center; padding: 10px;">차트</th>
+  <th style="text-align:center; padding: 10px;">위저드</th>
+  <th style="text-align:center; padding: 10px;">토글</th>
+</tr>
+</thead>
+<tbody>
+<tr style="border-bottom: 1px solid var(--border);"><td style="padding: 8px;"><strong>홈</strong></td><td style="text-align:center;">—</td><td style="text-align:center;">—</td><td style="text-align:center;">—</td><td style="text-align:center;">—</td><td style="text-align:center;">—</td><td style="text-align:center;">—</td><td style="text-align:center;">—</td><td style="text-align:center;">—</td><td style="text-align:center;">—</td><td style="text-align:center;">—</td></tr>
+<tr style="border-bottom: 1px solid var(--border);"><td style="padding: 8px;"><strong>작업 내역</strong></td><td style="text-align:center;">✓</td><td style="text-align:center;">✓</td><td style="text-align:center;">—</td><td style="text-align:center;">—</td><td style="text-align:center;">—</td><td style="text-align:center;">—</td><td style="text-align:center;">—</td><td style="text-align:center;">—</td><td style="text-align:center;">—</td><td style="text-align:center;">—</td></tr>
+<tr style="border-bottom: 1px solid var(--border);"><td style="padding: 8px;"><strong>맵핑 내역</strong></td><td style="text-align:center;">✓</td><td style="text-align:center;">✓</td><td style="text-align:center;">—</td><td style="text-align:center;">—</td><td style="text-align:center;">—</td><td style="text-align:center;">—</td><td style="text-align:center;">—</td><td style="text-align:center;">—</td><td style="text-align:center;">—</td><td style="text-align:center;">—</td></tr>
+<tr style="border-bottom: 1px solid var(--border); background: #EFF5FF;"><td style="padding: 8px;"><strong>소싱 마스터</strong></td><td style="text-align:center;">✓</td><td style="text-align:center;">✓</td><td style="text-align:center;">✓</td><td style="text-align:center;">✓</td><td style="text-align:center;">✓</td><td style="text-align:center;">✓</td><td style="text-align:center;">—</td><td style="text-align:center;">—</td><td style="text-align:center;">—</td><td style="text-align:center;">—</td></tr>
+<tr style="border-bottom: 1px solid var(--border); background: #EFF5FF;"><td style="padding: 8px;"><strong>소싱 상세</strong></td><td style="text-align:center;">—</td><td style="text-align:center;">✓</td><td style="text-align:center;">—</td><td style="text-align:center;">—</td><td style="text-align:center;">—</td><td style="text-align:center;">—</td><td style="text-align:center;">✓ (5)</td><td style="text-align:center;">✓ (다중)</td><td style="text-align:center;">—</td><td style="text-align:center;">—</td></tr>
+<tr style="border-bottom: 1px solid var(--border);"><td style="padding: 8px;"><strong>재고/가격 이력</strong></td><td style="text-align:center;">✓</td><td style="text-align:center;">✓</td><td style="text-align:center;">—</td><td style="text-align:center;">—</td><td style="text-align:center;">—</td><td style="text-align:center;">—</td><td style="text-align:center;">—</td><td style="text-align:center;">✓ (시계열)</td><td style="text-align:center;">—</td><td style="text-align:center;">—</td></tr>
+<tr style="border-bottom: 1px solid var(--border);"><td style="padding: 8px;"><strong>모음전</strong></td><td style="text-align:center;">✓</td><td style="text-align:center;">✓</td><td style="text-align:center;">✓</td><td style="text-align:center;">✓</td><td style="text-align:center;">✓</td><td style="text-align:center;">—</td><td style="text-align:center;">—</td><td style="text-align:center;">—</td><td style="text-align:center;">—</td><td style="text-align:center;">—</td></tr>
+<tr style="border-bottom: 1px solid var(--border);"><td style="padding: 8px;"><strong>판매처 계정</strong></td><td style="text-align:center;">✓</td><td style="text-align:center;">✓</td><td style="text-align:center;">—</td><td style="text-align:center;">—</td><td style="text-align:center;">—</td><td style="text-align:center;">—</td><td style="text-align:center;">—</td><td style="text-align:center;">—</td><td style="text-align:center;">✓</td><td style="text-align:center;">✓ (2)</td></tr>
+<tr style="border-bottom: 1px solid var(--border);"><td style="padding: 8px;"><strong>소싱처 계정</strong></td><td style="text-align:center;">✓</td><td style="text-align:center;">✓</td><td style="text-align:center;">—</td><td style="text-align:center;">—</td><td style="text-align:center;">—</td><td style="text-align:center;">—</td><td style="text-align:center;">—</td><td style="text-align:center;">—</td><td style="text-align:center;">✓</td><td style="text-align:center;">—</td></tr>
+<tr style="border-bottom: 1px solid var(--border);"><td style="padding: 8px;"><strong>가격 템플릿</strong></td><td style="text-align:center;">—</td><td style="text-align:center;">—</td><td style="text-align:center;">—</td><td style="text-align:center;">—</td><td style="text-align:center;">—</td><td style="text-align:center;">—</td><td style="text-align:center;">—</td><td style="text-align:center;">—</td><td style="text-align:center;">—</td><td style="text-align:center;">—</td></tr>
+<tr><td style="padding: 8px;"><strong>기타 템플릿</strong></td><td style="text-align:center;">—</td><td style="text-align:center;">—</td><td style="text-align:center;">—</td><td style="text-align:center;">—</td><td style="text-align:center;">—</td><td style="text-align:center;">—</td><td style="text-align:center;">✓ (3)</td><td style="text-align:center;">—</td><td style="text-align:center;">—</td><td style="text-align:center;">—</td></tr>
+</tbody>
+</table>
+</div>
+
+<p style="text-align:center; color:var(--t4); font-size:12px; margin-top:32px; padding-top:24px; border-top: 1px solid var(--border);">
+PHASE 0 마인드맵 · ui-verify 스킬 — 검증 시작 전 확인용
+</p>
+
+<script>
+  mermaid.initialize({
+    startOnLoad: true,
+    theme: 'base',
+    themeVariables: {
+      fontFamily: 'Pretendard, sans-serif',
+      fontSize: '13px',
+      primaryColor: '#FFFFFF',
+      primaryTextColor: '#0B1217',
+      primaryBorderColor: '#EAECEF',
+      lineColor: '#98A1AB',
+      tertiaryColor: '#FAFBFC'
+    },
+    flowchart: { curve: 'basis', padding: 14 }
+  });
+</script>
+
+</body>
+</html>

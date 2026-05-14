@@ -1,0 +1,790 @@
+{% extends 'base.html' %}
+{% block title %}바코드 인쇄 — 재고관리{% endblock %}
+{% block content %}
+{# 박스히어로 1:1 바코드 인쇄 — 좌측 디자인+제품 / 우측 라이브 미리보기 #}
+<script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
+<div style="padding:24px 32px;max-width:1500px;margin:0 auto">
+  <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px">
+    <div style="font-size:12.5px;color:#8F91A0">바코드 인쇄</div>
+    <h1 style="font-size:22px;font-weight:700;margin:0;color:#292A2F">제품</h1>
+    <span title="좌측에서 디자인+제품 선택 → 우측 라이브 미리보기 → 인쇄" style="display:inline-flex;align-items:center;justify-content:center;width:14px;height:14px;border-radius:50%;background:#F1F1F4;color:#8F91A0;font-size:9.5px;font-weight:700;cursor:help">i</span>
+  </div>
+
+  <div style="display:grid;grid-template-columns:1fr 1.4fr;gap:18px">
+
+    {# ── 좌측: 라벨 디자인 + 제품 선택 ── #}
+    <div>
+      {# 라벨 디자인 카드 #}
+      <div style="background:#fff;border:1px solid #E5E8EB;border-radius:8px;padding:18px;margin-bottom:14px">
+        <div style="display:flex;align-items:center;margin-bottom:12px">
+          <h2 style="font-size:14px;font-weight:600;margin:0;color:#292A2F">라벨 디자인</h2>
+          <button type="button" onclick="openPaperModal()" style="margin-left:auto;background:none;border:none;font-size:11.5px;color:#4F67FF;font-weight:600;cursor:pointer">용지 설정하기 ▾</button>
+        </div>
+
+        {# ── 디자인 시안 3종 (1/3/5) — 박스히어로 + 강조 + 사이즈 대형 ── #}
+        <div style="display:flex;gap:6px;margin-bottom:10px;background:#F1F1F4;padding:4px;border-radius:6px">
+          <button type="button" class="ds-tab" data-design="1" onclick="setDesign('1')" style="flex:1;padding:7px 10px;border:none;background:transparent;color:#292A2F;border-radius:4px;font-size:11.5px;font-weight:600;cursor:pointer">1 · 표준</button>
+          <button type="button" class="ds-tab" data-design="3" onclick="setDesign('3')" style="flex:1;padding:7px 10px;border:none;background:transparent;color:#292A2F;border-radius:4px;font-size:11.5px;font-weight:600;cursor:pointer">3 · 제품명 강조</button>
+          <button type="button" class="ds-tab" data-design="5" onclick="setDesign('5')" style="flex:1;padding:7px 10px;border:none;background:transparent;color:#292A2F;border-radius:4px;font-size:11.5px;font-weight:600;cursor:pointer">5 · 사이즈 대형</button>
+        </div>
+
+        {# 디자인 미리보기 카드 — 동적 렌더링 #}
+        <div id="designPreview" style="border:2px solid #4F67FF;border-radius:8px;background:#fff;color:#000;text-align:center;margin-bottom:6px;min-height:120px;overflow:hidden"></div>
+
+        {# 폰트·여백 설정 토글 #}
+        <button type="button" onclick="document.getElementById('designSettings').style.display=document.getElementById('designSettings').style.display==='none'?'block':'none'" style="margin-top:8px;background:none;border:none;font-size:11.5px;color:#4F67FF;font-weight:600;cursor:pointer;padding:0">⚙ 폰트·여백 설정 ▾</button>
+        <div id="designSettings" style="display:none;margin-top:10px;padding:12px;background:#F1F1F4;border-radius:6px">
+          {# 폰트 크기 + 굵기 (3 행) #}
+          <div style="font-size:10.5px;color:#8F91A0;font-weight:600;margin-bottom:5px">폰트</div>
+          <div style="display:grid;grid-template-columns:60px 1fr 60px;gap:6px;font-size:11px;margin-bottom:8px;align-items:center">
+            <span>제품명</span>
+            <input type="number" id="cs_name" step="0.5" min="5" max="20" style="width:100%;padding:6px;border:1px solid #CBCCD3;border-radius:4px">
+            <select id="cs_w_name" style="padding:6px;border:1px solid #CBCCD3;border-radius:4px;background:#fff"><option value="400">L</option><option value="600">M</option><option value="700">B</option></select>
+            <span>속성</span>
+            <input type="number" id="cs_attr" step="0.5" min="4" max="18" style="width:100%;padding:6px;border:1px solid #CBCCD3;border-radius:4px">
+            <select id="cs_w_attr" style="padding:6px;border:1px solid #CBCCD3;border-radius:4px;background:#fff"><option value="400">L</option><option value="600">M</option><option value="700">B</option></select>
+            <span>코드</span>
+            <input type="number" id="cs_code" step="0.5" min="4" max="14" style="width:100%;padding:6px;border:1px solid #CBCCD3;border-radius:4px">
+            <select id="cs_w_code" style="padding:6px;border:1px solid #CBCCD3;border-radius:4px;background:#fff"><option value="400">L</option><option value="600">M</option><option value="700">B</option></select>
+          </div>
+          {# 바코드 높이 + 외곽 여백 #}
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:11px;margin-bottom:8px">
+            <label>바코드 높이 (px)<input type="number" id="cs_bch" step="1" min="10" max="80" style="width:100%;padding:6px;border:1px solid #CBCCD3;border-radius:4px;margin-top:2px"></label>
+            <label>외곽 여백 (mm)<input type="number" id="cs_pad" step="0.1" min="0" max="5" style="width:100%;padding:6px;border:1px solid #CBCCD3;border-radius:4px;margin-top:2px"></label>
+          </div>
+          {# 요소 간 여백 (3 단계) #}
+          <div style="font-size:10.5px;color:#8F91A0;font-weight:600;margin:8px 0 5px">요소 간 여백 (mm)</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;font-size:11px">
+            <label style="font-size:10.5px">제품명↔속성<input type="number" id="cs_gap_na" step="0.1" min="0" max="5" style="width:100%;padding:6px;border:1px solid #CBCCD3;border-radius:4px;margin-top:2px"></label>
+            <label style="font-size:10.5px">속성↔바코드<input type="number" id="cs_gap_ab" step="0.1" min="0" max="5" style="width:100%;padding:6px;border:1px solid #CBCCD3;border-radius:4px;margin-top:2px"></label>
+            <label style="font-size:10.5px">바코드↔코드<input type="number" id="cs_gap_bc" step="0.1" min="0" max="5" style="width:100%;padding:6px;border:1px solid #CBCCD3;border-radius:4px;margin-top:2px"></label>
+          </div>
+          <div style="display:flex;gap:6px;margin-top:10px">
+            <button type="button" onclick="resetDesignSettings()" style="flex:1;padding:7px;background:#fff;border:1px solid #CBCCD3;color:#292A2F;border-radius:5px;font-size:11.5px;cursor:pointer">기본값 복원</button>
+            <span style="flex:2;align-self:center;font-size:10.5px;color:#8F91A0">★ localStorage 자동 저장</span>
+          </div>
+        </div>
+        <div style="text-align:center;font-size:11.5px;color:#8F91A0;margin-top:8px">기본_바코드(신발)<br><strong style="color:#292A2F">{{ template.name }}</strong></div>
+
+        {# 라벨 용지 선택 panel (legacy inline, 모달이 메인) #}
+        <div id="templatePanel" style="display:none;margin-top:14px;padding-top:14px;border-top:1px solid #E5E8EB">
+          <h3 style="font-size:12.5px;font-weight:600;margin:0 0 10px;color:#292A2F">용지 설정</h3>
+          <form method="get" id="tplForm">
+            <input type="hidden" name="cutline" value="{% if cutline %}1{% else %}0{% endif %}">
+            <div style="display:flex;gap:14px;margin-bottom:10px">
+              <label style="display:flex;align-items:center;gap:5px;font-size:12.5px;color:#292A2F;cursor:pointer">
+                <input type="radio" name="tpl_mode" value="preset" {% if template_key != 'custom' %}checked{% endif %} onchange="toggleTplMode()" style="accent-color:#4F67FF"> 라벨 용지
+              </label>
+              <label style="display:flex;align-items:center;gap:5px;font-size:12.5px;color:#292A2F;cursor:pointer">
+                <input type="radio" name="tpl_mode" value="thermal" {% if template_key in ['thermal_60_35','thermal_50_30'] %}checked{% endif %} onchange="toggleTplMode()" style="accent-color:#4F67FF"> 감열지
+              </label>
+              <label style="display:flex;align-items:center;gap:5px;font-size:12.5px;color:#292A2F;cursor:pointer">
+                <input type="radio" name="tpl_mode" value="custom" {% if template_key == 'custom' %}checked{% endif %} onchange="toggleTplMode()" style="accent-color:#4F67FF"> 사용자 정의
+              </label>
+            </div>
+            <select name="template" onchange="changeTemplate(this.value)" style="width:100%;padding:9px 12px;border:1px solid #CBCCD3;border-radius:5px;font-size:12.5px;color:#292A2F;background:#fff">
+              {% for key, t in templates.items() %}<option value="{{ key }}" {% if template_key == key %}selected{% endif %}>{{ t.name }}</option>{% endfor %}
+              <option value="custom" {% if template_key == 'custom' %}selected{% endif %}>사용자 정의 (직접 입력)</option>
+            </select>
+
+            {# 사용자 정의 입력 — 가로 X개 × 세로 X개 (A4 자동 분할) #}
+            <div id="customPanel" style="display:{% if template_key == 'custom' %}block{% else %}none{% endif %};margin-top:12px;padding:14px;background:#EEF1FE;border-radius:6px;border:1px solid #4F67FF">
+              <div style="font-size:12px;color:#1E40AF;font-weight:600;margin-bottom:10px">📐 A4 (210×297mm) 자동 분할 — 가로 / 세로 칸 수만 입력</div>
+              <div style="display:flex;gap:10px;align-items:end">
+                <div style="flex:1">
+                  <label style="display:block;font-size:11.5px;color:#292A2F;margin-bottom:3px">가로</label>
+                  <div style="display:flex;align-items:center;gap:4px">
+                    <input type="number" name="cols" value="{{ custom_args.cols or 4 }}" min="1" max="20" oninput="liveCustomPreview()" style="width:100%;padding:8px;border:1px solid #CBCCD3;border-radius:4px;font-size:14px;text-align:center;font-weight:600">
+                    <span style="font-size:11.5px;color:#8F91A0">개</span>
+                  </div>
+                </div>
+                <span style="font-size:18px;color:#8F91A0;padding-bottom:6px">×</span>
+                <div style="flex:1">
+                  <label style="display:block;font-size:11.5px;color:#292A2F;margin-bottom:3px">세로</label>
+                  <div style="display:flex;align-items:center;gap:4px">
+                    <input type="number" name="rows" value="{{ custom_args.rows or 10 }}" min="1" max="30" oninput="liveCustomPreview()" style="width:100%;padding:8px;border:1px solid #CBCCD3;border-radius:4px;font-size:14px;text-align:center;font-weight:600">
+                    <span style="font-size:11.5px;color:#8F91A0">개</span>
+                  </div>
+                </div>
+                <button type="button" onclick="applyCustom()" style="background:#4F67FF;color:#fff;padding:9px 18px;border:none;border-radius:5px;font-size:13px;font-weight:600;cursor:pointer">적용</button>
+              </div>
+              <div id="customPreviewInfo" style="margin-top:10px;font-size:11.5px;color:#1E40AF;line-height:1.7"></div>
+            </div>
+
+            <div style="margin-top:10px;font-size:11px;color:#8F91A0;line-height:1.7">★ {{ template.cols }}×{{ template.rows }} = {{ template.per_page }}칸 / 라벨 {{ template.label_w }}×{{ template.label_h }}mm / 용지 {{ template.paper_w }}×{{ template.paper_h }}mm<br>★ 순서: 좌상단(1) → 우→ 다음 행(2)</div>
+          </form>
+        </div>
+      </div>
+
+      {# 제품 선택 #}
+      <div style="background:#fff;border:1px solid #E5E8EB;border-radius:8px;padding:18px">
+        <div style="display:flex;align-items:center;margin-bottom:12px">
+          <h2 style="font-size:14px;font-weight:600;margin:0;color:#292A2F">제품 선택</h2>
+          <button type="button" onclick="bulkAdd()" style="margin-left:auto;background:#fff;border:1px solid #CBCCD3;color:#292A2F;padding:6px 12px;border-radius:5px;font-size:11.5px;cursor:pointer;font-weight:600">⊕ 일괄 추가</button>
+          <button type="button" style="margin-left:6px;background:#fff;border:1px solid #CBCCD3;color:#292A2F;padding:6px 12px;border-radius:5px;font-size:11.5px;cursor:pointer;font-weight:600">📁 엑셀 가져오기</button>
+        </div>
+
+        <form method="get" action="{{ url_for('inventory.barcode_print') }}" target="_blank" id="printForm">
+          <input type="hidden" name="template" value="{{ template_key }}">
+          <input type="hidden" name="cutline" id="cutlineInput" value="{% if cutline %}1{% else %}0{% endif %}">
+          <table style="width:100%;border-collapse:collapse;font-size:12.5px;border:1px solid #E5E8EB;border-radius:5px;overflow:hidden">
+            <thead style="background:#F1F1F4"><tr>
+              <th style="padding:9px 8px;text-align:center;width:36px"><input type="checkbox" id="checkAll" onclick="toggleAll(this)" style="accent-color:#4F67FF"></th>
+              <th style="padding:9px 8px;text-align:left;font-size:11.5px;color:#292A2F;font-weight:600">제품</th>
+              <th style="padding:9px 8px;text-align:right;font-size:11.5px;color:#292A2F;font-weight:600;width:90px">인쇄 수량</th>
+            </tr></thead>
+            <tbody id="prodTbody">
+              <tr id="searchRow" style="border-top:1px solid #F1F1F4">
+                <td colspan="3" style="padding:8px">
+                  <input id="prodSearch" type="text" placeholder="제품 검색 — SKU·이름·바코드" oninput="filterProducts()" style="width:100%;padding:9px 12px;border:1px dashed #CBCCD3;border-radius:5px;font-size:12.5px;color:#292A2F;background:#FAFBFC">
+                </td>
+              </tr>
+              <tr id="emptyHint"><td colspan="3" style="padding:24px;text-align:center;color:#8F91A0;font-size:12.5px">검색어 입력 시 제품이 노출됩니다 (또는 선택한 제품만 표시)</td></tr>
+              {% for o in options %}
+                <tr class="prod-row" style="border-top:1px solid #F1F1F4;display:none" data-search="{{ o.canonical_sku }} {{ o.color_display or o.color_code }} {{ o.size_display or o.size_code }} {{ o.boxhero_sku or '' }}">
+                  <td style="padding:8px;text-align:center"><input type="checkbox" name="sku" value="{{ o.canonical_sku }}" data-name="{{ o.canonical_sku }}" data-attr="{{ o.color_display or o.color_code }} / {{ o.size_display or o.size_code }}" data-bh="{{ o.boxhero_sku or '' }}" style="accent-color:#4F67FF"></td>
+                  <td style="padding:8px">
+                    <div style="display:flex;align-items:center;gap:8px">
+                      {% if o.image_url %}<img src="{{ o.image_url }}" style="width:32px;height:32px;border-radius:4px;object-fit:cover">
+                      {% else %}<div style="width:32px;height:32px;border-radius:4px;background:#F1F1F4;display:flex;align-items:center;justify-content:center;font-size:14px;color:#8F91A0">👟</div>{% endif %}
+                      <div>
+                        <div style="font-size:12px;font-weight:600;color:#292A2F">{{ o.canonical_sku }}</div>
+                        <div style="font-size:10.5px;color:#8F91A0">{{ o.color_display or o.color_code }} / {{ o.size_display or o.size_code }} / BH={{ o.boxhero_sku or '—' }}</div>
+                      </div>
+                    </div>
+                  </td>
+                  <td style="padding:5px 8px;text-align:right"><input type="number" name="qty_{{ o.canonical_sku }}" value="1" min="1" max="200" style="width:70px;padding:5px;border:1px solid #CBCCD3;border-radius:4px;font-size:11.5px;text-align:right"></td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-top:14px;font-size:12px;color:#292A2F">
+            <span><strong id="kpiItems">0</strong>개 품목</span>
+            <span>총 <strong id="kpiTotal">0</strong>장</span>
+          </div>
+
+          <label style="display:flex;align-items:center;gap:8px;margin-top:12px;font-size:12.5px;color:#292A2F;cursor:pointer">
+            <input type="checkbox" id="cutlineCheck" {% if cutline %}checked{% endif %} style="accent-color:#4F67FF"> 칼선 포함 인쇄
+          </label>
+
+          <div style="display:flex;gap:8px;margin-top:14px">
+            <button type="submit" style="background:#4F67FF;color:#fff;padding:10px 32px;border:none;border-radius:5px;font-size:13px;font-weight:600;cursor:pointer">인쇄</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    {# ── 우측: 라이브 A4 미리보기 ── #}
+    <div>
+      <div style="background:#fff;border:1px solid #E5E8EB;border-radius:8px;padding:18px;position:sticky;top:60px">
+        <h2 style="font-size:14px;font-weight:600;margin:0 0 12px;color:#292A2F">미리보기 — {{ template.name }}</h2>
+        <div style="background:#F1F1F4;padding:14px;border-radius:6px">
+          {% set scale = 2.0 %}
+          <div id="labelPreview" style="background:#fff;width:{{ template.paper_w * scale }}px;height:{{ template.paper_h * scale }}px;max-width:100%;margin:0 auto;border:1px solid #CBCCD3;position:relative;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.06)" data-cols="{{ template.cols }}" data-rows="{{ template.rows }}" data-perpage="{{ template.per_page }}" data-paper-w="{{ template.paper_w }}" data-paper-h="{{ template.paper_h }}" data-label-w="{{ template.label_w }}" data-label-h="{{ template.label_h }}" data-margin-l="{{ template.margin_left }}" data-margin-t="{{ template.margin_top }}" data-gap-x="{{ template.gap_x }}" data-gap-y="{{ template.gap_y }}" data-scale="{{ scale }}">
+            {# JS 가 채움 #}
+          </div>
+        </div>
+        <div style="margin-top:10px;font-size:11.5px;color:#8F91A0;line-height:1.7">★ 박스히어로 1:1 — 좌측에서 라벨 디자인 + 제품 선택 → 우측 라이브 미리보기 → 인쇄.</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+{# ── 박스히어로 1:1 용지 설정 모달 ── #}
+<div id="paperModal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);z-index:200;align-items:center;justify-content:center" onclick="if(event.target.id==='paperModal')closePaperModal()">
+  <div style="background:#fff;border-radius:10px;width:880px;max-width:95vw;max-height:90vh;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,0.3)">
+    {# 헤더 #}
+    <div style="padding:18px 24px;border-bottom:1px solid #E5E8EB;display:flex;align-items:center">
+      <h3 style="font-size:16px;font-weight:700;margin:0;color:#292A2F">용지 설정</h3>
+      <button type="button" onclick="closePaperModal()" style="margin-left:auto;background:none;border:none;color:#8F91A0;font-size:22px;cursor:pointer">×</button>
+    </div>
+
+    {# 유형 선택 (라벨 용지 / 감열 라벨 / 사용자 지정) #}
+    <div style="padding:16px 24px;border-bottom:1px solid #F1F1F4">
+      <div style="font-size:11.5px;color:#8F91A0;margin-bottom:6px">유형 선택</div>
+      <div style="display:flex;gap:8px">
+        <button type="button" data-tab="preset" onclick="switchPaperTab('preset')" class="paper-tab" style="flex:1;padding:10px 14px;border:1px solid #CBCCD3;background:#fff;color:#292A2F;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer">라벨 용지</button>
+        <button type="button" data-tab="thermal" onclick="switchPaperTab('thermal')" class="paper-tab" style="flex:1;padding:10px 14px;border:1px solid #CBCCD3;background:#fff;color:#292A2F;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer">감열 라벨</button>
+        <button type="button" data-tab="custom" onclick="switchPaperTab('custom')" class="paper-tab" style="flex:1;padding:10px 14px;border:1px solid #CBCCD3;background:#fff;color:#292A2F;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer">사용자 지정 크기</button>
+      </div>
+    </div>
+
+    {# Body — 좌측 입력 / 우측 라이브 미리보기 #}
+    <div style="flex:1;display:grid;grid-template-columns:1fr 1fr;gap:0;overflow:hidden">
+      {# 좌측 입력 #}
+      <div style="padding:18px 24px;overflow-y:auto;border-right:1px solid #F1F1F4">
+
+        {# 탭 1: 라벨 용지 (제조사 프리셋 + 상세 dimension) #}
+        <div id="paperTab-preset" class="paper-tab-body">
+          <div style="margin-bottom:14px;font-size:11.5px;color:#8F91A0;line-height:1.6;background:#F1F1F4;padding:10px 12px;border-radius:5px">
+            <strong style="color:#292A2F">제조사 프리셋</strong> — Formtec / 3M / 기타. 선택 시 모든 dimension 자동 설정.
+          </div>
+          <select id="presetSelect" onchange="onPresetChange()" style="width:100%;padding:10px 12px;border:1px solid #CBCCD3;border-radius:5px;font-size:13px;color:#292A2F;background:#fff;margin-bottom:14px">
+            {% for key, t in templates.items() %}{% if not key.startswith('thermal') %}<option value="{{ key }}" {% if template_key == key %}selected{% endif %}>{{ t.name }}</option>{% endif %}{% endfor %}
+          </select>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;font-size:11.5px">
+            <label>용지 너비 (mm)<input type="number" id="m_pw" step="0.1" style="width:100%;padding:7px;border:1px solid #CBCCD3;border-radius:4px;margin-top:3px"></label>
+            <label>용지 높이 (mm)<input type="number" id="m_ph" step="0.1" style="width:100%;padding:7px;border:1px solid #CBCCD3;border-radius:4px;margin-top:3px"></label>
+            <label>라벨 너비 (mm)<input type="number" id="m_lw" step="0.1" style="width:100%;padding:7px;border:1px solid #CBCCD3;border-radius:4px;margin-top:3px"></label>
+            <label>라벨 높이 (mm)<input type="number" id="m_lh" step="0.1" style="width:100%;padding:7px;border:1px solid #CBCCD3;border-radius:4px;margin-top:3px"></label>
+            <label>라벨 가로 개수<input type="number" id="m_cols" min="1" max="20" style="width:100%;padding:7px;border:1px solid #CBCCD3;border-radius:4px;margin-top:3px"></label>
+            <label>라벨 세로 개수<input type="number" id="m_rows" min="1" max="30" style="width:100%;padding:7px;border:1px solid #CBCCD3;border-radius:4px;margin-top:3px"></label>
+            <label>용지 상단 여백 (mm)<input type="number" id="m_mt" step="0.1" style="width:100%;padding:7px;border:1px solid #CBCCD3;border-radius:4px;margin-top:3px"></label>
+            <label>용지 왼쪽 여백 (mm)<input type="number" id="m_ml" step="0.1" style="width:100%;padding:7px;border:1px solid #CBCCD3;border-radius:4px;margin-top:3px"></label>
+            <label>라벨 가로 간격 (mm)<input type="number" id="m_gx" step="0.1" style="width:100%;padding:7px;border:1px solid #CBCCD3;border-radius:4px;margin-top:3px"></label>
+            <label>라벨 세로 간격 (mm)<input type="number" id="m_gy" step="0.1" style="width:100%;padding:7px;border:1px solid #CBCCD3;border-radius:4px;margin-top:3px"></label>
+          </div>
+        </div>
+
+        {# 탭 2: 감열 라벨 (너비/높이만) #}
+        <div id="paperTab-thermal" class="paper-tab-body" style="display:none">
+          <div style="margin-bottom:14px;font-size:11.5px;color:#8F91A0;line-height:1.6;background:#F1F1F4;padding:10px 12px;border-radius:5px">
+            <strong style="color:#292A2F">감열 라벨</strong> — 1장 1라벨. 너비·높이만 입력. (예: 60×35mm, 50×30mm)
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;font-size:11.5px">
+            <label>너비 (mm)<input type="number" id="m_th_w" value="60" step="0.1" style="width:100%;padding:7px;border:1px solid #CBCCD3;border-radius:4px;margin-top:3px"></label>
+            <label>높이 (mm)<input type="number" id="m_th_h" value="35" step="0.1" style="width:100%;padding:7px;border:1px solid #CBCCD3;border-radius:4px;margin-top:3px"></label>
+          </div>
+          <div style="display:flex;gap:6px;margin-top:14px">
+            <button type="button" onclick="setThermal(60,35)" style="flex:1;padding:8px;border:1px solid #CBCCD3;background:#fff;color:#292A2F;border-radius:5px;font-size:11.5px;cursor:pointer">60×35mm</button>
+            <button type="button" onclick="setThermal(50,30)" style="flex:1;padding:8px;border:1px solid #CBCCD3;background:#fff;color:#292A2F;border-radius:5px;font-size:11.5px;cursor:pointer">50×30mm</button>
+            <button type="button" onclick="setThermal(40,25)" style="flex:1;padding:8px;border:1px solid #CBCCD3;background:#fff;color:#292A2F;border-radius:5px;font-size:11.5px;cursor:pointer">40×25mm</button>
+          </div>
+        </div>
+
+        {# 탭 3: 사용자 지정 (가로 × 세로 자동 분할 + 상세 옵션) #}
+        <div id="paperTab-custom" class="paper-tab-body" style="display:none">
+          <div style="margin-bottom:14px;font-size:11.5px;color:#1E40AF;line-height:1.6;background:#EEF1FE;padding:10px 12px;border-radius:5px">
+            <strong style="color:#1E40AF">사용자 지정</strong> — A4 (210×297mm) 자동 분할. 가로·세로 칸 수만 입력하면 라벨 크기 자동 계산.
+          </div>
+          <div style="display:flex;gap:10px;align-items:end;margin-bottom:14px">
+            <div style="flex:1">
+              <label style="display:block;font-size:11.5px;color:#292A2F;margin-bottom:3px">가로</label>
+              <div style="display:flex;align-items:center;gap:4px">
+                <input type="number" id="m_c_cols" value="4" min="1" max="20" oninput="updateCustomLive()" style="width:100%;padding:8px;border:1px solid #CBCCD3;border-radius:4px;font-size:14px;text-align:center;font-weight:600">
+                <span style="font-size:11.5px;color:#8F91A0">개</span>
+              </div>
+            </div>
+            <span style="font-size:18px;color:#8F91A0;padding-bottom:8px">×</span>
+            <div style="flex:1">
+              <label style="display:block;font-size:11.5px;color:#292A2F;margin-bottom:3px">세로</label>
+              <div style="display:flex;align-items:center;gap:4px">
+                <input type="number" id="m_c_rows" value="10" min="1" max="30" oninput="updateCustomLive()" style="width:100%;padding:8px;border:1px solid #CBCCD3;border-radius:4px;font-size:14px;text-align:center;font-weight:600">
+                <span style="font-size:11.5px;color:#8F91A0">개</span>
+              </div>
+            </div>
+          </div>
+          <div id="customLiveInfo" style="font-size:11.5px;color:#1E40AF;line-height:1.7;background:#EEF1FE;padding:10px 12px;border-radius:5px"></div>
+        </div>
+
+      </div>
+
+      {# 우측 라이브 미리보기 #}
+      <div style="padding:18px 24px;background:#F1F1F4;display:flex;align-items:center;justify-content:center">
+        <div id="modalPreview" style="background:#fff;border:1px solid #CBCCD3;box-shadow:0 4px 12px rgba(0,0,0,0.06);position:relative;width:300px;height:425px"></div>
+      </div>
+    </div>
+
+    {# 하단 — 취소 / 적용 #}
+    <div style="padding:14px 24px;border-top:1px solid #E5E8EB;display:flex;gap:8px;justify-content:flex-end">
+      <button type="button" onclick="closePaperModal()" style="padding:9px 22px;border:1px solid #CBCCD3;background:#fff;color:#292A2F;border-radius:5px;font-size:13px;font-weight:600;cursor:pointer">취소</button>
+      <button type="button" onclick="applyPaperModal()" style="padding:9px 28px;background:#4F67FF;color:#fff;border:none;border-radius:5px;font-size:13px;font-weight:600;cursor:pointer">적용</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const TPL_KEY = '{{ template_key }}';
+function asciiSafeCode(raw) {
+  if (/^[\x20-\x7E]+$/.test(raw)) return raw;
+  let h = 0x811c9dc5;
+  for (let i = 0; i < raw.length; i++) { h ^= raw.charCodeAt(i); h = (h * 0x01000193) >>> 0; }
+  return 'AUTO-' + h.toString(36).toUpperCase().padStart(7, '0').slice(0, 7);
+}
+
+function getSelected() {
+  const items = [];
+  document.querySelectorAll('input[name="sku"]:checked').forEach(cb => {
+    const qty = parseInt(document.querySelector(`input[name="qty_${cb.value}"]`)?.value) || 1;
+    items.push({
+      sku: cb.value, name: cb.dataset.name, attr: cb.dataset.attr,
+      bh: cb.dataset.bh, qty: qty,
+      code: cb.dataset.bh || cb.value
+    });
+  });
+  return items;
+}
+
+function expandLabels(items) {
+  // 각 item.qty 만큼 expand
+  const out = [];
+  items.forEach(it => { for (let i = 0; i < it.qty; i++) out.push(it); });
+  return out;
+}
+
+// ── 라벨 디자인 시안 1/3/5 + 폰트·여백·굵기 커스텀 ──
+// gap_na = 제품명↔속성, gap_ab = 속성↔바코드, gap_bc = 바코드↔코드 (모두 mm)
+// w_name/w_attr/w_code = font-weight (400=L, 600=M, 700=B)
+const DESIGN_DEFAULTS = {
+  '1': {name:14, attr:12, code:11, bch:36, pad:6, gap_na:0.3, gap_ab:1.0, gap_bc:0.5, w_name:700, w_attr:400, w_code:400},
+  '3': {name:14, attr:12, code:11, bch:36, pad:6, gap_na:0.5, gap_ab:1.0, gap_bc:0.5, w_name:700, w_attr:400, w_code:400},
+  '5': {name:13, attr:22, code:11, bch:34, pad:6, gap_na:0.5, gap_ab:1.0, gap_bc:0.5, w_name:700, w_attr:700, w_code:400},
+};
+function getDesignState() {
+  try {
+    const s = JSON.parse(localStorage.getItem('labelDesign') || '{}');
+    return {
+      variant: s.variant || '1',
+      settings: { ...DESIGN_DEFAULTS[s.variant || '1'], ...(s.settings || {}) },
+    };
+  } catch (e) {
+    return {variant: '1', settings: {...DESIGN_DEFAULTS['1']}};
+  }
+}
+function saveDesignState(state) {
+  try { localStorage.setItem('labelDesign', JSON.stringify(state)); } catch (e) {}
+}
+function setDesign(variant) {
+  const cur = getDesignState();
+  const newState = {variant, settings: {...DESIGN_DEFAULTS[variant]}};
+  // 사용자가 설정한 값 유지 — 단, 디자인 5의 attr 큰 값은 변경
+  saveDesignState(newState);
+  // 설정 input 에 반영
+  loadSettingsToInputs();
+  refreshAll();
+}
+function loadSettingsToInputs() {
+  const {variant, settings} = getDesignState();
+  document.querySelectorAll('.ds-tab').forEach(b => {
+    const active = b.dataset.design === variant;
+    b.style.background = active ? '#fff' : 'transparent';
+    b.style.color = active ? '#4F67FF' : '#292A2F';
+    b.style.boxShadow = active ? '0 1px 3px rgba(0,0,0,0.08)' : 'none';
+  });
+  document.getElementById('cs_name').value = settings.name;
+  document.getElementById('cs_attr').value = settings.attr;
+  document.getElementById('cs_code').value = settings.code;
+  document.getElementById('cs_bch').value = settings.bch;
+  document.getElementById('cs_pad').value = settings.pad;
+  document.getElementById('cs_gap_na').value = settings.gap_na;
+  document.getElementById('cs_gap_ab').value = settings.gap_ab;
+  document.getElementById('cs_gap_bc').value = settings.gap_bc;
+  document.getElementById('cs_w_name').value = String(settings.w_name);
+  document.getElementById('cs_w_attr').value = String(settings.w_attr);
+  document.getElementById('cs_w_code').value = String(settings.w_code);
+}
+function resetDesignSettings() {
+  const {variant} = getDesignState();
+  saveDesignState({variant, settings: {...DESIGN_DEFAULTS[variant]}});
+  loadSettingsToInputs();
+  refreshAll();
+}
+function bindDesignSettingsInputs() {
+  // 숫자 input — 폰트크기·바코드높이·여백
+  ['cs_name','cs_attr','cs_code','cs_bch','cs_pad','cs_gap_na','cs_gap_ab','cs_gap_bc'].forEach(id => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.addEventListener('input', () => {
+      const cur = getDesignState();
+      cur.settings[id.replace('cs_', '')] = parseFloat(el.value) || 0;
+      saveDesignState(cur);
+      refreshAll();
+    });
+  });
+  // select — 폰트 굵기 (400/600/700)
+  ['cs_w_name','cs_w_attr','cs_w_code'].forEach(id => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.addEventListener('change', () => {
+      const cur = getDesignState();
+      cur.settings[id.replace('cs_', '')] = parseInt(el.value, 10) || 400;
+      saveDesignState(cur);
+      refreshAll();
+    });
+  });
+}
+
+// 디자인 마크업 생성 — 1/3/5 + 커스텀 설정 적용
+function buildDesignHTML(item, opts) {
+  const {variant, settings} = getDesignState();
+  const o = opts || {};
+  const code = asciiSafeCode(item.code);
+  const scale = o.scale || 1;
+  const sName = scale * settings.name;
+  const sAttr = scale * settings.attr;
+  const sCode = scale * settings.code;
+  const sBch = scale * settings.bch;
+  const sPad = scale * settings.pad;
+  // 요소 간 여백 — px 단위로 변환 (mm × 3.78 ≈ px)
+  const gNA = scale * (settings.gap_na || 0) * 3.78;
+  const gAB = scale * (settings.gap_ab || 0) * 3.78;
+  const gBC = scale * (settings.gap_bc || 0) * 3.78;
+  const wName = settings.w_name || 700;
+  const wAttr = settings.w_attr || 400;
+  const wCode = settings.w_code || 400;
+  const isAuto = code !== item.code;
+  const codeDisplay = code + (isAuto ? ' ★' : '');
+
+  const wrapStyle = `display:flex;flex-direction:column;align-items:center;justify-content:center;padding:${sPad}px;text-align:center;height:100%;font-family:-apple-system,'Apple SD Gothic Neo',sans-serif;background:#fff;color:#000`;
+
+  // SVG placeholder — 후처리에서 JsBarcode 채움 (JsBarcode 가 svg style 덮어쓰므로 wrapper 에 margin)
+  const svg = `<div style="width:100%;display:flex;justify-content:center;margin-top:${gAB}px;margin-bottom:${gBC}px"><svg class="ds-bc" data-code="${code}" data-bch="${sBch}" style="width:90%;height:auto;max-height:${sBch}px"></svg></div>`;
+
+  if (variant === '3') {
+    // 제품명 강조 (반전) — 흑색 배경 + 흰글씨
+    return `<div style="${wrapStyle}">
+      <div style="background:#000;color:#fff;padding:2px 8px;border-radius:3px;font-size:${sName}px;font-weight:${wName};line-height:1.1">${item.name}</div>
+      <div style="font-size:${sAttr}px;font-weight:${wAttr};color:#555;line-height:1;margin-top:${gNA}px">${item.attr}</div>
+      ${svg}
+      <div style="font-size:${sCode}px;font-weight:${wCode};color:#000;font-family:ui-monospace,monospace;line-height:1">${codeDisplay}</div>
+    </div>`;
+  }
+  if (variant === '5') {
+    // 사이즈 대형 — 사이즈/색상 큰 글씨 강조
+    return `<div style="${wrapStyle}">
+      <div style="font-size:${sName}px;font-weight:${wName};line-height:1.1">${item.name}</div>
+      <div style="font-size:${sAttr}px;font-weight:${wAttr};color:#000;line-height:1;margin-top:${gNA}px">${item.attr}</div>
+      ${svg}
+      <div style="font-size:${sCode}px;font-weight:${wCode};color:#000;font-family:ui-monospace,monospace;line-height:1">${codeDisplay}</div>
+    </div>`;
+  }
+  // 1: 표준 (박스히어로 1:1)
+  return `<div style="${wrapStyle}">
+    <div style="font-size:${sName}px;font-weight:${wName};line-height:1.1">${item.name}</div>
+    <div style="font-size:${sAttr}px;font-weight:${wAttr};color:#555;line-height:1;margin-top:${gNA}px">${item.attr}</div>
+    ${svg}
+    <div style="font-size:${sCode}px;font-weight:${wCode};color:#000;font-family:ui-monospace,monospace;line-height:1">${codeDisplay}</div>
+  </div>`;
+}
+
+function renderDesignCard(item) {
+  const wrap = document.getElementById('designPreview');
+  if (!item) {
+    wrap.innerHTML = '<div style="font-size:13px;color:#8F91A0;padding:32px">제품을 선택해주세요</div>';
+    return;
+  }
+  // 좌측 카드는 큰 미리보기 — 별도 스케일
+  wrap.innerHTML = `<div style="height:130px">${buildDesignHTML(item, {scale: 1.2})}</div>`;
+  // SVG 후처리
+  wrap.querySelectorAll('svg.ds-bc').forEach(svg => {
+    const c = svg.dataset.code, h = parseFloat(svg.dataset.bch);
+    try { JsBarcode(svg, c, {format:'CODE128', width:1.4, height:h, displayValue:false, margin:0}); }
+    catch (e) {}
+  });
+}
+
+function renderPreview() {
+  const wrap = document.getElementById('labelPreview');
+  const ds = wrap.dataset;
+  const cols = +ds.cols, perPage = +ds.perpage;
+  const lw = +ds.labelW, lh = +ds.labelH;
+  const ml = +ds.marginL, mt = +ds.marginT;
+  const gx = +ds.gapX, gy = +ds.gapY;
+  const sc = +ds.scale;
+  const cutline = document.getElementById('cutlineCheck').checked;
+  document.getElementById('cutlineInput').value = cutline ? '1' : '0';
+
+  const labels = expandLabels(getSelected());
+  // 페이지 1개만 미리보기 (per_page 까지)
+  const slice = labels.slice(0, perPage);
+
+  let html = '';
+  // 라벨 크기에 비례한 디자인 스케일 — 미리보기는 작으므로 0.4~0.6
+  const designScale = Math.max(0.35, Math.min(0.6, (lh * sc) / 80));
+  for (let i = 0; i < perPage; i++) {
+    const item = slice[i];
+    const col = i % cols, row = Math.floor(i / cols);
+    const x = (ml + col * (lw + gx)) * sc;
+    const y = (mt + row * (lh + gy)) * sc;
+    const w = lw * sc, h = lh * sc;
+    const border = cutline ? '0.5px dashed #999' : '0.5px dashed transparent';
+    if (item) {
+      html += `<div class="prev-cell" style="position:absolute;left:${x}px;top:${y}px;width:${w}px;height:${h}px;border:${border};overflow:hidden">${buildDesignHTML(item, {scale: designScale})}</div>`;
+    } else {
+      html += `<div style="position:absolute;left:${x}px;top:${y}px;width:${w}px;height:${h}px;border:${border};background:#fff"></div>`;
+    }
+  }
+  wrap.innerHTML = html;
+  // SVG 후처리
+  wrap.querySelectorAll('svg.ds-bc').forEach(svg => {
+    const c = svg.dataset.code, bh = parseFloat(svg.dataset.bch);
+    try {
+      JsBarcode(svg, c, {format:'CODE128', width:0.8, height:bh, displayValue:false, margin:0});
+    } catch (e) {}
+  });
+}
+
+function toggleAll(m) {
+  document.querySelectorAll('input[name=sku]').forEach(c => c.checked = m.checked);
+  refreshAll();
+}
+function bulkAdd() {
+  document.querySelectorAll('input[name=sku]').forEach((c, i) => { if (i < 30) c.checked = true; });
+  refreshAll();
+}
+function refreshAll() {
+  const items = getSelected();
+  const totalQty = items.reduce((a, it) => a + it.qty, 0);
+  document.getElementById('kpiItems').textContent = items.length;
+  document.getElementById('kpiTotal').textContent = totalQty;
+  // 디자인 카드 = 첫 선택
+  renderDesignCard(items[0] || null);
+  renderPreview();
+  // 체크된 제품은 검색과 무관하게 노출 유지
+  if (typeof filterProducts === 'function') filterProducts();
+}
+
+// 이벤트 바인딩
+document.addEventListener('change', refreshAll);
+document.addEventListener('input', e => { if (e.target.name && e.target.name.startsWith('qty_')) refreshAll(); });
+window.addEventListener('load', refreshAll);
+refreshAll();
+
+// 제품 검색 — 검색 시에만 매칭 row 노출 + 체크된 제품은 항상 노출
+function filterProducts() {
+  const q = (document.getElementById('prodSearch')?.value || '').trim().toLowerCase();
+  const rows = document.querySelectorAll('.prod-row');
+  let shown = 0;
+  rows.forEach(r => {
+    const cb = r.querySelector('input[type=checkbox]');
+    const checked = cb && cb.checked;
+    const text = (r.dataset.search || '').toLowerCase();
+    const match = q && text.includes(q);
+    const visible = match || checked;
+    r.style.display = visible ? '' : 'none';
+    if (visible) shown++;
+  });
+  const hint = document.getElementById('emptyHint');
+  if (hint) hint.style.display = (shown === 0) ? '' : 'none';
+  if (hint && shown === 0) {
+    hint.querySelector('td').textContent = q
+      ? `"${q}" 일치 결과 없음`
+      : '검색어 입력 시 제품이 노출됩니다 (또는 선택한 제품만 표시)';
+  }
+}
+window.addEventListener('load', () => { filterProducts(); });
+
+// 사용자 정의 패널 토글 + 적용
+function toggleTplMode() {
+  const mode = document.querySelector('input[name=tpl_mode]:checked')?.value;
+  const panel = document.getElementById('customPanel');
+  if (panel) panel.style.display = mode === 'custom' ? 'block' : 'none';
+}
+function applyCustom() {
+  const params = collectStateParams();
+  params.set('template', 'custom');
+  ['cols','rows'].forEach(k => {
+    const v = document.querySelector(`input[name="${k}"]`)?.value;
+    if (v) params.set(k, v);
+  });
+  window.location.search = '?' + params.toString();
+}
+
+// 용지 변경 시 — 현재 체크된 SKU + 수량 + cutline 보존 후 reload
+function collectStateParams() {
+  const params = new URLSearchParams();
+  // 체크된 SKU + 수량
+  document.querySelectorAll('input[name=sku]:checked').forEach(cb => {
+    params.append('sku', cb.value);
+    const qty = document.querySelector(`input[name="qty_${cb.value}"]`)?.value || '1';
+    params.set(`qty_${cb.value}`, qty);
+  });
+  // cutline
+  if (document.getElementById('cutlineCheck')?.checked) params.set('cutline', '1');
+  return params;
+}
+
+function changeTemplate(newKey) {
+  const params = collectStateParams();
+  params.set('template', newKey);
+  // custom 모드면 cols/rows 도 함께 (없으면 기본 4×10)
+  if (newKey === 'custom') {
+    const cols = document.querySelector('input[name=cols]')?.value || '4';
+    const rows = document.querySelector('input[name=rows]')?.value || '10';
+    params.set('cols', cols);
+    params.set('rows', rows);
+  }
+  window.location.search = '?' + params.toString();
+}
+
+// 페이지 로드 시 URL 파라미터로부터 체크 상태 복원
+function restoreFromUrl() {
+  const params = new URLSearchParams(window.location.search);
+  const skus = params.getAll('sku');
+  if (!skus.length) return;
+  // attribute selector value 는 CSS.escape ❌ — 따옴표 안의 \" 와 \\ 만 escape
+  const attrEsc = s => s.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+  skus.forEach(sku => {
+    const cb = document.querySelector(`input[name=sku][value="${attrEsc(sku)}"]`);
+    if (cb) cb.checked = true;
+    const qtyVal = params.get(`qty_${sku}`);
+    if (qtyVal) {
+      const qtyInput = document.querySelector(`input[name="qty_${attrEsc(sku)}"]`);
+      if (qtyInput) qtyInput.value = qtyVal;
+    }
+  });
+}
+window.addEventListener('load', () => {
+  restoreFromUrl();
+  loadSettingsToInputs();
+  bindDesignSettingsInputs();
+  refreshAll();
+});
+
+// ── 박스히어로 1:1 용지 설정 모달 ──
+const PAPER_TEMPLATES = {
+  {% for key, t in templates.items() %}'{{ key }}': {cols:{{ t.cols }}, rows:{{ t.rows }}, lw:{{ t.label_w }}, lh:{{ t.label_h }}, pw:{{ t.paper_w }}, ph:{{ t.paper_h }}, mt:{{ t.margin_top }}, ml:{{ t.margin_left }}, gx:{{ t.gap_x }}, gy:{{ t.gap_y }}, name:'{{ t.name }}'}{{ ',' if not loop.last }}{% endfor %}
+};
+
+function openPaperModal() {
+  document.getElementById('paperModal').style.display = 'flex';
+  // 현재 템플릿 키로 초기 탭 결정
+  const isThermal = TPL_KEY.startsWith('thermal');
+  const isCustom = TPL_KEY === 'custom';
+  switchPaperTab(isThermal ? 'thermal' : (isCustom ? 'custom' : 'preset'));
+  if (!isThermal && !isCustom) {
+    document.getElementById('presetSelect').value = TPL_KEY;
+    onPresetChange();
+  }
+  updateCustomLive();
+  drawModalPreview();
+}
+function closePaperModal() {
+  document.getElementById('paperModal').style.display = 'none';
+}
+function switchPaperTab(tab) {
+  document.querySelectorAll('.paper-tab').forEach(b => {
+    const active = b.dataset.tab === tab;
+    b.style.background = active ? '#EEF1FE' : '#fff';
+    b.style.borderColor = active ? '#4F67FF' : '#CBCCD3';
+    b.style.color = active ? '#4F67FF' : '#292A2F';
+  });
+  document.querySelectorAll('.paper-tab-body').forEach(d => {
+    d.style.display = (d.id === 'paperTab-' + tab) ? 'block' : 'none';
+  });
+  drawModalPreview();
+}
+function onPresetChange() {
+  const key = document.getElementById('presetSelect').value;
+  const t = PAPER_TEMPLATES[key];
+  if (!t) return;
+  document.getElementById('m_pw').value = t.pw;
+  document.getElementById('m_ph').value = t.ph;
+  document.getElementById('m_lw').value = t.lw;
+  document.getElementById('m_lh').value = t.lh;
+  document.getElementById('m_cols').value = t.cols;
+  document.getElementById('m_rows').value = t.rows;
+  document.getElementById('m_mt').value = t.mt;
+  document.getElementById('m_ml').value = t.ml;
+  document.getElementById('m_gx').value = t.gx;
+  document.getElementById('m_gy').value = t.gy;
+  drawModalPreview();
+}
+function setThermal(w, h) {
+  document.getElementById('m_th_w').value = w;
+  document.getElementById('m_th_h').value = h;
+  drawModalPreview();
+}
+function updateCustomLive() {
+  const c = parseInt(document.getElementById('m_c_cols')?.value) || 0;
+  const r = parseInt(document.getElementById('m_c_rows')?.value) || 0;
+  if (c <= 0 || r <= 0) {
+    document.getElementById('customLiveInfo').textContent = '가로·세로 모두 1개 이상';
+    return;
+  }
+  const margin = 5;
+  const lw = ((210 - 2*margin) / c).toFixed(1);
+  const lh = (297 / r).toFixed(1);
+  document.getElementById('customLiveInfo').innerHTML =
+    `★ <strong>${c * r}칸</strong> · 라벨 ${lw}×${lh}mm · A4 (210×297mm) · 좌우 여백 ${margin}mm · 위/아래 여백 0`;
+  drawModalPreview();
+}
+function drawModalPreview() {
+  const wrap = document.getElementById('modalPreview');
+  const tab = [...document.querySelectorAll('.paper-tab-body')].find(d => d.style.display !== 'none')?.id?.replace('paperTab-', '');
+  let cols, rows, lw, lh, pw, ph, mt, ml, gx, gy;
+  if (tab === 'thermal') {
+    cols = 1; rows = 1;
+    pw = lw = parseFloat(document.getElementById('m_th_w').value) || 60;
+    ph = lh = parseFloat(document.getElementById('m_th_h').value) || 35;
+    mt = ml = gx = gy = 0;
+  } else if (tab === 'custom') {
+    cols = parseInt(document.getElementById('m_c_cols').value) || 4;
+    rows = parseInt(document.getElementById('m_c_rows').value) || 10;
+    pw = 210; ph = 297;
+    ml = 5; mt = 0; gx = gy = 0;
+    lw = (pw - 2*ml) / cols;
+    lh = ph / rows;
+  } else {
+    cols = parseInt(document.getElementById('m_cols').value) || 4;
+    rows = parseInt(document.getElementById('m_rows').value) || 10;
+    lw = parseFloat(document.getElementById('m_lw').value) || 48.5;
+    lh = parseFloat(document.getElementById('m_lh').value) || 25.4;
+    pw = parseFloat(document.getElementById('m_pw').value) || 210;
+    ph = parseFloat(document.getElementById('m_ph').value) || 297;
+    mt = parseFloat(document.getElementById('m_mt').value) || 0;
+    ml = parseFloat(document.getElementById('m_ml').value) || 0;
+    gx = parseFloat(document.getElementById('m_gx').value) || 0;
+    gy = parseFloat(document.getElementById('m_gy').value) || 0;
+  }
+  // 미리보기 크기를 paper 비율에 맞춤
+  const maxW = 300, maxH = 425;
+  const ratio = Math.min(maxW / pw, maxH / ph);
+  wrap.style.width = (pw * ratio) + 'px';
+  wrap.style.height = (ph * ratio) + 'px';
+  let html = '';
+  for (let i = 0; i < cols * rows; i++) {
+    const col = i % cols, row = Math.floor(i / cols);
+    const x = (ml + col * (lw + gx)) * ratio;
+    const y = (mt + row * (lh + gy)) * ratio;
+    html += `<div style="position:absolute;left:${x}px;top:${y}px;width:${lw*ratio}px;height:${lh*ratio}px;border:0.5px solid #CBCCD3"></div>`;
+  }
+  wrap.innerHTML = html;
+}
+function applyPaperModal() {
+  const tab = [...document.querySelectorAll('.paper-tab-body')].find(d => d.style.display !== 'none')?.id?.replace('paperTab-', '');
+  const params = collectStateParams();
+  if (tab === 'thermal') {
+    // 감열지: 가까운 프리셋 매칭 또는 사용자 정의 1×1
+    const w = parseFloat(document.getElementById('m_th_w').value);
+    const h = parseFloat(document.getElementById('m_th_h').value);
+    if (w === 60 && h === 35) params.set('template', 'thermal_60_35');
+    else if (w === 50 && h === 30) params.set('template', 'thermal_50_30');
+    else {
+      // 사용자 지정 1×1 (감열)
+      params.set('template', 'custom');
+      params.set('cols', '1');
+      params.set('rows', '1');
+    }
+  } else if (tab === 'custom') {
+    params.set('template', 'custom');
+    params.set('cols', document.getElementById('m_c_cols').value);
+    params.set('rows', document.getElementById('m_c_rows').value);
+  } else {
+    // 라벨 용지 — 프리셋 그대로
+    params.set('template', document.getElementById('presetSelect').value);
+  }
+  window.location.search = '?' + params.toString();
+}
+// 모달 입력 변경 시 미리보기 자동 갱신
+['m_pw','m_ph','m_lw','m_lh','m_cols','m_rows','m_mt','m_ml','m_gx','m_gy','m_th_w','m_th_h','m_c_cols','m_c_rows'].forEach(id => {
+  document.getElementById(id)?.addEventListener('input', drawModalPreview);
+});
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closePaperModal(); });
+function liveCustomPreview() {
+  const cols = parseInt(document.querySelector('input[name=cols]')?.value) || 0;
+  const rows = parseInt(document.querySelector('input[name=rows]')?.value) || 0;
+  if (cols <= 0 || rows <= 0) {
+    document.getElementById('customPreviewInfo').textContent = '가로/세로 모두 1개 이상';
+    return;
+  }
+  const margin = 5;
+  const labelW = ((210 - 2*margin) / cols).toFixed(1);
+  const labelH = ((297 - 2*margin) / rows).toFixed(1);
+  document.getElementById('customPreviewInfo').innerHTML =
+    `★ <strong>${cols * rows}칸</strong> · 라벨 ${labelW}×${labelH}mm · A4 (210×297mm) · 여백 5mm 고정`;
+}
+window.addEventListener('load', () => { if (document.getElementById('customPanel')?.style.display !== 'none') liveCustomPreview(); });
+</script>
+{% endblock %}

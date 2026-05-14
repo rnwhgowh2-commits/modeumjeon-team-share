@@ -1,0 +1,223 @@
+{% extends 'base.html' %}
+{% block title %}임시저장 사이드바 시안 — 모음전 자동화{% endblock %}
+{% block head %}
+<style>
+  .mockup-wrap { padding: 20px; max-width: 1400px; margin: 0 auto; }
+  .mockup-section { margin-bottom: 60px; padding: 24px; background: #fafbfc; border-radius: 12px; border: 1px solid #eaecef; }
+  .mockup-title { font-size: 22px; font-weight: 700; margin: 0 0 4px; }
+  .mockup-tagline { font-size: 13px; color: #666; margin-bottom: 18px; }
+  .pros, .cons { display: inline-block; font-size: 12px; padding: 3px 10px; border-radius: 12px; margin-right: 6px; font-weight: 600; }
+  .pros { background: #dcfce7; color: #16a34a; }
+  .cons { background: #fee2e2; color: #dc2626; }
+
+  /* 공용 mock 화면 frame */
+  .mock-frame { background: #fff; border: 1px solid #ddd; border-radius: 10px; overflow: hidden; min-height: 520px; position: relative; }
+  .mock-header { background: #f7f8fa; border-bottom: 1px solid #eee; padding: 12px 16px; font-size: 13px; color: #666; }
+  .mock-body { padding: 24px; display: flex; gap: 20px; }
+  .mock-main { flex: 1; }
+  .mock-main h2 { font-size: 18px; margin: 0 0 12px; }
+  .mock-card { background: #fff; border: 1px solid #e5e7eb; border-radius: 10px; padding: 14px; margin-bottom: 10px; }
+  .mock-input { width: 100%; padding: 8px 10px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 13px; box-sizing: border-box; margin-bottom: 8px; }
+  .mock-btn-primary { display: inline-block; padding: 10px 20px; background: #2563eb; color: #fff; border: 0; border-radius: 8px; font-weight: 700; cursor: pointer; }
+
+  /* 임시저장 항목 공용 스타일 */
+  .draft-row { padding: 10px 12px; border-radius: 8px; background: #fff8f1; border: 1px solid #fde4c5; margin-bottom: 8px; font-size: 13px; }
+  .draft-row .draft-meta { font-size: 11px; color: #92400e; margin-bottom: 4px; }
+  .draft-row .draft-key { font-family: ui-monospace, monospace; color: #1f2937; font-weight: 600; }
+  .draft-actions { display: flex; gap: 6px; margin-top: 8px; }
+  .draft-actions a, .draft-actions button { padding: 4px 10px; border: 1px solid #fde4c5; background: #fff; border-radius: 6px; font-size: 11px; cursor: pointer; text-decoration: none; color: #92400e; }
+  .draft-actions a:hover, .draft-actions button:hover { background: #fef3e2; }
+
+  /* ===== 시안 A — Sticky Right Card ===== */
+  .a-sidebar { width: 280px; flex-shrink: 0; position: sticky; top: 12px; align-self: flex-start; background: #fffbf2; border: 1px solid #fde4c5; border-radius: 10px; padding: 14px; }
+  .a-sidebar h3 { font-size: 14px; margin: 0 0 4px; color: #92400e; }
+  .a-sidebar .sub { font-size: 11px; color: #b45309; margin-bottom: 12px; }
+
+  /* ===== 시안 B — Slide-out Drawer ===== */
+  .b-tab { position: absolute; right: 0; top: 50%; transform: translateY(-50%) rotate(-90deg); transform-origin: right center; background: #f59e0b; color: #fff; padding: 6px 14px; font-size: 12px; font-weight: 700; border-radius: 6px 6px 0 0; cursor: pointer; box-shadow: -2px 0 8px rgba(0,0,0,0.1); }
+  .b-drawer { position: absolute; top: 0; right: 0; height: 100%; width: 320px; background: #fffbf2; border-left: 1px solid #fde4c5; padding: 18px; box-shadow: -4px 0 12px rgba(0,0,0,0.08); transform: translateX(100%); transition: transform 0.25s; overflow-y: auto; }
+  .b-drawer.open { transform: translateX(0); }
+  .b-drawer h3 { font-size: 14px; margin: 0 0 4px; color: #92400e; }
+  .b-drawer .close { float: right; cursor: pointer; font-size: 18px; color: #92400e; background: none; border: 0; }
+
+  /* ===== 시안 C — Floating Bubble ===== */
+  .c-fab { position: absolute; right: 20px; bottom: 20px; background: #f59e0b; color: #fff; padding: 12px 16px; border-radius: 30px; font-size: 13px; font-weight: 700; cursor: pointer; box-shadow: 0 4px 12px rgba(245, 158, 11, 0.4); display: flex; align-items: center; gap: 8px; }
+  .c-fab .badge { background: #fff; color: #f59e0b; border-radius: 12px; padding: 2px 8px; font-size: 11px; }
+  .c-popup { position: absolute; right: 20px; bottom: 70px; width: 320px; background: #fff; border: 1px solid #e5e7eb; border-radius: 12px; box-shadow: 0 8px 24px rgba(0,0,0,0.12); padding: 14px; }
+  .c-popup h3 { font-size: 14px; margin: 0 0 10px; color: #92400e; display: flex; justify-content: space-between; align-items: center; }
+</style>
+{% endblock %}
+{% block content %}
+<section class="mockup-wrap">
+  <a class="btn btn-ghost" href="/bundles">← 모음전 목록</a>
+  <h1 style="margin: 6px 0 4px">임시저장 사이드바 — 디자인 시안 3</h1>
+  <p style="color:#666;font-size:13px;margin-bottom:24px">신규 등록 / 마켓 연동 페이지에 「작업 중 임시저장」 노출 방식 비교. 본인 화면에서 직접 비교 후 1개 선택.</p>
+
+  {# ============================ 시안 A ============================ #}
+  <div class="mockup-section">
+    <div class="mockup-title">시안 A — 우측 Sticky 카드 (항상 보임)</div>
+    <div class="mockup-tagline">
+      <span class="pros">늘 가시성</span>
+      <span class="pros">즉시 접근</span>
+      <span class="cons">화면 좁음</span>
+      <span class="cons">모바일 부적합</span>
+    </div>
+    <div class="mock-frame">
+      <div class="mock-header">기존 마켓 상품 연동 (시안 A)</div>
+      <div class="mock-body">
+        <div class="mock-main">
+          <h2>기존 마켓 상품 연동</h2>
+          <p style="color:#666;font-size:13px;margin-bottom:14px">스스 원상품번호 1개로 자동 모음전 생성.</p>
+          <div class="mock-card">
+            <label style="font-size:13px;color:#555">원상품번호 *</label>
+            <input class="mock-input" placeholder="예: 13153051689">
+            <label style="font-size:13px;color:#555">모음전 코드 *</label>
+            <input class="mock-input" placeholder="예: 클래식">
+            <label style="font-size:13px;color:#555">브랜드 *</label>
+            <input class="mock-input" value="르무통">
+          </div>
+          <button class="mock-btn-primary">📥 자동 가져오기 → 모음전 생성</button>
+        </div>
+        <aside class="a-sidebar">
+          <h3>💾 임시저장 (2개)</h3>
+          <div class="sub">localStorage 자동 백업</div>
+          <div class="draft-row">
+            <div class="draft-meta">5분 전 · 마켓 연동</div>
+            <div class="draft-key">13153051689 → 클래식</div>
+            <div class="draft-actions">
+              <a href="#">이어서 →</a>
+              <button>🗑</button>
+            </div>
+          </div>
+          <div class="draft-row">
+            <div class="draft-meta">3시간 전 · 마켓 연동</div>
+            <div class="draft-key">7890123 → 메이트</div>
+            <div class="draft-actions">
+              <a href="#">이어서 →</a>
+              <button>🗑</button>
+            </div>
+          </div>
+        </aside>
+      </div>
+    </div>
+  </div>
+
+  {# ============================ 시안 B ============================ #}
+  <div class="mockup-section">
+    <div class="mockup-title">시안 B — Slide-out Drawer (탭 클릭 → 슬라이드 인)</div>
+    <div class="mockup-tagline">
+      <span class="pros">본문 공간 보존</span>
+      <span class="pros">필요할 때만 펼침</span>
+      <span class="pros">모바일 OK</span>
+      <span class="cons">한 번 클릭 추가</span>
+    </div>
+    <div class="mock-frame" id="b-frame">
+      <div class="mock-header">기존 마켓 상품 연동 (시안 B) — 우측 「💾 임시저장 (2)」 탭 클릭</div>
+      <div class="mock-body">
+        <div class="mock-main">
+          <h2>기존 마켓 상품 연동</h2>
+          <p style="color:#666;font-size:13px;margin-bottom:14px">스스 원상품번호 1개로 자동 모음전 생성.</p>
+          <div class="mock-card">
+            <label style="font-size:13px;color:#555">원상품번호 *</label>
+            <input class="mock-input" placeholder="예: 13153051689">
+            <label style="font-size:13px;color:#555">모음전 코드 *</label>
+            <input class="mock-input" placeholder="예: 클래식">
+            <label style="font-size:13px;color:#555">브랜드 *</label>
+            <input class="mock-input" value="르무통">
+            <label style="font-size:13px;color:#555">카테고리</label>
+            <input class="mock-input" value="신발">
+          </div>
+          <button class="mock-btn-primary">📥 자동 가져오기 → 모음전 생성</button>
+        </div>
+      </div>
+      <div class="b-tab" onclick="document.querySelector('#b-frame .b-drawer').classList.toggle('open')">💾 임시저장 (2)</div>
+      <div class="b-drawer">
+        <button class="close" onclick="document.querySelector('#b-frame .b-drawer').classList.remove('open')">✕</button>
+        <h3>💾 임시저장 (2개)</h3>
+        <div class="sub" style="font-size:11px;color:#b45309;margin-bottom:12px">localStorage 자동 백업</div>
+        <div class="draft-row">
+          <div class="draft-meta">5분 전 · 마켓 연동</div>
+          <div class="draft-key">13153051689 → 클래식</div>
+          <div class="draft-actions">
+            <a href="#">이어서 →</a>
+            <button>🗑</button>
+          </div>
+        </div>
+        <div class="draft-row">
+          <div class="draft-meta">3시간 전 · 마켓 연동</div>
+          <div class="draft-key">7890123 → 메이트</div>
+          <div class="draft-actions">
+            <a href="#">이어서 →</a>
+            <button>🗑</button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <p style="margin-top:8px;font-size:12px;color:#666">↑ 우측 가장자리의 「💾 임시저장 (2)」 탭 클릭하면 슬라이드.</p>
+  </div>
+
+  {# ============================ 시안 C ============================ #}
+  <div class="mockup-section">
+    <div class="mockup-title">시안 C — Floating Bubble (우측 하단 떠다님)</div>
+    <div class="mockup-tagline">
+      <span class="pros">친숙한 UX (채팅 위젯)</span>
+      <span class="pros">본문 100% 보존</span>
+      <span class="cons">본문 일부 가림 가능</span>
+    </div>
+    <div class="mock-frame" id="c-frame">
+      <div class="mock-header">기존 마켓 상품 연동 (시안 C) — 우측 하단 노란 버블 클릭</div>
+      <div class="mock-body">
+        <div class="mock-main">
+          <h2>기존 마켓 상품 연동</h2>
+          <p style="color:#666;font-size:13px;margin-bottom:14px">스스 원상품번호 1개로 자동 모음전 생성.</p>
+          <div class="mock-card">
+            <label style="font-size:13px;color:#555">원상품번호 *</label>
+            <input class="mock-input" placeholder="예: 13153051689">
+            <label style="font-size:13px;color:#555">모음전 코드 *</label>
+            <input class="mock-input" placeholder="예: 클래식">
+            <label style="font-size:13px;color:#555">브랜드 *</label>
+            <input class="mock-input" value="르무통">
+            <label style="font-size:13px;color:#555">카테고리</label>
+            <input class="mock-input" value="신발">
+          </div>
+          <button class="mock-btn-primary">📥 자동 가져오기 → 모음전 생성</button>
+        </div>
+      </div>
+      <div class="c-popup" id="c-popup">
+        <h3>💾 임시저장 (2개) <button onclick="document.getElementById('c-popup').style.display='none'" style="background:none;border:0;cursor:pointer;font-size:14px">✕</button></h3>
+        <div class="draft-row">
+          <div class="draft-meta">5분 전 · 마켓 연동</div>
+          <div class="draft-key">13153051689 → 클래식</div>
+          <div class="draft-actions">
+            <a href="#">이어서 →</a>
+            <button>🗑</button>
+          </div>
+        </div>
+        <div class="draft-row">
+          <div class="draft-meta">3시간 전 · 마켓 연동</div>
+          <div class="draft-key">7890123 → 메이트</div>
+          <div class="draft-actions">
+            <a href="#">이어서 →</a>
+            <button>🗑</button>
+          </div>
+        </div>
+      </div>
+      <div class="c-fab" onclick="const p=document.getElementById('c-popup');p.style.display=p.style.display==='none'?'block':'none'">
+        💾 임시저장 <span class="badge">2</span>
+      </div>
+    </div>
+    <p style="margin-top:8px;font-size:12px;color:#666">↑ 우측 하단 노란 버블 (Floating Action Button) 클릭하면 popup.</p>
+  </div>
+
+  {# 결정 #}
+  <div class="mockup-section" style="background:#eff6ff;border-color:#dbeafe">
+    <div class="mockup-title">결정</div>
+    <p style="font-size:13px;color:#374151;line-height:1.7">
+      각 시안 비교 후 채팅으로 <strong>「A」</strong>, <strong>「B」</strong>, <strong>「C」</strong> 알려주세요.<br>
+      또는 「A 의 ___ + B 의 ___」 같은 조합 의견도 OK.<br><br>
+      💡 제 추천: <strong>시안 B (Drawer)</strong> — 본문 공간 보존 + 필요할 때만 보여서 평소엔 깔끔.<br>
+      <em>시안 C 도 친숙. 시안 A 는 모바일에서 좁아짐.</em>
+    </p>
+  </div>
+</section>
+{% endblock %}

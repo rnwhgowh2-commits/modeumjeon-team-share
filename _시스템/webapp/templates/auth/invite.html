@@ -1,0 +1,41 @@
+{% extends "auth/_base_auth.html" %}
+{% block title %}팀원 초대{% endblock %}
+
+{% block content %}
+  <h1 class="auth-title">팀원 초대</h1>
+  <p class="auth-desc">초대 후 임시 비번을 안전하게 전달하세요. 첫 로그인 시 비번 변경 권장.</p>
+
+  <form method="post" novalidate>
+    {{ form.hidden_tag() }}
+
+    <div class="field">
+      {{ form.email.label }}
+      {{ form.email(autocomplete="email") }}
+      {% if form.email.errors %}{% for e in form.email.errors %}<div class="field-error">{{ e }}</div>{% endfor %}{% endif %}
+    </div>
+
+    <div class="field">
+      {{ form.name.label }}
+      {{ form.name(autocomplete="name") }}
+      {% if form.name.errors %}{% for e in form.name.errors %}<div class="field-error">{{ e }}</div>{% endfor %}{% endif %}
+    </div>
+
+    <div class="field">
+      {{ form.role.label }}
+      {{ form.role(placeholder="member 또는 admin") }}
+      {% if form.role.errors %}{% for e in form.role.errors %}<div class="field-error">{{ e }}</div>{% endfor %}{% endif %}
+    </div>
+
+    <div class="field">
+      {{ form.temp_password.label }}
+      {{ form.temp_password(autocomplete="new-password") }}
+      {% if form.temp_password.errors %}{% for e in form.temp_password.errors %}<div class="field-error">{{ e }}</div>{% endfor %}{% endif %}
+    </div>
+
+    {{ form.submit(class="btn-primary") }}
+  </form>
+
+  <div style="margin-top: 16px; text-align: center;">
+    <a href="{{ url_for('auth.users_list') }}" style="font-size: var(--fs-caption); color: var(--n600);">취소</a>
+  </div>
+{% endblock %}

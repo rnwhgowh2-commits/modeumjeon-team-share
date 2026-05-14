@@ -1,0 +1,54 @@
+{% extends 'base.html' %}
+{% block title %}🆕 신규 모음전 등록 — 모음전 자동화{% endblock %}
+{% block content %}
+<section class="screen active">
+  <a class="btn btn-ghost" href="/bundles">← 모음전 목록</a>
+  <h1 style="margin-top:6px">🆕 신규 모음전 등록</h1>
+  <p class="greeting">마켓에 처음 등록하는 상품 — 모든 정보 채우고 자동 등록까지 진행. 이미 마켓에 있는 상품이면 <a href="/bundles/migrate" style="color:var(--primary)">마켓 등록 상품 연동</a>으로 가세요.</p>
+
+  {% if error %}
+  <div class="card" style="border-left:3px solid var(--danger);margin-bottom:14px">
+    <strong>⚠ {{ error }}</strong>
+  </div>
+  {% endif %}
+
+  <form method="post" action="/bundles/new">
+    <div class="card">
+      <div class="field">
+        <label class="field-label">모음전 코드 (한글, 고유)</label>
+        <input id="model_code" class="field-input" name="model_code" value="{{ form.get('model_code', '') }}" required placeholder="예: 레츠" />
+        <div class="field-hint">v2 부터 등록 후에도 「코드 변경」 버튼으로 수정 가능 (cascade rename).</div>
+      </div>
+      <div class="field">
+        <label class="field-label">브랜드</label>
+        <input id="brand" class="field-input" name="brand" value="{{ form.get('brand', '르무통') }}" required placeholder="예: 르무통, 크로커다일, 폴햄" />
+        <div class="field-hint">멀티 브랜드 운영 시 검색·필터링에 사용됩니다.</div>
+      </div>
+      <div class="field">
+        <label class="field-label">모델명 (마켓 노출용)</label>
+        <input id="model_name_raw" class="field-input" name="model_name_raw" value="{{ form.get('model_name_raw', '') }}" required placeholder="예: 레츠 슬립온" />
+      </div>
+      <div class="field">
+        <label class="field-label">카테고리</label>
+        <select class="field-input" name="category">
+          <option value="신발" {% if form.get('category') == '신발' or not form.get('category') %}selected{% endif %}>신발</option>
+          <option value="의류" {% if form.get('category') == '의류' %}selected{% endif %}>의류</option>
+          <option value="가방" {% if form.get('category') == '가방' %}selected{% endif %}>가방</option>
+        </select>
+      </div>
+    </div>
+    <div class="btn-row" style="margin-top:14px">
+      <button type="submit" class="btn btn-primary btn-large">등록하기 →</button>
+      <a class="btn btn-large" href="/bundles">취소</a>
+    </div>
+  </form>
+</section>
+{% include 'partials/draft_bubble.html' %}
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+  setupDraftAutoSave('new', ['model_code', 'brand', 'model_name_raw']);
+  // form submit 성공 시 임시저장 클리어 (POST 후 redirect 되므로 unload 시 처리)
+  document.querySelector('form').addEventListener('submit', () => clearDraft('new'));
+});
+</script>
+{% endblock %}

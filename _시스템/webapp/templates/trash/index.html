@@ -1,0 +1,63 @@
+{% extends 'base.html' %}
+{% block title %}🗑 휴지통 — 모음전 자동화{% endblock %}
+{% block content %}
+<section class="screen active" id="screen-trash">
+  <h1>🗑 휴지통</h1>
+  <p class="greeting">soft-delete 된 항목 — 30일 후 자동 hard-delete (예정).</p>
+
+  <div style="margin-bottom:14px">
+    <a href="/audit" class="btn">📜 전체 변경 이력 보기 →</a>
+  </div>
+
+  {% if not items %}
+  <div class="card" style="padding:32px;text-align:center;color:var(--n500)">
+    휴지통이 비어있어요.
+  </div>
+  {% else %}
+  <div style="overflow-x:auto;border:1px solid var(--n200);border-radius:10px">
+    <table class="opt-table">
+      <thead>
+        <tr>
+          <th>분류</th><th>대상</th><th>삭제자</th>
+          <th>삭제 시각</th><th>사유</th><th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for it in items %}
+        <tr>
+          <td><strong>{{ it.target_label }}</strong></td>
+          <td class="mono">{{ it.target_id }}</td>
+          <td>{{ it.actor }}</td>
+          <td style="font-size:12px">{{ it.at.strftime('%Y-%m-%d %H:%M') if it.at else '—' }}</td>
+          <td style="font-size:12px;color:var(--n600)">{{ it.reason or '—' }}</td>
+          <td>
+            {% if it.target_table in ('market_accounts', 'source_products', 'source_options') %}
+            <button class="btn btn-sm" data-action="restore-trash" data-log-id="{{ it.log_id }}">↩ 복구</button>
+            {% else %}
+            <span style="font-size:11px;color:var(--n400)">복구 미지원</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% endif %}
+</section>
+
+<script>
+document.querySelectorAll('[data-action="restore-trash"]').forEach(btn => {
+  btn.addEventListener('click', async () => {
+    if (!confirm('이 항목을 복구할까요?')) return;
+    const id = btn.getAttribute('data-log-id');
+    const r = await fetch(`/trash/${id}/restore`, {method: 'POST'});
+    const j = await r.json();
+    if (j.ok) {
+      btn.textContent = '✓ 복구됨';
+      btn.disabled = true;
+      setTimeout(() => location.reload(), 800);
+    } else alert('복구 실패: ' + (j.error || ''));
+  });
+});
+</script>
+{% endblock %}

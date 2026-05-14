@@ -1,0 +1,117 @@
+{# 좌측 사이드바 — v6 Phase 2 (2026-05-07): 이모지 → 단색 SVG 1세트 + 매일/관리 2-tier 구조.
+   원본 백업: webapp/static/_backup_20260507/sidebar.html.orig #}
+
+{# Lucide-style 단색 line icon 매크로 — stroke 1.8px / 16px viewBox / currentColor #}
+{% macro ic(path) -%}
+<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">{{ path|safe }}</svg>
+{%- endmacro %}
+
+<aside class="sidebar">
+  <div class="brand">모음전 자동화</div>
+  <div class="brand-sub">v2 · 멀티 브랜드 · 멀티 계정</div>
+
+  {# M3 — 사이드바 brand 아래 큰 카드 2개 모드 스위처 #}
+  <div class="sb-modeswitch">
+    <a href="/" class="sb-mode {% if active_app != 'inventory' %}on{% endif %}">
+      <span class="sb-mode-ic"></span>
+      <span class="sb-mode-nm">모음전</span>
+    </a>
+    <a href="/inventory/" class="sb-mode {% if active_app == 'inventory' %}on{% endif %}">
+      <span class="sb-mode-ic"></span>
+      <span class="sb-mode-nm">재고관리</span>
+    </a>
+  </div>
+
+  {# ============ Tier 1 — 매일 쓰는 6개 ============ #}
+  <div class="tier-main">
+    <a href="/" class="nav-item {% if active == 'home' %}active{% endif %}">
+      {{ ic('<path d="M3 11l9-8 9 8v10a2 2 0 0 1-2 2h-4v-7h-6v7H5a2 2 0 0 1-2-2z"/>') }}
+      홈
+    </a>
+    <a href="/bundles" class="nav-item {% if active == 'bundles' %}active{% endif %}">
+      {{ ic('<path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/>') }}
+      모음전 상품관리
+    </a>
+    <a href="/queue" class="nav-item {% if active == 'queue' %}active{% endif %}">
+      {{ ic('<path d="M9 11V6a2 2 0 0 1 4 0v5M13 11V4a2 2 0 0 1 4 0v7"/><path d="M17 8a2 2 0 0 1 4 0v6a8 8 0 0 1-8 8h-2c-2.8 0-4.5-.86-5.99-2.34L3 16.5a1.65 1.65 0 0 1 2.5-2.18L7 16V5a2 2 0 0 1 4 0v6"/>') }}
+      미맵핑{% if sidebar_unmapped_count %} <span class="nav-badge">{{ sidebar_unmapped_count }}</span>{% endif %}
+    </a>
+    <a href="/dlq" class="nav-item {% if active == 'dlq' %}active{% endif %}">
+      {{ ic('<path d="M12 3L2 21h20zM12 9v5M12 17v.01"/>') }}
+      업로드 실패함{% if sidebar_failed_count %} <span class="nav-badge alert">{{ sidebar_failed_count }}</span>{% endif %}
+    </a>
+    <a href="/orders/?tab=list" class="nav-item {% if active == 'orders_list' %}active{% endif %}">
+      {{ ic('<path d="M5 22V4a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v18l-3-2-3 2-3-2-3 2-2-2z"/><path d="M9 7h6M9 11h6M9 15h4"/>') }}
+      주문 내역
+    </a>
+    <a href="/sources" class="nav-item {% if active == 'sources' %}active{% endif %}">
+      {{ ic('<path d="M12 22s-7-7.5-7-13a7 7 0 0 1 14 0c0 5.5-7 13-7 13z"/><circle cx="12" cy="9" r="2.5"/>') }}
+      소싱처 운영센터
+    </a>
+  </div>
+
+  <div class="tier-divider"></div>
+
+  {# ============ Tier 2 — 관리 (가끔 사용) 12개, 4 그룹 ============ #}
+  <div class="tier-sub">
+    <div class="nav-group-title">상품 작업</div>
+    <a href="/bundles/new" class="nav-item {% if active == 'bundles_new' %}active{% endif %}">
+      {{ ic('<rect x="3" y="3" width="18" height="18" rx="3"/><path d="M12 8v8M8 12h8"/>') }}
+      신규 모음전 등록
+    </a>
+    <a href="/bundles/migrate" class="nav-item {% if active == 'bundles_migrate' %}active{% endif %}">
+      {{ ic('<path d="M10 13a5 5 0 0 0 7.07 0l3-3a5 5 0 0 0-7.07-7.07l-1.5 1.5"/><path d="M14 11a5 5 0 0 0-7.07 0l-3 3a5 5 0 0 0 7.07 7.07l1.5-1.5"/>') }}
+      기존 마켓 상품 연동
+    </a>
+    <a href="/track" class="nav-item {% if active == 'track' %}active{% endif %}">
+      {{ ic('<path d="M3 21V8M9 21V13M15 21V5M21 21V11M3 21h18"/>') }}
+      가격·재고 추적
+    </a>
+    <a href="/market-upload-config" class="nav-item {% if active == 'market_upload' %}active{% endif %}">
+      {{ ic('<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12"/>') }}
+      마켓 업로드 설정
+    </a>
+
+    <div class="nav-group-title">매출</div>
+    <a href="/orders/?tab=sales" class="nav-item {% if active == 'orders_sales' %}active{% endif %}">
+      {{ ic('<rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="3"/><path d="M6 8.01h.01M18 8.01h.01"/>') }}
+      매출 관리
+    </a>
+    <a href="/orders/?tab=margin" class="nav-item {% if active == 'orders_margin' %}active{% endif %}">
+      {{ ic('<rect x="4" y="2" width="16" height="20" rx="2"/><path d="M8 6h8v4H8zM8 14h2M14 14h2M8 18h2M14 18h2M11 14h2M11 18h2"/>') }}
+      마진 계산기
+    </a>
+
+    <div class="nav-group-title">운영</div>
+    <a href="/source-registry" class="nav-item {% if active == 'source_registry' %}active{% endif %}">
+      {{ ic('<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h0a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51h0a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v0a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>') }}
+      소싱처 사전
+    </a>
+    <a href="/trash" class="nav-item {% if active == 'trash' %}active{% endif %}">
+      {{ ic('<path d="M3 6h18M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6M10 11v6M14 11v6"/>') }}
+      휴지통 · 변경 이력
+    </a>
+
+    <div class="nav-group-title">계정 · 설정</div>
+    <a href="/accounts/upload" class="nav-item {% if active == 'accounts_upload' %}active{% endif %}">
+      {{ ic('<path d="M6 2l-2 4v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V6l-2-4zM3 6h18M16 10a4 4 0 0 1-8 0"/>') }}
+      판매처 계정
+    </a>
+    <a href="/accounts/sourcing" class="nav-item {% if active == 'accounts_sourcing' %}active{% endif %}">
+      {{ ic('<circle cx="7" cy="14" r="4"/><path d="M10 12l11-11M14 5l3 3M16 3l3 3"/>') }}
+      소싱처 계정
+    </a>
+    <a href="/templates" class="nav-item {% if active == 'templates' %}active{% endif %}">
+      {{ ic('<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M16 13H8M16 17H8M10 9H8"/>') }}
+      템플릿
+    </a>
+    <a href="/boxhero" class="nav-item {% if active == 'boxhero' %}active{% endif %}">
+      {{ ic('<path d="M21 8L12 3 3 8m18 0v8l-9 5-9-5V8m18 0L12 13M3 8l9 5"/>') }}
+      사입 재고 연동
+    </a>
+    <a href="/alerts" class="nav-item {% if active == 'alerts' %}active{% endif %}">
+      {{ ic('<path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9M13.7 21a2 2 0 0 1-3.4 0"/>') }}
+      알림 채널 설정
+    </a>
+  </div>
+</aside>

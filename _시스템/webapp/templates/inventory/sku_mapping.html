@@ -1,0 +1,82 @@
+{% extends 'base.html' %}
+{% block title %}SKU 매핑 — 재고관리{% endblock %}
+{% block content %}
+<div style="padding:24px 32px;max-width:1300px;margin:0 auto">
+
+  <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px">
+    <h1 style="font-size:20px;font-weight:700">SKU 매핑</h1>
+    <span style="font-size:11.5px;color:#6B7684">Q3 — 자동 + 수동 보완 큐 (모음전 옵션 ↔ 박스히어로 SKU)</span>
+  </div>
+
+  {% with msgs = get_flashed_messages(with_categories=true) %}
+    {% for cat, msg in msgs %}
+      <div style="background:{% if cat=='error' %}#FEF2F2{% else %}#ECFDF5{% endif %};border:1px solid {% if cat=='error' %}#FCA5A5{% else %}#86EFAC{% endif %};padding:10px 14px;border-radius:6px;margin-bottom:12px;font-size:13px;color:{% if cat=='error' %}#991B1B{% else %}#065F46{% endif %}">{{ msg }}</div>
+    {% endfor %}
+  {% endwith %}
+
+  <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:18px">
+    <div style="background:#fff;border:1px solid #E5E8EB;border-radius:8px;padding:12px 14px">
+      <div style="font-size:11px;color:#6B7684">전체 옵션</div>
+      <div style="font-size:22px;font-weight:700">{{ kpi.all }}</div>
+    </div>
+    <div style="background:#fff;border:1px solid #E5E8EB;border-radius:8px;padding:12px 14px">
+      <div style="font-size:11px;color:#6B7684">매핑 완료</div>
+      <div style="font-size:22px;font-weight:700;color:#0E8056">{{ kpi.mapped }}</div>
+    </div>
+    <div style="background:#fff;border:1px solid #E5E8EB;border-radius:8px;padding:12px 14px">
+      <div style="font-size:11px;color:#6B7684">미매핑 (수동 필요)</div>
+      <div style="font-size:22px;font-weight:700;color:{% if kpi.unmapped > 0 %}#9A6700{% else %}#9CA3AF{% endif %}">{{ kpi.unmapped }}</div>
+    </div>
+    <div style="background:#fff;border:1px solid #E5E8EB;border-radius:8px;padding:12px 14px">
+      <div style="font-size:11px;color:#6B7684">매핑률</div>
+      <div style="font-size:22px;font-weight:700">{{ kpi.pct }}%</div>
+    </div>
+  </div>
+
+  <div style="background:#F0F9FF;border:1px solid #93C5FD;border-radius:8px;padding:12px 16px;margin-bottom:14px;font-size:12.5px;color:#1E40AF;line-height:1.6">
+    <strong>💡 자동 매핑은 [박스히어로 import] 페이지에서 xlsx 업로드 시 실행</strong>됩니다.
+    이 페이지는 <strong>fuzzy 점수 70 미만으로 자동 매핑 안 된 옵션을 수동으로 보완</strong>하는 곳.
+    <a href="{{ url_for('inventory.data_boxhero_import') }}" style="margin-left:6px;color:#1E40AF;font-weight:600">→ 박스히어로 import로 이동</a>
+  </div>
+
+  {% if unmapped_options %}
+  <div style="background:#fff;border:1px solid #E5E8EB;border-radius:8px;overflow:hidden">
+    <div style="padding:10px 14px;background:#FFF8E5;border-bottom:1px solid #E5E8EB;font-size:12.5px;color:#9A6700;font-weight:600">
+      ⚠️ 미매핑 옵션 {{ unmapped_options|length }}건 (최대 200건 표시)
+    </div>
+    <table style="width:100%;border-collapse:collapse;font-size:12.5px">
+      <thead style="background:#F9FAFB">
+        <tr>
+          <th style="padding:9px 12px;text-align:left;font-size:11px;color:#6B7684;font-weight:600">옵션 SKU</th>
+          <th style="padding:9px 12px;text-align:left;font-size:11px;color:#6B7684;font-weight:600">제품명</th>
+          <th style="padding:9px 12px;text-align:left;font-size:11px;color:#6B7684;font-weight:600">컬러/사이즈</th>
+          <th style="padding:9px 12px;text-align:left;font-size:11px;color:#6B7684;font-weight:600;width:380px">박스히어로 SKU 직접 입력</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for opt, mdl in unmapped_options %}
+        <tr style="border-bottom:1px solid #F2F4F6">
+          <td style="padding:8px 12px;font-family:ui-monospace,monospace;font-size:11px;color:#4E5968">{{ opt.canonical_sku }}</td>
+          <td style="padding:8px 12px"><div style="font-weight:500">{{ mdl.model_name_display or mdl.model_name_raw }}</div><div style="font-size:10.5px;color:#9CA3AF">{{ mdl.brand }}</div></td>
+          <td style="padding:8px 12px">{{ opt.color_display or opt.color_code }} / {{ opt.size_display or opt.size_code }}</td>
+          <td style="padding:8px 12px">
+            <form method="post" action="{{ url_for('inventory.sku_mapping_confirm') }}" style="display:flex;gap:6px">
+              <input type="hidden" name="canonical_sku" value="{{ opt.canonical_sku }}">
+              <input name="boxhero_sku" placeholder="박스히어로 SKU (예: SKU-DZOEK0H8)" required style="flex:1;padding:5px 8px;border:1px solid #D1D6DB;border-radius:4px;font-size:11.5px;font-family:ui-monospace,monospace">
+              <button type="submit" style="background:#3182F6;color:#fff;padding:5px 12px;border:none;border-radius:4px;font-size:11.5px;font-weight:600;cursor:pointer">매핑</button>
+            </form>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div style="background:#ECFDF5;border:1px solid #86EFAC;border-radius:8px;padding:32px;text-align:center;color:#065F46">
+    <div style="font-size:32px;margin-bottom:8px">✓</div>
+    <div style="font-size:15px;font-weight:600;margin-bottom:4px">미매핑 옵션 없음</div>
+    <div style="font-size:12.5px">전체 옵션이 박스히어로 SKU와 매핑되어 있습니다.</div>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

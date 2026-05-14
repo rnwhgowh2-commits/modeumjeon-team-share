@@ -1,0 +1,11 @@
+2026-05-14 23:49:16,829 [INFO] app: [team-share] ¿Œ¡ı Ω√Ω∫≈€ »∞º∫»≠µ  (Flask-Login)
+2026-05-14 23:49:16,967 [INFO] apscheduler.scheduler: Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-05-14 23:49:16,968 [INFO] apscheduler.scheduler: Added job "_continuous_full_cycle" to job store "default"
+2026-05-14 23:49:16,970 [INFO] apscheduler.scheduler: Scheduler started
+2026-05-14 23:49:16,971 [INFO] scheduler.main: scheduler started \u2014 continuous mode (gap 60s between cycles)
+2026-05-14 23:49:16,972 [INFO] apscheduler.executors.default: Running job "_continuous_full_cycle (trigger: date[2026-05-14 14:49:16 UTC], next run at: 2026-05-14 14:49:16 UTC)" (scheduled at 2026-05-14 14:49:16.964981+00:00)
+2026-05-14 23:49:16,972 [INFO] apscheduler.scheduler: Removed job full_cycle
+2026-05-14 23:49:16,988 [INFO] werkzeug: [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5053
+2026-05-14 23:49:16,988 [INFO] werkzeug: [33mPress CTRL+C to quit[0m
+2026-05-14 23:49:19,101 [INFO] werkzeug: 127.0.0.1 - - [14/May/2026 23:49:19] "GET /health HTTP/1.1" 200 -

@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{% block title %}모음전 자동화{% endblock %}</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css">
+<link rel="stylesheet" href="https://rsms.me/inter/inter.css">
+{# 사이드바 v3 — Phosphor light 라인 아이콘 (1,248개, 사용자 선택 시 색상 자유 변경) #}
+<link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/light/style.css">
+<link rel="stylesheet" href="{{ url_for('static', filename='toss.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='stripe.css') }}">
+{# v32 — 아이콘 picker (노션 스타일) #}
+<link rel="stylesheet" href="{{ url_for('static', filename='icon_picker.css') }}">
+<script src="{{ url_for('static', filename='icon_picker.js') }}" defer></script>
+<script>
+  // 테마 초기화 (FOUC 방지: head에서 즉시 적용)
+  (function(){
+    var t = localStorage.getItem('theme') || 'toss';
+    document.documentElement.setAttribute('data-theme', t);
+  })();
+</script>
+{% block head %}{% endblock %}
+</head>
+<body>
+<div class="app">
+  {# ★ STEP 7 Task 0.3 — 사이드바 swap (ADR-004): inventory 진입 시 박스히어로식 #}
+  {% if active_app == 'inventory' %}
+    {% include 'inventory/partials/sidebar_inventory.html' %}
+  {% else %}
+    {% include 'partials/sidebar.html' %}
+  {% endif %}
+  <main class="main">
+    {# 상단 nav 제거 — 모음전/재고관리 모드 스위처는 사이드바 brand 아래 큰 카드 2개 (M3) #}
+    {% block content %}{% endblock %}
+  </main>
+</div>
+
+{# PARITY_720 Tier 1 (I-6) — 헤더 알림 벨 (재고관리 진입 시만 노출) #}
+{% if active_app == 'inventory' %}
+<div id="bell-wrap" style="position:fixed;top:16px;right:130px;z-index:500">
+  <button id="bell-btn" type="button" aria-label="알림" style="position:relative;display:inline-flex;align-items:center;justify-content:center;width:36px;height:36px;background:#fff;border:1.5px solid var(--n200,#E5E8EB);border-radius:999px;cursor:pointer;font-size:16px;box-shadow:0 2px 8px rgba(0,0,0,0.06)">
+    🔔
+    <span id="bell-badge" style="display:none;position:absolute;top:-4px;right:-4px;min-width:16px;height:16px;padding:0 4px;background:#C53030;color:#fff;border-radius:999px;font-size:10px;font-weight:700;line-height:16px;text-align:center">0</span>
+  </button>
+  <div id="bell-panel" style="display:none;position:absolute;top:42px;right:0;width:340px;background:#fff;border:1.5px solid var(--n200,#E5E8EB);border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,0.12);overflow:hidden">
+    <div style="padding:12px 14px;border-bottom:1px solid #F2F4F6;display:flex;align-items:center;gap:8px">
+      <strong style="font-size:13px;color:#191F28">알림</strong>
+      <a href="/inventory/notifications" style="margin-left:auto;font-size:11.5px;color:#3182F6;text-decoration:none">전체 보기 →</a>
+    </div>
+    <div id="bell-list" style="max-height:360px;overflow-y:auto"><div style="padding:30px;text-align:center;color:#9CA3AF;font-size:12px">로딩...</div></div>
+  </div>
+</div>
+<script>
+(function(){
+  const btn = document.getElementById('bell-btn');
+  const badge = document.getElementById('bell-badge');
+  const panel = document.getElementById('bell-panel');
+  const list = document.getElementById('bell-list');
+  function refreshCount(){
+    fetch('/inventory/api/notifications/unread-count').then(r=>r.json()).then(d=>{
+      if(d.unread > 0){ badge.style.display='inline-block'; badge.textContent = d.unread > 99 ? '99+' : d.unread; }
+      else { badge.style.display='none'; }
+    }).catch(()=>{});
+  }
+  function loadRecent(){
+    fetch('/inventory/api/notifications/recent').then(r=>r.json()).then(d=>{
+      if(!d.items || !d.items.length){ list.innerHTML='<div style="padding:36px;text-align:center;color:#9CA3AF;font-size:12px">새 알림이 없습니다</div>'; return; }
+      list.innerHTML = d.items.map(n => {
+        const icon = n.severity==='error'?'🛑':(n.severity==='warning'?'⚠️':(n.severity==='success'?'✅':'ℹ️'));
+        const bg = n.is_read?'#fff':'#F0F9FF';
+        return `<div style="display:flex;gap:10px;padding:10px 14px;border-bottom:1px solid #F2F4F6;background:${bg}"><span style="font-size:15px">${icon}</span><div style="flex:1;min-width:0"><div style="font-size:12.5px;font-weight:600;color:#191F28;margin-bottom:2px">${n.title}</div>${n.body?`<div style="font-size:11px;color:#4E5968;line-height:1.4;overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical">${n.body}</div>`:''}<div style="font-size:10px;color:#9CA3AF;margin-top:3px">${n.created_at}</div></div></div>`;
+      }).join('');
+    }).catch(()=>{ list.innerHTML='<div style="padding:30px;text-align:center;color:#EF4444;font-size:12px">로딩 실패</div>'; });
+  }
+  btn.addEventListener('click', e => { e.stopPropagation(); const open = panel.style.display==='block'; panel.style.display = open?'none':'block'; if(!open) loadRecent(); });
+  document.addEventListener('click', e => { if(!btn.contains(e.target) && !panel.contains(e.target)) panel.style.display='none'; });
+  refreshCount();
+  setInterval(refreshCount, 60000);
+})();
+</script>
+{% endif %}
+
+{# 테마 토글 (우상단 floating) #}
+<div id="theme-toggle-wrap" style="position:fixed;top:16px;right:20px;z-index:500">
+  <button id="theme-toggle-btn" type="button" style="display:inline-flex;align-items:center;gap:6px;padding:7px 12px;background:#fff;border:1.5px solid var(--n200);border-radius:999px;cursor:pointer;font-family:inherit;font-size:12.5px;font-weight:700;color:var(--n800);box-shadow:0 2px 8px rgba(0,0,0,0.06)">
+    <span id="theme-toggle-emoji">🎨</span>
+    <span id="theme-toggle-name">토스</span>
+    <span style="color:var(--n400);font-size:10px">▾</span>
+  </button>
+  <div id="theme-toggle-menu" style="display:none;position:absolute;top:38px;right:0;background:#fff;border:1.5px solid var(--n200);border-radius:10px;padding:6px;min-width:200px;box-shadow:0 8px 20px rgba(0,0,0,0.12)">
+    <button class="theme-opt" data-theme="toss" type="button" style="width:100%;text-align:left;padding:10px 12px;border:none;background:transparent;cursor:pointer;font-family:inherit;font-size:13px;font-weight:600;border-radius:6px;display:flex;align-items:center;gap:8px">
+      <span style="font-size:16px">🎨</span>
+      <div style="flex:1"><div style="color:var(--n900)">토스 (현재)</div><div style="font-size:10.5px;color:var(--n500);font-weight:500;margin-top:1px">파랑 + 미니멀 + 카드</div></div>
+      <span class="theme-check" data-for="toss" style="color:var(--primary);display:none">✓</span>
+    </button>
+    {# Stripe 테마 옵션은 Toss-Plus 단일 결정으로 숨김 (v6 — 2026-05-07).
+       완전 제거 전 1주 보관. localStorage 'theme'=stripe 인 사용자 보호. #}
+    <button class="theme-opt" data-theme="stripe" type="button" style="display:none;width:100%;text-align:left;padding:10px 12px;border:none;background:transparent;cursor:pointer;font-family:inherit;font-size:13px;font-weight:600;border-radius:6px;align-items:center;gap:8px;margin-top:2px">
+      <span style="font-size:16px">💜</span>
+      <div style="flex:1"><div style="color:#0A2540">Stripe Modern</div><div style="font-size:10.5px;color:#425466;font-weight:500;margin-top:1px">보라 + 그라데이션 + Inter</div></div>
+      <span class="theme-check" data-for="stripe" style="color:#635BFF;display:none">✓</span>
+    </button>
+  </div>
+</div>
+<script>
+  (function(){
+    const btn = document.getElementById('theme-toggle-btn');
+    const menu = document.getElementById('theme-toggle-menu');
+    const emoji = document.getElementById('theme-toggle-emoji');
+    const nameEl = document.getElementById('theme-toggle-name');
+    const themes = {
+      'toss': {emoji:'🎨', name:'토스'},
+      'stripe': {emoji:'💜', name:'Stripe'},
+    };
+    function updateUI(t) {
+      const meta = themes[t] || themes.toss;
+      emoji.textContent = meta.emoji;
+      nameEl.textContent = meta.name;
+      document.querySelectorAll('.theme-check').forEach(c => {
+        c.style.display = c.dataset.for === t ? 'inline' : 'none';
+      });
+    }
+    function setTheme(t) {
+      document.documentElement.setAttribute('data-theme', t);
+      localStorage.setItem('theme', t);
+      updateUI(t);
+    }
+    btn.addEventListener('click', e => { e.stopPropagation(); menu.style.display = menu.style.display === 'none' ? 'block' : 'none'; });
+    document.addEventListener('click', () => { menu.style.display = 'none'; });
+    document.querySelectorAll('.theme-opt').forEach(el => {
+      el.addEventListener('click', e => { e.stopPropagation(); setTheme(el.dataset.theme); menu.style.display = 'none'; });
+      el.addEventListener('mouseenter', () => el.style.background = 'var(--n100)');
+      el.addEventListener('mouseleave', () => el.style.background = 'transparent');
+    });
+    updateUI(localStorage.getItem('theme') || 'toss');
+  })();
+</script>
+
+<script src="{{ url_for('static', filename='toss.js') }}"></script>
+
+{# ────────── v27 시안 ③ — 전역 진행 widget (크롤·업로드, 페이지 이동 유지) ────────── #}
+<div id="g-progress-widget" style="display:none">
+  <div id="gpw-collapsed" title="진행 중 — 클릭해 펼치기">
+    <span id="gpw-pct">0%</span>
+  </div>
+  <div id="gpw-expanded" hidden>
+    <div class="gpw-head">
+      <span class="gpw-dot"></span>
+      <span class="gpw-title" id="gpw-title">진행 중</span>
+      <button type="button" class="gpw-collapse" title="접기">▾</button>
+    </div>
+    <div id="gpw-tasks"></div>
+  </div>
+</div>
+<style>
+  #g-progress-widget {
+    position: fixed; top: 62px; right: 20px; z-index: 600;
+    font-family: var(--font, "Pretendard", sans-serif);
+  }
+  @keyframes gpw-pulse { 0%, 100% { opacity: 1; } 50% { opacity: .35; } }
+  @keyframes gpw-fadein { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: translateY(0); } }
+  #gpw-collapsed {
+    background: #03C75A; color: #fff; width: 52px; height: 52px;
+    border-radius: 50%; box-shadow: 0 6px 18px rgba(3,199,90,.36);
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer; position: relative; font-weight: 800;
+    font-family: ui-monospace, monospace; font-size: 12.5px;
+    animation: gpw-fadein .25s ease;
+  }
+  #gpw-collapsed::before {
+    content: ''; position: absolute; inset: -4px; border-radius: 50%;
+    border: 2px solid #03C75A; opacity: .35; animation: gpw-pulse 1.4s ease infinite;
+  }
+  #gpw-expanded {
+    background: #fff; border: 1.5px solid #03C75A; border-radius: 12px;
+    padding: 14px 16px; width: 340px;
+    box-shadow: 0 12px 32px rgba(0,0,0,.14);
+    animation: gpw-fadein .2s ease;
+  }
+  #gpw-expanded .gpw-head {
+    display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 800;
+    color: #191F28; margin-bottom: 10px;
+  }
+  #gpw-expanded .gpw-dot {
+    width: 8px; height: 8px; border-radius: 50%; background: #03C75A;
+    animation: gpw-pulse 1.2s ease infinite;
+  }
+  #gpw-expanded .gpw-collapse {
+    margin-left: auto; background: none; border: none; cursor: pointer;
+    color: #8B95A1; font-size: 14px;
+  }
+  #gpw-tasks .gpw-task {
+    background: #F9FAFB; border-radius: 8px; padding: 9px 11px;
+    margin-bottom: 7px; border-left: 4px solid;
+  }
+  #gpw-tasks .gpw-task:last-child { margin-bottom: 0; }
+  #gpw-tasks .gpw-task.crawl { border-color: #03C75A; }
+  #gpw-tasks .gpw-task.upload { border-color: #3182F6; }
+  #gpw-tasks .gpw-task .gpw-trow1 {
+    display: flex; align-items: center; gap: 6px;
+    font-size: 12px; font-weight: 800; color: #191F28;
+  }
+  #gpw-tasks .gpw-task .gpw-trow1 .gpw-pct-text {
+    margin-left: auto; font-family: ui-monospace, monospace; font-weight: 800; font-size: 13px;
+  }
+  #gpw-tasks .gpw-task.crawl .gpw-pct-text { color: #0E7C3A; }
+  #gpw-tasks .gpw-task.upload .gpw-pct-text { color: #1B64DA; }
+  #gpw-tasks .gpw-task .gpw-bar {
+    height: 5px; background: #E5E8EB; border-radius: 3px; overflow: hidden; margin: 6px 0 5px;
+  }
+  #gpw-tasks .gpw-task .gpw-bar .fill {
+    height: 100%; transition: width .3s; border-radius: 3px;
+  }
+  #gpw-tasks .gpw-task.crawl .gpw-bar .fill { background: #03C75A; }
+  #gpw-tasks .gpw-task.upload .gpw-bar .fill { background: #3182F6; }
+  #gpw-tasks .gpw-task .gpw-now {
+    font-size: 11px; color: #6B7684; font-family: ui-monospace, monospace;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  #gpw-tasks .gpw-task .gpw-cnt {
+    font-family: ui-monospace, monospace; font-size: 11px; color: #4E5968; margin-top: 2px;
+  }
+</style>
+<script>
+(function() {
+  const widget = document.getElementById('g-progress-widget');
+  const collapsed = document.getElementById('gpw-collapsed');
+  const expanded = document.getElementById('gpw-expanded');
+  const pctEl = document.getElementById('gpw-pct');
+  const titleEl = document.getElementById('gpw-title');
+  const tasksEl = document.getElementById('gpw-tasks');
+  // 사용자가 명시적으로 접었는지 (true = collapsed 유지)
+  let userCollapsed = localStorage.getItem('gpw-collapsed') === '1';
+
+  function setVisible(state) {
+    if (!state) { widget.style.display = 'none'; return; }
+    widget.style.display = 'block';
+    // 펼침/접힘
+    if (userCollapsed) {
+      collapsed.style.display = 'flex';
+      expanded.hidden = true;
+    } else {
+      collapsed.style.display = 'none';
+      expanded.hidden = false;
+    }
+  }
+  function render(state) {
+    const tasks = state.tasks || {};
+    const active = Object.entries(tasks).filter(([k, v]) => v != null);
+    if (!active.length) { setVisible(false); return; }
+
+    // 평균 진행률 (전체) — 100% cap (백엔드 total 추정값과 실 작업 불일치 대비)
+    const totalDone = active.reduce((a, [k,v]) => a + (v.done||0), 0);
+    const totalTotal = active.reduce((a, [k,v]) => a + (v.total||0), 0);
+    const avgPct = totalTotal > 0 ? Math.min(100, Math.round(totalDone / totalTotal * 100)) : 0;
+    pctEl.textContent = avgPct + '%';
+    titleEl.textContent = '진행 중 (' + active.length + ')';
+
+    // 작업 카드 렌더
+    let html = '';
+    const META = {
+      crawl: {ic: '', name: '크롤'},
+      upload: {ic: '📤', name: '업로드'},
+    };
+    for (const [kind, t] of active) {
+      const meta = META[kind] || {ic: '⚙', name: kind};
+      const pct = t.total > 0 ? Math.min(100, Math.round((t.done / t.total) * 100)) : 0;
+      const cur = (t.current || '').replace(/</g, '&lt;');
+      const label = (t.label || '').replace(/</g, '&lt;');
+      const finished = !!t.finished_at;
+      html += `<div class="gpw-task ${kind}">
+        <div class="gpw-trow1">
+          <span>${meta.ic} ${meta.name} ${finished ? '✓ 완료' : '중'}</span>
+          <span class="gpw-pct-text">${pct}%</span>
+        </div>
+        <div class="gpw-bar"><div class="fill" style="width:${pct}%"></div></div>
+        ${cur ? `<div class="gpw-now">${cur}</div>` : ''}
+        <div class="gpw-cnt">${t.done}/${t.total}${label ? ' · ' + label : ''}</div>
+      </div>`;
+    }
+    tasksEl.innerHTML = html;
+    setVisible(true);
+  }
+  let _pollInflight = false;
+  async function poll() {
+    if (_pollInflight) return;
+    _pollInflight = true;
+    try {
+      const r = await fetch('/api/progress', {cache: 'no-store'});
+      const j = await r.json();
+      if (j.ok) render(j);
+    } catch(_) {} finally { _pollInflight = false; }
+  }
+  collapsed.addEventListener('click', () => {
+    userCollapsed = false; localStorage.removeItem('gpw-collapsed');
+    collapsed.style.display = 'none'; expanded.hidden = false;
+  });
+  expanded.querySelector('.gpw-collapse').addEventListener('click', () => {
+    userCollapsed = true; localStorage.setItem('gpw-collapsed', '1');
+    collapsed.style.display = 'flex'; expanded.hidden = true;
+  });
+  // v27 — Page Visibility API: 탭 전환 후 복귀 시 즉시 polling (Chrome throttling 우회)
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) poll();  // 탭 visible 즉시 1회 + setInterval 정상 속도로 복귀
+  });
+  // 페이지 포커스 (window focus) 시에도 즉시 poll (탭 클릭 → focus 만 일어나는 경우 대비)
+  window.addEventListener('focus', poll);
+  // localStorage 다른 탭 동기화 — 다른 탭에서 진행 상태 변경 시 이 탭도 즉시 갱신
+  window.addEventListener('storage', e => { if (e.key === 'gpw-broadcast') poll(); });
+  // 초기 + 1초 간격 폴링 (1.5s → 1s 로 단축)
+  poll();
+  setInterval(poll, 1000);
+})();
+</script>
+
+{% block scripts %}{% endblock %}
+</body>
+</html>

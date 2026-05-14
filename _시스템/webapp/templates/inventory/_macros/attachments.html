@@ -1,0 +1,50 @@
+{# PARITY_720 Tier 1 (A4-51) — 첨부파일 드래그앤드롭 (PO/SO/RO 공통). #}
+
+{% macro attachment_dropzone(field_name='attachment_data', label='첨부파일') %}
+<div>
+  <label style="display:block;font-size:12px;color:#4E5968;margin-bottom:4px;font-weight:600">{{ label }} <span style="font-weight:400;color:#9CA3AF">(드래그앤드롭 또는 클릭)</span></label>
+  <div id="attDropzone" style="border:1px dashed #CBCCD3;border-radius:6px;padding:14px;text-align:center;background:#F1F1F4;cursor:pointer;transition:all 0.15s">
+    <div style="font-size:13px;color:#292A2F;margin-bottom:2px">파일을 끌어다 놓거나 붙여넣기로 첨부할 수 있습니다.</div>
+    <div style="font-size:11px;color:#8F91A0">PDF / 이미지 / 엑셀 / 워드 · 최대 10MB</div>
+    <input type="file" id="attFile" multiple accept=".pdf,.png,.jpg,.jpeg,.webp,.xlsx,.xls,.docx,.doc,.csv,.txt" style="display:none">
+  </div>
+  <div id="attList" style="margin-top:8px;display:flex;flex-direction:column;gap:5px"></div>
+  <input type="hidden" name="{{ field_name }}" id="attData" value="[]">
+</div>
+<script>
+(function(){
+  const dz=document.getElementById('attDropzone');
+  const fi=document.getElementById('attFile');
+  const list=document.getElementById('attList');
+  const data=document.getElementById('attData');
+  let files=[];
+  function render(){
+    if(!files.length){list.innerHTML='';return;}
+    list.innerHTML=files.map((f,i)=>`<div style="display:flex;align-items:center;gap:8px;padding:6px 10px;background:#fff;border:1px solid #E5E8EB;border-radius:5px;font-size:12px"><span style="font-size:14px">${f.icon}</span><span style="flex:1;color:#191F28">${f.name}</span><span style="color:#6B7684;font-size:11px">${f.size_label}</span><button type="button" onclick="window.__attRemove(${i})" style="background:none;border:none;color:#EF4444;cursor:pointer;font-size:14px">×</button></div>`).join('');
+    data.value=JSON.stringify(files);
+  }
+  window.__attRemove=function(i){files.splice(i,1);render()};
+  function uploadAll(fl){
+    [...fl].forEach(file=>{
+      if(file.size > 10*1024*1024){alert(`${file.name} 은 10MB 초과`);return;}
+      const fd=new FormData();fd.append('file',file);
+      fetch('/inventory/api/upload-attachment',{method:'POST',body:fd})
+        .then(r=>r.json())
+        .then(d=>{
+          if(d.error){alert(d.error);return;}
+          const ext=(d.name||'').split('.').pop().toLowerCase();
+          const icon={pdf:'📕',png:'🖼',jpg:'🖼',jpeg:'🖼',webp:'🖼',xlsx:'📊',xls:'📊',docx:'📝',doc:'📝',csv:'📋',txt:'📄'}[ext]||'📎';
+          files.push({url:d.url,name:d.name,size:d.size,size_label:(d.size/1024).toFixed(1)+'KB',icon});
+          render();
+        })
+        .catch(e=>alert('업로드 실패: '+e));
+    });
+  }
+  dz.addEventListener('click',()=>fi.click());
+  fi.addEventListener('change',e=>uploadAll(e.target.files));
+  dz.addEventListener('dragover',e=>{e.preventDefault();dz.style.borderColor='#3182F6';dz.style.background='#EFF6FF'});
+  dz.addEventListener('dragleave',()=>{dz.style.borderColor='#D1D6DB';dz.style.background='#F9FAFB'});
+  dz.addEventListener('drop',e=>{e.preventDefault();dz.style.borderColor='#D1D6DB';dz.style.background='#F9FAFB';uploadAll(e.dataTransfer.files)});
+})();
+</script>
+{% endmacro %}

@@ -1,0 +1,101 @@
+{% extends 'base.html' %}
+{% block title %}팀 설정 — 재고관리{% endblock %}
+{% block content %}
+{# 박스히어로 1:1 팀 설정 — 운영 정보 + 자동 정책 + 데이터 무결성 sub-tab. #}
+<div style="padding:24px 32px;max-width:1500px;margin:0 auto">
+  <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px">
+    <div style="font-size:12.5px;color:#8F91A0">설정</div>
+    <h1 style="font-size:22px;font-weight:700;margin:0;color:#292A2F">팀 설정</h1>
+    <span title="팀 정보·자동화 정책·박스히어로 import·데이터 무결성 정책" style="display:inline-flex;align-items:center;justify-content:center;width:14px;height:14px;border-radius:50%;background:#F1F1F4;color:#8F91A0;font-size:9.5px;font-weight:700;cursor:help">i</span>
+  </div>
+
+  {# 설정 sub-tab (모음전 단독 운영) #}
+  <div style="display:flex;gap:0;border-bottom:1px solid #E5E8EB;margin-bottom:18px">
+    <a href="{{ url_for('inventory.settings_view') }}" style="padding:10px 18px;text-decoration:none;font-size:13px;font-weight:700;color:#4F67FF;border-bottom:2px solid #4F67FF;margin-bottom:-1px">팀 설정</a>
+    <a href="{{ url_for('inventory.settings_notifications_view') }}" style="padding:10px 18px;text-decoration:none;font-size:13px;font-weight:500;color:#8F91A0">알림 설정</a>
+    <a href="{{ url_for('inventory.settings_purchase_sale_view') }}" style="padding:10px 18px;text-decoration:none;font-size:13px;font-weight:500;color:#8F91A0">구매 및 판매</a>
+    <a href="{{ url_for('inventory.settings_integration_view') }}" style="padding:10px 18px;text-decoration:none;font-size:13px;font-weight:500;color:#8F91A0">연동 설정</a>
+  </div>
+
+  {% with msgs = get_flashed_messages(with_categories=true) %}{% for cat,msg in msgs %}<div style="background:{% if cat=='error' %}#FEF2F2{% else %}#ECFDF5{% endif %};border:1px solid {% if cat=='error' %}#FCA5A5{% else %}#86EFAC{% endif %};padding:10px 14px;border-radius:6px;margin-bottom:12px;font-size:13px;color:{% if cat=='error' %}#991B1B{% else %}#065F46{% endif %}">{{ msg }}</div>{% endfor %}{% endwith %}
+
+  <form method="post" action="{{ url_for('inventory.settings_team_save') }}" style="background:#fff;border:1px solid #E5E8EB;border-radius:8px;padding:24px;margin-bottom:14px">
+    <h2 style="font-size:14px;font-weight:600;color:#292A2F;margin:0 0 14px">팀 정보</h2>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
+      <div>
+        <label style="display:block;font-size:12.5px;color:#292A2F;margin-bottom:5px;font-weight:600">팀 이름</label>
+        <input name="team_name" value="{{ team.team_name or '모음전' }}" style="width:100%;padding:9px 12px;border:1px solid #CBCCD3;border-radius:5px;font-size:13px;color:#292A2F">
+      </div>
+      <div>
+        <label style="display:block;font-size:12.5px;color:#292A2F;margin-bottom:5px;font-weight:600">업종</label>
+        <select name="industry" style="width:100%;padding:9px 12px;border:1px solid #CBCCD3;border-radius:5px;font-size:13px;color:#292A2F;background:#fff">
+          {% for code, label in [('fashion','패션·잡화'),('food','식품'),('beauty','뷰티'),('electronics','전자'),('etc','기타')] %}
+            <option value="{{ code }}" {% if team.industry == code %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div>
+        <label style="display:block;font-size:12.5px;color:#292A2F;margin-bottom:5px;font-weight:600">통화</label>
+        <select name="currency" style="width:100%;padding:9px 12px;border:1px solid #CBCCD3;border-radius:5px;font-size:13px;color:#292A2F;background:#fff">
+          {% for c in ['KRW','USD','JPY','EUR'] %}<option value="{{ c }}" {% if team.currency == c %}selected{% endif %}>{{ c }}</option>{% endfor %}
+        </select>
+      </div>
+      <div>
+        <label style="display:block;font-size:12.5px;color:#292A2F;margin-bottom:5px;font-weight:600">시간대</label>
+        <select name="tz" style="width:100%;padding:9px 12px;border:1px solid #CBCCD3;border-radius:5px;font-size:13px;color:#292A2F;background:#fff">
+          {% for tz in ['Asia/Seoul','Asia/Tokyo','UTC'] %}<option value="{{ tz }}" {% if team.tz == tz %}selected{% endif %}>{{ tz }}</option>{% endfor %}
+        </select>
+      </div>
+    </div>
+    <div style="display:flex;gap:8px;margin-top:14px">
+      <button type="submit" style="background:#4F67FF;color:#fff;padding:9px 22px;border:none;border-radius:5px;font-size:13.5px;font-weight:600;cursor:pointer">저장</button>
+    </div>
+  </form>
+
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
+
+    {# 위치 요약 #}
+    <div style="background:#fff;border:1px solid #E5E8EB;border-radius:8px;padding:18px">
+      <h2 style="font-size:14px;font-weight:600;margin:0 0 10px;color:#292A2F">📍 위치 ({{ locations|length }})</h2>
+      <ul style="margin:0;padding-left:18px;font-size:12.5px;line-height:1.8;color:#292A2F">
+        {% for loc in locations %}<li>{{ loc.name }}{% if loc.is_default %} <span style="font-size:10px;color:#4F67FF;font-weight:600">[기본]</span>{% endif %}</li>{% endfor %}
+      </ul>
+      <a href="{{ url_for('inventory.data_locations') }}" style="display:inline-block;margin-top:10px;font-size:11.5px;color:#4F67FF;text-decoration:none;font-weight:600">위치 관리 →</a>
+    </div>
+
+    {# 자동화 정책 #}
+    <div style="background:#fff;border:1px solid #E5E8EB;border-radius:8px;padding:18px">
+      <h2 style="font-size:14px;font-weight:600;margin:0 0 10px;color:#292A2F">자동 정책</h2>
+      <div style="font-size:12.5px;line-height:2;color:#292A2F">
+        <div>★ 평균매입가 — <span style="color:#22C55E;font-weight:600">이동평균 (ADR-002)</span></div>
+        <div>★ 출고 시 COGS — <span style="color:#22C55E;font-weight:600">snapshot 박제</span></div>
+        <div>★ 마진 우선순위 — <span style="color:#22C55E;font-weight:600">옵션 → 모델 → 템플릿</span></div>
+        <div>★ SKU 매핑 — <span style="color:#22C55E;font-weight:600">100/80/50 fuzzy</span></div>
+        <div>★ Bundle 출고 — <span style="color:#22C55E;font-weight:600">자동 차감 (v1.5)</span></div>
+      </div>
+    </div>
+
+    {# 박스히어로 import #}
+    <div style="background:#fff;border:1px solid #E5E8EB;border-radius:8px;padding:18px">
+      <h2 style="font-size:14px;font-weight:600;margin:0 0 10px;color:#292A2F">📥 박스히어로 import</h2>
+      <p style="font-size:11.5px;color:#8F91A0;line-height:1.7">박스히어로 서비스 중단 예정. 1회 xlsx import 후 단독 운영 (ADR-005).</p>
+      <a href="{{ url_for('inventory.data_boxhero_import') }}" style="display:inline-block;margin-top:6px;font-size:11.5px;color:#4F67FF;text-decoration:none;font-weight:600">import 페이지 →</a>
+    </div>
+
+    {# 데이터 무결성 #}
+    <div style="background:#fff;border:1px solid #E5E8EB;border-radius:8px;padding:18px">
+      <h2 style="font-size:14px;font-weight:600;margin:0 0 10px;color:#292A2F">🛡️ 데이터 무결성</h2>
+      <div style="font-size:12.5px;line-height:1.9;color:#292A2F">
+        ✓ canonical_sku unique<br>
+        ✓ Tx 추가만 (UPDATE/DELETE ❌)<br>
+        ✓ snapshot 한번 박제 후 변경 ❌<br>
+        ✓ 잔량 0 미만 검증<br>
+        ✓ Bundle 차감 트랜잭션 안전
+      </div>
+    </div>
+
+  </div>
+
+  <div style="margin-top:14px;font-size:11px;color:#8F91A0">★ 박스히어로 1:1 — 설정 sub-tab 4종 (팀/알림/구매판매/연동). 멤버·결제 등 단독 운영 무관 항목은 사용자 명시로 제외.</div>
+</div>
+{% endblock %}

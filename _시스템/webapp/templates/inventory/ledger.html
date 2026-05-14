@@ -1,0 +1,130 @@
+{% extends 'base.html' %}
+{% block title %}히스토리 — 재고관리{% endblock %}
+{% block content %}
+{# 박스히어로 1:1 히스토리 (4 거래 통합 timeline + 좌측 list, 우측 상세 패널 신설). #}
+<div style="padding:24px 32px;max-width:1500px;margin:0 auto">
+  <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px">
+    <h1 style="font-size:22px;font-weight:700;margin:0;color:#292A2F">히스토리</h1>
+    <span title="입고·출고·조정·이동 4 거래 통합 timeline" style="display:inline-flex;align-items:center;justify-content:center;width:14px;height:14px;border-radius:50%;background:#F1F1F4;color:#8F91A0;font-size:9.5px;font-weight:700;cursor:help">i</span>
+    <a href="{{ url_for('inventory.history_export') }}" style="margin-left:auto;background:#fff;border:1px solid #CBCCD3;color:#292A2F;padding:7px 14px;border-radius:5px;font-size:12.5px;text-decoration:none;font-weight:600">📁 엑셀 내보내기</a>
+  </div>
+
+  <form method="get" style="display:flex;gap:8px;align-items:center;background:#fff;border:1px solid #E5E8EB;border-radius:8px;padding:10px 12px;margin-bottom:14px">
+    <select name="type" style="padding:7px 10px;border:1px solid #CBCCD3;border-radius:5px;font-size:12.5px;background:#fff;color:#292A2F">
+      <option value="">전체 기간 ▾</option>
+      <option value="in" {% if tx_type=='in' %}selected{% endif %}>📥 입고</option>
+      <option value="out" {% if tx_type=='out' %}selected{% endif %}>📤 출고</option>
+      <option value="adjust" {% if tx_type=='adjust' %}selected{% endif %}>⚖ 조정</option>
+      <option value="move" {% if tx_type=='move' %}selected{% endif %}>이동</option>
+    </select>
+    <input name="q" value="{{ q }}" placeholder="옵션·거래처·메모 검색" style="flex:1;padding:7px 12px;border:1px solid #CBCCD3;border-radius:5px;font-size:12.5px;color:#292A2F">
+    <button type="button" style="padding:7px 12px;background:#fff;border:1px dashed #CBCCD3;color:#8F91A0;border-radius:5px;font-size:12.5px;cursor:pointer">+ 필터 추가</button>
+    <button type="submit" style="background:#4F67FF;color:#fff;padding:7px 14px;border:none;border-radius:5px;font-size:12.5px;cursor:pointer;font-weight:600">검색</button>
+    <span style="margin-left:auto;font-size:12px;color:#8F91A0">{{ '{:,}'.format(total) }}건 · 거래일순 ▾</span>
+  </form>
+
+  {# 좌측 list + 우측 상세 패널 (박스히어로 1:1) #}
+  <div style="display:grid;grid-template-columns:1fr 380px;gap:14px;align-items:start">
+    {# 좌측 list #}
+    <div style="background:#fff;border:1px solid #E5E8EB;border-radius:8px;overflow:hidden">
+      <table style="width:100%;border-collapse:collapse;font-size:12.5px">
+        <thead style="background:#F1F1F4"><tr>
+          <th style="padding:11px 8px;text-align:left;font-size:11.5px;color:#292A2F;font-weight:600;width:90px">유형</th>
+          <th style="padding:11px 8px;text-align:left;font-size:11.5px;color:#292A2F;font-weight:600">거래일 ↓</th>
+          <th style="padding:11px 8px;text-align:left;font-size:11.5px;color:#292A2F;font-weight:600">제품</th>
+          <th style="padding:11px 8px;text-align:right;font-size:11.5px;color:#292A2F;font-weight:600">수량 변화</th>
+          <th style="padding:11px 8px;text-align:right;font-size:11.5px;color:#292A2F;font-weight:600">단가</th>
+          <th style="padding:11px 8px;text-align:left;font-size:11.5px;color:#292A2F;font-weight:600">거래처</th>
+          <th style="padding:11px 8px;text-align:left;font-size:11.5px;color:#292A2F;font-weight:600">작성자</th>
+        </tr></thead>
+        <tbody id="ledgerBody">
+          {% for tx in items %}
+            {% set detail_url = (
+              url_for('inventory.inbound_detail', tx_id=tx.id) if tx.tx_type=='in' else
+              url_for('inventory.outbound_detail', tx_id=tx.id) if tx.tx_type=='out' else
+              url_for('inventory.adjust_detail', tx_id=tx.id) if tx.tx_type=='adjust' else
+              url_for('inventory.move_detail', tx_id=tx.id)
+            ) %}
+            <tr class="ledger-row" data-tx-id="{{ tx.id }}" data-tx-type="{{ tx.tx_type }}" data-tx-date="{{ tx.created_at.strftime('%Y-%m-%d %H:%M') }}" data-tx-sku="{{ tx.option_canonical_sku }}" data-tx-qty="{{ tx.qty }}" data-tx-partner="{{ tx.partner_label or '' }}" data-tx-memo="{{ tx.memo or '' }}" data-tx-author="{{ tx.created_by or '운영자' }}" data-tx-detail-url="{{ detail_url }}" style="border-bottom:1px solid #F1F1F4;cursor:pointer" onmouseover="this.style.background='#FAFBFC'" onmouseout="this.style.background=''" onclick="selectLedger(this)">
+              <td style="padding:9px 8px">
+                {% if tx.tx_type=='in' %}<span style="font-size:10.5px;padding:2px 8px;border-radius:3px;background:#DCFCE7;color:#15803D;font-weight:600">📥 입고</span>
+                {% elif tx.tx_type=='out' %}<span style="font-size:10.5px;padding:2px 8px;border-radius:3px;background:#FEE2E2;color:#991B1B;font-weight:600">📤 출고</span>
+                {% elif tx.tx_type=='adjust' %}<span style="font-size:10.5px;padding:2px 8px;border-radius:3px;background:#DBEAFE;color:#1E40AF;font-weight:600">⚖ 조정</span>
+                {% else %}<span style="font-size:10.5px;padding:2px 8px;border-radius:3px;background:#F3E8FF;color:#6B21A8;font-weight:600">이동</span>
+                {% endif %}
+              </td>
+              <td style="padding:9px 8px;color:#292A2F">{{ tx.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
+              <td style="padding:9px 8px"><span style="font-family:ui-monospace,monospace;font-size:11px;color:#292A2F">{{ tx.option_canonical_sku }}</span></td>
+              <td style="padding:9px 8px;text-align:right;font-weight:700">
+                {% if tx.tx_type=='in' %}<span style="color:#22C55E">+{{ tx.qty }}</span>
+                {% elif tx.tx_type=='out' %}<span style="color:#EF4444">-{{ tx.qty }}</span>
+                {% elif tx.tx_type=='adjust' %}<span style="color:#4F67FF">= {{ tx.qty }}</span>
+                {% else %}<span style="color:#A855F7">+{{ tx.qty }}</span>{% endif %}
+              </td>
+              <td style="padding:9px 8px;text-align:right;font-family:ui-monospace,monospace;color:#292A2F">
+                {% if tx.tx_type=='in' and tx.unit_purchase_price_at_tx %}{{ '{:,}'.format(tx.unit_purchase_price_at_tx) }}
+                {% elif tx.tx_type=='out' and tx.unit_sale_price %}{{ '{:,}'.format(tx.unit_sale_price) }}
+                {% else %}—{% endif %}
+              </td>
+              <td style="padding:9px 8px;color:#292A2F">{{ tx.partner_label or '—' }}</td>
+              <td style="padding:9px 8px"><span style="display:inline-flex;align-items:center;gap:6px"><span style="width:22px;height:22px;border-radius:50%;background:#FEE2E2;color:#7F1D1D;display:inline-flex;align-items:center;justify-content:center;font-size:10px;font-weight:700">{{ (tx.created_by or '운')[:1] }}</span><span style="font-size:12px;color:#292A2F">{{ tx.created_by or '운영자' }}</span></span></td>
+            </tr>
+          {% else %}<tr><td colspan="7" style="padding:48px;text-align:center;color:#8F91A0">거래 내역 없음</td></tr>{% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    {# 우측 상세 패널 #}
+    <aside id="ledgerPanel" style="background:#fff;border:1px solid #E5E8EB;border-radius:8px;padding:18px;position:sticky;top:80px;min-height:240px">
+      <div id="ledgerEmpty" style="text-align:center;padding:36px 14px;color:#8F91A0;font-size:13px">
+        <div style="font-size:42px;margin-bottom:10px;opacity:0.4">📜</div>
+        왼쪽 목록에서 내역을 선택해 주세요.
+      </div>
+      <div id="ledgerDetail" style="display:none">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px">
+          <span id="ldType"></span>
+          <span id="ldDate" style="font-size:12px;color:#8F91A0"></span>
+          <a id="ldOpenLink" href="#" style="margin-left:auto;font-size:11.5px;color:#4F67FF;text-decoration:none;font-weight:600">상세 ↗</a>
+        </div>
+        <div style="font-family:ui-monospace,monospace;font-size:13px;color:#292A2F;font-weight:600;margin-bottom:8px" id="ldSku"></div>
+        <div style="font-size:13px;color:#292A2F;margin-bottom:14px">수량: <strong id="ldQty"></strong></div>
+        <div style="border-top:1px solid #F1F1F4;padding-top:14px;font-size:12.5px;color:#292A2F;display:grid;gap:10px">
+          <div style="display:flex"><span style="width:64px;color:#8F91A0">거래처</span><span id="ldPartner"></span></div>
+          <div style="display:flex"><span style="width:64px;color:#8F91A0">메모</span><span id="ldMemo" style="white-space:pre-wrap"></span></div>
+          <div style="display:flex;align-items:center;gap:8px"><span style="width:64px;color:#8F91A0">작성자</span><span style="display:inline-flex;align-items:center;gap:6px"><span id="ldAuthorBadge" style="width:22px;height:22px;border-radius:50%;background:#FEE2E2;color:#7F1D1D;display:inline-flex;align-items:center;justify-content:center;font-size:10px;font-weight:700"></span><span id="ldAuthor"></span></span></div>
+        </div>
+      </div>
+    </aside>
+  </div>
+
+  <div style="margin-top:14px;display:flex;justify-content:flex-end;gap:8px;align-items:center">
+    <span style="font-size:12px;color:#8F91A0">페이지 {{ page }}</span>
+    {% if page > 1 %}<a href="?page={{ page-1 }}{% if tx_type %}&type={{ tx_type }}{% endif %}{% if q %}&q={{ q }}{% endif %}" style="padding:6px 12px;border:1px solid #CBCCD3;background:#fff;color:#292A2F;font-size:12px;text-decoration:none;border-radius:5px">이전</a>{% endif %}
+    {% if items|length == 50 %}<a href="?page={{ page+1 }}{% if tx_type %}&type={{ tx_type }}{% endif %}{% if q %}&q={{ q }}{% endif %}" style="padding:6px 12px;border:1px solid #CBCCD3;background:#fff;color:#292A2F;font-size:12px;text-decoration:none;border-radius:5px">다음</a>{% endif %}
+  </div>
+</div>
+
+<script>
+function selectLedger(tr){
+  document.querySelectorAll('.ledger-row').forEach(r=>{r.style.background='';r.style.borderLeft='3px solid transparent'});
+  tr.style.background='#EEF1FE';
+  tr.style.borderLeft='3px solid #4F67FF';
+
+  document.getElementById('ledgerEmpty').style.display='none';
+  document.getElementById('ledgerDetail').style.display='block';
+
+  const types = {in:'<span style="font-size:11px;padding:3px 10px;border-radius:4px;background:#DCFCE7;color:#15803D;font-weight:600">📥 입고</span>',out:'<span style="font-size:11px;padding:3px 10px;border-radius:4px;background:#FEE2E2;color:#991B1B;font-weight:600">📤 출고</span>',adjust:'<span style="font-size:11px;padding:3px 10px;border-radius:4px;background:#DBEAFE;color:#1E40AF;font-weight:600">⚖ 조정</span>',move:'<span style="font-size:11px;padding:3px 10px;border-radius:4px;background:#F3E8FF;color:#6B21A8;font-weight:600">이동</span>'};
+  document.getElementById('ldType').innerHTML = types[tr.dataset.txType] || '';
+  document.getElementById('ldDate').textContent = tr.dataset.txDate;
+  document.getElementById('ldSku').textContent = tr.dataset.txSku;
+  const qty = tr.dataset.txQty;
+  const sign = tr.dataset.txType==='out' ? '-' : (tr.dataset.txType==='adjust' ? '= ' : '+');
+  document.getElementById('ldQty').textContent = sign + qty;
+  document.getElementById('ldPartner').textContent = tr.dataset.txPartner || '—';
+  document.getElementById('ldMemo').textContent = tr.dataset.txMemo || '—';
+  document.getElementById('ldAuthor').textContent = tr.dataset.txAuthor;
+  document.getElementById('ldAuthorBadge').textContent = (tr.dataset.txAuthor||'운')[0];
+  document.getElementById('ldOpenLink').href = tr.dataset.txDetailUrl;
+}
+</script>
+{% endblock %}

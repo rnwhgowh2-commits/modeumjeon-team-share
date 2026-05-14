@@ -1,0 +1,132 @@
+{% extends 'base.html' %}
+{% block title %}{{ option.canonical_sku }} 옵션 — 모음전 자동화{% endblock %}
+{% block content %}
+<section class="screen active" id="screen-option-detail">
+  <a class="btn btn-ghost" href="/bundles/{{ bundle.model_code }}">← {{ bundle.model_code }} 편집</a>
+  <h1 style="margin-top:6px">{{ option.color_code }} · {{ option.size_code }}</h1>
+  <p class="greeting" class="mono">{{ option.canonical_sku }}</p>
+
+  {# 1. 사이트별 소싱 옵션 ID #}
+  <div class="bundle-section">
+    <div class="bundle-section-head">
+      <span class="bundle-section-num done">1</span>
+      <h2>📍 사이트별 옵션 ID</h2>
+    </div>
+    {% for site, label in [('lemouton','르무통 공홈'),('musinsa','무신사'),('ssf','SSF'),('lotteon','롯데몰'),('ss_lemouton','스마트스토어 르무통')] %}
+    <div class="field">
+      <label class="field-label">{{ label }}</label>
+      <input class="field-input mono" name="option_id_{{ site }}"
+             value="{{ option['option_id_' ~ site] or '' }}" placeholder="(자동 매칭 또는 수동)" />
+    </div>
+    {% endfor %}
+  </div>
+
+  {# 2. 박스히어로 매핑 #}
+  <div class="bundle-section">
+    <div class="bundle-section-head">
+      <span class="bundle-section-num {% if option.boxhero_sku %}done{% endif %}">2</span>
+      <h2>박스히어로 SKU</h2>
+    </div>
+    <div class="field">
+      <label class="field-label">박스히어로 SKU</label>
+      <input class="field-input mono" name="boxhero_sku"
+             value="{{ option.boxhero_sku or '' }}" placeholder="(매칭 실패 시 수동)" />
+    </div>
+  </div>
+
+  {# 3. 마켓 옵션 ID — v1 (단일 계정) + v2 (계정별) #}
+  <div class="bundle-section">
+    <div class="bundle-section-head">
+      <span class="bundle-section-num {% if option.naver_option_id or option.coupang_option_id %}done{% endif %}">3</span>
+      <h2>마켓 옵션 ID</h2>
+    </div>
+    <div class="field">
+      <label class="field-label">스마트스토어 옵션 ID (default)</label>
+      <input class="field-input mono" name="naver_option_id"
+             value="{{ option.naver_option_id or '' }}" placeholder="(자동 등록 후 채워짐)" />
+    </div>
+    <div class="field">
+      <label class="field-label">쿠팡 vendorItemId (default)</label>
+      <input class="field-input mono" name="coupang_option_id"
+             value="{{ option.coupang_option_id or '' }}" placeholder="(자동 등록 후 채워짐)" />
+    </div>
+  </div>
+
+  {# 4. v2 멀티계정 옵션 ID #}
+  <div class="bundle-section">
+    <div class="bundle-section-head">
+      <span class="bundle-section-num {% if account_rows %}done{% endif %}">4</span>
+      <h2>v2 계정별 옵션 ID + 노출 토글</h2>
+    </div>
+    {% if not account_rows %}
+    <div class="card" style="padding:14px;text-align:center;color:var(--n500)">
+      등록된 마켓 계정이 없어요. <a href="/accounts">+ 계정 추가</a>
+    </div>
+    {% else %}
+    <div style="overflow-x:auto;border:1px solid var(--n200);border-radius:10px">
+      <table class="opt-table">
+        <thead>
+          <tr><th>마켓</th><th>계정</th><th>옵션 ID</th><th>노출</th></tr>
+        </thead>
+        <tbody>
+          {% for ar in account_rows %}
+          <tr data-account-id="{{ ar.account_id }}">
+            <td>{{ ar.market }}</td>
+            <td>{{ ar.account_name }}</td>
+            <td><input class="field-input mono v2-ext-id" data-account="{{ ar.account_id }}"
+                       value="{{ ar.external_option_id }}" placeholder="옵션 ID" style="padding:6px;font-size:12px" /></td>
+            <td class="center">
+              <label class="switch"><input type="checkbox" class="v2-visible"
+                     data-account="{{ ar.account_id }}"
+                     {% if ar.is_visible %}checked{% endif %} /><span class="switch-slider"></span></label>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% endif %}
+  </div>
+
+  {# 저장 #}
+  <div style="position:sticky;bottom:0;background:var(--bg);padding:14px 0">
+    <button class="btn btn-large btn-primary" id="save-option-detail">💾 저장</button>
+    <a class="btn btn-large" href="/bundles/{{ bundle.model_code }}">취소</a>
+  </div>
+</section>
+
+<script>
+document.getElementById('save-option-detail').addEventListener('click', async () => {
+  const code = '{{ bundle.model_code }}';
+  const sku = '{{ option.canonical_sku }}';
+  // v1 필드 (기존 라우트)
+  const v1Payload = {};
+  document.querySelectorAll('input[name]').forEach(i => {
+    v1Payload[i.name] = i.value;
+  });
+  const r1 = await fetch(`/api/bundles/${encodeURIComponent(code)}/option/${encodeURIComponent(sku)}`, {
+    method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify(v1Payload),
+  });
+  const j1 = await r1.json();
+  if (!j1.ok) { alert('v1 저장 실패: ' + (j1.error || '')); return; }
+
+  // v2 계정별 옵션 매핑
+  const accountUpdates = [];
+  document.querySelectorAll('tr[data-account-id]').forEach(row => {
+    const accId = parseInt(row.getAttribute('data-account-id'));
+    const extId = row.querySelector('.v2-ext-id').value;
+    const visible = row.querySelector('.v2-visible').checked;
+    accountUpdates.push({account_id: accId, external_option_id: extId, is_visible: visible});
+  });
+  for (const u of accountUpdates) {
+    await fetch(`/api/options/${encodeURIComponent(sku)}/account-mapping`, {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(u),
+    });
+  }
+  alert('저장 완료');
+  window.location = `/bundles/${encodeURIComponent(code)}`;
+});
+</script>
+{% endblock %}

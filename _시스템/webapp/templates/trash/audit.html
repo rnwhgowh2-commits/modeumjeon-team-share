@@ -1,0 +1,60 @@
+{% extends 'base.html' %}
+{% block title %}📜 변경 이력 — 모음전 자동화{% endblock %}
+{% block content %}
+<section class="screen active" id="screen-audit">
+  <a class="btn btn-ghost" href="/trash">← 휴지통</a>
+  <h1 style="margin-top:6px">📜 변경 이력</h1>
+  <p class="greeting">
+    {% if filter_table or filter_id %}
+    필터: <span class="mono">{{ filter_table or '전체' }}</span> · <span class="mono">{{ filter_id or '전체' }}</span>
+    <a href="/audit" style="margin-left:10px">필터 해제</a>
+    {% else %}
+    전체 시스템 최근 활동 (최대 200개)
+    {% endif %}
+  </p>
+
+  {% if not items %}
+  <div class="card" style="padding:32px;text-align:center;color:var(--n500)">
+    이력이 없어요.
+  </div>
+  {% else %}
+  <div style="overflow-x:auto;border:1px solid var(--n200);border-radius:10px">
+    <table class="opt-table">
+      <thead>
+        <tr>
+          <th>시각</th><th>분류</th><th>대상</th>
+          <th>액션</th><th>주체</th><th>사유</th><th>상세</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for it in items %}
+        <tr>
+          <td style="font-size:12px">{{ it.at.strftime('%m-%d %H:%M') if it.at else '—' }}</td>
+          <td><strong>{{ it.target_label }}</strong></td>
+          <td class="mono" style="font-size:12px">{{ it.target_id }}</td>
+          <td>
+            {% if it.action == 'create' %}<span class="badge badge-ok">+ 생성</span>
+            {% elif it.action == 'update' %}<span class="badge badge-info">✎ 수정</span>
+            {% elif it.action == 'delete' %}<span class="badge" style="background:#fee;color:#a00">🗑 삭제</span>
+            {% elif it.action == 'restore' %}<span class="badge badge-ok">↩ 복구</span>
+            {% else %}<span class="badge">{{ it.action }}</span>{% endif %}
+          </td>
+          <td style="font-size:12px">{{ it.actor }}</td>
+          <td style="font-size:11px;color:var(--n600)">{{ it.reason or '—' }}</td>
+          <td>
+            {% if it.before_json or it.after_json %}
+            <details style="font-size:11px">
+              <summary style="cursor:pointer">diff</summary>
+              {% if it.before_json %}<div><strong>before:</strong> <code>{{ it.before_json }}</code></div>{% endif %}
+              {% if it.after_json %}<div><strong>after:</strong> <code>{{ it.after_json }}</code></div>{% endif %}
+            </details>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% endif %}
+</section>
+{% endblock %}

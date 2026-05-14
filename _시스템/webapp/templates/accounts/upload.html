@@ -1,0 +1,1137 @@
+{% extends 'base.html' %}
+{% block title %}판매처 계정 — 모음전 자동화{% endblock %}
+
+{% block content %}
+
+{# 이 페이지는 가로 전체 사용 — base.html 의 .main max-width: 1100px 오버라이드 #}
+<style>
+  .main { max-width: none !important; padding-left: 32px !important; padding-right: 32px !important; }
+</style>
+
+{# M2 — 마켓 키 → 로고 약어 매핑 매크로 (브랜드 앱 로고 prefix) #}
+{% macro brand_logo(market_key, size='') %}
+  {% set glyph = {
+    'smartstore':'N','coupang':'쿠','gmarket':'G','auction':'A','eleven':'11',
+    'wemakeprice':'위','tmon':'티','kakaogift':'카','cafe24':'카'
+  }.get(market_key, '?') %}
+  <span class="brand-app-logo {{ market_key }} {{ size }}" aria-hidden="true">{{ glyph }}</span>
+{% endmacro %}
+
+<header class="page-header">
+  <h1>판매처 계정</h1>
+  <p class="subtitle">스마트스토어 / 쿠팡 등 마켓 셀러 계정 — 시크릿은 <code>.env</code> 단일 출처</p>
+</header>
+
+{# ━━━━━━━━━━ V1 사이드바 + 우측 테이블 레이아웃 ━━━━━━━━━━ #}
+<section class="up-shell">
+
+  {# 좌측 사이드바 — 마켓 묶음 #}
+  <aside class="up-side">
+    <div class="up-side-title">마켓</div>
+    <div class="up-mlist">
+      <div class="up-mitem active" data-filter="all" onclick="selectMarketFilter(this)">
+        <span class="up-mname">전체</span>
+        <span class="up-mcount">{{ total }}</span>
+      </div>
+      {% for m in market_nav %}
+      <div class="up-mitem{% if not m.ready and m.count == 0 %} disabled{% endif %}"
+           data-filter="{{ m.key }}"
+           {% if m.ready or m.count > 0 %}onclick="selectMarketFilter(this)"{% endif %}>
+        {{ brand_logo(m.key, 'sm') }}
+        <span class="up-mname">{{ m.label }}</span>
+        <span class="up-mcount">{{ m.count }}</span>
+      </div>
+      {% endfor %}
+    </div>
+    <div class="up-side-foot">
+      <button class="up-add-market" onclick="openCreateAccountModal()">+ 계정 추가</button>
+    </div>
+  </aside>
+
+  {# 우측 메인 — 검색 + 테이블 #}
+  <div class="up-main">
+    <div class="up-main-head">
+      <h2 id="up-current-market">전체</h2>
+      <span class="up-main-count" id="up-current-count">{{ total }}개</span>
+      <div style="margin-left:auto; display:flex; gap:8px; align-items:center;">
+        <input type="search" class="up-search" placeholder="계정명/메모 검색"
+               oninput="filterTable(this.value)" aria-label="검색">
+        <button class="btn btn-primary" onclick="openCreateAccountModal()">+ 계정 추가</button>
+      </div>
+    </div>
+
+    {% if total == 0 %}
+    <div class="empty-state">
+      <p>등록된 판매처 계정이 없습니다</p>
+      <button class="btn btn-primary" onclick="openCreateAccountModal()">첫 계정 추가하기</button>
+    </div>
+    {% else %}
+    <table class="up-table" role="table">
+      <colgroup>
+        <col class="col-market"    style="width:120px">
+        <col class="col-name"      style="width:auto">
+        <col class="col-status"    style="width:180px">
+        <col class="col-action"    style="width:200px">
+      </colgroup>
+      <thead>
+        <tr>
+          <th scope="col" class="resizable">마켓<span class="col-resize" data-col="0"></span></th>
+          <th scope="col" class="resizable">계정명<span class="col-resize" data-col="1"></span></th>
+          <th scope="col" class="resizable">상태<span class="col-resize" data-col="2"></span></th>
+          <th scope="col" style="text-align:right;">액션</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for acc in accounts %}
+        <tr data-market="{{ acc.market }}"
+            data-search="{{ acc.account_key }} {{ acc.display_name }} {{ acc.market_label }} {{ acc.note }}"
+            {% if not acc.is_active %}class="row-inactive"{% endif %}>
+          <td>
+            <span style="display:inline-flex;align-items:center;gap:7px">
+              {{ brand_logo(acc.market) }}
+              <strong class="up-mname-cell">{{ acc.market_label }}</strong>
+            </span>
+          </td>
+          <td>
+            <div class="name-with-edit">
+              <strong>{{ acc.display_name }}</strong>
+              <button class="name-edit-btn"
+                      onclick="openEditModal({{ acc.id }}, '{{ acc.market }}', '{{ acc.env_prefix }}', '{{ acc.display_name|e }}', '{{ acc.note|e }}')"
+                      title="계정명·메모 수정" aria-label="수정">✎</button>
+            </div>
+            {% if acc.note %}
+              <small class="text-muted">📝 {{ acc.note }}</small><br>
+            {% endif %}
+            <small class="text-muted" title="env_prefix: {{ acc.env_prefix }}&#10;account_key: {{ acc.account_key }}" style="cursor:help">ⓘ 식별자</small>
+          </td>
+          <td>
+            <div class="status-stack">
+              <div class="status-line" title="{{ acc.masked_id }}">
+                {% if acc.cred_state == 'ok' %}
+                  <span class="status-icon ok">✓</span> API 키 등록
+                {% elif acc.cred_state == 'missing' %}
+                  <span class="status-icon warn">⚠</span> 키 누락 ({{ acc.missing_count }})
+                {% else %}
+                  <span class="status-icon err">✗</span> 미지원
+                {% endif %}
+              </div>
+              {% if acc.login_state == 'logged_in' %}
+              <div class="status-line" title="영구 인증 쿠키 (NID_AUT 등) 발견 — 자동 로그인 가능">
+                <span class="status-icon ok">✓</span> 영구 로그인 ({{ acc.login_age_days }}일 경과)
+              </div>
+              {% elif acc.login_state == 'stale' %}
+              <div class="status-line" title="30일 경과 — 재로그인 권장">
+                <span class="status-icon warn">⚠</span> 영구 로그인 ({{ acc.login_age_days }}일 — 재로그인 권장)
+              </div>
+              {% elif acc.login_state == 'session_only' %}
+              <div class="status-line" title="Commerce ID [이메일/판매자 아이디] 로그인 — 세션 종료 시 만료됨. 재로그인 필요할 수 있음. 영구화하려면 [네이버 아이디 + 로그인 상태 유지] path 사용">
+                <span class="status-icon warn">⚠</span> 세션 only (재로그인 필요할 수 있음)
+              </div>
+              {% elif acc.login_state == 'incomplete' %}
+              <div class="status-line" title="프로필 있으나 인증 흔적 없음 — 로그인 끝까지 안 감">
+                <span class="status-icon warn">⚠</span> 로그인 미완료
+              </div>
+              {% elif acc.login_state == 'not_logged_in' %}
+              <div class="status-line muted">
+                <span class="status-icon muted">○</span> 로그인 안됨
+              </div>
+              {% endif %}
+              {% if acc.market == 'smartstore' %}
+                {% if acc.has_login_creds %}
+                <div class="status-line" title="{{ acc.env_prefix }}_LOGIN_ID/PW 가 .env 에 등록됨 — 매번 자동 입력 + 자동 [로그인] 클릭. 디바이스 인증만 사용자.">
+                  <span class="status-icon ok">✓</span> 자동 입력 ON (.env LOGIN_ID/PW)
+                </div>
+                {% else %}
+                <div class="status-line muted" title="자동 입력하려면 .env 에 {{ acc.env_prefix }}_LOGIN_ID 와 {{ acc.env_prefix }}_LOGIN_PW 추가">
+                  <span class="status-icon muted">○</span> 자동 입력 OFF (.env 에 LOGIN_ID/PW 추가)
+                </div>
+                {% endif %}
+              {% endif %}
+              {% if not acc.is_active %}
+              <div class="status-line muted">
+                <span class="status-icon muted">○</span> 비활성
+              </div>
+              {% endif %}
+            </div>
+          </td>
+          <td style="text-align:right;">
+            <div class="action-row" style="justify-content:flex-end;">
+              <button class="btn btn-sm btn-primary"
+                      onclick="openSecretsModal('{{ acc.market }}', '{{ acc.env_prefix }}', '{{ acc.display_name }}')"
+                      title="API 키 입력">🔑 키</button>
+              {% if acc.cred_state == 'ok' %}
+              <button class="btn btn-sm btn-test"
+                      onclick="testApiConnection({{ acc.id }}, '{{ acc.display_name|e }}')"
+                      title="API 연결 테스트">🔌 연결</button>
+              {% endif %}
+              {% if acc.market in ('smartstore', 'coupang') %}
+              {% if acc.login_state in ('logged_in', 'stale') %}
+              <button class="btn btn-sm btn-test"
+                      onclick="loginUploadAccount({{ acc.id }}, '{{ acc.display_name|e }}')"
+                      title="이미 로그인된 상태 — 클릭하면 재로그인 창 오픈">✓ 로그인 완료</button>
+              {% else %}
+              <button class="btn btn-sm"
+                      onclick="loginUploadAccount({{ acc.id }}, '{{ acc.display_name|e }}')"
+                      title="브라우저 영구 로그인 (한 번만 직접 입력 → 이후 자동)">🔐 로그인</button>
+              {% endif %}
+              {% endif %}
+              <button class="btn btn-sm btn-trash"
+                      onclick="confirmDeleteAccount({{ acc.id }}, '{{ acc.display_name }}')"
+                      title="계정 삭제" aria-label="삭제">🗑</button>
+            </div>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    <p class="up-empty-result" id="up-empty-result" style="display:none">선택한 마켓에 등록된 계정이 없습니다.</p>
+    {% endif %}
+  </div>
+</section>
+
+<style>
+  /* ━━━ V1 레이아웃 — 좌측 사이드바 + 우측 메인 ━━━ */
+  .up-shell {
+    display: grid;
+    grid-template-columns: 240px 1fr;
+    background: white;
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+    border: 1px solid var(--n200, #E5E8EB);
+    min-height: 540px;
+  }
+  .up-side {
+    background: var(--n50, #F9FAFB);
+    border-right: 1px solid var(--n200, #E5E8EB);
+    padding: 14px 10px;
+    display: flex;
+    flex-direction: column;
+  }
+  .up-side-title {
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--n600, #6B7684);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    padding: 4px 10px;
+    margin-bottom: 8px;
+  }
+  .up-mlist { display: flex; flex-direction: column; gap: 2px; flex: 1; }
+  .up-mitem {
+    display: flex;
+    align-items: center;
+    padding: 9px 12px;
+    gap: 10px;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.12s;
+    user-select: none;
+  }
+  .up-mitem:hover { background: white; }
+  .up-mitem.active {
+    background: white;
+    box-shadow: 0 0 0 1.5px var(--brand, #3182F6);
+  }
+  .up-mitem.active .up-mname { font-weight: 700; }
+  .up-mitem .up-mname {
+    flex: 1;
+    font-size: 13.5px;
+    font-weight: 600;
+    color: var(--n900, #191F28);
+  }
+  .up-mitem .up-mcount {
+    background: var(--n100, #F2F4F6);
+    color: var(--n600, #6B7684);
+    font-size: 11px;
+    font-weight: 700;
+    padding: 1px 8px;
+    border-radius: 100px;
+    min-width: 22px;
+    text-align: center;
+  }
+  .up-mitem.active .up-mcount {
+    background: var(--brand, #3182F6);
+    color: white;
+  }
+  .up-mitem.disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+  }
+  .up-mitem.disabled .up-mname { font-weight: 400; }
+  .up-side-foot {
+    padding: 10px 4px 4px;
+    border-top: 1px solid var(--n200, #E5E8EB);
+    margin-top: 10px;
+  }
+  .up-add-market {
+    width: 100%;
+    padding: 10px;
+    background: white;
+    border: 1.5px dashed var(--n200, #E5E8EB);
+    color: var(--n600, #6B7684);
+    border-radius: 8px;
+    font-weight: 600;
+    font-size: 13px;
+    cursor: pointer;
+    font-family: inherit;
+  }
+  .up-add-market:hover {
+    border-color: var(--brand, #3182F6);
+    color: var(--brand, #3182F6);
+    background: rgba(49,130,246,0.05);
+  }
+
+  .up-main { padding: 18px 22px; overflow: hidden; }
+  .up-main-head {
+    display: flex; align-items: center; gap: 12px;
+    margin-bottom: 14px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--n200, #E5E8EB);
+  }
+  .up-main-head h2 {
+    font-size: 19px;
+    font-weight: 700;
+    margin: 0;
+  }
+  .up-main-count {
+    font-size: 13px;
+    color: var(--n600, #6B7684);
+    background: var(--n50, #F9FAFB);
+    padding: 2px 10px;
+    border-radius: 100px;
+    font-weight: 600;
+  }
+  .up-search {
+    padding: 8px 12px;
+    border: 1px solid var(--n200, #E5E8EB);
+    border-radius: 6px;
+    font-size: 13px;
+    width: 240px;
+    font-family: inherit;
+  }
+  .up-search:focus {
+    outline: none;
+    border-color: var(--brand, #3182F6);
+    box-shadow: 0 0 0 3px rgba(49,130,246,0.12);
+  }
+  /* 테이블 — 고정 레이아웃 + 가로 스크롤 */
+  .up-table-wrap { overflow-x: auto; }
+  .up-table {
+    width: 100%;
+    border-collapse: collapse;
+    table-layout: fixed;     /* col 너비 고정 — JS 로 조절 */
+  }
+  .up-table th {
+    text-align: left;
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--n600, #6B7684);
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--n200, #E5E8EB);
+    position: relative;
+    user-select: none;
+  }
+  .up-table td {
+    padding: 14px 12px;
+    border-bottom: 1px solid var(--n200, #E5E8EB);
+    vertical-align: middle;
+    overflow: hidden;
+    text-overflow: ellipsis;  /* 너무 좁아질 때 ... 표시 */
+    word-break: keep-all;     /* 한글 어절 단위로만 줄바꿈 */
+    white-space: normal;
+  }
+  /* 계정명 셀은 줄바꿈 허용하되 자연스럽게 */
+  .up-table td:nth-child(2) {
+    white-space: normal;
+    word-break: keep-all;
+  }
+  /* 마켓 / 상태 / 액션은 한 줄 유지 */
+  .up-table td:nth-child(1),
+  .up-table td:nth-child(3),
+  .up-table td:nth-child(4) {
+    white-space: nowrap;
+  }
+  .up-table tr:last-child td { border-bottom: none; }
+  .up-table tr:hover { background: var(--n50, #F9FAFB); }
+  .up-table tr.row-inactive { opacity: 0.55; }
+  .up-table tr.row-inactive td { font-style: italic; }
+  .up-mname-cell {
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--n900, #191F28);
+  }
+  /* 칼럼 리사이즈 핸들 — 헤더 우측 4px 영역 드래그 */
+  .col-resize {
+    position: absolute;
+    top: 0;
+    right: -2px;
+    width: 6px;
+    height: 100%;
+    cursor: col-resize;
+    user-select: none;
+    z-index: 2;
+  }
+  .col-resize:hover,
+  .col-resize.resizing {
+    background: rgba(49,130,246,0.2);
+  }
+  .col-resize::after {
+    content: '';
+    position: absolute;
+    top: 30%;
+    left: 50%;
+    width: 1px;
+    height: 40%;
+    background: var(--n300, #D1D6DB);
+  }
+  .up-empty-result {
+    text-align: center;
+    color: var(--n500, #B0B8C1);
+    padding: 40px;
+    font-size: 13px;
+    font-style: italic;
+  }
+  /* 상태 인디케이터 */
+  .status-stack { display: flex; flex-direction: column; gap: 2px; }
+  .status-line { font-size: 13px; display: flex; align-items: center; gap: 5px; }
+  .status-line.muted { color: var(--n500, #B0B8C1); font-size: 12px; }
+  .status-icon { display: inline-flex; align-items: center; justify-content: center; width: 16px; height: 16px; border-radius: 50%; font-size: 11px; font-weight: 700; line-height: 1; }
+  .status-icon.ok { background: #ECFDF5; color: #065F46; }
+  .status-icon.warn { background: #FEF3C7; color: #92400E; }
+  .status-icon.err { background: #FEE2E2; color: #991B1B; }
+  .status-icon.muted { background: var(--n100, #F2F4F6); color: var(--n500, #B0B8C1); }
+
+  /* 계정명 옆 인라인 ✏️ */
+  .name-with-edit { display: inline-flex; align-items: center; gap: 6px; }
+  .name-edit-btn {
+    background: transparent;
+    border: none;
+    padding: 2px 4px;
+    border-radius: 4px;
+    font-size: 12px;
+    cursor: pointer;
+    opacity: 0.35;
+    transition: all 0.15s;
+    line-height: 1;
+  }
+  .name-edit-btn:hover {
+    opacity: 1;
+    background: var(--n100, #F2F4F6);
+  }
+
+  /* 액션 버튼 */
+  .action-row { display: flex; gap: 4px; }
+  .btn-sm { padding: 6px 10px; font-size: 12.5px; }
+  .btn-test { background: #ECFDF5; color: #059669; border-color: #D1FAE5; }
+  .btn-test:hover { background: #D1FAE5; }
+  .btn-trash {
+    background: var(--n100, #F2F4F6);
+    color: var(--n600, #6B7684);
+    border-color: var(--n200, #E5E8EB);
+  }
+  .btn-trash:hover {
+    background: #FEE2E2;
+    color: #DC2626;
+    border-color: #FCA5A5;
+  }
+</style>
+
+<div id="toast-container" role="status" aria-live="polite" aria-atomic="true"></div>
+
+{# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ #}
+{#  통합 모달 — V2 좌우분할 (마켓 사이드바 + 폼)        #}
+{#  · "계정 추가" : 마켓 + 계정명 + 키 한 번에            #}
+{#  · "🔑 키 입력" : 마켓 잠금 + 키만 입력                #}
+{# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ #}
+<div id="v2-modal-bg" class="modal-bg" onclick="if(event.target===this)closeV2Modal()">
+  <div class="modal v2-modal" role="dialog" aria-modal="true" aria-labelledby="v2-modal-title">
+
+    {# 좌측 사이드바 — 마켓 리스트 #}
+    <aside class="v2-sidebar">
+      <h4 class="v2-side-title">마켓 선택</h4>
+      <div id="v2-market-list" class="v2-market-list">
+        <div class="v2-loading">마켓 로딩…</div>
+      </div>
+      <p class="v2-side-foot">
+        준비 중 마켓이 필요하면 알려주세요 — 코드로 추가 가능합니다.
+      </p>
+    </aside>
+
+    {# 우측 폼 #}
+    <section class="v2-form">
+      <header class="v2-form-head">
+        <div class="v2-icon-lg" id="v2-icon">🔧</div>
+        <div>
+          <h3 id="v2-modal-title">마켓을 선택하세요</h3>
+          <p class="v2-sub" id="v2-subtitle">왼쪽에서 등록할 마켓을 클릭하세요.</p>
+        </div>
+        <button class="v2-close" aria-label="닫기" onclick="closeV2Modal()">✕</button>
+      </header>
+
+      <div class="v2-form-body" id="v2-form-body" style="display:none">
+
+        {# 계정 정보 — 신규 등록 시만 표시 #}
+        <div class="v2-section" id="v2-section-account">
+          <span class="v2-label-section">계정 정보</span>
+          <div class="form-row">
+            <label for="v2-display-name">계정명 <span class="req">*</span>
+              <small class="opt">화면에 표시되는 이름</small>
+            </label>
+            <input id="v2-display-name" type="text" class="form-input"
+                   placeholder="예: 르무통 본계 쿠팡" autocomplete="off">
+          </div>
+          <div class="form-row">
+            <label for="v2-note">메모 <small class="opt">선택</small></label>
+            <input id="v2-note" type="text" class="form-input" placeholder="용도, 권한 등">
+          </div>
+        </div>
+
+        {# API 키 — 마켓에 따라 동적 #}
+        <div class="v2-section">
+          <span class="v2-label-section">🔑 API 키</span>
+          <div id="v2-keys-help" class="v2-help-box"></div>
+          <div id="v2-key-fields"></div>
+        </div>
+
+        <div class="form-hint v2-security-note">
+          🔒 입력값은 로컬 <code>.env</code> 파일에만 저장 (DB·외부 전송 X). 화면 표시 항상 마스킹.
+        </div>
+      </div>
+
+      <div class="v2-empty" id="v2-empty">
+        <div style="font-size:48px;opacity:0.25;text-align:center;">←</div>
+        <p style="text-align:center;color:var(--n500);margin-top:8px">왼쪽에서 마켓을 클릭하세요</p>
+      </div>
+
+      <footer class="v2-form-foot" id="v2-form-foot" style="display:none">
+        <button class="btn" onclick="closeV2Modal()">취소</button>
+        <button class="btn btn-primary btn-large" id="v2-submit-btn" onclick="submitV2()">
+          <span id="v2-submit-text">등록 + API 연동</span>
+        </button>
+      </footer>
+    </section>
+
+  </div>
+</div>
+
+<style>
+/* ━━━ V2 좌우분할 모달 전용 스타일 ━━━ */
+.v2-modal {
+  display: grid;
+  grid-template-columns: 280px 1fr;
+  max-width: 960px;
+  width: calc(100% - 40px);
+  max-height: 88vh;
+  padding: 0;
+  overflow: hidden;
+}
+.v2-sidebar {
+  background: var(--n50, #F9FAFB);
+  border-right: 1px solid var(--n200, #E5E8EB);
+  padding: 22px 14px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+.v2-side-title {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--n600, #6B7684);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  margin: 0 8px 12px;
+}
+.v2-market-list { display: flex; flex-direction: column; gap: 4px; flex: 1; }
+.v2-market-item {
+  display: flex; align-items: center; gap: 12px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  cursor: pointer;
+  border: 1.5px solid transparent;
+  transition: all 0.12s;
+  background: transparent;
+}
+.v2-market-item:hover { background: white; }
+.v2-market-item.selected {
+  background: white;
+  border-color: var(--brand, #3182F6);
+  box-shadow: 0 2px 8px rgba(49,130,246,0.1);
+}
+.v2-market-item.disabled { opacity: 0.5; cursor: not-allowed; }
+.v2-market-item.disabled:hover { background: transparent; }
+.v2-market-item .v2-mi-icon { font-size: 22px; flex-shrink: 0; }
+.v2-market-item .v2-mi-meta { flex: 1; min-width: 0; }
+.v2-market-item .v2-mi-name { font-size: 14px; font-weight: 600; }
+.v2-market-item .v2-mi-desc { font-size: 11px; color: var(--n500, #B0B8C1); margin-top: 2px; }
+.v2-market-item .v2-mi-badge {
+  background: var(--n400, #B0B8C1);
+  color: white;
+  font-size: 10px;
+  padding: 1px 6px;
+  border-radius: 3px;
+}
+.v2-market-item .v2-mi-check { color: var(--brand, #3182F6); font-weight: 700; }
+.v2-side-foot {
+  font-size: 11px;
+  color: var(--n500, #B0B8C1);
+  padding: 10px 8px 0;
+  margin-top: 12px;
+  border-top: 1px solid var(--n200, #E5E8EB);
+}
+
+.v2-form { display: flex; flex-direction: column; min-width: 0; }
+.v2-form-head {
+  padding: 22px 28px 18px;
+  border-bottom: 1px solid var(--n200, #E5E8EB);
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.v2-form-head h3 { font-size: 18px; font-weight: 700; margin: 0; }
+.v2-form-head .v2-sub { font-size: 13px; color: var(--n600, #6B7684); margin-top: 3px; }
+.v2-icon-lg {
+  width: 44px; height: 44px;
+  border-radius: 10px;
+  background: rgba(49,130,246,0.1);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 22px;
+  flex-shrink: 0;
+}
+.v2-close {
+  margin-left: auto;
+  background: transparent;
+  border: none;
+  font-size: 18px;
+  color: var(--n500, #B0B8C1);
+  cursor: pointer;
+  padding: 6px 10px;
+  border-radius: 6px;
+}
+.v2-close:hover { background: var(--n100, #F2F4F6); color: var(--n900, #191F28); }
+.v2-form-body {
+  padding: 22px 28px;
+  flex: 1;
+  overflow-y: auto;
+}
+.v2-section { margin-bottom: 22px; }
+.v2-label-section {
+  display: block;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--n600, #6B7684);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  margin-bottom: 10px;
+}
+.v2-help-box {
+  background: #FFF8E5;
+  border: 1px solid #FCD34D;
+  border-radius: 6px;
+  padding: 10px 12px;
+  font-size: 12px;
+  color: #92400E;
+  margin-bottom: 14px;
+}
+.v2-help-box a { color: var(--brand, #3182F6); text-decoration: none; }
+.v2-help-box a:hover { text-decoration: underline; }
+.v2-empty {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 40px;
+}
+.v2-form-foot {
+  padding: 14px 28px;
+  background: var(--n50, #F9FAFB);
+  border-top: 1px solid var(--n200, #E5E8EB);
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+.v2-loading { padding: 24px; text-align: center; color: var(--n500, #B0B8C1); font-size: 13px; }
+.v2-security-note { margin-top: 8px; }
+.form-row label .req { color: var(--danger, #F04438); margin-left: 2px; }
+.form-row label .opt { font-weight: 400; color: var(--n500, #B0B8C1); margin-left: 4px; font-size: 11px; }
+.btn-large { padding: 11px 22px; font-size: 14px; }
+@media (max-width: 720px) {
+  .v2-modal { grid-template-columns: 1fr; }
+  .v2-sidebar { max-height: 200px; border-right: none; border-bottom: 1px solid var(--n200, #E5E8EB); }
+}
+</style>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+//  칼럼 리사이즈 — 헤더 우측 핸들 드래그 + localStorage 저장
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+const COL_WIDTH_KEY = 'upload_col_widths_v1';
+
+function initColumnResize() {
+  const cols = document.querySelectorAll('.up-table colgroup col');
+  if (!cols.length) return;
+
+  // localStorage 에서 저장된 너비 복원
+  try {
+    const saved = JSON.parse(localStorage.getItem(COL_WIDTH_KEY) || '{}');
+    if (saved.market) cols[0].style.width = saved.market;
+    if (saved.name)   cols[1].style.width = saved.name;
+    if (saved.status) cols[2].style.width = saved.status;
+    if (saved.action) cols[3].style.width = saved.action;
+  } catch (e) { /* ignore */ }
+
+  document.querySelectorAll('.col-resize').forEach(handle => {
+    handle.addEventListener('mousedown', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const colIndex = parseInt(handle.dataset.col, 10);
+      const targetCol = cols[colIndex];
+      const startX = e.pageX;
+      const startWidth = targetCol.offsetWidth;
+      handle.classList.add('resizing');
+      document.body.style.cursor = 'col-resize';
+
+      function onMouseMove(ev) {
+        const newWidth = Math.max(60, startWidth + (ev.pageX - startX));
+        targetCol.style.width = newWidth + 'px';
+      }
+      function onMouseUp() {
+        handle.classList.remove('resizing');
+        document.body.style.cursor = '';
+        document.removeEventListener('mousemove', onMouseMove);
+        document.removeEventListener('mouseup', onMouseUp);
+        // 저장
+        try {
+          const widths = {
+            market: cols[0].style.width || '',
+            name:   cols[1].style.width || '',
+            status: cols[2].style.width || '',
+            action: cols[3].style.width || '',
+          };
+          localStorage.setItem(COL_WIDTH_KEY, JSON.stringify(widths));
+        } catch (e) { /* ignore */ }
+      }
+      document.addEventListener('mousemove', onMouseMove);
+      document.addEventListener('mouseup', onMouseUp);
+    });
+  });
+}
+
+document.addEventListener('DOMContentLoaded', initColumnResize);
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+//  V1 사이드바 마켓 필터 + 검색
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+let _currentMarketFilter = 'all';
+let _currentSearch = '';
+
+function selectMarketFilter(itemEl) {
+  // 사이드바 active 토글
+  document.querySelectorAll('.up-mitem').forEach(el => el.classList.remove('active'));
+  itemEl.classList.add('active');
+  _currentMarketFilter = itemEl.dataset.filter;
+
+  // 헤더 갱신
+  const titleEl = document.getElementById('up-current-market');
+  const countEl = document.getElementById('up-current-count');
+  if (titleEl) titleEl.textContent = itemEl.querySelector('.up-mname').textContent;
+  applyFilters();
+}
+
+function filterTable(q) {
+  _currentSearch = (q || '').toLowerCase().trim();
+  applyFilters();
+}
+
+function applyFilters() {
+  let visible = 0;
+  document.querySelectorAll('.up-table tbody tr').forEach(r => {
+    const marketMatch = (_currentMarketFilter === 'all' || r.dataset.market === _currentMarketFilter);
+    const text = (r.dataset.search || '').toLowerCase();
+    const searchMatch = !_currentSearch || text.includes(_currentSearch);
+    const show = marketMatch && searchMatch;
+    r.style.display = show ? '' : 'none';
+    if (show) visible++;
+  });
+  // 카운트 갱신
+  const countEl = document.getElementById('up-current-count');
+  if (countEl) countEl.textContent = `${visible}개`;
+  // 빈 결과 안내
+  const emptyEl = document.getElementById('up-empty-result');
+  if (emptyEl) emptyEl.style.display = visible === 0 ? '' : 'none';
+}
+function showToast(msg, kind) {
+  const c = document.getElementById('toast-container');
+  const t = document.createElement('div');
+  t.className = 'toast toast-' + (kind || 'info');
+  t.textContent = msg;
+  c.appendChild(t);
+  setTimeout(() => t.remove(), 3000);
+}
+function startAutoLogin(type, key) {
+  showToast('자동 로그인 요청: ' + key, 'info');
+  fetch('/accounts/wizard/start', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({type: type, account_key: key})
+  }).then(r => r.json()).then(data => {
+    showToast(data.message || '응답 수신', data.ok ? 'success' : 'error');
+  }).catch(() => showToast('네트워크 오류', 'error'));
+}
+
+async function openEditModal(accountId, market, envPrefix, displayName, note) {
+  // 간단한 인라인 prompt 방식 (모달 추가 없이 빠른 처리)
+  const newName = prompt(`계정명 수정\n(현재: ${displayName})`, displayName);
+  if (newName === null) return;  // 취소
+  const trimmed = newName.trim();
+  if (!trimmed) {
+    showToast('계정명은 비울 수 없습니다', 'error');
+    return;
+  }
+
+  const newNote = prompt(`메모 수정\n(현재: ${note || '(없음)'})\n빈 값 입력 시 메모 제거`, note || '');
+  if (newNote === null) return;
+
+  try {
+    const res = await fetch(`/accounts/api/upload/accounts/${accountId}`, {
+      method: 'PATCH',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ display_name: trimmed, note: newNote.trim() }),
+    });
+    const data = await res.json();
+    if (data.ok) {
+      showToast(data.message || '수정 완료', 'success');
+      setTimeout(() => location.reload(), 600);
+    } else {
+      showToast('수정 실패: ' + (data.error || ''), 'error');
+    }
+  } catch (e) {
+    showToast('네트워크 오류: ' + e.message, 'error');
+  }
+}
+
+async function loginUploadAccount(accountId, displayName) {
+  showToast(`🔐 ${displayName} 로그인 창 여는 중…`, 'info');
+  try {
+    const res = await fetch(`/accounts/api/upload/accounts/${accountId}/login`, { method: 'POST' });
+    const data = await res.json();
+    if (data.ok) {
+      showToast(data.message || '로그인 창이 열렸어요', 'success');
+    } else {
+      showToast(`❌ ${data.error || '로그인 창 열기 실패'}`, 'error');
+    }
+  } catch (e) {
+    showToast('네트워크 오류: ' + e.message, 'error');
+  }
+}
+
+async function testApiConnection(accountId, displayName) {
+  showToast(`🔌 ${displayName} API 연결 테스트 중…`, 'info');
+  try {
+    const res = await fetch(`/accounts/api/upload/accounts/${accountId}/test`, { method: 'POST' });
+    const data = await res.json();
+    if (data.ok) {
+      showToast(data.message, 'success');
+      console.log('[API test]', data);
+    } else {
+      const detail = data.body_snippet ? `\n응답 본문: ${data.body_snippet}` : '';
+      showToast(`❌ ${data.error || '실패'}${data.hint ? '\n' + data.hint : ''}`, 'error');
+      console.error('[API test]', data);
+      // 본문이 있으면 한 번 더 보기 좋게 alert
+      if (data.body_snippet) {
+        setTimeout(() => alert(`API 응답 (HTTP ${data.status_code}):\n\n${data.body_snippet}`), 100);
+      }
+    }
+  } catch (e) {
+    showToast('네트워크 오류: ' + e.message, 'error');
+  }
+}
+
+async function confirmDeleteAccount(accountId, displayName) {
+  if (!confirm(`'${displayName}' 계정을 삭제할까요?\n\n· DB 에서 즉시 제거됩니다.\n· .env 의 시크릿 키는 그대로 남으니 별도 정리하세요.\n· 종속된 BundleSet 도 함께 정리됩니다.`)) return;
+  try {
+    const res = await fetch(`/accounts/api/upload/accounts/${accountId}`, { method: 'DELETE' });
+    const data = await res.json();
+    if (data.ok) {
+      showToast(data.message || '삭제 완료', 'success');
+      setTimeout(() => location.reload(), 600);
+    } else {
+      showToast('삭제 실패: ' + (data.error || ''), 'error');
+    }
+  } catch (e) {
+    showToast('네트워크 오류: ' + e.message, 'error');
+  }
+}
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+//  V2 통합 모달 — 좌우분할 (사이드바 마켓 + 우측 폼)
+//  · openV2Modal('create') : 신규 계정 등록 모드
+//  · openV2Modal('keys', market, env_prefix, name) : 키 입력 모드
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+let _v2Mode = 'create';      // 'create' | 'keys'
+let _v2Market = null;
+let _v2EnvPrefix = null;
+let _v2Markets = [];          // /api/markets 응답 캐시
+
+// 호환성 — 기존 호출자
+function openWizardModal() { openV2Modal('create'); }
+function openCreateAccountModal() { openV2Modal('create'); }
+function openSecretsModal(market, envPrefix, displayName) {
+  openV2Modal('keys', { market, env_prefix: envPrefix, display_name: displayName });
+}
+
+async function openV2Modal(mode, ctx) {
+  _v2Mode = mode;
+  _v2Market = ctx?.market || null;
+  _v2EnvPrefix = ctx?.env_prefix || null;
+
+  document.getElementById('v2-modal-bg').classList.add('visible');
+  document.body.style.overflow = 'hidden';
+  document.getElementById('v2-form-body').style.display = 'none';
+  document.getElementById('v2-form-foot').style.display = 'none';
+  document.getElementById('v2-empty').style.display = 'flex';
+  document.getElementById('v2-modal-title').textContent = mode === 'keys'
+    ? `${ctx?.display_name || ''} — API 키 입력`
+    : '마켓을 선택하세요';
+
+  // 마켓 리스트 로드
+  if (_v2Markets.length === 0) {
+    try {
+      const res = await fetch('/accounts/api/markets');
+      const data = await res.json();
+      if (data.ok) _v2Markets = data.markets;
+    } catch (e) {
+      showToast('마켓 목록 로드 실패: ' + e.message, 'error');
+    }
+  }
+  renderMarketSidebar();
+
+  // keys 모드면 자동으로 해당 마켓 선택
+  if (mode === 'keys' && _v2Market) {
+    const m = _v2Markets.find(x => x.key === _v2Market);
+    if (m) selectMarket(m);
+  }
+}
+
+function renderMarketSidebar() {
+  const list = document.getElementById('v2-market-list');
+  if (!_v2Markets.length) {
+    list.innerHTML = '<div class="v2-loading">마켓 정보를 가져올 수 없습니다.</div>';
+    return;
+  }
+  list.innerHTML = _v2Markets.map(m => {
+    const disabled = m.status !== 'ready';
+    const selected = (_v2Market === m.key) ? ' selected' : '';
+    const onclick = disabled ? '' : `onclick="selectMarketByKey('${m.key}')"`;
+    return `
+      <div class="v2-market-item${selected}${disabled ? ' disabled' : ''}" ${onclick}>
+        <span class="v2-mi-icon">${m.icon}</span>
+        <div class="v2-mi-meta">
+          <div class="v2-mi-name">${m.label}</div>
+          <div class="v2-mi-desc">${m.api_type} · 키 ${m.key_count}개</div>
+        </div>
+        ${disabled ? '<span class="v2-mi-badge">준비 중</span>' : (selected ? '<span class="v2-mi-check">✓</span>' : '')}
+      </div>
+    `;
+  }).join('');
+}
+
+function selectMarketByKey(key) {
+  const m = _v2Markets.find(x => x.key === key);
+  if (m) selectMarket(m);
+}
+
+async function selectMarket(market) {
+  // keys 모드 + 다른 마켓 선택 시도 → 무시
+  if (_v2Mode === 'keys' && _v2Market && _v2Market !== market.key) {
+    showToast('키 입력 모드 — 마켓 변경 불가', 'info');
+    return;
+  }
+  _v2Market = market.key;
+  renderMarketSidebar();
+
+  document.getElementById('v2-empty').style.display = 'none';
+  document.getElementById('v2-form-body').style.display = 'block';
+  document.getElementById('v2-form-foot').style.display = 'flex';
+  document.getElementById('v2-icon').textContent = market.icon;
+  document.getElementById('v2-modal-title').textContent = _v2Mode === 'keys'
+    ? `🔑 ${market.label} API 키 입력`
+    : `${market.label} 계정 등록`;
+  document.getElementById('v2-subtitle').textContent = market.api_type;
+  document.getElementById('v2-submit-text').textContent = _v2Mode === 'keys'
+    ? '키 저장 + 즉시 적용'
+    : '등록 + API 연동';
+
+  // create 모드면 계정 정보 섹션 표시, keys 모드면 숨김
+  document.getElementById('v2-section-account').style.display =
+    (_v2Mode === 'keys') ? 'none' : 'block';
+
+  // 가이드 박스
+  const helpBox = document.getElementById('v2-keys-help');
+  helpBox.innerHTML = market.guide_text
+    ? `💡 <strong>키 받는 법:</strong> ${market.guide_text}` +
+      (market.guide_url ? ` <a href="${market.guide_url}" target="_blank">가이드 →</a>` : '')
+    : '';
+
+  // 스키마 로드
+  const envPrefix = _v2EnvPrefix || market.default_prefix || (market.key.toUpperCase() + '_MAIN');
+  await loadSchemaIntoFields(market.key, envPrefix);
+
+  // 첫 입력란에 포커스
+  setTimeout(() => {
+    const first = document.querySelector('#v2-form-body input:not([disabled])');
+    if (first) first.focus();
+  }, 100);
+}
+
+async function loadSchemaIntoFields(market, envPrefix) {
+  const container = document.getElementById('v2-key-fields');
+  container.innerHTML = '<div class="v2-loading">필드 로딩…</div>';
+  try {
+    const res = await fetch(`/accounts/api/secrets/${encodeURIComponent(envPrefix)}/schema?market=${market}`);
+    const data = await res.json();
+    if (!data.ok) {
+      container.innerHTML = `<div class="form-error">스키마 로드 실패: ${data.error || ''}</div>`;
+      return;
+    }
+    container.innerHTML = data.fields.map(f => `
+      <div class="form-row">
+        <label for="v2-secret-${f.suffix}">${f.label}${f.sensitive ? ' 🔒' : ''}<span class="req">*</span></label>
+        <input id="v2-secret-${f.suffix}"
+               name="${f.suffix}"
+               type="${f.sensitive ? 'password' : 'text'}"
+               placeholder="${f.current_set ? '(이미 등록됨 — 변경 시 새 값 입력)' : f.env_key}"
+               autocomplete="off"
+               spellcheck="false"
+               class="form-input ${f.current_set ? 'has-value' : ''}">
+      </div>
+    `).join('');
+  } catch (e) {
+    container.innerHTML = `<div class="form-error">스키마 로드 실패: ${e.message}</div>`;
+  }
+}
+
+function closeV2Modal() {
+  document.getElementById('v2-modal-bg').classList.remove('visible');
+  document.body.style.overflow = '';
+  document.getElementById('v2-key-fields').innerHTML = '';
+  if (document.getElementById('v2-display-name')) document.getElementById('v2-display-name').value = '';
+  if (document.getElementById('v2-note')) document.getElementById('v2-note').value = '';
+  _v2Mode = 'create';
+  _v2Market = null;
+  _v2EnvPrefix = null;
+}
+
+async function submitV2() {
+  if (!_v2Market) { showToast('마켓을 선택하세요', 'error'); return; }
+
+  const market = _v2Market;
+  const marketMeta = _v2Markets.find(m => m.key === market);
+  const btn = document.getElementById('v2-submit-btn');
+  btn.disabled = true;
+  document.getElementById('v2-submit-text').textContent = '처리 중…';
+
+  // 키 값 수집
+  const keyInputs = document.querySelectorAll('#v2-key-fields input');
+  const values = {};
+  keyInputs.forEach(i => {
+    if (i.value && i.value.trim()) values[i.name] = i.value.trim();
+  });
+
+  try {
+    if (_v2Mode === 'create') {
+      const display_name = document.getElementById('v2-display-name').value.trim();
+      const note = document.getElementById('v2-note').value.trim();
+      if (!display_name) {
+        showToast('계정명을 입력하세요', 'error');
+        btn.disabled = false;
+        document.getElementById('v2-submit-text').textContent = '등록 + API 연동';
+        return;
+      }
+      // env_prefix 자동 생성 — {MARKET}_{N} 형태 (사용자에게 노출 X)
+      const env_prefix = await generateUniqueEnvPrefix(marketMeta?.default_prefix || (market.toUpperCase() + '_MAIN'));
+      // account_key — 계정명 기반 자동
+      const account_key = display_name.replace(/\s+/g, '_').replace(/[^a-zA-Z0-9_가-힣]/g, '');
+
+      // 1) 계정 생성
+      const r1 = await fetch('/accounts/api/upload/accounts', {
+        method: 'POST', headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({ account_key, display_name, market, env_prefix, note }),
+      });
+      const d1 = await r1.json();
+      if (!d1.ok) {
+        showToast('계정 등록 실패: ' + (d1.error || ''), 'error');
+        btn.disabled = false;
+        document.getElementById('v2-submit-text').textContent = '등록 + API 연동';
+        return;
+      }
+
+      // 2) 키 입력값이 있으면 동시 저장
+      if (Object.keys(values).length > 0) {
+        const r2 = await fetch(`/accounts/api/secrets/${encodeURIComponent(env_prefix)}`, {
+          method: 'POST', headers: {'Content-Type':'application/json'},
+          body: JSON.stringify({ market, values }),
+        });
+        const d2 = await r2.json();
+        if (!d2.ok) {
+          showToast('계정은 등록 / 키 저장 실패: ' + (d2.error || ''), 'warning');
+        } else {
+          showToast(`✅ ${display_name} 등록 + API 키 저장 완료`, 'success');
+        }
+      } else {
+        showToast(d1.message || '계정 등록 완료 (키 미입력)', 'success');
+      }
+      closeV2Modal();
+      setTimeout(() => location.reload(), 700);
+    } else {
+      // keys 모드 — 키만 저장
+      if (Object.keys(values).length === 0) {
+        showToast('최소 1개 이상 입력하세요', 'error');
+        btn.disabled = false;
+        document.getElementById('v2-submit-text').textContent = '키 저장 + 즉시 적용';
+        return;
+      }
+      const r = await fetch(`/accounts/api/secrets/${encodeURIComponent(_v2EnvPrefix)}`, {
+        method: 'POST', headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({ market, values }),
+      });
+      const d = await r.json();
+      if (d.ok) {
+        showToast(d.message || '저장 완료', 'success');
+        closeV2Modal();
+        setTimeout(() => location.reload(), 700);
+      } else {
+        showToast('저장 실패: ' + (d.error || ''), 'error');
+        btn.disabled = false;
+        document.getElementById('v2-submit-text').textContent = '키 저장 + 즉시 적용';
+      }
+    }
+  } catch (e) {
+    showToast('네트워크 오류: ' + e.message, 'error');
+    btn.disabled = false;
+    document.getElementById('v2-submit-text').textContent = _v2Mode === 'keys' ? '키 저장 + 즉시 적용' : '등록 + API 연동';
+  }
+}
+
+async function generateUniqueEnvPrefix(base) {
+  // 기존 계정 목록을 통해 중복 회피 — base, base_2, base_3...
+  // (간단히: 첫 번째 시도로 base 사용, 충돌 시 백엔드가 _2, _3 자동 부여하도록 위임)
+  // 현재는 base 그대로 사용 — 백엔드 409 에러 시 사용자에게 안내됨
+  return base;
+}
+
+// ESC 닫기
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && document.getElementById('v2-modal-bg').classList.contains('visible')) {
+    closeV2Modal();
+  }
+});
+</script>
+{% endblock %}

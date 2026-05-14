@@ -1,0 +1,47 @@
+{% extends 'base.html' %}
+{% from 'inventory/_macros/status_tabs.html' import status_tabs_return %}
+{% from 'inventory/_macros/list_helpers.html' import sort_th, bulk_action_bar %}
+{% block title %}반품 — 재고관리{% endblock %}
+{% block content %}
+<div style="padding:24px 32px;max-width:1500px;margin:0 auto">
+  <div style="display:flex;align-items:center;gap:14px;margin-bottom:8px">
+    <div style="font-size:12.5px;color:#9CA3AF">구매 및 판매</div>
+    <h1 style="font-size:22px;font-weight:700;margin:0">반품</h1>
+    <a href="{{ url_for('inventory.return_new') }}" style="margin-left:auto;background:#F59E0B;color:#fff;padding:8px 16px;border-radius:5px;font-size:13px;text-decoration:none;font-weight:600">+ 반품서 작성</a>
+  </div>
+  {{ status_tabs_return(url_for('inventory.return_list'), status, counts) }}
+  {% with msgs = get_flashed_messages(with_categories=true) %}{% for cat,msg in msgs %}<div style="background:{% if cat=='error' %}#FEF2F2{% else %}#ECFDF5{% endif %};border:1px solid {% if cat=='error' %}#FCA5A5{% else %}#86EFAC{% endif %};padding:10px 14px;border-radius:6px;margin-bottom:12px;font-size:13px">{{ msg }}</div>{% endfor %}{% endwith %}
+  {{ bulk_action_bar('ro_id', url_for('inventory.return_bulk')) }}
+  <div style="background:#fff;border:1px solid #E5E8EB;border-radius:8px;overflow:hidden">
+    <table style="width:100%;border-collapse:collapse;font-size:12.5px">
+      <thead style="background:#F9FAFB"><tr>
+        <th style="padding:11px 8px;width:36px;text-align:center"><input type="checkbox" id="checkAll" onclick="toggleAll(this)"></th>
+        {{ sort_th('생성일', 'created_at', sort_key, sort_dir, url_for('inventory.return_list'), status) }}
+        {{ sort_th('RO #', 'ro_number', sort_key, sort_dir, url_for('inventory.return_list'), status) }}
+        <th style="padding:11px 8px;text-align:left;font-size:11.5px;color:#4E5968;font-weight:600">원본 SO</th>
+        <th style="padding:11px 8px;text-align:right;font-size:11.5px;color:#4E5968;font-weight:600">품목 수</th>
+        <th style="padding:11px 8px;text-align:right;font-size:11.5px;color:#4E5968;font-weight:600">반품 수량</th>
+        {{ sort_th('환불액', 'refund_amount', sort_key, sort_dir, url_for('inventory.return_list'), status, align='right') }}
+        {{ sort_th('상태', 'status', sort_key, sort_dir, url_for('inventory.return_list'), status) }}
+        <th style="padding:11px 8px;text-align:left;font-size:11.5px;color:#4E5968;font-weight:600">작성자</th>
+      </tr></thead>
+      <tbody>
+        {% for r in rows %}
+          <tr style="border-bottom:1px solid #F2F4F6;cursor:pointer" onmouseover="this.style.background='#F9FAFB'" onmouseout="this.style.background=''" onclick="if(event.target.tagName!=='INPUT'){window.location.href='{{ url_for('inventory.return_detail', ro_id=r.ro.id) }}'}">
+            <td style="padding:9px 8px;text-align:center" onclick="event.stopPropagation()"><input type="checkbox" name="ro_id" value="{{ r.ro.id }}"></td>
+            <td style="padding:9px 8px;color:#4E5968">{{ r.ro.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
+            <td style="padding:9px 8px;font-weight:600;font-family:ui-monospace,monospace;font-size:11.5px">{{ r.ro.ro_number or ('#' ~ r.ro.id) }}</td>
+            <td style="padding:9px 8px">{% if r.ro.sales_order_id %}#{{ r.ro.sales_order_id }}{% else %}—{% endif %}</td>
+            <td style="padding:9px 8px;text-align:right">{{ r.item_count }}</td>
+            <td style="padding:9px 8px;text-align:right;font-family:ui-monospace,monospace;font-weight:700;color:#F59E0B">{{ r.total_qty }}</td>
+            <td style="padding:9px 8px;text-align:right;font-family:ui-monospace,monospace">{{ '{:,}'.format(r.ro.refund_amount or 0) }}</td>
+            <td style="padding:9px 8px"><span style="font-size:10.5px;padding:2px 8px;border-radius:3px;background:{% if r.ro.status=='completed' %}#DCFCE7;color:#15803D{% elif r.ro.status=='cancelled' %}#FEE2E2;color:#991B1B{% else %}#FEF3C7;color:#92400E{% endif %};font-weight:600">{{ r.ro.status }}</span></td>
+            <td style="padding:9px 8px"><span style="display:inline-flex;align-items:center;gap:6px"><span style="width:22px;height:22px;border-radius:50%;background:#7C3AED;color:#fff;display:inline-flex;align-items:center;justify-content:center;font-size:10px;font-weight:700">{{ (r.ro.created_by or '운')[:1] }}</span><span style="font-size:12px">{{ r.ro.created_by or '운영자' }}</span></span></td>
+          </tr>
+        {% else %}<tr><td colspan="9" style="padding:48px;text-align:center;color:#9CA3AF">반품 없음</td></tr>{% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+<script>function toggleAll(m){document.querySelectorAll('input[name="ro_id"]').forEach(c=>c.checked=m.checked);m.dispatchEvent(new Event('change',{bubbles:true}))}</script>
+{% endblock %}

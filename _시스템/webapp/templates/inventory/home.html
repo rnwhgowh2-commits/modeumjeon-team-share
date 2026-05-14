@@ -1,0 +1,150 @@
+{% extends 'base.html' %}
+{% block title %}제품목록 — 재고관리{% endblock %}
+{% block content %}
+<div style="padding:20px 28px;max-width:1700px;margin:0 auto">
+
+  {# 박스히어로 1:1 헤더 — 제목+ⓘ + 우측 [+제품 추가][▾][데이터 관리][매트릭스 R2] #}
+  <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px">
+    <h1 style="font-size:22px;font-weight:700;margin:0;color:#292A2F">제품목록</h1>
+    <span title="우리 보유 옵션 전체 — 박스히어로 매핑 SKU 표기 + 위치별 재고" style="display:inline-flex;align-items:center;justify-content:center;width:14px;height:14px;border-radius:50%;background:#F1F1F4;color:#8F91A0;font-size:9.5px;font-weight:700;cursor:help">i</span>
+    <div style="margin-left:auto;display:flex;gap:6px;align-items:center">
+      <a href="{{ url_for('inventory.data_items') }}#new" style="background:#4F67FF;color:#fff;padding:7px 14px;border-radius:5px;font-size:12.5px;text-decoration:none;font-weight:600">+ 제품 추가</a>
+      <button type="button" onclick="document.getElementById('headerMore').classList.toggle('open')" style="background:#4F67FF;color:#fff;padding:7px 8px;border:none;border-radius:5px;font-size:12px;cursor:pointer;font-weight:700">▾</button>
+      <div id="headerMore" style="position:relative">
+        <div style="display:none;position:absolute;top:36px;right:0;background:#fff;border:1px solid #CBCCD3;border-radius:6px;box-shadow:0 4px 12px rgba(0,0,0,0.08);min-width:180px;z-index:50;padding:6px 0">
+          <a href="{{ url_for('inventory.data_items') }}#import" style="display:block;padding:8px 14px;font-size:12.5px;color:#292A2F;text-decoration:none">📁 엑셀 가져오기</a>
+          <a href="{{ url_for('inventory.data_items') }}#export" style="display:block;padding:8px 14px;font-size:12.5px;color:#292A2F;text-decoration:none">📥 엑셀 내보내기</a>
+          <a href="#" onclick="alert('바코드 일괄 인쇄')" style="display:block;padding:8px 14px;font-size:12.5px;color:#292A2F;text-decoration:none">바코드 인쇄</a>
+        </div>
+      </div>
+      <a href="{{ url_for('inventory.data_items') }}" style="padding:7px 12px;border:1px solid #CBCCD3;border-radius:5px;text-decoration:none;color:#292A2F;font-size:12.5px">데이터 관리</a>
+      <a href="{{ url_for('inventory.matrix_view') }}" style="background:#fff;border:1px solid #4F67FF;color:#4F67FF;padding:7px 14px;border-radius:5px;font-size:12.5px;text-decoration:none;font-weight:600">매트릭스 R2</a>
+    </div>
+  </div>
+  <style>#headerMore.open > div{display:block}</style>
+
+  <!-- 통계 4장 -->
+  <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:14px">
+    <div style="background:#fff;border:1px solid #E5E8EB;border-radius:8px;padding:12px"><div style="font-size:10.5px;color:#6B7684">필터된 옵션</div><div style="font-size:20px;font-weight:700">{{ stats.total }}</div></div>
+    <div style="background:#fff;border:1px solid #E5E8EB;border-radius:8px;padding:12px"><div style="font-size:10.5px;color:#6B7684">재고 보유</div><div style="font-size:20px;font-weight:700;color:#7C3AED">{{ stats.in_stock_count }}</div></div>
+    <div style="background:#fff;border:1px solid #E5E8EB;border-radius:8px;padding:12px"><div style="font-size:10.5px;color:#6B7684">총 재고량</div><div style="font-size:20px;font-weight:700;color:#3182F6">{{ '{:,}'.format(stats.total_stock) }}</div></div>
+    <div style="background:#fff;border:1px solid #E5E8EB;border-radius:8px;padding:12px"><div style="font-size:10.5px;color:#6B7684">박스히어로 매핑</div><div style="font-size:20px;font-weight:700;color:#10B981">{{ stats.mapped }}</div></div>
+  </div>
+
+  <!-- 필터 바 (박스히어로 1:1) -->
+  <form method="get" style="background:#fff;border:1px solid #E5E8EB;border-radius:8px;padding:10px 14px;margin-bottom:12px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+    <select name="location_id" style="padding:6px 10px;border:1px solid #D1D6DB;border-radius:5px;font-size:12px;min-width:140px">
+      <option value="">모든 위치</option>
+      {% for loc in all_locs %}<option value="{{ loc.id }}" {% if location_filter == loc.id|string %}selected{% endif %}>{{ loc.name }}</option>{% endfor %}
+    </select>
+    <input name="q" value="{{ search_q }}" placeholder="이름, 바코드, 속성 검색" style="flex:1;min-width:200px;padding:6px 10px;border:1px solid #CBCCD3;border-radius:5px;font-size:12.5px;color:#292A2F">
+    <label style="display:flex;align-items:center;gap:5px;font-size:12px;color:#4E5968;font-weight:600;cursor:pointer">
+      <input type="checkbox" name="in_stock" value="1" {% if in_stock_only %}checked{% endif %}> 재고 보유
+    </label>
+    <label style="display:flex;align-items:center;gap:5px;font-size:12px;color:#4E5968;font-weight:600;cursor:pointer">
+      <input type="checkbox" name="group_by_model" value="1" {% if group_by_model %}checked{% endif %}> 묶어보기
+    </label>
+    <button type="submit" style="background:#3182F6;color:#fff;padding:6px 14px;border:none;border-radius:5px;font-size:12px;font-weight:600;cursor:pointer">필터 적용</button>
+    <a href="{{ url_for('inventory.home') }}" style="font-size:11.5px;color:#6B7684;text-decoration:none">초기화</a>
+  </form>
+
+  <!-- split layout: 좌측 list + 우측 detail -->
+  <div style="display:grid;grid-template-columns:{% if selected_detail %}1.2fr 1fr{% else %}1fr{% endif %};gap:14px;align-items:start">
+
+    <!-- 좌측 list -->
+    <div style="background:#fff;border:1px solid #E5E8EB;border-radius:8px;overflow:hidden">
+      {% if group_by_model and grouped %}
+        {% for model_code, opts in grouped.items() %}
+          <div style="background:#F9FAFB;padding:8px 14px;font-size:12px;font-weight:600;color:#4E5968;border-bottom:1px solid #E5E8EB">
+            {{ model_code }} <span style="color:#9CA3AF;font-weight:400">({{ opts|length }} 옵션)</span>
+          </div>
+          {% for o in opts %}
+            <a href="?sku={{ o.canonical_sku }}{% if in_stock_only %}&in_stock=1{% endif %}{% if group_by_model %}&group_by_model=1{% endif %}{% if search_q %}&q={{ search_q }}{% endif %}" style="display:flex;align-items:center;padding:8px 14px;border-bottom:1px solid #F2F4F6;text-decoration:none;color:#191F28;{% if selected_detail and selected_detail.opt.canonical_sku == o.canonical_sku %}background:#EFF6FF{% endif %}">
+              <div style="flex:1;font-family:ui-monospace,monospace;font-size:11px">{{ o.canonical_sku }}</div>
+              <div style="font-size:11px;color:#6B7684;margin-right:12px">{{ o.color_display or o.color_code }} / {{ o.size_display or o.size_code }}</div>
+              <div style="font-weight:600;font-family:ui-monospace,monospace;color:{% if (o.boxhero_stock_total or 0) > 0 %}#7C3AED{% else %}#9CA3AF{% endif %};min-width:50px;text-align:right">{{ o.boxhero_stock_total or 0 }}</div>
+            </a>
+          {% endfor %}
+        {% endfor %}
+      {% else %}
+        <table style="width:100%;border-collapse:collapse;font-size:12px">
+          <thead style="background:#F9FAFB;position:sticky;top:0">
+            <tr>
+              <th style="padding:8px;text-align:left;font-size:10.5px;color:#6B7684">SKU</th>
+              <th style="padding:8px;text-align:left;font-size:10.5px;color:#6B7684">색상/사이즈</th>
+              <th style="padding:8px;text-align:left;font-size:10.5px;color:#6B7684">박스히어로</th>
+              <th style="padding:8px;text-align:right;font-size:10.5px;color:#6B7684">재고</th>
+              <th style="padding:8px;text-align:right;font-size:10.5px;color:#6B7684">평균매입가</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for o in options %}
+              <tr style="border-bottom:1px solid #F2F4F6;{% if selected_detail and selected_detail.opt.canonical_sku == o.canonical_sku %}background:#EFF6FF{% endif %};cursor:pointer" onclick="window.location.href='?sku={{ o.canonical_sku }}{% if in_stock_only %}&in_stock=1{% endif %}{% if search_q %}&q={{ search_q }}{% endif %}'">
+                <td style="padding:7px 8px;font-family:ui-monospace,monospace;font-size:10.5px">{{ o.canonical_sku }}</td>
+                <td style="padding:7px 8px;font-size:11.5px">{{ o.color_display or o.color_code }} / {{ o.size_display or o.size_code }}</td>
+                <td style="padding:7px 8px;font-family:ui-monospace,monospace;font-size:10px;color:#6B7684">{{ o.boxhero_sku or '—' }}</td>
+                <td style="padding:7px 8px;text-align:right;font-weight:600;font-family:ui-monospace,monospace;color:{% if (o.boxhero_stock_total or 0) > 0 %}#7C3AED{% else %}#9CA3AF{% endif %}">{{ o.boxhero_stock_total or 0 }}</td>
+                <td style="padding:7px 8px;text-align:right;font-family:ui-monospace,monospace;color:{% if (o.boxhero_avg_purchase_price or 0) > 0 %}#191F28{% else %}#9CA3AF{% endif %}">{% if o.boxhero_avg_purchase_price %}{{ '{:,}'.format(o.boxhero_avg_purchase_price) }}{% else %}—{% endif %}</td>
+              </tr>
+            {% else %}
+              <tr><td colspan="5" style="padding:32px;text-align:center;color:#9CA3AF">옵션 없음</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      {% endif %}
+    </div>
+
+    <!-- 우측 detail 패널 (박스히어로 1:1) -->
+    {% if selected_detail %}
+    <div style="background:#fff;border:1px solid #E5E8EB;border-radius:8px;padding:18px;position:sticky;top:60px">
+      {% set d = selected_detail %}
+      <div style="display:flex;align-items:start;gap:12px;margin-bottom:14px">
+        <div style="flex:1">
+          <div style="font-size:11px;color:#6B7684;margin-bottom:2px">{{ d.opt.canonical_sku }}</div>
+          <div style="font-size:15px;font-weight:700">{{ d.model.model_name_display or d.model.model_name_raw if d.model else d.opt.model_code }}</div>
+          <div style="font-size:11.5px;color:#6B7684;margin-top:2px">{{ d.opt.color_display or d.opt.color_code }} · {{ d.opt.size_display or d.opt.size_code }}</div>
+        </div>
+        <a href="?" style="font-size:18px;color:#9CA3AF;text-decoration:none">×</a>
+      </div>
+
+      <div style="background:#F9FAFB;border-radius:6px;padding:12px;margin-bottom:14px">
+        <div style="font-size:10.5px;color:#6B7684">총 재고</div>
+        <div style="font-size:28px;font-weight:700;color:#7C3AED">{{ d.opt.boxhero_stock_total or 0 }}</div>
+        <div style="font-size:11px;color:#6B7684;margin-top:4px">평균매입가 {{ '{:,}'.format(d.opt.boxhero_avg_purchase_price or 0) }}원</div>
+      </div>
+
+      <h3 style="font-size:12.5px;font-weight:600;margin:0 0 8px;color:#292A2F">📍 위치별 재고 <span style="font-weight:400;color:#8F91A0">({{ d.loc_stock|length }}개 위치)</span></h3>
+      <div style="border:1px solid #E5E8EB;border-radius:6px;overflow:hidden;margin-bottom:14px">
+        {% for loc_id, info in d.loc_stock.items() %}
+          <div style="display:flex;align-items:center;gap:8px;padding:8px 11px;border-bottom:1px solid #F1F1F4;font-size:12.5px;color:#292A2F">
+            <span style="color:#F59E0B;font-size:13px">📍</span>
+            <span style="flex:1">{{ info.name }}</span>
+            <span style="font-family:ui-monospace,monospace;font-weight:600;color:{% if info.stock > 0 %}#4F67FF{% else %}#8F91A0{% endif %}">{{ info.stock }}</span>
+            <span style="color:#8F91A0;font-size:11px">›</span>
+          </div>
+        {% endfor %}
+      </div>
+
+      <h3 style="font-size:12.5px;font-weight:600;margin:0 0 8px">박스히어로 매핑</h3>
+      <div style="font-size:11.5px;color:#4E5968;line-height:1.7;background:#F9FAFB;padding:8px 12px;border-radius:6px;font-family:ui-monospace,monospace">
+        {{ d.opt.boxhero_sku or '— 미매핑' }}
+      </div>
+
+      <div style="display:flex;gap:6px;margin-top:14px;flex-wrap:wrap">
+        <a href="{{ url_for('inventory.inbound_new') }}" style="flex:1;text-align:center;padding:7px;background:#22C55E;color:#fff;text-decoration:none;font-size:11.5px;font-weight:600;border-radius:5px">📥 입고</a>
+        <a href="{{ url_for('inventory.outbound_new') }}" style="flex:1;text-align:center;padding:7px;background:#EF4444;color:#fff;text-decoration:none;font-size:11.5px;font-weight:600;border-radius:5px">📤 출고</a>
+        <a href="{{ url_for('inventory.adjust_new') }}" style="flex:1;text-align:center;padding:7px;background:#4F67FF;color:#fff;text-decoration:none;font-size:11.5px;font-weight:600;border-radius:5px">⚖ 조정</a>
+        <a href="{{ url_for('inventory.move_new') }}" style="flex:1;text-align:center;padding:7px;background:#A855F7;color:#fff;text-decoration:none;font-size:11.5px;font-weight:600;border-radius:5px">이동</a>
+      </div>
+
+      <a href="{{ url_for('inventory.reports_past_quantity', sku=d.opt.canonical_sku) }}" style="display:block;text-align:center;margin-top:8px;padding:7px;border:1px solid #D1D6DB;color:#4E5968;text-decoration:none;font-size:11.5px;border-radius:5px">📈 과거 수량 시계열</a>
+    </div>
+    {% endif %}
+  </div>
+
+  <div style="margin-top:14px;font-size:11px;color:#9CA3AF;line-height:1.7">
+    ★ 박스히어로 1:1 — 좌측 list 클릭 → 우측 상세 패널 (위치별 재고 + 박스히어로 매핑 + 거래 4종 단축).<br>
+    ★ 묶어보기 = 모델별 그룹핑 / 재고보유 = stock {{ '>' }} 0 필터.
+  </div>
+</div>
+{% endblock %}

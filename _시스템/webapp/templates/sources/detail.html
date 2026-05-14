@@ -1,0 +1,159 @@
+{% extends 'base.html' %}
+{% block title %}{{ site_label }} URL — 모음전 자동화{% endblock %}
+{% block content %}
+<section class="screen active" id="screen-source-detail">
+  <a class="btn btn-ghost" href="/sources">← 소싱처 운영센터</a>
+
+  <h1 style="margin-top:6px">{{ site_label }}</h1>
+  {% if sp.product_name %}<p class="greeting">{{ sp.product_name }}</p>{% endif %}
+
+  {# 기본 정보 #}
+  <div class="bundle-section">
+    <div class="bundle-section-head">
+      <span class="bundle-section-num done">1</span>
+      <h2>ⓘ URL 정보</h2>
+    </div>
+
+    <div class="field">
+      <label class="field-label">URL</label>
+      <input class="field-input mono" value="{{ sp.url }}" readonly />
+    </div>
+
+    <div style="display:flex;gap:14px;flex-wrap:wrap;font-size:13px;color:var(--n600);margin-top:10px">
+      <div>{{ status_emoji }} <strong>{{ status_label }}</strong></div>
+      {% if sp.last_fetched_at %}
+      <div>마지막 fetch: <strong>{{ sp.last_fetched_at.strftime('%Y-%m-%d %H:%M:%S') }}</strong></div>
+      {% endif %}
+      {% if sp.last_price %}
+      <div>대표 가격: <strong>{{ '{:,}'.format(sp.last_price) }}원</strong></div>
+      {% endif %}
+      {% if sp.last_stock is not none %}
+      <div>대표 재고: <strong>{{ sp.last_stock }}</strong></div>
+      {% endif %}
+    </div>
+
+    {% if sp.last_error_msg %}
+    <div class="card" style="border-left:3px solid var(--danger);margin-top:10px;background:#fff5f5">
+      <strong>⚠ 마지막 에러</strong>
+      <div class="mono" style="font-size:12px;color:var(--n700);margin-top:6px">{{ sp.last_error_msg }}</div>
+    </div>
+    {% endif %}
+
+    <div class="btn-row" style="margin-top:14px">
+      <button class="btn" data-action="refetch-source" data-id="{{ sp.id }}">수동 fetch</button>
+      <button class="btn" style="color:var(--danger)" data-action="delete-source" data-id="{{ sp.id }}">🗑 삭제</button>
+    </div>
+  </div>
+
+  {# 사용 중인 모음전 #}
+  <div class="bundle-section">
+    <div class="bundle-section-head">
+      <span class="bundle-section-num {% if sharing_models %}done{% endif %}">2</span>
+      <h2>사용 중인 모음전 ({{ sharing_models|length }}개)</h2>
+    </div>
+    {% if sharing_models %}
+    <div class="chip-row">
+      {% for code in sharing_models %}
+      <a class="chip on" href="/bundles/{{ code }}" style="text-decoration:none">{{ code }}</a>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div class="card" style="padding:14px;text-align:center;color:var(--n500)">
+      이 URL을 사용하는 모음전이 없어요. 미사용 URL은 삭제 권장.
+    </div>
+    {% endif %}
+  </div>
+
+  {# 매핑 옵션 #}
+  <div class="bundle-section">
+    <div class="bundle-section-head">
+      <span class="bundle-section-num {% if options %}done{% endif %}">3</span>
+      <h2>매핑 옵션 ({{ options|length }}개)</h2>
+    </div>
+
+    <div style="overflow-x:auto;border:1px solid var(--n200);border-radius:10px">
+      <table class="opt-table">
+        <thead>
+          <tr>
+            <th>색상</th><th>사이즈</th><th>가격</th><th>재고</th>
+            <th>옵션 ID</th><th>마지막 fetch</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for o in options %}
+          <tr>
+            <td>{{ o.color_text or '—' }}</td>
+            <td>{{ o.size_text or '—' }}</td>
+            <td class="mono">{% if o.current_price %}{{ '{:,}'.format(o.current_price) }}{% else %}—{% endif %}</td>
+            <td>{{ o.current_stock if o.current_stock is not none else '—' }}</td>
+            <td class="mono" style="font-size:11px">{{ o.external_option_id or '—' }}</td>
+            <td style="font-size:11px;color:var(--n500)">
+              {% if o.last_fetched_at %}{{ o.last_fetched_at.strftime('%m-%d %H:%M') }}{% else %}—{% endif %}
+            </td>
+          </tr>
+          {% else %}
+          <tr><td colspan="6" style="padding:20px;text-align:center;color:var(--n500)">옵션이 없어요. fetch가 처음 성공하면 채워져요.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  {# 시계열 #}
+  <div class="bundle-section">
+    <div class="bundle-section-head">
+      <span class="bundle-section-num {% if history %}done{% endif %}">4</span>
+      <h2>📈 가격·재고 시계열 (최근 30개)</h2>
+    </div>
+
+    {% if history %}
+    <div style="overflow-x:auto;border:1px solid var(--n200);border-radius:10px">
+      <table class="opt-table">
+        <thead>
+          <tr><th>시각</th><th>사이트</th><th>가격</th><th>재고</th></tr>
+        </thead>
+        <tbody>
+          {% for h in history %}
+          <tr>
+            <td style="font-size:12px">{{ h.captured_at.strftime('%m-%d %H:%M') if h.captured_at else '—' }}</td>
+            <td>{{ h.source }}</td>
+            <td class="mono">{% if h.price %}{{ '{:,}'.format(h.price) }}{% else %}—{% endif %}</td>
+            <td>{{ h.stock if h.stock is not none else '—' }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div class="card" style="padding:14px;text-align:center;color:var(--n500)">
+      시계열 데이터가 없어요. 자동 사이클이 1번 이상 돌면 생성됩니다.
+    </div>
+    {% endif %}
+  </div>
+</section>
+
+<script>
+document.querySelectorAll('[data-action="refetch-source"]').forEach(btn => {
+  btn.addEventListener('click', async () => {
+    const id = btn.getAttribute('data-id');
+    btn.disabled = true; const orig = btn.textContent; btn.textContent = '...';
+    try {
+      const r = await fetch(`/sources/${id}/refetch`, {method: 'POST'});
+      const j = await r.json();
+      btn.textContent = j.ok ? '✓ 요청됨' : '✗ 실패';
+    } catch (e) { btn.textContent = '✗ 오류'; }
+    setTimeout(() => { btn.disabled = false; btn.textContent = orig; }, 2000);
+  });
+});
+document.querySelectorAll('[data-action="delete-source"]').forEach(btn => {
+  btn.addEventListener('click', async () => {
+    if (!confirm('이 SourceProduct 를 삭제하시겠어요? (soft-delete — 휴지통에서 복구 가능)')) return;
+    const id = btn.getAttribute('data-id');
+    const r = await fetch(`/sources/${id}/delete`, {method: 'POST'});
+    const j = await r.json();
+    if (j.ok) { window.location.href = '/sources'; }
+    else alert('삭제 실패: ' + (j.error || ''));
+  });
+});
+</script>
+{% endblock %}

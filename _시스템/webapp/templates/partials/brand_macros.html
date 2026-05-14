@@ -1,0 +1,58 @@
+{# ════════════════════════════════════════════════════════════════
+   브랜드 매크로 — 마켓·소싱처 통합 (모바일 앱 아이콘 스타일)
+   1차: URL 의 favicon 자동 (Google API)
+   fallback: 풀네임 컬러 칩
+   사용: {% from 'partials/brand_macros.html' import brand_icon, brand_card %}
+   ════════════════════════════════════════════════════════════════ #}
+
+{# 도메인 추출 helper #}
+{% macro domain_of(url) -%}
+  {%- if url -%}
+    {%- set u = url|replace('https://','')|replace('http://','') -%}
+    {{ u.split('/')[0] }}
+  {%- endif -%}
+{%- endmacro %}
+
+{# 풀네임 컬러 칩 (fallback) #}
+{% macro brand_pill(name, size='md') -%}
+  {%- set n = (name or '')|lower -%}
+  {%- set ns = namespace(cls='brand-default') -%}
+  {%- if '스마트스토어' in n or '네이버' in n or '스스' in n -%}{%- set ns.cls = 'brand-naver' -%}
+  {%- elif '쿠팡' in n -%}{%- set ns.cls = 'brand-coupang' -%}
+  {%- elif '11번가' in n -%}{%- set ns.cls = 'brand-11st' -%}
+  {%- elif 'g마켓' in n or 'gmarket' in n -%}{%- set ns.cls = 'brand-gmarket' -%}
+  {%- elif '옥션' in n or 'auction' in n -%}{%- set ns.cls = 'brand-auction' -%}
+  {%- elif 'cafe24' in n or '자사몰' in n -%}{%- set ns.cls = 'brand-cafe24' -%}
+  {%- elif '무신사' in n or 'musinsa' in n -%}{%- set ns.cls = 'brand-musinsa' -%}
+  {%- elif '르무통' in n or 'lemouton' in n -%}{%- set ns.cls = 'brand-lemouton' -%}
+  {%- elif 'ssf' in n -%}{%- set ns.cls = 'brand-ssf' -%}
+  {%- elif 'ssg' in n -%}{%- set ns.cls = 'brand-ssg' -%}
+  {%- elif '롯데' in n or 'lotte' in n -%}{%- set ns.cls = 'brand-lotte' -%}
+  {%- elif '인터파크' in n or 'interpark' in n -%}{%- set ns.cls = 'brand-interpark' -%}
+  {%- elif '29cm' in n -%}{%- set ns.cls = 'brand-29cm' -%}
+  {%- elif 'w컨셉' in n or 'wconcept' in n -%}{%- set ns.cls = 'brand-wconcept' -%}
+  {%- endif -%}
+  <span class="brand-icon {{ ns.cls }}{% if size != 'md' %} {{ size }}{% endif %}">{{ name }}</span>
+{%- endmacro %}
+
+{# 브랜드 아이콘 — favicon 우선, 없으면 컬러 칩 #}
+{% macro brand_icon(name, url='', size='md') -%}
+  {%- if url -%}
+    {%- set d = domain_of(url) -%}
+    <span class="brand-favi{% if size != 'md' %} {{ size }}{% endif %}" title="{{ name }}"><img src="https://www.google.com/s2/favicons?domain={{ d }}&sz=128" alt="{{ name }}" loading="lazy" onerror="this.parentElement.outerHTML=this.dataset.fallback" data-fallback='{{ brand_pill(name, size)|safe|replace("'","&apos;") }}'></span>
+  {%- else -%}
+    {{ brand_pill(name, size) }}
+  {%- endif -%}
+{%- endmacro %}
+
+{# 풀 카드 (icon + name + meta + actions) — 앱 형태 #}
+{% macro brand_card(name, url='', meta='', actions='', status='ok', compact=False) -%}
+  <div class="brand-card{% if compact %} compact{% endif %}">
+    {{ brand_icon(name, url, 'sm' if compact else 'md') }}
+    <div class="brand-info">
+      <div class="brand-name">{{ name }}</div>
+      {% if meta %}<div class="brand-meta"><span class="dot {{ status }}"></span>{{ meta }}</div>{% endif %}
+    </div>
+    {% if actions %}<div class="brand-actions">{{ actions|safe }}</div>{% endif %}
+  </div>
+{%- endmacro %}

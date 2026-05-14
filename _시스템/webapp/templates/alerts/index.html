@@ -1,0 +1,35 @@
+{% extends 'base.html' %}
+{% block title %}알림 채널 설정 — 모음전 자동화{% endblock %}
+{% block content %}
+<section class="screen active" id="screen-alerts">
+  <h1>알림 채널 설정</h1>
+  <p class="greeting">중요한 일이 생기면 어디로 알려드릴까요?</p>
+  <div class="card">
+    <div class="field">
+      <label class="field-label">Telegram Bot Token</label>
+      <input class="field-input" type="password" value="{% if has_telegram %}••••••••••••{% endif %}" placeholder="환경변수 TELEGRAM_BOT_TOKEN" readonly />
+      <div class="field-hint">{% if has_telegram %}✅ 설정됨{% else %}⚠ 미설정 — .env에 TELEGRAM_BOT_TOKEN 추가{% endif %}</div>
+    </div>
+    <div class="field">
+      <label class="field-label">Slack Webhook</label>
+      <input class="field-input" type="password" value="{% if has_slack %}••••••••••••{% endif %}" placeholder="환경변수 SLACK_WEBHOOK" readonly />
+      <div class="field-hint">{% if has_slack %}✅ 설정됨{% else %}⚠ 미설정{% endif %}</div>
+    </div>
+    <h3 style="margin:18px 0 10px">알림 종류 → 채널</h3>
+    <table class="opt-table">
+      <thead><tr><th>알림 종류</th><th class="center">Telegram</th><th class="center">Slack</th><th class="center">Kakao</th></tr></thead>
+      <tbody>
+        {% for n in notifications %}
+        <tr>
+          <td>{{ n.label }}</td>
+          <td class="center"><input type="checkbox" data-key="{{ n.key }}" data-channel="telegram" {% if n.telegram %}checked{% endif %} /></td>
+          <td class="center"><input type="checkbox" data-key="{{ n.key }}" data-channel="slack" {% if n.slack %}checked{% endif %} /></td>
+          <td class="center"><input type="checkbox" data-key="{{ n.key }}" data-channel="kakao" {% if n.kakao %}checked{% endif %} /></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    <div class="field-hint" style="margin-top:14px">💡 라우팅 변경은 T13 이후 영구 저장됩니다. 현재는 보기 전용.</div>
+  </div>
+</section>
+{% endblock %}

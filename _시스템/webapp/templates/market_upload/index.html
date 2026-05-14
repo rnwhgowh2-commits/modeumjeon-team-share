@@ -1,0 +1,96 @@
+{% extends 'base.html' %}
+{% block title %}마켓 업로드 설정 — 모음전 자동화{% endblock %}
+{% block content %}
+{# v6 Phase 4 (2026-05-07): M2 레이아웃 — 좌측 마켓 sub-nav + 우측 설정 폼.
+   브랜드 앱 로고는 시스템 4색과 별개 — 원래 브랜드 컬러 그대로. #}
+<section class="screen active">
+  <div class="page-header">
+    <h1>📤 마켓 업로드 설정</h1>
+    <p class="subtitle">레츠 브라운 코트 시리즈 — {{ done_count }}개 마켓 설정 완료 / 전체 {{ total_count }}개. 좌측에서 마켓을 선택해 카테고리·마진율·옵션 매핑을 설정하세요.</p>
+  </div>
+
+  <div class="m2-layout">
+    {# ===== 좌측 sub-nav (마켓 8) ===== #}
+    <aside class="m2-nav">
+      <div class="m2-nav-h">판매 마켓 ({{ markets|length }})</div>
+      {% for m in markets %}
+      <a href="?m={{ m.key }}" class="m2-item {% if m.key == active_market.key %}on{% endif %}">
+        <div class="app-icon {{ m.logo_class }}">{{ m.logo_text }}</div>
+        <div class="m2-item-body">
+          <div class="m2-nm">{{ m.nm }}</div>
+          <div class="m2-pg">
+            {% if m.status == 'done' %}설정 완료
+            {% elif m.status == 'in_progress' %}진행 {{ m.progress }}%
+            {% else %}대기 중{% endif %}
+          </div>
+        </div>
+        {% if m.status == 'done' and m.key != active_market.key %}<span class="m2-check">✓</span>{% endif %}
+        {% if m.key == active_market.key %}<span class="m2-check current">●</span>{% endif %}
+      </a>
+      {% endfor %}
+    </aside>
+
+    {# ===== 우측 설정 폼 ===== #}
+    <div class="m2-detail">
+      <div class="m2-detail-head">
+        <div class="m2-detail-title">
+          <div class="app-icon ai-lg {{ active_market.logo_class }}">{{ active_market.logo_text }}</div>
+          <div>
+            <h2>{{ active_market.nm }} — 업로드 설정</h2>
+            <p class="m2-detail-sub">레츠 브라운 코트 시리즈 · BR-245-COAT · 12 옵션 · 마켓 수수료 {{ active_market.fee_rate }}%</p>
+          </div>
+        </div>
+        <span class="m2-progress">
+          진행률 {{ active_market.progress }}%
+          <span class="m2-progress-bar"><span style="width:{{ active_market.progress }}%"></span></span>
+        </span>
+      </div>
+
+      <form class="m2-form" onsubmit="return false">
+        <div class="m2-fields">
+          <div class="field">
+            <label class="field-label">카테고리 매핑</label>
+            <input class="field-input" value="{{ active_market.category }}">
+            <div class="field-hint">소싱처 카테고리 → {{ active_market.nm }} 카테고리</div>
+          </div>
+          <div class="field">
+            <label class="field-label">상품명 prefix</label>
+            <input class="field-input" value="{{ active_market.name_prefix }}">
+            <div class="field-hint">{{ active_market.nm }} 노출용 상품명</div>
+          </div>
+          <div class="field">
+            <label class="field-label">마진율</label>
+            <input class="field-input" value="{{ active_market.margin }}">
+            <div class="field-hint">{{ active_market.nm }} 수수료 {{ active_market.fee_rate }}% 자동 차감 후</div>
+          </div>
+          <div class="field">
+            <label class="field-label">배송비 정책</label>
+            <input class="field-input" value="{{ active_market.shipping }}">
+            <div class="field-hint">{{ active_market.nm }} 권장 정책</div>
+          </div>
+          <div class="field">
+            <label class="field-label">옵션 매핑 (사이즈)</label>
+            <input class="field-input" value="{{ active_market.option_map }}">
+            {% if active_market.status == 'in_progress' %}
+            <div class="field-hint" style="color:var(--warn-strong, #b45309);font-weight:600">⚠ 옵션 매핑 미완 — 검토 필요</div>
+            {% else %}
+            <div class="field-hint">사이즈 코드 표준화</div>
+            {% endif %}
+          </div>
+          <div class="field">
+            <label class="field-label">이미지 비율</label>
+            <input class="field-input" value="{{ active_market.image_ratio }}">
+            <div class="field-hint">{{ active_market.nm }} 권장: {{ active_market.image_ratio }}</div>
+          </div>
+        </div>
+
+        <div class="m2-actions">
+          <button type="button" class="btn btn-primary">저장 후 업로드</button>
+          <button type="button" class="btn">미리 보기</button>
+          <button type="button" class="btn">{{ active_market.nm }} 양식 가이드</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</section>
+{% endblock %}

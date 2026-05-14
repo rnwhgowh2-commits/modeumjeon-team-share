@@ -1,0 +1,141 @@
+{% extends 'base.html' %}
+{% block title %}템플릿 — 모음전 자동화{% endblock %}
+{% block content %}
+<section class="screen active" id="screen-templates">
+  <h1>템플릿</h1>
+  <p class="greeting">자주 쓰는 가격·색상·사이즈를 한 곳에서 관리해요.</p>
+
+  <div class="step-tabs" id="tpl-tabs">
+    <div class="step-tab active" data-pane="1" onclick="tplTab(this,1)">💰 가격</div>
+    <div class="step-tab" data-pane="2" onclick="tplTab(this,2)">🎨 색상</div>
+    <div class="step-tab" data-pane="3" onclick="tplTab(this,3)">📐 사이즈</div>
+  </div>
+
+  {# 가격 #}
+  <div class="tp" data-pane="1">
+    {% for v in price_view %}
+    <div class="card">
+      <div style="display:flex;align-items:center;gap:14px">
+        <div style="flex:1">
+          <div style="font-weight:700;font-size:16px">{{ v.tpl.name }}</div>
+          <div style="font-size:12.5px;color:var(--n500);margin-top:4px">스마트스토어 할인가 {{ '{:,}'.format(v.tpl.ss_boxhero_sale_price) }} · 쿠팡 할인가 {{ '{:,}'.format(v.tpl.coupang_boxhero_sale_price) }} · 가드레일 {{ '{:,}'.format(v.tpl.guardrail_lower) }}–{{ '{:,}'.format(v.tpl.guardrail_upper) }}</div>
+          <div style="font-size:12px;color:var(--n600);margin-top:4px">{{ v.apply_count }}개 모음전 적용</div>
+        </div>
+        <button class="btn btn-sm" data-action="edit-price-tpl" data-id="{{ v.tpl.id }}">편집</button>
+        <button class="btn btn-sm" data-action="dup-price-tpl" data-id="{{ v.tpl.id }}">📄 복제</button>
+        {% if v.apply_count == 0 %}
+        <button class="btn btn-sm" style="color:var(--danger)" data-action="del-price-tpl" data-id="{{ v.tpl.id }}">삭제</button>
+        {% endif %}
+      </div>
+    </div>
+    {% else %}
+    <div class="card" style="padding:24px;text-align:center;color:var(--n500)">
+      가격 템플릿이 아직 없어요.
+    </div>
+    {% endfor %}
+    <button class="btn btn-large" data-action="new-price-tpl">+ 새 가격 템플릿</button>
+  </div>
+
+  {# 색상 (사전 + 템플릿 통합) #}
+  <div class="tp" data-pane="2" style="display:none">
+    <h2 style="margin-top:0">🎨 색상 사전 <span style="font-weight:400;font-size:13px;color:var(--n500)">{{ color_dict|length }}개</span></h2>
+    <div class="qsearch" style="margin-bottom:10px"><span class="qsearch-icon">🔍</span><input id="color-dict-search" placeholder="색상 사전 검색..." /></div>
+    <div class="card-tight" style="background:var(--surface);border-radius:12px;padding:0;overflow:hidden;box-shadow:var(--shadow-sm)">
+      <table class="opt-table">
+        <tbody>
+          {% for c in color_dict %}
+          <tr>
+            <td><strong>{{ c.color_code }}</strong></td>
+            <td>{{ c.variants_json }}</td>
+            <td>—</td>
+            <td>
+              <button class="btn btn-sm" data-action="edit-color" data-code="{{ c.color_code }}">편집</button>
+              <button class="btn btn-sm" style="color:var(--danger)" data-action="del-color-dict" data-code="{{ c.color_code }}">🗑</button>
+            </td>
+          </tr>
+          {% else %}
+          <tr><td colspan="4" style="padding:24px;text-align:center;color:var(--n500)">색상 사전이 비어 있어요.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <button class="btn" style="margin-top:8px" data-action="new-color">+ 새 색상</button>
+
+    <h2 style="margin-top:32px">색상 템플릿 <span style="font-weight:400;font-size:13px;color:var(--n500)">{{ color_view|length }}개</span></h2>
+    {% for v in color_view %}
+    <div class="card">
+      <div style="font-weight:700;margin-bottom:6px">{{ v.tpl.name }}</div>
+      <div class="chip-row" style="margin-bottom:10px">
+        {% for code in v.tpl.color_codes_json|from_json %}<span class="chip on">{{ code }}</span>{% endfor %}
+      </div>
+      <div style="font-size:12px;color:var(--n600);margin-bottom:8px">{{ v.apply_count }}개 모음전 적용</div>
+      <button class="btn btn-sm" data-action="edit-color-tpl" data-id="{{ v.tpl.id }}">편집</button>
+      <button class="btn btn-sm" data-action="dup-color-tpl" data-id="{{ v.tpl.id }}">📄 복제</button>
+      {% if v.apply_count == 0 %}
+      <button class="btn btn-sm" style="color:var(--danger)" data-action="del-color-tpl" data-id="{{ v.tpl.id }}">🗑 삭제</button>
+      {% endif %}
+    </div>
+    {% endfor %}
+    <button class="btn btn-large" data-action="new-color-tpl">+ 새 색상 템플릿</button>
+  </div>
+
+  {# 사이즈 #}
+  <div class="tp" data-pane="3" style="display:none">
+    <h2 style="margin-top:0">📐 사이즈 사전</h2>
+    <div class="card-tight" style="background:var(--surface);border-radius:12px;padding:0;overflow:hidden;box-shadow:var(--shadow-sm)">
+      <table class="opt-table">
+        <tbody>
+          {% for r in size_rules %}
+          <tr>
+            <td><strong>{% if r.category == '신발' %}👟{% elif r.category == '의류' %}👕{% else %}📦{% endif %} {{ r.category }}</strong></td>
+            <td>{{ r.standard_size }} {% if r.suggested_variant %}({{ r.suggested_variant }}){% endif %}</td>
+            <td>—</td>
+            <td><button class="btn btn-sm" data-action="edit-size-rule" data-id="{{ r.id }}">편집</button></td>
+          </tr>
+          {% else %}
+          <tr><td colspan="4" style="padding:24px;text-align:center;color:var(--n500)">사이즈 사전이 비어 있어요.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    <h2 style="margin-top:32px">사이즈 템플릿</h2>
+    {% for v in size_view %}
+    <div class="card">
+      <div style="font-weight:700;margin-bottom:6px">{{ v.tpl.name }}</div>
+      <div class="chip-row" style="margin-bottom:10px">
+        {% for code in v.tpl.size_codes_json|from_json %}<span class="chip on">{{ code }}</span>{% endfor %}
+      </div>
+      <div style="font-size:12px;color:var(--n600);margin-bottom:8px">{{ v.apply_count }}개 모음전 적용</div>
+      <button class="btn btn-sm" data-action="edit-size-tpl" data-id="{{ v.tpl.id }}">편집</button>
+      <button class="btn btn-sm" data-action="dup-size-tpl" data-id="{{ v.tpl.id }}">📄 복제</button>
+      {% if v.apply_count == 0 %}
+      <button class="btn btn-sm" style="color:var(--danger)" data-action="del-size-tpl" data-id="{{ v.tpl.id }}">🗑 삭제</button>
+      {% endif %}
+    </div>
+    {% endfor %}
+    <button class="btn btn-large" data-action="new-size-tpl">+ 새 사이즈 템플릿</button>
+  </div>
+</section>
+{% endblock %}
+{% block scripts %}
+<script>
+function tplTab(el, idx) {
+  document.querySelectorAll('#tpl-tabs .step-tab').forEach(t => t.classList.remove('active'));
+  el.classList.add('active');
+  document.querySelectorAll('.tp').forEach(p => {
+    p.style.display = (p.getAttribute('data-pane') === String(idx)) ? '' : 'none';
+  });
+}
+
+// hash 진입 시 해당 탭으로 이동 (예: /templates#color)
+(function () {
+  const h = window.location.hash.replace('#', '');
+  const map = { price: 1, color: 2, size: 3 };
+  if (map[h]) {
+    const tab = document.querySelector(`#tpl-tabs .step-tab[data-pane="${map[h]}"]`);
+    if (tab) tplTab(tab, map[h]);
+  }
+})();
+</script>
+{% endblock %}

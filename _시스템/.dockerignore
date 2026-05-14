@@ -1,0 +1,44 @@
+# Docker 이미지에 포함하지 않을 경로
+
+# ─── 가상환경·캐시 (이미지에서 새로 빌드) ───
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# ─── DB·로그·운영 데이터 (배포 시 Supabase 사용, 로컬 파일 불필요) ───
+data/*.db
+data/*.db.*
+data/*.empty_*
+data/_inspect_*
+data/_resolve_*
+data/_v2_gen*
+data/profiles/
+logs/
+
+# ─── 테스트 산출물 ───
+data/demo_*.xlsx
+data/*_export_test.xlsx
+data/TEST_*.xlsx
+
+# ─── Git·IDE 잡파일 ───
+.git/
+.gitignore
+.idea/
+.vscode/
+*.swp
+
+# ─── 시크릿 (Fly.io secrets 로 별도 주입) ───
+.env
+.env.*
+
+# ─── 동기화 산출물 (배포에 불필요) ───
+sync.py
+sync.log
+.sync-ignore
+docs/sync-status.md
+docs/DAY*-*.md
+
+# ─── Dockerfile 자체 ───
+Dockerfile
+.dockerignore

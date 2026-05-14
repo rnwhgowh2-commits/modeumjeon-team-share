@@ -1,0 +1,152 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}로그인{% endblock %} · 모음전</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='toss.css') }}">
+  <style>
+    body {
+      background: var(--bg);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      font-family: var(--font);
+      color: var(--n900);
+    }
+    .auth-card {
+      width: 100%;
+      max-width: 420px;
+      background: var(--surface);
+      border: 1px solid var(--n200);
+      border-radius: 16px;
+      box-shadow: var(--shadow);
+      padding: 40px 32px;
+    }
+    .auth-brand {
+      text-align: center;
+      margin-bottom: 32px;
+    }
+    .auth-brand-mark {
+      font-size: 32px;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      color: var(--primary);
+    }
+    .auth-brand-sub {
+      font-size: var(--fs-caption);
+      color: var(--n600);
+      margin-top: 6px;
+    }
+    .auth-title {
+      font-size: var(--fs-h2);
+      font-weight: 700;
+      margin: 0 0 8px;
+    }
+    .auth-desc {
+      font-size: var(--fs-caption);
+      color: var(--n600);
+      margin: 0 0 24px;
+    }
+    .field { margin-bottom: 16px; }
+    .field label {
+      display: block;
+      font-size: var(--fs-caption);
+      font-weight: 600;
+      color: var(--n700);
+      margin-bottom: 6px;
+    }
+    .field input[type="email"],
+    .field input[type="password"],
+    .field input[type="text"] {
+      width: 100%;
+      padding: 12px 14px;
+      font-size: var(--fs-body);
+      border: 1px solid var(--n300);
+      border-radius: 10px;
+      background: var(--surface);
+      box-sizing: border-box;
+      transition: border-color 0.15s, box-shadow 0.15s;
+    }
+    .field input:focus {
+      outline: none;
+      border-color: var(--primary);
+      box-shadow: 0 0 0 3px var(--primary-tint);
+    }
+    .field-error {
+      font-size: var(--fs-caption);
+      color: var(--danger);
+      margin-top: 4px;
+    }
+    .auth-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin: 8px 0 20px;
+    }
+    .auth-row label {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: var(--fs-caption);
+      color: var(--n700);
+      cursor: pointer;
+    }
+    .btn-primary {
+      width: 100%;
+      padding: 14px;
+      font-size: var(--fs-body);
+      font-weight: 600;
+      color: white;
+      background: var(--primary);
+      border: none;
+      border-radius: 10px;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    .btn-primary:hover { background: var(--primary-strong); }
+    .btn-primary:disabled { background: var(--n400); cursor: not-allowed; }
+
+    .flash {
+      padding: 12px 14px;
+      border-radius: 8px;
+      font-size: var(--fs-caption);
+      margin-bottom: 16px;
+    }
+    .flash-error { background: var(--danger-bg); color: var(--danger); }
+    .flash-success { background: var(--color-ok-bg); color: var(--color-ok); }
+    .flash-info { background: var(--color-info-bg); color: var(--color-info); }
+
+    .auth-footer {
+      margin-top: 24px;
+      text-align: center;
+      font-size: var(--fs-caption);
+      color: var(--n500);
+    }
+  </style>
+</head>
+<body>
+  <div class="auth-card">
+    <div class="auth-brand">
+      <div class="auth-brand-mark">모음전</div>
+      <div class="auth-brand-sub">팀 공유 · 재고 · 모음전 관리</div>
+    </div>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        {% for category, msg in messages %}
+          <div class="flash flash-{{ category }}">{{ msg }}</div>
+        {% endfor %}
+      {% endif %}
+    {% endwith %}
+
+    {% block content %}{% endblock %}
+
+    <div class="auth-footer">
+      © 모음전 · {{ environment or 'team-share' }}
+    </div>
+  </div>
+</body>
+</html>

@@ -1,0 +1,56 @@
+"""[E] 설정 페이지 — 박스히어로 / 알림 채널."""
+import os
+
+from flask import Blueprint, render_template
+
+from shared.db import SessionLocal
+from lemouton.sourcing.models import Option
+
+bp = Blueprint('settings', __name__)
+
+
+# ─── 팀공유 모드: admin 전용 (시스템 설정 영역). 기존 모드 통과. ───
+@bp.before_request
+def _admin_only():
+    if os.environ.get("ENVIRONMENT") != "team-share-dev":
+        return None
+    from webapp.auth.permissions import enforce_admin
+    return enforce_admin()
+
+
+@bp.route('/boxhero')
+def boxhero_view():
+    s = SessionLocal()
+    try:
+        total_opts = s.query(Option).count()
+        mapped = s.query(Option).filter(Option.boxhero_sku.isnot(None)).count()
+        unmapped = total_opts - mapped
+    finally:
+        s.close()
+    has_token = bool(os.environ.get('BOXHERO_API_TOKEN'))
+    return render_template(
+        'boxhero/index.html',
+        active='boxhero',
+        has_token=has_token,
+        kpi={'total': total_opts, 'mapped': mapped, 'unmapped': unmapped, 'inventory': '—'},
+    )
+
+
+@bp.route('/alerts')
+def alerts_view():
+    has_telegram = bool(os.environ.get('TELEGRAM_BOT_TOKEN'))
+    has_slack = bool(os.environ.get('SLACK_WEBHOOK'))
+    # mockup 4 알림 종류 — DB 라우팅 테이블이 아직 없으므로 정적 default
+    notifications = [
+        {'key': 'guardrail', 'label': '하한가 미달', 'telegram': True, 'slack': False, 'kakao': False},
+        {'key': 'api_fail', 'label': 'API 호출 실패', 'telegram': True, 'slack': True, 'kakao': False},
+        {'key': 'winner_change', 'label': '위너매칭 변경', 'telegram': True, 'slack': False, 'kakao': False},
+        {'key': 'dryrun_held', 'label': '드라이런 보류', 'telegram': True, 'slack': False, 'kakao': False},
+    ]
+    return render_template(
+        'alerts/index.html',
+        active='alerts',
+        has_telegram=has_telegram,
+        has_slack=has_slack,
+        notifications=notifications,
+    )

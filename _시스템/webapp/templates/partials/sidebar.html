@@ -1,0 +1,172 @@
+{# 좌측 사이드바 v3 — 사용자 커스터마이징 (A1 워크플로 스테이지 + 노션 DnD + 이모지 풀모달)
+   원본 백업: sidebar.html.bak_v3
+   레이아웃 영속: data/sidebar_layout.json (sidebar_layout context_processor)
+   편집 UI: webapp/static/sidebar_edit.css + sidebar_edit.js #}
+
+<link rel="stylesheet" href="{{ url_for('static', filename='sidebar_edit.css') }}">
+
+<aside class="sidebar sb3" id="sb3-root" data-layout='{{ sidebar_layout|tojson }}' data-badges='{{ sidebar_badge_values|tojson }}' data-active="{{ active|default('') }}">
+  <div class="brand">모음전 자동화</div>
+  <div class="brand-sub">v3 · 멀티 브랜드 · 멀티 마켓</div>
+
+  <div class="sb-modeswitch">
+    <a href="/" class="sb-mode {% if active_app != 'inventory' %}on{% endif %}">
+      <span class="sb-mode-ic" data-icon-edit="mode|bundles" data-icon-current="📦" data-icon-label="모음전 모드">📦</span>
+      <span class="sb-mode-nm">모음전</span>
+    </a>
+    <a href="/inventory/" class="sb-mode {% if active_app == 'inventory' %}on{% endif %}">
+      <span class="sb-mode-ic" data-icon-edit="mode|inventory" data-icon-current="🏷" data-icon-label="재고관리 모드">🏷</span>
+      <span class="sb-mode-nm">재고관리</span>
+    </a>
+  </div>
+
+  {# 독립 항목 (홈) #}
+  <div class="sb3-stand" data-drop-zone="standalone">
+    {% for it in sidebar_layout.standalone %}
+      {% set is_active = (active|default('')) == it.active_key %}
+      {% set badge_val = sidebar_badge_values.get(it.badge_key) if it.badge_key else None %}
+      <div data-url="{{ it.url }}" class="sb3-item{% if is_active %} on{% endif %}"
+         draggable="true" tabindex="0"
+         data-type="item" data-id="{{ it.id }}" data-parent="standalone">
+        <span class="drag-h" title="잡고 끌어 이동">⠿</span>
+        {% if it.icon %}
+          <span class="emo pi" data-act="emoji" style="color:{{ it.icon_color or 'currentColor' }}"><i class="ph-light ph-{{ it.icon }}"></i></span>
+        {% else %}
+          <span class="emo{% if not it.emoji %} empty{% endif %}" data-act="emoji">{{ it.emoji or '·' }}</span>
+        {% endif %}
+        <span class="nm" data-act="rename">{{ it.name }}</span>
+        {% if badge_val and badge_val > 0 %}
+        <span class="badge{% if it.badge_key == 'failed' %} alert{% endif %}">{{ badge_val }}</span>
+        {% endif %}
+        <span class="menu-b" data-act="menu">⋮</span>
+      </div>
+    {% endfor %}
+  </div>
+
+  {# 카테고리 (스테이지) — BoxHero 풍: 좌측 아이콘+이름, 우측 ▼ 토글, 좌측 컬러 보더 제거 #}
+  {% for st in sidebar_layout.stages %}
+  <div class="sb3-stage{% if st.collapsed %} collapsed{% endif %}"
+       draggable="true" tabindex="0"
+       data-type="stage" data-id="{{ st.id }}" data-color="{{ st.color }}">
+    <span class="st-drag" title="잡고 끌어 카테고리 이동">⠿</span>
+    <div class="st-head">
+      {% if st.icon %}
+        <span class="st-emo pi" data-act="emoji" style="color:{{ st.icon_color or 'currentColor' }}"><i class="ph-light ph-{{ st.icon }}"></i></span>
+      {% else %}
+        <span class="st-emo{% if not st.emoji %} empty{% endif %}" data-act="emoji">{{ st.emoji or '·' }}</span>
+      {% endif %}
+      <span class="st-nm" data-act="rename">{{ st.name }}</span>
+      <span class="st-menu" data-act="menu">⋮</span>
+      <span class="st-toggle">{% if st.collapsed %}▶{% else %}▼{% endif %}</span>
+    </div>
+    <div class="st-items" data-drop-zone="{{ st.id }}">
+      {% for it in st['items'] %}
+        {% set is_active = (active|default('')) == it.active_key %}
+        {% set badge_val = sidebar_badge_values.get(it.badge_key) if it.badge_key else None %}
+        <div data-url="{{ it.url }}" class="sb3-item{% if is_active %} on{% endif %}"
+           draggable="true" tabindex="0"
+           data-type="item" data-id="{{ it.id }}" data-parent="{{ st.id }}">
+          <span class="drag-h" title="잡고 끌어 이동">⠿</span>
+          {% if it.icon %}
+            <span class="emo pi" data-act="emoji" style="color:{{ it.icon_color or 'currentColor' }}"><i class="ph-light ph-{{ it.icon }}"></i></span>
+          {% else %}
+            <span class="emo{% if not it.emoji %} empty{% endif %}" data-act="emoji">{{ it.emoji or '·' }}</span>
+          {% endif %}
+          <span class="nm" data-act="rename">{{ it.name }}</span>
+          {% if badge_val and badge_val > 0 %}
+          <span class="badge{% if it.badge_key == 'failed' %} alert{% endif %}">{{ badge_val }}</span>
+          {% endif %}
+          <span class="menu-b" data-act="menu">⋮</span>
+        </div>
+      {% endfor %}
+    </div>
+    <div class="add-item" data-add-to="{{ st.id }}">＋ 항목 추가</div>
+  </div>
+  {% endfor %}
+
+  <div class="add-stage" id="sb3-add-stage">＋ 새 카테고리</div>
+
+  {# 편집 모드 토글 (호버 발견성 보완 — 도움말) #}
+  <button type="button" class="sb3-edit-toggle" id="sb3-edit-toggle" title="편집 가이드 보기">✎ 사이드바 편집 가이드</button>
+</aside>
+
+{# 드롭다운 (호버 ⋮ 클릭) #}
+<div class="sb3-dropdown" id="sb3-dropdown">
+  <div id="sb3-dd-main">
+    <button data-act="emoji"><span class="di">😀</span> 이모지 변경…</button>
+    <button data-act="rename"><span class="di">✎</span> 이름 변경<span class="dk">F2</span></button>
+    <button data-act="color" data-stage-only="1"><span class="di">🎨</span> 색상 변경…</button>
+    <div class="ddiv"></div>
+    <button data-act="up"><span class="di">↑</span> 위로 이동</button>
+    <button data-act="down"><span class="di">↓</span> 아래로 이동</button>
+    <div class="ddiv"></div>
+    <button data-act="dup"><span class="di">📋</span> 복제<span class="dk">⌘D</span></button>
+    <div class="ddiv"></div>
+    <button class="danger" data-act="delete"><span class="di">🗑</span> 삭제<span class="dk">Del</span></button>
+  </div>
+  <div id="sb3-dd-color" class="color-sub" style="display:none">
+    <h6>색상 선택</h6>
+    <div class="sws" id="sb3-color-sws"></div>
+    <input type="text" id="sb3-color-hex" placeholder="#3182F6">
+  </div>
+</div>
+
+{# 우클릭 컨텍스트 #}
+<div class="sb3-ctxmenu" id="sb3-ctxmenu">
+  <button data-act="emoji"><span class="di">😀</span> 이모지<span class="dk">E</span></button>
+  <button data-act="rename"><span class="di">✎</span> 이름<span class="dk">F2</span></button>
+  <button data-act="color" data-stage-only="1"><span class="di">🎨</span> 색상<span class="dk">C</span></button>
+  <div class="cdiv"></div>
+  <button data-act="dup"><span class="di">📋</span> 복제<span class="dk">⌘D</span></button>
+  <div class="cdiv"></div>
+  <button class="danger" data-act="delete"><span class="di">🗑</span> 삭제<span class="dk">Del</span></button>
+</div>
+
+{# 아이콘 풀모달 (이모지 + Phosphor 라인 아이콘 + 색상 선택) #}
+<div class="sb3-modal-overlay" id="sb3-emoji-modal">
+  <div class="emoji-modal">
+    <div class="em-head">
+      <h4>아이콘 선택</h4>
+      <span class="esub" id="sb3-em-subtitle">항목의 아이콘을 변경합니다</span>
+      <button class="ec" id="sb3-em-close">Esc ✕</button>
+    </div>
+    <div class="em-tabs" id="sb3-em-tabs">
+      <button class="on" data-tab="icon">✎ 라인 아이콘</button>
+      <button data-tab="emoji">😀 이모지</button>
+    </div>
+    <div class="em-search">
+      <input id="sb3-em-search" placeholder="🔍 검색 — 한글/영문/키워드 (예: 집·house·홈·home)">
+      <div class="em-style-toggle" id="sb3-em-style-wrap" style="display:none">
+        <button class="on" data-style="color">🌈 색상</button>
+        <button data-style="bw">⚫ 흑백</button>
+      </div>
+    </div>
+    <div class="em-color-row" id="sb3-em-color-row">
+      <span>색상</span>
+      <div class="swr" id="sb3-em-color-sws"></div>
+      <input type="text" id="sb3-em-color-hex" placeholder="#191F28">
+    </div>
+    <div class="em-cats" id="sb3-em-cats"></div>
+    <div class="em-grid icon-mode" id="sb3-em-grid"></div>
+    <div class="em-foot">
+      <span class="ef-stat" id="sb3-em-stat">0 / 0</span>
+      <span style="font-size:11.5px">↑↓ 탐색 · Enter 선택 · Esc 닫기</span>
+      <div class="ef-actions">
+        <button class="btn-rm" id="sb3-em-remove">아이콘 제거</button>
+        <button class="btn-ok" id="sb3-em-confirm">선택</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+{# 토스트 (실행취소) #}
+<div class="sb3-toast" id="sb3-toast">
+  <span class="ti">✎</span>
+  <span id="sb3-toast-msg">변경됨</span>
+  <button class="tb" id="sb3-toast-undo">되돌리기 (⌘Z)</button>
+  <span class="tx" id="sb3-toast-close">✕</span>
+</div>
+
+<script src="{{ url_for('static', filename='sidebar_emoji_data.js') }}"></script>
+<script src="{{ url_for('static', filename='sidebar_icon_data.js') }}"></script>
+<script src="{{ url_for('static', filename='sidebar_edit.js') }}"></script>

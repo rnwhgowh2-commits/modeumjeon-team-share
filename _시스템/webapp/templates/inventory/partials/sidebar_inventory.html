@@ -1,0 +1,155 @@
+{# 박스히어로식 사이드바 1:1 — 그룹 ▾ accordion #}
+<aside class="sidebar">
+  <div class="brand">모음전 자동화</div>
+  <div class="brand-sub">v2 · 재고관리 모드</div>
+
+  {# M3 — 사이드바 brand 아래 큰 카드 2개 모드 스위처 #}
+  <div class="sb-modeswitch">
+    <a href="/" class="sb-mode">
+      <span class="sb-mode-nm">모음전</span>
+    </a>
+    <a href="/inventory/" class="sb-mode on">
+      <span class="sb-mode-nm">재고관리</span>
+    </a>
+  </div>
+
+  <a href="/inventory/" class="nav-item {% if active == 'items' %}active{% endif %}">📋 제품목록</a>
+
+  <div class="nav-group-title">거래</div>
+  <a href="/inventory/inbound" class="nav-item {% if active == 'inbound' %}active{% endif %}">📥 입고</a>
+  <a href="/inventory/outbound" class="nav-item {% if active == 'outbound' %}active{% endif %}">📤 출고</a>
+  <a href="/inventory/adjust" class="nav-item {% if active == 'adjust' %}active{% endif %}">⚖ 조정</a>
+  <a href="/inventory/move" class="nav-item {% if active == 'move' %}active{% endif %}">🔄 이동</a>
+  <a href="/inventory/history" class="nav-item {% if active == 'history' %}active{% endif %}">📜 히스토리</a>
+  <a href="/inventory/pending" class="nav-item {% if active == 'pending' %}active{% endif %}">📝 임시 저장</a>
+
+  <div class="nav-group-title">★ 모음전 차별점</div>
+  <a href="/inventory/matrix" class="nav-item {% if active == 'matrix' %}active{% endif %}">📊 옵션 매트릭스 <span class="nav-badge">R2</span></a>
+  <a href="/inventory/sku-mapping" class="nav-item {% if active == 'sku-mapping' %}active{% endif %}">🔗 SKU 매핑</a>
+  <a href="/inventory/inspection" class="nav-item {% if active == 'inspection' %}active{% endif %}">✓ 입고 검사</a>
+
+  {# ▾ accordion 그룹 — 박스히어로 1:1 #}
+  {% set ps_active = active in ['purchase','sale','return'] %}
+  <div class="nav-group" data-group="ps" data-open="{{ '1' if ps_active else '0' }}">
+    <button type="button" class="nav-group-header" onclick="toggleGroup(this)">
+      <span>💵 구매 및 판매</span><span class="nav-chevron">▾</span>
+    </button>
+    <div class="nav-group-body" style="display:{% if ps_active %}block{% else %}none{% endif %}">
+      <a href="/inventory/purchase" class="nav-sub {% if active == 'purchase' %}active{% endif %}">구매</a>
+      <a href="/inventory/sale" class="nav-sub {% if active == 'sale' %}active{% endif %}">판매</a>
+      <a href="/inventory/return" class="nav-sub {% if active == 'return' %}active{% endif %}">반품</a>
+    </div>
+  </div>
+
+  {% set bc_active = active == 'barcode' %}
+  <div class="nav-group" data-group="bc" data-open="{{ '1' if bc_active else '0' }}">
+    <button type="button" class="nav-group-header" onclick="toggleGroup(this)">
+      <span>바코드 인쇄</span><span class="nav-chevron">▾</span>
+    </button>
+    <div class="nav-group-body" style="display:{% if bc_active %}block{% else %}none{% endif %}">
+      <a href="/inventory/barcode" class="nav-sub {% if active == 'barcode' and 'bundle' not in request.path %}active{% endif %}">제품</a>
+      <a href="/inventory/barcode/bundles" class="nav-sub {% if active == 'barcode' and 'bundle' in request.path %}active{% endif %}">묶음</a>
+    </div>
+  </div>
+
+  {% set ex_active = active in ['alerts','share','count'] %}
+  <div class="nav-group" data-group="ex" data-open="{{ '1' if ex_active else '0' }}">
+    <button type="button" class="nav-group-header" onclick="toggleGroup(this)">
+      <span>➕ 추가기능</span><span class="nav-chevron">▾</span>
+    </button>
+    <div class="nav-group-body" style="display:{% if ex_active %}block{% else %}none{% endif %}">
+      <a href="/inventory/alerts" class="nav-sub {% if active == 'alerts' %}active{% endif %}">재고 부족 알림</a>
+      <a href="/inventory/share" class="nav-sub {% if active == 'share' %}active{% endif %}">재고 공유 링크</a>
+      <a href="/inventory/count" class="nav-sub {% if active == 'count' %}active{% endif %}">재고 조사</a>
+    </div>
+  </div>
+
+  {% set rep_active = active in ['dashboard','reports'] %}
+  <div class="nav-group" data-group="rep" data-open="{{ '1' if rep_active else '0' }}">
+    <button type="button" class="nav-group-header" onclick="toggleGroup(this)">
+      <span>📊 분석</span><span class="nav-chevron">▾</span>
+    </button>
+    <div class="nav-group-body" style="display:{% if rep_active %}block{% else %}none{% endif %}">
+      <a href="/inventory/reports/summary" class="nav-sub {% if active == 'reports' and request.path.endswith('summary') %}active{% endif %}">입출고 요약</a>
+      <a href="/inventory/reports/past-quantity" class="nav-sub {% if active == 'reports' and 'past' in request.path %}active{% endif %}">과거 수량 조회</a>
+      <a href="/inventory/dashboard" class="nav-sub {% if active == 'dashboard' %}active{% endif %}">대시보드</a>
+      <a href="/inventory/reports/inventory" class="nav-sub {% if active == 'reports' and 'inventory' in request.path %}active{% endif %}">재고 분석</a>
+      <a href="/inventory/reports/sales" class="nav-sub {% if active == 'reports' and 'sales' in request.path %}active{% endif %}">매출 분석</a>
+      <a href="/inventory/reports/custom" class="nav-sub {% if active == 'reports' and 'custom' in request.path %}active{% endif %}">커스텀 리포트</a>
+    </div>
+  </div>
+
+  {% set d_active = active in ['data-items','data-bundles','data-locations','data-attrs','data-partners','data-pt','data-import'] %}
+  <div class="nav-group" data-group="d" data-open="{{ '1' if d_active else '0' }}">
+    <button type="button" class="nav-group-header" onclick="toggleGroup(this)">
+      <span>💾 데이터 관리</span><span class="nav-chevron">▾</span>
+    </button>
+    <div class="nav-group-body" style="display:{% if d_active %}block{% else %}none{% endif %}">
+      <a href="/inventory/data/items" class="nav-sub {% if active == 'data-items' %}active{% endif %}">제품</a>
+      <a href="/inventory/data/bundles" class="nav-sub {% if active == 'data-bundles' %}active{% endif %}">묶음제품</a>
+      <a href="/inventory/data/locations" class="nav-sub {% if active == 'data-locations' %}active{% endif %}">위치</a>
+      <a href="/inventory/data/attributes" class="nav-sub {% if active == 'data-attrs' %}active{% endif %}">속성</a>
+      <a href="/inventory/data/partners" class="nav-sub {% if active == 'data-partners' %}active{% endif %}">거래처</a>
+      <a href="/inventory/data/price-templates" class="nav-sub {% if active == 'data-pt' %}active{% endif %}">가격 템플릿</a>
+      <a href="/inventory/data/boxhero-import" class="nav-sub {% if active == 'data-import' %}active{% endif %}">박스히어로 import</a>
+    </div>
+  </div>
+
+  {% set s_active = active == 'settings' %}
+  <div class="nav-group" data-group="s" data-open="{{ '1' if s_active else '0' }}">
+    <button type="button" class="nav-group-header" onclick="toggleGroup(this)">
+      <span>⚙ 설정</span><span class="nav-chevron">▾</span>
+    </button>
+    <div class="nav-group-body" style="display:{% if s_active %}block{% else %}none{% endif %}">
+      <a href="/inventory/settings" class="nav-sub {% if active == 'settings' and request.path.endswith('settings') %}active{% endif %}">팀 설정</a>
+      <a href="/inventory/settings/notifications" class="nav-sub {% if active == 'settings' and 'notification' in request.path %}active{% endif %}">알림 설정</a>
+      <a href="/inventory/settings#ps" class="nav-sub">구매 및 판매</a>
+      <a href="/inventory/settings#integ" class="nav-sub">연동 설정</a>
+    </div>
+  </div>
+
+  <style>
+    /* 사이드바 — 그룹 헤더·sub 폰트 크기 정렬 (.nav-item 과 동일 비율) */
+    .nav-group { margin: 2px 0; }
+    .nav-group-header {
+      display:flex; width:100%; align-items:center; justify-content:space-between;
+      padding: 12px 14px; background: transparent; border: none; cursor: pointer;
+      color: var(--n700, #4E5968); font-size: 15.5px; font-weight: 500;
+      font-family: inherit; border-radius: 10px; gap: 12px;
+    }
+    .nav-group-header > span:first-child { flex: 1; text-align: left; }
+    .nav-group-header:hover { background: var(--n100, #F2F4F6); color: #000; }
+    .nav-chevron { transition: transform 0.2s; font-size: 13px; flex-shrink: 0; }
+    .nav-group[data-open="0"] .nav-chevron { transform: rotate(-90deg); }
+    .nav-group-body { padding: 2px 0 4px; }
+    .nav-sub {
+      display: block; padding: 9px 14px 9px 38px;
+      color: var(--n600, #6B7684); text-decoration: none;
+      font-size: 14px; font-weight: 500; border-radius: 8px;
+      margin: 1px 0;
+    }
+    .nav-sub:hover { background: var(--n100, #F2F4F6); color: #000; }
+    .nav-sub.active { color: #4F67FF; background: rgba(79,103,255,0.1); font-weight: 700; }
+  </style>
+  <script>
+    function toggleGroup(btn) {
+      const grp = btn.parentElement;
+      const body = grp.querySelector('.nav-group-body');
+      const open = grp.dataset.open === '1';
+      grp.dataset.open = open ? '0' : '1';
+      body.style.display = open ? 'none' : 'block';
+      try { localStorage.setItem('navgrp_' + grp.dataset.group, open ? '0' : '1'); } catch(e) {}
+    }
+    (function restore(){
+      document.querySelectorAll('.nav-group').forEach(g => {
+        try {
+          const v = localStorage.getItem('navgrp_' + g.dataset.group);
+          if (v !== null) {
+            g.dataset.open = v;
+            g.querySelector('.nav-group-body').style.display = v === '1' ? 'block' : 'none';
+          }
+        } catch(e) {}
+      });
+    })();
+  </script>
+</aside>

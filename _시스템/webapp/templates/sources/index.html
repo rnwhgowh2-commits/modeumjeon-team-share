@@ -1,0 +1,118 @@
+{% extends 'base.html' %}
+{% block title %}소싱처 운영센터 — 모음전 자동화{% endblock %}
+{% block content %}
+<section class="screen active" id="screen-sources">
+  <h1>📍 소싱처 운영센터</h1>
+  <p class="greeting">모든 URL의 단일 진실 원천. 같은 URL은 한 번만 수집됩니다.</p>
+
+  {# KPI #}
+  <div class="card" style="margin-bottom:18px">
+    <div style="display:flex;gap:24px;flex-wrap:wrap;align-items:center">
+      <div>
+        <div style="font-size:12px;color:var(--n500)">전체 URL</div>
+        <div style="font-size:24px;font-weight:700">{{ kpi.total }}</div>
+      </div>
+      <div>
+        <div style="font-size:12px;color:var(--n500)">🟢 정상</div>
+        <div style="font-size:24px;font-weight:700;color:var(--success, #16a34a)">{{ kpi.ok }}</div>
+      </div>
+      <div>
+        <div style="font-size:12px;color:var(--n500)">🔴 에러</div>
+        <div style="font-size:24px;font-weight:700;color:var(--danger, #dc2626)">{{ kpi.error }}</div>
+      </div>
+      <div>
+        <div style="font-size:12px;color:var(--n500)">⏳ 미수집</div>
+        <div style="font-size:24px;font-weight:700;color:var(--n400)">{{ kpi.pending }}</div>
+      </div>
+      {% if kpi.no_crawler %}
+      <div>
+        <div style="font-size:12px;color:var(--n500)">⚪ 크롤러 미지원</div>
+        <div style="font-size:24px;font-weight:700;color:var(--n400)">{{ kpi.no_crawler }}</div>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+
+  {# 검색 + 신규 사이트 #}
+  <div class="qsearch" style="margin-bottom:14px">
+    <span class="qsearch-icon">🔍</span>
+    <input id="src-search" placeholder="URL · 사이트 · 상태 검색..."
+           oninput="filterSources(this.value)" />
+  </div>
+
+  {% if not groups %}
+  <div class="card" style="padding:32px;text-align:center;color:var(--n500)">
+    아직 등록된 소싱처 URL이 없어요. 모음전을 만들어 URL을 입력하면 자동으로 여기에 등록됩니다.
+  </div>
+  {% endif %}
+
+  {% for grp in groups %}
+  <div class="bundle-section" data-site="{{ grp.site_key }}">
+    <div class="bundle-section-head">
+      <span class="bundle-section-num done">{{ grp.count }}</span>
+      <h2>{{ grp.site_label }}</h2>
+    </div>
+    <p class="h2-desc">{{ grp.count }}개 URL</p>
+
+    {% for it in grp.entries %}
+    <div class="card" data-search="{{ grp.site_label }} {{ it.url }} {{ it.status_label }}">
+      <div style="display:flex;align-items:flex-start;gap:14px">
+        <div style="flex:1;min-width:0">
+          <div class="mono" style="font-size:13px;word-break:break-all;margin-bottom:6px">{{ it.url }}</div>
+          {% if it.product_name %}
+          <div style="font-size:13px;color:var(--n700);margin-bottom:4px">{{ it.product_name }}</div>
+          {% endif %}
+          <div style="font-size:12.5px;color:var(--n500);margin-bottom:6px">
+            {{ it.status_emoji }} {{ it.status_label }}
+            {% if it.last_fetched_at %} · 마지막 fetch {{ it.last_fetched_at.strftime('%Y-%m-%d %H:%M') }}{% endif %}
+            {% if it.last_price %} · {{ '{:,}'.format(it.last_price) }}원{% endif %}
+            {% if it.last_stock is not none %} · 재고 {{ it.last_stock }}{% endif %}
+          </div>
+          <div style="font-size:12px;color:var(--n600)">
+            <span class="badge {% if it.shared_with > 1 %}badge-info{% else %}badge-ok{% endif %}">
+              사용 모음전 {{ it.shared_with }}개
+            </span>
+          </div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:6px">
+          <a class="btn btn-sm" href="/sources/{{ it.id }}">상세 →</a>
+          <button class="btn btn-sm" data-action="refetch-source" data-id="{{ it.id }}">수동 fetch</button>
+        </div>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  {% endfor %}
+</section>
+
+<script>
+function filterSources(q) {
+  const norm = (q || '').trim().toLowerCase();
+  document.querySelectorAll('.bundle-section[data-site]').forEach(sec => {
+    let visibleCount = 0;
+    sec.querySelectorAll('.card[data-search]').forEach(c => {
+      const text = c.getAttribute('data-search').toLowerCase();
+      const show = !norm || text.indexOf(norm) >= 0;
+      c.style.display = show ? '' : 'none';
+      if (show) visibleCount++;
+    });
+    sec.style.display = visibleCount === 0 && norm ? 'none' : '';
+  });
+}
+
+document.querySelectorAll('[data-action="refetch-source"]').forEach(btn => {
+  btn.addEventListener('click', async () => {
+    const id = btn.getAttribute('data-id');
+    btn.disabled = true; btn.textContent = '...';
+    try {
+      const r = await fetch(`/sources/${id}/refetch`, {method: 'POST'});
+      const j = await r.json();
+      btn.textContent = j.ok ? '✓ 요청됨' : '✗ 실패';
+    } catch (e) {
+      btn.textContent = '✗ 오류';
+    }
+    setTimeout(() => { btn.disabled = false; btn.textContent = '수동 fetch'; }, 2000);
+  });
+});
+</script>
+{% endblock %}

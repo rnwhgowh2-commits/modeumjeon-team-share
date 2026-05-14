@@ -1,0 +1,77 @@
+# -*- coding: utf-8 -*-
+"""쿠팡 고객문의 (online inquiries + call center inquiries) thin wrapper.
+
+공식 엔드포인트 (developers.coupangcorp.com — 2026-04-23 확인):
+  GET  /v2/providers/openapi/apis/api/v5/vendors/{vendorId}/onlineInquiries
+  POST /v2/providers/openapi/apis/api/v4/vendors/{vendorId}/callCenterInquiries/{inquiryId}/replies
+
+제약:
+  - fetch_inquiries: inquiryStartAt ~ inquiryEndAt **최대 7일** 권장 (타임아웃 위험)
+  - reply_inquiry: inquiryStatus=progress 이고 partnerTransferStatus=requestAnswer 일 때만 가능
+  - request body 필드 일부 미확인 → 실 호출 실패 시 `discussion_queue` 에 이관
+"""
+from __future__ import annotations
+
+import os
+from datetime import datetime
+from typing import Optional
+
+from shared.platforms.coupang.client import CoupangClient
+
+
+_VENDOR_ID_ENV = "COUPANG_VENDOR_ID"
+
+
+def _vendor_id() -> str:
+    vid = os.getenv(_VENDOR_ID_ENV, "")
+    if not vid:
+        raise ValueError(f"{_VENDOR_ID_ENV} 미설정")
+    return vid
+
+
+def fetch_online_inquiries(since: datetime, until: datetime,
+                            client: Optional[CoupangClient] = None,
+                            answered_type: str = "NOANSWER",
+                            page_size: int = 10,
+                            page_num: int = 1) -> dict:
+    """온라인 고객문의 조회.
+
+    answered_type: NOANSWER / ANSWERED / ALL
+    """
+    vid = _vendor_id()
+    client = client or CoupangClient()
+    path = (f"/v2/providers/openapi/apis/api/v5/vendors/{vid}/onlineInquiries")
+    params = {
+        "vendorId":       vid,
+        "inquiryStartAt": since.strftime("%Y-%m-%d"),
+        "inquiryEndAt":   until.strftime("%Y-%m-%d"),
+        "answeredType":   answered_type,
+        "pageSize":       page_size,
+        "pageNum":        page_num,
+    }
+    return client.request("GET", path, query=params)
+
+
+def reply_online_inquiry(inquiry_id: str, content: str,
+                          vendor_user_id: Optional[str] = None,
+                          client: Optional[CoupangClient] = None) -> dict:
+    """콜센터 문의 답변 (POST).
+
+    vendor_user_id: 답변자 ID (env COUPANG_VENDOR_USER_ID fallback).
+
+    body 필드는 공식 docs 에서 일부만 확인. 실 호출 실패 시 content 명 교정 필요.
+    """
+    vid = _vendor_id()
+    user = vendor_user_id or os.getenv("COUPANG_VENDOR_USER_ID", "")
+    client = client or CoupangClient()
+    path = (f"/v2/providers/openapi/apis/api/v4/vendors/{vid}"
+            f"/callCenterInquiries/{inquiry_id}/replies")
+    body = {
+        "vendorId":     vid,
+        "inquiryId":    inquiry_id,
+        "content":      content,
+        "replyType":    "ANSWER",
+        "parentAnswerId": 0,
+        "vendorUserId": user,
+    }
+    return client.request("POST", path, body=body)

@@ -1,0 +1,1352 @@
+{% extends 'base.html' %}
+{% block title %}{{ bundle.model_code }} 편집 — 모음전 자동화{% endblock %}
+{% block content %}
+<section class="screen active" id="screen-bundle">
+  <a class="btn btn-ghost" href="/bundles">← 모음전 목록</a>
+
+  {# C9 — 헤더 4-col: thumb / info / F2 mini chart / actions #}
+  {% set _models = cluster_models or [{'model_code': bundle.model_code, 'model_name_display': bundle.model_code}] %}
+  {% set _is_cluster = (_models|length) > 1 %}
+  <div class="bundle-header-v6">
+    <div class="bh-top">
+      {# v32 — 큰 아이콘 picker 트리거 (호버 ✎ + 우클릭) #}
+      <div class="bh-thumb"
+           data-icon-edit="model|{{ bundle.model_code }}"
+           data-icon-current="{% if bundle.category == '의류' %}👕{% else %}👟{% endif %}"
+           data-icon-label="{{ bundle.model_code }}">{% if bundle.category == '의류' %}👕{% else %}👟{% endif %}</div>
+      <div style="flex:1;min-width:0">
+        <h1 class="bh-title">{{ bundle.model_code }}</h1>
+        <div class="bh-meta">
+          <span class="chip-v3 chip-brand">{{ bundle.brand or '—' }}</span>
+          <span>{{ bundle.category or '신발' }} · {{ options|length }} 옵션</span>
+          <span id="bh-src-summary" style="color:var(--n500)">🛒 — · —</span>
+        </div>
+        {% if _is_cluster %}
+        <div class="bh-model-chips" style="margin-top:10px;display:flex;gap:6px;flex-wrap:wrap">
+          <button type="button" class="bh-model-chip on" data-model="all">전체 {{ _models|length }}모델</button>
+          {% for mc in _models %}
+          <button type="button" class="bh-model-chip" data-model="{{ mc.model_code }}">{{ mc.model_code }}</button>
+          {% endfor %}
+        </div>
+        {% endif %}
+      </div>
+      <div class="bh-chart-mini" id="bh-chart-mini">
+        <div class="bcm-h">
+          <span class="bcm-title">📈 30일 가격 추이</span>
+          <span class="bcm-mode">색상별 평균</span>
+        </div>
+        <svg viewBox="0 0 200 60" preserveAspectRatio="none" style="width:100%;flex:1;display:block">
+          <polyline points="0,30 30,28 60,32 90,25 120,22 150,20 180,18 200,15" fill="none" stroke="#3182F6" stroke-width="1.8"/>
+          <polyline points="0,40 30,38 60,40 90,35 120,32 150,30 180,28 200,26" fill="none" stroke="#191F28" stroke-width="1.8"/>
+          <polyline points="0,20 30,18 60,22 90,15 120,12 150,10 180,8 200,5" fill="none" stroke="#8B95A1" stroke-width="1.8"/>
+          <polyline points="0,35 30,33 60,35 90,30 120,28 150,25 180,22 200,20" fill="none" stroke="#B0B8C1" stroke-width="1.8"/>
+        </svg>
+        <div class="bcm-legend">
+          <span><span class="bcm-dot" style="background:#3182F6"></span>그레이</span>
+          <span><span class="bcm-dot" style="background:#191F28"></span>블랙</span>
+          <span><span class="bcm-dot" style="background:#8B95A1"></span>화이트</span>
+          <span><span class="bcm-dot" style="background:#B0B8C1"></span>크림</span>
+        </div>
+      </div>
+      <div class="bh-actions" style="flex-direction:column;align-items:stretch;gap:6px;min-width:260px">
+        <div style="display:flex;gap:6px;justify-content:flex-end">
+          <button class="btn btn-sm" data-action="duplicate-bundle">📄 복제</button>
+          <button class="btn btn-sm" style="color:var(--danger)" data-action="delete-bundle">🗑 삭제</button>
+          <button class="btn btn-primary btn-sm" data-action="save-bundle">💾 저장</button>
+        </div>
+        <button class="run-btn large" data-action="bundle-run-now" data-code="{{ bundle.model_code }}" data-phase="full" style="width:100%">
+          <span class="ic">▶</span> 이 모음전 지금 전체 실행
+        </button>
+        <div class="run-sub" style="width:100%">
+          <button class="run-sub-btn crawl" data-action="bundle-run-now" data-code="{{ bundle.model_code }}" data-phase="crawl">크롤링 실행</button>
+          <button class="run-sub-btn upload" data-action="bundle-run-now" data-code="{{ bundle.model_code }}" data-phase="upload"><span class="ic">📤</span> 업로드 실행</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  {# E1 — 헤더 상태 카드 (클릭 시 펼침) + 최근 이력 5건 통합 #}
+  <div class="b-status-grid">
+    <details class="b-stat-card crawl b-stat-acc">
+      <summary>
+        <div class="b-stat-head">마지막 크롤링 <span class="b-stat-toggle">▼</span></div>
+        <div class="b-stat-val">{{ status_cards.last_crawled_ago }}{% if status_cards.last_crawled_at %} <span class="ago">· {{ status_cards.last_crawled_at }}</span>{% endif %}</div>
+      </summary>
+      <div class="b-stat-detail">
+        <div class="b-stat-detail-h">최근 크롤링 5건</div>
+        {% set crawl_runs = (run_history or [])|selectattr('phase','equalto','crawl')|list %}
+        {% if crawl_runs %}
+          {% for r in crawl_runs[:5] %}
+          <div class="b-hist-row">
+            <span class="b-hist-pill crawl">크롤</span>
+            <span class="b-hist-msg">{{ r.summary or r.status or '실행' }}</span>
+            <span class="b-hist-status {{ 'ok' if r.status == 'ok' else ('fail' if r.status == 'fail' else '') }}">{% if r.status == 'ok' %}✓{% elif r.status == 'fail' %}⚠{% else %}{{ r.status }}{% endif %}</span>
+            <span class="b-hist-time">{{ r.run_at_short or r.run_at or '—' }}</span>
+          </div>
+          {% endfor %}
+        {% else %}
+          <div class="b-hist-empty">아직 크롤링 이력이 없어요.</div>
+        {% endif %}
+        <a class="b-hist-all" href="#tab=run" onclick="event.stopPropagation();document.querySelector('[data-tab=&quot;run&quot;]')?.click();return false;">전체 이력 보기 →</a>
+      </div>
+    </details>
+    <details class="b-stat-card upload b-stat-acc">
+      <summary>
+        <div class="b-stat-head"><span class="ic">📤</span> 마지막 마켓 업로드 <span class="b-stat-toggle">▼</span></div>
+        <div class="b-stat-val">{{ status_cards.last_uploaded_ago }}{% if status_cards.last_uploaded_at %} <span class="ago">· {{ status_cards.last_uploaded_at }}</span>{% endif %}</div>
+      </summary>
+      <div class="b-stat-detail">
+        <div class="b-stat-detail-h">최근 업로드 5건</div>
+        {% set upload_runs = (run_history or [])|selectattr('phase','equalto','upload')|list %}
+        {% if upload_runs %}
+          {% for r in upload_runs[:5] %}
+          <div class="b-hist-row">
+            <span class="b-hist-pill upload">업로드</span>
+            <span class="b-hist-msg">{{ r.summary or r.status or '실행' }}</span>
+            <span class="b-hist-status {{ 'ok' if r.status == 'ok' else ('fail' if r.status == 'fail' else '') }}">{% if r.status == 'ok' %}✓{% elif r.status == 'fail' %}⚠{% else %}{{ r.status }}{% endif %}</span>
+            <span class="b-hist-time">{{ r.run_at_short or r.run_at or '—' }}</span>
+          </div>
+          {% endfor %}
+        {% else %}
+          <div class="b-hist-empty">아직 업로드 이력이 없어요.</div>
+        {% endif %}
+        <a class="b-hist-all" href="#tab=run" onclick="event.stopPropagation();document.querySelector('[data-tab=&quot;run&quot;]')?.click();return false;">전체 이력 보기 →</a>
+      </div>
+    </details>
+  </div>
+  <style>
+    .b-stat-acc { cursor: pointer; transition: .15s; }
+    .b-stat-acc:hover { background: #F9FAFB; border-color: var(--primary, #3182F6); box-shadow: 0 2px 8px rgba(49,130,246,.1); }
+    .b-stat-acc[open] { background: #fff; border-color: var(--primary, #3182F6); box-shadow: 0 4px 14px rgba(49,130,246,.15); }
+    .b-stat-acc summary { list-style: none; padding: 0; cursor: pointer; }
+    .b-stat-acc summary::-webkit-details-marker { display: none; }
+    .b-stat-acc summary::marker { display: none; content: ''; }
+    .b-stat-toggle { float: right; color: #6B7684; font-size: 13px; font-weight: 700; transition: transform .15s; padding: 2px 8px; background: var(--n100, #f2f4f6); border-radius: 5px; }
+    .b-stat-acc[open] .b-stat-toggle { transform: rotate(180deg); background: var(--primary, #3182F6); color: #fff; }
+    .b-stat-acc:hover .b-stat-toggle { background: var(--primary-tint, #E8F2FF); color: var(--primary, #3182F6); }
+    .b-stat-detail { background: var(--n50, #F9FAFB); border-radius: 10px; padding: 14px 16px; }
+    .b-stat-detail { margin-top: 14px; }
+    .b-stat-detail-h { font-size: 13px; font-weight: 700; color: #4E5968; margin-bottom: 10px; display: flex; align-items: center; gap: 6px; }
+    .b-stat-detail-h::before { content: '📜'; font-size: 14px; }
+    .b-hist-row { display: grid; grid-template-columns: auto 1fr auto auto; gap: 10px; align-items: center; padding: 7px 0; border-bottom: 1px solid #f2f4f6; font-size: 12.5px; }
+    .b-hist-row:last-of-type { border-bottom: none; }
+    .b-hist-pill { padding: 2px 8px; border-radius: 5px; font-weight: 700; font-size: 10.5px; }
+    .b-hist-pill.crawl { background: #dbeafe; color: #1d4ed8; }
+    .b-hist-pill.upload { background: #dcfce7; color: #15803d; }
+    .b-hist-msg { color: #4E5968; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .b-hist-status { font-weight: 700; font-size: 11.5px; }
+    .b-hist-status.ok { color: #15803d; } .b-hist-status.fail { color: #dc2626; }
+    .b-hist-time { color: #9CA3AF; font-size: 11px; font-family: ui-monospace, monospace; }
+    .b-hist-empty { padding: 16px 0; color: #9CA3AF; font-size: 12.5px; text-align: center; }
+    .b-hist-all { display: block; margin-top: 10px; font-size: 12.5px; color: #3182F6; font-weight: 700; text-decoration: none; text-align: right; }
+    .b-hist-all:hover { text-decoration: underline; }
+    /* status 카드 ↔ 가로탭 사이 굵은 점선 divider */
+    .bh-section-divider { margin: 40px 0 36px; border: 0; border-top: 4px dashed #B0B8C1; }
+  </style>
+
+  <hr class="bh-section-divider">
+
+  <div class="bundle-layout">
+    <div class="bundle-content">
+
+      {# F2 — Step indicator 6단계 (번호 + 체크 + 연결선) #}
+      <div class="bundle-tabs bundle-steps" id="bundle-tabs">
+        <button class="bundle-tab bundle-step on" data-tab="basic" data-step="1" type="button">
+          <span class="step-num">1</span><span class="step-name">기본</span>
+        </button>
+        <span class="step-line"></span>
+        <button class="bundle-tab bundle-step" data-tab="url" data-step="2" type="button">
+          <span class="step-num">2</span><span class="step-name">소싱처 URL</span>
+        </button>
+        <span class="step-line"></span>
+        <button class="bundle-tab bundle-step" data-tab="tpl" data-step="3" type="button">
+          <span class="step-num">3</span><span class="step-name">템플릿</span>
+        </button>
+        <span class="step-line"></span>
+        <button class="bundle-tab bundle-step" data-tab="opt" data-step="4" type="button">
+          <span class="step-num">4</span><span class="step-name">옵션</span>
+        </button>
+        <span class="step-line"></span>
+        <button class="bundle-tab bundle-step" data-tab="mkt" data-step="5" type="button">
+          <span class="step-num">5</span><span class="step-name">마켓</span>
+        </button>
+      </div>
+
+      {# B6 — 활성 단계 안내 banner (탭 ↔ 콘텐츠 사이 명확 구분) #}
+      <div class="step-banner" id="step-banner">
+        <span class="step-banner-pill" id="step-banner-pill">1단계</span>
+        <span class="step-banner-text" id="step-banner-text">기본 정보 — 모음전 코드·카테고리·노출명 입력</span>
+      </div>
+
+      {# Section 1: 기본 정보 #}
+      <div class="bundle-section" id="sec-basic" data-tab="basic">
+        <div class="bundle-section-head">
+          <span class="bundle-section-num done">1</span>
+          <h2>ⓘ 기본 정보</h2>
+        </div>
+        <div class="field">
+          <label class="field-label">모음전 코드 <span style="color:var(--n400);font-weight:400;font-size:11px">(변경 시 옵션·이력·매핑 모두 cascade)</span></label>
+          <div style="display:flex;gap:8px">
+            <input id="bundle-code-input" class="field-input" value="{{ bundle.model_code }}" data-original="{{ bundle.model_code }}" />
+            <button type="button" class="btn" data-action="rename-bundle">코드 변경</button>
+          </div>
+        </div>
+        <div class="field">
+          <label class="field-label">카테고리</label>
+          <select class="field-input" name="category">
+            <option value="신발" {% if bundle.category == '신발' %}selected{% endif %}>신발</option>
+            <option value="의류" {% if bundle.category == '의류' %}selected{% endif %}>의류</option>
+            <option value="가방" {% if bundle.category == '가방' %}selected{% endif %}>가방</option>
+          </select>
+        </div>
+        <div class="field"><label class="field-label">마켓 노출명</label><input class="field-input" name="model_name_display" value="{{ bundle.model_name_display or bundle.model_name_raw }}" /></div>
+      </div>
+
+      {# Section 2: 사이트 URL #}
+      <div class="bundle-section" id="sec-url" data-tab="url">
+        <div class="bundle-section-head">
+          <span class="bundle-section-num done">2</span>
+          <h2>📍 사이트 소싱처 URL</h2>
+        </div>
+        {% macro share_badge(count) -%}
+          {% if count > 1 %}<span class="badge badge-info" style="margin-left:8px">{{ count }}개 모음전 공유</span>{% elif count == 1 %}<span class="badge badge-ok" style="margin-left:8px">단독 사용</span>{% endif %}
+        {%- endmacro %}
+        {# S8 — Tree 구조 (소싱처 펼침 → URL 들). 다중 URL placeholder. #}
+        {% macro url_tree_node(key, label, brand_class, glyph) -%}
+          {% set _val = bundle|attr('url_' + key) %}
+          {% set _has = _val and _val|length > 0 %}
+          {% set _urls = source_urls.get(key, []) %}
+          {% set _cnt = _urls|length %}
+          <details class="src-tree-node" open data-src-key="{{ key }}">
+            <summary class="src-tree-head">
+              <span class="src-tree-toggle">▶</span>
+              <span class="brand-app-logo {{ brand_class }}">{{ glyph }}</span>
+              <span class="src-tree-name">{{ label }}</span>
+              <span class="src-tree-count" data-cnt="{{ key }}">({{ _cnt }})</span>
+              {{ share_badge(share_counts[key]) }}
+            </summary>
+            <div class="src-tree-children" data-src-children="{{ key }}">
+              {% if _urls %}
+                {% for u in _urls %}
+                <div class="src-tree-url" data-url-row data-url-id="{{ u.id or '' }}">
+                  <span class="src-tree-rail">└</span>
+                  <input class="field-input mono src-url-input" data-src-key="{{ key }}" data-url-id="{{ u.id or '' }}"
+                         value="{{ u.url }}" placeholder="URL 입력" />
+                  {% if u.url %}<a class="src-tree-open-btn" href="{{ u.url }}" target="_blank" rel="noopener" title="새 탭에서 열기">↗</a>{% endif %}
+                  {% if u.id %}<button type="button" class="src-tree-del-btn" data-del-url-id="{{ u.id }}" title="삭제">✕</button>{% endif %}
+                </div>
+                {% endfor %}
+              {% else %}
+                <div class="src-tree-url" data-url-row data-url-id="">
+                  <span class="src-tree-rail">└</span>
+                  <input class="field-input mono src-url-input" data-src-key="{{ key }}" data-url-id=""
+                         value="" placeholder="URL 입력 → Enter 또는 + 버튼" />
+                </div>
+              {% endif %}
+              <button type="button" class="src-tree-add-btn" data-src-key="{{ key }}" data-src-label="{{ label }}">
+                <span class="src-tree-rail">└</span>
+                <span>＋ {{ label }} URL 추가</span>
+              </button>
+            </div>
+          </details>
+        {%- endmacro %}
+        <div class="src-tree">
+          {# source_registry 기반 동적 렌더 — 신규 소싱처 추가 시 source_registry.py 한 줄만 추가 #}
+          {% for src in source_registry %}
+            {{ url_tree_node(src.key, src.label, src.brand, src.glyph) }}
+          {% endfor %}
+        </div>
+        <style>
+          .src-tree {
+            background: var(--surface, #fff); border: 1px solid var(--n200, #e5e8eb);
+            border-radius: 11px; padding: 6px 4px; font-size: var(--fs-caption, 15px);
+          }
+          .src-tree-node {
+            border-radius: 6px; padding: 0;
+            border-bottom: 1px solid var(--n100, #f2f4f6);
+          }
+          .src-tree-node:last-child { border-bottom: none; }
+          .src-tree-head {
+            display: flex; align-items: center; gap: 9px; padding: 10px 12px;
+            cursor: pointer; user-select: none; list-style: none;
+          }
+          .src-tree-head::-webkit-details-marker { display: none; }
+          .src-tree-head:hover { background: var(--n100, #f9fafb); }
+          .src-tree-toggle {
+            font-size: 9px; color: var(--n500, #8B95A1);
+            display: inline-block; transition: transform .15s; width: 10px;
+          }
+          .src-tree-node[open] > .src-tree-head .src-tree-toggle { transform: rotate(90deg); color: var(--n900, #191F28); }
+          .src-tree-name {
+            font-size: var(--fs-h3, 19px); font-weight: 700; color: var(--n900, #191F28);
+          }
+          .src-tree-count {
+            font-family: ui-monospace, monospace; font-size: 11.5px;
+            color: var(--n500, #8B95A1); margin-left: 1px;
+          }
+          .src-tree-open {
+            margin-left: auto; color: var(--primary, #3182F6); text-decoration: none;
+            font-size: 14px; padding: 1px 7px; border-radius: 4px;
+          }
+          .src-tree-open:hover { background: var(--primary-tint, #E8F2FF); }
+          .src-tree-children {
+            padding: 4px 12px 11px 36px;
+            display: flex; flex-direction: column; gap: 5px;
+          }
+          .src-tree-url, .src-tree-add {
+            display: flex; align-items: center; gap: 9px;
+          }
+          .src-tree-rail {
+            font-family: ui-monospace, monospace; color: var(--n300, #d1d6db);
+            font-size: 13px; flex-shrink: 0; width: 14px;
+          }
+          .src-tree-url .src-url-input { flex: 1; }
+          /* G1 — 다중 URL 행 + 삭제 버튼 */
+          .src-tree-open-btn {
+            color: var(--primary, #3182F6); text-decoration: none;
+            font-size: 14px; padding: 4px 9px; border-radius: 5px;
+            border: 1px solid var(--n200, #e5e8eb); background: #fff;
+          }
+          .src-tree-open-btn:hover { background: var(--primary-tint, #E8F2FF); }
+          .src-tree-del-btn {
+            background: #fff; border: 1px solid #fecaca; color: #dc2626;
+            padding: 5px 10px; border-radius: 5px; cursor: pointer;
+            font-family: var(--font); font-weight: 700; font-size: 13px;
+          }
+          .src-tree-del-btn:hover { background: #fee2e2; border-color: #dc2626; }
+          /* 소싱처별 URL 추가 활성 버튼 */
+          .src-tree-add-btn {
+            display: flex; align-items: center; gap: 9px;
+            background: #F0FDF4; border: 1px dashed #86EFAC;
+            color: #15803d; font-size: 13px; font-weight: 600;
+            padding: 7px 10px; border-radius: 6px;
+            cursor: pointer; font-family: var(--font); transition: .15s;
+            margin-top: 2px;
+          }
+          .src-tree-add-btn:hover { background: #DCFCE7; border-color: #15803d; color: #14532d; }
+          .src-tree-add-btn .src-tree-rail { color: #86EFAC; }
+          .src-tree-add-btn[data-saving] { opacity: .6; cursor: wait; }
+        </style>
+        {# v6 Phase 5.4 (E5) — URL Auto-detect 패널 (2026-05-08).
+           5개 표준 소싱처 외 도메인 입력 시 노출 → 신규 소싱처 추가 제안. #}
+        <div id="src-detect-panel" class="src-detect-panel" hidden>
+          <div class="src-detect-head">
+            <span class="src-detect-icon">🔍</span>
+            <div>
+              <div class="src-detect-title">신규 도메인 검출</div>
+              <div class="src-detect-msg" id="src-detect-msg">—</div>
+            </div>
+          </div>
+          <div class="src-detect-actions">
+            <button type="button" class="btn btn-sm btn-primary" id="src-detect-add-btn">✓ 새 소싱처로 추가</button>
+            <button type="button" class="btn btn-sm" id="src-detect-dismiss-btn">무시</button>
+          </div>
+        </div>
+        <style>
+          .src-detect-panel { background:linear-gradient(135deg,#fff8e6,#fff); border:2px dashed #f59e0b; border-radius:9px; padding:11px 14px; margin-top:10px; display:flex; align-items:center; gap:12px; flex-wrap:wrap; }
+          .src-detect-head { display:flex; align-items:center; gap:10px; flex:1; min-width:200px; }
+          .src-detect-icon { font-size:22px; }
+          .src-detect-title { font-size:13px; font-weight:700; color:#92400e; }
+          .src-detect-msg { font-size:11.5px; color:var(--n700); margin-top:2px; }
+          .src-detect-actions { display:flex; gap:6px; }
+        </style>
+        <div style="margin-top:10px;display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap">
+          <div style="font-size:12px;color:var(--n500)">💡 <a href="/sources" style="color:inherit;text-decoration:underline">소싱처 운영센터</a>에서 모든 URL 의 fetch 상태·시계열 통합 관리</div>
+          <button type="button" class="btn btn-sm btn-primary" id="sync-urls-btn" style="white-space:nowrap">💾 URL 저장 + 옵션에 동기화</button>
+        </div>
+        <div style="margin-top:6px;font-size:11px;color:var(--n500)">💡 위 버튼 = 입력한 URL 들을 <strong>지금 저장 + 모든 옵션에 즉시 전파</strong> (저장 버튼 따로 안 눌러도 됨). 우상단 [저장] 버튼도 동일하게 작동.</div>
+      </div>
+
+      {# Section 3: 적용 템플릿 — V4 Tile (검정 폰트 볼드 큰 카드) #}
+      <div class="bundle-section" id="sec-tpl" data-tab="tpl">
+        <div class="bundle-section-head">
+          <span class="bundle-section-num {% if applied_price and applied_color and applied_size %}done{% endif %}">3</span>
+          <h2>⚙ 적용 템플릿</h2>
+        </div>
+
+        <style>
+          /* H3 — Row stacked (제목 18px + 메타 13px) */
+          #sec-tpl .tpl-tile-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-top: 8px; }
+          @media (max-width: 900px) { #sec-tpl .tpl-tile-grid { grid-template-columns: 1fr; } }
+          #sec-tpl .field { margin-bottom: 0; }
+          #sec-tpl .field-label {
+            font-size: 12.5px; color: var(--n500, #8B95A1); font-weight: 700;
+            letter-spacing: .04em; text-transform: uppercase; margin-bottom: 8px; display: block;
+          }
+          #sec-tpl .sdrop-wrap { position: relative; }
+          #sec-tpl .sdrop-trigger {
+            min-height: 90px; padding: 16px 20px;
+            background: var(--surface, #fff);
+            border: 1.5px solid var(--n200, #e5e8eb);
+            border-radius: 10px;
+            display: flex; flex-direction: column; align-items: stretch; justify-content: flex-start;
+            gap: 8px; cursor: pointer; transition: .15s;
+          }
+          #sec-tpl .sdrop-trigger:hover { border-color: var(--primary, #3182F6); background: #F9FAFB; }
+          /* H3 — 제목 18px */
+          #sec-tpl .tpl-row-name {
+            font-size: 18px; font-weight: 700; color: var(--n900, #191F28);
+            letter-spacing: -.01em; line-height: 1.3;
+          }
+          /* H3 — 메타 13px + b 라벨 */
+          #sec-tpl .tpl-row-meta {
+            display: flex; gap: 14px; flex-wrap: wrap;
+            font-size: 13px; color: var(--n600, #6b7684); margin-top: 2px;
+          }
+          #sec-tpl .tpl-row-meta b {
+            color: var(--n500, #8B95A1); font-weight: 600;
+            font-size: 11px; text-transform: uppercase; letter-spacing: .04em;
+            margin-right: 5px;
+          }
+          #sec-tpl .tpl-row-meta .tpl-meta-item { white-space: nowrap; }
+          #sec-tpl .sdrop-arrow { position: absolute; top: 14px; right: 14px; color: var(--n500, #8B95A1); font-size: 11px; }
+        </style>
+
+        <div class="tpl-tile-grid">
+
+        <div class="field">
+          <label class="field-label">가격 템플릿</label>
+          <div class="sdrop-wrap" id="sd-price">
+            <div class="field-input sdrop-trigger" onclick="toggleSdrop('sd-price')">
+              <div class="tpl-row-name">{{ applied_price.name if applied_price else '— 선택 —' }}</div>
+              {% if applied_price %}
+              <div class="tpl-row-meta">
+                <span class="tpl-meta-item"><b>SS 정상</b>{{ '{:,}'.format(applied_price.ss_normal_price) }}원</span>
+                <span class="tpl-meta-item"><b>SS 할인</b>{{ '{:,}'.format(applied_price.ss_boxhero_sale_price) }}원</span>
+                <span class="tpl-meta-item"><b>CP 정상</b>{{ '{:,}'.format(applied_price.coupang_normal_price) }}원</span>
+                <span class="tpl-meta-item"><b>CP 할인</b>{{ '{:,}'.format(applied_price.coupang_boxhero_sale_price) }}원</span>
+              </div>
+              {% endif %}
+              <span class="sdrop-arrow">▼</span>
+            </div>
+            <div class="sdrop-menu">
+              <div class="sdrop-search"><input placeholder="🔍 검색..." onclick="event.stopPropagation()" /></div>
+              {% for t in price_templates %}
+              <div class="sdrop-item {% if t.id == bundle.price_template_id %}applied{% endif %}" data-id="{{ t.id }}">
+                <div class="sdrop-item-name">{{ t.name }}{% if t.id == bundle.price_template_id %} ✓ 적용중{% endif %}</div>
+                <div class="sdrop-item-meta">스마트스토어 정상 {{ '{:,}'.format(t.ss_normal_price) }} / 할인 {{ '{:,}'.format(t.ss_boxhero_sale_price) }} · 쿠팡 정상 {{ '{:,}'.format(t.coupang_normal_price) }} / 할인 {{ '{:,}'.format(t.coupang_boxhero_sale_price) }}</div>
+              </div>
+              {% endfor %}
+              <a class="sdrop-item-action" href="/templates#price">+ 새 가격 템플릿 만들기</a>
+            </div>
+          </div>
+        </div>
+
+        <div class="field">
+          <label class="field-label">색상 템플릿</label>
+          <div class="sdrop-wrap" id="sd-color">
+            <div class="field-input sdrop-trigger" onclick="toggleSdrop('sd-color')">
+              <div class="tpl-row-name">{{ applied_color.name if applied_color else '— 선택 —' }}</div>
+              {% if applied_color %}
+              <div class="tpl-row-meta">
+                <span class="tpl-meta-item"><b>색상</b>{{ applied_color.color_codes_json|from_json|length }}개</span>
+              </div>
+              {% endif %}
+              <span class="sdrop-arrow">▼</span>
+            </div>
+            <div class="sdrop-menu">
+              <div class="sdrop-search"><input placeholder="🔍 검색..." onclick="event.stopPropagation()" /></div>
+              {% for t in color_templates %}
+              <div class="sdrop-item {% if t.id == bundle.color_template_id %}applied{% endif %}" data-id="{{ t.id }}">
+                <div class="sdrop-item-name">{{ t.name }}{% if t.id == bundle.color_template_id %} ✓{% endif %}</div>
+                <div class="sdrop-item-meta">{{ t.color_codes_json }}</div>
+              </div>
+              {% endfor %}
+              <a class="sdrop-item-action" href="/templates#color">+ 새 색상 템플릿</a>
+            </div>
+          </div>
+        </div>
+
+        <div class="field">
+          <label class="field-label">사이즈 템플릿</label>
+          <div class="sdrop-wrap" id="sd-size">
+            <div class="field-input sdrop-trigger" onclick="toggleSdrop('sd-size')">
+              <div class="tpl-row-name">{{ applied_size.name if applied_size else '— 선택 —' }}</div>
+              {% if applied_size %}
+              <div class="tpl-row-meta">
+                <span class="tpl-meta-item"><b>사이즈</b>{{ applied_size.size_codes_json|from_json|length }}개</span>
+              </div>
+              {% endif %}
+              <span class="sdrop-arrow">▼</span>
+            </div>
+            <div class="sdrop-menu">
+              <div class="sdrop-search"><input placeholder="🔍 검색..." onclick="event.stopPropagation()" /></div>
+              {% for t in size_templates %}
+              <div class="sdrop-item {% if t.id == bundle.size_template_id %}applied{% endif %}" data-id="{{ t.id }}">
+                <div class="sdrop-item-name">{{ t.name }}{% if t.id == bundle.size_template_id %} ✓{% endif %}</div>
+                <div class="sdrop-item-meta">{{ t.category }}</div>
+              </div>
+              {% endfor %}
+              <a class="sdrop-item-action" href="/templates#size">+ 새 사이즈 템플릿</a>
+            </div>
+          </div>
+        </div>
+
+        </div>{# /.tpl-tile-grid #}
+
+        <div class="insight" style="margin-top:16px">💡 템플릿은 전 옵션에 기본 적용. 옵션마다 다른 템플릿이 필요하면 옵션을 누르고 변경할 수 있어요.</div>
+      </div>
+
+      {# Section 4: 색상·사이즈 조합 #}
+      <div class="bundle-section" id="sec-combo" data-tab="opt">
+        <div class="bundle-section-head">
+          <span class="bundle-section-num {% if combos %}done{% endif %}">4</span>
+          <h2>색상·사이즈 조합</h2>
+        </div>
+        {% for c in combos %}
+        <div class="combo-card" data-id="{{ c.id }}">
+          <div class="combo-head">
+            <div class="combo-title">{{ c.name or ('조합 ' ~ loop.index) }}</div>
+            <button class="btn btn-sm" data-action="edit-combo" data-id="{{ c.id }}">✎ 편집</button>
+            <button class="btn btn-sm" style="color:var(--danger)" data-action="del-combo" data-id="{{ c.id }}">🗑 삭제</button>
+          </div>
+          <div style="font-size:12.5px;font-weight:700;color:var(--n600);margin-bottom:6px">색상</div>
+          <div class="chip-row" style="margin-bottom:14px">
+            {% for code in c.color_codes_json|from_json %}<span class="chip on">{{ code }}</span>{% endfor %}
+          </div>
+          <div style="font-size:12.5px;font-weight:700;color:var(--n600);margin-bottom:6px">사이즈</div>
+          <div class="chip-row">
+            {% for code in c.size_codes_json|from_json %}<span class="chip on">{{ code }}</span>{% endfor %}
+          </div>
+        </div>
+        {% else %}
+        <div class="card" style="padding:24px;text-align:center;color:var(--n500)">
+          색상·사이즈 조합이 아직 없어요. 아래 + 조합 추가로 만드세요.
+        </div>
+        {% endfor %}
+        <button class="btn" data-action="add-combo">+ 조합 추가</button>
+      </div>
+
+      {# Section 5: v3 옵션 매트릭스 (좌트리/우인스펙터 + 가격) #}
+      {% include 'bundles/_matrix_v3.html' %}
+
+      {# Section 6: 마켓 등록·업로드 — V4 Status dashboard + B1 표 + 기존 모드탭/입력경로 보존 #}
+      <div class="bundle-section" id="sec-market" data-tab="mkt">
+        <div class="bundle-section-head">
+          <span class="bundle-section-num {% if bundle.naver_product_id or bundle.coupang_product_id %}done{% endif %}">6</span>
+          <h2>마켓 등록·업로드</h2>
+        </div>
+
+        {# M2 — 큰 카드 + 토글 카드 제거. 표 1개로 통합 (2026-05-09) #}
+        {% set _ss_match = options|selectattr('naver_option_id')|list|length %}
+        {% set _cp_match = options|selectattr('coupang_option_id')|list|length %}
+        {% set _opt_total = options|length %}
+        {% set _ss_pct = (_ss_match * 100 // _opt_total) if _opt_total > 0 else 0 %}
+        {% set _cp_pct = (_cp_match * 100 // _opt_total) if _opt_total > 0 else 0 %}
+
+        {# 마켓 표 — 활성 토글 + ID + 매칭 progress + 액션 통합 #}
+        <table class="market-overview-table">
+          <thead><tr>
+            <th>마켓</th>
+            <th style="width:60px">활성</th>
+            <th>마켓 ID</th>
+            <th style="width:160px">옵션 매칭</th>
+            <th style="width:90px">마지막 업로드</th>
+            <th>바로가기</th>
+            <th>동기화</th>
+          </tr></thead>
+          <tbody>
+            <tr>
+              <td><div class="mot-name"><span class="mot-dot ss"></span><strong>스마트스토어</strong></div></td>
+              <td><label class="switch"><input type="checkbox" name="market_active_ss" {% if bundle.market_active_ss %}checked{% endif %}><span class="switch-slider"></span></label></td>
+              <td>{% if bundle.naver_product_id %}<code class="mot-id">{{ bundle.naver_product_id }}</code>{% if bundle.naver_channel_product_id and bundle.naver_channel_product_id != bundle.naver_product_id %}<div class="mot-id-sub">→ {{ bundle.naver_channel_product_id }}</div>{% endif %}{% else %}<span class="mot-id-empty">미등록</span>{% endif %}</td>
+              <td>
+                <div class="mot-match"><strong>{{ _ss_match }}</strong> / {{ _opt_total }} <span class="mot-pct">({{ _ss_pct }}%)</span></div>
+                <div class="mot-bar"><div class="mot-bar-fill" style="width:{{ _ss_pct }}%;background:#03C75A"></div></div>
+              </td>
+              <td class="mot-time">{{ status_cards.last_uploaded_ago or '—' }}</td>
+              <td>
+                {% if bundle.naver_product_id %}<a class="btn btn-sm" target="_blank" rel="noopener" href="https://smartstore.naver.com/lemouton/products/{{ bundle.naver_product_id }}">🛍 구매자</a>{% endif %}
+                <button type="button" class="btn btn-sm" data-action="open-ss-edit">🔧 판매자</button>
+              </td>
+              <td>
+                {% if bundle.naver_product_id %}<button type="button" class="btn btn-sm btn-primary" data-action="sync-ss-options">동기화</button>{% else %}<button type="button" class="btn btn-sm btn-primary" data-action="register-ss">🚀 등록</button>{% endif %}
+              </td>
+            </tr>
+            <tr>
+              <td><div class="mot-name"><span class="mot-dot cp"></span><strong>쿠팡</strong></div></td>
+              <td><label class="switch"><input type="checkbox" name="market_active_coupang" {% if bundle.market_active_coupang %}checked{% endif %}><span class="switch-slider"></span></label></td>
+              <td>{% if bundle.coupang_product_id %}<code class="mot-id">{{ bundle.coupang_product_id }}</code>{% if bundle.coupang_seller_product_id %}<div class="mot-id-sub">→ {{ bundle.coupang_seller_product_id }}</div>{% endif %}{% else %}<span class="mot-id-empty">미등록</span>{% endif %}</td>
+              <td>
+                <div class="mot-match"><strong>{{ _cp_match }}</strong> / {{ _opt_total }} <span class="mot-pct">({{ _cp_pct }}%)</span></div>
+                <div class="mot-bar"><div class="mot-bar-fill" style="width:{{ _cp_pct }}%;background:#EE2C2C"></div></div>
+              </td>
+              <td class="mot-time">{{ status_cards.last_uploaded_ago or '—' }}</td>
+              <td>
+                {% if bundle.coupang_product_id %}<a class="btn btn-sm" target="_blank" rel="noopener" href="https://www.coupang.com/vp/products/{{ bundle.coupang_product_id }}">🛍 구매자</a>{% endif %}
+                <button type="button" class="btn btn-sm" data-action="open-coupang-edit">🔧 윙</button>
+              </td>
+              <td>
+                {% if bundle.coupang_product_id %}<button type="button" class="btn btn-sm" disabled title="쿠팡 동기화는 후속 phase">🔄</button>{% else %}<button type="button" class="btn btn-sm btn-primary" data-action="register-coupang">🚀 등록</button>{% endif %}
+              </td>
+            </tr>
+          </tbody>
+        </table>
+        <style>
+          .market-overview-table { width:100%; border-collapse:collapse; background:#fff; border:1px solid var(--n200); border-radius:11px; overflow:hidden; margin-bottom:14px; font-size:13px; }
+          .market-overview-table th { padding:9px 12px; background:var(--n100); font-size:10.5px; font-weight:700; color:var(--n500); text-align:left; text-transform:uppercase; letter-spacing:.04em; border-bottom:1px solid var(--n200); }
+          .market-overview-table td { padding:11px 12px; border-bottom:1px solid var(--n100); vertical-align:middle; }
+          .market-overview-table tr:last-child td { border-bottom:none; }
+          .mot-name { display:flex; align-items:center; gap:8px; }
+          .mot-dot { width:10px; height:10px; border-radius:50%; flex-shrink:0; }
+          .mot-dot.ss { background:#03c75a; }
+          .mot-dot.cp { background:#ee293d; }
+          .mot-state { display:inline-flex; padding:2px 9px; border-radius:11px; font-size:11.5px; font-weight:700; background:var(--n100); color:var(--n500); }
+          .mot-state.on { background:var(--ok-bg, #dcfce7); color:var(--ok-strong, #166534); }
+          .mot-id { font-family:'JetBrains Mono','D2Coding',monospace; font-size:12px; background:var(--n100); padding:2px 7px; border-radius:4px; color:var(--n800); }
+          .mot-id-sub { font-family:'JetBrains Mono','D2Coding',monospace; font-size:10.5px; color:var(--n500); margin-top:3px; }
+          .mot-id-empty { color:var(--n400); font-size:11.5px; }
+          .mot-time { font-size:11.5px; color:var(--n500); font-family:'JetBrains Mono','D2Coding',monospace; }
+          .mot-match { font-size:13.5px; }
+          .mot-match strong { font-weight:800; }
+          .mot-pct { color:var(--n500); font-size:11.5px; }
+          .mot-bar { height:5px; background:var(--n100,#f2f4f6); border-radius:3px; margin-top:5px; overflow:hidden; }
+          .mot-bar-fill { height:100%; transition:width .3s; }
+        </style>
+
+        {# 두 모드 탭 #}
+        <div class="step-tabs" id="market-mode-tabs" style="margin-bottom:14px">
+          <div class="step-tab {% if not bundle.naver_product_id and not bundle.coupang_product_id %}active{% endif %}" data-mode="new" onclick="marketModeTab('new')">🆕 신규 등록</div>
+          <div class="step-tab {% if bundle.naver_product_id or bundle.coupang_product_id %}active{% endif %}" data-mode="existing" onclick="marketModeTab('existing')">기존 마켓 업데이트</div>
+        </div>
+
+        {# 🆕 신규 등록 모드 — Case 1 #}
+        <div class="market-mode-pane" data-mode="new" {% if bundle.naver_product_id or bundle.coupang_product_id %}style="display:none"{% endif %}>
+          <div class="card" style="border-left:3px solid var(--warn, #f59e0b);background:#fff8f1;padding:12px 16px;margin-bottom:14px;font-size:13px">
+            ⚠ 신규 등록 = 마켓에 <strong>새 상품 생성</strong>. 한 번만 누르세요. 이미 등록된 상품이면 「기존 마켓 업데이트」 탭으로 가세요.
+          </div>
+          <h3 style="margin-bottom:6px">스마트스토어</h3>
+          <button class="btn btn-primary" data-action="register-ss" style="margin-bottom:18px">🚀 스마트스토어에 자동 등록</button>
+          <h3 style="margin:14px 0 6px">쿠팡</h3>
+          <button class="btn btn-primary" data-action="register-coupang" style="margin-bottom:18px">🚀 쿠팡에 자동 등록</button>
+        </div>
+
+        {# 🔄 기존 마켓 업데이트 모드 — Case 3 #}
+        <div class="market-mode-pane" data-mode="existing" {% if not bundle.naver_product_id and not bundle.coupang_product_id %}style="display:none"{% endif %}>
+          <div class="card" style="border-left:3px solid var(--primary);background:#f0f7ff;padding:12px 16px;margin-bottom:14px;font-size:13px">
+            💡 이미 마켓에 등록된 상품 — 마켓 ID 만 입력하면 가격·재고 자동 동기화 (6시간 사이클).
+          </div>
+
+          {# v6 B: 가로 마켓 탭 + 단일 패널 + 입력경로 sub-tab #}
+          <div class="market-tabs-v6" id="market-tabs">
+            <button type="button" class="mt-tab on" data-mtab="ss">스마트스토어 <span class="chip-v3 chip-warn" id="ss-tab-progress" style="font-size:10px">…</span></button>
+            <button type="button" class="mt-tab" data-mtab="cp">쿠팡 <span class="chip-v3 chip-warn" style="font-size:10px">예정</span></button>
+            <button type="button" class="mt-tab add-market" disabled>＋ 새 마켓</button>
+          </div>
+
+          {# 활성 마켓 패널 — 스마트스토어 (활성 토글은 위 표에서만) #}
+          <div class="market-pane-v6" data-mpane="ss">
+            <div class="mp-header">
+              <span class="brand-app-logo smartstore lg">N</span>
+              <div>
+                <div style="font-weight:700;font-size:15px">스마트스토어 입력</div>
+                <div class="mp-active-info">{{ options|selectattr('market_visible_ss')|list|length }}개 옵션 노출 중</div>
+              </div>
+              <div style="margin-left:auto;font-size:12px;color:var(--n500)">
+                <span id="ss-progress">매칭 진척률 로딩…</span>
+              </div>
+            </div>
+
+            <div class="field" style="margin-bottom:14px">
+              <label class="field-label">원상품번호 <span style="color:var(--n500);font-weight:400">또는</span> 상품번호</label>
+              <input class="field-input mono" name="naver_product_id" value="{{ bundle.naver_product_id or '' }}" placeholder="예: 13153051689" />
+              <div style="margin-top:6px;font-size:11.5px;color:var(--n500);line-height:1.55">
+                💡 둘 중 <strong>아무거나</strong> 입력하면 됩니다 — 동기화 실행 시 나머지 하나는 자동으로 채워져요.<br>
+                · <strong>원상품번호</strong> (originProductNo) = 셀러센터 상품 URL 의 <code>/products/v2/</code> 뒤 숫자<br>
+                · <strong>상품번호</strong> (channelProductNo) = 스마트스토어 일괄수정 엑셀의 <code>「상품번호」</code> 열, 셀러센터 상품 목록에서 보는 ID
+              </div>
+              {% if bundle.naver_product_id %}
+              <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+                <a class="btn btn-sm" target="_blank" rel="noopener"
+                   href="https://smartstore.naver.com/lemouton/products/{{ bundle.naver_product_id }}">🛍 구매자 페이지 ↗</a>
+                <button type="button" class="btn btn-sm" data-action="open-ss-edit"
+                        title="영구 로그인 Chrome 으로 상품 검색 결과 페이지 진입 — 첫 행 클릭하면 편집">🔧 판매자 센터 (자동 로그인) ↗</button>
+                {% if bundle.naver_channel_product_id and bundle.naver_channel_product_id != bundle.naver_product_id %}
+                <span style="font-size:11.5px;color:var(--n500)">·  매칭된 상품번호 <code class="mono">{{ bundle.naver_channel_product_id }}</code></span>
+                {% endif %}
+              </div>
+              {% endif %}
+            </div>
+
+            {# 입력 경로 sub-tab — 한 번에 한 방식 #}
+            <div class="input-method-tabs">
+              <button type="button" class="im-tab on" data-imtab="ss-api">🚀 API 자동</button>
+              <button type="button" class="im-tab" data-imtab="ss-excel">📁 엑셀 업로드</button>
+              <button type="button" class="im-tab" data-imtab="ss-manual">✎ 수동 등록</button>
+            </div>
+
+            <div class="im-pane on" data-impane="ss-api">
+              <div style="background:var(--color-info-bg);padding:10px 14px;border-radius:6px;border-left:3px solid var(--color-info);font-size:12.5px;margin-bottom:10px">
+                💡 스마트스토어 Commerce API 호출 → 옵션 ID 자동 매칭. 색상·사이즈 정확히 일치 시 자동 적용.
+              </div>
+              <button class="btn btn-primary" data-action="sync-ss-options">동기화 실행</button>
+              <span style="font-size:12px;color:var(--n500);margin-left:10px">N개 옵션 ID 일괄 매칭</span>
+            </div>
+
+            <div class="im-pane" data-impane="ss-excel">
+              <div style="display:grid;grid-template-columns:1fr 320px;gap:14px;align-items:start">
+                <div>
+                  <div class="dropzone-v3" id="ss-dropzone">
+                    <div class="dz-icon">📁</div>
+                    <strong>여기에 엑셀 파일 드롭</strong>
+                    <div style="margin-top:8px;font-size:12px;color:var(--n500)">또는 <button class="btn btn-sm" type="button" onclick="document.getElementById('ss-file-input').click()">파일 선택</button></div>
+                    <input type="file" id="ss-file-input" accept=".xlsx,.xls" style="display:none">
+                  </div>
+                  <div style="margin-top:8px;font-size:11.5px;color:var(--n500);display:flex;align-items:center;gap:8px">
+                    <button class="btn btn-sm" type="button" onclick="alert('스스 일괄수정 양식 다운로드 — 후속 구현')">📥 양식 다운로드</button>
+                    현재 양식: <span class="chip-v3 chip-info">시스템 기본</span>
+                  </div>
+                </div>
+                <div class="preview-sidebar" id="ss-preview" style="display:none">
+                  <h4>👁 미리보기</h4>
+                  <div id="ss-preview-body" style="font-size:12px"></div>
+                </div>
+              </div>
+            </div>
+
+            <div class="im-pane" data-impane="ss-manual">
+              <div style="background:var(--n100);padding:14px;border-radius:6px;font-size:13px;color:var(--n700)">
+                ✎ 옵션 매트릭스 (위 §5) 의 옵션 행을 클릭 → 단일 편집 모드 → 「옵션 ID」 컬럼에 직접 입력. 옵션마다 다른 ID 등록 가능.
+              </div>
+            </div>
+          </div>
+
+          {# 활성 마켓 패널 — 쿠팡 (활성 토글은 위 표에서만) #}
+          <div class="market-pane-v6 hidden-pane" data-mpane="cp">
+            <div class="mp-header">
+              <span class="brand-app-logo coupang lg">쿠</span>
+              <div>
+                <div style="font-weight:700;font-size:15px">쿠팡 입력</div>
+                <div class="mp-active-info">{{ options|selectattr('market_visible_coupang')|list|length }}개 옵션 노출 중</div>
+              </div>
+              <div style="margin-left:auto;font-size:12px;color:var(--n500)">매칭 진척률 (예정)</div>
+            </div>
+
+            <div class="field" style="margin-bottom:14px">
+              <label class="field-label">쿠팡 productId <span style="color:var(--n500);font-weight:400">(구매자 페이지 URL 용)</span></label>
+              <input class="field-input mono" name="coupang_product_id" value="{{ bundle.coupang_product_id or '' }}" placeholder="예: 9508462703" />
+              <div style="margin-top:6px;font-size:11.5px;color:var(--n500);line-height:1.55">
+                💡 매핑 자동 등록 시 sellerProductId 1개만 입력하면 productId·옵션ID 36건 모두 자동 추출됩니다.<br>
+                · <strong>productId</strong>: 구매자 URL <code>www.coupang.com/vp/products/<u>9508462703</u></code><br>
+                · <strong>sellerProductId</strong>: 셀러센터(Wing) 상품수정 URL · API GET·매핑 키
+              </div>
+              {% if bundle.coupang_product_id or bundle.coupang_seller_product_id %}
+              <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+                {% if bundle.coupang_product_id %}
+                <a class="btn btn-sm" target="_blank" rel="noopener"
+                   href="https://www.coupang.com/vp/products/{{ bundle.coupang_product_id }}">🛍 구매자 페이지 ↗</a>
+                {% endif %}
+                {% if bundle.coupang_seller_product_id %}
+                <a class="btn btn-sm" target="_blank" rel="noopener"
+                   href="https://wing.coupang.com/tenants/seller-web/vendor-inventory/modify?vendorInventoryId={{ bundle.coupang_seller_product_id }}&keyword={{ bundle.coupang_seller_product_id }}"
+                   title="윙 상품수정 페이지 직접 진입">🔧 윙 상품수정 ↗</a>
+                {% endif %}
+                <button type="button" class="btn btn-sm" data-action="open-coupang-edit"
+                        title="영구 로그인 Chrome 으로 Wing 상품 검색 결과 진입 — 첫 행 클릭하면 수정 화면">🔐 윙 자동 로그인 ↗</button>
+                {% if bundle.coupang_seller_product_id %}
+                <span style="font-size:11.5px;color:var(--n500)">·  매칭된 sellerProductId <code class="mono">{{ bundle.coupang_seller_product_id }}</code></span>
+                {% endif %}
+              </div>
+              {% endif %}
+            </div>
+
+            <div class="input-method-tabs">
+              <button type="button" class="im-tab on" data-imtab="cp-api" disabled>🚀 API (예정)</button>
+              <button type="button" class="im-tab" data-imtab="cp-excel">📁 엑셀 업로드</button>
+              <button type="button" class="im-tab" data-imtab="cp-manual">✎ 수동 등록</button>
+            </div>
+
+            <div class="im-pane on" data-impane="cp-api">
+              <div style="background:var(--n100);padding:14px;border-radius:6px;font-size:13px;color:var(--n600)">
+                🚀 쿠팡 Wing API 자동 매칭은 후속 phase 에서 구현 예정.
+              </div>
+            </div>
+
+            <div class="im-pane" data-impane="cp-excel">
+              <div style="display:grid;grid-template-columns:1fr 320px;gap:14px;align-items:start">
+                <div>
+                  <div class="dropzone-v3" id="cp-dropzone">
+                    <div class="dz-icon">📁</div>
+                    <strong>여기에 쿠팡 엑셀 드롭</strong>
+                    <div style="margin-top:8px;font-size:12px;color:var(--n500)">가격/재고 일괄변경 양식</div>
+                    <input type="file" id="cp-file-input" accept=".xlsx,.xls" style="display:none">
+                  </div>
+                </div>
+                <div class="preview-sidebar" id="cp-preview" style="display:none">
+                  <h4>👁 미리보기</h4>
+                  <div id="cp-preview-body" style="font-size:12px"></div>
+                </div>
+              </div>
+            </div>
+
+            <div class="im-pane" data-impane="cp-manual">
+              <div style="background:var(--n100);padding:14px;border-radius:6px;font-size:13px;color:var(--n700)">
+                ✎ 옵션 매트릭스에서 단일 모드 진입 → 「쿠팡 옵션 ID」 컬럼에 직접 입력.
+              </div>
+            </div>
+          </div>
+
+          <style>.hidden-pane { display:none !important; }</style>
+
+          <script>
+          (function(){
+            // 마켓 탭 전환
+            document.querySelectorAll('#market-tabs .mt-tab[data-mtab]').forEach(tab => {
+              tab.addEventListener('click', () => {
+                const target = tab.dataset.mtab;
+                document.querySelectorAll('#market-tabs .mt-tab').forEach(t => t.classList.toggle('on', t.dataset.mtab === target));
+                document.querySelectorAll('[data-mpane]').forEach(p => p.classList.toggle('hidden-pane', p.dataset.mpane !== target));
+              });
+            });
+            // 입력 경로 sub-tab 전환 (마켓 패널 안에서)
+            document.querySelectorAll('.im-tab[data-imtab]').forEach(tab => {
+              tab.addEventListener('click', () => {
+                if (tab.disabled) return;
+                const target = tab.dataset.imtab;
+                const pane = tab.closest('.market-pane-v6');
+                pane.querySelectorAll('.im-tab').forEach(t => t.classList.toggle('on', t.dataset.imtab === target));
+                pane.querySelectorAll('.im-pane').forEach(p => p.classList.toggle('on', p.dataset.impane === target));
+              });
+            });
+
+            // 드롭존 (드래그앤드롭)
+            ['ss','cp'].forEach(market => {
+              const dz = document.getElementById(market + '-dropzone');
+              const inp = document.getElementById(market + '-file-input');
+              if (!dz) return;
+              dz.addEventListener('click', () => inp.click());
+              dz.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('dragover'); });
+              dz.addEventListener('dragleave', () => dz.classList.remove('dragover'));
+              dz.addEventListener('drop', e => {
+                e.preventDefault(); dz.classList.remove('dragover');
+                if (e.dataTransfer.files.length) handleFile(market, e.dataTransfer.files[0]);
+              });
+              inp.addEventListener('change', e => {
+                if (e.target.files.length) handleFile(market, e.target.files[0]);
+              });
+            });
+            function handleFile(market, file) {
+              const sb = document.getElementById(market + '-preview');
+              const body = document.getElementById(market + '-preview-body');
+              sb.style.display = 'block';
+              body.innerHTML = `<div style="background:var(--color-info-bg);padding:6px 10px;border-radius:5px;margin-bottom:6px">📁 ${file.name}<br><span style="color:var(--n500)">${(file.size/1024).toFixed(1)} KB</span></div>
+                <div style="color:var(--n600);font-size:11.5px">📌 파싱 + 옵션 매칭은 후속 phase. 현재는 파일 인식만 표시.</div>`;
+            }
+
+            // 매칭 진척률 로드
+            fetch('/api/bundles/{{ bundle.model_code|tojson|safe }}/option-matrix')
+              .then(r => r.json()).then(j => {
+                if (!j.ok) return;
+                const total = j.options.length;
+                const el = document.getElementById('ss-progress');
+                const tab = document.getElementById('ss-tab-progress');
+                if (el) el.textContent = `매칭 0 / ${total}`;
+                if (tab) tab.textContent = `0/${total}`;
+              });
+          })();
+          </script>
+        </div>
+      </div>
+
+      {# Section 7: 실행 이력 — E1 status 카드(헤더)에 통합되어 가로탭에서 제거 (2026-05-09) #}
+      <div class="bundle-section" id="sec-runs" data-tab="run" style="display:none">
+        <div class="bundle-section-head">
+          <span class="bundle-section-num {% if run_history %}done{% endif %}">7</span>
+          <h2>실행 이력</h2>
+        </div>
+
+        <div class="run-history" id="run-history">
+          {% if run_history %}
+          <table class="run-table">
+            <thead>
+              <tr>
+                <th style="width:140px">시각</th>
+                <th style="width:80px">단계</th>
+                <th>요약</th>
+                <th style="width:80px">상태</th>
+                <th style="width:60px"></th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for r in run_history %}
+              <tr class="run-row" data-run-id="{{ r.id }}">
+                <td class="run-time">
+                  <div>{{ r.started_at[:16].replace('T',' ') if r.started_at else '—' }}</div>
+                  <div class="run-by">{% if r.is_bulk %}전체{% else %}{{ r.triggered_by }}{% endif %}</div>
+                </td>
+                <td>
+                  {% if r.phase == 'full' %}<span class="run-phase phase-full">전체</span>
+                  {% elif r.phase == 'crawl' %}<span class="run-phase phase-crawl">크롤링</span>
+                  {% else %}<span class="run-phase phase-upload">업로드</span>{% endif %}
+                </td>
+                <td class="run-summary">
+                  {% set src_ok = r.sources.values()|selectattr('ok')|list|length %}
+                  {% set src_total = r.sources|length %}
+                  {% set mkt_ok = r.markets.values()|selectattr('ok')|list|length %}
+                  {% set mkt_total = r.markets|length %}
+                  {% if src_total %}{{ src_ok }}/{{ src_total }} 소싱처{% endif %}
+                  {% if src_total and mkt_total %} · {% endif %}
+                  {% if mkt_total %}📤 {{ mkt_ok }}/{{ mkt_total }} 마켓{% endif %}
+                  {% if not src_total and not mkt_total and r.status == 'running' %}⏳ 진행 중{% endif %}
+                  {% if r.error %} <span style="color:var(--danger)">· {{ r.error[:60] }}</span>{% endif %}
+                </td>
+                <td>
+                  {% if r.status == 'ok' %}<span class="run-status ok">✅ 성공</span>
+                  {% elif r.status == 'partial' %}<span class="run-status partial">⚠ 부분</span>
+                  {% elif r.status == 'failed' %}<span class="run-status fail">❌ 실패</span>
+                  {% else %}<span class="run-status running">⏳ 진행중</span>{% endif %}
+                </td>
+                <td class="center"><button class="run-toggle" type="button" data-target="run-detail-{{ r.id }}">▾</button></td>
+              </tr>
+              <tr class="run-detail" id="run-detail-{{ r.id }}" style="display:none">
+                <td colspan="5">
+                  <div class="run-detail-grid">
+                    {% if r.sources %}
+                    <div class="run-detail-col">
+                      <div class="run-detail-title">소싱처별 결과</div>
+                      <ul class="run-detail-list">
+                        {% for src, v in r.sources.items() %}
+                        <li>
+                          <span class="run-src-name">{{ src }}</span>
+                          {% if v.ok %}<span class="run-src-ok">✓ {{ v.items_crawled or 0 }}건</span>
+                          {% else %}<span class="run-src-fail">✗ {{ v.error or 'error' }}</span>{% endif %}
+                        </li>
+                        {% endfor %}
+                      </ul>
+                    </div>
+                    {% endif %}
+                    {% if r.markets %}
+                    <div class="run-detail-col">
+                      <div class="run-detail-title">📤 마켓별 결과</div>
+                      <ul class="run-detail-list">
+                        {% for mkt, v in r.markets.items() %}
+                        <li>
+                          <span class="run-src-name">{{ mkt }}</span>
+                          {% if v.ok %}<span class="run-src-ok">✓ 변동 {{ v.uploaded or 0 }} · 스킵 {{ v.skipped or 0 }} · 실패 {{ v.failed or 0 }}</span>
+                          {% else %}<span class="run-src-fail">✗ {{ v.error or 'error' }}</span>{% endif %}
+                        </li>
+                        {% endfor %}
+                      </ul>
+                    </div>
+                    {% endif %}
+                    {% if r.duration_sec %}
+                    <div class="run-detail-meta">⏱ 소요 {{ r.duration_sec }}초</div>
+                    {% endif %}
+                  </div>
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+          {% else %}
+          <div style="text-align:center;padding:24px;color:var(--n500);font-size:13px">아직 실행 이력이 없어요. 위에서 ▶ 지금 전체 실행 / 크롤링 / 업로드를 눌러 첫 실행을 시작하세요.</div>
+          {% endif %}
+        </div>
+      </div>
+
+    </div>{# /bundle-content #}
+  </div>
+
+<style>
+  /* F2 — Step indicator (번호 + 체크 + 연결선) */
+  .bundle-tabs.bundle-steps {
+    display: flex; align-items: center; gap: 0;
+    background: var(--surface, #fff); border: 1px solid var(--n200, #e5e8eb);
+    border-radius: 12px 12px 0 0; padding: 18px 24px;
+    margin-bottom: -1px; position: sticky; top: 0; z-index: 5;
+    overflow-x: auto;
+  }
+  .bundle-step {
+    display: flex; align-items: center; gap: 10px;
+    background: none; border: none; cursor: pointer;
+    font-family: inherit; padding: 4px 8px; flex-shrink: 0;
+    transition: .15s;
+  }
+  .bundle-step .step-num {
+    width: 32px; height: 32px; border-radius: 50%;
+    background: var(--n200, #e5e8eb); color: var(--n600, #6b7684);
+    font-size: 14px; font-weight: 700;
+    display: flex; align-items: center; justify-content: center;
+    transition: .15s; flex-shrink: 0;
+  }
+  .bundle-step .step-name {
+    font-size: 16px; font-weight: 600; color: var(--n600, #6b7684);
+    white-space: nowrap;
+  }
+  .bundle-step:hover .step-num { background: var(--n300, #d1d6db); color: var(--n800, #333d4b); }
+  .bundle-step:hover .step-name { color: var(--n900, #191F28); }
+  .bundle-step.done .step-num { background: #10b981; color: #fff; font-size: 0; }
+  .bundle-step.done .step-num::before { content: '✓'; font-size: 16px; }
+  .bundle-step.done .step-name { color: var(--n900, #191F28); }
+  .bundle-step.on .step-num {
+    background: var(--primary, #3182F6); color: #fff;
+    box-shadow: 0 0 0 4px rgba(49, 130, 246, .2);
+  }
+  .bundle-step.on .step-name { color: var(--primary, #3182F6); font-weight: 700; }
+  .step-line {
+    flex: 1 1 30px; height: 2px; min-width: 20px;
+    background: var(--n200, #e5e8eb); margin: 0 6px;
+  }
+  .step-line.done { background: #10b981; }
+  /* B6 — 탭 아래 활성 단계 안내 banner */
+  .step-banner {
+    display: flex; align-items: center; gap: 12px;
+    padding: 14px 24px; margin-bottom: 18px;
+    background: linear-gradient(to right, var(--primary-tint, #E8F2FF), #fff);
+    border: 1px solid #bfdbfe; border-radius: 0 0 12px 12px;
+    border-top: none;
+  }
+  .step-banner-pill {
+    background: var(--primary, #3182F6); color: #fff;
+    padding: 5px 14px; border-radius: 7px;
+    font-size: 13.5px; font-weight: 800; letter-spacing: .02em;
+    flex-shrink: 0;
+  }
+  .step-banner-text {
+    font-size: 15px; font-weight: 700; color: #1e40af;
+    letter-spacing: -.01em;
+  }
+
+  /* 호환용 — 기존 .bundle-tab 스타일 유지 (다른 곳에서 쓰일 수 있음) */
+  .bundle-tab:not(.bundle-step) {
+    padding: 14px 20px; font-size: var(--fs-h3, 19px); font-weight: 600;
+    color: var(--n600, #6b7684); background: none; border: none;
+    border-bottom: 3px solid transparent; cursor: pointer;
+    font-family: inherit; white-space: nowrap; line-height: 1.2;
+    transition: color .15s, border-color .15s;
+  }
+  .bundle-tab:not(.bundle-step):hover { color: var(--n900, #191F28); }
+  .bundle-tab:not(.bundle-step).on {
+    color: var(--primary, #3182F6);
+    border-bottom-color: var(--primary, #3182F6);
+    font-weight: 700;
+  }
+  /* 탭 본문 — 첫 .bundle-section 이 탭 바로 밑에 붙도록 상단 둥글기 제거 */
+  .bundle-content > .bundle-section[data-tab] {
+    border-radius: 0;
+  }
+  .bundle-content > .bundle-section[data-tab]:first-of-type,
+  .bundle-content > .bundle-section[data-tab].first-in-tab {
+    border-top-left-radius: 0; border-top-right-radius: 0;
+  }
+  /* hidden 시 sec-matrix 등 모두 숨김 */
+  .bundle-content > .bundle-section[data-tab].tab-hidden { display: none !important; }
+</style>
+
+  <script>
+  // 모음전 코드 (안전한 URL 인코딩)
+  const BUNDLE_CODE = {{ bundle.model_code|tojson|safe }};
+  const SOURCE_KEYS = {{ source_registry|map(attribute='key')|list|tojson|safe }};
+  const BUNDLE_PATH = encodeURIComponent(BUNDLE_CODE);
+
+  // ===== T1 (E1) — 탭 전환 + URL hash 동기화 =====
+  (function initBundleTabs(){
+    const tabs = document.querySelectorAll('.bundle-tab');
+    if (!tabs.length) return;
+    const sections = document.querySelectorAll('.bundle-content > .bundle-section[data-tab]');
+    function showTab(name) {
+      tabs.forEach(t => t.classList.toggle('on', t.dataset.tab === name));
+      sections.forEach(s => s.classList.toggle('tab-hidden', s.dataset.tab !== name));
+      // F2 — Step indicator: 활성 단계 이전은 done 처리
+      const ORDER = ['basic','url','tpl','opt','mkt'];
+      const curIdx = ORDER.indexOf(name);
+      tabs.forEach(t => {
+        if (!t.classList.contains('bundle-step')) return;
+        const i = ORDER.indexOf(t.dataset.tab);
+        t.classList.toggle('done', i >= 0 && i < curIdx);
+      });
+      // step-line done — 활성 step 이전 라인은 초록
+      document.querySelectorAll('.step-line').forEach((line, i) => {
+        line.classList.toggle('done', i < curIdx);
+      });
+      // B6 — 활성 단계 안내 banner 갱신
+      const STEP_INFO = {
+        basic: ['1단계', '기본 정보 — 모음전 코드·카테고리·노출명 입력'],
+        url:   ['2단계', '소싱처 URL — 5개 사이트 상품 페이지 주소 등록 (다중 URL 지원)'],
+        tpl:   ['3단계', '적용 템플릿 — 가격·색상·사이즈 템플릿 선택'],
+        opt:   ['4단계', '옵션 매트릭스 — 36개 옵션의 가격·재고·소싱처 한눈에 관리'],
+        mkt:   ['5단계', '마켓 등록·업로드 — 스마트스토어·쿠팡 매핑 + 동기화'],
+      };
+      const info = STEP_INFO[name];
+      if (info) {
+        const pill = document.getElementById('step-banner-pill');
+        const text = document.getElementById('step-banner-text');
+        if (pill) pill.textContent = info[0];
+        if (text) text.textContent = info[1];
+      }
+      // URL hash 동기화 (#tab=basic|tpl|opt|mkt|run)
+      const url = new URL(location.href);
+      url.hash = 'tab=' + name;
+      history.replaceState(null, '', url);
+    }
+    // 초기 진입 — hash 우선 → 기본 'basic'
+    const VALID_TABS = ['basic','url','tpl','opt','mkt'];
+    const m = (location.hash || '').match(/tab=(\w+)/);
+    const initial = (m && VALID_TABS.includes(m[1])) ? m[1] : 'basic';
+    showTab(initial);
+    // 클릭 바인딩
+    tabs.forEach(t => t.addEventListener('click', () => showTab(t.dataset.tab)));
+    // step-progress 클릭 → 해당 탭으로 점프 (단계 1~7 → 탭 매핑)
+    const stepToTab = { 'sec-basic':'basic','sec-url':'url','sec-tpl':'tpl','sec-combo':'opt','sec-matrix':'opt','sec-market':'mkt','sec-runs':'run' };
+    document.querySelectorAll('.step[href^="#"]').forEach(a => {
+      a.addEventListener('click', (e) => {
+        const href = (a.getAttribute('href') || '').replace('#','');
+        const tabName = stepToTab[href];
+        if (tabName) {
+          e.preventDefault();
+          showTab(tabName);
+          // 해당 섹션으로 부드럽게 스크롤
+          const target = document.getElementById(href);
+          if (target) setTimeout(() => target.scrollIntoView({behavior:'smooth', block:'start'}), 50);
+        }
+      });
+    });
+    // hashchange (브라우저 뒤로/앞 또는 외부 링크)
+    window.addEventListener('hashchange', () => {
+      const m2 = (location.hash || '').match(/tab=(\w+)/);
+      if (m2 && VALID_TABS.includes(m2[1])) showTab(m2[1]);
+    });
+  })();
+
+  // 헤더 통계 동적 채우기 (소싱처/URL 카운트)
+  fetch('/api/bundles/' + BUNDLE_PATH + '/option-matrix')
+    .then(r => r.json()).then(j => {
+      if (!j.ok) return;
+      const sources = new Set();
+      let urls = 0;
+      j.options.forEach(o => o.sources.forEach(s => { sources.add(s.source_id); urls++; }));
+      const el = document.getElementById('bh-src-summary');
+      if (el) el.textContent = `🛒 ${sources.size} 소싱처 · ${urls} URLs`;
+    });
+
+  // [v6 Phase 5.4 — E5 URL Auto-detect]
+  // 5개 표준 소싱처 (lemouton/musinsa/ssf/lotteon/ss-lemouton) 외 도메인 입력 시
+  // 패널 노출 → 신규 소싱처 추가 제안.
+  (function(){
+    const KNOWN_DOMAINS = {
+      'lemouton.kr': '르무통 공홈',
+      'lemouton.co.kr': '르무통 공홈',
+      'musinsa.com': '무신사',
+      'ssfshop.com': 'SSF샵',
+      'lotteon.com': '롯데홈쇼핑',
+      'lotte.com': '롯데홈쇼핑',
+      'smartstore.naver.com': '스마트스토어 르무통',
+    };
+    // 소싱처 레지스트리 기반 동적 (신규 소싱처 추가 시 자동 반영)
+    const URL_FIELDS = SOURCE_KEYS.map(k => 'url_' + k);
+    const panel = document.getElementById('src-detect-panel');
+    const msgEl = document.getElementById('src-detect-msg');
+    const addBtn = document.getElementById('src-detect-add-btn');
+    const dismissBtn = document.getElementById('src-detect-dismiss-btn');
+    if (!panel) return;
+
+    let lastUnknownDomain = null;
+
+    function extractDomain(url) {
+      if (!url) return null;
+      try {
+        const u = new URL(url.startsWith('http') ? url : 'https://' + url);
+        return u.hostname.replace(/^www\./, '').toLowerCase();
+      } catch { return null; }
+    }
+
+    function check() {
+      // 모든 url 필드를 검사 — 5개 입력 중 하나라도 미등록 도메인이면 첫 발견 시 노출
+      for (const f of URL_FIELDS) {
+        const inp = document.querySelector('input[name="'+f+'"]');
+        if (!inp || !inp.value.trim()) continue;
+        const d = extractDomain(inp.value.trim());
+        if (!d) continue;
+        // 알려진 도메인이면 통과
+        const known = Object.keys(KNOWN_DOMAINS).some(kd => d === kd || d.endsWith('.' + kd));
+        if (!known) {
+          lastUnknownDomain = d;
+          msgEl.textContent = `"${d}" — 등록되지 않은 도메인. 새 소싱처로 추가하면 매트릭스에 카드가 자동 생성돼요.`;
+          panel.hidden = false;
+          return;
+        }
+      }
+      panel.hidden = true;
+      lastUnknownDomain = null;
+    }
+
+    URL_FIELDS.forEach(f => {
+      const inp = document.querySelector('input[name="'+f+'"]');
+      if (inp) {
+        inp.addEventListener('input', () => { setTimeout(check, 150); });
+        inp.addEventListener('blur', check);
+      }
+    });
+
+    addBtn?.addEventListener('click', async () => {
+      if (!lastUnknownDomain) return;
+      addBtn.disabled = true;
+      addBtn.textContent = '⏳ 추가 중…';
+      try {
+        const res = await fetch('/api/sources/detect', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ domain: lastUnknownDomain }),
+        });
+        const j = await res.json();
+        if (res.ok && j.ok) {
+          // v6 Phase 5.5: backend 가 next_url 안내 → 위저드로 navigation
+          if (confirm(`✅ "${lastUnknownDomain}" 검출 기록됨.\n\n소싱처 위저드 (/accounts/sourcing) 로 이동해서 SourcingAccount 등록 + scraper 모듈 연결을 진행할까요?\n\n[취소] 시 현재 페이지에 머무름.`)) {
+            window.open(j.next_url || '/accounts/sourcing', '_blank');
+          }
+          panel.hidden = true;
+        } else if (res.status === 404) {
+          alert('API 미구현 — /accounts/sourcing 위저드 직접 사용');
+        } else {
+          alert('추가 실패: ' + (j.error || 'HTTP ' + res.status));
+        }
+      } catch (e) {
+        alert('네트워크 오류: ' + e.message);
+      } finally {
+        addBtn.disabled = false;
+        addBtn.textContent = '✓ 새 소싱처로 추가';
+      }
+    });
+    dismissBtn?.addEventListener('click', () => { panel.hidden = true; });
+
+    // 초기 검사
+    setTimeout(check, 200);
+  })();
+
+  // ═══════ 다중 URL — POST/PUT/DELETE 즉시 반영 (2026-05-09) ═══════
+  // C9 헤더 차트 — 모델 클러스터 칩 클릭 → 차트 mode 전환 (색상별 ↔ 모델별)
+  (function setupBhModelChips() {
+    const chips = document.querySelectorAll('.bh-model-chip');
+    if (!chips.length) return;
+    const modeEl = document.querySelector('.bcm-mode');
+    chips.forEach(c => c.addEventListener('click', () => {
+      chips.forEach(x => x.classList.toggle('on', x === c));
+      const m = c.dataset.model;
+      if (modeEl) modeEl.textContent = m === 'all' ? '색상별 평균' : m + ' (모델별)';
+      // TODO: 차트 데이터 동적 갱신은 후속 (PriceTrackHistory API 연결)
+    }));
+  })();
+
+  (function setupMultiUrl() {
+    function refreshCount(srcKey) {
+      const tree = document.querySelector(`[data-src-key="${srcKey}"][data-src-children]`);
+      if (!tree) return;
+      const cnt = tree.querySelectorAll('[data-url-row] input[data-src-key]').length;
+      const filledCnt = [...tree.querySelectorAll('[data-url-row] input[data-src-key]')].filter(i => i.value.trim()).length;
+      const cntEl = document.querySelector(`[data-cnt="${srcKey}"]`);
+      if (cntEl) cntEl.textContent = `(${filledCnt})`;
+    }
+    function buildRowHTML(srcKey, id, url) {
+      return `<div class="src-tree-url" data-url-row data-url-id="${id}">
+        <span class="src-tree-rail">└</span>
+        <input class="field-input mono src-url-input" data-src-key="${srcKey}" data-url-id="${id}" value="${url || ''}" placeholder="URL 입력" />
+        ${url ? `<a class="src-tree-open-btn" href="${url}" target="_blank" rel="noopener" title="새 탭에서 열기">↗</a>` : ''}
+        <button type="button" class="src-tree-del-btn" data-del-url-id="${id}" title="삭제">✕</button>
+      </div>`;
+    }
+    // ＋ URL 추가
+    document.addEventListener('click', async (e) => {
+      const addBtn = e.target.closest('.src-tree-add-btn');
+      if (addBtn) {
+        e.preventDefault();
+        if (addBtn.dataset.saving) return;
+        const srcKey = addBtn.dataset.srcKey;
+        const url = prompt(`${addBtn.dataset.srcLabel} 의 새 URL 을 입력하세요:`);
+        if (!url || !url.trim()) return;
+        addBtn.dataset.saving = '1';
+        try {
+          const r = await fetch(`/api/bundles/${BUNDLE_PATH}/source-urls`, {
+            method: 'POST', headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({source_key: srcKey, url: url.trim()})
+          });
+          const j = await r.json();
+          if (!j.ok) { alert('추가 실패: ' + (j.error || '')); return; }
+          // DOM 에 새 행 삽입 (＋ 버튼 직전)
+          const tmp = document.createElement('div');
+          tmp.innerHTML = buildRowHTML(srcKey, j.id, j.url);
+          addBtn.parentNode.insertBefore(tmp.firstElementChild, addBtn);
+          refreshCount(srcKey);
+        } finally {
+          delete addBtn.dataset.saving;
+        }
+        return;
+      }
+      // ✕ 삭제
+      const delBtn = e.target.closest('.src-tree-del-btn');
+      if (delBtn) {
+        e.preventDefault();
+        const id = delBtn.dataset.delUrlId;
+        if (!confirm('이 URL 을 삭제할까요?')) return;
+        const r = await fetch(`/api/bundles/${BUNDLE_PATH}/source-urls/${id}`, {method: 'DELETE'});
+        const j = await r.json();
+        if (!j.ok) { alert('삭제 실패: ' + (j.error || '')); return; }
+        const row = delBtn.closest('[data-url-row]');
+        const srcKey = row?.querySelector('input[data-src-key]')?.dataset.srcKey;
+        row?.remove();
+        if (srcKey) refreshCount(srcKey);
+      }
+    });
+    // input blur → URL 수정 (PUT)
+    document.addEventListener('blur', async (e) => {
+      const inp = e.target;
+      if (!inp.matches?.('.src-url-input')) return;
+      const id = inp.dataset.urlId;
+      const srcKey = inp.dataset.srcKey;
+      const newVal = inp.value.trim();
+      if (!id) return;  // legacy 단일 URL — 무시 (sync-urls-btn 으로 저장)
+      if (!newVal) return;  // 빈값은 삭제 버튼으로
+      const r = await fetch(`/api/bundles/${BUNDLE_PATH}/source-urls/${id}`, {
+        method: 'PUT', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({url: newVal})
+      });
+      const j = await r.json();
+      if (j.ok) refreshCount(srcKey);
+    }, true);
+  })();
+
+  // [옵션에 URL 동기화] — 폼의 현재 입력값을 저장 + 옵션 전파를 한꺼번에
+  const syncBtn = document.getElementById('sync-urls-btn');
+  if (syncBtn) {
+    syncBtn.addEventListener('click', async () => {
+      const orig = syncBtn.textContent;
+      syncBtn.textContent = '⏳ 저장 + 동기화 중...';
+      syncBtn.disabled = true;
+      try {
+        // 1) 다중 URL 의 첫 번째 값을 legacy url_xxx 로 매핑 (sync 호환)
+        const urlFields = SOURCE_KEYS.map(k => 'url_' + k);
+        const payload = {};
+        for (const fname of urlFields) {
+          const sk = fname.replace('url_', '');
+          const firstInp = document.querySelector(`input.src-url-input[data-src-key="${sk}"]`);
+          payload[fname] = firstInp ? firstInp.value.trim() : '';
+        }
+        // 2) 번들 저장 — save_bundle 가 자동으로 옵션에 전파함
+        const r = await fetch('/api/bundles/' + BUNDLE_PATH, {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify(payload),
+        });
+        const j = await r.json();
+        if (!j.ok) {
+          alert('동기화 실패: ' + (j.error || ''));
+        } else {
+          const p = j.propagated || {};
+          const upsertCnt = p.upserted || 0;
+          const delCnt = p.deleted || 0;
+          let msg = 'URL 저장 + 옵션 동기화 완료';
+          if (upsertCnt > 0) msg += '\n• 추가/갱신: ' + upsertCnt + '건';
+          if (delCnt > 0) msg += '\n• 삭제: ' + delCnt + '건';
+          if (upsertCnt === 0 && delCnt === 0) msg += '\n• 변경 없음 (이미 최신)';
+          msg += '\n\n옵션 매트릭스로 이동해서 확인하세요.';
+          alert(msg);
+        }
+      } catch (e) {
+        alert('네트워크 오류: ' + e.message);
+      }
+      syncBtn.textContent = orig;
+      syncBtn.disabled = false;
+    });
+  }
+  </script>
+</section>
+{% endblock %}

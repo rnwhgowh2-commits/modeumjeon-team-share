@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="ko"><head>
+<meta charset="utf-8"><title>재고 공유 — {{ link.name }}</title>
+<style>
+body { font-family: -apple-system, "Apple SD Gothic Neo", sans-serif; margin:0; background:#F9FAFB; padding:24px; }
+.wrap { max-width:1100px; margin:0 auto; background:#fff; border-radius:10px; padding:24px; }
+h1 { margin:0 0 8px; font-size:18px; }
+.subtitle { color:#6B7684; font-size:12px; margin-bottom:16px; }
+table { width:100%; border-collapse:collapse; font-size:12px; }
+thead { background:#F3F4F6; }
+th, td { padding:8px 10px; text-align:left; border-bottom:1px solid #F2F4F6; }
+.mono { font-family: ui-monospace, monospace; font-size:11px; }
+</style></head>
+<body><div class="wrap">
+<h1>{{ link.name }}</h1>
+<div class="subtitle">read-only · 모음전 재고 현황 ({{ options|length }} 옵션)</div>
+<table>
+<thead><tr><th>SKU</th><th>박스히어로</th><th>색상</th><th>사이즈</th><th style="text-align:right">재고</th></tr></thead>
+<tbody>
+{% for o in options %}<tr>
+  <td class="mono">{{ o.canonical_sku }}</td>
+  <td class="mono">{{ o.boxhero_sku or '—' }}</td>
+  <td>{{ o.color_display or o.color_code }}</td>
+  <td>{{ o.size_display or o.size_code }}</td>
+  <td style="text-align:right" class="mono">{{ o.boxhero_stock_total or 0 }}</td>
+</tr>{% endfor %}
+</tbody></table>
+</div></body></html>

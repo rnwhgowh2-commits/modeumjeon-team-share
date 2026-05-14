@@ -1,0 +1,48 @@
+{% extends 'base.html' %}
+{% block title %}미맵핑 — 모음전 자동화{% endblock %}
+{% block content %}
+<section class="screen active" id="screen-queue">
+  <h1>미맵핑 목록</h1>
+  <p class="greeting">자동 발견된 항목이에요. 분류별로 나뉘어 있어 어디 어떤 항목이 미맵핑인지 한눈에 볼 수 있어요.</p>
+
+  {% set current_cat = request.args.get('category', '') %}
+  <div class="map-cat-grid">
+    <a href="/queue" class="map-cat {% if not current_cat %}on{% endif %}">
+      <div class="map-cat-label">전체</div><div class="map-cat-num">{{ cats['전체'] }}</div></a>
+    <a href="/queue?category=신규 모델" class="map-cat {% if current_cat == '신규 모델' %}on{% endif %}">
+      <div class="map-cat-label">신규 모델</div><div class="map-cat-num">{{ cats['신규 모델'] }}</div></a>
+    <a href="/queue?category=신규 색상" class="map-cat {% if current_cat == '신규 색상' %}on{% endif %}">
+      <div class="map-cat-label">신규 색상</div><div class="map-cat-num">{{ cats['신규 색상'] }}</div></a>
+    <a href="/queue?category=옵션 매핑" class="map-cat {% if current_cat == '옵션 매핑' %}on{% endif %}">
+      <div class="map-cat-label">옵션 매핑</div><div class="map-cat-num">{{ cats['옵션 매핑'] }}</div></a>
+    <a href="/queue?category=URL 미등록" class="map-cat {% if current_cat == 'URL 미등록' %}on{% endif %}">
+      <div class="map-cat-label">URL 미등록</div><div class="map-cat-num">{{ cats['URL 미등록'] }}</div></a>
+  </div>
+
+  <style>
+    .map-cat-grid a.map-cat { display: block; transition: all 0.15s; }
+    .map-cat-grid a.map-cat:hover { box-shadow: var(--shadow); transform: translateY(-1px); }
+    .map-cat.on { border: 1.5px solid var(--primary); }
+    .map-cat.on .map-cat-num { color: var(--primary); }
+  </style>
+
+  <div class="card-tight" style="background:var(--surface);border-radius:14px;box-shadow:var(--shadow-sm);padding:0;overflow:hidden">
+    <table class="opt-table">
+      <thead><tr><th>분류</th><th>모음전</th><th>어디</th><th>무엇</th><th>액션</th></tr></thead>
+      <tbody>
+        {% for r in rows %}
+        <tr>
+          <td><span class="badge {% if r.category == '옵션 매핑' %}badge-ok{% else %}badge-warn{% endif %}">{{ r.category }}</span></td>
+          <td>{{ r.model }}</td>
+          <td>{{ r.where }}</td>
+          <td>{{ r.what }}</td>
+          <td><button class="btn btn-sm btn-primary" data-action="resolve-queue" data-id="{{ r.id }}">처리</button></td>
+        </tr>
+        {% else %}
+        <tr><td colspan="5" style="padding:32px;text-align:center;color:var(--n500)">미맵핑 항목이 없어요. 👍</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endblock %}

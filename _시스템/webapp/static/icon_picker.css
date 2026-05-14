@@ -1,0 +1,268 @@
+/* v32 — 아이콘 picker (노션 스타일)
+   사용: window.openIconPicker({onPick, current}) 호출
+   모달 + 검색 + 카테고리 + 흑백/색상 토글 + grid + 색상 palette */
+
+.icp-overlay {
+  position: fixed; inset: 0; z-index: 9000;
+  background: rgba(0, 0, 0, 0.32);
+  display: flex; align-items: center; justify-content: center;
+  animation: icp-fade .15s ease;
+  font-family: var(--font, "Pretendard", -apple-system, "Apple SD Gothic Neo", sans-serif);
+}
+@keyframes icp-fade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes icp-slide { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: translateY(0); } }
+
+.icp-modal {
+  background: #fff; border: 1.5px solid #D1D6DB; border-radius: 12px;
+  width: 720px; max-width: 92vw;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, .18);
+  overflow: hidden;
+  animation: icp-slide .18s ease;
+}
+
+/* HEAD */
+.icp-head {
+  display: flex; align-items: center; gap: 10px;
+  padding: 14px 18px; border-bottom: 1px solid #F2F4F6;
+}
+.icp-head h3 { margin: 0; font-size: 15px; font-weight: 800; color: #191F28; }
+.icp-head .icp-sub { font-size: 12px; color: #8B95A1; }
+.icp-head .icp-esc {
+  margin-left: auto;
+  background: #F2F4F6; color: #6B7684;
+  padding: 4px 10px; border-radius: 5px;
+  font-size: 11.5px; font-weight: 700;
+  cursor: pointer; border: none; font-family: inherit;
+}
+.icp-head .icp-esc:hover { background: #E5E8EB; color: #4E5968; }
+
+/* SEARCH */
+.icp-search {
+  padding: 12px 16px;
+  display: flex; gap: 8px;
+  border-bottom: 1px solid #F2F4F6;
+  align-items: center;
+}
+.icp-search input {
+  flex: 1; padding: 8px 14px;
+  border: 1.5px solid #E5E8EB; border-radius: 8px;
+  font-size: 13px; font-family: inherit;
+  background: #F9FAFB; color: #191F28;
+}
+.icp-search input:focus { outline: none; border-color: #3182F6; background: #fff; }
+.icp-search .icp-mode {
+  display: inline-flex; background: #F2F4F6; border-radius: 8px; padding: 2px;
+}
+.icp-search .icp-mode button {
+  background: transparent; border: none; padding: 6px 11px;
+  border-radius: 6px; font-size: 11.5px; font-weight: 800;
+  cursor: pointer; font-family: inherit; color: #6B7684;
+  display: inline-flex; align-items: center; gap: 4px;
+}
+.icp-search .icp-mode button.on { background: #fff; color: #191F28; box-shadow: 0 1px 3px rgba(0, 0, 0, .08); }
+
+/* CATEGORIES */
+.icp-cats {
+  display: flex; gap: 4px; padding: 8px 16px;
+  border-bottom: 1px solid #F2F4F6; overflow-x: auto;
+  scrollbar-width: thin;
+}
+.icp-cats button {
+  flex: 0 0 auto;
+  background: transparent; border: none;
+  padding: 5px 10px; border-radius: 5px;
+  font-size: 11.5px; font-weight: 700; color: #6B7684;
+  cursor: pointer; font-family: inherit; white-space: nowrap;
+}
+.icp-cats button:hover { background: #F2F4F6; }
+.icp-cats button.on { background: #E8F2FE; color: #1B64DA; }
+.icp-cats .icp-cnt {
+  background: #E5E8EB; color: #6B7684;
+  padding: 1px 5px; border-radius: 8px;
+  font-size: 10px; margin-left: 3px;
+  font-family: ui-monospace, monospace;
+}
+.icp-cats button.on .icp-cnt { background: #3182F6; color: #fff; }
+
+/* GRID */
+.icp-grid {
+  padding: 12px 16px;
+  display: grid; grid-template-columns: repeat(15, 1fr);
+  gap: 4px;
+  max-height: 280px; overflow-y: auto;
+  scroll-behavior: smooth;
+}
+.icp-cell {
+  aspect-ratio: 1;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: transparent; border: 1.5px solid transparent;
+  border-radius: 6px; cursor: pointer;
+  font-size: 20px; color: #4E5968;
+  transition: background .1s, border-color .1s, transform .08s;
+  position: relative;
+  font-family: "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif;
+}
+.icp-cell:hover { background: #F2F4F6; border-color: #D1D6DB; }
+.icp-cell.selected { background: #E8F2FE; border-color: #3182F6; }
+.icp-cell:focus { outline: none; background: #E8F2FE; border-color: #3182F6; }
+
+/* 색상 모드 — 동일 아이콘이 자동 다채로움 */
+.icp-cell.cmode { font-family: inherit; }
+.icp-cell.cmode.c1 { color: #3182F6; }
+.icp-cell.cmode.c2 { color: #03C75A; }
+.icp-cell.cmode.c3 { color: #F59E0B; }
+.icp-cell.cmode.c4 { color: #EF4444; }
+.icp-cell.cmode.c5 { color: #7C3AED; }
+.icp-cell.cmode.c6 { color: #14B8A6; }
+.icp-cell.cmode.c7 { color: #EC4899; }
+.icp-cell.cmode.c8 { color: #6366F1; }
+.icp-cell.cmode.c9 { color: #06B6D4; }
+
+.icp-empty {
+  grid-column: 1 / -1;
+  padding: 30px; text-align: center;
+  color: #8B95A1; font-size: 12.5px;
+}
+
+/* COLOR PALETTE (선택 시 노출) */
+.icp-palette {
+  padding: 14px 18px; background: #F9FAFB;
+  border-top: 1px solid #F2F4F6; border-bottom: 1px solid #F2F4F6;
+  display: flex; align-items: center; gap: 12px;
+}
+.icp-palette .icp-preview {
+  background: #fff; border: 1.5px solid #E5E8EB; border-radius: 8px;
+  padding: 6px;
+  display: inline-flex; align-items: center; justify-content: center;
+  font-size: 26px; width: 44px; height: 44px;
+}
+.icp-palette .icp-lab { font-size: 12px; font-weight: 800; color: #4E5968; }
+.icp-palette .icp-lab small { display: block; font-size: 10.5px; color: #8B95A1; font-weight: 500; margin-top: 2px; }
+.icp-palette .icp-colors {
+  display: flex; gap: 5px; margin-left: auto;
+}
+.icp-palette .icp-colors button {
+  width: 28px; height: 28px; border-radius: 50%;
+  border: 2px solid transparent;
+  cursor: pointer; transition: transform .12s;
+  padding: 0;
+}
+.icp-palette .icp-colors button:hover { transform: scale(1.15); }
+.icp-palette .icp-colors button.on { border-color: #191F28; }
+
+/* FOOTER */
+.icp-foot {
+  padding: 12px 18px;
+  display: flex; align-items: center; gap: 10px;
+  border-top: 1px solid #F2F4F6;
+  font-size: 11.5px; color: #8B95A1;
+}
+.icp-foot .icp-hint kbd {
+  background: #F2F4F6; border: 1px solid #D1D6DB;
+  padding: 1px 5px; border-radius: 3px;
+  font-size: 10.5px; font-family: ui-monospace, monospace;
+  margin: 0 2px;
+}
+.icp-foot .icp-acts { margin-left: auto; display: flex; gap: 7px; }
+.icp-foot .icp-acts button {
+  padding: 7px 14px; border-radius: 6px; font-size: 12px; font-weight: 800;
+  border: 1.5px solid; cursor: pointer; font-family: inherit;
+}
+.icp-foot .icp-acts .icp-clear { background: #fff; color: #6B7684; border-color: #D1D6DB; }
+.icp-foot .icp-acts .icp-clear:hover { background: #F2F4F6; }
+.icp-foot .icp-acts .icp-pick { background: #3182F6; color: #fff; border-color: #3182F6; }
+.icp-foot .icp-acts .icp-pick:hover { background: #1B64DA; }
+.icp-foot .icp-acts .icp-pick:disabled { opacity: .55; cursor: not-allowed; }
+
+/* 트리거 — 호버 시 ✎ 버튼 + 우클릭 가능 표시 */
+[data-icon-edit] {
+  position: relative;
+  cursor: default;
+}
+[data-icon-edit]:hover {
+  outline: 2px dashed #3182F6;
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+/* ✎ 수정 버튼 (호버 시 JS 가 동적 추가) */
+.icp-edit-btn {
+  position: absolute;
+  top: -10px; right: -10px;
+  width: 22px; height: 22px;
+  background: #3182F6; color: #fff;
+  border: 2px solid #fff;
+  border-radius: 50%;
+  display: inline-flex; align-items: center; justify-content: center;
+  font-size: 11px; font-weight: 800;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(49,130,246,.32);
+  z-index: 100;
+  font-family: inherit;
+  line-height: 1;
+  padding: 0;
+  animation: icp-edit-pop .15s ease;
+}
+.icp-edit-btn:hover {
+  background: #1B64DA;
+  transform: scale(1.15);
+}
+@keyframes icp-edit-pop {
+  from { opacity: 0; transform: scale(.6); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+/* v32 — 색상 박스 picker (mini popover) */
+[data-color-edit] {
+  position: relative;
+}
+[data-color-edit]:hover {
+  outline: 2px dashed #7C3AED;
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+.icp-color-btn {
+  position: absolute;
+  top: -8px; right: -8px;
+  width: 20px; height: 20px;
+  background: #7C3AED; color: #fff;
+  border: 2px solid #fff;
+  border-radius: 50%;
+  display: inline-flex; align-items: center; justify-content: center;
+  font-size: 9px;
+  cursor: pointer;
+  box-shadow: 0 2px 6px rgba(124,58,237,.32);
+  z-index: 100;
+  font-family: inherit; line-height: 1; padding: 0;
+  animation: icp-edit-pop .15s ease;
+}
+.icp-color-btn:hover { background: #5B21B6; transform: scale(1.15); }
+
+.icp-color-pop {
+  background: #fff;
+  border: 1.5px solid #D1D6DB;
+  border-radius: 10px;
+  padding: 12px;
+  box-shadow: 0 8px 22px rgba(0,0,0,0.16);
+  font-family: var(--font, "Pretendard", -apple-system, sans-serif);
+  animation: icp-edit-pop .15s ease;
+  min-width: 200px;
+}
+.icp-color-pop .icp-cp-title {
+  font-size: 11.5px; font-weight: 800; color: #4E5968;
+  margin-bottom: 8px; padding-left: 2px;
+}
+.icp-color-pop .icp-cp-grid {
+  display: grid; grid-template-columns: repeat(6, 28px);
+  gap: 6px;
+}
+.icp-color-pop .icp-cp-cell {
+  width: 28px; height: 28px;
+  border-radius: 50%;
+  cursor: pointer;
+  padding: 0;
+  display: inline-flex; align-items: center; justify-content: center;
+  font-size: 11px; font-weight: 800;
+  transition: transform .1s;
+}
+.icp-color-pop .icp-cp-cell:hover { transform: scale(1.15); }
+.icp-color-pop .icp-cp-cell.on { outline: 2px solid #191F28; outline-offset: 2px; }

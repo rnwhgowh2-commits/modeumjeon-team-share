@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>팀원 관리 · 모음전</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='toss.css') }}">
+  <style>
+    body { background: var(--bg); font-family: var(--font); margin: 0; padding: 32px; color: var(--n900); }
+    .container { max-width: 960px; margin: 0 auto; }
+    .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }
+    .header h1 { margin: 0; font-size: var(--fs-h1); font-weight: 700; }
+    .btn { padding: 10px 16px; font-size: var(--fs-caption); font-weight: 600; border-radius: 8px; cursor: pointer; text-decoration: none; display: inline-block; }
+    .btn-primary { background: var(--primary); color: white; border: none; }
+    .btn-primary:hover { background: var(--primary-strong); }
+    table { width: 100%; background: var(--surface); border: 1px solid var(--n200); border-radius: 12px; border-collapse: separate; border-spacing: 0; overflow: hidden; }
+    th, td { padding: 14px 16px; text-align: left; border-bottom: 1px solid var(--n200); font-size: var(--fs-body); }
+    th { background: var(--n100); font-weight: 600; font-size: var(--fs-caption); color: var(--n700); }
+    tr:last-child td { border-bottom: none; }
+    .badge { padding: 2px 8px; border-radius: 99px; font-size: var(--fs-caption); font-weight: 600; }
+    .badge-admin { background: var(--primary-tint); color: var(--primary-strong); }
+    .badge-member { background: var(--n100); color: var(--n700); }
+    .badge-inactive { background: var(--danger-bg); color: var(--danger); }
+    .flash { padding: 12px 16px; border-radius: 8px; margin-bottom: 16px; font-size: var(--fs-caption); }
+    .flash-success { background: var(--color-ok-bg); color: var(--color-ok); }
+    .flash-error { background: var(--danger-bg); color: var(--danger); }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>팀원 관리</h1>
+      <a href="{{ url_for('auth.invite_user') }}" class="btn btn-primary">+ 팀원 초대</a>
+    </div>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        {% for category, msg in messages %}
+          <div class="flash flash-{{ category }}">{{ msg }}</div>
+        {% endfor %}
+      {% endif %}
+    {% endwith %}
+
+    <table>
+      <thead>
+        <tr>
+          <th>이메일</th>
+          <th>이름</th>
+          <th>역할</th>
+          <th>상태</th>
+          <th>가입일</th>
+          <th>마지막 로그인</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for u in users %}
+        <tr>
+          <td>{{ u.email }}</td>
+          <td>{{ u.name }}</td>
+          <td><span class="badge badge-{{ u.role }}">{{ u.role }}</span></td>
+          <td>{% if u.is_active %}<span class="badge badge-member">활성</span>{% else %}<span class="badge badge-inactive">비활성</span>{% endif %}</td>
+          <td style="font-size: var(--fs-caption); color: var(--n600);">{{ u.created_at.strftime('%Y-%m-%d') }}</td>
+          <td style="font-size: var(--fs-caption); color: var(--n600);">{% if u.last_login_at %}{{ u.last_login_at.strftime('%Y-%m-%d %H:%M') }}{% else %}—{% endif %}</td>
+          <td>
+            <form action="{{ url_for('auth.toggle_active', user_id=u.id) }}" method="post" style="display: inline;">
+              <button type="submit" style="background: none; border: 1px solid var(--n300); padding: 6px 10px; border-radius: 6px; cursor: pointer; font-size: var(--fs-caption);">
+                {% if u.is_active %}비활성화{% else %}활성화{% endif %}
+              </button>
+            </form>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+
+    <div style="margin-top: 24px; text-align: center;">
+      <a href="{{ url_for('auth.me') }}" style="color: var(--n600); font-size: var(--fs-caption);">내 계정으로 돌아가기</a>
+    </div>
+  </div>
+</body>
+</html>

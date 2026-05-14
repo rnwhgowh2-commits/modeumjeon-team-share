@@ -1,0 +1,182 @@
+{% extends 'base.html' %}
+{% from 'partials/brand_macros.html' import brand_icon %}
+{% block title %}⚙ 소싱처 사전 — 모음전 자동화{% endblock %}
+{% block content %}
+<section class="screen active">
+  <h1>⚙ 소싱처 사전 관리</h1>
+  <p class="greeting">옵션 매트릭스에서 사용할 소싱처를 자유롭게 등록·정렬. 메인 URL 1개만 입력. 옵션별 상세 URL 은 모음전 편집에서.</p>
+
+  {# B 식 패널 헤더 (앱 형태) #}
+  <div class="brand-panel">
+    <div class="brand-panel-head">
+      <div class="brand-panel-title">
+        <span class="badge">S</span>
+        <span>소싱처 사전</span>
+      </div>
+      <div class="brand-panel-meta">
+        <span class="active">{{ items|length }}</span> / {{ items|length }} ACTIVE
+      </div>
+    </div>
+    <div class="brand-grid" id="src-list">
+      {% for it in items %}
+      <div class="brand-card src-row" draggable="true" data-id="{{ it.id }}" style="position:relative">
+        <span class="drag-handle" style="cursor:grab;color:var(--n400);font-size:18px;padding:0 4px;user-select:none">⠿</span>
+        {{ brand_icon(it.name, it.main_url) }}
+        <div class="brand-info">
+          <div class="brand-name" data-name="{{ it.name }}">{{ it.name }}</div>
+          <div class="brand-meta">
+            {% if it.usage_count > 0 %}
+              <span class="dot ok"></span>사용중 옵션 {{ it.usage_count }}개
+            {% else %}
+              <span class="dot warn"></span>미사용
+            {% endif %}
+          </div>
+        </div>
+        <input class="src-url-input" data-id="{{ it.id }}" value="{{ it.main_url }}"
+               placeholder="https://..." style="flex:1;max-width:420px;padding:8px 12px;border:1px solid var(--n200);border-radius:8px;font-family:'JetBrains Mono',monospace;font-size:12px;outline:none">
+        <div class="brand-actions">
+          {% if it.main_url %}
+          <a href="{{ it.main_url }}" target="_blank" rel="noopener" title="메인 URL 열기" class="btn btn-sm" style="padding:6px 8px">↗</a>
+          {% endif %}
+          <button class="btn btn-sm" data-action="rename" data-id="{{ it.id }}" data-name="{{ it.name }}" title="이름 변경">✎</button>
+          <button class="btn btn-sm" data-action="delete" data-id="{{ it.id }}" data-name="{{ it.name }}" data-usage="{{ it.usage_count }}" style="color:var(--color-danger,#dc2626)" title="삭제">🗑</button>
+        </div>
+      </div>
+      {% else %}
+      <div class="empty-v3" style="padding:32px;text-align:center;color:var(--n500)">
+        소싱처 사전이 비어있어요. 아래에서 첫 소싱처를 등록하세요.
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+
+  <div class="brand-panel">
+    <div class="brand-panel-head">
+      <div class="brand-panel-title">
+        <span class="badge" style="background:var(--success,#10B981)">+</span>
+        <span>새 소싱처 추가</span>
+      </div>
+      <div class="brand-panel-meta">이름 입력 시 자동으로 색상·아이콘 매핑</div>
+    </div>
+    <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+      <input id="new-name" class="field-input" placeholder="이름 (예: 카카오톡스토어, 무신사 외)" style="width:280px">
+      <input id="new-url" class="field-input mono" placeholder="https://..." style="flex:1;min-width:280px">
+      <button class="btn btn-primary" id="add-src">+ 추가</button>
+    </div>
+    <div style="margin-top:10px;font-size:11.5px;color:var(--n500)">💡 인식 가능 브랜드: 스마트스토어·쿠팡·11번가·G마켓·옥션·Cafe24·무신사·르무통·SSF·SSG·롯데·인터파크·29CM·W컨셉</div>
+  </div>
+</section>
+
+<style>
+  .src-row.dragging { opacity: 0.5; }
+  .src-row.drop-above { border-top: 3px solid var(--primary, #3182F6) !important; }
+  .src-row.drop-below { border-bottom: 3px solid var(--primary, #3182F6) !important; }
+</style>
+
+<script>
+(function(){
+  // 새 소싱처 추가
+  document.getElementById('add-src').addEventListener('click', async () => {
+    const name = document.getElementById('new-name').value.trim();
+    const main_url = document.getElementById('new-url').value.trim();
+    if (!name) { alert('이름을 입력하세요.'); return; }
+    const r = await fetch('/api/source-registry', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({name, main_url}),
+    });
+    const j = await r.json();
+    if (!j.ok) { alert(j.error); return; }
+    location.reload();
+  });
+
+  // 메인 URL 인라인 저장 (blur 시)
+  document.querySelectorAll('.src-url-input').forEach(inp => {
+    inp.addEventListener('blur', async () => {
+      const id = inp.dataset.id;
+      const r = await fetch(`/api/source-registry/${id}`, {
+        method: 'PUT', headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({main_url: inp.value.trim()}),
+      });
+      const j = await r.json();
+      if (!j.ok) alert(j.error);
+    });
+  });
+
+  // 이름 변경
+  document.querySelectorAll('[data-action="rename"]').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const id = btn.dataset.id;
+      const oldName = btn.dataset.name;
+      const newName = prompt('새 이름:', oldName);
+      if (!newName || newName === oldName) return;
+      const r = await fetch(`/api/source-registry/${id}`, {
+        method: 'PUT', headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({name: newName.trim()}),
+      });
+      const j = await r.json();
+      if (!j.ok) { alert(j.error); return; }
+      location.reload();
+    });
+  });
+
+  // 삭제
+  document.querySelectorAll('[data-action="delete"]').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const id = btn.dataset.id;
+      const name = btn.dataset.name;
+      const usage = btn.dataset.usage;
+      const msg = parseInt(usage) > 0
+        ? `'${name}' 삭제 — 사용중 옵션 ${usage}개의 URL 매핑도 함께 삭제됩니다. 계속?`
+        : `'${name}' 삭제?`;
+      if (!confirm(msg)) return;
+      const r = await fetch(`/api/source-registry/${id}`, {method: 'DELETE'});
+      const j = await r.json();
+      if (!j.ok) { alert(j.error); return; }
+      location.reload();
+    });
+  });
+
+  // HTML5 드래그 정렬
+  const list = document.getElementById('src-list');
+  let dragging = null;
+  list.querySelectorAll('.src-row').forEach(row => {
+    row.addEventListener('dragstart', e => {
+      dragging = row; row.classList.add('dragging');
+      e.dataTransfer.effectAllowed = 'move';
+    });
+    row.addEventListener('dragend', () => {
+      if (dragging) dragging.classList.remove('dragging');
+      list.querySelectorAll('.drop-above,.drop-below').forEach(r =>
+        r.classList.remove('drop-above','drop-below'));
+      dragging = null;
+    });
+    row.addEventListener('dragover', e => {
+      e.preventDefault();
+      if (!dragging || dragging === row) return;
+      const rect = row.getBoundingClientRect();
+      const above = (e.clientY - rect.top) < rect.height / 2;
+      row.classList.toggle('drop-above', above);
+      row.classList.toggle('drop-below', !above);
+    });
+    row.addEventListener('dragleave', () => {
+      row.classList.remove('drop-above','drop-below');
+    });
+    row.addEventListener('drop', async e => {
+      e.preventDefault();
+      if (!dragging || dragging === row) return;
+      const above = row.classList.contains('drop-above');
+      row.classList.remove('drop-above','drop-below');
+      list.insertBefore(dragging, above ? row : row.nextSibling);
+      const ids = Array.from(list.querySelectorAll('.src-row'))
+        .map(r => parseInt(r.dataset.id));
+      const r = await fetch('/api/source-registry/reorder', {
+        method: 'POST', headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({ids}),
+      });
+      const j = await r.json();
+      if (!j.ok) { alert(j.error); }
+    });
+  });
+})();
+</script>
+{% endblock %}
