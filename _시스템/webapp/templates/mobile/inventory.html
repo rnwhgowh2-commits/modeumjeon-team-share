@@ -4,8 +4,10 @@
 
 {% block content %}
 <div class="m-field">
-  <input type="search" id="search-input" placeholder="🔍 SKU / 색상 / 사이즈 검색" autocomplete="off">
+  <input type="search" id="search-input" placeholder="🔍 SKU / 색상 / 사이즈 / 바코드 검색" autocomplete="off">
 </div>
+
+<div id="inventory-summary" style="font-size: 12px; color: var(--n600); padding: 0 4px 8px; display: none;"></div>
 
 <div id="inventory-list">
   <div class="m-loading"><span class="m-spinner"></span>불러오는 중...</div>
@@ -14,65 +16,77 @@
 
 {% block extra_script %}
 <script>
-  let allItems = [];
+  let debounceTimer = null;
 
-  async function loadInventory() {
+  async function loadInventory(query = '') {
+    const list = document.getElementById('inventory-list');
+    const summary = document.getElementById('inventory-summary');
+    list.innerHTML = '<div class="m-loading"><span class="m-spinner"></span>불러오는 중...</div>';
+    summary.style.display = 'none';
+
     try {
-      // 데스크탑 API 재사용 — /api/v1/inventory/... 또는 직접 옵션 목록
-      // 일단 단순화: /api/v1/* alias 없을 수 있으니 lookup API 를 페이지네이션으로 활용
-      // 대신 데스크탑 /inventory/api/options 가 있을 가능성 있음 — 시도
-      const r = await fetch('/inventory/api/matrix/list?limit=200');
-      if (!r.ok) throw new Error('재고 API 없음');
+      const url = '/mobile/api/options?limit=200' + (query ? '&q=' + encodeURIComponent(query) : '');
+      const r = await fetch(url);
       const d = await r.json();
-      allItems = d.items || d.options || [];
-      render(allItems);
+      if (!d.ok) throw new Error(d.error || '재고 API 실패');
+      render(d.items, d.total, query);
     } catch (e) {
-      // 폴백: 단순 안내
-      document.getElementById('inventory-list').innerHTML =
+      console.error('[mobile-inv]', e);
+      list.innerHTML =
         `<div class="m-empty">
-          <div class="icon">🔍</div>
-          바코드 스캔으로 빠르게 찾기
-          <div style="margin-top: 16px;">
-            <a href="/mobile/scan" class="m-btn primary" style="display: inline-block; text-decoration: none;">📷 스캔하기</a>
-          </div>
+          <div class="icon">⚠️</div>
+          재고 불러오기 실패<br>
+          <span style="font-size: 12px; color: var(--n500);">${e.message || ''}</span>
         </div>`;
     }
   }
 
-  function render(items) {
+  function render(items, total, query) {
     const list = document.getElementById('inventory-list');
-    if (!items.length) {
-      list.innerHTML = '<div class="m-empty"><div class="icon">📭</div>표시할 옵션 없음</div>';
+    const summary = document.getElementById('inventory-summary');
+
+    if (!items || !items.length) {
+      list.innerHTML = `<div class="m-empty">
+        <div class="icon">📭</div>
+        ${query ? `"${query}" 검색 결과 없음` : '옵션 없음'}
+      </div>`;
       return;
     }
-    list.innerHTML = items.slice(0, 50).map(it => {
-      const sku = it.canonical_sku || it.sku;
-      const stock = it.stock || it.total_stock || 0;
-      const color = it.color_code || it.color || '';
-      const size = it.size_code || it.size || '';
-      return `<a href="/mobile/sku/${encodeURIComponent(sku)}" class="m-card" style="display: block; text-decoration: none; color: inherit;">
-        <div style="display: flex; justify-content: space-between; align-items: center;">
-          <div style="flex: 1; min-width: 0;">
-            <div style="font-size: 15px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${sku}</div>
-            <div style="font-size: 12px; color: var(--n600); margin-top: 4px;">${color} ${size}</div>
+
+    summary.style.display = 'block';
+    summary.textContent = `${total}개 옵션` + (query ? ` · "${query}" 결과` : '');
+
+    list.innerHTML = items.map(it => {
+      const sku = it.canonical_sku;
+      const stock = it.stock || 0;
+      const color = it.color_code || '';
+      const size = it.size_code || '';
+      const boxhero = it.boxhero_sku || '';
+      const img = it.image_url
+        ? `<img src="${it.image_url}" style="width: 48px; height: 48px; border-radius: 8px; object-fit: cover; flex-shrink: 0;">`
+        : `<div style="width: 48px; height: 48px; border-radius: 8px; background: var(--n100); display: flex; align-items: center; justify-content: center; font-size: 20px; flex-shrink: 0;">📦</div>`;
+      const stockColor = stock > 0 ? 'var(--color-ok, #16a34a)' : (stock < 0 ? 'var(--danger, #F04452)' : 'var(--n500, #8B95A1)');
+      return `<a href="/mobile/sku/${encodeURIComponent(sku)}" class="m-card" style="display: flex; gap: 12px; align-items: center; text-decoration: none; color: inherit; padding: 12px 14px; margin-bottom: 8px;">
+        ${img}
+        <div style="flex: 1; min-width: 0;">
+          <div style="font-size: 14px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${sku}</div>
+          <div style="font-size: 12px; color: var(--n600); margin-top: 2px;">
+            ${color} ${size}${boxhero ? ' · <span style="color: var(--n500); font-family: monospace;">' + boxhero + '</span>' : ''}
           </div>
-          <div style="text-align: right;">
-            <div style="font-size: 20px; font-weight: 700;">${stock}</div>
-            <div style="font-size: 11px; color: var(--n500);">재고</div>
-          </div>
+        </div>
+        <div style="text-align: right; flex-shrink: 0;">
+          <div style="font-size: 20px; font-weight: 700; color: ${stockColor};">${stock}</div>
+          <div style="font-size: 10px; color: var(--n500);">재고</div>
         </div>
       </a>`;
     }).join('');
   }
 
+  // 검색 입력 — 300ms 디바운스 후 서버 호출
   document.getElementById('search-input').addEventListener('input', (e) => {
-    const q = e.target.value.toLowerCase().trim();
-    if (!q) return render(allItems);
-    render(allItems.filter(it =>
-      (it.canonical_sku || it.sku || '').toLowerCase().includes(q) ||
-      (it.color_code || it.color || '').toLowerCase().includes(q) ||
-      (it.size_code || it.size || '').toLowerCase().includes(q)
-    ));
+    clearTimeout(debounceTimer);
+    const q = e.target.value.trim();
+    debounceTimer = setTimeout(() => loadInventory(q), 300);
   });
 
   loadInventory();

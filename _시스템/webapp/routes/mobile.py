@@ -277,6 +277,64 @@ def api_action():
         )
 
 
+@bp.route("/api/options", methods=["GET"])
+def api_options():
+    """모바일 재고 목록 — 옵션 + 총 재고.
+
+    Query params:
+      q: 검색어 (canonical_sku / color / size / boxhero_sku 부분 일치)
+      limit: 기본 200
+    """
+    q = (request.args.get("q") or "").strip()
+    try:
+        limit = min(int(request.args.get("limit") or 200), 500)
+    except ValueError:
+        limit = 200
+
+    with SessionLocal() as s:
+        # 옵션별 총 재고 서브쿼리
+        stock_q = (
+            s.query(
+                InventoryTx.option_canonical_sku.label("sku"),
+                func.coalesce(func.sum(InventoryTx.qty), 0).label("stock"),
+            )
+            .filter(InventoryTx.status == 'completed')
+            .group_by(InventoryTx.option_canonical_sku)
+            .subquery()
+        )
+
+        query = (
+            s.query(Option, stock_q.c.stock)
+            .outerjoin(stock_q, stock_q.c.sku == Option.canonical_sku)
+        )
+        if q:
+            like = f"%{q}%"
+            query = query.filter(
+                (Option.canonical_sku.ilike(like))
+                | (Option.color_code.ilike(like))
+                | (Option.size_code.ilike(like))
+                | (Option.boxhero_sku.ilike(like))
+            )
+        # 정렬: 재고 많은 순 → SKU
+        query = query.order_by(
+            func.coalesce(stock_q.c.stock, 0).desc(),
+            Option.canonical_sku,
+        ).limit(limit)
+
+        rows = query.all()
+        return _ok(items=[
+            {
+                "canonical_sku": opt.canonical_sku,
+                "boxhero_sku": opt.boxhero_sku,
+                "color_code": opt.color_code,
+                "size_code": opt.size_code,
+                "image_url": opt.image_url,
+                "stock": int(stock or 0),
+            }
+            for opt, stock in rows
+        ], total=len(rows))
+
+
 @bp.route("/api/recent", methods=["GET"])
 def api_recent():
     """최근 트랜잭션 (홈에서 활동 피드)."""
