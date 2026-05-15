@@ -32,13 +32,29 @@
     <div style="background:#fff;border:1px solid #E5E8EB;border-radius:8px;padding:12px"><div style="font-size:10.5px;color:#6B7684">필터된 옵션{% if stats.shown_limited %} <span style="color:#FF8E3C">(상위 500 표시)</span>{% endif %}</div><div style="font-size:20px;font-weight:700;color:#6B7684">{{ '{:,}'.format(stats.shown) }}</div></div>
   </div>
 
-  <!-- 필터 바 (박스히어로 1:1) -->
-  <form method="get" style="background:#fff;border:1px solid #E5E8EB;border-radius:8px;padding:10px 14px;margin-bottom:12px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+  <!-- 필터 바 (박스히어로 1:1 — 다중 키워드 AND 칩 UI) -->
+  <form id="filterForm" method="get" style="background:#fff;border:1px solid #E5E8EB;border-radius:8px;padding:10px 14px;margin-bottom:12px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">
     <select name="location_id" style="padding:6px 10px;border:1px solid #D1D6DB;border-radius:5px;font-size:12px;min-width:140px">
       <option value="">모든 위치</option>
       {% for loc in all_locs %}<option value="{{ loc.id }}" {% if location_filter == loc.id|string %}selected{% endif %}>{{ loc.name }}</option>{% endfor %}
     </select>
-    <input name="q" value="{{ search_q }}" placeholder="이름, 바코드, 속성 검색" style="flex:1;min-width:200px;padding:6px 10px;border:1px solid #CBCCD3;border-radius:5px;font-size:12.5px;color:#292A2F">
+
+    <!-- 칩 컨테이너 + input — 박스히어로 스타일 -->
+    <div id="chipBox" style="flex:1;min-width:240px;display:flex;align-items:center;flex-wrap:wrap;gap:6px;padding:6px 8px;border:1px solid #CBCCD3;border-radius:5px;background:#fff;min-height:32px;cursor:text"
+         onclick="document.getElementById('chipInput').focus()">
+      {% for tok in (search_tokens or []) %}
+        <span class="chip" data-tok="{{ tok }}" style="display:inline-flex;align-items:center;gap:4px;background:#EFF6FF;color:#3182F6;border-radius:14px;padding:2px 4px 2px 10px;font-size:12px;font-weight:500">
+          {{ tok }}
+          <button type="button" onclick="removeChip(this)" aria-label="제거" style="background:transparent;border:0;color:#3182F6;cursor:pointer;padding:0 6px;font-size:14px;line-height:1">×</button>
+        </span>
+      {% endfor %}
+      <input id="chipInput" type="text" placeholder="{% if (search_tokens or [])|length == 0 %}이름, 바코드, 속성 검색{% endif %}"
+             style="flex:1;min-width:120px;border:0;outline:0;font-size:12.5px;color:#292A2F;background:transparent"
+             onkeydown="onChipKey(event)" onblur="commitChip()">
+    </div>
+    <!-- 실제 form 전송용 hidden 필드 (자바스크립트가 칩들을 합쳐서 채움) -->
+    <input id="qHidden" type="hidden" name="q" value="{{ search_q }}">
+
     <label style="display:flex;align-items:center;gap:5px;font-size:12px;color:#4E5968;font-weight:600;cursor:pointer">
       <input type="checkbox" name="in_stock" value="1" {% if in_stock_only %}checked{% endif %}> 재고 보유
     </label>
@@ -48,6 +64,65 @@
     <button type="submit" style="background:#3182F6;color:#fff;padding:6px 14px;border:none;border-radius:5px;font-size:12px;font-weight:600;cursor:pointer">필터 적용</button>
     <a href="{{ url_for('inventory.home') }}" style="font-size:11.5px;color:#6B7684;text-decoration:none">초기화</a>
   </form>
+
+  <script>
+  // 박스히어로식 다중 키워드 AND 검색 — 칩 컨트롤
+  (function(){
+    var box = document.getElementById('chipBox');
+    var inp = document.getElementById('chipInput');
+    var hidden = document.getElementById('qHidden');
+    var form = document.getElementById('filterForm');
+
+    function tokens(){
+      return Array.prototype.map.call(box.querySelectorAll('.chip'), function(c){ return c.dataset.tok; }).filter(Boolean);
+    }
+    function sync(){ hidden.value = tokens().join(' '); }
+    function addChip(t){
+      t = (t||'').trim();
+      if(!t) return;
+      // 중복 방지
+      if(tokens().indexOf(t) >= 0){ inp.value=''; return; }
+      var span = document.createElement('span');
+      span.className = 'chip';
+      span.dataset.tok = t;
+      span.style.cssText = 'display:inline-flex;align-items:center;gap:4px;background:#EFF6FF;color:#3182F6;border-radius:14px;padding:2px 4px 2px 10px;font-size:12px;font-weight:500';
+      span.innerHTML = t.replace(/[<>&"]/g, function(c){return {"<":"&lt;",">":"&gt;","&":"&amp;",'"':"&quot;"}[c];})
+        + ' <button type="button" onclick="removeChip(this)" aria-label="제거" style="background:transparent;border:0;color:#3182F6;cursor:pointer;padding:0 6px;font-size:14px;line-height:1">×</button>';
+      box.insertBefore(span, inp);
+      inp.value = '';
+      sync();
+    }
+    window.removeChip = function(btn){
+      var chip = btn.closest('.chip');
+      if(chip){ chip.parentNode.removeChild(chip); sync(); form.submit(); }
+    };
+    window.onChipKey = function(e){
+      // Enter, Space, Comma → 칩 추가 (입력 안 끊김 방지: Space 는 미입력 시 무시)
+      if(e.key === 'Enter' || e.key === ',' ){
+        e.preventDefault();
+        if(inp.value.trim()){ addChip(inp.value); form.submit(); }
+      } else if(e.key === ' '){
+        if(inp.value.trim()){
+          e.preventDefault();
+          addChip(inp.value);
+        }
+      } else if(e.key === 'Backspace' && !inp.value){
+        // 빈 입력에서 백스페이스 → 마지막 칩 제거
+        var chips = box.querySelectorAll('.chip');
+        if(chips.length){ chips[chips.length-1].remove(); sync(); }
+      }
+    };
+    window.commitChip = function(){
+      if(inp.value.trim()){ addChip(inp.value); }
+    };
+    // 초기 sync
+    sync();
+    // 폼 submit 직전 마지막 input 도 칩으로
+    form.addEventListener('submit', function(){
+      if(inp.value.trim()){ addChip(inp.value); }
+    });
+  })();
+  </script>
 
   <!-- split layout: 좌측 list + 우측 detail -->
   <div style="display:grid;grid-template-columns:{% if selected_detail %}1.2fr 1fr{% else %}1fr{% endif %};gap:14px;align-items:start">

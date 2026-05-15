@@ -7,6 +7,7 @@ ai-workflow STEP 7 Sprint 0 Task 0.4
 sub-routes는 추후 task 에서 별도 모듈로 분리 (Sprint 1~4).
 """
 from flask import Blueprint, render_template, request
+from sqlalchemy import or_
 
 bp = Blueprint('inventory', __name__, url_prefix='/inventory')
 
@@ -29,9 +30,12 @@ def home():
         q = s.query(Option)
         if in_stock_only:
             q = q.filter(Option.boxhero_stock_total > 0)
-        if search_q:
-            like = f'%{search_q}%'
-            q = q.filter((Option.canonical_sku.like(like)) | (Option.boxhero_sku.like(like)))
+        # ★ 박스히어로식 다중 키워드 AND 교집합 필터
+        # ?q=르무통 메이트 그레이  → 각 토큰을 AND 로 묶음, 토큰 안에서는 canonical_sku 또는 boxhero_sku OR
+        search_tokens = [t for t in (search_q.split() if search_q else []) if t]
+        for tok in search_tokens:
+            like = f'%{tok}%'
+            q = q.filter(or_(Option.canonical_sku.like(like), Option.boxhero_sku.like(like)))
 
         # ★ stats 는 limit 적용 전 전체 카운트로 계산 (UI 표시 limit 500 과 분리)
         from sqlalchemy import case
@@ -102,6 +106,7 @@ def home():
             active_app='inventory', active='items',
             options=options, grouped=grouped, group_by_model=group_by_model,
             in_stock_only=in_stock_only, search_q=search_q,
+            search_tokens=search_tokens,
             selected_detail=selected_detail, all_locs=all_locs,
             location_filter=location_filter, stats=stats,
         )
