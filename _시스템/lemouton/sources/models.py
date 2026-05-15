@@ -39,6 +39,12 @@ class SourceProduct(Base):
     # 매트릭스 팝업 시안 B 가 "판매가" 라인 옆 보조 텍스트로 렌더링.
     auto_card_discount_json = Column(Text)
 
+    # ★ 2026-05-15 추가: 상품 단위 동적 혜택 (옵션 dict 에서 추출).
+    # JSON 직렬화 dict: point_rate / gift_point_amount / ssg_money_rate / already_applied /
+    #   card_benefit_price / lotteon_coupons / money_active 등 사이트 특화 동적 키들.
+    # compute_breakdown 이 lookup 해서 매트릭스 매입가 산식에 추가 차감으로 자동 반영.
+    dynamic_benefits_json = Column(Text)
+
     created_at = Column(DateTime, default=_utcnow, nullable=False)
     updated_at = Column(DateTime, default=_utcnow, onupdate=_utcnow, nullable=False)
     deleted_at = Column(DateTime)
@@ -63,6 +69,12 @@ class SourceOption(Base):
     current_price = Column(Integer)
     current_stock = Column(Integer)
     last_fetched_at = Column(DateTime)
+
+    # ★ 2026-05-15 — 옵션별 동적 혜택 (사이트 자체 가변값 — 카드사/적립률/카드혜택가 등)
+    #   크롤러 옵션 dict 의 동적 키 (point_rate, point_amount, gift_point_amount,
+    #   auto_card_discount, ssg_money_*, card_benefit_*, lotteon_coupons 등) JSON.
+    #   compute_breakdown 이 이 JSON 을 lookup 해서 매트릭스 매입가 산식에 자동 반영.
+    dynamic_benefits_json = Column(Text)
 
     created_at = Column(DateTime, default=_utcnow, nullable=False)
     updated_at = Column(DateTime, default=_utcnow, onupdate=_utcnow, nullable=False)

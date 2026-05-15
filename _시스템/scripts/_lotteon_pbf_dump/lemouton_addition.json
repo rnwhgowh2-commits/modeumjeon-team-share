@@ -1,0 +1,92 @@
+{
+  "returnCode": "200",
+  "message": "SUCCESS",
+  "subMessages": null,
+  "messageType": null,
+  "dataCount": null,
+  "data": {
+    "spdNo": "LO2158462914",
+    "cardFavor": {
+      "cardImmdFavors": null,
+      "fvrCnts": {
+        "installmentDesc": [
+          {
+            "fvrCnt": "무이자 할부 안내",
+            "highLight": null
+          }
+        ],
+        "cardFavors": null,
+        "installmentFavors": null
+      },
+      "installmentFavors": []
+    },
+    "deliveryFavor": {
+      "deliveryFavors": null
+    },
+    "giftFavor": {
+      "orderGiftFavors": [],
+      "productGiftFavors": []
+    },
+    "installmentFavor": {
+      "fvrCnts": {
+        "installmentDesc": [
+          {
+            "fvrCnt": "무이자 할부 안내",
+            "highLight": null
+          }
+        ],
+        "cardFavors": null,
+        "installmentFavors": null
+      },
+      "installmentFavors": []
+    },
+    "lpointFavor": {
+      "additionalCnts": null,
+      "maxAccmPoint": 60,
+      "productLpointFavors": null,
+      "purchaseEventFavors": null,
+      "purchaseRewardFavors": [
+        {
+          "pyMnsCndYn": null,
+          "ovsDpurYn": null,
+          "prPrpsCd": "LO_MARK",
+          "accmPoint": 60,
+          "maxHurdlePoint": 100000.0,
+          "minStandardAmt": 1.0,
+          "orderDeliveryCndModel": null,
+          "promotionBasicModel": {
+            "lrtrNo": null,
+            "prEndDttm": "2026-05-31T23:59:59",
+            "prKndCd": "ACM_PUR_RWD",
+            "prNm": "5월 롯데ON 구매적립",
+            "prNo": "P20260424035225",
+            "prStrtDttm": "2026-05-01T00:00:00",
+            "prTypCd": "ACM_PR",
+            "trGrpCd": "ALL",
+            "trNo": "LD464521",
+            "fcfsMaxNopNbr": 0,
+            "fvrSectMinAmt": 0,
+            "prntDgnnDt": null,
+            "prntRngCd": null,
+            "prntVpCd": null
+          },
+          "pyMnsCndModel": null
+        }
+      ],
+      "reviewLpointFavors": null
+    },
+    "ownersFavor": {
+      "deliveryFavorCnts": null,
+      "deliveryFavorHighLight": null,
+      "ownersDcCnts": "추가 1% 할인",
+      "ownersHighLight": [
+        "1%"
+      ],
+      "purchaseFavorAccmAmt": 600,
+      "purchaseFavorCnts": "추가 0.5% 적립",
+      "purchaseFavorHighLight": [
+        "0.5%"
+      ]
+    }
+  }
+}

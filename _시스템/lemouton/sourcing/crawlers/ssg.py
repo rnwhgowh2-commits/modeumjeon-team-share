@@ -24,13 +24,42 @@ URL 패턴:
       → 정액 금액. 조건 텍스트는 ``span.mndtl_info_desc`` 에 "{최소금액}원 이상 결제 시 ..."
   - 카드혜택가 미노출 상품: 사용자 명세대로 **현대카드 2.73% fallback**
       → DB 시드 권장 (auto_card_discount dict 로 옵션에 박지 않고 별도 키 유지).
-  - SSG MONEY 5% 적립 등은 명세상 sale_price 에 이미 반영 → 별도 차감 X.
+  - SSG MONEY — 사용자 명세 (2026-05-15): "**매입가에 반영해야 함**.
+      단, 이미 sale_price 에 반영된 경우는 중복매입 방지를 위해 추가 차감 X."
+
+SSG MONEY 패턴 (3 URL 실측 결과, 2026-05-15):
+  - **패턴 A — 즉시할인 형태 (이미 sale_price 에 반영, 추가 차감 X)**:
+      할인내역 layer ``div.cdtl_ly_cont`` 안에
+      ``<dl class="cdtl_ly_dc"><dt>SSG MONEY 즉시할인</dt><dd>4,410원</dd>``.
+      페이지 안내 텍스트: "현재 최적가의 금액 기준은 …, SSG MONEY 즉시할인이
+      적용된 금액". → ``ssg_money_already_applied = True``.
+      예: URL3 (1000807328520) 판매가 49,000 → 최적가 39,690
+      (상품 즉시할인 4,900 + SSG MONEY 즉시할인 4,410).
+  - **패턴 B — 적립 형태 (별도 적립, 매입가에서 차감 가능)**:
+      구매혜택 영역 ``<span class="cdtl_benefit">SSG MONEY</span>`` +
+      ``<div class="cdtl_benefit_info"><div class="txt">5% 적립</div>``.
+      sale_price 에는 미반영 → 매입가 계산 시 sale_price 의 5% 만큼 차감 OK.
+      ``ssg_money_already_applied = False``.
+      예: URL1 (1000739593935 르무통) bestAmt=sellprc=109,900 + SSG MONEY 5% 적립.
+  - **패턴 C — "X% 적립 또는 X% 즉시할인" 듀얼 옵션**:
+      구매혜택 텍스트가 "10% 적립 또는 10% 즉시할인". 즉시할인 dl.cdtl_ly_dc 가
+      함께 존재하면 사용자가 즉시할인 쪽을 선택한 가격(bestAmt)이므로 이미 반영.
+      → ``ssg_money_already_applied = True`` (즉시할인 dl 우선).
+      예: URL3 — 구매혜택은 "10% 적립 또는 10% 즉시할인"이지만 할인내역에
+      "SSG MONEY 즉시할인 4,410원" 노출 → 즉시할인 모드 확정.
+  - **패턴 D — SSG MONEY 노출 없음**:
+      구매혜택 영역에 SSG MONEY 항목 없고 할인내역에도 SSG MONEY 즉시할인 dt 없음.
+      → ``ssg_money_rate = 0``, ``ssg_money_amount = 0``, ``already_applied = False``.
+      예: URL2 (1000631699134 닥스 벨트) — 상품 즉시할인 18,945원만 노출.
 
 옵션 dict 표준 키 (base.CrawlResult.options):
   - option_id, color_text, size_text, price, sale_price, stock
   - card_benefit_price / card_benefit_condition (옵션이 모두 동일하므로 옵션마다 박음)
+  - ssg_money_rate (float %) / ssg_money_amount (int 원) — 적립 또는 즉시할인 금액
+  - ssg_money_already_applied (bool) — True 면 sale_price 에 이미 반영됨 → 중복매입 금지
+  - ssg_money_text (str) — 원문 디버그용 ("5% 적립" / "10% 적립 또는 10% 즉시할인" 등)
 
-2026-05-14 신규.
+2026-05-14 신규. 2026-05-15 SSG MONEY 매입가 반영 + 중복 방지 (패턴 A~D).
 """
 from __future__ import annotations
 
@@ -152,6 +181,249 @@ def _extract_brand(html: str, soup: BeautifulSoup) -> str:
     if m:
         return _unescape(m.group(1))
     return ""
+
+
+# ─────────────────────────────────────────────────────────────
+# SSG MONEY 파서 — 사용자 명세 (2026-05-15): 매입가 반영 + 중복 방지
+# ─────────────────────────────────────────────────────────────
+# 즉시할인 형태 텍스트 (이미 sale_price 에 반영됨 — 추가 차감 금지)
+_RE_SSG_MONEY_INSTANT_DT = re.compile(r"SSG\s*MONEY\s*즉시할인")
+# 안내 문구 — "최적가의 금액 기준은 ... SSG MONEY 즉시할인이 적용된 금액"
+_RE_SSG_MONEY_APPLIED_NOTE = re.compile(
+    r"최적가의\s*금액\s*기준은[^<]{0,80}?SSG\s*MONEY\s*즉시할인이\s*적용된\s*금액"
+)
+# 적립 형태 텍스트: "5% 적립" / "10% 적립 또는 10% 즉시할인"
+_RE_BENEFIT_PCT_ACCUM = re.compile(
+    r"(\d+(?:\.\d+)?)\s*%\s*적립(?:\s*또는\s*(\d+(?:\.\d+)?)\s*%\s*즉시할인)?"
+)
+# 적립 형태 텍스트: "5,000원 적립" (% 가 아닌 정액 적립도 대응)
+_RE_BENEFIT_KRW_ACCUM = re.compile(r"([0-9][0-9,]{2,})\s*원\s*적립")
+# SSG MONEY 충전결제 적립 텍스트: "충전결제 시 1.5% 적립" (별도 적립 — 매입가에서 차감 가능)
+# 구매혜택 > 쇼핑혜택 탭에 위치. <div class="txt color1">충전결제 시 1.5% 적립</div>
+_RE_SSG_MONEY_CHARGE_PCT = re.compile(
+    r"충전\s*결제\s*시\s*(\d+(?:\.\d+)?)\s*%\s*적립"
+)
+
+
+def _parse_ssg_money(soup: BeautifulSoup, html: str) -> dict:
+    """SSG MONEY 적립/즉시할인 추출.
+
+    Returns:
+        dict with keys:
+            ssg_money_rate: float (% 적립률, 없으면 0.0)
+            ssg_money_amount: int (정액 적립 원, 없으면 0)
+            ssg_money_already_applied: bool
+                — True 면 sale_price(bestAmt) 에 이미 반영됨 → 중복매입 방지
+            ssg_money_text: str (원문 디버그용)
+    """
+    out = {
+        "ssg_money_rate": 0.0,
+        "ssg_money_amount": 0,
+        "ssg_money_already_applied": False,
+        "ssg_money_text": "",
+    }
+
+    # 1) 할인내역 layer 의 "SSG MONEY 즉시할인" dt 존재 여부 → 이미 반영 신호
+    # 페이지에는 div.cdtl_ly_cont 가 여러 개 (공유하기·할인내역·기타 툴팁) — 모두 순회.
+    # 할인내역 layer 만 dl.cdtl_ly_dc (dc = discount) 노드를 보유함.
+    instant_in_layer = False
+    instant_amount = 0
+    for layer in soup.select("div.cdtl_ly_cont"):
+        for dl in layer.select("dl.cdtl_ly_dc"):
+            dts = dl.select("dt")
+            dds = dl.select("dd")
+            for dt, dd in zip(dts, dds):
+                dt_text = re.sub(r"\s+", " ", dt.get_text(" ", strip=True))
+                if _RE_SSG_MONEY_INSTANT_DT.search(dt_text):
+                    instant_in_layer = True
+                    em = dd.select_one("em.ssg_price")
+                    if em:
+                        instant_amount = _to_int(em.get_text())
+                    break
+            if instant_in_layer:
+                break
+        if instant_in_layer:
+            break
+    # 안내 문구로도 confirm
+    note_says_applied = bool(_RE_SSG_MONEY_APPLIED_NOTE.search(html))
+
+    # 2) 구매혜택 영역의 <span class="cdtl_benefit">SSG MONEY</span> 적립 텍스트
+    accum_rate = 0.0
+    accum_amount = 0
+    benefit_text = ""
+    for span in soup.select("span.cdtl_benefit"):
+        label = (span.get_text(strip=True) or "")
+        if "SSG MONEY" not in label.upper() and "SSGMONEY" not in label.upper().replace(" ", ""):
+            continue
+        li = span.parent
+        if not li:
+            continue
+        info = li.select_one("div.cdtl_benefit_info > div.txt") or li.select_one("div.cdtl_benefit_info .txt")
+        if not info:
+            continue
+        benefit_text = re.sub(r"\s+", " ", info.get_text(" ", strip=True))
+        m_pct = _RE_BENEFIT_PCT_ACCUM.search(benefit_text)
+        if m_pct:
+            try:
+                accum_rate = float(m_pct.group(1))
+            except ValueError:
+                accum_rate = 0.0
+        else:
+            m_krw = _RE_BENEFIT_KRW_ACCUM.search(benefit_text)
+            if m_krw:
+                accum_amount = _to_int(m_krw.group(1))
+        break
+
+    # 2-b) 구매혜택 > 쇼핑혜택 영역의 "충전결제 시 X% 적립" 텍스트 (별도 적립 — 패턴 B 변형).
+    #     예: <div class="txt color1">충전결제 시 1.5% 적립</div>
+    #          <span class="desc">횟수 무제한 SSG MONEY 적립</span>
+    #     accum_rate 미발견 시 fallback 으로 채택 (사이트 노출 1.5% 충전결제 적립).
+    if accum_rate <= 0 and accum_amount <= 0:
+        m_charge = _RE_SSG_MONEY_CHARGE_PCT.search(html)
+        if m_charge:
+            try:
+                accum_rate = float(m_charge.group(1))
+                if not benefit_text:
+                    benefit_text = f"충전결제 시 {m_charge.group(1)}% 적립 (SSG MONEY)"
+            except ValueError:
+                pass
+
+    # 3) already_applied 판정 룰 (우선순위: 할인내역 dt > 안내문구 > 텍스트 "즉시할인" 존재)
+    already_applied = bool(instant_in_layer or note_says_applied)
+    # 패턴 C: 구매혜택은 "X% 적립 또는 X% 즉시할인" + 할인내역에 SSG MONEY 즉시할인 dt
+    # → 이미 즉시할인 모드로 bestAmt 가 계산됨 (instant_in_layer=True 이면 자동 처리)
+
+    # 출력 정리
+    if already_applied:
+        out["ssg_money_already_applied"] = True
+        # 즉시할인 금액(원)을 ssg_money_amount 로 보고 — 매입가에 차감 금지의 근거
+        if instant_amount > 0:
+            out["ssg_money_amount"] = instant_amount
+        # rate 는 적립 표시 텍스트에서 잡힌 % 그대로 노출 (디버그/표시용),
+        # 단 already_applied=True 이면 매트릭스 산식에서 적용 안 함.
+        if accum_rate > 0:
+            out["ssg_money_rate"] = accum_rate
+        out["ssg_money_text"] = benefit_text or "SSG MONEY 즉시할인 (sale_price 반영됨)"
+    else:
+        out["ssg_money_already_applied"] = False
+        out["ssg_money_rate"] = accum_rate
+        out["ssg_money_amount"] = accum_amount
+        out["ssg_money_text"] = benefit_text
+
+    return out
+
+
+# ─────────────────────────────────────────────────────────────
+# 상품쿠폰 파서 — 사용자 명세 (2026-05-15): X% 상품쿠폰 + 최소 구매금액 조건
+# ─────────────────────────────────────────────────────────────
+# DOM 구조 (URL 2번 닥스 벨트 예시):
+#   <dl class="cdtl_dl cdtl_cpn_wrap">
+#     <dt>상품쿠폰</dt>
+#     <dd>
+#       <a class="cdtl_benefit_coupon ...">
+#         <strong class="tit">
+#           <span class="cpn_txt">12%&nbsp;상품쿠폰</span>
+#           <span class="ssg_price">최대 3만원</span>
+#         </strong>
+#         <p class="txt">
+#           명품/잡화 쓱세일 백화점 12% 상품쿠폰<br>3만원 이상 구매 시 사용가능(~05/17)
+#         </p>
+#       </a>
+#     </dd>
+#   </dl>
+
+# 쿠폰 X% 추출 (cpn_txt: "12% 상품쿠폰" / 정액 X원도 대응)
+_RE_COUPON_PCT = re.compile(r"(\d+(?:\.\d+)?)\s*%\s*상품\s*쿠폰")
+_RE_COUPON_KRW = re.compile(r"([0-9][0-9,]{2,})\s*원\s*상품\s*쿠폰")
+# 최소 구매금액 추출 ("3만원 이상 구매 시 사용가능")
+_RE_COUPON_MIN_ORDER = re.compile(r"(\d+(?:\.\d+)?)\s*만\s*원\s*이상\s*구매")
+# 최대 할인액 ("최대 3만원" — UI 표시용, 산식에는 영향 X. % 가 적용되면 자동으로 한도 안)
+_RE_COUPON_MAX = re.compile(r"최대\s*([0-9][0-9,]*)\s*만?\s*원")
+
+
+def _parse_product_coupon(soup: BeautifulSoup) -> dict:
+    """상품쿠폰 (X% / 최소 구매금액) 추출.
+
+    Returns:
+        dict with keys (모두 미노출이면 빈 dict):
+            product_coupon_rate: float (% 비율, 0.12 = 12%)
+            product_coupon_amount: int (정액 쿠폰 — % 미노출 시)
+            product_coupon_min_order: int (최소 구매금액 원, 없으면 0)
+            product_coupon_max_discount: int (최대 할인 원, UI 표시용)
+            product_coupon_label: str (UI 표시 — "백화점 12% 상품쿠폰" 등)
+    """
+    out: dict = {}
+    # dl.cdtl_cpn_wrap 안의 dt 가 "상품쿠폰" 인 dl
+    wrap = None
+    for dl in soup.select("dl.cdtl_cpn_wrap"):
+        dt = dl.select_one("dt")
+        if dt and "상품쿠폰" in dt.get_text(strip=True):
+            wrap = dl
+            break
+    # fallback: dt 매칭 실패 시 cdtl_benefit_coupon 클래스로 직접 탐색
+    if wrap is None:
+        for dl in soup.select("dl"):
+            if dl.select_one("a.cdtl_benefit_coupon, .cdtl_cpn_wrap"):
+                dt = dl.select_one("dt")
+                if dt and "상품쿠폰" in dt.get_text(strip=True):
+                    wrap = dl
+                    break
+    if wrap is None:
+        return out
+
+    # X% 추출 (cpn_txt 우선)
+    coupon_text = wrap.get_text(" ", strip=True)
+    coupon_text = re.sub(r"\s+", " ", coupon_text)
+    m_pct = _RE_COUPON_PCT.search(coupon_text)
+    if m_pct:
+        try:
+            pct = float(m_pct.group(1))
+            # rate 정규화 (12 → 0.12)
+            out["product_coupon_rate"] = pct / 100 if pct > 1 else pct
+        except ValueError:
+            pass
+    else:
+        # 정액 fallback
+        m_krw = _RE_COUPON_KRW.search(coupon_text)
+        if m_krw:
+            out["product_coupon_amount"] = _to_int(m_krw.group(1))
+
+    # 최소 구매금액 ("3만원 이상")
+    m_min = _RE_COUPON_MIN_ORDER.search(coupon_text)
+    if m_min:
+        try:
+            man_units = float(m_min.group(1))
+            out["product_coupon_min_order"] = int(man_units * 10000)
+        except ValueError:
+            pass
+
+    # 최대 할인액 (UI 표시용 — "최대 3만원")
+    m_max = _RE_COUPON_MAX.search(coupon_text)
+    if m_max:
+        # "만원" 단위 검출 — 숫자 자체가 작으면 만원 단위로 간주
+        s = m_max.group(1).replace(",", "")
+        try:
+            n = int(s)
+            # "최대 3만원" → 30000 / "최대 30,000원" → 30000
+            if "만원" in m_max.group(0) or "만 원" in m_max.group(0):
+                out["product_coupon_max_discount"] = n * 10000
+            else:
+                out["product_coupon_max_discount"] = n
+        except ValueError:
+            pass
+
+    # 라벨 (p.txt 첫 줄 — "명품/잡화 쓱세일 백화점 12% 상품쿠폰")
+    p_txt = wrap.select_one("p.txt")
+    if p_txt:
+        # <br> 분리 후 첫 줄 (조건 텍스트 제외)
+        label_html = str(p_txt)
+        label_first = re.split(r"<br\s*/?>", label_html, 1)[0]
+        label_clean = BeautifulSoup(label_first, "lxml").get_text(" ", strip=True)
+        label_clean = re.sub(r"\s+", " ", label_clean).strip()
+        if label_clean:
+            out["product_coupon_label"] = label_clean
+
+    return out
 
 
 def _parse_card_benefit(soup: BeautifulSoup) -> tuple[Optional[int], str]:
@@ -306,6 +578,12 @@ class SsgCrawler(AbstractCrawler):
         # 카드혜택가 (전 옵션 공통)
         card_price, card_condition = _parse_card_benefit(soup)
 
+        # SSG MONEY (전 옵션 공통 — 적립률·적립금·이미 반영 여부)
+        ssg_money = _parse_ssg_money(soup, html)
+
+        # 상품쿠폰 (전 옵션 공통 — X% / 최소 구매금액)
+        product_coupon = _parse_product_coupon(soup)
+
         # 옵션 파싱
         options = _parse_uitem_options(html, item_id)
 
@@ -322,12 +600,46 @@ class SsgCrawler(AbstractCrawler):
                 if card_condition:
                     opt["card_benefit_condition"] = card_condition
 
-        # discount_info — 카드혜택가 노출 시 텍스트 요약
-        discount_info = ""
+        # SSG MONEY 정보를 모든 옵션에 첨부 (옵션 단위로 동일).
+        #   매트릭스 산식 — already_applied=False 일 때만 매입가 베이스에서 차감.
+        #   already_applied=True → 표시만 / 중복매입 방지.
+        for opt in options:
+            opt["ssg_money_rate"] = ssg_money["ssg_money_rate"]
+            opt["ssg_money_amount"] = ssg_money["ssg_money_amount"]
+            opt["ssg_money_already_applied"] = ssg_money["ssg_money_already_applied"]
+            if ssg_money["ssg_money_text"]:
+                opt["ssg_money_text"] = ssg_money["ssg_money_text"]
+
+        # 상품쿠폰 정보를 모든 옵션에 첨부 (옵션 단위로 동일).
+        #   매트릭스 산식 — sale_price >= product_coupon_min_order 시 자동 활성.
+        for opt in options:
+            for k, v in product_coupon.items():
+                opt[k] = v
+
+        # discount_info — 카드혜택가 + SSG MONEY + 상품쿠폰 텍스트 요약
+        discount_parts: list[str] = []
         if card_price is not None:
-            discount_info = f"카드혜택가 {card_price:,}원"
+            seg = f"카드혜택가 {card_price:,}원"
             if card_condition:
-                discount_info += f" ({card_condition})"
+                seg += f" ({card_condition})"
+            discount_parts.append(seg)
+        if ssg_money["ssg_money_text"]:
+            if ssg_money["ssg_money_already_applied"]:
+                discount_parts.append(
+                    f"SSG MONEY {ssg_money['ssg_money_text']} [sale_price 반영됨 / 중복차감 X]"
+                )
+            else:
+                discount_parts.append(f"SSG MONEY {ssg_money['ssg_money_text']}")
+        if product_coupon.get("product_coupon_rate") or product_coupon.get("product_coupon_amount"):
+            if product_coupon.get("product_coupon_rate"):
+                seg = f"상품쿠폰 {product_coupon['product_coupon_rate']*100:g}%"
+            else:
+                seg = f"상품쿠폰 {product_coupon.get('product_coupon_amount', 0):,}원"
+            min_o = product_coupon.get("product_coupon_min_order")
+            if min_o:
+                seg += f" ({min_o//10000}만원 이상)"
+            discount_parts.append(seg)
+        discount_info = " / ".join(discount_parts)
 
         return CrawlResult(
             source=self.source_name,

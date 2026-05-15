@@ -48,6 +48,12 @@ scripts/create_admin.py
 Dockerfile
 .dockerignore
 fly.toml
+# Day 5: 모바일 PWA
+webapp/routes/mobile.py
+webapp/templates/mobile/
+webapp/static/manifest.json
+webapp/static/sw.js
+webapp/static/icons/
 
 # ─── 신규 전용 라인 패턴 (sync.py 가 line-level 처리) ───
 # config.py:DATABASE_URL

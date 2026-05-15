@@ -1,0 +1,188 @@
+{% extends "mobile/_base.html" %}
+{% block title %}바코드 스캔{% endblock %}
+{% set back_url = '/mobile' %}
+
+{% block extra_head %}
+<style>
+  .scan-container {
+    position: relative;
+    background: black;
+    border-radius: 16px;
+    overflow: hidden;
+    aspect-ratio: 4 / 3;
+    margin-bottom: 16px;
+  }
+  #scan-video {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+  .scan-overlay {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none;
+  }
+  .scan-frame {
+    width: 80%;
+    aspect-ratio: 2 / 1;
+    border: 2px solid #3182F6;
+    border-radius: 12px;
+    box-shadow: 0 0 0 9999px rgba(0,0,0,0.4);
+    position: relative;
+  }
+  .scan-line {
+    position: absolute;
+    left: 0; right: 0;
+    height: 2px;
+    background: linear-gradient(90deg, transparent, #3182F6, transparent);
+    animation: scan-anim 2s ease-in-out infinite;
+  }
+  @keyframes scan-anim {
+    0%, 100% { top: 10%; }
+    50% { top: 90%; }
+  }
+  .scan-hint {
+    margin-top: 16px;
+    background: rgba(0,0,0,0.6);
+    color: white;
+    padding: 6px 14px;
+    border-radius: 99px;
+    font-size: 13px;
+  }
+  .scan-error {
+    background: rgba(240, 68, 82, 0.15);
+    color: var(--danger, #F04452);
+    padding: 16px;
+    border-radius: 12px;
+    margin-bottom: 12px;
+  }
+  .manual-input {
+    margin-top: 12px;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div id="scan-error-area"></div>
+
+<div class="scan-container">
+  <video id="scan-video" autoplay playsinline muted></video>
+  <div class="scan-overlay">
+    <div class="scan-frame">
+      <div class="scan-line"></div>
+    </div>
+    <div class="scan-hint" id="scan-hint">📷 카메라 시작 중...</div>
+  </div>
+</div>
+
+<div class="m-card">
+  <p style="margin: 0 0 12px; font-size: 13px; color: var(--n600);">또는 SKU 직접 입력:</p>
+  <div class="m-field" style="margin-bottom: 8px;">
+    <input type="text" id="manual-sku" placeholder="예: SKU-APOI30AM" autocomplete="off">
+  </div>
+  <button class="m-btn primary" id="manual-search">검색</button>
+</div>
+{% endblock %}
+
+{% block extra_script %}
+<!-- ZXing 바코드 라이브러리 -->
+<script src="https://unpkg.com/@zxing/browser@0.1.5/umd/zxing-browser.min.js"></script>
+<script>
+  const preselectedAction = new URLSearchParams(location.search).get('action');
+
+  let codeReader = null;
+  let videoStream = null;
+
+  async function startScanner() {
+    const video = document.getElementById('scan-video');
+    const hint = document.getElementById('scan-hint');
+    const errorArea = document.getElementById('scan-error-area');
+
+    if (typeof ZXingBrowser === 'undefined') {
+      errorArea.innerHTML = '<div class="scan-error">⚠️ 바코드 라이브러리 로드 실패. 인터넷 연결 확인하거나 SKU 직접 입력해주세요.</div>';
+      hint.textContent = '라이브러리 로드 실패';
+      return;
+    }
+
+    try {
+      // 사용 가능한 카메라
+      const devices = await ZXingBrowser.BrowserCodeReader.listVideoInputDevices();
+      if (!devices.length) {
+        throw new Error('카메라 없음');
+      }
+      // 후면 카메라 우선 (모바일)
+      const backCamera = devices.find(d => /back|rear|environment/i.test(d.label)) || devices[devices.length - 1];
+
+      codeReader = new ZXingBrowser.BrowserMultiFormatReader();
+      hint.textContent = '📷 바코드를 프레임 안에';
+
+      await codeReader.decodeFromVideoDevice(backCamera.deviceId, video, async (result, error, controls) => {
+        if (result) {
+          const code = result.getText();
+          controls.stop();  // 일단 멈춤
+          hint.textContent = '✅ 인식됨: ' + code;
+          await handleCode(code);
+        }
+      });
+    } catch (e) {
+      console.error('[scan]', e);
+      let msg = e.message || String(e);
+      if (msg.includes('Permission') || msg.includes('NotAllowed')) {
+        msg = '카메라 권한이 거부됨. 설정에서 허용해주세요.';
+      } else if (msg.includes('NotFound') || msg.includes('카메라 없음')) {
+        msg = '카메라를 찾을 수 없어요. SKU 직접 입력해주세요.';
+      }
+      errorArea.innerHTML = `<div class="scan-error">⚠️ ${msg}</div>`;
+      hint.textContent = '❌ 카메라 실패';
+    }
+  }
+
+  async function handleCode(code) {
+    showToast('검색 중: ' + code, 'info');
+    try {
+      const r = await fetch('/mobile/api/lookup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code }),
+      });
+      const d = await r.json();
+      if (!d.ok) {
+        showToast('❌ ' + d.error, 'error');
+        // 2초 후 재시작
+        setTimeout(() => location.reload(), 2500);
+        return;
+      }
+      // 액션 미리 선택돼있으면 바로 액션 페이지로
+      const url = `/mobile/sku/${encodeURIComponent(d.option.canonical_sku)}` +
+        (preselectedAction ? '?action=' + preselectedAction : '');
+      location.href = url;
+    } catch (e) {
+      showToast('네트워크 오류', 'error');
+      setTimeout(() => location.reload(), 2500);
+    }
+  }
+
+  document.getElementById('manual-search').addEventListener('click', () => {
+    const v = document.getElementById('manual-sku').value.trim();
+    if (!v) {
+      showToast('SKU 입력해주세요', 'error');
+      return;
+    }
+    handleCode(v);
+  });
+  document.getElementById('manual-sku').addEventListener('keypress', (e) => {
+    if (e.key === 'Enter') document.getElementById('manual-search').click();
+  });
+
+  // 페이지 떠날 때 카메라 정리
+  window.addEventListener('beforeunload', () => {
+    if (codeReader) codeReader.reset?.();
+  });
+
+  startScanner();
+</script>
+{% endblock %}

@@ -108,6 +108,7 @@ def upsert_source_option(
     external_option_id: str | None = None,
     current_price: int | None = None,
     current_stock: int | None = None,
+    dynamic_benefits_json: str | None = None,
 ) -> SourceOption:
     """SourceProduct + (color, size) 조합으로 SourceOption upsert."""
     existing = (session.query(SourceOption)
@@ -122,6 +123,8 @@ def upsert_source_option(
             existing.current_price = current_price
         if current_stock is not None:
             existing.current_stock = current_stock
+        if dynamic_benefits_json is not None:
+            existing.dynamic_benefits_json = dynamic_benefits_json
         existing.last_fetched_at = _utcnow()
         return existing
     so = SourceOption(
@@ -129,6 +132,7 @@ def upsert_source_option(
         color_text=color_text, size_text=size_text,
         external_option_id=external_option_id,
         current_price=current_price, current_stock=current_stock,
+        dynamic_benefits_json=dynamic_benefits_json,
         last_fetched_at=_utcnow(),
     )
     session.add(so)
@@ -287,6 +291,43 @@ def save_crawl_result(
             break
     source_product.auto_card_discount_json = _json.dumps(_acd, ensure_ascii=False) if _acd else None
 
+    # ★ 2026-05-15 — 옵션 dict 의 동적 혜택 키를 SourceProduct.dynamic_benefits_json 에 저장.
+    #   compute_breakdown 이 lookup 해서 매트릭스 매입가 산식에 추가 차감으로 자동 반영.
+    #   상품 단위로 동일 값 가정 → 첫 옵션의 동적 키들만 추출.
+    PRODUCT_DYNAMIC_KEYS = (
+        'point_rate', 'point_amount',                 # SSF 멤버십포인트
+        'gift_point_amount',                          # SSF 기프트포인트 (변동)
+        'ssg_money_rate', 'ssg_money_amount',         # SSG MONEY
+        'ssg_money_already_applied', 'ssg_money_text',
+        'card_benefit_price', 'card_benefit_condition',  # SSG 카드혜택가
+        # SSG 상품쿠폰 (2026-05-15 — X% 또는 정액 + 최소 구매금액 조건)
+        'product_coupon_rate', 'product_coupon_amount',
+        'product_coupon_min_order', 'product_coupon_max_discount',
+        'product_coupon_label',
+        'point_rewards',                              # 롯데홈쇼핑 L.POINT
+        'review_point_max',                           # 스스 르무통 리뷰 적립
+    )
+    _dyn = {}
+    for _o in (crawl_result.options or []):
+        for _k in PRODUCT_DYNAMIC_KEYS:
+            if _k in _o and _o[_k] not in (None, 0, '', False):
+                _dyn[_k] = _o[_k]
+        # breakdown (무신사) 안의 일부 플래그도 추출
+        _bd = _o.get('breakdown') if isinstance(_o.get('breakdown'), dict) else None
+        if _bd:
+            if 'money_active' in _bd:
+                _dyn['money_active'] = bool(_bd['money_active'])
+            if 'is_no_benefit_product' in _bd:
+                _dyn['is_no_benefit_product'] = bool(_bd['is_no_benefit_product'])
+            # 2026-05-15 — 무신사 동적 LV % + 쿠폰 정보
+            for _k in ('grade_discount_rate', 'grade_reward_rate', 'money_reward_rate',
+                       'coupon', 'cart_coupons', 'purchase_extra_reward'):
+                if _k in _bd and _bd[_k] not in (None, 0, '', False, []):
+                    _dyn[_k] = _bd[_k]
+        if _dyn:
+            break  # 첫 non-empty 옵션만 (상품 단위 가정)
+    source_product.dynamic_benefits_json = _json.dumps(_dyn, ensure_ascii=False) if _dyn else None
+
     # 모음전 단위 가격·재고 = 옵션 평균/합 (UI 표시용)
     # ★ 2026-05-14 — 매입가 단일 진실 원천 통합: 옵션 'price' 와 'sale_price' 가
     #   사이트 판매가로 일치됨 (매입가는 api_benefits.compute_breakdown 으로 별도 계산).
@@ -320,6 +361,25 @@ def save_crawl_result(
             pass
 
     # 옵션 단위 upsert
+    # ★ 2026-05-15 — 옵션 dict 의 동적 혜택 키 (point_rate / gift_point_amount /
+    #   auto_card_discount / ssg_money_* / card_benefit_* / lotteon_coupons 등)
+    #   을 SourceOption.dynamic_benefits_json 에 저장. compute_breakdown 이 lookup.
+    import json as _json
+    DYNAMIC_KEYS = (
+        'point_rate', 'point_amount',           # SSF 멤버십포인트 (변동)
+        'gift_point_amount',                    # SSF 기프트포인트 (변동)
+        'auto_card_discount',                   # 르무통/롯데/SSF 사이트 자동 카드
+        'ssg_money_rate', 'ssg_money_amount',   # SSG MONEY
+        'ssg_money_already_applied', 'ssg_money_text',
+        'card_benefit_price', 'card_benefit_condition',  # SSG 카드혜택가
+        # SSG 상품쿠폰 (2026-05-15 — X% 또는 정액 + 최소 구매금액 조건)
+        'product_coupon_rate', 'product_coupon_amount',
+        'product_coupon_min_order', 'product_coupon_max_discount',
+        'product_coupon_label',
+        'point_rewards',                        # 롯데홈쇼핑 L.POINT
+        'lotteon_coupons',                      # 롯데온 쿠폰 리스트
+        'review_point_max',                     # 스스 르무통 리뷰 적립
+    )
     counts = {'options_inserted': 0, 'options_updated': 0}
     for opt_data in crawl_result.options:
         existed = (session.query(SourceOption)
@@ -328,6 +388,9 @@ def save_crawl_result(
                               size_text=opt_data.get('size_text'),
                               deleted_at=None)
                    .first())
+        # 동적 혜택 키 추출 → JSON
+        dynamic = {k: opt_data[k] for k in DYNAMIC_KEYS if k in opt_data}
+        dynamic_json = _json.dumps(dynamic, ensure_ascii=False) if dynamic else None
         upsert_source_option(
             session,
             source_product_id=source_product.id,
@@ -336,6 +399,7 @@ def save_crawl_result(
             external_option_id=opt_data.get('option_id'),
             current_price=_display_price(opt_data),
             current_stock=opt_data.get('stock'),
+            dynamic_benefits_json=dynamic_json,
         )
         if existed is None:
             counts['options_inserted'] += 1

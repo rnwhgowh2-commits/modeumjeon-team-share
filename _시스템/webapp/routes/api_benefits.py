@@ -367,10 +367,11 @@ def compute_breakdown(session, *, sku: str, source_id: int, sale_price: float,
        card_enabled=False 면 benefit_name 안에 카드 issuer (예: '현대카드') 가
        포함된 항목들의 enabled 강제 False (UI 토글과 무관).
     """
-    # ── 카드 미반영 토글 lookup ───────────────────────────────
-    # SourceProduct.auto_card_discount_json 의 issuer 와 resolve_card_enabled.
+    # ── 카드 미반영 토글 + 동적 혜택 lookup ───────────────────────────────
+    # SourceProduct.auto_card_discount_json + dynamic_benefits_json 모두 가져옴.
     _card_enabled = True
     _card_issuer = None
+    _dynamic_benefits = {}
     try:
         from lemouton.sources.models import SourceProduct
         from lemouton.sourcing.models_pricing import OptionSourceUrl
@@ -385,13 +386,19 @@ def compute_breakdown(session, *, sku: str, source_id: int, sale_price: float,
                    .filter(SourceProduct.deleted_at.is_(None))
                    .all())
             sp = next((s for s in sps if _nu(s.url) == target_norm), None)
-            if sp and sp.auto_card_discount_json:
+            if sp:
                 import json as _json
-                try:
-                    acd = _json.loads(sp.auto_card_discount_json)
-                    _card_issuer = (acd or {}).get('issuer')
-                except (ValueError, TypeError):
-                    pass
+                if sp.auto_card_discount_json:
+                    try:
+                        acd = _json.loads(sp.auto_card_discount_json)
+                        _card_issuer = (acd or {}).get('issuer')
+                    except (ValueError, TypeError):
+                        pass
+                if sp.dynamic_benefits_json:
+                    try:
+                        _dynamic_benefits = _json.loads(sp.dynamic_benefits_json) or {}
+                    except (ValueError, TypeError):
+                        _dynamic_benefits = {}
             if _card_issuer:
                 _card_enabled = resolve_card_enabled(
                     session,
@@ -419,6 +426,171 @@ def compute_breakdown(session, *, sku: str, source_id: int, sale_price: float,
             effective.append(('tpl', tpl))
     for ovr in ovr_standalone:
         effective.append(('ovr_new', ovr))
+
+    # ★ 2026-05-15 — SourceProduct.dynamic_benefits_json 에서 동적 혜택 차감 항목 추가.
+    #   옵션 dict 의 사이트 특화 동적 키들 (point_rate / ssg_money_rate / card_benefit_price
+    #   / money_active 등) 을 dummy item 으로 effective 에 박는다. 정액 → %적립금 → %할인
+    #   카테고리 정렬 룰이 자동 적용됨.
+    class _DynBenefit:
+        """compute_breakdown 의 effective 리스트에 들어가는 동적 dummy 항목."""
+        def __init__(self, *, name, btype, value, enabled=True):
+            self.id = -1
+            self.benefit_name = name
+            self.benefit_type = btype
+            self.value = value
+            self.enabled = enabled
+            self.sort_order = 999  # 같은 카테고리 내 마지막
+            self.template_id = None
+    if _dynamic_benefits:
+        # SSF 멤버십포인트 (사이트 노출 적립률 — 변동값)
+        _pr = _dynamic_benefits.get('point_rate')
+        if _pr and isinstance(_pr, (int, float)) and _pr > 0:
+            effective.append(('dyn', _DynBenefit(
+                name='멤버십포인트 (사이트 적립)',
+                btype='rate', value=float(_pr),
+            )))
+        # SSF 기프트포인트 (정액, 멤버십 한정) — 사용자 무료 보유분 多 → 활성 기본.
+        _gpa = _dynamic_benefits.get('gift_point_amount')
+        if _gpa and isinstance(_gpa, (int, float)) and _gpa > 0:
+            effective.append(('dyn', _DynBenefit(
+                name='기프트포인트 (멤버십 한정)',
+                btype='amount', value=float(_gpa),
+                enabled=True,
+            )))
+        # SSG MONEY 별도 적립 (already_applied=False 일 때만 차감 — 중복 매입 방지)
+        # 사용자 명세 (2026-05-15) 3 케이스:
+        #   (1) 무조건 X% 적립 → 항상 활성 (매입가 반영)
+        #   (2) 구매혜택의 'SSG MONEY 결제시 X% 적립' (충전결제) → rate >= 3% 일 때만 활성
+        #       (현대카드 결제가 더 유리하므로 3% 미만은 매입가 반영 안 함)
+        #   (3) '적립 or 즉시할인' → already_applied=True 처리됨 (아래 if 가 자동 skip)
+        _smr = _dynamic_benefits.get('ssg_money_rate')
+        _sma = _dynamic_benefits.get('ssg_money_already_applied')
+        _smt = _dynamic_benefits.get('ssg_money_text') or ''
+        if _smr and not _sma:
+            _rate = float(_smr) / 100 if float(_smr) > 1 else float(_smr)
+            _is_charge = ('충전' in _smt)  # 케이스 (2) 판정
+            _ssgm_enabled = (not _is_charge) or (_rate >= 0.03)
+            _ssgm_name = (
+                f'SSG MONEY 충전결제 적립 ({_rate*100:g}% — 3% 미만 / 비활성)'
+                if (_is_charge and not _ssgm_enabled)
+                else ('SSG MONEY 충전결제 적립' if _is_charge else 'SSG MONEY 적립')
+            )
+            effective.append(('dyn', _DynBenefit(
+                name=_ssgm_name,
+                btype='rate', value=_rate,
+                enabled=_ssgm_enabled,
+            )))
+        # SSG 카드혜택가 (조건부 정액) — 2026-05-15 패치:
+        #   기존: enabled=False (조건 충족 여부 사용자 결정 / 표시만)
+        #   신규: card_benefit_condition 에서 "X만원 이상" 정규식 추출 → sale_price 비교.
+        #         조건 충족 시 자동 enabled=True. 예: "5만원 이상 결제 시 98,767원".
+        _cbp = _dynamic_benefits.get('card_benefit_price')
+        _cbp_active = False  # 활성화됐으면 현대카드 fallback 비활성 룰 트리거
+        if _cbp and isinstance(_cbp, (int, float)) and _cbp > 0:
+            # 매트릭스 베이스 (sale_price) - card_benefit_price = 정액 차감
+            _amount = float(sale_price) - float(_cbp)
+            if _amount > 0:
+                # 조건 자동 추출: "X만원 이상" / "X,000원 이상" / "X원 이상"
+                _cond = (_dynamic_benefits.get('card_benefit_condition') or '')
+                _min_order = 0
+                import re as _re_cond
+                m_man = _re_cond.search(r'(\d+)\s*만\s*원\s*이상', _cond)
+                if m_man:
+                    try:
+                        _min_order = int(m_man.group(1)) * 10000
+                    except ValueError:
+                        pass
+                if _min_order == 0:
+                    m_won = _re_cond.search(r'([0-9][0-9,]*)\s*원\s*이상', _cond)
+                    if m_won:
+                        try:
+                            _min_order = int(m_won.group(1).replace(',', ''))
+                        except ValueError:
+                            pass
+                # min_order 추출 실패 시 보수적으로 5만원 fallback (SSG 표준)
+                if _min_order == 0:
+                    _min_order = 50000
+                _cbp_active = (float(sale_price) >= _min_order)
+                _label = '카드혜택가 (조건 충족)' if _cbp_active else '카드혜택가 (조건 미충족 / 표시만)'
+                effective.append(('dyn', _DynBenefit(
+                    name=_label,
+                    btype='amount', value=_amount,
+                    enabled=_cbp_active,
+                )))
+        # SSG 상품쿠폰 (X% / 정액 + 최소 구매금액 조건) — 2026-05-15
+        # sale_price >= product_coupon_min_order 시 자동 활성. 이름에 '쿠폰' 포함 →
+        # 카테고리 정렬 룰에 의해 '%할인' 그룹 (적립 X) 으로 분류됨.
+        _pcr = _dynamic_benefits.get('product_coupon_rate')
+        _pca = _dynamic_benefits.get('product_coupon_amount')
+        _pcmin = _dynamic_benefits.get('product_coupon_min_order') or 0
+        _pclabel = _dynamic_benefits.get('product_coupon_label') or ''
+        # 조건 충족 판정
+        _pc_active = (float(sale_price) >= float(_pcmin)) if _pcmin else True
+        if _pcr and isinstance(_pcr, (int, float)) and _pcr > 0:
+            # rate 정규화 (12 → 0.12, 0.12 → 0.12)
+            _rate = float(_pcr) / 100 if float(_pcr) > 1 else float(_pcr)
+            _nm = f"상품쿠폰 {int(_rate*100)}% ({int(_pcmin/10000)}만원 이상)" if _pcmin else f"상품쿠폰 {int(_rate*100)}%"
+            if _pclabel:
+                _nm = f"{_nm} — {_pclabel}"
+            effective.append(('dyn', _DynBenefit(
+                name=_nm,
+                btype='rate', value=_rate,
+                enabled=_pc_active,
+            )))
+        elif _pca and isinstance(_pca, (int, float)) and _pca > 0:
+            _nm = f"상품쿠폰 {int(_pca):,}원 ({int(_pcmin/10000)}만원 이상)" if _pcmin else f"상품쿠폰 {int(_pca):,}원"
+            if _pclabel:
+                _nm = f"{_nm} — {_pclabel}"
+            effective.append(('dyn', _DynBenefit(
+                name=_nm,
+                btype='amount', value=float(_pca),
+                enabled=_pc_active,
+            )))
+        # 무신사머니 활성 시 → 현대카드 fallback 비활성 (중복 차감 방지)
+        # money_active=True 면 effective 내 '현대카드 (무신사머니 fallback)' 항목 비활성화
+        _ma = _dynamic_benefits.get('money_active')
+        if _ma is True:
+            # 기존 template/ovr 중 이름에 '무신사머니 fallback' 또는 'fallback' 포함 항목 비활성
+            for kind, it in effective:
+                nm = (it.benefit_name or '')
+                if 'fallback' in nm.lower() or '무신사머니 fallback' in nm:
+                    it.enabled = False
+        # SSG 카드혜택가 활성 시 → 현대카드 (카드혜택가 fallback) 비활성 — 2026-05-15
+        # 무신사머니 fallback 비활성 패턴과 동일. _cbp_active=True 면 effective 내
+        # '카드혜택가 fallback' 이름 포함 항목 자동 비활성 (이중 차감 방지).
+        if _cbp_active:
+            for kind, it in effective:
+                nm = (it.benefit_name or '')
+                if '카드혜택가 fallback' in nm:
+                    it.enabled = False
+        # ─────────────────────────────────────────────────────────────
+        # ★ 2026-05-15 — 롯데홈쇼핑 (lotteimall) 동적 혜택 (point_rewards)
+        # ─────────────────────────────────────────────────────────────
+        # 크롤러가 lPointObj 에서 추출한 dict:
+        #   {label, default_point, club_point, review_label, review_default, review_club}
+        # 사용자 명세 (2026-05-15):
+        #   - 구매적립 L.POINT (L.CLUB)  → 정액 +633원 (사이트 노출 그대로)
+        #   - 리뷰 적립 → 제외 (spec ⑤ 롯데홈쇼핑 룰)
+        # 시드 src=6 의 '구매적립 L.POINT' 0.5% rate 시드와 중복 방지: 기존 시드 중
+        # 이름에 '구매적립 L.POINT' 포함 항목은 enabled=False (dyn 으로 override).
+        _pr_obj = _dynamic_benefits.get('point_rewards')
+        if isinstance(_pr_obj, dict):
+            _club_point = int(_pr_obj.get('club_point') or 0)
+            _default_point = int(_pr_obj.get('default_point') or 0)
+            _lpoint_value = _club_point if _club_point > 0 else _default_point
+
+            if _lpoint_value > 0:
+                for kind, it in effective:
+                    nm = (it.benefit_name or '')
+                    if 'L.POINT' in nm or '구매적립' in nm or 'LPOINT' in nm.upper():
+                        it.enabled = False
+                _name = '구매적립 L.POINT (L.CLUB)' if _club_point > 0 else '구매적립 L.POINT (일반)'
+                effective.append(('dyn', _DynBenefit(
+                    name=_name,
+                    btype='amount',
+                    value=float(_lpoint_value),
+                    enabled=True,
+                )))
     # ★ 2026-05-14 — 카테고리 계산 순서 강제:
     #   1) 정액 (amount)  먼저 차감
     #   2) % 적립금       (rate + benefit_name 에 '적립' 포함) — 정액 차감 후 베이스 기준

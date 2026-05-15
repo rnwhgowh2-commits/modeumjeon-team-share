@@ -1,0 +1,59 @@
+URL: https://www.musinsa.com/products/3728480
+Title: 르무통(LEMOUTON) 클래식 2 다크네이비 - 사이즈 & 후기 | 무신사
+PointDetailWrap found: True
+max_benefit textContent length: 544
+
+─── max_benefit textContent (펼친 후) ───
+109,300원나의 할인가등급 할인 불가상품 쿠폰사용가능 쿠폰 없음적립금 사용보유 적립금 사용 (현재 506,910원 보유)-8,600원구매 적립 / 선할인구매 적립 (+4,570원)적립금 선할인 불가4,570원제휴카드 전용할인무신사 삼성카드로 첫 결제 할인(결제금액 31,000원 이상 사용 가능)-30,000원결제수단 즉시할인무신사페이 × 무신사 삼성카드 10만원 이상 결제 시-5,000원카카오페이 × 페이머니 10만원 이상 결제 시-4,000원토스페이 × 계좌 8만원 이상 결제 시-3,000원무신사페이 × 농협카드 8만원 이상 결제 시-3,000원토스페이 × 롯데카드 8만원 이상 결제 시-3,000원무신사페이 × 우리카드 9만원 이상 결제 시-3,000원페이코 6만원 이상 결제 시-2,000원적용 안함18,000원 최대 적립LV.9 블랙다이아몬드기본 적립등급 적립(LV.9 블랙다이아몬드 · 4%)4,570원후기 적립2,500원결제수단 적립무신사 삼성카드 결제 시 무신사머니 포인트 10% 적립 예상10,930원무신사머니 결제 시 4% 적립4,360원적용 안함
+
+─── 쿠폰 영역 ───
+
+─── 등급 LV.X 샘플 ───
+  · 18,000원 최대 적립LV.9 블랙다이아몬드
+  · LV.9 블랙다이아몬드
+  · 기본 적립등급 적립(LV.9 블랙다이아몬드 · 4%)4,570원후기 적립2,500원결제수단 적립무신사 삼성카드 결제 시 무신사머니 포인트 10% 적립 예상10,930원무신사머니 결제 시 4% 적립4,360원적용 안함
+  · 기본 적립등급 적립(LV.9 블랙다이아몬드 · 4%)4,570원후기 적립2,500원
+  · 등급 적립(LV.9 블랙다이아몬드 · 4%)4,570원
+
+─── 무신사머니 토글 텍스트 ───
+  결제수단 적립무신사 삼성카드 결제 시 무신사머니 포인트 10% 적립 예상10,930원무신사머니 결제 시 4% 적립4,360원적용 안함
+
+
+═══ 추출 결과 (extract JS) ═══
+{
+  "name": "르무통(LEMOUTON) 클래식 2 다크네이비",
+  "brand": "르무통",
+  "originalPrice": 149000,
+  "salePrice": 122900,
+  "benefitPriceFromUI": 0,
+  "breakdown": {
+    "grade_discount": 0,
+    "money_reward": 4360,
+    "money_reward_rate": 0.04,
+    "pre_discount": 0,
+    "card_discount": 0,
+    "point_use_ignored": 8600,
+    "coupon": 0,
+    "purchase_extra_reward": 0,
+    "grade_discount_active": false,
+    "grade_discount_rate": 0,
+    "grade_reward_active": true,
+    "grade_reward_rate": 0.04,
+    "purchase_reward_radio_on": true,
+    "pre_discount_radio_on": false,
+    "has_review_reward_item": true,
+    "wrap_found": true,
+    "text_length": 544,
+    "has_grade_section": true,
+    "has_review_section": true,
+    "has_money_section": true,
+    "has_my_discount_section": true,
+    "point_detail_wrap_found": true,
+    "has_grade_disabled": true,
+    "has_purchase_reward_disabled": false,
+    "has_money_apply_off": true,
+    "is_no_benefit_product": false
+  },
+  "couponName": "",
+  "options": []
+}

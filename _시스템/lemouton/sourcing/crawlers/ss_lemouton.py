@@ -259,27 +259,55 @@ class SsLemoutonCrawler(AbstractCrawler):
         )
         original_price = int(simple.get("salePrice") or 0)  # 정가 (149,000)
 
-        # ★ 2026-05-14 추가 (변동 리뷰 적립금 추출):
-        #   네이버 브랜드몰 상품 상세의 "최대 적립 포인트" 클릭 시 노출되는 상세는
-        #   raw HTML 에는 없고 CSR 로 렌더되지만, benefitsView JSON 에 원천 필드
-        #   가 inline 되어 있다.
-        #     - photoVideoReviewPoint:        포토/동영상 리뷰 적립 (예: 2850)
-        #     - textReviewPoint:              텍스트 리뷰 적립      (예: 1950)
-        #     - afterUsePhotoVideoReviewPoint:한달 사용 포토/동영상 (예: 2000)
-        #     - afterUseTextReviewPoint:      한달 사용 텍스트     (예: 1000)
-        #   사이트의 "최대 적립 포인트" 라벨은 (포토/동영상) + (한달 사용 포토/동영상)
-        #   합산이 가장 큰 케이스이므로 동일 산식 적용.
-        #   discount_info 에 사람이 읽을 텍스트, 옵션 dict 에는 review_point_max 필드(원)
-        #   를 추가하여 호출자 / DB 시드 운영자가 활용한다.
+        # ★ 2026-05-15 재수정 (정정된 산식 — 사이트 실제 표시값 매칭):
+        #   네이버 브랜드몰 상품 상세의 "최대 적립 포인트" 박스를 클릭하면 노출되는
+        #   breakdown 의 "최대 리뷰적립" 행 (예: 5,000원) 과 1:1 일치하는 산식은
+        #   다음과 같다 (Playwright 로 popup 렌더 + DOM dump 검증, 2026-05-15):
+        #
+        #     "최대 리뷰적립" = photoVideoReviewPoint
+        #                    + afterUsePhotoVideoReviewPoint
+        #                    + managerPhotoVideoReviewPoint
+        #                    + managerAfterUsePhotoVideoReviewPoint
+        #
+        #     검증 예 (상품 9496367527, 르무통 워크):
+        #       photoVideoReviewPoint           = 2,850
+        #       afterUsePhotoVideoReviewPoint   = 2,000
+        #       managerPhotoVideoReviewPoint    =   150
+        #       managerAfterUsePhotoVideoReviewPoint = 0
+        #       합계 = 5,000원 → 사이트 표시값 "최대 리뷰적립 5,000원" 과 일치 ✓
+        #
+        #   이전 산식 (photoVideo + afterPhoto 만) 은 4,850 으로 manager(스토어매니저)
+        #   추가 적립분 150원을 빠뜨려 잘못된 값을 반환했다. 사용자 정정 반영.
+        #
+        #   필드 의미 (한국어):
+        #     - textReviewPoint: 텍스트 리뷰 작성 시 셀러 적립 (1,950)
+        #     - photoVideoReviewPoint: 포토/동영상 리뷰 작성 시 셀러 적립 (2,850)
+        #     - afterUseTextReviewPoint: 한달 사용 후 텍스트 리뷰 셀러 적립 (1,000)
+        #     - afterUsePhotoVideoReviewPoint: 한달 사용 후 포토/동영상 셀러 적립 (2,000)
+        #     - managerTextReviewPoint: 텍스트 리뷰 시 스토어매니저(네이버) 추가 (50)
+        #     - managerPhotoVideoReviewPoint: 포토/동영상 리뷰 시 매니저 추가 (150)
+        #     - managerAfterUseTextReviewPoint: 한달 사용 텍스트 매니저 추가 (0)
+        #     - managerAfterUsePhotoVideoReviewPoint: 한달 사용 포토/동영상 매니저 추가 (0)
+        #
+        #   사이트 표시 "최대 리뷰적립" 은 **포토/동영상 경로** + **매니저 추가분 포함**.
+        #   포토/동영상 미운영(0/0) 상품은 텍스트 경로로 폴백.
         photo_video_rp = int(benefits_view.get("photoVideoReviewPoint") or 0)
         text_rp = int(benefits_view.get("textReviewPoint") or 0)
         after_pv_rp = int(benefits_view.get("afterUsePhotoVideoReviewPoint") or 0)
         after_text_rp = int(benefits_view.get("afterUseTextReviewPoint") or 0)
-        # "최대" = (포토동영상) + (한달 사용 포토동영상); 둘 다 없으면 텍스트 폴백.
-        if photo_video_rp > 0 or after_pv_rp > 0:
-            review_point_max = photo_video_rp + after_pv_rp
+        mgr_pv_rp = int(benefits_view.get("managerPhotoVideoReviewPoint") or 0)
+        mgr_text_rp = int(benefits_view.get("managerTextReviewPoint") or 0)
+        mgr_after_pv_rp = int(benefits_view.get("managerAfterUsePhotoVideoReviewPoint") or 0)
+        mgr_after_text_rp = int(benefits_view.get("managerAfterUseTextReviewPoint") or 0)
+        # 사이트 "최대 리뷰적립" 산식: 포토/동영상 4-field 합산 (매니저 포함). 없으면 텍스트.
+        if photo_video_rp > 0 or after_pv_rp > 0 or mgr_pv_rp > 0 or mgr_after_pv_rp > 0:
+            review_point_max = (
+                photo_video_rp + after_pv_rp + mgr_pv_rp + mgr_after_pv_rp
+            )
         else:
-            review_point_max = text_rp + after_text_rp
+            review_point_max = (
+                text_rp + after_text_rp + mgr_text_rp + mgr_after_text_rp
+            )
 
         # discount_info 텍스트 (혜택 명목, 사람이 읽을 용도; 자동 계산엔 미사용).
         discount_info_parts: list[str] = []

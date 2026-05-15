@@ -1,0 +1,238 @@
+{
+  "returnCode": "200",
+  "message": "SUCCESS",
+  "subMessages": null,
+  "messageType": null,
+  "dataCount": null,
+  "data": {
+    "spdNo": "LO2158462914",
+    "sitmNo": "LO2158462914",
+    "totSlPrc": 149000,
+    "slPrc": 149000,
+    "slQty": 1,
+    "totAmt": 120060.0,
+    "totDcAmt": 28940.0,
+    "userInfo": {
+      "isLpntMb": false,
+      "isClub": false
+    },
+    "aplyBestPrcChk": "Y",
+    "aplyBestPrcChkTitle": "로그인 하시면 더 정확한 혜택가를 알 수 있어요!",
+    "fboxBtnEpsrCd": "CPN_DNLD",
+    "fboxBtnEpsrNm": "쿠폰받기",
+    "discountGroups": [
+      {
+        "title": null,
+        "desc": null,
+        "discountApplyPromotionList": [
+          {
+            "groupId": "IMMD",
+            "check": "none",
+            "prNo": "P20230714379166",
+            "prRegNo": 4314178379,
+            "prNm": "상품할인-스토어할인",
+            "prTypCd": "PRD_DC",
+            "prTypNm": "상품할인",
+            "prKndCd": "PRD_SLR",
+            "prKndNm": "스토어할인",
+            "dcTnnoCd": "1ST",
+            "dcTypCd": "FX",
+            "dcAmt": 8940,
+            "dcRt": 6.0,
+            "prAplyYn": "Y",
+            "sfcoShrAmt": 0,
+            "entpShrAmt": 8940,
+            "maxPdAmt": null,
+            "minPdAmt": null,
+            "fvrCnts": null,
+            "travelBenefitYn": null,
+            "sptDcPgmAgrYn": "N",
+            "dispTitle": "스토어 즉시할인 6%",
+            "dispName": null,
+            "dispDesces": null,
+            "dispDtls": null,
+            "dispCardName": null,
+            "dcPgmCmsn": 0,
+            "couponInfo": null,
+            "mainFlag": null,
+            "mainFlagTextArr": null,
+            "storeInfo": null,
+            "bestPrAplyYn": "Y",
+            "pyMnsDtl": null,
+            "isCrdPrd": false
+          }
+        ]
+      },
+      {
+        "title": "즉시할인/상품쿠폰",
+        "desc": null,
+        "discountApplyPromotionList": [
+          {
+            "groupId": "IMMD_AND_PRODUCT_COUPON",
+            "check": "enabled",
+            "prNo": "P20230828554771",
+            "prRegNo": 4148044377,
+            "prNm": "상품할인-CM할인",
+            "prTypCd": "PRD_DC",
+            "prTypNm": "상품할인",
+            "prKndCd": "PRD_CMD",
+            "prKndNm": "CM할인",
+            "dcTnnoCd": "2ND",
+            "dcTypCd": "FX",
+            "dcAmt": 14000,
+            "dcRt": 10,
+            "prAplyYn": "Y",
+            "sfcoShrAmt": 11200,
+            "entpShrAmt": 0,
+            "maxPdAmt": null,
+            "minPdAmt": null,
+            "fvrCnts": null,
+            "travelBenefitYn": null,
+            "sptDcPgmAgrYn": "Y",
+            "dispTitle": null,
+            "dispName": "롯데ON 즉시할인 10%",
+            "dispDesces": null,
+            "dispDtls": null,
+            "dispCardName": null,
+            "dcPgmCmsn": 2800,
+            "couponInfo": null,
+            "mainFlag": null,
+            "mainFlagTextArr": null,
+            "storeInfo": null,
+            "bestPrAplyYn": "Y",
+            "pyMnsDtl": null,
+            "isCrdPrd": false
+          },
+          {
+            "groupId": "IMMD_AND_PRODUCT_COUPON",
+            "check": "enabled",
+            "prNo": "P20260422033688",
+            "prRegNo": 0,
+            "prNm": "[ON] 첫구매 5천원 할인",
+            "prTypCd": "DC_CPN",
+            "prTypNm": "할인쿠폰",
+            "prKndCd": "CPN_PRD_CPN",
+            "prKndNm": "상품쿠폰",
+            "dcTnnoCd": "4TH",
+            "dcTypCd": "FL",
+            "dcAmt": 5000,
+            "dcRt": 4,
+            "prAplyYn": "N",
+            "sfcoShrAmt": 4000,
+            "entpShrAmt": 0,
+            "maxPdAmt": null,
+            "minPdAmt": null,
+            "fvrCnts": null,
+            "travelBenefitYn": null,
+            "sptDcPgmAgrYn": "Y",
+            "dispTitle": null,
+            "dispName": "[ON] 첫구매 5천원 할인",
+            "dispDesces": null,
+            "dispDtls": [
+              "할인액 : 5,000원",
+              "사용조건 : 20,000원 이상 구매",
+              "발급기간 : ~05.31"
+            ],
+            "dispCardName": null,
+            "dcPgmCmsn": 1000,
+            "couponInfo": {
+              "cpnNo": "CP20260422000194577",
+              "cpnIssNo": null,
+              "otherPdAplyYn": "N",
+              "otherAplyPdNm": null,
+              "downloadYn": "Y",
+              "issYn": "N",
+              "issCnt": 0,
+              "cartSn": 0
+            },
+            "mainFlag": {
+              "isAppOnly": false,
+              "isFirstBuy": true,
+              "isClub": false,
+              "isLpntMb": true,
+              "isStrJJim": false,
+              "isPrst": false,
+              "isRcvAgr": false
+            },
+            "mainFlagTextArr": [
+              "첫구매",
+              "통합회원"
+            ],
+            "storeInfo": null,
+            "bestPrAplyYn": "N",
+            "pyMnsDtl": null,
+            "isCrdPrd": false
+          }
+        ]
+      },
+      {
+        "title": "스토어쿠폰",
+        "desc": null,
+        "discountApplyPromotionList": [
+          {
+            "groupId": "STORE_COUPON",
+            "check": "enabled",
+            "prNo": "P20260511042926",
+            "prRegNo": 0,
+            "prNm": "스토어찜 감사 쿠폰",
+            "prTypCd": "DC_CPN",
+            "prTypNm": "할인쿠폰",
+            "prKndCd": "CPN_SLR_CPN",
+            "prKndNm": "스토어쿠폰",
+            "dcTnnoCd": "4TH",
+            "dcTypCd": "FX",
+            "dcAmt": 6000,
+            "dcRt": 5.0,
+            "prAplyYn": "Y",
+            "sfcoShrAmt": 0,
+            "entpShrAmt": 6000,
+            "maxPdAmt": null,
+            "minPdAmt": null,
+            "fvrCnts": null,
+            "travelBenefitYn": null,
+            "sptDcPgmAgrYn": "N",
+            "dispTitle": null,
+            "dispName": "스토어찜 감사 쿠폰",
+            "dispDesces": null,
+            "dispDtls": [
+              "할인율 : 5%",
+              "사용조건 : 10,000원 이상 구매시, 최대 6,000원",
+              "발급기간 : ~05.31"
+            ],
+            "dispCardName": null,
+            "dcPgmCmsn": 0,
+            "couponInfo": {
+              "cpnNo": "CP20260511000196098",
+              "cpnIssNo": null,
+              "otherPdAplyYn": "N",
+              "otherAplyPdNm": null,
+              "downloadYn": "Y",
+              "issYn": "N",
+              "issCnt": 0,
+              "cartSn": 0
+            },
+            "mainFlag": {
+              "isAppOnly": false,
+              "isFirstBuy": false,
+              "isClub": false,
+              "isLpntMb": false,
+              "isStrJJim": true,
+              "isPrst": false,
+              "isRcvAgr": false
+            },
+            "mainFlagTextArr": [
+              "좋아요♥"
+            ],
+            "storeInfo": {
+              "storeNm": "LeMouton (르무통)",
+              "storeCpnApplyRng": "SUB"
+            },
+            "bestPrAplyYn": "Y",
+            "pyMnsDtl": null,
+            "isCrdPrd": false
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -32,6 +32,16 @@ from ..auth import has_state, new_context_with_state
 logger = logging.getLogger(__name__)
 
 
+class ExpandFailedError(RuntimeError):
+    """무신사 PDP 의 적립 상세 펼침 실패 — 재시도 가치 있음.
+
+    이 예외는 fetch 외부에서 catch 후 page.reload + 1회 재시도 권장.
+    재시도 후에도 실패 시 그대로 raise → 디스패처가 SourceProduct.last_status
+    = 'extract_failed' 저장 + 매트릭스 UI 에 ⚠ 표시.
+    """
+    pass
+
+
 PRODUCT_ID_PATTERN = re.compile(r"/products/(\d+)")
 
 
@@ -123,13 +133,73 @@ async (cfg) => {
     //   → 1) PointSummaryWrap 클릭 (적립 상세 펼침)
     //     2) Dimmed 제거 (오버레이 차단 방지)
     //     3) 가장 큰 textContent 가진 MaxBenefitPrice 요소에서 정규식 매칭
+    // ★ 2026-05-15 — 펼침 신뢰성 강화 (사용자 정정 후):
+    //   기존 800ms 단발 클릭 → 200ms × 6회 재시도 + PointDetailWrap 확인 후 break
+    //   실측: 첫 클릭 후 React 렌더링까지 평균 400ms, 최악 1200ms
     document.querySelectorAll('[class*="Dimmed"], [class*="Modal"]').forEach(el => {
         try { el.remove(); } catch(_) {}
     });
-    document.querySelectorAll('[class*="MaxBenefitPrice__PointSummaryWrap"]').forEach(el => {
+    // ★ 2026-05-15 정정 #4 — "나의 할인가" 영역 lazy load 발동 (구매적립/선할인 라디오 노출).
+    //   원인: PDP 의 "나의 할인가" 영역이 lazy render. scroll + CollapseButton 클릭 필요.
+    window.scrollTo(0, 800);
+    await new Promise(r => setTimeout(r, 1500));
+    window.scrollTo(0, 0);
+    await new Promise(r => setTimeout(r, 1500));
+    document.querySelectorAll('[class*="MaxBenefitPriceTitle__CollapseButton"]').forEach(el => {
         try { el.click(); } catch(_) {}
     });
     await new Promise(r => setTimeout(r, 800));
+    // ★ 2026-05-15 정정 #6 — 적립금사용 체크박스 자동 OFF (우리 정책 무시 + 베이스 일관)
+    //   원인: 사이트 default 가 "적립금사용 ON" (보유 적립금 자동 차감)
+    //   → 모든 적립 amount 가 (적립금사용 차감 후 베이스) × % 로 표시
+    //   → 우리 정책 (적립금사용 무시) 와 일관 위해 체크박스 자동 해제
+    document.querySelectorAll('input[type="checkbox"]').forEach(c => {
+        const parent = c.closest('label, div, [class*="Wrapper"], [class*="Section"]');
+        const lbl = (parent ? parent.textContent : (c.parentElement ? c.parentElement.textContent : '')) || '';
+        if (/적립금\\s*사용/.test(lbl) && c.checked) {
+            try { c.click(); } catch(_) {}
+        }
+    });
+    await new Promise(r => setTimeout(r, 800));
+    // ★ 2026-05-15 정정 #2 — 펼침 성공 검증 강화 + 다중 전략 + 실패 시 명확 알림
+    //   기존 위약 검증 (PointDetailWrap 등장만 확인) → 진짜 성공 검증 (핵심 텍스트 존재)
+    //   진짜 성공 = PointDetailWrap 안에 "후기 적립" / "등급 적립" / "결제수단 적립" 중 하나 이상
+    //   재시도 전략:
+    //     시도 1~10: PointSummaryWrap 클릭 (현재) + 500ms wait + 검증
+    //     시도 11~15: aria-expanded=false 모든 버튼 클릭 (전략 B) + 800ms wait + 검증
+    //     모두 실패 → expand_result.ok=false → Python 측 fetch 재시도 (page.reload 후)
+    async function expandPointDetail(maxRetry) {
+        const successMarkers = /후기\\s*적립|등급\\s*적립|결제수단\\s*적립/;
+        let lastTextLen = 0;
+        for (let i = 0; i < maxRetry; i++) {
+            // 전략 A: PointSummaryWrap 직접 클릭 (시도 1~10)
+            // 전략 B: 추가로 모든 aria-expanded=false 버튼 (시도 11+)
+            document.querySelectorAll('[class*="MaxBenefitPrice__PointSummaryWrap"]').forEach(el => {
+                try { el.click(); } catch(_) {}
+            });
+            if (i >= 10) {
+                document.querySelectorAll('button[aria-expanded="false"]').forEach(el => {
+                    try { el.click(); } catch(_) {}
+                });
+            }
+            // wait — 시도 횟수 증가에 따라 점진 증가 (React 가 늦게 렌더 케이스)
+            const waitMs = (i < 10) ? 500 : 800;
+            await new Promise(r => setTimeout(r, waitMs));
+            // ★ 진짜 성공 검증 — PointDetailWrap 안에 핵심 텍스트
+            const detail = document.querySelector('[class*="MaxBenefitPrice__PointDetailWrap"]');
+            if (detail) {
+                const txt = detail.textContent || '';
+                lastTextLen = txt.length;
+                if (successMarkers.test(txt)) {
+                    // 한 번 더 대기 — 모든 자식 렌더 완료
+                    await new Promise(r => setTimeout(r, 300));
+                    return { ok: true, attempt: i+1, txt_len: txt.length };
+                }
+            }
+        }
+        return { ok: false, attempts: maxRetry, last_text_len: lastTextLen };
+    }
+    var expandResult = await expandPointDetail(15);
 
     // 가장 큰 MaxBenefitPrice 요소 찾기 (모든 정보 포함된 컨테이너)
     let wrap = null;
@@ -149,13 +219,23 @@ async (cfg) => {
         if (bm) benefitPriceFromUI = parseInt(bm[1].replace(/,/g, ''));
 
         // ── 즉시 차감 항목 ───────────────────────────────
-        // 등급할인: "등급 할인 -X원" (불가면 매칭 안됨)
-        let m = text.match(/등급\\s*할인\\s*-([\\d,]+)\\s*원/);
+        // 등급할인: "등급 할인 (LV.X ... · Y%)-Z원" (2026-05-15 사용자 정정)
+        //   기존 패턴 "등급 할인 -X원" 은 안 잡힘 (UI 가 LV/% 정보 포함)
+        //   "불가" 케이스는 매칭 안됨 (정상 — 비활성)
+        let m = text.match(/등급\\s*할인\\s*\\(LV\\.\\d+[^·)]*·\\s*(\\d+(?:\\.\\d+)?)\\s*%\\)\\s*-([\\d,]+)\\s*원/);
         if (m) {
-            breakdown.grade_discount = parseInt(m[1].replace(/,/g, ''));
+            breakdown.grade_discount = parseInt(m[2].replace(/,/g, ''));
             breakdown.grade_discount_active = true;
-            if (salePrice > 0) {
-                breakdown.grade_discount_rate = breakdown.grade_discount / salePrice;
+            breakdown.grade_discount_rate = parseFloat(m[1]) / 100;
+        } else {
+            // Legacy fallback (구버전 UI 호환)
+            m = text.match(/등급\\s*할인\\s*-([\\d,]+)\\s*원/);
+            if (m) {
+                breakdown.grade_discount = parseInt(m[1].replace(/,/g, ''));
+                breakdown.grade_discount_active = true;
+                if (salePrice > 0) {
+                    breakdown.grade_discount_rate = breakdown.grade_discount / salePrice;
+                }
             }
         }
 
@@ -170,12 +250,84 @@ async (cfg) => {
             breakdown.pre_discount_radio_on = true;
         }
 
-        // 상품 쿠폰: "상품 쿠폰 -X원" 또는 쿠폰명 다음 -X원
-        m = text.match(/상품\\s*쿠폰[^-가-힣]*-([\\d,]+)\\s*원/);
-        if (m) breakdown.coupon = parseInt(m[1].replace(/,/g, ''));
+        // 상품 쿠폰: 2026-05-15 사용자 정정 — UI 패턴 분석:
+        //   · "사용가능 쿠폰 없음" → 매칭 안됨 (정상)
+        //   · "상품 쿠폰<쿠폰명>쿠폰변경-65,150원" → 추출
+        //   · "정기쿠폰" 라벨 (월 1회 자동) → 정책상 제외
+        //   · "특별 혜택 XX% 쿠폰" → 사용자 명시 정기/특별 쿠폰 → 제외
+        //   · 30% 초과 할인 쿠폰 → 특별/타깃 쿠폰 가능성 → 휴리스틱 제외
+        // 알고리즘: '상품 쿠폰' ~ 다음 섹션('적립금 사용'/'구매 적립'/'제휴카드') 사이를
+        //          잘라서 -X원 추출 + 라벨 검사.
+        const couponSectionMatch = text.match(/상품\\s*쿠폰([\\s\\S]*?)(?=적립금\\s*사용|구매\\s*적립|제휴카드)/);
+        if (couponSectionMatch) {
+            const section = couponSectionMatch[1] || '';
+            // 2026-05-15 사용자 정정: "월 1회 정기쿠폰" 만 제외. 특별 혜택 / % 휴리스틱 제거.
+            const isRegularCoupon = /월\\s*1\\s*회|정기\\s*쿠폰/.test(section);
+            const amtMatch = section.match(/-([\\d,]+)\\s*원/);
+            if (amtMatch) {
+                const amt = parseInt(amtMatch[1].replace(/,/g, ''));
+                if (!isRegularCoupon) {
+                    breakdown.coupon = amt;
+                    const nameMatch = section.match(/^\\s*([^\\d-]+?)쿠폰\\s*변경/);
+                    if (nameMatch) couponName = (nameMatch[1] || '').trim();
+                } else {
+                    breakdown.coupon_skipped_regular = true;
+                    breakdown.coupon_skip_reason = '월 1회 정기 쿠폰';
+                    breakdown.coupon_skipped_amount = amt;
+                }
+            }
+        }
+
+        // ── 장바구니 쿠폰 (2026-05-15 사용자 정정 — PDP 에 노출됨) ──
+        // 예: "무탠다드 슈퍼세일 1만원 장바구니 쿠폰 / 만료 1일 전 · 10만원 이상 구매 시 1만원 추가 할인"
+        //   - 정책: 조건 미충족이어도 표시 ✓ / 적용 ✗ (사용자 명세)
+        //   - 페이지 전체 textContent 검색 (PDP 상단 띠 영역에 노출)
+        // ★ 2026-05-15 정정 #3 — 더 유연한 정규식.
+        //   기존: "이상 구매" 와 "추가 할인" 사이 80자 제한 → 띠 영역 다른 텍스트 끼면 매칭 X
+        //   정정: 200자 + [\s\S] (newline 포함) + "(추가)?할인" 옵션
+        breakdown.cart_coupons = [];
+        const pageText = document.body.textContent || '';
+        const cartCouponRe = /([가-힣A-Za-z][^/\\n]{0,50}?장바구니\\s*쿠폰)[\\s\\S]{0,200}?([\\d,]+)\\s*(만|천)?\\s*원?\\s*이상\\s*(?:구매)?[\\s\\S]{0,80}?([\\d,]+)\\s*(만|천)?\\s*원\\s*(?:추가\\s*)?할인/g;
+        let cmatch;
+        const seen = new Set();
+        while ((cmatch = cartCouponRe.exec(pageText)) !== null) {
+            const name = (cmatch[1] || '').trim().replace(/\\s+/g, ' ');
+            const minNum = parseInt((cmatch[2] || '').replace(/,/g, '')) || 0;
+            const minMul = (cmatch[3] === '만') ? 10000 : (cmatch[3] === '천' ? 1000 : 1);
+            const discNum = parseInt((cmatch[4] || '').replace(/,/g, '')) || 0;
+            const discMul = (cmatch[5] === '만') ? 10000 : (cmatch[5] === '천' ? 1000 : 1);
+            const minAmt = minNum * minMul;
+            const discAmt = discNum * discMul;
+            const key = `${name}|${minAmt}|${discAmt}`;
+            if (seen.has(key)) continue;
+            seen.add(key);
+            if (name && minAmt > 0 && discAmt > 0) {
+                breakdown.cart_coupons.push({
+                    name: name,
+                    min_order_amount: minAmt,
+                    discount_amount: discAmt,
+                    meets_condition: salePrice >= minAmt,
+                });
+            }
+        }
 
         // ── 적립 항목 (양수, 누적 베이스 적용) ──────────────
-        // 구매 적립 라디오 ✓ 여부: "구매 적립 (+X원)" — + 가 있으면 활성
+        // ★ 2026-05-15 정정 #3 — 사용자 명세: "구매적립 OR 선할인 둘 중 하나라도 활성이면 4%"
+        //   기존 정규식이 wrap.text 안에서만 검색 → 라벨이 다른 영역에 있는 상품에서 못 잡음
+        //   해결: pageText (body 전체) 에서 둘 중 하나라도 "(+X원)" or "-X원" 표시되면 활성
+        const purchaseRewardInPage = /구매\\s*적립\\s*\\(\\+\\s*([\\d,]+)\\s*원\\)/.exec(pageText);
+        const preDiscountInPage = /적립금\\s*선할인\\s*-\\s*([\\d,]+)\\s*원/.exec(pageText);
+        if (purchaseRewardInPage || preDiscountInPage) {
+            breakdown.purchase_reward_or_pre_discount_active = true;
+            breakdown.grade_reward_active = true;
+            if (purchaseRewardInPage) {
+                breakdown.purchase_reward_displayed = parseInt(purchaseRewardInPage[1].replace(/,/g, ''));
+            }
+            if (preDiscountInPage) {
+                breakdown.pre_discount_displayed = parseInt(preDiscountInPage[1].replace(/,/g, ''));
+            }
+        }
+        // Legacy: wrap.text 만 매칭하던 옛 코드 (호환 유지)
         m = text.match(/구매\\s*적립\\s*\\(\\+([\\d,]+)\\s*원\\)/);
         if (m) {
             breakdown.purchase_reward_radio_on = true;
@@ -217,6 +369,17 @@ async (cfg) => {
         breakdown.has_my_discount_section = /나의\\s*할인가|사용\\s*혜택/.test(text);
         // ★ 펼침 직접 증거 — PointDetailWrap 은 PointSummaryWrap 클릭 시만 등장
         breakdown.point_detail_wrap_found = !!document.querySelector('[class*="MaxBenefitPrice__PointDetailWrap"]');
+        // ★ 2026-05-15 — "혜택 거의 없음" 케이스 (4210142) 감지:
+        //   등급할인=불가 + 구매적립=불가 + 무신사머니="적용 안함" 인 상품은
+        //   textContent 가 짧고 (185~280자) money_section 매칭이 안됨.
+        //   Fail-safe 가 정상적으로 통과되도록 "비혜택 상품" 플래그 노출.
+        breakdown.has_grade_disabled  = /등급\\s*할인\\s*불가/.test(text);
+        breakdown.has_purchase_reward_disabled = /구매\\s*적립\\s*불가/.test(text);
+        breakdown.has_money_apply_off = /(무신사\\s*머니[^적]{0,40})?적용\\s*안함/.test(text);
+        breakdown.is_no_benefit_product = (
+            breakdown.has_grade_disabled &&
+            breakdown.has_purchase_reward_disabled
+        );
     } else {
         breakdown.wrap_found = false;
     }
@@ -287,7 +450,7 @@ async (cfg) => {
     }
 
     return { name, brand, originalPrice, salePrice, benefitPriceFromUI,
-             breakdown, couponName, options };
+             breakdown, couponName, options, expandResult };
 }
 """
 
@@ -354,7 +517,7 @@ class MusinsaPlaywrightCrawler(AbstractCrawler):
                 try:
                     page = context.new_page()
                     try:
-                        return self._crawl(page, product_url)
+                        return self._crawl_with_retry(page, product_url)
                     finally:
                         page.close()
                 finally:
@@ -378,12 +541,27 @@ class MusinsaPlaywrightCrawler(AbstractCrawler):
             try:
                 page = context.new_page()
                 try:
-                    return self._crawl(page, product_url)
+                    return self._crawl_with_retry(page, product_url)
                 finally:
                     page.close()
             finally:
                 context.close()
                 browser.close()
+
+    def _crawl_with_retry(self, page, product_url: str) -> CrawlResult:
+        """ExpandFailedError 발생 시 page.reload + 1회 재시도. 그 후에도 실패면 raise."""
+        try:
+            return self._crawl(page, product_url)
+        except ExpandFailedError as e:
+            logger.warning("[무신사] 펼침 실패 — page.reload 후 1회 재시도: %s", str(e)[:200])
+            try:
+                page.reload(wait_until="domcontentloaded", timeout=30000)
+                import time as _t
+                _t.sleep(2)  # React 재초기화 시간
+                return self._crawl(page, product_url)
+            except ExpandFailedError as e2:
+                logger.error("[무신사] 펼침 재시도 실패 — 최종 포기. %s", str(e2)[:200])
+                raise
 
     def _crawl(self, page, product_url: str) -> CrawlResult:
         timeout = SOURCING_AUTH.get("crawl_timeout_ms", 25000)
@@ -435,6 +613,60 @@ class MusinsaPlaywrightCrawler(AbstractCrawler):
             },
         )
 
+        # ★ 2026-05-15 정정 #5 — Python 측 page.inner_text 보강 추출.
+        #   _EXTRACT_JS escape 문제 / 정규식 실패 케이스 우회.
+        #   page.locator('body').inner_text() = 가장 신뢰성 있는 raw text.
+        try:
+            _body_text = page.locator('body').inner_text()
+        except Exception:
+            _body_text = ''
+        _py_purchase = re.search(r'구매\s*적립\s*\(\+\s*([\d,]+)\s*원\)', _body_text)
+        # 4723399 케이스: "적립금 선할인⏎5,540원⏎-5,540원" — 사이 텍스트 허용
+        _py_predisc = re.search(r'적립금\s*선할인[\s\S]{0,40}?-\s*([\d,]+)\s*원', _body_text)
+        # "선할인 불가" 는 false positive 차단
+        if _py_predisc and re.search(r'적립금\s*선할인\s*불가', _body_text):
+            _py_predisc = None
+        _py_active = bool(_py_purchase or _py_predisc)
+        _py_purchase_amt = int(_py_purchase.group(1).replace(',', '')) if _py_purchase else 0
+        _py_predisc_amt = int(_py_predisc.group(1).replace(',', '')) if _py_predisc else 0
+        # 장바구니쿠폰 — Python 측 raw text 매칭
+        _py_cart_coupons = []
+        for m in re.finditer(
+            r'([가-힣A-Za-z][^/\n]{0,50}?장바구니\s*쿠폰)[\s\S]{0,200}?'
+            r'([\d,]+)\s*(만|천)?\s*원?\s*이상\s*(?:구매)?[\s\S]{0,80}?'
+            r'([\d,]+)\s*(만|천)?\s*원\s*(?:추가\s*)?할인',
+            _body_text):
+            name = re.sub(r'\s+', ' ', m.group(1)).strip()
+            min_amt = int(m.group(2).replace(',', '')) * (10000 if m.group(3) == '만' else 1000 if m.group(3) == '천' else 1)
+            disc_amt = int(m.group(4).replace(',', '')) * (10000 if m.group(5) == '만' else 1000 if m.group(5) == '천' else 1)
+            if name and min_amt > 0 and disc_amt > 0:
+                key = f"{name}|{min_amt}|{disc_amt}"
+                if key not in [f"{c['name']}|{c['min_order_amount']}|{c['discount_amount']}" for c in _py_cart_coupons]:
+                    _py_cart_coupons.append({
+                        'name': name,
+                        'min_order_amount': min_amt,
+                        'discount_amount': disc_amt,
+                    })
+        # raw["breakdown"] 보강 (옵션 dict 박힐 때 활용)
+        _bd_aug = raw.get("breakdown") or {}
+        _bd_aug['py_purchase_or_predisc_active'] = _py_active
+        _bd_aug['py_purchase_amt'] = _py_purchase_amt
+        _bd_aug['py_predisc_amt'] = _py_predisc_amt
+        _bd_aug['py_cart_coupons'] = _py_cart_coupons
+        raw["breakdown"] = _bd_aug
+
+        # ★ 2026-05-15 정정 #2 — 펼침 성공 진짜 검증 (PointDetailWrap 핵심 텍스트 존재)
+        #   실패 시 page.reload() 후 1회 자동 재시도 (이 함수 외부에서 처리)
+        expand_result = raw.get("expandResult") or {}
+        if not expand_result.get("ok"):
+            attempts = expand_result.get("attempts", 0)
+            txt_len = expand_result.get("last_text_len", 0)
+            raise ExpandFailedError(
+                f"[무신사] 펼침 검증 실패 (시도 {attempts}회, 마지막 textContent {txt_len}자) "
+                f"— PointDetailWrap 안에 '후기 적립' / '등급 적립' / '결제수단 적립' "
+                f"중 하나도 노출 안 됨. URL: {product_url}"
+            )
+
         product_id = self._extract_product_id(product_url)
         product_name = raw.get("name") or ""
         brand = raw.get("brand") or ""
@@ -456,9 +688,11 @@ class MusinsaPlaywrightCrawler(AbstractCrawler):
         #   - 누적식: 직전 단계 결과를 다음 단계 베이스로
         bd = raw.get("breakdown") or {}
 
-        # ★ Fail-safe 검증 — 사용자 확정 정책 (2026-05-05):
+        # ★ Fail-safe 검증 — 사용자 확정 정책 (2026-05-05 / 2026-05-15 정정):
         #   "상세 펼쳐서 정보 추출 못하면 차라리 크롤링 실패하는게 나음. 가격 잘못되면 엄청난 금전적 손실"
         #   ★ 2026-05-06 강화: 3중 검증 + Sanity check (LV별 한계율 + 매입가 비율)
+        #   ★ 2026-05-15 정정: "혜택 거의 없음" 상품 (등급할인 불가 + 구매적립 불가) 은
+        #     정상 케이스 → Fail-safe 의 textContent 길이·머니섹션 검증 우회
         wrap_found             = bool(bd.get("wrap_found"))
         text_length            = int(bd.get("text_length") or 0)
         point_detail_wrap_found = bool(bd.get("point_detail_wrap_found"))
@@ -466,6 +700,7 @@ class MusinsaPlaywrightCrawler(AbstractCrawler):
         has_review             = bool(bd.get("has_review_section"))
         has_money              = bool(bd.get("has_money_section"))
         has_my_discount        = bool(bd.get("has_my_discount_section"))
+        is_no_benefit          = bool(bd.get("is_no_benefit_product"))
 
         # 검증 1: wrap 발견
         if not wrap_found:
@@ -474,24 +709,34 @@ class MusinsaPlaywrightCrawler(AbstractCrawler):
                 "페이지 구조 변경 가능성. 가격 산출 불가 (Fail-safe)"
             )
         # 검증 2: 펼침 직접 증거 (PointDetailWrap 존재)
+        #   "혜택 거의 없음" 상품도 PointDetailWrap 은 노출되어야 정상 (후기 적립 항목 때문)
         if not point_detail_wrap_found:
             raise RuntimeError(
                 "[무신사] PointDetailWrap 미발견 — 적립 상세 펼침 실패 (PointSummaryWrap 클릭 무효). "
                 "가격 산출 불가 (Fail-safe)"
             )
-        # 검증 3: textContent 충분히 길이 (펼친 후 ≥ 300자)
-        if text_length < 300:
-            raise RuntimeError(
-                f"[무신사] 가격 상세 textContent 너무 짧음 ({text_length}자, 정상=500+자) — "
-                f"펼침 불완전. 가격 산출 불가 (Fail-safe)"
-            )
-        # 검증 4: 핵심 섹션 3개 모두 노출 (이전 2개 → 3개로 강화)
-        if not (has_grade and has_review and has_money):
-            raise RuntimeError(
-                f"[무신사] 핵심 섹션 미노출 — "
-                f"등급={has_grade} 후기={has_review} 무신사머니={has_money}. "
-                f"가격 산출 불가 (Fail-safe)"
-            )
+        # 검증 3·4: 본 검증은 일반 혜택 상품에만 적용 (혜택 거의 없음 상품은 우회)
+        if not is_no_benefit:
+            # 검증 3: textContent 충분히 길이 (펼친 후 ≥ 300자)
+            if text_length < 300:
+                raise RuntimeError(
+                    f"[무신사] 가격 상세 textContent 너무 짧음 ({text_length}자, 정상=500+자) — "
+                    f"펼침 불완전. 가격 산출 불가 (Fail-safe)"
+                )
+            # 검증 4: 핵심 섹션 3개 모두 노출 (이전 2개 → 3개로 강화)
+            if not (has_grade and has_review and has_money):
+                raise RuntimeError(
+                    f"[무신사] 핵심 섹션 미노출 — "
+                    f"등급={has_grade} 후기={has_review} 무신사머니={has_money}. "
+                    f"가격 산출 불가 (Fail-safe)"
+                )
+        else:
+            # 혜택 거의 없음 상품 — 최소 후기 적립 섹션은 있어야 정상 (모든 상품 공통)
+            if not has_review:
+                raise RuntimeError(
+                    "[무신사] '후기 적립' 섹션 미노출 — 펼침 불완전. 가격 산출 불가 (Fail-safe)"
+                )
+            logger.info("[무신사] 혜택 거의 없음 상품 감지 (등급할인+구매적립 모두 불가) — Fail-safe 완화 적용")
         # 검증 5: "나의 할인가" 또는 "사용 혜택" 노출 = 로그인 + 가격 영역 정상
         if not has_my_discount:
             raise RuntimeError(
@@ -531,48 +776,73 @@ class MusinsaPlaywrightCrawler(AbstractCrawler):
         has_review_reward     = bool(bd.get("has_review_reward_item"))
         purchase_extra_reward = int(bd.get("purchase_extra_reward") or 0)
 
-        # ── 단계 1: 표면가 - 등급할인(활성시) - 쿠폰 - 선할인(정책0) - 적립금사용(정책0)
+        # ════════════════════════════════════════════════
+        # ★ 2026-05-15 — 사용자 명세 재확정 후 산식 정정:
+        #   명세표 9항목 × 자동/크롤링 분리:
+        #     · 등급할인 (LV별)  : 자동 ❌ / 크롤링 ✅ → 크롤러가 차감
+        #     · 상품 쿠폰        : 자동 ❌ / 크롤링 ✅ → 크롤러가 차감 (정기쿠폰 제외)
+        #     · 구매적립 OR 선할인: 자동 ❌ / 크롤링 ✅ → 크롤러가 차감 (활성 옵션만)
+        #     · 등급 적립 (LV별) : 자동 ❌ / 크롤링 ✅ → 크롤러가 차감
+        #     · 후기 적립        : 자동 ✅ (DB 500원) / 크롤링 ❌ → 크롤러 차감 안 함
+        #     · 무신사머니 적립  : 자동 ✅ / 크롤링 ✅ → 활성=크롤러 / 비활성=현대카드 2.73% fallback
+        #
+        #   ★ 더블카운팅 회피:
+        #     compute_breakdown 가 후기 500 + 현대카드 2.73% 자동 적용함.
+        #     크롤러는 후기 500 을 차감하지 않음 (DB 가 처리).
+        #     무신사머니 비활성 시 크롤러도 차감 안 함 → DB 현대카드 fallback 발동.
+        # ════════════════════════════════════════════════
+        # ── 단계 1: 표면가 - 등급할인(활성시) - 쿠폰
         base1 = max(sale_price - grade_discount - coupon, 0)
 
-        # ── 단계 2: 후기적립 (항목 있을때만, 500원 고정 — 일반 후기)
-        review_reward_fixed = 500 if has_review_reward else 0
-        base2 = max(base1 - review_reward_fixed, 0)
+        # ── 단계 2: 등급 적립 (= 구매 적립, 활성 시) + 구매 추가 적립 (활성 시)
+        grade_reward_amt = int(base1 * grade_reward_rate) if (grade_reward_active and grade_reward_rate > 0) else 0
+        base2 = max(base1 - grade_reward_amt - purchase_extra_reward, 0)
 
-        # ── 단계 3: 등급 적립 (= 구매 적립, 활성 시) + 구매 추가 적립 (활성 시)
-        grade_reward_amt = int(base2 * grade_reward_rate) if (grade_reward_active and grade_reward_rate > 0) else 0
-        base3 = max(base2 - grade_reward_amt - purchase_extra_reward, 0)
-
-        # ── 단계 4: 무신사머니 적립 (LV별 % 누적 베이스 적용)
-        if money_reward_rate > 0:
-            money_reward_amt = int(base3 * money_reward_rate)
+        # ── 단계 3: 무신사머니 적립 — 활성 시 크롤러 차감 / 비활성 시 DB fallback (= 0)
+        money_active = (money_reward_rate > 0)
+        if money_active:
+            money_reward_amt = int(base2 * money_reward_rate)
             payment_source = f"musinsa_money({money_reward_rate*100:.2f}%)"
         else:
-            money_reward_amt = money_reward_ui  # rate 추출 실패 시 화면값 폴백
-            payment_source = "musinsa_money_ui_fallback"
+            # ★ 무신사머니 비활성 → 크롤러는 0 차감 (compute_breakdown 의
+            #   현대카드 2.73% fallback DB 항목이 자동 적용됨)
+            money_reward_amt = 0
+            payment_source = "deferred_to_db_card_fallback"
+
+        # ── 후기 적립 — 크롤링 ❌ (자동 DB 처리). 정보용 노출만.
+        review_reward_fixed = 0  # 크롤러 차감 0 (정책 변경)
+        review_reward_active = has_review_reward  # 정보 보존
 
         tier1_confirmed = base1  # 호환성 (기존 코드가 참조)
         payment_benefit = money_reward_amt
-        tier2_expected = max(base3 - money_reward_amt, 0)
+        tier2_expected = max(base2 - money_reward_amt, 0)
+        # base3 호환 — 호환성 유지 (구 옵션 dict 참조용)
+        base3 = base2
 
         # ── Sanity check (매입가 비율) ─────────────────────
         #   매입가가 sale_price 의 50%~100% 범위 벗어나면 비정상 (잘못된 추출 가능성)
+        #   ★ 2026-05-15 — "혜택 거의 없음" 상품은 ratio 95~100% 가 정상 → 임계 완화
         if sale_price > 0:
             ratio = tier2_expected / sale_price
-            if ratio < 0.50:
+            # ★ 2026-05-15 정정 #2 — 특별 혜택 40% 쿠폰까지 허용. 누적식 + 쿠폰
+            #   합치면 매입가가 sale_price 의 25% 까지 떨어질 수 있음 (예: 6111473 헤지스).
+            min_ratio = 0.20
+            max_deduct_pct = 0.80
+            if ratio < min_ratio:
                 raise RuntimeError(
-                    f"[무신사] 매입가 비율 비정상 ({ratio*100:.1f}% < 50%) — "
+                    f"[무신사] 매입가 비율 비정상 ({ratio*100:.1f}% < {min_ratio*100:.0f}%) — "
                     f"tier2={tier2_expected:,}원 / sale={sale_price:,}원. 과차감 가능성 (Fail-safe)"
                 )
             if ratio > 1.0:
                 raise RuntimeError(
                     f"[무신사] 매입가가 sale_price 보다 큼 ({ratio*100:.1f}%) — 산식 오류 (Fail-safe)"
                 )
-            # 차감 합계 (sale - tier2) 가 sale 의 30% 초과면 의심 (과차감)
+            # 차감 합계 (sale - tier2) 가 sale 의 max_deduct_pct 초과면 의심 (과차감)
             total_deduction = sale_price - tier2_expected
-            if total_deduction > sale_price * 0.30:
+            if total_deduction > sale_price * max_deduct_pct:
                 raise RuntimeError(
                     f"[무신사] 차감 합계 과다 ({total_deduction:,}원, {total_deduction/sale_price*100:.1f}% of sale) "
-                    f"— 30% 초과 비정상 (Fail-safe)"
+                    f"— {max_deduct_pct*100:.0f}% 초과 비정상 (Fail-safe)"
                 )
 
         # 옵션 → CrawlResult.options
@@ -596,16 +866,19 @@ class MusinsaPlaywrightCrawler(AbstractCrawler):
                 "breakdown": {
                     # 즉시 차감 항목 (활성 시)
                     "grade_discount":        grade_discount,
+                    "grade_discount_rate":   float(bd.get("grade_discount_rate") or 0),
                     "coupon":                coupon,
                     "pre_discount":          pre_disc,         # 정책 미사용 (구매적립 선택)
                     "card_discount":         card,             # 정책 미사용
                     "point_use_ignored":     point_use,        # 정책 미사용 (이중차감 방지)
                     # 적립 차감 항목 (누적식)
-                    "review_reward_fixed":   review_reward_fixed,
+                    "review_reward_fixed":   review_reward_fixed,  # ★ 0 (DB 가 처리)
+                    "review_reward_active":  review_reward_active, # 후기적립 항목 존재 여부 (정보용)
                     "grade_reward_active":   grade_reward_active,
                     "grade_reward_rate":     grade_reward_rate,
                     "grade_reward_amount":   grade_reward_amt,
                     "purchase_extra_reward": purchase_extra_reward,
+                    "money_active":          money_active,       # 무신사머니 활성 여부
                     "money_reward":          money_reward_ui,
                     "money_reward_rate":     money_reward_rate,
                     "money_reward_amount":   money_reward_amt,
@@ -613,13 +886,22 @@ class MusinsaPlaywrightCrawler(AbstractCrawler):
                     "payment_source":        payment_source,
                     # 누적식 단계별 베이스 (디버깅)
                     "base1_after_grade":     base1,
-                    "base2_after_review":    base2,
-                    "base3_after_grade_rwd": base3,
+                    "base2_after_grade_rwd": base2,
+                    "base3_after_money":     base3,
                     "ui_max_benefit_price":  int(raw.get("benefitPriceFromUI") or 0),
+                    # ★ 비혜택 상품 감지 플래그 (4210142 케이스)
+                    "is_no_benefit_product": is_no_benefit,
+                    "coupon_skipped_regular": bool(bd.get("coupon_skipped_regular")),
+                    # ★ 2026-05-15 정정 #5 — Python 측 raw text 매칭 결과
+                    "py_purchase_or_predisc_active": bool(bd.get("py_purchase_or_predisc_active")),
+                    "py_purchase_amt": bd.get("py_purchase_amt") or 0,
+                    "py_predisc_amt": bd.get("py_predisc_amt") or 0,
+                    "py_cart_coupons": bd.get("py_cart_coupons") or [],
                 },
             })
 
         if not options:
+            # ★ 2026-05-15 정정 #5 — 단품 폴백에도 breakdown 박기 (이전엔 누락)
             options.append({
                 "option_id": f"{product_id}||",
                 "color_text": "", "size_text": "",
@@ -627,23 +909,25 @@ class MusinsaPlaywrightCrawler(AbstractCrawler):
                 "original_price": orig_price,
                 "sale_price": tier1_confirmed,
                 "benefit_price": tier2_expected,
+                "breakdown": dict(bd),  # raw breakdown 그대로 (Python 측 보강 포함)
             })
 
         coupon_name = raw.get("couponName") or ""
-        # 누적식 정책 요약 텍스트
+        # 누적식 정책 요약 텍스트 (2026-05-15 — 후기/현대카드 fallback 은 DB compute_breakdown 가 처리)
         parts = []
         if grade_discount > 0:
-            parts.append(f"등급할인 -{grade_discount:,}원")
+            _gd_rate = float(bd.get("grade_discount_rate") or 0)
+            parts.append(f"등급할인 -{grade_discount:,}원({_gd_rate*100:.1f}%)")
+        if coupon > 0:
+            parts.append(f"쿠폰 -{coupon:,}원")
         if grade_reward_active and grade_reward_rate > 0:
             parts.append(f"등급적립 {grade_reward_rate*100:.1f}%")
         if purchase_extra_reward > 0:
             parts.append(f"구매추가 +{purchase_extra_reward:,}원")
-        if review_reward_fixed > 0:
-            parts.append(f"후기 +{review_reward_fixed}원")
-        if money_reward_rate > 0:
+        if money_active:
             parts.append(f"무신사머니 {money_reward_rate*100:.1f}%")
-        if coupon > 0:
-            parts.append(f"쿠폰 -{coupon:,}원")
+        else:
+            parts.append("머니 비활성→DB 현대카드 fallback")
         discount_info = " / ".join(parts) if parts else ""
 
         return CrawlResult(

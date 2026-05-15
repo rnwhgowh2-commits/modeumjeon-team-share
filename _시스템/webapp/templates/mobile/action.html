@@ -1,0 +1,212 @@
+{% extends "mobile/_base.html" %}
+{% block title %}{{ sku }}{% endblock %}
+{% set back_url = '/mobile/scan' %}
+
+{% block content %}
+<div id="option-info">
+  <div class="m-loading"><span class="m-spinner"></span>옵션 정보 불러오는 중...</div>
+</div>
+
+<div id="action-tabs" style="display: none;">
+  <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin: 16px 0 12px; background: var(--n100); border-radius: 10px; padding: 4px;">
+    <button type="button" class="tab-btn" data-action="in">📥 입고</button>
+    <button type="button" class="tab-btn" data-action="out">📤 출고</button>
+    <button type="button" class="tab-btn" data-action="adjust">⚖️ 조정</button>
+  </div>
+
+  <div id="location-section" class="m-field">
+    <label>위치</label>
+    <select id="location-select"></select>
+  </div>
+
+  <div class="m-field">
+    <label id="qty-label">수량</label>
+    <input type="number" id="qty-input" min="0" inputmode="numeric" placeholder="0">
+  </div>
+
+  <div class="m-field">
+    <label>메모 (선택)</label>
+    <input type="text" id="memo-input" placeholder="예: 신규 입고">
+  </div>
+
+  <button id="submit-btn" class="m-btn primary" style="margin-top: 8px;">저장</button>
+  <a href="/mobile/scan" class="m-btn secondary" style="margin-top: 8px; text-decoration: none;">다음 스캔</a>
+</div>
+
+<style>
+  .tab-btn {
+    background: transparent;
+    border: none;
+    padding: 12px;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--n600);
+    cursor: pointer;
+  }
+  .tab-btn.active {
+    background: var(--surface);
+    color: var(--n900);
+    box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+  }
+  .tab-btn[data-action="in"].active { color: var(--color-ok, #16a34a); }
+  .tab-btn[data-action="out"].active { color: var(--danger, #F04452); }
+  .tab-btn[data-action="adjust"].active { color: var(--primary, #3182F6); }
+</style>
+{% endblock %}
+
+{% block extra_script %}
+<script>
+  const SKU = {{ sku|tojson }};
+  const preselectedAction = new URLSearchParams(location.search).get('action') || 'in';
+  let currentAction = preselectedAction;
+  let optionData = null;
+  let stockByLoc = {};
+
+  async function loadOption() {
+    try {
+      const r = await fetch('/mobile/api/lookup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code: SKU }),
+      });
+      const d = await r.json();
+      if (!d.ok) {
+        document.getElementById('option-info').innerHTML =
+          `<div class="m-empty"><div class="icon">❌</div>${d.error}</div>`;
+        return;
+      }
+      optionData = d.option;
+      renderOptionInfo();
+      await Promise.all([loadLocations(), loadStock()]);
+      setupActionTabs();
+      document.getElementById('action-tabs').style.display = 'block';
+    } catch (e) {
+      document.getElementById('option-info').innerHTML =
+        '<div class="m-empty"><div class="icon">❌</div>옵션 불러오기 실패</div>';
+    }
+  }
+
+  function renderOptionInfo() {
+    const info = document.getElementById('option-info');
+    const img = optionData.image_url
+      ? `<img src="${optionData.image_url}" style="width: 60px; height: 60px; border-radius: 8px; object-fit: cover;">`
+      : `<div style="width: 60px; height: 60px; border-radius: 8px; background: var(--n100); display: flex; align-items: center; justify-content: center; font-size: 24px;">📦</div>`;
+    info.innerHTML = `
+      <div class="m-card">
+        <div style="display: flex; gap: 12px; align-items: center;">
+          ${img}
+          <div style="flex: 1; min-width: 0;">
+            <div style="font-size: 12px; color: var(--n600);">${optionData.model_name}</div>
+            <div style="font-size: 15px; font-weight: 700; margin: 2px 0;">${optionData.canonical_sku}</div>
+            <div style="font-size: 12px; color: var(--n600);">${optionData.color_code || ''} ${optionData.size_code || ''}</div>
+          </div>
+          <div style="text-align: right;">
+            <div style="font-size: 24px; font-weight: 700; color: var(--primary);">${optionData.stock}</div>
+            <div style="font-size: 11px; color: var(--n500);">총 재고</div>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  async function loadLocations() {
+    const r = await fetch('/mobile/api/locations');
+    const d = await r.json();
+    const select = document.getElementById('location-select');
+    select.innerHTML = d.locations.map(l =>
+      `<option value="${l.id}" ${l.is_default ? 'selected' : ''}>${l.name}${l.is_default ? ' (기본)' : ''}</option>`
+    ).join('');
+    select.addEventListener('change', updateQtyLabel);
+  }
+
+  async function loadStock() {
+    const r = await fetch('/mobile/api/stock/' + encodeURIComponent(SKU));
+    const d = await r.json();
+    if (d.ok) {
+      stockByLoc = {};
+      d.by_location.forEach(it => { stockByLoc[it.location_id] = it.stock; });
+    }
+  }
+
+  function setupActionTabs() {
+    document.querySelectorAll('.tab-btn').forEach(btn => {
+      btn.classList.toggle('active', btn.dataset.action === currentAction);
+      btn.addEventListener('click', () => {
+        currentAction = btn.dataset.action;
+        document.querySelectorAll('.tab-btn').forEach(b =>
+          b.classList.toggle('active', b === btn));
+        updateQtyLabel();
+      });
+    });
+    updateQtyLabel();
+  }
+
+  function updateQtyLabel() {
+    const label = document.getElementById('qty-label');
+    const qtyInput = document.getElementById('qty-input');
+    const locId = parseInt(document.getElementById('location-select').value);
+    const currentLocStock = stockByLoc[locId] || 0;
+
+    if (currentAction === 'in') {
+      label.textContent = `입고 수량 (현재 위치: ${currentLocStock})`;
+      qtyInput.placeholder = '+ 추가할 수량';
+    } else if (currentAction === 'out') {
+      label.textContent = `출고 수량 (현재 위치: ${currentLocStock})`;
+      qtyInput.placeholder = '- 차감할 수량';
+    } else {
+      label.textContent = `목표 수량 (현재 위치: ${currentLocStock})`;
+      qtyInput.placeholder = '새로 설정할 절대값';
+    }
+  }
+
+  document.getElementById('submit-btn').addEventListener('click', async () => {
+    const qty = parseInt(document.getElementById('qty-input').value || '0');
+    const locId = parseInt(document.getElementById('location-select').value);
+    const memo = document.getElementById('memo-input').value.trim();
+
+    if (currentAction !== 'adjust' && qty <= 0) {
+      showToast('수량은 양수', 'error');
+      return;
+    }
+    if (currentAction === 'adjust' && qty < 0) {
+      showToast('조정 수량은 0 이상', 'error');
+      return;
+    }
+
+    const btn = document.getElementById('submit-btn');
+    btn.disabled = true;
+    btn.textContent = '저장 중...';
+    try {
+      const r = await fetch('/mobile/api/action', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          sku: SKU,
+          action: currentAction,
+          location_id: locId,
+          qty,
+          memo,
+        }),
+      });
+      const d = await r.json();
+      if (!d.ok) {
+        showToast('❌ ' + d.error, 'error');
+        btn.disabled = false;
+        btn.textContent = '저장';
+        return;
+      }
+      const labels = { in: '입고', out: '출고', adjust: '조정' };
+      showToast(`✅ ${labels[currentAction]} 완료 (${d.applied_qty > 0 ? '+' : ''}${d.applied_qty}) · 총 ${d.new_total_stock}`, 'success');
+      // 1.5초 후 자동으로 스캔 페이지로
+      setTimeout(() => location.href = '/mobile/scan?action=' + currentAction, 1500);
+    } catch (e) {
+      showToast('네트워크 오류', 'error');
+      btn.disabled = false;
+      btn.textContent = '저장';
+    }
+  });
+
+  loadOption();
+</script>
+{% endblock %}

@@ -96,6 +96,13 @@ def create_app() -> Flask:
             init_auth(app)
         except ImportError as _e:
             app.logger.warning(f"[team-share] auth 모듈 import 실패 (Day 2 미완): {_e}")
+        # 모바일 PWA Blueprint (바코드 스캔 + 입출고/조정)
+        try:
+            from webapp.routes.mobile import bp as _mobile_bp
+            app.register_blueprint(_mobile_bp)
+            app.logger.info("[team-share] 모바일 PWA blueprint 등록됨")
+        except ImportError:
+            pass  # mobile 모듈 없음 (기존 환경)
 
     # PARITY_720 D-2 — /api/v1/* alias (기존 /inventory/api/* 를 표준 경로로 노출)
     from flask import Blueprint as _Blueprint

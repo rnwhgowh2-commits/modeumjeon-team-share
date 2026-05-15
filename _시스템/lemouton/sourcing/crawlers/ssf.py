@@ -70,6 +70,16 @@ GIFT_POINT_PATTERN = re.compile(
     re.DOTALL,
 )
 
+# 2026-05-15 — 포인트 적립 (멤버십 상품별 변동값, DB 0.5% 고정 폐기)
+#   HTML 예시: ``<dt>포인트 적립</dt><dd><span class="point-item">멤버십포인트 2,802P``
+#   상품마다 0.5% / 5% / 등 % 가 다르게 노출 — sale_price 로 나눠 rate 동적 계산.
+POINT_AMOUNT_PATTERN = re.compile(
+    r"포인트\s*적립\s*</dt>\s*<dd>.*?멤버십포인트\s*([\d,]+)\s*P",
+    re.DOTALL,
+)
+
+# 2026-05-15 — 첫 구매 쿠폰: 사용자 명세 "제외"로 추출 자체 제거 (매입가 미반영).
+
 # V7 statcd 상수
 STATCD_SOLDOUT = "SLDOUT"
 
@@ -199,6 +209,41 @@ def _parse_discount_info(soup: BeautifulSoup) -> str:
         if text:
             return f"즉시할인 {text}"
     return ""
+
+
+def _parse_point_rate(html: str, sale_price: int) -> tuple[Optional[float], Optional[int]]:
+    """포인트 적립률·금액 추출 (변동값, 상품별 노출).
+
+    SSF HTML 예시:
+        <dt>포인트 적립</dt><dd>
+            <span class="point-item">멤버십포인트 2,802P&nbsp;</span>
+        </dd>
+
+    DB source_id=4 의 benefit_id=13 "구매적립금 (포인트)" 은 0.5% 고정으로
+    seeding 돼 있으나, 실제로는 5% / 0.5% / 기타 % 가 상품마다 다르게 노출된다.
+    따라서 raw HTML 에서 멤버십포인트 정액(P)을 뽑아 sale_price 로 나눠
+    rate 를 동적으로 계산한다. (해당 dt/dd 블록은 ``card-decc`` 영역 밖에 단독
+    구조이므로 BeautifulSoup 셀렉터 대신 raw HTML 정규식이 견고하다.)
+
+    Args:
+        html: 원본 HTML
+        sale_price: 판매가 (rate 계산용)
+
+    Returns:
+        (rate, amount) — rate 는 소수(예: 0.05 == 5%), amount 는 정수 P
+        노출 안 되면 (None, None).
+    """
+    m = POINT_AMOUNT_PATTERN.search(html)
+    if not m:
+        return None, None
+    try:
+        amount = int(m.group(1).replace(",", ""))
+    except (ValueError, AttributeError):
+        return None, None
+    if amount <= 0 or sale_price <= 0:
+        return None, amount if amount > 0 else None
+    rate = round(amount / sale_price, 4)  # 0.0050, 0.0500 등 4자리
+    return rate, amount
 
 
 def _parse_gift_point(html: str) -> Optional[int]:
@@ -336,6 +381,8 @@ class SsfCrawler(AbstractCrawler):
         discount_info = _parse_discount_info(soup)
         # 기프트포인트 (활성 시만 노출 / 변동값) — V7 에는 없는 항목
         gift_point_amount = _parse_gift_point(html)
+        # 포인트 적립 (멤버십포인트, 상품별 변동값) — DB 0.5% 고정 폐기 (2026-05-15)
+        point_rate, point_amount = _parse_point_rate(html, sale_price)
 
         # ★ 2026-05-14 — 매입가 단일 진실 원천(api_benefits.compute_breakdown) 으로 통합.
         #   크롤러는 sale_price 만 제공. 매입가는 매트릭스 UI 가 breakdown API 로 별도 호출.
@@ -368,6 +415,11 @@ class SsfCrawler(AbstractCrawler):
             # 기프트포인트 — 노출된 상품만 (변동값, sale_price 와 별개)
             if gift_point_amount is not None and gift_point_amount > 0:
                 opt["gift_point_amount"] = gift_point_amount
+            # 포인트 적립 — 사이트 노출값(상품별 변동) / DB 0.5% 고정 polyfill 폐기
+            if point_rate is not None and point_rate > 0:
+                opt["point_rate"] = point_rate
+            if point_amount is not None and point_amount > 0:
+                opt["point_amount"] = point_amount
             return opt
 
         if sizes:

@@ -1,0 +1,68 @@
+{
+  "returnCode": "200",
+  "message": "SUCCESS",
+  "subMessages": null,
+  "messageType": null,
+  "dataCount": null,
+  "data": {
+    "spdNo": "LE1216549546",
+    "cardFavor": {
+      "cardImmdFavors": null,
+      "fvrCnts": {
+        "installmentDesc": [
+          {
+            "fvrCnt": "무이자 할부 안내",
+            "highLight": null
+          }
+        ],
+        "cardFavors": null,
+        "installmentFavors": null
+      },
+      "installmentFavors": []
+    },
+    "deliveryFavor": {
+      "deliveryFavors": null
+    },
+    "giftFavor": {
+      "orderGiftFavors": [],
+      "productGiftFavors": []
+    },
+    "installmentFavor": {
+      "fvrCnts": {
+        "installmentDesc": [
+          {
+            "fvrCnt": "무이자 할부 안내",
+            "highLight": null
+          }
+        ],
+        "cardFavors": null,
+        "installmentFavors": null
+      },
+      "installmentFavors": []
+    },
+    "lpointFavor": {
+      "additionalCnts": null,
+      "maxAccmPoint": 200,
+      "productLpointFavors": null,
+      "purchaseEventFavors": null,
+      "purchaseRewardFavors": null,
+      "reviewLpointFavors": [
+        {
+          "evNm": "[백화점] 리뷰 작성 이벤트(5/1~5/31)",
+          "reviewBasicPoint": 50,
+          "reviewPicPoint": 100,
+          "reviewVideoPoint": 50
+        }
+      ]
+    },
+    "ownersFavor": {
+      "deliveryFavorCnts": null,
+      "deliveryFavorHighLight": null,
+      "ownersDcCnts": null,
+      "ownersHighLight": null,
+      "purchaseFavorAccmAmt": null,
+      "purchaseFavorCnts": null,
+      "purchaseFavorHighLight": null
+    }
+  }
+}

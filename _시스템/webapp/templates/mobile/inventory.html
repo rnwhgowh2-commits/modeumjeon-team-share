@@ -1,0 +1,80 @@
+{% extends "mobile/_base.html" %}
+{% block title %}재고 목록{% endblock %}
+{% set back_url = '/mobile' %}
+
+{% block content %}
+<div class="m-field">
+  <input type="search" id="search-input" placeholder="🔍 SKU / 색상 / 사이즈 검색" autocomplete="off">
+</div>
+
+<div id="inventory-list">
+  <div class="m-loading"><span class="m-spinner"></span>불러오는 중...</div>
+</div>
+{% endblock %}
+
+{% block extra_script %}
+<script>
+  let allItems = [];
+
+  async function loadInventory() {
+    try {
+      // 데스크탑 API 재사용 — /api/v1/inventory/... 또는 직접 옵션 목록
+      // 일단 단순화: /api/v1/* alias 없을 수 있으니 lookup API 를 페이지네이션으로 활용
+      // 대신 데스크탑 /inventory/api/options 가 있을 가능성 있음 — 시도
+      const r = await fetch('/inventory/api/matrix/list?limit=200');
+      if (!r.ok) throw new Error('재고 API 없음');
+      const d = await r.json();
+      allItems = d.items || d.options || [];
+      render(allItems);
+    } catch (e) {
+      // 폴백: 단순 안내
+      document.getElementById('inventory-list').innerHTML =
+        `<div class="m-empty">
+          <div class="icon">🔍</div>
+          바코드 스캔으로 빠르게 찾기
+          <div style="margin-top: 16px;">
+            <a href="/mobile/scan" class="m-btn primary" style="display: inline-block; text-decoration: none;">📷 스캔하기</a>
+          </div>
+        </div>`;
+    }
+  }
+
+  function render(items) {
+    const list = document.getElementById('inventory-list');
+    if (!items.length) {
+      list.innerHTML = '<div class="m-empty"><div class="icon">📭</div>표시할 옵션 없음</div>';
+      return;
+    }
+    list.innerHTML = items.slice(0, 50).map(it => {
+      const sku = it.canonical_sku || it.sku;
+      const stock = it.stock || it.total_stock || 0;
+      const color = it.color_code || it.color || '';
+      const size = it.size_code || it.size || '';
+      return `<a href="/mobile/sku/${encodeURIComponent(sku)}" class="m-card" style="display: block; text-decoration: none; color: inherit;">
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+          <div style="flex: 1; min-width: 0;">
+            <div style="font-size: 15px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${sku}</div>
+            <div style="font-size: 12px; color: var(--n600); margin-top: 4px;">${color} ${size}</div>
+          </div>
+          <div style="text-align: right;">
+            <div style="font-size: 20px; font-weight: 700;">${stock}</div>
+            <div style="font-size: 11px; color: var(--n500);">재고</div>
+          </div>
+        </div>
+      </a>`;
+    }).join('');
+  }
+
+  document.getElementById('search-input').addEventListener('input', (e) => {
+    const q = e.target.value.toLowerCase().trim();
+    if (!q) return render(allItems);
+    render(allItems.filter(it =>
+      (it.canonical_sku || it.sku || '').toLowerCase().includes(q) ||
+      (it.color_code || it.color || '').toLowerCase().includes(q) ||
+      (it.size_code || it.size || '').toLowerCase().includes(q)
+    ));
+  });
+
+  loadInventory();
+</script>
+{% endblock %}

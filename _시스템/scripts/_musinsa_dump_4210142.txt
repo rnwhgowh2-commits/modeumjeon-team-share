@@ -1,0 +1,56 @@
+URL: https://www.musinsa.com/products/4210142
+Title: 무신사 스탠다드(MUSINSA STANDARD) [시티 레저] CN 원 턱 와이드 밴딩 팬츠 [네이비] - 사이즈 & 후기 | 무신사
+PointDetailWrap found: True
+max_benefit textContent length: 252
+
+─── max_benefit textContent (펼친 후) ───
+33,380원나의 할인가등급 할인 불가상품 쿠폰사용가능 쿠폰 없음적립금 사용보유 적립금 사용 (현재 506,910원 보유)-2,510원구매 적립 / 선할인구매 적립 불가적립금 선할인 불가제휴카드 전용할인무신사 삼성카드로 첫 결제 할인(결제금액 31,000원 이상 사용 가능)-30,000원5,838원 최대 적립LV.9 블랙다이아몬드기본 적립후기 적립2,500원결제수단 적립무신사 삼성카드 결제 시 무신사머니 포인트 10% 적립 예상3,338원적용 안함
+
+─── 쿠폰 영역 ───
+
+─── 등급 LV.X 샘플 ───
+  · 5,838원 최대 적립LV.9 블랙다이아몬드
+  · LV.9 블랙다이아몬드
+
+─── 무신사머니 토글 텍스트 ───
+  기본 적립후기 적립2,500원결제수단 적립무신사 삼성카드 결제 시 무신사머니 포인트 10% 적립 예상3,338원적용 안함
+
+
+═══ 추출 결과 (extract JS) ═══
+{
+  "name": "무신사 스탠다드(MUSINSA STANDARD) [시티 레저] CN 원 턱 와이드 밴딩 팬츠 [네이비]",
+  "brand": "무신사 스탠다드",
+  "originalPrice": 59900,
+  "salePrice": 35890,
+  "benefitPriceFromUI": 0,
+  "breakdown": {
+    "grade_discount": 0,
+    "money_reward": 0,
+    "money_reward_rate": 0,
+    "pre_discount": 0,
+    "card_discount": 0,
+    "point_use_ignored": 2510,
+    "coupon": 0,
+    "purchase_extra_reward": 0,
+    "grade_discount_active": false,
+    "grade_discount_rate": 0,
+    "grade_reward_active": false,
+    "grade_reward_rate": 0,
+    "purchase_reward_radio_on": false,
+    "pre_discount_radio_on": false,
+    "has_review_reward_item": true,
+    "wrap_found": true,
+    "text_length": 252,
+    "has_grade_section": true,
+    "has_review_section": true,
+    "has_money_section": true,
+    "has_my_discount_section": true,
+    "point_detail_wrap_found": true,
+    "has_grade_disabled": true,
+    "has_purchase_reward_disabled": true,
+    "has_money_apply_off": true,
+    "is_no_benefit_product": true
+  },
+  "couponName": "",
+  "options": []
+}

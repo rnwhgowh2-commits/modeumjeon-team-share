@@ -1,0 +1,356 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <meta name="theme-color" content="#3182F6">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="모음전">
+
+  <title>{% block title %}모음전{% endblock %}</title>
+
+  <link rel="manifest" href="{{ url_for('static', filename='manifest.json') }}">
+  <link rel="icon" type="image/png" sizes="32x32" href="{{ url_for('static', filename='icons/favicon-32.png') }}">
+  <link rel="apple-touch-icon" href="{{ url_for('static', filename='icons/apple-touch-icon.png') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='toss.css') }}">
+
+  <style>
+    :root {
+      --safe-top: env(safe-area-inset-top);
+      --safe-bottom: env(safe-area-inset-bottom);
+    }
+    * { -webkit-tap-highlight-color: transparent; }
+    html, body {
+      margin: 0; padding: 0;
+      font-family: var(--font, 'Pretendard', -apple-system, sans-serif);
+      background: var(--bg, #F9FAFB);
+      color: var(--n900, #191F28);
+      overscroll-behavior-y: contain;  /* 풀투리프레시 방지 */
+    }
+    body {
+      min-height: 100vh;
+      min-height: 100dvh;
+      padding-top: var(--safe-top);
+      padding-bottom: var(--safe-bottom);
+    }
+
+    /* ─── 상단 헤더 ─── */
+    .m-header {
+      position: sticky; top: var(--safe-top);
+      z-index: 10;
+      background: var(--surface, #fff);
+      border-bottom: 1px solid var(--n200, #E5E8EB);
+      padding: 14px 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .m-header h1 {
+      margin: 0;
+      font-size: 18px;
+      font-weight: 700;
+    }
+    .m-back {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 36px; height: 36px;
+      margin-left: -8px;
+      border-radius: 50%;
+      color: var(--n700, #4E5968);
+      text-decoration: none;
+      font-size: 24px;
+    }
+    .m-back:active { background: var(--n100, #F2F4F6); }
+
+    /* ─── 컨텐츠 ─── */
+    .m-content {
+      padding: 16px;
+      max-width: 480px;
+      margin: 0 auto;
+    }
+
+    /* ─── 카드 ─── */
+    .m-card {
+      background: var(--surface, #fff);
+      border: 1px solid var(--n200, #E5E8EB);
+      border-radius: 12px;
+      padding: 16px;
+      margin-bottom: 12px;
+    }
+    .m-card-title {
+      font-size: 13px;
+      color: var(--n600, #6B7684);
+      font-weight: 500;
+      margin: 0 0 6px;
+    }
+    .m-card-value {
+      font-size: 24px;
+      font-weight: 700;
+      margin: 0;
+    }
+
+    /* ─── 큰 액션 버튼 ─── */
+    .m-btn-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 12px;
+    }
+    .m-btn-grid.col1 { grid-template-columns: 1fr; }
+    .m-btn-grid.col3 { grid-template-columns: repeat(3, 1fr); }
+
+    .m-action-btn {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 24px 12px;
+      min-height: 110px;
+      background: var(--surface, #fff);
+      border: 1px solid var(--n200, #E5E8EB);
+      border-radius: 14px;
+      color: var(--n800, #333D4B);
+      font-size: 15px;
+      font-weight: 600;
+      text-decoration: none;
+      cursor: pointer;
+      transition: transform 0.1s, background 0.15s;
+    }
+    .m-action-btn:active {
+      transform: scale(0.97);
+      background: var(--n100, #F2F4F6);
+    }
+    .m-action-btn .icon {
+      font-size: 36px;
+      line-height: 1;
+    }
+    .m-action-btn.primary {
+      background: var(--primary, #3182F6);
+      color: white;
+      border-color: var(--primary, #3182F6);
+    }
+    .m-action-btn.primary:active {
+      background: var(--primary-strong, #1B64DA);
+    }
+    .m-action-btn.danger {
+      color: var(--danger, #F04452);
+    }
+    .m-action-btn.success {
+      color: var(--color-ok, #16a34a);
+    }
+
+    /* ─── 기본 버튼 ─── */
+    .m-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 14px 20px;
+      border: none;
+      border-radius: 10px;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+      width: 100%;
+      box-sizing: border-box;
+    }
+    .m-btn.primary { background: var(--primary, #3182F6); color: white; }
+    .m-btn.primary:active { background: var(--primary-strong, #1B64DA); }
+    .m-btn.secondary {
+      background: var(--n100, #F2F4F6);
+      color: var(--n800, #333D4B);
+    }
+
+    /* ─── 입력 ─── */
+    .m-field { margin-bottom: 16px; }
+    .m-field label {
+      display: block;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--n700, #4E5968);
+      margin-bottom: 6px;
+    }
+    .m-field input,
+    .m-field select,
+    .m-field textarea {
+      width: 100%;
+      padding: 14px;
+      font-size: 16px;
+      border: 1px solid var(--n300, #D1D6DB);
+      border-radius: 10px;
+      background: var(--surface, #fff);
+      box-sizing: border-box;
+      font-family: inherit;
+    }
+    .m-field input:focus,
+    .m-field select:focus {
+      outline: none;
+      border-color: var(--primary, #3182F6);
+      box-shadow: 0 0 0 3px var(--primary-tint, #E8F2FF);
+    }
+
+    /* ─── 토스트 ─── */
+    .m-toast {
+      position: fixed;
+      bottom: calc(20px + var(--safe-bottom));
+      left: 16px; right: 16px;
+      max-width: 480px;
+      margin: 0 auto;
+      padding: 14px 18px;
+      border-radius: 12px;
+      color: white;
+      font-weight: 600;
+      text-align: center;
+      transform: translateY(120%);
+      transition: transform 0.3s;
+      z-index: 100;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.15);
+    }
+    .m-toast.show { transform: translateY(0); }
+    .m-toast.success { background: var(--color-ok, #16a34a); }
+    .m-toast.error { background: var(--danger, #F04452); }
+    .m-toast.info { background: var(--n800, #333D4B); }
+
+    /* ─── 로딩 ─── */
+    .m-loading {
+      display: flex; align-items: center; justify-content: center;
+      padding: 40px 0;
+      color: var(--n500, #8B95A1);
+      font-size: 14px;
+    }
+    .m-spinner {
+      display: inline-block;
+      width: 16px; height: 16px;
+      border: 2px solid var(--n300, #D1D6DB);
+      border-top-color: var(--primary, #3182F6);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      margin-right: 8px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ─── 빈 상태 ─── */
+    .m-empty {
+      text-align: center;
+      padding: 60px 24px;
+      color: var(--n500, #8B95A1);
+    }
+    .m-empty .icon { font-size: 48px; margin-bottom: 12px; }
+
+    /* ─── 설치 프롬프트 ─── */
+    .m-install-banner {
+      position: fixed;
+      bottom: calc(16px + var(--safe-bottom));
+      left: 16px; right: 16px;
+      max-width: 480px;
+      margin: 0 auto;
+      background: var(--n900, #191F28);
+      color: white;
+      padding: 14px 16px;
+      border-radius: 12px;
+      display: none;
+      align-items: center;
+      gap: 12px;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.2);
+      z-index: 50;
+    }
+    .m-install-banner.show { display: flex; }
+    .m-install-banner .text {
+      flex: 1;
+      font-size: 13px;
+      line-height: 1.4;
+    }
+    .m-install-banner button {
+      background: var(--primary, #3182F6);
+      color: white;
+      border: none;
+      padding: 8px 14px;
+      border-radius: 8px;
+      font-weight: 600;
+      font-size: 13px;
+      cursor: pointer;
+    }
+    .m-install-banner .close {
+      background: transparent;
+      color: white;
+      padding: 4px 8px;
+    }
+  </style>
+
+  {% block extra_head %}{% endblock %}
+</head>
+<body>
+  {% block header %}
+  <header class="m-header">
+    {% if back_url %}
+      <a href="{{ back_url }}" class="m-back">‹</a>
+    {% else %}
+      <span style="width: 36px;"></span>
+    {% endif %}
+    <h1>{% block header_title %}{{ self.title() }}{% endblock %}</h1>
+    <span style="width: 36px;"></span>
+  </header>
+  {% endblock %}
+
+  <main class="m-content">
+    {% block content %}{% endblock %}
+  </main>
+
+  <!-- 토스트 -->
+  <div id="toast" class="m-toast"></div>
+
+  <!-- 설치 프롬프트 -->
+  <div id="install-banner" class="m-install-banner">
+    <span style="font-size: 24px;">📱</span>
+    <div class="text">
+      홈화면에 추가하면 앱처럼 빠르게 사용할 수 있어요
+    </div>
+    <button id="install-btn">설치</button>
+    <button class="close" id="install-close">×</button>
+  </div>
+
+  <script>
+    // 토스트 헬퍼
+    window.showToast = function(message, type) {
+      const t = document.getElementById('toast');
+      t.textContent = message;
+      t.className = 'm-toast show ' + (type || 'info');
+      setTimeout(() => t.className = 'm-toast', 2500);
+    };
+
+    // Service Worker 등록
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('/static/sw.js').catch(e => console.warn('SW 등록 실패', e));
+    }
+
+    // 설치 프롬프트
+    let deferredPrompt = null;
+    window.addEventListener('beforeinstallprompt', (e) => {
+      e.preventDefault();
+      deferredPrompt = e;
+      const banner = document.getElementById('install-banner');
+      // 이미 닫았던 경우 다시 안 띄움
+      if (localStorage.getItem('install-dismissed') !== 'true') {
+        banner.classList.add('show');
+      }
+    });
+
+    document.getElementById('install-btn')?.addEventListener('click', async () => {
+      if (!deferredPrompt) return;
+      deferredPrompt.prompt();
+      const { outcome } = await deferredPrompt.userChoice;
+      console.log('[install] 결과:', outcome);
+      deferredPrompt = null;
+      document.getElementById('install-banner').classList.remove('show');
+    });
+
+    document.getElementById('install-close')?.addEventListener('click', () => {
+      document.getElementById('install-banner').classList.remove('show');
+      localStorage.setItem('install-dismissed', 'true');
+    });
+  </script>
+
+  {% block extra_script %}{% endblock %}
+</body>
+</html>

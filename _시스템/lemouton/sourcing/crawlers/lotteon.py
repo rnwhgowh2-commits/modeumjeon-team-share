@@ -319,28 +319,31 @@ def _parse_data_benefit(html: str) -> Optional[dict]:
 
 
 def _extract_point_rewards(html: str) -> Optional[dict]:
-    """롯데 구매 적립혜택 (구매적립 L.POINT) 추출.
+    """롯데 구매 적립혜택 (구매적립 L.POINT) + 리뷰작성 적립금 추출.
 
     출처: ``dataBenefit.fullDiscountObj.lPointObj``
-        - ``nMbrPoint``: 일반회원 구매적립 L.POINT (예: "+126P")
-        - ``lMbrPoint``: L.CLUB(유료) 회원 구매적립 L.POINT (예: "+633P")
+        - ``nMbrPoint``  : 일반회원 구매적립 L.POINT (예: "+126P")
+        - ``lMbrPoint``  : L.CLUB(유료) 회원 구매적립 L.POINT (예: "+633P")
         - ``pointLabelTxt``: "구매적립 L.POINT" (라벨)
+        - ``nMbrSaveamt``: 일반회원 리뷰 적립금 (예: "+300원")
+        - ``lMbrSaveamt``: L.CLUB 회원 리뷰 적립금 (예: "+600원")
+        - ``gdasLabelTxt``: "리뷰작성 적립금" (라벨)
 
-    사용자 명세 매핑:
+    사용자 명세 매핑 (2026-05-15 갱신):
         구매 적립혜택 / %적립금 / 0.5% (또는 사이트 표기) / 자동 ❌ / 크롤링 ✅
         → L.CLUB 회원 적립률이 통상 0.5% (사용자 명세) 와 일치.
           일반회원 0.1% 와 분리 노출.
-        리뷰 적립은 명세상 **제외** — gdasLabelTxt / nMbrSaveamt / lMbrSaveamt
-        는 무시.
+        리뷰 적립금 / 정액 / 사이트 노출 (300원 일반 / 600원 L.CLUB)
+        → 표시는 하되 활성/비활성은 사용자가 매트릭스 토글로 결정 (dyn).
 
     Returns:
         {
             "label": "구매적립 L.POINT",
             "default_point": 126,           # 일반회원 적립 P
             "club_point": 633,              # L.CLUB 회원 적립 P (없으면 0)
-            "base_price": 126650,           # 적립률 계산용 base
-            "default_rate": 0.10,           # % (소수점)
-            "club_rate": 0.50,              # % (소수점)
+            "review_label": "리뷰작성 적립금",
+            "review_default": 300,          # 일반 리뷰 적립금 (원)
+            "review_club": 600,             # L.CLUB 리뷰 적립금 (원)
             "source": "dataBenefit.lPointObj",
         } 또는 None.
     """
@@ -357,18 +360,21 @@ def _extract_point_rewards(html: str) -> Optional[dict]:
     club_p = _to_int(lp.get("lMbrPoint"))
     label = (lp.get("pointLabelTxt") or "구매적립 L.POINT").strip()
 
-    if default_p <= 0 and club_p <= 0:
+    # ★ 2026-05-15 — 리뷰작성 적립금 (사이트 노출 항목, 정액)
+    review_default = _to_int(lp.get("nMbrSaveamt"))
+    review_club = _to_int(lp.get("lMbrSaveamt"))
+    review_label = (lp.get("gdasLabelTxt") or "리뷰작성 적립금").strip()
+
+    if default_p <= 0 and club_p <= 0 and review_default <= 0 and review_club <= 0:
         return None
 
-    # 적립률 계산용 base = max_price (commonDiscountObj.benefitPrc 가 더 정확)
-    # 단, benefitPrc 는 카드할인 포함가 → 적립률 base 로 부적절. 정가(ir_price)
-    # 도 dataBenefit 에는 직접 없음 → discountList 의 "쿠폰할인" amount 를
-    # commonDiscountObj.benefitPrc 에 더해 역산하거나, 단순히 점수 노출만 한다.
-    # 여기서는 점수 + 라벨만 노출 (호출자가 base_price 알고 있으면 직접 계산).
     return {
         "label": label,
         "default_point": default_p,
         "club_point": club_p,
+        "review_label": review_label,
+        "review_default": review_default,
+        "review_club": review_club,
         "source": "dataBenefit.lPointObj",
     }
 
@@ -499,6 +505,23 @@ LOTTEON_API_PATHS = (
 #   - prKndCd ∈ {CRD_IMMD, CPN_BSK_CPN}                     →  카드즉시할인 / 장바구니쿠폰
 LOTTEON_CARD_COUPON_TITLE = "카드즉시할인/장바구니쿠폰"
 LOTTEON_CRD_KINDS = {"CRD_IMMD", "CPN_BSK_CPN"}
+
+# ★ 2026-05-15 — 자동 적용 vs 미적용 판정 키
+#   ``dcTnnoCd`` 가 sale_price (immdDcAplyTotAmt) 에 이미 반영됐는지 판단의 단일 진실 원천.
+#     · 1ST = 스토어 즉시할인        → 자동 (sale_price 에 반영됨)
+#     · 2ND = CM할인 (롯데ON 즉시할인) → 자동 (sale_price 에 반영됨)
+#     · 3RD = 무료배송 할인          → 자동 (sale_price 에 반영됨)
+#     · 4TH = 쿠폰 (스토어/상품)     → 다운로드 필요 (sale_price 에 미반영)
+#     · 5TH = 카드즉시할인           → 결제수단 한정 (sale_price 에 미반영)
+#   사용자 명세 검증 (2026-05-15):
+#     URL #1 (르무통): sale_price=126,060 = 149,000 - 8,940 (1ST) - 14,000 (2ND) ✓
+#     URL #2 (코르테즈 LE1216549546): sale_price=64,980 = 83,300 - 18,320 (1ST) ✓
+LOTTEON_AUTO_APPLIED_TIERS = {"1ST", "2ND", "3RD"}
+
+# 미적용 사유 추출용 dispDtls 텍스트 패턴
+#   예: "사용조건 : 70,000원 이상 구매시, 최대 30,000원"
+LOTTEON_MIN_AMT_PATTERN = re.compile(r"([\d,]+)\s*원\s*이상\s*구매")
+# 예: "할인율 : 5%" / "할인액 : 5,000원" / "발급기간 : ~05.31"
 
 
 def _is_lotteon(url: str) -> bool:
@@ -708,31 +731,127 @@ def _parse_lotteon_options(option_data: dict, base_data: dict) -> tuple[list[dic
     return colors, sizes
 
 
-def _parse_lotteon_benefits(favor_data: dict) -> tuple[list[dict], str]:
+def _extract_unmet_reason(promo: dict, sale_price: int) -> tuple[str, str]:
+    """미적용 사유 + 자세히 텍스트 추출.
+
+    ★ 2026-05-15 — 사용자 명세 (5/15):
+      "코르테즈(두번째 상품의 경우) **'주문금액부족'이라서 반영 못함**을 알려줘야하고,
+       **자세히 눌러서 얼마인지도 표현**해줘야지."
+
+    Returns:
+        (unmet_reason, condition_detail)
+        - unmet_reason: 한 줄 사유 (예: "주문금액 부족 (70,000원 이상)", "첫구매 한정")
+        - condition_detail: dispDtls[] 를 " / " 로 join 한 "자세히" 텍스트
+          (예: "할인율 : 7% / 사용조건 : 70,000원 이상 구매시, 최대 30,000원 / 사용기간 : ~05.17")
+
+    판정 우선순위:
+      1) mainFlag.isFirstBuy=True  → "첫구매 한정"
+      2) mainFlag.isStrJJim=True   → "스토어찜 한정"
+      3) mainFlag.isClub=True      → "롯데클럽 회원 한정"
+      4) mainFlag.isLpntMb=True    → "L포인트 회원 한정"
+      5) dispDtls 에서 "X원 이상 구매" 추출 → sale_price < X → "주문금액 부족 (X원 이상)"
+      6) prAplyYn == "N" 인데 위 사유 없음 → "조건 미충족"
+    """
+    flag = promo.get("mainFlag") or {}
+    # dispDtls — "자세히" 정보 (이미 임베드되어 있음 → 클릭 불필요)
+    disp_dtls = promo.get("dispDtls") or []
+    condition_detail = " / ".join(str(x).strip() for x in disp_dtls if x)
+
+    reasons: list[str] = []
+    # 회원 조건은 미적용 사유의 직접 원인이지만, 카드즉시할인은 항상 카드 보유 필요라서
+    # mainFlag 가 비어 있는 경우도 있다. 따라서 mainFlag 는 부가 조건으로만 다룸.
+    if isinstance(flag, dict):
+        if flag.get("isFirstBuy"):
+            reasons.append("첫구매 한정")
+        if flag.get("isStrJJim"):
+            reasons.append("스토어찜 한정")
+        if flag.get("isClub"):
+            reasons.append("롯데클럽 회원 한정")
+        if flag.get("isLpntMb"):
+            reasons.append("L포인트 회원 한정")
+
+    # 주문금액 조건 매칭 — dispDtls 의 "X원 이상 구매" 패턴
+    min_amt_required = 0
+    for dtl in disp_dtls:
+        m = LOTTEON_MIN_AMT_PATTERN.search(str(dtl))
+        if m:
+            try:
+                v = int(m.group(1).replace(",", ""))
+                if v > 0:
+                    min_amt_required = v
+                    break
+            except (ValueError, TypeError):
+                pass
+
+    # minPdAmt JSON 필드 폴백
+    if min_amt_required == 0:
+        try:
+            v = int(promo.get("minPdAmt") or 0)
+            if v > 0:
+                min_amt_required = v
+        except (ValueError, TypeError):
+            pass
+
+    if min_amt_required > 0 and sale_price > 0 and sale_price < min_amt_required:
+        reasons.insert(0, f"주문금액 부족 ({min_amt_required:,}원 이상)")
+
+    # 결제수단 한정 (카드즉시할인) — pyMnsDtl 있으면 카드 필요 사실 표기
+    py_mns = promo.get("pyMnsDtl")
+    disp_title = (promo.get("dispTitle") or "").strip()
+    if isinstance(py_mns, dict) and disp_title:
+        # 이미 카드명 (예: "삼성카드", "토스페이 롯데카드") 이 dispTitle 에 들어있음
+        # → 별도 사유 추가 없이 dispTitle 만으로 사용자가 인지 가능
+        pass
+
+    return " / ".join(reasons), condition_detail
+
+
+def _parse_lotteon_benefits(favor_data: dict, sale_price: int = 0) -> tuple[list[dict], str]:
     """롯데ON ``favorBox/benefits.discountGroups`` → 쿠폰별 분리 추출.
+
+    ★ 2026-05-15 변경 (사용자 명세):
+      - 각 쿠폰에 ``applied`` (bool) 필드 추가 — sale_price 에 자동 반영 여부.
+        판정 키: ``dcTnnoCd in {"1ST","2ND","3RD"}``.
+        (1ST=스토어즉시할인, 2ND=CM할인, 3RD=무료배송 → 모두 immdDcAplyTotAmt 에 포함)
+      - 미적용 항목: ``unmet_reason`` (예: "주문금액 부족 (70,000원 이상)", "첫구매 한정")
+      - ``condition_detail``: dispDtls[] 의 "자세히" 정보 (할인율/사용조건/사용기간)
+      - ``discount_info`` 텍스트: 자동 적용 항목 ✓ / 미적용 항목 (사유) 으로 분리 표시
+
+    Args:
+        favor_data: pbf API ``favorBox/benefits.data``
+        sale_price: 이미 추출된 sale_price (immdDcAplyTotAmt). 주문금액 부족 판정에 사용.
 
     Returns:
         (coupons, discount_info_text)
         coupons: 쿠폰별 dict 리스트 (UI/breakdown 용)
             {
-              group: str,           # groupId (IMMD / IMMD_AND_PRODUCT_COUPON / STORE_COUPON / ORDER 등)
-              group_title: str,     # discountGroup.title (사용자 노출용, 예: "카드즉시할인/장바구니쿠폰")
-              name: str,            # dispTitle 또는 dispName 또는 prNm
-              kind: str,            # prKndCd (PRD_SLR/CPN_PRD_CPN/CRD_IMMD 등)
-              type: str,            # prTypCd (PRD_DC/DC_CPN/CRD_PR 등)
-              dc_type: str,         # dcTypCd (FX/FL — 정액 vs 정률)
-              dc_rate: float,       # % (없으면 0)
-              dc_amount: int,       # 원 (없으면 0)
-              text: str,            # 사용자 표시 텍스트 "X% (XXX원)"
-              condition: str,       # 사용조건 텍스트 (조건 충족 안 해도 표시)
-              is_card_coupon: bool, # 사용자 명세 "카드즉시할인/장바구니쿠폰" 그룹 여부
-              coupon_no: str,       # 다운로드 가능한 쿠폰 번호 (있으면)
+              group: str,                # groupId (IMMD / IMMD_AND_PRODUCT_COUPON / STORE_COUPON / ORDER 등)
+              group_title: str,          # discountGroup.title (사용자 노출용)
+              name: str,                 # dispTitle 또는 dispName 또는 prNm
+              kind: str,                 # prKndCd
+              type: str,                 # prTypCd
+              dc_type: str,              # dcTypCd (FX/FL — 정액 vs 정률)
+              dc_tier: str,              # dcTnnoCd (1ST/2ND/3RD/4TH/5TH)
+              dc_rate: float,            # % (없으면 0)
+              dc_amount: int,            # 원 (없으면 0)
+              text: str,                 # "X% (XXX원)" 사용자 표시
+              condition: str,            # mainFlag/금액 조건 (한 줄)
+              condition_detail: str,     # dispDtls[] join — "자세히" 텍스트
+              applied: bool,             # ★ sale_price 에 이미 반영 (1ST/2ND/3RD 인 자동 할인)
+              apply_yn: bool,            # prAplyYn==Y (사이트가 현재 사용자에게 적용 가능 판정)
+              best_apply_yn: bool,       # bestPrAplyYn==Y (최저가 계산 포함 여부)
+              check_state: str,          # check ("none" / "enabled" / "disabled")
+              unmet_reason: str,         # ★ 미적용 사유 (적용된 쿠폰은 빈 문자열)
+              is_card_coupon: bool,
+              coupon_no: str,
             }
-        discount_info_text: 모음전 UI 에서 보여줄 통합 텍스트
-            예: "스토어 즉시할인 6% (8,940원) / 카드즉시할인-롯데카드 7%"
+        discount_info_text: 모음전 UI 표시 텍스트
+            예: "자동 적용: 스토어 즉시할인 6% (8,940원) / 롯데ON 즉시할인 10% (14,000원)
+                 ｜추가 가능: [ON] 첫구매 5천원 할인 [미적용: 첫구매 한정]"
     """
     coupons: list[dict] = []
-    text_parts: list[str] = []
+    applied_parts: list[str] = []
+    unapplied_parts: list[str] = []
 
     for dg in favor_data.get("discountGroups") or []:
         group_title = (dg.get("title") or "").strip()
@@ -743,6 +862,7 @@ def _parse_lotteon_benefits(favor_data: dict) -> tuple[list[dict], str]:
             pr_knd = promo.get("prKndCd") or ""
             pr_typ = promo.get("prTypCd") or ""
             dc_typ = promo.get("dcTypCd") or ""
+            dc_tier = (promo.get("dcTnnoCd") or "").strip()
             try:
                 dc_rate = float(promo.get("dcRt") or 0)
             except (ValueError, TypeError):
@@ -761,6 +881,23 @@ def _parse_lotteon_benefits(favor_data: dict) -> tuple[list[dict], str]:
             coupon_info = promo.get("couponInfo") or {}
             coupon_no = (coupon_info.get("cpnNo") if isinstance(coupon_info, dict) else "") or ""
 
+            apply_yn = (promo.get("prAplyYn") or "").upper() == "Y"
+            best_apply_yn = (promo.get("bestPrAplyYn") or "").upper() == "Y"
+            check_state = (promo.get("check") or "").strip().lower()
+
+            # ★ 자동 적용 판정 — dcTnnoCd 단일 진실 원천 (qty.immdDcAplyTotAmt 매칭)
+            applied = (
+                dc_tier in LOTTEON_AUTO_APPLIED_TIERS
+                and apply_yn
+                and best_apply_yn
+            )
+
+            # 미적용 사유 + "자세히" 텍스트
+            unmet_reason, condition_detail = _extract_unmet_reason(promo, sale_price)
+            # 자동 적용된 쿠폰은 미적용 사유 비움
+            if applied:
+                unmet_reason = ""
+
             # 사용자 명세상 "카드즉시할인/장바구니쿠폰" 판정
             is_card_coupon = (
                 is_card_coupon_group
@@ -775,33 +912,62 @@ def _parse_lotteon_benefits(favor_data: dict) -> tuple[list[dict], str]:
                 "kind": pr_knd,
                 "type": pr_typ,
                 "dc_type": dc_typ,
+                "dc_tier": dc_tier,
                 "dc_rate": dc_rate,
                 "dc_amount": dc_amount,
                 "text": value_text,
                 "condition": condition,
+                "condition_detail": condition_detail,
+                "applied": applied,
+                "apply_yn": apply_yn,
+                "best_apply_yn": best_apply_yn,
+                "check_state": check_state,
+                "unmet_reason": unmet_reason,
                 "is_card_coupon": is_card_coupon,
                 "coupon_no": coupon_no,
             })
 
-            # discount_info 텍스트 빌드
+            # discount_info 텍스트 빌드 — 자동 vs 미적용 분리
             #   name 에 이미 % 표기가 포함된 경우 (예: "스토어 즉시할인 6%") value_text 중복 회피.
-            #   → name 끝에 "{rate}%" 가 있으면 value_text 만 남기되 이름 prefix 는 % 제외.
             if name and value_text:
                 name_norm = name.rstrip()
                 rate_int_token = f"{int(dc_rate)}%" if dc_rate == int(dc_rate) and dc_rate > 0 else None
                 if rate_int_token and name_norm.endswith(rate_int_token):
-                    # "스토어 즉시할인 6%" → "스토어 즉시할인" 으로 trim
                     prefix = name_norm[: -len(rate_int_token)].rstrip()
                     seg = f"{prefix} {value_text}".strip() if prefix else value_text
                 else:
                     seg = f"{name} {value_text}"
-                if condition:
-                    seg += f" [{condition}]"
-                text_parts.append(seg)
             elif name:
-                text_parts.append(name)
+                seg = name
+            else:
+                continue
 
-    return coupons, " / ".join(text_parts)
+            if applied:
+                applied_parts.append(seg)
+            else:
+                # 미적용 — 사유 + 자세히
+                tail_bits: list[str] = []
+                if unmet_reason:
+                    tail_bits.append(f"미적용: {unmet_reason}")
+                elif not apply_yn:
+                    tail_bits.append("미적용")
+                if condition_detail:
+                    tail_bits.append(f"자세히: {condition_detail}")
+                if tail_bits:
+                    seg += " [" + " / ".join(tail_bits) + "]"
+                elif condition:
+                    seg += f" [{condition}]"
+                unapplied_parts.append(seg)
+
+    # 최종 텍스트 조립 — 자동 적용 / 추가 가능 (미적용) 두 섹션
+    final_parts: list[str] = []
+    if applied_parts:
+        final_parts.append("자동 적용: " + " / ".join(applied_parts))
+    if unapplied_parts:
+        final_parts.append("추가 가능: " + " / ".join(unapplied_parts))
+    discount_info_text = " ｜ ".join(final_parts)
+
+    return coupons, discount_info_text
 
 
 def _parse_lotteon_prices(base_data: dict, qty_data: dict) -> tuple[int, int, int]:
@@ -872,7 +1038,8 @@ def _fetch_lotteon(product_url: str, timeout_sec: int) -> CrawlResult:
         )
 
     # 쿠폰별 분리 추출 + discount_info 텍스트
-    coupons, discount_info_text = _parse_lotteon_benefits(favor_data)
+    #   ★ 2026-05-15 — sale_price 를 함께 넘겨 "주문금액 부족" 미적용 사유 판정에 사용.
+    coupons, discount_info_text = _parse_lotteon_benefits(favor_data, sale_price=max_price)
     auto_card_discount = None
     # 사용자 명세상 카드즉시할인은 자동 적용 X — auto_card_discount 는 None 유지
     # (UI 가 coupons 안의 is_card_coupon=True 항목을 별도 표시)
@@ -1046,6 +1213,16 @@ class LotteCrawler(AbstractCrawler):
                 info_parts.append(f"{label} +{l_p:,}P")
             elif n_p > 0:
                 info_parts.append(f"{label} +{n_p:,}P")
+            # ★ 2026-05-15 — 리뷰작성 적립금 (정액)
+            r_label = point_rewards.get("review_label") or "리뷰작성 적립금"
+            r_n = point_rewards.get("review_default") or 0
+            r_l = point_rewards.get("review_club") or 0
+            if r_l > 0 and r_n > 0:
+                info_parts.append(f"{r_label} 일반 +{r_n:,}원 / L.CLUB +{r_l:,}원")
+            elif r_l > 0:
+                info_parts.append(f"{r_label} +{r_l:,}원")
+            elif r_n > 0:
+                info_parts.append(f"{r_label} +{r_n:,}원")
 
         return CrawlResult(
             source=self.source_name,

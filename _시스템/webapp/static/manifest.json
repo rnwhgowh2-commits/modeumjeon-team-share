@@ -1,0 +1,46 @@
+{
+  "name": "모음전 재고관리",
+  "short_name": "모음전",
+  "description": "팀 공유 모음전 재고관리 — 바코드 스캔으로 입고·출고·조정",
+  "start_url": "/mobile",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#3182F6",
+  "theme_color": "#3182F6",
+  "lang": "ko",
+  "categories": ["business", "productivity"],
+  "icons": [
+    {
+      "src": "/static/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/static/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/static/icons/icon-maskable.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "바코드 스캔",
+      "short_name": "스캔",
+      "url": "/mobile/scan",
+      "icons": [{ "src": "/static/icons/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "재고 조회",
+      "short_name": "재고",
+      "url": "/mobile/inventory"
+    }
+  ]
+}

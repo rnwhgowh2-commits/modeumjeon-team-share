@@ -1,0 +1,93 @@
+{% extends "mobile/_base.html" %}
+{% block title %}모음전 재고{% endblock %}
+{% block header %}
+<header class="m-header">
+  <span style="width: 36px;"></span>
+  <h1>📦 모음전</h1>
+  <a href="/auth/me" class="m-back" style="font-size: 18px;">👤</a>
+</header>
+{% endblock %}
+
+{% block content %}
+<div class="m-btn-grid">
+  <a href="/mobile/scan" class="m-action-btn primary">
+    <span class="icon">📷</span>
+    바코드 스캔
+  </a>
+  <a href="/mobile/inventory" class="m-action-btn">
+    <span class="icon">📋</span>
+    재고 목록
+  </a>
+</div>
+
+<div class="m-btn-grid col3" style="margin-top: 12px;">
+  <a href="/mobile/scan?action=in" class="m-action-btn success">
+    <span class="icon">📥</span>
+    빠른 입고
+  </a>
+  <a href="/mobile/scan?action=out" class="m-action-btn danger">
+    <span class="icon">📤</span>
+    빠른 출고
+  </a>
+  <a href="/mobile/scan?action=adjust" class="m-action-btn">
+    <span class="icon">⚖️</span>
+    조정
+  </a>
+</div>
+
+<div style="margin-top: 24px;">
+  <h2 style="font-size: 15px; font-weight: 600; color: var(--n700); margin: 0 0 12px; padding: 0 4px;">
+    최근 활동
+  </h2>
+  <div id="recent-list">
+    <div class="m-loading"><span class="m-spinner"></span>불러오는 중...</div>
+  </div>
+</div>
+
+<div style="margin-top: 32px; text-align: center;">
+  <a href="/" style="color: var(--n500); font-size: 13px; text-decoration: none;">데스크탑 버전 →</a>
+</div>
+{% endblock %}
+
+{% block extra_script %}
+<script>
+  async function loadRecent() {
+    try {
+      const r = await fetch('/mobile/api/recent');
+      const d = await r.json();
+      const list = document.getElementById('recent-list');
+      if (!d.ok || !d.items.length) {
+        list.innerHTML = '<div class="m-empty"><div class="icon">📭</div>최근 활동이 없어요</div>';
+        return;
+      }
+      const typeLabels = { 'in': '입고', 'out': '출고', 'adjust': '조정', 'move': '이동' };
+      const typeColors = { 'in': '#16a34a', 'out': '#F04452', 'adjust': '#3182F6', 'move': '#7c3aed' };
+      list.innerHTML = d.items.map(it => {
+        const date = new Date(it.at);
+        const timeStr = date.toLocaleString('ko-KR', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
+        const qty = it.qty > 0 ? '+' + it.qty : it.qty;
+        return `<div class="m-card" style="padding: 12px 14px; margin-bottom: 8px;">
+          <div style="display: flex; justify-content: space-between; align-items: center;">
+            <div style="flex: 1; min-width: 0;">
+              <div style="font-size: 14px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${it.sku}</div>
+              <div style="font-size: 12px; color: var(--n600); margin-top: 2px;">
+                <span style="color: ${typeColors[it.tx_type] || '#6B7684'}; font-weight: 600;">${typeLabels[it.tx_type] || it.tx_type}</span>
+                · ${it.location} · ${it.actor}
+              </div>
+            </div>
+            <div style="text-align: right; margin-left: 12px;">
+              <div style="font-size: 18px; font-weight: 700; color: ${typeColors[it.tx_type] || '#191F28'};">${qty}</div>
+              <div style="font-size: 11px; color: var(--n500); margin-top: 2px;">${timeStr}</div>
+            </div>
+          </div>
+        </div>`;
+      }).join('');
+    } catch (e) {
+      document.getElementById('recent-list').innerHTML = '<div class="m-empty">불러오기 실패</div>';
+    }
+  }
+  loadRecent();
+  // 30초마다 자동 새로고침
+  setInterval(loadRecent, 30000);
+</script>
+{% endblock %}
