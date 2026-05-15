@@ -23,12 +23,13 @@
   </div>
   <style>#headerMore.open > div{display:block}</style>
 
-  <!-- 통계 4장 -->
-  <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:14px">
-    <div style="background:#fff;border:1px solid #E5E8EB;border-radius:8px;padding:12px"><div style="font-size:10.5px;color:#6B7684">필터된 옵션</div><div style="font-size:20px;font-weight:700">{{ stats.total }}</div></div>
-    <div style="background:#fff;border:1px solid #E5E8EB;border-radius:8px;padding:12px"><div style="font-size:10.5px;color:#6B7684">재고 보유</div><div style="font-size:20px;font-weight:700;color:#7C3AED">{{ stats.in_stock_count }}</div></div>
-    <div style="background:#fff;border:1px solid #E5E8EB;border-radius:8px;padding:12px"><div style="font-size:10.5px;color:#6B7684">총 재고량</div><div style="font-size:20px;font-weight:700;color:#3182F6">{{ '{:,}'.format(stats.total_stock) }}</div></div>
-    <div style="background:#fff;border:1px solid #E5E8EB;border-radius:8px;padding:12px"><div style="font-size:10.5px;color:#6B7684">박스히어로 매핑</div><div style="font-size:20px;font-weight:700;color:#10B981">{{ stats.mapped }}</div></div>
+  <!-- 통계 5장 (총 SKU / 재고 보유 / 총 재고 / 박스히어로 매핑 / 필터된 옵션) -->
+  <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-bottom:14px">
+    <div style="background:#fff;border:1px solid #E5E8EB;border-radius:8px;padding:12px"><div style="font-size:10.5px;color:#6B7684">총 SKU</div><div style="font-size:20px;font-weight:700">{{ '{:,}'.format(stats.total) }}</div></div>
+    <div style="background:#fff;border:1px solid #E5E8EB;border-radius:8px;padding:12px"><div style="font-size:10.5px;color:#6B7684">재고 보유</div><div style="font-size:20px;font-weight:700;color:#7C3AED">{{ '{:,}'.format(stats.in_stock_count) }}</div></div>
+    <div style="background:#fff;border:1px solid #E5E8EB;border-radius:8px;padding:12px"><div style="font-size:10.5px;color:#6B7684">총 재고</div><div style="font-size:20px;font-weight:700;color:#3182F6">{{ '{:,}'.format(stats.total_stock) }}</div></div>
+    <div style="background:#fff;border:1px solid #E5E8EB;border-radius:8px;padding:12px"><div style="font-size:10.5px;color:#6B7684">박스히어로 매핑</div><div style="font-size:20px;font-weight:700;color:#10B981">{{ '{:,}'.format(stats.mapped) }}</div></div>
+    <div style="background:#fff;border:1px solid #E5E8EB;border-radius:8px;padding:12px"><div style="font-size:10.5px;color:#6B7684">필터된 옵션{% if stats.shown_limited %} <span style="color:#FF8E3C">(상위 500 표시)</span>{% endif %}</div><div style="font-size:20px;font-weight:700;color:#6B7684">{{ '{:,}'.format(stats.shown) }}</div></div>
   </div>
 
   <!-- 필터 바 (박스히어로 1:1) -->

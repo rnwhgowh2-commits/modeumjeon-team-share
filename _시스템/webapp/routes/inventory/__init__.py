@@ -32,6 +32,17 @@ def home():
         if search_q:
             like = f'%{search_q}%'
             q = q.filter((Option.canonical_sku.like(like)) | (Option.boxhero_sku.like(like)))
+
+        # ★ stats 는 limit 적용 전 전체 카운트로 계산 (UI 표시 limit 500 과 분리)
+        from sqlalchemy import case
+        stats_row = q.with_entities(
+            func.count(Option.canonical_sku),
+            func.coalesce(func.sum(case((Option.boxhero_stock_total > 0, 1), else_=0)), 0),
+            func.coalesce(func.sum(Option.boxhero_stock_total), 0),
+            func.coalesce(func.sum(case((Option.boxhero_sku.isnot(None), 1), else_=0)), 0),
+        ).one()
+        stats_total, stats_in_stock, stats_total_stock, stats_mapped = stats_row
+
         options = q.order_by(Option.model_code, Option.sort_order, Option.canonical_sku).limit(500).all()
 
         # 묶어보기 — model_code별 그룹
@@ -76,12 +87,14 @@ def home():
         # 위치 드롭다운
         all_locs = s.query(InventoryLocation).filter(InventoryLocation.deleted_at.is_(None)).all()
 
-        # 통계
+        # 통계 (DB 전체 카운트 — limit 500 영향 없음)
         stats = {
-            'total': len(options),
-            'in_stock_count': sum(1 for o in options if (o.boxhero_stock_total or 0) > 0),
-            'total_stock': sum((o.boxhero_stock_total or 0) for o in options),
-            'mapped': sum(1 for o in options if o.boxhero_sku),
+            'total': int(stats_total or 0),
+            'in_stock_count': int(stats_in_stock or 0),
+            'total_stock': int(stats_total_stock or 0),
+            'mapped': int(stats_mapped or 0),
+            'shown': len(options),
+            'shown_limited': len(options) >= 500 and int(stats_total or 0) > 500,
         }
 
         return render_template(

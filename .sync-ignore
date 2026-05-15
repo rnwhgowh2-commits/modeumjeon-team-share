@@ -54,6 +54,9 @@ webapp/templates/mobile/
 webapp/static/manifest.json
 webapp/static/sw.js
 webapp/static/icons/
+# Day 6: 인벤토리 stats 카드 5장 (총 SKU / 재고 보유 / 총 재고 / 매핑 / 필터된)
+webapp/routes/inventory/__init__.py
+webapp/templates/inventory/home.html
 
 # ─── 신규 전용 라인 패턴 (sync.py 가 line-level 처리) ───
 # config.py:DATABASE_URL
