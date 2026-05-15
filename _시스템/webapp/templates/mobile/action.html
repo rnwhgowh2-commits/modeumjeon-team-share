@@ -161,12 +161,14 @@
       target.innerHTML = '<div style="font-size: 12px; color: var(--n500);">위치 정보 없음</div>';
       return;
     }
-    const rows = Array.from(select.options).map(opt => {
+    const opts = Array.from(select.options);
+    const rows = opts.map((opt, idx) => {
       const lid = parseInt(opt.value);
       const stock = stockByLoc[lid] || 0;
       const isDefault = opt.textContent.includes('(기본)');
       const stockColor = stock > 0 ? 'var(--color-ok, #16a34a)' : (stock < 0 ? 'var(--danger, #F04452)' : 'var(--n500, #8B95A1)');
-      return `<div style="display: flex; justify-content: space-between; align-items: center; padding: 6px 0; ${rows < select.options.length - 1 ? 'border-bottom: 1px solid var(--n100);' : ''}">
+      const border = idx < opts.length - 1 ? 'border-bottom: 1px solid var(--n100);' : '';
+      return `<div style="display: flex; justify-content: space-between; align-items: center; padding: 8px 0; ${border}">
         <span style="font-size: 13px; color: var(--n700);">${isDefault ? '⭐ ' : ''}${opt.textContent.replace(' (기본)', '')}</span>
         <span style="font-size: 14px; font-weight: 600; color: ${stockColor};">${stock}</span>
       </div>`;
