@@ -26,7 +26,7 @@ from sqlalchemy import func
 
 from shared.db import SessionLocal
 from lemouton.inventory.models import (
-    InventoryLocation, InventoryTx,
+    InventoryLocation, InventoryTx, InventoryProduct,
 )
 from lemouton.sourcing.models import Option, Model
 
@@ -101,28 +101,120 @@ def api_lookup():
         return _err("바코드/SKU 누락")
 
     with SessionLocal() as s:
-        # 1. boxhero_sku 정확 매칭
-        opt = (s.query(Option)
-               .filter(func.lower(Option.boxhero_sku) == code.lower())
-               .first())
+        # 매핑 검색 순서 (실 운영 우선순위):
+        # 1. InventoryProduct.barcode == 정확 매칭 (EAN-13 등 실 바코드)
+        # 2. Option.boxhero_sku == (박스히어로 내부 코드, SKU-XXX)
+        # 3. Option.canonical_sku == (내부 SKU 명)
+        # 4~6. 위 3개 부분 매칭 (ILIKE)
+        opt = None
+        match_via = None
+
+        # 1. 실 바코드 (EAN-13 등) — InventoryProduct 에서
+        ip = (s.query(InventoryProduct)
+              .filter(InventoryProduct.barcode == code)
+              .first())
+        if ip and ip.canonical_sku:
+            opt = (s.query(Option)
+                   .filter(Option.canonical_sku == ip.canonical_sku)
+                   .first())
+            if opt:
+                match_via = "barcode"
+
+        # 2. boxhero_sku 정확
         if not opt:
-            # 2. canonical_sku 정확
+            opt = (s.query(Option)
+                   .filter(func.lower(Option.boxhero_sku) == code.lower())
+                   .first())
+            if opt:
+                match_via = "boxhero_sku"
+
+        # 3. canonical_sku 정확
+        if not opt:
             opt = (s.query(Option)
                    .filter(Option.canonical_sku == code)
                    .first())
+            if opt:
+                match_via = "canonical_sku"
+
+        # 4. InventoryProduct.barcode 부분 매칭
         if not opt:
-            # 3. boxhero_sku 부분
+            ip = (s.query(InventoryProduct)
+                  .filter(InventoryProduct.barcode.ilike(f"%{code}%"))
+                  .first())
+            if ip and ip.canonical_sku:
+                opt = (s.query(Option)
+                       .filter(Option.canonical_sku == ip.canonical_sku)
+                       .first())
+                if opt:
+                    match_via = "barcode_partial"
+
+        # 5. boxhero_sku 부분
+        if not opt:
             opt = (s.query(Option)
                    .filter(Option.boxhero_sku.ilike(f"%{code}%"))
                    .first())
+            if opt:
+                match_via = "boxhero_partial"
+
+        # 6. canonical_sku 부분
         if not opt:
-            # 4. canonical_sku 부분
             opt = (s.query(Option)
                    .filter(Option.canonical_sku.ilike(f"%{code}%"))
                    .first())
+            if opt:
+                match_via = "canonical_partial"
 
+        # 7. InventoryTx 에만 있는 SKU (Option 미등록)
         if not opt:
-            return _err(f"SKU 못 찾음: {code}", 404)
+            tx_sku = (s.query(InventoryTx.option_canonical_sku)
+                      .filter(InventoryTx.option_canonical_sku == code)
+                      .filter(InventoryTx.status == 'completed')
+                      .first())
+            if tx_sku:
+                # Option 없지만 InventoryTx 에 거래 있는 SKU → 처리 가능
+                stock = (s.query(func.sum(InventoryTx.qty))
+                         .filter(InventoryTx.option_canonical_sku == code)
+                         .filter(InventoryTx.status == 'completed')
+                         .scalar()) or 0
+                ip_info_orphan = (s.query(InventoryProduct)
+                                  .filter(InventoryProduct.canonical_sku == code)
+                                  .first())
+                return _ok(option={
+                    "canonical_sku": code,
+                    "boxhero_sku": None,
+                    "model_code": None,
+                    "model_name": code.rsplit("-", 2)[0] if "-" in code else code,
+                    "color_code": code.rsplit("-", 2)[1] if code.count("-") >= 2 else None,
+                    "size_code": code.rsplit("-", 1)[-1] if "-" in code else None,
+                    "image_url": None,
+                    "stock": int(stock),
+                    "avg_purchase_price": 0,
+                    "boxhero_stock_total": 0,
+                    "last_crawled_at": None,
+                    "last_uploaded_at": None,
+                    "last_tx_at": None,
+                    "tx_count": 0,
+                    "use_purchase_inventory": False,
+                    "barcode": ip_info_orphan.barcode if ip_info_orphan else None,
+                    "supplier": ip_info_orphan.supplier if ip_info_orphan else None,
+                    "category": ip_info_orphan.category if ip_info_orphan else None,
+                    "match_via": "inventory_tx_only",
+                    "registered": False,  # Option 테이블 미등록
+                    "warning": "이 SKU 는 모음전 옵션 미등록. 재고 거래만 존재.",
+                })
+
+            # 매칭 완전 실패
+            ip_count = s.query(func.count(InventoryProduct.id)).filter(
+                InventoryProduct.barcode.isnot(None),
+                InventoryProduct.barcode != ''
+            ).scalar() or 0
+            opt_count = s.query(func.count(Option.canonical_sku)).scalar() or 0
+            return _err(
+                f"매칭 안 됨: {code} "
+                f"(옵션 {opt_count}개 / 바코드 등록 {ip_count}개) "
+                f"— 박스히어로 시스템에 이 바코드 등록 필요",
+                404,
+            )
 
         # 모델 정보
         model = s.query(Model).filter_by(model_code=opt.model_code).first()
@@ -146,6 +238,14 @@ def api_lookup():
                     .filter(InventoryTx.status == 'completed')
                     .scalar()) or 0
 
+        # InventoryProduct 매핑 정보 (바코드, 매입처 등)
+        ip_info = (s.query(InventoryProduct)
+                   .filter(InventoryProduct.canonical_sku == opt.canonical_sku)
+                   .first())
+        ip_barcode = ip_info.barcode if ip_info else None
+        ip_supplier = ip_info.supplier if ip_info else None
+        ip_category = ip_info.category if ip_info else None
+
         return _ok(option={
             "canonical_sku": opt.canonical_sku,
             "boxhero_sku": opt.boxhero_sku,
@@ -163,6 +263,11 @@ def api_lookup():
             "last_tx_at": last_tx_at.isoformat() if last_tx_at else None,
             "tx_count": int(tx_count),
             "use_purchase_inventory": bool(getattr(opt, "use_purchase_inventory", False)),
+            # InventoryProduct 정보
+            "barcode": ip_barcode,
+            "supplier": ip_supplier,
+            "category": ip_category,
+            "match_via": match_via,
         })
 
 
@@ -299,60 +404,99 @@ def api_action():
 
 @bp.route("/api/options", methods=["GET"])
 def api_options():
-    """모바일 재고 목록 — 옵션 + 총 재고.
+    """모바일 재고 목록 — InventoryTx 기준 SKU 합집합 (Option 미등록도 표시).
+
+    데스크탑 /inventory/ 는 Option 테이블 기반이지만, 모바일은 재고 작업 도구라
+    "거래 있는 모든 SKU" 를 보여주는 게 더 직관적.
 
     Query params:
-      q: 검색어 (canonical_sku / color / size / boxhero_sku 부분 일치)
+      q: 검색어 (canonical_sku / color / size / boxhero_sku / barcode 부분 일치)
       limit: 기본 200
+      registered_only: '1' 시 Option 테이블 등록된 것만
     """
     q = (request.args.get("q") or "").strip()
+    registered_only = request.args.get("registered_only") == "1"
     try:
         limit = min(int(request.args.get("limit") or 200), 500)
     except ValueError:
         limit = 200
 
     with SessionLocal() as s:
-        # 옵션별 총 재고 서브쿼리
+        # 옵션별 총 재고 (InventoryTx 기준 — 모든 SKU)
         stock_q = (
             s.query(
                 InventoryTx.option_canonical_sku.label("sku"),
                 func.coalesce(func.sum(InventoryTx.qty), 0).label("stock"),
             )
             .filter(InventoryTx.status == 'completed')
+            .filter(InventoryTx.option_canonical_sku.isnot(None))
             .group_by(InventoryTx.option_canonical_sku)
             .subquery()
         )
 
+        # Option + stock 합집합 (Option 없어도 stock 있으면 포함)
+        # SQLAlchemy 의 outer join 으로 InventoryTx 의 SKU 가 base 가 되게
+        if registered_only:
+            # Option 기반 (데스크탑 호환 모드)
+            query = (
+                s.query(Option, stock_q.c.stock)
+                .outerjoin(stock_q, stock_q.c.sku == Option.canonical_sku)
+            )
+            if q:
+                like = f"%{q}%"
+                query = query.filter(
+                    (Option.canonical_sku.ilike(like))
+                    | (Option.color_code.ilike(like))
+                    | (Option.size_code.ilike(like))
+                    | (Option.boxhero_sku.ilike(like))
+                )
+            query = query.order_by(
+                func.coalesce(stock_q.c.stock, 0).desc(),
+                Option.canonical_sku,
+            ).limit(limit)
+            rows = query.all()
+            return _ok(items=[
+                {
+                    "canonical_sku": opt.canonical_sku,
+                    "boxhero_sku": opt.boxhero_sku,
+                    "color_code": opt.color_code,
+                    "size_code": opt.size_code,
+                    "image_url": opt.image_url,
+                    "stock": int(stock or 0),
+                    "registered": True,
+                }
+                for opt, stock in rows
+            ], total=len(rows), mode="option_registered")
+
+        # 기본 모드: InventoryTx 의 모든 SKU + Option 정보 join
+        # SQL: SELECT sku, stock, opt.* FROM stock LEFT JOIN options ON stock.sku == options.canonical_sku
         query = (
-            s.query(Option, stock_q.c.stock)
-            .outerjoin(stock_q, stock_q.c.sku == Option.canonical_sku)
+            s.query(stock_q.c.sku, stock_q.c.stock, Option)
+            .outerjoin(Option, Option.canonical_sku == stock_q.c.sku)
         )
         if q:
             like = f"%{q}%"
             query = query.filter(
-                (Option.canonical_sku.ilike(like))
+                (stock_q.c.sku.ilike(like))
                 | (Option.color_code.ilike(like))
                 | (Option.size_code.ilike(like))
                 | (Option.boxhero_sku.ilike(like))
             )
-        # 정렬: 재고 많은 순 → SKU
-        query = query.order_by(
-            func.coalesce(stock_q.c.stock, 0).desc(),
-            Option.canonical_sku,
-        ).limit(limit)
+        query = query.order_by(stock_q.c.stock.desc(), stock_q.c.sku).limit(limit)
 
         rows = query.all()
         return _ok(items=[
             {
-                "canonical_sku": opt.canonical_sku,
-                "boxhero_sku": opt.boxhero_sku,
-                "color_code": opt.color_code,
-                "size_code": opt.size_code,
-                "image_url": opt.image_url,
+                "canonical_sku": sku,
+                "boxhero_sku": opt.boxhero_sku if opt else None,
+                "color_code": opt.color_code if opt else None,
+                "size_code": opt.size_code if opt else None,
+                "image_url": opt.image_url if opt else None,
                 "stock": int(stock or 0),
+                "registered": opt is not None,
             }
-            for opt, stock in rows
-        ], total=len(rows))
+            for sku, stock, opt in rows
+        ], total=len(rows), mode="inventory_all")
 
 
 @bp.route("/api/recent", methods=["GET"])
