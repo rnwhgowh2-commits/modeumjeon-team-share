@@ -241,10 +241,10 @@
     <a class="step-tab {% if selected_status == 'active' %}active{% endif %}" href="/bundles?status=active{{ qs_brand }}{{ qs_q }}" style="text-decoration:none">✅ 정규 등록 ({{ counts.active }})</a>
   </div>
 
-  <form method="get" action="/bundles" class="qsearch" style="margin-bottom:14px">
+  <form method="get" action="/bundles" class="qsearch" style="margin-bottom:14px;display:flex;align-items:center;gap:8px">
     <input type="hidden" name="status" value="{{ selected_status }}">
     <span class="qsearch-icon">🔍</span>
-    <input name="q" value="{{ q }}" placeholder="모음전 코드 / 상품명 / 브랜드..." />
+    {% with search_placeholder='모음전 코드 / 상품명 / 브랜드...' %}{% include 'partials/search_chips.html' %}{% endwith %}
   </form>
 
   {# H4 — 좌측 브랜드 nav 시작 (master-detail 레이아웃) #}

@@ -1,0 +1,94 @@
+{# 박스히어로식 다중 키워드 AND 칩 검색 UI partial.
+
+   사용법:
+     {% include 'partials/search_chips.html' with context %}
+
+   필요 컨텍스트 변수:
+     - search_tokens: list[str] (서버에서 split_tokens(q) 결과)
+     - search_placeholder: str (선택, 기본 "이름, 바코드, 속성 검색")
+
+   필수 사전 조건:
+     - 부모 폼이 id="filterForm" 또는 칩 UI 폼 자체 (생략 시 가장 가까운 form)
+     - hidden 필드 name="q" 가 폼 안에 존재해야 함 — 본 partial 이 자동 생성
+
+   설치:
+     - 폼 안 검색 input 위치에 본 partial include
+     - <input name="q" ...> 직접 작성하던 곳을 대체
+#}
+<div class="search-chip-box" data-search-chip-box style="flex:1;min-width:240px;display:flex;align-items:center;flex-wrap:wrap;gap:6px;padding:6px 8px;border:1px solid #CBCCD3;border-radius:5px;background:#fff;min-height:32px;cursor:text">
+  {% for tok in (search_tokens or []) %}
+    <span class="search-chip" data-tok="{{ tok }}" style="display:inline-flex;align-items:center;gap:4px;background:#EFF6FF;color:#3182F6;border-radius:14px;padding:2px 4px 2px 10px;font-size:12px;font-weight:500">
+      {{ tok }}
+      <button type="button" data-search-chip-remove aria-label="제거" style="background:transparent;border:0;color:#3182F6;cursor:pointer;padding:0 6px;font-size:14px;line-height:1">×</button>
+    </span>
+  {% endfor %}
+  <input type="text" data-search-chip-input placeholder="{% if (search_tokens or [])|length == 0 %}{{ search_placeholder or '이름, 바코드, 속성 검색' }}{% endif %}"
+         style="flex:1;min-width:120px;border:0;outline:0;font-size:12.5px;color:#292A2F;background:transparent">
+</div>
+<input type="hidden" name="q" data-search-chip-hidden value="{{ (search_tokens or []) | join(' ') }}">
+
+{# 모든 페이지에서 같은 JS — base.html 이나 페이지에 1회만 로드되면 충분. 여기서는 페이지마다 include 시 중복되지 않게 가드. #}
+<script>
+(function(){
+  if (window.__SearchChipInitialized) return;
+  window.__SearchChipInitialized = true;
+  function init(box){
+    if (box.dataset.scInit) return;
+    box.dataset.scInit = '1';
+    var hidden = box.parentNode.querySelector('[data-search-chip-hidden]');
+    var inp = box.querySelector('[data-search-chip-input]');
+    var form = box.closest('form');
+    function tokens(){
+      return Array.prototype.map.call(box.querySelectorAll('.search-chip'), function(c){return c.dataset.tok;}).filter(Boolean);
+    }
+    function sync(){ if(hidden) hidden.value = tokens().join(' '); }
+    function escapeHTML(s){return String(s).replace(/[<>&"]/g,function(c){return {"<":"&lt;",">":"&gt;","&":"&amp;",'"':"&quot;"}[c];});}
+    function addChip(t){
+      t = (t||'').trim();
+      if(!t) return;
+      if(tokens().indexOf(t) >= 0){ inp.value=''; return; }
+      var span = document.createElement('span');
+      span.className = 'search-chip';
+      span.dataset.tok = t;
+      span.style.cssText = 'display:inline-flex;align-items:center;gap:4px;background:#EFF6FF;color:#3182F6;border-radius:14px;padding:2px 4px 2px 10px;font-size:12px;font-weight:500';
+      span.innerHTML = escapeHTML(t) + ' <button type="button" data-search-chip-remove aria-label="제거" style="background:transparent;border:0;color:#3182F6;cursor:pointer;padding:0 6px;font-size:14px;line-height:1">×</button>';
+      box.insertBefore(span, inp);
+      inp.value = '';
+      sync();
+    }
+    box.addEventListener('click', function(e){
+      if (e.target === box) inp.focus();
+      if (e.target.matches('[data-search-chip-remove]')){
+        var chip = e.target.closest('.search-chip');
+        if(chip){ chip.parentNode.removeChild(chip); sync(); if(form) form.submit(); }
+      }
+    });
+    inp.addEventListener('keydown', function(e){
+      if(e.key === 'Enter' || e.key === ','){
+        e.preventDefault();
+        if(inp.value.trim()){ addChip(inp.value); if(form) form.submit(); }
+      } else if(e.key === ' '){
+        if(inp.value.trim()){ e.preventDefault(); addChip(inp.value); }
+      } else if(e.key === 'Backspace' && !inp.value){
+        var chips = box.querySelectorAll('.search-chip');
+        if(chips.length){ chips[chips.length-1].remove(); sync(); }
+      }
+    });
+    inp.addEventListener('blur', function(){
+      if(inp.value.trim()){ addChip(inp.value); }
+    });
+    if(form){ form.addEventListener('submit', function(){ if(inp.value.trim()) addChip(inp.value); }); }
+    sync();
+  }
+  function bootstrap(){
+    document.querySelectorAll('[data-search-chip-box]').forEach(init);
+  }
+  if (document.readyState === 'loading'){
+    document.addEventListener('DOMContentLoaded', bootstrap);
+  } else {
+    bootstrap();
+  }
+  // 동적으로 추가될 경우 대비 (모달 등)
+  window.SearchChipsBootstrap = bootstrap;
+})();
+</script>

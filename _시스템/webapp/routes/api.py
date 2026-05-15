@@ -990,17 +990,18 @@ def track_series(sku: str):
 
 @bp.get('/search/bundles')
 def search_bundles():
+    from shared.search import split_tokens, apply_and_filter
     q = (request.args.get('q') or '').strip()
+    tokens = split_tokens(q)
     s = SessionLocal()
     try:
         query = s.query(Model.model_code, Model.model_name_display, Model.category)
-        if q:
-            like = f'%{q}%'
-            query = query.filter(
-                (Model.model_code.ilike(like))
-                | (Model.model_name_raw.ilike(like))
-                | (Model.model_name_display.ilike(like))
-            )
+        # ★ 박스히어로식 다중 키워드 AND 교집합
+        query = apply_and_filter(
+            query, tokens,
+            Model.model_code, Model.model_name_raw, Model.model_name_display,
+            op='ilike',
+        )
         items = [
             {'model_code': r[0], 'name': r[1], 'category': r[2]}
             for r in query.limit(20).all()
@@ -1012,8 +1013,10 @@ def search_bundles():
 
 @bp.get('/search/templates')
 def search_templates():
+    from shared.search import split_tokens, apply_and_filter
     kind = request.args.get('type', 'price')
     q = (request.args.get('q') or '').strip()
+    tokens = split_tokens(q)
     model = {
         'price': PriceTemplate,
         'color': ColorTemplate,
@@ -1024,8 +1027,8 @@ def search_templates():
     s = SessionLocal()
     try:
         query = s.query(model.id, model.name)
-        if q:
-            query = query.filter(model.name.ilike(f'%{q}%'))
+        # ★ 박스히어로식 다중 키워드 AND 교집합
+        query = apply_and_filter(query, tokens, model.name, op='ilike')
         items = [{'id': r[0], 'name': r[1]} for r in query.limit(20).all()]
     finally:
         s.close()

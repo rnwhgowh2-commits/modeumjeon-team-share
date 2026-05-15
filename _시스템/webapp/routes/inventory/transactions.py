@@ -660,25 +660,25 @@ def history():
     s = SessionLocal()
     try:
         from sqlalchemy import or_
+        from shared.search import split_tokens, apply_and_filter
         page = max(1, int(request.args.get('page', 1)))
         tx_type = request.args.get('type', '')
         q = (request.args.get('q') or '').strip()
+        search_tokens = split_tokens(q)
         query = s.query(InventoryTx).filter(InventoryTx.status == 'completed')
         if tx_type and tx_type in ('in', 'out', 'adjust', 'move'):
             query = query.filter(InventoryTx.tx_type == tx_type)
-        if q:
-            like = f'%{q}%'
-            query = query.filter(or_(
-                InventoryTx.option_canonical_sku.like(like),
-                InventoryTx.partner_label.like(like),
-                InventoryTx.memo.like(like),
-            ))
+        # ★ 박스히어로식 다중 키워드 AND 교집합
+        query = apply_and_filter(
+            query, search_tokens,
+            InventoryTx.option_canonical_sku, InventoryTx.partner_label, InventoryTx.memo,
+        )
         total = query.count()
         items = query.order_by(InventoryTx.created_at.desc()).offset((page-1)*50).limit(50).all()
         return render_template(
             'inventory/ledger.html',
             active='history', items=items, total=total, page=page,
-            tx_type=tx_type, q=q,
+            tx_type=tx_type, q=q, search_tokens=search_tokens,
         )
     finally:
         s.close()

@@ -414,7 +414,9 @@ def api_options():
       limit: 기본 200
       registered_only: '1' 시 Option 테이블 등록된 것만
     """
+    from shared.search import split_tokens, apply_and_filter
     q = (request.args.get("q") or "").strip()
+    search_tokens = split_tokens(q)
     registered_only = request.args.get("registered_only") == "1"
     try:
         limit = min(int(request.args.get("limit") or 200), 500)
@@ -442,14 +444,12 @@ def api_options():
                 s.query(Option, stock_q.c.stock)
                 .outerjoin(stock_q, stock_q.c.sku == Option.canonical_sku)
             )
-            if q:
-                like = f"%{q}%"
-                query = query.filter(
-                    (Option.canonical_sku.ilike(like))
-                    | (Option.color_code.ilike(like))
-                    | (Option.size_code.ilike(like))
-                    | (Option.boxhero_sku.ilike(like))
-                )
+            # ★ 박스히어로식 다중 키워드 AND 교집합
+            query = apply_and_filter(
+                query, search_tokens,
+                Option.canonical_sku, Option.color_code, Option.size_code, Option.boxhero_sku,
+                op='ilike',
+            )
             query = query.order_by(
                 func.coalesce(stock_q.c.stock, 0).desc(),
                 Option.canonical_sku,
@@ -474,14 +474,12 @@ def api_options():
             s.query(stock_q.c.sku, stock_q.c.stock, Option)
             .outerjoin(Option, Option.canonical_sku == stock_q.c.sku)
         )
-        if q:
-            like = f"%{q}%"
-            query = query.filter(
-                (stock_q.c.sku.ilike(like))
-                | (Option.color_code.ilike(like))
-                | (Option.size_code.ilike(like))
-                | (Option.boxhero_sku.ilike(like))
-            )
+        # ★ 박스히어로식 다중 키워드 AND 교집합
+        query = apply_and_filter(
+            query, search_tokens,
+            stock_q.c.sku, Option.color_code, Option.size_code, Option.boxhero_sku,
+            op='ilike',
+        )
         query = query.order_by(stock_q.c.stock.desc(), stock_q.c.sku).limit(limit)
 
         rows = query.all()

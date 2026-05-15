@@ -216,28 +216,27 @@ def data_items():
     """제품 마스터 — 모음전 옵션 162개를 박스히어로식 표 형식으로."""
     from sqlalchemy import or_
     from lemouton.sourcing.models import Option, Model
+    from shared.search import split_tokens, apply_and_filter
 
     page = max(1, int(request.args.get('page', 1)))
     page_size = min(200, int(request.args.get('page_size', 50)))
     q = (request.args.get('q') or '').strip()
     brand = (request.args.get('brand') or '').strip()
     in_stock_only = request.args.get('in_stock_only') == '1'
+    search_tokens = split_tokens(q)
 
     s = SessionLocal()
     try:
         query = s.query(Option).join(Model, Option.model_code == Model.model_code)
         # Option 모델에는 deleted_at 컬럼이 ORM에 정의 안 됨 → soft-delete 필터 빼기
 
-        if q:
-            like = f'%{q}%'
-            query = query.filter(or_(
-                Option.canonical_sku.like(like),
-                Option.boxhero_sku.like(like),
-                Model.model_name_display.like(like),
-                Model.model_name_raw.like(like),
-                Option.color_display.like(like),
-                Option.size_display.like(like),
-            ))
+        # ★ 박스히어로식 다중 키워드 AND 교집합 (shared.search 헬퍼)
+        query = apply_and_filter(
+            query, search_tokens,
+            Option.canonical_sku, Option.boxhero_sku,
+            Model.model_name_display, Model.model_name_raw,
+            Option.color_display, Option.size_display,
+        )
         if brand:
             query = query.filter(Model.brand == brand)
         if in_stock_only:
@@ -265,6 +264,7 @@ def data_items():
             items=items,
             total=total, page=page, page_size=page_size, total_pages=(total + page_size - 1) // page_size,
             q=q, brand=brand, in_stock_only=in_stock_only,
+            search_tokens=search_tokens,
             brands=sorted(brands),
             kpi={
                 'all_options': all_options_count,

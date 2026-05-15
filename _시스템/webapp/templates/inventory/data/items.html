@@ -40,7 +40,7 @@
   {# 검색·필터 바 #}
   <div style="background:#fff;border:1px solid #E5E8EB;border-radius:8px;padding:12px 14px;margin-bottom:14px">
     <form method="get" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-      <input name="q" value="{{ q }}" placeholder="이름, 바코드, 속성 검색" style="flex:1;min-width:280px;padding:7px 12px;border:1px solid #CBCCD3;border-radius:6px;font-size:13px;color:#292A2F">
+      {% include 'partials/search_chips.html' %}
       <select name="brand" style="padding:7px 10px;border:1px solid #CBCCD3;border-radius:6px;font-size:12.5px;color:#292A2F;background:#fff">
         <option value="">모든 브랜드</option>
         {% for b in brands %}<option value="{{ b }}" {% if b == brand %}selected{% endif %}>{{ b }}</option>{% endfor %}

@@ -180,19 +180,20 @@ def notification_recent_api():
 
 @bp.get('/api/autocomplete/partner')
 def autocomplete_partner():
-    """거래처 자동완성 — PO/SO/RO/Tx partner_label DISTINCT."""
+    """거래처 자동완성 — PO/SO/RO/Tx partner_label DISTINCT (다중 키워드 AND)."""
+    from shared.search import split_tokens, apply_and_filter
     q = (request.args.get('q') or '').strip()
     if len(q) < 1:
         return jsonify(items=[])
+    tokens = split_tokens(q)
     s = SessionLocal()
     try:
-        like = f'%{q}%'
         labels = set()
         for model in (PurchaseOrder, SalesOrder, InventoryTx):
-            rows = (s.query(model.partner_label)
-                    .filter(model.partner_label.isnot(None))
-                    .filter(model.partner_label.like(like))
-                    .distinct().limit(20).all())
+            base = (s.query(model.partner_label)
+                    .filter(model.partner_label.isnot(None)))
+            base = apply_and_filter(base, tokens, model.partner_label)
+            rows = base.distinct().limit(20).all()
             for (lbl,) in rows:
                 if lbl and lbl.strip():
                     labels.add(lbl.strip())
@@ -205,17 +206,17 @@ def autocomplete_partner():
 
 @bp.get('/api/autocomplete/sku')
 def autocomplete_sku():
-    """SKU 자동완성 — Option canonical_sku/boxhero_sku 매칭."""
+    """SKU 자동완성 — Option canonical_sku/boxhero_sku 매칭 (다중 키워드 AND)."""
+    from shared.search import split_tokens, apply_and_filter
     q = (request.args.get('q') or '').strip()
     if len(q) < 1:
         return jsonify(items=[])
+    tokens = split_tokens(q)
     s = SessionLocal()
     try:
-        like = f'%{q}%'
-        rows = (s.query(Option)
-                .filter(or_(Option.canonical_sku.like(like),
-                            Option.boxhero_sku.like(like)))
-                .order_by(Option.canonical_sku).limit(15).all())
+        query = s.query(Option)
+        query = apply_and_filter(query, tokens, Option.canonical_sku, Option.boxhero_sku)
+        rows = query.order_by(Option.canonical_sku).limit(15).all()
         result = [{
             'sku': o.canonical_sku,
             'color': o.color_display or o.color_code or '',

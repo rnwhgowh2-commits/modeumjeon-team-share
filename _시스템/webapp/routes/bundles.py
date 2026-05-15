@@ -244,7 +244,9 @@ def _bundle_summary(s, m: Model) -> dict:
 @bp.route('/bundles')
 def bundle_list():
     from lemouton.sourcing.models import BundleGroup
+    from shared.search import split_tokens, apply_and_filter
     q = (request.args.get('q') or '').strip()
+    search_tokens = split_tokens(q)
     selected_brand = (request.args.get('brand') or '').strip() or None
     selected_status = (request.args.get('status') or 'draft').strip()
     if selected_status not in {'draft', 'active'}:
@@ -252,14 +254,12 @@ def bundle_list():
     s = SessionLocal()
     try:
         query = s.query(Model)
-        if q:
-            like = f'%{q}%'
-            query = query.filter(
-                (Model.model_code.ilike(like))
-                | (Model.model_name_raw.ilike(like))
-                | (Model.model_name_display.ilike(like))
-                | (Model.brand.ilike(like))
-            )
+        # ★ 박스히어로식 다중 키워드 AND 교집합
+        query = apply_and_filter(
+            query, search_tokens,
+            Model.model_code, Model.model_name_raw, Model.model_name_display, Model.brand,
+            op='ilike',
+        )
         if selected_brand:
             query = query.filter(Model.brand == selected_brand)
         models = query.order_by(Model.updated_at.desc().nullslast()).all()
@@ -367,7 +367,7 @@ def bundle_list():
     finally:
         s.close()
     return render_template('bundles/list.html', active='bundles',
-                           bundles=bundles, groups=groups, q=q,
+                           bundles=bundles, groups=groups, q=q, search_tokens=search_tokens,
                            brand_chips=brand_chips,
                            selected_brand=selected_brand,
                            selected_status=selected_status,
