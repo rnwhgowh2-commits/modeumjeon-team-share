@@ -79,6 +79,8 @@
       optionData = d.option;
       renderOptionInfo();
       await Promise.all([loadLocations(), loadStock()]);
+      // locations + stock 둘 다 로드된 후 위치별 재고 렌더 (순서 보장)
+      renderStockByLocation();
       setupActionTabs();
       document.getElementById('action-tabs').style.display = 'block';
     } catch (e) {
@@ -188,7 +190,6 @@
     if (d.ok) {
       stockByLoc = {};
       d.by_location.forEach(it => { stockByLoc[it.location_id] = it.stock; });
-      renderStockByLocation();
     }
   }
 
