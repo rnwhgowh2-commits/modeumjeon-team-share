@@ -41,9 +41,9 @@ def home():
             func.count(Option.canonical_sku),
             func.coalesce(func.sum(case((Option.boxhero_stock_total > 0, 1), else_=0)), 0),
             func.coalesce(func.sum(Option.boxhero_stock_total), 0),
-            func.coalesce(func.sum(case((Option.boxhero_sku.isnot(None), 1), else_=0)), 0),
+            func.count(func.distinct(Option.model_code)),
         ).one()
-        stats_total, stats_in_stock, stats_total_stock, stats_mapped = stats_row
+        stats_total, stats_in_stock, stats_total_stock, stats_model_count = stats_row
 
         options = q.order_by(Option.model_code, Option.sort_order, Option.canonical_sku).limit(500).all()
 
@@ -90,13 +90,23 @@ def home():
         all_locs = s.query(InventoryLocation).filter(InventoryLocation.deleted_at.is_(None)).all()
 
         # 통계 (DB 전체 카운트 — limit 500 영향 없음)
+        total_i = int(stats_total or 0)
+        in_stock_i = int(stats_in_stock or 0)
+        total_stock_i = int(stats_total_stock or 0)
+        model_count_i = int(stats_model_count or 0)
+        zero_count_i = total_i - in_stock_i
+        pct_in_stock = round((in_stock_i / total_i * 100), 1) if total_i else 0.0
+        avg_per_held = round((total_stock_i / in_stock_i), 1) if in_stock_i else 0.0
         stats = {
-            'total': int(stats_total or 0),
-            'in_stock_count': int(stats_in_stock or 0),
-            'total_stock': int(stats_total_stock or 0),
-            'mapped': int(stats_mapped or 0),
+            'total': total_i,
+            'in_stock_count': in_stock_i,
+            'total_stock': total_stock_i,
+            'model_count': model_count_i,
+            'zero_count': zero_count_i,
+            'pct_in_stock': pct_in_stock,
+            'avg_per_held': avg_per_held,
             'shown': len(options),
-            'shown_limited': len(options) >= 500 and int(stats_total or 0) > 500,
+            'shown_limited': len(options) >= 500 and total_i > 500,
         }
 
         return render_template(
