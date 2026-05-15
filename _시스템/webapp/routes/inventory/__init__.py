@@ -112,6 +112,12 @@ def home():
         s.close()
 
 
+@bp.get('/_mockups/stats')
+def mockup_stats():
+    """[mockup] 인벤토리 통계 카드 5 시안 비교 (1920×1080 가로 탭)."""
+    return render_template('inventory/_mockup_stats.html', active_app='inventory', active='items')
+
+
 @bp.context_processor
 def inject_active_app():
     """모든 /inventory/* 페이지에 active_app='inventory' 자동 주입."""

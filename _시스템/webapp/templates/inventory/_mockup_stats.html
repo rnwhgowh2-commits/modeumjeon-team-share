@@ -1,0 +1,385 @@
+{% extends 'base.html' %}
+{% block title %}[mockup] 인벤토리 통계 카드 5 시안{% endblock %}
+{% block content %}
+<style>
+  :root{
+    --tk-primary:#3182F6; --tk-violet:#7C3AED; --tk-emerald:#10B981; --tk-orange:#FF8E3C;
+    --tk-n900:#191F28; --tk-n700:#4E5968; --tk-n600:#6B7684; --tk-n400:#9CA3AF;
+    --tk-n200:#E5E8EB; --tk-n100:#F2F4F6; --tk-n50:#F9FAFB; --tk-bg:#fff;
+    --tk-fs-h2:20px; --tk-fs-body:15px; --tk-fs-caption:12px; --tk-fs-micro:10.5px;
+    --tk-w-reg:400; --tk-w-mid:600; --tk-w-bold:700;
+    --tk-sp-1:4px; --tk-sp-2:8px; --tk-sp-3:12px; --tk-sp-4:16px; --tk-sp-6:24px; --tk-sp-8:32px;
+  }
+  .mockup-frame{width:1920px;height:1080px;background:#fff;margin:0 auto;border:1px solid var(--tk-n200);
+                box-shadow:0 4px 24px rgba(0,0,0,0.06);overflow:hidden;display:flex;flex-direction:column}
+  .mockup-tabs{display:flex;gap:0;border-bottom:2px solid var(--tk-n200);background:var(--tk-n50);padding:0 24px;flex-shrink:0}
+  .mockup-tab{padding:14px 22px;font-size:var(--tk-fs-body);font-weight:var(--tk-w-mid);color:var(--tk-n600);
+              border-bottom:3px solid transparent;cursor:pointer;background:none;border:none;outline:none}
+  .mockup-tab.active{color:var(--tk-primary);border-bottom-color:var(--tk-primary)}
+  .mockup-tab .pill{background:var(--tk-n200);color:var(--tk-n700);padding:1px 7px;border-radius:8px;
+                    font-size:10.5px;margin-left:6px;font-weight:var(--tk-w-mid)}
+  .mockup-tab.active .pill{background:var(--tk-primary);color:#fff}
+  .mockup-pane{display:none;padding:40px 56px;flex:1;overflow:auto;background:var(--tk-n50)}
+  .mockup-pane.active{display:block}
+  .pane-title{font-size:14px;color:var(--tk-n600);margin-bottom:18px;font-weight:var(--tk-w-mid)}
+  .pane-title strong{color:var(--tk-n900);font-weight:var(--tk-w-bold);font-size:16px}
+  .pane-title .badge{background:#EFF6FF;color:var(--tk-primary);padding:2px 8px;border-radius:10px;
+                     font-size:10.5px;margin-left:8px;font-weight:var(--tk-w-mid)}
+
+  /* 공통 */
+  .ck-card{background:#fff;border:1px solid var(--tk-n200);border-radius:8px;padding:14px 16px}
+  .ck-label{font-size:var(--tk-fs-micro);color:var(--tk-n600);margin-bottom:4px}
+  .ck-value{font-size:24px;font-weight:var(--tk-w-bold);color:var(--tk-n900);font-family:'SF Mono',ui-monospace,monospace;letter-spacing:-0.02em}
+
+  /* 검색 + 필터 바 (공통) */
+  .filter-bar{background:#fff;border:1px solid var(--tk-n200);border-radius:8px;padding:10px 14px;
+              margin-top:14px;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+  .filter-bar select,.filter-bar input{padding:6px 10px;border:1px solid #CBCCD3;border-radius:5px;
+                                        font-size:12.5px;color:var(--tk-n900);outline:none}
+  .filter-bar .chip-box{flex:1;min-width:240px;display:flex;align-items:center;flex-wrap:wrap;gap:6px;
+                        padding:6px 8px;border:1px solid #CBCCD3;border-radius:5px;background:#fff;min-height:32px}
+  .filter-bar .chip{display:inline-flex;align-items:center;gap:4px;background:#EFF6FF;color:var(--tk-primary);
+                    border-radius:14px;padding:2px 4px 2px 10px;font-size:12px;font-weight:var(--tk-w-mid)}
+  .filter-bar .chip button{background:transparent;border:0;color:var(--tk-primary);cursor:pointer;
+                            padding:0 6px;font-size:14px;line-height:1}
+  .filter-bar .btn{background:var(--tk-primary);color:#fff;padding:6px 14px;border:none;border-radius:5px;
+                   font-size:12px;font-weight:var(--tk-w-mid);cursor:pointer}
+  .filter-bar label{display:flex;align-items:center;gap:5px;font-size:12px;color:var(--tk-n700);font-weight:var(--tk-w-mid)}
+
+  /* 표 (공통) */
+  .table-wrap{background:#fff;border:1px solid var(--tk-n200);border-radius:8px;overflow:hidden;margin-top:14px}
+  .table-head{padding:10px 16px;display:flex;justify-content:space-between;align-items:center;
+              border-bottom:1px solid var(--tk-n200);background:var(--tk-n50);font-size:11.5px;
+              font-weight:var(--tk-w-mid);color:var(--tk-n700)}
+  .table-head .right{color:var(--tk-n600);font-weight:var(--tk-w-reg);font-size:11px}
+  .table-head .right b{color:var(--tk-n900);font-weight:var(--tk-w-bold)}
+  .table-head .right .warn{color:var(--tk-orange);font-weight:var(--tk-w-mid)}
+  .row{display:flex;padding:8px 16px;border-bottom:1px solid var(--tk-n100);font-size:11.5px;color:var(--tk-n900);align-items:center}
+  .row:last-child{border-bottom:0}
+  .row .sku{flex:1;font-family:ui-monospace,monospace;font-size:11px}
+  .row .meta{font-size:11px;color:var(--tk-n600);margin-right:18px}
+  .row .stock{font-weight:var(--tk-w-mid);font-family:ui-monospace,monospace;min-width:48px;text-align:right}
+  .row .stock.pos{color:var(--tk-violet)}
+  .row .stock.zero{color:var(--tk-n400)}
+
+  /* === 시안 A — 박스히어로 1:1 카드 3장 (현재 + 필터된 옵션 표 헤더 이동) === */
+  .a-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+  .a-stats .ck-card .ck-label{font-size:11px}
+  .a-stats .ck-card.violet .ck-value{color:var(--tk-violet)}
+  .a-stats .ck-card.blue .ck-value{color:var(--tk-primary)}
+
+  /* === 시안 B — 컴팩트 한 줄 인라인 (카드 X, 작은 통계 그룹) === */
+  .b-inline{background:#fff;border:1px solid var(--tk-n200);border-radius:8px;padding:14px 18px;
+            display:flex;gap:32px;align-items:baseline}
+  .b-inline .pair{display:flex;align-items:baseline;gap:8px}
+  .b-inline .pair .lbl{font-size:11px;color:var(--tk-n600)}
+  .b-inline .pair .val{font-size:22px;font-weight:var(--tk-w-bold);color:var(--tk-n900);font-family:'SF Mono',ui-monospace,monospace}
+  .b-inline .pair .val.violet{color:var(--tk-violet)}
+  .b-inline .pair .val.blue{color:var(--tk-primary)}
+  .b-inline .divider{width:1px;height:32px;background:var(--tk-n200);align-self:center}
+
+  /* === 시안 C — KPI 강조 (큰 숫자 + 비율 보조) === */
+  .c-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+  .c-card{background:#fff;border:1px solid var(--tk-n200);border-radius:10px;padding:18px 22px}
+  .c-card .lbl{font-size:11.5px;color:var(--tk-n600);font-weight:var(--tk-w-mid);text-transform:uppercase;letter-spacing:0.04em}
+  .c-card .val{font-size:36px;font-weight:var(--tk-w-bold);color:var(--tk-n900);
+               font-family:'SF Mono',ui-monospace,monospace;letter-spacing:-0.03em;margin-top:6px;line-height:1.1}
+  .c-card .val.violet{color:var(--tk-violet)}
+  .c-card .val.blue{color:var(--tk-primary)}
+  .c-card .sub{font-size:11.5px;color:var(--tk-n600);margin-top:6px}
+  .c-card .sub b{color:var(--tk-n900);font-weight:var(--tk-w-mid)}
+
+  /* === 시안 D — 단일 통합 카드 (한 카드 안에 모든 KPI) === */
+  .d-card{background:linear-gradient(135deg,#fff 0%,#F9FAFB 100%);border:1px solid var(--tk-n200);
+          border-radius:12px;padding:24px 28px;display:flex;align-items:center;gap:48px}
+  .d-card .kpi{display:flex;flex-direction:column}
+  .d-card .kpi .lbl{font-size:12px;color:var(--tk-n600);font-weight:var(--tk-w-mid)}
+  .d-card .kpi .val{font-size:30px;font-weight:var(--tk-w-bold);color:var(--tk-n900);
+                     font-family:'SF Mono',ui-monospace,monospace;letter-spacing:-0.03em;margin-top:4px}
+  .d-card .kpi .val.violet{color:var(--tk-violet)}
+  .d-card .kpi .val.blue{color:var(--tk-primary)}
+  .d-card .kpi .sub{font-size:11px;color:var(--tk-n600);margin-top:2px}
+  .d-card .vbar{width:1px;background:var(--tk-n200);align-self:stretch}
+
+  /* === 시안 E — 사이드 KPI + 메인 표 (좌측 narrow 사이드) === */
+  .e-grid{display:grid;grid-template-columns:220px 1fr;gap:14px;align-items:start}
+  .e-side{display:flex;flex-direction:column;gap:10px}
+  .e-side .ck-card{padding:14px}
+  .e-side .ck-card .ck-label{font-size:11px}
+  .e-side .ck-card .ck-value{font-size:22px}
+  .e-side .ck-card.violet .ck-value{color:var(--tk-violet)}
+  .e-side .ck-card.blue .ck-value{color:var(--tk-primary)}
+  .e-main{flex:1}
+</style>
+
+<div style="padding:32px 0;background:var(--tk-n100)">
+  <div style="max-width:1920px;margin:0 auto;padding:0 24px 16px">
+    <h1 style="font-size:24px;font-weight:700;color:var(--tk-n900);margin:0">📐 인벤토리 통계 카드 — 5 시안 비교</h1>
+    <p style="font-size:13px;color:var(--tk-n600);margin:8px 0 0">
+      박스히어로 매핑 제거 / "재고 1개 이상 보유 SKU 수" 라벨 / "필터된 옵션 수" 표 우측 상단 이동.
+      샘플 데이터: 무필터 (총 SKU 807 / 재고 보유 219 / 총 재고 700) — limit 500 표시.
+    </p>
+  </div>
+
+  <div class="mockup-frame">
+    <div class="mockup-tabs">
+      <button class="mockup-tab active" data-pane="A">시안 A <span class="pill">박스히어로 1:1</span></button>
+      <button class="mockup-tab" data-pane="B">시안 B <span class="pill">컴팩트 인라인</span></button>
+      <button class="mockup-tab" data-pane="C">시안 C <span class="pill">KPI 강조</span></button>
+      <button class="mockup-tab" data-pane="D">시안 D <span class="pill">단일 통합 카드</span></button>
+      <button class="mockup-tab" data-pane="E">시안 E <span class="pill">사이드 KPI</span></button>
+    </div>
+
+    {# ========== 시안 A — 박스히어로 1:1 ========== #}
+    <div class="mockup-pane active" data-pane="A">
+      <div class="pane-title"><strong>시안 A · 박스히어로 1:1 카드 3장</strong>
+        <span class="badge">현재 디자인 유지 — 안정적</span></div>
+
+      <div class="a-stats">
+        <div class="ck-card"><div class="ck-label">총 SKU</div><div class="ck-value">807</div></div>
+        <div class="ck-card violet"><div class="ck-label">재고 1개 이상 보유 SKU 수</div><div class="ck-value">219</div></div>
+        <div class="ck-card blue"><div class="ck-label">총 재고</div><div class="ck-value">700</div></div>
+      </div>
+
+      <div class="filter-bar">
+        <select><option>모든 위치</option></select>
+        <div class="chip-box">
+          <span style="font-size:12.5px;color:#999">이름, 바코드, 속성 검색</span>
+        </div>
+        <label><input type="checkbox"> 재고 보유</label>
+        <label><input type="checkbox"> 묶어보기</label>
+        <button class="btn">필터 적용</button>
+      </div>
+
+      <div class="table-wrap">
+        <div class="table-head">
+          <div>SKU</div>
+          <div class="right"><b>807</b>건 중 상위 <b>500</b>개 표시 · 검색·필터로 좁히세요</div>
+        </div>
+        <div class="row"><div class="sku">그레이프 포튼더스트(임시)-260 [SKU-SKVSTTB6]</div><div class="meta">포튼더스트(임시) / 260</div><div class="stock zero">0</div></div>
+        <div class="row"><div class="sku">르무통 레츠 블랙블랙-225 [SKU-39BSGZ6G]</div><div class="meta">블랙블랙 / 225</div><div class="stock zero">0</div></div>
+        <div class="row"><div class="sku">르무통 메이트 그레이-225 [SKU-WZSM3H0R]</div><div class="meta">그레이 / 225</div><div class="stock pos">1</div></div>
+        <div class="row"><div class="sku">르무통 메이트 블랙-220 [SKU-HU61O8ZW]</div><div class="meta">블랙 / 220</div><div class="stock pos">6</div></div>
+        <div class="row"><div class="sku">르무통 메이트 블랙-270 [SKU-8YJECQ85]</div><div class="meta">블랙 / 270</div><div class="stock pos">9</div></div>
+      </div>
+    </div>
+
+    {# ========== 시안 B — 컴팩트 인라인 ========== #}
+    <div class="mockup-pane" data-pane="B">
+      <div class="pane-title"><strong>시안 B · 컴팩트 인라인</strong>
+        <span class="badge">화면 공간 절약 — 표 더 많이 보여줌</span></div>
+
+      <div class="b-inline">
+        <div class="pair"><span class="lbl">총 SKU</span><span class="val">807</span></div>
+        <div class="divider"></div>
+        <div class="pair"><span class="lbl">재고 1개 이상 보유 SKU 수</span><span class="val violet">219</span></div>
+        <div class="divider"></div>
+        <div class="pair"><span class="lbl">총 재고</span><span class="val blue">700</span></div>
+      </div>
+
+      <div class="filter-bar">
+        <select><option>모든 위치</option></select>
+        <div class="chip-box"><span style="font-size:12.5px;color:#999">이름, 바코드, 속성 검색</span></div>
+        <label><input type="checkbox"> 재고 보유</label>
+        <button class="btn">필터 적용</button>
+      </div>
+
+      <div class="table-wrap">
+        <div class="table-head">
+          <div>SKU</div>
+          <div class="right"><b>807</b>건 중 상위 <b>500</b>개 표시</div>
+        </div>
+        <div class="row"><div class="sku">그레이프 포튼더스트(임시)-260</div><div class="meta">260</div><div class="stock zero">0</div></div>
+        <div class="row"><div class="sku">르무통 메이트 그레이-225</div><div class="meta">225</div><div class="stock pos">1</div></div>
+        <div class="row"><div class="sku">르무통 메이트 블랙-220</div><div class="meta">220</div><div class="stock pos">6</div></div>
+        <div class="row"><div class="sku">르무통 메이트 블랙-270</div><div class="meta">270</div><div class="stock pos">9</div></div>
+        <div class="row"><div class="sku">르무통 버디 다크그린-260</div><div class="meta">260</div><div class="stock pos">7</div></div>
+        <div class="row"><div class="sku">르무통 스타일 베이지-235</div><div class="meta">235</div><div class="stock pos">7</div></div>
+      </div>
+    </div>
+
+    {# ========== 시안 C — KPI 강조 ========== #}
+    <div class="mockup-pane" data-pane="C">
+      <div class="pane-title"><strong>시안 C · KPI 강조 (큰 숫자 + 비율 보조)</strong>
+        <span class="badge">대시보드 느낌 — 비즈니스 인사이트 강조</span></div>
+
+      <div class="c-stats">
+        <div class="c-card">
+          <div class="lbl">TOTAL SKU</div>
+          <div class="val">807</div>
+          <div class="sub"><b>125</b> 모델 · 르무통 외 N 브랜드</div>
+        </div>
+        <div class="c-card">
+          <div class="lbl">재고 1개 이상 보유 SKU 수</div>
+          <div class="val violet">219</div>
+          <div class="sub"><b>27%</b> 재고 보유율 · 588 SKU 재고 0</div>
+        </div>
+        <div class="c-card">
+          <div class="lbl">총 재고</div>
+          <div class="val blue">700</div>
+          <div class="sub">옵션당 평균 <b>3.2</b>개 (보유 SKU 기준)</div>
+        </div>
+      </div>
+
+      <div class="filter-bar">
+        <select><option>모든 위치</option></select>
+        <div class="chip-box"><span style="font-size:12.5px;color:#999">이름, 바코드, 속성 검색</span></div>
+        <label><input type="checkbox"> 재고 보유</label>
+        <button class="btn">필터 적용</button>
+      </div>
+
+      <div class="table-wrap">
+        <div class="table-head">
+          <div>SKU</div>
+          <div class="right"><b>807</b>건 중 상위 <b>500</b>개 표시 · <span class="warn">검색·필터로 좁히세요</span></div>
+        </div>
+        <div class="row"><div class="sku">르무통 메이트 블랙-220</div><div class="meta">블랙 / 220</div><div class="stock pos">6</div></div>
+        <div class="row"><div class="sku">르무통 메이트 블랙-270</div><div class="meta">블랙 / 270</div><div class="stock pos">9</div></div>
+        <div class="row"><div class="sku">르무통 버디 다크그린-260</div><div class="meta">다크그린 / 260</div><div class="stock pos">7</div></div>
+        <div class="row"><div class="sku">르무통 스타일 베이지-235</div><div class="meta">베이지 / 235</div><div class="stock pos">7</div></div>
+      </div>
+    </div>
+
+    {# ========== 시안 D — 단일 통합 카드 ========== #}
+    <div class="mockup-pane" data-pane="D">
+      <div class="pane-title"><strong>시안 D · 단일 통합 카드</strong>
+        <span class="badge">한 영역 — 시각적 응집감 강함</span></div>
+
+      <div class="d-card">
+        <div class="kpi">
+          <span class="lbl">총 SKU</span>
+          <span class="val">807</span>
+          <span class="sub">옵션 행수</span>
+        </div>
+        <div class="vbar"></div>
+        <div class="kpi">
+          <span class="lbl">재고 1개 이상 보유 SKU 수</span>
+          <span class="val violet">219</span>
+          <span class="sub">27% · 출고 가능</span>
+        </div>
+        <div class="vbar"></div>
+        <div class="kpi">
+          <span class="lbl">총 재고</span>
+          <span class="val blue">700</span>
+          <span class="sub">단위 합계</span>
+        </div>
+      </div>
+
+      <div class="filter-bar">
+        <select><option>모든 위치</option></select>
+        <div class="chip-box"><span style="font-size:12.5px;color:#999">이름, 바코드, 속성 검색</span></div>
+        <button class="btn">필터 적용</button>
+      </div>
+
+      <div class="table-wrap">
+        <div class="table-head">
+          <div>SKU</div>
+          <div class="right"><b>807</b>건 중 상위 <b>500</b>개 표시</div>
+        </div>
+        <div class="row"><div class="sku">르무통 메이트 블랙-220</div><div class="meta">블랙 / 220</div><div class="stock pos">6</div></div>
+        <div class="row"><div class="sku">르무통 메이트 블랙-270</div><div class="meta">블랙 / 270</div><div class="stock pos">9</div></div>
+        <div class="row"><div class="sku">르무통 버디 다크그린-260</div><div class="meta">다크그린 / 260</div><div class="stock pos">7</div></div>
+      </div>
+    </div>
+
+    {# ========== 시안 E — 사이드 KPI ========== #}
+    <div class="mockup-pane" data-pane="E">
+      <div class="pane-title"><strong>시안 E · 좌측 사이드 KPI + 메인 표</strong>
+        <span class="badge">표가 메인 — KPI 는 항상 visible</span></div>
+
+      <div class="e-grid">
+        <div class="e-side">
+          <div class="ck-card">
+            <div class="ck-label">총 SKU</div>
+            <div class="ck-value">807</div>
+          </div>
+          <div class="ck-card violet">
+            <div class="ck-label">재고 1개 이상 보유 SKU 수</div>
+            <div class="ck-value">219</div>
+          </div>
+          <div class="ck-card blue">
+            <div class="ck-label">총 재고</div>
+            <div class="ck-value">700</div>
+          </div>
+        </div>
+
+        <div class="e-main">
+          <div class="filter-bar" style="margin-top:0">
+            <select><option>모든 위치</option></select>
+            <div class="chip-box"><span style="font-size:12.5px;color:#999">이름, 바코드, 속성 검색</span></div>
+            <label><input type="checkbox"> 재고 보유</label>
+            <button class="btn">필터 적용</button>
+          </div>
+
+          <div class="table-wrap">
+            <div class="table-head">
+              <div>SKU</div>
+              <div class="right"><b>807</b>건 중 상위 <b>500</b>개 표시 · 검색·필터로 좁히세요</div>
+            </div>
+            <div class="row"><div class="sku">그레이프 포튼더스트(임시)-260</div><div class="meta">포튼더스트 / 260</div><div class="stock zero">0</div></div>
+            <div class="row"><div class="sku">르무통 레츠 블랙블랙-225</div><div class="meta">블랙블랙 / 225</div><div class="stock zero">0</div></div>
+            <div class="row"><div class="sku">르무통 메이트 그레이-225</div><div class="meta">그레이 / 225</div><div class="stock pos">1</div></div>
+            <div class="row"><div class="sku">르무통 메이트 블랙-220</div><div class="meta">블랙 / 220</div><div class="stock pos">6</div></div>
+            <div class="row"><div class="sku">르무통 메이트 블랙-270</div><div class="meta">블랙 / 270</div><div class="stock pos">9</div></div>
+            <div class="row"><div class="sku">르무통 버디 다크그린-260</div><div class="meta">다크그린 / 260</div><div class="stock pos">7</div></div>
+            <div class="row"><div class="sku">르무통 스타일 베이지-235</div><div class="meta">베이지 / 235</div><div class="stock pos">7</div></div>
+            <div class="row"><div class="sku">르무통 스타일 블랙블랙-260</div><div class="meta">블랙블랙 / 260</div><div class="stock pos">6</div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div style="max-width:1920px;margin:24px auto 32px;padding:0 24px">
+    <h2 style="font-size:16px;font-weight:700;color:var(--tk-n900);margin-bottom:12px">📊 시안 비교 매트릭스</h2>
+    <table style="width:100%;background:#fff;border:1px solid var(--tk-n200);border-radius:8px;border-collapse:collapse;font-size:12.5px;overflow:hidden">
+      <thead style="background:var(--tk-n50)">
+        <tr><th style="padding:10px 14px;text-align:left;color:var(--tk-n700);font-weight:600;border-bottom:1px solid var(--tk-n200)">시안</th>
+        <th style="padding:10px 14px;text-align:left;color:var(--tk-n700);font-weight:600;border-bottom:1px solid var(--tk-n200)">스타일</th>
+        <th style="padding:10px 14px;text-align:left;color:var(--tk-n700);font-weight:600;border-bottom:1px solid var(--tk-n200)">장점</th>
+        <th style="padding:10px 14px;text-align:left;color:var(--tk-n700);font-weight:600;border-bottom:1px solid var(--tk-n200)">단점</th>
+        <th style="padding:10px 14px;text-align:left;color:var(--tk-n700);font-weight:600;border-bottom:1px solid var(--tk-n200)">추천 시점</th></tr>
+      </thead>
+      <tbody>
+        <tr><td style="padding:10px 14px;color:var(--tk-n900);font-weight:600;border-bottom:1px solid var(--tk-n100)">A</td>
+        <td style="padding:10px 14px;color:var(--tk-n700);border-bottom:1px solid var(--tk-n100)">박스히어로 1:1 카드 3장</td>
+        <td style="padding:10px 14px;color:var(--tk-n700);border-bottom:1px solid var(--tk-n100)">기존 사용자 학습 0 · 일관성</td>
+        <td style="padding:10px 14px;color:var(--tk-n700);border-bottom:1px solid var(--tk-n100)">평이 — 차별성 없음</td>
+        <td style="padding:10px 14px;color:var(--tk-n700);border-bottom:1px solid var(--tk-n100)">⭐ 기본값 추천</td></tr>
+        <tr><td style="padding:10px 14px;color:var(--tk-n900);font-weight:600;border-bottom:1px solid var(--tk-n100)">B</td>
+        <td style="padding:10px 14px;color:var(--tk-n700);border-bottom:1px solid var(--tk-n100)">한 줄 인라인</td>
+        <td style="padding:10px 14px;color:var(--tk-n700);border-bottom:1px solid var(--tk-n100)">표가 더 잘 보임 · 모바일 친화</td>
+        <td style="padding:10px 14px;color:var(--tk-n700);border-bottom:1px solid var(--tk-n100)">통계 강조 약함</td>
+        <td style="padding:10px 14px;color:var(--tk-n700);border-bottom:1px solid var(--tk-n100)">표 작업 위주일 때</td></tr>
+        <tr><td style="padding:10px 14px;color:var(--tk-n900);font-weight:600;border-bottom:1px solid var(--tk-n100)">C</td>
+        <td style="padding:10px 14px;color:var(--tk-n700);border-bottom:1px solid var(--tk-n100)">KPI 강조 + 비율 보조</td>
+        <td style="padding:10px 14px;color:var(--tk-n700);border-bottom:1px solid var(--tk-n100)">비즈니스 인사이트 풍부 (27% 등)</td>
+        <td style="padding:10px 14px;color:var(--tk-n700);border-bottom:1px solid var(--tk-n100)">공간 가장 많이 차지</td>
+        <td style="padding:10px 14px;color:var(--tk-n700);border-bottom:1px solid var(--tk-n100)">대시보드 페이지</td></tr>
+        <tr><td style="padding:10px 14px;color:var(--tk-n900);font-weight:600;border-bottom:1px solid var(--tk-n100)">D</td>
+        <td style="padding:10px 14px;color:var(--tk-n700);border-bottom:1px solid var(--tk-n100)">단일 통합 카드</td>
+        <td style="padding:10px 14px;color:var(--tk-n700);border-bottom:1px solid var(--tk-n100)">시각 응집감 · 토스 느낌</td>
+        <td style="padding:10px 14px;color:var(--tk-n700);border-bottom:1px solid var(--tk-n100)">각 KPI 식별성 다소 약함</td>
+        <td style="padding:10px 14px;color:var(--tk-n700);border-bottom:1px solid var(--tk-n100)">모바일·임원 보고</td></tr>
+        <tr><td style="padding:10px 14px;color:var(--tk-n900);font-weight:600">E</td>
+        <td style="padding:10px 14px;color:var(--tk-n700)">사이드 KPI + 메인 표</td>
+        <td style="padding:10px 14px;color:var(--tk-n700)">KPI 항상 보임 · 표 영역 최대</td>
+        <td style="padding:10px 14px;color:var(--tk-n700)">좁은 화면(1280) 압박</td>
+        <td style="padding:10px 14px;color:var(--tk-n700)">와이드 모니터 운영</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<script>
+(function(){
+  document.querySelectorAll('.mockup-tab').forEach(function(btn){
+    btn.addEventListener('click', function(){
+      var pane = btn.dataset.pane;
+      document.querySelectorAll('.mockup-tab').forEach(function(b){ b.classList.toggle('active', b.dataset.pane === pane); });
+      document.querySelectorAll('.mockup-pane').forEach(function(p){ p.classList.toggle('active', p.dataset.pane === pane); });
+    });
+  });
+})();
+</script>
+{% endblock %}

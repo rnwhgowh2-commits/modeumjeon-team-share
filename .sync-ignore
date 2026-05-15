@@ -68,6 +68,8 @@ webapp/routes/api.py
 webapp/templates/inventory/data/items.html
 webapp/templates/inventory/ledger.html
 webapp/templates/bundles/list.html
+# Day 8: 인벤토리 통계 카드 5 시안 mockup
+webapp/templates/inventory/_mockup_stats.html
 
 # ─── 신규 전용 라인 패턴 (sync.py 가 line-level 처리) ───
 # config.py:DATABASE_URL
