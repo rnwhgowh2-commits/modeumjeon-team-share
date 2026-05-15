@@ -134,6 +134,18 @@ def api_lookup():
                  .filter(InventoryTx.status == 'completed')
                  .scalar()) or 0
 
+        # 최근 트랜잭션 시간
+        last_tx_at = (s.query(func.max(InventoryTx.created_at))
+                      .filter(InventoryTx.option_canonical_sku == opt.canonical_sku)
+                      .filter(InventoryTx.status == 'completed')
+                      .scalar())
+
+        # 트랜잭션 수
+        tx_count = (s.query(func.count(InventoryTx.id))
+                    .filter(InventoryTx.option_canonical_sku == opt.canonical_sku)
+                    .filter(InventoryTx.status == 'completed')
+                    .scalar()) or 0
+
         return _ok(option={
             "canonical_sku": opt.canonical_sku,
             "boxhero_sku": opt.boxhero_sku,
@@ -143,6 +155,14 @@ def api_lookup():
             "size_code": opt.size_code,
             "image_url": opt.image_url,
             "stock": int(stock),
+            # 추가 정보
+            "avg_purchase_price": getattr(opt, "boxhero_avg_purchase_price", None) or 0,
+            "boxhero_stock_total": getattr(opt, "boxhero_stock_total", None) or 0,
+            "last_crawled_at": opt.last_crawled_at.isoformat() if getattr(opt, "last_crawled_at", None) else None,
+            "last_uploaded_at": opt.last_uploaded_at.isoformat() if getattr(opt, "last_uploaded_at", None) else None,
+            "last_tx_at": last_tx_at.isoformat() if last_tx_at else None,
+            "tx_count": int(tx_count),
+            "use_purchase_inventory": bool(getattr(opt, "use_purchase_inventory", False)),
         })
 
 

@@ -92,22 +92,84 @@
     const img = optionData.image_url
       ? `<img src="${optionData.image_url}" style="width: 60px; height: 60px; border-radius: 8px; object-fit: cover;">`
       : `<div style="width: 60px; height: 60px; border-radius: 8px; background: var(--n100); display: flex; align-items: center; justify-content: center; font-size: 24px;">📦</div>`;
+    const barcodeRow = optionData.boxhero_sku
+      ? `<div style="display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--n600); margin-top: 6px;">
+           <span style="font-size: 14px;">🏷</span>
+           <span style="font-family: monospace; background: var(--n100); padding: 2px 6px; border-radius: 4px;">${optionData.boxhero_sku}</span>
+         </div>`
+      : `<div style="font-size: 11px; color: var(--n500); margin-top: 6px;">바코드 미등록</div>`;
     info.innerHTML = `
       <div class="m-card">
-        <div style="display: flex; gap: 12px; align-items: center;">
+        <div style="display: flex; gap: 12px; align-items: flex-start;">
           ${img}
           <div style="flex: 1; min-width: 0;">
             <div style="font-size: 12px; color: var(--n600);">${optionData.model_name}</div>
             <div style="font-size: 15px; font-weight: 700; margin: 2px 0;">${optionData.canonical_sku}</div>
-            <div style="font-size: 12px; color: var(--n600);">${optionData.color_code || ''} ${optionData.size_code || ''}</div>
+            <div style="font-size: 12px; color: var(--n700);">
+              <span style="background: var(--primary-tint, #E8F2FF); color: var(--primary, #3182F6); padding: 2px 8px; border-radius: 99px; font-weight: 600;">${optionData.color_code || ''}</span>
+              <span style="background: var(--n100); padding: 2px 8px; border-radius: 99px; margin-left: 4px;">${optionData.size_code || ''}</span>
+            </div>
+            ${barcodeRow}
           </div>
-          <div style="text-align: right;">
-            <div style="font-size: 24px; font-weight: 700; color: var(--primary);">${optionData.stock}</div>
+          <div style="text-align: right; flex-shrink: 0;">
+            <div style="font-size: 28px; font-weight: 700; color: var(--primary);">${optionData.stock}</div>
             <div style="font-size: 11px; color: var(--n500);">총 재고</div>
           </div>
         </div>
       </div>
+
+      <!-- 위치별 재고 분포 -->
+      <div id="stock-by-location" class="m-card" style="padding: 12px 14px; margin-bottom: 12px;">
+        <div style="font-size: 12px; color: var(--n600); font-weight: 600; margin-bottom: 8px;">📍 위치별 재고</div>
+        <div id="stock-rows"><div class="m-loading" style="padding: 8px;"><span class="m-spinner"></span>불러오는 중...</div></div>
+      </div>
+
+      <!-- 추가 정보 (매입가·박스히어로·이력) -->
+      <div class="m-card" style="padding: 12px 14px; margin-bottom: 16px;">
+        <div style="font-size: 12px; color: var(--n600); font-weight: 600; margin-bottom: 10px;">📊 부가 정보</div>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 12px;">
+          <div>
+            <div style="color: var(--n500);">평균 매입가</div>
+            <div style="font-weight: 600; color: var(--n800);">${optionData.avg_purchase_price ? optionData.avg_purchase_price.toLocaleString() + '원' : '—'}</div>
+          </div>
+          <div>
+            <div style="color: var(--n500);">박스히어로 재고</div>
+            <div style="font-weight: 600; color: var(--n800);">${optionData.boxhero_stock_total ?? '—'}</div>
+          </div>
+          <div>
+            <div style="color: var(--n500);">최근 입출고</div>
+            <div style="font-weight: 600; color: var(--n800);">${optionData.last_tx_at ? new Date(optionData.last_tx_at).toLocaleString('ko-KR', {month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit'}) : '—'}</div>
+          </div>
+          <div>
+            <div style="color: var(--n500);">총 거래</div>
+            <div style="font-weight: 600; color: var(--n800);">${optionData.tx_count}건</div>
+          </div>
+        </div>
+        ${optionData.use_purchase_inventory ? '<div style="margin-top: 8px; font-size: 11px; color: var(--primary); font-weight: 600;">✓ 사입 재고 활성</div>' : ''}
+      </div>
     `;
+  }
+
+  function renderStockByLocation() {
+    const target = document.getElementById('stock-rows');
+    if (!target) return;
+    // stockByLoc 은 {location_id: stock} — locations 정렬과 매칭 위해 select 옵션 순회
+    const select = document.getElementById('location-select');
+    if (!select || !select.options.length) {
+      target.innerHTML = '<div style="font-size: 12px; color: var(--n500);">위치 정보 없음</div>';
+      return;
+    }
+    const rows = Array.from(select.options).map(opt => {
+      const lid = parseInt(opt.value);
+      const stock = stockByLoc[lid] || 0;
+      const isDefault = opt.textContent.includes('(기본)');
+      const stockColor = stock > 0 ? 'var(--color-ok, #16a34a)' : (stock < 0 ? 'var(--danger, #F04452)' : 'var(--n500, #8B95A1)');
+      return `<div style="display: flex; justify-content: space-between; align-items: center; padding: 6px 0; ${rows < select.options.length - 1 ? 'border-bottom: 1px solid var(--n100);' : ''}">
+        <span style="font-size: 13px; color: var(--n700);">${isDefault ? '⭐ ' : ''}${opt.textContent.replace(' (기본)', '')}</span>
+        <span style="font-size: 14px; font-weight: 600; color: ${stockColor};">${stock}</span>
+      </div>`;
+    }).join('');
+    target.innerHTML = rows;
   }
 
   async function loadLocations() {
@@ -126,6 +188,7 @@
     if (d.ok) {
       stockByLoc = {};
       d.by_location.forEach(it => { stockByLoc[it.location_id] = it.stock; });
+      renderStockByLocation();
     }
   }
 
