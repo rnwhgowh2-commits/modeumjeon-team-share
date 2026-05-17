@@ -578,6 +578,27 @@ def bundle_edit(code: str):
                 source_urls[sk] = [{'id': None, 'url': legacy_url}]
             else:
                 source_urls[sk] = []
+
+        # ★ status_cards 를 session 닫기 전에 계산 (m.* access 가 session 필요)
+        # 한글 model_code 등 일부 케이스에서 transaction abort 후 m 컬럼 expire → DetachedInstanceError
+        try:
+            last_crawled_at = m.last_crawled_at
+            last_uploaded_at = m.last_uploaded_at
+        except Exception:
+            try:
+                s.rollback()
+                m_re = s.query(Model).filter_by(model_code=code).first()
+                last_crawled_at = m_re.last_crawled_at if m_re else None
+                last_uploaded_at = m_re.last_uploaded_at if m_re else None
+            except Exception:
+                last_crawled_at = None
+                last_uploaded_at = None
+        status_cards = {
+            'last_crawled_ago': _humanize_ago(last_crawled_at),
+            'last_crawled_at': _fmt_dt(last_crawled_at),
+            'last_uploaded_ago': _humanize_ago(last_uploaded_at),
+            'last_uploaded_at': _fmt_dt(last_uploaded_at),
+        }
     finally:
         s.close()
     # 실행 이력 (최근 20건) — 크롤(소싱처별) + 업로드(마켓별) 결과 포함
@@ -586,13 +607,6 @@ def bundle_edit(code: str):
         run_history = list_for_bundle(code, limit=20)
     except Exception:
         run_history = []
-
-    status_cards = {
-        'last_crawled_ago': _humanize_ago(m.last_crawled_at),
-        'last_crawled_at': _fmt_dt(m.last_crawled_at),
-        'last_uploaded_ago': _humanize_ago(m.last_uploaded_at),
-        'last_uploaded_at': _fmt_dt(m.last_uploaded_at),
-    }
 
     return render_template(
         'bundles/edit.html',
