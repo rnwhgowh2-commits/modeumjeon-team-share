@@ -75,6 +75,13 @@ lemouton/sourcing/models.py
 # Day 8.2: source_registry 동적 통합 (builtin + DB SourcingSource)
 lemouton/sourcing/source_registry.py
 webapp/routes/bundles.py
+# Day 9: 재고 SSOT 통일 (InventoryTx 실시간 기반)
+shared/inventory_stock.py
+webapp/routes/inventory/__init__.py
+webapp/routes/inventory/data.py
+webapp/routes/inventory/matrix.py
+webapp/templates/inventory/home.html
+webapp/templates/inventory/data/items.html
 # Day 8: 인벤토리 통계 카드 5 시안 mockup
 webapp/templates/inventory/_mockup_stats.html
 

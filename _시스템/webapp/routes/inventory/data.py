@@ -239,8 +239,14 @@ def data_items():
         )
         if brand:
             query = query.filter(Model.brand == brand)
+        # ★ SSOT 재고 — 전체 옵션 batch 한 번에
+        from shared.inventory_stock import get_stock_batch
+        all_skus_for_stock = [r[0] for r in query.with_entities(Option.canonical_sku).all()]
+        stock_map = get_stock_batch(s, all_skus_for_stock)
+
         if in_stock_only:
-            query = query.filter(Option.boxhero_stock_total > 0)
+            in_skus = {sk for sk, st in stock_map.items() if st > 0}
+            query = query.filter(Option.canonical_sku.in_(in_skus) if in_skus else False)
 
         total = query.count()
         items = (
@@ -248,12 +254,12 @@ def data_items():
             .offset((page - 1) * page_size).limit(page_size).all()
         )
 
-        # KPI
+        # KPI (실시간 SSOT)
         from sqlalchemy import func
         all_options_count = s.query(func.count(Option.canonical_sku)).scalar() or 0
         mapped_count = s.query(func.count(Option.canonical_sku)).filter(Option.boxhero_sku.isnot(None)).scalar() or 0
-        in_stock_count = s.query(func.count(Option.canonical_sku)).filter(Option.boxhero_stock_total > 0).scalar() or 0
-        total_qty = s.query(func.sum(Option.boxhero_stock_total)).scalar() or 0
+        in_stock_count = sum(1 for st in stock_map.values() if st > 0)
+        total_qty = sum(stock_map.values())
 
         # 브랜드 목록 (필터용)
         brands = [b for (b,) in s.query(Model.brand).distinct().filter(Model.brand.isnot(None)).all()]
@@ -266,6 +272,7 @@ def data_items():
             q=q, brand=brand, in_stock_only=in_stock_only,
             search_tokens=search_tokens,
             brands=sorted(brands),
+            stock_map=stock_map,  # ★ 실시간 SSOT 재고
             kpi={
                 'all_options': all_options_count,
                 'mapped': mapped_count,

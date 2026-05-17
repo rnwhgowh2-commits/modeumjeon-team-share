@@ -80,7 +80,7 @@
             data-color="{{ opt.color_display or opt.color_code or '' }}"
             data-size="{{ opt.size_display or opt.size_code or '' }}"
             data-avg="{{ opt.boxhero_avg_purchase_price or 0 }}"
-            data-stock="{{ opt.boxhero_stock_total or 0 }}">
+            data-stock="{{ stock_map.get(opt.canonical_sku, 0) }}">
           <td style="padding:9px 10px;font-family:ui-monospace,monospace;font-size:11px;color:#292A2F">{{ opt.canonical_sku }}</td>
           <td style="padding:9px 10px;font-family:ui-monospace,monospace;font-size:11px;color:{% if opt.boxhero_sku %}#4F67FF{% else %}#8F91A0{% endif %}">{{ opt.boxhero_sku or '—' }}</td>
           <td style="padding:9px 10px">
@@ -92,8 +92,9 @@
           <td style="padding:9px 10px;text-align:right;font-variant-numeric:tabular-nums;color:#292A2F">
             {% if opt.boxhero_avg_purchase_price and opt.boxhero_avg_purchase_price > 0 %}{{ '{:,}'.format(opt.boxhero_avg_purchase_price) }}{% else %}<span style="color:#8F91A0">—</span>{% endif %}
           </td>
-          <td style="padding:9px 10px;text-align:right;font-weight:600;font-variant-numeric:tabular-nums;color:{% if opt.boxhero_stock_total and opt.boxhero_stock_total > 0 %}#22C55E{% else %}#8F91A0{% endif %}">
-            {{ opt.boxhero_stock_total or 0 }}
+          {% set _rt = stock_map.get(opt.canonical_sku, 0) %}
+          <td style="padding:9px 10px;text-align:right;font-weight:600;font-variant-numeric:tabular-nums;color:{% if _rt > 0 %}#22C55E{% else %}#8F91A0{% endif %}">
+            {{ _rt }}
           </td>
           <td style="padding:9px 10px;text-align:center" onclick="event.stopPropagation()">
             {% if opt.boxhero_sku %}

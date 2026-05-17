@@ -60,10 +60,17 @@ def matrix_view():
         # 모델 드롭다운용
         all_models = s.query(Model).order_by(Model.model_code).all()
 
-        # 요약 통계
+        # ★ SSOT 실시간 재고 batch
+        from shared.inventory_stock import get_stock_batch
+        all_skus = [r['opt'].canonical_sku for r in rows]
+        stock_map = get_stock_batch(s, all_skus)
+        for r in rows:
+            r['realtime_stock'] = stock_map.get(r['opt'].canonical_sku, 0)
+
+        # 요약 통계 (실시간)
         total = len(rows)
         mapped = sum(1 for r in rows if r['opt'].boxhero_sku)
-        with_stock = sum(1 for r in rows if (r['opt'].boxhero_stock_total or 0) > 0)
+        with_stock = sum(1 for r in rows if r['realtime_stock'] > 0)
         with_avg = sum(1 for r in rows if (r['opt'].boxhero_avg_purchase_price or 0) > 0)
 
         return render_template(
@@ -74,6 +81,7 @@ def matrix_view():
             model_filter=model_filter,
             unmapped_only=unmapped_only,
             stats={'total': total, 'mapped': mapped, 'with_stock': with_stock, 'with_avg': with_avg},
+            stock_map=stock_map,
         )
     finally:
         s.close()

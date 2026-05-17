@@ -9,6 +9,7 @@ sub-routes는 추후 task 에서 별도 모듈로 분리 (Sprint 1~4).
 from flask import Blueprint, render_template, request
 from sqlalchemy import or_
 from shared.search import split_tokens, apply_and_filter
+from shared.inventory_stock import get_stock_batch, get_stock_summary, get_loc_stock_map
 
 bp = Blueprint('inventory', __name__, url_prefix='/inventory')
 
@@ -29,21 +30,32 @@ def home():
         selected_sku = request.args.get('sku', '').strip()
 
         q = s.query(Option)
-        if in_stock_only:
-            q = q.filter(Option.boxhero_stock_total > 0)
         # ★ 박스히어로식 다중 키워드 AND 교집합 필터 (shared.search 헬퍼)
         search_tokens = split_tokens(search_q)
         q = apply_and_filter(q, search_tokens, Option.canonical_sku, Option.boxhero_sku)
 
-        # ★ stats 는 limit 적용 전 전체 카운트로 계산 (UI 표시 limit 500 과 분리)
-        from sqlalchemy import case
-        stats_row = q.with_entities(
-            func.count(Option.canonical_sku),
-            func.coalesce(func.sum(case((Option.boxhero_stock_total > 0, 1), else_=0)), 0),
-            func.coalesce(func.sum(Option.boxhero_stock_total), 0),
-            func.count(func.distinct(Option.model_code)),
-        ).one()
-        stats_total, stats_in_stock, stats_total_stock, stats_model_count = stats_row
+        # 모든 SKU 후보 한 번에 (limit 적용 전)
+        all_skus_q = q.with_entities(Option.canonical_sku, Option.model_code)
+        all_rows = all_skus_q.all()
+        all_skus = [r[0] for r in all_rows]
+        model_set = {r[1] for r in all_rows}
+
+        # ★ SSOT 재고 batch 조회 (InventoryTx 기반 실시간)
+        stock_map = get_stock_batch(s, all_skus)
+
+        # in_stock_only 필터 — 재고 > 0 인 SKU 만 (정적 컬럼 X, 실시간 stock_map 기준)
+        if in_stock_only:
+            in_stock_skus = {sk for sk, st in stock_map.items() if st > 0}
+            q = q.filter(Option.canonical_sku.in_(in_stock_skus) if in_stock_skus else False)
+            all_skus = [sk for sk in all_skus if sk in in_stock_skus]
+
+        # ★ stats (실시간 재고 기반)
+        stats_total = len(all_skus)
+        stats_in_stock = sum(1 for sk in all_skus if stock_map.get(sk, 0) > 0)
+        stats_total_stock = sum(stock_map.get(sk, 0) for sk in all_skus)
+        stats_model_count = len(model_set if not in_stock_only else
+                                {m for m, sk in zip([r[1] for r in all_rows], [r[0] for r in all_rows])
+                                 if sk in all_skus})
 
         options = q.order_by(Option.model_code, Option.sort_order, Option.canonical_sku).limit(500).all()
 
@@ -59,37 +71,19 @@ def home():
             opt = s.query(Option).filter(Option.canonical_sku == selected_sku).first()
             if opt:
                 model = s.query(Model).filter(Model.model_code == opt.model_code).first()
-                # 위치별 재고 (Tx 누적)
+                # 위치별 재고 — SSOT 헬퍼 사용 (실시간 InventoryTx 기반)
                 locs = s.query(InventoryLocation).filter(InventoryLocation.deleted_at.is_(None)).all()
-                loc_stock = {}
-                for loc in locs:
-                    in_q = s.query(func.sum(InventoryTx.qty)).filter(
-                        InventoryTx.option_canonical_sku == selected_sku,
-                        InventoryTx.location_id == loc.id,
-                        InventoryTx.tx_type == 'in',
-                    ).scalar() or 0
-                    out_q = s.query(func.sum(InventoryTx.qty)).filter(
-                        InventoryTx.option_canonical_sku == selected_sku,
-                        InventoryTx.location_id == loc.id,
-                        InventoryTx.tx_type == 'out',
-                    ).scalar() or 0
-                    move_in = s.query(func.sum(InventoryTx.qty)).filter(
-                        InventoryTx.option_canonical_sku == selected_sku,
-                        InventoryTx.location_to_id == loc.id,
-                        InventoryTx.tx_type == 'move',
-                    ).scalar() or 0
-                    move_out = s.query(func.sum(InventoryTx.qty)).filter(
-                        InventoryTx.option_canonical_sku == selected_sku,
-                        InventoryTx.location_id == loc.id,
-                        InventoryTx.tx_type == 'move',
-                    ).scalar() or 0
-                    loc_stock[loc.id] = {'name': loc.name, 'stock': in_q - out_q + move_in - move_out}
-                selected_detail = {'opt': opt, 'model': model, 'loc_stock': loc_stock}
+                loc_stock = get_loc_stock_map(s, selected_sku, locs)
+                # SKU 의 실시간 총 재고 (Option.boxhero_stock_total 대신)
+                from shared.inventory_stock import get_stock_by_sku
+                selected_realtime_stock = get_stock_by_sku(s, selected_sku)
+                selected_detail = {'opt': opt, 'model': model, 'loc_stock': loc_stock,
+                                   'realtime_stock': selected_realtime_stock}
 
         # 위치 드롭다운
         all_locs = s.query(InventoryLocation).filter(InventoryLocation.deleted_at.is_(None)).all()
 
-        # 통계 (DB 전체 카운트 — limit 500 영향 없음)
+        # 통계 (실시간 SSOT 재고)
         total_i = int(stats_total or 0)
         in_stock_i = int(stats_in_stock or 0)
         total_stock_i = int(stats_total_stock or 0)
@@ -117,6 +111,7 @@ def home():
             search_tokens=search_tokens,
             selected_detail=selected_detail, all_locs=all_locs,
             location_filter=location_filter, stats=stats,
+            stock_map=stock_map,  # ★ list 의 재고 컬럼용 (실시간 SSOT)
         )
     finally:
         s.close()

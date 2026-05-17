@@ -180,7 +180,8 @@
                 <td style="padding:7px 8px;font-family:ui-monospace,monospace;font-size:10.5px">{{ o.canonical_sku }}</td>
                 <td style="padding:7px 8px;font-size:11.5px">{{ o.color_display or o.color_code }} / {{ o.size_display or o.size_code }}</td>
                 <td style="padding:7px 8px;font-family:ui-monospace,monospace;font-size:10px;color:#6B7684">{{ o.boxhero_sku or '—' }}</td>
-                <td style="padding:7px 8px;text-align:right;font-weight:600;font-family:ui-monospace,monospace;color:{% if (o.boxhero_stock_total or 0) > 0 %}#7C3AED{% else %}#9CA3AF{% endif %}">{{ o.boxhero_stock_total or 0 }}</td>
+                {% set _rt = stock_map.get(o.canonical_sku, 0) %}
+                <td style="padding:7px 8px;text-align:right;font-weight:600;font-family:ui-monospace,monospace;color:{% if _rt > 0 %}#7C3AED{% else %}#9CA3AF{% endif %}">{{ _rt }}</td>
                 <td style="padding:7px 8px;text-align:right;font-family:ui-monospace,monospace;color:{% if (o.boxhero_avg_purchase_price or 0) > 0 %}#191F28{% else %}#9CA3AF{% endif %}">{% if o.boxhero_avg_purchase_price %}{{ '{:,}'.format(o.boxhero_avg_purchase_price) }}{% else %}—{% endif %}</td>
               </tr>
             {% else %}
@@ -205,8 +206,8 @@
       </div>
 
       <div style="background:#F9FAFB;border-radius:6px;padding:12px;margin-bottom:14px">
-        <div style="font-size:10.5px;color:#6B7684">총 재고</div>
-        <div style="font-size:28px;font-weight:700;color:#7C3AED">{{ d.opt.boxhero_stock_total or 0 }}</div>
+        <div style="font-size:10.5px;color:#6B7684">총 재고 <span style="color:#16A34A;font-size:9.5px">● 실시간</span></div>
+        <div style="font-size:28px;font-weight:700;color:#7C3AED">{{ d.realtime_stock or 0 }}</div>
         <div style="font-size:11px;color:#6B7684;margin-top:4px">평균매입가 {{ '{:,}'.format(d.opt.boxhero_avg_purchase_price or 0) }}원</div>
       </div>
 
