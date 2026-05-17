@@ -283,13 +283,18 @@
 <body>
   {% block header %}
   <header class="m-header">
-    {% if back_url %}
-      <a href="{{ back_url }}" class="m-back">‹</a>
-    {% else %}
-      <span style="width: 36px;"></span>
-    {% endif %}
+    <div style="display:flex;align-items:center;gap:4px">
+      {# 뒤로가기 — back_url 있으면 그리로, 없으면 history.back #}
+      {% if back_url %}
+        <a href="{{ back_url }}" class="m-back" title="뒤로">‹</a>
+      {% else %}
+        <a href="javascript:history.back()" class="m-back" title="뒤로">‹</a>
+      {% endif %}
+      {# 홈 — /mobile #}
+      <a href="/mobile" class="m-back" title="홈" style="font-size:18px;width:32px;height:32px">🏠</a>
+    </div>
     <h1>{% block header_title %}{{ self.title() }}{% endblock %}</h1>
-    <span style="width: 36px;"></span>
+    <span style="width: 80px;"></span>
   </header>
   {% endblock %}
 
