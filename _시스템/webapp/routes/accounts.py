@@ -278,9 +278,11 @@ def sourcing_accounts_view():
     store = SessionStore(auth_dir=default_auth_dir())
     s = SessionLocal()
     try:
-        # ── 1) 매핑 매트릭스 — V1 Model 의 url_* 컬럼 집계
+        # ── 1) 매핑 매트릭스 — V1 Model 의 url_* 컬럼 + BundleSourceUrl (v6 P5.5 — custom 도 포함)
+        from lemouton.sourcing.models import BundleSourceUrl, SourcingSource
         models = s.query(Model).order_by(Model.model_code).all()
         mapping_matrix = []
+        # builtin 5
         for src in SOURCES:
             attr = URL_ATTR[src["key"]]
             cells = []
@@ -289,24 +291,40 @@ def sourcing_accounts_view():
                 url = getattr(m, attr, None)
                 if url:
                     mapped_count += 1
-                    cells.append({
-                        "model_code": m.model_code,
-                        "url": url,
-                        "mapped": True,
-                    })
+                    cells.append({"model_code": m.model_code, "url": url, "mapped": True})
                 else:
-                    cells.append({
-                        "model_code": m.model_code,
-                        "url": None,
-                        "mapped": False,
-                    })
+                    cells.append({"model_code": m.model_code, "url": None, "mapped": False})
             mapping_matrix.append({
-                "key": src["key"],
-                "label": src["label"],
-                "needs_login": src["needs_login"],
-                "mapped_count": mapped_count,
-                "total": len(models),
-                "cells": cells,
+                "key": src["key"], "label": src["label"], "needs_login": src["needs_login"],
+                "mapped_count": mapped_count, "total": len(models), "cells": cells,
+                "builtin": True,
+            })
+        # custom 사용자 추가분 — BundleSourceUrl 조회
+        custom_srcs = (s.query(SourcingSource)
+                        .filter(SourcingSource.is_active.is_(True))
+                        .order_by(SourcingSource.sort_order, SourcingSource.id)
+                        .all())
+        for src in custom_srcs:
+            # 한번에 모델별 url 조회 — N+1 회피
+            url_by_model = {}
+            for row in (s.query(BundleSourceUrl)
+                          .filter_by(source_key=src.source_key)
+                          .order_by(BundleSourceUrl.sort_order, BundleSourceUrl.id).all()):
+                # 모델별 첫 URL 만 매트릭스 표시 (다중은 edit 페이지에서)
+                url_by_model.setdefault(row.model_code, row.url)
+            cells = []
+            mapped_count = 0
+            for m in models:
+                url = url_by_model.get(m.model_code)
+                if url:
+                    mapped_count += 1
+                    cells.append({"model_code": m.model_code, "url": url, "mapped": True})
+                else:
+                    cells.append({"model_code": m.model_code, "url": None, "mapped": False})
+            mapping_matrix.append({
+                "key": src.source_key, "label": src.label, "needs_login": src.needs_login,
+                "mapped_count": mapped_count, "total": len(models), "cells": cells,
+                "builtin": False, "logo_color": src.logo_color, "logo_letter": src.logo_letter,
             })
 
         # ── 2) 회원 세션 — V2 SourcingAccount
