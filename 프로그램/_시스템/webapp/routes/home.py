@@ -188,11 +188,27 @@ def _get_next_run_info():
 
 @bp.route('/')
 def index():
+    """홈 — KPI/모음전/자동화 표시. 한 helper 실패해도 페이지는 떠야 함 (defensive)."""
+    import logging
+    _log = logging.getLogger(__name__)
+
+    def _safe(fn, fallback, label):
+        try:
+            return fn()
+        except Exception as e:
+            _log.exception("[home/index] %s 실패 (fallback 사용): %s", label, e)
+            return fallback
+
     return render_template(
         'home.html',
         active='home',
-        kpis=_get_kpis(),
-        recent_bundles=_get_recent_bundles(),
-        next_run=_get_next_run_info(),
-        bundle_toggle_rows=_get_bundle_toggle_rows(limit=5),
+        kpis=_safe(_get_kpis, {
+            'bundles': 0, 'unmapped': 0, 'price_changes': 0, 'upload_failed': 0,
+            'auto_on': 0, 'auto_off': 0,
+            'musinsa_non_member_products': 0, 'musinsa_non_member_options': 0,
+            'musinsa_non_member_details': [],
+        }, 'kpis'),
+        recent_bundles=_safe(lambda: _get_recent_bundles(), [], 'recent_bundles'),
+        next_run=_safe(_get_next_run_info, {'countdown': '—', 'next_at': '—'}, 'next_run'),
+        bundle_toggle_rows=_safe(lambda: _get_bundle_toggle_rows(limit=5), [], 'bundle_toggle_rows'),
     )
