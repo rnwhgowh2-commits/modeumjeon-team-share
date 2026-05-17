@@ -279,7 +279,10 @@ def sourcing_accounts_view():
     s = SessionLocal()
     try:
         # ── 1) 매핑 매트릭스 — V1 Model 의 url_* 컬럼 + BundleSourceUrl (v6 P5.5 — custom 도 포함)
-        from lemouton.sourcing.models import BundleSourceUrl, SourcingSource
+        try:
+            from lemouton.sourcing.models import BundleSourceUrl, SourcingSource
+        except Exception:
+            BundleSourceUrl, SourcingSource = None, None
         models = s.query(Model).order_by(Model.model_code).all()
         mapping_matrix = []
         # builtin 5
@@ -299,11 +302,17 @@ def sourcing_accounts_view():
                 "mapped_count": mapped_count, "total": len(models), "cells": cells,
                 "builtin": True,
             })
-        # custom 사용자 추가분 — BundleSourceUrl 조회
-        custom_srcs = (s.query(SourcingSource)
-                        .filter(SourcingSource.is_active.is_(True))
-                        .order_by(SourcingSource.sort_order, SourcingSource.id)
-                        .all())
+        # custom 사용자 추가분 — BundleSourceUrl 조회 (트랜잭션 격리)
+        custom_srcs = []
+        if SourcingSource is not None:
+            try:
+                custom_srcs = (s.query(SourcingSource)
+                               .filter(SourcingSource.is_active.is_(True))
+                               .order_by(SourcingSource.sort_order, SourcingSource.id)
+                               .all())
+            except Exception:
+                s.rollback()
+                custom_srcs = []
         for src in custom_srcs:
             # 한번에 모델별 url 조회 — N+1 회피
             url_by_model = {}

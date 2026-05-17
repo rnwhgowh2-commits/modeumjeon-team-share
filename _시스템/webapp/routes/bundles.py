@@ -472,8 +472,25 @@ def bundle_edit(code: str):
         except Exception:
             pass
 
-        # 소싱처 레지스트리 기반 동적 처리 (builtin 5 + DB SourcingSource — v6 P5.5)
-        all_sources = get_all_sources(session=s)  # builtin + 사용자 추가분
+        # 소싱처 레지스트리 (builtin 5 + DB SourcingSource — v6 P5.5)
+        # 명시적 try/rollback 으로 트랜잭션 격리 (PG InFailedSqlTransaction 방지)
+        all_sources = list(SOURCE_REGISTRY)
+        try:
+            from lemouton.sourcing.models import SourcingSource
+            for c in (s.query(SourcingSource)
+                       .filter(SourcingSource.is_active.is_(True))
+                       .order_by(SourcingSource.sort_order, SourcingSource.id).all()):
+                all_sources.append({
+                    'key': c.source_key, 'label': c.label,
+                    'brand': 'custom-' + c.source_key,
+                    'glyph': c.logo_letter or (c.label[:1].upper() if c.label else 'X'),
+                    'crawler': c.has_adapter, 'legacy': False,
+                    'logo_color': c.logo_color or '#3182F6',
+                    'favicon_url': c.favicon_url, 'domain': c.domain,
+                    'needs_login': c.needs_login, 'builtin': False,
+                })
+        except Exception:
+            s.rollback()  # PG 트랜잭션 복구
         share_counts = {}
         source_urls = {}
         try:
