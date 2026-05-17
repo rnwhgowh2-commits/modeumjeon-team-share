@@ -397,6 +397,50 @@
     return null;
   }
 
+  // ───── iOS 자동 재초점 트리거 — 정적 화면에서 자동 초점 안 함 문제 해결 ─────
+  // iOS Safari 는 focusMode:continuous 설정해도 장면 변화 없으면 재초점 X
+  // → 매 1.5초 미세 줌 변경 으로 "장면 변화" 시그널 발생 → 카메라 자동 재초점
+  let refocusInterval = null;
+  let refocusPhase = 0;
+  function startAutoRefocus(){
+    if (refocusInterval || !track) return;
+    refocusInterval = setInterval(async () => {
+      if (frozen || !track) return;
+      try {
+        const caps = track.getCapabilities ? track.getCapabilities() : {};
+        // 1) 줌 미세 흔들기 (지원 시) — iOS 의 큰 변화 시그널
+        if (caps.zoom) {
+          const cur = track.getSettings().zoom || caps.zoom.min;
+          const min = caps.zoom.min;
+          const max = caps.zoom.max;
+          // 0.02 만큼 살짝 흔들고 원위치
+          const delta = (max - min) * 0.02;
+          const nudged = Math.max(min, Math.min(max, cur + (refocusPhase % 2 === 0 ? delta : -delta)));
+          await track.applyConstraints({ advanced: [{ zoom: nudged }] });
+          await new Promise(r => setTimeout(r, 50));
+          await track.applyConstraints({ advanced: [{ zoom: cur }] });
+        }
+        // 2) focusMode 재트리거 — manual 짧게 → continuous (재초점 강제)
+        if (caps.focusMode && caps.focusMode.includes('manual')) {
+          const dists = [0.1, 0.15, 0.2, 0.3];
+          const d = dists[refocusPhase % dists.length];
+          await track.applyConstraints({ advanced: [{ focusMode: 'manual', focusDistance: d }] });
+          await new Promise(r => setTimeout(r, 80));
+          await track.applyConstraints({ advanced: [{ focusMode: 'continuous' }] });
+        } else if (caps.focusMode && caps.focusMode.includes('continuous')) {
+          // continuous 만 지원 시 — 한번 끄고 다시 켜기
+          await track.applyConstraints({ advanced: [{ focusMode: 'single-shot' }] }).catch(()=>{});
+          await new Promise(r => setTimeout(r, 80));
+          await track.applyConstraints({ advanced: [{ focusMode: 'continuous' }] });
+        }
+        refocusPhase++;
+      } catch(e) { /* iOS 일부 거부 — 무시 */ }
+    }, 1500);  // 1.5초 마다
+  }
+  function stopAutoRefocus(){
+    if (refocusInterval) { clearInterval(refocusInterval); refocusInterval = null; }
+  }
+
   // ───────────── 메인 디코드 루프 (최대 강화) ─────────────
   async function nativeLoop(){
     const video = document.getElementById('scan-video');
@@ -578,6 +622,7 @@
       if (!cameras.length) throw new Error('카메라 없음');
       await startCamera(cameras[0].deviceId);
       await startDecoder();
+      startAutoRefocus();  // ★ iOS 자동 재초점 트리거
     } catch (e) {
       console.error('[scan]', e);
       let msg = e.message || String(e);
@@ -599,6 +644,7 @@
 
   window.addEventListener('beforeunload', () => {
     frozen = true;
+    stopAutoRefocus();
     if (stream) stream.getTracks().forEach(t => t.stop());
     if (codeReader) codeReader.reset?.();
   });
