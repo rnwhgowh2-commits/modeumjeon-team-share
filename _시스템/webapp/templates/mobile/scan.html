@@ -302,14 +302,107 @@
     hint.textContent = '📷 바코드를 프레임 안에';
   }
 
-  // Native BarcodeDetector + ZBar WASM 병행 loop — 흐릿한 바코드도 강력 인식
+  // ───── 이미지 전처리: Histogram Equalization (Y 채널 평활화 — 흐릿·저조도) ─────
+  function histogramEqualize(imgData){
+    const data = imgData.data;
+    const n = data.length / 4;
+    const hist = new Uint32Array(256);
+    for (let i = 0; i < data.length; i += 4) {
+      const y = (0.299 * data[i] + 0.587 * data[i+1] + 0.114 * data[i+2]) | 0;
+      hist[y]++;
+    }
+    const cdf = new Uint32Array(256);
+    cdf[0] = hist[0];
+    for (let i = 1; i < 256; i++) cdf[i] = cdf[i-1] + hist[i];
+    const cdfMin = cdf.find(v => v > 0) || 0;
+    const lut = new Uint8Array(256);
+    for (let i = 0; i < 256; i++) {
+      lut[i] = Math.round(((cdf[i] - cdfMin) / (n - cdfMin)) * 255);
+    }
+    for (let i = 0; i < data.length; i += 4) {
+      const y = (0.299 * data[i] + 0.587 * data[i+1] + 0.114 * data[i+2]) | 0;
+      const v = lut[y];
+      data[i] = data[i+1] = data[i+2] = v;
+    }
+    return imgData;
+  }
+
+  // ───── 이미지 전처리: Unsharp Mask (흐릿한 바코드 선명화) ─────
+  function unsharpMask(imgData){
+    const w = imgData.width, h = imgData.height;
+    const src = imgData.data;
+    const out = new Uint8ClampedArray(src);
+    // 간단 3x3 sharpen kernel
+    const k = [0, -1, 0, -1, 5, -1, 0, -1, 0];
+    for (let y = 1; y < h - 1; y++) {
+      for (let x = 1; x < w - 1; x++) {
+        const i = (y * w + x) * 4;
+        let sum = 0;
+        for (let ky = -1; ky <= 1; ky++) {
+          for (let kx = -1; kx <= 1; kx++) {
+            const ii = ((y + ky) * w + (x + kx)) * 4;
+            sum += src[ii] * k[(ky + 1) * 3 + (kx + 1)];
+          }
+        }
+        const v = Math.max(0, Math.min(255, sum));
+        out[i] = out[i+1] = out[i+2] = v;
+        out[i+3] = 255;
+      }
+    }
+    return new ImageData(out, w, h);
+  }
+
+  // ───── 회전된 ImageData 생성 (90/180/270 도) ─────
+  function rotateImageData(imgData, deg){
+    const w = imgData.width, h = imgData.height;
+    if (deg === 0) return imgData;
+    const tmp = document.createElement('canvas');
+    const tctx = tmp.getContext('2d');
+    if (deg === 90 || deg === 270) { tmp.width = h; tmp.height = w; }
+    else { tmp.width = w; tmp.height = h; }
+    tctx.save();
+    tctx.translate(tmp.width / 2, tmp.height / 2);
+    tctx.rotate(deg * Math.PI / 180);
+    const c2 = document.createElement('canvas');
+    c2.width = w; c2.height = h;
+    c2.getContext('2d').putImageData(imgData, 0, 0);
+    tctx.drawImage(c2, -w / 2, -h / 2);
+    tctx.restore();
+    return tctx.getImageData(0, 0, tmp.width, tmp.height);
+  }
+
+  // ZBar WASM 디코드 헬퍼 (실패 시 null)
+  async function tryZBar(imgData){
+    if (!window.ZBarWasm || !window.ZBarWasm.scanImageData) return null;
+    try {
+      const results = await window.ZBarWasm.scanImageData(imgData);
+      if (results && results.length) {
+        const r = results[0];
+        return r.decode ? r.decode() : (r.data || null);
+      }
+    } catch(e) {}
+    return null;
+  }
+
+  // ZBar imgData → canvas 변환 후 Native detect
+  async function tryNativeCanvas(imgData){
+    if (!detector) return null;
+    const c = document.createElement('canvas');
+    c.width = imgData.width; c.height = imgData.height;
+    c.getContext('2d').putImageData(imgData, 0, 0);
+    try {
+      const codes = await detector.detect(c);
+      if (codes.length) return codes[0].rawValue;
+    } catch(e) {}
+    return null;
+  }
+
+  // ───────────── 메인 디코드 루프 (최대 강화) ─────────────
   async function nativeLoop(){
     const video = document.getElementById('scan-video');
     const canvas = document.createElement('canvas');
     const ctx = canvas.getContext('2d', { willReadFrequently: true });
-    // 전처리 canvas (대비 강화 — 흐릿한 바코드)
-    const enhCanvas = document.createElement('canvas');
-    const enhCtx = enhCanvas.getContext('2d', { willReadFrequently: true });
+    let frameNum = 0;
     while (!frozen) {
       if (video.readyState >= 2 && video.videoWidth) {
         triesCount++;
@@ -317,37 +410,46 @@
         if (canvas.width !== video.videoWidth) {
           canvas.width = video.videoWidth;
           canvas.height = video.videoHeight;
-          enhCanvas.width = video.videoWidth;
-          enhCanvas.height = video.videoHeight;
         }
         try {
-          // 1) raw 프레임 캡처
           ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-          // 2) 전처리 canvas — grayscale + 대비 1.8x + brightness 1.05 (흐릿한 바코드)
-          enhCtx.filter = 'grayscale(1) contrast(1.8) brightness(1.05)';
-          enhCtx.drawImage(canvas, 0, 0);
 
-          // ★ Native BarcodeDetector — raw 와 enhanced 둘 다 시도
-          for (const c of [canvas, enhCanvas]) {
-            try {
-              const codes = await detector.detect(c);
-              if (codes.length && !frozen) { handleResult(codes[0].rawValue); return; }
-            } catch(e) {}
+          // ── A. 빠른 시도: 원본 frame (Native + ZBar) ──
+          if (detector) {
+            const r1 = await tryNativeCanvas(ctx.getImageData(0, 0, canvas.width, canvas.height));
+            if (r1) { handleResult(r1); return; }
           }
-          // ★ ZBar WASM 폴백 — Native 가 못 잡은 흐릿한 바코드도 인식
-          if (window.ZBarWasm && window.ZBarWasm.scanImageData) {
-            try {
-              const imgData = enhCtx.getImageData(0, 0, enhCanvas.width, enhCanvas.height);
-              const results = await window.ZBarWasm.scanImageData(imgData);
-              if (results && results.length && !frozen) {
-                const code = results[0].decode ? results[0].decode() : (results[0].data || '');
-                if (code) { handleResult(code); return; }
-              }
-            } catch(e) {}
+          const raw = ctx.getImageData(0, 0, canvas.width, canvas.height);
+          const r2 = await tryZBar(raw);
+          if (r2) { handleResult(r2); return; }
+
+          // ── B. 추가 시도 — 매 3 frame 마다 비싼 전처리 ──
+          if (frameNum % 3 === 0) {
+            // 1) Histogram Equalization
+            const eq = histogramEqualize(new ImageData(new Uint8ClampedArray(raw.data), raw.width, raw.height));
+            const r3 = await tryZBar(eq);
+            if (r3) { handleResult(r3); return; }
+            const r4 = detector ? await tryNativeCanvas(eq) : null;
+            if (r4) { handleResult(r4); return; }
+
+            // 2) Unsharp Mask (CPU 비쌈 — 매 6 frame)
+            if (frameNum % 6 === 0) {
+              const sharp = unsharpMask(eq);
+              const r5 = await tryZBar(sharp);
+              if (r5) { handleResult(r5); return; }
+            }
+
+            // 3) 90도 회전 (가로 바코드를 세로로 들었을 때)
+            if (frameNum % 6 === 3) {
+              const rot = rotateImageData(eq, 90);
+              const r6 = await tryZBar(rot);
+              if (r6) { handleResult(r6); return; }
+            }
           }
-        } catch(e) {}
+          frameNum++;
+        } catch(e) { /* 무시 */ }
       }
-      await new Promise(r => setTimeout(r, 80));
+      await new Promise(r => setTimeout(r, 60));  // 60ms (초당 ~16회)
     }
   }
 
