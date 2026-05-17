@@ -62,32 +62,64 @@
   <span class="info">{{ opt.canonical_sku }}</span>
 
   <label style="margin-left:18px">라벨 용지</label>
-  <select id="preset" onchange="redraw()">
-    <optgroup label="Formtec (한국)">
-      <option value="formtec_3100">Formtec 3100 (A4) — 1×1 = 1칸 ★대형</option>
-      <option value="formtec_3102" selected>Formtec 3102 (A4) — 2×7 = 14칸</option>
-      <option value="formtec_3104">Formtec 3104 (A4) — 2×8 = 16칸</option>
-      <option value="formtec_3105">Formtec 3105 (A4) — 2×10 = 20칸</option>
-      <option value="formtec_3108">Formtec 3108 (A4) — 3×8 = 24칸</option>
-      <option value="formtec_3109">Formtec 3109 (A4) — 3×11 = 33칸</option>
-      <option value="formtec_3110">Formtec 3110 (A4) — 4×10 = 40칸</option>
-      <option value="formtec_3113">Formtec 3113 (A4) — 4×13 = 52칸</option>
+  <select id="preset" onchange="onPresetChange()">
+    <optgroup label="🇰🇷 Formtec (한국, 인기)">
+      <option value="formtec_3100">Formtec 3100 — 1×1 = 1칸 (200×287mm) ★대형</option>
+      <option value="formtec_3101">Formtec 3101 — 2×1 = 2칸 (99×285mm)</option>
+      <option value="formtec_3102" selected>Formtec 3102 — 2×7 = 14칸 (99×38mm) ★한국표준</option>
+      <option value="formtec_3104">Formtec 3104 — 2×8 = 16칸 (99×33.9mm)</option>
+      <option value="formtec_3105">Formtec 3105 — 2×10 = 20칸 (99×25.4mm)</option>
+      <option value="formtec_3106">Formtec 3106 — 2×6 = 12칸 (99×46.6mm)</option>
+      <option value="formtec_3107">Formtec 3107 — 2×4 = 8칸 (99×67.7mm)</option>
+      <option value="formtec_3108">Formtec 3108 — 3×8 = 24칸 (64×34mm) ★인기</option>
+      <option value="formtec_3109">Formtec 3109 — 3×11 = 33칸 (64×24mm)</option>
+      <option value="formtec_3110">Formtec 3110 — 4×10 = 40칸 (48×25mm) ★4×10</option>
+      <option value="formtec_3112">Formtec 3112 — 4×12 = 48칸 (48×21mm)</option>
+      <option value="formtec_3113">Formtec 3113 — 4×13 = 52칸 (48×20mm)</option>
+      <option value="formtec_3114">Formtec 3114 — 5×10 = 50칸 (38×25mm)</option>
+      <option value="formtec_3115">Formtec 3115 — 5×11 = 55칸 (38×23mm)</option>
+      <option value="formtec_3120">Formtec 3120 — 3×7 = 21칸 (70×36mm)</option>
+      <option value="formtec_3122">Formtec 3122 — 4×7 = 28칸 (52×38mm)</option>
+      <option value="formtec_3124">Formtec 3124 — 1×6 = 6칸 (200×46mm) ★긴라벨</option>
+      <option value="formtec_3140">Formtec 3140 — 2×2 = 4칸 (99×140mm) ★대</option>
+      <option value="formtec_3144">Formtec 3144 — 4×8 = 32칸 (48×35mm)</option>
+      <option value="formtec_3170">Formtec 3170 — 3×9 = 27칸 (64×30mm)</option>
     </optgroup>
-    <optgroup label="Avery (미국)">
-      <option value="avery_l7160">Avery L7160 (A4) — 3×7 = 21칸</option>
-      <option value="avery_l7163">Avery L7163 (A4) — 2×7 = 14칸</option>
-      <option value="avery_l7165">Avery L7165 (A4) — 2×4 = 8칸 ★대</option>
-      <option value="avery_l7651">Avery L7651 (A4) — 3×8 = 24칸 ★소형</option>
-      <option value="avery_l7656">Avery L7656 (A4) — 4×11 = 44칸</option>
+    <optgroup label="🇺🇸 Avery (미국)">
+      <option value="avery_l7156">Avery L7156 — 4×11 = 44칸 (46×25.4mm)</option>
+      <option value="avery_l7160">Avery L7160 — 3×7 = 21칸 (63.5×38.1mm)</option>
+      <option value="avery_l7161">Avery L7161 — 3×6 = 18칸 (63.5×46.6mm)</option>
+      <option value="avery_l7162">Avery L7162 — 2×8 = 16칸 (99.1×33.9mm)</option>
+      <option value="avery_l7163">Avery L7163 — 2×7 = 14칸 (99.1×38.1mm)</option>
+      <option value="avery_l7165">Avery L7165 — 2×4 = 8칸 (99.1×67.7mm) ★대</option>
+      <option value="avery_l7166">Avery L7166 — 2×3 = 6칸 (99.1×93.1mm)</option>
+      <option value="avery_l7651">Avery L7651 — 3×8 = 24칸 (38.1×21.2mm) ★소형</option>
+      <option value="avery_l7654">Avery L7654 — 6×8 = 48칸 (45.7×25.4mm)</option>
+      <option value="avery_l7656">Avery L7656 — 4×11 = 44칸 (46×25.4mm)</option>
+      <option value="avery_l7657">Avery L7657 — 4×10 = 40칸 (48×25mm) ★4×10</option>
+      <option value="avery_l7658">Avery L7658 — 5×8 = 40칸 (38.1×25.4mm)</option>
+      <option value="avery_l7670">Avery L7670 — 5×13 = 65칸 (38.1×21.2mm)</option>
     </optgroup>
-    <optgroup label="Printec (한국)">
-      <option value="printec_v3700">Printec V3700 (A4) — 3×8 = 24칸</option>
-      <option value="printec_v3750">Printec V3750 (A4) — 2×7 = 14칸</option>
-      <option value="printec_v3780">Printec V3780 (A4) — 3×7 = 21칸</option>
-      <option value="printec_v3810">Printec V3810 (A4) — 4×10 = 40칸</option>
-      <option value="printec_v3820">Printec V3820 (A4) — 4×11 = 44칸</option>
-      <option value="printec_v3825">Printec V3825 (A4) — 4×12 = 48칸</option>
-      <option value="printec_v3830">Printec V3830 (A4) — 4×13 = 52칸</option>
+    <optgroup label="🇰🇷 Printec (한국)">
+      <option value="printec_v3700">Printec V3700 — 3×8 = 24칸 (63.5×33.9mm)</option>
+      <option value="printec_v3710">Printec V3710 — 2×7 = 14칸 (99×38mm)</option>
+      <option value="printec_v3720">Printec V3720 — 2×8 = 16칸 (99×34mm)</option>
+      <option value="printec_v3725">Printec V3725 — 2×10 = 20칸 (99×25mm)</option>
+      <option value="printec_v3730">Printec V3730 — 3×7 = 21칸 (64×38mm)</option>
+      <option value="printec_v3740">Printec V3740 — 3×9 = 27칸 (64×30mm)</option>
+      <option value="printec_v3750">Printec V3750 — 2×7 = 14칸 (99×38mm)</option>
+      <option value="printec_v3780">Printec V3780 — 3×7 = 21칸 (64×38mm)</option>
+      <option value="printec_v3800">Printec V3800 — 4×8 = 32칸 (48×34mm)</option>
+      <option value="printec_v3810">Printec V3810 — 4×10 = 40칸 (48×25mm) ★4×10</option>
+      <option value="printec_v3815">Printec V3815 — 4×11 = 44칸 (48×24mm)</option>
+      <option value="printec_v3820">Printec V3820 — 4×11 = 44칸 (48×23mm)</option>
+      <option value="printec_v3825">Printec V3825 — 4×12 = 48칸 (48×21mm)</option>
+      <option value="printec_v3830">Printec V3830 — 4×13 = 52칸 (48×20mm)</option>
+      <option value="printec_v3835">Printec V3835 — 5×11 = 55칸 (38×23mm)</option>
+      <option value="printec_v3840">Printec V3840 — 5×13 = 65칸 (38×20mm)</option>
+    </optgroup>
+    <optgroup label="🛠 Custom (직접 입력)">
+      <option value="custom">⚙ 사용자 정의 (수기 입력) — 보유한 용지 모델 직접 설정</option>
     </optgroup>
   </select>
 
@@ -100,38 +132,101 @@
   <button class="primary" onclick="window.print()">🖨 인쇄</button>
   <button class="ghost" onclick="window.close()">닫기</button>
   <span class="info">인쇄 대화상자에서 "여백: 없음" 선택 시 정확한 라벨 위치</span>
+
+  <!-- Custom 입력 폼 (preset=custom 시 표시) -->
+  <div id="custom-box" style="display:none;width:100%;background:#F9FAFB;border:1px dashed #CBCCD3;border-radius:8px;padding:10px 14px;margin-top:8px;display:none">
+    <div style="font-size:11.5px;color:#6B7684;margin-bottom:8px;font-weight:600">⚙ 보유한 라벨 용지 측정 후 직접 입력 (단위: mm)</div>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;font-size:12.5px">
+      <label>칸 가로 <input type="number" id="c-cols" value="3" min="1" max="20" style="width:60px;padding:5px;border:1px solid #CBCCD3;border-radius:4px" onchange="redraw()"></label>
+      <label>칸 세로 <input type="number" id="c-rows" value="8" min="1" max="30" style="width:60px;padding:5px;border:1px solid #CBCCD3;border-radius:4px" onchange="redraw()"></label>
+      <label>라벨 폭 (mm) <input type="number" id="c-w" value="64" min="10" max="210" step="0.1" style="width:70px;padding:5px;border:1px solid #CBCCD3;border-radius:4px" onchange="redraw()"></label>
+      <label>라벨 높이 (mm) <input type="number" id="c-h" value="34" min="5" max="297" step="0.1" style="width:70px;padding:5px;border:1px solid #CBCCD3;border-radius:4px" onchange="redraw()"></label>
+      <label>상단 여백 <input type="number" id="c-mt" value="15" min="0" max="100" step="0.1" style="width:60px;padding:5px;border:1px solid #CBCCD3;border-radius:4px" onchange="redraw()"></label>
+      <label>좌측 여백 <input type="number" id="c-ml" value="7" min="0" max="100" step="0.1" style="width:60px;padding:5px;border:1px solid #CBCCD3;border-radius:4px" onchange="redraw()"></label>
+      <label>칸 간 가로 <input type="number" id="c-gx" value="3" min="0" max="50" step="0.1" style="width:60px;padding:5px;border:1px solid #CBCCD3;border-radius:4px" onchange="redraw()"></label>
+      <label>칸 간 세로 <input type="number" id="c-gy" value="0" min="0" max="50" step="0.1" style="width:60px;padding:5px;border:1px solid #CBCCD3;border-radius:4px" onchange="redraw()"></label>
+    </div>
+  </div>
 </div>
 
 <div id="sheets"></div>
 
 <script>
 // 라벨 용지 표준 — A4 (210×297mm) 기준. 모든 단위 mm.
-// 박스히어로 호환 — Formtec / Avery / Printec
+// 박스히어로 호환 — Formtec / Avery / Printec 50+ 모델
 const PRESETS = {
   // ─── Formtec ───
-  'formtec_3100': {cols:1, rows:1, w:200, h:287, mt:5,    ml:5,   gx:0,   gy:0  },
-  'formtec_3102': {cols:2, rows:7, w:99,  h:38, mt:15,   ml:7,   gx:3,   gy:0  },
-  'formtec_3104': {cols:2, rows:8, w:99,  h:33.9, mt:14, ml:7,   gx:3,   gy:0  },
-  'formtec_3105': {cols:2, rows:10,w:99,  h:25.4, mt:21.5,ml:7,  gx:3,   gy:0  },
-  'formtec_3108': {cols:3, rows:8, w:64,  h:34, mt:15,   ml:7,   gx:3,   gy:0  },
-  'formtec_3109': {cols:3, rows:11,w:64,  h:24, mt:14.5, ml:7,   gx:3,   gy:0  },
-  'formtec_3110': {cols:4, rows:10,w:48,  h:25, mt:13.5, ml:7,   gx:3,   gy:0  },
-  'formtec_3113': {cols:4, rows:13,w:48,  h:20, mt:13.5, ml:7,   gx:3,   gy:0  },
+  'formtec_3100': {cols:1, rows:1, w:200, h:287, mt:5,    ml:5,    gx:0,   gy:0 },
+  'formtec_3101': {cols:2, rows:1, w:99,  h:285, mt:6,    ml:7,    gx:3,   gy:0 },
+  'formtec_3102': {cols:2, rows:7, w:99,  h:38,  mt:15,   ml:7,    gx:3,   gy:0 },
+  'formtec_3104': {cols:2, rows:8, w:99,  h:33.9,mt:14,   ml:7,    gx:3,   gy:0 },
+  'formtec_3105': {cols:2, rows:10,w:99,  h:25.4,mt:21.5, ml:7,    gx:3,   gy:0 },
+  'formtec_3106': {cols:2, rows:6, w:99,  h:46.6,mt:7,    ml:7,    gx:3,   gy:0 },
+  'formtec_3107': {cols:2, rows:4, w:99,  h:67.7,mt:8.5,  ml:7,    gx:3,   gy:0 },
+  'formtec_3108': {cols:3, rows:8, w:64,  h:34,  mt:15,   ml:7,    gx:3,   gy:0 },
+  'formtec_3109': {cols:3, rows:11,w:64,  h:24,  mt:14.5, ml:7,    gx:3,   gy:0 },
+  'formtec_3110': {cols:4, rows:10,w:48,  h:25,  mt:13.5, ml:7,    gx:3,   gy:0 },
+  'formtec_3112': {cols:4, rows:12,w:48,  h:21,  mt:13.5, ml:7,    gx:3,   gy:0 },
+  'formtec_3113': {cols:4, rows:13,w:48,  h:20,  mt:13.5, ml:7,    gx:3,   gy:0 },
+  'formtec_3114': {cols:5, rows:10,w:38,  h:25,  mt:13.5, ml:7,    gx:3,   gy:0 },
+  'formtec_3115': {cols:5, rows:11,w:38,  h:23,  mt:13.5, ml:7,    gx:3,   gy:0 },
+  'formtec_3120': {cols:3, rows:7, w:70,  h:36,  mt:15,   ml:5,    gx:0,   gy:0 },
+  'formtec_3122': {cols:4, rows:7, w:52,  h:38,  mt:13,   ml:5,    gx:0,   gy:0 },
+  'formtec_3124': {cols:1, rows:6, w:200, h:46,  mt:5,    ml:5,    gx:0,   gy:0 },
+  'formtec_3140': {cols:2, rows:2, w:99,  h:140, mt:5,    ml:7,    gx:3,   gy:0 },
+  'formtec_3144': {cols:4, rows:8, w:48,  h:35,  mt:5,    ml:7,    gx:3,   gy:0 },
+  'formtec_3170': {cols:3, rows:9, w:64,  h:30,  mt:13.5, ml:7,    gx:3,   gy:0 },
   // ─── Avery ───
-  'avery_l7160':  {cols:3, rows:7, w:63.5,h:38.1,mt:15.15,ml:7.21,gx:2.5,gy:0  },
-  'avery_l7163':  {cols:2, rows:7, w:99.1,h:38.1,mt:15.15,ml:5.7, gx:2.5,gy:0  },
-  'avery_l7165':  {cols:2, rows:4, w:99.1,h:67.7,mt:13.4, ml:5.7, gx:2.5,gy:0  },
-  'avery_l7651':  {cols:3, rows:8, w:38.1,h:21.2,mt:13,   ml:5,   gx:2.5,gy:0  },
-  'avery_l7656':  {cols:4, rows:11,w:46,  h:25.4,mt:13.5, ml:7,   gx:2.5,gy:0  },
+  'avery_l7156':  {cols:4, rows:11,w:46,   h:25.4,mt:13.5,ml:7,    gx:2.5, gy:0 },
+  'avery_l7160':  {cols:3, rows:7, w:63.5, h:38.1,mt:15.15,ml:7.21,gx:2.5, gy:0 },
+  'avery_l7161':  {cols:3, rows:6, w:63.5, h:46.6,mt:11.55,ml:7.21,gx:2.5, gy:0 },
+  'avery_l7162':  {cols:2, rows:8, w:99.1, h:33.9,mt:14,  ml:5.7,  gx:2.5, gy:0 },
+  'avery_l7163':  {cols:2, rows:7, w:99.1, h:38.1,mt:15.15,ml:5.7, gx:2.5, gy:0 },
+  'avery_l7165':  {cols:2, rows:4, w:99.1, h:67.7,mt:13.4,ml:5.7,  gx:2.5, gy:0 },
+  'avery_l7166':  {cols:2, rows:3, w:99.1, h:93.1,mt:8.85,ml:5.7,  gx:2.5, gy:0 },
+  'avery_l7651':  {cols:3, rows:8, w:38.1, h:21.2,mt:13,  ml:5,    gx:2.5, gy:0 },
+  'avery_l7654':  {cols:4, rows:11,w:45.7, h:25.4,mt:13.5,ml:9.7,  gx:2.5, gy:0 },
+  'avery_l7656':  {cols:4, rows:11,w:46,   h:25.4,mt:13.5,ml:7,    gx:2.5, gy:0 },
+  'avery_l7657':  {cols:4, rows:10,w:48,   h:25,  mt:13.5,ml:7,    gx:2.5, gy:0 },
+  'avery_l7658':  {cols:5, rows:8, w:38.1, h:25.4,mt:13.5,ml:7,    gx:2.5, gy:0 },
+  'avery_l7670':  {cols:5, rows:13,w:38.1, h:21.2,mt:13,  ml:5,    gx:2.5, gy:0 },
   // ─── Printec ───
-  'printec_v3700':{cols:3, rows:8, w:63.5,h:33.9,mt:13,   ml:8.4, gx:2.5,gy:0  },
-  'printec_v3750':{cols:2, rows:7, w:99,  h:38, mt:15,   ml:7,   gx:3,   gy:0  },
-  'printec_v3780':{cols:3, rows:7, w:64,  h:38, mt:15,   ml:7,   gx:3,   gy:0  },
-  'printec_v3810':{cols:4, rows:10,w:48,  h:25, mt:13.5, ml:7,   gx:3,   gy:0  },
-  'printec_v3820':{cols:4, rows:11,w:48,  h:23, mt:13.5, ml:7,   gx:3,   gy:0  },
-  'printec_v3825':{cols:4, rows:12,w:48,  h:21, mt:13.5, ml:7,   gx:3,   gy:0  },
-  'printec_v3830':{cols:4, rows:13,w:48,  h:20, mt:13.5, ml:7,   gx:3,   gy:0  },
+  'printec_v3700':{cols:3, rows:8, w:63.5, h:33.9,mt:13,  ml:8.4,  gx:2.5, gy:0 },
+  'printec_v3710':{cols:2, rows:7, w:99,   h:38,  mt:15,  ml:7,    gx:3,   gy:0 },
+  'printec_v3720':{cols:2, rows:8, w:99,   h:34,  mt:14,  ml:7,    gx:3,   gy:0 },
+  'printec_v3725':{cols:2, rows:10,w:99,   h:25,  mt:21.5,ml:7,    gx:3,   gy:0 },
+  'printec_v3730':{cols:3, rows:7, w:64,   h:38,  mt:15,  ml:7,    gx:3,   gy:0 },
+  'printec_v3740':{cols:3, rows:9, w:64,   h:30,  mt:13.5,ml:7,    gx:3,   gy:0 },
+  'printec_v3750':{cols:2, rows:7, w:99,   h:38,  mt:15,  ml:7,    gx:3,   gy:0 },
+  'printec_v3780':{cols:3, rows:7, w:64,   h:38,  mt:15,  ml:7,    gx:3,   gy:0 },
+  'printec_v3800':{cols:4, rows:8, w:48,   h:34,  mt:15,  ml:7,    gx:3,   gy:0 },
+  'printec_v3810':{cols:4, rows:10,w:48,   h:25,  mt:13.5,ml:7,    gx:3,   gy:0 },
+  'printec_v3815':{cols:4, rows:11,w:48,   h:24,  mt:13.5,ml:7,    gx:3,   gy:0 },
+  'printec_v3820':{cols:4, rows:11,w:48,   h:23,  mt:13.5,ml:7,    gx:3,   gy:0 },
+  'printec_v3825':{cols:4, rows:12,w:48,   h:21,  mt:13.5,ml:7,    gx:3,   gy:0 },
+  'printec_v3830':{cols:4, rows:13,w:48,   h:20,  mt:13.5,ml:7,    gx:3,   gy:0 },
+  'printec_v3835':{cols:5, rows:11,w:38,   h:23,  mt:13.5,ml:7,    gx:3,   gy:0 },
+  'printec_v3840':{cols:5, rows:13,w:38,   h:20,  mt:13.5,ml:7,    gx:3,   gy:0 },
 };
+
+function getCustomPreset(){
+  return {
+    cols: parseInt(document.getElementById('c-cols').value || 3),
+    rows: parseInt(document.getElementById('c-rows').value || 8),
+    w: parseFloat(document.getElementById('c-w').value || 64),
+    h: parseFloat(document.getElementById('c-h').value || 34),
+    mt: parseFloat(document.getElementById('c-mt').value || 15),
+    ml: parseFloat(document.getElementById('c-ml').value || 7),
+    gx: parseFloat(document.getElementById('c-gx').value || 3),
+    gy: parseFloat(document.getElementById('c-gy').value || 0),
+  };
+}
+
+function onPresetChange(){
+  const key = document.getElementById('preset').value;
+  document.getElementById('custom-box').style.display = (key === 'custom') ? '' : 'none';
+  redraw();
+}
 
 const ITEM = {
   name: {{ ((mdl.model_name_display or mdl.model_name_raw) if mdl else opt.model_code)|tojson|safe }},
@@ -143,7 +238,7 @@ const ITEM = {
 
 function redraw(){
   const presetKey = document.getElementById('preset').value;
-  const p = PRESETS[presetKey] || PRESETS['formtec_3102'];
+  const p = (presetKey === 'custom') ? getCustomPreset() : (PRESETS[presetKey] || PRESETS['formtec_3102']);
   const count = Math.max(1, parseInt(document.getElementById('cnt').value || 1));
   const start = Math.max(1, parseInt(document.getElementById('start').value || 1));
   const perPage = p.cols * p.rows;
