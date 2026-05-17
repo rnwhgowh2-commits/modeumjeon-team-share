@@ -1,0 +1,55 @@
+---
+# 스스 르무통 매입가 정책 (memory ② 스스 르무통)
+
+site: ss_lemouton
+schema_version: 0.1
+last_updated: 2026-05-17
+
+# ────────────────────────────────────────
+# 혜택 3개 (사용자 명세)
+# ────────────────────────────────────────
+benefit_items:
+  - name: 리뷰 적립금
+    category: 정액
+    value: 변동                                          # ★ 르무통 공홈(5,000 고정) 과 차이
+    auto: false
+    crawled: true
+    extraction: "benefitsView 4-field 합산 (포토/동영상 + 매니저 추가). 미운영 시 텍스트 fallback"
+    behavior: "compute_breakdown 가 review_point_max 받아서 정액 차감"
+    note: "옵션별 review_point_max dyn 으로 옵션 dict 에 박힘. SKU 단위 차등은 inline state 에 없어 모든 옵션 동일"
+  - name: 네이버페이 적립
+    category: "%적립금"
+    value: 1.00
+    auto: true
+    crawled: false
+  - name: 현대카드 캐시백
+    category: "%할인"
+    value: 2.73
+    auto: true
+    crawled: false
+
+# ────────────────────────────────────────
+# 계산 순서 (memory 공통)
+# ────────────────────────────────────────
+formula_order:
+  step_1: 정액 (review_point_max 변동)
+  step_2: "%적립금 (네페 1%)"
+  step_3: "%할인 (현대카드 2.73%)"
+
+# ────────────────────────────────────────
+# 산식 예시
+# ────────────────────────────────────────
+formula_example:
+  scenario: "sale_price 117,900원, review_point_max 5,000원"
+  step_1: "117,900 - 5,000 = 112,900"
+  step_2: "112,900 × 0.99 = 111,771 (네페 1%)"
+  step_3: "111,771 × 0.9727 = 108,716 (현대카드 2.73%)"
+  result: "매입가 = 108,716원"
+
+# ────────────────────────────────────────
+# 르무통 공홈 vs 스스 르무통 차이
+# ────────────────────────────────────────
+diff_from_lemouton_official:
+  review_point: "공홈 5,000 고정 vs 스스 변동 (사이트 표시값)"
+  extraction: "공홈 DB 자동 vs 스스 크롤링 추출 필요"
+  crawler_attaches: "공홈 auto_card_discount dict / 스스 review_point_max int"

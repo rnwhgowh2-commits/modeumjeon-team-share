@@ -1,0 +1,105 @@
+---
+# 르무통 공홈 셀렉터 — V7 Chrome extension 기반 (Cafe24 표준)
+# 운영 코드: _시스템/lemouton/sourcing/crawlers/lemouton.py + lemouton_playwright.py
+
+site: lemouton
+schema_version: 0.1
+last_updated: 2026-05-17
+platform: cafe24
+
+# ────────────────────────────────────────
+# 가격 영역
+# ────────────────────────────────────────
+price:
+  sale:
+    primary:
+      selector: "strong.price-number"
+      source: V7 Chrome ext (background.js)
+    fallback_1:
+      selector: "span.ProductPrice"
+      note: "정가 셀렉터와 동일 — 할인 없는 경우 등가"
+    fallback_2:
+      selector: 'meta[property="product:sale_price:amount"]'
+      attr: content
+    fallback_3:
+      type: js_var
+      pattern: "var\\s+product_price\\s*=\\s*'([^']+)'"
+      note: "Cafe24 PHP 가 페이지 헤드에 박는 JS 변수"
+  original:
+    primary:
+      selector: "span.txt_price.ProductPrice, span.ProductPrice"
+    fallback:
+      selector: 'meta[property="product:price:amount"]'
+      attr: content
+  discount_rate:
+    primary:
+      selector: "span.ec-sale-rate"
+    fallback: "round((1 - sale/origin) * 100)"
+
+# ────────────────────────────────────────
+# 옵션 (색상 × 사이즈)
+# ────────────────────────────────────────
+options:
+  container:
+    selector: "ul.ec-product-button"
+  item:
+    selector: "ul.ec-product-button li"
+  classification:
+    method: text_pattern
+    size_regex: "mm\\s*$"                              # /mm$/i — 끝이 mm
+    color_definition: "size 아닌 모든 항목"
+  status_classes:
+    soldout: "ec-product-soldout"                     # 명시 품절
+    disabled: "ec-product-disabled"                    # 색상에 그 사이즈 없음 (= 품절 동등)
+  playwright_interaction:
+    color_click:
+      js: |
+        const lis = [...document.querySelectorAll('ul.ec-product-button li')];
+        const target = lis.find(li => li.innerText.trim() === name && !/mm\s*$/i.test(li.innerText));
+        if (target) target.click();
+      wait_after_ms: 600                                # JS 토글 시간
+      why: "Cafe24 가 색상 클릭 시 사이즈에 ec-product-soldout 토글"
+    size_re_read:
+      js: |
+        [...document.querySelectorAll('ul.ec-product-button li')]
+          .filter(li => /mm\s*$/i.test(li.innerText.trim()))
+          .map(li => ({
+            name: li.innerText.trim(),
+            soldOut: li.classList.contains('ec-product-soldout'),
+            disabled: li.classList.contains('ec-product-disabled'),
+          }))
+
+# ────────────────────────────────────────
+# 상품명
+# ────────────────────────────────────────
+product_name:
+  priority_1:
+    selector: 'meta[property="og:title"]'
+    attr: content
+    note: "Playwright 모드 1순위 (모바일·PC 공통 안정)"
+  priority_2:
+    type: document_title
+    transform: "split by '-' or '|', 첫 토큰 trim"
+  priority_3:
+    selector: h2
+    filter: "길이 2~100, '[' 시작 X, 제외어 미포함"
+    excluded_keywords:
+      - 확대
+      - Ambassador
+      - Natural
+      - Travel
+      - 리뷰
+      - 상품상세
+      - 추가구성
+      - WITH ITEM
+      - MerinoWool
+      - Merino Wool
+      - Performance
+      - Fiber
+      - LeMouton
+      - "100%"
+
+# ────────────────────────────────────────
+# 알려진 셀렉터 변동
+# ────────────────────────────────────────
+known_changes: []                                       # 안정적 — Cafe24 표준 셀렉터 사용

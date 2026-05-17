@@ -1,0 +1,144 @@
+---
+# 롯데홈쇼핑 — www.lotteimall.com + www.lottehomeshopping.com + m.lottehomeshopping.com
+# 코드 위치: _시스템/lemouton/sourcing/crawlers/lotteon.py (★ 파일명은 lotteon.py 지만
+# 도메인 라우팅으로 lottehomeshopping/lotteimall 부분만 본 yaml 이 다룸. lotteon.com 은 docs/sources/lotteon/ 별도)
+
+site: lotteimall
+display_name: 롯데홈쇼핑
+domains:
+  - www.lotteimall.com
+  - www.lottehomeshopping.com
+  - m.lottehomeshopping.com
+
+# ────────────────────────────────────────
+# URL 패턴
+# ────────────────────────────────────────
+urls:
+  lotteimall_pdp: "https://www.lotteimall.com/goods/viewGoodsDetail.lotte?goods_no={goods_no}"
+  lottehomeshopping_pdp: "https://www.lottehomeshopping.com/p/product/{...}?goods_no={goods_no}"
+  product_id_param: "goods_no"
+  product_id_extract: "URLSearchParams(url.split('?')[1]).get('goods_no')"
+
+# ────────────────────────────────────────
+# HTTP · Anti-bot
+# ────────────────────────────────────────
+http:
+  client: curl_cffi
+  impersonate: chrome120
+  timeout_sec: 30
+  why_curl_cffi: "Cloudflare 통과 + V7 Chrome 탭 동등성"
+
+# ────────────────────────────────────────
+# 도메인 라우팅 (lotteon.py 안)
+# ────────────────────────────────────────
+domain_routing:
+  is_lotteon_check: "_is_lotteon(url) → True 면 lotteon 방으로 (별도 yaml)"
+  this_yaml_scope: "_is_lotteon(url) == False (즉 lottehomeshopping/lotteimall)"
+
+# ────────────────────────────────────────
+# 추출 방식 — V7 호환 SSR HTML
+# ────────────────────────────────────────
+extraction:
+  method: ssr_html
+  parser: "BeautifulSoup (lxml)"
+  inline_json: "dataBenefit JS 변수 (cardDiscountList[] · lPointObj 등) — raw HTML 정규식"
+  note: "V7 가 sleep(600) 후 DOM 만으로 충분했으므로 SSR HTML 도 동일하게 충분 (Playwright 불필요)"
+
+# ────────────────────────────────────────
+# 회원가 — 미지원
+# ────────────────────────────────────────
+member_price:
+  enabled: false
+  why: "롯데홈쇼핑·이몰은 비회원과 회원가 표시 동일"
+
+# ────────────────────────────────────────
+# 가격 (V7 셀렉터)
+# ────────────────────────────────────────
+prices:
+  sale_price:
+    selector: ".final span.num"
+  max_price:
+    selector: ".price > span.num"
+    fallback: "sale_price"
+    note: "★ 롯데홈쇼핑 '최대할인가' — base_for_policy 가 우선 사용 (max_price > 0 이면 max_price, 아니면 sale_price)"
+  original_price:
+    selector: "span.num (부모 className 에 'ir_price' 포함된 첫 번째)"
+    fallback: "max_price"
+  discount_rate:
+    method: "originPrice > maxPrice AND maxPrice > 0 → round((1 - maxPrice/originPrice) * 100)"
+  base_for_policy:
+    formula: "max_price if max_price > 0 else sale_price"
+    note: "compute_breakdown 가 받는 베이스"
+
+# ────────────────────────────────────────
+# 옵션 (V7 셀렉터)
+# ────────────────────────────────────────
+options:
+  containers: "div.inp_option.inpOptList"
+  list_order:
+    1st: 색상
+    2nd: 사이즈
+  item_text: "p.txt_option innerText"
+  header_filter: "정규식 ^(색상|사이즈)\\s*선택$ 매칭은 제외 (헤더)"
+  cartesian_product: true
+  empty_handling: "color/size 비면 [{name:'', soldOut:false}] 단일 항목"
+  soldout_set:
+    selector: "div.layer_option li.soldout p.txt_option"
+    behavior: "V7: 색상/사이즈 모두 같은 set 사용 (matched by name)"
+
+# ────────────────────────────────────────
+# 자동 카드 할인 (사이트 변동값)
+# ────────────────────────────────────────
+auto_card_discount:
+  source: "dataBenefit.cardDiscountList[]"
+  inline_json_pattern: "dataBenefit\\s*=\\s*\\n?\\s*(\\{.+?\\});"
+  example: '국민카드 5% (120,320원 → 카드 청구 할인 6,016원)'
+  fields:
+    issuer: 카드사명 (한글)
+    rate: 할인율 (%)
+    amount: 할인 금액 (원)
+    label: "{issuer} {rate}%"
+    included_in_sale_price: true                       # ★ 사이트 최대할인가 (max_price) 에 이미 반영됨
+  attach_to_option: auto_card_discount
+
+# ────────────────────────────────────────
+# 구매 적립 (L.POINT, 2-tier)
+# ────────────────────────────────────────
+point_rewards:
+  source: "dataBenefit.lPointObj"
+  label: "구매적립 L.POINT"
+  fields:
+    default_point: "일반 회원 적립 (정수 P)"
+    club_point: "L.CLUB 회원 적립 (정수 P, 더 큼)"
+  attach_to_option: point_rewards
+
+# ────────────────────────────────────────
+# Fail-safe
+# ────────────────────────────────────────
+fail_safe:
+  - base_zero:
+      check: "base_for_policy (max_price 우선) <= 0"
+      action: "RuntimeError [lotteimall] sale_price/max_price 추출 실패"
+
+# ────────────────────────────────────────
+# accuracy_baseline
+# ────────────────────────────────────────
+accuracy_baseline:
+  verified_skus: []
+  last_verified: null
+  match_rate: null
+
+# ────────────────────────────────────────
+# 메타
+# ────────────────────────────────────────
+meta:
+  schema_version: 0.1
+  last_analyzed: 2026-05-17
+  analyzed_by: claude+rnwhgowh2
+  source_code:
+    - _시스템/lemouton/sourcing/crawlers/lotteon.py
+  source_code_scope: "본 yaml = lotteon.py 안 SSR HTML 분기 (_is_lotteon=False 케이스). Playwright + pbf API 분기는 docs/sources/lotteon/"
+  auth_scraper:
+    - _시스템/lemouton/auth/scrapers/lotteimall.py
+  origin: "V7 lotteParseProduct 1:1 Python 포팅 + 2026-05-14 dataBenefit JSON 활용"
+  note: "★ source_name='lotte' (코드상 단일 source) 이지만 memory benefit_spec 은 ⑤ 롯데홈쇼핑 + ⑥ 롯데온 별도 명세. 본 방은 ⑤만."

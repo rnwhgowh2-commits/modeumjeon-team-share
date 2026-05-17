@@ -1,0 +1,69 @@
+---
+# 롯데홈쇼핑 매입가 정책 (memory ⑤ 롯데홈쇼핑)
+
+site: lotteimall
+schema_version: 0.1
+last_updated: 2026-05-17
+
+# ────────────────────────────────────────
+# 혜택 2개 (사용자 명세 — 리뷰 적립 미포함)
+# ────────────────────────────────────────
+benefit_items:
+  - name: 카드 청구 할인
+    category: "%할인"
+    value: 변동                                          # 사이트별 카드사·할인율 다름
+    auto: false
+    crawled: true
+    extraction: "dataBenefit.cardDiscountList[] (inline JSON)"
+    behavior: "auto_card_discount.included_in_sale_price=True → 이미 max_price 에 반영됨"
+    note: "★ included_in_sale_price=True 라서 별도 차감 안 함 (이중차감 방지)"
+  - name: 구매 적립혜택
+    category: "%적립금"
+    value: 변동                                          # default_point + club_point 2-tier
+    auto: false
+    crawled: true
+    extraction: "dataBenefit.lPointObj"
+    fields: "default_point (일반) / club_point (L.CLUB)"
+
+# ────────────────────────────────────────
+# 제외 항목 (사용자 명세)
+# ────────────────────────────────────────
+excluded:
+  - review_reward:
+      reason: "memory ⑤ 명시: 리뷰 적립 = 미포함"
+
+# ────────────────────────────────────────
+# 베이스 가격 선택 룰 (★ 핵심)
+# ────────────────────────────────────────
+base_price_rule:
+  formula: "base_for_policy = max_price if max_price > 0 else sale_price"
+  why: |
+    max_price = 사이트 '롯데홈쇼핑 최대할인가' (카드 청구할인 이미 반영된 가격).
+    이걸 베이스로 잡으면 auto_card_discount.included_in_sale_price=True 라서
+    별도 차감 안 함 (이중차감 방지).
+    max_price 가 0 일 때만 sale_price fallback.
+
+# ────────────────────────────────────────
+# 계산 순서
+# ────────────────────────────────────────
+formula_order:
+  step_1: "정액 (해당 없음 — 리뷰 적립 제외)"
+  step_2: "%적립금 (L.POINT default_point 또는 club_point)"
+  step_3: "%할인 (해당 없음 — auto_card_discount 는 이미 반영)"
+
+# ────────────────────────────────────────
+# 산식 예시
+# ────────────────────────────────────────
+formula_example:
+  scenario: "max_price 120,320원, default_point 126원, club_point 633원"
+  general_member: "120,320 - 126 = 120,194 (일반 적립만)"
+  club_member: "120,320 - 633 = 119,687 (L.CLUB 적립)"
+  note: "사용자 정책 기본은 일반 회원 적립. L.CLUB 적립 사용 여부는 별도 결정"
+
+# ────────────────────────────────────────
+# 무신사·기타 사이트와 차이
+# ────────────────────────────────────────
+diff_summary:
+  vs_musinsa: "auto_card 적용 방식 반대 (롯데홈쇼핑은 max_price 에 이미 반영, 무신사는 무신사머니 별도 차감)"
+  vs_lemouton: "리뷰 적립 없음 (르무통은 5,000 / 변동)"
+  vs_ssf: "기프트포인트·포인트 같은 멤버십 항목 대신 L.POINT 만"

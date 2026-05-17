@@ -1,0 +1,65 @@
+---
+# 롯데ON — DOM 셀렉터가 아닌 pbf.lotteon.com API JSON path 매핑
+
+site: lotteon
+schema_version: 0.1
+last_updated: 2026-05-17
+
+# ────────────────────────────────────────
+# Playwright API 캡처
+# ────────────────────────────────────────
+api_capture:
+  method: "page.on('response', callback)"
+  url_match_patterns:
+    base_info: "pbf.lotteon.com/product/v2/detail/search/base/sitm"
+    option_mapping: "pbf.lotteon.com/product/v2/detail/option/mapping"
+    favor_box: "pbf.lotteon.com/product/v2/extlmsa/promotion/favorBox/benefits"
+    final_price: "pbf.lotteon.com/product/v2/extlmsa/promotion/qtyChangeFavorInfoList"
+
+# ────────────────────────────────────────
+# JSON path 매핑 (정확한 경로는 코드 참조)
+# ────────────────────────────────────────
+json_paths:
+  product_name:
+    api: base_info
+    path: "TBD — 코드 _fetch_lotteon 안 추출 로직 참조"
+  sale_price:
+    api: qty_change_favor_info
+    note: "최종 적용가"
+  options:
+    api: option_mapping
+    note: "옵션 트리 구조 (정확한 path 는 코드 참조)"
+  discount_groups:
+    api: favor_box
+    path: "data.discountGroups[]"
+    items_path: "discountGroups[i].discountApplyPromotionList[]"
+  card_immediate_discount:
+    filter:
+      group_id: "ORDER"
+      title: "카드즉시할인/장바구니쿠폰"
+      prKndCd: ["CRD_IMMD", "CPN_BSK_CPN"]
+    fields:
+      dcRt: "할인율 %"
+      dcAmt: "할인 금액 원"
+      dispTitle: "표시 제목"
+      dispName: "표시 이름"
+      mainFlag: "조건 비트"
+      minPdAmt: "최소 주문금액"
+      maxPdAmt: "최대 주문금액"
+
+# ────────────────────────────────────────
+# DOM 셀렉터 (SSR HTML — 정가만)
+# ────────────────────────────────────────
+dom_selectors_minimal:
+  schema_org_json_ld:
+    selector: 'script[type="application/ld+json"]'
+    note: "SSR HTML 의 26KB 안 schema.org JSON-LD 만 노출. 정가 only — 실제 가격은 API 캡처"
+
+# ────────────────────────────────────────
+# 알려진 변동
+# ────────────────────────────────────────
+known_changes:
+  - date: 2026-05-14
+    change: "★ lotteon.com 신규 지원 — Playwright + pbf API 패턴 (V7 미지원)"
+  - date: 2026-05-14
+    change: "discountGroups 4 그룹 분류 + 사용자 명세 카드즉시할인/장바구니쿠폰만 추출"

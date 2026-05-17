@@ -1,0 +1,145 @@
+---
+# 르무통 공홈 (lemouton.co.kr) — 자사몰 (Cafe24 기반)
+#
+# ⚠️ DEV 전용 — 운영 크롤러는 본 yaml 안 읽음 (단일 진실 원천은 _시스템/lemouton/sourcing/crawlers/lemouton*.py).
+# 추후 Phase B 일반화 시 코드가 import 예정.
+
+site: lemouton
+display_name: 르무통 공홈
+domain: lemouton.co.kr
+mobile_domain: m.lemouton.co.kr
+
+# ────────────────────────────────────────
+# URL 패턴
+# ────────────────────────────────────────
+urls:
+  pdp_template: "https://lemouton.co.kr/product/detail.html?product_no={product_no}"
+  mobile_pdp_template: "https://m.lemouton.co.kr/product/detail.html?product_no={product_no}"
+  product_id_pattern: "product_no=(\\d+)"             # URL 쿼리 파라미터
+  login: "https://lemouton.co.kr/member/login.html"
+
+# ────────────────────────────────────────
+# HTTP · 렌더링
+# ────────────────────────────────────────
+http:
+  primary: requests                                    # 정적 HTML 가능 (단품 케이스만)
+  fallback: playwright                                  # 색상별 사이즈 품절 정확도 필요 시
+  timeout_sec: 30
+  user_agent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36"
+  anti_bot: none                                        # 자사몰 — Cloudflare 등 없음
+
+# ────────────────────────────────────────
+# 회원가 — 미지원 (사이트가 회원가 explicit 표시 안 함)
+# 매입가는 DB compute_breakdown 가 sale_price 에 혜택 차감해서 산정.
+# ────────────────────────────────────────
+member_price:
+  enabled: false                                        # 사이트가 회원가 표시 안 함
+  why: "lemouton.co.kr 은 회원가 영역 노출 없음. sale_price 가 모든 사용자 동일."
+  computed_by: "api_benefits.compute_breakdown (단일 진실 원천) — 크롤러는 sale_price 만 제공"
+
+# ────────────────────────────────────────
+# Playwright 모드 — 색상 클릭 → 사이즈 토글 정확도용
+# ────────────────────────────────────────
+playwright:
+  headless: true
+  nav_timeout_ms: 30000
+  color_click_wait_ms: 600                              # V7: ``await sleep(600)`` after click
+  size_settle_wait_ms: 800                              # JS 초기화 안정화
+  profile_dir_supported: true                           # profile_dir 모드 지원 (대표 크롤 계정 시)
+  why: "Cafe24 가 색상 클릭 시점에 .ec-product-soldout 클래스를 사이즈에 동적 토글 → 정적 HTML 에는 색상별 사이즈 품절 정보 없음"
+
+# ────────────────────────────────────────
+# 옵션 처리 (V7 crawlLemoutonBundle 호환)
+# ────────────────────────────────────────
+options:
+  button_container: "ul.ec-product-button"
+  button_item: "ul.ec-product-button li"
+  size_detect_regex: "mm\\s*$"                          # /mm$/i — 끝이 mm 이면 사이즈
+  soldout_class: "ec-product-soldout"
+  disabled_class: "ec-product-disabled"                  # 색상에 그 사이즈 없음 = 품절 동등
+  classification:
+    color: "isMm == false"
+    size: "isMm == true"
+  fallback_single_color: "productName 마지막 단어 (V7 lemoutonParseProduct)"
+
+# ────────────────────────────────────────
+# 가격 셀렉터 (V7 우선순위 + raw HTML fallback)
+# ────────────────────────────────────────
+prices:
+  sale:
+    primary: "strong.price-number"
+    fallback:
+      - "span.ProductPrice"
+      - 'meta[property="product:sale_price:amount"]'
+      - "var product_price = '...' (JS 변수)"
+  original:
+    primary: "span.txt_price.ProductPrice, span.ProductPrice"
+    fallback:
+      - 'meta[property="product:price:amount"]'
+      - "sale 와 동일 (할인 없는 경우)"
+  discount_rate:
+    primary: "span.ec-sale-rate"
+    fallback: "round((1 - sale/origin) * 100)"
+
+# ────────────────────────────────────────
+# 상품명 추출
+# ────────────────────────────────────────
+product_name:
+  priority:
+    1: 'meta[property="og:title"]'                       # Playwright 모드 1순위
+    2: "document.title (split by - or |, 첫 토큰)"
+    3: "h2 필터 (V7 — 길이 2~100, '[' 시작 X, 제외어 미포함)"
+  excluded_substrings:
+    - "확대"                                              # V7 원본
+    - "Ambassador"
+    - "Natural"
+    - "Travel"
+    - "리뷰"
+    - "상품상세"                                          # 모바일 추가
+    - "추가구성"
+    - "WITH ITEM"
+    - "MerinoWool"                                        # 마케팅 h2
+    - "Merino Wool"
+    - "Performance"
+    - "Fiber"
+    - "LeMouton"
+    - "100%"
+
+# ────────────────────────────────────────
+# 자동 적용 혜택 (코드 내장 — auto_card_discount)
+# ────────────────────────────────────────
+auto_card_discount:
+  issuer: 현대카드
+  rate: 2.73
+  label: "현대카드 2.73%"
+  included_in_sale_price: false                          # 캐시백 — sale_price 별개. DB compute_breakdown 에서 차감
+
+# ────────────────────────────────────────
+# Fail-safe
+# ────────────────────────────────────────
+fail_safe:
+  - sale_price_zero:
+      check: "sale_price <= 0"
+      action: "RuntimeError '[르무통 공홈] sale_price 추출 실패'"
+
+# ────────────────────────────────────────
+# accuracy_baseline (Phase 5 사용자 검증)
+# ────────────────────────────────────────
+accuracy_baseline:
+  verified_skus: []
+  last_verified: null
+  match_rate: null
+  notes: "라이브 검증 대기 (사용자 URL 1-2개 받아서 진행)"
+
+# ────────────────────────────────────────
+# 메타
+# ────────────────────────────────────────
+meta:
+  schema_version: 0.1
+  last_analyzed: 2026-05-17
+  analyzed_by: claude+rnwhgowh2
+  source_code:
+    - _시스템/lemouton/sourcing/crawlers/lemouton.py
+    - _시스템/lemouton/sourcing/crawlers/lemouton_playwright.py
+  platform: cafe24
+  origin: V7 Chrome extension 의 crawlLemoutonBundle / lemoutonParseProduct (Python 포팅)

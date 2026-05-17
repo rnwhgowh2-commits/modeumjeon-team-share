@@ -1,0 +1,107 @@
+---
+# SSF샵 셀렉터 (V7 ssfParseProduct 기반 + 신규 raw HTML 정규식)
+
+site: ssf
+schema_version: 0.1
+last_updated: 2026-05-17
+
+# ────────────────────────────────────────
+# 상품명 + 컬러
+# ────────────────────────────────────────
+product_name_and_color:
+  primary:
+    selector: "div.gods-name"
+    parse: |
+      innerText.trim().split(' ') →
+        currentColor = 마지막 토큰
+        productName = 나머지 (split 1개면 godsName 그대로)
+  fallback:
+    selector: "title"
+    transform: "split('|')[0].trim()"
+
+# ────────────────────────────────────────
+# 가격
+# ────────────────────────────────────────
+price:
+  original:
+    selector: "del"
+  sale:
+    selector: "em.price"
+    fallback: original (할인 없는 경우)
+
+# ────────────────────────────────────────
+# 브랜드
+# ────────────────────────────────────────
+brand:
+  primary:
+    selector: "h2.brand-name"
+  fallback: "'SSF샵' 리터럴"
+
+# ────────────────────────────────────────
+# 할인 정보 (사람 노출용)
+# ────────────────────────────────────────
+discount_info:
+  primary:
+    selector: ".tip-txt"
+  fallback:
+    selector: ".discount"
+    format: "즉시할인 {text}"
+
+# ────────────────────────────────────────
+# 사이즈 옵션
+# ────────────────────────────────────────
+sizes:
+  container: "#optionDiv1"
+  item: "#optionDiv1 li a[optcd]"
+  fields:
+    name:
+      source: "{optcd 속성값}mm"
+    soldout:
+      attr: statcd
+      value: SLDOUT
+    stock_near_soldout:
+      from_text: "부모 li.innerText"
+      pattern: "품절임박\\s*\\((\\d+)\\)"
+      meaning: "잔여 N (재고 부족 임박)"
+
+# ────────────────────────────────────────
+# 변동 혜택 (raw HTML 정규식 — BeautifulSoup 셀렉터 X)
+# ────────────────────────────────────────
+gift_point:
+  pattern: '기프트포인트\\s*</dt>\\s*<dd>[^<]*?([\\d,]+)\\s*원'
+  why_regex: "dt/dd 가 card-decc 영역 밖에 단독으로 박혀있어 raw HTML 매칭이 견고"
+  example_html: '<dt>기프트포인트</dt><dd>멤버십 고객 한정 최대 5,600원 할인(10%) ...'
+
+point_reward:
+  pattern: '포인트\\s*적립\\s*</dt>\\s*<dd>.*?멤버십포인트\\s*([\\d,]+)\\s*P'
+  why_regex: "동일 — card-decc 영역 밖"
+  example_html: '<dt>포인트 적립</dt><dd><span class="point-item">멤버십포인트 2,802P</span></dd>'
+
+# ────────────────────────────────────────
+# URL 추출
+# ────────────────────────────────────────
+product_id:
+  patterns:
+    strict: "/([A-Z0-9]+)/good"
+    loose: "/([^/]+)/good"
+    note: "strict 먼저 시도, 실패 시 loose"
+  example_url: "https://www.ssfshop.com/LEMOUTON/GRG12345/good → GRG12345"
+
+# ────────────────────────────────────────
+# 멀티 색상 자동 발견
+# ────────────────────────────────────────
+variant_discovery:
+  pattern: "/LEMOUTON/(GRG\\d+)/"
+  source: base HTML
+  note: "현재는 LEMOUTON 브랜드 하드코딩 — 다른 브랜드 확장 시 패턴 일반화 필요"
+
+# ────────────────────────────────────────
+# 알려진 변동
+# ────────────────────────────────────────
+known_changes:
+  - date: 2026-05-14
+    change: "기프트포인트 추출 추가 (raw HTML 정규식)"
+  - date: 2026-05-15
+    change: "포인트 적립 추출 추가 (DB 0.5% 고정 polyfill 폐기)"
+  - date: 2026-05-15
+    change: "첫 구매 쿠폰 추출 제거 (사용자 명세: 매입가 미반영)"

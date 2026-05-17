@@ -1,0 +1,68 @@
+---
+# 르무통 공홈 매입가 정책 — 단순 (혜택 3개)
+# 진실 원천: memory/project_benefit_spec.md (2026-05-14 사용자 확정) ① 르무통 공홈
+
+site: lemouton
+schema_version: 0.1
+last_updated: 2026-05-17
+
+# ────────────────────────────────────────
+# 혜택 3개 (사용자 명세)
+# ────────────────────────────────────────
+benefit_items:
+  - name: 리뷰 적립금
+    category: 정액
+    value: 5000                                       # 5,000원 (텍스트 리뷰 고정)
+    auto: false                                       # ★ false — 매번 명시
+    crawled: true
+    behavior: "compute_breakdown 가 정액 차감 (계산 순서 1)"
+    note: "memory 에는 'auto: ❌ crawled: ✅' 이지만 실제 크롤러 (lemouton*.py) 는 이 항목 추출 안 함 — DB 가 5,000원 정액으로 자동 적용"
+  - name: 네이버페이 적립
+    category: "%적립금"
+    value: 1.00                                       # 1.00%
+    auto: true
+    crawled: false
+    behavior: "정액 차감 후 베이스 기준 (계산 순서 2)"
+  - name: 현대카드 캐시백
+    category: "%할인"
+    value: 2.73                                       # 2.73%
+    auto: true
+    crawled: false                                    # 코드 내 auto_card_discount 로 attach
+    behavior: "%적립금 차감 후 베이스 기준 (계산 순서 3)"
+    code_attached: true                               # lemouton_playwright.py 가 옵션 dict 에 auto_card_discount 부착
+
+# ────────────────────────────────────────
+# 계산 순서 (memory 공통 규칙)
+# ────────────────────────────────────────
+formula_order:
+  step_1: 정액 (amount) — sale_price 에서 먼저 차감
+  step_2: "%적립금 (rate + 이름에 '적립') — 정액 차감 후 베이스"
+  step_3: "%할인 (rate, 그 외) — 적립금까지 차감 후 베이스"
+  reasoning: "적립금은 미래에 또 사용될 자산이라 카드/할인 % 의 베이스에서도 미리 빼고 봄"
+
+# ────────────────────────────────────────
+# 산식 (예시)
+# ────────────────────────────────────────
+formula_example:
+  scenario: "sale_price 100,000원"
+  step_1: "100,000 - 5,000 (리뷰적립금) = 95,000"
+  step_2: "95,000 × (1 - 0.01) = 94,050 (네페 적립 950원 차감)"
+  step_3: "94,050 × (1 - 0.0273) = 91,481 (현대카드 캐시백 2,568원 차감)"
+  result: "매입가 = 91,481원"
+
+# ────────────────────────────────────────
+# 사이트 vs 우리 매입가
+# ────────────────────────────────────────
+site_vs_our:
+  site_display: "정가 + 할인가 (sale_price) — 그 외 혜택 표시 없음 (자사몰)"
+  our_purchase: "DB compute_breakdown 가 sale_price - 5,000 - 1% - 2.73% 차감"
+  diff_from_site: "사이트에 회원가 영역 없음 → 무신사의 my_discount_price > base1 가드 적용 불가"
+
+# ────────────────────────────────────────
+# Fail-safe
+# ────────────────────────────────────────
+fail_safe:
+  - sale_price_zero:
+      check: "sale_price <= 0"
+      action: RuntimeError
+      note: "유일한 fail-safe (자사몰이라 anti-bot/펼침 등 검증 불필요)"

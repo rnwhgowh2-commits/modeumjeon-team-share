@@ -1,0 +1,70 @@
+---
+# 스스 르무통 — DOM 셀렉터가 아닌 JSON path 매핑
+# (Next.js SSR — inline state 가 진짜 진실 원천)
+
+site: ss_lemouton
+schema_version: 0.1
+last_updated: 2026-05-17
+
+# ────────────────────────────────────────
+# inline state 추출
+# ────────────────────────────────────────
+state_extraction:
+  marker: "window.__PRELOADED_STATE__"
+  regex: 'window\.__PRELOADED_STATE__\s*=\s*(.+?)</script>'
+  json_fixes:
+    - strip_trailing_semicolon: true
+    - js_undefined_to_null:
+        pattern: '(?<![\\w\\"])undefined(?![\\w\\"])'
+        replacement: 'null'
+        why: "JS literal undefined → JSON 호환 null. 문자열·식별자 내부 'undefined' 는 보호"
+
+# ────────────────────────────────────────
+# JSON path 매핑 (DOM 셀렉터의 등가물)
+# ────────────────────────────────────────
+json_paths:
+  product_name:
+    primary: "simpleProductForDetailPage.A.name"
+    fallback: "simpleProductForDetailPage.A.dispName"
+  sale_price:
+    primary: "simpleProductForDetailPage.A.benefitsView.discountedSalePrice"
+    fallbacks:
+      - "simpleProductForDetailPage.A.benefitsView.mobileDiscountedSalePrice"
+      - "simpleProductForDetailPage.A.benefitsView.dispDiscountedSalePrice"
+  original_price:
+    path: "simpleProductForDetailPage.A.salePrice"
+  options:
+    path: "simpleProductForDetailPage.A.optionStandards[]"
+    group_name: "optionStandards[i].optionGroupName"
+    value_name: "optionStandards[i].optionName"
+  stock:
+    soldout_flag: "simpleProductForDetailPage.A.soldout"
+    status: "simpleProductForDetailPage.A.productStatusType"
+    display_status: "simpleProductForDetailPage.A.channelProductDisplayStatusType"
+    quantity: "simpleProductForDetailPage.A.stockQuantity"
+  review_points:
+    photo_video: "simpleProductForDetailPage.A.benefitsView.photoVideoReviewPoint"
+    after_photo_video: "simpleProductForDetailPage.A.benefitsView.afterUsePhotoVideoReviewPoint"
+    manager_photo_video: "simpleProductForDetailPage.A.benefitsView.managerPhotoVideoReviewPoint"
+    manager_after_photo_video: "simpleProductForDetailPage.A.benefitsView.managerAfterUsePhotoVideoReviewPoint"
+    text: "simpleProductForDetailPage.A.benefitsView.textReviewPoint"
+    after_text: "simpleProductForDetailPage.A.benefitsView.afterUseTextReviewPoint"
+    manager_text: "simpleProductForDetailPage.A.benefitsView.managerTextReviewPoint"
+    manager_after_text: "simpleProductForDetailPage.A.benefitsView.managerAfterUseTextReviewPoint"
+  seller_immediate_discount: "simpleProductForDetailPage.A.benefitsView.sellerImmediateDiscountAmount"
+
+# ────────────────────────────────────────
+# URL 호스트 스왑
+# ────────────────────────────────────────
+url_normalization:
+  rule: "smartstore.naver.com → brand.naver.com 자동 swap"
+  reason: "비로그인 GET 시 smartstore 는 nidlogin 리다이렉트, brand 는 200 OK"
+
+# ────────────────────────────────────────
+# 알려진 변동
+# ────────────────────────────────────────
+known_changes:
+  - date: 2026-05-13
+    change: "sale_price 추출 정정 — benefitsView.discountedSalePrice 항상 채워짐 (이전 R&D 의 '0 이라 salePrice 우선' 오해 정정)"
+  - date: 2026-05-15
+    change: "리뷰적립 산식 정정 — 매니저 추가분 포함 (photo+afterPhoto+managerPhoto+managerAfterPhoto)"

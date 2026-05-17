@@ -1,0 +1,134 @@
+---
+# SSF샵 (www.ssfshop.com) — 패션사이트, V7 ssfParseProduct Python 포팅
+
+site: ssf
+display_name: SSF샵
+domain: www.ssfshop.com
+
+# ────────────────────────────────────────
+# URL 패턴
+# ────────────────────────────────────────
+urls:
+  pdp_template: "https://www.ssfshop.com/{brand}/{goodscd}/good"
+  product_id_pattern_strict: "/([A-Z0-9]+)/good"
+  product_id_pattern_loose: "/([^/]+)/good"
+  login: "https://www.ssfshop.com/public/member/login"
+  note: "컬러별 별도 GOODSCD — 같은 모델 다른 색상은 별도 URL. crawler 가 base HTML 에서 GRG 코드들 자동 발견 후 multi-fetch"
+
+# ────────────────────────────────────────
+# HTTP · Anti-bot
+# ────────────────────────────────────────
+http:
+  client: curl_cffi
+  impersonate: chrome120
+  timeout_sec: 30
+  why_curl_cffi: "Cloudflare bot detection 우회 (무신사와 동일 패턴)"
+
+# ────────────────────────────────────────
+# 회원가 — 미지원 (사이트에 회원가 영역 없음)
+# ────────────────────────────────────────
+member_price:
+  enabled: false
+  why: "SSF 는 sale_price 가 모든 사용자 동일. 매입가는 DB compute_breakdown 가 혜택 차감"
+
+# ────────────────────────────────────────
+# 다중 색상 자동 발견 (V7 미지원 — 신규)
+# ────────────────────────────────────────
+variant_discovery:
+  enabled: true
+  method: regex_from_html
+  pattern: "/LEMOUTON/(GRG\\d+)/"
+  behavior: "base HTML 에서 LEMOUTON 브랜드의 GRG 코드 set 추출. 1개 초과 시 각 GRG URL fetch → options merge. 1개면 단일 fetch"
+  url_template: "https://www.ssfshop.com/LEMOUTON/{grg}/good"
+  note: "현재는 LEMOUTON 브랜드 하드코딩 — 다른 브랜드 확장 시 패턴 일반화 필요"
+
+# ────────────────────────────────────────
+# 옵션 (사이즈)
+# ────────────────────────────────────────
+options:
+  size:
+    container: "#optionDiv1"
+    item: "#optionDiv1 li a[optcd]"
+    name_format: "{optcd 속성값}mm"                     # V7: optcd + 'mm'
+    soldout_signal:
+      attr: statcd
+      value: SLDOUT                                      # 판매중은 SALE_PROGRS
+    near_soldout_pattern: "품절임박\\s*\\((\\d+)\\)"     # li 텍스트에서 잔여 N
+  color:
+    single_per_page: true                                # 같은 모델의 다른 색상은 별도 URL
+    extracted_from: "div.gods-name innerText 의 마지막 토큰"
+    fallback: "document.title.split('|')[0]"
+
+# ────────────────────────────────────────
+# 가격 (V7 셀렉터)
+# ────────────────────────────────────────
+prices:
+  original:
+    selector: "del"
+  sale:
+    selector: "em.price"
+    fallback: "originPrice (할인 없는 경우)"
+  discount_rate:
+    method: "round((1 - sale/origin) * 100)"             # SSF 는 셀렉터 없음
+
+# ────────────────────────────────────────
+# 기프트포인트 (V7 미지원 — 신규, 2026-05-14 추가)
+# ────────────────────────────────────────
+gift_point:
+  enabled: true
+  extraction: regex_from_raw_html
+  pattern: '기프트포인트\\s*</dt>\\s*<dd>[^<]*?([\\d,]+)\\s*원'
+  example: "<dt>기프트포인트</dt><dd>멤버십 고객 한정 최대 5,600원 할인(10%) ..."
+  variability: "활성 시만 노출 / 변동값"
+  attach_to_option: gift_point_amount
+
+# ────────────────────────────────────────
+# 포인트 적립 (V7 미지원 — 신규, 2026-05-15 추가)
+# ────────────────────────────────────────
+point_reward:
+  enabled: true
+  extraction: regex_from_raw_html
+  pattern: '포인트\\s*적립\\s*</dt>\\s*<dd>.*?멤버십포인트\\s*([\\d,]+)\\s*P'
+  example: "<dt>포인트 적립</dt><dd><span class='point-item'>멤버십포인트 2,802P</span></dd>"
+  variability: "상품별 % 다름 (0.5% / 5% 등) — sale_price 로 나눠 rate 동적 계산"
+  legacy_db_polyfill_deprecated: "DB source_id=4 benefit_id=13 '구매적립금' 0.5% 고정 → 2026-05-15 폐기"
+  attach_to_option:
+    rate_field: point_rate                               # 소수 (0.005 = 0.5%)
+    amount_field: point_amount                           # 정수 P
+
+# ────────────────────────────────────────
+# 자동 적용 혜택 (코드 내장)
+# ────────────────────────────────────────
+auto_card_discount:
+  issuer: 현대카드
+  rate: 2.73
+  label: "현대카드 2.73%"
+  included_in_sale_price: false
+  attach_to_option: auto_card_discount
+
+# ────────────────────────────────────────
+# Fail-safe
+# ────────────────────────────────────────
+fail_safe:
+  - sale_price_zero:
+      check: "sale_price <= 0"
+      action: "RuntimeError [SSF] sale_price 추출 실패"
+
+# ────────────────────────────────────────
+# accuracy_baseline
+# ────────────────────────────────────────
+accuracy_baseline:
+  verified_skus: []
+  last_verified: null
+  match_rate: null
+
+# ────────────────────────────────────────
+# 메타
+# ────────────────────────────────────────
+meta:
+  schema_version: 0.1
+  last_analyzed: 2026-05-17
+  analyzed_by: claude+rnwhgowh2
+  source_code:
+    - _시스템/lemouton/sourcing/crawlers/ssf.py
+  origin: V7 ssfParseProduct + Python 신규 (기프트포인트·포인트적립 추가)

@@ -1,0 +1,135 @@
+---
+# 스스 르무통 (네이버 브랜드스토어) — brand.naver.com/lemouton
+# Next.js 류 SSR — window.__PRELOADED_STATE__ 안 inline JSON 파싱
+
+site: ss_lemouton
+display_name: 스스 르무통 (네이버 브랜드스토어)
+domain: brand.naver.com
+seller: lemouton
+
+# ────────────────────────────────────────
+# URL 패턴
+# ────────────────────────────────────────
+urls:
+  pdp_template: "https://brand.naver.com/lemouton/products/{product_id}"
+  smartstore_aliasing: "smartstore.naver.com/{seller}/products/{id} → brand.naver.com 자동 swap (비로그인 200 보장)"
+  product_id_pattern: "/products/(\\d+)"
+
+# ────────────────────────────────────────
+# HTTP · Anti-bot
+# ────────────────────────────────────────
+http:
+  client: curl_cffi                                    # WAF 우회 (Naver Commerce)
+  impersonate: chrome120
+  timeout_sec: 30
+  allow_redirects: true
+  why_curl_cffi: "Naver Commerce WAF — 일반 requests 시 429 / 비로그인 페이지 반환"
+
+# ────────────────────────────────────────
+# 데이터 추출 방식 — inline JSON (Phase B 최우선 적합)
+# ────────────────────────────────────────
+extraction:
+  method: inline_json
+  source: "<script>window.__PRELOADED_STATE__ = {...};</script>"
+  pattern: 'window\.__PRELOADED_STATE__\s*=\s*(.+?)</script>'
+  json_fixups:
+    - "끝의 ; 제거"
+    - "JS undefined → null (식별자/문자열 내부 보호: (?<![\\w\\\"])undefined(?![\\w\\\"]))"
+  primary_path: "simpleProductForDetailPage.A"
+
+# ────────────────────────────────────────
+# 회원가 — 미지원 (사이트에 회원가 영역 없음)
+# ────────────────────────────────────────
+member_price:
+  enabled: false
+  why: "네이버 브랜드스토어는 회원가 영역 없음. discountedSalePrice 가 모든 사용자 동일 표시"
+
+# ────────────────────────────────────────
+# 가격 — JSON 경로 매핑
+# ────────────────────────────────────────
+prices:
+  sale_price:
+    primary_path: "simpleProductForDetailPage.A.benefitsView.discountedSalePrice"
+    fallbacks:
+      - "simpleProductForDetailPage.A.benefitsView.mobileDiscountedSalePrice"
+      - "simpleProductForDetailPage.A.benefitsView.dispDiscountedSalePrice"
+    fallback_to_original_if_zero: true
+    note: "★ 2026-05-13 사용자 정정 — 이전엔 'discountedSalePrice=0 이라 salePrice 우선' 오해. simpleProductForDetailPage.A.benefitsView.discountedSalePrice 는 항상 채워짐"
+  original_price:
+    path: "simpleProductForDetailPage.A.salePrice"
+    note: "정가 (예: 149,000)"
+
+# ────────────────────────────────────────
+# 옵션 — optionStandards 그룹
+# ────────────────────────────────────────
+options:
+  path: "simpleProductForDetailPage.A.optionStandards"
+  group_field: optionGroupName                          # '색상' / '사이즈'
+  value_field: optionName
+  fallback_classification: "그룹명 매칭 실패 시 위치 기반 (1번째=색상, 2번째=사이즈)"
+  cartesian_product: true                               # SKU 단위 정보 없음 → 색상 × 사이즈 모든 조합
+  sku_stock_limit: "inline state 는 상품 전체 stockQuantity 만 제공. SKU 단위 차등 정보 없음 → 각 옵션 stock=1 매핑 ('재고있음')"
+
+# ────────────────────────────────────────
+# 재고 판정 (상품 전체 soldout)
+# ────────────────────────────────────────
+stock:
+  soldout_signals:
+    - path: "simpleProductForDetailPage.A.soldout"
+      value: true
+    - path: "simpleProductForDetailPage.A.productStatusType"
+      not_equal: "SALE"                                 # OUTOFSTOCK 등
+    - path: "simpleProductForDetailPage.A.channelProductDisplayStatusType"
+      not_equal: "ON"                                   # SUSPEND 등
+    - path: "simpleProductForDetailPage.A.stockQuantity"
+      less_or_equal: 0
+  if_soldout: "모든 옵션 stock=0"
+  if_single_product: "stock = stockQuantity (상한 없음)"
+  if_multi_option: "stock = 1 (재고있음 binary)"
+
+# ────────────────────────────────────────
+# 리뷰 적립 — 동적 변동 (사이트 "최대 적립 포인트")
+# ────────────────────────────────────────
+review_point_max:
+  formula_photo_video: "photoVideoReviewPoint + afterUsePhotoVideoReviewPoint + managerPhotoVideoReviewPoint + managerAfterUsePhotoVideoReviewPoint"
+  formula_text_fallback: "포토/동영상 4-field 모두 0 일 때 → textReviewPoint + afterUseTextReviewPoint + managerTextReviewPoint + managerAfterUseTextReviewPoint"
+  verified_example:
+    product_id: 9496367527
+    name: "르무통 워크"
+    photoVideoReviewPoint: 2850
+    afterUsePhotoVideoReviewPoint: 2000
+    managerPhotoVideoReviewPoint: 150
+    managerAfterUsePhotoVideoReviewPoint: 0
+    sum: 5000
+    site_display: "최대 리뷰적립 5,000원 ✓ 일치"
+  user_correction_date: 2026-05-15
+  note: "★ 사용자 정정 — 매니저(스토어매니저) 추가분 포함 필수. 이전 산식 (photo+afterPhoto만) 은 매니저 빠뜨려 잘못된 값"
+
+# ────────────────────────────────────────
+# Fail-safe
+# ────────────────────────────────────────
+fail_safe:
+  - both_prices_zero:
+      check: "sale_price <= 0 AND original_price <= 0"
+      action: "RuntimeError [ss_lemouton] 가격 추출 실패"
+
+# ────────────────────────────────────────
+# accuracy_baseline
+# ────────────────────────────────────────
+accuracy_baseline:
+  verified_skus: []
+  last_verified: null
+  match_rate: null
+  notes: "라이브 검증 대기 (사용자 URL 1-2개)"
+
+# ────────────────────────────────────────
+# 메타
+# ────────────────────────────────────────
+meta:
+  schema_version: 0.1
+  last_analyzed: 2026-05-17
+  analyzed_by: claude+rnwhgowh2
+  source_code:
+    - _시스템/lemouton/sourcing/crawlers/ss_lemouton.py
+  platform: "Naver Commerce (Next.js SSR)"
+  origin: "NEW (V7 미지원) — 2026-04 R&D, 2026-05-15 리뷰적립 산식 정정"

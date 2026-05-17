@@ -1,0 +1,125 @@
+---
+# 롯데ON — www.lotteon.com (Vue SPA + pbf.lotteon.com API)
+# 코드 위치: _시스템/lemouton/sourcing/crawlers/lotteon.py
+# (★ 같은 파일에 lotteimall 도 있음 — 본 yaml 은 _is_lotteon(url)==True 분기만 다룸)
+
+site: lotteon
+display_name: 롯데ON
+domain: www.lotteon.com
+
+# ────────────────────────────────────────
+# URL 패턴
+# ────────────────────────────────────────
+urls:
+  pdp_template: "https://www.lotteon.com/p/product/{sitmNo}?..."
+  api_base: "https://pbf.lotteon.com"
+  login: "https://www.lotteon.com/member/login"
+
+# ────────────────────────────────────────
+# 추출 방식 — Playwright + API 캡처
+# ────────────────────────────────────────
+extraction:
+  method: playwright_with_api_capture
+  why: |
+    lotteon.com 은 Vue SPA. SSR HTML 26KB 에는 schema.org JSON-LD (정가 only) 만 노출.
+    실제 가격·옵션·혜택은 pbf.lotteon.com API 응답으로 fetch 됨.
+    Playwright 로 페이지 렌더 + Network 이벤트 listener 로 API 응답 캡처.
+
+# ────────────────────────────────────────
+# pbf.lotteon.com API 엔드포인트
+# ────────────────────────────────────────
+api_endpoints:
+  base_info:
+    path: "/product/v2/detail/search/base/sitm/{sitmNo}"
+    content: "기본 정보, 옵션 메타"
+  option_mapping:
+    path: "/product/v2/detail/option/mapping/..."
+    content: "옵션 mapping (색상·사이즈·재고)"
+  favor_box_benefits:
+    path: "/product/v2/extlmsa/promotion/favorBox/benefits"
+    content: "★ 쿠폰별 할인 그룹 (사용자 명세 매칭의 진실 원천)"
+  qty_change_favor_info:
+    path: "/product/v2/extlmsa/promotion/qtyChangeFavorInfoList"
+    content: "최종 적용가"
+
+# ────────────────────────────────────────
+# 할인 그룹 분류 (favorBox/benefits.discountGroups[])
+# ────────────────────────────────────────
+discount_groups:
+  IMMD:
+    title: "스토어즉시할인"
+    auto_applied: true
+  IMMD_AND_PRODUCT_COUPON:
+    title: "스토어즉시할인 + 상품쿠폰"
+    auto_applied: false
+  STORE_COUPON:
+    title: "스토어쿠폰"
+    auto_applied: false
+  ORDER:
+    title: "★ 카드즉시할인 / 장바구니쿠폰 (사용자 명세 추출 대상)"
+    auto_applied: false
+    prKndCd_values:
+      CRD_IMMD: 카드즉시할인
+      CPN_BSK_CPN: 장바구니쿠폰
+
+# ────────────────────────────────────────
+# 회원가 — 부분 지원 (로그인 시 더 정확한 적립 정보)
+# ────────────────────────────────────────
+member_price:
+  enabled: true                                          # 로그인 권장 (정확도)
+  account_via: "LotteonScraper (auth/scrapers/lotteon.py)"
+  why: "쿠폰·적립금 등이 회원 등급에 따라 다를 수 있음 — 비로그인도 동작하지만 일부 혜택 미노출 가능"
+
+# ────────────────────────────────────────
+# Playwright 설정
+# ────────────────────────────────────────
+playwright:
+  headless: true
+  api_response_capture:
+    method: "page.on('response', ...)"
+    target_url_patterns:
+      - "pbf.lotteon.com/product/v2/detail/search/base/sitm"
+      - "pbf.lotteon.com/product/v2/detail/option/mapping"
+      - "pbf.lotteon.com/product/v2/extlmsa/promotion/favorBox/benefits"
+      - "pbf.lotteon.com/product/v2/extlmsa/promotion/qtyChangeFavorInfoList"
+
+# ────────────────────────────────────────
+# 옵션 (pbf API 응답)
+# ────────────────────────────────────────
+options:
+  source: "/product/v2/detail/option/mapping API"
+  color_size_mapping: "API 응답 JSON 의 옵션 트리 (정확한 구조는 코드 참조)"
+
+# ────────────────────────────────────────
+# Fail-safe
+# ────────────────────────────────────────
+fail_safe:
+  - api_capture_failed:
+      check: "pbf API 응답 캡처 실패 (timeout 또는 응답 없음)"
+      action: "RuntimeError"
+  - sale_price_zero:
+      check: "sale_price <= 0"
+      action: "RuntimeError"
+
+# ────────────────────────────────────────
+# accuracy_baseline
+# ────────────────────────────────────────
+accuracy_baseline:
+  verified_skus: []
+  last_verified: null
+  match_rate: null
+
+# ────────────────────────────────────────
+# 메타
+# ────────────────────────────────────────
+meta:
+  schema_version: 0.1
+  last_analyzed: 2026-05-17
+  analyzed_by: claude+rnwhgowh2
+  source_code:
+    - _시스템/lemouton/sourcing/crawlers/lotteon.py
+  source_code_scope: "본 yaml = lotteon.py 안 _is_lotteon(url)==True 분기 (_fetch_lotteon)"
+  auth_scraper:
+    - _시스템/lemouton/auth/scrapers/lotteon.py
+  origin: "★ 2026-05-14 신규 (V7 미지원). Vue SPA + pbf API 캡처 패턴"
+  related_room: "docs/sources/lotteimall/ — 같은 .py 파일의 lottehomeshopping/lotteimall 분기"

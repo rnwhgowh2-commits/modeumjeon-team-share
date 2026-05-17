@@ -1,0 +1,68 @@
+---
+# SSF샵 매입가 정책 (memory ④ SSF)
+
+site: ssf
+schema_version: 0.1
+last_updated: 2026-05-17
+
+# ────────────────────────────────────────
+# 혜택 5개 (사용자 명세 + 신규 추가)
+# ────────────────────────────────────────
+benefit_items:
+  - name: 리뷰 적립금
+    category: 정액
+    value: 500                                          # 텍스트리뷰 고정
+    auto: true
+    crawled: false
+    behavior: "DB compute_breakdown 가 500 정액 차감"
+  - name: 포인트 적립 (멤버십)
+    category: "%적립금"
+    value: 변동                                          # ★ 상품별 다름 (0.5% / 5% 등)
+    auto: false                                         # ★ 사용자 명세 'auto:✅ value:0.5%' 이지만 실제 변동 — 2026-05-15 정책 변경
+    crawled: true
+    extraction: "raw HTML 정규식 (POINT_AMOUNT_PATTERN). rate = amount/sale_price"
+    legacy: "DB 0.5% 고정 polyfill 폐기 — 사이트 노출값 우선"
+  - name: 기프트포인트
+    category: 정액
+    value: 변동                                          # 활성 시만 노출
+    auto: false
+    crawled: true
+    extraction: "raw HTML 정규식 (GIFT_POINT_PATTERN)"
+    note: "멤버십 한정 — 활성 안 됐으면 미노출"
+  - name: 네이버페이 적립
+    category: "%적립금"
+    value: 1.00
+    auto: true
+    crawled: false
+  - name: 현대카드 캐시백
+    category: "%할인"
+    value: 2.73
+    auto: true
+    crawled: false
+    code_attached: true                                 # ssf.py 옵션 dict 에 auto_card_discount 부착
+
+# ────────────────────────────────────────
+# 첫 구매 쿠폰 (제외)
+# ────────────────────────────────────────
+excluded:
+  - first_purchase_coupon:
+      reason: "사용자 명세 — 매입가 미반영 (2026-05-15 추출 자체 제거)"
+
+# ────────────────────────────────────────
+# 계산 순서
+# ────────────────────────────────────────
+formula_order:
+  step_1: 정액 (리뷰 500 + 기프트포인트 변동)
+  step_2: "%적립금 (포인트 변동 + 네페 1%)"
+  step_3: "%할인 (현대카드 2.73%)"
+
+# ────────────────────────────────────────
+# 산식 예시
+# ────────────────────────────────────────
+formula_example:
+  scenario: "sale_price 100,000원, point_amount=500(0.5%), gift_point 미노출"
+  step_1: "100,000 - 500 (리뷰) - 0 (기프트) = 99,500"
+  step_2_a: "99,500 × 0.995 = 99,003 (포인트 0.5%)"
+  step_2_b: "99,003 × 0.99 = 98,013 (네페 1%)"
+  step_3: "98,013 × 0.9727 = 95,338 (현대카드 2.73%)"
+  result: "매입가 = 95,338원"

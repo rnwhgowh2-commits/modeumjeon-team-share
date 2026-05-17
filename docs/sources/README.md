@@ -28,9 +28,15 @@ docs/sources/
     └── _debug_*.py       ← 진단·회귀 검증 스크립트 (보존)
 ```
 
-현재 존재하는 방: `musinsa/` (2026-05-17 최초)
+현재 존재하는 방 (6개, 2026-05-17 일괄 생성):
+- `musinsa/` — 무신사 (Playwright + 9가격항목, BUG fix + Fail-safe 가드 적용)
+- `lemouton/` — 르무통 공홈 (Cafe24 자사몰)
+- `ss_lemouton/` — 스스 르무통 (네이버 브랜드스토어, inline JSON)
+- `ssf/` — SSF샵 (curl_cffi + 기프트포인트·포인트적립 변동 추출)
+- `lotteimall/` — 롯데홈쇼핑 (lotteimall.com + lottehomeshopping.com, SSR HTML)
+- `lotteon/` — 롯데ON (Vue SPA + pbf.lotteon.com API 캡처, 조건부 쿠폰)
 
-향후 예정: lemouton · ss_lemouton · ssf · ssg · lotteon
+향후 예정: SSG (사용자 active work 정리 후)
 
 ## 📐 핵심 원칙 — Rule of Three
 
