@@ -207,6 +207,38 @@ def _bundle_summary(s, m: Model) -> dict:
         .count()
     )
 
+    # ★ Phase 8.8.4 (2026-05-17) — 무신사 비회원가 검출
+    #   이 모음전의 옵션 중 무신사 매핑 있고 + 매핑된 SourceOption 의 dyn 에
+    #   is_member_price != True 면 비회원가 사고. 매트릭스 ⚠ 좌측 보더 표시 트리거.
+    musinsa_non_member_count = 0
+    try:
+        import json as _json
+        from lemouton.sources.models import SourceProduct, SourceOption
+        musinsa_urls = (s.query(OptionSourceUrl.product_url)
+                        .filter(OptionSourceUrl.canonical_sku.in_(sku_list),
+                                OptionSourceUrl.source_id == 3)
+                        .distinct().all())
+        url_set = {u[0] for u in musinsa_urls}
+        for url in url_set:
+            sp = s.query(SourceProduct).filter_by(site='musinsa', url=url, deleted_at=None).first()
+            if not sp:
+                continue
+            so = s.query(SourceOption).filter_by(source_product_id=sp.id, deleted_at=None).first()
+            if not so:
+                continue
+            try:
+                dyn = _json.loads(so.dynamic_benefits_json or '{}') if so.dynamic_benefits_json else {}
+            except Exception:
+                dyn = {}
+            if not dyn.get('is_member_price'):
+                cnt = (s.query(OptionSourceUrl)
+                       .filter_by(source_id=3, product_url=url)
+                       .filter(OptionSourceUrl.canonical_sku.in_(sku_list))
+                       .count())
+                musinsa_non_member_count += cnt
+    except Exception:
+        pass  # 비회원가 검출 실패해도 list 페이지는 그대로 노출
+
     return {
         'model_code': m.model_code,
         'model_name_display': m.model_name_display or m.model_name_raw,
@@ -238,6 +270,8 @@ def _bundle_summary(s, m: Model) -> dict:
         'crawl_kind': _crawl_kind(m.last_crawled_at),
         'upload_kind': _upload_kind(m.last_uploaded_at, dlq_failed),
         'dlq_failed': dlq_failed,
+        # ★ Phase 8.8.4 — 무신사 비회원가 카운트 (row 좌측 보더 ⚠ 트리거)
+        'musinsa_non_member_count': musinsa_non_member_count,
     }
 
 
@@ -510,19 +544,34 @@ def bundle_edit(code: str):
             sk = src['key']
             # legacy 단일 URL — builtin 만 Model 컬럼 보유 (custom 은 컬럼 없음)
             legacy_url = (getattr(m, f'url_{sk}', None) or '') if src.get('legacy') else ''
-            # share_count
+            # share_count — PG 트랜잭션 abort 방지 (실패 시 outside session rollback)
             if get_share_count_by_url:
                 try:
                     share_counts[sk] = get_share_count_by_url(s, sk, legacy_url)
-                except Exception:
+                except Exception as _e:
+                    import logging
+                    logging.warning(f"get_share_count_by_url fail (sk={sk}, code={code}): {_e}")
+                    try:
+                        s.rollback()  # ★ PG InFailedSqlTransaction 복구
+                    except Exception:
+                        pass
                     share_counts[sk] = 0
             else:
                 share_counts[sk] = 0
             # 다중 URL (BundleSourceUrl) — builtin·custom 공통
-            rows = (s.query(BundleSourceUrl)
-                    .filter_by(model_code=code, source_key=sk)
-                    .order_by(BundleSourceUrl.sort_order, BundleSourceUrl.id)
-                    .all())
+            try:
+                rows = (s.query(BundleSourceUrl)
+                        .filter_by(model_code=code, source_key=sk)
+                        .order_by(BundleSourceUrl.sort_order, BundleSourceUrl.id)
+                        .all())
+            except Exception as _e:
+                import logging
+                logging.warning(f"BundleSourceUrl query fail (sk={sk}, code={code}): {_e}")
+                try:
+                    s.rollback()
+                except Exception:
+                    pass
+                rows = []
             if rows:
                 source_urls[sk] = [{'id': r.id, 'url': r.url} for r in rows]
             elif legacy_url:
