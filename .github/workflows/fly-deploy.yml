@@ -6,8 +6,8 @@ on:
     branches:
       - main
     paths:
-      # _시스템/ 변경 또는 Dockerfile/fly.toml 변경 시만
-      - '_시스템/**'
+      # 프로그램/_시스템/ 변경 또는 워크플로 변경 시만 (2026-05-17 폴더 이동)
+      - '프로그램/_시스템/**'
       - '.github/workflows/fly-deploy.yml'
   # 수동 트리거도 가능 (Actions 탭 → Run workflow)
   workflow_dispatch:
@@ -31,7 +31,7 @@ jobs:
         uses: superfly/flyctl-actions/setup-flyctl@master
 
       - name: Fly.io 배포
-        working-directory: ./_시스템
+        working-directory: ./프로그램/_시스템
         run: flyctl deploy --remote-only --ha=false
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
