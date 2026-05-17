@@ -2,65 +2,194 @@
 <html lang="ko">
 <head>
 <meta charset="utf-8">
-<title>라벨 — {{ opt.canonical_sku }}</title>
+<title>라벨 인쇄 — {{ opt.canonical_sku }}</title>
 <style>
-  @page { size: A4; margin: 12mm; }
+  @page { size: A4; margin: 0; }
   body { font-family: -apple-system, "Apple SD Gothic Neo", sans-serif; margin: 0; padding: 14px; background: #f5f5f5; color: #191F28; }
-  .toolbar { background: #fff; padding: 14px; border-radius: 8px; margin-bottom: 14px; display: flex; gap: 10px; align-items: center; }
-  .toolbar button, .toolbar input { padding: 8px 14px; border-radius: 6px; border: 1px solid #CBCCD3; font-size: 13px; cursor: pointer; }
-  .toolbar button.primary { background: #3182F6; color: #fff; border: 0; font-weight: 700; }
-  .labels { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8mm; background: #fff; padding: 8mm; border-radius: 8px; }
-  .lbl { border: 1px solid #E5E8EB; border-radius: 6px; padding: 10mm 8mm; text-align: center; page-break-inside: avoid; }
-  .lbl .nm { font-size: 14px; font-weight: 800; margin-bottom: 4mm; line-height: 1.2; }
-  .lbl .sku { font-family: "SF Mono", monospace; font-size: 10px; color: #6B7684; margin-bottom: 4mm; }
-  .lbl .bc { display: block; font-family: "Libre Barcode 39", monospace; font-size: 48px; letter-spacing: 0; margin: 4mm 0; padding: 4mm; background: #fff; border: 1px solid #E5E8EB; }
-  .lbl .bc-text { font-family: "SF Mono", monospace; font-size: 11px; color: #191F28; margin-top: 2mm; font-weight: 600; }
-  .lbl .meta { display: flex; justify-content: space-between; margin-top: 4mm; font-size: 11px; color: #4E5968; }
+  /* 툴바 */
+  .tb { background: #fff; padding: 14px 18px; border-radius: 8px; margin-bottom: 14px; display: flex; gap: 12px; align-items: center; flex-wrap: wrap; max-width: 900px; margin-left: auto; margin-right: auto; }
+  .tb strong { font-size: 15px; }
+  .tb label { font-size: 12px; color: #6B7684; font-weight: 600; }
+  .tb select, .tb input { padding: 7px 10px; border: 1px solid #CBCCD3; border-radius: 5px; font-size: 13px; font-family: inherit; background: #fff; }
+  .tb select { min-width: 200px; }
+  .tb button { padding: 8px 14px; border-radius: 6px; border: 0; font-size: 13px; cursor: pointer; font-weight: 700; font-family: inherit; }
+  .tb button.primary { background: #3182F6; color: #fff; }
+  .tb button.ghost { background: #fff; border: 1px solid #CBCCD3; color: #4E5968; }
+  .tb .info { font-size: 11.5px; color: #6B7684; margin-left: 6px; }
+
+  /* A4 시트 — 화면 미리보기 */
+  .sheet {
+    background: #fff;
+    width: 210mm;
+    min-height: 297mm;
+    margin: 0 auto;
+    box-shadow: 0 4px 22px rgba(0,0,0,0.08);
+    position: relative;
+    page-break-after: always;
+  }
+
+  /* 라벨 1칸 */
+  .lbl {
+    position: absolute;
+    border: 1px dashed #ccc;
+    box-sizing: border-box;
+    padding: 2mm 3mm;
+    text-align: center;
+    overflow: hidden;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+  }
+  .lbl .nm { font-size: 9pt; font-weight: 800; margin-bottom: 1mm; line-height: 1.15; }
+  .lbl .sku { font-family: "SF Mono", monospace; font-size: 7pt; color: #6B7684; margin-bottom: 1mm; word-break: break-all; }
+  .lbl .bc { font-family: "Libre Barcode 39", monospace; font-size: 26pt; letter-spacing: 0; line-height: 0.8; margin: 0.5mm 0; }
+  .lbl .bc-text { font-family: "SF Mono", monospace; font-size: 7pt; color: #191F28; font-weight: 600; }
+  .lbl .meta { font-size: 7pt; color: #4E5968; margin-top: 1mm; }
+  .lbl .small .bc { font-size: 18pt; }
+  .lbl .small .nm { font-size: 7.5pt; }
+
   @media print {
-    .toolbar { display: none; }
     body { background: #fff; padding: 0; }
-    .labels { box-shadow: none; padding: 0; background: transparent; }
+    .tb { display: none; }
+    .sheet { box-shadow: none; margin: 0; }
+    .lbl { border-color: transparent !important; }
   }
 </style>
 <link href="https://fonts.googleapis.com/css2?family=Libre+Barcode+39&display=swap" rel="stylesheet">
 </head>
 <body>
-<div class="toolbar">
-  <strong style="font-size:15px">🏷 라벨 인쇄</strong>
-  <span style="color:#6B7684;font-size:12.5px">{{ opt.canonical_sku }}</span>
-  <span style="margin-left:14px">매수:</span>
-  <input type="number" id="cnt" value="{{ count }}" min="1" max="50" style="width:60px;text-align:center" onchange="updateCount()">
+
+<div class="tb">
+  <strong>🏷 라벨 인쇄</strong>
+  <span class="info">{{ opt.canonical_sku }}</span>
+
+  <label style="margin-left:18px">라벨 용지</label>
+  <select id="preset" onchange="redraw()">
+    <optgroup label="Formtec (한국)">
+      <option value="formtec_3100">Formtec 3100 (A4) — 1×1 = 1칸 ★대형</option>
+      <option value="formtec_3102" selected>Formtec 3102 (A4) — 2×7 = 14칸</option>
+      <option value="formtec_3104">Formtec 3104 (A4) — 2×8 = 16칸</option>
+      <option value="formtec_3105">Formtec 3105 (A4) — 2×10 = 20칸</option>
+      <option value="formtec_3108">Formtec 3108 (A4) — 3×8 = 24칸</option>
+      <option value="formtec_3109">Formtec 3109 (A4) — 3×11 = 33칸</option>
+      <option value="formtec_3110">Formtec 3110 (A4) — 4×10 = 40칸</option>
+      <option value="formtec_3113">Formtec 3113 (A4) — 4×13 = 52칸</option>
+    </optgroup>
+    <optgroup label="Avery (미국)">
+      <option value="avery_l7160">Avery L7160 (A4) — 3×7 = 21칸</option>
+      <option value="avery_l7163">Avery L7163 (A4) — 2×7 = 14칸</option>
+      <option value="avery_l7165">Avery L7165 (A4) — 2×4 = 8칸 ★대</option>
+      <option value="avery_l7651">Avery L7651 (A4) — 3×8 = 24칸 ★소형</option>
+      <option value="avery_l7656">Avery L7656 (A4) — 4×11 = 44칸</option>
+    </optgroup>
+    <optgroup label="Printec (한국)">
+      <option value="printec_v3700">Printec V3700 (A4) — 3×8 = 24칸</option>
+      <option value="printec_v3750">Printec V3750 (A4) — 2×7 = 14칸</option>
+      <option value="printec_v3780">Printec V3780 (A4) — 3×7 = 21칸</option>
+      <option value="printec_v3810">Printec V3810 (A4) — 4×10 = 40칸</option>
+      <option value="printec_v3820">Printec V3820 (A4) — 4×11 = 44칸</option>
+      <option value="printec_v3825">Printec V3825 (A4) — 4×12 = 48칸</option>
+      <option value="printec_v3830">Printec V3830 (A4) — 4×13 = 52칸</option>
+    </optgroup>
+  </select>
+
+  <label style="margin-left:8px">매수</label>
+  <input type="number" id="cnt" value="{{ count }}" min="1" max="500" style="width:70px;text-align:center" onchange="redraw()">
+
+  <label style="margin-left:8px">시작 위치</label>
+  <input type="number" id="start" value="1" min="1" style="width:60px;text-align:center" onchange="redraw()">
+
   <button class="primary" onclick="window.print()">🖨 인쇄</button>
-  <button onclick="window.close()">닫기</button>
-  <span style="margin-left:auto;font-size:11.5px;color:#6B7684">인쇄 대화상자에서 "PDF 로 저장" 선택 시 PDF 출력 가능</span>
+  <button class="ghost" onclick="window.close()">닫기</button>
+  <span class="info">인쇄 대화상자에서 "여백: 없음" 선택 시 정확한 라벨 위치</span>
 </div>
 
-<div class="labels" id="labels">
-  {% for i in range(count) %}
-  <div class="lbl">
-    <div class="nm">{{ (mdl.model_name_display or mdl.model_name_raw) if mdl else opt.model_code }}</div>
-    <div class="sku">{{ opt.canonical_sku }}</div>
-    {% if barcode %}
-      <div class="bc">*{{ barcode }}*</div>
-      <div class="bc-text">{{ barcode }}</div>
-    {% else %}
-      <div style="padding:8mm;color:#9CA3AF;font-size:12px">바코드 없음</div>
-    {% endif %}
-    <div class="meta">
-      <span>{{ opt.color_display or opt.color_code or '—' }}</span>
-      <span>{{ opt.size_display or opt.size_code or '—' }}</span>
-    </div>
-  </div>
-  {% endfor %}
-</div>
+<div id="sheets"></div>
 
 <script>
-function updateCount(){
-  const c = parseInt(document.getElementById('cnt').value || 1);
-  const url = new URL(window.location);
-  url.searchParams.set('count', c);
-  window.location.href = url.toString();
+// 라벨 용지 표준 — A4 (210×297mm) 기준. 모든 단위 mm.
+// 박스히어로 호환 — Formtec / Avery / Printec
+const PRESETS = {
+  // ─── Formtec ───
+  'formtec_3100': {cols:1, rows:1, w:200, h:287, mt:5,    ml:5,   gx:0,   gy:0  },
+  'formtec_3102': {cols:2, rows:7, w:99,  h:38, mt:15,   ml:7,   gx:3,   gy:0  },
+  'formtec_3104': {cols:2, rows:8, w:99,  h:33.9, mt:14, ml:7,   gx:3,   gy:0  },
+  'formtec_3105': {cols:2, rows:10,w:99,  h:25.4, mt:21.5,ml:7,  gx:3,   gy:0  },
+  'formtec_3108': {cols:3, rows:8, w:64,  h:34, mt:15,   ml:7,   gx:3,   gy:0  },
+  'formtec_3109': {cols:3, rows:11,w:64,  h:24, mt:14.5, ml:7,   gx:3,   gy:0  },
+  'formtec_3110': {cols:4, rows:10,w:48,  h:25, mt:13.5, ml:7,   gx:3,   gy:0  },
+  'formtec_3113': {cols:4, rows:13,w:48,  h:20, mt:13.5, ml:7,   gx:3,   gy:0  },
+  // ─── Avery ───
+  'avery_l7160':  {cols:3, rows:7, w:63.5,h:38.1,mt:15.15,ml:7.21,gx:2.5,gy:0  },
+  'avery_l7163':  {cols:2, rows:7, w:99.1,h:38.1,mt:15.15,ml:5.7, gx:2.5,gy:0  },
+  'avery_l7165':  {cols:2, rows:4, w:99.1,h:67.7,mt:13.4, ml:5.7, gx:2.5,gy:0  },
+  'avery_l7651':  {cols:3, rows:8, w:38.1,h:21.2,mt:13,   ml:5,   gx:2.5,gy:0  },
+  'avery_l7656':  {cols:4, rows:11,w:46,  h:25.4,mt:13.5, ml:7,   gx:2.5,gy:0  },
+  // ─── Printec ───
+  'printec_v3700':{cols:3, rows:8, w:63.5,h:33.9,mt:13,   ml:8.4, gx:2.5,gy:0  },
+  'printec_v3750':{cols:2, rows:7, w:99,  h:38, mt:15,   ml:7,   gx:3,   gy:0  },
+  'printec_v3780':{cols:3, rows:7, w:64,  h:38, mt:15,   ml:7,   gx:3,   gy:0  },
+  'printec_v3810':{cols:4, rows:10,w:48,  h:25, mt:13.5, ml:7,   gx:3,   gy:0  },
+  'printec_v3820':{cols:4, rows:11,w:48,  h:23, mt:13.5, ml:7,   gx:3,   gy:0  },
+  'printec_v3825':{cols:4, rows:12,w:48,  h:21, mt:13.5, ml:7,   gx:3,   gy:0  },
+  'printec_v3830':{cols:4, rows:13,w:48,  h:20, mt:13.5, ml:7,   gx:3,   gy:0  },
+};
+
+const ITEM = {
+  name: {{ ((mdl.model_name_display or mdl.model_name_raw) if mdl else opt.model_code)|tojson|safe }},
+  sku: {{ opt.canonical_sku|tojson|safe }},
+  barcode: {{ (barcode or '')|tojson|safe }},
+  color: {{ (opt.color_display or opt.color_code or '—')|tojson|safe }},
+  size: {{ (opt.size_display or opt.size_code or '—')|tojson|safe }},
+};
+
+function redraw(){
+  const presetKey = document.getElementById('preset').value;
+  const p = PRESETS[presetKey] || PRESETS['formtec_3102'];
+  const count = Math.max(1, parseInt(document.getElementById('cnt').value || 1));
+  const start = Math.max(1, parseInt(document.getElementById('start').value || 1));
+  const perPage = p.cols * p.rows;
+  const totalNeeded = start - 1 + count;
+  const numPages = Math.ceil(totalNeeded / perPage);
+  const small = p.w < 50 || p.h < 25;  // 작은 라벨은 폰트 작게
+
+  const sheetsEl = document.getElementById('sheets');
+  sheetsEl.innerHTML = '';
+  let labelIdx = 0;  // 그릴 라벨 카운터
+  for (let pg = 0; pg < numPages; pg++) {
+    const sheet = document.createElement('div');
+    sheet.className = 'sheet';
+    for (let r = 0; r < p.rows; r++) {
+      for (let c = 0; c < p.cols; c++) {
+        const globalIdx = pg * perPage + r * p.cols + c + 1;
+        if (globalIdx < start) continue;          // 시작 위치 전 = 빈칸
+        if (labelIdx >= count) continue;           // 매수 다 채움
+        labelIdx++;
+        const x = p.ml + c * (p.w + p.gx);
+        const y = p.mt + r * (p.h + p.gy);
+        const lbl = document.createElement('div');
+        lbl.className = 'lbl' + (small ? ' small' : '');
+        lbl.style.left = x + 'mm';
+        lbl.style.top  = y + 'mm';
+        lbl.style.width = p.w + 'mm';
+        lbl.style.height = p.h + 'mm';
+        lbl.innerHTML = `
+          <div class="nm">${escapeHTML(ITEM.name)}</div>
+          <div class="sku">${escapeHTML(ITEM.sku)}</div>
+          ${ITEM.barcode ? `
+            <div class="bc">*${escapeHTML(ITEM.barcode)}*</div>
+            <div class="bc-text">${escapeHTML(ITEM.barcode)}</div>
+          ` : '<div style="padding:4mm;color:#9CA3AF;font-size:9pt">바코드 없음</div>'}
+          <div class="meta">${escapeHTML(ITEM.color)} · ${escapeHTML(ITEM.size)}</div>
+        `;
+        sheet.appendChild(lbl);
+      }
+    }
+    sheetsEl.appendChild(sheet);
+  }
 }
+
+function escapeHTML(s){return String(s).replace(/[<>&"]/g,c=>({"<":"&lt;",">":"&gt;","&":"&amp;",'"':"&quot;"})[c]);}
+
+redraw();
 </script>
 </body>
 </html>
