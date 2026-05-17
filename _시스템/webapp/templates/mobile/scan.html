@@ -23,34 +23,27 @@
   .scan-overlay {
     position: absolute;
     inset: 0;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
     pointer-events: none;
+    /* 가이드 프레임·마스크 제거 — 전체 카메라가 인식 영역 */
   }
-  .scan-frame {
-    /* 가이드만 — 실제 디코드는 전체 프레임. 작은 바코드도 OK */
-    width: 70%;
-    aspect-ratio: 2.4 / 1;
-    border: 2px dashed rgba(255,255,255,0.5);
-    border-radius: 12px;
-    box-shadow: 0 0 0 9999px rgba(0,0,0,0.25);
-    position: relative;
-  }
+  /* 전체 폭 가로 스캔 라인 (애니메이션, 가벼움) */
   .scan-line {
     position: absolute;
     left: 0; right: 0;
     height: 2px;
-    background: linear-gradient(90deg, transparent, #3182F6, transparent);
-    animation: scan-anim 1.4s ease-in-out infinite;
+    background: linear-gradient(90deg, transparent, #3182F6 30%, #3182F6 70%, transparent);
+    animation: scan-anim 1.8s ease-in-out infinite;
+    box-shadow: 0 0 8px rgba(49,130,246,0.6);
   }
   @keyframes scan-anim {
-    0%, 100% { top: 8%; }
-    50% { top: 92%; }
+    0%, 100% { top: 5%; }
+    50% { top: 95%; }
   }
   .scan-hint {
-    margin-top: 16px;
+    position: absolute;
+    top: 16px;
+    left: 50%;
+    transform: translateX(-50%);
     background: rgba(0,0,0,0.72);
     color: white;
     padding: 7px 16px;
@@ -129,10 +122,8 @@
 <div class="scan-container">
   <video id="scan-video" autoplay playsinline muted></video>
   <div class="scan-overlay">
-    <div class="scan-frame">
-      <div class="scan-line"></div>
-    </div>
-    <div class="scan-hint" id="scan-hint">📷 카메라 시작 중...</div>
+    <div class="scan-line"></div>
+    <div class="scan-hint" id="scan-hint">📷 바코드를 비춰주세요</div>
   </div>
   <div class="scan-ctrl">
     <button id="btn-torch" title="플래시" onclick="toggleTorch()">🔦</button>
