@@ -1,0 +1,122 @@
+---
+# musinsa 페이지 셀렉터 — _시스템/.../musinsa_playwright.py _EXTRACT_JS 에서 추출.
+# 사이트 개편 시 여기를 우선 확인. 변경 시 changelog.md 도 동시 update.
+#
+# ⚠️ 현재(Phase A) 코드가 이 yaml 안 읽음. 사람용 명세서. Phase B 일반화 시 코드가 import 예정.
+
+site: musinsa
+schema_version: 0.1
+last_updated: 2026-05-17
+
+# ────────────────────────────────────────
+# 가격 영역 (PDP 상단)
+# ────────────────────────────────────────
+price:
+  # 정가 (취소선) — innerText 에서 첫 번째 가격
+  original_wrap:
+    selector: '[class*="DiscountWrap"]'
+    note: "innerText 예: '쿠폰적용가\\n459,000원' (라벨 + 정가)"
+  # 할인가 (큰 글씨)
+  calculated:
+    selector: '[class*="CalculatedPrice"]'
+    note: "innerText 예: '220,320원'. ★ 사이트가 '쿠폰적용가' 라벨로 표시 시 이미 특별쿠폰 적용 후 값"
+  current:
+    selector: '[class*="CurrentPrice"]'
+    note: "innerText 예: '52%\\n220,320원' (할인율 + 가격). CalculatedPrice fallback"
+  total_wrap:
+    selector: '[class*="PriceTotal"], [class*="price"]'
+    note: "최후 fallback. min/max 로 정가/할인가 추론"
+  # ★ 2026-05-17 추가 — 쿠폰적용가 라벨 감지 (sale 이중차감 방지)
+  already_coupon_applied_label:
+    selector: '[class*="PriceTotal"], [class*="DiscountWrap"], [class*="CurrentPrice"]'
+    text_pattern: '쿠폰\s*적용가'
+    behavior: "라벨 매칭 시 base1 산식에서 -coupon 차감 안 함"
+
+# ────────────────────────────────────────
+# 회원가 영역 ("나의 할인가" / 최대혜택가)
+# ────────────────────────────────────────
+member_price_area:
+  # 가장 큰 텍스트의 MaxBenefitPrice 요소 (모든 정보 포함)
+  wrap:
+    selector: '[class*="MaxBenefitPrice"]'
+    strategy: "querySelectorAll 후 textContent 길이 max"
+  # 펼침 트리거 (적립 상세 노출)
+  expand_trigger:
+    selector: '[class*="MaxBenefitPrice__PointSummaryWrap"]'
+    action: click
+    max_retries: 15
+  expand_success_marker:
+    selector: '[class*="MaxBenefitPrice__PointDetailWrap"]'
+    text_pattern: '후기\s*적립|등급\s*적립|결제수단\s*적립'
+  collapse_button_for_lazy_load:
+    selector: '[class*="MaxBenefitPriceTitle__CollapseButton"]'
+    action: click
+    note: '"나의 할인가" lazy render 발동용. scroll + click 필요'
+  # 나의 할인가 가격 (회원가 추출용 정규식)
+  my_discount_price:
+    text_pattern_primary: '([\d,]+)\s*원\s*나의\s*할인가'
+    text_pattern_fallback: '나의\s*할인가\s*([\d,]+)\s*원'
+    validity: 'salePrice 보다 작거나 같을 때만 유효 (역마진 방지)'
+
+# ────────────────────────────────────────
+# 옵션 영역 (색상 × 사이즈 드롭다운)
+# ────────────────────────────────────────
+options:
+  trigger:
+    selector: '[data-mds="DropdownTriggerBox"]'
+    note: "1개 = 사이즈만, 2개 = 색상×사이즈. 0개 = 단품"
+  menu_item:
+    selector: '[data-mds="StaticDropdownMenuItem"]'
+    parse:
+      name: "innerText 첫 줄에서 '품절'/'재입고 알림'/'잔여 N개' 제거"
+      soldout_marker: "innerText 에 '품절' 포함"
+      qty_pattern: '잔여\s*(\d+)\s*개'
+  dropdown_wait_ms: 200
+
+# ────────────────────────────────────────
+# 가격 산식 항목 파싱 (MaxBenefitPrice 텍스트 안 정규식)
+# ────────────────────────────────────────
+breakdown_patterns:
+  grade_discount: '등급\s*할인\s*\(LV\.\d+[^·)]*·\s*(\d+(?:\.\d+)?)\s*%\)\s*-([\d,]+)\s*원'
+  grade_discount_legacy: '등급\s*할인\s*-([\d,]+)\s*원'
+  point_use_ignored: '(?:보유\s*)?적립금\s*사용[^-]*-([\d,]+)\s*원'
+  pre_discount: '적립금\s*선할인\s*-([\d,]+)\s*원'
+  pre_discount_disabled: '적립금\s*선할인\s*불가'
+  product_coupon_section: '상품\s*쿠폰([\s\S]*?)(?=적립금\s*사용|구매\s*적립|제휴카드)'
+  product_coupon_amt: '-([\d,]+)\s*원'
+  regular_coupon_skip: '월\s*1\s*회|정기\s*쿠폰'
+  purchase_reward_active: '구매\s*적립\s*\(\+\s*([\d,]+)\s*원\)'
+  grade_reward: '등급\s*적립\s*\(LV\.\d+[^·)]*·\s*(\d+(?:\.\d+)?)\s*%\)\s*([\d,]+)\s*원'
+  review_reward: '후기\s*적립\s*([\d,]+)\s*원'
+  purchase_extra_reward: '구매\s*추가\s*적립\s*([\d,]+)\s*원'
+  money_reward: '무신사\s*머니\s*결제\s*시\s*(\d+(?:\.\d+)?)\s*%\s*적립\s*([\d,]+)\s*원'
+  cart_coupon: '([가-힣A-Za-z][^/\n]{0,50}?장바구니\s*쿠폰)[\s\S]{0,200}?([\d,]+)\s*(만|천)?\s*원?\s*이상\s*(?:구매)?[\s\S]{0,80}?([\d,]+)\s*(만|천)?\s*원\s*(?:추가\s*)?할인'
+  benefit_price_ui: '([\d,]+)\s*원\s*최대혜택가'
+
+# ────────────────────────────────────────
+# Fail-safe 검증 패턴 (음수/이상 detection)
+# ────────────────────────────────────────
+fail_safe_patterns:
+  no_benefit_grade: '등급\s*할인\s*불가'
+  no_benefit_purchase: '구매\s*적립\s*불가'
+  money_apply_off: '(무신사\s*머니[^적]{0,40})?적용\s*안함'
+  login_alive_markers:
+    - '로그아웃'
+    - '보유\s*적립금'
+    - '현재\s*[\d,]+\s*원\s*보유'
+  core_sections:
+    grade: '등급\s*적립|등급\s*할인'
+    review: '후기\s*적립'
+    money: '무신사\s*머니'
+    my_discount: '나의\s*할인가|사용\s*혜택'
+
+# ────────────────────────────────────────
+# 알려진 셀렉터 변동 이력
+# ────────────────────────────────────────
+known_changes:
+  - date: 2026-05-15
+    change: "MaxBenefitPrice__CollapseButton 클릭 필요 (lazy render)"
+  - date: 2026-05-15
+    change: "등급할인 정규식: LV.X · X% 패턴 추가 (구버전 - X원 fallback)"
+  - date: 2026-05-17
+    change: "쿠폰적용가 라벨 감지 추가 (이중차감 방지)"

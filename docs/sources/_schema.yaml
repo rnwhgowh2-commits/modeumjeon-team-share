@@ -1,0 +1,71 @@
+---
+# docs/sources/{site}/profile.yaml 공통 스키마
+# 신규 소싱처 방 만들 때 이 스키마 따라 작성 → musinsa/profile.yaml 참조용 구현
+
+site: ""                          # 영문 ID (musinsa, ssg, lemouton, lotteon, ssf, ss_lemouton)
+display_name: ""                  # 한글 표시명 (무신사, SSG, 르무통 등)
+domain: ""                        # 메인 도메인
+
+# ────────────────────────────────────────
+# URL 패턴
+# ────────────────────────────────────────
+urls:
+  pdp_template: ""                # 상품 페이지 URL 템플릿 ({product_id} 치환)
+  product_id_pattern: ""          # product_id 추출 정규식 (cap group 1)
+  login: ""                       # 로그인 페이지 URL
+
+# ────────────────────────────────────────
+# Anti-bot · HTTP 클라이언트
+# ────────────────────────────────────────
+http:
+  client: ""                      # curl_cffi | requests | playwright | api
+  impersonate: ""                 # curl_cffi 일 때만 (chrome120 등)
+  timeout_sec: 30
+  default_headers: {}
+  referer_required: false         # Referer 헤더 = pdp_url 강제 여부
+
+# ────────────────────────────────────────
+# 비로그인 API (있을 때만, fallback 용도만)
+# ⚠️ 운영은 회원가 (member_price) 만 사용. api 는 fallback / 디버깅 한정.
+# ────────────────────────────────────────
+api:
+  base: ""
+  endpoints: {}                   # {name: {path, method, body_template, response_fields}}
+
+# ────────────────────────────────────────
+# 회원가 (Playwright) — 운영 필수 경로
+# ────────────────────────────────────────
+member_price:
+  enabled: true
+  account_name: ""                # data/auth/{site}_{account}.json
+  headless: true
+  crawl_timeout_ms: 25000
+  csr_wait_ms: 5000
+  # 사이트별 추가 설정 (펼침 / fail-safe / 정책 룰)
+  # musinsa 예시: dropdown_interval_ms, stock_cap, musinsa_rules, point_detail_expand, fail_safe
+
+# ────────────────────────────────────────
+# Variant 자동 발견 (같은 모델 다른 색상)
+# ────────────────────────────────────────
+variant_discovery:
+  enabled: false                  # 대부분 사이트 false
+  method: ""                      # search_page_playwright | api | none
+  # 활성화 시 추가 설정 필요
+
+# ────────────────────────────────────────
+# 정확도 baseline — Phase 5 검증
+# ────────────────────────────────────────
+accuracy_baseline:
+  verified_skus: []               # 검증 완료 product_id 누적 (사용자 확인 받은 것)
+  last_verified: null             # ISO date
+  match_rate: null                # 100 목표
+
+# ────────────────────────────────────────
+# 메타
+# ────────────────────────────────────────
+meta:
+  schema_version: 0.1
+  last_analyzed: ""               # ISO date
+  analyzed_by: ""                 # claude+사용자ID
+  evidence_dir: ./_evidence/      # 스크린샷·DOM 캡처 보관
+  source_code: []                 # 관련 어댑터 코드 경로 리스트

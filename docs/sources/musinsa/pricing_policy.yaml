@@ -1,0 +1,145 @@
+---
+# musinsa 매입가 산정 정책 — 누적식 5단계
+# 진실 원천: memory/project_benefit_spec.md (2026-05-14 사용자 확정)
+# 코드 위치: _시스템/lemouton/sourcing/crawlers/musinsa_playwright.py _crawl()
+# config: _시스템/config.py SOURCING_AUTH.musinsa_rules
+
+site: musinsa
+schema_version: 0.1
+last_updated: 2026-05-17
+
+# ────────────────────────────────────────
+# 9개 가격 항목 (사용자 명세 2026-05-14)
+# ────────────────────────────────────────
+benefit_items:
+  - name: 등급 할인 (LV별)
+    category: "%할인"
+    auto: false
+    crawled: true
+    behavior: "활성 시 즉시 차감 (LV별 한계율 4%)"
+  - name: 상품 쿠폰
+    category: "%할인 / 정액 (자동판단)"
+    auto: false
+    crawled: true
+    behavior: "정기쿠폰 (월 1회) 제외. ★ '쿠폰적용가' 라벨 노출 시 sale_price 에 이미 적용된 가격 → 이중차감 방지 분기"
+    exception:
+      regular_coupon_skip: "월 1회 정기쿠폰 / 특별 혜택 % 쿠폰 → 제외"
+  - name: 장바구니 쿠폰
+    category: "%할인 / 정액 (자동판단)"
+    auto: false
+    crawled: true
+    behavior: "PDP 띠 영역에서 추출. 조건 미충족이어도 표시 ✓ / 적용 ✗"
+  - name: 적립금 사용
+    category: "제외 (정책 해지)"
+    auto: false
+    crawled: false
+    behavior: "정책상 0 강제 (이중차감 방지). 코드가 체크박스 OFF 시도"
+  - name: 구매 적립 OR 선할인
+    category: "%적립금 / %할인"
+    auto: false
+    crawled: true
+    behavior: "옵션별 3-state 토글: (1)적립만 (2)둘 중 선택 (3)둘 다 X. 정책상 '구매 적립' 라디오 선택 가정"
+  - name: 제휴카드 / 즉시할인
+    category: "제외"
+    auto: false
+    crawled: false
+    behavior: "정책 무시 (결제수단 일관성 X). config.musinsa_rules.include_card_discount=False"
+  - name: 등급 적립 (LV별)
+    category: "%적립금"
+    auto: false
+    crawled: true
+    behavior: "LV별 % (LV.9 = 4%) × base 차감"
+  - name: 후기 적립
+    category: "정액"
+    auto: true
+    crawled: false
+    behavior: "DB compute_breakdown 가 500원 고정 처리 (텍스트 후기 기준). 크롤러는 항목 존재 여부만 노출"
+  - name: 무신사머니 적립
+    category: "%적립금"
+    auto: true
+    crawled: true
+    behavior: "활성 시: LV별 %(기본+프로모션 합) × base. 비활성 시: 크롤러 0 차감 → DB compute_breakdown 의 현대카드 2.73% fallback 발동"
+
+# ────────────────────────────────────────
+# 누적식 5단계 산식 (musinsa_playwright._crawl 정확 반영)
+# ────────────────────────────────────────
+formula:
+  step_1:
+    description: "표면가 - 등급할인 - 쿠폰 (단, 쿠폰적용가 라벨 시 쿠폰 차감 안 함)"
+    formula: |
+      if is_already_coupon_applied:
+        base1 = max(sale_price - grade_discount, 0)
+      else:
+        base1 = max(sale_price - grade_discount - coupon, 0)
+  step_2:
+    description: "등급 적립 (활성 시 base1 × LV %) + 구매 추가 적립 차감"
+    formula: |
+      grade_reward_amt = int(base1 * grade_reward_rate) if grade_reward_active else 0
+      base2 = max(base1 - grade_reward_amt - purchase_extra_reward, 0)
+  step_3:
+    description: "무신사머니 적립 (활성 시 base2 × LV %) 차감"
+    formula: |
+      if money_active:
+        money_reward_amt = int(base2 * money_reward_rate)
+        base3 = max(base2 - money_reward_amt, 0)
+      else:
+        base3 = base2  # DB 현대카드 2.73% fallback 발동
+  result:
+    description: "최종 매입가 = 계층 2 (회원가)"
+    formula: "tier2_expected = base3"
+
+# ────────────────────────────────────────
+# Fail-safe 검증 (musinsa_playwright._crawl 검증 5+1단계)
+# ────────────────────────────────────────
+fail_safe:
+  - id: 1
+    name: wrap_found
+    check: "MaxBenefitPrice wrap 발견"
+  - id: 2
+    name: point_detail_wrap_found
+    check: "펼침 후 PointDetailWrap 존재 (PointSummaryWrap 클릭 성공 증거)"
+  - id: 3
+    name: text_length
+    check: "wrap.textContent ≥ 300자 (단, 혜택 거의 없는 상품은 우회)"
+  - id: 4
+    name: core_sections
+    check: "등급·후기·무신사머니 3개 섹션 모두 노출 (혜택 없는 상품은 후기만)"
+  - id: 5
+    name: has_my_discount
+    check: "'나의 할인가' 또는 '사용 혜택' 영역 존재 = 로그인 + 가격 영역 정상"
+  - id: 6
+    name: lv_sanity_check
+    check: "등급할인율·등급적립률·무신사머니 적립률 모두 ≤ 5% (LV 한계)"
+  - id: 7
+    name: purchase_ratio
+    check: "tier2/sale_price 비율 0.20~1.00 범위 (과차감/역마진 방지)"
+  - id: 8
+    name: total_deduction
+    check: "차감 합계 ≤ sale_price × 0.80 (과차감 의심)"
+  - id: 9
+    name: member_price_vs_base1   # ★ 2026-05-17 추가
+    check: "my_discount_price ≤ base1 (사이트 표시 회원가가 우리 base 보다 크면 base 산정 오류)"
+    note: "오늘 발견된 쿠폰 이중차감 BUG 의 결정적 invariant. 향후 비슷한 BUG 자동 차단."
+
+# ────────────────────────────────────────
+# 적용 안 됨 / 제외 항목 (사용자 정책)
+# ────────────────────────────────────────
+excluded_from_calculation:
+  - 적립금 사용 (코드가 체크박스 OFF 시도, ★ 셀렉터 미적중 알려진 이슈)
+  - 제휴카드 전용할인 (정책 무시)
+  - 결제수단 즉시할인 (정책 무시 — 토스페이/카드 일관성 X)
+  - 월 1회 정기쿠폰 (자동 적용이라 우리 매입가 베이스에서 제외)
+
+# ────────────────────────────────────────
+# 사이트 표시 가격 vs 우리 매입가 차이
+# ────────────────────────────────────────
+site_vs_our_calculation:
+  site_displays:
+    - "정가 (취소선)"
+    - "쿠폰적용가 (이미 자동 쿠폰 적용된 sale 가격, 노출 시 우리 sale_price 베이스)"
+    - "나의 할인가 (즉시할인·적립금사용 포함, 사이트의 최종 표시값)"
+    - "최대 적립 (별도)"
+  our_purchase_price:
+    description: "위 사이트 표시값과 다름. 정책상 즉시할인·적립금사용·삼성카드 적립 무시."
+    formula_summary: "쿠폰적용가 sale_price - (등급할인) - (쿠폰, 단 적용가 라벨 없을 때) - (등급적립 base1×%) - (무신사머니 적립 base2×%)"
+    typical_diff_from_site: "사이트 '나의 할인가' 보다 우리 매입가가 더 보수적 (낮음). 단 my_discount_price ≤ base1 invariant 유지 (Fail-safe #9)"

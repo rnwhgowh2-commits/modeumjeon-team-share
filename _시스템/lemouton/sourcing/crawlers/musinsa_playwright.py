@@ -369,6 +369,36 @@ async (cfg) => {
         breakdown.has_my_discount_section = /나의\\s*할인가|사용\\s*혜택/.test(text);
         // ★ 펼침 직접 증거 — PointDetailWrap 은 PointSummaryWrap 클릭 시만 등장
         breakdown.point_detail_wrap_found = !!document.querySelector('[class*="MaxBenefitPrice__PointDetailWrap"]');
+        // ★ 2026-05-17 — "쿠폰적용가" 라벨 감지.
+        //   라벨 노출 시 sale_price (CalculatedPrice/CurrentPrice 추출값) 는 이미 특별쿠폰 적용 후 가격.
+        //   → Python 측 base1 산식이 -coupon 또 차감하면 이중차감 BUG.
+        //   사용자 확인 (2026-05-17, 상품 4677240): 220,320 이 "쿠폰적용가" 로 노출, 이미 -55,080 반영됨.
+        const _priceArea = document.querySelector('[class*="PriceTotal"], [class*="DiscountWrap"], [class*="CurrentPrice"]');
+        breakdown.is_already_coupon_applied = _priceArea ? /쿠폰\\s*적용가/.test(_priceArea.textContent || '') : false;
+        // ★ Phase 8.8.3 (2026-05-17) — "나의 할인가" 가격 추출 (회원가).
+        //   UI 예: "122,900원\\n109,300원\\n나의 할인가"
+        //   → 사이트가 sale_price 아래 줄에 회원가 노출. "나의 할인가" 라벨 앞 가격 추출.
+        //   비로그인 시 영역 미노출 → 매칭 실패 (정상 — 회원가 없음).
+        // 정규식: 가격 + "나의 할인가" (앞)
+        let myDiscountMatch = text.match(/([\\d,]+)\\s*원\\s*나의\\s*할인가/);
+        if (!myDiscountMatch) {
+            // fallback: "나의 할인가" 뒤 가격 (UI 변경 가능성)
+            myDiscountMatch = text.match(/나의\\s*할인가\\s*([\\d,]+)\\s*원/);
+        }
+        if (myDiscountMatch) {
+            const _mp = parseInt(myDiscountMatch[1].replace(/,/g, ''));
+            // 회원가가 sale_price 보다 작거나 같을 때만 유효 (역마진 방지)
+            if (_mp > 0 && _mp <= salePrice) {
+                breakdown.my_discount_price = _mp;
+            }
+        }
+        // ★ Phase 8.8.3 — Gate 1: 로그인 살아있는지 page-wide 마커 검증
+        //   "보유 적립금" / "로그아웃" / "{N}원 보유" 패턴 = 회원 한정 노출
+        const pageBody = document.body.textContent || '';
+        breakdown.login_marker_present =
+            /로그아웃/.test(pageBody) ||
+            /보유\\s*적립금/.test(pageBody) ||
+            /현재\\s*[\\d,]+\\s*원\\s*보유/.test(pageBody);
         // ★ 2026-05-15 — "혜택 거의 없음" 케이스 (4210142) 감지:
         //   등급할인=불가 + 구매적립=불가 + 무신사머니="적용 안함" 인 상품은
         //   textContent 가 짧고 (185~280자) money_section 매칭이 안됨.
@@ -792,7 +822,15 @@ class MusinsaPlaywrightCrawler(AbstractCrawler):
         #     무신사머니 비활성 시 크롤러도 차감 안 함 → DB 현대카드 fallback 발동.
         # ════════════════════════════════════════════════
         # ── 단계 1: 표면가 - 등급할인(활성시) - 쿠폰
-        base1 = max(sale_price - grade_discount - coupon, 0)
+        # ★ 2026-05-17 — "쿠폰적용가" 라벨 노출 시 sale_price 가 이미 특별쿠폰 적용 후 가격.
+        #   coupon 또 차감하면 이중차감 BUG. 사용자 확인 (4677240 케이스).
+        #   감지는 _EXTRACT_JS 의 breakdown.is_already_coupon_applied 플래그로.
+        is_already_coupon_applied = bool(bd.get("is_already_coupon_applied"))
+        if is_already_coupon_applied:
+            # 사이트가 "쿠폰적용가" 로 표시한 sale_price 는 이미 -coupon 반영됨
+            base1 = max(sale_price - grade_discount, 0)
+        else:
+            base1 = max(sale_price - grade_discount - coupon, 0)
 
         # ── 단계 2: 등급 적립 (= 구매 적립, 활성 시) + 구매 추가 적립 (활성 시)
         grade_reward_amt = int(base1 * grade_reward_rate) if (grade_reward_active and grade_reward_rate > 0) else 0
@@ -814,6 +852,21 @@ class MusinsaPlaywrightCrawler(AbstractCrawler):
         review_reward_active = has_review_reward  # 정보 보존
 
         tier1_confirmed = base1  # 호환성 (기존 코드가 참조)
+
+        # ★ 2026-05-17 Fail-safe — base1 vs 사이트 "나의 할인가" 교차 검증.
+        #   사이트의 my_discount_price (나의 할인가) > base1 이면 base1 산정 오류 가능성.
+        #   원인 후보: 쿠폰 이중차감 / sale_price 추출 오류 / 정책 룰 변경 미반영 등.
+        #   금일 발견된 4677240 BUG 의 결정적 증거였음 (199,900 > 165,240).
+        #   사이트가 표시한 "나의 할인가" 보다 우리 매입가 베이스가 작으면 비정상 → 차단.
+        _my_disc_check = bd.get("my_discount_price")
+        if _my_disc_check and _my_disc_check > tier1_confirmed:
+            raise RuntimeError(
+                f"[무신사] member_price({_my_disc_check:,}원) > base1({tier1_confirmed:,}원) — "
+                f"base1 산정 오류 가능성 (쿠폰 이중차감 / sale 추출 오류 등). "
+                f"sale_price={sale_price:,} coupon={coupon:,} is_already_applied={is_already_coupon_applied}. "
+                f"가격 산출 불가 (Fail-safe)"
+            )
+
         payment_benefit = money_reward_amt
         tier2_expected = max(base2 - money_reward_amt, 0)
         # base3 호환 — 호환성 유지 (구 옵션 dict 참조용)
@@ -852,6 +905,14 @@ class MusinsaPlaywrightCrawler(AbstractCrawler):
             size = opt.get("size") or ""
             soldout = bool(opt.get("soldout"))
             qty = int(opt.get("qty") or 0)
+            # ★ Phase 8.8.3 (2026-05-17) — "나의 할인가" 회원가 추출 결과를 옵션 dyn 으로 박음.
+            #   - my_discount_price (회원가, 사이트 노출값) → matrix 의 비회원가 검출 룰의 진실 원천
+            #   - is_member_price (True): 회원가가 추출됐고 sale_price 보다 작음 = 로그인 정상
+            #     (False): 회원가 미추출 = 비로그인 or 페이지 변경 → 매트릭스 알림 발동
+            #   - login_marker_present: Gate 1 (보유 적립금/로그아웃 페이지 마커)
+            _my_disc = bd.get("my_discount_price")
+            _is_member = bool(_my_disc and _my_disc > 0 and _my_disc < tier1_confirmed)
+            _login_marker = bool(bd.get("login_marker_present"))
             options.append({
                 "option_id": f"{product_id}|{color}|{size}",
                 "color_text": color,
@@ -863,6 +924,10 @@ class MusinsaPlaywrightCrawler(AbstractCrawler):
                 "original_price": orig_price,
                 "sale_price": tier1_confirmed,
                 "benefit_price": tier2_expected,
+                # ★ Phase 8.8.3 — 회원가 dyn (대시보드 비회원가 알림 룰 + 매트릭스 회원가 표시용)
+                "member_price": _my_disc if _is_member else None,
+                "is_member_price": _is_member,
+                "login_marker_present": _login_marker,
                 "breakdown": {
                     # 즉시 차감 항목 (활성 시)
                     "grade_discount":        grade_discount,
@@ -902,6 +967,8 @@ class MusinsaPlaywrightCrawler(AbstractCrawler):
 
         if not options:
             # ★ 2026-05-15 정정 #5 — 단품 폴백에도 breakdown 박기 (이전엔 누락)
+            _my_disc_fb = bd.get("my_discount_price")
+            _is_member_fb = bool(_my_disc_fb and _my_disc_fb > 0 and _my_disc_fb < tier1_confirmed)
             options.append({
                 "option_id": f"{product_id}||",
                 "color_text": "", "size_text": "",
@@ -909,6 +976,10 @@ class MusinsaPlaywrightCrawler(AbstractCrawler):
                 "original_price": orig_price,
                 "sale_price": tier1_confirmed,
                 "benefit_price": tier2_expected,
+                # Phase 8.8.3
+                "member_price": _my_disc_fb if _is_member_fb else None,
+                "is_member_price": _is_member_fb,
+                "login_marker_present": bool(bd.get("login_marker_present")),
                 "breakdown": dict(bd),  # raw breakdown 그대로 (Python 측 보강 포함)
             })
 
@@ -919,7 +990,10 @@ class MusinsaPlaywrightCrawler(AbstractCrawler):
             _gd_rate = float(bd.get("grade_discount_rate") or 0)
             parts.append(f"등급할인 -{grade_discount:,}원({_gd_rate*100:.1f}%)")
         if coupon > 0:
-            parts.append(f"쿠폰 -{coupon:,}원")
+            if is_already_coupon_applied:
+                parts.append(f"쿠폰 (이미 sale_price 에 반영, 추가 차감 안 함) -{coupon:,}원")
+            else:
+                parts.append(f"쿠폰 -{coupon:,}원")
         if grade_reward_active and grade_reward_rate > 0:
             parts.append(f"등급적립 {grade_reward_rate*100:.1f}%")
         if purchase_extra_reward > 0:

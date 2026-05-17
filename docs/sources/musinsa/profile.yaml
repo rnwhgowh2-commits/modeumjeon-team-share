@@ -1,0 +1,184 @@
+---
+# musinsa 소싱처 프로파일 — 비로그인 API 경로 (Phase B 시연용 부분 발췌)
+#
+# 단일 진실 원천. 향후 v2 크롤러가 이 yaml 을 import 해서 동작.
+# 현재(Phase A)는 사람용 문서 + 시연 v2 가 읽음. 운영 크롤러는 아직 yaml 안 봄.
+#
+# Source: _시스템/lemouton/sourcing/crawlers/musinsa.py 에서 추출 (2026-05-17).
+#         사이트 변경 시 → 이 파일 수정 → v2 자동 적용.
+
+site: musinsa
+display_name: 무신사
+domain: www.musinsa.com
+
+# ────────────────────────────────────────
+# URL 패턴
+# ────────────────────────────────────────
+urls:
+  pdp_template: "https://www.musinsa.com/products/{product_id}"
+  product_id_pattern: "/products/(\\d+)"
+  login: "https://www.musinsa.com/auth/login"
+
+# ────────────────────────────────────────
+# Anti-bot · HTTP 클라이언트 설정
+# ────────────────────────────────────────
+http:
+  client: curl_cffi              # Cloudflare TLS fingerprint 우회 필수
+  impersonate: chrome120          # curl_cffi 가 Chrome 120 흉내
+  timeout_sec: 30
+  default_headers:
+    Origin: "https://www.musinsa.com"
+    Accept: "application/json"
+  referer_required: true          # Referer 헤더 = pdp_url 강제 (CORS)
+
+# ────────────────────────────────────────
+# 비로그인 API 엔드포인트 — ⚠️ FALLBACK ONLY (운영 미사용)
+# ────────────────────────────────────────
+# 운영 매입가 산정은 반드시 아래 `member_price` (회원가 Playwright) 사용.
+# 본 api 섹션은 (1) 세션 만료 시 임시 fallback, (2) 디버깅용 비교 측정용 한정.
+# 비로그인 가격(salePrice)은 일반 표시가일 뿐 매입가 베이스로 부적합.
+api:
+  base: "https://goods-detail.musinsa.com"
+  endpoints:
+    meta:
+      path: "/api2/goods/{product_id}"
+      method: GET
+      response_fields:
+        product_name: "data.goodsNm"
+        brand: "data.brandName"
+        sale_price: "data.goodsPrice.salePrice"
+        original_price: "data.goodsPrice.normalPrice"
+    options:
+      path: "/api2/goods/{product_id}/options"
+      method: GET
+      response_fields:
+        basic_groups: "data.basic"        # 색상·사이즈 그룹
+        option_items: "data.optionItems"  # SKU 행
+    inventories:
+      path: "/api2/goods/{product_id}/options/v2/prioritized-inventories"
+      method: POST
+      body_template:
+        optionValueNos: "{all_value_nos}"
+      response_fields:
+        items: "data"
+
+# ────────────────────────────────────────
+# 옵션 처리 규약 (V7 호환)
+# ────────────────────────────────────────
+options:
+  managed_code_separator: "^"     # "{색상}^{사이즈}" 분리자
+  dropdown_mapping:
+    one_group: { tok_a: "size",  tok_b: "" }       # 사이즈만
+    two_groups: { tok_a: "color", tok_b: "size" }  # 색상×사이즈
+  stock:
+    out_of_stock_default: 0
+    no_remain_field_default: 999    # remainQuantity 미노출 = 충분 재고
+
+# ────────────────────────────────────────
+# Variant 자동 발견 (같은 모델 다른 색상)
+# ────────────────────────────────────────
+variant_discovery:
+  enabled: true
+  method: search_page_playwright
+  search_url: "https://www.musinsa.com/search/goods?keyword={query}"
+  query_template: "{brand} {base_name}"
+  color_words_to_strip:
+    - 다크네이비
+    - 네이비
+    - 블랙블랙
+    - 블랙화이트
+    - 블랙
+    - 화이트
+    - 그레이
+    - 브라운
+    - 아이보리
+    - 오렌지
+    - 라이트블루
+    - 스카이블루
+    - 크림핑크
+    - 올리브그린
+    - 핑크
+    - 레드
+    - 블루
+    - 카키
+  playwright:
+    headless: false               # 자동화 차단 회피
+    channel: chrome
+    window_position: "2000,2000"  # 화면 밖 위치 (사용자 방해 ❌)
+    window_size: "400,300"
+    user_agent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36"
+
+# ────────────────────────────────────────
+# 회원가 (Playwright) — Phase B 시연 부분 발췌
+# ────────────────────────────────────────
+# musinsa_playwright.MusinsaPlaywrightCrawler 가 사용하는 config.SOURCING_AUTH 값들.
+# v2 는 이 yaml 을 단일 진실 원천으로 사용. 운영 코드는 아직 config.py 보지만,
+# 같은 값을 yaml 에도 명시 → 향후 점진 마이그레이션 시 yaml 만 수정하면 됨.
+member_price:
+  enabled: true
+  account_name: 영빈              # data/auth/musinsa_영빈.json 사용
+  headless: true                   # 백그라운드 Chrome
+  # config.SOURCING_AUTH 와 동일한 값들 (단일 진실 원천 후보)
+  crawl_timeout_ms: 25000
+  csr_wait_ms: 5000
+  dropdown_interval_ms: 200
+  stock_cap: 10
+  # 무신사 가격 정책 룰 (config.py:69-79)
+  musinsa_rules:
+    card_cashback_rate: 0.0273     # 미사용 (LV별 무신사머니 % 매 크롤 추출)
+    include_card_discount: false   # 정책: 결제수단 무시
+    include_point_use: false       # 정책: 적립금사용 0
+    review_reward_fixed: 500       # 후기적립 항목 있을 때 고정 (compute_breakdown 가 처리)
+    purchase_radio_default: purchase_reward  # 항상 "구매적립" 선택 가정
+  # 펼침 안정성 (musinsa_playwright._EXTRACT_JS expandPointDetail)
+  point_detail_expand:
+    max_retries: 15
+    initial_wait_ms: 500           # 시도 1~10
+    aria_strategy_threshold: 10    # 시도 11+: aria-expanded=false 버튼 클릭
+    aria_strategy_wait_ms: 800
+  # Fail-safe 검증 임계값 (musinsa_playwright._crawl)
+  fail_safe:
+    min_text_length: 300            # textContent 최소 길이 (혜택 상품)
+    grade_discount_max_rate: 0.05   # 등급할인율 비정상 한계 (LV.X · 5% 초과)
+    grade_reward_max_rate: 0.05
+    money_reward_max_rate: 0.05     # LV.9 = 3% 기본 + 1% 프로모션 = 4% 한계
+    purchase_ratio_min: 0.20        # 매입가/sale_price 최저 비율 (특별쿠폰까지 허용)
+    deduction_pct_max: 0.80         # 차감 합계 / sale_price 최대 비율
+
+# ────────────────────────────────────────
+# accuracy baseline (Phase 5 검증용)
+# ────────────────────────────────────────
+accuracy_baseline:
+  verified_skus:                   # 사용자 확인 완료 product_id (회원가 정확도 검증)
+    - product_id: 4677240
+      name: 내셔널지오그래픽 필름메이커 마운티너스 퀼팅 패딩자켓
+      benefit_price: 203048
+      member_price: 199900
+      verified_on: 2026-05-17
+      notes: "쿠폰적용가 라벨 케이스. BUG 수정 후 정확. Fail-safe #9 통과 (199900 ≤ 220320)"
+    - product_id: 4046672
+      name: 르무통 메이트 발 편한 메리노울 운동화
+      benefit_price: 113265
+      member_price: 109300
+      verified_on: 2026-05-17
+      notes: "쿠폰 없는 표준 케이스. 회귀 테스트 기준"
+    - product_id: 4210142
+      name: 무신사 스탠다드 시티 레저 CN 원 턱 와이드 밴딩 팬츠 네이비
+      benefit_price: 35890
+      member_price: 33380
+      verified_on: 2026-05-17
+      notes: "혜택 없는 상품 케이스 (is_no_benefit_product=True). 회귀 테스트 기준"
+  last_verified: 2026-05-17
+  match_rate: 100                  # 3/3 사용자 검증 일치
+
+# ────────────────────────────────────────
+# 메타
+# ────────────────────────────────────────
+meta:
+  schema_version: 0.1
+  last_analyzed: 2026-05-17
+  analyzed_by: claude+rnwhgowh2
+  evidence_dir: ./_evidence/
+  source_code:
+    - _시스템/lemouton/sourcing/crawlers/musinsa.py
+    - _시스템/lemouton/sourcing/crawlers/musinsa_playwright.py
