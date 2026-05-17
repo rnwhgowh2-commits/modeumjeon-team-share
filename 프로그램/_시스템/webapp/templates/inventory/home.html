@@ -271,11 +271,12 @@
       </div>
       <a href="javascript:openHistMod('{{ d.opt.canonical_sku }}', null, '전체')" style="display:block;text-align:center;padding:6px;border:1px solid #CBCCD3;color:#4F67FF;text-decoration:none;font-size:11.5px;border-radius:5px;margin-bottom:10px;font-weight:600">📜 전체 거래 이력 보기 →</a>
 
-      {# ★ 이 제품으로 즉시 입고/출고/조정 액션 (prefill — 박스히어로 1:1 UX) #}
-      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-bottom:14px">
-        <a href="{{ url_for('inventory.inbound_new', sku=d.opt.canonical_sku) }}" style="text-align:center;padding:9px 6px;background:#16A34A;color:#fff;text-decoration:none;font-size:12px;border-radius:5px;font-weight:700">📥 입고</a>
-        <a href="{{ url_for('inventory.outbound_new', sku=d.opt.canonical_sku) }}" style="text-align:center;padding:9px 6px;background:#DC2626;color:#fff;text-decoration:none;font-size:12px;border-radius:5px;font-weight:700">📤 출고</a>
-        <a href="{{ url_for('inventory.adjust_new', sku=d.opt.canonical_sku) }}" style="text-align:center;padding:9px 6px;background:#F59E0B;color:#fff;text-decoration:none;font-size:12px;border-radius:5px;font-weight:700">⚖ 조정</a>
+      {# ★ 이 제품으로 즉시 입고/출고/조정/이동 액션 (prefill — 박스히어로 1:1 UX) #}
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:6px;margin-bottom:14px">
+        <a href="{{ url_for('inventory.inbound_new', sku=d.opt.canonical_sku) }}" style="text-align:center;padding:9px 4px;background:#16A34A;color:#fff;text-decoration:none;font-size:12px;border-radius:5px;font-weight:700">📥 입고</a>
+        <a href="{{ url_for('inventory.outbound_new', sku=d.opt.canonical_sku) }}" style="text-align:center;padding:9px 4px;background:#DC2626;color:#fff;text-decoration:none;font-size:12px;border-radius:5px;font-weight:700">📤 출고</a>
+        <a href="{{ url_for('inventory.adjust_new', sku=d.opt.canonical_sku) }}" style="text-align:center;padding:9px 4px;background:#F59E0B;color:#fff;text-decoration:none;font-size:12px;border-radius:5px;font-weight:700">⚖ 조정</a>
+        <a href="{{ url_for('inventory.move_new', sku=d.opt.canonical_sku) }}" style="text-align:center;padding:9px 4px;background:#7C3AED;color:#fff;text-decoration:none;font-size:12px;border-radius:5px;font-weight:700">🔄 이동</a>
       </div>
 
       {# 거래 이력 모달 #}

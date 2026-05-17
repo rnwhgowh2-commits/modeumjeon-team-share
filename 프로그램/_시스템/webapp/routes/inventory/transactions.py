@@ -613,9 +613,11 @@ def move_new():
     try:
         from lemouton.inventory.locations import list_active
         locations = list_active(s)
+        prefill_skus = request.args.getlist('sku')
         return render_template('inventory/move/form.html',
                                active='move', locations=locations,
-                               opt_data=_opt_data_all(s))
+                               opt_data=_opt_data_all(s),
+                               prefill_skus=prefill_skus)
     finally:
         s.close()
 
