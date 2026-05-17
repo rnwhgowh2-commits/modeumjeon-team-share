@@ -813,3 +813,70 @@ def inventory_export():
                          as_attachment=True, download_name=f'inventory_{datetime.now().strftime("%Y%m%d")}.xlsx')
     finally:
         s.close()
+
+
+# ============ 거래 수정/삭제 (박스히어로 1:1) ============
+
+@bp.route('/history/<int:tx_id>/edit', methods=['GET', 'POST'])
+def tx_edit(tx_id: int):
+    """거래 수정 (입고서·출고서·조정서·이동서 통합).
+
+    GET: 폼 표시 (현재 값 prefill)
+    POST: 변경 적용 — 재고 자동 재계산 (사용자 확인 체크박스 필수)
+    """
+    s = SessionLocal()
+    try:
+        from lemouton.inventory.models import InventoryLocation
+        from flask import abort
+        tx = s.query(InventoryTx).filter_by(id=tx_id).first()
+        if not tx or tx.status != 'completed':
+            abort(404)
+
+        locs = s.query(InventoryLocation).filter(InventoryLocation.deleted_at.is_(None))\
+                .order_by(InventoryLocation.name).all()
+        error = None
+
+        if request.method == 'POST':
+            confirm_recalc = (request.form.get('confirm_recalc') == 'on')
+            if not confirm_recalc:
+                error = '재고 자동 계산 확인 체크가 필요합니다.'
+            else:
+                try:
+                    new_loc = int(request.form.get('location_id') or tx.location_id)
+                    new_qty = int(request.form.get('qty') or tx.qty)
+                    new_partner = (request.form.get('partner_label') or '').strip() or None
+                    new_memo = (request.form.get('memo') or '').strip() or None
+                    new_loc_to = request.form.get('location_to_id')
+                    new_loc_to = int(new_loc_to) if new_loc_to else None
+
+                    tx.location_id = new_loc
+                    tx.qty = new_qty
+                    tx.partner_label = new_partner
+                    tx.memo = new_memo
+                    if tx.tx_type == 'move':
+                        tx.location_to_id = new_loc_to
+                    s.commit()
+                    return redirect(url_for('inventory.history'))
+                except Exception as e:
+                    error = f'수정 실패: {e}'
+
+        return render_template('inventory/tx_edit.html',
+                               active='history', tx=tx, locs=locs, error=error)
+    finally:
+        s.close()
+
+
+@bp.post('/history/<int:tx_id>/delete')
+def tx_delete(tx_id: int):
+    """거래 soft delete — status='deleted' 로 변경, 재고 자동 재계산."""
+    s = SessionLocal()
+    try:
+        from flask import abort
+        tx = s.query(InventoryTx).filter_by(id=tx_id).first()
+        if not tx:
+            abort(404)
+        tx.status = 'deleted'
+        s.commit()
+        return jsonify(ok=True)
+    finally:
+        s.close()

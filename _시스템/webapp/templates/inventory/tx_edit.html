@@ -1,0 +1,115 @@
+{% extends 'base.html' %}
+{% block title %}{{ {'in':'입고서','out':'출고서','adjust':'조정서','move':'이동서'}.get(tx.tx_type, '거래') }} 수정 — 재고관리{% endblock %}
+{% block content %}
+<style>
+  .e-shell { padding:24px 32px; max-width:900px; margin:0 auto; }
+  .e-head { display:flex; justify-content:space-between; align-items:flex-end; padding-bottom:14px; margin-bottom:22px; border-bottom:1px solid #E5E8EB; }
+  .e-head h1 { font-size:22px; font-weight:700; margin:0; color:#191F28; }
+  .e-head h1.in { color:#1D4ED8; }
+  .e-head h1.out { color:#DC2626; }
+  .e-head h1.adjust { color:#92400E; }
+  .e-head h1.move { color:#6B21A8; }
+  .e-card { background:#fff; border:1px solid #E5E8EB; border-radius:10px; padding:22px 26px; margin-bottom:14px; }
+  .e-row { display:flex; gap:14px; margin-bottom:14px; }
+  .e-row .e-col { flex:1; }
+  .e-lbl { display:block; font-size:11.5px; font-weight:700; color:#4E5968; margin-bottom:5px; text-transform:uppercase; letter-spacing:.04em; }
+  .e-lbl .req { color:#DC2626; }
+  .e-inp { width:100%; padding:9px 12px; border:1px solid #CBCCD3; border-radius:6px; font-size:13px; box-sizing:border-box; font-family:inherit; }
+  .e-mono { font-family:"SF Mono",ui-monospace,monospace; font-size:12px; }
+  .e-help { font-size:11.5px; color:#8B95A1; margin-top:4px; }
+  .e-warn { background:#FEF3C7; border:1px solid #F59E0B; border-radius:8px; padding:11px 14px; font-size:12.5px; color:#92400E; margin-bottom:14px; }
+  .e-warn label { display:flex; align-items:center; gap:8px; cursor:pointer; }
+  .e-actions { display:flex; gap:8px; padding-top:18px; border-top:1px solid #F2F4F6; margin-top:18px; }
+  .btn { padding:10px 18px; border:0; border-radius:7px; font-weight:700; font-size:13.5px; cursor:pointer; font-family:inherit; }
+  .btn-primary { background:#3182F6; color:#fff; }
+  .btn-primary:disabled { background:#9CA3AF; cursor:not-allowed; }
+  .btn-ghost { background:#fff; border:1px solid #E5E8EB; color:#4E5968; text-decoration:none; display:inline-flex; align-items:center; }
+  .btn-danger { background:#DC2626; color:#fff; margin-left:auto; }
+  .e-alert.err { background:#FEE2E2; border:1px solid #FCA5A5; color:#991B1B; padding:11px 14px; border-radius:8px; margin-bottom:14px; font-size:12.5px; }
+</style>
+
+<div class="e-shell">
+  {% set type_label = {'in':'입고서','out':'출고서','adjust':'조정서','move':'이동서'}.get(tx.tx_type, '거래') %}
+  <div class="e-head">
+    <h1 class="{{ tx.tx_type }}">{{ type_label }} 수정</h1>
+    <button type="button" class="btn btn-danger" onclick="if(confirm('정말 삭제하시겠습니까? 재고가 자동 재계산됩니다.')) deleteTx({{ tx.id }})">🗑 삭제</button>
+  </div>
+
+  {% if error %}<div class="e-alert err">⚠ {{ error }}</div>{% endif %}
+
+  <form method="post" class="e-card">
+    <div class="e-row">
+      <div class="e-col">
+        <label class="e-lbl">위치 <span class="req">*</span></label>
+        <select name="location_id" class="e-inp">
+          {% for l in locs %}<option value="{{ l.id }}" {% if l.id == tx.location_id %}selected{% endif %}>{{ l.name }}</option>{% endfor %}
+        </select>
+      </div>
+      {% if tx.tx_type == 'move' %}
+      <div class="e-col">
+        <label class="e-lbl">도착 위치 <span class="req">*</span></label>
+        <select name="location_to_id" class="e-inp">
+          {% for l in locs %}<option value="{{ l.id }}" {% if l.id == tx.location_to_id %}selected{% endif %}>{{ l.name }}</option>{% endfor %}
+        </select>
+      </div>
+      {% endif %}
+    </div>
+
+    <div class="e-row">
+      <div class="e-col" style="flex:2">
+        <label class="e-lbl">제품 SKU</label>
+        <input class="e-inp e-mono" value="{{ tx.option_canonical_sku }}" readonly style="background:#F9FAFB">
+        <div class="e-help">SKU 변경은 별도 — 삭제 후 재등록 권장</div>
+      </div>
+      <div class="e-col">
+        <label class="e-lbl">수량 <span class="req">*</span></label>
+        <input name="qty" type="number" class="e-inp e-mono" value="{{ tx.qty }}" min="0" required>
+        <div class="e-help">{% if tx.tx_type=='adjust' %}절대값 — 해당 위치 재고를 이 수량으로 맞춤{% else %}변동 수량{% endif %}</div>
+      </div>
+    </div>
+
+    <div class="e-row">
+      <div class="e-col">
+        <label class="e-lbl">거래처</label>
+        <input name="partner_label" class="e-inp" value="{{ tx.partner_label or '' }}" placeholder="{% if tx.tx_type=='in' %}공급자{% elif tx.tx_type=='out' %}고객{% endif %}">
+      </div>
+      <div class="e-col">
+        <label class="e-lbl">거래일</label>
+        <input class="e-inp e-mono" value="{{ tx.created_at.strftime('%Y-%m-%d %H:%M') if tx.created_at else '' }}" readonly style="background:#F9FAFB">
+        <div class="e-help">변경 불가 (감사 추적용)</div>
+      </div>
+    </div>
+
+    <div class="e-row">
+      <div class="e-col">
+        <label class="e-lbl">메모</label>
+        <textarea name="memo" class="e-inp" style="min-height:80px;font-family:inherit;resize:vertical">{{ tx.memo or '' }}</textarea>
+        <div class="e-help">#태그 입력으로 검색 가능</div>
+      </div>
+    </div>
+
+    <div class="e-warn">
+      <label>
+        <input type="checkbox" name="confirm_recalc">
+        <span><strong>현재 재고도 자동 계산되어 변경될 수 있습니다.</strong> 정말 수정하시겠습니까?</span>
+      </label>
+    </div>
+
+    <div class="e-actions">
+      <button type="submit" class="btn btn-primary">💾 저장</button>
+      <a href="{{ url_for('inventory.history') }}" class="btn btn-ghost">← 돌아가기</a>
+    </div>
+  </form>
+</div>
+
+<script>
+async function deleteTx(tx_id){
+  try {
+    const r = await fetch(`/inventory/history/${tx_id}/delete`, {method:'POST'});
+    const j = await r.json();
+    if (j.ok) { alert('삭제 완료 — 재고 자동 재계산됨'); window.location.href = '/inventory/history'; }
+    else alert('삭제 실패');
+  } catch(e) { alert('네트워크 오류: ' + e.message); }
+}
+</script>
+{% endblock %}
