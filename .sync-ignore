@@ -68,6 +68,10 @@ webapp/routes/api.py
 webapp/templates/inventory/data/items.html
 webapp/templates/inventory/ledger.html
 webapp/templates/bundles/list.html
+# Day 8: 신규 소싱처 추가 (시안 A — 메타 등록)
+webapp/routes/accounts.py
+webapp/templates/accounts/source_add.html
+lemouton/sourcing/models.py
 # Day 8: 인벤토리 통계 카드 5 시안 mockup
 webapp/templates/inventory/_mockup_stats.html
 

@@ -1,0 +1,259 @@
+{% extends 'base.html' %}
+{% block title %}➕ 신규 소싱처 추가 — 모음전 자동화{% endblock %}
+{% block content %}
+<style>
+  .sa-shell{padding:24px 28px;max-width:1280px;margin:0 auto}
+  .sa-head{display:flex;justify-content:space-between;align-items:flex-end;padding-bottom:14px;border-bottom:1px solid #E5E8EB;margin-bottom:22px}
+  .sa-head h1{font-size:22px;font-weight:700;margin:0;color:#191F28;display:flex;align-items:center;gap:10px}
+  .sa-head .crumbs{font-size:12px;color:#8B95A1}
+  .sa-head .crumbs a{color:#3182F6;text-decoration:none}
+  .sa-row{display:flex;gap:22px;align-items:flex-start}
+  .sa-col{flex:1}
+  .sa-col-fix{flex:0 0 360px}
+  .sa-card{background:#fff;border:1px solid #E5E8EB;border-radius:10px;padding:18px 22px;margin-bottom:14px}
+  .sa-card h2{margin:0 0 14px;font-size:15px;font-weight:700;color:#191F28}
+  .sa-card.primary{border:2px solid #3182F6}
+  .sa-card.primary h2{color:#3182F6}
+  .sa-field{margin-bottom:14px}
+  .sa-lbl{display:block;font-size:11.5px;font-weight:700;color:#4E5968;margin-bottom:5px;text-transform:uppercase;letter-spacing:.04em}
+  .sa-inp{width:100%;padding:9px 12px;border:1px solid #CBCCD3;border-radius:6px;font-size:13px;color:#191F28;font-family:inherit;background:#fff;box-sizing:border-box}
+  .sa-inp:focus{border-color:#3182F6;outline:0}
+  .sa-mono{font-family:"SF Mono",ui-monospace,monospace;font-size:12px}
+  .sa-help{font-size:11.5px;color:#8B95A1;margin-top:4px}
+  .sa-help.err{color:#E53935}
+  .sa-btn{padding:9px 16px;border:0;border-radius:6px;font-weight:600;font-size:13px;cursor:pointer;font-family:inherit}
+  .sa-btn-primary{background:#3182F6;color:#fff}
+  .sa-btn-primary:hover{background:#1B64DA}
+  .sa-btn-ghost{background:#fff;border:1px solid #E5E8EB;color:#4E5968}
+  .sa-row-h{display:flex;gap:12px}
+  .sa-src-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(100px,1fr));gap:8px}
+  .sa-src{background:#fff;border:1px solid #E5E8EB;border-radius:8px;padding:12px 8px;text-align:center}
+  .sa-src .lg{width:34px;height:34px;border-radius:8px;margin:0 auto 6px;display:flex;align-items:center;justify-content:center;font-weight:800;color:#fff;font-size:14px}
+  .sa-src .nm{font-size:11.5px;font-weight:600;color:#191F28;word-break:keep-all;line-height:1.2}
+  .sa-src .ky{font-size:10px;color:#8B95A1;font-family:"SF Mono",ui-monospace,monospace;margin-top:2px}
+  .sa-src.custom{background:#EFF6FF;border-color:#3182F6}
+  .sa-alert{padding:11px 14px;border-radius:8px;margin-bottom:14px;font-size:12.5px}
+  .sa-alert.err{background:#FEE2E2;border:1px solid #FCA5A5;color:#991B1B}
+  .sa-alert.ok{background:#DCFCE7;border:1px solid #86EFAC;color:#166534}
+  .sa-warn-box{background:linear-gradient(135deg,#FEF3C7,#FFFBEB);border:1px solid #F59E0B;border-radius:9px;padding:13px 16px;margin-top:14px}
+  .sa-warn-box h3{margin:0 0 6px;font-size:13px;color:#92400E;font-weight:700}
+  .sa-warn-box ul{margin:0;padding-left:18px;font-size:11.5px;color:#78350F;line-height:1.7}
+  .sa-preview{display:flex;align-items:center;gap:12px;padding:10px;background:#F2F4F6;border-radius:6px}
+  .sa-preview .lg{width:42px;height:42px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-weight:800;color:#fff;font-size:18px}
+  .sa-spin{display:inline-block;width:12px;height:12px;border:2px solid #E5E8EB;border-top-color:#3182F6;border-radius:50%;animation:saspin .9s linear infinite;margin-right:5px;vertical-align:middle}
+  @keyframes saspin{to{transform:rotate(360deg)}}
+  .sa-chip{display:inline-flex;align-items:center;gap:4px;padding:3px 9px;border-radius:11px;font-size:11px;font-weight:600}
+  .sa-chip.ok{background:#DCFCE7;color:#166534}
+  .sa-chip.warn{background:#FEF3C7;color:#92400E}
+</style>
+
+<div class="sa-shell">
+  <div class="sa-head">
+    <div>
+      <h1>➕ 신규 소싱처 추가</h1>
+      <div class="crumbs"><a href="/accounts/sourcing">소싱처 관리</a> · 신규 추가 (시안 A — 메타 등록)</div>
+    </div>
+    <div style="font-size:11.5px;color:#6B7684">기본 5개 외 사용자 직접 추가 · 어댑터는 추후</div>
+  </div>
+
+  {% if error %}<div class="sa-alert err">⚠ {{ error }}</div>{% endif %}
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% for category, msg in messages %}
+      <div class="sa-alert {% if category=='success' %}ok{% else %}err{% endif %}">{{ msg }}</div>
+    {% endfor %}
+  {% endwith %}
+
+  <div class="sa-row">
+    <!-- 좌측 — 현재 등록된 소싱처 -->
+    <div class="sa-col-fix">
+      <div class="sa-card">
+        <h2>📋 현재 등록된 소싱처</h2>
+        <div class="sa-src-grid">
+          {% for b in builtin %}
+            <div class="sa-src">
+              <div class="lg" style="background:linear-gradient(135deg,{{ b.color }},{{ b.color }}cc)">{{ b.letter }}</div>
+              <div class="nm">{{ b.label }}</div>
+              <div class="ky">{{ b.key }}</div>
+            </div>
+          {% endfor %}
+          {% for c in custom_sources %}
+            <div class="sa-src custom">
+              <div class="lg" style="background:linear-gradient(135deg,{{ c.logo_color }},{{ c.logo_color }}cc)">{{ c.logo_letter }}</div>
+              <div class="nm">{{ c.label }}</div>
+              <div class="ky">{{ c.source_key }}</div>
+            </div>
+          {% endfor %}
+        </div>
+        <div class="sa-help" style="margin-top:10px">
+          기본 {{ builtin|length }}개 + 사용자 {{ custom_sources|length }}개 = 총 {{ builtin|length + custom_sources|length }}개
+        </div>
+      </div>
+
+      <div class="sa-card">
+        <h2>💡 시안 A 동작</h2>
+        <ul style="margin:0;padding-left:18px;font-size:12px;color:#4E5968;line-height:1.7">
+          <li><b>도메인·이름·로고색</b>만 입력 (1~2분)</li>
+          <li>등록 즉시 모음전 페이지에 URL 입력 칸 자동 추가</li>
+          <li><b>자동 가격·재고 수집은 ❌</b> — 어댑터 별도</li>
+          <li>URL 자동 분석 — favicon · 색상 자동 추출</li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- 우측 — 폼 -->
+    <div class="sa-col">
+      <form method="post" id="sourceForm" class="sa-card primary">
+        <h2>➕ 신규 소싱처 정보</h2>
+
+        <!-- URL probe (자동 채우기) -->
+        <div class="sa-field" style="background:#F9FAFB;padding:14px;border-radius:8px;border:1px dashed #CBCCD3">
+          <label class="sa-lbl">🚀 URL 자동 분석 (선택 — 빠른 등록)</label>
+          <div style="display:flex;gap:6px">
+            <input type="text" id="probeUrl" class="sa-inp sa-mono" placeholder="예: https://www.ssg.com/item/itemView.ssg?itemId=..." value="{{ form.test_url }}" style="flex:1">
+            <button type="button" class="sa-btn sa-btn-primary" id="probeBtn" onclick="probeUrl()">🤖 분석</button>
+          </div>
+          <div class="sa-help">상품 URL 1개 입력 → 도메인 · 로고색 · favicon 자동 추출</div>
+          <div id="probeResult" style="margin-top:10px"></div>
+        </div>
+
+        <div class="sa-row-h">
+          <div class="sa-field" style="flex:2">
+            <label class="sa-lbl">표시 이름 *</label>
+            <input type="text" name="label" class="sa-inp" placeholder="예: SSG.COM" value="{{ form.label }}" required>
+            <div class="sa-help">사용자에게 보이는 이름</div>
+          </div>
+          <div class="sa-field" style="flex:1.2">
+            <label class="sa-lbl">시스템 키 *</label>
+            <input type="text" name="source_key" class="sa-inp sa-mono" placeholder="예: ssg" value="{{ form.source_key }}" required pattern="[a-z0-9_]+">
+            <div class="sa-help">DB / API 식별자 (영숫자/_)</div>
+          </div>
+        </div>
+
+        <div class="sa-field">
+          <label class="sa-lbl">도메인 *</label>
+          <input type="text" name="domain" class="sa-inp sa-mono" placeholder="예: ssg.com" value="{{ form.domain }}" required>
+          <div class="sa-help">root 도메인 (www. 제외)</div>
+        </div>
+
+        <div class="sa-row-h">
+          <div class="sa-field" style="flex:1">
+            <label class="sa-lbl">로고 글자</label>
+            <input type="text" name="logo_letter" class="sa-inp" placeholder="예: S" value="{{ form.logo_letter }}" maxlength="4">
+            <div class="sa-help">아이콘 letter (1~4자)</div>
+          </div>
+          <div class="sa-field" style="flex:1">
+            <label class="sa-lbl">로고 색상</label>
+            <div style="display:flex;gap:6px;align-items:center">
+              <input type="color" name="logo_color" class="sa-inp" value="{{ form.logo_color }}" style="width:50px;height:38px;padding:2px">
+              <input type="text" id="colorHex" class="sa-inp sa-mono" value="{{ form.logo_color }}" style="flex:1" oninput="document.querySelector('input[name=logo_color]').value=this.value">
+            </div>
+            <div class="sa-help">자동 추출 시 favicon 색상 사용</div>
+          </div>
+          <div class="sa-field" style="flex:1">
+            <label class="sa-lbl">미리보기</label>
+            <div class="sa-preview">
+              <div class="lg" id="previewLogo" style="background:linear-gradient(135deg,{{ form.logo_color }},{{ form.logo_color }}cc)">{{ form.logo_letter or 'X' }}</div>
+              <div>
+                <div style="font-weight:700;font-size:13px;color:#191F28" id="previewLabel">{{ form.label or '(이름 입력)' }}</div>
+                <div style="font-size:11px;color:#6B7684;font-family:'SF Mono',monospace" id="previewDomain">{{ form.domain or '도메인' }}</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <input type="hidden" name="favicon_url" id="faviconHidden" value="{{ form.favicon_url }}">
+
+        <div class="sa-field">
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;color:#4E5968">
+            <input type="checkbox" name="needs_login" {% if form.needs_login %}checked{% endif %}>
+            <b>회원 로그인 필요</b> (회원 가격이 다를 때 — /accounts/sourcing 세션 등록 필요)
+          </label>
+        </div>
+
+        <div class="sa-warn-box">
+          <h3>⚠️ 등록 후 동작</h3>
+          <ul>
+            <li>모음전 상세 페이지에 <b>url_{{ form.source_key or '키' }}</b> 입력 칸 자동 추가</li>
+            <li>URL 만 저장 가능 — <b>가격·재고 자동 수집은 ❌</b></li>
+            <li>나중에 어댑터 작성하면 자동 수집 활성화 (has_adapter=True)</li>
+          </ul>
+        </div>
+
+        <div style="display:flex;gap:8px;margin-top:18px;padding-top:14px;border-top:1px solid #F2F4F6">
+          <button type="submit" class="sa-btn sa-btn-primary">✓ 등록 + 모든 모음전에 컬럼 추가</button>
+          <a href="/accounts/sourcing" class="sa-btn sa-btn-ghost" style="text-decoration:none;display:inline-block">취소</a>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<script>
+async function probeUrl(){
+  const url = document.getElementById('probeUrl').value.trim();
+  const btn = document.getElementById('probeBtn');
+  const out = document.getElementById('probeResult');
+  if (!url){ out.innerHTML = '<div class="sa-chip warn">URL 을 입력하세요</div>'; return; }
+  btn.disabled = true;
+  out.innerHTML = '<div style="font-size:12px;color:#6B7684"><span class="sa-spin"></span> 분석 중… (최대 8초)</div>';
+  try {
+    const r = await fetch('/api/sources/probe', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({url})
+    });
+    const j = await r.json();
+    if (!r.ok || !j.ok){
+      out.innerHTML = '<div class="sa-chip warn">⚠ ' + (j.error || 'HTTP ' + r.status) + '</div>';
+      btn.disabled = false; return;
+    }
+    // 폼 자동 채우기
+    document.querySelector('input[name=domain]').value = j.domain || '';
+    document.querySelector('input[name=source_key]').value = j.source_key || '';
+    document.querySelector('input[name=label]').value = j.title || j.label_suggestion || '';
+    document.querySelector('input[name=logo_letter]').value = j.logo_letter || '';
+    document.querySelector('input[name=logo_color]').value = j.logo_color || '#3182F6';
+    document.getElementById('colorHex').value = j.logo_color || '#3182F6';
+    document.getElementById('faviconHidden').value = j.favicon_url || '';
+    updatePreview();
+    let html = '<div class="sa-chip ok">✓ 분석 완료</div>';
+    html += ' <span style="font-size:11.5px;color:#4E5968"><b>도메인</b> ' + j.domain;
+    if (j.title) html += ' · <b>타이틀</b> ' + (j.title.length>60 ? j.title.slice(0,60)+'…' : j.title);
+    if (j.fetched) html += ' · <b>로고색</b> ' + j.logo_color;
+    if (!j.fetched && j.fetch_error) html += ' · <span style="color:#92400E">⚠ fetch 실패 — 도메인은 자동 채움</span>';
+    html += '</span>';
+    out.innerHTML = html;
+  } catch(e){
+    out.innerHTML = '<div class="sa-chip warn">⚠ 네트워크 오류: ' + e.message + '</div>';
+  } finally {
+    btn.disabled = false;
+  }
+}
+function updatePreview(){
+  const lbl = document.querySelector('input[name=label]').value || '(이름 입력)';
+  const dom = document.querySelector('input[name=domain]').value || '도메인';
+  const ltr = document.querySelector('input[name=logo_letter]').value || (lbl[0] ? lbl[0].toUpperCase() : 'X');
+  const col = document.querySelector('input[name=logo_color]').value || '#3182F6';
+  document.getElementById('previewLabel').textContent = lbl;
+  document.getElementById('previewDomain').textContent = dom;
+  document.getElementById('previewLogo').textContent = ltr;
+  document.getElementById('previewLogo').style.background = 'linear-gradient(135deg,' + col + ',' + col + 'cc)';
+}
+['label','domain','logo_letter','logo_color'].forEach(n=>{
+  document.querySelectorAll('input[name=' + n + ']').forEach(el=>{
+    el.addEventListener('input', updatePreview);
+  });
+});
+// label → source_key 자동 (입력 안 했을 때만)
+document.querySelector('input[name=label]')?.addEventListener('input', function(){
+  const k = document.querySelector('input[name=source_key]');
+  if (!k.dataset.userTyped) {
+    const auto = this.value.toLowerCase().replace(/[^a-z0-9_]+/g, '').slice(0, 30);
+    k.value = auto;
+  }
+});
+document.querySelector('input[name=source_key]')?.addEventListener('input', function(){
+  this.dataset.userTyped = '1';
+});
+updatePreview();
+</script>
+{% endblock %}

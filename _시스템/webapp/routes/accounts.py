@@ -1485,3 +1485,107 @@ def _first_field_masked(creds) -> str:
         return "—"
     # __repr__ 가 이미 마스킹되어 있으므로 그걸 사용
     return repr(creds)
+
+
+# ──────────────────────────────────────────────────────────────────
+#  v6 P5.5 — 신규 소싱처 추가 (시안 A — 메타 등록 단순 폼)
+#  사용자가 SSG·29CM·W컨셉 등 직접 추가 → DB SourcingSource 에 저장
+# ──────────────────────────────────────────────────────────────────
+
+@bp.route("/sourcing/add", methods=["GET", "POST"])
+def source_add():
+    """신규 소싱처 추가 — 시안 A (메타만, 어댑터는 추후)."""
+    from lemouton.sourcing.models import SourcingSource
+    s = SessionLocal()
+    try:
+        error = None
+        form = {"label": "", "domain": "", "source_key": "",
+                "logo_color": "#3182F6", "logo_letter": "", "needs_login": False,
+                "favicon_url": "", "test_url": ""}
+        # 기존 5개 + 사용자 추가분 — 좌측 목록용
+        BUILTIN = [
+            {"key": "lemouton", "label": "르무통 공홈", "color": "#191F28", "letter": "L"},
+            {"key": "musinsa", "label": "무신사", "color": "#000000", "letter": "M"},
+            {"key": "ssf", "label": "SSF", "color": "#FF6B00", "letter": "S"},
+            {"key": "lotteon", "label": "롯데온", "color": "#ED2025", "letter": "L"},
+            {"key": "ss_lemouton", "label": "스마트스토어 르무통", "color": "#03C75A", "letter": "N"},
+        ]
+        custom_sources = (s.query(SourcingSource)
+                           .filter(SourcingSource.is_active.is_(True))
+                           .order_by(SourcingSource.sort_order, SourcingSource.id)
+                           .all())
+
+        if request.method == "POST":
+            form["label"] = (request.form.get("label") or "").strip()
+            form["domain"] = (request.form.get("domain") or "").strip().lower().replace("https://", "").replace("http://", "").rstrip("/")
+            form["source_key"] = (request.form.get("source_key") or "").strip().lower()
+            form["logo_color"] = (request.form.get("logo_color") or "#3182F6").strip()
+            form["logo_letter"] = (request.form.get("logo_letter") or "").strip().upper()[:4]
+            form["needs_login"] = (request.form.get("needs_login") == "on")
+            form["favicon_url"] = (request.form.get("favicon_url") or "").strip()
+
+            # 검증
+            if not form["label"] or not form["domain"] or not form["source_key"]:
+                error = "표시 이름·도메인·시스템 키는 필수입니다."
+            elif not all(c.isalnum() or c == "_" for c in form["source_key"]):
+                error = "시스템 키는 영문/숫자/언더바만 사용 가능합니다."
+            elif form["source_key"] in {b["key"] for b in BUILTIN}:
+                error = f"'{form['source_key']}' 는 기본 소싱처와 중복됩니다."
+            else:
+                # 중복 확인
+                exists = s.query(SourcingSource).filter_by(source_key=form["source_key"]).first()
+                if exists:
+                    error = f"'{form['source_key']}' 는 이미 등록되어 있습니다."
+
+            if not error:
+                # 저장
+                src = SourcingSource(
+                    source_key=form["source_key"],
+                    label=form["label"],
+                    domain=form["domain"],
+                    logo_color=form["logo_color"],
+                    logo_letter=(form["logo_letter"] or form["label"][:1].upper()),
+                    favicon_url=form["favicon_url"] or None,
+                    needs_login=form["needs_login"],
+                    has_adapter=False,
+                    is_active=True,
+                    sort_order=100 + (s.query(SourcingSource).count()),
+                )
+                try:
+                    from flask_login import current_user  # type: ignore
+                    if hasattr(current_user, "email"):
+                        src.created_by = current_user.email
+                except Exception:
+                    pass
+                s.add(src); s.commit()
+                from flask import flash, redirect, url_for
+                try:
+                    flash(f"✓ '{form['label']}' 소싱처 추가됨 (key: {form['source_key']})", "success")
+                except Exception:
+                    pass
+                return redirect(url_for("accounts.source_add"))
+
+        return render_template(
+            "accounts/source_add.html",
+            active_app="accounts", active="sourcing",
+            form=form, error=error,
+            builtin=BUILTIN, custom_sources=custom_sources,
+        )
+    finally:
+        s.close()
+
+
+@bp.post("/sourcing/source/<int:source_id>/toggle")
+def source_toggle(source_id: int):
+    """소싱처 활성 / 비활성 toggle (휴지통 대신)."""
+    from lemouton.sourcing.models import SourcingSource
+    s = SessionLocal()
+    try:
+        src = s.query(SourcingSource).get(source_id)
+        if not src:
+            return jsonify(ok=False, error="not found"), 404
+        src.is_active = not src.is_active
+        s.commit()
+        return jsonify(ok=True, is_active=src.is_active)
+    finally:
+        s.close()

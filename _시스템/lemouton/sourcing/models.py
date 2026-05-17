@@ -291,6 +291,30 @@ class SourceBenefitTemplate(Base):
     )
 
 
+class SourcingSource(Base):
+    """[v6 P5.5] 사용자가 추가한 신규 소싱처 메타 (시안 A — 메타 등록).
+
+    기본 5개 (lemouton/musinsa/ssf/lotteon/ss_lemouton) 외 사용자가 직접 추가하는 소싱처.
+    어댑터 코드 없이도 URL 만 저장 가능 — 추후 어댑터 작성 시 자동 활성화.
+    """
+    __tablename__ = "sourcing_sources"
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    source_key = Column(String(40), nullable=False, unique=True, index=True)  # 'ssg', '29cm' 등
+    label = Column(String(80), nullable=False)  # 'SSG.COM', '29CM' 등
+    domain = Column(String(120), nullable=False)  # 'ssg.com'
+    logo_color = Column(String(20))  # '#E53935'
+    logo_letter = Column(String(4))  # 'S' (썸네일 letter)
+    favicon_url = Column(String(500))  # 자동 추출 favicon URL
+    needs_login = Column(Boolean, nullable=False, default=False)
+    has_adapter = Column(Boolean, nullable=False, default=False)  # 어댑터 작성 후 True
+    is_active = Column(Boolean, nullable=False, default=True)
+    sort_order = Column(Integer, default=100)  # 기본 5개는 1~5, 추가분은 100+
+    created_by = Column(String(120))  # 추가한 사용자 email
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc),
+                        onupdate=lambda: datetime.now(timezone.utc))
+
+
 class OptionBenefitOverride(Base):
     """옵션별 혜택 override — 특정 옵션 / 사이트 조합에서 템플릿 대체.
 

@@ -2783,3 +2783,95 @@ def sources_detect():
 def sources_detect_log():
     """검출 이력 (개발자용 — 메모리 누적 분량 반환)."""
     return _ok(log=list(_DOMAIN_DETECT_LOG)[-50:])
+
+
+# ──────────────────────────────────────────────────────────────────
+#  v6 P5.5 — 신규 소싱처 추가 (시안 A) URL probe
+#  POST /api/sources/probe {url: "..."} → {domain, favicon, title, color}
+# ──────────────────────────────────────────────────────────────────
+
+@bp.post("/sources/probe")
+def sources_probe():
+    """URL 1개 입력 → 도메인 추출 + favicon + 타이틀 자동 fetch.
+
+    시안 A 의 자동 채우기 용도 — 사용자 입력 줄이기.
+    실패해도 도메인은 항상 반환.
+    """
+    from urllib.parse import urlparse
+    import re as _re
+    payload = request.get_json(silent=True) or {}
+    url = (payload.get('url') or '').strip()
+    if not url:
+        return _err('URL 이 필요해요.', 400)
+    if not url.startswith(('http://', 'https://')):
+        url = 'https://' + url
+    try:
+        p = urlparse(url)
+        domain = (p.hostname or '').replace('www.', '').lower()
+    except Exception:
+        return _err('URL 파싱 실패', 400)
+
+    if not domain:
+        return _err('도메인 추출 실패', 400)
+
+    # 시스템 키 자동 생성 — 도메인 첫 부분 (영숫자)
+    base_key = domain.split('.')[0]
+    source_key = _re.sub(r'[^a-z0-9_]', '', base_key.lower())[:30]
+
+    # 라벨 자동 — 도메인 대문자 (예: SSG.COM)
+    auto_label = domain.upper()
+
+    out = {
+        'url': url,
+        'domain': domain,
+        'source_key': source_key,
+        'label_suggestion': auto_label,
+        'logo_letter': base_key[:1].upper() if base_key else 'X',
+        'favicon_url': f'https://{domain}/favicon.ico',
+        'logo_color': '#3182F6',  # 기본
+        'title': None,
+        'fetched': False,
+    }
+
+    # 실제 fetch 시도 (timeout 8s, 실패해도 위 메타는 반환)
+    try:
+        import urllib.request
+        req = urllib.request.Request(url, headers={
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+        })
+        with urllib.request.urlopen(req, timeout=8) as r:
+            ct = r.headers.get('Content-Type', '')
+            if 'html' in ct or 'text' in ct:
+                html = r.read(80000).decode('utf-8', errors='replace')
+                # title
+                m = _re.search(r'<title[^>]*>([^<]+)</title>', html, _re.I)
+                if m:
+                    out['title'] = m.group(1).strip()[:200]
+                # favicon (link rel=icon)
+                for pat in [
+                    r'<link[^>]+rel=["\'](?:shortcut icon|icon|apple-touch-icon)["\'][^>]+href=["\']([^"\']+)["\']',
+                    r'<link[^>]+href=["\']([^"\']+)["\'][^>]+rel=["\'](?:shortcut icon|icon|apple-touch-icon)["\']',
+                ]:
+                    fm = _re.search(pat, html, _re.I)
+                    if fm:
+                        fav = fm.group(1).strip()
+                        if fav.startswith('//'):
+                            fav = 'https:' + fav
+                        elif fav.startswith('/'):
+                            fav = f'https://{domain}' + fav
+                        elif not fav.startswith('http'):
+                            fav = f'https://{domain}/' + fav.lstrip('./')
+                        out['favicon_url'] = fav
+                        break
+                # theme-color meta
+                tm = _re.search(r'<meta[^>]+name=["\']theme-color["\'][^>]+content=["\']([^"\']+)["\']', html, _re.I)
+                if tm:
+                    color = tm.group(1).strip()
+                    if color.startswith('#') and len(color) in (4, 7):
+                        out['logo_color'] = color
+                out['fetched'] = True
+    except Exception as e:
+        out['fetch_error'] = str(e)[:200]
+
+    return _ok(**out)
