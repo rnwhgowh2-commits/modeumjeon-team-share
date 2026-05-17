@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>라벨 — {{ opt.canonical_sku }}</title>
+<style>
+  @page { size: A4; margin: 12mm; }
+  body { font-family: -apple-system, "Apple SD Gothic Neo", sans-serif; margin: 0; padding: 14px; background: #f5f5f5; color: #191F28; }
+  .toolbar { background: #fff; padding: 14px; border-radius: 8px; margin-bottom: 14px; display: flex; gap: 10px; align-items: center; }
+  .toolbar button, .toolbar input { padding: 8px 14px; border-radius: 6px; border: 1px solid #CBCCD3; font-size: 13px; cursor: pointer; }
+  .toolbar button.primary { background: #3182F6; color: #fff; border: 0; font-weight: 700; }
+  .labels { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8mm; background: #fff; padding: 8mm; border-radius: 8px; }
+  .lbl { border: 1px solid #E5E8EB; border-radius: 6px; padding: 10mm 8mm; text-align: center; page-break-inside: avoid; }
+  .lbl .nm { font-size: 14px; font-weight: 800; margin-bottom: 4mm; line-height: 1.2; }
+  .lbl .sku { font-family: "SF Mono", monospace; font-size: 10px; color: #6B7684; margin-bottom: 4mm; }
+  .lbl .bc { display: block; font-family: "Libre Barcode 39", monospace; font-size: 48px; letter-spacing: 0; margin: 4mm 0; padding: 4mm; background: #fff; border: 1px solid #E5E8EB; }
+  .lbl .bc-text { font-family: "SF Mono", monospace; font-size: 11px; color: #191F28; margin-top: 2mm; font-weight: 600; }
+  .lbl .meta { display: flex; justify-content: space-between; margin-top: 4mm; font-size: 11px; color: #4E5968; }
+  @media print {
+    .toolbar { display: none; }
+    body { background: #fff; padding: 0; }
+    .labels { box-shadow: none; padding: 0; background: transparent; }
+  }
+</style>
+<link href="https://fonts.googleapis.com/css2?family=Libre+Barcode+39&display=swap" rel="stylesheet">
+</head>
+<body>
+<div class="toolbar">
+  <strong style="font-size:15px">🏷 라벨 인쇄</strong>
+  <span style="color:#6B7684;font-size:12.5px">{{ opt.canonical_sku }}</span>
+  <span style="margin-left:14px">매수:</span>
+  <input type="number" id="cnt" value="{{ count }}" min="1" max="50" style="width:60px;text-align:center" onchange="updateCount()">
+  <button class="primary" onclick="window.print()">🖨 인쇄</button>
+  <button onclick="window.close()">닫기</button>
+  <span style="margin-left:auto;font-size:11.5px;color:#6B7684">인쇄 대화상자에서 "PDF 로 저장" 선택 시 PDF 출력 가능</span>
+</div>
+
+<div class="labels" id="labels">
+  {% for i in range(count) %}
+  <div class="lbl">
+    <div class="nm">{{ (mdl.model_name_display or mdl.model_name_raw) if mdl else opt.model_code }}</div>
+    <div class="sku">{{ opt.canonical_sku }}</div>
+    {% if barcode %}
+      <div class="bc">*{{ barcode }}*</div>
+      <div class="bc-text">{{ barcode }}</div>
+    {% else %}
+      <div style="padding:8mm;color:#9CA3AF;font-size:12px">바코드 없음</div>
+    {% endif %}
+    <div class="meta">
+      <span>{{ opt.color_display or opt.color_code or '—' }}</span>
+      <span>{{ opt.size_display or opt.size_code or '—' }}</span>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+
+<script>
+function updateCount(){
+  const c = parseInt(document.getElementById('cnt').value || 1);
+  const url = new URL(window.location);
+  url.searchParams.set('count', c);
+  window.location.href = url.toString();
+}
+</script>
+</body>
+</html>

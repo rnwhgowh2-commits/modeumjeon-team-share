@@ -994,3 +994,48 @@ def api_option_update(sku: str):
         return jsonify(ok=False, error=str(e)[:200]), 500
     finally:
         s.close()
+
+
+# ============ Track A 보강 2: 라벨 인쇄 ============
+
+@bp.get('/api/option/<path:sku>/label')
+def option_label(sku: str):
+    """바코드 라벨 페이지 — 브라우저 인쇄 PDF 저장 가능 (박스히어로 라벨 인쇄)."""
+    s = SessionLocal()
+    try:
+        opt = s.query(Option).filter_by(canonical_sku=sku).first()
+        if not opt:
+            abort(404)
+        mdl = s.query(Model).filter_by(model_code=opt.model_code).first()
+        from lemouton.inventory.models import InventoryProduct
+        ip = s.query(InventoryProduct).filter_by(canonical_sku=sku).first()
+        barcode = ip.barcode if ip else (opt.boxhero_sku or '')
+        # 인쇄 매수 (query)
+        try:
+            count = max(1, min(50, int(request.args.get('count') or 1)))
+        except ValueError:
+            count = 1
+        return render_template('inventory/label.html',
+            opt=opt, mdl=mdl, barcode=barcode, count=count)
+    finally:
+        s.close()
+
+
+# ============ Track A 보강 3: 거래명세서 ============
+
+@bp.get('/history/<int:tx_id>/statement')
+def tx_statement(tx_id: int):
+    """거래명세서 — 인쇄 친화 HTML (브라우저 인쇄 PDF 저장 가능)."""
+    s = SessionLocal()
+    try:
+        tx = s.query(InventoryTx).filter_by(id=tx_id).first()
+        if not tx:
+            abort(404)
+        opt = s.query(Option).filter_by(canonical_sku=tx.option_canonical_sku).first()
+        mdl = s.query(Model).filter_by(model_code=opt.model_code).first() if opt else None
+        loc = s.query(InventoryLocation).filter_by(id=tx.location_id).first()
+        loc_to = s.query(InventoryLocation).filter_by(id=tx.location_to_id).first() if tx.location_to_id else None
+        return render_template('inventory/statement.html',
+            tx=tx, opt=opt, mdl=mdl, loc=loc, loc_to=loc_to)
+    finally:
+        s.close()

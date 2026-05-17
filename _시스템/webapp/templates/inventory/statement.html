@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>거래명세서 — #{{ tx.id }}</title>
+<style>
+  @page { size: A4; margin: 18mm; }
+  body { font-family: -apple-system, "Apple SD Gothic Neo", sans-serif; margin: 0; padding: 14px; background: #f5f5f5; color: #191F28; line-height: 1.5; }
+  .toolbar { background: #fff; padding: 14px 18px; border-radius: 8px; margin-bottom: 14px; display: flex; gap: 10px; align-items: center; max-width: 800px; margin-left: auto; margin-right: auto; }
+  .toolbar button { padding: 8px 14px; border-radius: 6px; border: 1px solid #CBCCD3; font-size: 13px; cursor: pointer; background: #fff; }
+  .toolbar button.primary { background: #3182F6; color: #fff; border: 0; font-weight: 700; }
+  .sheet { max-width: 800px; margin: 0 auto; background: #fff; padding: 26mm 22mm; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.04); }
+  .sheet h1 { text-align: center; font-size: 28px; font-weight: 800; margin: 0 0 6px; letter-spacing: 6px; color: #191F28; }
+  .sheet .sub { text-align: center; color: #6B7684; font-size: 12px; margin-bottom: 22mm; }
+  .meta-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8mm; margin-bottom: 14mm; }
+  .meta-box { border: 1px solid #191F28; border-radius: 0; padding: 4mm 5mm; }
+  .meta-box h3 { font-size: 12px; font-weight: 700; margin: 0 0 4mm; padding-bottom: 2mm; border-bottom: 1px solid #E5E8EB; color: #4E5968; text-transform: uppercase; }
+  .meta-box .row { display: flex; font-size: 13px; padding: 2mm 0; }
+  .meta-box .row .k { width: 24mm; color: #6B7684; }
+  .meta-box .row .v { flex: 1; font-weight: 500; }
+  table.tx-tbl { width: 100%; border-collapse: collapse; margin-bottom: 14mm; }
+  table.tx-tbl th, table.tx-tbl td { border: 1px solid #191F28; padding: 4mm 5mm; text-align: left; font-size: 13px; }
+  table.tx-tbl th { background: #F2F4F6; font-weight: 700; }
+  table.tx-tbl td.right { text-align: right; font-family: "SF Mono", monospace; }
+  .footer-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8mm; margin-top: 14mm; }
+  .sign-box { border: 1px solid #191F28; padding: 8mm 6mm 4mm; text-align: center; height: 32mm; }
+  .sign-box .role { font-size: 12px; color: #6B7684; margin-bottom: 6mm; }
+  @media print { .toolbar { display: none; } body { background: #fff; padding: 0; } .sheet { box-shadow: none; border-radius: 0; max-width: none; padding: 0; } }
+</style>
+</head>
+<body>
+
+<div class="toolbar">
+  <strong style="font-size:15px">📃 거래명세서</strong>
+  <span style="color:#6B7684;font-size:12.5px">#{{ tx.id }}</span>
+  <button class="primary" onclick="window.print()">🖨 인쇄 / PDF 저장</button>
+  <button onclick="window.close()">닫기</button>
+</div>
+
+<div class="sheet">
+  {% set tlabel = {'in':'거 래 명 세 서 (입고)', 'out':'거 래 명 세 서 (출고)', 'adjust':'재고 조정 내역', 'move':'위치 이동 내역'}.get(tx.tx_type, '거래명세서') %}
+  <h1>{{ tlabel }}</h1>
+  <div class="sub">발급번호 #{{ tx.id }} · {{ tx.created_at.strftime('%Y년 %m월 %d일') if tx.created_at else '' }}</div>
+
+  <div class="meta-grid">
+    <div class="meta-box">
+      <h3>거래 정보</h3>
+      <div class="row"><span class="k">거래 종류</span><span class="v">{{ {'in':'입고','out':'출고','adjust':'조정','move':'이동'}.get(tx.tx_type, tx.tx_type) }}</span></div>
+      <div class="row"><span class="k">거래일</span><span class="v">{{ tx.created_at.strftime('%Y-%m-%d %H:%M') if tx.created_at else '—' }}</span></div>
+      <div class="row"><span class="k">위치</span><span class="v">{{ loc.name if loc else '—' }}{% if loc_to %} → {{ loc_to.name }}{% endif %}</span></div>
+      <div class="row"><span class="k">작성자</span><span class="v">{{ tx.created_by or '—' }}</span></div>
+    </div>
+    <div class="meta-box">
+      <h3>거래처</h3>
+      <div class="row"><span class="k">{{ '공급자' if tx.tx_type=='in' else '고객' if tx.tx_type=='out' else '관련처' }}</span><span class="v">{{ tx.partner_label or '—' }}</span></div>
+      <div class="row"><span class="k">메모</span><span class="v">{{ tx.memo or '—' }}</span></div>
+    </div>
+  </div>
+
+  <table class="tx-tbl">
+    <thead>
+      <tr>
+        <th style="width:38mm">SKU</th>
+        <th>제품명</th>
+        <th style="width:22mm">색상/사이즈</th>
+        <th class="right" style="width:18mm">수량</th>
+        <th class="right" style="width:24mm">단가</th>
+        <th class="right" style="width:28mm">합계</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td style="font-family:'SF Mono',monospace;font-size:11px">{{ opt.canonical_sku if opt else tx.option_canonical_sku }}</td>
+        <td>{{ (mdl.model_name_display or mdl.model_name_raw) if mdl else (tx.option_canonical_sku or '—') }}</td>
+        <td>{{ opt.color_display if opt else '—' }}/{{ opt.size_display if opt else '—' }}</td>
+        <td class="right">{{ tx.qty }}</td>
+        <td class="right">{% if tx.unit_purchase_price_at_tx %}{{ '{:,}'.format(tx.unit_purchase_price_at_tx) }}{% elif tx.unit_sale_price %}{{ '{:,}'.format(tx.unit_sale_price) }}{% else %}—{% endif %}</td>
+        <td class="right"><b>{% set _p = tx.unit_purchase_price_at_tx or tx.unit_sale_price or 0 %}{% if _p %}{{ '{:,}'.format(_p * tx.qty) }}원{% else %}—{% endif %}</b></td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="footer-grid">
+    <div class="sign-box"><div class="role">발 행 자</div></div>
+    <div class="sign-box"><div class="role">{{ '공급자' if tx.tx_type=='in' else '수령자' }}</div></div>
+  </div>
+
+  <div style="text-align:center;margin-top:18mm;font-size:11px;color:#6B7684">
+    모음전 자동화 시스템 · 발급일 {{ tx.created_at.strftime('%Y-%m-%d') if tx.created_at else '' }}
+  </div>
+</div>
+
+</body>
+</html>

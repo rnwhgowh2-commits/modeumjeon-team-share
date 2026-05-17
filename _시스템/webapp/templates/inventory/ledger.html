@@ -180,8 +180,8 @@
                 <hr>
                 <a onclick="window.print()">🖨 내역 인쇄</a>
                 <a onclick="exportPDF()">📄 PDF로 내보내기</a>
-                <a onclick="alert('거래명세서 추후 구현')">📃 거래명세서</a>
-                <a onclick="alert('라벨 인쇄 추후 구현')">🏷 라벨 인쇄</a>
+                <a id="actStatement" target="_blank">📃 거래명세서</a>
+                <a id="actLabel" target="_blank">🏷 라벨 인쇄</a>
                 <a id="actExcel">📊 엑셀 내보내기</a>
               </div>
             </div>
@@ -242,10 +242,12 @@ function selectCard(card){
     </div>`;
   }).join('');
   document.getElementById('detItemSummary').textContent = `${items.length}개 품목 · 총 ${card.dataset.qtyTotal}개`;
-  // 수정 링크 (첫 거래)
+  // 수정·거래명세서·라벨 링크 (첫 거래)
   const firstTxId = items[0] ? items[0].tx_id : null;
-  const editUrl = firstTxId ? `/inventory/history/${firstTxId}/edit` : '#';
-  document.getElementById('actEdit').href = editUrl;
+  const firstSku = items[0] ? items[0].sku : null;
+  document.getElementById('actEdit').href = firstTxId ? `/inventory/history/${firstTxId}/edit` : '#';
+  document.getElementById('actStatement').href = firstTxId ? `/inventory/history/${firstTxId}/statement` : '#';
+  document.getElementById('actLabel').href = firstSku ? `/inventory/api/option/${encodeURIComponent(firstSku)}/label` : '#';
   document.getElementById('actExcel').href = `/inventory/history/export.xlsx?tx_ids=${card.dataset.txIds}`;
 }
 function toggleMore(e){
