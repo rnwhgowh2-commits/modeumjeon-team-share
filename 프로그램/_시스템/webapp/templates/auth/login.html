@@ -26,6 +26,7 @@
 
     <div class="auth-row">
       <label>{{ form.remember() }} {{ form.remember.label.text }}</label>
+      <a href="{{ url_for('auth.forgot_password') }}" style="font-size: var(--fs-caption); color: var(--primary); text-decoration: none;">비밀번호를 잊으셨나요?</a>
     </div>
 
     {{ form.submit(class="btn-primary") }}

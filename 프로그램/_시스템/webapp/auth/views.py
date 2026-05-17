@@ -1,17 +1,25 @@
-"""인증 라우트 (Blueprint) — /login, /logout, /me, /change-password, admin: /users."""
+"""인증 라우트 (Blueprint) — /login, /logout, /me, /change-password, /forgot-password, /reset-password, admin: /users."""
 from __future__ import annotations
 
 import datetime as dt
+import logging
 
-from flask import Blueprint, flash, redirect, render_template, request, url_for
+from flask import Blueprint, current_app, flash, redirect, render_template, request, url_for
 from flask_login import current_user, login_required, login_user, logout_user
 
 from shared.db import SessionLocal
-from webapp.auth.forms import ChangePasswordForm, InviteUserForm, LoginForm
-from webapp.auth.models import LoginSession, User
+from webapp.auth.forms import (
+    ChangePasswordForm,
+    ForgotPasswordForm,
+    InviteUserForm,
+    LoginForm,
+    ResetPasswordForm,
+)
+from webapp.auth.models import LoginSession, PasswordResetToken, User
 from webapp.auth.permissions import admin_required
 
 bp = Blueprint("auth", __name__, url_prefix="/auth")
+_log = logging.getLogger(__name__)
 
 
 # ─── 로그인 ───
@@ -71,6 +79,74 @@ def change_password():
                 flash("비밀번호가 변경되었습니다.", "success")
                 return redirect(url_for("auth.me"))
     return render_template("auth/change_password.html", form=form)
+
+
+# ─── 비밀번호 찾기 (이메일 reset 링크) ───
+@bp.route("/forgot-password", methods=["GET", "POST"])
+def forgot_password():
+    if current_user.is_authenticated:
+        return redirect(url_for("auth.me"))
+
+    form = ForgotPasswordForm()
+    if form.validate_on_submit():
+        email = form.email.data.strip().lower()
+
+        with SessionLocal() as s:
+            user = s.query(User).filter_by(email=email, is_active=True).first()
+            if user:
+                # 기존 미사용 토큰 무효화 (혹시 모를 재발급 충돌 방지)
+                s.query(PasswordResetToken).filter_by(user_id=user.id, used_at=None).update(
+                    {"used_at": dt.datetime.utcnow()}
+                )
+                tok = PasswordResetToken.new_for_user(user.id)
+                s.add(tok)
+                s.commit()
+
+                # 메일 발송 (실패해도 사용자 응답은 동일 — enumeration 방지)
+                try:
+                    from webapp.auth.mailer import send_password_reset_email
+                    send_password_reset_email(user.email, user.name, tok.token)
+                    _log.info(f"[auth] reset 메일 발송 OK: user_id={user.id}")
+                except Exception as e:
+                    _log.error(f"[auth] reset 메일 발송 실패: {e!r}", exc_info=True)
+            else:
+                _log.info(f"[auth] forgot-password 요청 (미가입): {email}")
+
+        return redirect(url_for("auth.reset_sent"))
+
+    return render_template("auth/forgot_password.html", form=form)
+
+
+@bp.route("/reset-sent")
+def reset_sent():
+    """forgot-password 후 안내 페이지 — 가입 여부 노출 안 함."""
+    return render_template("auth/reset_sent.html")
+
+
+@bp.route("/reset-password/<token>", methods=["GET", "POST"])
+def reset_password(token: str):
+    if current_user.is_authenticated:
+        return redirect(url_for("auth.me"))
+
+    with SessionLocal() as s:
+        tok = s.query(PasswordResetToken).filter_by(token=token).first()
+        if not tok or not tok.is_valid:
+            return render_template("auth/reset_password.html", form=None, token_error=True)
+
+        form = ResetPasswordForm()
+        if form.validate_on_submit():
+            user = s.get(User, tok.user_id)
+            if not user or not user.is_active:
+                return render_template("auth/reset_password.html", form=None, token_error=True)
+
+            user.set_password(form.new_password.data)
+            tok.mark_used()
+            s.commit()
+
+            flash("비밀번호가 재설정되었습니다. 새 비밀번호로 로그인해 주세요.", "success")
+            return redirect(url_for("auth.login"))
+
+        return render_template("auth/reset_password.html", form=form, token_error=False)
 
 
 # ─── admin: 팀원 관리 ───

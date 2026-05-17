@@ -81,3 +81,39 @@ class LoginSession(Base):
     logged_out_at: Mapped[Optional[dt.datetime]] = mapped_column(DateTime, nullable=True)
 
     user: Mapped[User] = relationship("User", lazy="joined")
+
+
+class PasswordResetToken(Base):
+    """비밀번호 재설정 토큰 — 1시간 유효, 단발성.
+
+    보안 정책:
+      - 토큰: secrets.token_urlsafe(32) → 43자 URL-safe
+      - 만료: 발급 1시간 후
+      - 단발성: 사용 시 used_at 기록 → 재사용 차단
+      - 이메일 enumeration 방지: 미가입 이메일도 동일 응답
+    """
+    __tablename__ = "password_reset_tokens"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id"), index=True, nullable=False)
+    token: Mapped[str] = mapped_column(String(64), unique=True, nullable=False, index=True)
+    created_at: Mapped[dt.datetime] = mapped_column(DateTime, default=dt.datetime.utcnow)
+    expires_at: Mapped[dt.datetime] = mapped_column(DateTime, nullable=False)
+    used_at: Mapped[Optional[dt.datetime]] = mapped_column(DateTime, nullable=True)
+
+    user: Mapped[User] = relationship("User", lazy="joined")
+
+    @classmethod
+    def new_for_user(cls, user_id: int, ttl_hours: int = 1) -> "PasswordResetToken":
+        return cls(
+            user_id=user_id,
+            token=secrets.token_urlsafe(32),
+            expires_at=dt.datetime.utcnow() + dt.timedelta(hours=ttl_hours),
+        )
+
+    @property
+    def is_valid(self) -> bool:
+        return self.used_at is None and dt.datetime.utcnow() < self.expires_at
+
+    def mark_used(self) -> None:
+        self.used_at = dt.datetime.utcnow()

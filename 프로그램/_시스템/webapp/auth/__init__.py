@@ -16,6 +16,9 @@ _PUBLIC_ENDPOINTS = {
     "static",            # 정적 자원
     "health",            # 헬스체크
     "auth.login",        # 로그인 페이지 자체
+    "auth.forgot_password",   # 비번찾기 (로그인 못 한 사용자)
+    "auth.reset_sent",        # 비번찾기 안내
+    "auth.reset_password",    # 토큰 기반 새 비번 설정
     "mockup",            # 디자인 시안 (개발 편의)
 }
 

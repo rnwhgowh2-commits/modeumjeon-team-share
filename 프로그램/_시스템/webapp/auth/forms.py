@@ -31,3 +31,22 @@ class InviteUserForm(FlaskForm):
     role = StringField("역할 (admin/member)", validators=[DataRequired()], default="member")
     temp_password = PasswordField("임시 비밀번호", validators=[DataRequired(), Length(min=8, max=128)])
     submit = SubmitField("초대")
+
+
+class ForgotPasswordForm(FlaskForm):
+    """비밀번호 찾기 — 이메일 입력만."""
+    email = StringField("이메일", validators=[DataRequired(), Email(), Length(max=255)])
+    submit = SubmitField("재설정 링크 보내기")
+
+
+class ResetPasswordForm(FlaskForm):
+    """토큰 검증 후 새 비밀번호 설정."""
+    new_password = PasswordField(
+        "새 비밀번호",
+        validators=[DataRequired(), Length(min=8, max=128, message="8자 이상 128자 이하")],
+    )
+    confirm = PasswordField(
+        "새 비밀번호 확인",
+        validators=[DataRequired(), EqualTo("new_password", message="비밀번호 불일치")],
+    )
+    submit = SubmitField("비밀번호 재설정")
