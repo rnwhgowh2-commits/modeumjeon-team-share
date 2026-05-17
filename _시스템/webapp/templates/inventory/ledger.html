@@ -10,8 +10,8 @@
   .h-layout { display:grid; grid-template-columns:1fr 380px; gap:14px; align-items:start; }
   @media (max-width: 900px) { .h-layout { grid-template-columns:1fr; } }
 
-  /* 거래서 카드 */
-  .tx-card { background:#fff; border:1px solid #E5E8EB; border-radius:10px; padding:14px 16px; margin-bottom:8px; cursor:pointer; transition:.12s; }
+  /* 거래서 카드 — 간소화 (본문 제거, 헤더만) */
+  .tx-card { background:#fff; border:1px solid #E5E8EB; border-radius:10px; padding:12px 16px; margin-bottom:6px; cursor:pointer; transition:.12s; }
   .tx-card:hover { border-color:#3182F6; box-shadow:0 2px 8px rgba(49,130,246,.08); }
   .tx-card.active { border-color:#3182F6; background:#EFF6FF; }
   .tx-card .tx-top { display:flex; align-items:center; gap:10px; margin-bottom:6px; }
@@ -51,11 +51,16 @@
   .h-side .det-line .lbl { width:64px; color:#8B95A1; }
   .h-side .det-line .val { flex:1; color:#191F28; font-weight:500; }
   .h-side .items-list { margin-top:14px; padding-top:14px; border-top:1px solid #F2F4F6; }
-  .h-side .item-row { display:flex; align-items:center; gap:10px; padding:6px 0; border-bottom:1px solid #F9FAFB; }
+  .h-side .item-row { display:flex; align-items:center; gap:8px; padding:7px 0; border-bottom:1px solid #F9FAFB; }
   .h-side .item-row:last-child { border-bottom:0; }
-  .h-side .item-row .img-ph { width:34px; height:34px; border-radius:6px; background:#F2F4F6; display:inline-flex; align-items:center; justify-content:center; color:#9CA3AF; font-size:16px; }
-  .h-side .item-row .nm { flex:1; font-size:12px; color:#191F28; font-family:"SF Mono",ui-monospace,monospace; word-break:break-all; }
-  .h-side .item-row .qty { font-size:12px; font-weight:700; font-family:"SF Mono",ui-monospace,monospace; }
+  .h-side .item-row .img-ph { width:32px; height:32px; border-radius:6px; background:#F2F4F6; display:inline-flex; align-items:center; justify-content:center; color:#9CA3AF; font-size:14px; flex-shrink:0; }
+  .h-side .item-row .nm { flex:1; font-size:11.5px; color:#191F28; font-family:"SF Mono",ui-monospace,monospace; word-break:break-all; line-height:1.3; }
+  .h-side .item-row .qty { font-size:12px; font-weight:700; font-family:"SF Mono",ui-monospace,monospace; min-width:34px; text-align:right; }
+  .h-side .item-row .row-acts { display:flex; gap:4px; opacity:0; transition:.15s; }
+  .h-side .item-row:hover .row-acts { opacity:1; }
+  .h-side .item-row .row-acts a, .h-side .item-row .row-acts button { padding:3px 7px; border:1px solid #E5E8EB; background:#fff; color:#4E5968; border-radius:5px; font-size:11px; cursor:pointer; text-decoration:none; font-family:inherit; }
+  .h-side .item-row .row-acts a:hover { border-color:#3182F6; color:#3182F6; }
+  .h-side .item-row .row-acts button.del:hover { border-color:#DC2626; color:#DC2626; background:#FEF2F2; }
 
   /* 더 보기 메뉴 */
   .more-menu { position:relative; }
@@ -130,32 +135,11 @@
                   {% if g.tx_type=='in' %}입고{% elif g.tx_type=='out' %}출고{% elif g.tx_type=='adjust' %}조정{% else %}이동{% endif %}
                   · {{ g['items']|length }}개 품목
                 </div>
-                <div class="tx-date">{{ g.created_at.strftime('%Y-%m-%d %H:%M') if g.created_at else '—' }}</div>
+                <div class="tx-date">{{ g.created_at.strftime('%Y-%m-%d %H:%M') if g.created_at else '—' }} · {{ g.created_by }}</div>
               </div>
               <div class="tx-qty {% if g.qty_total > 0 %}pos{% elif g.qty_total < 0 %}neg{% elif g.tx_type=='adjust' %}adj{% else %}mv{% endif %}">
                 {{ sign }}{{ g.qty_total }}개
               </div>
-            </div>
-            <div class="tx-body">
-              <span class="tx-sku">{{ first.sku }}</span>
-              {% if g['items']|length > 1 %}<span class="more-items">외 {{ g['items']|length - 1 }}건</span>{% endif %}
-
-              {% if g.tx_type == 'in' %}
-                <span class="loc-chip loc-to">To {{ g.location_name }}</span>
-              {% elif g.tx_type == 'out' %}
-                <span class="loc-chip loc-from">From {{ g.location_name }}</span>
-              {% elif g.tx_type == 'move' and g.location_to_name %}
-                <span class="loc-chip loc-from">From {{ g.location_name }}</span>
-                <span class="loc-arrow">→</span>
-                <span class="loc-chip loc-to">To {{ g.location_to_name }}</span>
-              {% else %}
-                <span class="loc-chip loc-to">{{ g.location_name }}</span>
-              {% endif %}
-
-              <span class="tx-author">
-                <span class="av">{{ g.created_by[:1] }}</span>
-                <span style="font-size:11.5px;color:#4E5968">{{ g.created_by }}</span>
-              </span>
             </div>
           </div>
         {% endfor %}
@@ -235,10 +219,14 @@ function selectCard(card){
   itemsDiv.innerHTML = items.map(it => {
     const sign = it.qty > 0 ? '+' : '';
     const color = it.qty > 0 ? '#15803D' : (it.qty < 0 ? '#DC2626' : '#6B7684');
-    return `<div class="item-row">
+    return `<div class="item-row" data-tx-id="${it.tx_id}">
       <div class="img-ph">📦</div>
       <div class="nm">${it.sku}</div>
       <div class="qty" style="color:${color}">${sign}${it.qty}</div>
+      <div class="row-acts">
+        <a href="/inventory/history/${it.tx_id}/edit" title="수정">✎</a>
+        <button class="del" onclick="delItem(${it.tx_id}, this, event)" title="삭제">🗑</button>
+      </div>
     </div>`;
   }).join('');
   document.getElementById('detItemSummary').textContent = `${items.length}개 품목 · 총 ${card.dataset.qtyTotal}개`;
@@ -253,6 +241,25 @@ function selectCard(card){
 function toggleMore(e){
   e.stopPropagation();
   document.getElementById('moreDD').classList.toggle('open');
+}
+async function delItem(tx_id, btn, e){
+  e && e.stopPropagation();
+  if (!confirm('이 거래를 삭제하시겠습니까? 재고가 자동 재계산됩니다.')) return;
+  try {
+    const r = await fetch(`/inventory/history/${tx_id}/delete`, {method:'POST'});
+    const j = await r.json();
+    if (j.ok) {
+      // 화면에서 row 제거
+      const row = btn.closest('.item-row');
+      if (row) row.remove();
+      // 새 데이터 반영 위해 1초 후 리로드 (또는 카드도 업데이트)
+      setTimeout(() => location.reload(), 600);
+    } else {
+      alert('삭제 실패: ' + (j.error || r.status));
+    }
+  } catch(e) {
+    alert('네트워크 오류: ' + e.message);
+  }
 }
 function exportPDF(){
   alert('PDF 내보내기 — 현재 페이지를 브라우저 인쇄로 PDF 저장 가능');
