@@ -472,25 +472,34 @@ def bundle_edit(code: str):
         except Exception:
             pass
 
-        # 소싱처 레지스트리 (builtin 5 + DB SourcingSource — v6 P5.5)
-        # 명시적 try/rollback 으로 트랜잭션 격리 (PG InFailedSqlTransaction 방지)
+        # 소싱처 레지스트리 — builtin 5 (긴급: SourcingSource 별도 connection 으로 격리 조회)
+        # bundles.py edit 의 outside session 은 model/option 조회로 이미 transaction in-flight
+        # SourcingSource 조회 시 어떤 이유로 PG transaction abort → 같은 connection 전체 영향
+        # → 완전 별개 engine.connect() 로 자체 격리
         all_sources = list(SOURCE_REGISTRY)
         try:
-            from lemouton.sourcing.models import SourcingSource
-            for c in (s.query(SourcingSource)
-                       .filter(SourcingSource.is_active.is_(True))
-                       .order_by(SourcingSource.sort_order, SourcingSource.id).all()):
-                all_sources.append({
-                    'key': c.source_key, 'label': c.label,
-                    'brand': 'custom-' + c.source_key,
-                    'glyph': c.logo_letter or (c.label[:1].upper() if c.label else 'X'),
-                    'crawler': c.has_adapter, 'legacy': False,
-                    'logo_color': c.logo_color or '#3182F6',
-                    'favicon_url': c.favicon_url, 'domain': c.domain,
-                    'needs_login': c.needs_login, 'builtin': False,
-                })
+            from sqlalchemy import text as _sql_text
+            from shared.db import engine as _engine
+            with _engine.connect() as _conn:
+                rs = _conn.execute(_sql_text(
+                    "SELECT source_key, label, logo_letter, logo_color, has_adapter, "
+                    "favicon_url, domain, needs_login "
+                    "FROM sourcing_sources WHERE is_active=true "
+                    "ORDER BY sort_order, id"
+                ))
+                for r in rs.fetchall():
+                    sk, lbl, lt, lc, ha, fv, dm, nl = r
+                    all_sources.append({
+                        'key': sk, 'label': lbl,
+                        'brand': 'custom-' + sk,
+                        'glyph': lt or (lbl[:1].upper() if lbl else 'X'),
+                        'crawler': bool(ha), 'legacy': False,
+                        'logo_color': lc or '#3182F6',
+                        'favicon_url': fv, 'domain': dm,
+                        'needs_login': bool(nl), 'builtin': False,
+                    })
         except Exception:
-            s.rollback()  # PG 트랜잭션 복구
+            pass  # 테이블 미존재 / 기타 → builtin 만 (안전 fallback)
         share_counts = {}
         source_urls = {}
         try:
