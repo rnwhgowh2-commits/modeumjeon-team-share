@@ -1,0 +1,556 @@
+/*** aws elb 사용시 사용자 ip 구하기 end ***/
+
+
+/**
+ * @file 스냅비 기본 객체 파일
+ * @author kim young sun <ys.kim@intopad.co.kr>
+ */
+// 테스트 스위치 초기화
+if (typeof (sfsnapfitTest) == 'undefined') sfsnapfitTest = false;
+
+
+/**
+ * 스냅비 기본 객체
+ * @class
+ */
+var spm_base_object = function () {
+    /** 초기화
+     * @function init
+     */
+    var is_load_sf_commoncss = false;
+    var is_load_sf_recomment_view_css = false;
+
+    this.getResourceDomain = function (checkValue) {
+        var liveResourceDomain = "//cdn.snapfit.co.kr";
+        var developResrouceDomain = "//pushdev.snapfit.co.kr";
+        var servertype = "develop";
+
+        if (checkValue == 1 || checkValue == '1') {
+            servertype = "develop";
+        } else {
+            servertype = "live";
+        }
+        if (servertype == "live") {
+            return liveResourceDomain;
+        } else if (servertype == "develop") {
+            return developResrouceDomain;
+        }
+    }
+
+    this.onload_is_load_spm_banner_main_css = function () {
+        is_load_sf_recomment_view_css = true;
+    }
+
+    this.get_is_load_sf_recomment_view_css = function () {
+        return is_load_sf_recomment_view_css;
+    }
+
+    this.init = function (sub_script_load) {
+
+        if (snapfit_StoreID) {
+            //$('head').append('<link rel="stylesheet" href="//snapfit.co.kr/custom/css/' + snapfit_StoreID + '/custom" type="text/css" />');
+        }
+        var draw_target = $('#draw_target').val();
+
+        $('head').append('<meta charset="utf-8">');
+        $('head').append('<meta http-equiv="Content-Type" content="text/html; charset=utf-8">');
+
+        if ($('#sf_draw_type').val() == 'pc') {
+            // $('head').append('<link rel="stylesheet" href='+this.getResourceDomain("<?=1?>")+'/css/spm_pc.css?v=20180328_1 type="text/css"  onload = "sfspmInstance.onload_is_load_sf_commoncss()" />');
+            // $('head').append('<link rel="stylesheet" href='+this.getResourceDomain()+'/css/spm/spm_pc.css?v=20180328_1 type="text/css" onload = "sfspmInstance.onload_is_load_spm_banner_main_css()" />');
+            $('head').append('<meta http-equiv="X-UA-Compatible" content="IE=edge" />');
+        } else if ($('#sf_draw_type').val() == 'mobile') {
+            // $('head').append('<link rel="stylesheet" href='+this.getResourceDomain("<?=1?>")+'/css/sf_common_m.css?v=20180328_1 type="text/css"  onload = "sfspmInstance.onload_is_load_sf_commoncss()" />');
+            // $('head').append('<link rel="stylesheet" href=' + this.getResourceDomain() + '/css/spm/spm_m.css?v=20180328_1 type="text/css" onload = "sfspmInstance.onload_is_load_spm_banner_main_css()" />');
+        }
+        $('head').append('<link href="//fonts.googleapis.com/css?family=Noto+Sans" rel="stylesheet">');
+
+        //sf
+        $('head').append('<meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=1, user-scalable=no">');
+        $('head').append('<link href="//fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">');
+        $('head').append("<link href='//fonts.googleapis.com/css?family=Noto+Sans' rel='stylesheet'>");
+    }
+
+
+    ////////////postmessage////////////
+    this.post_close_iframe = function () {
+        this.sf_postmessage_toparent({ e: 'sf_close_popup', params: {} });
+    }
+
+    // popup
+    this.post_popup_full = function (sendurl) {
+        if (sendurl) {
+            this.sf_postmessage_toparent({ e: 'sf_popup', params: { src: sendurl } });
+        }
+    }
+
+    this.spm_show_banner = function (data, frameid) {
+        console.log("spm_show_banner");
+        this.sf_postmessage_toparent({ e: 'spm_show_banner', params: { data: data } });
+    }
+
+    this.post_focusmove_by_id = function (frameid) {
+        if (frameid) {
+            this.sf_postmessage_toparent({ e: 'sf_post_focusmove_by_id', 'frameid': frameid });
+        }
+    }
+
+    this.post_resize_iframe = function () {
+        if (this.sf_get_view_moduletype() == 'sf_summary_union_draw' || this.sf_get_view_moduletype() == 'sf_summary_union_draw_m') {
+            return false;
+        }
+
+        $('.snap_sf_wrapper').attr('style', 'position:absolute !important');
+        var iframeheight = document.body.scrollHeight;
+        var draw_device_type = sfspmSubmoduleInstance.get_draw_device();
+
+        $('.snap_sf_wrapper').css("position", '');
+        if (iframeheight) {
+            console.log('resize_request' + iframeheight);
+            this.sf_postmessage_toparent({ e: 'sf_resultview_resize', params: { height: iframeheight } });
+        }
+    }
+
+    this.post_redirect_url = function (url) {
+        if (url) {
+            this.sf_postmessage_toparent({ e: 'sf_redirect_url', params: { url: url } });
+        }
+    }
+
+    this.post_init_scroll_eventinfo = function (view_condition_type, view_condition_value, viewclear_type, viewclear_value, direct_push) {
+        if (view_condition_type && view_condition_value) {
+            this.sf_postmessage_toparent({ e: 'spm_init_scroll_eventinfo', params: { 'view_condition_type': view_condition_type, 'view_condition_value': view_condition_value, 'viewclear_type': viewclear_type, 'viewclear_value': viewclear_value, 'direct_push': direct_push } });
+        }
+    }
+
+    ///////////////////////////
+    this.sf_postmessage_toparent = function (data) {
+        return data ? window.parent.postMessage(JSON.stringify(data), '*') : false;
+    }
+
+    this.close_popup = function (is_destroy_iframe) {
+
+        if (is_destroy_iframe == true) {
+            sfspmSubmoduleInstance.post_close_iframe();
+        }
+    }
+
+
+
+    /**
+     * 팝업 닫기 함수
+     * @function drawPopup
+     * @param {Object} event - 이벤트 객체
+     */
+    this.closePopup = function (event, is_destroy_iframe) {
+        if (typeof (is_destroy_iframe) == 'undefined') {
+            is_destroy_iframe = true;
+        }
+
+        event.stopPropagation();
+        if ($(event.target).data("close-abled") !== true) return;
+        $("body").removeClass("sfsnapfit_open_popup_body");
+        $('#sfsnapfit_bg,#sfsnapfit_pop').hide();
+        $('#sfsnapfit_pop').empty();
+        $('body, html').css({ 'overflow': 'visible' }); // 모달팝업 중 html,body의 scroll을 hidden시킴
+
+        if (is_destroy_iframe == true) {
+            sfspmSubmoduleInstance.post_close_iframe();
+        }
+    }
+
+
+
+    this.setCookie = function (cName, cValue, cDay, cHours, cMinutes, cSeconds) {
+
+        //snapfit은 store종속
+        var store_name = $('#sf_store_name').val();
+        if (!store_name || store_name == 'undefined') {
+            return false;
+        }
+
+        var expire = new Date();
+        expire.setDate(expire.getDate() + cDay);
+        if (typeof cHours != 'undefined') expire.setHours(cHours);
+        if (typeof cMinutes != 'undefined') expire.setMinutes(cMinutes);
+        if (typeof cSeconds != 'undefined') expire.setSeconds(cSeconds);
+
+        cookies = (store_name + '_' + cName) + '=' + escape(cValue) + '; path=/ '; // 한글 깨짐을 막기위해 escape(cValue)를 합니다.
+        if (typeof cDay != 'undefined') cookies += ';expires=' + expire.toGMTString() + ';';
+        document.cookie = cookies;
+    }
+
+    this.getCookie = function (cName) {
+        var store_name = $('#sf_store_name').val();
+        if (!store_name || store_name == 'undefined') {
+            return false;
+        }
+
+        cName = (store_name + '_' + cName + '=');
+        var cookieData = document.cookie;
+        var start = cookieData.indexOf(cName);
+        var cValue = '';
+        if (start != -1) {
+            start += cName.length;
+            var end = cookieData.indexOf(';', start);
+            if (end == -1) end = cookieData.length;
+            cValue = cookieData.substring(start, end);
+        }
+        return unescape(cValue);
+    }
+    this.addDataToUrl = function (orignurl, value) {
+        orignurl += ('/' + value);
+        return orignurl;
+    }
+    this.getErrorNumberDefine = function () {
+        return 999;
+    }
+    this.isError = function (value) {
+        return (value == 999) ? true : false;
+    }
+}
+
+/**
+ * 스냅핏 서브 객체
+ * @class spm_base_object
+ */
+spm_base_object.subModule = function () {
+    spm_base_object.call(this);
+    /**
+     * 스냅비 서브 객체 핏 인스턴스 모듈
+     **/
+
+    this.init(this.init_sub_scripts);
+
+    this.getselectboxvalue = function (radiobtnname) {
+        var selector = $(radiobtnname);
+        if (!selector || selector.length <= 0 || selector.css('display') == 'none')
+            return false;
+
+        value = selector.val();
+        return value;
+    }
+    this.setselectboxvalue = function (radiobtnname, value) {
+        if (!value || !radiobtnname || $(radiobtnname).css('display') == 'none')
+            return false;
+
+        var selector = $(radiobtnname);
+        if (!selector || selector.length <= 0)
+            return false;
+
+        selector.val(value);
+
+        // var selector2 = $(radiobtnname + ' > #sf_likefit_val' );
+        // if(!selector2 || selector2.length <= 0)
+        //     return false;
+        //
+        // var text = $(radiobtnname).find('.sf_selected_fit_value[value=' + value + ']').parent().find('a').text();
+        //
+        // selector.val(value);
+        // selector2.val(text);
+    }
+
+    this.getinputvalue = function (slidertype) {
+        var selector = $(slidertype);
+        if (!selector || selector.length <= 0 || selector.css('display') == 'none')
+            return false;
+
+        var value = selector.val();
+        return value;
+    }
+
+    this.sf_get_user_id = function () {
+
+        var user_id_selector = $('.xans-member-var-id');
+        if (!user_id_selector || user_id_selector.length <= 0) {
+            return false;
+        }
+
+        if (user_id_selector.length == 1) {
+            return user_id_selector.text();
+        } else if (user_id_selector.length > 1) {
+            return user_id_selector.first().text();
+        } else {
+            return false;
+        }
+    }
+
+
+    this.setinputvalue = function (slidertype, value, unit) {
+
+        if ($(value).css('display') == 'none')
+            return false;
+
+        if (!value || $.isNumeric(value) == false)
+            return false;
+
+        var selector = $(slidertype);
+        if (!selector || selector.length <= 0)
+            return false;
+
+        if (unit)
+            value += unit;
+        selector.val(value);
+
+    }
+
+
+
+    this.get_is_checked = function (checkselector) {
+        if (!checkselector)
+            return false;
+
+        var selector = $(checkselector);
+        if (!selector || selector.length <= 0)
+            return false;
+
+        return selector.prop('checked');
+    }
+
+    this.set_is_use_checked = function (checkselector, checked) {
+        if (!checkselector)
+            return false;
+
+        var selector = $(checkselector).parent().parent().find('input');
+        if (!selector || selector.length <= 0)
+            return false;
+
+        var inputselector = null;
+        $(selector).each(function (index, ele) {
+            if ($(this).is('.sf_input_value') == true)
+                inputselector = $(this);
+
+        });
+
+
+        if (!inputselector)
+            return false;
+
+        if (typeof (checked) != 'undefined') {
+            if (checked == true) {
+                $(checkselector).prop('checked', true);
+                inputselector.prop('disabled', false);
+            } else if (checked == false) {
+                $(checkselector).prop('checked', false);
+                inputselector.prop('disabled', true);
+            }
+        }
+    }
+
+
+    this.set_is_checked = function (checkselector, checked) {
+        if (!checkselector)
+            return false;
+
+        var selector = $(checkselector);
+        if (!selector || selector.length <= 0)
+            return false;
+
+        return selector.prop('checked', checked);
+    }
+
+
+    this.isValidSfCookieValue = function (value) {
+        if (value === false || value == 'false' || value == "" || value == null || value == 'null' || value == 'undefined' || value == undefined || typeof (value) == 'undefined')
+            return false;
+        else
+            return true;
+    }
+
+    this.isSfValid = function (value) {
+        if (value === false || value == 'false' || value == "" || value == null || value == 'null' || value == 'undefined' || value == undefined || typeof (value) == 'undefined' || value == '999' || value == 999)
+            return false;
+        else
+            return true;
+    }
+
+    this.is_live = function (is_live) {
+        var is_live = $('#sf_snapfit_is_live').val();
+        if (is_live === false || is_live == 'false' || is_live == 0 || is_live == '0' || is_live == "" || is_live == null || is_live == 'null' || is_live == 'undefined' || is_live == undefined || typeof (is_live) == 'undefined')
+            return 0;
+        else
+            return 1;
+    }
+
+    this.sf_trimurl = function (url, params) {
+        if (params && Object.keys(params).length > 0) {
+            url += '?';
+            var i = 0;
+            for (var key in params) {
+                var paramsvalue = params[key];
+                if (i != 0) {
+                    url += '&';
+                }
+                url += key;
+                url += '=';
+                url += paramsvalue;
+                i++;
+            }
+        } else {
+            return false;
+        }
+        return url;
+    }
+
+    this.sf_isNumeric = function (num, opt) {
+        // 좌우 trim(공백제거)을 해준다.
+        num = String(num).replace(/^\s+|\s+$/g, "");
+
+        if (typeof opt == "undefined" || opt == "1") {
+            // 모든 10진수 (부호 선택, 자릿수구분기호 선택, 소수점 선택)
+            var regex = /^[+\-]?(([1-9][0-9]{0,2}(,[0-9]{3})*)|[0-9]+){1}(\.[0-9]+)?$/g;
+        } else if (opt == "2") {
+            // 부호 미사용, 자릿수구분기호 선택, 소수점 선택
+            var regex = /^(([1-9][0-9]{0,2}(,[0-9]{3})*)|[0-9]+){1}(\.[0-9]+)?$/g;
+        } else if (opt == "3") {
+            // 부호 미사용, 자릿수구분기호 미사용, 소수점 선택
+            var regex = /^[0-9]+(\.[0-9]+)?$/g;
+        } else if (opt == "4") {
+            // only 숫자만(부호 미사용, 자릿수구분기호 미사용, 소수점 미사용)
+            var regex = /^[0-9]{0,6}$/g;
+        } else if (opt == "5") {
+            var regex = /^\d+(?:[.]?[\d])?$/;
+        }
+
+        if (regex.test(num)) {
+            num = num.replace(/,/g, "");
+            return isNaN(num) ? false : true;
+        } else { return false; }
+    }
+    this.sf_is_mustinput_complete = function () {
+        var notinputedelements = '';
+        $('.snap_sf_must_input').each(function () {
+            var inputedval = $(this).val();
+            if ((!inputedval || typeof (inputedval) == 'undefined') && $(this).parent().css('display') != 'none') {
+
+                notinputedelements += $(this).attr('name');
+            }
+        });
+        return notinputedelements;
+    }
+    this.get_storename = function (value) {
+        return $('#sf_store_name').val();
+    }
+
+    this.get_draw_device = function (value) {
+        return $('#sf_draw_type').val();
+    }
+
+    this.request_to_api = function (request_url, requesttype, data, callback, requestdatatype) {
+        if (!request_url)
+            return false;
+
+        if (requesttype != 'GET' && requesttype != 'POST')
+            return false;
+
+        if (typeof data == 'undefined' || !data || typeof data !== 'object') {
+            data = {};
+        }
+
+
+        var apidomain = this.get_api_domain();
+        if (!apidomain) {
+            return false;
+        }
+        var requestdata = this.get_common_info(data);
+        var requestapiurl = apidomain + request_url;
+        $.ajax({
+            url: requestapiurl,
+            data: requestdata,
+            type: requesttype,
+            dataType: requestdatatype,
+            async: false,
+            crossDomain: true,
+            beforeSend: function (request) {
+                request.setRequestHeader('Content-Type', 'text/javascript; charset=utf-8');
+                request.setRequestHeader('Access-Control-Allow-Origin', '*');
+                request.setRequestHeader('Access-Control-Allow-Credentials', 'true');
+                request.setRequestHeader('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS, POST, PUT');
+                request.setRequestHeader('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Key, Authorization, X-Auth-Token, X-CSRF-TOKEN, X-File-Name');
+            },
+        }).done(function () {
+            if (typeof callback === 'function') {
+                callback();
+            }
+        });
+    }
+
+    this.get_api_domain = function (checkValue) {
+        var is_dev = "<?=1?>";
+        var liveDomain = "//push.snapfit.co.kr/";
+        var developDomain = "//pushdev.snapfit.co.kr/";
+
+        var servertype = "develop";
+        if (is_dev == 1 || is_dev == '1') {
+            servertype = "develop";
+        } else {
+            servertype = "live";
+            //servertype =  "develop";
+        }
+
+        if (servertype == "live") {
+            return liveDomain;
+        } else if (servertype == "develop") {
+            return developDomain;
+        }
+    }
+
+    /*커스텀 - LEE*/
+    this.get_common_info = function (requestdatadic) {
+        if (typeof requestdatadic == 'undefined') {
+            return false;
+        }
+
+        if (typeof requestdatadic !== 'object') {
+            return false;
+        }
+
+        requestdatadic['sf_store_name'] = ($('#sf_store_name') && $('#sf_store_name').val()) ? encodeURIComponent($('#sf_store_name').val()) : '';
+        requestdatadic['device_type'] = ($('#device_type') && $('#device_type').val()) ? encodeURIComponent($('#device_type').val()) : '';
+        requestdatadic['pagetype'] = ($('#pagetype') && $('#pagetype').val()) ? encodeURIComponent($('#pagetype').val()) : '';
+        requestdatadic['itemno'] = ($('#itemno') && $('#itemno').val()) ? encodeURIComponent($('#itemno').val()) : '';
+        requestdatadic['cateno'] = ($('#cateno') && $('#cateno').val()) ? encodeURIComponent($('#cateno').val()) : '';
+        if (requestdatadic['pagetype'] == 'sq_detail_page') {
+            requestdatadic['item_cate'] = ($('#item_cate') && $('#item_cate').val()) ? encodeURIComponent($('#item_cate').val()) : '';
+        }
+        requestdatadic['itemcate'] = ($('#itemcate') && $('#itemcate').val()) ? encodeURIComponent($('#itemcate').val()) : '';
+        requestdatadic['user_id'] = ($('#user_id') && $('#user_id').val()) ? encodeURIComponent($('#user_id').val()) : '';
+        requestdatadic['spm_spmuserid_pc'] = ($('#spm_spmuserid_pc') && $('#spm_spmuserid_pc').val()) ? encodeURIComponent($('#spm_spmuserid_pc').val()) : '';
+        requestdatadic['spm_spmuserid_m'] = ($('#spm_spmuserid_m') && $('#spm_spmuserid_m').val()) ? encodeURIComponent($('#spm_spmuserid_m').val()) : '';
+        requestdatadic['adminPushID'] = ($('#adminPushID') && $('#adminPushID').val()) ? encodeURIComponent($('#adminPushID').val()) : '';
+        requestdatadic['referrerUrl'] = ($('#referrerUrl') && $('#referrerUrl').val()) ? encodeURIComponent($('#referrerUrl').val()) : '';
+        requestdatadic['currentUrl'] = ($('#currentUrl') && $('#currentUrl').val()) ? encodeURIComponent($('#currentUrl').val()) : '';
+        requestdatadic['todayShowBanner'] = ($('#todayShowBanner') && $('#todayShowBanner').val()) ? encodeURIComponent($('#todayShowBanner').val()) : '';
+        requestdatadic['basket_total'] = ($('#basket_total') && $('#basket_total').val()) ? encodeURIComponent($('#basket_total').val()) : '';
+
+        return requestdatadic;
+    }
+}
+
+function numberCounter(target_label_frame, target_percent_frame, target_number) {
+    this.count = 0; this.diff = 0;
+    this.target_count = parseInt(target_number);
+    this.target_frame = $(target_label_frame);
+    this.target_percent_frame = $(target_percent_frame);
+    this.timer = null;
+
+    this.counter();
+};
+
+numberCounter.prototype.counter = function () {
+    var self = this;
+    this.diff = this.target_count - this.count;
+
+    if (this.diff > 0) {
+        self.count += Math.ceil(this.diff / 5);
+    }
+
+    var number = this.count.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',') + '%';
+    // this.target_frame.html(number);
+    this.target_percent_frame.css('width', number);
+    if (this.count < this.target_count) {
+        this.timer = setTimeout(function () { self.counter(); }, 20);
+    } else {
+        clearTimeout(this.timer);
+    }
+};

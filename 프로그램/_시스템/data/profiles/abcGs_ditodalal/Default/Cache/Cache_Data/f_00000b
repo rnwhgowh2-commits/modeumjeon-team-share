@@ -1,0 +1,615 @@
+(function() {
+	var _outside = abc.object.createNestedObject(window, "abc.gtm.outside");
+
+	_outside.eventName = "";
+	_outside.pageId = "";
+
+	_outside.addCart = function(addCartList,cartType) {
+		try{
+			if(abc.global.gtmUseYn != "Y"){
+				return false;
+			}
+			var prdtData = abc.biz.product.main.product.data;
+			var prdtList = [];
+
+			addCartList.forEach(function (item) {
+				var prdtInfo = {};
+				prdtInfo.item_id = item.prdtNo;
+
+				if(addCartList.length > 1){// 상품리스트에서 담을때 단건으로 들어와 분기 처리
+					prdtInfo.item_name = item.prdtName;
+					prdtInfo.item_brand = item.brandName;
+
+					if(item.productOptionLevel > 1){
+						var optionNameArr = item.optnName.split('(');
+						var setOptionArr = [];
+						setOptionArr.push(String(optionNameArr[0]));
+						setOptionArr.push(String(optionNameArr[1].substring(0,optionNameArr[1].length-1)));
+						prdtInfo.item_variant = setOptionArr;
+					}else{
+						 prdtInfo.item_variant = [String(item.optnName)];
+					}
+
+					var ctgr = [];
+					if(!abc.text.allNull(item.stdCtgrNameInline)){
+						ctgr = item.stdCtgrNameInline.split(">");
+						prdtInfo.item_category = ctgr[0];
+						prdtInfo.item_category2 = ctgr[1];
+						prdtInfo.item_category3 = ctgr[2];
+					}
+					prdtInfo.item_category4 = item.styleInfo;
+					prdtInfo.item_category5 = item.productColorInfo;
+					prdtInfo.affiliation = item.mmnyPrdtYn;
+
+					if( item.normalAmt > item.displayProductPrice ){
+						prdtInfo.discount = item.normalAmt - item.displayProductPrice;
+						prdtInfo.price = item.normalAmt;
+					} else {
+						prdtInfo.discount = 0;
+						prdtInfo.price = item.normalAmt;
+					}
+					prdtInfo.quantity = Number(item.orderQty);
+
+					if(!abc.text.allNull(item.promoNames)){
+						prdtInfo.promotion_name = item.promoNames.substring(0,item.promoNames.lastIndexOf(','));
+					}
+
+					if( item.genderGbnCode == '10000'){
+						prdtInfo.theme_category = '남성';
+					}else if( item.genderGbnCode == '10001'){
+						prdtInfo.theme_category = '여성';
+					}else if(item.genderGbnCode == '10002'){
+						prdtInfo.theme_category = '키즈';
+					}else if( item.genderGbnCode == '10003'){
+						prdtInfo.theme_category = '공용';
+					}
+				}else{
+					prdtInfo.item_name = prdtData.prdtName;
+					prdtInfo.item_brand = prdtData.brand.brandName;
+
+					if(item.productOptionLevel > 1){
+						if( item.optnName.indexOf('(') > -1 ){
+							var optionNameArr = item.optnName.split('(');
+							var setOptionArr = [];
+							setOptionArr.push(String(optionNameArr[0]));
+							setOptionArr.push(String(optionNameArr[1].substring(0,optionNameArr[1].length-1)));
+							prdtInfo.item_variant = setOptionArr;
+						}else{
+							var setOptionArr = [];
+							prdtData.productOption.forEach(function (option) {
+								if(option.prdtOptnNo == item.prdtOptnNo){
+									setOptionArr.push(String(option.optnName));
+									if(!abc.text.allNull(option.addOptn2Text)){
+										setOptionArr.push(String(option.addOptn2Text));
+									}
+									return false;
+								}
+							});
+							prdtInfo.item_variant = setOptionArr;
+						}
+					}else{
+						if(abc.text.allNull(item.optnName)){
+							prdtData.productOption.forEach(function (option) {
+								if(option.prdtOptnNo == item.prdtOptnNo){
+									prdtInfo.item_variant = [String(option.optnName)];
+									return false;
+								}
+							});
+						}else{
+							prdtInfo.item_variant = [String(item.optnName)];
+						}
+					}
+
+					if(!abc.text.allNull(prdtData.stdCtgrNameInline)){
+						var ctgr = prdtData.stdCtgrNameInline.split(">");
+						prdtInfo.item_category = ctgr[0];
+						prdtInfo.item_category2 = ctgr[1];
+						prdtInfo.item_category3 = ctgr[2];
+					}
+
+					prdtInfo.item_category4 = prdtData.styleInfo;
+					prdtInfo.item_category5 = prdtData.prdtColorInfo;
+					prdtInfo.affiliation = prdtData.mmnyPrdtYn;
+
+					if( prdtData.productPrice.normalAmt > prdtData.displayProductPrice ){
+						prdtInfo.discount = prdtData.productPrice.normalAmt - prdtData.displayProductPrice;
+						prdtInfo.price = prdtData.productPrice.normalAmt;
+					} else {
+						prdtInfo.discount = 0;
+						prdtInfo.price = prdtData.productPrice.normalAmt;
+					}
+					prdtInfo.quantity = item.orderQty;
+
+					var promoNames = "";
+					prdtData.promotion.forEach(function (promo) {
+						promoNames += promo.promoName + ",";
+					});
+					prdtInfo.promotion_name = promoNames.substring(0,promoNames.lastIndexOf(','));
+
+					if( prdtData.genderGbnCode == '10000'){
+						prdtInfo.theme_category = '남성';
+					}else if( prdtData.genderGbnCode == '10001'){
+						prdtInfo.theme_category = '여성';
+					}else if(prdtData.genderGbnCode == '10002'){
+						prdtInfo.theme_category = '키즈';
+					}else if( prdtData.genderGbnCode == '10003'){
+						prdtInfo.theme_category = '공용';
+					}
+				}
+
+				prdtList.push(prdtInfo);
+			});
+
+			var pageName = abc.gtm.getPageName();
+			var cartParm = {
+				'item_list_name': pageName,
+				'item_list_id': pageName,
+				'ecommerce': {
+					'items': prdtList
+				}
+			};
+
+			if(abc.biz.product.common.util.product.isQuickView()){
+				cartParm.index = '퀵뷰';
+			}
+
+			if(cartType == 'D'){
+				if(location.pathname.indexOf('/product/package/detail') > -1){
+					abc.gtm.dataLayer.click_package_direct_purchase(cartParm);
+				}else{
+					abc.gtm.dataLayer.click_direct_purchase(cartParm);
+				}
+			}else{
+				abc.gtm.dataLayer.add_to_cart(cartParm);
+			}
+		} catch(error) {console.log(error)}
+	}
+
+	_outside.deleteCart = function(cartSeqs) {
+		try{
+			if(abc.global.gtmUseYn != "Y"){
+				return false;
+			}
+			var prdtList = [];
+			cartSeqs.forEach(function (item) {
+				var prdtInfo = _outside.setCartData(item);
+				prdtList.push(prdtInfo);
+			});
+
+			var cartParm = {
+				'index': _outside.eventName,
+				'ecommerce': {
+					'items': prdtList
+				}
+			};
+			abc.gtm.dataLayer.remove_from_cart(cartParm);
+			var gtmCookie = abc.gtm.cookie();
+			gtmCookie.setCookie('gtmDeleteCart', 'Y');
+		} catch(error) {}
+	}
+
+	_outside.cartDirectOrder = function(seq) {
+		try{
+			if(abc.global.gtmUseYn != "Y"){
+				return false;
+			}
+			var prdtInfo = _outside.setCartData(seq);
+			var prdtList = [];
+			prdtList.push(prdtInfo);
+
+			var cartParm = {
+				'index': '장바구니 페이지',
+				'ecommerce': {
+					'items': prdtList
+				}
+			};
+
+			abc.gtm.dataLayer.click_direct_purchase(cartParm);
+		} catch(error) {}
+	}
+
+	_outside.setCartData = function(seq) {
+		var prdtInfo = {};
+		prdtInfo.item_id = $("#prdtNo_" + seq).val();
+		prdtInfo.item_name = $("#prdtName_" + seq).val();
+		prdtInfo.item_brand = $("#brandName_" + seq).val();
+
+		var setOptionArr = [];
+		setOptionArr.push($("#optnName_" + seq).val());
+		if( !abc.text.allNull($("#addOptn2Text_" + seq).val()) ){
+			setOptionArr.push($("#addOptn2Text_" + seq).val());
+		}
+		prdtInfo.item_variant = setOptionArr;
+
+		if( !abc.text.allNull($("#stdCtgrNameInline_" + seq).val())){
+			var ctgr = $("#stdCtgrNameInline_" + seq).val().split(">");
+			prdtInfo.item_category = ctgr[0];
+			prdtInfo.item_category2 = ctgr[1];
+			prdtInfo.item_category3 = ctgr[2];
+		}
+		prdtInfo.item_category4 = $("#styleInfo_" + seq).val();
+		prdtInfo.item_category5 = $("#prdtColorInfo_" + seq).val();
+		prdtInfo.affiliation = $("#mmnyPrdtYn_" + seq).val();
+		
+		if( $("#prod-cost_" + seq).find(".prod-normal-cost").length > 0 ){
+			prdtInfo.discount = Number($("#prod-cost_" + seq).find(".prod-normal-cost .value").text().replaceAll(',','')) - Number($("#prod-cost_" + seq).find("[name=sellAmtArea]").text().replaceAll(',',''));
+			prdtInfo.price = Number($("#prod-cost_" + seq).find(".prod-normal-cost .value").text().replaceAll(',',''));
+		}else{
+			prdtInfo.discount = 0;
+			prdtInfo.price = Number($("#prod-cost_" + seq).find(".value").text().replaceAll(',',''));
+		}
+		prdtInfo.quantity = $("#orgOrderQty_" + seq).val();
+
+		var _promoList = $('#promoNo_' + seq);
+		if(!abc.text.allNull(_promoList)){
+			var promoNames = "";
+			for(var i=0;i<_promoList.length;i++){
+				var promo = _promoList[i];
+				promoNames +=  $(promo).attr('data-name') + ',';
+			}
+			prdtInfo.promotion_name = promoNames.substring(0,promoNames.lastIndexOf(','));
+		}
+
+		var _giftPromoList = $('#giftPromoNo_' + seq);
+		if(!abc.text.allNull(_giftPromoList)){
+			var promoNames = "";
+			for(var i=0;i<_giftPromoList.length;i++){
+				var promo = _giftPromoList[i];
+				promoNames +=  $(promo).attr('data-name') + ',';
+			}
+			prdtInfo.promotion_name += promoNames.substring(0,promoNames.lastIndexOf(','));
+		}
+
+		if( $('#genderGbnCode_' + seq).val() == '10000'){
+			prdtInfo.theme_category = '남성';
+		}else if( $('#genderGbnCode_' + seq).val() == '10001'){
+			prdtInfo.theme_category = '여성';
+		}else if( $('#genderGbnCode_' + seq).val() == '10002'){
+			prdtInfo.theme_category = '키즈';
+		}else if( $('#genderGbnCode_' + seq).val() == '10003'){
+			prdtInfo.theme_category = '공용';
+		}
+		return prdtInfo;
+	}
+
+	_outside.orderComplete = function() {
+		
+			if(abc.global.gtmUseYn != "Y"){
+				return false;
+			}
+			var prdtList = JSON.parse(abc.cookie.get('ga4OrderPrdList'));
+			if( abc.text.allNull(prdtList) ){
+				return false;
+			}
+			var cpnNames = "";
+			abc.biz.order.complete.orderCouponList.forEach(function(item){
+				cpnNames += item.cpnName + ","
+			});
+
+			var orderParm = {
+				'first_purchase': $('#firstOrderYn').val() == 'Y' ? '첫구매':'재구매',
+				'transaction_id': $('#orderNo').text(),
+				'coupon': cpnNames.substring(0,cpnNames.lastIndexOf(',')),
+				'discount': Number($('#totalDiscountAmt').text().replaceAll(',','').replaceAll('원','')),
+				'shipping': Number($('#totalDlvyAmt').text().replaceAll(',','').replaceAll('원','')),
+				'shipping_tier': abc.biz.order.complete.orderDetail.dlvyTypeCodeName,
+				'use_mileage': Number($('#pointAmt').text().replaceAll(',','').replaceAll('P','')),
+				'payment_type': $('#mainPaymentText').text(),
+				'value': Number($('#totalPaymentAmt').text().replaceAll(',','').replaceAll('원','')),
+				'user_id': abc.userDetails.hashNo,
+				'ecommerce': {
+					'items': prdtList
+				}
+			};
+			abc.gtm.dataLayer.purchase(orderParm);
+			abc.cookie.remove('ga4OrderPrdList');
+		
+	}
+
+	_outside.setOrderData = function(seq) {
+		var prdtInfo = {};
+		prdtInfo.item_id = $("#prdtNo_" + seq).val();
+		prdtInfo.item_name = $("#prdtName_" + seq).val();
+		prdtInfo.item_brand = $("#brandName_" + seq).val();
+
+		if( $("#optnName_" + seq).val().indexOf(',') > -1 ){
+			var optnNameArr = $("#optnName_" + seq).val().split(',');
+			var setOptionArr = [];
+			setOptionArr.push(optnNameArr[1]);
+			setOptionArr.push(optnNameArr[0]);
+			prdtInfo.item_variant = setOptionArr;
+		}else{
+			prdtInfo.item_variant = [$("#optnName_" + seq).val()];
+		}
+
+		if( !abc.text.allNull($("#stdCtgrNameInline_" + seq).val())){
+			var ctgr = $("#stdCtgrNameInline_" + seq).val().split(">");
+			prdtInfo.item_category = ctgr[0];
+			prdtInfo.item_category2 = ctgr[1];
+			prdtInfo.item_category3 = ctgr[2];
+		}
+		prdtInfo.item_category4 = $("#styleInfo_" + seq).val();
+		prdtInfo.item_category5 = $("#prdtColorInfo_" + seq).val();
+		prdtInfo.affiliation = $("#mmnyPrdtYn_" + seq).val();
+
+		if( $("#prod-cost_" + seq).find(".prod-normal-cost").length > 0 ){
+			prdtInfo.discount = Number($("#prod-cost_" + seq).find(".prod-normal-cost .value").text().replaceAll(',','')) - Number($("#prod-cost_" + seq).find("[name=sellAmtArea]").text().replaceAll(',',''));
+			prdtInfo.price = Number($("#prod-cost_" + seq).find(".prod-normal-cost .value").text().replaceAll(',',''));
+		}else{
+			prdtInfo.discount = 0;
+			prdtInfo.price = Number($("#prod-cost_" + seq).find(".value").text().replaceAll(',',''));
+		}
+		prdtInfo.quantity = $("#orderQty_" + seq).val();
+
+		if(!abc.text.allNull($("input[id^='promoName_" + seq + "']"))){
+			var _promoList = $("input[id^='promoName_" + seq + "']");
+			var promoNames = "";
+			for(var i=0;i<_promoList.length;i++){
+				var promo = _promoList[i];
+				promoNames +=  $(promo).val() + ',';
+			}
+			prdtInfo.promotion_name = promoNames.substring(0,promoNames.lastIndexOf(','));
+		}
+
+		if( $('#genderGbnCode_' + seq).val() == '10000'){
+			prdtInfo.theme_category = '남성';
+		}else if( $('#genderGbnCode_' + seq).val() == '10001'){
+			prdtInfo.theme_category = '여성';
+		}else if( $('#genderGbnCode_' + seq).val() == '10002'){
+			prdtInfo.theme_category = '키즈';
+		}else if( $('#genderGbnCode_' + seq).val() == '10003'){
+			prdtInfo.theme_category = '공용';
+		}
+		var cpnNames = "";
+		if( !abc.text.allNull($('#nomalCpnNo_' + seq).attr('data-name'))){
+			cpnNames = $('#nomalCpnNo_' + seq).attr('data-name');
+		}
+		if( !abc.text.allNull($('#plusCpnNo_' + seq).attr('data-name'))){
+			if(cpnNames != ""){
+				cpnNames += ",";
+			}
+			cpnNames += $('#plusCpnNo_' + seq).attr('data-name');
+		}
+		prdtInfo.coupon = cpnNames;
+
+		return prdtInfo;
+	}
+
+	// 상품 카테고리 메뉴에서 찜하기 아이콘 클릭 시
+	_outside.addWishList = function (prdtData, ctgView){
+		try {
+			if(abc.global.gtmUseYn != "Y"){
+				return false;
+			}
+			var wishProductParm = {};
+			var prdtInfo = {};
+			var prdtList = [];
+			var isPackage = false;
+			var displayProductPrice = '' ;
+			var selectItem = '';
+			var index  = '퀵뷰';
+			var ctgrArr = [];
+
+			if(location.pathname.indexOf('/product/package/detail') > -1){
+				isPackage = true;
+			}
+
+			prdtInfo.item_id = prdtData.prdtNo;
+			prdtInfo.item_name = prdtData.prdtName;
+			prdtInfo.item_brand = prdtData.brandName;
+
+			if(!abc.text.allNull(prdtData.stdCtgrNameInline)){
+				ctgrArr = prdtData.stdCtgrNameInline.split('>');
+			}
+
+			prdtInfo.item_category  = abc.text.allNull(ctgrArr[0]) ? '' : ctgrArr[0];
+			prdtInfo.item_category2 = abc.text.allNull(ctgrArr[1]) ? '' : ctgrArr[1];
+			prdtInfo.item_category3 = abc.text.allNull(ctgrArr[2]) ? '' : ctgrArr[2];
+
+			prdtInfo.item_category4 = prdtData.styleInfo;
+			prdtInfo.item_category5 = prdtData.prdtColorInfo;
+			prdtInfo.affiliation    = prdtData.mmnyPrdtYn;
+			prdtInfo.price          = prdtData.productPrice.normalAmt;
+			prdtInfo.quantity       = 1;
+
+			if(abc.biz.product.common.util.product.isQuickView() == true || isPackage == true){ //퀵뷰 체크
+
+				if(ctgView == true){
+					selectItem = $('#prod-link-'+prdtInfo.item_id);
+					displayProductPrice = selectItem.find('.price-cost').text();
+				} else {
+					selectItem = $("[data-product='sell-price-amount']");
+					displayProductPrice = selectItem.text();
+				}
+
+				if(!abc.text.allNull(displayProductPrice)){
+					displayProductPrice = displayProductPrice.replace(',','');
+				}
+
+				if( prdtData.productPrice.normalAmt > displayProductPrice){
+					prdtInfo.discount = prdtData.productPrice.normalAmt - displayProductPrice;
+				} else {
+					prdtInfo.discount = 0;
+				}
+				var promoNames = "";
+				if(!abc.text.allNull(prdtData.promotion)){
+					prdtData.promotion.forEach(function (promo) {
+						promoNames += promo.promoName + ",";
+					});
+				}
+				prdtInfo.promotion_name = abc.text.allNull(promoNames) ? '' : promoNames.substring(0,promoNames.lastIndexOf(','));
+
+				if( prdtData.genderGbnCode == '10000'){
+					prdtInfo.theme_category = '남성';
+				}else if( prdtData.genderGbnCode == '10001'){
+					prdtInfo.theme_category = '여성';
+				}else if(prdtData.genderGbnCode == '10002'){
+					prdtInfo.theme_category = '키즈';
+				}else if( prdtData.genderGbnCode == '10003'){
+					prdtInfo.theme_category = '공용';
+				}
+			}
+
+			var pageInfo = abc.gtm.getPageName();
+
+			prdtList.push(prdtInfo);
+
+			wishProductParm = {
+				'item_list_name': pageInfo,
+				'item_list_id': pageInfo,
+				'index' : index,
+				'ecommerce': {
+					'items': prdtList
+				}
+			}
+			if(abc.biz.product.common.util.product.isQuickView() == false && isPackage == false){
+				delete wishProductParm.index;
+			}
+			abc.gtm.dataLayer.add_to_wishlist(wishProductParm);
+		} catch (e){console.log(e);}
+	}
+
+	_outside.addPackageWishList = function(){
+		try {
+			if(abc.global.gtmUseYn != "Y"){
+				return false;
+			}
+
+			var prdtInfo = {};
+			prdtInfo.item_id = abc.param.getParams().pkgPrdtNo;
+			prdtInfo.item_name = $('#contentsWrap .detail-box-right .prod-name').text().trim();
+
+			var prdtList = [];
+			prdtList.push(prdtInfo);
+
+			var pageInfo = abc.gtm.getPageName();
+			var wishProductParm = {
+				'item_list_name': pageInfo,
+				'item_list_id': pageInfo,
+				'index' : '',
+				'ecommerce': {
+					'items': prdtList
+				}
+			};
+			abc.gtm.dataLayer.add_to_wishlist(wishProductParm);
+		} catch (e){console.log(e);}
+	}
+
+	// select_content : 랭킹
+	_outside.select_content = function (data){
+		var data = data;
+		try {
+			if(abc.global.gtmUseYn != "Y"){
+				return false;
+			}
+			if(data.index =='W'){
+				data.index ='주간베스트'
+			} else if(data.index=='M'){
+				data.index ='월간베스트'
+			} else if(data.index=='R'){
+				data.index ='실시간'
+			}
+			if(data.content_id == '10001'){
+				data.content_id ='ABC-MART'
+				data.content_type ='ABC-MART'
+			} else if(data.content_id == '10002'){
+				data.content_id ='GRAND STAGE'
+				data.content_type ='GRAND STAGE'
+			}
+			switch (data.tap_name){
+				case 'P' :
+					data.tap_name = 'PRODUCT'
+					break;
+				case 'B' :
+					data.tap_name = 'BRAND'
+					break;
+				case 'S' :
+					data.tap_name = '검색어'
+					data.content_id = ''
+					data.content_type = ''
+					break;
+				case 'V' :
+					data.tap_name = '많이 본 상품'
+					break;
+			}
+			abc.gtm.dataLayer.select_content(data);
+		}catch (e){}
+	}
+
+	// 2025.11.07 : #5005 MAGAZINE 카테고리 페이지 내 콘텐츠 클릭 스크립트 삽입
+	_outside.magazine_select_content = function (data){
+		if(abc.global.gtmUseYn != "Y"){
+			return false;
+		}
+		var data = data;
+		dataLayer.push({ ecommerce: null });
+		abc.gtm.dataLayer.select_content({
+		  	'content_id': data.content_id, 
+			'content_type': data.content_type,
+			'method': data.method,
+			'index': data.index
+		});
+	}
+
+	// gtm upload_coupon 수집
+	_outside.upload_coupon = function(data) {
+		try {
+			if(abc.global.gtmUseYn != "Y"){
+				return false;
+			}
+			data = data || {};
+
+			if(Object.keys(data).length>0) {
+				abc.gtm.dataLayer.upload_coupon(data);
+			}
+		} catch (error) {}
+	};
+	
+	// gtm download_copoun 수집
+	_outside.download_coupon = function(data) {
+		try {
+			if(abc.global.gtmUseYn != "Y"){
+				return false;
+			}
+			data = data || {};
+			
+			if(Object.keys(data).length>0) {
+				data.index = abc.gtm.getPageName();
+				abc.gtm.dataLayer.download_coupon(data);
+			}
+		} catch (error) {}
+	};
+
+	// 재입고 알람신청시
+	_outside.submit_reorder = function(data) {
+		try {
+			if(abc.global.gtmUseYn != "Y"){
+				return false;
+			}
+			data = data || {};
+			
+			if(Object.keys(data).length>0) {
+				data.index = abc.gtm.getPageName();
+				abc.gtm.dataLayer.submit_reorder(data);
+			}
+		} catch (error) {}
+	}
+
+	// 관심 브랜드 등록을 정상적으로 완료 시
+	// index : 선택한 브랜드의 노출 형태가 값으로 들어갑니다. ('핫브랜드 썸네일', '텍스트 링크')
+	_outside.clickMainWishBrand = function(brandName, index) {
+		try{
+			if(abc.global.gtmUseYn != "Y"){
+				return false;
+			}
+			if(abc.text.notAllNull(brandName) && abc.text.notAllNull(index)){
+				abc.gtm.dataLayer.click_main_wish_brand({'brandName': brandName, 'index': index})
+			}
+		} catch(error) {}
+	}
+
+	_outside.saveAnswer = function() {
+		abc.gtm.dataLayer.post_comment({'event': 'post_comment'});
+	}
+
+})();

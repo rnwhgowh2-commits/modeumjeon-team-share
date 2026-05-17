@@ -1,0 +1,571 @@
+/**
+ * abcmart.gtm.view.js
+ * 문서에 작성된 이벤트들은 abcmart.view.common.js에 선언되어 있다.
+ * 함수를 사용할때에는 dataLayer.이벤트명으로 호출한다.
+ * 해당 파일은 gtm 화면 랜더링될때 호출돼야하는 스크립트 파일이다.
+ */
+
+(function() {
+	var gtmSession = abc.gtm.gtmSessionStorage();
+	var gtmCookie = abc.gtm.cookie();
+	var dataLayer = abc.gtm.dataLayer;
+	var path = String(location.pathname);
+	var maxCallCnt = 10;
+	var view = {
+		init : function() {
+			try {
+				Object.keys(view.biz)
+				.forEach(function(key) {
+					var property = view.biz[key];
+
+					if(property.constructor==Function) {
+						property();
+					}
+				});
+			} catch (error) {}
+		},
+		biz : {
+			cart : function() {
+				try{
+					if(path == '/cart/cart-list'){
+						if(gtmCookie.getCookie('gtmDeleteCart') == 'Y'){
+							gtmCookie.removeCookie('gtmDeleteCart');
+							return;
+						}
+						var prdtList = [];
+						var prdtInfo = {};
+						var objArr = [];
+						var seq;
+
+						$('#tbl-prod-wrap tr').each(function(){
+							objArr = $(this).attr('id').split('_');
+							seq = objArr[2];
+							prdtInfo = abc.gtm.outside.setCartData(seq);
+							prdtList.push(prdtInfo);
+						});
+
+						var cartParm = {
+								'index': '장바구니 페이지',
+								'ecommerce': {
+									'items': prdtList
+								}
+							};
+
+						var callCnt = 0;
+						var interval = setInterval(function() {
+							callCnt++;
+							if(abc.text.notAllNull(dataLayer)) {
+								dataLayer.view_cart(cartParm);
+								clearInterval(interval);
+							}
+							if(callCnt > maxCallCnt){
+								clearInterval(interval);
+							}
+						}, 500);
+					}
+				} catch(error) {}
+			},
+			display : function() {
+				// g-log
+				if(path=='/display/style/main') {
+					setTimeout(function() {
+						var qsObject = view.func.getQsObject();
+
+						if(Object.hasOwnProperty.call(qsObject, 'styleSeq')) {
+							var callCnt = 0;
+							var interval = setInterval(function() {
+								callCnt++;
+								if(abc.text.notAllNull(dataLayer)) {
+									dataLayer.view_content({content_id : qsObject.styleSeq});
+									clearInterval(interval);
+								}
+								if(callCnt > maxCallCnt){
+									clearInterval(interval);
+								}
+							}, 500);
+						}
+					}, 1000);
+				}
+
+				// 웹진 개별 콘텐츠 진입 시
+				if(path==='/display/webzine/detail/main'){
+					try{
+						var webzin_id  = $('#wbznSeq').val();
+						var webzin_name = $('#wbznName').val();
+						var webzin_type = $('#wbznType').val();
+						var contents_type = $('#contentsType').val();
+
+						var pageName = "";
+						// 메인 피드 배너 등 BO 등록 url로 진입 시 wbznType param 누락/오입력으로 콘텐츠타입 가져오는 방식 변경
+						if(!abc.text.allNull(webzin_type)){
+							if(webzin_type === 'C'){	// 카탈로그
+								pageName = 'CATALOGUE';
+							}else if(webzin_type === 'M'){	// ART-TV
+								pageName = 'A-RT TV';
+							}else if(webzin_type === 'N'){	// TREND
+								if( !abc.text.allNull(contents_type) && contents_type === '10016'){
+									pageName = 'NEWS';
+								}else{
+									pageName = 'TREND';
+								}
+							}else if(webzin_type === 'H'){	// EDITION
+								pageName = 'EDITION';
+							}else if(webzin_type === 'L'){	// LAUNCHING
+								webzin_name = abc.text.allNull(webzin_name) ? $('.launching-title').text() : webzin_name;
+								pageName = 'LAUNCHING';
+							}
+						}
+
+
+						var webzinParms = {
+							'index': '웹진 상세페이지',
+							'item_list_name': pageName,
+							'item_list_id': pageName,
+							'content_id': webzin_id,
+							'content_type': webzin_name
+						};
+
+						var callCnt = 0;
+						var interval = setInterval(function() {
+							callCnt++;
+							if(abc.text.notAllNull(dataLayer)) {
+								dataLayer.view_promotion({
+									'promotion_id' : webzin_id,
+									'promotion_name' : webzin_name
+								});
+								dataLayer.view_content_detail(webzinParms);
+								clearInterval(interval);
+							}
+							if(callCnt > maxCallCnt){
+								clearInterval(interval);
+							}
+						}, 500);
+					} catch(error) {}
+				}
+
+			},
+			order : function() {
+				if(path == '/order'){
+					setTimeout(function() { // 2025.11.03 : 주문서 totalPaymentAmt 금액이 재대로 로드 되는 시간을 주기위해 #5005
+						try{
+							var prdtList = [];
+							var prdtInfo = {};
+							var seq;
+							var seqObj;
+							for(var i=0;i<$("input[id^='cartSeq_']").length;i++){
+								seqObj = $("input[id^='cartSeq_']")[i];
+								seq = $(seqObj).val();
+								prdtInfo = abc.gtm.outside.setOrderData(seq);
+								prdtList.push(prdtInfo);
+							}
+	
+							var totalPricae = $("#totalPaymentPrice").text().trim().replaceAll('<span class="unit">원</span>','').replaceAll(',','').replaceAll('원','');
+							var orderParm = {
+									'value': totalPricae,
+									'ecommerce': {
+										'items': prdtList
+									}
+								};
+							if(prdtList.length > 0){
+								var callCnt = 0;
+								var interval = setInterval(function() {
+									callCnt++;
+									if(abc.text.notAllNull(dataLayer)) {
+										dataLayer.begin_checkout(orderParm);
+										clearInterval(interval);
+									}
+									if(callCnt > maxCallCnt){
+										clearInterval(interval);
+									}
+								}, 500);
+							}
+						} catch(error) {}
+					}, 3000);
+				}
+			},
+			mypage : function() {
+				if(path == '/mypage/claim/cancel-claim-detail'){
+					if(document.referrer.indexOf("/mypage/claim/create-cancel-claim-form") > 0){
+						var prdtList = [];
+						$("#setPrdtCart tr").each(function(){
+							var prdtInfo = {};
+							prdtInfo.item_id = $(this).find("[name=prdtNo]").val();
+							prdtInfo.item_name = $(this).find("[name=prdtName]").val();
+							prdtInfo.item_brand = $(this).find(".prod-brand").text();
+							prdtInfo.affiliation = $(this).find("[name=mmnyPrdtYn]").val();
+
+							if( $(this).find("[name=optnName]").val().indexOf(',') > -1 ){
+								var optnNameArr = $(this).find("[name=optnName]").val().split(',');
+								var setOptionArr = [];
+								setOptionArr.push(optnNameArr[1]);
+								setOptionArr.push(optnNameArr[0]);
+								prdtInfo.item_variant = setOptionArr;
+							}else{
+								prdtInfo.item_variant = [$(this).find("[name=optnName]").val()];
+							}
+
+							var stdCtgrNameInline = $(this).find("[name=stdCtgrNameInline]").val();
+							if(!abc.text.allNull(stdCtgrNameInline)){
+								var stdCtgrNameArr = stdCtgrNameInline.split(">")
+								prdtInfo.item_category = stdCtgrNameArr[0];
+								prdtInfo.item_category2 = stdCtgrNameArr[1];
+								prdtInfo.item_category3 = stdCtgrNameArr[2];
+							}
+							prdtInfo.item_category4 = $(this).find("[name=styleInfo]").val();
+							prdtInfo.item_category5 = $(this).find("[name=prdtColorCodeName]").val();
+							prdtInfo.quantity = 1;
+
+							if($(this).find(".text-center .prod-cost .prod-normal-cost").length > 0){
+								var normalAmt = Number($(this).find("[name=normalAmt]").text().replaceAll(',',''));
+								prdtInfo.price = normalAmt;
+								prdtInfo.discount = normalAmt - Number($(this).find("[name=orderAmt]").text().replaceAll(',',''));
+							}else{
+								prdtInfo.price = Number($(this).find("[name=orderAmt]").text().replaceAll(',',''));
+								prdtInfo.discount = 0;
+							}
+
+							prdtInfo.coupon = $(this).find("[name=cpnNames]").val();
+							prdtInfo.promotion_name = $(this).find("[name=promoNames]").val();
+
+							if( $(this).find("[name=genderGbnCode]").val() == '10000'){
+								prdtInfo.theme_category = '남성';
+							}else if( $(this).find("[name=genderGbnCode]").val() == '10001'){
+								prdtInfo.theme_category = '여성';
+							}else if( $(this).find("[name=genderGbnCode]").val() == '10002'){
+								prdtInfo.theme_category = '키즈';
+							}else if( $(this).find("[name=genderGbnCode]").val() == '10003'){
+								prdtInfo.theme_category = '공용';
+							}
+
+							prdtList.push(prdtInfo);
+						});
+
+						var orderParm = {
+							'transaction_id': $("#orderNo").val(),
+							'value': Number($("#totalRefundAmt").val()),
+							'ecommerce': {
+								'items': prdtList
+							}
+						};
+						
+						var callCnt = 0;
+						var interval = setInterval(function() {
+							callCnt++;
+							if(abc.text.notAllNull(dataLayer)) {
+								dataLayer.refund(orderParm);
+								clearInterval(interval);
+							}
+							if(callCnt > maxCallCnt){
+								clearInterval(interval);
+							}
+						}, 500);
+					}
+				}
+			},
+			member : function() {
+				try{
+					var isLogin = abc.loginCheck();
+
+					// 최초 로그인 했을때
+					if(isLogin) {
+						view.func.gtmLoginFunc(abc.userDetails);
+					}
+					
+					// 회원가입 완료시
+					if(!isLogin) {
+						view.func.gtmJoinFunc();
+					}
+				} catch(error) {}
+			},
+			promotion : function() {
+				try{
+					var chnnlNo = abc.global.currentChannel;
+					var pageName =abc.gtm.getPageName();
+
+					// ART : view_promotion (메인)
+					if(chnnlNo == '10000'){
+						if(path =='/promotion/event/main' || path =='/promotion/planning-display'){
+							dataLayer.view_promotion({
+								'event': 'view_promotion',
+								'item_list_name': pageName,
+								'item_list_id': pageName,
+								'index': pageName
+							})
+						}
+					}
+
+					// 기획전 개별 콘텐츠 진입 시
+					if(path=='/promotion/planning-display/detail/main') {
+						var promotion_id  = $('#flyPlndpNo').val();
+						var promotion_name = $('#flyPlndpName').val();
+						
+						dataLayer.view_promotion({
+							'promotion_id' : promotion_id,
+							'promotion_name' : promotion_name
+						});
+
+						var gtmParms = {
+							'index': '기획전 상세페이지',
+							'item_list_name': pageName,
+							'item_list_id': pageName,
+							'content_id': promotion_id,
+							'content_type': promotion_name
+						};
+						dataLayer.view_promotion_detail(gtmParms);
+					}
+
+					// 이벤트 개별 콘텐츠 진입 시
+					if(path=='/promotion/event/detail') {
+						var promotion_id  = $('#flyEventNo').val();
+						var promotion_name = $('#flyEventName').val();
+
+						dataLayer.view_promotion({
+							'promotion_id' : promotion_id,
+							'promotion_name' : promotion_name
+						});
+
+						var gtmParms = {
+							'index': '이벤트 상세페이지',
+							'item_list_name': pageName,
+							'item_list_id': pageName,
+							'content_id': promotion_id,
+							'content_type': promotion_name
+						};
+						dataLayer.view_promotion_detail(gtmParms);
+					}
+				} catch(e) {}
+			},
+			product : function() {
+				try{
+					// view_item
+					if(path=='/product/new') {
+						var callCnt = 0;
+						var interval = setInterval(function() {
+							callCnt++;
+							if(abc.text.notAllNull(dataLayer) && abc.text.notAllNull(abc.biz.product.main.product.data.productPrice)) {
+								var info = abc.biz.product.main.product.data;
+								var ctgrArr = [];
+
+								if(!abc.text.allNull(info.stdCtgrNameInline)){
+									ctgrArr = info.stdCtgrNameInline.split('>');
+								}
+								var rcmdProdYn = "N";
+								if(!abc.text.allNull(abc.param.getParams().rcmdProdYn)){
+									rcmdProdYn = abc.param.getParams().rcmdProdYn;
+								}
+								var gtmObject = {
+									'index': '상품 상세페이지',
+									'ecommerce': {
+										'items': [
+											{
+												'item_id': info.prdtNo,
+												'item_name': info.prdtName,
+												'item_brand': $('#brandName').val(),
+												'item_category': abc.text.allNull(ctgrArr[0]) ? '' : ctgrArr[0],
+												'item_category2': abc.text.allNull(ctgrArr[1]) ? '' : ctgrArr[1],
+												'item_category3': abc.text.allNull(ctgrArr[2]) ? '' : ctgrArr[2],
+												'item_category4': info.styleInfo,
+												'item_category5': info.prdtColorInfo,
+												'affiliation': info.mmnyPrdtYn,
+												'item_recommanded': rcmdProdYn,
+												'price': info.productPrice.normalAmt,
+												'quantity': 1
+											}
+										]
+									}
+								}
+								dataLayer.view_item(gtmObject);
+								
+								// 2026.03.11 : 아트 라이브 내 상품 클릭 시 select_item 스크립트 추가 #5145
+								if(abc.text.notAllNull(abc.param.getParams().orderCallBackId)
+								&& abc.text.notAllNull(abc.param.getParams().sauce_from)){
+									if(abc.param.getParams().orderCallBackId == "sauceclip"
+									&& abc.param.getParams().sauce_from == "clip"){
+										gtmObject = {
+											'ecommerce': {
+												'items': [
+													{
+														'item_id': info.prdtNo,
+														'item_name': info.prdtName,
+														'affiliation': info.mmnyPrdtYn
+													}
+												]
+											}
+										}
+										dataLayer.select_item(gtmObject);
+									}
+								}
+								
+								clearInterval(interval);
+							}
+							if(callCnt > maxCallCnt){
+								clearInterval(interval);
+							}
+						}, 500);
+					}
+				} catch(error) {}
+			},
+			main : function() {
+
+			},
+			category :  function() {
+				try {
+					var strCtgList = [];
+					var ctgPage = false;
+					var categoryParm = {};
+					var chnnlNo = abc.global.currentChannel;
+					var pageInfo =abc.gtm.getPageName();
+					if(chnnlNo != '10000'){
+						if(path == '/display/category/main'){
+							$('#categoryCrumb .ui-selectmenu-text').each(function (i,e){ strCtgList.push(e.innerText);});
+							ctgPage = true;
+						} else if (path == '/display/sale/main' || path == '/product/package/detail'){
+							$('.breadcrumb-wrap .crumb').each(function (i,e){ strCtgList.push(e.innerText);})
+							strCtgList.shift(); // 첫번째 요소 'HOME' 문자 제외
+							ctgPage = true;
+						}
+						if(ctgPage){
+							categoryParm = {
+								'index': '상품 상세페이지',
+								'item_list_name': pageInfo,
+								'item_list_id': pageInfo,
+								'item_category': abc.text.allNull(strCtgList[0]) ? '': strCtgList[0],
+								'item_category2': abc.text.allNull(strCtgList[1]) ? '': strCtgList[1],
+								'item_category3': abc.text.allNull(strCtgList[2]) ? '': strCtgList[2],
+							}
+						}
+					} else {
+						ctgPage = true;
+						categoryParm = {
+							'index': '카테고리 페이지',
+							'item_list_name': pageInfo,
+							'item_list_id': pageInfo,
+						}
+					}
+					if(ctgPage){
+						var callCnt = 0;
+						var interval = setInterval(function() {
+							callCnt++;
+							if(abc.text.notAllNull(dataLayer)) {
+								dataLayer.view_item_list(categoryParm);
+								clearInterval(interval);
+							}
+							if(callCnt > maxCallCnt){
+								clearInterval(interval);
+							}
+						}, 500);
+					}
+				} catch (e) {}
+			}
+		},
+		// 그냥 사용목적 함수모음
+		func : {
+			gtmLoginFunc : function(userDetails) {
+				try {
+					var beforePage = String(document.referrer).replace(/https:\/\/|http:\/\//gi, '');
+					var beforePath = beforePage.substring(beforePage.indexOf('/'), beforePage.lastIndexOf('?')==-1 ? beforePage.length :  beforePage.lastIndexOf('?'));
+
+					if(beforePath.indexOf('/login')!=-1 && gtmCookie.getCookie('gtmLoginCheck')==null) {
+						var loginMethod = '';
+
+						switch(userDetails.snsGbnCode) {
+							case '10000':
+								loginMethod = '네이버';
+								break;
+							case '10001':
+								loginMethod = '페이스북';
+								break;
+							case '10002':
+								loginMethod = '카카오';
+								break;
+							case '10003':
+								loginMethod = 'APPLE';
+								break;
+							default:
+								loginMethod = '일반';
+								break;
+						}
+
+						var callCnt = 0;
+						var interval = setInterval(function() {
+							callCnt++;
+							if(abc.text.notAllNull(dataLayer)) {
+								dataLayer.login({
+									'user_id': userDetails.hashNo,
+									'login_method' : loginMethod,
+									'user_grade': userDetails.mbshpGradeName,
+									'email_receive_agreement': userDetails.emailRecvYn,
+									'sms_receive_agreement': userDetails.smsRecvYn,
+									'night_receive_agreement': userDetails.nightSmsRecvYn,
+									'app_receive_agreement': undefined,
+									'kakao_receive_agreement' : abc.text.allNull(userDetails.kakaoRecvYn) ? undefined : userDetails.kakaoRecvYn
+								});
+
+								gtmCookie.setCookie('gtmLoginCheck', 'Y');
+								clearInterval(interval);
+							}
+							if(callCnt > maxCallCnt){
+								clearInterval(interval);
+							}
+						}, 500);
+					}
+				} catch (error) {}
+			},
+			gtmJoinFunc : function() {
+				try {
+					if(path=='/member/member-join-success' || path=='/member/online-join-success') {
+						var callCnt = 0;
+						var interval = setInterval(function() {
+							callCnt++;
+							if(abc.text.notAllNull(dataLayer) && abc.text.notAllNull(abc.gtmUserDetails)) {
+								var info = abc.gtmUserDetails;
+								dataLayer.sign_up({
+									'user_id': info.hashNo,
+									'signup_date': abc.date.formatDate(info.joinDtm),
+									'signup_method': '이메일',
+									'user_type': info.memberType,
+									'email_receive_agreement': info.emailRecvYn,
+									'sms_receive_agreement': info.smsRecvYn,
+									'night_receive_agreement': info.nightSmsRecvYn
+								});
+								abc.gtmUserDetails = {};
+								clearInterval(interval);
+							}
+							if(callCnt > maxCallCnt){
+								clearInterval(interval);
+							}
+						}, 500);
+					}
+				} catch (error) {}
+			},
+			// queryString convert object
+			getQsObject : function() {
+				var qs = String(location.search);
+				var qsObject = {};
+
+				try {
+					qs.substring(1, qs.length).split('&')
+						.filter(function(item) {return item!='';})
+						.forEach(function(item) {
+							var arr = item.split('=').filter(function(item) {return item!='';});
+							if(arr.length>0) {
+								qsObject[arr[0]] = arr[1];
+							}
+						});
+				} catch (error) {}
+
+				return qsObject;
+			}
+		},
+		// 전역 데이터객체
+		store : {
+			
+		}
+	};
+
+	$(function() {
+		if(abc.global.gtmUseYn == "Y") {
+			view.init();
+		}
+	});
+})();

@@ -1,0 +1,3098 @@
+
+if(!window.abc){
+	window.abc = {};
+}
+/***
+ * Common(업무 공통) 함수 정의.
+ *
+ * 작성되는 스크립트의 내용을 아래와 같이 작성 하여 공유 한다.
+ ********************************************************************************
+		1. 로그인 처리
+		2. 로그인 loginValid
+	    3. 로그아웃 호출
+		4. 로그인여부 체크
+		   4-1. 임직원 로그인여부 체크
+		5. 우편번호 찾기 popup : http://postcode.map.daum.net/guide
+		6. validate message
+		7. 휴대폰 인증
+		8. 네이버지도
+		9. 장바구니 상품 담기
+			9-1. 장바구니 상품 담기- 메세지 없는 담기 callback 함수
+		10. 찜한상품 담기
+		11. 매장코드 입력 팝업
+		12. 입고, 재입고 알림 팝업
+		13. 상품후기 등록 팝업
+		14. 회원 비밀번호 레이어팝업 닫기
+		15. 회원 비밀번호 다음에 변경
+		16. 옵션변경 레이어 팝업
+		17. 매출 전표 팝업
+		18. 에러미시지 alert
+		19. 금지어 체크
+			19-1. 금지어 체크(콜백 호출 없음)
+		20. 상품 뱃지 설정
+		21. 임직원 인증팝업 오픈
+		22. 상품 상세 이동 페이지
+		23. 로딩이미지 show, hide
+		24. 상품상세 이동 ( 사이트간 이동시 사용) ART -> OTS
+		25. 임직원 로그인
+		26. 임직원 로그아웃
+			26-1. 멤버십 로그인 전환 [임직원 로그인 → 멤버십 로그인] : 임직원 로그아웃과 동일
+		27. 임직원 인증후 비로그인
+		28. 배송정보조회 팝업
+		29. 브라우저 타이틀 변경
+		30. 비밀번호 체크 (이전 비밀번호 번호 여부)
+		31. 롤링배너 오늘 하루 그만보기 쿠키 체크
+		32-1. 쿠폰 다운로드
+		32-2. 쿠폰 다운로드(기획전날짜에 맟쳐 쿠폰 다운 1개 선택적으로)
+		33. 이메일 수신거부
+		36. 라이브연결 토큰 발급
+		37. 아이콘찾기 이벤
+		38. 임직원 후기 등록 팝업 내 사이즈 선택 팝업 - 202106 고도화 추가
+		39. 상품 후기 조회 시 내 사이즈 선택 팝업 - 202106 고도화 추가
+		40. 상품 후기 조회 시 옵션 선택 팝업 - 202106 고도화 추가
+		41. 사진 및 영상 모아보기 클릭시 팝업 - 202106 고도화 추가
+		42.
+		43. 상품 후기 등록 팝업 내 사이즈 선택 팝업 - 202106 고도화 추가
+		44. 우편번호를 받아서 배송가능한 지역인지 판단
+		45. CJ대한통운 주소정제(I/F)
+		46. 배송 관련 체크
+		47. DB 현재시간을 조회하여 시간단위로 비교하여 초과 미만 여부 리턴
+		48. 쿠폰 할인금액 감가율 초과여부
+		49. 옵션명 조회
+		50. 옵션명 코드 조회 session storage
+        51. 매장재고 확인 레이어 팝업
+        52. API 에러메세지
+ ********************************************************************************
+ */
+(function() {
+
+	var _common = window.abc;
+	var isLoginIng = false;	//로그인 진행 flag
+	var chnnlName = "";
+
+	/****************************************************************************
+	 * 1. 로그인 처리.
+	 ****************************************************************************/
+	_common.login = function(){
+		var failCnt = $("#loginFailCnt").val();
+
+		if(abc.text.allNull(failCnt)){
+			failCnt = 0;
+		}
+
+		if(isLoginIng == true){
+			alert("로그인 처리중입니다.");
+			return;
+		}
+
+		if(!_common.loginValid()){
+			return;
+		}else{
+			isLoginIng = true;
+		}
+
+		var loginId = $.trim($('#username').val());
+		$('#username').val(loginId);
+
+		$.ajax({
+			type :"post",
+			url : "/login/login-processing",
+			async: false,
+			data: $("#loginForm").serialize()
+		})
+		.done(function(data, textStatus, jqXHR) {
+			sessionStorage.setItem("cartCountingProgress", "Y");
+			sessionStorage.removeItem("isLogin");
+			_common.cartCounting(); // 장바구니 counting
+			if($("#chkSaveID").is(":checked")){
+				$.cookie('chkLoginId',loginId,{expires:90, path : '/', domain : '.a-rt.com'});
+			}else {
+				$.removeCookie('chkLoginId');
+			}
+
+			//카카오 챗봇 경로를 통한 로그인 후 안내 출력
+			if (abc.text.notAllNull(abc.param.getParams().botUserKey)) {
+				alert("로그인되었습니다\n카카오톡 채팅으로 돌아가 계속 진행해주세요");
+			}
+
+			if (!abc.text.isBlank(data.targetUrl)) {
+				location.href = data.targetUrl;
+			}
+		})
+		.fail(function(jqXHR, textStatus, errorThrown) {
+			$("#loginFailCnt").val(++failCnt);
+
+			//아이디 저장 체크 후 로그인 3회이상 실패 시 체크해제
+			if(failCnt >= 3){
+				$('#chkSaveID').prop('checked', false);
+				$.removeCookie('chkLoginId', { path: '/', domain : '.a-rt.com' });
+			}
+
+			isLoginIng = false;	// 로그인 진행 flag false로 세팅
+			$("input[name=password]").val("");
+
+			if (jqXHR.status == 401 && !abc.text.allNull(jqXHR.responseJSON.message)) {
+				if(jqXHR.responseJSON.message == abc.consts.CNNCTR_STAT_PSWD_5FAIL){
+					abc.biz.login.securityStringPop();
+				}else if(jqXHR.responseJSON.message == abc.consts.CNNCTR_STAT_NONE_MEMBERSHIP){
+					abc.goMembershipChange();
+				}else if(jqXHR.responseJSON.message == abc.consts.CNNCTR_STAT_NONE_CIVALUE){
+					abc.goMembershipChange(abc.consts.BOOLEAN_FALSE);
+				}else{
+					alert(jqXHR.responseJSON.message);
+				}
+        		return;
+        	}
+		});
+	}
+
+	/****************************************************************************
+	 * 1. 비회원 로그인 처리.
+	 ****************************************************************************/
+	_common.guestLogin = function(){
+
+		if(!_common.guestLoginValid()){
+			return;
+		}
+
+		$.ajax({
+			type :"post",
+			url : "/login/login-processing",
+			data: $("#guestLoginForm").serialize()
+		})
+		.done(function(data, textStatus, jqXHR) {
+			sessionStorage.setItem("cartCountingProgress", "Y");
+			sessionStorage.removeItem("isLogin");
+			_common.cartCounting(); // 장바구니 counting
+
+			if (! data.previousOrderYn) {
+				var targetUrl = data.targetUrl;
+				if(targetUrl.indexOf('/read-order-detail') > 0)
+					location.href = targetUrl
+				else
+					location.href = "/mypage"
+			} else {
+				location.href = "/mypage/previous/searchDelivered?orderNum="+data.orderNum;
+			}
+		})
+		.fail(function(jqXHR, textStatus, errorThrown) {
+			alert(jqXHR.responseJSON.message);
+		});
+	}
+
+	/****************************************************************************
+	 * 2. 로그인 loginValid.
+	 ****************************************************************************/
+	_common.loginValid = function(){
+		if(abc.text.isBlank($("input[name=username]").val())){
+			alert("아이디를 입력해 주십시요.")
+			$("input[name=username]").focus();
+			return false;
+		}else if(abc.text.isBlank($("input[name=password]").val())){
+			alert("비밀번호를 입력해 주십시요.")
+			$("input[name=password]").focus();
+
+			return false;
+		}
+		return true;
+	}
+
+	/****************************************************************************
+	 * 2. 비회원 로그인 loginValid.
+	 ****************************************************************************/
+	_common.guestLoginValid = function(){
+		if(abc.text.isBlank($("input[name=orderNo]").val())){
+			alert("주문번호를 입력해 주십시요.")
+			$("input[name=orderNo]").focus();
+			return false;
+		}else if(abc.text.isBlank($("input[name=orderPw]").val())){
+			alert("비밀번호를 입력해 주십시요.")
+			$("input[name=orderPw]").focus();
+
+			return false;
+		}
+		return true;
+	}
+
+	/****************************************************************************
+	 * 3. 로그아웃 호출
+	 ****************************************************************************/
+	_common.logout = function(){
+
+		$.ajax({
+			type :"post",
+			url : "/login/logout-processing",
+			async: false
+		})
+		.done(function(data){
+			sessionStorage.clear();
+			abc.cookie.remove('onlineEndDateYn',{});
+			_common.cartCounting(); // 장바구니 counting
+
+			location.href = "/";
+		})
+		.fail(function(jqXHR, textStatus, errorThrown) {
+			abc.errorMessage();
+		});
+	}
+
+	/****************************************************************************
+	 *  4. 로그인여부 체크
+	 ****************************************************************************/
+	_common.loginCheck = function() {
+		var isLogin = false;
+
+		var isLoginSession = sessionStorage.getItem("isLogin");
+		var loginCheckTime = sessionStorage.getItem("loginCheckTime");
+		var currentTime = new Date().getTime();
+
+		if(!abc.text.allNull(isLoginSession) && !abc.text.allNull(loginCheckTime)){
+			var secondsElapsed = Math.floor((currentTime - loginCheckTime)/1000);
+
+			if(secondsElapsed < 60){
+				return isLoginSession == 'true' ? true : false;
+			}
+		}
+
+		$.ajax({
+			type :"post",
+			url : "/login/login-check",
+			async: false
+		})
+		.done(function(data){
+			if (data == true) {
+				isLogin = true;
+			}
+			sessionStorage.setItem("loginCheckTime", new Date().getTime());
+		})
+		.fail(function(jqXHR, textStatus, errorThrown) {
+
+		});
+
+		sessionStorage.setItem("isLogin", isLogin);
+		return isLogin;
+	}
+
+	/****************************************************************************
+	 *  4-1. 임직원 로그인여부 체크
+	 ****************************************************************************/
+	_common.empLoginCheck = function() {
+		var isLogin = false
+		$.ajax({
+			type :"post",
+			url : "/login/emp-login-check",
+			async: false
+		})
+		.done(function(data){
+			if (data == true) {
+				isLogin = true;
+			}
+		})
+		.fail(function(jqXHR, textStatus, errorThrown) {
+
+		});
+
+		return isLogin;
+	}
+
+	/****************************************************************************
+	 *  5. 우편번호 찾기
+	 ****************************************************************************/
+	_common.postPopup = function(callback) {
+		daum.postcode.load(function(){
+	        new daum.Postcode({
+	            oncomplete: function(data) {
+	            	var addr = '';
+		            // 지번주소를 선택하더라도 도로명 주소를 반환하도록 수정.
+		            if (data.roadAddress != "") {
+		                addr = data.roadAddress;
+		            } else {
+		            	addr = data.autoRoadAddress;
+		            }
+
+		            var result = {
+		            	 postAddress : addr
+		            	,postCode : data.zonecode
+		            	,buildingCode : data.buildingCode // 건물번호는 필요시 사용한다. (건물에 부여한 25자리 고유번호)
+		            };
+					callback(result);
+	            }
+	        }).open();
+	    });
+	}
+
+	/****************************************************************************
+	 * 6. validate message
+	 * Ex)
+	 * <div class="input-wrap">
+	 * 	<input id="vndrName" type="text" class="ui-input" placeholder="업체명을 입력해주세요." name="vndrName">
+	 * 	<span class="valid-desc fail">에러 메시지</span>
+	 * </div>
+	 *
+	 * $element : jquery object!!
+	 *
+	 * $element와 동일 레벨에 fail class를 갖는 span이 있으면 해당 영역에 message를 노툴하고
+	 * span tag가 존재하지 않을 경우 alert 처리한다.
+	 ****************************************************************************/
+	_common.validateMessage = function($element, message) {
+		//$("span.valid-desc.fail").hide();
+		$(".input-wrap").removeClass("valid-fail");
+
+		var $fail = $element.parent().find("span.valid-desc.fail");
+		if ($fail.length > 0) {
+			//$fail.show();
+			$element.closest(".input-wrap").addClass("valid-fail");
+			$fail.text(message);
+			$element.focus();
+		} else {
+			alert(message);
+			$element.focus();
+		}
+
+		return false;
+	};
+
+	/****************************************************************************
+	 *  7. 휴대폰 인증
+	 *  인증경로 필수 파라메터
+	 *  아이디찾기/비밀번호찾기/Draw이벤트/환불계좌인증/회원가입/전환가입
+	 *  각각의 필수파라메터는 휴대폰인증/이메일인증용으로 분류
+	 ****************************************************************************/
+	_common.validTime = 180;
+
+	_common.interval;
+	_common.intervalEmail;
+	_common.certifyHpText;
+	_common.certifyEmailText;
+
+	// 인증 성공여부 (휴대폰/이메일)
+	_common.isCertify = true;
+	_common.isEmailCertify = true;
+
+	// 인증 상태 (0:최초, 1:인증요청중, 2:인증시간만료)
+	_common.certifyStatus = 0;
+	_common.certifyEmailStatus = 0;
+
+	// 인증번호 요청
+	_common.createCertifyNumber = function(crtfcPath) {
+		if(_common.certifyStatus == 2){
+			_common.certifyStatus = 0;
+		}
+
+		window.abc.validNormal($("#crtfcNoText"));
+
+		// 인증 성공여부 초기화
+		_common.isCertify = false;
+
+
+		var memberName = $("#memberName").val();
+		var hdphnNoText = $("#hdphnNoText").val();
+
+		if(abc.text.allNull(hdphnNoText)){
+			window.abc.validFailFocus($("#hdphnNoText"), "‘-’ 없이 입력 해주세요 (예: 01012345678)");
+			return;
+		}
+
+		// 휴대폰 인증번호 요청 시 수신자명이 필수로 체크
+		if(abc.text.allNull(memberName)){
+			window.abc.validFail($("#hdphnNoText"), "이름(수신자명)을 입력해주세요.");
+			$("#memberName").focus();
+			return;
+		}
+
+		var params = {}
+		//인증경로
+		params.crtfcPathCode = crtfcPath;
+		//인증값
+		params.crtfcNoSendInfo = hdphnNoText;
+
+		params.crtfcNoMemberName = memberName;
+
+		if(!abc.text.isPhoneNum(hdphnNoText)){
+			window.abc.validFailFocus($("#hdphnNoText"), "‘-’ 없이 입력 해주세요 (예: 01012345678)");
+			return;
+		}
+
+		$.ajax({
+			type:"post",
+			url: "/member/join/create-cert-number-hdphn",
+			data: params
+		}).done(function(data, textStatus, jqXHR) {
+			$("#certifyNumberArea").show();
+			window.abc.validSuccess($("#hdphnNoText"), "");
+			alert("인증번호가 발송되었습니다. (1일 최대 3회)");
+			$("#countDown").show();
+			$("#reqBtn").text("인증번호 재요청");
+			window.abc.countdown($("#countDown"), _common.validTime);
+		}).fail(function(jqXHR, textStatus, errorThrown) {
+			alert(jqXHR.responseJSON.message);
+		});
+	}
+
+	/***
+	 * 인증번호 요청(이메일)
+	 */
+	_common.createCertNumberEmail = function() {
+		if(_common.certifyEmailStatus == 2){
+			_common.certifyEmailStatus = 0;
+		}
+
+		window.abc.validNormal($("#emailCrtfcNoText"));
+
+		// 인증 성공여부 초기화
+		_common.isEmailCertify = false;
+
+		var memberName = $("#memberName").val();
+		var emailAddrText = $("#emailAddrText").val();
+		var emailCombo = $('select[id=selEmail]').val();
+
+		if(!abc.text.allNull(emailCombo)){
+			emailAddrText = emailAddrText.concat("@", emailCombo);
+		}
+
+		if(abc.text.allNull(emailAddrText)){
+			window.abc.validFail($("#emailAddrText"), "이름(수신자명)을 입력해주세요.");
+			return window.abc.validFailFocus($("#emailAddrText"), "이메일을 입력해 주세요.");
+		}else{
+			if(!abc.text.isEmail(emailAddrText)){
+				return window.abc.validFailFocus($("#emailAddrText"), "이메일 형식에 맞게 입력해주세요.");
+			}
+		}
+
+
+		// 이메일 인증번호 요청 시 수신자명이 필수로 체크
+		if(abc.text.allNull(memberName)){
+			window.abc.validFail($("#emailAddrText"), "이름(수신자명)을 입력해주세요.");
+			$("#memberName").focus();
+			return;
+		}
+
+		// 사용중인 이메일인지 체크
+		if(!window.abc.emailUseYn(emailAddrText)){
+			return;
+		}
+
+		var params = {}
+		params.crtfcPathCode = abc.consts.CRTFC_PATH_CODE_ID_SEARCH;
+		params.crtfcNoSendInfo = emailAddrText;
+		params.crtfcNoMemberName = memberName;
+
+		$.ajax({
+			type:"post",
+			url: "/member/join/create-cert-number-email",
+			data: params
+		}).done(function(data, textStatus, jqXHR) {
+			$("#certifyNumberEmailArea").show();
+			window.abc.validSuccess($("#emailAddrText"), "");
+			alert("인증번호가 발송되었습니다. (1일 최대 3회)");
+			$("#emailCountDown").show();
+			$("#emailReqBtn").text("인증번호 재요청");
+			window.abc.countdownEmail($("#emailCountDown"), _common.validTime);
+		}).fail(function(jqXHR, textStatus, errorThrown) {
+			alert(jqXHR.responseJSON.message);
+		});
+	}
+
+	// 인증번호 확인
+	_common.validateCertifyNumber = function(id) {
+		if (_common.certifyStatus == 2) {
+			alert("인증시간이 만료되었습니다.");
+			return;
+		}
+
+		if(abc.text.allNull($("#crtfcNoText").val())){
+			alert("인증번호 6자리를 입력해 주세요.");
+			return;
+		}
+
+		if (_common.isCertify) {
+			return;
+		}
+
+		$.ajax({
+			type:"post",
+			url: "/member/join/validate-certification-number",
+			async : false,
+			data: {
+				loginId: id,
+				crtfcNoSendInfo: $("#hdphnNoText").val(),
+				crtfcNoText: $("#crtfcNoText").val()
+			}
+		}).done(function(data, textStatus, jqXHR) {
+			window.abc.validateCertifyNumberSuccess();
+		}).fail(function(jqXHR, textStatus, errorThrown) {
+			alert(jqXHR.responseJSON.message);
+		});
+		return _common.isCertify;
+	}
+
+	// 인증번호 확인(이메일)
+	_common.validateCertifyNumberEmail = function(id) {
+		var emailAddrText = $("#emailAddrText").val();
+		var emailCombo = $('select[id=selEmail]').val();
+
+		if(!abc.text.allNull(emailCombo)){
+			emailAddrText = emailAddrText.concat("@", emailCombo);
+		}
+
+		if (_common.certifyEmailStatus == 2) {
+			alert("인증시간이 만료되었습니다.");
+			return;
+		}
+
+		if(abc.text.allNull($("#emailCrtfcNoText").val())){
+			alert("인증번호 6자리를 입력해 주세요.");
+			return;
+		}
+
+		if (_common.isEmailCertify) {
+			return;
+		}
+
+		$.ajax({
+			type:"post",
+			url: "/member/join/validate-certification-number",
+			async : false,
+			data: {
+				loginId: id,
+				crtfcNoSendInfo: emailAddrText,
+				crtfcNoText: $("#emailCrtfcNoText").val()
+			}
+		}).done(function(data, textStatus, jqXHR) {
+			window.abc.validateCertifyNumberEmailSuccess();
+		}).fail(function(jqXHR, textStatus, errorThrown) {
+			alert(jqXHR.responseJSON.message);
+		});
+		return _common.isEmailCertify;
+	}
+
+
+	// 인증번호 확인 성공
+	_common.validateCertifyNumberSuccess = function() {
+		_common.certifyStatus = 0;
+		_common.isCertify = true;
+		_common.certifyHpText = $("#hdphnNoText").val();
+		clearInterval(_common.interval);
+		$("#countDown").hide();
+		window.abc.validSuccess($("#crtfcNoText"), "휴대폰 번호가 인증되었습니다.");
+	}
+
+	// 인증번호 확인 성공(이메일)
+	_common.validateCertifyNumberEmailSuccess = function() {
+		_common.certifyEmailStatus = 0;
+		_common.isEmailCertify = true;
+		_common.certifyEmailText = $("#emailAddrText").val();
+		clearInterval(_common.intervalEmail);
+		$("#emailCountDown").hide();
+		window.abc.validSuccess($("#emailCrtfcNoText"), "이메일이 인증되었습니다.");
+	}
+
+	// 인증 시간 카운트
+	_common.countdown = function($element, duration) {
+		var timer = duration, minutes, seconds;
+		clearInterval(_common.interval);
+
+		_common.interval = setInterval(function() {
+	    	minutes = parseInt(timer / 60, 10);
+	        seconds = parseInt(timer % 60, 10);
+
+	        minutes = minutes < 10 ? "0" + minutes : minutes;
+	        seconds = seconds < 10 ? "0" + seconds : seconds;
+
+	        var text = minutes + ":" + seconds;
+	        $element.text(text);
+
+	        if (--timer < 0) {
+	            timer = duration;
+	            _common.certifyStatus = 2;
+	            clearInterval(_common.interval);
+	            alert('제한시간이 만료되었습니다.');
+	        }
+	    }, 1000);
+	}
+
+	_common.countdownEmail = function($element, duration) {
+		var timer = duration, minutes, seconds;
+		clearInterval(_common.intervalEmail);
+
+		_common.intervalEmail = setInterval(function() {
+	    	minutes = parseInt(timer / 60, 10);
+	        seconds = parseInt(timer % 60, 10);
+
+	        minutes = minutes < 10 ? "0" + minutes : minutes;
+	        seconds = seconds < 10 ? "0" + seconds : seconds;
+
+	        var text = minutes + ":" + seconds;
+	        $element.text(text);
+
+	        if (--timer < 0) {
+	            timer = duration;
+	            _common.certifyEmailStatus = 2;
+	            clearInterval(_common.intervalEmail);
+	            alert('제한시간이 만료되었습니다.');
+	        }
+	    }, 1000);
+	}
+
+	// 인증 value 체크
+	_common.validSuccess = function($element, message){
+		var $message = $element.parent().find(".success");
+
+		$message.text(message);
+		$element.parent().removeClass("valid-fail");
+		$element.parent().addClass("valid-success");
+	}
+
+	_common.validFail = function($element, message){
+		var $message = $element.parent().find(".fail");
+
+		$message.text(message);
+		$element.parent().removeClass("valid-success");
+		$element.parent().addClass("valid-fail");
+	}
+
+	_common.validFailFocus = function($element, message){
+		var $message = $element.parent().find(".fail");
+
+		$message.text(message);
+		$element.parent().removeClass("valid-success");
+		$element.parent().addClass("valid-fail");
+		$element.focus();
+
+		return false;
+	}
+
+	_common.validNormal = function($element){
+		$element.parent().removeClass("valid-success");
+		$element.parent().removeClass("valid-fail");
+	}
+
+	/****************************************************************************
+	 *  8. 네이버지도
+	 *  X좌표, Y좌표, info, isInfoWindow
+	 *  isInfoWindow: true  : InfoWindow 실행(info에 layer 정보를 넣어주세요)
+	 *              , false : Marker 실행(info에 매장명 넣어주세요)
+	 *  지도 표시할곳에 id="map" 지정
+	 ****************************************************************************/
+	_common.loadNaverMap = function(nLat, nLng , info, isInfoWindow){
+		var oSeoulCityPoint = new naver.maps.LatLng(nLat, nLng);
+		var defaultLevel = 11;
+		var oMap = new naver.maps.Map(document.getElementById('map'), {
+						point : oSeoulCityPoint,
+						zoom : defaultLevel,
+						enableWheelZoom : true,
+						enableDragPan : true,
+						disableDoubleClickZoom : true,
+						mapMode : 0,
+						activateTrafficMap : false,
+						activateBicycleMap : false,
+						minMaxLevel : [ 1, 14 ],
+						size : new naver.maps.Size(980, 490),
+						zoomControl: true,
+						zoomControlOptions: {
+							position: naver.maps.Position.Top_LEFT,
+						}
+		});
+		oMap.setCenter(oSeoulCityPoint);
+		/* var oSlider = new naver.maps.ZoomControl();
+		oMap.addControl(oSlider);
+		oSlider.setPosition({
+			top : 10,
+			left : 10
+		}); */
+	   /*
+		oMap.setOptions({
+			zoomControl: true,
+			zoomControlOptions: {
+				position: naver.maps.Position.Top_LEFT,
+				enableDblClickZoom : false
+			}
+		}); */
+	//	var oSize = new naver.maps.Size(28, 37);
+	//	var oOffset = new naver.maps.Size(14, 37);
+	//	var oIcon = new naver.maps.Icon('https://image.abcmart.co.kr/nexti/images/abcmart/customer/abcmart_map.gif', oSize, oOffset);
+
+		if(isInfoWindow){
+			var oInfoWnd = new naver.maps.InfoWindow({
+				content:info,
+				disableAnchor: true,
+				backgroundColor: 'transparent',
+				borderColor: 'none',
+				position: new naver.maps.Point(65, -15)
+			});
+
+			oInfoWnd.open(oMap,oSeoulCityPoint);
+		}else{
+			var markerOption = {
+					position : oSeoulCityPoint,
+					icon : {
+						url : '/static/images/map/map_icon_pin_red.png',
+						size : new naver.maps.Size(28, 37),
+						scaledSize: new naver.maps.Size(28, 37),
+						anchor : new naver.maps.Size(14, 37)
+					}
+				}
+
+			var oMarker = new naver.maps.Marker(markerOption);
+			oMarker.setTitle(info);
+			oMarker.setMap(oMap);
+		}
+
+//		var isMarker = false;
+//
+//		var listeners = [
+//						 naver.maps.Event.addListener(oMarker, 'mouseover', function(onClick){//마커를 클릭시에 정보창 띄우기
+//							 oInfoWnd.open(oMap,oSeoulCityPoint);
+//							 isMarker = true;
+//						 }),
+//						 naver.maps.Event.addListener(oMarker, 'mouseout', function(onClick){//마커이외 클릭시에 정보창 닫기
+//							 if(isMarker){
+//								 oInfoWnd.close();
+//								 isMarker = false;
+//							 }
+//						 })
+//		]; // 마우스 오버는 아직 대기
+
+		//oMarker.setPoint(oSeoulCityPoint);
+		//oMap.addOverlay(oMarker);
+	 /*	   var oLabel = new naver.maps.MarkerLabel(); // - 마커 라벨 선언.
+		oMap.addOverlay(oLabel); // - 마커 라벨 지도에 추가. 기본은 라벨이 보이지 않는 상태로 추가됨.
+		oInfoWnd.attach('changeVisible', function(oCustomEvent) {
+			if (oCustomEvent.visible) {
+				oLabel.setVisible(false);
+			}
+		});
+		var oPolyline = new naver.maps.Polyline([], {
+			strokeColor : '#f00', // - 선의 색깔
+			strokeWidth : 5, // - 선의 두께
+			strokeOpacity : 0.5 // - 선의 투명도
+		}); // - polyline 선언, 첫번째 인자는 선이 그려질 점의 위치. 현재는 없음.
+		oMap.addOverlay(oPolyline); // - 지도에 선을 추가함.
+		oMap.attach('mouseenter', function(oCustomEvent) {
+			var oTarget = oCustomEvent.target;
+			// 마커위에 마우스 올라간거면
+			if (oTarget instanceof naver.maps.Marker) {
+				var oMarker = oTarget;
+				oLabel.setVisible(true, oMarker); // - 특정 마커를 지정하여 해당 마커의 title을 보여준다.
+			}
+		});
+		oMap.attach('mouseleave', function(oCustomEvent) {
+			var oTarget = oCustomEvent.target;
+			// 마커위에서 마우스 나간거면
+			if (oTarget instanceof naver.maps.Marker) {
+				oLabel.setVisible(false);
+			}
+		}); */
+	}
+
+	/****************************************************************************
+	 *  9. 장바구니 상품 담기
+	 *  prdtList 배열
+	 *  {	  prdtNo: 상품번호
+	 *  	, prdtOptnNo: 옵션번호
+	 *  	, orderQty: 수량
+	 *  	, vndrNo: 업체번호
+	 *  	, chnnlNo : 채널번호
+	 *  	, ctgrNo: 카테고리번호
+	 *  	, plndpNo: 기획전번호
+	 *  	, eventNo: 이벤트번호
+	 *  	, eventTypeCode: 참여형 (draw) 만
+	 *  	, prdtRecptStoreType: 참여형 (draw) 만 o(온라인), a(abcmart매장), t(ots매장), g(gs매장)
+	 *  	, storeNo: 참여형 (draw) & 매장일때만 점포코드
+	 *  	, drawEventOrderYn: 드로우이벤트 당첨자 주문여부
+	 *  }
+	 *  cartType 장바구니 담기 B , 바로구매 D
+	 *
+	 *  function callbackCart
+	 *  function form input create
+	 ****************************************************************************/
+	_common.cartAdd = function (prdtList, cartType) {
+		var eventTypeCode = "";
+		var drawEventOrderYn = abc.consts.BOOLEAN_FALSE;
+		var totalCount = 0;	// 주문 상품의 총개수
+		var dailyDlvyYn = "N";
+		var storePickupPsbltYn = "N";
+
+		// 장바구니유형 아트배송인 경우 처리. V는 아트배송(Vroong)
+		// 2021.11.02 새벽배송 개발 타입 추가 D는 새벽배송(Dawn)
+		if (cartType === "BV") { 		// 당일배송 장바구니
+			cartType = "B";
+			dailyDlvyYn = "Y";
+		} else if (cartType === "DV") {	// 당일배송 바로구매
+			cartType = "D";
+			dailyDlvyYn = "Y";
+		} else if (cartType === "BD") { // 새벽배송 장바구니
+			cartType = "B";
+			dailyDlvyYn = "D";
+		} else if (cartType === "DD") {	// 새벽배송 바로구매
+			cartType = "D";
+			dailyDlvyYn = "D";
+		} else if (cartType == "DP") { // 매장픽업 바로구매
+			cartType = "D";
+			storePickupPsbltYn = "Y";
+		}
+
+		if (prdtList.length < 1) {
+			alert("장바구니 담을 상품이 없습니다.");
+			return;
+		} else {
+			var returnFlag = true;
+			prdtList.forEach(function (item, index, array) {
+				item.cartType = cartType;
+
+				if (item.orderQty == "") {
+					returnFlag = false;
+				} else {
+					totalCount += (Number(item.orderQty));
+				}
+				if (item.prdtNo == "") {
+					returnFlag = false;
+				}
+				if (item.prdtOptnNo == "") {
+					returnFlag = false;
+				}
+				if (index == 0) {
+					eventTypeCode = item.eventTypeCode;
+					drawEventOrderYn = item.drawEventOrderYn;
+				}
+			});
+
+			if (totalCount > 99) {
+				alert("최대 99개 이하 구매 가능합니다.");
+				return;
+			} else if (!returnFlag) {
+				alert("상품 정보가 부족합니다.");
+				return;
+			}
+
+			var params = {
+				  "cartType": cartType                              // 장바구니 타입
+				, "prdtList": prdtList                              // 장바구니 추가 상품
+				, "eventTypeCode": eventTypeCode                    // 이벤트 타입코드
+				, "drawEventOrderYn": drawEventOrderYn              // 드로우 이벤트 당첨자 주문 여부
+				, "dailyDlvyYn": dailyDlvyYn                        // 아트배송 여부
+				, "storePickupPsbltYn": storePickupPsbltYn          // 매장픽업 가능여부
+			};
+
+			$.ajax({
+				  type: "post"
+				, contentType: 'application/json'
+				, data: params
+				, async: false
+				, url: "/cart/cart-add"
+			})
+			.done(function(data){
+				if (data.resultCode == "Y"){
+					abc.gtm.outside.addCart(prdtList, cartType);//GA4관련 추가
+					if(cartType != "D"){
+						// RTBHouse 장바구니 - 장바구니 추가 코드 2023.02.08
+						_common.RTBHouseCartAdd(data);
+					}
+					// RTBHouse 제품 사이즈 선택 코드 (장바구니/바로구매 누를시 호출) 2023.02.15
+					_common.RTBHouseOptionSelect(data);
+					_common.callbackCart(data, cartType, dailyDlvyYn);
+				}else if(data.resultCode == "NOT_LOGIN"){
+					alert(data.resultMsg);
+					location.href = "/login";
+					return;
+				}else{
+					alert(data.resultMsg);
+
+					// 2021.03.09 : 재고가 없는 상품옵션들을 재고 초기화 후 상품상세에서는 품절표시 해줘야 한다.
+					if(cartType != "D" && cartType != "DV" && cartType != "DD"){
+						return; // 상품상세에서 '바로구매'가 아니면 return
+					}
+					if(abc.text.allNull(data.emptyPrdtOptnList)){
+						return; // 선택한 옵션들중 재고가 없는 옵션이 없다면 return
+					}
+
+					 // 재고가 없는 옵션들에 addClass 할때 '재입고알림은' 1.자사상품이고 2.아트배송이 아닐때
+					var dlvyType = $("input[name='rdoListDelivery']").val(); // 아트배송여부
+					var mmnyPrdtYn = $("li[data-product-option-no='"+data.emptyPrdtOptnList[0].prdtOptnNo+"']").attr("data-product-mmny-prdt-yn"); // 자사상품 여부
+					data.emptyPrdtOptnList.forEach(function(item){
+						if(mmnyPrdtYn == "Y" && dlvyType == "normal"){
+							$("li[data-product-option-no='"+item.prdtOptnNo+"'] .btn-prod-size").addClass("sold-out prod-pb");
+						}else{
+							$("li[data-product-option-no='"+item.prdtOptnNo+"'] .btn-prod-size").addClass("sold-out");
+						}
+						$("li[data-product-option-no='"+item.prdtOptnNo+"'] .btn-delete").trigger("click");//재고없는상품 선택 제거(연속update방지)
+					});
+
+					$('.sold-out.prod-pb').on('click', function() {
+						abc.openStockAlarm('재입고', $(this).parent().attr("data-product-no"), $(this).parent().attr("data-product-option-no"));
+					});
+
+					return;
+				}
+			})
+			.fail(function(e){
+			    alert("장바구니 담기 실패하였습니다.");
+			});
+		}
+	}
+
+	/****************************************************************************
+	 *  9-1. 장바구니 상품 담기 메제시 처리 없음
+	 *  prdtList 배열
+	 *  {	  prdtNo: 상품번호
+	 *  	, prdtOptnNo: 옵션번호
+	 *  	, orderQty: 수량
+	 *  	, vndrNo: 업체번호
+	 *  	, chnnlNo : 채널번호
+	 *  	, ctgrNo: 카테고리번호
+	 *  	, plndpNo: 기획전번호
+	 *  	, eventNo: 이벤트번호
+	 *  	, eventTypeCode: 참여형 (draw) 만
+	 *  	, prdtRecptStoreType: 참여형 (draw) 만 o(온라인), a(abcmart매장), t(ots매장), g(gs매장)
+	 *  	, storeNo: 참여형 (draw) & 매장일때만 점포코드
+	 *  }
+	 *  cartType 장바구니 담기 B , 바로구매 D
+	 *  callBackFunc : 호출 Function이 존재할때
+	 *
+	 ****************************************************************************/
+	_common.cartAddNoMessage = function(prdtList , cartType, callBackFunc) {
+		var dailyDlvyYn = "N";	// 아트배송 여부
+
+		if (prdtList.length < 1 ){
+			alert("장바구니 담을 상품이 없습니다.");
+			return;
+		}
+
+		// 장바구니유형 아트배송인 경우 처리. V는 아트배송(Vroong)
+		if (cartType === "BV") {
+			cartType = "B";
+			dailyDlvyYn = "Y";
+		} else if (cartType === "DV") {
+			cartType = "D";
+			dailyDlvyYn = "Y";
+		}
+
+		var returnFlag = true;
+		prdtList.forEach(function (item, index, array) {
+			item.cartType = cartType; // cartType
+
+			if (item.orderQty == ""){
+				returnFlag = false;
+			}
+			if (item.prdtNo == ""){
+				returnFlag = false;
+			}
+			if (item.prdtOptnNo == ""){
+				returnFlag = false;
+			}
+		});
+		if (!returnFlag) {
+			alert("상품 정보가 부족합니다.");
+			return;
+		}
+
+		var params = {
+				"cartType"      : cartType 		// 장바구니 타입
+				, "prdtList" 	: prdtList		// 장바구니 추가 상품
+				, "dailyDlvyYn"	: dailyDlvyYn	// 아트배송 여부
+		};
+
+		$.ajax({
+			type 	: "post"
+		,	contentType: 'application/json'
+		,	data : params
+		,	async : false
+		,	url	: "/cart/cart-add"
+		})
+		.done(function(data){
+			if (data.resultCode == "Y"){
+				if(callBackFunc && typeof callBackFunc === 'function') {
+					// 지정함수 호출
+					callBackFunc(data);
+				}
+			}
+		})
+		.fail(function(e){
+
+
+		    alert("장바구니 담기 실패하였습니다.");
+		});
+	}
+
+	/**
+	 * 장바구니 callback 함수
+	 */
+	_common.callbackCart = function (data, cartType, dailyDlvyYn) {
+		var resultCode = data.resultCode;
+		var resultMsg = data.resultMsg;
+		var cartSeqs = data.cartSeqs;
+		var drawEventOrderYn = (abc.text.allNull(data.drawEventOrderYn) ? abc.consts.BOOLEAN_FALSE : data.drawEventOrderYn);
+		var storePickupPsbltYn = (abc.text.allNull(data.storePickupPsbltYn) ? abc.consts.BOOLEAN_FALSE : data.storePickupPsbltYn);
+
+		if (resultCode == "Y") {
+			sessionStorage.setItem("cartCountingProgress", "Y");
+			_common.cartCounting(); // 장바구니 counting
+
+			if (cartType == "D") { // 바로구매
+				var form = document.createElement("form");
+				form.name = 'ordersForm';
+				form.action = "/order";
+				form.method = 'POST';
+				form.target = '_self';
+				form.appendChild(_common.createItem("cartDeliveryType", "D"));
+				form.appendChild(_common.createItem("drawEventOrderYn", drawEventOrderYn));
+				form.appendChild(_common.createItem("dailyDlvyYn", dailyDlvyYn));
+				form.appendChild(_common.createItem("storePickupPsbltYn", storePickupPsbltYn));
+				form.appendChild(_common.createItem("storeNo", data.cartAddPrdtOptnList[0].storeNo));
+				cartSeqs.forEach(function (value) {
+					form.appendChild(_common.createItem("cartSeq", value));
+				});
+
+				form.style.display = 'none';
+				document.body.appendChild(form);
+				form.submit();
+
+			} else { // 일반
+				if (confirm('상품이 장바구니에 담겼습니다.\n장바구니로 이동하시겠습니까?')) {
+					location.href = "/cart/cart-list?type=" + dailyDlvyYn;
+				} else {
+					return false;
+				}
+			}
+		} else {
+			alert(resultMsg);
+		}
+	}
+
+
+	/**
+	 * form input create
+	 */
+	_common.createItem = function(id, val){
+		var h = document.createElement('input');
+		h.type = 'hidden';
+		h.name = id;
+		h.value = val;
+		return h;
+	}
+	/**
+	 * 장바구니 counting
+	 * 1.로그인시 2.상품담기 3.메인페이지 진입시
+	 */
+	_common.cartCounting = function(){
+		var cartCountingProgress = sessionStorage.getItem("cartCountingProgress");
+		var cartCnt = abc.text.allNull(sessionStorage.getItem("cartCnt")) ? 0 : sessionStorage.getItem("cartCnt");
+		if(cartCountingProgress != "Y"){
+			$('#cartCounting').text(cartCnt);
+			return;
+		}
+
+		$.ajax({
+			type 	: "post"
+		,	dataType : "json"
+		,	url	: "/cart/cart-counting"
+		})
+
+		.done(function(data){
+			$('#cartCounting').text(data.cartCnt);
+			sessionStorage.setItem("cartCnt", data.cartCnt);
+			sessionStorage.setItem("cartCountingProgress", "N");
+		})
+		.fail(function(e){
+
+		});
+	}
+
+	_common.removeSessionStorage = function(){
+		var removeKeys = ["listPageNum", "currBlock", "lastBlock"];
+		$.each(removeKeys, function(i,v){
+			sessionStorage.removeItem(v);
+		});
+	}
+
+	/****************************************************************************
+	 *  매장찾기
+	 *  parameter : isCallback - 콜백여부. ex) true/false
+	 *  			callback - 콜백함수명.	ex) "abc.biz.board.store.callback"
+	 *  			chnnlNo - 채널번호
+	 *  			pickupPsbltYn - 픽업가능매장여부. ex) 'y'/'n'
+	 * 				vndrPrdtNoTextList - 업체상품번호 목록 ex)1234567,555555
+	 ****************************************************************************/
+	_common.storeSearchPopup = function(isCallback, callback, chnnlNo, pickupPsbltYn, vndrPrdtNoTextList) {
+
+		var siteNo = null;
+		if (chnnlNo != null && chnnlNo != '') {
+			if (chnnlNo == '10000' || chnnlNo == '10001' || chnnlNo == '10002') { // A-RT,ABCMART,GRAND STAGE
+				siteNo = '10000';
+			} else { // OTS
+				siteNo = '10001';
+			}
+		}
+
+		var url = "/board/store/search";
+		var _params = {
+				"isCallback" : isCallback,
+				"callback" : callback,
+				"chnnlNo" : chnnlNo != null ? chnnlNo : null,
+				"siteNo" : siteNo,
+				"pickupPsbltYn" : pickupPsbltYn != null ? pickupPsbltYn : null,
+				"vndrPrdtNoTextList" :  vndrPrdtNoTextList != null ? vndrPrdtNoTextList : null
+		}
+
+		abc.open.popup({
+			url 	:	url,
+			winname :	"search-store",
+			title 	:	"search-store",
+			method	: 	"get",
+			width 	:	1020,
+			height	:	900,
+			params	:	_params
+		});
+	}
+
+	/****************************************************************************
+	 *  매장 상세보기 layerpop
+	 *  parameter : storeNo - 매장 번호
+	 ****************************************************************************/
+	_common.openStoreDetailLayerPop = function(storeNo) {
+
+		$.ajax({
+			type : 'get',
+			url : '/board/store/detail',
+			data : { 'storeNo' : storeNo }
+		})
+		.done(function(data){
+
+			$('#dialogStoreInfo2').parents('.ui-dialog-container').prev().remove();
+			$('#dialogStoreInfo2').parents('.ui-dialog-container').remove();
+
+			$('body').append(data);
+
+			abc.namespace.front.frontOffice.setUIDialog('#dialogStoreInfo2', '.btn-store-detail');
+
+			var pointX = $(data).find('input[name=pointX]').val();
+			var pointY = $(data).find('input[name=pointY]').val();
+
+			var detailPosition = new naver.maps.LatLng(pointX, pointY);
+			var detailMapOptions = {
+					center: detailPosition,
+				    zoom: 20
+			}
+			var detailMap = new naver.maps.Map('detailMap', detailMapOptions);
+
+			var detailMarkerOptions = {
+			    position: detailPosition.destinationPoint(0, 0),
+			    map: detailMap,
+			    icon: {
+			        url: '/static/images/map/map_icon_pin_black.png',
+			        size: new naver.maps.Size(50, 52),
+			        origin: new naver.maps.Point(0, 0),
+			        anchor: new naver.maps.Point(25, 26)
+			    }
+			};
+			var marker = new naver.maps.Marker(detailMarkerOptions);
+
+			$('#dialogStoreInfo2').dialog('open');
+		})
+		.fail(function(e){
+
+		});
+	}
+
+	/****************************************************************************
+	 *  10.찜한상품 등록or취소
+	 *  parameter : prdtNo - 상품번호, $$obj - 클릭된 제이쿼리 객체
+	 ****************************************************************************/
+	_common.setMyInterestProduct = function(prdtNo, $obj, pkgYn) {
+		$obj = $($obj);
+		var ctgView = true; // (GA4 관련)
+		if(_common.loginCheck()) {
+			if(!prdtNo || typeof $obj != 'object') {
+				alert(!prdtNo ? "상품번호를 넣어주세요." : "제이쿼리 객체를 넣어주세요.");
+				return false;
+			}
+
+			// [FO] 찜한 상품과 관련하여 수정 요청 드립니다. #3345 by 김지은
+			if($obj.hasClass('selected') || $obj.find('i').hasClass('selected')) {
+				if(!confirm('찜한 상품에서 삭제하시겠습니까?')) {
+					return false;
+				}
+			}
+
+			$.ajax({
+				dataType : 'json',
+				type :'POST',
+				url : '/product/interest/crud-interest-product',
+				data : {
+					prdtNo : prdtNo
+				  , wrhsAlertReqYn : 'N'
+				  , pkgYn : pkgYn
+				}
+			}).done(function(data){
+				if(data.resultType === "true") {
+					if($obj.find('i').length === 0) {
+						ctgView = true;
+						$obj.hasClass('selected') ? $obj.removeClass('selected') : $obj.addClass('selected');
+						$obj.hasClass('selected') ? $obj.text("즐겨찾기 추가") : $obj.text("즐겨찾기 제거");
+						if($obj.parent().hasClass("flymenu-interest-btn")){
+							$obj.parents("flymenu-interest-btn").hasClass('selected') ? $obj.parents("flymenu-interest-btn").removeClass('selected') : $obj.parents("flymenu-interest-btn").addClass('selected');
+							$obj.parents("flymenu-interest-btn").hasClass('selected') ? $obj.parents("flymenu-interest-btn").text("즐겨찾기 추가") : $obj.parents("flymenu-interest-btn").text("즐겨찾기 제거");
+						}
+						if($("[data-package-member='interest-package'][data-package-prdtno='"+prdtNo+"']")){//묶음상품
+							var $pkgObj = $("[data-package-member='interest-package'][data-package-prdtno='"+prdtNo+"']");
+							$pkgObj.find("i").hasClass('selected') ? $pkgObj.find("i").removeClass('selected') : $pkgObj.find("i").addClass('selected');
+							$pkgObj.find("i").hasClass('selected') ? $pkgObj.find("i").text("즐겨찾기 추가") : $pkgObj.find("i").text("즐겨찾기 제거");
+						}
+						// [FO] 찜한 상품과 관련하여 수정 요청 드립니다. #3345 by 김지은 추가 요청사항(마이페이지에서 해제했을때 해당 항목없어지도록)
+						if(!$obj.hasClass('selected') && location.pathname.indexOf('mypage')!=-1) {
+							location.reload();
+						}
+					} else {
+						ctgView = false;
+						$.each($("[data-product-member='interest-product']"), function(i, v) {
+							$(v).find("i").hasClass('selected') ? $(v).find("i").removeClass('selected') : $(v).find("i").addClass('selected');
+							$(v).find("i").hasClass('selected') ? $(v).find("i").text("즐겨찾기 추가") : $(v).find("i").text("즐겨찾기 제거");
+						});
+					}
+					alert(data.resultMsg);
+					sessionStorage.setItem("interPrdtSearch", "N");
+
+					// 2022.07.22 : 상품 찜하기 등록/취소 시 sessionStorage.getItem("interestProductList") / abc.biz.display.common.interestProductList 갱신
+					var interestProductList = JSON.parse(sessionStorage.getItem("interestProductList"));
+					var interestProduct = abc.biz.display.common.interestProductList;
+					if(data.interestType == "insert"){
+						interestProductList[prdtNo] = "Y"
+						interestProduct[prdtNo] = "Y";
+						// 2023.02.07 : RTBHouse 위시리스트/선호 상품 코드 호출
+						_common.RTBHouseIntersetProduct(prdtNo);
+						// 상품 카테고리 페이지에서 '찜하기' 버튼 클릭시 해당 상품상세 정보 가져오기 (GA4 관련 추가)
+						abc.gtm.outside.addWishList(data.prdtInfo,ctgView);
+					} else if(data.interestType == "delete"){
+						 delete interestProductList[prdtNo];
+						 delete interestProduct[prdtNo];
+					}
+					sessionStorage.setItem("interestProductList", JSON.stringify(interestProductList));
+				} else {
+					if(data.resultType === "fullCount"){
+						alert("찜한상품을 100개 이상 담을 수 없습니다.");
+					}else{
+						alert("찜하기 중 문제가 발생하였습니다.\n다시 시도하여 주십시오.");
+					}
+				}
+			}).fail(function(e){
+
+			});
+
+		} else {
+			alert("로그인 후 찜한상품으로 담을 수 있습니다.");
+			location.href = '/login';
+		}
+	}
+
+	/****************************************************************************
+	 *  매장코드 입력 팝업
+	 *  parameter : 매장코드(storeCode)  (STORE_ID_TEXT)
+	 ****************************************************************************/
+	_common.storeCodeSearch = function(storeCode) {
+
+		if(abc.text.allNull(storeCode)){
+			abc.validFailFocus($("#storeCode"), "매장코드를 입력해 주세요.");
+			return;
+		}else{
+			abc.biz.member.validSuccess($("#storeCode"), "");
+		}
+
+		$.ajax({
+			type :"post",
+			url : "/member/member-search-store-info",
+			data : {"storeCode" : storeCode},
+			async : false
+		}).done(function(data){
+			if(!abc.text.allNull(data)){
+				var storeCode= data.storeNo;
+				var storeName= data.storeName;
+				var storeLength = $("#storeItem").children().length;
+
+				//단골매장은 1개만 선택할 수 있으므로 이미 존재하는 이전의 자식노드를 삭제한다.
+				if(storeLength > 0){
+					$("#storeItem").empty();
+				}
+
+				var html;
+				html = "<span class='store-name'>" + storeName + "</span>";
+				html += "<button type='button' class='btn-del'></button>";
+
+				$("#recmdStoreNo").val(storeCode);
+				$("#storeItem").append(html);
+				$("#dialogStoreCode").dialog("close");
+			}else{
+				abc.validFailFocus($("#storeCode"), "정확하지 않은 매장코드입니다.");
+			}
+		})
+		.fail(function(jqXHR, textStatus, errorThrown) {
+			alert("오류가 발생했습니다.");
+
+		});
+	}
+
+	/****************************************************************************
+	 *  입고, 재입고 알림 팝업
+	 *  <%@include file="product-re-warehousing-alert-dialog" %> <- dialog 형태라 사용할 화면에 포함시켜야 합니다.
+	 *  parameter : 입고,재입고구분( warehousingYn ('입고'),('재입고') ), 상품번호(prdtNo), 선택한 사이즈옵션(PdProductOption.prdtOptnNo[필수 아님])
+	 ****************************************************************************/
+	_common.openStockAlarm = function(warehousingYn, prdtNo, prdtOptnNo) {
+		if(!prdtNo) {
+			alert("상품번호가 없습니다.");
+			return false;
+		}
+
+		if(abc.loginCheck()) {
+
+			$.ajax({
+				dataType : 'json',
+				type :'GET',
+				url : '/product/info',
+				data : { "prdtNo" : prdtNo, "xramdom" : Math.random()}
+			})
+			.done(function(data){
+
+				switch (warehousingYn) {
+				case '입고':
+					$('#re-warehousing-form #wrhs-alert-type').val('Y');
+					abc.biz.product.re.warehousing.alert.setIntrstPrdtOptnNo(data.productOption);
+					break;
+				case '재입고':
+					$('#re-warehousing-form #wrhs-alert-type').val('N');
+					if(data.mmnyPrdtYn == 'Y') {
+						if(data.sellStatCode != '10001') {
+							abc.biz.product.re.warehousing.alert.setIntrstPrdtOptnNo(data.productOption);
+						} else {
+							var soldOutProductOption = [];
+							for(var i=0; i<data.productOption.length; i++) {
+								var item = data.productOption[i];
+								if(item.orderPsbltQty < 1) {
+									soldOutProductOption.push(item);
+								}
+							}
+							abc.biz.product.re.warehousing.alert.setIntrstPrdtOptnNo(soldOutProductOption);
+						}
+					} else {
+						return false;
+					}
+					break;
+				default:
+					alert('유효하지 않은 호출입니다.');
+					return false;
+				}
+				//옵션 노출 관련 추가  20211215 S 재입고 알림 옵션명 변경 노출
+				var optnAreaText = _common.getOptionNameReturn('optn' , data.optnSetupNmCode );
+
+				$('#rewarehousingText').text(optnAreaText);
+				//옵션 노출 관련 추가  20211215 E
+
+				// 입고/재입고 문구 변경
+				//$('[aria-describedby="dialogRestockAlarm"]').find('.ui-dialog-title').text(warehousingYn + ' 알림 서비스 신청');
+				//$('#dialogRestockAlarm .intrst-prdt-key-name').text(warehousingYn);
+				$('[aria-describedby="dialogRestockAlarm"]').find('.ui-dialog-title').text('입고 알림 서비스 신청');
+				$('#dialogRestockAlarm .intrst-prdt-key-name').text('입고');
+
+				if(prdtOptnNo) {
+					$('#re-warehousing-form #intrst-prdt-optn-no option[value="' + prdtOptnNo + '"]').prop('selected', true);
+					$('#re-warehousing-form #intrst-prdt-optn-no').selectmenu('refresh');
+				}
+
+				$('#re-warehousing-form #intrst-prdt-no').val(prdtNo);
+				$('#dialogRestockAlarm').dialog('open');
+			})
+			.fail(function(e){
+
+				abc.errorMessage();
+			});
+
+		} else {
+			if(confirm("재입고 알림은 회원 전용 서비스 입니다.\n로그인을 하시려면 [확인] 버튼을 클릭해 주세요.")){
+				location.href = '/login';
+			}
+		}
+	}
+
+	/****************************************************************************
+	 *  상품후기 등록 팝업
+	 *  <%@include file="product-review-dialog.jsp" %> <- dialog 형태라 사용할 화면에 포함시켜야 합니다.
+	 *  parameter : param = { prdtNo, prdtOptnNo, onlnBuyYn, editCallback[필수 아님](레이어 뜬 후 입력값 제어), callback[필수 아님](그 외 항목 지정 또는 사용) }
+	 ****************************************************************************/
+	_common.openReviewDialog = function(param) {
+		abc.biz.product.review.dialog.openReviewDialog(param);
+	}
+
+	/****************************************************************************
+	 *  비밀번호 레이어 닫기
+	 *  닫기 시 반복적으로 레이어 팝업이 노출을 방지하기 위해 세션값을 변경
+	 ****************************************************************************/
+	_common.ChangePasswordPopClose = function() {
+		$.ajax({
+			type :"post",
+			url : "/member/member-change-session"
+		}).done(function(data){
+
+		})
+		.fail(function(jqXHR, textStatus, errorThrown) {
+
+		});
+	}
+
+	/****************************************************************************
+	 *  비밀번호 다음에 변경
+	 *  parameter : memberNo(회원번호)
+	 ****************************************************************************/
+	_common.nextChangePassword = function() {
+		$.ajax({
+			type :"post",
+			url : "/member/member-next-change-password",
+			data : {},
+			async : false
+		}).done(function(data){
+			$("#dialogNoticeChangePW").dialog("close");
+		})
+		.fail(function(jqXHR, textStatus, errorThrown) {
+			$("#dialogNoticeChangePW").dialog("close");
+			abc.errorMessage();
+		});
+	}
+
+	/****************************************************************************
+	 *  옵션변경 레이어 팝업
+	 *  prdtInfo = {
+	 *  prdtNo		: 상품번호
+		,prdtOptnNo	: 옵션번호
+		,prdtName	: 상품명
+		,optnName	: 옵션명
+		,brandName	: 브랜드명
+		,imageUrl	: 이미지 url
+		,orderQty	: 주문수량
+		,mmnyPrdtYn	: 자사상품여부
+		,namalAmt	: 정상가
+		,sellAmt	: 판매가
+		,optnAddAmt : 옵션추가금액
+		,promoNo	: 프로모션번호
+	 *  }
+	 ****************************************************************************/
+	_common.productOptionLayer = function(prdtInfo) {
+		// 브랜드 , 상품명 , 옵션 , 옵션명 , 수량
+		$.ajax({
+			type :"post"
+			,url : "/cart/order-option-layer"
+			,data : prdtInfo
+			,async : false
+		}).done(function(data){
+
+			// 옵션 노출 관련 추가  20211215 S
+			var optnAreaText = _common.getOptionNameReturn('optn' , data.basePrdtInfo.optnSetupNmCode ); // 기본옵션
+			var addOptnAreaText = _common.getOptionNameReturn('addOptn' , data.basePrdtInfo.optnSetupNmCode ) ; // 추가 옵션
+			$('#text-size-guide').text(optnAreaText);
+			// 옵션 노출 관련 추가  20211215 E
+
+			$("#dialogOption").dialog("open");
+			$("#optionPrdtImgSrc").attr("src", prdtInfo.imageUrl).attr("alt", prdtInfo.prdtName);
+			$("#optionBrandName").text(prdtInfo.brandName);
+			$("#optionPrdtName").text(prdtInfo.prdtName);
+			$("#optionOptnName").text(prdtInfo.optnName);
+
+			$("#optnBasicInfo").attr("data-prdtOptnNo", prdtInfo.prdtOptnNo); // 옵션번호
+			$("#optnBasicInfo").attr("data-optnAddAmt", prdtInfo.optnAddAmt); // 옵션추가금액
+
+			$("#optnBasicInfo").attr("data-viewOptnAreaNm", optnAreaText); // 옵션 레이어 기본 옵션 텍스트명 alert 위함
+			$("#optnBasicInfo").attr("data-viewAddOptnAreaNm", addOptnAreaText); // 옵션 레이어 추가 옵션 텍스트명 alert 위함
+
+			if (data.addOptn > 0 ){
+				_common.optionSize (data.OptnList) ;
+				_common.optionAdd (data.addOptnList) ;
+				// 옵션 노출 관련 추가  20211215 S
+				$('.text-add-option').text(addOptnAreaText);
+				// 옵션 노출 관련 추가  20211215 E
+
+				$("#addOption").attr("data-cnt", data.addOptn); // 기본정보
+				$( "#option_size_area" ).show();
+				$( "#option_add" ).selectmenu({
+					change: function( event, ui ) {
+					}
+				}).selectmenu( "refresh" );
+
+			}else{
+				_common.optionSize (data.prdtOptList) ;
+			}
+
+			$( "#option_size" ).selectmenu({
+				change: function( event, ui ) {
+					if (data.addOptn > 0 ){
+						_common.optionAddChange($(this).find("option[value='" + $(this).val() + "']").text() , prdtInfo); // 추가 옵션
+					}
+				}
+			}).selectmenu( "refresh" );
+
+
+		})
+		.fail(function(jqXHR, textStatus, errorThrown) {
+			alert("오류가 발생했습니다.");
+
+		});
+	}
+
+	_common.optionSize = function (optnList ){
+
+		var select = $("#option_size");
+		select.find("option").remove();
+		optnList.forEach(function (item, index, array) {
+			var optnName ;
+			var optnValue ;
+			var disableFlag = false ;
+
+			optnValue = item.prdtOptnNo;
+
+			// 주문수량  전체 재고 수량 확인 품절여부 확인
+			if (item.stockTotQty <= 0){
+				optnName = "[품절]" + item.optnName;
+				disableFlag = true;
+			}else{
+				optnName = item.optnName;
+			}
+
+			// 금액 비교? 확인 필요
+			var option =new Option(optnName, optnValue , false, item.optnSelected)
+			$(option).prop('disabled',disableFlag);  // 옵션 비활성화
+			$(option).attr('data-qty', item.stockTotQty ); // 선택 옵션 재고 수량
+			$(option).attr('data-optnAddAmt', item.optnAddAmt ); // 선택 추가 금액
+
+			select.append( option );
+
+		});
+
+		select.prepend(new Option("선택하세요.", "" , false, false));
+
+		$( "#option_size" ).selectmenu( "refresh" );
+	}
+
+	_common.optionAdd = function (optnList){
+
+		var select = $("#option_add");
+		select.find("option").remove();
+		optnList.forEach(function (item, index, array) {
+
+			var optnName ;
+			var optnValue ;
+			var disableFlag = false ;
+
+			optnValue = item.prdtOptnNo;
+
+			if (item.stockTotQty <= 0){
+				optnName = "[품절]" + item.addOptn2Text;
+				disableFlag = true;
+			}else{
+				optnName = item.addOptn2Text;
+			}
+
+			// 금액 비교? 확인 필요
+			var option =new Option(optnName, optnValue , false, item.optnSelected)
+			$(option).prop('disabled',disableFlag);  // 옵션 비활성화
+			$(option).attr('data-qty', item.stockTotQty ); // 선택 옵션 재고 수량
+			$(option).attr('data-optnAddAmt', item.optnAddAmt ); // 선택 추가 금액
+
+			select.append( option );
+
+		});
+
+		select.prepend(new Option("선택하세요.", "" , false, false));
+
+		$( "#option_add" ).selectmenu( "refresh" );
+	}
+
+	_common.optionAddChange = function ( selectVal, prdtInfo){
+
+		var params = {
+				prdtNo	: prdtInfo.prdtNo
+			, mmnyPrdtYn : prdtInfo.mmnyPrdtYn
+			, selectVal : selectVal
+			, promoNo	: prdtInfo.promoNo
+			, orderNo	: prdtInfo.orderNo
+			, clickTabId : prdtInfo.clickTabId
+			, layerType	: prdtInfo.layerType
+		};
+		$.ajax({
+			type :"post"
+			,url : "/cart/order-option-add"
+			,data : params
+			,async : false
+		}).done(function(data){
+
+			$("#addOption").attr("data-cnt", data.addOptionSize); // 기본정보
+			//addOption
+			var select = $("#option_add");
+			select.find("option").remove();
+
+			data.addOption.forEach(function (item, index, array) {
+
+				var optnName ;
+				var optnValue ;
+				var disableFlag = false ;
+
+				optnValue = item.prdtOptnNo;
+
+				if (item.stockTotQty <= 0){
+					optnName = "[품절]" + item.addOptn2Text;
+					disableFlag = true;
+				}else{
+					optnName = item.addOptn2Text;
+				}
+
+				// 금액 비교? 확인 필요
+				var option =new Option(optnName, optnValue , false, false)
+				$(option).prop('disabled',disableFlag);  // 옵션 비활성화
+				$(option).attr('data-qty', item.stockTotQty ); // 선택 옵션 재고 수량
+				$(option).attr('data-optnAddAmt', item.optnAddAmt ); // 선택 추가 금액
+
+				select.append( option );
+
+			});
+
+			select.prepend(new Option("선택하세요.", "" , false, true));
+
+			$( "#option_add" ).selectmenu( "refresh" );
+
+		})
+		.fail(function(jqXHR, textStatus, errorThrown) {
+			alert("오류가 발생했습니다.");
+
+		});
+	}
+
+	/* ***************************************************************************
+	 *  17. 매출 전표 팝업 - 영수증 호출 팝업
+	 *      billUrl     : url 구분 (운영,테스트)
+	 *      tno			: 거래번호
+	 *	    orderNo		: 주문번호
+	 *	    amount		: 결제금액
+	 *	    billType	: 전표 구분 - billType
+	 *							  card_bill - 카드결제, acnt_bill - 계좌이체
+	 *							  vcnt_bill - 가상계좌 , mcash_bill - 휴대폰결제
+	 *							  cash_bill - 현금영수증
+	 *     callType :  AS - AS결제 호출, ORDDER - 주문 , GIFT - 기프트카드
+	 *************************************************************************** */
+	_common.receiptView = function( billUrl,tno, orderNo, amount , billType , callType ) {
+		var popupSize;
+        receiptWin = billUrl+billType;
+
+        if(billType == 'cash_bill'){
+        	 receiptWin += "&cash_no="+tno + "&";
+        }else{
+        	 receiptWin += "&tno="+tno + "&";
+        }
+        receiptWin += "order_no=" + orderNo + "&";
+        receiptWin += "trade_mony=" + amount ;
+
+        // 팝업 원도 창 크기 별도 정함.
+        if(billType == 'cash_bill'){
+        	popupSize = "width=420, height=670";
+        }else if(billType == 'vcnt_bill' || billType == 'acnt_bill'){
+        	popupSize = "width=470, height=695";
+        }else{
+        	popupSize = "width=470, height=815";
+        }
+        window.open(receiptWin, "", popupSize);
+    }
+
+	/****************************************************************************
+	 *  18. 에러미시지 alert
+	 *************************************************************************** */
+	_common.errorMessage = function() {
+        alert("서비스 연결이 원활하지 않습니다. 잠시 후 다시 시도해주시기 바랍니다.");
+    }
+
+	/* ***************************************************************************
+	 *  19. 금지어 체크
+	 *  	text : 금지어가 포함되어 있는지 확인할 문자열
+	 *  	callback : callback function
+	 *************************************************************************** */
+	_common.checkForbiddenWord = function(text, callback) {
+		var result;
+		if (abc.text.isBlank(text)) {
+			return;
+		}
+
+		var params = {
+			text: text
+		};
+
+		$.ajax({
+			type :"post"
+			,url : "/cmm/forbiddenword/check"
+			,data : params
+			,async : true
+		}).done(function(data) {
+			if (data.hasForbiddenWords) {
+				alert("사용할 수 없는 단어가 포함되어있습니다.");
+				return false;
+			} else {
+				callback();
+			}
+		}).fail(function(jqXHR, textStatus, errorThrown) {
+			abc.errorMessage();
+
+		});
+    }
+
+	/* ***************************************************************************
+	 *  19-1. 금지어 체크(콜백 호출 없음)
+	 *  	text : 금지어가 포함되어 있는지 확인할 문자열
+	 *************************************************************************** */
+	_common.retValCheckForbiddenWordNoCallback = false; // 금지어 체크 후 지정되는 값
+
+	_common.checkForbiddenWordNoCallback = function(text) {
+		_common.retValCheckForbiddenWordNoCallback = false;
+
+		var result;
+		if (abc.text.isBlank(text)) {
+			return;
+		}
+
+		var params = {
+			text: text
+		};
+
+		$.ajax({
+			type :"post"
+			,url : "/cmm/forbiddenword/check"
+			,data : params
+			,async : false
+		}).done(function(data) {
+			if (data.hasForbiddenWords) {
+				alert("사용할 수 없는 단어가 포함되어있습니다.");
+			} else {
+				_common.retValCheckForbiddenWordNoCallback = true;
+			}
+		}).fail(function(jqXHR, textStatus, errorThrown) {
+			abc.errorMessage();
+
+		});
+    }
+
+
+	/**
+	 * 20. 상품 뱃지 설정
+	 * 상품이 로드된 이후에 호출
+	 * isApplyChnnlBadge: 채널 뱃지 적용 여부(채널에 상관없이 적용)
+	 */
+	_common.setProductBadge = function(){
+
+		var isApplyChnnlBadge = abc.global.currentChannel == '10000' ? true : false;
+
+		//상품 아이콘
+		abc.namespace.front.frontOffice.setProdBadgeSize();
+
+		//상품 리스트 height 조정
+		abc.namespace.front.frontOffice.setProdDefaultHeight();
+
+		if(isApplyChnnlBadge){
+			//채널 뱃지
+			$.ajax({
+				type :"get",
+				url : "/display/gnb/channel"
+			})
+			.done(function(data){
+				var chnnlMap = {};
+				$.each(data.list, function(i,v){
+					if(v.chnnlNo != '10000'){
+						chnnlMap[v.chnnlNo] = v.chnnlName;
+					}
+				});
+
+				//art
+				if(data.currentChnnlNo == '10000' || isApplyChnnlBadge){
+
+					$('.prod-info-wrap').each(function(i,v){
+						var productChnnlNo = $(this).data('productChnnlNo');
+						if(productChnnlNo != null && productChnnlNo != '' && productChnnlNo != '10000'){
+							var chnnlName = chnnlMap[productChnnlNo];
+							if(chnnlName != undefined){
+								chnnlName = chnnlName.toLocaleLowerCase().replace(' ', '-');
+								$(this).addClass(chnnlName);
+							}
+						}
+					});
+
+				}
+			})
+			.fail(function(e){
+
+			});
+		}
+
+		// 안석진 추가 - 아트배송 뱃지 감추기 (gs-ui 아트배송뱃지 사용안함)
+	//	if(!abc.text.allNull(abc.biz.dailydlvy.data) &&
+	//		abc.biz.dailydlvy.data.currentDailyDlvyInfo != undefined &&
+	//		(
+	//		     abc.biz.dailydlvy.data.currentDailyDlvyInfo.dailyDlvyRunYn != 'Y'  // 아트배송 진행을 중지했거나
+	//		 || !abc.biz.dailydlvy.data.currentDailyDlvyInfo.dailyDlvySiteChnnlAvail)){ // 해당 채널이 아니라면
+	//		$(".img-wrap .sell-only-prod.delivery").removeClass();  // 아트배송 뱃지를 제거한다
+	//	}
+	}
+
+	/**
+	 * 21.임직원 인증팝업 오픈
+	 */
+	_common.empCert = function(memberNo) {
+
+		$.ajax({
+			type :"post",
+			url : "/member/member-info"
+		})
+		.done(function(data, textStatus, jqXHR) {
+			$("#memberNo").val(data.memberNo);
+			$("#empName").text(data.memberName);
+			$("#empNo").val("");
+			$('#dialogCertCompMember').dialog('open');
+		})
+		.fail(function(jqXHR, textStatus, errorThrown) {
+			abc.errorMessage();
+		});
+	}
+
+	/**
+	 * 22. 상품 상세 이동 페이지
+	 */
+	_common.goProductDetail = function(prdtNo, sellStatCode, pkgYn){
+
+		if(prdtNo  == "" ){
+			alert("상품번호가 누락되었습니다.");
+			return;
+		}
+
+		if (sellStatCode == '10003') {
+			alert("판매 종료된 상품입니다.");
+			return;
+		}
+
+		if(String(pkgYn) == "Y"){//묶음상품
+			location.href = "/product/package?pkgPrdtNo="+prdtNo;
+		}else{
+			location.href = "/product?prdtNo="+prdtNo;
+		}
+
+	}
+
+	/* ***************************************************************************
+	 *  23. 로딩이미지 show, hide
+	 *************************************************************************** */
+	var loadingCnt = 0;
+	_common.loading = {
+		show: function() {
+			if(loadingCnt == 0){
+				$('.loading-layer').removeClass('hide');
+				loadingCnt++;
+			}
+		},
+		hide : function() {
+			$('.loading-layer').addClass('hide');
+			loadingCnt = 0;
+		}
+	}
+
+	/**
+	 * 25. 임직원로그인
+	 */
+	_common.empLogin = function() {
+		var currentPage = window.location.href;  //2022.02.16 #2761 관련 수정
+		$.ajax({
+			type    : "post",
+			url     : "/login/emp-login"
+		})
+		.done(function(data, textStatus, jqXHR) {
+			if(data.reSult == abc.consts.BOOLEAN_TRUE){
+				if( abc.text.allNull(window.location.hash) ) {
+					location.href = currentPage;
+				} else {
+					location.href = currentPage.split('#')[0];
+				}
+			}else{
+				alert("임직원 정보가 존재하지 않습니다.");
+				location.reload();
+			}
+		})
+		.fail(function(jqXHR, textStatus, errorThrown) {
+			abc.errorMessage();
+		});
+	}
+
+	/**
+	 * 26. 임직원 로그아웃
+	 */
+	_common.empLogout = function() {
+		location.href = "/login/emp-logout";
+	}
+
+	/**
+	 * 26-1. 멤버십 로그인 전환 [임직원 로그인 → 멤버십 로그인] : 임직원 로그아웃과 동일
+	 */
+	_common.convertMbshpLogin = function () {
+		var currentPage = window.location.href;
+		$.ajax({
+			  type  : "POST"
+			, url   : "/login/convert-mbshp-login"
+		})
+		.done(function(data, textStatus, jqXHR) {
+			if(abc.text.allNull(window.location.hash)) {
+				location.href = currentPage;
+			} else {
+				location.href = currentPage.split('#')[0];
+			}
+		})
+		.fail(function(jqXHR, textStatus, errorThrown) {
+			abc.errorMessage();
+		});
+	}
+
+	/**
+	 * 27. 임직원 인증후 비로그인
+	 */
+	_common.empCertLoginCancel = function(){
+		$("#dialogCertCompMemberSuccess").dialog("close");
+		$(".term-list li:last").remove();
+		$(".term-list").append('<li><a href="javascript:abc.empLogin()">임직원로그인</a></li>');
+	}
+
+	/**
+	 * 28. 배송정보조회 팝업
+	 */
+	_common.dlvyInfoInquiry = function(code, invoice) {
+		// 2021.04.06 : 택배사코드가 없고 운송장번호만 있는 경우 CJ대한통운 배송조회
+		if((code == abc.consts.DLVY_CODE_CJ) || (abc.text.allNull(code) && !abc.text.allNull(invoice)) ) {
+            var url = abc.consts.CJ_DOORTODOOR_DLVY_URL + invoice;
+            var option = 'width=800, height=500';
+
+            window.open(url, '_blank', option);
+
+        } else if(code == '05'){ // 2024.05.14 : #4306 한진택배 배송추적 URL 변경
+            var url = abc.consts.PROD_HANJIN_DLVY_TRACKER_PAGE + invoice;
+            if(abc.global.active == 'local' || abc.global.active == 'dev') {
+				url = abc.consts.DEV_HANJIN_DLVY_TRACKER_PAGE + invoice;
+			}
+            var option = 'width=500, height=800';
+
+            window.open(url, '_blank', option);
+
+        } else if(code == 'vroong' || code == 'vroongMain'){  // 안석진 추가 - 부릉 배송 추적
+			var url = '/mypage/vroongTrack?orderNo=' + invoice;
+			$.ajax({
+				url : url,
+				method : 'get'
+			}).done(function(data){
+				if(code == 'vroongMain') {
+					abc.biz.mypage.order.vroongDraw(data);
+				} else {
+					abcmart.mypage.order.orderdetail.vroongDraw(data);
+				}
+
+			}).fail(function(jqXHR, textStatus, errorThrown){
+				abc.errorMessage();
+			});
+		} else {
+			$.ajax({
+				url : '/mypage/get-sweettracker-key',
+				method : 'post',
+				data: {
+					invoice: invoice
+				}
+			}).done(function(data){
+				var _params = {
+						t_key		: data.t_key,
+						t_code		: code,
+						t_invoice 	: invoice
+				};
+
+				abc.open.popup({
+					url      :   abc.consts.SWEETTRACKER_URL,
+					method   :   'post',
+					width    :   500,
+					height   :   800,
+					params   :   _params
+				});
+			}).fail(function(jqXHR, textStatus, errorThrown){
+				abc.errorMessage();
+			});
+		}
+
+	}
+
+	/****************************************************************************
+	 * 29. 브라우저 타이틀 변경
+	 ****************************************************************************/
+	_common.setBrowserTitle = function(subTitle) {
+		var channelTitle = document.title;
+
+		if (!abc.text.isBlank(subTitle)) {
+			document.title = subTitle + " | " + channelTitle;
+		} else {
+			document.title = channelTitle;
+		}
+	}
+
+	/****************************************************************************
+	 * 30. 비밀번호 체크 (이전 비밀번호 번호 여부)
+	 ****************************************************************************/
+	_common.checkConfirmPassword = function(pswdText){
+		var isBoolean = false;
+
+		$.ajax({
+			type :"post",
+			url : "/member/read-checkPswd",
+			async : false,
+			data : {"pswdText" : pswdText}
+		})
+		.done(function(data){
+			if(data.result){
+				isBoolean = false;
+			}else{
+				isBoolean = true;
+			}
+		})
+		.fail(function(e){
+			isBoolean = false;
+		});
+
+		return isBoolean;
+	}
+
+	/****************************************************************************
+	 * 31. 롤링배너 오늘 하루 그만보기 쿠키 체크
+	 ****************************************************************************/
+	_common.setNotTodayCookie = function(keyValue){
+		//오늘 하루 그만보기
+		if($('.a-rt-pro-today-close').find('#chkToday').is(':checked')){
+			var cookieOption = {
+					key : keyValue,
+					value: 'true',
+					expireType : 'D',
+					expire : 1
+			};
+			abc.cookie.add(cookieOption);
+		}
+
+	}
+
+	/****************************************************************************
+	 * 32-1. 쿠폰 다운로드
+	 ****************************************************************************/
+	_common.isRunning = false;
+	_common.couponDown = function(args){
+		if(!window.abc.loginCheck()) {
+			if(confirm('쿠폰 다운로드를 위해 로그인을 하시려면 [확인] 버튼을 클릭해 주세요.')){
+				location.href = '/login?moveUrl=' + encodeURIComponent(window.location.href);
+			}
+		} else if(_common.isRunning){
+			console.log("쿠폰을 발급하는 중입니다.");
+		} else {
+			var cpnNos = new Array();
+			for(var i = 0; i < arguments.length; i++){
+				cpnNos.push(arguments[i]);
+			}
+
+			$.ajax({
+				type :"post",
+				url : "/promotion/coupon/member/save",
+				dataType : "json",
+				data : {
+					'cpnNos' : cpnNos
+				},
+				beforeSend : function(xhr, opts) {
+					_common.isRunning = true;
+				}
+			})
+			.done(function(d){
+				var cpnLen = cpnNos.length;
+				if(cpnLen == 1) {	//쿠폰단건 다운로드
+					if(d.exceptionType != '') {
+						_common.exceptionAlert(d.exceptionType, d.memberTypeCodeName, d.exceptionMsg);
+					} else {
+						//alert('[ ' + d.cpnNames[0] + ' ]이 다운로드 되었습니다.');
+						_common.singleCpnDnlRstAlert(d);
+					}
+				} else { //전체쿠폰 다운로드
+					_common.multiCpnDnlRstAlert(cpnNos,d); //결과 안내 공통 함수
+				}
+				//location.reload();
+				// gtm download_copoun 수집
+				if(d.cpnNames.length>0) {
+					d.cpnNames.forEach(function(cpnName) {
+						abc.gtm.outside.download_coupon({
+							coupon : cpnName,
+						});
+					});
+				}
+			})
+			.fail(function(e){
+
+				alert("쿠폰 발급중 에러가 발생하였습니다.")
+			})
+			.always(function(e) {
+				_common.isRunning = false;	// 네트워크 사용 완료처리
+			});
+		}
+	}
+
+	/****************************************************************************
+	 * 32-2. 쿠폰 다운로드(기획전날짜에 맟쳐 쿠폰 다운 1개 선택적으로)
+	 ****************************************************************************/
+	_common.couponDownByPlanDate = function(args){
+		if(!window.abc.loginCheck()) {
+			if(confirm('쿠폰 다운로드를 위해 로그인을 하시려면 [확인] 버튼을 클릭해 주세요.')){
+				location.href = '/login?moveUrl=' + encodeURIComponent(window.location.href);
+			}
+		} else if(_common.isRunning){
+			console.log("쿠폰을 발급하는 중입니다.");
+		} else {
+			var cpnNos = new Array();
+			for(var i = 0; i < arguments.length; i++){
+				cpnNos.push(arguments[i]);
+			}
+			$.ajax({
+				type :"post",
+				url : "/promotion/coupon/member/save",
+				dataType : "json",
+				data : {
+					  'issuedByPlndDateYn' : 'Y'
+					, 'cpnNos' : cpnNos
+				},
+				beforeSend : function(xhr, opts) {
+					_common.isRunning = true;
+				}
+			})
+			.done(function(d){
+				if(d.exceptionType != '') {
+					_common.exceptionAlert(d.exceptionType, d.memberTypeCodeName, d.exceptionMsg);
+				} else {
+					//alert('[' + d.cpnNames[0] + ']이 다운로드 되었습니다.');
+					$('#dialogCpnDwldRsltTxt .title').html('[' + d.cpnNames[0] + ']이<P>다운로드 되었습니다.');
+					$('#dialogCpnDwldRsltTxt .sub').hide();
+					$('#dialogCpnDwldCpnList').hide();
+
+					$('#cpnDwldRsltPrdtBtn').data("cpnNo",d.cpnInfo.cpnNo);
+					$('#cpnDwldRsltPrdtBtn').data("cpnApplyType",d.cpnInfo.cpnApplyType);
+					$('#cpnDwldRsltPrdtBtn').data("minLimitSellAmt",d.cpnInfo.minLimitSellAmt);
+					$('#cpnDwldRsltPrdtBtn').data("limitDscntRate",d.cpnInfo.limitDscntRate);
+					$('#cpnDwldRsltPrdtBtn').show();
+					$('#cpnDwldRsltCloseBtn').hide();
+					$('#cpnDwldRsltMoveBtn').show();
+
+					$('#dialogCpnDwldRslt').dialog('open');
+				}
+				// gtm download_copoun 수집
+				if(d.cpnNames.length>0) {
+					d.cpnNames.forEach(function(cpnName) {
+						abc.gtm.outside.download_coupon({
+							coupon : cpnName,
+						});
+					});
+				}
+			})
+			.fail(function(e){
+
+				alert("쿠폰 발급중 에러가 발생하였습니다.")
+			})
+			.always(function(e) {
+				_common.isRunning = false;	// 네트워크 사용 완료처리
+			});
+		}
+	}
+
+	/**
+	 * 쿠폰발급 validation 처리
+	 */
+	_common.exceptionAlert = function(exceptionType, memberTypeCodeName, exceptionMsg) {
+		switch (exceptionType) {
+		/** 이벤트 응모 제한 시작 */
+		case 'oncePerDay':
+			alert('하루 1회만 참여 가능합니다.');
+			break;
+		case 'oncePerId':
+			alert('1회만 참여 가능합니다.');
+			break;
+		case 'twicePerDay':
+			alert('하루 2회까지만 참여 가능합니다.');
+			break;
+		case 'twicePerId':
+			alert('2회까지만 참여 가능합니다.');
+			break;
+		case 'noneTarget':
+			if(memberTypeCodeName == undefined || memberTypeCodeName == '' || memberTypeCodeName == null) {
+				alert('대상 회원이 아닙니다.');
+			} else {
+				//이벤트 응모하기 버튼 선택 시 노출되는 얼럿 문구 기준 수정 #3948
+				if(memberTypeCodeName == '임직원'){
+					alert("해당 행사는 '임직원 회원' 전용 서비스로, 현재 '일반 회원'으로 로그인되어 접속이 불가합니다.\n페이지 하단의 '임직원 로그인' 또는 '임직원 인증' 클릭 후 확인해 주세요.");
+					location.href='/';
+				}else{
+					if(confirm(memberTypeCodeName + " 전용 서비스입니다. 확인 후 접속해 주세요.")){
+						location.href='/mypage';
+					}else{
+						location.href='/promotion/event/main';
+					}
+				}
+			}
+			break;
+		case 'noneTargetEmp':
+			alert("해당 행사는 '멤버십 회원' 전용 서비스로, 현재 '임직원 회원'으로 로그인되어 접속이 불가합니다.\n페이지 하단의 '멤버십 로그인' 클릭 후 확인해 주세요.");
+			location.href='/';
+			break;
+		case 'noneTargetMbshp':
+			if(abc.text.allNull(abc.userDetails.mbshpGradeName) || abc.text.allNull($("#mbshpGradeCodeNames").val())){
+				alert('대상 회원이 아닙니다.');
+			} else {
+				alert("본 이벤트는 ["+$("#mbshpGradeCodeNames").val()+"] 회원 대상 이벤트입니다.\n현재 회원님의 등급은 ["+abc.userDetails.mbshpGradeName+"]입니다.");
+			}
+			break;
+		case 'notPermitEmp':
+			alert("본 이벤트는 멤버십 회원 대상 이벤트입니다.\n임직원 회원의 경우 참여가 불가합니다.");
+			break;
+		case 'existEventJoin':
+			alert('이미 참여하셨습니다.');
+			break;
+		case 'nonePblicteNo':
+			alert('유효하지 않는 번호입니다.');
+			break;
+		case 'duplLoginId':
+			alert('이미 참여완료된 아이디입니다.\n해당 아이디로 다시 참여할 수 없습니다');
+			break;
+		case 'myLoginId':
+			alert('본인 아이디로는 참여가 불가합니다.');
+			break;
+		case 'summonFriendsError':
+			alert('이벤트 기간 내에 신규 가입한 멤버십 회원 아이디가 아닙니다.\n다시 확인하신 후 참여해주시기 바랍니다.');
+			break;
+		case 'dateEnd':
+			alert('이벤트 참여기간이 아닙니다.');
+			break;
+		case 'deviceNoneTarget':
+			var deviceCodeName = $('#deviceCodeName').val();
+			if(deviceCodeName != undefined && deviceCodeName != null && deviceCodeName != "") {
+				alert(deviceCodeName + ' 전용 이벤트 입니다.');
+			} else {
+				alert('이벤트 대상이 아닙니다.');
+			}
+			break;
+		case 'earlyClosing':
+			alert('제한수량이 모두 소진되어 조기 마감되었습니다.');
+			break;
+		case 'eventPointUse':
+			alert('이벤트 포인트를 사용하여 응모한 경우 삭제하실 수 없습니다.');
+			break;
+		case 'notExistMember':
+			alert('존재하지 않는 회원입니다.');
+			break;
+		case 'interfaceError':
+			alert(memberTypeCodeName);
+			break;
+		case 'notCheckMktUseAgreeYn':
+			alert('마케팅 수신 동의 후, 이벤트 참여가 가능합니다.');
+			break;
+		case 'notCheckPrivacyInfoAgree':
+			alert('개인정보 제공에 동의하신 분들만 응모가 가능합니다.');
+			break;
+		case 'noneQuizAnswer':
+			alert('정답을 입력해 주세요.');
+			break;
+		case 'notPsblJoinMember':
+			alert('이벤트 참여가능한 응모대상이 아닙니다.');
+			break;
+		case 'overCount':
+			alert('응모횟수를 초과하였습니다.');
+			break;
+		case 'notEnteredEvent':
+			alert('아이콘찾기 이벤트는\n응모중인 회원만 참여가능합니다.');
+			break;
+		case 'notAnswerInfo':
+			alert('이미 설문에 참여하셨습니다.');
+			break;
+		case 'notSurveyLimit':
+			alert('설문조사 인원 제한으로 인하여\n더이상 설문조사에 참여할 수 없습니다.');
+			break;
+		case 'noneSurvey':
+			alert('설문조사를 진행할 수 없습니다.');
+			break;
+		case 'surveyDateEnd':
+			alert('설문조사 기간이 아닙니다.');
+			break;
+		case 'voteMember':
+			alert('멤버십 회원만 참여 가능합니다.');
+			break;
+		case 'voteEventJoin':
+			alert('1회만 참여 가능한 이벤트로 회원님은 이미 참여 하셨습니다.');
+			break;
+		case 'noneEvent':
+			alert('유효하지 않은 이벤트 입니다.');
+			break;
+		/** 이벤트 응모 제한 끝 */
+		/** 쿠폰 발급 제한 시작 */
+		case 'noDownCupon': case 'issuePeriod': case 'issueTime': case 'invalidMemberRank': case 'totalLimit': case 'perMax': case 'notSpecificYm': // 쿠폰 '생성형태' 지류쿠폰 이외 validation
+			alert(exceptionMsg);
+			break;
+		case 'existCpn': case 'invalidMember': case 'procErr': case 'noneCpn': case 'invalid': case 'noneMatchIssuedStandardDate': // 쿠폰 '생성형태' 지류쿠폰 일 때 validation
+			alert(exceptionMsg);
+			break;
+		case 'fail5Count':
+			alert('5회 입력 오류로 더 이상 쿠폰을 등록할 수 없습니다.');
+			break;
+		case 'error':
+			if(abc.text.allNull(exceptionMsg)) {
+				alert('다운로드가 불가능한 쿠폰입니다.');
+			} else {
+				alert(exceptionMsg);
+			}
+			break;
+		default:
+			alert('처리중 오류가 발생했습니다.');
+			break;
+		}
+		/** 쿠폰 발급 제한 끝 */
+	}
+
+	/****************************************************************************
+	 * 33. 이메일 수신거부
+	 ****************************************************************************/
+	_common.blockDirectMessage = function() {
+		var emailAddrText = $("#emailAddrText").val();
+
+		$.ajax({
+			type :"post",
+			url : "/cmm/message-block",
+			data: {"emailAddrText" : emailAddrText}
+
+		})
+		.done(function(data, textStatus, jqXHR) {
+			alert("이메일 수신거부 처리가 완료되었습니다.");
+			window.close();
+		})
+		.fail(function(jqXHR, textStatus, errorThrown) {
+			abc.errorMessage();
+		});
+	}
+
+	_common.specificYMCouponDown = function(){
+		if(!window.abc.loginCheck()) {
+			alert('로그인 해주시기 바랍니다.');
+			location.href = '/login';
+		} else if(_common.isRunning){
+			console.log("쿠폰을 발급하는 중입니다.");
+		} else {
+			$.ajax({
+				type :"post",
+				url : "/promotion/coupon/specificYMCouponDown",
+				dataType : "json",
+				data : {
+					'cpnNo' : cpnNo
+				},
+				beforeSend : function(xhr, opts) {
+					_common.isRunning = true;
+				}
+			}).done(function(d){
+
+			}).fail(function(e){
+				alert("쿠폰 발급중 에러가 발생하였습니다.")
+			}).always(function(e) {
+				_common.isRunning = false;	// 네트워크 사용 완료처리
+			});
+		}
+	}
+
+	/****************************************************************************
+	 * 34. 이메일 사용여부 체크
+	 ****************************************************************************/
+	_common.emailUseYn = function(emailAddrText){
+		var result = true;
+
+		$.ajax({
+			type :"post",
+			url : "/member/member-info-all",
+			data : {"emailAddrText" : emailAddrText},
+			async : false
+		}).done(function(data){
+			if(data.memberList.length > 0){
+				result = false;
+				window.abc.validFailFocus($("#emailAddrText"), "이미 사용중인 이메일입니다.");
+			}
+		})
+		.fail(function(jqXHR, textStatus, errorThrown) {
+			abc.errorMessage();
+		});
+
+		return result;
+	}
+
+	/****************************************************************************
+	 *  35. 매장찾기 (siteNo로 사이트별 매장 호출되도록)
+	 *  parameter : isCallback - 콜백여부. ex) true/false
+	 *  			callback - 콜백함수명.	ex) "abc.biz.board.store.callback"
+	 *  			siteNo - 사이트번호
+	 *  			pickupPsbltYn - 픽업가능매장여부. ex) 'y'/'n'
+	 ****************************************************************************/
+	_common.siteStoreSearchPopup = function(isCallback, callback, siteNo, pickupPsbltYn) {
+
+		var url = "/board/store/search";
+		var _params = {
+				"isCallback" : isCallback,
+				"callback" : callback,
+				"chnnlNo" : null,
+				"siteNo" : siteNo,
+				"pickupPsbltYn" : pickupPsbltYn != null ? pickupPsbltYn : null
+		}
+
+		abc.open.popup({
+			url 	:	url,
+			winname :	"search-store",
+			title 	:	"search-store",
+			method	: 	"get",
+			width 	:	1020,
+			height	:	900,
+			params	:	_params
+		});
+	}
+
+	/****************************************************************************
+	 *  36. 라이브연결 토큰 발급 202104 고도화 추가
+	 ****************************************************************************/
+	_common.liveTokenCreate = function() {
+		var liveToken ;
+		$.ajax({
+			type :"post"
+			,async : false
+			,url : "/login/liveTokenCreate"
+		})
+		.done(function(data, textStatus, jqXHR) {
+			liveToken = data.liveToken;
+		})
+		.fail(function(jqXHR, textStatus, errorThrown) {
+			liveToken = "";
+		});
+
+		return liveToken;
+	}
+
+	/****************************************************************************
+	 *  37. 임직원 후기 등록 팝업 - 202106 고도화 추가
+	 ****************************************************************************/
+	_common.openEmpReviewDialog = function(param) {
+		abc.biz.product.empReview.dialog.openEmpReviewDialog(param);
+	}
+
+	/****************************************************************************
+	 *  38. 임직원 후기 등록 팝업 내 사이즈 선택 팝업 - 202106 고도화 추가
+	 ****************************************************************************/
+	_common.openSelectMySizeDialog = function(param) {
+		abc.biz.product.empReview.dialog.openSelectMySizeDialogForEmpReview(param);
+	}
+
+	/****************************************************************************
+	 *  39. 상품 후기 조회 시 내 사이즈 선택 팝업 - 202106 고도화 추가
+	 ****************************************************************************/
+	_common.openSelectMySizeDialogByProd = function(param) {
+		abc.biz.product.review.dialog.openSelectMySizeDialogByProd(param);
+	}
+
+	/****************************************************************************
+	 *  40. 상품 후기 조회 시 옵션 선택 팝업 - 202106 고도화 추가
+	 ****************************************************************************/
+	_common.openPrdOptionDialog = function(param) {
+		abc.biz.product.review.dialog.openPrdOptionDialog(param);
+	}
+
+	/****************************************************************************
+	 *  41. 사진 및 영상 모아보기 클릭시 팝업 - 202106 고도화 추가
+	 ****************************************************************************/
+	_common.openPrdReviewDialog = function(param) {
+		abc.biz.product.review.dialog.openPrdReviewDialog(param);
+	}
+
+	/****************************************************************************
+	 *  43. 상품 후기 등록 팝업 내 사이즈 선택 팝업 - 202106 고도화 추가
+	 ****************************************************************************/
+	_common.openSelectMySizeDialog = function(param) {
+		abc.biz.product.review.dialog.openSelectMySizeDialog(param);
+	}
+
+	/****************************************************************************
+	 *  44. 우편번호를 받아서 배송가능한 지역인지 판단
+	 ****************************************************************************/
+	_common.isDelivery = function(postCode){
+		let postCodes = [''];
+		var resultIndex = postCodes.indexOf(postCode.replace(/ /gi,''));
+
+		if(resultIndex < 0){
+			return true;
+		}else{
+			alert("배송 불가 지역입니다.\n자세한 내용은 공지사항을 확인해주시기 바랍니다.");
+			return false;
+		}
+	}
+
+	/****************************************************************************
+	 *  45. CJ대한통운 주소정제 I/F
+	 ****************************************************************************/
+	_common.cjLogistics = function(params){
+		var returnData = []; // 결과 json
+
+		$.ajax({
+			type:"post",
+			url: "/cmm/getCjLogistics",
+			data: params,
+			async: false
+		}).done(function(result){
+			if(result.RESULT_CD == 'S'
+			&& result.DATA.RSPSDIV == '37'){
+				returnData = result;
+				returnData.RESULT = true;
+			}else{
+				returnData = result;
+				returnData.RESULT = false;
+			}
+		}).fail(function(result){
+			returnData = result;
+			returnData.RESULT = false;
+		})
+
+		return returnData;
+	}
+
+	/****************************************************************************
+     *  46. 한진택배 배송불가 지역 체크
+     ****************************************************************************/
+    _common.getHanjinPostCodeCheck = function(postCode){
+        var returnData = {}; // 결과 json
+        let params = {};
+        params.postCode = postCode.replace(/ /gi,'');
+
+        $.ajax({
+            type:"post",
+            url: "/cmm/getHanjinPostCodeCheck",
+            data: params,
+            async: false
+        }).done(function(result){
+            if(result != null){
+                returnData = result;
+                returnData.RESULT = false;
+            }else{
+                returnData.RESULT = true;
+            }
+        }).fail(function(result){
+            returnData.RESULT = false;
+        })
+
+        return returnData;
+    }
+
+	/****************************************************************************
+	 *  46. 배송 관련 체크
+	 *  당일배송 기존 메소드를 활용해서 당일배송과 같은 구조로 새벽배송 데이터를 가져온다.
+	 *  단, 새벽배송 관련해서 배송예정일자는 해당 메소드를 통해서 따로 가져온다.
+	 *  prdtNo : 없어도 됨
+	 ****************************************************************************/
+	_common.dawnDlvycheck = function(prdtNo, dailyDlvyTypeCode){
+		var params = {} // 파라미터 변수
+		var returnData = []; // 결과 json
+		params.dailyDlvyTypeCode = dailyDlvyTypeCode;
+		if(typeof prdtNo != 'undefined' && prdtNo != ''){
+			params.prdtNo = prdtNo;
+		}else{
+			params.prdtNo = "";
+		}
+
+		$.ajax({
+			type:"post",
+			url: "/cmm/getDawnDlvycheck",
+			data: params,
+			async: false
+		}).done(function(result){
+			returnData = result;
+		}).fail(function(result){
+			returnData = result;
+		})
+
+		return returnData;
+	}
+
+	/****************************************************************************
+	 * 47. DB 현재시간을 조회하여 시간단위로 비교하여 비교시간이 지났는지 여부 리턴
+	 *     HHmm : HHmm 형식의 시간. ex) 2100
+	 ****************************************************************************/
+	_common.getTimeoverYn = function(HHmm){
+		var params = {};
+		var timeoverYn = abc.consts.BOOLEAN_TRUE; // 기본값 초과 Y BOOLEAN_TRUE BOOLEAN_FALSE
+		HHmm = parseInt(HHmm); // 비교값으로 넘어온 HHmm 형식 시간
+
+		$.ajax({
+			type:"get",
+			url: "/cmm/getDbTime",
+			data: params,
+			async: false
+		}).done(function(result){
+
+			var dbTime = result.DB_TIME; // yyyyMMddHHmmss 형식 현재시간
+			dbTime = parseInt(String(dbTime).substr(8,4)); // HHmm 으로 자름
+
+			if(dbTime < HHmm){
+				timeoverYn = abc.consts.BOOLEAN_FALSE; // 'N' DB현재시간이 HHmm 지나지 않음
+			}else{
+				timeoverYn = abc.consts.BOOLEAN_TRUE; // 'Y' DB현재시간이 HHmm 지남
+			}
+		}).fail(function(result){
+
+		})
+
+		return timeoverYn;
+	}
+
+	/****************************************************************************
+	 * 48. 쿠폰 적용 시, 총 할인금액이 감가율을 초과 여부를 리턴해주는 공통함수
+	 * 장바구니, 주문서 화면에서 각각 계산하던 계산식을 공통으로 분리
+	 * sumDcAmt       : 할인금액합계
+	 * manyShoesDcAmt : 다족할인액
+	 * normalAmt      : 정상가
+	 * dscntAmt       : 실판매가
+	 * cpnApplyQty    : 쿠폰적용개수
+	 * limitDscntRate : 할인율
+     * 실제적용 할인금액 <= 기준할인 금액
+     * 할인금액합계 + (다족할인액 + (정상가 - 실판매가[프로모션할인 적용] * 쿠폰적용개수) <= ((정상가 * 쿠폰적용개수) * (할인율 /100))
+     ****************************************************************************/
+	_common.isCouponApply = function(sumDcAmt, manyShoesDcAmt, normalAmt, dscntAmt, cpnApplyQty, limitDscntRate){
+		let totalDscntAmount = 0; // 총쿠폰할인 금액
+
+		if(manyShoesDcAmt > 0){  // 다족할인 적용 시
+			totalDscntAmount = sumDcAmt + ((normalAmt - dscntAmt) * cpnApplyQty);
+
+		}else{
+			totalDscntAmount = sumDcAmt + (manyShoesDcAmt + (normalAmt - dscntAmt) * cpnApplyQty);
+		}
+
+		if(totalDscntAmount <= ((normalAmt * cpnApplyQty) *(limitDscntRate / 100))){
+			return true;
+		}else{
+			return false;
+		}
+	}
+
+	/****************************************************************************
+	 * 49. 옵션명 return
+	 * type : optn , addOptn
+	 * code : optnSetupNmCode
+	 ****************************************************************************/
+	_common.getOptionNameReturn = function(type , code ){
+		var params = {} // 파라미터 변수
+		var returnData = []; // 결과 json
+		var rtnOptnName ;
+		var optnSetupNmCode = code == undefined || code == '' ? '10000' : code ;
+
+		var optnInfo  = JSON.parse(sessionStorage.getItem("optnInfo"));
+		if (abc.text.allNull(optnInfo)){
+
+			$.ajax({
+				type:"post",
+				url: "/cmm/getOptnCodeInfo",
+				data: params,
+				async: false
+			}).done(function(result){
+				returnData = result;
+				sessionStorage.setItem("optnInfo", JSON.stringify(returnData));
+
+				if(type === "optn") { // 기본 옵션
+					var optnName = result.filter(function (rtnCode) { return rtnCode.codeDtlNo == optnSetupNmCode });
+					rtnOptnName  = optnName[0].codeDtlName ;
+				}else if (type === "addOptn"){ // 추가 옵션
+					var addOptnName = result.filter(function (rtnCode) { return rtnCode.codeDtlNo == optnSetupNmCode });
+					rtnOptnName = addOptnName[0].addInfo1 ;
+				}
+
+			}).fail(function(result){
+				if(type === "optn") { // 기본 옵션
+					rtnOptnName  = "사이즈";
+				}else if (type === "addOptn"){ // 추가 옵션
+					rtnOptnName  = "추가옵션";
+				}
+			})
+
+		}else{
+
+			if(type === "optn") { // 기본 옵션
+				var optnName = optnInfo.filter(function (rtnCode) { return rtnCode.codeDtlNo == optnSetupNmCode });
+				rtnOptnName = optnName[0].codeDtlName ;
+			}else if (type === "addOptn"){ // 추가 옵션
+				var addOptnName = optnInfo.filter(function (rtnCode) { return rtnCode.codeDtlNo == optnSetupNmCode });
+				rtnOptnName = addOptnName[0].addInfo1 ;
+			}
+		}
+
+		return rtnOptnName;
+	}
+
+	/****************************************************************************
+	 * 50. 옵션명 LIST 조회 session storage 처리
+	 ****************************************************************************/
+	_common.getOptnInfo  = function(){
+		var params = {} // 파라미터 변수
+		var returnData = []; // 결과 json
+
+		var optnInfo  = JSON.parse(sessionStorage.getItem("optnInfo"));
+		if (abc.text.allNull(optnInfo)){
+			$.ajax({
+				type:"post",
+				url: "/cmm/getOptnCodeInfo",
+				data: params,
+				async: false
+			}).done(function(result){
+				returnData = result;
+			}).fail(function(result){
+				returnData = [];
+			})
+			sessionStorage.setItem("optnInfo", JSON.stringify(returnData));
+		}else{
+			returnData = optnInfo;
+		}
+
+		return returnData;
+	}
+	/****************************************************************************
+	 * 51. 매장재고 확인 레이어 팝업
+	 * <%@include file="/WEB-INF/views/product/product/common/product-store-stock-outside-dialog.jsp" %> <- dialog 형태라 사용할 화면에 추가해주세요
+	 *  parameter : 상품번호 (prdtNo)
+	 ****************************************************************************/
+	_common.openStoreStockDialog = function (prdtNo){
+		if(!prdtNo) {
+			alert("상품번호가 없습니다.");
+			return false;
+		}
+		$.ajax({
+			dataType : 'json',
+			type :'GET',
+			url : '/product/info',
+			data : { "prdtNo" : prdtNo, "xramdom" : Math.random()}
+		})
+		.done(function(data) {
+			var product = data;
+			if(product != null){
+				$('#dialogStoreProdStockOutside .img-wrap img').prop( { src : product.productImage[0].imageUrl, alt : product.productImage[0].altrnText } );
+				$('#dialogStoreProdStockOutside .prod-info-wrap .prod-brand').text(product.prdtName);
+				$('#dialogStoreProdStockOutside .prod-info-wrap .prod-no').text(product.prdtNo);
+				$('#dialogStoreProdStockOutside #stockPrdtNo').text(product.prdtNo);
+				$('#dialogStoreProdStockOutside .prod-info-wrap .prod-name').text(product.engPrdtName);
+
+				// 선택한 옵션의 사이즈 정보
+				if ($("[data-product-option-area=picked]:first").find("li").not("[data-product-option='no-option']").length) {
+					$('#dialogStoreProdStockOutside #search-optn-name-outside option[value="' + $("[data-product-option-area=picked] li:last").not("[data-product-option='no-option']").data('product-option-no') + '"]').prop('selected', true);
+					$('#dialogStoreProdStockOutside #search-optn-name-outside').selectmenu('refresh');
+				}
+				$('#store-stock-list').empty();
+				$('#store-stock-list').append('<tr><td colspan="6">옵션(사이즈)을 선택해주세요.</td></tr>');
+
+				abc.biz.product.store.stock.outside.dialog.init();
+				abc.biz.product.store.stock.outside.dialog.setPrdtOptn(data.productOption);
+				abc.biz.product.store.stock.outside.dialog.checkStoreStock(data.productOption);
+				abc.biz.product.store.stock.outside.dialog.setInterstStore();
+
+				$('#dialogStoreProdStockOutside').dialog('open');
+			}else{
+				alert("상품정보가 존재하지 않습니다.");
+				return false;
+			}
+		})
+		.fail(function(e){
+			abc.errorMessage();
+		});
+	}
+
+
+    /****************************************************************************
+     사이트채널명 반환 2022.02
+     ****************************************************************************/
+    _common.siteChannelName = function(chnnlNo){
+        var siteChannelName = "art";
+        switch(chnnlNo){
+            case abc.consts.SITE_CHNN_ABC :
+                siteChannelName = "abc";
+                break;
+            case abc.consts.SITE_CHNN_GS :
+                siteChannelName = "gs";
+                break;
+            case abc.consts.SITE_CHNN_KIDS :
+                siteChannelName = "kids";
+                break;
+            default :
+                siteChannelName = "art";
+        }
+        return siteChannelName;
+    }
+
+	/****************************************************************************
+	  회원유형코드명 반환 2022.02
+	 ****************************************************************************/
+	_common.memberTypeCodeName = function(memberTypeCode){
+		var memberTypeCodeName = "GUEST";
+		switch(memberTypeCode){
+			case abc.consts.MEMBER_TYPE_MEMBERSHIP :
+				memberTypeCodeName = "통합멤버쉽";
+				break;
+			case abc.consts.MEMBER_TYPE_ONLINE :
+				memberTypeCodeName = "온라인";
+				break;
+			default :
+				memberTypeCodeName = "GUEST";
+		}
+		return memberTypeCodeName;
+	}
+
+
+    /****************************************************************************
+     에임드(AIMD) 장바구니 담기 script 2022.09.06
+     ****************************************************************************/
+    _common.aimdCartAdd  = function(params){
+		try{
+			var prdtList = params.prdtList;
+			if(prdtList != undefined) {
+				for(var i=0;i<prdtList.length;i++){
+			 		rtq('pixel', 'cart', {
+							'content_ids': [abc.biz.product.main.product.data.prdtNo],
+							'content_type': 'product',
+							'currency': 'KRW',
+							'item_id': window.rtk_item_id,
+							'value': abc.biz.product.main.product.price.displaySellAmt,
+					});
+				}
+			}
+        } catch(e){
+
+        }
+    }
+
+    /****************************************************************************
+     RTBHouse 위시리스트/선호 상품 코드 코드 2023.02.07
+     ****************************************************************************/
+    _common.RTBHouseIntersetProduct  = function(prdtNo){
+		try{
+			(rtbhEvents = window.rtbhEvents || []).push({eventType: 'wishlist', offerId: prdtNo}, {eventType: 'uid', id: RTBHouseUID});
+        } catch(e){
+
+        }
+    }
+
+    /****************************************************************************
+     RTBHouse 장바구니 - 장바구니 추가 코드 2023.02.08
+     ****************************************************************************/
+    _common.RTBHouseCartAdd  = function(data){
+		try{
+			var prdtList = data.productList;
+			if(prdtList != undefined) {
+				(rtbhEvents = window.rtbhEvents || []).push({eventType: 'wishlist', offerId: prdtList[0].prdtNo}, {eventType: 'uid', id: RTBHouseUID});
+			}
+        } catch(e){
+
+        }
+    }
+
+    /****************************************************************************
+     RTBHouse 제품 사이즈 선택 코드 (장바구니/바로구매 누를시 호출) 2023.02.15
+     ****************************************************************************/
+    _common.RTBHouseOptionSelect = function(data){
+		try{
+			if(abc.text.allNull(data.cartAddPrdtOptnList)){
+				return false;
+			}
+			var optnNameStr = "";
+			for(var i=0; i<data.cartAddPrdtOptnList.length; i++){
+				var optnName = data.cartAddPrdtOptnList[i].optnName;
+				optnName = optnName.replace('/', ''); // / 는 옵션들 사이에서 구분자이기에 공백으로 대체
+				if(i < data.cartAddPrdtOptnList.length - 1) {
+					optnNameStr = optnNameStr + optnName + '/'
+				} else {
+					optnNameStr = optnNameStr + optnName;
+				}
+			}
+			if(abc.text.notAllNull(optnNameStr)){
+				(rtbhEvents = window.rtbhEvents || []).push({eventType: 'size', size: optnNameStr}, {eventType: 'uid', id: RTBHouseUID});
+			}
+        } catch(e){
+
+        }
+    }
+
+	/****************************************************************************
+	 lazyLoding
+	 ****************************************************************************/
+	_common.lazyLoding = function(){
+
+		$('img').lazy({
+			beforeLoad: function(element) {
+
+			},
+			scrollDirection: 'vertical',
+			effect: "fadeIn",
+			effectTime: 50,
+			threshold: 1000 // 1000픽셀이전에 이미지 로딩
+		});
+	}
+
+	/****************************************************************************
+	 쿠폰 전체다운받기 결과 안내 얼럿 ::::::: cpnNos - 대상쿠폰정보, d - 서비스 호출 결과
+	 ****************************************************************************/
+	_common.multiCpnDnlRstAlert = function(cpnNos,d){
+		var rsltMsg = '';
+		if(d.downloadCpnCnt == 0) {
+			if(cpnNos.length == d.exceptionTypeBuffer.split('perMax').length - 1){ //모든 쿠폰이 ID당 다운로드 횟수 초과인 경우
+				rsltMsg ='모든 쿠폰이 ID당 발급 횟수를 초과하여 다운로드 불가능 합니다.';
+			}else{
+				rsltMsg ='다운로드 가능한 쿠폰이 없습니다.';
+			}
+			alert(rsltMsg);
+		} else {
+			var rejectCnt = Number(cpnNos.length) - Number(d.downloadCpnCnt); //발급 불가 쿠폰 갯수
+			var rsltSub = "";
+			var cpnNameTag = "";
+			if(rejectCnt == 0) {
+				// rsltMsg = '모든 쿠폰이 다운로드 되었습니다.\n\n받은 쿠폰명 :';
+				rsltMsg = '모든 쿠폰이 다운로드 되었습니다.';
+			}else if(rejectCnt == d.exceptionTypeBuffer.split('perMax').length - 1){ //일부 쿠폰 다운로드 불가의 원인이 "ID당 다운로드 횟수 초과" 케이스만 존재하는 경우
+				// rsltMsg = cpnNos.length + '개의 쿠폰 중 ' + d.downloadCpnCnt + '개 쿠폰이 다운로드 되었습니다.';
+				// rsltMsg += '\n(' + rejectCnt + '개 쿠폰은 ID당 발급 횟수 초과로 인해 다운로드 되지 않았습니다)\n\n받은 쿠폰명 :';
+				rsltMsg = cpnNos.length + '개의 쿠폰 중 ' + d.downloadCpnCnt + '개 쿠폰이 다운로드 되었습니다.';
+				rsltSub = '(' + rejectCnt + '개 쿠폰은 ID당 발급 횟수 초과로 인해<P>다운로드 되지 않았습니다.)';
+			}else{
+				// rsltMsg = cpnNos.length + '개의 쿠폰 중 ' + d.downloadCpnCnt + '개 쿠폰이 다운로드 되었습니다.';
+				// rsltMsg += '\n(' + rejectCnt + '개 쿠폰은 다운로드가 불가능합니다)\n\n받은 쿠폰명 :';
+				rsltMsg = cpnNos.length + '개의 쿠폰 중 ' + d.downloadCpnCnt + '개 쿠폰이 다운로드 되었습니다.';
+				rsltSub += '(' + rejectCnt + '개 쿠폰은 다운로드가 불가능합니다.)';
+			}
+			$.each(d.cpnNames, function(i, v){
+				//rsltMsg += ('\n  [ ' + v + ' ]');
+				cpnNameTag += ('<p class="coupon-name">[ ' + v + ' ]</p>');
+			});
+
+			$('#dialogCpnDwldRsltTxt .title').html(rsltMsg);
+			$('#dialogCpnDwldRsltTxt .sub').html(rsltSub);
+			if(abc.text.allNull(rsltSub)){
+				$('#dialogCpnDwldRsltTxt .sub').hide();
+			}else{
+				$('#dialogCpnDwldRsltTxt .sub').show();
+			}
+			$('#dialogCpnDwldCpnList .coupon-name').remove();
+			if(abc.text.allNull(cpnNameTag)){
+				$('#dialogCpnDwldCpnList').hide();
+			}else{
+				$('#dialogCpnDwldCpnList .custom-scroll').append(cpnNameTag);
+				$('#dialogCpnDwldCpnList').show();
+			}
+
+			$('#cpnDwldRsltPrdtBtn').hide();
+			$('#cpnDwldRsltCloseBtn').show();
+			$('#cpnDwldRsltMoveBtn').show();
+			$('#dialogCpnDwldRslt').dialog('open');
+		}
+	}
+
+	/****************************************************************************
+	 쿠폰 단건다운받기 결과 안내 ::::::: d - 서비스 호출 결과
+	 ****************************************************************************/
+	_common.singleCpnDnlRstAlert = function(d){
+		$('#dialogCpnDwldRsltTxt .title').html('[' + d.cpnNames[0] + ']이<P>다운로드 되었습니다.');
+
+		$('#dialogCpnDwldRsltTxt .sub').hide();
+		$('#dialogCpnDwldCpnList').hide();
+
+		$('#cpnDwldRsltPrdtBtn').data("cpnNo",d.cpnInfo.cpnNo);
+		$('#cpnDwldRsltPrdtBtn').data("cpnApplyType",d.cpnInfo.cpnApplyType);
+		$('#cpnDwldRsltPrdtBtn').data("minLimitSellAmt",d.cpnInfo.minLimitSellAmt);
+		$('#cpnDwldRsltPrdtBtn').data("limitDscntRate",d.cpnInfo.limitDscntRate);
+		$('#cpnDwldRsltPrdtBtn').show();
+		$('#cpnDwldRsltCloseBtn').hide();
+		$('#cpnDwldRsltMoveBtn').show();
+
+		$('#dialogCpnDwldRslt').dialog('open');
+	}
+
+	/****************************************************************************
+	 *  membershipAPI 가능 여부 확인
+	 *  return : true (membership API 사용) || false (membership API 사용 불가)
+	 *  ex)
+	 *  	if (abc.isConnection) {
+	 *      	MembweshipAPI.....
+	 *   	} else {
+	 *      	Error....
+	 *    	}
+	 ****************************************************************************/
+	_common.isConnection = function () {
+		var result;
+
+		$.ajax({
+			type : "get",
+			url : "/cmm/membership-connection-check",
+			async : false
+		}).done(function(data){
+			result = data;
+			console.log(">>>>>" , result);
+		}).fail(function (e) {
+			result = false;
+		});
+
+		return result;
+	}
+
+	/****************************************************************************
+	 *  membership 메인이동
+	 ****************************************************************************/
+	_common.goMembershipPage = function () {
+		location.href = "/cmm/redirectMemberShipPage?pageType=main";
+	}
+
+	/****************************************************************************
+	 *  membership 회원가입 이동
+	 ****************************************************************************/
+	_common.goMembershipJoinPage = function () {
+		location.href = abc.membership.join;
+	}
+
+	/****************************************************************************
+	 *  membership 회원전환 _온라인 회원
+	 ****************************************************************************/
+	_common.goMembershipChange = function (type) {
+		if(abc.text.allNull(type)){
+			alert("통합맴버십 회원 전환이 필요하여 맴버십 사이트로 이동합니다.");
+		}else{
+			alert("실명인증 확인이 필요하여 맴버십 사이트로 이동합니다.");
+		}
+
+		location.href = abc.membership.change;
+	}
+
+	/****************************************************************************
+	 *  51. 에러미시지 alert
+	 *************************************************************************** */
+	_common.errorMessageAPI = function() {
+        alert("서비스 연결이 원활하지 않습니다. 잠시 후 다시 시도해주시기 바랍니다.");
+    }
+
+})();
+
+/*
+ * 소스플립영상이 걸려있는 iframe 이 존재 할때 상품 상세 이동 처리 20250118
+ */
+window.addEventListener("message",
+	function(event) {
+		try {
+		    var json = JSON.parse(event.data);
+		    if(typeof json === 'object'){
+		    	const iframes = document.getElementsByTagName('iframe');
+		    	let sauceclipYn = "";
+		    	for (let i = 0; i < iframes.length; i++) {
+		    		if(iframes[i].src.includes('sauceclip')){
+		    			sauceclipYn = "Y";
+		    			break
+		    		}
+		    	}
+		    	if(sauceclipYn == "Y" && json.key == "sauceclipMoveProduct"){
+		    		//location.href = json.params.linkUrl;
+		    		console.log(json.params.linkUrl);
+		    	}
+		    }
+		} catch (e) {
+			//return false;
+		}
+    }
+);

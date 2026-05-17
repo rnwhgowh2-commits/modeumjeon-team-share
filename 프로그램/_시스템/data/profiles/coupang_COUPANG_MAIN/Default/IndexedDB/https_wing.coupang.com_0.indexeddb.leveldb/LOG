@@ -1,0 +1,7 @@
+2026/05/07-16:16:19.149 b02c Reusing MANIFEST C:\Users\seung\OneDrive\바탕 화면\모음전 관리 프로그램\프로그램\_시스템\data\profiles\coupang_COUPANG_MAIN\Default\IndexedDB\https_wing.coupang.com_0.indexeddb.leveldb/MANIFEST-000001
+2026/05/07-16:16:19.149 b02c Recovering log #3
+2026/05/07-16:16:19.151 b02c Reusing old log C:\Users\seung\OneDrive\바탕 화면\모음전 관리 프로그램\프로그램\_시스템\data\profiles\coupang_COUPANG_MAIN\Default\IndexedDB\https_wing.coupang.com_0.indexeddb.leveldb/000003.log 
+2026/05/07-17:39:35.266 554c Level-0 table #5: started
+2026/05/07-17:39:35.282 554c Level-0 table #5: 1074550 bytes OK
+2026/05/07-17:39:35.287 554c Delete type=0 #3
+2026/05/07-17:39:35.290 554c Manual compaction at level-0 from (begin) .. (end); will stop at (end)

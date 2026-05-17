@@ -1,0 +1,712 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=1920,initial-scale=1">
+<title>[mockup] 신규 소싱처 추가 — 5 시안 비교</title>
+<style>
+:root{
+  --bg:#F9FAFB; --surface:#fff; --primary:#3182F6; --primary-tint:#EFF6FF;
+  --primary-dark:#1B64DA; --success:#16A34A; --success-tint:#DCFCE7;
+  --warning:#F59E0B; --warning-tint:#FEF3C7; --danger:#FF5247;
+  --n900:#191F28; --n700:#4E5968; --n600:#6B7684; --n500:#8B95A1;
+  --n400:#9CA3AF; --n200:#E5E8EB; --n100:#F2F4F6; --n50:#F9FAFB;
+  --fs-h1:22px; --fs-h2:18px; --fs-body:14px; --fs-caption:12px;
+  --shadow: 0 2px 8px rgba(0,0,0,0.04);
+  --font:-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+  --mono:"SF Mono",ui-monospace,"Cascadia Mono","JetBrains Mono",monospace;
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{font-family:var(--font);color:var(--n900);background:var(--bg);font-size:var(--fs-body);line-height:1.5}
+.shell{max-width:1920px;margin:0 auto}
+.top{background:#fff;border-bottom:1px solid var(--n200);padding:14px 28px;display:flex;align-items:center;gap:18px}
+.top h1{font-size:18px;font-weight:700;color:var(--n900);margin:0}
+.top .sub{font-size:12.5px;color:var(--n600)}
+.tabs{display:flex;background:var(--n100);padding:6px;border-radius:10px;gap:4px;margin:0 28px;margin-top:16px}
+.tab{flex:1;padding:11px 18px;border:0;background:transparent;font-weight:600;font-size:13px;color:var(--n600);cursor:pointer;border-radius:7px;transition:.15s;font-family:var(--font)}
+.tab.on{background:#fff;color:var(--n900);box-shadow:0 1px 3px rgba(0,0,0,.06)}
+.tab .name{font-size:14px;display:block;margin-bottom:2px}
+.tab .desc{font-size:11px;color:var(--n500);font-weight:500}
+.tab.on .desc{color:var(--n700)}
+.stage{margin:18px 28px;background:#fff;border:1px solid var(--n200);border-radius:14px;padding:26px 32px;min-height:780px}
+.s-head{display:flex;justify-content:space-between;align-items:flex-end;padding-bottom:14px;border-bottom:1px solid var(--n100);margin-bottom:22px}
+.s-title{display:flex;align-items:center;gap:12px}
+.s-title h2{font-size:22px;font-weight:700;margin:0}
+.s-title .badge{padding:4px 10px;background:var(--primary-tint);color:var(--primary);border-radius:14px;font-size:11px;font-weight:700;letter-spacing:.02em}
+.s-meta{display:flex;gap:18px;font-size:12.5px;color:var(--n600)}
+.s-meta b{color:var(--n900);font-weight:700}
+.row{display:flex;gap:24px}
+.col{flex:1}
+.col-fix{flex:0 0 380px}
+.card{background:var(--n50);border:1px solid var(--n200);border-radius:10px;padding:18px 20px;margin-bottom:14px}
+.card h3{margin:0 0 12px;font-size:14px;font-weight:700;color:var(--n900)}
+.card-mini{background:#fff;border:1px solid var(--n200);border-radius:8px;padding:12px 14px;margin-bottom:8px}
+.field{margin-bottom:12px}
+.lbl{display:block;font-size:11.5px;font-weight:700;color:var(--n700);margin-bottom:5px;text-transform:uppercase;letter-spacing:.04em}
+.inp{width:100%;padding:9px 12px;border:1px solid #CBCCD3;border-radius:6px;font-size:13px;color:var(--n900);font-family:var(--font);background:#fff}
+.inp:focus{border-color:var(--primary);outline:0}
+.inp-mono{font-family:var(--mono);font-size:12px}
+.help{font-size:11.5px;color:var(--n500);margin-top:4px}
+.btn{padding:9px 14px;border:0;border-radius:6px;font-weight:600;font-size:13px;cursor:pointer;font-family:var(--font)}
+.btn-primary{background:var(--primary);color:#fff}
+.btn-primary:hover{background:var(--primary-dark)}
+.btn-ghost{background:#fff;border:1px solid var(--n200);color:var(--n700)}
+.btn-success{background:var(--success);color:#fff}
+.btn-sm{padding:5px 10px;font-size:12px}
+.chip{display:inline-flex;align-items:center;gap:5px;padding:4px 11px;background:var(--primary-tint);color:var(--primary);border-radius:14px;font-size:12px;font-weight:600}
+.chip-success{background:var(--success-tint);color:var(--success)}
+.chip-warning{background:var(--warning-tint);color:#92400E}
+.kbd{padding:2px 6px;background:#F2F4F6;border:1px solid var(--n200);border-radius:4px;font-family:var(--mono);font-size:11px;color:var(--n700)}
+.step-list{counter-reset:step;list-style:none;padding:0;margin:0}
+.step-list li{counter-increment:step;padding:14px 16px;background:#fff;border:1px solid var(--n200);border-radius:8px;margin-bottom:8px;display:flex;align-items:flex-start;gap:12px}
+.step-list li::before{content:counter(step);flex:0 0 28px;height:28px;background:var(--primary-tint);color:var(--primary);font-weight:700;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:13px}
+.step-list li.done::before{background:var(--success-tint);color:var(--success);content:"✓"}
+.step-list .b{font-weight:700;color:var(--n900);font-size:13.5px;margin-bottom:3px;display:block}
+.step-list .s{font-size:12px;color:var(--n600);line-height:1.4}
+.preview{background:#0F172A;color:#E2E8F0;border-radius:8px;padding:14px 16px;font-family:var(--mono);font-size:11.5px;line-height:1.55;overflow:auto;max-height:280px}
+.preview .k{color:#7DD3FC}.preview .s{color:#FCA5A5}.preview .n{color:#A78BFA}.preview .c{color:#64748B;font-style:italic}
+.comp-table{width:100%;border-collapse:separate;border-spacing:0;font-size:12.5px;background:#fff;border:1px solid var(--n200);border-radius:10px;overflow:hidden;margin:24px 28px}
+.comp-table th{padding:11px 14px;background:var(--n50);text-align:left;font-weight:700;font-size:11.5px;color:var(--n700);border-bottom:1px solid var(--n200);text-transform:uppercase;letter-spacing:.03em}
+.comp-table td{padding:13px 14px;border-bottom:1px solid var(--n100);vertical-align:top}
+.comp-table tr:last-child td{border-bottom:0}
+.comp-table .nm{font-weight:700;color:var(--n900)}
+.comp-table .star{color:var(--warning);font-size:14px}
+/* tab content visibility */
+.pane{display:none}.pane.on{display:block}
+/* logo grid for source list */
+.src-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:10px}
+.src-tile{background:#fff;border:1px solid var(--n200);border-radius:8px;padding:14px;text-align:center;cursor:pointer;transition:.15s}
+.src-tile:hover{border-color:var(--primary);background:var(--primary-tint)}
+.src-tile.add{background:var(--success-tint);border:2px dashed var(--success);color:var(--success);font-weight:700}
+.src-tile .lg{width:36px;height:36px;border-radius:8px;background:linear-gradient(135deg,var(--n200),var(--n100));margin:0 auto 8px;display:flex;align-items:center;justify-content:center;font-weight:800;color:var(--n700)}
+.src-tile .nm{font-size:12px;font-weight:600;color:var(--n900)}
+/* selector mapping table */
+.mp-tbl{width:100%;border-collapse:separate;border-spacing:0;font-size:12px;background:#fff;border:1px solid var(--n200);border-radius:6px;overflow:hidden}
+.mp-tbl th,.mp-tbl td{padding:8px 10px;text-align:left;border-bottom:1px solid var(--n100)}
+.mp-tbl th{background:var(--n50);font-weight:700;font-size:11px;color:var(--n700);text-transform:uppercase}
+.mp-tbl .col-name{width:120px}
+.mp-tbl .col-status{width:90px;text-align:center}
+.mp-tbl .col-val{font-family:var(--mono);color:var(--success);font-weight:600;font-size:12px}
+.mp-tbl input{width:100%;padding:5px 8px;border:1px solid var(--n200);border-radius:4px;font-family:var(--mono);font-size:11.5px}
+/* progress */
+.wiz-steps{display:flex;justify-content:space-between;padding:12px 30px;background:#fff;border-radius:10px;border:1px solid var(--n200);margin-bottom:18px;align-items:center;gap:16px}
+.wiz-step{flex:1;display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--n500)}
+.wiz-step .dot{width:24px;height:24px;border-radius:50%;background:var(--n100);color:var(--n600);font-weight:700;display:flex;align-items:center;justify-content:center;font-size:11px}
+.wiz-step.on .dot{background:var(--primary);color:#fff}
+.wiz-step.done .dot{background:var(--success);color:#fff}
+.wiz-step.on .b{color:var(--n900);font-weight:700}
+.wiz-step .b{font-weight:600;color:var(--n700)}
+.wiz-sep{flex:0 0 30px;height:2px;background:var(--n200);border-radius:2px}
+.wiz-sep.done{background:var(--success)}
+/* AI extract box */
+.ai-box{background:linear-gradient(135deg,#FEF3C7,#FFFBEB);border:1px solid var(--warning);border-radius:10px;padding:16px 20px}
+.ai-box h4{margin:0 0 8px;font-size:13px;color:#92400E;font-weight:700;display:flex;align-items:center;gap:6px}
+.ai-box p{margin:0;font-size:12px;color:#78350F;line-height:1.55}
+.spinner{display:inline-block;width:14px;height:14px;border:2px solid var(--n200);border-top-color:var(--primary);border-radius:50%;animation:spin 1s linear infinite;margin-right:6px;vertical-align:middle}
+@keyframes spin{to{transform:rotate(360deg)}}
+.dropzone{border:2px dashed var(--n200);border-radius:10px;padding:36px 22px;text-align:center;background:#fff;cursor:pointer;transition:.15s}
+.dropzone:hover{border-color:var(--primary);background:var(--primary-tint)}
+.dropzone .ic{font-size:38px;display:block;margin-bottom:10px}
+.dropzone .b{font-size:14px;font-weight:700;color:var(--n900);margin-bottom:4px}
+.dropzone .s{font-size:12px;color:var(--n600)}
+.ticket{background:linear-gradient(135deg,#DBEAFE,#EFF6FF);border-left:4px solid var(--primary);padding:14px 18px;border-radius:8px}
+.ticket .t-num{font-family:var(--mono);font-size:13px;color:var(--primary);font-weight:700}
+.ticket .t-title{font-size:13.5px;font-weight:700;margin:4px 0 6px;color:var(--n900)}
+.ticket .t-meta{font-size:11.5px;color:var(--n600)}
+.eta{padding:9px 13px;background:var(--success-tint);border-radius:8px;font-size:12px;color:#166534;border:1px solid #BBF7D0;display:flex;align-items:center;gap:8px}
+</style>
+</head>
+<body>
+<div class="shell">
+  <div class="top">
+    <h1>📦 신규 소싱처 추가 — 5 시안 비교</h1>
+    <span class="sub">사용자가 브라우저에서 직접 소싱처 추가 (SSG · 29CM · W컨셉 등) — 5가지 UX 방향</span>
+  </div>
+
+  <div class="tabs">
+    <button class="tab on" onclick="sel(this,'a')">
+      <span class="name">시안 A — 메타 등록 (단순)</span>
+      <span class="desc">도메인+이름+로고만, 어댑터는 추후</span>
+    </button>
+    <button class="tab" onclick="sel(this,'b')">
+      <span class="name">시안 B — 위저드 5단계 (셀프)</span>
+      <span class="desc">기본·셀렉터·테스트·혜택·활성화</span>
+    </button>
+    <button class="tab" onclick="sel(this,'c')">
+      <span class="name">시안 C — 스크린샷+AI</span>
+      <span class="desc">사용자가 화면 1장 → AI 셀렉터 자동</span>
+    </button>
+    <button class="tab" onclick="sel(this,'d')">
+      <span class="name">시안 D — 개발자 티켓</span>
+      <span class="desc">메타만 입력 → 큐 등록 → 24h 내</span>
+    </button>
+    <button class="tab" onclick="sel(this,'e')">
+      <span class="name">시안 E — URL 1개로 자동</span>
+      <span class="desc">상품 URL 1개 → 서버 fetch + 자동 추출</span>
+    </button>
+  </div>
+
+  <!-- =========================== 시안 A =========================== -->
+  <div id="pane-a" class="pane on">
+    <div class="stage">
+      <div class="s-head">
+        <div class="s-title">
+          <h2>시안 A — 메타 등록 (단순·v1)</h2>
+          <span class="badge">⚡ 가장 빠름 (30분 구현)</span>
+        </div>
+        <div class="s-meta">
+          <span><b>📍 화면</b>: 1개</span>
+          <span><b>⏱ 입력 시간</b>: 1~2분</span>
+          <span><b>📈 어댑터</b>: 추후 별도</span>
+        </div>
+      </div>
+
+      <div class="row">
+        <div class="col-fix">
+          <div class="card">
+            <h3>📋 현재 등록된 소싱처</h3>
+            <div class="src-grid">
+              <div class="src-tile"><div class="lg">L</div><div class="nm">르무통 공홈</div></div>
+              <div class="src-tile"><div class="lg" style="background:linear-gradient(135deg,#000,#222);color:#fff">M</div><div class="nm">무신사</div></div>
+              <div class="src-tile"><div class="lg" style="background:linear-gradient(135deg,#FF6B00,#E55600);color:#fff">SS</div><div class="nm">SSF</div></div>
+              <div class="src-tile"><div class="lg" style="background:linear-gradient(135deg,#ED2025,#B81B1E);color:#fff">L</div><div class="nm">롯데온</div></div>
+              <div class="src-tile"><div class="lg" style="background:linear-gradient(135deg,#03C75A,#019C46);color:#fff">N</div><div class="nm">스마트스토어</div></div>
+              <div class="src-tile add"><div class="lg" style="background:transparent;color:var(--success)">+</div><div class="nm">신규 추가</div></div>
+            </div>
+            <div class="help" style="margin-top:14px">총 5개 등록 · 추가하면 모든 모음전 페이지에 자동 컬럼 생성</div>
+          </div>
+
+          <div class="card">
+            <h3>💡 시안 A 특징</h3>
+            <ul style="margin:0;padding-left:18px;font-size:12.5px;color:var(--n700);line-height:1.7">
+              <li><b>입력 항목 4개</b> — 도메인·이름·로고색·로그인 필요 여부</li>
+              <li><b>저장 즉시</b> 모음전 페이지에 URL 입력 칸 자동 추가</li>
+              <li><b>가격·재고 자동 수집 ❌</b> — 어댑터 코드 별도 작성</li>
+              <li><b>URL 만 저장</b> 가능 (수동 가격 입력 또는 추후 통합)</li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="col">
+          <div class="card" style="background:#fff;border:2px solid var(--primary)">
+            <h3 style="color:var(--primary)">➕ 신규 소싱처 추가</h3>
+
+            <div class="field">
+              <label class="lbl">도메인 *</label>
+              <input class="inp inp-mono" value="ssg.com" placeholder="예: ssg.com">
+              <div class="help">서브도메인 없이 root 도메인만 (자동 favicon 가져와 로고로 사용)</div>
+            </div>
+
+            <div class="field">
+              <label class="lbl">표시 이름 *</label>
+              <input class="inp" value="SSG.COM" placeholder="예: SSG.COM">
+            </div>
+
+            <div class="field">
+              <label class="lbl">시스템 키 (자동 생성)</label>
+              <input class="inp inp-mono" value="ssg" readonly style="background:var(--n50);color:var(--n600)">
+              <div class="help">도메인에서 자동 추출 · DB 컬럼 url_ssg 로 저장</div>
+            </div>
+
+            <div class="row">
+              <div class="col">
+                <div class="field">
+                  <label class="lbl">로고 색상 (자동)</label>
+                  <div style="display:flex;align-items:center;gap:10px">
+                    <div style="width:40px;height:40px;border-radius:8px;background:linear-gradient(135deg,#E53935,#C62828);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800">S</div>
+                    <div>
+                      <div style="font-size:12px;color:var(--n700)">favicon에서 추출 · <a href="#" style="color:var(--primary)">변경</a></div>
+                      <div style="font-size:11px;color:var(--n500);font-family:var(--mono)">#E53935 · #C62828</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div class="col">
+                <div class="field">
+                  <label class="lbl">회원 로그인 필요?</label>
+                  <div style="display:flex;gap:10px;align-items:center;padding-top:5px">
+                    <label style="display:flex;gap:5px;align-items:center;cursor:pointer"><input type="radio" name="login"> 불필요</label>
+                    <label style="display:flex;gap:5px;align-items:center;cursor:pointer"><input type="radio" name="login" checked> 필요 (회원가)</label>
+                  </div>
+                  <div class="help">필요 시 /accounts/sourcing 에서 세션 등록 가능</div>
+                </div>
+              </div>
+            </div>
+
+            <div class="field">
+              <label class="lbl">테스트 URL (선택)</label>
+              <input class="inp inp-mono" value="https://www.ssg.com/item/itemView.ssg?itemId=1000123456789" placeholder="r무통 상품 1개 URL — 도메인 확인용">
+              <div class="help">입력하면 자동 fetch 해 도메인 정확 매칭 확인 · favicon 가져옴</div>
+            </div>
+
+            <div style="display:flex;gap:8px;margin-top:18px;padding-top:14px;border-top:1px solid var(--n100)">
+              <button class="btn btn-primary">✓ 등록 + 모든 모음전에 컬럼 추가</button>
+              <button class="btn btn-ghost">취소</button>
+            </div>
+          </div>
+
+          <div class="card" style="background:linear-gradient(135deg,#FEF3C7,#FFFBEB);border-color:#F59E0B">
+            <h3 style="color:#92400E">⚠️ 등록 후 동작</h3>
+            <ul style="margin:0;padding-left:18px;font-size:12px;color:#78350F;line-height:1.7">
+              <li>모음전 상세 페이지에 <b>url_ssg</b> 입력 칸 자동 추가됨</li>
+              <li>사용자는 URL 만 저장 가능 — <b>가격·재고 자동 수집은 ❌</b></li>
+              <li>나중에 어댑터 (크롤링 모듈) 작성하면 자동 수집 활성화</li>
+              <li>혜택 계산식은 기본 (할인율) 만 적용 · 사용자 정의는 시안 B 필요</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- =========================== 시안 B =========================== -->
+  <div id="pane-b" class="pane">
+    <div class="stage">
+      <div class="s-head">
+        <div class="s-title">
+          <h2>시안 B — 위저드 5단계 (셀프-서비스)</h2>
+          <span class="badge">🎯 완전 자율 (사용자가 끝까지)</span>
+        </div>
+        <div class="s-meta">
+          <span><b>📍 단계</b>: 5개</span>
+          <span><b>⏱ 입력 시간</b>: 10~15분</span>
+          <span><b>📈 어댑터</b>: 셀프 매핑</span>
+        </div>
+      </div>
+
+      <div class="wiz-steps">
+        <div class="wiz-step done"><div class="dot">✓</div><span class="b">기본 정보</span></div>
+        <div class="wiz-sep done"></div>
+        <div class="wiz-step on"><div class="dot">2</div><span class="b">셀렉터 매핑</span></div>
+        <div class="wiz-sep"></div>
+        <div class="wiz-step"><div class="dot">3</div><span class="b">테스트</span></div>
+        <div class="wiz-sep"></div>
+        <div class="wiz-step"><div class="dot">4</div><span class="b">혜택식</span></div>
+        <div class="wiz-sep"></div>
+        <div class="wiz-step"><div class="dot">5</div><span class="b">활성화</span></div>
+      </div>
+
+      <div class="row">
+        <div class="col">
+          <div class="card">
+            <h3>2단계 — 셀렉터 매핑 <span style="font-weight:400;color:var(--n600);font-size:12px">(SSG.COM 가격·재고 위치)</span></h3>
+
+            <div class="field">
+              <label class="lbl">테스트 URL (필수)</label>
+              <div style="display:flex;gap:8px">
+                <input class="inp inp-mono" value="https://www.ssg.com/item/itemView.ssg?itemId=1000123456789" style="flex:1">
+                <button class="btn btn-primary btn-sm">📥 페이지 가져오기</button>
+              </div>
+            </div>
+
+            <table class="mp-tbl">
+              <thead>
+                <tr><th class="col-name">필드</th><th>CSS 셀렉터 또는 XPath</th><th class="col-status">상태</th></tr>
+              </thead>
+              <tbody>
+                <tr><td><b>상품명</b></td><td><input class="inp inp-mono" value=".cdtl_info_tit_ctgr h2.cdtl_info_tit"></td><td><span class="chip chip-success">✓ "르무통 클래식 블랙"</span></td></tr>
+                <tr><td><b>정상가</b></td><td><input class="inp inp-mono" value=".ssg_price_info .ssg_price_origin .blind"></td><td><span class="chip chip-success">✓ 248,000</span></td></tr>
+                <tr><td><b>판매가</b></td><td><input class="inp inp-mono" value=".ssg_price_info .ssg_price_sale .blind"></td><td><span class="chip chip-success">✓ 198,400</span></td></tr>
+                <tr><td><b>재고</b></td><td><input class="inp inp-mono" value="select.opt_size option:not([disabled])"></td><td><span class="chip chip-success">✓ 14 옵션</span></td></tr>
+                <tr><td><b>썸네일</b></td><td><input class="inp inp-mono" value=".cdtl_img_view img"></td><td><span class="chip chip-success">✓ img URL</span></td></tr>
+                <tr><td><b>쿠폰</b></td><td><input class="inp inp-mono" value=".cdtl_coupon_apply .price"></td><td><span class="chip chip-warning">⚠ 부재</span></td></tr>
+              </tbody>
+            </table>
+
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-top:18px;padding-top:14px;border-top:1px solid var(--n100)">
+              <button class="btn btn-ghost">← 이전</button>
+              <button class="btn btn-primary">다음 (테스트) →</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="col-fix">
+          <div class="card">
+            <h3>📺 미리보기 (fetched HTML)</h3>
+            <div class="preview"><span class="c">&lt;!-- ssg.com 응답 일부 --&gt;</span>
+&lt;div <span class="k">class</span>=<span class="s">"cdtl_info_tit_ctgr"</span>&gt;
+  &lt;h2 <span class="k">class</span>=<span class="s">"cdtl_info_tit"</span>&gt;
+    르무통 클래식 블랙
+  &lt;/h2&gt;
+&lt;/div&gt;
+&lt;div <span class="k">class</span>=<span class="s">"ssg_price_info"</span>&gt;
+  &lt;div <span class="k">class</span>=<span class="s">"ssg_price_origin"</span>&gt;
+    &lt;span <span class="k">class</span>=<span class="s">"blind"</span>&gt;<span class="n">248000</span>&lt;/span&gt;
+  &lt;/div&gt;
+  &lt;div <span class="k">class</span>=<span class="s">"ssg_price_sale"</span>&gt;
+    &lt;span <span class="k">class</span>=<span class="s">"blind"</span>&gt;<span class="n">198400</span>&lt;/span&gt;
+  &lt;/div&gt;
+&lt;/div&gt;</div>
+          </div>
+          <div class="card">
+            <h3>💡 셀렉터 가이드</h3>
+            <ul style="margin:0;padding-left:18px;font-size:11.5px;color:var(--n700);line-height:1.7">
+              <li>Chrome 개발자 도구 (F12) → <b>요소 선택 → 우클릭 → "Copy selector"</b></li>
+              <li><b>XPath</b> 도 지원: <code class="kbd">//div[@class='price']/text()</code></li>
+              <li>여러 셀렉터를 콤마로 fallback: <code class="kbd">.a, .b, .c</code></li>
+              <li>안 풀리면 → <b>시안 C (AI 추출)</b> 또는 <b>시안 D (개발자 티켓)</b> 권장</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- =========================== 시안 C =========================== -->
+  <div id="pane-c" class="pane">
+    <div class="stage">
+      <div class="s-head">
+        <div class="s-title">
+          <h2>시안 C — 스크린샷 + AI 자동 추출</h2>
+          <span class="badge">🤖 가장 쉬움 (3분, AI 도움)</span>
+        </div>
+        <div class="s-meta">
+          <span><b>📍 단계</b>: 3개</span>
+          <span><b>⏱ 입력 시간</b>: 3~5분</span>
+          <span><b>📈 어댑터</b>: AI 추출 + 사용자 확인</span>
+        </div>
+      </div>
+
+      <div class="row">
+        <div class="col">
+          <div class="card">
+            <h3>1단계 — 상품 페이지 스크린샷 업로드</h3>
+
+            <div class="dropzone">
+              <span class="ic">📸</span>
+              <div class="b">스크린샷 파일을 여기에 드래그</div>
+              <div class="s">또는 <a href="#" style="color:var(--primary);font-weight:700">파일 선택</a> · PNG/JPG · 최대 5MB</div>
+            </div>
+
+            <div style="margin-top:14px;display:flex;gap:8px;align-items:center">
+              <span class="chip chip-success">📸 ssg_lemouton_classic_black.png · 312KB</span>
+              <button class="btn btn-ghost btn-sm">변경</button>
+            </div>
+
+            <div class="field" style="margin-top:14px">
+              <label class="lbl">참고 URL (있으면 더 정확)</label>
+              <input class="inp inp-mono" value="https://www.ssg.com/item/itemView.ssg?itemId=1000123456789">
+            </div>
+          </div>
+
+          <div class="ai-box">
+            <h4>🤖 AI 분석 결과 (3.2초 소요)</h4>
+            <p>스크린샷에서 <b>5개 필드를 자동 인식</b>했습니다. 셀렉터까지 자동 추출했고, 실제 페이지에서 검증된 결과는 우측에 표시됩니다.</p>
+          </div>
+
+          <div class="card" style="margin-top:14px">
+            <h3>AI 가 추출한 셀렉터 (사용자 확인)</h3>
+            <table class="mp-tbl">
+              <thead><tr><th class="col-name">필드</th><th>AI 추출 셀렉터</th><th>확인된 값</th></tr></thead>
+              <tbody>
+                <tr><td><b>상품명</b></td><td class="inp-mono" style="color:var(--n700);font-size:11.5px">h2.cdtl_info_tit</td><td class="col-val">르무통 클래식 블랙</td></tr>
+                <tr><td><b>정상가</b></td><td class="inp-mono" style="color:var(--n700);font-size:11.5px">.ssg_price_origin .blind</td><td class="col-val">248,000</td></tr>
+                <tr><td><b>판매가</b></td><td class="inp-mono" style="color:var(--n700);font-size:11.5px">.ssg_price_sale .blind</td><td class="col-val">198,400</td></tr>
+                <tr><td><b>옵션 수</b></td><td class="inp-mono" style="color:var(--n700);font-size:11.5px">select.opt_size option</td><td class="col-val">14 (220~285)</td></tr>
+                <tr><td><b>이미지</b></td><td class="inp-mono" style="color:var(--n700);font-size:11.5px">.cdtl_img_view img</td><td class="col-val">512×512</td></tr>
+              </tbody>
+            </table>
+            <div style="display:flex;gap:8px;margin-top:14px">
+              <button class="btn btn-primary">✓ 모두 확인 + 다음</button>
+              <button class="btn btn-ghost">개별 수정</button>
+              <button class="btn btn-ghost">🔄 재분석</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="col-fix">
+          <div class="card">
+            <h3>📷 업로드된 스크린샷</h3>
+            <div style="background:#fff;border:1px solid var(--n200);border-radius:8px;padding:8px;text-align:center">
+              <div style="background:linear-gradient(180deg,#f5f5f5 0%,#fff 30%,#fff 100%);padding:14px;border-radius:6px">
+                <div style="font-weight:700;font-size:13px;color:#191F28">르무통 클래식 블랙</div>
+                <div style="font-size:11px;color:#888;margin-top:4px">SSG.COM · 신세계백화점</div>
+                <div style="margin-top:14px;font-size:11.5px;color:#999;text-decoration:line-through">248,000원</div>
+                <div style="font-size:18px;font-weight:800;color:#E53935">198,400원 <span style="font-size:11px;color:#16A34A">20% 할인</span></div>
+                <div style="margin-top:14px;padding:6px;background:#f9fafb;border-radius:4px;font-size:11px;color:#666">사이즈: 220 · 225 · 230 · 235 · 240 · 245 · 250 · 255 · 260 · 265 · 270 · 275 · 280 · 285</div>
+              </div>
+            </div>
+            <div class="help" style="margin-top:8px">AI 가 인식한 영역에 색 박스로 하이라이트</div>
+          </div>
+
+          <div class="card" style="background:var(--primary-tint);border-color:var(--primary)">
+            <h3 style="color:var(--primary)">💡 시안 C 장점</h3>
+            <ul style="margin:0;padding-left:18px;font-size:12px;color:var(--n900);line-height:1.7">
+              <li>코드 한 줄도 안 봐도 됨</li>
+              <li>3분 안에 어댑터 자동 생성</li>
+              <li>사용자는 결과만 확인</li>
+              <li>실패 시 → 개발자 티켓 (시안 D)</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- =========================== 시안 D =========================== -->
+  <div id="pane-d" class="pane">
+    <div class="stage">
+      <div class="s-head">
+        <div class="s-title">
+          <h2>시안 D — 개발자 티켓 (반자동)</h2>
+          <span class="badge">🛠 안전 + 정확 (24h 내 완성)</span>
+        </div>
+        <div class="s-meta">
+          <span><b>📍 단계</b>: 1개 입력 + 대기</span>
+          <span><b>⏱ 입력</b>: 2분 · 처리: 24h</span>
+          <span><b>📈 어댑터</b>: 개발자 작성 (100% 정확)</span>
+        </div>
+      </div>
+
+      <div class="row">
+        <div class="col">
+          <div class="card">
+            <h3>📨 신규 소싱처 요청</h3>
+
+            <div class="field">
+              <label class="lbl">소싱처 이름 *</label>
+              <input class="inp" value="SSG.COM (신세계몰)" placeholder="예: SSG.COM">
+            </div>
+            <div class="field">
+              <label class="lbl">도메인 *</label>
+              <input class="inp inp-mono" value="ssg.com">
+            </div>
+            <div class="field">
+              <label class="lbl">테스트 URL 3개 (정확한 매핑용)</label>
+              <input class="inp inp-mono" value="https://www.ssg.com/item/itemView.ssg?itemId=1000123456789" style="margin-bottom:6px">
+              <input class="inp inp-mono" value="https://www.ssg.com/item/itemView.ssg?itemId=1000098765432" style="margin-bottom:6px">
+              <input class="inp inp-mono" value="https://www.ssg.com/item/itemView.ssg?itemId=1000543219876">
+              <div class="help">서로 다른 카테고리 3개 URL — 셀렉터 일관성 검증용</div>
+            </div>
+            <div class="field">
+              <label class="lbl">우선순위</label>
+              <select class="inp">
+                <option>일반 (24~48h)</option>
+                <option selected>긴급 (12h 이내)</option>
+                <option>고급 (특정 데이터 필요)</option>
+              </select>
+            </div>
+            <div class="field">
+              <label class="lbl">특이사항 (선택)</label>
+              <textarea class="inp" style="min-height:70px;font-family:var(--font);resize:vertical">로그인 필요 없음. 모바일 페이지가 더 깔끔해서 모바일 URL 우선 사용 권장.</textarea>
+            </div>
+
+            <button class="btn btn-primary" style="width:100%;padding:11px">📮 티켓 등록 + 슬랙 알림</button>
+          </div>
+        </div>
+
+        <div class="col-fix">
+          <div class="card" style="background:#fff;border:2px solid var(--primary)">
+            <h3>📬 현재 티켓 큐</h3>
+
+            <div class="ticket" style="margin-bottom:10px">
+              <div class="t-num">#REQ-2026-005</div>
+              <div class="t-title">SSG.COM (신세계몰) — 신규 소싱처</div>
+              <div class="t-meta">상태: <b style="color:var(--warning)">접수됨</b> · ETA: 24h · 우선순위: 긴급</div>
+            </div>
+
+            <div class="ticket" style="margin-bottom:10px;background:linear-gradient(135deg,#DCFCE7,#F0FDF4);border-left-color:var(--success)">
+              <div class="t-num">#REQ-2026-004</div>
+              <div class="t-title">29CM — 셀렉터 업데이트</div>
+              <div class="t-meta">상태: <b style="color:var(--success)">완료 (2026-05-15)</b> · 소요: 8h</div>
+            </div>
+
+            <div class="ticket" style="background:linear-gradient(135deg,#FEF3C7,#FFFBEB);border-left-color:var(--warning)">
+              <div class="t-num">#REQ-2026-003</div>
+              <div class="t-title">W컨셉</div>
+              <div class="t-meta">상태: <b style="color:var(--warning)">진행 중 (60%)</b> · ETA: 4h</div>
+            </div>
+
+            <div class="eta" style="margin-top:14px">
+              ⏱ 평균 ETA: <b>14시간</b> · 완료 시 슬랙 + 이메일 알림
+            </div>
+          </div>
+
+          <div class="card">
+            <h3>📊 통계 (최근 30일)</h3>
+            <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:10px;font-size:12px">
+              <div style="background:#fff;padding:10px;border:1px solid var(--n200);border-radius:6px">
+                <div style="color:var(--n600);font-size:11px">요청</div>
+                <div style="font-size:20px;font-weight:700;color:var(--n900)">7건</div>
+              </div>
+              <div style="background:#fff;padding:10px;border:1px solid var(--n200);border-radius:6px">
+                <div style="color:var(--n600);font-size:11px">완료율</div>
+                <div style="font-size:20px;font-weight:700;color:var(--success)">100%</div>
+              </div>
+              <div style="background:#fff;padding:10px;border:1px solid var(--n200);border-radius:6px">
+                <div style="color:var(--n600);font-size:11px">평균 ETA</div>
+                <div style="font-size:20px;font-weight:700;color:var(--primary)">14h</div>
+              </div>
+              <div style="background:#fff;padding:10px;border:1px solid var(--n200);border-radius:6px">
+                <div style="color:var(--n600);font-size:11px">정확도</div>
+                <div style="font-size:20px;font-weight:700;color:var(--success)">100%</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- =========================== 시안 E =========================== -->
+  <div id="pane-e" class="pane">
+    <div class="stage">
+      <div class="s-head">
+        <div class="s-title">
+          <h2>시안 E — URL 1개로 자동 추출 (서버 fetch + AI)</h2>
+          <span class="badge">⚡ 가장 빠름 + 정확 (1~2분)</span>
+        </div>
+        <div class="s-meta">
+          <span><b>📍 단계</b>: 1개</span>
+          <span><b>⏱ 입력</b>: 30초 · 처리: 1~2분</span>
+          <span><b>📈 어댑터</b>: 100% 자동</span>
+        </div>
+      </div>
+
+      <div class="row">
+        <div class="col">
+          <div class="card" style="background:#fff;border:2px solid var(--primary)">
+            <h3 style="color:var(--primary)">🚀 URL 1개만 입력 — 나머지는 자동</h3>
+
+            <div class="field">
+              <label class="lbl">소싱처 상품 URL *</label>
+              <input class="inp inp-mono" value="https://www.ssg.com/item/itemView.ssg?itemId=1000123456789" style="font-size:13px;padding:11px 14px">
+              <div class="help">예: SSG, 29CM, W컨셉, 갤러리아 등 어떤 사이트라도 OK</div>
+            </div>
+
+            <button class="btn btn-primary" style="width:100%;padding:12px;font-size:14px">🤖 자동 분석 시작 (1~2분)</button>
+          </div>
+
+          <div class="card" style="background:#0F172A;color:#E2E8F0;font-family:var(--mono);font-size:12px;line-height:1.7">
+            <div style="color:#7DD3FC;margin-bottom:8px">⏱ 자동 분석 진행 중…</div>
+            <div><span class="spinner"></span> 1. URL 파싱 + 도메인 추출 …  <span style="color:#86EFAC">✓ ssg.com</span></div>
+            <div><span class="spinner"></span> 2. 서버 fetch (headless) …    <span style="color:#86EFAC">✓ HTTP 200 · 2.4MB</span></div>
+            <div><span class="spinner"></span> 3. favicon 추출 → 로고 …      <span style="color:#86EFAC">✓ #E53935</span></div>
+            <div><span class="spinner"></span> 4. AI 셀렉터 추출 (Claude) …   <span style="color:#86EFAC">✓ 6 필드</span></div>
+            <div><span style="display:inline-block;width:14px;height:14px;margin-right:6px"></span>5. 검증 (동일 도메인 3 URL 테스트) … <span style="color:#FCA5A5">⏳ 진행 중</span></div>
+            <div style="margin-top:8px;color:#64748B">예상 완료: 28초 후</div>
+          </div>
+        </div>
+
+        <div class="col-fix">
+          <div class="card" style="background:linear-gradient(135deg,#DCFCE7,#F0FDF4);border-color:var(--success)">
+            <h3 style="color:#166534">✅ 자동 추출 결과 미리보기</h3>
+
+            <table class="mp-tbl" style="background:#fff">
+              <thead><tr><th>필드</th><th>값 / 셀렉터</th></tr></thead>
+              <tbody>
+                <tr><td><b>이름</b></td><td>SSG.COM</td></tr>
+                <tr><td><b>도메인</b></td><td class="inp-mono">ssg.com</td></tr>
+                <tr><td><b>키</b></td><td class="inp-mono">ssg</td></tr>
+                <tr><td><b>로고</b></td><td><div style="display:flex;align-items:center;gap:6px"><div style="width:24px;height:24px;border-radius:5px;background:#E53935;color:#fff;font-weight:800;display:flex;align-items:center;justify-content:center;font-size:11px">S</div> 자동</div></td></tr>
+                <tr><td><b>상품명 셀렉터</b></td><td class="col-val">h2.cdtl_info_tit ✓</td></tr>
+                <tr><td><b>가격 셀렉터</b></td><td class="col-val">.ssg_price_sale .blind ✓</td></tr>
+                <tr><td><b>재고 셀렉터</b></td><td class="col-val">select.opt_size option ✓</td></tr>
+              </tbody>
+            </table>
+
+            <div style="margin-top:14px;display:flex;gap:8px">
+              <button class="btn btn-success" style="flex:1">✓ 활성화</button>
+              <button class="btn btn-ghost">셀렉터 수정</button>
+            </div>
+          </div>
+
+          <div class="card">
+            <h3>💡 시안 E 동작 원리</h3>
+            <ol style="margin:0;padding-left:18px;font-size:12px;color:var(--n700);line-height:1.7">
+              <li>서버가 사용자 brower 대신 URL fetch (Playwright)</li>
+              <li>HTML + 스크린샷 동시 추출</li>
+              <li>Claude/GPT 가 셀렉터 추출 (vision + text)</li>
+              <li>동일 도메인 다른 URL 2개에 셀렉터 적용해 일관성 검증</li>
+              <li>3 URL 100% 매칭 시만 활성화 (시안 C 의 build-source-adapter 게이트 적용)</li>
+            </ol>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ====================== 비교 매트릭스 ====================== -->
+  <table class="comp-table">
+    <thead>
+      <tr>
+        <th style="width:90px">시안</th>
+        <th>특징 한줄</th>
+        <th style="width:90px">⏱ 입력</th>
+        <th style="width:90px">🛠 처리</th>
+        <th style="width:90px">🎯 정확도</th>
+        <th style="width:110px">📈 자동 수집</th>
+        <th style="width:100px">💼 적합 상황</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td class="nm">A — 메타 등록</td>
+        <td>도메인·이름·로고만, 가장 단순</td>
+        <td>1~2분</td>
+        <td>즉시</td>
+        <td>—</td>
+        <td>❌ (URL 만)</td>
+        <td>v1 출시 / URL 만 기록</td>
+      </tr>
+      <tr>
+        <td class="nm">B — 위저드 5단계</td>
+        <td>사용자가 셀렉터 직접 매핑</td>
+        <td>10~15분</td>
+        <td>즉시</td>
+        <td>⭐⭐⭐</td>
+        <td>✅ (셀프)</td>
+        <td>기술 사용자 / 완전 자율</td>
+      </tr>
+      <tr style="background:#FEF9C3">
+        <td class="nm">C — 스크린샷 + AI <span class="star">★</span></td>
+        <td>화면 1장 → AI 자동 추출</td>
+        <td>3~5분</td>
+        <td>3초 (AI)</td>
+        <td>⭐⭐⭐⭐</td>
+        <td>✅ (AI)</td>
+        <td>비기술 사용자 / 일반적</td>
+      </tr>
+      <tr>
+        <td class="nm">D — 개발자 티켓</td>
+        <td>요청 → 24h 내 완성</td>
+        <td>2분</td>
+        <td>24h</td>
+        <td>⭐⭐⭐⭐⭐</td>
+        <td>✅ (개발자)</td>
+        <td>중요 소싱처 / 정확도 최우선</td>
+      </tr>
+      <tr style="background:#DBEAFE">
+        <td class="nm">E — URL 자동 <span class="star">★</span></td>
+        <td>URL 1개 → 모든 게 자동</td>
+        <td>30초</td>
+        <td>1~2분</td>
+        <td>⭐⭐⭐⭐</td>
+        <td>✅ (자동)</td>
+        <td>가장 빠름 / 일반적</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div style="padding:18px 28px;margin-bottom:30px;background:#fff;border:1px solid var(--n200);border-radius:10px;margin:0 28px 30px">
+    <h3 style="margin:0 0 12px;font-size:14px;color:var(--n900)">📋 추천 조합 (사용자 워크플로 별)</h3>
+    <ul style="margin:0;padding-left:18px;font-size:13px;line-height:1.8;color:var(--n700)">
+      <li><b>최선 (UX↑ + 자동화↑)</b>: 시안 E (URL 자동) — 사용자 부담 ↓, 정확도 ↑, ETA 1~2분</li>
+      <li><b>차선 (실패 시 fallback)</b>: 시안 E → 실패 시 시안 D (개발자 티켓) 자동 큐잉</li>
+      <li><b>v1 빠른 출시</b>: 시안 A (메타만) → 추후 시안 C / E 추가</li>
+      <li><b>전문가용</b>: 시안 B (위저드) — 사용자가 모든 셀렉터 직접 관리</li>
+    </ul>
+  </div>
+</div>
+
+<script>
+function sel(btn, key){
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('on'));
+  btn.classList.add('on');
+  document.querySelectorAll('.pane').forEach(p=>p.classList.remove('on'));
+  document.getElementById('pane-'+key).classList.add('on');
+}
+</script>
+</body>
+</html>

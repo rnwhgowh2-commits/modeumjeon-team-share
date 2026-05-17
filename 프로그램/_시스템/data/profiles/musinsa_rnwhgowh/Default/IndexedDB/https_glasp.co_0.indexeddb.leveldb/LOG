@@ -1,0 +1,20 @@
+2026/05/05-21:37:10.049 94cc Creating DB C:\Users\seung\OneDrive\바탕 화면\모음전 관리 프로그램\프로그램\_시스템\data\profiles\musinsa_rnwhgowh\Default\IndexedDB\https_glasp.co_0.indexeddb.leveldb since it was missing.
+2026/05/05-21:37:10.061 94cc Reusing MANIFEST C:\Users\seung\OneDrive\바탕 화면\모음전 관리 프로그램\프로그램\_시스템\data\profiles\musinsa_rnwhgowh\Default\IndexedDB\https_glasp.co_0.indexeddb.leveldb/MANIFEST-000001
+2026/05/05-21:37:10.077 a8d0 Level-0 table #5: started
+2026/05/05-21:37:10.081 a8d0 Level-0 table #5: 1278 bytes OK
+2026/05/05-21:37:10.083 a8d0 Delete type=0 #3
+2026/05/05-21:37:10.084 a8d0 Manual compaction at level-0 from '\x00\x01\x00\x00\x00' @ 72057594037927935 : 1 .. '\x00\x02\x00\x00\x00' @ 0 : 0; will stop at (end)
+2026/05/05-21:37:16.606 aabc Level-0 table #7: started
+2026/05/05-21:37:16.610 aabc Level-0 table #7: 1910 bytes OK
+2026/05/05-21:37:16.613 aabc Delete type=0 #4
+2026/05/05-21:37:16.614 94cc Manual compaction at level-0 from '\x00\x04\x00\x00\x00' @ 72057594037927935 : 1 .. '\x00\x05\x00\x00\x00' @ 0 : 0; will stop at (end)
+2026/05/05-21:37:17.102 a8d0 Level-0 table #9: started
+2026/05/05-21:37:17.106 a8d0 Level-0 table #9: 933 bytes OK
+2026/05/05-21:37:17.109 a8d0 Delete type=0 #6
+2026/05/05-21:37:17.109 94cc Manual compaction at level-0 from '\x00\x05\x00\x00\x00' @ 72057594037927935 : 1 .. '\x00\x06\x00\x00\x00' @ 0 : 0; will stop at '\x00\x05\x00\x00\x05' @ 165 : 1
+2026/05/05-21:37:17.109 94cc Compacting 1@0 + 1@1 files
+2026/05/05-21:37:17.112 94cc Generated table #10@0: 56 keys, 1517 bytes
+2026/05/05-21:37:17.112 94cc Compacted 1@0 + 1@1 files => 1517 bytes
+2026/05/05-21:37:17.114 94cc compacted to: files[ 0 1 1 0 0 0 0 ]
+2026/05/05-21:37:17.115 94cc Delete type=2 #9
+2026/05/05-21:37:17.116 94cc Manual compaction at level-0 from '\x00\x05\x00\x00\x05' @ 165 : 1 .. '\x00\x06\x00\x00\x00' @ 0 : 0; will stop at (end)

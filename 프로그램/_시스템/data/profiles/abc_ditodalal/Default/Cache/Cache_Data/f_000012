@@ -1,0 +1,495 @@
+(function() {
+
+	var _brand = abc.object.createNestedObject(window,"abc.biz.product.brand");
+	
+	_brand.data = {
+			isSubmitting : false
+		}
+	/**
+	* 초기화
+	*/
+	_brand.init = function() {
+		_brand.display();
+		_brand.myBrandEvent();
+		 if (abc.loginCheck()) {
+			 _brand.favBrand();
+					
+		}
+	}
+
+	_brand.display = function(){
+		//검색어 없는 초성 영역	hide처리
+		$(".all-brand-list-content").each(function(){
+			if($(this).find("li").length < 1){
+				var id = $(this).attr("id");
+				$(this).hide();
+				$("#li"+id).addClass("disabled");
+			}
+		});
+
+	}
+	/**
+	 * 관심 브랜드 좋아요 선택 여부 
+	 **/
+	_brand.favBrand = function(){
+		var interBrandSearch = sessionStorage.getItem("interBrandSearch");
+		if(interBrandSearch === "Y") {
+			var data = JSON.parse(sessionStorage.getItem("interestBrandList"));
+			if(!abc.text.allNull(data) && data.totalCount > 0) {
+				for(var i = 0; i < data.totalCount; i++){
+					$("button[name=hotBrand"+data.dataList[i].brandNo+"]").addClass('selected');
+					$("button[name=hangle"+data.dataList[i].brandNo+"]").addClass('selected');
+
+					$("#engList").find('[id='+data.dataList[i].brandNo+']').addClass('selected');
+					$("#brandName123").find('[id='+data.dataList[i].brandNo+']').addClass('selected');
+					$("#korList").find('[id='+data.dataList[i].brandNo+']').addClass('selected');
+				}
+			}
+		}
+	} 
+
+	$(document).ready(function() {
+		$(document).on('click', '#brandEng', function(){
+			$("#brandEng").attr("class" , "btn-brand-list-toggle selected");
+			$("#brandKor").attr("class" , "btn-brand-list-toggle");
+			$("#korList").removeClass("active");
+			$("#engList").addClass("active");
+			$(".menu-brand-search-box > .search-input-box").removeClass('hidden');
+			// 2022.11.02 : 브랜드 검색 시 노데이터일때 화면은 마이브랜드탭에선 노출X
+			if(abc.global.currentChannel == '10002' && abc.biz.product.brand.listNoData == "Y"){
+				$("#listNoData").show();
+			} else if(abc.global.currentChannel == '10002' && abc.biz.product.brand.listNoData == "N"){
+				$("#listNoData").hide();
+			}
+		});
+		
+		$(document).on('click', '#brandKor', function(){
+			$("#brandKor").attr("class" , "btn-brand-list-toggle selected");
+			$("#brandEng").attr("class" , "btn-brand-list-toggle");
+			$("#engList").removeClass("active");
+			$("#korList").addClass("active");
+			$(".menu-brand-search-box > .search-input-box").removeClass('hidden');
+			// 2022.11.02 : 브랜드 검색 시 노데이터일때 화면은 마이브랜드탭에선 노출X
+			if(abc.global.currentChannel == '10002' && abc.biz.product.brand.listNoData == "Y"){
+				$("#listNoData").show();
+			} else if(abc.global.currentChannel == '10002' && abc.biz.product.brand.listNoData == "N"){
+				$("#listNoData").hide();
+			}
+		})
+		
+		$(document).on('click', '#brandMine', function(){ // mybrand 토글
+			$(".menu-brand-search-box > .search-input-box").addClass('hidden');
+			// 2022.11.02 : 브랜드 검색 시 노데이터일때 화면은 마이브랜드탭에선 노출X
+			$("#listNoData").hide();
+		})
+	});
+	
+	_brand.myBrandEvent = function(){
+		// 관심 브랜드
+		if (abc.loginCheck()) {
+			_brand.myBrandEventInit();
+			// 2022.11.03 : mouseover 이벤트가 active된 브랜드 전영역에 걸려있었어서 브랜드탭안에서 마우스 이동시에 무제한으로 호출되었음.
+			//              그 영향으로 myBrands 영역 클릭이벤트가 먹통이었던 현상을 mouseleave로 바꾸면서 수정함.
+			$(document).on('mouseleave', '.menu-brand', function() {
+				_brand.myBrandEventInit();
+			});
+		}
+	}
+	
+	_brand.myBrandEventInit = function(){
+		if (!_brand.data.isSubmitting) { // 실행
+			_brand.data.isSubmitting = true;
+
+			var interBrandSearch = sessionStorage.getItem("interBrandSearch");
+
+			if(interBrandSearch != 'Y'){
+				_brand.getInterestBrandList();
+			}else{
+			//	_brand.getInterestBrandList(); // 20210902 추가 
+				_brand.mybrandCallList();
+			}
+			
+			_brand.data.isSubmitting = false;
+		}
+	}
+	
+	_brand.getInterestBrandList = function(){
+		$.ajax({
+			type	: 'post',
+			url		: '/product/interest/get-interest-brand-yn'
+		})
+		.done(function(data) {
+			sessionStorage.setItem("interestBrandList", JSON.stringify(data));
+			_brand.mybrandCallList(data);
+		})
+		.always(function() {
+			sessionStorage.setItem("interBrandSearch", "Y");
+		});
+	}
+	
+	_brand.mybrandCallList = function(_data) {
+		var data ={};
+		if(abc.text.allNull(_data)){
+			data = JSON.parse(sessionStorage.getItem("interestBrandList"));
+		}else{
+			data = _data;
+		}
+		$("#favoriteBrandItem").hide();
+		$("#no-favorite-noData").hide();
+		var channelNow = $("#channelNow").val();
+		var channelNum = $("#channelNumber").val();
+		var addCount = 0;
+		
+		if(abc.text.allNull(data) || data.totalCount == 0) {
+			$("#no-favorite-noData").show();
+			$('.gnb-brand-list-wrap .btn-brand-favorite').removeClass('selected');
+			$("#myBrandsNotExist").show();
+			$("#myBrandsExist").hide();
+		}else{
+			$("#favoriteBrandItem").empty();
+			$("#favoriteBrandItem").show();
+			$("#myBrandsNotExist").hide();
+			$("#myBrandsExist").show();
+			
+			var chnnBrandCnt = 0; // 2022.11.11 : art에선 나의 모든 선호브랜드를 보여주지만 그 외 채널은 브랜드채널번호에 맞는 브랜드만 노출되는데 그에 따른 처리가 안돼있는부분 수정
+			for(var i = 0; i < data.totalCount; i++){
+				var html = "";
+				if(channelNow != "10000"){
+					if(data.dataList[i].brandChannel == channelNum || data.dataList[i].brandChannel == channelNow){
+						if(channelNow == "10002") {
+							html =	'<li>'
+							html +=		'<a href="/product/brand/page?brandNo='+data.dataList[i].brandNo+'&tChnnlNo='+channelNow+'">'
+							html +=			'<span class="brand-name eng">'+data.dataList[i].brandEnName+'</span>'
+							html +=			'<span class="brand-name kor">'+data.dataList[i].brandName+'</span>'
+							html +=		'</a>'
+							html +=		'<button type="button" class="btn-brand-favorite selected" id="'+data.dataList[i].brandNo+'" onclick="btnIntrBrand(this)"></button>'
+							html +=	'</li>'
+						}else {
+							html =	'<li class="favorite-brand-item" id="favorite-brand'+data.dataList[i].brandNo+'">'
+							html +=		'<button type="button" class="btn-brand-favorite selected" id="'+data.dataList[i].brandNo+'" onclick="btnIntrBrand(this)"></button>'
+							html +=		'<a href="/product/brand/page?brandNo='+data.dataList[i].brandNo+'&tChnnlNo='+channelNow+'">'
+							html +=			'<span class="brand-name eng">'+data.dataList[i].brandEnName+'</span>'
+							html +=			'<span class="brand-name kor">'+data.dataList[i].brandName+'</span>'
+							html +=		'</a>'
+							html +=	'</li>'
+						}
+						chnnBrandCnt++;
+					}
+				}else{
+					if(data.dataList[i].brandPrdtArtDispYn == 'N'){
+						html = '<li class="favorite-brand-item" id="favorite-brand'+data.dataList[i].brandNo+'">';
+						html += 		'<button type="button" class="btn-brand-favorite selected" id="'+data.dataList[i].brandNo+'" onclick="btnIntrBrand(this)"></button>';
+						html += 		'<span class="tooltip-trigger">'
+						html += 			'<span class="brand-name eng">'+data.dataList[i].brandEnName+'</span>'
+						html += 			'<span class="brand-name kor">'+data.dataList[i].brandName+'</span>'
+						html += 		'</span>'
+						html += 		'<span class="tooltip-contents brand-channel" data-placement="bottom-end" data-container=".gnb-menu-depth1.menu-brand">';
+						html +=			'<a href="/product/brand/page?brandNo='+data.dataList[i].brandNo+'&tChnnlNo=10001" class="brand-channel-mart">';
+						html +=				'<img src="/static/images/common/comm_art_gnb_brand_channel_mart.png" alt="ABC-MART NIKE 브랜드로 이동">';
+						html +=			'</a>';
+						html +=			'<a href="/product/brand/page?brandNo='+data.dataList[i].brandNo+'&tChnnlNo=10002" class="brand-channel-stage">';
+						html +=				'<img src="/static/images/common/comm_art_gnb_brand_channel_stage.png" alt="Grand Stage NIKE 브랜드로 이동">';
+						html +=			'</a>';
+						html +=		'</span>'
+						html +=	'</li>'
+					}else{
+						html =	'<li class="favorite-brand-item" id="favorite-brand'+data.dataList[i].brandNo+'">'
+						html +=		'<button type="button" class="btn-brand-favorite selected" id="'+data.dataList[i].brandNo+'" onclick="btnIntrBrand(this)"></button>'
+						html +=		'<a href="/product/brand/page?brandNo='+data.dataList[i].brandNo+'&tChnnlNo='+data.dataList[i].dfltMvmnChnnl+'">'
+						html +=			'<span class="brand-name eng">'+data.dataList[i].brandEnName+'</span>'
+						html +=			'<span class="brand-name kor">'+data.dataList[i].brandName+'</span>'
+						html +=		'</a>'
+						html +=	'</li>'
+					}
+					chnnBrandCnt++;
+				}
+				
+				$("#favoriteBrandItem").append(html);
+				setUITooltipTrigger();
+				abc.biz.product.brand.favBrand();
+			}
+			
+			if(chnnBrandCnt == 0){
+				$("#no-favorite-noData").show();
+				$('.gnb-brand-list-wrap .btn-brand-favorite').removeClass('selected');
+				$("#myBrandsNotExist").show();
+				$("#myBrandsExist").hide();
+			}
+		}
+		
+		if(addCount > 0){
+			data.totalCount = addCount;
+		}
+		$(".brand-cnt").text($("#favoriteBrandItem").children().length);
+	}
+	
+	$(function() {
+		_brand.init();
+	});
+
+
+})();
+
+	/*좋아요 버튼 클릭시 이벤트*/
+	function btnIntrBrand(obj){
+
+		if (!abc.loginCheck()) {
+			var msg = "로그인 후 관심브랜드로 설정가능합니다.\n로그인하시겠습니까?";
+			if(confirm(msg)) {
+				window.location = "/login"
+			} else {
+				$("#"+brandNo).removeClass('selected');
+			}
+		}else{
+			var fvUrl = "/mypage/interested-brand/";
+			var fvFlag = "save";
+			var brandNo = $(obj).attr('id');
+			var brandData = {};
+			
+			if($(obj).hasClass('selected')){
+				fvFlag = "delete";
+				brandData.delGubun = "S";
+			}
+			brandData.brandNo = brandNo;
+			$.ajax({
+				async : false,
+				type : "post",
+				url : fvUrl+fvFlag,
+				data : brandData
+			})
+			.done(function(data){
+
+				if(fvFlag == "save") {
+					alert("관심브랜드로 설정되었습니다.");
+					
+					$("#engList").find('[id='+brandNo+']').addClass('selected');
+					$("#brandName123").find('[id='+brandNo+']').addClass('selected');
+					$("#korList").find('[id='+brandNo+']').addClass('selected');
+					
+					$("button[name=hotBrand"+brandNo+"]").addClass('selected'); // hot 브랜드 좋아요 선택
+					$("button[name=hangle"+brandNo+"]").addClass('selected');// 한글 브랜드 좋아요 선택
+					$(".btnIntrBrand"+brandNo+"").find("i").addClass('selected'); //브랜드 페이지
+					$("[name=brandFavoriteNo"+brandNo+"]").addClass('selected');
+					
+					var brandFavCnt = $(".brand-cnt").text();
+					$(".brand-cnt").text(parseInt(brandFavCnt)+1);
+
+					if(parseInt(brandFavCnt) == 0){
+						$('#no-favorite-noData').remove();
+					}
+					
+					//관심 브랜드
+					var channelNow = abc.global.currentChannel;
+					var html = '';
+					/* 분기처리 및 브랜드 채널이 있을 경우*/
+					if(channelNow != "10000"){
+						var channelNum = $("#channelNumber").val();
+						if(data.brandChannel == channelNum || data.brandChannel == channelNow){
+							html = '<li class="favorite-brand-item" id="favorite-brand'+data.brandNo+'">'
+							html += 	'<button type="button" class="btn-brand-favorite selected" id="'+data.brandNo+'" onclick="btnIntrBrand(this)"></button>'
+							if(channelNow != "10000"){
+								html += 	'<a href="/product/brand/page?brandNo='+data.brandNo+'&tChnnlNo='+channelNow+'">'
+							}else{
+								html += 	'<a href="/product/brand/page?brandNo='+data.brandNo+'&tChnnlNo='+data.dfltMvmnChnnl+'">'
+							}
+							html += 		'<span class="brand-name eng">'+data.brandEnName+'</span>'
+							html += 		'<span class="brand-name kor">'+data.brandName+'</span>'
+							html += 	'</a>'
+							html += '</li>'
+								
+							$(".favorite-brand-list").append(html);
+							$("#favoriteBrandItem").show();
+							setUITooltipTrigger();
+						}
+					}else{
+						if(data.brandPrdtArtDispYn == "N" && data.brandChannel != null){
+							html =	'<li class="favorite-brand-item" id="favorite-brand'+data.brandNo+'">';
+							html +=		'<button type="button" class="btn-brand-favorite selected" id="'+data.brandNo+'" onclick="btnIntrBrand(this)"></button>';
+							html +=		'<span class="tooltip-trigger">';
+							html +=			'<span class="brand-name eng">'+data.brandEnName+'</span>';
+							html +=			'<span class="brand-name kor">'+data.brandName+'</span>';
+							html +=		'</span>';
+							html +=		'<span class="tooltip-contents brand-channel" data-placement="bottom-end" data-container=".gnb-menu-depth1.menu-brand">';
+							if(data.brandChannel == '10001'){
+								html +=			'<a href="/product/brand/page?brandNo='+data.brandNo+'&tChnnlNo=10001" class="brand-channel-mart">';
+								html +=				'<img src="/static/images/common/comm_art_gnb_brand_channel_mart.png" alt="ABC-MART NIKE 브랜드로 이동">';
+								html +=			'</a>';
+							}else if(data.brandChannel == '10002'){
+								html +=			'<a href="/product/brand/page?brandNo='+data.brandNo+'&tChnnlNo=10002" class="brand-channel-stage">';
+								html +=				'<img src="/static/images/common/comm_art_gnb_brand_channel_stage.png" alt="Grand Stage NIKE 브랜드로 이동">';
+								html +=			'</a>';
+							}else{
+								html +=			'<a href="/product/brand/page?brandNo='+data.brandNo+'&tChnnlNo=10001" class="brand-channel-mart">';
+								html +=				'<img src="/static/images/common/comm_art_gnb_brand_channel_mart.png" alt="ABC-MART NIKE 브랜드로 이동">';
+								html +=			'</a>';
+								html +=			'<a href="/product/brand/page?brandNo='+data.brandNo+'&tChnnlNo=10002" class="brand-channel-stage">';
+								html +=				'<img src="/static/images/common/comm_art_gnb_brand_channel_stage.png" alt="Grand Stage NIKE 브랜드로 이동">';
+								html +=			'</a>';
+							}
+							html +=		'</span>';
+							html +=	'</li>';
+							
+						}else{
+							html = '<li class="favorite-brand-item" id="favorite-brand'+data.brandNo+'">'
+							html += 	'<button type="button" class="btn-brand-favorite selected" id="'+data.brandNo+'" onclick="btnIntrBrand(this)"></button>'
+							if(channelNow != "10000"){
+								html += 	'<a href="/product/brand/page?brandNo='+data.brandNo+'&tChnnlNo='+channelNow+'">'
+							}else{
+								html += 	'<a href="/product/brand/page?brandNo='+data.brandNo+'&tChnnlNo='+data.dfltMvmnChnnl+'">'
+							}
+							html += 		'<span class="brand-name eng">'+data.brandEnName+'</span>'
+							html += 		'<span class="brand-name kor">'+data.brandName+'</span>'
+							html += 	'</a>'
+							html += '</li>'
+							
+						}
+						$(".favorite-brand-list").append(html);
+						$("#favoriteBrandItem").show();
+						setUITooltipTrigger();
+					}
+					
+					// 2023.06.30 : 관심브랜드 GA 수집
+					if($(obj).closest('.hot-brands-wrap').length > 0){
+						abc.gtm.outside.clickMainWishBrand(data.brandName, '핫브랜드 썸네일');
+					} else {
+						abc.gtm.outside.clickMainWishBrand(data.brandName, '텍스트 링크');
+					}
+				} else {
+					alert("관심브랜드 해제되었습니다.");
+					if(abc.global.currentChannel == '10002'){
+						$("#engList").find('[id='+brandNo+']').removeClass('selected');
+						$("#brandName123").find('[id='+brandNo+']').removeClass('selected');
+						$("#korList").find('[id='+brandNo+']').removeClass('selected');
+						
+						// 2022.11.11 : gs chnnl brand gnb 영역에서 관심브랜드 해재할때 오류 수정
+						$("#myBrandContent").find('[id='+brandNo+']').parent().remove();
+						if($("#favoriteBrandItem").children().length == 0){
+							$("#myBrandsNotExist").show();
+							$("#myBrandsExist").hide();
+						}else{
+							$("#myBrandsNotExist").hide();
+							$("#myBrandsExist").show();
+						}
+					}else{
+						$("#"+brandNo+"").removeClass('selected');
+					}
+					
+					$("button[name=hotBrand"+brandNo+"]").removeClass('selected');
+					$("button[name=hangle"+brandNo+"]").removeClass('selected');
+					
+					$(".btnIntrBrand"+brandNo+"").find("i").removeClass('selected'); //브랜드 페이지
+					
+					$("#favorite-brand"+brandNo+"").remove();
+					$("[name=brandFavoriteNo"+brandNo+"]").removeClass('selected');
+					
+					var brandFavCnt = $(".brand-cnt").text();
+					$(".brand-cnt").text(parseInt(brandFavCnt)-1);
+
+					if(brandFavCnt == "1"){
+						var html = '';
+						html+= '<p class="no-favorite" id="no-favorite-noData">관심브랜드를 추가해 보세요.</p>'
+						$(".favorite-brand-wrap").append(html);
+					}
+				}
+			})
+			.fail(function(e){
+				//alert(e.responseJSON.message);
+				abc.errorMessage();
+			})
+			.always(function() {
+				sessionStorage.setItem("interBrandSearch", "N");
+			});
+		}
+
+	}
+
+
+	function filter(){
+		var check = /[ㄱ-ㅎ|ㅏ-ㅣ|가-힣]/;
+		var searchText = $("#brandSearch").val().toUpperCase();
+		var listNoData = "Y";
+		abc.biz.product.brand.listNoData = "Y";
+		var clazz = '.eng';
+		if(check.test(searchText)) {
+			clazz = '.kor';
+		}
+
+		$(".brandSearchitem").find(clazz).each(function (){
+			if($(this).text().indexOf(searchText) > -1){
+				$(this).parents('li.brandSearchitem').css('display', 'flex');
+				listNoData = "N";
+				abc.biz.product.brand.listNoData = "N";
+			}else{
+				$(this).parents('li.brandSearchitem').css('display', 'none');
+			}
+		});
+
+		$(".all-brand-list .all-brand-list-content").each(function (){
+			if(!$(this).hasClass('brandMineContent')){
+				var $len = $(this).find('.brandSearchitem').filter(function() {
+					return $(this).css('display') != 'none';
+				});
+	
+				if($len.length > 0){
+					$(this).show();
+				}else{
+					$(this).hide();
+				}
+			}
+		});
+
+		if(abc.global.currentChannel == '10002'){
+			if(!$("#brandMine").hasClass('selected')){ // mybrand 토글 선택되어 있을때는 필터
+				if(listNoData == "Y"){
+					$("#listNoData").show();
+				}else{
+					$("#listNoData").hide();
+				}
+			}
+			$('.gnb-brand-list-wrap .brand-list-right').find('.custom-scroll')[0].simpleBar.recalculate();
+		}else{
+			if(listNoData == "Y"){
+				$("#listNoData").show();
+			}else{
+				$("#listNoData").hide();
+			}
+			$('.gnb-brand-list-wrap').find('.custom-scroll')[0].simpleBar.recalculate();
+		}
+	}
+
+	/**
+	 * 분기 여부 이벤트 
+	 **/
+	function setUITooltipTrigger(selector) {
+		selector = selector || '.tooltip-trigger';
+		$(selector).each(function (index) {
+			var tooltip, contentsDOM, contentsString, placement;
+			contentsDOM = $(this).siblings('.tooltip-contents');
+	
+			if (contentsDOM.length > 0) {
+				contentsString = contentsDOM[0].outerHTML;
+				placement = contentsDOM.data('placement') ? contentsDOM.data('placement') : 'auto';
+				contentsDOM.remove();
+				tooltip = new Tooltip(this, {
+					title: contentsString,
+					html: true,
+					container: contentsDOM.data('container') ? contentsDOM.data('container') : 'body',//isIgnoreBody ? false : 'body',
+					closeOnClickOutside: true,
+					trigger: 'hover focus',
+					placement: placement,
+					popperOptions: {
+						positionFixed: true,
+						modifiers: {
+							preventOverflow: {
+								boundariesElement: 'body',//isIgnoreBody ? false : 'body',
+							},
+						},
+					},
+				});
+				$(this).data('tooltip', tooltip);
+	
+				tooltip.show();
+				tooltip.hide();
+			}
+		});
+	}

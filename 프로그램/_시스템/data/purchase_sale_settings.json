@@ -1,0 +1,17 @@
+{
+  "po_prefix": "PO",
+  "po_start": 100,
+  "so_prefix": "SO",
+  "so_start": 1,
+  "ro_prefix": "RO",
+  "ro_start": 1,
+  "tax_default": "vat10_excl",
+  "currency": "KRW",
+  "custom_fields": [
+    {
+      "name": "거래 메모",
+      "default": "",
+      "target": "all"
+    }
+  ]
+}

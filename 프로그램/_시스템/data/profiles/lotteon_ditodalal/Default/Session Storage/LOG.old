@@ -1,0 +1,15 @@
+2026/05/13-15:32:09.226 8d98 Reusing MANIFEST C:\Users\seung\OneDrive\바탕 화면\모음전 관리 프로그램\프로그램\_시스템\data\profiles\lotteon_ditodalal\Default\Session Storage/MANIFEST-000001
+2026/05/13-15:32:09.227 8d98 Recovering log #128
+2026/05/13-15:32:09.233 8d98 Reusing old log C:\Users\seung\OneDrive\바탕 화면\모음전 관리 프로그램\프로그램\_시스템\data\profiles\lotteon_ditodalal\Default\Session Storage/000128.log 
+2026/05/13-15:32:16.595 20f8 Level-0 table #132: started
+2026/05/13-15:32:16.608 20f8 Level-0 table #132: 38272 bytes OK
+2026/05/13-15:32:16.612 20f8 Delete type=0 #128
+2026/05/13-15:32:16.613 20f8 Compacting 4@0 + 1@1 files
+2026/05/13-15:32:16.625 20f8 Generated table #133@0: 424 keys, 194832 bytes
+2026/05/13-15:32:16.625 20f8 Compacted 4@0 + 1@1 files => 194832 bytes
+2026/05/13-15:32:16.627 20f8 compacted to: files[ 0 1 1 0 0 0 0 ]
+2026/05/13-15:32:16.628 20f8 Delete type=2 #120
+2026/05/13-15:32:16.628 20f8 Delete type=2 #123
+2026/05/13-15:32:16.628 20f8 Delete type=2 #126
+2026/05/13-15:32:16.628 20f8 Delete type=2 #129
+2026/05/13-15:32:16.629 20f8 Delete type=2 #132

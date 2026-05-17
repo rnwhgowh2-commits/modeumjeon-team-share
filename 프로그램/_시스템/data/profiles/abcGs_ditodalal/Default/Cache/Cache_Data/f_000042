@@ -1,0 +1,1627 @@
+/*
+ 파일명:		abc.front.main.js
+ 설  명:		메인 공통 자바스크립트
+ 작성자:		glim
+ 최초작성일:	2019/00/00
+ 최종수정일:	2021/10/14
+- 메인 공통으로 HOT DEAL에 swiper이 존재 할때 처리
+*/
+
+var abc = abc || {};
+abc.namespace = abc.namespace || {};
+abc.namespace.front = abc.namespace.front || {};
+abc.namespace.front.main = abc.namespace.front.main || {};
+var onYouTubeIframeAPIReady;
+abc.namespace.front.frontOffice.main = abc.namespace.front.frontOffice.main || (function () {
+	var _main = {},
+		swiperList = [];
+
+	////////////////////////////////////////////////////////////////////////////////////////
+	// S : GRAND STAGE 메인 스크립트
+	////////////////////////////////////////////////////////////////////////////////////////
+
+	function setGSYTAPITag() {
+		var tag = document.createElement('script');
+
+		tag.src = "https://www.youtube.com/iframe_api";
+		var firstScriptTag = document.getElementsByTagName('script')[0];
+		firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
+	}
+
+	/**
+	 * GRAND STAGE 메인 배너 스와이퍼 22-05-23
+	 */
+	function setGSMainBanner(elId) {
+		$(elId).find('.fraction .total').text(abc.namespace.front.frontOffice.setPrependZero($(elId).find('.swiper-slide').length));
+		if ($(elId).find('.swiper-container').length > 0) {
+			var videoInfo = {};
+			var container = $('.gs-main-banner');
+			var activeVideo = container.find('video');
+			// var videoWrapper = $('#introVideo');
+			var videoWrapper = container.find('.video-swiper');
+			var ytVideo = container.find('.youtube-target-main');
+			var isVideo = (activeVideo.length) ? true : false;
+			var isytVideo = (ytVideo.length) ? true : false;
+
+			// 배너 이미지 롤링 스와이퍼 22-05-17 비디오 영역 분리 관련 수정됨
+			var swiperMainBanner = new Swiper($(elId).find('.swiper-container')[0], {
+				init: false,
+				effect : 'fade',
+				slidesPerView: 1,
+				spaceBetween: 0,
+				speed: 500,
+				loop: true,
+				centeredSlides: true,
+				allowTouchMove: false,
+				navigation: {
+					prevEl: $(elId).find('.swiper-navigation .btn-gs-swiper.prev')[0],
+					nextEl: $(elId).find('.swiper-navigation .btn-gs-swiper.next')[0],
+				},
+				pagination: {
+					el: $(elId).find(".swiper-pagination.progressbar")[0],
+					type: "progressbar",
+				},
+				autoplay: {
+					delay: 5000,
+					disableOnInteraction: false,
+				}, 
+				/*
+				loopedSlides: $('.gs-main-banner-box .swiper-slide').length * 2,
+				thumbs: {
+					swiper: swiperMainControl,
+				}, */
+			});
+			
+			swiperList.push(swiperMainBanner);
+
+			$(elId).find('.fraction .current').text(abc.namespace.front.frontOffice.setPrependZero(swiperMainBanner.realIndex + 1));
+
+			$(elId).find('.swiper-navigation .btn-toggle').click(function(){
+				if($(this).hasClass('pause')){
+					swiperMainBanner.autoplay.stop();
+					$(this).hide().siblings('.play').show();
+				} else if($(this).hasClass('play')) {
+					swiperMainBanner.autoplay.start();
+					$(this).hide().siblings('.pause').show()
+				}
+			});
+
+			var YTReady = false;
+			function videoControl(){
+				var videoId, player, iFrameId, videoWidth, videoHeight;
+
+				//영상 클릭시
+				$('.video-swiper').click(function(){
+					if($(this).data('href') && $(this).data('blank')){
+						window.open($(this).data('href'));
+					} else if($(this).data('href') && !$(this).data('blank')){
+						window.location.href = $(this).data('href');
+					}
+				})
+
+				if (isytVideo) {
+					ytVideo = container.find('.youtube-target-main');
+					
+					$(window).one('youtubeReady', function () {
+						ytVideo.each(function(ytIndex){
+				
+							videoId = getVideoId(ytVideo.data('videoUrl'));
+							videoWidth = ytVideo.data('videoWidth') ? ytVideo.data('videoWidth') : '100%';
+							videoHeight = ytVideo.data('videoHeight') ? ytVideo.data('videoHeight') : '56.25%';
+				
+							if (videoWidth === undefined || videoHeight === undefined) {
+								throw Error('유튜브 비디오는 넓이값을 가져야합니다.');
+							}
+				
+							iFrameId = 'youtubeFrame' + $('iframe').length;
+							ytVideo.attr('id', iFrameId);
+							player = new YT.Player(iFrameId, {
+								width: videoWidth,
+								height: videoHeight,
+								videoId: videoId, // 200205 고화질 섬네일 출력 위해 주석 해제
+								host: 'https://www.youtube.com',
+								playerVars: {
+									'playlist': videoId,
+									'autoplay': 1,
+									'controls': 0,
+									'showinfo': 0,
+									'rel': 0,
+									'disablekb': 1,
+									'loop': 0,
+									'modestbranding': 1,
+									'origin': location.href,
+									'mute': true
+								},
+								// s : 190828 이벤트 추가
+								events: {
+									'onReady': function (event) {
+										var iFrameId = event.target.i.id;
+										var playerTarget;
+										playerTarget = $('#' + iFrameId);
+										playerTarget.data('player', player);
+										
+										if (ytIndex + 1 == ytVideo.length) {
+											YTReady = true;
+										}
+									},
+									'onStateChange': function (event){
+										playerState = event.data == YT.PlayerState.ENDED ? '종료됨' :
+												event.data == YT.PlayerState.PLAYING ? '재생 중' :
+												event.data == YT.PlayerState.PAUSED ? '일시중지 됨' :
+												event.data == YT.PlayerState.BUFFERING ? '버퍼링 중' :
+												event.data == YT.PlayerState.CUED ? '재생준비 완료됨' :
+												event.data == -1 ? '시작되지 않음' : '예외';
+										
+										if (event.data == YT.PlayerState.ENDED) {
+											if ($(elId).find('.pause').css('display') == 'block') {
+												//videoWrapper.removeClass('show');
+												swiperMainBanner.autoplay.start();
+											} else {
+												swiperMainBanner.autoplay.stop();	
+											}
+											//$('#'+iFrameId).parents('.swiper-slide').addClass("video-ended");
+										}else if(event.data == YT.PlayerState.PLAYING){
+											swiperMainBanner.autoplay.stop();
+											//videoWrapper.addClass('show');
+										}
+									}
+								}
+								// e : 190828 이벤트 추가
+							});
+
+							function getVideoId(url) {
+								var regExp = /^.*((youtu.be\/)|(v\/)|(\/u\/\w\/)|(embed\/)|(watch\?))\??v?=?([^#\&\?]*).*/;
+								var match = url.match(regExp);
+				
+								if (match && match[7].length === 11) {
+									return match[7];
+								} else {
+									return 'error';
+								}
+							}
+						});
+						return {
+							video : videoWrapper,
+							player : iFrameId,
+							ready : YTReady
+						}
+					});
+				}else if(isVideo){
+					activeVideo.get(0).addEventListener("ended", function(){
+						if ($(elId).find('.pause').css('display') == 'block') {
+							//videoWrapper.removeClass('show');
+							swiperMainBanner.autoplay.start();
+							swiperMainBanner.slideNext();
+						}
+						//swiperMainBanner.slides[swiperMainBanner.activeIndex].classList.add('transition');
+						
+					});
+					activeVideo.get(0).addEventListener("playing", function(){
+						//videoWrapper.addClass('show');
+						swiperMainBanner.autoplay.stop();
+						//swiperMainBanner.slides[swiperMainBanner.activeIndex].classList.remove('transition');
+					})
+					
+					return {
+						video : videoWrapper,
+						player : activeVideo.get(0)
+					}
+				}
+			}
+			
+
+			//최초 한번 실행됨
+			var videoReadyChkInterval;
+			swiperMainBanner.on('init', function () {
+				
+				swiperMainBanner.autoplay.stop();
+
+				if(isytVideo){
+					videoControl();
+					// videoReadyChkInterval = setInterval(function(){
+					// 	videoInfo = videoControl();					
+					// 	if(videoInfo.ready){
+					// 		clearInterval(videoReadyChkInterval);
+					// 	}
+					// }, 100);	
+				}else if(isVideo){
+					videoInfo = videoControl();
+				}
+				
+
+				swiperMainBanner.on('slideChangeTransitionStart', function () {
+					//첫번째 인덱스일경우 영상이 존재할경우 재생
+					var startIdx = 1;
+					var endIdx = swiperMainBanner.slides.length-1;
+
+					if(!swiperMainBanner.params.loop){
+						startIdx = 0;
+						endIdx = 0;
+					}
+					//if(swiperMainBanner.activeIndex == endIdx || swiperMainBanner.activeIndex == startIdx) {
+					if ($(swiperMainBanner.slides[swiperMainBanner.activeIndex]).find('.video-swiper').length > 0) {
+						if(isytVideo){
+							$(elId).find('.video-swiper iframe').each(function(){
+								if($(this).data('player') != undefined) {
+									$(this).data('player').playVideo();
+								}
+							});
+						}else if(isVideo){
+							$(elId).find('video').each(function(){
+								this.currentTime = 0;
+								this.play();
+							});
+						}
+					} else {
+						if(isytVideo){
+							$(elId).find('.video-swiper iframe').each(function(){
+								if($(this).data('player') != undefined){
+									$(this).data('player').stopVideo();
+								}
+							});
+						}else if(isVideo){
+							$(elId).find('video').each(function(){
+								this.pause();
+							});
+						}
+
+						if ($(elId).find('.pause').css('display') == 'block') {
+							swiperMainBanner.autoplay.start();
+						} else {
+							swiperMainBanner.autoplay.stop();
+						}
+					}
+					//}
+				})
+
+				swiperMainBanner.on('slideChangeTransitionEnd', function () {
+					var startIdx = 1;
+					var endIdx = swiperMainBanner.slides.length-1;
+
+					if(!swiperMainBanner.params.loop){
+						startIdx = 0;
+						endIdx = 0;
+					}
+					//첫번째 슬라이드 일경우
+					if(videoWrapper.length){
+						if(swiperMainBanner.activeIndex == endIdx || swiperMainBanner.activeIndex == startIdx) {
+							
+						}else{
+							//css모션처리를 위한 클래스 부여
+							swiperMainBanner.slides[swiperMainBanner.activeIndex].classList.add('transition');
+							$(swiperMainBanner.slides[swiperMainBanner.activeIndex]).siblings().removeClass('transition');
+						}
+					}else{
+						swiperMainBanner.slides[swiperMainBanner.activeIndex].classList.add('transition');
+						$(swiperMainBanner.slides[swiperMainBanner.activeIndex]).siblings().removeClass('transition');
+					}
+
+				});
+
+				if(!videoWrapper.length){
+					swiperMainBanner.autoplay.start();
+					swiperMainBanner.slides[swiperMainBanner.activeIndex].classList.add('transition');
+				}
+			});
+
+			swiperMainBanner.init();
+
+			/* 
+			swiperMainBanner.on('slideChange', function() {
+				setGNBTypeByActiveBanner(swiperMainBanner);
+			});
+			*/
+
+			swiperMainBanner.on('slideChange', function() {
+				$('.gs-main-banner .fraction .current').text(abc.namespace.front.frontOffice.setPrependZero(swiperMainBanner.realIndex + 1));
+			});
+		}
+	}
+
+	/**
+	 * 배너 타입별 GNB 메뉴 텍스트 색상 변경(type-w 흰색, type-b 검은색)
+	 * @param swiper
+	 */
+	function setGNBTypeByActiveBanner(swiper) {
+		var bannerType, gnbWrap, gnbClassList;
+
+		gnbWrap = $('.header-wrap .gnb-wrap');
+		bannerType = $(swiper.slides[swiper.activeIndex]).data('bannerType');
+		gnbClassList = gnbWrap.attr('class').split(' ');
+		$.each(gnbClassList, function(index) {
+			if (this.search('type-') !== -1) {
+				gnbWrap.removeClass(this.toString());
+			}
+		});
+		if (bannerType !== undefined && bannerType !== '') {
+			gnbWrap.addClass('type-' + bannerType.toLowerCase());
+		}
+	}
+
+	/**
+	 * GRAND STAGE 메인 이벤트, 기획전_2022
+	 * 22-05-24 수정
+	 */
+	function setGSEventPromotion(elId){
+		setTimeout(function(){
+			$(elId).find('.border-line-box').each(function(){
+				var titleWrapHeight = $(this).prev('.title-wrap').innerHeight();
+				$(this).height($(elId).find('.promotion').height() - titleWrapHeight);
+			});	
+		},100)
+
+		if ($(elId).length > 0) {
+			if ($(elId).find('.swiper-slide').length > 1) {
+				var youtubeReady = 0;
+				var eventSwiperOp = {
+					init: false,
+					slidesPerView: 1,
+					spaceBetween: 80,
+					centeredSlides: true,
+					allowTouchMove: false,
+					loop:true
+				}
+				
+				var promotionSwiperOp = {
+					init: false,
+					slidesPerView: 1,
+					spaceBetween: 80,
+					centeredSlides: true,
+					allowTouchMove: false,
+					loop:true
+				}
+				var addOption = {
+					pagination: {
+						el: $(elId).find('.swiper-pagination')[0],
+					}
+				}
+
+				if($(elId).find('.event-swiper .swiper-slide').length > $(elId).find('.promotion-swiper .swiper-slide').length){
+					eventSwiperOp = $.extend({}, eventSwiperOp, addOption)
+				}else{
+					promotionSwiperOp = $.extend({}, promotionSwiperOp, addOption)
+				}
+
+				var swiperEventPromotion1 = new Swiper($(elId).find('.event-swiper')[0], eventSwiperOp);
+				
+				//영상 포함된 스와이퍼
+				var swiperEventPromotion2 = new Swiper($(elId).find('.promotion-swiper')[0],promotionSwiperOp);
+				swiperEventPromotion2.on('init', function () {
+					Array.from(swiperEventPromotion2.slides).forEach(function (slide, index) {
+						slide.setAttribute( 'data-idx', index );//20210813 add 초기화 후 복사슬라이드 포함하여 elements 순서 기준으로 index 부여
+					});
+					
+					//영상 클릭시
+					$(elId).find('.video-wrap').click(function(){
+						if($(this).data('href') && $(this).data('blank')){
+							window.open($(this).data('href'));
+						} else if($(this).data('href') && !$(this).data('blank')){
+							window.location.href = $(this).data('href');
+						}
+					})
+
+					//video
+					var activeVideo = $(elId).find('.promotion-swiper video');
+					if(activeVideo.length){
+						activeVideo.get(0).addEventListener("ended", function(){
+							activeVideo.parent().addClass('ended');							
+						});
+						activeVideo.get(0).addEventListener("playing", function(){
+							activeVideo.parent().removeClass('ended');
+						})
+
+						activeVideo.each(function(){
+							var _this = $(this);
+
+							if (_this.parents('.swiper-slide').is('.swiper-slide-active')) {
+								var video = _this.get(0);
+								video.currentTime = 0;
+								video.play();
+							}
+						});
+					}
+					//youtube
+
+					var ytVideo = $(elId).find('.promotion-swiper .youtube-target-promotion');
+					function getVideoId(url) {
+						var regExp = /^.*((youtu.be\/)|(v\/)|(\/u\/\w\/)|(embed\/)|(watch\?))\??v?=?([^#\&\?]*).*/;
+						var match = url.match(regExp);
+		
+						if (match && match[7].length === 11) {
+							return match[7];
+						} else {
+							return 'error';
+						}
+					}
+					$(window).one('youtubeReady', function () {
+						
+						ytVideo.each(function(){
+							var player;
+							var ytVideo = $(this);
+							var videoId = getVideoId(ytVideo.data('videoUrl'));
+							var videoWidth = ytVideo.data('videoWidth') ? ytVideo.data('videoWidth') : '100%';
+							var videoHeight = ytVideo.data('videoHeight') ? ytVideo.data('videoHeight') : '56.25%';
+			
+							if (videoWidth === undefined || videoHeight === undefined) {
+								throw Error('유튜브 비디오는 넓이값을 가져야합니다.');
+							}
+							iFrameId = 'youtubeFrame' + $('iframe').length;
+							
+							ytVideo.attr('id', iFrameId);
+							player = new YT.Player(iFrameId, {
+								width: videoWidth,
+								height: videoHeight,
+								videoId: videoId, // 200205 고화질 섬네일 출력 위해 주석 해제
+								host: 'https://www.youtube.com',
+								playerVars: {
+									'playlist': videoId,
+									'autoplay': 1,
+									'controls': 0,
+									'showinfo': 0,
+									'rel': 0,
+									'disablekb': 1,
+									'loop': 0,
+									'modestbranding': 1,
+									'origin': location.href,
+									'mute': true
+								},
+								// s : 190828 이벤트 추가
+								events: {
+									'onReady': function (event) {
+										var iFrameId = event.target.i.id;
+										var playerTarget;
+										playerTarget = $('#' + iFrameId);
+										playerTarget.data('player', player);
+										if(!playerTarget.parents('.swiper-slide').is('.swiper-slide-active')){
+											playerTarget.data('player').pauseVideo();
+											playerTarget.parent().addClass('ended');
+										} else {
+											playerTarget.data('player').playVideo();
+											playerTarget.parent().removeClass('ended');
+										}
+										youtubeReady ++;
+									},
+									'onStateChange': function (event){
+										var iFrameId = event.target.i.id;
+										var playerTarget = $('#' + iFrameId);
+										playerState = event.data == YT.PlayerState.ENDED ? '종료됨' :
+												event.data == YT.PlayerState.PLAYING ? '재생 중' :
+												event.data == YT.PlayerState.PAUSED ? '일시중지 됨' :
+												event.data == YT.PlayerState.BUFFERING ? '버퍼링 중' :
+												event.data == YT.PlayerState.CUED ? '재생준비 완료됨' :
+												event.data == -1 ? '시작되지 않음' : '예외';
+										
+										if (event.data == YT.PlayerState.ENDED) {
+											playerTarget.parent().addClass('ended');
+										}else if(event.data == YT.PlayerState.PLAYING){
+											playerTarget.parent().removeClass('ended');
+										}
+									}
+								}
+								// e : 190828 이벤트 추가
+							});
+						})
+					})
+				});
+				
+				swiperEventPromotion1.init();
+				swiperEventPromotion2.init();
+
+				swiperEventPromotion2.on('slideChange', function() {
+					var currentSlide = $(swiperEventPromotion2.slides[swiperEventPromotion2.activeIndex])
+					
+					currentSlide.siblings().find('video').each(function(){
+						this.pause();
+					})
+					
+					
+					currentSlide.siblings().find('.youtube-target-promotion').each(function(){
+						if (youtubeReady == $(swiperEventPromotion2.slides).find('.youtube-target-promotion').length) {
+							$(this).data('player').stopVideo();
+						}
+					})
+					if(currentSlide.find('video').length){
+						var video = currentSlide.find('video').get(0);
+						video.currentTime = 0;
+						video.play();
+					}else if(currentSlide.find('.youtube-target-promotion').length){
+						var video = currentSlide.find('.youtube-target-promotion');
+
+						if (youtubeReady == $(swiperEventPromotion2.slides).find('.youtube-target-promotion').length) {
+							video.data('player').playVideo();
+						}
+					}
+				});
+				$(elId).find('.btn-gs-swiper.prev').click(function(){
+					swiperEventPromotion1.slidePrev();
+					swiperEventPromotion2.slidePrev();
+				})
+				$(elId).find('.btn-gs-swiper.next').click(function(){
+					swiperEventPromotion1.slideNext();
+					swiperEventPromotion2.slideNext();
+				})
+				
+				swiperList.push(swiperEventPromotion1);
+				swiperList.push(swiperEventPromotion2);
+			} else {
+				$(elId).find('.swiper-control').hide();
+			}
+		}
+	}
+	
+	function setGSExclusive(elId){
+		if ($(elId).length > 0) {
+			if ($(elId).find('.swiper-slide').length > 3) {
+				var swiperGSExclusive = new Swiper($(elId).find('.swiper-container')[0], {
+					slidesPerView: 'auto',
+					spaceBetween: 0,
+					// centeredSlides: true,
+					navigation: {
+						prevEl: $(elId).find('.btn-gs-swiper.prev')[0],
+						nextEl: $(elId).find('.btn-gs-swiper.next')[0],
+					},
+					pagination: {
+						el: $(elId).find('.swiper-pagination')[0],
+						type: "progressbar",
+					},
+				});
+			
+				swiperList.push(swiperGSExclusive);
+			} else {
+				$(elId).find('.swiper-control').hide();
+			}
+		}
+	}
+
+	/**
+	 * GRAND STAGE 메인 ONLY/EXCLUSIVE_2022
+	 */
+	function setGSOnly(elId){
+		if ($(elId).length > 0 && $(elId).hasClass('gs-only')) {
+			$(elId).find('.swiper-group').each(function(idx){
+				if ($(this).find('.swiper-slide').length > 3) {
+					var swiperOnly = new Swiper($(this).find('.swiper-container')[0], {
+						slidesPerView: 'auto',
+						spaceBetween: 0,
+						observer: true,
+						observeParents: true,
+						// centeredSlides: true,
+						navigation: {
+							prevEl: $(this).find('.btn-gs-swiper.prev')[0],
+							nextEl: $(this).find('.btn-gs-swiper.next')[0],
+						},
+						pagination: {
+							el: $(this).find('.swiper-pagination')[0],
+							type: "progressbar",
+						},
+					});
+			
+					swiperList.push(swiperOnly);
+				} else {
+					$(this).find('.swiper-control').hide();
+				}
+			})
+			
+		}
+	}
+
+	/*
+		swiper slide의  active상태에서 해제되는 순간의 모션 구현을 위한
+		클래스 부여 함수
+	 */
+	function swiperOutTransition(swiperObj){
+		swiperObj.on('slideChangeTransitionStart', function () {
+			swiperObj.slides[swiperObj.previousIndex].classList.add('transition');
+		})
+		swiperObj.on('slideChangeTransitionEnd', function () {
+			$(swiperObj.slides).removeClass('transition');
+		})
+	}
+	
+	/**
+	 * GRAND STAGE 메인 DRAW_2022
+	 */
+	function setGSDraw(elId){
+		if ($(elId).length > 0) {
+			if ($(elId).find('.swiper-slide').length > 1) {
+				var swiperDraw = new Swiper($(elId).find('.swiper-container')[0], {
+					slidesPerView: 1,
+					spaceBetween: 0,
+					centeredSlides: true,
+					effect: 'fade',
+					navigation: {
+						prevEl: $(elId).find('.btn-gs-swiper.prev')[0],
+						nextEl: $(elId).find('.btn-gs-swiper.next')[0],
+					},
+					pagination: {
+						el: $(elId).find('.swiper-pagination')[0],
+					},
+				});
+				swiperOutTransition(swiperDraw);
+			
+				swiperList.push(swiperDraw);
+			} else {
+				$(elId).find('.swiper-control').hide();
+			}
+		}
+	}
+
+	/**
+	 * GRAND STAGE 메인 HOTDEAL_2022
+	 */
+	function setGSHotdeal(elId){
+		if ($(elId).length > 0) {
+			if ($(elId).find('.swiper-slide').length > 4) {
+				var swiperHotdeal = new Swiper($(elId).find('.swiper-container')[0], {
+					slidesPerView: 'auto',
+					spaceBetween: 0,
+					navigation: {
+						prevEl: $(elId).find('.btn-gs-swiper.prev')[0],
+						nextEl: $(elId).find('.btn-gs-swiper.next')[0],
+					},
+				});
+			
+				swiperList.push(swiperHotdeal);
+			} else {
+				$(elId).find('.swiper-control').hide();
+			}
+		}
+	}
+
+	/**
+	 * GRAND STAGE 메인 LAUNCHING_2022  22-05-23
+	 */
+	function setGSLaunching(elId){
+		if ($(elId).length > 0) {
+			if ($(elId).find('.swiper-slide').length > 1) {
+				var swiperLaunchingThumbs = new Swiper($(elId).find('.swiper-container')[0], {
+					init: false,
+					slidesPerView: 3,
+					spaceBetween: 0
+				});
+				swiperLaunchingThumbs.init();
+			
+				swiperList.push(swiperLaunchingThumbs);
+
+				var swiperPrev = $(elId).find('.btn-gs-swiper.prev');
+				var swiperNext = $(elId).find('.btn-gs-swiper.next');
+
+				var activeIdx = 0;
+				
+				var thumbIdx = $(elId).find('.prod-img-list .prod-img.active').index();
+				
+				var naviButtonDisable = function(newIndex){
+					swiperPrev.removeClass('swiper-button-disabled');
+					swiperNext.removeClass('swiper-button-disabled');
+					
+					if(newIndex == 0){
+						swiperPrev.addClass('swiper-button-disabled');
+					}else if(newIndex >= swiperLaunchingThumbs.slides.length -1){
+						swiperNext.addClass('swiper-button-disabled');
+					}
+					activeIdx = newIndex;
+				}
+
+				swiperPrev.addClass('swiper-button-disabled').click(function(){
+					activeIdx--;
+					if(activeIdx <= 0){
+						activeIdx = 0;
+						$(this).addClass('swiper-button-disabled');
+					}
+					$(this).siblings().removeClass('swiper-button-disabled');
+				
+					swiperLaunchingThumbs.slideTo(activeIdx);
+					setGalleryThumbActive(activeIdx);
+					$(elId).find('.swiper-slide').eq(activeIdx).addClass('active').siblings().removeClass('active');
+					
+				})
+				
+				swiperNext.click(function(){
+					activeIdx++;
+					if(activeIdx >= swiperLaunchingThumbs.slides.length -1){
+						activeIdx = swiperLaunchingThumbs.slides.length -1;
+						$(this).addClass('swiper-button-disabled');
+					}
+					$(this).siblings().removeClass('swiper-button-disabled');
+					swiperLaunchingThumbs.slideTo(activeIdx);
+					setGalleryThumbActive(activeIdx);
+					$(elId).find('.swiper-slide').eq(activeIdx).addClass('active').siblings().removeClass('active');
+					
+				})
+				if($(elId).find('.prod-img-list .prod-img').hasClass('active')){
+					$(elId).find('.swiper-slide').eq(thumbIdx).addClass('active')
+				}
+
+				$(elId).find('.swiper-slide').on('click', function(event) {
+					var newIndex, activeIndex;
+					newIndex = $(elId).find('.swiper-slide').index(this);
+					activeIndex = $(this).index();
+					$(elId).find('.swiper-slide').removeClass('active');
+					$(this).addClass('active');
+					swiperLaunchingThumbs.slideTo(newIndex);
+					setGalleryThumbActive(activeIndex);
+					naviButtonDisable(newIndex);
+				});
+
+				//자동롤링 5초
+				/*setInterval(function(){
+					activeIdx++;
+					if(activeIdx > swiperLaunchingThumbs.slides.length -1){
+						activeIdx = 0;
+					}
+					$(elId).find('.swiper-slide').eq(activeIdx).click();
+				},5000);*/
+
+				function setGalleryThumbActive(index) {
+					$(elId).find('.prod-img-list .prod-img').eq(index).addClass('active').siblings().removeClass('active');
+				}
+			} else {
+				$(elId).find('.swiper-control').hide();
+			}
+		}
+	}
+
+	/**
+	 * GRAND STAGE 메인 BRAND_2022
+	 * 22-05-24 수정
+	 */
+	function setGSBrand(elId){
+		if ($(elId).is('.no-title')) {
+
+			if ($(elId).find('.swiper-slide').length > 1) {
+				var swiperWrap = $(elId);
+
+				var swiperBrand = new Swiper($(elId).find('.swiper-container')[0], {
+					slidesPerView: 'auto',
+					spaceBetween: 0,
+					loop:true,
+					loopedSlides:4,
+					//slideToClickedSlide: true,
+					autoplay: {
+						delay: 5000,
+						disableOnInteraction: false,
+					}
+				});
+			
+				swiperList.push(swiperBrand);
+				
+				var _preventBind = function(e){
+					var _slide = $(this).parent();
+					e.preventDefault();
+				}
+				swiperBrand.on('slideChangeTransitionEnd',function(){
+					// swiperWrap.off('click','.swiper-slide .brand-bgimg', _preventBind);
+				})
+				swiperBrand.on('slideChange',function(){
+					// swiperWrap.on('click','.swiper-slide .brand-bgimg', _preventBind);
+					swiperWrap.find('.btn-favorite i').removeClass('transition');
+				})
+
+				swiperWrap.on('mouseenter', '.swiper-slide', function(){
+					swiperBrand.autoplay.stop();
+				})
+				swiperWrap.on('mouseleave', '.swiper-slide', function(){
+					swiperBrand.autoplay.start();
+				})
+			}
+		}
+		// 브랜드 B타입 자동 전환 제거 요청 #4577
+		// if ($(elId).not('.no-title').length > 0) {
+		// 	var container = $(elId).not('.no-title');
+		// 	var tabWrapper = container.find('.category-wrapper.brand-type');
+		// 	var tabItem = tabWrapper.find('.category');
+		// 	var _idx = 0;
+		// 	var intervalTimerId;
+		// 	intervalTimerId = setInterval(function(){
+		// 		_idx++
+		// 		if(_idx > tabItem.length-1){
+		// 			_idx = 0;
+		// 		}
+		// 		tabItem.eq(_idx).find('input[type=radio]').prop('checked', true).trigger('change');
+		// 	},5000);
+		//
+		// 	tabItem.click(function(){
+		// 		_idx = $(this).index();
+		// 		clearInterval(intervalTimerId);
+		//
+		// 		intervalTimerId = setInterval(function(){
+		// 			_idx++
+		// 			if(_idx > tabItem.length-1){
+		// 				_idx = 0;
+		// 			}
+		// 			tabItem.eq(_idx).find('input[type=radio]').prop('checked', true).trigger('change');
+		// 		},5000);
+		// 	})
+		//
+		//
+		// }
+	}
+
+	function setViewMoreIconAni(me){
+		var item = me.find('i').get(0);
+		
+		if(!$(item).is('.selected')){
+			var animData = {
+				wrapper: item,
+				animType: 'svg',
+				loop: false,
+				autoplay: false,
+				path: '/static/images/ui/button/btn_icon_heartmotion.json',
+			};
+
+			var anim = bodymovin.loadAnimation(animData);
+			anim.play();
+			$(item).addClass('selected');
+			$(item).addClass('transition');
+		}else{
+			$(item).find('svg').remove();
+			$(item).removeClass('selected');
+			$(item).removeClass('transition');
+		}
+	}
+
+	/**
+	 * GRAND STAGE 메인 NEW PRODUCT_2022
+	 */
+	function setGSNewProduct(elId){
+		if ($(elId).length > 0) {
+			if ($(elId).find('.swiper-slide').length > 1) {
+				$(elId).find('.swiper-container').each(function(idx){
+					var swiperNewProduct = new Swiper(this, {
+						slidesPerView: 1,
+						spaceBetween: 40,
+						observer: true,
+						observeParents: true,
+						navigation: {
+							prevEl: $(this).parent().find('.btn-gs-swiper.prev')[0],
+							nextEl: $(this).parent().find('.btn-gs-swiper.next')[0],
+						},
+					});
+				
+					swiperList.push(swiperNewProduct);
+				});
+			} else {
+				$(elId).find('.swiper-control').hide();
+			}
+		}
+	}
+
+	/**
+	 * GRAND STAGE 메인 PICK
+	 	setGSPICK(); //22-05-17 추가
+	 */
+	function setGSPICK(elId){
+		if ($(elId).length > 0) {
+			$(elId+' .swiper-container').css('height',$(elId+' .swiper-container').height());//간헐적으로 발생하는 UI오류 방지
+			if ($(elId).find('.swiper-slide').length > 1) {
+				var swiperPick = new Swiper($(elId).find('.swiper-container')[0], {
+					slidesPerView: 2,
+					slidesPerGroup: 2,
+					spaceBetween: 40,
+					navigation: {
+						prevEl: $(elId).find('.btn-gs-swiper.prev')[0],
+						nextEl: $(elId).find('.btn-gs-swiper.next')[0],
+					},
+				});
+				swiperList.push(swiperPick);
+			} else {
+				$(elId).find('.swiper-control').hide();
+			}
+		}
+	}
+
+
+	/**
+	 * GRAND STAGE 메인 RECOMMEND_2022
+	 */
+	function setGSRecommend(elId){
+		if ($(elId).length > 0 && $(elId).hasClass('gs-recommend')) {
+			if ($(elId).find('.swiper-slide').length > 1) {
+				$(elId).find('.swiper-container').each(function(idx){
+					var swiperRecommend = new Swiper(this, {
+						slidesPerView: 1,
+						spaceBetween: 40,
+						observer: true,
+						observeParents: true,
+						navigation: {
+							prevEl: $(this).parent().find('.btn-gs-swiper.prev')[0],
+							nextEl: $(this).parent().find('.btn-gs-swiper.next')[0],
+						},
+					});
+
+					swiperList.push(swiperRecommend);
+				});
+			} else {
+				$(elId).find('.swiper-control').hide();
+			}
+		}
+	}
+
+	/**
+	 * GRAND STAGE 메인 G-LOG_2022
+	 */
+	function setGSGlog(elId){
+		if ($(elId).length > 0) {
+			if ($(elId).find('.swiper-slide').length > 1) {
+				var len = $(elId).find('.swiper-slide').length;
+				var startSlideIdx, previousX, startMouseX, changeIf = false, touchEv = false, nowTime;
+				var swiperGlog = new Swiper($(elId).find('.swiper-container')[0], {
+					slidesPerView: 'auto',
+					spaceBetween: 0,
+					loop: true,
+					loopedSlides:len,
+					virtualTranslate: true,
+					navigation: {
+						prevEl: $(elId).find('.btn-gs-swiper.prev')[0],
+						nextEl: $(elId).find('.btn-gs-swiper.next')[0],
+					},
+					on: {
+						afterInit: function(){
+							previousX = this.translate;
+
+							this.$wrapperEl.css({
+								'transform': 'translate3d(' + previousX + 'px, 0, 0)'
+							});
+						},
+						touchStart: function(swiper, event){
+							startMouseX = event.screenX;
+							startSlideIdx = swiper.$el.find('.swiper-slide-active').index();
+							touchEv = true;
+
+							nowTime = Date.now();
+						},
+						touchMove: function(swiper, event){
+							var moveX = previousX - (startMouseX - event.screenX);
+
+							this.$wrapperEl.css({
+								'transform': 'translate3d(' + moveX + 'px, 0, 0)'
+							});
+						},
+						touchEnd: function(swiper, event){
+							var nowPreviousX = previousX;
+							setTimeout(function(){
+								var endSlideIdx = swiper.$el.find('.swiper-slide-active').index();
+								if ((Date.now() - nowTime) > 310 && startSlideIdx == endSlideIdx) {
+									swiper.$wrapperEl.css({
+										'transform': 'translate3d(' + nowPreviousX + 'px, 0, 0)'
+									});
+								} else {
+									previousX = swiper.activeIndex * -330;
+									swiper.$wrapperEl.css({
+										'transform': 'translate3d(' + previousX + 'px, 0, 0)'
+									});
+								}
+							}, 10);
+						},
+						transitionEnd: function(){
+							if ((this.activeIndex == this.realIndex) || (this.activeIndex / 2 >= len)) {
+								previousX = len * -330 + (this.realIndex * -330);
+								// if (this.activeIndex == this.realIndex) {
+								// 	previousX = (len * 2 - (len - this.activeIndex)) * -330;
+								// } else if (this.activeIndex / 2 >= len) {
+								// 	previousX = len * -330 + (this.realIndex * -330);
+								// }
+
+								this.$wrapperEl.css({
+									'transform': 'translate3d(' + previousX + 'px, 0, 0)'
+								});
+								this.slides.removeClass('swiper-slide-active');
+								this.$wrapperEl.find('.swiper-slide-duplicate-active').removeClass('swiper-slide-duplicate-active').addClass('swiper-slide-active');
+								changeIf = true;
+							}
+						}
+					}
+				});
+
+				function slideNextAction(nowX){
+					var translateXVal = nowX - swiperGlog.slides[0].swiperSlideSize;
+
+					swiperGlog.$wrapperEl.css({
+						'transform': 'translate3d(' + translateXVal + 'px, 0, 0)'
+					});
+
+					previousX = translateXVal;
+				}
+
+				function slidePrevAction(nowX){
+					var translateXVal = nowX + swiperGlog.slides[0].swiperSlideSize;
+
+					swiperGlog.$wrapperEl.css({
+						'transform': 'translate3d(' + translateXVal + 'px, 0, 0)'
+					});
+
+					previousX = translateXVal;
+				}
+				
+				swiperGlog.on('activeIndexChange', function(){
+					if (changeIf) {
+						changeIf = false;
+						return false;
+					}
+
+					if (this.previousIndex < this.activeIndex) {
+						slideNextAction(previousX);
+					} else if (this.previousIndex > this.activeIndex) {
+						slidePrevAction(previousX);
+					}
+				});
+
+				swiperOutTransition(swiperGlog);
+
+				swiperList.push(swiperGlog);
+
+				function activeScreenViewport(){
+					//active-screen-container init
+					//$('.active-screen-container .post-detail-wrapper').html($(swiperGlog.slides[swiperGlog.activeIndex]).html())
+					$(elId).find('.active-screen-container .post-detail-wrapper').html($(swiperGlog.slides[swiperGlog.activeIndex]).html())
+
+					//active-screen-container init
+					var activeScreenMotionTimerId;
+					var slideChangeTimerId;
+					swiperGlog.on('slideChangeTransitionStart', function () {
+						$('<div class="post-detail-wrapper">'+$(swiperGlog.slides[swiperGlog.activeIndex]).eq(0).html()+'</div>').appendTo($(elId).find('.active-screen-container'))
+						clearTimeout(activeScreenMotionTimerId);
+						activeScreenMotionTimerId = setTimeout(function(){
+							$(elId).find('.active-screen-container').addClass('init');
+							setTimeout(function(){
+								$(elId).find('.active-screen-container').removeClass('init');
+								$(elId).find('.active-screen-container .post-detail-wrapper').last().siblings().each(function(){
+									$(this).remove();
+								})
+							},200)
+						},20)
+						
+					})
+				};
+				activeScreenViewport();
+				
+
+				/*$(window).resize(function(){
+					swiperGlog.destroy();
+					swiperGlog = new Swiper('.gs-glog .swiper-container', {
+						slidesPerView: 'auto',
+						spaceBetween: 0,
+						loop: true,
+						loopedSlides:4,
+						slideToClickedSlide: true,
+						navigation: {
+							prevEl: '.gs-glog .btn-gs-swiper.prev',
+							nextEl: '.gs-glog .btn-gs-swiper.next',
+						},
+					});
+					activeScreenViewport();
+
+					swiperList.push(swiperGlog);
+				})*/
+			} else {
+				$(elId).find('.swiper-control').hide();
+			}
+		}
+	}
+
+	/**
+	 * GRAND STAGE 메인_2022
+	 */
+	function setGSEvent(){
+		/* MARQUEE */
+		if($('.loop-group').length > 0){
+			$('.video-wrap .loop-group').each(function(){
+				var loopWrapper = $(this);
+				var itemWidht = loopWrapper.find('.text-loop span').outerWidth(true);
+				var itemNum = Math.ceil(loopWrapper.width() / itemWidht);
+				var _clone = '<span>New Video</span>';
+
+				for(i = 0; i <= itemNum; i++){
+					loopWrapper.find('.text-loop').append(_clone);
+				}
+			});
+		}
+
+		/* VIDEO MOVE BUTTON */
+		if($('.gs-video').length > 0){
+			var btnMoveArea = $('.gs-video').find('.video-wrap');
+			//init
+			btnMoveArea.addClass('ended');
+			
+			//for cursor
+			btnMoveArea.mouseenter(function(){
+				btnMoveArea.addClass('cursor-view');
+			})
+			btnMoveArea.mouseleave(function(){
+				btnMoveArea.removeClass('cursor-view');
+			})
+			btnMoveArea.mousemove(function(e){
+				var isTop = e.pageY - btnMoveArea.offset().top;
+				var isLeft = e.pageX - btnMoveArea.offset().left;
+				if(isTop < 110 || isTop > 710){
+					isTop = -200;
+				}
+				$(this).find('.btn-play').css({'top':isTop, 'left':isLeft})
+			});
+			var video = $('.gs-video').find('video');
+			var ytVideo = $('.gs-video').find('.youtube-target-video');
+
+			//비디오 영상이라면
+			if(video.length){
+				video.get(0).addEventListener("ended", function(){
+					btnMoveArea.addClass('ended');
+					btnMoveArea.removeClass('paused');
+				});
+			}
+			//유튜브 영상이라면
+			if(ytVideo.length){
+				function getVideoId(url) {
+					var regExp = /^.*((youtu.be\/)|(v\/)|(\/u\/\w\/)|(embed\/)|(watch\?))\??v?=?([^#\&\?]*).*/;
+					var match = url.match(regExp);
+	
+					if (match && match[7].length === 11) {
+						return match[7];
+					} else {
+						return 'error';
+					}
+				}
+				$(window).one('youtubeReady', function () {
+					ytVideo.each(function(){
+						var player;
+						var ytVideo = $(this);
+						var videoId = getVideoId(ytVideo.data('videoUrl'));
+						var videoWidth = ytVideo.data('videoWidth') ? ytVideo.data('videoWidth') : '100%';
+						var videoHeight = ytVideo.data('videoHeight') ? ytVideo.data('videoHeight') : '56.25%';
+		
+						if (videoWidth === undefined || videoHeight === undefined) {
+							throw Error('유튜브 비디오는 넓이값을 가져야합니다.');
+						}
+						iFrameId = 'youtubeFrame' + $('iframe').length;
+						
+						ytVideo.attr('id', iFrameId);
+						player = new YT.Player(iFrameId, {
+							width: videoWidth,
+							height: videoHeight,
+							videoId: videoId, // 200205 고화질 섬네일 출력 위해 주석 해제
+							host: 'https://www.youtube.com',
+							playerVars: {
+								'playlist': videoId,
+								'autoplay': 1,
+								'controls': 0,
+								'showinfo': 0,
+								'rel': 0,
+								'disablekb': 1,
+								'loop': 0,
+								'modestbranding': 0,
+								'origin': location.href,
+								'mute': true
+							},
+							// s : 190828 이벤트 추가
+							events: {
+								'onReady': function (event) {
+									var iFrameId = event.target.i.id;
+									var playerTarget;
+									playerTarget = $('#' + iFrameId);
+									playerTarget.data('player', player);
+									playerTarget.data('player').pauseVideo();
+
+								},
+								'onStateChange': function (event){
+									var iFrameId = event.target.i.id;
+									var playerState = event.data == YT.PlayerState.ENDED ? '종료됨' :
+											event.data == YT.PlayerState.PLAYING ? '재생 중' :
+											event.data == YT.PlayerState.PAUSED ? '일시중지 됨' :
+											event.data == YT.PlayerState.BUFFERING ? '버퍼링 중' :
+											event.data == YT.PlayerState.CUED ? '재생준비 완료됨' :
+											event.data == -1 ? '시작되지 않음' : '예외';
+									
+									if (event.data == YT.PlayerState.ENDED) {
+										btnMoveArea.addClass('ended');
+										btnMoveArea.removeClass('paused');
+									}
+								}
+							}
+							// e : 190828 이벤트 추가
+						});
+					})
+				})
+			}
+
+			btnMoveArea.click(function(){
+				var me = $(this);
+				
+				if(video.length){
+					if(!btnMoveArea.is('.paused')){
+						btnMoveArea.removeClass('ended');
+						btnMoveArea.addClass('paused');
+						video.get(0).play();
+					}else{
+						btnMoveArea.removeClass('paused');
+						video.get(0).pause();
+					}
+					
+					
+				}
+				if(ytVideo.length){
+					var player = $('.gs-video').find('.youtube-target-video').data('player');
+					if(player.getPlayerState() == 1){
+						player.pauseVideo();
+						btnMoveArea.removeClass('paused');
+					}else{
+						btnMoveArea.removeClass('ended');
+						btnMoveArea.addClass('paused');
+						player.playVideo();
+					}
+				}
+			})
+			
+
+			/*
+			if (video.length) {
+				$(video).siblings('.thumbnail').click(function(){
+					$(this).remove();
+					video.get(0).currentTime = 0;
+					video.get(0).play();
+				});
+			}
+			*/
+		}
+	}
+
+	/**
+	 * GRAND STAGE 메인 NEW ARRIVALS 스와이퍼
+	 */
+	function setGSNewArrivals(elId){
+		if ($(elId).length > 0) {
+			var swiperGSArrivals = new Swiper($(elId).find('.swiper-container')[0], {
+				init: false,
+				slidesPerView: 'auto',
+				spaceBetween: 20,
+				speed: 500,
+				loop: true,
+				// autoplay: {
+				// 	delay: 5000,
+				// 	disableOnInteraction: false,
+				// },
+				navigation: {
+					prevEl: $(elId).find('.nav-box .btn-gs-arrivals-swiper.prev')[0],
+					nextEl: $(elId).find('.nav-box .btn-gs-arrivals-swiper.next')[0],
+				}
+			});
+
+			swiperGSArrivals.on('init', function () {
+				var duplicate = $(elId).find('.swiper-slide-duplicate');
+				duplicate.each(function(index) {
+					$(this).attr('aria-hidden', 'true');
+					$(this).attr('tabindex', '-1');
+					$(this).find('a, button, input').each(function(idx) {
+						$(this).attr('aria-hidden', 'true');
+						$(this).attr('tabindex', '-1');
+					});
+				});
+			});
+			swiperGSArrivals.on('slideChange', function() {
+				swiperGSArrivals.slides.each(function(index) {
+					$(this).removeClass('sns-visible');
+					if (index > swiperGSArrivals.activeIndex - 1 && index < swiperGSArrivals.activeIndex + 4) {
+						$(this).addClass('sns-visible');
+					}
+				});
+			});
+			swiperGSArrivals.init();
+
+			setGSNewArrivalsPadding();
+
+			swiperList.push(swiperGSArrivals);
+		}
+	}
+
+	/**
+	 * GRAND STAGE 메인 NEW ARRIVALS 상품 4개 중앙 정렬을 위한 컨테이너 좌우 padding 계산
+	 */
+	function setGSNewArrivalsPadding() {
+		var margin;
+		margin = $('body').outerWidth() - 1200;
+
+		$('.gs-arrivals-banner .swiper-container').css({
+			'padding': '0 ' + (margin / 2) + 'px',
+		});
+	}
+
+	/**
+	 * GRAND STAGE 메인 벨트 배너 자동 롤링 스와이퍼
+	 */
+	function setGSMainBelt(elId){
+		if ($(elId).length > 0) {
+			var swiperGSBelt = new Swiper($(elId)[0], {
+				slidesPerView: 'auto',
+				spaceBetween: 0,
+				speed: 500,
+				loop: true,
+				centeredSlides: true,
+				autoplay: {
+					delay: 5000,
+					disableOnInteraction: false,
+				},
+				navigation: {
+					prevEl: $(elId).find('.nav-box .btn-gs-belt-swiper.prev')[0],
+					nextEl: $(elId).find('.nav-box .btn-gs-belt-swiper.next')[0],
+				}
+			});
+
+			swiperList.push(swiperGSBelt);
+		}
+	}
+
+	/**
+	 * GRAND STAGE 메인 SNS STAGE 자동 롤링 스와이퍼
+	 */
+	function setGSMainSns(elId){
+		if ($(elId).length > 0) {
+			var swiperAbcSns = new Swiper($(elId)[0], {
+				init: false,
+				slidesPerView: 'auto',
+				spaceBetween: 8,
+				speed: 500,
+				loop: true,
+				autoplay: {
+					delay: 5000,
+					disableOnInteraction: false,
+				},
+				navigation: {
+					prevEl: $(elId).find('.nav-box .btn-gs-sns-swiper.prev')[0],
+					nextEl: $(elId).find('.nav-box .btn-gs-sns-swiper.next')[0],
+				}
+			});
+
+			setGSMainSNSBannerPadding();
+
+			swiperList.push(swiperAbcSns);
+		}
+	}
+
+	/**
+	 * GRAND STAGE 메인 SNS STAGE 배너 4개 중앙 정렬을 위한 컨테이너 좌우 padding 계산
+	 */
+	function setGSMainSNSBannerPadding() {
+		var margin;
+		margin = $('body').outerWidth() - 1200;
+
+		$('.gs-sns-banner').css({
+			'padding': '0 ' + (margin / 2) + 'px',
+		});
+	}
+
+	function setGScategoryTab(){
+		//init
+		$('.category-tab-wrap .category-tab-contents:first-child').addClass('active');
+		//tab
+		$('.category-wrapper').each(function(){
+			var me = $(this);
+			me.next('.category-tab-wrap').addClass('swiper-active');
+			me.find('input[type=radio]').bind('change', function(){
+				var idx = $(this).parent().index();
+				me.next('.category-tab-wrap').find('.category-tab-contents').eq(idx).addClass('active').siblings().removeClass('active');
+			})
+			;
+		})
+	}
+
+	/**
+	 * GRAND STAGE 메인 전용 Marquee 코드 추가
+	 */
+	function setGSBannerMarquee(selector) {
+		selector = selector ? selector : '.gs-loop-banner';
+
+		if ($(selector).length > 0) {
+			$(selector).each(function(index) {
+				var wrap, sensor;
+				wrap = $(this);
+
+				fillMarqueeWrapper(wrap);
+
+				sensor = new ResizeSensor(this, function () {
+					wrap.removeClass('initialized');
+					fillMarqueeWrapper(wrap);
+				});
+			});
+		}
+
+		// 입력된 텍스트의 길이가 wrap의 넓이보다 작을때 복사본 생성
+		function fillMarqueeWrapper(wrap) {
+			var wrapperWidth, marquee, marqueeText, dupLink, marqueeTextCnt, duplicateCnt, duration, weight;
+			wrapperWidth = wrap.outerWidth();
+			marquee = wrap.find('.loop-group');
+			marqueeText = wrap.find('.loop-group .text-loop');
+			duplicateCnt = Math.max(Math.ceil(wrapperWidth * 2 / marquee.outerWidth()), 2);
+			weight = 2;
+
+			duration = Math.floor(marqueeText.outerWidth() / wrapperWidth * 1000) / 100 * weight;
+			// console4(duration);
+			marquee.empty();
+			marquee.append(marqueeText);
+			marqueeTextCnt = 1;
+
+			while (marqueeTextCnt < duplicateCnt) {
+				dupLink = marqueeText[0].cloneNode(true);
+				dupLink.setAttribute('aria-hidden', true);
+				wrap.find('.loop-group').append(dupLink);
+				marqueeTextCnt++;
+			}
+
+			marqueeText = wrap.find('.loop-group .text-loop');
+			marqueeText.each(function(index) {
+				$(this).css('animation-duration', duration + 's');
+				// $(this).css('animation-duration', (30 * duration / 10) + 's');
+			});
+
+			wrap.addClass('initialized');
+		}
+	}
+
+
+	/**
+	 * GRAND STAGE 메인 전용 clip
+	 */
+	function setGSClip(elId) {
+		var listItems = document.querySelectorAll(`${elId} .list-item`);
+
+		listItems.forEach((item) => {
+			var videoBox = item.querySelector('.video-box');
+			if (videoBox) {
+				var video = videoBox.querySelector('video');
+				if (video) {
+					// hover 시작 시
+					videoBox.addEventListener('mouseenter', () => {
+						video.currentTime = 0;
+						video.play();
+					});
+
+					// hover 종료 시
+					videoBox.addEventListener('mouseleave', () => {
+						video.pause();
+						video.currentTime = 0;
+					});
+				}
+			}
+		});
+	}
+
+
+	/**
+	 * GRAND STAGE 메인 전용 상품 슬라이드 (md, 신상품)
+	 */
+	function setGSProdSlide(elId) {
+		if ($(elId).length > 0 && $(elId).hasClass('gs-prod-slide')) {
+			if ($(elId).find('.slide-cont .swiper-slide').length > 1) {
+				var swiperProdSlideTitle = null;
+				var swiperProdSlide = null;
+
+				$(elId).find('.slide-title .swiper-container').each(function(idx) {
+					var totalSlideWidth = 0;
+					var slideCount = $(this).find('.swiper-slide').length;
+					$(this).find('.swiper-slide').each(function() {
+						totalSlideWidth += $(this).outerWidth();
+					});
+					var containerWidth = $(this).outerWidth() - (slideCount * 26);
+					var loopEnabled = totalSlideWidth > containerWidth;
+
+					swiperProdSlideTitle = new Swiper(this, {
+						slidesPerView: 'auto',
+						spaceBetween: 26,
+						loop: loopEnabled,  // 조건에 따라 루프 활성화
+						resistance: true,
+						resistanceRatio: 0,
+						watchSlidesVisibility: true,
+						watchSlidesProgress: true,
+					});
+					swiperList.push(swiperProdSlideTitle);
+				});
+
+				$(elId).find('.slide-cont .swiper-container').each(function(idx) {
+					swiperProdSlide = new Swiper(this, {
+						slidesPerView: 1,
+						spaceBetween: 40,
+						observer: true,
+						observeParents: true,
+						loop: true,
+						resistance: true,
+						resistanceRatio: 0,
+						watchSlidesVisibility: true,
+						watchSlidesProgress: true,
+						// effect:'fade',
+						navigation: {
+							prevEl: $(this).parent().find('.btn-gs-swiper.prev')[0],
+							nextEl: $(this).parent().find('.btn-gs-swiper.next')[0],
+						},
+						thumbs: {
+							swiper: swiperProdSlideTitle, // 썸네일 슬라이드와 연결
+						},
+						on: {
+							slideChange: function () {
+								let activeIndex = this.realIndex;
+								let thumbnailActiveIndex = swiperProdSlideTitle.realIndex;
+								let visibleSlides = swiperProdSlideTitle.visibleSlidesIndexes;
+
+								// 마지막 슬라이드에서 첫 번째 슬라이드
+								if (this.isEnd && activeIndex === 0) {
+									setTimeout(() => {
+										swiperProdSlideTitle.slideToLoop(0, 120);
+									}, 30);
+								}
+								// 첫 번째 슬라이드에서 마지막 슬라이드
+								else if (this.isBeginning && activeIndex === this.slides.length - 1) {
+									swiperProdSlideTitle.slideToLoop(swiperProdSlideTitle.slides.length - 1, 120);
+								}
+								// 썸네일이 보이지 않으면 썸네일을 해당 인덱스로 이동
+								else if (!visibleSlides.includes(activeIndex)) {
+									swiperProdSlideTitle.slideToLoop(activeIndex, 120);
+								}
+							}
+
+						},
+					});
+					swiperList.push(swiperProdSlide);
+				});
+			} else {
+				$(elId).find('.swiper-control').hide();
+			}
+		}
+	}
+
+
+
+
+	// 2022-05-26 GS 고도화 추가
+	_main.setGSYTAPITag = setGSYTAPITag;
+	_main.setGSMainBanner = setGSMainBanner;
+	_main.setGSEventPromotion = setGSEventPromotion;
+	_main.setGSExclusive = setGSExclusive;
+	_main.setGSOnly = setGSOnly;
+	_main.setGSDraw = setGSDraw;
+	_main.setGSHotdeal = setGSHotdeal;
+	_main.setGSLaunching = setGSLaunching;
+	_main.setGSBrand = setGSBrand;
+	_main.setGSNewProduct = setGSNewProduct;
+	_main.setGSPICK = setGSPICK;
+	_main.setGSRecommend = setGSRecommend;
+	_main.setGSGlog = setGSGlog;
+	_main.setGSEvent = setGSEvent;
+	_main.setGScategoryTab = setGScategoryTab;
+	_main.setGSMainBelt = setGSMainBelt;
+	_main.setGSNewArrivals = setGSNewArrivals;
+	_main.setGSMainSns = setGSMainSns;
+	_main.setGSBannerMarquee = setGSBannerMarquee;
+	_main.setViewMoreIconAni = setViewMoreIconAni;
+	_main.swiperList = swiperList;
+	_main.setGSProdSlide = setGSProdSlide;
+	_main.setGSClip = setGSClip;
+
+	////////////////////////////////////////////////////////////////////////////////////////
+	// E : GRAND STAGE 메인 스크립트
+	////////////////////////////////////////////////////////////////////////////////////////
+
+	$(window).on('resize', function() {
+		setGSNewArrivalsPadding();
+		setGSMainSNSBannerPadding();
+	});
+
+	$(document).ready(function () {
+		// Grand Stage
+		//setGSMainBanner();
+		//setGSEventPromotion();
+		//setGSOnly();
+		//setGSDraw();
+		//setGSHotdeal();
+		//setGSLaunching();
+		//setGSBrand();
+		//setGSNewProduct();
+		//setGSRecommend();
+		//setGSExclusive();
+		//setGSGlog();
+		//setGSEvent();
+
+		//setGSNewArrivals();
+		//setGSMainBelt();
+		//setGSMainSns();
+		setGScategoryTab();
+		//setGSPICK(); //22-05-17 추가
+		//setGSBannerMarquee();
+	});
+	return _main;
+})();

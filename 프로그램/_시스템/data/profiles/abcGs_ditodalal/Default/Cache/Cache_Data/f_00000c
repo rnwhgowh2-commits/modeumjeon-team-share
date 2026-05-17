@@ -1,0 +1,709 @@
+(function() {
+	var _gtm = abc.object.createNestedObject(window, "abc.gtm");
+
+	window.dataLayer = window.dataLayer || [];
+	_gtm.dataLayer = {};
+
+	/**
+	 * gtm용 session storage
+	 * @returns 
+	 */
+	_gtm.gtmSessionStorage = function() {
+		var gtmDataKey = 'abcmart.gtm.data';
+		var gtmData = JSON.parse(decodeURIComponent(sessionStorage.getItem(gtmDataKey)==null ? '{}' : sessionStorage.getItem(gtmDataKey)));
+		var setItem = function(key, value) {
+			if(sessionStorage.getItem(gtmDataKey)==null) {
+				sessionStorage.setItem(gtmDataKey, encodeURIComponent(JSON.stringify({})));
+			}
+
+			gtmData[key] = value;
+			sessionStorage.setItem(gtmDataKey, encodeURIComponent(JSON.stringify(gtmData)));
+		}
+		var getItem = function(key) {
+			return Object.hasOwnProperty.call(gtmData, key) ? gtmData[key] : null;
+		}
+		var removeItem = function(key) {
+			if(Object.hasOwnProperty.call(gtmData, key)) {
+				delete gtmData[key];
+				sessionStorage.setItem(gtmDataKey, encodeURIComponent(JSON.stringify(gtmData)));
+			}
+		}
+
+		return {
+			setItem,
+			getItem,
+			removeItem,
+		};
+	};
+
+	/**
+	 * gtm용 쿠키
+	 * @returns 
+	 */
+	_gtm.cookie = function() {
+		var gtmKey = 'abcmart_gtm_data';
+		var gtmData = JSON.parse(decodeURIComponent(abc.cookie.get(gtmKey)==undefined || abc.cookie.get(gtmKey)==null ? '{}' : abc.cookie.get(gtmKey)));
+		var setCookie = function(key, value) {
+			if(abc.cookie.get(gtmKey)==undefined || abc.cookie.get(gtmKey)==null) {
+				abc.cookie.add({key:gtmKey, value:encodeURIComponent(JSON.stringify({}))});
+			}
+
+			gtmData[key] = value;
+			abc.cookie.add(({
+				key : gtmKey,
+				value : encodeURIComponent(JSON.stringify(gtmData)),
+				expireType : ''
+			}));
+		}
+		var getCookie = function(key) {
+			return Object.hasOwnProperty.call(gtmData, key) ? gtmData[key] : null;
+		}
+		var removeCookie = function(key) {
+			if(Object.hasOwnProperty.call(gtmData, key)) {
+				delete gtmData[key];
+				abc.cookie.add(({
+					key : gtmKey,
+					value : encodeURIComponent(JSON.stringify(gtmData)),
+					expireType : ''
+				}));
+			}
+		}
+
+		return {
+			setCookie,
+			getCookie,
+			removeCookie,
+		};
+	}
+
+	_gtm.getPageName = function() {
+		var pageName = "";
+
+		switch (String(location.pathname)) {
+			case '/':
+				pageName = '메인 페이지';
+				break;
+			case '/display/search-word/result':
+				pageName = "검색 페이지";
+				break;
+			case '/product/brand/page/main':
+				pageName = "브랜드 페이지";
+				break;
+			case '/display/category/main':
+				pageName = "카테고리 페이지";
+				break;
+			case '/product/new':
+				pageName = "상품상세 페이지";
+				break;
+			case '/display/live':
+				pageName = "A-RT LIVE 페이지";
+				break;
+			case '/display/webzine/art-tv':
+				pageName = "A-RT TV 페이지";
+				break;
+			case '/display/webzine/trend':
+				if( !abc.text.allNull(abc.param.getParams().newType) && abc.param.getParams().newType == "N" ){
+					pageName = "NEWS 페이지";
+				}else{
+					pageName = "TREND 페이지";
+				}
+				break;
+			case '/display/webzine/catalogue':
+				pageName = "CATALOGUE 페이지";
+				break;
+			case '/display/webzine/edition':
+				pageName = "EDITION 페이지";
+				break;
+			case '/display/webzine/launching':
+				pageName = "LAUNCHING 페이지";
+				break;
+			case '/display/webzine/detail/main':
+				var webzin_type = $('#wbznType').val();
+				var contents_type = $('#contentsType').val();
+				// 메인 피드 배너 등 BO 등록 url로 진입 시 wbznType param 누락/오입력으로 콘텐츠타입 가져오는 방식 변경
+				if(abc.text.notAllNull(webzin_type)){
+					if(webzin_type === 'C'){	// 카탈로그
+						pageName = 'CATALOGUE 상세 페이지';
+					}else if(webzin_type === 'M'){	// ART-TV
+						pageName = 'A-RT TV 상세 페이지';
+					}else if(webzin_type === 'N'){	// TREND
+						if( !abc.text.allNull(contents_type) && contents_type === '10016'){
+							pageName = 'NEWS 상세 페이지';
+						}else{
+							pageName = 'TREND 상세 페이지';
+						}
+					}else if(webzin_type === 'H'){	// EDITION
+						pageName = 'EDITION 상세 페이지';
+					}else if(webzin_type === 'L'){	// LAUNCHING
+						pageName = 'LAUNCHING 상세 페이지';
+					}
+				}
+				break;
+			case '/display/ranking/main':
+				pageName = "랭킹 페이지";
+				break;
+			case '/promotion/event/main':
+				pageName = "이벤트 페이지";
+				break;
+			case '/promotion/event/detail' :
+				pageName = "이벤트 상세 페이지";
+				break;
+			case '/promotion/planning-display':
+				pageName = "기획전 페이지";
+				break;
+			case '/display/sale/main':
+				pageName = "SALE 페이지";
+				break;
+			case '/promotion/planning-display/detail/main':
+				if( !abc.text.allNull(abc.param.getParams().plndpNo) && abc.param.getParams().plndpNo == "2000001551" ){
+					pageName = "KIDS마트 페이지";
+				}else if( !abc.text.allNull(abc.param.getParams().plndpNo) && abc.param.getParams().plndpNo == "2000001649" ){
+					pageName = "ONLY ABC 페이지";
+				}else{
+					pageName = "기획전 상세 페이지";
+				}
+				break;
+			case '/display/calendar':
+				pageName = "런칭캘린더 페이지";
+				break;
+			case '/display/style/main':
+				pageName = "G-log 페이지";
+				break;
+			case '/promotion/hot-deal':
+				pageName = "HOT DEAL 페이지";
+				break;
+			case '/cart/cart-list':
+				pageName = "장바구니 페이지";
+				break;
+			case '/display/new':
+				pageName = "NEW 페이지";
+				break;
+			case '/display/package':
+				pageName = "PACKAGE 페이지";
+				break;
+			case '/product/package/detail':
+				pageName = "PACKAGE 상세 페이지";
+				break;
+		}
+		
+		return pageName;
+	};
+
+	_gtm.getChnnlName = function(chnnlNo) {
+        var siteChannelName = "A-RT";
+        switch(chnnlNo){
+            case abc.consts.SITE_CHNN_ABC :
+                siteChannelName = "ABC MART";
+                break;
+            case abc.consts.SITE_CHNN_GS :
+                siteChannelName = "GRAND STAGE";
+                break;
+        }
+        return siteChannelName;
+	};
+
+	/**
+	 * art 상품 목록이 있는 모든 페이지에서 상품을 클릭(썸네일, 상품명 등 상품페이지로 연결되는 모든 영역)할 때 위 트리거가 발생할 때 아래 스크립트를 실행합니다.
+	 * abc&gs 상품 목록이 있는 모든 페이지에서 상품을 클릭(썸네일, 상품명 등 상품페이지로 연결되는 모든 영역)할 때 카테고리 페이지, 기획전/이벤트 페이지, 상품 상세 페이지, 장바구니 페이지 모두 포함됩니다. 위 트리거가 발생할 때 아래 스크립트를 실행합니다.
+	 * @param {*} param 
+	 */
+	_gtm.dataLayer.select_item = function(param) {
+		dataLayer.push({ ecommerce: null });
+		dataLayer.push(Object.assign({event : 'select_item'}, param));
+	};
+
+	/**
+	 * 모든 웹진 or 라이브 콘텐츠(/display/webzine/detail) 클릭 시 실행 (진입이 아닌 클릭 시점) 위 트리거가 발생할 때 아래 스크립트를 실행합니다.
+	 * @param {*} param 
+	 */
+	_gtm.dataLayer.select_content = function(param) {
+		dataLayer.push(Object.assign({event : 'select_content'}, param));
+	};
+
+	/**
+	 * 회원가입 완료 시 위 트리거가 발생할 때 아래 스크립트를 실행합니다.
+	 * @param {*} param 
+	 */
+	_gtm.dataLayer.sign_up = function(param) {
+		dataLayer.push(Object.assign({event : 'sign_up'}, param));
+	};
+
+	/**
+	 * 로그인 완료 시 위 트리거가 발생할 때 아래 스크립트를 실행합니다.
+	 * *자동 로그인 된 세션 시작 시에도 해당 스크립트가 실행 되게 작업 부탁드립니다.*
+	 * @param {*} param 
+	 */
+	_gtm.dataLayer.login = function(param) {
+		dataLayer.push(Object.assign({event : 'login'}, param));
+	};
+
+	/**
+	 * 앱 다운로드 팝업 클릭 위 트리거가 발생할 때 아래 스크립트를 실행합니다.
+	 * @param {*} param 
+	 */
+	_gtm.dataLayer.click_app_download_popup = function(param) {
+		dataLayer.push(Object.assign({event : 'click_app_download_popup'}, param));
+	};
+
+	/**
+	 * 프로모션 팝업 클릭 (닫기, 오늘 하루 그만 보기 제외) 위 트리거가 발생할 때 아래 스크립트를 실행합니다.
+	 * @param {*} param 
+	 */
+	_gtm.dataLayer.click_promotion_popup = function(param) {
+		dataLayer.push(Object.assign({event : 'click_promotion_popup'}, param));
+	};
+
+	/**
+	 * 1. 상/하단 메뉴 내 돋보기 아이콘을 선택해 검색어 입력 후 검색 실행 시 (submit 시) 위 트리거가 발생할 때 아래 스크립트를 실행합니다.
+	 * 2. 브랜드 검색창에 검색어 입력 후 2초 유지 시 위 트리거가 발생할 때 아래 스크립트를 실행합니다.
+	 * @param {*} param 
+	 */
+	_gtm.dataLayer.search = function(param) {
+		dataLayer.push(Object.assign({event : 'search'}, param));
+	};
+
+	/**
+	 * 돋보기 아이콘 옆의 필터 아이콘 선택 후 [검색] 버튼을 눌러 검색 실행 시 (submit 시) 위 트리거가 발생할 때 아래 스크립트를 실행합니다.
+	 * @param {*} param 
+	 */
+	_gtm.dataLayer.filter_search = function(param) {
+		dataLayer.push(Object.assign({event : 'filter_search'}, param));
+	};
+
+	/**
+	 * /display/search-word/result 검색 결과 페이지 진입 시
+	 * @param {*} param 
+	 */
+	_gtm.dataLayer.view_search = function(param) {
+		dataLayer.push(Object.assign({event : 'view_search'}, param));
+	};
+
+	_gtm.dataLayer.filter_side = function(param) {
+		dataLayer.push(Object.assign({event : 'filter_side'}, param));
+	}
+
+	/**
+	 * 관심 브랜드 등록을 정상적으로 완료 시 위 트리거가 발생할 때 아래 스크립트를 실행합니다.
+	 * @param {*} param 
+	 */
+	_gtm.dataLayer.click_main_wish_brand = function(param) {
+		dataLayer.push(Object.assign({event : 'click_main_wish_brand'}, param));
+	};
+
+	// s : art 메인페이지 function
+
+	/**
+	 * art main > 메인 페이지에 노출되는 피드의 썸네일 이미지 선택 시
+	 * @param {*} param 
+	 */
+	_gtm.dataLayer.click_main_feed_banner = function(param) {
+		dataLayer.push(Object.assign({event : 'click_main_feed_banner'}, param));
+	};
+	/**
+	 * art main > 메인 페이지에 노출되는 피드의 하위 상품 선택 시
+	 * @param {*} param 
+	 */
+	_gtm.dataLayer.click_main_feed_item = function(param) {
+		dataLayer.push(Object.assign({event : 'click_main_feed_item'}, param));
+	}
+	/**
+	 * art main > 메인 페이지에 노출되는 카드 배너 (이미지, 링크 배너) 선택 시
+	 * @param {*} param 
+	 */
+	_gtm.dataLayer.click_main_card_banner = function(param) {
+		dataLayer.push(Object.assign({event : 'click_main_card_banner'}, param));
+	}
+	/**
+	 * art main > 메인 페이지 RANKING 영역 상품 클릭 시(공통 이벤트의 select_item 으로 함께 추적 예정)
+	 * @param {*} param 
+	 */
+	_gtm.dataLayer.click_main_item_ranking = function(param) {
+		_gtm.dataLayer.select_item(param);
+	}
+	/**
+	 * art main > 메인 페이지 HOT DEAL 영역 상품 클릭 시 
+	 * @param {*} param 
+	 */
+	_gtm.dataLayer.click_instagram_img = function(param) {
+		dataLayer.push(Object.assign({event : 'click_instagram_img'}, param));
+	}
+	/**
+	 * art main > 메인 내 ART LIVE [알림받기] 버튼 선택 시 
+	 * @param {*} param 
+	 */
+	_gtm.dataLayer.apply_main_live_alarm = function(param) {
+		dataLayer.push(Object.assign({event : 'apply_main_live_alarm'}, param));
+	}
+	/**
+	 * art main > 메인 내 ART LIVE [자세히 보기] 버튼 선택 시 
+	 * @param {*} param 
+	 */
+	_gtm.dataLayer.click_main_live_detail = function(param) {
+		dataLayer.push(Object.assign({event : 'click_main_live_detail'}, param));
+	}
+	// e : art 메인페이지 function
+
+	/**
+	 * 카테고리 페이지 이벤트 > 각 카테고리 페이지 진입 시 
+	 * @param {*} param 
+	 */
+	_gtm.dataLayer.view_item_list = function(param) {
+		dataLayer.push(Object.assign({event : 'view_item_list'}, param));
+	}
+	/**
+	 * 카테고리 페이지 이벤트 > ART LIVE 카테고리 페이지에서 특정 라이브 콘텐츠 [알림받기] 버튼 선택 시 
+	 * @param {*} param 
+	 */
+	_gtm.dataLayer.apply_art_live_alarm = function(param) {
+		dataLayer.push(Object.assign({event : 'apply_art_live_alarm'}, param));
+	}
+	/**
+	 * 카테고리 페이지 이벤트 > ART LIVE 카테고리 페이지에서 특정 라이브 콘텐츠 [자세히 보기] 버튼 선택 시 
+	 * @param {*} param 
+	 */
+	_gtm.dataLayer.click_art_live_detail = function(param) {
+		dataLayer.push(Object.assign({event : 'click_art_live_detail'}, param));
+	}
+	/**
+	 * 웹진 > 모든 웹진 콘텐츠 상세 페이지(/display/webzine/detail) 진입 시
+	 * @param {*} param 
+	 */
+	_gtm.dataLayer.view_content_detail = function(param) {
+		dataLayer.push(Object.assign({event : 'view_content_detail'}, param));
+	}
+	/**
+	 * 공유하기
+	 * 퀵뷰 공유하기랑 이외의 공유하기 객체구조가 다르다 확인 필수
+	 * @param {*} param 
+	 */
+	_gtm.dataLayer.share = function(param, addEcommerceYn) {
+		addEcommerceYn = addEcommerceYn || 'N';
+		if(addEcommerceYn=='Y') {
+			dataLayer.push({ ecommerce: null });
+		}
+		
+		dataLayer.push(Object.assign({event : 'share'}, param));
+	}
+	/**
+	 * 웹진 > 웹진 콘텐츠 페이지 (/display/webzine/detail) 내 이미지 배너 선택 시 (배너가 있을 경우)
+	 * @param {*} param 
+	 */
+	_gtm.dataLayer.click_content_detail_banner = function(param) {
+		dataLayer.push(Object.assign({event : 'click_content_detail_banner'}, param));
+	}
+	/**
+	 * 이벤트 페이지/마이페이지 이벤트 >  (아래 URL) 기획전 콘텐츠, 이벤트 콘텐츠 메인 페이지 진입 시
+	 * @param {*} param 
+	 */
+	_gtm.dataLayer.view_promotion = function(param) {
+		dataLayer.push(Object.assign({event : 'view_promotion'}, param));
+	}
+	/**
+	 * 이벤트 페이지/마이페이지 이벤트 > (아래 URL) 기획전 콘텐츠, 이벤트 콘텐츠 상세 페이지 진입 시
+	 * @param {*} param 
+	 */
+	_gtm.dataLayer.view_promotion_detail = function(param) {
+		dataLayer.push(Object.assign({event : 'view_promotion_detail'}, param));
+	}
+	/**
+	 * 이벤트 페이지/마이페이지 이벤트 > 기획전, 이벤트 페이지 (아래 URL) 에서 각각 개별 기획전 콘텐츠, 이벤트 콘텐츠 클릭 시
+	 * @param {*} param 
+	 */
+	_gtm.dataLayer.select_promotion = function(param) {
+		dataLayer.push(Object.assign({event : 'select_promotion'}, param));
+	}
+	/**
+	 * 이벤트 페이지/마이페이지 이벤트 > 개별 이벤트/기획전 페이지의 배너/링크 요소 클릭 시
+	 * @param {*} el 
+	 * @param {*} param 
+	 */
+	_gtm.dataLayer.click_event_element = function(el, param) {
+		$(el).attr(param);
+	}
+	/**
+	 * 이벤트 페이지/마이페이지 이벤트 > 이벤트 페이지에서 쿠폰 다운로드 시
+	 * @param {*} param 
+	 */
+	_gtm.dataLayer.download_coupon = function(param) {
+		dataLayer.push(Object.assign({event : 'download_coupon'}, param));
+	}
+	/**
+	 * 이벤트 페이지/마이페이지 이벤트 >  MY 페이지에서 쿠폰번호 입력 후 정상적으로 쿠폰 등록 완료 시 
+	 * @param {*} param 
+	 */
+	_gtm.dataLayer.upload_coupon = function(param) {
+		dataLayer.push(Object.assign({event: 'upload_coupon'}, param));
+	}
+
+	// s : abcmart main page
+	/**
+	 * 메인 페이지 HOT DEAL 영역 상품 클릭 시 
+	 * @param {*} param 
+	 */
+	_gtm.dataLayer.click_main_item_hotdeal = function(param) {
+		dataLayer.push({ ecommerce: null });
+		dataLayer.push(Object.assign({event : 'click_main_item_hotdeal'}, param));
+	}
+
+	/**
+	 * 메인 페이지 NEW ARRIVALS 영역 상품 클릭 시
+	 * @param {*} param 
+	 */
+	_gtm.dataLayer.click_main_item_new = function(param) {
+		dataLayer.push({ ecommerce: null });
+		dataLayer.push(Object.assign({event : 'click_main_item_new'}, param));
+	}
+
+	/**
+	 * 메인 페이지 MD’S PICK 영역 상품 클릭 시 
+	 * @param {*} param 
+	 */
+	_gtm.dataLayer.click_main_item_mdpick = function(param) {
+		dataLayer.push({ ecommerce: null });
+		dataLayer.push(Object.assign({event : 'click_main_item_mdpick'}, param));
+	}
+
+	/**
+	 * 메인 페이지 +PICK 영역 패키지 상품 콘텐츠 클릭 시  
+	 * @param {*} param 
+	 */
+	_gtm.dataLayer.click_main_item_package = function(param) {
+		dataLayer.push(Object.assign({event : 'click_main_item_package'}, param));
+	}
+
+	/**
+	 * 메인 페이지 BEST BRAND 영역 상품 클릭 시
+	 * @param {*} param 
+	 */
+	_gtm.dataLayer.click_main_item_best = function(param) {
+		dataLayer.push({ ecommerce: null });
+		dataLayer.push(Object.assign({event : 'click_main_item_best'}, param));
+	}
+	// e:  abemart main page
+
+	// s : grandstage main page
+
+	/**
+	 * 메인 페이지 프로모션 영역 썸네일 배너 클릭 시 
+	 * @param {*} param 
+	 */
+	_gtm.dataLayer.click_main_item_promotion_banner = function(param) {
+		dataLayer.push(Object.assign({event : 'select_promotion'}, param));
+	}
+
+	/**
+	 * 메인 페이지 프로모션 영역에서 개별 상품 클릭 시
+	 * @param {*} param 
+	 */
+	_gtm.dataLayer.click_main_item_promotion = function(param) {
+		dataLayer.push({ ecommerce: null });
+		dataLayer.push(Object.assign({event : 'click_main_item_promotion'}, param));
+	}
+
+	/**
+	 * 메인 페이지 각 섹션별 상품 선택 시
+	 * @param {*} param 
+	 */
+	_gtm.dataLayer.click_main_item_section = function(param) {
+		dataLayer.push({ ecommerce: null });
+		dataLayer.push(Object.assign({event : 'click_main_item_section'}, param));
+	}
+
+	/**
+	 * 메인 페이지 오늘 런칭했어요! 영역 패키지 상품 콘텐츠 클릭 시
+	 * @param {*} param 
+	 */
+	_gtm.dataLayer.click_main_item_launch = function(param) {
+		dataLayer.push({ ecommerce: null });
+		dataLayer.push(Object.assign({event : 'click_main_item_launch'}, param));
+	}
+	// e : grandstage main page
+
+	/**
+	 * 모든 페이지에서 찜하기(위시리스트 담기) 완료 시
+	 * @param {*} param 
+	 */
+	_gtm.dataLayer.add_to_wishlist = function(param) {
+		dataLayer.push({ ecommerce: null });
+		dataLayer.push(Object.assign({event : 'add_to_wishlist'}, param));
+	}
+
+	/**
+	 * 모든 페이지에서 장바구니 담기 완료 시
+	 * @param {*} param 
+	 */
+	_gtm.dataLayer.add_to_cart = function(param) {
+		dataLayer.push({ ecommerce: null });
+		dataLayer.push(Object.assign({event : 'add_to_cart'}, param));
+	}
+
+	/**
+	 * 상품 마우스 오버 시 나오는 바로구매 버튼 2 퀵뷰 화면에서 바로구매 버튼을 선택 해
+	정상적으로 주문서 페이지로 넘어갈 경우 (submit) 
+	* @param {*} param 
+	*/
+	_gtm.dataLayer.click_direct_purchase = function(param) {
+		dataLayer.push({ ecommerce: null });
+		dataLayer.push(Object.assign({event : 'click_direct_purchase'}, param));
+	}
+
+	/**
+	 * 상품 상세페이지 진입 시
+	 * @param {*} param 
+	 */
+	_gtm.dataLayer.view_item = function(param) {
+		dataLayer.push({ ecommerce: null });
+		dataLayer.push(Object.assign({event : 'view_item'}, param));
+	}
+
+	/**
+	 * 상품 상세페이지 후기 탭에서 후기 이미지 썸네일 선택 시
+	 * @param {*} param 
+	 */
+	_gtm.dataLayer.click_review_thumb = function(param) {
+		dataLayer.push(Object.assign({event : 'click_review_thumb'}, param));
+	}
+
+	/**
+	 * 상품 재입고 신청을 정상적으로 완료 시 (submit 시점)
+	 * @param {*} param 
+	 */
+	_gtm.dataLayer.submit_reorder = function(param) {
+		dataLayer.push(Object.assign({event : 'submit_reorder'}, param));
+	}
+
+	/**
+	 * 상품 상세페이지에서 선물하기 버튼 선택해서 단순 클릭이 아닌 정상적으로 다음 단계로 넘어갈 경우 (submit 시점)
+	 * 장바구니 페이지에서는 dataLayer.push({ ecommerce: null });
+	 * 장바구니와 이외에 객체 구조가 다르나 확인 필수!
+	 * @param {*} param 
+	 */
+	_gtm.dataLayer.click_gift = function(param) {
+		if(location.pathname.indexOf('cart')!=-1) {
+			dataLayer.push({ ecommerce: null });
+		}
+		dataLayer.push(Object.assign({event : 'click_gift'}, param));
+	}
+
+	/**
+	 * 키지 상품 리스트 페이지(/product/package/detail)에서 특정 상품 클릭 시 위 트리거가 발생할 때 아래 스크립트를 실행합니다.
+	 * @param {*} param 
+	 */
+	_gtm.dataLayer.click_package_item = function(param) {
+		dataLayer.push({ ecommerce: null });
+		dataLayer.push(Object.assign({event : 'click_package_item'}, param));
+	}
+
+	/**
+	 * 패키지 상품 리스트 페이지(/product/package/detail)에서 바로구매를 눌러 **정상적으로 다음 단계로 넘어갔을 때 (submit 시점)** 위 트리거가 발생할 때 아래 스크립트를 실행합니다.
+	 * @param {*} param 
+	 */
+	_gtm.dataLayer.click_package_direct_purchase = function(param) {
+		dataLayer.push({ ecommerce: null });
+		dataLayer.push(Object.assign({event : 'click_package_direct_purchase'}, param));
+	}
+
+	/**
+	 * 장바구니 페이지(/cart/cart-list) 진입 시 위 트리거가 발생할 때 아래 스크립트를 실행합니다.
+	 * @param {*} param 
+	 */
+	_gtm.dataLayer.view_cart = function(param) {
+		dataLayer.push({ ecommerce: null });
+		dataLayer.push(Object.assign({event : 'view_cart'}, param));
+	}
+
+	/**
+	 * 장바구니 특성 상품 제거 완료 시 위 트리거가 발생할 때 아래 스크립트를 실행합니다.
+	 * @param {*} param 
+	 */
+	_gtm.dataLayer.remove_from_cart = function(param) {
+		dataLayer.push({ ecommerce: null });
+		dataLayer.push(Object.assign({event : 'remove_from_cart'}, param));
+	}
+
+	/**
+	 * 주문서 작성 페이지 (/order) 진입 시 위 트리거가 발생할 때 아래 스크립트를 실행합니다.
+	 * @param {*} param 
+	 */
+	_gtm.dataLayer.begin_checkout = function(param) {
+		dataLayer.push({ ecommerce: null });
+		dataLayer.push(Object.assign({event : 'begin_checkout'}, param));
+	}
+
+	/**
+	 * 주문서 작성 페이지 내 필요 정보를 모두 기입하고 [결제하기] 버튼 클릭해서 정상적으로 다음 단계로 넘어갔을 때 (submit 시점) 위 트리거가 발생할 때 아래 스크립트를 실행합니다.
+	 * @param {*} param 
+	 */
+	_gtm.dataLayer.add_payment_info = function(param) {
+		dataLayer.push({ ecommerce: null });
+		dataLayer.push(Object.assign({event : 'add_payment_info'}, param));
+	}
+
+	/**
+	 * 매 완료 시 위 트리거가 발생할 때 아래 스크립트를 실행합니다.
+	 * @param {*} param 
+	 */
+	_gtm.dataLayer.purchase = function(param) {
+		dataLayer.push({ ecommerce: null });
+		dataLayer.push(Object.assign({event : 'purchase'}, param));
+	}
+
+	/**
+	 * 구매한 주문에 대한 **취소 신청을 정상적으로 완료** 했을 경우 위 트리거가 발생할 때 아래 스크립트를 실행합니다.
+	 * @param {*} param 
+	 */
+	_gtm.dataLayer.refund = function(param) {
+		dataLayer.push({ ecommerce: null });
+		dataLayer.push(Object.assign({event : 'refund'}, param));
+	}
+
+	/**
+	 * MY 페이지(/mypage) 내 각 메뉴 클릭 시 위 트리거가 발생할 때 아래 스크립트를 실행합니다.
+	 * @param {*} param 
+	 */
+	_gtm.dataLayer.click_mypage_menu = function(param) {
+		dataLayer.push(Object.assign({event : 'click_mypage_menu'}, param));
+	}
+
+	/**
+	 * 개별 G-log 콘텐츠 페이지 진입 시 위 트리거가 발생할 때 아래 스크립트를 실행합니다.
+	 * @param {*} param 
+	 */
+	_gtm.dataLayer.view_content = function(param) {
+		dataLayer.push(Object.assign({event : 'view_content'}, param));
+	}
+
+	/**
+	 * G-log 페이지 사이드 메뉴 하단 배너 클릭 시 위 트리거가 발생할 때 아래 스크립트를 실행합니다.
+	 * @param {*} param 
+	 */
+	_gtm.dataLayer.click_glog_banner = function(param) {
+		dataLayer.push(Object.assign({event : 'click_glog_banner'}, param));
+	}
+
+	/**
+	 * G-log 페이지에서 `1` 사이드 메뉴 내 선택  또는 `2` 우상단 돋보기 아이콘을 통해 추천 태그 선택, 나의 사이즈 선택 검색 시 위 트리거가 발생할 때 아래 스크립트를 실행합니다.
+	 * @param {*} param 
+	 */
+	_gtm.dataLayer.click_glog_menu = function(param) {
+		dataLayer.push(Object.assign({event : 'click_glog_menu'}, param));
+	}
+
+	/**
+	 * 이벤트/프로모션 페이지 내 댓글 등록 완료 시 위 트리거가 발생할 때 아래 스크립트를 실행합니다.
+	 * @param {*} param 
+	 */
+	_gtm.dataLayer.post_comment = function(param) {
+		dataLayer.push(Object.assign({event : 'post_comment'}, param));
+	}
+
+	/**
+	 * ABC 메인 페이지 MD추천/ONLY 상품 선택 시
+	 * @param {{event: string, section: string, tap_name: string}} info
+	 * @param {*} param
+	 */
+	_gtm.dataLayer.click_main_mdOnly_section = function(info, param) {
+		dataLayer.push({ ecommerce: null });
+		dataLayer.push(Object.assign(info, param));
+	}
+})();

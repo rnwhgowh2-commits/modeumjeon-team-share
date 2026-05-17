@@ -1,0 +1,125 @@
+---
+# SSG.COM — www.ssg.com (단품 크롤러, 인라인 JS uitemObj 정규식)
+# 코드 위치: _시스템/lemouton/sourcing/crawlers/ssg.py
+
+site: ssg
+display_name: SSG
+domains:
+  - www.ssg.com
+  - m.ssg.com                                          # canonical redirect
+  - shinsegae.com                                       # 동일 인프라 (필요 시)
+
+urls:
+  pdp_template: "https://www.ssg.com/item/itemView.ssg?itemId={item_id}&siteNo=...&salestrNo=..."
+  product_id_param: itemId
+
+http:
+  client: curl_cffi
+  impersonate: chrome120
+  timeout_sec: 30
+  default_headers:
+    Accept-Language: "ko-KR,ko;q=0.9,en;q=0.8"
+    Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"
+
+member_price:
+  enabled: false
+  why: "SSG 는 sale_price = bestAmt (최적가, 즉시할인 반영) 가 모든 사용자 동일"
+
+# ────────────────────────────────────────
+# 옵션 — 인라인 JS uitemObj 블록 정규식
+# ────────────────────────────────────────
+options:
+  source: "SSR HTML 내 <script> 인라인 JS"
+  block_pattern: "uitemObj = \\{itemId:'...', uitemId:'...', ...\\}; uitemObjArr.push"
+  exclude_uitem_id: "00000"                            # 대표단품 (전체 합산용) 제외. 단, 옵션 없는 상품은 00000 1개 사용
+  fields:
+    uitemOptnNm1: 색상
+    uitemOptnNm2: 사이즈
+    uitemOptnTypeNm1: "옵션1 타입명 (예: '색상')"
+    uitemOptnTypeNm2: "옵션2 타입명 (예: '사이즈')"
+    sellprc: "parseInt('NNNNN', 10) — 판매가/할인 후"
+    bestAmt: "최적가 (상품 즉시할인 반영, 카드/쿠폰 제외)"
+    usablInvQty: "가용 재고 (0 = 품절)"
+  sale_price_priority:
+    1: bestAmt
+    2: sellprc
+
+# ────────────────────────────────────────
+# SSG MONEY 4 패턴 (★ 핵심 — 매입가 반영 + 중복 방지)
+# ────────────────────────────────────────
+ssg_money_patterns:
+  A_instant_already_applied:
+    detection: "할인내역 layer div.cdtl_ly_cont 안 <dl class='cdtl_ly_dc'><dt>SSG MONEY 즉시할인</dt><dd>X원</dd>"
+    note_text: "최적가의 금액 기준은 ... SSG MONEY 즉시할인이 적용된 금액"
+    behavior: "★ 이미 sale_price (bestAmt) 에 반영 → 추가 차감 금지 (중복 방지)"
+    flag: "ssg_money_already_applied = True"
+    example: "URL3 1000807328520 — bestAmt=39,690 (= 49,000 - 4,900 즉시할인 - 4,410 SSG MONEY 즉시할인)"
+  B_accumulation:
+    detection: "구매혜택 영역 <span class='cdtl_benefit'>SSG MONEY</span> + .cdtl_benefit_info .txt = 'X% 적립'"
+    behavior: "별도 적립 → 매입가에서 sale_price × X% 차감 가능"
+    flag: "ssg_money_already_applied = False, ssg_money_rate = X.X"
+    example: "URL1 1000739593935 르무통 — bestAmt=109,900 + SSG MONEY 5% 적립"
+  C_dual_option:
+    detection: "구매혜택 텍스트 'X% 적립 또는 X% 즉시할인' + 할인내역에 SSG MONEY 즉시할인 dl 동시 존재"
+    behavior: "즉시할인 모드로 bestAmt 이미 계산 → already_applied=True (즉시할인 우선)"
+    example: "URL3 — 구매혜택은 '10% 적립 또는 10% 즉시할인' + 할인내역 'SSG MONEY 즉시할인 4,410'"
+  D_no_ssg_money:
+    detection: "구매혜택 영역에 SSG MONEY 없음 + 할인내역에도 SSG MONEY 즉시할인 dt 없음"
+    behavior: "ssg_money_rate=0, ssg_money_amount=0, already_applied=False"
+    example: "URL2 1000631699134 닥스 벨트 — 상품 즉시할인 18,945만 노출"
+  E_charge_payment_fallback:
+    detection: "충전결제 시 X% 적립' 텍스트 (별도 적립 — B 패턴 변형)"
+    behavior: "accum_rate 미발견 시 fallback 으로 채택"
+    selector: 'div.txt.color1 텍스트'
+
+# ────────────────────────────────────────
+# 카드혜택가 (있을 때만 노출 / 명세대로 표시 ✅ 적용 ❌)
+# ────────────────────────────────────────
+card_benefit:
+  wrap_selector: "div.mndtl_card_price"
+  price_selector: "span.mndtl_price em.ssg_price"
+  condition_selector: "span.mndtl_info_desc"
+  fallback_when_missing:
+    issuer: 현대카드
+    rate: 0.0273
+    why: "사용자 명세 — 카드혜택가 미노출 시 현대카드 2.73% (DB source_benefit_templates 시드)"
+
+# ────────────────────────────────────────
+# 상품쿠폰 (X% / 최소 구매금액 / 최대 할인액)
+# ────────────────────────────────────────
+product_coupon:
+  wrap_selector: "dl.cdtl_cpn_wrap (dt = '상품쿠폰' 매칭)"
+  fields:
+    rate: "cpn_txt 'X% 상품쿠폰' 정규식"
+    amount: "정액 fallback ('X원 상품쿠폰')"
+    min_order: "p.txt 'X만원 이상 구매' → X * 10000"
+    max_discount: "p.txt '최대 X만원' → X * 10000"
+    label: "p.txt 첫 줄"
+
+# ────────────────────────────────────────
+# Fail-safe
+# ────────────────────────────────────────
+fail_safe:
+  - no_options:
+      check: "uitemObj 블록 0개"
+      action: "RuntimeError [SSG] 옵션 추출 실패"
+  - sale_price_zero:
+      check: "bestAmt=0 AND sellprc=0"
+      action: "해당 옵션 skip"
+
+# ────────────────────────────────────────
+# accuracy_baseline
+# ────────────────────────────────────────
+accuracy_baseline:
+  verified_skus: []
+  last_verified: null
+  match_rate: null
+
+meta:
+  schema_version: 0.1
+  last_analyzed: 2026-05-17
+  analyzed_by: claude+rnwhgowh2
+  source_code:
+    - _시스템/lemouton/sourcing/crawlers/ssg.py
+  origin: "2026-05-14 신규. 2026-05-15 SSG MONEY 4 패턴 + 매입가 반영 + 중복 방지"
+  user_active_work_warning: "★ 사용자가 _시스템/scripts/_ssg_*.py 9개 untracked 파일로 active work 중. 본 yaml 은 docs 만 — 코드 안 건드림. 충돌 없음"

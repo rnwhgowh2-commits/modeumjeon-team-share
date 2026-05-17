@@ -1,0 +1,23 @@
+[
+  {
+    "id": 1,
+    "name": "시연용 입출고 리포트 (v2.1)",
+    "date_from": null,
+    "date_to": null,
+    "tx_types": [
+      "in",
+      "out"
+    ],
+    "cols": [
+      "date",
+      "sku",
+      "qty"
+    ],
+    "sort_by": "date_desc",
+    "group_by": null,
+    "format": "html",
+    "partner_filter": null,
+    "sku_filter": null,
+    "created_at": "2026-05-09T10:34:41.933571"
+  }
+]

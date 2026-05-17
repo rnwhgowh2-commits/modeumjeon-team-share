@@ -1,0 +1,198 @@
+{
+  "stages": [
+    {
+      "collapsed": true,
+      "color": "#3182F6",
+      "emoji": "📦",
+      "id": "s2",
+      "items": [
+        {
+          "active_key": "bundles_new",
+          "badge_key": null,
+          "emoji": "➕",
+          "id": "i_new",
+          "name": "신규 모음전 등록",
+          "url": "/bundles/new"
+        },
+        {
+          "active_key": "bundles",
+          "badge_key": null,
+          "emoji": "📋",
+          "id": "i_bundles",
+          "name": "모음전 상품관리",
+          "url": "/bundles"
+        },
+        {
+          "active_key": "bundles_migrate",
+          "badge_key": null,
+          "emoji": "🔗",
+          "id": "i_migrate",
+          "name": "기존 마켓 연동",
+          "url": "/bundles/migrate"
+        },
+        {
+          "active_key": "templates",
+          "badge_key": null,
+          "emoji": "📄",
+          "id": "i_templates",
+          "name": "템플릿",
+          "url": "/templates"
+        },
+        {
+          "active_key": "queue",
+          "badge_key": "unmapped",
+          "emoji": "🔍",
+          "id": "i_queue",
+          "name": "미맵핑 큐",
+          "url": "/queue"
+        }
+      ],
+      "name": "모음전 등록"
+    },
+    {
+      "collapsed": false,
+      "color": "#FF9500",
+      "emoji": "🛒",
+      "icon": null,
+      "icon_color": null,
+      "id": "s1",
+      "items": [
+        {
+          "active_key": "sources",
+          "badge_key": null,
+          "emoji": "🏠",
+          "id": "i_sources",
+          "name": "소싱처 운영센터",
+          "url": "/sources"
+        },
+        {
+          "active_key": "source_registry",
+          "badge_key": null,
+          "emoji": "📖",
+          "id": "i_src_dict",
+          "name": "소싱처 사전",
+          "url": "/source-registry"
+        },
+        {
+          "active_key": "accounts_sourcing",
+          "badge_key": null,
+          "emoji": "🔑",
+          "id": "i_src_acct",
+          "name": "소싱처 계정",
+          "url": "/accounts/sourcing"
+        }
+      ],
+      "name": "소싱"
+    },
+    {
+      "collapsed": false,
+      "color": "#03C75A",
+      "emoji": "🛍",
+      "id": "s3",
+      "items": [
+        {
+          "active_key": "dlq",
+          "badge_key": "failed",
+          "emoji": "⚠️",
+          "id": "i_dlq",
+          "name": "업로드 실패함",
+          "url": "/dlq"
+        },
+        {
+          "active_key": "track",
+          "badge_key": null,
+          "emoji": "📈",
+          "id": "i_track",
+          "name": "가격·재고 추적",
+          "url": "/track"
+        },
+        {
+          "active_key": "orders_list",
+          "badge_key": null,
+          "emoji": "📦",
+          "id": "i_orders",
+          "name": "주문 내역",
+          "url": "/orders/?tab=list"
+        },
+        {
+          "active_key": "market_upload",
+          "badge_key": null,
+          "emoji": "⬆️",
+          "id": "i_mk_upload",
+          "name": "마켓 업로드 설정",
+          "url": "/market-upload-config"
+        }
+      ],
+      "name": "판매·운영"
+    },
+    {
+      "collapsed": false,
+      "color": "#A855F7",
+      "emoji": "💰",
+      "id": "s4",
+      "items": [
+        {
+          "active_key": "orders_sales",
+          "badge_key": null,
+          "emoji": "💵",
+          "id": "i_sales",
+          "name": "매출 관리",
+          "url": "/orders/?tab=sales"
+        },
+        {
+          "active_key": "orders_margin",
+          "badge_key": null,
+          "emoji": "📊",
+          "id": "i_margin",
+          "name": "마진 계산기",
+          "url": "/orders/?tab=margin"
+        },
+        {
+          "active_key": "accounts_upload",
+          "badge_key": null,
+          "emoji": "🏪",
+          "id": "i_mk_acct",
+          "name": "판매처 계정",
+          "url": "/accounts/upload"
+        },
+        {
+          "active_key": "boxhero",
+          "badge_key": null,
+          "emoji": "📥",
+          "id": "i_boxhero",
+          "name": "사입 재고 연동",
+          "url": "/boxhero"
+        },
+        {
+          "active_key": "trash",
+          "badge_key": null,
+          "emoji": "🗑",
+          "id": "i_trash",
+          "name": "휴지통·변경 이력",
+          "url": "/trash"
+        },
+        {
+          "active_key": "alerts",
+          "badge_key": null,
+          "emoji": "🔔",
+          "id": "i_alerts",
+          "name": "알림 채널 설정",
+          "url": "/alerts"
+        }
+      ],
+      "name": "정산·관리"
+    }
+  ],
+  "standalone": [
+    {
+      "active_key": "home",
+      "badge_key": null,
+      "emoji": "⌂",
+      "id": "i_home",
+      "name": "홈",
+      "url": "/"
+    }
+  ],
+  "updated_at": "2026-05-17T14:24:49",
+  "version": 1
+}

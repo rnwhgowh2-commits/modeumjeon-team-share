@@ -1,0 +1,4221 @@
+(function() {
+	/**
+	 * 다이퀘스트 스크립트 동작 순서
+	 * 검색화면에서 abcmart.search.js	 -> 검색어 및 스마트서치 검색 후 -> abcmart.search.js -> pageSearchType 변경 -> abcmart.search.result.js -> pageSearchType 초기화
+	 */
+
+	var _search = abc.object.createNestedObject(window,"abc.search");
+
+	_search.pageColumn = "3";
+	_search.info  = {
+			  searchDefaultDomain : null	// 검색 시 사용하는 기본 도메인
+			, smartSearchDomain	  : null	// 스마트 서치, 최근/인기/추천 검색어 사용 시 사용하는 도메인 변수
+	};
+
+	_search.data = {
+			  cookieName : 'LAST_SEARCH_WORD'
+			, cookieSize : 10
+			, isSearchAreaEmpty : true
+	};
+
+	_search.brandStyleData = [];
+	_search.upCategoryNoList = [];
+	_search.headerFilterOpen = false;
+	_search.smartFilterOpen = false;
+	_search.headerSelectChnnlNo = "";
+	_search.smartSelectChnnlNo = "";
+	_search.smartFilterDpCategoryInit = false;
+	_search.smartFilterDpCategoryInitDone = false;
+	_search.searchCount = 0;
+
+	var params = abc.param.getParams();
+	var pageSearchType = "header-search";
+
+	/* 08.25 헤더 팝업 닫기 버튼 클릭 시 **/
+	$(document).on("click", ".ui-dialog-titlebar-close", function() {
+    	_search.headerFilterOpen = false; // 헤더필터 오픈 여부
+	});
+
+	/**
+	 * 초기화
+	 */
+	_search.init = function() {
+		var searchPageType = $("#currentPage").val();
+		$(".filter-list-wrap").hide();
+		_search.event();
+		_search.getSearchBarWord();
+
+		for(var key in params){
+			try{
+				if(key == 'sort' || key == 'pagingSortType' || key == 'rowsPerPage' ){
+					$("#productSearchForm").find("[name="+key+"]").val(params[key]).selectmenu("refresh");
+				}
+				if(key == 'page'){
+					abc.biz.display.common.setFormParameter.savePageNumParam(params[key]);
+				}
+
+				if(key.startsWith('etc')){
+					if(params[key] == '아트배송'){
+						$("#productSearch-chkArtDelivery").prop("checked", true);
+						$("#chkArtDelivery").prop("checked", true);
+					}else if(params[key] == '매장픽업'){
+						$("#productSearch-chkPickUp").prop("checked", true);
+						$("#chkPickUp").prop("checked", true);
+					}
+				}
+
+				if( searchPageType == "brand" ) {
+					if(key == 'researchWord'){
+						//$("#brandSearchWord").val(params[key]);
+					}
+				}
+
+			}catch(e){
+
+			}
+		}
+		_search.setSmartFilterOpen();
+
+		if( searchPageType == "category"){
+			$('#filterSmartSearch').trigger('click');
+		}
+
+	} // end _search.init
+
+
+	/**
+	 * 이벤트
+	 */
+	_search.event = function() {
+
+		// 뒤로가기시 tab설정 추가
+		window.onpageshow = function(event) {
+			if ( event.persisted || (window.performance && window.performance.navigation.type == 2)) {
+				// Back Forward Cache로 브라우저가 로딩될 경우 혹은 브라우저 뒤로가기 했을 경우
+				$('#search-channel-ntab a').each(function (index) {
+					if($(this).data('tabChnnlNo') == abc.global.currentChannel){
+						$(this).closest('li').addClass('ui-tabs-active');
+					} else {
+						$(this).closest('li').removeClass('ui-tabs-active');
+					}
+				});
+
+				if( $('#search-channel-ntab').hasClass('active-gs') && abc.global.currentChannel == abc.consts.SITE_CHNN_ABC){
+					$('#search-channel-ntab').removeClass('active-gs');
+					$('#search-channel-ntab').addClass('active-abc');
+				} else if( $('#search-channel-ntab').hasClass('active-abc') && abc.global.currentChannel == abc.consts.SITE_CHNN_GS){
+					$('#search-channel-ntab').removeClass('active-abc');
+					$('#search-channel-ntab').addClass('active-gs');
+				}
+			}
+		}
+
+		//2021.05.11 버튼 삭제 시 filter 체크 false
+		$(document).on('click', '#filter-box-area .filter-item', function(e) {
+
+			if( ($(".filter-list").find('[name=researchWordLi]').length > 0 && $("#currentPage").val() == "category") ) {
+			}else{
+
+				var buttonText = $(this).text();
+				var fiterNum = e.target.id;
+				var fiterType = e.target.name;
+				// 대문자 변환
+				var fiterChange = fiterType.charAt(0).toUpperCase();
+				var fiterSlice = fiterType.slice(1);
+				var fiterName = fiterChange + fiterSlice;
+				var searchPageType = $("#currentPage").val();
+				var target;
+				var smartSearchFormSerialize = location.search.replace("?", "");
+
+				//$("#brandStyle1").find('[type=checkbox]').prop('checked', false);
+				$(this).remove();
+				if (searchPageType != "brand" && searchPageType != "search-result") {
+					return false;
+				}
+				if (fiterType == "category") {// 카테고리
+					var categoryId = "ichk" + fiterName + fiterNum
+					$("#" + categoryId).prop('checked', false);
+					target = $("#" + categoryId + "").parents('.smart-search-filter');
+					smartSearchFormSerialize = smartSearchFormSerialize.replace("&category=" + fiterNum, "");
+					// 2021.11.26 카테고리 삭제시 카테고리 이외의 필터를 초기화 한다.
+					smartSearchFormSerialize = _search.changeCategoryFilterAfterJob(smartSearchFormSerialize);
+				} else if (fiterType == "gender") {// 성별
+					var genderId = "irdoTheme" + fiterNum;
+					$("#" + genderId + "").prop('checked', false);
+					target = $("#" + genderId).parents('.smart-search-filter');
+					smartSearchFormSerialize = smartSearchFormSerialize.replace("&gender=" + fiterNum, "");
+				} else if (fiterType == "shoesSize") { // 신발 사이즈
+					$("#" + $.escapeSelector("i" + fiterType + fiterNum.replace(/ /g, ''))).find('[type=checkbox]').prop('checked', false);
+					target = $("#" + $.escapeSelector("i" + fiterType + fiterNum.replace(/ /g, ''))).parents('.smart-search-filter');
+					smartSearchFormSerialize = smartSearchFormSerialize.replace("&shoesSize=" + encodeURIComponent(fiterNum).replace(/%20/g, '\+'), "");
+				} else if (fiterType == "kidsSize") { // 신발 사이즈
+					$("#" + $.escapeSelector("i" + fiterType + fiterNum.replace(/ /g, ''))).find('[type=checkbox]').prop('checked', false);
+					target = $("#" + $.escapeSelector("i" + fiterType + fiterNum.replace(/ /g, ''))).parents('.smart-search-filter');
+					smartSearchFormSerialize = smartSearchFormSerialize.replace("&shoesSize=" + encodeURIComponent(fiterNum).replace(/%20/g, '\+'), "");
+				} else if (fiterType == "womenSize") { // 여성 사이즈
+					$("#" + $.escapeSelector("i" + fiterType + fiterNum.replace(/ /g, ''))).find('[type=checkbox]').prop('checked', false);
+					target = $("#" + $.escapeSelector("i" + fiterType + fiterNum.replace(/ /g, ''))).parents('.smart-search-filter');
+					smartSearchFormSerialize = smartSearchFormSerialize.replace("&shoesSize=" + encodeURIComponent(fiterNum).replace(/%20/g, '\+'), "");
+				} else if (fiterType == "menSize") { // 남성 사이즈
+					$("#" + $.escapeSelector("i" + fiterType + fiterNum.replace(/ /g, ''))).find('[type=checkbox]').prop('checked', false);
+					target = $("#" + $.escapeSelector("i" + fiterType + fiterNum.replace(/ /g, ''))).parents('.smart-search-filter');
+					smartSearchFormSerialize = smartSearchFormSerialize.replace("&shoesSize=" + encodeURIComponent(fiterNum).replace(/%20/g, '\+'), "");
+				} else if (fiterType == "kidsSize") { // 키즈 사이즈
+					$("#" + $.escapeSelector("i" + fiterType + fiterNum.replace(/ /g, ''))).find('[type=checkbox]').prop('checked', false);
+					target = $("#" + $.escapeSelector("i" + fiterType + fiterNum.replace(/ /g, ''))).parents('.smart-search-filter');
+					smartSearchFormSerialize = smartSearchFormSerialize.replace("&shoesSize=" + encodeURIComponent(fiterNum).replace(/%20/g, '\+'), "");
+				} else if (fiterType == "color") { //색상
+					$("#i" + fiterType + fiterNum).find('[type=checkbox]').prop('checked', false);
+					target = $("#i" + fiterType + fiterNum + "").parents('.smart-search-filter');
+					smartSearchFormSerialize = smartSearchFormSerialize.replace("&color=" + fiterNum, "");
+				} else if (fiterType == "brandStyle") {//브랜드 스타일
+					$("[name='" + buttonText + fiterNum + "']").prop('checked', false);
+					target = $("#" + fiterType + fiterNum).parents('.smart-search-filter');
+					smartSearchFormSerialize = smartSearchFormSerialize.replace("&brandStyle=" + fiterNum, "");
+				} else if (fiterType == "price") {//가격
+					var priceTarget = $("#priceFilterContentLi");
+					var priceData = priceTarget.find('[name=smart-search-price-range]').data();
+					var values = [+priceData.min, +priceData.max];
+
+					priceTarget.find('[name=smart-search-price-range]').data('values', values);
+					_search.slideRangeEvent(priceTarget.find('[name=smart-search-price-range-wrap]'), values);
+					abc.namespace.front.frontOffice.setSliderRange(priceTarget.find('[name=smart-search-price-range]'));
+
+					var $exceptLi = priceTarget.find('[name=smart-search-dialog-category-list] > li');
+					priceTarget.find('li').not($exceptLi).removeClass('expanded');
+
+					if ($('#searchWordAddBarUl').find('li').length > 0 && !$("#wordFilterContentLi").hasClass('expanded')) {
+						$("#wordFilterContentLi").addClass('expanded');
+					}
+					smartSearchFormSerialize = smartSearchFormSerialize.replace(/\&price=([0-9]+)/ig, '');
+				} else if (fiterType == "etc") {//기타
+					var decodeStr = decodeURI(smartSearchFormSerialize);
+					if (searchPageType == "brand") {
+						if (fiterNum == "아트배송") {
+							$("#productSearch-chkArtDelivery").prop('checked', false);
+							decodeStr = decodeStr.replace(/\&etc=아트배송/ig, '');
+						} else if (fiterNum == "매장픽업") {
+							$("#productSearch-chkPickUp").prop('checked', false);
+							decodeStr = decodeStr.replace(/\&etc=매장픽업/ig, '');
+						}
+					} else {
+						if (fiterNum == "아트배송") {
+							$("#chkArtDelivery").prop('checked', false);
+							decodeStr = decodeStr.replace(/\&etc=아트배송/ig, '');
+						} else if (fiterNum == "매장픽업") {
+							$("#chkPickUp").prop('checked', false);
+							decodeStr = decodeStr.replace(/\&etc=매장픽업/ig, '');
+						}
+					}
+					smartSearchFormSerialize = encodeURI(decodeStr);
+				} else if (fiterType == "researchWord") { //결과내 검색어
+					target = $("#" + fiterType + fiterNum).parents('.smart-search-filter');
+					var decodeStr = decodeURI(smartSearchFormSerialize);
+					decodeStr = decodeStr.replace("&researchWord=" + fiterNum, "");
+					smartSearchFormSerialize = encodeURI(decodeStr);
+				} else if (fiterType == "brand") { //브랜드
+					$("#i" + fiterType + fiterNum).find('[type=checkbox]').prop('checked', false);
+					target = $("#i" + fiterType + fiterNum).parents('.smart-search-filter');
+					smartSearchFormSerialize = smartSearchFormSerialize.replace("&brand=" + fiterNum, "");
+				}
+
+				if (fiterType != "price" && fiterType != "etc" && !(searchPageType == "brand" && fiterType == "brand")) {
+					var conditions = target.find('.smart-search-selected-condition-item');
+					var isDuplication = false;
+					$.each(conditions, function (ii, vv) {
+						if ($(vv).find('input').attr('name') == fiterType
+							&& $(vv).find('input').val() == fiterNum) {
+							isDuplication = true;
+							$(vv).remove();
+						}
+					});
+					_search.setSearchCountText(fiterType);
+				} else {
+					var priceTarget = $('#iSmartSearchForm').find('.smart-search-selected-condition-item.price-range-type');
+					priceTarget.remove();
+				}
+
+				var removeList;
+				if (searchPageType == "brand") {
+					removeList = $('#iSmartSearchForm').find("[name=" + fiterType + "]");
+				} else {
+					removeList = $('#selectedSmartSearchForm').find('[name="' + fiterType + '"]');
+				}
+
+				removeList.each(function (index, removeObj) {
+					if (removeObj.value == fiterNum) {
+						removeObj.remove();
+					} else if (fiterType == "price") {
+						removeObj.remove();
+					}
+				});
+
+
+				var filterCount = 0;
+				if (searchPageType == "search-result") {
+					filterCount = $("#filter-box-area").find(".filter-item").length;
+				} else {
+					filterCount = $("#iSmartSearchForm").find(".smart-search-selected-condition-item").length;
+				}
+
+				if (filterCount > 0) {
+					$("[name=searchRcmdYn]").val("N");
+				} else {
+					$("[name=searchRcmdYn]").val("Y");
+				}
+
+
+				smartSearchFormSerialize = smartSearchFormSerialize.replace(/\&page=([0-9]+)/ig, '').replace(/\&searchRcmdYn=([A-Za-z]+)/ig, '');
+				var renewURL = location.origin + "" + location.pathname;
+
+				history.replaceState(null, "search", renewURL + "?" + smartSearchFormSerialize + "&page=1&searchRcmdYn=" + $("[name=searchRcmdYn]").val());
+				abc.biz.display.common.setFormParameter.savePageNumParam(1);
+
+				if (searchPageType == "brand") {
+					$('#brandListSearch').trigger('click');
+				} else {
+					abc.search.result.goSearchResultAsync();
+				}
+
+				abc.search.result.setFilterBox();
+			}
+		});
+
+		// 상품 나열 갯수
+		$("[name=rdoProdGridModule]").click(function(){
+			var pageNo = abc.param.getParams().page;
+			var pageColumn = $(this).val().replace("col","");
+
+			if (pageColumn == '2') {
+				$('#result-prod-list, .category-prod-list').removeClass('col-3').removeClass('col-4');
+			} else {
+				$('#result-prod-list, .category-prod-list').removeClass('col-2');
+			}
+			$('#result-prod-list, .category-prod-list').addClass('col-'+pageColumn);
+			$("#iSmartSearchForm").find('[name=pageColumn]').val(pageColumn);
+			$("#productSearchForm").find('[name=pageColumn]').val(pageColumn);
+
+			var target = $('.smart-search-filter.include-type');
+			var smartSearchFormSerialize = location.search.replace("?", "");
+			smartSearchFormSerialize = smartSearchFormSerialize.replace(/\&page=([0-9]+)/ig,'').replace(/\&pageColumn=([0-9]+)/ig,'').replace(/\page=([0-9]+)/ig,'');
+			var paramMark = smartSearchFormSerialize.length > 0 ? "&" : "";
+			var renewURL = location.origin + "" + location.pathname;
+
+			history.replaceState(null, "search", renewURL+"?"+smartSearchFormSerialize+paramMark+"page="+pageNo+"&pageColumn="+pageColumn);
+		});
+
+
+		// 검색 영역 박스 focus 이벤트(최근,추천,인기검색어) // 2022.07.21 : gs일때 검색버튼눌러 검색바 활성 시에도 최근,인기,추천 검색어 영역 활성화
+		$('input[id=searchBar], .util-search').focus(function() {
+			$(this).attr('placeholder', '');
+			_search.setSearchWordArea();
+		});
+
+		// 검색페이지 상단검색 : 마우스 클릭
+		$('#searchWordBtn').on('click', function() { // click
+			_search.goSearchResult($('#searchBar').val());
+		});
+
+		// 검색페이지 상단검색 : 엔터 키
+		$('input[id=searchBar]').keydown(function(key) { // enter
+			if (key.keyCode == 13) {
+				_search.goSearchResult($('#searchBar').val());
+			}
+		});
+
+		// 최근 검색어 삭제
+		$(document).on('click', '#headerRecentKeywordList .btn-remove-keyword', function() {
+			var idx = $(this).data('index');
+			_search.removeLastSearchWord(idx);
+		});
+
+		// 최근 검색어 전체 삭제
+		$('#headerKeywordRemoveAll').on('click', function() {
+			abc.cookie.remove(_search.data.cookieName);
+			_search.getLastSearchWordList();
+		});
+
+		// 최근,인기,추천 검색어 클릭
+		$(document).on('click', '.search-keyword-item', function() {
+			// word, cnnctnType, cnnctnUrl
+			var data = $(this).data();
+
+			if(data.gbntype == 'R'){
+				_search.setHitCount(data.srchwordseq);
+			}
+
+			if (data.cnnctntype == 'U') {
+				var cnnctnurl = data.cnnctnurl;
+				if(cnnctnurl.startsWith("http")){
+					location.href =  cnnctnurl;
+				}else{
+					location.href = _search.info.searchDefaultDomain + cnnctnurl;
+				}
+			} else {
+				_search.goSearchResult(data.word);
+			}
+		});
+
+		// 헤더 채널변경
+		$("#searchChannel" ).selectmenu({
+			change: function( event, ui ) {
+				if($(this).val() != _search.headerSelectChnnlNo){
+					_search.headerFilterOpen = false;
+					_search.smartFilterDpCategoryInitDone = false;
+				}
+			}
+		});
+
+		// 헤더필터 아이콘 클릭 시
+		$('#integSmartSearch').on('click', function() {
+			_search.setHeaderFilterOpen();
+		});
+
+		// 페이지내 필터 아이콘 클릭 시
+		$('#filterSmartSearch').on('click', function() {
+			if(!abc.text.allNull(params.smartSearchCheck)
+				|| ($("#includeSmartSearch").find('.smart-search-selected-condition-list > li input').length > 0
+					 && params.resultExistSmartFilter == 'Y')){
+				if(!$("#includeSmartSearch").hasClass("filtered")){
+					$("#includeSmartSearch").addClass("filtered");
+				}
+			}else{
+				$("#includeSmartSearch").removeClass("filtered");
+			}
+
+			_search.setSmartFilterOpen();
+		});
+
+		// 스마트서치: 채널카테 선택 이벤트
+		$(document).on('click', '[id*=ChkChannel10000]', function(e) {
+			_search.onChannelSelected($(this).closest('li'));
+		});
+
+		// 클릭 이벤트 : 접기/펼치기 기능
+		$(document).on('click','[name=channelCateDiv]', function(e) {
+			$(this).closest('li').toggleClass('expanded');
+		});
+
+		// 스마트서치 : 중카테고리 선택 이벤트
+		$(document).on('click', '[name=subCatListFoldBoxHeader]', function() {
+
+			var target = $(this).parents('.smart-search-filter');
+			var belong = target.hasClass('dialog-type') ? 'd' : 'i';
+
+			if($(this).closest('[name=subCatListLi]').hasClass('expanded')){
+				$(this).closest('[name=subCatListLi]').removeClass('expanded');
+			}else{
+				$(this).closest('[name=subCatListLi]').addClass('expanded');
+			}
+
+			var scrollEl = "";
+			if(belong == "d"){
+				scrollEl = $(this).parents('.search-item').find('.custom-scroll')[0];
+			}else{
+				scrollEl = $(this).parents('.fold-box-contents').find('.custom-scroll')[0];
+			}
+
+			if(!abc.text.allNull(scrollEl)){
+
+				var simpleBar = new SimpleBar(scrollEl);
+				simpleBar.recalculate();
+
+				if($(this).closest('[name=subCatListLi]').hasClass('expanded')){
+					$(this).closest('.simplebar-content').scrollTop(0);
+					simpleBar.recalculate();
+					$(this).closest('.simplebar-content').scrollTop($(this).closest('[name=subCatListLi]').position().top);
+				}
+			}
+
+		});
+
+		// 스마트 서치 : 옵션 선택 이벤트
+		$(document).on('click', '[name=smart-search-option] [type=checkbox], [name=smart-search-option] [type=radio]', function(e) {
+			var target = $(this).parents('.smart-search-filter');
+			var belong = target.hasClass('dialog-type') ? 'd' : 'i';
+			var form = target.find("form");
+			var chnnlNo = form.find('[name=channel]').val();
+			var type = $(this).attr('name');
+			var searchPageType = $("#currentPage").val();
+			var isProgress = true;
+
+			// 카테고리 관련 토글이면 먼저 UI 리셋(다중 선택/해제 모두 커버)
+		  	if (type === 'category' || type === 'categoryAll' || type === 'categorySubAll') {
+				_search.resetSearchUI(target);
+		 	}
+
+			// 대카테고리 전체 체크시
+			if(type == 'categoryAll' && $(this).is(":checked")){
+				var categoryList = $(this).closest('.category-list').find('[type=checkbox]');
+				var conditions = target.find('.smart-search-selected-condition-item');
+				var filterList = $('#filter-box-area').find("[type=button]"); // 2021 고도화 추가
+				for (var i in categoryList){
+					if(categoryList[i].checked){
+						$("#"+categoryList[i].id).prop('checked', false);
+						$.each(conditions, function(ii,v) {
+							if ( $(v).find('input').val() == categoryList[i].value) {
+								$(v).remove();
+							}
+						});
+					}
+					// 2021 고도화 추가
+					filterList.each(function (k,obj) {
+						if (obj.name == 'category' && obj.id == categoryList[i].value) {
+							obj.remove();
+						}
+					});
+					// 2021 고도화 추가
+				}
+				$(this).prop('checked', true);
+
+				 // 카테고리 선택하면 UI 리셋
+    			_search.resetSearchUI(target);
+
+			}else if(type == 'categoryAll' && !$(this).is(":checked")){
+				$(this).prop('checked', true);
+				isProgress = false;
+			}
+
+			if(type == 'categoryAll'){
+				target.find('[name=subCatListLi]').removeClass('expanded');
+				var scrollEl = "";
+				if(belong == "d"){
+					scrollEl = $(this).parents('.search-item').find('.custom-scroll')[0];
+				}else{
+					scrollEl = $(this).parents('.fold-box-contents').find('.custom-scroll')[0];
+				}
+
+				if(!abc.text.allNull(scrollEl)){
+					var simpleBar = new SimpleBar(scrollEl);
+					simpleBar.recalculate();
+				}
+
+				if(!isProgress){
+					return false;
+				}
+			}
+			/*ART-고도화 2021.06.23*/
+			if(type == 'categorySubAll' && $(this).is(":checked") == false){
+				$("button[name="+e.target.value+"]").remove();
+			}
+			// 중카테고리 전체 체크시
+			if(type == 'categorySubAll' && $(this).is(":checked")){
+				var categoryList = $(this).closest('[name=subCatListLi]').find('[type=checkbox]');
+				var conditions = target.find('.smart-search-selected-condition-item');
+				var filterList = $('#filter-box-area').find("[type=button]"); // 2021 고도화 추가
+				var searchForm; // 2022.03.15 카테고리 초기화 추가.
+
+                if( searchPageType == "brand"){
+                    searchForm = $('#iSmartSearchForm').find("[name=category]");
+                }else{
+                    searchForm = $('#selectedSmartSearchForm').find('[name=category]');
+                }
+
+				for (var i in categoryList){
+					if(categoryList[i].checked){
+						$("#"+categoryList[i].id).prop('checked', false);
+						$.each(conditions, function(ii,v) {
+							if ( $(v).find('input').val() == categoryList[i].value) {
+								$(v).remove();
+							}
+						});
+						// 2021 고도화 추가
+						filterList.each(function (k,obj) {
+							if (obj.name == 'category' && obj.id == categoryList[i].value) {
+								obj.remove();
+							}
+						});
+						// 2022.03.15 카테고리 초기화 추가.
+						searchForm.each(function (k,obj) {
+							if ($(obj).val() == categoryList[i].value) {
+								obj.remove();
+							}
+						});
+					}
+				}
+				target.find('[name=categoryAll]').prop('checked', false);
+				$(this).prop('checked', true);
+				/*ART-고도화 2021.06.23*/
+				if(searchPageType != "category"){
+					if($("#productSearch-chkPickUp").is(":checked") == true){
+						$("#productSearch-chkPickUp").prop('checked', false);
+					}
+					if($("#productSearch-chkArtDelivery").is(":checked") == true){
+						$("#productSearch-chkArtDelivery").prop('checked', false);
+					}
+				}
+
+				// 중 카테 전체 선택하면 UI 리셋
+				_search.resetSearchUI(target);
+			}
+
+			// 중카테고리 체크시  중카테고리 전체체크 되어있을때
+			if(type == 'category' && $(this).closest('ul').find('[name=categorySubAll]').is(":checked")){
+				var categorySubAll = $(this).closest('ul').find('[name=categorySubAll]');
+				var categorySubAllVal = $(categorySubAll).val();
+				var conditions = target.find('.smart-search-selected-condition-item');
+				var categoryValue = categorySubAll[0].defaultValue;
+				// 2022.03.15 중카테고리 초기화 추가.
+                var searchForm;
+                if( searchPageType == "brand"){
+                    searchForm = $('#iSmartSearchForm').find("[name=category]");
+                }else{
+                    searchForm = $('#selectedSmartSearchForm').find('[name=category]');
+                }
+				$(categorySubAll).prop('checked', false);
+				$.each(conditions, function(ii,v) {
+					if ( $(v).find('input').val() == categorySubAllVal) {
+						$(v).remove();
+					}
+				});
+				// 2021 고도화 추가
+				var filterList = $('#filter-box-area').find("[type=button]");
+				filterList.each(function (k,obj) {
+					if (obj.name == 'category' && obj.id == categoryValue) {
+						obj.remove();
+					}
+				});
+
+                searchForm.each(function (k,obj) {
+					if ($(obj).val() == categoryValue) {
+                        obj.remove();
+                    }
+                });
+
+				//$("#"+categorySubAllVal+"").remove(); //2021.05.10 추가
+				target.find('[name=categoryAll]').prop('checked', false);
+				$(this).prop('checked', true);
+
+				// 중 카테고리 단일 선택하면 UI 리셋
+    			_search.resetSearchUI(target);
+			}
+
+			if(type == 'category' && $(this).is(":checked")){
+				target.find('[name=categoryAll]').prop('checked', false);
+			}
+
+			if(type != 'categoryAll'){
+
+				var isFirst = true;
+				// 2021.11.9 카테고리 화면 예외 처리 추가.
+				if( !abc.text.allNull(searchPageType) && searchPageType != "category" && !abc.search.result.isInit ) {
+					isFirst = false;
+				}
+
+				_search.selectedConditionEvent($(this).parents('[name=smart-search-option]').eq(0) , isFirst);
+			}else{
+				// 전체 카테고리 클릭시 이벤트
+				$(".filter-list-wrap").hide();
+				var smartSearchFormSerialize = "";
+				if(searchPageType == "brand"){
+					$("[name=searchRcmdYn]").val("Y"); // 추천상품 여부 'Y'
+					smartSearchFormSerialize = location.search.replace("?", "");
+					smartSearchFormSerialize = _search.changeCategoryFilterAfterJob(smartSearchFormSerialize);
+					smartSearchFormSerialize = smartSearchFormSerialize.replace(/\&category=([0-9]+)/ig,'').replace(/\&page=([0-9]+)/ig,'');
+
+					var renewURL = location.origin + "" + location.pathname;
+					history.replaceState(null, "search", renewURL+"?"+smartSearchFormSerialize+"&page=1");
+					_search.getSearchResult($('.smart-search-filter.include-type'));
+
+					// 카테고리 조건을 제거 후 UI 리셋
+                    $('#genderSearchCount').text("성별");
+				}else{
+					$('#selectedSmartSearchForm').find('[name=category]').remove();
+					$("[name=searchRcmdYn]").val("Y");
+					abc.biz.display.common.setFormParameter.savePageNumParam(1);
+					smartSearchFormSerialize = _search.changeCategoryFilterAfterJob(smartSearchFormSerialize);
+					// 호출에러 발생 : abc.search.result.search 로드되지 않은 시점에서 호출되지 않도록 수정 (2025.06.20)
+					if (typeof abc.search.goSearchResultAsync === 'function') {
+						abc.search.result.search.goSearchResultAsync();
+					}
+					// abc.search.result.goSearchResultAsync(); AS-IS
+				}
+			}
+			if (type == 'categoryAll' || type == 'categorySubAll' || type == 'category') {
+				_search.setSmartSearchOption(false, target);
+			}
+			// #2620 성별 선택시 초기화 주석처리
+//			if (type == 'gender'){
+//				if(chnnlNo == '10000'){
+//					_search.setSmartSearchOption(true, target);
+//				}else{
+//					_search.setSmartSearchOption(false, target);
+//				}
+//			}
+		});
+
+		// 스마트 서치 : 옵션 선택 삭제 이벤트
+		$(document).on('click', '[name=smart-search-selected-condition-delete-btn]', function(e) {
+			e.preventDefault();
+			var target = $(this).parents('.smart-search-filter');
+			var belong = target.hasClass('dialog-type') ? 'd' : 'i';
+			var form = target.find("form");
+			var chnnlNo = form.find('[name=channel]').val();
+
+			// 카테고리 , 성별 삭제시 선택한 조건 삭제
+			if($(this).hasClass('option-type-category') || $(this).hasClass('option-type-gender')){
+				target.find('.smart-search-selected-condition-list')
+				.find('input[name=brand],input[name=brandStyle],input[name*=Size],input[name=color],input[name=price],input[name=etc]').parents('li').remove();
+			}
+
+			/** 금액을 클릭했을 때 **/
+			if ($(this).hasClass('price-range-type')) {
+
+				var data = target.find('[name=smart-search-price-range]').data();
+				var values = [+data.min, +data.max];
+				target.find('[name=smart-search-price-range]').data('values', values);
+
+				_search.slideRangeEvent(target.find('[name=smart-search-price-range-wrap]'), values);
+				abc.namespace.front.frontOffice.setSliderRange(target.find('[name=smart-search-price-range]'));
+
+				target.find('.smart-search-selected-condition-list input[name=price]').parents('li').remove();
+
+			/** 성별 클릭했을 때 **/
+			}else if($(this).hasClass('option-type-gender')){
+
+				// X 누른 카테고리 값
+				var data =$(this).closest('li').find("input[name=gender]").val();
+
+				// 검색어 삭제
+				$.each(target.find('.smart-search-selected-condition-list').find("input[name=gender]"), function(i,v) {
+					var remData = $(v).val();
+					if(data == remData){
+						var ii = i;
+						$('#'+belong+'rdoTheme'+remData).prop('checked', false);
+						target.find('.smart-search-selected-condition-list input[name=gender]').eq(ii).parents('li').remove();
+					}
+				});
+
+				if(chnnlNo == '10000'){
+					_search.setSmartSearchOption(true, target);
+				}else{
+					_search.setSmartSearchOption(false, target);
+				}
+			/** 카테고리를 선택했을 때 **/
+			}else if($(this).hasClass('option-type-category')){
+				// X 누른 카테고리 값
+				var data =$(this).closest('li').find("input[name=category]").val();
+
+				// 검색어 삭제
+				$.each(target.find('.smart-search-selected-condition-list').find("input[name=category]"), function(i,v) {
+					var remData = $(v).val();
+					if(data == remData){
+						var ii = i;
+						$('#'+belong+'chkCategory'+remData).prop('checked', false);
+						target.find('.smart-search-selected-condition-list input[name=category]').eq(ii).parents('li').remove();
+					}
+				});
+
+				_search.setSmartSearchOption(false, target);
+
+				 // 카테고리 조건을 제거 후 UI 리셋
+				_search.resetSearchUI(target);
+
+			/** 검색어를 선택했을 때 */
+			}else if($(this).hasClass('option-type-word')){
+				var idx = $(this).closest('[name=researchWordLi]').index();
+
+				// 검색어 삭제
+				if(belong == "i"){
+					$.each($('#searchWordAddBarUl'), function(i,v) {
+						$(v).children().eq(idx).remove();
+					});
+					$.each(target.find('.smart-search-selected-condition-list'), function(i,v) {
+						$(v).find('[name=researchWordLi]').eq(idx).remove();
+					});
+				}else{
+					$.each(target.find('.smart-search-selected-condition-list'), function(i,v) {
+						$(v).find('[name=researchWordLi]').eq(idx).remove();
+					});
+				}
+
+				// 최초 검색어 삭제
+				if (idx == 0) {
+					target.find('.smart-search-selected-condition-list input[name="firstSearchWord"]').closest('li').remove();
+				}
+
+			/** 브랜드, 사이즈, 색상, 가격, etc를 선택했을 때 **/
+			}else{
+				$('[id="'+($(this).data('target').slice(1))+'"]').find('input').prop('checked', false);
+				var $input = $(this).siblings('input');
+				var type = $input.attr('name');
+				target.find('.smart-search-selected-condition-list input[name='+type+'][value="'+$input.val()+'"]').parents('li').remove();
+			}
+
+			//선택한 조건에 길이
+			var len = target.find('.smart-search-selected-condition-list li').not('.option-type-word').length;
+
+			if(len == 0){
+				var expandedLi = target.find("[name=smart-search-dialog-category-list] li").find(".expanded");
+				if(expandedLi.length > 0){
+					expandedLi.removeClass("expanded");
+					expandedLi.siblings("[name=smart-search-option]").find("[name=categoryAll]").prop('checked', true);
+				}
+			}
+		});
+
+		// 스마트 서치 : price range 이벤트
+		$('[name=smart-search-price-range]').on('slidestop', function(event,ui) {
+
+			var target = $(this).parents('.smart-search-filter');
+			var form = target.find("form");
+			var values = $(this).slider('values');
+			var str = abc.text.isMakeComma(values[0]) + '~' + abc.text.isMakeComma(values[1]) + '원';
+			var searchPageType = $("#currentPage").val();
+
+			$("#searchRcmdYn").val("N");
+			if (target.find('.smart-search-selected-condition-item.price-range-type').length > 0) {
+				form.find('#maxPrice').val(values[0]);
+				form.find('#minPrice').val(values[1]);
+				form.find('.smart-search-selected-condition-item.price-range-type .filter-title').text(str);
+				/* S : ART-고도화 추가 2021.06.23*/
+				if( !_search.headerFilterOpen ) { //2021.12.01 SMART SEARCH 예외처리 추가
+					$('#filter-box-area').find("[name=price]").text(values[0] + '~' +  values[1]);
+					$('#selectedSmartSearchForm').find("[id=maxPrice]").val(values[0]);
+					$('#selectedSmartSearchForm').find("[id=minPrice]").val(values[1]);
+				}
+				/* E : ART-고도화 추가 2021.06.23*/
+			} else {
+				var _HTML = "";
+				_HTML += '<li class="smart-search-selected-condition-item price-range-type">';
+				_HTML += '	<span class="filter-item">';
+				_HTML += '		<input type="hidden" name="price" id="maxPrice" value="'+values[0]+'">';
+				_HTML += '		<input type="hidden" name="price" id="minPrice" value="'+values[1]+'">';
+				_HTML += '		<span class="filter-title">'+str+'</span>';
+				_HTML += '		<button class="btn-filter-del price-range-type" name="smart-search-selected-condition-delete-btn"></button>';
+				_HTML += '	</span>';
+				_HTML += '</li>';
+
+				target.find('.smart-search-selected-condition-list').append(_HTML);
+
+				/* S : ART-고도화 추가 2021.06.23*/
+				if( !_search.headerFilterOpen ) { //2021.12.01 SMART SEARCH 예외처리 추가
+					var priceTag = '<input type="hidden" name="price" id="maxPrice" value="'+values[0]+'">';
+					priceTag += '<input type="hidden" name="price" id="minPrice" value="'+values[1]+'">';
+					$('#selectedSmartSearchForm').append(priceTag);
+					var filterTag = '<button type="button" name="price" class="filter-item">' + values[0] + '~' +  values[1] + '</button>';
+					$('#filter-box-area').append(filterTag);
+				}
+				/* E : ART-고도화 추가 2021.06.23*/
+			}
+
+			if( !_search.headerFilterOpen ) { //2021.12.01 SMART SEARCH 예외처리 추가
+				var smartSearchFormSerialize = location.search.replace("?", "");
+				smartSearchFormSerialize = smartSearchFormSerialize.replace(/\&price=([0-9]+)/ig,'');
+				var renewURL = location.origin + "" + location.pathname;
+
+				history.replaceState(null, "search", renewURL+"?"+smartSearchFormSerialize+"&page=1&price=" + values[0] + "&price=" + values[1]);
+
+				/* S : ART-고도화 추가 2021.06.23*/
+				if(searchPageType != "category"){
+					abc.search.result.setFilterBox();
+					if( searchPageType == "brand" ){
+						var target = $('.smart-search-filter.include-type');
+						_search.getSearchResult(target);
+					}else{
+						abc.search.result.goSearchResultAsync();
+					}
+				}
+			}
+			/* E : ART-고도화 추가 2021.06.23*/
+		});
+
+
+		// 스마트 서치 : 초기화
+		$('[name=smart-search-clear-btn]').on('click', function() {
+			$("[name=searchRcmdYn]").val("Y");
+
+			var searchPageType = $("#currentPage").val();
+			//2021.12.01 카테고리 페이지 이거나 SMART SEARCH 레이어 화면이 열려있으면 이전 로직을 실행한다.
+			if(searchPageType == "category" || _search.headerFilterOpen ) {
+				var target = $(this).parents('.smart-search-filter');
+				var belong = target.hasClass('dialog-type') ? 'd' : 'i';
+				var chnnlNo = params.channel;
+
+				if(target.find('[name=smart-search-dialog-category-list]').length > 0){
+					if(belong == "i"){
+						_search.smartSelectChnnlNo = "";
+						if(params.dfltChnnlMv == 'Y' && $("#brandPrdtArtDispYn").val() != "N"){
+							chnnlNo = '10000';
+						}else if(abc.text.allNull(chnnlNo)){
+							chnnlNo = abc.text.allNull($("#brandPageChnnlNo").val()) ? '10000' : $("#brandPageChnnlNo").val();
+						}
+					}else{
+						_search.headerSelectChnnlNo = "";
+						chnnlNo = target.find('[name=smart-search-dialog-category-list]').find('.active').data('chnnlNo');
+					}
+
+					var repeatCnt = 0;
+					var repeat = setInterval(function(){
+						repeatCnt++
+						if(repeatCnt > 20){
+							clearInterval(repeat);
+						}
+
+						if($('#'+belong+'ChkChannel'+chnnlNo).length > 0){
+							if(chnnlNo == '10000'){
+								$("#"+belong+"ChkChannel10000").trigger("click");
+							}else{
+								$("#"+belong+"ChkChannel"+chnnlNo).find("[name=channelCateDiv]").trigger("click");
+							}
+							clearInterval(repeat);
+						}
+					}, 100);
+				}else{
+					if(belong == "i"){
+						_search.searchCountTextReset();
+					}
+				}
+
+				// 선택한 조건 초기화
+				var $excep = "";
+				if(belong == "i"){
+					$except = target.find('.smart-search-selected-condition-list').find('[name=firstSearchWordLi]');
+					var firstSearchWord = target.find('input[name=firstSearchWord]').val();
+					if(!abc.text.allNull(firstSearchWord)){
+						$("#searchWordAddBarUl").find('[name=researchWordLi]').not(':first').remove();
+					}else{
+						$("#searchWordAddBarUl").find('[name=researchWordLi]').remove();
+					}
+				}else{
+					$except = target.find('.smart-search-selected-condition-list').find('[name=researchWordLi]')[0];
+				}
+				target.find('.smart-search-selected-condition-list li').not($except).remove();
+
+
+				// 옵션창 prop 초기화
+				target.find('[name=smart-search-option] input').prop('checked', false);
+
+				// 옵션창 price range 초기화
+				var data = target.find('[name=smart-search-price-range]').data();
+				var values = [+data.min, +data.max];
+
+				target.find('[name=smart-search-price-range]').data('values', values);
+
+				_search.slideRangeEvent(target.find('[name=smart-search-price-range-wrap]'), values);
+				abc.namespace.front.frontOffice.setSliderRange(target.find('[name=smart-search-price-range]'));
+
+				var $exceptLi = target.find('[name=smart-search-dialog-category-list] > li');
+				target.find('li').not($exceptLi).removeClass('expanded');
+
+				if($('#searchWordAddBarUl').find('li').length > 0 && !$("#wordFilterContentLi").hasClass('expanded')){
+					$("#wordFilterContentLi").addClass('expanded');
+				}
+				if(searchPageType == "category"){
+					var smartSearchFormSerialize = "genderGbnCode="+params.gender+"&ctgrNo="+params.ctgrNo+"&page=1";
+					var renewURL = location.origin + "" + location.pathname;
+
+					history.replaceState(null, "search", renewURL+"?"+smartSearchFormSerialize);
+					abc.biz.display.common.setFormParameter.savePageNumParam(1);
+					_search.getSearchResult($(this).parents('.smart-search-filter'));
+				}
+			} else {
+
+				// 2021.11.30 url파라미터 초기화 추가
+				$('.fold-box-list-wrap.channel').find("[type=checkbox]").prop('checked', false); // 필터 카테고리 체크 초기화
+				$('.fold-box-list-wrap.filter').find("[type=checkbox]").prop('checked', false);
+				$('#selectedSmartSearchForm').find('input[name=category]').remove(); // 검색 폼 카테고리 정보 초기화
+				$(".smart-search-selected-condition-list").find('li').remove();
+
+				var data = $("#includeSmartSearch").find('[name=smart-search-price-range]').data();
+				if(!abc.text.allNull(data)){
+					var values = [+data.min, +data.max];
+					$("#includeSmartSearch").find('[name=smart-search-price-range]').data('values', values);
+				}
+
+				var smartSearchFormSerialize = "";
+				if(searchPageType == "brand"){
+					smartSearchFormSerialize = "brandNo="+params.brandNo;
+				}else{
+					smartSearchFormSerialize = location.search.replace("?", "");
+					smartSearchFormSerialize = _search.changeCategoryFilterAfterJob(smartSearchFormSerialize);
+					smartSearchFormSerialize = smartSearchFormSerialize.replace(/\&category=([0-9]+)/ig,'').replace(/\&smartSearchCheck=([A-Za-z]+)/ig,''); // 카테고리외  초기화
+				}
+				var renewURL = location.origin + "" + location.pathname;
+
+				history.replaceState(null, "search", renewURL+"?"+smartSearchFormSerialize + "&page=1");
+				abc.biz.display.common.setFormParameter.savePageNumParam(1);
+
+				$('#filter-box-area').empty();
+				abc.search.result.setFilterBox();
+
+				if(searchPageType == "brand"){
+				//	$('#brandListSearch').trigger('click');
+					_search.getSearchResult($('.smart-search-filter.include-type'));
+				}else{
+					abc.search.result.goSearchResultAsync();
+				}
+				$("[name=categoryAll]").trigger("click"); // 초기화 시 "전체" 선택
+				$('#rdoProdGrid01').trigger("click"); // 세줄보기 클릭(기본값)
+			}
+			// 2021.05.10 전체 삭제 (ART-고도화 추가 )
+		});
+
+		var count = 0; //ART-고도화 추가 2021.06.23
+		// 스마트 필터 : 검색 btn
+		$('[name=smart-search-submit-btn]').off().on('click', function(e) {
+			e.preventDefault();
+			$("[name=searchRcmdYn]").val("Y");
+			var searchWord = "";
+			if($("#brandSearchWord").val() != null && $("#brandSearchWord").val() != undefined && $("#brandSearchWord").val() != ""){
+				// 2022.05.10 <li> 태그 추가, 결과내 검색 필터 추가
+				searchWord = $('#brandSearchWord').val().replace(/[^a-z|A-Z|0-9|ㄱ-ㅎ|가-힣]/g, '');
+				var html = "<li>";
+				html += "    <span calss='filter-item'>";
+				html +=        "    <input type='hidden' name='researchWord' value="+searchWord+">";
+				html +="    </span>";
+				html +="</li>";
+				$(".smart-search-selected-condition-list").append(html);
+
+				html = "<button type='button' name='researchWord' id='" + searchWord + "' class='filter-item'>" + searchWord + "</button>";
+				$("#filter-box-area").append(html);
+				abc.search.result.setFilterBox();
+				$("#brandSearchWord").val('');
+				// 2022.05.10 <li> 태그 추가, 결과내 검색 필터 추가
+			}
+			var target = $(this).parents('.smart-search-filter');
+			var belong = target.hasClass('dialog-type') ? 'd' : 'i';
+			var form = $("#"+belong+"SmartSearchForm");
+			var searchPageType = $("#currentPage").val();
+			var domain = "";
+			var selectUrl = "";
+			var chnnlNo = "";
+			abc.biz.display.common.setFormParameter.clearParams(1);
+
+			if(target.find('[name=smart-search-dialog-category-list]').length > 0){
+				selectUrl = target.find('[name=smart-search-dialog-category-list]').find('.active').data('chnnlUrl');	// 검색어 입력창에서 선택한 채널
+				chnnlNo = target.find('[name=smart-search-dialog-category-list]').find('.active').data('chnnlNo');
+
+				form.find('[name=channel]').val(chnnlNo);
+			}
+			if(form.find('[name=channel]').val() == '10000'){
+				form.find('[name=channel]').val("");
+			}
+			//헤더 스마트 서치인 경우
+			if(belong == 'd') {
+				if(!abc.text.allNull(selectUrl)){	// 채널을 선택했을 때
+					domain = selectUrl;	// 통합검색이외에 채널을 선택하면 선택한 url이 검색 도메인으로 설정
+					abc.biz.display.common.channelChange(chnnlNo);
+					setTimeout(function() {
+						form.attr('action', domain + '/display/search-word/result');
+						form.submit();
+					}, 300);
+				}else{
+					var srchBarWord = $('#searchBar').val();	// 스마트 서치의 채널
+					_search.getSearchWordChannel(srchBarWord)
+							.then(function(data){
+
+								domain = data.serviceDomainFo;
+								form.find('[name=channel]').val(data.chnnlNo);
+								abc.biz.display.common.channelChange(data.chnnlNo);
+								setTimeout(function() {
+									form.attr('action', domain + '/display/search-word/result');
+									form.submit();
+								}, 300);
+
+							})
+							.catch(function(error){
+								alert(error);
+							});
+
+				}
+
+			}else if($("#resultSmartSearchCheck").val() == "true" && searchPageType != "brand"){ //a-rt 고도화 추가 2021.06.23
+				$("#selectedSmartSearchForm").empty();
+
+				if(form.find("[name=smartSearchCheck]").length > 0){
+					form.find("[name=smartSearchCheck]").val(true);
+				}else{
+					form.append($('<input/>', {type: 'hidden', name: 'smartSearchCheck', value: "true" }));
+				}
+
+				//form.find("[name=sort]").val("point"); // 2022.07.19 : 검색 상품목록 default sort 신상품순 에서 베스트상품순 으로 변경
+				form.find("[name=perPage]").val("30");
+
+				if(!abc.text.allNull(selectUrl)){
+					domain = selectUrl;
+				}
+
+				form.attr('action', domain + '/display/search-word/result');
+				form.submit();
+			}else{
+				$('#pagingDiv').empty();
+
+				var maxPrice ;
+				var minPrice ;
+
+				//2021.11.18 sort, perPage 값이 없어서 오류나는 케이스 수정
+				//if( abc.text.allNull( form.find("[name=sort]").val() ) ){
+					//form.find("[name=sort]").val("point"); // 2022.07.19 : 검색 상품목록 default sort 신상품순 에서 베스트상품순 으로 변경
+				//} // 2025.04.28: 추가검색어 검색시 소팅 안되는 오류 수정
+				if( abc.text.allNull( form.find("[name=perPage]").val() ) ){
+					//2021.12.17 카테고리 페이지 분기 추가.
+					if( searchPageType == "category") {
+						form.find("[name=perPage]").val("40");
+					} else {
+						form.find("[name=perPage]").val("30");
+					}
+				}
+
+				var filterCount = form.find(".smart-search-selected-condition-list .smart-search-selected-condition-item").length;
+				if(filterCount > 0){
+					$("[name=searchRcmdYn]").val("N");
+				}
+
+				var renewURL = location.origin + "" + location.pathname;
+				if(searchPageType !="brand"){
+					var smartSearchFormSerialize = form.find('input').filter(function(index, element) {
+						return !abc.text.allNull($(element).val());
+					}).serialize()
+					+ '&' +
+					$("#productSearchForm :input").filter(function(index, element) {
+						return !abc.text.allNull($(element).val());
+					}).serialize();
+
+					var exceptArr = ["price"];
+					smartSearchFormSerialize = decodeURI(smartSearchFormSerialize);
+					smartSearchFormSerialize = abc.text.removeDuplicateCharacters(smartSearchFormSerialize, "&", exceptArr);
+					smartSearchFormSerialize = smartSearchFormSerialize.replace(/\&page=([0-9]+)/ig,'').replace(/\&chkArtChoose=([0-9a-zA-Z\{\}\[\]\/?.,;:|\)*~`!^\-_+<>@\#$%&\\\=\(\'\"]+)/ig,'');
+					smartSearchFormSerialize = encodeURI(smartSearchFormSerialize);
+
+					history.replaceState(null, "search", renewURL+"?"+smartSearchFormSerialize+"&page=1&resultExistSmartFilter=Y");//&resultExistSmartFilter=Y 삭제 => 2021.09.13 : 상품상세 이동 후 뒤로 가기시 스마트서치의 검색조건이 풀리는 문제 야기해서 다시 붙임.
+				}else{
+					// 2023.05.10 추천상품이 검색조건에 안걸리면 노출안되게 > 2025.08.29 주석처리
+					/* if ($("#filter-box-area").find('[name=researchWord]').length > 0) {
+						$("[name=searchRcmdYn]").val("N");
+					}else{
+						$("[name=searchRcmdYn]").val("N");
+					} */
+					var researchWords = "";
+					if(!abc.text.allNull(searchWord)){
+						researchWords = "&researchWord=" + searchWord;
+						researchWords = "&sort=" + $("#productSearch-sort").val(); // 2025.04.28: 추가검색어 검색시 소팅 안되는 오류 수정
+					}
+					var smartSearchFormSerialize = location.search.replace("?", "").replace(/\&page=([0-9]+)/ig,'');
+					history.replaceState(null, "search", renewURL+"?"+smartSearchFormSerialize+researchWords+"&page=1&smartSearchCheck=true");
+				}
+
+				_search.smartFilterOpen = true;
+				if(!$("#includeSmartSearch").hasClass("filtered")){
+					$("#includeSmartSearch").addClass("filtered");
+				}
+
+				_search.getSearchResult(target);
+			}
+		});
+
+		// 정렬 변경
+		$('#productSearch-sort').on('selectmenuchange', function() {
+			var sort = $(this).val();
+			var target = $('.smart-search-filter.include-type');
+
+			abc.biz.display.common.setFormParameter.savePageNumParam(1);
+
+			var smartSearchFormSerialize = location.search.replace("?", "");
+
+			smartSearchFormSerialize = smartSearchFormSerialize.replace(/\&sort=([a-z]+)/ig,'').replace(/\&page=([0-9]+)/ig,'');
+
+			var renewURL = location.origin + "" + location.pathname;
+
+			history.replaceState(null, "search", renewURL+"?"+smartSearchFormSerialize+"&page=1&sort="+sort);
+
+			$('#pagingDiv').empty();
+
+			_search.getSearchResult(target);
+		});
+
+		// 상품조회개수 변경
+		$('#productSearch-perPage').on('selectmenuchange', function() {
+			var perPage = $(this).val();
+			var target = $('.smart-search-filter.include-type');
+
+			abc.biz.display.common.setFormParameter.savePageNumParam(1);
+
+			var smartSearchFormSerialize = location.search.replace("?", "");
+			smartSearchFormSerialize = smartSearchFormSerialize.replace(/\&page=([0-9]+)/ig,'').replace(/\&perPage=([0-9]+)/ig,'');
+
+			var renewURL = location.origin + "" + location.pathname;
+
+			history.replaceState(null, "search", renewURL+"?"+smartSearchFormSerialize+"&page=1&perPage="+perPage);
+
+			$('#pagingDiv').empty();
+
+			_search.getSearchResult(target);
+		});
+
+		// 아트배송 선택 2021.05.10
+		$("#productSearch-chkArtDelivery").on('click', function() {
+			$("#ietc2").trigger("click");
+			if($("#currentPage").val() == 'category'){
+				$("#cataSearch").trigger('click');
+			}
+		});
+
+		// 매장 픽업 선택 2021.05.10
+		$("#productSearch-chkPickUp").on('click', function() {
+			$("#ietc1").trigger("click");
+			if($("#currentPage").val() == 'category'){
+				$("#cataSearch").trigger('click');
+			}
+		});
+
+		// 필터 검색어 추가
+		$('#add-filter-search-word-btn').on('click', function() {
+			var searchPageType = $("#currentPage").val();
+			if(searchPageType == "category"){ //카테고리 검색일 경우 2021.06.23
+				_search.setFilterSearchWord($('#searchWordAddBar').val().replace(/[^a-z|A-Z|0-9|ㄱ-ㅎ|가-힣]/g, ''));
+			}else{
+				_search.goSearchResult($('#searchWordAddBar').val().replace(/[^a-z|A-Z|0-9|ㄱ-ㅎ|가-힣]/g, ''));
+			}
+		});
+
+		$('#searchWordAddBar').on('keydown', function(key) {
+			var searchPageType = $("#currentPage").val();
+			if(key.keyCode == 13){
+				if(searchPageType == "category"){ //카테고리 검색일 경우 2021.06.23
+					_search.setFilterSearchWord($('#searchWordAddBar').val().replace(/[^a-z|A-Z|0-9|ㄱ-ㅎ|가-힣]/g, ''));
+				}else{
+					_search.goSearchResult($('#searchWordAddBar').val().replace(/[^a-z|A-Z|0-9|ㄱ-ㅎ|가-힣]/g, ''));
+				}
+			}
+		});
+
+		// 브랜드검색 버튼 클릭시, 스크롤 이동
+		$(document).on('click', '.btn-brand-search', function() {
+			_search.findBrnadSearchScroll(this);
+		});
+
+		$('[name=brandFilterContent] input').on('keydown', function(key) {
+			if (key.keyCode == 13) {
+				_search.findBrnadSearchScroll(this);
+			}
+		});
+
+		//  상품상세 클릭 이벤트
+		$(document).on('click', '.prod-link', function() {
+			var data = $(this).closest('li').data("productNo");
+			sessionStorage.setItem("prdtNo", data);
+			sessionStorage.setItem("currBlock", abc.paging.currBlock);
+			sessionStorage.setItem("lastBlock", abc.paging.lastBlock);
+			sessionStorage.setItem("linkType", "product"); //2021 고도화 추가
+		});
+
+		// 매핑채널이동
+		$(document).on('click', '#search-channel-ntab .tab-link', function(e){
+			var searchPageType = $("#currentPage").val();
+			var tabChnnlNo = $(this).data("tabChnnlNo");
+			var smartSearchFormSerialize = "ntab&" + location.search.replace("?", "").replace("ntab&", "");
+
+			var categoryList = [];
+			if(searchPageType == 'category'){
+				categoryList.push(abc.param.getParams().ctgrNo);
+			}else{
+				var params;
+				params = smartSearchFormSerialize.split("&");
+
+				var size = params.length;
+				var param = {}, key, value;
+				for(var i=0 ; i < size ; i++) {
+					key = params[i].split("=")[0];
+					value = params[i].split("=")[1];
+					if(key == 'category'){
+						if(!abc.text.isBlank(value)){
+							categoryList.push(value);
+						}
+					}
+				}
+			}
+
+			$.ajax({
+				type :'get',
+				url : '/display/category/mapping-list',
+				data: {
+					chnnlNo : abc.global.currentChannel,
+					categoryList : categoryList
+				}
+			})
+			.done(function(data) {
+
+
+				var ctgrNoParams = "";
+				data.mappingList.forEach(function(item,index){
+					var ctgrNo = "";
+					if(tabChnnlNo == abc.consts.SITE_CHNN_ABC){
+						ctgrNo = item.abcCtgrNo;
+					}else if(tabChnnlNo == abc.consts.SITE_CHNN_GS){
+						ctgrNo = item.gsCtgrNo;
+					}else if(tabChnnlNo == abc.consts.SITE_CHNN_KIDS){
+						ctgrNo = item.kidsCtgrNo;
+					}
+
+					if(searchPageType == 'category'){
+						if(!abc.text.allNull(ctgrNo)){
+							ctgrNoParams = "&ctgrNo="+ctgrNo;
+						}
+					}else{
+						ctgrNoParams += "&category="+ctgrNo;
+					}
+				});
+
+				if(searchPageType == 'category'){
+					if(abc.text.allNull(ctgrNoParams)){
+						$("#search-channel-ntab li").removeClass("ui-tabs-active");
+						$('[data-tab-chnnl-no$="'+ abc.global.currentChannel+'"]').parent().addClass("ui-tabs-active");
+						abc.loading.hide();
+						return false;
+					}
+				}
+
+				var chnnlUrl = "";
+				data.channelList.forEach(function(item,index){
+					if(tabChnnlNo == item.chnnlNo){
+						chnnlUrl = item.chnnlUrl;
+					}
+				});
+
+				if(searchPageType == 'search-result'){
+					ctgrNoParams = ctgrNoParams + "&tabGubun=total";
+				}
+
+				smartSearchFormSerialize = smartSearchFormSerialize.replace(/\&ctgrNo=([0-9]+)/ig,'').replace(/\&category=([0-9]+)/ig,'')
+																	.replace(/\&channel=([0-9]+)/ig,'').replace(/\&chnnlNo=([0-9]+)/ig,'')
+																	.replace(/\&page=([0-9]+)/ig,'').replace(/\&pageColumn=([0-9]+)/ig,'')
+																	.replace(/\&tabGubun=([A-Za-z0-9]+)/ig,'');
+
+				smartSearchFormSerialize = abc.text.removeDuplicateCharacters(smartSearchFormSerialize, "&");
+				var renewURL = chnnlUrl + "" + location.pathname;
+				renewURL = renewURL+"?"+smartSearchFormSerialize+"&page=1&channel="+tabChnnlNo+"&chnnlNo="+tabChnnlNo+""+ctgrNoParams;
+
+				location.href = renewURL;
+
+
+			})
+			.fail(function(e) {
+
+			});
+		});
+
+		// 20240927 검색바에 값이 입력되면 search-layer 제거
+        $('.abcmart-searchBar').on('input', function() {
+            var abcmartSearchBarVal = $(this).val();
+            if(abc.text.allNull(abcmartSearchBarVal)){
+                $(".search-layer").addClass("show");
+            } else {
+            	$(".search-layer").removeClass("show");
+            }
+        });
+
+	} // end _search.event
+
+
+	/**
+	 * 브랜드검색 버튼 클릭시, 스크롤 이동
+	 */
+	_search.findBrnadSearchScroll = function(obj){
+		var check = /[ㄱ-ㅎ|ㅏ-ㅣ|가-힣]/;
+		var target = $(obj).parents('.smart-search-filter');
+		//g-log 페이지 에서 실행 되어 예외 처리
+		if( abc.text.allNull(target.find('.brand-search-box input').val())){
+			return false;
+		}
+		var searchText = target.find('.brand-search-box input').val().toUpperCase();
+		if(abc.text.allNull(searchText)){
+			alert("브랜드명을 입력하세요");
+			return false;
+		}
+
+		var simpleBarBrand = new SimpleBar(target.find('[name=brandFilterContent]').find('.custom-scroll')[0]); // 스크롤 el
+		simpleBarBrand.getScrollElement().scrollTop = 0;
+		target.find('.filter-brand-list li').each(function (){
+		 if(check.test(searchText)){
+			if($(this).data('kor-name').startsWith(searchText)){ // 퍼블환경에서 임의로 조건 구현
+				var scrollPos = $(this).find('.type-text').position().top - parseInt($(this).css('margin-top')); // 위치 이동할 타겟의 position 값
+				simpleBarBrand.getScrollElement().scrollTop = scrollPos; // 스크롤 animation
+				return false;
+			}
+		 }else{
+			 if($(this).data('name').startsWith(searchText)){ // 퍼블환경에서 임의로 조건 구현
+				var scrollPos = $(this).find('.type-text').position().top - parseInt($(this).css('margin-top')); // 위치 이동할 타겟의 position 값
+				simpleBarBrand.getScrollElement().scrollTop = scrollPos; // 스크롤 animation
+				return false;
+			}
+		 }
+		});
+	} // end _search.findBrnadSearchScroll
+
+	/**
+	 * headerFilter open
+	 */
+	_search.setHeaderFilterOpen = function(){
+		$("#includeSmartSearch").removeClass("active");
+
+		//2021 고도화 필터를 열면 상품 검색결과 탭을 활성화 한다.
+		$('#searchResultTab').tabs( "option", "active", 0 );
+
+		var target = $('.smart-search-filter.dialog-type');
+		target.find('.smart-search-selected-condition-list li.option-type-word').remove();
+
+		_search.setHeadFilterSearchWord();	// 검색어 입력창에 입력한 '검색어'를 세팅
+
+		if(_search.headerFilterOpen){
+			_search.smartFilterDpCategoryInitDone = false;
+			return false;
+
+		}
+		_search.headerFilterOpen = true;
+
+		_search.setSmartSearchDpCategory(true, target);	// 카테고리 조회
+
+		var searchChannel = $('#searchChannel option:selected').val();	// 검색어 입력창에서 선택한 채널의 index
+		var repeatCnt = 0;
+		var repeat = setInterval(function(){
+			// 선택한 채널에 맞는 데이터[카테고리, 브랜드 이하 정보]를 가져오기 위한 click 이벤트
+			repeatCnt++;
+			if(repeatCnt > 20){
+				clearInterval(repeat);
+			}
+			if(searchChannel){
+				if($('#dChkChannel'+searchChannel).find('[name=channelCateDiv]').length > 0){
+					_search.onChannelSelected($('#dChkChannel' + searchChannel));
+					clearInterval(repeat);
+					//$('#dChkChannel'+searchChannel).find('[name=channelCateDiv]').trigger('click'); AS-IS
+				}
+			}else{
+				if(_search.smartFilterDpCategoryInitDone){
+					$('#dChkChannel10000').trigger('click');
+					clearInterval(repeat);
+				}
+			}
+		}, 100);
+
+	} // end _search.setHeaderFilterOpen
+
+	/**
+	 * 페이지 필터 open
+	 */
+	_search.setSmartFilterOpen = function(){
+		if(_search.smartFilterOpen){
+			return false;
+		}
+		_search.smartFilterOpen = true;
+
+		var searchPageType = $("#currentPage").val(); // brand
+		var target = $('.smart-search-filter.include-type');
+		var form = target.find("form");
+		var isFirst = !_search.smartFilterDpCategoryInit;
+
+		if(!_search.smartFilterDpCategoryInit){
+			_search.setSmartSearchDpCategory(true, target);	// 카테고리 , 성별조회
+		}
+		_search.smartFilterDpCategoryInit = true;
+
+		var gender = params.gender;
+		if(abc.text.allNull(gender) && !abc.text.allNull(params.genderGbnCode)){
+			gender = params.genderGbnCode;
+		}
+		var chnnlNo = params.channel;
+		if(abc.text.allNull(chnnlNo)){
+			//chnnlNo = '10000';
+			chnnlNo = abc.global.currentChannel; // 현재채널로 세팅 gs ui
+		}
+		if(searchPageType == "category"){
+			chnnlNo = $("#productSearchForm [name=chnnlNo]").val();
+			form.find('[name=channel]').val(chnnlNo);
+			if(!abc.text.allNull(gender)){
+				if(form.find('[name=gender]').length > 0){
+					form.find('[name=gender]').val(gender);
+				}else{
+					form.append($('<input/>', {type: 'hidden', name: 'gender', value: gender }));
+				}
+			}
+			_search.setSmartSearchOption(false, target, "Y");
+		}else{
+			if(searchPageType == "brand" || abc.text.allNull(searchPageType)){
+
+				if(chnnlNo != abc.consts.SITE_CHNN_ART){
+
+				}else if($("#brandPrdtArtDispYn").val() == "N" || params.resultExistSmartFilter == 'Y'){
+					chnnlNo = abc.text.allNull($("#brandPageChnnlNo").val()) ? '10000' : $("#brandPageChnnlNo").val();
+				}
+
+				form.find('[name=channel]').val(chnnlNo);
+				_search.makeDpCategoryFoldBox(target, chnnlNo, "Y");
+				_search.setCategoryExpanded(chnnlNo);
+
+				var isCheck = "N";
+				if(params.resultExistSmartFilter == 'Y'){
+					isCheck = "Y";
+				}
+				if(searchPageType == "brand"){
+					isCheck = "Y";
+				}
+				_search.setSmartSearchOption(false, target, isCheck);
+
+			}else if(searchPageType == "search-result"){
+
+				form.find('[name=channel]').val(chnnlNo);
+				if(chnnlNo == '10000'){
+					var repeat1Cnt = 0;
+					var repeat1 = setInterval(function(){
+						repeat1Cnt++
+						if(repeat1Cnt > 100){
+							clearInterval(repeat1);
+						}
+						if($('#iChkChannel10000').length > 0){
+							$("#iChkChannel10000").addClass("active");
+							clearInterval(repeat1);
+						}
+					}, 100);
+				}else{
+
+					_search.makeDpCategoryFoldBox(target, chnnlNo, "Y");
+					_search.setCategoryExpanded(chnnlNo);
+				}
+
+
+				_search.setSmartSearchResultOption(target, isFirst);
+			}
+		}
+
+		_search.setSearchWordFilter(pageSearchType);
+
+	} // end _search.setSmartFilterOpen
+
+	/**
+	 * include filter category expend setting
+	 */
+	_search.setCategoryExpanded = function(chnnlNo){
+		var target = $("#includeSmartSearch");
+		var repeat1Cnt = 0;
+		var repeat1 = setInterval(function(){
+			repeat1Cnt++
+			if(repeat1Cnt > 50){
+				clearInterval(repeat1);
+			}
+
+			if($('#iChkChannel'+chnnlNo).length > 0){
+				$("[id^=iChkChannel]").removeClass("active");
+				$("#iChkChannel"+chnnlNo).addClass("active");
+				if(chnnlNo != '10000'){
+					$("#iChkChannel"+chnnlNo).addClass("expanded");
+				}
+				clearInterval(repeat1);
+			}
+		}, 100);
+
+		if(chnnlNo == '10000'){
+			return false;
+		}
+
+		var repeat2Cnt = 0;
+		var repeat2 = setInterval(function(){
+			repeat2Cnt++
+			if(repeat2Cnt > 50){
+				clearInterval(repeat2);
+			}
+
+			if($('#iChkChannel'+chnnlNo).find('[name=subCatListUl]').length > 0){
+				if(_search.upCategoryNoList != ""){
+					$.each(_search.upCategoryNoList, function(index, item){
+
+						var repeatSubCnt = 0;
+						var repeatSub = setInterval(function(){
+							repeatSubCnt++
+							if(repeatSubCnt > 30){
+								clearInterval(repeatSub);
+							}
+							if($("#isubCatListLi"+item).length > 0){
+								$("#isubCatListLi"+item).addClass("expanded");
+								clearInterval(repeatSub);
+								if(_search.upCategoryNoList.length == index+1){
+									_search.simpleBarRecalculate($('#iChkChannel'+chnnlNo));
+								}
+							}
+						}, 100);
+					});
+					clearInterval(repeat2);
+				}else{
+					$('#iChkChannel'+chnnlNo).find('[name=categoryAll]').prop('checked', true);
+					clearInterval(repeat2);
+				}
+			}
+		}, 100);
+	} // end _search.setCategoryExpanded
+
+	_search.simpleBarRecalculate = function(target){
+		var repeatCnt = 0;
+		var repeat = setInterval(function(){
+			repeatCnt++
+			if(repeatCnt > 50){
+				clearInterval(repeat);
+			}
+
+			if(target.find('.custom-scroll').length > 0){
+				var scrollEl = target.find('.custom-scroll')[0];
+				var simpleBar = new SimpleBar(scrollEl);
+				simpleBar.recalculate();
+				clearInterval(repeat);
+			}
+		}, 100);
+	}
+
+	/**
+	 * 검색어 추가
+	 */
+	_search.setSearchWordFilter = function(pageSearchType){
+		if(pageSearchType == "search-result"){
+			var target = $("#includeSmartSearch");
+			var smartFirstSearchWord = $("#selectedSmartFirstSearchWord").val();
+			var smartSearchWord = $("#selectedSmartSearchWord").val();
+			var smartResearchWordLength = $(".selectedSmartResearchWord").length;
+			var searchWordArr = [];
+
+			if(!abc.text.allNull(smartSearchWord)){
+				searchWordArr.push(smartSearchWord);
+			}
+			for(var r = 0 ; r < smartResearchWordLength ; r++){
+				var researchWordTxt =$(".selectedSmartResearchWord")[r].value;
+				if(researchWordTxt != smartSearchWord){
+					searchWordArr.push($(".selectedSmartResearchWord")[r].value);
+				}
+			}
+
+			var _HTML = "";
+
+			if(smartFirstSearchWord != ""){
+				_HTML = "";
+				_HTML += '<li class="smart-search-selected-condition-item option-type-word" name="firstSearchWordLi">';
+				_HTML += '	<span class="filter-item">';
+				_HTML += '	<input type="hidden" name="firstSearchWord" value="'+smartFirstSearchWord+'">';
+				_HTML += '	</span>';
+				_HTML += '</li>';
+
+				target.find('.smart-search-selected-condition-list').append(_HTML);
+			}
+
+			if(searchWordArr.length > 0){
+
+				for(var r  = 0 ; r < searchWordArr.length ; r++){
+					_HTML = "";
+					_HTML += '<li class="smart-search-selected-condition-item option-type-word" name="researchWordLi">';
+					_HTML += '	<span class="filter-item">';
+					_HTML += '	<input type="hidden" name="researchWord" value="'+searchWordArr[r]+'">';
+					_HTML += '	</span>';
+					_HTML += '</li>';
+
+					target.find('.smart-search-selected-condition-list').append(_HTML);
+
+					_HTML = "";
+					_HTML += '<li class="smart-search-selected-condition-item option-type-word" name="researchWordLi"  data-word="'+searchWordArr[r]+'">';
+					_HTML += '	<span class="filter-item">';
+					_HTML += '		<span class="filter-title">'+ searchWordArr[r] +'</span>';
+					_HTML += '		<button class="btn-filter-del option-type-word" name="smart-search-selected-condition-delete-btn"></button>';
+					_HTML += '	</span>';
+					_HTML += '</li>';
+
+					$("#searchWordAddBarUl").append(_HTML);
+				}
+
+				$("#wordFilterContentLi").addClass("expanded");
+			}
+
+		}else{
+			var searchWord = "";
+			if($('#currentPage').val() != 'search-result') {
+				var researchWordList = location.search.substr(location.search.indexOf("?") + 1).split("&");
+				var researchWordArr;
+				$.each(researchWordList, function (i, v) {
+					try {
+						researchWordArr = v.split("=");
+						if (researchWordArr[0] == "researchWord") {
+							searchWord = decodeURIComponent(researchWordArr[1]);
+							_search.setFilterSearchWord(searchWord.replace(/\<|\>|\"|\'|\%|\;|\(|\)|\&|\+|\-/g, ""));
+						}
+					} catch (e) {
+					}
+				});
+			} else {
+				if(!abc.text.allNull(params.searchWord)){
+					searchWord = params.searchWord;
+				}else if(!abc.text.allNull(params.researchWord)){
+					searchWord = params.researchWord;
+				}
+				if(!abc.text.allNull(searchWord)){
+					_search.setFilterSearchWord(searchWord.replace(/\<|\>|\"|\'|\%|\;|\(|\)|\&|\+|\-/g, ""));
+				}
+			}
+		}
+	} // end _search.setSearchWordFilter
+
+	/**
+	 * 검색 영역 박스 set (최근,추천,인기검색어 set)
+	 */
+	_search.setSearchWordArea = function() {
+		if (_search.data.isSearchAreaEmpty) {
+			_search.getLastSearchWordList(); // 최근검색어
+			_search.getRecommandSearchWords(); // 추천검색어
+			_search.getPopularSearchWord(); // 인기검색어
+			_search.getRankingTopFive(); // 랭킹 TOP5
+
+			_search.data.isSearchAreaEmpty = false;
+		}
+	} // end _search.setSearchWordArea
+
+	/**
+	 * 최근 검색어 조회
+	 */
+	_search.getLastSearchWordList = function() {
+		$('#headerRecentKeywordList').empty();
+		if (abc.cookie.get(_search.data.cookieName) != null && JSON.parse(abc.cookie.get(_search.data.cookieName)).length > 0) {
+			var array = JSON.parse(abc.cookie.get(_search.data.cookieName));
+			$.each(array, function(i,v) {
+				$a = $('<a>', {'href' : 'javascript:void(0);', 'class' : 'keyword search-keyword-item recent-type'})
+					.text(v)
+					.attr('data-word', v)
+					.attr('data-cnnctntype', 'S');
+				$button = $('<button>', {'class' : 'btn-remove-keyword', 'data-index' : i});
+
+				$li = $('<li>').append($a).append($button);
+
+				$('#headerRecentKeywordList').append($li);
+			});
+			if(abc.global.currentChannel == '10002'){
+				$("#rcntSearchNoData").hide();
+			}
+			$('#headerKeywordRemoveAll').show();
+		} else {
+			if(abc.global.currentChannel == '10002'){
+				$("#rcntSearchNoData").show();
+			} else {
+				$span = $('<span>', {'class' : 'keyword'}).text('최근 검색어가 없습니다.');
+				$li = $('<li>', {'class' : 'no-data'}).append($span);
+				$('#headerRecentKeywordList').append($li);
+			}
+			$('#headerKeywordRemoveAll').hide();
+		}
+	} //end _search.getLastSearchWordList
+
+	/**
+	 * 추천 검색어 조회
+	 */
+	_search.getRecommandSearchWords = function() {
+
+		$.ajax({
+			type :'get',
+			url : '/display/search-word/recommand/list'
+		})
+		.done(function(data) {
+
+			$('.recommand-keyword-list').empty();
+
+			// 추천 검색어
+			if (data.recommended.length > 0) {
+				$.each(data.recommended, function(i,v) {
+					var $word = $('<li>', { 'class' : 'search-keyword-item' })
+								.attr('data-word', v.srchWordText)
+								.attr('data-cnnctnurl', v.cnnctnUrl)
+								.attr('data-cnnctntype', v.cnnctnType)
+								.attr('data-gbnType', v.srchWordGbnType)
+								.attr('data-srchWordSeq', v.srchWordSeq)
+								.append($('<a>', { 'href' : 'javascript:void(0);', 'class': 'keyword' }).html(v.srchWordText));
+					$('.recommand-keyword-list').append($word);
+				});
+				if(abc.global.currentChannel == '10002'){
+					$("#rcmdSearchNoData").hide();
+				}
+			} else {
+				if(abc.global.currentChannel == '10002'){
+					$("#rcmdSearchNoData").show();
+				} else{
+					var $word = $('<li>', {'class' : 'no-data'}).append($('<a>', {'class' : 'keyword'}).html('추천 검색어가 없습니다.'));
+					$('.recommand-keyword-list').html($word);
+				}
+			}
+		})
+		.fail(function(e) {
+
+		});
+	} // end _search.getRecommandSearchWords
+
+	/**
+	 * 인기 검색어 조회
+	 */
+	_search.getPopularSearchWord = function() {
+		$.ajax({
+			type :'get',
+			url : '/display/search-word/popular/list'
+		})
+		.done(function(data) {
+
+			// 초기화
+			$('.popular-rank-list').empty();
+			//gs ui
+			$('.popular-rank-list1').empty();
+			$('.popular-rank-list2').empty();
+			//gs ui
+			if (Object.keys(data).length > 0) {
+				var gnbChannel = $("#gnb-channel").val();
+				var idx = 1;
+				$.each(data, function(i,v) {
+					var label = idx < 10 ? '0'+idx : idx;
+					var status = v.rank == 0 ? '' : v.rank > 0 ? 'up' : 'down';
+
+					if(abc.global.currentChannel == '10002' && idx > 3){
+						$span = $('<span>', {'class' : ''}).text(label);
+					} else {
+						$span = $('<span>', {'class' : 'rank'}).text(label);
+					}
+
+					$a = $('<a>', {'class' : 'keyword '+status, 'href' : 'javascript:void(0);'}).text(v.srchWordText);
+
+					$li = $('<li>', { 'class' : 'search-keyword-item' })
+						.attr('data-cnnctnurl', v.cnnctnUrl)
+						.attr('data-cnnctntype', v.cnnctnType)
+						.attr('data-word', v.srchWordText)
+						.append($span).append($a);
+					//gs ui
+					if(gnbChannel == '10002'){
+						if(idx <=5){
+							$('.popular-rank-list1').append($li);
+						}else{
+							$('.popular-rank-list2').append($li);
+						}
+					}else{
+						$('.popular-rank-list').append($li);
+					}
+					//gs ui
+					idx++;
+				});
+				if(abc.global.currentChannel == '10002'){
+					$("#rankSearchNoData").hide();
+				}
+			} else {
+				if(abc.global.currentChannel == '10002'){
+					$("#rankSearchNoData").show();
+				} else {
+					$(".popular-rank-list").append('<li class="no-data"><span class="keyword">인기 검색어가 없습니다.</span></li>');
+				}
+			}
+		})
+		.fail(function(e) {
+
+		});
+	} // end _search.getPopularSearchWord
+
+	/**
+	 * 랭킹 TOP5
+	 */
+	_search.getRankingTopFive = function() {
+		$.ajax({
+			type :'get',
+			url : '/display/read-ranking-top-five'
+		})
+		.done(function(data) {
+			// 초기화
+			var gnbChannel = $("#gnb-channel").val();
+			$('.search-weekly-list').empty();
+
+			console.log(gnbChannel);
+
+			var productList = data.result.productList;
+			var appendHtml;
+
+			if(productList.length > 0){
+				$.each(productList, function(i,v) {
+					appendHtml = '';
+					appendHtml += '<li class="list-item">';
+					appendHtml += '<span class="prod-item no-util individual">';
+					appendHtml += '<span class="prod-item-inner">';
+					appendHtml += '<a href="/product?prdtNo='+ productList[i].prdtNo +'" class="prod-link" data-srch-rank-prdt="Y">';
+					appendHtml += '<span class="img-wrap">';
+					appendHtml += '<img src="'+ productList[i].productImage[0].imageUrl +'">';
+					appendHtml += '</span>';
+					appendHtml += '<span class="prod-info-wrap">';
+					appendHtml += '<span class="prod-brand">'+ productList[i].brand.brandName +'</span>';
+					appendHtml += '<span class="prod-name">'+ productList[i].prdtName +'</span>';
+					appendHtml += '<span class="prod-price">';
+					appendHtml += '<span class="price-cost">'+ abc.text.isMakeComma(productList[i].displayProductPrice) +'</span>';
+					appendHtml += '<span class="price-unit">원</span>';
+					if(productList[i].displayDiscountRate > 0){
+						appendHtml += '<span class="price-sale-percent">['+ productList[i].displayDiscountRate +'%]</span>';
+					}
+					appendHtml += '</span>';
+					appendHtml += '</span>';
+					appendHtml += '</a>';
+					appendHtml += '</span>';
+					appendHtml += '</span>';
+					appendHtml += '</li>';
+
+					$("#searchRankingTopFiveList").append(appendHtml);
+				});
+			}
+		})
+		.fail(function(e) {
+			abc.errorMessage();
+		});
+	}
+
+	/*
+	 * #3740 검색기능 개선 - 연관검색어창 방향키 컨트롤
+	 */
+	_search.setDirectionKey = function(key) {
+		var $related_box = $('.related-keyword-wrap.show');
+		var $items = $('.btn-related-keyword.search-keyword-item');
+		var $over_item = $('.btn-related-keyword.search-keyword-item.on');
+
+		if(key == 38){ //up
+			if($related_box.length > 0){//연관검색어창 show 상태
+				if($items.index($over_item) > 0){//기존 하이라이트 된 항목이 첫번째 항목이 아닌 경우
+					//on 클래스를 한칸 이전으로 이동 및 검색창 검색어 변경
+					var now_idx = $items.index($over_item)||0;
+					$items.eq(now_idx).removeClass('on');
+					$items.eq(now_idx-1).addClass('on');
+					$('#searchBar').val($items.eq(now_idx-1).data('word'));
+				}else{
+					$related_box.removeClass('show');//연관검색어창 show 제거
+				}
+			}
+		}
+
+		if(key == 40){ //down
+			if($related_box.length > 0){//연관검색어창 show 상태
+				if($over_item.length > 0){//기존 하이라이트 된 항목 존재
+					if($items.index($over_item) < $items.length-1){//기존 하이라이트 된 항목이 마지막 항목이 아닌 경우
+						//on 클래스를 한칸 다음으로 이동 및 검색창 검색어 변경
+						var now_idx = $items.index($over_item)||0;
+						$items.removeClass('on');
+						$items.eq(now_idx+1).addClass('on');
+						$('#searchBar').val($items.eq(now_idx+1).data('word'));
+					}else{
+						//on 클래스를 처음으로 이동 및 검색창 검색어 변경
+						$items.removeClass('on');
+						$items.eq(0).addClass('on');
+						$('#searchBar').val($items.eq(0).data('word'));
+					}
+				}else{
+					//on 클래스를 처음으로 이동 및 검색창 검색어 변경
+					$items.eq(0).addClass('on');
+					$('#searchBar').val($items.eq(0).data('word'));
+				}
+			}else{//연관검색어창 show 상태가 아님
+				if($('.related-keyword-wrap button').length > 0){//연관검색어 결과 존재
+					$('.related-keyword-wrap').addClass('show');
+				}
+			}
+		}
+	}
+
+	/**
+	 * 연관 검색어 조회
+	 */
+	_search.getRelatedKeyword = function(key) {
+		if(key == 229)return; //한글컴포징 무시
+		if(key == 38 || key == 40){ //방향키 위,아래 처리
+			_search.setDirectionKey(key);
+			return;
+		}
+
+		var keyword = $('#searchBar').val();
+		if (!abc.text.isBlank(keyword)) {
+			$.ajax({
+				type	:'get',
+				url		: '/display/search-word/auto-complete/list',
+				data	: $("#searchWordForm").serialize()
+			})
+			.done(function(data) {
+				// 초기화
+				$('.related-keyword-wrap').empty();
+
+				$.each(data, function(i,v) {
+					var word = $('<div>').append(v).text();
+					var $button = $('<button>', {
+						'type' : 'button',
+						'class' : 'btn-related-keyword search-keyword-item'
+					}).attr('data-word', word).attr('data-url', '/display/search-word/result?searchWord='+word);
+
+					$button.html(v);
+					$('.related-keyword-wrap').append($button);
+				});
+
+				if(data.length > 0){ // 2022.07:22 : gs에서 결과값이 없어도 공란레이어 노출했던 문제때문에 위치이동후 if조건 추가
+					$('.related-keyword-wrap').addClass('show');
+					$('.btn-related-keyword.search-keyword-item').mouseover(function(){//#3740 연관검색어창 기능개선
+						$('.btn-related-keyword.search-keyword-item').removeClass('on');
+						$(this).addClass('on');
+					});
+				}else{
+					$('.related-keyword-wrap').removeClass('show');
+				}
+			})
+			.fail(function(e) {
+
+			});
+		} else {
+			$('.related-keyword-wrap').removeClass('show')
+		}
+	} // end _search.getRelatedKeyword
+
+	/**
+	 * 최근 검색어 삭제
+	 */
+	_search.removeLastSearchWord = function(idx) {
+		var lastSearchWords = JSON.parse(abc.cookie.get('LAST_SEARCH_WORD'));
+		lastSearchWords.splice(idx, 1);
+
+		var option = {
+				key : _search.data.cookieName,
+				value: JSON.stringify(lastSearchWords),
+				expireType : 'D',
+				expire : 30
+		}
+		abc.cookie.add(option);
+
+		_search.getLastSearchWordList();
+	} // end _search.removeLastSearchWord
+
+	/**
+	 * 검색창 검색어 조회
+	 */
+	_search.getSearchBarWord = function() {
+
+		$.ajax({
+			type :'get',
+			url : '/display/search-word/searchBarWord'
+		})
+		.done(function(data) {
+
+			if (data != null && data.searchBar != null) {
+				// 검색창 검색어
+				$('#searchBar').attr('placeholder', data.searchBar.srchWordText);
+				$('#searchBar').attr('data-cnnctntype', data.searchBar.cnnctnType);
+				$('#searchBar').attr('data-cnnctnurl', data.searchBar.cnnctnUrl);
+				$('#searchBar').attr('data-srchbarword', data.searchBar.srchWordText);
+			}
+			if(data.chnnl == abc.consts.SITE_CHNN_ART){
+				$('[name="dfltChnnlMv"]').val("Y");
+			}else{
+				$('[name="dfltChnnlMv"]').val("");
+			}
+
+		})
+		.fail(function(e) {
+
+		});
+	} // end _search.getSearchBarWord
+
+
+	/**
+	 * 검색
+	 */
+	_search.goSearchResult = function(data) {
+		var domain = _search.info.searchDefaultDomain;	// 검색 도메인은 기본 'abc-mart' 도메인
+		var selectUrl = $('#searchChannel option:selected').attr('data-url');	// 검색어 입력창에서 선택한 채널
+		var srchBarWord = data;
+		var cnnctnType = "";
+
+		abc.biz.display.common.setFormParameter.savePageNumParam(1);
+
+		// 검색어 없을 경우
+		if (abc.text.isBlank(srchBarWord) ) {
+			srchBarWord = $('#searchBar').attr('placeholder');
+
+			cnnctnType = $('#searchBar').data('cnnctntype');
+			if (abc.text.allNull(srchBarWord) || cnnctnType == 'N') {
+				alert('검색어를 입력해주세요.');
+				return false;
+			}
+
+
+			if (cnnctnType == 'U') {
+				// 검색타입이 url일 경우
+				var cnnctnurl = $('#searchBar').data('cnnctnurl');
+				if(cnnctnurl.startsWith("http")){
+					var tempcnnctnurl = cnnctnurl.split('.a-rt.com')[0];
+					var tempChnnlNo = '10000';
+					if(tempcnnctnurl.indexOf('abc') > 0 ){
+						tempChnnlNo = '10001';
+					}else if(tempcnnctnurl.indexOf('gs') > 0 || tempcnnctnurl.indexOf('grandstage') > 0){
+						tempChnnlNo = '10002';
+					}
+					abc.biz.display.common.channelChange(tempChnnlNo);
+					setTimeout(function() {
+						location.href =  cnnctnurl;
+					}, 300);
+				}else{
+					abc.biz.display.common.channelChange('10001');
+					setTimeout(function() {
+						location.href = domain + cnnctnurl;
+					}, 300);
+				}
+			} else {
+				if(cnnctnType=='S') {
+					var form = document.searchWordForm;
+
+					if(!abc.text.allNull(selectUrl)){	// 채널을 선택했을 때
+						domain = selectUrl;	// 통합검색이외에 채널을 선택하면 선택한 url이 검색 도메인으로 설정
+						var chnnlNo = $('#searchChannel option:selected').val();
+						abc.biz.display.common.channelChange(chnnlNo);
+
+						$(form).find('input[type="search"][name="searchWord"]').val(srchBarWord);
+						form.action = domain + "/display/search-word/result";
+						form.submit();
+					}else{
+						_search.getSearchWordChannel(srchBarWord)
+							.then(function (data) {
+								domain = data.serviceDomainFo;
+								$('#searchChannel').empty();
+								$('#searchChannel').append($('<option>', {value: data.chnnlNo}));
+								abc.biz.display.common.channelChange(data.chnnlNo);
+
+								$(form).find('input[type="search"][name="searchWord"]').val(srchBarWord);
+								form.action = domain + "/display/search-word/result";
+								form.submit();
+							})
+							.catch(function (error) {
+								alert(error);
+							});
+					}
+				}
+			}
+		} else {
+			$('#searchBar').val(srchBarWord);
+			// cookie
+			_search.addLastSearchWord(srchBarWord);
+
+			/** 일반 검색 시 searchWordForm 전송 **/
+			var form = document.searchWordForm;
+			form.page.value = 1; //페이지 초기화 추가 : 카테고리, 브랜드 페이지등에서 넘어올때가 있음
+
+			if(!abc.text.allNull(selectUrl)){	// 채널을 선택했을 때
+				domain = selectUrl;	// 통합검색이외에 채널을 선택하면 선택한 url이 검색 도메인으로 설정
+				var chnnlNo = $('#searchChannel option:selected').val();
+				abc.biz.display.common.channelChange(chnnlNo);
+
+				form.action = domain + "/display/search-word/result";
+				form.submit();
+			}else{
+				_search.getSearchWordChannel(srchBarWord)
+				.then(function(data){
+
+					domain = data.serviceDomainFo;
+					$('#searchChannel').empty();
+					$('#searchChannel').append($('<option>', {value:data.chnnlNo}));
+					abc.biz.display.common.channelChange(data.chnnlNo);
+
+					form.action = domain + "/display/search-word/result";
+					form.submit();
+				})
+				.catch(function(error){
+					alert(error);
+				});
+
+			}
+		}
+
+	} // end _search.goSearchResult
+
+	/**
+	 * 검색창 검색어가 채널 검색어에 걸리는지 여부 반환 / 검색어 없을경우 체널번호, ABC도메인 반환
+	 * srchWordChnnlFilterYn	: 검색어 채널필터에 걸림여부
+	 */
+	_search.getSearchWordChannel = function(srchWordText) {
+		return new Promise(function(resolve, reject){
+			$.ajax({
+				type :"post",
+				url : "/display/search-word/get-search-word-channel",
+				data: {
+					srchWordText : srchWordText
+				}
+			})
+			.done(function(data, textStatus, jqXHR) {
+				resolve(data);
+			})
+			.fail(function(jqXHR, textStatus, errorThrown) {
+				reject("검색에 실패하였습니다.");
+			});
+		});
+	} // end _search.getSearchWordChannel
+
+	/**
+	 * 최근 검색어 등록
+	 */
+	_search.addLastSearchWord = function(searchWord) {
+
+		if (abc.text.allNull(searchWord)) {
+			return false;
+		}
+
+		if (abc.cookie.get(_search.data.cookieName) != null) {
+			var array = JSON.parse(abc.cookie.get(_search.data.cookieName));
+
+			if (array.length >= _search.data.cookieSize) {
+				array.pop();
+			}
+
+			$.each(array, function(i,v) {
+				if (v == searchWord) {
+					array.splice(i, 1);
+					return;
+				}
+			});
+		} else {
+			var array = new Array();
+		}
+
+		array.unshift(searchWord);
+		var option = {
+				key : _search.data.cookieName,
+				value: JSON.stringify(array),
+				expireType : 'D',
+				expire : 30
+		}
+
+		abc.cookie.add(option);
+	} // end _search.addLastSearchWord
+
+	/**
+	 * 선택 조건 event
+	 */
+	_search.selectedConditionEvent = function(selected , isFirst, searchYn) {
+		var data = selected.data();
+
+		if(abc.text.allNull(data) || data == undefined){
+			return false;
+		}
+		var target = selected.parents('.smart-search-filter');
+		var form = target.find("form");
+		var chnnlNo = target.find('[name=smart-search-dialog-category-list]').find('.active').data('chnnlNo');
+		var belong = target.hasClass('dialog-type') ? 'd' : 'i';
+		var conditions = target.find('.smart-search-selected-condition-item');	// 선택한 조건들[ <li... <li,,, <li ]
+		var isDuplication = false;
+		var searchPageType = $("#currentPage").val();
+
+		// 중복체크
+		$.each(conditions, function(i,v) {
+			if ($(v).find('input').attr('name') == data.type
+					&& $(v).find('input').val() == data.code) {
+				isDuplication = true;
+				/* S: A-RT 고도화 2021.06.16 버튼 삭제*/
+				if(searchPageType != "category"){
+					$("#"+$.escapeSelector(data.code)).remove();
+				}else{
+					$(v).remove();
+				}
+				/* S : A-RT 고도화 2021.06.16 버튼 삭제*/
+			}
+		});
+
+		if (!isDuplication && !abc.text.allNull(data)) {
+
+			var _HTML = "";
+			var filterTag = "";//A-RT 고도화 추가 2021.06.23
+
+			_HTML += '<li class="smart-search-selected-condition-item option-type-'+data.type+'">';
+			_HTML += '	<span class="filter-item">';
+			_HTML += '		<span class="filter-title">'+data.name+'</span>';
+			_HTML += '		<button class="btn-filter-del option-type-'+data.type+'" name="smart-search-selected-condition-delete-btn" data-target="#'+belong+data.type+data.code+'"></button>';
+
+			if (data.type == 'category' && chnnlNo == '10000') {
+				var gender = form.find('input[name=gender]').val();
+				var genders;
+				if (gender != null) {
+					genders = target.find('input[id^='+belong+'rdoTheme]:checked').parents('li').data().engName.split('|');
+				} else {
+					genders = ['men', 'women', 'kids'];
+				}
+
+				$.each(genders, function(i,v) {
+					_HTML += '		<input type="hidden" name="'+data.type+'" value="'+data[v]+'">';
+					/* S : A-RT 고도화 추가 2021.06.23*/
+					if(searchPageType != "category"){
+						filterTag +='<button type="button" name="' + data.type  + '" id="'+ data[v] + '" class="filter-item">' + data.name + '</button>';
+					}
+					/* E : A-RT 고도화 추가 2021.06.23*/
+				});
+			} else {
+				/* S : A-RT 고도화 추가 2021.06.23*/
+				if(searchPageType != "category"){
+					var _buttonHTML = '<input type="hidden" name="'+data.type+'" value="'+data.code+'">';
+					$('#selectedSmartSearchForm [name="'+data.type+'"]').each(function(){ //동일필터 반복입력 수정
+						if($(this).val() == data.code){
+							this.remove();
+						}
+					});
+					if(data.type == 'gender'){ //검색시 버튼 노출 여부 2021.05.10
+						if(data.code == '10002'){
+							_HTML += '		<input type="hidden" name="'+data.type+'" class="'+data.name+'" value="'+data.code+'">';
+						}else{
+							_HTML += '		<input type="hidden" name="'+data.type+'" class="'+data.engname+'" value="'+data.code+'">';
+						}
+					}else{
+						_HTML += '		<input type="hidden" name="'+data.type+'" class="'+data.name+'" value="'+data.code+'">';
+					}
+					$('#selectedSmartSearchForm').append(_buttonHTML);
+					filterTag += '<button type="button" name="' + data.type  + '" id="'+ data.code + '" class="filter-item">' + data.name + '</button>';
+				}else{
+					_HTML += '		<input type="hidden" name="'+data.type+'" value="'+data.code+'">';
+				}
+				/* E : A-RT 고도화 추가 2021.06.23*/
+			}
+
+			_HTML += '	</span>';
+			_HTML += '</li>';
+			target.find('.smart-search-selected-condition-list').append(_HTML);
+			/* S : A-RT 고도화 추가 2021.06.23*/
+			if(searchPageType != "category"){
+				if( belong == 'i') {
+					if( !abc.text.isBlank(filterTag) ) {
+						$('#filter-box-area').append(filterTag);
+					}
+				}
+			}
+			/* E : A-RT 고도화 추가 2021.06.23*/
+		}
+
+		// 카테고리를 선택 했을 때 또는 성별 체크박스를 체크 후 풀었을 때 이벤트에 대한 처리[선택한 사이즈 데이터를 검색조건으로 가져가는 오류 수정]
+		// 2021.11.18 #2636 성별 체크여부에 상관없이 필터 유지 관련 조건 변경
+		if((data.type == 'category') ){
+			//selected.find('input').prop('checked', true);
+
+			if($("#chkArtDelivery").is(":checked") == true){
+				$("#chkArtDelivery").prop('checked', false);
+
+			}
+			if($("#chkPickUp").is(":checked") == true){
+				$("#chkPickUp").prop('checked', false);
+			}
+
+			target.find('.smart-search-selected-condition-list')
+			.find('input[name=gender],input[name=brand],input[name=brandStyle],input[name*=Size],input[name=color],input[name=price],input[name=etc]').parents('li').remove();
+			// 2021.11.12 카테고리 선택시 나머지 필터 남아있는 오류 수정
+			$('#selectedSmartSearchForm').find('input[name=gender],input[name=brand],input[name=brandStyle],input[name*=Size],input[name=color],input[name=price],input[name=etc]').remove();
+			$('#filter-box-area').find('button[name=gender],button[name=brand],button[name=brandStyle],button[name*=Size],button[name=color],button[name=price],button[name=etc]').remove();
+
+
+
+		}else if(data.type == 'brand'){
+			target.find('.brand-search-box input').val("");
+		}
+		if(searchPageType != "category"){
+			if(belong == "i"){
+				/* S : A-RT 고도화 추가 2021.06.23*/
+
+				if ( isDuplication ){
+					if (data.type == 'category' && chnnlNo == '10000') {
+						var gender = form.find('input[name=gender]').val();
+						var genders;
+						if (gender != null) {
+							genders = target.find('input[id^='+belong+'rdoTheme]:checked').parents('li').data().engName.split('|');
+						} else {
+							genders = ['men', 'women', 'kids'];
+						}
+
+						$.each(genders, function(i,v) {
+							if(searchPageType == "brand"){
+								$('#iSmartSearchForm').find("[name=gender]").remove();
+							}else{
+								$('#selectedSmartSearchForm').find("[name=gender]").remove();
+							}
+						});
+					} else {
+						var filterName = 'filter-area-' + data.type + '-' + data.code;
+						var fliterRemoveList = $('#filter-box-area').find("[name=" + data.type + "]");
+
+						if(searchPageType != "category"){
+							var iSmartSearchFormRemoveList = $('#iSmartSearchForm').find("[name=" + data.type + "]");
+							iSmartSearchFormRemoveList.each(function (index) {
+								if (this.value == data.code) {
+									$(this).closest('li').remove();
+								}
+							});
+
+							var selectedSmartSearchFormRemoveList = $('#selectedSmartSearchForm').find("[name=" + data.type + "]");
+							selectedSmartSearchFormRemoveList.each(function (index) {
+								if (this.value == data.code) {
+									this.remove();
+								}
+							});
+						} else {
+							var removeList = $('#selectedSmartSearchForm').find("[name=" + data.type + "]");
+							removeList.each(function (index) {
+								if (this.value == data.code) {
+									this.remove();
+								}
+							});
+						}
+
+						fliterRemoveList.each(function (index, obj) {
+							if (obj.id == data.code) {
+								obj.remove();
+							}
+						});
+					}
+				}
+				var filterCount = 0;
+				if(searchPageType == "search-result"){
+					filterCount = $("#filter-box-area").find(".filter-item").length;
+				}else{
+					filterCount = $("#iSmartSearchForm").find(".smart-search-selected-condition-item").length;
+				}
+				if(filterCount > 0){
+					$("[name=searchRcmdYn]").val("N");
+				}else{
+					$("[name=searchRcmdYn]").val("Y");
+				}
+				var targetParam = "";
+
+				//if(searchPageType != "category"){
+				if(searchPageType == "search-result"){
+					targetParam = $('#selectedSmartSearchForm').find('input').filter(function(index, element) {
+										return !abc.text.allNull($(element).val());
+									}).serialize();
+
+				}else{
+					targetParam = $('#iSmartSearchForm').find('input').filter(function(index, element) {
+										return !abc.text.allNull($(element).val());
+									}).serialize()
+									+ '&' +
+									$("#productSearchForm :input").filter(function(index, element) {
+										return !abc.text.allNull($(element).val());
+									}).serialize();
+				}
+
+				if(searchYn != "N" && !isFirst){
+					var renewURL = location.origin + "" + location.pathname;
+					targetParam = targetParam.replace(/\&page=([0-9]+)/ig,'').replace(/\&resultExistSmartFilter=([A-Za-z]+)/ig,'');
+
+					history.replaceState(null, "search", renewURL+"?"+targetParam+"&page=1&resultExistSmartFilter=Y");
+					abc.biz.display.common.setFormParameter.savePageNumParam(1);
+				}
+				_search.setSearchCountText(data.type);
+
+				abc.search.result.setFilterBox();
+
+				if(searchYn != "N" && !isFirst){
+					if(searchPageType == "brand"){
+						$('#brandListSearch').trigger('click');
+					}else{
+						abc.search.result.goSearchResultAsync();
+					}
+				}
+			}
+		}
+		/* E : A-RT 고도화 추가 2021.06.23*/
+	} // end _search.selectedConditionEvent
+
+	/**
+	 * 선택한 필터 항목수 노출
+	 */
+	_search.setSearchCountText = function(type){
+		var searchCountText = "";
+		var searchCount = 0;
+		var target = $("#includeSmartSearch");
+		var targetId = "";
+		var searchPageType = $("#currentPage").val();
+
+		if(type == "gender"){
+			targetId = "genderSearchCount";
+			searchCount = target.find('.smart-search-selected-condition-list').find('input[name=gender]').length;
+			if(searchCount > 0){
+				searchCountText = "성별("+searchCount+")";
+			}else{
+				searchCountText = "성별";
+				//$("#genderFilterContentLi").removeClass('expanded'); #2636 성별 필터 선택해제시 열려있게 수정.
+			}
+			// 카테고리 화면만 기존 로직 수행
+			if( searchPageType == 'category') {
+				$("#brandSearchCount").text("브랜드");
+				$("#brandstyleSearchCount").text("브랜드 스타일");
+				$("#sizeSearchCount").text("사이즈");
+				$("#colorSearchCount").text("색상");
+				$("#etcSearchCount").text("기타");
+			}
+		}else if(type == "brand"){
+			targetId = "brandSearchCount";
+			searchCount = target.find('.smart-search-selected-condition-list').find('input[name=brand]').length;
+			if(searchCount > 0){
+				searchCountText = "브랜드("+searchCount+")";
+			}else{
+				searchCountText = "브랜드";
+			}
+		}else if(type == "brandStyle"){
+			targetId = "brandstyleSearchCount";
+			searchCount = target.find('.smart-search-selected-condition-list').find('input[name=brandStyle]').length;
+			if(searchCount > 0){
+				searchCountText = "브랜드 스타일("+searchCount+")";
+			}else{
+				searchCountText = "브랜드 스타일";
+			}
+		}else if(type.includes("Size")){
+			targetId = "sizeSearchCount";
+			searchCount = target.find('.smart-search-selected-condition-list').find('input[name*=Size]').length;
+			if(searchCount > 0){
+				searchCountText = "사이즈("+searchCount+")";
+			}else{
+				searchCountText = "사이즈";
+			}
+		}else if(type == "color"){
+			targetId = "colorSearchCount";
+			searchCount = target.find('.smart-search-selected-condition-list').find('input[name=color]').length;
+			if(searchCount > 0){
+				searchCountText = "색상("+searchCount+")";
+			}else{
+				searchCountText = "색상";
+			}
+		}else if(type == "etc"){
+			targetId = "etcSearchCount";
+			searchCount = target.find('.smart-search-selected-condition-list').find('input[name=etc]').length;
+			if(searchCount > 0){
+				searchCountText = "기타("+searchCount+")";
+			}else{
+				searchCountText = "기타";
+			}
+		}else if( type == "category" ){
+			$("#genderSearchCount").text("성별");
+			$("#brandSearchCount").text("브랜드");
+			$("#brandstyleSearchCount").text("브랜드 스타일");
+			$("#sizeSearchCount").text("사이즈");
+			$("#colorSearchCount").text("색상");
+			$("#etcSearchCount").text("기타");
+
+			$("#genderFilterContentLi").removeClass('expanded');
+			$("#brandFilterContentLi").removeClass('expanded');
+			$("#brandstyleSearchCount").closest('li').removeClass('expanded');
+			$("#sizeFilterContentLi").removeClass('expanded');
+			$("#colorFilterContentLi").removeClass('expanded');
+			$("#etcFilterContentLi").removeClass('expanded');
+		}
+
+		if(targetId != ""){
+			$("#"+targetId).text(searchCountText);
+		}
+	}
+
+
+
+	/**
+	 * price range event
+	 */
+	_search.slideRangeEvent = function(target, values) {
+
+		var priceMin, priceMax;
+		priceMin = target.find('.slider-range-val .min');
+		priceMax = target.find('.slider-range-val .max');
+		priceMin.text(abc.text.isMakeComma(values[0]));
+		priceMax.text(abc.text.isMakeComma(values[1]));
+		target.on('slide', function (event, ui) {
+			var values;
+			values = ui.values;
+			priceMin.text(abc.text.isMakeComma(values[0]));
+			priceMax.text(abc.text.isMakeComma(values[1]));
+		});
+	} // end _search.slideRangeEvent
+
+
+	/**
+	 * 검색어 추가
+	 */
+	_search.setFilterSearchWord = function(searchWord) {
+		var filterSearchWord = "";
+		if(abc.text.allNull(searchWord)){
+			filterSearchWord = $("#searchWordAddBar").val();
+		}else{
+			filterSearchWord = searchWord;
+		}
+
+		// if (!abc.text.allNull(filterSearchWord)) {
+		// 	abc.checkForbiddenWordNoCallback(filterSearchWord);
+		// 	if (abc.retValCheckForbiddenWordNoCallback === false) {
+		// 		$('#searchWordAddBar').val('');
+		// 		return false;
+		// 	}
+		// }
+
+		if(abc.text.allNull(filterSearchWord)){
+			alert("검색어를 입력해주세요");
+			return false;
+		}
+
+		var target = $("#includeSmartSearch");
+		// 단어 중복체크
+		var dup = 0;
+		$.each(target.find('input[name=researchWord]'), function(i,v) {
+			if ($(v).val() == filterSearchWord) {
+				dup = 1;
+				return;
+			}
+		});
+
+		if (dup > 0) {
+			$('#searchWordAddBar').val('');
+			return false;
+		}
+
+		var _HTML = "";
+		_HTML += '<li class="smart-search-selected-condition-item option-type-word" name="researchWordLi">';
+		_HTML += '	<span class="filter-item">';
+		_HTML += '	<input type="hidden" name="researchWord" value="'+filterSearchWord+'">';
+		_HTML += '	</span>';
+		_HTML += '</li>';
+
+		target.find('.smart-search-selected-condition-list').append(_HTML);
+
+		_HTML = "";
+		_HTML += '<li class="smart-search-selected-condition-item option-type-word" name="researchWordLi">';
+		_HTML += '	<span class="filter-item">';
+		_HTML += '		<span class="filter-title">'+ filterSearchWord +'</span>';
+		_HTML += '		<button class="btn-filter-del option-type-word" name="smart-search-selected-condition-delete-btn"></button>';
+		_HTML += '	</span>';
+		_HTML += '</li>';
+
+		$("#searchWordAddBarUl").append(_HTML);
+
+		$("#wordFilterContentLi").addClass("expanded");
+		if($('#currentPage').val() == 'brand') {//브랜드 페이지 탭이동이나 새로 고침시 겸색어 필터에 표기되게 수정.
+			var researchWordFilterTag= '<button type="button" name="researchWord" id="' + filterSearchWord + '" class="filter-item">' + filterSearchWord + '</button>';
+			$('#filter-box-area').append(researchWordFilterTag);
+			abc.search.result.setFilterBox();
+		}
+
+		// 검색창 초기화
+		$('#searchWordAddBar').val('');
+
+	} // end _search.setFilterSearchWord
+
+
+	/**
+	 * 상단 통합검색어 스마트 필터의 검색조건으로 추가
+	 */
+	_search.setHeadFilterSearchWord = function() {
+
+		var filterSearchWord = $('#searchBar').val();
+
+		if (filterSearchWord.length > 0) {
+			var target = $("#dialogSmartSearch");
+			var $list = target.find('.smart-search-selected-condition-list');
+
+			// 단어 중복체크
+			var dup = 0;
+
+			$.each(target.find('input[name=researchWord]'), function(i,v) {
+				if ($(v).val() == filterSearchWord) {
+					dup = 1;
+					return;
+				}
+			});
+
+			if (dup > 0) {
+				$('#searchBar').val('');
+				return false;
+			}
+
+			var _HTML = "";
+			_HTML += '<li class="smart-search-selected-condition-item option-type-word" name="researchWordLi" >';
+			_HTML += '	<span class="filter-item">';
+			_HTML += '	<input type="hidden" name="researchWord" value="'+filterSearchWord+'">';
+			_HTML += '	<span class="filter-title">'+filterSearchWord+'</span>';
+			_HTML += '	<button class="btn-filter-del option-type-word" name="smart-search-selected-condition-delete-btn"></button>';
+			_HTML += '	</span>';
+			_HTML += '</li>';
+
+			target.find('.smart-search-selected-condition-list').find('[name=researchWordLi]').remove();
+			target.find('.smart-search-selected-condition-list').append(_HTML);
+
+			// 검색창 초기화
+			$('#searchBar').val('');
+		}
+	} // end _search.setHeadFilterSearchWord
+
+	/**
+	 * 스마트 서치 : 카테고리 조회
+	 * SMART SEARCH 레이어 팝업의 'THEME / CATEGORY' 영역의 값을 세팅해주는 함수[카테고리 1뎁스 값 세팅] - by.ckhclick
+	 */
+	_search.setSmartSearchDpCategory = function(isFirst, target) {
+
+		var belong = target.hasClass('dialog-type') ? 'd' : 'i';
+		var brandPageChnnlNo = $('#brandPageChnnlNo').val();
+		var brandPrdtArtDispYn = $("#brandPrdtArtDispYn").val();
+		var searchPageType = $("#currentPage").val();
+		var searchYn = "N";
+
+		$.ajax({
+			type	:'get',
+			url		: '/display/search-word/smart-option/category/list',
+			data	: {'channel' : null}
+		})
+		.done(function(data) {
+			if (isFirst) {
+
+				var searchParams = location.search;
+
+				target.find('[name=smart-search-dialog-category-list]').empty();
+				var _HTML = "";
+				// 채널 리스트  (전체카테고리 삭제 gs ui)
+				if(belong == 'd' && abc.global.currentChannel == '10000'){
+					_HTML +='<li class="fold-box only-header" id="'+belong+'ChkChannel10000" data-chnnl-no="10000">';
+					_HTML +='	<button type="button" class="channel-title">전체 카테고리</button>';
+					_HTML +='</li>';
+
+					target.find('[name=smart-search-dialog-category-list]').append(_HTML);
+				}
+				_HTML = "";
+				$.each(data.CHNNL_LIST, function(i,v) {
+					if(v.srchRelmExpsrYn == 'Y' && (abc.global.currentChannel == '10000' || abc.global.currentChannel == v.chnnlNo)){	// 검색영역 노출여부가 'Y'인 채널만 노출 && 현재채널만 노출(gs ui)
+						if( belong == "i" && typeof brandPrdtArtDispYn != 'undefined' && brandPrdtArtDispYn == 'N'){
+							$("#iChkChannel10000").remove();
+
+							if(brandPageChnnlNo != v.chnnlNo){
+								return true;
+							}
+						}
+
+						var clazz ="";
+						var activeChnnlNo = "";
+						if(belong == 'i' && searchParams.includes("channel="+v.chnnlNo) ){
+							clazz = "active";
+							activeChnnlNo = v.chnnlNo;
+						}
+						_HTML += '<li class="fold-box '+clazz+'" id="'+belong+'ChkChannel'+ v.chnnlNo +'" data-chnnl-url="'+ v.chnnlUrl+'" data-chnnl-no="'+v.chnnlNo+'">';
+						if(belong == 'd'){
+							_HTML += '	<div class="fold-box-header" name="channelCateDiv"><span class="channel-title"><span class="font-eng">'+v.chnnlName+'</span> 카테고리</span></div>';
+						}else{
+							_HTML += '	<div class="fold-box-header" name="channelCateDiv"><span class="channel-title">카테고리</span></div>';
+						}
+
+						_HTML += '	<div class="fold-box-contents"></div">';
+						_HTML += '</li">';
+					}
+				});
+
+				target.find('[name=smart-search-dialog-category-list]').append(_HTML);
+
+				// 테마 리스트(성별)
+				_HTML = "";
+				$.each(data.THEME_LIST, function(i,v) {
+
+
+					if(v.addInfo1 == 'Y'){	// addInfo1 생성하지 않는다.
+						var engName = "";
+						switch(v.codeDtlNo){
+							case '10000' :
+								engName = 'mem';
+								break;
+							case '10001' :
+								engName = 'women';
+								break;
+							case '10002' :
+								engName = 'men|women';
+								break;
+							default :
+								engName = '';
+							break;
+						}
+
+						var checked ="";
+						if(searchParams.includes("gender="+v.codeDtlNo)){
+							checked = "checked";
+						}
+
+
+						_HTML += '<li name="smart-search-option" data-type="gender" data-code="'+v.codeDtlNo+'" data-name="'+v.codeDtlName+'" data-engName="'+engName+'" >';
+						_HTML += '	<span class="ui-chk type-line lg">';
+						_HTML += '		<input id="'+belong+'rdoTheme'+v.codeDtlNo+'" name="gender" type="checkbox" '+checked+'>';
+						_HTML += '		<label for="'+belong+'rdoTheme'+v.codeDtlNo+'">'+v.addInfo2+'</label>';
+						_HTML += '	</span>';
+						_HTML += '</li>';
+					}
+				});
+				target.find('[name=smart-search-dialog-theme-list]').empty();
+				target.find('[name=smart-search-dialog-theme-list]').append(_HTML);
+
+				if(belong == 'd'){
+					_search.smartFilterDpCategoryInitDone = true;
+				}
+			}
+
+		})
+		.fail(function(e) {
+
+		});
+	} // end _search.setSmartSearchDpCategory
+
+
+	/**
+	 * 스마트 서치 : 채널별 카테고리 set
+	 */
+	_search.makeDpCategoryFoldBox = function(target, chnnlNo, isCheck) {
+		var belong = target.hasClass('dialog-type') ? 'd' : 'i';
+		var id = belong+"ChkChannel"+chnnlNo;
+		var searchYn = "N";
+
+		$('[id^='+belong+'ChkChannel]').removeClass('expanded');
+		$("#"+id).addClass('expanded');
+
+		if($("#"+id).find('ul').length > 0){
+			return false;
+		}
+		$.ajax({
+			type	:'get',
+			url		: '/display/search-word/smart-option/category/list',
+			data	: {
+				'channel' : chnnlNo != null ? chnnlNo : null
+			}
+		})
+		.done(function(data) {
+			var _HTML = "";
+			var searchParams = location.search.replace("?", "");
+			var smartCategory = [];
+			var smartGender = [];
+			_search.upCategoryNoList = [];
+
+			if(belong == "i" && isCheck == "Y"){
+				if($("input[class='selectedSmartCategory']").length > 0){
+					for(var i = 0 ; i < $("input[class='selectedSmartCategory']").length ; i++){
+						smartCategory[i] = $("input[class='selectedSmartCategory']")[i].value;
+					}
+				}else if(!abc.text.allNull(params.category)){
+					var tmpParams = searchParams.split("&");
+					for(var t=0 ; t < tmpParams.length ; t++) {
+						var key = tmpParams[t].split("=")[0];
+						if(key == 'category'){
+							smartCategory.push(tmpParams[t].split("=")[1]);
+						}
+					}
+				}
+			}
+
+			if(belong == "i"){
+				// 페이지 내 필터와 스크롤되는 영역이 다름. 스마트서치에서는 카테고리 내 custom-scroll DOM 구조 반드시 삭제
+				_HTML += '<div class="custom-scroll scroll-md">';
+			}
+
+			_HTML += '<ul class="fold-box-list category-list" name="subCatListUl">';
+			_HTML += '	<li class="fold-box" name="smart-search-option" data-type="category">';
+			_HTML += '		<span class="ui-chk type-text">';
+			_HTML += '			<input id="'+belong+'chkCategoryAll'+chnnlNo+'" name="categoryAll" type="checkbox">';
+			_HTML += '			<label for="'+belong+'chkCategoryAll'+chnnlNo+'">전체</label>';
+			_HTML += '		</span>';
+			_HTML += '	</li>';
+
+			$.each(data.CATEGORY_LIST, function(i,v) {
+				var checked = "";
+				if(smartCategory != ""){
+					for(var s = 0 ; s < smartCategory.length ; s++){
+						if(smartCategory[s] == v.ctgrNo){
+							_search.upCategoryNoList.push(v.ctgrNo);
+
+							checked = 'checked';
+							break;
+						}
+					}
+				}
+
+				_HTML += '	<li class="fold-box" name="subCatListLi" id="'+belong+'subCatListLi'+v.ctgrNo+'" >';
+				_HTML += '		<div class="fold-box-header" name="subCatListFoldBoxHeader"><span>'+ v.ctgrName +'</span></div>';
+				_HTML += '		<div class="fold-box-contents">';
+				_HTML += '			<ul class="sub-category-list">';
+
+				_HTML += '				<li name="smart-search-option" data-type="category" data-code="'+v.ctgrNo+'" data-name="'+v.ctgrName+'">';
+				_HTML += '					<span class="ui-chk type-text">';
+				_HTML += '						<input id="'+belong+'chkCategory'+v.ctgrNo+'" name="categorySubAll" value="'+v.ctgrNo+'" type="checkbox" '+checked+'>';
+				_HTML += '						<label for="'+belong+'chkCategory'+v.ctgrNo+'">전체</label>';
+				_HTML += '					</span>';
+				_HTML += '				</li>';
+
+				$.each(v.subCategoryList, function(ii,vv) {
+					checked = "";
+					if(smartCategory != ""){
+						for(var s = 0 ; s < smartCategory.length ; s++){
+							if(smartCategory[s] == vv.ctgrNo){
+								_search.upCategoryNoList.push(v.ctgrNo);
+
+								checked = 'checked';
+								break;
+							}
+						}
+					}
+
+					_HTML += '				<li name="smart-search-option" data-type="category" data-code="'+vv.ctgrNo+'" data-name="'+vv.ctgrName+'">';
+					_HTML += '					<span class="ui-chk type-text">';
+					_HTML += '						<input id="'+belong+'chkCategory'+vv.ctgrNo+'" name="category" value="'+vv.ctgrNo+'" type="checkbox" '+checked+'>';
+					_HTML += '						<label for="'+belong+'chkCategory'+vv.ctgrNo+'">'+vv.ctgrName+'</label>';
+					_HTML += '					</span>';
+					_HTML += '				</li>';
+				});
+
+				_HTML += '			</ul>';
+				_HTML += '		</div>';
+				_HTML += '	</li>';
+			});
+			_HTML += '</ul>';
+
+			if(belong == "i"){
+				_HTML += '</div>';
+			}
+			$("#"+id).find('.fold-box-contents').append(_HTML);
+
+			if(belong == "i"){
+				if(smartCategory != ""){
+
+					var isFirst = true;
+					if( abc.search.result.isInit ) {
+						isFirst = false;
+					}
+					for(var sb = 0 ; sb < smartCategory.length ; sb++){
+
+						_search.selectedConditionEvent(target.find('#'+belong+'chkCategory'+smartCategory[sb]).closest('[name=smart-search-option]'), isFirst, searchYn);
+					}
+				}
+			}
+
+			if(_search.upCategoryNoList.length > 0){
+				_search.upCategoryNoList = _search.upCategoryNoList.filter(function(item, pos, self) {
+					return self.indexOf(item) == pos;
+				});
+			}
+
+			var tmpParams = searchParams.split("&");
+			for(var t=0 ; t < tmpParams.length ; t++) {
+				var key = tmpParams[t].split("=")[0];
+				if(key == 'gender'){
+					smartGender.push(tmpParams[t].split("=")[1]);
+				}
+			}
+
+			/** 선택한 성별이 있다면 선택항목리스트에 성별 추가 **/
+			if(smartGender != "" && belong == 'i'){
+				for(var sb = 0 ; sb < smartGender.length ; sb++){
+
+					_search.selectedConditionEvent(target.find("#"+belong+"rdoTheme"+smartGender[sb]).closest('[name=smart-search-option]'), isFirst, searchYn);
+				}
+				$("#genderFilterContentLi").addClass("expanded");
+				$("#genderSearchCount").text("성별("+smartGender.length+")");
+			}
+
+		})
+		.fail(function(e) {
+
+		});
+
+	} // end _search.makeDpCategoryFoldBox
+
+
+	/**
+	 * 스마트 서치 : 옵션 조회
+	 */
+	_search.setSmartSearchOption = function(isFirst, target, isCheck) {
+		var belong = target.hasClass('dialog-type') ? 'd' : 'i';
+		var form = target.find("form");
+
+		if(form.find('[name=channel]').val() == '10000'){
+			form.find('[name=channel]').val("");
+		}
+		var searchPageType = $("#currentPage").val();
+		var targetParam = form.find('input').filter(function(index, element) {
+								return !abc.text.allNull($(element).val());
+							}).serialize();
+
+		$.ajax({
+			type	:'get',
+			url		: '/display/search-word/smart-option/list',
+			data	: targetParam
+		})
+		.done(function(data) {
+
+			if(belong == "i"){
+				_search.searchCountTextReset();
+			}
+
+			var type = isFirst ? 'ALL' : 'SELECT';
+
+			var searchParams = location.search.replace("?", "");
+			var tmpParams = decodeURI(searchParams).split("&");
+			var smartBrand = [];
+			var smartBrandStyle = [];
+			var smartShoesSize = [];
+			var smartColor = [];
+			var smartPrice = [];
+			var smartEtc = [];
+			var checked = "";
+			var searchYn = "N";
+
+			// 브랜드 리스트
+			target.find('[name="brandFilterContentScroll"]').empty();
+			var _HTML = "";
+
+			var index = '';
+			$.each(data[type].BRAND_LIST, function(i,v) {
+				if (v.replace(/ /gi, "") == ''){
+					return;
+				}
+
+				var arr = v.split(',');
+				var brandName = arr[0];
+				var brandNo = arr[1];
+				var brandKorName = arr[2];
+				var initial = brandName.slice(0,1).toUpperCase();
+				_HTML = "";
+
+				if (i == 0 || initial != index) {
+					index = initial;
+
+					_HTML += '<span class="filter-brand-title">'+index+'</span>';
+					_HTML += '<ul class="filter-brand-list" name="brandListArea'+index+'"></ul>';
+
+					target.find('[name=brandFilterContentScroll]').append(_HTML);
+				}
+
+				checked ="";
+				if(belong =='i' && isCheck == "Y"){
+					for(var t=0 ; t < tmpParams.length ; t++) {
+						var tKey = tmpParams[t].split("=")[0];
+						var tValue = tmpParams[t].split("=")[1];
+						if(tKey == 'brand' && tValue == brandNo){
+							checked = "checked";
+							smartBrand.push(i);
+						}
+					}
+				}
+
+				_HTML = "";
+				_HTML += '<li name="smart-search-option" data-type="brand" data-code="'+brandNo+'" data-kor-name="'+brandKorName+'" data-name="'+brandName+'" id="'+belong+'brand'+brandNo+'" >';
+				_HTML += '	<span class="ui-chk type-text">';
+				_HTML += '		<input id="'+belong+'brand'+i+'" type="checkbox" '+checked+'>';
+				_HTML += '		<label for="'+belong+'brand'+i+'">'+brandName+'</label>';
+				_HTML += '	</span">';
+				_HTML += '</li">';
+
+				target.find('[name=brandListArea'+index+']').append(_HTML);
+			});
+
+			/** 선택한 브랜드가 있다면 선택항목리스트에 브랜드 추가 **/
+			if(smartBrand != ""){
+				for(var sb = 0 ; sb < smartBrand.length ; sb++){
+
+					_search.selectedConditionEvent(target.find("#"+belong+"brand"+smartBrand[sb]).closest('[name=smart-search-option]'), isFirst, searchYn);
+				}
+				$("#brandFilterContentLi").addClass("expanded");
+				$("#brandSearchCount").text("브랜드("+smartBrand.length+")");
+			}
+
+			if(data[type].BRAND_LIST.length == 0){
+				$("#brandFilterContentLi").hide();
+			}else{
+				$("#brandFilterContentLi").show();
+			}
+
+			if(belong == "d"){
+				// 필터 영역 브랜드 스크롤 재계산
+				if(target.find("[name=brandFilterContent] ul").length > 0){
+					var scrollEl = target.find("[name=brandFilterContent]").find('.custom-scroll')[0];
+					var simpleBar = new SimpleBar(scrollEl);
+					simpleBar.recalculate();
+				}
+			}else if(belong == "i" ){
+				// 필터 영역 브랜드 스크롤 재계산
+				if($("#brandFilterContentLi").length > 0){
+					var scrollEl = $("#brandFilterContentLi").find('.custom-scroll')[0];
+					var simpleBar = new SimpleBar(scrollEl);
+					simpleBar.recalculate();
+				}
+				// 브랜드스타일 리스트
+				if(abc.text.allNull(_search.brandStyleData)){
+					target.find('[name=brandstyleFilterContentli]').remove();
+				}else{
+					target.find('[name="smart-search-brandstyle-list"]').empty();
+					_HTML = "";
+					$.each(_search.brandStyleData, function(i,v) {
+						var checked ="";
+						if(belong =='i' && isCheck == "Y"){
+							for(var t=0 ; t < tmpParams.length ; t++) {
+								var tKey = tmpParams[t].split("=")[0];
+								var tValue = tmpParams[t].split("=")[1];
+								//2021.05.13 브랜드스타일 새로고침시 에러 수정
+								if(tKey == 'brandStyle'){
+									if(tValue == v.brandStyleSeq){
+										checked = "checked";
+										smartBrandStyle.push(i);
+									}
+								}
+							}
+						}
+
+						_HTML += '<li  name="smart-search-option" data-type="brandStyle" data-code="'+v.brandStyleSeq+'" data-name="'+v.brandStyleName+'"  >';
+						_HTML += '	<span class="ui-chk type-text">';
+						_HTML += '		<input id="brandStyle'+i+'" name="'+v.brandStyleName+v.brandStyleSeq+'" type="checkbox" '+checked+'>';
+						_HTML += '		<label for="brandStyle'+i+'">'+v.brandStyleName+'('+ v.brandStyleCount+')</label>';
+						_HTML += '	</span">';
+						_HTML += '</li">';
+					});
+
+					target.find('[name=smart-search-brandstyle-list]').append(_HTML);
+
+					/** 선택한 브랜드스타일이 있다면 선택항목리스트에 브랜드스타일 추가 **/
+					if(smartBrandStyle != ""){
+						for(var sb = 0 ; sb < smartBrandStyle.length ; sb++){
+
+							_search.selectedConditionEvent(target.find("#brandStyle"+smartBrandStyle[sb]).closest('[name=smart-search-option]'), isFirst, searchYn);
+						}
+						target.find("[name=brandstyleFilterContentli]").addClass("expanded");
+						$("#brandstyleSearchCount").text("브랜드 스타일("+smartBrandStyle.length+")");
+					}
+				}
+			}
+
+			// 사이즈 리스트
+			var sizeTypes = ['shoes', 'women', 'men', 'kids'];
+			var sizes = [data[type].SHOES_SIZE, data[type].WOMEN_SIZE, data[type].MEN_SIZE, data[type].KIDS_SIZE];
+			var shoesCnt = 0;
+			$.each(sizes, function(index,value) {
+				if (value.length > 0) {
+					target.find('[name=smart-search-dialog-'+sizeTypes[index]+'-size-title]').show();
+				} else {
+					target.find('[name=smart-search-dialog-'+sizeTypes[index]+'-size-title]').hide();
+				}
+
+				target.find('[name=smart-search-dialog-'+sizeTypes[index]+'-size-list]').empty();
+
+				$.each(value, function(i,v) {
+					var checked ="";
+					if(belong =='i' && isCheck == "Y"){
+						for(var t=0 ; t < tmpParams.length ; t++) {
+							var tKey = tmpParams[t].split("=")[0];
+							var tValue = tmpParams[t].split("=")[1];
+							if(tKey == sizeTypes[index]+"Size" && decodeURIComponent(tValue.replace(/\+/g,' ').replace(/\%2B/g,'\+')) == v){
+								checked = "checked";
+								smartShoesSize.push(shoesCnt);
+							}
+						}
+					}
+
+					_HTML = "";
+					_HTML += '<li name="smart-search-option" data-type="'+sizeTypes[index]+'Size" data-code="'+v+'" data-name="'+v+'" id="'+belong+sizeTypes[index]+'Size'+v.replace(/ /g,"")+'" >';
+					_HTML += '	<span class="ui-chk type-line">';
+					_HTML += '		<input id="'+belong+'shoesSizeChk'+shoesCnt+'" type="checkbox" name="chkSizeShoesModule" '+checked+'>';
+					_HTML += '		<label for="'+belong+'shoesSizeChk'+shoesCnt+'">'+v+'</label>';
+					_HTML += '	</span">';
+					_HTML += '</li">';
+
+					target.find('[name=smart-search-dialog-'+sizeTypes[index]+'-size-list]').append(_HTML);
+					shoesCnt++;
+				});
+			});
+
+			if(shoesCnt == 0){
+				$("#sizeFilterContentLi").hide();
+			}else{
+				$("#sizeFilterContentLi").show();
+			}
+
+			/** 선택한 사이즈가 있다면 선택항목리스트에 사이즈 추가 **/
+			if(smartShoesSize != ""){
+				var sizeName = "shoesSize";
+				if($('#currentPage').val() == 'brand'){
+					sizeName = "shoesSizeChk";
+				}
+				for(var sb = 0 ; sb < smartShoesSize.length ; sb++){
+					_search.selectedConditionEvent(target.find("#"+$.escapeSelector(belong+sizeName+smartShoesSize[sb])).closest('[name=smart-search-option]'), isFirst, searchYn);
+				}
+				$("#sizeFilterContentLi").addClass("expanded");
+				$("#sizeSearchCount").text("사이즈("+smartShoesSize.length+")");
+			}
+
+			// 색상 리스트
+			target.find('[name=smart-search-dialog-color-list]').empty();
+			$.each(data[type].COLOR_LIST, function(i,v) {
+				var checked ="";
+				if(belong =='i' && isCheck == "Y"){
+					for(var t=0 ; t < tmpParams.length ; t++) {
+						var tKey = tmpParams[t].split("=")[0];
+						var tValue = tmpParams[t].split("=")[1];
+						if(tKey == 'color' && tValue == v){
+							checked = "checked";
+							smartColor.push(i); //smartColor.push(t) t => i 수정 2021.05.13
+						}
+					}
+				}
+
+				_HTML = "";
+				_HTML += '<li name="smart-search-option" data-type="color" data-code="'+v+'" data-name="'+v+'" id="'+belong+'color'+v+'" >';
+				_HTML += '	<span class="item color-'+v.toLowerCase()+'">';
+				_HTML += '		<input id="'+belong+'color'+i+'" type="checkbox" name="chkColorPickerModule" '+checked+'>';
+				_HTML += '		<label for="'+belong+'color'+i+'">'+v+'</label>';
+				_HTML += '	</span">';
+				_HTML += '</li">';
+
+				target.find('[name=smart-search-dialog-color-list]').append(_HTML);
+			});
+
+			/** 선택한 색상이 있다면 선택항목리스트에 색상 추가 **/
+			if(smartColor != ""){
+				for(var sb = 0 ; sb < smartColor.length ; sb++){
+
+					_search.selectedConditionEvent(target.find("#"+belong+"color"+smartColor[sb]).closest('[name=smart-search-option]'), isFirst, searchYn);
+				}
+
+				$("#colorFilterContentLi").addClass("expanded");
+				$("#colorSearchCount").text("색상("+smartColor.length+")");
+			}
+
+			if(data[type].COLOR_LIST.length == 0){
+				$("#colorFilterContentLi").hide();
+			}else{
+				$("#colorFilterContentLi").show();
+			}
+
+			// price range
+			if (data[type].PRICE_LIST.length > 0) {
+				if(!abc.text.allNull(params.price) && belong =='i' && isCheck == "Y"){
+					var smartPrice = [];
+					for(var t=0 ; t < tmpParams.length ; t++) {
+						var tKey = tmpParams[t].split("=")[0];
+						var tValue = tmpParams[t].split("=")[1];
+						if(tKey == 'price'){
+							smartPrice.push(tValue);
+						}
+					}
+					smartPrice.sort(function(a, b) {
+						return a - b;
+					});
+
+					target.find('[name=smart-search-price-range]').data('min', +data[type].PRICE_LIST[0])
+																  .data('max', +data[type].PRICE_LIST[1])
+																  .data('values', smartPrice);
+					$("#priceFilterContentLi").addClass("expanded");
+
+					var _HTML = "";
+					_HTML += '<li class="smart-search-selected-condition-item price-range-type">';
+					_HTML += '	<span class="filter-item">';
+					_HTML += '	<input type="hidden" name="price" id="maxPrice" value="'+smartPrice[0]+'">';
+					_HTML += '	<input type="hidden" name="price" id="minPrice" value="'+smartPrice[1]+'">';
+					_HTML += '	</span>';
+					_HTML += '</li>';
+
+					target.find('.smart-search-selected-condition-list').append(_HTML);
+
+					_search.slideRangeEvent(target.find('[name=smart-search-price-range-wrap]'), smartPrice);
+				}else{
+					target.find('[name=smart-search-price-range]').data('min', +data[type].PRICE_LIST[0])
+																  .data('max', +data[type].PRICE_LIST[1])
+																  .data('values', data[type].PRICE_LIST);
+					_search.slideRangeEvent(target.find('[name=smart-search-price-range-wrap]'), data[type].PRICE_LIST);
+				}
+
+				abc.namespace.front.frontOffice.setSliderRange(target.find('[name=smart-search-price-range]'));
+
+				target.find('[name=smart-search-price-range-wrap]').show();
+				$("#priceFilterContentLi").show();
+			} else {
+				target.find('[name=smart-search-price-range-wrap]').hide();
+				$("#priceFilterContentLi").hide();
+			}
+
+			// 기타 리스트
+
+		//	if(searchPageType == "category"){ /* A-RT 고도화 수정 2021.06.23*/
+			if(belong == 'd'){ // SMART SEARCH에서만 추가 gs ui
+				target.find('[name=smart-search-dialog-etc-list]').empty();
+				$.each(data[type].ETC_LIST, function(i,v) {
+					if (v == ''){
+						return;
+					}
+					var checked ="";
+					if(belong =='i' && isCheck == "Y"){
+						for(var t=0 ; t < tmpParams.length ; t++) {
+							var tKey = tmpParams[t].split("=")[0];
+							var tValue = tmpParams[t].split("=")[1];
+							if(tKey == 'etc' && tValue == v){
+								checked = "checked";
+								smartEtc.push(t);
+							}
+						}
+					}
+					// 브랜드 일경우 체크박스로 변경 2021.05.07
+					if(belong == 'd'){
+						_HTML = "";
+						_HTML += '<li name="smart-search-option" data-type="etc" data-code="'+v+'" data-name="'+v+'" id="'+belong+'etc'+v+'" >';
+						_HTML += '	<span class="ui-chk type-line">';
+						_HTML += '		<input id="'+belong+'etc'+i+'" type="checkbox" name="chkCategoryETCModule" '+checked+'>';
+						_HTML += '		<label for="'+belong+'etc'+i+'">'+v+'</label>';
+						_HTML += '	</span">';
+						_HTML += '</li">';
+
+						target.find('[name=smart-search-dialog-etc-list]').append(_HTML);
+					}
+					if ( v == '매장픽업' && checked == "checked") {
+						$("#chkPickUp").prop("checked", true);
+					}
+					if ( v == '아트배송' && checked == "checked") {
+						$("#chkArtDelivery").prop("checked", true);
+					}
+				});
+			}
+		//	}
+			/** 선택한 기타가 있다면 선택항목리스트에 기타 추가 **/
+			if(smartEtc != ""){
+				for(var sb = 0 ; sb < smartEtc.length ; sb++){
+
+					_search.selectedConditionEvent(target.find("#"+belong+"etc"+smartEtc[sb]).closest('[name=smart-search-option]'), isFirst, searchYn);
+				}
+				$("#etcFilterContentLi").addClass("expanded");
+
+				$("#etcSearchCount").text("기타("+smartEtc.length+")");
+			}
+			/* S : A-RT 고도화 수정 2021.06.23*/
+
+		//	$("#etcFilterContentLi").hide();
+
+			/* E : A-RT 고도화 수정 2021.06.23*/
+		})
+		.fail(function(e) {
+
+		});
+
+	} // end _search.setSmartSearch
+
+	/**
+	 * 스마트 서치(result page) : 옵션 조회
+	 */
+	_search.setSmartSearchResultOption = function(target, isFirst) {
+		var belong = 'i';
+		/** 채널, 테마, 카테고리 선택에 대한 파라미터 **/
+		var smartParams = "";
+
+		var channelParam = "channel=" + (params.channel == '10000' ? '' : params.channel);
+		var genderParam = "";
+		if($("input[class='selectedSmartGender']").length > 0){
+			for(var i = 0 ; i < $("input[class='selectedSmartGender']").length ; i++){
+				genderParam += "&gender="+$("input[class='selectedSmartGender']")[i].value;
+			}
+		}
+
+		var categoryParam = "";
+		if($("input[class='selectedSmartCategory']").length > 0){
+			for(var i = 0 ; i < $("input[class='selectedSmartCategory']").length ; i++){
+				categoryParam += "&category="+$("input[class='selectedSmartCategory']")[i].value;
+			}
+		}
+
+		/** 검색페이지 스마트서치에서 채널, 테마, 카테고리에 대한 모든 스마트 서치 옵션을 가져오기 위한 파라미터 **/
+		smartParams =  channelParam
+					 + genderParam
+					 + categoryParam
+					 + "&page=1"
+					 + "&perPage=40"
+					 + "&pageColumn=3"
+					 + "&sort=point" // 2022.07.19 : 검색 상품목록 default sort 신상품순 에서 베스트상품순 으로 변경
+					 + "&smartSearchCheck=true";
+
+		/** 검색페이지 스마트서치에서 채널, 테마, 카테고리에 대한 스마트 서치 옵션 - 선택한 브랜드, 사이즈, 색상, 가격, ETC **/
+		var smartBrand = [];
+		var smartBrandStyle = [];
+		var smartShoesSize = [];
+		var smartMenSize = [];
+		var smartWomenSize = [];
+		var smartKidsSize = [];
+		var smartColor = [];
+		var smartPrice = [];
+		var smartEtc = [];
+
+		/** 검색페이지 스마트서치에서 선택한 브랜드 **/
+		if($("input[class='selectedSmartBrand']").length > 0){
+			for(var i = 0 ; i < $("input[class='selectedSmartBrand']").length ; i++){
+				smartBrand[i] = $("input[class='selectedSmartBrand']")[i].value;
+			}
+		}
+
+		/** 검색페이지 스마트서치에서 선택한 브랜드스타일 **/
+		if($("input[class='selectedSmartBrandStyle']").length > 0){
+			for(var i = 0 ; i < $("input[class='selectedSmartBrandStyle']").length ; i++){
+				smartBrandStyle[i] = $("input[class='selectedSmartBrandStyle']")[i].value;
+			}
+		}
+
+		/** 검색페이지 스마트서치에서 선택한 신발사이즈 **/
+		if($("input[class='selectedSmartShoesSize']").length > 0){
+			for(var i = 0 ; i < $("input[class='selectedSmartShoesSize']").length ; i++){
+				smartShoesSize[i] = $("input[class='selectedSmartShoesSize']")[i].value;
+			}
+		}
+
+		/** 검색페이지 스마트서치에서 선택한 남성사이즈 **/
+		if($("input[class='selectedSmartMenSize']").length > 0){
+			for(var i = 0 ; i < $("input[class='selectedSmartMenSize']").length ; i++){
+				smartMenSize[i] = $("input[class='selectedSmartMenSize']")[i].value;
+			}
+		}
+
+		/** 검색페이지 스마트서치에서 선택한 여성사이즈 **/
+		if($("input[class='selectedSmartWomenSize']").length > 0){
+			for(var i = 0 ; i < $("input[class='selectedSmartWomenSize']").length ; i++){
+				smartWomenSize[i] = $("input[class='selectedSmartWomenSize']")[i].value;
+			}
+		}
+
+		/** 검색페이지 스마트서치에서 선택한 아동사이즈 **/
+		if($("input[class='selectedSmartKidsSize']").length > 0){
+			for(var i = 0 ; i < $("input[class='selectedSmartKidsSize']").length ; i++){
+				smartKidsSize[i] = $("input[class='selectedSmartKidsSize']")[i].value;
+			}
+		}
+
+		/** 검색페이지 스마트서치에서 선택한 색상 **/
+		if($("input[class='selectedSmartColor']").length > 0){
+			for(var i = 0 ; i < $("input[class='selectedSmartColor']").length ; i++){
+				smartColor[i] = $("input[class='selectedSmartColor']")[i].value;
+			}
+		}
+
+		/** 검색페이지 스마트서치에서 선택한 가격 **/
+		if($("input[class='selectedSmartPrice']").length > 0){
+			for(var i = 0 ; i < $("input[class='selectedSmartPrice']").length ; i++){
+				smartPrice[i] = $("input[class='selectedSmartPrice']")[i].value;
+			}
+		}
+
+		/** 검색페이지 스마트서치에서 선택한 etc **/
+		if($("input[class='selectedSmartEtc']").length > 0){
+			for(var i = 0 ; i < $("input[class='selectedSmartEtc']").length ; i++){
+				smartEtc[i] = $("input[class='selectedSmartEtc']")[i].value;
+			}
+		}			/** 검색페이지 스마트서치에서 채널, 테마, 카테고리에 대한 모든 스마트 서치 옵션을 가져오기 위해 비동기 요청 **/
+		$.ajax({
+			type	:'get',
+			url		: '/display/search-word/smart-option/list',
+			data	: smartParams
+		})
+		.done(function(data) {
+			var type = 'SELECT';
+			if(params.channel == '10000' || abc.text.allNull(params.channel)){
+				type = 'ALL';
+			}
+			var _HTML = "";
+
+			/** 브랜드 리스트 **/
+			target.find('[name="brandFilterContentScroll"]').empty();
+
+			var index = '';
+			$.each(data[type].BRAND_LIST, function(i,v) {
+				if (v.replace(/ /gi, "") == ''){
+					return;
+				}
+
+				var arr = v.split(',');
+				var brandName = arr[0];
+				var brandNo = arr[1];
+				var brandKorName = arr[2];
+				var initial = brandName.slice(0,1).toUpperCase();
+
+				_HTML = "";
+
+				if (i == 0 || initial != index) {
+					index = initial;
+
+					_HTML += '<span class="filter-brand-title">'+index+'</span>';
+					_HTML += '<ul class="filter-brand-list" name="brandListArea'+index+'"></ul>';
+
+					target.find('[name=brandFilterContentScroll]').append(_HTML);
+				}
+
+				var checked ="";
+				if(smartBrand != ""){
+					for(var s = 0 ; s < smartBrand.length ; s++){
+						if(smartBrand[s] == brandNo){
+							checked = "checked";
+							break;
+						}
+					}
+				}
+
+				_HTML = "";
+				_HTML += '<li name="smart-search-option" data-type="brand" data-code="'+brandNo+'"  data-kor-name="'+brandKorName+'" data-name="'+brandName+'" id="'+belong+'brand'+brandNo+'" >';
+				_HTML += '	<span class="ui-chk type-text">';
+				_HTML += '		<input id="'+belong+'brand'+i+'" type="checkbox" '+checked+'>';
+				_HTML += '		<label for="'+belong+'brand'+i+'">'+brandName+'</label>';
+				_HTML += '	</span">';
+				_HTML += '</li">';
+
+				target.find('[name=brandListArea'+index+']').append(_HTML);
+			});
+
+			/** 선택한 브랜드가 있다면 선택항목리스트에 브랜드 추가 **/
+			if(smartBrand != ""){
+				for(var sb = 0 ; sb < smartBrand.length ; sb++){
+
+					_search.selectedConditionEvent(target.find("#"+belong+"brand"+smartBrand[sb]), isFirst);
+				}
+				$("#brandFilterContentLi").addClass("expanded");
+				$("#brandSearchCount").text("브랜드("+smartBrand.length+")");
+			}
+
+			if(data[type].BRAND_LIST.length == 0){
+				$("#brandFilterContentLi").hide();
+			}else{
+				$("#brandFilterContentLi").show();
+			}
+
+			// 필터 영역 브랜드 스크롤 재계산
+			if($("#brandFilterContentLi").length > 0){
+				var scrollEl = $("#brandFilterContentLi").find('.custom-scroll')[0];
+				var simpleBar = new SimpleBar(scrollEl);
+				simpleBar.recalculate();
+			}
+			// 브랜드스타일 리스트
+			if(abc.text.allNull(_search.brandStyleData)){
+				target.find('[name=brandstyleFilterContentli]').hide();
+			}else{
+				target.find('[name=brandstyleFilterContentli]').show();
+				target.find('[name="smart-search-brandstyle-list"]').empty();
+				_HTML = "";
+				$.each(_search.brandStyleData, function(i,v) {
+
+					_HTML += '<li name="smart-search-option" data-type="brandStyle" data-code="'+v.brandStyleSeq+'" data-name="'+v.brandStyleName+'"  >';
+					_HTML += '	<span class="ui-chk type-text">';
+					_HTML += '		<input id="brandStyle'+i+'" type="checkbox">';
+					_HTML += '		<label for="brandStyle'+i+'">'+v.brandStyleName+'('+ v.brandStyleCount+')</label>';
+					_HTML += '	</span">';
+					_HTML += '</li">';
+				});
+				target.find('[name=smart-search-brandstyle-list]').append(_HTML);
+
+				/** 선택한 브랜드스타일이 있다면 선택항목리스트에 브랜드스타일 추가 **/
+				if(smartBrandStyle != ""){
+					for(var sb = 0 ; sb < smartBrandStyle.length ; sb++){
+
+						_search.selectedConditionEvent(target.find("#brandStyle"+smartBrand[sb]), isFirst);
+					}
+					$('[name=brandstyleFilterContentli]').addClass('expanded');
+					$("#brandstyleSearchCount").text("브랜드 스타일("+smartBrandStyle.length+")");
+				}
+			}
+
+
+			/** 사이즈 리스트 **/
+			var sizeTypes = ['shoes', 'women', 'men', 'kids'];
+			var sizes = [data[type].SHOES_SIZE, data[type].WOMEN_SIZE, data[type].MEN_SIZE, data[type].KIDS_SIZE];
+			var shoesCnt = 0;
+			$.each(sizes, function(index,value) {
+				if (value.length > 0) {
+					target.find('[name=smart-search-dialog-'+sizeTypes[index]+'-size-title]').show();
+				} else {
+					target.find('[name=smart-search-dialog-'+sizeTypes[index]+'-size-title]').hide();
+				}
+
+				target.find('[name=smart-search-dialog-'+sizeTypes[index]+'-size-list]').empty();
+
+				$.each(value, function(i,v) {
+					// loop를 돌면서 각 사이즈 정보를 체크만 함 ['선택한 조건'과 상관없음
+					if (v.replace(/ /gi, "") == ''){
+						return;
+					}
+
+					var checked ="";
+					/** 선택한 신발사이즈가 있다면 **/
+					if(index == 0){
+						if(smartShoesSize != ""){
+							for(var s = 0 ; s < smartShoesSize.length ; s++){
+								if(smartShoesSize[s] == v){
+									checked = "checked";
+									break;
+								}
+							}
+						}
+					}
+					/** 선택한 남성사이즈가 있다면 **/
+					if(index == 2){
+						if(smartMenSize != "" && index == 2){
+							for(var s = 0 ; s < smartMenSize.length ; s++){
+								if(smartMenSize[s] == v){
+									checked = "checked";
+									break;
+								}
+							}
+						}
+					}
+					/** 선택한 여성사이즈가 있다면 **/
+					if(index == 1){
+						if(smartWomenSize != ""){
+							for(var s = 0 ; s < smartWomenSize.length ; s++){
+								if(smartWomenSize[s] == v){
+									checked = "checked";
+									break;
+								}
+							}
+						}
+					}
+					/** 선택한 아동사이즈가 있다면 **/
+					if(index == 3){
+						if(smartKidsSize != ""){
+							for(var s = 0 ; s < smartKidsSize.length ; s++){
+								if(smartKidsSize[s] == v){
+									checked = "checked";
+									break;
+								}
+							}
+						}
+					}
+					shoesCnt++;
+
+					_HTML = "";
+					_HTML += '<li name="smart-search-option" data-type="'+sizeTypes[index]+'Size" data-code="'+v+'" data-name="'+v+'" id="'+belong+sizeTypes[index]+'Size'+v.replace(/ /gi,"")+'" >';
+					_HTML += '	<span class="ui-chk type-line">';
+					_HTML += '		<input id="'+belong+sizeTypes[index]+'SizeChk'+i+'" type="checkbox" name="chkSizeShoesModule" '+checked+'>';
+					_HTML += '		<label for="'+belong+sizeTypes[index]+'SizeChk'+i+'">'+v+'</label>';
+					_HTML += '	</span">';
+					_HTML += '</li">';
+
+					target.find('[name=smart-search-dialog-'+sizeTypes[index]+'-size-list]').append(_HTML);
+				});
+			});
+
+			var sizeSearchCount = 0;
+			/** 선택한 사이즈가 있다면 선택항목리스트에 사이즈 추가 **/
+			if(smartShoesSize != ""){
+				for(var sb = 0 ; sb < smartShoesSize.length ; sb++){
+					var obj = typeof smartShoesSize[sb] != 'undefined' ? smartShoesSize[sb] : '';
+
+					_search.selectedConditionEvent(target.find("#"+$.escapeSelector(belong+"shoesSize"+obj.replace(/ /g,''))), isFirst);
+					sizeSearchCount++;
+				}
+			}
+
+			if(smartMenSize != ""){
+				for(var sb = 0 ; sb < smartMenSize.length ; sb++){
+					var obj = typeof smartShoesSize[sb] != 'undefined' ? smartShoesSize[sb] : '';
+
+					_search.selectedConditionEvent(target.find("#"+$.escapeSelector(belong+"menSize"+obj.replace(/ /g,''))), isFirst);
+					sizeSearchCount++;
+				}
+			}
+			if(smartWomenSize != ""){
+				for(var sb = 0 ; sb < smartWomenSize.length ; sb++){
+					var obj = typeof smartShoesSize[sb] != 'undefined' ? smartShoesSize[sb] : '';
+
+					_search.selectedConditionEvent(target.find("#"+$.escapeSelector(belong+"womenSize"+obj.replace(/ /g,''))), isFirst);
+					sizeSearchCount++;
+				}
+			}
+			if(smartKidsSize != ""){
+				for(var sb = 0 ; sb < smartKidsSize.length ; sb++){
+					var obj = typeof smartShoesSize[sb] != 'undefined' ? smartShoesSize[sb] : '';
+
+					_search.selectedConditionEvent(target.find("#"+$.escapeSelector(belong+"kidsSize"+obj.replace(/ /g,''))), isFirst);
+					sizeSearchCount++;
+				}
+			}
+			if(sizeSearchCount > 0){
+				$("#sizeFilterContentLi").addClass("expanded");
+				$("#sizeSearchCount").text("사이즈("+sizeSearchCount+")");
+			}
+
+			if(shoesCnt == 0){
+				$("#sizeFilterContentLi").hide();
+			}else{
+				$("#sizeFilterContentLi").show();
+			}
+
+			/** 색상 리스트 **/
+			target.find('.smart-search-dialog-color-list').empty();
+			$.each(data[type].COLOR_LIST, function(i,v) {
+
+				var checked ="";
+				/** 선택한 색상이 있다면 선택항목리스트에 색상 추가 **/
+				if(smartColor != ""){
+					for(var s = 0 ; s < smartColor.length ; s++){
+						if(smartColor[s] == v){
+							checked = "checked";
+							break;
+						}
+					}
+				}
+
+				_HTML = "";
+				_HTML += '<li name="smart-search-option" data-type="color" data-code="'+v+'" data-name="'+v+'" id="'+belong+'color'+v+'" >';
+				_HTML += '	<span class="item color-'+v.toLowerCase()+'">';
+				_HTML += '		<input id="'+belong+'color'+i+'" type="checkbox" name="chkColorPickerModule" '+checked+'>';
+				_HTML += '		<label for="'+belong+'color'+i+'">'+v+'</label>';
+				_HTML += '	</span">';
+				_HTML += '</li">';
+
+				target.find('[name=smart-search-dialog-color-list]').append(_HTML);
+			});
+
+			/** 선택한 색상이 있다면 선택항목리스트에 색상 추가 **/
+			if(smartColor != ""){
+				for(var sb = 0 ; sb < smartColor.length ; sb++){
+
+					_search.selectedConditionEvent(target.find("#"+belong+"color"+smartColor[sb]), isFirst);
+//
+				}
+				$("#colorFilterContentLi").addClass("expanded");
+				$("#colorSearchCount").text("색상("+smartColor.length+")");
+			}
+
+			if(data[type].COLOR_LIST.length == 0){
+				$("#colorFilterContentLi").hide();
+			}else{
+				$("#colorFilterContentLi").show();
+			}
+
+			/** 가격 리스트 **/
+			if (data[type].PRICE_LIST.length > 0) {
+
+
+				var filterTag = '<button type="button" name="price" class="filter-item">';
+				if(smartPrice != ""){
+					target.find('[name=smart-search-price-range]').data('min', +data[type].PRICE_LIST[0])
+																  .data('max', +data[type].PRICE_LIST[1])
+																  .data('values', smartPrice);
+					_search.slideRangeEvent(target.find('[name=smart-search-price-range-wrap]'), smartPrice);
+					$("#priceFilterContentLi").addClass("expanded");
+
+					_HTML = "";
+					_HTML += '<li class="smart-search-selected-condition-item price-range-type">';
+					_HTML += '	<span class="filter-item">';
+					_HTML += '	<input type="hidden" name="price" id="maxPrice" value="'+smartPrice[0]+'">';
+					_HTML += '	<input type="hidden" name="price" id="minPrice" value="'+smartPrice[1]+'">';
+					_HTML += '	</span>';
+					_HTML += '</li>';
+
+					target.find('.smart-search-selected-condition-list').append(_HTML);
+
+					filterTag += smartPrice[0] + '~' +  smartPrice[1] + '</button>';
+				}else{
+					target.find('[name=smart-search-price-range]').data('min', +data[type].PRICE_LIST[0])
+																  .data('max', +data[type].PRICE_LIST[1])
+																  .data('values', data[type].PRICE_LIST);
+					_search.slideRangeEvent(target.find('[name=smart-search-price-range-wrap]'), data[type].PRICE_LIST);
+
+					filterTag += data[type].PRICE_LIST[0] + '~' +  data[type].PRICE_LIST[1] + '</button>';
+				}
+
+				abc.namespace.front.frontOffice.setSliderRange(target.find('[name=smart-search-price-range]'));
+				target.find('[name=smart-search-price-range-wrap]').show();
+				$("#priceFilterContentLi").show();
+
+				//파라미터에 가격정보가 있으면 필터 초기화 정보에 추가한다.
+				if( !abc.text.allNull(abc.param.getParams().price) ) {
+					$('#filter-box-area').append(filterTag);
+					abc.search.result.setFilterBox();
+				}
+			} else {
+				target.find('[name=smart-search-price-range-wrap]').hide();
+				$("#priceFilterContentLi").hide();
+			}
+
+			/** 기타 리스트 **/
+			/* S : A-RT 고도화 수정 2021.06.23*/  // gs ui 주석처리
+//			var searchPageType = $("#currentPage").val();
+//			if(searchPageType == "category"){
+//				var etcList = [];
+//				for(var e = 0 ; e < data[type].ETC_LIST.length ; e++){
+//					if(data[type].ETC_LIST[e] != ""){
+//						etcList.push(data[type].ETC_LIST[e]);
+//					}
+//				}
+//
+//				target.find('[name=smart-search-dialog-etc-list]').empty();
+//				$.each(etcList, function(i,v) {
+//					if (v == '') {
+//						return;
+//					}
+//
+//					var checked ="";
+//					/** 선택한 etc가 있다면 **/
+//					if(smartEtc != ""){
+//						for(var s = 0 ; s < smartEtc.length ; s++){
+//							if(smartEtc[s] == v){
+//								checked = "checked";
+//								break;
+//							}
+//						}
+//					}
+//
+//					_HTML = "";
+//					_HTML += '<li name="smart-search-option" data-type="etc" data-code="'+v+'" data-name="'+v+'" id="'+belong+'etc'+v+'" >';
+//					_HTML += '	<span class="ui-chk type-line">';
+//					_HTML += '		<input id="'+belong+'etc'+i+'" type="checkbox" name="chkCategoryETCModule" '+checked+'>';
+//					_HTML += '		<label for="'+belong+'etc'+i+'">'+v+'</label>';
+//					_HTML += '	</span">';
+//					_HTML += '</li">';
+//
+//					target.find('[name=smart-search-dialog-etc-list]').append(_HTML);
+//				});
+//			}
+			/* E : A-RT 고도화 수정 2021.06.23*/
+
+			/** 선택한 기타가 있다면 선택항목리스트에 기타 추가 **/
+			if(smartEtc != ""){
+				for(var sb = 0 ; sb < smartEtc.length ; sb++){
+
+					_search.selectedConditionEvent(target.find("#"+belong+"etc"+smartEtc[sb]), isFirst);
+				}
+				$("#etcFilterContentLi").addClass("expanded");
+				$("#etcSearchCount").text("기타("+smartEtc.length+")");
+			}
+			/* S : A-RT 고도화 수정 2021.06.23*/
+
+			//$("#etcFilterContentLi").hide();
+
+			/* E : A-RT 고도화 수정 2021.06.23*/
+		})
+		.fail(function(e) {
+
+		})
+		.always(function(){
+			/** 스마트서치에서 선택한 모든 옵션들이 체크가 되었다면 페이지 타입을 바꿔 일반 선택이 될 수 있도록 변경**/
+			pageSearchType = "header-search";
+		});
+
+	}
+
+
+
+	/**
+	 * 상품 조회
+	 */
+	_search.getSearchResult = function(target) {
+		var form = target.find("form");
+		var chnnlNo = form.find('[name=channel]').val();
+		$('input[name=page]').val(+abc.biz.display.common.setFormParameter.getPageNum());
+
+		var targetParam ="";
+		params = abc.param.getParams();
+
+		if(params.resultExistSmartFilter == 'Y'){
+			targetParam = location.search.replace("?", "");
+			targetParam = targetParam.replace(/\&page=([0-9]+)/ig,'');
+			targetParam += '&page='+ abc.biz.display.common.setFormParameter.getPageNum();
+
+		}else{
+			targetParam = form.find('input').filter(function(index, element) {
+									return !abc.text.allNull($(element).val());
+								}).serialize()
+						+ '&' +
+						$("#productSearchForm :input").filter(function(index, element) {
+								return !abc.text.allNull($(element).val());
+							}).serialize();
+		}
+		targetParam = decodeURI(targetParam);
+		targetParam = abc.text.removeDuplicateCharacters(targetParam, "&", ["price"]);
+
+		targetParam = targetParam.replace(/\&channel=10000/ig,'').replace(/\?channel=10000/ig,'');
+
+
+		if(+abc.biz.display.common.setFormParameter.getPageNum() > 1){
+			targetParam = targetParam.replace(/\&searchRcmdYn=([A-Za-z]+)/ig,'');
+			targetParam = targetParam+"&searchRcmdYn=N" + (abc.text.allNull($('.exceptPrdtNos').serialize()) ? '' : "&" + $('.exceptPrdtNos').serialize());
+		}
+
+		$.ajax({
+			type	: 'get',
+			url		: '/display/search-word/result/list',
+			data	: targetParam,
+			beforeSend : function(){
+				abc.loading.show();
+			},
+			complete : function(){
+				abc.loading.hide();
+			}
+		})
+		.done(function(data) {
+			var searchPageType = $("#currentPage").val();
+
+			// 채널별탭 setting
+			abc.biz.display.common.channelTab();
+
+			// 초기화
+			$('.category-product-list-wrap').empty();
+			$('.category-product-list-wrap').append(data);
+
+			// 총 개수 set
+			var abcTotalCnt = abc.text.allNull($("#GROUP_COUNT_CHNNL_NO_10001").val()) ? 0 : $("#GROUP_COUNT_CHNNL_NO_10001").val();
+			var gsTotalCnt = abc.text.allNull($("#GROUP_COUNT_CHNNL_NO_10002").val()) ? 0 : $("#GROUP_COUNT_CHNNL_NO_10002").val();
+			$('#abc-mart-total-cnt').text("("+abcTotalCnt+")");
+			$('#grand-stage-total-cnt').text("("+gsTotalCnt+")");
+
+			var searchTotalCount = 0;
+			if(chnnlNo == '10001'){
+				searchTotalCount = abcTotalCnt;
+			}else{
+				searchTotalCount = gsTotalCnt;
+			}
+			$('.search-result-text .result-cnt').text(abc.text.isMakeComma(searchTotalCount));
+
+			if (searchTotalCount == 0) { // 등록된 제품 없음
+				$('#pagingDiv').hide();
+			} else {
+				$('#pagingDiv').show();
+				// 페이징
+				var perPage = abc.text.allNull(document.productSearchForm) ? 40 : document.productSearchForm.perPage.value;
+				abc.paging.currPg = +abc.biz.display.common.setFormParameter.getPageNum();
+				abc.paging.drawPaging(searchTotalCount, 'pagingDiv', abc.search.movePage, (abc.paging.currPg == 1 ?	 true : false), perPage);
+
+				abc.setProductBadge();
+			}
+
+			var page = $('.btn-page.selected').attr('pagenum');
+			var targetPrdtNo = sessionStorage.getItem("prdtNo");
+			sessionStorage.removeItem("prdtNo");
+
+			if(!abc.text.allNull(targetPrdtNo)){
+
+				if($("#prod-link-"+targetPrdtNo).length > 0){
+					var targetPrdtId = "prod-link-"+targetPrdtNo;
+					if(abc.text.isIE()){
+					//	document.getElementById(targetPrdtId).scrollIntoView(false);
+					}else{
+						document.getElementById(targetPrdtId).scrollIntoView({block: "center"});
+					}
+				}
+
+			}else if(abc.text.allNull(page) || (+page) == 1){
+				/* S : A-RT 고도화 수정 2021.06.23*/
+				if( searchPageType == "category"){
+				//	$(window).scrollTop($('.page-title-wrap').offset().top-100);
+				}
+				/* E : A-RT 고도화 수정 2021.06.23*/
+			}
+
+			if(searchPageType == 'brand'){
+				if( abc.search.result.isInit ) {
+					abc.search.result.isInit = false;
+				}
+
+				if (searchTotalCount === 0) {
+					var noSearchWordFilterCnt = 0;
+					for(var key in abc.param.getParams()) {
+						try {
+							if (key == 'category' || key == 'gender' || key == 'brand' || key == 'brandStyle'
+								|| key == 'shoesSize' || key == 'kidsSize' || key == 'menSize' || key == 'womenSize' || key == 'color' || key == 'price' || key == 'etc') {
+								noSearchWordFilterCnt++;
+							}
+						} catch (e) {
+						}
+					}
+
+					if(abcTotalCnt + gsTotalCnt === 0){
+						if(noSearchWordFilterCnt > 0){
+							$('.common-no-data .flex-box .no-data-text').text('선택한 조건에 맞는 검색 결과가 없습니다.');
+						}else{
+							$('.common-no-data .flex-box .no-data-text').text('등록된 결과가 없습니다.');
+						}
+					}else {
+						var otherChnlName = 'GRAND STAGE';
+						var otherChnlCnt = gsTotalCnt;
+						if (abc.global.currentChannel === '10002') {
+							otherChnlName = 'ABC MART';
+							otherChnlCnt = abcTotalCnt;
+						}
+						var noDataTag = '';
+						if (noSearchWordFilterCnt > 0) {
+							noDataTag = '선택한 조건에 맞는 검색 결과는 <br><span class="bold">' + otherChnlName + '</span>에서 확인해 주세요.';
+						} else {
+							var researchWordList = location.search.substr(location.search.indexOf("?") + 1).split("&");
+							var researchWordArr;
+							var researchWordTxt = "";
+							$.each(researchWordList, function (i, v) {
+								try {
+									researchWordArr = v.split("=");
+									if (researchWordArr[0] == "researchWord") {
+										researchWordTxt += decodeURIComponent(researchWordArr[1]) + ', ';
+									}
+								} catch (e) {
+								}
+							});
+							researchWordTxt = researchWordTxt.substring(0, researchWordTxt.lastIndexOf(','));
+							noDataTag = '<span>“' + researchWordTxt + '”</span>에 대한 검색 결과는 <br><span class="bold">' + otherChnlName + '</span>에서 확인해 주세요.';
+						}
+						noDataTag += '<div class="btn-wrap"><button id="otherChnlBtn" class="btn-search-result">총 <span class="spot">' + otherChnlCnt + '</span>개의 검색 결과 확인 </button></div>';
+						$('.common-no-data .flex-box .no-data-text').append(noDataTag);
+					}
+				}
+			}
+
+			if (!abc.text.allNull(params.pageColumn)) {
+				$("[name=rdoProdGridModule]").attr("checked", false);
+				if(params.pageColumn == '2'){
+					$('#result-prod-list, .category-prod-list').removeClass('col-3').removeClass('col-4');
+					$("#rdoProdGrid02").attr("checked", true);
+				} else {
+					$('#result-prod-list, .category-prod-list').removeClass('col-2');
+					$("#rdoProdGrid01").attr("checked", true);
+				}
+				$('#result-prod-list, .category-prod-list').addClass('col-'+params.pageColumn);
+			}
+		})
+		.fail(function() {
+			var $div = ''
+				$div +='<div class="common-no-data">'
+				$div +=		'<div class="flex-box">'
+				$div +=			'<p class="no-data-text">등록된 결과가 없습니다.</p>'
+				$div +=		'</div>'
+				$div +='</div>'
+
+			//var $div = $('<div>', {'class':'common-no-data'}).text('등록된 제품이 없습니다.');
+			$('.category-product-list-wrap').append($div);
+			$(window).scrollTop($('.page-title-wrap').offset().top-100);
+		});
+
+	} // end _search.getSearchResult
+
+	/**
+	 * 페이지 이동
+	 */
+	_search.movePage = function(pageNum) {
+
+		$(window).scrollTop($('.sorting-wrap').offset().top - 100);
+
+		var searchPageType = $("#currentPage").val();
+		var target;
+
+		if (searchPageType == 'category' || searchPageType == 'brand') {
+			target = $('.smart-search-filter.include-type');
+		}
+
+		abc.biz.display.common.setFormParameter.savePageNumParam(pageNum);
+		_search.getSearchResult(target);
+	}
+
+	_search.searchCountTextReset = function(){
+		$("#brandSearchCount").text("브랜드");
+		$("#brandstyleSearchCount").text("브랜드 스타일");
+		$("#sizeSearchCount").text("사이즈");
+		$("#colorSearchCount").text("색상");
+		$("#etcSearchCount").text("기타");
+	}
+
+	/**
+	 * jquery 객체 생성 시 오류를 발생시키는 문자에 대한 처리
+	 * ( ) [ ] ~ . /
+	 */
+	_search.getReplaceExp = function(obj) {
+		if(obj == null){
+			return "";
+		}else{
+			obj = obj.replace(/\(/gi,"\\(").replace(/\)/gi,"\\)").replace(/\[/gi,"\\[").replace(/\]/gi,"\\]").replace(/\~/gi,"\\~").replace(/ /gi,"").replace(/\./gi,"\\.");
+			return obj;
+		}
+	} // end _search.getReplaceExp
+
+
+	// 2021 고도화 추가 : 브랜드상세 클릭 이벤트
+	_search.setBrandPosition = function(brandNo) {
+		sessionStorage.setItem("brandNo", brandNo);
+		sessionStorage.setItem("currBlock", abc.paging.currBlock);
+		sessionStorage.setItem("lastBlock", abc.paging.lastBlock);
+		sessionStorage.setItem("linkType", "brand");
+	}
+
+	// 2021 고도화 추가 : 웬진 상세 클릭 이벤트
+	_search.setWebzinePosition = function(webzineId) {
+		sessionStorage.setItem("webzineNo", webzineId);
+		sessionStorage.setItem("currBlock", abc.paging.currBlock);
+		sessionStorage.setItem("lastBlock", abc.paging.lastBlock);
+		sessionStorage.setItem("linkType", "webzine");
+	}
+
+	// 2021 고도화 추가 : 기획전 상세 클릭 이벤트
+	_search.setPlanPosition = function(planNo) {
+		sessionStorage.setItem("planNo", planNo);
+		sessionStorage.setItem("linkType", "plan");
+	}
+
+	// 2021 고도화 추가 : 이벤트 상세 클릭 이벤트
+	_search.setEventPosition = function(eventNo) {
+		sessionStorage.setItem("eventNo", eventNo);
+		sessionStorage.setItem("linkType", "event");
+	}
+
+	// 2021.11.25 카테고리 클릭시 카테고리이외의 필터 정보를 초기화 시킨다.
+	_search.changeCategoryFilterAfterJob = function(smartSearchFormSerialize) {
+		smartSearchFormSerialize = smartSearchFormSerialize.replace(/\&gender=([0-9]+)/ig,'').replace(/\&brand=([0-9]+)/ig,'').replace(/\&color=([a-z]+)/ig,'')
+		.replace(/\&shoesSize=([A-Za-z0-9]+)/ig,'').replace(/\&menSize=([A-Za-z0-9]+)/ig,'').replace(/\&womenSize=([A-Za-z0-9]+)/ig,'')
+		.replace(/\&kidsSize=([A-Za-z0-9]+)/ig,'').replace(/\&price=([0-9]+)/ig,'').replace(/\&page=([0-9]+)/ig,'').replace(/\&brandStyle=([0-9]+)/ig,'');
+
+		var decodeStr = decodeURI(smartSearchFormSerialize);
+		decodeStr = decodeStr.replace(/\&etc=아트배송/ig,'').replace(/\&etc=매장픽업/ig,'');
+
+		//필터화면 검색어 초기화
+		var researchWordList = $('#selectedSmartSearchForm').find('input[name=researchWord]');
+		$.each(researchWordList, function(i,v) {
+			var researchWordTxt = $(v).val();
+			decodeStr = decodeStr.replace('&researchWord=' + researchWordTxt,'');
+		});
+		smartSearchFormSerialize = encodeURI(decodeStr);
+
+		$('#iSmartSearchForm').find('input[name=gender],input[name=brand],input[name=brandStyle],input[name*=Size],input[name=color],input[name=price],input[name=etc],input[name=researchWord]').parents('li').remove();
+		$('#selectedSmartSearchForm').find('input[name=gender],input[name=brand],input[name=brandStyle],input[name*=Size],input[name=color],input[name=price],input[name=etc],input[name=researchWord]').remove();
+		$('#filter-box-area').find('button[name=gender],button[name=brand],button[name=brandStyle],button[name*=Size],button[name=color],button[name=price],button[name=etc],button[name=researchWord]').remove();
+
+		var searchPageType = $("#currentPage").val();
+		if( searchPageType == 'brand') {
+			$("#productSearch-chkArtDelivery").prop('checked', false);
+			$("#productSearch-chkPickUp").prop('checked', false);
+		} else {
+			$("#chkArtDelivery").prop('checked', false);
+			$("#chkPickUp").prop('checked', false);
+		}
+
+		$("#genderFilterContentLi").find('input').prop('checked', false);
+		$("#brandFilterContentLi").find('input').prop('checked', false);
+		// 2021.12.03 브랜드 스타일은 name으로 되어있어 별도 처리
+		$("#brandstyleSearchCount").closest('li').find('input').prop('checked', false);
+		$("#sizeFilterContentLi").find('input').prop('checked', false);
+		$("#colorFilterContentLi").find('input').prop('checked', false);
+
+		//필터화면 가격 초기화
+		var priceTarget =  $('[name=smart-search-price-range]');
+		var priceData = priceTarget.data();
+		var values = [+priceData.min, +priceData.max];
+		priceTarget.find('[name=smart-search-price-range]').data('values', values);
+		_search.slideRangeEvent(priceTarget.find('[name=smart-search-price-range-wrap]'), values);
+		abc.namespace.front.frontOffice.setSliderRange(priceTarget.find('[name=smart-search-price-range]'));
+		$("#priceFilterContentLi").removeClass('expanded');
+
+		_search.setSearchCountText('category');
+		return smartSearchFormSerialize;
+	}
+
+     // 추천 검색어 클릭시 조회수 올림.
+	_search.setHitCount = function (data) {
+		var srchwordseq = data;
+		if (abc.text.allNull(data)) {
+			return false;
+		}
+
+		$.ajax({
+			type: "post",
+			url: "/display/webzine/setHitCount",
+			dataType: "json",
+			data: {
+				'srchWordSeq': srchwordseq
+			    ,'hitGbnType' : 'R'
+			}
+		})
+		.fail(function (e) {
+		});
+	}
+
+	// UI 및 파라미터 리셋 (성별)
+	_search.resetSearchUI = function(target){
+	  // 체크 해제
+	  target.find('[name="smart-search-option"][data-type="gender"] input[type=checkbox], [name="smart-search-option"][data-type="gender"] input[type=radio]').each(function(){
+		  var id = this.id;
+		  $(this).prop('checked', false);
+
+		  // 액티브 된 클래스 제거
+		  $(this).closest('.ui-chk').removeClass('checked active on ui-state-active ui-state-focus');
+		  $('label[for="'+id+'"]').removeClass('checked active on ui-state-active ui-state-focus');
+		});
+
+	  // 선택된 값 hidden 제거
+	  target.find('.smart-search-selected-condition-list input[name="gender"]').parents('li').remove();
+
+	  if(!_search.headerFilterOpen){
+		// include 왼쪽 검색 필터(페이지 내)인 경우
+		$('#filter-box-area [name="gender"]').remove();
+		$('#selectedSmartSearchForm').find('input[name="gender"]').remove();
+	  }else{
+		// 헤더 다이얼로그 팝업 검색 필터인 경우
+		$('#iSmartSearchForm').find('input[name="gender"]').remove();
+	  }
+
+	  // URL에서도 gender 제거
+	  var smartSearchFormSerialize = location.search.replace("?", "");
+	  smartSearchFormSerialize = smartSearchFormSerialize.replace(/\&gender=([0-9]+)/ig,'');
+	  var renewURL = location.origin + "" + location.pathname;
+	  history.replaceState(null, "search", renewURL + "?" + smartSearchFormSerialize);
+
+	};
+
+
+	// 채널 선택 처리 함수
+	_search.onChannelSelected = function($li) {
+		var target = $li.parents('.smart-search-filter');
+		var form = target.find("form");
+		var chnnlNo = $li.data('chnnlNo');
+
+		form.find('[name=channel]').val(chnnlNo);
+
+		//  이미 선택된 채널일 경우 toggle 동작만 수행하고 종료
+		if ($li.hasClass('active')) {
+			if ($li.hasClass('expanded')) {
+				$li.removeClass('expanded');
+			} else {
+				$li.addClass('expanded');
+			}
+			return;
+		}
+
+		// 다른 채널 선택이므로 상태 초기화
+		_search.headerSelectChnnlNo = chnnlNo;
+		$('#iSmartSearchForm').find("[name=channel]").val(chnnlNo);
+		$('#selectedSmartSearchForm').find("[name=channel]").val(chnnlNo);
+		abc.biz.display.common.setFormParameter.savePageNumParam(1);
+
+		target.find('[type=checkbox]').prop('checked', false);
+		target.find('.expanded').not('#wordFilterContentLi').removeClass('expanded');
+		target.find('.active').removeClass('active');
+		$li.addClass('active').addClass('expanded'); // 확장 디폴트
+
+		//  조건 목록 생성 후 카테고리 및 옵션 처리 반복
+		target.find('.smart-search-selected-condition-list').append('<li></li>');
+
+		var repeatCnt = 0;
+		var repeat = setInterval(function () {
+			repeatCnt++;
+			if (repeatCnt > 20) clearInterval(repeat);
+
+			if (target.find('.smart-search-selected-condition-list li').length > 0) {
+				target.find('.smart-search-selected-condition-list li').not('.option-type-word').remove();
+
+				if (chnnlNo != '10000') {
+					_search.makeDpCategoryFoldBox(target, chnnlNo);
+					_search.setSmartSearchOption(false, target);
+
+					var repeatSubCnt = 0;
+					var repeatSub = setInterval(function () {
+						repeatSubCnt++;
+						if (repeatSubCnt > 20 || _search.upCategoryNoList.length > 0) clearInterval(repeatSub);
+
+						if (target.find('[name=categoryAll]').length > 0) {
+							target.find('[name=categoryAll]').prop('checked', true);
+							clearInterval(repeatSub);
+						}
+					}, 100);
+				} else {
+					_search.setSmartSearchOption(true, target);
+				}
+
+				clearInterval(repeat);
+			}
+
+			if ($("#currentPage").val() == "brand") {
+				$('#brandListSearch').trigger('click');
+			} else if (!_search.headerFilterOpen) {
+				$("#selectedSmartSearchForm").find("[name=category]").remove();
+				abc.search.result.goSearchResultAsync();
+			}
+		}, 100);
+
+		// UI 보조 초기화
+		if(!_search.headerFilterOpen){ $("#filter-box-area").empty();}
+		$("#productSearch-chkPickUp").prop('checked', false);
+		$("#productSearch-chkArtDelivery").prop('checked', false);
+	};
+
+	/**
+	 * abcmart.search.result.js 실행 후 abcmart.search.js 실행하여 스마트서치 검색 시 페이지타입 변경
+	 */
+	$(document).ready(function(){
+		_search.setPageSearchType = function(type){
+			pageSearchType = type;
+		}
+	});
+
+	$(function() {
+		_search.init();
+	});
+
+})();
