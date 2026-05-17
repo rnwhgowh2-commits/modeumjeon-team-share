@@ -77,6 +77,7 @@ lemouton/sourcing/source_registry.py
 webapp/routes/bundles.py
 # Day 9: 재고 SSOT 통일 (InventoryTx 실시간 기반)
 shared/inventory_stock.py
+shared/db.py
 webapp/routes/inventory/__init__.py
 webapp/routes/inventory/data.py
 webapp/routes/inventory/matrix.py

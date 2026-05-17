@@ -13,7 +13,9 @@ class Base(DeclarativeBase):
 
 
 engine = create_engine(Config.DB_URL, future=True)
-SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False, future=True)
+# expire_on_commit=False: commit 후 객체 컬럼 expire 방지 — session.close() 후에도 컬럼 access 가능
+# (DetachedInstanceError + InFailedSqlTransaction 회피)
+SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False, future=True, expire_on_commit=False)
 
 
 def init_db() -> None:
