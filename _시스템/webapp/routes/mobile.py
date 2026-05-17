@@ -352,12 +352,12 @@ def api_action():
         if not loc or loc.deleted_at:
             return _err("위치 없음", 404)
 
-        # 트랜잭션 qty 계산
+        # 트랜잭션 qty 계산 — 데스크탑과 통일 (양수 저장, 부호는 SSOT 합산 시 처리)
         if action == "in":
             tx_qty = qty
             tx_memo = memo or f"[모바일 입고]"
         elif action == "out":
-            tx_qty = -qty
+            tx_qty = qty  # 양수 저장 (데스크탑 outbound 와 통일). SSOT 가 -abs 처리
             tx_memo = memo or f"[모바일 출고]"
         else:  # adjust
             # 해당 위치의 현재 재고

@@ -729,7 +729,12 @@ def history():
                     'qty_total': 0,
                     'tx_ids': [],
                 }
-            qty_signed = tx.qty if tx.tx_type in ('in', 'adjust') else -tx.qty if tx.tx_type == 'out' else tx.qty
+            # 부호 일관 처리 — DB 저장이 양수/음수 무관 (데스크탑 양수 vs 모바일 음수)
+            qty_abs = abs(tx.qty)
+            if tx.tx_type == 'in':       qty_signed = qty_abs
+            elif tx.tx_type == 'out':    qty_signed = -qty_abs
+            elif tx.tx_type == 'adjust': qty_signed = tx.qty   # delta 부호 그대로
+            else:                         qty_signed = qty_abs  # move
             groups[key]['items'].append({'sku': tx.option_canonical_sku, 'qty': qty_signed, 'tx_id': tx.id})
             groups[key]['qty_total'] += qty_signed
             groups[key]['tx_ids'].append(tx.id)
@@ -939,7 +944,12 @@ def api_sku_history(sku: str):
         locs = {loc.id: loc.name for loc in s.query(InventoryLocation).all()}
         items = []
         for tx in txs:
-            qty_signed = tx.qty if tx.tx_type in ('in', 'adjust') else (-tx.qty if tx.tx_type == 'out' else tx.qty)
+            # 부호 일관 (api_sku_history)
+            qty_abs = abs(tx.qty)
+            if tx.tx_type == 'in':       qty_signed = qty_abs
+            elif tx.tx_type == 'out':    qty_signed = -qty_abs
+            elif tx.tx_type == 'adjust': qty_signed = tx.qty
+            else:                         qty_signed = qty_abs
             items.append({
                 'tx_id': tx.id,
                 'tx_type': tx.tx_type,

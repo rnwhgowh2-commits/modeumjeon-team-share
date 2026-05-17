@@ -19,15 +19,18 @@ from lemouton.inventory.models import InventoryTx
 
 
 def _stock_expr():
-    """tx_qty 에 부호 반영한 expression — in/adjust=+qty, out=-qty, move=location_id 기준 -qty,
-    move 도착 (location_to_id) 처리는 별도 쿼리.
+    """tx_qty 에 부호 반영한 expression — DB 저장 부호 무관 (abs() 기반 일관 처리).
+
+    저장 방식 불일치 (데스크탑 양수 / 모바일 음수) 대응:
+      · in/adjust  → +abs(qty)
+      · out        → -abs(qty)
+      · move (출발지)→ -abs(qty), 도착지 +abs(qty) 는 별도 쿼리에서 더함
     """
     return case(
-        (InventoryTx.tx_type == 'in', InventoryTx.qty),
-        (InventoryTx.tx_type == 'out', -InventoryTx.qty),
-        (InventoryTx.tx_type == 'adjust', InventoryTx.qty),
-        # move 는 location_id 에서 -qty (출발지 차감)
-        (InventoryTx.tx_type == 'move', -InventoryTx.qty),
+        (InventoryTx.tx_type == 'in', func.abs(InventoryTx.qty)),
+        (InventoryTx.tx_type == 'out', -func.abs(InventoryTx.qty)),
+        (InventoryTx.tx_type == 'adjust', InventoryTx.qty),  # adjust 는 delta 부호 그대로 (±)
+        (InventoryTx.tx_type == 'move', -func.abs(InventoryTx.qty)),
         else_=0,
     )
 
