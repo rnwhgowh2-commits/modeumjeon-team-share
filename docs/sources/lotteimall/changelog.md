@@ -35,7 +35,13 @@
 - auto_card_discount.included_in_sale_price=True → DB compute_breakdown 에서 별도 차감 안 함 (이중차감 방지)
 - L.CLUB 회원 적립 (club_point) 사용 여부는 사용자 정책에 따름
 
-### 라이브 검증 대기
+### 라이브 검증 결과 (2026-05-17)
+- URL: DB models — goods_no 2559417201 (르무통 클래식2, **비밀특가** 라벨)
+- sale_price (base_for_policy) = **99,900원** — 5사이트 중 최저가
+- 옵션 36개
+- auto_card_discount = null (해당 상품 카드할인 미노출)
+- point_rewards = 일반 99P + L.CLUB 499P + **리뷰적립 300/600원** (★ yaml 에 안 적힌 review_label/review_default/review_club 필드 발견 — 추후 yaml 보강 필요)
+- ✅ dataBenefit JSON 파싱 정상
 
 ### 관련 메모리
 - `project_benefit_spec.md` (⑤ 롯데홈쇼핑 항목)

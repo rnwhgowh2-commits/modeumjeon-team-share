@@ -124,9 +124,23 @@ fail_safe:
 # accuracy_baseline
 # ────────────────────────────────────────
 accuracy_baseline:
-  verified_skus: []
-  last_verified: null
-  match_rate: null
+  verified_skus:
+    - goods_no: 2559417201
+      name: "[르무통][비밀특가] 르무통 클래식2 발 편한 메리노울 운동화"
+      url: "https://www.lotteimall.com/goods/viewGoodsDetail.lotte?goods_no=2559417201"
+      sale_price: 99900                                  # = base_for_policy (5사이트 중 최저)
+      auto_card_discount: null                           # 해당 상품에 카드할인 미노출
+      point_rewards:
+        default_point: 99                                # 일반 L.POINT 적립
+        club_point: 499                                  # L.CLUB 적립
+        review_label: "리뷰작성 적립금"                  # ★ yaml 에 안 적힌 추가 필드 (코드가 추출)
+        review_default: 300
+        review_club: 600
+      options_count: 36
+      verified_on: 2026-05-17
+      notes: "비밀특가 라벨 — 5사이트 중 최저가. yaml 에 review_label/default/club 필드 추가 필요"
+  last_verified: 2026-05-17
+  match_rate: 100
 
 # ────────────────────────────────────────
 # 메타

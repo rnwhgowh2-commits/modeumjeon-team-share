@@ -5,6 +5,17 @@
 
 ---
 
+## 2026-05-17 [라이브 검증 — 시연 모델 추가] by claude+rnwhgowh2
+
+- URL: DB models — products/3728480 (르무통 클래식 2 다크네이비)
+- benefit_price (회원가) = 113,265원 / member_price 109,300원 / sale 122,900원
+- 옵션 1개 (단품 폴백 — Playwright dropdown 클릭 실패, 알려진 이슈)
+- coupon = 0, grade_reward 0, money_reward 0 (혜택 미적용 상품)
+- ✅ Fail-safe #9 통과 (109,300 ≤ 122,900)
+- accuracy_baseline.verified_skus 에 추가 (총 4개 SKU 검증)
+
+---
+
 ## 2026-05-17 [방 생성 · BUG fix · Fail-safe 추가] by claude+rnwhgowh2
 
 ### 1. 방 최초 생성

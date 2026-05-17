@@ -28,9 +28,12 @@
 | Fail-safe | 5단계 + LV sanity + Phase 8.8.3 + #9 invariant | 1개 (sale_price > 0) |
 | 옵션 처리 | dropdown 클릭으로 enumerate | 색상 클릭 → 사이즈 토글 (Cafe24 .ec-product-soldout 동적 토글) |
 
-### 라이브 검증 대기
-- 사용자께 URL 받아서 `_demo_smoke.py` 실행 → accuracy_baseline 채울 예정
-- 현재 verified_skus = [] (검증 0건)
+### 라이브 검증 결과 (2026-05-17)
+- URL: DB models 테이블 — product_no=219 (르무통 클래식2 메리노울 운동화)
+- sale_price = **116,900원** (기본할인 22%)
+- 옵션 40개 (8색 × 5사이즈) — Playwright 색상 클릭 → 사이즈 토글 정상 동작
+- auto_card_discount = 현대카드 2.73% 정상 부착
+- ✅ 정상 동작 — accuracy_baseline.verified_skus 에 누적
 
 ### 관련 메모리
 - `project_benefit_spec.md` (① 르무통 공홈 항목)

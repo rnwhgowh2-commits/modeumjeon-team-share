@@ -117,10 +117,18 @@ fail_safe:
 # accuracy_baseline
 # ────────────────────────────────────────
 accuracy_baseline:
-  verified_skus: []
-  last_verified: null
-  match_rate: null
-  notes: "라이브 검증 대기 (사용자 URL 1-2개)"
+  verified_skus:
+    - product_id: 9496367527
+      name: 르무통 클래식2 발 편한 메리노울 운동화
+      url: "https://brand.naver.com/lemouton/products/9496367527"
+      original_price: 149000
+      sale_price: 117900                                 # discountedSalePrice
+      review_point_max: 5000                             # 사이트 표시값과 일치
+      seller_immediate_discount: 31100
+      options_count: 40
+      verified_on: 2026-05-17
+  last_verified: 2026-05-17
+  match_rate: 100
 
 # ────────────────────────────────────────
 # 메타

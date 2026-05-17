@@ -118,9 +118,20 @@ fail_safe:
 # accuracy_baseline
 # ────────────────────────────────────────
 accuracy_baseline:
-  verified_skus: []
-  last_verified: null
-  match_rate: null
+  verified_skus:
+    - goodscd: GRG424102517741
+      name: "벗고 싶지 않은 편안함 르무통 클래식2 발 편한 메리노울 운동화"
+      url: "https://www.ssfshop.com/LEMOUTON/GRG424102517741/good"
+      brand: LEMOUTON
+      sale_price: 109900
+      point_rate: 0.005                                  # 멤버십 0.5% (549P)
+      point_amount: 549
+      gift_point: null                                   # 미노출 (해당 상품)
+      options_count: 36                                  # multi-color GRG 자동 발견
+      verified_on: 2026-05-17
+      notes: "discount_info 빈 결과 — .tip-txt/.discount 셀렉터 미매칭 (해당 상품에 노출 없음)"
+  last_verified: 2026-05-17
+  match_rate: 100
 
 # ────────────────────────────────────────
 # 메타

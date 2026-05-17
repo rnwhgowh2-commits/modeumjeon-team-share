@@ -26,7 +26,14 @@
 | 멀티 색상 | API variants | DOM (한 페이지) | URL multi-fetch (GRG) |
 | 변동 혜택 | 9개 가격항목 | 자동 카드만 | 기프트포인트·포인트 (raw HTML regex) |
 
-### 라이브 검증 대기
+### 라이브 검증 결과 (2026-05-17)
+- URL: DB models — GRG424102517741 (LEMOUTON 클래식2)
+- sale_price = **109,900원**
+- 옵션 36개 — **multi-color GRG 자동 발견 정상** (1 URL → 다른 GRG 페이지들 자동 fetch)
+- point_rate = 0.005 (멤버십 0.5%, 549P 정상 추출) ✅
+- gift_point = null (해당 상품 미노출 — 정상)
+- discount_info = 빈 결과 (.tip-txt/.discount 셀렉터 미매칭 — 해당 상품에 노출 없음)
+- ✅ 정상 동작
 
 ### 관련 메모리
 - `project_benefit_spec.md` (④ SSF 항목)

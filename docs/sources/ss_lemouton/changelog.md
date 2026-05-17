@@ -30,9 +30,12 @@
 ### Phase B 일반화 적합도
 **스스 르무통이 가장 적합** — DOM 셀렉터 대신 JSON path 매핑이라 yaml 표현 깔끔. 향후 우선 yaml-driven 변환 후보.
 
-### 라이브 검증 대기
-- 사용자께 URL 받아서 `_demo_smoke.py` 실행 → accuracy_baseline 채우기
-- 검증 포인트: review_point_max 가 사이트 "최대 리뷰적립" 표시값과 일치하는지 (memory `project_benefit_spec.md` 가이드)
+### 라이브 검증 결과 (2026-05-17)
+- URL: DB models — product_id 9496367527 (르무통 클래식2)
+- 정가 149,000 / sale 117,900 / **review_point_max 5,000 정상 추출** ✅
+- 옵션 40개 (8색 × 5사이즈)
+- discount_info: "리뷰 적립금 최대 5,000원 / 즉시할인 31,100원"
+- ✅ inline JSON 파싱 정상 (Next.js __PRELOADED_STATE__)
 
 ### 관련 메모리
 - `project_benefit_spec.md` (② 스스 르무통 항목)

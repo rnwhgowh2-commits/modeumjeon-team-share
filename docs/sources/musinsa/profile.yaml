@@ -168,8 +168,15 @@ accuracy_baseline:
       member_price: 33380
       verified_on: 2026-05-17
       notes: "혜택 없는 상품 케이스 (is_no_benefit_product=True). 회귀 테스트 기준"
+    - product_id: 3728480
+      name: 르무통(LEMOUTON) 클래식 2 다크네이비
+      benefit_price: 113265
+      member_price: 109300
+      sale_price: 122900
+      verified_on: 2026-05-17
+      notes: "DB models 테이블의 시연 모델. 옵션 1개 단품 폴백 (Playwright dropdown 클릭 실패 — 알려진 이슈)"
   last_verified: 2026-05-17
-  match_rate: 100                  # 3/3 사용자 검증 일치
+  match_rate: 100                  # 4/4 사용자 검증 일치
 
 # ────────────────────────────────────────
 # 메타
