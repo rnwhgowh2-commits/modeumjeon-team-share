@@ -27,11 +27,12 @@
     pointer-events: none;
   }
   .scan-frame {
-    width: 86%;
-    aspect-ratio: 2.2 / 1;
-    border: 2px solid #3182F6;
+    /* 가이드만 — 실제 디코드는 전체 프레임. 작은 바코드도 OK */
+    width: 70%;
+    aspect-ratio: 2.4 / 1;
+    border: 2px dashed rgba(255,255,255,0.5);
     border-radius: 12px;
-    box-shadow: 0 0 0 9999px rgba(0,0,0,0.4);
+    box-shadow: 0 0 0 9999px rgba(0,0,0,0.25);
     position: relative;
   }
   .scan-line {
@@ -184,20 +185,28 @@
   }
 
   async function startCamera(camId){
-    // ★ 고해상도 + 후면 + 연속 초점
-    const constraints = {
-      video: {
-        deviceId: camId ? { exact: camId } : undefined,
-        facingMode: camId ? undefined : { ideal: 'environment' },
-        width:  { ideal: 1920 },
-        height: { ideal: 1080 },
-        // advanced focusMode (지원 기기만)
-        advanced: [{ focusMode: 'continuous' }],
-      },
-      audio: false,
-    };
+    // ★ 4K 시도 → 미지원 시 1080p 폴백. 후면 + 연속 초점 + macro (가까운 거리)
+    const tryConstraints = [
+      { video: {
+          deviceId: camId ? { exact: camId } : undefined,
+          facingMode: camId ? undefined : { ideal: 'environment' },
+          width: { ideal: 3840 }, height: { ideal: 2160 },  // 4K
+          advanced: [{ focusMode: 'continuous' }, { focusDistance: 0.15 }],
+        }, audio: false },
+      { video: {
+          deviceId: camId ? { exact: camId } : undefined,
+          facingMode: camId ? undefined : { ideal: 'environment' },
+          width: { ideal: 1920 }, height: { ideal: 1080 },  // 1080p
+          advanced: [{ focusMode: 'continuous' }],
+        }, audio: false },
+    ];
     if (stream) { stream.getTracks().forEach(t => t.stop()); stream = null; }
-    stream = await navigator.mediaDevices.getUserMedia(constraints);
+    let lastErr;
+    for (const c of tryConstraints) {
+      try { stream = await navigator.mediaDevices.getUserMedia(c); break; }
+      catch(e) { lastErr = e; continue; }
+    }
+    if (!stream) throw lastErr || new Error('카메라 시작 실패');
     track = stream.getVideoTracks()[0];
     const video = document.getElementById('scan-video');
     video.srcObject = stream;
@@ -253,6 +262,8 @@
     const hints = new Map();
     if (Z.DecodeHintType) {
       hints.set(Z.DecodeHintType.TRY_HARDER, true);
+      // 흑백 반전·옅은 광 등 더 적극적으로 시도
+      if (Z.DecodeHintType.ALSO_INVERTED) hints.set(Z.DecodeHintType.ALSO_INVERTED, true);
       // EAN-13 우선 + 흔한 포맷
       if (Z.BarcodeFormat) {
         hints.set(Z.DecodeHintType.POSSIBLE_FORMATS, [
@@ -260,6 +271,7 @@
           Z.BarcodeFormat.CODE_128, Z.BarcodeFormat.CODE_39,
           Z.BarcodeFormat.UPC_A, Z.BarcodeFormat.UPC_E,
           Z.BarcodeFormat.QR_CODE, Z.BarcodeFormat.DATA_MATRIX,
+          Z.BarcodeFormat.ITF, Z.BarcodeFormat.CODABAR,
         ]);
       }
     }
@@ -276,22 +288,29 @@
     hint.textContent = '📷 바코드를 프레임 안에';
   }
 
-  // Native BarcodeDetector loop (requestAnimationFrame 기반)
+  // Native BarcodeDetector loop — Canvas snapshot (풀 해상도 보장, 잘림 X)
   async function nativeLoop(){
     const video = document.getElementById('scan-video');
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d', { willReadFrequently: true });
     while (!frozen) {
-      if (video.readyState >= 2) {
+      if (video.readyState >= 2 && video.videoWidth) {
         triesCount++;
         document.getElementById('stat-tries').textContent = '시도: ' + triesCount;
+        // ★ video 의 풀 해상도 (videoWidth × videoHeight) 그대로 canvas 에 그림
+        // CSS object-fit:cover 와 무관 → 작은 바코드도 픽셀 손실 없이 디코드
+        if (canvas.width !== video.videoWidth) canvas.width = video.videoWidth;
+        if (canvas.height !== video.videoHeight) canvas.height = video.videoHeight;
         try {
-          const codes = await detector.detect(video);
+          ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+          const codes = await detector.detect(canvas);
           if (codes.length && !frozen) {
             handleResult(codes[0].rawValue);
             return;
           }
         } catch(e) { /* 무시 */ }
       }
-      await new Promise(r => setTimeout(r, 100));  // 100ms 간격 (초당 10회)
+      await new Promise(r => setTimeout(r, 80));  // 80ms 간격 (초당 ~12회)
     }
   }
 
