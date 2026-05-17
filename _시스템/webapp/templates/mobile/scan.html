@@ -317,35 +317,80 @@
   // ───────────── 결과 처리 ─────────────
   function handleResult(code){
     if (frozen) return;
+    // 인식 코드 사전 검사 — 너무 짧거나 빈 값 무시 (false positive 회피)
+    const trimmed = (code || '').trim();
+    if (trimmed.length < 4) {
+      console.warn('[scan] 너무 짧은 코드 무시:', JSON.stringify(code));
+      return;
+    }
     frozen = true;
-    if (navigator.vibrate) navigator.vibrate(80);  // 진동 피드백
+    // 즉시 video pause — 연속 디코딩 중단 (handleCode 동안 다음 frame 시도 방지)
+    try {
+      const video = document.getElementById('scan-video');
+      video.pause();
+    } catch(e) {}
+    if (navigator.vibrate) navigator.vibrate(80);
     const hint = document.getElementById('scan-hint');
-    hint.textContent = '✅ ' + code;
+    hint.textContent = '✅ ' + trimmed;
     hint.classList.add('success');
-    handleCode(code);
+    handleCode(trimmed);
   }
 
   async function handleCode(code){
     showToast('검색 중: ' + code, 'info');
+    let r;
     try {
-      const r = await fetch('/mobile/api/lookup', {
+      r = await fetch('/mobile/api/lookup', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ code }),
       });
-      const d = await r.json();
-      if (!d.ok) {
-        showToast('❌ ' + d.error, 'error');
-        setTimeout(() => { frozen = false; document.getElementById('scan-hint').classList.remove('success'); document.getElementById('scan-hint').textContent = '📷 다시 비춰주세요'; }, 1800);
-        return;
-      }
-      const url = `/mobile/sku/${encodeURIComponent(d.option.canonical_sku)}` +
-        (preselectedAction ? '?action=' + preselectedAction : '');
-      location.href = url;
-    } catch (e) {
-      showToast('네트워크 오류', 'error');
-      setTimeout(() => { frozen = false; }, 1800);
+    } catch(e) {
+      console.error('[lookup] fetch fail:', e);
+      showToast('네트워크 오류: ' + (e.message || e), 'error');
+      resumeScan();
+      return;
     }
+    // 응답이 JSON 아닐 가능성 (auth redirect, 500 HTML 등)
+    const ct = r.headers.get('content-type') || '';
+    if (!ct.includes('application/json')) {
+      const text = await r.text();
+      console.error('[lookup] non-JSON response:', r.status, text.substring(0, 200));
+      if (r.status === 401 || r.status === 302 || text.includes('login')) {
+        showToast('로그인 만료 — 새로고침', 'error');
+        setTimeout(() => location.reload(), 1500);
+      } else {
+        showToast('서버 오류 ' + r.status, 'error');
+        resumeScan();
+      }
+      return;
+    }
+    let d;
+    try { d = await r.json(); }
+    catch(e) {
+      console.error('[lookup] JSON parse fail:', e);
+      showToast('응답 파싱 실패', 'error');
+      resumeScan();
+      return;
+    }
+    if (!d.ok) {
+      showToast('❌ ' + (d.error || '매칭 안 됨: ' + code), 'error');
+      resumeScan(d.error || '매칭 안 됨');
+      return;
+    }
+    const url = `/mobile/sku/${encodeURIComponent(d.option.canonical_sku)}` +
+      (preselectedAction ? '?action=' + preselectedAction : '');
+    location.href = url;
+  }
+
+  function resumeScan(msg){
+    setTimeout(() => {
+      frozen = false;
+      const hint = document.getElementById('scan-hint');
+      hint.classList.remove('success');
+      hint.textContent = '📷 ' + (msg || '다시 비춰주세요');
+      try { document.getElementById('scan-video').play(); } catch(e) {}
+    }, 1800);
   }
 
   // ───────────── 컨트롤 ─────────────
