@@ -111,9 +111,54 @@ fail_safe:
 # accuracy_baseline
 # ────────────────────────────────────────
 accuracy_baseline:
-  verified_skus: []
-  last_verified: null
-  match_rate: null
+  verified_skus:
+    - item_id: 1000809938058
+      name: 남성 나이키 리엑스 8 IR5118-200
+      url: "https://www.ssg.com/item/itemView.ssg?itemId=1000809938058&siteNo=6009&salestrNo=1004"
+      sale_price: 70805
+      options_count: 10
+      ssg_money_pattern: E_charge_payment_fallback
+      ssg_money_rate: 1.5
+      ssg_money_already_applied: false
+      verified_on: 2026-05-17
+      verified_via: "Playwright 영구 프로필 (curl_cffi 429 대안)"
+    - item_id: 1000807328520
+      name: 밀레 카고팬츠 MVTUP423
+      url: "https://www.ssg.com/item/itemView.ssg?itemId=1000807328520&siteNo=6009&salestrNo=1009"
+      sale_price: 39690
+      options_count: 26
+      ssg_money_pattern: "C_dual → A_already_applied 확정"
+      ssg_money_rate: 10.0
+      ssg_money_amount: 4410
+      ssg_money_already_applied: true
+      notes: "★ 이중차감 방지 룰 핵심 검증 — bestAmt=49,000-4,900-4,410=39,690. already_applied=True → 매트릭스 추가 차감 X"
+      verified_on: 2026-05-17
+    - item_id: 1000644956258
+      name: 여성 나이키 카고 팬츠 HM6977-297
+      url: "https://www.ssg.com/item/itemView.ssg?itemId=1000644956258&siteNo=6009&salestrNo=1004"
+      sale_price: 60605
+      options_count: 4
+      ssg_money_pattern: E_charge_payment_fallback
+      ssg_money_already_applied: false
+      verified_on: 2026-05-17
+    - item_id: 1000631699134
+      name: DBBE5E722W3 닥스 비조벨트
+      url: "https://www.ssg.com/item/itemView.ssg?itemId=1000631699134&siteNo=6009&salestrNo=1004"
+      sale_price: 107355
+      options_count: 1
+      ssg_money_pattern: E_charge_payment_fallback
+      card_benefit_price: 98767
+      card_benefit_condition: "5만원 이상 결제 시 98,767원"
+      product_coupon_rate: 0.12
+      product_coupon_min_order: 30000
+      notes: "★ 카드혜택가 조건부 + 상품쿠폰 12% (30,000원 이상) 모두 정상 추출"
+      verified_on: 2026-05-17
+  last_verified: 2026-05-17
+  match_rate: 100                                          # 4/4 정상 (모든 패턴 검증)
+  verification_strategy:
+    primary: "curl_cffi (운영 SsgCrawler 기본)"
+    fallback_for_429: "docs/sources/ssg/_demo_via_playwright.py — 영구 프로필 우회 (ssg_ditodalal_pw)"
+    why: "오늘 검증 시 사용자 active work 와 IP 단위 rate limit 충돌 → Playwright 우회로 4 패턴 모두 검증 완료"
 
 meta:
   schema_version: 0.1
