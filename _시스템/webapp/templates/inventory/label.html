@@ -63,9 +63,15 @@
 
   <label style="margin-left:18px">라벨 용지</label>
   <select id="preset" onchange="onPresetChange()">
+    <optgroup label="📦 박스히어로 호환 — 박스히어로 SaaS 표기 그대로">
+      <option value="boxhero_3m_21314" selected>3M Asia Pacific 21314 — 4×10 = 40칸 (48×25mm) ★박스히어로 베스트</option>
+      <option value="boxhero_formtec_3102">Formtec 3102 (박스히어로 표기) — 5×13 = 65칸 (38.1×21.2mm)</option>
+      <option value="boxhero_formtec_3107">Formtec 3107 (박스히어로 표기) — 3×8 = 24칸 (64×34mm)</option>
+      <option value="boxhero_formtec_3108">Formtec 3108 (박스히어로 표기) — 3×7 = 21칸 (63.5×38.1mm)</option>
+    </optgroup>
     <optgroup label="🇰🇷 Formtec (한국폼텍) — 공식 검증 ✅">
       <option value="formtec_ls3100">LS-3100 — 5×13 = 65칸 (38.1×21.2mm) · 바코드용</option>
-      <option value="formtec_ls3102" selected>LS-3102 — 4×10 = 40칸 (47×26.9mm) · 바코드용 ★베스트</option>
+      <option value="formtec_ls3102">LS-3102 — 4×10 = 40칸 (47×26.9mm) · 바코드용</option>
       <option value="formtec_ls3104">LS-3104 — 3×9 = 27칸 (62.7×30.1mm) · 바코드용</option>
       <option value="formtec_ls3106">LS-3106 — 3×8 = 24칸 (64×34mm) · 주소용</option>
       <option value="formtec_ls3107">LS-3107 — 2×8 = 16칸 (99.1×33.9mm) · 주소용</option>
@@ -139,10 +145,16 @@
 <script>
 // 라벨 용지 사양 — A4 (210×297mm) 기준. 단위 mm.
 // 진실 원천: docs/label_paper_specs.md
+// 박스히어로 호환: 박스히어로 SaaS 화면 표기 그대로 (사용자 익숙도 우선)
 // Formtec: 한국폼텍 공식 + 다나와/홈플러스 크로스체크
 // Avery: gLabels (오픈소스 라벨 도구) avery-iso-templates.xml
 // Printec: 공식 사양 미확보 → 제외 (Custom 사용 권장)
 const PRESETS = {
+  // ─── 📦 박스히어로 호환 — 박스히어로 SaaS 표기 그대로 (사용자 익숙도)
+  'boxhero_3m_21314':      {cols:4, rows:10, w:48.0, h:25.0, mt:23.5,  ml:9.0,  gx:0, gy:0 },  // 3M 21314 4×10 (박스히어로 베스트)
+  'boxhero_formtec_3102':  {cols:5, rows:13, w:38.1, h:21.2, mt:10.7,  ml:9.75, gx:0, gy:0 },  // 박스히어로 Formtec 3102 = 65칸 (한국폼텍 LS-3100 동일)
+  'boxhero_formtec_3107':  {cols:3, rows:8,  w:64.0, h:34.0, mt:12.5,  ml:9.0,  gx:0, gy:0 },  // 박스히어로 Formtec 3107 = 24칸 (한국폼텍 LS-3106 동일)
+  'boxhero_formtec_3108':  {cols:3, rows:7,  w:63.5, h:38.1, mt:15.15, ml:7.25, gx:2.5,gy:0 },  // 박스히어로 Formtec 3108 = 21칸 (Avery L7160 동일)
   // ─── 🇰🇷 Formtec — 칸수+크기 ✅ 검증, 여백은 균등분배 추정 (Custom 으로 보정 가능)
   'formtec_ls3100': {cols:5, rows:13, w:38.1, h:21.2, mt:10.7,  ml:9.75, gx:0, gy:0 },  // 65칸 바코드용
   'formtec_ls3102': {cols:4, rows:10, w:47.0, h:26.9, mt:14.0,  ml:11.0, gx:0, gy:0 },  // 40칸 바코드용

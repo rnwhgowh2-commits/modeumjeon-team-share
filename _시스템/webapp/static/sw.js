@@ -6,7 +6,7 @@
  *  - HTML / API: Network First (오프라인 시 캐시 폴백)
  *  - manifest / sw.js 자체: Network Only (캐시 X)
  */
-const CACHE_VERSION = 'modeumjeon-v1-2026-05-15';
+const CACHE_VERSION = 'modeumjeon-v1-2026-05-17';
 const STATIC_CACHE = `${CACHE_VERSION}-static`;
 const RUNTIME_CACHE = `${CACHE_VERSION}-runtime`;
 
