@@ -657,10 +657,12 @@ def move_create():
 
 @bp.get('/history')
 def history():
+    """박스히어로식 카드형 히스토리 — 거래서 묶음 + From/To + 색상 + 아바타."""
     s = SessionLocal()
     try:
         from sqlalchemy import or_
         from shared.search import split_tokens, apply_and_filter
+        from lemouton.inventory.models import InventoryLocation
         page = max(1, int(request.args.get('page', 1)))
         tx_type = request.args.get('type', '')
         q = (request.args.get('q') or '').strip()
@@ -675,10 +677,43 @@ def history():
         )
         total = query.count()
         items = query.order_by(InventoryTx.created_at.desc()).offset((page-1)*50).limit(50).all()
+
+        # 위치 dict (id → name) — From/To 표시용
+        locs = {loc.id: loc.name for loc in s.query(InventoryLocation).all()}
+
+        # ★ 거래서 그룹화 — 같은 (분 단위 시각, 사용자, 종류, 위치) → 1 묶음
+        # 박스히어로의 "거래서 = 여러 품목 묶음" UX 모사
+        from collections import OrderedDict
+        groups = OrderedDict()
+        for tx in items:
+            tx_minute = tx.created_at.replace(second=0, microsecond=0) if tx.created_at else None
+            key = (tx_minute, tx.created_by or '', tx.tx_type, tx.location_id, tx.location_to_id)
+            if key not in groups:
+                groups[key] = {
+                    'created_at': tx.created_at,
+                    'created_by': tx.created_by or '시스템',
+                    'tx_type': tx.tx_type,
+                    'location_id': tx.location_id,
+                    'location_to_id': tx.location_to_id,
+                    'location_name': locs.get(tx.location_id, '?'),
+                    'location_to_name': locs.get(tx.location_to_id, None) if tx.location_to_id else None,
+                    'partner_label': tx.partner_label,
+                    'memo': tx.memo,
+                    'items': [],
+                    'qty_total': 0,
+                    'tx_ids': [],
+                }
+            qty_signed = tx.qty if tx.tx_type in ('in', 'adjust') else -tx.qty if tx.tx_type == 'out' else tx.qty
+            groups[key]['items'].append({'sku': tx.option_canonical_sku, 'qty': qty_signed, 'tx_id': tx.id})
+            groups[key]['qty_total'] += qty_signed
+            groups[key]['tx_ids'].append(tx.id)
+        grouped_list = list(groups.values())
+
         return render_template(
             'inventory/ledger.html',
             active='history', items=items, total=total, page=page,
             tx_type=tx_type, q=q, search_tokens=search_tokens,
+            grouped=grouped_list, locs=locs,
         )
     finally:
         s.close()

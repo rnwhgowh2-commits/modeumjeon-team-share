@@ -1,16 +1,82 @@
 {% extends 'base.html' %}
 {% block title %}히스토리 — 재고관리{% endblock %}
 {% block content %}
-{# 박스히어로 1:1 히스토리 (4 거래 통합 timeline + 좌측 list, 우측 상세 패널 신설). #}
-<div style="padding:24px 32px;max-width:1500px;margin:0 auto">
-  <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px">
-    <h1 style="font-size:22px;font-weight:700;margin:0;color:#292A2F">히스토리</h1>
-    <span title="입고·출고·조정·이동 4 거래 통합 timeline" style="display:inline-flex;align-items:center;justify-content:center;width:14px;height:14px;border-radius:50%;background:#F1F1F4;color:#8F91A0;font-size:9.5px;font-weight:700;cursor:help">i</span>
-    <a href="{{ url_for('inventory.history_export') }}" style="margin-left:auto;background:#fff;border:1px solid #CBCCD3;color:#292A2F;padding:7px 14px;border-radius:5px;font-size:12.5px;text-decoration:none;font-weight:600">📁 엑셀 내보내기</a>
+{# 박스히어로 1:1 식 카드 list 히스토리 — 거래서 묶음 + From/To + 색상 + 아바타. #}
+<style>
+  .h-shell { padding:24px 32px; max-width:1500px; margin:0 auto; }
+  .h-head { display:flex; align-items:center; gap:8px; margin-bottom:14px; }
+  .h-head h1 { font-size:22px; font-weight:700; margin:0; color:#191F28; }
+  .h-filterbar { display:flex; gap:8px; align-items:center; background:#fff; border:1px solid #E5E8EB; border-radius:8px; padding:10px 12px; margin-bottom:14px; }
+  .h-layout { display:grid; grid-template-columns:1fr 380px; gap:14px; align-items:start; }
+  @media (max-width: 900px) { .h-layout { grid-template-columns:1fr; } }
+
+  /* 거래서 카드 */
+  .tx-card { background:#fff; border:1px solid #E5E8EB; border-radius:10px; padding:14px 16px; margin-bottom:8px; cursor:pointer; transition:.12s; }
+  .tx-card:hover { border-color:#3182F6; box-shadow:0 2px 8px rgba(49,130,246,.08); }
+  .tx-card.active { border-color:#3182F6; background:#EFF6FF; }
+  .tx-card .tx-top { display:flex; align-items:center; gap:10px; margin-bottom:6px; }
+  .tx-card .tx-ic { width:30px; height:30px; border-radius:8px; display:inline-flex; align-items:center; justify-content:center; font-size:14px; font-weight:700; flex-shrink:0; }
+  .tx-card.ty-in .tx-ic { background:#DBEAFE; color:#1D4ED8; }
+  .tx-card.ty-out .tx-ic { background:#FEE2E2; color:#DC2626; }
+  .tx-card.ty-adjust .tx-ic { background:#FEF3C7; color:#92400E; }
+  .tx-card.ty-move .tx-ic { background:#F3E8FF; color:#6B21A8; }
+  .tx-card .tx-mid { flex:1; }
+  .tx-card .tx-title { font-size:13.5px; font-weight:700; color:#191F28; }
+  .tx-card .tx-date { font-size:11.5px; color:#6B7684; margin-top:1px; }
+  .tx-card .tx-qty { font-size:14px; font-weight:800; font-family:"SF Mono",ui-monospace,monospace; }
+  .tx-card .tx-qty.pos { color:#15803D; }
+  .tx-card .tx-qty.neg { color:#DC2626; }
+  .tx-card .tx-qty.adj { color:#92400E; }
+  .tx-card .tx-qty.mv  { color:#6B21A8; }
+  .tx-card .tx-body { font-size:12.5px; color:#4E5968; margin-top:8px; padding-top:8px; border-top:1px solid #F2F4F6; display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+  .tx-card .tx-sku { font-family:"SF Mono",ui-monospace,monospace; font-size:11.5px; color:#191F28; }
+  .tx-card .loc-chip { display:inline-flex; align-items:center; gap:4px; padding:2px 8px; border-radius:11px; font-size:11px; font-weight:600; }
+  .tx-card .loc-from { background:#FEF2F2; color:#991B1B; }
+  .tx-card .loc-to { background:#EFF6FF; color:#1D4ED8; }
+  .tx-card .loc-arrow { color:#9CA3AF; font-size:13px; }
+  .tx-card .tx-author { display:inline-flex; align-items:center; gap:6px; margin-left:auto; }
+  .tx-card .av { width:22px; height:22px; border-radius:50%; background:linear-gradient(135deg,#3182F6,#1B64DA); color:#fff; display:inline-flex; align-items:center; justify-content:center; font-size:10px; font-weight:700; }
+  .tx-card .more-items { font-size:11px; color:#6B7684; }
+
+  /* 우측 패널 */
+  .h-side { background:#fff; border:1px solid #E5E8EB; border-radius:10px; padding:18px; position:sticky; top:80px; }
+  .h-side.empty { text-align:center; padding:36px 14px; color:#8B95A1; font-size:13px; }
+  .h-side .det-head { padding-bottom:14px; margin-bottom:14px; border-bottom:1px solid #F2F4F6; }
+  .h-side .det-type { font-size:14px; font-weight:800; }
+  .h-side .det-type.in { color:#1D4ED8; }
+  .h-side .det-type.out { color:#DC2626; }
+  .h-side .det-type.adjust { color:#92400E; }
+  .h-side .det-type.move { color:#6B21A8; }
+  .h-side .det-line { display:flex; font-size:12.5px; padding:5px 0; }
+  .h-side .det-line .lbl { width:64px; color:#8B95A1; }
+  .h-side .det-line .val { flex:1; color:#191F28; font-weight:500; }
+  .h-side .items-list { margin-top:14px; padding-top:14px; border-top:1px solid #F2F4F6; }
+  .h-side .item-row { display:flex; align-items:center; gap:10px; padding:6px 0; border-bottom:1px solid #F9FAFB; }
+  .h-side .item-row:last-child { border-bottom:0; }
+  .h-side .item-row .img-ph { width:34px; height:34px; border-radius:6px; background:#F2F4F6; display:inline-flex; align-items:center; justify-content:center; color:#9CA3AF; font-size:16px; }
+  .h-side .item-row .nm { flex:1; font-size:12px; color:#191F28; font-family:"SF Mono",ui-monospace,monospace; word-break:break-all; }
+  .h-side .item-row .qty { font-size:12px; font-weight:700; font-family:"SF Mono",ui-monospace,monospace; }
+
+  /* 더 보기 메뉴 */
+  .more-menu { position:relative; }
+  .more-btn { padding:6px 14px; background:#3182F6; color:#fff; border:0; border-radius:6px; font-size:12px; font-weight:700; cursor:pointer; }
+  .more-dropdown { position:absolute; right:0; top:36px; background:#fff; border:1px solid #E5E8EB; border-radius:8px; padding:6px; min-width:160px; box-shadow:0 4px 14px rgba(0,0,0,.08); z-index:50; display:none; }
+  .more-dropdown.open { display:block; }
+  .more-dropdown a { display:block; padding:8px 12px; font-size:12.5px; color:#191F28; text-decoration:none; border-radius:5px; cursor:pointer; }
+  .more-dropdown a:hover { background:#F2F4F6; }
+  .more-dropdown a.danger { color:#DC2626; }
+  .more-dropdown hr { border:0; border-top:1px solid #F2F4F6; margin:4px 0; }
+</style>
+
+<div class="h-shell">
+  <div class="h-head">
+    <h1>히스토리</h1>
+    <span title="입고·출고·조정·이동 — 박스히어로식 거래서 묶음" style="display:inline-flex;align-items:center;justify-content:center;width:14px;height:14px;border-radius:50%;background:#F1F1F4;color:#8B95A1;font-size:9.5px;font-weight:700;cursor:help">i</span>
+    <a href="{{ url_for('inventory.history_export') }}" style="margin-left:auto;background:#fff;border:1px solid #E5E8EB;color:#191F28;padding:7px 14px;border-radius:5px;font-size:12.5px;text-decoration:none;font-weight:600">📁 엑셀 내보내기</a>
   </div>
 
-  <form method="get" style="display:flex;gap:8px;align-items:center;background:#fff;border:1px solid #E5E8EB;border-radius:8px;padding:10px 12px;margin-bottom:14px">
-    <select name="type" style="padding:7px 10px;border:1px solid #CBCCD3;border-radius:5px;font-size:12.5px;background:#fff;color:#292A2F">
+  <form method="get" class="h-filterbar">
+    <select name="type" style="padding:7px 10px;border:1px solid #CBCCD3;border-radius:5px;font-size:12.5px;background:#fff;color:#191F28">
       <option value="">전체 기간 ▾</option>
       <option value="in" {% if tx_type=='in' %}selected{% endif %}>📥 입고</option>
       <option value="out" {% if tx_type=='out' %}selected{% endif %}>📤 출고</option>
@@ -18,113 +84,169 @@
       <option value="move" {% if tx_type=='move' %}selected{% endif %}>이동</option>
     </select>
     {% with search_placeholder='옵션·거래처·메모 검색' %}{% include 'partials/search_chips.html' %}{% endwith %}
-    <button type="button" style="padding:7px 12px;background:#fff;border:1px dashed #CBCCD3;color:#8F91A0;border-radius:5px;font-size:12.5px;cursor:pointer">+ 필터 추가</button>
-    <button type="submit" style="background:#4F67FF;color:#fff;padding:7px 14px;border:none;border-radius:5px;font-size:12.5px;cursor:pointer;font-weight:600">검색</button>
-    <span style="margin-left:auto;font-size:12px;color:#8F91A0">{{ '{:,}'.format(total) }}건 · 거래일순 ▾</span>
+    <button type="submit" style="background:#3182F6;color:#fff;padding:7px 14px;border:none;border-radius:5px;font-size:12.5px;cursor:pointer;font-weight:700">검색</button>
+    <span style="margin-left:auto;font-size:12px;color:#8B95A1">{{ '{:,}'.format(total) }}건 · 거래일순 ▾</span>
   </form>
 
-  {# 좌측 list + 우측 상세 패널 (박스히어로 1:1) #}
-  <div style="display:grid;grid-template-columns:1fr 380px;gap:14px;align-items:start">
-    {# 좌측 list #}
-    <div style="background:#fff;border:1px solid #E5E8EB;border-radius:8px;overflow:hidden">
-      <table style="width:100%;border-collapse:collapse;font-size:12.5px">
-        <thead style="background:#F1F1F4"><tr>
-          <th style="padding:11px 8px;text-align:left;font-size:11.5px;color:#292A2F;font-weight:600;width:90px">유형</th>
-          <th style="padding:11px 8px;text-align:left;font-size:11.5px;color:#292A2F;font-weight:600">거래일 ↓</th>
-          <th style="padding:11px 8px;text-align:left;font-size:11.5px;color:#292A2F;font-weight:600">제품</th>
-          <th style="padding:11px 8px;text-align:right;font-size:11.5px;color:#292A2F;font-weight:600">수량 변화</th>
-          <th style="padding:11px 8px;text-align:right;font-size:11.5px;color:#292A2F;font-weight:600">단가</th>
-          <th style="padding:11px 8px;text-align:left;font-size:11.5px;color:#292A2F;font-weight:600">거래처</th>
-          <th style="padding:11px 8px;text-align:left;font-size:11.5px;color:#292A2F;font-weight:600">작성자</th>
-        </tr></thead>
-        <tbody id="ledgerBody">
-          {% for tx in items %}
-            {% set detail_url = (
-              url_for('inventory.inbound_detail', tx_id=tx.id) if tx.tx_type=='in' else
-              url_for('inventory.outbound_detail', tx_id=tx.id) if tx.tx_type=='out' else
-              url_for('inventory.adjust_detail', tx_id=tx.id) if tx.tx_type=='adjust' else
-              url_for('inventory.move_detail', tx_id=tx.id)
-            ) %}
-            <tr class="ledger-row" data-tx-id="{{ tx.id }}" data-tx-type="{{ tx.tx_type }}" data-tx-date="{{ tx.created_at.strftime('%Y-%m-%d %H:%M') }}" data-tx-sku="{{ tx.option_canonical_sku }}" data-tx-qty="{{ tx.qty }}" data-tx-partner="{{ tx.partner_label or '' }}" data-tx-memo="{{ tx.memo or '' }}" data-tx-author="{{ tx.created_by or '운영자' }}" data-tx-detail-url="{{ detail_url }}" style="border-bottom:1px solid #F1F1F4;cursor:pointer" onmouseover="this.style.background='#FAFBFC'" onmouseout="this.style.background=''" onclick="selectLedger(this)">
-              <td style="padding:9px 8px">
-                {% if tx.tx_type=='in' %}<span style="font-size:10.5px;padding:2px 8px;border-radius:3px;background:#DCFCE7;color:#15803D;font-weight:600">📥 입고</span>
-                {% elif tx.tx_type=='out' %}<span style="font-size:10.5px;padding:2px 8px;border-radius:3px;background:#FEE2E2;color:#991B1B;font-weight:600">📤 출고</span>
-                {% elif tx.tx_type=='adjust' %}<span style="font-size:10.5px;padding:2px 8px;border-radius:3px;background:#DBEAFE;color:#1E40AF;font-weight:600">⚖ 조정</span>
-                {% else %}<span style="font-size:10.5px;padding:2px 8px;border-radius:3px;background:#F3E8FF;color:#6B21A8;font-weight:600">이동</span>
-                {% endif %}
-              </td>
-              <td style="padding:9px 8px;color:#292A2F">{{ tx.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
-              <td style="padding:9px 8px"><span style="font-family:ui-monospace,monospace;font-size:11px;color:#292A2F">{{ tx.option_canonical_sku }}</span></td>
-              <td style="padding:9px 8px;text-align:right;font-weight:700">
-                {% if tx.tx_type=='in' %}<span style="color:#22C55E">+{{ tx.qty }}</span>
-                {% elif tx.tx_type=='out' %}<span style="color:#EF4444">-{{ tx.qty }}</span>
-                {% elif tx.tx_type=='adjust' %}<span style="color:#4F67FF">= {{ tx.qty }}</span>
-                {% else %}<span style="color:#A855F7">+{{ tx.qty }}</span>{% endif %}
-              </td>
-              <td style="padding:9px 8px;text-align:right;font-family:ui-monospace,monospace;color:#292A2F">
-                {% if tx.tx_type=='in' and tx.unit_purchase_price_at_tx %}{{ '{:,}'.format(tx.unit_purchase_price_at_tx) }}
-                {% elif tx.tx_type=='out' and tx.unit_sale_price %}{{ '{:,}'.format(tx.unit_sale_price) }}
-                {% else %}—{% endif %}
-              </td>
-              <td style="padding:9px 8px;color:#292A2F">{{ tx.partner_label or '—' }}</td>
-              <td style="padding:9px 8px"><span style="display:inline-flex;align-items:center;gap:6px"><span style="width:22px;height:22px;border-radius:50%;background:#FEE2E2;color:#7F1D1D;display:inline-flex;align-items:center;justify-content:center;font-size:10px;font-weight:700">{{ (tx.created_by or '운')[:1] }}</span><span style="font-size:12px;color:#292A2F">{{ tx.created_by or '운영자' }}</span></span></td>
-            </tr>
-          {% else %}<tr><td colspan="7" style="padding:48px;text-align:center;color:#8F91A0">거래 내역 없음</td></tr>{% endfor %}
-        </tbody>
-      </table>
+  <div class="h-layout">
+    <div>
+      {% if grouped %}
+        {% for g in grouped %}
+          {% set first = g['items'][0] %}
+          {% set sign = '+' if g.qty_total > 0 else '' %}
+          <div class="tx-card ty-{{ g.tx_type }}"
+               data-idx="{{ loop.index0 }}"
+               data-author="{{ g.created_by }}"
+               data-date="{{ g.created_at.strftime('%Y-%m-%d %H:%M') if g.created_at else '' }}"
+               data-type="{{ g.tx_type }}"
+               data-location-name="{{ g.location_name }}"
+               data-location-to="{{ g.location_to_name or '' }}"
+               data-partner="{{ g.partner_label or '' }}"
+               data-memo="{{ g.memo or '' }}"
+               data-qty-total="{{ g.qty_total }}"
+               data-items-count="{{ g['items']|length }}"
+               data-tx-ids="{{ g.tx_ids|join(',') }}"
+               data-items-json='[{% for it in g["items"] %}{"sku":"{{ it.sku }}","qty":{{ it.qty }},"tx_id":{{ it.tx_id }}}{% if not loop.last %},{% endif %}{% endfor %}]'
+               onclick="selectCard(this)">
+            <div class="tx-top">
+              <div class="tx-ic">
+                {% if g.tx_type=='in' %}↓{% elif g.tx_type=='out' %}↑{% elif g.tx_type=='adjust' %}⚖{% else %}→{% endif %}
+              </div>
+              <div class="tx-mid">
+                <div class="tx-title">
+                  {% if g.tx_type=='in' %}입고{% elif g.tx_type=='out' %}출고{% elif g.tx_type=='adjust' %}조정{% else %}이동{% endif %}
+                  · {{ g['items']|length }}개 품목
+                </div>
+                <div class="tx-date">{{ g.created_at.strftime('%Y-%m-%d %H:%M') if g.created_at else '—' }}</div>
+              </div>
+              <div class="tx-qty {% if g.qty_total > 0 %}pos{% elif g.qty_total < 0 %}neg{% elif g.tx_type=='adjust' %}adj{% else %}mv{% endif %}">
+                {{ sign }}{{ g.qty_total }}개
+              </div>
+            </div>
+            <div class="tx-body">
+              <span class="tx-sku">{{ first.sku }}</span>
+              {% if g['items']|length > 1 %}<span class="more-items">외 {{ g['items']|length - 1 }}건</span>{% endif %}
+
+              {% if g.tx_type == 'in' %}
+                <span class="loc-chip loc-to">To {{ g.location_name }}</span>
+              {% elif g.tx_type == 'out' %}
+                <span class="loc-chip loc-from">From {{ g.location_name }}</span>
+              {% elif g.tx_type == 'move' and g.location_to_name %}
+                <span class="loc-chip loc-from">From {{ g.location_name }}</span>
+                <span class="loc-arrow">→</span>
+                <span class="loc-chip loc-to">To {{ g.location_to_name }}</span>
+              {% else %}
+                <span class="loc-chip loc-to">{{ g.location_name }}</span>
+              {% endif %}
+
+              <span class="tx-author">
+                <span class="av">{{ g.created_by[:1] }}</span>
+                <span style="font-size:11.5px;color:#4E5968">{{ g.created_by }}</span>
+              </span>
+            </div>
+          </div>
+        {% endfor %}
+      {% else %}
+        <div style="background:#fff;border:1px solid #E5E8EB;border-radius:10px;padding:48px;text-align:center;color:#8B95A1">거래 내역 없음</div>
+      {% endif %}
     </div>
 
-    {# 우측 상세 패널 #}
-    <aside id="ledgerPanel" style="background:#fff;border:1px solid #E5E8EB;border-radius:8px;padding:18px;position:sticky;top:80px;min-height:240px">
-      <div id="ledgerEmpty" style="text-align:center;padding:36px 14px;color:#8F91A0;font-size:13px">
+    <aside class="h-side empty" id="hSide">
+      <div id="sideEmpty">
         <div style="font-size:42px;margin-bottom:10px;opacity:0.4">📜</div>
-        왼쪽 목록에서 내역을 선택해 주세요.
+        왼쪽 목록에서 거래서를 선택해 주세요.
       </div>
-      <div id="ledgerDetail" style="display:none">
-        <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px">
-          <span id="ldType"></span>
-          <span id="ldDate" style="font-size:12px;color:#8F91A0"></span>
-          <a id="ldOpenLink" href="#" style="margin-left:auto;font-size:11.5px;color:#4F67FF;text-decoration:none;font-weight:600">상세 ↗</a>
+      <div id="sideDetail" style="display:none">
+        <div class="det-head">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
+            <span class="det-type" id="detType"></span>
+            <div class="more-menu" style="margin-left:auto">
+              <button class="more-btn" onclick="toggleMore(event)">더 보기 ▾</button>
+              <div class="more-dropdown" id="moreDD">
+                <a id="actEdit">✎ 수정 및 삭제</a>
+                <hr>
+                <a onclick="window.print()">🖨 내역 인쇄</a>
+                <a onclick="exportPDF()">📄 PDF로 내보내기</a>
+                <a onclick="alert('거래명세서 추후 구현')">📃 거래명세서</a>
+                <a onclick="alert('라벨 인쇄 추후 구현')">🏷 라벨 인쇄</a>
+                <a id="actExcel">📊 엑셀 내보내기</a>
+              </div>
+            </div>
+          </div>
+          <div style="font-size:12px;color:#8B95A1">@<span id="detAuthor"></span></div>
         </div>
-        <div style="font-family:ui-monospace,monospace;font-size:13px;color:#292A2F;font-weight:600;margin-bottom:8px" id="ldSku"></div>
-        <div style="font-size:13px;color:#292A2F;margin-bottom:14px">수량: <strong id="ldQty"></strong></div>
-        <div style="border-top:1px solid #F1F1F4;padding-top:14px;font-size:12.5px;color:#292A2F;display:grid;gap:10px">
-          <div style="display:flex"><span style="width:64px;color:#8F91A0">거래처</span><span id="ldPartner"></span></div>
-          <div style="display:flex"><span style="width:64px;color:#8F91A0">메모</span><span id="ldMemo" style="white-space:pre-wrap"></span></div>
-          <div style="display:flex;align-items:center;gap:8px"><span style="width:64px;color:#8F91A0">작성자</span><span style="display:inline-flex;align-items:center;gap:6px"><span id="ldAuthorBadge" style="width:22px;height:22px;border-radius:50%;background:#FEE2E2;color:#7F1D1D;display:inline-flex;align-items:center;justify-content:center;font-size:10px;font-weight:700"></span><span id="ldAuthor"></span></span></div>
+
+        <div class="det-line"><span class="lbl">위치</span><span class="val" id="detLoc"></span></div>
+        <div class="det-line"><span class="lbl">거래일</span><span class="val" id="detDate"></span></div>
+        <div class="det-line"><span class="lbl">거래처</span><span class="val" id="detPartner"></span></div>
+        <div class="det-line" style="align-items:flex-start"><span class="lbl">메모</span><span class="val" id="detMemo" style="white-space:pre-wrap"></span></div>
+
+        <div class="items-list">
+          <div style="font-size:11.5px;font-weight:700;color:#6B7684;text-transform:uppercase;letter-spacing:.04em;margin-bottom:8px">사진 / 제품명 / 수량</div>
+          <div id="detItems"></div>
+          <div style="margin-top:12px;font-size:11px;color:#6B7684" id="detItemSummary"></div>
         </div>
       </div>
     </aside>
   </div>
 
   <div style="margin-top:14px;display:flex;justify-content:flex-end;gap:8px;align-items:center">
-    <span style="font-size:12px;color:#8F91A0">페이지 {{ page }}</span>
-    {% if page > 1 %}<a href="?page={{ page-1 }}{% if tx_type %}&type={{ tx_type }}{% endif %}{% if q %}&q={{ q }}{% endif %}" style="padding:6px 12px;border:1px solid #CBCCD3;background:#fff;color:#292A2F;font-size:12px;text-decoration:none;border-radius:5px">이전</a>{% endif %}
-    {% if items|length == 50 %}<a href="?page={{ page+1 }}{% if tx_type %}&type={{ tx_type }}{% endif %}{% if q %}&q={{ q }}{% endif %}" style="padding:6px 12px;border:1px solid #CBCCD3;background:#fff;color:#292A2F;font-size:12px;text-decoration:none;border-radius:5px">다음</a>{% endif %}
+    <span style="font-size:12px;color:#8B95A1">페이지 {{ page }}</span>
+    {% if page > 1 %}<a href="?page={{ page-1 }}{% if tx_type %}&type={{ tx_type }}{% endif %}{% if q %}&q={{ q }}{% endif %}" style="padding:6px 12px;border:1px solid #CBCCD3;background:#fff;color:#191F28;font-size:12px;text-decoration:none;border-radius:5px">이전</a>{% endif %}
+    {% if items|length == 50 %}<a href="?page={{ page+1 }}{% if tx_type %}&type={{ tx_type }}{% endif %}{% if q %}&q={{ q }}{% endif %}" style="padding:6px 12px;border:1px solid #CBCCD3;background:#fff;color:#191F28;font-size:12px;text-decoration:none;border-radius:5px">다음</a>{% endif %}
   </div>
 </div>
 
 <script>
-function selectLedger(tr){
-  document.querySelectorAll('.ledger-row').forEach(r=>{r.style.background='';r.style.borderLeft='3px solid transparent'});
-  tr.style.background='#EEF1FE';
-  tr.style.borderLeft='3px solid #4F67FF';
-
-  document.getElementById('ledgerEmpty').style.display='none';
-  document.getElementById('ledgerDetail').style.display='block';
-
-  const types = {in:'<span style="font-size:11px;padding:3px 10px;border-radius:4px;background:#DCFCE7;color:#15803D;font-weight:600">📥 입고</span>',out:'<span style="font-size:11px;padding:3px 10px;border-radius:4px;background:#FEE2E2;color:#991B1B;font-weight:600">📤 출고</span>',adjust:'<span style="font-size:11px;padding:3px 10px;border-radius:4px;background:#DBEAFE;color:#1E40AF;font-weight:600">⚖ 조정</span>',move:'<span style="font-size:11px;padding:3px 10px;border-radius:4px;background:#F3E8FF;color:#6B21A8;font-weight:600">이동</span>'};
-  document.getElementById('ldType').innerHTML = types[tr.dataset.txType] || '';
-  document.getElementById('ldDate').textContent = tr.dataset.txDate;
-  document.getElementById('ldSku').textContent = tr.dataset.txSku;
-  const qty = tr.dataset.txQty;
-  const sign = tr.dataset.txType==='out' ? '-' : (tr.dataset.txType==='adjust' ? '= ' : '+');
-  document.getElementById('ldQty').textContent = sign + qty;
-  document.getElementById('ldPartner').textContent = tr.dataset.txPartner || '—';
-  document.getElementById('ldMemo').textContent = tr.dataset.txMemo || '—';
-  document.getElementById('ldAuthor').textContent = tr.dataset.txAuthor;
-  document.getElementById('ldAuthorBadge').textContent = (tr.dataset.txAuthor||'운')[0];
-  document.getElementById('ldOpenLink').href = tr.dataset.txDetailUrl;
+function selectCard(card){
+  document.querySelectorAll('.tx-card').forEach(c=>c.classList.remove('active'));
+  card.classList.add('active');
+  document.getElementById('hSide').classList.remove('empty');
+  document.getElementById('sideEmpty').style.display='none';
+  document.getElementById('sideDetail').style.display='block';
+  const t = card.dataset.type;
+  const labelMap = {in:'입고 내역', out:'출고 내역', adjust:'조정 내역', move:'이동 내역'};
+  const dt = document.getElementById('detType');
+  dt.textContent = labelMap[t] || '내역';
+  dt.className = 'det-type ' + t;
+  document.getElementById('detAuthor').textContent = card.dataset.author;
+  document.getElementById('detLoc').textContent =
+    (t === 'move' && card.dataset.locationTo)
+      ? `${card.dataset.locationName} → ${card.dataset.locationTo}`
+      : card.dataset.locationName;
+  document.getElementById('detDate').textContent = card.dataset.date;
+  document.getElementById('detPartner').textContent = card.dataset.partner || '—';
+  document.getElementById('detMemo').textContent = card.dataset.memo || '—';
+  const items = JSON.parse(card.dataset.itemsJson || '[]');
+  const itemsDiv = document.getElementById('detItems');
+  itemsDiv.innerHTML = items.map(it => {
+    const sign = it.qty > 0 ? '+' : '';
+    const color = it.qty > 0 ? '#15803D' : (it.qty < 0 ? '#DC2626' : '#6B7684');
+    return `<div class="item-row">
+      <div class="img-ph">📦</div>
+      <div class="nm">${it.sku}</div>
+      <div class="qty" style="color:${color}">${sign}${it.qty}</div>
+    </div>`;
+  }).join('');
+  document.getElementById('detItemSummary').textContent = `${items.length}개 품목 · 총 ${card.dataset.qtyTotal}개`;
+  // 수정 링크 (첫 거래)
+  const firstTxId = items[0] ? items[0].tx_id : null;
+  const editUrl = firstTxId ? `/inventory/history/${firstTxId}/edit` : '#';
+  document.getElementById('actEdit').href = editUrl;
+  document.getElementById('actExcel').href = `/inventory/history/export.xlsx?tx_ids=${card.dataset.txIds}`;
 }
+function toggleMore(e){
+  e.stopPropagation();
+  document.getElementById('moreDD').classList.toggle('open');
+}
+function exportPDF(){
+  alert('PDF 내보내기 — 현재 페이지를 브라우저 인쇄로 PDF 저장 가능');
+  window.print();
+}
+document.addEventListener('click', (e) => {
+  if (!e.target.closest('.more-menu')) {
+    document.getElementById('moreDD')?.classList.remove('open');
+  }
+});
 </script>
 {% endblock %}
