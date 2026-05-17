@@ -6,9 +6,10 @@ v1.4 — 묶음 바코드 추가 (/barcode/bundles).
 import json
 from pathlib import Path
 from flask import render_template, request
+from sqlalchemy.orm import joinedload
 
 from shared.db import SessionLocal
-from lemouton.sourcing.models import Option
+from lemouton.sourcing.models import Option, Model
 
 from . import bp
 
@@ -172,7 +173,11 @@ def barcode_view():
         sku_filter = ''  # SQL 필터 비활성
         template_key = request.args.get('template', '3m_21314')  # 기본 4×10
         cutline = request.args.get('cutline') == '1'
-        options = s.query(Option).order_by(Option.model_code).limit(500).all()
+        options = (
+            s.query(Option)
+            .options(joinedload(Option.model))
+            .order_by(Option.model_code).limit(500).all()
+        )
         # 사용자 정의 템플릿 우선
         custom = _build_custom_template(request.args) if template_key == 'custom' else None
         template = custom or LABEL_TEMPLATES.get(template_key, LABEL_TEMPLATES['3m_21314'])
@@ -231,7 +236,11 @@ def barcode_print():
     try:
         rows = []
         if skus:
-            options = s.query(Option).filter(Option.canonical_sku.in_(skus)).all()
+            options = (
+                s.query(Option)
+                .options(joinedload(Option.model))
+                .filter(Option.canonical_sku.in_(skus)).all()
+            )
             opt_map = {o.canonical_sku: o for o in options}
             for sku in skus:
                 opt = opt_map.get(sku)

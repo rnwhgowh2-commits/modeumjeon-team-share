@@ -142,7 +142,7 @@
               <tr id="emptyHint"><td colspan="3" style="padding:24px;text-align:center;color:#8F91A0;font-size:12.5px">검색어 입력 시 제품이 노출됩니다 (또는 선택한 제품만 표시)</td></tr>
               {% for o in options %}
                 <tr class="prod-row" style="border-top:1px solid #F1F1F4;display:none" data-search="{{ o.canonical_sku }} {{ o.color_display or o.color_code }} {{ o.size_display or o.size_code }} {{ o.boxhero_sku or '' }}">
-                  <td style="padding:8px;text-align:center"><input type="checkbox" name="sku" value="{{ o.canonical_sku }}" data-name="{{ o.canonical_sku }}" data-attr="{{ o.color_display or o.color_code }} / {{ o.size_display or o.size_code }}" data-bh="{{ o.boxhero_sku or '' }}" style="accent-color:#4F67FF"></td>
+                  <td style="padding:8px;text-align:center"><input type="checkbox" name="sku" value="{{ o.canonical_sku }}" data-name="{{ (o.model.model_name_display or o.model.model_name_raw) if o.model else o.canonical_sku }}" data-attr="{{ o.color_display or o.color_code }} / {{ o.size_display or o.size_code }}" data-bh="{{ o.barcode or o.boxhero_sku or '' }}" style="accent-color:#4F67FF"></td>
                   <td style="padding:8px">
                     <div style="display:flex;align-items:center;gap:8px">
                       {% if o.image_url %}<img src="{{ o.image_url }}" style="width:32px;height:32px;border-radius:4px;object-fit:cover">

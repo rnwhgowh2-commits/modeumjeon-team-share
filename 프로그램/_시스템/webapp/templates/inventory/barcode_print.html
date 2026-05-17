@@ -48,10 +48,11 @@ body { font-family: -apple-system, "Apple SD Gothic Neo", sans-serif; margin:0; 
         {% set row = i // template.cols %}
         {% set left = template.margin_left + col * (template.label_w + template.gap_x) %}
         {% set top = template.margin_top + row * (template.label_h + template.gap_y) %}
-        {% set code = o.boxhero_sku or o.canonical_sku %}
+        {% set code = (o.barcode if o.barcode is defined and o.barcode else None) or o.boxhero_sku or o.canonical_sku %}
         {% set is_bundle = o.is_bundle if o.is_bundle is defined else false %}
+        {% set label_name = o.name if (o.is_bundle if o.is_bundle is defined else false) else ((o.model.model_name_display or o.model.model_name_raw) if o.model else o.canonical_sku) %}
         <div class="label{% if is_bundle %} is-bundle{% endif %}" style="left:{{ left }}mm;top:{{ top }}mm"
-             data-name="{{ o.name if o.name else o.canonical_sku }}"
+             data-name="{{ label_name }}"
              data-attr="{% if o.color_display or o.color_code %}{{ o.color_display or o.color_code }}{% endif %}{% if o.size_display or o.size_code %} · {{ o.size_display or o.size_code }}{% endif %}"
              data-code="{{ code }}"
              data-bundle="{{ '1' if is_bundle else '0' }}">

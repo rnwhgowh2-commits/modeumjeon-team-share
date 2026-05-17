@@ -97,6 +97,7 @@ def _auto_create_master(session: Session, records: list[dict]) -> dict:
                 created_models += 1
 
         existing = session.query(Option).filter_by(canonical_sku=canonical).first()
+        barcode_val = (r.get('barcode') or '').strip() or None
         if existing is None:
             opt = Option(
                 canonical_sku=canonical,
@@ -106,11 +107,15 @@ def _auto_create_master(session: Session, records: list[dict]) -> dict:
                 size_code=size[:32],
                 size_display=size[:64],
                 boxhero_sku=canonical,
+                barcode=barcode_val,
             )
             session.add(opt)
             created_options += 1
-        elif not existing.boxhero_sku:
-            existing.boxhero_sku = canonical
+        else:
+            if not existing.boxhero_sku:
+                existing.boxhero_sku = canonical
+            if barcode_val:
+                existing.barcode = barcode_val
 
     session.flush()
     return {'created_models': created_models, 'created_options': created_options}

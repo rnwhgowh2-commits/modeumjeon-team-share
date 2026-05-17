@@ -105,7 +105,32 @@ def main() -> int:
             for e in result['errors'][:5]:
                 print(f"    - {e}")
 
-        # 4) SSOT (페이지가 읽는 통계)
+        # 4) 바코드 + 제품명 검증 (라벨 인쇄용)
+        from sqlalchemy import func
+        from sqlalchemy.orm import joinedload
+        from lemouton.sourcing.models import Option, Model
+        raw_with_bc = sum(1 for r in records if (r.get('barcode') or '').strip())
+        opts_with_bc = s.query(func.count(Option.canonical_sku)).filter(
+            Option.barcode.isnot(None), Option.barcode != ''
+        ).scalar() or 0
+        opts_with_model = s.query(func.count(Option.canonical_sku)).filter(
+            Option.model.has()
+        ).scalar() or 0
+        print()
+        print("=== 라벨 인쇄용 데이터 ===")
+        print(f"  Option.barcode 채워진 수:  {opts_with_bc}  (기대 {raw_with_bc})")
+        print(f"  Option → Model 매핑된 수:   {opts_with_model}  (기대 {raw_total})")
+        sample = (
+            s.query(Option)
+            .options(joinedload(Option.model))
+            .filter(Option.barcode.isnot(None))
+            .limit(3).all()
+        )
+        for o in sample:
+            mname = (o.model.model_name_display or o.model.model_name_raw) if o.model else '—'
+            print(f"  · {o.canonical_sku}  →  제품명='{mname}'  색상='{o.color_display}'  사이즈='{o.size_display}'  바코드={o.barcode}")
+
+        # 5) SSOT (페이지가 읽는 통계)
         from shared.inventory_stock import get_stock_summary
         summary = get_stock_summary(s)
         print()
