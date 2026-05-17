@@ -156,6 +156,7 @@ class Option(Base):
 
     # 박스히어로 매핑
     boxhero_sku = Column(String(64))
+    barcode = Column(String(64))  # 박스히어로 EAN-13 바코드 (라벨 인쇄용)
 
     # ★ STEP 7 Task 0.2 — 박스히어로 재고관리 (R2 옵션 매트릭스, ADR-002)
     boxhero_stock_total = Column(Integer, default=0)               # 자동 집계 (위치별 합)
