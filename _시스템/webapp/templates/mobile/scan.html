@@ -4,16 +4,20 @@
 
 {% block extra_head %}
 <style>
+  /* 페이지 전체 스크롤 제거 — 카메라가 화면 가득, 바코드 시 위치 고정 */
+  html, body { overflow: hidden !important; height: 100dvh; height: 100vh; }
+  /* mobile/_base.html 의 컨테이너도 가득 */
+  body > * { max-height: 100dvh; max-height: 100vh; }
+
   .scan-container {
     position: relative;
     background: black;
-    border-radius: 16px;
+    border-radius: 14px;
     overflow: hidden;
-    /* ★ 카메라 창 크게 — 뷰포트 70% (작은 바코드 인식률 ↑) */
-    height: 70vh;
-    max-height: 75vh;
-    min-height: 380px;
-    margin-bottom: 12px;
+    /* ★ 화면 가득 (헤더·하단 카드 제외) — 스크롤 X */
+    height: calc(100dvh - 200px);
+    min-height: 400px;
+    margin-bottom: 10px;
   }
   #scan-video {
     width: 100%;
@@ -101,18 +105,26 @@
     height: 4px;
     accent-color: #3182F6;
   }
-  /* 인식 통계 */
+  /* 인식 통계 — 매우 작게 (카메라 위 chip) */
   .scan-stats {
+    position: absolute;
+    top: 12px;
+    right: 12px;
     display: flex;
-    gap: 8px;
-    flex-wrap: wrap;
-    margin-bottom: 12px;
-    font-size: 11.5px;
-    color: var(--n600, #6B7684);
+    flex-direction: column;
+    gap: 4px;
+    font-size: 10px;
+    color: white;
+    z-index: 5;
+    pointer-events: none;
   }
-  .scan-stats span { background: var(--n100, #F2F4F6); padding: 4px 10px; border-radius: 99px; }
-  .scan-stats .ok { background: #DCFCE7; color: #166534; }
-  .scan-stats .nat { background: #DBEAFE; color: #1D4ED8; }
+  .scan-stats span {
+    background: rgba(0,0,0,0.55);
+    padding: 2px 8px;
+    border-radius: 99px;
+    backdrop-filter: blur(4px);
+  }
+  .scan-stats .nat { background: rgba(29,78,216,0.85); }
 </style>
 {% endblock %}
 
@@ -125,6 +137,13 @@
     <div class="scan-line"></div>
     <div class="scan-hint" id="scan-hint">📷 바코드를 비춰주세요 · 흐릿하면 화면 탭</div>
   </div>
+  {# 통계 — 카메라 안 우측 상단 #}
+  <div class="scan-stats" id="scan-stats">
+    <span id="stat-engine">…</span>
+    <span id="stat-res">…</span>
+    <span id="stat-tries">0회</span>
+  </div>
+  {# 컨트롤 — 카메라 안 하단 #}
   <div class="scan-ctrl">
     <button id="btn-torch" title="플래시" onclick="toggleTorch()">🔦</button>
     <div class="zoom" id="zoom-wrap" style="display:none">
@@ -136,18 +155,11 @@
   </div>
 </div>
 
-<div class="scan-stats" id="scan-stats">
-  <span id="stat-engine">엔진: …</span>
-  <span id="stat-res">해상도: …</span>
-  <span id="stat-tries">시도: 0</span>
-</div>
-
-<div class="m-card">
-  <p style="margin: 0 0 12px; font-size: 13px; color: var(--n600);">또는 SKU·바코드 직접 입력:</p>
-  <div class="m-field" style="margin-bottom: 8px;">
-    <input type="text" id="manual-sku" placeholder="예: SKU-APOI30AM 또는 8809962710154" autocomplete="off">
-  </div>
-  <button class="m-btn primary" id="manual-search">검색</button>
+{# 직접 입력 — 작게 한 줄 #}
+<div style="display:flex;gap:6px;align-items:center">
+  <input type="text" id="manual-sku" placeholder="SKU·바코드 직접 입력" autocomplete="off"
+         style="flex:1;padding:9px 12px;border:1px solid #CBCCD3;border-radius:6px;font-size:13px">
+  <button class="m-btn primary" id="manual-search" style="padding:9px 16px;white-space:nowrap">검색</button>
 </div>
 {% endblock %}
 
@@ -217,7 +229,7 @@
     // 해상도 표시
     const settings = track.getSettings();
     document.getElementById('stat-res').textContent =
-      `해상도: ${settings.width || '?'}×${settings.height || '?'}`;
+      `${settings.width || '?'}×${settings.height || '?'}`;
 
     // ── torch / zoom capability 검사 ──
     const caps = track.getCapabilities ? track.getCapabilities() : {};
@@ -249,7 +261,7 @@
           ['ean_13', 'ean_8', 'code_128', 'code_39', 'upc_a', 'upc_e', 'qr_code', 'data_matrix'].includes(f)
         );
         detector = new BarcodeDetector({ formats: formats.length ? formats : undefined });
-        document.getElementById('stat-engine').textContent = '엔진: Native';
+        document.getElementById('stat-engine').textContent = 'Native+ZBar';
         document.getElementById('stat-engine').classList.add('nat');
         nativeLoop();
         hint.textContent = '📷 바코드를 프레임 안에';
@@ -282,7 +294,7 @@
     const video = document.getElementById('scan-video');
     codeReader.decodeFromVideoElement(video, (result, error) => {
       triesCount++;
-      document.getElementById('stat-tries').textContent = '시도: ' + triesCount;
+      document.getElementById('stat-tries').textContent = triesCount + '회';
       if (result && !frozen) {
         handleResult(result.getText());
       }
@@ -301,7 +313,7 @@
     while (!frozen) {
       if (video.readyState >= 2 && video.videoWidth) {
         triesCount++;
-        document.getElementById('stat-tries').textContent = '시도: ' + triesCount;
+        document.getElementById('stat-tries').textContent = triesCount + '회';
         if (canvas.width !== video.videoWidth) {
           canvas.width = video.videoWidth;
           canvas.height = video.videoHeight;
