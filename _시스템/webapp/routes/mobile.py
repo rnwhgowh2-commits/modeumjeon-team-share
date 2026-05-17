@@ -46,6 +46,18 @@ def scan_page():
     return render_template("mobile/scan.html")
 
 
+@bp.route("/scan-batch")
+def scan_batch_page():
+    """연속 스캔 입고/출고 페이지 — 시안 A (상단 카메라 + 스크롤 list).
+
+    Query: ?mode=in / ?mode=out
+    """
+    mode = (request.args.get("mode") or "in").lower()
+    if mode not in ("in", "out"):
+        mode = "in"
+    return render_template("mobile/scan_batch.html", mode=mode)
+
+
 @bp.route("/sku/<path:sku>")
 def sku_detail(sku: str):
     return render_template("mobile/action.html", sku=sku)
@@ -400,6 +412,77 @@ def api_action():
             location_name=loc.name,
             actor=actor,
         )
+
+
+@bp.route("/api/action-batch", methods=["POST"])
+def api_action_batch():
+    """연속 스캔 batch 저장 — N개 SKU 한꺼번에 입고/출고.
+
+    payload: {
+      action: 'in' | 'out',
+      location_id: int,
+      items: [{sku: str, qty: int}, ...],
+      memo: str (optional),
+    }
+    Response: {ok, saved: [tx_id], failed: [{sku, error}]}
+    """
+    data = request.get_json(silent=True) or {}
+    action = (data.get("action") or "").strip().lower()
+    try:
+        location_id = int(data.get("location_id") or 0)
+    except (TypeError, ValueError):
+        return _err("location_id 숫자 아님")
+    items = data.get("items") or []
+    memo = (data.get("memo") or "").strip() or None
+
+    if action not in ("in", "out"):
+        return _err("action 은 in / out 만")
+    if not location_id:
+        return _err("location_id 필수")
+    if not items:
+        return _err("items 빈 배열")
+
+    from flask_login import current_user
+    actor = (getattr(current_user, "email", None) if current_user.is_authenticated
+             else "system")
+
+    saved, failed = [], []
+    with SessionLocal() as s:
+        loc = s.query(InventoryLocation).filter_by(id=location_id).first()
+        if not loc or loc.deleted_at:
+            return _err("위치 없음", 404)
+        for it in items:
+            sku = (it.get("sku") or "").strip()
+            try:
+                qty = int(it.get("qty") or 0)
+            except (TypeError, ValueError):
+                qty = 0
+            if not sku or qty <= 0:
+                failed.append({"sku": sku, "error": "sku 또는 qty 무효"})
+                continue
+            opt = s.query(Option).filter_by(canonical_sku=sku).first()
+            if not opt:
+                failed.append({"sku": sku, "error": "SKU 미등록"})
+                continue
+            # 양수 저장 (출고 부호는 SSOT 가 abs() 처리)
+            tx_memo = memo or (f"[모바일 일괄 {('입고' if action=='in' else '출고')}]")
+            tx = InventoryTx(
+                tx_type=action,
+                location_id=location_id,
+                option_canonical_sku=sku,
+                qty=qty,
+                memo=tx_memo,
+                created_by=actor,
+                source='local',
+                status='completed',
+                created_at=dt.datetime.utcnow(),
+            )
+            s.add(tx)
+            s.flush()
+            saved.append({"tx_id": tx.id, "sku": sku, "qty": qty})
+        s.commit()
+        logger.info(f"[mobile-batch] {actor} {action} saved={len(saved)} failed={len(failed)}")
+    return _ok(saved=saved, failed=failed, total_saved=len(saved), total_failed=len(failed))
 
 
 @bp.route("/api/options", methods=["GET"])

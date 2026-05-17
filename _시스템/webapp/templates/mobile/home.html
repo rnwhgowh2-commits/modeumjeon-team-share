@@ -20,17 +20,28 @@
   </a>
 </div>
 
-<div class="m-btn-grid col3" style="margin-top: 12px;">
-  <a href="/mobile/scan?action=in" class="m-action-btn success">
+<div class="m-btn-grid" style="margin-top: 12px;">
+  <a href="/mobile/scan-batch?mode=in" class="m-action-btn success">
     <span class="icon">📥</span>
-    빠른 입고
+    연속 입고 (여러 SKU 일괄)
   </a>
-  <a href="/mobile/scan?action=out" class="m-action-btn danger">
+  <a href="/mobile/scan-batch?mode=out" class="m-action-btn danger">
     <span class="icon">📤</span>
-    빠른 출고
+    연속 출고 (여러 SKU 일괄)
   </a>
-  <a href="/mobile/scan?action=adjust" class="m-action-btn">
-    <span class="icon">⚖️</span>
+</div>
+
+<div class="m-btn-grid col3" style="margin-top: 12px;">
+  <a href="/mobile/scan?action=in" class="m-action-btn success" style="min-height:80px;font-size:12.5px">
+    <span class="icon" style="font-size:24px">📥</span>
+    1건 입고
+  </a>
+  <a href="/mobile/scan?action=out" class="m-action-btn danger" style="min-height:80px;font-size:12.5px">
+    <span class="icon" style="font-size:24px">📤</span>
+    1건 출고
+  </a>
+  <a href="/mobile/scan?action=adjust" class="m-action-btn" style="min-height:80px;font-size:12.5px">
+    <span class="icon" style="font-size:24px">⚖️</span>
     조정
   </a>
 </div>
