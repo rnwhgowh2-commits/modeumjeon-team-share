@@ -212,16 +212,64 @@
       </div>
 
       <h3 style="font-size:12.5px;font-weight:600;margin:0 0 8px;color:#292A2F">📍 위치별 재고 <span style="font-weight:400;color:#8F91A0">({{ d.loc_stock|length }}개 위치)</span></h3>
-      <div style="border:1px solid #E5E8EB;border-radius:6px;overflow:hidden;margin-bottom:14px">
+      <div style="border:1px solid #E5E8EB;border-radius:6px;overflow:hidden;margin-bottom:8px">
         {% for loc_id, info in d.loc_stock.items() %}
-          <div style="display:flex;align-items:center;gap:8px;padding:8px 11px;border-bottom:1px solid #F1F1F4;font-size:12.5px;color:#292A2F">
+          <div onclick="openHistMod('{{ d.opt.canonical_sku }}', {{ loc_id }}, '{{ info.name }}')" style="display:flex;align-items:center;gap:8px;padding:8px 11px;border-bottom:1px solid #F1F1F4;font-size:12.5px;color:#292A2F;cursor:pointer" onmouseover="this.style.background='#F9FAFB'" onmouseout="this.style.background=''">
             <span style="color:#F59E0B;font-size:13px">📍</span>
             <span style="flex:1">{{ info.name }}</span>
             <span style="font-family:ui-monospace,monospace;font-weight:600;color:{% if info.stock > 0 %}#4F67FF{% else %}#8F91A0{% endif %}">{{ info.stock }}</span>
-            <span style="color:#8F91A0;font-size:11px">›</span>
+            <span style="color:#4F67FF;font-size:11px;font-weight:700">›</span>
           </div>
         {% endfor %}
       </div>
+      <a href="javascript:openHistMod('{{ d.opt.canonical_sku }}', null, '전체')" style="display:block;text-align:center;padding:6px;border:1px solid #CBCCD3;color:#4F67FF;text-decoration:none;font-size:11.5px;border-radius:5px;margin-bottom:14px;font-weight:600">📜 전체 거래 이력 보기 →</a>
+
+      {# 거래 이력 모달 #}
+      <div id="histModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:1000;align-items:center;justify-content:center" onclick="if(event.target===this)closeHistMod()">
+        <div style="background:#fff;border-radius:12px;padding:24px 28px;width:600px;max-width:90vw;max-height:80vh;display:flex;flex-direction:column">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;padding-bottom:14px;border-bottom:1px solid #F2F4F6">
+            <div>
+              <h2 id="histTitle" style="font-size:16px;font-weight:800;margin:0 0 4px;color:#191F28">거래 이력</h2>
+              <div id="histSub" style="font-size:11.5px;color:#8B95A1"></div>
+            </div>
+            <button onclick="closeHistMod()" style="background:#fff;border:1px solid #E5E8EB;color:#4E5968;padding:5px 10px;border-radius:5px;cursor:pointer">✕ 닫기</button>
+          </div>
+          <div id="histList" style="flex:1;overflow-y:auto"></div>
+        </div>
+      </div>
+      <script>
+      async function openHistMod(sku, locId, locName){
+        const m = document.getElementById('histModal');
+        m.style.display = 'flex';
+        document.getElementById('histTitle').textContent = sku;
+        document.getElementById('histSub').textContent = locId ? `📍 ${locName} 위치` : '🌐 전체 위치';
+        document.getElementById('histList').innerHTML = '<div style="text-align:center;padding:30px;color:#8B95A1">로딩 중…</div>';
+        const url = '/inventory/api/sku/' + encodeURIComponent(sku) + '/history' + (locId ? '?location_id='+locId : '');
+        const r = await fetch(url);
+        const j = await r.json();
+        if (!j.ok || j.items.length === 0){
+          document.getElementById('histList').innerHTML = '<div style="text-align:center;padding:30px;color:#8B95A1">거래 이력 없음</div>';
+          return;
+        }
+        const typeMap = {in:['📥 입고','#15803D'],out:['📤 출고','#DC2626'],adjust:['⚖ 조정','#92400E'],move:['→ 이동','#6B21A8']};
+        document.getElementById('histList').innerHTML = j.items.map(it => {
+          const [lbl,col] = typeMap[it.tx_type] || ['?', '#000'];
+          const sign = it.qty > 0 ? '+' : '';
+          const locInfo = it.tx_type === 'move' && it.loc_to_name
+            ? `${it.loc_name} → ${it.loc_to_name}` : it.loc_name;
+          return `<a href="/inventory/history/${it.tx_id}/edit" style="display:block;background:#fff;border:1px solid #E5E8EB;border-radius:8px;padding:11px 14px;margin-bottom:6px;text-decoration:none;color:inherit" onmouseover="this.style.borderColor='#3182F6'" onmouseout="this.style.borderColor='#E5E8EB'">
+            <div style="display:flex;align-items:center;gap:10px">
+              <span style="font-size:11.5px;font-weight:700;color:${col};padding:2px 8px;background:${col}1A;border-radius:11px">${lbl}</span>
+              <span style="font-family:'SF Mono',monospace;font-weight:700;color:${col};font-size:13px">${sign}${it.qty}</span>
+              <span style="font-size:11.5px;color:#6B7684">${locInfo}</span>
+              <span style="margin-left:auto;font-size:11px;color:#8B95A1">${it.date}</span>
+            </div>
+            <div style="font-size:11px;color:#6B7684;margin-top:5px">👤 ${it.author}${it.memo ? ' · ' + it.memo.substring(0,40) : ''}</div>
+          </a>`;
+        }).join('');
+      }
+      function closeHistMod(){ document.getElementById('histModal').style.display='none'; }
+      </script>
 
       <h3 style="font-size:12.5px;font-weight:600;margin:0 0 8px">박스히어로 매핑</h3>
       <div style="font-size:11.5px;color:#4E5968;line-height:1.7;background:#F9FAFB;padding:8px 12px;border-radius:6px;font-family:ui-monospace,monospace">

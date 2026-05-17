@@ -880,3 +880,50 @@ def tx_delete(tx_id: int):
         return jsonify(ok=True)
     finally:
         s.close()
+
+
+# ============ Phase 4: SKU 별 이력 API (모달용) ============
+
+@bp.get('/api/sku/<path:sku>/history')
+def api_sku_history(sku: str):
+    """SKU + (선택)위치 의 최근 거래 list. JSON.
+
+    Query: ?location_id=N (선택, 없으면 전체 위치)
+    Response: {items: [{tx_id, tx_type, qty, date, author, partner, memo, loc_name, loc_to_name}]}
+    """
+    from flask import jsonify
+    from lemouton.inventory.models import InventoryLocation
+    loc_id = request.args.get('location_id')
+    s = SessionLocal()
+    try:
+        q = s.query(InventoryTx).filter(
+            InventoryTx.option_canonical_sku == sku,
+            InventoryTx.status == 'completed',
+        )
+        if loc_id:
+            try:
+                lid = int(loc_id)
+                q = q.filter(
+                    (InventoryTx.location_id == lid) | (InventoryTx.location_to_id == lid)
+                )
+            except ValueError:
+                pass
+        txs = q.order_by(InventoryTx.created_at.desc()).limit(50).all()
+        locs = {loc.id: loc.name for loc in s.query(InventoryLocation).all()}
+        items = []
+        for tx in txs:
+            qty_signed = tx.qty if tx.tx_type in ('in', 'adjust') else (-tx.qty if tx.tx_type == 'out' else tx.qty)
+            items.append({
+                'tx_id': tx.id,
+                'tx_type': tx.tx_type,
+                'qty': qty_signed,
+                'date': tx.created_at.strftime('%Y-%m-%d %H:%M') if tx.created_at else '',
+                'author': tx.created_by or '시스템',
+                'partner': tx.partner_label or '',
+                'memo': tx.memo or '',
+                'loc_name': locs.get(tx.location_id, '?'),
+                'loc_to_name': locs.get(tx.location_to_id, None) if tx.location_to_id else None,
+            })
+        return jsonify(ok=True, items=items, total=len(items))
+    finally:
+        s.close()
