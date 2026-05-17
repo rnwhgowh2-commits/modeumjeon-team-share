@@ -379,31 +379,47 @@ def data_items_wipe():
         flash(f'자동 백업 실패 — 삭제 중단: {e}', 'error')
         return redirect(url_for('inventory.data_items'))
 
-    # 2. DB wipe — FK 의존 순서 + SQLite PRAGMA 로 FK 잠시 OFF
+    # 2. DB wipe — dialect 별 분기 (SQLite: PRAGMA + DELETE, Postgres: TRUNCATE CASCADE)
     s = SessionLocal()
     deleted_counts = {}
+    dialect = s.bind.dialect.name  # 'sqlite' | 'postgresql'
     try:
         # 카운트 (before)
         before_models = s.execute(sa_text('SELECT COUNT(*) FROM models')).scalar() or 0
         before_options = s.execute(sa_text('SELECT COUNT(*) FROM options')).scalar() or 0
 
-        # FK 잠시 OFF (혹시 누락된 의존 테이블 있어도 진행 가능)
-        s.execute(sa_text('PRAGMA foreign_keys = OFF'))
-
-        for tbl in _WIPE_TABLES_IN_ORDER:
-            try:
-                # 테이블 존재 확인 후 DELETE
-                exists = s.execute(sa_text(
+        # 테이블 존재 확인용 쿼리 (dialect 별)
+        def _table_exists(tbl: str) -> bool:
+            if dialect == 'sqlite':
+                return s.execute(sa_text(
                     "SELECT name FROM sqlite_master WHERE type='table' AND name=:n"
-                ), {'n': tbl}).first()
-                if exists:
-                    res = s.execute(sa_text(f'DELETE FROM {tbl}'))
-                    deleted_counts[tbl] = res.rowcount or 0
-            except Exception as e:
-                # 테이블 하나 실패해도 계속 (FK OFF 라서 대부분 OK)
-                deleted_counts[tbl] = f'ERR: {e}'
+                ), {'n': tbl}).first() is not None
+            # Postgres
+            return s.execute(sa_text(
+                "SELECT 1 FROM information_schema.tables "
+                "WHERE table_schema = current_schema() AND table_name = :n"
+            ), {'n': tbl}).first() is not None
 
-        s.execute(sa_text('PRAGMA foreign_keys = ON'))
+        if dialect == 'sqlite':
+            # FK 잠시 OFF (자식→부모 의존 순서 DELETE 안전망)
+            s.execute(sa_text('PRAGMA foreign_keys = OFF'))
+            for tbl in _WIPE_TABLES_IN_ORDER:
+                try:
+                    if _table_exists(tbl):
+                        res = s.execute(sa_text(f'DELETE FROM {tbl}'))
+                        deleted_counts[tbl] = res.rowcount or 0
+                except Exception as e:
+                    deleted_counts[tbl] = f'ERR: {e}'
+            s.execute(sa_text('PRAGMA foreign_keys = ON'))
+        else:
+            # Postgres: 존재하는 테이블만 모아 TRUNCATE ... RESTART IDENTITY CASCADE 1발 처리
+            tbls_present = [t for t in _WIPE_TABLES_IN_ORDER if _table_exists(t)]
+            if tbls_present:
+                tbl_list = ', '.join(f'"{t}"' for t in tbls_present)
+                s.execute(sa_text(f'TRUNCATE TABLE {tbl_list} RESTART IDENTITY CASCADE'))
+                for t in tbls_present:
+                    deleted_counts[t] = '(truncated)'
+
         s.commit()
 
         after_models = s.execute(sa_text('SELECT COUNT(*) FROM models')).scalar() or 0
