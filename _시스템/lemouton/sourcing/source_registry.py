@@ -42,26 +42,23 @@ def is_legacy(key):
 def get_all_sources(session=None):
     """builtin 5 + DB SourcingSource(is_active=True) 합쳐 dict list 반환.
 
-    DB 미접근 가능 환경 (테스트 등) 에선 session=None 으로 호출 → builtin 만 반환.
-    각 dict 형태:
-        {key, label, brand, glyph, crawler, legacy, logo_color, builtin,
-         favicon_url?, domain?, needs_login? (custom 만)}
+    Note: 항상 자체 격리된 session 으로 조회 — 외부 session 트랜잭션과 격리해
+    SourcingSource 조회 실패 시 외부 트랜잭션이 abort 되지 않게 함.
+    (session 인자는 backward-compat 용이지만 무시됨 — 항상 새 session 생성)
     """
     out = list(SOURCES)
-    session_owned = False
-    if session is None:
-        try:
-            from shared.db import SessionLocal
-            session = SessionLocal()
-            session_owned = True
-        except Exception:
-            return out
     try:
+        from shared.db import SessionLocal
         from lemouton.sourcing.models import SourcingSource
-        custom = (session.query(SourcingSource)
-                          .filter(SourcingSource.is_active.is_(True))
-                          .order_by(SourcingSource.sort_order, SourcingSource.id)
-                          .all())
+    except Exception:
+        return out
+    s2 = None
+    try:
+        s2 = SessionLocal()
+        custom = (s2.query(SourcingSource)
+                    .filter(SourcingSource.is_active.is_(True))
+                    .order_by(SourcingSource.sort_order, SourcingSource.id)
+                    .all())
         for c in custom:
             out.append({
                 'key': c.source_key,
@@ -77,11 +74,16 @@ def get_all_sources(session=None):
                 'builtin': False,
             })
     except Exception:
-        pass
+        # 테이블 미존재 / 컬럼 차이 등 — builtin 만 반환 (안전 fallback)
+        try:
+            if s2 is not None:
+                s2.rollback()
+        except Exception:
+            pass
     finally:
-        if session_owned:
+        if s2 is not None:
             try:
-                session.close()
+                s2.close()
             except Exception:
                 pass
     return out
