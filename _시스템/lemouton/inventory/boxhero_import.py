@@ -16,9 +16,73 @@ from typing import Optional
 from sqlalchemy.orm import Session
 
 from lemouton.sourcing.boxhero_xlsx import parse_boxhero_xlsx
-from lemouton.sourcing.models import Option
+from lemouton.sourcing.models import Option, Model
+from lemouton.sourcing.master import upsert_model
 from lemouton.inventory import sku_mapping
 from lemouton.inventory.cogs import update_moving_avg
+
+
+def _derive_model_code(brand: str | None, model_name: str | None, fallback_sku: str) -> str:
+    """박스히어로 record → model_code 슬러그.
+    brand+model_name 우선, 없으면 sku 단독 모델."""
+    b = (brand or '').strip()
+    m = (model_name or '').strip()
+    if m:
+        raw = f"{b}_{m}" if b else m
+    else:
+        raw = f"단독_{fallback_sku}"
+    return raw.replace(' ', '_').replace('/', '_')[:64]
+
+
+def _auto_create_master(session: Session, records: list[dict]) -> dict:
+    """ADR-005 자동 생성: 박스히어로 record → Model + Option (1:1).
+
+    페이지 헤더 '모음전 옵션 = 박스히어로 SKU 1:1' 의도와 일치.
+    canonical_sku = 박스히어로 SKU 그대로, boxhero_sku = 자기 자신.
+    """
+    created_models = 0
+    created_options = 0
+    seen_models = set()
+
+    for r in records:
+        brand = (r.get('brand') or '').strip() or '미상'
+        model_name = (r.get('model_name') or '').strip()
+        color = (r.get('color_text') or '').strip() or '-'
+        size = (r.get('size') or '').strip() or '-'
+        canonical = r['sku']
+
+        model_code = _derive_model_code(brand, model_name, canonical)
+
+        if model_code not in seen_models:
+            existed = session.query(Model).filter_by(model_code=model_code).first()
+            upsert_model(
+                session,
+                model_code=model_code,
+                model_name_raw=(r.get('name') or model_name or model_code)[:255],
+                brand=brand[:100],
+            )
+            seen_models.add(model_code)
+            if existed is None:
+                created_models += 1
+
+        existing = session.query(Option).filter_by(canonical_sku=canonical).first()
+        if existing is None:
+            opt = Option(
+                canonical_sku=canonical,
+                model_code=model_code,
+                color_code=color[:32],
+                color_display=color[:64],
+                size_code=size[:32],
+                size_display=size[:64],
+                boxhero_sku=canonical,
+            )
+            session.add(opt)
+            created_options += 1
+        elif not existing.boxhero_sku:
+            existing.boxhero_sku = canonical
+
+    session.flush()
+    return {'created_models': created_models, 'created_options': created_options}
 
 
 def import_xlsx(xlsx_path: str, session: Session,
@@ -43,6 +107,9 @@ def import_xlsx(xlsx_path: str, session: Session,
     """
     # 1. xlsx 파싱
     records = list(parse_boxhero_xlsx(xlsx_path))
+
+    # 1.5. ADR-005 자동 생성 — 빈 DB 부트스트랩용 (옵션 0건이어도 안전)
+    auto_master = _auto_create_master(session, records)
 
     # 2. fuzzy 자동 매핑 (Option.boxhero_sku 갱신)
     mapping_result = sku_mapping.auto_map_all(session, records, threshold_auto=threshold_auto)
@@ -101,6 +168,8 @@ def import_xlsx(xlsx_path: str, session: Session,
         'already_mapped_options': mapping_result['already_mapped'],
         'stock_updated': stock_updated,
         'errors': errors,
+        'auto_created_models': auto_master['created_models'],
+        'auto_created_options': auto_master['created_options'],
     }
 
 
