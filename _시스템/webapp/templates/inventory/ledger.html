@@ -76,15 +76,28 @@
   </div>
 
   <form method="get" class="h-filterbar">
+    <select name="period" onchange="document.getElementById('customDateBox').style.display = this.value=='custom' ? 'inline-flex' : 'none'" style="padding:7px 10px;border:1px solid #CBCCD3;border-radius:5px;font-size:12.5px;background:#fff;color:#191F28">
+      <option value="">📅 전체 기간 ▾</option>
+      <option value="today" {% if period=='today' %}selected{% endif %}>오늘</option>
+      <option value="week" {% if period=='week' %}selected{% endif %}>최근 7일</option>
+      <option value="month" {% if period=='month' %}selected{% endif %}>최근 30일</option>
+      <option value="custom" {% if period=='custom' %}selected{% endif %}>📅 직접 입력</option>
+    </select>
+    <span id="customDateBox" style="display:{% if period=='custom' %}inline-flex{% else %}none{% endif %};gap:6px;align-items:center">
+      <input type="date" name="date_from" value="{{ date_from }}" style="padding:6px 8px;border:1px solid #CBCCD3;border-radius:5px;font-size:12px">
+      <span style="color:#8B95A1;font-size:12px">~</span>
+      <input type="date" name="date_to" value="{{ date_to }}" style="padding:6px 8px;border:1px solid #CBCCD3;border-radius:5px;font-size:12px">
+    </span>
     <select name="type" style="padding:7px 10px;border:1px solid #CBCCD3;border-radius:5px;font-size:12.5px;background:#fff;color:#191F28">
-      <option value="">전체 기간 ▾</option>
+      <option value="">📦 전체 종류</option>
       <option value="in" {% if tx_type=='in' %}selected{% endif %}>📥 입고</option>
       <option value="out" {% if tx_type=='out' %}selected{% endif %}>📤 출고</option>
       <option value="adjust" {% if tx_type=='adjust' %}selected{% endif %}>⚖ 조정</option>
-      <option value="move" {% if tx_type=='move' %}selected{% endif %}>이동</option>
+      <option value="move" {% if tx_type=='move' %}selected{% endif %}>→ 이동</option>
     </select>
     {% with search_placeholder='옵션·거래처·메모 검색' %}{% include 'partials/search_chips.html' %}{% endwith %}
     <button type="submit" style="background:#3182F6;color:#fff;padding:7px 14px;border:none;border-radius:5px;font-size:12.5px;cursor:pointer;font-weight:700">검색</button>
+    {% if period or tx_type or q %}<a href="{{ url_for('inventory.history') }}" style="font-size:11.5px;color:#8B95A1;text-decoration:none;padding:7px">초기화</a>{% endif %}
     <span style="margin-left:auto;font-size:12px;color:#8B95A1">{{ '{:,}'.format(total) }}건 · 거래일순 ▾</span>
   </form>
 

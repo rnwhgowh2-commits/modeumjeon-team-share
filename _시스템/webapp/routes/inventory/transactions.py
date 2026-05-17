@@ -8,7 +8,7 @@ import io
 import json
 from pathlib import Path
 from datetime import datetime, timezone
-from flask import render_template, request, redirect, url_for, flash, send_file
+from flask import render_template, request, redirect, url_for, flash, send_file, jsonify, abort
 
 from shared.db import SessionLocal
 from lemouton.sourcing.models import Option, Model
@@ -657,19 +657,45 @@ def move_create():
 
 @bp.get('/history')
 def history():
-    """박스히어로식 카드형 히스토리 — 거래서 묶음 + From/To + 색상 + 아바타."""
+    """박스히어로식 카드형 히스토리 — 거래서 묶음 + From/To + 색상 + 아바타 + 기간 필터."""
     s = SessionLocal()
     try:
         from sqlalchemy import or_
         from shared.search import split_tokens, apply_and_filter
         from lemouton.inventory.models import InventoryLocation
+        from datetime import datetime as _dt, timedelta as _td
         page = max(1, int(request.args.get('page', 1)))
         tx_type = request.args.get('type', '')
         q = (request.args.get('q') or '').strip()
         search_tokens = split_tokens(q)
+        # ★ 기간 필터 (박스히어로 1:1 — 전체/오늘/이번주/이번달/직접)
+        period = request.args.get('period', '')
+        date_from = request.args.get('date_from', '')
+        date_to = request.args.get('date_to', '')
         query = s.query(InventoryTx).filter(InventoryTx.status == 'completed')
         if tx_type and tx_type in ('in', 'out', 'adjust', 'move'):
             query = query.filter(InventoryTx.tx_type == tx_type)
+        # 기간 적용
+        now = _dt.utcnow()
+        if period == 'today':
+            start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+            query = query.filter(InventoryTx.created_at >= start)
+        elif period == 'week':
+            start = now - _td(days=7)
+            query = query.filter(InventoryTx.created_at >= start)
+        elif period == 'month':
+            start = now - _td(days=30)
+            query = query.filter(InventoryTx.created_at >= start)
+        elif period == 'custom' and (date_from or date_to):
+            try:
+                if date_from:
+                    df = _dt.strptime(date_from, '%Y-%m-%d')
+                    query = query.filter(InventoryTx.created_at >= df)
+                if date_to:
+                    dt2 = _dt.strptime(date_to, '%Y-%m-%d') + _td(days=1)
+                    query = query.filter(InventoryTx.created_at < dt2)
+            except ValueError:
+                pass
         # ★ 박스히어로식 다중 키워드 AND 교집합
         query = apply_and_filter(
             query, search_tokens,
@@ -714,6 +740,7 @@ def history():
             active='history', items=items, total=total, page=page,
             tx_type=tx_type, q=q, search_tokens=search_tokens,
             grouped=grouped_list, locs=locs,
+            period=period, date_from=date_from, date_to=date_to,
         )
     finally:
         s.close()
