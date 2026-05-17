@@ -33,8 +33,7 @@ def _load_bundles() -> list:
 # 진실 원천 추적: docs/label_paper_specs.md
 LABEL_TEMPLATES = {
     # ─── 📦 박스히어로 호환 (사용자 익숙도)
-    # ★ 3M Asia Pacific 21314 (A4 4×10 = 40칸) — 기본값
-    '3m_21314': {'name': '📦 3M Asia Pacific 21314 (A4) — 4×10 = 40칸 ★기본', 'cols': 4, 'rows': 10,
+    '3m_21314': {'name': '📦 3M Asia Pacific 21314 (A4) — 4×10 = 40칸', 'cols': 4, 'rows': 10,
                 'label_w': 48.5, 'label_h': 29.7, 'paper_w': 210, 'paper_h': 297,
                 'margin_top': 0, 'margin_left': 7.5, 'gap_x': 0, 'gap_y': 0,
                 'per_page': 40},
@@ -59,7 +58,7 @@ LABEL_TEMPLATES = {
                     'label_w': 38.1, 'label_h': 21.2, 'paper_w': 210, 'paper_h': 297,
                     'margin_top': 10.7, 'margin_left': 9.75, 'gap_x': 0, 'gap_y': 0,
                     'per_page': 65},
-    'kr_ls3102': {'name': '🇰🇷 폼텍 LS-3102 — 4×10 = 40칸 (47×26.9mm) 바코드용', 'cols': 4, 'rows': 10,
+    'kr_ls3102': {'name': '🇰🇷 폼텍 LS-3102 — 4×10 = 40칸 (47×26.9mm) 바코드용 ★기본', 'cols': 4, 'rows': 10,
                     'label_w': 47.0, 'label_h': 26.9, 'paper_w': 210, 'paper_h': 297,
                     'margin_top': 14.0, 'margin_left': 11.0, 'gap_x': 0, 'gap_y': 0,
                     'per_page': 40},
@@ -171,7 +170,7 @@ def barcode_view():
     try:
         # ★ 'sku' 는 사전 선택된 옵션 list (multi value) 로 사용 — SQL 필터 ❌, 클라이언트 검색만.
         sku_filter = ''  # SQL 필터 비활성
-        template_key = request.args.get('template', '3m_21314')  # 기본 4×10
+        template_key = request.args.get('template', 'kr_ls3102')  # 기본 4×10
         cutline = request.args.get('cutline') == '1'
         options = (
             s.query(Option)
@@ -180,7 +179,7 @@ def barcode_view():
         )
         # 사용자 정의 템플릿 우선
         custom = _build_custom_template(request.args) if template_key == 'custom' else None
-        template = custom or LABEL_TEMPLATES.get(template_key, LABEL_TEMPLATES['3m_21314'])
+        template = custom or LABEL_TEMPLATES.get(template_key, LABEL_TEMPLATES['kr_ls3102'])
         return render_template('inventory/barcode.html',
                                active='barcode', options=options, sku_filter=sku_filter,
                                templates=LABEL_TEMPLATES, template_key=template_key,
@@ -194,7 +193,7 @@ def barcode_view():
 def barcode_bundles_view():
     """묶음 바코드 인쇄 — 묶음 SKU 단위 라벨."""
     bundles = _load_bundles()
-    template_key = request.args.get('template', '3m_21314')
+    template_key = request.args.get('template', 'kr_ls3102')
     cutline = request.args.get('cutline') == '1'
     return render_template('inventory/barcode/bundles.html',
                            active='barcode', bundles=bundles,
@@ -211,7 +210,7 @@ def barcode_bundles_print():
     """
     p = request.values  # args + form 통합
     bundle_skus = p.getlist('bundle_sku')
-    template_key = p.get('template', '3m_21314')
+    template_key = p.get('template', 'kr_ls3102')
     cutline = p.get('cutline') == '1'
     tpl = LABEL_TEMPLATES.get(template_key, LABEL_TEMPLATES['formtec_3102'])
     bundles = _load_bundles()
@@ -236,10 +235,10 @@ def barcode_print():
     """
     p = request.values  # args + form 통합 (GET/POST 모두 동작)
     skus = p.getlist('sku')
-    template_key = p.get('template', '3m_21314')
+    template_key = p.get('template', 'kr_ls3102')
     cutline = p.get('cutline') == '1'
     custom = _build_custom_template(p) if template_key == 'custom' else None
-    tpl = custom or LABEL_TEMPLATES.get(template_key, LABEL_TEMPLATES['3m_21314'])
+    tpl = custom or LABEL_TEMPLATES.get(template_key, LABEL_TEMPLATES['kr_ls3102'])
     s = SessionLocal()
     try:
         rows = []
