@@ -954,3 +954,43 @@ def api_sku_history(sku: str):
         return jsonify(ok=True, items=items, total=len(items))
     finally:
         s.close()
+
+
+# ============ Phase 4-보강: 옵션 인라인 수정 API ============
+
+@bp.post('/api/option/<path:sku>/update')
+def api_option_update(sku: str):
+    """옵션 인라인 수정 — image_url, color_display, size_display, memo (Option) /
+    model_name_display (Model) 일부 필드.
+
+    Body JSON: {field: value, ...}  허용 필드 whitelist 적용.
+    """
+    s = SessionLocal()
+    try:
+        opt = s.query(Option).filter_by(canonical_sku=sku).first()
+        if not opt:
+            return jsonify(ok=False, error='SKU 없음'), 404
+        data = request.get_json(silent=True) or {}
+        # Option 허용 필드
+        opt_fields = {'image_url', 'color_display', 'size_display'}
+        # Model 허용 필드
+        mdl_fields = {'model_name_display', 'category'}
+        for k, v in data.items():
+            v = (v or '').strip() if isinstance(v, str) else v
+            if k in opt_fields:
+                setattr(opt, k, v if v else None)
+        if any(k in mdl_fields for k in data.keys()):
+            mdl = s.query(Model).filter_by(model_code=opt.model_code).first()
+            if mdl:
+                for k, v in data.items():
+                    v = (v or '').strip() if isinstance(v, str) else v
+                    if k in mdl_fields:
+                        setattr(mdl, k, v if v else None)
+        s.commit()
+        return jsonify(ok=True, sku=sku, updated=list(data.keys()))
+    except Exception as e:
+        try: s.rollback()
+        except Exception: pass
+        return jsonify(ok=False, error=str(e)[:200]), 500
+    finally:
+        s.close()
