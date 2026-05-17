@@ -165,18 +165,27 @@ document.querySelectorAll('.label').forEach(el => {
   el.innerHTML = inner;
 });
 
-// JsBarcode 채움 — 인식률 향상: bar 두께·quiet zone·색 명시
+// JsBarcode 채움 — 라벨 크기 기반 인식률 자동 최적화
+// 작은 라벨일수록 bar 가늘게 + quiet zone 크게 → 모바일 카메라 + 핸드 스캐너 모두 최적
+const LABEL_W_MM = {{ template.label_w }};
+// 라벨 폭 ≥ 50mm (감열지·큰 용지): bar 1.8 / quiet 15
+// 라벨 폭 38~50mm (일반 A4 라벨 4×10·5×13): bar 1.5 / quiet 18
+// 라벨 폭 < 38mm (작은 라벨): bar 1.2 / quiet 22 — bar 더 가늘게, quiet zone 더 크게
+const bcWidth  = LABEL_W_MM >= 50 ? 1.8 : (LABEL_W_MM >= 38 ? 1.5 : 1.2);
+const bcMargin = LABEL_W_MM >= 50 ? 15  : (LABEL_W_MM >= 38 ? 18  : 22);
+
 document.querySelectorAll('svg.ds-bc').forEach(svg => {
   const c = svg.dataset.code, bh = parseFloat(svg.dataset.bch) * 2;
   try {
     JsBarcode(svg, c, {
       format: 'CODE128',
-      width: 2,            // 1.2 → 2 (bar 두께 ↑)
+      width: bcWidth,          // 라벨 크기 따라 자동 (1.2~1.8)
       height: bh,
       displayValue: false,
-      margin: 10,          // 0 → 10 (CODE128 quiet zone 확보)
+      margin: bcMargin,        // quiet zone 15~22 (CODE128 표준 10× 이상)
       background: '#ffffff',
       lineColor: '#000000',
+      flat: true,              // bar 끝 평평하게 (라운드 없음 — 엣지 또렷)
     });
   } catch (e) {
     svg.outerHTML = '<div style="font-size:5.5pt;color:#EF4444">⚠ ' + c.substring(0,30) + '</div>';
