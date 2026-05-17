@@ -105,9 +105,30 @@ fail_safe:
 # accuracy_baseline
 # ────────────────────────────────────────
 accuracy_baseline:
-  verified_skus: []
-  last_verified: null
-  match_rate: null
+  verified_skus:
+    - sitmNo: LO2158462914_2158462915
+      product_id: LO2158462914
+      name: "[★150만족 판매★]메이트 발 편한 메리노울 운동화 르무통"
+      url: "https://www.lotteon.com/p/product/LO2158462914?sitmNo=LO2158462914_2158462915"
+      sale_price: 126060
+      options_count: 117
+      conditional_coupons_present: true
+      auto_applied: "스토어 즉시할인 6% (-8,940원) / 롯데ON 즉시할인 10% (-14,000원)"
+      additional_available: "첫구매 5천원 할인 (미적용: 첫구매·L포인트 한정) / 스토어찜 감사 쿠폰 (미적용)"
+      verified_on: 2026-05-17
+    - product_id: PD46925922
+      name: "[나이키]에어 포스 1 07 CW2288-111"
+      url: "https://www.lotteon.com/p/product/PD46925922"
+      sale_price: 149000
+      options_count: 13
+      conditional_coupons_present: true
+      additional_available: "롯데카드 7% (조건 충족 시 적용) / 토스페이·카카오페이·삼성카드 (미적용)"
+      verified_on: 2026-05-17
+      notes: "5개 카드 할인 옵션 분리 추출 정상"
+  last_verified: 2026-05-17
+  match_rate: 100                                        # 2/2 정상
+  known_issues:
+    - "stock=0 으로 잡힘 — 모든 옵션. 옵션 mapping API 의 재고 필드 매핑 변경 가능성 (별도 진단 필요)"
 
 # ────────────────────────────────────────
 # 메타

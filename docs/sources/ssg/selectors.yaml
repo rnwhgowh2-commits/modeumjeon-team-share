@@ -1,0 +1,87 @@
+---
+# SSG 셀렉터 (DOM + 인라인 JS 정규식 혼합)
+
+site: ssg
+schema_version: 0.1
+last_updated: 2026-05-17
+
+# ────────────────────────────────────────
+# 상품명·브랜드
+# ────────────────────────────────────────
+product_name:
+  primary:
+    selector: "span.cdtl_info_tit_txt"
+  fallback:
+    inline_js_pattern: "itemNm\\s*:\\s*'((?:\\\\'|[^'])*)'"
+
+brand:
+  primary:
+    selector: "a.cdtl_info_tit_link"
+  fallback:
+    inline_js_pattern: "brandNm\\s*:\\s*'((?:\\\\'|[^'])*)'"
+
+# ────────────────────────────────────────
+# 옵션 — 인라인 JS uitemObj 블록 (DOM 셀렉터 X)
+# ────────────────────────────────────────
+options_inline_js:
+  block_pattern: "uitemObj\\s*=\\s*\\{itemId\\s*:\\s*'([^']*)'\\s*,\\s*uitemId\\s*:\\s*'([^']*)'(.*?)\\};\\s*uitemObjArr\\.push"
+  field_patterns:
+    uitemOptnNm1: "uitemOptnNm1\\s*:\\s*'([^']*)'"      # 색상
+    uitemOptnNm2: "uitemOptnNm2\\s*:\\s*'([^']*)'"      # 사이즈
+    uitemOptnTypeNm1: "uitemOptnTypeNm1\\s*:\\s*'([^']*)'"
+    uitemOptnTypeNm2: "uitemOptnTypeNm2\\s*:\\s*'([^']*)'"
+    usablInvQty: "usablInvQty\\s*:\\s*'([^']*)'"        # 재고
+    bestAmt: "bestAmt\\s*:\\s*'([^']*)'"                # 최적가
+    sellprc: "sellprc\\s*:\\s*parseInt\\(\\s*'([^']*)'" # 판매가 (parseInt 래핑)
+
+# ────────────────────────────────────────
+# itemId 추출
+# ────────────────────────────────────────
+item_id:
+  url_pattern: "[?&]itemId=([0-9]+)"
+  hidden_input_fallback: 'id="itemId"[^>]*value="([0-9]+)"'
+
+# ────────────────────────────────────────
+# SSG MONEY (4 패턴 분기 — profile.yaml 참조)
+# ────────────────────────────────────────
+ssg_money:
+  instant_dt_pattern: "SSG\\s*MONEY\\s*즉시할인"
+  applied_note_pattern: "최적가의\\s*금액\\s*기준은[^<]{0,80}?SSG\\s*MONEY\\s*즉시할인이\\s*적용된\\s*금액"
+  benefit_pct_pattern: "(\\d+(?:\\.\\d+)?)\\s*%\\s*적립(?:\\s*또는\\s*(\\d+(?:\\.\\d+)?)\\s*%\\s*즉시할인)?"
+  benefit_krw_pattern: "([0-9][0-9,]{2,})\\s*원\\s*적립"
+  charge_pct_pattern: "충전\\s*결제\\s*시\\s*(\\d+(?:\\.\\d+)?)\\s*%\\s*적립"
+  discount_layer_selector: "div.cdtl_ly_cont"
+  discount_dl_selector: "dl.cdtl_ly_dc"
+  benefit_span_selector: "span.cdtl_benefit"
+  benefit_info_selector: "div.cdtl_benefit_info .txt"
+
+# ────────────────────────────────────────
+# 카드혜택가
+# ────────────────────────────────────────
+card_benefit:
+  wrap: "div.mndtl_card_price"
+  price: "span.mndtl_price em.ssg_price"
+  condition: "span.mndtl_info_desc"
+
+# ────────────────────────────────────────
+# 상품쿠폰
+# ────────────────────────────────────────
+product_coupon:
+  wrap: "dl.cdtl_cpn_wrap (dt = '상품쿠폰' 매칭)"
+  fallback_wrap: "dl with a.cdtl_benefit_coupon or .cdtl_cpn_wrap"
+  patterns:
+    rate: "(\\d+(?:\\.\\d+)?)\\s*%\\s*상품\\s*쿠폰"
+    amount: "([0-9][0-9,]{2,})\\s*원\\s*상품\\s*쿠폰"
+    min_order: "(\\d+(?:\\.\\d+)?)\\s*만\\s*원\\s*이상\\s*구매"
+    max_discount: "최대\\s*([0-9][0-9,]*)\\s*만?\\s*원"
+
+# ────────────────────────────────────────
+# 알려진 변동
+# ────────────────────────────────────────
+known_changes:
+  - date: 2026-05-14
+    change: "SSG 신규 지원 — uitemObj 인라인 JS 정규식 + 카드혜택가 + DOM 셀렉터"
+  - date: 2026-05-15
+    change: "SSG MONEY 4 패턴 분기 + 매입가 반영 + 중복 방지"
+  - date: 2026-05-15
+    change: "상품쿠폰 X% / 최소 구매금액 추출 추가"

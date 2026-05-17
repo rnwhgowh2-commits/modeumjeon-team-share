@@ -1,0 +1,62 @@
+---
+# SSG 매입가 정책 (memory ⑦ SSG)
+
+site: ssg
+schema_version: 0.1
+last_updated: 2026-05-17
+
+# ────────────────────────────────────────
+# 혜택 2개 (사용자 명세 — 2026-05-15 재수정)
+# ────────────────────────────────────────
+benefit_items:
+  - name: SSG MONEY 적립
+    category: "%적립금"
+    value: 변동                                          # 사이트 노출값 (예: 5%, 10%)
+    auto: false
+    crawled: true
+    behavior: "★ ssg_money_already_applied=True 면 추가 차감 금지 (중복 방지). False 면 sale_price × rate 차감"
+    note: "★ 2026-05-15 재수정 — 이전엔 'SSG MONEY 매입가 미반영' 정책이었으나, 사용자가 '매입가에 반영해야 함' 으로 변경. 단 이중차감 방지 룰 추가"
+  - name: 카드혜택가
+    category: "정액 (조건부)"
+    value: 변동                                          # XXX원 (조건: N원 이상 결제 시)
+    auto: false
+    crawled: true
+    behavior: "조건 (최소 결제금액) 충족 시 매입가에 정액 적용. 미충족 시 표시만"
+    fallback_when_missing:
+      issuer: 현대카드
+      rate: 0.0273
+      why: "사용자 명세 — 카드혜택가 미노출 상품은 현대카드 2.73% 사용"
+
+# ────────────────────────────────────────
+# 계산 순서
+# ────────────────────────────────────────
+formula_order:
+  step_1: "정액 (카드혜택가 조건 충족 시)"
+  step_2: "%적립금 (SSG MONEY rate, already_applied=False 일 때만)"
+  step_3: "%할인 (해당 없음)"
+
+# ────────────────────────────────────────
+# 산식 예시 (4 패턴)
+# ────────────────────────────────────────
+formula_examples:
+  pattern_A_already_applied:
+    scenario: "sale_price=39,690 (즉시할인+SSG MONEY 즉시할인 이미 반영)"
+    ssg_money_already_applied: true
+    ssg_money_차감: "0원 (중복 방지)"
+    result: "매입가 = 39,690원 (그대로)"
+  pattern_B_accumulation:
+    scenario: "sale_price=109,900, SSG MONEY 5% 적립, already_applied=False"
+    ssg_money_차감: "109,900 × 0.05 = 5,495원"
+    result: "매입가 ≈ 104,405원"
+  pattern_D_no_ssg_money_with_card_fallback:
+    scenario: "sale_price=107,355 (즉시할인 적용), SSG MONEY 미노출, 카드혜택가 미노출"
+    현대카드_fallback: "107,355 × 0.0273 ≈ 2,931원"
+    result: "매입가 ≈ 104,424원"
+
+# ────────────────────────────────────────
+# 무신사·기타 사이트와 차이
+# ────────────────────────────────────────
+diff_summary:
+  vs_musinsa: "SSG 는 카드혜택가 (정액 조건부) — 무신사 무신사머니(%)와 카테고리 다름"
+  vs_lotteimall: "SSG MONEY 4 패턴 분기가 가장 복잡 (Lotteimall 의 auto_card.included_in_sale_price 룰과 유사하지만 더 세분화)"
+  unique_feature: "SSG MONEY '즉시할인 vs 적립' 듀얼 모드 처리 — 다른 사이트에 없음"
