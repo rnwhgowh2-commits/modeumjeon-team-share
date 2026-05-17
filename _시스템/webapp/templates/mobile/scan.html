@@ -120,10 +120,10 @@
 <div id="scan-error-area"></div>
 
 <div class="scan-container">
-  <video id="scan-video" autoplay playsinline muted></video>
+  <video id="scan-video" autoplay playsinline muted onclick="tapFocus(event)"></video>
   <div class="scan-overlay">
     <div class="scan-line"></div>
-    <div class="scan-hint" id="scan-hint">📷 바코드를 비춰주세요</div>
+    <div class="scan-hint" id="scan-hint">📷 바코드를 비춰주세요 · 흐릿하면 화면 탭</div>
   </div>
   <div class="scan-ctrl">
     <button id="btn-torch" title="플래시" onclick="toggleTorch()">🔦</button>
@@ -154,6 +154,14 @@
 {% block extra_script %}
 <script src="https://unpkg.com/@zxing/browser@0.1.5/umd/zxing-browser.min.js"></script>
 <script src="https://unpkg.com/@zxing/library@0.21.0/umd/index.min.js"></script>
+<!-- ZBar WASM — 가장 강력한 웹 1D/2D 바코드 디코더 -->
+<script type="module">
+  try {
+    const m = await import('https://cdn.jsdelivr.net/npm/@undecaf/zbar-wasm@0.10.1/+esm');
+    window.ZBarWasm = m;
+    console.log('[scan] ZBar WASM loaded');
+  } catch(e) { console.warn('[scan] ZBar WASM fail', e); }
+</script>
 <script>
   const preselectedAction = new URLSearchParams(location.search).get('action');
   let stream = null;
@@ -282,29 +290,52 @@
     hint.textContent = '📷 바코드를 프레임 안에';
   }
 
-  // Native BarcodeDetector loop — Canvas snapshot (풀 해상도 보장, 잘림 X)
+  // Native BarcodeDetector + ZBar WASM 병행 loop — 흐릿한 바코드도 강력 인식
   async function nativeLoop(){
     const video = document.getElementById('scan-video');
     const canvas = document.createElement('canvas');
     const ctx = canvas.getContext('2d', { willReadFrequently: true });
+    // 전처리 canvas (대비 강화 — 흐릿한 바코드)
+    const enhCanvas = document.createElement('canvas');
+    const enhCtx = enhCanvas.getContext('2d', { willReadFrequently: true });
     while (!frozen) {
       if (video.readyState >= 2 && video.videoWidth) {
         triesCount++;
         document.getElementById('stat-tries').textContent = '시도: ' + triesCount;
-        // ★ video 의 풀 해상도 (videoWidth × videoHeight) 그대로 canvas 에 그림
-        // CSS object-fit:cover 와 무관 → 작은 바코드도 픽셀 손실 없이 디코드
-        if (canvas.width !== video.videoWidth) canvas.width = video.videoWidth;
-        if (canvas.height !== video.videoHeight) canvas.height = video.videoHeight;
+        if (canvas.width !== video.videoWidth) {
+          canvas.width = video.videoWidth;
+          canvas.height = video.videoHeight;
+          enhCanvas.width = video.videoWidth;
+          enhCanvas.height = video.videoHeight;
+        }
         try {
+          // 1) raw 프레임 캡처
           ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-          const codes = await detector.detect(canvas);
-          if (codes.length && !frozen) {
-            handleResult(codes[0].rawValue);
-            return;
+          // 2) 전처리 canvas — grayscale + 대비 1.8x + brightness 1.05 (흐릿한 바코드)
+          enhCtx.filter = 'grayscale(1) contrast(1.8) brightness(1.05)';
+          enhCtx.drawImage(canvas, 0, 0);
+
+          // ★ Native BarcodeDetector — raw 와 enhanced 둘 다 시도
+          for (const c of [canvas, enhCanvas]) {
+            try {
+              const codes = await detector.detect(c);
+              if (codes.length && !frozen) { handleResult(codes[0].rawValue); return; }
+            } catch(e) {}
           }
-        } catch(e) { /* 무시 */ }
+          // ★ ZBar WASM 폴백 — Native 가 못 잡은 흐릿한 바코드도 인식
+          if (window.ZBarWasm && window.ZBarWasm.scanImageData) {
+            try {
+              const imgData = enhCtx.getImageData(0, 0, enhCanvas.width, enhCanvas.height);
+              const results = await window.ZBarWasm.scanImageData(imgData);
+              if (results && results.length && !frozen) {
+                const code = results[0].decode ? results[0].decode() : (results[0].data || '');
+                if (code) { handleResult(code); return; }
+              }
+            } catch(e) {}
+          }
+        } catch(e) {}
       }
-      await new Promise(r => setTimeout(r, 80));  // 80ms 간격 (초당 ~12회)
+      await new Promise(r => setTimeout(r, 80));
     }
   }
 
@@ -384,6 +415,26 @@
   }
 
   // ───────────── 컨트롤 ─────────────
+  // Tap to Focus — 화면 탭으로 그 지점 초점 (지원 기기만)
+  async function tapFocus(e){
+    if (!track) return;
+    const caps = track.getCapabilities();
+    if (!caps.focusMode || !caps.focusMode.includes('manual')) {
+      // 매크로 모드 또는 한 번 재초점 시도
+      try { await track.applyConstraints({ advanced: [{ focusMode: 'continuous' }] }); } catch(e2){}
+      const hint = document.getElementById('scan-hint');
+      hint.textContent = '🎯 재초점';
+      setTimeout(() => { hint.textContent = '📷 바코드를 비춰주세요'; }, 700);
+      return;
+    }
+    try {
+      await track.applyConstraints({ advanced: [{ focusMode: 'manual', focusDistance: 0.15 }] });
+      const hint = document.getElementById('scan-hint');
+      hint.textContent = '🎯 매크로 초점';
+      setTimeout(() => { hint.textContent = '📷 바코드를 비춰주세요'; }, 1500);
+    } catch(e2) { console.warn('focus fail', e2); }
+  }
+
   async function toggleTorch(){
     if (!track) return;
     const caps = track.getCapabilities();
