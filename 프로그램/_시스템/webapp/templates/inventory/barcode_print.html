@@ -35,6 +35,11 @@ body { font-family: -apple-system, "Apple SD Gothic Neo", sans-serif; background
 .label > .ds-wrap { width:100%; height:100%; display:flex; flex-direction:column; align-items:center; justify-content:center; }
 .is-bundle { background: linear-gradient(135deg, #EEF1FE 0%, #fff 50%); }
 .bundle-tag { font-size:5pt; background:#4F67FF; color:#fff; padding:1px 4px; border-radius:2px; font-weight:700; margin-bottom:0.5mm; }
+/* 바코드 인식률 향상 — 엣지 또렷·색 강제 인쇄 */
+svg.ds-bc { shape-rendering: crispEdges; }
+@media print {
+  html, body, .label, .label * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; color-adjust: exact !important; }
+}
 </style></head>
 <body>
 <div class="toolbar">
@@ -127,7 +132,7 @@ document.querySelectorAll('.label').forEach(el => {
   // 디자인별 마크업 — 폰트 굵기·요소 간 여백 적용
   let inner = '';
   const wrap = `style="width:100%;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:${sPad};text-align:center;background:#fff;color:#000"`;
-  const svg = `<div style="width:100%;display:flex;justify-content:center;margin-top:${gAB};margin-bottom:${gBC}"><svg class="ds-bc" data-code="${code}" data-bch="${sBch}" style="width:90%;height:auto;max-height:${sBch * 1.5}mm"></svg></div>`;
+  const svg = `<div style="width:100%;display:flex;justify-content:center;margin-top:${gAB};margin-bottom:${gBC}"><svg class="ds-bc" data-code="${code}" data-bch="${sBch}" style="width:100%;height:auto;max-height:${sBch * 1.5}mm"></svg></div>`;
   const codeStr = code + (isAuto ? ' <span style="color:#F59E0B;font-size:'+(parseFloat(sCode)*0.8)+'pt">★ 자동</span>' : '');
   const bundleTag = isBundle ? `<div class="bundle-tag">묶음</div>` : '';
 
@@ -160,11 +165,19 @@ document.querySelectorAll('.label').forEach(el => {
   el.innerHTML = inner;
 });
 
-// JsBarcode 채움
+// JsBarcode 채움 — 인식률 향상: bar 두께·quiet zone·색 명시
 document.querySelectorAll('svg.ds-bc').forEach(svg => {
   const c = svg.dataset.code, bh = parseFloat(svg.dataset.bch) * 2;
   try {
-    JsBarcode(svg, c, {format:'CODE128', width:1.2, height:bh, displayValue:false, margin:0});
+    JsBarcode(svg, c, {
+      format: 'CODE128',
+      width: 2,            // 1.2 → 2 (bar 두께 ↑)
+      height: bh,
+      displayValue: false,
+      margin: 10,          // 0 → 10 (CODE128 quiet zone 확보)
+      background: '#ffffff',
+      lineColor: '#000000',
+    });
   } catch (e) {
     svg.outerHTML = '<div style="font-size:5.5pt;color:#EF4444">⚠ ' + c.substring(0,30) + '</div>';
   }
