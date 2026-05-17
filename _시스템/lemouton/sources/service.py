@@ -306,6 +306,11 @@ def save_crawl_result(
         'product_coupon_label',
         'point_rewards',                              # 롯데홈쇼핑 L.POINT
         'review_point_max',                           # 스스 르무통 리뷰 적립
+        # ★ 2026-05-15 — 롯데온 (lotteon.com) 사용자 스크린샷 명세 동적 혜택
+        'lotte_member_discount_rate',                 # 롯데오너스 X% 회원할인 (자동 활성)
+        'lotte_member_discount_label',
+        'store_jjim_coupon_amount',                   # 스토어찜 쿠폰 정액 (비활성 기본)
+        'store_jjim_coupon_label',
     )
     _dyn = {}
     for _o in (crawl_result.options or []):
@@ -379,6 +384,9 @@ def save_crawl_result(
         'point_rewards',                        # 롯데홈쇼핑 L.POINT
         'lotteon_coupons',                      # 롯데온 쿠폰 리스트
         'review_point_max',                     # 스스 르무통 리뷰 적립
+        # ★ 2026-05-15 — 롯데온 (lotteon.com) 사용자 스크린샷 명세 동적 혜택
+        'lotte_member_discount_rate', 'lotte_member_discount_label',
+        'store_jjim_coupon_amount', 'store_jjim_coupon_label',
     )
     counts = {'options_inserted': 0, 'options_updated': 0}
     for opt_data in crawl_result.options:

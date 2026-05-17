@@ -1010,6 +1010,101 @@ def _parse_lotteon_prices(base_data: dict, qty_data: dict) -> tuple[int, int, in
     return sale_price, max_price, origin
 
 
+def _extract_lotteon_owners_member_discount(addition_data: dict) -> tuple[float, str]:
+    """롯데ON 회원할인 (롯데오너스 X% 추가 할인) 추출.
+
+    ★ 2026-05-15 — 사용자 명세 (스크린샷):
+      "회원할인 > 롯데오너스 할인 1% : -1,260원" — 사용자 회원가입 상태라 자동 활성 ✅.
+
+    출처: ``addition`` API 응답 의 ``additionFavorInfo.ownersFavor``
+        - ``ownersDcCnts``     : "추가 1% 할인"     (라벨)
+        - ``ownersHighLight``  : ["1%"]             (rate 정수형)
+        - ``purchaseFavorCnts``: "추가 0.5% 적립"   (적립 — 별도)
+
+    Returns:
+        (rate, label)
+          rate: 0.0~1.0 (예: 0.01 = 1%). 없으면 0.0.
+          label: 사용자 노출 라벨 (예: "롯데오너스 할인 1%"). 없으면 빈 문자열.
+    """
+    if not isinstance(addition_data, dict):
+        return 0.0, ""
+    # additionFavorInfo wrapper 또는 root 둘 다 대비
+    info = addition_data.get("additionFavorInfo") or addition_data
+    if not isinstance(info, dict):
+        return 0.0, ""
+    of = info.get("ownersFavor") or {}
+    if not isinstance(of, dict):
+        return 0.0, ""
+
+    rate = 0.0
+    # 1) ownersHighLight: ["1%"] (가장 정확)
+    hl = of.get("ownersHighLight") or []
+    if isinstance(hl, list):
+        for tok in hl:
+            m = re.search(r"(\d+(?:\.\d+)?)\s*%", str(tok))
+            if m:
+                try:
+                    rate = float(m.group(1)) / 100.0
+                    break
+                except (ValueError, TypeError):
+                    pass
+    # 2) ownersDcCnts: "추가 1% 할인" (폴백)
+    if rate <= 0:
+        cnts = (of.get("ownersDcCnts") or "").strip()
+        m = re.search(r"(\d+(?:\.\d+)?)\s*%", cnts)
+        if m:
+            try:
+                rate = float(m.group(1)) / 100.0
+            except (ValueError, TypeError):
+                pass
+
+    if rate <= 0:
+        return 0.0, ""
+    # 라벨 — 사용자 스크린샷 명세 ("롯데오너스 할인 X%")
+    rate_text = f"{int(rate * 100)}%" if rate * 100 == int(rate * 100) else f"{rate * 100:g}%"
+    label = f"롯데오너스 할인 {rate_text}"
+    return rate, label
+
+
+def _extract_lotteon_store_jjim_coupon(coupons: list[dict]) -> tuple[int, str]:
+    """스토어찜 쿠폰 (정액 차감) 추출.
+
+    ★ 2026-05-15 — 사용자 명세 (스크린샷):
+      "스토어쿠폰 > 스토어찜 감사 쿠폰 -6,000원" (받기 + 1회 사용 조건. 비활성 기본).
+
+    coupons 리스트 (이미 _parse_lotteon_benefits 가 만든 dict 들) 안에서:
+      - kind == "CPN_SLR_CPN"  (스토어쿠폰)
+      - 또는 group == "STORE_COUPON"
+      - 또는 name/condition 에 '스토어찜' 포함
+
+    Returns:
+        (amount, label)
+          amount: 정액 (원). 없으면 0.
+          label: "스토어찜 감사 쿠폰 -X,XXX원". 없으면 빈 문자열.
+    """
+    for c in coupons or []:
+        kind = (c.get("kind") or "").upper()
+        group = (c.get("group") or "").upper()
+        name = c.get("name") or ""
+        is_store_jjim = (
+            kind == "CPN_SLR_CPN"
+            or group == "STORE_COUPON"
+            or "스토어찜" in name
+        )
+        if not is_store_jjim:
+            continue
+        try:
+            amt = int(c.get("dc_amount") or 0)
+        except (ValueError, TypeError):
+            amt = 0
+        if amt <= 0:
+            continue
+        # 라벨 — 사용자 스크린샷 명세
+        label = f"{name or '스토어찜 감사 쿠폰'} -{amt:,}원"
+        return amt, label
+    return 0, ""
+
+
 def _fetch_lotteon(product_url: str, timeout_sec: int) -> CrawlResult:
     """롯데ON (lotteon.com) 단품 크롤링 — Playwright + pbf API 캡처."""
     bundle = _fetch_lotteon_via_playwright(product_url, timeout_sec)
@@ -1017,6 +1112,7 @@ def _fetch_lotteon(product_url: str, timeout_sec: int) -> CrawlResult:
     option_data = bundle["option"]
     favor_data = bundle["favor"]
     qty_data = bundle["qty"]
+    addition_data = bundle["addition"]
 
     # 기본 정보
     basic = base_data.get("basicInfo") or {}
@@ -1044,6 +1140,12 @@ def _fetch_lotteon(product_url: str, timeout_sec: int) -> CrawlResult:
     # 사용자 명세상 카드즉시할인은 자동 적용 X — auto_card_discount 는 None 유지
     # (UI 가 coupons 안의 is_card_coupon=True 항목을 별도 표시)
 
+    # ★ 2026-05-15 — 사용자 스크린샷 명세 동적 혜택 2종 추출:
+    #   1) 롯데오너스 1% 회원할인 (addition API ownersFavor → 자동 활성)
+    #   2) 스토어찜 감사 쿠폰 -6,000원 (favor STORE_COUPON → 비활성 기본, 토글)
+    lotte_member_rate, lotte_member_label = _extract_lotteon_owners_member_discount(addition_data)
+    store_jjim_amount, store_jjim_label = _extract_lotteon_store_jjim_coupon(coupons)
+
     # 옵션
     colors, sizes = _parse_lotteon_options(option_data, base_data)
     if not colors:
@@ -1058,7 +1160,7 @@ def _fetch_lotteon(product_url: str, timeout_sec: int) -> CrawlResult:
             color_text = color["name"] if color["name"] else product_name
             size_text = size["name"]
             stock_int = 0 if is_sold_out else 999
-            options.append({
+            opt = {
                 "option_id": f"{product_id}|{color_text}|{size_text}",
                 "color_text": color_text,
                 "size_text": size_text,
@@ -1069,7 +1171,15 @@ def _fetch_lotteon(product_url: str, timeout_sec: int) -> CrawlResult:
                 #   UI 가 쿠폰 표시/매트릭스 계산에 사용
                 "lotteon_coupons": coupons,
                 "stock": stock_int,
-            })
+            }
+            # ★ 2026-05-15 — 동적 혜택 키 (compute_breakdown 이 자동 차감)
+            if lotte_member_rate > 0:
+                opt["lotte_member_discount_rate"] = lotte_member_rate
+                opt["lotte_member_discount_label"] = lotte_member_label
+            if store_jjim_amount > 0:
+                opt["store_jjim_coupon_amount"] = store_jjim_amount
+                opt["store_jjim_coupon_label"] = store_jjim_label
+            options.append(opt)
 
     return CrawlResult(
         source="lotte",

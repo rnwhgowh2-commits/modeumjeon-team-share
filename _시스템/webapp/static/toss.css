@@ -2583,16 +2583,16 @@
   color: #8B95A1; font-size: 16px; cursor: pointer; line-height: 1;
 }
 
-/* 2) sale 카드 — 판매가 + card chip (O/I inline) */
+/* 2) sale 카드 — 판매가 + card chip (O/I inline) [C 시안: G5 베이스 박스 + 좌측 회색 보더] */
 .cf-sale {
-  background: #fff; border: 1px solid #E5E8EB; border-radius: 12px;
-  padding: 14px 18px;
+  background: #F9FAFB; border: 1px solid #E5E8EB; border-left: 3px solid #4E5968; border-radius: 0 8px 8px 0;
+  padding: 13px 18px;
   display: flex; justify-content: space-between; align-items: center; gap: 12px;
 }
-.cf-sale .left { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
-.cf-sale .lbl { font-size: 11.5px; color: #6B7684; font-weight: 600; }
+.cf-sale .left { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.cf-sale .lbl { font-size: 11px; color: #8B95A1; font-weight: 700; letter-spacing: .4px; text-transform: uppercase; }
 .cf-sale .num {
-  font-size: 24px; font-weight: 800; color: #191F28;
+  font-size: 22px; font-weight: 800; color: #191F28;
   font-family: ui-monospace, 'SF Mono', Consolas, monospace;
   letter-spacing: -0.02em;
 }
@@ -2795,10 +2795,10 @@
   background: #D1D6DB; border-color: #D1D6DB; cursor: not-allowed;
 }
 .card-scope-modal .acts .ok:hover:not(:disabled) { filter: brightness(1.15); }
-/* 3) benefit 카드 — 적용 혜택 (토글 + 삭제 + 추가) */
+/* 3) benefit 카드 — 적용 혜택 [C 시안: 좌측 점선 보더 + 들여쓰기 (혜택 sub-row 표현)] */
 .cell-fx-ben {
-  margin: 0; padding: 14px 18px;
-  background: #fff; border: 1px solid #E5E8EB; border-radius: 12px;
+  margin: 0 0 0 22px; padding: 8px 0 8px 18px;
+  background: transparent; border: none; border-left: 1px dotted #D1D6DB; border-radius: 0;
   max-height: none; overflow: visible;
 }
 .cell-fx-ben h7 {
@@ -2853,15 +2853,16 @@
 }
 .cell-fx-pop .pop-add:hover { border-color: #191F28; color: #191F28; background: #F9FAFB; }
 
-/* 4) total 카드 — 매입가 (차콜 강조) */
+/* 4) total 카드 — 매입가 [C 시안: G5 매입가 박스 + Primary 좌측 보더 + Primary 글자] */
 .cf-total {
-  margin: 0; padding: 14px 18px;
-  background: #191F28; color: #fff; border-radius: 12px;
+  margin: 6px 0 0; padding: 16px 20px;
+  background: #fff; color: #191F28;
+  border: 2px solid #3182F6; border-left: 4px solid #3182F6; border-radius: 8px;
   display: flex; justify-content: space-between; align-items: center; gap: 8px;
 }
-.cf-total .lbl { font-size: 13px; font-weight: 600; opacity: .92; }
+.cf-total .lbl { font-size: 11px; font-weight: 700; color: #3182F6; letter-spacing: .4px; text-transform: uppercase; }
 .cf-total .num {
-  font-size: 22px; font-weight: 800;
+  font-size: 26px; font-weight: 800; color: #3182F6;
   font-family: ui-monospace, 'SF Mono', Consolas, monospace;
   letter-spacing: -0.02em;
 }

@@ -518,16 +518,15 @@ def compute_breakdown(session, *, sku: str, source_id: int, sale_price: float,
                     enabled=_cbp_active,
                 )))
         # SSG 상품쿠폰 (X% / 정액 + 최소 구매금액 조건) — 2026-05-15
-        # sale_price >= product_coupon_min_order 시 자동 활성. 이름에 '쿠폰' 포함 →
-        # 카테고리 정렬 룰에 의해 '%할인' 그룹 (적립 X) 으로 분류됨.
+        # 사용자 명세 (2026-05-15 재수정): "자동활성 안돼. 베이스금액에서 차감해야해."
+        #   → enabled=False 기본 (사용자가 매트릭스 토글로 매번 활성. "다운로드 1일이내
+        #     사용" 조건이라 매번 받아야 함). 활성 시에만 베이스 × rate 차감.
+        # 이름에 '쿠폰' 포함 → 카테고리 정렬 룰에 의해 '%할인' 그룹으로 분류.
         _pcr = _dynamic_benefits.get('product_coupon_rate')
         _pca = _dynamic_benefits.get('product_coupon_amount')
         _pcmin = _dynamic_benefits.get('product_coupon_min_order') or 0
         _pclabel = _dynamic_benefits.get('product_coupon_label') or ''
-        # 조건 충족 판정
-        _pc_active = (float(sale_price) >= float(_pcmin)) if _pcmin else True
         if _pcr and isinstance(_pcr, (int, float)) and _pcr > 0:
-            # rate 정규화 (12 → 0.12, 0.12 → 0.12)
             _rate = float(_pcr) / 100 if float(_pcr) > 1 else float(_pcr)
             _nm = f"상품쿠폰 {int(_rate*100)}% ({int(_pcmin/10000)}만원 이상)" if _pcmin else f"상품쿠폰 {int(_rate*100)}%"
             if _pclabel:
@@ -535,7 +534,7 @@ def compute_breakdown(session, *, sku: str, source_id: int, sale_price: float,
             effective.append(('dyn', _DynBenefit(
                 name=_nm,
                 btype='rate', value=_rate,
-                enabled=_pc_active,
+                enabled=False,  # 사용자 토글로 결정 (자동 활성 X)
             )))
         elif _pca and isinstance(_pca, (int, float)) and _pca > 0:
             _nm = f"상품쿠폰 {int(_pca):,}원 ({int(_pcmin/10000)}만원 이상)" if _pcmin else f"상품쿠폰 {int(_pca):,}원"
@@ -544,7 +543,7 @@ def compute_breakdown(session, *, sku: str, source_id: int, sale_price: float,
             effective.append(('dyn', _DynBenefit(
                 name=_nm,
                 btype='amount', value=float(_pca),
-                enabled=_pc_active,
+                enabled=False,  # 사용자 토글로 결정
             )))
         # 무신사머니 활성 시 → 현대카드 fallback 비활성 (중복 차감 방지)
         # money_active=True 면 effective 내 '현대카드 (무신사머니 fallback)' 항목 비활성화
@@ -591,6 +590,30 @@ def compute_breakdown(session, *, sku: str, source_id: int, sale_price: float,
                     value=float(_lpoint_value),
                     enabled=True,
                 )))
+        # ─────────────────────────────────────────────────────────────
+        # ★ 2026-05-15 — 롯데온 (lotteon.com) 동적 혜택
+        # ─────────────────────────────────────────────────────────────
+        # 사용자 스크린샷 명세 ([150만족 판매] 메이트 발 편한 메리노울 운동화 르무통):
+        #   - 롯데오너스 1% 회원할인 → 사용자 회원 가입 상태라 자동 활성 (enabled=True)
+        #     · pbf addition API ownersFavor.ownersDcCnts/ownersHighLight 에서 추출
+        #     · 산식: base × rate (이름에 '할인' 포함 → %할인 그룹 자동 분류)
+        #   - 스토어찜 쿠폰 -6,000원 → 비활성 기본 (사용자 토글로 활성, "받기" 조건)
+        #     · pbf favor API STORE_COUPON 그룹 / prKndCd=CPN_SLR_CPN
+        #     · 산식: 정액 차감 (SSG 8% 상품쿠폰과 같은 패턴)
+        _lmd = _dynamic_benefits.get('lotte_member_discount_rate')
+        if _lmd and isinstance(_lmd, (int, float)) and _lmd > 0:
+            _label = _dynamic_benefits.get('lotte_member_discount_label') or f'롯데오너스 할인 {_lmd*100:g}%'
+            effective.append(('dyn', _DynBenefit(
+                name=_label, btype='rate', value=float(_lmd),
+                enabled=True,  # 회원 가입 상태 가정
+            )))
+        _sjc = _dynamic_benefits.get('store_jjim_coupon_amount')
+        if _sjc and isinstance(_sjc, (int, float)) and _sjc > 0:
+            _label = _dynamic_benefits.get('store_jjim_coupon_label') or f'스토어찜 쿠폰 -{int(_sjc):,}원'
+            effective.append(('dyn', _DynBenefit(
+                name=_label, btype='amount', value=float(_sjc),
+                enabled=False,  # 사용자 토글로 결정 (받기 조건)
+            )))
     # ★ 2026-05-14 — 카테고리 계산 순서 강제:
     #   1) 정액 (amount)  먼저 차감
     #   2) % 적립금       (rate + benefit_name 에 '적립' 포함) — 정액 차감 후 베이스 기준

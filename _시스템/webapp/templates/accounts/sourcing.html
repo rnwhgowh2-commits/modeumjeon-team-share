@@ -8,6 +8,7 @@
     <p class="subtitle">각 소싱처 로그인에 사용될 ID/PW를 입력하세요</p>
   </div>
   <div class="sj-actions">
+    <a href="{{ url_for('accounts.source_add') }}" class="btn btn-sm" style="background:#DCFCE7;border:1px solid #86EFAC;color:#166534;font-weight:700;text-decoration:none;margin-right:6px">➕ 신규 소싱처</a>
     <label class="sj-checkbox">
       <input type="checkbox" id="sj-select-all-master" onchange="sjToggleSelectAll(this.checked)"> 전체선택
     </label>
