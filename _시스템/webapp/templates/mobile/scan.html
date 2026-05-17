@@ -9,7 +9,10 @@
     background: black;
     border-radius: 16px;
     overflow: hidden;
-    aspect-ratio: 4 / 3;
+    /* ★ 카메라 창 크게 — 뷰포트 70% (작은 바코드 인식률 ↑) */
+    height: 70vh;
+    max-height: 75vh;
+    min-height: 380px;
     margin-bottom: 12px;
   }
   #scan-video {
@@ -351,29 +354,25 @@
       resumeScan();
       return;
     }
-    // 응답이 JSON 아닐 가능성 (auth redirect, 500 HTML 등)
-    const ct = r.headers.get('content-type') || '';
-    if (!ct.includes('application/json')) {
-      const text = await r.text();
-      console.error('[lookup] non-JSON response:', r.status, text.substring(0, 200));
-      if (r.status === 401 || r.status === 302 || text.includes('login')) {
+    // content-type 무관, 일단 JSON parse 시도 (charset 또는 누락된 헤더에도 관용)
+    let d, rawText;
+    try {
+      rawText = await r.text();
+      d = JSON.parse(rawText);
+    } catch(e) {
+      console.error('[lookup] JSON parse fail. status=', r.status, 'body=', (rawText||'').substring(0,300));
+      // HTML 응답 (로그인 페이지) 인지 검사
+      if ((rawText||'').toLowerCase().includes('login') || r.status === 401) {
         showToast('로그인 만료 — 새로고침', 'error');
         setTimeout(() => location.reload(), 1500);
       } else {
-        showToast('서버 오류 ' + r.status, 'error');
+        showToast('응답 파싱 실패 (status ' + r.status + ')', 'error');
         resumeScan();
       }
       return;
     }
-    let d;
-    try { d = await r.json(); }
-    catch(e) {
-      console.error('[lookup] JSON parse fail:', e);
-      showToast('응답 파싱 실패', 'error');
-      resumeScan();
-      return;
-    }
     if (!d.ok) {
+      // 404 매칭 실패 또는 다른 에러
       showToast('❌ ' + (d.error || '매칭 안 됨: ' + code), 'error');
       resumeScan(d.error || '매칭 안 됨');
       return;
