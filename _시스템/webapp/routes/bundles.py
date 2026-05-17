@@ -7,7 +7,7 @@ from flask import Blueprint, abort, jsonify, redirect, render_template, request
 
 from shared.db import SessionLocal
 from lemouton.sourcing.models import Model, Option, DiscoveryQueueItem, BundleSourceUrl
-from lemouton.sourcing.source_registry import SOURCES as SOURCE_REGISTRY, get_keys as _src_keys
+from lemouton.sourcing.source_registry import SOURCES as SOURCE_REGISTRY, get_keys as _src_keys, get_all_sources, get_all_keys
 from lemouton.sourcing.models_v2 import UploadAccount
 from lemouton.templates.models import (
     PriceTemplate, ColorTemplate, SizeTemplate, ComboSet,
@@ -472,16 +472,18 @@ def bundle_edit(code: str):
         except Exception:
             pass
 
-        # 소싱처 레지스트리 기반 동적 처리 (신규 소싱처 추가 시 자동 노출)
+        # 소싱처 레지스트리 기반 동적 처리 (builtin 5 + DB SourcingSource — v6 P5.5)
+        all_sources = get_all_sources(session=s)  # builtin + 사용자 추가분
         share_counts = {}
         source_urls = {}
         try:
             from lemouton.sources.service import get_share_count_by_url
         except Exception:
             get_share_count_by_url = None
-        for sk in _src_keys():
-            # legacy 단일 URL — registry 의 legacy=True 면 Model 컬럼 조회
-            legacy_url = getattr(m, f'url_{sk}', None) or ''
+        for src in all_sources:
+            sk = src['key']
+            # legacy 단일 URL — builtin 만 Model 컬럼 보유 (custom 은 컬럼 없음)
+            legacy_url = (getattr(m, f'url_{sk}', None) or '') if src.get('legacy') else ''
             # share_count
             if get_share_count_by_url:
                 try:
@@ -490,7 +492,7 @@ def bundle_edit(code: str):
                     share_counts[sk] = 0
             else:
                 share_counts[sk] = 0
-            # 다중 URL (BundleSourceUrl)
+            # 다중 URL (BundleSourceUrl) — builtin·custom 공통
             rows = (s.query(BundleSourceUrl)
                     .filter_by(model_code=code, source_key=sk)
                     .order_by(BundleSourceUrl.sort_order, BundleSourceUrl.id)
@@ -531,7 +533,7 @@ def bundle_edit(code: str):
         combos=combos,
         share_counts=share_counts,
         source_urls=source_urls,
-        source_registry=SOURCE_REGISTRY,
+        source_registry=all_sources,  # builtin + DB (v6 P5.5 — custom 도 노출)
         cluster_models=cluster_models,
         run_history=run_history,
         status_cards=status_cards,
@@ -539,11 +541,31 @@ def bundle_edit(code: str):
 
 
 # ═══════ 다중 URL API (2026-05-09) ═══════
-VALID_SOURCE_KEYS = set(_src_keys())
+# v6 P5.5 — builtin + DB SourcingSource 동적 검증 (사용자 추가 소싱처도 valid)
+VALID_SOURCE_KEYS = set(_src_keys())  # builtin (시작 시점). 검증은 _is_valid_source_key() 사용 권장.
+
+def _is_valid_source_key(key: str) -> bool:
+    """builtin 또는 DB 등록된 source_key 인지 검증 (매 호출 시 DB 조회)."""
+    if not key:
+        return False
+    if key in VALID_SOURCE_KEYS:
+        return True
+    # DB SourcingSource 조회
+    s = SessionLocal()
+    try:
+        from lemouton.sourcing.models import SourcingSource
+        return bool(s.query(SourcingSource).filter_by(source_key=key, is_active=True).first())
+    finally:
+        s.close()
 
 
 def _sync_legacy_url_column(s, code, source_key):
-    """다중 URL 의 첫 번째를 Model.url_<source_key> 에 sync (legacy 호환)."""
+    """다중 URL 의 첫 번째를 Model.url_<source_key> 에 sync (legacy 호환).
+
+    builtin 5 소싱처만 url_<key> 컬럼 보유 — custom 소싱처는 skip (BundleSourceUrl 만 사용).
+    """
+    if source_key not in VALID_SOURCE_KEYS:
+        return  # custom — legacy 컬럼 없음
     first = (s.query(BundleSourceUrl)
              .filter_by(model_code=code, source_key=source_key)
              .order_by(BundleSourceUrl.sort_order, BundleSourceUrl.id)
@@ -567,7 +589,8 @@ def api_list_source_urls(code):
         if not m:
             return jsonify({'ok': False, 'error': 'bundle not found'}), 404
         urls = {}
-        for sk in VALID_SOURCE_KEYS:
+        all_keys = set(get_all_keys(session=s))  # builtin + DB
+        for sk in all_keys:
             rows = (s.query(BundleSourceUrl)
                     .filter_by(model_code=code, source_key=sk)
                     .order_by(BundleSourceUrl.sort_order, BundleSourceUrl.id)
@@ -575,9 +598,9 @@ def api_list_source_urls(code):
             if rows:
                 urls[sk] = [{'id': r.id, 'url': r.url, 'sort_order': r.sort_order} for r in rows]
             else:
-                legacy = getattr(m, f'url_{sk}', None)
+                legacy = getattr(m, f'url_{sk}', None) if sk in VALID_SOURCE_KEYS else None
                 urls[sk] = [{'id': None, 'url': legacy, 'sort_order': 0}] if legacy else []
-        return jsonify({'ok': True, 'urls': urls, 'sources': sorted(VALID_SOURCE_KEYS)})
+        return jsonify({'ok': True, 'urls': urls, 'sources': sorted(all_keys)})
     finally:
         s.close()
 
@@ -587,7 +610,7 @@ def api_add_source_url(code):
     body = request.get_json(silent=True) or {}
     source_key = (body.get('source_key') or '').strip()
     url = (body.get('url') or '').strip()
-    if source_key not in VALID_SOURCE_KEYS:
+    if not _is_valid_source_key(source_key):
         return jsonify({'ok': False, 'error': 'invalid source_key'}), 400
     if not url:
         return jsonify({'ok': False, 'error': 'url required'}), 400

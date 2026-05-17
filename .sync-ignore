@@ -72,6 +72,9 @@ webapp/templates/bundles/list.html
 webapp/routes/accounts.py
 webapp/templates/accounts/source_add.html
 lemouton/sourcing/models.py
+# Day 8.2: source_registry 동적 통합 (builtin + DB SourcingSource)
+lemouton/sourcing/source_registry.py
+webapp/routes/bundles.py
 # Day 8: 인벤토리 통계 카드 5 시안 mockup
 webapp/templates/inventory/_mockup_stats.html
 
