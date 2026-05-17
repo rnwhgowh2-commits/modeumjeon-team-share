@@ -124,7 +124,7 @@
           <button type="button" style="margin-left:6px;background:#fff;border:1px solid #CBCCD3;color:#292A2F;padding:6px 12px;border-radius:5px;font-size:11.5px;cursor:pointer;font-weight:600">📁 엑셀 가져오기</button>
         </div>
 
-        <form method="get" action="{{ url_for('inventory.barcode_print') }}" target="_blank" id="printForm">
+        <form method="post" action="{{ url_for('inventory.barcode_print') }}" target="_blank" id="printForm">
           <input type="hidden" name="template" value="{{ template_key }}">
           <input type="hidden" name="cutline" id="cutlineInput" value="{% if cutline %}1{% else %}0{% endif %}">
           <table style="width:100%;border-collapse:collapse;font-size:12.5px;border:1px solid #E5E8EB;border-radius:5px;overflow:hidden">
@@ -581,16 +581,24 @@ function applyCustom() {
   window.location.search = '?' + params.toString();
 }
 
-// 용지 변경 시 — 현재 체크된 SKU + 수량 + cutline 보존 후 reload
-function collectStateParams() {
-  const params = new URLSearchParams();
-  // 체크된 SKU + 수량
+// 용지 변경 시 — 현재 체크된 SKU + 수량 보존 후 reload
+// SKU 수가 많을 때 URL 4094B 초과(Request Line is too large) 방지 위해
+// 선택 상태는 sessionStorage 에 저장, URL 에는 가벼운 파라미터만.
+const BARCODE_SEL_KEY = 'barcode_selection_v1';
+
+function saveSelectionToStorage() {
+  const sel = [];
   document.querySelectorAll('input[name=sku]:checked').forEach(cb => {
-    params.append('sku', cb.value);
     const qty = document.querySelector(`input[name="qty_${cb.value}"]`)?.value || '1';
-    params.set(`qty_${cb.value}`, qty);
+    sel.push({ sku: cb.value, qty });
   });
-  // cutline
+  try { sessionStorage.setItem(BARCODE_SEL_KEY, JSON.stringify(sel)); } catch (e) {}
+}
+
+function collectStateParams() {
+  // 선택 상태(SKU + qty) 는 sessionStorage 로 → URL 폭증 방지
+  saveSelectionToStorage();
+  const params = new URLSearchParams();
   if (document.getElementById('cutlineCheck')?.checked) params.set('cutline', '1');
   return params;
 }
@@ -608,23 +616,36 @@ function changeTemplate(newKey) {
   window.location.search = '?' + params.toString();
 }
 
-// 페이지 로드 시 URL 파라미터로부터 체크 상태 복원
+// 페이지 로드 시 — sessionStorage 우선, fallback 으로 URL (이전 버전 북마크 호환)
 function restoreFromUrl() {
-  const params = new URLSearchParams(window.location.search);
-  const skus = params.getAll('sku');
-  if (!skus.length) return;
+  let sel = [];
+  try {
+    const raw = sessionStorage.getItem(BARCODE_SEL_KEY);
+    if (raw) sel = JSON.parse(raw) || [];
+  } catch (e) {}
+  if (!sel.length) {
+    // URL fallback — 이전 버전 GET 폼·북마크 호환
+    const params = new URLSearchParams(window.location.search);
+    const skus = params.getAll('sku');
+    sel = skus.map(sku => ({ sku, qty: params.get(`qty_${sku}`) || '1' }));
+  }
+  if (!sel.length) return;
   // attribute selector value 는 CSS.escape ❌ — 따옴표 안의 \" 와 \\ 만 escape
   const attrEsc = s => s.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
-  skus.forEach(sku => {
+  sel.forEach(({ sku, qty }) => {
     const cb = document.querySelector(`input[name=sku][value="${attrEsc(sku)}"]`);
     if (cb) cb.checked = true;
-    const qtyVal = params.get(`qty_${sku}`);
-    if (qtyVal) {
+    if (qty) {
       const qtyInput = document.querySelector(`input[name="qty_${attrEsc(sku)}"]`);
-      if (qtyInput) qtyInput.value = qtyVal;
+      if (qtyInput) qtyInput.value = qty;
     }
   });
 }
+
+// 인쇄 폼 submit 시에도 선택 상태 저장 — 새 탭에서 복귀 시 유지
+document.addEventListener('submit', e => {
+  if (e.target && e.target.id === 'printForm') saveSelectionToStorage();
+});
 window.addEventListener('load', () => {
   restoreFromUrl();
   loadSettingsToInputs();
