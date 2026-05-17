@@ -4,9 +4,11 @@ ADR-005 (서비스 중단 → 단독 운영) 핵심 진입점.
 
 흐름:
   1. xlsx 업로드 → boxhero_xlsx.parse_boxhero_xlsx() (기존 활용)
+  1.5. ADR-005 자동 생성 — 빈 DB 부트스트랩용 (Model + Option)
   2. fuzzy 자동 매핑 (sku_mapping.auto_map_all)
-  3. 매핑 성공 옵션의 boxhero_avg_purchase_price + boxhero_stock_total 갱신
-  4. 결과: 매핑 mapped/queued/unmapped + 평균매입가 갱신 N개
+  3. 매핑 성공 옵션의 boxhero_avg_purchase_price + boxhero_stock_total 갱신 (snapshot)
+  4. ★ InventoryTx (SSOT) 'in' row 생성 — UI 통계가 실재고를 반영하도록
+  5. 결과: 매핑 mapped/queued/unmapped + 평균매입가 갱신 N개
 
 ai-workflow STEP 7 Sprint 1B Task 1.9
 """
@@ -20,6 +22,35 @@ from lemouton.sourcing.models import Option, Model
 from lemouton.sourcing.master import upsert_model
 from lemouton.inventory import sku_mapping
 from lemouton.inventory.cogs import update_moving_avg
+from lemouton.inventory.models import InventoryTx, InventoryLocation
+
+
+def _now():
+    return datetime.now(timezone.utc)
+
+
+def _ensure_default_location(session: Session) -> int:
+    """기본 위치 id 반환 — is_default=True 우선, 없으면 seed_defaults 로 생성."""
+    loc = (
+        session.query(InventoryLocation)
+        .filter(InventoryLocation.deleted_at.is_(None))
+        .filter(InventoryLocation.is_default.is_(True))
+        .first()
+    )
+    if loc is None:
+        from lemouton.inventory.locations import seed_defaults
+        seed_defaults(session)
+        loc = (
+            session.query(InventoryLocation)
+            .filter(InventoryLocation.deleted_at.is_(None))
+            .filter(InventoryLocation.is_default.is_(True))
+            .first()
+        )
+    if loc is None:
+        loc = InventoryLocation(name='기본 위치', is_default=True, sort_order=1)
+        session.add(loc)
+        session.flush()
+    return loc.id
 
 
 def _derive_model_code(brand: str | None, model_name: str | None, fallback_sku: str) -> str:
@@ -85,6 +116,22 @@ def _auto_create_master(session: Session, records: list[dict]) -> dict:
     return {'created_models': created_models, 'created_options': created_options}
 
 
+def _record_stock_tx(session: Session, opt_sku: str, qty: int, price: int,
+                     location_id: int) -> None:
+    """SSOT 'in' tx 생성 (재고 1건). source='import' 로 마킹해 재 import 시 멱등."""
+    session.add(InventoryTx(
+        tx_type='in',
+        status='completed',
+        source='import',
+        location_id=location_id,
+        option_canonical_sku=opt_sku,
+        qty=qty,
+        unit_purchase_price_at_tx=price,
+        memo='박스히어로 xlsx import',
+        created_at=_now(),
+    ))
+
+
 def import_xlsx(xlsx_path: str, session: Session,
                 threshold_auto: int = 80) -> dict:
     """박스히어로 xlsx 1회 import.
@@ -101,8 +148,10 @@ def import_xlsx(xlsx_path: str, session: Session,
             'queued': [(option_sku, boxhero_sku, score), ...],
             'unmapped_options': [option_sku, ...],
             'already_mapped_options': [option_sku, ...],
-            'stock_updated': N,         # 평균매입가 + 재고 갱신 건수
+            'stock_updated': N,         # snapshot + SSOT 둘 다 갱신된 건수
             'errors': [...],
+            'auto_created_models': N,
+            'auto_created_options': N,
         }
     """
     # 1. xlsx 파싱
@@ -114,34 +163,51 @@ def import_xlsx(xlsx_path: str, session: Session,
     # 2. fuzzy 자동 매핑 (Option.boxhero_sku 갱신)
     mapping_result = sku_mapping.auto_map_all(session, records, threshold_auto=threshold_auto)
 
-    # 3. 매핑 성공 옵션의 평균매입가 + 재고 반영
+    # 3. 멱등성 — 이전 박스히어로 import 흔적 모두 제거 (재 import 시 중복 방지)
+    #    source='local' (모음전 자체 입출고) 은 절대 건드리지 않음.
+    session.query(InventoryTx).filter(
+        InventoryTx.source == 'import',
+    ).delete(synchronize_session=False)
+    session.flush()
+
+    # 4. 기본 위치 확보
+    default_loc_id = _ensure_default_location(session)
+
+    # 5. 매핑 성공 옵션 — snapshot + SSOT 동시 갱신
     bh_by_sku = {r['sku']: r for r in records}
     stock_updated = 0
     errors = []
+
+    def _apply_one(opt_sku: str, bh: dict) -> None:
+        nonlocal stock_updated
+        opt = session.query(Option).filter(Option.canonical_sku == opt_sku).first()
+        if not opt:
+            errors.append(f"옵션 없음: {opt_sku}")
+            return
+        try:
+            qty = int(bh.get('quantity') or 0)
+            price = int(bh.get('purchase_price') or 0)
+            # snapshot reset (재 import 안전)
+            opt.boxhero_stock_total = 0
+            opt.boxhero_avg_purchase_price = 0
+            if qty > 0:
+                # snapshot 갱신 (outbound 재고 체크용)
+                update_moving_avg(opt, qty_in=qty, price_in=price)
+                # SSOT 갱신 (UI 통계용) ★ 핵심 픽스
+                _record_stock_tx(session, opt_sku, qty, price, default_loc_id)
+                stock_updated += 1
+            else:
+                opt.boxhero_avg_updated_at = _now()
+        except Exception as e:
+            errors.append(f"{opt_sku}: {e}")
+
     for opt_sku, bh_sku, score in mapping_result['mapped']:
         bh = bh_by_sku.get(bh_sku)
         if not bh:
             continue
-        opt = session.query(Option).filter(Option.canonical_sku == opt_sku).first()
-        if not opt:
-            errors.append(f"옵션 없음: {opt_sku}")
-            continue
-        try:
-            qty = int(bh.get('quantity') or 0)
-            price = int(bh.get('purchase_price') or 0)
-            if qty > 0:
-                # 재고 0 → 박스히어로 import 시 첫 입고 효과
-                opt.boxhero_stock_total = 0
-                opt.boxhero_avg_purchase_price = 0
-                update_moving_avg(opt, qty_in=qty, price_in=price)
-                stock_updated += 1
-            else:
-                opt.boxhero_stock_total = 0
-                opt.boxhero_avg_updated_at = datetime.now(timezone.utc)
-        except Exception as e:
-            errors.append(f"{opt_sku}: {e}")
+        _apply_one(opt_sku, bh)
 
-    # 이미 매핑돼 있던 옵션도 재고/평균 갱신 (boxhero_sku로 직접 찾기)
+    # 이미 매핑돼 있던 옵션도 동일 처리
     for opt_sku in mapping_result['already_mapped']:
         opt = session.query(Option).filter(Option.canonical_sku == opt_sku).first()
         if not opt or not opt.boxhero_sku:
@@ -149,16 +215,7 @@ def import_xlsx(xlsx_path: str, session: Session,
         bh = bh_by_sku.get(opt.boxhero_sku)
         if not bh:
             continue
-        try:
-            qty = int(bh.get('quantity') or 0)
-            price = int(bh.get('purchase_price') or 0)
-            opt.boxhero_stock_total = 0
-            opt.boxhero_avg_purchase_price = 0
-            if qty > 0:
-                update_moving_avg(opt, qty_in=qty, price_in=price)
-                stock_updated += 1
-        except Exception as e:
-            errors.append(f"{opt_sku}: {e}")
+        _apply_one(opt_sku, bh)
 
     return {
         'records_count': len(records),
@@ -176,25 +233,28 @@ def import_xlsx(xlsx_path: str, session: Session,
 def verify_after_import(session: Session) -> dict:
     """import 후 1:1 수치 자동 비교 (Task 1.11 게이트용).
 
+    SSOT (InventoryTx) 기준 재고를 표시 — Option.boxhero_stock_total snapshot 은 신뢰 X.
+
     Returns:
         {
             'mapped_count': 매핑된 옵션 수,
             'with_avg_price': 평균매입가 > 0 옵션 수,
-            'with_stock': 재고 > 0 옵션 수,
-            'total_stock': 전체 재고 합산,
+            'with_stock': SSOT 재고 > 0 옵션 수,
+            'total_stock': SSOT 전체 재고 합,
         }
     """
     from sqlalchemy import func
+    from shared.inventory_stock import get_stock_summary
+
     mapped = session.query(func.count(Option.canonical_sku)).filter(
         Option.boxhero_sku.isnot(None)).scalar() or 0
     with_avg = session.query(func.count(Option.canonical_sku)).filter(
         Option.boxhero_avg_purchase_price > 0).scalar() or 0
-    with_stock = session.query(func.count(Option.canonical_sku)).filter(
-        Option.boxhero_stock_total > 0).scalar() or 0
-    total_stock = session.query(func.sum(Option.boxhero_stock_total)).scalar() or 0
+
+    summary = get_stock_summary(session)
     return {
         'mapped_count': mapped,
         'with_avg_price': with_avg,
-        'with_stock': with_stock,
-        'total_stock': int(total_stock),
+        'with_stock': summary['in_stock_skus'],
+        'total_stock': summary['total_stock'],
     }
