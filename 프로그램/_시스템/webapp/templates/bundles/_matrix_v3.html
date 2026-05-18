@@ -2362,12 +2362,25 @@
       }
       try { await fetch('/api/progress/crawl', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({op:'finish'})}); } catch(_) {}
       alert(`전체 크롤 완료: ${okCnt}/${doneCnt}`);
-      // 매트릭스 묶음 크롤 완료 → bundle.last_crawled_at bump 후 페이지 reload
-      // (상단 "마지막 크롤링 ㅇㅇ전" + 매트릭스 가격 동시 자동 갱신, 사용자 F5 불필요)
+      allBtn.disabled = false;
+      // 1) 매트릭스 데이터 in-place 재로드 (가격·재고 등 변경부분만 자연 갱신)
+      loadMatrix();
+      // 2) bundle.last_crawled_at bump + 상단 "마지막 크롤링" 카드 텍스트만 DOM 직접 갱신
+      //    (페이지 reload 없이 — 사용자 작업 흐름·스크롤·선택 보존)
       if (okCnt > 0) {
-        try { await fetch(`/api/bundles/${encodeURIComponent(BUNDLE_CODE)}/touch-crawled`, {method:'POST'}); } catch(_) {}
+        try {
+          const _r = await fetch(`/api/bundles/${encodeURIComponent(BUNDLE_CODE)}/touch-crawled`, {method:'POST'});
+          const _j = await _r.json();
+          if (_j.ok && _j.last_crawled_at) {
+            const _dt = new Date(_j.last_crawled_at);
+            const _kst = new Date(_dt.getTime() + 9 * 3600 * 1000);
+            const _p = n => String(n).padStart(2, '0');
+            const _ts = `${_kst.getUTCFullYear()}-${_p(_kst.getUTCMonth()+1)}-${_p(_kst.getUTCDate())} ${_p(_kst.getUTCHours())}:${_p(_kst.getUTCMinutes())}`;
+            const _el = document.querySelector('.b-stat-card.crawl .b-stat-val');
+            if (_el) _el.innerHTML = `방금 전 <span class="ago">· ${_ts}</span>`;
+          }
+        } catch(_) {}
       }
-      window.location.reload();
     }
     // 4) 선택 크롤 — v27 widget progress hook
     const selBtn = e.target.closest('#sm-crawl-sel');
@@ -2396,11 +2409,23 @@
       }
       try { await fetch('/api/progress/crawl', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({op:'finish'})}); } catch(_) {}
       alert(`선택 크롤 완료: ${okCnt}/${doneCnt}`);
-      // 매트릭스 묶음 크롤 완료 → bundle.last_crawled_at bump 후 페이지 reload
+      selBtn.disabled = false;
+      loadMatrix();
+      // 상단 "마지막 크롤링" 카드만 DOM 갱신 (reload 없이)
       if (okCnt > 0) {
-        try { await fetch(`/api/bundles/${encodeURIComponent(BUNDLE_CODE)}/touch-crawled`, {method:'POST'}); } catch(_) {}
+        try {
+          const _r = await fetch(`/api/bundles/${encodeURIComponent(BUNDLE_CODE)}/touch-crawled`, {method:'POST'});
+          const _j = await _r.json();
+          if (_j.ok && _j.last_crawled_at) {
+            const _dt = new Date(_j.last_crawled_at);
+            const _kst = new Date(_dt.getTime() + 9 * 3600 * 1000);
+            const _p = n => String(n).padStart(2, '0');
+            const _ts = `${_kst.getUTCFullYear()}-${_p(_kst.getUTCMonth()+1)}-${_p(_kst.getUTCDate())} ${_p(_kst.getUTCHours())}:${_p(_kst.getUTCMinutes())}`;
+            const _el = document.querySelector('.b-stat-card.crawl .b-stat-val');
+            if (_el) _el.innerHTML = `방금 전 <span class="ago">· ${_ts}</span>`;
+          }
+        } catch(_) {}
       }
-      window.location.reload();
     }
     // 5) 전체 선택 토글
     if (e.target && e.target.id === 'sm-sel-toggle') {
