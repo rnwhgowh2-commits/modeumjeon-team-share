@@ -78,8 +78,9 @@ def _auto_create_master(session: Session, records: list[dict]) -> dict:
     for r in records:
         brand = (r.get('brand') or '').strip() or '미상'
         model_name = (r.get('model_name') or '').strip()
-        color = (r.get('color_text') or '').strip() or '-'
-        size = (r.get('size') or '').strip() or '-'
+        # 우리 양식 정책 — 빈 컬러 → 'ONE Color', 빈 사이즈 → 'FREE'
+        color = (r.get('color_text') or '').strip() or 'ONE Color'
+        size = (r.get('size') or '').strip() or 'FREE'
         canonical = r['sku']
 
         model_code = _derive_model_code(brand, model_name, canonical)

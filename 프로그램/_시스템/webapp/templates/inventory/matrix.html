@@ -4,7 +4,7 @@
 <div style="padding:24px 32px;max-width:1700px;margin:0 auto">
 
   <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px">
-    <h1 style="font-size:20px;font-weight:700">옵션 매트릭스 <span style="font-size:12px;color:#9CA3AF;font-weight:400">(R2 ★★★ 박스히어로 재고 + 사입 마진 3계층)</span></h1>
+    <h1 style="font-size:20px;font-weight:700">옵션 매트릭스 <span style="font-size:12px;color:#9CA3AF;font-weight:400">(자체 재고 + 사입 마진 3계층)</span></h1>
   </div>
 
   {% with msgs = get_flashed_messages(with_categories=true) %}
@@ -20,7 +20,7 @@
       <div style="font-size:22px;font-weight:700">{{ stats.total }}</div>
     </div>
     <div style="background:#fff;border:1px solid #E5E8EB;border-radius:8px;padding:14px">
-      <div style="font-size:11px;color:#6B7684">박스히어로 매핑</div>
+      <div style="font-size:11px;color:#6B7684">SKU 매핑</div>
       <div style="font-size:22px;font-weight:700;color:#3182F6">{{ stats.mapped }}<span style="font-size:12px;color:#9CA3AF;font-weight:400"> / {{ stats.total }}</span></div>
     </div>
     <div style="background:#fff;border:1px solid #E5E8EB;border-radius:8px;padding:14px">
@@ -55,13 +55,13 @@
     <table style="width:100%;border-collapse:collapse;font-size:11.5px;min-width:1500px">
       <thead style="background:#F9FAFB;position:sticky;top:0;z-index:5">
         <tr>
-          <th style="padding:9px 8px;text-align:left;font-size:10.5px;color:#6B7684;border-bottom:1px solid #E5E8EB;min-width:140px">옵션 SKU</th>
-          <th style="padding:9px 8px;text-align:left;font-size:10.5px;color:#6B7684;border-bottom:1px solid #E5E8EB;min-width:120px">박스히어로 SKU</th>
-          <th style="padding:9px 8px;text-align:left;font-size:10.5px;color:#6B7684;border-bottom:1px solid #E5E8EB">색상</th>
+          <th style="padding:9px 8px;text-align:left;font-size:10.5px;color:#6B7684;border-bottom:1px solid #E5E8EB;min-width:140px">SKU</th>
+          <th style="padding:9px 8px;text-align:left;font-size:10.5px;color:#6B7684;border-bottom:1px solid #E5E8EB;min-width:120px">바코드</th>
+          <th style="padding:9px 8px;text-align:left;font-size:10.5px;color:#6B7684;border-bottom:1px solid #E5E8EB">컬러</th>
           <th style="padding:9px 8px;text-align:left;font-size:10.5px;color:#6B7684;border-bottom:1px solid #E5E8EB">사이즈</th>
           <th style="padding:9px 8px;text-align:right;font-size:10.5px;color:#6B7684;border-bottom:1px solid #E5E8EB">재고</th>
           <th style="padding:9px 8px;text-align:right;font-size:10.5px;color:#6B7684;border-bottom:1px solid #E5E8EB">평균매입가</th>
-          <th style="padding:9px 8px;text-align:left;font-size:10.5px;color:#059669;border-bottom:1px solid #E5E8EB;background:#ECFDF5">자체 마진<br><span style="font-weight:400;color:#6B7684">(박스히어로)</span></th>
+          <th style="padding:9px 8px;text-align:left;font-size:10.5px;color:#059669;border-bottom:1px solid #E5E8EB;background:#ECFDF5">자체 마진<br><span style="font-weight:400;color:#6B7684">(자체사입)</span></th>
           <th style="padding:9px 8px;text-align:right;font-size:10.5px;color:#059669;border-bottom:1px solid #E5E8EB;background:#ECFDF5">자체 판매가</th>
           <th style="padding:9px 8px;text-align:left;font-size:10.5px;color:#7C3AED;border-bottom:1px solid #E5E8EB;background:#F5F3FF">외부 마진<br><span style="font-weight:400;color:#6B7684">(소싱처)</span></th>
           <th style="padding:9px 8px;text-align:right;font-size:10.5px;color:#7C3AED;border-bottom:1px solid #E5E8EB;background:#F5F3FF">외부 판매가</th>
@@ -75,9 +75,9 @@
           {% set use_purchase = opt.use_purchase_inventory %}
           <tr style="border-bottom:1px solid #F2F4F6;{% if use_purchase %}background:#FFFBEB{% endif %}" data-sku="{{ opt.canonical_sku }}">
             <td style="padding:7px 8px;font-family:ui-monospace,monospace;font-size:10.5px">{{ opt.canonical_sku }}</td>
-            <td style="padding:7px 8px;font-family:ui-monospace,monospace;font-size:10.5px;{% if not opt.boxhero_sku %}color:#EF4444{% endif %}">{{ opt.boxhero_sku or '— 미매핑' }}</td>
-            <td style="padding:7px 8px">{{ opt.color_display or opt.color_code }}</td>
-            <td style="padding:7px 8px">{{ opt.size_display or opt.size_code }}</td>
+            <td style="padding:7px 8px;font-family:ui-monospace,monospace;font-size:10.5px;{% if not opt.barcode %}color:#9CA3AF{% endif %}">{{ opt.barcode or '—' }}</td>
+            <td style="padding:7px 8px;color:{% if (opt.color_display or opt.color_code) %}#111827{% else %}#9CA3AF{% endif %}">{{ (opt.color_display or opt.color_code) | color_or_default }}</td>
+            <td style="padding:7px 8px;color:{% if (opt.size_display or opt.size_code) %}#111827{% else %}#9CA3AF{% endif %}">{{ (opt.size_display or opt.size_code) | size_or_default }}</td>
             <td style="padding:7px 8px;text-align:right;font-weight:{% if (opt.boxhero_stock_total or 0) > 0 %}600{% else %}400{% endif %};color:{% if (opt.boxhero_stock_total or 0) == 0 %}#9CA3AF{% else %}#111827{% endif %}">{{ opt.boxhero_stock_total or 0 }}</td>
             <td style="padding:7px 8px;text-align:right;font-family:ui-monospace,monospace;color:{% if (opt.boxhero_avg_purchase_price or 0) > 0 %}#111827{% else %}#9CA3AF{% endif %}">
               {% if opt.boxhero_avg_purchase_price %}{{ '{:,}'.format(opt.boxhero_avg_purchase_price) }}{% else %}—{% endif %}
@@ -132,7 +132,7 @@
   </div>
 
   <div style="margin-top:14px;font-size:11px;color:#9CA3AF;line-height:1.7">
-    ★ 색상 의미 — 자체(초록 #059669) = 박스히어로 사입 / 외부(보라 #7C3AED) = 소싱처 사입.<br>
+    ★ 색상 의미 — 자체(초록 #059669) = 자체 사입 / 외부(보라 #7C3AED) = 소싱처 사입.<br>
     ★ source_layer 라벨 — 옵션(녹색/보라) = 인라인 오버라이드 적용 / 모델(노랑) = 모델 오버라이드 / 템플릿(회색) = 가격템플릿 default.<br>
     ★ <strong style="color:#92400E">사입재고 활성화 ON</strong> — 자체 판매가가 활성 가격(주황 강조), 외부 판매가는 취소선. OFF 면 외부 판매가 활성.<br>
     ★ 옵션 단위 오버라이드는 3계층 중 최우선. "비우기" 클릭 시 모델/템플릿 fallback.
