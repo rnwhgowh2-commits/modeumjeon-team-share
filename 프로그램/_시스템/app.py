@@ -41,6 +41,7 @@ def create_app() -> Flask:
             "lemouton.sourcing.models_v2",
             "lemouton.multitenancy.models",
             "lemouton.audit.models",          # audit_log
+            "lemouton.mapping.models",        # 맵핑 사전 (차원·캐노니컬·별칭)
         ]:
             try:
                 __import__(_mod)
@@ -51,6 +52,9 @@ def create_app() -> Flask:
             import webapp.auth.models  # noqa: F401
         except ImportError:
             pass
+
+    # 항상 맵핑 모델 등록 (team-share-dev 외 환경에서도 테이블 사용 가능하도록)
+    import lemouton.mapping.models  # noqa: F401
 
     init_db()
 
