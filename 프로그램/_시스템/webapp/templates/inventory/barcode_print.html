@@ -163,14 +163,16 @@ document.querySelectorAll('svg.ds-bc').forEach(svg => {
   const wMm = svg.getAttribute('width');
   const hMm = svg.getAttribute('height');
   try {
+    // JsBarcode 버그 대응: margin:N 이 설정되면 marginTop/Bottom 무시됨.
+    // 올바른 패턴 = margin:0 (전체 0 리셋) 후 marginLeft/Right 만 설정.
     JsBarcode(svg, c, {
       format: 'CODE128',
       width: bcWidth,
       height: 60,
       displayValue: false,
-      margin: bcMargin,        // 좌·우 quiet zone (스캐너 시작·끝 인식)
-      marginTop: 0,            // ★ 위 quiet zone 제거 — 막대가 mm 박스 전체 차지
-      marginBottom: 0,         // ★ 아래 quiet zone 제거
+      margin: 0,                  // 전체 quiet zone 0 리셋
+      marginLeft: bcMargin,       // 좌 quiet zone (스캐너 시작 인식)
+      marginRight: bcMargin,      // 우 quiet zone (스캐너 끝 인식)
       background: '#ffffff',
       lineColor: '#000000',
       flat: true,
