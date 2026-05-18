@@ -55,9 +55,9 @@
           {# 요소 간 여백 (3 단계) #}
           <div style="font-size:10.5px;color:#8F91A0;font-weight:600;margin:8px 0 5px">요소 간 여백 (mm)</div>
           <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;font-size:11px">
-            <label style="font-size:10.5px">제품명↔속성<input type="number" id="cs_gap_na" step="0.1" min="0" max="5" style="width:100%;padding:6px;border:1px solid #CBCCD3;border-radius:4px;margin-top:2px"></label>
-            <label style="font-size:10.5px">속성↔바코드<input type="number" id="cs_gap_ab" step="0.1" min="0" max="5" style="width:100%;padding:6px;border:1px solid #CBCCD3;border-radius:4px;margin-top:2px"></label>
-            <label style="font-size:10.5px">바코드↔코드<input type="number" id="cs_gap_bc" step="0.1" min="0" max="5" style="width:100%;padding:6px;border:1px solid #CBCCD3;border-radius:4px;margin-top:2px"></label>
+            <label style="font-size:10.5px">제품명↔속성<input type="number" id="cs_gap_na" step="0.1" min="-5" max="5" style="width:100%;padding:6px;border:1px solid #CBCCD3;border-radius:4px;margin-top:2px"></label>
+            <label style="font-size:10.5px">속성↔바코드<input type="number" id="cs_gap_ab" step="0.1" min="-5" max="5" style="width:100%;padding:6px;border:1px solid #CBCCD3;border-radius:4px;margin-top:2px"></label>
+            <label style="font-size:10.5px">바코드↔코드<input type="number" id="cs_gap_bc" step="0.1" min="-5" max="5" style="width:100%;padding:6px;border:1px solid #CBCCD3;border-radius:4px;margin-top:2px"></label>
           </div>
           <div style="display:flex;gap:6px;margin-top:10px">
             <button type="button" onclick="resetDesignSettings()" style="flex:1;padding:7px;background:#fff;border:1px solid #CBCCD3;color:#292A2F;border-radius:5px;font-size:11.5px;cursor:pointer">기본값 복원</button>
