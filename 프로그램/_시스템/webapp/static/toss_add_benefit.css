@@ -1,0 +1,278 @@
+/* ─────────────────────────────────────────────────────────────
+ * 혜택 추가 폼 (v6 D2-A 정제) — popover 안 + 새 혜택 추가 UI
+ *
+ * 디자인 원칙: 운영 toss.css .cell-fx-pop 패턴 + 이모티콘 0 + weight·색·여백 위계
+ * 좌측 (3 row) = 단건 (이 모음전 내) Primary #3182F6 톤
+ * 우측 (1 카드) = 일반화 (소싱처 전체) Critical #DC2626 톤
+ *
+ * 사용 위치: .cell-fx-pop 안 .pop-add 버튼 클릭 시 .add-form 노출
+ * ───────────────────────────────────────────────────────────── */
+
+/* ───── add-form 컨테이너 ───── */
+.add-form {
+  background: #fff;
+  border: 2px solid #3182F6;
+  border-radius: 12px;
+  padding: 18px;
+  margin-top: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.add-form .section-title {
+  font-size: 11px;
+  font-weight: 700;
+  color: #6B7684;
+  text-transform: uppercase;
+  letter-spacing: .5px;
+  margin-bottom: -4px;
+}
+
+/* ───── field (이름·타입·값) ───── */
+.add-form .field {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+.add-form .field > label {
+  font-weight: 700;
+  color: #6B7684;
+  min-width: 60px;
+  text-transform: uppercase;
+  letter-spacing: .4px;
+  font-size: 11px;
+}
+.add-form .field input[type=text] {
+  flex: 1;
+  border: 1px solid #D1D6DB;
+  padding: 8px 11px;
+  border-radius: 6px;
+  font-family: inherit;
+  font-size: 13.5px;
+  color: #191F28;
+}
+.add-form .field input[type=text]:focus {
+  outline: none;
+  border-color: #3182F6;
+  box-shadow: 0 0 0 3px rgba(49,130,246,.12);
+}
+.add-form .field input.val {
+  font-family: ui-monospace, 'SF Mono', Consolas, monospace;
+  text-align: right;
+  max-width: 90px;
+}
+.add-form .field .unit {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: #4E5968;
+  min-width: 22px;
+}
+
+/* ───── type chip (정액 / 정률) ───── */
+.add-form .type-chips {
+  display: flex;
+  gap: 6px;
+  flex: 1;
+}
+.add-form .type-chip {
+  flex: 1;
+  padding: 9px;
+  border: 1.5px solid #D1D6DB;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 700;
+  color: #6B7684;
+  background: #F9FAFB;
+  cursor: pointer;
+  text-align: center;
+  transition: all .12s;
+  font-family: inherit;
+}
+.add-form .type-chip:hover { border-color: #8B95A1; }
+.add-form .type-chip.on {
+  background: #3182F6;
+  color: #fff;
+  border-color: #3182F6;
+}
+
+/* ───── scope split (좌 3 / 우 1) ───── */
+.add-form .scope-split {
+  display: grid;
+  grid-template-columns: 3fr 2fr;
+  gap: 14px;
+}
+
+.add-form .scope-side {
+  border-radius: 10px;
+  padding: 14px;
+}
+.add-form .scope-side .side-title {
+  font-size: 12px;
+  font-weight: 700;
+  margin-bottom: 10px;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  text-transform: uppercase;
+  letter-spacing: .4px;
+}
+.add-form .scope-side .side-title .meta {
+  margin-left: auto;
+  font-size: 10.5px;
+  font-weight: 500;
+  opacity: .65;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+/* ───── 좌측: 이 모음전 내 (3 row) ───── */
+.add-form .scope-local {
+  background: #EFF6FF;
+  border: 1px solid #BFDBFE;
+}
+.add-form .scope-local .side-title { color: #1E3A8A; }
+.add-form .scope-local .rows {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.add-form .scope-local .row {
+  padding: 10px 13px;
+  background: #fff;
+  border: 1.5px solid #BFDBFE;
+  border-radius: 7px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: #1E40AF;
+  transition: all .12s;
+}
+.add-form .scope-local .row:hover { border-color: #3182F6; }
+.add-form .scope-local .row .lbl { flex: 1; }
+.add-form .scope-local .row .count {
+  font-size: 11.5px;
+  color: #64748B;
+  font-family: ui-monospace, 'SF Mono', Consolas, monospace;
+  font-weight: 700;
+}
+.add-form .scope-local .row .count b {
+  color: #191F28;
+  font-weight: 800;
+}
+.add-form .scope-local .row.on {
+  background: #3182F6;
+  color: #fff;
+  border-color: #3182F6;
+}
+.add-form .scope-local .row.on .count,
+.add-form .scope-local .row.on .count b { color: #fff; }
+
+/* ───── 우측: 전 모음전 적용 (1 카드, Critical) ───── */
+.add-form .scope-global {
+  background: #FEF2F2;
+  border: 1.5px solid #FCA5A5;
+  display: flex;
+  flex-direction: column;
+}
+.add-form .scope-global .side-title { color: #B91C1C; }
+.add-form .scope-global .card {
+  flex: 1;
+  background: #fff;
+  border: 1.5px solid #FCA5A5;
+  border-radius: 8px;
+  padding: 18px 14px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  gap: 6px;
+  text-align: center;
+  transition: all .12s;
+}
+.add-form .scope-global .card:hover { border-color: #DC2626; }
+.add-form .scope-global .card .lbl {
+  font-size: 15px;
+  font-weight: 800;
+  color: #B91C1C;
+  line-height: 1.3;
+}
+.add-form .scope-global .card .desc {
+  font-size: 11.5px;
+  color: #6B7684;
+  line-height: 1.5;
+}
+.add-form .scope-global .card .count {
+  font-size: 11.5px;
+  color: #B91C1C;
+  font-family: ui-monospace, 'SF Mono', Consolas, monospace;
+  font-weight: 700;
+}
+.add-form .scope-global .card.on {
+  background: #DC2626;
+  border-color: #DC2626;
+}
+.add-form .scope-global .card.on .lbl { color: #fff; }
+.add-form .scope-global .card.on .desc { color: rgba(255,255,255,.85); }
+.add-form .scope-global .card.on .count { color: #fff; }
+
+/* ───── impact preview (선택 시 영향 안내) ───── */
+.add-form .impact-preview {
+  background: #F9FAFB;
+  border: 1px solid #E5E8EB;
+  border-radius: 6px;
+  padding: 11px 14px;
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.add-form .impact-preview .text { flex: 1; color: #4E5968; }
+.add-form .impact-preview .text b { color: #191F28; font-weight: 700; }
+.add-form .impact-preview .calc {
+  font-family: ui-monospace, 'SF Mono', Consolas, monospace;
+  font-weight: 800;
+  color: #EF4444;
+  font-size: 14px;
+}
+
+/* ───── 액션 버튼 (취소 / 추가) ───── */
+.add-form .acts {
+  display: flex;
+  gap: 8px;
+  padding-top: 8px;
+  border-top: 1px dashed #E5E8EB;
+}
+.add-form .acts button {
+  flex: 1;
+  padding: 11px;
+  border: 1px solid #D1D6DB;
+  background: #fff;
+  border-radius: 6px;
+  font-family: inherit;
+  font-size: 13.5px;
+  font-weight: 700;
+  color: #4E5968;
+  cursor: pointer;
+  transition: all .12s;
+}
+.add-form .acts button:hover { border-color: #8B95A1; }
+.add-form .acts .save {
+  background: #3182F6;
+  color: #fff;
+  border-color: #3182F6;
+}
+.add-form .acts .save:hover {
+  filter: brightness(1.08);
+  border-color: #3182F6;
+}
+.add-form .acts .save:disabled {
+  background: #D1D6DB;
+  border-color: #D1D6DB;
+  cursor: not-allowed;
+  filter: none;
+}

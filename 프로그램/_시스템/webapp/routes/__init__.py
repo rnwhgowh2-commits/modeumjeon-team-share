@@ -17,6 +17,7 @@ def register_routes(app: Flask) -> None:
     from webapp.routes.api import bp as api_bp
     from webapp.routes.api_pricing import bp as api_pricing_bp  # [v3]
     from webapp.routes.api_benefits import bp as api_benefits_bp  # [v8] 동적 혜택
+    from webapp.routes.api_benefits_crud import bp as api_benefits_crud_bp  # [v6 D2-A] 혜택 추가 폼 (4 scope)
     from webapp.routes.api_inventory_link import bp as api_inv_link_bp  # [v17] 재고관리 연동
     from webapp.routes.sources import bp as sources_bp  # [v2] 소싱처 운영센터
     from webapp.routes.source_registry import bp as source_registry_bp  # [v3] 사전
@@ -37,6 +38,7 @@ def register_routes(app: Flask) -> None:
     app.register_blueprint(api_bp)
     app.register_blueprint(api_pricing_bp)  # [v3]
     app.register_blueprint(api_benefits_bp)  # [v8] 동적 혜택
+    app.register_blueprint(api_benefits_crud_bp)  # [v6 D2-A] 혜택 추가 폼 (4 scope)
     app.register_blueprint(api_inv_link_bp)  # [v17] 재고관리 연동
     app.register_blueprint(sources_bp)  # [v2]
     app.register_blueprint(source_registry_bp)  # [v3]
