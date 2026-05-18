@@ -2362,8 +2362,12 @@
       }
       try { await fetch('/api/progress/crawl', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({op:'finish'})}); } catch(_) {}
       alert(`전체 크롤 완료: ${okCnt}/${doneCnt}`);
-      allBtn.disabled = false;
-      loadMatrix();
+      // 매트릭스 묶음 크롤 완료 → bundle.last_crawled_at bump 후 페이지 reload
+      // (상단 "마지막 크롤링 ㅇㅇ전" + 매트릭스 가격 동시 자동 갱신, 사용자 F5 불필요)
+      if (okCnt > 0) {
+        try { await fetch(`/api/bundles/${encodeURIComponent(BUNDLE_CODE)}/touch-crawled`, {method:'POST'}); } catch(_) {}
+      }
+      window.location.reload();
     }
     // 4) 선택 크롤 — v27 widget progress hook
     const selBtn = e.target.closest('#sm-crawl-sel');
@@ -2392,8 +2396,11 @@
       }
       try { await fetch('/api/progress/crawl', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({op:'finish'})}); } catch(_) {}
       alert(`선택 크롤 완료: ${okCnt}/${doneCnt}`);
-      selBtn.disabled = false;
-      loadMatrix();
+      // 매트릭스 묶음 크롤 완료 → bundle.last_crawled_at bump 후 페이지 reload
+      if (okCnt > 0) {
+        try { await fetch(`/api/bundles/${encodeURIComponent(BUNDLE_CODE)}/touch-crawled`, {method:'POST'}); } catch(_) {}
+      }
+      window.location.reload();
     }
     // 5) 전체 선택 토글
     if (e.target && e.target.id === 'sm-sel-toggle') {
