@@ -2336,8 +2336,8 @@
 
   document.addEventListener('click', async e => {
     // 3) 전체 크롤 — v27 widget progress hook
-    if (e.target && e.target.id === 'sm-crawl-all') {
-      const allBtn = e.target;
+    const allBtn = e.target.closest('#sm-crawl-all');
+    if (allBtn) {
       const opts = DATA.options || [];
       let totalCells = 0;
       opts.forEach(o => (o.sources || []).forEach(s => { if (s.product_url) totalCells++; }));
@@ -2366,8 +2366,8 @@
       loadMatrix();
     }
     // 4) 선택 크롤 — v27 widget progress hook
-    if (e.target && e.target.id === 'sm-crawl-sel') {
-      const selBtn = e.target;
+    const selBtn = e.target.closest('#sm-crawl-sel');
+    if (selBtn) {
       const skus = [...smSelSet];
       if (!skus.length) { alert('먼저 옵션을 선택하세요.'); return; }
       const opts = (DATA.options || []).filter(o => smSelSet.has(o.sku));
