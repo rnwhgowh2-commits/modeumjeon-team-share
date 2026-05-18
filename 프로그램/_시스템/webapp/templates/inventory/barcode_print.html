@@ -168,7 +168,9 @@ document.querySelectorAll('svg.ds-bc').forEach(svg => {
       width: bcWidth,
       height: 60,
       displayValue: false,
-      margin: bcMargin,
+      margin: bcMargin,        // 좌·우 quiet zone (스캐너 시작·끝 인식)
+      marginTop: 0,            // ★ 위 quiet zone 제거 — 막대가 mm 박스 전체 차지
+      marginBottom: 0,         // ★ 아래 quiet zone 제거
       background: '#ffffff',
       lineColor: '#000000',
       flat: true,
