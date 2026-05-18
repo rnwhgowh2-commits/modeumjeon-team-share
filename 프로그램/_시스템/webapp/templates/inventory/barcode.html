@@ -49,7 +49,7 @@
           </div>
           {# 바코드 높이 + 외곽 여백 #}
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:11px;margin-bottom:8px">
-            <label>바코드 높이 (px)<input type="number" id="cs_bch" step="1" min="10" max="80" style="width:100%;padding:6px;border:1px solid #CBCCD3;border-radius:4px;margin-top:2px"></label>
+            <label>바코드 높이 (mm)<input type="number" id="cs_bch" step="0.5" min="6" max="20" style="width:100%;padding:6px;border:1px solid #CBCCD3;border-radius:4px;margin-top:2px"></label>
             <label>외곽 여백 (mm)<input type="number" id="cs_pad" step="0.1" min="0" max="5" style="width:100%;padding:6px;border:1px solid #CBCCD3;border-radius:4px;margin-top:2px"></label>
           </div>
           {# 요소 간 여백 (3 단계) #}
@@ -327,13 +327,13 @@ function expandLabels(items) {
 // gap_na = 제품명↔속성, gap_ab = 속성↔바코드, gap_bc = 바코드↔코드 (모두 mm)
 // w_name/w_attr/w_code = font-weight (400=L, 600=M, 700=B)
 const DESIGN_DEFAULTS = {
-  '1': {name:14, attr:12, code:11, bch:36, pad:6, gap_na:0.3, gap_ab:1.0, gap_bc:0.5, w_name:700, w_attr:400, w_code:400},
-  '3': {name:14, attr:12, code:11, bch:36, pad:6, gap_na:0.5, gap_ab:1.0, gap_bc:0.5, w_name:700, w_attr:400, w_code:400},
-  '5': {name:13, attr:22, code:11, bch:34, pad:6, gap_na:0.5, gap_ab:1.0, gap_bc:0.5, w_name:700, w_attr:700, w_code:400},
+  '1': {name:7, attr:5, code:5, bch:13, bcw:40, pad:1.5, gap_na:0.3, gap_ab:0.5, gap_bc:0.3, w_name:700, w_attr:400, w_code:400},
+  '3': {name:7, attr:5, code:5, bch:13, bcw:40, pad:1.5, gap_na:0.4, gap_ab:0.5, gap_bc:0.3, w_name:700, w_attr:400, w_code:400},
+  '5': {name:5, attr:10, code:5, bch:12, bcw:40, pad:1.5, gap_na:0.3, gap_ab:0.5, gap_bc:0.3, w_name:700, w_attr:700, w_code:400},
 };
 function getDesignState() {
   try {
-    const s = JSON.parse(localStorage.getItem('labelDesign') || '{}');
+    const s = JSON.parse(localStorage.getItem('labelDesignV2') || '{}');
     return {
       variant: s.variant || '1',
       settings: { ...DESIGN_DEFAULTS[s.variant || '1'], ...(s.settings || {}) },
@@ -343,7 +343,7 @@ function getDesignState() {
   }
 }
 function saveDesignState(state) {
-  try { localStorage.setItem('labelDesign', JSON.stringify(state)); } catch (e) {}
+  try { localStorage.setItem('labelDesignV2', JSON.stringify(state)); } catch (e) {}
 }
 function setDesign(variant) {
   const cur = getDesignState();
@@ -405,75 +405,91 @@ function bindDesignSettingsInputs() {
   });
 }
 
-// 디자인 마크업 생성 — 1/3/5 + 커스텀 설정 적용
+// === 디자인 마크업 — WYSIWYG (mm/pt 직접) — 인쇄와 1:1 ===
 function buildDesignHTML(item, opts) {
   const {variant, settings} = getDesignState();
-  const o = opts || {};
   const code = asciiSafeCode(item.code);
-  const scale = o.scale || 1;
-  const sName = scale * settings.name;
-  const sAttr = scale * settings.attr;
-  const sCode = scale * settings.code;
-  const sBch = scale * settings.bch;
-  const sPad = scale * settings.pad;
-  // 요소 간 여백 — px 단위로 변환 (mm × 3.78 ≈ px)
-  const gNA = scale * (settings.gap_na || 0) * 3.78;
-  const gAB = scale * (settings.gap_ab || 0) * 3.78;
-  const gBC = scale * (settings.gap_bc || 0) * 3.78;
+  // Real units — same as print
+  const sName = settings.name + 'pt';
+  const sAttr = settings.attr + 'pt';
+  const sCode = settings.code + 'pt';
+  const bcw = settings.bcw || 40;  // mm
+  const bch = settings.bch;        // mm
+  const sPad = settings.pad + 'mm';
+  const gNA = (settings.gap_na || 0) + 'mm';
+  const gAB = (settings.gap_ab || 0) + 'mm';
+  const gBC = (settings.gap_bc || 0) + 'mm';
   const wName = settings.w_name || 700;
   const wAttr = settings.w_attr || 400;
   const wCode = settings.w_code || 400;
   const isAuto = code !== item.code;
   const codeDisplay = code + (isAuto ? ' ★' : '');
 
-  const wrapStyle = `display:flex;flex-direction:column;align-items:center;justify-content:center;padding:${sPad}px;text-align:center;height:100%;font-family:-apple-system,'Apple SD Gothic Neo',sans-serif;background:#fff;color:#000`;
+  const wrapStyle = `width:100%;height:100%;box-sizing:border-box;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:${sPad};text-align:center;background:#fff;color:#000;overflow:hidden;font-family:-apple-system,'Apple SD Gothic Neo',sans-serif`;
 
-  // SVG placeholder — 후처리에서 JsBarcode 채움 (JsBarcode 가 svg style 덮어쓰므로 wrapper 에 margin)
-  const svg = `<div style="width:100%;display:flex;justify-content:center;margin-top:${gAB}px;margin-bottom:${gBC}px"><svg class="ds-bc" data-code="${code}" data-bch="${sBch}" style="width:90%;height:auto;max-height:${sBch}px"></svg></div>`;
+  // SVG: 고정 박스 + mm 단위 width/height attr + preserveAspectRatio=none — 어떤 컨텍스트에서도 동일 렌더
+  const svg = `<div style="width:${bcw}mm;height:${bch}mm;margin-top:${gAB};margin-bottom:${gBC};flex-shrink:0;overflow:hidden;"><svg class="ds-bc" data-code="${code}" width="${bcw}mm" height="${bch}mm" preserveAspectRatio="none" style="display:block;"></svg></div>`;
 
   if (variant === '3') {
-    // 제품명 강조 (반전) — 흑색 배경 + 흰글씨
     return `<div style="${wrapStyle}">
-      <div style="background:#000;color:#fff;padding:2px 8px;border-radius:3px;font-size:${sName}px;font-weight:${wName};line-height:1.1">${item.name}</div>
-      <div style="font-size:${sAttr}px;font-weight:${wAttr};color:#555;line-height:1;margin-top:${gNA}px">${item.attr}</div>
+      <div style="background:#000;color:#fff;padding:0.5mm 2mm;border-radius:1mm;font-size:${sName};font-weight:${wName};line-height:1.05">${item.name}</div>
+      <div style="font-size:${sAttr};font-weight:${wAttr};color:#555;line-height:1.0;margin-top:${gNA}">${item.attr}</div>
       ${svg}
-      <div style="font-size:${sCode}px;font-weight:${wCode};color:#000;font-family:ui-monospace,monospace;line-height:1">${codeDisplay}</div>
+      <div style="font-size:${sCode};font-weight:${wCode};color:#000;font-family:ui-monospace,monospace;line-height:1">${codeDisplay}</div>
     </div>`;
   }
   if (variant === '5') {
-    // 사이즈 대형 — 사이즈/색상 큰 글씨 강조
     return `<div style="${wrapStyle}">
-      <div style="font-size:${sName}px;font-weight:${wName};line-height:1.1">${item.name}</div>
-      <div style="font-size:${sAttr}px;font-weight:${wAttr};color:#000;line-height:1;margin-top:${gNA}px">${item.attr}</div>
+      <div style="font-size:${sName};font-weight:${wName};line-height:1.05">${item.name}</div>
+      <div style="font-size:${sAttr};font-weight:${wAttr};color:#000;line-height:1.0;margin-top:${gNA}">${item.attr}</div>
       ${svg}
-      <div style="font-size:${sCode}px;font-weight:${wCode};color:#000;font-family:ui-monospace,monospace;line-height:1">${codeDisplay}</div>
+      <div style="font-size:${sCode};font-weight:${wCode};color:#000;font-family:ui-monospace,monospace;line-height:1">${codeDisplay}</div>
     </div>`;
   }
-  // 1: 표준 (박스히어로 1:1)
   return `<div style="${wrapStyle}">
-    <div style="font-size:${sName}px;font-weight:${wName};line-height:1.1">${item.name}</div>
-    <div style="font-size:${sAttr}px;font-weight:${wAttr};color:#555;line-height:1;margin-top:${gNA}px">${item.attr}</div>
+    <div style="font-size:${sName};font-weight:${wName};line-height:1.05">${item.name}</div>
+    <div style="font-size:${sAttr};font-weight:${wAttr};color:#555;line-height:1.0;margin-top:${gNA}">${item.attr}</div>
     ${svg}
-    <div style="font-size:${sCode}px;font-weight:${wCode};color:#000;font-family:ui-monospace,monospace;line-height:1">${codeDisplay}</div>
+    <div style="font-size:${sCode};font-weight:${wCode};color:#000;font-family:ui-monospace,monospace;line-height:1">${codeDisplay}</div>
   </div>`;
 }
 
+// Barcode 공통 렌더 헬퍼 — mm 단위 width/height 복원 + preserveAspectRatio=none
+function _renderBarcodeIn(wrap, bcWidth, bcMargin) {
+  bcWidth = bcWidth || 1.5;
+  bcMargin = bcMargin || 18;
+  wrap.querySelectorAll('svg.ds-bc').forEach(svg => {
+    const c = svg.dataset.code;
+    const wM = svg.getAttribute('width');
+    const hM = svg.getAttribute('height');
+    try {
+      JsBarcode(svg, c, {format:'CODE128', width:bcWidth, height:60, displayValue:false, margin:bcMargin, background:'#ffffff', lineColor:'#000000', flat:true});
+      svg.setAttribute('width', wM);
+      svg.setAttribute('height', hM);
+      svg.setAttribute('preserveAspectRatio', 'none');
+    } catch (e) {}
+  });
+}
+
+// 좌측 디자인 카드 — 실제 라벨 크기 위에 CSS transform: scale(zoom) 으로 zoom (1:1 fidelity)
 function renderDesignCard(item) {
   const wrap = document.getElementById('designPreview');
   if (!item) {
     wrap.innerHTML = '<div style="font-size:13px;color:#8F91A0;padding:32px">제품을 선택해주세요</div>';
     return;
   }
-  // 좌측 카드는 큰 미리보기 — 별도 스케일
-  wrap.innerHTML = `<div style="height:130px">${buildDesignHTML(item, {scale: 1.2})}</div>`;
-  // SVG 후처리
-  wrap.querySelectorAll('svg.ds-bc').forEach(svg => {
-    const c = svg.dataset.code, h = parseFloat(svg.dataset.bch);
-    try { JsBarcode(svg, c, {format:'CODE128', width:1.4, height:h, displayValue:false, margin:0}); }
-    catch (e) {}
-  });
+  const labelPreview = document.getElementById('labelPreview');
+  const labelW = parseFloat(labelPreview && labelPreview.dataset.labelW) || 47;
+  const labelH = parseFloat(labelPreview && labelPreview.dataset.labelH) || 26.9;
+  // ZOOM 자동 — 카드 높이 ~160px 타겟
+  const targetHpx = 160;
+  const labelHpx = labelH * 3.78;
+  const ZOOM = Math.max(2.5, Math.min(5.5, targetHpx / labelHpx));
+  wrap.innerHTML = `<div style="width:${labelW * ZOOM}mm;height:${labelH * ZOOM}mm;overflow:hidden;margin:0 auto;background:#fff;"><div style="width:${labelW}mm;height:${labelH}mm;transform:scale(${ZOOM});transform-origin:top left;background:#fff;">${buildDesignHTML(item)}</div></div>`;
+  _renderBarcodeIn(wrap, 1.5, 18);
 }
 
+// A4 미니 미리보기 — 각 셀은 mm 콘텐츠 + CSS transform: scale (px-스케일 셀에 맞춤)
 function renderPreview() {
   const wrap = document.getElementById('labelPreview');
   const ds = wrap.dataset;
@@ -486,12 +502,11 @@ function renderPreview() {
   document.getElementById('cutlineInput').value = cutline ? '1' : '0';
 
   const labels = expandLabels(getSelected());
-  // 페이지 1개만 미리보기 (per_page 까지)
   const slice = labels.slice(0, perPage);
 
   let html = '';
-  // 라벨 크기에 비례한 디자인 스케일 — 미리보기는 작으므로 0.4~0.6
-  const designScale = Math.max(0.35, Math.min(0.6, (lh * sc) / 80));
+  // 셀 안 mm 콘텐츠를 px 셀 사이즈로 스케일링 — 1mm = 3.78px @ 96DPI; cell = mm × sc px
+  const mmZoom = sc / 3.78;
   for (let i = 0; i < perPage; i++) {
     const item = slice[i];
     const col = i % cols, row = Math.floor(i / cols);
@@ -500,19 +515,13 @@ function renderPreview() {
     const w = lw * sc, h = lh * sc;
     const border = cutline ? '0.5px dashed #999' : '0.5px dashed transparent';
     if (item) {
-      html += `<div class="prev-cell" style="position:absolute;left:${x}px;top:${y}px;width:${w}px;height:${h}px;border:${border};overflow:hidden">${buildDesignHTML(item, {scale: designScale})}</div>`;
+      html += `<div class="prev-cell" style="position:absolute;left:${x}px;top:${y}px;width:${w}px;height:${h}px;border:${border};overflow:hidden"><div style="width:${lw}mm;height:${lh}mm;transform:scale(${mmZoom});transform-origin:top left;">${buildDesignHTML(item)}</div></div>`;
     } else {
       html += `<div style="position:absolute;left:${x}px;top:${y}px;width:${w}px;height:${h}px;border:${border};background:#fff"></div>`;
     }
   }
   wrap.innerHTML = html;
-  // SVG 후처리
-  wrap.querySelectorAll('svg.ds-bc').forEach(svg => {
-    const c = svg.dataset.code, bh = parseFloat(svg.dataset.bch);
-    try {
-      JsBarcode(svg, c, {format:'CODE128', width:0.8, height:bh, displayValue:false, margin:0});
-    } catch (e) {}
-  });
+  _renderBarcodeIn(wrap, 1.2, 18);
 }
 
 function toggleAll(m) {

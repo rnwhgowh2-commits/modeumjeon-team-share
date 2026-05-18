@@ -67,13 +67,13 @@ body { font-family: -apple-system, "Apple SD Gothic Neo", sans-serif; margin:0; 
 <script>
 // ── localStorage 에서 디자인 + 설정 불러오기 ──
 const DESIGN_DEFAULTS = {
-  '1': {name:14, attr:12, code:11, bch:36, pad:6, gap_na:0.3, gap_ab:1.0, gap_bc:0.5, w_name:700, w_attr:400, w_code:400},
-  '3': {name:14, attr:12, code:11, bch:36, pad:6, gap_na:0.5, gap_ab:1.0, gap_bc:0.5, w_name:700, w_attr:400, w_code:400},
-  '5': {name:13, attr:22, code:11, bch:34, pad:6, gap_na:0.5, gap_ab:1.0, gap_bc:0.5, w_name:700, w_attr:700, w_code:400},
+  '1': {name:7, attr:5, code:5, bch:13, bcw:40, pad:1.5, gap_na:0.3, gap_ab:0.5, gap_bc:0.3, w_name:700, w_attr:400, w_code:400},
+  '3': {name:7, attr:5, code:5, bch:13, bcw:40, pad:1.5, gap_na:0.4, gap_ab:0.5, gap_bc:0.3, w_name:700, w_attr:400, w_code:400},
+  '5': {name:5, attr:10, code:5, bch:12, bcw:40, pad:1.5, gap_na:0.3, gap_ab:0.5, gap_bc:0.3, w_name:700, w_attr:700, w_code:400},
 };
 function getDesignState() {
   try {
-    const s = JSON.parse(localStorage.getItem('labelDesign') || '{}');
+    const s = JSON.parse(localStorage.getItem('labelDesignV2') || '{}');
     return {
       variant: s.variant || '1',
       settings: { ...DESIGN_DEFAULTS[s.variant || '1'], ...(s.settings || {}) },
@@ -93,15 +93,13 @@ function asciiSafeCode(raw) {
 }
 
 const {variant, settings} = getDesignState();
-// 인쇄 시 mm 비율 환산 — pt 입력값 그대로 px 사이즈로 사용 (브라우저 확대 시 비례)
-// 라벨이 작은 경우 px 값을 mm 비율로 미세조정 위해 0.6 배수 적용 (실 인쇄 시 적정)
-const SCALE_FOR_PRINT = 0.6;
-const sName = settings.name * SCALE_FOR_PRINT + 'pt';
-const sAttr = settings.attr * SCALE_FOR_PRINT + 'pt';
-const sCode = settings.code * SCALE_FOR_PRINT + 'pt';
-const sBch = settings.bch * 0.5; // mm 비율로 축소
-const sPad = settings.pad * 0.6 + 'mm';
-// 요소 간 여백 (mm) — 사용자 설정 그대로
+// === WYSIWYG — magic scale 전부 제거. 사용자 입력 pt/mm 그대로 인쇄 ===
+const sName = settings.name + 'pt';
+const sAttr = settings.attr + 'pt';
+const sCode = settings.code + 'pt';
+const sBch  = settings.bch;          // 바코드 세로 (mm)
+const sBcw  = settings.bcw || 40;    // 바코드 가로 (mm) default 40mm
+const sPad  = settings.pad + 'mm';
 const gNA = (settings.gap_na || 0) + 'mm';
 const gAB = (settings.gap_ab || 0) + 'mm';
 const gBC = (settings.gap_bc || 0) + 'mm';
@@ -121,7 +119,7 @@ document.querySelectorAll('.label').forEach(el => {
   // 디자인별 마크업 — 폰트 굵기·요소 간 여백 적용
   let inner = '';
   const wrap = `style="width:100%;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:${sPad};text-align:center;background:#fff;color:#000"`;
-  const svg = `<div style="width:100%;display:flex;justify-content:center;margin-top:${gAB};margin-bottom:${gBC}"><svg class="ds-bc" data-code="${code}" data-bch="${sBch}" style="width:90%;height:auto;max-height:${sBch * 1.5}mm"></svg></div>`;
+  const svg = `<div style="width:${sBcw}mm;height:${sBch}mm;margin-top:${gAB};margin-bottom:${gBC};flex-shrink:0;overflow:hidden;"><svg class="ds-bc" data-code="${code}" width="${sBcw}mm" height="${sBch}mm" preserveAspectRatio="none" style="display:block;"></svg></div>`;
   const codeStr = code + (isAuto ? ' <span style="color:#F59E0B;font-size:'+(parseFloat(sCode)*0.8)+'pt">★ 자동</span>' : '');
   const bundleTag = isBundle ? `<div class="bundle-tag">묶음</div>` : '';
 
@@ -154,11 +152,30 @@ document.querySelectorAll('.label').forEach(el => {
   el.innerHTML = inner;
 });
 
-// JsBarcode 채움
+// JsBarcode — CODE128 통일 (전 코드 균일 막대) + 라벨 너비 적응형 bar width / quiet zone
+const LABEL_W_MM = {{ template.label_w }};
+const bcWidth  = LABEL_W_MM >= 50 ? 1.8 : (LABEL_W_MM >= 38 ? 1.5 : 1.2);
+const bcMargin = LABEL_W_MM >= 50 ? 15  : (LABEL_W_MM >= 38 ? 18  : 22);
+
 document.querySelectorAll('svg.ds-bc').forEach(svg => {
-  const c = svg.dataset.code, bh = parseFloat(svg.dataset.bch) * 2;
+  const c = svg.dataset.code;
+  const wMm = svg.getAttribute('width');
+  const hMm = svg.getAttribute('height');
   try {
-    JsBarcode(svg, c, {format:'CODE128', width:1.2, height:bh, displayValue:false, margin:0});
+    JsBarcode(svg, c, {
+      format: 'CODE128',
+      width: bcWidth,
+      height: 60,
+      displayValue: false,
+      margin: bcMargin,
+      background: '#ffffff',
+      lineColor: '#000000',
+      flat: true,
+    });
+    // mm 단위 width/height 복원 + preserveAspectRatio=none — 고정 박스에 정확 stretch
+    svg.setAttribute('width', wMm);
+    svg.setAttribute('height', hMm);
+    svg.setAttribute('preserveAspectRatio', 'none');
   } catch (e) {
     svg.outerHTML = '<div style="font-size:5.5pt;color:#EF4444">⚠ ' + c.substring(0,30) + '</div>';
   }
