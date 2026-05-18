@@ -213,10 +213,15 @@ def data_locations_seed():
 
 @bp.get('/data/items')
 def data_items():
-    """제품 마스터 — 모음전 옵션 162개를 박스히어로식 표 형식으로."""
-    from sqlalchemy import or_
+    """제품 마스터 — 옵션 표 형식.
+
+    형식 분기 — `?format=json` 또는 `Accept: application/json` 헤더 시 JSON 응답.
+    JSON 모드는 칩 UI 의 AJAX 라이브 검색용 (새로고침 없이 표·KPI 갱신).
+    """
     from lemouton.sourcing.models import Option, Model
     from shared.search import split_tokens, apply_and_filter
+    from shared.inventory_stock import get_stock_batch
+    from sqlalchemy import func
 
     page = max(1, int(request.args.get('page', 1)))
     page_size = min(200, int(request.args.get('page_size', 50)))
@@ -224,26 +229,27 @@ def data_items():
     brand = (request.args.get('brand') or '').strip()
     in_stock_only = request.args.get('in_stock_only') == '1'
     search_tokens = split_tokens(q)
+    want_json = (
+        request.args.get('format') == 'json'
+        or 'application/json' in (request.headers.get('Accept') or '')
+    )
 
     s = SessionLocal()
     try:
         query = s.query(Option).join(Model, Option.model_code == Model.model_code)
-        # Option 모델에는 deleted_at 컬럼이 ORM에 정의 안 됨 → soft-delete 필터 빼기
-
-        # ★ 박스히어로식 다중 키워드 AND 교집합 (shared.search 헬퍼)
+        # 다중 키워드 AND 교집합 — 토큰별 OR (SKU·바코드·브랜드·제품명·모델명·컬러·사이즈)
         query = apply_and_filter(
             query, search_tokens,
-            Option.canonical_sku, Option.boxhero_sku,
-            Model.model_name_display, Model.model_name_raw,
-            Option.color_display, Option.size_display,
+            Option.canonical_sku, Option.boxhero_sku, Option.barcode,
+            Model.brand, Model.model_name_display, Model.model_name_raw, Model.model_code,
+            Option.color_display, Option.color_code,
+            Option.size_display, Option.size_code,
         )
         if brand:
             query = query.filter(Model.brand == brand)
-        # ★ SSOT 재고 — 전체 옵션 batch 한 번에
-        from shared.inventory_stock import get_stock_batch
+
         all_skus_for_stock = [r[0] for r in query.with_entities(Option.canonical_sku).all()]
         stock_map = get_stock_batch(s, all_skus_for_stock)
-
         if in_stock_only:
             in_skus = {sk for sk, st in stock_map.items() if st > 0}
             query = query.filter(Option.canonical_sku.in_(in_skus) if in_skus else False)
@@ -254,16 +260,48 @@ def data_items():
             .offset((page - 1) * page_size).limit(page_size).all()
         )
 
-        # KPI (실시간 SSOT)
-        from sqlalchemy import func
         all_options_count = s.query(func.count(Option.canonical_sku)).scalar() or 0
-        mapped_count = s.query(func.count(Option.canonical_sku)).filter(Option.boxhero_sku.isnot(None)).scalar() or 0
         in_stock_count = sum(1 for st in stock_map.values() if st > 0)
         total_qty = sum(stock_map.values())
+        kpi = {
+            'all_options': all_options_count,
+            'in_stock': in_stock_count,
+            'total_qty': int(total_qty),
+        }
 
-        # 브랜드 목록 (필터용)
+        if want_json:
+            from flask import jsonify
+            def _color(o):
+                return (o.color_display or o.color_code or '').strip() or 'ONE Color'
+            def _size(o):
+                return (o.size_display or o.size_code or '').strip() or 'FREE'
+            rows = [
+                {
+                    'sku': o.canonical_sku,
+                    'bh': o.boxhero_sku or '',
+                    'barcode': o.barcode or '',
+                    'name': (o.model.model_name_display or o.model.model_name_raw or '') if o.model else '',
+                    'model_code': (o.model.model_code or '') if o.model else '',
+                    'brand': (o.model.brand or '') if o.model else '',
+                    'color': _color(o),
+                    'color_raw': o.color_display or o.color_code or '',
+                    'size': _size(o),
+                    'size_raw': o.size_display or o.size_code or '',
+                    'avg': int(o.boxhero_avg_purchase_price or 0),
+                    'stock': int(stock_map.get(o.canonical_sku, 0)),
+                }
+                for o in items
+            ]
+            return jsonify({
+                'total': total,
+                'page': page,
+                'page_size': page_size,
+                'total_pages': (total + page_size - 1) // page_size,
+                'items': rows,
+                'kpi': kpi,
+            })
+
         brands = [b for (b,) in s.query(Model.brand).distinct().filter(Model.brand.isnot(None)).all()]
-
         return render_template(
             'inventory/data/items.html',
             active='data-items',
@@ -272,14 +310,8 @@ def data_items():
             q=q, brand=brand, in_stock_only=in_stock_only,
             search_tokens=search_tokens,
             brands=sorted(brands),
-            stock_map=stock_map,  # ★ 실시간 SSOT 재고
-            kpi={
-                'all_options': all_options_count,
-                'mapped': mapped_count,
-                'unmapped': all_options_count - mapped_count,
-                'in_stock': in_stock_count,
-                'total_qty': int(total_qty),
-            },
+            stock_map=stock_map,
+            kpi=kpi,
         )
     finally:
         s.close()
@@ -665,7 +697,12 @@ def data_price_templates_update_margin(tpl_id):
 
 @bp.get('/data/items/export.xlsx')
 def data_items_export():
-    """제품 마스터 엑셀 내보내기 (박스히어로식 19컬럼 일부 호환)."""
+    """제품 마스터 엑셀 내보내기 — 우리 양식 16컬럼.
+
+    순서: SKU·바코드·브랜드·제품명·모델명·컬러·사이즈·카테고리·평균매입가·판매가·
+          메모·총재고·재고(그로스)·재고(기본위치)·재고(판매불가)·생성일
+    빈 컬러 → 'ONE Color', 빈 사이즈 → 'FREE' 정책 그대로 노출.
+    """
     from io import BytesIO
     import openpyxl
     from lemouton.sourcing.models import Option, Model
@@ -679,21 +716,47 @@ def data_items_export():
             .all()
         )
 
+        # 위치별 재고 batch — 그로스/기본위치/판매불가 3분리
+        from shared.inventory_stock import get_stock_breakdown_batch
+        all_skus = [opt.canonical_sku for opt, _ in rows]
+        try:
+            breakdown = get_stock_breakdown_batch(s, all_skus)  # {sku: {'gross': n, 'main': n, 'unsellable': n}}
+        except Exception:
+            # 헬퍼 미존재 시 안전 폴백 — 위치별 0
+            breakdown = {sku: {'gross': 0, 'main': 0, 'unsellable': 0} for sku in all_skus}
+
         wb = openpyxl.Workbook()
         ws = wb.active
         ws.title = '제품마스터'
         ws.append([
-            'SKU(canonical)', '박스히어로 SKU', '제품명',
-            '브랜드', '모델명', '카테고리', '컬러', '사이즈',
-            '평균매입가', '총재고',
+            'SKU', '바코드', '브랜드', '제품명', '모델명',
+            '컬러', '사이즈', '카테고리',
+            '평균매입가', '판매가', '메모',
+            '총재고', '재고(그로스)', '재고(기본위치)', '재고(판매불가)',
+            '생성일',
         ])
         for opt, mdl in rows:
+            color = (opt.color_display or opt.color_code or '').strip() or 'ONE Color'
+            size = (opt.size_display or opt.size_code or '').strip() or 'FREE'
+            bd = breakdown.get(opt.canonical_sku, {})
+            total_stock = opt.boxhero_stock_total or 0
             ws.append([
-                opt.canonical_sku, opt.boxhero_sku or '',
-                f'{mdl.model_name_display or mdl.model_name_raw} {opt.color_display or opt.color_code} {opt.size_display or opt.size_code}',
-                mdl.brand or '', mdl.model_name_display or mdl.model_name_raw, mdl.category or '',
-                opt.color_display or opt.color_code, opt.size_display or opt.size_code,
-                opt.boxhero_avg_purchase_price or 0, opt.boxhero_stock_total or 0,
+                opt.canonical_sku,
+                opt.barcode or '',
+                mdl.brand or '',
+                mdl.model_name_display or mdl.model_name_raw,
+                mdl.model_code or '',
+                color,
+                size,
+                mdl.category or '',
+                opt.boxhero_avg_purchase_price or 0,
+                getattr(opt, 'price_default', 0) or 0,
+                '',  # 메모 — Option 에 컬럼 없음, 추후 추가 시 연결
+                total_stock,
+                int(bd.get('gross', 0) or 0),
+                int(bd.get('main', 0) or 0),
+                int(bd.get('unsellable', 0) or 0),
+                opt.created_at.strftime('%Y-%m-%d %H:%M:%S') if getattr(opt, 'created_at', None) else '',
             ])
 
         buf = BytesIO()

@@ -6,10 +6,9 @@
 
   <div style="display:flex;align-items:center;gap:8px;margin-bottom:16px">
     <h1 style="font-size:22px;font-weight:700;margin:0;color:#292A2F">제품 마스터</h1>
-    <span title="옵션 = 박스히어로 SKU 1:1. 행 클릭 → 인라인 popover 편집" style="display:inline-flex;align-items:center;justify-content:center;width:14px;height:14px;border-radius:50%;background:#F1F1F4;color:#8F91A0;font-size:9.5px;font-weight:700;cursor:help">i</span>
-    <span style="font-size:11.5px;color:#8F91A0">모음전 옵션 = 박스히어로 SKU 1:1</span>
+    <span title="행 클릭 → 인라인 popover 편집" style="display:inline-flex;align-items:center;justify-content:center;width:14px;height:14px;border-radius:50%;background:#F1F1F4;color:#8F91A0;font-size:9.5px;font-weight:700;cursor:help">i</span>
     <div style="margin-left:auto;display:flex;gap:6px;align-items:center">
-      <a href="{{ url_for('inventory.data_boxhero_import') }}" style="background:#EEF1FE;border:1px solid #4F67FF;color:#4F67FF;padding:7px 12px;border-radius:5px;font-size:12.5px;text-decoration:none;font-weight:600">📥 박스히어로 엑셀 업로드</a>
+      <a href="{{ url_for('inventory.data_boxhero_import') }}" style="background:#EEF1FE;border:1px solid #4F67FF;color:#4F67FF;padding:7px 12px;border-radius:5px;font-size:12.5px;text-decoration:none;font-weight:600">📥 제품 엑셀 업로드</a>
       <a href="{{ url_for('inventory.data_items_export') }}" style="background:#fff;border:1px solid #CBCCD3;color:#292A2F;padding:7px 12px;border-radius:5px;font-size:12.5px;text-decoration:none">⬇ 엑셀 내보내기</a>
       <button type="button" onclick="document.getElementById('wipeModal').style.display='flex'" style="background:#fff;border:1px solid #FCA5A5;color:#DC2626;padding:7px 12px;border-radius:5px;font-size:12.5px;cursor:pointer;font-weight:600">🗑 전체 삭제</button>
     </div>
@@ -17,29 +16,25 @@
 
   {% with msgs = get_flashed_messages(with_categories=true) %}{% for cat,msg in msgs %}<div style="background:{% if cat=='error' %}#FEF2F2{% else %}#ECFDF5{% endif %};border:1px solid {% if cat=='error' %}#FCA5A5{% else %}#86EFAC{% endif %};padding:10px 14px;border-radius:6px;margin-bottom:12px;font-size:13px;color:{% if cat=='error' %}#991B1B{% else %}#065F46{% endif %}">{{ msg }}</div>{% endfor %}{% endwith %}
 
-  {# KPI 4 #}
-  <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:18px">
+  {# KPI 3 #}
+  <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:18px">
     <div style="background:#fff;border:1px solid #E5E8EB;border-radius:8px;padding:12px 14px">
       <div style="font-size:11px;color:#8F91A0">총 SKU</div>
-      <div style="font-size:22px;font-weight:700;color:#292A2F">{{ '{:,}'.format(kpi.all_options) }}</div>
-    </div>
-    <div style="background:#fff;border:1px solid #E5E8EB;border-radius:8px;padding:12px 14px">
-      <div style="font-size:11px;color:#8F91A0">박스히어로 매핑</div>
-      <div style="font-size:22px;font-weight:700;color:{% if kpi.mapped > 0 %}#22C55E{% else %}#8F91A0{% endif %}">{{ '{:,}'.format(kpi.mapped) }}<span style="font-size:11px;color:#8F91A0;font-weight:400"> / {{ kpi.all_options }}</span></div>
+      <div id="kpiAll" style="font-size:22px;font-weight:700;color:#292A2F">{{ '{:,}'.format(kpi.all_options) }}</div>
     </div>
     <div style="background:#fff;border:1px solid #E5E8EB;border-radius:8px;padding:12px 14px">
       <div style="font-size:11px;color:#8F91A0">재고 보유 SKU</div>
-      <div style="font-size:22px;font-weight:700;color:{% if kpi.in_stock > 0 %}#22C55E{% else %}#8F91A0{% endif %}">{{ '{:,}'.format(kpi.in_stock) }}</div>
+      <div id="kpiInStock" style="font-size:22px;font-weight:700;color:{% if kpi.in_stock > 0 %}#22C55E{% else %}#8F91A0{% endif %}">{{ '{:,}'.format(kpi.in_stock) }}</div>
     </div>
     <div style="background:#fff;border:1px solid #E5E8EB;border-radius:8px;padding:12px 14px">
       <div style="font-size:11px;color:#8F91A0">총 재고 수량</div>
-      <div style="font-size:22px;font-weight:700;color:#292A2F">{{ '{:,}'.format(kpi.total_qty) }}</div>
+      <div id="kpiQty" style="font-size:22px;font-weight:700;color:#292A2F">{{ '{:,}'.format(kpi.total_qty) }}</div>
     </div>
   </div>
 
-  {# 검색·필터 바 #}
+  {# 검색·필터 바 — AJAX 라이브 검색 (새로고침 없이) #}
   <div style="background:#fff;border:1px solid #E5E8EB;border-radius:8px;padding:12px 14px;margin-bottom:14px">
-    <form method="get" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+    <form id="filterForm" method="get" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
       {% include 'partials/search_chips.html' %}
       <select name="brand" style="padding:7px 10px;border:1px solid #CBCCD3;border-radius:6px;font-size:12.5px;color:#292A2F;background:#fff">
         <option value="">모든 브랜드</option>
@@ -49,46 +44,57 @@
         <input type="checkbox" name="in_stock_only" value="1" {% if in_stock_only %}checked{% endif %} style="accent-color:#4F67FF"> 재고 보유만
       </label>
       <button type="submit" style="background:#4F67FF;color:#fff;padding:7px 14px;border:none;border-radius:6px;font-size:12.5px;font-weight:600;cursor:pointer">검색</button>
-      {% if q or brand or in_stock_only %}<a href="{{ url_for('inventory.data_items') }}" style="font-size:12px;color:#8F91A0;text-decoration:none;padding:7px">필터 초기화</a>{% endif %}
-      <span style="margin-left:auto;font-size:12px;color:#8F91A0">{{ '{:,}'.format(total) }}건</span>
+      <a id="filterReset" href="{{ url_for('inventory.data_items') }}" style="font-size:12px;color:#8F91A0;text-decoration:none;padding:7px;{% if not (q or brand or in_stock_only) %}display:none{% endif %}">필터 초기화</a>
+      <span style="margin-left:auto;font-size:12px;color:#8F91A0"><span id="totalCount">{{ '{:,}'.format(total) }}</span>건</span>
     </form>
   </div>
 
-  {# 제품 목록 표 — 클릭 시 인라인 popover 편집 #}
+  {# 제품 목록 표 — 클릭 시 인라인 popover 편집. 컬럼: SKU·바코드·브랜드·제품명·모델명·컬러·사이즈·평균매입가·총재고·편집 #}
   <div style="background:#fff;border:1px solid #E5E8EB;border-radius:8px;overflow:hidden">
     <table style="width:100%;border-collapse:collapse;font-size:12.5px">
       <thead style="background:#F1F1F4;border-bottom:1px solid #E5E8EB">
         <tr>
           <th style="padding:11px 10px;text-align:left;font-size:11px;color:#292A2F;font-weight:600">SKU</th>
-          <th style="padding:11px 10px;text-align:left;font-size:11px;color:#292A2F;font-weight:600">박스히어로 SKU</th>
+          <th style="padding:11px 10px;text-align:left;font-size:11px;color:#292A2F;font-weight:600">바코드</th>
+          <th style="padding:11px 10px;text-align:left;font-size:11px;color:#292A2F;font-weight:600">브랜드</th>
           <th style="padding:11px 10px;text-align:left;font-size:11px;color:#292A2F;font-weight:600">제품명</th>
+          <th style="padding:11px 10px;text-align:left;font-size:11px;color:#292A2F;font-weight:600">모델명</th>
           <th style="padding:11px 10px;text-align:left;font-size:11px;color:#292A2F;font-weight:600">컬러</th>
           <th style="padding:11px 10px;text-align:left;font-size:11px;color:#292A2F;font-weight:600">사이즈</th>
           <th style="padding:11px 10px;text-align:right;font-size:11px;color:#292A2F;font-weight:600">평균매입가</th>
-          <th style="padding:11px 10px;text-align:right;font-size:11px;color:#292A2F;font-weight:600">재고</th>
-          <th style="padding:11px 10px;text-align:center;font-size:11px;color:#292A2F;font-weight:600;width:80px">매핑</th>
+          <th style="padding:11px 10px;text-align:right;font-size:11px;color:#292A2F;font-weight:600">총재고</th>
           <th style="padding:11px 10px;text-align:center;font-size:11px;color:#292A2F;font-weight:600;width:60px">편집</th>
         </tr>
       </thead>
-      <tbody>
+      <tbody id="itemsTbody">
         {% for opt in items %}
+        {% set _name = (opt.model.model_name_display or opt.model.model_name_raw or '') if opt.model else '' %}
+        {% set _brand = (opt.model.brand or '') if opt.model else '' %}
+        {% set _model_code = (opt.model.model_code or '') if opt.model else '' %}
+        {% set _color = opt.color_display or opt.color_code or '' %}
+        {% set _color_shown = _color if _color else 'ONE Color' %}
+        {% set _size = opt.size_display or opt.size_code or '' %}
+        {% set _size_shown = _size if _size else 'FREE' %}
         <tr style="border-bottom:1px solid #F1F1F4;cursor:pointer" onmouseover="this.style.background='#FAFBFC'" onmouseout="this.style.background=''" onclick="openItemPopover(this)"
             data-sku="{{ opt.canonical_sku }}"
             data-bh="{{ opt.boxhero_sku or '' }}"
-            data-name="{{ (opt.model.model_name_display or opt.model.model_name_raw or '') if opt.model else '' }}"
-            data-brand="{{ (opt.model.brand or '') if opt.model else '' }}"
-            data-color="{{ opt.color_display or opt.color_code or '' }}"
-            data-size="{{ opt.size_display or opt.size_code or '' }}"
+            data-barcode="{{ opt.barcode or '' }}"
+            data-name="{{ _name }}"
+            data-model-code="{{ _model_code }}"
+            data-brand="{{ _brand }}"
+            data-color="{{ _color }}"
+            data-size="{{ _size }}"
             data-avg="{{ opt.boxhero_avg_purchase_price or 0 }}"
             data-stock="{{ stock_map.get(opt.canonical_sku, 0) }}">
           <td style="padding:9px 10px;font-family:ui-monospace,monospace;font-size:11px;color:#292A2F">{{ opt.canonical_sku }}</td>
-          <td style="padding:9px 10px;font-family:ui-monospace,monospace;font-size:11px;color:{% if opt.boxhero_sku %}#4F67FF{% else %}#8F91A0{% endif %}">{{ opt.boxhero_sku or '—' }}</td>
+          <td style="padding:9px 10px;font-family:ui-monospace,monospace;font-size:11px;color:{% if opt.barcode %}#292A2F{% else %}#8F91A0{% endif %}">{{ opt.barcode or '—' }}</td>
+          <td style="padding:9px 10px;color:#292A2F">{{ _brand or '—' }}</td>
           <td style="padding:9px 10px">
-            <div style="font-weight:500;color:#292A2F">{{ (opt.model.model_name_display or opt.model.model_name_raw) if opt.model else '—' }}</div>
-            <div style="font-size:10.5px;color:#8F91A0">{{ opt.model.brand if opt.model else '' }}</div>
+            <div style="font-weight:500;color:#292A2F">{{ _name or '—' }}</div>
           </td>
-          <td style="padding:9px 10px;color:#292A2F">{{ opt.color_display or opt.color_code }}</td>
-          <td style="padding:9px 10px;color:#292A2F">{{ opt.size_display or opt.size_code }}</td>
+          <td style="padding:9px 10px;color:#8F91A0;font-family:ui-monospace,monospace;font-size:11px">{{ _model_code or '—' }}</td>
+          <td style="padding:9px 10px;color:{% if _color %}#292A2F{% else %}#8F91A0{% endif %}">{{ _color_shown }}</td>
+          <td style="padding:9px 10px;color:{% if _size %}#292A2F{% else %}#8F91A0{% endif %}">{{ _size_shown }}</td>
           <td style="padding:9px 10px;text-align:right;font-variant-numeric:tabular-nums;color:#292A2F">
             {% if opt.boxhero_avg_purchase_price and opt.boxhero_avg_purchase_price > 0 %}{{ '{:,}'.format(opt.boxhero_avg_purchase_price) }}{% else %}<span style="color:#8F91A0">—</span>{% endif %}
           </td>
@@ -96,19 +102,12 @@
           <td style="padding:9px 10px;text-align:right;font-weight:600;font-variant-numeric:tabular-nums;color:{% if _rt > 0 %}#22C55E{% else %}#8F91A0{% endif %}">
             {{ _rt }}
           </td>
-          <td style="padding:9px 10px;text-align:center" onclick="event.stopPropagation()">
-            {% if opt.boxhero_sku %}
-              <span style="background:#EEF1FE;color:#4F67FF;padding:2px 8px;border-radius:8px;font-size:10px;font-weight:600">✓</span>
-            {% else %}
-              <a href="/inventory/sku-mapping" style="background:#FFF8E5;color:#9A6700;padding:2px 8px;border-radius:8px;font-size:10px;font-weight:600;text-decoration:none">매핑 필요</a>
-            {% endif %}
-          </td>
           <td style="padding:9px 10px;text-align:center">
             <span style="color:#4F67FF;font-size:12px">✎</span>
           </td>
         </tr>
         {% else %}
-        <tr><td colspan="9" style="padding:32px;text-align:center;color:#8F91A0">조회 결과 없음</td></tr>
+        <tr><td colspan="10" style="padding:32px;text-align:center;color:#8F91A0">조회 결과 없음</td></tr>
         {% endfor %}
       </tbody>
     </table>
@@ -124,8 +123,8 @@
   {% endif %}
 
   <div style="margin-top:18px;font-size:11px;color:#8F91A0;line-height:1.6">
-    <strong>박스히어로 1:1 복제 + popover 편집:</strong> 각 옵션 = 박스히어로 SKU 1:1. 행 클릭 → 인라인 popover 편집 (제품명·박스히어로 SKU·이미지). 매핑 안 된 옵션은 [매핑 필요] 클릭 시 SKU 매핑 큐로 이동.<br>
-    <strong>R2:</strong> 평균매입가 + 재고는 박스히어로 import 후 자동 계산 (sprint 1B + Task 1.1 cogs.py).
+    <strong>인라인 편집:</strong> 행 클릭 → 인라인 popover 편집 (제품명·브랜드·컬러·사이즈·이미지). 사이즈 빈값은 <code style="background:#F1F1F4;padding:1px 5px;border-radius:3px">FREE</code>, 컬러 빈값은 <code style="background:#F1F1F4;padding:1px 5px;border-radius:3px">ONE Color</code> 로 표시됩니다.<br>
+    <strong>평균매입가·재고:</strong> 제품 엑셀 업로드 후 자동 계산됩니다.
   </div>
 </div>
 
@@ -149,20 +148,21 @@
             <input id="popBrand" name="brand" style="width:100%;padding:9px 12px;border:1px solid #CBCCD3;border-radius:5px;font-size:13px;color:#292A2F">
           </div>
           <div>
-            <label style="display:block;font-size:12.5px;color:#292A2F;font-weight:600;margin-bottom:5px">박스히어로 SKU</label>
-            <input id="popBh" name="boxhero_sku" placeholder="(매핑 안됨)" style="width:100%;padding:9px 12px;border:1px solid #CBCCD3;border-radius:5px;font-size:13px;font-family:ui-monospace,monospace;color:#292A2F">
+            <label style="display:block;font-size:12.5px;color:#292A2F;font-weight:600;margin-bottom:5px">바코드</label>
+            <input id="popBarcode" readonly style="width:100%;padding:9px 12px;border:1px solid #E5E8EB;border-radius:5px;font-size:13px;font-family:ui-monospace,monospace;color:#8F91A0;background:#FAFBFC">
           </div>
         </div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
           <div>
-            <label style="display:block;font-size:12.5px;color:#292A2F;font-weight:600;margin-bottom:5px">컬러 표시</label>
-            <input id="popColor" name="color_display" style="width:100%;padding:9px 12px;border:1px solid #CBCCD3;border-radius:5px;font-size:13px;color:#292A2F">
+            <label style="display:block;font-size:12.5px;color:#292A2F;font-weight:600;margin-bottom:5px">컬러 <span style="color:#8F91A0;font-weight:400;font-size:11px">· 빈값 → ONE Color</span></label>
+            <input id="popColor" name="color_display" placeholder="ONE Color" style="width:100%;padding:9px 12px;border:1px solid #CBCCD3;border-radius:5px;font-size:13px;color:#292A2F">
           </div>
           <div>
-            <label style="display:block;font-size:12.5px;color:#292A2F;font-weight:600;margin-bottom:5px">사이즈 표시</label>
-            <input id="popSize" name="size_display" style="width:100%;padding:9px 12px;border:1px solid #CBCCD3;border-radius:5px;font-size:13px;color:#292A2F">
+            <label style="display:block;font-size:12.5px;color:#292A2F;font-weight:600;margin-bottom:5px">사이즈 <span style="color:#8F91A0;font-weight:400;font-size:11px">· 빈값 → FREE</span></label>
+            <input id="popSize" name="size_display" placeholder="FREE" style="width:100%;padding:9px 12px;border:1px solid #CBCCD3;border-radius:5px;font-size:13px;color:#292A2F">
           </div>
         </div>
+        <input id="popBh" type="hidden" name="boxhero_sku" value="">
         <div>
           <label style="display:block;font-size:12.5px;color:#292A2F;font-weight:600;margin-bottom:5px">제품 이미지</label>
           <input type="file" name="image" accept="image/*" style="width:100%;padding:7px;border:1px solid #CBCCD3;border-radius:5px;font-size:12px">
@@ -171,7 +171,7 @@
         <div style="background:#F1F1F4;border-radius:5px;padding:10px 12px;font-size:11.5px;color:#8F91A0;display:flex;gap:14px">
           <span>평균매입가 <strong id="popAvg" style="color:#292A2F"></strong> 원</span>
           <span>재고 <strong id="popStock" style="color:#292A2F"></strong></span>
-          <span style="margin-left:auto">박스히어로 import → 자동 계산</span>
+          <span style="margin-left:auto">제품 엑셀 업로드 시 자동 계산</span>
         </div>
       </div>
       <div style="display:flex;gap:8px;align-items:center;padding-top:14px;margin-top:14px;border-top:1px solid #F1F1F4">
@@ -189,6 +189,7 @@ function openItemPopover(tr){
   document.getElementById('popName').value = tr.dataset.name || '';
   document.getElementById('popBrand').value = tr.dataset.brand || '';
   document.getElementById('popBh').value = tr.dataset.bh || '';
+  document.getElementById('popBarcode').value = tr.dataset.barcode || '';
   document.getElementById('popColor').value = tr.dataset.color || '';
   document.getElementById('popSize').value = tr.dataset.size || '';
   document.getElementById('popAvg').textContent = Number(tr.dataset.avg || 0).toLocaleString();
@@ -200,6 +201,124 @@ function closeItemPopover(){
   document.getElementById('itemPopover').style.display = 'none';
 }
 document.addEventListener('keydown', e=>{if(e.key==='Escape'){closeItemPopover();closeWipeModal();}});
+
+// ============ AJAX 라이브 검색 — 새로고침 없이 ============
+(function(){
+  const form = document.getElementById('filterForm');
+  if(!form) return;
+  const tbody = document.getElementById('itemsTbody');
+  const totalEl = document.getElementById('totalCount');
+  const kpiAll = document.getElementById('kpiAll');
+  const kpiInStock = document.getElementById('kpiInStock');
+  const kpiQty = document.getElementById('kpiQty');
+  const reset = document.getElementById('filterReset');
+  let inflight = null;
+
+  function fmt(n){ return Number(n||0).toLocaleString(); }
+  function esc(s){ return String(s==null?'':s).replace(/[<>&"]/g,c=>({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'}[c])); }
+
+  function buildRow(o){
+    const colorMissing = !o.color_raw;
+    const sizeMissing = !o.size_raw;
+    const tr = document.createElement('tr');
+    tr.style.cssText = 'border-bottom:1px solid #F1F1F4;cursor:pointer';
+    tr.onmouseover = function(){ this.style.background='#FAFBFC'; };
+    tr.onmouseout = function(){ this.style.background=''; };
+    tr.onclick = function(){ openItemPopover(this); };
+    tr.dataset.sku = o.sku;
+    tr.dataset.bh = o.bh;
+    tr.dataset.barcode = o.barcode;
+    tr.dataset.name = o.name;
+    tr.dataset.modelCode = o.model_code;
+    tr.dataset.brand = o.brand;
+    tr.dataset.color = o.color_raw;
+    tr.dataset.size = o.size_raw;
+    tr.dataset.avg = o.avg;
+    tr.dataset.stock = o.stock;
+    const stockColor = o.stock > 0 ? '#22C55E' : '#8F91A0';
+    const avgCell = o.avg > 0
+      ? fmt(o.avg)
+      : '<span style="color:#8F91A0">—</span>';
+    tr.innerHTML =
+      `<td style="padding:9px 10px;font-family:ui-monospace,monospace;font-size:11px;color:#292A2F">${esc(o.sku)}</td>` +
+      `<td style="padding:9px 10px;font-family:ui-monospace,monospace;font-size:11px;color:${o.barcode?'#292A2F':'#8F91A0'}">${esc(o.barcode || '—')}</td>` +
+      `<td style="padding:9px 10px;color:#292A2F">${esc(o.brand || '—')}</td>` +
+      `<td style="padding:9px 10px"><div style="font-weight:500;color:#292A2F">${esc(o.name || '—')}</div></td>` +
+      `<td style="padding:9px 10px;color:#8F91A0;font-family:ui-monospace,monospace;font-size:11px">${esc(o.model_code || '—')}</td>` +
+      `<td style="padding:9px 10px;color:${colorMissing?'#8F91A0':'#292A2F'}">${esc(o.color)}</td>` +
+      `<td style="padding:9px 10px;color:${sizeMissing?'#8F91A0':'#292A2F'}">${esc(o.size)}</td>` +
+      `<td style="padding:9px 10px;text-align:right;font-variant-numeric:tabular-nums;color:#292A2F">${avgCell}</td>` +
+      `<td style="padding:9px 10px;text-align:right;font-weight:600;font-variant-numeric:tabular-nums;color:${stockColor}">${o.stock}</td>` +
+      `<td style="padding:9px 10px;text-align:center"><span style="color:#4F67FF;font-size:12px">✎</span></td>`;
+    return tr;
+  }
+
+  function render(data){
+    if(!tbody) return;
+    tbody.innerHTML = '';
+    if(!data.items || data.items.length === 0){
+      const tr = document.createElement('tr');
+      tr.innerHTML = '<td colspan="10" style="padding:32px;text-align:center;color:#8F91A0">조회 결과 없음</td>';
+      tbody.appendChild(tr);
+    } else {
+      const frag = document.createDocumentFragment();
+      data.items.forEach(o => frag.appendChild(buildRow(o)));
+      tbody.appendChild(frag);
+    }
+    if(totalEl) totalEl.textContent = fmt(data.total);
+    if(kpiAll) kpiAll.textContent = fmt(data.kpi.all_options);
+    if(kpiInStock){
+      kpiInStock.textContent = fmt(data.kpi.in_stock);
+      kpiInStock.style.color = data.kpi.in_stock > 0 ? '#22C55E' : '#8F91A0';
+    }
+    if(kpiQty) kpiQty.textContent = fmt(data.kpi.total_qty);
+  }
+
+  function urlParams(){
+    const fd = new FormData(form);
+    const sp = new URLSearchParams();
+    for(const [k,v] of fd.entries()) sp.append(k, v);
+    sp.append('format', 'json');
+    return sp;
+  }
+
+  function liveFetch(pushHistory){
+    if(inflight) inflight.abort();
+    const ctrl = new AbortController();
+    inflight = ctrl;
+    const sp = urlParams();
+    fetch(form.action + '?' + sp.toString(), { signal: ctrl.signal, headers: {Accept:'application/json'} })
+      .then(r => r.ok ? r.json() : Promise.reject(r.statusText))
+      .then(data => {
+        render(data);
+        if(pushHistory){
+          // history URL 만 갱신 (브라우저 뒤로가기 호환)
+          const sp2 = urlParams();
+          sp2.delete('format');
+          const next = sp2.toString();
+          history.replaceState(null, '', next ? '?' + next : location.pathname);
+          // 초기화 링크 토글
+          if(reset){
+            const any = !!(sp2.get('q') || sp2.get('brand') || sp2.get('in_stock_only'));
+            reset.style.display = any ? '' : 'none';
+          }
+        }
+        inflight = null;
+      })
+      .catch(err => { if(err && err.name === 'AbortError') return; console.warn('[live-search]', err); });
+  }
+
+  form.addEventListener('submit', function(e){
+    e.preventDefault();
+    liveFetch(true);
+  });
+  form.addEventListener('change', function(e){
+    // brand / in_stock_only 변경 시 자동 fetch (입력 없이 새로고침 없도록)
+    if(e.target.matches('select[name="brand"], input[name="in_stock_only"]')){
+      liveFetch(true);
+    }
+  });
+})();
 
 function closeWipeModal(){
   document.getElementById('wipeModal').style.display='none';

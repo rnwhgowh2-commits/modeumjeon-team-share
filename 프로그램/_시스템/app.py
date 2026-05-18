@@ -65,6 +65,17 @@ def create_app() -> Flask:
         except (ValueError, TypeError):
             return []
 
+    # 컬러·사이즈 표시 기본값 — 빈값 → "ONE Color" / "FREE"
+    @app.template_filter('color_or_default')
+    def _color_or_default(value):
+        s = (str(value).strip() if value is not None else '')
+        return s if s else 'ONE Color'
+
+    @app.template_filter('size_or_default')
+    def _size_or_default(value):
+        s = (str(value).strip() if value is not None else '')
+        return s if s else 'FREE'
+
     @app.get("/mockup/<path:filename>")
     def mockup(filename):
         """docs/mockups/ HTML 파일 서빙 — 디자인 시안 미리보기."""
