@@ -129,7 +129,8 @@ document.querySelectorAll('.label').forEach(el => {
 
   // 디자인별 마크업 — 폰트 굵기·요소 간 여백 적용
   let inner = '';
-  const wrap = `style="width:100%;height:100%;box-sizing:border-box;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:${sPad};text-align:center;background:#fff;color:#000;overflow:hidden"`;
+  // white-space:nowrap = 모든 텍스트 자식 줄바꿈 금지 (overflow:hidden 으로 cell 가장자리 클립)
+  const wrap = `style="width:100%;height:100%;box-sizing:border-box;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:${sPad};text-align:center;background:#fff;color:#000;overflow:hidden;white-space:nowrap"`;
   const svg = `<div style="width:${sBcw}mm;height:${sBch}mm;margin-top:${gAB};margin-bottom:${gBC};flex-shrink:0;overflow:hidden;"><svg class="ds-bc" data-code="${code}" width="${sBcw}mm" height="${sBch}mm" preserveAspectRatio="none" style="display:block;"></svg></div>`;
   const codeStr = code + (isAuto ? ' <span style="color:#F59E0B;font-size:'+(parseFloat(sCode)*0.8)+'pt">★ 자동</span>' : '');
   const bundleTag = isBundle ? `<div class="bundle-tag">묶음</div>` : '';
