@@ -1,4 +1,4 @@
-"""맵핑 (모음전 상품 ↔ 재고관리 SKU) 라우트 — 차원·캐노니컬·별칭 CRUD.
+"""맵핑 (모음전 상품 ↔ 재고관리 SKU) 라우트 — 차원·캐노니컬·별칭 CRUD + 자동 매칭.
 
 V5 아코디언 UI. 사이드바 양쪽 (모음전 + 재고관리) 동일 URL.
 """
@@ -6,6 +6,7 @@ from flask import Blueprint, render_template, request, jsonify, redirect, url_fo
 
 from shared.db import SessionLocal
 from lemouton.mapping.models import AliasDimension, AliasCanonical, AliasMapping
+from lemouton.mapping.matcher import match_options_batch, learn_alias
 
 
 bp = Blueprint("mapping", __name__, url_prefix="/mapping")
@@ -212,6 +213,98 @@ def alias_delete(m_id):
     finally:
         s.close()
     return redirect(url_for("mapping.index"))
+
+
+# ============ Playground — 자동 매칭 흐름 페이지 ============
+
+@bp.get("/match/playground")
+def match_playground():
+    """모음전 옵션 → 자동 매칭 → 검토 → picker → 학습 흐름 데모 페이지.
+
+    실제 모음전(bundles) 페이지에 다음 사이클에 부착할 컴포넌트의 검증 페이지.
+    """
+    s = SessionLocal()
+    try:
+        dims = (
+            s.query(AliasDimension)
+            .filter(AliasDimension.is_active.is_(True))
+            .order_by(AliasDimension.sort_order, AliasDimension.id)
+            .all()
+        )
+        return render_template("mapping/playground.html", active="mapping", dimensions=dims)
+    finally:
+        s.close()
+
+
+@bp.post("/match/run")
+def match_run():
+    """JSON API — market_values 리스트 받아 매칭 결과 반환.
+
+    Request:
+      { "rows": [{"모델":"클래식","색상":"파랑","사이즈":"230mm"}, ...] }
+    Response:
+      {
+        "results": [
+          {
+            "row_index": 0,
+            "status": "auto" | "review" | "unmatched",
+            "canonical": {"모델":"르무통 클래식","색상":"블루","사이즈":"230"},
+            "matched_by": ["alias","alias","alias"],
+            "unmatched_dims": [],
+          },
+          ...
+        ],
+        "summary": {"total": N, "auto": x, "review": y, "unmatched": z}
+      }
+    """
+    payload = request.get_json(silent=True) or {}
+    rows = payload.get("rows") or []
+    s = SessionLocal()
+    try:
+        results = match_options_batch(s, rows)
+        summary = {"total": len(results), "auto": 0, "review": 0, "unmatched": 0}
+        out = []
+        for i, r in enumerate(results):
+            summary[r.status] += 1
+            out.append({
+                "row_index": i,
+                "status": r.status,
+                "canonical": r.canonical_values,
+                "matched_by": [m.matched_by for m in r.dim_matches],
+                "unmatched_dims": r.unmatched_dims,
+            })
+        return jsonify({"results": out, "summary": summary})
+    finally:
+        s.close()
+
+
+@bp.post("/match/learn")
+def match_learn():
+    """사용자가 수동 매핑한 결과를 사전에 학습.
+
+    Request:
+      { "dimension":"색상", "market_value":"다크그레이", "canonical":"그레이" }
+    Response: { "ok": true, "id": N }
+    """
+    payload = request.get_json(silent=True) or {}
+    dim = (payload.get("dimension") or "").strip()
+    mv = (payload.get("market_value") or "").strip()
+    cv = (payload.get("canonical") or "").strip()
+    if not dim or not mv or not cv:
+        return jsonify({"ok": False, "error": "missing"}), 400
+    s = SessionLocal()
+    try:
+        m = learn_alias(s, dim, mv, cv)
+        if m is None:
+            s.rollback()
+            return jsonify({"ok": False, "error": "duplicate_or_invalid"})
+        s.commit()
+        return jsonify({"ok": True, "id": m.id})
+    except Exception as e:
+        s.rollback()
+        return jsonify({"ok": False, "error": str(e)}), 500
+    finally:
+        s.close()
 
 
 # ============ Seed (초기 기본 차원) ============
