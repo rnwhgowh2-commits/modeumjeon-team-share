@@ -191,6 +191,13 @@ document.querySelectorAll('svg.ds-bc').forEach(svg => {
       lineColor: '#000000',
       flat: true,              // bar 끝 평평하게 (라운드 없음 — 엣지 또렷)
     });
+    // JsBarcode 가 width/height attribute 로 크기 고정 → max-height 무시됨
+    // attribute 제거 + style 재설정 → CSS max-height 가 viewBox aspect 따라 적용
+    svg.removeAttribute('width');
+    svg.removeAttribute('height');
+    svg.style.width = '100%';
+    svg.style.height = 'auto';
+    svg.style.maxHeight = sBchMaxMm + 'mm';
   } catch (e) {
     svg.outerHTML = '<div style="font-size:5.5pt;color:#EF4444">⚠ ' + c.substring(0,30) + '</div>';
   }
