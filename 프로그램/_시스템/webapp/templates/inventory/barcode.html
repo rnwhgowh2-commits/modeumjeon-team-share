@@ -465,7 +465,7 @@ function _renderBarcodeIn(wrap, bcWidth, bcMargin) {
     const wM = svg.getAttribute('width');
     const hM = svg.getAttribute('height');
     try {
-      JsBarcode(svg, c, {format:'CODE128', width:bcWidth, height:60, displayValue:false, margin:bcMargin, background:'#ffffff', lineColor:'#000000', flat:true});
+      JsBarcode(svg, c, {format:'CODE128', width:bcWidth, height:60, displayValue:false, margin:bcMargin, marginTop:0, marginBottom:0, background:'#ffffff', lineColor:'#000000', flat:true});
       svg.setAttribute('width', wM);
       svg.setAttribute('height', hM);
       svg.setAttribute('preserveAspectRatio', 'none');
