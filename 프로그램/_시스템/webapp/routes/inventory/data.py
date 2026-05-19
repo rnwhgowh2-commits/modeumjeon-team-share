@@ -833,6 +833,9 @@ def data_items_export():
             if not display_model and brand and raw_pname.startswith(brand):
                 # 폴백 — 브랜드만 strip
                 display_model = raw_pname[len(brand):].strip()
+            # brand strip — disp_model 가 brand 로 시작하면 중복 제거
+            if display_model and brand and display_model.startswith(brand):
+                display_model = display_model[len(brand):].strip()
             if display_model:
                 # 색상이 display_model 끝에 붙어있으면 떼기 (raw_pname == "브랜드 모델 색상" 의 경우)
                 if color and display_model.endswith(color):

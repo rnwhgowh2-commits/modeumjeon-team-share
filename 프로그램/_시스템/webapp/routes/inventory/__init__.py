@@ -150,6 +150,9 @@ def home():
                 disp_model = prefix
             if not disp_model and brand_v and raw_pname.startswith(brand_v):
                 disp_model = raw_pname[len(brand_v):].strip()
+            # brand strip — disp_model 가 brand 로 시작하면 중복 제거
+            if disp_model and brand_v and disp_model.startswith(brand_v):
+                disp_model = disp_model[len(brand_v):].strip()
             if disp_model:
                 # 색상이 끝에 붙어있으면 strip
                 if cleaned and cleaned != 'one' and disp_model.endswith(cleaned):
