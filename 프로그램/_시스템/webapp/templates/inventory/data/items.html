@@ -59,11 +59,11 @@
           <th style="padding:11px 10px;text-align:left;font-size:11px;color:#292A2F;font-weight:600">브랜드</th>
           <th style="padding:11px 10px;text-align:left;font-size:11px;color:#292A2F;font-weight:600">제품명</th>
           <th style="padding:11px 10px;text-align:left;font-size:11px;color:#292A2F;font-weight:600">품번</th>
-          <th style="padding:11px 10px;text-align:left;font-size:11px;color:#292A2F;font-weight:600">모델명</th>
-          <th style="padding:11px 10px;text-align:left;font-size:11px;color:#292A2F;font-weight:600">컬러</th>
+          <th style="padding:11px 10px;text-align:left;font-size:11px;color:#292A2F;font-weight:600">색상</th>
           <th style="padding:11px 10px;text-align:left;font-size:11px;color:#292A2F;font-weight:600">사이즈</th>
           <th style="padding:11px 10px;text-align:right;font-size:11px;color:#292A2F;font-weight:600">평균매입가</th>
           <th style="padding:11px 10px;text-align:right;font-size:11px;color:#292A2F;font-weight:600">총재고</th>
+          {% for loc in locs %}<th style="padding:11px 10px;text-align:right;font-size:11px;color:#3182F6;font-weight:600;background:#EFF6FF">{{ loc.name }}</th>{% endfor %}
           <th style="padding:11px 10px;text-align:center;font-size:11px;color:#292A2F;font-weight:600;width:60px">편집</th>
         </tr>
       </thead>
@@ -98,7 +98,6 @@
             <div style="font-weight:500;color:#292A2F">{{ _name or '—' }}</div>
           </td>
           <td style="padding:9px 10px;color:{% if _article %}#292A2F{% else %}#8F91A0{% endif %};font-family:ui-monospace,monospace;font-size:11.5px">{{ _article or '—' }}</td>
-          <td style="padding:9px 10px;color:#8F91A0;font-family:ui-monospace,monospace;font-size:11px">{{ _model_code or '—' }}</td>
           <td style="padding:9px 10px;color:{% if _color %}#292A2F{% else %}#8F91A0{% endif %}">{{ _color_shown }}</td>
           <td style="padding:9px 10px;color:{% if _size %}#292A2F{% else %}#8F91A0{% endif %}">{{ _size_shown }}</td>
           <td style="padding:9px 10px;text-align:right;font-variant-numeric:tabular-nums;color:#292A2F">
@@ -108,12 +107,16 @@
           <td style="padding:9px 10px;text-align:right;font-weight:600;font-variant-numeric:tabular-nums;color:{% if _rt > 0 %}#22C55E{% else %}#8F91A0{% endif %}">
             {{ _rt }}
           </td>
+          {% for loc in locs %}
+            {% set _lst = (per_loc_stock.get(opt.canonical_sku, {}).get(loc.id, 0)) if per_loc_stock else 0 %}
+            <td style="padding:9px 10px;text-align:right;font-variant-numeric:tabular-nums;color:{% if _lst > 0 %}#3182F6{% else %}#9CA3AF{% endif %};background:{% if _lst > 0 %}#F8FBFF{% endif %}">{{ _lst }}</td>
+          {% endfor %}
           <td style="padding:9px 10px;text-align:center">
             <span style="color:#4F67FF;font-size:12px">✎</span>
           </td>
         </tr>
         {% else %}
-        <tr><td colspan="11" style="padding:32px;text-align:center;color:#8F91A0">조회 결과 없음</td></tr>
+        <tr><td colspan="{{ 10 + (locs|length) }}" style="padding:32px;text-align:center;color:#8F91A0">조회 결과 없음</td></tr>
         {% endfor %}
       </tbody>
     </table>
@@ -228,7 +231,10 @@ document.addEventListener('keydown', e=>{if(e.key==='Escape'){closeItemPopover()
   function fmt(n){ return Number(n||0).toLocaleString(); }
   function esc(s){ return String(s==null?'':s).replace(/[<>&"]/g,c=>({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'}[c])); }
 
-  function buildRow(o){
+  // 서버 페이지 초기 렌더 시 사용한 위치 list (헤더 순서 보존) — render() 가 fallback 용으로 사용
+  let _locsCache = null;
+
+  function buildRow(o, locs){
     const colorMissing = !o.color_raw;
     const sizeMissing = !o.size_raw;
     const tr = document.createElement('tr');
@@ -251,31 +257,44 @@ document.addEventListener('keydown', e=>{if(e.key==='Escape'){closeItemPopover()
     const avgCell = o.avg > 0
       ? fmt(o.avg)
       : '<span style="color:#8F91A0">—</span>';
+    // 위치별 재고 cell HTML 생성
+    let locCells = '';
+    if (locs && locs.length) {
+      for (const L of locs) {
+        const v = (o.loc_stock && o.loc_stock[String(L.id)]) || 0;
+        const color = v > 0 ? '#3182F6' : '#9CA3AF';
+        const bg = v > 0 ? '#F8FBFF' : '';
+        locCells += `<td style="padding:9px 10px;text-align:right;font-variant-numeric:tabular-nums;color:${color};background:${bg}">${v}</td>`;
+      }
+    }
     tr.innerHTML =
       `<td style="padding:9px 10px;font-family:ui-monospace,monospace;font-size:11px;color:#292A2F">${esc(o.sku)}</td>` +
       `<td style="padding:9px 10px;font-family:ui-monospace,monospace;font-size:11px;color:${o.barcode?'#292A2F':'#8F91A0'}">${esc(o.barcode || '—')}</td>` +
       `<td style="padding:9px 10px;color:#292A2F">${esc(o.brand || '—')}</td>` +
       `<td style="padding:9px 10px"><div style="font-weight:500;color:#292A2F">${esc(o.name || '—')}</div></td>` +
       `<td style="padding:9px 10px;color:${o.article_no?'#292A2F':'#8F91A0'};font-family:ui-monospace,monospace;font-size:11.5px">${esc(o.article_no || '—')}</td>` +
-      `<td style="padding:9px 10px;color:#8F91A0;font-family:ui-monospace,monospace;font-size:11px">${esc(o.model_code || '—')}</td>` +
       `<td style="padding:9px 10px;color:${colorMissing?'#8F91A0':'#292A2F'}">${esc(o.color)}</td>` +
       `<td style="padding:9px 10px;color:${sizeMissing?'#8F91A0':'#292A2F'}">${esc(o.size)}</td>` +
       `<td style="padding:9px 10px;text-align:right;font-variant-numeric:tabular-nums;color:#292A2F">${avgCell}</td>` +
       `<td style="padding:9px 10px;text-align:right;font-weight:600;font-variant-numeric:tabular-nums;color:${stockColor}">${o.stock}</td>` +
+      locCells +
       `<td style="padding:9px 10px;text-align:center"><span style="color:#4F67FF;font-size:12px">✎</span></td>`;
     return tr;
   }
 
   function render(data){
     if(!tbody) return;
+    if (data.locs) _locsCache = data.locs;
+    const locs = data.locs || _locsCache || [];
+    const totalCols = 10 + locs.length;
     tbody.innerHTML = '';
     if(!data.items || data.items.length === 0){
       const tr = document.createElement('tr');
-      tr.innerHTML = '<td colspan="11" style="padding:32px;text-align:center;color:#8F91A0">조회 결과 없음</td>';
+      tr.innerHTML = `<td colspan="${totalCols}" style="padding:32px;text-align:center;color:#8F91A0">조회 결과 없음</td>`;
       tbody.appendChild(tr);
     } else {
       const frag = document.createDocumentFragment();
-      data.items.forEach(o => frag.appendChild(buildRow(o)));
+      data.items.forEach(o => frag.appendChild(buildRow(o, locs)));
       tbody.appendChild(frag);
     }
     if(totalEl) totalEl.textContent = fmt(data.total);

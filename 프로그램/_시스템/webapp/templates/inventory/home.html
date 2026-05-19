@@ -178,6 +178,7 @@
               <th style="padding:8px;text-align:left;font-size:10.5px;color:#6B7684">사이즈</th>
               <th style="padding:8px;text-align:right;font-size:10.5px;color:#6B7684">평균매입가</th>
               <th style="padding:8px;text-align:right;font-size:10.5px;color:#6B7684">총재고</th>
+              {% for loc in all_locs %}<th style="padding:8px;text-align:right;font-size:10.5px;color:#3182F6;background:#EFF6FF">{{ loc.name }}</th>{% endfor %}
             </tr>
           </thead>
           <tbody>
@@ -199,9 +200,13 @@
                 <td style="padding:7px 8px;font-size:11.5px;color:#4E5968">{{ _size }}</td>
                 <td style="padding:7px 8px;text-align:right;font-family:ui-monospace,monospace;color:{% if (o.boxhero_avg_purchase_price or 0) > 0 %}#191F28{% else %}#9CA3AF{% endif %}">{% if o.boxhero_avg_purchase_price %}{{ '{:,}'.format(o.boxhero_avg_purchase_price) }}{% else %}—{% endif %}</td>
                 <td style="padding:7px 8px;text-align:right;font-weight:600;font-family:ui-monospace,monospace;color:{% if _rt > 0 %}#7C3AED{% else %}#9CA3AF{% endif %}">{{ _rt }}</td>
+                {% for loc in all_locs %}
+                  {% set _lst = (per_loc_stock.get(o.canonical_sku, {}).get(loc.id, 0)) if per_loc_stock is defined else 0 %}
+                  <td style="padding:7px 8px;text-align:right;font-family:ui-monospace,monospace;color:{% if _lst > 0 %}#3182F6{% else %}#9CA3AF{% endif %};background:{% if _lst > 0 %}#F8FBFF{% endif %}">{{ _lst }}</td>
+                {% endfor %}
               </tr>
             {% else %}
-              <tr><td colspan="9" style="padding:32px;text-align:center;color:#9CA3AF">옵션 없음</td></tr>
+              <tr><td colspan="{{ 9 + (all_locs|length) }}" style="padding:32px;text-align:center;color:#9CA3AF">옵션 없음</td></tr>
             {% endfor %}
           </tbody>
         </table>
