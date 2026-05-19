@@ -101,11 +101,12 @@
                   </form>
                 </span>
               {% endfor %}
-              <form method="post" action="{{ url_for('mapping.alias_create') }}" style="display:inline-flex;align-items:center">
+              <form method="post" action="{{ url_for('mapping.alias_create') }}" class="alias-form" style="display:inline-flex;align-items:center;position:relative"
+                    onsubmit="event.preventDefault();submitAlias(this);return false">
                 <input type="hidden" name="canonical_id" value="{{ c.id }}">
-                <input name="alias" placeholder="+ 동의어"
+                <input name="alias" placeholder="+ 동의어" autocomplete="off"
                        style="border:1px dashed #BFDBFE;border-radius:10px;padding:7px 14px;font-size:16px;color:#1B64DA;background:#fff;min-width:140px;outline:none;font-family:inherit"
-                       onkeydown="if(event.key==='Enter')this.form.submit()">
+                       onkeydown="if(event.key==='Enter'){event.preventDefault();submitAlias(this.form)}">
               </form>
             </div>
           </td>
@@ -149,5 +150,58 @@
     });
   });
 })();
+
+// ===== 동의어 추가 — fetch 로 inline 처리 (페이지 이동·JSON raw 노출 방지) =====
+async function submitAlias(form) {
+  const aliasInput = form.querySelector('input[name=alias]');
+  const aliasVal = (aliasInput.value || '').trim();
+  if (!aliasVal) return;
+  const canonicalId = form.querySelector('input[name=canonical_id]').value;
+  try {
+    const fd = new FormData(form);
+    const r = await fetch(form.action, {
+      method: 'POST',
+      body: fd,
+      headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+    });
+    const j = await r.json();
+    if (j.ok) {
+      // 새 chip DOM insert (수동 추가 = manual = 파란색)
+      const chip = document.createElement('span');
+      chip.style.cssText = 'display:inline-flex;align-items:center;gap:4px;background:#EFF6FF;color:#1B64DA;border:1px solid #BFDBFE;border-radius:10px;padding:7px 8px 7px 14px;font-size:16px;font-weight:500';
+      chip.innerHTML = `${escapeText(aliasVal)} <form method="post" action="/mapping/alias/${j.id}/delete" style="display:inline"><button type="submit" style="background:transparent;border:0;color:#9CA3AF;cursor:pointer;padding:0 6px;font-size:16px;line-height:1">×</button></form>`;
+      form.parentNode.insertBefore(chip, form);
+      aliasInput.value = '';
+      aliasInput.focus();
+    } else {
+      const msg = j.error === 'duplicate' ? '이미 등록된 동의어'
+                : j.error === 'missing'   ? '동의어를 입력하세요'
+                : '추가 실패';
+      flashError(aliasInput, msg);
+    }
+  } catch (e) {
+    flashError(aliasInput, '네트워크 오류');
+  }
+}
+
+function flashError(input, msg) {
+  const origBorder = input.style.borderColor;
+  const origColor = input.style.color;
+  input.style.borderColor = '#DC2626';
+  input.style.color = '#DC2626';
+  const t = document.createElement('div');
+  t.textContent = msg;
+  t.style.cssText = 'position:absolute;top:100%;left:0;background:#FEF2F2;border:1px solid #FCA5A5;color:#991B1B;padding:5px 10px;border-radius:6px;font-size:13px;margin-top:4px;z-index:100;white-space:nowrap';
+  input.parentNode.appendChild(t);
+  setTimeout(() => {
+    input.style.borderColor = origBorder;
+    input.style.color = origColor;
+    t.remove();
+  }, 1800);
+}
+
+function escapeText(s) {
+  return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
 </script>
 {% endblock %}
