@@ -47,17 +47,16 @@ def strip_brand_tokens(name: str, brand: str) -> str:
 
 
 def format_pname_single(brand: str | None, name: str | None, *, fallback: str = '') -> str:
-    """단일 SKU 의 제품명 = brand + (name 안의 brand 토큰 제거).
+    """단일 SKU 의 제품명 = 모델명 (brand 안의 토큰 제거).
 
-    그룹 LCP 없이도 brand 중복 제거. 매트릭스/리스트가 아닌 단일 표시 화면용.
+    브랜드는 별도 컬럼/필드로 표시되므로 제품명에 prepend 안 함.
+    예: brand='나이키', name='(W) 나이키 코르테즈 텍스타일' → '(W) 코르테즈 텍스타일'
     """
     brand_v = (brand or '').strip()
     name_v = (name or '').strip()
     if not name_v:
         return fallback
     cleaned_name = strip_brand_tokens(name_v, brand_v) if brand_v else name_v
-    if brand_v:
-        return f'{brand_v} {cleaned_name}'.strip()
     return cleaned_name
 
 
@@ -131,8 +130,10 @@ def compute_display_maps(
             # 색상이 끝에 붙어있으면 strip
             if cleaned and cleaned != one_color_label and disp_model.endswith(cleaned):
                 disp_model = disp_model[:-len(cleaned)].strip()
-            display_pname[sku] = (f'{brand_v} {disp_model}'.strip() if brand_v else disp_model)
+            # 제품명 = 모델명만 (브랜드는 별도 컬럼이라 prepend 안 함)
+            display_pname[sku] = disp_model
         else:
-            display_pname[sku] = raw_pname or sku
+            # 폴백 — raw_pname 안에 brand 가 박혀있으면 토큰 strip
+            display_pname[sku] = strip_brand_tokens(raw_pname, brand_v) if (raw_pname and brand_v) else (raw_pname or sku)
 
     return cleaned_color, display_pname
