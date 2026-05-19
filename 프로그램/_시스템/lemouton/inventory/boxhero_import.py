@@ -65,25 +65,67 @@ def _derive_model_code(brand: str | None, model_name: str | None, fallback_sku: 
     return raw.replace(' ', '_').replace('/', '_')[:64]
 
 
+def _lcp_words(strs: list[str]) -> str:
+    """단어 경계 (공백) 까지의 longest common prefix. 색상 그룹 LCP → 모델명 도출용."""
+    if len(strs) < 2:
+        return ''
+    ss = sorted(strs)
+    first, last = ss[0], ss[-1]
+    i = 0
+    while i < len(first) and i < len(last) and first[i] == last[i]:
+        i += 1
+    cp = first[:i]
+    while cp and not cp[-1].isspace():
+        cp = cp[:-1]
+    return cp.strip()
+
+
 def _auto_create_master(session: Session, records: list[dict]) -> dict:
     """ADR-005 자동 생성: 박스히어로 record → Model + Option (1:1).
 
     페이지 헤더 '모음전 옵션 = 박스히어로 SKU 1:1' 의도와 일치.
     canonical_sku = 박스히어로 SKU 그대로, boxhero_sku = 자기 자신.
+
+    추가 (LCP 정리): 같은 model_code 그룹의 color_text 들 LCP → 모델명 자동 도출.
+    각 옵션의 color_display 에서 그 prefix 떼고 저장. Model.model_name_display 에도 LCP 저장.
     """
+    from collections import defaultdict
     created_models = 0
     created_options = 0
     seen_models = set()
 
+    # 1st pass — model_code 별로 color_text 그룹화 + LCP 도출
+    color_by_model: dict[str, list[str]] = defaultdict(list)
+    for r in records:
+        brand_p = (r.get('brand') or '').strip() or '미상'
+        model_name_p = (r.get('model_name') or '').strip()
+        canonical_p = r['sku']
+        mc = _derive_model_code(brand_p, model_name_p, canonical_p)
+        c = (r.get('color_text') or '').strip()
+        if c:
+            color_by_model[mc].append(c)
+    model_lcp: dict[str, str] = {}
+    for mc, colors in color_by_model.items():
+        cp = _lcp_words(colors)
+        if cp and len(cp) >= 2:
+            model_lcp[mc] = cp
+
     for r in records:
         brand = (r.get('brand') or '').strip() or '미상'
         model_name = (r.get('model_name') or '').strip()
-        # 우리 양식 정책 — 빈 컬러 → 'ONE Color', 빈 사이즈 → 'FREE'
-        color = (r.get('color_text') or '').strip() or 'ONE Color'
-        size = (r.get('size') or '').strip() or 'FREE'
+        raw_color = (r.get('color_text') or '').strip()
+        size = (r.get('size') or '').strip() or '-'
         canonical = r['sku']
 
         model_code = _derive_model_code(brand, model_name, canonical)
+
+        # LCP 정리 — 색상에서 모델명 prefix strip
+        lcp = model_lcp.get(model_code, '')
+        if lcp and raw_color.startswith(lcp):
+            cleaned_color = raw_color[len(lcp):].strip()
+        else:
+            cleaned_color = raw_color
+        color = cleaned_color or '-'
 
         if model_code not in seen_models:
             existed = session.query(Model).filter_by(model_code=model_code).first()
@@ -94,11 +136,13 @@ def _auto_create_master(session: Session, records: list[dict]) -> dict:
                 brand=brand[:100],
             )
             # 품번 (article_no) — 박스히어로 'model_name' 컬럼 = 품번.
-            # 기존 값 있으면 보존 (사용자 우리 시스템에서 직접 편집한 값 우선).
             m_obj = session.query(Model).filter_by(model_code=model_code).first()
             article = (r.get('article_no') or model_name or '').strip()
             if m_obj and article and not getattr(m_obj, 'article_no', None):
                 m_obj.article_no = article[:64]
+            # 모델명 (display) — LCP 결과를 model_name_display 에 저장 (기존 값 보존)
+            if m_obj and lcp and not (m_obj.model_name_display or '').strip():
+                m_obj.model_name_display = lcp[:255]
             seen_models.add(model_code)
             if existed is None:
                 created_models += 1

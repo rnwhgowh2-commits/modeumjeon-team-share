@@ -73,6 +73,69 @@ def data_product_image(filename):
     return send_from_directory(str(UPLOAD_DIR), filename)
 
 
+@bp.post('/data/items/auto-clean-colors')
+def data_items_auto_clean_colors():
+    """LCP 알고리즘으로 모든 옵션의 color_display + Model.model_name_display 일괄 정리.
+
+    같은 model_code 그룹의 color_display 들의 LCP = 모델명.
+    각 옵션의 color_display 에서 그 prefix strip + Model.model_name_display 에 LCP 저장.
+    """
+    from collections import defaultdict
+    s = SessionLocal()
+    try:
+        options = s.query(Option).all()
+        color_by_model: dict[str, list[str]] = defaultdict(list)
+        for o in options:
+            raw_c = (o.color_display or o.color_code or '').strip()
+            if raw_c and o.model_code:
+                color_by_model[o.model_code].append(raw_c)
+
+        def _lcp(strs):
+            if len(strs) < 2:
+                return ''
+            ss = sorted(strs)
+            first, last = ss[0], ss[-1]
+            i = 0
+            while i < len(first) and i < len(last) and first[i] == last[i]:
+                i += 1
+            cp = first[:i]
+            while cp and not cp[-1].isspace():
+                cp = cp[:-1]
+            return cp.strip()
+
+        cleaned_count = 0
+        model_updated = 0
+        opts_by_model: dict[str, list] = defaultdict(list)
+        for o in options:
+            if o.model_code:
+                opts_by_model[o.model_code].append(o)
+
+        for mc, colors in color_by_model.items():
+            cp = _lcp(colors)
+            if not (cp and len(cp) >= 2):
+                continue
+            m = s.query(Model).filter_by(model_code=mc).first()
+            if m and not (m.model_name_display or '').strip():
+                m.model_name_display = cp[:255]
+                model_updated += 1
+            for o in opts_by_model.get(mc, []):
+                raw = (o.color_display or '').strip()
+                if raw.startswith(cp):
+                    new = raw[len(cp):].strip()
+                    if new and new != raw:
+                        o.color_display = new[:64]
+                        cleaned_count += 1
+
+        s.commit()
+        flash(f'✅ 색상 자동 정리 완료 — 옵션 {cleaned_count}개, 모델 {model_updated}개', 'success')
+    except Exception as e:
+        s.rollback()
+        flash(f'❌ 자동 정리 실패: {e}', 'error')
+    finally:
+        s.close()
+    return redirect(url_for('inventory.home'))
+
+
 @bp.post('/data/items/<path:sku>/update')
 def data_item_update(sku):
     """박스히어로 1:1 인라인 popover 편집 — 제품명·박스히어로 SKU·컬러·사이즈·이미지 동시 저장."""
