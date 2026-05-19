@@ -142,14 +142,14 @@
               <tr id="emptyHint"><td colspan="3" style="padding:24px;text-align:center;color:#8F91A0;font-size:12.5px">검색어 입력 시 제품이 노출됩니다 (또는 선택한 제품만 표시)</td></tr>
               {% for o in options %}
                 <tr class="prod-row" style="border-top:1px solid #F1F1F4;display:none" data-search="{{ o.canonical_sku }} {{ o.color_display or o.color_code }} {{ o.size_display or o.size_code }} {{ o.boxhero_sku or '' }}">
-                  <td style="padding:8px;text-align:center"><input type="checkbox" name="sku" value="{{ o.canonical_sku }}" data-name="{{ (o.model.model_name_display or o.model.model_name_raw) if o.model else o.canonical_sku }}" data-attr="{{ o.color_display or o.color_code }} / {{ o.size_display or o.size_code }}" data-bh="{{ o.barcode or o.boxhero_sku or '' }}" style="accent-color:#4F67FF"></td>
+                  <td style="padding:8px;text-align:center"><input type="checkbox" name="sku" value="{{ o.canonical_sku }}" data-name="{{ (o.model.model_name_display or o.model.model_name_raw) if o.model else o.canonical_sku }}" data-size="{{ o.size_display or o.size_code or 'free' }}" data-color="{{ o.color_display or o.color_code or 'one' }}" data-bh="{{ o.barcode or o.boxhero_sku or '' }}" style="accent-color:#4F67FF"></td>
                   <td style="padding:8px">
                     <div style="display:flex;align-items:center;gap:8px">
                       {% if o.image_url %}<img src="{{ o.image_url }}" style="width:32px;height:32px;border-radius:4px;object-fit:cover">
                       {% else %}<div style="width:32px;height:32px;border-radius:4px;background:#F1F1F4;display:flex;align-items:center;justify-content:center;font-size:14px;color:#8F91A0">👟</div>{% endif %}
                       <div>
                         <div style="font-size:12px;font-weight:600;color:#292A2F">{{ o.canonical_sku }}</div>
-                        <div style="font-size:10.5px;color:#8F91A0">{{ o.color_display or o.color_code }} / {{ o.size_display or o.size_code }} / BH={{ o.boxhero_sku or '—' }}</div>
+                        <div style="font-size:10.5px;color:#8F91A0">{{ o.size_display or o.size_code or 'free' }} · {{ o.color_display or o.color_code or 'one' }}</div>
                       </div>
                     </div>
                   </td>
@@ -185,7 +185,7 @@
             {# JS 가 채움 #}
           </div>
         </div>
-        <div style="margin-top:10px;font-size:11.5px;color:#8F91A0;line-height:1.7">★ 박스히어로 1:1 — 좌측에서 라벨 디자인 + 제품 선택 → 우측 라이브 미리보기 → 인쇄.</div>
+        <div style="margin-top:10px;font-size:11.5px;color:#8F91A0;line-height:1.7">★ 좌측에서 라벨 디자인 + 제품 선택 → 우측 라이브 미리보기 → 인쇄.</div>
       </div>
     </div>
   </div>
@@ -308,7 +308,9 @@ function getSelected() {
   document.querySelectorAll('input[name="sku"]:checked').forEach(cb => {
     const qty = parseInt(document.querySelector(`input[name="qty_${cb.value}"]`)?.value) || 1;
     items.push({
-      sku: cb.value, name: cb.dataset.name, attr: cb.dataset.attr,
+      sku: cb.value, name: cb.dataset.name,
+      size: cb.dataset.size || 'free',
+      color: cb.dataset.color || 'one',
       bh: cb.dataset.bh, qty: qty,
       code: cb.dataset.bh || cb.value
     });
@@ -432,28 +434,24 @@ function buildDesignHTML(item, opts) {
   // SVG: 고정 박스 + mm 단위 width/height attr + preserveAspectRatio=none — 어떤 컨텍스트에서도 동일 렌더
   const svg = `<div style="width:${bcw}mm;height:${bch}mm;margin-top:${gAB};margin-bottom:${gBC};flex-shrink:0;overflow:hidden;"><svg class="ds-bc" data-code="${code}" width="${bcw}mm" height="${bch}mm" preserveAspectRatio="none" style="display:block;"></svg></div>`;
 
-  if (variant === '3') {
-    return `<div style="${wrapStyle}">
-      <div style="background:#000;color:#fff;padding:0.5mm 2mm;border-radius:1mm;font-size:${sName};font-weight:${wName};line-height:1.05">${item.name}</div>
-      <div style="font-size:${sAttr};font-weight:${wAttr};color:#555;line-height:1.0;margin-top:${gNA}">${item.attr}</div>
-      ${svg}
-      <div style="font-size:${sCode};font-weight:${wCode};color:#000;font-family:ui-monospace,monospace;line-height:1">${codeDisplay}</div>
-    </div>`;
-  }
-  if (variant === '5') {
-    return `<div style="${wrapStyle}">
-      <div style="font-size:${sName};font-weight:${wName};line-height:1.05">${item.name}</div>
-      <div style="font-size:${sAttr};font-weight:${wAttr};color:#000;line-height:1.0;margin-top:${gNA}">${item.attr}</div>
-      ${svg}
-      <div style="font-size:${sCode};font-weight:${wCode};color:#000;font-family:ui-monospace,monospace;line-height:1">${codeDisplay}</div>
-    </div>`;
-  }
-  return `<div style="${wrapStyle}">
-    <div style="font-size:${sName};font-weight:${wName};line-height:1.05">${item.name}</div>
-    <div style="font-size:${sAttr};font-weight:${wAttr};color:#555;line-height:1.0;margin-top:${gNA}">${item.attr}</div>
-    ${svg}
-    <div style="font-size:${sCode};font-weight:${wCode};color:#000;font-family:ui-monospace,monospace;line-height:1">${codeDisplay}</div>
-  </div>`;
+  // 5-line layout: 제품명 / 사이즈 / 색상 / 바코드 / 바코드번호
+  let size = item.size || 'free';
+  let color = item.color || 'one';
+  // smart fallback — 색상이 제품명과 같으면 'one' 으로 (데이터 정리 안 된 옵션 graceful 처리)
+  if (color === item.name || (color.length > 12 && (item.name || '').includes(color.substring(0, 8)))) color = 'one';
+
+  // 제품명 line (variant 3: 검은 배경 chip)
+  const nameLine = (variant === '3')
+    ? `<div style="background:#000;color:#fff;padding:0.3mm 1.5mm;border-radius:0.5mm;font-size:${sName};font-weight:${wName};line-height:1.05">${item.name}</div>`
+    : `<div style="font-size:${sName};font-weight:${wName};line-height:1.05">${item.name}</div>`;
+  // 사이즈 line (variant 5: 큰 글씨 강조 = settings.attr 자체가 크게 잡혀있음)
+  const sizeLine = `<div style="font-size:${sAttr};font-weight:${wAttr};color:#000;line-height:1.0;margin-top:${gNA}">${size}</div>`;
+  // 색상 line
+  const colorLine = `<div style="font-size:${sAttr};font-weight:${wAttr};color:#555;line-height:1.0">${color}</div>`;
+  // 바코드 번호 line
+  const codeLine = `<div style="font-size:${sCode};font-weight:${wCode};color:#000;font-family:ui-monospace,monospace;line-height:1">${codeDisplay}</div>`;
+
+  return `<div style="${wrapStyle}">${nameLine}${sizeLine}${colorLine}${svg}${codeLine}</div>`;
 }
 
 // Barcode 공통 렌더 헬퍼 — mm 단위 width/height 복원 + preserveAspectRatio=none
