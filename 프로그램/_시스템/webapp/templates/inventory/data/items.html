@@ -68,11 +68,13 @@
       </thead>
       <tbody id="itemsTbody">
         {% for opt in items %}
-        {% set _name = (opt.model.model_name_display or opt.model.model_name_raw or '') if opt.model else '' %}
+        {% set _name_raw = (opt.model.model_name_display or opt.model.model_name_raw or '') if opt.model else '' %}
+        {% set _name = display_pname.get(opt.canonical_sku, _name_raw) if display_pname else _name_raw %}
         {% set _brand = (opt.model.brand or '') if opt.model else '' %}
         {% set _model_code = (opt.model.model_code or '') if opt.model else '' %}
-        {% set _color = opt.color_display or opt.color_code or '' %}
-        {% set _color_shown = _color if _color else 'ONE Color' %}
+        {% set _color_raw = opt.color_display or opt.color_code or '' %}
+        {% set _color_shown = cleaned_color.get(opt.canonical_sku, 'ONE Color') if cleaned_color else (_color_raw or 'ONE Color') %}
+        {% set _color = _color_raw %}
         {% set _size = opt.size_display or opt.size_code or '' %}
         {% set _size_shown = _size if _size else 'FREE' %}
         <tr style="border-bottom:1px solid #F1F1F4;cursor:pointer" onmouseover="this.style.background='#FAFBFC'" onmouseout="this.style.background=''" onclick="openItemPopover(this)"

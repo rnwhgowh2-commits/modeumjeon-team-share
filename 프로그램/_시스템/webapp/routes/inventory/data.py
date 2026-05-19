@@ -332,10 +332,70 @@ def data_items():
             'total_qty': int(total_qty),
         }
 
+        # ★ LCP 색상 정리 + 제품명 brand strip (home() 과 동일 로직)
+        # — 같은 model_code 그룹의 color_display 들 LCP 로 모델명 prefix 추출 → color 에서 strip
+        # — 제품명 = brand + 모델명 (색상 X, brand 중복 X)
+        from collections import defaultdict
+        color_by_model: dict[str, list[str]] = defaultdict(list)
+        for opt in items:
+            raw_c = (opt.color_display or opt.color_code or '').strip()
+            if raw_c and opt.model_code:
+                color_by_model[opt.model_code].append(raw_c)
+
+        def _lcp_words(strs):
+            if len(strs) < 2:
+                return ''
+            ss = sorted(strs)
+            first, last = ss[0], ss[-1]
+            i = 0
+            while i < len(first) and i < len(last) and first[i] == last[i]:
+                i += 1
+            cp = first[:i]
+            while cp and not cp[-1].isspace():
+                cp = cp[:-1]
+            return cp.strip()
+
+        model_lcp_local: dict[str, str] = {}
+        for mc, colors in color_by_model.items():
+            cp = _lcp_words(colors)
+            if cp and len(cp) >= 2:
+                model_lcp_local[mc] = cp
+
+        cleaned_color: dict[str, str] = {}
+        display_pname: dict[str, str] = {}
+        for opt in items:
+            raw_c = (opt.color_display or opt.color_code or '').strip()
+            prefix = model_lcp_local.get(opt.model_code, '') if opt.model_code else ''
+            if prefix and raw_c.startswith(prefix):
+                cleaned = raw_c[len(prefix):].strip() or 'ONE Color'
+            else:
+                cleaned = raw_c or 'ONE Color'
+            # 색상이 제품명/모델명과 통째로 같은 더러운 케이스 → 'ONE Color'
+            _raw_pname = (opt.model.model_name_display or opt.model.model_name_raw) if opt.model else ''
+            if cleaned and _raw_pname and cleaned.strip() == _raw_pname.strip():
+                cleaned = 'ONE Color'
+            cleaned_color[opt.canonical_sku] = cleaned
+
+            brand_v = (opt.model.brand or '').strip() if opt.model else ''
+            raw_pname = (opt.model.model_name_display or opt.model.model_name_raw) if opt.model else opt.canonical_sku
+            disp_model = (opt.model.model_name_display or '').strip() if opt.model else ''
+            if not disp_model:
+                disp_model = prefix
+            if not disp_model and brand_v and raw_pname.startswith(brand_v):
+                disp_model = raw_pname[len(brand_v):].strip()
+            # brand strip — disp_model 가 brand 로 시작하면 중복 제거
+            if disp_model and brand_v and disp_model.startswith(brand_v):
+                disp_model = disp_model[len(brand_v):].strip()
+            if disp_model:
+                # 색상이 끝에 붙어있으면 strip
+                if cleaned and cleaned != 'ONE Color' and disp_model.endswith(cleaned):
+                    disp_model = disp_model[:-len(cleaned)].strip()
+                display_pname[opt.canonical_sku] = (f'{brand_v} {disp_model}'.strip() if brand_v else disp_model)
+            else:
+                display_pname[opt.canonical_sku] = raw_pname or opt.canonical_sku
+
         if want_json:
             from flask import jsonify
-            def _color(o):
-                return (o.color_display or o.color_code or '').strip() or 'ONE Color'
             def _size(o):
                 return (o.size_display or o.size_code or '').strip() or 'FREE'
             rows = [
@@ -343,10 +403,11 @@ def data_items():
                     'sku': o.canonical_sku,
                     'bh': o.boxhero_sku or '',
                     'barcode': o.barcode or '',
-                    'name': (o.model.model_name_display or o.model.model_name_raw or '') if o.model else '',
+                    'name': display_pname.get(o.canonical_sku, ''),
+                    'name_raw': (o.model.model_name_display or o.model.model_name_raw or '') if o.model else '',
                     'model_code': (o.model.model_code or '') if o.model else '',
                     'brand': (o.model.brand or '') if o.model else '',
-                    'color': _color(o),
+                    'color': cleaned_color.get(o.canonical_sku, 'ONE Color'),
                     'color_raw': o.color_display or o.color_code or '',
                     'size': _size(o),
                     'size_raw': o.size_display or o.size_code or '',
@@ -374,6 +435,8 @@ def data_items():
             search_tokens=search_tokens,
             brands=sorted(brands),
             stock_map=stock_map,
+            cleaned_color=cleaned_color,  # ★ LCP strip 색상
+            display_pname=display_pname,  # ★ brand+모델명 (색상 X, brand 중복 X)
             kpi=kpi,
         )
     finally:
