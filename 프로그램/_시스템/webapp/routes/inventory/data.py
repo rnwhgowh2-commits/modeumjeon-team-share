@@ -768,7 +768,8 @@ def data_items_export():
         ws.row_dimensions[1].height = 24
         ws.freeze_panes = 'A2'
 
-        widths = [16, 16, 14, 36, 14, 10, 12, 10] + [12] * len(locs)
+        # 컬럼 너비 — 9 base (SKU, 바코드, 브랜드, 제품명, 품번, 색상, 사이즈, 평균매입가, 총재고) + N 위치
+        widths = [16, 16, 14, 36, 14, 14, 10, 12, 10] + [12] * len(locs)
         for i, w in enumerate(widths):
             ws.column_dimensions[openpyxl.utils.get_column_letter(i + 1)].width = w
 
