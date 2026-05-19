@@ -303,3 +303,30 @@
   border-color: var(--m-border);
   cursor: not-allowed;
 }
+
+/* ═══════════════════════════════════════════════════════════════
+ * popover 헤더 + sale + 기존 혜택 영역 폰트 ×1.3 (사용자 요청)
+ *
+ * 운영 toss.css 의 기본값을 그대로 두고, base.html 에서 toss_add_benefit.css 가
+ * toss.css 다음에 로드되는 cascade 순서를 이용해 후순위로 override.
+ * 색감은 운영 그대로 유지 — 사이즈만 130%.
+ * ═══════════════════════════════════════════════════════════════ */
+
+/* 헤더 (무신사 · SKU 계산식) — 13.5 → 18 */
+.cell-fx-pop h6 { font-size: 18px; }
+.cell-fx-pop h6 .close { font-size: 21px; }
+
+/* sale (마켓 판매가 / 126,900원) — 11 → 14, 22 → 29 */
+.cf-sale .lbl { font-size: 14px; }
+.cf-sale .num { font-size: 29px; }
+.cf-card-chip { font-size: 15px; }
+
+/* 적용 혜택 섹션 헤더 (○ 적용 혜택 (이 옵션) / -5,179원) — 11 → 14 */
+.cell-fx-ben h7 { font-size: 14px; }
+
+/* 혜택 행 (후기 적립 / 현대카드 / test, -500원 등) — 13.5 → 18 */
+.cell-fx-row { font-size: 18px; }
+.cell-fx-row .nm { font-size: 18px; }
+.cell-fx-row .val { font-size: 18px; }
+.cell-fx-row .del { font-size: 17px; }
+
