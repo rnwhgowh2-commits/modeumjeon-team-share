@@ -1,110 +1,135 @@
 {% extends 'base.html' %}
 {% block title %}맵핑 — 모음전 상품 ↔ 재고관리 SKU{% endblock %}
 {% block content %}
-<div style="padding:24px 32px;max-width:1500px;margin:0 auto">
+{# V5(엑셀 표) + V9(카테고리 탭) — 단순화 / 색상 최소 (파랑 1색 강조) #}
+<div style="padding:24px 32px;max-width:1500px;margin:0 auto;color:#191F28">
 
-  <div style="display:flex;align-items:center;gap:12px;margin-bottom:8px">
-    <h1 style="font-size:22px;font-weight:700;margin:0;color:#292A2F">🔗 맵핑</h1>
-    <span style="font-size:12px;color:#8F91A0">모음전 상품 ↔ 재고관리 SKU · 자동 매칭 사전</span>
+  <div style="display:flex;align-items:baseline;gap:10px;margin-bottom:6px">
+    <h1 style="font-size:22px;font-weight:700;margin:0">맵핑</h1>
+    <span style="font-size:12px;color:#6B7684">모음전 상품 ↔ 재고관리 SKU</span>
   </div>
-  <p style="font-size:12.5px;color:#6B7684;margin:0 0 18px;max-width:920px;line-height:1.6">
-    차원·캐노니컬·별칭을 추가하면 모음전 옵션 편집 페이지에서 자동 매칭 정확도가 올라갑니다.
-    차원은 모델/색상/사이즈에 고정되지 않음 — 재질·두께·패턴 등 자유롭게 추가/삭제 가능.
-    별칭이 사전에 들어있으면 자동 매칭 즉시 인식. 없으면 모음전 페이지에서 inline picker 매핑 시 자동 학습됩니다.
+  <p style="font-size:12.5px;color:#6B7684;margin:0 0 16px;line-height:1.6;max-width:920px">
+    마켓에서 다르게 쓴 단어를 재고관리 기준명으로 자동 변환되게 등록하는 사전입니다.
+    구분(모델·색상·사이즈 등) → 기준명 → 동의어 순으로 저장됩니다.
   </p>
 
   {% with msgs = get_flashed_messages(with_categories=true) %}
     {% for cat,msg in msgs %}
-      <div style="background:{% if cat=='error' %}#FEF2F2;border-color:#FCA5A5{% else %}#ECFDF5;border-color:#86EFAC{% endif %};border:1px solid;padding:10px 14px;border-radius:6px;margin-bottom:12px;font-size:13px;color:{% if cat=='error' %}#991B1B{% else %}#065F46{% endif %}">{{ msg }}</div>
+      <div style="background:{% if cat=='error' %}#FAFAFA;border-color:#D4D4D4;color:#525252{% else %}#FAFAFA;border-color:#D4D4D4;color:#191F28{% endif %};border:1px solid;padding:9px 14px;border-radius:5px;margin-bottom:12px;font-size:12.5px">{{ msg }}</div>
     {% endfor %}
   {% endwith %}
 
   {% if not dimensions %}
-    <div style="background:#FFF8E5;border:1px solid #FCD34D;border-radius:8px;padding:16px 20px;margin-bottom:14px;color:#92400E">
-      <strong>💡 차원이 비어있습니다.</strong>
-      <form method="post" action="{{ url_for('mapping.seed_defaults') }}" style="display:inline-block;margin-left:10px">
-        <button type="submit" style="background:#F59E0B;color:#fff;border:0;border-radius:5px;padding:6px 14px;font-size:12.5px;font-weight:600;cursor:pointer">기본 3차원 (모델·색상·사이즈) 자동 생성</button>
+    <div style="background:#FAFAFA;border:1px solid #E5E5E5;border-radius:6px;padding:18px 22px;margin-bottom:14px">
+      <div style="font-weight:600;margin-bottom:6px;font-size:13.5px">사전이 비어있습니다.</div>
+      <div style="font-size:12px;color:#6B7684;margin-bottom:12px">기본 3개 구분(모델 · 색상 · 사이즈)부터 시작하세요.</div>
+      <form method="post" action="{{ url_for('mapping.seed_defaults') }}" style="display:inline-block">
+        <button type="submit" style="background:#191F28;color:#fff;border:0;border-radius:4px;padding:7px 16px;font-size:12.5px;font-weight:600;cursor:pointer">기본 구분 자동 생성</button>
       </form>
     </div>
-  {% endif %}
+  {% else %}
 
-  {# 차원 추가 폼 #}
-  <div style="background:#fff;border:1px solid #E5E8EB;border-radius:8px;padding:14px 18px;margin-bottom:14px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-    <form method="post" action="{{ url_for('mapping.dimension_create') }}" style="display:flex;gap:8px;align-items:center;flex:1;flex-wrap:wrap">
-      <span style="font-size:12.5px;color:#525866;font-weight:600">+ 차원 추가</span>
-      <input name="name" placeholder="차원 이름 (예: 모델·색상·재질)" required style="padding:7px 10px;border:1px solid #D1D6DB;border-radius:5px;font-size:12.5px;min-width:200px">
-      <input name="weight" placeholder="가중치 (0~100)" type="number" min="0" max="100" value="0" style="padding:7px 10px;border:1px solid #D1D6DB;border-radius:5px;font-size:12.5px;width:140px">
-      <button type="submit" style="background:#3182F6;color:#fff;border:0;border-radius:5px;padding:7px 16px;font-size:12.5px;font-weight:600;cursor:pointer">추가</button>
+  {# ===== 카테고리 탭 (V9) ===== #}
+  <div style="display:flex;align-items:flex-end;gap:2px;border-bottom:1px solid #E5E5E5;margin-bottom:0">
+    {% for dim in dimensions %}
+      <button type="button" class="cat-tab" data-cat="dim-{{ dim.id }}"
+              style="background:transparent;border:0;border-bottom:2px solid transparent;padding:9px 16px;font-size:13px;color:#525866;cursor:pointer;font-family:inherit{% if loop.first %};color:#191F28;font-weight:700;border-bottom-color:#191F28{% endif %}">
+        {{ dim.name }} <span style="font-size:11px;color:#9CA3AF;margin-left:3px">{{ dim.canonicals|length }}</span>
+      </button>
+    {% endfor %}
+    <form method="post" action="{{ url_for('mapping.dimension_create') }}" style="display:inline-flex;align-items:center;gap:4px;margin-left:6px;padding-bottom:4px">
+      <input name="name" placeholder="+ 구분" required style="border:1px solid #D4D4D4;border-radius:3px;padding:4px 8px;font-size:11.5px;width:90px;font-family:inherit">
+      <input type="hidden" name="weight" value="25">
+      <button type="submit" style="background:transparent;border:1px solid #D4D4D4;color:#525866;border-radius:3px;padding:4px 8px;font-size:11.5px;cursor:pointer">추가</button>
     </form>
   </div>
 
-  {# 차원 아코디언 #}
+  {# ===== 탭별 콘텐츠 (V5 엑셀 표) ===== #}
   {% for dim in dimensions %}
-  <div class="dim-card" style="background:#fff;border:1px solid #E5E8EB;border-radius:8px;margin-bottom:10px;overflow:hidden">
-    <div class="dim-h" style="display:flex;align-items:center;gap:12px;padding:12px 18px;background:#FAFBFC;border-bottom:1px solid #F1F1F4;cursor:pointer" onclick="this.parentElement.querySelector('.dim-body').classList.toggle('hidden');this.querySelector('.chev').textContent=this.parentElement.querySelector('.dim-body').classList.contains('hidden')?'▸':'▾'">
-      <span class="chev" style="font-size:12px;color:#9CA3AF">▾</span>
-      <strong style="font-size:14px;font-weight:700;color:#191F28">{{ dim.name }}</strong>
-      <span style="font-size:11px;color:#9CA3AF">{{ dim.canonicals|length }} 캐노니컬 · 가중치 <strong style="color:#191F28">{{ dim.weight }}</strong></span>
-      <form method="post" action="{{ url_for('mapping.dimension_update', dim_id=dim.id) }}" style="margin-left:auto;display:flex;gap:6px;align-items:center" onclick="event.stopPropagation()">
-        <input name="weight" type="number" min="0" max="100" value="{{ dim.weight }}" style="width:60px;padding:4px 7px;border:1px solid #D1D6DB;border-radius:4px;font-size:11.5px;text-align:right;font-family:ui-monospace,monospace">
-        <button type="submit" style="background:transparent;border:1px solid #CBCCD3;color:#525866;border-radius:4px;padding:3px 10px;font-size:11px;cursor:pointer">가중치 저장</button>
-      </form>
-      <form method="post" action="{{ url_for('mapping.dimension_delete', dim_id=dim.id) }}" onsubmit="return confirm('차원 \'{{ dim.name }}\' 삭제 — 캐노니컬·별칭 모두 함께 삭제. 진행?')" style="display:inline" onclick="event.stopPropagation()">
-        <button type="submit" style="background:transparent;border:1px solid #FCA5A5;color:#DC2626;border-radius:4px;padding:3px 10px;font-size:11px;cursor:pointer">🗑</button>
-      </form>
-    </div>
+  <div class="cat-pane" id="pane-dim-{{ dim.id }}" style="display:{% if loop.first %}block{% else %}none{% endif %};background:#fff;border:1px solid #E5E5E5;border-top:0;border-radius:0 0 5px 5px;padding:14px 16px">
 
-    <div class="dim-body" style="padding:12px 18px">
-      {# 캐노니컬 추가 폼 #}
-      <form method="post" action="{{ url_for('mapping.canonical_create') }}" style="display:flex;gap:8px;align-items:center;margin-bottom:12px;padding:8px 10px;background:#F9FAFB;border-radius:6px">
+    {# 추가 행 + 구분 삭제 #}
+    <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px">
+      <form method="post" action="{{ url_for('mapping.canonical_create') }}" style="display:flex;gap:6px;flex:1">
         <input type="hidden" name="dimension_id" value="{{ dim.id }}">
-        <span style="font-size:12px;color:#525866">+ 캐노니컬 추가</span>
-        <input name="value" placeholder="재고관리 마스터 값 (예: 블루·230·르무통 클래식)" required style="flex:1;padding:5px 10px;border:1px solid #D1D6DB;border-radius:4px;font-size:12px">
-        <button type="submit" style="background:#10B981;color:#fff;border:0;border-radius:4px;padding:5px 12px;font-size:11.5px;font-weight:600;cursor:pointer">추가</button>
+        <input name="value" placeholder="+ 새 기준명 (예: 블루 · 230 · 르무통 클래식)" required style="flex:1;padding:6px 10px;border:1px solid #D4D4D4;border-radius:3px;font-size:12.5px;font-family:inherit">
+        <button type="submit" style="background:#191F28;color:#fff;border:0;border-radius:3px;padding:6px 14px;font-size:12px;font-weight:600;cursor:pointer">추가</button>
       </form>
-
-      {# 캐노니컬 리스트 — 각 캐노니컬마다 별칭 chip #}
-      {% for c in dim.canonicals %}
-      <div style="display:grid;grid-template-columns:200px 1fr 24px;gap:14px;padding:10px 0;border-bottom:1px solid #F1F1F4;align-items:flex-start">
-        <div style="display:flex;flex-direction:column;gap:4px">
-          <span style="display:inline-block;background:#EFF6FF;color:#3182F6;border:1px solid #3182F6;border-radius:13px;padding:3px 10px;font-size:12px;font-weight:600;width:fit-content">{{ c.value }}</span>
-          <span style="font-size:10.5px;color:#9CA3AF">{{ c.aliases|length }} 별칭</span>
-        </div>
-        <div style="display:flex;flex-wrap:wrap;gap:5px;align-items:center" data-canonical-id="{{ c.id }}">
-          {% for a in c.aliases %}
-            <span style="background:#F1F1F4;color:#525866;border:1px solid #CBCCD3;border-radius:13px;padding:2px 4px 2px 10px;font-size:11.5px;display:inline-flex;align-items:center;gap:2px{% if a.source == 'learned' %};border-color:#FCD34D;background:#FFFBEB;color:#92400E{% endif %}" title="{% if a.source == 'learned' %}자동 학습된 별칭{% else %}수동 등록 별칭{% endif %}">
-              {{ a.alias }}
-              {% if a.source == 'learned' %}<span style="font-size:9px;background:#F59E0B;color:#fff;border-radius:6px;padding:0 4px">학습</span>{% endif %}
-              <form method="post" action="{{ url_for('mapping.alias_delete', m_id=a.id) }}" style="display:inline">
-                <button type="submit" style="background:transparent;border:0;color:#9CA3AF;cursor:pointer;padding:0 5px;font-size:13px;line-height:1">×</button>
-              </form>
-            </span>
-          {% endfor %}
-          {# inline 별칭 추가 #}
-          <form method="post" action="{{ url_for('mapping.alias_create') }}" style="display:inline-flex;align-items:center;gap:4px">
-            <input type="hidden" name="canonical_id" value="{{ c.id }}">
-            <input name="alias" placeholder="+ 별칭" style="padding:2px 8px;border:1px dashed #93C5FD;border-radius:13px;font-size:11.5px;color:#3182F6;background:#fff;min-width:90px;outline:none" onkeydown="if(event.key==='Enter')this.form.submit()">
-          </form>
-        </div>
-        <form method="post" action="{{ url_for('mapping.canonical_delete', can_id=c.id) }}" onsubmit="return confirm('캐노니컬 \'{{ c.value }}\' 삭제 — 별칭 모두 함께. 진행?')">
-          <button type="submit" style="background:transparent;border:0;color:#9CA3AF;cursor:pointer;font-size:13px" title="캐노니컬 삭제">🗑</button>
-        </form>
-      </div>
-      {% else %}
-        <div style="padding:16px;text-align:center;font-size:12px;color:#9CA3AF">캐노니컬이 없습니다 — 위에서 추가하세요.</div>
-      {% endfor %}
+      <form method="post" action="{{ url_for('mapping.dimension_delete', dim_id=dim.id) }}" onsubmit="return confirm('구분 \'{{ dim.name }}\' 삭제 — 모든 기준명·동의어 함께 삭제. 진행?')">
+        <button type="submit" title="이 구분 삭제" style="background:transparent;border:1px solid #D4D4D4;color:#525866;border-radius:3px;padding:6px 10px;font-size:11.5px;cursor:pointer">구분 삭제</button>
+      </form>
     </div>
+
+    {# 표 #}
+    <table style="width:100%;border-collapse:collapse;font-size:12.5px">
+      <thead>
+        <tr style="background:#FAFAFA;border-bottom:1px solid #E5E5E5">
+          <th style="text-align:left;padding:8px 10px;font-size:11.5px;color:#525866;font-weight:600;width:200px">재고관리 기준명</th>
+          <th style="text-align:left;padding:8px 10px;font-size:11.5px;color:#525866;font-weight:600">동의어 (마켓 표기)</th>
+          <th style="text-align:right;padding:8px 10px;font-size:11.5px;color:#525866;font-weight:600;width:32px"></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for c in dim.canonicals %}
+        <tr style="border-bottom:1px solid #F5F5F5">
+          <td style="padding:9px 10px;vertical-align:top">
+            <span style="font-weight:600;color:#191F28">{{ c.value }}</span>
+          </td>
+          <td style="padding:9px 10px;vertical-align:top">
+            <div style="display:flex;flex-wrap:wrap;gap:4px;align-items:center">
+              {% for a in c.aliases %}
+                <span style="display:inline-flex;align-items:center;gap:2px;background:{% if a.source == 'learned' %}#FAFAFA;border:1px dashed #B4B4B4{% else %}#F5F5F5;border:1px solid #E5E5E5{% endif %};color:#525866;border-radius:3px;padding:2px 4px 2px 8px;font-size:11.5px">
+                  {{ a.alias }}{% if a.source == 'learned' %} <span style="font-size:9px;color:#9CA3AF;margin-left:2px">학습</span>{% endif %}
+                  <form method="post" action="{{ url_for('mapping.alias_delete', m_id=a.id) }}" style="display:inline">
+                    <button type="submit" style="background:transparent;border:0;color:#9CA3AF;cursor:pointer;padding:0 4px;font-size:12px;line-height:1">×</button>
+                  </form>
+                </span>
+              {% endfor %}
+              <form method="post" action="{{ url_for('mapping.alias_create') }}" style="display:inline-flex;align-items:center;gap:0">
+                <input type="hidden" name="canonical_id" value="{{ c.id }}">
+                <input name="alias" placeholder="+ 동의어" style="border:1px dashed #B4B4B4;border-radius:3px;padding:2px 8px;font-size:11.5px;color:#191F28;background:#fff;min-width:90px;outline:none;font-family:inherit" onkeydown="if(event.key==='Enter')this.form.submit()">
+              </form>
+            </div>
+          </td>
+          <td style="padding:9px 10px;text-align:right;vertical-align:top">
+            <form method="post" action="{{ url_for('mapping.canonical_delete', can_id=c.id) }}" onsubmit="return confirm('기준명 \'{{ c.value }}\' 삭제 — 동의어 모두 함께. 진행?')" style="display:inline">
+              <button type="submit" title="기준명 삭제" style="background:transparent;border:0;color:#9CA3AF;cursor:pointer;font-size:14px;line-height:1">×</button>
+            </form>
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="3" style="padding:24px;text-align:center;font-size:12px;color:#9CA3AF">기준명이 없습니다 — 위에서 추가하세요.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
   </div>
   {% endfor %}
 
-  <div style="margin-top:24px;font-size:11px;color:#9CA3AF;line-height:1.7">
-    <strong>⚙ 내장 정규화 규칙 (사전이 우선, 보조용):</strong>
-    공백 제거 ("230 mm" → "230mm") · 단위 제거 ("230mm" → "230") · 대소문자 무시 ("Blue" = "blue") · 영한 흔한 색상 (blue → 블루).<br>
-    <strong>가중치 합계:</strong> 모든 차원 가중치의 합이 100 권장 (자동 매칭 점수 계산). UI 상 점수 숫자는 노출 안 됨.
+  <div style="margin-top:14px;font-size:11.5px;color:#9CA3AF;line-height:1.7">
+    동의어를 등록하면 모음전 옵션 편집에서 자동 매칭 시 즉시 인식됩니다.
+    학습 표시는 모음전 옵션의 수동 매핑에서 자동 추가된 동의어를 의미합니다.
   </div>
+
+  {% endif %}
 </div>
 
-<style>
-  .dim-body.hidden{display:none}
-</style>
+<script>
+(function(){
+  // 카테고리 탭 전환
+  document.querySelectorAll('.cat-tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+      var target = tab.dataset.cat;
+      document.querySelectorAll('.cat-tab').forEach(t => {
+        var on = t.dataset.cat === target;
+        t.style.color = on ? '#191F28' : '#525866';
+        t.style.fontWeight = on ? '700' : '400';
+        t.style.borderBottomColor = on ? '#191F28' : 'transparent';
+      });
+      document.querySelectorAll('.cat-pane').forEach(p => {
+        p.style.display = p.id === 'pane-' + target ? 'block' : 'none';
+      });
+    });
+  });
+})();
+</script>
 {% endblock %}
