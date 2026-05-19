@@ -2820,8 +2820,9 @@
       ${saleHtml}
       <div class="cell-fx-ben">
         <h7>⚙ 적용 혜택 (이 옵션)<span class="deduct-sum">-${_deductSum.toLocaleString('ko-KR')}원</span></h7>
-        ${benHtml}${addRowHtml}
+        ${benHtml}
       </div>
+      ${addRowHtml}
       ${totalHtml}
       <div class="pop-actions">
         <button onclick="this.closest('.cell-fx-pop').remove();document.querySelectorAll('td.fx-open').forEach(t=>t.classList.remove('fx-open'))">닫기</button>
