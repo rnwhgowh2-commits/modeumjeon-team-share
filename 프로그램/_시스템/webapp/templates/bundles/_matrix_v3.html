@@ -565,7 +565,10 @@
 
   {# J4 — 전체 크롤 = CTA (컬러 풀) + 가격 템플릿 = 작은 아이콘 버튼 #}
   <div class="global-actions-v2" id="global-actions">
-    <button class="ga-btn-v2 crawl ga-cta" id="crawl-all-btn">
+    <button class="ga-btn-v2 crawl ga-cta" id="crawl-all-btn"
+            data-action="bundle-run-now"
+            data-code="{{ bundle.model_code }}"
+            data-phase="crawl">
       <span class="ga-ico"></span>
       <span class="ga-body">
         <span class="ga-name">전체 크롤 ({{ options|length }})</span>
@@ -4875,27 +4878,12 @@
   };
 
   // ─────────── 글로벌 액션 + 일괄 해제 + 4-모드 dropdown ───────────
-  // 전체 크롤
-  const crawlAllBtn = document.getElementById('crawl-all-btn');
-  if (crawlAllBtn) crawlAllBtn.addEventListener('click', async () => {
-    if (!confirm(`전체 ${DATA.options.length}개 옵션의 모든 소싱처를 크롤? 시간 소요됨`)) return;
-    crawlAllBtn.textContent = '⏳ 크롤 중...';
-    crawlAllBtn.disabled = true;
-    let okCnt = 0, totalCnt = 0;
-    for (const opt of DATA.options) {
-      for (const src of (opt.sources || [])) {
-        totalCnt++;
-        try {
-          const r = await fetch(`/api/options/${encodeURIComponent(opt.sku)}/sources/${src.source_id}/refetch`, {method:'POST'});
-          const j = await r.json();
-          if (j.ok) okCnt++;
-        } catch (e) {}
-      }
-    }
-    alert(`전체 크롤 완료: ${okCnt}/${totalCnt}`);
-    crawlAllBtn.disabled = false;
-    loadMatrix();
-  });
+  // 전체 크롤 (CTA) — 상단 "크롤링 실행" 버튼과 완전 동일 동작.
+  // HTML 의 data-action="bundle-run-now" 속성으로 toss.js 위임 핸들러에 흐름 위임:
+  //   POST /api/bundles/<code>/run-now (background thread) → 3초 폴링
+  //   → crawl-status iso 변화 감지 → setLastCrawled + loadMatrix + flash
+  //   → 페이지 reload 없이 실시간 ticker 자동 갱신.
+  // 이전: 여기서 38회 per-source refetch loop 직접 돌렸으나 — 상단 버튼과 다른 경로 → 통일.
 
   // 일괄 해제 + 4-모드 dropdown 토글
   const bulkClearBtn = document.getElementById('bulk-clear');
