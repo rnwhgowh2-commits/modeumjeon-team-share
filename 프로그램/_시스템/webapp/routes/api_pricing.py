@@ -986,6 +986,36 @@ def refetch_option_source(sku: str, src_id: int):
 
 
 # ════════════════════════════════════════════
+#  GET /api/bundles/<code>/crawl-status
+#  → 상단 "크롤링 실행" 버튼의 백그라운드 완료 폴링용. 현재 last_crawled_at_iso 반환.
+#    프론트는 초기값과 다른 값이 돌아오면 백그라운드 완료로 판단 → setLastCrawled 호출.
+# ════════════════════════════════════════════
+@bp.get('/bundles/<code>/crawl-status')
+def get_crawl_status(code: str):
+    """현재 Model.last_crawled_at 반환 — 백그라운드 크롤 완료 폴링용."""
+    from datetime import timezone
+    from lemouton.sourcing.models import BundleGroup
+    s = SessionLocal()
+    try:
+        m = s.query(Model).filter_by(model_code=code).first()
+        if m is None:
+            bg = s.query(BundleGroup).filter_by(group_code=code).first()
+            if bg and bg.models:
+                m = bg.models[0]
+        if m is None:
+            return _err('모음전을 찾을 수 없어요.', 404)
+        iso = ''
+        if m.last_crawled_at is not None:
+            dt = m.last_crawled_at
+            if dt.tzinfo is None:
+                dt = dt.replace(tzinfo=timezone.utc)
+            iso = dt.isoformat()
+        return _ok(last_crawled_at=iso)
+    finally:
+        s.close()
+
+
+# ════════════════════════════════════════════
 #  POST /api/bundles/<code>/touch-crawled
 #  → 매트릭스 측 per-source "전체 크롤" / "선택 크롤" 묶음 완료 시 호출.
 #    Model.last_crawled_at 을 utcnow() 로 bump → 상단 "마지막 크롤링 ㅇㅇ전" 표시 즉시 반영.
