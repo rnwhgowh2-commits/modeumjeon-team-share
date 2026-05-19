@@ -85,6 +85,11 @@ webapp/templates/inventory/home.html
 webapp/templates/inventory/data/items.html
 # Day 8: 인벤토리 통계 카드 5 시안 mockup
 webapp/templates/inventory/_mockup_stats.html
+# Day 10: 바코드 인쇄 — 신규에서 라벨 24종 확장 + POST 폼·sessionStorage 분기 (기존과 divergence)
+webapp/routes/inventory/barcode.py
+webapp/templates/inventory/barcode.html
+webapp/templates/inventory/barcode/
+webapp/templates/inventory/barcode_print.html
 
 # ─── 신규 전용 라인 패턴 (sync.py 가 line-level 처리) ───
 # config.py:DATABASE_URL

@@ -1,0 +1,305 @@
+/* ─────────────────────────────────────────────────────────────
+ * 혜택 추가 폼 (v7.1 A2 — 슬라이드 다운 + 좌측 accent)
+ *
+ * 디자인 원칙
+ *   - popover 헤더/SALE/기존 혜택 영역은 운영 toss.css 색감 유지
+ *   - + 새 혜택 추가 버튼 + 펼친 폼만 무채색 9단계
+ *   - 좌측 검정 3px border-left = "신규 액션 영역" 인지
+ *   - slide-down 애니메이션 (0.22s) — 등장 명확
+ *   - hidden bug fix: [hidden] 속성이 .add-form { display:flex } 에 가려지는 문제
+ *
+ * 토큰 (무채색만)
+ *   --m-ink: #191F28   --m-body: #4E5968   --m-text2: #6B7684
+ *   --m-muted: #8B95A1 --m-border: #D1D6DB --m-line: #E5E8EB
+ *   --m-fill: #F2F4F6  --m-bg: #F9FAFB     --m-white: #FFFFFF
+ *
+ * 사용 위치: .cell-fx-pop 안 .pop-add 버튼 클릭 시 .add-form 노출
+ * ───────────────────────────────────────────────────────────── */
+
+/* ============== 토큰 ============== */
+.cell-fx-pop {
+  --m-ink: #191F28;
+  --m-body: #4E5968;
+  --m-text2: #6B7684;
+  --m-muted: #8B95A1;
+  --m-border: #D1D6DB;
+  --m-line: #E5E8EB;
+  --m-fill: #F2F4F6;
+  --m-bg: #F9FAFB;
+  --m-white: #FFFFFF;
+}
+
+/* ============== add-zone (배경 영역) ============== */
+/* 음수 margin 제거 — popover padding 안에 자연스럽게 배치 (가운데 정렬) */
+.cell-fx-pop .add-zone {
+  width: 100%;
+  margin: 14px 0 0;
+  padding: 14px 0 0;
+  border-top: 1px solid var(--m-line);
+  box-sizing: border-box;
+}
+
+/* ============== + 새 혜택 추가 trigger ============== */
+.cell-fx-pop .pop-add {
+  width: 100%;
+  padding: 14px;                 /* 11→14 */
+  border: 1px dashed var(--m-border);
+  border-radius: 8px;
+  background: var(--m-white);
+  font-size: 17px;               /* 13→17 (×1.3) */
+  font-weight: 600;
+  color: var(--m-body);
+  cursor: pointer;
+  font-family: inherit;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  box-sizing: border-box;
+  transition: border-color .12s, color .12s, background .12s;
+}
+.cell-fx-pop .pop-add:hover {
+  border-color: var(--m-ink);
+  color: var(--m-ink);
+  background: var(--m-white);
+}
+
+/* ============== add-form 컨테이너 ============== */
+.cell-fx-pop .add-form {
+  width: 100%;
+  margin-top: 12px;
+  padding: 14px 16px 14px 18px;
+  background: var(--m-white);
+  border: 1px solid var(--m-line);
+  border-left: 3px solid var(--m-ink);  /* ★ 좌측 검정 accent */
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 13px;                            /* 10→13 (×1.3) */
+  box-sizing: border-box;
+  animation: addform-slidedown .22s ease;
+}
+
+/* ★ hidden bug fix — .add-form { display:flex } 가 [hidden] 을 이김 */
+.cell-fx-pop .add-form[hidden] {
+  display: none !important;
+}
+
+@keyframes addform-slidedown {
+  from { opacity: 0; transform: translateY(-6px); }
+  to { opacity: 1; transform: none; }
+}
+
+/* 폼 안 타이틀 */
+.cell-fx-pop .add-form .title {
+  font-size: 16px;                 /* 12.5→16 (×1.3) */
+  font-weight: 700;
+  color: var(--m-ink);
+}
+
+/* ============== field (라벨 + 입력 그리드) ============== */
+.cell-fx-pop .add-form .field {
+  display: grid;
+  grid-template-columns: 62px 1fr;  /* 48→62 (×1.3) — 라벨 너비도 비례 */
+  gap: 10px;
+  align-items: center;
+}
+.cell-fx-pop .add-form .field > label {
+  font-size: 14px;                 /* 11→14 (×1.3) */
+  font-weight: 700;
+  color: var(--m-text2);
+  text-transform: uppercase;
+  letter-spacing: .4px;
+}
+.cell-fx-pop .add-form .field input[type=text] {
+  width: 100%;
+  border: 1px solid var(--m-border);
+  padding: 11px 14px;              /* 9/12→11/14 */
+  border-radius: 7px;
+  font-size: 18px;                 /* 14→18 (×1.3) */
+  font-family: inherit;
+  font-weight: 500;
+  color: var(--m-ink);
+  background: var(--m-white);
+  box-sizing: border-box;
+}
+.cell-fx-pop .add-form .field input[type=text]:focus {
+  outline: 0;
+  border-color: var(--m-ink);
+  box-shadow: 0 0 0 3px var(--m-fill);
+}
+.cell-fx-pop .add-form .field input[type=text]::placeholder {
+  color: var(--m-muted);
+}
+
+/* ============== pills (정액/정률 — fill background segment) ============== */
+.cell-fx-pop .add-form .pills {
+  display: flex;
+  gap: 4px;
+  padding: 4px;
+  background: var(--m-fill);
+  border-radius: 8px;
+}
+.cell-fx-pop .add-form .pill {
+  flex: 1;
+  padding: 9px 13px;               /* 6/10→9/13 */
+  border: 0;
+  background: transparent;
+  border-radius: 6px;
+  font-size: 16px;                 /* 12.5→16 (×1.3) */
+  font-weight: 600;
+  color: var(--m-body);
+  cursor: pointer;
+  font-family: inherit;
+  transition: background .12s, color .12s;
+}
+.cell-fx-pop .add-form .pill.on {
+  background: var(--m-ink);
+  color: var(--m-white);
+}
+
+/* ============== val + unit ============== */
+.cell-fx-pop .add-form .val-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.cell-fx-pop .add-form .val-row input {
+  flex: 1;
+}
+.cell-fx-pop .add-form .val-row .unit {
+  font-weight: 700;
+  color: var(--m-body);
+  font-size: 17px;                 /* 13→17 (×1.3) */
+  min-width: 24px;
+  text-align: center;
+}
+
+/* ============== scope-list (단일 border 박스 안 4 item) ============== */
+.cell-fx-pop .add-form .scope-label {
+  font-size: 14px;                 /* 11→14 (×1.3) */
+  font-weight: 700;
+  color: var(--m-text2);
+  text-transform: uppercase;
+  letter-spacing: .4px;
+  display: block;
+  margin-bottom: 7px;
+}
+.cell-fx-pop .add-form .scope-list {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--m-border);
+  border-radius: 7px;
+  overflow: hidden;
+}
+.cell-fx-pop .add-form .scope-list .item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 14px;              /* 9/11→12/14 */
+  background: var(--m-white);
+  cursor: pointer;
+  font-size: 16px;                 /* 12.5→16 (×1.3) */
+  color: var(--m-body);
+  border-bottom: 1px solid var(--m-line);
+  border-left: 0;
+  border-right: 0;
+  border-top: 0;
+  font-family: inherit;
+  font-weight: 500;
+  text-align: left;
+  width: 100%;
+  box-sizing: border-box;
+  transition: background .1s;
+}
+.cell-fx-pop .add-form .scope-list .item:hover {
+  background: var(--m-bg);
+}
+.cell-fx-pop .add-form .scope-list .item:last-child {
+  border-bottom: 0;
+}
+.cell-fx-pop .add-form .scope-list .item.on {
+  background: var(--m-ink);
+  color: var(--m-white);
+  font-weight: 700;
+}
+.cell-fx-pop .add-form .scope-list .item .cnt {
+  font-size: 14px;                 /* 11→14 (×1.3) */
+  color: var(--m-muted);
+  font-weight: 600;
+}
+.cell-fx-pop .add-form .scope-list .item.on .cnt {
+  color: #C4CAD1;
+}
+.cell-fx-pop .add-form .scope-list .gsep {
+  background: var(--m-fill);
+  padding: 7px 14px;
+  font-size: 13px;                 /* 10→13 (×1.3) */
+  font-weight: 700;
+  color: var(--m-text2);
+  text-transform: uppercase;
+  letter-spacing: .5px;
+}
+
+/* ============== impact preview (선택 요약) ============== */
+.cell-fx-pop .add-form .impact-preview {
+  padding: 11px 14px;
+  background: var(--m-bg);
+  border: 1px solid var(--m-line);
+  border-radius: 6px;
+  font-size: 15px;                 /* 11.5→15 (×1.3) */
+  color: var(--m-text2);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+.cell-fx-pop .add-form .impact-preview .text b,
+.cell-fx-pop .add-form .impact-preview .scope-summary {
+  color: var(--m-ink);
+  font-weight: 700;
+}
+.cell-fx-pop .add-form .impact-preview .calc {
+  font-weight: 700;
+  color: var(--m-ink);
+  white-space: nowrap;
+}
+
+/* ============== acts (취소 / 추가 버튼) ============== */
+.cell-fx-pop .add-form .acts {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+  padding-top: 6px;
+  border-top: 1px solid var(--m-line);
+  margin-top: 2px;
+}
+.cell-fx-pop .add-form .acts button {
+  padding: 11px 18px;              /* 8/14→11/18 */
+  border-radius: 6px;
+  border: 1px solid var(--m-border);
+  background: var(--m-white);
+  font-size: 16px;                 /* 12.5→16 (×1.3) */
+  font-weight: 600;
+  font-family: inherit;
+  color: var(--m-body);
+  cursor: pointer;
+  transition: background .12s, border-color .12s;
+}
+.cell-fx-pop .add-form .acts button:hover {
+  background: var(--m-fill);
+}
+.cell-fx-pop .add-form .acts .save {
+  background: var(--m-ink);
+  color: var(--m-white);
+  border-color: var(--m-ink);
+}
+.cell-fx-pop .add-form .acts .save:hover {
+  background: #000;
+}
+.cell-fx-pop .add-form .acts .save[disabled] {
+  background: var(--m-border);
+  color: var(--m-white);
+  border-color: var(--m-border);
+  cursor: not-allowed;
+}

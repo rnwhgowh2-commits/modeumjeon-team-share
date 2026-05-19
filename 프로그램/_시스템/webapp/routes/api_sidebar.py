@@ -49,6 +49,8 @@ def _default_layout() -> dict:
                  'url': '/bundles/migrate', 'active_key': 'bundles_migrate', 'badge_key': None},
                 {'id': 'i_templates', 'emoji': '📄', 'name': '템플릿',
                  'url': '/templates', 'active_key': 'templates', 'badge_key': None},
+                {'id': 'i_mapping', 'emoji': '🔗', 'name': '맵핑',
+                 'url': '/mapping/', 'active_key': 'mapping', 'badge_key': None},
             ]},
             {'id': 's3', 'emoji': '🛍', 'name': '판매·운영', 'color': '#03C75A',
              'collapsed': False, 'items': [

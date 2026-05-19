@@ -4,19 +4,25 @@
 <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
 <style>
 @page { size:{{ template.paper_w }}mm {{ template.paper_h }}mm; margin:0; }
-body { font-family: -apple-system, "Apple SD Gothic Neo", sans-serif; margin:0; background:#F1F1F4; padding:0; }
+html, body { margin:0; padding:0; }
+body { font-family: -apple-system, "Apple SD Gothic Neo", sans-serif; background:#F1F1F4; }
 .toolbar { position:fixed; top:8px; right:8px; display:flex; gap:6px; z-index:100; }
 .btn { padding:8px 16px; background:#4F67FF; color:#fff; border:none; border-radius:5px; font-weight:600; cursor:pointer; font-size:13px; }
 .btn.sec { background:#fff; color:#292A2F; border:1px solid #CBCCD3; }
-@media print { .toolbar { display:none; } body { background:#fff; padding:0; } }
 .page {
   width: {{ template.paper_w }}mm; height: {{ template.paper_h }}mm;
   position: relative; background:#fff;
-  margin: 6mm auto;
   page-break-after: always;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+  break-inside: avoid;
 }
-@media print { .page { box-shadow:none; margin:0; } }
+/* 마지막 페이지 뒤 빈 페이지 생성 방지 */
+.page:last-of-type { page-break-after: auto; break-after: auto; }
+@media screen { .page { margin:6mm auto; box-shadow:0 2px 8px rgba(0,0,0,0.06); } }
+@media print {
+  html, body { background:#fff !important; }
+  .toolbar { display:none !important; visibility:hidden; height:0; overflow:hidden; }
+  .page { margin:0 !important; box-shadow:none !important; }
+}
 .label {
   position: absolute;
   width: {{ template.label_w }}mm;
@@ -29,6 +35,11 @@ body { font-family: -apple-system, "Apple SD Gothic Neo", sans-serif; margin:0; 
 .label > .ds-wrap { width:100%; height:100%; display:flex; flex-direction:column; align-items:center; justify-content:center; }
 .is-bundle { background: linear-gradient(135deg, #EEF1FE 0%, #fff 50%); }
 .bundle-tag { font-size:5pt; background:#4F67FF; color:#fff; padding:1px 4px; border-radius:2px; font-weight:700; margin-bottom:0.5mm; }
+/* 바코드 인식률 향상 — 엣지 또렷·색 강제 인쇄 */
+svg.ds-bc { shape-rendering: crispEdges; }
+@media print {
+  html, body, .label, .label * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; color-adjust: exact !important; }
+}
 </style></head>
 <body>
 <div class="toolbar">
@@ -144,6 +155,9 @@ document.querySelectorAll('.label').forEach(el => {
 });
 
 // JsBarcode — CODE128 통일 (전 코드 균일 막대) + 라벨 너비 적응형 bar width / quiet zone
+// 라벨 폭 ≥ 50mm (감열지·큰 용지): bar 1.8 / quiet 15
+// 라벨 폭 38~50mm (일반 A4 라벨 4×10·5×13): bar 1.5 / quiet 18
+// 라벨 폭 < 38mm (작은 라벨): bar 1.2 / quiet 22
 const LABEL_W_MM = {{ template.label_w }};
 const bcWidth  = LABEL_W_MM >= 50 ? 1.8 : (LABEL_W_MM >= 38 ? 1.5 : 1.2);
 const bcMargin = LABEL_W_MM >= 50 ? 15  : (LABEL_W_MM >= 38 ? 18  : 22);
@@ -157,17 +171,20 @@ document.querySelectorAll('svg.ds-bc').forEach(svg => {
     // 올바른 패턴 = margin:0 (전체 0 리셋) 후 marginLeft/Right 만 설정.
     JsBarcode(svg, c, {
       format: 'CODE128',
-      width: bcWidth,
-      height: 60,
+      width: bcWidth,          // 라벨 크기 따라 자동 (1.2~1.8)
+      height: 60,              // SVG viewBox 높이 (mm 단위 width/height 속성이 실제 사이즈 결정)
       displayValue: false,
+      // JsBarcode 3.11.5 버그 — margin:N 설정 시 marginTop/Bottom 무시.
+      // 우회: margin:0 으로 전체 리셋 후 marginLeft/Right 만 설정.
+      // 결과 viewBox 높이 = 60 (bars 만, vertical quiet zone 0) → 막대가 mm 박스 전체 차지.
       margin: 0,                  // 전체 quiet zone 0 리셋
-      marginLeft: bcMargin,       // 좌 quiet zone (스캐너 시작 인식)
+      marginLeft: bcMargin,       // 좌 quiet zone 15~22 (CODE128 표준 10× — 스캐너 시작 인식)
       marginRight: bcMargin,      // 우 quiet zone (스캐너 끝 인식)
       background: '#ffffff',
       lineColor: '#000000',
-      flat: true,
+      flat: true,              // bar 끝 평평하게 (라운드 없음 — 엣지 또렷)
     });
-    // mm 단위 width/height 복원 + preserveAspectRatio=none — 고정 박스에 정확 stretch
+    // mm 단위 width/height 복원 + preserveAspectRatio=none — 고정 박스에 정확 stretch (양 view 1:1)
     svg.setAttribute('width', wMm);
     svg.setAttribute('height', hMm);
     svg.setAttribute('preserveAspectRatio', 'none');

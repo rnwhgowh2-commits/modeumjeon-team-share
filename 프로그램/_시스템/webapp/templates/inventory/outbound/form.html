@@ -95,5 +95,18 @@ function removeLine(i){lines.splice(i,1);renderLines()}
 function updateKpi(){document.getElementById('kpiItems').textContent=lines.length;document.getElementById('kpiTotalQty').textContent=[...document.querySelectorAll('input[name="qty"]')].reduce((a,e)=>a+(parseInt(e.value)||0),0);const sb=document.getElementById('submitBtn');sb.disabled=!lines.length;sb.style.opacity=lines.length?'1':'0.5'}
 async function saveDraft(){const fd=new FormData(document.getElementById('txForm'));fd.append('tx_type','out');await fetch('{{ url_for("inventory.pending_save") }}',{method:'POST',body:fd,redirect:'manual'});window.location.href='{{ url_for("inventory.pending_list") }}'}
 document.addEventListener('keydown',e=>{if(e.key==='Escape')closeProductModal()});
+// 제품목록에서 [📤 출고] 클릭 진입 시 SKU 자동 prefill
+{% if prefill_skus %}
+(function prefillFromQuery(){
+  const PREFILL_SKUS = {{ prefill_skus | tojson }};
+  for (const sku of PREFILL_SKUS) {
+    const opt = OPTIONS.find(o => o.sku === sku);
+    if (opt && !lines.some(l => l.sku === sku)) {
+      lines.push({sku: opt.sku, qty: 1, price: 0, is_bundle: !!opt.is_bundle});
+    }
+  }
+  renderLines();
+})();
+{% endif %}
 </script>
 {% endblock %}

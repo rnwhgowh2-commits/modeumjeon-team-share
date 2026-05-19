@@ -45,6 +45,14 @@
           "id": "i_queue",
           "name": "미맵핑 큐",
           "url": "/queue"
+        },
+        {
+          "id": "i_mapping",
+          "emoji": "🔗",
+          "name": "맵핑",
+          "url": "/mapping/",
+          "active_key": "mapping",
+          "badge_key": null
         }
       ],
       "name": "모음전 등록"

@@ -175,6 +175,39 @@ def get_stock_summary(session, skus_filter: Iterable[str] | None = None) -> dict
     }
 
 
+def get_stock_breakdown_batch(session, skus: Iterable[str]) -> dict[str, dict]:
+    """N SKU 의 위치 카테고리별 재고 batch 조회.
+
+    카테고리 — 기본 3종 + 사용자 추가 위치는 'gross' 로 집계 (그로스 외 임의 위치는 main 인지 gross 인지 판단 불가, 'main' 인 default 위치만 main 으로).
+
+    Returns:
+        {sku: {'gross': n, 'main': n, 'unsellable': n}}
+    """
+    from lemouton.inventory.models import InventoryLocation
+
+    skus_list = list(set(s for s in skus if s))
+    if not skus_list:
+        return {}
+
+    locs = session.query(InventoryLocation).filter(InventoryLocation.deleted_at.is_(None)).all()
+    # 이름 매핑 — 박스히어로 표준 + 사용자 자유 위치는 'gross' 로 폴백
+    def _bucket(loc: InventoryLocation) -> str:
+        name = (loc.name or '').strip()
+        if name == '기본 위치' or getattr(loc, 'is_default', False):
+            return 'main'
+        if name == '판매불가':
+            return 'unsellable'
+        return 'gross'  # '그로스' + 사용자 정의 위치 전부
+
+    out: dict[str, dict] = {sk: {'gross': 0, 'main': 0, 'unsellable': 0} for sk in skus_list}
+    for loc in locs:
+        bucket = _bucket(loc)
+        per_loc = get_stock_batch(session, skus_list, location_id=loc.id)
+        for sk, qty in per_loc.items():
+            out[sk][bucket] = out[sk].get(bucket, 0) + int(qty or 0)
+    return out
+
+
 def get_loc_stock_map(session, sku: str, locations: list) -> dict[int, dict]:
     """1 SKU 의 위치별 재고 + 위치 이름 dict. {loc_id: {name, stock}}.
 

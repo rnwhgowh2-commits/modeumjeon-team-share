@@ -202,12 +202,16 @@ def barcode_bundles_view():
                            cutline=cutline)
 
 
-@bp.get('/barcode/bundles/print')
+@bp.route('/barcode/bundles/print', methods=['GET', 'POST'])
 def barcode_bundles_print():
-    """선택 묶음 SKU 바코드 인쇄."""
-    bundle_skus = request.args.getlist('bundle_sku')
-    template_key = request.args.get('template', 'kr_ls3102')
-    cutline = request.args.get('cutline') == '1'
+    """선택 묶음 SKU 바코드 인쇄.
+
+    POST 사용 — SKU 수 많을 때 URL 길이 초과(Request Line is too large) 방지.
+    """
+    p = request.values  # args + form 통합
+    bundle_skus = p.getlist('bundle_sku')
+    template_key = p.get('template', 'kr_ls3102')
+    cutline = p.get('cutline') == '1'
     tpl = LABEL_TEMPLATES.get(template_key, LABEL_TEMPLATES['formtec_3102'])
     bundles = _load_bundles()
     rows = []
@@ -215,7 +219,7 @@ def barcode_bundles_print():
     for sku in bundle_skus:
         b = bundle_map.get(sku)
         if b:
-            qty = int(request.args.get(f'qty_{sku}', 1) or 1)
+            qty = int(p.get(f'qty_{sku}', 1) or 1)
             for _ in range(min(qty, 200)):
                 rows.append({'canonical_sku': b['sku'], 'name': b['name'],
                              'is_bundle': True, 'price': b.get('price', 0)})
@@ -223,13 +227,17 @@ def barcode_bundles_print():
                            template=tpl, cutline=cutline)
 
 
-@bp.get('/barcode/print')
+@bp.route('/barcode/print', methods=['GET', 'POST'])
 def barcode_print():
-    """선택한 SKU 바코드 인쇄 — 라벨 용지 템플릿 적용."""
-    skus = request.args.getlist('sku')
-    template_key = request.args.get('template', 'kr_ls3102')
-    cutline = request.args.get('cutline') == '1'
-    custom = _build_custom_template(request.args) if template_key == 'custom' else None
+    """선택한 SKU 바코드 인쇄 — 라벨 용지 템플릿 적용.
+
+    POST 사용 — SKU 수 많을 때 URL 길이 초과(Request Line is too large) 방지.
+    """
+    p = request.values  # args + form 통합 (GET/POST 모두 동작)
+    skus = p.getlist('sku')
+    template_key = p.get('template', 'kr_ls3102')
+    cutline = p.get('cutline') == '1'
+    custom = _build_custom_template(p) if template_key == 'custom' else None
     tpl = custom or LABEL_TEMPLATES.get(template_key, LABEL_TEMPLATES['kr_ls3102'])
     s = SessionLocal()
     try:
@@ -244,7 +252,7 @@ def barcode_print():
             for sku in skus:
                 opt = opt_map.get(sku)
                 if opt:
-                    qty = int(request.args.get(f'qty_{sku}', 1) or 1)
+                    qty = int(p.get(f'qty_{sku}', 1) or 1)
                     for _ in range(min(qty, 200)):
                         rows.append(opt)
         return render_template('inventory/barcode_print.html', rows=rows,

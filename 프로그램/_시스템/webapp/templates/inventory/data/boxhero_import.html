@@ -1,11 +1,11 @@
 {% extends 'base.html' %}
-{% block title %}재고 양식 import — 데이터 관리{% endblock %}
+{% block title %}제품 엑셀 업로드 — 데이터 관리{% endblock %}
 {% block content %}
 <div style="padding:24px 32px;max-width:1500px;margin:0 auto">
   <div style="display:flex;align-items:center;gap:14px;margin-bottom:14px">
     <div style="font-size:12.5px;color:#9CA3AF">데이터 관리</div>
-    <h1 style="font-size:22px;font-weight:700;margin:0">재고 양식 import</h1>
-    <span style="font-size:11.5px;color:#9CA3AF">ADR-005 — 1회 import 후 단독 운영</span>
+    <h1 style="font-size:22px;font-weight:700;margin:0">제품 엑셀 업로드</h1>
+    <span style="font-size:11.5px;color:#9CA3AF">우리 양식 16컬럼 또는 19컬럼 외부 양식 자동 변환</span>
   </div>
 
   {% with msgs = get_flashed_messages(with_categories=true) %}
@@ -17,7 +17,7 @@
   {# 현재 상태 KPI #}
   <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:18px">
     <div style="background:#fff;border:1px solid #E5E8EB;border-radius:8px;padding:12px 14px">
-      <div style="font-size:11px;color:#6B7684">매핑된 옵션</div>
+      <div style="font-size:11px;color:#6B7684">등록된 옵션</div>
       <div style="font-size:22px;font-weight:700;color:{% if verify.mapped_count > 0 %}#3182F6{% else %}#9CA3AF{% endif %}">{{ verify.mapped_count }}</div>
     </div>
     <div style="background:#fff;border:1px solid #E5E8EB;border-radius:8px;padding:12px 14px">
@@ -35,12 +35,12 @@
   </div>
 
   <div style="background:#fff;border:1px solid #E5E8EB;border-radius:8px;padding:20px">
-    <h2 style="font-size:15px;font-weight:700;margin-bottom:12px">📥 재고 양식 xlsx 업로드</h2>
+    <h2 style="font-size:15px;font-weight:700;margin-bottom:12px">📥 제품 엑셀 업로드</h2>
     <p style="font-size:12.5px;color:#6B7684;line-height:1.6;margin-bottom:16px">
-      <b>두 가지 형식 모두 지원</b> (헤더 자동 감지):<br>
-      • <b>우리 양식 (9 base + 위치별 재고)</b> — 다운로드한 <code>재고관리_*.xlsx</code> 를 그대로 수정 후 재업로드<br>
-      • <b>박스히어로 19컬럼</b> — 1회성 마이그레이션용 (BoxHero export xlsx)<br><br>
-      업로드 → ① 헤더 자동 감지 → ② fuzzy 매핑·이동평균 계산 → ③ InventoryTx 생성 (SSOT) → ④ 미매핑은 [SKU 매핑] 큐에서 보완.
+      우리 양식(16컬럼) 또는 외부 양식(19컬럼) xlsx 를 업로드하면<br>
+      ① 외부 양식은 자동으로 우리 양식으로 변환 (제품명에서 컬러 자동 추출) →
+      ② 평균매입가·재고 자동 계산 (이동평균법) →
+      ③ 미매핑 큐는 [SKU 매핑] 페이지에서 수동 보완.
     </p>
 
     <form method="post" action="{{ url_for('inventory.data_boxhero_import_upload') }}" enctype="multipart/form-data">
@@ -60,9 +60,8 @@
   </div>
 
   <div style="margin-top:20px;font-size:11px;color:#9CA3AF;line-height:1.6">
-    <strong>박스히어로 19컬럼 파서</strong>: 기존 <code>lemouton/sourcing/boxhero_xlsx.py</code> 활용 (이미 SKU·바코드·제품명·구매가·판매가·카테고리·브랜드·모델명·사이즈·메모·안전재고x4·생성일·수량x4 19컬럼 검증됨).<br>
-    <strong>fuzzy 알고리즘</strong>: <code>lemouton/inventory/sku_mapping.py</code> (Task 1.7, 9/9 단위테스트 통과).<br>
-    <strong>이동평균</strong>: <code>lemouton/inventory/cogs.py</code> update_moving_avg (Task 1.1, 12/12 단위테스트 통과).
+    <strong>지원 양식</strong>: ① 우리 양식 16컬럼 (SKU·바코드·브랜드·제품명·모델명·컬러·사이즈·카테고리·평균매입가·판매가·메모·총재고·그로스·기본위치·판매불가·생성일) ② 외부 양식 19컬럼 (제품명에서 컬러 자동 추출).<br>
+    <strong>이동평균 계산</strong>: 동일 SKU 재업로드 시 평균매입가 가중평균으로 갱신.
   </div>
 </div>
 {% endblock %}

@@ -189,9 +189,12 @@ def inbound_new():
             'bh': o.boxhero_sku or '', 'stock': o.boxhero_stock_total or 0,
             'avg': o.boxhero_avg_purchase_price or 0,
         } for o in options]
+        # ?sku=... 으로 진입한 경우 prefill 지원 (제품목록에서 [📥 입고] 클릭)
+        prefill_skus = request.args.getlist('sku')
         return render_template(
             'inventory/inbound/form.html', active='inbound',
             locations=locations, opt_data=opt_data,
+            prefill_skus=prefill_skus,
         )
     finally:
         s.close()
@@ -375,9 +378,11 @@ def outbound_new():
     try:
         from lemouton.inventory.locations import list_active
         locations = list_active(s)
+        prefill_skus = request.args.getlist('sku')
         return render_template('inventory/outbound/form.html',
                                active='outbound', locations=locations,
-                               opt_data=_opt_data_all(s, include_bundles=True))
+                               opt_data=_opt_data_all(s, include_bundles=True),
+                               prefill_skus=prefill_skus)
     finally:
         s.close()
 
@@ -495,9 +500,11 @@ def adjust_new():
     try:
         from lemouton.inventory.locations import list_active
         locations = list_active(s)
+        prefill_skus = request.args.getlist('sku')
         return render_template('inventory/adjust/form.html',
                                active='adjust', locations=locations,
-                               opt_data=_opt_data_all(s))
+                               opt_data=_opt_data_all(s),
+                               prefill_skus=prefill_skus)
     finally:
         s.close()
 
@@ -606,9 +613,11 @@ def move_new():
     try:
         from lemouton.inventory.locations import list_active
         locations = list_active(s)
+        prefill_skus = request.args.getlist('sku')
         return render_template('inventory/move/form.html',
                                active='move', locations=locations,
-                               opt_data=_opt_data_all(s))
+                               opt_data=_opt_data_all(s),
+                               prefill_skus=prefill_skus)
     finally:
         s.close()
 

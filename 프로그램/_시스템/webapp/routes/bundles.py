@@ -43,6 +43,15 @@ def _fmt_dt(dt) -> str:
     return kst.strftime('%Y-%m-%d %H:%M')
 
 
+def _iso_utc(dt) -> str:
+    """클라이언트 측 ticker 가 사용 — UTC ISO 문자열로 직렬화. None → ''."""
+    if dt is None:
+        return ''
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt.isoformat()
+
+
 def _crawl_kind(dt) -> str:
     if dt is None:
         return 'none'
@@ -596,8 +605,10 @@ def bundle_edit(code: str):
         status_cards = {
             'last_crawled_ago': _humanize_ago(last_crawled_at),
             'last_crawled_at': _fmt_dt(last_crawled_at),
+            'last_crawled_at_iso': _iso_utc(last_crawled_at),
             'last_uploaded_ago': _humanize_ago(last_uploaded_at),
             'last_uploaded_at': _fmt_dt(last_uploaded_at),
+            'last_uploaded_at_iso': _iso_utc(last_uploaded_at),
         }
     finally:
         s.close()

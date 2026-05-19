@@ -1,0 +1,207 @@
+{% extends 'base.html' %}
+{% block title %}맵핑 — 모음전 상품 ↔ 재고관리 SKU{% endblock %}
+{% block content %}
+{# C1 차분 파스텔 (소프트 블루) + 폰트 1.5배 + 탭 아이콘 #}
+
+{# 차원 이름 → 아이콘 매핑 (기본 사전) #}
+{% set dim_icons = {
+  '모델':'📦', '브랜드':'🏷', '카테고리':'📁',
+  '색상':'🎨', '컬러':'🎨',
+  '사이즈':'📏', '치수':'📏', '용량':'⚖',
+  '재질':'🧵', '소재':'🧵', '패턴':'✨', '두께':'📐',
+} %}
+
+<div style="padding:36px 40px;max-width:1500px;margin:0 auto;color:#191F28">
+
+  {# ===== 헤더 (폰트 1.5배) ===== #}
+  <div style="display:flex;align-items:baseline;gap:16px;margin-bottom:10px;flex-wrap:wrap">
+    <h1 style="font-size:48px;font-weight:800;margin:0;letter-spacing:-0.8px">맵핑</h1>
+    <span style="font-size:20px;color:#6B7684">모음전 상품 ↔ 재고관리 SKU</span>
+  </div>
+  <p style="font-size:18px;color:#525866;margin:0 0 30px;line-height:1.65;max-width:1100px">
+    마켓에서 다르게 쓴 단어를 재고관리 기준명으로 자동 변환되게 등록하는 사전입니다.
+    <b>구분</b>(모델·색상·사이즈) → <b>기준명</b> → <b>동의어</b> 순으로 저장됩니다.
+  </p>
+
+  {% with msgs = get_flashed_messages(with_categories=true) %}
+    {% for cat,msg in msgs %}
+      <div style="background:{% if cat=='error' %}#FEF2F2;border-color:#FCA5A5;color:#991B1B{% else %}#F0F7FF;border-color:#BFDBFE;color:#1B64DA{% endif %};border:1px solid;padding:14px 20px;border-radius:8px;margin-bottom:18px;font-size:18px;font-weight:500">{{ msg }}</div>
+    {% endfor %}
+  {% endwith %}
+
+  {% if not dimensions %}
+    <div style="background:#F0F7FF;border:1px solid #BFDBFE;border-radius:10px;padding:28px 32px;margin-bottom:20px">
+      <div style="font-weight:700;margin-bottom:8px;font-size:22px;color:#1B64DA">사전이 비어있습니다.</div>
+      <div style="font-size:17px;color:#525866;margin-bottom:18px;line-height:1.6">기본 3개 구분(모델 · 색상 · 사이즈)부터 시작하세요.</div>
+      <form method="post" action="{{ url_for('mapping.seed_defaults') }}" style="display:inline-block">
+        <button type="submit" style="background:#3182F6;color:#fff;border:0;border-radius:8px;padding:13px 26px;font-size:17px;font-weight:600;cursor:pointer;font-family:inherit">기본 구분 자동 생성</button>
+      </form>
+    </div>
+  {% else %}
+
+  {# ===== 카테고리 탭 — 아이콘 + 폰트 1.5배 ===== #}
+  <div style="display:flex;align-items:flex-end;gap:4px;border-bottom:3px solid #E5E8EB;margin-bottom:0;flex-wrap:wrap">
+    {% for dim in dimensions %}
+      {% set icon = dim_icons.get(dim.name, '🏷') %}
+      <button type="button" class="cat-tab" data-cat="dim-{{ dim.id }}"
+              style="background:transparent;border:0;border-bottom:4px solid transparent;padding:18px 28px;font-size:22px;color:#6B7684;cursor:pointer;font-family:inherit;font-weight:500;display:inline-flex;align-items:center;gap:10px;margin-bottom:-3px;transition:color .15s,border-color .15s{% if loop.first %};color:#1B64DA;font-weight:700;border-bottom-color:#3182F6{% endif %}">
+        <span style="font-size:24px">{{ icon }}</span>
+        <span>{{ dim.name }}</span>
+        <span style="font-size:15px;color:#9CA3AF;font-weight:400">{{ dim.canonicals|length }}</span>
+      </button>
+    {% endfor %}
+    <form method="post" action="{{ url_for('mapping.dimension_create') }}" style="display:inline-flex;align-items:center;gap:6px;margin-left:10px;padding-bottom:10px">
+      <input name="name" placeholder="+ 구분 이름" required style="border:1px solid #BFDBFE;border-radius:6px;padding:8px 14px;font-size:16px;width:160px;font-family:inherit;background:#F0F7FF;color:#1B64DA">
+      <input type="hidden" name="weight" value="25">
+      <button type="submit" style="background:#3182F6;border:0;color:#fff;border-radius:6px;padding:8px 16px;font-size:15px;cursor:pointer;font-family:inherit;font-weight:600">추가</button>
+    </form>
+  </div>
+
+  {# ===== 탭별 콘텐츠 ===== #}
+  {% for dim in dimensions %}
+  {% set icon = dim_icons.get(dim.name, '🏷') %}
+  <div class="cat-pane" id="pane-dim-{{ dim.id }}" style="display:{% if loop.first %}block{% else %}none{% endif %};background:#fff;border:1px solid #E5E8EB;border-top:0;border-radius:0 0 10px 10px;padding:22px 26px">
+
+    {# 새 기준명 추가 행 #}
+    <div style="display:flex;gap:12px;align-items:center;margin-bottom:18px;padding:18px 22px;background:#F0F7FF;border:1px solid #BFDBFE;border-radius:10px">
+      <form method="post" action="{{ url_for('mapping.canonical_create') }}" style="display:flex;gap:12px;flex:1;align-items:center">
+        <input type="hidden" name="dimension_id" value="{{ dim.id }}">
+        <span style="font-size:24px">{{ icon }}</span>
+        <input name="value" placeholder="+ 새 기준명 (예: 블루 · 230 · 르무통 클래식)" required
+               style="flex:1;padding:13px 16px;border:1px solid #BFDBFE;border-radius:7px;font-size:17px;font-family:inherit;background:#fff">
+        <button type="submit" style="background:#3182F6;color:#fff;border:0;border-radius:7px;padding:13px 26px;font-size:17px;font-weight:600;cursor:pointer;font-family:inherit">추가</button>
+      </form>
+      <form method="post" action="{{ url_for('mapping.dimension_delete', dim_id=dim.id) }}" onsubmit="return confirm('구분 \'{{ dim.name }}\' 삭제 — 모든 기준명·동의어 함께 삭제. 진행?')">
+        <button type="submit" title="이 구분 삭제" style="background:#fff;border:1px solid #BFDBFE;color:#1B64DA;border-radius:7px;padding:13px 18px;font-size:15px;cursor:pointer;font-family:inherit">구분 삭제</button>
+      </form>
+    </div>
+
+    {# 기준명·동의어 표 #}
+    <table style="width:100%;border-collapse:collapse;font-size:17px">
+      <thead>
+        <tr style="background:#FAFBFC;border-bottom:2px solid #E5E8EB">
+          <th style="text-align:left;padding:14px 16px;font-size:14px;color:#6B7684;font-weight:600;text-transform:uppercase;letter-spacing:0.04em;width:280px">재고관리 기준명</th>
+          <th style="text-align:left;padding:14px 16px;font-size:14px;color:#6B7684;font-weight:600;text-transform:uppercase;letter-spacing:0.04em">동의어 (마켓 표기)</th>
+          <th style="text-align:right;padding:14px 16px;width:50px"></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for c in dim.canonicals %}
+        <tr style="border-bottom:1px solid #F1F1F4">
+          <td style="padding:18px 16px;vertical-align:middle">
+            <span style="font-weight:700;color:#191F28;font-size:21px">{{ c.value }}</span>
+          </td>
+          <td style="padding:14px 16px;vertical-align:middle">
+            <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center">
+              {% for a in c.aliases %}
+                <span style="display:inline-flex;align-items:center;gap:4px;background:{% if a.source == 'learned' %}#FEF3C7;color:#92400E;border:1px solid #FCD34D{% else %}#EFF6FF;color:#1B64DA;border:1px solid #BFDBFE{% endif %};border-radius:10px;padding:7px 8px 7px 14px;font-size:16px;font-weight:500">
+                  {{ a.alias }}{% if a.source == 'learned' %} <span style="font-size:11.5px;color:#A16207;background:#FEF9E7;border-radius:5px;padding:1px 6px;margin-left:3px">학습</span>{% endif %}
+                  <form method="post" action="{{ url_for('mapping.alias_delete', m_id=a.id) }}" style="display:inline">
+                    <button type="submit" style="background:transparent;border:0;color:#9CA3AF;cursor:pointer;padding:0 6px;font-size:16px;line-height:1">×</button>
+                  </form>
+                </span>
+              {% endfor %}
+              <form method="post" action="{{ url_for('mapping.alias_create') }}" class="alias-form" style="display:inline-flex;align-items:center;position:relative"
+                    onsubmit="event.preventDefault();submitAlias(this);return false">
+                <input type="hidden" name="canonical_id" value="{{ c.id }}">
+                <input name="alias" placeholder="+ 동의어" autocomplete="off"
+                       style="border:1px dashed #BFDBFE;border-radius:10px;padding:7px 14px;font-size:16px;color:#1B64DA;background:#fff;min-width:140px;outline:none;font-family:inherit"
+                       onkeydown="if(event.key==='Enter'){event.preventDefault();submitAlias(this.form)}">
+              </form>
+            </div>
+          </td>
+          <td style="padding:14px 16px;text-align:right;vertical-align:middle">
+            <form method="post" action="{{ url_for('mapping.canonical_delete', can_id=c.id) }}" onsubmit="return confirm('기준명 \'{{ c.value }}\' 삭제 — 동의어 모두 함께. 진행?')" style="display:inline">
+              <button type="submit" title="기준명 삭제" style="background:transparent;border:0;color:#9CA3AF;cursor:pointer;font-size:20px;line-height:1;padding:6px 8px">×</button>
+            </form>
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="3" style="padding:48px 16px;text-align:center;font-size:18px;color:#9CA3AF">기준명이 없습니다 — 위에서 추가하세요.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% endfor %}
+
+  <div style="margin-top:22px;font-size:15px;color:#6B7684;line-height:1.75;padding:0 4px">
+    동의어를 등록하면 모음전 옵션 편집에서 자동 매칭 시 즉시 인식됩니다.
+    <b style="color:#A16207">학습</b> 라벨은 모음전 옵션의 수동 매핑에서 자동 추가된 동의어를 의미합니다.
+  </div>
+
+  {% endif %}
+</div>
+
+<script>
+(function(){
+  // 카테고리 탭 전환
+  document.querySelectorAll('.cat-tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+      var target = tab.dataset.cat;
+      document.querySelectorAll('.cat-tab').forEach(t => {
+        var on = t.dataset.cat === target;
+        t.style.color = on ? '#1B64DA' : '#6B7684';
+        t.style.fontWeight = on ? '700' : '500';
+        t.style.borderBottomColor = on ? '#3182F6' : 'transparent';
+      });
+      document.querySelectorAll('.cat-pane').forEach(p => {
+        p.style.display = p.id === 'pane-' + target ? 'block' : 'none';
+      });
+    });
+  });
+})();
+
+// ===== 동의어 추가 — fetch 로 inline 처리 (페이지 이동·JSON raw 노출 방지) =====
+async function submitAlias(form) {
+  const aliasInput = form.querySelector('input[name=alias]');
+  const aliasVal = (aliasInput.value || '').trim();
+  if (!aliasVal) return;
+  const canonicalId = form.querySelector('input[name=canonical_id]').value;
+  try {
+    const fd = new FormData(form);
+    const r = await fetch(form.action, {
+      method: 'POST',
+      body: fd,
+      headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+    });
+    const j = await r.json();
+    if (j.ok) {
+      // 새 chip DOM insert (수동 추가 = manual = 파란색)
+      const chip = document.createElement('span');
+      chip.style.cssText = 'display:inline-flex;align-items:center;gap:4px;background:#EFF6FF;color:#1B64DA;border:1px solid #BFDBFE;border-radius:10px;padding:7px 8px 7px 14px;font-size:16px;font-weight:500';
+      chip.innerHTML = `${escapeText(aliasVal)} <form method="post" action="/mapping/alias/${j.id}/delete" style="display:inline"><button type="submit" style="background:transparent;border:0;color:#9CA3AF;cursor:pointer;padding:0 6px;font-size:16px;line-height:1">×</button></form>`;
+      form.parentNode.insertBefore(chip, form);
+      aliasInput.value = '';
+      aliasInput.focus();
+    } else {
+      const msg = j.error === 'duplicate' ? '이미 등록된 동의어'
+                : j.error === 'missing'   ? '동의어를 입력하세요'
+                : '추가 실패';
+      flashError(aliasInput, msg);
+    }
+  } catch (e) {
+    flashError(aliasInput, '네트워크 오류');
+  }
+}
+
+function flashError(input, msg) {
+  const origBorder = input.style.borderColor;
+  const origColor = input.style.color;
+  input.style.borderColor = '#DC2626';
+  input.style.color = '#DC2626';
+  const t = document.createElement('div');
+  t.textContent = msg;
+  t.style.cssText = 'position:absolute;top:100%;left:0;background:#FEF2F2;border:1px solid #FCA5A5;color:#991B1B;padding:5px 10px;border-radius:6px;font-size:13px;margin-top:4px;z-index:100;white-space:nowrap';
+  input.parentNode.appendChild(t);
+  setTimeout(() => {
+    input.style.borderColor = origBorder;
+    input.style.color = origColor;
+    t.remove();
+  }, 1800);
+}
+
+function escapeText(s) {
+  return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+</script>
+{% endblock %}

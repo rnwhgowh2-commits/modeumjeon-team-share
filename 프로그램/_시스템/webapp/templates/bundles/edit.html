@@ -70,7 +70,7 @@
     <details class="b-stat-card crawl b-stat-acc">
       <summary>
         <div class="b-stat-head">마지막 크롤링 <span class="b-stat-toggle">▼</span></div>
-        <div class="b-stat-val">{{ status_cards.last_crawled_ago }}{% if status_cards.last_crawled_at %} <span class="ago">· {{ status_cards.last_crawled_at }}</span>{% endif %}</div>
+        <div class="b-stat-val" data-iso="{{ status_cards.last_crawled_at_iso or '' }}" data-kind="crawl">{{ status_cards.last_crawled_ago }}{% if status_cards.last_crawled_at %} <span class="ago">· {{ status_cards.last_crawled_at }}</span>{% endif %}</div>
       </summary>
       <div class="b-stat-detail">
         <div class="b-stat-detail-h">최근 크롤링 5건</div>
@@ -93,7 +93,7 @@
     <details class="b-stat-card upload b-stat-acc">
       <summary>
         <div class="b-stat-head"><span class="ic">📤</span> 마지막 마켓 업로드 <span class="b-stat-toggle">▼</span></div>
-        <div class="b-stat-val">{{ status_cards.last_uploaded_ago }}{% if status_cards.last_uploaded_at %} <span class="ago">· {{ status_cards.last_uploaded_at }}</span>{% endif %}</div>
+        <div class="b-stat-val" data-iso="{{ status_cards.last_uploaded_at_iso or '' }}" data-kind="upload">{{ status_cards.last_uploaded_ago }}{% if status_cards.last_uploaded_at %} <span class="ago">· {{ status_cards.last_uploaded_at }}</span>{% endif %}</div>
       </summary>
       <div class="b-stat-detail">
         <div class="b-stat-detail-h">최근 업로드 5건</div>
@@ -1038,6 +1038,54 @@
   const BUNDLE_CODE = {{ bundle.model_code|tojson|safe }};
   const SOURCE_KEYS = {{ source_registry|map(attribute='key')|list|tojson|safe }};
   const BUNDLE_PATH = encodeURIComponent(BUNDLE_CODE);
+
+  // ══════════════════════════════════════════════════════════════
+  //  상단 b-stat-card 의 "ㅇㅇ분 전" 자동 갱신 (페이지 reload 없이 ticker)
+  //  - data-iso 속성에 UTC ISO 시각 저장
+  //  - 30초마다 재계산해서 "방금 전 / N분 전 / N시간 전 / N일 전" 텍스트 갱신
+  //  - window.setLastCrawled(iso) / window.setLastUploaded(iso) — 외부에서 즉시 갱신용
+  // ══════════════════════════════════════════════════════════════
+  (function setupBStatTicker(){
+    function agoText(iso) {
+      if (!iso) return '—';
+      const dt = new Date(iso);
+      if (isNaN(dt.getTime())) return '—';
+      const sec = Math.floor((Date.now() - dt.getTime()) / 1000);
+      if (sec < 60) return '방금 전';
+      if (sec < 3600) return `${Math.floor(sec / 60)}분 전`;
+      if (sec < 86400) return `${Math.floor(sec / 3600)}시간 전`;
+      return `${Math.floor(sec / 86400)}일 전`;
+    }
+    function fmtKst(iso) {
+      if (!iso) return '';
+      const dt = new Date(iso);
+      if (isNaN(dt.getTime())) return '';
+      const kst = new Date(dt.getTime() + 9 * 3600 * 1000);
+      const p = n => String(n).padStart(2, '0');
+      return `${kst.getUTCFullYear()}-${p(kst.getUTCMonth()+1)}-${p(kst.getUTCDate())} ${p(kst.getUTCHours())}:${p(kst.getUTCMinutes())}`;
+    }
+    function tick() {
+      document.querySelectorAll('.b-stat-val[data-iso]').forEach(el => {
+        const iso = el.getAttribute('data-iso');
+        if (!iso) return;  // '' 면 그대로 (서버 측 '—' 유지)
+        const ago = agoText(iso);
+        const ts = fmtKst(iso);
+        el.innerHTML = ts ? `${ago} <span class="ago">· ${ts}</span>` : ago;
+      });
+    }
+    // 외부 호출용 — 즉시 데이터 갱신 + 재렌더
+    window.setLastCrawled = function(iso) {
+      document.querySelectorAll('.b-stat-val[data-kind="crawl"]').forEach(el => el.setAttribute('data-iso', iso || ''));
+      tick();
+    };
+    window.setLastUploaded = function(iso) {
+      document.querySelectorAll('.b-stat-val[data-kind="upload"]').forEach(el => el.setAttribute('data-iso', iso || ''));
+      tick();
+    };
+    // 초기 1회 + 30초 ticker
+    tick();
+    setInterval(tick, 30000);
+  })();
 
   // ===== T1 (E1) — 탭 전환 + URL hash 동기화 =====
   (function initBundleTabs(){

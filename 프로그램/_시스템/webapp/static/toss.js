@@ -1386,8 +1386,36 @@ document.addEventListener('click', async (e) => {
     const res = await apiPost(
       `/api/bundles/${encodeURIComponent(code)}/run-now`, { phase });
     showActionResult(res, `'${code}' ${phaseLabel}`);
-    if (res.ok) {
-      setTimeout(() => window.location.reload(), 1400);
+    if (res.ok && phase === 'crawl') {
+      // 백그라운드 크롤 완료 폴링 — page reload 없이 ticker 자동 갱신
+      // (run-now 는 background thread, API 는 즉시 반환 → record_end 가
+      //  last_crawled_at 업데이트할 때까지 polling)
+      const crawlEl = document.querySelector('.b-stat-val[data-kind="crawl"]');
+      const initialIso = crawlEl ? (crawlEl.getAttribute('data-iso') || '') : '';
+      let polls = 0;
+      const maxPolls = 60;  // 3초 × 60 = 3분 max
+      const poller = setInterval(async () => {
+        polls++;
+        if (polls > maxPolls) {
+          clearInterval(poller);
+          flash(`'${code}' 크롤링 완료 확인 시간초과`, 'err');
+          return;
+        }
+        try {
+          const sr = await fetch(`/api/bundles/${encodeURIComponent(code)}/crawl-status`);
+          const sj = await sr.json();
+          if (sj.ok && sj.last_crawled_at && sj.last_crawled_at !== initialIso) {
+            if (typeof window.setLastCrawled === 'function') {
+              window.setLastCrawled(sj.last_crawled_at);
+            }
+            if (typeof loadMatrix === 'function') {
+              try { loadMatrix(); } catch(_) {}
+            }
+            flash(`'${code}' 크롤링 완료 — 데이터 갱신됨`, 'ok');
+            clearInterval(poller);
+          }
+        } catch(_) {}
+      }, 3000);
     }
   } catch (err) {
     flash(`${phaseLabel} 호출 실패: ${err}`, 'err');

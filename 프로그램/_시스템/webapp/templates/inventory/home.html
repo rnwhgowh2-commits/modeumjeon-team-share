@@ -285,7 +285,15 @@
           </div>
         {% endfor %}
       </div>
-      <a href="javascript:openHistMod('{{ d.opt.canonical_sku }}', null, '전체')" style="display:block;text-align:center;padding:6px;border:1px solid #CBCCD3;color:#4F67FF;text-decoration:none;font-size:11.5px;border-radius:5px;margin-bottom:14px;font-weight:600">📜 전체 거래 이력 보기 →</a>
+      <a href="javascript:openHistMod('{{ d.opt.canonical_sku }}', null, '전체')" style="display:block;text-align:center;padding:6px;border:1px solid #CBCCD3;color:#4F67FF;text-decoration:none;font-size:11.5px;border-radius:5px;margin-bottom:10px;font-weight:600">📜 전체 거래 이력 보기 →</a>
+
+      {# ★ 이 제품으로 즉시 입고/출고/조정/이동 액션 (prefill — 박스히어로 1:1 UX) #}
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:6px;margin-bottom:14px">
+        <a href="{{ url_for('inventory.inbound_new', sku=d.opt.canonical_sku) }}" style="text-align:center;padding:9px 4px;background:#16A34A;color:#fff;text-decoration:none;font-size:12px;border-radius:5px;font-weight:700">📥 입고</a>
+        <a href="{{ url_for('inventory.outbound_new', sku=d.opt.canonical_sku) }}" style="text-align:center;padding:9px 4px;background:#DC2626;color:#fff;text-decoration:none;font-size:12px;border-radius:5px;font-weight:700">📤 출고</a>
+        <a href="{{ url_for('inventory.adjust_new', sku=d.opt.canonical_sku) }}" style="text-align:center;padding:9px 4px;background:#F59E0B;color:#fff;text-decoration:none;font-size:12px;border-radius:5px;font-weight:700">⚖ 조정</a>
+        <a href="{{ url_for('inventory.move_new', sku=d.opt.canonical_sku) }}" style="text-align:center;padding:9px 4px;background:#7C3AED;color:#fff;text-decoration:none;font-size:12px;border-radius:5px;font-weight:700">🔄 이동</a>
+      </div>
 
       {# 거래 이력 모달 #}
       <div id="histModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:1000;align-items:center;justify-content:center" onclick="if(event.target===this)closeHistMod()">
@@ -333,18 +341,6 @@
       }
       function closeHistMod(){ document.getElementById('histModal').style.display='none'; }
       </script>
-
-      <h3 style="font-size:12.5px;font-weight:600;margin:0 0 8px">박스히어로 매핑</h3>
-      <div style="font-size:11.5px;color:#4E5968;line-height:1.7;background:#F9FAFB;padding:8px 12px;border-radius:6px;font-family:ui-monospace,monospace">
-        {{ d.opt.boxhero_sku or '— 미매핑' }}
-      </div>
-
-      <div style="display:flex;gap:6px;margin-top:14px;flex-wrap:wrap">
-        <a href="{{ url_for('inventory.inbound_new') }}" style="flex:1;text-align:center;padding:7px;background:#22C55E;color:#fff;text-decoration:none;font-size:11.5px;font-weight:600;border-radius:5px">📥 입고</a>
-        <a href="{{ url_for('inventory.outbound_new') }}" style="flex:1;text-align:center;padding:7px;background:#EF4444;color:#fff;text-decoration:none;font-size:11.5px;font-weight:600;border-radius:5px">📤 출고</a>
-        <a href="{{ url_for('inventory.adjust_new') }}" style="flex:1;text-align:center;padding:7px;background:#4F67FF;color:#fff;text-decoration:none;font-size:11.5px;font-weight:600;border-radius:5px">⚖ 조정</a>
-        <a href="{{ url_for('inventory.move_new') }}" style="flex:1;text-align:center;padding:7px;background:#A855F7;color:#fff;text-decoration:none;font-size:11.5px;font-weight:600;border-radius:5px">이동</a>
-      </div>
 
       <a href="{{ url_for('inventory.reports_past_quantity', sku=d.opt.canonical_sku) }}" style="display:block;text-align:center;margin-top:8px;padding:7px;border:1px solid #D1D6DB;color:#4E5968;text-decoration:none;font-size:11.5px;border-radius:5px">📈 과거 수량 시계열</a>
     </div>

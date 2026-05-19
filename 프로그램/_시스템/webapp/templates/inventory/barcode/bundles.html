@@ -17,7 +17,7 @@
       </p>
     </div>
   {% else %}
-    <form method="get" action="{{ url_for('inventory.barcode_bundles_print') }}" target="_blank" style="background:#fff;border:1px solid #E5E8EB;border-radius:8px;padding:14px 18px;margin-bottom:14px">
+    <form method="post" action="{{ url_for('inventory.barcode_bundles_print') }}" target="_blank" style="background:#fff;border:1px solid #E5E8EB;border-radius:8px;padding:14px 18px;margin-bottom:14px">
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px">
         <label style="font-size:13px;color:#292A2F;font-weight:600">라벨 용지</label>
         <select name="template" style="padding:7px 10px;border:1px solid #CBCCD3;border-radius:5px;font-size:12.5px;color:#292A2F;background:#fff">

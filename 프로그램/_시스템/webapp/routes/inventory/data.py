@@ -276,10 +276,15 @@ def data_locations_seed():
 
 @bp.get('/data/items')
 def data_items():
-    """제품 마스터 — 모음전 옵션 162개를 박스히어로식 표 형식으로."""
-    from sqlalchemy import or_
+    """제품 마스터 — 옵션 표 형식.
+
+    형식 분기 — `?format=json` 또는 `Accept: application/json` 헤더 시 JSON 응답.
+    JSON 모드는 칩 UI 의 AJAX 라이브 검색용 (새로고침 없이 표·KPI 갱신).
+    """
     from lemouton.sourcing.models import Option, Model
     from shared.search import split_tokens, apply_and_filter
+    from shared.inventory_stock import get_stock_batch
+    from sqlalchemy import func
 
     page = max(1, int(request.args.get('page', 1)))
     page_size = min(200, int(request.args.get('page_size', 50)))
@@ -287,26 +292,27 @@ def data_items():
     brand = (request.args.get('brand') or '').strip()
     in_stock_only = request.args.get('in_stock_only') == '1'
     search_tokens = split_tokens(q)
+    want_json = (
+        request.args.get('format') == 'json'
+        or 'application/json' in (request.headers.get('Accept') or '')
+    )
 
     s = SessionLocal()
     try:
         query = s.query(Option).join(Model, Option.model_code == Model.model_code)
-        # Option 모델에는 deleted_at 컬럼이 ORM에 정의 안 됨 → soft-delete 필터 빼기
-
-        # ★ 박스히어로식 다중 키워드 AND 교집합 (shared.search 헬퍼)
+        # 다중 키워드 AND 교집합 — 토큰별 OR (SKU·바코드·브랜드·제품명·모델명·컬러·사이즈)
         query = apply_and_filter(
             query, search_tokens,
-            Option.canonical_sku, Option.boxhero_sku,
-            Model.model_name_display, Model.model_name_raw,
-            Option.color_display, Option.size_display,
+            Option.canonical_sku, Option.boxhero_sku, Option.barcode,
+            Model.brand, Model.model_name_display, Model.model_name_raw, Model.model_code,
+            Option.color_display, Option.color_code,
+            Option.size_display, Option.size_code,
         )
         if brand:
             query = query.filter(Model.brand == brand)
-        # ★ SSOT 재고 — 전체 옵션 batch 한 번에
-        from shared.inventory_stock import get_stock_batch
+
         all_skus_for_stock = [r[0] for r in query.with_entities(Option.canonical_sku).all()]
         stock_map = get_stock_batch(s, all_skus_for_stock)
-
         if in_stock_only:
             in_skus = {sk for sk, st in stock_map.items() if st > 0}
             query = query.filter(Option.canonical_sku.in_(in_skus) if in_skus else False)
@@ -317,16 +323,48 @@ def data_items():
             .offset((page - 1) * page_size).limit(page_size).all()
         )
 
-        # KPI (실시간 SSOT)
-        from sqlalchemy import func
         all_options_count = s.query(func.count(Option.canonical_sku)).scalar() or 0
-        mapped_count = s.query(func.count(Option.canonical_sku)).filter(Option.boxhero_sku.isnot(None)).scalar() or 0
         in_stock_count = sum(1 for st in stock_map.values() if st > 0)
         total_qty = sum(stock_map.values())
+        kpi = {
+            'all_options': all_options_count,
+            'in_stock': in_stock_count,
+            'total_qty': int(total_qty),
+        }
 
-        # 브랜드 목록 (필터용)
+        if want_json:
+            from flask import jsonify
+            def _color(o):
+                return (o.color_display or o.color_code or '').strip() or 'ONE Color'
+            def _size(o):
+                return (o.size_display or o.size_code or '').strip() or 'FREE'
+            rows = [
+                {
+                    'sku': o.canonical_sku,
+                    'bh': o.boxhero_sku or '',
+                    'barcode': o.barcode or '',
+                    'name': (o.model.model_name_display or o.model.model_name_raw or '') if o.model else '',
+                    'model_code': (o.model.model_code or '') if o.model else '',
+                    'brand': (o.model.brand or '') if o.model else '',
+                    'color': _color(o),
+                    'color_raw': o.color_display or o.color_code or '',
+                    'size': _size(o),
+                    'size_raw': o.size_display or o.size_code or '',
+                    'avg': int(o.boxhero_avg_purchase_price or 0),
+                    'stock': int(stock_map.get(o.canonical_sku, 0)),
+                }
+                for o in items
+            ]
+            return jsonify({
+                'total': total,
+                'page': page,
+                'page_size': page_size,
+                'total_pages': (total + page_size - 1) // page_size,
+                'items': rows,
+                'kpi': kpi,
+            })
+
         brands = [b for (b,) in s.query(Model.brand).distinct().filter(Model.brand.isnot(None)).all()]
-
         return render_template(
             'inventory/data/items.html',
             active='data-items',
@@ -335,14 +373,8 @@ def data_items():
             q=q, brand=brand, in_stock_only=in_stock_only,
             search_tokens=search_tokens,
             brands=sorted(brands),
-            stock_map=stock_map,  # ★ 실시간 SSOT 재고
-            kpi={
-                'all_options': all_options_count,
-                'mapped': mapped_count,
-                'unmapped': all_options_count - mapped_count,
-                'in_stock': in_stock_count,
-                'total_qty': int(total_qty),
-            },
+            stock_map=stock_map,
+            kpi=kpi,
         )
     finally:
         s.close()
@@ -728,9 +760,10 @@ def data_price_templates_update_margin(tpl_id):
 
 @bp.get('/data/items/export.xlsx')
 def data_items_export():
-    """우리 양식 9 base 컬럼 + 동적 위치별 재고 컬럼 엑셀 다운로드.
+    """우리 양식 8 base 컬럼 + 동적 위치별 재고 컬럼 엑셀 다운로드.
 
-    헤더: SKU / 바코드 / 브랜드 / 제품명 / 색상 / 사이즈 / 평균매입가 / 총재고 / {위치명1} 재고 / {위치명2} 재고 / ...
+    헤더 (사용자 spec): SKU / 바코드 / 브랜드 / 제품명 / 색상 / 사이즈 / 평균매입가 / 총재고 / {위치명1} 재고 / {위치명2} 재고 / ...
+    빈 색상 → 'one' / 빈 사이즈 → 'free'
     """
     from io import BytesIO
     from datetime import datetime
@@ -743,7 +776,6 @@ def data_items_export():
 
     s = SessionLocal()
     try:
-        # 옵션 + 모델 join
         options = (
             s.query(Option)
             .options(joinedload(Option.model))
@@ -752,7 +784,6 @@ def data_items_export():
         )
         all_skus = [o.canonical_sku for o in options]
 
-        # 총재고 + 위치별 재고 — SSOT (InventoryTx) batch
         total_stock_map = get_stock_batch(s, all_skus)
         locs = (
             s.query(InventoryLocation)
@@ -760,7 +791,7 @@ def data_items_export():
             .order_by(InventoryLocation.sort_order, InventoryLocation.id)
             .all()
         )
-        per_loc_stock = {}  # {sku: {loc_id: stock}}
+        per_loc_stock = {}
         for loc in locs:
             loc_map = get_stock_batch(s, all_skus, location_id=loc.id)
             for sku, st in loc_map.items():
@@ -806,7 +837,6 @@ def data_items_export():
             headers.append(f'{loc.name} 재고')
         ws.append(headers)
 
-        # 데이터 row
         for o in options:
             barcode = o.barcode or o.boxhero_sku or ''
             brand = (o.model.brand or '') if o.model else ''
@@ -855,7 +885,6 @@ def data_items_export():
                 row.append(int(per_loc_stock.get(o.canonical_sku, {}).get(loc.id, 0)))
             ws.append(row)
 
-        # 헤더 스타일 (파란 배경 + 흰 글씨)
         header_font = Font(bold=True, color='FFFFFF', size=11)
         header_fill = PatternFill(start_color='4F67FF', end_color='4F67FF', fill_type='solid')
         for col_idx in range(1, len(headers) + 1):
@@ -866,11 +895,10 @@ def data_items_export():
         ws.row_dimensions[1].height = 24
         ws.freeze_panes = 'A2'
 
-        # 컬럼 너비 (대략)
+        # 컬럼 너비 — 9 base (SKU, 바코드, 브랜드, 제품명, 품번, 색상, 사이즈, 평균매입가, 총재고) + N 위치
         widths = [16, 16, 14, 36, 14, 14, 10, 12, 10] + [12] * len(locs)
         for i, w in enumerate(widths):
-            col_letter = openpyxl.utils.get_column_letter(i + 1)
-            ws.column_dimensions[col_letter].width = w
+            ws.column_dimensions[openpyxl.utils.get_column_letter(i + 1)].width = w
 
         buf = BytesIO()
         wb.save(buf)
