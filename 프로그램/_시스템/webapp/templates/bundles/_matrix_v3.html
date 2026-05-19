@@ -2780,24 +2780,38 @@
           </div>
           <div>
             <label class="scope-label">적용 범위</label>
-            <div class="scope-list">
-              <button type="button" class="item" data-scope="option">
-                <span>이 옵션만</span>
-                <span class="cnt">+1 옵션</span>
+            <div class="b2-drop" data-active="bundle">
+              <button type="button" class="b2-selected">
+                <span class="b2-lbl">모음전 전체</span>
+                <span class="b2-gauge">
+                  <span class="b2-bars">
+                    <span class="b2-bar on b2-bundle"></span>
+                    <span class="b2-bar on b2-bundle"></span>
+                    <span class="b2-bar on b2-bundle"></span>
+                    <span class="b2-bar"></span>
+                  </span>
+                  <span class="b2-cnt">+${_bundleCount}</span>
+                </span>
+                <span class="b2-chev">▾</span>
               </button>
-              <button type="button" class="item" data-scope="color">
-                <span>동일 컬러 (${escapeHtml(_curColor)})</span>
-                <span class="cnt">+${_colorCount} 옵션</span>
-              </button>
-              <button type="button" class="item on" data-scope="bundle">
-                <span>모음전 전체</span>
-                <span class="cnt">+${_bundleCount} 옵션</span>
-              </button>
-              <div class="gsep">소싱처 default</div>
-              <button type="button" class="item" data-scope="source">
-                <span>${escapeHtml(_srcName)} 전체 모음전</span>
-                <span class="cnt">+ 다수</span>
-              </button>
+              <div class="b2-menu">
+                <button type="button" class="b2-opt" data-scope="option">
+                  <span class="b2-info"><span class="b2-ico"></span><span class="b2-opt-lbl">이 옵션만</span></span>
+                  <span class="b2-opt-cnt">+1 옵션</span>
+                </button>
+                <button type="button" class="b2-opt" data-scope="color">
+                  <span class="b2-info"><span class="b2-ico"></span><span class="b2-opt-lbl">동일 컬러 (${escapeHtml(_curColor)})</span></span>
+                  <span class="b2-opt-cnt">+${_colorCount} 옵션</span>
+                </button>
+                <button type="button" class="b2-opt on" data-scope="bundle">
+                  <span class="b2-info"><span class="b2-ico"></span><span class="b2-opt-lbl">모음전 전체</span></span>
+                  <span class="b2-opt-cnt">+${_bundleCount} 옵션</span>
+                </button>
+                <button type="button" class="b2-opt" data-scope="source">
+                  <span class="b2-info"><span class="b2-ico"></span><span class="b2-opt-lbl">${escapeHtml(_srcName)} 전체 모음전</span></span>
+                  <span class="b2-opt-cnt">+ 다수</span>
+                </button>
+              </div>
             </div>
           </div>
           <div class="impact-preview">

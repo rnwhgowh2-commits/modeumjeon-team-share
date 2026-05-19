@@ -1,19 +1,24 @@
 /* ─────────────────────────────────────────────────────────────
- * 혜택 추가 폼 인터랙션 (v7.1 A2 — 무채색)
+ * 혜택 추가 폼 인터랙션 (v8 B2 — 영향도 게이지 드롭다운)
  *
  * 동작:
  *   1. .pop-add 클릭 → .add-form toggle (hidden 제거 + 폼 reset)
  *   2. .pill 클릭 → 단위 자동 전환 (% ↔ 원) + active 토글
- *   3. .scope-list .item 클릭 → 단일 선택 (4 scope)
- *   4. 입력 변경 시 impact preview 실시간 갱신 (계산식 + 영향 옵션 수)
- *   5. .save 클릭 → POST /api/benefits/crud → 성공 시 매트릭스 갱신
+ *   3. .b2-drop .b2-selected 클릭 → 드롭 메뉴 toggle open
+ *   4. .b2-drop .b2-opt 클릭 → 선택 swap (lbl·cnt·gauge 동기) + 닫기
+ *   5. document 외부 클릭 → 열린 드롭 모두 닫기
+ *   6. 입력 변경 시 impact preview 실시간 갱신
+ *   7. .save 클릭 → POST /api/benefits/crud → 성공 시 매트릭스 갱신
  *
- * 의존성: toss_add_benefit.css (.add-form 시리즈)
+ * 의존성: toss_add_benefit.css (.b2-drop 시리즈)
  * 호출 endpoint: api_benefits_crud.py POST /api/benefits/crud
  * ───────────────────────────────────────────────────────────── */
 
 (function() {
   'use strict';
+
+  // scope bar 채움 단계 (영향도)
+  const SCOPE_FILLS = { option: 1, color: 2, bundle: 3, source: 4 };
 
   // ─── popover 안 + 추가 버튼 클릭 → 폼 toggle ───────────
   document.addEventListener('click', function(e) {
@@ -34,7 +39,7 @@
       return;
     }
 
-    // type chip
+    // pill (정액/정률)
     const chip = e.target.closest('.add-form .pill');
     if (chip) {
       const group = chip.parentElement;
@@ -52,17 +57,41 @@
       return;
     }
 
-    // scope item
-    const scopeItem = e.target.closest('.add-form .scope-list .item');
-    if (scopeItem) {
-      const form = scopeItem.closest('.add-form');
-      form.querySelectorAll('.scope-list .item').forEach(o => {
-        o.classList.remove('on');
-        o.setAttribute('aria-checked', 'false');
+    // b2-drop selected → 드롭 토글
+    const b2sel = e.target.closest('.add-form .b2-drop .b2-selected');
+    if (b2sel) {
+      e.preventDefault();
+      const drop = b2sel.closest('.b2-drop');
+      // 다른 popover 의 열린 드롭 닫기 (한 번에 하나만)
+      document.querySelectorAll('.b2-drop.open').forEach(d => { if (d !== drop) d.classList.remove('open'); });
+      drop.classList.toggle('open');
+      return;
+    }
+
+    // b2-drop 옵션 클릭 → 선택 swap
+    const b2opt = e.target.closest('.add-form .b2-drop .b2-opt');
+    if (b2opt) {
+      e.preventDefault();
+      const drop = b2opt.closest('.b2-drop');
+      const scope = b2opt.dataset.scope;
+      drop.dataset.active = scope;
+      drop.querySelectorAll('.b2-opt').forEach(o => o.classList.toggle('on', o === b2opt));
+      // selected 헤더 동기: 라벨·카운트
+      const lblTxt = b2opt.querySelector('.b2-opt-lbl').textContent;
+      const cntTxt = b2opt.querySelector('.b2-opt-cnt').textContent;
+      drop.querySelector('.b2-selected .b2-lbl').textContent = lblTxt;
+      // cnt 는 게이지 옆 짧게 (+38 / + 다수 etc)
+      const shortCnt = cntTxt.replace(' 옵션', '');
+      drop.querySelector('.b2-selected .b2-cnt').textContent = shortCnt;
+      // 게이지 막대 재칠
+      const fills = SCOPE_FILLS[scope] || 3;
+      drop.querySelectorAll('.b2-bars .b2-bar').forEach((bar, i) => {
+        bar.className = 'b2-bar' + (i < fills ? ' on b2-' + scope : '');
       });
-      scopeItem.classList.add('on');
-      scopeItem.setAttribute('aria-checked', 'true');
-      updatePreview(form);
+      drop.classList.remove('open');
+      // preview 갱신
+      const form = drop.closest('.add-form');
+      if (form) updatePreview(form);
       return;
     }
 
@@ -82,6 +111,11 @@
       const form = save.closest('.add-form');
       submitForm(form, save);
       return;
+    }
+
+    // 외부 클릭 — 열린 드롭 닫기
+    if (!e.target.closest('.b2-drop')) {
+      document.querySelectorAll('.b2-drop.open').forEach(d => d.classList.remove('open'));
     }
   });
 
@@ -103,12 +137,22 @@
     });
     const unitEl = form.querySelector('.unit');
     if (unitEl) unitEl.textContent = '%';
-    // scope 기본 = 모음전 전체
-    form.querySelectorAll('.scope-list .item').forEach(o => {
-      const isBundle = o.dataset.scope === 'bundle';
-      o.classList.toggle('on', isBundle);
-      o.setAttribute('aria-checked', String(isBundle));
-    });
+    // scope 기본 = 모음전 전체 (bundle)
+    const drop = form.querySelector('.b2-drop');
+    if (drop) {
+      drop.dataset.active = 'bundle';
+      drop.classList.remove('open');
+      drop.querySelectorAll('.b2-opt').forEach(o => o.classList.toggle('on', o.dataset.scope === 'bundle'));
+      const bundleOpt = drop.querySelector('.b2-opt[data-scope=bundle]');
+      if (bundleOpt) {
+        drop.querySelector('.b2-selected .b2-lbl').textContent = bundleOpt.querySelector('.b2-opt-lbl').textContent;
+        drop.querySelector('.b2-selected .b2-cnt').textContent = bundleOpt.querySelector('.b2-opt-cnt').textContent.replace(' 옵션', '');
+      }
+      // 게이지 3 칸 채움 (bundle)
+      drop.querySelectorAll('.b2-bars .b2-bar').forEach((bar, i) => {
+        bar.className = 'b2-bar' + (i < 3 ? ' on b2-bundle' : '');
+      });
+    }
     updatePreview(form);
   }
 
@@ -129,8 +173,8 @@
     const val = parseFloat(valStr.replace(/[^0-9.]/g, ''));
     const typeEl = form.querySelector('.pill.on');
     const type = typeEl?.dataset.type || 'rate';
-    const scopeEl = form.querySelector('.scope-list .item.on');
-    const scope = scopeEl?.dataset.scope || 'bundle';
+    const drop = form.querySelector('.b2-drop');
+    const scope = drop?.dataset.active || 'bundle';
 
     const cntBundle = parseInt(form.dataset.optionCountBundle, 10) || 0;
     const cntColor = parseInt(form.dataset.optionCountColor, 10) || 0;
@@ -163,7 +207,6 @@
       if (type === 'amount') {
         deduct = val;
       } else {
-        // rate — sale_price 기준 추정 (실제 산식은 백엔드 compute_breakdown 가 계산)
         deduct = Math.round(salePrice * (val / 100));
       }
       calcText = `≈ -${deduct.toLocaleString()}원`;
@@ -183,12 +226,12 @@
     const name = form.querySelector('input[name=name]').value.trim();
     const val = parseFloat(form.querySelector('input[name=value]').value.replace(/[^0-9.]/g, ''));
     const type = form.querySelector('.pill.on')?.dataset.type || 'rate';
-    const scope = form.querySelector('.scope-list .item.on')?.dataset.scope || 'bundle';
+    const scope = form.querySelector('.b2-drop')?.dataset.active || 'bundle';
 
     const payload = {
       name: name,
       benefit_type: type === 'amount' ? 'amount' : 'rate',
-      value: type === 'amount' ? val : (val / 100),  // rate 는 0.05 같은 소수
+      value: type === 'amount' ? val : (val / 100),
       scope: scope,
       source_id: parseInt(form.dataset.sourceId, 10),
       canonical_sku: form.dataset.sku || null,
@@ -209,17 +252,14 @@
       if (!resp.ok || !data.ok) {
         throw new Error(data.error || `HTTP ${resp.status}`);
       }
-      // 성공 — 폼 닫고 매트릭스 갱신
       const appliedCount = data.applied_count || 0;
       const msg = `✓ "${name}" 추가 — ${appliedCount}개 옵션에 적용`;
-      // 운영 toss.js 의 toast 함수가 있으면 사용, 없으면 alert
       if (window.tossToast) {
         window.tossToast(msg, 'success');
       } else {
         console.log('[add-benefit] ' + msg);
       }
       closeForm(form);
-      // 매트릭스 갱신 — 운영 toss.js 의 reloadMatrix 가 있으면 호출, 없으면 페이지 reload
       if (typeof window.reloadMatrix === 'function') {
         window.reloadMatrix();
       } else {
