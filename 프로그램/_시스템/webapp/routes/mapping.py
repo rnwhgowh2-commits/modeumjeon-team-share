@@ -160,18 +160,31 @@ def canonical_delete(can_id):
 
 # ============ 별칭 (alias) CRUD ============
 
+def _wants_json() -> bool:
+    """AJAX 호출 여부 — X-Requested-With 헤더 명시 또는 ?format=json 쿼리만 JSON.
+
+    Accept: */* 도 accept_mimetypes.accept_json=true 가 되는 버그 회피 — 일반 폼
+    submit 시 JSON 페이지가 화면에 노출되는 사고 방지.
+    """
+    if request.headers.get("X-Requested-With") == "XMLHttpRequest":
+        return True
+    if request.args.get("format") == "json":
+        return True
+    return False
+
+
 @bp.post("/alias/create")
 def alias_create():
-    """캐노니컬에 별칭 추가. AJAX 친화 — 성공 시 JSON 또는 redirect 분기."""
+    """캐노니컬에 별칭 추가. AJAX 헤더 있을 때만 JSON, 일반 폼 submit 은 redirect."""
     try:
         can_id = int(request.form.get("canonical_id") or 0)
     except ValueError:
         can_id = 0
     alias = (request.form.get("alias") or "").strip()
     if not can_id or not alias:
-        if request.accept_mimetypes.accept_json:
+        if _wants_json():
             return jsonify({"ok": False, "error": "missing"}), 400
-        flash("캐노니컬 ID·별칭 모두 필요.", "error")
+        flash("동의어를 입력하세요.", "error")
         return redirect(url_for("mapping.index"))
     s = SessionLocal()
     try:
@@ -179,9 +192,9 @@ def alias_create():
             AliasMapping.canonical_id == can_id,
             AliasMapping.alias == alias,
         ).first():
-            if request.accept_mimetypes.accept_json:
+            if _wants_json():
                 return jsonify({"ok": False, "error": "duplicate"}), 409
-            flash(f"이미 존재: {alias}", "error")
+            flash(f"이미 등록된 동의어: {alias}", "error")
             return redirect(url_for("mapping.index"))
         m = AliasMapping(
             canonical_id=can_id,
@@ -190,9 +203,9 @@ def alias_create():
         )
         s.add(m)
         s.commit()
-        if request.accept_mimetypes.accept_json:
+        if _wants_json():
             return jsonify({"ok": True, "id": m.id})
-        flash(f"별칭 '{alias}' 추가됨.", "success")
+        flash(f"동의어 '{alias}' 추가됨.", "success")
     finally:
         s.close()
     return redirect(url_for("mapping.index"))
@@ -207,9 +220,9 @@ def alias_delete(m_id):
             alias = m.alias
             s.delete(m)
             s.commit()
-            if request.accept_mimetypes.accept_json:
+            if _wants_json():
                 return jsonify({"ok": True})
-            flash(f"별칭 '{alias}' 삭제됨.", "success")
+            flash(f"동의어 '{alias}' 삭제됨.", "success")
     finally:
         s.close()
     return redirect(url_for("mapping.index"))
