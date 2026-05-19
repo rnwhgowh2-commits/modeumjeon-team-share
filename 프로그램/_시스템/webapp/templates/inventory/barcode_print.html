@@ -61,11 +61,11 @@ svg.ds-bc { shape-rendering: crispEdges; }
         {% set top = template.margin_top + row * (template.label_h + template.gap_y) %}
         {% set code = (o.barcode if o.barcode is defined and o.barcode else None) or o.boxhero_sku or o.canonical_sku %}
         {% set is_bundle = o.is_bundle if o.is_bundle is defined else false %}
-        {% set label_name = o.name if (o.is_bundle if o.is_bundle is defined else false) else ((o.model.model_name_display or o.model.model_name_raw) if o.model else o.canonical_sku) %}
+        {% set label_name = o.name if (o.is_bundle if o.is_bundle is defined else false) else (o | display_pname_single) %}
         <div class="label{% if is_bundle %} is-bundle{% endif %}" style="left:{{ left }}mm;top:{{ top }}mm"
              data-name="{{ label_name }}"
-             data-size="{{ o.size_display or o.size_code or 'free' }}"
-             data-color="{{ o.color_display or o.color_code or 'one' }}"
+             data-size="{{ (o.size_display or o.size_code) | size_or_default }}"
+             data-color="{{ o | cleaned_color_single }}"
              data-code="{{ code }}"
              data-bundle="{{ '1' if is_bundle else '0' }}">
         </div>

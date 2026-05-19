@@ -1,0 +1,545 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>FX 매입가 계산식 — 14 SKU 검증</title>
+<style>
+/* ─── 운영 toss.css (.cell-fx-pop 시리즈) 그대로 차용 ─── */
+* { box-sizing: border-box; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Pretendard", "Apple SD Gothic Neo", system-ui, sans-serif;
+  font-size: 14px; line-height: 1.5; color: #191F28; background: #F9FAFB;
+  margin: 0; padding: 32px 16px;
+  font-variant-numeric: tabular-nums; letter-spacing: -0.01em;
+}
+.container { max-width: 1320px; margin: 0 auto; }
+.page-head { margin-bottom: 24px; }
+.page-head h1 { font-size: 20px; font-weight: 700; margin: 0 0 6px; color: #191F28; }
+.page-head .sub { font-size: 13px; color: #6B7684; }
+
+.nav {
+  position: sticky; top: 12px; z-index: 50;
+  background: #fff; border: 1px solid #E5E8EB; border-radius: 10px;
+  padding: 10px 14px; margin-bottom: 20px; font-size: 13px;
+  box-shadow: 0 2px 8px rgba(25,31,40,.04);
+}
+.nav a { color: #3182F6; text-decoration: none; margin-right: 14px; font-weight: 600; }
+.nav a:hover { text-decoration: underline; }
+
+h2.src {
+  margin: 28px 0 12px; padding: 10px 14px;
+  background: #fff; border: 1px solid #E5E8EB; border-left: 4px solid #3182F6; border-radius: 6px;
+  font-size: 15px; font-weight: 700;
+}
+
+/* SKU grid layout */
+.sku-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(460px, 1fr)); gap: 16px; }
+.sku-wrap { background: transparent; }
+.sku-head {
+  margin-bottom: 8px; padding: 0 4px;
+  display: flex; justify-content: space-between; align-items: baseline; gap: 8px; flex-wrap: wrap;
+}
+.sku-head .nm { font-weight: 600; font-size: 13.5px; color: #191F28; }
+.sku-head .link { font-size: 12px; color: #3182F6; text-decoration: none; }
+.sku-head .link:hover { text-decoration: underline; }
+
+/* ─── cell-fx-pop (운영 그대로) ─── */
+.cell-fx-pop {
+  position: relative;
+  background: #F2F4F6;
+  border: 1px solid #D1D6DB; border-radius: 14px;
+  box-shadow: 0 14px 40px rgba(25,31,40,.10),
+              0 0 0 4px rgba(255,255,255,.85);
+  padding: 8px; font-size: 14px;
+  display: flex; flex-direction: column; gap: 6px;
+}
+.cell-fx-pop h6 {
+  margin: 0; padding: 12px 16px;
+  background: #fff; border: 1px solid #D1D6DB; border-radius: 12px;
+  font-size: 13.5px; font-weight: 700; color: #191F28;
+  display: flex; align-items: center; gap: 7px;
+}
+
+/* sale 카드 */
+.cf-sale {
+  background: #F9FAFB; border: 1px solid #E5E8EB; border-left: 3px solid #4E5968; border-radius: 0 8px 8px 0;
+  padding: 13px 18px;
+  display: flex; justify-content: space-between; align-items: center; gap: 12px;
+}
+.cf-sale .left { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.cf-sale .lbl { font-size: 11px; color: #8B95A1; font-weight: 700; letter-spacing: .4px; text-transform: uppercase; }
+.cf-sale .num {
+  font-size: 22px; font-weight: 800; color: #191F28;
+  font-family: ui-monospace, 'SF Mono', Consolas, monospace;
+  letter-spacing: -0.02em;
+}
+.cf-sale .right { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; flex-shrink: 0; }
+.cf-card-chip {
+  display: inline-flex; align-items: center; gap: 7px;
+  background: #F2F4F6; color: #191F28;
+  padding: 5px 9px; border-radius: 9px;
+  font-size: 11.5px; font-weight: 700;
+  border: 1px solid #D1D6DB; white-space: nowrap;
+}
+
+/* benefit 카드 */
+.cell-fx-ben {
+  margin: 0 0 0 22px; padding: 8px 0 8px 18px;
+  background: transparent; border: none; border-left: 1px dotted #D1D6DB; border-radius: 0;
+}
+.cell-fx-ben h7 {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 11px; font-weight: 700; color: #6B7684;
+  text-transform: uppercase; letter-spacing: .4px; margin-bottom: 10px;
+}
+.cell-fx-ben h7 .deduct-sum {
+  margin-left: auto;
+  font-family: ui-monospace, 'SF Mono', Consolas, monospace;
+  font-weight: 700; color: #EF4444; letter-spacing: 0;
+  text-transform: none;
+}
+.cell-fx-row {
+  display: grid; grid-template-columns: 30px 1fr 100px;
+  gap: 8px; align-items: center; padding: 6px 0; font-size: 13.5px;
+}
+.cell-fx-row .tg {
+  position: relative; width: 30px; height: 16px; background: #D1D6DB;
+  border-radius: 8px; transition: .15s;
+}
+.cell-fx-row .tg::after {
+  content: ''; position: absolute; top: 2px; left: 2px;
+  width: 12px; height: 12px; background: #fff; border-radius: 50%; transition: .15s;
+}
+.cell-fx-row.on .tg { background: #191F28; }
+.cell-fx-row.on .tg::after { left: 16px; }
+.cell-fx-row .nm {
+  font-weight: 500; font-size: 13.5px; color: #4E5968;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.cell-fx-row.off .nm { color: #8B95A1; text-decoration: line-through; }
+.cell-fx-row .val {
+  text-align: right; font-size: 13.5px; font-weight: 600;
+  color: #EF4444;
+  font-family: ui-monospace, 'SF Mono', Consolas, monospace;
+}
+.cell-fx-row.off .val { color: #8B95A1; text-decoration: line-through; }
+.cell-fx-row .val.pos { color: #6B7684; }
+
+/* total 카드 */
+.cf-total {
+  margin: 6px 0 0; padding: 16px 20px;
+  background: #fff; color: #191F28;
+  border: 2px solid #3182F6; border-left: 4px solid #3182F6; border-radius: 8px;
+  display: flex; justify-content: space-between; align-items: center; gap: 8px;
+}
+.cf-total .lbl { font-size: 11px; font-weight: 700; color: #3182F6; letter-spacing: .4px; text-transform: uppercase; }
+.cf-total .num {
+  font-size: 26px; font-weight: 800; color: #3182F6;
+  font-family: ui-monospace, 'SF Mono', Consolas, monospace;
+  letter-spacing: -0.02em;
+}
+
+/* note */
+.cell-fx-pop .note {
+  margin: 0 8px; padding: 8px 12px;
+  background: #FEF3C7; border-left: 3px solid #D97706; border-radius: 4px;
+  font-size: 11.5px; color: #78350F; line-height: 1.5;
+}
+.cell-fx-pop .note.info {
+  background: #DBEAFE; border-left-color: #3182F6; color: #1E3A8A;
+}
+
+.footer { margin-top: 48px; padding: 16px; color: #8B95A1; font-size: 12px; text-align: center; }
+</style>
+</head>
+<body>
+
+<div class="container">
+
+<div class="page-head">
+  <h1>FX 매입가 계산식 — 14 SKU 라이브 검증 결과</h1>
+  <div class="sub">운영 매트릭스 <code>.cell-fx-pop</code> 디자인 그대로 (toss.css 차용)</div>
+</div>
+
+<div class="nav">
+  <a href="#musinsa">① 무신사 (4)</a>
+  <a href="#lemouton">② 르무통 공홈 (1)</a>
+  <a href="#ss_lemouton">③ 스스 르무통 (1)</a>
+  <a href="#ssf">④ SSF (1)</a>
+  <a href="#lotteimall">⑤ 롯데홈쇼핑 (1)</a>
+  <a href="#lotteon">⑥ 롯데ON (2)</a>
+  <a href="#ssg">⑦ SSG (5)</a>
+</div>
+
+<!-- ═══════════════ 무신사 ═══════════════ -->
+<h2 class="src" id="musinsa">① 무신사 (musinsa)</h2>
+<div class="sku-grid">
+
+<div class="sku-wrap">
+  <div class="sku-head">
+    <div class="nm">4677240 · 필름메이커 마운티너스 퀼팅 패딩자켓 ★</div>
+    <a class="link" href="https://www.musinsa.com/products/4677240" target="_blank">사이트 ↗</a>
+  </div>
+  <div class="cell-fx-pop">
+    <h6>🧮 매입가 계산식 · 무신사</h6>
+    <div class="cf-sale">
+      <div class="left"><span class="lbl">sale (쿠폰적용가 ★)</span><span class="num">220,320</span></div>
+      <div class="right"><span class="cf-card-chip">정가 459,000</span></div>
+    </div>
+    <div class="cell-fx-ben">
+      <h7>적용 혜택 <span class="deduct-sum">-17,273원</span></h7>
+      <div class="cell-fx-row off"><div class="tg"></div><div class="nm">상품 쿠폰 (이중차감 방지)</div><div class="val">-55,080</div></div>
+      <div class="cell-fx-row off"><div class="tg"></div><div class="nm">등급 할인 (불가)</div><div class="val">0</div></div>
+      <div class="cell-fx-row on"><div class="tg"></div><div class="nm">등급 적립 (LV.9 · 4%)</div><div class="val">-8,813</div></div>
+      <div class="cell-fx-row on"><div class="tg"></div><div class="nm">무신사머니 적립 (4%)</div><div class="val">-8,460</div></div>
+    </div>
+    <div class="cf-total"><span class="lbl">매입가 (benefit_price)</span><span class="num">203,047원</span></div>
+    <div class="note">★ 쿠폰적용가 라벨 감지 — coupon 이중차감 방지 분기. 이전 BUG 매입가 152,286 → 정확 203,047.</div>
+  </div>
+</div>
+
+<div class="sku-wrap">
+  <div class="sku-head">
+    <div class="nm">4046672 · 르무통 메이트 메리노울 운동화</div>
+    <a class="link" href="https://www.musinsa.com/products/4046672" target="_blank">사이트 ↗</a>
+  </div>
+  <div class="cell-fx-pop">
+    <h6>🧮 매입가 계산식 · 무신사</h6>
+    <div class="cf-sale">
+      <div class="left"><span class="lbl">sale_price</span><span class="num">122,900</span></div>
+      <div class="right"><span class="cf-card-chip">정가 149,000</span></div>
+    </div>
+    <div class="cell-fx-ben">
+      <h7>적용 혜택 <span class="deduct-sum">-9,635원</span></h7>
+      <div class="cell-fx-row off"><div class="tg"></div><div class="nm">등급 할인 (불가)</div><div class="val">0</div></div>
+      <div class="cell-fx-row off"><div class="tg"></div><div class="nm">쿠폰 (없음)</div><div class="val">0</div></div>
+      <div class="cell-fx-row on"><div class="tg"></div><div class="nm">등급 적립 (LV.9 · 4%)</div><div class="val">-4,916</div></div>
+      <div class="cell-fx-row on"><div class="tg"></div><div class="nm">무신사머니 적립 (4%)</div><div class="val">-4,719</div></div>
+    </div>
+    <div class="cf-total"><span class="lbl">매입가</span><span class="num">113,265원</span></div>
+  </div>
+</div>
+
+<div class="sku-wrap">
+  <div class="sku-head">
+    <div class="nm">3728480 · 르무통 클래식 2 다크네이비</div>
+    <a class="link" href="https://www.musinsa.com/products/3728480" target="_blank">사이트 ↗</a>
+  </div>
+  <div class="cell-fx-pop">
+    <h6>🧮 매입가 계산식 · 무신사</h6>
+    <div class="cf-sale">
+      <div class="left"><span class="lbl">sale_price</span><span class="num">122,900</span></div>
+      <div class="right"><span class="cf-card-chip">정가 149,000</span></div>
+    </div>
+    <div class="cell-fx-ben">
+      <h7>적용 혜택 <span class="deduct-sum">-9,635원</span></h7>
+      <div class="cell-fx-row on"><div class="tg"></div><div class="nm">등급 적립 (4%)</div><div class="val">-4,916</div></div>
+      <div class="cell-fx-row on"><div class="tg"></div><div class="nm">무신사머니 (4%)</div><div class="val">-4,719</div></div>
+    </div>
+    <div class="cf-total"><span class="lbl">매입가</span><span class="num">113,265원</span></div>
+    <div class="note info">5사이트 통합비교 대상 (르무통 클래식2 메리노울)</div>
+  </div>
+</div>
+
+<div class="sku-wrap">
+  <div class="sku-head">
+    <div class="nm">4210142 · [시티 레저] 와이드 밴딩 팬츠 (혜택 없음)</div>
+    <a class="link" href="https://www.musinsa.com/products/4210142" target="_blank">사이트 ↗</a>
+  </div>
+  <div class="cell-fx-pop">
+    <h6>🧮 매입가 계산식 · 무신사</h6>
+    <div class="cf-sale">
+      <div class="left"><span class="lbl">sale_price</span><span class="num">35,890</span></div>
+      <div class="right"><span class="cf-card-chip">정가 59,900</span></div>
+    </div>
+    <div class="cell-fx-ben">
+      <h7>적용 혜택 <span class="deduct-sum">-1,488원</span></h7>
+      <div class="cell-fx-row off"><div class="tg"></div><div class="nm">등급할인·등급적립·무신사머니 (비활성)</div><div class="val">0</div></div>
+      <div class="cell-fx-row on"><div class="tg"></div><div class="nm">후기 적립 (DB 500, 텍스트리뷰)</div><div class="val">-500</div></div>
+      <div class="cell-fx-row off"><div class="tg"></div><div class="nm">장바구니 쿠폰 (10만원↑, 미충족)</div><div class="val">-10,000</div></div>
+      <div class="cell-fx-row on"><div class="tg"></div><div class="nm">현대카드 fallback (무신사머니 비활성)</div><div class="val">-966</div></div>
+    </div>
+    <div class="cf-total"><span class="lbl">매입가</span><span class="num">약 34,402원</span></div>
+    <div class="note">장바구니쿠폰 "10만원 이상 구매시 1만원 할인" 표시 ✓ / 적용 ✗ (현재 35,890 &lt; 100,000).</div>
+  </div>
+</div>
+
+</div>
+
+<!-- ═══════════════ 르무통 공홈 ═══════════════ -->
+<h2 class="src" id="lemouton">② 르무통 공홈</h2>
+<div class="sku-grid">
+
+<div class="sku-wrap">
+  <div class="sku-head">
+    <div class="nm">product_no=219 · 르무통 클래식2 메리노울 운동화</div>
+    <a class="link" href="https://lemouton.co.kr/product/detail.html?product_no=219&cate_no=64&display_group=1" target="_blank">사이트 ↗</a>
+  </div>
+  <div class="cell-fx-pop">
+    <h6>🧮 매입가 계산식 · 르무통 공홈</h6>
+    <div class="cf-sale">
+      <div class="left"><span class="lbl">sale_price</span><span class="num">116,900</span></div>
+      <div class="right"><span class="cf-card-chip">할인 22%</span></div>
+    </div>
+    <div class="cell-fx-ben">
+      <h7>적용 혜택 <span class="deduct-sum">-9,145원</span></h7>
+      <div class="cell-fx-row on"><div class="tg"></div><div class="nm">리뷰 적립금 (DB · 정액)</div><div class="val">-5,000</div></div>
+      <div class="cell-fx-row on"><div class="tg"></div><div class="nm">네이버페이 적립 (1%)</div><div class="val">-1,119</div></div>
+      <div class="cell-fx-row on"><div class="tg"></div><div class="nm">현대카드 캐시백 (2.73%)</div><div class="val">-3,026</div></div>
+    </div>
+    <div class="cf-total"><span class="lbl">매입가</span><span class="num">107,755원</span></div>
+  </div>
+</div>
+
+</div>
+
+<!-- ═══════════════ 스스 르무통 ═══════════════ -->
+<h2 class="src" id="ss_lemouton">③ 스스 르무통 (네이버 브랜드스토어)</h2>
+<div class="sku-grid">
+
+<div class="sku-wrap">
+  <div class="sku-head">
+    <div class="nm">9496367527 · 르무통 클래식2 메리노울 운동화</div>
+    <a class="link" href="https://brand.naver.com/lemouton/products/9496367527" target="_blank">사이트 ↗</a>
+  </div>
+  <div class="cell-fx-pop">
+    <h6>🧮 매입가 계산식 · 스스 르무통</h6>
+    <div class="cf-sale">
+      <div class="left"><span class="lbl">sale_price (discountedSalePrice)</span><span class="num">117,900</span></div>
+      <div class="right"><span class="cf-card-chip">정가 149,000</span></div>
+    </div>
+    <div class="cell-fx-ben">
+      <h7>적용 혜택 <span class="deduct-sum">-9,182원</span></h7>
+      <div class="cell-fx-row on"><div class="tg"></div><div class="nm">리뷰 적립금 (사이트 추출 변동값)</div><div class="val">-5,000</div></div>
+      <div class="cell-fx-row on"><div class="tg"></div><div class="nm">네이버페이 (1%)</div><div class="val">-1,129</div></div>
+      <div class="cell-fx-row on"><div class="tg"></div><div class="nm">현대카드 (2.73%)</div><div class="val">-3,053</div></div>
+    </div>
+    <div class="cf-total"><span class="lbl">매입가</span><span class="num">108,718원</span></div>
+    <div class="note">review_point_max = photo + afterPhoto + manager + managerAfter (4-field 합산, 사이트 "최대 리뷰적립" 표시값과 1:1 일치)</div>
+  </div>
+</div>
+
+</div>
+
+<!-- ═══════════════ SSF ═══════════════ -->
+<h2 class="src" id="ssf">④ SSF샵</h2>
+<div class="sku-grid">
+
+<div class="sku-wrap">
+  <div class="sku-head">
+    <div class="nm">GRG424102517741 · 르무통 클래식2 메리노울 운동화</div>
+    <a class="link" href="https://www.ssfshop.com/LEMOUTON/GRG424102517741/good" target="_blank">사이트 ↗</a>
+  </div>
+  <div class="cell-fx-pop">
+    <h6>🧮 매입가 계산식 · SSF</h6>
+    <div class="cf-sale">
+      <div class="left"><span class="lbl">sale_price</span><span class="num">109,900</span></div>
+      <div class="right"><span class="cf-card-chip">멤버십포인트 549P</span></div>
+    </div>
+    <div class="cell-fx-ben">
+      <h7>적용 혜택 <span class="deduct-sum">-5,076원</span></h7>
+      <div class="cell-fx-row on"><div class="tg"></div><div class="nm">리뷰 적립금 (DB · 정액)</div><div class="val">-500</div></div>
+      <div class="cell-fx-row off"><div class="tg"></div><div class="nm">기프트포인트 (미노출)</div><div class="val">0</div></div>
+      <div class="cell-fx-row on"><div class="tg"></div><div class="nm">멤버십포인트 (사이트 0.5%, 등급별 ★)</div><div class="val">-547</div></div>
+      <div class="cell-fx-row on"><div class="tg"></div><div class="nm">네이버페이 (1%)</div><div class="val">-1,088</div></div>
+      <div class="cell-fx-row on"><div class="tg"></div><div class="nm">현대카드 (2.73%)</div><div class="val">-2,941</div></div>
+    </div>
+    <div class="cf-total"><span class="lbl">매입가</span><span class="num">104,824원</span></div>
+    <div class="note">DB "적립금 (포인트) 0.5%" 는 enabled=0 (비활성). 사이트 노출 정액(549P) → 동적 rate 변환 후 베이스 × %. 등급↑ 시 5% 등 다른 % 가능.</div>
+  </div>
+</div>
+
+</div>
+
+<!-- ═══════════════ 롯데홈쇼핑 ═══════════════ -->
+<h2 class="src" id="lotteimall">⑤ 롯데홈쇼핑 (lotteimall)</h2>
+<div class="sku-grid">
+
+<div class="sku-wrap">
+  <div class="sku-head">
+    <div class="nm">2559417201 · 르무통 클래식2 (비밀특가)</div>
+    <a class="link" href="https://www.lotteimall.com/goods/viewGoodsDetail.lotte?goods_no=2559417201" target="_blank">사이트 ↗</a>
+  </div>
+  <div class="cell-fx-pop">
+    <h6>🧮 매입가 계산식 · 롯데홈쇼핑 (일반 회원)</h6>
+    <div class="cf-sale">
+      <div class="left"><span class="lbl">max_price (카드할인 이미 반영)</span><span class="num">99,900</span></div>
+      <div class="right"><span class="cf-card-chip">비밀특가</span></div>
+    </div>
+    <div class="cell-fx-ben">
+      <h7>적용 혜택 <span class="deduct-sum">-99원</span></h7>
+      <div class="cell-fx-row off"><div class="tg"></div><div class="nm">자동 카드 할인 (이미 max 반영)</div><div class="val">0</div></div>
+      <div class="cell-fx-row off"><div class="tg"></div><div class="nm">리뷰 적립 (정책 제외)</div><div class="val">0</div></div>
+      <div class="cell-fx-row on"><div class="tg"></div><div class="nm">L.POINT 적립 (일반 회원)</div><div class="val">-99</div></div>
+    </div>
+    <div class="cf-total"><span class="lbl">매입가 (일반)</span><span class="num">99,801원</span></div>
+    <div class="note">⚠️ 정책 미정: 일반 -99 vs L.CLUB -499. 결정 필요.</div>
+  </div>
+</div>
+
+</div>
+
+<!-- ═══════════════ 롯데ON ═══════════════ -->
+<h2 class="src" id="lotteon">⑥ 롯데ON</h2>
+<div class="sku-grid">
+
+<div class="sku-wrap">
+  <div class="sku-head">
+    <div class="nm">LO2158462914 · 르무통 메이트 메리노울 운동화</div>
+    <a class="link" href="https://www.lotteon.com/p/product/LO2158462914?sitmNo=LO2158462914_2158462915&mall_no=1" target="_blank">사이트 ↗</a>
+  </div>
+  <div class="cell-fx-pop">
+    <h6>🧮 매입가 계산식 · 롯데ON</h6>
+    <div class="cf-sale">
+      <div class="left"><span class="lbl">sale (자동 즉시할인 -22,940 이미 반영)</span><span class="num">126,060</span></div>
+      <div class="right"><span class="cf-card-chip">옵션 117</span></div>
+    </div>
+    <div class="cell-fx-ben">
+      <h7>적용 혜택 <span class="deduct-sum">0원</span></h7>
+      <div class="cell-fx-row off"><div class="tg"></div><div class="nm">스토어 즉시할인 6% (이미 반영)</div><div class="val">-8,940</div></div>
+      <div class="cell-fx-row off"><div class="tg"></div><div class="nm">롯데ON 즉시할인 10% (이미 반영)</div><div class="val">-14,000</div></div>
+      <div class="cell-fx-row off"><div class="tg"></div><div class="nm">첫구매 5천원 (정책 제외 — 첫구매 한정)</div><div class="val">-5,000</div></div>
+      <div class="cell-fx-row off"><div class="tg"></div><div class="nm">스토어찜 감사 쿠폰 (정책 제외)</div><div class="val">-6,000</div></div>
+    </div>
+    <div class="cf-total"><span class="lbl">매입가</span><span class="num">126,060원</span></div>
+    <div class="note">첫구매·스토어찜 = 사용자 정책상 항상 제외 (매입가 영향 0)</div>
+  </div>
+</div>
+
+<div class="sku-wrap">
+  <div class="sku-head">
+    <div class="nm">PD46925922 · [나이키] 에어 포스 1 07</div>
+    <a class="link" href="https://www.lotteon.com/p/product/PD46925922?mall_no=1" target="_blank">사이트 ↗</a>
+  </div>
+  <div class="cell-fx-pop">
+    <h6>🧮 매입가 계산식 · 롯데ON</h6>
+    <div class="cf-sale">
+      <div class="left"><span class="lbl">sale_price</span><span class="num">149,000</span></div>
+      <div class="right"><span class="cf-card-chip">옵션 13</span></div>
+    </div>
+    <div class="cell-fx-ben">
+      <h7>적용 혜택 <span class="deduct-sum">-10,430원</span></h7>
+      <div class="cell-fx-row on"><div class="tg"></div><div class="nm">롯데카드 7% (70k↑ 조건 ✓ 충족)</div><div class="val">-10,430</div></div>
+      <div class="cell-fx-row off"><div class="tg"></div><div class="nm">토스/카카오/삼성카드 (미체크)</div><div class="val">-7,450~10,430</div></div>
+    </div>
+    <div class="cf-total"><span class="lbl">매입가</span><span class="num">138,570원</span></div>
+  </div>
+</div>
+
+</div>
+
+<!-- ═══════════════ SSG ═══════════════ -->
+<h2 class="src" id="ssg">⑦ SSG — 4 패턴 분기 + 카드혜택가 + 상품쿠폰</h2>
+<div class="sku-grid">
+
+<div class="sku-wrap">
+  <div class="sku-head">
+    <div class="nm">1000809938058 · 나이키 리엑스 8 (패턴 E)</div>
+    <a class="link" href="https://www.ssg.com/item/itemView.ssg?itemId=1000809938058&siteNo=6009&salestrNo=1004" target="_blank">사이트 ↗</a>
+  </div>
+  <div class="cell-fx-pop">
+    <h6>🧮 매입가 계산식 · SSG</h6>
+    <div class="cf-sale">
+      <div class="left"><span class="lbl">sale (bestAmt)</span><span class="num">70,805</span></div>
+      <div class="right"><span class="cf-card-chip">패턴 E 충전결제</span></div>
+    </div>
+    <div class="cell-fx-ben">
+      <h7>적용 혜택 <span class="deduct-sum">-1,933원</span></h7>
+      <div class="cell-fx-row off"><div class="tg"></div><div class="nm">SSG MONEY 충전결제 1.5% (&lt; 3% 비활성)</div><div class="val">0</div></div>
+      <div class="cell-fx-row on"><div class="tg"></div><div class="nm">현대카드 fallback (2.73%)</div><div class="val">-1,933</div></div>
+    </div>
+    <div class="cf-total"><span class="lbl">매입가</span><span class="num">약 68,872원</span></div>
+  </div>
+</div>
+
+<div class="sku-wrap">
+  <div class="sku-head">
+    <div class="nm">1000807328520 · 밀레 카고팬츠 ★ (패턴 C→A · 이중차감 방지)</div>
+    <a class="link" href="https://www.ssg.com/item/itemView.ssg?itemId=1000807328520&siteNo=6009&salestrNo=1009" target="_blank">사이트 ↗</a>
+  </div>
+  <div class="cell-fx-pop">
+    <h6>🧮 매입가 계산식 · SSG</h6>
+    <div class="cf-sale">
+      <div class="left"><span class="lbl">sale (SSG MONEY 즉시할인 이미 반영)</span><span class="num">39,690</span></div>
+      <div class="right"><span class="cf-card-chip">already_applied=True</span></div>
+    </div>
+    <div class="cell-fx-ben">
+      <h7>적용 혜택 <span class="deduct-sum">-1,082원</span></h7>
+      <div class="cell-fx-row off"><div class="tg"></div><div class="nm">SSG MONEY 10% 적립/즉시할인 (이중차감 방지 ★)</div><div class="val">-4,410</div></div>
+      <div class="cell-fx-row on"><div class="tg"></div><div class="nm">현대카드 fallback (2.73%)</div><div class="val">-1,082</div></div>
+    </div>
+    <div class="cf-total"><span class="lbl">매입가</span><span class="num">약 38,608원</span></div>
+    <div class="note">★ 49,000 - 4,900 즉시 - 4,410 SSG MONEY 즉시 = 39,690 (사이트 이미 반영). already_applied=True → 추가 차감 금지.</div>
+  </div>
+</div>
+
+<div class="sku-wrap">
+  <div class="sku-head">
+    <div class="nm">1000644956258 · 나이키 우븐 카고 팬츠 (패턴 E)</div>
+    <a class="link" href="https://www.ssg.com/item/itemView.ssg?itemId=1000644956258&siteNo=6009&salestrNo=1004" target="_blank">사이트 ↗</a>
+  </div>
+  <div class="cell-fx-pop">
+    <h6>🧮 매입가 계산식 · SSG</h6>
+    <div class="cf-sale">
+      <div class="left"><span class="lbl">sale (bestAmt)</span><span class="num">60,605</span></div>
+      <div class="right"><span class="cf-card-chip">패턴 E</span></div>
+    </div>
+    <div class="cell-fx-ben">
+      <h7>적용 혜택 <span class="deduct-sum">-1,653원</span></h7>
+      <div class="cell-fx-row off"><div class="tg"></div><div class="nm">SSG MONEY 충전결제 1.5% (비활성)</div><div class="val">0</div></div>
+      <div class="cell-fx-row on"><div class="tg"></div><div class="nm">현대카드 fallback (2.73%)</div><div class="val">-1,653</div></div>
+    </div>
+    <div class="cf-total"><span class="lbl">매입가</span><span class="num">약 58,952원</span></div>
+  </div>
+</div>
+
+<div class="sku-wrap">
+  <div class="sku-head">
+    <div class="nm">1000631699134 · 닥스 비조벨트 ★ (3중 혜택)</div>
+    <a class="link" href="https://www.ssg.com/item/itemView.ssg?itemId=1000631699134&siteNo=6009&salestrNo=1004" target="_blank">사이트 ↗</a>
+  </div>
+  <div class="cell-fx-pop">
+    <h6>🧮 매입가 계산식 · SSG</h6>
+    <div class="cf-sale">
+      <div class="left"><span class="lbl">sale (bestAmt)</span><span class="num">107,355</span></div>
+      <div class="right"><span class="cf-card-chip">카드혜택가 + 쿠폰</span></div>
+    </div>
+    <div class="cell-fx-ben">
+      <h7>적용 혜택 <span class="deduct-sum">-20,440원</span></h7>
+      <div class="cell-fx-row on"><div class="tg"></div><div class="nm">카드혜택가 98,767원 (5만원↑ ✓)</div><div class="val">-8,588</div></div>
+      <div class="cell-fx-row off"><div class="tg"></div><div class="nm">SSG MONEY 충전결제 1.5% (비활성)</div><div class="val">0</div></div>
+      <div class="cell-fx-row on"><div class="tg"></div><div class="nm">상품쿠폰 12% (3만원↑ ✓)</div><div class="val">-11,852</div></div>
+    </div>
+    <div class="cf-total"><span class="lbl">매입가</span><span class="num">약 86,915원</span></div>
+    <div class="note">★ 카드혜택가 활성 시 현대카드 fallback 안 발동. sale 대비 약 19% 추가 할인.</div>
+  </div>
+</div>
+
+<div class="sku-wrap">
+  <div class="sku-head">
+    <div class="nm">1000607152603 · 르무통 메이트 ★ (패턴 B · 적립 활성)</div>
+    <a class="link" href="https://www.ssg.com/item/itemView.ssg?itemId=1000607152603&siteNo=6004&salestrNo=6005&tlidSrchWd=%EB%A5%B4%EB%AC%B4%ED%86%B5&srchPgNo=1&taste=PReview" target="_blank">사이트 ↗</a>
+  </div>
+  <div class="cell-fx-pop">
+    <h6>🧮 매입가 계산식 · SSG</h6>
+    <div class="cf-sale">
+      <div class="left"><span class="lbl">sale (bestAmt)</span><span class="num">109,900</span></div>
+      <div class="right"><span class="cf-card-chip">패턴 B · 5% 적립</span></div>
+    </div>
+    <div class="cell-fx-ben">
+      <h7>적용 혜택 <span class="deduct-sum">-8,345원</span></h7>
+      <div class="cell-fx-row on"><div class="tg"></div><div class="nm">SSG MONEY 5% 적립 (충전결제 X · ≥3% ✓ 활성)</div><div class="val">-5,495</div></div>
+      <div class="cell-fx-row on"><div class="tg"></div><div class="nm">현대카드 fallback (2.73%)</div><div class="val">-2,850</div></div>
+    </div>
+    <div class="cf-total"><span class="lbl">매입가</span><span class="num">약 101,555원</span></div>
+    <div class="note">⚠️ 네이버 ID 로 SSG 로그인 시 자동 발급 쿠폰 — 현재 미인식 (사용자 _ssg_via_naver* R&D 중)</div>
+  </div>
+</div>
+
+</div>
+
+<div class="footer">14 SKU 라이브 검증 · 운영 toss.css .cell-fx-pop 디자인 차용</div>
+
+</div>
+</body>
+</html>

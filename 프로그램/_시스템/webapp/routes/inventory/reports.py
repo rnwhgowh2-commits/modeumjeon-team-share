@@ -449,7 +449,11 @@ def share_public(token):
         # filter_json 적용 (간단히 전체 재고 read-only 표시)
         options = (s.query(Option).order_by(Option.model_code, Option.canonical_sku)
                    .limit(500).all())
+        # ★ LCP 색상 정리 + 제품명 brand-strip (전 시스템 통일)
+        from shared.product_display import compute_display_maps
+        cleaned_color, display_pname = compute_display_maps(options)
         return render_template('inventory/reports/share_public.html',
-                               link=link, options=options)
+                               link=link, options=options,
+                               cleaned_color=cleaned_color, display_pname=display_pname)
     finally:
         s.close()

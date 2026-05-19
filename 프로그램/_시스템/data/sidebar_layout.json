@@ -1,7 +1,7 @@
 {
   "stages": [
     {
-      "collapsed": true,
+      "collapsed": false,
       "color": "#3182F6",
       "emoji": "📦",
       "id": "s2",
@@ -47,12 +47,12 @@
           "url": "/queue"
         },
         {
-          "id": "i_mapping",
-          "emoji": "🔗",
-          "name": "맵핑",
-          "url": "/mapping/",
           "active_key": "mapping",
-          "badge_key": null
+          "badge_key": null,
+          "emoji": "🔗",
+          "id": "i_mapping",
+          "name": "맵핑",
+          "url": "/mapping/"
         }
       ],
       "name": "모음전 등록"
@@ -201,6 +201,6 @@
       "url": "/"
     }
   ],
-  "updated_at": "2026-05-17T14:24:49",
+  "updated_at": "2026-05-19T22:19:45",
   "version": 1
 }

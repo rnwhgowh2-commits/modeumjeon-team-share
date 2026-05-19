@@ -80,6 +80,32 @@ def create_app() -> Flask:
         s = (str(value).strip() if value is not None else '')
         return s if s else 'FREE'
 
+    # 제품명 단일 SKU brand-strip — 단일 옵션 detail 페이지용 (LCP 불가시 brand 중복만 제거)
+    # 사용: {{ opt | display_pname_single }}  또는  {{ opt | display_pname_single('FREE') }}
+    from shared.product_display import format_pname_single, format_color_single
+
+    @app.template_filter('display_pname_single')
+    def _display_pname_single(opt, fallback=''):
+        try:
+            brand = (opt.model.brand if getattr(opt, 'model', None) else '') or ''
+            name = ''
+            if getattr(opt, 'model', None):
+                name = (opt.model.model_name_display or opt.model.model_name_raw or '')
+            return format_pname_single(brand, name, fallback=fallback or getattr(opt, 'canonical_sku', ''))
+        except Exception:
+            return fallback or ''
+
+    @app.template_filter('cleaned_color_single')
+    def _cleaned_color_single(opt):
+        try:
+            raw = (opt.color_display or opt.color_code or '') if opt else ''
+            pname = ''
+            if getattr(opt, 'model', None):
+                pname = (opt.model.model_name_display or opt.model.model_name_raw or '')
+            return format_color_single(raw, pname=pname)
+        except Exception:
+            return 'ONE Color'
+
     @app.get("/mockup/<path:filename>")
     def mockup(filename):
         """docs/mockups/ HTML 파일 서빙 — 디자인 시안 미리보기."""
