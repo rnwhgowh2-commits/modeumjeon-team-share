@@ -182,9 +182,9 @@
             {% for o in options %}
               {% set _bc = o.barcode or o.boxhero_sku or '—' %}
               {% set _brand = (o.model.brand or '—') if o.model else '—' %}
-              {% set _pname = (o.model.model_name_display or o.model.model_name_raw) if o.model else o.canonical_sku %}
+              {% set _pname = (display_pname.get(o.canonical_sku) if display_pname is defined else None) or ((o.model.model_name_display or o.model.model_name_raw) if o.model else o.canonical_sku) %}
               {% set _article = (o.model.article_no or '—') if (o.model and o.model.article_no is defined) else '—' %}
-              {% set _color = (o.color_display or o.color_code or 'one') %}
+              {% set _color = (cleaned_color.get(o.canonical_sku) if cleaned_color is defined else None) or (o.color_display or o.color_code or 'one') %}
               {% set _size = (o.size_display or o.size_code or 'free') %}
               {% set _rt = stock_map.get(o.canonical_sku, 0) %}
               <tr style="border-bottom:1px solid #F2F4F6;{% if selected_detail and selected_detail.opt.canonical_sku == o.canonical_sku %}background:#EFF6FF{% endif %};cursor:pointer" onclick="window.location.href='?sku={{ o.canonical_sku }}{% if in_stock_only %}&in_stock=1{% endif %}{% if search_q %}&q={{ search_q }}{% endif %}'">
