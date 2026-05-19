@@ -225,10 +225,14 @@ def data_item_update(sku):
             if model:
                 new_name = (request.form.get('model_name') or '').strip()
                 new_brand = (request.form.get('brand') or '').strip()
+                new_article = (request.form.get('article_no') or '').strip()
                 if new_name:
                     model.model_name_display = new_name
                 if new_brand:
                     model.brand = new_brand
+                # 품번은 빈 문자열도 허용 (= 명시적 삭제 의도)
+                if 'article_no' in request.form:
+                    model.article_no = new_article[:64] if new_article else None
 
         file = request.files.get('image')
         if file and file.filename:
@@ -410,6 +414,7 @@ def data_items():
                     'barcode': o.barcode or '',
                     'name': display_pname.get(o.canonical_sku, ''),
                     'name_raw': (o.model.model_name_display or o.model.model_name_raw or '') if o.model else '',
+                    'article_no': (getattr(o.model, 'article_no', None) or '') if o.model else '',
                     'model_code': (o.model.model_code or '') if o.model else '',
                     'brand': (o.model.brand or '') if o.model else '',
                     'color': cleaned_color.get(o.canonical_sku, 'ONE Color'),

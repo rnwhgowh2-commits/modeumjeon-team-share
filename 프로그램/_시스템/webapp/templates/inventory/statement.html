@@ -62,6 +62,7 @@
       <tr>
         <th style="width:38mm">SKU</th>
         <th>제품명</th>
+        <th style="width:22mm">품번</th>
         <th style="width:22mm">색상/사이즈</th>
         <th class="right" style="width:18mm">수량</th>
         <th class="right" style="width:24mm">단가</th>
@@ -72,6 +73,7 @@
       <tr>
         <td style="font-family:'SF Mono',monospace;font-size:11px">{{ opt.canonical_sku if opt else tx.option_canonical_sku }}</td>
         <td>{{ opt | display_pname_single if opt else (tx.option_canonical_sku or '—') }}</td>
+        <td style="font-family:'SF Mono',monospace;font-size:11px">{{ (opt.model.article_no if opt and opt.model else None) or '—' }}</td>
         <td>{{ opt | cleaned_color_single if opt else '—' }}/{{ (opt.size_display or opt.size_code) | size_or_default if opt else '—' }}</td>
         <td class="right">{{ tx.qty }}</td>
         <td class="right">{% if tx.unit_purchase_price_at_tx %}{{ '{:,}'.format(tx.unit_purchase_price_at_tx) }}{% elif tx.unit_sale_price %}{{ '{:,}'.format(tx.unit_sale_price) }}{% else %}—{% endif %}</td>
