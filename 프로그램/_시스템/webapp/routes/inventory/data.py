@@ -383,9 +383,15 @@ def data_items():
                 disp_model = prefix
             if not disp_model and brand_v and raw_pname.startswith(brand_v):
                 disp_model = raw_pname[len(brand_v):].strip()
-            # brand strip — disp_model 가 brand 로 시작하면 중복 제거
-            if disp_model and brand_v and disp_model.startswith(brand_v):
-                disp_model = disp_model[len(brand_v):].strip()
+            # brand strip — disp_model 안의 brand 토큰 모두 제거 (startswith 만으론 부족: 중간 박힌 케이스 대응)
+            if disp_model and brand_v:
+                # 단어 경계 기준 토큰화 후 brand 토큰 제거
+                tokens = disp_model.split()
+                tokens = [t for t in tokens if t != brand_v]
+                disp_model = ' '.join(tokens).strip()
+                # 다중 공백 정리
+                while '  ' in disp_model:
+                    disp_model = disp_model.replace('  ', ' ')
             if disp_model:
                 # 색상이 끝에 붙어있으면 strip
                 if cleaned and cleaned != 'ONE Color' and disp_model.endswith(cleaned):
@@ -926,9 +932,13 @@ def data_items_export():
             if not display_model and brand and raw_pname.startswith(brand):
                 # 폴백 — 브랜드만 strip
                 display_model = raw_pname[len(brand):].strip()
-            # brand strip — disp_model 가 brand 로 시작하면 중복 제거
-            if display_model and brand and display_model.startswith(brand):
-                display_model = display_model[len(brand):].strip()
+            # brand strip — display_model 안의 brand 토큰 모두 제거 (startswith 만으론 부족: 중간 박힌 케이스 대응)
+            if display_model and brand:
+                tokens = display_model.split()
+                tokens = [t for t in tokens if t != brand]
+                display_model = ' '.join(tokens).strip()
+                while '  ' in display_model:
+                    display_model = display_model.replace('  ', ' ')
             if display_model:
                 # 색상이 display_model 끝에 붙어있으면 떼기 (raw_pname == "브랜드 모델 색상" 의 경우)
                 if color and display_model.endswith(color):
