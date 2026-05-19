@@ -73,6 +73,69 @@ def data_product_image(filename):
     return send_from_directory(str(UPLOAD_DIR), filename)
 
 
+@bp.post('/data/items/backfill-article-no')
+def data_items_backfill_article_no():
+    """박스히어로 model_name → Model.article_no 일괄 백필.
+
+    JSON body = {SKU: article_no, ...}.
+    각 SKU 의 Model.article_no 가 비어있으면 채움 (기존 값 보존).
+    `Option.canonical_sku` 또는 `Option.boxhero_sku` 둘 다 매칭 시도.
+    """
+    from flask import jsonify
+    payload = request.get_json(silent=True) or {}
+    mapping = payload.get('mapping') if isinstance(payload, dict) else None
+    if not isinstance(mapping, dict) or not mapping:
+        return jsonify({'ok': False, 'error': 'mapping body required'}), 400
+
+    s = SessionLocal()
+    try:
+        # boxhero_sku ↔ canonical_sku 양쪽 다 매칭
+        from sqlalchemy import or_
+        skus = list(mapping.keys())
+        opts = s.query(Option).filter(or_(
+            Option.canonical_sku.in_(skus),
+            Option.boxhero_sku.in_(skus),
+        )).all()
+        # sku → article 매핑 (canonical 과 boxhero 둘 다 인덱싱)
+        # 동일 SKU 가 둘 다인 경우도 처리
+        model_codes_seen: set[str] = set()
+        updated = 0
+        skipped_existing = 0
+        skipped_no_model = 0
+        for opt in opts:
+            article = (mapping.get(opt.canonical_sku) or mapping.get(opt.boxhero_sku) or '').strip()
+            if not article:
+                continue
+            if not opt.model_code or opt.model_code in model_codes_seen:
+                continue
+            m = s.query(Model).filter(Model.model_code == opt.model_code).first()
+            if not m:
+                skipped_no_model += 1
+                continue
+            existing = (getattr(m, 'article_no', None) or '').strip()
+            if existing:
+                skipped_existing += 1
+                model_codes_seen.add(opt.model_code)
+                continue
+            m.article_no = article[:64]
+            updated += 1
+            model_codes_seen.add(opt.model_code)
+        s.commit()
+        return jsonify({
+            'ok': True,
+            'updated': updated,
+            'skipped_existing': skipped_existing,
+            'skipped_no_model': skipped_no_model,
+            'mapping_size': len(mapping),
+            'opts_matched': len(opts),
+        })
+    except Exception as e:
+        s.rollback()
+        return jsonify({'ok': False, 'error': str(e)}), 500
+    finally:
+        s.close()
+
+
 @bp.post('/data/items/auto-clean-colors')
 def data_items_auto_clean_colors():
     """LCP 알고리즘으로 모든 옵션의 color_display + Model.model_name_display 일괄 정리.
