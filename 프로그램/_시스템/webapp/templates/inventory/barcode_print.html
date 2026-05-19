@@ -64,7 +64,8 @@ svg.ds-bc { shape-rendering: crispEdges; }
         {% set label_name = o.name if (o.is_bundle if o.is_bundle is defined else false) else ((o.model.model_name_display or o.model.model_name_raw) if o.model else o.canonical_sku) %}
         <div class="label{% if is_bundle %} is-bundle{% endif %}" style="left:{{ left }}mm;top:{{ top }}mm"
              data-name="{{ label_name }}"
-             data-attr="{% if o.color_display or o.color_code %}{{ o.color_display or o.color_code }}{% endif %}{% if o.size_display or o.size_code %} · {{ o.size_display or o.size_code }}{% endif %}"
+             data-size="{{ o.size_display or o.size_code or 'free' }}"
+             data-color="{{ o.color_display or o.color_code or 'one' }}"
              data-code="{{ code }}"
              data-bundle="{{ '1' if is_bundle else '0' }}">
         </div>
@@ -121,13 +122,16 @@ const wCode = settings.w_code || 400;
 
 document.querySelectorAll('.label').forEach(el => {
   const name = el.dataset.name || '';
-  const attr = el.dataset.attr || '';
+  // 5-line layout: 제품명 / 사이즈 / 색상 / 바코드 / 바코드번호
+  let size = el.dataset.size || 'free';
+  let color = el.dataset.color || 'one';
+  // smart fallback — 색상이 제품명과 같으면 (데이터 정리 안 된 옵션) 'one' 으로 표시
+  if (color === name || (color.length > 12 && name.includes(color.substring(0, 8)))) color = 'one';
   const rawCode = el.dataset.code || '';
   const code = asciiSafeCode(rawCode);
   const isAuto = code !== rawCode;
   const isBundle = el.dataset.bundle === '1';
 
-  // 디자인별 마크업 — 폰트 굵기·요소 간 여백 적용
   let inner = '';
   // white-space:nowrap = 모든 텍스트 자식 줄바꿈 금지 (overflow:hidden 으로 cell 가장자리 클립)
   const wrap = `style="width:100%;height:100%;box-sizing:border-box;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:${sPad};text-align:center;background:#fff;color:#000;overflow:hidden;white-space:nowrap"`;
@@ -135,32 +139,18 @@ document.querySelectorAll('.label').forEach(el => {
   const codeStr = code + (isAuto ? ' <span style="color:#F59E0B;font-size:'+(parseFloat(sCode)*0.8)+'pt">★ 자동</span>' : '');
   const bundleTag = isBundle ? `<div class="bundle-tag">묶음</div>` : '';
 
-  if (variant === '3') {
-    inner = `<div ${wrap}>
-      ${bundleTag}
-      <div style="background:#000;color:#fff;padding:0.5mm 2mm;border-radius:1mm;font-size:${sName};font-weight:${wName};line-height:1.1">${name}</div>
-      <div style="font-size:${sAttr};font-weight:${wAttr};color:#555;line-height:1;margin-top:${gNA}">${attr}</div>
-      ${svg}
-      <div style="font-size:${sCode};font-weight:${wCode};color:#000;font-family:ui-monospace,monospace;line-height:1">${codeStr}</div>
-    </div>`;
-  } else if (variant === '5') {
-    inner = `<div ${wrap}>
-      ${bundleTag}
-      <div style="font-size:${sName};font-weight:${wName};line-height:1.1">${name}</div>
-      <div style="font-size:${sAttr};font-weight:${wAttr};color:#000;line-height:1;margin-top:${gNA}">${attr}</div>
-      ${svg}
-      <div style="font-size:${sCode};font-weight:${wCode};color:#000;font-family:ui-monospace,monospace;line-height:1">${codeStr}</div>
-    </div>`;
-  } else {
-    // 1: 표준
-    inner = `<div ${wrap}>
-      ${bundleTag}
-      <div style="font-size:${sName};font-weight:${wName};line-height:1.1">${name}</div>
-      <div style="font-size:${sAttr};font-weight:${wAttr};color:#555;line-height:1;margin-top:${gNA}">${attr}</div>
-      ${svg}
-      <div style="font-size:${sCode};font-weight:${wCode};color:#000;font-family:ui-monospace,monospace;line-height:1">${codeStr}</div>
-    </div>`;
-  }
+  // 제품명 line (variant 3: 검은 배경 chip)
+  const nameLine = (variant === '3')
+    ? `<div style="background:#000;color:#fff;padding:0.3mm 1.5mm;border-radius:0.5mm;font-size:${sName};font-weight:${wName};line-height:1.05">${name}</div>`
+    : `<div style="font-size:${sName};font-weight:${wName};line-height:1.05">${name}</div>`;
+  // 사이즈 line (variant 5: 큰 글씨 강조)
+  const sizeLine = `<div style="font-size:${sAttr};font-weight:${wAttr};color:#000;line-height:1.0;margin-top:${gNA}">${size}</div>`;
+  // 색상 line (size 와 같은 폰트 크기, 회색 톤)
+  const colorLine = `<div style="font-size:${sAttr};font-weight:${wAttr};color:#555;line-height:1.0">${color}</div>`;
+  // 바코드 번호 line
+  const codeLine = `<div style="font-size:${sCode};font-weight:${wCode};color:#000;font-family:ui-monospace,monospace;line-height:1">${codeStr}</div>`;
+
+  inner = `<div ${wrap}>${bundleTag}${nameLine}${sizeLine}${colorLine}${svg}${codeLine}</div>`;
   el.innerHTML = inner;
 });
 
