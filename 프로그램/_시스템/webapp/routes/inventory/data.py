@@ -349,6 +349,7 @@ def data_items():
     JSON 모드는 칩 UI 의 AJAX 라이브 검색용 (새로고침 없이 표·KPI 갱신).
     """
     from lemouton.sourcing.models import Option, Model
+    from lemouton.inventory.models import InventoryLocation
     from shared.search import split_tokens, apply_and_filter
     from shared.inventory_stock import get_stock_batch
     from sqlalchemy import func
@@ -403,6 +404,20 @@ def data_items():
         from shared.product_display import compute_display_maps
         cleaned_color, display_pname = compute_display_maps(items)
 
+        # 위치별 재고 — 사용자 spec: ... / 총재고 / 위치별 재고 N
+        locs = (
+            s.query(InventoryLocation)
+            .filter(InventoryLocation.deleted_at.is_(None))
+            .order_by(InventoryLocation.sort_order, InventoryLocation.id)
+            .all()
+        )
+        page_skus = [o.canonical_sku for o in items]
+        per_loc_stock: dict[str, dict[int, int]] = {}
+        for loc in locs:
+            loc_map = get_stock_batch(s, page_skus, location_id=loc.id)
+            for sku, st in loc_map.items():
+                per_loc_stock.setdefault(sku, {})[loc.id] = st
+
         if want_json:
             from flask import jsonify
             def _size(o):
@@ -423,6 +438,7 @@ def data_items():
                     'size_raw': o.size_display or o.size_code or '',
                     'avg': int(o.boxhero_avg_purchase_price or 0),
                     'stock': int(stock_map.get(o.canonical_sku, 0)),
+                    'loc_stock': {str(loc.id): int(per_loc_stock.get(o.canonical_sku, {}).get(loc.id, 0)) for loc in locs},
                 }
                 for o in items
             ]
@@ -433,6 +449,7 @@ def data_items():
                 'total_pages': (total + page_size - 1) // page_size,
                 'items': rows,
                 'kpi': kpi,
+                'locs': [{'id': loc.id, 'name': loc.name} for loc in locs],
             })
 
         brands = [b for (b,) in s.query(Model.brand).distinct().filter(Model.brand.isnot(None)).all()]
@@ -448,6 +465,8 @@ def data_items():
             cleaned_color=cleaned_color,  # ★ LCP strip 색상
             display_pname=display_pname,  # ★ brand+모델명 (색상 X, brand 중복 X)
             kpi=kpi,
+            locs=locs,                    # ★ 위치별 재고 컬럼 헤더용
+            per_loc_stock=per_loc_stock,  # ★ {sku: {loc_id: stock}}
         )
     finally:
         s.close()

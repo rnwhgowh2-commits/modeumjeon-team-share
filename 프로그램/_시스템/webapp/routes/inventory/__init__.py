@@ -107,6 +107,14 @@ def home():
         from shared.product_display import compute_display_maps
         cleaned_color, display_pname = compute_display_maps(options, one_color_label='one')
 
+        # 위치별 재고 — 사용자 spec: ... / 총재고 / 위치별 재고 N
+        page_skus = [o.canonical_sku for o in options]
+        per_loc_stock: dict[str, dict[int, int]] = {}
+        for loc in all_locs:
+            loc_map = get_stock_batch(s, page_skus, location_id=loc.id)
+            for sku, st in loc_map.items():
+                per_loc_stock.setdefault(sku, {})[loc.id] = st
+
         return render_template(
             'inventory/home.html',
             active_app='inventory', active='items',
@@ -118,6 +126,7 @@ def home():
             stock_map=stock_map,  # ★ list 의 재고 컬럼용 (실시간 SSOT)
             cleaned_color=cleaned_color,  # {sku: 색상} — LCP strip 적용
             display_pname=display_pname,  # {sku: 제품명} — 브랜드+모델명 (색상 X)
+            per_loc_stock=per_loc_stock,  # ★ {sku: {loc_id: stock}} — 위치별 재고 컬럼
         )
     finally:
         s.close()
