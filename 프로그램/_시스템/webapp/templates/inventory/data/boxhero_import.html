@@ -1,10 +1,10 @@
 {% extends 'base.html' %}
-{% block title %}박스히어로 import — 데이터 관리{% endblock %}
+{% block title %}재고 양식 import — 데이터 관리{% endblock %}
 {% block content %}
 <div style="padding:24px 32px;max-width:1500px;margin:0 auto">
   <div style="display:flex;align-items:center;gap:14px;margin-bottom:14px">
     <div style="font-size:12.5px;color:#9CA3AF">데이터 관리</div>
-    <h1 style="font-size:22px;font-weight:700;margin:0">박스히어로 import</h1>
+    <h1 style="font-size:22px;font-weight:700;margin:0">재고 양식 import</h1>
     <span style="font-size:11.5px;color:#9CA3AF">ADR-005 — 1회 import 후 단독 운영</span>
   </div>
 
@@ -35,12 +35,12 @@
   </div>
 
   <div style="background:#fff;border:1px solid #E5E8EB;border-radius:8px;padding:20px">
-    <h2 style="font-size:15px;font-weight:700;margin-bottom:12px">📥 박스히어로 export xlsx 업로드</h2>
+    <h2 style="font-size:15px;font-weight:700;margin-bottom:12px">📥 재고 양식 xlsx 업로드</h2>
     <p style="font-size:12.5px;color:#6B7684;line-height:1.6;margin-bottom:16px">
-      박스히어로에서 [데이터 관리 → 제품 → 엑셀 내보내기]로 받은 19컬럼 xlsx 파일을 업로드하면<br>
-      ① fuzzy 알고리즘으로 모음전 옵션과 자동 매핑 →
-      ② 평균매입가·재고 자동 계산 (이동평균법, ADR-002) →
-      ③ 미매핑 큐는 [SKU 매핑] 페이지에서 수동 보완.
+      <b>두 가지 형식 모두 지원</b> (헤더 자동 감지):<br>
+      • <b>우리 양식 (9 base + 위치별 재고)</b> — 다운로드한 <code>재고관리_*.xlsx</code> 를 그대로 수정 후 재업로드<br>
+      • <b>박스히어로 19컬럼</b> — 1회성 마이그레이션용 (BoxHero export xlsx)<br><br>
+      업로드 → ① 헤더 자동 감지 → ② fuzzy 매핑·이동평균 계산 → ③ InventoryTx 생성 (SSOT) → ④ 미매핑은 [SKU 매핑] 큐에서 보완.
     </p>
 
     <form method="post" action="{{ url_for('inventory.data_boxhero_import_upload') }}" enctype="multipart/form-data">
