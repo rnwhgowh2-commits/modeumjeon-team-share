@@ -665,46 +665,98 @@ def data_price_templates_update_margin(tpl_id):
 
 @bp.get('/data/items/export.xlsx')
 def data_items_export():
-    """제품 마스터 엑셀 내보내기 (박스히어로식 19컬럼 일부 호환)."""
+    """우리 양식 9 base 컬럼 + 동적 위치별 재고 컬럼 엑셀 다운로드.
+
+    헤더: SKU / 바코드 / 브랜드 / 제품명 / 색상 / 사이즈 / 평균매입가 / 총재고 / {위치명1} 재고 / {위치명2} 재고 / ...
+    """
     from io import BytesIO
+    from datetime import datetime
     import openpyxl
+    from openpyxl.styles import Font, PatternFill, Alignment
+    from sqlalchemy.orm import joinedload
     from lemouton.sourcing.models import Option, Model
+    from lemouton.inventory.models import InventoryLocation
+    from shared.inventory_stock import get_stock_batch
 
     s = SessionLocal()
     try:
-        rows = (
-            s.query(Option, Model)
-            .join(Model, Option.model_code == Model.model_code)
-            .order_by(Model.model_name_raw, Option.color_code, Option.size_code)
+        # 옵션 + 모델 join
+        options = (
+            s.query(Option)
+            .options(joinedload(Option.model))
+            .order_by(Option.model_code, Option.sort_order, Option.canonical_sku)
             .all()
         )
+        all_skus = [o.canonical_sku for o in options]
+
+        # 총재고 + 위치별 재고 — SSOT (InventoryTx) batch
+        total_stock_map = get_stock_batch(s, all_skus)
+        locs = (
+            s.query(InventoryLocation)
+            .filter(InventoryLocation.deleted_at.is_(None))
+            .order_by(InventoryLocation.sort_order, InventoryLocation.id)
+            .all()
+        )
+        per_loc_stock = {}  # {sku: {loc_id: stock}}
+        for loc in locs:
+            loc_map = get_stock_batch(s, all_skus, location_id=loc.id)
+            for sku, st in loc_map.items():
+                per_loc_stock.setdefault(sku, {})[loc.id] = st
 
         wb = openpyxl.Workbook()
         ws = wb.active
-        ws.title = '제품마스터'
-        ws.append([
-            'SKU(canonical)', '박스히어로 SKU', '제품명',
-            '브랜드', '모델명', '카테고리', '컬러', '사이즈',
-            '평균매입가', '총재고',
-        ])
-        for opt, mdl in rows:
-            ws.append([
-                opt.canonical_sku, opt.boxhero_sku or '',
-                f'{mdl.model_name_display or mdl.model_name_raw} {opt.color_display or opt.color_code} {opt.size_display or opt.size_code}',
-                mdl.brand or '', mdl.model_name_display or mdl.model_name_raw, mdl.category or '',
-                opt.color_display or opt.color_code, opt.size_display or opt.size_code,
-                opt.boxhero_avg_purchase_price or 0, opt.boxhero_stock_total or 0,
-            ])
+        ws.title = '재고관리'
+
+        # 헤더 — 우리 양식 8 base + N 위치
+        headers = ['SKU', '바코드', '브랜드', '제품명', '색상', '사이즈', '평균매입가', '총재고']
+        for loc in locs:
+            headers.append(f'{loc.name} 재고')
+        ws.append(headers)
+
+        # 데이터 row
+        for o in options:
+            barcode = o.barcode or o.boxhero_sku or ''
+            brand = (o.model.brand or '') if o.model else ''
+            pname = ((o.model.model_name_display or o.model.model_name_raw) if o.model else o.canonical_sku) or ''
+            color = (o.color_display or o.color_code or 'one')
+            size = (o.size_display or o.size_code or 'free')
+            # smart fallback — broken 데이터 (color == pname)
+            if color == pname or (len(color) > 12 and pname.startswith(color[:8])):
+                color = 'one'
+            avg = int(o.boxhero_avg_purchase_price or 0)
+            total = int(total_stock_map.get(o.canonical_sku, 0))
+            row = [o.canonical_sku, barcode, brand, pname, color, size, avg, total]
+            for loc in locs:
+                row.append(int(per_loc_stock.get(o.canonical_sku, {}).get(loc.id, 0)))
+            ws.append(row)
+
+        # 헤더 스타일 (파란 배경 + 흰 글씨)
+        header_font = Font(bold=True, color='FFFFFF', size=11)
+        header_fill = PatternFill(start_color='4F67FF', end_color='4F67FF', fill_type='solid')
+        for col_idx in range(1, len(headers) + 1):
+            c = ws.cell(row=1, column=col_idx)
+            c.font = header_font
+            c.fill = header_fill
+            c.alignment = Alignment(horizontal='center', vertical='center')
+        ws.row_dimensions[1].height = 24
+        ws.freeze_panes = 'A2'
+
+        # 컬럼 너비 (대략)
+        widths = [16, 16, 14, 36, 14, 10, 12, 10] + [12] * len(locs)
+        for i, w in enumerate(widths):
+            col_letter = openpyxl.utils.get_column_letter(i + 1)
+            ws.column_dimensions[col_letter].width = w
 
         buf = BytesIO()
         wb.save(buf)
         buf.seek(0)
 
+        ts = datetime.now().strftime('%Y%m%d-%H%M%S')
         from flask import send_file
         return send_file(buf,
             mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
             as_attachment=True,
-            download_name='제품마스터.xlsx',
+            download_name=f'재고관리_{ts}.xlsx',
         )
     finally:
         s.close()
