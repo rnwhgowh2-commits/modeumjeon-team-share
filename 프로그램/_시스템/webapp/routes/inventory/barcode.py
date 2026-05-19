@@ -177,6 +177,9 @@ def barcode_view():
             .options(joinedload(Option.model))
             .order_by(Option.model_code).limit(500).all()
         )
+        # ★ LCP 색상 정리 + 제품명 brand-strip (전 시스템 통일)
+        from shared.product_display import compute_display_maps
+        cleaned_color, display_pname = compute_display_maps(options)
         # 사용자 정의 템플릿 우선
         custom = _build_custom_template(request.args) if template_key == 'custom' else None
         template = custom or LABEL_TEMPLATES.get(template_key, LABEL_TEMPLATES['kr_ls3102'])
@@ -184,6 +187,7 @@ def barcode_view():
                                active='barcode', options=options, sku_filter=sku_filter,
                                templates=LABEL_TEMPLATES, template_key=template_key,
                                template=template, cutline=cutline,
+                               cleaned_color=cleaned_color, display_pname=display_pname,
                                custom_args=dict(request.args) if template_key == 'custom' else {})
     finally:
         s.close()

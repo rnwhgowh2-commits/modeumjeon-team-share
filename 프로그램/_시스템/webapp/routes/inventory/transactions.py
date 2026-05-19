@@ -182,10 +182,14 @@ def inbound_new():
         locations = list_active(s)
         # 제품 추가 모달용 — 모든 옵션 (model_name + canonical_sku + 색상/사이즈)
         options = (s.query(Option).order_by(Option.model_code, Option.canonical_sku).limit(500).all())
+        # ★ LCP 색상 정리 + 제품명 brand-strip (전 시스템 통일)
+        from shared.product_display import compute_display_maps
+        cleaned_color, display_pname = compute_display_maps(options)
         opt_data = [{
             'sku': o.canonical_sku, 'model': o.model_code,
-            'color': o.color_display or o.color_code,
-            'size': o.size_display or o.size_code,
+            'name': display_pname.get(o.canonical_sku, o.canonical_sku),
+            'color': cleaned_color.get(o.canonical_sku, 'ONE Color'),
+            'size': (o.size_display or o.size_code or 'FREE'),
             'bh': o.boxhero_sku or '', 'stock': o.boxhero_stock_total or 0,
             'avg': o.boxhero_avg_purchase_price or 0,
         } for o in options]
@@ -249,10 +253,14 @@ def inbound_create():
 def _opt_data_all(s, include_bundles: bool = False):
     """제품 추가 모달용 — 전체 옵션 JSON. include_bundles=True 면 묶음 SKU 포함 (출고용)."""
     options = (s.query(Option).order_by(Option.model_code, Option.canonical_sku).limit(500).all())
+    # ★ LCP 색상 정리 + 제품명 brand-strip (전 시스템 통일)
+    from shared.product_display import compute_display_maps
+    cleaned_color, display_pname = compute_display_maps(options)
     out = [{
         'sku': o.canonical_sku, 'model': o.model_code,
-        'color': o.color_display or o.color_code,
-        'size': o.size_display or o.size_code,
+        'name': display_pname.get(o.canonical_sku, o.canonical_sku),
+        'color': cleaned_color.get(o.canonical_sku, 'ONE Color'),
+        'size': (o.size_display or o.size_code or 'FREE'),
         'bh': o.boxhero_sku or '', 'stock': o.boxhero_stock_total or 0,
         'avg': o.boxhero_avg_purchase_price or 0,
         'img': o.image_url or '',

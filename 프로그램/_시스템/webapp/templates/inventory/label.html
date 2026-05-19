@@ -269,11 +269,11 @@ function flashMsg(text, color){
 }
 
 const ITEM = {
-  name: {{ ((mdl.model_name_display or mdl.model_name_raw) if mdl else opt.model_code)|tojson|safe }},
+  name: {{ (opt | display_pname_single)|tojson|safe }},
   sku: {{ opt.canonical_sku|tojson|safe }},
   barcode: {{ (barcode or '')|tojson|safe }},
-  color: {{ (opt.color_display or opt.color_code or '—')|tojson|safe }},
-  size: {{ (opt.size_display or opt.size_code or '—')|tojson|safe }},
+  color: {{ (opt | cleaned_color_single)|tojson|safe }},
+  size: {{ ((opt.size_display or opt.size_code) | size_or_default)|tojson|safe }},
 };
 
 function redraw(){

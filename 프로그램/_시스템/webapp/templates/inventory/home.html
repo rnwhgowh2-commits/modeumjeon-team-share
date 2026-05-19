@@ -160,7 +160,7 @@
           {% for o in opts %}
             <a href="?sku={{ o.canonical_sku }}{% if in_stock_only %}&in_stock=1{% endif %}{% if group_by_model %}&group_by_model=1{% endif %}{% if search_q %}&q={{ search_q }}{% endif %}" style="display:flex;align-items:center;padding:8px 14px;border-bottom:1px solid #F2F4F6;text-decoration:none;color:#191F28;{% if selected_detail and selected_detail.opt.canonical_sku == o.canonical_sku %}background:#EFF6FF{% endif %}">
               <div style="flex:1;font-family:ui-monospace,monospace;font-size:11px">{{ o.canonical_sku }}</div>
-              <div style="font-size:11px;color:#6B7684;margin-right:12px">{{ o.color_display or o.color_code }} / {{ o.size_display or o.size_code }}</div>
+              <div style="font-size:11px;color:#6B7684;margin-right:12px">{{ (cleaned_color.get(o.canonical_sku) if cleaned_color is defined else None) or (o | cleaned_color_single) }} / {{ (o.size_display or o.size_code) | size_or_default }}</div>
               <div style="font-weight:600;font-family:ui-monospace,monospace;color:{% if (o.boxhero_stock_total or 0) > 0 %}#7C3AED{% else %}#9CA3AF{% endif %};min-width:50px;text-align:right">{{ o.boxhero_stock_total or 0 }}</div>
             </a>
           {% endfor %}
@@ -215,8 +215,8 @@
       <div style="display:flex;align-items:start;gap:12px;margin-bottom:14px">
         <div style="flex:1">
           <div style="font-size:11px;color:#6B7684;margin-bottom:2px">{{ d.opt.canonical_sku }}</div>
-          <div style="font-size:15px;font-weight:700">{{ d.model.model_name_display or d.model.model_name_raw if d.model else d.opt.model_code }}</div>
-          <div style="font-size:11.5px;color:#6B7684;margin-top:2px">{{ d.opt.color_display or d.opt.color_code }} · {{ d.opt.size_display or d.opt.size_code }}</div>
+          <div style="font-size:15px;font-weight:700">{{ (display_pname.get(d.opt.canonical_sku) if display_pname is defined else None) or (d.opt | display_pname_single) or d.opt.model_code }}</div>
+          <div style="font-size:11.5px;color:#6B7684;margin-top:2px">{{ (cleaned_color.get(d.opt.canonical_sku) if cleaned_color is defined else None) or (d.opt | cleaned_color_single) }} · {{ (d.opt.size_display or d.opt.size_code) | size_or_default }}</div>
         </div>
         <a href="?" style="font-size:18px;color:#9CA3AF;text-decoration:none">×</a>
       </div>

@@ -71,8 +71,8 @@
     <tbody>
       <tr>
         <td style="font-family:'SF Mono',monospace;font-size:11px">{{ opt.canonical_sku if opt else tx.option_canonical_sku }}</td>
-        <td>{{ (mdl.model_name_display or mdl.model_name_raw) if mdl else (tx.option_canonical_sku or '—') }}</td>
-        <td>{{ opt.color_display if opt else '—' }}/{{ opt.size_display if opt else '—' }}</td>
+        <td>{{ opt | display_pname_single if opt else (tx.option_canonical_sku or '—') }}</td>
+        <td>{{ opt | cleaned_color_single if opt else '—' }}/{{ (opt.size_display or opt.size_code) | size_or_default if opt else '—' }}</td>
         <td class="right">{{ tx.qty }}</td>
         <td class="right">{% if tx.unit_purchase_price_at_tx %}{{ '{:,}'.format(tx.unit_purchase_price_at_tx) }}{% elif tx.unit_sale_price %}{{ '{:,}'.format(tx.unit_sale_price) }}{% else %}—{% endif %}</td>
         <td class="right"><b>{% set _p = tx.unit_purchase_price_at_tx or tx.unit_sale_price or 0 %}{% if _p %}{{ '{:,}'.format(_p * tx.qty) }}원{% else %}—{% endif %}</b></td>

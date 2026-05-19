@@ -141,15 +141,18 @@
               </tr>
               <tr id="emptyHint"><td colspan="3" style="padding:24px;text-align:center;color:#8F91A0;font-size:12.5px">검색어 입력 시 제품이 노출됩니다 (또는 선택한 제품만 표시)</td></tr>
               {% for o in options %}
-                <tr class="prod-row" style="border-top:1px solid #F1F1F4;display:none" data-search="{{ o.canonical_sku }} {{ o.color_display or o.color_code }} {{ o.size_display or o.size_code }} {{ o.boxhero_sku or '' }}">
-                  <td style="padding:8px;text-align:center"><input type="checkbox" name="sku" value="{{ o.canonical_sku }}" data-name="{{ (o.model.model_name_display or o.model.model_name_raw) if o.model else o.canonical_sku }}" data-size="{{ o.size_display or o.size_code or 'free' }}" data-color="{{ o.color_display or o.color_code or 'one' }}" data-bh="{{ o.barcode or o.boxhero_sku or '' }}" style="accent-color:#4F67FF"></td>
+                {% set _pname = (display_pname.get(o.canonical_sku) if display_pname is defined else None) or (o | display_pname_single) %}
+                {% set _color = (cleaned_color.get(o.canonical_sku) if cleaned_color is defined else None) or (o | cleaned_color_single) %}
+                {% set _size = (o.size_display or o.size_code) | size_or_default %}
+                <tr class="prod-row" style="border-top:1px solid #F1F1F4;display:none" data-search="{{ o.canonical_sku }} {{ _pname }} {{ _color }} {{ _size }} {{ o.boxhero_sku or '' }}">
+                  <td style="padding:8px;text-align:center"><input type="checkbox" name="sku" value="{{ o.canonical_sku }}" data-name="{{ _pname }}" data-size="{{ _size }}" data-color="{{ _color }}" data-bh="{{ o.barcode or o.boxhero_sku or '' }}" style="accent-color:#4F67FF"></td>
                   <td style="padding:8px">
                     <div style="display:flex;align-items:center;gap:8px">
                       {% if o.image_url %}<img src="{{ o.image_url }}" style="width:32px;height:32px;border-radius:4px;object-fit:cover">
                       {% else %}<div style="width:32px;height:32px;border-radius:4px;background:#F1F1F4;display:flex;align-items:center;justify-content:center;font-size:14px;color:#8F91A0">👟</div>{% endif %}
                       <div>
-                        <div style="font-size:12px;font-weight:600;color:#292A2F">{{ o.canonical_sku }}</div>
-                        <div style="font-size:10.5px;color:#8F91A0">{{ o.size_display or o.size_code or 'free' }} · {{ o.color_display or o.color_code or 'one' }}</div>
+                        <div style="font-size:12px;font-weight:600;color:#292A2F">{{ _pname }}</div>
+                        <div style="font-size:10.5px;color:#8F91A0">{{ o.canonical_sku }} · {{ _size }} · {{ _color }}</div>
                       </div>
                     </div>
                   </td>

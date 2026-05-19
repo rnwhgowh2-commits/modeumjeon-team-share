@@ -332,73 +332,9 @@ def data_items():
             'total_qty': int(total_qty),
         }
 
-        # ★ LCP 색상 정리 + 제품명 brand strip (home() 과 동일 로직)
-        # — 같은 model_code 그룹의 color_display 들 LCP 로 모델명 prefix 추출 → color 에서 strip
-        # — 제품명 = brand + 모델명 (색상 X, brand 중복 X)
-        from collections import defaultdict
-        color_by_model: dict[str, list[str]] = defaultdict(list)
-        for opt in items:
-            raw_c = (opt.color_display or opt.color_code or '').strip()
-            if raw_c and opt.model_code:
-                color_by_model[opt.model_code].append(raw_c)
-
-        def _lcp_words(strs):
-            if len(strs) < 2:
-                return ''
-            ss = sorted(strs)
-            first, last = ss[0], ss[-1]
-            i = 0
-            while i < len(first) and i < len(last) and first[i] == last[i]:
-                i += 1
-            cp = first[:i]
-            while cp and not cp[-1].isspace():
-                cp = cp[:-1]
-            return cp.strip()
-
-        model_lcp_local: dict[str, str] = {}
-        for mc, colors in color_by_model.items():
-            cp = _lcp_words(colors)
-            if cp and len(cp) >= 2:
-                model_lcp_local[mc] = cp
-
-        cleaned_color: dict[str, str] = {}
-        display_pname: dict[str, str] = {}
-        for opt in items:
-            raw_c = (opt.color_display or opt.color_code or '').strip()
-            prefix = model_lcp_local.get(opt.model_code, '') if opt.model_code else ''
-            if prefix and raw_c.startswith(prefix):
-                cleaned = raw_c[len(prefix):].strip() or 'ONE Color'
-            else:
-                cleaned = raw_c or 'ONE Color'
-            # 색상이 제품명/모델명과 통째로 같은 더러운 케이스 → 'ONE Color'
-            _raw_pname = (opt.model.model_name_display or opt.model.model_name_raw) if opt.model else ''
-            if cleaned and _raw_pname and cleaned.strip() == _raw_pname.strip():
-                cleaned = 'ONE Color'
-            cleaned_color[opt.canonical_sku] = cleaned
-
-            brand_v = (opt.model.brand or '').strip() if opt.model else ''
-            raw_pname = (opt.model.model_name_display or opt.model.model_name_raw) if opt.model else opt.canonical_sku
-            disp_model = (opt.model.model_name_display or '').strip() if opt.model else ''
-            if not disp_model:
-                disp_model = prefix
-            if not disp_model and brand_v and raw_pname.startswith(brand_v):
-                disp_model = raw_pname[len(brand_v):].strip()
-            # brand strip — disp_model 안의 brand 토큰 모두 제거 (startswith 만으론 부족: 중간 박힌 케이스 대응)
-            if disp_model and brand_v:
-                # 단어 경계 기준 토큰화 후 brand 토큰 제거
-                tokens = disp_model.split()
-                tokens = [t for t in tokens if t != brand_v]
-                disp_model = ' '.join(tokens).strip()
-                # 다중 공백 정리
-                while '  ' in disp_model:
-                    disp_model = disp_model.replace('  ', ' ')
-            if disp_model:
-                # 색상이 끝에 붙어있으면 strip
-                if cleaned and cleaned != 'ONE Color' and disp_model.endswith(cleaned):
-                    disp_model = disp_model[:-len(cleaned)].strip()
-                display_pname[opt.canonical_sku] = (f'{brand_v} {disp_model}'.strip() if brand_v else disp_model)
-            else:
-                display_pname[opt.canonical_sku] = raw_pname or opt.canonical_sku
+        # 색상·제품명 정리 — shared.product_display 헬퍼 (전 시스템 통일)
+        from shared.product_display import compute_display_maps
+        cleaned_color, display_pname = compute_display_maps(items)
 
         if want_json:
             from flask import jsonify
@@ -866,35 +802,9 @@ def data_items_export():
             for sku, st in loc_map.items():
                 per_loc_stock.setdefault(sku, {})[loc.id] = st
 
-        # 같은 model_code 그룹의 색상 LCP → 모델명 자동 도출
-        # 예: ['에어포스1 블랙(올검)', '에어포스1 화이트(올백)'] → LCP '에어포스1' → 색상에서 strip
-        from collections import defaultdict
-        by_model: dict[str, list[str]] = defaultdict(list)
-        for o in options:
-            raw_c = (o.color_display or o.color_code or '').strip()
-            if raw_c and o.model_code:
-                by_model[o.model_code].append(raw_c)
-
-        def _lcp_words(strs: list[str]) -> str:
-            """문자열 list 의 longest common prefix — 단어 경계 (공백) 까지."""
-            if len(strs) < 2:
-                return ''
-            s = sorted(strs)
-            first, last = s[0], s[-1]
-            i = 0
-            while i < len(first) and i < len(last) and first[i] == last[i]:
-                i += 1
-            cp = first[:i]
-            # 마지막 단어 경계까지만 유지 (단어 잘림 방지)
-            while cp and not cp[-1].isspace():
-                cp = cp[:-1]
-            return cp.strip()
-
-        model_lcp: dict[str, str] = {}
-        for mc, colors in by_model.items():
-            cp = _lcp_words(colors)
-            if cp and len(cp) >= 2:
-                model_lcp[mc] = cp
+        # 색상·제품명 정리 — shared.product_display 헬퍼 (전 시스템 통일)
+        from shared.product_display import compute_display_maps
+        cleaned_color, display_pname = compute_display_maps(options, one_color_label='one')
 
         wb = openpyxl.Workbook()
         ws = wb.active
@@ -909,47 +819,10 @@ def data_items_export():
         for o in options:
             barcode = o.barcode or o.boxhero_sku or ''
             brand = (o.model.brand or '') if o.model else ''
-            raw_pname = ((o.model.model_name_display or o.model.model_name_raw) if o.model else o.canonical_sku) or ''
             article = (getattr(o.model, 'article_no', None) or '') if o.model else ''
-            raw_color = (o.color_display or o.color_code or '').strip()
             size = (o.size_display or o.size_code or 'free')
-
-            # LCP strip — 색상에서 모델명 prefix 자동 제거
-            model_name = model_lcp.get(o.model_code, '') if o.model_code else ''
-            if model_name and raw_color.startswith(model_name):
-                color = raw_color[len(model_name):].strip()
-            else:
-                color = raw_color
-
-            # 제품명 = 브랜드 + 모델명 (색상 제외)
-            #   모델명 도출 우선순위:
-            #     1. Model.model_name_display (사용자 우리 시스템에서 직접 편집한 값)
-            #     2. LCP 결과 (group 도출)
-            #     3. raw_pname 에서 brand strip
-            display_model = (o.model.model_name_display or '').strip() if o.model else ''
-            if not display_model:
-                display_model = model_name
-            if not display_model and brand and raw_pname.startswith(brand):
-                # 폴백 — 브랜드만 strip
-                display_model = raw_pname[len(brand):].strip()
-            # brand strip — display_model 안의 brand 토큰 모두 제거 (startswith 만으론 부족: 중간 박힌 케이스 대응)
-            if display_model and brand:
-                tokens = display_model.split()
-                tokens = [t for t in tokens if t != brand]
-                display_model = ' '.join(tokens).strip()
-                while '  ' in display_model:
-                    display_model = display_model.replace('  ', ' ')
-            if display_model:
-                # 색상이 display_model 끝에 붙어있으면 떼기 (raw_pname == "브랜드 모델 색상" 의 경우)
-                if color and display_model.endswith(color):
-                    display_model = display_model[:-len(color)].strip()
-                pname = f'{brand} {display_model}'.strip() if brand else display_model
-            else:
-                pname = raw_pname
-
-            # smart fallback — broken 데이터 (color == pname 또는 빈 값)
-            if not color or color == pname:
-                color = 'one'
+            pname = display_pname.get(o.canonical_sku, o.canonical_sku)
+            color = cleaned_color.get(o.canonical_sku, 'one')
 
             avg = int(o.boxhero_avg_purchase_price or 0)
             total = int(total_stock_map.get(o.canonical_sku, 0))

@@ -57,8 +57,8 @@
         {% for opt, mdl in unmapped_options %}
         <tr style="border-bottom:1px solid #F2F4F6">
           <td style="padding:8px 12px;font-family:ui-monospace,monospace;font-size:11px;color:#4E5968">{{ opt.canonical_sku }}</td>
-          <td style="padding:8px 12px"><div style="font-weight:500">{{ mdl.model_name_display or mdl.model_name_raw }}</div><div style="font-size:10.5px;color:#9CA3AF">{{ mdl.brand }}</div></td>
-          <td style="padding:8px 12px">{{ (opt.color_display or opt.color_code) | color_or_default }} / {{ (opt.size_display or opt.size_code) | size_or_default }}</td>
+          <td style="padding:8px 12px"><div style="font-weight:500">{{ opt | display_pname_single }}</div><div style="font-size:10.5px;color:#9CA3AF">{{ mdl.brand }}</div></td>
+          <td style="padding:8px 12px">{{ opt | cleaned_color_single }} / {{ (opt.size_display or opt.size_code) | size_or_default }}</td>
           <td style="padding:8px 12px">
             <form method="post" action="{{ url_for('inventory.sku_mapping_confirm') }}" style="display:flex;gap:6px">
               <input type="hidden" name="canonical_sku" value="{{ opt.canonical_sku }}">

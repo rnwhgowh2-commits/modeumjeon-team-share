@@ -39,6 +39,15 @@ def matrix_view():
         templates_by_id = {t.id: t for t in
                            s.query(PriceTemplate).filter(PriceTemplate.id.in_(tpl_ids)).all()}
 
+        # 색상·제품명 정리 — shared.product_display 헬퍼 (전 시스템 통일)
+        # matrix 의 opt.model 이 lazy load 안 될 수 있어 models_by_code 로 명시 전달
+        from shared.product_display import compute_display_maps
+        cleaned_color, display_pname = compute_display_maps(
+            options,
+            get_brand=lambda o: (models_by_code.get(o.model_code).brand if models_by_code.get(o.model_code) else '') or '',
+            get_model_name=lambda o: ((models_by_code.get(o.model_code).model_name_display or models_by_code.get(o.model_code).model_name_raw) if models_by_code.get(o.model_code) else '') or '',
+        )
+
         # 행 계산
         rows = []
         for opt in options:
@@ -51,7 +60,8 @@ def matrix_view():
 
             rows.append({
                 'opt': opt,
-                'model_name': model.model_name_display or model.model_name_raw if model else '-',
+                'model_name': display_pname.get(opt.canonical_sku, opt.canonical_sku),  # ★ LCP+brand-strip 적용
+                'cleaned_color': cleaned_color.get(opt.canonical_sku, 'ONE Color'),  # ★
                 'template_name': tpl.name if tpl else '-',
                 'self': self_calc,
                 'external': ext_calc,
@@ -82,6 +92,8 @@ def matrix_view():
             unmapped_only=unmapped_only,
             stats={'total': total, 'mapped': mapped, 'with_stock': with_stock, 'with_avg': with_avg},
             stock_map=stock_map,
+            cleaned_color=cleaned_color,
+            display_pname=display_pname,
         )
     finally:
         s.close()
