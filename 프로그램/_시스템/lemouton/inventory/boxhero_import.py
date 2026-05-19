@@ -17,7 +17,7 @@ from typing import Optional
 
 from sqlalchemy.orm import Session
 
-from lemouton.sourcing.boxhero_xlsx import parse_boxhero_xlsx
+from lemouton.sourcing.boxhero_xlsx import parse_xlsx_auto, detect_format
 from lemouton.sourcing.models import Option, Model
 from lemouton.sourcing.master import upsert_model
 from lemouton.inventory import sku_mapping
@@ -159,8 +159,9 @@ def import_xlsx(xlsx_path: str, session: Session,
             'auto_created_options': N,
         }
     """
-    # 1. xlsx 파싱
-    records = list(parse_boxhero_xlsx(xlsx_path))
+    # 1. xlsx 파싱 — 양식 자동 감지 (박스히어로 19컬럼 OR 우리 양식 8 base + 위치)
+    fmt = detect_format(xlsx_path)
+    records = list(parse_xlsx_auto(xlsx_path))
 
     # 1.5. ADR-005 자동 생성 — 빈 DB 부트스트랩용 (옵션 0건이어도 안전)
     auto_master = _auto_create_master(session, records)
