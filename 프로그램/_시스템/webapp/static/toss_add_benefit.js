@@ -1,10 +1,10 @@
 /* ─────────────────────────────────────────────────────────────
- * 혜택 추가 폼 인터랙션 (v6 D2-A 정제)
+ * 혜택 추가 폼 인터랙션 (v7.1 A2 — 무채색)
  *
  * 동작:
  *   1. .pop-add 클릭 → .add-form toggle (hidden 제거 + 폼 reset)
- *   2. .type-chip 클릭 → 단위 자동 전환 (% ↔ 원) + active 토글
- *   3. .scope-local .row / .scope-global .card 클릭 → 단일 선택 (좌·우 분리)
+ *   2. .pill 클릭 → 단위 자동 전환 (% ↔ 원) + active 토글
+ *   3. .scope-list .item 클릭 → 단일 선택 (4 scope)
  *   4. 입력 변경 시 impact preview 실시간 갱신 (계산식 + 영향 옵션 수)
  *   5. .save 클릭 → POST /api/benefits/crud → 성공 시 매트릭스 갱신
  *
@@ -35,10 +35,10 @@
     }
 
     // type chip
-    const chip = e.target.closest('.add-form .type-chip');
+    const chip = e.target.closest('.add-form .pill');
     if (chip) {
       const group = chip.parentElement;
-      group.querySelectorAll('.type-chip').forEach(c => {
+      group.querySelectorAll('.pill').forEach(c => {
         c.classList.remove('on');
         c.setAttribute('aria-checked', 'false');
       });
@@ -52,11 +52,11 @@
       return;
     }
 
-    // scope row / card
-    const scopeItem = e.target.closest('.add-form .scope-local .row, .add-form .scope-global .card');
+    // scope item
+    const scopeItem = e.target.closest('.add-form .scope-list .item');
     if (scopeItem) {
       const form = scopeItem.closest('.add-form');
-      form.querySelectorAll('.scope-local .row, .scope-global .card').forEach(o => {
+      form.querySelectorAll('.scope-list .item').forEach(o => {
         o.classList.remove('on');
         o.setAttribute('aria-checked', 'false');
       });
@@ -96,7 +96,7 @@
   function resetForm(form) {
     form.querySelectorAll('input[type=text]').forEach(i => i.value = '');
     // type 기본 = 정률
-    form.querySelectorAll('.type-chip').forEach(c => {
+    form.querySelectorAll('.pill').forEach(c => {
       const isRate = c.dataset.type === 'rate';
       c.classList.toggle('on', isRate);
       c.setAttribute('aria-checked', String(isRate));
@@ -104,7 +104,7 @@
     const unitEl = form.querySelector('.unit');
     if (unitEl) unitEl.textContent = '%';
     // scope 기본 = 모음전 전체
-    form.querySelectorAll('.scope-local .row, .scope-global .card').forEach(o => {
+    form.querySelectorAll('.scope-list .item').forEach(o => {
       const isBundle = o.dataset.scope === 'bundle';
       o.classList.toggle('on', isBundle);
       o.setAttribute('aria-checked', String(isBundle));
@@ -127,9 +127,9 @@
     const name = (form.querySelector('input[name=name]')?.value || '').trim();
     const valStr = (form.querySelector('input[name=value]')?.value || '').trim();
     const val = parseFloat(valStr.replace(/[^0-9.]/g, ''));
-    const typeEl = form.querySelector('.type-chip.on');
+    const typeEl = form.querySelector('.pill.on');
     const type = typeEl?.dataset.type || 'rate';
-    const scopeEl = form.querySelector('.scope-local .row.on, .scope-global .card.on');
+    const scopeEl = form.querySelector('.scope-list .item.on');
     const scope = scopeEl?.dataset.scope || 'bundle';
 
     const cntBundle = parseInt(form.dataset.optionCountBundle, 10) || 0;
@@ -182,8 +182,8 @@
   async function submitForm(form, saveBtn) {
     const name = form.querySelector('input[name=name]').value.trim();
     const val = parseFloat(form.querySelector('input[name=value]').value.replace(/[^0-9.]/g, ''));
-    const type = form.querySelector('.type-chip.on')?.dataset.type || 'rate';
-    const scope = form.querySelector('.scope-local .row.on, .scope-global .card.on')?.dataset.scope || 'bundle';
+    const type = form.querySelector('.pill.on')?.dataset.type || 'rate';
+    const scope = form.querySelector('.scope-list .item.on')?.dataset.scope || 'bundle';
 
     const payload = {
       name: name,
