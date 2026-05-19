@@ -8,7 +8,7 @@
   ] %}
   {% for key, label, count in tabs %}
     <a href="{{ base_url }}?status={{ key }}" style="padding:10px 18px;text-decoration:none;font-size:13px;font-weight:{% if status == key or (status == 'all' and key == 'all') %}700{% else %}500{% endif %};color:{% if status == key %}#4F67FF{% else %}#8F91A0{% endif %};border-bottom:2px solid {% if status == key %}#4F67FF{% else %}transparent{% endif %};margin-bottom:-1px">
-      {{ label }} <span style="font-size:11px;color:#8F91A0">{{ count or 0 }}</span>
+      {{ label }} <span style="font-size: 14px;color:#8F91A0">{{ count or 0 }}</span>
     </a>
   {% endfor %}
 </div>
@@ -25,7 +25,7 @@
   ] %}
   {% for key, label, count in tabs %}
     <a href="{{ base_url }}?status={{ key }}" style="padding:10px 18px;text-decoration:none;font-size:13px;font-weight:{% if status == key %}700{% else %}500{% endif %};color:{% if status == key %}#4F67FF{% else %}#8F91A0{% endif %};border-bottom:2px solid {% if status == key %}#4F67FF{% else %}transparent{% endif %};margin-bottom:-1px">
-      {{ label }} <span style="font-size:11px;color:#8F91A0">{{ count or 0 }}</span>
+      {{ label }} <span style="font-size: 14px;color:#8F91A0">{{ count or 0 }}</span>
     </a>
   {% endfor %}
 </div>
@@ -42,7 +42,7 @@
   ] %}
   {% for key, label, count in tabs %}
     <a href="{{ base_url }}?status={{ key }}" style="padding:10px 18px;text-decoration:none;font-size:13px;font-weight:{% if status == key %}700{% else %}500{% endif %};color:{% if status == key %}#4F67FF{% else %}#8F91A0{% endif %};border-bottom:2px solid {% if status == key %}#4F67FF{% else %}transparent{% endif %};margin-bottom:-1px">
-      {{ label }} <span style="font-size:11px;color:#8F91A0">{{ count or 0 }}</span>
+      {{ label }} <span style="font-size: 14px;color:#8F91A0">{{ count or 0 }}</span>
     </a>
   {% endfor %}
 </div>
@@ -58,7 +58,7 @@
   ] %}
   {% for key, label, count in tabs %}
     <a href="{{ base_url }}?status={{ key }}" style="padding:10px 18px;text-decoration:none;font-size:13px;font-weight:{% if status == key %}700{% else %}500{% endif %};color:{% if status == key %}#4F67FF{% else %}#8F91A0{% endif %};border-bottom:2px solid {% if status == key %}#4F67FF{% else %}transparent{% endif %};margin-bottom:-1px">
-      {{ label }} <span style="font-size:11px;color:#8F91A0">{{ count or 0 }}</span>
+      {{ label }} <span style="font-size: 14px;color:#8F91A0">{{ count or 0 }}</span>
     </a>
   {% endfor %}
 </div>

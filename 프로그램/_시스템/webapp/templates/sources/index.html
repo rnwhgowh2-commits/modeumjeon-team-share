@@ -9,24 +9,24 @@
   <div class="card" style="margin-bottom:18px">
     <div style="display:flex;gap:24px;flex-wrap:wrap;align-items:center">
       <div>
-        <div style="font-size:12px;color:var(--n500)">전체 URL</div>
+        <div style="font-size: 14px;color:var(--n500)">전체 URL</div>
         <div style="font-size:24px;font-weight:700">{{ kpi.total }}</div>
       </div>
       <div>
-        <div style="font-size:12px;color:var(--n500)">🟢 정상</div>
+        <div style="font-size: 14px;color:var(--n500)">🟢 정상</div>
         <div style="font-size:24px;font-weight:700;color:var(--success, #16a34a)">{{ kpi.ok }}</div>
       </div>
       <div>
-        <div style="font-size:12px;color:var(--n500)">🔴 에러</div>
+        <div style="font-size: 14px;color:var(--n500)">🔴 에러</div>
         <div style="font-size:24px;font-weight:700;color:var(--danger, #dc2626)">{{ kpi.error }}</div>
       </div>
       <div>
-        <div style="font-size:12px;color:var(--n500)">⏳ 미수집</div>
+        <div style="font-size: 14px;color:var(--n500)">⏳ 미수집</div>
         <div style="font-size:24px;font-weight:700;color:var(--n400)">{{ kpi.pending }}</div>
       </div>
       {% if kpi.no_crawler %}
       <div>
-        <div style="font-size:12px;color:var(--n500)">⚪ 크롤러 미지원</div>
+        <div style="font-size: 14px;color:var(--n500)">⚪ 크롤러 미지원</div>
         <div style="font-size:24px;font-weight:700;color:var(--n400)">{{ kpi.no_crawler }}</div>
       </div>
       {% endif %}
@@ -62,13 +62,13 @@
           {% if it.product_name %}
           <div style="font-size:13px;color:var(--n700);margin-bottom:4px">{{ it.product_name }}</div>
           {% endif %}
-          <div style="font-size:12.5px;color:var(--n500);margin-bottom:6px">
+          <div style="font-size: 14px;color:var(--n500);margin-bottom:6px">
             {{ it.status_emoji }} {{ it.status_label }}
             {% if it.last_fetched_at %} · 마지막 fetch {{ it.last_fetched_at.strftime('%Y-%m-%d %H:%M') }}{% endif %}
             {% if it.last_price %} · {{ '{:,}'.format(it.last_price) }}원{% endif %}
             {% if it.last_stock is not none %} · 재고 {{ it.last_stock }}{% endif %}
           </div>
-          <div style="font-size:12px;color:var(--n600)">
+          <div style="font-size: 14px;color:var(--n600)">
             <span class="badge {% if it.shared_with > 1 %}badge-info{% else %}badge-ok{% endif %}">
               사용 모음전 {{ it.shared_with }}개
             </span>

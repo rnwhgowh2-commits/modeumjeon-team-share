@@ -18,8 +18,8 @@
       <div style="display:flex;align-items:center;gap:14px">
         <div style="flex:1">
           <div style="font-weight:700;font-size:16px">{{ v.tpl.name }}</div>
-          <div style="font-size:12.5px;color:var(--n500);margin-top:4px">스마트스토어 할인가 {{ '{:,}'.format(v.tpl.ss_boxhero_sale_price) }} · 쿠팡 할인가 {{ '{:,}'.format(v.tpl.coupang_boxhero_sale_price) }} · 가드레일 {{ '{:,}'.format(v.tpl.guardrail_lower) }}–{{ '{:,}'.format(v.tpl.guardrail_upper) }}</div>
-          <div style="font-size:12px;color:var(--n600);margin-top:4px">{{ v.apply_count }}개 모음전 적용</div>
+          <div style="font-size: 14px;color:var(--n500);margin-top:4px">스마트스토어 할인가 {{ '{:,}'.format(v.tpl.ss_boxhero_sale_price) }} · 쿠팡 할인가 {{ '{:,}'.format(v.tpl.coupang_boxhero_sale_price) }} · 가드레일 {{ '{:,}'.format(v.tpl.guardrail_lower) }}–{{ '{:,}'.format(v.tpl.guardrail_upper) }}</div>
+          <div style="font-size: 14px;color:var(--n600);margin-top:4px">{{ v.apply_count }}개 모음전 적용</div>
         </div>
         <button class="btn btn-sm" data-action="edit-price-tpl" data-id="{{ v.tpl.id }}">편집</button>
         <button class="btn btn-sm" data-action="dup-price-tpl" data-id="{{ v.tpl.id }}">📄 복제</button>
@@ -68,7 +68,7 @@
       <div class="chip-row" style="margin-bottom:10px">
         {% for code in v.tpl.color_codes_json|from_json %}<span class="chip on">{{ code }}</span>{% endfor %}
       </div>
-      <div style="font-size:12px;color:var(--n600);margin-bottom:8px">{{ v.apply_count }}개 모음전 적용</div>
+      <div style="font-size: 14px;color:var(--n600);margin-bottom:8px">{{ v.apply_count }}개 모음전 적용</div>
       <button class="btn btn-sm" data-action="edit-color-tpl" data-id="{{ v.tpl.id }}">편집</button>
       <button class="btn btn-sm" data-action="dup-color-tpl" data-id="{{ v.tpl.id }}">📄 복제</button>
       {% if v.apply_count == 0 %}
@@ -106,7 +106,7 @@
       <div class="chip-row" style="margin-bottom:10px">
         {% for code in v.tpl.size_codes_json|from_json %}<span class="chip on">{{ code }}</span>{% endfor %}
       </div>
-      <div style="font-size:12px;color:var(--n600);margin-bottom:8px">{{ v.apply_count }}개 모음전 적용</div>
+      <div style="font-size: 14px;color:var(--n600);margin-bottom:8px">{{ v.apply_count }}개 모음전 적용</div>
       <button class="btn btn-sm" data-action="edit-size-tpl" data-id="{{ v.tpl.id }}">편집</button>
       <button class="btn btn-sm" data-action="dup-size-tpl" data-id="{{ v.tpl.id }}">📄 복제</button>
       {% if v.apply_count == 0 %}

@@ -5,7 +5,7 @@
   .sa-shell{padding:24px 28px;max-width:1280px;margin:0 auto}
   .sa-head{display:flex;justify-content:space-between;align-items:flex-end;padding-bottom:14px;border-bottom:1px solid #E5E8EB;margin-bottom:22px}
   .sa-head h1{font-size:22px;font-weight:700;margin:0;color:#191F28;display:flex;align-items:center;gap:10px}
-  .sa-head .crumbs{font-size:12px;color:#8B95A1}
+  .sa-head .crumbs{font-size: 14px;color:#8B95A1}
   .sa-head .crumbs a{color:#3182F6;text-decoration:none}
   .sa-row{display:flex;gap:22px;align-items:flex-start}
   .sa-col{flex:1}
@@ -15,11 +15,11 @@
   .sa-card.primary{border:2px solid #3182F6}
   .sa-card.primary h2{color:#3182F6}
   .sa-field{margin-bottom:14px}
-  .sa-lbl{display:block;font-size:11.5px;font-weight:700;color:#4E5968;margin-bottom:5px;text-transform:uppercase;letter-spacing:.04em}
+  .sa-lbl{display:block;font-size: 14px;font-weight:700;color:#4E5968;margin-bottom:5px;text-transform:uppercase;letter-spacing:.04em}
   .sa-inp{width:100%;padding:9px 12px;border:1px solid #CBCCD3;border-radius:6px;font-size:13px;color:#191F28;font-family:inherit;background:#fff;box-sizing:border-box}
   .sa-inp:focus{border-color:#3182F6;outline:0}
-  .sa-mono{font-family:"SF Mono",ui-monospace,monospace;font-size:12px}
-  .sa-help{font-size:11.5px;color:#8B95A1;margin-top:4px}
+  .sa-mono{font-family:"SF Mono",ui-monospace,monospace;font-size: 14px}
+  .sa-help{font-size: 14px;color:#8B95A1;margin-top:4px}
   .sa-help.err{color:#E53935}
   .sa-btn{padding:9px 16px;border:0;border-radius:6px;font-weight:600;font-size:13px;cursor:pointer;font-family:inherit}
   .sa-btn-primary{background:#3182F6;color:#fff}
@@ -29,20 +29,20 @@
   .sa-src-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(100px,1fr));gap:8px}
   .sa-src{background:#fff;border:1px solid #E5E8EB;border-radius:8px;padding:12px 8px;text-align:center}
   .sa-src .lg{width:34px;height:34px;border-radius:8px;margin:0 auto 6px;display:flex;align-items:center;justify-content:center;font-weight:800;color:#fff;font-size:14px}
-  .sa-src .nm{font-size:11.5px;font-weight:600;color:#191F28;word-break:keep-all;line-height:1.2}
-  .sa-src .ky{font-size:10px;color:#8B95A1;font-family:"SF Mono",ui-monospace,monospace;margin-top:2px}
+  .sa-src .nm{font-size: 14px;font-weight:600;color:#191F28;word-break:keep-all;line-height:1.2}
+  .sa-src .ky{font-size: 12px;color:#8B95A1;font-family:"SF Mono",ui-monospace,monospace;margin-top:2px}
   .sa-src.custom{background:#EFF6FF;border-color:#3182F6}
-  .sa-alert{padding:11px 14px;border-radius:8px;margin-bottom:14px;font-size:12.5px}
+  .sa-alert{padding:11px 14px;border-radius:8px;margin-bottom:14px;font-size: 14px}
   .sa-alert.err{background:#FEE2E2;border:1px solid #FCA5A5;color:#991B1B}
   .sa-alert.ok{background:#DCFCE7;border:1px solid #86EFAC;color:#166534}
   .sa-warn-box{background:linear-gradient(135deg,#FEF3C7,#FFFBEB);border:1px solid #F59E0B;border-radius:9px;padding:13px 16px;margin-top:14px}
   .sa-warn-box h3{margin:0 0 6px;font-size:13px;color:#92400E;font-weight:700}
-  .sa-warn-box ul{margin:0;padding-left:18px;font-size:11.5px;color:#78350F;line-height:1.7}
+  .sa-warn-box ul{margin:0;padding-left:18px;font-size: 14px;color:#78350F;line-height:1.7}
   .sa-preview{display:flex;align-items:center;gap:12px;padding:10px;background:#F2F4F6;border-radius:6px}
   .sa-preview .lg{width:42px;height:42px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-weight:800;color:#fff;font-size:18px}
   .sa-spin{display:inline-block;width:12px;height:12px;border:2px solid #E5E8EB;border-top-color:#3182F6;border-radius:50%;animation:saspin .9s linear infinite;margin-right:5px;vertical-align:middle}
   @keyframes saspin{to{transform:rotate(360deg)}}
-  .sa-chip{display:inline-flex;align-items:center;gap:4px;padding:3px 9px;border-radius:11px;font-size:11px;font-weight:600}
+  .sa-chip{display:inline-flex;align-items:center;gap:4px;padding:3px 9px;border-radius:11px;font-size: 14px;font-weight:600}
   .sa-chip.ok{background:#DCFCE7;color:#166534}
   .sa-chip.warn{background:#FEF3C7;color:#92400E}
 </style>
@@ -53,7 +53,7 @@
       <h1>➕ 신규 소싱처 추가</h1>
       <div class="crumbs"><a href="/accounts/sourcing">소싱처 관리</a> · 신규 추가 (시안 A — 메타 등록)</div>
     </div>
-    <div style="font-size:11.5px;color:#6B7684">기본 5개 외 사용자 직접 추가 · 어댑터는 추후</div>
+    <div style="font-size: 14px;color:#6B7684">기본 5개 외 사용자 직접 추가 · 어댑터는 추후</div>
   </div>
 
   {% if error %}<div class="sa-alert err">⚠ {{ error }}</div>{% endif %}
@@ -91,7 +91,7 @@
 
       <div class="sa-card">
         <h2>💡 시안 A 동작</h2>
-        <ul style="margin:0;padding-left:18px;font-size:12px;color:#4E5968;line-height:1.7">
+        <ul style="margin:0;padding-left:18px;font-size: 14px;color:#4E5968;line-height:1.7">
           <li><b>도메인·이름·로고색</b>만 입력 (1~2분)</li>
           <li>등록 즉시 모음전 페이지에 URL 입력 칸 자동 추가</li>
           <li><b>자동 가격·재고 수집은 ❌</b> — 어댑터 별도</li>
@@ -155,7 +155,7 @@
               <div class="lg" id="previewLogo" style="background:linear-gradient(135deg,{{ form.logo_color }},{{ form.logo_color }}cc)">{{ form.logo_letter or 'X' }}</div>
               <div>
                 <div style="font-weight:700;font-size:13px;color:#191F28" id="previewLabel">{{ form.label or '(이름 입력)' }}</div>
-                <div style="font-size:11px;color:#6B7684;font-family:'SF Mono',monospace" id="previewDomain">{{ form.domain or '도메인' }}</div>
+                <div style="font-size: 14px;color:#6B7684;font-family:'SF Mono',monospace" id="previewDomain">{{ form.domain or '도메인' }}</div>
               </div>
             </div>
           </div>
@@ -195,7 +195,7 @@ async function probeUrl(){
   const out = document.getElementById('probeResult');
   if (!url){ out.innerHTML = '<div class="sa-chip warn">URL 을 입력하세요</div>'; return; }
   btn.disabled = true;
-  out.innerHTML = '<div style="font-size:12px;color:#6B7684"><span class="sa-spin"></span> 분석 중… (최대 8초)</div>';
+  out.innerHTML = '<div style="font-size: 14px;color:#6B7684"><span class="sa-spin"></span> 분석 중… (최대 8초)</div>';
   try {
     const r = await fetch('/api/sources/probe', {
       method:'POST', headers:{'Content-Type':'application/json'},
@@ -216,7 +216,7 @@ async function probeUrl(){
     document.getElementById('faviconHidden').value = j.favicon_url || '';
     updatePreview();
     let html = '<div class="sa-chip ok">✓ 분석 완료</div>';
-    html += ' <span style="font-size:11.5px;color:#4E5968"><b>도메인</b> ' + j.domain;
+    html += ' <span style="font-size: 14px;color:#4E5968"><b>도메인</b> ' + j.domain;
     if (j.title) html += ' · <b>타이틀</b> ' + (j.title.length>60 ? j.title.slice(0,60)+'…' : j.title);
     if (j.fetched) html += ' · <b>로고색</b> ' + j.logo_color;
     if (!j.fetched && j.fetch_error) html += ' · <span style="color:#92400E">⚠ fetch 실패 — 도메인은 자동 채움</span>';

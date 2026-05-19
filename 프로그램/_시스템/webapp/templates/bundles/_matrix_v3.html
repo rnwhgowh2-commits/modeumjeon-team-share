@@ -15,15 +15,15 @@
   <details id="option-config-panel" style="background:#fff;border:1px solid #e5e8eb;border-radius:10px;margin-bottom:14px">
     <summary style="padding:12px 16px;cursor:pointer;font-size:13.5px;font-weight:600;color:#4e5968;list-style:none;display:flex;align-items:center;gap:10px">
       <span style="color:#9ca3af">▶</span>
-      <span>마켓 옵션 축 구성 <span style="color:#9ca3af;font-weight:400;font-size:12px">(고급 — 기본값 사용 권장)</span></span>
+      <span>마켓 옵션 축 구성 <span style="color:#9ca3af;font-weight:400;font-size: 14px">(고급 — 기본값 사용 권장)</span></span>
     </summary>
     <div style="padding:0 16px 14px 16px">
     <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap">
-      <span style="font-size:11.5px;color:#6b7684;line-height:1.5">
+      <span style="font-size: 14px;color:#6b7684;line-height:1.5">
         축 1~3개 · 이름 자유 입력 · source = 색상/사이즈/모델 택1
       </span>
       <button type="button" id="opt-cfg-save"
-              style="margin-left:auto;background:#3182f6;border:0;color:#fff;padding:6px 14px;border-radius:6px;font-size:12px;font-weight:700;cursor:pointer">
+              style="margin-left:auto;background:#3182f6;border:0;color:#fff;padding:6px 14px;border-radius:6px;font-size: 14px;font-weight:700;cursor:pointer">
         저장
       </button>
     </div>
@@ -41,7 +41,7 @@
     {# 마켓별 axes 편집 영역 #}
     <div id="opt-cfg-body"></div>
     {# 미리보기 #}
-    <div style="margin-top:10px;padding:10px 12px;background:#f9fafb;border-radius:6px;font-size:12px;color:#4e5968">
+    <div style="margin-top:10px;padding:10px 12px;background:#f9fafb;border-radius:6px;font-size: 14px;color:#4e5968">
       <strong style="color:#191F28">미리보기:</strong>
       <span id="opt-cfg-preview" style="font-family:ui-monospace,monospace;color:#1e40af">—</span>
     </div>
@@ -52,15 +52,15 @@
   <div id="cluster-panel" style="display:none;background:linear-gradient(135deg,#eff6ff,#dbeafe);border:1px solid #bfdbfe;border-radius:10px;padding:14px 16px;margin-bottom:14px">
     <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap">
       <span style="font-size:14px;font-weight:700;color:#1e40af">모델 클러스터</span>
-      <span id="cluster-badge" style="background:#3182f6;color:#fff;padding:2px 9px;border-radius:10px;font-size:11px;font-weight:700"></span>
+      <span id="cluster-badge" style="background:#3182f6;color:#fff;padding:2px 9px;border-radius:10px;font-size: 14px;font-weight:700"></span>
       <span id="cluster-name" style="font-size:13px;color:#1e3a8a;font-weight:600"></span>
       <button type="button" id="cluster-dissolve-btn"
-              style="margin-left:auto;background:#fff;border:1px solid #f87171;color:#dc2626;padding:5px 12px;border-radius:6px;font-size:12px;font-weight:700;cursor:pointer">
+              style="margin-left:auto;background:#fff;border:1px solid #f87171;color:#dc2626;padding:5px 12px;border-radius:6px;font-size: 14px;font-weight:700;cursor:pointer">
         🔓 그룹 해체
       </button>
     </div>
     <div id="cluster-models-list" style="display:flex;flex-direction:column;gap:6px"></div>
-    <div style="margin-top:8px;font-size:11.5px;color:#64748b;line-height:1.5">
+    <div style="margin-top:8px;font-size: 14px;color:#64748b;line-height:1.5">
       💡 이 모음전은 <strong>여러 모델</strong>이 묶인 클러스터입니다. 위 [분리] 버튼으로 모델 1개씩, 또는 [그룹 해체]로 전체를 단독 모음전으로 복원할 수 있어요. 가격·재고·소싱처 데이터는 보존됩니다.
     </div>
   </div>
@@ -75,21 +75,21 @@
   .c9-tab.on { color: #7c2d12; border-bottom-color: #7c2d12; }
   .c9-tab[data-c9-tab="source"].on { color: #1e40af; border-bottom-color: #1e40af; }
   .c9-tab[data-c9-tab="type"].on { color: #191F28; border-bottom-color: #191F28; }
-  .c9-sel-count { margin-left: auto; font-size: 11.5px; color: #6b7684; padding: 0 12px; font-weight: 600; }
+  .c9-sel-count { margin-left: auto; font-size: 14px; color: #6b7684; padding: 0 12px; font-weight: 600; }
   .c9-pane { padding: 11px 16px; }
   .c9-pane[hidden] { display: none; }
   .c9-pane[data-c9-pane="source"] { padding: 0; }  /* 기존 bar 가 자체 패딩 가짐 */
   .c9-grp { background: #f9fafb; border-radius: 7px; padding: 11px 13px; }
   .c9-grp.purchase { background: #fffbeb; border: 1px solid #fde68a; }
-  .c9-grp-title { font-size: 11px; color: #7c2d12; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; margin-bottom: 8px; }
-  .c9-form { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 12px; }
-  .c9-form label { font-size: 11px; color: #4e5968; font-weight: 600; }
-  .c9-input { padding: 4px 9px; border: 1px solid #fde68a; background: #fff; border-radius: 5px; font-family: ui-monospace, monospace; font-size: 12px; width: 95px; }
+  .c9-grp-title { font-size: 14px; color: #7c2d12; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; margin-bottom: 8px; }
+  .c9-form { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 14px; }
+  .c9-form label { font-size: 14px; color: #4e5968; font-weight: 600; }
+  .c9-input { padding: 4px 9px; border: 1px solid #fde68a; background: #fff; border-radius: 5px; font-family: ui-monospace, monospace; font-size: 14px; width: 95px; }
   .c9-input.mono { font-family: ui-monospace, monospace; }
-  .c9-seg { display: inline-flex; background: #fff; border: 1px solid #fde68a; border-radius: 5px; padding: 1px; font-size: 11px; }
-  .c9-seg button { padding: 3px 9px; background: none; border: none; cursor: pointer; font-family: var(--font); border-radius: 3px; color: #7c2d12; font-weight: 600; font-size: 11px; }
+  .c9-seg { display: inline-flex; background: #fff; border: 1px solid #fde68a; border-radius: 5px; padding: 1px; font-size: 14px; }
+  .c9-seg button { padding: 3px 9px; background: none; border: none; cursor: pointer; font-family: var(--font); border-radius: 3px; color: #7c2d12; font-weight: 600; font-size: 14px; }
   .c9-seg button.on { background: #7c2d12; color: #fff; font-weight: 700; }
-  .c9-btn { padding: 6px 14px; font-size: 12px; font-weight: 700; border-radius: 5px; cursor: pointer; border: 1px solid #e5e8eb; background: #fff; font-family: inherit; color: #4e5968; }
+  .c9-btn { padding: 6px 14px; font-size: 14px; font-weight: 700; border-radius: 5px; cursor: pointer; border: 1px solid #e5e8eb; background: #fff; font-family: inherit; color: #4e5968; }
   .c9-btn-purchase { background: #7c2d12; color: #fff; border-color: #7c2d12; }
   .c9-btn-source   { background: #1e40af; color: #fff; border-color: #1e40af; }
   .c9-btn:hover { opacity: .9; }
@@ -98,14 +98,14 @@
   .price-mode-bar { background:#fff; border:2px solid #3182f6; border-radius:10px; padding:8px 0; margin-bottom:14px; }
   .pmb-row { display:flex; align-items:center; padding:10px 18px; border-bottom:1px solid #f2f4f6; }
   .pmb-row:last-child { border-bottom:none; }
-  .pmb-lab { width:160px; font-size:12.5px; color:var(--n600); font-weight:600; flex-shrink:0; }
+  .pmb-lab { width:160px; font-size: 14px; color:var(--n600); font-weight:600; flex-shrink:0; }
   .pmb-val { flex:1; font-size:13px; font-weight:600; display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
   .pmb-toggle { display:inline-flex; background:#f2f4f6; border-radius:6px; padding:2px; }
-  .pmb-tog { padding:6px 14px; border:none; background:transparent; cursor:pointer; font-size:12.5px; font-weight:500; color:var(--n600); border-radius:5px; }
+  .pmb-tog { padding:6px 14px; border:none; background:transparent; cursor:pointer; font-size: 14px; font-weight:500; color:var(--n600); border-radius:5px; }
   .pmb-tog.on { background:#fff; color:var(--n900); box-shadow:0 1px 3px rgba(0,0,0,.1); font-weight:600; }
   .pmb-input { width:90px; padding:6px 10px; border:1px solid var(--n300); border-radius:5px; font-size:13px; font-family:ui-monospace,monospace; text-align:right; }
-  .pmb-suffix { font-size:12.5px; color:var(--n500); }
-  .pmb-pill { background:#ecfdf5; color:#047857; padding:3px 10px; border-radius:5px; font-weight:600; font-family:ui-monospace,monospace; font-size:11.5px; }
+  .pmb-suffix { font-size: 14px; color:var(--n500); }
+  .pmb-pill { background:#ecfdf5; color:#047857; padding:3px 10px; border-radius:5px; font-weight:600; font-family:ui-monospace,monospace; font-size: 14px; }
   .pmb-pill.zero { background:#fee2e2; color:#991b1b; }
   .pmb-row-action { background:#f9fafb; padding-top:12px; padding-bottom:12px; }
 
@@ -114,7 +114,7 @@
   .d2-src.cheapest { border-left-color:#10b981 !important; background:#f0fdf4; }
   .d2-src.passed { border-left-color:#3182f6 !important; }
   .d2-src.blocked { border-left-color:#dc2626 !important; opacity:.65; }
-  .d2-src .src-tag { display:inline-block; font-size:10px; margin-left:6px; padding:1.5px 7px; border-radius:3px; vertical-align:middle; font-weight:600; letter-spacing:.02em; }
+  .d2-src .src-tag { display:inline-block; font-size: 12px; margin-left:6px; padding:1.5px 7px; border-radius:3px; vertical-align:middle; font-weight:600; letter-spacing:.02em; }
   .d2-src.cheapest .src-tag { content:'CHEAPEST'; background:#ecfdf5; color:#047857; }
   .d2-src.passed .src-tag { background:#f0f7ff; color:#0284c7; }
   .d2-src.blocked .src-tag { background:#fee2e2; color:#991b1b; }
@@ -163,7 +163,7 @@
     display:inline-flex; align-items:center; justify-content:center;
     min-width:48px; height:24px; padding:0 10px;
     border-radius:12px; background:#dbeafe; color:#1e40af;
-    font-size:12px; font-weight:700;
+    font-size: 14px; font-weight:700;
     flex-shrink:0;
   }
 
@@ -627,7 +627,7 @@
     <div style="position:relative;display:inline-block" id="url-bulk-wrap">
       <button class="btn btn-sm" id="url-bulk-btn">📎 URL ▾</button>
       <div id="url-bulk-menu" style="display:none;position:absolute;top:30px;left:0;background:#fff;border:1.5px solid var(--n200);border-radius:8px;padding:6px;min-width:200px;box-shadow:0 8px 16px rgba(0,0,0,0.1);z-index:20">
-        <div style="padding:6px 10px;font-size:10.5px;color:var(--n500);font-weight:700">URL 4-모드</div>
+        <div style="padding:6px 10px;font-size: 12px;color:var(--n500);font-weight:700">URL 4-모드</div>
         <button class="btn btn-sm" data-bulk="url-replace" style="width:100%;justify-content:flex-start;border:none;margin:2px 0">전체 교체</button>
         <button class="btn btn-sm" data-bulk="url-add" style="width:100%;justify-content:flex-start;border:none;margin:2px 0">➕ 추가</button>
         <button class="btn btn-sm" data-bulk="url-delete" style="width:100%;justify-content:flex-start;border:none;margin:2px 0">🗑 삭제</button>
@@ -745,7 +745,7 @@
     .mfs-toggle-btn {
       position: absolute; top: 8px; right: 8px; z-index: 4;
       background: #fff; border: 1.5px solid var(--n200, #e5e8eb); border-radius: 7px;
-      padding: 6px 12px; font-size: 12.5px; font-weight: 700; color: var(--n700, #4E5968);
+      padding: 6px 12px; font-size: 14px; font-weight: 700; color: var(--n700, #4E5968);
       cursor: pointer; font-family: var(--font);
     }
     .mfs-toggle-btn:hover { background: var(--primary-tint, #E8F2FF); border-color: var(--primary, #3182F6); color: var(--primary, #3182F6); }
@@ -762,7 +762,7 @@
       font-size: 13px; color: var(--n900, #191F28); font-weight: 700;
       margin-bottom: 8px;
     }
-    .mfs-clear { font-size: 12.5px; color: var(--primary, #3182F6); cursor: pointer; font-weight: 600; padding: 3px 8px; border-radius: 5px; text-decoration: none; }
+    .mfs-clear { font-size: 14px; color: var(--primary, #3182F6); cursor: pointer; font-weight: 600; padding: 3px 8px; border-radius: 5px; text-decoration: none; }
     .mfs-clear:hover { background: var(--primary-tint, #E8F2FF); }
     .mfs-list { display: flex; flex-direction: column; gap: 2px; max-height: 240px; overflow: auto; padding-right: 2px; }
     .mfs-row {
@@ -773,11 +773,11 @@
     .mfs-row:hover { background: var(--n100, #f9fafb); }
     .mfs-row input[type="checkbox"] { accent-color: var(--primary, #3182F6); cursor: pointer; width: 15px; height: 15px; }
     .mfs-row .mfs-count {
-      margin-left: auto; font-family: ui-monospace, monospace; font-size: 11.5px; color: var(--n500, #8B95A1);
+      margin-left: auto; font-family: ui-monospace, monospace; font-size: 14px; color: var(--n500, #8B95A1);
     }
     .mfs-warn { color: #92400E; font-weight: 700; }
     .mfs-danger { color: #991B1B; font-weight: 700; }
-    .mfs-empty { padding: 8px; font-size: 12px; color: var(--n400, #B0B8C1); text-align: center; }
+    .mfs-empty { padding: 8px; font-size: 14px; color: var(--n400, #B0B8C1); text-align: center; }
   </style>
 
   <script>
@@ -858,7 +858,7 @@
     })();
   </script>
 
-  <div style="font-size:11.5px;color:var(--n500);margin-top:8px;line-height:1.7">
+  <div style="font-size: 14px;color:var(--n500);margin-top:8px;line-height:1.7">
     💡 <strong>자동 토글</strong> = ON: 가격 템플릿 자동계산 / OFF: 수기 인라인 편집. <code>fx</code> 클릭 = 자동계산 산출과정 popover.<br>
     💡 <strong>소싱처 카드</strong> 안 <code>🔄</code> = 단일 URL 크롤 / <code>✎</code> = URL 수정 / <code>🗑</code> = URL 삭제 / <code>+</code> = 같은 소싱처에 URL 추가 (다중).<br>
     💡 <strong>4-모드 일괄</strong> = 다중선택 → 위 [📎 URL ▾] 메뉴: 교체 / ➕추가 / 🗑삭제 / ✎수정 — 모든 선택 옵션에 동시 적용.
@@ -1097,7 +1097,7 @@
     const treeEl = document.getElementById('sm-tree');
     if (!treeEl || !DATA) return;
     const opts = DATA.options || [];
-    if (!opts.length) { treeEl.innerHTML = '<div style="padding:8px;color:#8B95A1;font-size:11.5px">옵션 없음</div>'; return; }
+    if (!opts.length) { treeEl.innerHTML = '<div style="padding:8px;color:#8B95A1;font-size: 14px">옵션 없음</div>'; return; }
     // 색상별 그룹화 (브랜드는 모음전 1개 기준 단일이므로 색상이 최상위 그룹)
     const colorMap = {};
     opts.forEach(o => {
@@ -1377,7 +1377,7 @@
     }
     // 옵션 정보 채우기
     const optName = `${opt.color_display || opt.color_code || ''}-${opt.size_code || ''}`;
-    document.getElementById('odd-h-sku').innerHTML = `${optName} <span style="font-size:11px;color:#8B95A1;font-family:ui-monospace,monospace;margin-left:6px">${escapeHtml(sku)}</span>`;
+    document.getElementById('odd-h-sku').innerHTML = `${optName} <span style="font-size: 14px;color:#8B95A1;font-family:ui-monospace,monospace;margin-left:6px">${escapeHtml(sku)}</span>`;
     // v25 ②-(1) — footer 「전체 페이지로 →」 링크 (옵션 상세 페이지)
     const footLink = document.getElementById('odd-foot-page-link');
     if (footLink) {
@@ -1486,7 +1486,7 @@
       <div class="odd-grp">
         <h6>소싱처 URL <span class="odd-readonly-tag" style="background:var(--primary-dim);color:var(--primary-d)">모델 단위 · 같은 모델 모든 옵션 공유</span></h6>
         <div id="odd-url-cards" data-bundle-code="${escapeHtml(BUNDLE_CODE)}">
-          <div style="padding:12px;text-align:center;color:#8B95A1;font-size:12px">⏳ 로딩 중...</div>
+          <div style="padding:12px;text-align:center;color:#8B95A1;font-size: 14px">⏳ 로딩 중...</div>
         </div>
       </div>
 
@@ -1533,10 +1533,10 @@
     try {
       const r = await fetch(`/api/bundles/${encodeURIComponent(code)}/source-urls`);
       const j = await r.json();
-      if (!j.ok) { cardsEl.innerHTML = `<div style="color:#EF4444;padding:8px;font-size:12px">로드 실패: ${escapeHtml(j.error || '오류')}</div>`; return; }
+      if (!j.ok) { cardsEl.innerHTML = `<div style="color:#EF4444;padding:8px;font-size: 14px">로드 실패: ${escapeHtml(j.error || '오류')}</div>`; return; }
       renderUrlCards(cardsEl, j.urls || {}, j.sources || []);
     } catch(e) {
-      cardsEl.innerHTML = `<div style="color:#EF4444;padding:8px;font-size:12px">네트워크 오류: ${escapeHtml(e.message)}</div>`;
+      cardsEl.innerHTML = `<div style="color:#EF4444;padding:8px;font-size: 14px">네트워크 오류: ${escapeHtml(e.message)}</div>`;
     }
   }
   function renderUrlCards(cardsEl, urlsBySrc, sourceKeys) {
@@ -2156,7 +2156,7 @@
     const opts = DATA.options || [];
     const sources = DATA.sources || [];
     if (!opts.length || !sources.length) {
-      if (sideHEl) sideHEl.innerHTML = '<div style="padding:14px;text-align:center;color:var(--n500);font-size:12px">옵션 / 소싱처 데이터 없음</div>';
+      if (sideHEl) sideHEl.innerHTML = '<div style="padding:14px;text-align:center;color:var(--n500);font-size: 14px">옵션 / 소싱처 데이터 없음</div>';
       return;
     }
     // breakdown 일괄 fetch (혜택 적용된 매입가)
@@ -2501,7 +2501,7 @@
       smRenderFxPopBody(pop, j, sku, srcId);
       adjustFxPopPosition(pop);
     } catch(err) {
-      pop.innerHTML = `<h6>오류<button class="close" onclick="this.closest('.cell-fx-pop').remove()">✕</button></h6><div style="padding:8px;color:var(--red);font-size:11px">${err.message}</div>`;
+      pop.innerHTML = `<h6>오류<button class="close" onclick="this.closest('.cell-fx-pop').remove()">✕</button></h6><div style="padding:8px;color:var(--red);font-size: 14px">${err.message}</div>`;
     }
   });
 
@@ -2735,7 +2735,7 @@
       const cls = it.kind === 'ovr_new' ? 'ovr-new' : (it.kind === 'tpl' ? 'tpl' : '');
       const isRate = it.type === 'rate';
       const valDisp = isRate ? (it.value * 100).toFixed(2) + '%' : Math.round(it.value).toLocaleString('ko-KR') + '원';
-      benHtml += `<div class="cell-fx-row ${it.enabled ? 'on' : 'off'}" data-bid="${it.id}" data-bkind="${it.kind}"><div class="tg" onclick="smCellTog(this)"></div><span class="nm ${cls}" title="${it.kind === 'tpl' ? '템플릿 상속' : it.kind === 'ovr' ? '템플릿 변경' : '옵션 단독'}">${escapeHtml(it.name)}</span><span class="val">-${(it.enabled ? (j.steps.find(s=>s.name===it.name)?.deduct||0) : 0).toLocaleString('ko-KR')}원 <span style="opacity:.7;font-size:11.5px;font-weight:500">(${valDisp})</span></span><button class="del" title="삭제 (옵션 override 만)" onclick="smCellDel(this, '${sku}', ${srcId})">${it.kind === 'tpl' ? '' : '🗑'}</button></div>`;
+      benHtml += `<div class="cell-fx-row ${it.enabled ? 'on' : 'off'}" data-bid="${it.id}" data-bkind="${it.kind}"><div class="tg" onclick="smCellTog(this)"></div><span class="nm ${cls}" title="${it.kind === 'tpl' ? '템플릿 상속' : it.kind === 'ovr' ? '템플릿 변경' : '옵션 단독'}">${escapeHtml(it.name)}</span><span class="val">-${(it.enabled ? (j.steps.find(s=>s.name===it.name)?.deduct||0) : 0).toLocaleString('ko-KR')}원 <span style="opacity:.7;font-size: 14px;font-weight:500">(${valDisp})</span></span><button class="del" title="삭제 (옵션 override 만)" onclick="smCellDel(this, '${sku}', ${srcId})">${it.kind === 'tpl' ? '' : '🗑'}</button></div>`;
     });
     // ★ 2026-05-19 v7.1 A2 — 무채색 (좌측 검정 accent + 슬라이드 다운).
     //   v6 D2-A (#3182F6 파랑 + #DC2626 빨강) → A2 (monochrome only).
@@ -3358,22 +3358,22 @@
     axes.forEach((ax, i) => {
       html += `
         <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;padding:8px;background:#f9fafb;border-radius:6px">
-          <span style="font-size:11.5px;color:#6b7684;font-weight:700;min-width:40px">축 ${i+1}</span>
+          <span style="font-size: 14px;color:#6b7684;font-weight:700;min-width:40px">축 ${i+1}</span>
           <input type="text" value="${ax.name||''}" placeholder="옵션명 (예: 색상)"
                  data-axis-idx="${i}" data-axis-field="name"
-                 style="flex:1;padding:6px 10px;border:1px solid #d1d6db;border-radius:5px;font-size:12.5px">
+                 style="flex:1;padding:6px 10px;border:1px solid #d1d6db;border-radius:5px;font-size: 14px">
           <select data-axis-idx="${i}" data-axis-field="source"
-                  style="padding:6px 10px;border:1px solid #d1d6db;border-radius:5px;font-size:12.5px;background:#fff">
+                  style="padding:6px 10px;border:1px solid #d1d6db;border-radius:5px;font-size: 14px;background:#fff">
             ${Object.entries(sourceLabels).map(([k,v]) => `<option value="${k}" ${ax.source===k?'selected':''}>${v}</option>`).join('')}
           </select>
           <button type="button" data-axis-remove="${i}"
-                  style="background:#fff;border:1px solid #f87171;color:#dc2626;padding:5px 9px;border-radius:5px;font-size:11.5px;font-weight:700;cursor:pointer"
+                  style="background:#fff;border:1px solid #f87171;color:#dc2626;padding:5px 9px;border-radius:5px;font-size: 14px;font-weight:700;cursor:pointer"
                   ${axes.length<=1?'disabled':''}>✕</button>
         </div>`;
     });
     if (axes.length < 3) {
       html += `<button type="button" id="opt-cfg-add-axis"
-               style="background:#fff;border:1px dashed #3182f6;color:#3182f6;padding:7px 14px;border-radius:6px;font-size:12px;font-weight:700;cursor:pointer">
+               style="background:#fff;border:1px dashed #3182f6;color:#3182f6;padding:7px 14px;border-radius:6px;font-size: 14px;font-weight:700;cursor:pointer">
                + 축 추가</button>`;
     }
     body.innerHTML = html;
@@ -3459,12 +3459,12 @@
     list.innerHTML = bg.models.map(m => `
       <div style="display:flex;align-items:center;gap:10px;background:#fff;padding:8px 12px;border-radius:6px;border:1px solid #dbeafe">
         <span style="font-weight:600;color:#1e40af;flex:1">${m.model_code}</span>
-        <span style="font-size:11.5px;color:#64748b">${m.model_name_display || ''}</span>
+        <span style="font-size: 14px;color:#64748b">${m.model_name_display || ''}</span>
         <button type="button"
                 data-group-id="${bg.id}"
                 data-model-code="${m.model_code}"
                 onclick="window.removeModelFromGroup(this)"
-                style="background:#fff;border:1px solid #fbbf24;color:#b45309;padding:4px 10px;border-radius:5px;font-size:11.5px;font-weight:700;cursor:pointer">
+                style="background:#fff;border:1px solid #fbbf24;color:#b45309;padding:4px 10px;border-radius:5px;font-size: 14px;font-weight:700;cursor:pointer">
           ✂ 분리
         </button>
       </div>
@@ -3489,7 +3489,7 @@
         <input type="checkbox" data-color-check="${c.color_code}" ${colorChecked ? 'checked':''}>
         <span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#9ca3af"></span>
         <span>${c.color_code}</span>
-        <span style="margin-left:auto;font-size:11px;color:var(--n500)">${c.count}</span>
+        <span style="margin-left:auto;font-size: 14px;color:var(--n500)">${c.count}</span>
       </div>
       <div class="opt-tree-sizes">`;
       for (const sz of c.sizes) {
@@ -3580,7 +3580,7 @@
     clearBtn.style.display = 'inline-block';
 
     // 단일 모드 = 그 옵션의 소싱처 목록 / 일괄 모드 = 사용 가능한 소싱처 dropdown
-    let html = `<div style="font-size:11.5px;color:var(--n600);margin-bottom:8px">소싱처별 URL ${mode==='multi' ? '— 선택 옵션 ' + targetSkus.length + '개에 동시 적용' : ''}</div>`;
+    let html = `<div style="font-size: 14px;color:var(--n600);margin-bottom:8px">소싱처별 URL ${mode==='multi' ? '— 선택 옵션 ' + targetSkus.length + '개에 동시 적용' : ''}</div>`;
 
     if (mode === 'single') {
       const opt = DATA.options.find(o => o.sku === singleSku);
@@ -3604,7 +3604,7 @@
 
     // + 새 소싱처 추가 (단일/일괄 공통)
     html += `<div class="opt-insp-add">
-      <div style="font-size:12.5px;color:var(--n600);margin-bottom:8px"><strong>+ 새 소싱처 추가</strong></div>
+      <div style="font-size: 14px;color:var(--n600);margin-bottom:8px"><strong>+ 새 소싱처 추가</strong></div>
       <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
         <select class="field-input" id="insp-add-src" style="width:160px;font-family:inherit">
           <option value="">소싱처 사전에서…</option>
@@ -3931,14 +3931,14 @@
     // 소싱처 매핑 (사전에 등록된 모든 소싱처 표시 — 빈 카드도 보여줘서 [+ URL] 가능)
     const allSrcs = (DATA.sources || []);
     const srcByName = new Map(sources.map(s => [s.source_name, s]));
-    if (!allSrcs.length) return '<span style="color:var(--n500);font-size:12px">소싱처 사전 비었음</span>';
+    if (!allSrcs.length) return '<span style="color:var(--n500);font-size: 14px">소싱처 사전 비었음</span>';
     // 최저가 (등록된 URL 의 가격 중)
     const prices = sources.map(s => s.crawled_price).filter(p => p != null && p > 0);
     const lowest = prices.length ? Math.min(...prices) : null;
     // 검증 표시 정책: AUTO 항상, 수기는 토글 ON
     const showCards = o.auto_enabled || verifyOn;
     if (!showCards) {
-      return `<span style="color:var(--n500);font-size:11.5px;font-style:italic">자동 OFF — 우상단 [📡 수기 소싱처] 토글로 표시</span>`;
+      return `<span style="color:var(--n500);font-size: 14px;font-style:italic">자동 OFF — 우상단 [📡 수기 소싱처] 토글로 표시</span>`;
     }
     let cards = '';
     for (const reg of allSrcs) {
@@ -4123,7 +4123,7 @@
       }
       // 자동 모드만 fx 가능 (산출과정)
       const fxBtn = o.auto_enabled
-        ? `<button class="btn-formula" data-expand="${o.sku}" title="자동계산 산출과정 (fx)" style="padding:3px 8px;font-size:10.5px;background:#F3E8FF;color:#7C3AED;border:none;border-radius:4px;cursor:pointer;font-weight:700;margin-left:4px">fx</button>`
+        ? `<button class="btn-formula" data-expand="${o.sku}" title="자동계산 산출과정 (fx)" style="padding:3px 8px;font-size: 12px;background:#F3E8FF;color:#7C3AED;border:none;border-radius:4px;cursor:pointer;font-weight:700;margin-left:4px">fx</button>`
         : '';
       // Phase 6 — 사이트별 셀 (renderSourcesCell 대신 직접 td 생성)
       const siteCells = sources.map(s => renderSiteCell(o, s)).join('');
@@ -4220,7 +4220,7 @@
       <div class="field-row"><label>스마트스토어 수수료율</label><div><input class="field-input mono" data-cfg="${o.sku}" data-field="ss_fee_rate" value="${(o.ss_fee_rate*100).toFixed(2)}" style="width:90px"> %</div></div>
       <div class="field-row"><label>쿠팡 수수료율</label><div><input class="field-input mono" data-cfg="${o.sku}" data-field="cp_fee_rate" value="${(o.cp_fee_rate*100).toFixed(2)}" style="width:90px"> %</div></div>
       <div class="field-row"><label>재고 (수기)</label><div><input class="field-input mono" data-cfg="${o.sku}" data-field="manual_stock" value="${o.manual_stock||''}" style="width:90px"> 개</div></div>
-      <div style="font-size:11.5px;color:var(--n500);margin-top:6px">💡 배송비는 §2 가격 템플릿에서 마켓별로 설정.</div>
+      <div style="font-size: 14px;color:var(--n500);margin-top:6px">💡 배송비는 §2 가격 템플릿에서 마켓별로 설정.</div>
     `;
   }
 
@@ -4313,7 +4313,7 @@
     if (!t) {
       t = document.createElement('div');
       t.id = 'sm-toast';
-      t.style.cssText = 'position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#191F28;color:#fff;padding:11px 18px;border-radius:8px;font-size:12.5px;font-weight:600;z-index:2000;box-shadow:0 4px 12px rgba(0,0,0,.18);transition:opacity .2s';
+      t.style.cssText = 'position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#191F28;color:#fff;padding:11px 18px;border-radius:8px;font-size: 14px;font-weight:600;z-index:2000;box-shadow:0 4px 12px rgba(0,0,0,.18);transition:opacity .2s';
       document.body.appendChild(t);
     }
     t.textContent = msg;
@@ -5217,12 +5217,12 @@
             rows.push({combo: c, rowId: rid});
             return `<div class="j1-url-row" data-row="${rid}" style="display:grid;grid-template-columns:200px 1fr auto;gap:8px;align-items:start;margin-bottom:8px;padding:10px;background:var(--n100);border-radius:8px">
               <div>
-                <div style="font-size:11px;font-weight:700;color:var(--n500);margin-bottom:4px">소싱처</div>
+                <div style="font-size: 14px;font-weight:700;color:var(--n500);margin-bottom:4px">소싱처</div>
                 ${c.html}
               </div>
               <div>
-                <div style="font-size:11px;font-weight:700;color:var(--n500);margin-bottom:4px">URL</div>
-                <input class="j1-field-input j1-row-url" type="url" placeholder="https://..." style="font-family:ui-monospace,monospace;font-size:12.5px">
+                <div style="font-size: 14px;font-weight:700;color:var(--n500);margin-bottom:4px">URL</div>
+                <input class="j1-field-input j1-row-url" type="url" placeholder="https://..." style="font-family:ui-monospace,monospace;font-size: 14px">
               </div>
               <div style="padding-top:18px"><button class="btn-icon danger j1-row-del" data-row-del="${rid}" title="이 행 제거">🗑</button></div>
             </div>`;

@@ -4,9 +4,9 @@
 {# 박스히어로 1:1 구매·판매 설정 — 자동번호 / 세금 기본값 / 커스텀 필드. #}
 <div style="padding:24px 32px;max-width:1500px;margin:0 auto">
   <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px">
-    <div style="font-size:12.5px;color:#8F91A0">설정</div>
+    <div style="font-size: 14px;color:#8F91A0">설정</div>
     <h1 style="font-size:22px;font-weight:700;margin:0;color:#292A2F">구매 및 판매</h1>
-    <span title="발주서·판매서·반품서 자동번호 prefix · 세금 기본값 · 커스텀 필드" style="display:inline-flex;align-items:center;justify-content:center;width:14px;height:14px;border-radius:50%;background:#F1F1F4;color:#8F91A0;font-size:9.5px;font-weight:700;cursor:help">i</span>
+    <span title="발주서·판매서·반품서 자동번호 prefix · 세금 기본값 · 커스텀 필드" style="display:inline-flex;align-items:center;justify-content:center;width:14px;height:14px;border-radius:50%;background:#F1F1F4;color:#8F91A0;font-size: 12px;font-weight:700;cursor:help">i</span>
   </div>
 
   <div style="display:flex;gap:0;border-bottom:1px solid #E5E8EB;margin-bottom:18px">
@@ -23,13 +23,13 @@
     <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px">
       {% for code, label, default in [('po','발주서 (PO)','PO'),('so','판매서 (SO)','SO'),('ro','반품서 (RO)','RO')] %}
         <div>
-          <label style="display:block;font-size:12.5px;color:#292A2F;margin-bottom:5px;font-weight:600">{{ label }}</label>
+          <label style="display:block;font-size: 14px;color:#292A2F;margin-bottom:5px;font-weight:600">{{ label }}</label>
           <div style="display:flex;gap:6px">
             <input name="{{ code }}_prefix" value="{{ pref.get(code+'_prefix') or default }}" placeholder="{{ default }}" style="width:80px;padding:8px 10px;border:1px solid #CBCCD3;border-radius:5px;font-size:13px;font-family:ui-monospace,monospace">
             <span style="align-self:center;color:#8F91A0">-</span>
             <input name="{{ code }}_start" type="number" value="{{ pref.get(code+'_start') or 1 }}" min="1" style="flex:1;padding:8px 10px;border:1px solid #CBCCD3;border-radius:5px;font-size:13px;font-family:ui-monospace,monospace">
           </div>
-          <div style="font-size:11.5px;color:#8F91A0;margin-top:4px">예시: <span style="font-family:ui-monospace,monospace">{{ pref.get(code+'_prefix') or default }}-{{ '%06d' % (pref.get(code+'_start') or 1) }}</span></div>
+          <div style="font-size: 14px;color:#8F91A0;margin-top:4px">예시: <span style="font-family:ui-monospace,monospace">{{ pref.get(code+'_prefix') or default }}-{{ '%06d' % (pref.get(code+'_start') or 1) }}</span></div>
         </div>
       {% endfor %}
     </div>
@@ -37,7 +37,7 @@
     <h3 style="font-size:14px;font-weight:600;color:#292A2F;margin:24px 0 14px">💰 세금 기본값</h3>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
       <div>
-        <label style="display:block;font-size:12.5px;color:#292A2F;margin-bottom:5px;font-weight:600">기본 세금 정책</label>
+        <label style="display:block;font-size: 14px;color:#292A2F;margin-bottom:5px;font-weight:600">기본 세금 정책</label>
         <select name="tax_default" style="width:100%;padding:9px 12px;border:1px solid #CBCCD3;border-radius:5px;font-size:13px;color:#292A2F;background:#fff">
           {% for code, label in [('vat10_excl','부가세 10% (별도)'),('vat10_incl','부가세 10% (포함)'),('vat0','면세'),('none','세금 미적용')] %}
             <option value="{{ code }}" {% if pref.get('tax_default') == code %}selected{% endif %}>{{ label }}</option>
@@ -45,7 +45,7 @@
         </select>
       </div>
       <div>
-        <label style="display:block;font-size:12.5px;color:#292A2F;margin-bottom:5px;font-weight:600">기본 통화</label>
+        <label style="display:block;font-size: 14px;color:#292A2F;margin-bottom:5px;font-weight:600">기본 통화</label>
         <select name="currency" style="width:100%;padding:9px 12px;border:1px solid #CBCCD3;border-radius:5px;font-size:13px;color:#292A2F;background:#fff">
           {% for c in ['KRW','USD','JPY','EUR'] %}<option value="{{ c }}" {% if pref.get('currency') == c %}selected{% endif %}>{{ c }}</option>{% endfor %}
         </select>
@@ -58,7 +58,7 @@
         <div style="display:grid;grid-template-columns:1fr 1fr 100px auto;gap:6px;align-items:center">
           <input name="cf_name" value="{{ fld.name }}" placeholder="필드명" style="padding:8px 10px;border:1px solid #CBCCD3;border-radius:5px;font-size:13px">
           <input name="cf_default" value="{{ fld.default or '' }}" placeholder="기본값 (선택)" style="padding:8px 10px;border:1px solid #CBCCD3;border-radius:5px;font-size:13px">
-          <select name="cf_target" style="padding:8px 10px;border:1px solid #CBCCD3;border-radius:5px;font-size:12px">
+          <select name="cf_target" style="padding:8px 10px;border:1px solid #CBCCD3;border-radius:5px;font-size: 14px">
             {% for c, l in [('all','전체'),('po','발주만'),('so','판매만'),('ro','반품만')] %}
               <option value="{{ c }}" {% if fld.target == c %}selected{% endif %}>{{ l }}</option>
             {% endfor %}
@@ -68,14 +68,14 @@
       {% endfor %}
       <div id="cfNew"></div>
     </div>
-    <button type="button" onclick="addCf()" style="background:none;border:none;color:#4F67FF;font-size:12.5px;font-weight:600;cursor:pointer">+ 커스텀 필드 추가</button>
+    <button type="button" onclick="addCf()" style="background:none;border:none;color:#4F67FF;font-size: 14px;font-weight:600;cursor:pointer">+ 커스텀 필드 추가</button>
 
     <div style="display:flex;gap:8px;margin-top:24px;padding-top:14px;border-top:1px solid #F1F1F4">
       <button type="submit" style="background:#4F67FF;color:#fff;padding:9px 22px;border:none;border-radius:5px;font-size:13.5px;font-weight:600;cursor:pointer">저장</button>
     </div>
   </form>
 
-  <div style="margin-top:14px;font-size:11px;color:#8F91A0;line-height:1.7">★ 박스히어로 1:1 — 자동번호 prefix·시작값, 세금 기본값, 커스텀 필드 정의. 발주·판매·반품서 새로 만들 때 자동 적용.</div>
+  <div style="margin-top:14px;font-size: 14px;color:#8F91A0;line-height:1.7">★ 박스히어로 1:1 — 자동번호 prefix·시작값, 세금 기본값, 커스텀 필드 정의. 발주·판매·반품서 새로 만들 때 자동 적용.</div>
 </div>
 <script>
 function addCf(){
@@ -84,7 +84,7 @@ function addCf(){
   div.style = 'display:grid;grid-template-columns:1fr 1fr 100px auto;gap:6px;align-items:center;margin-top:6px';
   div.innerHTML = '<input name="cf_name" placeholder="필드명" style="padding:8px 10px;border:1px solid #CBCCD3;border-radius:5px;font-size:13px">'
               + '<input name="cf_default" placeholder="기본값 (선택)" style="padding:8px 10px;border:1px solid #CBCCD3;border-radius:5px;font-size:13px">'
-              + '<select name="cf_target" style="padding:8px 10px;border:1px solid #CBCCD3;border-radius:5px;font-size:12px"><option value="all">전체</option><option value="po">발주만</option><option value="so">판매만</option><option value="ro">반품만</option></select>'
+              + '<select name="cf_target" style="padding:8px 10px;border:1px solid #CBCCD3;border-radius:5px;font-size: 14px"><option value="all">전체</option><option value="po">발주만</option><option value="so">판매만</option><option value="ro">반품만</option></select>'
               + '<button type="button" onclick="this.closest(\'div\').remove()" style="background:none;border:none;color:#8F91A0;font-size:16px;cursor:pointer">×</button>';
   w.appendChild(div);
 }

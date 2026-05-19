@@ -3,16 +3,16 @@
 {% block content %}
 <div style="padding:24px 32px;max-width:1500px;margin:0 auto">
   <div style="display:flex;align-items:center;gap:14px;margin-bottom:14px">
-    <div style="font-size:12.5px;color:#9CA3AF">분석</div>
+    <div style="font-size: 14px;color:#9CA3AF">분석</div>
     <h1 style="font-size:22px;font-weight:700;margin:0">입출고 요약</h1>
   </div>
   <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px">
-    <div style="background:#fff;border:1px solid #E5E8EB;border-radius:8px;padding:16px"><div style="font-size:11px;color:#6B7684">총 옵션</div><div style="font-size:24px;font-weight:700">{{ kpis.options }}</div></div>
-    <div style="background:#fff;border:1px solid #E5E8EB;border-radius:8px;padding:16px"><div style="font-size:11px;color:#6B7684">박스히어로 매핑</div><div style="font-size:24px;font-weight:700;color:#3182F6">{{ kpis.mapped }}/{{ kpis.options }}</div></div>
-    <div style="background:#fff;border:1px solid #E5E8EB;border-radius:8px;padding:16px"><div style="font-size:11px;color:#6B7684">총 입고량</div><div style="font-size:24px;font-weight:700;color:#10B981">+{{ '{:,}'.format(kpis.in_qty|int) }}</div></div>
-    <div style="background:#fff;border:1px solid #E5E8EB;border-radius:8px;padding:16px"><div style="font-size:11px;color:#6B7684">총 출고량</div><div style="font-size:24px;font-weight:700;color:#C53030">-{{ '{:,}'.format(kpis.out_qty|int) }}</div></div>
-    <div style="background:#fff;border:1px solid #E5E8EB;border-radius:8px;padding:16px"><div style="font-size:11px;color:#6B7684">대기 발주</div><div style="font-size:24px;font-weight:700;color:#F59E0B">{{ kpis.po_pending }}</div></div>
-    <div style="background:#fff;border:1px solid #E5E8EB;border-radius:8px;padding:16px"><div style="font-size:11px;color:#6B7684">대기 판매</div><div style="font-size:24px;font-weight:700;color:#7C3AED">{{ kpis.so_pending }}</div></div>
+    <div style="background:#fff;border:1px solid #E5E8EB;border-radius:8px;padding:16px"><div style="font-size: 14px;color:#6B7684">총 옵션</div><div style="font-size:24px;font-weight:700">{{ kpis.options }}</div></div>
+    <div style="background:#fff;border:1px solid #E5E8EB;border-radius:8px;padding:16px"><div style="font-size: 14px;color:#6B7684">박스히어로 매핑</div><div style="font-size:24px;font-weight:700;color:#3182F6">{{ kpis.mapped }}/{{ kpis.options }}</div></div>
+    <div style="background:#fff;border:1px solid #E5E8EB;border-radius:8px;padding:16px"><div style="font-size: 14px;color:#6B7684">총 입고량</div><div style="font-size:24px;font-weight:700;color:#10B981">+{{ '{:,}'.format(kpis.in_qty|int) }}</div></div>
+    <div style="background:#fff;border:1px solid #E5E8EB;border-radius:8px;padding:16px"><div style="font-size: 14px;color:#6B7684">총 출고량</div><div style="font-size:24px;font-weight:700;color:#C53030">-{{ '{:,}'.format(kpis.out_qty|int) }}</div></div>
+    <div style="background:#fff;border:1px solid #E5E8EB;border-radius:8px;padding:16px"><div style="font-size: 14px;color:#6B7684">대기 발주</div><div style="font-size:24px;font-weight:700;color:#F59E0B">{{ kpis.po_pending }}</div></div>
+    <div style="background:#fff;border:1px solid #E5E8EB;border-radius:8px;padding:16px"><div style="font-size: 14px;color:#6B7684">대기 판매</div><div style="font-size:24px;font-weight:700;color:#7C3AED">{{ kpis.so_pending }}</div></div>
   </div>
 </div>
 {% endblock %}

@@ -95,7 +95,7 @@
             <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center">
               {% for a in c.aliases %}
                 <span style="display:inline-flex;align-items:center;gap:4px;background:{% if a.source == 'learned' %}#FEF3C7;color:#92400E;border:1px solid #FCD34D{% else %}#EFF6FF;color:#1B64DA;border:1px solid #BFDBFE{% endif %};border-radius:10px;padding:7px 8px 7px 14px;font-size:16px;font-weight:500">
-                  {{ a.alias }}{% if a.source == 'learned' %} <span style="font-size:11.5px;color:#A16207;background:#FEF9E7;border-radius:5px;padding:1px 6px;margin-left:3px">학습</span>{% endif %}
+                  {{ a.alias }}{% if a.source == 'learned' %} <span style="font-size: 14px;color:#A16207;background:#FEF9E7;border-radius:5px;padding:1px 6px;margin-left:3px">학습</span>{% endif %}
                   <form method="post" action="{{ url_for('mapping.alias_delete', m_id=a.id) }}" style="display:inline">
                     <button type="submit" style="background:transparent;border:0;color:#9CA3AF;cursor:pointer;padding:0 6px;font-size:16px;line-height:1">×</button>
                   </form>

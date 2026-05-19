@@ -3,23 +3,23 @@
 {% block content %}
 <div style="padding:24px 32px;max-width:1500px;margin:0 auto">
   <div style="display:flex;align-items:center;gap:14px;margin-bottom:14px">
-    <div style="font-size:12.5px;color:#9CA3AF">분석</div>
+    <div style="font-size: 14px;color:#9CA3AF">분석</div>
     <h1 style="font-size:22px;font-weight:700;margin:0">재고 분석</h1>
-    <span style="font-size:11.5px;color:#9CA3AF">{{ total_options }} 옵션</span>
+    <span style="font-size: 14px;color:#9CA3AF">{{ total_options }} 옵션</span>
     <a href="{{ url_for('inventory.inventory_export') }}" style="margin-left:auto;background:#10B981;color:#fff;padding:8px 16px;border-radius:5px;font-size:13px;text-decoration:none;font-weight:600">📁 엑셀 내보내기</a>
   </div>
   <div style="background:#fff;border:1px solid #E5E8EB;border-radius:8px;overflow:hidden">
-    <table style="width:100%;border-collapse:collapse;font-size:12.5px">
+    <table style="width:100%;border-collapse:collapse;font-size: 14px">
       <thead style="background:#F9FAFB"><tr>
-        <th style="padding:9px;text-align:left;font-size:11px;color:#6B7684">모델</th>
-        <th style="padding:9px;text-align:right;font-size:11px;color:#6B7684">옵션 수</th>
-        <th style="padding:9px;text-align:right;font-size:11px;color:#6B7684">총 재고</th>
-        <th style="padding:9px;text-align:right;font-size:11px;color:#6B7684">매핑</th>
-        <th style="padding:9px;text-align:right;font-size:11px;color:#6B7684">매핑률</th>
+        <th style="padding:9px;text-align:left;font-size: 14px;color:#6B7684">모델</th>
+        <th style="padding:9px;text-align:right;font-size: 14px;color:#6B7684">옵션 수</th>
+        <th style="padding:9px;text-align:right;font-size: 14px;color:#6B7684">총 재고</th>
+        <th style="padding:9px;text-align:right;font-size: 14px;color:#6B7684">매핑</th>
+        <th style="padding:9px;text-align:right;font-size: 14px;color:#6B7684">매핑률</th>
       </tr></thead>
       <tbody>
         {% for code, d in by_model %}<tr style="border-bottom:1px solid #F2F4F6">
-          <td style="padding:9px;font-family:ui-monospace,monospace;font-size:11px">{{ code }}</td>
+          <td style="padding:9px;font-family:ui-monospace,monospace;font-size: 14px">{{ code }}</td>
           <td style="padding:9px;text-align:right">{{ d.options }}</td>
           <td style="padding:9px;text-align:right;font-family:ui-monospace,monospace;font-weight:600;color:#7C3AED">{{ '{:,}'.format(d.stock) }}</td>
           <td style="padding:9px;text-align:right">{{ d.mapped }}/{{ d.options }}</td>

@@ -32,15 +32,15 @@
 </div>
 
 <div class="m-btn-grid col3" style="margin-top: 12px;">
-  <a href="/mobile/scan?action=in" class="m-action-btn success" style="min-height:80px;font-size:12.5px">
+  <a href="/mobile/scan?action=in" class="m-action-btn success" style="min-height:80px;font-size: 14px">
     <span class="icon" style="font-size:24px">📥</span>
     1건 입고
   </a>
-  <a href="/mobile/scan?action=out" class="m-action-btn danger" style="min-height:80px;font-size:12.5px">
+  <a href="/mobile/scan?action=out" class="m-action-btn danger" style="min-height:80px;font-size: 14px">
     <span class="icon" style="font-size:24px">📤</span>
     1건 출고
   </a>
-  <a href="/mobile/scan?action=adjust" class="m-action-btn" style="min-height:80px;font-size:12.5px">
+  <a href="/mobile/scan?action=adjust" class="m-action-btn" style="min-height:80px;font-size: 14px">
     <span class="icon" style="font-size:24px">⚖️</span>
     조정
   </a>
@@ -81,14 +81,14 @@
           <div style="display: flex; justify-content: space-between; align-items: center;">
             <div style="flex: 1; min-width: 0;">
               <div style="font-size: 14px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${it.sku}</div>
-              <div style="font-size: 12px; color: var(--n600); margin-top: 2px;">
+              <div style="font-size: 14px; color: var(--n600); margin-top: 2px;">
                 <span style="color: ${typeColors[it.tx_type] || '#6B7684'}; font-weight: 600;">${typeLabels[it.tx_type] || it.tx_type}</span>
                 · ${it.location} · ${it.actor}
               </div>
             </div>
             <div style="text-align: right; margin-left: 12px;">
               <div style="font-size: 18px; font-weight: 700; color: ${typeColors[it.tx_type] || '#191F28'};">${qty}</div>
-              <div style="font-size: 11px; color: var(--n500); margin-top: 2px;">${timeStr}</div>
+              <div style="font-size: 14px; color: var(--n500); margin-top: 2px;">${timeStr}</div>
             </div>
           </div>
         </div>`;

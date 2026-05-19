@@ -4,7 +4,7 @@
 <div style="padding:24px 32px;max-width:1700px;margin:0 auto">
 
   <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px">
-    <h1 style="font-size:20px;font-weight:700">옵션 매트릭스 <span style="font-size:12px;color:#9CA3AF;font-weight:400">(자체 재고 + 사입 마진 3계층)</span></h1>
+    <h1 style="font-size:20px;font-weight:700">옵션 매트릭스 <span style="font-size: 14px;color:#9CA3AF;font-weight:400">(자체 재고 + 사입 마진 3계층)</span></h1>
   </div>
 
   {% with msgs = get_flashed_messages(with_categories=true) %}
@@ -16,57 +16,57 @@
   <!-- 요약 통계 4 카드 -->
   <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px">
     <div style="background:#fff;border:1px solid #E5E8EB;border-radius:8px;padding:14px">
-      <div style="font-size:11px;color:#6B7684">총 옵션</div>
+      <div style="font-size: 14px;color:#6B7684">총 옵션</div>
       <div style="font-size:22px;font-weight:700">{{ stats.total }}</div>
     </div>
     <div style="background:#fff;border:1px solid #E5E8EB;border-radius:8px;padding:14px">
-      <div style="font-size:11px;color:#6B7684">SKU 매핑</div>
-      <div style="font-size:22px;font-weight:700;color:#3182F6">{{ stats.mapped }}<span style="font-size:12px;color:#9CA3AF;font-weight:400"> / {{ stats.total }}</span></div>
+      <div style="font-size: 14px;color:#6B7684">SKU 매핑</div>
+      <div style="font-size:22px;font-weight:700;color:#3182F6">{{ stats.mapped }}<span style="font-size: 14px;color:#9CA3AF;font-weight:400"> / {{ stats.total }}</span></div>
     </div>
     <div style="background:#fff;border:1px solid #E5E8EB;border-radius:8px;padding:14px">
-      <div style="font-size:11px;color:#6B7684">재고 보유</div>
+      <div style="font-size: 14px;color:#6B7684">재고 보유</div>
       <div style="font-size:22px;font-weight:700;color:#7C3AED">{{ stats.with_stock }}</div>
     </div>
     <div style="background:#fff;border:1px solid #E5E8EB;border-radius:8px;padding:14px">
-      <div style="font-size:11px;color:#6B7684">평균매입가 박제</div>
+      <div style="font-size: 14px;color:#6B7684">평균매입가 박제</div>
       <div style="font-size:22px;font-weight:700;color:#059669">{{ stats.with_avg }}</div>
     </div>
   </div>
 
   <!-- 필터 -->
   <form method="get" action="{{ url_for('inventory.matrix_view') }}" style="background:#fff;border:1px solid #E5E8EB;border-radius:8px;padding:12px 16px;margin-bottom:12px;display:flex;gap:12px;align-items:center;flex-wrap:wrap">
-    <label style="font-size:12px;color:#4E5968;font-weight:600">모델</label>
-    <select name="model_code" style="padding:6px 10px;border:1px solid #D1D6DB;border-radius:5px;font-size:12.5px;min-width:200px">
+    <label style="font-size: 14px;color:#4E5968;font-weight:600">모델</label>
+    <select name="model_code" style="padding:6px 10px;border:1px solid #D1D6DB;border-radius:5px;font-size: 14px;min-width:200px">
       <option value="">전체 ({{ all_models|length }} 모델)</option>
       {% for m in all_models %}
         <option value="{{ m.model_code }}" {% if model_filter == m.model_code %}selected{% endif %}>{{ m.model_code }} — {{ m.model_name_display or m.model_name_raw }}</option>
       {% endfor %}
     </select>
-    <label style="font-size:12px;color:#4E5968;display:flex;align-items:center;gap:6px;cursor:pointer">
+    <label style="font-size: 14px;color:#4E5968;display:flex;align-items:center;gap:6px;cursor:pointer">
       <input type="checkbox" name="unmapped" value="1" {% if unmapped_only %}checked{% endif %}> 미매핑만
     </label>
-    <button type="submit" style="background:#3182F6;color:#fff;padding:6px 14px;border:none;border-radius:5px;font-size:12.5px;font-weight:600;cursor:pointer">필터 적용</button>
-    <a href="{{ url_for('inventory.matrix_view') }}" style="padding:6px 12px;border:1px solid #D1D6DB;border-radius:5px;text-decoration:none;color:#4E5968;font-size:12px">초기화</a>
-    <span style="margin-left:auto;font-size:11px;color:#9CA3AF">★ 우선순위: 옵션 → 모델 → 템플릿</span>
+    <button type="submit" style="background:#3182F6;color:#fff;padding:6px 14px;border:none;border-radius:5px;font-size: 14px;font-weight:600;cursor:pointer">필터 적용</button>
+    <a href="{{ url_for('inventory.matrix_view') }}" style="padding:6px 12px;border:1px solid #D1D6DB;border-radius:5px;text-decoration:none;color:#4E5968;font-size: 14px">초기화</a>
+    <span style="margin-left:auto;font-size: 14px;color:#9CA3AF">★ 우선순위: 옵션 → 모델 → 템플릿</span>
   </form>
 
   <!-- 매트릭스 테이블 -->
   <div style="background:#fff;border:1px solid #E5E8EB;border-radius:8px;overflow:auto">
-    <table style="width:100%;border-collapse:collapse;font-size:11.5px;min-width:1500px">
+    <table style="width:100%;border-collapse:collapse;font-size: 14px;min-width:1500px">
       <thead style="background:#F9FAFB;position:sticky;top:0;z-index:5">
         <tr>
-          <th style="padding:9px 8px;text-align:left;font-size:10.5px;color:#6B7684;border-bottom:1px solid #E5E8EB;min-width:140px">SKU</th>
-          <th style="padding:9px 8px;text-align:left;font-size:10.5px;color:#6B7684;border-bottom:1px solid #E5E8EB;min-width:120px">바코드</th>
-          <th style="padding:9px 8px;text-align:left;font-size:10.5px;color:#6B7684;border-bottom:1px solid #E5E8EB">컬러</th>
-          <th style="padding:9px 8px;text-align:left;font-size:10.5px;color:#6B7684;border-bottom:1px solid #E5E8EB">사이즈</th>
-          <th style="padding:9px 8px;text-align:right;font-size:10.5px;color:#6B7684;border-bottom:1px solid #E5E8EB">재고</th>
-          <th style="padding:9px 8px;text-align:right;font-size:10.5px;color:#6B7684;border-bottom:1px solid #E5E8EB">평균매입가</th>
-          <th style="padding:9px 8px;text-align:left;font-size:10.5px;color:#059669;border-bottom:1px solid #E5E8EB;background:#ECFDF5">자체 마진<br><span style="font-weight:400;color:#6B7684">(자체사입)</span></th>
-          <th style="padding:9px 8px;text-align:right;font-size:10.5px;color:#059669;border-bottom:1px solid #E5E8EB;background:#ECFDF5">자체 판매가</th>
-          <th style="padding:9px 8px;text-align:left;font-size:10.5px;color:#7C3AED;border-bottom:1px solid #E5E8EB;background:#F5F3FF">외부 마진<br><span style="font-weight:400;color:#6B7684">(소싱처)</span></th>
-          <th style="padding:9px 8px;text-align:right;font-size:10.5px;color:#7C3AED;border-bottom:1px solid #E5E8EB;background:#F5F3FF">외부 판매가</th>
-          <th style="padding:9px 8px;text-align:center;font-size:10.5px;color:#DC2626;border-bottom:1px solid #E5E8EB;background:#FEF2F2;min-width:80px">사입재고<br><span style="font-weight:400;color:#6B7684">활성화</span></th>
-          <th style="padding:9px 8px;text-align:center;font-size:10.5px;color:#6B7684;border-bottom:1px solid #E5E8EB;min-width:80px">편집</th>
+          <th style="padding:9px 8px;text-align:left;font-size: 12px;color:#6B7684;border-bottom:1px solid #E5E8EB;min-width:140px">SKU</th>
+          <th style="padding:9px 8px;text-align:left;font-size: 12px;color:#6B7684;border-bottom:1px solid #E5E8EB;min-width:120px">바코드</th>
+          <th style="padding:9px 8px;text-align:left;font-size: 12px;color:#6B7684;border-bottom:1px solid #E5E8EB">컬러</th>
+          <th style="padding:9px 8px;text-align:left;font-size: 12px;color:#6B7684;border-bottom:1px solid #E5E8EB">사이즈</th>
+          <th style="padding:9px 8px;text-align:right;font-size: 12px;color:#6B7684;border-bottom:1px solid #E5E8EB">재고</th>
+          <th style="padding:9px 8px;text-align:right;font-size: 12px;color:#6B7684;border-bottom:1px solid #E5E8EB">평균매입가</th>
+          <th style="padding:9px 8px;text-align:left;font-size: 12px;color:#059669;border-bottom:1px solid #E5E8EB;background:#ECFDF5">자체 마진<br><span style="font-weight:400;color:#6B7684">(자체사입)</span></th>
+          <th style="padding:9px 8px;text-align:right;font-size: 12px;color:#059669;border-bottom:1px solid #E5E8EB;background:#ECFDF5">자체 판매가</th>
+          <th style="padding:9px 8px;text-align:left;font-size: 12px;color:#7C3AED;border-bottom:1px solid #E5E8EB;background:#F5F3FF">외부 마진<br><span style="font-weight:400;color:#6B7684">(소싱처)</span></th>
+          <th style="padding:9px 8px;text-align:right;font-size: 12px;color:#7C3AED;border-bottom:1px solid #E5E8EB;background:#F5F3FF">외부 판매가</th>
+          <th style="padding:9px 8px;text-align:center;font-size: 12px;color:#DC2626;border-bottom:1px solid #E5E8EB;background:#FEF2F2;min-width:80px">사입재고<br><span style="font-weight:400;color:#6B7684">활성화</span></th>
+          <th style="padding:9px 8px;text-align:center;font-size: 12px;color:#6B7684;border-bottom:1px solid #E5E8EB;min-width:80px">편집</th>
         </tr>
       </thead>
       <tbody>
@@ -74,8 +74,8 @@
           {% set opt = r.opt %}
           {% set use_purchase = opt.use_purchase_inventory %}
           <tr style="border-bottom:1px solid #F2F4F6;{% if use_purchase %}background:#FFFBEB{% endif %}" data-sku="{{ opt.canonical_sku }}">
-            <td style="padding:7px 8px;font-family:ui-monospace,monospace;font-size:10.5px">{{ opt.canonical_sku }}</td>
-            <td style="padding:7px 8px;font-family:ui-monospace,monospace;font-size:10.5px;{% if not opt.barcode %}color:#9CA3AF{% endif %}">{{ opt.barcode or '—' }}</td>
+            <td style="padding:7px 8px;font-family:ui-monospace,monospace;font-size: 12px">{{ opt.canonical_sku }}</td>
+            <td style="padding:7px 8px;font-family:ui-monospace,monospace;font-size: 12px;{% if not opt.barcode %}color:#9CA3AF{% endif %}">{{ opt.barcode or '—' }}</td>
             <td style="padding:7px 8px;color:{% if (opt.color_display or opt.color_code) %}#111827{% else %}#9CA3AF{% endif %}">{{ (opt.color_display or opt.color_code) | color_or_default }}</td>
             <td style="padding:7px 8px;color:{% if (opt.size_display or opt.size_code) %}#111827{% else %}#9CA3AF{% endif %}">{{ (opt.size_display or opt.size_code) | size_or_default }}</td>
             <td style="padding:7px 8px;text-align:right;font-weight:{% if (opt.boxhero_stock_total or 0) > 0 %}600{% else %}400{% endif %};color:{% if (opt.boxhero_stock_total or 0) == 0 %}#9CA3AF{% else %}#111827{% endif %}">{{ opt.boxhero_stock_total or 0 }}</td>
@@ -85,24 +85,24 @@
 
             <!-- 자체 마진 -->
             <td style="padding:7px 8px;background:#F0FDF4">
-              <span style="font-size:10px;padding:1px 5px;border-radius:3px;background:{% if r.self.source_layer=='option' %}#10B981;color:#fff{% elif r.self.source_layer=='model' %}#FBBF24;color:#fff{% else %}#E5E7EB;color:#4B5563{% endif %};font-weight:600">{{ r.self.source_layer }}</span>
+              <span style="font-size: 12px;padding:1px 5px;border-radius:3px;background:{% if r.self.source_layer=='option' %}#10B981;color:#fff{% elif r.self.source_layer=='model' %}#FBBF24;color:#fff{% else %}#E5E7EB;color:#4B5563{% endif %};font-weight:600">{{ r.self.source_layer }}</span>
               {% if r.self.mode == 'rate' %}
-                <span style="font-family:ui-monospace,monospace;font-size:11px">{{ '%.2f'|format(r.self.value/100) }}%</span>
+                <span style="font-family:ui-monospace,monospace;font-size: 14px">{{ '%.2f'|format(r.self.value/100) }}%</span>
               {% else %}
-                <span style="font-family:ui-monospace,monospace;font-size:11px">+{{ '{:,}'.format(r.self.value) }}원</span>
+                <span style="font-family:ui-monospace,monospace;font-size: 14px">+{{ '{:,}'.format(r.self.value) }}원</span>
               {% endif %}
             </td>
             <td style="padding:7px 8px;text-align:right;background:{% if use_purchase %}#FEF3C7;border:2px solid #F59E0B{% else %}#F0FDF4{% endif %};font-family:ui-monospace,monospace;font-weight:{% if use_purchase %}700{% else %}600{% endif %};color:{% if r.self.sale_price > 0 %}#059669{% else %}#9CA3AF{% endif %};font-size:{% if use_purchase %}13px{% else %}11.5px{% endif %}">
-              {% if r.self.sale_price %}{{ '{:,}'.format(r.self.sale_price) }}{% if use_purchase %} <span style="font-size:9px;background:#F59E0B;color:#fff;padding:1px 4px;border-radius:3px;margin-left:2px">활성</span>{% endif %}{% else %}—{% endif %}
+              {% if r.self.sale_price %}{{ '{:,}'.format(r.self.sale_price) }}{% if use_purchase %} <span style="font-size: 12px;background:#F59E0B;color:#fff;padding:1px 4px;border-radius:3px;margin-left:2px">활성</span>{% endif %}{% else %}—{% endif %}
             </td>
 
             <!-- 외부 마진 -->
             <td style="padding:7px 8px;background:#FAF5FF">
-              <span style="font-size:10px;padding:1px 5px;border-radius:3px;background:{% if r.external.source_layer=='option' %}#7C3AED;color:#fff{% else %}#E5E7EB;color:#4B5563{% endif %};font-weight:600">{{ r.external.source_layer }}</span>
+              <span style="font-size: 12px;padding:1px 5px;border-radius:3px;background:{% if r.external.source_layer=='option' %}#7C3AED;color:#fff{% else %}#E5E7EB;color:#4B5563{% endif %};font-weight:600">{{ r.external.source_layer }}</span>
               {% if r.external.mode == 'rate' %}
-                <span style="font-family:ui-monospace,monospace;font-size:11px">{{ '%.2f'|format(r.external.value/100) }}%</span>
+                <span style="font-family:ui-monospace,monospace;font-size: 14px">{{ '%.2f'|format(r.external.value/100) }}%</span>
               {% else %}
-                <span style="font-family:ui-monospace,monospace;font-size:11px">+{{ '{:,}'.format(r.external.value) }}원</span>
+                <span style="font-family:ui-monospace,monospace;font-size: 14px">+{{ '{:,}'.format(r.external.value) }}원</span>
               {% endif %}
             </td>
             <td style="padding:7px 8px;text-align:right;background:#FAF5FF;font-family:ui-monospace,monospace;color:{% if use_purchase %}#9CA3AF{% elif r.external.sale_price > 0 %}#7C3AED{% else %}#9CA3AF{% endif %};font-weight:{% if use_purchase %}400{% else %}600{% endif %};text-decoration:{% if use_purchase %}line-through{% endif %}">
@@ -115,13 +115,13 @@
                 style="position:relative;width:50px;height:24px;border-radius:12px;border:none;cursor:pointer;background:{% if use_purchase %}#F59E0B{% else %}#D1D6DB{% endif %};transition:background 0.2s">
                 <span style="position:absolute;top:2px;left:{% if use_purchase %}28px{% else %}2px{% endif %};width:20px;height:20px;border-radius:10px;background:#fff;transition:left 0.2s;box-shadow:0 1px 3px rgba(0,0,0,0.2)"></span>
               </button>
-              <div style="font-size:9.5px;color:{% if use_purchase %}#92400E;font-weight:700{% else %}#9CA3AF{% endif %};margin-top:2px">{% if use_purchase %}ON{% else %}OFF{% endif %}</div>
+              <div style="font-size: 12px;color:{% if use_purchase %}#92400E;font-weight:700{% else %}#9CA3AF{% endif %};margin-top:2px">{% if use_purchase %}ON{% else %}OFF{% endif %}</div>
             </td>
 
             <!-- 편집 -->
             <td style="padding:7px 8px;text-align:center">
-              <button type="button" onclick="openEdit('{{ opt.canonical_sku }}', 'self', '{{ r.self.mode }}', {{ r.self.value }}, '{{ r.self.source_layer }}')" style="background:#10B981;color:#fff;padding:4px 8px;border:none;border-radius:4px;font-size:10.5px;cursor:pointer;font-weight:600">자체</button>
-              <button type="button" onclick="openEdit('{{ opt.canonical_sku }}', 'external', '{{ r.external.mode }}', {{ r.external.value }}, '{{ r.external.source_layer }}')" style="background:#7C3AED;color:#fff;padding:4px 8px;border:none;border-radius:4px;font-size:10.5px;cursor:pointer;font-weight:600">외부</button>
+              <button type="button" onclick="openEdit('{{ opt.canonical_sku }}', 'self', '{{ r.self.mode }}', {{ r.self.value }}, '{{ r.self.source_layer }}')" style="background:#10B981;color:#fff;padding:4px 8px;border:none;border-radius:4px;font-size: 12px;cursor:pointer;font-weight:600">자체</button>
+              <button type="button" onclick="openEdit('{{ opt.canonical_sku }}', 'external', '{{ r.external.mode }}', {{ r.external.value }}, '{{ r.external.source_layer }}')" style="background:#7C3AED;color:#fff;padding:4px 8px;border:none;border-radius:4px;font-size: 12px;cursor:pointer;font-weight:600">외부</button>
             </td>
           </tr>
         {% else %}
@@ -131,7 +131,7 @@
     </table>
   </div>
 
-  <div style="margin-top:14px;font-size:11px;color:#9CA3AF;line-height:1.7">
+  <div style="margin-top:14px;font-size: 14px;color:#9CA3AF;line-height:1.7">
     ★ 색상 의미 — 자체(초록 #059669) = 자체 사입 / 외부(보라 #7C3AED) = 소싱처 사입.<br>
     ★ source_layer 라벨 — 옵션(녹색/보라) = 인라인 오버라이드 적용 / 모델(노랑) = 모델 오버라이드 / 템플릿(회색) = 가격템플릿 default.<br>
     ★ <strong style="color:#92400E">사입재고 활성화 ON</strong> — 자체 판매가가 활성 가격(주황 강조), 외부 판매가는 취소선. OFF 면 외부 판매가 활성.<br>
@@ -143,11 +143,11 @@
 <div id="editModal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);z-index:100;align-items:center;justify-content:center">
   <div style="background:#fff;border-radius:10px;padding:24px;max-width:480px;width:90%;box-shadow:0 10px 40px rgba(0,0,0,0.2)">
     <h3 id="editTitle" style="font-size:16px;font-weight:700;margin-bottom:6px">사입 마진 편집</h3>
-    <div id="editSubtitle" style="font-size:11.5px;color:#6B7684;margin-bottom:16px"></div>
+    <div id="editSubtitle" style="font-size: 14px;color:#6B7684;margin-bottom:16px"></div>
 
     <div style="display:grid;gap:12px">
       <div>
-        <label style="display:block;font-size:12px;color:#4E5968;margin-bottom:5px;font-weight:600">계산 방식 *</label>
+        <label style="display:block;font-size: 14px;color:#4E5968;margin-bottom:5px;font-weight:600">계산 방식 *</label>
         <div style="display:flex;gap:8px">
           <label style="flex:1;padding:8px;border:2px solid #D1D6DB;border-radius:5px;cursor:pointer;text-align:center" id="modeRateLabel">
             <input type="radio" name="editMode" value="rate" checked style="margin-right:4px"> 비율 (%)
@@ -159,21 +159,21 @@
       </div>
 
       <div>
-        <label style="display:block;font-size:12px;color:#4E5968;margin-bottom:5px;font-weight:600">값 *</label>
+        <label style="display:block;font-size: 14px;color:#4E5968;margin-bottom:5px;font-weight:600">값 *</label>
         <input type="number" id="editValue" min="0" style="width:100%;padding:9px 12px;border:1px solid #D1D6DB;border-radius:5px;font-size:13px;font-family:ui-monospace,monospace">
-        <div id="editHint" style="font-size:11px;color:#9CA3AF;margin-top:4px"></div>
+        <div id="editHint" style="font-size: 14px;color:#9CA3AF;margin-top:4px"></div>
       </div>
 
-      <div id="editPreview" style="background:#F9FAFB;border:1px solid #E5E8EB;border-radius:6px;padding:10px 12px;font-size:11.5px;color:#4E5968;display:none">
+      <div id="editPreview" style="background:#F9FAFB;border:1px solid #E5E8EB;border-radius:6px;padding:10px 12px;font-size: 14px;color:#4E5968;display:none">
         <strong>계산 미리보기</strong>
         <div id="editPreviewBody" style="margin-top:4px;line-height:1.7"></div>
       </div>
     </div>
 
     <div style="display:flex;gap:6px;margin-top:18px;justify-content:flex-end">
-      <button type="button" onclick="clearOverride()" style="padding:8px 14px;border:1px solid #FCA5A5;background:#FEF2F2;color:#991B1B;border-radius:5px;font-size:12px;cursor:pointer">옵션 오버라이드 비우기</button>
-      <button type="button" onclick="closeEdit()" style="padding:8px 16px;border:1px solid #D1D6DB;background:#fff;color:#4E5968;border-radius:5px;font-size:12px;cursor:pointer">취소</button>
-      <button type="button" onclick="saveEdit()" style="padding:8px 18px;background:#3182F6;color:#fff;border:none;border-radius:5px;font-size:12px;font-weight:600;cursor:pointer">저장</button>
+      <button type="button" onclick="clearOverride()" style="padding:8px 14px;border:1px solid #FCA5A5;background:#FEF2F2;color:#991B1B;border-radius:5px;font-size: 14px;cursor:pointer">옵션 오버라이드 비우기</button>
+      <button type="button" onclick="closeEdit()" style="padding:8px 16px;border:1px solid #D1D6DB;background:#fff;color:#4E5968;border-radius:5px;font-size: 14px;cursor:pointer">취소</button>
+      <button type="button" onclick="saveEdit()" style="padding:8px 18px;background:#3182F6;color:#fff;border:none;border-radius:5px;font-size: 14px;font-weight:600;cursor:pointer">저장</button>
     </div>
   </div>
 </div>

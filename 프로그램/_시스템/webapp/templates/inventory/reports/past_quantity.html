@@ -3,26 +3,26 @@
 {% block content %}
 <div style="padding:24px 32px;max-width:1500px;margin:0 auto">
   <div style="display:flex;align-items:center;gap:14px;margin-bottom:14px">
-    <div style="font-size:12.5px;color:#9CA3AF">분석</div>
+    <div style="font-size: 14px;color:#9CA3AF">분석</div>
     <h1 style="font-size:22px;font-weight:700;margin:0">과거 수량 조회</h1>
   </div>
   <form method="get" style="background:#fff;border:1px solid #E5E8EB;border-radius:8px;padding:14px;margin-bottom:12px;display:flex;gap:8px">
-    <input name="sku" value="{{ sku }}" placeholder="옵션 canonical_sku" required style="flex:1;padding:7px 10px;border:1px solid #D1D6DB;border-radius:5px;font-size:12.5px;font-family:ui-monospace,monospace">
-    <button type="submit" style="background:#3182F6;color:#fff;padding:7px 16px;border:none;border-radius:5px;font-size:12px;font-weight:600;cursor:pointer">조회</button>
+    <input name="sku" value="{{ sku }}" placeholder="옵션 canonical_sku" required style="flex:1;padding:7px 10px;border:1px solid #D1D6DB;border-radius:5px;font-size: 14px;font-family:ui-monospace,monospace">
+    <button type="submit" style="background:#3182F6;color:#fff;padding:7px 16px;border:none;border-radius:5px;font-size: 14px;font-weight:600;cursor:pointer">조회</button>
   </form>
   {% if sku %}
   <div style="background:#fff;border:1px solid #E5E8EB;border-radius:8px;overflow:hidden">
-    <table style="width:100%;border-collapse:collapse;font-size:12.5px">
+    <table style="width:100%;border-collapse:collapse;font-size: 14px">
       <thead style="background:#F9FAFB"><tr>
-        <th style="padding:9px;text-align:left;font-size:11px;color:#6B7684">시각</th>
-        <th style="padding:9px;text-align:left;font-size:11px;color:#6B7684">유형</th>
-        <th style="padding:9px;text-align:right;font-size:11px;color:#6B7684">수량 변화</th>
-        <th style="padding:9px;text-align:right;font-size:11px;color:#6B7684">누적 재고</th>
+        <th style="padding:9px;text-align:left;font-size: 14px;color:#6B7684">시각</th>
+        <th style="padding:9px;text-align:left;font-size: 14px;color:#6B7684">유형</th>
+        <th style="padding:9px;text-align:right;font-size: 14px;color:#6B7684">수량 변화</th>
+        <th style="padding:9px;text-align:right;font-size: 14px;color:#6B7684">누적 재고</th>
       </tr></thead>
       <tbody>
         {% for r in timeline %}<tr style="border-bottom:1px solid #F2F4F6">
-          <td style="padding:8px 9px;font-size:11.5px">{{ r.tx.created_at.strftime('%Y-%m-%d %H:%M') if r.tx.created_at else '—' }}</td>
-          <td style="padding:8px 9px"><span style="font-size:10.5px;padding:2px 6px;border-radius:3px;background:{% if r.tx.tx_type=='in' %}#DCFCE7;color:#15803D{% elif r.tx.tx_type=='out' %}#FEE2E2;color:#991B1B{% elif r.tx.tx_type=='adjust' %}#DBEAFE;color:#1E40AF{% else %}#F3E8FF;color:#6B21A8{% endif %};font-weight:600">{{ r.tx.tx_type }}</span></td>
+          <td style="padding:8px 9px;font-size: 14px">{{ r.tx.created_at.strftime('%Y-%m-%d %H:%M') if r.tx.created_at else '—' }}</td>
+          <td style="padding:8px 9px"><span style="font-size: 12px;padding:2px 6px;border-radius:3px;background:{% if r.tx.tx_type=='in' %}#DCFCE7;color:#15803D{% elif r.tx.tx_type=='out' %}#FEE2E2;color:#991B1B{% elif r.tx.tx_type=='adjust' %}#DBEAFE;color:#1E40AF{% else %}#F3E8FF;color:#6B21A8{% endif %};font-weight:600">{{ r.tx.tx_type }}</span></td>
           <td style="padding:8px 9px;text-align:right;font-family:ui-monospace,monospace">{% if r.tx.tx_type=='in' %}+{{ r.tx.qty }}{% elif r.tx.tx_type=='out' %}-{{ r.tx.qty }}{% else %}={{ r.tx.qty }}{% endif %}</td>
           <td style="padding:8px 9px;text-align:right;font-family:ui-monospace,monospace;font-weight:600">{{ r.cumulative }}</td>
         </tr>{% else %}<tr><td colspan="4" style="padding:32px;text-align:center;color:#9CA3AF">거래 내역 없음</td></tr>{% endfor %}

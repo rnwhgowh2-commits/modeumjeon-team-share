@@ -22,23 +22,23 @@
   .tx-group.adjust .tx-head .tx-ic { background:#FEF3C7; color:#92400E; }
   .tx-group.move   .tx-head .tx-ic { background:#F3E8FF; color:#6B21A8; }
   .tx-head .title { font-size:14px; font-weight:700; color:#191F28; }
-  .tx-head .sub { font-size:11.5px; color:#6B7684; margin-top:1px; }
+  .tx-head .sub { font-size: 14px; color:#6B7684; margin-top:1px; }
   .tx-head .qty-total { font-size:15px; font-weight:800; font-family:"SF Mono",ui-monospace,monospace; margin-left:auto; padding-right:14px; }
   .tx-head .qty-total.pos { color:#15803D; }
   .tx-head .qty-total.neg { color:#DC2626; }
   .tx-head .qty-total.adj { color:#92400E; }
   .tx-head .qty-total.mv  { color:#6B21A8; }
   .tx-head .more-menu { position:relative; }
-  .tx-head .more-btn { padding:5px 11px; background:#fff; border:1px solid #E5E8EB; color:#4E5968; border-radius:6px; font-size:11.5px; font-weight:600; cursor:pointer; }
+  .tx-head .more-btn { padding:5px 11px; background:#fff; border:1px solid #E5E8EB; color:#4E5968; border-radius:6px; font-size: 14px; font-weight:600; cursor:pointer; }
   .tx-head .more-dropdown { position:absolute; right:0; top:36px; background:#fff; border:1px solid #E5E8EB; border-radius:8px; padding:6px; min-width:170px; box-shadow:0 4px 14px rgba(0,0,0,.08); z-index:50; display:none; }
   .tx-head .more-dropdown.open { display:block; }
-  .tx-head .more-dropdown a { display:block; padding:8px 12px; font-size:12.5px; color:#191F28; text-decoration:none; border-radius:5px; cursor:pointer; }
+  .tx-head .more-dropdown a { display:block; padding:8px 12px; font-size: 14px; color:#191F28; text-decoration:none; border-radius:5px; cursor:pointer; }
   .tx-head .more-dropdown a:hover { background:#F2F4F6; }
   .tx-head .more-dropdown hr { border:0; border-top:1px solid #F2F4F6; margin:4px 0; }
 
-  .tx-meta { display:flex; gap:18px; padding:8px 16px 10px; font-size:11.5px; color:#6B7684; border-bottom:1px solid #F2F4F6; flex-wrap:wrap; }
+  .tx-meta { display:flex; gap:18px; padding:8px 16px 10px; font-size: 14px; color:#6B7684; border-bottom:1px solid #F2F4F6; flex-wrap:wrap; }
   .tx-meta b { color:#191F28; font-weight:600; }
-  .loc-chip { display:inline-flex; align-items:center; gap:4px; padding:2px 8px; border-radius:11px; font-size:11px; font-weight:600; }
+  .loc-chip { display:inline-flex; align-items:center; gap:4px; padding:2px 8px; border-radius:11px; font-size: 14px; font-weight:600; }
   .loc-from { background:#FEF2F2; color:#991B1B; }
   .loc-to   { background:#EFF6FF; color:#1D4ED8; }
 
@@ -49,12 +49,12 @@
   .item-row:hover { background:#F9FAFB; }
   .item-row .img-ph { width:32px; height:32px; border-radius:6px; background:#F2F4F6; display:inline-flex; align-items:center; justify-content:center; color:#9CA3AF; font-size:14px; flex-shrink:0; }
   .item-row .nm { flex:1; min-width:0; }
-  .item-row .nm .sku { font-size:12px; color:#191F28; font-family:"SF Mono",ui-monospace,monospace; word-break:break-all; }
+  .item-row .nm .sku { font-size: 14px; color:#191F28; font-family:"SF Mono",ui-monospace,monospace; word-break:break-all; }
   .item-row .qty { font-size:13px; font-weight:700; font-family:"SF Mono",ui-monospace,monospace; min-width:44px; text-align:right; }
   .item-row .qty.pos { color:#15803D; }
   .item-row .qty.neg { color:#DC2626; }
   .item-row .row-acts { display:flex; gap:4px; }
-  .item-row .row-acts a, .item-row .row-acts button { padding:4px 9px; border:1px solid #E5E8EB; background:#fff; color:#4E5968; border-radius:5px; font-size:11px; cursor:pointer; text-decoration:none; font-family:inherit; }
+  .item-row .row-acts a, .item-row .row-acts button { padding:4px 9px; border:1px solid #E5E8EB; background:#fff; color:#4E5968; border-radius:5px; font-size: 14px; cursor:pointer; text-decoration:none; font-family:inherit; }
   .item-row .row-acts a:hover { border-color:#3182F6; color:#3182F6; }
   .item-row .row-acts button.del:hover { border-color:#DC2626; color:#DC2626; background:#FEF2F2; }
 </style>
@@ -62,11 +62,11 @@
 <div class="h-shell">
   <div class="h-head">
     <h1>히스토리</h1>
-    <a href="{{ url_for('inventory.history_export') }}" style="margin-left:auto;background:#fff;border:1px solid #E5E8EB;color:#191F28;padding:7px 14px;border-radius:5px;font-size:12.5px;text-decoration:none;font-weight:600">📁 엑셀 내보내기</a>
+    <a href="{{ url_for('inventory.history_export') }}" style="margin-left:auto;background:#fff;border:1px solid #E5E8EB;color:#191F28;padding:7px 14px;border-radius:5px;font-size: 14px;text-decoration:none;font-weight:600">📁 엑셀 내보내기</a>
   </div>
 
   <form method="get" class="h-filterbar">
-    <select name="period" onchange="document.getElementById('customDateBox').style.display = this.value=='custom' ? 'inline-flex' : 'none'" style="padding:7px 10px;border:1px solid #CBCCD3;border-radius:5px;font-size:12.5px;background:#fff;color:#191F28">
+    <select name="period" onchange="document.getElementById('customDateBox').style.display = this.value=='custom' ? 'inline-flex' : 'none'" style="padding:7px 10px;border:1px solid #CBCCD3;border-radius:5px;font-size: 14px;background:#fff;color:#191F28">
       <option value="">📅 전체 기간 ▾</option>
       <option value="today" {% if period=='today' %}selected{% endif %}>오늘</option>
       <option value="week" {% if period=='week' %}selected{% endif %}>최근 7일</option>
@@ -74,11 +74,11 @@
       <option value="custom" {% if period=='custom' %}selected{% endif %}>📅 직접 입력</option>
     </select>
     <span id="customDateBox" style="display:{% if period=='custom' %}inline-flex{% else %}none{% endif %};gap:6px;align-items:center">
-      <input type="date" name="date_from" value="{{ date_from }}" style="padding:6px 8px;border:1px solid #CBCCD3;border-radius:5px;font-size:12px">
-      <span style="color:#8B95A1;font-size:12px">~</span>
-      <input type="date" name="date_to" value="{{ date_to }}" style="padding:6px 8px;border:1px solid #CBCCD3;border-radius:5px;font-size:12px">
+      <input type="date" name="date_from" value="{{ date_from }}" style="padding:6px 8px;border:1px solid #CBCCD3;border-radius:5px;font-size: 14px">
+      <span style="color:#8B95A1;font-size: 14px">~</span>
+      <input type="date" name="date_to" value="{{ date_to }}" style="padding:6px 8px;border:1px solid #CBCCD3;border-radius:5px;font-size: 14px">
     </span>
-    <select name="type" style="padding:7px 10px;border:1px solid #CBCCD3;border-radius:5px;font-size:12.5px;background:#fff;color:#191F28">
+    <select name="type" style="padding:7px 10px;border:1px solid #CBCCD3;border-radius:5px;font-size: 14px;background:#fff;color:#191F28">
       <option value="">📦 전체 종류</option>
       <option value="in" {% if tx_type=='in' %}selected{% endif %}>📥 입고</option>
       <option value="out" {% if tx_type=='out' %}selected{% endif %}>📤 출고</option>
@@ -86,9 +86,9 @@
       <option value="move" {% if tx_type=='move' %}selected{% endif %}>→ 이동</option>
     </select>
     {% with search_placeholder='옵션·거래처·메모 검색' %}{% include 'partials/search_chips.html' %}{% endwith %}
-    <button type="submit" style="background:#3182F6;color:#fff;padding:7px 14px;border:none;border-radius:5px;font-size:12.5px;cursor:pointer;font-weight:700">검색</button>
-    {% if period or tx_type or q %}<a href="{{ url_for('inventory.history') }}" style="font-size:11.5px;color:#8B95A1;text-decoration:none;padding:7px">초기화</a>{% endif %}
-    <span style="margin-left:auto;font-size:12px;color:#8B95A1">{{ '{:,}'.format(total) }}건 · 거래일순 ▾</span>
+    <button type="submit" style="background:#3182F6;color:#fff;padding:7px 14px;border:none;border-radius:5px;font-size: 14px;cursor:pointer;font-weight:700">검색</button>
+    {% if period or tx_type or q %}<a href="{{ url_for('inventory.history') }}" style="font-size: 14px;color:#8B95A1;text-decoration:none;padding:7px">초기화</a>{% endif %}
+    <span style="margin-left:auto;font-size: 14px;color:#8B95A1">{{ '{:,}'.format(total) }}건 · 거래일순 ▾</span>
   </form>
 
   {% if grouped %}
@@ -158,9 +158,9 @@
   {% endif %}
 
   <div style="margin-top:14px;display:flex;justify-content:flex-end;gap:8px;align-items:center">
-    <span style="font-size:12px;color:#8B95A1">페이지 {{ page }}</span>
-    {% if page > 1 %}<a href="?page={{ page-1 }}{% if tx_type %}&type={{ tx_type }}{% endif %}{% if q %}&q={{ q }}{% endif %}{% if period %}&period={{ period }}{% endif %}" style="padding:6px 12px;border:1px solid #CBCCD3;background:#fff;color:#191F28;font-size:12px;text-decoration:none;border-radius:5px">이전</a>{% endif %}
-    {% if items|length == 50 %}<a href="?page={{ page+1 }}{% if tx_type %}&type={{ tx_type }}{% endif %}{% if q %}&q={{ q }}{% endif %}{% if period %}&period={{ period }}{% endif %}" style="padding:6px 12px;border:1px solid #CBCCD3;background:#fff;color:#191F28;font-size:12px;text-decoration:none;border-radius:5px">다음</a>{% endif %}
+    <span style="font-size: 14px;color:#8B95A1">페이지 {{ page }}</span>
+    {% if page > 1 %}<a href="?page={{ page-1 }}{% if tx_type %}&type={{ tx_type }}{% endif %}{% if q %}&q={{ q }}{% endif %}{% if period %}&period={{ period }}{% endif %}" style="padding:6px 12px;border:1px solid #CBCCD3;background:#fff;color:#191F28;font-size: 14px;text-decoration:none;border-radius:5px">이전</a>{% endif %}
+    {% if items|length == 50 %}<a href="?page={{ page+1 }}{% if tx_type %}&type={{ tx_type }}{% endif %}{% if q %}&q={{ q }}{% endif %}{% if period %}&period={{ period }}{% endif %}" style="padding:6px 12px;border:1px solid #CBCCD3;background:#fff;color:#191F28;font-size: 14px;text-decoration:none;border-radius:5px">다음</a>{% endif %}
   </div>
 </div>
 

@@ -30,12 +30,12 @@
   .sb-cam-hint {
     position: absolute; top: 10px; left: 50%; transform: translateX(-50%);
     background: rgba(0,0,0,0.72); color: white;
-    padding: 5px 12px; border-radius: 99px; font-size: 11.5px; font-weight: 600;
+    padding: 5px 12px; border-radius: 99px; font-size: 14px; font-weight: 600;
   }
   .sb-cam-stats {
     position: absolute; top: 10px; right: 10px;
     display: flex; flex-direction: column; gap: 3px;
-    font-size: 9.5px; color: white; pointer-events: none;
+    font-size: 12px; color: white; pointer-events: none;
   }
   .sb-cam-stats span {
     background: rgba(0,0,0,0.55); padding: 2px 7px; border-radius: 99px;
@@ -64,8 +64,8 @@
   .sb-mode.out   { border-top: 3px solid #EF4444; }
   .sb-mode .ic { font-size: 17px; }
   .sb-mode .lbl { flex: 1; font-size: 13px; font-weight: 800; color: #191F28; }
-  .sb-mode .cnt { font-size: 12px; font-weight: 700; color: #3182F6; font-family: 'SF Mono', monospace; }
-  .sb-mode .locsel select { padding: 5px 9px; border: 1px solid #CBCCD3; border-radius: 5px; font-size: 11.5px; }
+  .sb-mode .cnt { font-size: 14px; font-weight: 700; color: #3182F6; font-family: 'SF Mono', monospace; }
+  .sb-mode .locsel select { padding: 5px 9px; border: 1px solid #CBCCD3; border-radius: 5px; font-size: 14px; }
 
   /* 스크롤 list */
   .sb-list {
@@ -85,8 +85,8 @@
     font-size: 17px; color: #9CA3AF; flex-shrink: 0;
   }
   .sb-it .nm { flex: 1; min-width: 0; }
-  .sb-it .nm .ti { font-size: 12px; font-weight: 700; color: #191F28; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .sb-it .nm .sku { font-size: 10px; color: #6B7684; font-family: 'SF Mono', monospace; margin-top: 1px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .sb-it .nm .ti { font-size: 14px; font-weight: 700; color: #191F28; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .sb-it .nm .sku { font-size: 12px; color: #6B7684; font-family: 'SF Mono', monospace; margin-top: 1px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .sb-it .qty { display: flex; align-items: center; gap: 5px; flex-shrink: 0; }
   .sb-it .qty button {
     width: 28px; height: 28px; border-radius: 50%;
@@ -119,7 +119,7 @@
     display: flex; gap: 8px; align-items: center;
     flex-shrink: 0;
   }
-  .sb-foot .total { flex: 1; font-size: 12px; color: #4E5968; }
+  .sb-foot .total { flex: 1; font-size: 14px; color: #4E5968; }
   .sb-foot .total b { color: #191F28; font-weight: 800; font-size: 16px; }
   .sb-foot .btn {
     padding: 11px 18px; border: 0; border-radius: 8px;
@@ -164,7 +164,7 @@
     <div class="sb-empty" id="cart-empty">
       <div class="ic">{% if mode == 'in' %}📥{% else %}📤{% endif %}</div>
       <div>바코드를 스캔하면 여기 추가됩니다.</div>
-      <div style="font-size:11.5px;margin-top:6px;color:#9CA3AF">같은 SKU 다시 스캔 = 수량 +1</div>
+      <div style="font-size: 14px;margin-top:6px;color:#9CA3AF">같은 SKU 다시 스캔 = 수량 +1</div>
     </div>
   </div>
 

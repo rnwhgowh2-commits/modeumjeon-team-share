@@ -38,17 +38,17 @@
   /* ──────────── 사이드바 (가벼운 회색) ──────────── */
   .sidebar { width: 232px; background: var(--surface); border-right: 1px solid var(--border); padding: 28px 14px; position: sticky; top: 0; height: 100vh; flex-shrink: 0; overflow-y: auto; }
   .brand { font-weight: 700; font-size: 17px; padding: 0 12px; color: var(--t1); letter-spacing: -0.01em; }
-  .brand-sub { font-size: 11.5px; color: var(--t4); padding: 0 12px; margin: 3px 0 28px; }
+  .brand-sub { font-size: 14px; color: var(--t4); padding: 0 12px; margin: 3px 0 28px; }
   .nav-group { margin-top: 20px; }
-  .nav-group-title { font-size: 11px; font-weight: 700; color: var(--t4); padding: 0 14px 6px; letter-spacing: 0.04em; text-transform: uppercase; }
-  .nav-subheader { font-size: 11.5px; font-weight: 600; color: var(--t3); padding: 10px 14px 4px; }
+  .nav-group-title { font-size: 14px; font-weight: 700; color: var(--t4); padding: 0 14px 6px; letter-spacing: 0.04em; text-transform: uppercase; }
+  .nav-subheader { font-size: 14px; font-weight: 600; color: var(--t3); padding: 10px 14px 4px; }
   .nav-item { display: flex; align-items: center; gap: 10px; padding: 9px 14px; border-radius: 8px; color: var(--t2); font-size: 14px; font-weight: 500; margin-bottom: 1px; cursor: pointer; user-select: none; }
   .nav-item.sub { padding-left: 26px; font-size: 13.5px; }
   .nav-item:hover { background: var(--bg); }
   .nav-item.active { background: var(--primary-soft); color: var(--primary); font-weight: 700; }
   .nav-icon { width: 16px; opacity: 0.65; }
   .nav-item.active .nav-icon { opacity: 1; }
-  .nav-count { margin-left: auto; font-size: 11.5px; font-weight: 600; color: var(--t4); }
+  .nav-count { margin-left: auto; font-size: 14px; font-weight: 600; color: var(--t4); }
   .nav-item.active .nav-count { color: var(--primary); }
   .nav-count.urgent { color: var(--urgent); }
 
@@ -58,7 +58,7 @@
   .subtitle { font-size: 13.5px; color: var(--t3); margin: 0 0 28px; }
   h2 { font-size: 16px; font-weight: 700; margin: 32px 0 14px; letter-spacing: -0.012em; color: var(--t1); }
   h3 { font-size: 14.5px; font-weight: 700; margin: 0 0 10px; }
-  .section-meta { font-size: 12.5px; color: var(--t4); font-weight: 500; margin-left: 8px; }
+  .section-meta { font-size: 14px; color: var(--t4); font-weight: 500; margin-left: 8px; }
 
   .breadcrumb { font-size: 13px; color: var(--t3); margin-bottom: 8px; cursor: pointer; display: inline-flex; align-items: center; gap: 4px; }
   .breadcrumb:hover { color: var(--primary); }
@@ -73,7 +73,7 @@
   table { width: 100%; border-collapse: collapse; font-size: 14px; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
   th, td { text-align: left; padding: 12px 14px; border-bottom: 1px solid var(--border); vertical-align: middle; }
   tbody tr:last-child td { border-bottom: none; }
-  th { font-size: 11.5px; font-weight: 600; color: var(--t4); text-transform: uppercase; letter-spacing: 0.04em; background: var(--bg); cursor: pointer; user-select: none; }
+  th { font-size: 14px; font-weight: 600; color: var(--t4); text-transform: uppercase; letter-spacing: 0.04em; background: var(--bg); cursor: pointer; user-select: none; }
   th:hover { color: var(--t2); }
   tbody tr.expandable { cursor: pointer; }
   tbody tr.expandable:hover { background: var(--bg); }
@@ -94,10 +94,10 @@
   .dot.off { background: var(--t5); }
 
   .status { display: inline-flex; align-items: center; font-size: 13px; color: var(--t2); }
-  .status-meta { font-size: 12px; color: var(--t4); margin-left: 6px; }
+  .status-meta { font-size: 14px; color: var(--t4); margin-left: 6px; }
 
   /* ──────────── 작은 태그 (3종 한정) ──────────── */
-  .tag { display: inline-block; padding: 2px 8px; border-radius: 6px; font-size: 11.5px; font-weight: 600; color: var(--t3); background: var(--bg); border: 1px solid var(--border); }
+  .tag { display: inline-block; padding: 2px 8px; border-radius: 6px; font-size: 14px; font-weight: 600; color: var(--t3); background: var(--bg); border: 1px solid var(--border); }
   .tag-active { color: var(--primary); border-color: var(--primary); background: var(--primary-soft); }
   .tag-urgent { color: var(--urgent); border-color: var(--urgent); background: var(--urgent-soft); }
 
@@ -115,21 +115,21 @@
   .btn-primary:hover { background: #1B6DDD; border-color: #1B6DDD; }
   .btn-ghost { background: transparent; border-color: transparent; color: var(--t2); }
   .btn-ghost:hover { background: var(--bg); }
-  .btn-sm { padding: 5px 10px; font-size: 12.5px; }
+  .btn-sm { padding: 5px 10px; font-size: 14px; }
   .btn-link { background: transparent; border: none; color: var(--primary); padding: 5px 8px; cursor: pointer; font-weight: 600; font-size: 13px; }
 
   /* ──────────── 입력 ──────────── */
   .field { margin-bottom: 14px; }
-  .field-label { font-size: 12.5px; font-weight: 600; color: var(--t2); margin-bottom: 6px; display: block; }
+  .field-label { font-size: 14px; font-weight: 600; color: var(--t2); margin-bottom: 6px; display: block; }
   .field-input { width: 100%; padding: 9px 12px; border: 1px solid var(--border); border-radius: 8px; font-size: 14px; font-family: inherit; background: var(--surface); color: var(--t1); }
   .field-input:focus { outline: 2px solid var(--primary); outline-offset: -1px; border-color: transparent; }
-  .field-hint { font-size: 11.5px; color: var(--t4); margin-top: 4px; }
+  .field-hint { font-size: 14px; color: var(--t4); margin-top: 4px; }
 
   /* ──────────── 검색·필터 바 (얇은 보더 카드) ──────────── */
   .filterbar { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 14px 18px; margin-bottom: 14px; }
   .filterbar-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
   .filterbar-row + .filterbar-row { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--border); }
-  .filter-label { font-size: 11.5px; font-weight: 600; color: var(--t4); min-width: 50px; }
+  .filter-label { font-size: 14px; font-weight: 600; color: var(--t4); min-width: 50px; }
   .search-input { flex: 1; min-width: 200px; padding: 9px 14px 9px 36px; border: 1px solid var(--border); border-radius: 8px; font-size: 14px; font-family: inherit; background: var(--surface) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='15' height='15' viewBox='0 0 24 24' fill='none' stroke='%2398A1AB' stroke-width='2.5'%3E%3Ccircle cx='11' cy='11' r='7'/%3E%3Cline x1='21' y1='21' x2='16.65' y2='16.65'/%3E%3C/svg%3E") no-repeat 12px center; }
   .search-input:focus { outline: 2px solid var(--primary); outline-offset: -1px; border-color: transparent; }
 
@@ -138,20 +138,20 @@
   .tab { padding: 10px 16px; font-size: 13.5px; font-weight: 600; color: var(--t3); cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -1px; user-select: none; }
   .tab:hover { color: var(--t1); }
   .tab.active { color: var(--primary); border-color: var(--primary); }
-  .tab-meta { color: var(--t4); font-weight: 500; margin-left: 4px; font-size: 12.5px; }
+  .tab-meta { color: var(--t4); font-weight: 500; margin-left: 4px; font-size: 14px; }
 
   /* ──────────── KPI (배경색 X, 숫자 굵기로만 강조) ──────────── */
   .kpi-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 18px; }
   .kpi { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 16px 18px; }
-  .kpi-label { font-size: 11.5px; font-weight: 600; color: var(--t4); }
+  .kpi-label { font-size: 14px; font-weight: 600; color: var(--t4); }
   .kpi-value { font-size: 22px; font-weight: 700; margin-top: 4px; line-height: 1.1; color: var(--t1); letter-spacing: -0.015em; font-variant-numeric: tabular-nums; }
-  .kpi-sub { font-size: 12px; color: var(--t3); margin-top: 4px; }
+  .kpi-sub { font-size: 14px; color: var(--t3); margin-top: 4px; }
   .kpi-sub.urgent { color: var(--urgent); }
 
   /* ──────────── 차트 (Primary 1색 + Neutral 1색) ──────────── */
   .chart-box { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 20px 22px; }
   .chart-head { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; margin-bottom: 10px; }
-  .chart-legend { display: flex; gap: 20px; margin: 14px 0 6px; font-size: 12.5px; flex-wrap: wrap; }
+  .chart-legend { display: flex; gap: 20px; margin: 14px 0 6px; font-size: 14px; flex-wrap: wrap; }
   .chart-legend-item { display: flex; align-items: center; gap: 8px; }
   .chart-legend-line { display: inline-block; width: 18px; height: 2.5px; border-radius: 2px; }
   .chart-legend-line.primary { background: var(--primary); }
@@ -173,12 +173,12 @@
   /* ──────────── 인사이트 카드 (배경 X, 좌측 보더만) ──────────── */
   .insight { background: var(--surface); border: 1px solid var(--border); border-left: 3px solid var(--primary); border-radius: 10px; padding: 14px 16px; }
   .insight.urgent { border-left-color: var(--urgent); }
-  .insight-label { font-size: 11px; font-weight: 600; color: var(--t4); text-transform: uppercase; letter-spacing: 0.04em; }
+  .insight-label { font-size: 14px; font-weight: 600; color: var(--t4); text-transform: uppercase; letter-spacing: 0.04em; }
   .insight-title { font-size: 16px; font-weight: 700; margin-top: 4px; color: var(--t1); }
-  .insight-sub { font-size: 12.5px; color: var(--t3); margin-top: 4px; }
+  .insight-sub { font-size: 14px; color: var(--t3); margin-top: 4px; }
 
   /* ──────────── 환경변수 행 (모노톤, 점 인디케이터) ──────────── */
-  .env-row { display: flex; align-items: center; gap: 8px; padding: 8px 12px; background: var(--bg); border-radius: 6px; margin-bottom: 4px; font-size: 12.5px; font-family: 'JetBrains Mono', monospace; color: var(--t2); }
+  .env-row { display: flex; align-items: center; gap: 8px; padding: 8px 12px; background: var(--bg); border-radius: 6px; margin-bottom: 4px; font-size: 14px; font-family: 'JetBrains Mono', monospace; color: var(--t2); }
   .env-row.miss { color: var(--urgent); background: var(--urgent-soft); }
 
   /* ──────────── 토글 ──────────── */
@@ -194,7 +194,7 @@
   .wizard-step { flex: 1; padding: 12px 14px; border-radius: 8px; background: var(--bg); border: 1px solid var(--border); }
   .wizard-step.active { background: var(--primary-soft); border-color: var(--primary); color: var(--primary); }
   .wizard-step.done { background: var(--surface); border-color: var(--primary); color: var(--primary); }
-  .wizard-step-num { font-weight: 700; font-size: 11px; letter-spacing: 0.04em; }
+  .wizard-step-num { font-weight: 700; font-size: 14px; letter-spacing: 0.04em; }
   .wizard-step-title { font-size: 13.5px; font-weight: 600; margin-top: 2px; }
   .wizard-pane { display: none; }
   .wizard-pane.active { display: block; }
@@ -213,8 +213,8 @@
   .page.active { display: block; }
 
   /* 도움말 박스 (배경 거의 없음, 좌측 보더만) */
-  .helper { background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px; font-size: 12.5px; color: var(--t2); margin-bottom: 14px; line-height: 1.6; }
-  .helper code { background: var(--surface); padding: 1px 6px; border-radius: 4px; font-size: 11.5px; }
+  .helper { background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px; font-size: 14px; color: var(--t2); margin-bottom: 14px; line-height: 1.6; }
+  .helper code { background: var(--surface); padding: 1px 6px; border-radius: 4px; font-size: 14px; }
 
   /* 옵션 색상 점 */
   .opt-color-dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 4px; vertical-align: -1px; border: 1px solid rgba(0,0,0,0.08); }
@@ -229,9 +229,9 @@
   .stat-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0; border: 1px solid var(--border); border-radius: 10px; overflow: hidden; margin: 12px 0; }
   .stat-item { padding: 12px 16px; border-right: 1px solid var(--border); background: var(--surface); }
   .stat-item:last-child { border-right: none; }
-  .stat-label { font-size: 11px; font-weight: 600; color: var(--t4); text-transform: uppercase; letter-spacing: 0.04em; }
+  .stat-label { font-size: 14px; font-weight: 600; color: var(--t4); text-transform: uppercase; letter-spacing: 0.04em; }
   .stat-value { font-size: 17px; font-weight: 700; margin-top: 3px; color: var(--t1); font-variant-numeric: tabular-nums; }
-  .stat-sub { font-size: 11.5px; color: var(--t4); margin-top: 2px; }
+  .stat-sub { font-size: 14px; color: var(--t4); margin-top: 2px; }
 
   /* 옵션 이력 카드 */
   .history-card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 18px 20px; margin-bottom: 12px; }
@@ -253,7 +253,7 @@
 
   .event { display: grid; grid-template-columns: 80px 16px 1fr; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--border); align-items: start; }
   .event:last-child { border-bottom: none; }
-  .event-time { font-size: 12px; color: var(--t4); font-variant-numeric: tabular-nums; padding-top: 1px; }
+  .event-time { font-size: 14px; color: var(--t4); font-variant-numeric: tabular-nums; padding-top: 1px; }
   .event-marker { display: flex; justify-content: center; padding-top: 4px; position: relative; }
   .event-marker::before { content: ''; position: absolute; top: 12px; bottom: -18px; width: 1px; background: var(--border); }
   .event:last-child .event-marker::before { display: none; }
@@ -264,16 +264,16 @@
   .event-dot.info { background: var(--primary); }
   .event-body { font-size: 13px; color: var(--t1); }
   .event-title { font-weight: 600; }
-  .event-detail { font-size: 12px; color: var(--t3); margin-top: 2px; }
-  .event-source { font-size: 11px; color: var(--t4); margin-top: 3px; font-family: 'JetBrains Mono', monospace; }
+  .event-detail { font-size: 14px; color: var(--t3); margin-top: 2px; }
+  .event-source { font-size: 14px; color: var(--t4); margin-top: 3px; font-family: 'JetBrains Mono', monospace; }
 
   /* 기간 선택 */
   .range-tabs { display: inline-flex; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 2px; }
-  .range-tab { padding: 5px 12px; font-size: 12.5px; font-weight: 600; color: var(--t3); border-radius: 6px; cursor: pointer; user-select: none; }
+  .range-tab { padding: 5px 12px; font-size: 14px; font-weight: 600; color: var(--t3); border-radius: 6px; cursor: pointer; user-select: none; }
   .range-tab.active { background: var(--t1); color: white; }
 
   /* 변동 표시 */
-  .delta { display: inline-flex; align-items: center; gap: 2px; font-weight: 600; font-size: 12px; }
+  .delta { display: inline-flex; align-items: center; gap: 2px; font-weight: 600; font-size: 14px; }
   .delta.up { color: var(--urgent); }
   .delta.down { color: var(--ok); }
   .delta.same { color: var(--t4); }
@@ -296,7 +296,7 @@
 
   /* 정렬 표시 */
   th.sortable { position: relative; padding-right: 22px; }
-  th.sortable::after { content: '⇅'; position: absolute; right: 6px; opacity: 0.3; font-size: 11px; }
+  th.sortable::after { content: '⇅'; position: absolute; right: 6px; opacity: 0.3; font-size: 14px; }
   th.sortable.asc::after { content: '↑'; opacity: 1; color: var(--primary); }
   th.sortable.desc::after { content: '↓'; opacity: 1; color: var(--primary); }
 
@@ -323,7 +323,7 @@
     .mobile-toggle { display: inline-flex; }
     .kpi-row { grid-template-columns: 1fr 1fr; }
     .grid-3, .grid-2 { grid-template-columns: 1fr; }
-    table { font-size: 12px; }
+    table { font-size: 14px; }
     th, td { padding: 8px 6px; }
   }
 
@@ -337,7 +337,7 @@
   }
 
   /* 차트 툴팁 */
-  .chart-tip { position: absolute; background: var(--t1); color: white; padding: 4px 8px; border-radius: 4px; font-size: 11px; pointer-events: none; opacity: 0; transition: opacity 0.1s; }
+  .chart-tip { position: absolute; background: var(--t1); color: white; padding: 4px 8px; border-radius: 4px; font-size: 14px; pointer-events: none; opacity: 0; transition: opacity 0.1s; }
   .chart-tip.show { opacity: 1; }
 
   /* 토스트 스택 */
@@ -418,17 +418,17 @@
       <div class="card card-clickable" onclick="openSourcingDetail('메이트')">
         <div style="display:flex; align-items:center; gap:14px;">
           <span class="tag">무신사</span>
-          <div style="flex:1;"><strong>메이트 블랙</strong> <span style="color:var(--t4); font-size:12.5px;">220mm~290mm 13 옵션</span></div>
+          <div style="flex:1;"><strong>메이트 블랙</strong> <span style="color:var(--t4); font-size: 14px;">220mm~290mm 13 옵션</span></div>
           <div class="num" style="font-size:16px;">₩119,900</div>
-          <span class="status urgent-text" style="font-size:12px;">↑ 1,200</span>
+          <span class="status urgent-text" style="font-size: 14px;">↑ 1,200</span>
         </div>
       </div>
       <div class="card card-clickable" onclick="openSourcingDetail('메이트')">
         <div style="display:flex; align-items:center; gap:14px;">
           <span class="tag">르무통 공홈</span>
-          <div style="flex:1;"><strong>메이트 브라운</strong> <span style="color:var(--t4); font-size:12.5px;">235mm 품절 전환</span></div>
+          <div style="flex:1;"><strong>메이트 브라운</strong> <span style="color:var(--t4); font-size: 14px;">235mm 품절 전환</span></div>
           <div class="num" style="font-size:16px;">₩116,900</div>
-          <span class="status urgent-text" style="font-size:12px;">품절</span>
+          <span class="status urgent-text" style="font-size: 14px;">품절</span>
         </div>
       </div>
     </div>
@@ -476,7 +476,7 @@
             <td><span class="num">₩116,900</span></td>
             <td><span class="dot"></span><span class="num">121</span> <span style="color:var(--t4);">/</span> <span class="num urgent-text">6 품절</span></td>
             <td>5분 전</td>
-            <td><span class="num">2</span> <span style="color:var(--t4); font-size:12.5px;">모음전</span></td>
+            <td><span class="num">2</span> <span style="color:var(--t4); font-size: 14px;">모음전</span></td>
             <td><button class="btn-link" onclick="event.stopPropagation(); openSourcingDetail('메이트')">상세 →</button></td>
           </tr>
           <tr class="expand-detail">
@@ -488,7 +488,7 @@
                   <span class="status"><span class="dot"></span>활성</span>
                   <span style="margin-left:auto;" class="num">₩146,900</span>
                 </div>
-                <div style="font-size:12.5px; color:var(--t3);">
+                <div style="font-size: 14px; color:var(--t3);">
                   계정 <code>르무통_본계_smartstore</code> · 마켓 ID <code>7654321</code> ·
                   <a href="https://smartstore.naver.com/lemouton/products/7654321" target="_blank" style="color:var(--primary);">스마트스토어 보기 ↗</a>
                 </div>
@@ -500,7 +500,7 @@
                   <span class="status"><span class="dot"></span>활성</span>
                   <span style="margin-left:auto;" class="num">₩145,000</span>
                 </div>
-                <div style="font-size:12.5px; color:var(--t3);">
+                <div style="font-size: 14px; color:var(--t3);">
                   계정 <code>르무통_본계_coupang</code> · 마켓 ID <code>1122334</code> ·
                   <a href="https://www.coupang.com/vp/products/1122334" target="_blank" style="color:var(--primary);">쿠팡 보기 ↗</a>
                 </div>
@@ -516,7 +516,7 @@
             <td><span class="num">₩116,900</span></td>
             <td><span class="dot"></span><span class="num">4</span> <span style="color:var(--t4);">/ 0 품절</span></td>
             <td>12분 전</td>
-            <td><span class="num">1</span> <span style="color:var(--t4); font-size:12.5px;">모음전</span></td>
+            <td><span class="num">1</span> <span style="color:var(--t4); font-size: 14px;">모음전</span></td>
             <td><button class="btn-link" onclick="event.stopPropagation(); openSourcingDetail('레츠')">상세 →</button></td>
           </tr>
           <tr class="expand-detail"><td colspan="9"><div class="expand-content">
@@ -546,7 +546,7 @@
 
       <!-- 페이지네이션 -->
       <div class="pagination">
-        <span>총 <strong>3</strong>건 · 페이지당 <select class="field-input" style="display:inline-block; width:auto; padding:4px 8px; font-size:12px;"><option>10</option><option>25</option><option>50</option></select></span>
+        <span>총 <strong>3</strong>건 · 페이지당 <select class="field-input" style="display:inline-block; width:auto; padding:4px 8px; font-size: 14px;"><option>10</option><option>25</option><option>50</option></select></span>
         <div class="pages">
           <span class="page-btn" disabled>‹</span>
           <span class="page-btn active">1</span>
@@ -598,10 +598,10 @@
           <div class="chart-head">
             <div>
               <h3 style="margin:0;">소싱처별 가격·재고 비교</h3>
-              <p style="font-size:12px; color:var(--t4); margin:2px 0 0;" id="chart-subtitle">메이트 / 블랙 / 220mm</p>
+              <p style="font-size: 14px; color:var(--t4); margin:2px 0 0;" id="chart-subtitle">메이트 / 블랙 / 220mm</p>
             </div>
             <div style="display:flex; align-items:center; gap:8px;">
-              <span style="font-size:12px; color:var(--t4);">옵션</span>
+              <span style="font-size: 14px; color:var(--t4);">옵션</span>
               <select class="field-input" style="padding:6px 10px; font-size:13px; width:auto;" id="opt-selector" onchange="updateChart(this.value)">
                 <option value="블랙-220">블랙 / 220mm</option>
                 <option value="블랙-230">블랙 / 230mm</option>
@@ -705,7 +705,7 @@
           </div>
           <dl class="bundle-info-grid">
             <dt>마켓 상품 ID</dt><dd><code>1122334</code></dd>
-            <dt>판매가</dt><dd><span class="num">₩145,000</span> <span class="urgent-text" style="font-size:12px; margin-left:6px;">위너 추격 ₩142,000</span></dd>
+            <dt>판매가</dt><dd><span class="num">₩145,000</span> <span class="urgent-text" style="font-size: 14px; margin-left:6px;">위너 추격 ₩142,000</span></dd>
           </dl>
         </div>
       </div>
@@ -727,7 +727,7 @@
             <tr><td><span class="opt-color-dot" style="background:#1a1a1a;"></span><strong>블랙</strong></td><td>225mm</td><td><span class="num">₩116,900</span></td><td>₩116,900</td><td style="color:var(--t4);">₩119,900</td><td style="color:var(--t5);">—</td><td style="color:var(--t4);">+3,000</td><td>르무통 추천</td></tr>
             <tr class="urgent-row"><td><span class="opt-color-dot" style="background:#7B4F2C;"></span><strong>브라운</strong></td><td>235mm</td><td style="color:var(--t4);">—</td><td class="urgent-text">품절</td><td>₩119,900</td><td style="color:var(--t5);">—</td><td style="color:var(--t4);">—</td><td class="urgent-text">무신사 폴백</td></tr>
             <tr><td><span class="opt-color-dot" style="background:#F5E6D3;"></span><strong>아이보리</strong></td><td>240mm</td><td><span class="num">₩116,900</span></td><td>₩116,900</td><td style="color:var(--t4);">₩119,900</td><td style="color:var(--t5);">—</td><td style="color:var(--t4);">+3,000</td><td>르무통 추천</td></tr>
-            <tr class="urgent-row"><td><span class="opt-color-dot" style="background:#1a1a1a;"></span><strong>블랙</strong></td><td>270mm</td><td><span class="num">₩117,500</span></td><td class="urgent-text">품절</td><td>₩117,500 <span style="color:var(--t4); font-size:11px;">(회원가)</span></td><td style="color:var(--t5);">—</td><td style="color:var(--t4);">—</td><td class="urgent-text">무신사 회원가</td></tr>
+            <tr class="urgent-row"><td><span class="opt-color-dot" style="background:#1a1a1a;"></span><strong>블랙</strong></td><td>270mm</td><td><span class="num">₩117,500</span></td><td class="urgent-text">품절</td><td>₩117,500 <span style="color:var(--t4); font-size: 14px;">(회원가)</span></td><td style="color:var(--t5);">—</td><td style="color:var(--t4);">—</td><td class="urgent-text">무신사 회원가</td></tr>
           </tbody>
         </table>
       </div>
@@ -735,10 +735,10 @@
       <div class="tab-pane" data-pane="screenshots" style="display:none;">
         <p class="subtitle">옵션별 가격 영역 스크린샷 — 검증·분쟁 증거</p>
         <div style="display:grid; grid-template-columns: repeat(4, 1fr); gap:8px;">
-          <div style="aspect-ratio:4/3; background:var(--bg); border:1px solid var(--border); border-radius:8px; display:flex; align-items:center; justify-content:center; color:var(--t4); font-size:12px;">메이트-블랙-220<br>르무통 (5분전)</div>
-          <div style="aspect-ratio:4/3; background:var(--bg); border:1px solid var(--border); border-radius:8px; display:flex; align-items:center; justify-content:center; color:var(--t4); font-size:12px;">메이트-블랙-220<br>무신사 (5분전)</div>
-          <div style="aspect-ratio:4/3; background:var(--bg); border:1px solid var(--border); border-radius:8px; display:flex; align-items:center; justify-content:center; color:var(--t4); font-size:12px;">메이트-블랙-225<br>르무통</div>
-          <div style="aspect-ratio:4/3; background:var(--bg); border:1px solid var(--border); border-radius:8px; display:flex; align-items:center; justify-content:center; color:var(--t4); font-size:12px;">메이트-블랙-225<br>무신사</div>
+          <div style="aspect-ratio:4/3; background:var(--bg); border:1px solid var(--border); border-radius:8px; display:flex; align-items:center; justify-content:center; color:var(--t4); font-size: 14px;">메이트-블랙-220<br>르무통 (5분전)</div>
+          <div style="aspect-ratio:4/3; background:var(--bg); border:1px solid var(--border); border-radius:8px; display:flex; align-items:center; justify-content:center; color:var(--t4); font-size: 14px;">메이트-블랙-220<br>무신사 (5분전)</div>
+          <div style="aspect-ratio:4/3; background:var(--bg); border:1px solid var(--border); border-radius:8px; display:flex; align-items:center; justify-content:center; color:var(--t4); font-size: 14px;">메이트-블랙-225<br>르무통</div>
+          <div style="aspect-ratio:4/3; background:var(--bg); border:1px solid var(--border); border-radius:8px; display:flex; align-items:center; justify-content:center; color:var(--t4); font-size: 14px;">메이트-블랙-225<br>무신사</div>
         </div>
         <p style="margin-top:14px; font-size:13px; color:var(--t4);">총 254장 · 페이지네이션</p>
       </div>
@@ -853,10 +853,10 @@
               <span class="tag tag-active">스마트스토어</span>
               <span class="status"><span class="dot"></span>활성</span>
             </div>
-            <div style="font-size:12.5px; color:var(--t3); margin-top:6px;">
+            <div style="font-size: 14px; color:var(--t3); margin-top:6px;">
               account_key <code>르무통_본계_smartstore</code> · 명의 르무통 주식회사 (123-45-67890)
             </div>
-            <div style="font-size:12px; color:var(--t4); margin-top:3px;">
+            <div style="font-size: 14px; color:var(--t4); margin-top:3px;">
               Chrome 프로필 <code>chrome_profiles/lemouton_main_ss</code>
             </div>
           </div>
@@ -878,8 +878,8 @@
             <div class="env-row">SMARTSTORE_MAIN_CLIENT_SECRET</div>
           </div>
         </div>
-        <div class="toggle-row"><div class="toggle on" onclick="this.classList.toggle('on')"></div><div><strong>자동 로그인 활성</strong><div style="font-size:12px; color:var(--t4);">세션 만료 감지 시 자동 재로그인</div></div></div>
-        <div class="toggle-row"><div class="toggle on" onclick="this.classList.toggle('on')"></div><div><strong>계정별 Chrome 프로필 격리</strong><div style="font-size:12px; color:var(--t4);">다른 계정과 동시 로그인 가능</div></div></div>
+        <div class="toggle-row"><div class="toggle on" onclick="this.classList.toggle('on')"></div><div><strong>자동 로그인 활성</strong><div style="font-size: 14px; color:var(--t4);">세션 만료 감지 시 자동 재로그인</div></div></div>
+        <div class="toggle-row"><div class="toggle on" onclick="this.classList.toggle('on')"></div><div><strong>계정별 Chrome 프로필 격리</strong><div style="font-size: 14px; color:var(--t4);">다른 계정과 동시 로그인 가능</div></div></div>
       </div>
 
       <div class="card">
@@ -890,7 +890,7 @@
               <span class="tag">쿠팡</span>
               <span class="tag tag-urgent">키 누락</span>
             </div>
-            <div style="font-size:12.5px; color:var(--t3); margin-top:6px;">
+            <div style="font-size: 14px; color:var(--t3); margin-top:6px;">
               account_key <code>르무통_본계_coupang</code> · 명의 르무통 주식회사
             </div>
           </div>
@@ -929,10 +929,10 @@
           <div>
             <div style="display:flex; align-items:center; gap:10px;">
               <strong>default</strong>
-              <span style="font-size:12.5px; color:var(--t3);">계정 ID rnwhgowh@gmail.com · 명의 르무통 주식회사</span>
+              <span style="font-size: 14px; color:var(--t3);">계정 ID rnwhgowh@gmail.com · 명의 르무통 주식회사</span>
               <span class="status"><span class="dot"></span>활성</span>
             </div>
-            <div style="font-size:11.5px; color:var(--t4); margin-top:6px; font-family:'JetBrains Mono', monospace;">
+            <div style="font-size: 14px; color:var(--t4); margin-top:6px; font-family:'JetBrains Mono', monospace;">
               data/auth/무신사_default.json · 마지막 12:34 · 만료 ~ 2026-05-27
             </div>
           </div>
@@ -952,10 +952,10 @@
           <div>
             <div style="display:flex; align-items:center; gap:10px;">
               <strong>seller_a</strong>
-              <span style="font-size:12.5px; color:var(--t3);">계정 ID dudqls123</span>
+              <span style="font-size: 14px; color:var(--t3);">계정 ID dudqls123</span>
               <span class="tag tag-urgent">만료 임박 3일</span>
             </div>
-            <div style="font-size:11.5px; color:var(--t4); margin-top:6px; font-family:'JetBrains Mono', monospace;">
+            <div style="font-size: 14px; color:var(--t4); margin-top:6px; font-family:'JetBrains Mono', monospace;">
               data/auth/SSF샵_seller_a.json
             </div>
           </div>
@@ -1017,7 +1017,7 @@
               <strong style="font-size:15px;">메이트</strong>
               <span style="color:var(--t3); font-size:13px; margin-left:6px;">르무통 메이트 슬립온</span>
             </div>
-            <div style="font-size:12.5px; color:var(--t4);">옵션 127 · 르무통 + 무신사 + SSF</div>
+            <div style="font-size: 14px; color:var(--t4);">옵션 127 · 르무통 + 무신사 + SSF</div>
           </div>
           <div class="stat-row">
             <div class="stat-item">
@@ -1052,7 +1052,7 @@
             <span class="opt-color-dot" style="background:#1a1a1a;"></span>
             <strong style="font-size:15px;">메이트-블랙-220</strong>
             <span class="status"><span class="dot"></span>재고 가능</span>
-            <span style="margin-left:auto; font-size:12.5px; color:var(--t4);">5분 전 갱신</span>
+            <span style="margin-left:auto; font-size: 14px; color:var(--t4);">5분 전 갱신</span>
           </div>
 
           <!-- 7일 통계 -->
@@ -1082,12 +1082,12 @@
           <!-- 큰 시계열 차트 (7일, 르무통 + 무신사) -->
           <div class="ts-chart">
             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
-              <div style="display:flex; gap:18px; font-size:12px;">
+              <div style="display:flex; gap:18px; font-size: 14px;">
                 <span><span style="display:inline-block; width:14px; height:2px; background:var(--primary); vertical-align:middle; margin-right:4px;"></span>르무통 ₩116,900</span>
                 <span><span style="display:inline-block; width:14px; height:2px; background:var(--t4); vertical-align:middle; margin-right:4px;"></span>무신사 ₩119,900</span>
                 <span><span style="display:inline-block; width:14px; height:1px; border-top:1px dashed var(--t5); vertical-align:middle; margin-right:4px;"></span>SSF 미취급</span>
               </div>
-              <div style="font-size:11px; color:var(--t4);">단위: 원</div>
+              <div style="font-size: 14px; color:var(--t4);">단위: 원</div>
             </div>
             <svg viewBox="0 0 800 140" preserveAspectRatio="none">
               <!-- 격자 -->
@@ -1124,7 +1124,7 @@
           <!-- 이벤트 타임라인 (펼치기) -->
           <div class="timeline">
             <div class="timeline-toggle open" onclick="this.classList.toggle('open')">
-              <span class="arrow">▸</span> 이벤트 타임라인 <span style="font-weight:500; color:var(--t4); font-size:12px;">8건 · 최근 7일</span>
+              <span class="arrow">▸</span> 이벤트 타임라인 <span style="font-weight:500; color:var(--t4); font-size: 14px;">8건 · 최근 7일</span>
             </div>
             <div class="timeline-body">
               <div class="event">
@@ -1186,7 +1186,7 @@
 
           <!-- 등록 모음전 영향 -->
           <div style="margin-top:14px; padding-top:14px; border-top:1px solid var(--border); display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
-            <span style="font-size:12px; color:var(--t4);">현재 등록 모음전</span>
+            <span style="font-size: 14px; color:var(--t4);">현재 등록 모음전</span>
             <span class="tag tag-active">스마트스토어 ₩146,900</span>
             <span class="tag">쿠팡 ₩145,000</span>
             <button class="btn-link" style="margin-left:auto;" onclick="event.stopPropagation(); openSourcingDetail('메이트')">소싱 상세 →</button>
@@ -1200,7 +1200,7 @@
             <strong style="font-size:15px;">메이트-블랙-225</strong>
             <span class="tag tag-active" style="margin-left:2px;">시나리오 B · 회원가 효과</span>
             <span class="status"><span class="dot"></span>재고 가능</span>
-            <span style="margin-left:auto; font-size:12.5px; color:var(--t4);">5분 전 갱신</span>
+            <span style="margin-left:auto; font-size: 14px; color:var(--t4);">5분 전 갱신</span>
           </div>
 
           <div class="stat-row">
@@ -1227,7 +1227,7 @@
           </div>
 
           <div class="ts-chart">
-            <div style="display:flex; gap:18px; font-size:12px; margin-bottom:6px;">
+            <div style="display:flex; gap:18px; font-size: 14px; margin-bottom:6px;">
               <span><span style="display:inline-block; width:14px; height:2px; background:var(--primary); vertical-align:middle; margin-right:4px;"></span>르무통 ₩116,900 (안정)</span>
               <span><span style="display:inline-block; width:14px; height:2px; background:var(--t4); vertical-align:middle; margin-right:4px;"></span>무신사 정상가 ₩119,900 / 회원가 ₩114,500</span>
             </div>
@@ -1261,14 +1261,14 @@
             </svg>
           </div>
 
-          <div style="padding:10px 12px; background:var(--bg); border-radius:6px; font-size:12.5px; color:var(--t2); margin-top:6px;">
+          <div style="padding:10px 12px; background:var(--bg); border-radius:6px; font-size: 14px; color:var(--t2); margin-top:6px;">
             💡 <strong>인사이트:</strong> 무신사 회원가 활성 시간대(06:00~09:00 / 18:00~22:00, 일 7시간)에 르무통보다 ₩2,400 저렴.
             자동 폴백 시 월 추정 절감액 <strong>₩72,000</strong> (옵션당).
           </div>
 
           <div class="timeline">
             <div class="timeline-toggle open" onclick="this.classList.toggle('open')">
-              <span class="arrow">▸</span> 이벤트 타임라인 <span style="font-weight:500; color:var(--t4); font-size:12px;">14건 · 최근 7일</span>
+              <span class="arrow">▸</span> 이벤트 타임라인 <span style="font-weight:500; color:var(--t4); font-size: 14px;">14건 · 최근 7일</span>
             </div>
             <div class="timeline-body">
               <div class="event">
@@ -1308,7 +1308,7 @@
           </div>
 
           <div style="margin-top:14px; padding-top:14px; border-top:1px solid var(--border); display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
-            <span style="font-size:12px; color:var(--t4);">등록된 모음전</span>
+            <span style="font-size: 14px; color:var(--t4);">등록된 모음전</span>
             <span class="tag tag-active">스마트스토어 ₩146,900</span>
             <span class="tag">쿠팡 ₩145,000</span>
           </div>
@@ -1321,7 +1321,7 @@
             <strong style="font-size:15px;">메이트-아이보리-240</strong>
             <span class="tag tag-active" style="margin-left:2px;">시나리오 D · 재입고</span>
             <span class="status"><span class="dot"></span>재고 가능</span>
-            <span style="margin-left:auto; font-size:12.5px; color:var(--t4);">5분 전 갱신</span>
+            <span style="margin-left:auto; font-size: 14px; color:var(--t4);">5분 전 갱신</span>
           </div>
 
           <div class="stat-row">
@@ -1348,7 +1348,7 @@
           </div>
 
           <div class="ts-chart">
-            <div style="display:flex; gap:18px; font-size:12px; margin-bottom:6px;">
+            <div style="display:flex; gap:18px; font-size: 14px; margin-bottom:6px;">
               <span><span style="display:inline-block; width:14px; height:2px; background:var(--primary); vertical-align:middle; margin-right:4px;"></span>르무통 (V자 회복)</span>
               <span><span style="display:inline-block; width:14px; height:2px; background:var(--t4); vertical-align:middle; margin-right:4px;"></span>무신사 (대체 사용 → 복원)</span>
             </div>
@@ -1385,7 +1385,7 @@
 
           <div class="timeline">
             <div class="timeline-toggle open" onclick="this.classList.toggle('open')">
-              <span class="arrow">▸</span> 이벤트 타임라인 <span style="font-weight:500; color:var(--t4); font-size:12px;">5건</span>
+              <span class="arrow">▸</span> 이벤트 타임라인 <span style="font-weight:500; color:var(--t4); font-size: 14px;">5건</span>
             </div>
             <div class="timeline-body">
               <div class="event">
@@ -1426,7 +1426,7 @@
           </div>
 
           <div style="margin-top:14px; padding-top:14px; border-top:1px solid var(--border); display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
-            <span style="font-size:12px; color:var(--t4);">등록된 모음전</span>
+            <span style="font-size: 14px; color:var(--t4);">등록된 모음전</span>
             <span class="tag tag-active">스마트스토어 ₩146,900</span>
             <span class="tag">쿠팡 ₩145,000</span>
           </div>
@@ -1438,7 +1438,7 @@
             <span class="opt-color-dot" style="background:#7B4F2C;"></span>
             <strong style="font-size:15px;">메이트-브라운-235</strong>
             <span class="status urgent-text"><span class="dot urgent"></span>최저가 소싱 품절</span>
-            <span style="margin-left:auto; font-size:12.5px; color:var(--t4);">5분 전 갱신</span>
+            <span style="margin-left:auto; font-size: 14px; color:var(--t4);">5분 전 갱신</span>
           </div>
 
           <div class="stat-row">
@@ -1465,7 +1465,7 @@
           </div>
 
           <div class="ts-chart">
-            <div style="display:flex; gap:18px; font-size:12px; margin-bottom:6px;">
+            <div style="display:flex; gap:18px; font-size: 14px; margin-bottom:6px;">
               <span><span style="display:inline-block; width:14px; height:2px; background:var(--primary); vertical-align:middle; margin-right:4px;"></span>르무통 (품절 진입)</span>
               <span><span style="display:inline-block; width:14px; height:2px; background:var(--t4); vertical-align:middle; margin-right:4px;"></span>무신사 (대체)</span>
             </div>
@@ -1499,7 +1499,7 @@
 
           <div class="timeline">
             <div class="timeline-toggle open" onclick="this.classList.toggle('open')">
-              <span class="arrow">▸</span> 이벤트 타임라인 <span style="font-weight:500; color:var(--t4); font-size:12px;">3건 · 최근 7일</span>
+              <span class="arrow">▸</span> 이벤트 타임라인 <span style="font-weight:500; color:var(--t4); font-size: 14px;">3건 · 최근 7일</span>
             </div>
             <div class="timeline-body">
               <div class="event">
@@ -1542,7 +1542,7 @@
             <span class="opt-color-dot" style="background:#1a1a1a;"></span>
             <strong style="font-size:15px;">메이트-블랙-270</strong>
             <span class="status urgent-text"><span class="dot urgent"></span>최저가 소싱 품절</span>
-            <span style="margin-left:auto; font-size:12.5px; color:var(--t4);">5분 전 갱신</span>
+            <span style="margin-left:auto; font-size: 14px; color:var(--t4);">5분 전 갱신</span>
           </div>
           <table style="border:none; margin: 0;">
             <thead>
@@ -1668,7 +1668,7 @@
                 <span class="opt-color-dot" style="background:#1a1a1a;"></span>블랙
                 <span class="opt-color-dot" style="background:#7B4F2C; margin-left:8px;"></span>브라운
                 <span class="opt-color-dot" style="background:#F5E6D3; margin-left:8px;"></span>아이보리
-                <span style="color:var(--t4); font-size:12px; margin-left:8px;">+ 6</span>
+                <span style="color:var(--t4); font-size: 14px; margin-left:8px;">+ 6</span>
               </td>
               <td>2개</td>
               <td><button class="btn-link">편집</button></td>
@@ -1677,7 +1677,7 @@
               <td>
                 <span class="opt-color-dot" style="background:#1a1a1a;"></span>블랙
                 <span class="opt-color-dot" style="background:#FF6B6B; margin-left:8px;"></span>오렌지
-                <span style="color:var(--t4); font-size:12px; margin-left:8px;">+ 3</span>
+                <span style="color:var(--t4); font-size: 14px; margin-left:8px;">+ 3</span>
               </td>
               <td>0개</td>
               <td><button class="btn-link">편집</button></td>
@@ -1747,7 +1747,7 @@
     </div>
     <div class="wizard-pane" data-pane="3">
       <h3>자동 로그인 검증 중</h3>
-      <div style="background:var(--bg); border-radius:8px; padding:14px; font-family:'JetBrains Mono', monospace; font-size:12.5px; color:var(--t2);">
+      <div style="background:var(--bg); border-radius:8px; padding:14px; font-family:'JetBrains Mono', monospace; font-size: 14px; color:var(--t2);">
         <div>● Chromium 부팅 (1.2s)</div>
         <div>● 로그인 페이지 로드 (0.8s)</div>
         <div>● 자격증명 입력 (0.3s)</div>

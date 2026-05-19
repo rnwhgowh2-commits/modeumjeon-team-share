@@ -4,7 +4,7 @@
 {# 박스히어로 1:1 묶음제품 편집. #}
 <div style="padding:24px 32px;max-width:900px;margin:0 auto">
   <div style="display:flex;align-items:center;gap:14px;margin-bottom:14px">
-    <a href="{{ url_for('inventory.data_bundles') }}" style="font-size:12.5px;color:#4F67FF;text-decoration:none">데이터 관리 / 묶음제품</a>
+    <a href="{{ url_for('inventory.data_bundles') }}" style="font-size: 14px;color:#4F67FF;text-decoration:none">데이터 관리 / 묶음제품</a>
     <h1 style="font-size:22px;font-weight:700;margin:0;color:#292A2F">{{ '묶음 편집' if bundle else '새 묶음' }}</h1>
   </div>
 
@@ -12,7 +12,7 @@
     <div>
       <label style="display:block;font-size:13px;color:#292A2F;margin-bottom:6px;font-weight:600">묶음 SKU *</label>
       <input name="sku" value="{{ bundle.sku if bundle else '' }}" placeholder="BUNDLE-GIFT-A" required style="width:430px;max-width:100%;padding:9px 12px;border:1px solid #CBCCD3;border-radius:6px;font-size:13.5px;color:#292A2F;font-family:ui-monospace,monospace">
-      <div style="font-size:11.5px;color:#8F91A0;margin-top:4px">단일 SKU 와 충돌하지 않는 고유 식별자.</div>
+      <div style="font-size: 14px;color:#8F91A0;margin-top:4px">단일 SKU 와 충돌하지 않는 고유 식별자.</div>
     </div>
 
     <div>
@@ -23,22 +23,22 @@
     <div>
       <div style="display:flex;align-items:center;margin-bottom:8px">
         <label style="font-size:13px;color:#292A2F;font-weight:600">구성 SKU</label>
-        <button type="button" onclick="addComponent()" style="margin-left:auto;background:#fff;border:1px solid #CBCCD3;color:#292A2F;padding:6px 12px;border-radius:5px;font-size:12.5px;cursor:pointer">+ 구성 추가</button>
+        <button type="button" onclick="addComponent()" style="margin-left:auto;background:#fff;border:1px solid #CBCCD3;color:#292A2F;padding:6px 12px;border-radius:5px;font-size: 14px;cursor:pointer">+ 구성 추가</button>
       </div>
-      <table style="width:100%;border-collapse:collapse;font-size:12.5px;border:1px solid #E5E8EB;border-radius:6px;overflow:hidden">
+      <table style="width:100%;border-collapse:collapse;font-size: 14px;border:1px solid #E5E8EB;border-radius:6px;overflow:hidden">
         <thead style="background:#F1F1F4">
           <tr>
-            <th style="padding:10px 8px;text-align:left;font-size:11.5px;color:#292A2F;font-weight:600">단일 SKU</th>
-            <th style="padding:10px 8px;text-align:right;font-size:11.5px;color:#292A2F;font-weight:600;width:120px">수량</th>
-            <th style="padding:10px 8px;text-align:center;font-size:11px;color:#8F91A0;width:40px"></th>
+            <th style="padding:10px 8px;text-align:left;font-size: 14px;color:#292A2F;font-weight:600">단일 SKU</th>
+            <th style="padding:10px 8px;text-align:right;font-size: 14px;color:#292A2F;font-weight:600;width:120px">수량</th>
+            <th style="padding:10px 8px;text-align:center;font-size: 14px;color:#8F91A0;width:40px"></th>
           </tr>
         </thead>
         <tbody id="components">
           {% if bundle and bundle.components %}
             {% for c in bundle.components %}
               <tr style="border-top:1px solid #F1F1F4">
-                <td style="padding:5px 6px"><input list="opt_options" name="comp_sku" value="{{ c.sku }}" required style="width:100%;padding:6px;border:1px solid #CBCCD3;border-radius:4px;font-size:12px;color:#292A2F;font-family:ui-monospace,monospace"></td>
-                <td style="padding:5px 6px"><input type="number" name="comp_qty" min="1" value="{{ c.qty }}" required style="width:100%;padding:6px;border:1px solid #CBCCD3;border-radius:4px;font-size:12px;text-align:right"></td>
+                <td style="padding:5px 6px"><input list="opt_options" name="comp_sku" value="{{ c.sku }}" required style="width:100%;padding:6px;border:1px solid #CBCCD3;border-radius:4px;font-size: 14px;color:#292A2F;font-family:ui-monospace,monospace"></td>
+                <td style="padding:5px 6px"><input type="number" name="comp_qty" min="1" value="{{ c.qty }}" required style="width:100%;padding:6px;border:1px solid #CBCCD3;border-radius:4px;font-size: 14px;text-align:right"></td>
                 <td style="padding:5px 6px;text-align:center"><button type="button" onclick="this.closest('tr').remove()" style="background:none;border:none;color:#8F91A0;cursor:pointer;font-size:14px">×</button></td>
               </tr>
             {% endfor %}
@@ -53,7 +53,7 @@
     <div>
       <label style="display:block;font-size:13px;color:#292A2F;margin-bottom:6px;font-weight:600">묶음 가격 (원)</label>
       <input type="number" name="price" min="0" value="{{ bundle.price if bundle else 0 }}" style="width:200px;padding:9px 12px;border:1px solid #CBCCD3;border-radius:6px;font-size:13.5px;text-align:right">
-      <div style="font-size:11.5px;color:#8F91A0;margin-top:4px">개별 가격 합산 ❌ — 별도 묶음 가격.</div>
+      <div style="font-size: 14px;color:#8F91A0;margin-top:4px">개별 가격 합산 ❌ — 별도 묶음 가격.</div>
     </div>
 
     <div>
@@ -73,8 +73,8 @@ function addComponent(){
   const tb = document.getElementById('components');
   const tr = document.createElement('tr');
   tr.style.borderTop = '1px solid #F1F1F4';
-  tr.innerHTML = '<td style="padding:5px 6px"><input list="opt_options" name="comp_sku" required style="width:100%;padding:6px;border:1px solid #CBCCD3;border-radius:4px;font-size:12px;font-family:ui-monospace,monospace"></td>'
-              + '<td style="padding:5px 6px"><input type="number" name="comp_qty" min="1" value="1" required style="width:100%;padding:6px;border:1px solid #CBCCD3;border-radius:4px;font-size:12px;text-align:right"></td>'
+  tr.innerHTML = '<td style="padding:5px 6px"><input list="opt_options" name="comp_sku" required style="width:100%;padding:6px;border:1px solid #CBCCD3;border-radius:4px;font-size: 14px;font-family:ui-monospace,monospace"></td>'
+              + '<td style="padding:5px 6px"><input type="number" name="comp_qty" min="1" value="1" required style="width:100%;padding:6px;border:1px solid #CBCCD3;border-radius:4px;font-size: 14px;text-align:right"></td>'
               + '<td style="padding:5px 6px;text-align:center"><button type="button" onclick="this.closest(\'tr\').remove()" style="background:none;border:none;color:#8F91A0;cursor:pointer;font-size:14px">×</button></td>';
   tb.appendChild(tr);
 }

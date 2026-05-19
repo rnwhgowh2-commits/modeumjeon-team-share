@@ -6,7 +6,7 @@
   .mockup-section { margin-bottom: 60px; padding: 24px; background: #fafbfc; border-radius: 12px; border: 1px solid #eaecef; }
   .mockup-title { font-size: 22px; font-weight: 700; margin: 0 0 4px; }
   .mockup-tagline { font-size: 13px; color: #666; margin-bottom: 18px; }
-  .pros, .cons { display: inline-block; font-size: 12px; padding: 3px 10px; border-radius: 12px; margin-right: 6px; font-weight: 600; }
+  .pros, .cons { display: inline-block; font-size: 14px; padding: 3px 10px; border-radius: 12px; margin-right: 6px; font-weight: 600; }
   .pros { background: #dcfce7; color: #16a34a; }
   .cons { background: #fee2e2; color: #dc2626; }
 
@@ -22,19 +22,19 @@
 
   /* 임시저장 항목 공용 스타일 */
   .draft-row { padding: 10px 12px; border-radius: 8px; background: #fff8f1; border: 1px solid #fde4c5; margin-bottom: 8px; font-size: 13px; }
-  .draft-row .draft-meta { font-size: 11px; color: #92400e; margin-bottom: 4px; }
+  .draft-row .draft-meta { font-size: 14px; color: #92400e; margin-bottom: 4px; }
   .draft-row .draft-key { font-family: ui-monospace, monospace; color: #1f2937; font-weight: 600; }
   .draft-actions { display: flex; gap: 6px; margin-top: 8px; }
-  .draft-actions a, .draft-actions button { padding: 4px 10px; border: 1px solid #fde4c5; background: #fff; border-radius: 6px; font-size: 11px; cursor: pointer; text-decoration: none; color: #92400e; }
+  .draft-actions a, .draft-actions button { padding: 4px 10px; border: 1px solid #fde4c5; background: #fff; border-radius: 6px; font-size: 14px; cursor: pointer; text-decoration: none; color: #92400e; }
   .draft-actions a:hover, .draft-actions button:hover { background: #fef3e2; }
 
   /* ===== 시안 A — Sticky Right Card ===== */
   .a-sidebar { width: 280px; flex-shrink: 0; position: sticky; top: 12px; align-self: flex-start; background: #fffbf2; border: 1px solid #fde4c5; border-radius: 10px; padding: 14px; }
   .a-sidebar h3 { font-size: 14px; margin: 0 0 4px; color: #92400e; }
-  .a-sidebar .sub { font-size: 11px; color: #b45309; margin-bottom: 12px; }
+  .a-sidebar .sub { font-size: 14px; color: #b45309; margin-bottom: 12px; }
 
   /* ===== 시안 B — Slide-out Drawer ===== */
-  .b-tab { position: absolute; right: 0; top: 50%; transform: translateY(-50%) rotate(-90deg); transform-origin: right center; background: #f59e0b; color: #fff; padding: 6px 14px; font-size: 12px; font-weight: 700; border-radius: 6px 6px 0 0; cursor: pointer; box-shadow: -2px 0 8px rgba(0,0,0,0.1); }
+  .b-tab { position: absolute; right: 0; top: 50%; transform: translateY(-50%) rotate(-90deg); transform-origin: right center; background: #f59e0b; color: #fff; padding: 6px 14px; font-size: 14px; font-weight: 700; border-radius: 6px 6px 0 0; cursor: pointer; box-shadow: -2px 0 8px rgba(0,0,0,0.1); }
   .b-drawer { position: absolute; top: 0; right: 0; height: 100%; width: 320px; background: #fffbf2; border-left: 1px solid #fde4c5; padding: 18px; box-shadow: -4px 0 12px rgba(0,0,0,0.08); transform: translateX(100%); transition: transform 0.25s; overflow-y: auto; }
   .b-drawer.open { transform: translateX(0); }
   .b-drawer h3 { font-size: 14px; margin: 0 0 4px; color: #92400e; }
@@ -42,7 +42,7 @@
 
   /* ===== 시안 C — Floating Bubble ===== */
   .c-fab { position: absolute; right: 20px; bottom: 20px; background: #f59e0b; color: #fff; padding: 12px 16px; border-radius: 30px; font-size: 13px; font-weight: 700; cursor: pointer; box-shadow: 0 4px 12px rgba(245, 158, 11, 0.4); display: flex; align-items: center; gap: 8px; }
-  .c-fab .badge { background: #fff; color: #f59e0b; border-radius: 12px; padding: 2px 8px; font-size: 11px; }
+  .c-fab .badge { background: #fff; color: #f59e0b; border-radius: 12px; padding: 2px 8px; font-size: 14px; }
   .c-popup { position: absolute; right: 20px; bottom: 70px; width: 320px; background: #fff; border: 1px solid #e5e7eb; border-radius: 12px; box-shadow: 0 8px 24px rgba(0,0,0,0.12); padding: 14px; }
   .c-popup h3 { font-size: 14px; margin: 0 0 10px; color: #92400e; display: flex; justify-content: space-between; align-items: center; }
 </style>
@@ -134,7 +134,7 @@
       <div class="b-drawer">
         <button class="close" onclick="document.querySelector('#b-frame .b-drawer').classList.remove('open')">✕</button>
         <h3>💾 임시저장 (2개)</h3>
-        <div class="sub" style="font-size:11px;color:#b45309;margin-bottom:12px">localStorage 자동 백업</div>
+        <div class="sub" style="font-size: 14px;color:#b45309;margin-bottom:12px">localStorage 자동 백업</div>
         <div class="draft-row">
           <div class="draft-meta">5분 전 · 마켓 연동</div>
           <div class="draft-key">13153051689 → 클래식</div>
@@ -153,7 +153,7 @@
         </div>
       </div>
     </div>
-    <p style="margin-top:8px;font-size:12px;color:#666">↑ 우측 가장자리의 「💾 임시저장 (2)」 탭 클릭하면 슬라이드.</p>
+    <p style="margin-top:8px;font-size: 14px;color:#666">↑ 우측 가장자리의 「💾 임시저장 (2)」 탭 클릭하면 슬라이드.</p>
   </div>
 
   {# ============================ 시안 C ============================ #}
@@ -206,7 +206,7 @@
         💾 임시저장 <span class="badge">2</span>
       </div>
     </div>
-    <p style="margin-top:8px;font-size:12px;color:#666">↑ 우측 하단 노란 버블 (Floating Action Button) 클릭하면 popup.</p>
+    <p style="margin-top:8px;font-size: 14px;color:#666">↑ 우측 하단 노란 버블 (Floating Action Button) 클릭하면 popup.</p>
   </div>
 
   {# 결정 #}

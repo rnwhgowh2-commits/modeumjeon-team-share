@@ -5,9 +5,9 @@
 <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
 <div style="padding:24px 32px;max-width:1500px;margin:0 auto">
   <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px">
-    <div style="font-size:12.5px;color:#8F91A0">바코드 인쇄</div>
+    <div style="font-size: 14px;color:#8F91A0">바코드 인쇄</div>
     <h1 style="font-size:22px;font-weight:700;margin:0;color:#292A2F">제품</h1>
-    <span title="좌측에서 디자인+제품 선택 → 우측 라이브 미리보기 → 인쇄" style="display:inline-flex;align-items:center;justify-content:center;width:14px;height:14px;border-radius:50%;background:#F1F1F4;color:#8F91A0;font-size:9.5px;font-weight:700;cursor:help">i</span>
+    <span title="좌측에서 디자인+제품 선택 → 우측 라이브 미리보기 → 인쇄" style="display:inline-flex;align-items:center;justify-content:center;width:14px;height:14px;border-radius:50%;background:#F1F1F4;color:#8F91A0;font-size: 12px;font-weight:700;cursor:help">i</span>
   </div>
 
   <div style="display:grid;grid-template-columns:1fr 1.4fr;gap:18px">
@@ -18,25 +18,25 @@
       <div style="background:#fff;border:1px solid #E5E8EB;border-radius:8px;padding:18px;margin-bottom:14px">
         <div style="display:flex;align-items:center;margin-bottom:12px">
           <h2 style="font-size:14px;font-weight:600;margin:0;color:#292A2F">라벨 디자인</h2>
-          <button type="button" onclick="openPaperModal()" style="margin-left:auto;background:none;border:none;font-size:11.5px;color:#4F67FF;font-weight:600;cursor:pointer">용지 설정하기 ▾</button>
+          <button type="button" onclick="openPaperModal()" style="margin-left:auto;background:none;border:none;font-size: 14px;color:#4F67FF;font-weight:600;cursor:pointer">용지 설정하기 ▾</button>
         </div>
 
         {# ── 디자인 시안 3종 (1/3/5) — 박스히어로 + 강조 + 사이즈 대형 ── #}
         <div style="display:flex;gap:6px;margin-bottom:10px;background:#F1F1F4;padding:4px;border-radius:6px">
-          <button type="button" class="ds-tab" data-design="1" onclick="setDesign('1')" style="flex:1;padding:7px 10px;border:none;background:transparent;color:#292A2F;border-radius:4px;font-size:11.5px;font-weight:600;cursor:pointer">1 · 표준</button>
-          <button type="button" class="ds-tab" data-design="3" onclick="setDesign('3')" style="flex:1;padding:7px 10px;border:none;background:transparent;color:#292A2F;border-radius:4px;font-size:11.5px;font-weight:600;cursor:pointer">3 · 제품명 강조</button>
-          <button type="button" class="ds-tab" data-design="5" onclick="setDesign('5')" style="flex:1;padding:7px 10px;border:none;background:transparent;color:#292A2F;border-radius:4px;font-size:11.5px;font-weight:600;cursor:pointer">5 · 사이즈 대형</button>
+          <button type="button" class="ds-tab" data-design="1" onclick="setDesign('1')" style="flex:1;padding:7px 10px;border:none;background:transparent;color:#292A2F;border-radius:4px;font-size: 14px;font-weight:600;cursor:pointer">1 · 표준</button>
+          <button type="button" class="ds-tab" data-design="3" onclick="setDesign('3')" style="flex:1;padding:7px 10px;border:none;background:transparent;color:#292A2F;border-radius:4px;font-size: 14px;font-weight:600;cursor:pointer">3 · 제품명 강조</button>
+          <button type="button" class="ds-tab" data-design="5" onclick="setDesign('5')" style="flex:1;padding:7px 10px;border:none;background:transparent;color:#292A2F;border-radius:4px;font-size: 14px;font-weight:600;cursor:pointer">5 · 사이즈 대형</button>
         </div>
 
         {# 디자인 미리보기 카드 — 동적 렌더링 #}
         <div id="designPreview" style="border:2px solid #4F67FF;border-radius:8px;background:#fff;color:#000;text-align:center;margin-bottom:6px;min-height:120px;overflow:hidden"></div>
 
         {# 폰트·여백 설정 토글 #}
-        <button type="button" onclick="document.getElementById('designSettings').style.display=document.getElementById('designSettings').style.display==='none'?'block':'none'" style="margin-top:8px;background:none;border:none;font-size:11.5px;color:#4F67FF;font-weight:600;cursor:pointer;padding:0">⚙ 폰트·여백 설정 ▾</button>
+        <button type="button" onclick="document.getElementById('designSettings').style.display=document.getElementById('designSettings').style.display==='none'?'block':'none'" style="margin-top:8px;background:none;border:none;font-size: 14px;color:#4F67FF;font-weight:600;cursor:pointer;padding:0">⚙ 폰트·여백 설정 ▾</button>
         <div id="designSettings" style="display:none;margin-top:10px;padding:12px;background:#F1F1F4;border-radius:6px">
           {# 폰트 크기 + 굵기 (3 행) #}
-          <div style="font-size:10.5px;color:#8F91A0;font-weight:600;margin-bottom:5px">폰트</div>
-          <div style="display:grid;grid-template-columns:60px 1fr 60px;gap:6px;font-size:11px;margin-bottom:8px;align-items:center">
+          <div style="font-size: 12px;color:#8F91A0;font-weight:600;margin-bottom:5px">폰트</div>
+          <div style="display:grid;grid-template-columns:60px 1fr 60px;gap:6px;font-size: 14px;margin-bottom:8px;align-items:center">
             <span>제품명</span>
             <input type="number" id="cs_name" step="0.5" min="5" max="20" style="width:100%;padding:6px;border:1px solid #CBCCD3;border-radius:4px">
             <select id="cs_w_name" style="padding:6px;border:1px solid #CBCCD3;border-radius:4px;background:#fff"><option value="400">L</option><option value="600">M</option><option value="700">B</option></select>
@@ -48,70 +48,70 @@
             <select id="cs_w_code" style="padding:6px;border:1px solid #CBCCD3;border-radius:4px;background:#fff"><option value="400">L</option><option value="600">M</option><option value="700">B</option></select>
           </div>
           {# 바코드 높이 + 외곽 여백 #}
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:11px;margin-bottom:8px">
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size: 14px;margin-bottom:8px">
             <label>바코드 높이 (mm)<input type="number" id="cs_bch" step="0.5" min="6" max="20" style="width:100%;padding:6px;border:1px solid #CBCCD3;border-radius:4px;margin-top:2px"></label>
             <label>외곽 여백 (mm)<input type="number" id="cs_pad" step="0.1" min="0" max="5" style="width:100%;padding:6px;border:1px solid #CBCCD3;border-radius:4px;margin-top:2px"></label>
           </div>
           {# 요소 간 여백 (3 단계) #}
-          <div style="font-size:10.5px;color:#8F91A0;font-weight:600;margin:8px 0 5px">요소 간 여백 (mm)</div>
-          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;font-size:11px">
-            <label style="font-size:10.5px">제품명↔속성<input type="number" id="cs_gap_na" step="0.1" min="-5" max="5" style="width:100%;padding:6px;border:1px solid #CBCCD3;border-radius:4px;margin-top:2px"></label>
-            <label style="font-size:10.5px">속성↔바코드<input type="number" id="cs_gap_ab" step="0.1" min="-5" max="5" style="width:100%;padding:6px;border:1px solid #CBCCD3;border-radius:4px;margin-top:2px"></label>
-            <label style="font-size:10.5px">바코드↔코드<input type="number" id="cs_gap_bc" step="0.1" min="-5" max="5" style="width:100%;padding:6px;border:1px solid #CBCCD3;border-radius:4px;margin-top:2px"></label>
+          <div style="font-size: 12px;color:#8F91A0;font-weight:600;margin:8px 0 5px">요소 간 여백 (mm)</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;font-size: 14px">
+            <label style="font-size: 12px">제품명↔속성<input type="number" id="cs_gap_na" step="0.1" min="-5" max="5" style="width:100%;padding:6px;border:1px solid #CBCCD3;border-radius:4px;margin-top:2px"></label>
+            <label style="font-size: 12px">속성↔바코드<input type="number" id="cs_gap_ab" step="0.1" min="-5" max="5" style="width:100%;padding:6px;border:1px solid #CBCCD3;border-radius:4px;margin-top:2px"></label>
+            <label style="font-size: 12px">바코드↔코드<input type="number" id="cs_gap_bc" step="0.1" min="-5" max="5" style="width:100%;padding:6px;border:1px solid #CBCCD3;border-radius:4px;margin-top:2px"></label>
           </div>
           <div style="display:flex;gap:6px;margin-top:10px">
-            <button type="button" onclick="resetDesignSettings()" style="flex:1;padding:7px;background:#fff;border:1px solid #CBCCD3;color:#292A2F;border-radius:5px;font-size:11.5px;cursor:pointer">기본값 복원</button>
-            <span style="flex:2;align-self:center;font-size:10.5px;color:#8F91A0">★ localStorage 자동 저장</span>
+            <button type="button" onclick="resetDesignSettings()" style="flex:1;padding:7px;background:#fff;border:1px solid #CBCCD3;color:#292A2F;border-radius:5px;font-size: 14px;cursor:pointer">기본값 복원</button>
+            <span style="flex:2;align-self:center;font-size: 12px;color:#8F91A0">★ localStorage 자동 저장</span>
           </div>
         </div>
-        <div style="text-align:center;font-size:11.5px;color:#8F91A0;margin-top:8px">기본_바코드(신발)<br><strong style="color:#292A2F">{{ template.name }}</strong></div>
+        <div style="text-align:center;font-size: 14px;color:#8F91A0;margin-top:8px">기본_바코드(신발)<br><strong style="color:#292A2F">{{ template.name }}</strong></div>
 
         {# 라벨 용지 선택 panel (legacy inline, 모달이 메인) #}
         <div id="templatePanel" style="display:none;margin-top:14px;padding-top:14px;border-top:1px solid #E5E8EB">
-          <h3 style="font-size:12.5px;font-weight:600;margin:0 0 10px;color:#292A2F">용지 설정</h3>
+          <h3 style="font-size: 14px;font-weight:600;margin:0 0 10px;color:#292A2F">용지 설정</h3>
           <form method="get" id="tplForm">
             <input type="hidden" name="cutline" value="{% if cutline %}1{% else %}0{% endif %}">
             <div style="display:flex;gap:14px;margin-bottom:10px">
-              <label style="display:flex;align-items:center;gap:5px;font-size:12.5px;color:#292A2F;cursor:pointer">
+              <label style="display:flex;align-items:center;gap:5px;font-size: 14px;color:#292A2F;cursor:pointer">
                 <input type="radio" name="tpl_mode" value="preset" {% if template_key != 'custom' %}checked{% endif %} onchange="toggleTplMode()" style="accent-color:#4F67FF"> 라벨 용지
               </label>
-              <label style="display:flex;align-items:center;gap:5px;font-size:12.5px;color:#292A2F;cursor:pointer">
+              <label style="display:flex;align-items:center;gap:5px;font-size: 14px;color:#292A2F;cursor:pointer">
                 <input type="radio" name="tpl_mode" value="thermal" {% if template_key in ['thermal_60_35','thermal_50_30'] %}checked{% endif %} onchange="toggleTplMode()" style="accent-color:#4F67FF"> 감열지
               </label>
-              <label style="display:flex;align-items:center;gap:5px;font-size:12.5px;color:#292A2F;cursor:pointer">
+              <label style="display:flex;align-items:center;gap:5px;font-size: 14px;color:#292A2F;cursor:pointer">
                 <input type="radio" name="tpl_mode" value="custom" {% if template_key == 'custom' %}checked{% endif %} onchange="toggleTplMode()" style="accent-color:#4F67FF"> 사용자 정의
               </label>
             </div>
-            <select name="template" onchange="changeTemplate(this.value)" style="width:100%;padding:9px 12px;border:1px solid #CBCCD3;border-radius:5px;font-size:12.5px;color:#292A2F;background:#fff">
+            <select name="template" onchange="changeTemplate(this.value)" style="width:100%;padding:9px 12px;border:1px solid #CBCCD3;border-radius:5px;font-size: 14px;color:#292A2F;background:#fff">
               {% for key, t in templates.items() %}<option value="{{ key }}" {% if template_key == key %}selected{% endif %}>{{ t.name }}</option>{% endfor %}
               <option value="custom" {% if template_key == 'custom' %}selected{% endif %}>사용자 정의 (직접 입력)</option>
             </select>
 
             {# 사용자 정의 입력 — 가로 X개 × 세로 X개 (A4 자동 분할) #}
             <div id="customPanel" style="display:{% if template_key == 'custom' %}block{% else %}none{% endif %};margin-top:12px;padding:14px;background:#EEF1FE;border-radius:6px;border:1px solid #4F67FF">
-              <div style="font-size:12px;color:#1E40AF;font-weight:600;margin-bottom:10px">📐 A4 (210×297mm) 자동 분할 — 가로 / 세로 칸 수만 입력</div>
+              <div style="font-size: 14px;color:#1E40AF;font-weight:600;margin-bottom:10px">📐 A4 (210×297mm) 자동 분할 — 가로 / 세로 칸 수만 입력</div>
               <div style="display:flex;gap:10px;align-items:end">
                 <div style="flex:1">
-                  <label style="display:block;font-size:11.5px;color:#292A2F;margin-bottom:3px">가로</label>
+                  <label style="display:block;font-size: 14px;color:#292A2F;margin-bottom:3px">가로</label>
                   <div style="display:flex;align-items:center;gap:4px">
                     <input type="number" name="cols" value="{{ custom_args.cols or 4 }}" min="1" max="20" oninput="liveCustomPreview()" style="width:100%;padding:8px;border:1px solid #CBCCD3;border-radius:4px;font-size:14px;text-align:center;font-weight:600">
-                    <span style="font-size:11.5px;color:#8F91A0">개</span>
+                    <span style="font-size: 14px;color:#8F91A0">개</span>
                   </div>
                 </div>
                 <span style="font-size:18px;color:#8F91A0;padding-bottom:6px">×</span>
                 <div style="flex:1">
-                  <label style="display:block;font-size:11.5px;color:#292A2F;margin-bottom:3px">세로</label>
+                  <label style="display:block;font-size: 14px;color:#292A2F;margin-bottom:3px">세로</label>
                   <div style="display:flex;align-items:center;gap:4px">
                     <input type="number" name="rows" value="{{ custom_args.rows or 10 }}" min="1" max="30" oninput="liveCustomPreview()" style="width:100%;padding:8px;border:1px solid #CBCCD3;border-radius:4px;font-size:14px;text-align:center;font-weight:600">
-                    <span style="font-size:11.5px;color:#8F91A0">개</span>
+                    <span style="font-size: 14px;color:#8F91A0">개</span>
                   </div>
                 </div>
                 <button type="button" onclick="applyCustom()" style="background:#4F67FF;color:#fff;padding:9px 18px;border:none;border-radius:5px;font-size:13px;font-weight:600;cursor:pointer">적용</button>
               </div>
-              <div id="customPreviewInfo" style="margin-top:10px;font-size:11.5px;color:#1E40AF;line-height:1.7"></div>
+              <div id="customPreviewInfo" style="margin-top:10px;font-size: 14px;color:#1E40AF;line-height:1.7"></div>
             </div>
 
-            <div style="margin-top:10px;font-size:11px;color:#8F91A0;line-height:1.7">★ {{ template.cols }}×{{ template.rows }} = {{ template.per_page }}칸 / 라벨 {{ template.label_w }}×{{ template.label_h }}mm / 용지 {{ template.paper_w }}×{{ template.paper_h }}mm<br>★ 순서: 좌상단(1) → 우→ 다음 행(2)</div>
+            <div style="margin-top:10px;font-size: 14px;color:#8F91A0;line-height:1.7">★ {{ template.cols }}×{{ template.rows }} = {{ template.per_page }}칸 / 라벨 {{ template.label_w }}×{{ template.label_h }}mm / 용지 {{ template.paper_w }}×{{ template.paper_h }}mm<br>★ 순서: 좌상단(1) → 우→ 다음 행(2)</div>
           </form>
         </div>
       </div>
@@ -120,26 +120,26 @@
       <div style="background:#fff;border:1px solid #E5E8EB;border-radius:8px;padding:18px">
         <div style="display:flex;align-items:center;margin-bottom:12px">
           <h2 style="font-size:14px;font-weight:600;margin:0;color:#292A2F">제품 선택</h2>
-          <button type="button" onclick="bulkAdd()" style="margin-left:auto;background:#fff;border:1px solid #CBCCD3;color:#292A2F;padding:6px 12px;border-radius:5px;font-size:11.5px;cursor:pointer;font-weight:600">⊕ 일괄 추가</button>
-          <button type="button" style="margin-left:6px;background:#fff;border:1px solid #CBCCD3;color:#292A2F;padding:6px 12px;border-radius:5px;font-size:11.5px;cursor:pointer;font-weight:600">📁 엑셀 가져오기</button>
+          <button type="button" onclick="bulkAdd()" style="margin-left:auto;background:#fff;border:1px solid #CBCCD3;color:#292A2F;padding:6px 12px;border-radius:5px;font-size: 14px;cursor:pointer;font-weight:600">⊕ 일괄 추가</button>
+          <button type="button" style="margin-left:6px;background:#fff;border:1px solid #CBCCD3;color:#292A2F;padding:6px 12px;border-radius:5px;font-size: 14px;cursor:pointer;font-weight:600">📁 엑셀 가져오기</button>
         </div>
 
         <form method="post" action="{{ url_for('inventory.barcode_print') }}" target="_blank" id="printForm">
           <input type="hidden" name="template" value="{{ template_key }}">
           <input type="hidden" name="cutline" id="cutlineInput" value="{% if cutline %}1{% else %}0{% endif %}">
-          <table style="width:100%;border-collapse:collapse;font-size:12.5px;border:1px solid #E5E8EB;border-radius:5px;overflow:hidden">
+          <table style="width:100%;border-collapse:collapse;font-size: 14px;border:1px solid #E5E8EB;border-radius:5px;overflow:hidden">
             <thead style="background:#F1F1F4"><tr>
               <th style="padding:9px 8px;text-align:center;width:36px"><input type="checkbox" id="checkAll" onclick="toggleAll(this)" style="accent-color:#4F67FF"></th>
-              <th style="padding:9px 8px;text-align:left;font-size:11.5px;color:#292A2F;font-weight:600">제품</th>
-              <th style="padding:9px 8px;text-align:right;font-size:11.5px;color:#292A2F;font-weight:600;width:90px">인쇄 수량</th>
+              <th style="padding:9px 8px;text-align:left;font-size: 14px;color:#292A2F;font-weight:600">제품</th>
+              <th style="padding:9px 8px;text-align:right;font-size: 14px;color:#292A2F;font-weight:600;width:90px">인쇄 수량</th>
             </tr></thead>
             <tbody id="prodTbody">
               <tr id="searchRow" style="border-top:1px solid #F1F1F4">
                 <td colspan="3" style="padding:8px">
-                  <input id="prodSearch" type="text" placeholder="제품 검색 — SKU·이름·바코드" oninput="filterProducts()" style="width:100%;padding:9px 12px;border:1px dashed #CBCCD3;border-radius:5px;font-size:12.5px;color:#292A2F;background:#FAFBFC">
+                  <input id="prodSearch" type="text" placeholder="제품 검색 — SKU·이름·바코드" oninput="filterProducts()" style="width:100%;padding:9px 12px;border:1px dashed #CBCCD3;border-radius:5px;font-size: 14px;color:#292A2F;background:#FAFBFC">
                 </td>
               </tr>
-              <tr id="emptyHint"><td colspan="3" style="padding:24px;text-align:center;color:#8F91A0;font-size:12.5px">검색어 입력 시 제품이 노출됩니다 (또는 선택한 제품만 표시)</td></tr>
+              <tr id="emptyHint"><td colspan="3" style="padding:24px;text-align:center;color:#8F91A0;font-size: 14px">검색어 입력 시 제품이 노출됩니다 (또는 선택한 제품만 표시)</td></tr>
               {% for o in options %}
                 <tr class="prod-row" style="border-top:1px solid #F1F1F4;display:none" data-search="{{ o.canonical_sku }} {{ o.color_display or o.color_code }} {{ o.size_display or o.size_code }} {{ o.boxhero_sku or '' }}">
                   <td style="padding:8px;text-align:center"><input type="checkbox" name="sku" value="{{ o.canonical_sku }}" data-name="{{ (o.model.model_name_display or o.model.model_name_raw) if o.model else o.canonical_sku }}" data-size="{{ o.size_display or o.size_code or 'free' }}" data-color="{{ o.color_display or o.color_code or 'one' }}" data-bh="{{ o.barcode or o.boxhero_sku or '' }}" style="accent-color:#4F67FF"></td>
@@ -148,23 +148,23 @@
                       {% if o.image_url %}<img src="{{ o.image_url }}" style="width:32px;height:32px;border-radius:4px;object-fit:cover">
                       {% else %}<div style="width:32px;height:32px;border-radius:4px;background:#F1F1F4;display:flex;align-items:center;justify-content:center;font-size:14px;color:#8F91A0">👟</div>{% endif %}
                       <div>
-                        <div style="font-size:12px;font-weight:600;color:#292A2F">{{ o.canonical_sku }}</div>
-                        <div style="font-size:10.5px;color:#8F91A0">{{ o.size_display or o.size_code or 'free' }} · {{ o.color_display or o.color_code or 'one' }}</div>
+                        <div style="font-size: 14px;font-weight:600;color:#292A2F">{{ o.canonical_sku }}</div>
+                        <div style="font-size: 12px;color:#8F91A0">{{ o.size_display or o.size_code or 'free' }} · {{ o.color_display or o.color_code or 'one' }}</div>
                       </div>
                     </div>
                   </td>
-                  <td style="padding:5px 8px;text-align:right"><input type="number" name="qty_{{ o.canonical_sku }}" value="1" min="1" max="200" style="width:70px;padding:5px;border:1px solid #CBCCD3;border-radius:4px;font-size:11.5px;text-align:right"></td>
+                  <td style="padding:5px 8px;text-align:right"><input type="number" name="qty_{{ o.canonical_sku }}" value="1" min="1" max="200" style="width:70px;padding:5px;border:1px solid #CBCCD3;border-radius:4px;font-size: 14px;text-align:right"></td>
                 </tr>
               {% endfor %}
             </tbody>
           </table>
 
-          <div style="display:flex;align-items:center;justify-content:space-between;margin-top:14px;font-size:12px;color:#292A2F">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-top:14px;font-size: 14px;color:#292A2F">
             <span><strong id="kpiItems">0</strong>개 품목</span>
             <span>총 <strong id="kpiTotal">0</strong>장</span>
           </div>
 
-          <label style="display:flex;align-items:center;gap:8px;margin-top:12px;font-size:12.5px;color:#292A2F;cursor:pointer">
+          <label style="display:flex;align-items:center;gap:8px;margin-top:12px;font-size: 14px;color:#292A2F;cursor:pointer">
             <input type="checkbox" id="cutlineCheck" {% if cutline %}checked{% endif %} style="accent-color:#4F67FF"> 칼선 포함 인쇄
           </label>
 
@@ -185,7 +185,7 @@
             {# JS 가 채움 #}
           </div>
         </div>
-        <div style="margin-top:10px;font-size:11.5px;color:#8F91A0;line-height:1.7">★ 좌측에서 라벨 디자인 + 제품 선택 → 우측 라이브 미리보기 → 인쇄.</div>
+        <div style="margin-top:10px;font-size: 14px;color:#8F91A0;line-height:1.7">★ 좌측에서 라벨 디자인 + 제품 선택 → 우측 라이브 미리보기 → 인쇄.</div>
       </div>
     </div>
   </div>
@@ -202,7 +202,7 @@
 
     {# 유형 선택 (라벨 용지 / 감열 라벨 / 사용자 지정) #}
     <div style="padding:16px 24px;border-bottom:1px solid #F1F1F4">
-      <div style="font-size:11.5px;color:#8F91A0;margin-bottom:6px">유형 선택</div>
+      <div style="font-size: 14px;color:#8F91A0;margin-bottom:6px">유형 선택</div>
       <div style="display:flex;gap:8px">
         <button type="button" data-tab="preset" onclick="switchPaperTab('preset')" class="paper-tab" style="flex:1;padding:10px 14px;border:1px solid #CBCCD3;background:#fff;color:#292A2F;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer">라벨 용지</button>
         <button type="button" data-tab="thermal" onclick="switchPaperTab('thermal')" class="paper-tab" style="flex:1;padding:10px 14px;border:1px solid #CBCCD3;background:#fff;color:#292A2F;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer">감열 라벨</button>
@@ -217,13 +217,13 @@
 
         {# 탭 1: 라벨 용지 (제조사 프리셋 + 상세 dimension) #}
         <div id="paperTab-preset" class="paper-tab-body">
-          <div style="margin-bottom:14px;font-size:11.5px;color:#8F91A0;line-height:1.6;background:#F1F1F4;padding:10px 12px;border-radius:5px">
+          <div style="margin-bottom:14px;font-size: 14px;color:#8F91A0;line-height:1.6;background:#F1F1F4;padding:10px 12px;border-radius:5px">
             <strong style="color:#292A2F">제조사 프리셋</strong> — Formtec / 3M / 기타. 선택 시 모든 dimension 자동 설정.
           </div>
           <select id="presetSelect" onchange="onPresetChange()" style="width:100%;padding:10px 12px;border:1px solid #CBCCD3;border-radius:5px;font-size:13px;color:#292A2F;background:#fff;margin-bottom:14px">
             {% for key, t in templates.items() %}{% if not key.startswith('thermal') %}<option value="{{ key }}" {% if template_key == key %}selected{% endif %}>{{ t.name }}</option>{% endif %}{% endfor %}
           </select>
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;font-size:11.5px">
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;font-size: 14px">
             <label>용지 너비 (mm)<input type="number" id="m_pw" step="0.1" style="width:100%;padding:7px;border:1px solid #CBCCD3;border-radius:4px;margin-top:3px"></label>
             <label>용지 높이 (mm)<input type="number" id="m_ph" step="0.1" style="width:100%;padding:7px;border:1px solid #CBCCD3;border-radius:4px;margin-top:3px"></label>
             <label>라벨 너비 (mm)<input type="number" id="m_lw" step="0.1" style="width:100%;padding:7px;border:1px solid #CBCCD3;border-radius:4px;margin-top:3px"></label>
@@ -239,43 +239,43 @@
 
         {# 탭 2: 감열 라벨 (너비/높이만) #}
         <div id="paperTab-thermal" class="paper-tab-body" style="display:none">
-          <div style="margin-bottom:14px;font-size:11.5px;color:#8F91A0;line-height:1.6;background:#F1F1F4;padding:10px 12px;border-radius:5px">
+          <div style="margin-bottom:14px;font-size: 14px;color:#8F91A0;line-height:1.6;background:#F1F1F4;padding:10px 12px;border-radius:5px">
             <strong style="color:#292A2F">감열 라벨</strong> — 1장 1라벨. 너비·높이만 입력. (예: 60×35mm, 50×30mm)
           </div>
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;font-size:11.5px">
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;font-size: 14px">
             <label>너비 (mm)<input type="number" id="m_th_w" value="60" step="0.1" style="width:100%;padding:7px;border:1px solid #CBCCD3;border-radius:4px;margin-top:3px"></label>
             <label>높이 (mm)<input type="number" id="m_th_h" value="35" step="0.1" style="width:100%;padding:7px;border:1px solid #CBCCD3;border-radius:4px;margin-top:3px"></label>
           </div>
           <div style="display:flex;gap:6px;margin-top:14px">
-            <button type="button" onclick="setThermal(60,35)" style="flex:1;padding:8px;border:1px solid #CBCCD3;background:#fff;color:#292A2F;border-radius:5px;font-size:11.5px;cursor:pointer">60×35mm</button>
-            <button type="button" onclick="setThermal(50,30)" style="flex:1;padding:8px;border:1px solid #CBCCD3;background:#fff;color:#292A2F;border-radius:5px;font-size:11.5px;cursor:pointer">50×30mm</button>
-            <button type="button" onclick="setThermal(40,25)" style="flex:1;padding:8px;border:1px solid #CBCCD3;background:#fff;color:#292A2F;border-radius:5px;font-size:11.5px;cursor:pointer">40×25mm</button>
+            <button type="button" onclick="setThermal(60,35)" style="flex:1;padding:8px;border:1px solid #CBCCD3;background:#fff;color:#292A2F;border-radius:5px;font-size: 14px;cursor:pointer">60×35mm</button>
+            <button type="button" onclick="setThermal(50,30)" style="flex:1;padding:8px;border:1px solid #CBCCD3;background:#fff;color:#292A2F;border-radius:5px;font-size: 14px;cursor:pointer">50×30mm</button>
+            <button type="button" onclick="setThermal(40,25)" style="flex:1;padding:8px;border:1px solid #CBCCD3;background:#fff;color:#292A2F;border-radius:5px;font-size: 14px;cursor:pointer">40×25mm</button>
           </div>
         </div>
 
         {# 탭 3: 사용자 지정 (가로 × 세로 자동 분할 + 상세 옵션) #}
         <div id="paperTab-custom" class="paper-tab-body" style="display:none">
-          <div style="margin-bottom:14px;font-size:11.5px;color:#1E40AF;line-height:1.6;background:#EEF1FE;padding:10px 12px;border-radius:5px">
+          <div style="margin-bottom:14px;font-size: 14px;color:#1E40AF;line-height:1.6;background:#EEF1FE;padding:10px 12px;border-radius:5px">
             <strong style="color:#1E40AF">사용자 지정</strong> — A4 (210×297mm) 자동 분할. 가로·세로 칸 수만 입력하면 라벨 크기 자동 계산.
           </div>
           <div style="display:flex;gap:10px;align-items:end;margin-bottom:14px">
             <div style="flex:1">
-              <label style="display:block;font-size:11.5px;color:#292A2F;margin-bottom:3px">가로</label>
+              <label style="display:block;font-size: 14px;color:#292A2F;margin-bottom:3px">가로</label>
               <div style="display:flex;align-items:center;gap:4px">
                 <input type="number" id="m_c_cols" value="4" min="1" max="20" oninput="updateCustomLive()" style="width:100%;padding:8px;border:1px solid #CBCCD3;border-radius:4px;font-size:14px;text-align:center;font-weight:600">
-                <span style="font-size:11.5px;color:#8F91A0">개</span>
+                <span style="font-size: 14px;color:#8F91A0">개</span>
               </div>
             </div>
             <span style="font-size:18px;color:#8F91A0;padding-bottom:8px">×</span>
             <div style="flex:1">
-              <label style="display:block;font-size:11.5px;color:#292A2F;margin-bottom:3px">세로</label>
+              <label style="display:block;font-size: 14px;color:#292A2F;margin-bottom:3px">세로</label>
               <div style="display:flex;align-items:center;gap:4px">
                 <input type="number" id="m_c_rows" value="10" min="1" max="30" oninput="updateCustomLive()" style="width:100%;padding:8px;border:1px solid #CBCCD3;border-radius:4px;font-size:14px;text-align:center;font-weight:600">
-                <span style="font-size:11.5px;color:#8F91A0">개</span>
+                <span style="font-size: 14px;color:#8F91A0">개</span>
               </div>
             </div>
           </div>
-          <div id="customLiveInfo" style="font-size:11.5px;color:#1E40AF;line-height:1.7;background:#EEF1FE;padding:10px 12px;border-radius:5px"></div>
+          <div id="customLiveInfo" style="font-size: 14px;color:#1E40AF;line-height:1.7;background:#EEF1FE;padding:10px 12px;border-radius:5px"></div>
         </div>
 
       </div>

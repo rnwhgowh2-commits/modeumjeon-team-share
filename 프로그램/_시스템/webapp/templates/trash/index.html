@@ -28,13 +28,13 @@
           <td><strong>{{ it.target_label }}</strong></td>
           <td class="mono">{{ it.target_id }}</td>
           <td>{{ it.actor }}</td>
-          <td style="font-size:12px">{{ it.at.strftime('%Y-%m-%d %H:%M') if it.at else '—' }}</td>
-          <td style="font-size:12px;color:var(--n600)">{{ it.reason or '—' }}</td>
+          <td style="font-size: 14px">{{ it.at.strftime('%Y-%m-%d %H:%M') if it.at else '—' }}</td>
+          <td style="font-size: 14px;color:var(--n600)">{{ it.reason or '—' }}</td>
           <td>
             {% if it.target_table in ('market_accounts', 'source_products', 'source_options') %}
             <button class="btn btn-sm" data-action="restore-trash" data-log-id="{{ it.log_id }}">↩ 복구</button>
             {% else %}
-            <span style="font-size:11px;color:var(--n400)">복구 미지원</span>
+            <span style="font-size: 14px;color:var(--n400)">복구 미지원</span>
             {% endif %}
           </td>
         </tr>

@@ -46,20 +46,20 @@
 <section class="card sb-section" style="margin-top:18px;padding:18px 22px">
   <header style="display:flex;align-items:center;gap:12px;margin-bottom:14px">
     <h2 style="margin:0;font-size:17px;font-weight:800">💰 소싱처별 혜택 템플릿</h2>
-    <span style="font-size:12px;color:var(--n500)">사이트 default — 모든 옵션 적용 (옵션 override 우선)</span>
+    <span style="font-size: 14px;color:var(--n500)">사이트 default — 모든 옵션 적용 (옵션 override 우선)</span>
   </header>
   <div class="sb-tbl-wrap" style="background:#fff;border:1px solid var(--n300);border-radius:10px;overflow:hidden">
     <table class="sb-tbl" id="sb-tbl" style="width:100%;border-collapse:collapse;font-size:13px">
       <thead><tr style="background:var(--n50)">
-        <th style="padding:11px 14px;text-align:left;width:180px;font-weight:700;font-size:12px;color:var(--n700)">사이트</th>
-        <th style="padding:11px 14px;text-align:left;font-weight:700;font-size:12px;color:var(--n700)">혜택 (chip)</th>
-        <th style="padding:11px 14px;text-align:left;width:120px;font-weight:700;font-size:12px;color:var(--n700)">옵션 적용</th>
-        <th style="padding:11px 14px;text-align:right;width:140px;font-weight:700;font-size:12px;color:var(--n700)">액션</th>
+        <th style="padding:11px 14px;text-align:left;width:180px;font-weight:700;font-size: 14px;color:var(--n700)">사이트</th>
+        <th style="padding:11px 14px;text-align:left;font-weight:700;font-size: 14px;color:var(--n700)">혜택 (chip)</th>
+        <th style="padding:11px 14px;text-align:left;width:120px;font-weight:700;font-size: 14px;color:var(--n700)">옵션 적용</th>
+        <th style="padding:11px 14px;text-align:right;width:140px;font-weight:700;font-size: 14px;color:var(--n700)">액션</th>
       </tr></thead>
       <tbody><tr><td colspan="4" style="padding:24px;text-align:center;color:var(--n500)">로딩 중…</td></tr></tbody>
     </table>
   </div>
-  <div style="margin-top:10px;padding:10px 14px;background:var(--n50);border-radius:7px;font-size:11.5px;color:var(--n700)">
+  <div style="margin-top:10px;padding:10px 14px;background:var(--n50);border-radius:7px;font-size: 14px;color:var(--n700)">
     💡 chip 클릭 = 토글 (on/off) · "편집" 버튼 = 모달 (CRUD) · 옵션 단위 override 는 매트릭스 셀 fx 에서
   </div>
 </section>
@@ -71,13 +71,13 @@
     <header style="display:flex;align-items:center;gap:10px;margin-bottom:14px;padding-bottom:12px;border-bottom:2px solid var(--primary-dim,#E8F2FE)">
       <span id="sb-modal-icon" style="font-size:20px">⚙</span>
       <h3 id="sb-modal-title" style="margin:0;font-size:17px;font-weight:800;color:#7C3AED">혜택 관리</h3>
-      <button onclick="sbCloseModal()" style="margin-left:auto;background:#fff;border:1px solid var(--n300);border-radius:5px;padding:5px 11px;cursor:pointer;font-size:12px">✕ 닫기</button>
+      <button onclick="sbCloseModal()" style="margin-left:auto;background:#fff;border:1px solid var(--n300);border-radius:5px;padding:5px 11px;cursor:pointer;font-size: 14px">✕ 닫기</button>
     </header>
     <div id="sb-modal-list" style="margin-bottom:14px"></div>
     <button onclick="sbAddRow()" style="padding:10px;border:1.5px dashed #7C3AED;border-radius:7px;color:#7C3AED;font-weight:700;font-size:13px;cursor:pointer;background:#fff;width:100%;font-family:inherit;text-align:center">＋ 새 혜택 추가</button>
     <footer style="display:flex;justify-content:flex-end;gap:8px;margin-top:18px;padding-top:14px;border-top:1px solid var(--n100)">
-      <button onclick="sbCloseModal()" style="padding:8px 14px;border-radius:7px;font-weight:700;font-size:12.5px;cursor:pointer;border:1.5px solid var(--n300);background:#fff;color:var(--n700);font-family:inherit">취소</button>
-      <button onclick="sbSaveModal()" style="padding:8px 14px;border-radius:7px;font-weight:700;font-size:12.5px;cursor:pointer;background:#7C3AED;color:#fff;border:none;font-family:inherit">💾 저장 (사이트 전체 적용)</button>
+      <button onclick="sbCloseModal()" style="padding:8px 14px;border-radius:7px;font-weight:700;font-size: 14px;cursor:pointer;border:1.5px solid var(--n300);background:#fff;color:var(--n700);font-family:inherit">취소</button>
+      <button onclick="sbSaveModal()" style="padding:8px 14px;border-radius:7px;font-weight:700;font-size: 14px;cursor:pointer;background:#7C3AED;color:#fff;border:none;font-family:inherit">💾 저장 (사이트 전체 적용)</button>
     </footer>
   </div>
 </div>
@@ -87,15 +87,15 @@
 .sb-tbl tr:last-child{border-bottom:none}
 .sb-tbl td{padding:12px 14px;vertical-align:middle}
 .sb-src-cell{display:flex;align-items:center;gap:8px;font-weight:700;font-size:13.5px}
-.sb-src-cell small{display:block;font-size:11px;color:var(--n500);font-weight:500;margin-top:2px}
+.sb-src-cell small{display:block;font-size: 14px;color:var(--n500);font-weight:500;margin-top:2px}
 .sb-chips{display:flex;flex-wrap:wrap;gap:5px;align-items:center}
-.sb-chip{display:inline-flex;align-items:center;gap:4px;padding:4px 10px;background:#F3E8FF;color:#7C3AED;border-radius:14px;font-size:11.5px;font-weight:700;cursor:pointer;transition:.1s}
+.sb-chip{display:inline-flex;align-items:center;gap:4px;padding:4px 10px;background:#F3E8FF;color:#7C3AED;border-radius:14px;font-size: 14px;font-weight:700;cursor:pointer;transition:.1s}
 .sb-chip:hover{background:#E9D5FF}
 .sb-chip.off{background:var(--n100);color:var(--n500);text-decoration:line-through}
 .sb-chip b{color:#191F28;font-weight:800;margin-left:2px}
-.sb-chip-none{font-size:11.5px;color:var(--n500);font-style:italic}
+.sb-chip-none{font-size: 14px;color:var(--n500);font-style:italic}
 .sb-actions{display:flex;gap:6px;justify-content:flex-end}
-.sb-actions button{padding:6px 12px;border-radius:6px;font-size:11.5px;font-weight:700;cursor:pointer;border:1.5px solid var(--n300);background:#fff;font-family:inherit;color:var(--n700)}
+.sb-actions button{padding:6px 12px;border-radius:6px;font-size: 14px;font-weight:700;cursor:pointer;border:1.5px solid var(--n300);background:#fff;font-family:inherit;color:var(--n700)}
 .sb-actions button.primary{background:#7C3AED;color:#fff;border-color:#7C3AED}
 .sb-modal{position:fixed;inset:0;z-index:9000;display:flex;align-items:center;justify-content:center}
 .sb-modal[hidden]{display:none !important}
@@ -108,11 +108,11 @@
 .sb-row.on .tg{background:#7C3AED}.sb-row.on .tg::after{left:15px}
 .sb-row input.nm{padding:6px 10px;border:1.5px solid var(--n300);border-radius:6px;font-size:13px;font-weight:700;font-family:inherit}
 .sb-row .typ-seg{display:flex;background:#fff;border:1px solid var(--n300);border-radius:5px;padding:1px}
-.sb-row .typ-seg button{flex:1;padding:5px 0;font-size:11px;font-weight:700;border:none;border-radius:3px;cursor:pointer;background:transparent;color:var(--n500);font-family:inherit}
+.sb-row .typ-seg button{flex:1;padding:5px 0;font-size: 14px;font-weight:700;border:none;border-radius:3px;cursor:pointer;background:transparent;color:var(--n500);font-family:inherit}
 .sb-row .typ-seg button.on{background:#7C3AED;color:#fff}
 .sb-row .val-inp{display:flex;align-items:center;gap:3px;background:#fff;border:1.5px solid var(--n300);border-radius:6px;padding:5px 9px}
 .sb-row .val-inp input{border:none;outline:none;width:60px;font-weight:700;text-align:right;font-family:inherit;font-size:13px}
-.sb-row .val-inp span{font-size:11.5px;color:var(--n500);font-weight:700}
+.sb-row .val-inp span{font-size: 14px;color:var(--n500);font-weight:700}
 .sb-row .del{background:transparent;border:none;color:#EF4444;font-size:14px;cursor:pointer;padding:0}
 </style>
 
@@ -153,7 +153,7 @@ function sbRenderTable() {
         }).join('')
       : '<span class="sb-chip-none">혜택 없음</span>';
     html += `<tr data-src="${src.id}">
-      <td><div class="sb-src-cell"><span class="br-prefix ${src.prefixCls}" style="background:${src.bg};color:${src.fg};display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:6px;font-weight:700;font-size:12px">${src.prefix}</span><div><div>${src.name}</div></div></div></td>
+      <td><div class="sb-src-cell"><span class="br-prefix ${src.prefixCls}" style="background:${src.bg};color:${src.fg};display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:6px;font-weight:700;font-size: 14px">${src.prefix}</span><div><div>${src.name}</div></div></div></td>
       <td><div class="sb-chips">${chips}</div></td>
       <td>${items.length}개 활성</td>
       <td class="sb-actions"><button class="primary" onclick="sbOpenModal(${src.id})">⚙ 편집</button></td>
@@ -273,7 +273,7 @@ document.addEventListener('DOMContentLoaded', sbLoadAll);
 .sj-header h1 { margin-bottom: 4px; font-size: 22px; }
 .sj-header .subtitle { font-size: 13px; }
 .sj-actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
-.sj-checkbox { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--n700); cursor: pointer; user-select: none; padding: 0 8px; }
+.sj-checkbox { display: inline-flex; align-items: center; gap: 6px; font-size: 14px; color: var(--n700); cursor: pointer; user-select: none; padding: 0 8px; }
 .sj-checkbox input { width: 14px; height: 14px; cursor: pointer; }
 .sj-btn-outline { background: var(--surface); color: var(--primary); border: 1.5px solid var(--primary); }
 .sj-btn-outline:hover { background: var(--primary-tint); }
@@ -282,24 +282,24 @@ document.addEventListener('DOMContentLoaded', sbLoadAll);
 
 .sj-mapping-detail { padding: 12px 18px; margin-bottom: 14px; }
 .sj-mapping-detail summary { cursor: pointer; padding: 4px 0; }
-.sj-mapping-detail .mapping-table { margin-top: 12px; font-size: 12.5px; }
+.sj-mapping-detail .mapping-table { margin-top: 12px; font-size: 14px; }
 
 /* 사이트 그룹 */
 .sj-group { background: var(--surface); border: 1px solid var(--n200); border-radius: 12px; padding: 14px 16px; margin-bottom: 12px; }
 .sj-group-head { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; padding-bottom: 8px; border-bottom: 1px solid var(--n100); }
 .sj-group-title { font-weight: 700; font-size: 15px; color: var(--n900); }
-.sj-group-meta { font-size: 11.5px; color: var(--n500); }
-.sj-group-add { margin-left: auto; padding: 3px 10px; font-size: 11.5px; font-weight: 600; color: var(--primary); background: var(--surface); border: 1px solid var(--n200); border-radius: 6px; cursor: pointer; }
+.sj-group-meta { font-size: 14px; color: var(--n500); }
+.sj-group-add { margin-left: auto; padding: 3px 10px; font-size: 14px; font-weight: 600; color: var(--primary); background: var(--surface); border: 1px solid var(--n200); border-radius: 6px; cursor: pointer; }
 .sj-group-add:hover { background: var(--primary-tint); border-color: var(--primary); }
 
 /* 계정 행 — 송장전송기 옅은 민트 배경 */
 .sj-row { display: flex; align-items: center; gap: 6px; padding: 8px 10px; background: #F0FAF4; border: 1px solid #D5EFE0; border-radius: 8px; margin-bottom: 4px; }
 .sj-row.empty { background: var(--surface); border-color: var(--n200); }
 .sj-row input.sj-cb { width: 16px; height: 16px; cursor: pointer; flex-shrink: 0; accent-color: var(--primary); }
-.sj-row .sj-method { flex: 0 0 90px; padding: 4px 6px; border: 1px solid var(--n200); border-radius: 6px; font-size: 11px; background: var(--surface); }
+.sj-row .sj-method { flex: 0 0 90px; padding: 4px 6px; border: 1px solid var(--n200); border-radius: 6px; font-size: 14px; background: var(--surface); }
 .sj-row .sj-id { flex: 1.6; min-width: 100px; padding: 6px 10px; border: 1px solid var(--n200); border-radius: 6px; font-size: 13px; background: var(--surface); }
 .sj-row .sj-pw { flex: 1.4; min-width: 90px; padding: 6px 10px; border: 1px solid var(--n200); border-radius: 6px; font-size: 13px; background: var(--surface); }
-.sj-row .sj-owner { flex: 0 0 70px; padding: 6px 8px; border: 1px solid var(--n200); border-radius: 6px; font-size: 12px; background: var(--surface); text-align: center; }
+.sj-row .sj-owner { flex: 0 0 70px; padding: 6px 8px; border: 1px solid var(--n200); border-radius: 6px; font-size: 14px; background: var(--surface); text-align: center; }
 .sj-row input:focus { outline: none; border-color: var(--primary); }
 .sj-row .sj-status-dot { width: 12px; height: 12px; border-radius: 50%; flex-shrink: 0; box-shadow: 0 0 0 2px rgba(0,0,0,0.04); cursor: help; }
 .sj-row .sj-status-dot.ok { background: #00C471; box-shadow: 0 0 0 2px rgba(0,196,113,0.18); }       /* 🟢 로그인 완료 */
@@ -316,9 +316,9 @@ document.addEventListener('DOMContentLoaded', sbLoadAll);
 .batch-progress { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
 .batch-progress-bar { flex: 1; height: 8px; background: var(--n100); border-radius: 4px; overflow: hidden; }
 .batch-progress-bar > div { height: 100%; background: linear-gradient(90deg, var(--primary), #5BC589); transition: width 0.3s; }
-#batch-progress-text { font-size: 12px; color: var(--n600); font-variant-numeric: tabular-nums; min-width: 60px; text-align: right; }
+#batch-progress-text { font-size: 14px; color: var(--n600); font-variant-numeric: tabular-nums; min-width: 60px; text-align: right; }
 .batch-current { font-size: 13px; color: var(--n800); font-weight: 600; padding: 6px 0; }
-.batch-log { flex: 1; overflow-y: auto; max-height: 280px; font-family: 'JetBrains Mono', 'D2Coding', monospace; font-size: 11.5px; background: var(--n900); color: var(--n200); padding: 10px 12px; border-radius: 8px; line-height: 1.5; }
+.batch-log { flex: 1; overflow-y: auto; max-height: 280px; font-family: 'JetBrains Mono', 'D2Coding', monospace; font-size: 14px; background: var(--n900); color: var(--n200); padding: 10px 12px; border-radius: 8px; line-height: 1.5; }
 .batch-log .log-info { color: #C5D8F0; }
 .batch-log .log-warning { color: #F2C94C; }
 .batch-log .log-error { color: #FF7A7A; }

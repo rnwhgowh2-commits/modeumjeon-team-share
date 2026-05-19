@@ -35,7 +35,7 @@
     {% if sp.last_error_msg %}
     <div class="card" style="border-left:3px solid var(--danger);margin-top:10px;background:#fff5f5">
       <strong>⚠ 마지막 에러</strong>
-      <div class="mono" style="font-size:12px;color:var(--n700);margin-top:6px">{{ sp.last_error_msg }}</div>
+      <div class="mono" style="font-size: 14px;color:var(--n700);margin-top:6px">{{ sp.last_error_msg }}</div>
     </div>
     {% endif %}
 
@@ -86,8 +86,8 @@
             <td>{{ o.size_text or '—' }}</td>
             <td class="mono">{% if o.current_price %}{{ '{:,}'.format(o.current_price) }}{% else %}—{% endif %}</td>
             <td>{{ o.current_stock if o.current_stock is not none else '—' }}</td>
-            <td class="mono" style="font-size:11px">{{ o.external_option_id or '—' }}</td>
-            <td style="font-size:11px;color:var(--n500)">
+            <td class="mono" style="font-size: 14px">{{ o.external_option_id or '—' }}</td>
+            <td style="font-size: 14px;color:var(--n500)">
               {% if o.last_fetched_at %}{{ o.last_fetched_at.strftime('%m-%d %H:%M') }}{% else %}—{% endif %}
             </td>
           </tr>
@@ -115,7 +115,7 @@
         <tbody>
           {% for h in history %}
           <tr>
-            <td style="font-size:12px">{{ h.captured_at.strftime('%m-%d %H:%M') if h.captured_at else '—' }}</td>
+            <td style="font-size: 14px">{{ h.captured_at.strftime('%m-%d %H:%M') if h.captured_at else '—' }}</td>
             <td>{{ h.source }}</td>
             <td class="mono">{% if h.price %}{{ '{:,}'.format(h.price) }}{% else %}—{% endif %}</td>
             <td>{{ h.stock if h.stock is not none else '—' }}</td>

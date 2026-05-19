@@ -17,13 +17,13 @@
 #}
 <div class="search-chip-box" data-search-chip-box style="flex:1;min-width:240px;display:flex;align-items:center;flex-wrap:wrap;gap:6px;padding:6px 8px;border:1px solid #CBCCD3;border-radius:5px;background:#fff;min-height:32px;cursor:text">
   {% for tok in (search_tokens or []) %}
-    <span class="search-chip" data-tok="{{ tok }}" style="display:inline-flex;align-items:center;gap:4px;background:#EFF6FF;color:#3182F6;border-radius:14px;padding:2px 4px 2px 10px;font-size:12px;font-weight:500">
+    <span class="search-chip" data-tok="{{ tok }}" style="display:inline-flex;align-items:center;gap:4px;background:#EFF6FF;color:#3182F6;border-radius:14px;padding:2px 4px 2px 10px;font-size: 14px;font-weight:500">
       {{ tok }}
       <button type="button" data-search-chip-remove aria-label="제거" style="background:transparent;border:0;color:#3182F6;cursor:pointer;padding:0 6px;font-size:14px;line-height:1">×</button>
     </span>
   {% endfor %}
   <input type="text" data-search-chip-input placeholder="{% if (search_tokens or [])|length == 0 %}{{ search_placeholder or '이름, 바코드, 속성 검색' }}{% endif %}"
-         style="flex:1;min-width:120px;border:0;outline:0;font-size:12.5px;color:#292A2F;background:transparent">
+         style="flex:1;min-width:120px;border:0;outline:0;font-size: 14px;color:#292A2F;background:transparent">
 </div>
 <input type="hidden" name="q" data-search-chip-hidden value="{{ (search_tokens or []) | join(' ') }}">
 
@@ -50,7 +50,7 @@
       var span = document.createElement('span');
       span.className = 'search-chip';
       span.dataset.tok = t;
-      span.style.cssText = 'display:inline-flex;align-items:center;gap:4px;background:#EFF6FF;color:#3182F6;border-radius:14px;padding:2px 4px 2px 10px;font-size:12px;font-weight:500';
+      span.style.cssText = 'display:inline-flex;align-items:center;gap:4px;background:#EFF6FF;color:#3182F6;border-radius:14px;padding:2px 4px 2px 10px;font-size: 14px;font-weight:500';
       span.innerHTML = escapeHTML(t) + ' <button type="button" data-search-chip-remove aria-label="제거" style="background:transparent;border:0;color:#3182F6;cursor:pointer;padding:0 6px;font-size:14px;line-height:1">×</button>';
       box.insertBefore(span, inp);
       inp.value = '';

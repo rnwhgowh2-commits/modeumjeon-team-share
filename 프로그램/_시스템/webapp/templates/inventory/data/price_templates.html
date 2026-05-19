@@ -3,9 +3,9 @@
 {% block content %}
 <div style="padding:24px 32px;max-width:1500px;margin:0 auto">
   <div style="display:flex;align-items:center;gap:14px;margin-bottom:14px">
-    <div style="font-size:12.5px;color:#9CA3AF">데이터 관리</div>
+    <div style="font-size: 14px;color:#9CA3AF">데이터 관리</div>
     <h1 style="font-size:22px;font-weight:700;margin:0">가격 템플릿</h1>
-    <span style="font-size:11.5px;color:#9CA3AF">총 {{ templates|length }}개</span>
+    <span style="font-size: 14px;color:#9CA3AF">총 {{ templates|length }}개</span>
   </div>
 
   {% with msgs = get_flashed_messages(with_categories=true) %}
@@ -16,7 +16,7 @@
 
   <div style="background:#FFF8E5;border:1px solid #FFCB6B;border-radius:8px;padding:14px 18px;margin-bottom:18px">
     <strong style="color:#9A6700;font-size:13px">💡 사입 마진 3계층 (가장 우선부터)</strong>
-    <p style="font-size:12.5px;color:#4E5968;margin-top:4px;line-height:1.6">
+    <p style="font-size: 14px;color:#4E5968;margin-top:4px;line-height:1.6">
       <strong>1. 옵션 오버라이드</strong> (가장 우선) → 옵션 매트릭스 화면에서 개별 편집<br>
       <strong>2. 모델 오버라이드</strong> → 모델 단위 마진 적용<br>
       <strong>3. 가격 템플릿 default</strong> (현재 페이지) ← 모음전 다수에 일괄 적용<br>
@@ -29,37 +29,37 @@
   <div style="background:#fff;border:1px solid #E5E8EB;border-radius:8px;padding:18px;margin-bottom:14px">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
       <h2 style="font-size:15px;font-weight:700">{{ tpl.name }}</h2>
-      <span style="font-size:11px;color:#9CA3AF">id: {{ tpl.id }}</span>
+      <span style="font-size: 14px;color:#9CA3AF">id: {{ tpl.id }}</span>
     </div>
 
     <form method="post" action="{{ url_for('inventory.data_price_templates_update_margin', tpl_id=tpl.id) }}">
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
         <div style="background:#F9FAFB;border-radius:6px;padding:12px 14px">
-          <div style="font-size:11px;color:#6B7684;margin-bottom:6px;font-weight:600">자체 사입 (박스히어로)</div>
+          <div style="font-size: 14px;color:#6B7684;margin-bottom:6px;font-weight:600">자체 사입 (박스히어로)</div>
           <div style="display:flex;gap:6px;align-items:center">
-            <select name="mode_self" style="padding:5px 8px;border:1px solid #D1D6DB;border-radius:4px;font-size:12.5px;width:90px">
+            <select name="mode_self" style="padding:5px 8px;border:1px solid #D1D6DB;border-radius:4px;font-size: 14px;width:90px">
               <option value="rate" {% if tpl.boxhero_margin_mode_self == 'rate' %}selected{% endif %}>rate</option>
               <option value="amount" {% if tpl.boxhero_margin_mode_self == 'amount' %}selected{% endif %}>amount</option>
             </select>
-            <input name="value_self" type="number" value="{{ tpl.boxhero_margin_value_self or 0 }}" style="flex:1;padding:5px 8px;border:1px solid #D1D6DB;border-radius:4px;font-size:12.5px;font-variant-numeric:tabular-nums">
-            <span style="font-size:11px;color:#9CA3AF">{% if tpl.boxhero_margin_mode_self == 'rate' %}*100{% else %}원{% endif %}</span>
+            <input name="value_self" type="number" value="{{ tpl.boxhero_margin_value_self or 0 }}" style="flex:1;padding:5px 8px;border:1px solid #D1D6DB;border-radius:4px;font-size: 14px;font-variant-numeric:tabular-nums">
+            <span style="font-size: 14px;color:#9CA3AF">{% if tpl.boxhero_margin_mode_self == 'rate' %}*100{% else %}원{% endif %}</span>
           </div>
         </div>
         <div style="background:#F9FAFB;border-radius:6px;padding:12px 14px">
-          <div style="font-size:11px;color:#6B7684;margin-bottom:6px;font-weight:600">외부 사입 (소싱처)</div>
+          <div style="font-size: 14px;color:#6B7684;margin-bottom:6px;font-weight:600">외부 사입 (소싱처)</div>
           <div style="display:flex;gap:6px;align-items:center">
-            <select name="mode_external" style="padding:5px 8px;border:1px solid #D1D6DB;border-radius:4px;font-size:12.5px;width:90px">
+            <select name="mode_external" style="padding:5px 8px;border:1px solid #D1D6DB;border-radius:4px;font-size: 14px;width:90px">
               <option value="rate" {% if tpl.boxhero_margin_mode_external == 'rate' %}selected{% endif %}>rate</option>
               <option value="amount" {% if tpl.boxhero_margin_mode_external == 'amount' %}selected{% endif %}>amount</option>
             </select>
-            <input name="value_external" type="number" value="{{ tpl.boxhero_margin_value_external or 0 }}" style="flex:1;padding:5px 8px;border:1px solid #D1D6DB;border-radius:4px;font-size:12.5px;font-variant-numeric:tabular-nums">
-            <span style="font-size:11px;color:#9CA3AF">{% if tpl.boxhero_margin_mode_external == 'rate' %}*100{% else %}원{% endif %}</span>
+            <input name="value_external" type="number" value="{{ tpl.boxhero_margin_value_external or 0 }}" style="flex:1;padding:5px 8px;border:1px solid #D1D6DB;border-radius:4px;font-size: 14px;font-variant-numeric:tabular-nums">
+            <span style="font-size: 14px;color:#9CA3AF">{% if tpl.boxhero_margin_mode_external == 'rate' %}*100{% else %}원{% endif %}</span>
           </div>
         </div>
       </div>
       <div style="margin-top:12px;display:flex;gap:8px;align-items:center">
-        <button type="submit" style="background:#3182F6;color:#fff;padding:6px 14px;border:none;border-radius:5px;font-size:12.5px;font-weight:600;cursor:pointer">사입 마진 저장</button>
-        <span style="font-size:11.5px;color:#9CA3AF">기존 가격 컬럼 (boxhero_purchase_price·ss/coupang_*)은 다른 화면에서 관리</span>
+        <button type="submit" style="background:#3182F6;color:#fff;padding:6px 14px;border:none;border-radius:5px;font-size: 14px;font-weight:600;cursor:pointer">사입 마진 저장</button>
+        <span style="font-size: 14px;color:#9CA3AF">기존 가격 컬럼 (boxhero_purchase_price·ss/coupang_*)은 다른 화면에서 관리</span>
       </div>
     </form>
   </div>

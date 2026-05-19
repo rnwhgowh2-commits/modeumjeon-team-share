@@ -7,7 +7,7 @@
   <input type="search" id="search-input" placeholder="🔍 SKU / 색상 / 사이즈 / 바코드 검색" autocomplete="off">
 </div>
 
-<div id="inventory-summary" style="font-size: 12px; color: var(--n600); padding: 0 4px 8px; display: none;"></div>
+<div id="inventory-summary" style="font-size: 14px; color: var(--n600); padding: 0 4px 8px; display: none;"></div>
 
 <div id="inventory-list">
   <div class="m-loading"><span class="m-spinner"></span>불러오는 중...</div>
@@ -36,7 +36,7 @@
         `<div class="m-empty">
           <div class="icon">⚠️</div>
           재고 불러오기 실패<br>
-          <span style="font-size: 12px; color: var(--n500);">${e.message || ''}</span>
+          <span style="font-size: 14px; color: var(--n500);">${e.message || ''}</span>
         </div>`;
     }
   }
@@ -70,13 +70,13 @@
         ${img}
         <div style="flex: 1; min-width: 0;">
           <div style="font-size: 14px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${sku}</div>
-          <div style="font-size: 12px; color: var(--n600); margin-top: 2px;">
+          <div style="font-size: 14px; color: var(--n600); margin-top: 2px;">
             ${color} ${size}${boxhero ? ' · <span style="color: var(--n500); font-family: monospace;">' + boxhero + '</span>' : ''}
           </div>
         </div>
         <div style="text-align: right; flex-shrink: 0;">
           <div style="font-size: 20px; font-weight: 700; color: ${stockColor};">${stock}</div>
-          <div style="font-size: 10px; color: var(--n500);">재고</div>
+          <div style="font-size: 12px; color: var(--n500);">재고</div>
         </div>
       </a>`;
     }).join('');

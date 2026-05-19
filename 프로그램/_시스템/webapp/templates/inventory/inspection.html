@@ -5,7 +5,7 @@
 
   <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px">
     <h1 style="font-size:20px;font-weight:700">🔍 입고 검사</h1>
-    <span style="font-size:11.5px;color:#9CA3AF">PO 검수 → 실제 수량 입력 → 입고 Tx 자동 생성</span>
+    <span style="font-size: 14px;color:#9CA3AF">PO 검수 → 실제 수량 입력 → 입고 Tx 자동 생성</span>
   </div>
 
   {% with msgs = get_flashed_messages(with_categories=true) %}
@@ -17,16 +17,16 @@
   <!-- 검수 대기 -->
   <h2 style="font-size:14px;font-weight:600;margin:8px 0 10px">⏳ 검수 대기 ({{ pending|length }})</h2>
   <div style="background:#fff;border:1px solid #E5E8EB;border-radius:8px;overflow:hidden;margin-bottom:24px">
-    <table style="width:100%;border-collapse:collapse;font-size:12.5px">
+    <table style="width:100%;border-collapse:collapse;font-size: 14px">
       <thead style="background:#F9FAFB">
         <tr>
-          <th style="padding:9px;text-align:left;font-size:11px;color:#6B7684">PO #</th>
-          <th style="padding:9px;text-align:left;font-size:11px;color:#6B7684">거래처</th>
-          <th style="padding:9px;text-align:right;font-size:11px;color:#6B7684">품목</th>
-          <th style="padding:9px;text-align:right;font-size:11px;color:#6B7684">총 수량</th>
-          <th style="padding:9px;text-align:left;font-size:11px;color:#6B7684">상태</th>
-          <th style="padding:9px;text-align:left;font-size:11px;color:#6B7684">생성</th>
-          <th style="padding:9px;text-align:center;font-size:11px;color:#6B7684">액션</th>
+          <th style="padding:9px;text-align:left;font-size: 14px;color:#6B7684">PO #</th>
+          <th style="padding:9px;text-align:left;font-size: 14px;color:#6B7684">거래처</th>
+          <th style="padding:9px;text-align:right;font-size: 14px;color:#6B7684">품목</th>
+          <th style="padding:9px;text-align:right;font-size: 14px;color:#6B7684">총 수량</th>
+          <th style="padding:9px;text-align:left;font-size: 14px;color:#6B7684">상태</th>
+          <th style="padding:9px;text-align:left;font-size: 14px;color:#6B7684">생성</th>
+          <th style="padding:9px;text-align:center;font-size: 14px;color:#6B7684">액션</th>
         </tr>
       </thead>
       <tbody>
@@ -36,10 +36,10 @@
             <td style="padding:9px">{{ r.po.partner_label or '—' }}</td>
             <td style="padding:9px;text-align:right">{{ r.item_count }}</td>
             <td style="padding:9px;text-align:right;font-family:ui-monospace,monospace;font-weight:600">{{ r.total_qty }}</td>
-            <td style="padding:9px"><span style="font-size:10.5px;padding:2px 7px;border-radius:3px;background:{% if r.po.status=='partial' %}#FEF3C7;color:#92400E{% else %}#DBEAFE;color:#1E40AF{% endif %};font-weight:600">{{ r.po.status }}</span></td>
-            <td style="padding:9px;font-size:11.5px;color:#8B95A1">{{ r.po.created_at.strftime('%Y-%m-%d') if r.po.created_at else '—' }}</td>
+            <td style="padding:9px"><span style="font-size: 12px;padding:2px 7px;border-radius:3px;background:{% if r.po.status=='partial' %}#FEF3C7;color:#92400E{% else %}#DBEAFE;color:#1E40AF{% endif %};font-weight:600">{{ r.po.status }}</span></td>
+            <td style="padding:9px;font-size: 14px;color:#8B95A1">{{ r.po.created_at.strftime('%Y-%m-%d') if r.po.created_at else '—' }}</td>
             <td style="padding:9px;text-align:center">
-              <a href="{{ url_for('inventory.inspection_detail', po_id=r.po.id) }}" style="background:#3182F6;color:#fff;padding:5px 12px;border-radius:5px;text-decoration:none;font-size:11.5px;font-weight:600">🔍 검사하기</a>
+              <a href="{{ url_for('inventory.inspection_detail', po_id=r.po.id) }}" style="background:#3182F6;color:#fff;padding:5px 12px;border-radius:5px;text-decoration:none;font-size: 14px;font-weight:600">🔍 검사하기</a>
             </td>
           </tr>
         {% else %}
@@ -52,14 +52,14 @@
   <!-- 최근 처리 -->
   <h2 style="font-size:14px;font-weight:600;margin:8px 0 10px">최근 처리 ({{ recent|length }})</h2>
   <div style="background:#fff;border:1px solid #E5E8EB;border-radius:8px;overflow:hidden">
-    <table style="width:100%;border-collapse:collapse;font-size:12.5px">
+    <table style="width:100%;border-collapse:collapse;font-size: 14px">
       <thead style="background:#F9FAFB">
         <tr>
-          <th style="padding:9px;text-align:left;font-size:11px;color:#6B7684">PO #</th>
-          <th style="padding:9px;text-align:left;font-size:11px;color:#6B7684">거래처</th>
-          <th style="padding:9px;text-align:right;font-size:11px;color:#6B7684">품목</th>
-          <th style="padding:9px;text-align:left;font-size:11px;color:#6B7684">상태</th>
-          <th style="padding:9px;text-align:left;font-size:11px;color:#6B7684">완료</th>
+          <th style="padding:9px;text-align:left;font-size: 14px;color:#6B7684">PO #</th>
+          <th style="padding:9px;text-align:left;font-size: 14px;color:#6B7684">거래처</th>
+          <th style="padding:9px;text-align:right;font-size: 14px;color:#6B7684">품목</th>
+          <th style="padding:9px;text-align:left;font-size: 14px;color:#6B7684">상태</th>
+          <th style="padding:9px;text-align:left;font-size: 14px;color:#6B7684">완료</th>
         </tr>
       </thead>
       <tbody>
@@ -68,8 +68,8 @@
             <td style="padding:9px">#{{ r.po.id }}</td>
             <td style="padding:9px">{{ r.po.partner_label or '—' }}</td>
             <td style="padding:9px;text-align:right">{{ r.item_count }}</td>
-            <td style="padding:9px"><span style="font-size:10.5px;padding:2px 7px;border-radius:3px;background:{% if r.po.status=='completed' %}#DCFCE7;color:#15803D{% else %}#F3F4F6;color:#6B7280{% endif %};font-weight:600">{{ r.po.status }}</span></td>
-            <td style="padding:9px;font-size:11.5px;color:#8B95A1">{{ r.po.completed_at.strftime('%Y-%m-%d %H:%M') if r.po.completed_at else (r.po.created_at.strftime('%Y-%m-%d') if r.po.created_at else '—') }}</td>
+            <td style="padding:9px"><span style="font-size: 12px;padding:2px 7px;border-radius:3px;background:{% if r.po.status=='completed' %}#DCFCE7;color:#15803D{% else %}#F3F4F6;color:#6B7280{% endif %};font-weight:600">{{ r.po.status }}</span></td>
+            <td style="padding:9px;font-size: 14px;color:#8B95A1">{{ r.po.completed_at.strftime('%Y-%m-%d %H:%M') if r.po.completed_at else (r.po.created_at.strftime('%Y-%m-%d') if r.po.created_at else '—') }}</td>
           </tr>
         {% else %}
           <tr><td colspan="5" style="padding:24px;text-align:center;color:#9CA3AF">처리 이력 없음</td></tr>
@@ -78,7 +78,7 @@
     </table>
   </div>
 
-  <div style="margin-top:14px;font-size:11px;color:#9CA3AF">
+  <div style="margin-top:14px;font-size: 14px;color:#9CA3AF">
     ★ 박스히어로 1:1 — 입고 검사 = 발주 받은 물건 검수 후 차이만 조정. ★ pending = 검수 안 됨 / partial = 일부만 입고 / completed = 전부 입고.
   </div>
 </div>

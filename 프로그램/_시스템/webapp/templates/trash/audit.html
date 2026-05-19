@@ -29,9 +29,9 @@
       <tbody>
         {% for it in items %}
         <tr>
-          <td style="font-size:12px">{{ it.at.strftime('%m-%d %H:%M') if it.at else '—' }}</td>
+          <td style="font-size: 14px">{{ it.at.strftime('%m-%d %H:%M') if it.at else '—' }}</td>
           <td><strong>{{ it.target_label }}</strong></td>
-          <td class="mono" style="font-size:12px">{{ it.target_id }}</td>
+          <td class="mono" style="font-size: 14px">{{ it.target_id }}</td>
           <td>
             {% if it.action == 'create' %}<span class="badge badge-ok">+ 생성</span>
             {% elif it.action == 'update' %}<span class="badge badge-info">✎ 수정</span>
@@ -39,11 +39,11 @@
             {% elif it.action == 'restore' %}<span class="badge badge-ok">↩ 복구</span>
             {% else %}<span class="badge">{{ it.action }}</span>{% endif %}
           </td>
-          <td style="font-size:12px">{{ it.actor }}</td>
-          <td style="font-size:11px;color:var(--n600)">{{ it.reason or '—' }}</td>
+          <td style="font-size: 14px">{{ it.actor }}</td>
+          <td style="font-size: 14px;color:var(--n600)">{{ it.reason or '—' }}</td>
           <td>
             {% if it.before_json or it.after_json %}
-            <details style="font-size:11px">
+            <details style="font-size: 14px">
               <summary style="cursor:pointer">diff</summary>
               {% if it.before_json %}<div><strong>before:</strong> <code>{{ it.before_json }}</code></div>{% endif %}
               {% if it.after_json %}<div><strong>after:</strong> <code>{{ it.after_json }}</code></div>{% endif %}

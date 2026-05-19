@@ -128,17 +128,17 @@
     .b-stat-detail { margin-top: 14px; }
     .b-stat-detail-h { font-size: 13px; font-weight: 700; color: #4E5968; margin-bottom: 10px; display: flex; align-items: center; gap: 6px; }
     .b-stat-detail-h::before { content: '📜'; font-size: 14px; }
-    .b-hist-row { display: grid; grid-template-columns: auto 1fr auto auto; gap: 10px; align-items: center; padding: 7px 0; border-bottom: 1px solid #f2f4f6; font-size: 12.5px; }
+    .b-hist-row { display: grid; grid-template-columns: auto 1fr auto auto; gap: 10px; align-items: center; padding: 7px 0; border-bottom: 1px solid #f2f4f6; font-size: 14px; }
     .b-hist-row:last-of-type { border-bottom: none; }
-    .b-hist-pill { padding: 2px 8px; border-radius: 5px; font-weight: 700; font-size: 10.5px; }
+    .b-hist-pill { padding: 2px 8px; border-radius: 5px; font-weight: 700; font-size: 12px; }
     .b-hist-pill.crawl { background: #dbeafe; color: #1d4ed8; }
     .b-hist-pill.upload { background: #dcfce7; color: #15803d; }
     .b-hist-msg { color: #4E5968; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .b-hist-status { font-weight: 700; font-size: 11.5px; }
+    .b-hist-status { font-weight: 700; font-size: 14px; }
     .b-hist-status.ok { color: #15803d; } .b-hist-status.fail { color: #dc2626; }
-    .b-hist-time { color: #9CA3AF; font-size: 11px; font-family: ui-monospace, monospace; }
-    .b-hist-empty { padding: 16px 0; color: #9CA3AF; font-size: 12.5px; text-align: center; }
-    .b-hist-all { display: block; margin-top: 10px; font-size: 12.5px; color: #3182F6; font-weight: 700; text-decoration: none; text-align: right; }
+    .b-hist-time { color: #9CA3AF; font-size: 14px; font-family: ui-monospace, monospace; }
+    .b-hist-empty { padding: 16px 0; color: #9CA3AF; font-size: 14px; text-align: center; }
+    .b-hist-all { display: block; margin-top: 10px; font-size: 14px; color: #3182F6; font-weight: 700; text-decoration: none; text-align: right; }
     .b-hist-all:hover { text-decoration: underline; }
     /* status 카드 ↔ 가로탭 사이 굵은 점선 divider */
     .bh-section-divider { margin: 40px 0 36px; border: 0; border-top: 4px dashed #B0B8C1; }
@@ -185,7 +185,7 @@
           <h2>ⓘ 기본 정보</h2>
         </div>
         <div class="field">
-          <label class="field-label">모음전 코드 <span style="color:var(--n400);font-weight:400;font-size:11px">(변경 시 옵션·이력·매핑 모두 cascade)</span></label>
+          <label class="field-label">모음전 코드 <span style="color:var(--n400);font-weight:400;font-size: 14px">(변경 시 옵션·이력·매핑 모두 cascade)</span></label>
           <div style="display:flex;gap:8px">
             <input id="bundle-code-input" class="field-input" value="{{ bundle.model_code }}" data-original="{{ bundle.model_code }}" />
             <button type="button" class="btn" data-action="rename-bundle">코드 변경</button>
@@ -273,7 +273,7 @@
           .src-tree-head::-webkit-details-marker { display: none; }
           .src-tree-head:hover { background: var(--n100, #f9fafb); }
           .src-tree-toggle {
-            font-size: 9px; color: var(--n500, #8B95A1);
+            font-size: 12px; color: var(--n500, #8B95A1);
             display: inline-block; transition: transform .15s; width: 10px;
           }
           .src-tree-node[open] > .src-tree-head .src-tree-toggle { transform: rotate(90deg); color: var(--n900, #191F28); }
@@ -281,7 +281,7 @@
             font-size: var(--fs-h3, 19px); font-weight: 700; color: var(--n900, #191F28);
           }
           .src-tree-count {
-            font-family: ui-monospace, monospace; font-size: 11.5px;
+            font-family: ui-monospace, monospace; font-size: 14px;
             color: var(--n500, #8B95A1); margin-left: 1px;
           }
           .src-tree-open {
@@ -347,14 +347,14 @@
           .src-detect-head { display:flex; align-items:center; gap:10px; flex:1; min-width:200px; }
           .src-detect-icon { font-size:22px; }
           .src-detect-title { font-size:13px; font-weight:700; color:#92400e; }
-          .src-detect-msg { font-size:11.5px; color:var(--n700); margin-top:2px; }
+          .src-detect-msg { font-size: 14px; color:var(--n700); margin-top:2px; }
           .src-detect-actions { display:flex; gap:6px; }
         </style>
         <div style="margin-top:10px;display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap">
-          <div style="font-size:12px;color:var(--n500)">💡 <a href="/sources" style="color:inherit;text-decoration:underline">소싱처 운영센터</a>에서 모든 URL 의 fetch 상태·시계열 통합 관리</div>
+          <div style="font-size: 14px;color:var(--n500)">💡 <a href="/sources" style="color:inherit;text-decoration:underline">소싱처 운영센터</a>에서 모든 URL 의 fetch 상태·시계열 통합 관리</div>
           <button type="button" class="btn btn-sm btn-primary" id="sync-urls-btn" style="white-space:nowrap">💾 URL 저장 + 옵션에 동기화</button>
         </div>
-        <div style="margin-top:6px;font-size:11px;color:var(--n500)">💡 위 버튼 = 입력한 URL 들을 <strong>지금 저장 + 모든 옵션에 즉시 전파</strong> (저장 버튼 따로 안 눌러도 됨). 우상단 [저장] 버튼도 동일하게 작동.</div>
+        <div style="margin-top:6px;font-size: 14px;color:var(--n500)">💡 위 버튼 = 입력한 URL 들을 <strong>지금 저장 + 모든 옵션에 즉시 전파</strong> (저장 버튼 따로 안 눌러도 됨). 우상단 [저장] 버튼도 동일하게 작동.</div>
       </div>
 
       {# Section 3: 적용 템플릿 — V4 Tile (검정 폰트 볼드 큰 카드) #}
@@ -370,7 +370,7 @@
           @media (max-width: 900px) { #sec-tpl .tpl-tile-grid { grid-template-columns: 1fr; } }
           #sec-tpl .field { margin-bottom: 0; }
           #sec-tpl .field-label {
-            font-size: 12.5px; color: var(--n500, #8B95A1); font-weight: 700;
+            font-size: 14px; color: var(--n500, #8B95A1); font-weight: 700;
             letter-spacing: .04em; text-transform: uppercase; margin-bottom: 8px; display: block;
           }
           #sec-tpl .sdrop-wrap { position: relative; }
@@ -395,11 +395,11 @@
           }
           #sec-tpl .tpl-row-meta b {
             color: var(--n500, #8B95A1); font-weight: 600;
-            font-size: 11px; text-transform: uppercase; letter-spacing: .04em;
+            font-size: 14px; text-transform: uppercase; letter-spacing: .04em;
             margin-right: 5px;
           }
           #sec-tpl .tpl-row-meta .tpl-meta-item { white-space: nowrap; }
-          #sec-tpl .sdrop-arrow { position: absolute; top: 14px; right: 14px; color: var(--n500, #8B95A1); font-size: 11px; }
+          #sec-tpl .sdrop-arrow { position: absolute; top: 14px; right: 14px; color: var(--n500, #8B95A1); font-size: 14px; }
         </style>
 
         <div class="tpl-tile-grid">
@@ -500,11 +500,11 @@
             <button class="btn btn-sm" data-action="edit-combo" data-id="{{ c.id }}">✎ 편집</button>
             <button class="btn btn-sm" style="color:var(--danger)" data-action="del-combo" data-id="{{ c.id }}">🗑 삭제</button>
           </div>
-          <div style="font-size:12.5px;font-weight:700;color:var(--n600);margin-bottom:6px">색상</div>
+          <div style="font-size: 14px;font-weight:700;color:var(--n600);margin-bottom:6px">색상</div>
           <div class="chip-row" style="margin-bottom:14px">
             {% for code in c.color_codes_json|from_json %}<span class="chip on">{{ code }}</span>{% endfor %}
           </div>
-          <div style="font-size:12.5px;font-weight:700;color:var(--n600);margin-bottom:6px">사이즈</div>
+          <div style="font-size: 14px;font-weight:700;color:var(--n600);margin-bottom:6px">사이즈</div>
           <div class="chip-row">
             {% for code in c.size_codes_json|from_json %}<span class="chip on">{{ code }}</span>{% endfor %}
           </div>
@@ -584,22 +584,22 @@
         </table>
         <style>
           .market-overview-table { width:100%; border-collapse:collapse; background:#fff; border:1px solid var(--n200); border-radius:11px; overflow:hidden; margin-bottom:14px; font-size:13px; }
-          .market-overview-table th { padding:9px 12px; background:var(--n100); font-size:10.5px; font-weight:700; color:var(--n500); text-align:left; text-transform:uppercase; letter-spacing:.04em; border-bottom:1px solid var(--n200); }
+          .market-overview-table th { padding:9px 12px; background:var(--n100); font-size: 12px; font-weight:700; color:var(--n500); text-align:left; text-transform:uppercase; letter-spacing:.04em; border-bottom:1px solid var(--n200); }
           .market-overview-table td { padding:11px 12px; border-bottom:1px solid var(--n100); vertical-align:middle; }
           .market-overview-table tr:last-child td { border-bottom:none; }
           .mot-name { display:flex; align-items:center; gap:8px; }
           .mot-dot { width:10px; height:10px; border-radius:50%; flex-shrink:0; }
           .mot-dot.ss { background:#03c75a; }
           .mot-dot.cp { background:#ee293d; }
-          .mot-state { display:inline-flex; padding:2px 9px; border-radius:11px; font-size:11.5px; font-weight:700; background:var(--n100); color:var(--n500); }
+          .mot-state { display:inline-flex; padding:2px 9px; border-radius:11px; font-size: 14px; font-weight:700; background:var(--n100); color:var(--n500); }
           .mot-state.on { background:var(--ok-bg, #dcfce7); color:var(--ok-strong, #166534); }
-          .mot-id { font-family:'JetBrains Mono','D2Coding',monospace; font-size:12px; background:var(--n100); padding:2px 7px; border-radius:4px; color:var(--n800); }
-          .mot-id-sub { font-family:'JetBrains Mono','D2Coding',monospace; font-size:10.5px; color:var(--n500); margin-top:3px; }
-          .mot-id-empty { color:var(--n400); font-size:11.5px; }
-          .mot-time { font-size:11.5px; color:var(--n500); font-family:'JetBrains Mono','D2Coding',monospace; }
+          .mot-id { font-family:'JetBrains Mono','D2Coding',monospace; font-size: 14px; background:var(--n100); padding:2px 7px; border-radius:4px; color:var(--n800); }
+          .mot-id-sub { font-family:'JetBrains Mono','D2Coding',monospace; font-size: 12px; color:var(--n500); margin-top:3px; }
+          .mot-id-empty { color:var(--n400); font-size: 14px; }
+          .mot-time { font-size: 14px; color:var(--n500); font-family:'JetBrains Mono','D2Coding',monospace; }
           .mot-match { font-size:13.5px; }
           .mot-match strong { font-weight:800; }
-          .mot-pct { color:var(--n500); font-size:11.5px; }
+          .mot-pct { color:var(--n500); font-size: 14px; }
           .mot-bar { height:5px; background:var(--n100,#f2f4f6); border-radius:3px; margin-top:5px; overflow:hidden; }
           .mot-bar-fill { height:100%; transition:width .3s; }
         </style>
@@ -629,8 +629,8 @@
 
           {# v6 B: 가로 마켓 탭 + 단일 패널 + 입력경로 sub-tab #}
           <div class="market-tabs-v6" id="market-tabs">
-            <button type="button" class="mt-tab on" data-mtab="ss">스마트스토어 <span class="chip-v3 chip-warn" id="ss-tab-progress" style="font-size:10px">…</span></button>
-            <button type="button" class="mt-tab" data-mtab="cp">쿠팡 <span class="chip-v3 chip-warn" style="font-size:10px">예정</span></button>
+            <button type="button" class="mt-tab on" data-mtab="ss">스마트스토어 <span class="chip-v3 chip-warn" id="ss-tab-progress" style="font-size: 12px">…</span></button>
+            <button type="button" class="mt-tab" data-mtab="cp">쿠팡 <span class="chip-v3 chip-warn" style="font-size: 12px">예정</span></button>
             <button type="button" class="mt-tab add-market" disabled>＋ 새 마켓</button>
           </div>
 
@@ -642,7 +642,7 @@
                 <div style="font-weight:700;font-size:15px">스마트스토어 입력</div>
                 <div class="mp-active-info">{{ options|selectattr('market_visible_ss')|list|length }}개 옵션 노출 중</div>
               </div>
-              <div style="margin-left:auto;font-size:12px;color:var(--n500)">
+              <div style="margin-left:auto;font-size: 14px;color:var(--n500)">
                 <span id="ss-progress">매칭 진척률 로딩…</span>
               </div>
             </div>
@@ -650,7 +650,7 @@
             <div class="field" style="margin-bottom:14px">
               <label class="field-label">원상품번호 <span style="color:var(--n500);font-weight:400">또는</span> 상품번호</label>
               <input class="field-input mono" name="naver_product_id" value="{{ bundle.naver_product_id or '' }}" placeholder="예: 13153051689" />
-              <div style="margin-top:6px;font-size:11.5px;color:var(--n500);line-height:1.55">
+              <div style="margin-top:6px;font-size: 14px;color:var(--n500);line-height:1.55">
                 💡 둘 중 <strong>아무거나</strong> 입력하면 됩니다 — 동기화 실행 시 나머지 하나는 자동으로 채워져요.<br>
                 · <strong>원상품번호</strong> (originProductNo) = 셀러센터 상품 URL 의 <code>/products/v2/</code> 뒤 숫자<br>
                 · <strong>상품번호</strong> (channelProductNo) = 스마트스토어 일괄수정 엑셀의 <code>「상품번호」</code> 열, 셀러센터 상품 목록에서 보는 ID
@@ -662,7 +662,7 @@
                 <button type="button" class="btn btn-sm" data-action="open-ss-edit"
                         title="영구 로그인 Chrome 으로 상품 검색 결과 페이지 진입 — 첫 행 클릭하면 편집">🔧 판매자 센터 (자동 로그인) ↗</button>
                 {% if bundle.naver_channel_product_id and bundle.naver_channel_product_id != bundle.naver_product_id %}
-                <span style="font-size:11.5px;color:var(--n500)">·  매칭된 상품번호 <code class="mono">{{ bundle.naver_channel_product_id }}</code></span>
+                <span style="font-size: 14px;color:var(--n500)">·  매칭된 상품번호 <code class="mono">{{ bundle.naver_channel_product_id }}</code></span>
                 {% endif %}
               </div>
               {% endif %}
@@ -676,11 +676,11 @@
             </div>
 
             <div class="im-pane on" data-impane="ss-api">
-              <div style="background:var(--color-info-bg);padding:10px 14px;border-radius:6px;border-left:3px solid var(--color-info);font-size:12.5px;margin-bottom:10px">
+              <div style="background:var(--color-info-bg);padding:10px 14px;border-radius:6px;border-left:3px solid var(--color-info);font-size: 14px;margin-bottom:10px">
                 💡 스마트스토어 Commerce API 호출 → 옵션 ID 자동 매칭. 색상·사이즈 정확히 일치 시 자동 적용.
               </div>
               <button class="btn btn-primary" data-action="sync-ss-options">동기화 실행</button>
-              <span style="font-size:12px;color:var(--n500);margin-left:10px">N개 옵션 ID 일괄 매칭</span>
+              <span style="font-size: 14px;color:var(--n500);margin-left:10px">N개 옵션 ID 일괄 매칭</span>
             </div>
 
             <div class="im-pane" data-impane="ss-excel">
@@ -689,17 +689,17 @@
                   <div class="dropzone-v3" id="ss-dropzone">
                     <div class="dz-icon">📁</div>
                     <strong>여기에 엑셀 파일 드롭</strong>
-                    <div style="margin-top:8px;font-size:12px;color:var(--n500)">또는 <button class="btn btn-sm" type="button" onclick="document.getElementById('ss-file-input').click()">파일 선택</button></div>
+                    <div style="margin-top:8px;font-size: 14px;color:var(--n500)">또는 <button class="btn btn-sm" type="button" onclick="document.getElementById('ss-file-input').click()">파일 선택</button></div>
                     <input type="file" id="ss-file-input" accept=".xlsx,.xls" style="display:none">
                   </div>
-                  <div style="margin-top:8px;font-size:11.5px;color:var(--n500);display:flex;align-items:center;gap:8px">
+                  <div style="margin-top:8px;font-size: 14px;color:var(--n500);display:flex;align-items:center;gap:8px">
                     <button class="btn btn-sm" type="button" onclick="alert('스스 일괄수정 양식 다운로드 — 후속 구현')">📥 양식 다운로드</button>
                     현재 양식: <span class="chip-v3 chip-info">시스템 기본</span>
                   </div>
                 </div>
                 <div class="preview-sidebar" id="ss-preview" style="display:none">
                   <h4>👁 미리보기</h4>
-                  <div id="ss-preview-body" style="font-size:12px"></div>
+                  <div id="ss-preview-body" style="font-size: 14px"></div>
                 </div>
               </div>
             </div>
@@ -719,13 +719,13 @@
                 <div style="font-weight:700;font-size:15px">쿠팡 입력</div>
                 <div class="mp-active-info">{{ options|selectattr('market_visible_coupang')|list|length }}개 옵션 노출 중</div>
               </div>
-              <div style="margin-left:auto;font-size:12px;color:var(--n500)">매칭 진척률 (예정)</div>
+              <div style="margin-left:auto;font-size: 14px;color:var(--n500)">매칭 진척률 (예정)</div>
             </div>
 
             <div class="field" style="margin-bottom:14px">
               <label class="field-label">쿠팡 productId <span style="color:var(--n500);font-weight:400">(구매자 페이지 URL 용)</span></label>
               <input class="field-input mono" name="coupang_product_id" value="{{ bundle.coupang_product_id or '' }}" placeholder="예: 9508462703" />
-              <div style="margin-top:6px;font-size:11.5px;color:var(--n500);line-height:1.55">
+              <div style="margin-top:6px;font-size: 14px;color:var(--n500);line-height:1.55">
                 💡 매핑 자동 등록 시 sellerProductId 1개만 입력하면 productId·옵션ID 36건 모두 자동 추출됩니다.<br>
                 · <strong>productId</strong>: 구매자 URL <code>www.coupang.com/vp/products/<u>9508462703</u></code><br>
                 · <strong>sellerProductId</strong>: 셀러센터(Wing) 상품수정 URL · API GET·매핑 키
@@ -744,7 +744,7 @@
                 <button type="button" class="btn btn-sm" data-action="open-coupang-edit"
                         title="영구 로그인 Chrome 으로 Wing 상품 검색 결과 진입 — 첫 행 클릭하면 수정 화면">🔐 윙 자동 로그인 ↗</button>
                 {% if bundle.coupang_seller_product_id %}
-                <span style="font-size:11.5px;color:var(--n500)">·  매칭된 sellerProductId <code class="mono">{{ bundle.coupang_seller_product_id }}</code></span>
+                <span style="font-size: 14px;color:var(--n500)">·  매칭된 sellerProductId <code class="mono">{{ bundle.coupang_seller_product_id }}</code></span>
                 {% endif %}
               </div>
               {% endif %}
@@ -768,13 +768,13 @@
                   <div class="dropzone-v3" id="cp-dropzone">
                     <div class="dz-icon">📁</div>
                     <strong>여기에 쿠팡 엑셀 드롭</strong>
-                    <div style="margin-top:8px;font-size:12px;color:var(--n500)">가격/재고 일괄변경 양식</div>
+                    <div style="margin-top:8px;font-size: 14px;color:var(--n500)">가격/재고 일괄변경 양식</div>
                     <input type="file" id="cp-file-input" accept=".xlsx,.xls" style="display:none">
                   </div>
                 </div>
                 <div class="preview-sidebar" id="cp-preview" style="display:none">
                   <h4>👁 미리보기</h4>
-                  <div id="cp-preview-body" style="font-size:12px"></div>
+                  <div id="cp-preview-body" style="font-size: 14px"></div>
                 </div>
               </div>
             </div>
@@ -830,7 +830,7 @@
               const body = document.getElementById(market + '-preview-body');
               sb.style.display = 'block';
               body.innerHTML = `<div style="background:var(--color-info-bg);padding:6px 10px;border-radius:5px;margin-bottom:6px">📁 ${file.name}<br><span style="color:var(--n500)">${(file.size/1024).toFixed(1)} KB</span></div>
-                <div style="color:var(--n600);font-size:11.5px">📌 파싱 + 옵션 매칭은 후속 phase. 현재는 파일 인식만 표시.</div>`;
+                <div style="color:var(--n600);font-size: 14px">📌 파싱 + 옵션 매칭은 후속 phase. 현재는 파일 인식만 표시.</div>`;
             }
 
             // 매칭 진척률 로드
