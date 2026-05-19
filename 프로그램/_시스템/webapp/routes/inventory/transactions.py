@@ -188,6 +188,7 @@ def inbound_new():
         opt_data = [{
             'sku': o.canonical_sku, 'model': o.model_code,
             'name': display_pname.get(o.canonical_sku, o.canonical_sku),
+            'article_no': (getattr(o.model, 'article_no', None) or '') if o.model else '',
             'color': cleaned_color.get(o.canonical_sku, 'ONE Color'),
             'size': (o.size_display or o.size_code or 'FREE'),
             'bh': o.boxhero_sku or '', 'stock': o.boxhero_stock_total or 0,
@@ -259,6 +260,7 @@ def _opt_data_all(s, include_bundles: bool = False):
     out = [{
         'sku': o.canonical_sku, 'model': o.model_code,
         'name': display_pname.get(o.canonical_sku, o.canonical_sku),
+        'article_no': (getattr(o.model, 'article_no', None) or '') if o.model else '',
         'color': cleaned_color.get(o.canonical_sku, 'ONE Color'),
         'size': (o.size_display or o.size_code or 'FREE'),
         'bh': o.boxhero_sku or '', 'stock': o.boxhero_stock_total or 0,

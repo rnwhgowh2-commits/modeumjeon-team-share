@@ -15,11 +15,12 @@ th, td { padding:8px 10px; text-align:left; border-bottom:1px solid #F2F4F6; }
 <h1>{{ link.name }}</h1>
 <div class="subtitle">read-only · 모음전 재고 현황 ({{ options|length }} 옵션)</div>
 <table>
-<thead><tr><th>SKU</th><th>제품명</th><th>색상</th><th>사이즈</th><th style="text-align:right">재고</th></tr></thead>
+<thead><tr><th>SKU</th><th>제품명</th><th>품번</th><th>색상</th><th>사이즈</th><th style="text-align:right">재고</th></tr></thead>
 <tbody>
 {% for o in options %}<tr>
   <td class="mono">{{ o.canonical_sku }}</td>
   <td>{{ (display_pname.get(o.canonical_sku, o.canonical_sku)) if display_pname else (o | display_pname_single) }}</td>
+  <td class="mono">{{ (o.model.article_no if o.model else None) or '—' }}</td>
   <td>{{ (cleaned_color.get(o.canonical_sku, 'ONE Color')) if cleaned_color else (o | cleaned_color_single) }}</td>
   <td>{{ (o.size_display or o.size_code) | size_or_default }}</td>
   <td style="text-align:right" class="mono">{{ o.boxhero_stock_total or 0 }}</td>

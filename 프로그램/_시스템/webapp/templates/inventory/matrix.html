@@ -57,6 +57,7 @@
         <tr>
           <th style="padding:9px 8px;text-align:left;font-size:10.5px;color:#6B7684;border-bottom:1px solid #E5E8EB;min-width:140px">SKU</th>
           <th style="padding:9px 8px;text-align:left;font-size:10.5px;color:#6B7684;border-bottom:1px solid #E5E8EB;min-width:120px">바코드</th>
+          <th style="padding:9px 8px;text-align:left;font-size:10.5px;color:#6B7684;border-bottom:1px solid #E5E8EB;min-width:100px">품번</th>
           <th style="padding:9px 8px;text-align:left;font-size:10.5px;color:#6B7684;border-bottom:1px solid #E5E8EB">컬러</th>
           <th style="padding:9px 8px;text-align:left;font-size:10.5px;color:#6B7684;border-bottom:1px solid #E5E8EB">사이즈</th>
           <th style="padding:9px 8px;text-align:right;font-size:10.5px;color:#6B7684;border-bottom:1px solid #E5E8EB">재고</th>
@@ -76,6 +77,8 @@
           <tr style="border-bottom:1px solid #F2F4F6;{% if use_purchase %}background:#FFFBEB{% endif %}" data-sku="{{ opt.canonical_sku }}">
             <td style="padding:7px 8px;font-family:ui-monospace,monospace;font-size:10.5px">{{ opt.canonical_sku }}</td>
             <td style="padding:7px 8px;font-family:ui-monospace,monospace;font-size:10.5px;{% if not opt.barcode %}color:#9CA3AF{% endif %}">{{ opt.barcode or '—' }}</td>
+            {% set _art = (opt.model.article_no or '') if (opt.model and opt.model.article_no is defined) else '' %}
+            <td style="padding:7px 8px;font-family:ui-monospace,monospace;font-size:11px;{% if not _art %}color:#9CA3AF{% else %}color:#111827{% endif %}">{{ _art or '—' }}</td>
             <td style="padding:7px 8px;color:{% if (opt.color_display or opt.color_code) %}#111827{% else %}#9CA3AF{% endif %}">{{ cleaned_color.get(opt.canonical_sku, 'ONE Color') if cleaned_color else ((opt.color_display or opt.color_code) | color_or_default) }}</td>
             <td style="padding:7px 8px;color:{% if (opt.size_display or opt.size_code) %}#111827{% else %}#9CA3AF{% endif %}">{{ (opt.size_display or opt.size_code) | size_or_default }}</td>
             <td style="padding:7px 8px;text-align:right;font-weight:{% if (opt.boxhero_stock_total or 0) > 0 %}600{% else %}400{% endif %};color:{% if (opt.boxhero_stock_total or 0) == 0 %}#9CA3AF{% else %}#111827{% endif %}">{{ opt.boxhero_stock_total or 0 }}</td>
