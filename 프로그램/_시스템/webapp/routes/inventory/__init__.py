@@ -103,6 +103,61 @@ def home():
             'shown_limited': len(options) >= 500 and total_i > 500,
         }
 
+        # 색상·제품명 정리 — 같은 model_code 그룹의 color_display LCP 로 모델명 도출
+        # 색상에서 모델명 prefix strip + 제품명 = 브랜드 + 모델명 (색상 제외)
+        from collections import defaultdict
+        color_by_model: dict[str, list[str]] = defaultdict(list)
+        for opt in options:
+            raw_c = (opt.color_display or opt.color_code or '').strip()
+            if raw_c and opt.model_code:
+                color_by_model[opt.model_code].append(raw_c)
+
+        def _lcp_words(strs):
+            if len(strs) < 2:
+                return ''
+            ss = sorted(strs)
+            first, last = ss[0], ss[-1]
+            i = 0
+            while i < len(first) and i < len(last) and first[i] == last[i]:
+                i += 1
+            cp = first[:i]
+            while cp and not cp[-1].isspace():
+                cp = cp[:-1]
+            return cp.strip()
+
+        model_lcp_local: dict[str, str] = {}
+        for mc, colors in color_by_model.items():
+            cp = _lcp_words(colors)
+            if cp and len(cp) >= 2:
+                model_lcp_local[mc] = cp
+
+        # 정리된 색상 + 제품명 dict (template 에 전달)
+        cleaned_color: dict[str, str] = {}
+        display_pname: dict[str, str] = {}
+        for opt in options:
+            raw_c = (opt.color_display or opt.color_code or '').strip()
+            prefix = model_lcp_local.get(opt.model_code, '') if opt.model_code else ''
+            if prefix and raw_c.startswith(prefix):
+                cleaned = raw_c[len(prefix):].strip() or 'one'
+            else:
+                cleaned = raw_c or 'one'
+            cleaned_color[opt.canonical_sku] = cleaned
+            # 제품명 = brand + 모델명 (색상 제외)
+            brand_v = (opt.model.brand or '').strip() if opt.model else ''
+            raw_pname = (opt.model.model_name_display or opt.model.model_name_raw) if opt.model else opt.canonical_sku
+            disp_model = (opt.model.model_name_display or '').strip() if opt.model else ''
+            if not disp_model:
+                disp_model = prefix
+            if not disp_model and brand_v and raw_pname.startswith(brand_v):
+                disp_model = raw_pname[len(brand_v):].strip()
+            if disp_model:
+                # 색상이 끝에 붙어있으면 strip
+                if cleaned and cleaned != 'one' and disp_model.endswith(cleaned):
+                    disp_model = disp_model[:-len(cleaned)].strip()
+                display_pname[opt.canonical_sku] = (f'{brand_v} {disp_model}'.strip() if brand_v else disp_model)
+            else:
+                display_pname[opt.canonical_sku] = raw_pname or opt.canonical_sku
+
         return render_template(
             'inventory/home.html',
             active_app='inventory', active='items',
@@ -112,6 +167,8 @@ def home():
             selected_detail=selected_detail, all_locs=all_locs,
             location_filter=location_filter, stats=stats,
             stock_map=stock_map,  # ★ list 의 재고 컬럼용 (실시간 SSOT)
+            cleaned_color=cleaned_color,  # {sku: 색상} — LCP strip 적용
+            display_pname=display_pname,  # {sku: 제품명} — 브랜드+모델명 (색상 X)
         )
     finally:
         s.close()
