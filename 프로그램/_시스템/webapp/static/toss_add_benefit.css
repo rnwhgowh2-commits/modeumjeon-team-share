@@ -30,21 +30,23 @@
 }
 
 /* ============== add-zone (배경 영역) ============== */
+/* 음수 margin 제거 — popover padding 안에 자연스럽게 배치 (가운데 정렬) */
 .cell-fx-pop .add-zone {
-  background: var(--m-bg);
+  width: 100%;
+  margin: 14px 0 0;
+  padding: 14px 0 0;
   border-top: 1px solid var(--m-line);
-  margin: 12px -14px -14px;  /* popover padding 뚫고 풀폭 */
-  padding: 14px;
+  box-sizing: border-box;
 }
 
 /* ============== + 새 혜택 추가 trigger ============== */
 .cell-fx-pop .pop-add {
   width: 100%;
-  padding: 11px;
+  padding: 14px;                 /* 11→14 */
   border: 1px dashed var(--m-border);
   border-radius: 8px;
   background: var(--m-white);
-  font-size: 13px;
+  font-size: 17px;               /* 13→17 (×1.3) */
   font-weight: 600;
   color: var(--m-body);
   cursor: pointer;
@@ -52,7 +54,8 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 6px;
+  gap: 8px;
+  box-sizing: border-box;
   transition: border-color .12s, color .12s, background .12s;
 }
 .cell-fx-pop .pop-add:hover {
@@ -63,15 +66,17 @@
 
 /* ============== add-form 컨테이너 ============== */
 .cell-fx-pop .add-form {
-  margin-top: 10px;
-  padding: 12px 14px 12px 16px;
+  width: 100%;
+  margin-top: 12px;
+  padding: 14px 16px 14px 18px;
   background: var(--m-white);
   border: 1px solid var(--m-line);
   border-left: 3px solid var(--m-ink);  /* ★ 좌측 검정 accent */
   border-radius: 8px;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 13px;                            /* 10→13 (×1.3) */
+  box-sizing: border-box;
   animation: addform-slidedown .22s ease;
 }
 
@@ -87,7 +92,7 @@
 
 /* 폼 안 타이틀 */
 .cell-fx-pop .add-form .title {
-  font-size: 12.5px;
+  font-size: 16px;                 /* 12.5→16 (×1.3) */
   font-weight: 700;
   color: var(--m-ink);
 }
@@ -95,12 +100,12 @@
 /* ============== field (라벨 + 입력 그리드) ============== */
 .cell-fx-pop .add-form .field {
   display: grid;
-  grid-template-columns: 48px 1fr;
-  gap: 8px;
+  grid-template-columns: 62px 1fr;  /* 48→62 (×1.3) — 라벨 너비도 비례 */
+  gap: 10px;
   align-items: center;
 }
 .cell-fx-pop .add-form .field > label {
-  font-size: 11px;
+  font-size: 14px;                 /* 11→14 (×1.3) */
   font-weight: 700;
   color: var(--m-text2);
   text-transform: uppercase;
@@ -109,13 +114,14 @@
 .cell-fx-pop .add-form .field input[type=text] {
   width: 100%;
   border: 1px solid var(--m-border);
-  padding: 9px 12px;
+  padding: 11px 14px;              /* 9/12→11/14 */
   border-radius: 7px;
-  font-size: 14px;
+  font-size: 18px;                 /* 14→18 (×1.3) */
   font-family: inherit;
   font-weight: 500;
   color: var(--m-ink);
   background: var(--m-white);
+  box-sizing: border-box;
 }
 .cell-fx-pop .add-form .field input[type=text]:focus {
   outline: 0;
@@ -129,18 +135,18 @@
 /* ============== pills (정액/정률 — fill background segment) ============== */
 .cell-fx-pop .add-form .pills {
   display: flex;
-  gap: 3px;
-  padding: 3px;
+  gap: 4px;
+  padding: 4px;
   background: var(--m-fill);
-  border-radius: 7px;
+  border-radius: 8px;
 }
 .cell-fx-pop .add-form .pill {
   flex: 1;
-  padding: 6px 10px;
+  padding: 9px 13px;               /* 6/10→9/13 */
   border: 0;
   background: transparent;
-  border-radius: 5px;
-  font-size: 12.5px;
+  border-radius: 6px;
+  font-size: 16px;                 /* 12.5→16 (×1.3) */
   font-weight: 600;
   color: var(--m-body);
   cursor: pointer;
@@ -155,7 +161,7 @@
 /* ============== val + unit ============== */
 .cell-fx-pop .add-form .val-row {
   display: flex;
-  gap: 6px;
+  gap: 8px;
   align-items: center;
 }
 .cell-fx-pop .add-form .val-row input {
@@ -164,20 +170,20 @@
 .cell-fx-pop .add-form .val-row .unit {
   font-weight: 700;
   color: var(--m-body);
-  font-size: 13px;
-  min-width: 18px;
+  font-size: 17px;                 /* 13→17 (×1.3) */
+  min-width: 24px;
   text-align: center;
 }
 
 /* ============== scope-list (단일 border 박스 안 4 item) ============== */
 .cell-fx-pop .add-form .scope-label {
-  font-size: 11px;
+  font-size: 14px;                 /* 11→14 (×1.3) */
   font-weight: 700;
   color: var(--m-text2);
   text-transform: uppercase;
   letter-spacing: .4px;
   display: block;
-  margin-bottom: 5px;
+  margin-bottom: 7px;
 }
 .cell-fx-pop .add-form .scope-list {
   display: flex;
@@ -190,10 +196,10 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 9px 11px;
+  padding: 12px 14px;              /* 9/11→12/14 */
   background: var(--m-white);
   cursor: pointer;
-  font-size: 12.5px;
+  font-size: 16px;                 /* 12.5→16 (×1.3) */
   color: var(--m-body);
   border-bottom: 1px solid var(--m-line);
   border-left: 0;
@@ -202,6 +208,8 @@
   font-family: inherit;
   font-weight: 500;
   text-align: left;
+  width: 100%;
+  box-sizing: border-box;
   transition: background .1s;
 }
 .cell-fx-pop .add-form .scope-list .item:hover {
@@ -216,7 +224,7 @@
   font-weight: 700;
 }
 .cell-fx-pop .add-form .scope-list .item .cnt {
-  font-size: 11px;
+  font-size: 14px;                 /* 11→14 (×1.3) */
   color: var(--m-muted);
   font-weight: 600;
 }
@@ -225,8 +233,8 @@
 }
 .cell-fx-pop .add-form .scope-list .gsep {
   background: var(--m-fill);
-  padding: 5px 11px;
-  font-size: 10px;
+  padding: 7px 14px;
+  font-size: 13px;                 /* 10→13 (×1.3) */
   font-weight: 700;
   color: var(--m-text2);
   text-transform: uppercase;
@@ -235,11 +243,11 @@
 
 /* ============== impact preview (선택 요약) ============== */
 .cell-fx-pop .add-form .impact-preview {
-  padding: 8px 11px;
+  padding: 11px 14px;
   background: var(--m-bg);
   border: 1px solid var(--m-line);
   border-radius: 6px;
-  font-size: 11.5px;
+  font-size: 15px;                 /* 11.5→15 (×1.3) */
   color: var(--m-text2);
   display: flex;
   justify-content: space-between;
@@ -267,11 +275,11 @@
   margin-top: 2px;
 }
 .cell-fx-pop .add-form .acts button {
-  padding: 8px 14px;
+  padding: 11px 18px;              /* 8/14→11/18 */
   border-radius: 6px;
   border: 1px solid var(--m-border);
   background: var(--m-white);
-  font-size: 12.5px;
+  font-size: 16px;                 /* 12.5→16 (×1.3) */
   font-weight: 600;
   font-family: inherit;
   color: var(--m-body);
