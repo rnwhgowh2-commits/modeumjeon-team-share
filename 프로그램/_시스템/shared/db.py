@@ -72,6 +72,8 @@ def _apply_lightweight_migrations() -> None:
         ("options", "image_url", "VARCHAR(500)"),
         # 2026-05-18: 박스히어로 EAN-13 바코드 (라벨 인쇄용)
         ("options", "barcode", "VARCHAR(64)"),
+        # 2026-05-19: 품번 (우리 양식 5번째 컬럼) — Model 마스터에 저장
+        ("models", "article_no", "VARCHAR(64)"),
         # 2026-05-08: PARITY_720 Tier 1 — PO/SO/RO 자동번호·날짜·즉시처리·커스텀필드·첨부
         ("purchase_orders", "po_number", "VARCHAR(32)"),
         ("purchase_orders", "custom_fields_json", "TEXT DEFAULT '{}'"),

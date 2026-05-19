@@ -45,6 +45,9 @@ class Model(Base):
     model_name_display = Column(String(255))
     category = Column(String(100))
     brand = Column(String(100), default="르무통", nullable=False)
+    # 품번 — 박스히어로 'model_name' 컬럼 원본 (예: 'FV5420-002')
+    # 우리 양식 export/import 의 '품번' 필드와 매핑
+    article_no = Column(String(64))
 
     # 소싱처 URL (5개)
     url_lemouton = Column(Text)

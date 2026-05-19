@@ -92,6 +92,12 @@ def _auto_create_master(session: Session, records: list[dict]) -> dict:
                 model_name_raw=(r.get('name') or model_name or model_code)[:255],
                 brand=brand[:100],
             )
+            # 품번 (article_no) — 박스히어로 'model_name' 컬럼 = 품번.
+            # 기존 값 있으면 보존 (사용자 우리 시스템에서 직접 편집한 값 우선).
+            m_obj = session.query(Model).filter_by(model_code=model_code).first()
+            article = (r.get('article_no') or model_name or '').strip()
+            if m_obj and article and not getattr(m_obj, 'article_no', None):
+                m_obj.article_no = article[:64]
             seen_models.add(model_code)
             if existed is None:
                 created_models += 1

@@ -742,7 +742,7 @@ def data_items_export():
         ws.freeze_panes = 'A2'
 
         # 컬럼 너비 (대략)
-        widths = [16, 16, 14, 36, 14, 10, 12, 10] + [12] * len(locs)
+        widths = [16, 16, 14, 36, 14, 14, 10, 12, 10] + [12] * len(locs)
         for i, w in enumerate(widths):
             col_letter = openpyxl.utils.get_column_letter(i + 1)
             ws.column_dimensions[col_letter].width = w
