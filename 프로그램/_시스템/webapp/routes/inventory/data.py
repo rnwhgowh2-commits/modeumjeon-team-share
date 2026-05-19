@@ -703,12 +703,42 @@ def data_items_export():
             for sku, st in loc_map.items():
                 per_loc_stock.setdefault(sku, {})[loc.id] = st
 
+        # 같은 model_code 그룹의 색상 LCP → 모델명 자동 도출
+        # 예: ['에어포스1 블랙(올검)', '에어포스1 화이트(올백)'] → LCP '에어포스1' → 색상에서 strip
+        from collections import defaultdict
+        by_model: dict[str, list[str]] = defaultdict(list)
+        for o in options:
+            raw_c = (o.color_display or o.color_code or '').strip()
+            if raw_c and o.model_code:
+                by_model[o.model_code].append(raw_c)
+
+        def _lcp_words(strs: list[str]) -> str:
+            """문자열 list 의 longest common prefix — 단어 경계 (공백) 까지."""
+            if len(strs) < 2:
+                return ''
+            s = sorted(strs)
+            first, last = s[0], s[-1]
+            i = 0
+            while i < len(first) and i < len(last) and first[i] == last[i]:
+                i += 1
+            cp = first[:i]
+            # 마지막 단어 경계까지만 유지 (단어 잘림 방지)
+            while cp and not cp[-1].isspace():
+                cp = cp[:-1]
+            return cp.strip()
+
+        model_lcp: dict[str, str] = {}
+        for mc, colors in by_model.items():
+            cp = _lcp_words(colors)
+            if cp and len(cp) >= 2:
+                model_lcp[mc] = cp
+
         wb = openpyxl.Workbook()
         ws = wb.active
         ws.title = '재고관리'
 
-        # 헤더 — 우리 양식 8 base + N 위치
-        headers = ['SKU', '바코드', '브랜드', '제품명', '색상', '사이즈', '평균매입가', '총재고']
+        # 헤더 — 우리 양식 9 base + N 위치
+        headers = ['SKU', '바코드', '브랜드', '제품명', '품번', '색상', '사이즈', '평균매입가', '총재고']
         for loc in locs:
             headers.append(f'{loc.name} 재고')
         ws.append(headers)
@@ -717,15 +747,44 @@ def data_items_export():
         for o in options:
             barcode = o.barcode or o.boxhero_sku or ''
             brand = (o.model.brand or '') if o.model else ''
-            pname = ((o.model.model_name_display or o.model.model_name_raw) if o.model else o.canonical_sku) or ''
-            color = (o.color_display or o.color_code or 'one')
+            raw_pname = ((o.model.model_name_display or o.model.model_name_raw) if o.model else o.canonical_sku) or ''
+            article = (getattr(o.model, 'article_no', None) or '') if o.model else ''
+            raw_color = (o.color_display or o.color_code or '').strip()
             size = (o.size_display or o.size_code or 'free')
-            # smart fallback — broken 데이터 (color == pname)
-            if color == pname or (len(color) > 12 and pname.startswith(color[:8])):
+
+            # LCP strip — 색상에서 모델명 prefix 자동 제거
+            model_name = model_lcp.get(o.model_code, '') if o.model_code else ''
+            if model_name and raw_color.startswith(model_name):
+                color = raw_color[len(model_name):].strip()
+            else:
+                color = raw_color
+
+            # 제품명 = 브랜드 + 모델명 (색상 제외)
+            #   모델명 도출 우선순위:
+            #     1. Model.model_name_display (사용자 우리 시스템에서 직접 편집한 값)
+            #     2. LCP 결과 (group 도출)
+            #     3. raw_pname 에서 brand strip
+            display_model = (o.model.model_name_display or '').strip() if o.model else ''
+            if not display_model:
+                display_model = model_name
+            if not display_model and brand and raw_pname.startswith(brand):
+                # 폴백 — 브랜드만 strip
+                display_model = raw_pname[len(brand):].strip()
+            if display_model:
+                # 색상이 display_model 끝에 붙어있으면 떼기 (raw_pname == "브랜드 모델 색상" 의 경우)
+                if color and display_model.endswith(color):
+                    display_model = display_model[:-len(color)].strip()
+                pname = f'{brand} {display_model}'.strip() if brand else display_model
+            else:
+                pname = raw_pname
+
+            # smart fallback — broken 데이터 (color == pname 또는 빈 값)
+            if not color or color == pname:
                 color = 'one'
+
             avg = int(o.boxhero_avg_purchase_price or 0)
             total = int(total_stock_map.get(o.canonical_sku, 0))
-            row = [o.canonical_sku, barcode, brand, pname, color, size, avg, total]
+            row = [o.canonical_sku, barcode, brand, pname, article, color, size, avg, total]
             for loc in locs:
                 row.append(int(per_loc_stock.get(o.canonical_sku, {}).get(loc.id, 0)))
             ws.append(row)

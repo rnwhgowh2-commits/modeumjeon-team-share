@@ -116,6 +116,28 @@ def export_internal(SL, out_path):
             for sku, st in get_stock_batch(s, all_skus, location_id=loc.id).items():
                 per_loc_stock.setdefault(sku, {})[loc.id] = st
 
+        # LCP — 같은 model_code 의 색상 공통 prefix → 모델명
+        from collections import defaultdict
+        by_model = defaultdict(list)
+        for o in options:
+            raw_c = (o.color_display or o.color_code or '').strip()
+            if raw_c and o.model_code:
+                by_model[o.model_code].append(raw_c)
+        def _lcp(strs):
+            if len(strs) < 2: return ''
+            s = sorted(strs)
+            first, last = s[0], s[-1]
+            i = 0
+            while i < len(first) and i < len(last) and first[i] == last[i]: i += 1
+            cp = first[:i]
+            while cp and not cp[-1].isspace(): cp = cp[:-1]
+            return cp.strip()
+        model_lcp = {}
+        for mc, colors in by_model.items():
+            cp = _lcp(colors)
+            if cp and len(cp) >= 2:
+                model_lcp[mc] = cp
+
         wb = openpyxl.Workbook()
         ws = wb.active
         ws.title = '재고관리'
@@ -127,12 +149,26 @@ def export_internal(SL, out_path):
         for o in options:
             barcode = o.barcode or o.boxhero_sku or ''
             brand = (o.model.brand or '') if o.model else ''
-            pname = ((o.model.model_name_display or o.model.model_name_raw) if o.model else o.canonical_sku) or ''
+            raw_pname = ((o.model.model_name_display or o.model.model_name_raw) if o.model else o.canonical_sku) or ''
             article = (getattr(o.model, 'article_no', None) or '') if o.model else ''
-            color = (o.color_display or o.color_code or 'one')
+            raw_color = (o.color_display or o.color_code or '').strip()
             size = (o.size_display or o.size_code or 'free')
-            if color == pname or (len(color) > 12 and pname.startswith(color[:8])):
-                color = 'one'
+            model_name = model_lcp.get(o.model_code, '') if o.model_code else ''
+            if model_name and raw_color.startswith(model_name):
+                color = raw_color[len(model_name):].strip()
+            else:
+                color = raw_color
+            display_model = (o.model.model_name_display or '').strip() if o.model else ''
+            if not display_model: display_model = model_name
+            if not display_model and brand and raw_pname.startswith(brand):
+                display_model = raw_pname[len(brand):].strip()
+            if display_model:
+                if color and display_model.endswith(color):
+                    display_model = display_model[:-len(color)].strip()
+                pname = f'{brand} {display_model}'.strip() if brand else display_model
+            else:
+                pname = raw_pname
+            if not color or color == pname: color = 'one'
             avg = int(o.boxhero_avg_purchase_price or 0)
             total = int(total_stock_map.get(o.canonical_sku, 0))
             row = [o.canonical_sku, barcode, brand, pname, article, color, size, avg, total]
