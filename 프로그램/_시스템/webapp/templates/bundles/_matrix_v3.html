@@ -778,6 +778,55 @@
     .mfs-warn { color: #92400E; font-weight: 700; }
     .mfs-danger { color: #991B1B; font-weight: 700; }
     .mfs-empty { padding: 8px; font-size: 14px; color: var(--n400, #B0B8C1); text-align: center; }
+
+    /* ④ 옵션 재고연결 — 인라인 검색(시안2) + 찾아보기 팝업(시안1) */
+    .ipl-wrap { margin-bottom: 8px; }
+    .ipl-cell { display: flex; align-items: center; gap: 6px; }
+    .ipl-isearch-box { position: relative; flex: 1; min-width: 0; }
+    .ipl-isearch { width: 100%; border: 1.5px solid var(--primary, #3182F6); border-radius: 7px; padding: 6px 9px; font-size: 13px; font-family: var(--font); }
+    .ipl-browse { background: var(--primary-tint, #EAF3FF); color: var(--primary, #3182F6); border: 0; border-radius: 7px; padding: 6px 9px; font-size: 12px; font-weight: 800; cursor: pointer; font-family: var(--font); white-space: nowrap; }
+    .ipl-dd { position: absolute; top: 36px; left: 0; width: 380px; max-width: 92vw; background: #fff; border: 1px solid var(--n200, #e5e8eb); border-radius: 9px; box-shadow: 0 12px 32px rgba(0,0,0,.16); z-index: 20; overflow: hidden; }
+    .ipl-dd-h { padding: 7px 11px; background: var(--n100, #f9fafb); border-bottom: 1px solid var(--n100, #f2f4f6); font-size: 12px; color: var(--n500, #6B7684); font-weight: 700; display: flex; align-items: center; gap: 5px; flex-wrap: wrap; }
+    .ipl-tok { background: var(--primary-tint, #EAF3FF); color: var(--primary, #3182F6); border-radius: 4px; padding: 1px 6px; font-size: 11px; font-weight: 800; }
+    .ipl-dd-res { margin-left: auto; color: #03A65A; font-weight: 800; }
+    .ipl-dd-list { max-height: 270px; overflow: auto; }
+    .ipl-ddrow { padding: 8px 11px; font-size: 12.5px; border-bottom: 1px solid var(--n100, #f4f5f7); cursor: pointer; display: flex; align-items: center; gap: 8px; }
+    .ipl-ddrow:last-child { border-bottom: 0; }
+    .ipl-ddrow:hover { background: var(--primary-tint, #F3F8FF); }
+    .ipl-ddrow .d-main { flex: 1; min-width: 0; }
+    .ipl-ddrow .d1 { font-weight: 700; }
+    .ipl-ddrow .d2 { font-size: 11px; color: var(--n500, #8B95A1); font-family: ui-monospace, monospace; margin-top: 1px; }
+    .ipl-ddrow .d-stock { font-weight: 800; color: #03A65A; white-space: nowrap; }
+    .ipl-dd-empty { padding: 14px 11px; font-size: 12.5px; color: var(--n400, #B0B8C1); text-align: center; }
+    .ipl-linked { display: flex; align-items: center; gap: 6px; font-size: 12.5px; font-weight: 700; color: #03A65A; flex-wrap: wrap; }
+    .ipl-linked .ipl-pk { font-family: ui-monospace, monospace; font-size: 11px; color: var(--n500, #8B95A1); font-weight: 600; }
+    .ipl-relink { background: transparent; border: 0; color: var(--n500, #8B95A1); font-size: 11.5px; font-weight: 700; cursor: pointer; text-decoration: underline; font-family: var(--font); padding: 0; }
+    /* 찾아보기 팝업 */
+    .ipl-ov { position: fixed; inset: 0; background: rgba(15,20,30,.5); display: flex; align-items: center; justify-content: center; z-index: 9000; }
+    .ipl-pop { background: #fff; border-radius: 12px; box-shadow: 0 22px 56px rgba(0,0,0,.4); width: 760px; max-width: 94vw; max-height: 80vh; display: flex; flex-direction: column; overflow: hidden; }
+    .ipl-pop-h { padding: 13px 18px; border-bottom: 1px solid var(--n200, #e5e8eb); display: flex; align-items: center; gap: 9px; font-size: 15px; font-weight: 800; }
+    .ipl-pop-h .ipl-x { margin-left: auto; background: var(--n100, #f2f4f6); border: 0; border-radius: 7px; padding: 6px 11px; font-size: 12px; color: var(--n500, #6B7684); font-weight: 700; cursor: pointer; font-family: var(--font); }
+    .ipl-pop-search { padding: 12px 18px; border-bottom: 1px solid var(--n100, #f2f4f6); }
+    .ipl-bigsrch { display: flex; align-items: center; gap: 8px; border: 1.5px solid var(--primary, #3182F6); border-radius: 8px; padding: 9px 13px; }
+    .ipl-bigsrch input { border: 0; outline: 0; flex: 1; font-size: 14px; font-family: var(--font); }
+    .ipl-bigsrch .ipl-res { color: #03A65A; font-weight: 800; font-size: 13px; white-space: nowrap; }
+    .ipl-pop-body { flex: 1; overflow: auto; padding: 12px 18px; }
+    .ipl-acc { border: 1px solid var(--n200, #e5e8eb); border-radius: 8px; margin-bottom: 8px; overflow: hidden; }
+    .ipl-acc-h { display: flex; align-items: center; gap: 8px; padding: 8px 12px; background: var(--n100, #f9fafb); font-size: 13px; font-weight: 800; }
+    .ipl-acc-cnt { color: var(--n500, #8B95A1); font-weight: 600; margin-left: auto; }
+    .ipl-irow { display: flex; align-items: center; gap: 9px; padding: 8px 12px 8px 24px; border-top: 1px solid var(--n100, #f2f4f6); font-size: 12.5px; cursor: pointer; }
+    .ipl-irow:hover { background: var(--primary-tint, #F3F8FF); }
+    .ipl-irow.sel { background: var(--primary-tint, #F3F8FF); }
+    .ipl-irow .ipl-it { flex: 1; min-width: 0; }
+    .ipl-irow .i1 { font-weight: 700; }
+    .ipl-irow .i2 { font-size: 11px; color: var(--n500, #8B95A1); font-family: ui-monospace, monospace; }
+    .ipl-irow .i-stock { font-weight: 800; color: #03A65A; white-space: nowrap; }
+    .ipl-radio { width: 17px; height: 17px; border: 2px solid var(--n300, #C4CCD4); border-radius: 50%; flex-shrink: 0; position: relative; }
+    .ipl-irow.sel .ipl-radio { border-color: var(--primary, #3182F6); }
+    .ipl-irow.sel .ipl-radio::after { content: ''; position: absolute; width: 9px; height: 9px; background: var(--primary, #3182F6); border-radius: 50%; left: 2px; top: 2px; }
+    .ipl-pop-foot { padding: 11px 18px; border-top: 1px solid var(--n200, #e5e8eb); background: var(--n100, #f9fafb); display: flex; gap: 8px; align-items: center; }
+    .ipl-pop-foot .ipl-sel-txt { font-size: 13px; color: var(--n600, #6B7684); flex: 1; }
+    .ipl-empty { padding: 28px; text-align: center; color: var(--n400, #B0B8C1); font-size: 13px; }
   </style>
 
   <script>
@@ -1197,6 +1246,14 @@
       const invId = invChip.dataset.invId;
       // TODO: Phase 5 — 실제 재고관리 페이지 URL 로 이동
       window.open(`/inventory/products/${invId}`, '_blank');
+      return;
+    }
+    // (d) ④ 옵션 재고연결 — 「찾아보기」 / 「변경」 버튼
+    const iplBtn = e.target.closest('[data-act="ipl-browse"]');
+    if (iplBtn) {
+      e.preventDefault();
+      e.stopPropagation();
+      openInvLinkBrowse(iplBtn.dataset.sku);
       return;
     }
   }, true);  // capture phase — checkbox click 보다 먼저 처리
@@ -3811,18 +3868,40 @@
     return srcCard + purCard;
   }
 
+  // ④ 옵션 재고연결 — 연결 칸 (인라인 검색 + 찾아보기). renderStockCell 상단에 삽입.
+  function renderInvLinkCell(o) {
+    const lp = o.linked_product;
+    if (lp) {
+      return `<div class="ipl-wrap"><div class="ipl-linked" data-ipl-sku="${escapeHtml(o.sku)}">
+        📦 ${escapeHtml(lp.name)}
+        <span class="ipl-pk">${escapeHtml(lp.product_sku)}</span>
+        <button type="button" class="ipl-relink" data-act="ipl-browse" data-sku="${escapeHtml(o.sku)}">변경</button>
+      </div></div>`;
+    }
+    return `<div class="ipl-wrap"><div class="ipl-cell">
+      <div class="ipl-isearch-box">
+        <input type="text" class="ipl-isearch" data-ipl-search="${escapeHtml(o.sku)}"
+               placeholder="🔍 브랜드·모델·색상·사이즈·SKU·바코드" autocomplete="off">
+      </div>
+      <button type="button" class="ipl-browse" data-act="ipl-browse" data-sku="${escapeHtml(o.sku)}">🔍 찾아보기</button>
+    </div></div>`;
+  }
+
   function renderStockCell(o) {
     const v = o.manual_stock != null ? o.manual_stock : '';
     const invId = getInvId(o);
+    const invLink = renderInvLinkCell(o);
     // v20 G3 — 미연동 옵션 = [+ 재고관리] 버튼만 (input 숨김)
     // v23 — 안내 문구 삭제 (버튼 자체가 의미 전달)
     if (!invId) {
       return `<div class="cell-stock-wrap stock-local">
+        ${invLink}
         <button type="button" class="stock-local-btn" data-act="inv-add" data-sku="${escapeHtml(o.sku)}">＋ 재고관리에 제품 추가</button>
       </div>`;
     }
     // v20 G3 — LIVE 옵션 = 라벨 grid + separator + 이력 타이틀
     return `<div class="cell-stock-wrap stock-live">
+      ${invLink}
       <div class="g3-field-row">
         <span class="g3-lab">재고</span>
         <span class="g3-val">
@@ -4890,7 +4969,227 @@
         else loadMatrix();
       });
     });
+
+    // ④ 옵션 재고연결 — 인라인 실시간 AND 검색 (엔터 불필요)
+    document.querySelectorAll('input[data-ipl-search]').forEach(inp => {
+      bindInvLinkInlineSearch(inp);
+    });
   };
+
+  // ════════════════════════════════════════════════════════════
+  //  ④ 옵션에 재고 연결 — 인라인 실시간 AND 검색(시안2) + 찾아보기 팝업(시안1)
+  //  검색 = GET /api/inventory/products/search (split_tokens + apply_and_filter)
+  //  연결 = POST /api/options/<sku>/link-product → OptionProductLink 생성/갱신
+  // ════════════════════════════════════════════════════════════
+
+  // 재고제품 검색 — 모델별 그룹 응답을 flat item 배열로
+  async function iplSearchProducts(q) {
+    const r = await fetch('/api/inventory/products/search?q=' + encodeURIComponent(q || ''));
+    const j = await r.json();
+    if (!j.ok) throw new Error(j.error || '검색 실패');
+    return j.groups || [];
+  }
+
+  // 옵션에 재고제품 연결 (생성/갱신)
+  async function iplLinkProduct(sku, productSku) {
+    const r = await fetch(`/api/options/${encodeURIComponent(sku)}/link-product`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ product_sku: productSku }),
+    });
+    const j = await r.json();
+    if (!j.ok) throw new Error(j.error || '연결 실패');
+    return j.linked_product;
+  }
+
+  // 키워드 토큰 (공백 분리) — UI 표시용
+  function iplTokens(q) {
+    return (q || '').trim().split(/\s+/).filter(Boolean);
+  }
+
+  // 인라인 검색 입력칸 바인딩 — 타이핑 시 debounce 후 실시간 AND 검색
+  function bindInvLinkInlineSearch(inp) {
+    const sku = inp.dataset.iplSearch;
+    const box = inp.closest('.ipl-isearch-box');
+    if (!box) return;
+    let dd = null;
+    let timer = null;
+    let seq = 0;
+
+    function closeDD() { if (dd) { dd.remove(); dd = null; } }
+
+    async function runSearch() {
+      const q = inp.value.trim();
+      const mySeq = ++seq;
+      if (!q) { closeDD(); return; }
+      let groups;
+      try {
+        groups = await iplSearchProducts(q);
+      } catch (e) {
+        if (mySeq !== seq) return;
+        return;
+      }
+      if (mySeq !== seq) return;  // 더 최근 검색이 진행 중 → 폐기
+      const items = groups.flatMap(g => g.items || []);
+      const toks = iplTokens(q);
+      const tokHtml = toks.map(t => `<span class="ipl-tok">${escapeHtml(t)}</span>`).join('');
+      let listHtml;
+      if (!items.length) {
+        listHtml = `<div class="ipl-dd-empty">일치하는 재고제품이 없어요.</div>`;
+      } else {
+        listHtml = `<div class="ipl-dd-list">` + items.slice(0, 60).map(it => `
+          <div class="ipl-ddrow" data-ipl-pick="${escapeHtml(it.product_sku)}">
+            <div class="d-main">
+              <div class="d1">${escapeHtml((it.brand ? it.brand + ' ' : '') + it.name)}</div>
+              <div class="d2">${escapeHtml(it.product_sku)}${it.barcode ? ' · 바코드 ' + escapeHtml(it.barcode) : ''}</div>
+            </div>
+            <span class="d-stock">${it.stock}</span>
+          </div>`).join('') + `</div>`;
+      }
+      closeDD();
+      dd = document.createElement('div');
+      dd.className = 'ipl-dd';
+      dd.innerHTML = `<div class="ipl-dd-h">⚡ 실시간 ${tokHtml}
+        <span style="color:var(--n400,#8B95A1)">모두 포함</span>
+        <span class="ipl-dd-res">${items.length}건</span></div>${listHtml}`;
+      box.appendChild(dd);
+      dd.querySelectorAll('[data-ipl-pick]').forEach(row => {
+        row.addEventListener('mousedown', async (ev) => {
+          ev.preventDefault();  // blur 보다 먼저 실행
+          await iplApplyLink(sku, row.dataset.iplPick);
+        });
+      });
+    }
+
+    inp.addEventListener('input', () => {
+      clearTimeout(timer);
+      timer = setTimeout(runSearch, 220);  // debounce
+    });
+    inp.addEventListener('focus', () => { if (inp.value.trim()) runSearch(); });
+    inp.addEventListener('blur', () => { setTimeout(closeDD, 150); });
+    inp.addEventListener('keydown', e => { if (e.key === 'Escape') { inp.value = ''; closeDD(); } });
+  }
+
+  // 연결 실행 + 결과 반영 (매트릭스 재로드)
+  async function iplApplyLink(sku, productSku) {
+    try {
+      await iplLinkProduct(sku, productSku);
+      if (window.showToast) window.showToast('재고제품 연결 완료', 'ok');
+      loadMatrix();
+    } catch (e) {
+      alert('연결 실패: ' + e.message);
+    }
+  }
+
+  // 「🔍 찾아보기」 팝업 — 모델별 트리 + 실시간 AND 검색
+  function openInvLinkBrowse(sku) {
+    const opt = (DATA.options || []).find(o => o.sku === sku);
+    const optLabel = opt ? `${opt.color_display || opt.color_code || ''} ${opt.size_code || ''}`.trim() : sku;
+
+    const ov = document.createElement('div');
+    ov.className = 'ipl-ov';
+    ov.innerHTML = `
+      <div class="ipl-pop" role="dialog" aria-modal="true">
+        <div class="ipl-pop-h">📦 재고 찾아 연결 — 옵션 "${escapeHtml(optLabel)}"
+          <button type="button" class="ipl-x" data-ipl-close>✕ 닫기</button></div>
+        <div class="ipl-pop-search">
+          <div class="ipl-bigsrch">
+            <span>🔍</span>
+            <input type="text" id="ipl-pop-input" placeholder="브랜드·모델·색상·사이즈·SKU·바코드 — 실시간 AND" autocomplete="off">
+            <span class="ipl-res" id="ipl-pop-res">⚡ 실시간</span>
+          </div>
+        </div>
+        <div class="ipl-pop-body" id="ipl-pop-body">
+          <div class="ipl-empty">검색어를 입력하면 재고제품이 모델별로 나타납니다.</div>
+        </div>
+        <div class="ipl-pop-foot">
+          <span class="ipl-sel-txt" id="ipl-pop-sel">선택된 재고제품 없음</span>
+          <button type="button" class="btn" data-ipl-close>취소</button>
+          <button type="button" class="btn btn-primary" id="ipl-pop-confirm" disabled>이 재고로 연결</button>
+        </div>
+      </div>`;
+    document.body.appendChild(ov);
+
+    let selected = null;  // product_sku
+    const input = ov.querySelector('#ipl-pop-input');
+    const body = ov.querySelector('#ipl-pop-body');
+    const resEl = ov.querySelector('#ipl-pop-res');
+    const selEl = ov.querySelector('#ipl-pop-sel');
+    const confirmBtn = ov.querySelector('#ipl-pop-confirm');
+
+    function close() { ov.remove(); document.removeEventListener('keydown', onKey); }
+    function onKey(e) { if (e.key === 'Escape') close(); }
+    document.addEventListener('keydown', onKey);
+    ov.querySelectorAll('[data-ipl-close]').forEach(b => b.addEventListener('click', close));
+    ov.addEventListener('mousedown', e => { if (e.target === ov) close(); });
+
+    let timer = null, seq = 0;
+    async function runSearch() {
+      const q = input.value.trim();
+      const mySeq = ++seq;
+      if (!q) {
+        body.innerHTML = `<div class="ipl-empty">검색어를 입력하면 재고제품이 모델별로 나타납니다.</div>`;
+        resEl.textContent = '⚡ 실시간';
+        return;
+      }
+      let groups;
+      try {
+        groups = await iplSearchProducts(q);
+      } catch (e) {
+        if (mySeq !== seq) return;
+        body.innerHTML = `<div class="ipl-empty">검색 실패: ${escapeHtml(e.message)}</div>`;
+        return;
+      }
+      if (mySeq !== seq) return;
+      const total = groups.reduce((n, g) => n + (g.items || []).length, 0);
+      resEl.textContent = total + '건';
+      if (!total) {
+        body.innerHTML = `<div class="ipl-empty">일치하는 재고제품이 없어요.</div>`;
+        return;
+      }
+      body.innerHTML = groups.map(g => `
+        <div class="ipl-acc">
+          <div class="ipl-acc-h">▾ ${escapeHtml((g.brand ? g.brand + ' · ' : '') + g.model_code)}
+            <span class="ipl-acc-cnt">${g.count}건</span></div>
+          ${(g.items || []).map(it => `
+            <div class="ipl-irow" data-ipl-pick="${escapeHtml(it.product_sku)}">
+              <span class="ipl-radio"></span>
+              <div class="ipl-it">
+                <div class="i1">${escapeHtml(it.name)}${it.color || it.size ? ' · ' + escapeHtml((it.color + ' ' + it.size).trim()) : ''}</div>
+                <div class="i2">${escapeHtml(it.product_sku)}${it.barcode ? ' · 바코드 ' + escapeHtml(it.barcode) : ''}</div>
+              </div>
+              <span class="i-stock">재고 ${it.stock}</span>
+            </div>`).join('')}
+        </div>`).join('');
+      body.querySelectorAll('[data-ipl-pick]').forEach(row => {
+        row.addEventListener('click', () => {
+          selected = row.dataset.iplPick;
+          body.querySelectorAll('.ipl-irow').forEach(r => r.classList.toggle('sel', r === row));
+          const nm = row.querySelector('.i1').textContent;
+          selEl.textContent = '선택: ' + nm + ' (' + selected + ')';
+          confirmBtn.disabled = false;
+        });
+      });
+    }
+    input.addEventListener('input', () => { clearTimeout(timer); timer = setTimeout(runSearch, 220); });
+
+    confirmBtn.addEventListener('click', async () => {
+      if (!selected) return;
+      confirmBtn.disabled = true;
+      confirmBtn.textContent = '연결 중…';
+      try {
+        await iplLinkProduct(sku, selected);
+        if (window.showToast) window.showToast('재고제품 연결 완료', 'ok');
+        close();
+        loadMatrix();
+      } catch (e) {
+        alert('연결 실패: ' + e.message);
+        confirmBtn.disabled = false;
+        confirmBtn.textContent = '이 재고로 연결';
+      }
+    });
+
+    setTimeout(() => input.focus(), 30);
+  }
 
   // ─────────── 글로벌 액션 + 일괄 해제 + 4-모드 dropdown ───────────
   // 전체 크롤 (CTA) — 상단 "크롤링 실행" 버튼과 완전 동일 동작.

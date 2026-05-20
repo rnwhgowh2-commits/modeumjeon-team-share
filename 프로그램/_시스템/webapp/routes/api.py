@@ -2254,6 +2254,52 @@ def inventory_compose_bundle():
         s.close()
 
 
+# ═══════ ④ 모음전 편집 — 이미 등록된 옵션에 재고제품 연결 ═══════
+
+@bp.post('/options/<sku>/link-product')
+def option_link_product(sku: str):
+    """모음전 옵션 1개에 재고제품 1개를 연결 (OptionProductLink 생성/갱신).
+
+    Body: {product_sku} — 연결할 재고제품(InventoryProduct.canonical_sku).
+    이미 링크가 있으면 product_canonical_sku 만 교체 (「변경」).
+    응답: {ok, linked_product:{product_sku,name,color,size,brand,barcode,stock}}
+    """
+    from lemouton.inventory.models import InventoryProduct, OptionProductLink
+    from shared.inventory_stock import get_stock_by_sku
+    body = request.get_json(silent=True) or {}
+    product_sku = (body.get('product_sku') or '').strip()
+    if not product_sku:
+        return _err('연결할 재고제품을 선택하세요.')
+    s = SessionLocal()
+    try:
+        opt = s.query(Option).filter_by(canonical_sku=sku).first()
+        if not opt:
+            return _err('옵션을 찾을 수 없어요.', 404)
+        product = (s.query(InventoryProduct)
+                   .filter_by(canonical_sku=product_sku).first())
+        if not product:
+            return _err('재고제품을 찾을 수 없어요.', 404)
+        link = (s.query(OptionProductLink)
+                .filter_by(option_canonical_sku=sku).first())
+        if link:
+            link.product_canonical_sku = product_sku
+        else:
+            s.add(OptionProductLink(option_canonical_sku=sku,
+                                    product_canonical_sku=product_sku))
+        s.commit()
+        return _ok(linked_product={
+            'product_sku': product.canonical_sku,
+            'name': product.option_name or product.canonical_sku,
+            'color': product.color_code or '',
+            'size': product.size_code or '',
+            'brand': product.brand or '',
+            'barcode': product.barcode or '',
+            'stock': get_stock_by_sku(s, product.canonical_sku),
+        })
+    finally:
+        s.close()
+
+
 @bp.post('/bundles/<code>/price-mode')
 def bundle_price_mode(code: str):
     """[가격모드 v3] 모음전(또는 그룹)의 가격·마진 설정 변경.

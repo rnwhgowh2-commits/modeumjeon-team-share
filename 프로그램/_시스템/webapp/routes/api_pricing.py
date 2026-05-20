@@ -271,6 +271,43 @@ def get_option_matrix(code: str):
         except Exception:
             inv_dict = {}
 
+        # ④ 옵션 재고연결 — OptionProductLink 로 연결된 재고제품 (옵션 SKU 와 다를 수 있음)
+        linked_product_dict: dict[str, dict] = {}
+        try:
+            from lemouton.inventory.models import (
+                InventoryProduct as _IP, OptionProductLink as _OPL,
+            )
+            from shared.inventory_stock import get_stock_batch as _gsb
+            links = (s.query(_OPL)
+                     .filter(_OPL.option_canonical_sku.in_(sku_list))
+                     .all() if sku_list else [])
+            # 옵션 SKU 와 동일한 product 를 가리키는 self-link 는 표시 안 함
+            #   (1:1 시딩 링크 = 기존 +재고관리 흐름과 동일 의미 → inv_product_id 로 충분)
+            ext_links = {lk.option_canonical_sku: lk.product_canonical_sku
+                         for lk in links
+                         if lk.product_canonical_sku != lk.option_canonical_sku}
+            if ext_links:
+                prod_skus = list(set(ext_links.values()))
+                lp_rows = (s.query(_IP)
+                           .filter(_IP.canonical_sku.in_(prod_skus)).all())
+                lp_by_sku = {p.canonical_sku: p for p in lp_rows}
+                lp_stock = _gsb(s, prod_skus)
+                for opt_sku_v, prod_sku_v in ext_links.items():
+                    p = lp_by_sku.get(prod_sku_v)
+                    if not p:
+                        continue
+                    linked_product_dict[opt_sku_v] = {
+                        'product_sku': p.canonical_sku,
+                        'name': p.option_name or p.canonical_sku,
+                        'color': p.color_code or '',
+                        'size': p.size_code or '',
+                        'brand': p.brand or '',
+                        'barcode': p.barcode or '',
+                        'stock': lp_stock.get(p.canonical_sku, 0),
+                    }
+        except Exception:
+            linked_product_dict = {}
+
         # ★ 2026-05-13 v3 — 재고관리 실재고 합산 (사용자 의도)
         #   조건: InventoryProduct 가 존재(등록)하는 옵션의 InventoryTx 만 합산
         #   배경: InventoryProduct 없는데 Tx 만 떠도는 무결성 깨진 데이터 존재
@@ -389,6 +426,8 @@ def get_option_matrix(code: str):
                 # v17 Phase 5 — InventoryProduct 매핑 (재고관리 연동 여부)
                 'inv_product_id': inv_dict.get(o.canonical_sku).id if inv_dict.get(o.canonical_sku) else None,
                 'inv_product_status': inv_dict.get(o.canonical_sku).status if inv_dict.get(o.canonical_sku) else None,
+                # ④ 옵션 재고연결 — OptionProductLink 로 연결된 재고제품 (없으면 null)
+                'linked_product': linked_product_dict.get(o.canonical_sku),
                 'sources': sources_for_opt,
                 'src_count': len(sources_for_opt),
                 # M4/P3 사입 데이터
