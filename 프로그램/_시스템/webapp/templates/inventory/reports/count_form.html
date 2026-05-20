@@ -5,21 +5,21 @@
   <h1 style="font-size:20px;font-weight:700;margin-bottom:14px">재고조사 시작</h1>
   <form method="post" action="{{ url_for('inventory.count_create') }}" style="background:#fff;border:1px solid #E5E8EB;border-radius:8px;padding:20px;display:grid;gap:14px">
     <div>
-      <label style="display:block;font-size: 14px;color:#4E5968;margin-bottom:4px;font-weight:600">조사명</label>
-      <input name="name" placeholder="예: 2026-05 정기 실사" style="width:100%;padding:8px 12px;border:1px solid #D1D6DB;border-radius:5px;font-size:13px">
+      <label style="display:block;font-size:12px;color:#4E5968;margin-bottom:4px;font-weight:600">조사명</label>
+      <input name="name" placeholder="예: 2026-05 정기 실사" style="width:100%;padding:8px 12px;border:1px solid #D1D6DB;border-radius:5px;font-size:14px">
     </div>
     <div>
-      <label style="display:block;font-size: 14px;color:#4E5968;margin-bottom:4px;font-weight:600">대상 위치 *</label>
+      <label style="display:block;font-size:12px;color:#4E5968;margin-bottom:4px;font-weight:600">대상 위치 *</label>
       <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px">
         {% for loc in locations %}
-          <label style="display:flex;align-items:center;gap:6px;padding:6px 10px;border:1px solid #E5E8EB;border-radius:5px;font-size: 14px;cursor:pointer">
+          <label style="display:flex;align-items:center;gap:6px;padding:6px 10px;border:1px solid #E5E8EB;border-radius:5px;font-size:12px;cursor:pointer">
             <input type="checkbox" name="location_id" value="{{ loc.id }}" checked> {{ loc.name }}
           </label>
         {% endfor %}
       </div>
     </div>
-    <div style="display:flex;gap:8px"><a href="{{ url_for('inventory.count_list') }}" style="padding:9px 18px;border:1px solid #D1D6DB;border-radius:5px;text-decoration:none;color:#4E5968;font-size:13px">취소</a>
-      <button type="submit" style="background:#3182F6;color:#fff;padding:9px 22px;border:none;border-radius:5px;font-size:13px;font-weight:600;cursor:pointer">조사 시작</button></div>
+    <div style="display:flex;gap:8px"><a href="{{ url_for('inventory.count_list') }}" style="padding:9px 18px;border:1px solid #D1D6DB;border-radius:5px;text-decoration:none;color:#4E5968;font-size:14px">취소</a>
+      <button type="submit" style="background:#3182F6;color:#fff;padding:9px 22px;border:none;border-radius:5px;font-size:14px;font-weight:600;cursor:pointer">조사 시작</button></div>
   </form>
 </div>
 {% endblock %}

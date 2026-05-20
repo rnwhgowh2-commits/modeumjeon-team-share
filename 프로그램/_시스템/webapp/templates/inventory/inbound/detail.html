@@ -4,9 +4,9 @@
 <div style="padding:24px 32px;max-width:1100px;margin:0 auto">
 
   <div style="display:flex;align-items:center;gap:14px;margin-bottom:14px">
-    <a href="{{ url_for('inventory.inbound_list') }}" style="font-size: 14px;color:#3182F6;text-decoration:none">← 입고 목록</a>
+    <a href="{{ url_for('inventory.inbound_list') }}" style="font-size:14px;color:#3182F6;text-decoration:none">← 입고 목록</a>
     <h1 style="font-size:22px;font-weight:700;margin:0">📥 입고 #{{ tx.id }}</h1>
-    <span style="margin-left:auto;font-size: 14px;padding:3px 10px;border-radius:4px;background:#DCFCE7;color:#15803D;font-weight:600">완료</span>
+    <span style="margin-left:auto;font-size:12px;padding:3px 10px;border-radius:4px;background:#DCFCE7;color:#15803D;font-weight:600">완료</span>
   </div>
 
   <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px">
@@ -14,7 +14,7 @@
     <!-- 거래 정보 -->
     <div style="background:#fff;border:1px solid #E5E8EB;border-radius:8px;padding:18px">
       <h2 style="font-size:14px;font-weight:600;margin:0 0 12px">거래 정보</h2>
-      <table style="width:100%;font-size: 14px;line-height:1.9">
+      <table style="width:100%;font-size:14px;line-height:1.9">
         <tr><td style="color:#6B7684;width:90px">거래일</td><td>{{ tx.created_at.strftime('%Y-%m-%d %H:%M:%S') if tx.created_at else '—' }}</td></tr>
         <tr><td style="color:#6B7684">위치</td><td><strong>{{ loc.name if loc else '—' }}</strong></td></tr>
         <tr><td style="color:#6B7684">거래처</td><td>{{ tx.partner_label or '—' }}</td></tr>
@@ -26,7 +26,7 @@
     <!-- 수량·금액 -->
     <div style="background:#fff;border:1px solid #E5E8EB;border-radius:8px;padding:18px">
       <h2 style="font-size:14px;font-weight:600;margin:0 0 12px">💰 수량·금액</h2>
-      <table style="width:100%;font-size: 14px;line-height:1.9">
+      <table style="width:100%;font-size:14px;line-height:1.9">
         <tr><td style="color:#6B7684;width:120px">입고 수량</td><td><strong style="color:#0E8056;font-size:18px">+{{ tx.qty }}</strong></td></tr>
         <tr><td style="color:#6B7684">단가 (매입가)</td><td>{% if tx.unit_purchase_price_at_tx %}{{ '{:,}'.format(tx.unit_purchase_price_at_tx) }}원{% else %}—{% endif %}</td></tr>
         <tr><td style="color:#6B7684">총액 (수량 × 단가)</td><td><strong>{% if tx.unit_purchase_price_at_tx %}{{ '{:,}'.format(tx.qty * tx.unit_purchase_price_at_tx) }}원{% else %}—{% endif %}</strong></td></tr>
@@ -39,7 +39,7 @@
   <!-- 제품 정보 -->
   <div style="background:#fff;border:1px solid #E5E8EB;border-radius:8px;padding:18px;margin-bottom:14px">
     <h2 style="font-size:14px;font-weight:600;margin:0 0 12px">제품</h2>
-    <table style="width:100%;font-size: 14px;line-height:1.9">
+    <table style="width:100%;font-size:14px;line-height:1.9">
       <tr><td style="color:#6B7684;width:140px">옵션 SKU (모음전)</td><td><strong style="font-family:ui-monospace,monospace">{{ tx.option_canonical_sku }}</strong></td></tr>
       {% if opt %}
         <tr><td style="color:#6B7684">제품명</td><td><strong>{{ opt | display_pname_single }}</strong></td></tr>
@@ -58,20 +58,20 @@
   <div style="background:#fff;border:1px solid #E5E8EB;border-radius:8px;padding:18px;margin-bottom:14px">
     <h2 style="font-size:14px;font-weight:600;margin:0 0 12px">✎ 거래 수정</h2>
     <form method="post" action="{{ url_for('inventory.inbound_update', tx_id=tx.id) }}" style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px">
-      <div><label style="display:block;font-size: 14px;color:#4E5968;margin-bottom:4px;font-weight:600">거래일 ★</label><input type="datetime-local" name="created_at" value="{{ tx.created_at.strftime('%Y-%m-%dT%H:%M') if tx.created_at else '' }}" style="width:100%;padding:8px 10px;border:1px solid #D1D6DB;border-radius:5px;font-size: 14px"></div>
-      <div><label style="display:block;font-size: 14px;color:#4E5968;margin-bottom:4px;font-weight:600">거래처</label><input name="partner_label" value="{{ tx.partner_label or '' }}" style="width:100%;padding:8px 10px;border:1px solid #D1D6DB;border-radius:5px;font-size: 14px"></div>
-      <div><label style="display:block;font-size: 14px;color:#4E5968;margin-bottom:4px;font-weight:600">담당자</label><input name="created_by" value="{{ tx.created_by or '' }}" style="width:100%;padding:8px 10px;border:1px solid #D1D6DB;border-radius:5px;font-size: 14px"></div>
-      <div style="grid-column:1/-1"><label style="display:block;font-size: 14px;color:#4E5968;margin-bottom:4px;font-weight:600">메모</label><textarea name="memo" rows="2" style="width:100%;padding:8px 10px;border:1px solid #D1D6DB;border-radius:5px;font-size: 14px">{{ tx.memo or '' }}</textarea></div>
-      <div style="grid-column:1/-1"><button type="submit" style="background:#3182F6;color:#fff;padding:8px 18px;border:none;border-radius:5px;font-size: 14px;font-weight:600;cursor:pointer">💾 수정 저장</button></div>
+      <div><label style="display:block;font-size:12px;color:#4E5968;margin-bottom:4px;font-weight:600">거래일 ★</label><input type="datetime-local" name="created_at" value="{{ tx.created_at.strftime('%Y-%m-%dT%H:%M') if tx.created_at else '' }}" style="width:100%;padding:8px 10px;border:1px solid #D1D6DB;border-radius:5px;font-size:14px"></div>
+      <div><label style="display:block;font-size:12px;color:#4E5968;margin-bottom:4px;font-weight:600">거래처</label><input name="partner_label" value="{{ tx.partner_label or '' }}" style="width:100%;padding:8px 10px;border:1px solid #D1D6DB;border-radius:5px;font-size:14px"></div>
+      <div><label style="display:block;font-size:12px;color:#4E5968;margin-bottom:4px;font-weight:600">담당자</label><input name="created_by" value="{{ tx.created_by or '' }}" style="width:100%;padding:8px 10px;border:1px solid #D1D6DB;border-radius:5px;font-size:14px"></div>
+      <div style="grid-column:1/-1"><label style="display:block;font-size:12px;color:#4E5968;margin-bottom:4px;font-weight:600">메모</label><textarea name="memo" rows="2" style="width:100%;padding:8px 10px;border:1px solid #D1D6DB;border-radius:5px;font-size:14px">{{ tx.memo or '' }}</textarea></div>
+      <div style="grid-column:1/-1"><button type="submit" style="background:#3182F6;color:#fff;padding:8px 18px;border:none;border-radius:5px;font-size:14px;font-weight:600;cursor:pointer">💾 수정 저장</button></div>
     </form>
   </div>
 
   <!-- 액션 -->
   <div style="display:flex;gap:8px">
-    <a href="{{ url_for('inventory.inbound_list') }}" style="padding:9px 18px;border:1px solid #D1D6DB;border-radius:5px;text-decoration:none;color:#4E5968;font-size:13px">← 목록</a>
+    <a href="{{ url_for('inventory.inbound_list') }}" style="padding:9px 18px;border:1px solid #D1D6DB;border-radius:5px;text-decoration:none;color:#4E5968;font-size:14px">← 목록</a>
     {% if opt %}
-      <a href="{{ url_for('inventory.matrix_view') }}?model_code={{ opt.model_code }}" style="padding:9px 18px;background:#7C3AED;color:#fff;border-radius:5px;text-decoration:none;font-size:13px;font-weight:600">매트릭스에서 보기</a>
-      <a href="{{ url_for('inventory.reports_past_quantity', sku=tx.option_canonical_sku) }}" style="padding:9px 18px;background:#3182F6;color:#fff;border-radius:5px;text-decoration:none;font-size:13px;font-weight:600">📈 시계열 추적</a>
+      <a href="{{ url_for('inventory.matrix_view') }}?model_code={{ opt.model_code }}" style="padding:9px 18px;background:#7C3AED;color:#fff;border-radius:5px;text-decoration:none;font-size:14px;font-weight:600">매트릭스에서 보기</a>
+      <a href="{{ url_for('inventory.reports_past_quantity', sku=tx.option_canonical_sku) }}" style="padding:9px 18px;background:#3182F6;color:#fff;border-radius:5px;text-decoration:none;font-size:14px;font-weight:600">📈 시계열 추적</a>
     {% endif %}
   </div>
 </div>

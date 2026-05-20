@@ -5,11 +5,11 @@
   <h1 style="font-size:22px;font-weight:700;margin-bottom:18px">Webhook 엔드포인트</h1>
 
   <form method="post" action="{{ url_for('inventory.webhook_create') }}" style="background:#fff;border:1px solid #E5E8EB;border-radius:8px;padding:16px;margin-bottom:18px;display:grid;gap:10px;grid-template-columns:1fr 2fr 1fr auto">
-    <input name="name" placeholder="이름 (예: 정산팀 슬랙)" required style="padding:8px 11px;border:1px solid #D1D6DB;border-radius:5px;font-size:13px">
-    <input name="url" type="url" placeholder="https://hooks.slack.com/..." required style="padding:8px 11px;border:1px solid #D1D6DB;border-radius:5px;font-size:13px">
-    <input name="secret" placeholder="시크릿 (선택)" style="padding:8px 11px;border:1px solid #D1D6DB;border-radius:5px;font-size:13px">
-    <button type="submit" style="background:#3182F6;color:#fff;padding:8px 18px;border:none;border-radius:5px;font-size:13px;font-weight:600;cursor:pointer">+ 등록</button>
-    <div style="grid-column:1/-1;display:flex;gap:14px;font-size: 14px;color:#4E5968">
+    <input name="name" placeholder="이름 (예: 정산팀 슬랙)" required style="padding:8px 11px;border:1px solid #D1D6DB;border-radius:5px;font-size:14px">
+    <input name="url" type="url" placeholder="https://hooks.slack.com/..." required style="padding:8px 11px;border:1px solid #D1D6DB;border-radius:5px;font-size:14px">
+    <input name="secret" placeholder="시크릿 (선택)" style="padding:8px 11px;border:1px solid #D1D6DB;border-radius:5px;font-size:14px">
+    <button type="submit" style="background:#3182F6;color:#fff;padding:8px 18px;border:none;border-radius:5px;font-size:14px;font-weight:600;cursor:pointer">+ 등록</button>
+    <div style="grid-column:1/-1;display:flex;gap:14px;font-size:12px;color:#4E5968">
       구독 이벤트:
       {% for ev in ['po.created','so.created','ro.created','low_stock'] %}
       <label><input type="checkbox" name="events" value="{{ ev }}"> {{ ev }}</label>
@@ -18,26 +18,26 @@
   </form>
 
   <div style="background:#fff;border:1px solid #E5E8EB;border-radius:8px;overflow:hidden">
-    <table style="width:100%;border-collapse:collapse;font-size: 14px">
+    <table style="width:100%;border-collapse:collapse;font-size:14px">
       <thead style="background:#F9FAFB"><tr>
-        <th style="padding:10px;text-align:left;font-size: 14px;color:#4E5968">이름</th>
-        <th style="padding:10px;text-align:left;font-size: 14px;color:#4E5968">URL</th>
-        <th style="padding:10px;text-align:left;font-size: 14px;color:#4E5968">이벤트</th>
-        <th style="padding:10px;text-align:center;font-size: 14px;color:#4E5968">상태</th>
-        <th style="padding:10px;text-align:center;font-size: 14px;color:#4E5968">최근 호출</th>
-        <th style="padding:10px;text-align:center;font-size: 14px;color:#4E5968">액션</th>
+        <th style="padding:10px;text-align:left;font-size:12px;color:#4E5968">이름</th>
+        <th style="padding:10px;text-align:left;font-size:12px;color:#4E5968">URL</th>
+        <th style="padding:10px;text-align:left;font-size:12px;color:#4E5968">이벤트</th>
+        <th style="padding:10px;text-align:center;font-size:12px;color:#4E5968">상태</th>
+        <th style="padding:10px;text-align:center;font-size:12px;color:#4E5968">최근 호출</th>
+        <th style="padding:10px;text-align:center;font-size:12px;color:#4E5968">액션</th>
       </tr></thead>
       <tbody>
       {% for w in items %}
       <tr style="border-bottom:1px solid #F2F4F6">
         <td style="padding:9px 10px;font-weight:600">{{ w.name }}</td>
-        <td style="padding:9px 10px;font-family:ui-monospace,monospace;font-size: 14px;color:#4E5968;max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ w.url }}</td>
-        <td style="padding:9px 10px;font-size: 14px;color:#4E5968">{{ w.events }}</td>
-        <td style="padding:9px 10px;text-align:center"><span style="font-size: 12px;padding:2px 8px;border-radius:3px;background:{% if w.active %}#DCFCE7;color:#15803D{% else %}#F3F4F6;color:#6B7280{% endif %};font-weight:600">{{ 'ON' if w.active else 'OFF' }}</span></td>
-        <td style="padding:9px 10px;text-align:center;font-size: 14px;color:#6B7684">{{ w.last_fired_at.strftime('%m-%d %H:%M') if w.last_fired_at else '—' }} {% if w.last_status_code %}({{ w.last_status_code }}){% endif %}</td>
+        <td style="padding:9px 10px;font-family:ui-monospace,monospace;font-size:12px;color:#4E5968;max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ w.url }}</td>
+        <td style="padding:9px 10px;font-size:12px;color:#4E5968">{{ w.events }}</td>
+        <td style="padding:9px 10px;text-align:center"><span style="font-size:10.5px;padding:2px 8px;border-radius:3px;background:{% if w.active %}#DCFCE7;color:#15803D{% else %}#F3F4F6;color:#6B7280{% endif %};font-weight:600">{{ 'ON' if w.active else 'OFF' }}</span></td>
+        <td style="padding:9px 10px;text-align:center;font-size:12px;color:#6B7684">{{ w.last_fired_at.strftime('%m-%d %H:%M') if w.last_fired_at else '—' }} {% if w.last_status_code %}({{ w.last_status_code }}){% endif %}</td>
         <td style="padding:9px 10px;text-align:center;display:flex;gap:6px;justify-content:center">
-          <form method="post" action="{{ url_for('inventory.webhook_toggle', wid=w.id) }}"><button type="submit" style="padding:5px 10px;background:#fff;border:1px solid #D1D6DB;color:#4E5968;border-radius:4px;font-size: 14px;cursor:pointer">{{ '비활성' if w.active else '활성' }}</button></form>
-          <form method="post" action="{{ url_for('inventory.webhook_delete', wid=w.id) }}" onsubmit="return confirm('삭제?')"><button type="submit" style="padding:5px 10px;background:#fff;border:1px solid #FCA5A5;color:#C53030;border-radius:4px;font-size: 14px;cursor:pointer">삭제</button></form>
+          <form method="post" action="{{ url_for('inventory.webhook_toggle', wid=w.id) }}"><button type="submit" style="padding:5px 10px;background:#fff;border:1px solid #D1D6DB;color:#4E5968;border-radius:4px;font-size:12px;cursor:pointer">{{ '비활성' if w.active else '활성' }}</button></form>
+          <form method="post" action="{{ url_for('inventory.webhook_delete', wid=w.id) }}" onsubmit="return confirm('삭제?')"><button type="submit" style="padding:5px 10px;background:#fff;border:1px solid #FCA5A5;color:#C53030;border-radius:4px;font-size:12px;cursor:pointer">삭제</button></form>
         </td>
       </tr>
       {% else %}

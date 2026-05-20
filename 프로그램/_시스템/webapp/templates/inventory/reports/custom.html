@@ -4,19 +4,19 @@
 {# 박스히어로 1:1 커스텀 리포트 위저드 — 4 step (조건·컬럼·정렬·저장). #}
 <div style="padding:24px 32px;max-width:1500px;margin:0 auto">
   <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px">
-    <div style="font-size: 14px;color:#8F91A0">분석</div>
+    <div style="font-size:14px;color:#8F91A0">분석</div>
     <h1 style="font-size:22px;font-weight:700;margin:0;color:#292A2F">커스텀 리포트</h1>
-    <span title="4 step 위저드 — 조건 / 컬럼 / 정렬 / 저장" style="display:inline-flex;align-items:center;justify-content:center;width:14px;height:14px;border-radius:50%;background:#F1F1F4;color:#8F91A0;font-size: 12px;font-weight:700;cursor:help">i</span>
+    <span title="4 step 위저드 — 조건 / 컬럼 / 정렬 / 저장" style="display:inline-flex;align-items:center;justify-content:center;width:14px;height:14px;border-radius:50%;background:#F1F1F4;color:#8F91A0;font-size:9.5px;font-weight:700;cursor:help">i</span>
   </div>
 
-  {% with msgs = get_flashed_messages(with_categories=true) %}{% for cat,msg in msgs %}<div style="background:{% if cat=='error' %}#FEF2F2{% else %}#ECFDF5{% endif %};border:1px solid {% if cat=='error' %}#FCA5A5{% else %}#86EFAC{% endif %};padding:10px 14px;border-radius:6px;margin-bottom:12px;font-size:13px;color:{% if cat=='error' %}#991B1B{% else %}#065F46{% endif %}">{{ msg }}</div>{% endfor %}{% endwith %}
+  {% with msgs = get_flashed_messages(with_categories=true) %}{% for cat,msg in msgs %}<div style="background:{% if cat=='error' %}#FEF2F2{% else %}#ECFDF5{% endif %};border:1px solid {% if cat=='error' %}#FCA5A5{% else %}#86EFAC{% endif %};padding:10px 14px;border-radius:6px;margin-bottom:12px;font-size:14px;color:{% if cat=='error' %}#991B1B{% else %}#065F46{% endif %}">{{ msg }}</div>{% endfor %}{% endwith %}
 
   {# 4-step 진행 표시 #}
   <div style="display:flex;align-items:center;gap:12px;margin-bottom:18px;padding:14px 18px;background:#fff;border:1px solid #E5E8EB;border-radius:8px">
     {% for n, label in [(1,'조건'),(2,'컬럼'),(3,'정렬·그룹'),(4,'저장')] %}
       <div style="display:flex;align-items:center;gap:6px">
-        <span style="display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:50%;background:#4F67FF;color:#fff;font-size: 14px;font-weight:700">{{ n }}</span>
-        <span style="font-size: 14px;color:#292A2F;font-weight:600">{{ label }}</span>
+        <span style="display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:50%;background:#4F67FF;color:#fff;font-size:12px;font-weight:700">{{ n }}</span>
+        <span style="font-size:14px;color:#292A2F;font-weight:600">{{ label }}</span>
       </div>
       {% if not loop.last %}<span style="flex:1;height:2px;background:#E5E8EB"></span>{% endif %}
     {% endfor %}
@@ -29,30 +29,30 @@
       <h3 style="font-size:14px;font-weight:600;margin:0 0 12px;color:#292A2F">1. 조건</h3>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
         <div>
-          <label style="display:block;font-size: 14px;color:#292A2F;margin-bottom:5px;font-weight:600">기간</label>
+          <label style="display:block;font-size:14px;color:#292A2F;margin-bottom:5px;font-weight:600">기간</label>
           <div style="display:flex;gap:6px;align-items:center">
-            <input type="date" name="date_from" style="flex:1;padding:8px 10px;border:1px solid #CBCCD3;border-radius:5px;font-size:13px">
+            <input type="date" name="date_from" style="flex:1;padding:8px 10px;border:1px solid #CBCCD3;border-radius:5px;font-size:14px">
             <span style="color:#8F91A0">~</span>
-            <input type="date" name="date_to" style="flex:1;padding:8px 10px;border:1px solid #CBCCD3;border-radius:5px;font-size:13px">
+            <input type="date" name="date_to" style="flex:1;padding:8px 10px;border:1px solid #CBCCD3;border-radius:5px;font-size:14px">
           </div>
         </div>
         <div>
-          <label style="display:block;font-size: 14px;color:#292A2F;margin-bottom:5px;font-weight:600">거래 유형 (다중)</label>
+          <label style="display:block;font-size:14px;color:#292A2F;margin-bottom:5px;font-weight:600">거래 유형 (다중)</label>
           <div style="display:flex;gap:8px">
             {% for code, label in [('in','📥 입고'),('out','📤 출고'),('adjust','⚖ 조정'),('move','이동')] %}
-              <label style="display:flex;align-items:center;gap:5px;padding:6px 10px;border:1px solid #CBCCD3;border-radius:5px;font-size: 14px;cursor:pointer">
+              <label style="display:flex;align-items:center;gap:5px;padding:6px 10px;border:1px solid #CBCCD3;border-radius:5px;font-size:12px;cursor:pointer">
                 <input type="checkbox" name="tx_types" value="{{ code }}" checked style="accent-color:#4F67FF">{{ label }}
               </label>
             {% endfor %}
           </div>
         </div>
         <div>
-          <label style="display:block;font-size: 14px;color:#292A2F;margin-bottom:5px;font-weight:600">거래처 필터 (선택)</label>
-          <input name="partner_filter" placeholder="거래처 라벨 (포함 검색)" style="width:100%;padding:8px 10px;border:1px solid #CBCCD3;border-radius:5px;font-size:13px">
+          <label style="display:block;font-size:14px;color:#292A2F;margin-bottom:5px;font-weight:600">거래처 필터 (선택)</label>
+          <input name="partner_filter" placeholder="거래처 라벨 (포함 검색)" style="width:100%;padding:8px 10px;border:1px solid #CBCCD3;border-radius:5px;font-size:14px">
         </div>
         <div>
-          <label style="display:block;font-size: 14px;color:#292A2F;margin-bottom:5px;font-weight:600">SKU 필터 (선택)</label>
-          <input name="sku_filter" placeholder="SKU 패턴 (예: RMT-*)" style="width:100%;padding:8px 10px;border:1px solid #CBCCD3;border-radius:5px;font-size:13px;font-family:ui-monospace,monospace">
+          <label style="display:block;font-size:14px;color:#292A2F;margin-bottom:5px;font-weight:600">SKU 필터 (선택)</label>
+          <input name="sku_filter" placeholder="SKU 패턴 (예: RMT-*)" style="width:100%;padding:8px 10px;border:1px solid #CBCCD3;border-radius:5px;font-size:14px;font-family:ui-monospace,monospace">
         </div>
       </div>
     </div>
@@ -68,7 +68,7 @@
           ('location','위치', False),('memo','메모', False),('author','작성자', False),
           ('boxhero_sku','박스히어로 SKU', False),('avg_purchase','평균매입가', False),('margin','마진', False),
         ] %}
-          <label style="display:flex;align-items:center;gap:6px;padding:8px 10px;border:1px solid #CBCCD3;border-radius:5px;font-size: 14px;cursor:pointer;color:#292A2F">
+          <label style="display:flex;align-items:center;gap:6px;padding:8px 10px;border:1px solid #CBCCD3;border-radius:5px;font-size:14px;cursor:pointer;color:#292A2F">
             <input type="checkbox" name="cols" value="{{ code }}" {% if default %}checked{% endif %} style="accent-color:#4F67FF">{{ label }}
           </label>
         {% endfor %}
@@ -80,8 +80,8 @@
       <h3 style="font-size:14px;font-weight:600;margin:0 0 12px;color:#292A2F">3. 정렬·그룹</h3>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
         <div>
-          <label style="display:block;font-size: 14px;color:#292A2F;margin-bottom:5px;font-weight:600">정렬 기준</label>
-          <select name="sort_by" style="width:100%;padding:8px 10px;border:1px solid #CBCCD3;border-radius:5px;font-size:13px">
+          <label style="display:block;font-size:14px;color:#292A2F;margin-bottom:5px;font-weight:600">정렬 기준</label>
+          <select name="sort_by" style="width:100%;padding:8px 10px;border:1px solid #CBCCD3;border-radius:5px;font-size:14px">
             <option value="date_desc">거래일 ↓ (최신순)</option>
             <option value="date_asc">거래일 ↑ (오래된순)</option>
             <option value="qty_desc">수량 ↓</option>
@@ -89,8 +89,8 @@
           </select>
         </div>
         <div>
-          <label style="display:block;font-size: 14px;color:#292A2F;margin-bottom:5px;font-weight:600">그룹화</label>
-          <select name="group_by" style="width:100%;padding:8px 10px;border:1px solid #CBCCD3;border-radius:5px;font-size:13px">
+          <label style="display:block;font-size:14px;color:#292A2F;margin-bottom:5px;font-weight:600">그룹화</label>
+          <select name="group_by" style="width:100%;padding:8px 10px;border:1px solid #CBCCD3;border-radius:5px;font-size:14px">
             <option value="">그룹화 없음</option>
             <option value="date">거래일별</option>
             <option value="sku">SKU 별</option>
@@ -107,19 +107,19 @@
       <h3 style="font-size:14px;font-weight:600;margin:0 0 12px;color:#292A2F">4. 저장 (선택)</h3>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
         <div>
-          <label style="display:block;font-size: 14px;color:#292A2F;margin-bottom:5px;font-weight:600">리포트 이름</label>
-          <input name="report_name" placeholder="예: 2026년 5월 입출고 매출 분석" style="width:100%;padding:8px 10px;border:1px solid #CBCCD3;border-radius:5px;font-size:13px">
+          <label style="display:block;font-size:14px;color:#292A2F;margin-bottom:5px;font-weight:600">리포트 이름</label>
+          <input name="report_name" placeholder="예: 2026년 5월 입출고 매출 분석" style="width:100%;padding:8px 10px;border:1px solid #CBCCD3;border-radius:5px;font-size:14px">
         </div>
         <div>
-          <label style="display:block;font-size: 14px;color:#292A2F;margin-bottom:5px;font-weight:600">출력 형식</label>
+          <label style="display:block;font-size:14px;color:#292A2F;margin-bottom:5px;font-weight:600">출력 형식</label>
           <div style="display:flex;gap:6px">
-            <label style="flex:1;display:flex;align-items:center;gap:5px;padding:8px 10px;border:1px solid #CBCCD3;border-radius:5px;cursor:pointer;font-size: 14px"><input type="radio" name="format" value="html" checked style="accent-color:#4F67FF">HTML</label>
-            <label style="flex:1;display:flex;align-items:center;gap:5px;padding:8px 10px;border:1px solid #CBCCD3;border-radius:5px;cursor:pointer;font-size: 14px"><input type="radio" name="format" value="xlsx" style="accent-color:#4F67FF">엑셀</label>
-            <label style="flex:1;display:flex;align-items:center;gap:5px;padding:8px 10px;border:1px solid #CBCCD3;border-radius:5px;cursor:pointer;font-size: 14px"><input type="radio" name="format" value="csv" style="accent-color:#4F67FF">CSV</label>
+            <label style="flex:1;display:flex;align-items:center;gap:5px;padding:8px 10px;border:1px solid #CBCCD3;border-radius:5px;cursor:pointer;font-size:14px"><input type="radio" name="format" value="html" checked style="accent-color:#4F67FF">HTML</label>
+            <label style="flex:1;display:flex;align-items:center;gap:5px;padding:8px 10px;border:1px solid #CBCCD3;border-radius:5px;cursor:pointer;font-size:14px"><input type="radio" name="format" value="xlsx" style="accent-color:#4F67FF">엑셀</label>
+            <label style="flex:1;display:flex;align-items:center;gap:5px;padding:8px 10px;border:1px solid #CBCCD3;border-radius:5px;cursor:pointer;font-size:14px"><input type="radio" name="format" value="csv" style="accent-color:#4F67FF">CSV</label>
           </div>
         </div>
       </div>
-      <label style="display:flex;align-items:center;gap:6px;margin-top:10px;font-size: 14px;color:#292A2F;cursor:pointer">
+      <label style="display:flex;align-items:center;gap:6px;margin-top:10px;font-size:14px;color:#292A2F;cursor:pointer">
         <input type="checkbox" name="save_template" value="1" style="accent-color:#4F67FF"> 이 설정을 저장된 리포트로 등록 (다음에 재사용)
       </label>
     </div>
@@ -137,8 +137,8 @@
         {% for r in saved_reports %}
           <li style="display:flex;align-items:center;gap:10px;padding:10px 12px;border:1px solid #F1F1F4;border-radius:5px">
             <span style="font-weight:600;color:#292A2F">{{ r.name }}</span>
-            <span style="font-size: 14px;color:#8F91A0">{{ r.created_at[:10] if r.created_at else '' }}</span>
-            <a href="{{ url_for('inventory.reports_custom_load', report_id=r.id) }}" style="margin-left:auto;font-size: 14px;color:#4F67FF;text-decoration:none">불러오기 →</a>
+            <span style="font-size:12px;color:#8F91A0">{{ r.created_at[:10] if r.created_at else '' }}</span>
+            <a href="{{ url_for('inventory.reports_custom_load', report_id=r.id) }}" style="margin-left:auto;font-size:12px;color:#4F67FF;text-decoration:none">불러오기 →</a>
           </li>
         {% endfor %}
       </ul>

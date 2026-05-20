@@ -8,26 +8,26 @@
     <h1 style="font-size:22px;font-weight:700;margin:0;color:#292A2F">제품 마스터</h1>
     <span title="행 클릭 → 인라인 popover 편집" style="display:inline-flex;align-items:center;justify-content:center;width:14px;height:14px;border-radius:50%;background:#F1F1F4;color:#8F91A0;font-size:9.5px;font-weight:700;cursor:help">i</span>
     <div style="margin-left:auto;display:flex;gap:6px;align-items:center">
-      <a href="{{ url_for('inventory.data_boxhero_import') }}" style="background:#EEF1FE;border:1px solid #4F67FF;color:#4F67FF;padding:7px 12px;border-radius:5px;font-size:12.5px;text-decoration:none;font-weight:600">📥 제품 엑셀 업로드</a>
-      <a href="{{ url_for('inventory.data_items_export') }}" style="background:#fff;border:1px solid #CBCCD3;color:#292A2F;padding:7px 12px;border-radius:5px;font-size:12.5px;text-decoration:none">⬇ 엑셀 내보내기</a>
-      <button type="button" onclick="document.getElementById('wipeModal').style.display='flex'" style="background:#fff;border:1px solid #FCA5A5;color:#DC2626;padding:7px 12px;border-radius:5px;font-size:12.5px;cursor:pointer;font-weight:600">🗑 전체 삭제</button>
+      <a href="{{ url_for('inventory.data_boxhero_import') }}" style="background:#EEF1FE;border:1px solid #4F67FF;color:#4F67FF;padding:7px 12px;border-radius:5px;font-size:14px;text-decoration:none;font-weight:600">📥 제품 엑셀 업로드</a>
+      <a href="{{ url_for('inventory.data_items_export') }}" style="background:#fff;border:1px solid #CBCCD3;color:#292A2F;padding:7px 12px;border-radius:5px;font-size:14px;text-decoration:none">⬇ 엑셀 내보내기</a>
+      <button type="button" onclick="document.getElementById('wipeModal').style.display='flex'" style="background:#fff;border:1px solid #FCA5A5;color:#DC2626;padding:7px 12px;border-radius:5px;font-size:14px;cursor:pointer;font-weight:600">🗑 전체 삭제</button>
     </div>
   </div>
 
-  {% with msgs = get_flashed_messages(with_categories=true) %}{% for cat,msg in msgs %}<div style="background:{% if cat=='error' %}#FEF2F2{% else %}#ECFDF5{% endif %};border:1px solid {% if cat=='error' %}#FCA5A5{% else %}#86EFAC{% endif %};padding:10px 14px;border-radius:6px;margin-bottom:12px;font-size:13px;color:{% if cat=='error' %}#991B1B{% else %}#065F46{% endif %}">{{ msg }}</div>{% endfor %}{% endwith %}
+  {% with msgs = get_flashed_messages(with_categories=true) %}{% for cat,msg in msgs %}<div style="background:{% if cat=='error' %}#FEF2F2{% else %}#ECFDF5{% endif %};border:1px solid {% if cat=='error' %}#FCA5A5{% else %}#86EFAC{% endif %};padding:10px 14px;border-radius:6px;margin-bottom:12px;font-size:14px;color:{% if cat=='error' %}#991B1B{% else %}#065F46{% endif %}">{{ msg }}</div>{% endfor %}{% endwith %}
 
   {# KPI 3 #}
   <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:18px">
     <div style="background:#fff;border:1px solid #E5E8EB;border-radius:8px;padding:12px 14px">
-      <div style="font-size:11px;color:#8F91A0">총 SKU</div>
+      <div style="font-size:12px;color:#8F91A0">총 SKU</div>
       <div id="kpiAll" style="font-size:22px;font-weight:700;color:#292A2F">{{ '{:,}'.format(kpi.all_options) }}</div>
     </div>
     <div style="background:#fff;border:1px solid #E5E8EB;border-radius:8px;padding:12px 14px">
-      <div style="font-size:11px;color:#8F91A0">재고 보유 SKU</div>
+      <div style="font-size:12px;color:#8F91A0">재고 보유 SKU</div>
       <div id="kpiInStock" style="font-size:22px;font-weight:700;color:{% if kpi.in_stock > 0 %}#22C55E{% else %}#8F91A0{% endif %}">{{ '{:,}'.format(kpi.in_stock) }}</div>
     </div>
     <div style="background:#fff;border:1px solid #E5E8EB;border-radius:8px;padding:12px 14px">
-      <div style="font-size:11px;color:#8F91A0">총 재고 수량</div>
+      <div style="font-size:12px;color:#8F91A0">총 재고 수량</div>
       <div id="kpiQty" style="font-size:22px;font-weight:700;color:#292A2F">{{ '{:,}'.format(kpi.total_qty) }}</div>
     </div>
   </div>
@@ -36,38 +36,38 @@
   <div style="background:#fff;border:1px solid #E5E8EB;border-radius:8px;padding:12px 14px;margin-bottom:14px">
     <form id="filterForm" method="get" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
       {% include 'partials/search_chips.html' %}
-      <select name="brand" style="padding:7px 10px;border:1px solid #CBCCD3;border-radius:6px;font-size:12.5px;color:#292A2F;background:#fff">
+      <select name="brand" style="padding:7px 10px;border:1px solid #CBCCD3;border-radius:6px;font-size:14px;color:#292A2F;background:#fff">
         <option value="">모든 브랜드</option>
         {% for b in brands %}<option value="{{ b }}" {% if b == brand %}selected{% endif %}>{{ b }}</option>{% endfor %}
       </select>
       <label style="font-size:12px;color:#292A2F;display:flex;align-items:center;gap:4px">
         <input type="checkbox" name="in_stock_only" value="1" {% if in_stock_only %}checked{% endif %} style="accent-color:#4F67FF"> 재고 보유만
       </label>
-      <button type="submit" style="background:#4F67FF;color:#fff;padding:7px 14px;border:none;border-radius:6px;font-size:12.5px;font-weight:600;cursor:pointer">검색</button>
+      <button type="submit" style="background:#4F67FF;color:#fff;padding:7px 14px;border:none;border-radius:6px;font-size:14px;font-weight:600;cursor:pointer">검색</button>
       <a id="filterReset" href="{{ url_for('inventory.data_items') }}" style="font-size:12px;color:#8F91A0;text-decoration:none;padding:7px;{% if not (q or brand or in_stock_only) %}display:none{% endif %}">필터 초기화</a>
       <span style="margin-left:auto;font-size:12px;color:#8F91A0"><span id="totalCount">{{ '{:,}'.format(total) }}</span>건</span>
     </form>
   </div>
 
   {# ★ 검색 결과 요약 배너 (시안 A) — 검색·필터 적용 시에만 노출 #}
-  <div id="searchSummary" style="display:none;background:linear-gradient(90deg,#EEF4FF,#F4F8FF);border:1px solid #BCD2FF;border-radius:8px;padding:11px 18px;margin-bottom:14px;align-items:center;font-size:12.5px"></div>
+  <div id="searchSummary" style="display:none;background:linear-gradient(90deg,#EEF4FF,#F4F8FF);border:1px solid #BCD2FF;border-radius:8px;padding:11px 18px;margin-bottom:14px;align-items:center;font-size:14px"></div>
 
   {# 제품 목록 표 — 클릭 시 인라인 popover 편집. 컬럼: SKU·바코드·브랜드·제품명·모델명·컬러·사이즈·평균매입가·총재고·편집 #}
   <div style="background:#fff;border:1px solid #E5E8EB;border-radius:8px;overflow:hidden">
-    <table style="width:100%;border-collapse:collapse;font-size:12.5px">
+    <table style="width:100%;border-collapse:collapse;font-size:14px">
       <thead style="background:#F1F1F4;border-bottom:1px solid #E5E8EB">
         <tr>
-          <th style="padding:11px 10px;text-align:left;font-size:11px;color:#292A2F;font-weight:600">SKU</th>
-          <th style="padding:11px 10px;text-align:left;font-size:11px;color:#292A2F;font-weight:600">바코드</th>
-          <th style="padding:11px 10px;text-align:left;font-size:11px;color:#292A2F;font-weight:600">브랜드</th>
-          <th style="padding:11px 10px;text-align:left;font-size:11px;color:#292A2F;font-weight:600">제품명</th>
-          <th style="padding:11px 10px;text-align:left;font-size:11px;color:#292A2F;font-weight:600">품번</th>
-          <th style="padding:11px 10px;text-align:left;font-size:11px;color:#292A2F;font-weight:600">색상</th>
-          <th style="padding:11px 10px;text-align:left;font-size:11px;color:#292A2F;font-weight:600">사이즈</th>
-          <th style="padding:11px 10px;text-align:right;font-size:11px;color:#292A2F;font-weight:600">평균매입가</th>
-          <th style="padding:11px 10px;text-align:right;font-size:11px;color:#292A2F;font-weight:600">총재고</th>
-          {% for loc in locs %}<th style="padding:11px 10px;text-align:right;font-size:11px;color:#3182F6;font-weight:600;background:#EFF6FF">{{ loc.name }}</th>{% endfor %}
-          <th style="padding:11px 10px;text-align:center;font-size:11px;color:#292A2F;font-weight:600;width:60px">편집</th>
+          <th style="padding:11px 10px;text-align:left;font-size:12px;color:#292A2F;font-weight:600">SKU</th>
+          <th style="padding:11px 10px;text-align:left;font-size:12px;color:#292A2F;font-weight:600">바코드</th>
+          <th style="padding:11px 10px;text-align:left;font-size:12px;color:#292A2F;font-weight:600">브랜드</th>
+          <th style="padding:11px 10px;text-align:left;font-size:12px;color:#292A2F;font-weight:600">제품명</th>
+          <th style="padding:11px 10px;text-align:left;font-size:12px;color:#292A2F;font-weight:600">품번</th>
+          <th style="padding:11px 10px;text-align:left;font-size:12px;color:#292A2F;font-weight:600">색상</th>
+          <th style="padding:11px 10px;text-align:left;font-size:12px;color:#292A2F;font-weight:600">사이즈</th>
+          <th style="padding:11px 10px;text-align:right;font-size:12px;color:#292A2F;font-weight:600">평균매입가</th>
+          <th style="padding:11px 10px;text-align:right;font-size:12px;color:#292A2F;font-weight:600">총재고</th>
+          {% for loc in locs %}<th style="padding:11px 10px;text-align:right;font-size:12px;color:#3182F6;font-weight:600;background:#EFF6FF">{{ loc.name }}</th>{% endfor %}
+          <th style="padding:11px 10px;text-align:center;font-size:12px;color:#292A2F;font-weight:600;width:60px">편집</th>
         </tr>
       </thead>
       <tbody id="itemsTbody">
@@ -94,13 +94,13 @@
             data-size="{{ _size }}"
             data-avg="{{ opt.boxhero_avg_purchase_price or 0 }}"
             data-stock="{{ stock_map.get(opt.canonical_sku, 0) }}">
-          <td style="padding:9px 10px;font-family:ui-monospace,monospace;font-size:11px;color:#292A2F">{{ opt.canonical_sku }}</td>
-          <td style="padding:9px 10px;font-family:ui-monospace,monospace;font-size:11px;color:{% if opt.barcode %}#292A2F{% else %}#8F91A0{% endif %}">{{ opt.barcode or '—' }}</td>
+          <td style="padding:9px 10px;font-family:ui-monospace,monospace;font-size:12px;color:#292A2F">{{ opt.canonical_sku }}</td>
+          <td style="padding:9px 10px;font-family:ui-monospace,monospace;font-size:12px;color:{% if opt.barcode %}#292A2F{% else %}#8F91A0{% endif %}">{{ opt.barcode or '—' }}</td>
           <td style="padding:9px 10px;color:#292A2F">{{ _brand or '—' }}</td>
           <td style="padding:9px 10px">
             <div style="font-weight:500;color:#292A2F">{{ _name or '—' }}</div>
           </td>
-          <td style="padding:9px 10px;color:{% if _article %}#292A2F{% else %}#8F91A0{% endif %};font-family:ui-monospace,monospace;font-size:11.5px">{{ _article or '—' }}</td>
+          <td style="padding:9px 10px;color:{% if _article %}#292A2F{% else %}#8F91A0{% endif %};font-family:ui-monospace,monospace;font-size:12px">{{ _article or '—' }}</td>
           <td style="padding:9px 10px;color:{% if _color %}#292A2F{% else %}#8F91A0{% endif %}">{{ _color_shown }}</td>
           <td style="padding:9px 10px;color:{% if _size %}#292A2F{% else %}#8F91A0{% endif %}">{{ _size_shown }}</td>
           <td style="padding:9px 10px;text-align:right;font-variant-numeric:tabular-nums;color:#292A2F">
@@ -127,14 +127,14 @@
 
   {# 페이지네이션 #}
   {% if total_pages > 1 %}
-  <div style="margin-top:16px;display:flex;gap:8px;justify-content:center;align-items:center;font-size:12.5px">
+  <div style="margin-top:16px;display:flex;gap:8px;justify-content:center;align-items:center;font-size:14px">
     {% if page > 1 %}<a href="?page={{ page-1 }}&page_size={{ page_size }}&q={{ q }}&brand={{ brand }}{% if in_stock_only %}&in_stock_only=1{% endif %}" style="padding:5px 12px;border:1px solid #CBCCD3;border-radius:5px;text-decoration:none;color:#292A2F">‹ 이전</a>{% endif %}
     <span style="color:#8F91A0;padding:5px 8px">{{ page }} / {{ total_pages }}</span>
     {% if page < total_pages %}<a href="?page={{ page+1 }}&page_size={{ page_size }}&q={{ q }}&brand={{ brand }}{% if in_stock_only %}&in_stock_only=1{% endif %}" style="padding:5px 12px;border:1px solid #CBCCD3;border-radius:5px;text-decoration:none;color:#292A2F">다음 ›</a>{% endif %}
   </div>
   {% endif %}
 
-  <div style="margin-top:18px;font-size:11px;color:#8F91A0;line-height:1.6">
+  <div style="margin-top:18px;font-size:12px;color:#8F91A0;line-height:1.6">
     <strong>인라인 편집:</strong> 행 클릭 → 인라인 popover 편집 (제품명·브랜드·컬러·사이즈·이미지). 사이즈 빈값은 <code style="background:#F1F1F4;padding:1px 5px;border-radius:3px">FREE</code>, 컬러 빈값은 <code style="background:#F1F1F4;padding:1px 5px;border-radius:3px">ONE Color</code> 로 표시됩니다.<br>
     <strong>평균매입가·재고:</strong> 제품 엑셀 업로드 후 자동 계산됩니다.
   </div>
@@ -145,54 +145,54 @@
   <div style="background:#fff;border-radius:10px;width:560px;max-width:90vw;max-height:80vh;overflow-y:auto;box-shadow:0 10px 40px rgba(0,0,0,0.2)">
     <div style="padding:18px 22px;border-bottom:1px solid #E5E8EB;display:flex;align-items:center;gap:12px">
       <h3 style="font-size:16px;font-weight:700;margin:0;color:#292A2F">제품 인라인 편집</h3>
-      <span id="popSkuLabel" style="font-family:ui-monospace,monospace;font-size:11px;color:#4F67FF;background:#EEF1FE;padding:2px 8px;border-radius:3px"></span>
+      <span id="popSkuLabel" style="font-family:ui-monospace,monospace;font-size:12px;color:#4F67FF;background:#EEF1FE;padding:2px 8px;border-radius:3px"></span>
       <button type="button" onclick="closeItemPopover()" style="margin-left:auto;background:none;border:none;color:#8F91A0;font-size:22px;cursor:pointer">×</button>
     </div>
     <form id="popForm" method="post" enctype="multipart/form-data" style="padding:20px 22px">
       <div style="display:grid;gap:14px">
         <div>
-          <label style="display:block;font-size:12.5px;color:#292A2F;font-weight:600;margin-bottom:5px">제품명</label>
-          <input id="popName" name="model_name" style="width:100%;padding:9px 12px;border:1px solid #CBCCD3;border-radius:5px;font-size:13px;color:#292A2F">
+          <label style="display:block;font-size:14px;color:#292A2F;font-weight:600;margin-bottom:5px">제품명</label>
+          <input id="popName" name="model_name" style="width:100%;padding:9px 12px;border:1px solid #CBCCD3;border-radius:5px;font-size:14px;color:#292A2F">
         </div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
           <div>
-            <label style="display:block;font-size:12.5px;color:#292A2F;font-weight:600;margin-bottom:5px">브랜드</label>
-            <input id="popBrand" name="brand" style="width:100%;padding:9px 12px;border:1px solid #CBCCD3;border-radius:5px;font-size:13px;color:#292A2F">
+            <label style="display:block;font-size:14px;color:#292A2F;font-weight:600;margin-bottom:5px">브랜드</label>
+            <input id="popBrand" name="brand" style="width:100%;padding:9px 12px;border:1px solid #CBCCD3;border-radius:5px;font-size:14px;color:#292A2F">
           </div>
           <div>
-            <label style="display:block;font-size:12.5px;color:#292A2F;font-weight:600;margin-bottom:5px">바코드</label>
-            <input id="popBarcode" readonly style="width:100%;padding:9px 12px;border:1px solid #E5E8EB;border-radius:5px;font-size:13px;font-family:ui-monospace,monospace;color:#8F91A0;background:#FAFBFC">
+            <label style="display:block;font-size:14px;color:#292A2F;font-weight:600;margin-bottom:5px">바코드</label>
+            <input id="popBarcode" readonly style="width:100%;padding:9px 12px;border:1px solid #E5E8EB;border-radius:5px;font-size:14px;font-family:ui-monospace,monospace;color:#8F91A0;background:#FAFBFC">
           </div>
         </div>
         <div>
-          <label style="display:block;font-size:12.5px;color:#292A2F;font-weight:600;margin-bottom:5px">품번 <span style="color:#8F91A0;font-weight:400;font-size:11px">· 박스히어로 모델명 (예: FV5420-002)</span></label>
-          <input id="popArticleNo" name="article_no" placeholder="(품번 미입력)" style="width:100%;padding:9px 12px;border:1px solid #CBCCD3;border-radius:5px;font-size:13px;font-family:ui-monospace,monospace;color:#292A2F">
+          <label style="display:block;font-size:14px;color:#292A2F;font-weight:600;margin-bottom:5px">품번 <span style="color:#8F91A0;font-weight:400;font-size:12px">· 박스히어로 모델명 (예: FV5420-002)</span></label>
+          <input id="popArticleNo" name="article_no" placeholder="(품번 미입력)" style="width:100%;padding:9px 12px;border:1px solid #CBCCD3;border-radius:5px;font-size:14px;font-family:ui-monospace,monospace;color:#292A2F">
         </div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
           <div>
-            <label style="display:block;font-size:12.5px;color:#292A2F;font-weight:600;margin-bottom:5px">컬러 <span style="color:#8F91A0;font-weight:400;font-size:11px">· 빈값 → ONE Color</span></label>
-            <input id="popColor" name="color_display" placeholder="ONE Color" style="width:100%;padding:9px 12px;border:1px solid #CBCCD3;border-radius:5px;font-size:13px;color:#292A2F">
+            <label style="display:block;font-size:14px;color:#292A2F;font-weight:600;margin-bottom:5px">컬러 <span style="color:#8F91A0;font-weight:400;font-size:12px">· 빈값 → ONE Color</span></label>
+            <input id="popColor" name="color_display" placeholder="ONE Color" style="width:100%;padding:9px 12px;border:1px solid #CBCCD3;border-radius:5px;font-size:14px;color:#292A2F">
           </div>
           <div>
-            <label style="display:block;font-size:12.5px;color:#292A2F;font-weight:600;margin-bottom:5px">사이즈 <span style="color:#8F91A0;font-weight:400;font-size:11px">· 빈값 → FREE</span></label>
-            <input id="popSize" name="size_display" placeholder="FREE" style="width:100%;padding:9px 12px;border:1px solid #CBCCD3;border-radius:5px;font-size:13px;color:#292A2F">
+            <label style="display:block;font-size:14px;color:#292A2F;font-weight:600;margin-bottom:5px">사이즈 <span style="color:#8F91A0;font-weight:400;font-size:12px">· 빈값 → FREE</span></label>
+            <input id="popSize" name="size_display" placeholder="FREE" style="width:100%;padding:9px 12px;border:1px solid #CBCCD3;border-radius:5px;font-size:14px;color:#292A2F">
           </div>
         </div>
         <input id="popBh" type="hidden" name="boxhero_sku" value="">
         <div>
-          <label style="display:block;font-size:12.5px;color:#292A2F;font-weight:600;margin-bottom:5px">제품 이미지</label>
+          <label style="display:block;font-size:14px;color:#292A2F;font-weight:600;margin-bottom:5px">제품 이미지</label>
           <input type="file" name="image" accept="image/*" style="width:100%;padding:7px;border:1px solid #CBCCD3;border-radius:5px;font-size:12px">
-          <div style="font-size:11px;color:#8F91A0;margin-top:4px">jpg / png / webp / gif · 최대 10MB</div>
+          <div style="font-size:12px;color:#8F91A0;margin-top:4px">jpg / png / webp / gif · 최대 10MB</div>
         </div>
-        <div style="background:#F1F1F4;border-radius:5px;padding:10px 12px;font-size:11.5px;color:#8F91A0;display:flex;gap:14px">
+        <div style="background:#F1F1F4;border-radius:5px;padding:10px 12px;font-size:12px;color:#8F91A0;display:flex;gap:14px">
           <span>평균매입가 <strong id="popAvg" style="color:#292A2F"></strong> 원</span>
           <span>재고 <strong id="popStock" style="color:#292A2F"></strong></span>
           <span style="margin-left:auto">제품 엑셀 업로드 시 자동 계산</span>
         </div>
       </div>
       <div style="display:flex;gap:8px;align-items:center;padding-top:14px;margin-top:14px;border-top:1px solid #F1F1F4">
-        <button type="submit" style="background:#4F67FF;color:#fff;padding:8px 18px;border:none;border-radius:5px;font-size:13px;font-weight:600;cursor:pointer">저장</button>
-        <button type="button" onclick="closeItemPopover()" style="background:#fff;border:1px solid #CBCCD3;color:#292A2F;padding:8px 18px;border-radius:5px;font-size:13px;font-weight:600;cursor:pointer">취소</button>
+        <button type="submit" style="background:#4F67FF;color:#fff;padding:8px 18px;border:none;border-radius:5px;font-size:14px;font-weight:600;cursor:pointer">저장</button>
+        <button type="button" onclick="closeItemPopover()" style="background:#fff;border:1px solid #CBCCD3;color:#292A2F;padding:8px 18px;border-radius:5px;font-size:14px;font-weight:600;cursor:pointer">취소</button>
       </div>
     </form>
   </div>
@@ -246,20 +246,20 @@ document.addEventListener('keydown', e=>{if(e.key==='Escape'){closeItemPopover()
     var qTxt = sm.q ? '"' + esc(sm.q) + '"' : '필터 적용';
     function seg(k, v, strong){
       return '<span style="display:inline-flex;align-items:baseline;gap:6px;padding:0 16px;border-right:1px solid #C8D8F5">' +
-        '<span style="font-size:11.5px;color:#5B7DB1">' + k + '</span>' +
+        '<span style="font-size:12px;color:#5B7DB1">' + k + '</span>' +
         '<span style="font-size:' + (strong ? '16px' : '13.5px') + ';font-weight:700;color:' + (strong ? '#1B64DA' : '#4E5968') + '">' + v + '</span></span>';
     }
     el.innerHTML =
       '<span style="font-size:17px;margin-right:12px">📊</span>' +
       '<span style="display:inline-flex;align-items:baseline;gap:6px;padding-right:16px;border-right:1px solid #C8D8F5">' +
-        '<span style="font-size:13px;font-weight:700;color:#191F28">' + qTxt + '</span>' +
-        '<span style="font-size:11.5px;color:#5B7DB1">검색 결과</span></span>' +
+        '<span style="font-size:14px;font-weight:700;color:#191F28">' + qTxt + '</span>' +
+        '<span style="font-size:12px;color:#5B7DB1">검색 결과</span></span>' +
       seg('옵션', fmt(sm.option_count) + '개', true) +
       seg('평균 매입가', priceTxt, false) +
       seg('총재고', fmt(sm.total_stock), true) +
       seg('재고 보유', sm.in_stock_count + ' SKU', false) +
       '<span style="display:inline-flex;align-items:baseline;gap:6px;padding-left:16px">' +
-        '<span style="font-size:11.5px;color:#5B7DB1">브랜드</span>' +
+        '<span style="font-size:12px;color:#5B7DB1">브랜드</span>' +
         '<span style="font-size:13.5px;font-weight:600;color:#4E5968">' + brandTxt + '</span></span>';
   }
 
@@ -300,11 +300,11 @@ document.addEventListener('keydown', e=>{if(e.key==='Escape'){closeItemPopover()
       }
     }
     tr.innerHTML =
-      `<td style="padding:9px 10px;font-family:ui-monospace,monospace;font-size:11px;color:#292A2F">${esc(o.sku)}</td>` +
-      `<td style="padding:9px 10px;font-family:ui-monospace,monospace;font-size:11px;color:${o.barcode?'#292A2F':'#8F91A0'}">${esc(o.barcode || '—')}</td>` +
+      `<td style="padding:9px 10px;font-family:ui-monospace,monospace;font-size:12px;color:#292A2F">${esc(o.sku)}</td>` +
+      `<td style="padding:9px 10px;font-family:ui-monospace,monospace;font-size:12px;color:${o.barcode?'#292A2F':'#8F91A0'}">${esc(o.barcode || '—')}</td>` +
       `<td style="padding:9px 10px;color:#292A2F">${esc(o.brand || '—')}</td>` +
       `<td style="padding:9px 10px"><div style="font-weight:500;color:#292A2F">${esc(o.name || '—')}</div></td>` +
-      `<td style="padding:9px 10px;color:${o.article_no?'#292A2F':'#8F91A0'};font-family:ui-monospace,monospace;font-size:11.5px">${esc(o.article_no || '—')}</td>` +
+      `<td style="padding:9px 10px;color:${o.article_no?'#292A2F':'#8F91A0'};font-family:ui-monospace,monospace;font-size:12px">${esc(o.article_no || '—')}</td>` +
       `<td style="padding:9px 10px;color:${colorMissing?'#8F91A0':'#292A2F'}">${esc(o.color)}</td>` +
       `<td style="padding:9px 10px;color:${sizeMissing?'#8F91A0':'#292A2F'}">${esc(o.size)}</td>` +
       `<td style="padding:9px 10px;text-align:right;font-variant-numeric:tabular-nums;color:#292A2F">${avgCell}</td>` +
@@ -418,21 +418,21 @@ function onWipeInput(e){
       <h3 style="font-size:16px;font-weight:700;margin:0;color:#991B1B">⚠️ 제품 마스터 전체 삭제</h3>
     </div>
     <form method="post" action="{{ url_for('inventory.data_items_wipe') }}" style="padding:20px 22px">
-      <p style="font-size:13px;color:#292A2F;line-height:1.7;margin:0 0 14px 0">
+      <p style="font-size:14px;color:#292A2F;line-height:1.7;margin:0 0 14px 0">
         <strong style="color:#DC2626">모든 모델·옵션·재고 트랜잭션이 삭제</strong>됩니다.<br>
-        실행 전 <strong>data 폴더 자동 백업</strong>이 생성되므로, 실수해도 <code style="background:#F1F1F4;padding:1px 5px;border-radius:3px;font-size:11.5px">백업/</code> 폴더에서 복원 가능합니다.<br>
+        실행 전 <strong>data 폴더 자동 백업</strong>이 생성되므로, 실수해도 <code style="background:#F1F1F4;padding:1px 5px;border-radius:3px;font-size:12px">백업/</code> 폴더에서 복원 가능합니다.<br>
         삭제 후 <strong>[📥 박스히어로 엑셀 업로드]</strong>로 재로드하세요.
       </p>
-      <div style="background:#FFFBEB;border:1px solid #FCD34D;padding:12px 14px;border-radius:6px;margin-bottom:10px;font-size:13px;color:#92400E;line-height:1.7">
-        👇 <strong>아래 입력란을 클릭한 뒤, 키보드로 <code style="background:#FFF;padding:2px 6px;border-radius:3px;font-size:12.5px;border:1px solid #FCD34D;color:#991B1B;font-weight:700">DELETE ALL</code> 을 직접 타이핑</strong>해 주세요.<br>
-        <span style="font-size:11.5px;color:#A16207">※ 박스 안의 회색 글자는 안내문(placeholder)이고 실제 입력이 아닙니다.</span>
+      <div style="background:#FFFBEB;border:1px solid #FCD34D;padding:12px 14px;border-radius:6px;margin-bottom:10px;font-size:14px;color:#92400E;line-height:1.7">
+        👇 <strong>아래 입력란을 클릭한 뒤, 키보드로 <code style="background:#FFF;padding:2px 6px;border-radius:3px;font-size:14px;border:1px solid #FCD34D;color:#991B1B;font-weight:700">DELETE ALL</code> 을 직접 타이핑</strong>해 주세요.<br>
+        <span style="font-size:12px;color:#A16207">※ 박스 안의 회색 글자는 안내문(placeholder)이고 실제 입력이 아닙니다.</span>
       </div>
-      <label for="wipeConfirmInput" style="display:block;font-size:11.5px;font-weight:600;color:#525866;margin-bottom:6px">확인 입력란</label>
+      <label for="wipeConfirmInput" style="display:block;font-size:12px;font-weight:600;color:#525866;margin-bottom:6px">확인 입력란</label>
       <input id="wipeConfirmInput" name="confirm" type="text" placeholder="여기를 클릭 후 DELETE ALL 타이핑" oninput="onWipeInput(event)" autocomplete="off" style="width:100%;padding:12px 14px;border:2px solid #DC2626;border-radius:6px;font-size:14px;font-family:ui-monospace,monospace;margin-bottom:16px;color:#292A2F;background:#FFFBFB;outline:none;box-sizing:border-box">
-      <div id="wipeStatusHint" style="font-size:11.5px;color:#9CA3AF;margin-top:-10px;margin-bottom:14px">아직 입력되지 않았습니다.</div>
+      <div id="wipeStatusHint" style="font-size:12px;color:#9CA3AF;margin-top:-10px;margin-bottom:14px">아직 입력되지 않았습니다.</div>
       <div style="display:flex;gap:8px;justify-content:flex-end">
-        <button type="button" onclick="closeWipeModal()" style="padding:9px 16px;background:#fff;border:1px solid #CBCCD3;color:#292A2F;border-radius:5px;font-size:13px;cursor:pointer">취소</button>
-        <button id="wipeSubmitBtn" type="submit" disabled style="padding:9px 16px;background:#DC2626;border:none;color:#fff;border-radius:5px;font-size:13px;font-weight:600;cursor:pointer" onmouseover="if(!this.disabled)this.style.background='#B91C1C'" onmouseout="if(!this.disabled)this.style.background='#DC2626'">🗑 자동 백업 후 전체 삭제</button>
+        <button type="button" onclick="closeWipeModal()" style="padding:9px 16px;background:#fff;border:1px solid #CBCCD3;color:#292A2F;border-radius:5px;font-size:14px;cursor:pointer">취소</button>
+        <button id="wipeSubmitBtn" type="submit" disabled style="padding:9px 16px;background:#DC2626;border:none;color:#fff;border-radius:5px;font-size:14px;font-weight:600;cursor:pointer" onmouseover="if(!this.disabled)this.style.background='#B91C1C'" onmouseout="if(!this.disabled)this.style.background='#DC2626'">🗑 자동 백업 후 전체 삭제</button>
       </div>
     </form>
   </div>
@@ -515,7 +515,7 @@ function onWipeInput(e){
     var fbtn = document.createElement('span'); fbtn.className = 'filter-btn';
     fbtn.textContent = ' ▾';
     fbtn.title = '필터';
-    fbtn.style.cssText = 'color:#B0B3BA;cursor:pointer;font-size:11px;padding:0 3px';
+    fbtn.style.cssText = 'color:#B0B3BA;cursor:pointer;font-size:12px;padding:0 3px';
     th.appendChild(span); th.appendChild(arrow); th.appendChild(fbtn);
     th.addEventListener('click', function(e){
       if(e.target === fbtn) return;
@@ -548,15 +548,15 @@ function onWipeInput(e){
     dd.style.top = (window.scrollY + rect.bottom + 2) + 'px';
     dd.innerHTML =
       '<div style="display:flex;gap:4px;margin-bottom:6px">' +
-        '<button type="button" data-act="asc" style="flex:1;padding:6px;border:1px solid #D1D6DB;border-radius:4px;background:#fff;cursor:pointer;font-size:11px">▲ 오름차순</button>' +
-        '<button type="button" data-act="desc" style="flex:1;padding:6px;border:1px solid #D1D6DB;border-radius:4px;background:#fff;cursor:pointer;font-size:11px">▼ 내림차순</button>' +
+        '<button type="button" data-act="asc" style="flex:1;padding:6px;border:1px solid #D1D6DB;border-radius:4px;background:#fff;cursor:pointer;font-size:12px">▲ 오름차순</button>' +
+        '<button type="button" data-act="desc" style="flex:1;padding:6px;border:1px solid #D1D6DB;border-radius:4px;background:#fff;cursor:pointer;font-size:12px">▼ 내림차순</button>' +
       '</div>' +
-      '<input type="text" class="f-search" placeholder="검색" style="width:100%;padding:6px 8px;border:1px solid #D1D6DB;border-radius:4px;font-size:11px;margin-bottom:6px;box-sizing:border-box">' +
+      '<input type="text" class="f-search" placeholder="검색" style="width:100%;padding:6px 8px;border:1px solid #D1D6DB;border-radius:4px;font-size:12px;margin-bottom:6px;box-sizing:border-box">' +
       '<div class="f-list" style="max-height:220px;overflow-y:auto;border:1px solid #EEE;border-radius:4px;padding:4px"></div>' +
       '<div style="display:flex;gap:4px;margin-top:6px">' +
-        '<button type="button" data-act="ok" style="flex:1;padding:7px;border:none;border-radius:4px;background:#3182F6;color:#fff;cursor:pointer;font-size:11px;font-weight:600">확인</button>' +
-        '<button type="button" data-act="clear" style="padding:7px 8px;border:1px solid #D1D6DB;border-radius:4px;background:#fff;cursor:pointer;font-size:11px">필터 해제</button>' +
-        '<button type="button" data-act="cancel" style="padding:7px 8px;border:1px solid #D1D6DB;border-radius:4px;background:#fff;cursor:pointer;font-size:11px">취소</button>' +
+        '<button type="button" data-act="ok" style="flex:1;padding:7px;border:none;border-radius:4px;background:#3182F6;color:#fff;cursor:pointer;font-size:12px;font-weight:600">확인</button>' +
+        '<button type="button" data-act="clear" style="padding:7px 8px;border:1px solid #D1D6DB;border-radius:4px;background:#fff;cursor:pointer;font-size:12px">필터 해제</button>' +
+        '<button type="button" data-act="cancel" style="padding:7px 8px;border:1px solid #D1D6DB;border-radius:4px;background:#fff;cursor:pointer;font-size:12px">취소</button>' +
       '</div>';
     document.body.appendChild(dd);
     var listEl = dd.querySelector('.f-list');

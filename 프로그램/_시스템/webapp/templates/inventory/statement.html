@@ -7,7 +7,7 @@
   @page { size: A4; margin: 18mm; }
   body { font-family: -apple-system, "Apple SD Gothic Neo", sans-serif; margin: 0; padding: 14px; background: #f5f5f5; color: #191F28; line-height: 1.5; }
   .toolbar { background: #fff; padding: 14px 18px; border-radius: 8px; margin-bottom: 14px; display: flex; gap: 10px; align-items: center; max-width: 800px; margin-left: auto; margin-right: auto; }
-  .toolbar button { padding: 8px 14px; border-radius: 6px; border: 1px solid #CBCCD3; font-size: 13px; cursor: pointer; background: #fff; }
+  .toolbar button { padding: 8px 14px; border-radius: 6px; border: 1px solid #CBCCD3; font-size: 14px; cursor: pointer; background: #fff; }
   .toolbar button.primary { background: #3182F6; color: #fff; border: 0; font-weight: 700; }
   .sheet { max-width: 800px; margin: 0 auto; background: #fff; padding: 26mm 22mm; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.04); }
   .sheet h1 { text-align: center; font-size: 28px; font-weight: 800; margin: 0 0 6px; letter-spacing: 6px; color: #191F28; }
@@ -15,11 +15,11 @@
   .meta-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8mm; margin-bottom: 14mm; }
   .meta-box { border: 1px solid #191F28; border-radius: 0; padding: 4mm 5mm; }
   .meta-box h3 { font-size: 12px; font-weight: 700; margin: 0 0 4mm; padding-bottom: 2mm; border-bottom: 1px solid #E5E8EB; color: #4E5968; text-transform: uppercase; }
-  .meta-box .row { display: flex; font-size: 13px; padding: 2mm 0; }
+  .meta-box .row { display: flex; font-size: 14px; padding: 2mm 0; }
   .meta-box .row .k { width: 24mm; color: #6B7684; }
   .meta-box .row .v { flex: 1; font-weight: 500; }
   table.tx-tbl { width: 100%; border-collapse: collapse; margin-bottom: 14mm; }
-  table.tx-tbl th, table.tx-tbl td { border: 1px solid #191F28; padding: 4mm 5mm; text-align: left; font-size: 13px; }
+  table.tx-tbl th, table.tx-tbl td { border: 1px solid #191F28; padding: 4mm 5mm; text-align: left; font-size: 14px; }
   table.tx-tbl th { background: #F2F4F6; font-weight: 700; }
   table.tx-tbl td.right { text-align: right; font-family: "SF Mono", monospace; }
   .footer-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8mm; margin-top: 14mm; }
@@ -32,7 +32,7 @@
 
 <div class="toolbar">
   <strong style="font-size:15px">📃 거래명세서</strong>
-  <span style="color:#6B7684;font-size:12.5px">#{{ tx.id }}</span>
+  <span style="color:#6B7684;font-size:14px">#{{ tx.id }}</span>
   <button class="primary" onclick="window.print()">🖨 인쇄 / PDF 저장</button>
   <button onclick="window.close()">닫기</button>
 </div>
@@ -71,9 +71,9 @@
     </thead>
     <tbody>
       <tr>
-        <td style="font-family:'SF Mono',monospace;font-size:11px">{{ opt.canonical_sku if opt else tx.option_canonical_sku }}</td>
+        <td style="font-family:'SF Mono',monospace;font-size:12px">{{ opt.canonical_sku if opt else tx.option_canonical_sku }}</td>
         <td>{{ opt | display_pname_single if opt else (tx.option_canonical_sku or '—') }}</td>
-        <td style="font-family:'SF Mono',monospace;font-size:11px">{{ (opt.model.article_no if opt and opt.model else None) or '—' }}</td>
+        <td style="font-family:'SF Mono',monospace;font-size:12px">{{ (opt.model.article_no if opt and opt.model else None) or '—' }}</td>
         <td>{{ opt | cleaned_color_single if opt else '—' }}/{{ (opt.size_display or opt.size_code) | size_or_default if opt else '—' }}</td>
         <td class="right">{{ tx.qty }}</td>
         <td class="right">{% if tx.unit_purchase_price_at_tx %}{{ '{:,}'.format(tx.unit_purchase_price_at_tx) }}{% elif tx.unit_sale_price %}{{ '{:,}'.format(tx.unit_sale_price) }}{% else %}—{% endif %}</td>
@@ -87,7 +87,7 @@
     <div class="sign-box"><div class="role">{{ '공급자' if tx.tx_type=='in' else '수령자' }}</div></div>
   </div>
 
-  <div style="text-align:center;margin-top:18mm;font-size:11px;color:#6B7684">
+  <div style="text-align:center;margin-top:18mm;font-size:12px;color:#6B7684">
     모음전 자동화 시스템 · 발급일 {{ tx.created_at.strftime('%Y-%m-%d') if tx.created_at else '' }}
   </div>
 </div>

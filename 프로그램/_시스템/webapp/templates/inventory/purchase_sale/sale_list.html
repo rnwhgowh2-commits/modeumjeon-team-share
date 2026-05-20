@@ -5,38 +5,38 @@
 {% block content %}
 <div style="padding:24px 32px;max-width:1500px;margin:0 auto">
   <div style="display:flex;align-items:center;gap:14px;margin-bottom:8px">
-    <div style="font-size: 14px;color:#9CA3AF">구매 및 판매</div>
+    <div style="font-size:14px;color:#9CA3AF">구매 및 판매</div>
     <h1 style="font-size:22px;font-weight:700;margin:0">판매</h1>
-    <a href="{{ url_for('inventory.sale_new') }}" style="margin-left:auto;background:#C53030;color:#fff;padding:8px 16px;border-radius:5px;font-size:13px;text-decoration:none;font-weight:600">+ 판매서 작성</a>
+    <a href="{{ url_for('inventory.sale_new') }}" style="margin-left:auto;background:#C53030;color:#fff;padding:8px 16px;border-radius:5px;font-size:14px;text-decoration:none;font-weight:600">+ 판매서 작성</a>
   </div>
   {{ status_tabs_sale(url_for('inventory.sale_list'), status, counts) }}
-  {% with msgs = get_flashed_messages(with_categories=true) %}{% for cat,msg in msgs %}<div style="background:{% if cat=='error' %}#FEF2F2{% else %}#ECFDF5{% endif %};border:1px solid {% if cat=='error' %}#FCA5A5{% else %}#86EFAC{% endif %};padding:10px 14px;border-radius:6px;margin-bottom:12px;font-size:13px">{{ msg }}</div>{% endfor %}{% endwith %}
+  {% with msgs = get_flashed_messages(with_categories=true) %}{% for cat,msg in msgs %}<div style="background:{% if cat=='error' %}#FEF2F2{% else %}#ECFDF5{% endif %};border:1px solid {% if cat=='error' %}#FCA5A5{% else %}#86EFAC{% endif %};padding:10px 14px;border-radius:6px;margin-bottom:12px;font-size:14px">{{ msg }}</div>{% endfor %}{% endwith %}
   {{ bulk_action_bar('so_id', url_for('inventory.sale_bulk')) }}
   <div style="background:#fff;border:1px solid #E5E8EB;border-radius:8px;overflow:hidden">
-    <table style="width:100%;border-collapse:collapse;font-size: 14px">
+    <table style="width:100%;border-collapse:collapse;font-size:14px">
       <thead style="background:#F9FAFB"><tr>
         <th style="padding:11px 8px;width:36px;text-align:center"><input type="checkbox" id="checkAll" onclick="toggleAll(this)"></th>
         {{ sort_th('생성일', 'created_at', sort_key, sort_dir, url_for('inventory.sale_list'), status) }}
         {{ sort_th('SO #', 'so_number', sort_key, sort_dir, url_for('inventory.sale_list'), status) }}
         {{ sort_th('고객', 'partner', sort_key, sort_dir, url_for('inventory.sale_list'), status) }}
-        <th style="padding:11px 8px;text-align:right;font-size: 14px;color:#4E5968;font-weight:600">품목 수</th>
-        <th style="padding:11px 8px;text-align:right;font-size: 14px;color:#4E5968;font-weight:600">총 수량</th>
+        <th style="padding:11px 8px;text-align:right;font-size:12px;color:#4E5968;font-weight:600">품목 수</th>
+        <th style="padding:11px 8px;text-align:right;font-size:12px;color:#4E5968;font-weight:600">총 수량</th>
         {{ sort_th('상태', 'status', sort_key, sort_dir, url_for('inventory.sale_list'), status) }}
         {{ sort_th('출고예정', 'due_date', sort_key, sort_dir, url_for('inventory.sale_list'), status) }}
-        <th style="padding:11px 8px;text-align:left;font-size: 14px;color:#4E5968;font-weight:600">작성자</th>
+        <th style="padding:11px 8px;text-align:left;font-size:12px;color:#4E5968;font-weight:600">작성자</th>
       </tr></thead>
       <tbody>
         {% for r in rows %}
           <tr style="border-bottom:1px solid #F2F4F6;cursor:pointer" onmouseover="this.style.background='#F9FAFB'" onmouseout="this.style.background=''" onclick="if(event.target.tagName!=='INPUT'){window.location.href='{{ url_for('inventory.sale_detail', so_id=r.so.id) }}'}">
             <td style="padding:9px 8px;text-align:center" onclick="event.stopPropagation()"><input type="checkbox" name="so_id" value="{{ r.so.id }}"></td>
             <td style="padding:9px 8px;color:#4E5968">{{ r.so.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
-            <td style="padding:9px 8px;font-weight:600;font-family:ui-monospace,monospace;font-size: 14px">{{ r.so.so_number or ('#' ~ r.so.id) }}</td>
+            <td style="padding:9px 8px;font-weight:600;font-family:ui-monospace,monospace;font-size:12px">{{ r.so.so_number or ('#' ~ r.so.id) }}</td>
             <td style="padding:9px 8px">{{ r.so.partner_label or '—' }}</td>
             <td style="padding:9px 8px;text-align:right">{{ r.item_count }}</td>
             <td style="padding:9px 8px;text-align:right;font-family:ui-monospace,monospace;font-weight:700;color:#C53030">{{ r.total_qty }}</td>
-            <td style="padding:9px 8px"><span style="font-size: 12px;padding:2px 8px;border-radius:3px;background:{% if r.so.status=='completed' %}#DCFCE7;color:#15803D{% elif r.so.status=='cancelled' %}#FEE2E2;color:#991B1B{% else %}#FEE2E2;color:#991B1B{% endif %};font-weight:600">{{ r.so.status }}</span></td>
-            <td style="padding:9px 8px;color:#4E5968;font-size: 14px">{{ r.so.due_date.strftime('%Y-%m-%d') if r.so.due_date else '—' }}</td>
-            <td style="padding:9px 8px"><span style="display:inline-flex;align-items:center;gap:6px"><span style="width:22px;height:22px;border-radius:50%;background:#7C3AED;color:#fff;display:inline-flex;align-items:center;justify-content:center;font-size: 12px;font-weight:700">{{ (r.so.created_by or '운')[:1] }}</span><span style="font-size: 14px">{{ r.so.created_by or '운영자' }}</span></span></td>
+            <td style="padding:9px 8px"><span style="font-size:10.5px;padding:2px 8px;border-radius:3px;background:{% if r.so.status=='completed' %}#DCFCE7;color:#15803D{% elif r.so.status=='cancelled' %}#FEE2E2;color:#991B1B{% else %}#FEE2E2;color:#991B1B{% endif %};font-weight:600">{{ r.so.status }}</span></td>
+            <td style="padding:9px 8px;color:#4E5968;font-size:12px">{{ r.so.due_date.strftime('%Y-%m-%d') if r.so.due_date else '—' }}</td>
+            <td style="padding:9px 8px"><span style="display:inline-flex;align-items:center;gap:6px"><span style="width:22px;height:22px;border-radius:50%;background:#7C3AED;color:#fff;display:inline-flex;align-items:center;justify-content:center;font-size:10px;font-weight:700">{{ (r.so.created_by or '운')[:1] }}</span><span style="font-size:12px">{{ r.so.created_by or '운영자' }}</span></span></td>
           </tr>
         {% else %}<tr><td colspan="9" style="padding:48px;text-align:center;color:#9CA3AF">판매 없음</td></tr>{% endfor %}
       </tbody>

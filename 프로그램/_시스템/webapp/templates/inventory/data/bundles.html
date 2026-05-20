@@ -4,25 +4,25 @@
 {# 박스히어로 1:1 묶음제품 — N개 단일 옵션을 1개 묶음 SKU 로 묶어 거래 처리. #}
 <div style="padding:24px 32px;max-width:1500px;margin:0 auto">
   <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px">
-    <div style="font-size: 14px;color:#8F91A0">데이터 관리</div>
+    <div style="font-size:14px;color:#8F91A0">데이터 관리</div>
     <h1 style="font-size:22px;font-weight:700;margin:0;color:#292A2F">묶음제품</h1>
-    <span title="N개 단일 SKU를 1개 묶음 SKU로 묶음 — 선물세트·샘플팩 등에 사용. 출고 시 묶음 SKU 1개 = 구성 SKU N개 자동 차감." style="display:inline-flex;align-items:center;justify-content:center;width:14px;height:14px;border-radius:50%;background:#F1F1F4;color:#8F91A0;font-size: 12px;font-weight:700;cursor:help">i</span>
-    <span style="font-size: 14px;color:#8F91A0">총 {{ bundles|length }}개</span>
-    <a href="{{ url_for('inventory.data_bundle_new') }}" style="margin-left:auto;background:#4F67FF;color:#fff;padding:7px 14px;border-radius:5px;font-size: 14px;text-decoration:none;font-weight:600">+ 묶음 추가</a>
+    <span title="N개 단일 SKU를 1개 묶음 SKU로 묶음 — 선물세트·샘플팩 등에 사용. 출고 시 묶음 SKU 1개 = 구성 SKU N개 자동 차감." style="display:inline-flex;align-items:center;justify-content:center;width:14px;height:14px;border-radius:50%;background:#F1F1F4;color:#8F91A0;font-size:9.5px;font-weight:700;cursor:help">i</span>
+    <span style="font-size:12px;color:#8F91A0">총 {{ bundles|length }}개</span>
+    <a href="{{ url_for('inventory.data_bundle_new') }}" style="margin-left:auto;background:#4F67FF;color:#fff;padding:7px 14px;border-radius:5px;font-size:14px;text-decoration:none;font-weight:600">+ 묶음 추가</a>
   </div>
 
-  {% with msgs = get_flashed_messages(with_categories=true) %}{% for cat,msg in msgs %}<div style="background:{% if cat=='error' %}#FEF2F2{% else %}#ECFDF5{% endif %};border:1px solid {% if cat=='error' %}#FCA5A5{% else %}#86EFAC{% endif %};padding:10px 14px;border-radius:6px;margin-bottom:12px;font-size:13px;color:{% if cat=='error' %}#991B1B{% else %}#065F46{% endif %}">{{ msg }}</div>{% endfor %}{% endwith %}
+  {% with msgs = get_flashed_messages(with_categories=true) %}{% for cat,msg in msgs %}<div style="background:{% if cat=='error' %}#FEF2F2{% else %}#ECFDF5{% endif %};border:1px solid {% if cat=='error' %}#FCA5A5{% else %}#86EFAC{% endif %};padding:10px 14px;border-radius:6px;margin-bottom:12px;font-size:14px;color:{% if cat=='error' %}#991B1B{% else %}#065F46{% endif %}">{{ msg }}</div>{% endfor %}{% endwith %}
 
   <div style="background:#fff;border:1px solid #E5E8EB;border-radius:8px;overflow:hidden">
-    <table style="width:100%;border-collapse:collapse;font-size: 14px">
+    <table style="width:100%;border-collapse:collapse;font-size:14px">
       <thead style="background:#F1F1F4">
         <tr>
-          <th style="padding:11px 8px;text-align:left;font-size: 14px;color:#292A2F;font-weight:600">묶음 SKU</th>
-          <th style="padding:11px 8px;text-align:left;font-size: 14px;color:#292A2F;font-weight:600">묶음 이름</th>
-          <th style="padding:11px 8px;text-align:left;font-size: 14px;color:#292A2F;font-weight:600">구성</th>
-          <th style="padding:11px 8px;text-align:right;font-size: 14px;color:#292A2F;font-weight:600;width:100px">묶음 가격</th>
-          <th style="padding:11px 8px;text-align:left;font-size: 14px;color:#292A2F;font-weight:600;width:140px">생성일</th>
-          <th style="padding:11px 8px;text-align:right;font-size: 14px;color:#292A2F;font-weight:600;width:140px">작업</th>
+          <th style="padding:11px 8px;text-align:left;font-size:12px;color:#292A2F;font-weight:600">묶음 SKU</th>
+          <th style="padding:11px 8px;text-align:left;font-size:12px;color:#292A2F;font-weight:600">묶음 이름</th>
+          <th style="padding:11px 8px;text-align:left;font-size:12px;color:#292A2F;font-weight:600">구성</th>
+          <th style="padding:11px 8px;text-align:right;font-size:12px;color:#292A2F;font-weight:600;width:100px">묶음 가격</th>
+          <th style="padding:11px 8px;text-align:left;font-size:12px;color:#292A2F;font-weight:600;width:140px">생성일</th>
+          <th style="padding:11px 8px;text-align:right;font-size:12px;color:#292A2F;font-weight:600;width:140px">작업</th>
         </tr>
       </thead>
       <tbody>
@@ -32,26 +32,26 @@
             <td style="padding:11px 8px;color:#292A2F">{{ b.name }}</td>
             <td style="padding:11px 8px;color:#292A2F">
               {% for c in b.components %}
-                <span style="display:inline-block;background:#EEF1FE;color:#1E40AF;padding:2px 8px;border-radius:3px;font-size: 14px;font-family:ui-monospace,monospace;margin-right:4px">{{ c.sku }}<sub style="opacity:0.7">×{{ c.qty }}</sub></span>
+                <span style="display:inline-block;background:#EEF1FE;color:#1E40AF;padding:2px 8px;border-radius:3px;font-size:12px;font-family:ui-monospace,monospace;margin-right:4px">{{ c.sku }}<sub style="opacity:0.7">×{{ c.qty }}</sub></span>
               {% endfor %}
             </td>
             <td style="padding:11px 8px;text-align:right;font-family:ui-monospace,monospace;color:#292A2F">{{ '{:,}'.format(b.price or 0) }}</td>
-            <td style="padding:11px 8px;color:#8F91A0;font-size: 14px">{{ b.created_at[:16] if b.created_at else '—' }}</td>
+            <td style="padding:11px 8px;color:#8F91A0;font-size:12px">{{ b.created_at[:16] if b.created_at else '—' }}</td>
             <td style="padding:11px 8px;text-align:right">
-              <a href="{{ url_for('inventory.data_bundle_edit', bundle_id=b.id) }}" style="background:#fff;border:1px solid #CBCCD3;color:#292A2F;padding:5px 10px;border-radius:4px;font-size: 14px;text-decoration:none;margin-right:4px">편집</a>
+              <a href="{{ url_for('inventory.data_bundle_edit', bundle_id=b.id) }}" style="background:#fff;border:1px solid #CBCCD3;color:#292A2F;padding:5px 10px;border-radius:4px;font-size:12px;text-decoration:none;margin-right:4px">편집</a>
               <form method="post" action="{{ url_for('inventory.data_bundle_delete', bundle_id=b.id) }}" style="display:inline" onsubmit="return confirm('묶음 {{ b.sku }} 삭제?')">
-                <button type="submit" style="background:#FEF2F2;color:#991B1B;border:1px solid #FCA5A5;padding:5px 10px;border-radius:4px;font-size: 14px;cursor:pointer">🗑</button>
+                <button type="submit" style="background:#FEF2F2;color:#991B1B;border:1px solid #FCA5A5;padding:5px 10px;border-radius:4px;font-size:12px;cursor:pointer">🗑</button>
               </form>
             </td>
           </tr>
         {% else %}
-          <tr><td colspan="6" style="padding:48px;text-align:center;color:#8F91A0">묶음제품 없음 — 우상단 [+ 묶음 추가] 클릭<br><span style="font-size: 14px;margin-top:6px;display:block">예시: BUNDLE-GIFT-A = SKU-A×1 + SKU-B×2 + SKU-C×1 → 출고 시 자동 차감</span></td></tr>
+          <tr><td colspan="6" style="padding:48px;text-align:center;color:#8F91A0">묶음제품 없음 — 우상단 [+ 묶음 추가] 클릭<br><span style="font-size:12px;margin-top:6px;display:block">예시: BUNDLE-GIFT-A = SKU-A×1 + SKU-B×2 + SKU-C×1 → 출고 시 자동 차감</span></td></tr>
         {% endfor %}
       </tbody>
     </table>
   </div>
 
-  <div style="margin-top:14px;padding:14px 18px;background:#EEF1FE;border:1px solid #4F67FF;border-radius:6px;font-size: 14px;color:#1E40AF">
+  <div style="margin-top:14px;padding:14px 18px;background:#EEF1FE;border:1px solid #4F67FF;border-radius:6px;font-size:14px;color:#1E40AF">
     💡 <strong>박스히어로 1:1 — 묶음 동작 정의</strong><br>
     묶음 SKU는 자체 재고 ❌. 출고 시 구성 SKU의 재고에서 자동 차감 (수량 × 묶음 수량).<br>
     바코드 인쇄 — 묶음 SKU 단위 생성 가능 (좌측 메뉴 → 바코드 인쇄 → 묶음).

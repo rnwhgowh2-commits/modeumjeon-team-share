@@ -4,30 +4,30 @@
 {# 박스히어로 1:1 거래처 (multi-type 자동: 공급자+고객 동시 사용 가능 — ADR-003 텍스트 박제 모델). #}
 <div style="padding:24px 32px;max-width:1500px;margin:0 auto">
   <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px">
-    <div style="font-size: 14px;color:#8F91A0">데이터 관리</div>
+    <div style="font-size:14px;color:#8F91A0">데이터 관리</div>
     <h1 style="font-size:22px;font-weight:700;margin:0;color:#292A2F">거래처</h1>
-    <span title="발주서·판매서·반품서에서 입력된 거래처가 자동 누적 — 한 거래처가 공급자·고객 동시 가능" style="display:inline-flex;align-items:center;justify-content:center;width:14px;height:14px;border-radius:50%;background:#F1F1F4;color:#8F91A0;font-size: 12px;font-weight:700;cursor:help">i</span>
-    <span style="font-size: 14px;color:#8F91A0">총 {{ recent|length }}건</span>
+    <span title="발주서·판매서·반품서에서 입력된 거래처가 자동 누적 — 한 거래처가 공급자·고객 동시 가능" style="display:inline-flex;align-items:center;justify-content:center;width:14px;height:14px;border-radius:50%;background:#F1F1F4;color:#8F91A0;font-size:9.5px;font-weight:700;cursor:help">i</span>
+    <span style="font-size:12px;color:#8F91A0">총 {{ recent|length }}건</span>
   </div>
   <div style="background:#FFF8E5;border:1px solid #FFCB6B;border-radius:8px;padding:14px 18px;margin-bottom:14px">
-    <strong style="color:#9A6700;font-size:13px">💡 박스히어로 vs 모음전 — 거래처 모델</strong>
-    <p style="font-size: 14px;color:#292A2F;margin-top:4px;line-height:1.6">
+    <strong style="color:#9A6700;font-size:14px">💡 박스히어로 vs 모음전 — 거래처 모델</strong>
+    <p style="font-size:14px;color:#292A2F;margin-top:4px;line-height:1.6">
       박스히어로는 공급자/고객 마스터 분리 등록 (multi-type 체크박스로 한 거래처가 둘 다 가능).<br>
       모음전은 <strong>거래(Tx)에 텍스트만 박제</strong> (ADR-003) → 같은 라벨이면 자동으로 공급자·고객 양쪽 자동완성 풀에 등장. <strong>multi-type 자동 지원.</strong>
     </p>
   </div>
   <div style="background:#fff;border:1px solid #E5E8EB;border-radius:8px;overflow:hidden">
-    <table style="width:100%;border-collapse:collapse;font-size: 14px">
+    <table style="width:100%;border-collapse:collapse;font-size:14px">
       <thead style="background:#F1F1F4"><tr>
-        <th style="padding:11px 8px;text-align:left;font-size: 14px;color:#292A2F;font-weight:600">거래처 라벨</th>
-        <th style="padding:11px 8px;text-align:left;font-size: 14px;color:#292A2F;font-weight:600;width:140px">유형 사용</th>
-        <th style="padding:11px 8px;text-align:right;font-size: 14px;color:#292A2F;font-weight:600;width:100px">사용 횟수</th>
-        <th style="padding:11px 8px;text-align:right;font-size: 14px;color:#292A2F;font-weight:600;width:200px">최근 사용</th>
+        <th style="padding:11px 8px;text-align:left;font-size:12px;color:#292A2F;font-weight:600">거래처 라벨</th>
+        <th style="padding:11px 8px;text-align:left;font-size:12px;color:#292A2F;font-weight:600;width:140px">유형 사용</th>
+        <th style="padding:11px 8px;text-align:right;font-size:12px;color:#292A2F;font-weight:600;width:100px">사용 횟수</th>
+        <th style="padding:11px 8px;text-align:right;font-size:12px;color:#292A2F;font-weight:600;width:200px">최근 사용</th>
       </tr></thead>
       <tbody>
         {% for r in recent %}<tr style="border-bottom:1px solid #F1F1F4">
           <td style="padding:9px 8px;font-weight:500;color:#292A2F">{{ r.label }}</td>
-          <td style="padding:9px 8px;font-size: 14px">
+          <td style="padding:9px 8px;font-size:12px">
             {% set as_supplier = r.as_supplier if r.as_supplier is defined else (r.label and 'in' in (r.types|default(''))) %}
             {% set as_customer = r.as_customer if r.as_customer is defined else (r.label and 'out' in (r.types|default(''))) %}
             {% if r.types is defined and r.types %}
@@ -38,12 +38,12 @@
             {% endif %}
           </td>
           <td style="padding:9px 8px;text-align:right;font-family:ui-monospace,monospace;color:#292A2F">{{ r.count }}</td>
-          <td style="padding:9px 8px;text-align:right;color:#8F91A0;font-size: 14px">{{ r.last_used.strftime('%Y-%m-%d %H:%M') if r.last_used else '—' }}</td>
+          <td style="padding:9px 8px;text-align:right;color:#8F91A0;font-size:12px">{{ r.last_used.strftime('%Y-%m-%d %H:%M') if r.last_used else '—' }}</td>
         </tr>{% else %}<tr><td colspan="4" style="padding:48px;text-align:center;color:#8F91A0">거래처 사용 이력 없음 — 거래 작성 시 자동 누적</td></tr>{% endfor %}
       </tbody>
     </table>
   </div>
-  <div style="margin-top:14px;font-size: 14px;color:#8F91A0;line-height:1.7">
+  <div style="margin-top:14px;font-size:12px;color:#8F91A0;line-height:1.7">
     ★ 박스히어로 1:1 + 차별점 — 마스터 등록 단계 ❌, 거래 작성 시 자동 누적. multi-type 자동 처리 (같은 라벨 = 공급자·고객 둘 다 가능).
   </div>
 </div>

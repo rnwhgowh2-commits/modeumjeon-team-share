@@ -4,12 +4,12 @@
 {# 박스히어로 1:1 알림 설정 — 카테고리별 채널 (인앱/이메일/푸시) 토글. #}
 <div style="padding:24px 32px;max-width:1100px;margin:0 auto">
   <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px">
-    <div style="font-size: 14px;color:#8F91A0">설정</div>
+    <div style="font-size:14px;color:#8F91A0">설정</div>
     <h1 style="font-size:22px;font-weight:700;margin:0;color:#292A2F">알림 설정</h1>
-    <span title="카테고리별 알림 채널을 선택 — 인앱(필수)·이메일·푸시" style="display:inline-flex;align-items:center;justify-content:center;width:14px;height:14px;border-radius:50%;background:#F1F1F4;color:#8F91A0;font-size: 12px;font-weight:700;cursor:help">i</span>
+    <span title="카테고리별 알림 채널을 선택 — 인앱(필수)·이메일·푸시" style="display:inline-flex;align-items:center;justify-content:center;width:14px;height:14px;border-radius:50%;background:#F1F1F4;color:#8F91A0;font-size:9.5px;font-weight:700;cursor:help">i</span>
   </div>
 
-  {% with msgs = get_flashed_messages(with_categories=true) %}{% for cat,msg in msgs %}<div style="background:{% if cat=='error' %}#FEF2F2{% else %}#ECFDF5{% endif %};border:1px solid {% if cat=='error' %}#FCA5A5{% else %}#86EFAC{% endif %};padding:10px 14px;border-radius:6px;margin-bottom:12px;font-size:13px;color:{% if cat=='error' %}#991B1B{% else %}#065F46{% endif %}">{{ msg }}</div>{% endfor %}{% endwith %}
+  {% with msgs = get_flashed_messages(with_categories=true) %}{% for cat,msg in msgs %}<div style="background:{% if cat=='error' %}#FEF2F2{% else %}#ECFDF5{% endif %};border:1px solid {% if cat=='error' %}#FCA5A5{% else %}#86EFAC{% endif %};padding:10px 14px;border-radius:6px;margin-bottom:12px;font-size:14px;color:{% if cat=='error' %}#991B1B{% else %}#065F46{% endif %}">{{ msg }}</div>{% endfor %}{% endwith %}
 
   <form method="post" action="{{ url_for('inventory.settings_notifications_save') }}">
     {# 채널 활성화 #}
@@ -19,37 +19,37 @@
         <label style="display:flex;align-items:start;gap:10px;padding:12px;border:1px solid #E5E8EB;border-radius:6px;cursor:pointer">
           <input type="checkbox" name="channel_inapp" checked disabled style="margin-top:3px;accent-color:#4F67FF">
           <div>
-            <div style="font-size:13px;font-weight:600;color:#292A2F">인앱 알림 <span style="color:#8F91A0;font-weight:400">(필수)</span></div>
-            <div style="font-size: 14px;color:#8F91A0;line-height:1.5;margin-top:3px">알림 센터에 표시. 항상 활성.</div>
+            <div style="font-size:14px;font-weight:600;color:#292A2F">인앱 알림 <span style="color:#8F91A0;font-weight:400">(필수)</span></div>
+            <div style="font-size:12px;color:#8F91A0;line-height:1.5;margin-top:3px">알림 센터에 표시. 항상 활성.</div>
           </div>
         </label>
         <label style="display:flex;align-items:start;gap:10px;padding:12px;border:1px solid {% if pref.channel_email %}#4F67FF{% else %}#E5E8EB{% endif %};border-radius:6px;cursor:pointer;{% if pref.channel_email %}background:#EEF1FE{% endif %}">
           <input type="checkbox" name="channel_email" {% if pref.channel_email %}checked{% endif %} style="margin-top:3px;accent-color:#4F67FF">
           <div>
-            <div style="font-size:13px;font-weight:600;color:#292A2F">📧 이메일</div>
-            <div style="font-size: 14px;color:#8F91A0;line-height:1.5;margin-top:3px">SMTP 발송 — 받는 주소 아래에 입력.</div>
+            <div style="font-size:14px;font-weight:600;color:#292A2F">📧 이메일</div>
+            <div style="font-size:12px;color:#8F91A0;line-height:1.5;margin-top:3px">SMTP 발송 — 받는 주소 아래에 입력.</div>
           </div>
         </label>
         <label style="display:flex;align-items:start;gap:10px;padding:12px;border:1px solid {% if pref.channel_push %}#4F67FF{% else %}#E5E8EB{% endif %};border-radius:6px;cursor:pointer;{% if pref.channel_push %}background:#EEF1FE{% endif %}">
           <input type="checkbox" name="channel_push" {% if pref.channel_push %}checked{% endif %} style="margin-top:3px;accent-color:#4F67FF">
           <div>
-            <div style="font-size:13px;font-weight:600;color:#292A2F">📱 푸시 (WebPush)</div>
-            <div style="font-size: 14px;color:#8F91A0;line-height:1.5;margin-top:3px">브라우저 권한 필요 — 활성 시 자동 요청.</div>
+            <div style="font-size:14px;font-weight:600;color:#292A2F">📱 푸시 (WebPush)</div>
+            <div style="font-size:12px;color:#8F91A0;line-height:1.5;margin-top:3px">브라우저 권한 필요 — 활성 시 자동 요청.</div>
           </div>
         </label>
       </div>
 
       <div style="margin-top:14px;display:grid;grid-template-columns:1fr 1fr;gap:14px">
         <div>
-          <label style="display:block;font-size: 14px;font-weight:600;color:#292A2F;margin-bottom:5px">받는 이메일 주소</label>
-          <input name="email_to" value="{{ pref.email_to or '' }}" placeholder="user@example.com" style="width:100%;padding:9px 12px;border:1px solid #CBCCD3;border-radius:5px;font-size:13px;color:#292A2F">
+          <label style="display:block;font-size:14px;font-weight:600;color:#292A2F;margin-bottom:5px">받는 이메일 주소</label>
+          <input name="email_to" value="{{ pref.email_to or '' }}" placeholder="user@example.com" style="width:100%;padding:9px 12px;border:1px solid #CBCCD3;border-radius:5px;font-size:14px;color:#292A2F">
         </div>
         <div>
-          <label style="display:block;font-size: 14px;font-weight:600;color:#292A2F;margin-bottom:5px">조용한 시간 (이 시간엔 푸시·이메일 보류)</label>
+          <label style="display:block;font-size:14px;font-weight:600;color:#292A2F;margin-bottom:5px">조용한 시간 (이 시간엔 푸시·이메일 보류)</label>
           <div style="display:flex;gap:6px;align-items:center">
-            <input type="time" name="quiet_from" value="{{ pref.quiet_from or '22:00' }}" style="padding:8px 10px;border:1px solid #CBCCD3;border-radius:5px;font-size:13px">
+            <input type="time" name="quiet_from" value="{{ pref.quiet_from or '22:00' }}" style="padding:8px 10px;border:1px solid #CBCCD3;border-radius:5px;font-size:14px">
             <span style="color:#8F91A0">~</span>
-            <input type="time" name="quiet_to" value="{{ pref.quiet_to or '08:00' }}" style="padding:8px 10px;border:1px solid #CBCCD3;border-radius:5px;font-size:13px">
+            <input type="time" name="quiet_to" value="{{ pref.quiet_to or '08:00' }}" style="padding:8px 10px;border:1px solid #CBCCD3;border-radius:5px;font-size:14px">
           </div>
         </div>
       </div>
@@ -58,13 +58,13 @@
     {# 카테고리별 채널 매트릭스 #}
     <div style="background:#fff;border:1px solid #E5E8EB;border-radius:8px;padding:18px 20px;margin-bottom:14px">
       <h3 style="margin:0 0 12px;font-size:14px;font-weight:600;color:#292A2F">🗂 카테고리별 알림</h3>
-      <table style="width:100%;border-collapse:collapse;font-size: 14px">
+      <table style="width:100%;border-collapse:collapse;font-size:14px">
         <thead style="background:#F1F1F4">
           <tr>
-            <th style="padding:10px 12px;text-align:left;font-size: 14px;color:#292A2F;font-weight:600">카테고리</th>
-            <th style="padding:10px 8px;text-align:center;font-size: 14px;color:#292A2F;font-weight:600;width:90px">인앱</th>
-            <th style="padding:10px 8px;text-align:center;font-size: 14px;color:#292A2F;font-weight:600;width:90px">📧 이메일</th>
-            <th style="padding:10px 8px;text-align:center;font-size: 14px;color:#292A2F;font-weight:600;width:90px">📱 푸시</th>
+            <th style="padding:10px 12px;text-align:left;font-size:12px;color:#292A2F;font-weight:600">카테고리</th>
+            <th style="padding:10px 8px;text-align:center;font-size:12px;color:#292A2F;font-weight:600;width:90px">인앱</th>
+            <th style="padding:10px 8px;text-align:center;font-size:12px;color:#292A2F;font-weight:600;width:90px">📧 이메일</th>
+            <th style="padding:10px 8px;text-align:center;font-size:12px;color:#292A2F;font-weight:600;width:90px">📱 푸시</th>
           </tr>
         </thead>
         <tbody>
@@ -81,7 +81,7 @@
             <tr style="border-top:1px solid #F1F1F4">
               <td style="padding:11px 12px">
                 <div style="font-weight:600;color:#292A2F">{{ label }}</div>
-                <div style="font-size: 14px;color:#8F91A0;margin-top:2px">{{ desc }}</div>
+                <div style="font-size:12px;color:#8F91A0;margin-top:2px">{{ desc }}</div>
               </td>
               <td style="text-align:center"><input type="checkbox" name="cat_{{ code }}_inapp" checked disabled style="accent-color:#4F67FF"></td>
               <td style="text-align:center"><input type="checkbox" name="cat_{{ code }}_email" {% if pref.cats and pref.cats.get(code, {}).get('email') %}checked{% endif %} style="accent-color:#4F67FF"></td>
