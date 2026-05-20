@@ -783,8 +783,10 @@
     .ipl-wrap { margin-bottom: 8px; }
     /* 검색칸은 셀 전체 폭을 차지하도록 세로 스택 — 가로 배치 시 입력칸이 0px 로 찌그러져 한글 IME 입력이 깨짐 */
     .ipl-cell { display: flex; flex-direction: column; align-items: stretch; gap: 5px; }
-    .ipl-isearch-box { position: relative; min-width: 0; }
-    .ipl-isearch { width: 100%; box-sizing: border-box; border: 1.5px solid var(--primary, #3182F6); border-radius: 7px; padding: 7px 10px; font-size: 14px; font-family: var(--font); }
+    .ipl-isearch-box { position: relative; min-width: 0; min-height: 34px; }
+    .ipl-isearch { width: 100%; box-sizing: border-box; border: 1.5px solid var(--primary, #3182F6); border-radius: 7px; padding: 7px 10px; font-size: 14px; font-family: var(--font); transition: width .12s ease, box-shadow .12s ease; }
+    /* 재고 컬럼이 좁아 평소엔 셀 폭 — 포커스 시 넓게 펼쳐 편하게 입력 */
+    .ipl-isearch:focus { position: absolute; left: 0; top: 0; width: 340px; max-width: 62vw; z-index: 30; box-shadow: 0 4px 18px rgba(49,130,246,.28); outline: none; }
     .ipl-browse { width: 100%; box-sizing: border-box; background: var(--primary-tint, #EAF3FF); color: var(--primary, #3182F6); border: 0; border-radius: 7px; padding: 7px 9px; font-size: 12.5px; font-weight: 800; cursor: pointer; font-family: var(--font); white-space: nowrap; }
     .ipl-dd { position: absolute; top: 36px; left: 0; width: 380px; max-width: 92vw; background: #fff; border: 1px solid var(--n200, #e5e8eb); border-radius: 9px; box-shadow: 0 12px 32px rgba(0,0,0,.16); z-index: 20; overflow: hidden; }
     .ipl-dd-h { padding: 7px 11px; background: var(--n100, #f9fafb); border-bottom: 1px solid var(--n100, #f2f4f6); font-size: 12px; color: var(--n500, #6B7684); font-weight: 700; display: flex; align-items: center; gap: 5px; flex-wrap: wrap; }
