@@ -2875,3 +2875,303 @@ def sources_probe():
         out['fetch_error'] = str(e)[:200]
 
     return _ok(**out)
+
+
+# ════════════════════════════════════════════════════════════
+#  제품 공유 v1 — 제품 마스터 ② 복사·일괄생성 / ③ 삭제 경고 / ⑤ 역참조
+# ════════════════════════════════════════════════════════════
+
+def _new_option_payload(src, color_code, size_code, *, color_display=None, size_display=None):
+    """기준 옵션 src 를 베이스로 새 Option 생성용 kwargs.
+
+    canonical_sku = {model_code}-{색상}-{사이즈}. 색상·사이즈만 바꾸고 모델 그대로.
+    표시명 규칙 — 명시 전달값 우선 → 코드가 src 와 같으면 src 표시명 → 아니면 새 코드.
+    (코드가 바뀌었는데 src 표시명을 그대로 쓰면 잘못된 라벨이 됨)
+    """
+    from lemouton.sourcing.models import Option as _Opt  # noqa
+    sku = f"{src.model_code}-{color_code}-{size_code}"
+    if color_display is None:
+        color_display = (src.color_display or src.color_code) if color_code == src.color_code else color_code
+    if size_display is None:
+        size_display = (src.size_display or src.size_code) if size_code == src.size_code else size_code
+    return sku, dict(
+        canonical_sku=sku,
+        model_code=src.model_code,
+        color_code=color_code,
+        color_display=color_display or color_code,
+        size_code=size_code,
+        size_display=size_display or size_code,
+        sort_order=getattr(src, 'sort_order', 0) or 0,
+    )
+
+
+def _create_linked_product(s, opt, model):
+    """새 Option 1개에 대해 InventoryProduct + OptionProductLink 행을 함께 생성.
+
+    InventoryProduct.canonical_sku 는 옵션 SKU 와 동일 (1:1 신규 제품).
+    inventory_compose_bundle 패턴 — 옵션 만들 때 재고제품·링크 동시 생성.
+    """
+    from lemouton.inventory.models import InventoryProduct, OptionProductLink
+    sku = opt.canonical_sku
+    if not s.query(InventoryProduct).filter_by(canonical_sku=sku).first():
+        s.add(InventoryProduct(
+            canonical_sku=sku,
+            option_name=f"{opt.color_display or opt.color_code}-{opt.size_display or opt.size_code}",
+            model_code=opt.model_code,
+            color_code=opt.color_code,
+            size_code=opt.size_code,
+            brand=(model.brand if model else None),
+            barcode=opt.barcode,
+            status='draft',
+        ))
+    if not s.query(OptionProductLink).filter_by(option_canonical_sku=sku).first():
+        s.add(OptionProductLink(
+            option_canonical_sku=sku,
+            product_canonical_sku=sku,
+        ))
+
+
+@bp.post('/inventory/products/copy')
+def inventory_product_copy(  # noqa: C901
+):
+    """② 제품 복사 — 한 행을 복제. 같은 model_code, 색상·사이즈만 수정.
+
+    Body: {src_sku, color_code, size_code, color_display?, size_display?}
+    새 Option + InventoryProduct + OptionProductLink 동시 생성.
+    """
+    payload = request.get_json(silent=True) or {}
+    src_sku = (payload.get('src_sku') or '').strip()
+    color = (payload.get('color_code') or '').strip()
+    size = (payload.get('size_code') or '').strip()
+    if not src_sku or not color or not size:
+        return _err('src_sku / color_code / size_code 가 필요해요.', 400)
+
+    s = SessionLocal()
+    try:
+        src = s.query(Option).filter_by(canonical_sku=src_sku).first()
+        if src is None:
+            return _err(f'기준 제품을 찾을 수 없어요: {src_sku}', 404)
+        model = s.query(Model).filter_by(model_code=src.model_code).first()
+
+        new_sku, kw = _new_option_payload(
+            src, color, size,
+            color_display=(payload.get('color_display') or '').strip() or None,
+            size_display=(payload.get('size_display') or '').strip() or None,
+        )
+        if new_sku == src_sku or s.query(Option).filter_by(canonical_sku=new_sku).first():
+            return _err(f"옵션 '{new_sku}' 가 이미 존재해요.", 409)
+
+        opt = Option(**kw)
+        s.add(opt)
+        s.flush()
+        _create_linked_product(s, opt, model)
+        s.commit()
+        return _ok(canonical_sku=new_sku)
+    except Exception as e:
+        s.rollback()
+        return _err(f'복사 실패: {e}', 500)
+    finally:
+        s.close()
+
+
+@bp.post('/inventory/products/bulk-generate')
+def inventory_product_bulk_generate():  # noqa: C901
+    """② 색상×사이즈 매트릭스 일괄생성.
+
+    Body: {src_sku, combos:[{color_code,size_code,color_display?,size_display?}, ...]}
+    체크한 조합마다 Option + InventoryProduct + OptionProductLink 생성.
+    이미 존재하는 SKU 는 skip (중복 안전).
+    """
+    payload = request.get_json(silent=True) or {}
+    src_sku = (payload.get('src_sku') or '').strip()
+    combos = payload.get('combos') or []
+    if not src_sku:
+        return _err('src_sku 가 필요해요.', 400)
+    if not isinstance(combos, list) or not combos:
+        return _err('생성할 조합(combos)이 없어요.', 400)
+
+    s = SessionLocal()
+    try:
+        src = s.query(Option).filter_by(canonical_sku=src_sku).first()
+        if src is None:
+            return _err(f'기준 제품을 찾을 수 없어요: {src_sku}', 404)
+        model = s.query(Model).filter_by(model_code=src.model_code).first()
+
+        created, skipped = [], []
+        seen = set()
+        for c in combos:
+            if not isinstance(c, dict):
+                continue
+            color = (c.get('color_code') or '').strip()
+            size = (c.get('size_code') or '').strip()
+            if not color or not size:
+                continue
+            new_sku, kw = _new_option_payload(
+                src, color, size,
+                color_display=(c.get('color_display') or '').strip() or None,
+                size_display=(c.get('size_display') or '').strip() or None,
+            )
+            if new_sku in seen:
+                continue
+            seen.add(new_sku)
+            if s.query(Option).filter_by(canonical_sku=new_sku).first():
+                skipped.append(new_sku)
+                continue
+            opt = Option(**kw)
+            s.add(opt)
+            s.flush()
+            _create_linked_product(s, opt, model)
+            created.append(new_sku)
+        s.commit()
+        return _ok(created=created, skipped=skipped,
+                   created_count=len(created), skipped_count=len(skipped))
+    except Exception as e:
+        s.rollback()
+        return _err(f'일괄생성 실패: {e}', 500)
+    finally:
+        s.close()
+
+
+def _usage_for_products(s, product_skus):
+    """⑤ 역참조 batch 조회 (N+1 회피).
+
+    product_canonical_sku 리스트 → {product_sku: [{model_code, model_name, option_sku,
+    option_label}, ...]} 형태로 모음전·옵션 트리 데이터 반환.
+    """
+    from lemouton.inventory.models import OptionProductLink
+    result = {sk: [] for sk in product_skus}
+    if not product_skus:
+        return result
+    links = (s.query(OptionProductLink)
+             .filter(OptionProductLink.product_canonical_sku.in_(product_skus))
+             .all())
+    opt_skus = [l.option_canonical_sku for l in links]
+    if not opt_skus:
+        return result
+    # 옵션 batch 조회
+    opts = {o.canonical_sku: o for o in
+            s.query(Option).filter(Option.canonical_sku.in_(opt_skus)).all()}
+    model_codes = {o.model_code for o in opts.values() if o.model_code}
+    models = {m.model_code: m for m in
+              s.query(Model).filter(Model.model_code.in_(model_codes)).all()} if model_codes else {}
+    for l in links:
+        opt = opts.get(l.option_canonical_sku)
+        if opt is None:
+            continue
+        m = models.get(opt.model_code)
+        color = (opt.color_display or opt.color_code or '').strip()
+        size = (opt.size_display or opt.size_code or '').strip()
+        opt_label = ' '.join(x for x in (color, size) if x) or opt.canonical_sku
+        result.setdefault(l.product_canonical_sku, []).append({
+            'model_code': opt.model_code or '',
+            'model_name': (m.model_name_display or m.model_name_raw) if m else (opt.model_code or '(모음전 없음)'),
+            'option_sku': opt.canonical_sku,
+            'option_label': opt_label,
+        })
+    return result
+
+
+def _group_usage_by_bundle(rows):
+    """역참조 평면 리스트 → 모음전별 그룹 트리. [{model_code, model_name, options:[...]}]."""
+    bundles = {}
+    for r in rows:
+        mc = r['model_code']
+        b = bundles.setdefault(mc, {
+            'model_code': mc, 'model_name': r['model_name'], 'options': [],
+        })
+        b['options'].append({'option_sku': r['option_sku'], 'option_label': r['option_label']})
+    return list(bundles.values())
+
+
+@bp.get('/inventory/products/<path:sku>/usage')
+def inventory_product_usage(sku):
+    """③·⑤ 단건 역참조 — 이 제품을 쓰는 모음전·옵션 트리.
+
+    응답: {ok, product_sku, total_options, total_bundles, bundles:[{model_code,
+    model_name, options:[{option_sku, option_label}]}]}
+    """
+    s = SessionLocal()
+    try:
+        flat = _usage_for_products(s, [sku]).get(sku, [])
+        bundles = _group_usage_by_bundle(flat)
+        return _ok(product_sku=sku, total_options=len(flat),
+                   total_bundles=len(bundles), bundles=bundles)
+    finally:
+        s.close()
+
+
+@bp.get('/inventory/products/usage-batch')
+def inventory_product_usage_batch():
+    """⑤ 역참조 batch — 여러 제품의 사용처 개수 한 번에 (N+1 회피).
+
+    Query: skus=sku1&skus=sku2 ...  (또는 skus=a,b,c)
+    응답: {ok, usage:{product_sku: {option_count, bundle_count, bundles:[...]}}}
+    """
+    skus = request.args.getlist('skus')
+    if len(skus) == 1 and ',' in skus[0]:
+        skus = [x.strip() for x in skus[0].split(',') if x.strip()]
+    skus = [x for x in skus if x]
+    s = SessionLocal()
+    try:
+        usage_map = _usage_for_products(s, skus)
+        out = {}
+        for sk, flat in usage_map.items():
+            bundles = _group_usage_by_bundle(flat)
+            out[sk] = {
+                'option_count': len(flat),
+                'bundle_count': len(bundles),
+                'bundles': bundles,
+            }
+        return _ok(usage=out)
+    finally:
+        s.close()
+
+
+@bp.post('/inventory/products/<path:sku>/delete')
+def inventory_product_delete(sku):
+    """③ 제품 삭제 — Option + InventoryProduct + OptionProductLink 정리.
+
+    삭제 전 경고(사용처)는 프론트가 GET .../usage 로 먼저 확인.
+    이 엔드포인트는 실제 삭제 — '알고도 삭제' 확정 시 호출.
+    """
+    from lemouton.inventory.models import InventoryProduct, OptionProductLink
+    s = SessionLocal()
+    try:
+        opt = s.query(Option).filter_by(canonical_sku=sku).first()
+        product = s.query(InventoryProduct).filter_by(canonical_sku=sku).first()
+        if opt is None and product is None:
+            return _err(f'제품을 찾을 수 없어요: {sku}', 404)
+
+        # 이 옵션이 쓰는 링크 + 이 제품을 가리키는 링크 모두 정리
+        s.query(OptionProductLink).filter(
+            (OptionProductLink.option_canonical_sku == sku)
+            | (OptionProductLink.product_canonical_sku == sku)
+        ).delete(synchronize_session=False)
+        if product is not None:
+            s.delete(product)
+        if opt is not None:
+            from sqlalchemy import text as _sa_text
+            try:
+                s.execute(_sa_text('PRAGMA foreign_keys=OFF'))
+            except Exception:
+                pass
+            for tbl in ('etc_source_urls', 'price_track_history',
+                        'market_registrations', 'option_source_links',
+                        'option_account_registrations', 'option_benefit_overrides'):
+                try:
+                    s.execute(_sa_text(f"DELETE FROM {tbl} WHERE canonical_sku = :sku"),
+                              {'sku': sku})
+                except Exception:
+                    pass
+            s.delete(opt)
+            try:
+                s.execute(_sa_text('PRAGMA foreign_keys=ON'))
+            except Exception:
+                pass
+        s.commit()
+        return _ok(deleted_sku=sku)
+    except Exception as e:
+        s.rollback()
+        return _err(f'삭제 실패: {e}', 500)
+    finally:
+        s.close()

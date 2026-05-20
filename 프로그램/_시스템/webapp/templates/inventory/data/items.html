@@ -1,7 +1,7 @@
 {% extends 'base.html' %}
 {% block title %}제품 마스터 — 재고관리{% endblock %}
 {% block content %}
-{# 박스히어로 1:1 제품 마스터 — 인라인 popover 편집. #}
+{# 박스히어로 1:1 제품 마스터 — 인라인 popover 편집 + ② 복사·일괄생성 + ③ 삭제 경고 + ⑤ 역참조. #}
 <div style="padding:24px 32px;max-width:1500px;margin:0 auto">
 
   <div style="display:flex;align-items:center;gap:8px;margin-bottom:16px">
@@ -52,11 +52,12 @@
   {# ★ 검색 결과 요약 배너 (시안 A) — 검색·필터 적용 시에만 노출 #}
   <div id="searchSummary" style="display:none;background:linear-gradient(90deg,#EEF4FF,#F4F8FF);border:1px solid #BCD2FF;border-radius:8px;padding:11px 18px;margin-bottom:14px;align-items:center;font-size:14px"></div>
 
-  {# 제품 목록 표 — 클릭 시 인라인 popover 편집. 컬럼: SKU·바코드·브랜드·제품명·모델명·컬러·사이즈·평균매입가·총재고·편집 #}
+  {# 제품 목록 표 — 클릭 시 인라인 popover 편집. 컬럼: ▸·SKU·바코드·브랜드·제품명·품번·색상·사이즈·평균매입가·총재고·위치들·사용·편집 #}
   <div style="background:#fff;border:1px solid #E5E8EB;border-radius:8px;overflow:hidden">
     <table style="width:100%;border-collapse:collapse;font-size:14px">
       <thead style="background:#F1F1F4;border-bottom:1px solid #E5E8EB">
         <tr>
+          <th style="padding:11px 6px;text-align:center;font-size:12px;color:#292A2F;font-weight:600;width:28px"></th>
           <th style="padding:11px 10px;text-align:left;font-size:12px;color:#292A2F;font-weight:600">SKU</th>
           <th style="padding:11px 10px;text-align:left;font-size:12px;color:#292A2F;font-weight:600">바코드</th>
           <th style="padding:11px 10px;text-align:left;font-size:12px;color:#292A2F;font-weight:600">브랜드</th>
@@ -67,7 +68,8 @@
           <th style="padding:11px 10px;text-align:right;font-size:12px;color:#292A2F;font-weight:600">평균매입가</th>
           <th style="padding:11px 10px;text-align:right;font-size:12px;color:#292A2F;font-weight:600">총재고</th>
           {% for loc in locs %}<th style="padding:11px 10px;text-align:right;font-size:12px;color:#3182F6;font-weight:600;background:#EFF6FF">{{ loc.name }}</th>{% endfor %}
-          <th style="padding:11px 10px;text-align:center;font-size:12px;color:#292A2F;font-weight:600;width:60px">편집</th>
+          <th style="padding:11px 10px;text-align:center;font-size:12px;color:#292A2F;font-weight:600;width:80px">사용</th>
+          <th style="padding:11px 10px;text-align:center;font-size:12px;color:#292A2F;font-weight:600;width:96px">관리</th>
         </tr>
       </thead>
       <tbody id="itemsTbody">
@@ -82,7 +84,10 @@
         {% set _color = _color_raw %}
         {% set _size = opt.size_display or opt.size_code or '' %}
         {% set _size_shown = _size if _size else 'FREE' %}
-        <tr style="border-bottom:1px solid #F1F1F4;cursor:pointer" onmouseover="this.style.background='#FAFBFC'" onmouseout="this.style.background=''" onclick="openItemPopover(this)"
+        {% set _color_code = opt.color_code or '' %}
+        {% set _size_code = opt.size_code or '' %}
+        {% set _usage = usage_map.get(opt.canonical_sku, 0) if usage_map else 0 %}
+        <tr class="item-row" style="border-bottom:1px solid #F1F1F4" onmouseover="this.style.background='#FAFBFC'" onmouseout="this.style.background=''"
             data-sku="{{ opt.canonical_sku }}"
             data-bh="{{ opt.boxhero_sku or '' }}"
             data-barcode="{{ opt.barcode or '' }}"
@@ -91,18 +96,24 @@
             data-model-code="{{ _model_code }}"
             data-brand="{{ _brand }}"
             data-color="{{ _color }}"
+            data-color-code="{{ _color_code }}"
             data-size="{{ _size }}"
+            data-size-code="{{ _size_code }}"
             data-avg="{{ opt.boxhero_avg_purchase_price or 0 }}"
-            data-stock="{{ stock_map.get(opt.canonical_sku, 0) }}">
-          <td style="padding:9px 10px;font-family:ui-monospace,monospace;font-size:16px;color:#292A2F">{{ opt.canonical_sku }}</td>
-          <td style="padding:9px 10px;font-family:ui-monospace,monospace;font-size:16px;color:{% if opt.barcode %}#292A2F{% else %}#8F91A0{% endif %}">{{ opt.barcode or '—' }}</td>
-          <td style="padding:9px 10px;color:#292A2F">{{ _brand or '—' }}</td>
-          <td style="padding:9px 10px">
+            data-stock="{{ stock_map.get(opt.canonical_sku, 0) }}"
+            data-usage="{{ _usage }}">
+          <td style="padding:9px 6px;text-align:center">
+            <span class="ref-toggle" title="쓰이는 모음전·옵션 펼치기" onclick="event.stopPropagation();toggleRefRow(this)" style="cursor:pointer;color:#8F91A0;font-weight:800;user-select:none">▸</span>
+          </td>
+          <td style="padding:9px 10px;font-family:ui-monospace,monospace;font-size:16px;color:#292A2F;cursor:pointer" onclick="openItemPopover(this.parentNode)">{{ opt.canonical_sku }}</td>
+          <td style="padding:9px 10px;font-family:ui-monospace,monospace;font-size:16px;color:{% if opt.barcode %}#292A2F{% else %}#8F91A0{% endif %};cursor:pointer" onclick="openItemPopover(this.parentNode)">{{ opt.barcode or '—' }}</td>
+          <td style="padding:9px 10px;color:#292A2F;cursor:pointer" onclick="openItemPopover(this.parentNode)">{{ _brand or '—' }}</td>
+          <td style="padding:9px 10px;cursor:pointer" onclick="openItemPopover(this.parentNode)">
             <div style="font-weight:500;color:#292A2F">{{ _name or '—' }}</div>
           </td>
-          <td style="padding:9px 10px;color:{% if _article %}#292A2F{% else %}#8F91A0{% endif %};font-family:ui-monospace,monospace;font-size:16px">{{ _article or '—' }}</td>
-          <td style="padding:9px 10px;color:{% if _color %}#292A2F{% else %}#8F91A0{% endif %}">{{ _color_shown }}</td>
-          <td style="padding:9px 10px;color:{% if _size %}#292A2F{% else %}#8F91A0{% endif %}">{{ _size_shown }}</td>
+          <td style="padding:9px 10px;color:{% if _article %}#292A2F{% else %}#8F91A0{% endif %};font-family:ui-monospace,monospace;font-size:16px;cursor:pointer" onclick="openItemPopover(this.parentNode)">{{ _article or '—' }}</td>
+          <td style="padding:9px 10px;color:{% if _color %}#292A2F{% else %}#8F91A0{% endif %};cursor:pointer" onclick="openItemPopover(this.parentNode)">{{ _color_shown }}</td>
+          <td style="padding:9px 10px;color:{% if _size %}#292A2F{% else %}#8F91A0{% endif %};cursor:pointer" onclick="openItemPopover(this.parentNode)">{{ _size_shown }}</td>
           <td style="padding:9px 10px;text-align:right;font-variant-numeric:tabular-nums;color:#292A2F">
             {% if opt.boxhero_avg_purchase_price and opt.boxhero_avg_purchase_price > 0 %}{{ '{:,}'.format(opt.boxhero_avg_purchase_price) }}{% else %}<span style="color:#8F91A0">—</span>{% endif %}
           </td>
@@ -115,11 +126,16 @@
             <td style="padding:9px 10px;text-align:right;font-variant-numeric:tabular-nums;color:{% if _lst > 0 %}#3182F6{% else %}#9CA3AF{% endif %};background:{% if _lst > 0 %}#F8FBFF{% endif %}">{{ _lst }}</td>
           {% endfor %}
           <td style="padding:9px 10px;text-align:center">
-            <span style="color:#4F67FF;font-size:12px">✎</span>
+            <span class="ref-badge" onclick="event.stopPropagation();toggleRefRow(this.closest('tr').querySelector('.ref-toggle'))"
+                  style="display:inline-flex;align-items:center;gap:3px;border-radius:99px;padding:3px 9px;font-size:12px;font-weight:800;cursor:pointer;{% if _usage > 0 %}background:#EAF3FF;color:#3182F6{% else %}background:#F2F4F6;color:#B0B8C1{% endif %}">🔗 {{ _usage }}</span>
+          </td>
+          <td style="padding:9px 10px;text-align:center;white-space:nowrap">
+            <button type="button" title="이 행 복사 — 색상·사이즈만 수정" onclick="event.stopPropagation();openCopyRow(this.closest('tr'))" style="background:#EAF3FF;color:#3182F6;border:0;border-radius:6px;padding:5px 8px;font-size:13px;font-weight:800;cursor:pointer">⧉</button>
+            <button type="button" title="제품 삭제" onclick="event.stopPropagation();openDeleteDialog(this.closest('tr'))" style="background:#FEECEC;color:#F04438;border:0;border-radius:6px;padding:5px 8px;font-size:13px;font-weight:800;cursor:pointer">🗑</button>
           </td>
         </tr>
         {% else %}
-        <tr><td colspan="{{ 10 + (locs|length) }}" style="padding:32px;text-align:center;color:#8F91A0">조회 결과 없음</td></tr>
+        <tr><td colspan="{{ 12 + (locs|length) }}" style="padding:32px;text-align:center;color:#8F91A0">조회 결과 없음</td></tr>
         {% endfor %}
       </tbody>
     </table>
@@ -136,11 +152,12 @@
 
   <div style="margin-top:18px;font-size:12px;color:#8F91A0;line-height:1.6">
     <strong>인라인 편집:</strong> 행 클릭 → 인라인 popover 편집 (제품명·브랜드·컬러·사이즈·이미지). 사이즈 빈값은 <code style="background:#F1F1F4;padding:1px 5px;border-radius:3px">FREE</code>, 컬러 빈값은 <code style="background:#F1F1F4;padding:1px 5px;border-radius:3px">ONE Color</code> 로 표시됩니다.<br>
-    <strong>평균매입가·재고:</strong> 제품 엑셀 업로드 후 자동 계산됩니다.
+    <strong>제품 추가:</strong> 행 <strong>⧉ 복사</strong> — 한 행을 복제해 색상·사이즈만 수정. <strong>편집 popover</strong> 안 ⊞ 일괄 생성 — 색상×사이즈 매트릭스로 한 번에.<br>
+    <strong>사용처:</strong> 행 좌측 <strong>▸</strong> 또는 🔗 배지 클릭 → 그 제품을 쓰는 모음전·옵션 인라인 트리. 삭제 시 사용처 경고 표시.
   </div>
 </div>
 
-{# Popover modal #}
+{# ============ Popover modal — 인라인 편집 + ② 일괄 생성 진입 ============ #}
 <div id="itemPopover" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.4);z-index:100;align-items:center;justify-content:center" onclick="if(event.target.id==='itemPopover')closeItemPopover()">
   <div style="background:#fff;border-radius:10px;width:560px;max-width:90vw;max-height:80vh;overflow-y:auto;box-shadow:0 10px 40px rgba(0,0,0,0.2)">
     <div style="padding:18px 22px;border-bottom:1px solid #E5E8EB;display:flex;align-items:center;gap:12px">
@@ -193,14 +210,120 @@
       <div style="display:flex;gap:8px;align-items:center;padding-top:14px;margin-top:14px;border-top:1px solid #F1F1F4">
         <button type="submit" style="background:#4F67FF;color:#fff;padding:8px 18px;border:none;border-radius:5px;font-size:14px;font-weight:600;cursor:pointer">저장</button>
         <button type="button" onclick="closeItemPopover()" style="background:#fff;border:1px solid #CBCCD3;color:#292A2F;padding:8px 18px;border-radius:5px;font-size:14px;font-weight:600;cursor:pointer">취소</button>
+        <span style="flex:1"></span>
+        <button type="button" onclick="openCopyRowFromPopover()" style="background:#EAF3FF;color:#3182F6;border:1px solid #B7D3F7;padding:8px 14px;border-radius:5px;font-size:14px;font-weight:700;cursor:pointer">⧉ 이 제품 복사</button>
+        <button type="button" onclick="openMatrixFromPopover()" style="background:#03A65A;color:#fff;border:none;padding:8px 14px;border-radius:5px;font-size:14px;font-weight:700;cursor:pointer">⊞ 일괄 생성</button>
       </div>
     </form>
   </div>
 </div>
 
+{# ============ ② 복사 모달 — 단건 행 복제 (색상·사이즈만 수정) ============ #}
+<div id="copyModal" style="display:none;position:fixed;inset:0;background:rgba(15,20,30,0.5);z-index:150;align-items:center;justify-content:center" onclick="if(event.target.id==='copyModal')closeCopyModal()">
+  <div style="background:#fff;border-radius:12px;width:520px;max-width:92vw;box-shadow:0 20px 56px rgba(0,0,0,0.35);overflow:hidden">
+    <div style="padding:16px 22px;border-bottom:1px solid #E5E8EB;display:flex;align-items:center;gap:10px">
+      <strong style="font-size:17px;color:#191F28">⧉ 제품 복사</strong>
+      <button type="button" onclick="closeCopyModal()" style="margin-left:auto;background:#F2F4F6;border:0;border-radius:7px;padding:6px 11px;font-size:13px;color:#6B7684;font-weight:700;cursor:pointer">✕ 닫기</button>
+    </div>
+    <div style="padding:18px 22px">
+      <div style="background:#F9FAFB;border:1px solid #E5E8EB;border-radius:9px;padding:11px 14px;font-size:14px;margin-bottom:16px">
+        기준 제품 — <b id="copyBaseName"></b> · <span id="copyBaseSku" style="font-family:ui-monospace,monospace;color:#6B7684"></span>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+        <div>
+          <label style="display:block;font-size:13px;font-weight:700;color:#4E5968;margin-bottom:5px">색상 코드 <span style="color:#F04438">*</span></label>
+          <input id="copyColorCode" placeholder="예: black" style="width:100%;padding:9px 12px;border:1px solid #CBCCD3;border-radius:6px;font-size:14px;box-sizing:border-box">
+        </div>
+        <div>
+          <label style="display:block;font-size:13px;font-weight:700;color:#4E5968;margin-bottom:5px">사이즈 코드 <span style="color:#F04438">*</span></label>
+          <input id="copySizeCode" placeholder="예: 280" style="width:100%;padding:9px 12px;border:1px solid #CBCCD3;border-radius:6px;font-size:14px;box-sizing:border-box">
+        </div>
+        <div>
+          <label style="display:block;font-size:13px;font-weight:700;color:#4E5968;margin-bottom:5px">색상 표시명</label>
+          <input id="copyColorDisplay" placeholder="(비우면 코드 사용)" style="width:100%;padding:9px 12px;border:1px solid #CBCCD3;border-radius:6px;font-size:14px;box-sizing:border-box">
+        </div>
+        <div>
+          <label style="display:block;font-size:13px;font-weight:700;color:#4E5968;margin-bottom:5px">사이즈 표시명</label>
+          <input id="copySizeDisplay" placeholder="(비우면 코드 사용)" style="width:100%;padding:9px 12px;border:1px solid #CBCCD3;border-radius:6px;font-size:14px;box-sizing:border-box">
+        </div>
+      </div>
+      <div style="background:#FFF8E6;border:1px solid #F2DFA8;color:#7A5A12;border-radius:8px;padding:10px 13px;font-size:13px;margin-top:13px">
+        새 SKU = <code id="copySkuPreview" style="background:#fff;padding:1px 6px;border-radius:3px;font-weight:700">—</code> · 같은 모음전(모델) 유지 · 재고제품·연결 함께 생성
+      </div>
+      <div id="copyError" style="display:none;color:#B91C1C;font-size:13px;margin-top:8px"></div>
+    </div>
+    <div style="padding:13px 22px;border-top:1px solid #E5E8EB;background:#F9FAFB;display:flex;gap:9px;justify-content:flex-end">
+      <button type="button" onclick="closeCopyModal()" style="border:1px solid #D1D6DB;background:#fff;color:#4E5968;border-radius:8px;padding:9px 16px;font-size:14px;font-weight:700;cursor:pointer">취소</button>
+      <button type="button" id="copySubmitBtn" onclick="submitCopy()" style="background:#03A65A;color:#fff;border:0;border-radius:8px;padding:9px 18px;font-size:14px;font-weight:700;cursor:pointer">복제 생성</button>
+    </div>
+  </div>
+</div>
+
+{# ============ ② 일괄 생성 매트릭스 모달 ============ #}
+<div id="matrixModal" style="display:none;position:fixed;inset:0;background:rgba(15,20,30,0.5);z-index:150;align-items:center;justify-content:center" onclick="if(event.target.id==='matrixModal')closeMatrixModal()">
+  <div style="background:#fff;border-radius:14px;width:1020px;max-width:95vw;max-height:86vh;display:flex;flex-direction:column;box-shadow:0 24px 60px rgba(0,0,0,0.4);overflow:hidden">
+    <div style="padding:16px 22px;border-bottom:1px solid #E5E8EB;display:flex;align-items:center;gap:11px">
+      <strong style="font-size:18px;color:#191F28">⊞ 일괄 생성 — 색상 × 사이즈 매트릭스</strong>
+      <button type="button" onclick="closeMatrixModal()" style="margin-left:auto;background:#F2F4F6;border:0;border-radius:8px;padding:8px 13px;font-size:14px;color:#6B7684;font-weight:700;cursor:pointer">✕ 닫기</button>
+    </div>
+    <div style="padding:18px 22px;overflow:auto;flex:1">
+      <div style="background:#F9FAFB;border:1px solid #E5E8EB;border-radius:9px;padding:12px 15px;font-size:14px;margin-bottom:14px">
+        기준 제품 — <b id="mtxBaseName"></b> · <span id="mtxBaseSku" style="font-family:ui-monospace,monospace;color:#6B7684"></span>
+      </div>
+      <div style="display:flex;align-items:center;gap:9px;margin-bottom:12px;flex-wrap:wrap">
+        <span style="font-weight:800;font-size:14px">색상</span>
+        <span id="mtxColorChips" style="display:flex;gap:7px;flex-wrap:wrap"></span>
+        <input id="mtxColorInput" placeholder="＋ 색상 입력 후 Enter" onkeydown="if(event.key==='Enter'){event.preventDefault();addMtxColor()}" style="border:1.5px dashed #B7D3F7;border-radius:8px;padding:6px 11px;font-size:13px">
+      </div>
+      <div style="display:flex;align-items:center;gap:9px;margin-bottom:14px;flex-wrap:wrap">
+        <span style="font-weight:800;font-size:14px">사이즈</span>
+        <span id="mtxSizeChips" style="display:flex;gap:7px;flex-wrap:wrap"></span>
+        <input id="mtxSizeInput" placeholder="＋ 사이즈 입력 후 Enter" onkeydown="if(event.key==='Enter'){event.preventDefault();addMtxSize()}" style="border:1.5px dashed #B7D3F7;border-radius:8px;padding:6px 11px;font-size:13px">
+      </div>
+      <div id="mtxTableWrap" style="overflow:auto"></div>
+      <div id="mtxInfo" style="background:#FFF8E6;border:1px solid #F2DFA8;color:#7A5A12;border-radius:9px;padding:11px 15px;font-size:13px;margin-top:12px">
+        ✓ 체크한 <b id="mtxCount">0</b>개 조합이 생성됩니다 · SKU·바코드는 조합마다 자동 발급 · 재고제품·연결 함께 생성
+      </div>
+      <div id="mtxError" style="display:none;color:#B91C1C;font-size:13px;margin-top:8px"></div>
+    </div>
+    <div style="padding:14px 22px;border-top:1px solid #E5E8EB;background:#F9FAFB;display:flex;align-items:center;gap:10px">
+      <span style="font-size:15px;font-weight:800">생성 예정 <span id="mtxCountFooter" style="color:#03A65A">0</span>개</span>
+      <span style="flex:1"></span>
+      <button type="button" onclick="closeMatrixModal()" style="border:1px solid #D1D6DB;background:#fff;color:#4E5968;border-radius:8px;padding:9px 16px;font-size:14px;font-weight:700;cursor:pointer">취소</button>
+      <button type="button" id="mtxSubmitBtn" onclick="submitMatrix()" style="background:#03A65A;color:#fff;border:0;border-radius:8px;padding:9px 18px;font-size:14px;font-weight:700;cursor:pointer">일괄 생성</button>
+    </div>
+  </div>
+</div>
+
+{# ============ ③ 삭제 경고 모달 — 시안 3 (모음전별 사용처 트리) ============ #}
+<div id="deleteModal" style="display:none;position:fixed;inset:0;background:rgba(15,20,30,0.5);z-index:160;align-items:center;justify-content:center" onclick="if(event.target.id==='deleteModal')closeDeleteModal()">
+  <div style="background:#fff;border-radius:14px;width:660px;max-width:93vw;max-height:80vh;display:flex;flex-direction:column;box-shadow:0 24px 60px rgba(0,0,0,0.4);overflow:hidden">
+    <div style="padding:17px 22px;display:flex;align-items:center;gap:11px">
+      <span style="font-size:24px">⚠️</span>
+      <strong style="font-size:18px;color:#191F28">삭제 전 — 이 제품이 쓰이는 곳</strong>
+    </div>
+    <div style="padding:4px 22px 18px;overflow:auto;flex:1">
+      <div style="background:#F9FAFB;border:1px solid #E5E8EB;border-radius:9px;padding:12px 15px;margin-bottom:14px">
+        <div id="delProdName" style="font-size:16px;font-weight:800;color:#191F28"></div>
+        <div id="delProdSku" style="font-size:13px;color:#8B95A1;font-family:ui-monospace,monospace;margin-top:3px"></div>
+      </div>
+      <div id="delWarnText" style="font-size:15px;font-weight:700;color:#191F28;margin-bottom:10px"></div>
+      <div id="delTree" class="usage-tree" style="border:1px solid #E5E8EB;border-radius:9px;overflow:hidden"></div>
+    </div>
+    <div style="padding:14px 22px;border-top:1px solid #E5E8EB;background:#F9FAFB;display:flex;align-items:center;gap:10px">
+      <span style="flex:1"></span>
+      <button type="button" onclick="closeDeleteModal()" style="border:1px solid #D1D6DB;background:#fff;color:#4E5968;border-radius:9px;padding:10px 17px;font-size:15px;font-weight:700;cursor:pointer">취소</button>
+      <button type="button" id="delConfirmBtn" onclick="confirmDelete()" style="background:#F04438;color:#fff;border:0;border-radius:9px;padding:10px 18px;font-size:15px;font-weight:700;cursor:pointer">알고도 삭제</button>
+    </div>
+  </div>
+</div>
+
 <script>
+// ============ 인라인 편집 popover ============
+var _activeTr = null;
 function openItemPopover(tr){
-  const sku = tr.dataset.sku;
+  _activeTr = tr;
+  var sku = tr.dataset.sku;
   document.getElementById('popSkuLabel').textContent = sku;
   document.getElementById('popName').value = tr.dataset.name || '';
   document.getElementById('popBrand').value = tr.dataset.brand || '';
@@ -214,25 +337,328 @@ function openItemPopover(tr){
   document.getElementById('popForm').action = '/inventory/data/items/' + encodeURIComponent(sku) + '/update';
   document.getElementById('itemPopover').style.display = 'flex';
 }
-function closeItemPopover(){
-  document.getElementById('itemPopover').style.display = 'none';
+function closeItemPopover(){ document.getElementById('itemPopover').style.display = 'none'; }
+document.addEventListener('keydown', function(e){
+  if(e.key==='Escape'){ closeItemPopover();closeWipeModal();closeCopyModal();closeMatrixModal();closeDeleteModal(); }
+});
+
+// ============ ② 복사 — 단건 행 복제 ============
+var _copySrc = null;
+function openCopyRow(tr){
+  _copySrc = tr;
+  document.getElementById('copyBaseName').textContent = tr.dataset.name || tr.dataset.sku;
+  document.getElementById('copyBaseSku').textContent = tr.dataset.sku;
+  document.getElementById('copyColorCode').value = tr.dataset.colorCode || '';
+  document.getElementById('copySizeCode').value = tr.dataset.sizeCode || '';
+  document.getElementById('copyColorDisplay').value = tr.dataset.color || '';
+  document.getElementById('copySizeDisplay').value = tr.dataset.size || '';
+  document.getElementById('copyError').style.display = 'none';
+  updateCopyPreview();
+  document.getElementById('copyModal').style.display = 'flex';
 }
-document.addEventListener('keydown', e=>{if(e.key==='Escape'){closeItemPopover();closeWipeModal();}});
+function openCopyRowFromPopover(){
+  if(!_activeTr) return;
+  closeItemPopover();
+  openCopyRow(_activeTr);
+}
+function closeCopyModal(){ document.getElementById('copyModal').style.display = 'none'; }
+function updateCopyPreview(){
+  if(!_copySrc){ return; }
+  var mc = _copySrc.dataset.modelCode || '';
+  var c = document.getElementById('copyColorCode').value.trim();
+  var sz = document.getElementById('copySizeCode').value.trim();
+  document.getElementById('copySkuPreview').textContent = (mc && c && sz) ? (mc+'-'+c+'-'+sz) : '—';
+}
+document.getElementById('copyColorCode').addEventListener('input', updateCopyPreview);
+document.getElementById('copySizeCode').addEventListener('input', updateCopyPreview);
+function submitCopy(){
+  if(!_copySrc) return;
+  var color = document.getElementById('copyColorCode').value.trim();
+  var size = document.getElementById('copySizeCode').value.trim();
+  var errEl = document.getElementById('copyError');
+  if(!color || !size){
+    errEl.textContent = '색상 코드·사이즈 코드는 필수입니다.';
+    errEl.style.display = 'block';
+    return;
+  }
+  var btn = document.getElementById('copySubmitBtn');
+  btn.disabled = true; btn.textContent = '생성 중…';
+  fetch('/api/inventory/products/copy', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({
+      src_sku: _copySrc.dataset.sku,
+      color_code: color, size_code: size,
+      color_display: document.getElementById('copyColorDisplay').value.trim(),
+      size_display: document.getElementById('copySizeDisplay').value.trim(),
+    })
+  }).then(function(r){ return r.json(); }).then(function(d){
+    btn.disabled = false; btn.textContent = '복제 생성';
+    if(d.ok){
+      alert('✅ 복제 생성 완료 — ' + d.canonical_sku);
+      location.reload();
+    } else {
+      errEl.textContent = d.error || '복사 실패';
+      errEl.style.display = 'block';
+    }
+  }).catch(function(e){
+    btn.disabled = false; btn.textContent = '복제 생성';
+    errEl.textContent = '요청 실패: ' + e;
+    errEl.style.display = 'block';
+  });
+}
+
+// ============ ② 일괄 생성 매트릭스 ============
+var _mtxSrc = null;
+var _mtxColors = [];
+var _mtxSizes = [];
+var _mtxChecked = {};   // "color size" -> true
+function openMatrixFromPopover(){
+  if(!_activeTr) return;
+  closeItemPopover();
+  openMatrix(_activeTr);
+}
+function openMatrix(tr){
+  _mtxSrc = tr;
+  document.getElementById('mtxBaseName').textContent = tr.dataset.name || tr.dataset.sku;
+  document.getElementById('mtxBaseSku').textContent = tr.dataset.sku;
+  _mtxColors = [];
+  _mtxSizes = [];
+  _mtxChecked = {};
+  var c = tr.dataset.colorCode || tr.dataset.color || '';
+  var sz = tr.dataset.sizeCode || tr.dataset.size || '';
+  if(c) _mtxColors.push(c);
+  if(sz) _mtxSizes.push(sz);
+  document.getElementById('mtxError').style.display = 'none';
+  renderMtx();
+  document.getElementById('matrixModal').style.display = 'flex';
+}
+function closeMatrixModal(){ document.getElementById('matrixModal').style.display = 'none'; }
+function addMtxColor(){
+  var el = document.getElementById('mtxColorInput');
+  var v = el.value.trim();
+  if(v && _mtxColors.indexOf(v) < 0){ _mtxColors.push(v); }
+  el.value = '';
+  renderMtx();
+}
+function addMtxSize(){
+  var el = document.getElementById('mtxSizeInput');
+  var v = el.value.trim();
+  if(v && _mtxSizes.indexOf(v) < 0){ _mtxSizes.push(v); }
+  el.value = '';
+  renderMtx();
+}
+function removeMtxColor(c){ _mtxColors = _mtxColors.filter(function(x){return x!==c;}); renderMtx(); }
+function removeMtxSize(sz){ _mtxSizes = _mtxSizes.filter(function(x){return x!==sz;}); renderMtx(); }
+function mtxKey(c, sz){ return c + ' ' + sz; }
+function toggleMtxCell(c, sz){
+  var k = mtxKey(c, sz);
+  if(_mtxChecked[k]){ delete _mtxChecked[k]; } else { _mtxChecked[k] = true; }
+  renderMtx();
+}
+function escMtx(s){ return String(s==null?'':s).replace(/[<>&"]/g,function(ch){return {'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'}[ch];}); }
+function renderMtx(){
+  // 색상 칩
+  var cc = document.getElementById('mtxColorChips');
+  cc.innerHTML = _mtxColors.map(function(c){
+    return '<span style="background:#EAF3FF;color:#3182F6;border-radius:8px;padding:5px 9px;font-size:13px;font-weight:700">'
+      + escMtx(c) + ' <span style="cursor:pointer" onclick="removeMtxColor(\'' + escMtx(c).replace(/'/g,"\\'") + '\')">✕</span></span>';
+  }).join('');
+  var sc = document.getElementById('mtxSizeChips');
+  sc.innerHTML = _mtxSizes.map(function(sz){
+    return '<span style="background:#EAF3FF;color:#3182F6;border-radius:8px;padding:5px 9px;font-size:13px;font-weight:700">'
+      + escMtx(sz) + ' <span style="cursor:pointer" onclick="removeMtxSize(\'' + escMtx(sz).replace(/'/g,"\\'") + '\')">✕</span></span>';
+  }).join('');
+  // 매트릭스 테이블
+  var wrap = document.getElementById('mtxTableWrap');
+  if(_mtxColors.length === 0 || _mtxSizes.length === 0){
+    wrap.innerHTML = '<div style="padding:18px;text-align:center;color:#8B95A1;font-size:13px">색상과 사이즈를 1개 이상 추가하세요.</div>';
+  } else {
+    var html = '<table style="border-collapse:collapse;width:100%"><tr>'
+      + '<th style="background:#F9FAFB;color:#6B7684;font-weight:700;padding:9px;border:1px solid #EAECEF;font-size:13px">색상 ＼ 사이즈</th>';
+    _mtxSizes.forEach(function(sz){
+      html += '<th style="background:#F9FAFB;color:#6B7684;font-weight:700;padding:9px;border:1px solid #EAECEF;font-size:13px">' + escMtx(sz) + '</th>';
+    });
+    html += '</tr>';
+    _mtxColors.forEach(function(c){
+      html += '<tr><td style="background:#F9FAFB;font-weight:800;padding:9px 13px;border:1px solid #EAECEF;font-size:14px">' + escMtx(c) + '</td>';
+      _mtxSizes.forEach(function(sz){
+        var on = !!_mtxChecked[mtxKey(c, sz)];
+        html += '<td onclick="toggleMtxCell(\'' + escMtx(c).replace(/'/g,"\\'") + '\',\'' + escMtx(sz).replace(/'/g,"\\'") + '\')"'
+          + ' style="height:46px;cursor:pointer;text-align:center;border:1px solid #EAECEF;font-size:15px;'
+          + (on ? 'background:#EAF3FF;color:#3182F6;font-weight:800' : 'color:#C4CCD4') + '">'
+          + (on ? '✓' : '+') + '</td>';
+      });
+      html += '</tr>';
+    });
+    html += '</table>';
+    wrap.innerHTML = html;
+  }
+  var n = Object.keys(_mtxChecked).filter(function(k){
+    var parts = k.split(' ');
+    return _mtxColors.indexOf(parts[0]) >= 0 && _mtxSizes.indexOf(parts[1]) >= 0;
+  }).length;
+  document.getElementById('mtxCount').textContent = n;
+  document.getElementById('mtxCountFooter').textContent = n;
+}
+function submitMatrix(){
+  if(!_mtxSrc) return;
+  var combos = [];
+  Object.keys(_mtxChecked).forEach(function(k){
+    var parts = k.split(' ');
+    if(_mtxColors.indexOf(parts[0]) >= 0 && _mtxSizes.indexOf(parts[1]) >= 0){
+      combos.push({color_code: parts[0], size_code: parts[1]});
+    }
+  });
+  var errEl = document.getElementById('mtxError');
+  if(combos.length === 0){
+    errEl.textContent = '생성할 조합을 1개 이상 체크하세요.';
+    errEl.style.display = 'block';
+    return;
+  }
+  var btn = document.getElementById('mtxSubmitBtn');
+  btn.disabled = true; btn.textContent = '생성 중…';
+  fetch('/api/inventory/products/bulk-generate', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({ src_sku: _mtxSrc.dataset.sku, combos: combos })
+  }).then(function(r){ return r.json(); }).then(function(d){
+    btn.disabled = false; btn.textContent = '일괄 생성';
+    if(d.ok){
+      var msg = '✅ ' + d.created_count + '개 생성 완료';
+      if(d.skipped_count > 0) msg += ' · ' + d.skipped_count + '개는 이미 존재(건너뜀)';
+      alert(msg);
+      location.reload();
+    } else {
+      errEl.textContent = d.error || '일괄생성 실패';
+      errEl.style.display = 'block';
+    }
+  }).catch(function(e){
+    btn.disabled = false; btn.textContent = '일괄 생성';
+    errEl.textContent = '요청 실패: ' + e;
+    errEl.style.display = 'block';
+  });
+}
+
+// ============ ⑤ 역참조 — 행 펼침 인라인 트리 ============
+function escRef(s){ return String(s==null?'':s).replace(/[<>&"]/g,function(ch){return {'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'}[ch];}); }
+function renderUsageTree(bundles, emptyMsg){
+  if(!bundles || bundles.length === 0){
+    return '<div style="padding:13px 16px;color:#8B95A1;font-size:13px">' + (emptyMsg || '아직 어느 모음전에도 쓰이지 않습니다.') + '</div>';
+  }
+  var html = '';
+  bundles.forEach(function(b){
+    html += '<div style="padding:10px 14px;font-size:14px;font-weight:800;background:#F9FAFB;border-bottom:1px solid #F2F4F6;display:flex;align-items:center;gap:8px">'
+      + '▾ 📋 ' + escRef(b.model_name)
+      + ' <span style="color:#8B95A1;font-weight:600;font-size:12px">옵션 ' + b.options.length + '</span></div>';
+    b.options.forEach(function(o){
+      html += '<div style="padding:9px 14px 9px 36px;font-size:13px;border-bottom:1px solid #F7F8FA;color:#4E5968">· 옵션 "'
+        + escRef(o.option_label) + '" <span style="font-family:ui-monospace,monospace;color:#9CA3AF;font-size:11px">'
+        + escRef(o.option_sku) + '</span></div>';
+    });
+  });
+  return html;
+}
+function toggleRefRow(toggleEl){
+  var tr = toggleEl.closest('tr');
+  var sku = tr.dataset.sku;
+  // 이미 펼침 행 있으면 닫기
+  var next = tr.nextElementSibling;
+  if(next && next.classList.contains('ref-exrow') && next.dataset.forSku === sku){
+    next.remove();
+    toggleEl.textContent = '▸';
+    return;
+  }
+  // 다른 펼침 행 정리
+  document.querySelectorAll('tr.ref-exrow').forEach(function(r){ r.remove(); });
+  document.querySelectorAll('.ref-toggle').forEach(function(t){ t.textContent = '▸'; });
+  toggleEl.textContent = '▾';
+  var colCount = tr.children.length;
+  var exrow = document.createElement('tr');
+  exrow.className = 'ref-exrow';
+  exrow.dataset.forSku = sku;
+  exrow.innerHTML = '<td colspan="' + colCount + '" style="background:#F3F8FF;padding:0">'
+    + '<div style="padding:13px 18px 13px 44px">'
+    + '<div style="font-size:13px;font-weight:800;color:#4E5968;margin-bottom:9px">이 제품이 쓰이는 곳</div>'
+    + '<div class="ref-tree-body" style="font-size:13px;color:#8B95A1">불러오는 중…</div></div></td>';
+  tr.parentNode.insertBefore(exrow, tr.nextSibling);
+  var bodyEl = exrow.querySelector('.ref-tree-body');
+  fetch('/api/inventory/products/' + encodeURIComponent(sku) + '/usage')
+    .then(function(r){ return r.json(); }).then(function(d){
+      if(d.ok){
+        var head = exrow.querySelector('div div');
+        if(head){ head.textContent = '이 제품이 쓰이는 곳 — ' + d.total_bundles + '개 모음전 · ' + d.total_options + '개 옵션'; }
+        bodyEl.outerHTML = '<div class="usage-tree" style="border:1px solid #E5E8EB;border-radius:9px;overflow:hidden">'
+          + renderUsageTree(d.bundles) + '</div>';
+      } else {
+        bodyEl.textContent = '사용처 조회 실패: ' + (d.error || '');
+      }
+    }).catch(function(e){ bodyEl.textContent = '요청 실패: ' + e; });
+}
+
+// ============ ③ 삭제 경고 — 시안 3 (모음전별 사용처 트리) ============
+var _delSku = null;
+function openDeleteDialog(tr){
+  _delSku = tr.dataset.sku;
+  document.getElementById('delProdName').textContent = (tr.dataset.name || '') + ' · '
+    + (tr.dataset.color || 'ONE Color') + ' ' + (tr.dataset.size || 'FREE');
+  document.getElementById('delProdSku').textContent = tr.dataset.sku
+    + (tr.dataset.barcode ? (' · 바코드 ' + tr.dataset.barcode) : '');
+  document.getElementById('delWarnText').textContent = '사용처 확인 중…';
+  document.getElementById('delTree').innerHTML = '<div style="padding:13px 16px;color:#8B95A1;font-size:13px">불러오는 중…</div>';
+  document.getElementById('deleteModal').style.display = 'flex';
+  fetch('/api/inventory/products/' + encodeURIComponent(_delSku) + '/usage')
+    .then(function(r){ return r.json(); }).then(function(d){
+      if(d.ok){
+        if(d.total_options > 0){
+          document.getElementById('delWarnText').innerHTML =
+            '<b style="color:#F04438">' + d.total_bundles + '개 모음전 · ' + d.total_options
+            + '개 옵션</b>에서 사용 중 — 삭제하면 해당 옵션의 재고 연결이 끊깁니다:';
+        } else {
+          document.getElementById('delWarnText').textContent =
+            '이 제품은 어느 모음전 옵션에도 쓰이지 않습니다. 안전하게 삭제할 수 있습니다.';
+        }
+        document.getElementById('delTree').innerHTML =
+          renderUsageTree(d.bundles, '사용처 없음 — 안전하게 삭제 가능');
+      } else {
+        document.getElementById('delWarnText').textContent = '사용처 조회 실패: ' + (d.error || '');
+      }
+    }).catch(function(e){
+      document.getElementById('delWarnText').textContent = '요청 실패: ' + e;
+    });
+}
+function closeDeleteModal(){ document.getElementById('deleteModal').style.display = 'none'; }
+function confirmDelete(){
+  if(!_delSku) return;
+  var btn = document.getElementById('delConfirmBtn');
+  btn.disabled = true; btn.textContent = '삭제 중…';
+  fetch('/api/inventory/products/' + encodeURIComponent(_delSku) + '/delete', { method:'POST' })
+    .then(function(r){ return r.json(); }).then(function(d){
+      btn.disabled = false; btn.textContent = '알고도 삭제';
+      if(d.ok){
+        alert('✅ 삭제 완료 — ' + d.deleted_sku);
+        location.reload();
+      } else {
+        alert('삭제 실패: ' + (d.error || ''));
+      }
+    }).catch(function(e){
+      btn.disabled = false; btn.textContent = '알고도 삭제';
+      alert('요청 실패: ' + e);
+    });
+}
 
 // ============ AJAX 라이브 검색 — 새로고침 없이 ============
 (function(){
-  const form = document.getElementById('filterForm');
+  var form = document.getElementById('filterForm');
   if(!form) return;
-  const tbody = document.getElementById('itemsTbody');
-  const totalEl = document.getElementById('totalCount');
-  const kpiAll = document.getElementById('kpiAll');
-  const kpiInStock = document.getElementById('kpiInStock');
-  const kpiQty = document.getElementById('kpiQty');
-  const reset = document.getElementById('filterReset');
-  let inflight = null;
+  var tbody = document.getElementById('itemsTbody');
+  var totalEl = document.getElementById('totalCount');
+  var kpiAll = document.getElementById('kpiAll');
+  var kpiInStock = document.getElementById('kpiInStock');
+  var kpiQty = document.getElementById('kpiQty');
+  var reset = document.getElementById('filterReset');
+  var inflight = null;
 
   function fmt(n){ return Number(n||0).toLocaleString(); }
-  function esc(s){ return String(s==null?'':s).replace(/[<>&"]/g,c=>({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'}[c])); }
+  function esc(s){ return String(s==null?'':s).replace(/[<>&"]/g,function(c){return {'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'}[c];}); }
 
   // ★ 검색 결과 요약 배너 (시안 A)
   function renderSummary(sm){
@@ -266,16 +692,16 @@ document.addEventListener('keydown', e=>{if(e.key==='Escape'){closeItemPopover()
   window.renderSummary = renderSummary;  // 칼럼 필터 IIFE 에서 재호출
 
   // 서버 페이지 초기 렌더 시 사용한 위치 list (헤더 순서 보존) — render() 가 fallback 용으로 사용
-  let _locsCache = null;
+  var _locsCache = null;
 
   function buildRow(o, locs){
-    const colorMissing = !o.color_raw;
-    const sizeMissing = !o.size_raw;
-    const tr = document.createElement('tr');
-    tr.style.cssText = 'border-bottom:1px solid #F1F1F4;cursor:pointer';
+    var colorMissing = !o.color_raw;
+    var sizeMissing = !o.size_raw;
+    var tr = document.createElement('tr');
+    tr.className = 'item-row';
+    tr.style.cssText = 'border-bottom:1px solid #F1F1F4';
     tr.onmouseover = function(){ this.style.background='#FAFBFC'; };
     tr.onmouseout = function(){ this.style.background=''; };
-    tr.onclick = function(){ openItemPopover(this); };
     tr.dataset.sku = o.sku;
     tr.dataset.bh = o.bh;
     tr.dataset.barcode = o.barcode;
@@ -284,51 +710,60 @@ document.addEventListener('keydown', e=>{if(e.key==='Escape'){closeItemPopover()
     tr.dataset.modelCode = o.model_code;
     tr.dataset.brand = o.brand;
     tr.dataset.color = o.color_raw;
+    tr.dataset.colorCode = o.color_code || '';
     tr.dataset.size = o.size_raw;
+    tr.dataset.sizeCode = o.size_code || '';
     tr.dataset.avg = o.avg;
     tr.dataset.stock = o.stock;
-    const stockColor = o.stock > 0 ? '#22C55E' : '#8F91A0';
-    const avgCell = o.avg > 0
-      ? fmt(o.avg)
-      : '<span style="color:#8F91A0">—</span>';
+    tr.dataset.usage = o.usage || 0;
+    var stockColor = o.stock > 0 ? '#22C55E' : '#8F91A0';
+    var avgCell = o.avg > 0 ? fmt(o.avg) : '<span style="color:#8F91A0">—</span>';
+    var usage = Number(o.usage || 0);
+    var usageStyle = usage > 0 ? 'background:#EAF3FF;color:#3182F6' : 'background:#F2F4F6;color:#B0B8C1';
     // 위치별 재고 cell HTML 생성
-    let locCells = '';
+    var locCells = '';
     if (locs && locs.length) {
-      for (const L of locs) {
-        const v = (o.loc_stock && o.loc_stock[String(L.id)]) || 0;
-        const color = v > 0 ? '#3182F6' : '#9CA3AF';
-        const bg = v > 0 ? '#F8FBFF' : '';
-        locCells += `<td style="padding:9px 10px;text-align:right;font-variant-numeric:tabular-nums;color:${color};background:${bg}">${v}</td>`;
+      for (var i=0;i<locs.length;i++) {
+        var L = locs[i];
+        var v = (o.loc_stock && o.loc_stock[String(L.id)]) || 0;
+        var color = v > 0 ? '#3182F6' : '#9CA3AF';
+        var bg = v > 0 ? '#F8FBFF' : '';
+        locCells += '<td style="padding:9px 10px;text-align:right;font-variant-numeric:tabular-nums;color:' + color + ';background:' + bg + '">' + v + '</td>';
       }
     }
     tr.innerHTML =
-      `<td style="padding:9px 10px;font-family:ui-monospace,monospace;font-size:16px;color:#292A2F">${esc(o.sku)}</td>` +
-      `<td style="padding:9px 10px;font-family:ui-monospace,monospace;font-size:16px;color:${o.barcode?'#292A2F':'#8F91A0'}">${esc(o.barcode || '—')}</td>` +
-      `<td style="padding:9px 10px;color:#292A2F">${esc(o.brand || '—')}</td>` +
-      `<td style="padding:9px 10px"><div style="font-weight:500;color:#292A2F">${esc(o.name || '—')}</div></td>` +
-      `<td style="padding:9px 10px;color:${o.article_no?'#292A2F':'#8F91A0'};font-family:ui-monospace,monospace;font-size:16px">${esc(o.article_no || '—')}</td>` +
-      `<td style="padding:9px 10px;color:${colorMissing?'#8F91A0':'#292A2F'}">${esc(o.color)}</td>` +
-      `<td style="padding:9px 10px;color:${sizeMissing?'#8F91A0':'#292A2F'}">${esc(o.size)}</td>` +
-      `<td style="padding:9px 10px;text-align:right;font-variant-numeric:tabular-nums;color:#292A2F">${avgCell}</td>` +
-      `<td style="padding:9px 10px;text-align:right;font-weight:600;font-variant-numeric:tabular-nums;color:${stockColor}">${o.stock}</td>` +
+      '<td style="padding:9px 6px;text-align:center"><span class="ref-toggle" title="쓰이는 모음전·옵션 펼치기" onclick="event.stopPropagation();toggleRefRow(this)" style="cursor:pointer;color:#8F91A0;font-weight:800;user-select:none">▸</span></td>' +
+      '<td style="padding:9px 10px;font-family:ui-monospace,monospace;font-size:16px;color:#292A2F;cursor:pointer" onclick="openItemPopover(this.parentNode)">' + esc(o.sku) + '</td>' +
+      '<td style="padding:9px 10px;font-family:ui-monospace,monospace;font-size:16px;color:' + (o.barcode?'#292A2F':'#8F91A0') + ';cursor:pointer" onclick="openItemPopover(this.parentNode)">' + esc(o.barcode || '—') + '</td>' +
+      '<td style="padding:9px 10px;color:#292A2F;cursor:pointer" onclick="openItemPopover(this.parentNode)">' + esc(o.brand || '—') + '</td>' +
+      '<td style="padding:9px 10px;cursor:pointer" onclick="openItemPopover(this.parentNode)"><div style="font-weight:500;color:#292A2F">' + esc(o.name || '—') + '</div></td>' +
+      '<td style="padding:9px 10px;color:' + (o.article_no?'#292A2F':'#8F91A0') + ';font-family:ui-monospace,monospace;font-size:16px;cursor:pointer" onclick="openItemPopover(this.parentNode)">' + esc(o.article_no || '—') + '</td>' +
+      '<td style="padding:9px 10px;color:' + (colorMissing?'#8F91A0':'#292A2F') + ';cursor:pointer" onclick="openItemPopover(this.parentNode)">' + esc(o.color) + '</td>' +
+      '<td style="padding:9px 10px;color:' + (sizeMissing?'#8F91A0':'#292A2F') + ';cursor:pointer" onclick="openItemPopover(this.parentNode)">' + esc(o.size) + '</td>' +
+      '<td style="padding:9px 10px;text-align:right;font-variant-numeric:tabular-nums;color:#292A2F">' + avgCell + '</td>' +
+      '<td style="padding:9px 10px;text-align:right;font-weight:600;font-variant-numeric:tabular-nums;color:' + stockColor + '">' + o.stock + '</td>' +
       locCells +
-      `<td style="padding:9px 10px;text-align:center"><span style="color:#4F67FF;font-size:12px">✎</span></td>`;
+      '<td style="padding:9px 10px;text-align:center"><span class="ref-badge" onclick="event.stopPropagation();toggleRefRow(this.closest(\'tr\').querySelector(\'.ref-toggle\'))" style="display:inline-flex;align-items:center;gap:3px;border-radius:99px;padding:3px 9px;font-size:12px;font-weight:800;cursor:pointer;' + usageStyle + '">🔗 ' + usage + '</span></td>' +
+      '<td style="padding:9px 10px;text-align:center;white-space:nowrap">' +
+        '<button type="button" title="이 행 복사" onclick="event.stopPropagation();openCopyRow(this.closest(\'tr\'))" style="background:#EAF3FF;color:#3182F6;border:0;border-radius:6px;padding:5px 8px;font-size:13px;font-weight:800;cursor:pointer">⧉</button> ' +
+        '<button type="button" title="제품 삭제" onclick="event.stopPropagation();openDeleteDialog(this.closest(\'tr\'))" style="background:#FEECEC;color:#F04438;border:0;border-radius:6px;padding:5px 8px;font-size:13px;font-weight:800;cursor:pointer">🗑</button>' +
+      '</td>';
     return tr;
   }
 
   function render(data){
     if(!tbody) return;
     if (data.locs) _locsCache = data.locs;
-    const locs = data.locs || _locsCache || [];
-    const totalCols = 10 + locs.length;
+    var locs = data.locs || _locsCache || [];
+    var totalCols = 12 + locs.length;
     tbody.innerHTML = '';
     if(!data.items || data.items.length === 0){
-      const tr = document.createElement('tr');
-      tr.innerHTML = `<td colspan="${totalCols}" style="padding:32px;text-align:center;color:#8F91A0">조회 결과 없음</td>`;
+      var tr = document.createElement('tr');
+      tr.innerHTML = '<td colspan="' + totalCols + '" style="padding:32px;text-align:center;color:#8F91A0">조회 결과 없음</td>';
       tbody.appendChild(tr);
     } else {
-      const frag = document.createDocumentFragment();
-      data.items.forEach(o => frag.appendChild(buildRow(o, locs)));
+      var frag = document.createDocumentFragment();
+      data.items.forEach(function(o){ frag.appendChild(buildRow(o, locs)); });
       tbody.appendChild(frag);
     }
     if(totalEl) totalEl.textContent = fmt(data.total);
@@ -338,59 +773,48 @@ document.addEventListener('keydown', e=>{if(e.key==='Escape'){closeItemPopover()
       kpiInStock.style.color = data.kpi.in_stock > 0 ? '#22C55E' : '#8F91A0';
     }
     if(kpiQty) kpiQty.textContent = fmt(data.kpi.total_qty);
-    // ★ 검색 결과 요약 배너 갱신
     window.__lastServerSummary = data.search_summary;
     renderSummary(data.search_summary);
-    // ★ 라이브 검색 후 — 적용 중인 정렬·컬럼 필터 재적용 (applyTableState 가 요약도 재계산)
     if(window.applyTableState) window.applyTableState();
   }
 
   function urlParams(){
-    const fd = new FormData(form);
-    const sp = new URLSearchParams();
-    for(const [k,v] of fd.entries()) sp.append(k, v);
+    var fd = new FormData(form);
+    var sp = new URLSearchParams();
+    for(var pair of fd.entries()) sp.append(pair[0], pair[1]);
     sp.append('format', 'json');
     return sp;
   }
 
   function liveFetch(pushHistory){
     if(inflight) inflight.abort();
-    const ctrl = new AbortController();
+    var ctrl = new AbortController();
     inflight = ctrl;
-    const sp = urlParams();
+    var sp = urlParams();
     fetch(form.action + '?' + sp.toString(), { signal: ctrl.signal, headers: {Accept:'application/json'} })
-      .then(r => r.ok ? r.json() : Promise.reject(r.statusText))
-      .then(data => {
+      .then(function(r){ return r.ok ? r.json() : Promise.reject(r.statusText); })
+      .then(function(data){
         render(data);
         if(pushHistory){
-          // history URL 만 갱신 (브라우저 뒤로가기 호환)
-          const sp2 = urlParams();
+          var sp2 = urlParams();
           sp2.delete('format');
-          const next = sp2.toString();
+          var next = sp2.toString();
           history.replaceState(null, '', next ? '?' + next : location.pathname);
-          // 초기화 링크 토글
           if(reset){
-            const any = !!(sp2.get('q') || sp2.get('brand') || sp2.get('in_stock_only'));
+            var any = !!(sp2.get('q') || sp2.get('brand') || sp2.get('in_stock_only'));
             reset.style.display = any ? '' : 'none';
           }
         }
         inflight = null;
       })
-      .catch(err => { if(err && err.name === 'AbortError') return; console.warn('[live-search]', err); });
+      .catch(function(err){ if(err && err.name === 'AbortError') return; console.warn('[live-search]', err); });
   }
 
-  form.addEventListener('submit', function(e){
-    e.preventDefault();
-    liveFetch(true);
-  });
+  form.addEventListener('submit', function(e){ e.preventDefault(); liveFetch(true); });
   form.addEventListener('change', function(e){
-    // brand / in_stock_only 변경 시 자동 fetch (입력 없이 새로고침 없도록)
-    if(e.target.matches('select[name="brand"], input[name="in_stock_only"]')){
-      liveFetch(true);
-    }
+    if(e.target.matches('select[name="brand"], input[name="in_stock_only"]')){ liveFetch(true); }
   });
 
-  // ★ 초기 1회 — 서버 렌더 시점의 검색 결과 요약 배너
   window.__lastServerSummary = {{ search_summary | tojson }};
   renderSummary(window.__lastServerSummary);
 })();
@@ -399,14 +823,14 @@ function closeWipeModal(){
   document.getElementById('wipeModal').style.display='none';
   document.getElementById('wipeConfirmInput').value='';
   document.getElementById('wipeSubmitBtn').disabled=true;
-  const h = document.getElementById('wipeStatusHint');
+  var h = document.getElementById('wipeStatusHint');
   if(h){ h.textContent='아직 입력되지 않았습니다.'; h.style.color='#9CA3AF'; }
 }
 function onWipeInput(e){
-  const v = e.target.value;
-  const match = (v === 'DELETE ALL');
+  var v = e.target.value;
+  var match = (v === 'DELETE ALL');
   document.getElementById('wipeSubmitBtn').disabled = !match;
-  const h = document.getElementById('wipeStatusHint');
+  var h = document.getElementById('wipeStatusHint');
   if(h){
     if(!v){ h.textContent='아직 입력되지 않았습니다.'; h.style.color='#9CA3AF'; }
     else if(match){ h.textContent='✅ 정확히 입력되었습니다. 아래 빨간 버튼을 누르세요.'; h.style.color='#065F46'; }
@@ -456,10 +880,14 @@ function onWipeInput(e){
   var table = tbody.closest('table');
   var thead = table.querySelector('thead');
   var ths = Array.prototype.slice.call(thead.querySelectorAll('th'));
-  var lastCol = ths.length - 1;  // 편집 컬럼 — 정렬/필터 제외
+  // 컬럼: 0=▸토글, 1=SKU … 8=평균매입가, 9=총재고, [위치들], 사용, 관리
+  var firstCol = 0;                 // ▸ 토글 — 정렬/필터 제외
+  var lastCol = ths.length - 1;     // 관리 컬럼 — 정렬/필터 제외
+  var usageCol = lastCol - 1;       // 사용 배지 컬럼 — 정렬/필터 제외 (배지 텍스트)
+  var BRAND_COL = 3, PRICE_COL = 8, STOCK_COL = 9;
 
-  var sortCol = -1, sortDir = 1;       // dir: 1 오름, -1 내림
-  var colFilters = {};                  // {colIdx: Set(허용 텍스트)}
+  var sortCol = -1, sortDir = 1;
+  var colFilters = {};
 
   function cellText(tr, ci){
     var td = tr.children[ci];
@@ -467,13 +895,15 @@ function onWipeInput(e){
   }
   function dataRows(){
     return Array.prototype.slice.call(tbody.querySelectorAll('tr')).filter(function(tr){
-      return tr.children.length > 2;  // "조회 결과 없음" 행 제외
+      return tr.classList.contains('item-row');
     });
   }
 
-  // 정렬·필터 적용 (라이브 검색 후에도 재호출됨)
   window.applyTableState = function(){
     var rows = dataRows();
+    // 정렬 시 펼침 행이 떠다니지 않도록 우선 모두 닫기
+    document.querySelectorAll('tr.ref-exrow').forEach(function(r){ r.remove(); });
+    document.querySelectorAll('.ref-toggle').forEach(function(t){ t.textContent = '▸'; });
     rows.forEach(function(tr){
       var show = true;
       for(var ci in colFilters){
@@ -484,7 +914,7 @@ function onWipeInput(e){
     });
     if(sortCol >= 0){
       var vis = rows.filter(function(tr){ return tr.style.display !== 'none'; });
-      var numeric = (sortCol >= 6);  // 사이즈·평균매입가·총재고·위치 = 숫자
+      var numeric = (sortCol === PRICE_COL || sortCol === STOCK_COL || sortCol > STOCK_COL);
       vis.sort(function(a,b){
         var va = cellText(a, sortCol), vb = cellText(b, sortCol);
         if(numeric){
@@ -505,8 +935,6 @@ function onWipeInput(e){
     updateSummaryFromVisible();
   };
 
-  // ★ 칼럼 필터 적용 시 — 요약 배너를 화면에 보이는 행 기준으로 재계산.
-  //   칼럼 필터 없으면 서버 검색 요약(__lastServerSummary)으로 복원.
   function updateSummaryFromVisible(){
     if(typeof window.renderSummary !== 'function') return;
     if(Object.keys(colFilters).length === 0){
@@ -516,12 +944,12 @@ function onWipeInput(e){
     var vis = dataRows().filter(function(tr){ return tr.style.display !== 'none'; });
     var brands = {}, totalStock = 0, inStock = 0, priceSum = 0, priceCnt = 0;
     vis.forEach(function(tr){
-      var b = cellText(tr, 2);                                  // 브랜드
+      var b = cellText(tr, BRAND_COL);
       if(b && b !== '—') brands[b] = 1;
-      var st = parseFloat(cellText(tr, 8).replace(/[^0-9.\-]/g, '')) || 0;  // 총재고
+      var st = parseFloat(cellText(tr, STOCK_COL).replace(/[^0-9.\-]/g, '')) || 0;
       totalStock += st;
       if(st > 0) inStock++;
-      var pr = parseFloat(cellText(tr, 7).replace(/[^0-9.\-]/g, '')) || 0;  // 평균매입가
+      var pr = parseFloat(cellText(tr, PRICE_COL).replace(/[^0-9.\-]/g, '')) || 0;
       if(pr > 0){ priceSum += pr; priceCnt++; }
     });
     window.renderSummary({
@@ -536,9 +964,8 @@ function onWipeInput(e){
     });
   }
 
-  // 헤더 장식 — 정렬 화살표 + 필터 ▾
   ths.forEach(function(th, ci){
-    if(ci === lastCol) return;
+    if(ci === firstCol || ci === lastCol || ci === usageCol) return;
     var label = th.textContent.trim();
     th.textContent = '';
     th.className = (th.className || '') + ' sortable-th';
@@ -665,11 +1092,9 @@ function onWipeInput(e){
 
 {# ============ 엑셀 내보내기 — 화면 필터 반영 ============ #}
 <script>
-// 엑셀 내보내기 클릭 시 — 화면에 보이는(검색어·브랜드·칼럼 ▾ 필터 적용된) 행의 SKU만
-// POST 로 export 라우트에 전송. filtered=1 플래그로 서버가 해당 옵션만 엑셀 생성.
 function exportFilteredXlsx(){
-  var rows = Array.prototype.slice.call(document.querySelectorAll('#itemsTbody tr'))
-    .filter(function(r){ return r.children.length > 2 && r.style.display !== 'none'; });
+  var rows = Array.prototype.slice.call(document.querySelectorAll('#itemsTbody tr.item-row'))
+    .filter(function(r){ return r.style.display !== 'none'; });
   var skus = rows.map(function(r){ return r.dataset.sku; }).filter(Boolean);
   var form = document.createElement('form');
   form.method = 'POST';
