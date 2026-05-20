@@ -199,7 +199,11 @@ function attachAll(){
       const host = el.closest('[data-type]');
       if (!host) return;
       if (act === 'emoji') openEmojiModal(host);
-      else if (act === 'rename') startInlineEdit(el, host);
+      else if (act === 'rename'){
+        // 항목(탭)은 클릭=페이지 이동이 우선 — 이름 변경은 ⋮ 메뉴/우클릭으로
+        if (host.dataset.type === 'item') return;
+        startInlineEdit(el, host);
+      }
       else if (act === 'menu') openDropdown(host, el);
     });
     // 우클릭으로 이모지 = 즉시 모달 (사용자 요청)
@@ -822,7 +826,7 @@ function moveCursor(delta){
 /* ===== 편집 가이드 ===== */
 $('#sb3-edit-toggle').addEventListener('click', () => {
   alert('💡 사이드바 편집 가이드\n\n' +
-    '① 이름 변경 — 텍스트 더블클릭 또는 ⋮ 메뉴\n' +
+    '① 이름 변경 — ⋮ 메뉴 또는 우클릭 메뉴 (항목 클릭은 페이지 이동)\n' +
     '② 호버 메뉴 — 항목 위 마우스 → 우측 ⋮ 클릭\n' +
     '③ 드래그 — 좌측 ⋮⋮ 핸들 잡고 끌기 (카테고리 간 자유 이동)\n' +
     '④ 우클릭 — 항목 또는 이모지 자체 우클릭으로 즉시 메뉴\n' +

@@ -32,12 +32,9 @@ body.sb3-resizing *{cursor:col-resize !important}
 .sb3-item:hover .drag-h{opacity:1}
 .sb3-item .drag-h:hover{background:var(--n200,#E5E8EB);color:var(--n900,#191F28)}
 .sb3-item .drag-h:active{cursor:grabbing;background:var(--n300,#D1D6DB)}
-/* 항목 전체에 grab cursor — 잡을 수 있다 명확 */
-.sb3-item{cursor:grab}
-.sb3-item:active{cursor:grabbing}
-.sb3-item .nm,.sb3-item .emo,.sb3-item .menu-b,.sb3-item .badge{cursor:auto}
-.sb3-item .nm{cursor:text}
-.sb3-item .emo,.sb3-item .menu-b{cursor:pointer}
+/* 항목 전체가 클릭=페이지 이동 링크 → pointer. 드래그는 좌측 ⠿ 핸들로 */
+.sb3-item{cursor:pointer}
+.sb3-item .nm,.sb3-item .emo,.sb3-item .menu-b,.sb3-item .badge{cursor:pointer}
 .sb3-item .menu-b{opacity:0;color:var(--n500,#8B95A1);font-size:18px;line-height:1;padding:3px 6px;border-radius:5px;flex-shrink:0;cursor:pointer;background:transparent;border:0;transition:all .12s;font-weight:700}
 .sb3-item:hover .menu-b{opacity:1}
 .sb3-item:hover .drag-h{opacity:1;color:var(--n700,#4E5968)}
@@ -72,8 +69,8 @@ body.sb3-resizing *{cursor:col-resize !important}
 .sb3-stage:hover .st-drag{opacity:.95}
 .sb3-stage .st-drag:hover{opacity:1;background:var(--n200,#E5E8EB);color:var(--n900,#191F28)}
 .sb3-stage .st-drag:active{cursor:grabbing;background:var(--n300,#D1D6DB)}
-.sb3-stage{cursor:grab}
-.sb3-stage:active{cursor:grabbing}
+/* 카테고리 본체는 클릭 대상 아님 → default. 드래그는 ⠿ 핸들로 */
+.sb3-stage{cursor:default}
 .sb3-stage .st-head,.sb3-stage .st-emo,.sb3-stage .st-nm,.sb3-stage .st-menu,.sb3-stage .st-toggle{cursor:auto}
 .sb3-stage .st-head{cursor:pointer}
 .sb3-stage .st-nm{cursor:text}
