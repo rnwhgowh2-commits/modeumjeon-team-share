@@ -263,6 +263,8 @@ document.addEventListener('keydown', e=>{if(e.key==='Escape'){closeItemPopover()
         '<span style="font-size:13.5px;font-weight:600;color:#4E5968">' + brandTxt + '</span></span>';
   }
 
+  window.renderSummary = renderSummary;  // 칼럼 필터 IIFE 에서 재호출
+
   // 서버 페이지 초기 렌더 시 사용한 위치 list (헤더 순서 보존) — render() 가 fallback 용으로 사용
   let _locsCache = null;
 
@@ -337,8 +339,9 @@ document.addEventListener('keydown', e=>{if(e.key==='Escape'){closeItemPopover()
     }
     if(kpiQty) kpiQty.textContent = fmt(data.kpi.total_qty);
     // ★ 검색 결과 요약 배너 갱신
+    window.__lastServerSummary = data.search_summary;
     renderSummary(data.search_summary);
-    // ★ 라이브 검색 후 — 적용 중인 정렬·컬럼 필터 재적용
+    // ★ 라이브 검색 후 — 적용 중인 정렬·컬럼 필터 재적용 (applyTableState 가 요약도 재계산)
     if(window.applyTableState) window.applyTableState();
   }
 
@@ -388,7 +391,8 @@ document.addEventListener('keydown', e=>{if(e.key==='Escape'){closeItemPopover()
   });
 
   // ★ 초기 1회 — 서버 렌더 시점의 검색 결과 요약 배너
-  renderSummary({{ search_summary | tojson }});
+  window.__lastServerSummary = {{ search_summary | tojson }};
+  renderSummary(window.__lastServerSummary);
 })();
 
 function closeWipeModal(){
@@ -498,7 +502,39 @@ function onWipeInput(e){
       var fb = th.querySelector('.filter-btn');
       if(fb) fb.style.color = colFilters[ci] ? '#3182F6' : '#B0B3BA';
     });
+    updateSummaryFromVisible();
   };
+
+  // ★ 칼럼 필터 적용 시 — 요약 배너를 화면에 보이는 행 기준으로 재계산.
+  //   칼럼 필터 없으면 서버 검색 요약(__lastServerSummary)으로 복원.
+  function updateSummaryFromVisible(){
+    if(typeof window.renderSummary !== 'function') return;
+    if(Object.keys(colFilters).length === 0){
+      window.renderSummary(window.__lastServerSummary || null);
+      return;
+    }
+    var vis = dataRows().filter(function(tr){ return tr.style.display !== 'none'; });
+    var brands = {}, totalStock = 0, inStock = 0, priceSum = 0, priceCnt = 0;
+    vis.forEach(function(tr){
+      var b = cellText(tr, 2);                                  // 브랜드
+      if(b && b !== '—') brands[b] = 1;
+      var st = parseFloat(cellText(tr, 8).replace(/[^0-9.\-]/g, '')) || 0;  // 총재고
+      totalStock += st;
+      if(st > 0) inStock++;
+      var pr = parseFloat(cellText(tr, 7).replace(/[^0-9.\-]/g, '')) || 0;  // 평균매입가
+      if(pr > 0){ priceSum += pr; priceCnt++; }
+    });
+    window.renderSummary({
+      active: true,
+      q: (window.__lastServerSummary && window.__lastServerSummary.q) || '',
+      option_count: vis.length,
+      avg_price: priceCnt ? Math.round(priceSum / priceCnt) : 0,
+      priced_count: priceCnt,
+      total_stock: totalStock,
+      in_stock_count: inStock,
+      brands: Object.keys(brands).sort(),
+    });
+  }
 
   // 헤더 장식 — 정렬 화살표 + 필터 ▾
   ths.forEach(function(th, ci){
