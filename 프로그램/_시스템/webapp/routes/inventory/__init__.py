@@ -28,11 +28,23 @@ def home():
         search_q = (request.args.get('q') or '').strip()
         location_filter = request.args.get('location_id', '').strip()
         selected_sku = request.args.get('sku', '').strip()
+        want_json = (
+            request.args.get('format') == 'json'
+            or 'application/json' in (request.headers.get('Accept') or '')
+        )
 
-        q = s.query(Option)
+        # ★ Model join — 제품명·품번·브랜드·색상까지 검색 (SKU·바코드만 아님)
+        q = s.query(Option).outerjoin(Model, Option.model_code == Model.model_code)
         # ★ 박스히어로식 다중 키워드 AND 교집합 필터 (shared.search 헬퍼)
         search_tokens = split_tokens(search_q)
-        q = apply_and_filter(q, search_tokens, Option.canonical_sku, Option.boxhero_sku)
+        q = apply_and_filter(
+            q, search_tokens,
+            Option.canonical_sku, Option.boxhero_sku, Option.barcode,
+            Model.brand, Model.model_name_display, Model.model_name_raw,
+            Model.model_code, Model.article_no,
+            Option.color_display, Option.color_code,
+            Option.size_display, Option.size_code,
+        )
 
         # 모든 SKU 후보 한 번에 (limit 적용 전)
         all_skus_q = q.with_entities(Option.canonical_sku, Option.model_code)
@@ -114,6 +126,29 @@ def home():
             loc_map = get_stock_batch(s, page_skus, location_id=loc.id)
             for sku, st in loc_map.items():
                 per_loc_stock.setdefault(sku, {})[loc.id] = st
+
+        # ★ JSON 모드 — 실시간 라이브 검색용 (엔터 없이 타이핑 → 표 즉시 갱신)
+        if want_json:
+            from flask import jsonify
+            rows = []
+            for o in options:
+                rows.append({
+                    'sku': o.canonical_sku,
+                    'barcode': o.barcode or o.boxhero_sku or '',
+                    'brand': (o.model.brand or '') if o.model else '',
+                    'name': display_pname.get(o.canonical_sku, o.canonical_sku),
+                    'article_no': (getattr(o.model, 'article_no', None) or '') if o.model else '',
+                    'color': cleaned_color.get(o.canonical_sku, 'one'),
+                    'size': (o.size_display or o.size_code or 'free'),
+                    'avg': int(o.boxhero_avg_purchase_price or 0),
+                    'stock': int(stock_map.get(o.canonical_sku, 0)),
+                    'loc_stock': {str(loc.id): int(per_loc_stock.get(o.canonical_sku, {}).get(loc.id, 0)) for loc in all_locs},
+                })
+            return jsonify({
+                'items': rows,
+                'locs': [{'id': loc.id, 'name': loc.name} for loc in all_locs],
+                'stats': stats,
+            })
 
         return render_template(
             'inventory/home.html',
