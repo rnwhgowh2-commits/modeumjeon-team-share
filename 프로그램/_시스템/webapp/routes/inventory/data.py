@@ -401,6 +401,22 @@ def data_items():
             'total_qty': int(total_qty),
         }
 
+        # ★ 검색 결과 요약 (시안 A — 요약 배너) — 검색어 있을 때만
+        _summary_rows = query.with_entities(Option.boxhero_avg_purchase_price, Model.brand).all()
+        _prices = [r[0] for r in _summary_rows if r[0] and r[0] > 0]
+        _avg_price = round(sum(_prices) / len(_prices)) if _prices else 0
+        _brands = sorted({r[1] for r in _summary_rows if r[1]})
+        search_summary = {
+            'active': bool(q or brand or in_stock_only),
+            'q': q,
+            'option_count': total,
+            'avg_price': _avg_price,
+            'priced_count': len(_prices),
+            'total_stock': int(total_qty),
+            'in_stock_count': in_stock_count,
+            'brands': _brands,
+        }
+
         # 색상·제품명 정리 — shared.product_display 헬퍼 (전 시스템 통일)
         from shared.product_display import compute_display_maps
         cleaned_color, display_pname = compute_display_maps(items)
@@ -451,6 +467,7 @@ def data_items():
                 'items': rows,
                 'kpi': kpi,
                 'locs': [{'id': loc.id, 'name': loc.name} for loc in locs],
+                'search_summary': search_summary,
             })
 
         brands = [b for (b,) in s.query(Model.brand).distinct().filter(Model.brand.isnot(None)).all()]
@@ -468,6 +485,7 @@ def data_items():
             kpi=kpi,
             locs=locs,                    # ★ 위치별 재고 컬럼 헤더용
             per_loc_stock=per_loc_stock,  # ★ {sku: {loc_id: stock}}
+            search_summary=search_summary,  # ★ 검색 결과 요약 배너
         )
     finally:
         s.close()
