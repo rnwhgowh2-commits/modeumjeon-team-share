@@ -94,13 +94,13 @@
             data-size="{{ _size }}"
             data-avg="{{ opt.boxhero_avg_purchase_price or 0 }}"
             data-stock="{{ stock_map.get(opt.canonical_sku, 0) }}">
-          <td style="padding:9px 10px;font-family:ui-monospace,monospace;font-size:12px;color:#292A2F">{{ opt.canonical_sku }}</td>
-          <td style="padding:9px 10px;font-family:ui-monospace,monospace;font-size:12px;color:{% if opt.barcode %}#292A2F{% else %}#8F91A0{% endif %}">{{ opt.barcode or '—' }}</td>
+          <td style="padding:9px 10px;font-family:ui-monospace,monospace;font-size:14px;color:#292A2F">{{ opt.canonical_sku }}</td>
+          <td style="padding:9px 10px;font-family:ui-monospace,monospace;font-size:14px;color:{% if opt.barcode %}#292A2F{% else %}#8F91A0{% endif %}">{{ opt.barcode or '—' }}</td>
           <td style="padding:9px 10px;color:#292A2F">{{ _brand or '—' }}</td>
           <td style="padding:9px 10px">
             <div style="font-weight:500;color:#292A2F">{{ _name or '—' }}</div>
           </td>
-          <td style="padding:9px 10px;color:{% if _article %}#292A2F{% else %}#8F91A0{% endif %};font-family:ui-monospace,monospace;font-size:12px">{{ _article or '—' }}</td>
+          <td style="padding:9px 10px;color:{% if _article %}#292A2F{% else %}#8F91A0{% endif %};font-family:ui-monospace,monospace;font-size:14px">{{ _article or '—' }}</td>
           <td style="padding:9px 10px;color:{% if _color %}#292A2F{% else %}#8F91A0{% endif %}">{{ _color_shown }}</td>
           <td style="padding:9px 10px;color:{% if _size %}#292A2F{% else %}#8F91A0{% endif %}">{{ _size_shown }}</td>
           <td style="padding:9px 10px;text-align:right;font-variant-numeric:tabular-nums;color:#292A2F">
@@ -300,11 +300,11 @@ document.addEventListener('keydown', e=>{if(e.key==='Escape'){closeItemPopover()
       }
     }
     tr.innerHTML =
-      `<td style="padding:9px 10px;font-family:ui-monospace,monospace;font-size:12px;color:#292A2F">${esc(o.sku)}</td>` +
-      `<td style="padding:9px 10px;font-family:ui-monospace,monospace;font-size:12px;color:${o.barcode?'#292A2F':'#8F91A0'}">${esc(o.barcode || '—')}</td>` +
+      `<td style="padding:9px 10px;font-family:ui-monospace,monospace;font-size:14px;color:#292A2F">${esc(o.sku)}</td>` +
+      `<td style="padding:9px 10px;font-family:ui-monospace,monospace;font-size:14px;color:${o.barcode?'#292A2F':'#8F91A0'}">${esc(o.barcode || '—')}</td>` +
       `<td style="padding:9px 10px;color:#292A2F">${esc(o.brand || '—')}</td>` +
       `<td style="padding:9px 10px"><div style="font-weight:500;color:#292A2F">${esc(o.name || '—')}</div></td>` +
-      `<td style="padding:9px 10px;color:${o.article_no?'#292A2F':'#8F91A0'};font-family:ui-monospace,monospace;font-size:12px">${esc(o.article_no || '—')}</td>` +
+      `<td style="padding:9px 10px;color:${o.article_no?'#292A2F':'#8F91A0'};font-family:ui-monospace,monospace;font-size:14px">${esc(o.article_no || '—')}</td>` +
       `<td style="padding:9px 10px;color:${colorMissing?'#8F91A0':'#292A2F'}">${esc(o.color)}</td>` +
       `<td style="padding:9px 10px;color:${sizeMissing?'#8F91A0':'#292A2F'}">${esc(o.size)}</td>` +
       `<td style="padding:9px 10px;text-align:right;font-variant-numeric:tabular-nums;color:#292A2F">${avgCell}</td>` +
