@@ -355,7 +355,8 @@ def data_items():
     from sqlalchemy import func
 
     page = max(1, int(request.args.get('page', 1)))
-    page_size = min(200, int(request.args.get('page_size', 50)))
+    # ★ 엑셀식 정렬·필터가 전체 데이터 대상이 되도록 한 페이지에 전체 로드 (기본 2000)
+    page_size = min(5000, int(request.args.get('page_size', 2000)))
     q = (request.args.get('q') or '').strip()
     brand = (request.args.get('brand') or '').strip()
     in_stock_only = request.args.get('in_stock_only') == '1'
