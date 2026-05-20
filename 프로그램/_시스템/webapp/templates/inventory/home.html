@@ -194,11 +194,11 @@
           });
           var avgCell = o.avg > 0 ? fmt(o.avg) : '—';
           tr.innerHTML =
-            '<td style="padding:7px 8px;font-family:ui-monospace,monospace;font-size:10.5px">'+esc(o.sku)+'</td>' +
-            '<td style="padding:7px 8px;font-family:ui-monospace,monospace;font-size:10px;color:#6B7684">'+esc(o.barcode||'—')+'</td>' +
+            '<td style="padding:7px 8px;font-family:ui-monospace,monospace;font-size:14px">'+esc(o.sku)+'</td>' +
+            '<td style="padding:7px 8px;font-family:ui-monospace,monospace;font-size:14px;color:#6B7684">'+esc(o.barcode||'—')+'</td>' +
             '<td style="padding:7px 8px;font-size:12px;color:#191F28">'+esc(o.brand||'—')+'</td>' +
             '<td style="padding:7px 8px;font-size:12px;color:#191F28">'+esc(o.name||'—')+'</td>' +
-            '<td style="padding:7px 8px;font-family:ui-monospace,monospace;font-size:10.5px;color:#4E5968">'+esc(o.article_no||'—')+'</td>' +
+            '<td style="padding:7px 8px;font-family:ui-monospace,monospace;font-size:14px;color:#4E5968">'+esc(o.article_no||'—')+'</td>' +
             '<td style="padding:7px 8px;font-size:12px;color:#4E5968">'+esc(o.color)+'</td>' +
             '<td style="padding:7px 8px;font-size:12px;color:#4E5968">'+esc(o.size)+'</td>' +
             '<td style="padding:7px 8px;text-align:right;font-family:ui-monospace,monospace;color:'+(o.avg>0?'#191F28':'#9CA3AF')+'">'+avgCell+'</td>' +
@@ -319,11 +319,11 @@
               {% set _size = (o.size_display or o.size_code or 'free') %}
               {% set _rt = stock_map.get(o.canonical_sku, 0) %}
               <tr style="border-bottom:1px solid #F2F4F6;{% if selected_detail and selected_detail.opt.canonical_sku == o.canonical_sku %}background:#EFF6FF{% endif %};cursor:pointer" onclick="window.location.href='?sku={{ o.canonical_sku }}{% if in_stock_only %}&in_stock=1{% endif %}{% if search_q %}&q={{ search_q }}{% endif %}'">
-                <td style="padding:7px 8px;font-family:ui-monospace,monospace;font-size:10.5px">{{ o.canonical_sku }}</td>
-                <td style="padding:7px 8px;font-family:ui-monospace,monospace;font-size:10px;color:#6B7684">{{ _bc }}</td>
+                <td style="padding:7px 8px;font-family:ui-monospace,monospace;font-size:14px">{{ o.canonical_sku }}</td>
+                <td style="padding:7px 8px;font-family:ui-monospace,monospace;font-size:14px;color:#6B7684">{{ _bc }}</td>
                 <td style="padding:7px 8px;font-size:12px;color:#191F28">{{ _brand }}</td>
                 <td style="padding:7px 8px;font-size:12px;color:#191F28">{{ _pname }}</td>
-                <td style="padding:7px 8px;font-family:ui-monospace,monospace;font-size:10.5px;color:#4E5968">{{ _article }}</td>
+                <td style="padding:7px 8px;font-family:ui-monospace,monospace;font-size:14px;color:#4E5968">{{ _article }}</td>
                 <td style="padding:7px 8px;font-size:12px;color:#4E5968">{{ _color }}</td>
                 <td style="padding:7px 8px;font-size:12px;color:#4E5968">{{ _size }}</td>
                 <td style="padding:7px 8px;text-align:right;font-family:ui-monospace,monospace;color:{% if (o.boxhero_avg_purchase_price or 0) > 0 %}#191F28{% else %}#9CA3AF{% endif %}">{% if o.boxhero_avg_purchase_price %}{{ '{:,}'.format(o.boxhero_avg_purchase_price) }}{% else %}—{% endif %}</td>
