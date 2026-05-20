@@ -84,7 +84,8 @@
     var inp = document.getElementById('chipInput');
     var hidden = document.getElementById('qHidden');
     var form = document.getElementById('filterForm');
-    var tbody = document.getElementById('homeTbody');
+    // ※ homeTbody 는 이 스크립트보다 페이지 아래에 있어 로드 시점엔 null —
+    //   liveSearch/renderList 호출 시점에 매번 다시 잡는다.
     var groupCheckbox = form.querySelector('input[name="group_by_model"]');
     var inStockCheckbox = form.querySelector('input[name="in_stock"]');
     var locSelect = form.querySelector('select[name="location_id"]');
@@ -125,7 +126,7 @@
     function liveSearch(){
       // 묶어보기 모드는 서버 그룹 렌더 → 폼 submit fallback
       if(groupCheckbox && groupCheckbox.checked){ sync(); form.submit(); return; }
-      if(!tbody) return;
+      if(!document.getElementById('homeTbody')) return;
       var params = new URLSearchParams();
       params.set('q', buildQ());
       if(inStockCheckbox && inStockCheckbox.checked) params.set('in_stock','1');
@@ -141,6 +142,8 @@
     }
 
     function renderList(data){
+      var tbody = document.getElementById('homeTbody');
+      if(!tbody) return;
       var locs = data.locs || [];
       var totalCols = 9 + locs.length;
       tbody.innerHTML = '';
