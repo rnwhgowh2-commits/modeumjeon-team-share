@@ -127,6 +127,22 @@ def home():
             for sku, st in loc_map.items():
                 per_loc_stock.setdefault(sku, {})[loc.id] = st
 
+        # ★ 검색 결과 요약 배너 (시안 A) — 검색·필터 적용 시에만
+        _sum_rows = q.with_entities(Option.boxhero_avg_purchase_price, Model.brand).all()
+        _prices = [r[0] for r in _sum_rows if r[0] and r[0] > 0]
+        _avg_price = round(sum(_prices) / len(_prices)) if _prices else 0
+        _brands = sorted({r[1] for r in _sum_rows if r[1]})
+        search_summary = {
+            'active': bool(search_q or in_stock_only or location_filter),
+            'q': search_q,
+            'option_count': total_i,
+            'avg_price': _avg_price,
+            'priced_count': len(_prices),
+            'total_stock': total_stock_i,
+            'in_stock_count': in_stock_i,
+            'brands': _brands,
+        }
+
         # ★ JSON 모드 — 실시간 라이브 검색용 (엔터 없이 타이핑 → 표 즉시 갱신)
         if want_json:
             from flask import jsonify
@@ -148,6 +164,7 @@ def home():
                 'items': rows,
                 'locs': [{'id': loc.id, 'name': loc.name} for loc in all_locs],
                 'stats': stats,
+                'search_summary': search_summary,
             })
 
         return render_template(
@@ -162,6 +179,7 @@ def home():
             cleaned_color=cleaned_color,  # {sku: 색상} — LCP strip 적용
             display_pname=display_pname,  # {sku: 제품명} — 브랜드+모델명 (색상 X)
             per_loc_stock=per_loc_stock,  # ★ {sku: {loc_id: stock}} — 위치별 재고 컬럼
+            search_summary=search_summary,  # ★ 검색 결과 요약 배너
         )
     finally:
         s.close()
