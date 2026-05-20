@@ -435,6 +435,22 @@ def data_items():
             for sku, st in loc_map.items():
                 per_loc_stock.setdefault(sku, {})[loc.id] = st
 
+        # ★ ⑤ 역참조 — 제품별 사용처(모음전·옵션) batch 조회 (N+1 회피)
+        # OptionProductLink 를 product_canonical_sku 로 한 번에 조회.
+        usage_map: dict[str, int] = {}
+        try:
+            from lemouton.inventory.models import OptionProductLink
+            if page_skus:
+                _link_rows = (
+                    s.query(OptionProductLink.product_canonical_sku)
+                    .filter(OptionProductLink.product_canonical_sku.in_(page_skus))
+                    .all()
+                )
+                for (psku,) in _link_rows:
+                    usage_map[psku] = usage_map.get(psku, 0) + 1
+        except Exception:
+            usage_map = {}
+
         if want_json:
             from flask import jsonify
             def _size(o):
@@ -456,6 +472,7 @@ def data_items():
                     'avg': int(o.boxhero_avg_purchase_price or 0),
                     'stock': int(stock_map.get(o.canonical_sku, 0)),
                     'loc_stock': {str(loc.id): int(per_loc_stock.get(o.canonical_sku, {}).get(loc.id, 0)) for loc in locs},
+                    'usage': int(usage_map.get(o.canonical_sku, 0)),  # ★ ⑤ 역참조 사용처 개수
                 }
                 for o in items
             ]
@@ -486,6 +503,7 @@ def data_items():
             locs=locs,                    # ★ 위치별 재고 컬럼 헤더용
             per_loc_stock=per_loc_stock,  # ★ {sku: {loc_id: stock}}
             search_summary=search_summary,  # ★ 검색 결과 요약 배너
+            usage_map=usage_map,          # ★ ⑤ {sku: 사용처(모음전·옵션) 개수}
         )
     finally:
         s.close()
