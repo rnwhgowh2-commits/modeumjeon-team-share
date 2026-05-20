@@ -144,7 +144,8 @@
                 {% set _pname = (display_pname.get(o.canonical_sku) if display_pname is defined else None) or (o | display_pname_single) %}
                 {% set _color = (cleaned_color.get(o.canonical_sku) if cleaned_color is defined else None) or (o | cleaned_color_single) %}
                 {% set _size = (o.size_display or o.size_code) | size_or_default %}
-                <tr class="prod-row" style="border-top:1px solid #F1F1F4;display:none" data-search="{{ o.canonical_sku }} {{ _pname }} {{ _color }} {{ _size }} {{ o.boxhero_sku or '' }}">
+                {# data-search — 제품목록(data_items) 검색 컬럼과 동일: SKU·boxhero·바코드·model_code·브랜드·모델명(표시/원본)·색상(표시/원본)·사이즈(표시/원본) #}
+                <tr class="prod-row" style="border-top:1px solid #F1F1F4;display:none" data-search="{{ o.canonical_sku }} {{ o.boxhero_sku or '' }} {{ o.barcode or '' }} {{ o.model_code or '' }} {{ (o.model.brand if o.model else '') or '' }} {{ (o.model.model_name_display if o.model else '') or '' }} {{ (o.model.model_name_raw if o.model else '') or '' }} {{ _pname }} {{ _color }} {{ o.color_display or '' }} {{ o.color_code or '' }} {{ _size }} {{ o.size_display or '' }} {{ o.size_code or '' }}">
                   <td style="padding:8px;text-align:center"><input type="checkbox" name="sku" value="{{ o.canonical_sku }}" data-name="{{ _pname }}" data-size="{{ _size }}" data-color="{{ _color }}" data-bh="{{ o.barcode or o.boxhero_sku or '' }}" style="accent-color:#4F67FF"></td>
                   <td style="padding:8px">
                     <div style="display:flex;align-items:center;gap:8px">
@@ -554,15 +555,17 @@ window.addEventListener('load', refreshAll);
 refreshAll();
 
 // 제품 검색 — 검색 시에만 매칭 row 노출 + 체크된 제품은 항상 노출
+// 제품목록(data_items) 검색과 동일 — 공백·콤마·세미콜론으로 토큰 분해, 토큰 간 AND
 function filterProducts() {
-  const q = (document.getElementById('prodSearch')?.value || '').trim().toLowerCase();
+  const raw = (document.getElementById('prodSearch')?.value || '').trim().toLowerCase();
+  const tokens = raw ? raw.split(/[\s,;]+/).filter(Boolean) : [];
   const rows = document.querySelectorAll('.prod-row');
   let shown = 0;
   rows.forEach(r => {
     const cb = r.querySelector('input[type=checkbox]');
     const checked = cb && cb.checked;
     const text = (r.dataset.search || '').toLowerCase();
-    const match = q && text.includes(q);
+    const match = tokens.length > 0 && tokens.every(t => text.includes(t));
     const visible = match || checked;
     r.style.display = visible ? '' : 'none';
     if (visible) shown++;
@@ -570,8 +573,8 @@ function filterProducts() {
   const hint = document.getElementById('emptyHint');
   if (hint) hint.style.display = (shown === 0) ? '' : 'none';
   if (hint && shown === 0) {
-    hint.querySelector('td').textContent = q
-      ? `"${q}" 일치 결과 없음`
+    hint.querySelector('td').textContent = raw
+      ? `"${raw}" 일치 결과 없음`
       : '검색어 입력 시 제품이 노출됩니다 (또는 선택한 제품만 표시)';
   }
 }

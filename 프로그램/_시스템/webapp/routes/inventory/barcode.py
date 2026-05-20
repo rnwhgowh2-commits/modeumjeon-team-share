@@ -172,10 +172,12 @@ def barcode_view():
         sku_filter = ''  # SQL 필터 비활성
         template_key = request.args.get('template', 'kr_ls3102')  # 기본 4×10
         cutline = request.args.get('cutline') == '1'
+        # 한도 5000 — 제품목록(data_items) 와 동일 ceiling.
+        # 제품 선택 검색은 클라이언트 필터라 전체 제품이 한 번에 로드돼야 검색 대상이 됨.
         options = (
             s.query(Option)
             .options(joinedload(Option.model))
-            .order_by(Option.model_code).limit(500).all()
+            .order_by(Option.model_code).limit(5000).all()
         )
         # ★ LCP 색상 정리 + 제품명 brand-strip (전 시스템 통일)
         from shared.product_display import compute_display_maps
