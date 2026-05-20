@@ -78,60 +78,148 @@
   </form>
 
   <script>
-  // 박스히어로식 다중 키워드 AND 검색 — 칩 컨트롤
+  // 박스히어로식 다중 키워드 AND 검색 — 칩 컨트롤 + ★ 실시간 라이브 검색
   (function(){
     var box = document.getElementById('chipBox');
     var inp = document.getElementById('chipInput');
     var hidden = document.getElementById('qHidden');
     var form = document.getElementById('filterForm');
+    var tbody = document.getElementById('homeTbody');
+    var groupCheckbox = form.querySelector('input[name="group_by_model"]');
+    var inStockCheckbox = form.querySelector('input[name="in_stock"]');
+    var locSelect = form.querySelector('select[name="location_id"]');
+    var debounceTimer = null;
+    var inflight = null;
 
     function tokens(){
       return Array.prototype.map.call(box.querySelectorAll('.chip'), function(c){ return c.dataset.tok; }).filter(Boolean);
     }
     function sync(){ hidden.value = tokens().join(' '); }
+    function esc(s){ return String(s==null?'':s).replace(/[<>&"]/g, function(c){return {'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'}[c];}); }
+    function fmt(n){ return Number(n||0).toLocaleString(); }
+
     function addChip(t){
       t = (t||'').trim();
       if(!t) return;
-      // 중복 방지
       if(tokens().indexOf(t) >= 0){ inp.value=''; return; }
       var span = document.createElement('span');
       span.className = 'chip';
       span.dataset.tok = t;
       span.style.cssText = 'display:inline-flex;align-items:center;gap:4px;background:#EFF6FF;color:#3182F6;border-radius:14px;padding:2px 4px 2px 10px;font-size:12px;font-weight:500';
-      span.innerHTML = t.replace(/[<>&"]/g, function(c){return {"<":"&lt;",">":"&gt;","&":"&amp;",'"':"&quot;"}[c];})
+      span.innerHTML = esc(t)
         + ' <button type="button" onclick="removeChip(this)" aria-label="제거" style="background:transparent;border:0;color:#3182F6;cursor:pointer;padding:0 6px;font-size:14px;line-height:1">×</button>';
       box.insertBefore(span, inp);
       inp.value = '';
       sync();
     }
+
+    // 칩 + 현재 입력 중 미완성 텍스트 합쳐서 검색어 (엔터 안 쳐도 검색)
+    function buildQ(){
+      var toks = tokens();
+      var cur = inp.value.trim();
+      if(cur) toks.push(cur);
+      return toks.join(' ');
+    }
+
+    // ★ 실시간 라이브 검색 — 새로고침 없이 표 갱신
+    function liveSearch(){
+      // 묶어보기 모드는 서버 그룹 렌더 → 폼 submit fallback
+      if(groupCheckbox && groupCheckbox.checked){ sync(); form.submit(); return; }
+      if(!tbody) return;
+      var params = new URLSearchParams();
+      params.set('q', buildQ());
+      if(inStockCheckbox && inStockCheckbox.checked) params.set('in_stock','1');
+      if(locSelect && locSelect.value) params.set('location_id', locSelect.value);
+      params.set('format','json');
+      if(inflight) inflight.abort();
+      var ctrl = new AbortController();
+      inflight = ctrl;
+      fetch('?' + params.toString(), {signal: ctrl.signal, headers:{Accept:'application/json'}})
+        .then(function(r){ return r.ok ? r.json() : Promise.reject(r.statusText); })
+        .then(function(data){ renderList(data); inflight = null; })
+        .catch(function(err){ if(err && err.name === 'AbortError') return; console.warn('[home-live]', err); });
+    }
+
+    function renderList(data){
+      var locs = data.locs || [];
+      var totalCols = 9 + locs.length;
+      tbody.innerHTML = '';
+      if(!data.items || data.items.length === 0){
+        tbody.innerHTML = '<tr><td colspan="'+totalCols+'" style="padding:32px;text-align:center;color:#9CA3AF">옵션 없음</td></tr>';
+      } else {
+        var frag = document.createDocumentFragment();
+        data.items.forEach(function(o){
+          var tr = document.createElement('tr');
+          tr.style.cssText = 'border-bottom:1px solid #F2F4F6;cursor:pointer';
+          tr.onclick = function(){ window.location.href = '?sku=' + encodeURIComponent(o.sku); };
+          var locCells = '';
+          locs.forEach(function(L){
+            var v = (o.loc_stock && o.loc_stock[String(L.id)]) || 0;
+            locCells += '<td style="padding:7px 8px;text-align:right;font-family:ui-monospace,monospace;color:'+(v>0?'#3182F6':'#9CA3AF')+';background:'+(v>0?'#F8FBFF':'')+'">'+v+'</td>';
+          });
+          var avgCell = o.avg > 0 ? fmt(o.avg) : '—';
+          tr.innerHTML =
+            '<td style="padding:7px 8px;font-family:ui-monospace,monospace;font-size:10.5px">'+esc(o.sku)+'</td>' +
+            '<td style="padding:7px 8px;font-family:ui-monospace,monospace;font-size:10px;color:#6B7684">'+esc(o.barcode||'—')+'</td>' +
+            '<td style="padding:7px 8px;font-size:11.5px;color:#191F28">'+esc(o.brand||'—')+'</td>' +
+            '<td style="padding:7px 8px;font-size:11.5px;color:#191F28">'+esc(o.name||'—')+'</td>' +
+            '<td style="padding:7px 8px;font-family:ui-monospace,monospace;font-size:10.5px;color:#4E5968">'+esc(o.article_no||'—')+'</td>' +
+            '<td style="padding:7px 8px;font-size:11.5px;color:#4E5968">'+esc(o.color)+'</td>' +
+            '<td style="padding:7px 8px;font-size:11.5px;color:#4E5968">'+esc(o.size)+'</td>' +
+            '<td style="padding:7px 8px;text-align:right;font-family:ui-monospace,monospace;color:'+(o.avg>0?'#191F28':'#9CA3AF')+'">'+avgCell+'</td>' +
+            '<td style="padding:7px 8px;text-align:right;font-weight:600;font-family:ui-monospace,monospace;color:'+(o.stock>0?'#7C3AED':'#9CA3AF')+'">'+o.stock+'</td>' +
+            locCells;
+          frag.appendChild(tr);
+        });
+        tbody.appendChild(frag);
+      }
+      // 건수 안내 갱신
+      var ct = document.getElementById('homeCountText');
+      if(ct && data.stats){
+        var st = data.stats;
+        if(st.shown_limited){
+          ct.innerHTML = '<b style="color:#191F28;font-weight:700">'+fmt(st.total)+'</b>건 중 상위 <b style="color:#191F28;font-weight:700">'+fmt(st.shown)+'</b>개 표시 · <span style="color:#FF8E3C;font-weight:600">검색·필터로 좁히세요</span>';
+        } else {
+          ct.innerHTML = '<b style="color:#191F28;font-weight:700">'+fmt(st.shown)+'</b>건 표시';
+        }
+      }
+    }
+
     window.removeChip = function(btn){
       var chip = btn.closest('.chip');
-      if(chip){ chip.parentNode.removeChild(chip); sync(); form.submit(); }
+      if(chip){ chip.parentNode.removeChild(chip); sync(); liveSearch(); }
     };
     window.onChipKey = function(e){
-      // Enter, Space, Comma → 칩 추가 (입력 안 끊김 방지: Space 는 미입력 시 무시)
-      if(e.key === 'Enter' || e.key === ',' ){
+      if(e.key === 'Enter' || e.key === ','){
         e.preventDefault();
-        if(inp.value.trim()){ addChip(inp.value); form.submit(); }
+        if(inp.value.trim()){ addChip(inp.value); }
+        liveSearch();
       } else if(e.key === ' '){
-        if(inp.value.trim()){
-          e.preventDefault();
-          addChip(inp.value);
-        }
+        if(inp.value.trim()){ e.preventDefault(); addChip(inp.value); liveSearch(); }
       } else if(e.key === 'Backspace' && !inp.value){
-        // 빈 입력에서 백스페이스 → 마지막 칩 제거
         var chips = box.querySelectorAll('.chip');
-        if(chips.length){ chips[chips.length-1].remove(); sync(); }
+        if(chips.length){ chips[chips.length-1].remove(); sync(); liveSearch(); }
       }
     };
     window.commitChip = function(){
       if(inp.value.trim()){ addChip(inp.value); }
+      sync();
     };
-    // 초기 sync
+
+    // ★ 타이핑하는 대로 자동 검색 (debounce 280ms — 엔터 불필요)
+    inp.addEventListener('input', function(){
+      clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(liveSearch, 280);
+    });
+    if(inStockCheckbox) inStockCheckbox.addEventListener('change', liveSearch);
+    if(locSelect) locSelect.addEventListener('change', liveSearch);
+    if(groupCheckbox) groupCheckbox.addEventListener('change', function(){ sync(); form.submit(); });
+
     sync();
-    // 폼 submit 직전 마지막 input 도 칩으로
+    // [필터 적용] 버튼 — 칩 commit 후 정상 submit (URL 갱신 + 공유 가능)
     form.addEventListener('submit', function(){
       if(inp.value.trim()){ addChip(inp.value); }
+      sync();
     });
   })();
   </script>
@@ -144,7 +232,7 @@
       <!-- 표 헤더 — 필터된 옵션 수 안내 (시안 C 의 표 헤더 이동) -->
       <div style="padding:10px 16px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #E5E8EB;background:#F9FAFB;font-size:11.5px;font-weight:600;color:#4E5968">
         <div>SKU</div>
-        <div style="color:#6B7684;font-weight:400;font-size:11px">
+        <div id="homeCountText" style="color:#6B7684;font-weight:400;font-size:11px">
           {% if stats.shown_limited %}
             <b style="color:#191F28;font-weight:700">{{ '{:,}'.format(stats.total) }}</b>건 중 상위 <b style="color:#191F28;font-weight:700">{{ '{:,}'.format(stats.shown) }}</b>개 표시 · <span style="color:#FF8E3C;font-weight:600">검색·필터로 좁히세요</span>
           {% else %}
@@ -181,7 +269,7 @@
               {% for loc in all_locs %}<th style="padding:8px;text-align:right;font-size:10.5px;color:#3182F6;background:#EFF6FF">{{ loc.name }}</th>{% endfor %}
             </tr>
           </thead>
-          <tbody>
+          <tbody id="homeTbody">
             {% for o in options %}
               {% set _bc = o.barcode or o.boxhero_sku or '—' %}
               {% set _brand = (o.model.brand or '—') if o.model else '—' %}
