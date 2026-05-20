@@ -3,24 +3,24 @@
 {% block content %}
 <div style="padding:24px 32px;max-width:1500px;margin:0 auto">
   <div style="display:flex;align-items:center;gap:14px;margin-bottom:14px">
-    <div style="font-size:12.5px;color:#9CA3AF">추가기능</div>
+    <div style="font-size:14px;color:#9CA3AF">추가기능</div>
     <h1 style="font-size:22px;font-weight:700;margin:0">재고 공유 링크</h1>
-    <span style="font-size:11.5px;color:#9CA3AF">총 {{ links|length }}개</span>
+    <span style="font-size:12px;color:#9CA3AF">총 {{ links|length }}개</span>
     <form method="post" action="{{ url_for('inventory.share_create') }}" style="margin-left:auto;display:flex;gap:6px;align-items:center">
-      <input name="name" placeholder="링크 이름" style="padding:8px 10px;border:1px solid #D1D6DB;border-radius:5px;font-size:12.5px;width:160px">
-      <button type="submit" style="background:#3182F6;color:#fff;padding:8px 16px;border:none;border-radius:5px;font-size:13px;font-weight:600;cursor:pointer">+ 새 링크</button>
+      <input name="name" placeholder="링크 이름" style="padding:8px 10px;border:1px solid #D1D6DB;border-radius:5px;font-size:14px;width:160px">
+      <button type="submit" style="background:#3182F6;color:#fff;padding:8px 16px;border:none;border-radius:5px;font-size:14px;font-weight:600;cursor:pointer">+ 새 링크</button>
     </form>
   </div>
-  {% with msgs = get_flashed_messages(with_categories=true) %}{% for cat,msg in msgs %}<div style="background:{% if cat=='error' %}#FEF2F2{% else %}#ECFDF5{% endif %};border:1px solid {% if cat=='error' %}#FCA5A5{% else %}#86EFAC{% endif %};padding:10px 14px;border-radius:6px;margin-bottom:12px;font-size:13px">{{ msg }}</div>{% endfor %}{% endwith %}
+  {% with msgs = get_flashed_messages(with_categories=true) %}{% for cat,msg in msgs %}<div style="background:{% if cat=='error' %}#FEF2F2{% else %}#ECFDF5{% endif %};border:1px solid {% if cat=='error' %}#FCA5A5{% else %}#86EFAC{% endif %};padding:10px 14px;border-radius:6px;margin-bottom:12px;font-size:14px">{{ msg }}</div>{% endfor %}{% endwith %}
   <div style="background:#fff;border:1px solid #E5E8EB;border-radius:8px;overflow:hidden">
-    <table style="width:100%;border-collapse:collapse;font-size:12.5px">
+    <table style="width:100%;border-collapse:collapse;font-size:14px">
       <thead style="background:#F9FAFB"><tr>
-        <th style="padding:9px;text-align:left;font-size:11px;color:#6B7684">#</th>
-        <th style="padding:9px;text-align:left;font-size:11px;color:#6B7684">이름</th>
-        <th style="padding:9px;text-align:left;font-size:11px;color:#6B7684">URL</th>
-        <th style="padding:9px;text-align:left;font-size:11px;color:#6B7684">생성</th>
-        <th style="padding:9px;text-align:left;font-size:11px;color:#6B7684">상태</th>
-        <th style="padding:9px;text-align:center;font-size:11px;color:#6B7684">액션</th>
+        <th style="padding:9px;text-align:left;font-size:12px;color:#6B7684">#</th>
+        <th style="padding:9px;text-align:left;font-size:12px;color:#6B7684">이름</th>
+        <th style="padding:9px;text-align:left;font-size:12px;color:#6B7684">URL</th>
+        <th style="padding:9px;text-align:left;font-size:12px;color:#6B7684">생성</th>
+        <th style="padding:9px;text-align:left;font-size:12px;color:#6B7684">상태</th>
+        <th style="padding:9px;text-align:center;font-size:12px;color:#6B7684">액션</th>
       </tr></thead>
       <tbody>
         {% for l in links %}<tr style="border-bottom:1px solid #F2F4F6">
@@ -29,15 +29,15 @@
           <td style="padding:9px;font-family:ui-monospace,monospace;font-size:10.5px">
             <a href="{{ url_for('inventory.share_public', token=l.token) }}" target="_blank" style="color:#3182F6;text-decoration:none">/inventory/share/public/{{ l.token[:16] }}...</a>
           </td>
-          <td style="padding:9px;font-size:11.5px;color:#8B95A1">{{ l.created_at.strftime('%Y-%m-%d') if l.created_at else '—' }}</td>
+          <td style="padding:9px;font-size:12px;color:#8B95A1">{{ l.created_at.strftime('%Y-%m-%d') if l.created_at else '—' }}</td>
           <td style="padding:9px"><span style="font-size:10.5px;padding:2px 7px;border-radius:3px;background:{% if l.revoked_at %}#FEE2E2;color:#991B1B{% else %}#DCFCE7;color:#15803D{% endif %};font-weight:600">{% if l.revoked_at %}폐기{% else %}활성{% endif %}</span></td>
           <td style="padding:9px;text-align:center">
-            {% if not l.revoked_at %}<form method="post" action="{{ url_for('inventory.share_revoke', link_id=l.id) }}" style="display:inline" onsubmit="return confirm('폐기?')"><button type="submit" style="background:#EF4444;color:#fff;padding:4px 10px;border:none;border-radius:4px;font-size:11px;cursor:pointer;font-weight:600">폐기</button></form>{% else %}—{% endif %}
+            {% if not l.revoked_at %}<form method="post" action="{{ url_for('inventory.share_revoke', link_id=l.id) }}" style="display:inline" onsubmit="return confirm('폐기?')"><button type="submit" style="background:#EF4444;color:#fff;padding:4px 10px;border:none;border-radius:4px;font-size:12px;cursor:pointer;font-weight:600">폐기</button></form>{% else %}—{% endif %}
           </td>
         </tr>{% else %}<tr><td colspan="6" style="padding:32px;text-align:center;color:#9CA3AF">링크 없음</td></tr>{% endfor %}
       </tbody>
     </table>
   </div>
-  <div style="margin-top:14px;font-size:11px;color:#9CA3AF">★ 토큰 기반 외부 read-only 공유. 폐기 시 즉시 무효화.</div>
+  <div style="margin-top:14px;font-size:12px;color:#9CA3AF">★ 토큰 기반 외부 read-only 공유. 폐기 시 즉시 무효화.</div>
 </div>
 {% endblock %}

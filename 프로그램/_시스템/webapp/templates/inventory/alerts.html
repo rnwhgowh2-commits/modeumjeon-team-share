@@ -5,37 +5,37 @@
   <h1 style="font-size:22px;font-weight:700;margin-bottom:18px">🚨 Alert 규칙</h1>
 
   <form method="post" action="{{ url_for('inventory.alert_create') }}" style="background:#fff;border:1px solid #E5E8EB;border-radius:8px;padding:16px;margin-bottom:18px;display:grid;gap:10px;grid-template-columns:1.5fr 1fr 1fr 0.6fr 1fr auto">
-    <input name="name" placeholder="규칙 이름 (예: 안전재고 미달)" required style="padding:8px 11px;border:1px solid #D1D6DB;border-radius:5px;font-size:13px">
-    <select name="metric" required style="padding:8px 11px;border:1px solid #D1D6DB;border-radius:5px;font-size:13px;background:#fff">
+    <input name="name" placeholder="규칙 이름 (예: 안전재고 미달)" required style="padding:8px 11px;border:1px solid #D1D6DB;border-radius:5px;font-size:14px">
+    <select name="metric" required style="padding:8px 11px;border:1px solid #D1D6DB;border-radius:5px;font-size:14px;background:#fff">
       <option value="">메트릭 선택</option>
       <option value="low_stock">안전재고 미달</option>
       <option value="po_overdue">발주 입고예정 초과</option>
       <option value="error_rate">에러율 (%)</option>
       <option value="response_time">응답시간 (ms)</option>
     </select>
-    <input name="threshold" type="number" step="0.1" placeholder="임계값" required style="padding:8px 11px;border:1px solid #D1D6DB;border-radius:5px;font-size:13px;text-align:right">
-    <select name="operator" style="padding:8px 11px;border:1px solid #D1D6DB;border-radius:5px;font-size:13px;background:#fff">
+    <input name="threshold" type="number" step="0.1" placeholder="임계값" required style="padding:8px 11px;border:1px solid #D1D6DB;border-radius:5px;font-size:14px;text-align:right">
+    <select name="operator" style="padding:8px 11px;border:1px solid #D1D6DB;border-radius:5px;font-size:14px;background:#fff">
       <option value=">">&gt;</option>
       <option value="<">&lt;</option>
       <option value="==">==</option>
     </select>
-    <select name="notify_category" style="padding:8px 11px;border:1px solid #D1D6DB;border-radius:5px;font-size:13px;background:#fff">
+    <select name="notify_category" style="padding:8px 11px;border:1px solid #D1D6DB;border-radius:5px;font-size:14px;background:#fff">
       <option value="system">system</option>
       <option value="low_stock">low_stock</option>
       <option value="penalty">penalty</option>
     </select>
-    <button type="submit" style="background:#4F67FF;color:#fff;padding:8px 18px;border:none;border-radius:5px;font-size:13px;font-weight:600;cursor:pointer">+ 추가</button>
+    <button type="submit" style="background:#4F67FF;color:#fff;padding:8px 18px;border:none;border-radius:5px;font-size:14px;font-weight:600;cursor:pointer">+ 추가</button>
   </form>
 
   <div style="background:#fff;border:1px solid #E5E8EB;border-radius:8px;overflow:hidden">
-    <table style="width:100%;border-collapse:collapse;font-size:12.5px">
+    <table style="width:100%;border-collapse:collapse;font-size:14px">
       <thead style="background:#F9FAFB"><tr>
-        <th style="padding:10px;text-align:left;font-size:11.5px;color:#4E5968">이름</th>
-        <th style="padding:10px;text-align:left;font-size:11.5px;color:#4E5968">메트릭</th>
-        <th style="padding:10px;text-align:right;font-size:11.5px;color:#4E5968">조건</th>
-        <th style="padding:10px;text-align:left;font-size:11.5px;color:#4E5968">알림 카테고리</th>
-        <th style="padding:10px;text-align:center;font-size:11.5px;color:#4E5968">상태</th>
-        <th style="padding:10px;text-align:center;font-size:11.5px;color:#4E5968">액션</th>
+        <th style="padding:10px;text-align:left;font-size:12px;color:#4E5968">이름</th>
+        <th style="padding:10px;text-align:left;font-size:12px;color:#4E5968">메트릭</th>
+        <th style="padding:10px;text-align:right;font-size:12px;color:#4E5968">조건</th>
+        <th style="padding:10px;text-align:left;font-size:12px;color:#4E5968">알림 카테고리</th>
+        <th style="padding:10px;text-align:center;font-size:12px;color:#4E5968">상태</th>
+        <th style="padding:10px;text-align:center;font-size:12px;color:#4E5968">액션</th>
       </tr></thead>
       <tbody>
       {% for a in items %}
@@ -46,7 +46,7 @@
         <td style="padding:9px 10px">{{ a.notify_category }}</td>
         <td style="padding:9px 10px;text-align:center"><span style="font-size:10.5px;padding:2px 8px;border-radius:3px;background:{% if a.active %}#DCFCE7;color:#15803D{% else %}#F3F4F6;color:#6B7280{% endif %};font-weight:600">{{ 'ON' if a.active else 'OFF' }}</span></td>
         <td style="padding:9px 10px;text-align:center">
-          <form method="post" action="{{ url_for('inventory.alert_toggle', aid=a.id) }}"><button type="submit" style="padding:5px 10px;background:#fff;border:1px solid #D1D6DB;color:#4E5968;border-radius:4px;font-size:11px;cursor:pointer">{{ '비활성' if a.active else '활성' }}</button></form>
+          <form method="post" action="{{ url_for('inventory.alert_toggle', aid=a.id) }}"><button type="submit" style="padding:5px 10px;background:#fff;border:1px solid #D1D6DB;color:#4E5968;border-radius:4px;font-size:12px;cursor:pointer">{{ '비활성' if a.active else '활성' }}</button></form>
         </td>
       </tr>
       {% else %}

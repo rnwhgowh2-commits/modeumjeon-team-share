@@ -3,32 +3,32 @@
 {% block content %}
 <div style="padding:24px 32px;max-width:1500px;margin:0 auto">
   <div style="display:flex;align-items:center;gap:14px;margin-bottom:14px">
-    <div style="font-size:12.5px;color:#9CA3AF">분석</div>
+    <div style="font-size:14px;color:#9CA3AF">분석</div>
     <h1 style="font-size:22px;font-weight:700;margin:0">매출 분석</h1>
-    <span style="font-size:11.5px;color:#9CA3AF">COGS snapshot 기반</span>
-    <a href="{{ url_for('inventory.sales_export') }}" style="margin-left:auto;background:#10B981;color:#fff;padding:8px 16px;border-radius:5px;font-size:13px;text-decoration:none;font-weight:600">📁 엑셀 내보내기</a>
+    <span style="font-size:12px;color:#9CA3AF">COGS snapshot 기반</span>
+    <a href="{{ url_for('inventory.sales_export') }}" style="margin-left:auto;background:#10B981;color:#fff;padding:8px 16px;border-radius:5px;font-size:14px;text-decoration:none;font-weight:600">📁 엑셀 내보내기</a>
   </div>
 
   <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:14px">
-    <div style="background:#fff;border:1px solid #E5E8EB;border-radius:8px;padding:16px"><div style="font-size:11px;color:#6B7684">총 매출</div><div style="font-size:22px;font-weight:700;color:#3182F6">{{ '{:,}'.format(total_rev) }}원</div></div>
-    <div style="background:#fff;border:1px solid #E5E8EB;border-radius:8px;padding:16px"><div style="font-size:11px;color:#6B7684">총 매입원가 (COGS)</div><div style="font-size:22px;font-weight:700;color:#F59E0B">{{ '{:,}'.format(total_cost) }}원</div></div>
-    <div style="background:#fff;border:1px solid #E5E8EB;border-radius:8px;padding:16px"><div style="font-size:11px;color:#6B7684">총 마진</div><div style="font-size:22px;font-weight:700;color:#10B981">{{ '{:,}'.format(total_margin) }}원 <span style="font-size:12px;color:#6B7684">({{ '%.1f%%'|format(total_margin/total_rev*100 if total_rev else 0) }})</span></div></div>
+    <div style="background:#fff;border:1px solid #E5E8EB;border-radius:8px;padding:16px"><div style="font-size:12px;color:#6B7684">총 매출</div><div style="font-size:22px;font-weight:700;color:#3182F6">{{ '{:,}'.format(total_rev) }}원</div></div>
+    <div style="background:#fff;border:1px solid #E5E8EB;border-radius:8px;padding:16px"><div style="font-size:12px;color:#6B7684">총 매입원가 (COGS)</div><div style="font-size:22px;font-weight:700;color:#F59E0B">{{ '{:,}'.format(total_cost) }}원</div></div>
+    <div style="background:#fff;border:1px solid #E5E8EB;border-radius:8px;padding:16px"><div style="font-size:12px;color:#6B7684">총 마진</div><div style="font-size:22px;font-weight:700;color:#10B981">{{ '{:,}'.format(total_margin) }}원 <span style="font-size:12px;color:#6B7684">({{ '%.1f%%'|format(total_margin/total_rev*100 if total_rev else 0) }})</span></div></div>
   </div>
 
   <div style="background:#fff;border:1px solid #E5E8EB;border-radius:8px;overflow:hidden">
     <table style="width:100%;border-collapse:collapse;font-size:12px">
       <thead style="background:#F9FAFB"><tr>
-        <th style="padding:9px;text-align:left;font-size:11px;color:#6B7684">출고일</th>
-        <th style="padding:9px;text-align:left;font-size:11px;color:#6B7684">SKU</th>
-        <th style="padding:9px;text-align:right;font-size:11px;color:#6B7684">수량</th>
-        <th style="padding:9px;text-align:right;font-size:11px;color:#6B7684">매출</th>
-        <th style="padding:9px;text-align:right;font-size:11px;color:#6B7684">매입원가</th>
-        <th style="padding:9px;text-align:right;font-size:11px;color:#6B7684">마진</th>
-        <th style="padding:9px;text-align:right;font-size:11px;color:#6B7684">마진율</th>
+        <th style="padding:9px;text-align:left;font-size:12px;color:#6B7684">출고일</th>
+        <th style="padding:9px;text-align:left;font-size:12px;color:#6B7684">SKU</th>
+        <th style="padding:9px;text-align:right;font-size:12px;color:#6B7684">수량</th>
+        <th style="padding:9px;text-align:right;font-size:12px;color:#6B7684">매출</th>
+        <th style="padding:9px;text-align:right;font-size:12px;color:#6B7684">매입원가</th>
+        <th style="padding:9px;text-align:right;font-size:12px;color:#6B7684">마진</th>
+        <th style="padding:9px;text-align:right;font-size:12px;color:#6B7684">마진율</th>
       </tr></thead>
       <tbody>
         {% for r in rows %}<tr style="border-bottom:1px solid #F2F4F6">
-          <td style="padding:8px 9px;font-size:11.5px">{{ r.tx.created_at.strftime('%Y-%m-%d') if r.tx.created_at else '—' }}</td>
+          <td style="padding:8px 9px;font-size:12px">{{ r.tx.created_at.strftime('%Y-%m-%d') if r.tx.created_at else '—' }}</td>
           <td style="padding:8px 9px;font-family:ui-monospace,monospace;font-size:10.5px">{{ r.tx.option_canonical_sku }}</td>
           <td style="padding:8px 9px;text-align:right">{{ r.tx.qty }}</td>
           <td style="padding:8px 9px;text-align:right;font-family:ui-monospace,monospace">{{ '{:,}'.format(r.revenue) }}</td>

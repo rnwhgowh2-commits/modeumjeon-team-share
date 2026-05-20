@@ -3,40 +3,40 @@
 {% block content %}
 <div style="padding:24px 32px;max-width:1500px;margin:0 auto">
   <div style="display:flex;align-items:center;gap:14px;margin-bottom:14px">
-    <div style="font-size:12.5px;color:#9CA3AF">데이터 관리</div>
+    <div style="font-size:14px;color:#9CA3AF">데이터 관리</div>
     <h1 style="font-size:22px;font-weight:700;margin:0">제품 엑셀 업로드</h1>
-    <span style="font-size:11.5px;color:#9CA3AF">우리 양식 16컬럼 또는 19컬럼 외부 양식 자동 변환</span>
+    <span style="font-size:12px;color:#9CA3AF">우리 양식 16컬럼 또는 19컬럼 외부 양식 자동 변환</span>
   </div>
 
   {% with msgs = get_flashed_messages(with_categories=true) %}
     {% for cat, msg in msgs %}
-      <div style="background:{% if cat=='error' %}#FEF2F2;border-color:#FCA5A5{% else %}#ECFDF5;border-color:#86EFAC{% endif %};border:1px solid;padding:12px 16px;border-radius:6px;margin-bottom:14px;font-size:13px;color:{% if cat=='error' %}#991B1B{% else %}#065F46{% endif %};white-space:pre-wrap">{{ msg }}</div>
+      <div style="background:{% if cat=='error' %}#FEF2F2;border-color:#FCA5A5{% else %}#ECFDF5;border-color:#86EFAC{% endif %};border:1px solid;padding:12px 16px;border-radius:6px;margin-bottom:14px;font-size:14px;color:{% if cat=='error' %}#991B1B{% else %}#065F46{% endif %};white-space:pre-wrap">{{ msg }}</div>
     {% endfor %}
   {% endwith %}
 
   {# 현재 상태 KPI #}
   <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:18px">
     <div style="background:#fff;border:1px solid #E5E8EB;border-radius:8px;padding:12px 14px">
-      <div style="font-size:11px;color:#6B7684">등록된 옵션</div>
+      <div style="font-size:12px;color:#6B7684">등록된 옵션</div>
       <div style="font-size:22px;font-weight:700;color:{% if verify.mapped_count > 0 %}#3182F6{% else %}#9CA3AF{% endif %}">{{ verify.mapped_count }}</div>
     </div>
     <div style="background:#fff;border:1px solid #E5E8EB;border-radius:8px;padding:12px 14px">
-      <div style="font-size:11px;color:#6B7684">평균매입가 ≥ 1</div>
+      <div style="font-size:12px;color:#6B7684">평균매입가 ≥ 1</div>
       <div style="font-size:22px;font-weight:700;color:{% if verify.with_avg_price > 0 %}#0E8056{% else %}#9CA3AF{% endif %}">{{ verify.with_avg_price }}</div>
     </div>
     <div style="background:#fff;border:1px solid #E5E8EB;border-radius:8px;padding:12px 14px">
-      <div style="font-size:11px;color:#6B7684">재고 보유</div>
+      <div style="font-size:12px;color:#6B7684">재고 보유</div>
       <div style="font-size:22px;font-weight:700;color:{% if verify.with_stock > 0 %}#0E8056{% else %}#9CA3AF{% endif %}">{{ verify.with_stock }}</div>
     </div>
     <div style="background:#fff;border:1px solid #E5E8EB;border-radius:8px;padding:12px 14px">
-      <div style="font-size:11px;color:#6B7684">총 재고 합산</div>
+      <div style="font-size:12px;color:#6B7684">총 재고 합산</div>
       <div style="font-size:22px;font-weight:700">{{ '{:,}'.format(verify.total_stock) }}</div>
     </div>
   </div>
 
   <div style="background:#fff;border:1px solid #E5E8EB;border-radius:8px;padding:20px">
     <h2 style="font-size:15px;font-weight:700;margin-bottom:12px">📥 제품 엑셀 업로드</h2>
-    <p style="font-size:12.5px;color:#6B7684;line-height:1.6;margin-bottom:16px">
+    <p style="font-size:14px;color:#6B7684;line-height:1.6;margin-bottom:16px">
       우리 양식(16컬럼) 또는 외부 양식(19컬럼) xlsx 를 업로드하면<br>
       ① 외부 양식은 자동으로 우리 양식으로 변환 (제품명에서 컬러 자동 추출) →
       ② 평균매입가·재고 자동 계산 (이동평균법) →
@@ -45,21 +45,21 @@
 
     <form method="post" action="{{ url_for('inventory.data_boxhero_import_upload') }}" enctype="multipart/form-data">
       <div style="display:flex;gap:10px;align-items:center;margin-bottom:12px">
-        <input type="file" name="xlsx" accept=".xlsx,.xls" required style="flex:1;padding:8px;border:1px dashed #D1D6DB;border-radius:6px;background:#F9FAFB;font-size:13px">
+        <input type="file" name="xlsx" accept=".xlsx,.xls" required style="flex:1;padding:8px;border:1px dashed #D1D6DB;border-radius:6px;background:#F9FAFB;font-size:14px">
         <label style="font-size:12px;color:#4E5968;display:flex;align-items:center;gap:4px">
           자동 매핑 임계점수
           <input type="number" name="threshold" value="80" min="50" max="100" style="width:60px;padding:5px 8px;border:1px solid #D1D6DB;border-radius:4px;font-size:12px">
         </label>
-        <button type="submit" style="background:#3182F6;color:#fff;padding:8px 18px;border:none;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer">⬆ 업로드 + import</button>
+        <button type="submit" style="background:#3182F6;color:#fff;padding:8px 18px;border:none;border-radius:6px;font-size:14px;font-weight:600;cursor:pointer">⬆ 업로드 + import</button>
       </div>
-      <div style="font-size:11px;color:#9CA3AF;line-height:1.5">
+      <div style="font-size:12px;color:#9CA3AF;line-height:1.5">
         <strong>임계점수:</strong> ≥80 자동 매핑 / 50~79 검토 큐 / &lt;50 unmapped (Q3 결정).<br>
         <strong>백업:</strong> 운영 DB는 <code>data/lemouton.db</code>, 1차 백업 <code>data/lemouton_pre_task02.db.bak</code>가 이미 있음.
       </div>
     </form>
   </div>
 
-  <div style="margin-top:20px;font-size:11px;color:#9CA3AF;line-height:1.6">
+  <div style="margin-top:20px;font-size:12px;color:#9CA3AF;line-height:1.6">
     <strong>지원 양식</strong>: ① 우리 양식 16컬럼 (SKU·바코드·브랜드·제품명·모델명·컬러·사이즈·카테고리·평균매입가·판매가·메모·총재고·그로스·기본위치·판매불가·생성일) ② 외부 양식 19컬럼 (제품명에서 컬러 자동 추출).<br>
     <strong>이동평균 계산</strong>: 동일 SKU 재업로드 시 평균매입가 가중평균으로 갱신.
   </div>

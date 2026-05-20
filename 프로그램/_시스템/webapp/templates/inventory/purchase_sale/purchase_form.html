@@ -7,7 +7,7 @@
             → 주문번호(자동) → 발주일 → 입고예정일 → 커스텀필드 → 첨부 → 메모 → 즉시처리. #}
 <div style="padding:24px 32px;max-width:1100px;margin:0 auto">
   <div style="display:flex;align-items:center;gap:14px;margin-bottom:14px">
-    <a href="{{ url_for('inventory.purchase_list') }}" style="font-size:12.5px;color:#4F67FF;text-decoration:none">구매 및 판매 / 구매</a>
+    <a href="{{ url_for('inventory.purchase_list') }}" style="font-size:14px;color:#4F67FF;text-decoration:none">구매 및 판매 / 구매</a>
     <h1 style="font-size:22px;font-weight:700;margin:0;color:#292A2F">발주서</h1>
   </div>
 
@@ -15,7 +15,7 @@
 
     {# ── 1. 공급자 (박스히어로 단일 라벨 + dropdown) ── #}
     <div>
-      <label style="display:block;font-size:13px;color:#191F28;margin-bottom:6px;font-weight:600">공급자</label>
+      <label style="display:block;font-size:14px;color:#191F28;margin-bottom:6px;font-weight:600">공급자</label>
       <input list="partner_options" name="partner_label" placeholder="공급자" autocomplete="off" data-autocomplete="partner" style="width:100%;max-width:480px;padding:10px 12px;border:1px solid #D1D6DB;border-radius:6px;font-size:13.5px;background:#fff">
       <datalist id="partner_options"></datalist>
     </div>
@@ -23,29 +23,29 @@
     {# ── 2. 제품 선택 ── #}
     <div>
       <div style="display:flex;align-items:center;margin-bottom:8px">
-        <label style="font-size:13px;color:#191F28;font-weight:600">제품 선택</label>
+        <label style="font-size:14px;color:#191F28;font-weight:600">제품 선택</label>
         <div style="margin-left:auto;display:flex;gap:6px">
-          <button type="button" style="background:#fff;border:1px solid #D1D6DB;color:#4E5968;padding:6px 12px;border-radius:5px;font-size:12.5px;cursor:pointer">📁 엑셀 가져오기</button>
-          <button type="button" style="background:#fff;border:1px solid #D1D6DB;color:#4E5968;padding:6px 12px;border-radius:5px;font-size:12.5px;cursor:pointer">📷 바코드 스캔</button>
+          <button type="button" style="background:#fff;border:1px solid #D1D6DB;color:#4E5968;padding:6px 12px;border-radius:5px;font-size:14px;cursor:pointer">📁 엑셀 가져오기</button>
+          <button type="button" style="background:#fff;border:1px solid #D1D6DB;color:#4E5968;padding:6px 12px;border-radius:5px;font-size:14px;cursor:pointer">📷 바코드 스캔</button>
         </div>
       </div>
-      <table style="width:100%;border-collapse:collapse;font-size:12.5px;border:1px solid #E5E8EB;border-radius:6px;overflow:hidden">
+      <table style="width:100%;border-collapse:collapse;font-size:14px;border:1px solid #E5E8EB;border-radius:6px;overflow:hidden">
         <thead style="background:#F9FAFB">
           <tr>
-            <th style="padding:10px 8px;text-align:left;font-size:11.5px;color:#4E5968;font-weight:600">제품</th>
-            <th style="padding:10px 8px;text-align:right;font-size:11.5px;color:#4E5968;font-weight:600;width:90px">수량</th>
-            <th style="padding:10px 8px;text-align:right;font-size:11.5px;color:#4E5968;font-weight:600;width:120px;cursor:pointer">단가 <span style="color:#9CA3AF;font-size:9.5px">▾</span></th>
-            <th style="padding:10px 8px;text-align:right;font-size:11.5px;color:#4E5968;font-weight:600;width:90px">할인</th>
-            <th style="padding:10px 8px;text-align:right;font-size:11.5px;color:#4E5968;font-weight:600;width:90px">세금</th>
-            <th style="padding:10px 8px;text-align:right;font-size:11.5px;color:#4E5968;font-weight:600;width:120px">금액</th>
-            <th style="padding:10px 8px;text-align:center;font-size:11px;color:#6B7684;width:32px"></th>
+            <th style="padding:10px 8px;text-align:left;font-size:12px;color:#4E5968;font-weight:600">제품</th>
+            <th style="padding:10px 8px;text-align:right;font-size:12px;color:#4E5968;font-weight:600;width:90px">수량</th>
+            <th style="padding:10px 8px;text-align:right;font-size:12px;color:#4E5968;font-weight:600;width:120px;cursor:pointer">단가 <span style="color:#9CA3AF;font-size:9.5px">▾</span></th>
+            <th style="padding:10px 8px;text-align:right;font-size:12px;color:#4E5968;font-weight:600;width:90px">할인</th>
+            <th style="padding:10px 8px;text-align:right;font-size:12px;color:#4E5968;font-weight:600;width:90px">세금</th>
+            <th style="padding:10px 8px;text-align:right;font-size:12px;color:#4E5968;font-weight:600;width:120px">금액</th>
+            <th style="padding:10px 8px;text-align:center;font-size:12px;color:#6B7684;width:32px"></th>
           </tr>
         </thead>
         <tbody id="lines"></tbody>
         <tfoot>
           <tr>
             <td colspan="7" style="padding:8px;background:#FAFBFC">
-              <button type="button" onclick="openProductModal()" style="display:flex;align-items:center;gap:6px;width:100%;padding:9px 12px;background:#fff;border:1px dashed #D1D6DB;border-radius:5px;color:#6B7684;font-size:12.5px;cursor:pointer">
+              <button type="button" onclick="openProductModal()" style="display:flex;align-items:center;gap:6px;width:100%;padding:9px 12px;background:#fff;border:1px dashed #D1D6DB;border-radius:5px;color:#6B7684;font-size:14px;cursor:pointer">
                 <span style="color:#3182F6">+</span> 제품 검색
               </button>
             </td>
@@ -56,7 +56,7 @@
 
     {# ── 3. 좌하단 KPI + 세금/할인 일괄 / 우하단 소계+총액 ── #}
     <div style="display:flex;align-items:center;padding:10px 4px;border-top:1px solid #F2F4F6;border-bottom:1px solid #F2F4F6">
-      <div style="display:flex;align-items:center;gap:14px;font-size:12.5px;color:#4E5968">
+      <div style="display:flex;align-items:center;gap:14px;font-size:14px;color:#4E5968">
         <span><strong id="kpiItems">0</strong>개 품목 / <strong id="kpiTotalQty">0</strong>개</span>
         <select onchange="td_preset(this.value)" style="padding:6px 12px;border:1px solid #D1D6DB;border-radius:5px;font-size:12px;background:#fff;color:#4E5968;cursor:pointer">
           <option value="">▾ 세금 및 할인 설정</option>
@@ -68,7 +68,7 @@
           <option value="reset">전체 초기화</option>
         </select>
       </div>
-      <div style="margin-left:auto;display:flex;align-items:center;gap:24px;font-size:13px;color:#4E5968">
+      <div style="margin-left:auto;display:flex;align-items:center;gap:24px;font-size:14px;color:#4E5968">
         <span>소계 <strong id="kpiSubtotal" style="color:#191F28">0</strong></span>
         <span style="font-size:14px">총액 <strong id="kpiTotal" style="color:#191F28;font-size:16px;font-weight:700">0</strong></span>
       </div>
@@ -79,31 +79,31 @@
 
     {# ── 4. 주문 번호 (박스히어로 폼 하단 위치) ── #}
     <div>
-      <label style="display:block;font-size:13px;color:#292A2F;margin-bottom:6px;font-weight:600">주문 번호</label>
+      <label style="display:block;font-size:14px;color:#292A2F;margin-bottom:6px;font-weight:600">주문 번호</label>
       <input name="po_number" placeholder="PO-000000" style="width:430px;max-width:100%;padding:9px 12px;border:1px solid #CBCCD3;border-radius:6px;font-size:13.5px;font-family:ui-monospace,monospace">
-      <div style="font-size:11.5px;color:#8F91A0;margin-top:4px">비워두면 자동으로 생성됩니다.</div>
+      <div style="font-size:12px;color:#8F91A0;margin-top:4px">비워두면 자동으로 생성됩니다.</div>
     </div>
 
     {# ── 5. 발주일 (박스히어로: text input + placeholder "현재") ── #}
     <div>
-      <label style="display:block;font-size:13px;color:#292A2F;margin-bottom:6px;font-weight:600">발주일</label>
+      <label style="display:block;font-size:14px;color:#292A2F;margin-bottom:6px;font-weight:600">발주일</label>
       <input type="datetime-local" name="order_date" value="{{ now_local }}" placeholder="현재" style="width:430px;max-width:100%;padding:9px 12px;border:1px solid #CBCCD3;border-radius:6px;font-size:13.5px">
     </div>
 
     {# ── 6. 입고 예정일 (placeholder 박스히어로 1:1) ── #}
     <div>
-      <label style="display:block;font-size:13px;color:#292A2F;margin-bottom:6px;font-weight:600">입고 예정일</label>
+      <label style="display:block;font-size:14px;color:#292A2F;margin-bottom:6px;font-weight:600">입고 예정일</label>
       <input type="datetime-local" name="due_date" placeholder="날짜를 선택해 주세요." style="width:430px;max-width:100%;padding:9px 12px;border:1px solid #CBCCD3;border-radius:6px;font-size:13.5px">
     </div>
 
     {# ── 7. 커스텀 필드 (박스히어로: "커스텀 필드 추가" 버튼 + ⓘ icon) ── #}
     <div>
       <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px">
-        <label style="font-size:13px;color:#292A2F;font-weight:600">커스텀 필드</label>
+        <label style="font-size:14px;color:#292A2F;font-weight:600">커스텀 필드</label>
         <span title="발주서에 사용자 정의 필드를 추가합니다" style="display:inline-flex;align-items:center;justify-content:center;width:14px;height:14px;border-radius:50%;background:#F1F1F4;color:#8F91A0;font-size:9.5px;font-weight:700;cursor:help">i</span>
       </div>
       <div id="customFields"></div>
-      <button type="button" onclick="addCustomField()" style="margin-top:6px;margin-left:32px;background:none;border:none;color:#4F67FF;padding:0;font-size:12.5px;font-weight:600;cursor:pointer">+ 커스텀 필드 추가</button>
+      <button type="button" onclick="addCustomField()" style="margin-top:6px;margin-left:32px;background:none;border:none;color:#4F67FF;padding:0;font-size:14px;font-weight:600;cursor:pointer">+ 커스텀 필드 추가</button>
     </div>
 
     {# ── 8. 첨부파일 ── #}
@@ -111,12 +111,12 @@
 
     {# ── 9. 메모 (박스히어로: 두 줄 placeholder 정확) ── #}
     <div>
-      <label style="display:block;font-size:13px;color:#292A2F;margin-bottom:6px;font-weight:600">메모</label>
+      <label style="display:block;font-size:14px;color:#292A2F;margin-bottom:6px;font-weight:600">메모</label>
       <textarea name="memo" rows="3" placeholder="메모 입력&#10;TIP) #태그 입력 시 목록에서 '태그'로 검색할 수 있습니다." style="width:100%;padding:10px 12px;border:1px solid #CBCCD3;border-radius:6px;font-size:13.5px;resize:vertical;font-family:inherit"></textarea>
     </div>
 
     {# ── 10. 즉시 입고 처리 (박스히어로 마침표 포함 정확) ── #}
-    <label style="display:flex;align-items:center;gap:8px;font-size:13px;color:#292A2F;cursor:pointer">
+    <label style="display:flex;align-items:center;gap:8px;font-size:14px;color:#292A2F;cursor:pointer">
       <input type="checkbox" name="immediate_inbound"> 발주 내역을 저장하고 즉시 입고 처리합니다.
     </label>
 
@@ -124,13 +124,13 @@
     <div style="display:flex;gap:8px;align-items:center;padding-top:8px;border-top:1px solid #F1F1F4">
       <button type="submit" id="submitBtn" disabled style="background:#4F67FF;color:#fff;padding:9px 22px;border:none;border-radius:5px;font-size:13.5px;font-weight:600;cursor:pointer;opacity:0.5">저장</button>
       <button type="submit" name="save_as_draft" value="1" style="background:#fff;border:1px solid #CBCCD3;color:#292A2F;padding:9px 22px;border-radius:5px;font-size:13.5px;font-weight:600;cursor:pointer">임시 저장</button>
-      <a href="{{ url_for('inventory.purchase_list') }}" style="margin-left:6px;padding:9px 8px;text-decoration:none;color:#8F91A0;font-size:13px">↶ 돌아가기</a>
+      <a href="{{ url_for('inventory.purchase_list') }}" style="margin-left:6px;padding:9px 8px;text-decoration:none;color:#8F91A0;font-size:14px">↶ 돌아가기</a>
     </div>
   </form>
 </div>
 
 {# 제품 선택 모달 #}
-<div id="productModal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);z-index:100;align-items:center;justify-content:center"><div style="background:#fff;border-radius:10px;width:760px;max-width:90vw;max-height:80vh;display:flex;flex-direction:column;box-shadow:0 10px 40px rgba(0,0,0,0.2)"><div style="padding:18px 22px;border-bottom:1px solid #E5E8EB;display:flex;align-items:center;gap:12px"><h3 style="font-size:16px;font-weight:700;margin:0">제품 선택</h3><span id="modalCount" style="font-size:11.5px;color:#6B7684"></span><button type="button" onclick="closeProductModal()" style="margin-left:auto;background:none;border:none;color:#9CA3AF;font-size:22px;cursor:pointer">×</button></div><div style="padding:14px 22px;border-bottom:1px solid #E5E8EB"><input id="productSearch" type="text" placeholder="이름, 바코드, 속성 검색" style="width:100%;padding:9px 12px;border:1px solid #D1D6DB;border-radius:5px;font-size:13px" oninput="filterProducts()"></div><div style="overflow-y:auto;flex:1"><table style="width:100%;border-collapse:collapse;font-size:12.5px"><thead style="background:#F9FAFB;position:sticky;top:0"><tr><th style="padding:9px;width:36px;text-align:center"><input type="checkbox" id="modalCheckAll" onclick="modalToggleAll(this)"></th><th style="padding:9px;text-align:left;font-size:11px;color:#6B7684">SKU</th><th style="padding:9px;text-align:left;font-size:11px;color:#6B7684">색상/사이즈</th><th style="padding:9px;text-align:right;font-size:11px;color:#6B7684">평균매입가</th></tr></thead><tbody id="modalProductRows"></tbody></table></div><div style="padding:14px 22px;border-top:1px solid #E5E8EB;display:flex;align-items:center;gap:8px"><span id="modalSelected" style="font-size:12px;color:#6B7684">선택 0개</span><button type="button" onclick="closeProductModal()" style="margin-left:auto;padding:8px 16px;border:1px solid #D1D6DB;background:#fff;color:#4E5968;border-radius:5px;font-size:12.5px;cursor:pointer">취소</button><button type="button" onclick="addSelected()" style="padding:8px 18px;background:#3182F6;color:#fff;border:none;border-radius:5px;font-size:12.5px;font-weight:600;cursor:pointer">선택 항목 추가</button></div></div></div>
+<div id="productModal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);z-index:100;align-items:center;justify-content:center"><div style="background:#fff;border-radius:10px;width:760px;max-width:90vw;max-height:80vh;display:flex;flex-direction:column;box-shadow:0 10px 40px rgba(0,0,0,0.2)"><div style="padding:18px 22px;border-bottom:1px solid #E5E8EB;display:flex;align-items:center;gap:12px"><h3 style="font-size:16px;font-weight:700;margin:0">제품 선택</h3><span id="modalCount" style="font-size:12px;color:#6B7684"></span><button type="button" onclick="closeProductModal()" style="margin-left:auto;background:none;border:none;color:#9CA3AF;font-size:22px;cursor:pointer">×</button></div><div style="padding:14px 22px;border-bottom:1px solid #E5E8EB"><input id="productSearch" type="text" placeholder="이름, 바코드, 속성 검색" style="width:100%;padding:9px 12px;border:1px solid #D1D6DB;border-radius:5px;font-size:14px" oninput="filterProducts()"></div><div style="overflow-y:auto;flex:1"><table style="width:100%;border-collapse:collapse;font-size:14px"><thead style="background:#F9FAFB;position:sticky;top:0"><tr><th style="padding:9px;width:36px;text-align:center"><input type="checkbox" id="modalCheckAll" onclick="modalToggleAll(this)"></th><th style="padding:9px;text-align:left;font-size:12px;color:#6B7684">SKU</th><th style="padding:9px;text-align:left;font-size:12px;color:#6B7684">색상/사이즈</th><th style="padding:9px;text-align:right;font-size:12px;color:#6B7684">평균매입가</th></tr></thead><tbody id="modalProductRows"></tbody></table></div><div style="padding:14px 22px;border-top:1px solid #E5E8EB;display:flex;align-items:center;gap:8px"><span id="modalSelected" style="font-size:12px;color:#6B7684">선택 0개</span><button type="button" onclick="closeProductModal()" style="margin-left:auto;padding:8px 16px;border:1px solid #D1D6DB;background:#fff;color:#4E5968;border-radius:5px;font-size:14px;cursor:pointer">취소</button><button type="button" onclick="addSelected()" style="padding:8px 18px;background:#3182F6;color:#fff;border:none;border-radius:5px;font-size:14px;font-weight:600;cursor:pointer">선택 항목 추가</button></div></div></div>
 
 <script>
 const OPTIONS = {{ opt_data | tojson }};
@@ -155,7 +155,7 @@ function renderLines(){
     const subtotal=(l.qty||0)*(l.price||0);
     const amount=subtotal-(l.disc||0)+(l.tax||0);
     return `<tr style="border-top:1px solid #F2F4F6">
-      <td style="padding:7px 8px;font-family:ui-monospace,monospace;font-size:11px;color:#191F28"><input type="hidden" name="sku" value="${l.sku}">${l.sku}</td>
+      <td style="padding:7px 8px;font-family:ui-monospace,monospace;font-size:12px;color:#191F28"><input type="hidden" name="sku" value="${l.sku}">${l.sku}</td>
       <td style="padding:5px 6px"><input type="number" name="qty" min="1" value="${l.qty}" required onchange="onLineChange(${i},'qty',this.value)" style="width:100%;padding:6px;border:1px solid #D1D6DB;border-radius:4px;font-size:12px;text-align:right"></td>
       <td style="padding:5px 6px"><input type="number" name="unit_price" min="0" value="${l.price}" onchange="onLineChange(${i},'price',this.value)" style="width:100%;padding:6px;border:1px solid #D1D6DB;border-radius:4px;font-size:12px;text-align:right"></td>
       <td style="padding:5px 6px"><input type="number" name="line_disc" min="0" value="${l.disc||0}" onchange="onLineChange(${i},'disc',this.value)" style="width:100%;padding:6px;border:1px solid #D1D6DB;border-radius:4px;font-size:12px;text-align:right;color:#EF4444"></td>
@@ -202,7 +202,7 @@ function td_preset(v){
 }
 
 // 커스텀 필드
-function addCustomField(){const wrap=document.getElementById('customFields');const div=document.createElement('div');div.style='display:grid;grid-template-columns:auto 1fr 1fr auto;gap:6px;margin-bottom:6px;align-items:center';div.innerHTML='<span style="width:24px;color:#8F91A0">⚏</span><input name="cf_key" placeholder="필드명" style="padding:8px 10px;border:1px solid #CBCCD3;border-radius:5px;font-size:13px"><input name="cf_value" placeholder="필드 값" style="padding:8px 10px;border:1px solid #CBCCD3;border-radius:5px;font-size:13px"><button type="button" onclick="this.parentElement.remove()" style="background:none;border:none;color:#8F91A0;font-size:16px;cursor:pointer">×</button>';wrap.appendChild(div)}
+function addCustomField(){const wrap=document.getElementById('customFields');const div=document.createElement('div');div.style='display:grid;grid-template-columns:auto 1fr 1fr auto;gap:6px;margin-bottom:6px;align-items:center';div.innerHTML='<span style="width:24px;color:#8F91A0">⚏</span><input name="cf_key" placeholder="필드명" style="padding:8px 10px;border:1px solid #CBCCD3;border-radius:5px;font-size:14px"><input name="cf_value" placeholder="필드 값" style="padding:8px 10px;border:1px solid #CBCCD3;border-radius:5px;font-size:14px"><button type="button" onclick="this.parentElement.remove()" style="background:none;border:none;color:#8F91A0;font-size:16px;cursor:pointer">×</button>';wrap.appendChild(div)}
 
 // 거래처 자동완성 datalist 채우기
 document.querySelector('input[name=partner_label]').addEventListener('input', e => {

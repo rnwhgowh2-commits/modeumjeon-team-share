@@ -9,26 +9,26 @@
 
   {% with msgs = get_flashed_messages(with_categories=true) %}
     {% for cat,msg in msgs %}
-      <div style="background:{% if cat=='error' %}#FEF2F2{% else %}#ECFDF5{% endif %};border:1px solid {% if cat=='error' %}#FCA5A5{% else %}#86EFAC{% endif %};padding:10px 14px;border-radius:6px;margin-bottom:12px;font-size:13px">{{ msg }}</div>
+      <div style="background:{% if cat=='error' %}#FEF2F2{% else %}#ECFDF5{% endif %};border:1px solid {% if cat=='error' %}#FCA5A5{% else %}#86EFAC{% endif %};padding:10px 14px;border-radius:6px;margin-bottom:12px;font-size:14px">{{ msg }}</div>
     {% endfor %}
   {% endwith %}
 
   <!-- 요약 통계 4 카드 -->
   <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px">
     <div style="background:#fff;border:1px solid #E5E8EB;border-radius:8px;padding:14px">
-      <div style="font-size:11px;color:#6B7684">총 옵션</div>
+      <div style="font-size:12px;color:#6B7684">총 옵션</div>
       <div style="font-size:22px;font-weight:700">{{ stats.total }}</div>
     </div>
     <div style="background:#fff;border:1px solid #E5E8EB;border-radius:8px;padding:14px">
-      <div style="font-size:11px;color:#6B7684">SKU 매핑</div>
+      <div style="font-size:12px;color:#6B7684">SKU 매핑</div>
       <div style="font-size:22px;font-weight:700;color:#3182F6">{{ stats.mapped }}<span style="font-size:12px;color:#9CA3AF;font-weight:400"> / {{ stats.total }}</span></div>
     </div>
     <div style="background:#fff;border:1px solid #E5E8EB;border-radius:8px;padding:14px">
-      <div style="font-size:11px;color:#6B7684">재고 보유</div>
+      <div style="font-size:12px;color:#6B7684">재고 보유</div>
       <div style="font-size:22px;font-weight:700;color:#7C3AED">{{ stats.with_stock }}</div>
     </div>
     <div style="background:#fff;border:1px solid #E5E8EB;border-radius:8px;padding:14px">
-      <div style="font-size:11px;color:#6B7684">평균매입가 박제</div>
+      <div style="font-size:12px;color:#6B7684">평균매입가 박제</div>
       <div style="font-size:22px;font-weight:700;color:#059669">{{ stats.with_avg }}</div>
     </div>
   </div>
@@ -36,7 +36,7 @@
   <!-- 필터 -->
   <form method="get" action="{{ url_for('inventory.matrix_view') }}" style="background:#fff;border:1px solid #E5E8EB;border-radius:8px;padding:12px 16px;margin-bottom:12px;display:flex;gap:12px;align-items:center;flex-wrap:wrap">
     <label style="font-size:12px;color:#4E5968;font-weight:600">모델</label>
-    <select name="model_code" style="padding:6px 10px;border:1px solid #D1D6DB;border-radius:5px;font-size:12.5px;min-width:200px">
+    <select name="model_code" style="padding:6px 10px;border:1px solid #D1D6DB;border-radius:5px;font-size:14px;min-width:200px">
       <option value="">전체 ({{ all_models|length }} 모델)</option>
       {% for m in all_models %}
         <option value="{{ m.model_code }}" {% if model_filter == m.model_code %}selected{% endif %}>{{ m.model_code }} — {{ m.model_name_display or m.model_name_raw }}</option>
@@ -45,14 +45,14 @@
     <label style="font-size:12px;color:#4E5968;display:flex;align-items:center;gap:6px;cursor:pointer">
       <input type="checkbox" name="unmapped" value="1" {% if unmapped_only %}checked{% endif %}> 미매핑만
     </label>
-    <button type="submit" style="background:#3182F6;color:#fff;padding:6px 14px;border:none;border-radius:5px;font-size:12.5px;font-weight:600;cursor:pointer">필터 적용</button>
+    <button type="submit" style="background:#3182F6;color:#fff;padding:6px 14px;border:none;border-radius:5px;font-size:14px;font-weight:600;cursor:pointer">필터 적용</button>
     <a href="{{ url_for('inventory.matrix_view') }}" style="padding:6px 12px;border:1px solid #D1D6DB;border-radius:5px;text-decoration:none;color:#4E5968;font-size:12px">초기화</a>
-    <span style="margin-left:auto;font-size:11px;color:#9CA3AF">★ 우선순위: 옵션 → 모델 → 템플릿</span>
+    <span style="margin-left:auto;font-size:12px;color:#9CA3AF">★ 우선순위: 옵션 → 모델 → 템플릿</span>
   </form>
 
   <!-- 매트릭스 테이블 -->
   <div style="background:#fff;border:1px solid #E5E8EB;border-radius:8px;overflow:auto">
-    <table style="width:100%;border-collapse:collapse;font-size:11.5px;min-width:1500px">
+    <table style="width:100%;border-collapse:collapse;font-size:12px;min-width:1500px">
       <thead style="background:#F9FAFB;position:sticky;top:0;z-index:5">
         <tr>
           <th style="padding:9px 8px;text-align:left;font-size:10.5px;color:#6B7684;border-bottom:1px solid #E5E8EB;min-width:140px">SKU</th>
@@ -78,7 +78,7 @@
             <td style="padding:7px 8px;font-family:ui-monospace,monospace;font-size:10.5px">{{ opt.canonical_sku }}</td>
             <td style="padding:7px 8px;font-family:ui-monospace,monospace;font-size:10.5px;{% if not opt.barcode %}color:#9CA3AF{% endif %}">{{ opt.barcode or '—' }}</td>
             {% set _art = (opt.model.article_no or '') if (opt.model and opt.model.article_no is defined) else '' %}
-            <td style="padding:7px 8px;font-family:ui-monospace,monospace;font-size:11px;{% if not _art %}color:#9CA3AF{% else %}color:#111827{% endif %}">{{ _art or '—' }}</td>
+            <td style="padding:7px 8px;font-family:ui-monospace,monospace;font-size:12px;{% if not _art %}color:#9CA3AF{% else %}color:#111827{% endif %}">{{ _art or '—' }}</td>
             <td style="padding:7px 8px;color:{% if (opt.color_display or opt.color_code) %}#111827{% else %}#9CA3AF{% endif %}">{{ cleaned_color.get(opt.canonical_sku, 'ONE Color') if cleaned_color else ((opt.color_display or opt.color_code) | color_or_default) }}</td>
             <td style="padding:7px 8px;color:{% if (opt.size_display or opt.size_code) %}#111827{% else %}#9CA3AF{% endif %}">{{ (opt.size_display or opt.size_code) | size_or_default }}</td>
             <td style="padding:7px 8px;text-align:right;font-weight:{% if (opt.boxhero_stock_total or 0) > 0 %}600{% else %}400{% endif %};color:{% if (opt.boxhero_stock_total or 0) == 0 %}#9CA3AF{% else %}#111827{% endif %}">{{ opt.boxhero_stock_total or 0 }}</td>
@@ -90,9 +90,9 @@
             <td style="padding:7px 8px;background:#F0FDF4">
               <span style="font-size:10px;padding:1px 5px;border-radius:3px;background:{% if r.self.source_layer=='option' %}#10B981;color:#fff{% elif r.self.source_layer=='model' %}#FBBF24;color:#fff{% else %}#E5E7EB;color:#4B5563{% endif %};font-weight:600">{{ r.self.source_layer }}</span>
               {% if r.self.mode == 'rate' %}
-                <span style="font-family:ui-monospace,monospace;font-size:11px">{{ '%.2f'|format(r.self.value/100) }}%</span>
+                <span style="font-family:ui-monospace,monospace;font-size:12px">{{ '%.2f'|format(r.self.value/100) }}%</span>
               {% else %}
-                <span style="font-family:ui-monospace,monospace;font-size:11px">+{{ '{:,}'.format(r.self.value) }}원</span>
+                <span style="font-family:ui-monospace,monospace;font-size:12px">+{{ '{:,}'.format(r.self.value) }}원</span>
               {% endif %}
             </td>
             <td style="padding:7px 8px;text-align:right;background:{% if use_purchase %}#FEF3C7;border:2px solid #F59E0B{% else %}#F0FDF4{% endif %};font-family:ui-monospace,monospace;font-weight:{% if use_purchase %}700{% else %}600{% endif %};color:{% if r.self.sale_price > 0 %}#059669{% else %}#9CA3AF{% endif %};font-size:{% if use_purchase %}13px{% else %}11.5px{% endif %}">
@@ -103,9 +103,9 @@
             <td style="padding:7px 8px;background:#FAF5FF">
               <span style="font-size:10px;padding:1px 5px;border-radius:3px;background:{% if r.external.source_layer=='option' %}#7C3AED;color:#fff{% else %}#E5E7EB;color:#4B5563{% endif %};font-weight:600">{{ r.external.source_layer }}</span>
               {% if r.external.mode == 'rate' %}
-                <span style="font-family:ui-monospace,monospace;font-size:11px">{{ '%.2f'|format(r.external.value/100) }}%</span>
+                <span style="font-family:ui-monospace,monospace;font-size:12px">{{ '%.2f'|format(r.external.value/100) }}%</span>
               {% else %}
-                <span style="font-family:ui-monospace,monospace;font-size:11px">+{{ '{:,}'.format(r.external.value) }}원</span>
+                <span style="font-family:ui-monospace,monospace;font-size:12px">+{{ '{:,}'.format(r.external.value) }}원</span>
               {% endif %}
             </td>
             <td style="padding:7px 8px;text-align:right;background:#FAF5FF;font-family:ui-monospace,monospace;color:{% if use_purchase %}#9CA3AF{% elif r.external.sale_price > 0 %}#7C3AED{% else %}#9CA3AF{% endif %};font-weight:{% if use_purchase %}400{% else %}600{% endif %};text-decoration:{% if use_purchase %}line-through{% endif %}">
@@ -134,7 +134,7 @@
     </table>
   </div>
 
-  <div style="margin-top:14px;font-size:11px;color:#9CA3AF;line-height:1.7">
+  <div style="margin-top:14px;font-size:12px;color:#9CA3AF;line-height:1.7">
     ★ 색상 의미 — 자체(초록 #059669) = 자체 사입 / 외부(보라 #7C3AED) = 소싱처 사입.<br>
     ★ source_layer 라벨 — 옵션(녹색/보라) = 인라인 오버라이드 적용 / 모델(노랑) = 모델 오버라이드 / 템플릿(회색) = 가격템플릿 default.<br>
     ★ <strong style="color:#92400E">사입재고 활성화 ON</strong> — 자체 판매가가 활성 가격(주황 강조), 외부 판매가는 취소선. OFF 면 외부 판매가 활성.<br>
@@ -146,7 +146,7 @@
 <div id="editModal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);z-index:100;align-items:center;justify-content:center">
   <div style="background:#fff;border-radius:10px;padding:24px;max-width:480px;width:90%;box-shadow:0 10px 40px rgba(0,0,0,0.2)">
     <h3 id="editTitle" style="font-size:16px;font-weight:700;margin-bottom:6px">사입 마진 편집</h3>
-    <div id="editSubtitle" style="font-size:11.5px;color:#6B7684;margin-bottom:16px"></div>
+    <div id="editSubtitle" style="font-size:12px;color:#6B7684;margin-bottom:16px"></div>
 
     <div style="display:grid;gap:12px">
       <div>
@@ -163,11 +163,11 @@
 
       <div>
         <label style="display:block;font-size:12px;color:#4E5968;margin-bottom:5px;font-weight:600">값 *</label>
-        <input type="number" id="editValue" min="0" style="width:100%;padding:9px 12px;border:1px solid #D1D6DB;border-radius:5px;font-size:13px;font-family:ui-monospace,monospace">
-        <div id="editHint" style="font-size:11px;color:#9CA3AF;margin-top:4px"></div>
+        <input type="number" id="editValue" min="0" style="width:100%;padding:9px 12px;border:1px solid #D1D6DB;border-radius:5px;font-size:14px;font-family:ui-monospace,monospace">
+        <div id="editHint" style="font-size:12px;color:#9CA3AF;margin-top:4px"></div>
       </div>
 
-      <div id="editPreview" style="background:#F9FAFB;border:1px solid #E5E8EB;border-radius:6px;padding:10px 12px;font-size:11.5px;color:#4E5968;display:none">
+      <div id="editPreview" style="background:#F9FAFB;border:1px solid #E5E8EB;border-radius:6px;padding:10px 12px;font-size:12px;color:#4E5968;display:none">
         <strong>계산 미리보기</strong>
         <div id="editPreviewBody" style="margin-top:4px;line-height:1.7"></div>
       </div>

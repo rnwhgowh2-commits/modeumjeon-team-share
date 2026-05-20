@@ -4,19 +4,19 @@
 {# 박스히어로 1:1 + 모음전 차별점 — 외부 연동 (스마트스토어·쿠팡·박스히어로 import·자동화 워크플로). #}
 <div style="padding:24px 32px;max-width:1500px;margin:0 auto">
   <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px">
-    <div style="font-size:12.5px;color:#8F91A0">설정</div>
+    <div style="font-size:14px;color:#8F91A0">설정</div>
     <h1 style="font-size:22px;font-weight:700;margin:0;color:#292A2F">연동 설정</h1>
     <span title="외부 시스템 연동 — 마켓 / 박스히어로 / Excel API / 모음전 자동화 워크플로" style="display:inline-flex;align-items:center;justify-content:center;width:14px;height:14px;border-radius:50%;background:#F1F1F4;color:#8F91A0;font-size:9.5px;font-weight:700;cursor:help">i</span>
   </div>
 
   <div style="display:flex;gap:0;border-bottom:1px solid #E5E8EB;margin-bottom:18px">
-    <a href="{{ url_for('inventory.settings_view') }}" style="padding:10px 18px;text-decoration:none;font-size:13px;font-weight:500;color:#8F91A0">팀 설정</a>
-    <a href="{{ url_for('inventory.settings_notifications_view') }}" style="padding:10px 18px;text-decoration:none;font-size:13px;font-weight:500;color:#8F91A0">알림 설정</a>
-    <a href="{{ url_for('inventory.settings_purchase_sale_view') }}" style="padding:10px 18px;text-decoration:none;font-size:13px;font-weight:500;color:#8F91A0">구매 및 판매</a>
-    <a style="padding:10px 18px;text-decoration:none;font-size:13px;font-weight:700;color:#4F67FF;border-bottom:2px solid #4F67FF;margin-bottom:-1px">연동 설정</a>
+    <a href="{{ url_for('inventory.settings_view') }}" style="padding:10px 18px;text-decoration:none;font-size:14px;font-weight:500;color:#8F91A0">팀 설정</a>
+    <a href="{{ url_for('inventory.settings_notifications_view') }}" style="padding:10px 18px;text-decoration:none;font-size:14px;font-weight:500;color:#8F91A0">알림 설정</a>
+    <a href="{{ url_for('inventory.settings_purchase_sale_view') }}" style="padding:10px 18px;text-decoration:none;font-size:14px;font-weight:500;color:#8F91A0">구매 및 판매</a>
+    <a style="padding:10px 18px;text-decoration:none;font-size:14px;font-weight:700;color:#4F67FF;border-bottom:2px solid #4F67FF;margin-bottom:-1px">연동 설정</a>
   </div>
 
-  {% with msgs = get_flashed_messages(with_categories=true) %}{% for cat,msg in msgs %}<div style="background:{% if cat=='error' %}#FEF2F2{% else %}#ECFDF5{% endif %};border:1px solid {% if cat=='error' %}#FCA5A5{% else %}#86EFAC{% endif %};padding:10px 14px;border-radius:6px;margin-bottom:12px;font-size:13px;color:{% if cat=='error' %}#991B1B{% else %}#065F46{% endif %}">{{ msg }}</div>{% endfor %}{% endwith %}
+  {% with msgs = get_flashed_messages(with_categories=true) %}{% for cat,msg in msgs %}<div style="background:{% if cat=='error' %}#FEF2F2{% else %}#ECFDF5{% endif %};border:1px solid {% if cat=='error' %}#FCA5A5{% else %}#86EFAC{% endif %};padding:10px 14px;border-radius:6px;margin-bottom:12px;font-size:14px;color:{% if cat=='error' %}#991B1B{% else %}#065F46{% endif %}">{{ msg }}</div>{% endfor %}{% endwith %}
 
   <div style="background:#fff;border:1px solid #E5E8EB;border-radius:8px;padding:18px 20px;margin-bottom:14px">
     <h3 style="font-size:14px;font-weight:600;color:#292A2F;margin:0 0 14px">마켓 연동 (모음전 자동화 차별점)</h3>
@@ -29,10 +29,10 @@
           <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
             <span style="font-size:16px">{{ icon }}</span>
             <span style="font-size:13.5px;font-weight:600;color:#292A2F">{{ label }}</span>
-            <span style="margin-left:auto;font-size:11px;padding:2px 8px;border-radius:3px;background:{% if pref.get(code+'_active') %}#22C55E{% else %}#8F91A0{% endif %};color:#fff;font-weight:600">{% if pref.get(code+'_active') %}활성{% else %}비활성{% endif %}</span>
+            <span style="margin-left:auto;font-size:12px;padding:2px 8px;border-radius:3px;background:{% if pref.get(code+'_active') %}#22C55E{% else %}#8F91A0{% endif %};color:#fff;font-weight:600">{% if pref.get(code+'_active') %}활성{% else %}비활성{% endif %}</span>
           </div>
-          <div style="font-size:11.5px;color:#8F91A0;margin-bottom:10px;line-height:1.5">{{ desc }}</div>
-          <a href="/accounts/upload?market={{ code }}" style="font-size:11.5px;color:#4F67FF;text-decoration:none;font-weight:600">설정 →</a>
+          <div style="font-size:12px;color:#8F91A0;margin-bottom:10px;line-height:1.5">{{ desc }}</div>
+          <a href="/accounts/upload?market={{ code }}" style="font-size:12px;color:#4F67FF;text-decoration:none;font-weight:600">설정 →</a>
         </div>
       {% endfor %}
     </div>
@@ -42,27 +42,27 @@
     <h3 style="font-size:14px;font-weight:600;color:#292A2F;margin:0 0 14px">박스히어로 import</h3>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
       <div>
-        <label style="display:flex;align-items:center;gap:6px;font-size:12.5px;color:#292A2F;font-weight:600">
+        <label style="display:flex;align-items:center;gap:6px;font-size:14px;color:#292A2F;font-weight:600">
           <input type="checkbox" name="bh_active" {% if pref.get('bh_active') %}checked{% endif %} style="accent-color:#4F67FF"> 박스히어로 활성 매핑 사용
         </label>
-        <div style="font-size:11.5px;color:#8F91A0;margin-top:4px">매핑 큐 + 자동 매핑 100/80/50 fuzzy</div>
+        <div style="font-size:12px;color:#8F91A0;margin-top:4px">매핑 큐 + 자동 매핑 100/80/50 fuzzy</div>
       </div>
       <div>
-        <label style="display:block;font-size:12.5px;color:#292A2F;margin-bottom:5px;font-weight:600">최근 import</label>
-        <div style="font-family:ui-monospace,monospace;font-size:11.5px;color:#292A2F">{{ pref.get('bh_last_import') or '— (아직 import 없음)' }}</div>
-        <a href="{{ url_for('inventory.data_boxhero_import') }}" style="font-size:11.5px;color:#4F67FF;text-decoration:none;font-weight:600">import 페이지 →</a>
+        <label style="display:block;font-size:14px;color:#292A2F;margin-bottom:5px;font-weight:600">최근 import</label>
+        <div style="font-family:ui-monospace,monospace;font-size:12px;color:#292A2F">{{ pref.get('bh_last_import') or '— (아직 import 없음)' }}</div>
+        <a href="{{ url_for('inventory.data_boxhero_import') }}" style="font-size:12px;color:#4F67FF;text-decoration:none;font-weight:600">import 페이지 →</a>
       </div>
     </div>
 
     <h3 style="font-size:14px;font-weight:600;color:#292A2F;margin:24px 0 14px">📁 Excel API (선택)</h3>
     <div>
-      <label style="display:flex;align-items:center;gap:6px;font-size:12.5px;color:#292A2F">
+      <label style="display:flex;align-items:center;gap:6px;font-size:14px;color:#292A2F">
         <input type="checkbox" name="excel_api" {% if pref.get('excel_api') %}checked{% endif %} style="accent-color:#4F67FF"> Excel 일괄 가져오기·내보내기 활성화 (제품/거래/리포트)
       </label>
     </div>
 
-    <h3 style="font-size:14px;font-weight:600;color:#292A2F;margin:24px 0 14px">🤖 모음전 자동화 워크플로 <span style="font-size:11px;color:#8F91A0;font-weight:400">— 차별점</span></h3>
-    <div style="background:#EEF1FE;border:1px solid #4F67FF;border-radius:6px;padding:14px 16px;font-size:12.5px;color:#1E40AF;line-height:1.7">
+    <h3 style="font-size:14px;font-weight:600;color:#292A2F;margin:24px 0 14px">🤖 모음전 자동화 워크플로 <span style="font-size:12px;color:#8F91A0;font-weight:400">— 차별점</span></h3>
+    <div style="background:#EEF1FE;border:1px solid #4F67FF;border-radius:6px;padding:14px 16px;font-size:14px;color:#1E40AF;line-height:1.7">
       ★ <strong>박스히어로 미보유 — 우리만의 차별점</strong><br>
       소싱처 (무신사·SSF·롯데 등) 자동 크롤링 → 가격·재고 동기화 → 마켓 (스마트스토어·쿠팡) 자동 등록·업데이트.<br>
       <a href="/" style="color:#4F67FF;text-decoration:none;font-weight:600;display:inline-block;margin-top:8px">자동화 페이지로 이동 →</a>
@@ -73,6 +73,6 @@
     </div>
   </form>
 
-  <div style="margin-top:14px;font-size:11px;color:#8F91A0;line-height:1.7">★ 박스히어로 1:1 + 차별점 — 마켓 연동 (스마트스토어·쿠팡) + 박스히어로 import + Excel API + 모음전 자동화 워크플로 (소싱처 → 마켓).</div>
+  <div style="margin-top:14px;font-size:12px;color:#8F91A0;line-height:1.7">★ 박스히어로 1:1 + 차별점 — 마켓 연동 (스마트스토어·쿠팡) + 박스히어로 import + Excel API + 모음전 자동화 워크플로 (소싱처 → 마켓).</div>
 </div>
 {% endblock %}

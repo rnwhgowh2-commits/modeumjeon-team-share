@@ -4,8 +4,8 @@
 <div>
   <label style="display:block;font-size:12px;color:#4E5968;margin-bottom:4px;font-weight:600">{{ label }} <span style="font-weight:400;color:#9CA3AF">(드래그앤드롭 또는 클릭)</span></label>
   <div id="attDropzone" style="border:1px dashed #CBCCD3;border-radius:6px;padding:14px;text-align:center;background:#F1F1F4;cursor:pointer;transition:all 0.15s">
-    <div style="font-size:13px;color:#292A2F;margin-bottom:2px">파일을 끌어다 놓거나 붙여넣기로 첨부할 수 있습니다.</div>
-    <div style="font-size:11px;color:#8F91A0">PDF / 이미지 / 엑셀 / 워드 · 최대 10MB</div>
+    <div style="font-size:14px;color:#292A2F;margin-bottom:2px">파일을 끌어다 놓거나 붙여넣기로 첨부할 수 있습니다.</div>
+    <div style="font-size:12px;color:#8F91A0">PDF / 이미지 / 엑셀 / 워드 · 최대 10MB</div>
     <input type="file" id="attFile" multiple accept=".pdf,.png,.jpg,.jpeg,.webp,.xlsx,.xls,.docx,.doc,.csv,.txt" style="display:none">
   </div>
   <div id="attList" style="margin-top:8px;display:flex;flex-direction:column;gap:5px"></div>
@@ -20,7 +20,7 @@
   let files=[];
   function render(){
     if(!files.length){list.innerHTML='';return;}
-    list.innerHTML=files.map((f,i)=>`<div style="display:flex;align-items:center;gap:8px;padding:6px 10px;background:#fff;border:1px solid #E5E8EB;border-radius:5px;font-size:12px"><span style="font-size:14px">${f.icon}</span><span style="flex:1;color:#191F28">${f.name}</span><span style="color:#6B7684;font-size:11px">${f.size_label}</span><button type="button" onclick="window.__attRemove(${i})" style="background:none;border:none;color:#EF4444;cursor:pointer;font-size:14px">×</button></div>`).join('');
+    list.innerHTML=files.map((f,i)=>`<div style="display:flex;align-items:center;gap:8px;padding:6px 10px;background:#fff;border:1px solid #E5E8EB;border-radius:5px;font-size:12px"><span style="font-size:14px">${f.icon}</span><span style="flex:1;color:#191F28">${f.name}</span><span style="color:#6B7684;font-size:12px">${f.size_label}</span><button type="button" onclick="window.__attRemove(${i})" style="background:none;border:none;color:#EF4444;cursor:pointer;font-size:14px">×</button></div>`).join('');
     data.value=JSON.stringify(files);
   }
   window.__attRemove=function(i){files.splice(i,1);render()};

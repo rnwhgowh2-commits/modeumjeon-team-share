@@ -5,13 +5,13 @@
 
   <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px">
     <h1 style="font-size:20px;font-weight:700">🔍 PO #{{ po.id }} 입고 검사</h1>
-    <span style="font-size:11.5px;color:#6B7684">{{ po.partner_label or '—' }} · {{ po.created_at.strftime('%Y-%m-%d %H:%M') if po.created_at else '—' }}</span>
+    <span style="font-size:12px;color:#6B7684">{{ po.partner_label or '—' }} · {{ po.created_at.strftime('%Y-%m-%d %H:%M') if po.created_at else '—' }}</span>
     <span style="margin-left:auto;font-size:10.5px;padding:3px 9px;border-radius:3px;background:#DBEAFE;color:#1E40AF;font-weight:600">{{ po.status }}</span>
   </div>
 
   {% with msgs = get_flashed_messages(with_categories=true) %}
     {% for cat,msg in msgs %}
-      <div style="background:{% if cat=='error' %}#FEF2F2{% else %}#ECFDF5{% endif %};border:1px solid {% if cat=='error' %}#FCA5A5{% else %}#86EFAC{% endif %};padding:10px 14px;border-radius:6px;margin-bottom:12px;font-size:13px">{{ msg }}</div>
+      <div style="background:{% if cat=='error' %}#FEF2F2{% else %}#ECFDF5{% endif %};border:1px solid {% if cat=='error' %}#FCA5A5{% else %}#86EFAC{% endif %};padding:10px 14px;border-radius:6px;margin-bottom:12px;font-size:14px">{{ msg }}</div>
     {% endfor %}
   {% endwith %}
 
@@ -20,37 +20,37 @@
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px">
       <div>
         <label style="display:block;font-size:12px;color:#4E5968;margin-bottom:4px;font-weight:600">입고 위치 *</label>
-        <select name="location_id" required style="width:100%;padding:8px 12px;border:1px solid #D1D6DB;border-radius:5px;font-size:13px">
+        <select name="location_id" required style="width:100%;padding:8px 12px;border:1px solid #D1D6DB;border-radius:5px;font-size:14px">
           {% for loc in locations %}<option value="{{ loc.id }}">{{ loc.name }}</option>{% endfor %}
         </select>
       </div>
       <div>
         <label style="display:block;font-size:12px;color:#4E5968;margin-bottom:4px;font-weight:600">검사자</label>
-        <input name="created_by" placeholder="운영자" style="width:100%;padding:8px 12px;border:1px solid #D1D6DB;border-radius:5px;font-size:13px">
+        <input name="created_by" placeholder="운영자" style="width:100%;padding:8px 12px;border:1px solid #D1D6DB;border-radius:5px;font-size:14px">
       </div>
     </div>
 
     <div>
       <label style="display:block;font-size:12px;color:#4E5968;margin-bottom:4px;font-weight:600">메모</label>
-      <input name="memo" placeholder="(선택) 검사 메모" style="width:100%;padding:8px 12px;border:1px solid #D1D6DB;border-radius:5px;font-size:13px">
+      <input name="memo" placeholder="(선택) 검사 메모" style="width:100%;padding:8px 12px;border:1px solid #D1D6DB;border-radius:5px;font-size:14px">
     </div>
 
-    <h3 style="font-size:13px;font-weight:600;margin:18px 0 8px">라인별 검사 ({{ items|length }} 품목)</h3>
+    <h3 style="font-size:14px;font-weight:600;margin:18px 0 8px">라인별 검사 ({{ items|length }} 품목)</h3>
     <div style="border:1px solid #E5E8EB;border-radius:6px;overflow:hidden">
-      <table style="width:100%;border-collapse:collapse;font-size:12.5px">
+      <table style="width:100%;border-collapse:collapse;font-size:14px">
         <thead style="background:#F9FAFB">
           <tr>
-            <th style="padding:8px;text-align:left;font-size:11px;color:#6B7684">SKU</th>
-            <th style="padding:8px;text-align:right;font-size:11px;color:#6B7684">예상</th>
-            <th style="padding:8px;text-align:right;font-size:11px;color:#6B7684">실제 입고</th>
-            <th style="padding:8px;text-align:right;font-size:11px;color:#6B7684">차이</th>
-            <th style="padding:8px;text-align:right;font-size:11px;color:#6B7684">단가</th>
+            <th style="padding:8px;text-align:left;font-size:12px;color:#6B7684">SKU</th>
+            <th style="padding:8px;text-align:right;font-size:12px;color:#6B7684">예상</th>
+            <th style="padding:8px;text-align:right;font-size:12px;color:#6B7684">실제 입고</th>
+            <th style="padding:8px;text-align:right;font-size:12px;color:#6B7684">차이</th>
+            <th style="padding:8px;text-align:right;font-size:12px;color:#6B7684">단가</th>
           </tr>
         </thead>
         <tbody>
           {% for it in items %}
             <tr style="border-top:1px solid #F2F4F6" data-idx="{{ loop.index0 }}" data-expected="{{ it.qty or 0 }}">
-              <td style="padding:8px;font-family:ui-monospace,monospace;font-size:11px">{{ it.sku }}</td>
+              <td style="padding:8px;font-family:ui-monospace,monospace;font-size:12px">{{ it.sku }}</td>
               <td style="padding:8px;text-align:right;font-family:ui-monospace,monospace">{{ it.qty or 0 }}</td>
               <td style="padding:6px 8px;text-align:right">
                 <input type="number" name="received_{{ loop.index0 }}" min="0" value="{{ it.qty or 0 }}" style="width:90px;padding:5px 8px;border:1px solid #D1D6DB;border-radius:4px;font-size:12px;text-align:right;font-family:ui-monospace,monospace" oninput="updateDiff(this)">
@@ -66,12 +66,12 @@
     </div>
 
     <div style="display:flex;gap:8px;margin-top:18px">
-      <a href="{{ url_for('inventory.inspection_list') }}" style="padding:9px 18px;border:1px solid #D1D6DB;border-radius:5px;text-decoration:none;color:#4E5968;font-size:13px">취소</a>
-      <button type="submit" style="background:#3182F6;color:#fff;padding:9px 22px;border:none;border-radius:5px;font-size:13px;font-weight:600;cursor:pointer">🔍 검사 처리</button>
+      <a href="{{ url_for('inventory.inspection_list') }}" style="padding:9px 18px;border:1px solid #D1D6DB;border-radius:5px;text-decoration:none;color:#4E5968;font-size:14px">취소</a>
+      <button type="submit" style="background:#3182F6;color:#fff;padding:9px 22px;border:none;border-radius:5px;font-size:14px;font-weight:600;cursor:pointer">🔍 검사 처리</button>
     </div>
   </form>
 
-  <div style="margin-top:14px;font-size:11px;color:#9CA3AF;line-height:1.7">
+  <div style="margin-top:14px;font-size:12px;color:#9CA3AF;line-height:1.7">
     ★ 라인별 실제 입고 수량 입력. 0 = 미입고 (Tx 생성 ❌). 차이 발생 시 메모에 자동 기록.<br>
     ★ 모두 예상=실제 → status='completed' / 일부만 입고 → 'partial' (재검사 가능).
   </div>

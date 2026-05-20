@@ -35,7 +35,7 @@
   .filter-bar{background:#fff;border:1px solid var(--tk-n200);border-radius:8px;padding:10px 14px;
               margin-top:14px;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
   .filter-bar select,.filter-bar input{padding:6px 10px;border:1px solid #CBCCD3;border-radius:5px;
-                                        font-size:12.5px;color:var(--tk-n900);outline:none}
+                                        font-size:14px;color:var(--tk-n900);outline:none}
   .filter-bar .chip-box{flex:1;min-width:240px;display:flex;align-items:center;flex-wrap:wrap;gap:6px;
                         padding:6px 8px;border:1px solid #CBCCD3;border-radius:5px;background:#fff;min-height:32px}
   .filter-bar .chip{display:inline-flex;align-items:center;gap:4px;background:#EFF6FF;color:var(--tk-primary);
@@ -49,22 +49,22 @@
   /* 표 (공통) */
   .table-wrap{background:#fff;border:1px solid var(--tk-n200);border-radius:8px;overflow:hidden;margin-top:14px}
   .table-head{padding:10px 16px;display:flex;justify-content:space-between;align-items:center;
-              border-bottom:1px solid var(--tk-n200);background:var(--tk-n50);font-size:11.5px;
+              border-bottom:1px solid var(--tk-n200);background:var(--tk-n50);font-size:12px;
               font-weight:var(--tk-w-mid);color:var(--tk-n700)}
-  .table-head .right{color:var(--tk-n600);font-weight:var(--tk-w-reg);font-size:11px}
+  .table-head .right{color:var(--tk-n600);font-weight:var(--tk-w-reg);font-size:12px}
   .table-head .right b{color:var(--tk-n900);font-weight:var(--tk-w-bold)}
   .table-head .right .warn{color:var(--tk-orange);font-weight:var(--tk-w-mid)}
-  .row{display:flex;padding:8px 16px;border-bottom:1px solid var(--tk-n100);font-size:11.5px;color:var(--tk-n900);align-items:center}
+  .row{display:flex;padding:8px 16px;border-bottom:1px solid var(--tk-n100);font-size:12px;color:var(--tk-n900);align-items:center}
   .row:last-child{border-bottom:0}
-  .row .sku{flex:1;font-family:ui-monospace,monospace;font-size:11px}
-  .row .meta{font-size:11px;color:var(--tk-n600);margin-right:18px}
+  .row .sku{flex:1;font-family:ui-monospace,monospace;font-size:12px}
+  .row .meta{font-size:12px;color:var(--tk-n600);margin-right:18px}
   .row .stock{font-weight:var(--tk-w-mid);font-family:ui-monospace,monospace;min-width:48px;text-align:right}
   .row .stock.pos{color:var(--tk-violet)}
   .row .stock.zero{color:var(--tk-n400)}
 
   /* === 시안 A — 박스히어로 1:1 카드 3장 (현재 + 필터된 옵션 표 헤더 이동) === */
   .a-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
-  .a-stats .ck-card .ck-label{font-size:11px}
+  .a-stats .ck-card .ck-label{font-size:12px}
   .a-stats .ck-card.violet .ck-value{color:var(--tk-violet)}
   .a-stats .ck-card.blue .ck-value{color:var(--tk-primary)}
 
@@ -72,7 +72,7 @@
   .b-inline{background:#fff;border:1px solid var(--tk-n200);border-radius:8px;padding:14px 18px;
             display:flex;gap:32px;align-items:baseline}
   .b-inline .pair{display:flex;align-items:baseline;gap:8px}
-  .b-inline .pair .lbl{font-size:11px;color:var(--tk-n600)}
+  .b-inline .pair .lbl{font-size:12px;color:var(--tk-n600)}
   .b-inline .pair .val{font-size:22px;font-weight:var(--tk-w-bold);color:var(--tk-n900);font-family:'SF Mono',ui-monospace,monospace}
   .b-inline .pair .val.violet{color:var(--tk-violet)}
   .b-inline .pair .val.blue{color:var(--tk-primary)}
@@ -81,12 +81,12 @@
   /* === 시안 C — KPI 강조 (큰 숫자 + 비율 보조) === */
   .c-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
   .c-card{background:#fff;border:1px solid var(--tk-n200);border-radius:10px;padding:18px 22px}
-  .c-card .lbl{font-size:11.5px;color:var(--tk-n600);font-weight:var(--tk-w-mid);text-transform:uppercase;letter-spacing:0.04em}
+  .c-card .lbl{font-size:12px;color:var(--tk-n600);font-weight:var(--tk-w-mid);text-transform:uppercase;letter-spacing:0.04em}
   .c-card .val{font-size:36px;font-weight:var(--tk-w-bold);color:var(--tk-n900);
                font-family:'SF Mono',ui-monospace,monospace;letter-spacing:-0.03em;margin-top:6px;line-height:1.1}
   .c-card .val.violet{color:var(--tk-violet)}
   .c-card .val.blue{color:var(--tk-primary)}
-  .c-card .sub{font-size:11.5px;color:var(--tk-n600);margin-top:6px}
+  .c-card .sub{font-size:12px;color:var(--tk-n600);margin-top:6px}
   .c-card .sub b{color:var(--tk-n900);font-weight:var(--tk-w-mid)}
 
   /* === 시안 D — 단일 통합 카드 (한 카드 안에 모든 KPI) === */
@@ -98,14 +98,14 @@
                      font-family:'SF Mono',ui-monospace,monospace;letter-spacing:-0.03em;margin-top:4px}
   .d-card .kpi .val.violet{color:var(--tk-violet)}
   .d-card .kpi .val.blue{color:var(--tk-primary)}
-  .d-card .kpi .sub{font-size:11px;color:var(--tk-n600);margin-top:2px}
+  .d-card .kpi .sub{font-size:12px;color:var(--tk-n600);margin-top:2px}
   .d-card .vbar{width:1px;background:var(--tk-n200);align-self:stretch}
 
   /* === 시안 E — 사이드 KPI + 메인 표 (좌측 narrow 사이드) === */
   .e-grid{display:grid;grid-template-columns:220px 1fr;gap:14px;align-items:start}
   .e-side{display:flex;flex-direction:column;gap:10px}
   .e-side .ck-card{padding:14px}
-  .e-side .ck-card .ck-label{font-size:11px}
+  .e-side .ck-card .ck-label{font-size:12px}
   .e-side .ck-card .ck-value{font-size:22px}
   .e-side .ck-card.violet .ck-value{color:var(--tk-violet)}
   .e-side .ck-card.blue .ck-value{color:var(--tk-primary)}
@@ -115,7 +115,7 @@
 <div style="padding:32px 0;background:var(--tk-n100)">
   <div style="max-width:1920px;margin:0 auto;padding:0 24px 16px">
     <h1 style="font-size:24px;font-weight:700;color:var(--tk-n900);margin:0">📐 인벤토리 통계 카드 — 5 시안 비교</h1>
-    <p style="font-size:13px;color:var(--tk-n600);margin:8px 0 0">
+    <p style="font-size:14px;color:var(--tk-n600);margin:8px 0 0">
       박스히어로 매핑 제거 / "재고 1개 이상 보유 SKU 수" 라벨 / "필터된 옵션 수" 표 우측 상단 이동.
       샘플 데이터: 무필터 (총 SKU 807 / 재고 보유 219 / 총 재고 700) — limit 500 표시.
     </p>
@@ -144,7 +144,7 @@
       <div class="filter-bar">
         <select><option>모든 위치</option></select>
         <div class="chip-box">
-          <span style="font-size:12.5px;color:#999">이름, 바코드, 속성 검색</span>
+          <span style="font-size:14px;color:#999">이름, 바코드, 속성 검색</span>
         </div>
         <label><input type="checkbox"> 재고 보유</label>
         <label><input type="checkbox"> 묶어보기</label>
@@ -179,7 +179,7 @@
 
       <div class="filter-bar">
         <select><option>모든 위치</option></select>
-        <div class="chip-box"><span style="font-size:12.5px;color:#999">이름, 바코드, 속성 검색</span></div>
+        <div class="chip-box"><span style="font-size:14px;color:#999">이름, 바코드, 속성 검색</span></div>
         <label><input type="checkbox"> 재고 보유</label>
         <button class="btn">필터 적용</button>
       </div>
@@ -223,7 +223,7 @@
 
       <div class="filter-bar">
         <select><option>모든 위치</option></select>
-        <div class="chip-box"><span style="font-size:12.5px;color:#999">이름, 바코드, 속성 검색</span></div>
+        <div class="chip-box"><span style="font-size:14px;color:#999">이름, 바코드, 속성 검색</span></div>
         <label><input type="checkbox"> 재고 보유</label>
         <button class="btn">필터 적용</button>
       </div>
@@ -267,7 +267,7 @@
 
       <div class="filter-bar">
         <select><option>모든 위치</option></select>
-        <div class="chip-box"><span style="font-size:12.5px;color:#999">이름, 바코드, 속성 검색</span></div>
+        <div class="chip-box"><span style="font-size:14px;color:#999">이름, 바코드, 속성 검색</span></div>
         <button class="btn">필터 적용</button>
       </div>
 
@@ -306,7 +306,7 @@
         <div class="e-main">
           <div class="filter-bar" style="margin-top:0">
             <select><option>모든 위치</option></select>
-            <div class="chip-box"><span style="font-size:12.5px;color:#999">이름, 바코드, 속성 검색</span></div>
+            <div class="chip-box"><span style="font-size:14px;color:#999">이름, 바코드, 속성 검색</span></div>
             <label><input type="checkbox"> 재고 보유</label>
             <button class="btn">필터 적용</button>
           </div>
@@ -332,7 +332,7 @@
 
   <div style="max-width:1920px;margin:24px auto 32px;padding:0 24px">
     <h2 style="font-size:16px;font-weight:700;color:var(--tk-n900);margin-bottom:12px">📊 시안 비교 매트릭스</h2>
-    <table style="width:100%;background:#fff;border:1px solid var(--tk-n200);border-radius:8px;border-collapse:collapse;font-size:12.5px;overflow:hidden">
+    <table style="width:100%;background:#fff;border:1px solid var(--tk-n200);border-radius:8px;border-collapse:collapse;font-size:14px;overflow:hidden">
       <thead style="background:var(--tk-n50)">
         <tr><th style="padding:10px 14px;text-align:left;color:var(--tk-n700);font-weight:600;border-bottom:1px solid var(--tk-n200)">시안</th>
         <th style="padding:10px 14px;text-align:left;color:var(--tk-n700);font-weight:600;border-bottom:1px solid var(--tk-n200)">스타일</th>

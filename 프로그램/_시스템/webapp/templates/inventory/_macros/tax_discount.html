@@ -3,11 +3,11 @@
 {% macro tax_discount_section() %}
 <div style="border:1px solid #E5E8EB;border-radius:6px;padding:12px;background:#FAFBFC">
   <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
-    <strong style="font-size:12.5px;color:#191F28">세금 및 할인</strong>
-    <span style="font-size:11px;color:#9CA3AF">(라인별이 아닌 거래 전체)</span>
-    <button type="button" onclick="td_addTax()" style="margin-left:auto;background:#fff;border:1px dashed #D1D6DB;color:#4E5968;padding:4px 10px;border-radius:5px;font-size:11.5px;cursor:pointer">+ 세금 추가</button>
-    <button type="button" onclick="td_addDiscount()" style="background:#fff;border:1px dashed #D1D6DB;color:#4E5968;padding:4px 10px;border-radius:5px;font-size:11.5px;cursor:pointer">+ 할인 추가</button>
-    <select id="td_preset" onchange="td_preset(this.value)" style="padding:4px 10px;border:1px solid #D1D6DB;border-radius:5px;font-size:11.5px;background:#fff">
+    <strong style="font-size:14px;color:#191F28">세금 및 할인</strong>
+    <span style="font-size:12px;color:#9CA3AF">(라인별이 아닌 거래 전체)</span>
+    <button type="button" onclick="td_addTax()" style="margin-left:auto;background:#fff;border:1px dashed #D1D6DB;color:#4E5968;padding:4px 10px;border-radius:5px;font-size:12px;cursor:pointer">+ 세금 추가</button>
+    <button type="button" onclick="td_addDiscount()" style="background:#fff;border:1px dashed #D1D6DB;color:#4E5968;padding:4px 10px;border-radius:5px;font-size:12px;cursor:pointer">+ 할인 추가</button>
+    <select id="td_preset" onchange="td_preset(this.value)" style="padding:4px 10px;border:1px solid #D1D6DB;border-radius:5px;font-size:12px;background:#fff">
       <option value="">▾ 일괄 적용</option>
       <option value="vat10_incl">부가세 10% (포함)</option>
       <option value="vat10_excl">부가세 10% (별도)</option>
@@ -23,7 +23,7 @@
   <div style="display:flex;justify-content:flex-end;gap:14px;margin-top:8px;padding-top:8px;border-top:1px solid #E5E8EB;font-size:12px;color:#4E5968">
     <span>세금 합계: <strong id="td_taxTotal" style="color:#191F28">0</strong>원</span>
     <span>할인 합계: <strong id="td_dcTotal" style="color:#EF4444">0</strong>원</span>
-    <span>총액: <strong id="td_grandTotal" style="color:#3182F6;font-size:13px">0</strong>원</span>
+    <span>총액: <strong id="td_grandTotal" style="color:#3182F6;font-size:14px">0</strong>원</span>
   </div>
 </div>
 <script>
