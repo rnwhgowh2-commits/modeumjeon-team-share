@@ -96,6 +96,9 @@ shared/product_display.py
 lemouton/inventory/models.py
 webapp/templates/bundles/new.html
 scripts/migrate_product_share_v1.py
+# 제품 공유 v1 ②③④⑤ — 제품 복사·일괄생성·삭제경고·역참조 + 옵션-재고 연결
+webapp/routes/api_pricing.py
+webapp/templates/bundles/_matrix_v3.html
 
 # ─── 신규 전용 라인 패턴 (sync.py 가 line-level 처리) ───
 # config.py:DATABASE_URL
