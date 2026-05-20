@@ -781,10 +781,11 @@
 
     /* ④ 옵션 재고연결 — 인라인 검색(시안2) + 찾아보기 팝업(시안1) */
     .ipl-wrap { margin-bottom: 8px; }
-    .ipl-cell { display: flex; align-items: center; gap: 6px; }
-    .ipl-isearch-box { position: relative; flex: 1; min-width: 0; }
-    .ipl-isearch { width: 100%; border: 1.5px solid var(--primary, #3182F6); border-radius: 7px; padding: 6px 9px; font-size: 13px; font-family: var(--font); }
-    .ipl-browse { background: var(--primary-tint, #EAF3FF); color: var(--primary, #3182F6); border: 0; border-radius: 7px; padding: 6px 9px; font-size: 12px; font-weight: 800; cursor: pointer; font-family: var(--font); white-space: nowrap; }
+    /* 검색칸은 셀 전체 폭을 차지하도록 세로 스택 — 가로 배치 시 입력칸이 0px 로 찌그러져 한글 IME 입력이 깨짐 */
+    .ipl-cell { display: flex; flex-direction: column; align-items: stretch; gap: 5px; }
+    .ipl-isearch-box { position: relative; min-width: 0; }
+    .ipl-isearch { width: 100%; box-sizing: border-box; border: 1.5px solid var(--primary, #3182F6); border-radius: 7px; padding: 7px 10px; font-size: 14px; font-family: var(--font); }
+    .ipl-browse { width: 100%; box-sizing: border-box; background: var(--primary-tint, #EAF3FF); color: var(--primary, #3182F6); border: 0; border-radius: 7px; padding: 7px 9px; font-size: 12.5px; font-weight: 800; cursor: pointer; font-family: var(--font); white-space: nowrap; }
     .ipl-dd { position: absolute; top: 36px; left: 0; width: 380px; max-width: 92vw; background: #fff; border: 1px solid var(--n200, #e5e8eb); border-radius: 9px; box-shadow: 0 12px 32px rgba(0,0,0,.16); z-index: 20; overflow: hidden; }
     .ipl-dd-h { padding: 7px 11px; background: var(--n100, #f9fafb); border-bottom: 1px solid var(--n100, #f2f4f6); font-size: 12px; color: var(--n500, #6B7684); font-weight: 700; display: flex; align-items: center; gap: 5px; flex-wrap: wrap; }
     .ipl-tok { background: var(--primary-tint, #EAF3FF); color: var(--primary, #3182F6); border-radius: 4px; padding: 1px 6px; font-size: 11px; font-weight: 800; }
