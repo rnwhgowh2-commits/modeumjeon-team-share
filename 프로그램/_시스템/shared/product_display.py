@@ -77,6 +77,7 @@ def compute_display_maps(
     get_brand=lambda o: (o.model.brand if o.model else '') or '',
     get_model_code=lambda o: o.model_code or '',
     get_model_name=lambda o: (o.model.model_name_display or o.model.model_name_raw if o.model else '') or '',
+    get_model_name_display=lambda o: (o.model.model_name_display if o.model else '') or '',
     get_color=lambda o: (o.color_display or o.color_code or ''),
     one_color_label: str = 'ONE Color',
 ) -> tuple[dict[str, str], dict[str, str]]:
@@ -106,13 +107,22 @@ def compute_display_maps(
         sku = get_sku(opt)
         raw_c = (get_color(opt) or '').strip()
         mc = get_model_code(opt) or ''
+        brand_v = (get_brand(opt) or '').strip()
+
+        # model_name_display 가 명시 설정된 모델 = 모델명·색상이 이미 분리된 정리 데이터.
+        # LCP 추론을 건너뛰고 저장값을 그대로 신뢰 — 단일 색상 모델의 모델명↔색상 오분리 방지.
+        mnd = (get_model_name_display(opt) or '').strip()
+        if mnd:
+            display_pname[sku] = strip_brand_tokens(mnd, brand_v) or mnd
+            cleaned_color[sku] = raw_c or one_color_label
+            continue
+
         prefix = model_lcp.get(mc, '')
         if prefix and raw_c.startswith(prefix):
             cleaned = raw_c[len(prefix):].strip() or one_color_label
         else:
             cleaned = raw_c or one_color_label
 
-        brand_v = (get_brand(opt) or '').strip()
         raw_pname = (get_model_name(opt) or '').strip()
         # 색상이 제품명과 통째로 같은 더러운 케이스 → ONE Color
         if cleaned and raw_pname and cleaned == raw_pname:
