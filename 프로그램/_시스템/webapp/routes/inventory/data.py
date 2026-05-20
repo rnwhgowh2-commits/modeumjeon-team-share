@@ -869,12 +869,14 @@ def data_price_templates_update_margin(tpl_id):
     return redirect(url_for('inventory.data_price_templates'))
 
 
-@bp.get('/data/items/export.xlsx')
+@bp.route('/data/items/export.xlsx', methods=['GET', 'POST'])
 def data_items_export():
     """우리 양식 8 base 컬럼 + 동적 위치별 재고 컬럼 엑셀 다운로드.
 
     헤더 (사용자 spec): SKU / 바코드 / 브랜드 / 제품명 / 색상 / 사이즈 / 평균매입가 / 총재고 / {위치명1} 재고 / {위치명2} 재고 / ...
     빈 색상 → 'one' / 빈 사이즈 → 'free'
+
+    필터 반영: filtered=1 + skus[] (POST) 전달 시 그 옵션만 export. 미전달 시 전체.
     """
     from io import BytesIO
     from datetime import datetime
@@ -887,11 +889,13 @@ def data_items_export():
 
     s = SessionLocal()
     try:
+        # 화면에서 필터된 SKU 목록 — filtered=1 이면 그 옵션만 export (없으면 전체)
+        is_filtered = request.values.get('filtered') == '1'
+        q = s.query(Option).options(joinedload(Option.model))
+        if is_filtered:
+            q = q.filter(Option.canonical_sku.in_(request.values.getlist('skus')))
         options = (
-            s.query(Option)
-            .options(joinedload(Option.model))
-            .order_by(Option.model_code, Option.sort_order, Option.canonical_sku)
-            .all()
+            q.order_by(Option.model_code, Option.sort_order, Option.canonical_sku).all()
         )
         all_skus = [o.canonical_sku for o in options]
 
@@ -961,7 +965,7 @@ def data_items_export():
         return send_file(buf,
             mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
             as_attachment=True,
-            download_name=f'재고관리_{ts}.xlsx',
+            download_name=f'재고관리_{"필터_" if is_filtered else ""}{ts}.xlsx',
         )
     finally:
         s.close()
