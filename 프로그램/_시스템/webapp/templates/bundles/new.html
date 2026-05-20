@@ -1,54 +1,417 @@
 {% extends 'base.html' %}
-{% block title %}🆕 신규 모음전 등록 — 모음전 자동화{% endblock %}
+{% block title %}🆕 신규 모음전 만들기 — 모음전 자동화{% endblock %}
 {% block content %}
 <section class="screen active">
   <a class="btn btn-ghost" href="/bundles">← 모음전 목록</a>
-  <h1 style="margin-top:6px">🆕 신규 모음전 등록</h1>
-  <p class="greeting">마켓에 처음 등록하는 상품 — 모든 정보 채우고 자동 등록까지 진행. 이미 마켓에 있는 상품이면 <a href="/bundles/migrate" style="color:var(--primary)">마켓 등록 상품 연동</a>으로 가세요.</p>
+  <h1 style="margin-top:6px">🆕 신규 모음전 만들기</h1>
+  <p class="greeting">기본 정보를 입력하고, 「옵션 구성」 탭에서 보유 재고를 골라 옵션으로 채웁니다.</p>
 
-  {% if error %}
-  <div class="card" style="border-left:3px solid var(--danger);margin-bottom:14px">
-    <strong>⚠ {{ error }}</strong>
+  {# ===== 2탭 ===== #}
+  <div class="pc-tabs">
+    <button type="button" class="pc-tab on" data-tab="basic"><span class="pc-tn">1</span> 기본 정보</button>
+    <button type="button" class="pc-tab" data-tab="options"><span class="pc-tn">2</span> 옵션 구성</button>
   </div>
-  {% endif %}
 
-  <form method="post" action="/bundles/new">
+  {# ===== 탭 1 · 기본 정보 ===== #}
+  <div class="pc-pane on" id="pane-basic">
     <div class="card">
       <div class="field">
         <label class="field-label">모음전 코드 (한글, 고유)</label>
-        <input id="model_code" class="field-input" name="model_code" value="{{ form.get('model_code', '') }}" required placeholder="예: 레츠" />
-        <div class="field-hint">v2 부터 등록 후에도 「코드 변경」 버튼으로 수정 가능 (cascade rename).</div>
+        <input id="model_code" class="field-input" placeholder="예: 잔스포츠_하프파인트" />
+        <div class="field-hint">등록 후에도 「코드 변경」으로 수정 가능.</div>
       </div>
       <div class="field">
         <label class="field-label">브랜드</label>
-        <input id="brand" class="field-input" name="brand" value="{{ form.get('brand', '르무통') }}" required placeholder="예: 르무통, 크로커다일, 폴햄" />
-        <div class="field-hint">멀티 브랜드 운영 시 검색·필터링에 사용됩니다.</div>
+        <input id="brand" class="field-input" value="르무통" placeholder="예: 르무통, 잔스포츠, 나이키" />
       </div>
       <div class="field">
         <label class="field-label">모델명 (마켓 노출용)</label>
-        <input id="model_name_raw" class="field-input" name="model_name_raw" value="{{ form.get('model_name_raw', '') }}" required placeholder="예: 레츠 슬립온" />
+        <input id="model_name_raw" class="field-input" placeholder="예: 잔스포츠 하프파인트 미니백" />
       </div>
       <div class="field">
         <label class="field-label">카테고리</label>
-        <select class="field-input" name="category">
-          <option value="신발" {% if form.get('category') == '신발' or not form.get('category') %}selected{% endif %}>신발</option>
-          <option value="의류" {% if form.get('category') == '의류' %}selected{% endif %}>의류</option>
-          <option value="가방" {% if form.get('category') == '가방' %}selected{% endif %}>가방</option>
+        <select id="category" class="field-input">
+          <option value="신발">신발</option><option value="의류">의류</option><option value="가방">가방</option>
         </select>
       </div>
     </div>
     <div class="btn-row" style="margin-top:14px">
-      <button type="submit" class="btn btn-primary btn-large">등록하기 →</button>
-      <a class="btn btn-large" href="/bundles">취소</a>
+      <button type="button" class="btn btn-primary btn-large" id="to-options">옵션 구성 →</button>
     </div>
-  </form>
+  </div>
+
+  {# ===== 탭 2 · 옵션 구성 ===== #}
+  <div class="pc-pane" id="pane-options">
+    <div class="card">
+      <div class="pc-opt-head">
+        <strong>옵션</strong><span class="pc-cnt" id="opt-count">0</span>
+        <span style="flex:1"></span>
+        <button type="button" class="btn btn-primary" id="open-stock">🔍 재고에서 옵션 추가</button>
+      </div>
+      <div id="opt-list">
+        <div class="pc-empty" id="opt-empty"><div style="font-size:34px">📦</div>
+          아직 옵션이 없습니다 — 「재고에서 옵션 추가」로 보유 재고를 골라 담으세요.</div>
+      </div>
+    </div>
+    <div class="btn-row" style="margin-top:14px">
+      <button type="button" class="btn btn-large" id="back-basic">← 기본 정보</button>
+      <button type="button" class="btn btn-primary btn-large" id="create-bundle" disabled>모음전 생성하기</button>
+    </div>
+    <div id="create-err" class="pc-err" style="display:none"></div>
+  </div>
 </section>
-{% include 'partials/draft_bubble.html' %}
+
+{# ===== 재고 검색 팝업 — 좌(모델 그룹표) / 우(담은 옵션 바구니) ===== #}
+<div class="pc-modal-bg" id="stock-modal">
+  <div class="pc-modal">
+    <div class="pc-mh">
+      <strong>재고관리에서 옵션 추가</strong>
+      <span class="pc-ms">좌측 재고 체크 → 「바구니에 담기」 · 우측 담은 옵션이 모음전 옵션이 됩니다</span>
+      <button type="button" class="pc-x" id="modal-close">✕ 닫기</button>
+    </div>
+    <div class="pc-msearch">
+      <input id="stock-q" class="pc-srch" placeholder="🔍 브랜드 · 모델명 · 색상 · 사이즈 · SKU · 바코드 — 띄어쓰면 모두 포함(AND)" />
+      <button type="button" class="btn" id="new-product" title="목록에 없는 제품 추가 (다음 단계 기능)">＋ 새 제품</button>
+    </div>
+    <div class="pc-mbody">
+      <div class="pc-col pc-results">
+        <div class="pc-colh">검색 결과 — 재고관리</div>
+        <div id="stock-results"><div class="pc-loading">불러오는 중…</div></div>
+        <div class="pc-actbar" id="left-actbar" style="display:none">
+          <span>✅ <b id="left-sel">0</b>개 선택</span><span style="flex:1"></span>
+          <button type="button" class="btn btn-primary btn-sm" id="to-basket">선택 → 바구니에 담기</button>
+        </div>
+      </div>
+      <div class="pc-col pc-basket">
+        <div class="pc-colh">담은 옵션 <span id="basket-cnt">0</span></div>
+        <div id="basket-list"><div class="pc-bk-empty">좌측에서 재고를 골라 담으세요.</div></div>
+        <div class="pc-actbar red" id="basket-actbar" style="display:none">
+          <span>🗑 <b id="basket-sel">0</b>개 선택</span><span style="flex:1"></span>
+          <button type="button" class="btn btn-sm" id="basket-del">선택 삭제</button>
+        </div>
+      </div>
+    </div>
+    <div class="pc-mf">
+      <span class="pc-selcnt">담은 옵션 <b id="final-cnt">0</b>개</span>
+      <span style="flex:1"></span>
+      <button type="button" class="btn" id="modal-cancel">취소</button>
+      <button type="button" class="btn btn-primary" id="modal-add">옵션으로 추가</button>
+    </div>
+  </div>
+</div>
+
+<style>
+  /* 신규 만들기 — 16px 기준 */
+  #pane-basic, #pane-options{font-size:16px}
+  .pc-tabs{display:flex;gap:3px;border-bottom:2px solid var(--n200,#E5E8EB);margin:16px 0 18px}
+  .pc-tab{padding:11px 22px;font-size:16px;font-weight:700;color:var(--n500,#8B95A1);background:transparent;border:0;border-bottom:3px solid transparent;margin-bottom:-2px;cursor:pointer;font-family:inherit;display:flex;align-items:center;gap:8px}
+  .pc-tab.on{color:var(--primary,#3182F6);border-bottom-color:var(--primary,#3182F6)}
+  .pc-tn{width:22px;height:22px;border-radius:50%;background:var(--n100,#F2F4F6);color:var(--n500,#8B95A1);font-size:12px;font-weight:800;display:flex;align-items:center;justify-content:center}
+  .pc-tab.on .pc-tn{background:var(--primary,#3182F6);color:#fff}
+  .pc-pane{display:none}.pc-pane.on{display:block}
+  .pc-opt-head{display:flex;align-items:center;gap:10px;margin-bottom:14px;font-size:17px}
+  .pc-cnt{background:var(--primary,#3182F6);color:#fff;border-radius:99px;padding:1px 11px;font-size:14px;font-weight:800}
+  .pc-empty{border:2px dashed var(--n300,#D1D6DB);border-radius:11px;padding:40px 20px;text-align:center;color:var(--n500,#8B95A1);font-size:15px;line-height:1.7}
+  /* 추가된 옵션 행 (full 표시) */
+  .pc-orow{display:flex;align-items:center;gap:13px;padding:12px 14px;border:1px solid var(--n200,#E5E8EB);border-radius:9px;margin-bottom:7px}
+  .pc-orow .pc-oseq{width:26px;height:26px;background:#EAF3FF;color:var(--primary,#3182F6);border-radius:7px;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:13px;flex-shrink:0}
+  .pc-orow .pc-oinfo{flex:1;min-width:0}
+  .pc-orow .pc-omain{font-size:16px;font-weight:700}
+  .pc-orow .pc-osub{font-size:13px;color:var(--n400,#B0B8C1);font-family:ui-monospace,monospace;margin-top:2px}
+  .pc-orow .pc-ostk{font-size:20px;font-weight:800;color:#03A65A;white-space:nowrap}
+  .pc-orow .pc-ostk .u{font-size:13px;color:var(--n500,#8B95A1)}
+  .pc-orow .pc-orm{cursor:pointer;color:var(--n400,#B0B8C1);font-weight:900;font-size:17px;padding:3px 9px;border-radius:6px}
+  .pc-orow .pc-orm:hover{background:#FEECEC;color:var(--danger,#F04438)}
+  .pc-err{margin-top:10px;background:#FEECEC;border:1px solid #F7C9C9;color:#8A2A2A;border-radius:9px;padding:12px 15px;font-size:15px}
+  /* 모달 */
+  .pc-modal-bg{position:fixed;inset:0;background:rgba(15,20,30,.52);display:none;align-items:center;justify-content:center;z-index:900;font-size:16px}
+  .pc-modal-bg.on{display:flex}
+  .pc-modal{background:#fff;border-radius:14px;width:1180px;max-width:96vw;max-height:88vh;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 26px 66px rgba(0,0,0,.42)}
+  .pc-mh{padding:16px 22px;border-bottom:1px solid var(--n200,#E5E8EB);display:flex;align-items:center;gap:11px}
+  .pc-mh strong{font-size:18px}
+  .pc-mh .pc-ms{font-size:13px;color:var(--n500,#8B95A1)}
+  .pc-mh .pc-x{margin-left:auto;background:var(--n100,#F2F4F6);border:0;border-radius:8px;padding:8px 13px;font-size:14px;color:var(--n600,#6B7684);font-weight:700;cursor:pointer;font-family:inherit}
+  .pc-msearch{padding:14px 22px;border-bottom:1px solid var(--n100,#F2F4F6);display:flex;gap:10px}
+  .pc-srch{flex:1;border:2px solid var(--primary,#3182F6);border-radius:9px;padding:11px 15px;font-size:16px;font-family:inherit;outline:0}
+  .pc-mbody{flex:1;overflow:hidden;display:grid;grid-template-columns:1fr 420px}
+  .pc-col{display:flex;flex-direction:column;overflow:hidden}
+  .pc-col.pc-results{border-right:1px solid var(--n200,#E5E8EB)}
+  .pc-col.pc-basket{background:var(--n50,#F9FAFB)}
+  .pc-colh{padding:11px 20px;font-size:15px;font-weight:800;color:var(--n600,#6B7684);border-bottom:1px solid var(--n100,#F2F4F6)}
+  #stock-results,#basket-list{flex:1;overflow:auto;padding:12px 18px}
+  .pc-loading,.pc-noresult,.pc-bk-empty{text-align:center;color:var(--n500,#8B95A1);font-size:15px;padding:44px 20px}
+  /* 모델 그룹 */
+  .pc-grp{border:1px solid var(--n200,#E5E8EB);border-radius:10px;margin-bottom:9px;overflow:hidden}
+  .pc-grph{display:flex;align-items:center;gap:11px;padding:11px 13px;background:var(--n50,#F9FAFB);font-size:16px;font-weight:800;cursor:pointer}
+  .pc-grph .pc-gb{color:var(--n500,#8B95A1);font-weight:700;font-size:13px;margin-left:auto}
+  /* 행 — 색상/사이즈 + 회색 SKU·바코드 + 재고수 크게 */
+  .pc-irow{display:flex;align-items:center;gap:12px;padding:11px 13px;border-top:1px solid var(--n100,#F2F4F6);font-size:16px;cursor:pointer}
+  .pc-irow:hover{background:#F7FAFF}
+  .pc-irow .pc-ii{flex:1;min-width:0}
+  .pc-irow .pc-i1{font-weight:700}
+  .pc-irow .pc-i2{font-size:13px;color:var(--n400,#B0B8C1);font-family:ui-monospace,monospace;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .pc-irow .pc-istk{font-size:20px;font-weight:800;color:#03A65A;white-space:nowrap}
+  .pc-irow .pc-istk.zero{color:var(--danger,#F04438)}
+  .pc-irow .pc-istk .u{font-size:13px;color:var(--n500,#8B95A1)}
+  .pc-cbx{width:21px;height:21px;border:2px solid #C4CCD4;border-radius:6px;flex-shrink:0;position:relative}
+  .pc-cbx.ck{background:var(--primary,#3182F6);border-color:var(--primary,#3182F6)}
+  .pc-cbx.ck::after{content:'✓';position:absolute;color:#fff;font-size:14px;font-weight:900;left:3px;top:-2px}
+  /* 바구니 행 (full 표시) */
+  .pc-bkrow{display:flex;align-items:center;gap:11px;background:#fff;border:1px solid var(--n200,#E5E8EB);border-radius:9px;padding:10px 12px;margin-bottom:7px;font-size:15px}
+  .pc-bkrow .pc-bseq{width:24px;height:24px;background:#EAF3FF;color:var(--primary,#3182F6);border-radius:6px;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:12px;flex-shrink:0}
+  .pc-bkrow .pc-bi{flex:1;min-width:0}
+  .pc-bkrow .pc-b1{font-weight:700}
+  .pc-bkrow .pc-b2{font-size:12.5px;color:var(--n400,#B0B8C1);font-family:ui-monospace,monospace;margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .pc-bkrow .pc-bstk{font-size:17px;font-weight:800;color:#03A65A}
+  .pc-bkrow .pc-bx{cursor:pointer;color:#B0B8C1;font-weight:900;font-size:16px;padding:2px 7px;border-radius:5px}
+  .pc-bkrow .pc-bx:hover{background:#FEECEC;color:var(--danger,#F04438)}
+  /* 영역 액션바 */
+  .pc-actbar{display:flex;align-items:center;gap:11px;background:#1F2937;color:#fff;border-radius:0;padding:11px 18px;font-size:15px;font-weight:700}
+  .pc-actbar b{color:#7FB6FF}
+  .pc-actbar.red b{color:#FF9A9A}
+  .pc-mf{padding:14px 22px;border-top:1px solid var(--n200,#E5E8EB);background:var(--n50,#F9FAFB);display:flex;align-items:center;gap:10px}
+  .pc-selcnt{font-size:16px;font-weight:800}
+  .pc-selcnt b{color:var(--primary,#3182F6)}
+  .btn-sm{padding:7px 13px;font-size:14px;border-radius:8px}
+  .btn[disabled]{opacity:.45;cursor:not-allowed}
+</style>
+
 <script>
-document.addEventListener('DOMContentLoaded', () => {
-  setupDraftAutoSave('new', ['model_code', 'brand', 'model_name_raw']);
-  // form submit 성공 시 임시저장 클리어 (POST 후 redirect 되므로 unload 시 처리)
-  document.querySelector('form').addEventListener('submit', () => clearDraft('new'));
-});
+(function(){
+  'use strict';
+  var addedOptions = [];   // 확정 옵션 [{product_sku,brand,model,color,size,barcode,stock}]
+  var groups = [];         // 검색 API 결과
+  var leftSel = {};        // product_sku -> item (검색결과 좌측 선택)
+  var basket = [];         // 담은 옵션
+  var basketSel = {};      // product_sku -> true
+
+  function $(s){ return document.querySelector(s); }
+  function esc(t){ return String(t==null?'':t).replace(/[<>&"]/g,function(c){return{'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'}[c];}); }
+  function inBasket(sku){ return basket.some(function(b){ return b.product_sku===sku; }); }
+
+  /* ===== 탭 ===== */
+  function switchTab(n){
+    document.querySelectorAll('.pc-tab').forEach(function(t){ t.classList.toggle('on',t.dataset.tab===n); });
+    document.querySelectorAll('.pc-pane').forEach(function(p){ p.classList.toggle('on',p.id==='pane-'+n); });
+  }
+  document.querySelectorAll('.pc-tab').forEach(function(t){ t.addEventListener('click',function(){ switchTab(t.dataset.tab); }); });
+  $('#to-options').addEventListener('click',function(){
+    if(!$('#model_code').value.trim()||!$('#model_name_raw').value.trim()){
+      alert('모음전 코드와 모델명을 먼저 입력하세요.'); switchTab('basic'); return; }
+    switchTab('options');
+  });
+  $('#back-basic').addEventListener('click',function(){ switchTab('basic'); });
+
+  /* ===== 옵션 목록 (탭2) ===== */
+  function renderOptions(){
+    var list=$('#opt-list');
+    $('#opt-count').textContent=addedOptions.length;
+    if(!addedOptions.length){
+      list.innerHTML='<div class="pc-empty"><div style="font-size:34px">📦</div>'
+        +'아직 옵션이 없습니다 — 「재고에서 옵션 추가」로 보유 재고를 골라 담으세요.</div>';
+    }else{
+      list.innerHTML=addedOptions.map(function(o,i){
+        return '<div class="pc-orow"><span class="pc-oseq">'+(i+1)+'</span>'
+          +'<div class="pc-oinfo"><div class="pc-omain">'+esc(o.brand)+' '+esc(o.model)+' · '+esc(o.color)+' '+esc(o.size)+'</div>'
+          +'<div class="pc-osub">SKU '+esc(o.product_sku)+(o.barcode?' · 바코드 '+esc(o.barcode):'')+'</div></div>'
+          +'<span class="pc-ostk">'+o.stock+'<span class="u">개</span></span>'
+          +'<span class="pc-orm" data-sku="'+esc(o.product_sku)+'">✕</span></div>';
+      }).join('');
+      list.querySelectorAll('.pc-orm').forEach(function(b){
+        b.addEventListener('click',function(){
+          addedOptions=addedOptions.filter(function(o){ return o.product_sku!==b.dataset.sku; });
+          renderOptions();
+        });
+      });
+    }
+    $('#create-bundle').disabled=addedOptions.length===0;
+  }
+
+  /* ===== 모달 ===== */
+  function openModal(){
+    leftSel={}; basketSel={};
+    basket=addedOptions.map(function(o){ return Object.assign({},o); });  // 현재 옵션을 바구니로
+    $('#stock-modal').classList.add('on');
+    $('#stock-q').value='';
+    loadProducts('');
+    renderBasket();
+    setTimeout(function(){ $('#stock-q').focus(); },50);
+  }
+  function closeModal(){ $('#stock-modal').classList.remove('on'); }
+  $('#open-stock').addEventListener('click',openModal);
+  $('#modal-close').addEventListener('click',closeModal);
+  $('#modal-cancel').addEventListener('click',closeModal);
+  $('#stock-modal').addEventListener('click',function(e){ if(e.target===$('#stock-modal')) closeModal(); });
+  $('#new-product').addEventListener('click',function(){ alert('「새 제품 추가」는 다음 단계(②번)에서 연결됩니다.'); });
+
+  var searchTimer=null;
+  $('#stock-q').addEventListener('input',function(){
+    clearTimeout(searchTimer);
+    searchTimer=setTimeout(function(){ loadProducts($('#stock-q').value.trim()); },220);
+  });
+
+  function loadProducts(q){
+    var box=$('#stock-results');
+    box.innerHTML='<div class="pc-loading">불러오는 중…</div>';
+    fetch('/api/inventory/products/search?q='+encodeURIComponent(q))
+      .then(function(r){ return r.json(); })
+      .then(function(d){
+        if(!d.ok){ box.innerHTML='<div class="pc-noresult">오류: '+esc(d.error||'검색 실패')+'</div>'; return; }
+        groups=d.groups||[];
+        renderResults();
+      })
+      .catch(function(){ box.innerHTML='<div class="pc-noresult">검색 실패 — 네트워크 오류</div>'; });
+  }
+
+  function renderResults(){
+    var box=$('#stock-results');
+    if(!groups.length){ box.innerHTML='<div class="pc-noresult">검색 결과가 없습니다.</div>'; updateLeftBar(); return; }
+    box.innerHTML=groups.map(function(g){
+      var items=g.items.map(function(it){
+        var picked=inBasket(it.product_sku);
+        var ck=leftSel[it.product_sku]?' ck':'';
+        var zero=it.stock>0?'':' zero';
+        var dim=picked?' style="opacity:.5"':'';
+        return '<div class="pc-irow" data-sku="'+esc(it.product_sku)+'" data-model="'+esc(g.model_code)+'"'+dim+'>'
+          +'<span class="pc-cbx'+ck+'"></span>'
+          +'<div class="pc-ii"><div class="pc-i1">'+esc(it.color)+' '+esc(it.size)+(picked?' · <span style="color:#3182F6">담김</span>':'')+'</div>'
+          +'<div class="pc-i2">SKU '+esc(it.product_sku)+(it.barcode?' · 바코드 '+esc(it.barcode):'')+'</div></div>'
+          +'<span class="pc-istk'+zero+'">'+it.stock+'<span class="u">개</span></span></div>';
+      }).join('');
+      var allOn=g.items.length>0&&g.items.every(function(it){ return leftSel[it.product_sku]; });
+      return '<div class="pc-grp"><div class="pc-grph" data-model="'+esc(g.model_code)+'">'
+        +'<span class="pc-cbx pc-gck'+(allOn?' ck':'')+'"></span>'
+        +'<span>'+esc(g.brand||'')+' · '+esc(g.model_code)+'</span>'
+        +'<span class="pc-gb">'+g.count+'개</span></div>'+items+'</div>';
+    }).join('');
+    box.querySelectorAll('.pc-irow').forEach(function(r){
+      r.addEventListener('click',function(){
+        var sku=r.dataset.sku;
+        if(inBasket(sku)) return;  // 이미 담긴 건 토글 불가
+        if(leftSel[sku]) delete leftSel[sku];
+        else leftSel[sku]=findItem(sku);
+        renderResults();
+      });
+    });
+    box.querySelectorAll('.pc-gck').forEach(function(gc){
+      gc.addEventListener('click',function(e){
+        e.stopPropagation();
+        var model=gc.closest('.pc-grph').dataset.model;
+        var g=groups.filter(function(x){ return x.model_code===model; })[0];
+        var sel=g.items.filter(function(it){ return !inBasket(it.product_sku); });
+        var allOn=sel.length>0&&sel.every(function(it){ return leftSel[it.product_sku]; });
+        sel.forEach(function(it){
+          if(allOn) delete leftSel[it.product_sku];
+          else leftSel[it.product_sku]=it;
+        });
+        renderResults();
+      });
+    });
+    updateLeftBar();
+  }
+  function findItem(sku){
+    for(var i=0;i<groups.length;i++){
+      var it=groups[i].items.filter(function(x){ return x.product_sku===sku; })[0];
+      if(it) return Object.assign({model:groups[i].model_code},it);
+    }
+    return null;
+  }
+  function updateLeftBar(){
+    var n=Object.keys(leftSel).length;
+    $('#left-sel').textContent=n;
+    $('#left-actbar').style.display=n?'flex':'none';
+  }
+
+  /* 선택 → 바구니 */
+  $('#to-basket').addEventListener('click',function(){
+    Object.keys(leftSel).forEach(function(sku){
+      if(inBasket(sku)) return;
+      var it=leftSel[sku];
+      basket.push({product_sku:sku, brand:it.brand, model:it.model, color:it.color,
+                   size:it.size, barcode:it.barcode||'', stock:it.stock});
+    });
+    leftSel={};
+    renderResults(); renderBasket();
+  });
+
+  /* ===== 바구니 ===== */
+  function renderBasket(){
+    var box=$('#basket-list');
+    $('#basket-cnt').textContent=basket.length;
+    $('#final-cnt').textContent=basket.length;
+    if(!basket.length){
+      box.innerHTML='<div class="pc-bk-empty">좌측에서 재고를 골라 담으세요.</div>';
+    }else{
+      box.innerHTML=basket.map(function(b,i){
+        var ck=basketSel[b.product_sku]?' ck':'';
+        return '<div class="pc-bkrow"><span class="pc-cbx pc-bck'+ck+'" data-sku="'+esc(b.product_sku)+'"></span>'
+          +'<span class="pc-bseq">'+(i+1)+'</span>'
+          +'<div class="pc-bi"><div class="pc-b1">'+esc(b.brand)+' '+esc(b.model)+' · '+esc(b.color)+' '+esc(b.size)+'</div>'
+          +'<div class="pc-b2">SKU '+esc(b.product_sku)+(b.barcode?' · 바코드 '+esc(b.barcode):'')+'</div></div>'
+          +'<span class="pc-bstk">'+b.stock+'</span>'
+          +'<span class="pc-bx" data-sku="'+esc(b.product_sku)+'">✕</span></div>';
+      }).join('');
+      box.querySelectorAll('.pc-bck').forEach(function(c){
+        c.addEventListener('click',function(){
+          var sku=c.dataset.sku;
+          if(basketSel[sku]) delete basketSel[sku]; else basketSel[sku]=true;
+          renderBasket();
+        });
+      });
+      box.querySelectorAll('.pc-bx').forEach(function(x){
+        x.addEventListener('click',function(){
+          basket=basket.filter(function(b){ return b.product_sku!==x.dataset.sku; });
+          delete basketSel[x.dataset.sku];
+          renderBasket(); renderResults();
+        });
+      });
+    }
+    var n=Object.keys(basketSel).length;
+    $('#basket-sel').textContent=n;
+    $('#basket-actbar').style.display=n?'flex':'none';
+  }
+  $('#basket-del').addEventListener('click',function(){
+    basket=basket.filter(function(b){ return !basketSel[b.product_sku]; });
+    basketSel={};
+    renderBasket(); renderResults();
+  });
+
+  /* 옵션으로 추가 */
+  $('#modal-add').addEventListener('click',function(){
+    if(!basket.length){ alert('담은 옵션이 없습니다.'); return; }
+    addedOptions=basket.map(function(b){ return Object.assign({},b); });
+    renderOptions();
+    closeModal();
+    switchTab('options');
+  });
+
+  /* ===== 모음전 생성 ===== */
+  $('#create-bundle').addEventListener('click',function(){
+    var btn=this, err=$('#create-err');
+    err.style.display='none';
+    var payload={
+      model_code:$('#model_code').value.trim(),
+      model_name_raw:$('#model_name_raw').value.trim(),
+      brand:$('#brand').value.trim()||'르무통',
+      category:$('#category').value,
+      product_skus:addedOptions.map(function(o){ return o.product_sku; }),
+    };
+    if(!payload.model_code||!payload.model_name_raw){
+      err.textContent='모음전 코드와 모델명을 입력하세요.'; err.style.display='block'; switchTab('basic'); return; }
+    btn.disabled=true; btn.textContent='생성 중…';
+    fetch('/api/inventory/compose-bundle',{
+      method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload),
+    }).then(function(r){ return r.json(); }).then(function(d){
+      if(d.ok){ window.location.href='/bundles/'+encodeURIComponent(d.model_code); }
+      else { err.textContent=d.error||'생성 실패'; err.style.display='block';
+             btn.disabled=false; btn.textContent='모음전 생성하기'; }
+    }).catch(function(){
+      err.textContent='생성 실패 — 네트워크 오류'; err.style.display='block';
+      btn.disabled=false; btn.textContent='모음전 생성하기';
+    });
+  });
+
+  renderOptions();
+})();
 </script>
 {% endblock %}

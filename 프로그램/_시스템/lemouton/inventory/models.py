@@ -24,10 +24,12 @@ def _now():
 
 # ============ 0. v17 — 재고관리 제품 (모음전 옵션 ↔ 재고관리 1:1) ============
 class InventoryProduct(Base):
-    """v17 — 모음전 옵션에서 사용자가 [+ 재고관리 추가] 클릭 시 생성되는 제품 마스터.
+    """재고제품 마스터 — 물리적 제품 1행 = 재고의 단일 진실 원천.
 
-    모음전 옵션은 자동 매핑되지 않고, 사용자가 명시적으로 추가한 옵션만 여기 존재.
+    [제품 공유 v1] 모음전 옵션은 OptionProductLink 로 이 테이블을 참조한다.
+    한 재고제품을 여러 모음전 옵션이 공유 → 재고가 모든 모음전에 동시 반영.
     InventoryTx 의 option_canonical_sku 가 이 테이블의 canonical_sku 와 매핑됨.
+    (구) v17: [+재고관리 추가] 로만 생성 → (신) 모든 옵션에 대해 시딩.
     """
     __tablename__ = "inventory_products"
 
@@ -66,6 +68,21 @@ class InventoryProduct(Base):
     created_at = Column(DateTime, default=_now, index=True)
     updated_at = Column(DateTime, default=_now, onupdate=_now)
     completed_at = Column(DateTime)
+
+
+# ====== 0.5 [제품 공유 v1] 모음전 옵션 ↔ 재고제품 연결 ======
+class OptionProductLink(Base):
+    """모음전 옵션(options.canonical_sku) ↔ 재고제품(inventory_products.canonical_sku) 연결.
+
+    N 옵션 : 1 재고제품 — 한 제품을 여러 모음전이 공유.
+    ALTER TABLE 없이 신규 테이블로만 도입 (라이브 DB 안전).
+    초기 마이그레이션: 옵션 1개당 자기 자신을 가리키는 링크 1행 (1:1).
+    """
+    __tablename__ = "option_product_links"
+
+    option_canonical_sku = Column(String(128), primary_key=True)
+    product_canonical_sku = Column(String(128), nullable=False, index=True)
+    created_at = Column(DateTime, default=_now)
 
 
 # ============ 1. 위치 (Q1 결정 = A + CRUD) ============

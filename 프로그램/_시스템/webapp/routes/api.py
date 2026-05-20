@@ -2145,6 +2145,115 @@ def get_option_payload_preview(gid: int):
         s.close()
 
 
+# ═══════ [제품 공유 v1] 신규 모음전 — 재고제품 검색 + 모음전 생성 ═══════
+
+@bp.get('/inventory/products/search')
+def inventory_products_search():
+    """재고제품 검색 → 모델별 그룹 (트리 아코디언 팝업용).
+
+    ?q= 검색어 (품명·모델·브랜드·색·사이즈·바코드·SKU). 빈 검색이면 전체(상한 1000).
+    응답: {ok, groups:[{model_code, brand, count, items:[{product_sku,name,color,size,stock}]}]}
+    """
+    from lemouton.inventory.models import InventoryProduct
+    from shared.inventory_stock import get_stock_batch
+    from shared.search import split_tokens, apply_and_filter
+    q = (request.args.get('q') or '').strip()
+    s = SessionLocal()
+    try:
+        query = s.query(InventoryProduct)
+        query = apply_and_filter(
+            query, split_tokens(q),
+            InventoryProduct.canonical_sku, InventoryProduct.option_name,
+            InventoryProduct.model_code, InventoryProduct.brand,
+            InventoryProduct.color_code, InventoryProduct.size_code,
+            InventoryProduct.barcode,
+            op='ilike',
+        )
+        rows = (query.order_by(InventoryProduct.model_code,
+                               InventoryProduct.color_code,
+                               InventoryProduct.size_code)
+                .limit(1000).all())
+        stock = get_stock_batch(s, [r.canonical_sku for r in rows])
+        groups: dict = {}
+        for r in rows:
+            key = r.model_code or '(미분류)'
+            g = groups.setdefault(key, {
+                'model_code': key, 'brand': r.brand or '', 'items': [],
+            })
+            g['items'].append({
+                'product_sku': r.canonical_sku,
+                'name': r.option_name or r.canonical_sku,
+                'color': r.color_code or '',
+                'size': r.size_code or '',
+                'brand': r.brand or '',
+                'barcode': r.barcode or '',
+                'stock': stock.get(r.canonical_sku, 0),
+            })
+        out = []
+        for g in groups.values():
+            g['count'] = len(g['items'])
+            out.append(g)
+        return _ok(groups=out, total=len(rows))
+    finally:
+        s.close()
+
+
+@bp.post('/inventory/compose-bundle')
+def inventory_compose_bundle():
+    """선택한 재고제품들로 신규 모음전(Model) + 옵션 생성.
+
+    Body: {model_code, model_name_raw, brand, category, product_skus:[...]}
+    각 재고제품 → Option 생성 + OptionProductLink(option→product) 연결 →
+    그 재고제품을 쓰는 다른 모음전과 재고 자동 공유.
+    """
+    from lemouton.inventory.models import InventoryProduct, OptionProductLink
+    body = request.get_json(silent=True) or {}
+    code = (body.get('model_code') or '').strip()
+    name = (body.get('model_name_raw') or '').strip()
+    brand = (body.get('brand') or '르무통').strip()
+    category = (body.get('category') or '신발').strip()
+    product_skus = body.get('product_skus') or []
+    if not code or not name:
+        return _err('모음전 코드와 모델명을 입력하세요.')
+    if not isinstance(product_skus, list) or not product_skus:
+        return _err('옵션으로 추가할 재고제품을 1개 이상 선택하세요.')
+    s = SessionLocal()
+    try:
+        if s.query(Model).filter_by(model_code=code).first():
+            return _err(f"'{code}' 코드는 이미 존재해요.", 409)
+        m = Model(model_code=code, model_name_raw=name,
+                  model_name_display=name, brand=brand, category=category)
+        s.add(m)
+        s.flush()
+        products = {p.canonical_sku: p for p in s.query(InventoryProduct)
+                    .filter(InventoryProduct.canonical_sku.in_(product_skus)).all()}
+        created, seen = [], set()
+        for psku in product_skus:
+            p = products.get(psku)
+            if not p:
+                continue
+            color = (p.color_code or '기본').strip()
+            size = (p.size_code or '기본').strip()
+            opt_sku = f"{code}-{color}-{size}"
+            if opt_sku in seen or s.query(Option).filter_by(canonical_sku=opt_sku).first():
+                continue
+            seen.add(opt_sku)
+            s.add(Option(canonical_sku=opt_sku, model_code=code,
+                         color_code=color, color_display=color,
+                         size_code=size, size_display=size,
+                         barcode=p.barcode))
+            s.add(OptionProductLink(option_canonical_sku=opt_sku,
+                                    product_canonical_sku=psku))
+            created.append(opt_sku)
+        if not created:
+            s.rollback()
+            return _err('생성된 옵션이 없습니다 (재고제품을 찾지 못했거나 중복).', 400)
+        s.commit()
+        return _ok(model_code=code, option_count=len(created), options=created)
+    finally:
+        s.close()
+
+
 @bp.post('/bundles/<code>/price-mode')
 def bundle_price_mode(code: str):
     """[가격모드 v3] 모음전(또는 그룹)의 가격·마진 설정 변경.

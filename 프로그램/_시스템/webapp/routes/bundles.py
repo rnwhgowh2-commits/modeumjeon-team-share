@@ -350,15 +350,8 @@ def bundle_list():
             'draft': len(groups['new_wip']) + len(groups['migrate_wip']),
             'active': len(groups['active']),
         }
-        # 탭 필터 적용
-        if selected_status == 'draft':
-            bundles = groups['new_wip'] + groups['migrate_wip']
-            groups = {'new_wip': groups['new_wip'],
-                      'migrate_wip': groups['migrate_wip'], 'active': []}
-        else:  # active
-            bundles = groups['active']
-            groups = {'new_wip': [], 'migrate_wip': [],
-                      'active': groups['active']}
+        # [통합 목록] 임시저장/정규 탭 제거 — 모든 모음전을 한 목록에 (상태는 컬럼으로 구분)
+        bundles = groups['new_wip'] + groups['migrate_wip'] + groups['active']
         # 브랜드 칩 — 전체 모음전 (필터 없이) 기준 카운트
         from sqlalchemy import func
         brand_rows = (s.query(Model.brand, func.count(Model.model_code))

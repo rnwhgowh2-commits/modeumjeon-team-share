@@ -35,78 +35,78 @@ def _stock_expr():
     )
 
 
-def get_stock_by_sku(session, sku: str, location_id: int | None = None) -> int:
-    """1 SKU 의 실시간 재고. location_id 지정 시 그 위치만.
+def _product_sku_map(session, option_skus) -> dict[str, str]:
+    """[제품 공유 v1] 옵션 SKU → 연결된 재고제품 SKU.
 
-    move 의 도착지 (location_to_id) 까지 정확히 합산.
+    OptionProductLink 가 없으면 자기 자신으로 fallback (마이그레이션 전 호환).
+    """
+    from lemouton.inventory.models import OptionProductLink
+    skus = list(set(s for s in option_skus if s))
+    if not skus:
+        return {}
+    rows = session.query(
+        OptionProductLink.option_canonical_sku,
+        OptionProductLink.product_canonical_sku,
+    ).filter(OptionProductLink.option_canonical_sku.in_(skus)).all()
+    m = {o: p for o, p in rows}
+    for sk in skus:
+        m.setdefault(sk, sk)  # 링크 없으면 = 자기 자신
+    return m
+
+
+def get_stock_by_sku(session, sku: str, location_id: int | None = None) -> int:
+    """1 옵션 SKU 의 실시간 재고 (연결된 재고제품 기준).
+
+    [제품 공유 v1] get_stock_batch 에 위임 — 옵션→재고제품 해석을 한 곳으로 일원화.
     """
     if not sku:
         return 0
-    q = session.query(func.coalesce(func.sum(_stock_expr()), 0)).filter(
-        InventoryTx.option_canonical_sku == sku,
-        InventoryTx.status == 'completed',
-    )
-    if location_id is not None:
-        q = q.filter(InventoryTx.location_id == location_id)
-    base = int(q.scalar() or 0)
-
-    # move 도착지 보정 (location_to_id 가 지정 위치이거나, 전체 합산이면 +qty)
-    move_in_q = session.query(func.coalesce(func.sum(InventoryTx.qty), 0)).filter(
-        InventoryTx.option_canonical_sku == sku,
-        InventoryTx.tx_type == 'move',
-        InventoryTx.status == 'completed',
-    )
-    if location_id is not None:
-        move_in_q = move_in_q.filter(InventoryTx.location_to_id == location_id)
-    move_in = int(move_in_q.scalar() or 0)
-
-    if location_id is None:
-        # 전체 합산이면 move 의 location_id 출발 차감 + location_to_id 도착 추가 = net 0
-        # 위 _stock_expr 가 이미 move qty 를 -qty 처리 → location_to_id 의 +qty 만 추가
-        return base + move_in
-    return base + move_in
+    return get_stock_batch(session, [sku], location_id).get(sku, 0)
 
 
 def get_stock_batch(session, skus: Iterable[str], location_id: int | None = None) -> dict[str, int]:
-    """N SKU 의 재고 한 번에 조회. {sku: stock}.
+    """N 옵션 SKU 의 재고 한 번에 조회. {option_sku: stock}.
 
+    [제품 공유 v1] 옵션 → 연결된 재고제품의 재고를 반환.
+    같은 재고제품을 공유하는 여러 모음전 옵션은 동일한 재고값을 받는다.
     location_id 지정 시 그 위치만.
     """
-    skus_list = list(set(s for s in skus if s))
-    if not skus_list:
+    option_skus = list(set(s for s in skus if s))
+    if not option_skus:
         return {}
-    # 1) in/out/adjust 합 + move 출발 차감 (location_id 기준)
+    # 옵션 → 재고제품 SKU 해석
+    psku_map = _product_sku_map(session, option_skus)
+    product_skus = list(set(psku_map.values()))
+
+    # 1) in/out/adjust 합 + move 출발 차감 — 재고제품 SKU 단위 집계
     q = session.query(
         InventoryTx.option_canonical_sku,
         func.coalesce(func.sum(_stock_expr()), 0).label('s'),
     ).filter(
-        InventoryTx.option_canonical_sku.in_(skus_list),
+        InventoryTx.option_canonical_sku.in_(product_skus),
         InventoryTx.status == 'completed',
     )
     if location_id is not None:
         q = q.filter(InventoryTx.location_id == location_id)
     rows = q.group_by(InventoryTx.option_canonical_sku).all()
-    out: dict[str, int] = {sk: int(s or 0) for sk, s in rows}
+    prod_stock: dict[str, int] = {sk: int(s or 0) for sk, s in rows}
 
     # 2) move 도착지 추가 보정 (location_to_id)
     mq = session.query(
         InventoryTx.option_canonical_sku,
         func.coalesce(func.sum(InventoryTx.qty), 0).label('s'),
     ).filter(
-        InventoryTx.option_canonical_sku.in_(skus_list),
+        InventoryTx.option_canonical_sku.in_(product_skus),
         InventoryTx.tx_type == 'move',
         InventoryTx.status == 'completed',
     )
     if location_id is not None:
         mq = mq.filter(InventoryTx.location_to_id == location_id)
-    move_rows = mq.group_by(InventoryTx.option_canonical_sku).all()
-    for sk, s in move_rows:
-        out[sk] = out.get(sk, 0) + int(s or 0)
+    for sk, s in mq.group_by(InventoryTx.option_canonical_sku).all():
+        prod_stock[sk] = prod_stock.get(sk, 0) + int(s or 0)
 
-    # 누락된 sku 는 0
-    for sk in skus_list:
-        out.setdefault(sk, 0)
-    return out
+    # 옵션 → (연결 재고제품) 재고 매핑
+    return {opt: prod_stock.get(psku_map[opt], 0) for opt in option_skus}
 
 
 def get_total_stock(session) -> int:
@@ -166,7 +166,16 @@ def get_stock_summary(session, skus_filter: Iterable[str] | None = None) -> dict
 
     stock_map = get_stock_batch(session, all_skus)
     in_stock = sum(1 for sk in all_skus if stock_map.get(sk, 0) > 0)
-    total = sum(stock_map.get(sk, 0) for sk in all_skus)
+    # [제품 공유 v1] total_stock 은 재고제품 단위 distinct — 공유 제품 중복 합산 방지
+    psku_map = _product_sku_map(session, all_skus)
+    _seen: set[str] = set()
+    total = 0
+    for sk in all_skus:
+        p = psku_map.get(sk, sk)
+        if p in _seen:
+            continue
+        _seen.add(p)
+        total += stock_map.get(sk, 0)
     return {
         'total_skus': len(all_skus),
         'in_stock_skus': in_stock,

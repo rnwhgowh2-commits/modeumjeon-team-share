@@ -90,6 +90,12 @@ webapp/routes/inventory/barcode.py
 webapp/templates/inventory/barcode.html
 webapp/templates/inventory/barcode/
 webapp/templates/inventory/barcode_print.html
+# 제품명·색상 분리 — compute_display_maps model_name_display 신뢰 분기 (단일 색상 모델 오분리 수정)
+shared/product_display.py
+# 제품 공유 v1 — 재고제품 레이어 + 신규 만들기 옵션 구성 (신규 전용 구조 변경)
+lemouton/inventory/models.py
+webapp/templates/bundles/new.html
+scripts/migrate_product_share_v1.py
 
 # ─── 신규 전용 라인 패턴 (sync.py 가 line-level 처리) ───
 # config.py:DATABASE_URL

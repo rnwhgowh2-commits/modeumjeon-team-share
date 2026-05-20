@@ -250,13 +250,7 @@
   </div>
 
 
-  {# [v2] 상태 탭 — 임시저장 / 정규 #}
-  {% set qs_brand = ('&brand=' ~ selected_brand) if selected_brand else '' %}
-  {% set qs_q = ('&q=' ~ q) if q else '' %}
-  <div class="step-tabs" style="margin-bottom:14px">
-    <a class="step-tab {% if selected_status == 'draft' %}active{% endif %}" href="/bundles?status=draft{{ qs_brand }}{{ qs_q }}" style="text-decoration:none">⏳ 임시저장 ({{ counts.draft }})</a>
-    <a class="step-tab {% if selected_status == 'active' %}active{% endif %}" href="/bundles?status=active{{ qs_brand }}{{ qs_q }}" style="text-decoration:none">✅ 정규 등록 ({{ counts.active }})</a>
-  </div>
+  {# [통합] 임시저장/정규 탭 제거 — 단일 목록 + 상태 컬럼 #}
 
   <form method="get" action="/bundles" class="qsearch" style="margin-bottom:14px;display:flex;align-items:center;gap:8px">
     <input type="hidden" name="status" value="{{ selected_status }}">
@@ -288,18 +282,6 @@
       </a>
       {% endfor %}
 
-      <hr class="bn-divider">
-      <div class="bn-section-title">상태</div>
-      <a class="bn-substat" href="/bundles?status=draft{% if selected_brand %}&brand={{ selected_brand }}{% endif %}{{ _qs_q }}">
-        <span class="bn-dot" style="background:#f59e0b"></span>
-        <span class="bn-name">임시저장</span>
-        <span class="bn-count">{{ counts.draft }}</span>
-      </a>
-      <a class="bn-substat" href="/bundles?status=active{% if selected_brand %}&brand={{ selected_brand }}{% endif %}{{ _qs_q }}">
-        <span class="bn-dot" style="background:#22c55e"></span>
-        <span class="bn-name">정규 등록</span>
-        <span class="bn-count">{{ counts.active }}</span>
-      </a>
     </aside>
     {% endif %}
 
@@ -401,14 +383,10 @@
         </tr>
       </thead>
       <tbody id="bl-tbody">
-        {# active 탭 #}
-        {% if selected_status == 'active' %}
-          {% for b in groups.active %}{{ render_row(b, '정규 등록') }}{% endfor %}
-        {% else %}
-          {# draft (신규 + 연동) — 같은 표 안에 status 컬럼이 구분 #}
-          {% for b in groups.new_wip %}{{ render_row(b, '신규 작업중') }}{% endfor %}
-          {% for b in groups.migrate_wip %}{{ render_row(b, '연동 작업중') }}{% endfor %}
-        {% endif %}
+        {# [통합 목록] 임시저장 탭 제거 — 모든 모음전, 상태는 컬럼으로 구분 #}
+        {% for b in groups.new_wip %}{{ render_row(b, '신규 작업중') }}{% endfor %}
+        {% for b in groups.migrate_wip %}{{ render_row(b, '연동 작업중') }}{% endfor %}
+        {% for b in groups.active %}{{ render_row(b, '정규 등록') }}{% endfor %}
       </tbody>
     </table>
   </div>
