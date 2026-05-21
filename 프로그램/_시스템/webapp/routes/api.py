@@ -3306,23 +3306,21 @@ def inventory_product_delete(sku):
             s.delete(product)
         if opt is not None:
             from sqlalchemy import text as _sa_text
-            try:
-                s.execute(_sa_text('PRAGMA foreign_keys=OFF'))
-            except Exception:
-                pass
+            # 자식 테이블 정리 — 옵션 삭제 전 FK 참조 행 제거.
+            # PostgreSQL 은 SQLite 의 PRAGMA foreign_keys 가 없으므로,
+            # 각 DELETE 를 SAVEPOINT 로 격리해 한 문이 실패해도 트랜잭션이
+            # abort 되지 않게 한다 (테이블 부재 등 대비).
             for tbl in ('etc_source_urls', 'price_track_history',
                         'market_registrations', 'option_source_links',
                         'option_account_registrations', 'option_benefit_overrides'):
+                sp = s.begin_nested()
                 try:
                     s.execute(_sa_text(f"DELETE FROM {tbl} WHERE canonical_sku = :sku"),
                               {'sku': sku})
+                    sp.commit()
                 except Exception:
-                    pass
+                    sp.rollback()
             s.delete(opt)
-            try:
-                s.execute(_sa_text('PRAGMA foreign_keys=ON'))
-            except Exception:
-                pass
         s.commit()
         return _ok(deleted_sku=sku)
     except Exception as e:
