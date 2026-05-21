@@ -951,8 +951,10 @@ def upsert_price_template():
                   'guardrail_lower', 'guardrail_upper', 'rounding_unit',
                   'ss_normal_price', 'ss_boxhero_sale_price', 'ss_external_sale_price',
                   'ss_fee_rate', 'ss_margin_rate', 'ss_delivery_fee',
+                  'ss_return_fee', 'ss_exchange_fee',
                   'coupang_normal_price', 'coupang_boxhero_sale_price', 'coupang_external_sale_price',
-                  'coupang_fee_rate', 'coupang_margin_rate', 'coupang_delivery_fee'):
+                  'coupang_fee_rate', 'coupang_margin_rate', 'coupang_delivery_fee',
+                  'coupang_return_fee', 'coupang_exchange_fee'):
             if f in payload:
                 setattr(t, f, payload[f])
         s.commit()
@@ -1198,6 +1200,46 @@ def price_template_get(tid: int):
                                                'deleted_at')})
     finally:
         s.close()
+
+
+@bp.get('/templates/price/product-search')
+def price_template_product_search():
+    """가격 템플릿용 제품(모델) 검색 → 평균 매입가 자동 불러오기.
+
+    ?q= 검색어 (모델 코드·모델명). 매칭된 모델별로 옵션 boxhero_avg_purchase_price
+    평균 (>0 만 집계) 을 100원 단위 반올림해 반환.
+    응답: {ok, items:[{model_code, name, brand, avg_purchase_price, option_count}]}
+    """
+    from shared.search import split_tokens, apply_and_filter
+    q = (request.args.get('q') or '').strip()
+    if not q:
+        return _ok(q=q, items=[])
+    s = SessionLocal()
+    try:
+        query = s.query(Model.model_code, Model.model_name_display, Model.brand)
+        query = apply_and_filter(
+            query, split_tokens(q),
+            Model.model_code, Model.model_name_raw, Model.model_name_display,
+            op='ilike',
+        )
+        items = []
+        for code, name, brand in query.limit(20).all():
+            prices = [
+                p for (p,) in s.query(Option.boxhero_avg_purchase_price)
+                .filter(Option.model_code == code).all()
+                if p and p > 0
+            ]
+            avg = round(sum(prices) / len(prices) / 100) * 100 if prices else 0
+            items.append({
+                'model_code': code,
+                'name': name or code,
+                'brand': brand or '',
+                'avg_purchase_price': avg,
+                'option_count': len(prices),
+            })
+    finally:
+        s.close()
+    return _ok(q=q, items=items)
 
 
 # ---------- 색상 템플릿 CRUD ----------
@@ -2639,6 +2681,41 @@ def bundle_run_now(code: str):
     # 즉시 응답 — 클라이언트는 progress widget 으로 진행 모니터
     return _ok(run_id=run_id, status='running', accepted=True,
                message='백그라운드에서 실행 중 — 우상단 진행 widget 으로 모니터하세요')
+
+
+@bp.post('/bundles/<code>/options/combo')
+def bundle_options_combo(code: str):
+    """[Phase 2] 단계형 옵션 — 조합 추가.
+
+    단계 설계 저장 + 조합 옵션 일괄 생성 (이미 있는 옵션은 제외).
+
+    body: {
+      "steps": [{"axis_name": str, "values": [str, ...]}],   # 1~3개
+      "selected": [[str, ...], ...]   # 선택 — 일부 조합만 (2·3축 매트릭스 선택 생성)
+    }
+    """
+    payload = request.get_json(silent=True) or {}
+    steps = payload.get('steps') or []
+    selected = payload.get('selected')   # None = 전체 cartesian
+
+    if not steps or not isinstance(steps, list):
+        return _err('steps(단계 설계)가 필요해요.')
+    if len(steps) > 3:
+        return _err('단계는 최대 3개까지예요.')
+
+    from lemouton.sourcing.option_service import create_combination_options
+    s = SessionLocal()
+    try:
+        m = s.query(Model).filter_by(model_code=code).first()
+        if m is None:
+            return _err('모음전을 찾을 수 없어요.', 404)
+        result = create_combination_options(s, code, steps, selected=selected)
+        return _ok(**result)
+    except Exception as e:
+        s.rollback()
+        return _err(str(e), 500)
+    finally:
+        s.close()
 
 
 @bp.get('/bundles/<code>/runs')

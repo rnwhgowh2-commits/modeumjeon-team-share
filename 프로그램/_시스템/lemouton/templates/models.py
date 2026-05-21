@@ -24,7 +24,9 @@ class PriceTemplate(Base):
     ss_margin_mode = Column(String(16), default="rate")
     ss_margin_rate = Column(Float, default=0.0945)
     ss_margin_amount = Column(Integer, default=0)
-    ss_delivery_fee = Column(Integer, default=3000)
+    ss_delivery_fee = Column(Integer, default=3000)   # 0 = 무료배송
+    ss_return_fee = Column(Integer, default=0)        # 반품비
+    ss_exchange_fee = Column(Integer, default=0)      # 교환비
     ss_extra_json = Column(Text, default='{}')
     # 쿠팡 전용
     coupang_normal_price = Column(Integer, default=149000)
@@ -34,7 +36,9 @@ class PriceTemplate(Base):
     coupang_margin_mode = Column(String(16), default="rate")
     coupang_margin_rate = Column(Float, default=0.1242)
     coupang_margin_amount = Column(Integer, default=0)
-    coupang_delivery_fee = Column(Integer, default=3500)
+    coupang_delivery_fee = Column(Integer, default=3500)  # 0 = 무료배송
+    coupang_return_fee = Column(Integer, default=0)       # 반품비
+    coupang_exchange_fee = Column(Integer, default=0)     # 교환비
     coupang_extra_json = Column(Text, default='{}')
 
     # ★ STEP 7 Task 0.2 — 박스히어로 사입 마진 (R2, 3계층 중 공통 템플릿 default)

@@ -773,27 +773,6 @@ function _modalBox(title, innerHTML, footerButtons) {
   return box;
 }
 
-const _PRICE_FIELDS = [
-  { key: 'name', label: '이름', type: 'text', required: true },
-  { key: 'boxhero_purchase_price', label: '박스히어로 매입가', type: 'number' },
-  { key: 'winner_premium_price', label: '위너 프리미엄가', type: 'number' },
-  { key: 'guardrail_lower', label: '가드레일 하한', type: 'number' },
-  { key: 'guardrail_upper', label: '가드레일 상한', type: 'number' },
-  { key: 'rounding_unit', label: '반올림 단위', type: 'number' },
-  { key: 'ss_normal_price', label: '스마트스토어 정상가', type: 'number' },
-  { key: 'ss_boxhero_sale_price', label: '스마트스토어 할인가 (박스히어로)', type: 'number' },
-  { key: 'ss_external_sale_price', label: '스마트스토어 할인가 (외부)', type: 'number' },
-  { key: 'ss_fee_rate', label: '스마트스토어 수수료율 (0.06=6%)', type: 'number', step: '0.0001' },
-  { key: 'ss_margin_rate', label: '스마트스토어 마진율 (0.0945=9.45%)', type: 'number', step: '0.0001' },
-  { key: 'ss_delivery_fee', label: '스마트스토어 배송비', type: 'number' },
-  { key: 'coupang_normal_price', label: '쿠팡 정상가', type: 'number' },
-  { key: 'coupang_boxhero_sale_price', label: '쿠팡 할인가 (박스히어로)', type: 'number' },
-  { key: 'coupang_external_sale_price', label: '쿠팡 할인가 (외부)', type: 'number' },
-  { key: 'coupang_fee_rate', label: '쿠팡 수수료율', type: 'number', step: '0.0001' },
-  { key: 'coupang_margin_rate', label: '쿠팡 마진율', type: 'number', step: '0.0001' },
-  { key: 'coupang_delivery_fee', label: '쿠팡 배송비', type: 'number' },
-];
-
 async function openPriceTplModal(id) {
   let initial = {};
   if (id) {
@@ -802,30 +781,177 @@ async function openPriceTplModal(id) {
     if (!j.ok) { alert('불러오기 실패: ' + (j.error || '')); return; }
     initial = j.template || {};
   }
-  const inputs = _PRICE_FIELDS.map(f => `
-    <div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid #f3f3f3">
-      <label style="flex:0 0 220px;font-size:13px;color:#555">${f.label}</label>
-      <input type="${f.type}" data-key="${f.key}" ${f.step ? `step="${f.step}"` : ''}
-             value="${initial[f.key] != null ? initial[f.key] : ''}"
-             style="flex:1;padding:6px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px">
+  const v = (k) => (initial[k] != null ? initial[k] : '');
+
+  const row = (label, inner) => `
+    <div style="display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid #f3f3f3">
+      <label style="flex:0 0 200px;font-size:13px;color:#555">${label}</label>
+      <div style="flex:1;min-width:0">${inner}</div>
+    </div>`;
+  const num = (k, ph, step) => `
+    <input type="number" data-key="${k}" ${step ? `step="${step}"` : ''}
+           value="${v(k)}" placeholder="${ph || ''}"
+           style="width:100%;padding:6px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px;box-sizing:border-box;font-variant-numeric:tabular-nums">`;
+  const txt = (k, ph) => `
+    <input type="text" data-key="${k}" value="${v(k)}" placeholder="${ph || ''}"
+           style="width:100%;padding:6px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px;box-sizing:border-box">`;
+  const delivery = (prefix) => {
+    const raw = initial[`${prefix}_delivery_fee`];
+    const isFree = !raw || Number(raw) === 0;
+    return `
+      <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+        <label style="font-size:13px;display:flex;align-items:center;gap:4px;cursor:pointer">
+          <input type="radio" name="ptm-${prefix}-deliv" value="free" ${isFree ? 'checked' : ''}>무료배송</label>
+        <label style="font-size:13px;display:flex;align-items:center;gap:4px;cursor:pointer">
+          <input type="radio" name="ptm-${prefix}-deliv" value="paid" ${isFree ? '' : 'checked'}>배송비</label>
+        <input type="number" data-key="${prefix}_delivery_fee" value="${isFree ? 0 : raw}" ${isFree ? 'disabled' : ''}
+               placeholder="배송비" style="width:120px;padding:6px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px">
+        <span style="font-size:12px;color:#9CA3AF">원</span>
+      </div>`;
+  };
+  const market = (prefix, topHtml) => `
+    ${topHtml || ''}
+    ${row('마켓 수수료율', num(prefix + '_fee_rate', '0.06 = 6%', '0.0001'))}
+    ${row('타겟 마진율 (배송비포함)', num(prefix + '_margin_rate', '0.0945 = 9.45%', '0.0001'))}
+    ${row('정상가', num(prefix + '_normal_price', '원'))}
+    ${row('할인가 (사입형)', num(prefix + '_boxhero_sale_price', '원'))}
+    ${row('할인가 (소싱처)', num(prefix + '_external_sale_price', '원'))}
+    ${row('배송타입', delivery(prefix))}
+    ${row('반품비', num(prefix + '_return_fee', '원'))}
+    ${row('교환비', num(prefix + '_exchange_fee', '원'))}`;
+  const tabBtn = (key, label) => `
+    <button type="button" class="ptm-tab" data-tab="${key}"
+            style="padding:8px 16px;background:none;border:none;border-bottom:2px solid transparent;font-size:14px;color:#8B95A1;font-weight:500;cursor:pointer">${label}</button>`;
+
+  const inner = `
+    <div style="display:flex;gap:2px;border-bottom:1px solid #E5E8EB;margin-bottom:6px">
+      ${tabBtn('basic', '기본정보')}${tabBtn('ss', '스마트스토어')}${tabBtn('cp', '쿠팡')}
     </div>
-  `).join('');
+    <div class="ptm-panel" data-panel="basic">
+      <div style="position:relative;margin:8px 0 4px">
+        <input id="ptm-prod-search" type="text" autocomplete="off"
+               placeholder="제품(모델) 검색 — 선택 시 평균 매입가 자동 입력"
+               style="width:100%;padding:8px 10px;border:1px solid #D1D6DB;border-radius:6px;font-size:13px;box-sizing:border-box">
+        <div id="ptm-prod-results" style="display:none;position:absolute;left:0;right:0;top:40px;background:#fff;border:1px solid #D1D6DB;border-radius:6px;box-shadow:0 8px 24px rgba(0,0,0,0.14);max-height:240px;overflow:auto;z-index:20"></div>
+      </div>
+      ${row('템플릿명', txt('name', '브랜드명 + 모델명 (예: 르무통 클래식)'))}
+      ${row('평균 매입가', num('boxhero_purchase_price', '원'))}
+      ${row('매입가 하한', num('guardrail_lower', '원'))}
+      ${row('매입가 상한', num('guardrail_upper', '원'))}
+    </div>
+    <div class="ptm-panel" data-panel="ss" style="display:none">
+      ${market('ss')}
+    </div>
+    <div class="ptm-panel" data-panel="cp" style="display:none">
+      ${market('coupang', row('위너 프리미엄가', num('winner_premium_price', '원')))}
+    </div>`;
+
   const box = _modalBox(
     id ? `💰 가격 템플릿 편집 (id=${id})` : '💰 새 가격 템플릿',
-    inputs,
+    inner,
     `<button class="btn" id="ptm-cancel">취소</button>
      <button class="btn btn-primary" id="ptm-save">저장</button>`
   );
   const bg = _modalBg(box);
+
+  // 탭 전환
+  const tabs = box.querySelectorAll('.ptm-tab');
+  const panels = box.querySelectorAll('.ptm-panel');
+  const activateTab = (name) => {
+    tabs.forEach(t => {
+      const on = t.dataset.tab === name;
+      t.style.color = on ? '#3182F6' : '#8B95A1';
+      t.style.fontWeight = on ? '700' : '500';
+      t.style.borderBottomColor = on ? '#3182F6' : 'transparent';
+    });
+    panels.forEach(p => { p.style.display = p.dataset.panel === name ? '' : 'none'; });
+  };
+  tabs.forEach(t => t.addEventListener('click', () => activateTab(t.dataset.tab)));
+  activateTab('basic');
+
+  // 배송타입 라디오 ↔ 배송비 입력 연동 (무료배송 = 배송비 0)
+  ['ss', 'coupang'].forEach(prefix => {
+    const feeInput = box.querySelector(`input[data-key="${prefix}_delivery_fee"]`);
+    box.querySelectorAll(`input[name="ptm-${prefix}-deliv"]`).forEach(radio => {
+      radio.addEventListener('change', () => {
+        if (!radio.checked) return;
+        if (radio.value === 'free') {
+          feeInput.value = '0';
+          feeInput.disabled = true;
+        } else {
+          feeInput.disabled = false;
+          if (!feeInput.value || feeInput.value === '0') feeInput.value = '';
+          feeInput.focus();
+        }
+      });
+    });
+  });
+
+  // 제품 검색 → 평균 매입가 자동 불러오기
+  const searchInput = box.querySelector('#ptm-prod-search');
+  const resultsBox = box.querySelector('#ptm-prod-results');
+  let searchTimer = null;
+  searchInput.addEventListener('input', () => {
+    clearTimeout(searchTimer);
+    const q = searchInput.value.trim();
+    if (!q) { resultsBox.style.display = 'none'; resultsBox.innerHTML = ''; return; }
+    searchTimer = setTimeout(async () => {
+      let j = {};
+      try {
+        const r = await fetch('/api/templates/price/product-search?q=' + encodeURIComponent(q));
+        j = await r.json();
+      } catch (e) { j = {}; }
+      if (!j.ok || !j.items || !j.items.length) {
+        resultsBox.innerHTML = '<div style="padding:10px 12px;font-size:13px;color:#9CA3AF">검색 결과 없음</div>';
+        resultsBox.style.display = 'block';
+        return;
+      }
+      resultsBox.innerHTML = j.items.map(it => {
+        const disp = ((it.brand ? it.brand + ' ' : '') + it.name).replace(/"/g, '&quot;');
+        const priceTxt = it.avg_purchase_price
+          ? it.avg_purchase_price.toLocaleString() + '원'
+          : '매입 이력 없음';
+        return `<div class="ptm-prod-item" data-name="${disp}" data-price="${it.avg_purchase_price || 0}"
+                  style="padding:8px 12px;cursor:pointer;border-bottom:1px solid #f3f3f3">
+                  <div style="font-size:13px;font-weight:600">${disp}</div>
+                  <div style="font-size:12px;color:#6B7684">평균 매입가 ${priceTxt} · 옵션 ${it.option_count}개</div>
+                </div>`;
+      }).join('');
+      resultsBox.style.display = 'block';
+    }, 250);
+  });
+  searchInput.addEventListener('blur', () => {
+    setTimeout(() => { resultsBox.style.display = 'none'; }, 180);
+  });
+  resultsBox.addEventListener('click', (ev) => {
+    const item = ev.target.closest('.ptm-prod-item');
+    if (!item) return;
+    const price = Number(item.dataset.price || 0);
+    const pname = item.dataset.name || '';
+    const ppInput = box.querySelector('input[data-key="boxhero_purchase_price"]');
+    if (ppInput && price > 0) ppInput.value = price;
+    const nameInput = box.querySelector('input[data-key="name"]');
+    if (nameInput && !nameInput.value.trim()) nameInput.value = pname;
+    resultsBox.style.display = 'none';
+    searchInput.value = '';
+    flash(price > 0 ? `평균 매입가 ${price.toLocaleString()}원 불러옴` : '매입 이력이 없어 매입가는 비워둡니다',
+          price > 0 ? 'ok' : 'warn');
+  });
+
   box.querySelector('#ptm-cancel').addEventListener('click', () => bg.remove());
   box.querySelector('#ptm-save').addEventListener('click', async () => {
     const payload = id ? { id: parseInt(id) } : {};
     box.querySelectorAll('input[data-key]').forEach(i => {
       const k = i.getAttribute('data-key');
-      const v = i.value.trim();
-      if (v === '') return;
-      payload[k] = (i.type === 'number') ? parseFloat(v) : v;
+      const val = i.value.trim();
+      if (val === '') return;
+      payload[k] = (i.type === 'number') ? parseFloat(val) : val;
     });
+    if (!payload.name || !String(payload.name).trim()) {
+      alert('템플릿명을 입력하세요.');
+      activateTab('basic');
+      return;
+    }
     const res = await apiPost('/api/templates/price', payload);
     if (res.ok) { flash('저장 완료'); bg.remove(); setTimeout(() => location.reload(), 500); }
     else flash('실패: ' + (res.error || ''), 'err');

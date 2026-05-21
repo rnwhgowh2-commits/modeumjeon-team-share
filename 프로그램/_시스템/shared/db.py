@@ -74,6 +74,11 @@ def _apply_lightweight_migrations() -> None:
         ("options", "barcode", "VARCHAR(64)"),
         # 2026-05-19: 품번 (우리 양식 5번째 컬럼) — Model 마스터에 저장
         ("models", "article_no", "VARCHAR(64)"),
+        # 2026-05-21: 가격 템플릿 마켓별 반품비·교환비 (모달 가로탭 재구성)
+        ("price_templates", "ss_return_fee", "INTEGER DEFAULT 0"),
+        ("price_templates", "ss_exchange_fee", "INTEGER DEFAULT 0"),
+        ("price_templates", "coupang_return_fee", "INTEGER DEFAULT 0"),
+        ("price_templates", "coupang_exchange_fee", "INTEGER DEFAULT 0"),
         # 2026-05-08: PARITY_720 Tier 1 — PO/SO/RO 자동번호·날짜·즉시처리·커스텀필드·첨부
         ("purchase_orders", "po_number", "VARCHAR(32)"),
         ("purchase_orders", "custom_fields_json", "TEXT DEFAULT '{}'"),
@@ -92,6 +97,10 @@ def _apply_lightweight_migrations() -> None:
         ("return_orders", "return_date", "DATETIME"),
         ("return_orders", "refund_amount", "INTEGER DEFAULT 0"),
         ("return_orders", "attachment_json", "TEXT DEFAULT '[]'"),
+        # 2026-05-21: Phase 2 단계형 옵션 — 옵션별 N축 단계 값 (JSON list)
+        ("options", "axis_values_json", "TEXT"),
+        # 2026-05-21: Phase 3 — 오프라인 전용 옵션 (소싱처 URL 없이 사입만)
+        ("options", "offline_only", "BOOLEAN DEFAULT 0 NOT NULL"),
     ]
     inspector = inspect(engine)
     existing_tables = set(inspector.get_table_names())
@@ -103,14 +112,15 @@ def _apply_lightweight_migrations() -> None:
                 # SQLAlchemy inspect — SQLite/PostgreSQL 양쪽 호환
                 names = {c["name"] for c in inspector.get_columns(table)}
                 if column not in names:
-                    # PostgreSQL 은 BOOLEAN DEFAULT 1 못 받음 → 1/0 을 true/false 로 변환
+                    # PostgreSQL 변환: DATETIME→TIMESTAMP, BOOLEAN 컬럼만 1/0→true/false.
+                    # 1/0 치환은 BOOLEAN 에만 적용 — INTEGER DEFAULT 0 이
+                    # DEFAULT false 로 오염돼 ALTER 가 실패하던 버그 수정.
                     pg_dtype = dtype
                     if conn.dialect.name == "postgresql":
-                        pg_dtype = (
-                            dtype.replace("DEFAULT 1", "DEFAULT true")
-                                 .replace("DEFAULT 0", "DEFAULT false")
-                                 .replace("DATETIME", "TIMESTAMP")
-                        )
+                        pg_dtype = dtype.replace("DATETIME", "TIMESTAMP")
+                        if pg_dtype.strip().upper().startswith("BOOLEAN"):
+                            pg_dtype = (pg_dtype.replace("DEFAULT 1", "DEFAULT true")
+                                                .replace("DEFAULT 0", "DEFAULT false"))
                     conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {column} {pg_dtype}"))
             except Exception:
                 pass
