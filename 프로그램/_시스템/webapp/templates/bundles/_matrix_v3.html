@@ -726,7 +726,7 @@
             {# v23 — 모델 열 삭제 (드로어/사이드바에서만 보임) #}
             <th class="center" style="width:50px">자동</th>
             <th style="width:300px">판매가 · 마켓별</th>
-            <th class="center" style="width:230px">재고</th>
+            <th class="center stock-col" style="width:230px">재고</th>
             {# 사이트 칼럼은 JS 가 동적 삽입 (.th-site-col 클래스) #}
           </tr>
         </thead>
@@ -787,6 +787,57 @@
     .ipl-isearch { width: 100%; box-sizing: border-box; border: 1.5px solid var(--primary, #3182F6); border-radius: 7px; padding: 7px 10px; font-size: 14px; font-family: var(--font); transition: width .12s ease, box-shadow .12s ease; }
     /* 재고 컬럼이 좁아 평소엔 셀 폭 — 포커스 시 넓게 펼쳐 편하게 입력 */
     .ipl-isearch:focus { position: absolute; left: 0; top: 0; width: 340px; max-width: 62vw; z-index: 30; box-shadow: 0 4px 18px rgba(49,130,246,.28); outline: none; }
+
+    /* ═══════ 매트릭스 레이아웃 개선 (문제 1·2·3·4·5) ═══════ */
+    /* 문제1 (1-2) — 옵션명: 색상 + 사이즈/FREE 칩 */
+    .opt-cell .opt-size-chip { display: inline-block; margin-left: 5px; border-radius: 5px;
+      padding: 1px 6px; font-size: 11px; font-weight: 800; vertical-align: 1px;
+      background: var(--primary-tint, #EAF3FF); color: var(--primary, #3182F6); }
+    .opt-cell .opt-size-chip.free { background: #F2F4F6; color: #8B95A1; font-weight: 700; }
+
+    /* 문제2·5 (2-5·5-5) — 재고 셀: 폭 확대 + 카드 구획 + 세로 스택 + 이력 아코디언 */
+    .opt-table .stock-col { min-width: 186px; }
+    .cell-stock-wrap.skv2 { display: flex; flex-direction: column; gap: 7px; padding: 9px 11px; text-align: left; }
+    .skv2-card { border: 1px solid #E5E8EB; border-radius: 9px; padding: 9px 10px; background: #fff; }
+    .skv2-card .ipl-wrap { margin-bottom: 0; }
+    .skv2-h { font-size: 10px; font-weight: 800; color: #8B95A1; letter-spacing: .03em; margin-bottom: 6px; }
+    .skv2-fld + .skv2-fld { margin-top: 9px; }
+    .skv2-lab { display: block; font-size: 11px; font-weight: 800; color: #8B95A1; }
+    .skv2-val { display: flex; align-items: center; gap: 6px; margin-top: 3px; }
+    .skv2-val input { width: 58px; border: 1.5px solid #D1D6DB; border-radius: 6px;
+      padding: 5px 7px; font-size: 13px; font-family: inherit; text-align: right; }
+    .skv2-unit { font-size: 12px; color: #6B7684; }
+    .skv2 .b1-sync { display: inline-flex; align-items: center; gap: 5px; background: #E7F8EF;
+      color: #03A65A; border-radius: 20px; padding: 3px 9px; font-size: 11.5px; font-weight: 800;
+      white-space: nowrap; margin-left: 0; }
+    .skv2 .b1-dot { width: 7px; height: 7px; border-radius: 50%; background: #03A65A; display: inline-block; }
+    .skv2 .b1-meta { font-weight: 700; opacity: .8; }
+    .skv2-accbar { display: flex; align-items: center; justify-content: space-between; width: 100%;
+      background: #F9FAFB; border: 1px solid #E5E8EB; border-radius: 8px; padding: 7px 10px;
+      font-size: 11.5px; font-weight: 800; color: #4E5968; cursor: pointer; font-family: inherit; }
+    .skv2-caret { transition: transform .15s ease; }
+    .skv2-accbar.open .skv2-caret { transform: rotate(180deg); }
+    .skv2 .skv2-hist { display: none !important; margin-top: 6px; }
+    .skv2 .skv2-hist.open { display: flex !important; }
+
+    /* 문제3 (3-4) — 소싱처 헤더: 로고+이름 칩 + URL 색 뱃지 */
+    .integrated-mtx th.th-site-col.urlw::before { content: none; }
+    .integrated-mtx th.th-site-col .hsrc-top { display: flex; align-items: center; justify-content: center; gap: 6px; }
+    .integrated-mtx th.th-site-col .hsrc-chip { display: inline-flex; align-items: center; gap: 5px;
+      background: #F9FAFB; border: 1px solid #E5E8EB; border-radius: 7px; padding: 3px 8px; }
+    .integrated-mtx th.th-site-col .hsrc-chip .site-logo { width: 18px; height: 18px; border-radius: 5px; }
+    .integrated-mtx th.th-site-col .hsrc-nm { font-size: 12px; font-weight: 800; color: #333D4B; white-space: nowrap; }
+    .integrated-mtx th.th-site-col .hsrc-badge { display: inline-block; margin-top: 5px;
+      border-radius: 11px; padding: 2px 9px; font-size: 10.5px; font-weight: 800; }
+    .integrated-mtx th.th-site-col .hsrc-badge.zero { background: #F2F4F6; color: #8B95A1; }
+    .integrated-mtx th.th-site-col .hsrc-badge.ok { background: #E7F8EF; color: #03A65A; }
+
+    /* 문제4 (4-4) — 빈 소싱처 셀: ⚠ 제거 + URL 등록 버튼 */
+    .integrated-mtx td.td-site-col.cn.cn-add::before { content: none; }
+    .integrated-mtx td.td-site-col.cn.cn-add { text-align: center; }
+    .cell-addurl { border: 1.3px dashed #B0B8C1; border-radius: 6px; background: #fff; color: #6B7684;
+      font-size: 11px; font-weight: 800; padding: 4px 8px; cursor: pointer; font-family: inherit; white-space: nowrap; }
+    .cell-addurl:hover { border-color: #3182F6; color: #3182F6; background: #F3F8FF; }
     .ipl-browse { width: 100%; box-sizing: border-box; background: var(--primary-tint, #EAF3FF); color: var(--primary, #3182F6); border: 0; border-radius: 7px; padding: 7px 9px; font-size: 12.5px; font-weight: 800; cursor: pointer; font-family: var(--font); white-space: nowrap; }
     .ipl-dd { position: absolute; top: 36px; left: 0; width: 380px; max-width: 92vw; background: #fff; border: 1px solid var(--n200, #e5e8eb); border-radius: 9px; box-shadow: 0 12px 32px rgba(0,0,0,.16); z-index: 20; overflow: hidden; }
     .ipl-dd-h { padding: 7px 11px; background: var(--n100, #f9fafb); border-bottom: 1px solid var(--n100, #f2f4f6); font-size: 12px; color: var(--n500, #6B7684); font-weight: 700; display: flex; align-items: center; gap: 5px; flex-wrap: wrap; }
@@ -1436,7 +1487,7 @@
       });
     }
     // 옵션 정보 채우기
-    const optName = `${opt.color_display || opt.color_code || ''}-${opt.size_code || ''}`;
+    const optName = optLabelText(opt);
     document.getElementById('odd-h-sku').innerHTML = `${optName} <span style="font-size: 14px;color:#8B95A1;font-family:ui-monospace,monospace;margin-left:6px">${escapeHtml(sku)}</span>`;
     // v25 ②-(1) — footer 「전체 페이지로 →」 링크 (옵션 상세 페이지)
     const footLink = document.getElementById('odd-foot-page-link');
@@ -1816,8 +1867,8 @@
     // 자동 매핑 필드
     document.getElementById('iad-sku').value = sku;
     const headSkuEl = document.getElementById('iad-head-sku');
-    if (headSkuEl) headSkuEl.textContent = `${opt.color_display || opt.color_code || ''}-${opt.size_code || ''}`;
-    document.getElementById('iad-option-name').value = `${opt.color_display || opt.color_code || ''}-${opt.size_code || ''}`;
+    if (headSkuEl) headSkuEl.textContent = optLabelText(opt);
+    document.getElementById('iad-option-name').value = optLabelText(opt);
     document.getElementById('iad-model-code').value = opt.model_code || '';
     document.getElementById('iad-color-size').value = `${opt.color_display || opt.color_code || ''} / ${opt.size_code || ''}`;
     document.getElementById('iad-brand').value = '르무통';  // TODO: 동적 추출
@@ -3872,6 +3923,28 @@
   }
 
   // ④ 옵션 재고연결 — 연결 칸 (인라인 검색 + 찾아보기). renderStockCell 상단에 삽입.
+  // 문제1 (1-2) — 옵션 라벨: 색상 + 사이즈/FREE 칩 ("미스티로즈--" 비문 제거)
+  function _isFreeSize(sz) {
+    const s = (sz || '').trim();
+    return !s || s === '-' || s === '–' || s.toUpperCase() === 'FREE' || s.toUpperCase() === 'F';
+  }
+  function optLabelText(o) {
+    const color = ((o.color_display || o.color_code) || '').trim();
+    const size = ((o.size_display || o.size_code) || '').trim();
+    if (!color && !size) return o.sku || o.canonical_sku || '';
+    if (_isFreeSize(size)) return color || (o.sku || o.canonical_sku || '');
+    return color ? (color + ' / ' + size) : size;
+  }
+  function optLabelHtml(o) {
+    const color = ((o.color_display || o.color_code) || '').trim();
+    const size = ((o.size_display || o.size_code) || '').trim();
+    const name = escapeHtml(color || o.sku || o.canonical_sku || '');
+    const chip = _isFreeSize(size)
+      ? '<span class="opt-size-chip free">FREE</span>'
+      : '<span class="opt-size-chip">' + escapeHtml(size) + '</span>';
+    return '<strong>' + name + '</strong>' + chip;
+  }
+
   function renderInvLinkCell(o) {
     const lp = o.linked_product;
     if (lp) {
@@ -3903,25 +3976,50 @@
       </div>`;
     }
     // v20 G3 — LIVE 옵션 = 라벨 grid + separator + 이력 타이틀
-    return `<div class="cell-stock-wrap stock-live">
-      ${invLink}
-      <div class="g3-field-row">
-        <span class="g3-lab">재고</span>
-        <span class="g3-val">
-          <input class="inline-edit inline-edit-stock" type="number" data-inline="${o.sku}" data-inline-field="manual_stock" value="${v}">
-          <span class="unit-text">개</span>
-        </span>
+    return `<div class="cell-stock-wrap stock-live skv2">
+      <div class="skv2-card">
+        <div class="skv2-h">재고제품 연결</div>
+        ${invLink}
       </div>
-      <div class="g3-field-row">
-        <span class="g3-lab">상태</span>
-        <span class="g3-val">
-          <span class="b1-sync" data-sync-state="live"><span class="b1-dot"></span><span class="b1-lbl">동기화됨</span><span class="b1-meta">· LIVE</span></span>
-        </span>
+      <div class="skv2-card">
+        <div class="skv2-h">수량 · 상태</div>
+        <div class="skv2-fld">
+          <span class="skv2-lab">재고 수량</span>
+          <span class="skv2-val">
+            <input class="inline-edit inline-edit-stock" type="number" data-inline="${o.sku}" data-inline-field="manual_stock" value="${v}">
+            <span class="skv2-unit">개</span>
+          </span>
+        </div>
+        <div class="skv2-fld">
+          <span class="skv2-lab">동기화 상태</span>
+          <span class="skv2-val">
+            <span class="b1-sync" data-sync-state="live"><span class="b1-dot"></span><span class="b1-lbl">동기화됨</span><span class="b1-meta">· LIVE</span></span>
+          </span>
+        </div>
       </div>
-      <hr class="g3-sep">
-      <div class="g3-hist-title">입출고/조정 이력</div>
-      <div class="b1-history" data-sku-hist="${o.sku}"><span class="b1-hist-loading">…</span></div>
+      <div class="skv2-acc">
+        <button type="button" class="skv2-accbar">입출고/조정 이력<span class="skv2-caret">▾</span></button>
+        <div class="b1-history skv2-hist" data-sku-hist="${o.sku}"><span class="b1-hist-loading">…</span></div>
+      </div>
     </div>`;
+  }
+
+  // 문제2·4 — 입출고 이력 아코디언 토글 + 빈 소싱처셀 「+URL」 → §2 소싱처 URL 탭
+  if (!window.__mtxLayoutBound) {
+    window.__mtxLayoutBound = true;
+    document.addEventListener('click', (e) => {
+      const acc = e.target.closest('.skv2-accbar');
+      if (acc) {
+        const hist = acc.parentElement.querySelector('.skv2-hist');
+        if (hist) acc.classList.toggle('open', hist.classList.toggle('open'));
+        return;
+      }
+      const addUrl = e.target.closest('[data-act="goto-url-tab"]');
+      if (addUrl) {
+        const t = document.querySelector('.bundle-tab[data-tab="url"]');
+        if (t) t.click();
+      }
+    });
   }
 
   function renderVerifyRow(o) {
@@ -4136,11 +4234,11 @@
       // Phase 7 — 모바일 앱 이미지 로고 (favicon high-res) 사용
       const logoHtml = `<span class="site-logo" title="${escapeHtml(s.name)}">${brandIconHtml(s.name, 'md')}</span>`;
       th.innerHTML = `
-        <div class="hring-row">
+        <div class="hsrc-top">
           <div class="hring" style="--p:${pct}%"><div class="in">${pct}</div></div>
-          <span class="h-app">${logoHtml}${escapeHtml(s.name)}</span>
+          <div class="hsrc-chip">${logoHtml}<span class="hsrc-nm">${escapeHtml(s.name)}</span></div>
         </div>
-        <div class="h-frac">${done}/${urls} · URL ${urls}${isPartial ? '개만' : ''}${running_flag}</div>
+        <div class="hsrc-badge ${urls > 0 ? 'ok' : 'zero'}">${urls > 0 ? 'URL ' + urls + '개' : 'URL 미등록'}${running_flag}</div>
       `;
       headRow.appendChild(th);
     });
@@ -4156,7 +4254,7 @@
     const src = (o.sources || []).find(x => x.source_id === s.id);
     // URL 미등록
     if (!src || !src.product_url) {
-      return `<td class="td-site-col cn" data-cell-sku="${escapeHtml(o.sku)}" data-cell-src="${s.id}"></td>`;
+      return `<td class="td-site-col cn cn-add" data-cell-sku="${escapeHtml(o.sku)}" data-cell-src="${s.id}"><button type="button" class="cell-addurl" data-act="goto-url-tab" title="이 소싱처의 상품 URL 등록 — §2 소싱처 URL 탭으로 이동">+ URL</button></td>`;
     }
     // 크롤 실패
     if (src.last_status === 'error') {
@@ -4226,11 +4324,11 @@
       const siteCells = sources.map(s => renderSiteCell(o, s)).join('');
       html += `<tr data-price-row="${o.sku}" data-sku="${o.sku}" data-model="${o.model_code || ''}" data-color-row-key="${o.color_code}" ${checked ? 'class="selected"':''}>
         <td><input type="checkbox" data-price-check="${o.sku}" ${checked ? 'checked':''}></td>
-        <td class="mono opt-cell"><strong>${o.color_code}-${o.size_code}</strong><button type="button" class="opt-detail-btn" data-act="opt-detail" data-sku="${escapeHtml(o.sku)}" title="⚙ 상세설정">⚙</button></td>
+        <td class="mono opt-cell">${optLabelHtml(o)}<button type="button" class="opt-detail-btn" data-act="opt-detail" data-sku="${escapeHtml(o.sku)}" title="⚙ 상세설정">⚙</button></td>
         {# v23 — 모델 열 삭제 #}
         <td class="center"><label class="switch"><input type="checkbox" data-auto-toggle="${o.sku}" ${o.auto_enabled ? 'checked':''}><span class="switch-slider"></span></label></td>
         <td class="mc-unified-cell">${renderM4Stack(o)}</td>
-        <td>${renderStockCell(o)}</td>
+        <td class="stock-col">${renderStockCell(o)}</td>
         ${siteCells}
       </tr>`;
       // 자동 모드 ▼ 펼침 영역 (계산식 산출과정) — fx 버튼으로 진입
