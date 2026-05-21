@@ -11,11 +11,11 @@
 
   <div class="sb-modeswitch">
     <a href="/" class="sb-mode {% if active_app != 'inventory' %}on{% endif %}">
-      <span class="sb-mode-ic" data-icon-edit="mode|bundles" data-icon-current="📦" data-icon-label="모음전 모드">📦</span>
+      <span class="sb-mode-ic" data-icon-edit="mode|bundles" data-icon-current="{{ sidebar_mode_icons.bundles.emoji }}" data-icon-label="모음전 모드"{% if sidebar_mode_icons.bundles.color %} style="color:{{ sidebar_mode_icons.bundles.color }}"{% endif %}>{{ sidebar_mode_icons.bundles.emoji }}</span>
       <span class="sb-mode-nm">모음전</span>
     </a>
     <a href="/inventory/" class="sb-mode {% if active_app == 'inventory' %}on{% endif %}">
-      <span class="sb-mode-ic" data-icon-edit="mode|inventory" data-icon-current="🏷" data-icon-label="재고관리 모드">🏷</span>
+      <span class="sb-mode-ic" data-icon-edit="mode|inventory" data-icon-current="{{ sidebar_mode_icons.inventory.emoji }}" data-icon-label="재고관리 모드"{% if sidebar_mode_icons.inventory.color %} style="color:{{ sidebar_mode_icons.inventory.color }}"{% endif %}>{{ sidebar_mode_icons.inventory.emoji }}</span>
       <span class="sb-mode-nm">재고관리</span>
     </a>
   </div>

@@ -5,6 +5,31 @@ register_routes()가 모두 등록한다.
 """
 from flask import Flask
 
+# 아이콘 picker 색상 키 → hex (icon_picker.js 의 COLORS 와 동기)
+_MODE_COLOR_HEX = {
+    'default': '', 'blue': '#3182F6', 'green': '#03C75A', 'orange': '#F59E0B',
+    'red': '#EF4444', 'purple': '#7C3AED', 'teal': '#14B8A6', 'pink': '#EC4899',
+    'indigo': '#6366F1', 'cyan': '#06B6D4',
+}
+# 모드 전환 아이콘 기본값 (sidebar.html 하드코딩과 일치)
+_MODE_DEFAULTS = {'bundles': '📦', 'inventory': '🏷'}
+
+
+def _sidebar_mode_icons() -> dict:
+    """저장된 모드 전환 아이콘(모음전/재고관리) 조회 — 없으면 기본 이모지 폴백."""
+    from webapp.icon_store import get_icon
+    result = {}
+    for key, default_emoji in _MODE_DEFAULTS.items():
+        rec = get_icon('mode', key)
+        if rec and rec.get('icon'):
+            result[key] = {
+                'emoji': rec['icon'],
+                'color': _MODE_COLOR_HEX.get(rec.get('color') or 'default', ''),
+            }
+        else:
+            result[key] = {'emoji': default_emoji, 'color': ''}
+    return result
+
 
 def register_routes(app: Flask) -> None:
     from webapp.routes.home import bp as home_bp
@@ -68,4 +93,5 @@ def register_routes(app: Flask) -> None:
             'sidebar_failed_count': failed,
             'sidebar_layout': get_layout_for_template(),
             'sidebar_badge_values': {'unmapped': unmapped, 'failed': failed},
+            'sidebar_mode_icons': _sidebar_mode_icons(),
         }
