@@ -47,6 +47,10 @@ body.sb3-resizing *{cursor:col-resize !important}
 .sb3-stage .st-items{position:relative}
 .sb3-stage .st-items::before{content:'';position:absolute;left:38px;top:0;bottom:0;width:1.5px;background:var(--n200,#E5E8EB);pointer-events:none}
 .sb3-stage.collapsed .st-items::before{display:none}
+/* 빈 카테고리 — 항목이 0개면 .st-items 높이가 0px 라 드래그앤드롭이 불가능.
+   min-height 로 드롭 표적을 확보하고 점선으로 영역을 표시 */
+.sb3-stage .st-items:not(:has(.sb3-item)){min-height:44px;margin:2px 8px 2px 12px;border:1.5px dashed var(--n200,#E5E8EB);border-radius:7px}
+.sb3-stage .st-items:not(:has(.sb3-item))::before{display:none}
 /* 독립 영역(홈)의 sb3-item 은 L connector 제거 — 카테고리 안이 아님 */
 .sb3-stand .sb3-item::before{display:none}
 .sb3-stand .sb3-item{padding-left:14px}
