@@ -85,6 +85,34 @@
       select.dispatchEvent(new Event('change', { bubbles: true }));
     });
 
+    // Enter = 입력한 카테고리 확정 → 드롭다운으로 복귀 (선택된 상태로 표시)
+    function commitNewMode() {
+      var v = input.value.trim();
+      if (!v) { exitNewMode(); return; }   // 빈 값이면 그냥 목록으로
+      var dup = null;
+      for (var i = 0; i < select.options.length; i++) {
+        if (select.options[i] !== tempOpt && select.options[i].value === v) { dup = select.options[i]; break; }
+      }
+      inNewMode = false;
+      if (dup) {
+        if (tempOpt) { select.removeChild(tempOpt); tempOpt = null; }
+      } else {
+        ensureTemp();
+        tempOpt.value = v;
+        tempOpt.textContent = v;
+        delete tempOpt.dataset.catTemp;    // 임시 → 영구 옵션으로 승격
+        tempOpt = null;
+      }
+      select.value = v;
+      wrap.style.display = 'none';
+      select.style.display = '';
+      select.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+
+    input.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter') { e.preventDefault(); commitNewMode(); }
+    });
+
     back.addEventListener('click', exitNewMode);
   }
 
