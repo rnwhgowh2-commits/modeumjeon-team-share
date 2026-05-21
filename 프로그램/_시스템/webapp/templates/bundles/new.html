@@ -30,8 +30,8 @@
       </div>
       <div class="field">
         <label class="field-label">카테고리</label>
-        <select id="category" class="field-input">
-          <option value="신발">신발</option><option value="의류">의류</option><option value="가방">가방</option>
+        <select id="category" class="field-input" data-category-add>
+          {% for c in categories %}<option value="{{ c }}">{{ c }}</option>{% endfor %}
         </select>
       </div>
     </div>
@@ -414,4 +414,5 @@
   renderOptions();
 })();
 </script>
+<script src="{{ url_for('static', filename='category_select.js') }}"></script>
 {% endblock %}

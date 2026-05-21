@@ -74,6 +74,25 @@ def _upload_kind(dt, dlq_failed: int) -> str:
     return 'ok'
 
 
+_DEFAULT_CATEGORIES = ['신발', '의류', '가방']
+
+
+def _all_categories() -> list[str]:
+    """카테고리 드롭다운 옵션 — 기본 3종 + DB에 이미 쓰인 카테고리(중복 제거).
+
+    별도 카테고리 테이블이 없어 Model.category 문자열을 단일 진실 원천으로 삼는다.
+    기본 3종을 항상 맨 앞 고정(드롭다운 첫 항목 = '신발' 유지), 나머지는 가나다순.
+    """
+    s = SessionLocal()
+    try:
+        rows = s.query(Model.category).distinct().all()
+    finally:
+        s.close()
+    used = {(r[0] or '').strip() for r in rows}
+    extra = sorted(used - set(_DEFAULT_CATEGORIES) - {''})
+    return _DEFAULT_CATEGORIES + extra
+
+
 @bp.route('/bundles/_mockups/draft-sidebar', methods=['GET'])
 def bundles_mockup_draft_sidebar():
     """[mockup] 임시저장 사이드바 3 시안 비교."""
@@ -90,7 +109,7 @@ def bundles_mockup_sourcing():
 def bundle_migrate():
     """[v2] 마켓 등록된 상품 연동 — 스스 originProductNo 1개 입력 → 자동 모음전 생성."""
     return render_template('bundles/migrate.html', active='bundles_migrate',
-                           error=None, form={})
+                           error=None, form={}, categories=_all_categories())
 
 
 @bp.route('/bundles/new', methods=['GET', 'POST'])
@@ -103,17 +122,17 @@ def bundle_new():
         if not code or not name:
             return render_template('bundles/new.html', active='bundles',
                                    error='모음전 코드와 모델명을 모두 입력하세요.',
-                                   form=request.form)
+                                   form=request.form, categories=_all_categories())
         if not brand:
             return render_template('bundles/new.html', active='bundles',
                                    error='브랜드를 입력하세요.',
-                                   form=request.form)
+                                   form=request.form, categories=_all_categories())
         s = SessionLocal()
         try:
             if s.query(Model).filter_by(model_code=code).first():
                 return render_template('bundles/new.html', active='bundles',
                                        error=f"'{code}' 코드는 이미 존재해요.",
-                                       form=request.form)
+                                       form=request.form, categories=_all_categories())
             m = Model(model_code=code, model_name_raw=name,
                       model_name_display=name, brand=brand, category=category)
             s.add(m)
@@ -121,7 +140,8 @@ def bundle_new():
         finally:
             s.close()
         return redirect(f'/bundles/{code}')
-    return render_template('bundles/new.html', active='bundles_new', error=None, form={})
+    return render_template('bundles/new.html', active='bundles_new', error=None,
+                           form={}, categories=_all_categories())
 
 
 def _classify_bundle_status(m: Model, opt_count: int, opts_with_naver: int,
@@ -616,6 +636,7 @@ def bundle_edit(code: str):
         'bundles/edit.html',
         active='bundles',
         bundle=m,
+        categories=_all_categories(),
         options=options,
         price_templates=price_templates,
         color_templates=color_templates,

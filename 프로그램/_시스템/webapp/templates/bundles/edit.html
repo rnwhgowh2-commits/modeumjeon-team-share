@@ -193,10 +193,8 @@
         </div>
         <div class="field">
           <label class="field-label">카테고리</label>
-          <select class="field-input" name="category">
-            <option value="신발" {% if bundle.category == '신발' %}selected{% endif %}>신발</option>
-            <option value="의류" {% if bundle.category == '의류' %}selected{% endif %}>의류</option>
-            <option value="가방" {% if bundle.category == '가방' %}selected{% endif %}>가방</option>
+          <select class="field-input" name="category" data-category-add>
+            {% for c in categories %}<option value="{{ c }}" {% if bundle.category == c %}selected{% endif %}>{{ c }}</option>{% endfor %}
           </select>
         </div>
         <div class="field"><label class="field-label">마켓 노출명</label><input class="field-input" name="model_name_display" value="{{ bundle.model_name_display or bundle.model_name_raw }}" /></div>
@@ -1396,5 +1394,6 @@
     });
   }
   </script>
+<script src="{{ url_for('static', filename='category_select.js') }}"></script>
 </section>
 {% endblock %}

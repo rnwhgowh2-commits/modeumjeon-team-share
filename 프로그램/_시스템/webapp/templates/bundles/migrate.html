@@ -33,10 +33,8 @@
     </div>
     <div class="field">
       <label class="field-label">카테고리</label>
-      <select id="m-category" class="field-input">
-        <option value="신발" selected>신발</option>
-        <option value="의류">의류</option>
-        <option value="가방">가방</option>
+      <select id="m-category" class="field-input" data-category-add>
+        {% for c in categories %}<option value="{{ c }}">{{ c }}</option>{% endfor %}
       </select>
     </div>
   </div>
@@ -49,6 +47,7 @@
   <div id="migrate-result" style="margin-top:18px"></div>
 </section>
 {% include 'partials/draft_bubble.html' %}
+<script src="{{ url_for('static', filename='category_select.js') }}"></script>
 <script>
 // [v2] 공용 임시저장 helper 사용
 document.addEventListener('DOMContentLoaded', () => {
