@@ -3191,6 +3191,48 @@ def sources_probe():
     return _ok(**out)
 
 
+@bp.post('/sources/add')
+def api_sources_add():
+    """[소싱처 통합] 신규 소싱처 사이트 추가 → SourcingSource 마스터에 기록.
+
+    URL 섹션·소싱처 계정 페이지가 같은 SourcingSource 목록을 공유하므로 양쪽에 자동 반영.
+    Body: {label, domain, logo_color?, logo_letter?, favicon_url?, needs_login?}
+    """
+    import re as _re
+    from lemouton.sourcing.models import SourcingSource
+    data = request.get_json(silent=True) or {}
+    label = (data.get('label') or '').strip()
+    domain = (data.get('domain') or '').strip().lower()
+    domain = domain.replace('https://', '').replace('http://', '').replace('www.', '').rstrip('/')
+    if not label or not domain:
+        return _err('소싱처 이름과 도메인을 입력하세요.')
+    base = _re.sub(r'[^a-z0-9_]', '', domain.split('/')[0].split('.')[0].lower()) or 'src'
+    builtin = {'lemouton', 'musinsa', 'ssf', 'lotteon', 'ss_lemouton'}
+    s = SessionLocal()
+    try:
+        key, n = base, 2
+        while key in builtin or s.query(SourcingSource).filter_by(source_key=key).first():
+            key = f'{base}{n}'
+            n += 1
+        row = SourcingSource(
+            source_key=key, label=label, domain=domain,
+            logo_color=(data.get('logo_color') or '#3182F6'),
+            logo_letter=((data.get('logo_letter') or label[:1]).upper()[:4]),
+            favicon_url=(data.get('favicon_url') or None),
+            needs_login=bool(data.get('needs_login')),
+            has_adapter=False, is_active=True,
+            sort_order=100 + s.query(SourcingSource).count(),
+        )
+        s.add(row)
+        s.commit()
+        return _ok(source_key=key, label=label)
+    except Exception as e:
+        s.rollback()
+        return _err(str(e), 500)
+    finally:
+        s.close()
+
+
 # ════════════════════════════════════════════════════════════
 #  제품 공유 v1 — 제품 마스터 ② 복사·일괄생성 / ③ 삭제 경고 / ⑤ 역참조
 # ════════════════════════════════════════════════════════════

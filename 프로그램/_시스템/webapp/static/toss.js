@@ -1139,6 +1139,78 @@ function openOptionUrlModal(sku, onChange) {
   load();
 }
 
+// ============================================================
+// [소싱처 재설계] 사이트 소싱처 추가 모달 — 도메인 자동감지 (시안 B)
+// ============================================================
+function openAddSourceModal() {
+  let probed = {};
+  let color = '#3182f6';
+  const COLORS = ['#191f28', '#3182f6', '#e5484d', '#03c75a', '#7c3aed', '#f59e0b', '#1f3a93'];
+  const box = _modalBox('사이트 소싱처 추가',
+    '<div style="font-size:13px;color:var(--n500,#888);margin-bottom:13px">사이트 주소를 넣고 <b>불러오기</b>를 누르면 로고·이름을 자동으로 가져옵니다. '
+    + '추가하면 소싱처 계정 페이지에도 함께 등록됩니다 (통합 목록).</div>'
+    + '<div style="margin-bottom:12px"><div style="font-size:12px;font-weight:800;color:#4e5968;margin-bottom:5px">사이트 주소</div>'
+    + '<div style="display:flex;gap:7px"><input id="as-domain" placeholder="예: 29cm.co.kr" '
+    + 'style="flex:1;font:inherit;font-size:13px;padding:9px 11px;border:1px solid #d8dce0;border-radius:8px">'
+    + '<button class="btn" id="as-probe" type="button">불러오기</button></div></div>'
+    + '<div style="margin-bottom:12px"><div style="font-size:12px;font-weight:800;color:#4e5968;margin-bottom:5px">소싱처 이름</div>'
+    + '<input id="as-label" placeholder="예: 29CM" style="width:100%;font:inherit;font-size:13px;padding:9px 11px;border:1px solid #d8dce0;border-radius:8px"></div>'
+    + '<div style="display:flex;align-items:center;gap:11px"><span style="font-size:12px;font-weight:800;color:#4e5968">로고</span>'
+    + '<span id="as-logo" style="width:34px;height:34px;border-radius:9px;background:#3182f6;color:#fff;font-weight:800;'
+    + 'display:flex;align-items:center;justify-content:center;font-size:14px">?</span>'
+    + '<span id="as-colors" style="display:flex;gap:6px"></span></div>',
+    '<button class="btn" id="as-cancel" type="button">취소</button>'
+    + '<button class="btn btn-primary" id="as-submit" type="button">소싱처 추가</button>');
+  const bg = _modalBg(box);
+  const $ = (s) => box.querySelector(s);
+  function paintLogo() {
+    const lbl = $('#as-label').value.trim();
+    $('#as-logo').textContent = (lbl[0] || '?').toUpperCase();
+    $('#as-logo').style.background = color;
+  }
+  $('#as-colors').innerHTML = COLORS.map(c =>
+    `<span class="as-c" data-c="${c}" style="width:21px;height:21px;border-radius:6px;background:${c};cursor:pointer;display:inline-block"></span>`).join('');
+  $('#as-colors').addEventListener('click', (e) => {
+    const c = e.target.closest('.as-c');
+    if (c) { color = c.dataset.c; paintLogo(); }
+  });
+  $('#as-label').addEventListener('input', paintLogo);
+  $('#as-probe').addEventListener('click', async () => {
+    const d = $('#as-domain').value.trim();
+    if (!d) { flash('사이트 주소를 입력하세요', 'err'); return; }
+    const r = await apiPost('/api/sources/probe', { url: d });
+    if (r && r.ok) {
+      probed = r;
+      if (!$('#as-label').value.trim()) $('#as-label').value = r.title || r.label_suggestion || '';
+      if (r.logo_color) color = r.logo_color;
+      paintLogo();
+      flash('자동 감지 완료');
+    } else flash('감지 실패 — 직접 입력하세요', 'warn');
+  });
+  $('#as-cancel').addEventListener('click', () => bg.remove());
+  $('#as-submit').addEventListener('click', async () => {
+    const label = $('#as-label').value.trim();
+    const domain = $('#as-domain').value.trim();
+    if (!label || !domain) { flash('이름과 주소를 입력하세요', 'err'); return; }
+    const btn = $('#as-submit');
+    btn.disabled = true; btn.textContent = '추가 중…';
+    const res = await apiPost('/api/sources/add', {
+      label: label, domain: domain, logo_color: color,
+      logo_letter: (label[0] || '').toUpperCase(),
+      favicon_url: probed.favicon_url || '',
+    });
+    if (res && res.ok) {
+      flash(`'${label}' 소싱처 추가됨`);
+      bg.remove();
+      setTimeout(() => location.reload(), 700);
+    } else {
+      flash('추가 실패: ' + ((res && res.error) || ''), 'err');
+      btn.disabled = false; btn.textContent = '소싱처 추가';
+    }
+  });
+  paintLogo();
+}
+
 async function openPriceTplModal(id) {
   let initial = {};
   if (id) {
