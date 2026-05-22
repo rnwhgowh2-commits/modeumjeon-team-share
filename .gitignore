@@ -92,3 +92,5 @@ tmp_*.py
 *.tmp
 .cache/
 .claude/
+
+.superpowers/
