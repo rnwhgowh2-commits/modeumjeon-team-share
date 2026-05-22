@@ -2,7 +2,7 @@
    2026-05-13 사용자 결정: 좌측 컬러 도트/보더 제거 · 폰트 1.5배 · 하위 검정 · 우측 ▼ 토글 · 들여쓰기 32px
    prototype: 바탕화면/모음전 사이드바 시안 v4.html (시안 1) */
 
-.sb3{color:var(--n900,#191F28);font-size:13px;position:relative;width:320px;min-width:200px;max-width:560px}
+.sb3{color:var(--n900,#191F28);font-size:13px;position:sticky;top:0;width:320px;min-width:200px;max-width:560px}
 .sb3-resize-handle{position:absolute;top:0;right:-3px;width:6px;height:100%;cursor:col-resize;z-index:50;background:transparent;transition:background .15s}
 .sb3-resize-handle:hover,.sb3-resize-handle.dragging{background:rgba(49,130,246,.45)}
 body.sb3-resizing{cursor:col-resize !important;user-select:none}

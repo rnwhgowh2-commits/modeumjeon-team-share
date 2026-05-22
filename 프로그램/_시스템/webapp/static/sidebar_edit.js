@@ -22,7 +22,6 @@ const SB3_W_MIN = 200, SB3_W_MAX = 560, SB3_W_DEFAULT = 320;
   const stored = parseInt(localStorage.getItem(SB3_W_KEY) || SB3_W_DEFAULT, 10);
   const w = Math.max(SB3_W_MIN, Math.min(SB3_W_MAX, isNaN(stored) ? SB3_W_DEFAULT : stored));
   root.style.width = w + 'px';
-  root.style.position = 'relative';
   const handle = document.createElement('div');
   handle.className = 'sb3-resize-handle';
   handle.title = '드래그하여 사이드바 폭 조절 (' + SB3_W_MIN + '~' + SB3_W_MAX + 'px)';
