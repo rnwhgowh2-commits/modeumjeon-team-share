@@ -7,7 +7,7 @@
 #}
 <div class="bundle-section" id="sec-matrix" data-tab="opt">
   <div class="bundle-section-head">
-    <span class="bundle-section-num {% if options %}done{% endif %}">5</span>
+    <span class="bundle-section-num {% if options %}done{% endif %}">3</span>
     <h2>옵션 통합 관리 ({{ options|length }}개)</h2>
   </div>
 
@@ -3868,14 +3868,14 @@
       <div class="${srcCardClass}" data-m4-card="source" data-sku="${o.sku}">
         <div class="m4v1-head">소싱 <span class="m4v1-pri">${srcLabel}</span></div>
         <div class="m4v1-mkt-row">
-          <span class="m4v1-mkt-logo">${brandIconHtml('스마트스토어', 'sm')}</span>
+          <span class="m4v1-mkt-logo">${marketLogoHtml('스마트스토어')}</span>
           <span class="m4v1-mkt-name">스마트스토어</span>
           <span class="m4v1-auto">AUTO</span>
           <span class="m4v1-mkt-price">${srcSsPrice.toLocaleString('ko-KR')}원</span>
           <span class="m4v1-mkt-margin">${ssMargin.toFixed(2)}%</span>
         </div>
         <div class="m4v1-mkt-row">
-          <span class="m4v1-mkt-logo">${brandIconHtml('쿠팡', 'sm')}</span>
+          <span class="m4v1-mkt-logo">${marketLogoHtml('쿠팡')}</span>
           <span class="m4v1-mkt-name">쿠팡</span>
           <span class="m4v1-auto">AUTO</span>
           <span class="m4v1-mkt-price">${srcCpPrice.toLocaleString('ko-KR')}원</span>
@@ -3903,13 +3903,13 @@
         <div class="${purCardClass}" data-m4-card="purchase" data-sku="${o.sku}">
           <div class="m4v1-head">사입 <span class="m4v1-pri pur">${purLabel}</span> <span class="m4v1-stock-chip">재고 ${stock}</span></div>
           <div class="m4v1-mkt-row">
-            <span class="m4v1-mkt-logo">${brandIconHtml('스마트스토어', 'sm')}</span>
+            <span class="m4v1-mkt-logo">${marketLogoHtml('스마트스토어')}</span>
             <span class="m4v1-mkt-name">스마트스토어</span>
             <span class="m4v1-mkt-price">${purSsPrice.toLocaleString('ko-KR')}원</span>
             <span class="m4v1-mkt-margin">${ssMargin.toFixed(2)}%</span>
           </div>
           <div class="m4v1-mkt-row">
-            <span class="m4v1-mkt-logo">${brandIconHtml('쿠팡', 'sm')}</span>
+            <span class="m4v1-mkt-logo">${marketLogoHtml('쿠팡')}</span>
             <span class="m4v1-mkt-name">쿠팡</span>
             <span class="m4v1-mkt-price">${purCpPrice.toLocaleString('ko-KR')}원</span>
             <span class="m4v1-mkt-margin">${cpMargin.toFixed(2)}%</span>
@@ -4016,8 +4016,15 @@
       }
       const addUrl = e.target.closest('[data-act="goto-url-tab"]');
       if (addUrl) {
-        const t = document.querySelector('.bundle-tab[data-tab="url"]');
-        if (t) t.click();
+        // [Phase 3] 옵션 소싱처 다중 URL 관리 모달 (toss.js)
+        const td = addUrl.closest('[data-cell-sku]');
+        const sku = td && td.dataset.cellSku;
+        if (sku && typeof openOptionUrlModal === 'function') {
+          openOptionUrlModal(sku, loadMatrix);
+        } else {
+          const sec = document.getElementById('sec-url');
+          if (sec) sec.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
       }
     });
   }
@@ -4118,6 +4125,16 @@
     }
     const cls = brandClass(name);
     return `<span class="brand-icon ${cls}${sz}">${name}</span>`;
+  }
+
+  // 마켓 로고 (스마트스토어·쿠팡) — 아웃라인 이니셜 칩
+  const MARKET_META = {
+    '스마트스토어': { ini: '스', color: '#03C75A' },
+    '쿠팡':         { ini: '쿠', color: '#EE293D' },
+  };
+  function marketLogoHtml(name) {
+    const m = MARKET_META[name] || { ini: (name || '?').slice(0, 1), color: '#8B95A1' };
+    return `<span class="mkt-logo-chip" style="border-color:${m.color};color:${m.color}" title="${name}">${m.ini}</span>`;
   }
 
   // H1. 행 안 소싱처 그룹 카드 (인라인 cell)
@@ -5021,40 +5038,15 @@
       });
     });
 
-    // URL 추가 (+)
+    // URL 추가/수정 — [Phase 3] 옵션 소싱처 다중 URL 관리 모달 (toss.js)
     document.querySelectorAll('[data-url-add-sku]').forEach(btn => {
-      btn.addEventListener('click', async () => {
-        const sku = btn.dataset.urlAddSku;
-        const srcId = btn.dataset.urlAddSrc;
-        const url = prompt('새 URL (https://...):');
-        if (!url) return;
-        const r = await fetch(`/api/options/${encodeURIComponent(sku)}/source-url`, {
-          method:'POST', headers:{'Content-Type':'application/json'},
-          body: JSON.stringify({source_id: parseInt(srcId), product_url: url.trim()}),
-        });
-        const j = await r.json();
-        if (!j.ok) alert(j.error);
-        else loadMatrix();
+      btn.addEventListener('click', () => {
+        openOptionUrlModal(btn.dataset.urlAddSku, loadMatrix);
       });
     });
-
-    // URL 수정 (✎)
     document.querySelectorAll('[data-url-edit-sku]').forEach(btn => {
-      btn.addEventListener('click', async () => {
-        const sku = btn.dataset.urlEditSku;
-        const srcId = btn.dataset.urlEditSrc;
-        const opt = DATA.options.find(o => o.sku === sku);
-        const src = opt && opt.sources.find(s => s.source_id === parseInt(srcId));
-        const oldUrl = src ? src.product_url : '';
-        const newUrl = prompt('새 URL:', oldUrl);
-        if (!newUrl || newUrl === oldUrl) return;
-        const r = await fetch(`/api/options/${encodeURIComponent(sku)}/source-url`, {
-          method:'POST', headers:{'Content-Type':'application/json'},
-          body: JSON.stringify({source_id: parseInt(srcId), product_url: newUrl.trim()}),
-        });
-        const j = await r.json();
-        if (!j.ok) alert(j.error);
-        else loadMatrix();
+      btn.addEventListener('click', () => {
+        openOptionUrlModal(btn.dataset.urlEditSku, loadMatrix);
       });
     });
 

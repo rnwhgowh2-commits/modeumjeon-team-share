@@ -158,9 +158,12 @@ def apply_matching(
     session: Session,
     *,
     model_code: str,
-    matches: list[dict],    # [{canonical_sku, naver_option_id}]
+    matches: list[dict],    # [{canonical_sku, naver_option_id | coupang_option_id | option_id}]
+    option_id_field: str = 'naver_option_id',   # [Phase 4] 쿠팡은 'coupang_option_id'
 ) -> dict:
-    """매칭 결과 → DB 저장 (Option.naver_option_id).
+    """매칭 결과 → DB 저장 (Option.<option_id_field>).
+
+    option_id_field: 저장할 컬럼 — 스스 'naver_option_id', 쿠팡 'coupang_option_id'.
 
     Returns:
       {'updated': N, 'failed': N}
@@ -170,7 +173,7 @@ def apply_matching(
     failed = 0
     for m in matches:
         sku = m.get('canonical_sku')
-        opt_id = m.get('naver_option_id')
+        opt_id = m.get(option_id_field) or m.get('option_id')
         if not sku or not opt_id:
             failed += 1
             continue
@@ -178,7 +181,7 @@ def apply_matching(
         if o is None:
             failed += 1
             continue
-        o.naver_option_id = str(opt_id)
+        setattr(o, option_id_field, str(opt_id))
         updated += 1
     return {'updated': updated, 'failed': failed}
 

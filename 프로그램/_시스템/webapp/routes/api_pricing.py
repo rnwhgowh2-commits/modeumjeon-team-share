@@ -693,6 +693,71 @@ def delete_source_link(sku: str, src_id: int):
 
 
 # ════════════════════════════════════════════
+#  [Phase 3] 옵션 소싱처 다중 URL — 한 소싱처에 URL 여러 개
+#  GET/POST /api/options/<sku>/source-urls · DELETE .../source-urls/<url_id>
+# ════════════════════════════════════════════
+@bp.get('/options/<sku>/source-urls')
+def list_option_source_urls(sku: str):
+    """옵션의 모든 소싱처 URL + 소싱처 사전 (모달용)."""
+    from lemouton.sourcing.option_source_service import list_source_urls
+    s = SessionLocal()
+    try:
+        sources = (s.query(SourceRegistry)
+                   .order_by(SourceRegistry.sort_order, SourceRegistry.id).all())
+        src_name = {x.id: x.name for x in sources}
+        urls = list_source_urls(s, sku)
+        return _ok(
+            urls=[{'id': u.id, 'source_id': u.source_id,
+                   'source_name': src_name.get(u.source_id, '?'),
+                   'product_url': u.product_url} for u in urls],
+            sources=[{'id': x.id, 'name': x.name} for x in sources],
+        )
+    finally:
+        s.close()
+
+
+@bp.post('/options/<sku>/source-urls')
+def add_option_source_url(sku: str):
+    """옵션에 소싱처 URL 추가 — 같은 소싱처 다중 URL 허용 (Phase 3).
+
+    Body: {source_id: int, product_url: str}
+    """
+    from lemouton.sourcing.option_source_service import add_source_url
+    data = request.get_json(silent=True) or {}
+    src_id = data.get('source_id')
+    url = (data.get('product_url') or '').strip()
+    if not src_id:
+        return _err('소싱처를 선택하세요.')
+    if not url:
+        return _err('URL을 입력하세요.')
+    s = SessionLocal()
+    try:
+        if not s.query(Option).filter_by(canonical_sku=sku).first():
+            return _err('옵션을 찾을 수 없어요.', 404)
+        row = add_source_url(s, sku, int(src_id), url)
+        s.commit()
+        return _ok(id=row.id)
+    except Exception as e:
+        s.rollback()
+        return _err(str(e), 500)
+    finally:
+        s.close()
+
+
+@bp.delete('/options/<sku>/source-urls/<int:url_id>')
+def delete_option_source_url(sku: str, url_id: int):
+    """옵션 소싱처 URL 1개 삭제 (url_id 기준)."""
+    from lemouton.sourcing.option_source_service import delete_source_url
+    s = SessionLocal()
+    try:
+        n = delete_source_url(s, url_id)
+        s.commit()
+        return _ok(deleted=n)
+    finally:
+        s.close()
+
+
+# ════════════════════════════════════════════
 #  POST /api/options/price-config/bulk
 # ════════════════════════════════════════════
 @bp.post('/options/price-config/bulk')

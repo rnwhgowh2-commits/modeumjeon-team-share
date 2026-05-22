@@ -467,7 +467,24 @@ document.addEventListener('click', async (e) => {
         flash('동기화 실패: ' + (res.error || ''), 'err');
         return;
       }
-      openSsMatchingModal(code, res);
+      openSsMatchingModal(code, res, 'smartstore');
+    } finally {
+      btn.disabled = false; btn.textContent = orig;
+    }
+    return;
+  }
+
+  if (action === 'sync-cp-options') {
+    e.preventDefault();
+    const code = currentBundleCode();
+    btn.disabled = true; const orig = btn.textContent; btn.textContent = '⏳ 동기화 중...';
+    try {
+      const res = await apiPost(`/api/bundles/${encodeURIComponent(code)}/sync-cp-options`, {});
+      if (!res.ok) {
+        flash('쿠팡 동기화 실패: ' + (res.error || ''), 'err');
+        return;
+      }
+      openSsMatchingModal(code, res, 'coupang');
     } finally {
       btn.disabled = false; btn.textContent = orig;
     }
@@ -746,6 +763,13 @@ document.addEventListener('click', async (e) => {
     if (res.ok) setTimeout(() => location.reload(), 800);
     return;
   }
+
+  // ----- [Phase 2] 단계형 옵션 생성 (1~3축 조합) -----
+  if (action === 'step-design') {
+    e.preventDefault();
+    openStepDesignModal(currentBundleCode());
+    return;
+  }
 });
 
 // ============================================================
@@ -771,6 +795,348 @@ function _modalBox(title, innerHTML, footerButtons) {
     <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:18px;padding-top:14px;border-top:1px solid #eee">${footerButtons}</div>
   `;
   return box;
+}
+
+// ============================================================
+// [Phase 2] 단계형 옵션 생성 모달 — 1~3축 조합 → 옵션ID 일괄 생성
+// ============================================================
+function _sdEsc(s) {
+  return String(s == null ? '' : s).replace(/[&<>"]/g, c => (
+    { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+}
+function _sdParseValues(text) {
+  const out = [];
+  (text || '').split(',').forEach(raw => {
+    const v = raw.trim();
+    if (v && out.indexOf(v) < 0) out.push(v);
+  });
+  return out;
+}
+function _sdCartesian(lists) {
+  let acc = [[]];
+  for (const lst of lists) {
+    const next = [];
+    for (const combo of acc) for (const v of lst) next.push(combo.concat([v]));
+    acc = next;
+  }
+  return acc;
+}
+
+// 시안 E (칩 매트릭스) — 모든 옵션 칸 크기 동일. 1회만 주입.
+function _sdInjectStyle() {
+  if (document.getElementById('sd-style')) return;
+  const s = document.createElement('style');
+  s.id = 'sd-style';
+  s.textContent = `
+    .sd-axis { border:1px solid #eceef1; border-radius:11px; padding:11px 12px; margin-bottom:8px; }
+    .sd-axis-top { display:flex; align-items:center; gap:8px; margin-bottom:7px; }
+    .sd-axis-tag { font-size:12px; font-weight:800; color:#4e5968; }
+    .sd-del { margin-left:auto; background:none; border:0; color:#e5484d; cursor:pointer; font-size:12px; }
+    .sd-inrow { display:flex; gap:8px; flex-wrap:wrap; }
+    .sd-name, .sd-values { font:inherit; font-size:13px; padding:8px 10px; border:1px solid #d8dce0; border-radius:8px; color:#1a1d21; }
+    .sd-name { flex:0 0 130px; } .sd-values { flex:1; min-width:200px; }
+    .sd-chips { display:flex; gap:6px; flex-wrap:wrap; margin-top:8px; }
+    .sd-chip { font-size:12px; font-weight:700; color:#4e5968; background:#f2f4f6; border-radius:999px; padding:4px 4px 4px 11px; display:flex; align-items:center; gap:3px; }
+    .sd-chip .x { cursor:pointer; color:#aab2bd; width:18px; height:18px; display:flex; align-items:center; justify-content:center; border-radius:50%; font-size:13px; }
+    .sd-chip .x:hover { background:#dfe3e7; color:#4e5968; }
+    .sd-chip-empty { font-size:12px; color:#b0b8c1; margin-top:8px; }
+    .sd-mtxhead { display:flex; align-items:center; gap:10px; margin:18px 0 9px; }
+    .sd-mtxhead .lbl { font-size:13.5px; font-weight:800; }
+    .sd-mtxhead .cnt { font-size:12px; color:#8b95a1; } .sd-mtxhead .cnt b { color:#3182f6; }
+    .sd-grid { display:grid; gap:6px; min-width:max-content; }
+    .sd-gh { display:flex; align-items:center; justify-content:center; height:40px; font-size:12px; font-weight:700; color:#4e5968; }
+    .sd-gh.corner { font-size:10.5px; color:#b0b8c1; cursor:pointer; }
+    .sd-gh.colh, .sd-gh.rowh { cursor:pointer; border-radius:8px; }
+    .sd-gh.colh:hover, .sd-gh.rowh:hover { background:#f2f4f6; }
+    .sd-cell { height:40px; border-radius:9px; cursor:pointer; display:flex; align-items:center; justify-content:center; font-weight:800; font-size:14px; }
+    .sd-cell.on { background:#3182f6; color:#fff; }
+    .sd-cell.off { background:#f2f4f6; color:#cdd2d8; }
+    .sd-cell.off:hover { background:#e7eaed; }
+    .sd-cell.c1 { font-size:13px; padding:0 8px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .sd-layer { font-weight:700; font-size:12.5px; margin:14px 0 6px; color:#333d4b; }
+  `;
+  document.head.appendChild(s);
+}
+
+function openStepDesignModal(code) {
+  if (!code) { alert('모음전 코드를 찾을 수 없어요.'); return; }
+  _sdInjectStyle();
+  const steps = [{ name: '색상', values: '' }, { name: '사이즈', values: '' }];
+  const selected = new Set();   // key = JSON.stringify(valuesArray)
+  const seen = new Set();
+  const keyOf = (vals) => JSON.stringify(vals);
+
+  const box = _modalBox('단계형 옵션 생성',
+    '<div style="font-size:13px;color:var(--n500,#888);margin-bottom:12px">'
+    + '축마다 이름과 값(쉼표 구분)을 넣으면 값이 칩으로 정리되고 <b>조합 매트릭스</b>가 나옵니다. '
+    + '칸을 클릭해 켜고(✓) 끄세요 — 켜진 칸만 옵션으로 만들어집니다.</div>'
+    + '<div id="sd-steps"></div>'
+    + '<button class="btn btn-sm" id="sd-add-step" type="button" style="margin-top:6px">＋ 축 추가 (최대 3축)</button>'
+    + '<div class="sd-mtxhead"><span class="lbl">조합 매트릭스</span>'
+    + '<span id="sd-count" class="cnt"></span>'
+    + '<button class="btn btn-sm" id="sd-all" type="button" style="margin-left:auto">전체 선택/해제</button></div>'
+    + '<div id="sd-matrix"></div>',
+    '<button class="btn" id="sd-cancel" type="button">취소</button>'
+    + '<button class="btn btn-primary" id="sd-submit" type="button">옵션 생성</button>');
+  const bg = _modalBg(box);
+  const $ = (sel) => box.querySelector(sel);
+  const $$ = (sel) => box.querySelectorAll(sel);
+  const close = () => bg.remove();
+  let cellVals = [];   // idx → values 배열 (현재 렌더 기준)
+
+  function renderSteps() {
+    $('#sd-steps').innerHTML = steps.map((st, i) => `
+      <div class="sd-axis">
+        <div class="sd-axis-top">
+          <span class="sd-axis-tag">${i + 1}축${i === 0 ? ' · 가로 ↔' : i === 1 ? ' · 세로 ↕' : ' · 겹 ▦'}</span>
+          ${steps.length > 1 ? `<button class="sd-del" data-i="${i}" type="button">삭제</button>` : ''}
+        </div>
+        <div class="sd-inrow">
+          <input class="sd-name" data-i="${i}" placeholder="축 이름" value="${_sdEsc(st.name)}">
+          <input class="sd-values" data-i="${i}" placeholder="값 — 쉼표로 구분 (예: 블랙, 화이트, 그레이)" value="${_sdEsc(st.values)}">
+        </div>
+        <div class="sd-chips" id="sd-chips-${i}"></div>
+      </div>`).join('');
+    steps.forEach((_, i) => refreshChips(i));
+    const addBtn = $('#sd-add-step');
+    addBtn.disabled = steps.length >= 3;
+    addBtn.style.opacity = steps.length >= 3 ? 0.4 : 1;
+  }
+
+  function refreshChips(i) {
+    const wrap = $('#sd-chips-' + i);
+    if (!wrap) return;
+    const vals = _sdParseValues(steps[i].values);
+    wrap.innerHTML = vals.length
+      ? vals.map((v, vi) => `<span class="sd-chip">${_sdEsc(v)}`
+          + `<span class="x" data-i="${i}" data-vi="${vi}" role="button">×</span></span>`).join('')
+      : '<span class="sd-chip-empty">쉼표로 값을 입력하면 칩으로 정리됩니다.</span>';
+  }
+
+  function validSteps() {
+    return steps
+      .map(st => ({ axis_name: (st.name || '').trim() || '축', values: _sdParseValues(st.values) }))
+      .filter(st => st.values.length > 0);
+  }
+
+  function paintCounts(total) {
+    const sub = $('#sd-submit'), n = selected.size;
+    sub.disabled = n === 0;
+    sub.style.opacity = n === 0 ? 0.4 : 1;
+    sub.textContent = n === 0 ? '옵션 생성' : `옵션 ${n}개 생성`;
+    const cnt = $('#sd-count');
+    if (cnt) cnt.textContent = total ? `선택 ${n}개 / 전체 ${total}개` : '';
+  }
+
+  function pushCell(vals) {
+    const idx = cellVals.length;
+    cellVals.push(vals);
+    return { idx, on: selected.has(keyOf(vals)) };
+  }
+
+  function renderMatrix() {
+    const valid = validSteps();
+    const wrap = $('#sd-matrix');
+    cellVals = [];
+    if (!valid.length) {
+      wrap.innerHTML = '<div style="font-size:13px;color:var(--n500,#888)">값을 입력하면 조합 매트릭스가 나타납니다.</div>';
+      selected.clear(); seen.clear(); paintCounts(0);
+      return;
+    }
+    const combos = _sdCartesian(valid.map(s => s.values));
+    const curKeys = new Set(combos.map(c => keyOf(c)));
+    [...selected].forEach(k => { if (!curKeys.has(k)) selected.delete(k); });
+    [...seen].forEach(k => { if (!curKeys.has(k)) seen.delete(k); });
+    combos.forEach(c => { const k = keyOf(c); if (!seen.has(k)) { seen.add(k); selected.add(k); } });
+
+    let html = '';
+    if (valid.length === 1) {
+      html += `<div class="sd-grid" style="grid-template-columns:repeat(${valid[0].values.length},96px)">`;
+      combos.forEach(c => {
+        const { idx, on } = pushCell(c);
+        html += `<div class="sd-cell c1 ${on ? 'on' : 'off'}" data-idx="${idx}">${on ? '✓ ' : ''}${_sdEsc(c[0])}</div>`;
+      });
+      html += '</div>';
+    } else {
+      const cols = valid[0].values, rows = valid[1].values;
+      const layers = valid.length === 3 ? valid[2].values : [null];
+      const gtc = `82px repeat(${cols.length},58px)`;
+      layers.forEach((layerVal, ti) => {
+        if (valid.length === 3) {
+          html += `<div class="sd-layer">${_sdEsc(valid[2].axis_name)}: `
+            + `<span style="color:var(--primary,#3182f6)">${_sdEsc(layerVal)}</span></div>`;
+        }
+        html += `<div style="overflow:auto;margin-bottom:4px"><div class="sd-grid" style="grid-template-columns:${gtc}">`;
+        html += `<div class="sd-gh corner" data-sd="corner" data-tbl="${ti}">`
+          + `${_sdEsc(valid[1].axis_name)} \\ ${_sdEsc(valid[0].axis_name)}</div>`;
+        cols.forEach((cv, ci) => {
+          html += `<div class="sd-gh colh" data-sd="col" data-tbl="${ti}" data-ci="${ci}">${_sdEsc(cv)}</div>`;
+        });
+        rows.forEach((rv, ri) => {
+          html += `<div class="sd-gh rowh" data-sd="row" data-tbl="${ti}" data-ri="${ri}">${_sdEsc(rv)}</div>`;
+          cols.forEach((cv, ci) => {
+            const vals = valid.length === 3 ? [cv, rv, layerVal] : [cv, rv];
+            const { idx, on } = pushCell(vals);
+            html += `<div class="sd-cell ${on ? 'on' : 'off'}" data-idx="${idx}" `
+              + `data-tbl="${ti}" data-ci="${ci}" data-ri="${ri}">${on ? '✓' : ''}</div>`;
+          });
+        });
+        html += '</div></div>';
+      });
+    }
+    wrap.innerHTML = html;
+    paintCounts(combos.length);
+  }
+
+  function toggleKeys(keys) {
+    const anyOff = keys.some(k => !selected.has(k));
+    keys.forEach(k => anyOff ? selected.add(k) : selected.delete(k));
+    renderMatrix();
+  }
+  const cellKeys = (sel) => [...$$(sel)].map(x => keyOf(cellVals[+x.dataset.idx]));
+
+  $('#sd-steps').addEventListener('input', (e) => {
+    const i = +e.target.dataset.i;
+    if (e.target.classList.contains('sd-name')) steps[i].name = e.target.value;
+    else if (e.target.classList.contains('sd-values')) { steps[i].values = e.target.value; refreshChips(i); }
+    renderMatrix();
+  });
+  $('#sd-steps').addEventListener('click', (e) => {
+    const del = e.target.closest('.sd-del');
+    if (del) { steps.splice(+del.dataset.i, 1); renderSteps(); renderMatrix(); return; }
+    const x = e.target.closest('.sd-chip .x');
+    if (x) {
+      const i = +x.dataset.i;
+      const vals = _sdParseValues(steps[i].values);
+      vals.splice(+x.dataset.vi, 1);
+      steps[i].values = vals.join(', ');
+      const inp = $(`.sd-values[data-i="${i}"]`);
+      if (inp) inp.value = steps[i].values;
+      refreshChips(i); renderMatrix();
+    }
+  });
+  $('#sd-add-step').addEventListener('click', () => {
+    if (steps.length >= 3) return;
+    steps.push({ name: '', values: '' });
+    renderSteps(); renderMatrix();
+  });
+  $('#sd-all').addEventListener('click', () => {
+    if (cellVals.length) toggleKeys(cellKeys('#sd-matrix .sd-cell'));
+  });
+  $('#sd-matrix').addEventListener('click', (e) => {
+    const c = e.target.closest('.sd-cell');
+    if (c) {
+      const k = keyOf(cellVals[+c.dataset.idx]);
+      selected.has(k) ? selected.delete(k) : selected.add(k);
+      renderMatrix(); return;
+    }
+    const sd = e.target.closest('[data-sd]');
+    if (!sd) return;
+    const tb = sd.dataset.tbl, t = sd.dataset.sd;
+    if (t === 'corner') toggleKeys(cellKeys(`#sd-matrix .sd-cell[data-tbl="${tb}"]`));
+    else if (t === 'col') toggleKeys(cellKeys(`#sd-matrix .sd-cell[data-tbl="${tb}"][data-ci="${sd.dataset.ci}"]`));
+    else if (t === 'row') toggleKeys(cellKeys(`#sd-matrix .sd-cell[data-tbl="${tb}"][data-ri="${sd.dataset.ri}"]`));
+  });
+  $('#sd-cancel').addEventListener('click', close);
+  $('#sd-submit').addEventListener('click', async () => {
+    const payloadSteps = validSteps();
+    if (!payloadSteps.length || selected.size === 0) return;
+    const btn = $('#sd-submit');
+    btn.disabled = true; btn.textContent = '생성 중…';
+    const res = await apiPost(
+      `/api/bundles/${encodeURIComponent(code)}/options/combo`,
+      { steps: payloadSteps, selected: [...selected].map(k => JSON.parse(k)) });
+    if (res && res.ok) {
+      flash(`옵션 ${res.created || 0}개 생성 완료`);
+      close();
+      setTimeout(() => location.reload(), 700);
+    } else {
+      flash('실패: ' + ((res && res.error) || '알 수 없는 오류'), 'err');
+      btn.disabled = false; renderMatrix();
+    }
+  });
+
+  renderSteps();
+  renderMatrix();
+}
+
+// ============================================================
+// [Phase 3] 옵션 소싱처 URL 관리 모달 — 한 소싱처 다중 URL
+// ============================================================
+function openOptionUrlModal(sku, onChange) {
+  if (!sku) return;
+  let data = { urls: [], sources: [] };
+  let changed = false;
+
+  const box = _modalBox('옵션 소싱처 URL 관리',
+    `<div style="font-size:13px;color:var(--n600,#555);margin-bottom:6px">옵션 <b>${_sdEsc(sku)}</b></div>`
+    + '<div style="font-size:12.5px;color:var(--n500,#888);margin-bottom:14px">한 소싱처에 URL을 여러 개 등록할 수 있어요. URL 없이 둬도 됩니다 (오프라인 전용 옵션).</div>'
+    + '<div id="ou-list" style="font-size:13px;color:var(--n500,#888)">불러오는 중…</div>'
+    + '<div style="margin-top:14px;padding-top:14px;border-top:1px solid #f0f2f4">'
+    + '<div style="font-size:12px;font-weight:800;color:#4e5968;margin-bottom:7px">＋ URL 추가</div>'
+    + '<div style="display:flex;gap:8px;flex-wrap:wrap">'
+    + '<select id="ou-src" style="font:inherit;font-size:13px;padding:8px 10px;border:1px solid #d8dce0;border-radius:8px;flex:0 0 150px"></select>'
+    + '<input id="ou-url" placeholder="https://..." style="font:inherit;font-size:13px;padding:8px 10px;border:1px solid #d8dce0;border-radius:8px;flex:1;min-width:200px">'
+    + '<button class="btn btn-primary btn-sm" id="ou-add" type="button">추가</button>'
+    + '</div></div>',
+    '<button class="btn" id="ou-close" type="button">닫기</button>');
+  const finish = () => { bg.remove(); if (changed && onChange) onChange(); };
+  const bg = _modalBg(box, () => { if (changed && onChange) onChange(); });
+  const $ = (s) => box.querySelector(s);
+
+  function renderList() {
+    const wrap = $('#ou-list');
+    if (!data.urls.length) {
+      wrap.innerHTML = '<div style="padding:14px;text-align:center;background:#f7f8f9;border-radius:9px;color:#b0b8c1">'
+        + '등록된 URL이 없습니다 — 오프라인 전용 옵션도 정상입니다.</div>';
+      return;
+    }
+    const groups = {};
+    data.urls.forEach(u => {
+      (groups[u.source_id] = groups[u.source_id] || { name: u.source_name, items: [] }).items.push(u);
+    });
+    wrap.innerHTML = Object.keys(groups).map(sid => {
+      const g = groups[sid];
+      return `<div style="margin-bottom:10px">
+        <div style="font-size:12px;font-weight:800;color:var(--primary,#3182f6);margin-bottom:5px">`
+        + `${_sdEsc(g.name)} <span style="color:#b0b8c1">· ${g.items.length}개</span></div>`
+        + g.items.map(u => `<div style="display:flex;align-items:center;gap:8px;padding:7px 10px;border:1px solid #eceef1;border-radius:8px;margin-bottom:4px">
+            <span style="flex:1;min-width:0;font-size:12px;color:#4e5968;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${_sdEsc(u.product_url)}</span>
+            <button class="ou-del" data-id="${u.id}" type="button" style="background:none;border:0;color:#e5484d;cursor:pointer;font-size:12px;font-weight:700">삭제</button>
+          </div>`).join('')
+        + '</div>';
+    }).join('');
+  }
+
+  async function load() {
+    const j = await apiGet(`/api/options/${encodeURIComponent(sku)}/source-urls`);
+    if (!j || !j.ok) { $('#ou-list').innerHTML = '<div style="color:#e5484d">불러오기 실패</div>'; return; }
+    data = j;
+    $('#ou-src').innerHTML = data.sources.map(x => `<option value="${x.id}">${_sdEsc(x.name)}</option>`).join('');
+    renderList();
+  }
+
+  $('#ou-list').addEventListener('click', async (e) => {
+    const del = e.target.closest('.ou-del');
+    if (!del) return;
+    if (!confirm('이 URL을 삭제할까요?')) return;
+    const r = await fetch(`/api/options/${encodeURIComponent(sku)}/source-urls/${del.dataset.id}`, { method: 'DELETE' });
+    const j = await r.json().catch(() => null);
+    if (j && j.ok) { changed = true; flash('URL 삭제됨'); load(); }
+    else flash('삭제 실패', 'err');
+  });
+  $('#ou-add').addEventListener('click', async () => {
+    const srcId = $('#ou-src').value, url = $('#ou-url').value.trim();
+    if (!srcId) { flash('소싱처를 선택하세요', 'err'); return; }
+    if (!url) { flash('URL을 입력하세요', 'err'); return; }
+    const res = await apiPost(`/api/options/${encodeURIComponent(sku)}/source-urls`,
+      { source_id: +srcId, product_url: url });
+    if (res && res.ok) { changed = true; $('#ou-url').value = ''; flash('URL 추가됨'); load(); }
+    else flash('추가 실패: ' + ((res && res.error) || ''), 'err');
+  });
+  $('#ou-close').addEventListener('click', finish);
+
+  load();
 }
 
 async function openPriceTplModal(id) {
@@ -1223,12 +1589,17 @@ async function openComboModal(cid) {
   });
 }
 
-// ----- 스스 옵션 매칭 모달 -----
-function openSsMatchingModal(code, syncResult) {
+// ----- 스스 옵션 매칭 모달 ([Phase 4] 미매칭 3단: 추천후보·검색·직접입력) -----
+function openSsMatchingModal(code, syncResult, market) {
+  const mkt = market || syncResult.market || 'smartstore';
+  const isCp = mkt === 'coupang';
+  const optIdKey = isCp ? 'coupang_option_id' : 'naver_option_id';
   const matches = syncResult.matches || [];
+  const externalOptions = syncResult.external_options || [];
   const auto = matches.filter(m => m.confidence === 'auto');
   const fuzzy = matches.filter(m => m.confidence === 'fuzzy');
   const failed = matches.filter(m => m.confidence === 'failed');
+  const esc = _sdEsc;
 
   // 색상별 일괄 적용용 그룹화 (failed + fuzzy)
   const colorGroups = {};
@@ -1244,36 +1615,46 @@ function openSsMatchingModal(code, syncResult) {
   const groupsWithBulk = Object.entries(colorGroups).filter(([_, g]) => g.rows.length >= 2);
 
   const renderRow = (m) => {
-    const left = `<td style="font-weight:600">${m.color_code} / ${m.size_code}</td>`;
+    const left = `<td style="font-weight:600">${esc(m.color_code)} / ${esc(m.size_code)}</td>`;
     if (m.confidence === 'auto') {
-      return `<tr style="background:#f0fdf4">
-        ${left}
+      return `<tr style="background:#f0fdf4">${left}
         <td>🟢 자동 매칭</td>
-        <td><strong>${m.matched_external_name}</strong> <span style="font-size:11px;color:#666">(${m.matched_option_id})</span></td>
-        <td>—</td>
-      </tr>`;
+        <td><strong>${esc(m.matched_external_name || '')}</strong> <span style="font-size:11px;color:#666">(${m.matched_option_id})</span></td>
+        <td>—</td></tr>`;
     }
-    const opts = (m.candidates || []).map(c =>
-      `<option value="${c.option_id}">${c.name} (재고 ${c.stock}, ID ${c.option_id})</option>`
-    ).join('');
+    // [Phase 4] 미매칭 — 3단 드롭다운 (추천후보 / 검색 / 직접입력)
+    const cands = m.candidates || [];
+    const candOpts = cands.map(c =>
+      `<option value="cand:${c.option_id}">${esc(c.name)} · 재고 ${c.stock} · ID ${c.option_id}</option>`).join('');
     const bg = m.confidence === 'fuzzy' ? '#fefce8' : '#fef2f2';
     const emoji = m.confidence === 'fuzzy' ? '🟡' : '🔴';
-    return `<tr style="background:${bg}" data-sku="${m.canonical_sku}">
-      ${left}
+    const sku = esc(m.canonical_sku);
+    return `<tr style="background:${bg}" data-sku="${sku}">${left}
       <td>${emoji} ${m.confidence === 'fuzzy' ? '확인 필요' : '매칭 실패'}</td>
       <td>
-        <select class="field-input ssm-pick" data-sku="${m.canonical_sku}" style="padding:6px;font-size:12px">
-          <option value="">— 선택 —</option>
-          ${opts}
-        </select>
+        <div class="ssm-picker" data-sku="${sku}" data-optid="">
+          <select class="field-input ssm-mode" style="padding:6px;font-size:12px;width:100%">
+            <option value="">— 선택 —</option>
+            ${cands.length ? `<optgroup label="추천 후보">${candOpts}</optgroup>` : ''}
+            <option value="__search__">🔍 전체 마켓 옵션에서 검색…</option>
+            <option value="__direct__">✏️ 옵션 ID 직접 입력…</option>
+          </select>
+          <div class="ssm-search-box" style="display:none;margin-top:5px">
+            <input class="field-input ssm-search" placeholder="마켓 옵션명 검색 (예: 블랙)" style="padding:6px;font-size:12px;width:100%">
+            <select class="field-input ssm-search-result" size="5" style="display:none;padding:4px;font-size:12px;width:100%;margin-top:4px"></select>
+          </div>
+          <div class="ssm-direct-box" style="display:none;margin-top:5px">
+            <input class="field-input ssm-direct" type="number" placeholder="마켓 옵션 ID 숫자 직접 입력" style="padding:6px;font-size:12px;width:100%">
+          </div>
+          <div class="ssm-chosen" style="font-size:11px;color:#16a34a;font-weight:700;margin-top:3px"></div>
+        </div>
       </td>
-      <td style="font-size:11px;color:#666">${m.reason || ''}</td>
-    </tr>`;
+      <td style="font-size:11px;color:#666">${esc(m.reason || '')}</td></tr>`;
   };
 
   const summary = `
     <div style="margin-bottom:14px;font-size:13px">
-      <strong>${syncResult.product_name || '상품'}</strong>
+      <strong>${esc(syncResult.product_name || '상품')}</strong>
       (originProductNo: ${syncResult.origin_product_no})<br>
       외부 옵션 ${syncResult.external_total}개 / 우리 옵션 ${syncResult.total}개<br>
       🟢 자동 ${auto.length}  🟡 확인 필요 ${fuzzy.length}  🔴 실패 ${failed.length}
@@ -1286,11 +1667,11 @@ function openSsMatchingModal(code, syncResult) {
       <div style="font-size:13px;font-weight:600;margin-bottom:8px">🎯 색상별 일괄 적용 (사이즈만 다른 경우)</div>
       ${groupsWithBulk.map(([color, g]) => `
         <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;font-size:12px">
-          <span style="min-width:120px;font-weight:600">${color}</span>
+          <span style="min-width:120px;font-weight:600">${esc(color)}</span>
           <span style="color:#666;min-width:70px">${g.rows.length}개 사이즈</span>
-          <select class="field-input ssm-bulk" data-color="${color}" style="flex:1;padding:6px;font-size:12px">
+          <select class="field-input ssm-bulk" data-color="${esc(color)}" style="flex:1;padding:6px;font-size:12px">
             <option value="">— 외부 색상 선택 —</option>
-            ${[...g.externalColors].map(ec => `<option value="${ec}">${ec}</option>`).join('')}
+            ${[...g.externalColors].map(ec => `<option value="${esc(ec)}">${esc(ec)}</option>`).join('')}
           </select>
         </div>
       `).join('')}
@@ -1298,22 +1679,62 @@ function openSsMatchingModal(code, syncResult) {
     </div>`;
 
   const box = _modalBox(
-    '📥 스마트스토어 옵션 매칭 결과',
+    isCp ? '📥 쿠팡 옵션 매칭 결과' : '📥 스마트스토어 옵션 매칭 결과',
     summary + bulkPanel + `
-    <div style="overflow:auto;max-height:60vh;border:1px solid #ddd;border-radius:8px">
+    <div style="overflow:auto;max-height:58vh;border:1px solid #ddd;border-radius:8px">
       <table class="opt-table" style="width:100%">
-        <thead><tr><th>우리 옵션</th><th>상태</th><th>매칭 외부 옵션</th><th>비고</th></tr></thead>
+        <thead><tr><th>우리 옵션</th><th>상태</th><th style="min-width:240px">매칭 외부 옵션</th><th>비고</th></tr></thead>
         <tbody>${tableRows}</tbody>
       </table>
     </div>
     <div style="font-size:12px;color:#666;margin-top:10px">
-      💡 🟡·🔴 옵션은 드롭다운에서 선택 후 「적용」. 「— 선택 —」 인 옵션은 저장 안 됨.
-    </div>
-    `,
+      💡 🟡·🔴 옵션은 <b>추천 후보</b>에서 고르거나, 없으면 <b>검색</b>·<b>ID 직접 입력</b>으로 지정하세요. 미지정 옵션은 저장 안 됩니다.
+    </div>`,
     `<button class="btn" id="ssm-cancel">취소</button>
      <button class="btn btn-primary" id="ssm-apply">전체 매칭 적용</button>`
   );
   const bg = _modalBg(box);
+
+  function setChosen(picker, optId, label) {
+    picker.dataset.optid = optId || '';
+    picker.querySelector('.ssm-chosen').textContent = optId ? `✓ 선택: ${label}` : '';
+  }
+
+  box.addEventListener('change', (e) => {
+    if (e.target.classList.contains('ssm-mode')) {
+      const picker = e.target.closest('.ssm-picker');
+      const v = e.target.value;
+      picker.querySelector('.ssm-search-box').style.display = v === '__search__' ? 'block' : 'none';
+      picker.querySelector('.ssm-direct-box').style.display = v === '__direct__' ? 'block' : 'none';
+      if (v.startsWith('cand:')) {
+        setChosen(picker, v.slice(5), e.target.options[e.target.selectedIndex].text);
+      } else {
+        setChosen(picker, '', '');
+      }
+    } else if (e.target.classList.contains('ssm-search-result')) {
+      const picker = e.target.closest('.ssm-picker');
+      if (e.target.value) setChosen(picker, e.target.value, e.target.options[e.target.selectedIndex].text);
+    }
+  });
+  box.addEventListener('input', (e) => {
+    if (e.target.classList.contains('ssm-search')) {
+      const picker = e.target.closest('.ssm-picker');
+      const q = e.target.value.trim().toLowerCase();
+      const res = picker.querySelector('.ssm-search-result');
+      if (!q) { res.style.display = 'none'; return; }
+      const hits = externalOptions.filter(o =>
+        (o.name || '').toLowerCase().includes(q) || String(o.option_id).includes(q)).slice(0, 30);
+      res.innerHTML = hits.length
+        ? hits.map(o => `<option value="${o.option_id}">${esc(o.name)} · 재고 ${o.stock} · ID ${o.option_id}</option>`).join('')
+        : '<option value="">검색 결과 없음</option>';
+      res.style.display = 'block';
+    } else if (e.target.classList.contains('ssm-direct')) {
+      const picker = e.target.closest('.ssm-picker');
+      const v = e.target.value.trim();
+      setChosen(picker, v, v ? `ID ${v} (직접입력)` : '');
+    }
+  });
+
   box.querySelectorAll('.ssm-bulk').forEach(bulkSel => {
     bulkSel.addEventListener('change', () => {
       const externalColor = bulkSel.value;
@@ -1328,8 +1749,13 @@ function openSsMatchingModal(code, syncResult) {
           return name.startsWith(externalColor + ' /') || name.startsWith(externalColor + '/') || name === externalColor;
         });
         if (cand) {
-          const rowSel = box.querySelector(`select.ssm-pick[data-sku="${m.canonical_sku.replace(/"/g, '\\"')}"]`);
-          if (rowSel) { rowSel.value = cand.option_id; applied++; }
+          const picker = box.querySelector(`.ssm-picker[data-sku="${m.canonical_sku.replace(/"/g, '\\"')}"]`);
+          const sel = picker && picker.querySelector('.ssm-mode');
+          if (sel) {
+            sel.value = `cand:${cand.option_id}`;
+            sel.dispatchEvent(new Event('change', { bubbles: true }));
+            applied++;
+          }
         }
       });
       flash(`${color} → ${externalColor}: ${applied}/${group.rows.length}개 자동 선택`);
@@ -1338,24 +1764,17 @@ function openSsMatchingModal(code, syncResult) {
   box.querySelector('#ssm-cancel').addEventListener('click', () => bg.remove());
   box.querySelector('#ssm-apply').addEventListener('click', async () => {
     const finalMatches = [];
-    // 자동 매칭은 그대로
     auto.forEach(m => finalMatches.push({
-      canonical_sku: m.canonical_sku, naver_option_id: m.matched_option_id,
+      canonical_sku: m.canonical_sku, [optIdKey]: m.matched_option_id,
     }));
-    // 사용자가 선택한 fuzzy·failed
-    box.querySelectorAll('.ssm-pick').forEach(sel => {
-      if (sel.value) {
-        finalMatches.push({
-          canonical_sku: sel.getAttribute('data-sku'),
-          naver_option_id: parseInt(sel.value, 10),
-        });
+    box.querySelectorAll('.ssm-picker').forEach(p => {
+      const id = p.dataset.optid;
+      if (id && /^\d+$/.test(id)) {
+        finalMatches.push({ canonical_sku: p.dataset.sku, [optIdKey]: parseInt(id, 10) });
       }
     });
-    if (finalMatches.length === 0) {
-      alert('매칭할 옵션이 없어요.');
-      return;
-    }
-    const r = await apiPost(`/api/bundles/${encodeURIComponent(code)}/apply-ss-matching`,
+    if (finalMatches.length === 0) { alert('매칭할 옵션이 없어요.'); return; }
+    const r = await apiPost(`/api/bundles/${encodeURIComponent(code)}/apply-${isCp ? 'cp' : 'ss'}-matching`,
                             { matches: finalMatches });
     if (r.ok) {
       flash(`${r.updated}개 옵션 ID 저장 완료`);

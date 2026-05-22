@@ -149,26 +149,22 @@
   <div class="bundle-layout">
     <div class="bundle-content">
 
-      {# F2 — Step indicator 6단계 (번호 + 체크 + 연결선) #}
+      {# F2 — Step indicator 4탭 (기본·템플릿·옵션·마켓) — Phase 6 재구성 #}
       <div class="bundle-tabs bundle-steps" id="bundle-tabs">
         <button class="bundle-tab bundle-step on" data-tab="basic" data-step="1" type="button">
           <span class="step-num">1</span><span class="step-name">기본</span>
         </button>
         <span class="step-line"></span>
-        <button class="bundle-tab bundle-step" data-tab="url" data-step="2" type="button">
-          <span class="step-num">2</span><span class="step-name">소싱처 URL</span>
+        <button class="bundle-tab bundle-step" data-tab="tpl" data-step="2" type="button">
+          <span class="step-num">2</span><span class="step-name">템플릿</span>
         </button>
         <span class="step-line"></span>
-        <button class="bundle-tab bundle-step" data-tab="tpl" data-step="3" type="button">
-          <span class="step-num">3</span><span class="step-name">템플릿</span>
+        <button class="bundle-tab bundle-step" data-tab="opt" data-step="3" type="button">
+          <span class="step-num">3</span><span class="step-name">옵션</span>
         </button>
         <span class="step-line"></span>
-        <button class="bundle-tab bundle-step" data-tab="opt" data-step="4" type="button">
-          <span class="step-num">4</span><span class="step-name">옵션</span>
-        </button>
-        <span class="step-line"></span>
-        <button class="bundle-tab bundle-step" data-tab="mkt" data-step="5" type="button">
-          <span class="step-num">5</span><span class="step-name">마켓</span>
+        <button class="bundle-tab bundle-step" data-tab="mkt" data-step="4" type="button">
+          <span class="step-num">4</span><span class="step-name">마켓</span>
         </button>
       </div>
 
@@ -200,10 +196,10 @@
         <div class="field"><label class="field-label">마켓 노출명</label><input class="field-input" name="model_name_display" value="{{ bundle.model_name_display or bundle.model_name_raw }}" /></div>
       </div>
 
-      {# Section 2: 사이트 URL #}
-      <div class="bundle-section" id="sec-url" data-tab="url">
+      {# Section: 사이트 URL — Phase 6 재구성: 옵션 탭에 통합 #}
+      <div class="bundle-section" id="sec-url" data-tab="opt">
         <div class="bundle-section-head">
-          <span class="bundle-section-num done">2</span>
+          <span class="bundle-section-num done">3</span>
           <h2>📍 사이트 소싱처 URL</h2>
         </div>
         {% macro share_badge(count) -%}
@@ -358,7 +354,7 @@
       {# Section 3: 적용 템플릿 — V4 Tile (검정 폰트 볼드 큰 카드) #}
       <div class="bundle-section" id="sec-tpl" data-tab="tpl">
         <div class="bundle-section-head">
-          <span class="bundle-section-num {% if applied_price and applied_color and applied_size %}done{% endif %}">3</span>
+          <span class="bundle-section-num {% if applied_price and applied_color and applied_size %}done{% endif %}">2</span>
           <h2>⚙ 적용 템플릿</h2>
         </div>
 
@@ -488,7 +484,7 @@
       {# Section 4: 색상·사이즈 조합 #}
       <div class="bundle-section" id="sec-combo" data-tab="opt">
         <div class="bundle-section-head">
-          <span class="bundle-section-num {% if combos %}done{% endif %}">4</span>
+          <span class="bundle-section-num {% if combos %}done{% endif %}">3</span>
           <h2>색상·사이즈 조합</h2>
         </div>
         {% for c in combos %}
@@ -512,7 +508,14 @@
           색상·사이즈 조합이 아직 없어요. 아래 + 조합 추가로 만드세요.
         </div>
         {% endfor %}
-        <button class="btn" data-action="add-combo">+ 조합 추가</button>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:4px;justify-content:center">
+          <button class="btn btn-primary" data-action="step-design" type="button">＋ 단계형 옵션 생성</button>
+          <button class="btn" data-action="add-combo" type="button">＋ 색상·사이즈 조합</button>
+        </div>
+        <div style="font-size:12px;color:var(--n500);margin-top:8px;line-height:1.6">
+          <b>단계형 옵션 생성</b> — 단계(축)마다 이름과 값을 쉼표로 넣으면 모든 조합의 옵션ID를 한 번에 만듭니다.
+          예: <code>색상 = 블랙, 화이트</code> · <code>사이즈 = 250, 260</code> → 4개 옵션 자동 생성.
+        </div>
       </div>
 
       {# Section 5: v3 옵션 매트릭스 (좌트리/우인스펙터 + 가격) #}
@@ -521,7 +524,7 @@
       {# Section 6: 마켓 등록·업로드 — V4 Status dashboard + B1 표 + 기존 모드탭/입력경로 보존 #}
       <div class="bundle-section" id="sec-market" data-tab="mkt">
         <div class="bundle-section-head">
-          <span class="bundle-section-num {% if bundle.naver_product_id or bundle.coupang_product_id %}done{% endif %}">6</span>
+          <span class="bundle-section-num {% if bundle.naver_product_id or bundle.coupang_product_id %}done{% endif %}">4</span>
           <h2>마켓 등록·업로드</h2>
         </div>
 
@@ -575,7 +578,7 @@
                 <button type="button" class="btn btn-sm" data-action="open-coupang-edit">🔧 윙</button>
               </td>
               <td>
-                {% if bundle.coupang_product_id %}<button type="button" class="btn btn-sm" disabled title="쿠팡 동기화는 후속 phase">🔄</button>{% else %}<button type="button" class="btn btn-sm btn-primary" data-action="register-coupang">🚀 등록</button>{% endif %}
+                {% if bundle.coupang_product_id %}<button type="button" class="btn btn-sm btn-primary" data-action="sync-cp-options">동기화</button>{% else %}<button type="button" class="btn btn-sm btn-primary" data-action="register-coupang">🚀 등록</button>{% endif %}
               </td>
             </tr>
           </tbody>
@@ -749,15 +752,17 @@
             </div>
 
             <div class="input-method-tabs">
-              <button type="button" class="im-tab on" data-imtab="cp-api" disabled>🚀 API (예정)</button>
+              <button type="button" class="im-tab on" data-imtab="cp-api">🚀 API 자동</button>
               <button type="button" class="im-tab" data-imtab="cp-excel">📁 엑셀 업로드</button>
               <button type="button" class="im-tab" data-imtab="cp-manual">✎ 수동 등록</button>
             </div>
 
             <div class="im-pane on" data-impane="cp-api">
-              <div style="background:var(--n100);padding:14px;border-radius:6px;font-size:13px;color:var(--n600)">
-                🚀 쿠팡 Wing API 자동 매칭은 후속 phase 에서 구현 예정.
+              <div style="background:var(--n100);padding:14px;border-radius:8px;font-size:13px;color:var(--n600);margin-bottom:10px">
+                쿠팡 Wing API로 등록된 옵션을 불러와 우리 옵션과 자동 매칭합니다.
+                색상·사이즈가 정확히 일치하면 자동, 아니면 추천후보·검색·직접입력으로 정정합니다.
               </div>
+              <button class="btn btn-primary" data-action="sync-cp-options">동기화 실행</button>
             </div>
 
             <div class="im-pane" data-impane="cp-excel">
@@ -1094,7 +1099,7 @@
       tabs.forEach(t => t.classList.toggle('on', t.dataset.tab === name));
       sections.forEach(s => s.classList.toggle('tab-hidden', s.dataset.tab !== name));
       // F2 — Step indicator: 활성 단계 이전은 done 처리
-      const ORDER = ['basic','url','tpl','opt','mkt'];
+      const ORDER = ['basic','tpl','opt','mkt'];
       const curIdx = ORDER.indexOf(name);
       tabs.forEach(t => {
         if (!t.classList.contains('bundle-step')) return;
@@ -1108,10 +1113,9 @@
       // B6 — 활성 단계 안내 banner 갱신
       const STEP_INFO = {
         basic: ['1단계', '기본 정보 — 모음전 코드·카테고리·노출명 입력'],
-        url:   ['2단계', '소싱처 URL — 5개 사이트 상품 페이지 주소 등록 (다중 URL 지원)'],
-        tpl:   ['3단계', '적용 템플릿 — 가격·색상·사이즈 템플릿 선택'],
-        opt:   ['4단계', '옵션 매트릭스 — 36개 옵션의 가격·재고·소싱처 한눈에 관리'],
-        mkt:   ['5단계', '마켓 등록·업로드 — 스마트스토어·쿠팡 매핑 + 동기화'],
+        tpl:   ['2단계', '적용 템플릿 — 가격·색상·사이즈 템플릿 선택'],
+        opt:   ['3단계', '옵션 — 소싱처 URL · 단계형 옵션 생성 · 매트릭스 통합 관리'],
+        mkt:   ['4단계', '마켓 등록·업로드 — 스마트스토어·쿠팡 매핑 + 동기화'],
       };
       const info = STEP_INFO[name];
       if (info) {
@@ -1126,14 +1130,14 @@
       history.replaceState(null, '', url);
     }
     // 초기 진입 — hash 우선 → 기본 'basic'
-    const VALID_TABS = ['basic','url','tpl','opt','mkt'];
+    const VALID_TABS = ['basic','tpl','opt','mkt'];
     const m = (location.hash || '').match(/tab=(\w+)/);
     const initial = (m && VALID_TABS.includes(m[1])) ? m[1] : 'basic';
     showTab(initial);
     // 클릭 바인딩
     tabs.forEach(t => t.addEventListener('click', () => showTab(t.dataset.tab)));
     // step-progress 클릭 → 해당 탭으로 점프 (단계 1~7 → 탭 매핑)
-    const stepToTab = { 'sec-basic':'basic','sec-url':'url','sec-tpl':'tpl','sec-combo':'opt','sec-matrix':'opt','sec-market':'mkt','sec-runs':'run' };
+    const stepToTab = { 'sec-basic':'basic','sec-url':'opt','sec-tpl':'tpl','sec-combo':'opt','sec-matrix':'opt','sec-market':'mkt','sec-runs':'run' };
     document.querySelectorAll('.step[href^="#"]').forEach(a => {
       a.addEventListener('click', (e) => {
         const href = (a.getAttribute('href') || '').replace('#','');

@@ -41,7 +41,7 @@ class OptionSourceUrl(Base):
     """옵션 × 소싱처 → 상세 URL + 캐시된 가격·재고.
 
     1 옵션이 N개 소싱처에 등록 가능 (르무통 클래식 그레이-230 = 무신사·SSF·29CM).
-    같은 (canonical_sku, source_id) 쌍은 1개만 (UniqueConstraint).
+    [Phase 3] 한 소싱처에 URL 여러 개 허용 (다중 URL) — UniqueConstraint 제거.
     """
     __tablename__ = "option_source_urls"
 
@@ -64,9 +64,8 @@ class OptionSourceUrl(Base):
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc),
                         onupdate=lambda: datetime.now(timezone.utc))
 
+    # [Phase 3] (canonical_sku, source_id) UniqueConstraint 제거 — 한 소싱처 다중 URL 허용.
     __table_args__ = (
-        UniqueConstraint("canonical_sku", "source_id",
-                         name="uq_option_source_urls_v3"),
         Index("ix_option_source_urls_v3_sku", "canonical_sku"),
         Index("ix_option_source_urls_v3_src", "source_id"),
     )
@@ -119,24 +118,18 @@ def calc_auto_price(
 ) -> tuple[int, dict]:
     """판매가 = 원가 × (1 + 마진율) × (1 + 수수료율) + 배송비.
 
+    [ai-workflow Phase 1 — 가격 계산기 통합]
+    실제 계산은 lemouton.pricing.unified.compute_sale_price_unified 에 위임한다.
+    가격 계산이 3곳(스케줄러·매트릭스·재고관리)으로 흩어져 값이 어긋나던 것을
+    단일 함수로 통일 — "화면값 = 마켓 업로드값" 보장.
+    반환 형식 (rounded_price, breakdown_dict) 은 기존 호출자 호환 위해 유지.
+
     Returns:
         (rounded_price, breakdown_dict) — breakdown 으로 산출과정 표시.
     """
-    raw = purchase_price * (1 + margin_rate) * (1 + fee_rate) + shipping_fee
-    if rounding_unit and rounding_unit > 0:
-        rounded = round(raw / rounding_unit) * rounding_unit
-    else:
-        rounded = round(raw)
-    return int(rounded), {
-        'purchase_price': purchase_price,
-        'margin_rate': margin_rate,
-        'margin_amount': int(purchase_price * margin_rate),
-        'subtotal_after_margin': int(purchase_price * (1 + margin_rate)),
-        'fee_rate': fee_rate,
-        'fee_amount': int(purchase_price * (1 + margin_rate) * fee_rate),
-        'subtotal_after_fee': int(purchase_price * (1 + margin_rate) * (1 + fee_rate)),
-        'shipping_fee': shipping_fee,
-        'raw_total': raw,
-        'rounding_unit': rounding_unit,
-        'final_price': int(rounded),
-    }
+    from lemouton.pricing.unified import compute_sale_price_unified
+    result = compute_sale_price_unified(
+        purchase_price, margin_rate, fee_rate,
+        shipping_fee=shipping_fee, rounding_unit=rounding_unit,
+    )
+    return result.final_price, result.breakdown

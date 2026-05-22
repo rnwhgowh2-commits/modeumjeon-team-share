@@ -713,6 +713,12 @@ def sync_ss_options(code: str):
             total=len(matches),
             external_total=len(r.options),
             auto=auto, fuzzy=fuzzy, failed=failed,
+            # [Phase 4] 미매칭 수기 정정 — 전체 마켓 옵션 (검색·직접입력용)
+            external_options=[{
+                'option_id': o.option_id,
+                'name': o.display_name or str(o.option_id),
+                'stock': o.stock,
+            } for o in r.options],
             matches=[{
                 'canonical_sku': m.canonical_sku,
                 'color_code': m.color_code,
@@ -912,6 +918,82 @@ def apply_ss_matching(code: str):
         s.commit()
         return _ok(updated=result['updated'], failed=result['failed'],
                    color_dict_learned=learned)
+    finally:
+        s.close()
+
+
+@bp.post('/bundles/<code>/sync-cp-options')
+def sync_cp_options(code: str):
+    """[Phase 4] 쿠팡 API 호출 → 옵션 자동 매칭 결과 반환 (sync-ss-options 쿠팡판)."""
+    s = SessionLocal()
+    try:
+        m = s.query(Model).filter_by(model_code=code).first()
+        if m is None:
+            return _err('모음전을 찾을 수 없어요.', 404)
+        spid = getattr(m, 'coupang_seller_product_id', None) or m.coupang_product_id
+        if not spid:
+            return _err('쿠팡 상품번호가 비어있어요. 마켓 탭에 입력 후 저장하세요.', 400)
+        try:
+            from shared.platforms.coupang.products import get_product, extract_vendor_items
+            detail = get_product(int(spid))
+        except Exception as e:
+            return _err(f'쿠팡 API 호출 실패: {e}', 500)
+        items = extract_vendor_items(detail)
+        if not items:
+            return _err('쿠팡 옵션이 0개 — 등록 안 된 상품일 수 있어요.', 200)
+        from shared.platforms.smartstore.get_options import OptionRow
+        ext = [OptionRow(option_id=it['vendor_item_id'],
+                         name1=(it.get('color') or ''), name2=(it.get('size') or ''),
+                         stock=0) for it in items]
+        from lemouton.sources.option_matcher import match_external_options_to_ours
+        matches = match_external_options_to_ours(s, model_code=code, external_options=ext)
+        auto = sum(1 for x in matches if x.confidence == 'auto')
+        fuzzy = sum(1 for x in matches if x.confidence == 'fuzzy')
+        failed = sum(1 for x in matches if x.confidence == 'failed')
+        return _ok(
+            market='coupang',
+            product_name=detail.get('sellerProductName') or '쿠팡 상품',
+            origin_product_no=spid,
+            total=len(matches), external_total=len(items),
+            auto=auto, fuzzy=fuzzy, failed=failed,
+            external_options=[{
+                'option_id': it['vendor_item_id'],
+                'name': (f"{it.get('color', '')} / {it.get('size', '')}".strip(' /')
+                         or str(it['vendor_item_id'])),
+                'stock': 0,
+            } for it in items],
+            matches=[{
+                'canonical_sku': mr.canonical_sku,
+                'color_code': mr.color_code,
+                'size_code': mr.size_code,
+                'confidence': mr.confidence,
+                'matched_option_id': mr.matched_option_id,
+                'matched_external_name': mr.matched_external_name,
+                'candidates': mr.candidates,
+                'reason': mr.reason,
+            } for mr in matches],
+        )
+    finally:
+        s.close()
+
+
+@bp.post('/bundles/<code>/apply-cp-matching')
+def apply_cp_matching(code: str):
+    """[Phase 4] 쿠팡 매칭 결과 DB 저장 (Option.coupang_option_id).
+
+    Body: {matches: [{canonical_sku, coupang_option_id}]}
+    """
+    payload = request.get_json(silent=True) or {}
+    matches = payload.get('matches') or []
+    if not isinstance(matches, list) or not matches:
+        return _err('matches list 가 비어있어요.', 400)
+    s = SessionLocal()
+    try:
+        from lemouton.sources.option_matcher import apply_matching
+        result = apply_matching(s, model_code=code, matches=matches,
+                                option_id_field='coupang_option_id')
+        s.commit()
+        return _ok(updated=result['updated'], failed=result['failed'])
     finally:
         s.close()
 

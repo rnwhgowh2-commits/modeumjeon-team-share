@@ -130,3 +130,13 @@ def _apply_lightweight_migrations() -> None:
                 conn.execute(text(f"CREATE INDEX IF NOT EXISTS {idx_name} ON {table}({column})"))
             except Exception:
                 pass
+
+        # [Phase 3] 옵션 다중 URL — 옛 (canonical_sku, source_id) UniqueConstraint 제거.
+        #   한 소싱처에 URL 여러 개 허용. PostgreSQL 만 (SQLite fresh DB 는 모델에 제약 없음).
+        if conn.dialect.name == "postgresql":
+            for cons in ("uq_option_source_urls_v3", "uq_option_source"):
+                try:
+                    conn.execute(text(
+                        f"ALTER TABLE option_source_urls DROP CONSTRAINT IF EXISTS {cons}"))
+                except Exception:
+                    pass

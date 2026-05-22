@@ -6,6 +6,9 @@ import logging
 import os
 from pathlib import Path
 
+# 실행 위치와 무관하게 동작하도록 cwd 를 이 파일 위치(_시스템/)로 고정
+os.chdir(Path(__file__).resolve().parent)
+
 from flask import Flask, jsonify
 
 from config import Config

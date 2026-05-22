@@ -1,7 +1,7 @@
 """[A] 소싱 통합 레이어 — DB 모델."""
 from sqlalchemy import (
     Column, String, Integer, Boolean, ForeignKey, Float, Text,
-    DateTime, Index,
+    DateTime, Index, UniqueConstraint,
 )
 from sqlalchemy.orm import relationship
 from datetime import datetime, timezone
@@ -145,6 +145,13 @@ class Option(Base):
     color_display = Column(String(64))
     size_code = Column(String(32), nullable=False)
     size_display = Column(String(64))
+
+    # [Phase 2] 단계형 옵션 — N축 단계 값 (step 순서 JSON list). 예: ["블랙","260"]
+    # 레거시 2축 옵션은 color_code/size_code 사용 — option_combo.option_axis_values() 가 폴백.
+    axis_values_json = Column(Text)
+
+    # [Phase 3] 오프라인 전용 옵션 — 소싱처 URL 없이 사입 재고만 (크롤 경고 X, 사입가 기준)
+    offline_only = Column(Boolean, default=False, nullable=False)
 
     # 소싱처별 옵션 ID (NULL 가능)
     option_id_lemouton = Column(String(128))
@@ -339,4 +346,39 @@ class OptionBenefitOverride(Base):
                         onupdate=lambda: datetime.now(timezone.utc))
     __table_args__ = (
         Index("ix_obo_sku_source", "canonical_sku", "source_id"),
+    )
+
+
+# ════════════════════════════════════════════════════════════
+#  단계형 옵션 — 단계 설계 (Phase 2, ai-workflow cycle 20260521)
+# ════════════════════════════════════════════════════════════
+
+class BundleOptionStep(Base):
+    """모음전 단계형 옵션 — 단계 설계.
+
+    1 모음전(Model) = 1~3개 단계. 각 단계 = 이름(자유) + 값 목록(JSON).
+    옵션ID(canonical_sku)는 단계 값들의 조합으로 생성
+    (lemouton.sourcing.option_combo.generate_combinations).
+
+    예: 모음전 'AF' → 단계1 '색상'(["블랙","화이트"]) · 단계2 '사이즈'(["250","260"])
+        → 옵션 4개: AF-블랙-250 / AF-블랙-260 / AF-화이트-250 / AF-화이트-260
+
+    axis_name 은 자유 — 색상·사이즈·모델뿐 아니라 재질·패턴 등 임의.
+    신규 테이블이라 create_all 이 자동 생성 (Alembic 불요).
+    """
+    __tablename__ = "bundle_option_steps"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    model_code = Column(String(64), ForeignKey("models.model_code"),
+                        nullable=False, index=True)
+    step_no = Column(Integer, nullable=False)            # 1 | 2 | 3
+    axis_name = Column(String(64), nullable=False)       # '색상' '사이즈' '모델' '재질' ...
+    values_json = Column(Text, nullable=False, default='[]')   # ["블랙","화이트", ...]
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc),
+                        onupdate=lambda: datetime.now(timezone.utc))
+
+    __table_args__ = (
+        UniqueConstraint("model_code", "step_no", name="uq_bundle_option_steps"),
+        Index("ix_bundle_option_steps_model", "model_code"),
     )
