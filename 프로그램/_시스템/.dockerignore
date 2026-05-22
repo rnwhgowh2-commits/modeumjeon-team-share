@@ -32,11 +32,7 @@ data/TEST_*.xlsx
 .env
 .env.*
 
-# ─── 동기화 산출물 (배포에 불필요) ───
-sync.py
-sync.log
-.sync-ignore
-docs/sync-status.md
+# ─── 설계 문서 (배포에 불필요) ───
 docs/DAY*-*.md
 
 # ─── Dockerfile 자체 ───

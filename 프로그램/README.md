@@ -61,10 +61,7 @@
 ├── docs/                      # 설계 문서
 │   ├── DEPLOY.md
 │   ├── DAY3-RBAC-STRATEGY.md
-│   ├── DAY3-AUDIT-STRATEGY.md
-│   └── sync-status.md
-├── sync.py                    # 기존 → 신규 단방향 미러
-├── .sync-ignore               # 동기화 제외 패턴
+│   └── DAY3-AUDIT-STRATEGY.md
 ├── CLAUDE.md                  # AI 에이전트 룰
 └── README.md
 ```
@@ -139,7 +136,7 @@ admin 계정으로:
 ## 📊 시스템 상태
 
 - **Day 0-4 완료**: 인프라·인증·권한·배포 (2026-05-13 ~ 2026-05-15)
-- **Day 5 예정**: 컷오버 (기존 시스템 → 신규 전환)
+- **컷오버 완료**: 기존 시스템 폐기, 신규 단독 운영 (2026-05-22)
 
 ---
 
@@ -147,8 +144,6 @@ admin 계정으로:
 
 - 글로벌 룰: `CLAUDE.md` 참조
 - 변경은 모두 audit_log 에 자동 기록 (actor = 로그인 사용자 이메일)
-- 신규 전용 파일은 `.sync-ignore` 등록
-- 동기화 명령: `python sync.py` 또는 매일 04:00 자동
 
 ---
 

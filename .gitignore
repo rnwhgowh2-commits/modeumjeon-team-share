@@ -37,7 +37,6 @@ _시스템/data/auth/
 # ─── 로그 (재생성됨) ───
 **/*.log
 **/logs/
-sync.log
 _시스템/data/_inspect_*
 _시스템/data/_resolve_*
 

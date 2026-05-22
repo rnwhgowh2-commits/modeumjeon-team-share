@@ -530,22 +530,14 @@ Expected: `osu rows: 38`, keys 가 5개 키 부분집합, `source_registry: []` 
 
 ---
 
-## Task 14: 기존 시스템 반영 + 양쪽 배포
+## Task 14: 배포
 
-- [ ] **Step 1:** Task 2~11 의 코드 변경을 기존 시스템
-(`C:\Users\seung\OneDrive\바탕 화면\모음전 관리 프로그램\프로그램\_시스템`)
-의 동일 파일에 복제. 마이그레이션 스크립트도 복사.
+- [ ] **Step 1:** DB 백업 후 `python scripts/migrate_drop_source_registry.py`
+실행. dry-run 먼저.
 
-- [ ] **Step 2:** 기존 DB 백업 후
-`python scripts/migrate_drop_source_registry.py` 실행 (기존 DB 기준).
-dry-run 먼저.
+- [ ] **Step 2:** 커밋·푸시 → GitHub Actions → Fly.io 자동 배포.
 
-- [ ] **Step 3:** `cd C:\dev\모음전 프로젝트 && python 프로그램/sync.py` 실행 —
-기존→신규 동기화. 신규가 이미 동일하므로 diff 없음 확인 (divergence 점검).
-
-- [ ] **Step 4:** 양쪽 라이브 서버 재시작.
-
-- [ ] **Step 5:** 기존 시스템에서도 가격 매트릭스·사이드바 검증 (Task 13 반복).
+- [ ] **Step 3:** 라이브 서버 재시작 후 가격 매트릭스·사이드바 검증 (Task 13 반복).
 
 ---
 

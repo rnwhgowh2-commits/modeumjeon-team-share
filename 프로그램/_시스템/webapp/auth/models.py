@@ -1,7 +1,5 @@
 """
 사용자·역할 모델 — 팀공유 모드 전용 (ENVIRONMENT=team-share-dev).
-
-기존 시스템엔 이 파일이 존재하지 않음 → 동기화 시에도 신규에만 유지 (.sync-ignore 보호).
 """
 from __future__ import annotations
 

@@ -140,10 +140,6 @@ fly logs -n        # 마지막 100줄
 ## 4️⃣ 업데이트 (코드 변경 후)
 
 ```powershell
-# 1. 기존 → 신규 동기화 (이미 자동 04:00 + 수동 "동기화" 가능)
-python C:\dev\모음전\sync.py
-
-# 2. 신규 폴더에서 재배포
 cd "C:\dev\모음전 프로젝트\_시스템"
 fly deploy
 ```
@@ -183,7 +179,7 @@ fly scale memory 512
 
 - [ ] `FLASK_SECRET_KEY` 는 secrets.token_urlsafe(48) 로 강력하게
 - [ ] Supabase DB password 는 강력하게 (Day 1 셋업 시 메모)
-- [ ] Fly.io `.env` 파일 commit 안 함 (`.dockerignore` + `.sync-ignore` 등록 완료)
+- [ ] Fly.io `.env` 파일 commit 안 함 (`.dockerignore` 등록 완료)
 - [ ] HTTPS 자동 (`force_https = true` 설정됨)
 - [ ] X-Frame-Options 등 보안 헤더 자동 (app.py 의 `_apply_security_headers`)
 - [ ] 비밀번호 bcrypt rounds=12 (강력)

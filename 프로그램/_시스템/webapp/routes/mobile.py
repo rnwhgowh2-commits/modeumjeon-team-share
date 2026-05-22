@@ -1,7 +1,7 @@
 """
 모바일 PWA — 바코드 스캔 + 빠른 재고관리.
 
-신규 폴더 전용 (.sync-ignore 보호). 기존 inventory 코드 0 수정 — 호출만.
+inventory 코드 0 수정 — 호출만.
 ENVIRONMENT=team-share-dev 시 활성화 (login 게이트 기존 webapp.auth 가 처리).
 
 라우트:
