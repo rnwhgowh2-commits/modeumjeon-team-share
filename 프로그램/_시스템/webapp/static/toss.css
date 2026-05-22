@@ -1855,9 +1855,9 @@
   font-size: 14px; color: #8B95A1; line-height: 1.5;
 }
 .stock-local-btn {
-  width: 100%; padding: 10px 12px; background: #14B8A6; color: #fff; border: none;
+  width: 100%; padding: 10px 8px; background: #14B8A6; color: #fff; border: none;
   border-radius: 7px; font-size: 13px; font-weight: 800; cursor: pointer;
-  font-family: inherit;
+  font-family: inherit; white-space: nowrap;
 }
 .stock-local-btn:hover { background: #0F766E; }
 
@@ -2135,7 +2135,7 @@
 /* V1 카드 안 마켓 logo (스마트스토어/쿠팡) — 아웃라인 이니셜 칩 */
 .m4v1-mkt-logo {
   display: inline-flex; align-items: center; justify-content: center;
-  flex: 0 0 auto;
+  flex: 0 0 auto; align-self: center;
 }
 .mkt-logo-chip {
   box-sizing: border-box;
@@ -2207,8 +2207,8 @@
 .m4v1-card.pur.active .m4v1-inv-link:hover { background: #FEF3C7; }
 .m4v1-mkt-row {
   display: grid;
-  grid-template-columns: 22px minmax(60px, 1fr) auto auto auto;
-  gap: 4px; align-items: center;
+  grid-template-columns: 22px minmax(72px, 1fr) auto auto auto;
+  gap: 4px; align-items: baseline;
   padding: 4px 0; font-size: 13.5px;
 }
 .m4v1-br {
@@ -2217,20 +2217,20 @@
 }
 .m4v1-br-na { background: #03C75A; color: #fff; }
 .m4v1-br-cp { background: #1B64DA; color: #fff; }
-.m4v1-mkt-name { color: #191F28; font-weight: 600; font-size: 13.5px; }
+.m4v1-mkt-name { color: #191F28; font-weight: 600; font-size: 13.5px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .m4v1-auto {
-  background: #E8F2FE; color: #1B64DA; padding: 1px 5px;
-  border-radius: 3px; font-size: 12px; font-weight: 800; letter-spacing: .2px;
+  background: #E8F2FE; color: #1B64DA; padding: 1px 4px;
+  border-radius: 3px; font-size: 11px; font-weight: 800;
 }
 .m4v1-mkt-price {
   font-family: ui-monospace, monospace; font-weight: 800;
-  color: #191F28; font-size: 13.5px; text-align: right; min-width: 82px;
+  color: #191F28; font-size: 13.5px; text-align: right; min-width: 70px;
 }
 .m4v1-card.src.active .m4v1-mkt-price { color: #0E7C3A; }
 .m4v1-card.pur.active .m4v1-mkt-price { color: #92400E; }
 .m4v1-mkt-margin {
-  font-size: 14px; color: #8B95A1; font-family: ui-monospace, monospace;
-  min-width: 42px; text-align: right; font-weight: 600;
+  font-size: 13.5px; color: #8B95A1; font-family: ui-monospace, monospace;
+  min-width: 42px; text-align: right; font-weight: 600; margin-left: 6px;
 }
 .m4v1-fx-row {
   display: flex; justify-content: flex-end; margin-top: 6px;
