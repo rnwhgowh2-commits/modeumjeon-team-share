@@ -1101,10 +1101,22 @@
   let singleSku = null;      // 단일 모드
 
   // ─────────── fetch + 렌더 ───────────
+  // 시안 2 — 사이트 라벨 표시 명확화 (DB 의 약식 라벨을 사용자 친화 라벨로 정규화)
+  const SOURCE_NAME_DISPLAY_MAP = {
+    '스스 르무통': '스마트스토어',
+  };
+  function _normalizeSourceNames(sources) {
+    if (!Array.isArray(sources)) return;
+    sources.forEach(s => {
+      if (s && s.name && SOURCE_NAME_DISPLAY_MAP[s.name]) s.name = SOURCE_NAME_DISPLAY_MAP[s.name];
+    });
+  }
+
   async function loadMatrix() {
     const r = await fetch(`/api/bundles/${encodeURIComponent(BUNDLE_CODE)}/option-matrix`);
     const j = await r.json();
     if (!j.ok) { alert(j.error || '매트릭스 로드 실패'); return; }
+    _normalizeSourceNames(j.sources);
     DATA = j;
     window.DATA = j;  // V9 필터 사이드에서 참조
     // H1 — 트리/인스펙터 제거됨 (마스터 테이블에 통합)
@@ -2965,6 +2977,7 @@
       const r = await fetch(`/api/bundles/${encodeURIComponent(BUNDLE_CODE)}/option-matrix`);
       const j = await r.json();
       if (j.ok) {
+        _normalizeSourceNames(j.sources);
         DATA = j; window.DATA = j;
         // DATA 의 source crawled_price 를 td.data-cell-price 에 in-place 동기화
         document.querySelectorAll('td[data-cell-sku][data-cell-src]').forEach(td => {
