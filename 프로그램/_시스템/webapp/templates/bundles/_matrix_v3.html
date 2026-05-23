@@ -1629,13 +1629,13 @@
   };
 
   // ────────── v25 C — 모델 단위 다중 URL (카드 그리드) ──────────
-  // SOURCE_KEY_META: source_key → {label, ico}
+  // SOURCE_KEY_META: source_key → {label, ico}  (시안 2 — 명확한 라벨로 통일)
   const SOURCE_KEY_META = {
     lemouton: {label: '르무통 공홈', ico: '🍐'},
     musinsa: {label: '무신사', ico: '🛒'},
-    ssf: {label: 'SSF', ico: '🏬'},
-    lotteon: {label: '롯데몰', ico: '🏪'},
-    ss_lemouton: {label: '스스 르무통', ico: '🌟'},
+    ssf: {label: 'SSF샵', ico: '🏬'},
+    lotteon: {label: '롯데온', ico: '🏪'},
+    ss_lemouton: {label: '스마트스토어', ico: '🌟'},
   };
   async function loadModelSourceUrls(drawer) {
     const cardsEl = drawer.querySelector('#odd-url-cards');
