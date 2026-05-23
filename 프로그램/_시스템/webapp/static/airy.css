@@ -1,0 +1,84 @@
+/*
+  airy.css — 시안 2 (에어리) 디자인 베이스
+  Phase 1 적용 범위: 홈(/) + 모음전 옵션탭(/bundles/<code>)
+  로드: base.html 에서 toss.css 뒤
+  단일 진실 원천: 본 파일 (시안 2 베이스 토큰)
+  연계: bundles/edit.html 의 _su_letters/_su_colors 와 함께 한글 약식 칩 구성
+*/
+
+/* ───────────── 홈 (home.html) — 마이너 에어리 ───────────── */
+
+/* hero 카드 — 라운드·패딩·그림자 살짝 키움 (자동화 ON/전체) */
+.home-hero {
+  border-radius: 18px;
+  padding: 28px 32px;
+  box-shadow: 0 10px 30px rgba(15, 23, 42, .07);
+}
+.home-hero-num { font-weight: 800; letter-spacing: -.02em; }
+.home-hero-sub { color: #6b7684; }
+
+/* 액션 카드 (미맵핑·가격 변동·업로드 실패 등) */
+.home-action {
+  border-radius: 18px;
+  padding: 22px 24px;
+  box-shadow: 0 4px 14px rgba(15, 23, 42, .04);
+  transition: box-shadow .2s, transform .15s;
+}
+.home-action:hover {
+  box-shadow: 0 10px 26px rgba(15, 23, 42, .08);
+  transform: translateY(-1px);
+}
+.ha-title { font-weight: 700; font-size: 15px; color: #191f28; }
+.ha-sub   { color: #6b7684; font-size: 13px; margin-top: 3px; }
+.ha-num   { font-weight: 800; letter-spacing: -.02em; }
+
+/* 위험 알림 ribbon */
+.home-ribbon {
+  border-radius: 14px;
+  padding: 14px 20px;
+}
+
+/* 인사 — 위상 1급(페이지 제목) 명확히 */
+.home-greeting {
+  font-size: 30px;
+  font-weight: 800;
+  letter-spacing: -.02em;
+  margin: 8px 0 22px;
+}
+
+/* ───────────── 옵션탭 (bundles/edit.html) — 소싱처 한글 약식 칩 ───────────── */
+
+/* 소싱처 로고 칩 — 한글 약식(2~3글자) 수용을 위해 pill 형태로 (정사각 -> pill) */
+.su-logo {
+  width: auto !important;
+  min-width: 28px;
+  padding: 0 9px !important;
+  height: 24px;
+  border-radius: 7px !important;
+  font-size: 11px !important;
+  font-weight: 800;
+  letter-spacing: -.01em;
+  white-space: nowrap;
+}
+.su-logo.lg {
+  width: auto !important;
+  min-width: 36px;
+  padding: 0 11px !important;
+  height: 32px;
+  border-radius: 9px !important;
+  font-size: 13px !important;
+}
+
+/* 소싱처 탭 라벨 굵기 — 위상 정돈 */
+.su-tab-name { font-weight: 700; }
+.su-tab-cnt  { font-family: ui-monospace, monospace; font-weight: 800; }
+
+/* ───────────── 옵션 영역 표 헤더 톤(딥그레이) — 시안 2 베이스 ───────────── */
+/* 옵션 단계 안의 표 헤더에만 적용 (다른 페이지 표는 영향 없음) */
+#sec-opt table thead th,
+#sec-opt .matrix-thead {
+  background: #3b4049;
+  color: #cfd3da;
+  font-weight: 600;
+  letter-spacing: .02em;
+}

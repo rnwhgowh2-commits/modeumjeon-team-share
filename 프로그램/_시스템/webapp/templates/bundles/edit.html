@@ -205,8 +205,9 @@
         {% macro share_badge(count) -%}
           {% if count > 1 %}<span class="badge badge-info" style="margin-left:8px">{{ count }}개 모음전 공유</span>{% elif count == 1 %}<span class="badge badge-ok" style="margin-left:8px">단독 사용</span>{% endif %}
         {%- endmacro %}
-        {% set _su_colors = {'lemouton':'#191f28','musinsa':'#000000','ssf':'#1f3a93','lotteon':'#da0f1f','ss_lemouton':'#03c75a'} %}
-        {% set _su_letters = {'lemouton':'L','musinsa':'M','ssf':'S','lotteon':'L','ss_lemouton':'N'} %}
+        {# 시안 2 (에어리) 베이스 — 한글 약식 칩 + 시안 2 팔레트. airy.css 와 짝. #}
+        {% set _su_colors = {'lemouton':'#6366f1','musinsa':'#262626','ssf':'#0d9488','lotteon':'#e11d48','ss_lemouton':'#03c75a'} %}
+        {% set _su_letters = {'lemouton':'르무','musinsa':'무신','ssf':'SSF','lotteon':'롯데','ss_lemouton':'스토어'} %}
 
         {# [재설계 — 시안 G] 소싱처 가로 탭 + 탭별 URL 패널 #}
         <div class="su-wrap">
