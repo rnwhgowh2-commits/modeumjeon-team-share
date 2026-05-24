@@ -63,22 +63,26 @@ def api_get_progress():
 @bp.post('/icon/set')
 def api_set_icon():
     """아이콘 + 색상 저장.
-    body: {context, target_id, icon|null, color|null}
-    현재 인메모리 stub — 다음 세션 (사용자 1·2 결정 후) DB 컬럼 영구화.
+    body: {context, target_id, icon|null, color|null, bg_color?, fg_color?}
+      - bg_color/fg_color: v34 — 바탕색/글자색 hex (예: '#FF5500')
+      - context='brand': 브랜드 단위 동기화 (target_id 가 'musinsa', 'lemouton' 등 브랜드 키)
     """
     body = request.get_json(silent=True) or {}
     ctx = (body.get('context') or '').strip()
     tid = body.get('target_id')
     icon = body.get('icon')
     color = body.get('color')
+    bg_color = body.get('bg_color') or None
+    fg_color = body.get('fg_color') or None
     if not ctx:
         return _err('context required', 400)
     try:
         from webapp.icon_store import set_icon
-        set_icon(ctx, str(tid or ''), icon, color)
+        set_icon(ctx, str(tid or ''), icon, color, bg_color=bg_color, fg_color=fg_color)
     except Exception as e:
         logging.getLogger(__name__).warning("icon set failed: %s", e)
-    return _ok(context=ctx, target_id=tid, icon=icon, color=color)
+    return _ok(context=ctx, target_id=tid, icon=icon, color=color,
+               bg_color=bg_color, fg_color=fg_color)
 
 
 @bp.get('/icon/list')

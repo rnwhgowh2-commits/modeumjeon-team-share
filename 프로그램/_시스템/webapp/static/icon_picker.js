@@ -122,6 +122,13 @@
 
     let curIcon = current.icon || null;
     let curColor = current.color || 'default';
+    // v34 — 아이콘 picker 안에서도 바탕/글자색 분리 (hex). 기존 curColor 는 호환용.
+    let curBg = current.bg_color || '';
+    let curFg = current.fg_color || '';
+    // 기존 curColor 가 hex 이면 글자색에 자동 매핑 (호환)
+    if (!curFg && curColor && curColor !== 'default' && /^#[0-9a-fA-F]{6}$/.test(curColor)) {
+      curFg = curColor.toUpperCase();
+    }
     let mode = 'bw';                // 'bw' | 'color'
     let activeCat = '전체';
     let searchQ = '';
@@ -208,23 +215,97 @@
       }).join('');
     }
 
-    // 색상 palette 렌더
+    // 색상 palette 렌더 — v34: 바탕/글자 분리 + 프리셋 + native + HEX
     function renderPalette() {
       if (!curIcon) {
         $palette.style.display = 'none';
         return;
       }
-      $palette.style.display = 'flex';
-      const curHex = (COLORS.find(c => c.key === curColor) || COLORS[0]).hex;
+      $palette.style.display = 'block';
+      $palette.classList.add('icp-cp-v34');
+      const previewBg = curBg || '#F2F4F6';
+      const previewFg = curFg || '#191F28';
       $palette.innerHTML = `
-        <div class="icp-preview" style="color:${curHex}">${curIcon}</div>
-        <div>
-          <div class="icp-lab">색상 선택<small>기본 흑백 — 색상 클릭 시 적용</small></div>
+        <div class="icp-cp-inline-row">
+          <div class="icp-cp-preview-chip" style="background:${previewBg};color:${previewFg};font-size:20px;padding:8px 14px;">${curIcon}</div>
+          <div class="icp-cp-inline-hint">바탕색·글자색을 각각 지정 — 비우면 기본</div>
         </div>
-        <div class="icp-colors">
-          ${COLORS.map(c => `<button type="button" data-color="${c.key}" style="background:${c.hex}" title="${c.label}" ${c.key === curColor ? 'class="on"' : ''}></button>`).join('')}
+
+        <div class="icp-cp-section">
+          <div class="icp-cp-row-label">🟦 바탕색</div>
+          <div class="icp-cp-grid">
+            ${COLOR_PALETTE.map(c => `
+              <button type="button" class="icp-cp-cell ${(c.bg || '').toUpperCase() === curBg.toUpperCase() ? 'on' : ''}" data-target="bg" data-hex="${c.bg}" title="${c.label}"
+                      style="background:${c.bg || 'transparent'};border:${c.bg ? 'none' : '1.5px dashed #B0B8C1'}">${c.bg ? '' : '⊘'}</button>
+            `).join('')}
+          </div>
+          <div class="icp-cp-input-row">
+            <input type="color" class="icp-cp-native" data-target="bg" value="${curBg || '#3182F6'}" title="색상 휠">
+            <input type="text" class="icp-cp-hex" data-target="bg" value="${curBg}" placeholder="#RRGGBB (비우면 기본)" maxlength="7">
+            <span class="icp-cp-swatch" data-target="bg" style="background:${curBg}"></span>
+          </div>
+        </div>
+
+        <div class="icp-cp-section">
+          <div class="icp-cp-row-label">🅰 글자색</div>
+          <div class="icp-cp-grid">
+            ${COLOR_PALETTE.map(c => `
+              <button type="button" class="icp-cp-cell ${(c.bg || '').toUpperCase() === curFg.toUpperCase() ? 'on' : ''}" data-target="fg" data-hex="${c.bg}" title="${c.label}"
+                      style="background:${c.bg || 'transparent'};border:${c.bg ? 'none' : '1.5px dashed #B0B8C1'}">${c.bg ? '' : '⊘'}</button>
+            `).join('')}
+          </div>
+          <div class="icp-cp-input-row">
+            <input type="color" class="icp-cp-native" data-target="fg" value="${curFg || '#191F28'}" title="색상 휠">
+            <input type="text" class="icp-cp-hex" data-target="fg" value="${curFg}" placeholder="#RRGGBB (비우면 기본)" maxlength="7">
+            <span class="icp-cp-swatch" data-target="fg" style="background:${curFg}"></span>
+          </div>
         </div>
       `;
+
+      // 이벤트 바인딩 — palette 내부
+      $palette.querySelectorAll('.icp-cp-cell').forEach(b => b.addEventListener('click', e => {
+        e.stopPropagation();
+        const t = b.dataset.target;
+        if (t === 'bg') curBg = b.dataset.hex || '';
+        else curFg = b.dataset.hex || '';
+        renderPalette();
+      }));
+      $palette.querySelectorAll('.icp-cp-native').forEach(n => n.addEventListener('input', e => {
+        e.stopPropagation();
+        const v = _normHex(n.value);
+        if (!v) return;
+        if (n.dataset.target === 'bg') curBg = v; else curFg = v;
+        renderPalette();
+      }));
+      $palette.querySelectorAll('.icp-cp-hex').forEach(h => {
+        h.addEventListener('input', e => {
+          e.stopPropagation();
+          const v = _normHex(h.value);
+          if (!v && h.value.trim() === '') {
+            // 빈값 — 색 해제
+            if (h.dataset.target === 'bg') curBg = '';
+            else curFg = '';
+            // 미리보기만 즉시 갱신 (re-render 시 input focus 잃지 않게)
+            const chip = $palette.querySelector('.icp-cp-preview-chip');
+            if (chip) {
+              chip.style.background = curBg || '#F2F4F6';
+              chip.style.color = curFg || '#191F28';
+            }
+            return;
+          }
+          if (!v) return;
+          if (h.dataset.target === 'bg') curBg = v; else curFg = v;
+          const chip = $palette.querySelector('.icp-cp-preview-chip');
+          if (chip) {
+            chip.style.background = curBg || '#F2F4F6';
+            chip.style.color = curFg || '#191F28';
+          }
+          const swatch = $palette.querySelector(`.icp-cp-swatch[data-target="${h.dataset.target}"]`);
+          if (swatch) swatch.style.background = v;
+          const nat = $palette.querySelector(`.icp-cp-native[data-target="${h.dataset.target}"]`);
+          if (nat) nat.value = v;
+        });
+      });
     }
 
     // 푸터 버튼 상태
@@ -255,12 +336,7 @@
       curIcon = c.dataset.icon;
       renderGrid(); renderPalette(); renderFoot();
     });
-    $palette.addEventListener('click', e => {
-      const b = e.target.closest('button[data-color]');
-      if (!b) return;
-      curColor = b.dataset.color;
-      renderPalette();
-    });
+    // v34 — palette 내부 클릭은 renderPalette 안에서 직접 바인딩 (셀/native/hex)
     $clearBtn.addEventListener('click', () => {
       try { onClear(); } catch (_) {}
       closeIconPicker();
@@ -268,7 +344,9 @@
     $pickBtn.addEventListener('click', () => {
       if (!curIcon) return;
       pushRecent(curIcon);
-      try { onPick(curIcon, curColor); } catch (_) {}
+      // v34 — 글자색 hex 가 있으면 color 파라미터로도 전달 (하위 호환)
+      const colorArg = curFg || curColor;
+      try { onPick(curIcon, colorArg, {bg_color: curBg || null, fg_color: curFg || null}); } catch (_) {}
       closeIconPicker();
     });
     overlay.querySelector('.icp-esc').addEventListener('click', closeIconPicker);
@@ -337,17 +415,20 @@
     const [context, targetId] = (ctx || '').split('|');
     const cur = trigger.dataset.iconCurrent || trigger.textContent.trim();
     const col = trigger.dataset.iconColor || 'default';
+    const curBgInit = trigger.dataset.iconBg || '';
+    const curFgInit = trigger.dataset.iconFg || '';
     const label = trigger.dataset.iconLabel || '';
     window.openIconPicker({
       title: '아이콘 선택',
       subtitle: label ? `"${label}" 항목의 아이콘을 변경합니다` : '',
-      current: {icon: cur, color: col},
-      onPick: async (icon, color) => {
+      current: {icon: cur, color: col, bg_color: curBgInit, fg_color: curFgInit},
+      onPick: async (icon, color, extras) => {
+        const bg = (extras && extras.bg_color) || null;
+        const fg = (extras && extras.fg_color) || null;
         // inline 모드 (Type B — 이모지 + 텍스트) 시 첫 글자만 교체
         if (trigger.hasAttribute('data-icon-inline')) {
           const oldIcon = trigger.dataset.iconCurrent || '';
           const fullText = trigger.textContent;
-          // 첫 글자가 이모지면 그것만 교체, 아니면 prepend
           const m = fullText.match(INLINE_EMOJI_RE);
           if (m) {
             trigger.textContent = icon + fullText.slice(m[1].length);
@@ -361,23 +442,37 @@
         }
         trigger.dataset.iconCurrent = icon;
         trigger.dataset.iconColor = color;
-        const hex = (COLORS.find(c => c.key === color) || COLORS[0]).hex;
-        trigger.style.color = color === 'default' ? '' : hex;
+        trigger.dataset.iconBg = bg || '';
+        trigger.dataset.iconFg = fg || '';
+        // 글자색 — hex 가 있으면 직접 적용, 없으면 기존 key 기반 fallback
+        if (fg) {
+          trigger.style.color = fg;
+        } else if (color && color !== 'default' && !/^#/.test(color)) {
+          const hex = (COLORS.find(c => c.key === color) || COLORS[0]).hex;
+          trigger.style.color = hex;
+        } else {
+          trigger.style.color = '';
+        }
+        // 바탕색 — 신규 v34
+        trigger.style.backgroundColor = bg || '';
         try {
           await fetch('/api/icon/set', {
             method: 'POST', headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({context, target_id: targetId, icon, color}),
+            body: JSON.stringify({context, target_id: targetId, icon, color, bg_color: bg, fg_color: fg}),
           });
         } catch (_) {}
       },
       onClear: async () => {
         trigger.textContent = '';
         trigger.dataset.iconCurrent = '';
+        trigger.dataset.iconBg = '';
+        trigger.dataset.iconFg = '';
         trigger.style.color = '';
+        trigger.style.backgroundColor = '';
         try {
           await fetch('/api/icon/set', {
             method: 'POST', headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({context, target_id: targetId, icon: null, color: null}),
+            body: JSON.stringify({context, target_id: targetId, icon: null, color: null, bg_color: null, fg_color: null}),
           });
         } catch (_) {}
       },
@@ -628,6 +723,91 @@
     {key: 'default', bg: '',        fg: '',       label: '기본 (해제)'},
   ];
 
+  // ─── v34 — HEX 정규화·검증 ───
+  function _normHex(v) {
+    if (!v) return '';
+    v = String(v).trim();
+    if (!v.startsWith('#')) v = '#' + v;
+    if (/^#[0-9a-fA-F]{3}$/.test(v)) {
+      // #abc → #aabbcc
+      return '#' + v.slice(1).split('').map(c => c + c).join('').toUpperCase();
+    }
+    if (/^#[0-9a-fA-F]{6}$/.test(v)) return v.toUpperCase();
+    return '';
+  }
+
+  // ─── v34 — 브랜드 클래스 감지 ───
+  //   element 의 class 중 'brand-musinsa' 같은 패턴이 있으면 브랜드 모드 진입.
+  //   target_id = 'musinsa' (즉 brand- 접두 제거).
+  function _detectBrand(el) {
+    if (!el) return null;
+    // 자기 자신 + 가까운 .brand-icon / .brand-favi 컨테이너 확인
+    const node = el.closest('.brand-icon, .brand-favi') || el;
+    const cls = (node.className || '').split(/\s+/);
+    for (const c of cls) {
+      if (c.startsWith('brand-') && c !== 'brand-icon' && c !== 'brand-favi' && c !== 'brand-card'
+          && c !== 'brand-info' && c !== 'brand-name' && c !== 'brand-meta'
+          && c !== 'brand-actions' && c !== 'brand-default') {
+        return c.slice(6);  // 'brand-musinsa' → 'musinsa'
+      }
+    }
+    return null;
+  }
+
+  // ─── v34 — 동적 stylesheet 주입 (브랜드 색상 동기화) ───
+  //   .brand-musinsa { background: ... !important; color: ... !important; }
+  //   페이지 내 모든 브랜드 칩에 즉시 반영 + 새로고침 시 부트스트랩으로 다시 주입.
+  function _ensureBrandStyle() {
+    let s = document.getElementById('brand-overrides');
+    if (!s) {
+      s = document.createElement('style');
+      s.id = 'brand-overrides';
+      document.head.appendChild(s);
+    }
+    return s;
+  }
+  // brand 키 → {bg, fg} 메모리 캐시
+  const _brandColorCache = {};
+  function _applyBrandColor(brandKey, bg, fg) {
+    if (bg) _brandColorCache[brandKey] = {bg, fg: fg || _brandColorCache[brandKey]?.fg || ''};
+    else if (fg) _brandColorCache[brandKey] = {bg: _brandColorCache[brandKey]?.bg || '', fg};
+    else delete _brandColorCache[brandKey];
+    _rebuildBrandStyle();
+  }
+  function _rebuildBrandStyle() {
+    const style = _ensureBrandStyle();
+    const rules = [];
+    for (const [key, val] of Object.entries(_brandColorCache)) {
+      const sel = `.brand-${CSS.escape(key)}`;
+      const decls = [];
+      if (val.bg) decls.push(`background: ${val.bg} !important`);
+      if (val.fg) decls.push(`color: ${val.fg} !important`);
+      if (decls.length) rules.push(`${sel} { ${decls.join('; ')}; }`);
+    }
+    style.textContent = rules.join('\n');
+  }
+  // 부트스트랩 — /api/icon/list 의 'brand' 컨텍스트 항목 적용
+  async function _bootstrapBrandColors() {
+    try {
+      const r = await fetch('/api/icon/list');
+      const d = await r.json();
+      const brandMap = (d.icons || {}).brand || {};
+      for (const [key, entry] of Object.entries(brandMap)) {
+        if (entry && (entry.bg_color || entry.fg_color)) {
+          _brandColorCache[key] = {bg: entry.bg_color || '', fg: entry.fg_color || ''};
+        }
+      }
+      _rebuildBrandStyle();
+    } catch (_) {}
+  }
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', _bootstrapBrandColors);
+  } else {
+    _bootstrapBrandColors();
+  }
+  // 외부에서 호출 가능 (테스트/SPA 전환)
+  window.icpBootstrapBrandColors = _bootstrapBrandColors;
+
   let _activeColorPop = null;
   function _closeColorPop() {
     if (_activeColorPop) { _activeColorPop.remove(); _activeColorPop = null; }
@@ -636,48 +816,220 @@
     _closeColorPop();
     const ctx = trigger.dataset.colorEdit || '';
     const [context, targetId] = ctx.split('|');
-    const curBg = trigger.dataset.colorCurrent || '';
+
+    // v34 — 브랜드 모드 진입 판정
+    const brandKey = _detectBrand(trigger);
+    const isBrand = !!brandKey;
+
+    // 현재 색상 — 브랜드면 캐시에서, 아니면 computed
+    let curBg, curFg;
+    if (isBrand) {
+      const cached = _brandColorCache[brandKey];
+      const cs = getComputedStyle(trigger);
+      curBg = cached?.bg || _rgb2hex(cs.backgroundColor) || '';
+      curFg = cached?.fg || _rgb2hex(cs.color) || '';
+    } else {
+      const cs = getComputedStyle(trigger);
+      curBg = trigger.dataset.bgColor || _rgb2hex(cs.backgroundColor) || '';
+      curFg = trigger.dataset.fgColor || _rgb2hex(cs.color) || '';
+    }
 
     const pop = document.createElement('div');
-    pop.className = 'icp-color-pop';
+    pop.className = 'icp-color-pop icp-cp-v34';
     pop.innerHTML = `
-      <div class="icp-cp-title">색상 선택</div>
-      <div class="icp-cp-grid">
-        ${COLOR_PALETTE.map(c => `
-          <button type="button" class="icp-cp-cell ${c.bg === curBg ? 'on' : ''}"
-                  data-bg="${c.bg}" data-fg="${c.fg}" data-key="${c.key}"
-                  style="background:${c.bg || 'transparent'};color:${c.fg || '#191F28'};border:${c.bg ? 'none' : '1.5px dashed #B0B8C1'}"
-                  title="${c.label}">${c.bg ? '' : '⊘'}</button>
-        `).join('')}
+      <div class="icp-cp-head">
+        <span class="icp-cp-title">${isBrand ? `🏷 브랜드 색상 — ${escapeHtmlSafe(brandKey)}` : '🎨 색상 선택'}</span>
+        ${isBrand ? `<small class="icp-cp-sub">프로그램 전체의 모든 "${escapeHtmlSafe(brandKey)}" 로고에 즉시 적용</small>` : ''}
+      </div>
+
+      <div class="icp-cp-section">
+        <div class="icp-cp-row-label">🟦 바탕색</div>
+        <div class="icp-cp-grid">
+          ${COLOR_PALETTE.map(c => `
+            <button type="button" class="icp-cp-cell" data-target="bg" data-hex="${c.bg}" title="${c.label}"
+                    style="background:${c.bg || 'transparent'};border:${c.bg ? 'none' : '1.5px dashed #B0B8C1'}">${c.bg ? '' : '⊘'}</button>
+          `).join('')}
+        </div>
+        <div class="icp-cp-input-row">
+          <input type="color" class="icp-cp-native" data-target="bg" value="${curBg || '#3182F6'}" title="색상 휠">
+          <input type="text" class="icp-cp-hex" data-target="bg" value="${curBg}" placeholder="#RRGGBB" maxlength="7">
+          <span class="icp-cp-swatch" data-target="bg" style="background:${curBg}"></span>
+        </div>
+      </div>
+
+      <div class="icp-cp-section">
+        <div class="icp-cp-row-label">🅰 글자색</div>
+        <div class="icp-cp-grid">
+          ${COLOR_PALETTE.map(c => `
+            <button type="button" class="icp-cp-cell" data-target="fg" data-hex="${c.bg}" title="${c.label}"
+                    style="background:${c.bg || 'transparent'};border:${c.bg ? 'none' : '1.5px dashed #B0B8C1'}">${c.bg ? '' : '⊘'}</button>
+          `).join('')}
+        </div>
+        <div class="icp-cp-input-row">
+          <input type="color" class="icp-cp-native" data-target="fg" value="${curFg || '#FFFFFF'}" title="색상 휠">
+          <input type="text" class="icp-cp-hex" data-target="fg" value="${curFg}" placeholder="#RRGGBB" maxlength="7">
+          <span class="icp-cp-swatch" data-target="fg" style="background:${curFg}"></span>
+        </div>
+      </div>
+
+      <div class="icp-cp-preview">
+        <span class="icp-cp-preview-chip" style="background:${curBg || '#E5E8EB'};color:${curFg || '#191F28'}">${isBrand ? escapeHtmlSafe(brandKey) : '미리보기'}</span>
+        <div class="icp-cp-acts">
+          <button type="button" class="icp-cp-reset" title="원래대로 (저장 해제)">초기화</button>
+          <button type="button" class="icp-cp-apply">적용</button>
+        </div>
       </div>
     `;
-    // 위치 결정 — 트리거 아래
+    // 위치 결정 — 트리거 아래, 화면 밖 방지
     const r = trigger.getBoundingClientRect();
     pop.style.position = 'fixed';
     pop.style.top = (r.bottom + 6) + 'px';
-    pop.style.left = (r.left) + 'px';
+    pop.style.left = Math.max(8, Math.min(r.left, window.innerWidth - 440)) + 'px';
     pop.style.zIndex = '9100';
     document.body.appendChild(pop);
     _activeColorPop = pop;
 
-    pop.querySelectorAll('.icp-cp-cell').forEach(b => b.addEventListener('click', async (e) => {
+    // 현재 선택 상태 (모달 내 임시)
+    const state = {bg: curBg, fg: curFg};
+
+    function updatePreview() {
+      const chip = pop.querySelector('.icp-cp-preview-chip');
+      chip.style.background = state.bg || '#E5E8EB';
+      chip.style.color = state.fg || '#191F28';
+      pop.querySelectorAll('.icp-cp-swatch').forEach(s => {
+        s.style.background = state[s.dataset.target] || '';
+      });
+      pop.querySelectorAll('.icp-cp-cell').forEach(c => {
+        const t = c.dataset.target, hex = (c.dataset.hex || '').toUpperCase();
+        c.classList.toggle('on', hex === (state[t] || '').toUpperCase());
+      });
+    }
+    updatePreview();
+
+    // 프리셋 클릭
+    pop.querySelectorAll('.icp-cp-cell').forEach(b => b.addEventListener('click', e => {
       e.stopPropagation();
-      const bg = b.dataset.bg;
-      const fg = b.dataset.fg;
-      const key = b.dataset.key;
-      trigger.dataset.colorCurrent = bg;
-      trigger.style.backgroundColor = bg || '';
-      trigger.style.color = fg || '';
-      _closeColorPop();
-      try {
-        await fetch('/api/icon/set', {
-          method: 'POST', headers: {'Content-Type': 'application/json'},
-          body: JSON.stringify({context: 'color:' + (context || ''), target_id: targetId || '', icon: key, color: bg}),
-        });
-      } catch(_) {}
+      const t = b.dataset.target;
+      state[t] = b.dataset.hex || '';
+      // hex input 도 갱신
+      const inp = pop.querySelector(`.icp-cp-hex[data-target="${t}"]`);
+      if (inp) inp.value = state[t];
+      const nat = pop.querySelector(`.icp-cp-native[data-target="${t}"]`);
+      if (nat && state[t]) nat.value = state[t];
+      updatePreview();
     }));
-    // 외부 클릭 닫기
+
+    // native picker 입력
+    pop.querySelectorAll('.icp-cp-native').forEach(n => n.addEventListener('input', e => {
+      e.stopPropagation();
+      const t = n.dataset.target;
+      const v = _normHex(n.value);
+      if (v) {
+        state[t] = v;
+        const inp = pop.querySelector(`.icp-cp-hex[data-target="${t}"]`);
+        if (inp) inp.value = v;
+        updatePreview();
+      }
+    }));
+
+    // HEX 입력
+    pop.querySelectorAll('.icp-cp-hex').forEach(h => {
+      h.addEventListener('input', e => {
+        e.stopPropagation();
+        const t = h.dataset.target;
+        const v = _normHex(h.value);
+        if (v) {
+          state[t] = v;
+          const nat = pop.querySelector(`.icp-cp-native[data-target="${t}"]`);
+          if (nat) nat.value = v;
+          updatePreview();
+        }
+      });
+      // 외부 클릭 닫기 차단
+      h.addEventListener('click', e => e.stopPropagation());
+    });
+    pop.querySelectorAll('.icp-cp-native').forEach(n => n.addEventListener('click', e => e.stopPropagation()));
+
+    // 적용
+    pop.querySelector('.icp-cp-apply').addEventListener('click', async e => {
+      e.stopPropagation();
+      const bg = state.bg || null;
+      const fg = state.fg || null;
+      if (isBrand) {
+        _applyBrandColor(brandKey, bg, fg);
+        try {
+          await fetch('/api/icon/set', {
+            method: 'POST', headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+              context: 'brand', target_id: brandKey,
+              icon: brandKey, color: bg || 'default',
+              bg_color: bg, fg_color: fg,
+            }),
+          });
+        } catch(_) {}
+      } else {
+        // 위치별 개별 적용 — 기존 호환
+        trigger.dataset.bgColor = bg || '';
+        trigger.dataset.fgColor = fg || '';
+        trigger.style.backgroundColor = bg || '';
+        trigger.style.color = fg || '';
+        try {
+          await fetch('/api/icon/set', {
+            method: 'POST', headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+              context: 'color:' + (context || ''),
+              target_id: targetId || '',
+              icon: 'custom', color: bg || 'default',
+              bg_color: bg, fg_color: fg,
+            }),
+          });
+        } catch(_) {}
+      }
+      _closeColorPop();
+    });
+
+    // 초기화 — 저장된 override 해제
+    pop.querySelector('.icp-cp-reset').addEventListener('click', async e => {
+      e.stopPropagation();
+      if (isBrand) {
+        _applyBrandColor(brandKey, null, null);
+        try {
+          await fetch('/api/icon/set', {
+            method: 'POST', headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+              context: 'brand', target_id: brandKey,
+              icon: null, color: null,
+              bg_color: null, fg_color: null,
+            }),
+          });
+        } catch(_) {}
+      } else {
+        trigger.dataset.bgColor = '';
+        trigger.dataset.fgColor = '';
+        trigger.style.backgroundColor = '';
+        trigger.style.color = '';
+      }
+      _closeColorPop();
+    });
+
+    // popover 내부 클릭은 닫지 않음
+    pop.addEventListener('click', e => e.stopPropagation());
+
+    // 외부 클릭 닫기 — popover 자체 click 은 위에서 막음
     setTimeout(() => document.addEventListener('click', _closeColorPop, {once: true}), 100);
+  }
+
+  // rgb(r,g,b) → #RRGGBB
+  function _rgb2hex(rgb) {
+    if (!rgb) return '';
+    if (rgb.startsWith('#')) return rgb.toUpperCase();
+    const m = rgb.match(/rgba?\((\d+)\s*,\s*(\d+)\s*,\s*(\d+)/);
+    if (!m) return '';
+    return '#' + [m[1], m[2], m[3]].map(n => parseInt(n, 10).toString(16).padStart(2, '0')).join('').toUpperCase();
+  }
+
+  function escapeHtmlSafe(s) {
+    return (s || '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   }
 
   // 우클릭 → color popover
