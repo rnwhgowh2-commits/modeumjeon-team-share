@@ -951,6 +951,40 @@ def api_list_source_urls(code):
         except Exception:
             axis_steps_payload = []
 
+        # [2026-05-24 A-1-FIX v3] 자동 axis_steps — BundleOptionStep 미생성 모음전(레거시) 대응
+        #   · 단일 진실 원천을 백엔드로 일원화 — 프론트는 항상 axis_steps 만 신뢰
+        #   · color_display / size_display 로부터 색상·사이즈 2축 자동 추정
+        #   · options_payload[].axis_values 도 함께 채워서 매트릭스 선택 셀 매핑 가능하게
+        #   · 자동 추정은 응답 직전에만 — DB 에 BundleOptionStep 새로 만들지 않음 (read-only)
+        if not axis_steps_payload and options_payload:
+            from collections import OrderedDict
+            colors = list(OrderedDict.fromkeys(
+                o['color_display'] for o in options_payload
+                if o.get('color_display')
+            ))
+            sizes = list(OrderedDict.fromkeys(
+                o['size_display'] for o in options_payload
+                if o.get('size_display')
+            ))
+            auto = []
+            if colors:
+                auto.append({'step_no': len(auto) + 1, 'axis_name': '색상', 'values': colors})
+            if sizes:
+                auto.append({'step_no': len(auto) + 1, 'axis_name': '사이즈', 'values': sizes})
+            if auto:
+                axis_steps_payload = auto
+                # 각 옵션에 axis_values 채워서 매트릭스 선택 셀 매핑 가능하게
+                axis_names = [st['axis_name'] for st in auto]
+                for o in options_payload:
+                    vals = []
+                    if '색상' in axis_names:
+                        vals.append(o.get('color_display') or '')
+                    if '사이즈' in axis_names:
+                        vals.append(o.get('size_display') or '')
+                    # 기존 axis_values 가 None 일 때만 덮어쓰기 — 정식 단계형 옵션은 보존
+                    if o.get('axis_values') is None:
+                        o['axis_values'] = vals
+
         return jsonify({
             'ok': True,
             'urls': urls,
