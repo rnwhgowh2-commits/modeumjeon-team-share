@@ -101,6 +101,8 @@ def _apply_lightweight_migrations() -> None:
         ("options", "axis_values_json", "TEXT"),
         # 2026-05-21: Phase 3 — 오프라인 전용 옵션 (소싱처 URL 없이 사입만)
         ("options", "offline_only", "BOOLEAN DEFAULT 0 NOT NULL"),
+        # 2026-05-24: BundleSourceUrl 라벨 (URL 구분용 — "통합 모음전" / "단품 - 그레이")
+        ("bundle_source_urls", "label", "VARCHAR(120)"),
     ]
     inspector = inspect(engine)
     existing_tables = set(inspector.get_table_names())

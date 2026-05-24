@@ -124,6 +124,9 @@ class BundleSourceUrl(Base):
 
     legacy: Model.url_lemouton 등 단일 컬럼은 유지 (옵션 sources 동기화 호환).
     이 테이블 = 다중 URL 의 source-of-truth. legacy 컬럼은 첫 번째 URL 로 sync.
+
+    [2026-05-24] label 추가 — 사용자가 URL 구분용 라벨 입력 (예: "통합 모음전" / "단품 - 그레이").
+    nullable; 빈값이면 UI 에서 URL 자체로 표시.
     """
     __tablename__ = "bundle_source_urls"
 
@@ -131,8 +134,58 @@ class BundleSourceUrl(Base):
     model_code = Column(String(64), ForeignKey("models.model_code"), nullable=False, index=True)
     source_key = Column(String(32), nullable=False)  # lemouton/musinsa/ssf/lotteon/ss_lemouton
     url = Column(Text, nullable=False)
+    label = Column(String(120))  # [2026-05-24] 선택 입력 — URL 구분용 라벨
     sort_order = Column(Integer, default=0, nullable=False)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+
+    # [2026-05-24] 옵션 ↔ URL N:N 매핑
+    option_links = relationship(
+        "OptionSourceUrlLink",
+        back_populates="source_url",
+        cascade="all, delete-orphan",
+    )
+
+
+class OptionSourceUrlLink(Base):
+    """옵션 ↔ 소싱처 URL N:N 매핑 (2026-05-24).
+
+    한 옵션이 같은 소싱처에서 URL 여러개에 매핑 가능
+    (예: 무신사 통합 모음전 + 단품 - 그레이 두 페이지 모두 크롤링).
+
+    UNIQUE(option_canonical_sku, bundle_source_url_id) — 중복 매핑 차단.
+    옵션·URL 삭제 시 CASCADE.
+    """
+    __tablename__ = "option_source_url_links"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    option_canonical_sku = Column(
+        String(128),
+        ForeignKey("options.canonical_sku", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    bundle_source_url_id = Column(
+        Integer,
+        ForeignKey("bundle_source_urls.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+
+    source_url = relationship("BundleSourceUrl", back_populates="option_links")
+
+    __table_args__ = (
+        UniqueConstraint(
+            "option_canonical_sku",
+            "bundle_source_url_id",
+            name="uq_option_source_url_link",
+        ),
+        Index(
+            "ix_oss_url_option",
+            "bundle_source_url_id",
+            "option_canonical_sku",
+        ),
+    )
 
 
 class Option(Base):

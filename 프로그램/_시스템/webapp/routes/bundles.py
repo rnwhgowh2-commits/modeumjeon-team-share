@@ -6,7 +6,7 @@ from datetime import datetime, timezone, timedelta
 from flask import Blueprint, abort, jsonify, redirect, render_template, request
 
 from shared.db import SessionLocal
-from lemouton.sourcing.models import Model, Option, DiscoveryQueueItem, BundleSourceUrl
+from lemouton.sourcing.models import Model, Option, DiscoveryQueueItem, BundleSourceUrl, OptionSourceUrlLink
 from lemouton.sourcing.source_registry import SOURCES as SOURCE_REGISTRY, get_keys as _src_keys, get_all_sources, get_all_keys
 from lemouton.sourcing.models_v2 import UploadAccount
 from lemouton.templates.models import (
@@ -837,14 +837,33 @@ def _sync_legacy_url_column(s, code, source_key):
 @bp.route('/api/bundles/<code>/source-urls', methods=['GET'])
 def api_list_source_urls(code):
     """모델 단위 BundleSourceUrl 전체 조회.
-    응답: {ok: True, urls: {source_key: [{id, url, sort_order}, ...], ...}}
+    응답: {
+      ok: True,
+      urls: {source_key: [{id, url, label, sort_order, option_ids: [sku,...]}, ...], ...},
+      options: [{canonical_sku, color_code, color_display, size_code, size_display, axis_values}, ...],
+      sources: [...]
+    }
     legacy 단일 컬럼 (Model.url_<sk>) 도 다중 행이 없으면 자동 표현 (id=null).
+
+    [2026-05-24] options 매트릭스 정보 + URL별 option_ids 매핑 포함.
     """
     s = SessionLocal()
     try:
         m = s.query(Model).filter_by(model_code=code).first()
         if not m:
             return jsonify({'ok': False, 'error': 'bundle not found'}), 404
+
+        # URL → option_ids 매핑 일괄 조회 (N+1 회피)
+        all_url_ids = [r.id for r in s.query(BundleSourceUrl.id)
+                       .filter_by(model_code=code).all()]
+        link_map = {}  # url_id -> [canonical_sku, ...]
+        if all_url_ids:
+            links = (s.query(OptionSourceUrlLink)
+                     .filter(OptionSourceUrlLink.bundle_source_url_id.in_(all_url_ids))
+                     .all())
+            for ln in links:
+                link_map.setdefault(ln.bundle_source_url_id, []).append(ln.option_canonical_sku)
+
         urls = {}
         all_keys = set(get_all_keys(session=s))  # builtin + DB
         for sk in all_keys:
@@ -853,13 +872,82 @@ def api_list_source_urls(code):
                     .order_by(BundleSourceUrl.sort_order, BundleSourceUrl.id)
                     .all())
             if rows:
-                urls[sk] = [{'id': r.id, 'url': r.url, 'sort_order': r.sort_order} for r in rows]
+                urls[sk] = [{
+                    'id': r.id,
+                    'url': r.url,
+                    'label': r.label or '',
+                    'sort_order': r.sort_order,
+                    'option_ids': link_map.get(r.id, []),
+                } for r in rows]
             else:
                 legacy = getattr(m, f'url_{sk}', None) if sk in VALID_SOURCE_KEYS else None
-                urls[sk] = [{'id': None, 'url': legacy, 'sort_order': 0}] if legacy else []
-        return jsonify({'ok': True, 'urls': urls, 'sources': sorted(all_keys)})
+                urls[sk] = [{
+                    'id': None, 'url': legacy, 'label': '',
+                    'sort_order': 0, 'option_ids': [],
+                }] if legacy else []
+
+        # 옵션 매트릭스 정보 — 프론트가 빠른 선택 칩 + 매트릭스 그릴 때 사용
+        import json as _json
+        opts = (s.query(Option)
+                .filter_by(model_code=code)
+                .order_by(Option.sort_order, Option.canonical_sku)
+                .all())
+        options_payload = []
+        for o in opts:
+            axis_values = None
+            if o.axis_values_json:
+                try:
+                    axis_values = _json.loads(o.axis_values_json)
+                except Exception:
+                    axis_values = None
+            options_payload.append({
+                'canonical_sku': o.canonical_sku,
+                'color_code': o.color_code,
+                'color_display': o.color_display or o.color_code,
+                'size_code': o.size_code,
+                'size_display': o.size_display or o.size_code,
+                'axis_values': axis_values,
+            })
+
+        return jsonify({
+            'ok': True,
+            'urls': urls,
+            'options': options_payload,
+            'sources': sorted(all_keys),
+        })
     finally:
         s.close()
+
+
+def _sync_option_links(session, code, url_id, option_ids):
+    """URL ↔ Option N:N 매핑 동기화.
+
+    option_ids = None 이면 매핑 변경 없음.
+    빈 list = 매핑 전부 해제.
+    각 sku 가 그 model_code 의 옵션인지 검증 (보안 — 타 모델 옵션 매핑 차단).
+    """
+    if option_ids is None:
+        return
+    # 기존 매핑 모두 삭제
+    (session.query(OptionSourceUrlLink)
+     .filter_by(bundle_source_url_id=url_id)
+     .delete(synchronize_session=False))
+    if not option_ids:
+        return
+    # 유효성 검증 — 같은 model_code 의 옵션만 허용
+    valid_skus = {
+        r[0] for r in
+        session.query(Option.canonical_sku)
+        .filter(Option.model_code == code, Option.canonical_sku.in_(option_ids))
+        .all()
+    }
+    for sku in option_ids:
+        if sku not in valid_skus:
+            continue  # 다른 모델 옵션·존재 X — 조용히 skip
+        session.add(OptionSourceUrlLink(
+            option_canonical_sku=sku,
+            bundle_source_url_id=url_id,
+        ))
 
 
 @bp.route('/api/bundles/<code>/source-urls', methods=['POST'])
@@ -867,6 +955,10 @@ def api_add_source_url(code):
     body = request.get_json(silent=True) or {}
     source_key = (body.get('source_key') or '').strip()
     url = (body.get('url') or '').strip()
+    label = (body.get('label') or '').strip() or None
+    option_ids = body.get('option_ids')  # None | list[str]
+    if option_ids is not None and not isinstance(option_ids, list):
+        return jsonify({'ok': False, 'error': 'option_ids must be list'}), 400
     if not _is_valid_source_key(source_key):
         return jsonify({'ok': False, 'error': 'invalid source_key'}), 400
     if not url:
@@ -887,12 +979,26 @@ def api_add_source_url(code):
                      .order_by(BundleSourceUrl.sort_order.desc())
                      .first())
         next_order = (max_order[0] + 1) if max_order else 0
-        row = BundleSourceUrl(model_code=code, source_key=source_key, url=url, sort_order=next_order)
+        row = BundleSourceUrl(
+            model_code=code,
+            source_key=source_key,
+            url=url,
+            label=label,
+            sort_order=next_order,
+        )
         s.add(row)
         s.flush()
         _sync_legacy_url_column(s, code, source_key)
+        _sync_option_links(s, code, row.id, option_ids)
         s.commit()
-        return jsonify({'ok': True, 'id': row.id, 'url': row.url, 'sort_order': row.sort_order})
+        return jsonify({
+            'ok': True,
+            'id': row.id,
+            'url': row.url,
+            'label': row.label or '',
+            'sort_order': row.sort_order,
+            'option_ids': option_ids or [],
+        })
     finally:
         s.close()
 
@@ -900,18 +1006,44 @@ def api_add_source_url(code):
 @bp.route('/api/bundles/<code>/source-urls/<int:url_id>', methods=['PUT'])
 def api_update_source_url(code, url_id):
     body = request.get_json(silent=True) or {}
-    new_url = (body.get('url') or '').strip()
-    if not new_url:
-        return jsonify({'ok': False, 'error': 'url required'}), 400
     s = SessionLocal()
     try:
         row = s.query(BundleSourceUrl).filter_by(id=url_id, model_code=code).first()
         if not row:
             return jsonify({'ok': False, 'error': 'not found'}), 404
-        row.url = new_url
+
+        # url — 명시적으로 키 있으면 적용 (빈 문자열 차단)
+        if 'url' in body:
+            new_url = (body.get('url') or '').strip()
+            if not new_url:
+                return jsonify({'ok': False, 'error': 'url required'}), 400
+            row.url = new_url
+
+        # label — 빈 문자열 = NULL
+        if 'label' in body:
+            lbl = (body.get('label') or '').strip()
+            row.label = lbl or None
+
+        # option_ids — None 이면 손대지 않음, list 면 동기화
+        option_ids = body.get('option_ids')
+        if option_ids is not None and not isinstance(option_ids, list):
+            return jsonify({'ok': False, 'error': 'option_ids must be list'}), 400
+        _sync_option_links(s, code, row.id, option_ids)
+
         _sync_legacy_url_column(s, code, row.source_key)
         s.commit()
-        return jsonify({'ok': True, 'id': row.id, 'url': row.url})
+
+        # 최종 option_ids 응답
+        final_links = [ln.option_canonical_sku for ln in
+                       s.query(OptionSourceUrlLink)
+                       .filter_by(bundle_source_url_id=row.id).all()]
+        return jsonify({
+            'ok': True,
+            'id': row.id,
+            'url': row.url,
+            'label': row.label or '',
+            'option_ids': final_links,
+        })
     finally:
         s.close()
 
