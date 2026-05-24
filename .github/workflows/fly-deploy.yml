@@ -24,11 +24,20 @@ jobs:
     timeout-minutes: 15
 
     steps:
-      - name: 소스 체크아웃 (정확한 SHA + 전체 history)
+      - name: 소스 체크아웃 (정확한 SHA + 전체 history + clean)
         uses: actions/checkout@v4
         with:
           ref: ${{ github.sha }}
           fetch-depth: 0
+          clean: true
+
+      - name: 런너의 base.html 코드 직접 확인 (Depot 컨텍스트 cache 진단)
+        run: |
+          echo "--- 런너의 base.html ?v= ---"
+          grep -n "option_url_modal.js" 프로그램/_시스템/webapp/templates/base.html || echo "NOT FOUND"
+          echo ""
+          echo "--- git SHA ---"
+          git rev-parse HEAD
 
       - name: flyctl 설치
         uses: superfly/flyctl-actions/setup-flyctl@master
