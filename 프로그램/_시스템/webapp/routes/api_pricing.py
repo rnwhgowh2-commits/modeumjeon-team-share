@@ -308,31 +308,15 @@ def get_option_matrix(code: str):
         except Exception:
             linked_product_dict = {}
 
-        # ★ 2026-05-13 v3 — 재고관리 실재고 합산 (사용자 의도)
-        #   조건: InventoryProduct 가 존재(등록)하는 옵션의 InventoryTx 만 합산
-        #   배경: InventoryProduct 없는데 Tx 만 떠도는 무결성 깨진 데이터 존재
-        #         (사용자가 재고관리에 등록 안 한 옵션 = 재고 0 으로 간주)
+        # [2026-05-25 D-1 리팩터링] 재고 단일 진실 원천 = shared/inventory_stock.get_stock_batch
+        #   기존: 옵션 sku 직접 InventoryTx 매칭만 → OptionProductLink 거친 product 재고 누락
+        #         (르무통 메이트 89 옵션 중 ext-link 89 = 전체 재고 0 으로 잘못 표시되던 버그)
+        #   신: get_stock_batch 가 OptionProductLink 자동 해석 + in/out/adjust/move 모두 합산
+        #       N+1 회피 (1 쿼리), self-link·ext-link·no-link 일관 처리
         inv_stock_dict: dict[str, int] = {}
         try:
-            from lemouton.inventory.models import InventoryTx
-            # InventoryProduct 가 있는 옵션 SKU 만 합산 대상
-            registered_skus = {sku_v for sku_v, p in inv_dict.items() if p is not None}
-            if registered_skus:
-                tx_rows = (s.query(InventoryTx.option_canonical_sku,
-                                   InventoryTx.tx_type, InventoryTx.qty)
-                           .filter(InventoryTx.status == 'completed')
-                           .filter(InventoryTx.option_canonical_sku.in_(registered_skus))
-                           .order_by(InventoryTx.created_at)
-                           .all())
-                for sku_v, ttype, qty in tx_rows:
-                    qv = qty or 0
-                    if ttype == 'in':
-                        inv_stock_dict[sku_v] = inv_stock_dict.get(sku_v, 0) + qv
-                    elif ttype == 'out':
-                        inv_stock_dict[sku_v] = inv_stock_dict.get(sku_v, 0) - qv
-                    elif ttype == 'adjust':
-                        inv_stock_dict[sku_v] = qv  # 절대값
-                    # 'move' 는 총합 영향 없음
+            from shared.inventory_stock import get_stock_batch
+            inv_stock_dict = get_stock_batch(s, [o.canonical_sku for o in opts])
         except Exception:
             inv_stock_dict = {}
 
