@@ -725,6 +725,130 @@
     {key: 'default', bg: '',        fg: '',       label: '기본 (해제)'},
   ];
 
+  // ═══════════════════════════════════════════════════════════════
+  // v34.3 — 포토샵식 커스텀 color picker (HSV/Hue 평면)
+  //   native <input type="color"> 대체. 「적용」 누르기 전엔 절대 확정 X.
+  // ═══════════════════════════════════════════════════════════════
+  function _hexToRgb(hex) {
+    const m = /^#?([0-9a-fA-F]{6})$/.exec((hex || '').replace('#',''));
+    if (!m) return [0, 0, 0];
+    const n = parseInt(m[1], 16);
+    return [(n >> 16) & 0xff, (n >> 8) & 0xff, n & 0xff];
+  }
+  function _rgbToHex(r, g, b) {
+    return '#' + [r, g, b].map(n => Math.max(0, Math.min(255, Math.round(n))).toString(16).padStart(2, '0')).join('').toUpperCase();
+  }
+  function _rgbToHsv(r, g, b) {
+    r /= 255; g /= 255; b /= 255;
+    const max = Math.max(r, g, b), min = Math.min(r, g, b), d = max - min;
+    let h = 0;
+    if (d > 0) {
+      if (max === r) h = ((g - b) / d) % 6;
+      else if (max === g) h = (b - r) / d + 2;
+      else h = (r - g) / d + 4;
+      h *= 60; if (h < 0) h += 360;
+    }
+    const s = max === 0 ? 0 : d / max;
+    return [h, s, max];
+  }
+  function _hsvToRgb(h, s, v) {
+    const c = v * s;
+    const x = c * (1 - Math.abs(((h / 60) % 2) - 1));
+    const m = v - c;
+    let rp, gp, bp;
+    if (h < 60)       [rp, gp, bp] = [c, x, 0];
+    else if (h < 120) [rp, gp, bp] = [x, c, 0];
+    else if (h < 180) [rp, gp, bp] = [0, c, x];
+    else if (h < 240) [rp, gp, bp] = [0, x, c];
+    else if (h < 300) [rp, gp, bp] = [x, 0, c];
+    else              [rp, gp, bp] = [c, 0, x];
+    return [(rp + m) * 255, (gp + m) * 255, (bp + m) * 255];
+  }
+
+  // photoPicker 팩토리. hex 초기값 받고, 변경 시 onChange(hex) 호출 (드래그 중 매번).
+  //   반환: {el, setHex(hex)}
+  function _createPhotoPicker(initHex, onChange) {
+    const [r0, g0, b0] = _hexToRgb(initHex || '#FF0000');
+    let [h, s, v] = _rgbToHsv(r0, g0, b0);
+    if (!initHex) { h = 0; s = 1; v = 1; }
+
+    const wrap = document.createElement('div');
+    wrap.className = 'icp-photo';
+    wrap.innerHTML = `
+      <div class="icp-photo-sv" tabindex="0">
+        <div class="icp-photo-sv-cursor"></div>
+      </div>
+      <div class="icp-photo-hue" tabindex="0">
+        <div class="icp-photo-hue-cursor"></div>
+      </div>
+    `;
+    const $sv = wrap.querySelector('.icp-photo-sv');
+    const $svCur = wrap.querySelector('.icp-photo-sv-cursor');
+    const $hue = wrap.querySelector('.icp-photo-hue');
+    const $hueCur = wrap.querySelector('.icp-photo-hue-cursor');
+
+    function applyVisual() {
+      const hueRgb = _hsvToRgb(h, 1, 1);
+      $sv.style.background = `
+        linear-gradient(to top, #000, transparent),
+        linear-gradient(to right, #fff, rgb(${hueRgb.map(Math.round).join(',')}))
+      `;
+      $svCur.style.left = (s * 100) + '%';
+      $svCur.style.top = ((1 - v) * 100) + '%';
+      $hueCur.style.left = ((h / 360) * 100) + '%';
+    }
+
+    function fireChange() {
+      const [r, g, b] = _hsvToRgb(h, s, v);
+      const hex = _rgbToHex(r, g, b);
+      try { onChange && onChange(hex); } catch (_) {}
+    }
+
+    function setHex(hex) {
+      const [r, g, b] = _hexToRgb(hex);
+      [h, s, v] = _rgbToHsv(r, g, b);
+      // 회색이면 hue 가 0 으로 떨어짐 — 기존 hue 유지 위해 v 가 0 일 때 보정 생략
+      applyVisual();
+    }
+
+    // SV 드래그
+    let svDragging = false;
+    function svFromEvent(e) {
+      const rect = $sv.getBoundingClientRect();
+      const cx = (e.touches ? e.touches[0].clientX : e.clientX) - rect.left;
+      const cy = (e.touches ? e.touches[0].clientY : e.clientY) - rect.top;
+      s = Math.max(0, Math.min(1, cx / rect.width));
+      v = Math.max(0, Math.min(1, 1 - cy / rect.height));
+      applyVisual();
+      fireChange();
+    }
+    $sv.addEventListener('mousedown', e => {
+      e.preventDefault(); e.stopPropagation();
+      svDragging = true; svFromEvent(e);
+    });
+    window.addEventListener('mousemove', e => { if (svDragging) { e.preventDefault(); svFromEvent(e); } });
+    window.addEventListener('mouseup', () => { svDragging = false; });
+
+    // Hue 드래그
+    let hueDragging = false;
+    function hueFromEvent(e) {
+      const rect = $hue.getBoundingClientRect();
+      const cx = (e.touches ? e.touches[0].clientX : e.clientX) - rect.left;
+      h = Math.max(0, Math.min(360, (cx / rect.width) * 360));
+      applyVisual();
+      fireChange();
+    }
+    $hue.addEventListener('mousedown', e => {
+      e.preventDefault(); e.stopPropagation();
+      hueDragging = true; hueFromEvent(e);
+    });
+    window.addEventListener('mousemove', e => { if (hueDragging) { e.preventDefault(); hueFromEvent(e); } });
+    window.addEventListener('mouseup', () => { hueDragging = false; });
+
+    applyVisual();
+    return {el: wrap, setHex};
+  }
+
   // ─── v34 — HEX 정규화·검증 ───
   function _normHex(v) {
     if (!v) return '';
@@ -851,6 +975,7 @@
 
       <div class="icp-cp-section">
         <div class="icp-cp-row-label">🟦 바탕색</div>
+        <div class="icp-cp-photo-host" data-target="bg"></div>
         <div class="icp-cp-grid">
           ${COLOR_PALETTE.map(c => `
             <button type="button" class="icp-cp-cell" data-target="bg" data-hex="${c.bg}" title="${c.label}"
@@ -858,14 +983,14 @@
           `).join('')}
         </div>
         <div class="icp-cp-input-row">
-          <input type="color" class="icp-cp-native" data-target="bg" value="${curBg || '#3182F6'}" title="색상 휠">
-          <input type="text" class="icp-cp-hex" data-target="bg" value="${curBg}" placeholder="#RRGGBB" maxlength="7">
+          <input type="text" class="icp-cp-hex" data-target="bg" value="${curBg}" placeholder="#RRGGBB (비우면 기본)" maxlength="7">
           <span class="icp-cp-swatch" data-target="bg" style="background:${curBg}"></span>
         </div>
       </div>
 
       <div class="icp-cp-section">
         <div class="icp-cp-row-label">🅰 글자색</div>
+        <div class="icp-cp-photo-host" data-target="fg"></div>
         <div class="icp-cp-grid">
           ${COLOR_PALETTE.map(c => `
             <button type="button" class="icp-cp-cell" data-target="fg" data-hex="${c.bg}" title="${c.label}"
@@ -873,8 +998,7 @@
           `).join('')}
         </div>
         <div class="icp-cp-input-row">
-          <input type="color" class="icp-cp-native" data-target="fg" value="${curFg || '#FFFFFF'}" title="색상 휠">
-          <input type="text" class="icp-cp-hex" data-target="fg" value="${curFg}" placeholder="#RRGGBB" maxlength="7">
+          <input type="text" class="icp-cp-hex" data-target="fg" value="${curFg}" placeholder="#RRGGBB (비우면 기본)" maxlength="7">
           <span class="icp-cp-swatch" data-target="fg" style="background:${curFg}"></span>
         </div>
       </div>
@@ -913,50 +1037,53 @@
     }
     updatePreview();
 
-    // 프리셋 클릭
+    // v34.3 — 포토샵식 photoPicker 인스턴스 (target 별)
+    const photoPickers = {};
+    ['bg', 'fg'].forEach(t => {
+      const host = pop.querySelector(`.icp-cp-photo-host[data-target="${t}"]`);
+      if (!host) return;
+      const initial = state[t] || (t === 'bg' ? '#3182F6' : '#FFFFFF');
+      const pp = _createPhotoPicker(initial, (hex) => {
+        // 드래그 시 미리보기에만 반영. 실 적용은 「적용」 버튼.
+        state[t] = hex;
+        const inp = pop.querySelector(`.icp-cp-hex[data-target="${t}"]`);
+        if (inp) inp.value = hex;
+        updatePreview();
+      });
+      host.appendChild(pp.el);
+      photoPickers[t] = pp;
+    });
+
+    // 프리셋 클릭 — 미리보기 + photoPicker 위치 동기화
     pop.querySelectorAll('.icp-cp-cell').forEach(b => b.addEventListener('click', e => {
       e.stopPropagation();
       const t = b.dataset.target;
       state[t] = b.dataset.hex || '';
-      // hex input 도 갱신
       const inp = pop.querySelector(`.icp-cp-hex[data-target="${t}"]`);
       if (inp) inp.value = state[t];
-      const nat = pop.querySelector(`.icp-cp-native[data-target="${t}"]`);
-      if (nat && state[t]) nat.value = state[t];
+      if (state[t] && photoPickers[t]) photoPickers[t].setHex(state[t]);
       updatePreview();
     }));
 
-    // native picker — change 이벤트만 (사용자가 picker 를 닫아 확정한 시점).
-    //   v34.1: input(드래그 중 실시간) 은 사용하지 않음 — 포토샵식 "확정 후 적용".
-    pop.querySelectorAll('.icp-cp-native').forEach(n => n.addEventListener('change', e => {
-      e.stopPropagation();
-      const t = n.dataset.target;
-      const v = _normHex(n.value);
-      if (v) {
-        state[t] = v;
-        const inp = pop.querySelector(`.icp-cp-hex[data-target="${t}"]`);
-        if (inp) inp.value = v;
-        updatePreview();
-      }
-    }));
-
-    // HEX 입력
+    // HEX 입력 — 사용자 직접 타이핑
     pop.querySelectorAll('.icp-cp-hex').forEach(h => {
       h.addEventListener('input', e => {
         e.stopPropagation();
         const t = h.dataset.target;
         const v = _normHex(h.value);
+        if (h.value.trim() === '') {
+          state[t] = '';
+          updatePreview();
+          return;
+        }
         if (v) {
           state[t] = v;
-          const nat = pop.querySelector(`.icp-cp-native[data-target="${t}"]`);
-          if (nat) nat.value = v;
+          if (photoPickers[t]) photoPickers[t].setHex(v);
           updatePreview();
         }
       });
-      // 외부 클릭 닫기 차단
       h.addEventListener('click', e => e.stopPropagation());
     });
-    pop.querySelectorAll('.icp-cp-native').forEach(n => n.addEventListener('click', e => e.stopPropagation()));
 
     // 적용
     pop.querySelector('.icp-cp-apply').addEventListener('click', async e => {

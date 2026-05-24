@@ -404,3 +404,39 @@
   background: #3182F6; color: #fff;
 }
 .icp-color-pop.icp-cp-v34 .icp-cp-apply:hover { background: #1B64DA; }
+
+/* ═══════════════════════════════════════════════════════════════
+   v34.3 — 포토샵식 커스텀 color picker (SV 평면 + Hue 슬라이더)
+   ═══════════════════════════════════════════════════════════════ */
+.icp-photo {
+  user-select: none;
+  margin-bottom: 8px;
+}
+.icp-photo-sv {
+  width: 100%; height: 130px; position: relative;
+  border-radius: 6px;
+  cursor: crosshair;
+  box-shadow: inset 0 0 0 1px #D1D6DB;
+}
+.icp-photo-sv-cursor {
+  position: absolute; width: 12px; height: 12px;
+  border: 2px solid #fff; border-radius: 50%;
+  box-shadow: 0 0 0 1px rgba(0,0,0,0.45);
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+.icp-photo-hue {
+  width: 100%; height: 14px; margin-top: 8px;
+  position: relative; cursor: pointer; border-radius: 4px;
+  background: linear-gradient(to right,
+    hsl(0,100%,50%), hsl(60,100%,50%), hsl(120,100%,50%),
+    hsl(180,100%,50%), hsl(240,100%,50%), hsl(300,100%,50%), hsl(360,100%,50%));
+  box-shadow: inset 0 0 0 1px #D1D6DB;
+}
+.icp-photo-hue-cursor {
+  position: absolute; top: -3px;
+  width: 5px; height: 20px;
+  background: #fff; border: 1.5px solid #191F28; border-radius: 2px;
+  transform: translateX(-50%);
+  pointer-events: none;
+}
