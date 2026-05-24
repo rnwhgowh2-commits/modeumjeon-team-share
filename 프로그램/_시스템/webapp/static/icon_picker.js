@@ -270,7 +270,9 @@
         else curFg = b.dataset.hex || '';
         renderPalette();
       }));
-      $palette.querySelectorAll('.icp-cp-native').forEach(n => n.addEventListener('input', e => {
+      // v34.1 — change 이벤트: native picker 가 닫힐 때 (사용자 확정) 만 발사.
+      // input(드래그 중 실시간) 은 사용하지 않음 — 포토샵식 "확정 후 적용" UX.
+      $palette.querySelectorAll('.icp-cp-native').forEach(n => n.addEventListener('change', e => {
         e.stopPropagation();
         const v = _normHex(n.value);
         if (!v) return;
@@ -919,8 +921,9 @@
       updatePreview();
     }));
 
-    // native picker 입력
-    pop.querySelectorAll('.icp-cp-native').forEach(n => n.addEventListener('input', e => {
+    // native picker — change 이벤트만 (사용자가 picker 를 닫아 확정한 시점).
+    //   v34.1: input(드래그 중 실시간) 은 사용하지 않음 — 포토샵식 "확정 후 적용".
+    pop.querySelectorAll('.icp-cp-native').forEach(n => n.addEventListener('change', e => {
       e.stopPropagation();
       const t = n.dataset.target;
       const v = _normHex(n.value);
