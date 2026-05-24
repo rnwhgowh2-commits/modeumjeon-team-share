@@ -267,30 +267,45 @@
           }
         });
 
-        // [2026-05-24 A-1] 기존 옵션 → state.axes 입력칸 + selected 자동 채움
-        //   → 사용자가 다시 모달 열면 기존 옵션 보면서 추가/수정 가능
+        // [2026-05-24 A-1 v2] BundleOptionStep (axis_steps) 우선 — 정식 단일 진실 원천
+        //   · 축 이름은 BundleOptionStep.axis_name (사용자가 '색상'·'사이즈'·'재질' 등 입력)
+        //   · 축 값은 BundleOptionStep.values_json
+        //   · 옵션의 axis_values 는 단순 값 array 라 axis name 정보 X
+        const axisSteps = j.axis_steps || [];
         const opts = j.options || [];
-        if (opts.length > 0) {
-          // axis 추출 (옵션의 axis_values 키·값 종합)
-          const axesMap = {};   // axisName → [value list]
-          const axisOrder = [];
+        if (axisSteps.length > 0) {
+          // 정식 경로: BundleOptionStep 으로 axes 재구성
+          state.axes = axisSteps.map(st => ({
+            name: st.axis_name || '',
+            values: (st.values || []).join(','),
+          }));
+          state.applied = true;
+          // selected — 각 옵션 axis_values (값 array) 를 그대로 key 로
           opts.forEach(o => {
-            const av = (o.axis_values && typeof o.axis_values === 'object') ? o.axis_values : null;
-            if (!av) return;
-            Object.keys(av).forEach(k => {
-              if (!axesMap[k]) { axesMap[k] = []; axisOrder.push(k); }
-              const v = av[k];
-              if (axesMap[k].indexOf(v) === -1) axesMap[k].push(v);
-            });
+            const av = Array.isArray(o.axis_values) ? o.axis_values : null;
+            if (!av || av.length !== axisSteps.length) return;
+            const key = JSON.stringify(av.map(v => String(v)));
+            state.selected.add(key);
+            state.seen.add(key);
           });
-          if (axisOrder.length > 0) {
-            state.axes = axisOrder.map(k => ({ name: k, values: axesMap[k].join(',') }));
-            state.applied = true;  // 옵션 있으면 자동 적용 상태 (우측 USL 보임)
-            // selected 모두 ON
+        } else if (opts.length > 0) {
+          // 레거시 폴백: axis_steps 없으면 옵션의 color_code/size_code 로 2축 추정
+          const colorSet = new Set();
+          const sizeSet = new Set();
+          opts.forEach(o => {
+            if (o.color_display) colorSet.add(o.color_display);
+            if (o.size_display) sizeSet.add(o.size_display);
+          });
+          const colors = [...colorSet];
+          const sizes = [...sizeSet];
+          if (colors.length > 0 && sizes.length > 0) {
+            state.axes = [
+              { name: '색상', values: colors.join(',') },
+              { name: '사이즈', values: sizes.join(',') },
+            ];
+            state.applied = true;
             opts.forEach(o => {
-              const av = o.axis_values || {};
-              const vals = axisOrder.map(k => av[k] || '');
-              const key = JSON.stringify(vals);
+              const key = JSON.stringify([String(o.color_display || ''), String(o.size_display || '')]);
               state.selected.add(key);
               state.seen.add(key);
             });

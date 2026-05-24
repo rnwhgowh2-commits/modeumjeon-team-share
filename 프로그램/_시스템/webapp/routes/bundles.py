@@ -927,10 +927,35 @@ def api_list_source_urls(code):
                 'axis_values': axis_values,
             })
 
+        # [2026-05-24 A-1 FIX] BundleOptionStep — 축 이름·값 단일 진실 원천
+        # 옵션의 axis_values 는 단순 값 array 만 저장됨 → axis name 은 여기서 가져옴
+        try:
+            from lemouton.sourcing.models import BundleOptionStep
+            steps = (s.query(BundleOptionStep)
+                     .filter_by(model_code=code)
+                     .order_by(BundleOptionStep.step_no)
+                     .all())
+            axis_steps_payload = []
+            for st in steps:
+                try:
+                    vals = _json.loads(st.values_json or '[]')
+                    if not isinstance(vals, list):
+                        vals = []
+                except Exception:
+                    vals = []
+                axis_steps_payload.append({
+                    'step_no': st.step_no,
+                    'axis_name': st.axis_name or '',
+                    'values': [str(v) for v in vals],
+                })
+        except Exception:
+            axis_steps_payload = []
+
         return jsonify({
             'ok': True,
             'urls': urls,
             'options': options_payload,
+            'axis_steps': axis_steps_payload,
             'sources': sorted(all_keys),
         })
     finally:
