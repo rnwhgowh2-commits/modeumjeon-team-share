@@ -30,9 +30,17 @@ jobs:
       - name: flyctl 설치
         uses: superfly/flyctl-actions/setup-flyctl@master
 
-      - name: Fly.io 배포 (--no-cache 로 Docker layer cache 무효화)
+      - name: Fly.io 배포 (--no-cache + --strategy=immediate 로 강제 갱신)
         working-directory: ./프로그램/_시스템
-        run: flyctl deploy --remote-only --ha=false --no-cache
+        run: flyctl deploy --remote-only --ha=false --no-cache --strategy=immediate
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+
+      - name: 머신 강제 재시작 (옛 코드 캐시 무력화 마지막 안전망)
+        run: |
+          flyctl machine list -a modeumjeon-team-share --json | \
+            python3 -c "import sys,json; print('\n'.join(m['id'] for m in json.load(sys.stdin)))" | \
+            xargs -I {} flyctl machine restart {} -a modeumjeon-team-share --force || true
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
 
