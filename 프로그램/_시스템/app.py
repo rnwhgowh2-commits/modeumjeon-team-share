@@ -27,6 +27,10 @@ def create_app() -> Flask:
     app.jinja_env.auto_reload = True
     # trailing slash 자동 매칭 — /bundles 와 /bundles/ 둘 다 정상 처리
     app.url_map.strict_slashes = False
+    # 정적 자원 캐싱 — /static/* 응답에 Cache-Control: max-age=86400 (1일).
+    # 한국 → SJC 엣지 우회로 RTT ~670ms 인 환경에서 매 페이지마다 toss.css(172KB)
+    # 등 재검증 비용을 제거. 동적 라우트에는 영향 없음.
+    app.config["SEND_FILE_MAX_AGE_DEFAULT"] = 86400
 
     import lemouton.sourcing.models  # noqa: F401  # SQLAlchemy 모델 등록
     import lemouton.sourcing.models_pricing  # noqa: F401  # v3 — 소싱처사전+가격설정

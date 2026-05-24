@@ -185,17 +185,146 @@ def _classify_bundle_status(m: Model, opt_count: int, opts_with_naver: int,
     return ('active', '✅ 정규 등록 완료', 'ok')
 
 
-def _bundle_summary(s, m: Model) -> dict:
+def _build_bundle_prefetch(s, models: list) -> dict:
+    """list 라우트용 batch prefetch — N+1 회피.
+
+    모든 model_code 를 한 번에 IN 절로 가져와 인메모리 group. 결과를 _bundle_summary
+    에 prefetch 인자로 넘기면 모델당 추가 쿼리 0개로 처리됨.
+    동일 입력 → 동일 출력 보장 (단순 batch 화, 비즈니스 로직 변경 없음).
+    """
+    from collections import defaultdict
+    import json as _json
+    from lemouton.sourcing.models_pricing import OptionSourceUrl, SourceRegistry
+    from lemouton.uploader.models import MarketRegistration
+    from lemouton.sources.models import SourceProduct, SourceOption
+
+    all_codes = [m.model_code for m in models]
+    if not all_codes:
+        return {
+            'options_by_model': {}, 'src_dist_by_model': {},
+            'dlq_count_by_model': {}, 'musinsa_count_by_model': {},
+        }
+
+    # ── ① Option batch ───────────────────────────────────────────
+    all_opts = s.query(Option).filter(Option.model_code.in_(all_codes)).all()
+    options_by_model: dict[str, list] = defaultdict(list)
+    for o in all_opts:
+        options_by_model[o.model_code].append(o)
+    sku_to_model: dict[str, str] = {o.canonical_sku: o.model_code for o in all_opts}
+    all_skus = list(sku_to_model.keys())
+
+    # ── ② SourceRegistry × OptionSourceUrl batch (소싱처 분포) ────
+    src_dist_by_model: dict[str, list] = {}
+    if all_skus:
+        src_rows = (
+            s.query(OptionSourceUrl.canonical_sku,
+                    SourceRegistry.name,
+                    SourceRegistry.sort_order)
+            .join(SourceRegistry, OptionSourceUrl.source_id == SourceRegistry.id)
+            .filter(OptionSourceUrl.canonical_sku.in_(all_skus))
+            .all()
+        )
+        _per_model: dict[str, dict] = defaultdict(lambda: defaultdict(int))
+        for sku, name, sort_order in src_rows:
+            mc = sku_to_model.get(sku)
+            if mc is None:
+                continue
+            _per_model[mc][(name, sort_order)] += 1
+        for mc, counts in _per_model.items():
+            ordered = sorted(counts.items(), key=lambda kv: kv[0][1])  # by sort_order
+            src_dist_by_model[mc] = [{'name': name, 'count': cnt}
+                                      for (name, _so), cnt in ordered]
+
+    # ── ③ MarketRegistration DLQ batch ──────────────────────────
+    # 원본은 모델마다 canonical_sku LIKE 'model_code%' 독립 count.
+    # 동일 동작 보장: 전체 failed 를 1쿼리로 가져온 뒤 인메모리에서 prefix 매칭.
+    # (model_code 가 다른 model_code 의 prefix 가능하므로 break 없이 모든 매칭에 카운트.)
+    dlq_count_by_model: dict[str, int] = defaultdict(int)
+    mr_failed_rows = (
+        s.query(MarketRegistration.canonical_sku)
+        .filter(MarketRegistration.status == 'failed')
+        .all()
+    )
+    for (sku,) in mr_failed_rows:
+        if not sku:
+            continue
+        for mc in all_codes:
+            if sku.startswith(mc):
+                dlq_count_by_model[mc] += 1
+
+    # ── ④ 무신사 비회원가 batch (Phase 8.8.4) ────────────────────
+    musinsa_count_by_model: dict[str, int] = defaultdict(int)
+    if all_skus:
+        try:
+            musinsa_rows = (
+                s.query(OptionSourceUrl.canonical_sku, OptionSourceUrl.product_url)
+                .filter(OptionSourceUrl.canonical_sku.in_(all_skus),
+                        OptionSourceUrl.source_id == 3)
+                .all()
+            )
+            all_musinsa_urls = list({url for _sku, url in musinsa_rows})
+            sp_id_by_url: dict[str, int] = {}
+            if all_musinsa_urls:
+                sp_rows = (
+                    s.query(SourceProduct.id, SourceProduct.url)
+                    .filter(SourceProduct.site == 'musinsa',
+                            SourceProduct.url.in_(all_musinsa_urls),
+                            SourceProduct.deleted_at.is_(None))
+                    .all()
+                )
+                for sp_id, url in sp_rows:
+                    sp_id_by_url.setdefault(url, sp_id)
+            dyn_by_sp: dict[int, dict] = {}
+            if sp_id_by_url:
+                so_rows = (
+                    s.query(SourceOption.source_product_id,
+                            SourceOption.dynamic_benefits_json)
+                    .filter(SourceOption.source_product_id.in_(list(sp_id_by_url.values())),
+                            SourceOption.deleted_at.is_(None))
+                    .all()
+                )
+                for sp_id, dyn_json in so_rows:
+                    if sp_id in dyn_by_sp:
+                        continue
+                    try:
+                        dyn_by_sp[sp_id] = _json.loads(dyn_json or '{}') if dyn_json else {}
+                    except Exception:
+                        dyn_by_sp[sp_id] = {}
+            non_member_urls = {url for url, sp_id in sp_id_by_url.items()
+                                if not dyn_by_sp.get(sp_id, {}).get('is_member_price')}
+            for sku, url in musinsa_rows:
+                if url in non_member_urls:
+                    mc = sku_to_model.get(sku)
+                    if mc:
+                        musinsa_count_by_model[mc] += 1
+        except Exception:
+            pass  # 비회원가 검출 실패해도 list 페이지는 그대로 노출
+
+    return {
+        'options_by_model': options_by_model,
+        'src_dist_by_model': src_dist_by_model,
+        'dlq_count_by_model': dlq_count_by_model,
+        'musinsa_count_by_model': musinsa_count_by_model,
+    }
+
+
+def _bundle_summary(s, m: Model, *, prefetch: dict | None = None) -> dict:
     """list 카드용 요약 — v3: 소싱처 N개 / URL Y개 분포 칩.
 
     URL 카운트 = 모음전의 모든 옵션 × 소싱처 매핑 행 합계.
     소싱처 카운트 = 그 모음전 옵션들이 사용 중인 distinct 소싱처 수.
     소싱처별 URL 수 = (소싱처 이름, 그 소싱처에 등록된 URL 갯수) 리스트.
+
+    prefetch=None: 기존 N+1 동작 (백워드 호환).
+    prefetch dict: _build_bundle_prefetch 결과 — 모델당 추가 쿼리 0개.
     """
     from sqlalchemy import func
     from lemouton.sourcing.models_pricing import OptionSourceUrl, SourceRegistry
 
-    opts = s.query(Option).filter_by(model_code=m.model_code).all()
+    if prefetch is not None:
+        opts = prefetch['options_by_model'].get(m.model_code, [])
+    else:
+        opts = s.query(Option).filter_by(model_code=m.model_code).all()
     opt_count = len(opts)
     opts_with_naver = sum(1 for o in opts if o.naver_option_id)
     opts_with_coupang = sum(1 for o in opts if o.coupang_option_id)
@@ -205,7 +334,11 @@ def _bundle_summary(s, m: Model) -> dict:
     src_dist = []
     src_total = 0
     url_total = 0
-    if sku_list:
+    if prefetch is not None:
+        src_dist = prefetch['src_dist_by_model'].get(m.model_code, [])
+        src_total = len(src_dist)
+        url_total = sum(r['count'] for r in src_dist)
+    elif sku_list:
         rows = (
             s.query(SourceRegistry.name,
                     func.count(OptionSourceUrl.id).label('cnt'))
@@ -226,47 +359,53 @@ def _bundle_summary(s, m: Model) -> dict:
     )
 
     # 업로드 실패 — DLQ 적재 여부
-    from lemouton.uploader.models import MarketRegistration
-    dlq_failed = (
-        s.query(MarketRegistration)
-        .filter(
-            MarketRegistration.canonical_sku.like(f'{m.model_code}%'),
-            MarketRegistration.status == 'failed',
+    if prefetch is not None:
+        dlq_failed = prefetch['dlq_count_by_model'].get(m.model_code, 0)
+    else:
+        from lemouton.uploader.models import MarketRegistration
+        dlq_failed = (
+            s.query(MarketRegistration)
+            .filter(
+                MarketRegistration.canonical_sku.like(f'{m.model_code}%'),
+                MarketRegistration.status == 'failed',
+            )
+            .count()
         )
-        .count()
-    )
 
     # ★ Phase 8.8.4 (2026-05-17) — 무신사 비회원가 검출
     #   이 모음전의 옵션 중 무신사 매핑 있고 + 매핑된 SourceOption 의 dyn 에
     #   is_member_price != True 면 비회원가 사고. 매트릭스 ⚠ 좌측 보더 표시 트리거.
-    musinsa_non_member_count = 0
-    try:
-        import json as _json
-        from lemouton.sources.models import SourceProduct, SourceOption
-        musinsa_urls = (s.query(OptionSourceUrl.product_url)
-                        .filter(OptionSourceUrl.canonical_sku.in_(sku_list),
-                                OptionSourceUrl.source_id == 3)
-                        .distinct().all())
-        url_set = {u[0] for u in musinsa_urls}
-        for url in url_set:
-            sp = s.query(SourceProduct).filter_by(site='musinsa', url=url, deleted_at=None).first()
-            if not sp:
-                continue
-            so = s.query(SourceOption).filter_by(source_product_id=sp.id, deleted_at=None).first()
-            if not so:
-                continue
-            try:
-                dyn = _json.loads(so.dynamic_benefits_json or '{}') if so.dynamic_benefits_json else {}
-            except Exception:
-                dyn = {}
-            if not dyn.get('is_member_price'):
-                cnt = (s.query(OptionSourceUrl)
-                       .filter_by(source_id=3, product_url=url)
-                       .filter(OptionSourceUrl.canonical_sku.in_(sku_list))
-                       .count())
-                musinsa_non_member_count += cnt
-    except Exception:
-        pass  # 비회원가 검출 실패해도 list 페이지는 그대로 노출
+    if prefetch is not None:
+        musinsa_non_member_count = prefetch['musinsa_count_by_model'].get(m.model_code, 0)
+    else:
+        musinsa_non_member_count = 0
+        try:
+            import json as _json
+            from lemouton.sources.models import SourceProduct, SourceOption
+            musinsa_urls = (s.query(OptionSourceUrl.product_url)
+                            .filter(OptionSourceUrl.canonical_sku.in_(sku_list),
+                                    OptionSourceUrl.source_id == 3)
+                            .distinct().all())
+            url_set = {u[0] for u in musinsa_urls}
+            for url in url_set:
+                sp = s.query(SourceProduct).filter_by(site='musinsa', url=url, deleted_at=None).first()
+                if not sp:
+                    continue
+                so = s.query(SourceOption).filter_by(source_product_id=sp.id, deleted_at=None).first()
+                if not so:
+                    continue
+                try:
+                    dyn = _json.loads(so.dynamic_benefits_json or '{}') if so.dynamic_benefits_json else {}
+                except Exception:
+                    dyn = {}
+                if not dyn.get('is_member_price'):
+                    cnt = (s.query(OptionSourceUrl)
+                           .filter_by(source_id=3, product_url=url)
+                           .filter(OptionSourceUrl.canonical_sku.in_(sku_list))
+                           .count())
+                    musinsa_non_member_count += cnt
+        except Exception:
+            pass  # 비회원가 검출 실패해도 list 페이지는 그대로 노출
 
     return {
         'model_code': m.model_code,
@@ -326,7 +465,11 @@ def bundle_list():
         if selected_brand:
             query = query.filter(Model.brand == selected_brand)
         models = query.order_by(Model.updated_at.desc().nullslast()).all()
-        bundles_all = [_bundle_summary(s, m) for m in models]
+        # N+1 회피 — 모델 N개에 대한 의존 데이터를 한 번에 batch prefetch
+        # (Option / OptionSourceUrl×SourceRegistry / MarketRegistration / 무신사 dyn).
+        # 기존엔 모델당 ~4쿼리 + 무신사 URL당 3쿼리 → Supabase RTT 누적이 페이지 로드의 주범.
+        _prefetch = _build_bundle_prefetch(s, models)
+        bundles_all = [_bundle_summary(s, m, prefetch=_prefetch) for m in models]
 
         # [v3 시나리오 C] 그룹 단위 묶기 — 같은 bundle_group_id 의 Model 들을 1 카드로
         # 그룹 정보 조회
