@@ -21,6 +21,10 @@ COPY requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt \
     && pip install --no-cache-dir gunicorn
 
+# [2026-05-24] cache busting — Depot/Docker layer cache 무력화
+ARG CACHEBUST=20260524_2230
+RUN echo "cachebust=${CACHEBUST}"
+
 # 코드 복사
 COPY . .
 
