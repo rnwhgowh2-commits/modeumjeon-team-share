@@ -1616,3 +1616,108 @@ def source_toggle(source_id: int):
         return jsonify(ok=True, is_active=src.is_active)
     finally:
         s.close()
+
+
+# ════════════════════════════════════════════════════════════
+# [2026-05-24] MarketRegistry CRUD — 마켓 동적 N개 관리
+# 가격설정 → 크롤 영역의 마켓 목록 (스마트스토어/쿠팡 + 사용자 추가)
+# ════════════════════════════════════════════════════════════
+
+from lemouton.sourcing.models import MarketRegistry
+
+
+def _abbr_logo(label: str) -> str:
+    """디폴트 logo_letter 생성 — 한글 앞 2자 / 영문 앞 2자 소문자."""
+    s = (label or '').strip()
+    if not s:
+        return '?'
+    if s[0].isalpha() and s[0].isascii():
+        cleaned = ''.join(c for c in s if c.isalnum())
+        return cleaned[:2].lower() or '?'
+    return s[:2]
+
+
+@bp.route('/markets', methods=['GET'])
+def api_markets_list():
+    s = SessionLocal()
+    try:
+        rows = s.query(MarketRegistry).order_by(MarketRegistry.sort_order, MarketRegistry.id).all()
+        return jsonify(ok=True, markets=[{
+            'id': r.id, 'market_key': r.market_key, 'label': r.label,
+            'logo_color': r.logo_color, 'logo_letter': r.logo_letter,
+            'sort_order': r.sort_order, 'is_active': r.is_active, 'is_builtin': r.is_builtin,
+        } for r in rows])
+    finally:
+        s.close()
+
+
+@bp.route('/markets', methods=['POST'])
+def api_markets_add():
+    body = request.get_json(silent=True) or {}
+    market_key = (body.get('market_key') or '').strip().lower()
+    label = (body.get('label') or '').strip()
+    if not market_key or not label:
+        return jsonify(ok=False, error='market_key 와 label 필수'), 400
+    logo_color = (body.get('logo_color') or '#3B82F6').strip()
+    logo_letter = (body.get('logo_letter') or '').strip() or _abbr_logo(label)
+    s = SessionLocal()
+    try:
+        if s.query(MarketRegistry).filter_by(market_key=market_key).first():
+            return jsonify(ok=False, error='이미 존재하는 market_key'), 400
+        max_order = s.query(MarketRegistry.sort_order).order_by(
+            MarketRegistry.sort_order.desc()).first()
+        next_order = (max_order[0] + 1) if max_order else 100
+        row = MarketRegistry(
+            market_key=market_key, label=label,
+            logo_color=logo_color, logo_letter=logo_letter[:8],
+            sort_order=next_order, is_builtin=False,
+        )
+        s.add(row); s.commit()
+        return jsonify(ok=True, id=row.id, market_key=row.market_key,
+                       label=row.label, logo_color=row.logo_color,
+                       logo_letter=row.logo_letter, sort_order=row.sort_order)
+    finally:
+        s.close()
+
+
+@bp.route('/markets/<int:mid>', methods=['PUT'])
+def api_markets_update(mid):
+    body = request.get_json(silent=True) or {}
+    s = SessionLocal()
+    try:
+        row = s.query(MarketRegistry).get(mid)
+        if not row:
+            return jsonify(ok=False, error='not found'), 404
+        if 'label' in body:
+            lbl = (body.get('label') or '').strip()
+            if lbl: row.label = lbl
+        if 'logo_color' in body:
+            row.logo_color = (body.get('logo_color') or row.logo_color).strip()
+        if 'logo_letter' in body:
+            row.logo_letter = ((body.get('logo_letter') or '').strip()[:8] or row.logo_letter)
+        if 'sort_order' in body:
+            try: row.sort_order = int(body.get('sort_order'))
+            except Exception: pass
+        if 'is_active' in body:
+            row.is_active = bool(body.get('is_active'))
+        s.commit()
+        return jsonify(ok=True, id=row.id, label=row.label,
+                       logo_color=row.logo_color, logo_letter=row.logo_letter,
+                       is_active=row.is_active)
+    finally:
+        s.close()
+
+
+@bp.route('/markets/<int:mid>', methods=['DELETE'])
+def api_markets_delete(mid):
+    s = SessionLocal()
+    try:
+        row = s.query(MarketRegistry).get(mid)
+        if not row:
+            return jsonify(ok=False, error='not found'), 404
+        if row.is_builtin:
+            return jsonify(ok=False, error='기본 마켓은 삭제 불가 (비활성만 가능)'), 400
+        s.delete(row); s.commit()
+        return jsonify(ok=True)
+    finally:
+        s.close()

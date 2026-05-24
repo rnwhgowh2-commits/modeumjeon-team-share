@@ -766,6 +766,23 @@ def bundle_edit(code: str):
             'last_uploaded_at': _fmt_dt(last_uploaded_at),
             'last_uploaded_at_iso': _iso_utc(last_uploaded_at),
         }
+
+        # [2026-05-24] 마켓 동적 로드 — 가격설정 → 크롤 영역 v2 C 시안
+        # builtin (스토어/쿠팡) = 기존 ss_margin_*, coupang_margin_* 컬럼 마진 사용
+        # custom (11번가/G마켓 등) = placeholder (마진 입력 disabled — Phase 2 일반화)
+        try:
+            from lemouton.sourcing.models import MarketRegistry
+            market_rows = (s.query(MarketRegistry)
+                           .filter_by(is_active=True)
+                           .order_by(MarketRegistry.sort_order, MarketRegistry.id)
+                           .all())
+            markets_payload = [{
+                'id': mk.id, 'market_key': mk.market_key, 'label': mk.label,
+                'logo_color': mk.logo_color, 'logo_letter': mk.logo_letter,
+                'is_builtin': mk.is_builtin,
+            } for mk in market_rows]
+        except Exception:
+            markets_payload = []
     finally:
         s.close()
     # 실행 이력 (최근 20건) — 크롤(소싱처별) + 업로드(마켓별) 결과 포함
@@ -794,6 +811,7 @@ def bundle_edit(code: str):
         cluster_models=cluster_models,
         run_history=run_history,
         status_cards=status_cards,
+        markets=markets_payload,  # [2026-05-24] 가격설정 → 크롤 영역 동적 마켓
     )
 
 

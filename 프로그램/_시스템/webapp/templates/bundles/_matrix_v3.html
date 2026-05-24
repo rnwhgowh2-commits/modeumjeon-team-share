@@ -639,46 +639,148 @@
   </div>
 
   {# V9 — 좌측 필터 사이드 + 우측 매트릭스 (기본 collapse, 매트릭스 toolbar 의 🔍 필터 버튼으로 펼침) #}
-  {# v17 ①-1C — 소싱처 일괄 가격 정책 chip bar (Phase 6: c9-bar 대체, 5번 섹션 상단으로 이동) #}
-  <div class="bulk-policy-bar" id="bulk-policy-bar">
-    <span class="bp-label">소싱처 일괄 정책 <span class="bp-tag">소싱처 모드 옵션에 자동 적용</span></span>
-    <div class="bp-chip" data-bp-chip="policy">
-      <span class="bp-k">정책</span> <b id="bp-policy-v">색상 통일</b> <span class="bp-ar">▼</span>
-      <div class="bp-pop">
-        <button type="button" class="bp-opt on" data-bp-policy="color">색상 통일 (같은 색상은 같은 매입가)</button>
-        <button type="button" class="bp-opt" data-bp-policy="cheapest">옵션별 cheapest (각 사이즈 최저)</button>
+  {# [2026-05-24] 가격설정 → 크롤 v2 C 시안 — 사올 때/팔 때 분리, 마켓 N개 동적 #}
+  <div class="bulk-policy-bar" id="bulk-policy-bar" style="flex-direction:column; align-items:stretch; gap:8px; padding:14px 16px;">
+
+    {# 사올 때 (매입) — 한 줄 #}
+    <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+      <span style="font-size:14px; flex-shrink:0;">📥</span>
+      <span style="font-size:12.5px; color:#6b7684; font-weight:600; min-width:90px;">사올 때 (매입)</span>
+      <div class="bp-chip" data-bp-chip="policy">
+        <span class="bp-k">정책</span> <b id="bp-policy-v">색상 통일</b> <span class="bp-ar">▼</span>
+        <div class="bp-pop">
+          <button type="button" class="bp-opt on" data-bp-policy="color">색상 통일 (같은 색상은 같은 매입가)</button>
+          <button type="button" class="bp-opt" data-bp-policy="cheapest">옵션별 cheapest (각 사이즈 최저)</button>
+        </div>
+      </div>
+      <div class="bp-chip" data-bp-chip="ceiling">
+        <span class="bp-k">상한</span> ≤ <b class="bp-v" id="bp-ceiling-v">108,984원</b> <span class="bp-ar">▼</span>
+        <div class="bp-pop">
+          <label>매입가 상한 (이상이면 차단)</label>
+          <div class="bp-input-row"><input type="number" step="100" id="bp-ceiling-input" value="108984"><span>원</span></div>
+        </div>
+      </div>
+      <button type="button" class="bp-recalc" id="bp-recalc-btn" style="margin-left:auto;">매트릭스 재계산 ▶</button>
+    </div>
+
+    {# 팔 때 (마진) — 마켓 N개 동적 + 정률/정액 토글 #}
+    <div style="display:flex; align-items:flex-start; gap:10px; flex-wrap:wrap; padding-top:8px; border-top:1px dashed #e5e8eb;">
+      <span style="font-size:14px; flex-shrink:0; padding-top:5px;">📤</span>
+      <span style="font-size:12.5px; color:#6b7684; font-weight:600; min-width:90px; padding-top:5px;">팔 때 (마진)</span>
+      <div style="display:flex; flex-direction:column; gap:5px; flex:1;">
+        {% for mk in markets %}
+        <div class="mkt-row" data-mkt-key="{{ mk.market_key }}" style="display:flex; align-items:center; gap:8px;">
+          <span class="mkt-logo-box" data-mkt-id="{{ mk.id }}" title="클릭해서 색·글자 변경"
+                style="width:28px; height:28px; border-radius:6px; color:#fff; display:inline-flex; align-items:center; justify-content:center; font-weight:800; font-size:11px; background:{{ mk.logo_color }}; cursor:pointer; letter-spacing:.3px;">{{ mk.logo_letter }}</span>
+          <span style="font-size:13px; font-weight:600; min-width:110px;">{{ mk.label }}</span>
+          {% if mk.market_key == 'smartstore' %}
+            {# 스마트스토어 — 기존 ss_margin_* 컬럼 호환 (JS bp-chip 핸들러 유지) #}
+            <div class="bp-chip" data-bp-chip="margin-na" style="margin:0;">
+              <b class="bp-v" id="bp-margin-na-v">9.45%</b> <span class="bp-ar">▼</span>
+              <div class="bp-pop">
+                <label>스마트스토어 마진율</label>
+                <div class="bp-input-row"><input type="number" step="0.01" id="bp-margin-na-input" value="9.45"><span>%</span></div>
+              </div>
+            </div>
+          {% elif mk.market_key == 'coupang' %}
+            <div class="bp-chip" data-bp-chip="margin-cp" style="margin:0;">
+              <b class="bp-v" id="bp-margin-cp-v">11.20%</b> <span class="bp-ar">▼</span>
+              <div class="bp-pop">
+                <label>쿠팡 마진율</label>
+                <div class="bp-input-row"><input type="number" step="0.01" id="bp-margin-cp-input" value="11.20"><span>%</span></div>
+              </div>
+            </div>
+          {% else %}
+            {# 사용자 추가 마켓 — Phase 2 (마진 계산 일반화) 대기 #}
+            <span style="font-size:11.5px; color:#9ca3af; padding:4px 10px; background:#FFFBEB; border:1px solid #fde68a; border-radius:6px;">⏳ 마진 입력 준비 중 (Phase 2)</span>
+          {% endif %}
+        </div>
+        {% endfor %}
+        <a href="/accounts" style="font-size:11.5px; color:#3B82F6; text-decoration:none; padding:5px 0;">＋ 마켓 추가 (판매자계정 페이지에서)</a>
       </div>
     </div>
-    <div class="bp-chip" data-bp-chip="margin-unit">
-      <span class="bp-k">마진</span> <b id="bp-marginu-v">% 비율</b> <span class="bp-ar">▼</span>
-      <div class="bp-pop">
-        <button type="button" class="bp-opt on" data-bp-marginu="rate">% 비율</button>
-        <button type="button" class="bp-opt" data-bp-marginu="amount">₩ 정액</button>
-      </div>
-    </div>
-    <div class="bp-chip" data-bp-chip="margin-na">
-      <span class="bp-br br-na">N</span>스토어 <b class="bp-v" id="bp-margin-na-v">9.45%</b> <span class="bp-ar">▼</span>
-      <div class="bp-pop">
-        <label>스마트스토어 마진율</label>
-        <div class="bp-input-row"><input type="number" step="0.01" id="bp-margin-na-input" value="9.45"><span>%</span></div>
-      </div>
-    </div>
-    <div class="bp-chip" data-bp-chip="margin-cp">
-      <span class="bp-br br-cp">쿠</span>쿠팡 <b class="bp-v" id="bp-margin-cp-v">11.20%</b> <span class="bp-ar">▼</span>
-      <div class="bp-pop">
-        <label>쿠팡 마진율</label>
-        <div class="bp-input-row"><input type="number" step="0.01" id="bp-margin-cp-input" value="11.20"><span>%</span></div>
-      </div>
-    </div>
-    <div class="bp-chip" data-bp-chip="ceiling">
-      <span class="bp-k">상한</span> ≤ <b class="bp-v" id="bp-ceiling-v">108,984원</b> <span class="bp-ar">▼</span>
-      <div class="bp-pop">
-        <label>매입가 상한 (이상이면 차단)</label>
-        <div class="bp-input-row"><input type="number" step="100" id="bp-ceiling-input" value="108984"><span>원</span></div>
-      </div>
-    </div>
-    <button type="button" class="bp-recalc" id="bp-recalc-btn">매트릭스 재계산 ▶</button>
   </div>
+
+  {# [2026-05-24] 마켓 로고 색·글자 편집 popover (전역 모달) #}
+  <div id="mkt-logo-pop" style="display:none; position:fixed; z-index:9999; background:#fff; border:1px solid #d1d6db; border-radius:10px; box-shadow:0 8px 24px rgba(0,0,0,.15); padding:14px; min-width:280px;">
+    <div style="font-size:12px; font-weight:700; margin-bottom:10px;">마켓 로고 편집 <span id="mkt-logo-pop-label" style="color:#9ca3af; font-weight:400; margin-left:6px;"></span></div>
+    <div style="margin-bottom:10px;">
+      <label style="display:block; font-size:11px; color:#6b7684; font-weight:600; margin-bottom:5px;">박스 색상 (헥스)</label>
+      <input type="color" id="mkt-logo-pop-color" style="width:60px; height:32px; border:1px solid #d1d6db; border-radius:5px; cursor:pointer;">
+      <input type="text" id="mkt-logo-pop-color-hex" style="margin-left:6px; padding:6px 10px; border:1px solid #d1d6db; border-radius:5px; font-family:ui-monospace,monospace; font-size:12px; width:90px;" placeholder="#3B82F6">
+    </div>
+    <div style="margin-bottom:12px;">
+      <label style="display:block; font-size:11px; color:#6b7684; font-weight:600; margin-bottom:5px;">박스 안 글자 (최대 2자)</label>
+      <input type="text" id="mkt-logo-pop-letter" maxlength="4" style="padding:7px 10px; border:1px solid #d1d6db; border-radius:5px; font-size:13px; width:100px; text-align:center; font-weight:700;">
+    </div>
+    <div style="display:flex; gap:6px; justify-content:flex-end;">
+      <button type="button" id="mkt-logo-pop-cancel" style="background:#fff; border:1px solid #d1d6db; padding:6px 12px; border-radius:5px; font-size:12px; cursor:pointer;">취소</button>
+      <button type="button" id="mkt-logo-pop-save" style="background:#3B82F6; color:#fff; border:0; padding:6px 14px; border-radius:5px; font-size:12px; cursor:pointer; font-weight:600;">저장</button>
+    </div>
+  </div>
+  <script>
+    // 마켓 로고 클릭 → popover 편집
+    (function(){
+      const pop = document.getElementById('mkt-logo-pop');
+      if (!pop) return;
+      let currentMktId = null;
+      let currentBox = null;
+      document.addEventListener('click', function(e) {
+        const box = e.target.closest('.mkt-logo-box');
+        if (box) {
+          e.preventDefault();
+          currentMktId = box.dataset.mktId;
+          currentBox = box;
+          const label = box.parentElement?.querySelector('span:nth-child(2)')?.textContent || '';
+          document.getElementById('mkt-logo-pop-label').textContent = label;
+          const bg = window.getComputedStyle(box).backgroundColor;
+          // rgb → hex 변환
+          const rgbMatch = bg.match(/\d+/g);
+          const hex = rgbMatch ? '#' + rgbMatch.slice(0,3).map(n => parseInt(n).toString(16).padStart(2,'0')).join('') : '#3B82F6';
+          document.getElementById('mkt-logo-pop-color').value = hex;
+          document.getElementById('mkt-logo-pop-color-hex').value = hex;
+          document.getElementById('mkt-logo-pop-letter').value = box.textContent.trim();
+          // popover 위치
+          const rect = box.getBoundingClientRect();
+          pop.style.top = (rect.bottom + 6) + 'px';
+          pop.style.left = rect.left + 'px';
+          pop.style.display = 'block';
+          return;
+        }
+        if (!pop.contains(e.target)) pop.style.display = 'none';
+      });
+      // color picker → hex 동기화
+      document.getElementById('mkt-logo-pop-color').addEventListener('input', function(e) {
+        document.getElementById('mkt-logo-pop-color-hex').value = e.target.value;
+      });
+      document.getElementById('mkt-logo-pop-color-hex').addEventListener('input', function(e) {
+        if (/^#[0-9a-fA-F]{6}$/.test(e.target.value)) document.getElementById('mkt-logo-pop-color').value = e.target.value;
+      });
+      // 저장
+      document.getElementById('mkt-logo-pop-save').addEventListener('click', async function() {
+        if (!currentMktId) return;
+        const color = document.getElementById('mkt-logo-pop-color-hex').value.trim();
+        const letter = document.getElementById('mkt-logo-pop-letter').value.trim().slice(0, 4);
+        try {
+          const r = await fetch(`/accounts/markets/${currentMktId}`, {
+            method:'PUT', headers:{'Content-Type':'application/json'},
+            body: JSON.stringify({ logo_color: color, logo_letter: letter })
+          });
+          const j = await r.json();
+          if (j && j.ok) {
+            if (currentBox) {
+              currentBox.style.background = j.logo_color;
+              currentBox.textContent = j.logo_letter;
+            }
+            pop.style.display = 'none';
+          } else {
+            alert('저장 실패: ' + ((j && j.error) || ''));
+          }
+        } catch (e) { alert('오류: ' + e.message); }
+      });
+      document.getElementById('mkt-logo-pop-cancel').addEventListener('click', () => pop.style.display = 'none');
+    })();
+  </script>
 
   {# v17 Phase 6 — 사이트별 진행 통계 가로 띠 (sm-side 의 세로 stack 을 가로로 재배치) #}
   <div class="sm-side-h" id="sm-side-h"><!-- JS 렌더: 진행 ring + 사이트별 카드 + winner --></div>

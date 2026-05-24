@@ -299,6 +299,32 @@ class DiscoveryQueueItem(Base):
     resolved_at = Column(DateTime)
 
 
+class MarketRegistry(Base):
+    """마켓 마스터 — 가격설정 → 크롤 영역의 마켓 동적 N개 지원 (2026-05-24).
+
+    기본 2개: 스마트스토어(smartstore), 쿠팡(coupang). 사용자가 11번가/G마켓 등 추가 가능.
+    판매자계정 페이지에서 관리 (이름/색/약식 글자 모두 수기 변경).
+
+    로고 규칙 (디폴트):
+      한글 이름 → 앞 2글자 (예: 스마트스토어 → '스마')
+      영문 이름 → 앞 2글자 소문자 (예: SSG → 'ss')
+      디폴트가 마음에 안 들면 logo_letter 직접 수정 가능.
+    """
+    __tablename__ = "market_registry"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    market_key = Column(String(40), nullable=False, unique=True, index=True)
+    label = Column(String(80), nullable=False)            # '스마트스토어', '쿠팡', ...
+    logo_color = Column(String(20), nullable=False, default='#3B82F6')   # 헥스 컬러
+    logo_letter = Column(String(8), nullable=False, default='?')         # 박스 안 글자 (2자)
+    sort_order = Column(Integer, default=100, nullable=False)
+    is_active = Column(Boolean, default=True, nullable=False)
+    is_builtin = Column(Boolean, default=False, nullable=False)  # smartstore/coupang = True (삭제 불가)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc),
+                        onupdate=lambda: datetime.now(timezone.utc))
+
+
 class BundleRun(Base):
     """모음전 단위 실행 이력.
 

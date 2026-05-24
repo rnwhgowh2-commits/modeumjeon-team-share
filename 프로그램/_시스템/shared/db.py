@@ -146,3 +146,26 @@ def _apply_lightweight_migrations() -> None:
                         f"ALTER TABLE option_source_urls DROP CONSTRAINT IF EXISTS {cons}"))
                 except Exception:
                     pass
+
+    # [2026-05-24] MarketRegistry 시드 — 기본 2개 마켓 자동 등록 (스마트스토어, 쿠팡)
+    # is_builtin=True → 삭제 불가. 사용자가 추가하는 마켓은 is_builtin=False.
+    try:
+        from lemouton.sourcing.models import MarketRegistry
+        from sqlalchemy.orm import sessionmaker
+        SessionMaker = sessionmaker(bind=engine)
+        s = SessionMaker()
+        try:
+            if s.query(MarketRegistry).count() == 0:
+                s.add_all([
+                    MarketRegistry(market_key='smartstore', label='스마트스토어',
+                                   logo_color='#22c55e', logo_letter='스마',
+                                   sort_order=1, is_builtin=True),
+                    MarketRegistry(market_key='coupang', label='쿠팡',
+                                   logo_color='#3B82F6', logo_letter='쿠팡',
+                                   sort_order=2, is_builtin=True),
+                ])
+                s.commit()
+        finally:
+            s.close()
+    except Exception:
+        pass  # 테이블 미생성 등 — 다음 startup 에 재시도
