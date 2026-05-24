@@ -24,8 +24,11 @@ jobs:
     timeout-minutes: 15
 
     steps:
-      - name: 소스 체크아웃
+      - name: 소스 체크아웃 (정확한 SHA + 전체 history)
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
 
       - name: flyctl 설치
         uses: superfly/flyctl-actions/setup-flyctl@master
