@@ -150,7 +150,7 @@ def home():
             for o in options:
                 rows.append({
                     'sku': o.canonical_sku,
-                    'barcode': o.barcode or o.boxhero_sku or '',
+                    'barcode': o.barcode or '',
                     'brand': (o.model.brand or '') if o.model else '',
                     'name': display_pname.get(o.canonical_sku, o.canonical_sku),
                     'article_no': (getattr(o.model, 'article_no', None) or '') if o.model else '',
@@ -189,6 +189,33 @@ def home():
 def mockup_stats():
     """[mockup] 인벤토리 통계 카드 5 시안 비교 (1920×1080 가로 탭)."""
     return render_template('inventory/_mockup_stats.html', active_app='inventory', active='items')
+
+
+@bp.get('/products/<int:product_id>')
+def product_detail(product_id: int):
+    """[2026-05-25 UI-2] InventoryProduct id → 재고관리 home 페이지로 redirect.
+
+    배경: 옵션 트리의 INV-XXX chip 클릭 시 호출되던 라우트가 404 였음.
+    해결: 그 product 의 canonical_sku 를 sku 파라미터로 home 페이지에 전달
+    → home 우측 detail 패널에 그 옵션 정보 자동 표시.
+    """
+    from flask import redirect, url_for, abort
+    from shared.db import SessionLocal
+    from lemouton.inventory.models import InventoryProduct, OptionProductLink
+
+    s = SessionLocal()
+    try:
+        p = s.query(InventoryProduct).filter_by(id=product_id).first()
+        if not p:
+            abort(404)
+        # ext-link 인 경우: product sku 가 옵션 sku 와 다름 → OptionProductLink 로 옵션 sku 찾기
+        link = (s.query(OptionProductLink)
+                .filter_by(product_canonical_sku=p.canonical_sku)
+                .first())
+        target_sku = link.option_canonical_sku if link else p.canonical_sku
+        return redirect(url_for('inventory.home', sku=target_sku))
+    finally:
+        s.close()
 
 
 @bp.context_processor
