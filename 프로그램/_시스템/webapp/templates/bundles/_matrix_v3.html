@@ -1697,17 +1697,17 @@
       smHandleLeafAction(sku, act);
       return;
     }
-    // (c) inv-id-chip 클릭 (재고관리 페이지로 이동 — 같은 탭)
+    // [2026-05-25 UI-7] inv-id-chip(SKU) 클릭 → 재고 상세 팝업
+    //   옛: 바로 재고관리 이동 / 신: 팝업 띄우고 그 안의 "상품 보기" 버튼으로 이동
     const invChip = e.target.closest('#sm-tree .inv-id-chip');
     if (invChip) {
       e.preventDefault();
       e.stopPropagation();
-      const invId = invChip.dataset.invId;
-      // [2026-05-25 UI-4] 같은 탭에서 이동 (옛 새 탭 → 같은 탭)
-      location.href = `/inventory/products/${invId}`;
+      const sku = invChip.dataset.sku;
+      if (sku) openStockDetailModal(sku);
       return;
     }
-    // [2026-05-25 UI-4] (c-2) 재고 chip 클릭 — 재고 상세 팝업
+    // 재고 chip(재고 N) 클릭 → 동일 팝업
     const stChip = e.target.closest('#sm-tree .tree-stock-chip');
     if (stChip) {
       e.preventDefault();
