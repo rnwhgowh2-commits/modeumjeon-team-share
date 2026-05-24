@@ -53,31 +53,31 @@
     const s = document.createElement('style');
     s.id = 'oum-style';
     s.textContent = `
-      .oum-bg { position:fixed; inset:0; background:rgba(0,0,0,.4); z-index:9999; display:flex; align-items:center; justify-content:center; padding:20px; }
-      .oum-modal { background:#fff; border-radius:14px; width:1640px; max-width:100%; max-height:95vh; display:flex; flex-direction:column; overflow:hidden; box-shadow:0 24px 48px rgba(0,0,0,.18); }
-      .oum-mh { padding:13px 22px; border-bottom:1px solid #e5e8eb; display:flex; align-items:center; gap:10px; }
-      .oum-mh h2 { margin:0; font-size:16px; font-weight:700; }
-      .oum-mh .pill { background:#F0FDF4; color:#10b981; font-size:11px; font-weight:700; padding:2px 8px; border-radius:9px; }
-      .oum-mh .close { margin-left:auto; color:#9ca3af; font-size:22px; cursor:pointer; background:none; border:0; }
-      .oum-mb { padding:16px 22px; overflow-y:auto; flex:1; background:#FAFBFC; }
-      .oum-mf { padding:11px 22px; border-top:1px solid #e5e8eb; display:flex; justify-content:flex-end; gap:8px; background:#fff; }
-      .oum-btn { border:0; border-radius:6px; padding:9px 16px; font:inherit; font-size:13px; cursor:pointer; font-weight:600; }
+      .oum-bg { position:fixed; inset:0; background:rgba(0,0,0,.4); z-index:9999; display:flex; align-items:center; justify-content:center; padding:10px; }
+      .oum-modal { background:#fff; border-radius:14px; width:1920px; max-width:97vw; max-height:96vh; display:flex; flex-direction:column; overflow:hidden; box-shadow:0 24px 48px rgba(0,0,0,.18); font-size:18px; }
+      .oum-mh { padding:18px 28px; border-bottom:1px solid #e5e8eb; display:flex; align-items:center; gap:12px; }
+      .oum-mh h2 { margin:0; font-size:22px; font-weight:700; }
+      .oum-mh .pill { background:#F0FDF4; color:#10b981; font-size:14px; font-weight:700; padding:3px 11px; border-radius:11px; }
+      .oum-mh .close { margin-left:auto; color:#9ca3af; font-size:30px; cursor:pointer; background:none; border:0; }
+      .oum-mb { padding:20px 28px; overflow-y:auto; flex:1; background:#FAFBFC; }
+      .oum-mf { padding:14px 28px; border-top:1px solid #e5e8eb; display:flex; justify-content:flex-end; gap:10px; background:#fff; }
+      .oum-btn { border:0; border-radius:8px; padding:12px 22px; font:inherit; font-size:16px; cursor:pointer; font-weight:600; }
       .oum-btn-pri { background:#3B82F6; color:#fff; }
       .oum-btn-pri:disabled { opacity:.4; cursor:not-allowed; }
       .oum-btn-sec { background:#fff; color:#4e5968; border:1px solid #d1d6db; }
 
-      .oum-legend { display:flex; gap:14px; font-size:10.5px; color:#6b7684; padding:8px 12px; background:#fff; border-radius:6px; margin-bottom:10px; align-items:center; flex-wrap:wrap; border:1px solid #e5e8eb; }
-      .oum-legend span { display:inline-flex; align-items:center; gap:4px; }
-      .oum-legend .leg-b { display:inline-block; width:22px; height:18px; background:#3B82F6; border-radius:4px; }
-      .oum-legend .leg-g { display:inline-block; width:22px; height:18px; background:#10b981; border-radius:4px; }
-      .oum-legend .leg-off { display:inline-block; width:22px; height:18px; background:#e5e8eb; border-radius:4px; }
+      .oum-legend { display:flex; gap:18px; font-size:14px; color:#6b7684; padding:11px 16px; background:#fff; border-radius:8px; margin-bottom:14px; align-items:center; flex-wrap:wrap; border:1px solid #e5e8eb; }
+      .oum-legend span { display:inline-flex; align-items:center; gap:5px; }
+      .oum-legend .leg-b { display:inline-block; width:28px; height:22px; background:#3B82F6; border-radius:5px; }
+      .oum-legend .leg-g { display:inline-block; width:28px; height:22px; background:#10b981; border-radius:5px; }
+      .oum-legend .leg-off { display:inline-block; width:28px; height:22px; background:#e5e8eb; border-radius:5px; }
 
-      .oum-split { display:grid; grid-template-columns:1fr 60px 1fr; gap:0; align-items:stretch; }
+      .oum-split { display:grid; grid-template-columns:1fr 70px 1fr; gap:0; align-items:stretch; }
 
-      .oum-panel { border-radius:10px; padding:14px 16px; display:flex; flex-direction:column; }
-      .oum-ph { font-size:13px; font-weight:700; margin-bottom:10px; display:flex; align-items:center; gap:7px; padding-bottom:7px; border-bottom:1px solid #e5e8eb; }
-      .oum-ph .badge { padding:2px 8px; border-radius:9px; font-size:10.5px; font-weight:700; }
-      .oum-ph .right { margin-left:auto; font-size:11px; color:#8b95a1; font-weight:400; }
+      .oum-panel { border-radius:12px; padding:18px 20px; display:flex; flex-direction:column; }
+      .oum-ph { font-size:17px; font-weight:700; margin-bottom:14px; display:flex; align-items:center; gap:9px; padding-bottom:10px; border-bottom:1px solid #e5e8eb; }
+      .oum-ph .badge { padding:3px 11px; border-radius:11px; font-size:13px; font-weight:700; }
+      .oum-ph .right { margin-left:auto; font-size:14px; color:#8b95a1; font-weight:400; }
 
       .oum-blue { background:#EFF6FF; border:1px solid #bfdbfe; }
       .oum-blue .oum-ph { color:#1d4ed8; border-bottom-color:#bfdbfe; }
@@ -91,17 +91,18 @@
       .oum-bridge .lbl { font-size:10px; color:#15803d; margin-top:6px; font-weight:600; }
 
       /* 축 카드 */
-      .oum-axis { background:#fff; border:1px solid #bfdbfe; border-radius:7px; padding:9px 11px; margin-bottom:6px; }
-      .oum-axis-h { display:flex; justify-content:space-between; align-items:center; margin-bottom:6px; }
-      .oum-axis-h .pos { background:#EFF6FF; color:#1d4ed8; padding:2px 8px; border-radius:9px; font-size:10.5px; font-weight:700; }
-      .oum-axis-h .rec { font-size:10.5px; color:#9ca3af; font-weight:500; }
-      .oum-axis-h .del { color:#dc2626; font-size:11px; cursor:pointer; padding:2px 6px; border-radius:4px; background:none; border:0; }
+      .oum-axis { background:#fff; border:1px solid #bfdbfe; border-radius:9px; padding:13px 15px; margin-bottom:9px; }
+      .oum-axis-h { display:flex; justify-content:space-between; align-items:center; margin-bottom:9px; }
+      .oum-axis-h .pos { background:#EFF6FF; color:#1d4ed8; padding:4px 11px; border-radius:11px; font-size:14px; font-weight:700; }
+      .oum-axis-h .rec { font-size:14px; color:#9ca3af; font-weight:500; }
+      .oum-axis-h .del { color:#dc2626; font-size:14px; cursor:pointer; padding:4px 9px; border-radius:5px; background:none; border:0; }
       .oum-axis-h .del:hover { background:#fee2e2; }
-      .oum-axis-in { display:grid; grid-template-columns:120px 1fr; gap:6px; margin-bottom:5px; }
-      .oum-axis-in input { border:1px solid #d1d6db; border-radius:4px; padding:6px 9px; font:inherit; font-size:12px; background:#fff; }
-      .oum-axis-chips { display:flex; flex-wrap:wrap; gap:3px; }
-      .oum-axis-chips .c { background:#EFF6FF; color:#1d4ed8; border-radius:10px; padding:2px 8px; font-size:10.5px; }
-      .oum-add-axis { width:100%; background:#fff; border:1.5px dashed #bfdbfe; color:#3B82F6; padding:8px; border-radius:7px; font:inherit; font-size:11.5px; cursor:pointer; font-weight:600; margin-bottom:6px; }
+      .oum-axis-in { display:grid; grid-template-columns:160px 1fr; gap:9px; margin-bottom:8px; }
+      .oum-axis-in input { border:1.5px solid #d1d6db; border-radius:6px; padding:10px 14px; font:inherit; font-size:17px; background:#fff; }
+      .oum-axis-in input:focus { border-color:#3B82F6; outline:none; }
+      .oum-axis-chips { display:flex; flex-wrap:wrap; gap:5px; }
+      .oum-axis-chips .c { background:#EFF6FF; color:#1d4ed8; border-radius:12px; padding:4px 11px; font-size:13.5px; }
+      .oum-add-axis { width:100%; background:#fff; border:2px dashed #bfdbfe; color:#3B82F6; padding:11px; border-radius:9px; font:inherit; font-size:15px; cursor:pointer; font-weight:600; margin-bottom:9px; }
       .oum-add-axis:disabled { opacity:.4; cursor:not-allowed; }
 
       /* 칩 일괄 선택 (좌·우 공용) */
@@ -729,21 +730,46 @@
       }
     });
 
-    // 좌측 input 변경
+    // 좌측 input 변경 — focus 유지를 위해 디바운스 + 입력 중 셀렉터 보존
     $('#oum-left').addEventListener('input', e => {
       const nm = e.target.closest('[data-axis-name]');
       if (nm) {
+        // 이름 변경 — 매트릭스에 영향 X, 칩 라벨만 영향 → debounce + focus 보존
         state.axes[+nm.dataset.axisName].name = e.target.value;
-        rerender(); return;
+        scheduleRerender({ kind: 'name', idx: +nm.dataset.axisName });
+        return;
       }
       const vl = e.target.closest('[data-axis-values]');
       if (vl) {
         state.axes[+vl.dataset.axisValues].values = e.target.value;
-        recalcMatrix();
-        rerender();
+        scheduleRerender({ kind: 'values', idx: +vl.dataset.axisValues, recalc: true });
         return;
       }
     });
+
+    // 디바운스 + focus 복원 (입력 끊김 방지)
+    function scheduleRerender(focusHint) {
+      clearTimeout(state._inputTimer);
+      state._inputTimer = setTimeout(() => {
+        const sel = window.getSelection?.();
+        const active = document.activeElement;
+        const focusSel = (active && active.dataset && (active.dataset.axisName != null || active.dataset.axisValues != null))
+          ? (active.dataset.axisName != null
+              ? `[data-axis-name="${active.dataset.axisName}"]`
+              : `[data-axis-values="${active.dataset.axisValues}"]`)
+          : null;
+        const caret = active && active.selectionStart != null ? active.selectionStart : null;
+        if (focusHint && focusHint.recalc) recalcMatrix();
+        rerender();
+        if (focusSel) {
+          const el = modal.querySelector(focusSel);
+          if (el) {
+            el.focus();
+            if (caret != null) { try { el.setSelectionRange(caret, caret); } catch (e) {} }
+          }
+        }
+      }, 250);
+    }
 
     function recalcMatrix() {
       const valid = validAxes();
