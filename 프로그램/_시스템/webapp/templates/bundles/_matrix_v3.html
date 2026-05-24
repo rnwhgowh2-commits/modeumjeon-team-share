@@ -640,12 +640,31 @@
 
   {# V9 — 좌측 필터 사이드 + 우측 매트릭스 (기본 collapse, 매트릭스 toolbar 의 🔍 필터 버튼으로 펼침) #}
   {# [2026-05-24] 가격설정 → 크롤 v2 C 시안 — 사올 때/팔 때 분리, 마켓 N개 동적 #}
-  <div class="bulk-policy-bar" id="bulk-policy-bar" style="flex-direction:column; align-items:stretch; gap:8px; padding:14px 16px;">
+  <style>
+    /* [2026-05-24] 매트릭스 미니 버튼 크기 균일 + 셀 폰트 */
+    .d2-src-actions .btn-icon,
+    .d2-src-actions button { width:28px !important; height:28px !important; padding:0 !important;
+      display:inline-flex !important; align-items:center !important; justify-content:center !important;
+      font-size:14px !important; line-height:1 !important; }
+
+    /* [2026-05-24] 가격설정 영역 폰트 250% — 사용자 피드백 */
+    #bulk-policy-bar .bp-chip { font-size:17px !important; padding:8px 14px !important; gap:7px !important; }
+    #bulk-policy-bar .bp-chip .bp-k { font-size:15px !important; }
+    #bulk-policy-bar .bp-chip b { font-size:17px !important; font-weight:700 !important; }
+    #bulk-policy-bar .bp-chip .bp-v { font-size:17px !important; }
+    #bulk-policy-bar .bp-chip .bp-ar { font-size:13px !important; }
+    #bulk-policy-bar .bp-recalc { font-size:17px !important; padding:11px 22px !important; font-weight:700 !important; }
+    #bulk-policy-bar .bp-pop { font-size:15px !important; }
+    #bulk-policy-bar .bp-pop label { font-size:14px !important; font-weight:600 !important; }
+    #bulk-policy-bar .bp-pop input { font-size:15px !important; padding:8px 12px !important; }
+    #bulk-policy-bar .bp-opt { font-size:15px !important; padding:9px 12px !important; }
+  </style>
+  <div class="bulk-policy-bar" id="bulk-policy-bar" style="flex-direction:column; align-items:stretch; gap:14px; padding:20px 22px; font-size:18px;">
 
     {# 사올 때 (매입) — 한 줄 #}
-    <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
-      <span style="font-size:14px; flex-shrink:0;">📥</span>
-      <span style="font-size:12.5px; color:#6b7684; font-weight:600; min-width:90px;">사올 때 (매입)</span>
+    <div style="display:flex; align-items:center; gap:14px; flex-wrap:wrap;">
+      <span style="font-size:24px; flex-shrink:0;">📥</span>
+      <span style="font-size:18px; color:#6b7684; font-weight:700; min-width:140px;">사올 때 (매입)</span>
       <div class="bp-chip" data-bp-chip="policy">
         <span class="bp-k">정책</span> <b id="bp-policy-v">색상 통일</b> <span class="bp-ar">▼</span>
         <div class="bp-pop">
@@ -664,15 +683,15 @@
     </div>
 
     {# 팔 때 (마진) — 마켓 N개 동적 + 정률/정액 토글 #}
-    <div style="display:flex; align-items:flex-start; gap:10px; flex-wrap:wrap; padding-top:8px; border-top:1px dashed #e5e8eb;">
-      <span style="font-size:14px; flex-shrink:0; padding-top:5px;">📤</span>
-      <span style="font-size:12.5px; color:#6b7684; font-weight:600; min-width:90px; padding-top:5px;">팔 때 (마진)</span>
-      <div style="display:flex; flex-direction:column; gap:5px; flex:1;">
+    <div style="display:flex; align-items:flex-start; gap:14px; flex-wrap:wrap; padding-top:14px; border-top:1px dashed #e5e8eb;">
+      <span style="font-size:24px; flex-shrink:0; padding-top:8px;">📤</span>
+      <span style="font-size:18px; color:#6b7684; font-weight:700; min-width:140px; padding-top:8px;">팔 때 (마진)</span>
+      <div style="display:flex; flex-direction:column; gap:10px; flex:1;">
         {% for mk in markets %}
-        <div class="mkt-row" data-mkt-key="{{ mk.market_key }}" style="display:flex; align-items:center; gap:8px;">
+        <div class="mkt-row" data-mkt-key="{{ mk.market_key }}" style="display:flex; align-items:center; gap:12px;">
           <span class="mkt-logo-box" data-mkt-id="{{ mk.id }}" title="클릭해서 색·글자 변경"
-                style="width:28px; height:28px; border-radius:6px; color:#fff; display:inline-flex; align-items:center; justify-content:center; font-weight:800; font-size:11px; background:{{ mk.logo_color }}; cursor:pointer; letter-spacing:.3px;">{{ mk.logo_letter }}</span>
-          <span style="font-size:13px; font-weight:600; min-width:110px;">{{ mk.label }}</span>
+                style="width:44px; height:44px; border-radius:9px; color:#fff; display:inline-flex; align-items:center; justify-content:center; font-weight:800; font-size:17px; background:{{ mk.logo_color }}; cursor:pointer; letter-spacing:.5px; text-align:center;">{{ mk.logo_letter }}</span>
+          <span style="font-size:18px; font-weight:700; min-width:160px;">{{ mk.label }}</span>
           {% if mk.market_key == 'smartstore' %}
             {# 스마트스토어 — 기존 ss_margin_* 컬럼 호환 (JS bp-chip 핸들러 유지) #}
             <div class="bp-chip" data-bp-chip="margin-na" style="margin:0;">
@@ -692,11 +711,11 @@
             </div>
           {% else %}
             {# 사용자 추가 마켓 — Phase 2 (마진 계산 일반화) 대기 #}
-            <span style="font-size:11.5px; color:#9ca3af; padding:4px 10px; background:#FFFBEB; border:1px solid #fde68a; border-radius:6px;">⏳ 마진 입력 준비 중 (Phase 2)</span>
+            <span style="font-size:16px; color:#9ca3af; padding:7px 14px; background:#FFFBEB; border:1px solid #fde68a; border-radius:8px;">⏳ 마진 입력 준비 중 (Phase 2)</span>
           {% endif %}
         </div>
         {% endfor %}
-        <a href="/accounts" style="font-size:11.5px; color:#3B82F6; text-decoration:none; padding:5px 0;">＋ 마켓 추가 (판매자계정 페이지에서)</a>
+        <a href="/accounts" style="font-size:15px; color:#3B82F6; text-decoration:none; padding:8px 0; font-weight:600;">＋ 마켓 추가 (판매자계정 페이지에서)</a>
       </div>
     </div>
   </div>
@@ -797,8 +816,6 @@
     <div class="lg"><div class="sw g"></div>완료</div>
     <div class="lg"><div class="sw b"></div>진행 중</div>
     <div class="lg"><div class="sw r"></div>실패</div>
-    <div class="lg"><div class="sw gr">●</div>URL 대기</div>
-    <div class="lg"><div class="sw w">⚠</div>URL 미등록</div>
     <div class="lg"><div class="sw lo"></div>★ 최저가</div>
     <div class="lg"><div class="sw sel"></div>선택됨</div>
   </div>
@@ -3728,7 +3745,6 @@
       const colorChecked = c.sizes.every(sz => multiSet.has(sz.sku));
       html += `<div class="opt-tree-color" data-color="${c.color_code}">
         <input type="checkbox" data-color-check="${c.color_code}" ${colorChecked ? 'checked':''}>
-        <span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#9ca3af"></span>
         <span>${c.color_code}</span>
         <span style="margin-left:auto;font-size: 14px;color:var(--n500)">${c.count}</span>
       </div>
@@ -4384,9 +4400,9 @@
   // Phase 6 — 한 옵션 × 한 사이트 셀 (4색 상태 + ★최저 + fx + breakdown)
   function renderSiteCell(o, s) {
     const src = (o.sources || []).find(x => x.source_id === s.id);
-    // URL 미등록
+    // [2026-05-24] URL 미매핑 — 옵션 조합 생성 모달에서 매핑하므로 여기서는 "—" 표시만
     if (!src || !src.product_url) {
-      return `<td class="td-site-col cn cn-add" data-cell-sku="${escapeHtml(o.sku)}" data-cell-src="${s.id}"><button type="button" class="cell-addurl" data-act="goto-url-tab" title="이 소싱처의 상품 URL 등록 — §2 소싱처 URL 탭으로 이동">+ URL</button></td>`;
+      return `<td class="td-site-col cn" data-cell-sku="${escapeHtml(o.sku)}" data-cell-src="${s.id}" style="color:#cbd5e0; font-size:14px; text-align:center;">—</td>`;
     }
     // 크롤 실패
     if (src.last_status === 'error') {
