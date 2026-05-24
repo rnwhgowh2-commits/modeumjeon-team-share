@@ -87,7 +87,9 @@ def parse_boxhero_xlsx(xlsx_path: str) -> Iterator[dict]:
 
 
 # ─── 우리 양식 (9 base + 동적 위치별) ───
-INTERNAL_BASE_HEADERS = ['SKU', '바코드', '브랜드', '제품명', '품번', '색상', '사이즈', '평균매입가', '총재고']
+# [2026-05-25 D-6] 사용자 양식: SKU/바코드/품번/브랜드/카테고리/모델명/색상/사이즈/총재고 + N 위치
+INTERNAL_BASE_HEADERS = ['SKU', '바코드', '품번', '브랜드', '카테고리', '모델명',
+                        '색상', '사이즈', '총재고']
 INTERNAL_BASE_COL_COUNT = len(INTERNAL_BASE_HEADERS)  # 9
 
 
@@ -103,7 +105,11 @@ def detect_format(xlsx_path: str) -> str:
     finally:
         wb.close()
 
-    # 우리 양식 — 4번째까지 동일하면 internal (5번째가 '품번' 또는 '색상' 둘 다 internal 의 옛/새 버전)
+    # [D-6] 신 우리 양식: SKU/바코드/품번/브랜드/카테고리/모델명
+    if (len(headers) >= 6 and
+        headers[:6] == ['SKU', '바코드', '품번', '브랜드', '카테고리', '모델명']):
+        return 'internal'
+    # 옛 우리 양식 (v1·v2) 호환 — SKU/바코드/브랜드/제품명
     if len(headers) >= 4 and headers[:4] == ['SKU', '바코드', '브랜드', '제품명']:
         return 'internal'
     if len(headers) >= 7 and headers[0] == 'SKU' and headers[2] == '제품명' and headers[6] == '브랜드':
@@ -126,14 +132,28 @@ def parse_internal_xlsx(xlsx_path: str) -> Iterator[dict]:
     if len(rows) < 2:
         return
     headers = [str(c or '').strip() for c in rows[0]]
-    # v1 (8 base) vs v2 (9 base — 품번 추가) 호환 — 5번째 헤더로 판별
-    has_article = (len(headers) >= 5 and headers[4] == '품번')
-    base_count = 9 if has_article else 8
-    # 위치별 재고 컬럼 — base 이후, '{위치명} 재고' 패턴
+    # 양식 판별
+    # 신 양식 (D-6): SKU/바코드/품번/브랜드/카테고리/모델명/색상/사이즈/총재고 + N 위치
+    is_new_fmt = (len(headers) >= 6 and
+                  headers[:6] == ['SKU', '바코드', '품번', '브랜드', '카테고리', '모델명'])
+    # 옛 v2 (품번 5번째)
+    has_article_old = (not is_new_fmt and len(headers) >= 5 and headers[4] == '품번')
+    if is_new_fmt:
+        base_count = 9  # 9 base 그대로
+    elif has_article_old:
+        base_count = 9
+    else:
+        base_count = 8
+    # 위치별 재고 컬럼 — base 이후
+    # 신 양식: 위치명 그대로 (예: '기본 위치', '그로스')
+    # 옛 양식: '{위치명} 재고' 패턴
     loc_cols: dict[str, int] = {}
     for i, h in enumerate(headers[base_count:], start=base_count):
-        if h.endswith(' 재고') and h != '총재고':
-            loc_cols[h[:-len(' 재고')]] = i
+        if is_new_fmt:
+            if h: loc_cols[h] = i
+        else:
+            if h.endswith(' 재고') and h != '총재고':
+                loc_cols[h[:-len(' 재고')]] = i
 
     for row in rows[1:]:
         if not row or row[0] is None:
@@ -142,22 +162,35 @@ def parse_internal_xlsx(xlsx_path: str) -> Iterator[dict]:
         if not sku:
             continue
         barcode = str(row[1] or '').strip()
-        brand = (str(row[2] or '').strip() or None)
-        pname = str(row[3] or '').strip()
-        if has_article:
+        category = None
+        if is_new_fmt:
+            # A SKU / B 바코드 / C 품번 / D 브랜드 / E 카테고리 / F 모델명 / G 색상 / H 사이즈 / I 총재고
+            article_no = str(row[2] or '').strip() or None
+            brand = (str(row[3] or '').strip() or None)
+            category = str(row[4] or '').strip() or None
+            pname = str(row[5] or '').strip()
+            color = str(row[6] or '').strip()
+            size = str(row[7] or '').strip()
+            total_idx = 8
+            avg = 0
+        elif has_article_old:
+            brand = (str(row[2] or '').strip() or None)
+            pname = str(row[3] or '').strip()
             article_no = str(row[4] or '').strip() or None
             color = str(row[5] or '').strip()
             size = str(row[6] or '').strip()
             avg_idx, total_idx = 7, 8
+            try: avg = int(row[avg_idx] or 0)
+            except (ValueError, TypeError): avg = 0
         else:
+            brand = (str(row[2] or '').strip() or None)
+            pname = str(row[3] or '').strip()
             article_no = None
             color = str(row[4] or '').strip()
             size = str(row[5] or '').strip()
             avg_idx, total_idx = 6, 7
-        try:
-            avg = int(row[avg_idx] or 0)
-        except (ValueError, TypeError):
-            avg = 0
+            try: avg = int(row[avg_idx] or 0)
+            except (ValueError, TypeError): avg = 0
         try:
             total = int(row[total_idx] or 0)
         except (ValueError, TypeError):
@@ -169,10 +202,10 @@ def parse_internal_xlsx(xlsx_path: str) -> Iterator[dict]:
             except (ValueError, TypeError):
                 per_loc[loc] = 0
 
-        # color 'one' 또는 빈값 → 의미적으로 색상 없음
-        color_text = '' if color in ('', 'one') else color
-        # size 'free' → 빈값
-        size_str = '' if size == 'free' else size
+        # color '-' / 'one' / 빈값 → 의미적으로 색상 없음
+        color_text = '' if color in ('', '-', 'one') else color
+        # size '-' / 'free' / 'FREE' → 빈값
+        size_str = '' if size in ('', '-', 'free', 'FREE') else size
 
         yield {
             "sku": sku,
@@ -185,6 +218,7 @@ def parse_internal_xlsx(xlsx_path: str) -> Iterator[dict]:
             "color_text": color_text,
             "quantity": total,
             "purchase_price": avg,
+            "category": category,  # [D-6] 신 양식 카테고리
             "per_loc_stock": per_loc,  # 우리 양식 한정 추가 필드
         }
 
