@@ -730,16 +730,42 @@
       }
     });
 
-    // 좌측 input 변경 — focus 유지를 위해 디바운스 + 입력 중 셀렉터 보존
+    // ─── 좌측 input 변경 — 한글 IME 안전 + focus 유지 ───
+    // [핵심] composition 이벤트 추적 — IME 활성 중 rerender 절대 skip
+    // (rerender 시 DOM 교체 → IME composition 컨텍스트 파괴 → 한글 자모 깨짐 방지)
+    let isComposing = false;
+
+    $('#oum-left').addEventListener('compositionstart', () => { isComposing = true; });
+    $('#oum-left').addEventListener('compositionend', e => {
+      isComposing = false;
+      // 한글 입력 완료 시점 — state 갱신 + 디바운스 rerender
+      const t = e.target;
+      if (t.dataset && t.dataset.axisName != null) {
+        state.axes[+t.dataset.axisName].name = t.value;
+        scheduleRerender({ kind: 'name', idx: +t.dataset.axisName });
+      } else if (t.dataset && t.dataset.axisValues != null) {
+        state.axes[+t.dataset.axisValues].values = t.value;
+        scheduleRerender({ kind: 'values', idx: +t.dataset.axisValues, recalc: true });
+      }
+    });
+
     $('#oum-left').addEventListener('input', e => {
       const nm = e.target.closest('[data-axis-name]');
+      const vl = e.target.closest('[data-axis-values]');
+
+      // ① IME 활성 중 — state만 갱신, rerender 절대 X
+      if (isComposing) {
+        if (nm) state.axes[+nm.dataset.axisName].name = e.target.value;
+        else if (vl) state.axes[+vl.dataset.axisValues].values = e.target.value;
+        return;
+      }
+
+      // ② 비-IME (영문/숫자) — 기존 로직 (디바운스 + focus 복원)
       if (nm) {
-        // 이름 변경 — 매트릭스에 영향 X, 칩 라벨만 영향 → debounce + focus 보존
         state.axes[+nm.dataset.axisName].name = e.target.value;
         scheduleRerender({ kind: 'name', idx: +nm.dataset.axisName });
         return;
       }
-      const vl = e.target.closest('[data-axis-values]');
       if (vl) {
         state.axes[+vl.dataset.axisValues].values = e.target.value;
         scheduleRerender({ kind: 'values', idx: +vl.dataset.axisValues, recalc: true });
@@ -751,7 +777,8 @@
     function scheduleRerender(focusHint) {
       clearTimeout(state._inputTimer);
       state._inputTimer = setTimeout(() => {
-        const sel = window.getSelection?.();
+        // IME 활성 중이면 또 skip (안전망)
+        if (isComposing) return;
         const active = document.activeElement;
         const focusSel = (active && active.dataset && (active.dataset.axisName != null || active.dataset.axisValues != null))
           ? (active.dataset.axisName != null
