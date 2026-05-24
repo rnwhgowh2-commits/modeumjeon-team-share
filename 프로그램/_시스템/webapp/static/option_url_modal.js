@@ -989,12 +989,14 @@
       save.disabled = true; save.textContent = '저장 중...';
 
       try {
-        // 1) 옵션 생성
+        // 1) 옵션 생성 + 비활성 셀 REPLACE (prune)
+        //   [2026-05-25 A-2-FIX] 모달 = 단일 진실 원천 → selected 에 없는 기존 옵션은 삭제
+        //   다른 데이터 매핑 있어 못 지운 옵션은 응답.skus_protected 로 회신 → 토스트로 안내
         const validList = validAxes();
         const selectedArr = [...state.selected].map(getAxisValuesArray);
         const res = await fetch(`/api/bundles/${encodeURIComponent(bundleCode)}/options/combo`, {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ steps: validList, selected: selectedArr }),
+          body: JSON.stringify({ steps: validList, selected: selectedArr, prune: true }),
         });
         const j = await res.json();
         if (!j || !j.ok) {
@@ -1019,9 +1021,16 @@
           }
         }
 
-        // 알림 + 리로드
+        // 알림 + 리로드 — A-2-FIX prune 결과도 표시
         if (typeof flash === 'function') {
-          flash(`옵션 ${j.created || 0}개 + URL ${urlSaved}개 저장됨${urlFailed ? ` (URL ${urlFailed}개 실패)` : ''}`);
+          const parts = [];
+          if (j.created) parts.push(`옵션 +${j.created}개`);
+          if (j.deleted) parts.push(`-${j.deleted}개`);
+          if (urlSaved) parts.push(`URL +${urlSaved}개`);
+          let msg = parts.length ? parts.join(' / ') + ' 저장됨' : '저장 완료';
+          if (j.protected) msg += ` · ⚠ ${j.protected}개는 매핑 데이터 있어 보존`;
+          if (urlFailed) msg += ` (URL ${urlFailed}개 실패)`;
+          flash(msg);
         }
         bg.remove();
         setTimeout(() => location.reload(), 700);

@@ -2779,6 +2779,8 @@ def bundle_options_combo(code: str):
     payload = request.get_json(silent=True) or {}
     steps = payload.get('steps') or []
     selected = payload.get('selected')   # None = 전체 cartesian
+    # [2026-05-25 A-2-FIX] prune=True 면 selected 에 없는 기존 옵션 삭제 (모달 = 단일 진실 원천).
+    prune = bool(payload.get('prune'))
 
     if not steps or not isinstance(steps, list):
         return _err('steps(단계 설계)가 필요해요.')
@@ -2791,7 +2793,7 @@ def bundle_options_combo(code: str):
         m = s.query(Model).filter_by(model_code=code).first()
         if m is None:
             return _err('모음전을 찾을 수 없어요.', 404)
-        result = create_combination_options(s, code, steps, selected=selected)
+        result = create_combination_options(s, code, steps, selected=selected, prune=prune)
         return _ok(**result)
     except Exception as e:
         s.rollback()
