@@ -18,24 +18,41 @@ class PriceTemplate(Base):
     external_margin_value_emergency = Column(Float, default=0.0945)
     # 스마트스토어 전용
     ss_normal_price = Column(Integer, default=149000)
-    ss_boxhero_sale_price = Column(Integer, default=115900)
-    ss_external_sale_price = Column(Integer, default=128900)
+    ss_boxhero_sale_price = Column(Integer, default=115900)   # 사입 지정가
+    ss_external_sale_price = Column(Integer, default=128900)  # 소싱 지정가
     ss_fee_rate = Column(Float, default=0.06)
+    # [DEPRECATED 2026-05-25] 단일 모드 — 소싱/사입 분리로 대체. 백워드 호환용 유지.
     ss_margin_mode = Column(String(16), default="rate")
     ss_margin_rate = Column(Float, default=0.0945)
     ss_margin_amount = Column(Integer, default=0)
+    # [NEW 2026-05-25] 소싱처 책정 — mode in ('rate','amount','fixed')
+    ss_mode_sourcing = Column(String(8), default='rate')
+    ss_rate_sourcing = Column(Float, default=0.0945)
+    ss_amount_sourcing = Column(Integer, default=0)
+    # [NEW 2026-05-25] 사입 책정
+    ss_mode_purchase = Column(String(8), default='rate')
+    ss_rate_purchase = Column(Float, default=0.0945)
+    ss_amount_purchase = Column(Integer, default=0)
     ss_delivery_fee = Column(Integer, default=3000)   # 0 = 무료배송
     ss_return_fee = Column(Integer, default=0)        # 반품비
     ss_exchange_fee = Column(Integer, default=0)      # 교환비
     ss_extra_json = Column(Text, default='{}')
     # 쿠팡 전용
     coupang_normal_price = Column(Integer, default=149000)
-    coupang_boxhero_sale_price = Column(Integer, default=128900)
-    coupang_external_sale_price = Column(Integer, default=128900)
+    coupang_boxhero_sale_price = Column(Integer, default=128900)   # 사입 지정가
+    coupang_external_sale_price = Column(Integer, default=128900)  # 소싱 지정가
     coupang_fee_rate = Column(Float, default=0.1155)
+    # [DEPRECATED 2026-05-25]
     coupang_margin_mode = Column(String(16), default="rate")
     coupang_margin_rate = Column(Float, default=0.1242)
     coupang_margin_amount = Column(Integer, default=0)
+    # [NEW 2026-05-25]
+    coupang_mode_sourcing = Column(String(8), default='rate')
+    coupang_rate_sourcing = Column(Float, default=0.1242)
+    coupang_amount_sourcing = Column(Integer, default=0)
+    coupang_mode_purchase = Column(String(8), default='rate')
+    coupang_rate_purchase = Column(Float, default=0.1242)
+    coupang_amount_purchase = Column(Integer, default=0)
     coupang_delivery_fee = Column(Integer, default=3500)  # 0 = 무료배송
     coupang_return_fee = Column(Integer, default=0)       # 반품비
     coupang_exchange_fee = Column(Integer, default=0)     # 교환비

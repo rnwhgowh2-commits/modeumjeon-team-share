@@ -1034,9 +1034,14 @@ def upsert_price_template():
                   'ss_normal_price', 'ss_boxhero_sale_price', 'ss_external_sale_price',
                   'ss_fee_rate', 'ss_margin_rate', 'ss_delivery_fee',
                   'ss_return_fee', 'ss_exchange_fee',
+                  # [NEW 2026-05-25] 소싱처/사입 분리 책정 모드
+                  'ss_mode_sourcing', 'ss_rate_sourcing', 'ss_amount_sourcing',
+                  'ss_mode_purchase', 'ss_rate_purchase', 'ss_amount_purchase',
                   'coupang_normal_price', 'coupang_boxhero_sale_price', 'coupang_external_sale_price',
                   'coupang_fee_rate', 'coupang_margin_rate', 'coupang_delivery_fee',
-                  'coupang_return_fee', 'coupang_exchange_fee'):
+                  'coupang_return_fee', 'coupang_exchange_fee',
+                  'coupang_mode_sourcing', 'coupang_rate_sourcing', 'coupang_amount_sourcing',
+                  'coupang_mode_purchase', 'coupang_rate_purchase', 'coupang_amount_purchase'):
             if f in payload:
                 setattr(t, f, payload[f])
         s.commit()
