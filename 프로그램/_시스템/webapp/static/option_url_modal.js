@@ -669,8 +669,9 @@
       save.textContent = hasOpts ? `옵션 ${state.selected.size}개 + URL 저장` : '옵션 + URL 저장';
     }
 
-    // 좌측 이벤트
+    // 좌측 이벤트 — try-catch 로 JS 에러 시 다음 핸들러 계속 동작
     $('#oum-left').addEventListener('click', e => {
+      try {
       // 축 삭제
       const del = e.target.closest('[data-axis-del]');
       if (del) {
@@ -729,9 +730,13 @@
       }
       // 적용 버튼
       if (e.target.closest('#oum-apply')) {
+        console.log('[oum] 적용 클릭 — selected:', state.selected.size, 'sources:', state.sources.length);
         state.applied = true;
         rerender();
         return;
+      }
+      } catch (err) {
+        console.error('[oum] click handler error:', err);
       }
     });
 
