@@ -70,6 +70,8 @@ def parse_boxhero_xlsx(xlsx_path: str) -> Iterator[dict]:
         purchase_price = row[COL_INDEX["purchase_price"]] or 0
         color_text = _extract_color(name, brand, model_name)
 
+        # [2026-05-25 D-4] F 카테고리 추가 — models.category 매핑용
+        category = str(row[COL_INDEX["category"]] or "").strip() or None
         yield {
             "sku": sku,
             "barcode": str(row[COL_INDEX["barcode"]] or "").strip(),
@@ -80,6 +82,7 @@ def parse_boxhero_xlsx(xlsx_path: str) -> Iterator[dict]:
             "color_text": color_text,
             "quantity": int(quantity),
             "purchase_price": int(purchase_price),
+            "category": category,
         }
 
 

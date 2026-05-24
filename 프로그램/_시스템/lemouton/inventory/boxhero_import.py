@@ -53,6 +53,29 @@ def _ensure_default_location(session: Session) -> int:
     return loc.id
 
 
+def _clean_article_no(raw: str) -> str:
+    """[2026-05-25 D-4] 박스히어로 H 컬럼 → 우리 article_no(품번) 정규화.
+
+    사용자 룰:
+      · 한글 포함 → '-' (자동 생성 금지, 브랜드 고유 영문 품번만 허용)
+      · 공백 포함 영문 (예: 'CW2288 001') → 하이픈 변환 ('CW2288-001')
+      · 영문/숫자/_/-/.// → 그대로
+      · 빈값 → '-' (사용자 표시 의도, NULL 아님)
+    """
+    import re as _re
+    raw = (raw or '').strip()
+    if not raw:
+        return '-'
+    if any(ord(c) > 127 for c in raw):
+        return '-'  # 한글/유니코드 포함 — 정식 품번 아님
+    if ' ' in raw:
+        raw = raw.replace(' ', '-')
+    # 영문/숫자/_/-/.// 만 허용 — 그 외 문자 있으면 '-'
+    if not _re.match(r'^[A-Za-z0-9_\-./]+$', raw):
+        return '-'
+    return raw
+
+
 def _derive_model_code(brand: str | None, model_name: str | None, fallback_sku: str) -> str:
     """박스히어로 record → model_code 슬러그.
     brand+model_name 우선, 없으면 sku 단독 모델."""
@@ -135,14 +158,24 @@ def _auto_create_master(session: Session, records: list[dict]) -> dict:
                 model_name_raw=(r.get('name') or model_name or model_code)[:255],
                 brand=brand[:100],
             )
-            # 품번 (article_no) — 박스히어로 'model_name' 컬럼 = 품번.
+            # 품번 (article_no) — 박스히어로 'model_name' 컬럼 = 품번
+            # [2026-05-25 D-4] 사용자 룰:
+            #   · 영문/숫자/하이픈/언더스코어/./.: → 그대로 (정식 품번)
+            #   · 공백 포함 영문 (예: 'CW2288 001'): 하이픈 변환 ('CW2288-001')
+            #   · 한글 포함 (예: '보레알리스', '미니샷'): article_no='-' (사용자 명시)
+            #   · 빈값: '-' 표시 (NULL 아니고 '-')
             m_obj = session.query(Model).filter_by(model_code=model_code).first()
-            article = (r.get('article_no') or model_name or '').strip()
-            if m_obj and article and not getattr(m_obj, 'article_no', None):
-                m_obj.article_no = article[:64]
+            raw_article = (r.get('article_no') or model_name or '').strip()
+            cleaned = _clean_article_no(raw_article)
+            if m_obj and not getattr(m_obj, 'article_no', None):
+                m_obj.article_no = cleaned[:64]
             # 모델명 (display) — LCP 결과를 model_name_display 에 저장 (기존 값 보존)
             if m_obj and lcp and not (m_obj.model_name_display or '').strip():
                 m_obj.model_name_display = lcp[:255]
+            # [2026-05-25 D-4] 카테고리 — F 컬럼 → models.category (기존 값 보존)
+            cat = (r.get('category') or '').strip()
+            if m_obj and cat and not (getattr(m_obj, 'category', None) or '').strip():
+                m_obj.category = cat[:100]
             seen_models.add(model_code)
             if existed is None:
                 created_models += 1
