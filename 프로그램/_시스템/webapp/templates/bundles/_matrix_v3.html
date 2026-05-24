@@ -901,30 +901,91 @@
     })();
   </script>
 
-  {# [2026-05-24] 마켓 로고 색·글자 편집 popover (전역 모달) #}
-  <div id="mkt-logo-pop" style="display:none; position:fixed; z-index:9999; background:#fff; border:1px solid #d1d6db; border-radius:10px; box-shadow:0 8px 24px rgba(0,0,0,.15); padding:14px; min-width:280px;">
-    <div style="font-size:12px; font-weight:700; margin-bottom:10px;">마켓 로고 편집 <span id="mkt-logo-pop-label" style="color:#9ca3af; font-weight:400; margin-left:6px;"></span></div>
+  {# [2026-05-24] 마켓 로고 색·글자 편집 popover (전역 모달)
+     v34.5 — native <input type="color"> 제거. icpCreatePhotoPicker (SV+Hue) 사용. 자동 저장 (debounce). #}
+  <div id="mkt-logo-pop" style="display:none; position:fixed; z-index:9999; background:#fff; border:1px solid #d1d6db; border-radius:10px; box-shadow:0 8px 24px rgba(0,0,0,.15); padding:14px; min-width:260px;">
+    <div style="font-size:12px; font-weight:700; margin-bottom:8px;">마켓 로고 편집 <span id="mkt-logo-pop-label" style="color:#9ca3af; font-weight:400; margin-left:6px;"></span></div>
     <div style="margin-bottom:10px;">
-      <label style="display:block; font-size:11px; color:#6b7684; font-weight:600; margin-bottom:5px;">박스 색상 (헥스)</label>
-      <input type="color" id="mkt-logo-pop-color" style="width:60px; height:32px; border:1px solid #d1d6db; border-radius:5px; cursor:pointer;">
-      <input type="text" id="mkt-logo-pop-color-hex" style="margin-left:6px; padding:6px 10px; border:1px solid #d1d6db; border-radius:5px; font-family:ui-monospace,monospace; font-size:12px; width:90px;" placeholder="#3B82F6">
+      <div style="font-size:11px; color:#6b7684; font-weight:600; margin-bottom:5px;">박스 색상 (드래그·HEX·프리셋)</div>
+      <div id="mkt-logo-pop-photo-host" style="margin-bottom:6px;"></div>
+      <div style="display:flex; align-items:center; gap:6px;">
+        <input type="text" id="mkt-logo-pop-color-hex" style="padding:6px 10px; border:1px solid #d1d6db; border-radius:5px; font-family:ui-monospace,monospace; font-size:12px; width:110px;" placeholder="#3B82F6">
+        <span id="mkt-logo-pop-swatch" style="width:24px; height:24px; border-radius:4px; border:1px solid #d1d6db; display:inline-block;"></span>
+        <small id="mkt-logo-pop-saved-hint" style="margin-left:auto; color:#03C75A; font-weight:600; font-size:11px;">변경 즉시 자동 저장</small>
+      </div>
     </div>
     <div style="margin-bottom:12px;">
       <label style="display:block; font-size:11px; color:#6b7684; font-weight:600; margin-bottom:5px;">박스 안 글자 (최대 2자)</label>
       <input type="text" id="mkt-logo-pop-letter" maxlength="4" style="padding:7px 10px; border:1px solid #d1d6db; border-radius:5px; font-size:13px; width:100px; text-align:center; font-weight:700;">
     </div>
     <div style="display:flex; gap:6px; justify-content:flex-end;">
-      <button type="button" id="mkt-logo-pop-cancel" style="background:#fff; border:1px solid #d1d6db; padding:6px 12px; border-radius:5px; font-size:12px; cursor:pointer;">취소</button>
-      <button type="button" id="mkt-logo-pop-save" style="background:#3B82F6; color:#fff; border:0; padding:6px 14px; border-radius:5px; font-size:12px; cursor:pointer; font-weight:600;">저장</button>
+      <button type="button" id="mkt-logo-pop-close" style="background:#3B82F6; color:#fff; border:0; padding:6px 14px; border-radius:5px; font-size:12px; cursor:pointer; font-weight:600;">완료</button>
     </div>
   </div>
   <script>
-    // 마켓 로고 클릭 → popover 편집
+    // v34.5 — 마켓 로고 popover: icpCreatePhotoPicker + 자동 저장
     (function(){
       const pop = document.getElementById('mkt-logo-pop');
       if (!pop) return;
       let currentMktId = null;
       let currentBox = null;
+      let currentColor = '#3B82F6';
+      let photoPicker = null;
+      let saveTimer = null;
+      const host = document.getElementById('mkt-logo-pop-photo-host');
+      const hexInput = document.getElementById('mkt-logo-pop-color-hex');
+      const swatch = document.getElementById('mkt-logo-pop-swatch');
+      const letterInput = document.getElementById('mkt-logo-pop-letter');
+
+      function updateSwatch() {
+        swatch.style.background = currentColor;
+      }
+      async function saveNow() {
+        if (!currentMktId) return;
+        const color = currentColor;
+        const letter = letterInput.value.trim().slice(0, 4);
+        try {
+          const r = await fetch(`/accounts/markets/${currentMktId}`, {
+            method: 'PUT', headers: {'Content-Type':'application/json'},
+            body: JSON.stringify({logo_color: color, logo_letter: letter})
+          });
+          const j = await r.json();
+          if (j && j.ok && currentBox) {
+            currentBox.style.background = j.logo_color;
+            currentBox.textContent = j.logo_letter;
+          }
+        } catch (_) { /* silent — debounce 마지막만 신뢰 */ }
+      }
+      function autoSave() {
+        if (saveTimer) clearTimeout(saveTimer);
+        saveTimer = setTimeout(saveNow, 350);
+      }
+
+      function rebuildPhotoPicker(initHex) {
+        // 기존 picker 제거 후 새로 생성
+        host.innerHTML = '';
+        if (typeof window.icpCreatePhotoPicker !== 'function') {
+          // 폴백 — icon_picker.js 가 로드 안 됐을 때 단순 hex input 으로 동작
+          host.innerHTML = '<input type="color" id="mkt-logo-pop-color" style="width:60px;height:32px;border:1px solid #d1d6db;border-radius:5px;cursor:pointer;">';
+          const native = host.querySelector('#mkt-logo-pop-color');
+          native.value = initHex;
+          native.addEventListener('change', e => {
+            currentColor = e.target.value.toUpperCase();
+            hexInput.value = currentColor;
+            updateSwatch();
+            autoSave();
+          });
+          return;
+        }
+        photoPicker = window.icpCreatePhotoPicker(initHex, (hex) => {
+          currentColor = hex;
+          hexInput.value = hex;
+          updateSwatch();
+          autoSave();  // 드래그·클릭 매번 호출 — debounce 가 합침
+        });
+        host.appendChild(photoPicker.el);
+      }
+
       document.addEventListener('click', function(e) {
         const box = e.target.closest('.mkt-logo-box');
         if (box) {
@@ -934,51 +995,40 @@
           const label = box.parentElement?.querySelector('span:nth-child(2)')?.textContent || '';
           document.getElementById('mkt-logo-pop-label').textContent = label;
           const bg = window.getComputedStyle(box).backgroundColor;
-          // rgb → hex 변환
           const rgbMatch = bg.match(/\d+/g);
-          const hex = rgbMatch ? '#' + rgbMatch.slice(0,3).map(n => parseInt(n).toString(16).padStart(2,'0')).join('') : '#3B82F6';
-          document.getElementById('mkt-logo-pop-color').value = hex;
-          document.getElementById('mkt-logo-pop-color-hex').value = hex;
-          document.getElementById('mkt-logo-pop-letter').value = box.textContent.trim();
-          // popover 위치
+          const hex = rgbMatch ? '#' + rgbMatch.slice(0,3).map(n => parseInt(n).toString(16).padStart(2,'0')).join('').toUpperCase() : '#3B82F6';
+          currentColor = hex;
+          hexInput.value = hex;
+          letterInput.value = box.textContent.trim();
+          updateSwatch();
+          rebuildPhotoPicker(hex);
+          // popover 위치 — 화면 밖 방지
           const rect = box.getBoundingClientRect();
           pop.style.top = (rect.bottom + 6) + 'px';
-          pop.style.left = rect.left + 'px';
+          pop.style.left = Math.max(8, Math.min(rect.left, window.innerWidth - 320)) + 'px';
           pop.style.display = 'block';
           return;
         }
         if (!pop.contains(e.target)) pop.style.display = 'none';
       });
-      // color picker → hex 동기화
-      document.getElementById('mkt-logo-pop-color').addEventListener('input', function(e) {
-        document.getElementById('mkt-logo-pop-color-hex').value = e.target.value;
+
+      // HEX 입력 — 정상값 시 photoPicker 동기화 + 자동 저장
+      hexInput.addEventListener('input', function() {
+        const v = (hexInput.value || '').trim().toUpperCase();
+        if (/^#[0-9A-F]{6}$/.test(v)) {
+          currentColor = v;
+          if (photoPicker) photoPicker.setHex(v);
+          updateSwatch();
+          autoSave();
+        }
       });
-      document.getElementById('mkt-logo-pop-color-hex').addEventListener('input', function(e) {
-        if (/^#[0-9a-fA-F]{6}$/.test(e.target.value)) document.getElementById('mkt-logo-pop-color').value = e.target.value;
+      // letter 입력 — 자동 저장
+      letterInput.addEventListener('input', autoSave);
+      // 완료 = 닫기 (이미 저장됨)
+      document.getElementById('mkt-logo-pop-close').addEventListener('click', () => {
+        if (saveTimer) { clearTimeout(saveTimer); saveNow(); }  // pending 즉시 저장
+        pop.style.display = 'none';
       });
-      // 저장
-      document.getElementById('mkt-logo-pop-save').addEventListener('click', async function() {
-        if (!currentMktId) return;
-        const color = document.getElementById('mkt-logo-pop-color-hex').value.trim();
-        const letter = document.getElementById('mkt-logo-pop-letter').value.trim().slice(0, 4);
-        try {
-          const r = await fetch(`/accounts/markets/${currentMktId}`, {
-            method:'PUT', headers:{'Content-Type':'application/json'},
-            body: JSON.stringify({ logo_color: color, logo_letter: letter })
-          });
-          const j = await r.json();
-          if (j && j.ok) {
-            if (currentBox) {
-              currentBox.style.background = j.logo_color;
-              currentBox.textContent = j.logo_letter;
-            }
-            pop.style.display = 'none';
-          } else {
-            alert('저장 실패: ' + ((j && j.error) || ''));
-          }
-        } catch (e) { alert('오류: ' + e.message); }
-      });
-      document.getElementById('mkt-logo-pop-cancel').addEventListener('click', () => pop.style.display = 'none');
     })();
   </script>
 

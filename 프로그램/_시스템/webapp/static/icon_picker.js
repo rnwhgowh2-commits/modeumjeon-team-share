@@ -233,6 +233,7 @@
 
         <div class="icp-cp-section">
           <div class="icp-cp-row-label">🟦 바탕색</div>
+          <div class="icp-cp-photo-host" data-target="bg"></div>
           <div class="icp-cp-grid">
             ${COLOR_PALETTE.map(c => `
               <button type="button" class="icp-cp-cell ${(c.bg || '').toUpperCase() === curBg.toUpperCase() ? 'on' : ''}" data-target="bg" data-hex="${c.bg}" title="${c.label}"
@@ -240,7 +241,6 @@
             `).join('')}
           </div>
           <div class="icp-cp-input-row">
-            <input type="color" class="icp-cp-native" data-target="bg" value="${curBg || '#3182F6'}" title="색상 휠">
             <input type="text" class="icp-cp-hex" data-target="bg" value="${curBg}" placeholder="#RRGGBB (비우면 기본)" maxlength="7">
             <span class="icp-cp-swatch" data-target="bg" style="background:${curBg}"></span>
           </div>
@@ -248,6 +248,7 @@
 
         <div class="icp-cp-section">
           <div class="icp-cp-row-label">🅰 글자색</div>
+          <div class="icp-cp-photo-host" data-target="fg"></div>
           <div class="icp-cp-grid">
             ${COLOR_PALETTE.map(c => `
               <button type="button" class="icp-cp-cell ${(c.bg || '').toUpperCase() === curFg.toUpperCase() ? 'on' : ''}" data-target="fg" data-hex="${c.bg}" title="${c.label}"
@@ -255,39 +256,53 @@
             `).join('')}
           </div>
           <div class="icp-cp-input-row">
-            <input type="color" class="icp-cp-native" data-target="fg" value="${curFg || '#191F28'}" title="색상 휠">
             <input type="text" class="icp-cp-hex" data-target="fg" value="${curFg}" placeholder="#RRGGBB (비우면 기본)" maxlength="7">
             <span class="icp-cp-swatch" data-target="fg" style="background:${curFg}"></span>
           </div>
         </div>
       `;
 
-      // 이벤트 바인딩 — palette 내부
+      // v34.5 — photoPicker 인스턴스 (모달 안. native picker 제거)
+      const _modalPhotoPickers = {};
+      ['bg', 'fg'].forEach(t => {
+        const host = $palette.querySelector(`.icp-cp-photo-host[data-target="${t}"]`);
+        if (!host) return;
+        const initial = (t === 'bg' ? curBg : curFg) || (t === 'bg' ? '#3182F6' : '#191F28');
+        const pp = _createPhotoPicker(initial, (hex) => {
+          if (t === 'bg') curBg = hex; else curFg = hex;
+          // 미리보기·hex·swatch 만 갱신 — re-render 시 photoPicker 가 새로 만들어져 드래그가 끊기는 것 방지
+          const chip = $palette.querySelector('.icp-cp-preview-chip');
+          if (chip) {
+            chip.style.background = curBg || '#F2F4F6';
+            chip.style.color = curFg || '#191F28';
+          }
+          const inp = $palette.querySelector(`.icp-cp-hex[data-target="${t}"]`);
+          if (inp) inp.value = hex;
+          const swatch = $palette.querySelector(`.icp-cp-swatch[data-target="${t}"]`);
+          if (swatch) swatch.style.background = hex;
+        });
+        host.appendChild(pp.el);
+        _modalPhotoPickers[t] = pp;
+      });
+
+      // 프리셋 클릭
       $palette.querySelectorAll('.icp-cp-cell').forEach(b => b.addEventListener('click', e => {
         e.stopPropagation();
         const t = b.dataset.target;
-        if (t === 'bg') curBg = b.dataset.hex || '';
-        else curFg = b.dataset.hex || '';
+        const hex = b.dataset.hex || '';
+        if (t === 'bg') curBg = hex; else curFg = hex;
+        if (hex && _modalPhotoPickers[t]) _modalPhotoPickers[t].setHex(hex);
         renderPalette();
       }));
-      // v34.1 — change 이벤트: native picker 가 닫힐 때 (사용자 확정) 만 발사.
-      // input(드래그 중 실시간) 은 사용하지 않음 — 포토샵식 "확정 후 적용" UX.
-      $palette.querySelectorAll('.icp-cp-native').forEach(n => n.addEventListener('change', e => {
-        e.stopPropagation();
-        const v = _normHex(n.value);
-        if (!v) return;
-        if (n.dataset.target === 'bg') curBg = v; else curFg = v;
-        renderPalette();
-      }));
+
+      // HEX 입력
       $palette.querySelectorAll('.icp-cp-hex').forEach(h => {
         h.addEventListener('input', e => {
           e.stopPropagation();
+          const t = h.dataset.target;
           const v = _normHex(h.value);
-          if (!v && h.value.trim() === '') {
-            // 빈값 — 색 해제
-            if (h.dataset.target === 'bg') curBg = '';
-            else curFg = '';
-            // 미리보기만 즉시 갱신 (re-render 시 input focus 잃지 않게)
+          if (h.value.trim() === '') {
+            if (t === 'bg') curBg = ''; else curFg = '';
             const chip = $palette.querySelector('.icp-cp-preview-chip');
             if (chip) {
               chip.style.background = curBg || '#F2F4F6';
@@ -296,16 +311,15 @@
             return;
           }
           if (!v) return;
-          if (h.dataset.target === 'bg') curBg = v; else curFg = v;
+          if (t === 'bg') curBg = v; else curFg = v;
+          if (_modalPhotoPickers[t]) _modalPhotoPickers[t].setHex(v);
           const chip = $palette.querySelector('.icp-cp-preview-chip');
           if (chip) {
             chip.style.background = curBg || '#F2F4F6';
             chip.style.color = curFg || '#191F28';
           }
-          const swatch = $palette.querySelector(`.icp-cp-swatch[data-target="${h.dataset.target}"]`);
+          const swatch = $palette.querySelector(`.icp-cp-swatch[data-target="${t}"]`);
           if (swatch) swatch.style.background = v;
-          const nat = $palette.querySelector(`.icp-cp-native[data-target="${h.dataset.target}"]`);
-          if (nat) nat.value = v;
         });
       });
     }
@@ -848,6 +862,9 @@
     applyVisual();
     return {el: wrap, setHex};
   }
+
+  // v34.5 — 외부 사용을 위해 노출 (예: _matrix_v3.html 자체 popover, 다른 페이지의 색상 picker)
+  window.icpCreatePhotoPicker = _createPhotoPicker;
 
   // ─── v34 — HEX 정규화·검증 ───
   function _normHex(v) {

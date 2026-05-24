@@ -11,9 +11,9 @@
 <link rel="stylesheet" href="{{ url_for('static', filename='toss.css') }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='toss_add_benefit.css') }}"><!-- v6 D2-A 혜택추가폼 -->
 <link rel="stylesheet" href="{{ url_for('static', filename='stripe.css') }}">
-{# v32 — 아이콘 picker (노션 스타일) #}
-<link rel="stylesheet" href="{{ url_for('static', filename='icon_picker.css') }}">
-<script src="{{ url_for('static', filename='icon_picker.js') }}" defer></script>
+{# v32 — 아이콘 picker (노션 스타일). v34.5: 캐시 무효화 query string. #}
+<link rel="stylesheet" href="{{ url_for('static', filename='icon_picker.css') }}?v=v34.5">
+<script src="{{ url_for('static', filename='icon_picker.js') }}?v=v34.5" defer></script>
 {# 시안 2 (에어리) 디자인 베이스 — Phase 1: 홈 + 모음전 옵션탭. 다른 페이지 영향 최소화. #}
 <link rel="stylesheet" href="{{ url_for('static', filename='airy.css') }}">
 <script>
