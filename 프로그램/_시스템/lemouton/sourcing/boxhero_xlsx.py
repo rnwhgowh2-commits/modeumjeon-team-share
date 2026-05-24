@@ -86,11 +86,11 @@ def parse_boxhero_xlsx(xlsx_path: str) -> Iterator[dict]:
         }
 
 
-# ─── 우리 양식 (9 base + 동적 위치별) ───
-# [2026-05-25 D-6] 사용자 양식: SKU/바코드/품번/브랜드/카테고리/모델명/색상/사이즈/총재고 + N 위치
+# ─── 우리 양식 (10 base + 동적 위치별) ───
+# [2026-05-25 D-6 v2] 사용자 양식: SKU/바코드/품번/브랜드/카테고리/모델명/색상/사이즈/평균매입가/총재고 + N 위치
 INTERNAL_BASE_HEADERS = ['SKU', '바코드', '품번', '브랜드', '카테고리', '모델명',
-                        '색상', '사이즈', '총재고']
-INTERNAL_BASE_COL_COUNT = len(INTERNAL_BASE_HEADERS)  # 9
+                        '색상', '사이즈', '평균매입가', '총재고']
+INTERNAL_BASE_COL_COUNT = len(INTERNAL_BASE_HEADERS)  # 10
 
 
 def detect_format(xlsx_path: str) -> str:
@@ -105,7 +105,8 @@ def detect_format(xlsx_path: str) -> str:
     finally:
         wb.close()
 
-    # [D-6] 신 우리 양식: SKU/바코드/품번/브랜드/카테고리/모델명
+    # [D-6 v2] 신 우리 양식: SKU/바코드/품번/브랜드/카테고리/모델명/색상/사이즈/평균매입가/총재고
+    # 첫 6컬럼만 매칭으로 신·구 v2 판별 (평균매입가 위치는 read 시 헤더 인덱스로)
     if (len(headers) >= 6 and
         headers[:6] == ['SKU', '바코드', '품번', '브랜드', '카테고리', '모델명']):
         return 'internal'
@@ -138,8 +139,13 @@ def parse_internal_xlsx(xlsx_path: str) -> Iterator[dict]:
                   headers[:6] == ['SKU', '바코드', '품번', '브랜드', '카테고리', '모델명'])
     # 옛 v2 (품번 5번째)
     has_article_old = (not is_new_fmt and len(headers) >= 5 and headers[4] == '품번')
+    # [D-6 v2] 신 양식 base = 10 (평균매입가 추가), 단 옛 v3 호환 (평균매입가 없는 9 base) 도 인식
+    # 헤더 9번째 칸이 '평균매입가' 면 10 base, 아니면 9 base (v3 = 평균매입가 없는 양식)
     if is_new_fmt:
-        base_count = 9  # 9 base 그대로
+        if len(headers) >= 10 and headers[8] == '평균매입가':
+            base_count = 10
+        else:
+            base_count = 9
     elif has_article_old:
         base_count = 9
     else:
@@ -164,15 +170,22 @@ def parse_internal_xlsx(xlsx_path: str) -> Iterator[dict]:
         barcode = str(row[1] or '').strip()
         category = None
         if is_new_fmt:
-            # A SKU / B 바코드 / C 품번 / D 브랜드 / E 카테고리 / F 모델명 / G 색상 / H 사이즈 / I 총재고
+            # A SKU / B 바코드 / C 품번 / D 브랜드 / E 카테고리 / F 모델명 / G 색상 / H 사이즈
+            # base=10: I 평균매입가 / J 총재고
+            # base=9 (v3 호환): I 총재고
             article_no = str(row[2] or '').strip() or None
             brand = (str(row[3] or '').strip() or None)
             category = str(row[4] or '').strip() or None
             pname = str(row[5] or '').strip()
             color = str(row[6] or '').strip()
             size = str(row[7] or '').strip()
-            total_idx = 8
-            avg = 0
+            if base_count == 10:
+                try: avg = int(row[8] or 0)
+                except (ValueError, TypeError): avg = 0
+                total_idx = 9
+            else:
+                avg = 0
+                total_idx = 8
         elif has_article_old:
             brand = (str(row[2] or '').strip() or None)
             pname = str(row[3] or '').strip()

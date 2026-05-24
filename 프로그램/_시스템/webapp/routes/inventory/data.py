@@ -889,11 +889,11 @@ def data_price_templates_update_margin(tpl_id):
 
 @bp.route('/data/items/export.xlsx', methods=['GET', 'POST'])
 def data_items_export():
-    """[2026-05-25 D-6] 사용자 명시 양식.
+    """[2026-05-25 D-6 v2] 사용자 명시 양식 — 평균매입가 추가.
 
-    헤더 (9 base + N 위치):
+    헤더 (10 base + N 위치):
       A SKU / B 바코드 / C 품번 / D 브랜드 / E 카테고리 / F 모델명 /
-      G 색상 / H 사이즈 / I 총재고 / J 위치1 / K 위치2 / L 위치3 ...
+      G 색상 / H 사이즈 / I 평균매입가 / J 총재고 / K 위치1 / L 위치2 ...
 
     품번 NULL/한글 → '-' (사용자 룰).
     색상·사이즈 빈값 → '-'.
@@ -941,9 +941,9 @@ def data_items_export():
         ws = wb.active
         ws.title = '재고관리'
 
-        # [2026-05-25 D-6] 사용자 양식 — 9 base + N 위치
+        # [2026-05-25 D-6 v2] 사용자 양식 — 10 base + N 위치 (평균매입가 추가)
         headers = ['SKU', '바코드', '품번', '브랜드', '카테고리', '모델명',
-                   '색상', '사이즈', '총재고']
+                   '색상', '사이즈', '평균매입가', '총재고']
         for loc in locs:
             headers.append(loc.name)
         ws.append(headers)
@@ -958,9 +958,10 @@ def data_items_export():
                       getattr(m, 'model_name_raw', None)) if m else '') or ''
             color = o.color_display or o.color_code or '-'
             size = o.size_display or o.size_code or '-'
+            avg = int(o.boxhero_avg_purchase_price or 0)
             total = int(total_stock_map.get(o.canonical_sku, 0))
             row = [o.canonical_sku, barcode, article, brand, category, mname,
-                   color, size, total]
+                   color, size, avg, total]
             for loc in locs:
                 row.append(int(per_loc_stock.get(o.canonical_sku, {}).get(loc.id, 0)))
             ws.append(row)
@@ -975,8 +976,8 @@ def data_items_export():
         ws.row_dimensions[1].height = 24
         ws.freeze_panes = 'A2'
 
-        # [D-6] 컬럼 너비 — 9 base (SKU/바코드/품번/브랜드/카테고리/모델명/색상/사이즈/총재고) + N 위치
-        widths = [18, 16, 16, 12, 18, 28, 18, 10, 8] + [12] * len(locs)
+        # [D-6 v2] 컬럼 너비 — 10 base (SKU/바코드/품번/브랜드/카테고리/모델명/색상/사이즈/평균매입가/총재고) + N 위치
+        widths = [18, 16, 16, 12, 18, 28, 18, 10, 12, 8] + [12] * len(locs)
         for i, w in enumerate(widths):
             ws.column_dimensions[openpyxl.utils.get_column_letter(i + 1)].width = w
 
