@@ -82,15 +82,32 @@ def _default_layout() -> dict:
     }
 
 
+# mtime 기반 인메모리 캐시 — sidebar 는 매 페이지 렌더에서 호출되므로
+# 디스크 read + JSON parse 비용이 누적. mtime 동일하면 캐시된 dict 반환.
+# PUT/reset 시 파일이 갱신 → mtime 변경 → 다음 호출에서 재로드. 자동.
+_layout_cache: dict = {'mtime': 0.0, 'data': None}
+
+
 def _load() -> dict:
-    """파일에서 로드. 없으면 기본값 생성·저장."""
+    """파일에서 로드. 없으면 기본값 생성·저장. mtime 캐시 적용."""
     if not LAYOUT_PATH.exists():
         layout = _default_layout()
         _save(layout)
+        _layout_cache['data'] = layout
+        try:
+            _layout_cache['mtime'] = LAYOUT_PATH.stat().st_mtime
+        except OSError:
+            _layout_cache['mtime'] = 0.0
         return layout
     try:
+        mtime = LAYOUT_PATH.stat().st_mtime
+        if _layout_cache['data'] is not None and _layout_cache['mtime'] == mtime:
+            return _layout_cache['data']
         with open(LAYOUT_PATH, 'r', encoding='utf-8') as f:
-            return json.load(f)
+            data = json.load(f)
+        _layout_cache['data'] = data
+        _layout_cache['mtime'] = mtime
+        return data
     except (json.JSONDecodeError, OSError):
         return _default_layout()
 
