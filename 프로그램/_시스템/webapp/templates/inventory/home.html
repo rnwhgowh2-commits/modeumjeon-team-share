@@ -299,47 +299,61 @@
           {% endfor %}
         {% endfor %}
       {% else %}
-        <table style="width:100%;border-collapse:collapse;font-size:12px">
-          <thead style="background:#F9FAFB;position:sticky;top:0">
+        {# [2026-05-25 UI-1] 사용자 명시: 모든 셀 폰트 14px·색상 #191F28·굵기 normal 통일 #}
+        <style>
+          #homeTable, #homeTable th, #homeTable td {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Apple SD Gothic Neo", "Malgun Gothic", sans-serif !important;
+            font-size: 14px !important;
+            font-weight: normal !important;
+            color: #191F28 !important;
+            background: transparent !important;
+          }
+          #homeTable thead th {
+            color: #6B7684 !important;
+            background: #F9FAFB !important;
+          }
+        </style>
+        <table id="homeTable" style="width:100%;border-collapse:collapse">
+          <thead style="position:sticky;top:0">
             <tr>
-              <th style="padding:8px;text-align:left;font-size:10.5px;color:#6B7684">SKU</th>
-              <th style="padding:8px;text-align:left;font-size:10.5px;color:#6B7684">바코드</th>
-              <th style="padding:8px;text-align:left;font-size:10.5px;color:#6B7684">브랜드</th>
-              <th style="padding:8px;text-align:left;font-size:10.5px;color:#6B7684">제품명</th>
-              <th style="padding:8px;text-align:left;font-size:10.5px;color:#6B7684">품번</th>
-              <th style="padding:8px;text-align:left;font-size:10.5px;color:#6B7684">색상</th>
-              <th style="padding:8px;text-align:left;font-size:10.5px;color:#6B7684">사이즈</th>
-              <th style="padding:8px;text-align:right;font-size:10.5px;color:#6B7684">평균매입가</th>
-              <th style="padding:8px;text-align:right;font-size:10.5px;color:#6B7684">총재고</th>
-              {% for loc in all_locs %}<th style="padding:8px;text-align:right;font-size:10.5px;color:#3182F6;background:#EFF6FF">{{ loc.name }}</th>{% endfor %}
+              <th style="padding:8px;text-align:left">SKU</th>
+              <th style="padding:8px;text-align:left">바코드</th>
+              <th style="padding:8px;text-align:left">브랜드</th>
+              <th style="padding:8px;text-align:left">제품명</th>
+              <th style="padding:8px;text-align:left">품번</th>
+              <th style="padding:8px;text-align:left">색상</th>
+              <th style="padding:8px;text-align:left">사이즈</th>
+              <th style="padding:8px;text-align:right">평균매입가</th>
+              <th style="padding:8px;text-align:right">총재고</th>
+              {% for loc in all_locs %}<th style="padding:8px;text-align:right">{{ loc.name }}</th>{% endfor %}
             </tr>
           </thead>
           <tbody id="homeTbody">
             {% for o in options %}
-              {% set _bc = o.barcode or o.boxhero_sku or '—' %}
+              {% set _bc = o.barcode or '—' %}
               {% set _brand = (o.model.brand or '—') if o.model else '—' %}
               {% set _pname = (display_pname.get(o.canonical_sku) if display_pname is defined else None) or ((o.model.model_name_display or o.model.model_name_raw) if o.model else o.canonical_sku) %}
               {% set _article = (o.model.article_no or '—') if (o.model and o.model.article_no is defined) else '—' %}
               {% set _color = (cleaned_color.get(o.canonical_sku) if cleaned_color is defined else None) or (o.color_display or o.color_code or 'one') %}
               {% set _size = (o.size_display or o.size_code or 'free') %}
               {% set _rt = stock_map.get(o.canonical_sku, 0) %}
-              <tr style="border-bottom:1px solid #F2F4F6;{% if selected_detail and selected_detail.opt.canonical_sku == o.canonical_sku %}background:#EFF6FF{% endif %};cursor:pointer" onclick="window.location.href='?sku={{ o.canonical_sku }}{% if in_stock_only %}&in_stock=1{% endif %}{% if search_q %}&q={{ search_q }}{% endif %}'">
-                <td style="padding:7px 8px;font-family:ui-monospace,monospace;font-size:16px">{{ o.canonical_sku }}</td>
-                <td style="padding:7px 8px;font-family:ui-monospace,monospace;font-size:16px;color:#6B7684">{{ _bc }}</td>
-                <td style="padding:7px 8px;font-size:12px;color:#191F28">{{ _brand }}</td>
-                <td style="padding:7px 8px;font-size:12px;color:#191F28">{{ _pname }}</td>
-                <td style="padding:7px 8px;font-family:ui-monospace,monospace;font-size:16px;color:#4E5968">{{ _article }}</td>
-                <td style="padding:7px 8px;font-size:12px;color:#4E5968">{{ _color }}</td>
-                <td style="padding:7px 8px;font-size:12px;color:#4E5968">{{ _size }}</td>
-                <td style="padding:7px 8px;text-align:right;font-family:ui-monospace,monospace;color:{% if (o.boxhero_avg_purchase_price or 0) > 0 %}#191F28{% else %}#9CA3AF{% endif %}">{% if o.boxhero_avg_purchase_price %}{{ '{:,}'.format(o.boxhero_avg_purchase_price) }}{% else %}—{% endif %}</td>
-                <td style="padding:7px 8px;text-align:right;font-weight:600;font-family:ui-monospace,monospace;color:{% if _rt > 0 %}#7C3AED{% else %}#9CA3AF{% endif %}">{{ _rt }}</td>
+              <tr style="border-bottom:1px solid #F2F4F6;{% if selected_detail and selected_detail.opt.canonical_sku == o.canonical_sku %}background:#EFF6FF !important{% endif %};cursor:pointer" onclick="window.location.href='?sku={{ o.canonical_sku }}{% if in_stock_only %}&in_stock=1{% endif %}{% if search_q %}&q={{ search_q }}{% endif %}'">
+                <td style="padding:7px 8px">{{ o.canonical_sku }}</td>
+                <td style="padding:7px 8px">{{ _bc }}</td>
+                <td style="padding:7px 8px">{{ _brand }}</td>
+                <td style="padding:7px 8px">{{ _pname }}</td>
+                <td style="padding:7px 8px">{{ _article }}</td>
+                <td style="padding:7px 8px">{{ _color }}</td>
+                <td style="padding:7px 8px">{{ _size }}</td>
+                <td style="padding:7px 8px;text-align:right">{% if o.boxhero_avg_purchase_price %}{{ '{:,}'.format(o.boxhero_avg_purchase_price) }}{% else %}—{% endif %}</td>
+                <td style="padding:7px 8px;text-align:right">{{ _rt }}</td>
                 {% for loc in all_locs %}
                   {% set _lst = (per_loc_stock.get(o.canonical_sku, {}).get(loc.id, 0)) if per_loc_stock is defined else 0 %}
-                  <td style="padding:7px 8px;text-align:right;font-family:ui-monospace,monospace;color:{% if _lst > 0 %}#3182F6{% else %}#9CA3AF{% endif %};background:{% if _lst > 0 %}#F8FBFF{% endif %}">{{ _lst }}</td>
+                  <td style="padding:7px 8px;text-align:right">{{ _lst }}</td>
                 {% endfor %}
               </tr>
             {% else %}
-              <tr><td colspan="{{ 9 + (all_locs|length) }}" style="padding:32px;text-align:center;color:#9CA3AF">옵션 없음</td></tr>
+              <tr><td colspan="{{ 9 + (all_locs|length) }}" style="padding:32px;text-align:center">옵션 없음</td></tr>
             {% endfor %}
           </tbody>
         </table>
