@@ -378,8 +378,13 @@
     function filterCombos(axisName, val) {
       const valid = validAxes();
       const allCombos = cartesian(valid.map(a => a.values));
-      const axisIdx = valid.findIndex(a => a.name === axisName);
-      if (axisIdx < 0) return allCombos;
+      // [2026-05-24 BUG FIX] axis 못 찾으면 빈 배열 반환 (이전: allCombos → 전체 토글 버그)
+      const ax = String(axisName == null ? '' : axisName).trim();
+      const axisIdx = valid.findIndex(a => String(a.name || '').trim() === ax);
+      if (axisIdx < 0) {
+        console.warn('[oum] filterCombos axis not found:', axisName, '— available:', valid.map(a => a.name));
+        return [];
+      }
       return allCombos.filter(c => c[axisIdx] === val);
     }
 
@@ -811,6 +816,7 @@
 
     function toggleAxis(axisName, val) {
       const matching = filterCombos(axisName, val);
+      if (!matching.length) return;  // axis 못 찾았으면 동작 안 함
       const allOn = matching.every(c => state.selected.has(keyOf(c)));
       matching.forEach(c => { const k = keyOf(c); if (allOn) state.selected.delete(k); else state.selected.add(k); });
       rerender();
@@ -824,12 +830,19 @@
       let base = [];
       try { base = JSON.parse(el.dataset.base || '[]'); } catch (e) {}
       const valid = validAxes();
+      // [2026-05-24 BUG FIX] axis 못 찾으면 동작 안 함
+      const ax = String(axisName == null ? '' : axisName).trim();
+      const axisIdx = valid.findIndex(a => String(a.name || '').trim() === ax);
+      if (axisIdx < 0) {
+        console.warn('[oum] toggleHeaderRange axis not found:', axisName);
+        return;
+      }
       const allCombos = cartesian(valid.map(a => a.values));
-      const axisIdx = valid.findIndex(a => a.name === axisName);
       const matching = allCombos.filter(c => {
         if (c[axisIdx] !== val) return false;
         return base.every(b => c[b.idx] === b.val);
       });
+      if (!matching.length) return;
       const allOn = matching.every(c => state.selected.has(keyOf(c)));
       matching.forEach(c => { const k = keyOf(c); if (allOn) state.selected.delete(k); else state.selected.add(k); });
       rerender();
