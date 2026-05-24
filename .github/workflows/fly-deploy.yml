@@ -39,13 +39,34 @@ jobs:
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
 
-      - name: 머신 비정상 시 재시작 시도 (실패해도 무시)
+      - name: 머신 비정상 시 destroy → deploy 가 새 머신 자동 생성
         working-directory: ./프로그램/_시스템
         run: |
           set +e
-          flyctl machine list -a modeumjeon-team-share --json | \
-            python3 -c "import sys,json; print('\n'.join(m['id'] for m in json.load(sys.stdin)))" | \
-            xargs -I {} flyctl machine restart {} -a modeumjeon-team-share --force || true
+          echo "--- 머신 상태 ---"
+          flyctl machine list -a modeumjeon-team-share
+
+          # 머신 상태가 stopped/started 가 아니면 (replacing/stopping) destroy
+          STALE_IDS=$(flyctl machine list -a modeumjeon-team-share --json | python3 -c "
+          import sys,json
+          for m in json.load(sys.stdin):
+              if m.get('state') not in ('started','stopped'):
+                  print(m['id'])
+          ")
+          if [ -n "$STALE_IDS" ]; then
+            echo "--- Stale 머신 발견: $STALE_IDS ---"
+            for M in $STALE_IDS; do
+              echo "Stop+Destroy $M..."
+              flyctl machine stop $M -a modeumjeon-team-share --signal SIGKILL || true
+              sleep 3
+              flyctl machine destroy $M -a modeumjeon-team-share --force || true
+            done
+
+            echo "--- 새 머신 생성 (재배포 같은 working-directory) ---"
+            flyctl deploy --remote-only --ha=false --no-cache --strategy=immediate
+          else
+            echo "머신 정상, destroy 불필요"
+          fi
           true
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
