@@ -753,9 +753,9 @@
     <div style="display:flex; align-items:flex-start; gap:14px; flex-wrap:wrap; padding-top:14px; border-top:1px dashed #e5e8eb;">
       <span style="font-size:18px; color:#191f28; font-weight:700; min-width:140px; padding-top:8px;">팔 때 (마진)</span>
       <div style="flex:1; min-width:0;">
-        <table class="pm-table" style="width:100%; border-collapse:collapse; font-size:14px;">
+        <table class="pm-table" style="width:100%; border-collapse:collapse; font-size:16px;">
           <thead>
-            <tr style="border-bottom:1px solid #e5e8eb; font-size:14px; color:#6b7684;">
+            <tr style="border-bottom:1px solid #e5e8eb; font-size:16px; color:#6b7684;">
               <th style="text-align:left; padding:8px 10px; font-weight:600; width:220px;">마켓</th>
               <th style="text-align:left; padding:8px 10px; font-weight:600; width:90px;">공급</th>
               <th style="text-align:left; padding:8px 10px; font-weight:600; width:180px;">책정</th>
@@ -783,11 +783,11 @@
                   <td rowspan="2" style="padding:10px; border-bottom:1px solid #f2f4f6;">
                     <div style="display:flex; align-items:center; gap:8px;">
                       <span class="mkt-logo-box" data-mkt-id="{{ mk.id }}" title="클릭해서 색·글자 변경"
-                            style="width:36px; height:36px; border-radius:7px; color:#fff; display:inline-flex; align-items:center; justify-content:center; font-weight:800; font-size:14px; background:{{ mk.logo_color }}; cursor:pointer; letter-spacing:.3px;">{{ mk.logo_letter }}</span>
-                      <b style="font-size:14px;">{{ mk.label }}</b>
+                            style="width:36px; height:36px; border-radius:7px; color:#fff; display:inline-flex; align-items:center; justify-content:center; font-weight:800; font-size:16px; background:{{ mk.logo_color }}; cursor:pointer; letter-spacing:.3px;">{{ mk.logo_letter }}</span>
+                      <b style="font-size:16px;">{{ mk.label }}</b>
                     </div>
                     {% if is_cp %}
-                    <div style="margin-top:6px; background:#f0f6ff; border:1px dashed #b8d4ff; border-radius:6px; padding:3px 8px; font-size:14px; color:#1d4cb0; display:inline-block; font-weight:600;">
+                    <div style="margin-top:6px; background:#f0f6ff; border:1px dashed #b8d4ff; border-radius:6px; padding:3px 8px; font-size:16px; color:#1d4cb0; display:inline-block; font-weight:600;">
                       위너가 {{ '{:,}'.format(ap.winner_premium_price if ap and ap.winner_premium_price else 149000) }}원
                     </div>
                     {% endif %}
@@ -811,7 +811,7 @@
                     {% endif %}
                   </td>
                   <td rowspan="2" style="padding:8px 10px; text-align:right; border-bottom:1px solid #f2f4f6;">
-                    <a href="#" class="pm-edit" data-mkt="{{ prefix }}" style="color:#3B82F6; font-size:14px; text-decoration:underline;">수정</a>
+                    <a href="#" class="pm-edit" data-mkt="{{ prefix }}" style="color:#3B82F6; font-size:16px; text-decoration:underline;">수정</a>
                   </td>
                 </tr>
                 <tr style="border-bottom:1px solid #f2f4f6;">
@@ -840,9 +840,9 @@
                   <td colspan="5" style="padding:10px;">
                     <div style="display:flex; align-items:center; gap:8px;">
                       <span class="mkt-logo-box" data-mkt-id="{{ mk.id }}"
-                            style="width:36px; height:36px; border-radius:7px; color:#fff; display:inline-flex; align-items:center; justify-content:center; font-weight:800; font-size:14px; background:{{ mk.logo_color }};">{{ mk.logo_letter }}</span>
-                      <b style="font-size:14px;">{{ mk.label }}</b>
-                      <span style="font-size:14px; color:#9ca3af; margin-left:auto;">마진 입력 준비 중</span>
+                            style="width:36px; height:36px; border-radius:7px; color:#fff; display:inline-flex; align-items:center; justify-content:center; font-weight:800; font-size:16px; background:{{ mk.logo_color }};">{{ mk.logo_letter }}</span>
+                      <b style="font-size:16px;">{{ mk.label }}</b>
+                      <span style="font-size:16px; color:#9ca3af; margin-left:auto;">마진 입력 준비 중</span>
                     </div>
                   </td>
                 </tr>
@@ -852,11 +852,11 @@
         </table>
 
         {# C2 빈 슬롯 — 마켓 추가 placeholder #}
-        <a href="/accounts" id="pm-add-slot" style="display:flex; align-items:center; gap:10px; padding:12px 14px; margin-top:10px; background:#fff; border:1px dashed #d1d6db; border-radius:8px; color:#6b7684; font-size:14px; text-decoration:none; transition:all .15s;">
-          <span style="width:22px; height:22px; border-radius:50%; background:#f2f4f6; display:inline-flex; align-items:center; justify-content:center; font-size:14px; font-weight:700;">＋</span>
+        <a href="/accounts" id="pm-add-slot" style="display:flex; align-items:center; gap:10px; padding:12px 14px; margin-top:10px; background:#fff; border:1px dashed #d1d6db; border-radius:8px; color:#6b7684; font-size:16px; text-decoration:none; transition:all .15s;">
+          <span style="width:22px; height:22px; border-radius:50%; background:#f2f4f6; display:inline-flex; align-items:center; justify-content:center; font-size:16px; font-weight:700;">＋</span>
           <span>
             <span style="font-weight:600; color:#191f28;">마켓 슬롯 추가</span>
-            <span style="display:block; font-size:14px; color:#9ca3af;">판매자계정 페이지에서 새 마켓 연결</span>
+            <span style="display:block; font-size:16px; color:#9ca3af;">판매자계정 페이지에서 새 마켓 연결</span>
           </span>
         </a>
       </div>
