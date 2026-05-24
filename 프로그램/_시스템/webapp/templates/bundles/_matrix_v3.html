@@ -183,8 +183,10 @@
     ];
     function fmt(n) { return n.toLocaleString('ko-KR'); }
     function getGuardrail() {
+      // [2026-05-24 dead-code guard] pmb-* element 는 옛 sec-tpl/pmb 영역. B-1 삭제 후 element 없음
       const mode = document.querySelector('[data-marginmode].on')?.dataset.marginmode || 'rate';
-      const v = parseFloat(document.getElementById('pmb-margin-rate').value) || 0;
+      const rateEl = document.getElementById('pmb-margin-rate');
+      const v = rateEl ? (parseFloat(rateEl.value) || 0) : 9.45;  // 기본 마진율
       let marginAmt = 0;
       if (mode === 'rate') marginAmt = SS_PRICE * (v / 100);
       else marginAmt = v;
@@ -192,14 +194,18 @@
     }
     function recompute() {
       const guardrail = getGuardrail();
-      document.getElementById('pmb-guardrail-val').textContent = fmt(guardrail);
+      // [2026-05-24 dead-code guard] pmb-* element 없으면 UI 갱신 skip
+      const gEl = document.getElementById('pmb-guardrail-val');
+      if (gEl) gEl.textContent = fmt(guardrail);
       const passed = SOURCES.filter(s => s.price <= guardrail);
       const blocked = SOURCES.filter(s => s.price > guardrail);
-      document.getElementById('pmb-pass-list').textContent = passed.length
+      const passEl = document.getElementById('pmb-pass-list');
+      if (passEl) passEl.textContent = passed.length
         ? '✅ ' + passed.map(s => s.name).join(', ') : '⚠ 통과 source 없음';
-      document.getElementById('pmb-block-list').textContent = blocked.length
+      const blockEl = document.getElementById('pmb-block-list');
+      if (blockEl) blockEl.textContent = blocked.length
         ? '⛔ ' + blocked.map(s => s.name).join(', ') : '— 차단 없음';
-      // 매트릭스 카드의 cheapest/passed/blocked 재분류
+      // 매트릭스 카드의 cheapest/passed/blocked 재분류 (매트릭스 자체는 살아있음)
       window.__guardrailUpper = guardrail;
       reclassifySources();
     }
@@ -463,12 +469,15 @@
     setTimeout(() => { insertColorGroupHeads(); reclassifySources(); }, 6000);
     // 디버그 노출
     window.__reclassify = () => { insertColorGroupHeads(); reclassifySources(); };
+    // [2026-05-24 dead-code guard] pmb-margin-rate 영역 (옛 sec-tpl/pmb) 미존재 시 skip
     const rateInput = document.getElementById('pmb-margin-rate');
-    rateInput.addEventListener('input', recompute);
-    rateInput.addEventListener('change', () => {
-      recompute();
-      persist('ss_margin_rate', parseFloat(rateInput.value) / 100);
-    });
+    if (rateInput) {
+      rateInput.addEventListener('input', recompute);
+      rateInput.addEventListener('change', () => {
+        recompute();
+        persist('ss_margin_rate', parseFloat(rateInput.value) / 100);
+      });
+    }
 
     // 📤 모드 적용 + 라이브 push 버튼
     const applyBtn = document.getElementById('pmb-apply-btn');
