@@ -4393,11 +4393,13 @@
       const abbr = isAscii
         ? sName.replace(/[^a-zA-Z0-9]/g, '').slice(0, 2).toLowerCase()
         : sName.slice(0, 2);
-      const bp = brandPrefixForSource(sName);
+      // [BUG FIX] 변수 'bp' 가 이 함수 위쪽 (4369) 에서 이미 선언됨 → 충돌 → SyntaxError → 전체 스크립트 중단
+      //   매트릭스 무한 로딩 원인 → 변수명 brandPx 로 변경
+      const brandPx = brandPrefixForSource(sName);
       const logoColor = {
         'br-na': '#22c55e', 'br-mu': '#191F28', 'br-ssf': '#14b8a6',
         'br-lo': '#ef4444', 'br-le': '#a78bfa',
-      }[bp.cls] || '#3B82F6';
+      }[brandPx.cls] || '#3B82F6';
       th.innerHTML = `
         <div class="hsrc-top" style="display:flex; flex-direction:column; align-items:center; gap:6px; padding:8px 4px;">
           <span class="site-logo" title="${escapeHtml(sName)} (클릭해서 색·글자 변경)" data-src-logo-id="${s.id}"
