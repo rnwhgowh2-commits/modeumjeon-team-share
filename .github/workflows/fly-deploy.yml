@@ -71,8 +71,8 @@ jobs:
               flyctl machine destroy $M -a modeumjeon-team-share --force || true
             done
 
-            echo "--- 새 머신 생성 (재배포 같은 working-directory) ---"
-            flyctl deploy --remote-only --ha=false --no-cache --strategy=immediate
+            echo "--- 새 머신 생성 (재배포 --local-only 로 Depot 우회) ---"
+            flyctl deploy --local-only --ha=false --no-cache --strategy=immediate
           else
             echo "머신 정상, destroy 불필요"
           fi
