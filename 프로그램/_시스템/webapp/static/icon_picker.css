@@ -389,7 +389,11 @@
   max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 .icp-color-pop.icp-cp-v34 .icp-cp-acts {
-  display: flex; gap: 6px;
+  display: flex; gap: 6px; align-items: center;
+}
+.icp-color-pop.icp-cp-v34 .icp-cp-auto-hint {
+  font-size: 11px; color: #03C75A; font-weight: 600;
+  margin-right: 4px;
 }
 .icp-color-pop.icp-cp-v34 .icp-cp-reset,
 .icp-color-pop.icp-cp-v34 .icp-cp-apply {

@@ -1006,8 +1006,9 @@
       <div class="icp-cp-preview">
         <span class="icp-cp-preview-chip" style="background:${curBg || '#E5E8EB'};color:${curFg || '#191F28'}">${isBrand ? escapeHtmlSafe(brandKey) : '미리보기'}</span>
         <div class="icp-cp-acts">
+          <small class="icp-cp-auto-hint">변경 즉시 자동 저장</small>
           <button type="button" class="icp-cp-reset" title="원래대로 (저장 해제)">초기화</button>
-          <button type="button" class="icp-cp-apply">적용</button>
+          <button type="button" class="icp-cp-apply" title="닫기 (변경은 이미 저장됨)">완료</button>
         </div>
       </div>
     `;
@@ -1037,6 +1038,45 @@
     }
     updatePreview();
 
+    // v34.4 — 자동 적용 함수: 「적용」 버튼 없이도 변경 즉시 서버 저장·실 칩 동기화.
+    //   debounce 250ms — 드래그·연속 타이핑 중 호출 폭주 방지.
+    let _autoApplyTimer = null;
+    function _autoApply() {
+      if (_autoApplyTimer) clearTimeout(_autoApplyTimer);
+      _autoApplyTimer = setTimeout(async () => {
+        const bg = state.bg || null;
+        const fg = state.fg || null;
+        if (isBrand) {
+          _applyBrandColor(brandKey, bg, fg);
+          try {
+            await fetch('/api/icon/set', {
+              method: 'POST', headers: {'Content-Type': 'application/json'},
+              body: JSON.stringify({
+                context: 'brand', target_id: brandKey,
+                icon: brandKey, color: bg || 'default',
+                bg_color: bg, fg_color: fg,
+              }),
+            });
+          } catch(_) {}
+        } else {
+          trigger.dataset.bgColor = bg || '';
+          trigger.dataset.fgColor = fg || '';
+          trigger.style.backgroundColor = bg || '';
+          trigger.style.color = fg || '';
+          try {
+            await fetch('/api/icon/set', {
+              method: 'POST', headers: {'Content-Type': 'application/json'},
+              body: JSON.stringify({
+                context: 'color:' + (context || ''), target_id: targetId || '',
+                icon: 'custom', color: bg || 'default',
+                bg_color: bg, fg_color: fg,
+              }),
+            });
+          } catch(_) {}
+        }
+      }, 250);
+    }
+
     // v34.3 — 포토샵식 photoPicker 인스턴스 (target 별)
     const photoPickers = {};
     ['bg', 'fg'].forEach(t => {
@@ -1044,17 +1084,18 @@
       if (!host) return;
       const initial = state[t] || (t === 'bg' ? '#3182F6' : '#FFFFFF');
       const pp = _createPhotoPicker(initial, (hex) => {
-        // 드래그 시 미리보기에만 반영. 실 적용은 「적용」 버튼.
+        // 드래그 중 — 미리보기 + debounced 자동 적용
         state[t] = hex;
         const inp = pop.querySelector(`.icp-cp-hex[data-target="${t}"]`);
         if (inp) inp.value = hex;
         updatePreview();
+        _autoApply();  // debounce → 드래그 끝나면 250ms 후 한 번만 발사
       });
       host.appendChild(pp.el);
       photoPickers[t] = pp;
     });
 
-    // 프리셋 클릭 — 미리보기 + photoPicker 위치 동기화
+    // 프리셋 클릭 — 미리보기 + photoPicker 위치 + 자동 적용
     pop.querySelectorAll('.icp-cp-cell').forEach(b => b.addEventListener('click', e => {
       e.stopPropagation();
       const t = b.dataset.target;
@@ -1063,9 +1104,10 @@
       if (inp) inp.value = state[t];
       if (state[t] && photoPickers[t]) photoPickers[t].setHex(state[t]);
       updatePreview();
+      _autoApply();
     }));
 
-    // HEX 입력 — 사용자 직접 타이핑
+    // HEX 입력 — 정상 6자리 입력 시 자동 적용 (입력 중 debounce 로 처리)
     pop.querySelectorAll('.icp-cp-hex').forEach(h => {
       h.addEventListener('input', e => {
         e.stopPropagation();
@@ -1074,12 +1116,14 @@
         if (h.value.trim() === '') {
           state[t] = '';
           updatePreview();
+          _autoApply();
           return;
         }
         if (v) {
           state[t] = v;
           if (photoPickers[t]) photoPickers[t].setHex(v);
           updatePreview();
+          _autoApply();
         }
       });
       h.addEventListener('click', e => e.stopPropagation());

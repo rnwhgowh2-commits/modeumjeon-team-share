@@ -30,10 +30,22 @@ bp = Blueprint('api_pricing', __name__, url_prefix='/api')
 
 
 # ─── 팀공유 모드: admin 전용 (가격 정책 = 매출 영향, 회색지대 → admin). 기존 모드 통과. ───
+# v34.4: 색상/아이콘 설정 (/api/icon/*, /api/progress*) 는 매출 영향 X → admin 검사 우회.
+#         로그인은 여전히 필요 (login_required_smart). 가격 정책 (그 외 모든 /api/*) 은 admin.
 @bp.before_request
 def _admin_only():
     import os
+    from flask import request
     if os.environ.get("ENVIRONMENT") != "team-share-dev":
+        return None
+    # 색상/아이콘·진행 widget API 는 모든 로그인 사용자 허용
+    if request.path.startswith('/api/icon') or request.path.startswith('/api/progress'):
+        try:
+            from flask_login import current_user
+            if not current_user.is_authenticated:
+                return jsonify(error="unauthorized", message="로그인 필요"), 401
+        except Exception:
+            pass
         return None
     from webapp.auth.permissions import enforce_admin
     return enforce_admin()
