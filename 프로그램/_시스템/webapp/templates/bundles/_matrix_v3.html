@@ -1579,7 +1579,7 @@
           <button type="button" class="leaf-act has-tip refetch" data-act="refetch" data-sku="${escapeHtml(sku)}">🔄<span class="tip">재크롤 (5사이트)</span></button>
         </span>
         ${invId
-          ? `<a class="inv-id-chip has-tip" data-inv-id="${invId}" data-sku="${escapeHtml(sku)}"><span class="idtxt">INV-${invId}</span><span class="tip">재고관리 → ↗</span></a>`
+          ? `<a class="inv-id-chip has-tip" data-inv-id="${invId}" data-sku="${escapeHtml(sku)}"><span class="idtxt" style="font-family:ui-monospace,monospace;font-size:11px">${escapeHtml(sku)}</span><span class="tip">재고관리 → ↗</span></a>`
           : `<button type="button" class="inv-add-btn has-tip" data-act="inv-add" data-sku="${escapeHtml(sku)}">＋<span class="tip">재고관리에 제품 추가</span></button>`
         }
       </span>
