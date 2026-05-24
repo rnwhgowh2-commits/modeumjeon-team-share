@@ -1135,6 +1135,13 @@
     /* 문제4 (4-4) — 빈 소싱처 셀: ⚠ 제거 + URL 등록 버튼 */
     .integrated-mtx td.td-site-col.cn.cn-add::before { content: none; }
     .integrated-mtx td.td-site-col.cn.cn-add { text-align: center; }
+
+    /* [2026-05-25] 빈 셀(.cn URL 없음 / .cw 크롤 대기) 가독성 — ::before 의 ⚠·● 아이콘 제거하고 회색 "크롤링 미실시" 글씨만 노출 */
+    .integrated-mtx td.td-site-col.cn::before,
+    .integrated-mtx td.td-site-col.cw::before,
+    .sm-mtx .cn::before,
+    .sm-mtx .cw::before { content: none !important; }
+    .sm-mtx .cn, .sm-mtx .cw { font-size: 13px !important; color: #94A3B8 !important; }
     .cell-addurl { border: 1.3px dashed #B0B8C1; border-radius: 6px; background: #fff; color: #6B7684;
       font-size: 11px; font-weight: 800; padding: 4px 8px; cursor: pointer; font-family: inherit; white-space: nowrap; }
     .cell-addurl:hover { border-color: #3182F6; color: #3182F6; background: #F3F8FF; }
@@ -4595,7 +4602,8 @@
     const src = (o.sources || []).find(x => x.source_id === s.id);
     // [2026-05-24] URL 미매핑 — 옵션 조합 생성 모달에서 매핑하므로 여기서는 "—" 표시만
     if (!src || !src.product_url) {
-      return `<td class="td-site-col cn" data-cell-sku="${escapeHtml(o.sku)}" data-cell-src="${s.id}" style="color:#cbd5e0; font-size:14px; text-align:center;">—</td>`;
+      // [2026-05-25] URL 미매핑 — "크롤링 미실시" 회색 글씨 (CSS ::before 의 ⚠ 는 위에서 제거됨)
+      return `<td class="td-site-col cn" data-cell-sku="${escapeHtml(o.sku)}" data-cell-src="${s.id}" style="text-align:center; padding:10px 4px; font-size:13px; color:#94A3B8; font-weight:500; white-space:nowrap;">크롤링 미실시</td>`;
     }
     // 크롤 실패
     if (src.last_status === 'error') {
