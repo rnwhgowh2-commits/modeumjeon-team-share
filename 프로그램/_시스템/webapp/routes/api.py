@@ -2425,6 +2425,47 @@ def inventory_compose_bundle():
         s.close()
 
 
+# ═══════ ④-A 옵션 → 마켓 계정별 매핑 (external_option_id + 노출 토글) ═══════
+
+@bp.post('/options/<path:sku>/account-mapping')
+def option_account_mapping(sku: str):
+    """옵션 1건을 특정 마켓 계정과 매핑 (external_option_id + is_visible).
+
+    option_detail.html 의 v2 계정별 옵션 매핑 저장에서 사용.
+    Body: {account_id:int, external_option_id:str|null, is_visible:bool}
+    """
+    from lemouton.multitenancy.service import upsert_option_registration
+    body = request.get_json(silent=True) or {}
+    try:
+        account_id = int(body.get('account_id'))
+    except (TypeError, ValueError):
+        return _err('account_id 가 필요합니다.')
+    external_option_id = body.get('external_option_id')
+    if external_option_id is not None:
+        external_option_id = (str(external_option_id).strip() or None)
+    is_visible = bool(body.get('is_visible', True))
+    s = SessionLocal()
+    try:
+        opt = s.query(Option).filter_by(canonical_sku=sku).first()
+        if not opt:
+            return _err('옵션을 찾을 수 없어요.', 404)
+        reg = upsert_option_registration(
+            s,
+            canonical_sku=sku,
+            account_id=account_id,
+            external_option_id=external_option_id,
+            is_visible=is_visible,
+        )
+        s.commit()
+        return _ok(
+            account_id=reg.account_id,
+            external_option_id=reg.external_option_id or '',
+            is_visible=bool(reg.is_visible),
+        )
+    finally:
+        s.close()
+
+
 # ═══════ ④ 모음전 편집 — 이미 등록된 옵션에 재고제품 연결 ═══════
 
 @bp.post('/options/<sku>/link-product')

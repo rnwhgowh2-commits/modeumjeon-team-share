@@ -852,7 +852,7 @@
         </table>
 
         {# C2 빈 슬롯 — 마켓 추가 placeholder #}
-        <a href="/accounts" id="pm-add-slot" style="display:flex; align-items:center; gap:10px; padding:12px 14px; margin-top:10px; background:#fff; border:1px dashed #d1d6db; border-radius:8px; color:#6b7684; font-size:16px; text-decoration:none; transition:all .15s;">
+        <a href="/accounts/upload" id="pm-add-slot" style="display:flex; align-items:center; gap:10px; padding:12px 14px; margin-top:10px; background:#fff; border:1px dashed #d1d6db; border-radius:8px; color:#6b7684; font-size:16px; text-decoration:none; transition:all .15s;">
           <span style="width:22px; height:22px; border-radius:50%; background:#f2f4f6; display:inline-flex; align-items:center; justify-content:center; font-size:16px; font-weight:700;">＋</span>
           <span>
             <span style="font-weight:600; color:#191f28;">마켓 슬롯 추가</span>
@@ -5863,12 +5863,11 @@
 
   // ─────────── 신규 소싱처 생성 (서버 등록) ───────────
   async function createSource(name) {
-    const r = await fetch('/source-registry/api', {
+    const r = await fetch('/api/source-registry', {
       method:'POST', headers:{'Content-Type':'application/json'},
       body: JSON.stringify({name: name, main_url: '', sort_order: 99}),
     });
     if (!r.ok) {
-      // fallback: alert 만 (서버 엔드포인트 없으면)
       throw new Error(`소싱처 생성 실패 (status ${r.status}). 소싱처 사전에서 먼저 등록해주세요.`);
     }
     const j = await r.json();
