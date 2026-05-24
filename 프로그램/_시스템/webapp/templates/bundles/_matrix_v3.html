@@ -747,43 +747,156 @@
       <button type="button" class="bp-recalc" id="bp-recalc-btn" style="margin-left:auto;">매트릭스 재계산 ▶</button>
     </div>
 
-    {# 팔 때 (마진) — 마켓 N개 동적 + 정률/정액 토글 #}
+    {# 팔 때 (마진) — [2026-05-25] B4 미니멀 표 + C2 빈 슬롯 #}
+    {# 표 = 마켓×공급방식 매트릭스. 책정 모드(rate/amount/fixed) + 값은 적용된 PriceTemplate 데이터. #}
+    {# 인라인 chip 제거 — 가격 템플릿 편집 모달이 single source of truth. #}
     <div style="display:flex; align-items:flex-start; gap:14px; flex-wrap:wrap; padding-top:14px; border-top:1px dashed #e5e8eb;">
-      <span style="font-size:24px; flex-shrink:0; padding-top:8px;">📤</span>
-      <span style="font-size:18px; color:#6b7684; font-weight:700; min-width:140px; padding-top:8px;">팔 때 (마진)</span>
-      <div style="display:flex; flex-direction:column; gap:10px; flex:1;">
-        {% for mk in markets %}
-        <div class="mkt-row" data-mkt-key="{{ mk.market_key }}" style="display:flex; align-items:center; gap:12px;">
-          <span class="mkt-logo-box" data-mkt-id="{{ mk.id }}" title="클릭해서 색·글자 변경"
-                style="width:44px; height:44px; border-radius:9px; color:#fff; display:inline-flex; align-items:center; justify-content:center; font-weight:800; font-size:17px; background:{{ mk.logo_color }}; cursor:pointer; letter-spacing:.5px; text-align:center;">{{ mk.logo_letter }}</span>
-          <span style="font-size:18px; font-weight:700; min-width:160px;">{{ mk.label }}</span>
-          {% if mk.market_key == 'smartstore' %}
-            {# 스마트스토어 — 기존 ss_margin_* 컬럼 호환 (JS bp-chip 핸들러 유지) #}
-            <div class="bp-chip" data-bp-chip="margin-na" style="margin:0;">
-              <b class="bp-v" id="bp-margin-na-v">9.45%</b> <span class="bp-ar">▼</span>
-              <div class="bp-pop">
-                <label>스마트스토어 마진율</label>
-                <div class="bp-input-row"><input type="number" step="0.01" id="bp-margin-na-input" value="9.45"><span>%</span></div>
-              </div>
-            </div>
-          {% elif mk.market_key == 'coupang' %}
-            <div class="bp-chip" data-bp-chip="margin-cp" style="margin:0;">
-              <b class="bp-v" id="bp-margin-cp-v">11.20%</b> <span class="bp-ar">▼</span>
-              <div class="bp-pop">
-                <label>쿠팡 마진율</label>
-                <div class="bp-input-row"><input type="number" step="0.01" id="bp-margin-cp-input" value="11.20"><span>%</span></div>
-              </div>
-            </div>
-          {% else %}
-            {# 사용자 추가 마켓 — Phase 2 (마진 계산 일반화) 대기 #}
-            <span style="font-size:16px; color:#9ca3af; padding:7px 14px; background:#FFFBEB; border:1px solid #fde68a; border-radius:8px;">⏳ 마진 입력 준비 중 (Phase 2)</span>
-          {% endif %}
-        </div>
-        {% endfor %}
-        <a href="/accounts" style="font-size:15px; color:#3B82F6; text-decoration:none; padding:8px 0; font-weight:600;">＋ 마켓 추가 (판매자계정 페이지에서)</a>
+      <span style="font-size:18px; color:#191f28; font-weight:700; min-width:140px; padding-top:8px;">팔 때 (마진)</span>
+      <div style="flex:1; min-width:0;">
+        <table class="pm-table" style="width:100%; border-collapse:collapse; font-size:13px;">
+          <thead>
+            <tr style="border-bottom:1px solid #e5e8eb; font-size:11.5px; color:#6b7684;">
+              <th style="text-align:left; padding:8px 10px; font-weight:600; width:220px;">마켓</th>
+              <th style="text-align:left; padding:8px 10px; font-weight:600; width:90px;">공급</th>
+              <th style="text-align:left; padding:8px 10px; font-weight:600; width:180px;">책정</th>
+              <th style="text-align:left; padding:8px 10px; font-weight:600;">마진금액</th>
+              <th style="text-align:right; padding:8px 10px; width:60px;"></th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for mk in markets %}
+              {% set is_ss = (mk.market_key == 'smartstore') %}
+              {% set is_cp = (mk.market_key == 'coupang') %}
+              {% if is_ss or is_cp %}
+                {% set p = mk.market_key %}{# 'smartstore' or 'coupang' #}
+                {% set prefix = 'ss' if is_ss else 'coupang' %}
+                {% set ap = applied_price if applied_price else None %}
+                {% set mode_src = (ap|attr(prefix + '_mode_sourcing') if ap else 'rate') or 'rate' %}
+                {% set rate_src = (ap|attr(prefix + '_rate_sourcing') if ap else (0.0945 if is_ss else 0.1242)) or 0 %}
+                {% set amt_src  = (ap|attr(prefix + '_amount_sourcing') if ap else 0) or 0 %}
+                {% set fixed_src = (ap|attr(prefix + '_external_sale_price') if ap else 0) or 0 %}
+                {% set mode_pur = (ap|attr(prefix + '_mode_purchase') if ap else 'rate') or 'rate' %}
+                {% set rate_pur = (ap|attr(prefix + '_rate_purchase') if ap else (0.0945 if is_ss else 0.1242)) or 0 %}
+                {% set amt_pur  = (ap|attr(prefix + '_amount_purchase') if ap else 0) or 0 %}
+                {% set fixed_pur = (ap|attr(prefix + '_boxhero_sale_price') if ap else 0) or 0 %}
+                <tr>
+                  <td rowspan="2" style="padding:10px; border-bottom:1px solid #f2f4f6;">
+                    <div style="display:flex; align-items:center; gap:8px;">
+                      <span class="mkt-logo-box" data-mkt-id="{{ mk.id }}" title="클릭해서 색·글자 변경"
+                            style="width:36px; height:36px; border-radius:7px; color:#fff; display:inline-flex; align-items:center; justify-content:center; font-weight:800; font-size:13px; background:{{ mk.logo_color }}; cursor:pointer; letter-spacing:.3px;">{{ mk.logo_letter }}</span>
+                      <b style="font-size:14px;">{{ mk.label }}</b>
+                    </div>
+                    {% if is_cp %}
+                    <div style="margin-top:6px; background:#f0f6ff; border:1px dashed #b8d4ff; border-radius:6px; padding:3px 8px; font-size:11.5px; color:#1d4cb0; display:inline-block; font-weight:600;">
+                      위너가 {{ '{:,}'.format(ap.winner_premium_price if ap and ap.winner_premium_price else 149000) }}원
+                    </div>
+                    {% endif %}
+                  </td>
+                  {# 소싱처 행 #}
+                  <td style="padding:8px 10px;"><span style="color:#1e40af; font-weight:700;">소싱처</span></td>
+                  <td style="padding:8px 10px;">
+                    {% if mode_src == 'rate' %}
+                      마진율 <b>{{ '%.2f'|format(rate_src * 100) }}%</b>
+                    {% elif mode_src == 'amount' %}
+                      마진금액 <b>{{ '{:,}'.format(amt_src) }}원</b>
+                    {% else %}
+                      지정가 <b>{{ '{:,}'.format(fixed_src) }}원</b>
+                    {% endif %}
+                  </td>
+                  <td style="padding:8px 10px;" class="pm-amt" data-mkt="{{ prefix }}" data-side="sourcing">
+                    {% if mode_src == 'amount' %}
+                      <b>{{ '{:,}'.format(amt_src) }}원</b>
+                    {% else %}
+                      <span style="color:#9ca3af;">자동 계산</span>
+                    {% endif %}
+                  </td>
+                  <td rowspan="2" style="padding:8px 10px; text-align:right; border-bottom:1px solid #f2f4f6;">
+                    <a href="#" class="pm-edit" data-mkt="{{ prefix }}" style="color:#3B82F6; font-size:12.5px; text-decoration:underline;">수정</a>
+                  </td>
+                </tr>
+                <tr style="border-bottom:1px solid #f2f4f6;">
+                  {# 사입 행 #}
+                  <td style="padding:8px 10px;"><span style="color:#b45309; font-weight:700;">사입</span></td>
+                  <td style="padding:8px 10px;">
+                    {% if mode_pur == 'rate' %}
+                      마진율 <b>{{ '%.2f'|format(rate_pur * 100) }}%</b>
+                    {% elif mode_pur == 'amount' %}
+                      마진금액 <b>{{ '{:,}'.format(amt_pur) }}원</b>
+                    {% else %}
+                      지정가 <b>{{ '{:,}'.format(fixed_pur) }}원</b>
+                    {% endif %}
+                  </td>
+                  <td style="padding:8px 10px;" class="pm-amt" data-mkt="{{ prefix }}" data-side="purchase">
+                    {% if mode_pur == 'amount' %}
+                      <b>{{ '{:,}'.format(amt_pur) }}원</b>
+                    {% else %}
+                      <span style="color:#9ca3af;">자동 계산</span>
+                    {% endif %}
+                  </td>
+                </tr>
+              {% else %}
+                {# 사용자 추가 마켓 — Phase 2 대기 #}
+                <tr>
+                  <td colspan="5" style="padding:10px;">
+                    <div style="display:flex; align-items:center; gap:8px;">
+                      <span class="mkt-logo-box" data-mkt-id="{{ mk.id }}"
+                            style="width:36px; height:36px; border-radius:7px; color:#fff; display:inline-flex; align-items:center; justify-content:center; font-weight:800; font-size:13px; background:{{ mk.logo_color }};">{{ mk.logo_letter }}</span>
+                      <b style="font-size:14px;">{{ mk.label }}</b>
+                      <span style="font-size:13px; color:#9ca3af; margin-left:auto;">마진 입력 준비 중</span>
+                    </div>
+                  </td>
+                </tr>
+              {% endif %}
+            {% endfor %}
+          </tbody>
+        </table>
+
+        {# C2 빈 슬롯 — 마켓 추가 placeholder #}
+        <a href="/accounts" id="pm-add-slot" style="display:flex; align-items:center; gap:10px; padding:12px 14px; margin-top:10px; background:#fff; border:1px dashed #d1d6db; border-radius:8px; color:#6b7684; font-size:12.5px; text-decoration:none; transition:all .15s;">
+          <span style="width:22px; height:22px; border-radius:50%; background:#f2f4f6; display:inline-flex; align-items:center; justify-content:center; font-size:14px; font-weight:700;">＋</span>
+          <span>
+            <span style="font-weight:600; color:#191f28;">마켓 슬롯 추가</span>
+            <span style="display:block; font-size:11px; color:#9ca3af;">판매자계정 페이지에서 새 마켓 연결</span>
+          </span>
+        </a>
       </div>
     </div>
   </div>
+
+  <script>
+    // [2026-05-25] 수정 링크 → 적용된 가격 템플릿 편집 모달 호출
+    (function(){
+      const tplId = {{ (applied_price.id if applied_price else 'null')|tojson }};
+      document.querySelectorAll('.pm-edit').forEach(a => {
+        a.addEventListener('click', (e) => {
+          e.preventDefault();
+          if (!tplId) {
+            alert('이 모음전에 적용된 가격 템플릿이 없습니다. 먼저 템플릿을 선택해주세요.');
+            return;
+          }
+          if (typeof openPriceTplModal === 'function') {
+            openPriceTplModal(tplId);
+          } else {
+            alert('가격 템플릿 편집 화면을 열 수 없습니다.');
+          }
+        });
+      });
+      // 빈 슬롯 hover 효과
+      const addSlot = document.getElementById('pm-add-slot');
+      if (addSlot) {
+        addSlot.addEventListener('mouseenter', () => {
+          addSlot.style.borderColor = '#3B82F6';
+          addSlot.style.color = '#3B82F6';
+          addSlot.style.background = '#f4faff';
+        });
+        addSlot.addEventListener('mouseleave', () => {
+          addSlot.style.borderColor = '#d1d6db';
+          addSlot.style.color = '#6b7684';
+          addSlot.style.background = '#fff';
+        });
+      }
+    })();
+  </script>
 
   {# [2026-05-24] 마켓 로고 색·글자 편집 popover (전역 모달) #}
   <div id="mkt-logo-pop" style="display:none; position:fixed; z-index:9999; background:#fff; border:1px solid #d1d6db; border-radius:10px; box-shadow:0 8px 24px rgba(0,0,0,.15); padding:14px; min-width:280px;">

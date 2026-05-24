@@ -1247,13 +1247,55 @@ async function openPriceTplModal(id) {
         <span style="font-size:12px;color:#9CA3AF">원</span>
       </div>`;
   };
+  // [2026-05-25] A1 카드 선택형 — 소싱처/사입 각각 (마진율 / 마진금액 / 지정가) 카드 3개
+  // 활성 카드 = 진한 테두리, 비활성 = 회색. 비활성 입력값도 보존 (전환 시 잃지 않음).
+  const modeCards = (prefix, side) => {
+    // side = 'sourcing' (소싱처) | 'purchase' (사입)
+    const modeKey   = `${prefix}_mode_${side}`;
+    const rateKey   = `${prefix}_rate_${side}`;
+    const amountKey = `${prefix}_amount_${side}`;
+    // 지정가는 기존 컬럼 재사용: 소싱 = external_sale_price, 사입 = boxhero_sale_price
+    const fixedKey = side === 'sourcing' ? `${prefix}_external_sale_price` : `${prefix}_boxhero_sale_price`;
+    const curMode = initial[modeKey] || 'rate';
+    const card = (mode, label, valKey, suffix, defaultRate) => {
+      const isOn = curMode === mode;
+      const rawVal = initial[valKey];
+      // rate 모드는 0.0945 → 9.45 로 표시 (사용자 친화 %)
+      let dispVal = rawVal != null ? rawVal : (mode === 'rate' ? defaultRate : '');
+      if (mode === 'rate' && rawVal != null) dispVal = (Number(rawVal) * 100).toFixed(2);
+      return `
+        <button type="button" class="ptm-modecard" data-prefix="${prefix}" data-side="${side}" data-mode="${mode}"
+                style="background:${isOn ? '#E8F3FF' : '#fff'};border:2px solid ${isOn ? '#3182F6' : '#EAEDF0'};border-radius:8px;padding:10px;cursor:pointer;text-align:center;font-family:inherit;transition:all .15s">
+          <div style="font-size:11.5px;color:${isOn ? '#1D4CB0' : '#6B7684'};margin-bottom:4px;font-weight:600">${label}</div>
+          <input type="number" data-key="${valKey}" data-mode-input="${mode}" data-rate-display="${mode === 'rate' ? '1' : '0'}"
+                 value="${dispVal}" step="${mode === 'rate' ? '0.01' : '1'}"
+                 style="width:100%;padding:5px 6px;border:1px solid ${isOn ? '#3182F6' : '#D1D6DB'};border-radius:5px;font-size:13px;text-align:center;font-family:inherit;${isOn ? 'font-weight:700' : 'background:#FAFBFC;color:#AAB1B8'}">
+          <div style="font-size:10.5px;color:#6B7684;margin-top:3px">${suffix}</div>
+        </button>`;
+    };
+    const sideLabel = side === 'sourcing' ? '소싱처' : '사입';
+    const sideColor = side === 'sourcing' ? {bg:'#DBEAFE', tx:'#1E3A8A'} : {bg:'#FEF3C7', tx:'#92400E'};
+    const defaultRate = prefix === 'ss' ? '9.45' : '12.42';
+    return `
+      <div style="background:#FAFBFC;border:1px solid #EAEDF0;border-radius:8px;padding:12px 14px;margin-bottom:10px">
+        <div style="font-size:12px;font-weight:700;color:#4E5968;margin-bottom:10px;display:flex;align-items:center;gap:6px">
+          <span style="background:${sideColor.bg};color:${sideColor.tx};padding:2px 8px;border-radius:4px;font-size:11px;font-weight:700">${sideLabel}</span>
+          책정 방식 — 카드를 클릭해 선택
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px">
+          ${card('rate',   '마진율',   rateKey,   '%',         defaultRate)}
+          ${card('amount', '마진금액', amountKey, '원',        '')}
+          ${card('fixed',  '지정가',   fixedKey,  '원 (할인가)', '')}
+        </div>
+        <input type="hidden" data-key="${modeKey}" data-mode-hidden="${prefix}-${side}" value="${curMode}">
+      </div>`;
+  };
   const market = (prefix, topHtml) => `
     ${topHtml || ''}
     ${row('마켓 수수료율', num(prefix + '_fee_rate', '0.06 = 6%', '0.0001'))}
-    ${row('타겟 마진율 (배송비포함)', num(prefix + '_margin_rate', '0.0945 = 9.45%', '0.0001'))}
     ${row('정상가', num(prefix + '_normal_price', '원'))}
-    ${row('할인가 (사입형)', num(prefix + '_boxhero_sale_price', '원'))}
-    ${row('할인가 (소싱처)', num(prefix + '_external_sale_price', '원'))}
+    ${modeCards(prefix, 'sourcing')}
+    ${modeCards(prefix, 'purchase')}
     ${row('배송타입', delivery(prefix))}
     ${row('반품비', num(prefix + '_return_fee', '원'))}
     ${row('교환비', num(prefix + '_exchange_fee', '원'))}`;
@@ -1376,6 +1418,35 @@ async function openPriceTplModal(id) {
           price > 0 ? 'ok' : 'warn');
   });
 
+  // [2026-05-25] 책정 모드 카드 클릭 → 활성 전환 (시각·활성 인풋만 적용)
+  box.querySelectorAll('.ptm-modecard').forEach(card => {
+    card.addEventListener('click', (ev) => {
+      // input 클릭은 카드 활성 변경 X (값 편집만)
+      if (ev.target.tagName === 'INPUT') return;
+      const prefix = card.dataset.prefix;
+      const side = card.dataset.side;
+      const mode = card.dataset.mode;
+      // 같은 (prefix, side) 카드 그룹의 모든 카드 비활성
+      box.querySelectorAll(`.ptm-modecard[data-prefix="${prefix}"][data-side="${side}"]`).forEach(c => {
+        const isOn = c.dataset.mode === mode;
+        c.style.background = isOn ? '#E8F3FF' : '#fff';
+        c.style.border = `2px solid ${isOn ? '#3182F6' : '#EAEDF0'}`;
+        const nameEl = c.querySelector('div:first-child');
+        if (nameEl) { nameEl.style.color = isOn ? '#1D4CB0' : '#6B7684'; }
+        const inp = c.querySelector('input');
+        if (inp) {
+          inp.style.border = `1px solid ${isOn ? '#3182F6' : '#D1D6DB'}`;
+          inp.style.fontWeight = isOn ? '700' : '';
+          inp.style.background = isOn ? '' : '#FAFBFC';
+          inp.style.color = isOn ? '' : '#AAB1B8';
+        }
+      });
+      // hidden mode 인풋 갱신
+      const hidden = box.querySelector(`input[data-mode-hidden="${prefix}-${side}"]`);
+      if (hidden) hidden.value = mode;
+    });
+  });
+
   box.querySelector('#ptm-cancel').addEventListener('click', () => bg.remove());
   box.querySelector('#ptm-save').addEventListener('click', async () => {
     const payload = id ? { id: parseInt(id) } : {};
@@ -1383,7 +1454,12 @@ async function openPriceTplModal(id) {
       const k = i.getAttribute('data-key');
       const val = i.value.trim();
       if (val === '') return;
-      payload[k] = (i.type === 'number') ? parseFloat(val) : val;
+      let parsed = (i.type === 'number') ? parseFloat(val) : val;
+      // 책정 모드의 rate 입력은 사용자가 % 단위로 (9.45) → DB는 비율(0.0945)로 저장
+      if (i.dataset.rateDisplay === '1' && typeof parsed === 'number') {
+        parsed = parsed / 100;
+      }
+      payload[k] = parsed;
     });
     if (!payload.name || !String(payload.name).trim()) {
       alert('템플릿명을 입력하세요.');
