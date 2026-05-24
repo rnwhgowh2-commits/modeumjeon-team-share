@@ -49,11 +49,23 @@
         </div>
       </div>
       <div class="bh-actions" style="flex-direction:column;align-items:stretch;gap:6px;min-width:260px">
-        <div style="display:flex;gap:6px;justify-content:flex-end">
+        <div style="display:flex;gap:6px;justify-content:flex-end;align-items:center">
+          <span id="autosave-indicator" class="autosave-indicator" data-state="idle" title="변경 시 자동 저장됩니다"></span>
           <button class="btn btn-sm" data-action="duplicate-bundle">📄 복제</button>
           <button class="btn btn-sm" style="color:var(--danger)" data-action="delete-bundle">🗑 삭제</button>
-          <button class="btn btn-primary btn-sm" data-action="save-bundle">💾 저장</button>
         </div>
+        <style>
+          .autosave-indicator {
+            font-size: 13px; font-weight: 600;
+            padding: 4px 9px; border-radius: 6px;
+            white-space: nowrap; user-select: none;
+            transition: opacity .25s, background .15s, color .15s;
+          }
+          .autosave-indicator[data-state="idle"]   { opacity: 0; }
+          .autosave-indicator[data-state="saving"] { color:#6B7684; background:#F2F4F6; opacity: 1; }
+          .autosave-indicator[data-state="saved"]  { color:#15803d; background:#DCFCE7; opacity: 1; }
+          .autosave-indicator[data-state="error"]  { color:#DC2626; background:#FEE2E2; opacity: 1; cursor: pointer; }
+        </style>
         <button class="run-btn large" data-action="bundle-run-now" data-code="{{ bundle.model_code }}" data-phase="full" style="width:100%">
           <span class="ic">▶</span> 이 모음전 지금 전체 실행
         </button>

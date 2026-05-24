@@ -143,23 +143,98 @@ document.addEventListener('DOMContentLoaded', mountDraftBubble);
 // ============================================================
 
 // ============================================================
-// [v2] 변경사항 추적 + 페이지 이탈 confirm
+// [v2] 변경사항 추적 + 페이지 이탈 confirm + 자동저장
 // ============================================================
 window.__lemoutonDirty = false;
 function markDirty() { window.__lemoutonDirty = true; }
 function clearDirty() { window.__lemoutonDirty = false; }
+
+// ---- 모음전 편집 페이지 자동저장 ----
+// 헤더 우상단 인디케이터 상태 갱신 (idle/saving/saved/error)
+function setAutoSaveIndicator(state, msg) {
+  const ind = document.getElementById('autosave-indicator');
+  if (!ind) return;
+  const map = {
+    idle:   { html: '', cls: 'idle' },
+    saving: { html: '✏ 저장 중...', cls: 'saving' },
+    saved:  { html: '💾 저장됨 ✓', cls: 'saved' },
+    error:  { html: '⚠ 저장 실패 (다시 시도)', cls: 'error' },
+  };
+  const v = map[state] || map.idle;
+  ind.innerHTML = v.html;
+  ind.dataset.state = v.cls;
+  ind.title = msg || '';
+}
+
+// 실제 저장 — 기존 save-bundle 로직과 동일 (서버 API 호출)
+async function autoSaveBundle() {
+  const code = currentBundleCode();
+  if (!code) return;
+  const inputs = document.querySelectorAll('.bundle-content input[name], .bundle-content select[name]');
+  if (!inputs.length) return;
+  const payload = {};
+  inputs.forEach(i => {
+    if (i.type === 'checkbox') payload[i.name] = i.checked;
+    else payload[i.name] = i.value;
+  });
+  setAutoSaveIndicator('saving');
+  try {
+    const res = await apiPost(`/api/bundles/${encodeURIComponent(code)}`, payload);
+    if (res.ok) {
+      clearDirty();
+      setAutoSaveIndicator('saved');
+      // 2.5초 뒤 idle 로 (다음 변경 전에 사라지지 않게)
+      clearTimeout(window.__autosaveFadeTimer);
+      window.__autosaveFadeTimer = setTimeout(() => {
+        if (!window.__lemoutonDirty) setAutoSaveIndicator('idle');
+      }, 2500);
+    } else {
+      setAutoSaveIndicator('error', res.error || '');
+    }
+  } catch (e) {
+    setAutoSaveIndicator('error', String(e));
+  }
+}
+
+// debounce 700ms
+let _autoSaveTimer = null;
+function scheduleAutoSave() {
+  clearTimeout(_autoSaveTimer);
+  _autoSaveTimer = setTimeout(autoSaveBundle, 700);
+}
 
 // 모음전 편집 페이지 + 옵션 디테일에서 사용 (input/select/checkbox 변경 감지)
 document.addEventListener('DOMContentLoaded', () => {
   const path = window.location.pathname;
   const isBundlePage = /^\/bundles\/[^/]+/.test(path) || path === '/bundles/new';
   if (!isBundlePage) return;
+  const isBundleEditPage = !!document.querySelector('.bundle-content');
   // 페이지 진입 직후 잠시 무시 (초기 렌더링 시 false 변경 무시)
   setTimeout(() => {
     document.querySelectorAll('input, select, textarea').forEach(el => {
-      el.addEventListener('input', markDirty);
-      el.addEventListener('change', markDirty);
+      el.addEventListener('input', () => {
+        markDirty();
+        // 모음전 편집 페이지 + name 속성 가진 .bundle-content 안의 필드만 자동저장
+        if (isBundleEditPage && el.closest('.bundle-content') && el.name &&
+            !el.matches('#bundle-code-input')) {
+          scheduleAutoSave();
+        }
+      });
+      el.addEventListener('change', () => {
+        markDirty();
+        if (isBundleEditPage && el.closest('.bundle-content') && el.name &&
+            !el.matches('#bundle-code-input')) {
+          scheduleAutoSave();
+        }
+      });
     });
+    // 인디케이터 클릭 시 즉시 재시도
+    const ind = document.getElementById('autosave-indicator');
+    if (ind) {
+      ind.addEventListener('click', () => {
+        if (ind.dataset.state === 'error') autoSaveBundle();
+      });
+    }
   }, 500);
 });
 
@@ -369,20 +444,7 @@ document.addEventListener('click', async (e) => {
   const action = btn.getAttribute('data-action');
 
   // ----- 모음전 편집 -----
-  if (action === 'save-bundle') {
-    e.preventDefault();
-    const code = currentBundleCode();
-    const inputs = document.querySelectorAll('.bundle-content input[name], .bundle-content select[name]');
-    const payload = {};
-    inputs.forEach(i => {
-      if (i.type === 'checkbox') payload[i.name] = i.checked;
-      else payload[i.name] = i.value;
-    });
-    const res = await apiPost(`/api/bundles/${encodeURIComponent(code)}`, payload);
-    flash(res.ok ? '저장됐어요.' : ('저장 실패: ' + res.error), res.ok ? 'ok' : 'err');
-    if (res.ok) clearDirty();
-    return;
-  }
+  // [2026-05-25] save-bundle 액션 제거 — autoSaveBundle (debounce 700ms) 로 대체됨
 
   if (action === 'rename-bundle') {
     e.preventDefault();
