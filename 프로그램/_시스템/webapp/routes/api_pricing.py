@@ -367,13 +367,10 @@ def get_option_matrix(code: str):
                 'sku': o.canonical_sku, 'size': o.size_code,
                 'src_count': len(sources_for_opt),
             })
-            # M4/P3/C9 — 사입 모드 데이터 + 우선순위 산출
-            # ★ 2026-05-13 v4 — 사용자 Excel/재고관리 데이터의 실제 저장 위치 확정:
-            #   Option.boxhero_stock_total (Excel import / 박스히어로 자동 집계)
-            #   + InventoryTx 의 InventoryProduct 등록 옵션 추가 입출고 (선택적)
-            _box_stock = o.boxhero_stock_total or 0  # ★ 사용자 신뢰 데이터 (Excel)
-            _inv_stock = inv_stock_dict.get(o.canonical_sku, 0)  # 재고관리 UI 입출고 (InventoryProduct 등록 옵션만)
-            _stock = _box_stock + _inv_stock  # 합산 (둘 중 하나만 있어도 OK)
+            # [2026-05-25 UI-3] 재고 = SSOT (inv_stock_dict = get_stock_batch 결과)만 사용
+            #   배경: 박스히어로 import 가 boxhero_stock_total snapshot 갱신 + InventoryTx 생성
+            #   → 두 source 합산하면 ×2 중복. SSOT 하나로 통일.
+            _stock = inv_stock_dict.get(o.canonical_sku, 0)
             _avg = o.boxhero_avg_purchase_price or 0
             _mode = o.option_boxhero_margin_mode or 'rate'
             _val = o.option_boxhero_margin_value or 0
