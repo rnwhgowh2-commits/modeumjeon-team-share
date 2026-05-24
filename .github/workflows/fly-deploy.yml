@@ -42,9 +42,9 @@ jobs:
       - name: flyctl 설치
         uses: superfly/flyctl-actions/setup-flyctl@master
 
-      - name: Fly.io 배포 (--no-cache + --strategy=immediate 로 강제 갱신)
+      - name: Fly.io 배포 (--local-only 로 Depot cache 버그 우회)
         working-directory: ./프로그램/_시스템
-        run: flyctl deploy --remote-only --ha=false --no-cache --strategy=immediate
+        run: flyctl deploy --local-only --ha=false --no-cache --strategy=immediate
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
 
