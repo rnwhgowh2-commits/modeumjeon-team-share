@@ -339,25 +339,7 @@
 
       html += `<button class="oum-add-axis" id="oum-add-axis" ${state.axes.length >= 3 ? 'disabled' : ''} type="button">＋ 축 추가 (현재 ${state.axes.length}축 / 최대 3축)</button>`;
 
-      // 칩 일괄 선택 (축별 동적)
-      if (valid.length) {
-        html += `<div class="oum-qs"><div class="oum-qs-title"><span>📦 빠른 선택 — 칩 클릭 시 일괄 적용</span><span style="color:#dc2626; cursor:pointer;" data-qs-reset>전체 해제</span></div>`;
-        valid.forEach(axis => {
-          html += `<div class="oum-qs-row"><span class="oum-qs-label">${esc(axis.name || '축')}별</span>`;
-          axis.values.forEach(val => {
-            const filtered = filterCombos(axis.name, val);
-            const onN = filtered.filter(c => state.selected.has(keyOf(c))).length;
-            const total = filtered.length;
-            // [2026-05-24] 2상태만 — 전체 ON 색칠 / 그 외(부분/0) 회색 (사용자 피드백: partial 무의미)
-            const isAllOn = total > 0 && onN === total;
-            const st = isAllOn ? 'on' : '';
-            const ico = isAllOn ? '✓ ' : '';
-            html += `<button class="oum-chip ${st}" data-qs-axis="${esc(axis.name)}" data-qs-val="${esc(val)}" type="button">${ico}${esc(val)} <span class="mini">${onN}/${total}</span></button>`;
-          });
-          html += `</div>`;
-        });
-        html += `</div>`;
-      }
+      // [2026-05-24] 빠른 선택 칩 영역 제거 — 사용자 피드백 (매트릭스 행/열 헤더 클릭으로 충분)
 
       // 매트릭스
       html += `<div class="oum-mtx">
@@ -551,27 +533,8 @@
       }
       const mappedSet = new Set(u.option_keys || []);
 
-      // 빠른 선택 칩
-      let html = `<div class="oum-qs"><div class="oum-qs-title"><span>📦 빠른 선택</span><span style="color:#dc2626; cursor:pointer;" data-url-qs-reset>전체 해제</span></div>`;
-      valid.forEach(axis => {
-        html += `<div class="oum-qs-row"><span class="oum-qs-label">${esc(axis.name || '축')}별</span>`;
-        axis.values.forEach(val => {
-          // 이 axis=val 에 해당하는 활성 옵션만
-          const matching = Array.from(state.selected).map(getAxisValuesArray)
-            .filter(c => {
-              const axisIdx = valid.findIndex(a => a.name === axis.name);
-              return c[axisIdx] === val;
-            });
-          const onN = matching.filter(c => mappedSet.has(keyOf(c))).length;
-          const total = matching.length;
-          if (!total) return;
-          const st = onN === 0 ? '' : (onN === total ? 'on' : 'par');
-          const ico = onN === 0 ? '' : (onN === total ? '✓ ' : '─ ');
-          html += `<button class="oum-chip ${st}" data-url-qs-axis="${esc(axis.name)}" data-url-qs-val="${esc(val)}" type="button">${ico}${esc(val)} <span class="mini">${onN}/${total}</span></button>`;
-        });
-        html += `</div>`;
-      });
-      html += `</div>`;
+      // [2026-05-24] 우측 빠른 선택 칩 영역 제거 — 매트릭스 행/열 헤더로 충분
+      let html = '';
 
       // 매트릭스 — 활성 옵션만 매핑 가능, 비활성은 회색 disabled
       html += renderUrlMatrix(u, valid, mappedSet);
