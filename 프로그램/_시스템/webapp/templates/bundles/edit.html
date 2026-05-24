@@ -333,10 +333,9 @@
       <div class="bundle-section" id="sec-combo" data-tab="opt">
         {# [재설계 — 시안 C2] 생성 버튼 우상단 단일화 · 소프트 칩 · 가운데 정렬 #}
         <div class="bundle-section-head" style="display:flex;align-items:center;gap:9px">
-          <span class="bundle-section-num {% if combos %}done{% endif %}">3</span>
           <h2>색상·사이즈 조합</h2>
           <button class="btn btn-primary btn-sm" data-action="step-design" type="button"
-                  style="margin-left:auto">＋ 옵션 조합 생성</button>
+                  style="margin-left:auto; text-align:center;">＋ 옵션 조합 생성</button>
         </div>
         {% for c in combos %}
         <div class="combo-card" data-id="{{ c.id }}">
