@@ -2276,6 +2276,48 @@ def get_option_payload_preview(gid: int):
 
 # ═══════ [제품 공유 v1] 신규 모음전 — 재고제품 검색 + 모음전 생성 ═══════
 
+@bp.get('/inventory/options/<path:sku>/stock-detail')
+def inventory_option_stock_detail(sku: str):
+    """[2026-05-25 UI-4] 옵션 재고 상세 — 옵션 트리 chip 클릭 modal 용.
+
+    응답: {ok, per_location:[{name, qty}], recent_tx:[{created_at, tx_type, qty, memo}]}
+    OptionProductLink 로 link 된 product sku 의 InventoryTx 합산.
+    """
+    from lemouton.inventory.models import InventoryLocation, InventoryTx, OptionProductLink
+    from shared.inventory_stock import get_stock_batch
+    s = SessionLocal()
+    try:
+        # 옵션 → product sku 해석 (link 우선, 없으면 자기 자신)
+        link = s.query(OptionProductLink).filter_by(option_canonical_sku=sku).first()
+        product_sku = link.product_canonical_sku if link else sku
+
+        # 위치별 재고 (get_stock_batch 가 link 자동 해석)
+        locs = (s.query(InventoryLocation)
+                .filter(InventoryLocation.deleted_at.is_(None))
+                .order_by(InventoryLocation.sort_order, InventoryLocation.id).all())
+        per_location = []
+        for l in locs:
+            qty = get_stock_batch(s, [sku], location_id=l.id).get(sku, 0)
+            per_location.append({'name': l.name, 'qty': qty})
+
+        # 최근 거래 이력 (product sku 기준 — link 거친)
+        txs = (s.query(InventoryTx)
+               .filter(InventoryTx.option_canonical_sku == product_sku,
+                       InventoryTx.status == 'completed')
+               .order_by(InventoryTx.created_at.desc())
+               .limit(20).all())
+        recent_tx = [{
+            'created_at': t.created_at.isoformat() if t.created_at else '',
+            'tx_type': t.tx_type or '',
+            'qty': int(t.qty or 0),
+            'memo': t.memo or '',
+        } for t in txs]
+
+        return jsonify({'ok': True, 'per_location': per_location, 'recent_tx': recent_tx})
+    finally:
+        s.close()
+
+
 @bp.get('/inventory/products/search')
 def inventory_products_search():
     """재고제품 검색 → 모델별 그룹 (트리 아코디언 팝업용).
