@@ -22,11 +22,21 @@ RUN pip install --no-cache-dir -r requirements.txt \
     && pip install --no-cache-dir gunicorn
 
 # [2026-05-24] cache busting — Depot/Docker layer cache 무력화
-ARG CACHEBUST=20260524_2250_FORCE
+ARG CACHEBUST=20260524_2300_VERIFY
 RUN echo "cachebust=${CACHEBUST}"
 
 # 코드 복사
 COPY . .
+
+# [2026-05-24] BUILD-TIME VERIFY — 우리 fix 가 image 에 들어갔는지 명시 확인
+# brandPx 가 없으면 빌드 실패 (cache 사용해서 옛 코드 들어간 케이스 잡음)
+RUN COUNT=$(grep -c "brandPx" /app/webapp/templates/bundles/_matrix_v3.html || echo 0) && \
+    echo "VERIFY brandPx count: $COUNT" && \
+    if [ "$COUNT" -lt "3" ]; then \
+      echo "BUILD FAIL: brandPx fix not in image (cache used old code)"; \
+      exit 1; \
+    fi && \
+    echo "BUILD OK: fix verified in image"
 
 # 비-root 사용자 (보안)
 RUN useradd -m -u 1000 app && chown -R app:app /app
