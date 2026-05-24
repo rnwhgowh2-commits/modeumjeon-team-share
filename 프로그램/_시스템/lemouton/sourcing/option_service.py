@@ -79,11 +79,20 @@ def create_combination_options(
     protected: list[str] = []
     if prune and selected is not None:
         # selected 의 조합만 유지 — 그 외 옵션은 삭제 시도
-        from .option_combo import build_sku
+        from .option_combo import build_sku, generate_combinations
         keep_skus = {build_sku(model_code, vals) for vals in selected}
         # 방금 생성한 신규도 keep (안전망)
         keep_skus.update(created)
-        to_delete = existing - keep_skus
+        # [2026-05-25 SAFETY] 매트릭스 안에 있는 옵션만 prune 대상
+        #   배경: 매트릭스 값 풀 밖 옵션(다른 모음전·옛 다른 색상·외부 등) 은
+        #   사용자가 모달에서 보지도 못함 → selected 에서 빠진 게 의도가 아님
+        #   → 매트릭스 밖 옵션은 무조건 보호 (untracked, 보호 카운트로만 알림)
+        matrix_skus = {build_sku(model_code, c['values'])
+                       for c in generate_combinations(steps)}
+        raw_to_delete = existing - keep_skus
+        to_delete = raw_to_delete & matrix_skus
+        untracked = raw_to_delete - matrix_skus
+        protected.extend(sorted(untracked))
         # 신규 추가는 한 트랜잭션에 flush 해야 FK 위반 검증 가능
         try:
             session.flush()

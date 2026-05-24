@@ -985,6 +985,28 @@ def api_list_source_urls(code):
                     if o.get('axis_values') is None:
                         o['axis_values'] = vals
 
+        # [2026-05-25 A-2-FIX] axis_steps 가 있어도 axis_values=null 인 옵션은 매핑 채워줌
+        #   배경: 어제 모달 저장으로 BundleOptionStep 신규 생성됨 → 자동 fallback(위 블록) 미진입
+        #   → 옛 옵션(axis_values_json=null) 89개가 모달 매트릭스에서 비활성 표시되는 위험
+        #   → 사용자가 prune 저장 시 89개 모두 삭제될 수 있음 (데이터 파괴)
+        #   해결: axis_steps 값 풀과 옵션의 color/size 가 매칭되면 axis_values 동적 채움
+        if axis_steps_payload and options_payload:
+            axis_val_sets = [set(st['values']) for st in axis_steps_payload]
+            n_axes = len(axis_steps_payload)
+            for o in options_payload:
+                if o.get('axis_values') is not None:
+                    continue
+                color = o.get('color_display')
+                size = o.get('size_display')
+                # 2축: [color, size] 매칭 시도
+                if n_axes == 2 and color in axis_val_sets[0] and size in axis_val_sets[1]:
+                    o['axis_values'] = [color, size]
+                elif n_axes == 1 and color in axis_val_sets[0]:
+                    o['axis_values'] = [color]
+                # 매칭 실패 옵션은 axis_values=null 유지 — 모달에서 비활성 표시되나
+                # 사용자가 prune 저장 안 하면 안전. prune 저장 시 keep_skus 에
+                # build_sku(model_code, None) 이 없어 삭제될 수 있음 — 별도 보호 필요
+
         return jsonify({
             'ok': True,
             'urls': urls,
