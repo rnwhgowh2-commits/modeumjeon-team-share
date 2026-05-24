@@ -562,7 +562,7 @@
   })();
   </script>
 
-  {# J4 — 전체 크롤 = CTA (컬러 풀) + 가격 템플릿 = 작은 아이콘 버튼 #}
+  {# [2026-05-24 B-2] 전체 크롤 = CTA (컬러 풀). 가격 템플릿은 사올때/팔때 박스로 흡수 #}
   <div class="global-actions-v2" id="global-actions">
     <button class="ga-btn-v2 crawl ga-cta" id="crawl-all-btn"
             data-action="bundle-run-now"
@@ -574,10 +574,6 @@
         <span class="ga-sub">4 사이트 자동 수집</span>
       </span>
     </button>
-    <a class="ga-btn-v2 tpl ga-mini" href="/templates/" title="가격 템플릿 (마진/수수료/배송비)">
-      <span class="ga-ico"></span>
-      <span class="ga-name">가격 템플릿</span>
-    </a>
   </div>
 
   {# 정렬 (글로벌 액션바 아래) — 모두 펼치기/접기는 매트릭스 안 toolbar 로 이동 #}
@@ -667,6 +663,59 @@
     #bulk-policy-bar .bp-opt { font-size:15px !important; padding:9px 12px !important; }
   </style>
   <div class="bulk-policy-bar" id="bulk-policy-bar" style="flex-direction:column; align-items:stretch; gap:14px; padding:20px 22px; font-size:18px;">
+
+    {# [2026-05-24 B-2] 가격 템플릿 — 최상단 행 (사올때/팔때 기본값 묶음). 큰 탭 대신 인라인 #}
+    <div style="display:flex; align-items:center; gap:14px; flex-wrap:wrap; padding-bottom:14px; border-bottom:1px dashed #e5e8eb;">
+      <span style="font-size:24px; flex-shrink:0;">📋</span>
+      <span style="font-size:18px; color:#6b7684; font-weight:700; min-width:140px;">가격 템플릿</span>
+      <select id="bp-tpl-select" data-code="{{ bundle.model_code }}"
+              style="font-size:17px; font-weight:700; padding:9px 14px; border:1.5px solid #e5e8eb; border-radius:8px; background:#fff; color:#1e40af; cursor:pointer; font-family:var(--font); min-width:240px;">
+        <option value="" {% if not applied_price %}selected{% endif %}>— 선택 안 함 —</option>
+        {% for t in price_templates %}
+        <option value="{{ t.id }}" {% if applied_price and applied_price.id == t.id %}selected{% endif %}>{{ t.name }}</option>
+        {% endfor %}
+      </select>
+      <span id="bp-tpl-status" style="font-size:14px; color:#10b981; font-weight:600; min-width:120px;">
+        {% if applied_price %}✓ 적용 중{% else %}<span style="color:#9ca3af;">미적용</span>{% endif %}
+      </span>
+      <a href="/templates/" target="_blank" rel="noopener"
+         style="margin-left:auto; font-size:14px; color:#4E5968; text-decoration:none; padding:8px 14px; border:1.5px solid #e5e8eb; border-radius:8px; font-weight:600; background:#fff;"
+         title="템플릿 관리 (새 탭)">⚙ 템플릿 관리</a>
+    </div>
+    <script>
+      // [2026-05-24 B-2] 가격 템플릿 변경 → POST /api/bundles/<code> { price_template_id }
+      (function(){
+        const sel = document.getElementById('bp-tpl-select');
+        if (!sel) return;
+        const status = document.getElementById('bp-tpl-status');
+        const code = sel.dataset.code;
+        sel.addEventListener('change', async function() {
+          const val = sel.value;
+          const payload = { price_template_id: val ? parseInt(val, 10) : null };
+          status.textContent = '저장 중…';
+          status.style.color = '#3B82F6';
+          try {
+            const r = await fetch(`/api/bundles/${encodeURIComponent(code)}`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(payload),
+            });
+            const j = await r.json();
+            if (j && j.ok) {
+              status.textContent = '✓ 저장됨 — 새로고침';
+              status.style.color = '#10b981';
+              setTimeout(() => location.reload(), 500);
+            } else {
+              status.textContent = '✗ 실패: ' + ((j && j.error) || '');
+              status.style.color = '#dc2626';
+            }
+          } catch (e) {
+            status.textContent = '✗ 오류: ' + e.message;
+            status.style.color = '#dc2626';
+          }
+        });
+      })();
+    </script>
 
     {# 사올 때 (매입) — 한 줄 #}
     <div style="display:flex; align-items:center; gap:14px; flex-wrap:wrap;">

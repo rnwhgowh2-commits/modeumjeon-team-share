@@ -149,22 +149,18 @@
   <div class="bundle-layout">
     <div class="bundle-content">
 
-      {# F2 — Step indicator 4탭 (기본·템플릿·옵션·마켓) — Phase 6 재구성 #}
+      {# [2026-05-24] Step indicator 3탭 (기본·옵션·마켓) — 템플릿 탭 제거, 옵션 탭에 가격 템플릿 통합 #}
       <div class="bundle-tabs bundle-steps" id="bundle-tabs">
         <button class="bundle-tab bundle-step on" data-tab="basic" data-step="1" type="button">
           <span class="step-num">1</span><span class="step-name">기본</span>
         </button>
         <span class="step-line"></span>
-        <button class="bundle-tab bundle-step" data-tab="tpl" data-step="2" type="button">
-          <span class="step-num">2</span><span class="step-name">템플릿</span>
+        <button class="bundle-tab bundle-step" data-tab="opt" data-step="2" type="button">
+          <span class="step-num">2</span><span class="step-name">옵션</span>
         </button>
         <span class="step-line"></span>
-        <button class="bundle-tab bundle-step" data-tab="opt" data-step="3" type="button">
-          <span class="step-num">3</span><span class="step-name">옵션</span>
-        </button>
-        <span class="step-line"></span>
-        <button class="bundle-tab bundle-step" data-tab="mkt" data-step="4" type="button">
-          <span class="step-num">4</span><span class="step-name">마켓</span>
+        <button class="bundle-tab bundle-step" data-tab="mkt" data-step="3" type="button">
+          <span class="step-num">3</span><span class="step-name">마켓</span>
         </button>
       </div>
 
@@ -199,135 +195,7 @@
       {# Section: 사이트 URL — Phase 6 재구성: 옵션 탭에 통합 #}
       {# [2026-05-24] sec-url 사이트 소싱처 URL 섹션 삭제됨 — 옵션 조합 생성 모달로 통합 #}
 
-      {# Section 3: 적용 템플릿 — V4 Tile (검정 폰트 볼드 큰 카드) #}
-      <div class="bundle-section" id="sec-tpl" data-tab="tpl">
-        <div class="bundle-section-head">
-          <span class="bundle-section-num {% if applied_price and applied_color and applied_size %}done{% endif %}">2</span>
-          <h2>⚙ 적용 템플릿</h2>
-        </div>
-
-        <style>
-          /* H3 — Row stacked (제목 18px + 메타 13px) */
-          #sec-tpl .tpl-tile-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-top: 8px; }
-          @media (max-width: 900px) { #sec-tpl .tpl-tile-grid { grid-template-columns: 1fr; } }
-          #sec-tpl .field { margin-bottom: 0; }
-          #sec-tpl .field-label {
-            font-size: 14px; color: var(--n500, #8B95A1); font-weight: 700;
-            letter-spacing: .04em; text-transform: uppercase; margin-bottom: 8px; display: block;
-          }
-          #sec-tpl .sdrop-wrap { position: relative; }
-          #sec-tpl .sdrop-trigger {
-            min-height: 90px; padding: 16px 20px;
-            background: var(--surface, #fff);
-            border: 1.5px solid var(--n200, #e5e8eb);
-            border-radius: 10px;
-            display: flex; flex-direction: column; align-items: stretch; justify-content: flex-start;
-            gap: 8px; cursor: pointer; transition: .15s;
-          }
-          #sec-tpl .sdrop-trigger:hover { border-color: var(--primary, #3182F6); background: #F9FAFB; }
-          /* H3 — 제목 18px */
-          #sec-tpl .tpl-row-name {
-            font-size: 18px; font-weight: 700; color: var(--n900, #191F28);
-            letter-spacing: -.01em; line-height: 1.3;
-          }
-          /* H3 — 메타 13px + b 라벨 */
-          #sec-tpl .tpl-row-meta {
-            display: flex; gap: 14px; flex-wrap: wrap;
-            font-size: 13px; color: var(--n600, #6b7684); margin-top: 2px;
-          }
-          #sec-tpl .tpl-row-meta b {
-            color: var(--n500, #8B95A1); font-weight: 600;
-            font-size: 14px; text-transform: uppercase; letter-spacing: .04em;
-            margin-right: 5px;
-          }
-          #sec-tpl .tpl-row-meta .tpl-meta-item { white-space: nowrap; }
-          #sec-tpl .sdrop-arrow { position: absolute; top: 14px; right: 14px; color: var(--n500, #8B95A1); font-size: 14px; }
-        </style>
-
-        <div class="tpl-tile-grid">
-
-        <div class="field">
-          <label class="field-label">가격 템플릿</label>
-          <div class="sdrop-wrap" id="sd-price">
-            <div class="field-input sdrop-trigger" onclick="toggleSdrop('sd-price')">
-              <div class="tpl-row-name">{{ applied_price.name if applied_price else '— 선택 —' }}</div>
-              {% if applied_price %}
-              <div class="tpl-row-meta">
-                <span class="tpl-meta-item"><b>SS 정상</b>{{ '{:,}'.format(applied_price.ss_normal_price) }}원</span>
-                <span class="tpl-meta-item"><b>SS 할인</b>{{ '{:,}'.format(applied_price.ss_boxhero_sale_price) }}원</span>
-                <span class="tpl-meta-item"><b>CP 정상</b>{{ '{:,}'.format(applied_price.coupang_normal_price) }}원</span>
-                <span class="tpl-meta-item"><b>CP 할인</b>{{ '{:,}'.format(applied_price.coupang_boxhero_sale_price) }}원</span>
-              </div>
-              {% endif %}
-              <span class="sdrop-arrow">▼</span>
-            </div>
-            <div class="sdrop-menu">
-              <div class="sdrop-search"><input placeholder="🔍 검색..." onclick="event.stopPropagation()" /></div>
-              {% for t in price_templates %}
-              <div class="sdrop-item {% if t.id == bundle.price_template_id %}applied{% endif %}" data-id="{{ t.id }}">
-                <div class="sdrop-item-name">{{ t.name }}{% if t.id == bundle.price_template_id %} ✓ 적용중{% endif %}</div>
-                <div class="sdrop-item-meta">스마트스토어 정상 {{ '{:,}'.format(t.ss_normal_price) }} / 할인 {{ '{:,}'.format(t.ss_boxhero_sale_price) }} · 쿠팡 정상 {{ '{:,}'.format(t.coupang_normal_price) }} / 할인 {{ '{:,}'.format(t.coupang_boxhero_sale_price) }}</div>
-              </div>
-              {% endfor %}
-              <a class="sdrop-item-action" href="/templates#price">+ 새 가격 템플릿 만들기</a>
-            </div>
-          </div>
-        </div>
-
-        <div class="field">
-          <label class="field-label">색상 템플릿</label>
-          <div class="sdrop-wrap" id="sd-color">
-            <div class="field-input sdrop-trigger" onclick="toggleSdrop('sd-color')">
-              <div class="tpl-row-name">{{ applied_color.name if applied_color else '— 선택 —' }}</div>
-              {% if applied_color %}
-              <div class="tpl-row-meta">
-                <span class="tpl-meta-item"><b>색상</b>{{ applied_color.color_codes_json|from_json|length }}개</span>
-              </div>
-              {% endif %}
-              <span class="sdrop-arrow">▼</span>
-            </div>
-            <div class="sdrop-menu">
-              <div class="sdrop-search"><input placeholder="🔍 검색..." onclick="event.stopPropagation()" /></div>
-              {% for t in color_templates %}
-              <div class="sdrop-item {% if t.id == bundle.color_template_id %}applied{% endif %}" data-id="{{ t.id }}">
-                <div class="sdrop-item-name">{{ t.name }}{% if t.id == bundle.color_template_id %} ✓{% endif %}</div>
-                <div class="sdrop-item-meta">{{ t.color_codes_json }}</div>
-              </div>
-              {% endfor %}
-              <a class="sdrop-item-action" href="/templates#color">+ 새 색상 템플릿</a>
-            </div>
-          </div>
-        </div>
-
-        <div class="field">
-          <label class="field-label">사이즈 템플릿</label>
-          <div class="sdrop-wrap" id="sd-size">
-            <div class="field-input sdrop-trigger" onclick="toggleSdrop('sd-size')">
-              <div class="tpl-row-name">{{ applied_size.name if applied_size else '— 선택 —' }}</div>
-              {% if applied_size %}
-              <div class="tpl-row-meta">
-                <span class="tpl-meta-item"><b>사이즈</b>{{ applied_size.size_codes_json|from_json|length }}개</span>
-              </div>
-              {% endif %}
-              <span class="sdrop-arrow">▼</span>
-            </div>
-            <div class="sdrop-menu">
-              <div class="sdrop-search"><input placeholder="🔍 검색..." onclick="event.stopPropagation()" /></div>
-              {% for t in size_templates %}
-              <div class="sdrop-item {% if t.id == bundle.size_template_id %}applied{% endif %}" data-id="{{ t.id }}">
-                <div class="sdrop-item-name">{{ t.name }}{% if t.id == bundle.size_template_id %} ✓{% endif %}</div>
-                <div class="sdrop-item-meta">{{ t.category }}</div>
-              </div>
-              {% endfor %}
-              <a class="sdrop-item-action" href="/templates#size">+ 새 사이즈 템플릿</a>
-            </div>
-          </div>
-        </div>
-
-        </div>{# /.tpl-tile-grid #}
-
-        <div class="insight" style="margin-top:16px">💡 템플릿은 전 옵션에 기본 적용. 옵션마다 다른 템플릿이 필요하면 옵션을 누르고 변경할 수 있어요.</div>
-      </div>
+      {# [2026-05-24] sec-tpl 적용 템플릿 섹션 삭제됨 — 옵션 탭에 통합 #}
 
       {# Section 4: 색상·사이즈 조합 #}
       <div class="bundle-section" id="sec-combo" data-tab="opt">
@@ -335,7 +203,7 @@
         <div class="bundle-section-head" style="display:flex;align-items:center;gap:9px">
           <h2>색상·사이즈 조합</h2>
           <button class="btn btn-primary btn-sm" data-action="step-design" type="button"
-                  style="margin-left:auto; text-align:center;">＋ 옵션 조합 생성</button>
+                  style="margin-left:auto; text-align:center;">＋ 옵션 조합 생성 및 수정</button>
         </div>
         {% for c in combos %}
         <div class="combo-card" data-id="{{ c.id }}">
@@ -869,9 +737,8 @@
       // B6 — 활성 단계 안내 banner 갱신
       const STEP_INFO = {
         basic: ['1단계', '기본 정보 — 모음전 코드·카테고리·노출명 입력'],
-        tpl:   ['2단계', '적용 템플릿 — 가격·색상·사이즈 템플릿 선택'],
-        opt:   ['3단계', '옵션 — 소싱처 URL · 단계형 옵션 생성 · 매트릭스 통합 관리'],
-        mkt:   ['4단계', '마켓 등록·업로드 — 스마트스토어·쿠팡 매핑 + 동기화'],
+        opt:   ['2단계', '옵션 — 옵션 조합 생성 및 수정 · 가격 설정 · 매트릭스 관리'],
+        mkt:   ['3단계', '마켓 등록·업로드 — 스마트스토어·쿠팡 매핑 + 동기화'],
       };
       const info = STEP_INFO[name];
       if (info) {
@@ -893,7 +760,7 @@
     // 클릭 바인딩
     tabs.forEach(t => t.addEventListener('click', () => showTab(t.dataset.tab)));
     // step-progress 클릭 → 해당 탭으로 점프 (단계 1~7 → 탭 매핑)
-    const stepToTab = { 'sec-basic':'basic','sec-url':'opt','sec-tpl':'tpl','sec-combo':'opt','sec-matrix':'opt','sec-market':'mkt','sec-runs':'run' };
+    const stepToTab = { 'sec-basic':'basic','sec-url':'opt','sec-combo':'opt','sec-matrix':'opt','sec-market':'mkt','sec-runs':'run' };
     document.querySelectorAll('.step[href^="#"]').forEach(a => {
       a.addEventListener('click', (e) => {
         const href = (a.getAttribute('href') || '').replace('#','');

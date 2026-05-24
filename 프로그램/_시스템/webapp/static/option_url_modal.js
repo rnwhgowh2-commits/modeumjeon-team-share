@@ -218,7 +218,7 @@
     modal.className = 'oum-modal';
     modal.innerHTML = `
       <div class="oum-mh">
-        <h2>단계형 옵션 생성 + 소싱처 URL 매핑</h2>
+        <h2>옵션 조합 생성 및 수정 + 소싱처 URL 매핑</h2>
         <span class="pill">✨ 동시 입력</span>
         <button class="close" type="button">×</button>
       </div>
@@ -247,7 +247,7 @@
     const $ = sel => modal.querySelector(sel);
     const $$ = sel => modal.querySelectorAll(sel);
 
-    // 소싱처 목록 로드 (기존 모음전 GET 활용)
+    // 소싱처 목록 + 기존 옵션 로드 (기존 모음전 GET 활용)
     try {
       const r = await fetch(`/api/bundles/${encodeURIComponent(bundleCode)}/source-urls`);
       const j = await r.json();
@@ -266,6 +266,36 @@
             }));
           }
         });
+
+        // [2026-05-24 A-1] 기존 옵션 → state.axes 입력칸 + selected 자동 채움
+        //   → 사용자가 다시 모달 열면 기존 옵션 보면서 추가/수정 가능
+        const opts = j.options || [];
+        if (opts.length > 0) {
+          // axis 추출 (옵션의 axis_values 키·값 종합)
+          const axesMap = {};   // axisName → [value list]
+          const axisOrder = [];
+          opts.forEach(o => {
+            const av = (o.axis_values && typeof o.axis_values === 'object') ? o.axis_values : null;
+            if (!av) return;
+            Object.keys(av).forEach(k => {
+              if (!axesMap[k]) { axesMap[k] = []; axisOrder.push(k); }
+              const v = av[k];
+              if (axesMap[k].indexOf(v) === -1) axesMap[k].push(v);
+            });
+          });
+          if (axisOrder.length > 0) {
+            state.axes = axisOrder.map(k => ({ name: k, values: axesMap[k].join(',') }));
+            state.applied = true;  // 옵션 있으면 자동 적용 상태 (우측 USL 보임)
+            // selected 모두 ON
+            opts.forEach(o => {
+              const av = o.axis_values || {};
+              const vals = axisOrder.map(k => av[k] || '');
+              const key = JSON.stringify(vals);
+              state.selected.add(key);
+              state.seen.add(key);
+            });
+          }
+        }
       }
     } catch (e) { console.warn('sources load fail', e); }
 
