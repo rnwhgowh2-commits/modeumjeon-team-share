@@ -1488,7 +1488,7 @@
 .sm-side-h {
   background: #fff; border: 1px solid #E5E8EB; border-radius: 12px;
   padding: 18px 22px; margin-bottom: 12px;
-  display: grid; grid-template-columns: 260px 1fr 260px; gap: 22px; align-items: center;
+  display: grid; grid-template-columns: 260px 1fr 260px; gap: 22px; align-items: stretch;
 }
 .sm-side-h .progress-blk { display: flex; align-items: center; gap: 16px; padding-right: 16px; border-right: 1px solid #E5E8EB; }
 .sm-side-h .progress-blk .big-ring {
@@ -1507,7 +1507,7 @@
 .sm-side-h .progress-blk .meta .sub { font-size: 14px; color: #8B95A1; margin-top: 3px; }
 
 /* 사이트별 카드 그리드 — 폰트 강화 */
-.sm-side-h .srcs-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; }
+.sm-side-h .srcs-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; align-content: start; }
 .sm-side-h .srcs-grid .scell {
   background: #F9FAFB; border-radius: 10px; padding: 14px 14px; position: relative;
   border-top: 3px solid #03C75A; text-align: center;
@@ -1524,10 +1524,11 @@
 /* Winner 카드 — 강조 강화 */
 .sm-side-h .winner-blk {
   background: linear-gradient(135deg, #FEF3C7, #FDE68A); border-radius: 12px;
-  padding: 16px 18px; display: flex; align-items: center; gap: 14px;
+  padding: 16px 18px; display: flex; flex-direction: column; align-items: flex-start; gap: 8px;
+  height: 100%; justify-content: flex-start;
 }
 .sm-side-h .winner-blk .ic { font-size: 30px; }
-.sm-side-h .winner-blk .text { flex: 1; min-width: 0; }
+.sm-side-h .winner-blk .text { flex: 1; min-width: 0; display: flex; flex-direction: column; justify-content: center; width: 100%; }
 .sm-side-h .winner-blk .text .lbl { font-size: 14px; color: #92400E; font-weight: 800; text-transform: uppercase; letter-spacing: .3px; }
 .sm-side-h .winner-blk .text b { font-size: 16px; font-weight: 800; color: #92400E; display: block; margin-top: 3px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .sm-side-h .winner-blk .text small { font-size: 14px; color: #4E5968; display: block; margin-top: 3px; }
