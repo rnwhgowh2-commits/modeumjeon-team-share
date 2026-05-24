@@ -12,7 +12,11 @@ class Base(DeclarativeBase):
     pass
 
 
-engine = create_engine(Config.DB_URL, future=True)
+# pool_pre_ping=True: Supabase pgbouncer 가 idle connection 을 끊는 경우
+# (보통 5~10분 idle) 첫 쿼리가 실패하던 문제 방지. checkout 시 SELECT 1 로
+# 검증. 검증 비용 ~5ms (Tokyo-Tokyo RTT) 이지만 stale connection 으로 인한
+# 첫 요청 500 에러 / 재시도 비용보다 훨씬 작음.
+engine = create_engine(Config.DB_URL, future=True, pool_pre_ping=True)
 # expire_on_commit=False: commit 후 객체 컬럼 expire 방지 — session.close() 후에도 컬럼 access 가능
 # (DetachedInstanceError + InFailedSqlTransaction 회피)
 SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False, future=True, expire_on_commit=False)

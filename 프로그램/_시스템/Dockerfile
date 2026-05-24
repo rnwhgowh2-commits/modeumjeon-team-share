@@ -31,12 +31,13 @@ USER app
 EXPOSE 8080
 
 # Gunicorn — Flask 앱 진입점 = app:create_app()
-# 워커 1개 (256MB 메모리 절약), 스레드 2개 (동시 요청 처리)
+# 워커 2개 × 스레드 4개 = 동시 요청 처리 8개. --preload 로 모델 import 메모리
+# 공유 → 두 워커 추가 메모리 ~50-100MB (1GB 머신 안 충분).
 # 타임아웃 60초 (크롤러 대시보드 등 무거운 요청 대비)
 CMD ["gunicorn", \
      "--bind", "0.0.0.0:8080", \
-     "--workers", "1", \
-     "--threads", "2", \
+     "--workers", "2", \
+     "--threads", "4", \
      "--timeout", "60", \
      "--access-logfile", "-", \
      "--error-logfile", "-", \
