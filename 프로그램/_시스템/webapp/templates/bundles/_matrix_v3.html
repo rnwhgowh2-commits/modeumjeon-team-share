@@ -875,7 +875,10 @@
             return;
           }
           if (typeof openPriceTplModal === 'function') {
-            openPriceTplModal(tplId);
+            // data-mkt: 'ss' | 'coupang' → 모달 탭 키: 'ss' | 'cp'
+            const mkt = a.dataset.mkt;
+            const tabKey = mkt === 'coupang' ? 'cp' : (mkt === 'ss' ? 'ss' : 'basic');
+            openPriceTplModal(tplId, tabKey);
           } else {
             alert('가격 템플릿 편집 화면을 열 수 없습니다.');
           }

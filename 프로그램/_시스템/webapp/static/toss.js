@@ -1211,7 +1211,7 @@ function openAddSourceModal() {
   paintLogo();
 }
 
-async function openPriceTplModal(id) {
+async function openPriceTplModal(id, initialTab) {
   let initial = {};
   if (id) {
     const r = await fetch(`/api/templates/price/${id}`);
@@ -1347,7 +1347,9 @@ async function openPriceTplModal(id) {
     panels.forEach(p => { p.style.display = p.dataset.panel === name ? '' : 'none'; });
   };
   tabs.forEach(t => t.addEventListener('click', () => activateTab(t.dataset.tab)));
-  activateTab('basic');
+  // [2026-05-25] 호출자가 initialTab 전달 시 해당 탭 활성 (예: 마켓 행 "수정" → 'ss'/'cp')
+  const validTabs = ['basic', 'ss', 'cp'];
+  activateTab(validTabs.includes(initialTab) ? initialTab : 'basic');
 
   // 배송타입 라디오 ↔ 배송비 입력 연동 (무료배송 = 배송비 0)
   ['ss', 'coupang'].forEach(prefix => {
