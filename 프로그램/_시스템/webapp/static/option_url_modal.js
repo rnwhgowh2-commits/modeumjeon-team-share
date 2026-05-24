@@ -348,8 +348,10 @@
             const filtered = filterCombos(axis.name, val);
             const onN = filtered.filter(c => state.selected.has(keyOf(c))).length;
             const total = filtered.length;
-            const st = onN === 0 ? '' : (onN === total ? 'on' : 'par');
-            const ico = onN === 0 ? '' : (onN === total ? '✓ ' : '─ ');
+            // [2026-05-24] 2상태만 — 전체 ON 색칠 / 그 외(부분/0) 회색 (사용자 피드백: partial 무의미)
+            const isAllOn = total > 0 && onN === total;
+            const st = isAllOn ? 'on' : '';
+            const ico = isAllOn ? '✓ ' : '';
             html += `<button class="oum-chip ${st}" data-qs-axis="${esc(axis.name)}" data-qs-val="${esc(val)}" type="button">${ico}${esc(val)} <span class="mini">${onN}/${total}</span></button>`;
           });
           html += `</div>`;
@@ -431,8 +433,11 @@
 
     function renderMatrix2D(colAxis, rowAxis, baseFilter) {
       const valid = validAxes();
-      const colIdx = valid.findIndex(a => a === colAxis);
-      const rowIdx = valid.findIndex(a => a === rowAxis);
+      // [2026-05-24 BUG FIX] validAxes() 새 배열 → 객체 참조 비교 실패 (-1)
+      //   → 모든 셀이 같은 key → 셀 클릭 시 전체 토글되는 버그
+      //   해결: 이름 기반 매칭
+      const colIdx = valid.findIndex(a => a.name === colAxis.name);
+      const rowIdx = valid.findIndex(a => a.name === rowAxis.name);
 
       let html = `<table class="oum-mtx-table"><thead><tr>
         <th class="corner" data-corner-axes='${esc(JSON.stringify(baseFilter))}'>⌐</th>`;
@@ -612,8 +617,9 @@
 
     function renderUrlMatrix2D(u, colAxis, rowAxis, baseFilter, mappedSet, sharedMap) {
       const valid = validAxes();
-      const colIdx = valid.findIndex(a => a === colAxis);
-      const rowIdx = valid.findIndex(a => a === rowAxis);
+      // [2026-05-24 BUG FIX] 같은 객체 참조 버그 — 이름 기반 매칭
+      const colIdx = valid.findIndex(a => a.name === colAxis.name);
+      const rowIdx = valid.findIndex(a => a.name === rowAxis.name);
 
       let html = `<table class="oum-mtx-table"><thead><tr><th class="corner">⌐</th>`;
       colAxis.values.forEach(cv => {
