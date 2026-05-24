@@ -811,8 +811,13 @@
   window.icpBootstrapBrandColors = _bootstrapBrandColors;
 
   let _activeColorPop = null;
+  let _activeColorPopEscHandler = null;
   function _closeColorPop() {
     if (_activeColorPop) { _activeColorPop.remove(); _activeColorPop = null; }
+    if (_activeColorPopEscHandler) {
+      document.removeEventListener('keydown', _activeColorPopEscHandler);
+      _activeColorPopEscHandler = null;
+    }
   }
   function openColorPopover(trigger, anchorEvent) {
     _closeColorPop();
@@ -1018,8 +1023,13 @@
     // popover 내부 클릭은 닫지 않음
     pop.addEventListener('click', e => e.stopPropagation());
 
-    // 외부 클릭 닫기 — popover 자체 click 은 위에서 막음
-    setTimeout(() => document.addEventListener('click', _closeColorPop, {once: true}), 100);
+    // v34.2 — 외부 클릭 닫기 제거. 이유: native color picker(hue 슬라이더·SV 평면)
+    //   의 클릭이 document 까지 bubble 되어 popover 가 의도치 않게 닫히는 문제 해결.
+    //   닫기 방법: 「적용」 / 「초기화」 버튼, ESC 키, 또는 새 popover 열기 (자동 닫힘).
+    _activeColorPopEscHandler = (e) => {
+      if (e.key === 'Escape' || e.key === 'Esc') { e.preventDefault(); _closeColorPop(); }
+    };
+    document.addEventListener('keydown', _activeColorPopEscHandler);
   }
 
   // rgb(r,g,b) → #RRGGBB
