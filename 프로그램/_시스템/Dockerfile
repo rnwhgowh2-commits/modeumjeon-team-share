@@ -33,10 +33,14 @@ COPY . .
 RUN COUNT=$(grep -c "brandPx" /app/webapp/templates/bundles/_matrix_v3.html || echo 0) && \
     echo "VERIFY brandPx count: $COUNT" && \
     if [ "$COUNT" -lt "3" ]; then \
-      echo "BUILD FAIL: brandPx fix not in image (cache used old code)"; \
-      exit 1; \
+      echo "BUILD FAIL: brandPx fix not in image"; exit 1; \
     fi && \
-    echo "BUILD OK: fix verified in image"
+    BASE_V=$(grep "option_url_modal.js?v=" /app/webapp/templates/base.html | head -1) && \
+    echo "VERIFY base.html script: $BASE_V" && \
+    if ! echo "$BASE_V" | grep -q "20260524_06"; then \
+      echo "BUILD FAIL: base.html cache_v not v=06"; exit 1; \
+    fi && \
+    echo "BUILD OK: 모든 fix verified in image"
 
 # 비-root 사용자 (보안)
 RUN useradd -m -u 1000 app && chown -R app:app /app
