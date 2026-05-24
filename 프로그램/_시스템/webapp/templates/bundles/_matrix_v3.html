@@ -866,7 +866,7 @@
   <script>
     // [2026-05-25] 수정 링크 → 적용된 가격 템플릿 편집 모달 호출
     (function(){
-      const tplId = {{ (applied_price.id if applied_price else 'null')|tojson }};
+      const tplId = {{ (applied_price.id if applied_price else None)|tojson }};
       document.querySelectorAll('.pm-edit').forEach(a => {
         a.addEventListener('click', (e) => {
           e.preventDefault();
@@ -981,7 +981,9 @@
           currentColor = hex;
           hexInput.value = hex;
           updateSwatch();
-          autoSave();  // 드래그·클릭 매번 호출 — debounce 가 합침
+          // v34.6 — 박스에 즉시 inline 반영 (응답 대기 없이). 영속화는 debounced autoSave 가 처리.
+          if (currentBox) currentBox.style.background = hex;
+          autoSave();
         });
         host.appendChild(photoPicker.el);
       }
@@ -1012,18 +1014,22 @@
         if (!pop.contains(e.target)) pop.style.display = 'none';
       });
 
-      // HEX 입력 — 정상값 시 photoPicker 동기화 + 자동 저장
+      // HEX 입력 — 정상값 시 photoPicker 동기화 + 박스 즉시 반영 + 자동 저장
       hexInput.addEventListener('input', function() {
         const v = (hexInput.value || '').trim().toUpperCase();
         if (/^#[0-9A-F]{6}$/.test(v)) {
           currentColor = v;
           if (photoPicker) photoPicker.setHex(v);
           updateSwatch();
+          if (currentBox) currentBox.style.background = v;
           autoSave();
         }
       });
-      // letter 입력 — 자동 저장
-      letterInput.addEventListener('input', autoSave);
+      // letter 입력 — 박스 즉시 반영 + 자동 저장
+      letterInput.addEventListener('input', function() {
+        if (currentBox) currentBox.textContent = letterInput.value.trim().slice(0, 4);
+        autoSave();
+      });
       // 완료 = 닫기 (이미 저장됨)
       document.getElementById('mkt-logo-pop-close').addEventListener('click', () => {
         if (saveTimer) { clearTimeout(saveTimer); saveNow(); }  // pending 즉시 저장
