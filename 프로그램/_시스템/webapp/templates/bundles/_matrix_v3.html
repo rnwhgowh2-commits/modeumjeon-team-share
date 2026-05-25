@@ -684,6 +684,9 @@
         <option value="{{ t.id }}" {% if applied_price and applied_price.id == t.id %}selected{% endif %}>{{ t.name }}</option>
         {% endfor %}
       </select>
+      <button type="button" id="bp-tpl-add"
+              style="font-size:14px; color:#3B82F6; padding:8px 12px; border:1.5px solid #bfdbfe; border-radius:8px; background:#eff6ff; font-weight:600; cursor:pointer; font-family:var(--font);"
+              title="새 가격 템플릿 추가">＋ 추가</button>
       <span id="bp-tpl-status" style="font-size:14px; color:#10b981; font-weight:600; min-width:120px;">
         {% if applied_price %}✓ 적용 중{% else %}<span style="color:#9ca3af;">미적용</span>{% endif %}
       </span>
@@ -692,6 +695,18 @@
          title="템플릿 관리 (새 탭)">⚙ 템플릿 관리</a>
     </div>
     <script>
+      // [2026-05-25] ＋ 추가 → 신규 가격 템플릿 모달 (toss.js openPriceTplModal(null))
+      (function(){
+        const addBtn = document.getElementById('bp-tpl-add');
+        if (!addBtn) return;
+        addBtn.addEventListener('click', () => {
+          if (typeof openPriceTplModal === 'function') {
+            openPriceTplModal(null);
+          } else {
+            alert('템플릿 편집 화면을 열 수 없습니다.');
+          }
+        });
+      })();
       // [2026-05-24 B-2] 가격 템플릿 변경 → POST /api/bundles/<code> { price_template_id }
       (function(){
         const sel = document.getElementById('bp-tpl-select');
