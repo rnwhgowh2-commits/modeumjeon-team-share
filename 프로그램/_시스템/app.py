@@ -62,8 +62,18 @@ def create_app() -> Flask:
 
     # 항상 맵핑 모델 등록 (team-share-dev 외 환경에서도 테이블 사용 가능하도록)
     import lemouton.mapping.models  # noqa: F401
+    # v34.11 — brand 색 DB 영속화 (Fly.io 멀티 인스턴스 + deploy reset 문제 해결)
+    import webapp.icon_store_model  # noqa: F401
 
     init_db()
+
+    # v34.11 — 기존 icon_overrides.json (머신 휘발) 을 DB 로 1회성 마이그레이션
+    try:
+        from webapp.icon_store import migrate_from_json
+        migrate_from_json()
+    except Exception:
+        import logging as _logging
+        _logging.getLogger(__name__).exception("icon_store migration skipped")
 
     # Jinja2 — JSON 문자열을 chip 배열로 풀기 위한 filter
     import json as _json
