@@ -948,18 +948,26 @@
     style.textContent = rules.join('\n');
   }
   // 부트스트랩 — /api/icon/list 의 'brand' 컨텍스트 항목 적용
+  // v34.8: 서버 응답이 진실 원천. cache 전체 reset 후 응답으로 채움.
+  //   - 응답에 없는 키는 cache 에서 제거 (다른 사용자가 색을 초기화한 경우 반영)
+  //   - fetch 실패 시 SSR 인라인 stylesheet (base.html) 가 fallback 으로 이미 적용되어 있음
   async function _bootstrapBrandColors() {
     try {
       const r = await fetch('/api/icon/list');
+      if (!r.ok) return;
       const d = await r.json();
       const brandMap = (d.icons || {}).brand || {};
+      // cache 전체 리셋
+      Object.keys(_brandColorCache).forEach(k => delete _brandColorCache[k]);
       for (const [key, entry] of Object.entries(brandMap)) {
         if (entry && (entry.bg_color || entry.fg_color)) {
           _brandColorCache[key] = {bg: entry.bg_color || '', fg: entry.fg_color || ''};
         }
       }
       _rebuildBrandStyle();
-    } catch (_) {}
+    } catch (_) {
+      // SSR 인라인 stylesheet 가 fallback. 추가 동작 불필요.
+    }
   }
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', _bootstrapBrandColors);

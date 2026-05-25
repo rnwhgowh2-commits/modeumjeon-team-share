@@ -11,9 +11,19 @@
 <link rel="stylesheet" href="{{ url_for('static', filename='toss.css') }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='toss_add_benefit.css') }}"><!-- v6 D2-A 혜택추가폼 -->
 <link rel="stylesheet" href="{{ url_for('static', filename='stripe.css') }}">
-{# v32 — 아이콘 picker (노션 스타일). v34.7: brand-app-logo 통합 + 캐시 무효화. #}
-<link rel="stylesheet" href="{{ url_for('static', filename='icon_picker.css') }}?v=v34.7">
-<script src="{{ url_for('static', filename='icon_picker.js') }}?v=v34.7" defer></script>
+{# v32 — 아이콘 picker (노션 스타일). v34.8: SSR 인라인 brand 색 + 캐시 무효화. #}
+<link rel="stylesheet" href="{{ url_for('static', filename='icon_picker.css') }}?v=v34.8">
+<script src="{{ url_for('static', filename='icon_picker.js') }}?v=v34.8" defer></script>
+{# v34.8 — brand 색 SSR 인라인 주입 (클라이언트 fetch 실패와 무관하게 즉시 적용) #}
+{% if brand_color_overrides %}
+<style id="brand-overrides">
+{%- for _bkey, _bval in brand_color_overrides.items() %}
+{%- if _bval.get('bg_color') or _bval.get('fg_color') %}
+.brand-{{ _bkey }}, .brand-app-logo.{{ _bkey }} { {% if _bval.get('bg_color') %}background: {{ _bval.bg_color }} !important;{% endif %}{% if _bval.get('fg_color') %} color: {{ _bval.fg_color }} !important;{% endif %} }
+{%- endif %}
+{%- endfor %}
+</style>
+{% endif %}
 {# 시안 2 (에어리) 디자인 베이스 — Phase 1: 홈 + 모음전 옵션탭. 다른 페이지 영향 최소화. #}
 <link rel="stylesheet" href="{{ url_for('static', filename='airy.css') }}">
 <script>

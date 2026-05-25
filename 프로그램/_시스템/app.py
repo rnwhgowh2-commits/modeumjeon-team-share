@@ -182,6 +182,16 @@ def create_app() -> Flask:
 
     app.register_blueprint(api_v1)
 
+    # v34.8 — brand 색 override 를 모든 페이지에 SSR 인라인 주입.
+    # 클라이언트 부트스트랩 fetch 가 실패해도 (JWT 일시 에러 등) 색상이 즉시 적용됨.
+    @app.context_processor
+    def _inject_brand_color_overrides():
+        try:
+            from webapp.icon_store import list_icons
+            return {'brand_color_overrides': list_icons().get('brand', {})}
+        except Exception:
+            return {'brand_color_overrides': {}}
+
     # 옛 링크 호환 — /markets/<market> → /accounts/upload?market=<market>
     from flask import redirect as _redirect
     @app.get('/markets/<market>')
