@@ -122,6 +122,11 @@ def _apply_lightweight_migrations() -> None:
         ("bundle_source_urls", "label", "VARCHAR(120)"),
         # 2026-05-25: 판매가 정책 (색상 통일 / 옵션별 cheapest) — A2+D3 시안 적용
         ("price_templates", "pricing_policy", "VARCHAR(16) DEFAULT 'cheapest'"),
+        # 2026-05-25: 매입가 산정 우선순위 (V5 시안 — 사입 카드 0원 차단)
+        ("price_templates", "price_source_priority", "VARCHAR(16) DEFAULT 'template'"),
+        # 2026-05-25: 옵션별 지정가 (C1 시안 — 3번째 가격 카드)
+        ("options", "fixed_ss_price", "INTEGER"),
+        ("options", "fixed_cp_price", "INTEGER"),
         # v34.13 (2026-05-25): brand 박스 안 텍스트 사용자 커스터마이징
         ("brand_color_overrides", "letter", "VARCHAR(16)"),
     ]

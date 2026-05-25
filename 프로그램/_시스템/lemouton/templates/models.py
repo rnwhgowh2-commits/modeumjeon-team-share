@@ -70,6 +70,12 @@ class PriceTemplate(Base):
     # 'color'    — 같은 색상은 동일 판매가 (소싱처 MAX 기준) → 역마진 방지 + SEO 유리
     pricing_policy = Column(String(16), default='cheapest', nullable=False)
 
+    # [2026-05-25] 매입가 산정 우선순위 (사입 카드 0원 차단 — V5 시안)
+    # 'template' (기본) — 템플릿 boxhero_purchase_price 우선 → 0이면 옵션 평균매입가 폴백
+    # 'avg'              — 옵션 boxhero_avg_purchase_price 우선 → 0이면 템플릿값 폴백
+    # 둘 다 0이면 사입 카드 차단 (UI 빨간 🚫 + ＋ 평균매입가 입력 버튼)
+    price_source_priority = Column(String(16), default='template', nullable=False)
+
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc),
                         onupdate=lambda: datetime.now(timezone.utc))

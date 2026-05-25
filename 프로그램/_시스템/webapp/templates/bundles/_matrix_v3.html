@@ -4407,8 +4407,39 @@
           <div class="m4v1-head">사입 <span class="m4v1-pri zero">⊘ 재고 0</span></div>
           <div class="m4v1-fallback">사입재고 0 · 소싱 자동 fallback</div>
         </div>`;
+    } else if (o.purchase_blocked) {
+      // [2026-05-25 V5] 매입가 0원 차단 — 빨간 🚫 카드
+      const _tplP = (o.template_purchase_price || 0).toLocaleString('ko-KR');
+      const _avgV = (avg || 0).toLocaleString('ko-KR');
+      const _srcPri = o.price_source_priority || 'template';
+      purCard = `
+        <div class="m4v1-card pur blocked" data-m4-card="purchase" data-sku="${o.sku}" data-model-code="${o.model_code || ''}">
+          <div class="m4v1-head">사입 <span class="m4v1-pri pur">우선</span> <span class="m4v1-stock-chip">재고 ${stock}</span></div>
+          <div class="m4v1-mkt-row">
+            <span class="m4v1-mkt-logo">${marketLogoHtml('스마트스토어')}</span>
+            <span class="m4v1-mkt-name">스마트스토어</span>
+            <span class="m4v1-mkt-price">— 원</span>
+            <span class="m4v1-mkt-margin">${ssMargin.toFixed(2)}%</span>
+          </div>
+          <div class="m4v1-mkt-row">
+            <span class="m4v1-mkt-logo">${marketLogoHtml('쿠팡')}</span>
+            <span class="m4v1-mkt-name">쿠팡</span>
+            <span class="m4v1-mkt-price">— 원</span>
+            <span class="m4v1-mkt-margin">${cpMargin.toFixed(2)}%</span>
+          </div>
+          <div class="m4v1-pur-info">매입가 <b>0원</b><span class="missing">미설정</span></div>
+          <div class="v5-prio">
+            <div class="v5-prio-h">매입가 우선순위 <span class="help">(같은 템플릿 옵션 일괄 적용)</span></div>
+            <div class="v5-prio-seg" data-v5-prio-seg="${o.sku}">
+              <button type="button" data-v5-pri="template" class="${_srcPri==='template'?'on':''}">템플릿</button>
+              <button type="button" data-v5-pri="avg" class="${_srcPri==='avg'?'on':''}">평균매입가</button>
+            </div>
+            <div class="v5-prio-vals">템플릿 ${_tplP}원 · 평균매입가 ${_avgV}원</div>
+          </div>
+          <button type="button" class="v5-input-btn" data-v5-input-tpl="${o.model_code || ''}">＋ 평균매입가 입력</button>
+        </div>`;
     } else {
-      // 사입 ON (재고 1 이상)
+      // 사입 ON (재고 1 이상, 매입가 정상)
       const purCardClass = isPurchasePri ? 'm4v1-card pur active' : 'm4v1-card pur dim';
       const purLabel = isPurchasePri ? '우선' : '참고용';
       // v28 시안 ④ — 카드 푸터 전체 폭 「재고관리에서 자세히 보기 →」 link
@@ -4433,7 +4464,33 @@
         </div>`;
     }
 
-    return srcCard + purCard;
+    // ─── [2026-05-25 C1] 지정가 카드 (3번째) ───
+    const fixSs = o.fixed_ss_price || 0;
+    const fixCp = o.fixed_cp_price || 0;
+    const isFixedPri = ((o.purchase_priority || '').toLowerCase() === 'fixed');
+    const fixCardClass = isFixedPri ? 'm4v1-card fix active' : 'm4v1-card fix dim';
+    const fixHeadLabel = isFixedPri ? '우선' : '참고용';
+    const ssLossChip = o.fixed_loss_ss ? '<span class="c1-fix-loss-chip" title="역마진 — 지정가가 매입가보다 낮음">⚠ 역마진</span>' : '';
+    const cpLossChip = o.fixed_loss_cp ? '<span class="c1-fix-loss-chip" title="역마진 — 지정가가 매입가보다 낮음">⚠ 역마진</span>' : '';
+    const fixCard = `
+      <div class="${fixCardClass}" data-m4-card="fixed" data-sku="${o.sku}">
+        <div class="m4v1-head">지정가 <span class="m4v1-pri">${fixHeadLabel}</span></div>
+        <div class="c1-fix-row">
+          <span class="m4v1-mkt-logo">${marketLogoHtml('스마트스토어')}</span>
+          <span class="m4v1-mkt-name">스마트스토어 ${ssLossChip}</span>
+          <input type="number" step="100" data-c1-fix="ss" data-sku="${o.sku}" value="${fixSs || ''}" placeholder="—">
+        </div>
+        <div class="c1-fix-row">
+          <span class="m4v1-mkt-logo">${marketLogoHtml('쿠팡')}</span>
+          <span class="m4v1-mkt-name">쿠팡 ${cpLossChip}</span>
+          <input type="number" step="100" data-c1-fix="cp" data-sku="${o.sku}" value="${fixCp || ''}" placeholder="—">
+        </div>
+        <div class="c1-fix-save-row">
+          <button type="button" class="c1-fix-save-btn" data-c1-fix-save="${o.sku}">저장</button>
+        </div>
+      </div>`;
+
+    return srcCard + purCard + fixCard;
   }
 
   // ④ 옵션 재고연결 — 연결 칸 (인라인 검색 + 찾아보기). renderStockCell 상단에 삽입.
@@ -5411,6 +5468,77 @@
   }
 
   document.addEventListener('click', async (e) => {
+    // [2026-05-25 V5] ＋ 평균매입가 입력 → 가격 템플릿 모달 오픈
+    const v5InputBtn = e.target.closest('[data-v5-input-tpl]');
+    if (v5InputBtn) {
+      e.preventDefault(); e.stopPropagation();
+      const modelCode = v5InputBtn.dataset.v5InputTpl;
+      // 모음전의 모델 → 해당 모델의 price_template_id 로 모달 오픈
+      const model = (window.DATA?.models || []).find(m => m.model_code === modelCode);
+      const tplId = model?.price_template_id || (window.DATA?.applied_price?.id);
+      if (!tplId) { alert('이 모음전에 가격 템플릿이 연결되어 있지 않아요. 먼저 템플릿을 선택해주세요.'); return; }
+      if (typeof openPriceTplModal === 'function') { openPriceTplModal(tplId, 'basic'); }
+      return;
+    }
+    // [2026-05-25 V5] 우선순위 미니 토글 (카드 안) → 가격 템플릿 저장 + 매트릭스 재계산
+    const v5PriBtn = e.target.closest('[data-v5-pri]');
+    if (v5PriBtn) {
+      e.preventDefault(); e.stopPropagation();
+      const sku = v5PriBtn.closest('[data-v5-prio-seg]')?.dataset.v5PrioSeg;
+      const opt = (window.DATA?.options || []).find(o => o.sku === sku);
+      const modelCode = opt?.model_code;
+      const model = (window.DATA?.models || []).find(m => m.model_code === modelCode);
+      const tplId = model?.price_template_id || (window.DATA?.applied_price?.id);
+      if (!tplId) { alert('가격 템플릿이 연결되어 있지 않아요.'); return; }
+      const next = v5PriBtn.dataset.v5Pri;  // 'template' | 'avg'
+      try {
+        const r = await fetch('/api/templates/price', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({id: tplId, price_source_priority: next}),
+        });
+        const j = await r.json();
+        if (j.ok) { location.reload(); }
+        else { alert('우선순위 저장 실패: ' + (j.error || '')); }
+      } catch (err) { console.error(err); alert('우선순위 저장 중 오류'); }
+      return;
+    }
+    // [2026-05-25 C1] 지정가 카드 저장 버튼
+    const c1Save = e.target.closest('[data-c1-fix-save]');
+    if (c1Save) {
+      e.preventDefault(); e.stopPropagation();
+      const sku = c1Save.dataset.c1FixSave;
+      const card = c1Save.closest('.m4v1-card.fix');
+      const ssInp = card?.querySelector('input[data-c1-fix="ss"]');
+      const cpInp = card?.querySelector('input[data-c1-fix="cp"]');
+      const ssVal = ssInp?.value ? parseInt(ssInp.value, 10) : null;
+      const cpVal = cpInp?.value ? parseInt(cpInp.value, 10) : null;
+      const payload = {
+        fixed_ss_price: ssVal,
+        fixed_cp_price: cpVal,
+        // 입력하면 지정가 모드 활성화 (사용자가 명시적으로 저장 누름)
+        purchase_priority: 'fixed',
+      };
+      const j = await _saveOptionPurchase(sku, payload);
+      if (j) {
+        // opt 동기화
+        const opt = (window.DATA?.options || []).find(o => o.sku === sku);
+        if (opt) {
+          opt.fixed_ss_price = ssVal;
+          opt.fixed_cp_price = cpVal;
+          opt.purchase_priority = 'fixed';
+          opt.purchase_priority_resolved = 'fixed';
+          opt.fixed_blocked = !(ssVal || cpVal);
+        }
+        const tr = card.closest('tr[data-price-row]');
+        if (tr) {
+          const opsCell = tr.querySelector('td.mc-unified-cell');
+          if (opsCell) opsCell.innerHTML = renderM4Stack(opt);
+        }
+      }
+      return;
+    }
+
     // ① 카드 클릭 → 우선순위 전환 (A: 카드 클릭 전환)
     const card = e.target.closest('.m4-card[data-m4-card], .m4v1-card[data-m4-card]');
     if (card && !card.classList.contains('m4-bh0') && !card.classList.contains('disabled')) {
@@ -5439,6 +5567,11 @@
         await _saveOptionPurchase(sku, {purchase_priority: 'source'});
         opt.purchase_priority = 'source';
         opt.purchase_priority_resolved = 'source';
+      } else if (which === 'fixed') {
+        // [2026-05-25 C1] 지정가 카드 클릭 → 활성화 (입력값 그대로 유지)
+        await _saveOptionPurchase(sku, {purchase_priority: 'fixed'});
+        opt.purchase_priority = 'fixed';
+        opt.purchase_priority_resolved = 'fixed';
       }
       // v22 — 화면 전환 방지: 그 row 의 운영 cell 만 부분 갱신 (전체 재렌더 X)
       const tr = card.closest('tr[data-price-row]');
