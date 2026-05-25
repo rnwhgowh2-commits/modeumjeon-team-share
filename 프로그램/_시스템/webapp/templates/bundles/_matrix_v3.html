@@ -677,16 +677,33 @@
     <div style="display:flex; align-items:center; gap:14px; flex-wrap:wrap; padding-bottom:14px; border-bottom:1px dashed #e5e8eb;">
       <span style="font-size:24px; flex-shrink:0;">📋</span>
       <span style="font-size:18px; color:#6b7684; font-weight:700; min-width:140px;">가격 템플릿</span>
-      <select id="bp-tpl-select" data-code="{{ bundle.model_code }}"
-              style="font-size:17px; font-weight:700; padding:9px 14px; border:1.5px solid #e5e8eb; border-radius:8px; background:#fff; color:#1e40af; cursor:pointer; font-family:var(--font); min-width:240px;">
-        <option value="" {% if not applied_price %}selected{% endif %}>— 선택 안 함 —</option>
-        {% for t in price_templates %}
-        <option value="{{ t.id }}" {% if applied_price and applied_price.id == t.id %}selected{% endif %}>{{ t.name }}</option>
-        {% endfor %}
-      </select>
-      <button type="button" id="bp-tpl-add"
-              style="font-size:14px; color:#3B82F6; padding:8px 12px; border:1.5px solid #bfdbfe; border-radius:8px; background:#eff6ff; font-weight:600; cursor:pointer; font-family:var(--font);"
-              title="새 가격 템플릿 추가">＋ 추가</button>
+      {# [2026-05-25] 가격 템플릿 — 커스텀 드롭다운 (스크롤 영역 + 고정 footer "＋ 추가") #}
+      <div id="bp-tpl-dropdown" data-code="{{ bundle.model_code }}"
+           data-selected-id="{{ applied_price.id if applied_price else '' }}"
+           style="position:relative; min-width:240px; font-family:var(--font);">
+        <button type="button" id="bp-tpl-trigger"
+                style="width:100%; display:flex; align-items:center; gap:10px; font-size:17px; font-weight:700; padding:9px 14px; border:1.5px solid #e5e8eb; border-radius:8px; background:#fff; color:#1e40af; cursor:pointer; font-family:inherit; text-align:left;">
+          <span id="bp-tpl-label" style="flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{{ applied_price.name if applied_price else '— 선택 안 함 —' }}</span>
+          <span style="color:#9ca3af; font-size:12px;">▾</span>
+        </button>
+        <div id="bp-tpl-menu"
+             style="display:none; position:absolute; top:calc(100% + 4px); left:0; right:0; background:#fff; border:1.5px solid #e5e8eb; border-radius:10px; box-shadow:0 6px 18px rgba(0,0,0,.08); z-index:50; overflow:hidden;">
+          {# 스크롤 영역 — option 약 38px × 최대 5개 ≈ 190px 까지만 보임 #}
+          <div id="bp-tpl-list" role="listbox"
+               style="max-height:190px; overflow-y:auto; padding:4px 0;">
+            <button type="button" class="bp-tpl-opt" role="option" data-val=""
+                    style="display:block; width:100%; text-align:left; padding:9px 14px; border:0; background:{% if not applied_price %}#eff6ff{% else %}transparent{% endif %}; color:{% if not applied_price %}#1e40af{% else %}#6b7684{% endif %}; font-size:15px; font-weight:{% if not applied_price %}700{% else %}500{% endif %}; cursor:pointer; font-family:inherit;">— 선택 안 함 —</button>
+            {% for t in price_templates %}
+            <button type="button" class="bp-tpl-opt" role="option" data-val="{{ t.id }}"
+                    style="display:block; width:100%; text-align:left; padding:9px 14px; border:0; background:{% if applied_price and applied_price.id == t.id %}#eff6ff{% else %}transparent{% endif %}; color:{% if applied_price and applied_price.id == t.id %}#1e40af{% else %}#191f28{% endif %}; font-size:15px; font-weight:{% if applied_price and applied_price.id == t.id %}700{% else %}500{% endif %}; cursor:pointer; font-family:inherit;">{{ t.name }}</button>
+            {% endfor %}
+          </div>
+          {# 고정 footer — 스크롤 무관, 항상 6번째 자리 #}
+          <button type="button" id="bp-tpl-add-footer"
+                  style="display:flex; align-items:center; justify-content:center; gap:6px; width:100%; padding:11px 14px; border:0; border-top:1px solid #eaedf0; background:#fafbfc; color:#3B82F6; font-size:14px; font-weight:700; cursor:pointer; font-family:inherit;"
+                  title="새 가격 템플릿 추가">＋ 새 템플릿 추가</button>
+        </div>
+      </div>
       <span id="bp-tpl-status" style="font-size:14px; color:#10b981; font-weight:600; min-width:120px;">
         {% if applied_price %}✓ 적용 중{% else %}<span style="color:#9ca3af;">미적용</span>{% endif %}
       </span>
@@ -695,47 +712,75 @@
          title="템플릿 관리 (새 탭)">⚙ 템플릿 관리</a>
     </div>
     <script>
-      // [2026-05-25] ＋ 추가 → 신규 가격 템플릿 모달 (toss.js openPriceTplModal(null))
+      // [2026-05-25] 가격 템플릿 커스텀 드롭다운 — open/close/select/save + ＋ footer
       (function(){
-        const addBtn = document.getElementById('bp-tpl-add');
-        if (!addBtn) return;
+        const root = document.getElementById('bp-tpl-dropdown');
+        if (!root) return;
+        const trigger = document.getElementById('bp-tpl-trigger');
+        const menu    = document.getElementById('bp-tpl-menu');
+        const label   = document.getElementById('bp-tpl-label');
+        const status  = document.getElementById('bp-tpl-status');
+        const addBtn  = document.getElementById('bp-tpl-add-footer');
+        const code    = root.dataset.code;
+
+        function openMenu()  { menu.style.display = 'block'; }
+        function closeMenu() { menu.style.display = 'none'; }
+        function isOpen()    { return menu.style.display === 'block'; }
+
+        trigger.addEventListener('click', e => {
+          e.stopPropagation();
+          isOpen() ? closeMenu() : openMenu();
+        });
+        document.addEventListener('click', e => {
+          if (isOpen() && !root.contains(e.target)) closeMenu();
+        });
+        document.addEventListener('keydown', e => {
+          if (e.key === 'Escape' && isOpen()) closeMenu();
+        });
+
+        // 옵션 hover
+        root.querySelectorAll('.bp-tpl-opt').forEach(opt => {
+          const sel = opt.dataset.val === (root.dataset.selectedId || '');
+          opt.addEventListener('mouseenter', () => { if (!sel) opt.style.background = '#f4f6f8'; });
+          opt.addEventListener('mouseleave', () => { if (!sel) opt.style.background = 'transparent'; });
+          opt.addEventListener('click', async () => {
+            const val = opt.dataset.val;
+            label.textContent = opt.textContent.trim();
+            closeMenu();
+            const payload = { price_template_id: val ? parseInt(val, 10) : null };
+            status.textContent = '저장 중…';
+            status.style.color = '#3B82F6';
+            try {
+              const r = await fetch(`/api/bundles/${encodeURIComponent(code)}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload),
+              });
+              const j = await r.json();
+              if (j && j.ok) {
+                status.textContent = '✓ 저장됨 — 새로고침';
+                status.style.color = '#10b981';
+                setTimeout(() => location.reload(), 500);
+              } else {
+                status.textContent = '✗ 실패: ' + ((j && j.error) || '');
+                status.style.color = '#dc2626';
+              }
+            } catch (e) {
+              status.textContent = '✗ 오류: ' + e.message;
+              status.style.color = '#dc2626';
+            }
+          });
+        });
+
+        // ＋ 새 템플릿 추가 → toss.js openPriceTplModal(null)
+        addBtn.addEventListener('mouseenter', () => { addBtn.style.background = '#eff6ff'; });
+        addBtn.addEventListener('mouseleave', () => { addBtn.style.background = '#fafbfc'; });
         addBtn.addEventListener('click', () => {
+          closeMenu();
           if (typeof openPriceTplModal === 'function') {
             openPriceTplModal(null);
           } else {
             alert('템플릿 편집 화면을 열 수 없습니다.');
-          }
-        });
-      })();
-      // [2026-05-24 B-2] 가격 템플릿 변경 → POST /api/bundles/<code> { price_template_id }
-      (function(){
-        const sel = document.getElementById('bp-tpl-select');
-        if (!sel) return;
-        const status = document.getElementById('bp-tpl-status');
-        const code = sel.dataset.code;
-        sel.addEventListener('change', async function() {
-          const val = sel.value;
-          const payload = { price_template_id: val ? parseInt(val, 10) : null };
-          status.textContent = '저장 중…';
-          status.style.color = '#3B82F6';
-          try {
-            const r = await fetch(`/api/bundles/${encodeURIComponent(code)}`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify(payload),
-            });
-            const j = await r.json();
-            if (j && j.ok) {
-              status.textContent = '✓ 저장됨 — 새로고침';
-              status.style.color = '#10b981';
-              setTimeout(() => location.reload(), 500);
-            } else {
-              status.textContent = '✗ 실패: ' + ((j && j.error) || '');
-              status.style.color = '#dc2626';
-            }
-          } catch (e) {
-            status.textContent = '✗ 오류: ' + e.message;
-            status.style.color = '#dc2626';
           }
         });
       })();
