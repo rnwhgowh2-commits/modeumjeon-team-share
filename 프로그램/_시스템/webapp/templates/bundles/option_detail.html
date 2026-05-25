@@ -12,9 +12,15 @@
       <span class="bundle-section-num done">1</span>
       <h2>📍 사이트별 옵션 ID</h2>
     </div>
+    {# v34.9 — 라벨 옆에 brand-app-logo 박스 (brand 색 동기화 받음) #}
+    {% set _site_glyphs = {'lemouton':'르','musinsa':'M','ssf':'SS','lotteon':'롯','ss_lemouton':'N'} %}
+    {% set _site_brand_keys = {'lemouton':'lemouton','musinsa':'musinsa','ssf':'ssf','lotteon':'lotteon','ss_lemouton':'smartstore'} %}
     {% for site, label in [('lemouton','르무통 공홈'),('musinsa','무신사'),('ssf','SSF'),('lotteon','롯데몰'),('ss_lemouton','스마트스토어 르무통')] %}
     <div class="field">
-      <label class="field-label">{{ label }}</label>
+      <label class="field-label" style="display:flex;align-items:center;gap:7px;">
+        <span class="brand-app-logo sm {{ _site_brand_keys[site] }}" aria-hidden="true">{{ _site_glyphs[site] }}</span>
+        <span>{{ label }}</span>
+      </label>
       <input class="field-input mono" name="option_id_{{ site }}"
              value="{{ option['option_id_' ~ site] or '' }}" placeholder="(자동 매칭 또는 수동)" />
     </div>
@@ -41,12 +47,18 @@
       <h2>마켓 옵션 ID</h2>
     </div>
     <div class="field">
-      <label class="field-label">스마트스토어 옵션 ID (default)</label>
+      <label class="field-label" style="display:flex;align-items:center;gap:7px;">
+        <span class="brand-app-logo sm smartstore" aria-hidden="true">N</span>
+        <span>스마트스토어 옵션 ID (default)</span>
+      </label>
       <input class="field-input mono" name="naver_option_id"
              value="{{ option.naver_option_id or '' }}" placeholder="(자동 등록 후 채워짐)" />
     </div>
     <div class="field">
-      <label class="field-label">쿠팡 vendorItemId (default)</label>
+      <label class="field-label" style="display:flex;align-items:center;gap:7px;">
+        <span class="brand-app-logo sm coupang" aria-hidden="true">C</span>
+        <span>쿠팡 vendorItemId (default)</span>
+      </label>
       <input class="field-input mono" name="coupang_option_id"
              value="{{ option.coupang_option_id or '' }}" placeholder="(자동 등록 후 채워짐)" />
     </div>
