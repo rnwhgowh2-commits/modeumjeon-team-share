@@ -894,7 +894,7 @@
   function _detectBrand(el) {
     if (!el) return null;
     // 자기 자신 + 가까운 brand 컨테이너 확인
-    const node = el.closest('.brand-icon, .brand-favi, .brand-app-logo') || el;
+    const node = el.closest('.brand-icon, .brand-favi, .brand-app-logo, .site-logo') || el;
     const cls = (node.className || '').split(/\s+/);
     // 우선 — brand-* 접두어 (기존 시스템)
     for (const c of cls) {
@@ -905,7 +905,8 @@
       }
     }
     // v34.7 — brand-app-logo 패턴: 같은 element 에 'ssf', 'musinsa' 같은 별도 key 클래스
-    if (cls.includes('brand-app-logo')) {
+    // v34.12 — site-logo 패턴 (매트릭스 thead 소싱처 박스) 도 동일 처리
+    if (cls.includes('brand-app-logo') || cls.includes('site-logo')) {
       for (const c of cls) {
         if (_BRAND_KEYS_APP_LOGO.has(c)) return c;
       }
@@ -1270,6 +1271,31 @@
     return (s || '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   }
 
+  // v34.12 — 외부 노출 + 일반 클릭으로도 열기 ('.site-logo[data-src-logo-id]' 등)
+  window.icpOpenColorPopover = openColorPopover;
+  document.addEventListener('click', e => {
+    // 매트릭스 thead 의 소싱처 박스 (title='클릭해서 색·글자 변경') — 일반 클릭으로 popover
+    const sl = e.target.closest('.site-logo[data-src-logo-id]');
+    if (!sl) return;
+    // sourcing 자체 popover (mkt-logo-pop) 와 충돌 방지 — .mkt-logo-box 는 자체 popover, .site-logo 만 우리
+    if (sl.closest('[data-color-edit]') || sl.matches('[data-color-edit]')) {
+      // 이미 data-color-edit 부여됐으면 popover 열기
+      e.preventDefault();
+      e.stopPropagation();
+      openColorPopover(sl, e);
+    } else {
+      // autoDetectColors 가 아직 안 부여한 경우 강제 부여 후 열기
+      const cls = [...sl.classList];
+      const brandKey = cls.find(c => c !== 'site-logo' && c !== 'sm' && c !== 'lg' && c.length > 0);
+      if (brandKey) {
+        e.preventDefault();
+        e.stopPropagation();
+        sl.setAttribute('data-color-edit', 'brand|' + brandKey);
+        openColorPopover(sl, e);
+      }
+    }
+  });
+
   // 우클릭 → color popover
   document.addEventListener('contextmenu', e => {
     const trigger = e.target.closest('[data-color-edit]');
@@ -1313,6 +1339,7 @@
     '.brand-app-logo',     // v34.7 — 마켓·소싱처 박스 (sourcing/list/upload 도처) — brand-app-logo.ssf 등
     '.brand-icon',         // 브랜드 풀네임 칩 (brand-musinsa 등)
     '.brand-favi',         // 브랜드 favicon container
+    '.site-logo[data-src-logo-id]', // v34.12 — 매트릭스 thead 소싱처 헤더 박스 (르무/스마/무신/SS/롯데)
     '.m4v1-pri',           // 매트릭스 우선 chip (소싱/사입)
     '.applied-badge',      // ✓ 적용 뱃지
     '.m4v1-stock-chip',    // 재고 chip
