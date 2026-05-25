@@ -27,6 +27,8 @@ class BrandColorOverride(Base):
     color = Column(String(32), nullable=True)
     bg_color = Column(String(16), nullable=True)
     fg_color = Column(String(16), nullable=True)
+    # v34.13 — 박스 안의 텍스트 (예: SSF 박스의 "SS" → "에쓰" 로 변경 가능)
+    letter = Column(String(16), nullable=True)
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
 
     __table_args__ = (

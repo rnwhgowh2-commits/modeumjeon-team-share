@@ -86,15 +86,17 @@ def api_set_icon():
     color = body.get('color')
     bg_color = body.get('bg_color') or None
     fg_color = body.get('fg_color') or None
+    letter = body.get('letter') or None
     if not ctx:
         return _err('context required', 400)
     try:
         from webapp.icon_store import set_icon
-        set_icon(ctx, str(tid or ''), icon, color, bg_color=bg_color, fg_color=fg_color)
+        set_icon(ctx, str(tid or ''), icon, color,
+                 bg_color=bg_color, fg_color=fg_color, letter=letter)
     except Exception as e:
         logging.getLogger(__name__).warning("icon set failed: %s", e)
     return _ok(context=ctx, target_id=tid, icon=icon, color=color,
-               bg_color=bg_color, fg_color=fg_color)
+               bg_color=bg_color, fg_color=fg_color, letter=letter)
 
 
 @bp.get('/icon/list')

@@ -122,6 +122,8 @@ def _apply_lightweight_migrations() -> None:
         ("bundle_source_urls", "label", "VARCHAR(120)"),
         # 2026-05-25: 판매가 정책 (색상 통일 / 옵션별 cheapest) — A2+D3 시안 적용
         ("price_templates", "pricing_policy", "VARCHAR(16) DEFAULT 'cheapest'"),
+        # v34.13 (2026-05-25): brand 박스 안 텍스트 사용자 커스터마이징
+        ("brand_color_overrides", "letter", "VARCHAR(16)"),
     ]
     inspector = inspect(engine)
     existing_tables = set(inspector.get_table_names())

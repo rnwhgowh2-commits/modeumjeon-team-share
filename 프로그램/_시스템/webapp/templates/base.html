@@ -12,8 +12,8 @@
 <link rel="stylesheet" href="{{ url_for('static', filename='toss_add_benefit.css') }}"><!-- v6 D2-A 혜택추가폼 -->
 <link rel="stylesheet" href="{{ url_for('static', filename='stripe.css') }}">
 {# v32 — 아이콘 picker (노션 스타일). v34.10: site-logo (매트릭스 thead 마켓 헤더) selector 추가. #}
-<link rel="stylesheet" href="{{ url_for('static', filename='icon_picker.css') }}?v=v34.12">
-<script src="{{ url_for('static', filename='icon_picker.js') }}?v=v34.12" defer></script>
+<link rel="stylesheet" href="{{ url_for('static', filename='icon_picker.css') }}?v=v34.13">
+<script src="{{ url_for('static', filename='icon_picker.js') }}?v=v34.13" defer></script>
 {# v34.10 — brand 색 SSR 인라인 주입 (클라이언트 fetch 실패와 무관하게 즉시 적용)
    selector: .brand-{k} (pill) / .brand-app-logo.{k} (sourcing·list 카드형) / .brand-favi.{k} (매트릭스 favicon 컨테이너) / .site-logo.{k} (매트릭스 thead 마켓 헤더 박스) #}
 {% if brand_color_overrides %}

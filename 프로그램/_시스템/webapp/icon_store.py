@@ -50,16 +50,17 @@ def set_icon(
     color: str | None,
     bg_color: str | None = None,
     fg_color: str | None = None,
+    letter: str | None = None,
 ) -> None:
-    """아이콘/색상 저장. 삭제 규칙은 기존 JSON 방식과 동일.
+    """아이콘/색상/텍스트 저장. 삭제 규칙은 기존 JSON 방식과 동일.
 
-    - 브랜드 컨텍스트(context='brand'): bg_color/fg_color 모두 None 이면 삭제.
+    - 브랜드 컨텍스트(context='brand'): bg_color/fg_color/letter 모두 None 이면 삭제.
     - 그 외 컨텍스트: icon is None 이면 삭제.
     """
     with _lock:
         is_brand = context == 'brand'
         should_delete = (
-            (is_brand and bg_color is None and fg_color is None)
+            (is_brand and bg_color is None and fg_color is None and (letter is None or letter == ''))
             or (not is_brand and icon is None)
         )
         s = SessionLocal()
@@ -83,6 +84,7 @@ def set_icon(
             row.color = color or 'default'
             row.bg_color = bg_color
             row.fg_color = fg_color
+            row.letter = (letter[:16] if letter else None)
             s.commit()
         except Exception:
             s.rollback()
@@ -137,6 +139,8 @@ def _row_to_dict(r: BrandColorOverride) -> dict[str, Any]:
         d['bg_color'] = r.bg_color
     if r.fg_color:
         d['fg_color'] = r.fg_color
+    if getattr(r, 'letter', None):
+        d['letter'] = r.letter
     return d
 
 
@@ -172,6 +176,7 @@ def migrate_from_json() -> int:
                     entry.get('color'),
                     bg_color=entry.get('bg_color'),
                     fg_color=entry.get('fg_color'),
+                    letter=entry.get('letter'),
                 )
                 count += 1
             except Exception:

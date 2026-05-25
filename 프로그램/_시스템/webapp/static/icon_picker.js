@@ -926,13 +926,22 @@
     }
     return s;
   }
-  // brand 키 → {bg, fg} 메모리 캐시
+  // brand 키 → {bg, fg, letter} 메모리 캐시
   const _brandColorCache = {};
-  function _applyBrandColor(brandKey, bg, fg) {
-    if (bg) _brandColorCache[brandKey] = {bg, fg: fg || _brandColorCache[brandKey]?.fg || ''};
-    else if (fg) _brandColorCache[brandKey] = {bg: _brandColorCache[brandKey]?.bg || '', fg};
-    else delete _brandColorCache[brandKey];
+  function _applyBrandColor(brandKey, bg, fg, letter) {
+    const has = bg || fg || (letter && letter !== '');
+    if (has) {
+      const prev = _brandColorCache[brandKey] || {};
+      _brandColorCache[brandKey] = {
+        bg: bg || prev.bg || '',
+        fg: fg || prev.fg || '',
+        letter: (letter !== undefined ? (letter || '') : (prev.letter || '')),
+      };
+    } else {
+      delete _brandColorCache[brandKey];
+    }
     _rebuildBrandStyle();
+    _applyBrandLetters();  // textContent 갱신 — DOM 의 매칭 박스에 letter 반영
   }
   function _rebuildBrandStyle() {
     const style = _ensureBrandStyle();
@@ -952,6 +961,36 @@
     }
     style.textContent = rules.join('\n');
   }
+
+  // v34.13 — letter 적용: 매칭 element 의 textContent 갱신
+  //   대상: site-logo (매트릭스 thead), brand-app-logo (sourcing/옵션상세 카드)
+  //   주의: brand-pill (.brand-icon) 은 풀네임 (e.g. "SSF샵") 이라 letter 와 의미 다름 → 적용 X
+  //   주의: brand-favi 는 img container → text 없음
+  function _applyBrandLetters() {
+    for (const [key, val] of Object.entries(_brandColorCache)) {
+      const letter = val && val.letter;
+      if (!letter) continue;
+      const sel = `.site-logo.${CSS.escape(key)}, .brand-app-logo.${CSS.escape(key)}`;
+      document.querySelectorAll(sel).forEach(el => {
+        // 자식 element 있는 경우 (예: favicon 안의 img) — 첫 텍스트 노드만 갱신 안전성 위해 skip
+        if (el.querySelector('img, svg, .icp-color-btn, .icp-edit-btn')) return;
+        if (el.textContent !== letter) el.textContent = letter;
+      });
+    }
+  }
+  window.icpApplyBrandLetters = _applyBrandLetters;
+
+  // 자동 호출 — popover 변경 외부의 페이지 동적 렌더 대응
+  function _scheduleLetterApply() {
+    if (window.__brandLetterTimer) return;
+    window.__brandLetterTimer = setTimeout(() => {
+      window.__brandLetterTimer = null;
+      try { _applyBrandLetters(); } catch(_) {}
+    }, 100);
+  }
+  // dummy unused
+    style.textContent = rules.join('\n');
+  }
   // 부트스트랩 — /api/icon/list 의 'brand' 컨텍스트 항목 적용
   // v34.9 — Fly.io 멀티 인스턴스 + 파일 시스템 분리 환경 안전망:
   //   - 페이지 HTML 응답 SSR stylesheet 는 항상 진실 (Flask context_processor 가 박음)
@@ -963,20 +1002,24 @@
       if (!r.ok) return;  // 401/5xx → SSR fallback 유지
       const d = await r.json();
       const brandMap = (d.icons || {}).brand || {};
-      const hasAnyData = Object.values(brandMap).some(e => e && (e.bg_color || e.fg_color));
+      const hasAnyData = Object.values(brandMap).some(e => e && (e.bg_color || e.fg_color || e.letter));
       if (!hasAnyData) {
         // 응답에 brand 데이터 없음 — SSR stylesheet 유지 (덮어쓰지 않음).
-        // 사용자가 진짜로 모든 색을 초기화했다면 다음 페이지 로드 시 SSR 가 빈 stylesheet 로 박힘.
         return;
       }
       // cache 전체 리셋 후 응답으로 채움 (응답이 진실 원천)
       Object.keys(_brandColorCache).forEach(k => delete _brandColorCache[k]);
       for (const [key, entry] of Object.entries(brandMap)) {
-        if (entry && (entry.bg_color || entry.fg_color)) {
-          _brandColorCache[key] = {bg: entry.bg_color || '', fg: entry.fg_color || ''};
+        if (entry && (entry.bg_color || entry.fg_color || entry.letter)) {
+          _brandColorCache[key] = {
+            bg: entry.bg_color || '',
+            fg: entry.fg_color || '',
+            letter: entry.letter || '',
+          };
         }
       }
       _rebuildBrandStyle();
+      _applyBrandLetters();  // v34.13 — letter 적용
     } catch (_) {
       // SSR 인라인 stylesheet 가 fallback. 추가 동작 불필요.
     }
@@ -1008,16 +1051,18 @@
     const isBrand = !!brandKey;
 
     // 현재 색상 — 브랜드면 캐시에서, 아니면 computed
-    let curBg, curFg;
+    let curBg, curFg, curLetter;
     if (isBrand) {
       const cached = _brandColorCache[brandKey];
       const cs = getComputedStyle(trigger);
       curBg = cached?.bg || _rgb2hex(cs.backgroundColor) || '';
       curFg = cached?.fg || _rgb2hex(cs.color) || '';
+      curLetter = cached?.letter || '';
     } else {
       const cs = getComputedStyle(trigger);
       curBg = trigger.dataset.bgColor || _rgb2hex(cs.backgroundColor) || '';
       curFg = trigger.dataset.fgColor || _rgb2hex(cs.color) || '';
+      curLetter = '';
     }
 
     const pop = document.createElement('div');
@@ -1058,8 +1103,17 @@
         </div>
       </div>
 
+      ${isBrand ? `
+      <div class="icp-cp-section">
+        <div class="icp-cp-row-label">🔤 박스 안 글자 (최대 4자)</div>
+        <div class="icp-cp-input-row">
+          <input type="text" class="icp-cp-letter" value="${escapeHtmlSafe(curLetter)}" placeholder="(자동) — 비우면 기본" maxlength="4" style="flex:1; padding:6px 10px; font-size:13px; border:1.5px solid #E5E8EB; border-radius:6px; font-family:inherit; background:#fff;">
+        </div>
+      </div>
+      ` : ''}
+
       <div class="icp-cp-preview">
-        <span class="icp-cp-preview-chip" style="background:${curBg || '#E5E8EB'};color:${curFg || '#191F28'}">${isBrand ? escapeHtmlSafe(brandKey) : '미리보기'}</span>
+        <span class="icp-cp-preview-chip" style="background:${curBg || '#E5E8EB'};color:${curFg || '#191F28'}">${escapeHtmlSafe(curLetter || (isBrand ? brandKey : '미리보기'))}</span>
         <div class="icp-cp-acts">
           <small class="icp-cp-auto-hint">변경 즉시 자동 저장</small>
           <button type="button" class="icp-cp-reset" title="원래대로 (저장 해제)">초기화</button>
@@ -1077,7 +1131,7 @@
     _activeColorPop = pop;
 
     // 현재 선택 상태 (모달 내 임시)
-    const state = {bg: curBg, fg: curFg};
+    const state = {bg: curBg, fg: curFg, letter: curLetter};
 
     function updatePreview() {
       const chip = pop.querySelector('.icp-cp-preview-chip');
@@ -1101,15 +1155,16 @@
       _autoApplyTimer = setTimeout(async () => {
         const bg = state.bg || null;
         const fg = state.fg || null;
+        const letter = (state.letter || '').trim() || null;
         if (isBrand) {
-          _applyBrandColor(brandKey, bg, fg);
+          _applyBrandColor(brandKey, bg, fg, letter);
           try {
             await fetch('/api/icon/set', {
               method: 'POST', headers: {'Content-Type': 'application/json'},
               body: JSON.stringify({
                 context: 'brand', target_id: brandKey,
                 icon: brandKey, color: bg || 'default',
-                bg_color: bg, fg_color: fg,
+                bg_color: bg, fg_color: fg, letter,
               }),
             });
           } catch(_) {}
@@ -1161,6 +1216,19 @@
       updatePreview();
       _autoApply();
     }));
+
+    // v34.13 — letter (텍스트) 입력: 자동 저장 + 미리보기 chip 즉시 갱신
+    const letterInput = pop.querySelector('.icp-cp-letter');
+    if (letterInput) {
+      letterInput.addEventListener('input', e => {
+        e.stopPropagation();
+        state.letter = letterInput.value.slice(0, 4);
+        const chip = pop.querySelector('.icp-cp-preview-chip');
+        if (chip) chip.textContent = state.letter || (isBrand ? brandKey : '미리보기');
+        _autoApply();
+      });
+      letterInput.addEventListener('click', e => e.stopPropagation());
+    }
 
     // HEX 입력 — 정상 6자리 입력 시 자동 적용 (입력 중 debounce 로 처리)
     pop.querySelectorAll('.icp-cp-hex').forEach(h => {
@@ -1425,6 +1493,7 @@
   function _scheduleReDetect() {
     if (_icpReDetectTimer) return;
     _icpReDetectTimer = setTimeout(() => {
+      try { _applyBrandLetters(); } catch(_) {}  // v34.13 — 동적 렌더 후 letter 재적용
       _icpReDetectTimer = null;
       try { autoDetect(); } catch(_) {}
       try { autoDetectColors(); } catch(_) {}
