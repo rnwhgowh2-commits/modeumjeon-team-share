@@ -1031,6 +1031,8 @@ def upsert_price_template():
             s.add(t)
         for f in ('name', 'boxhero_purchase_price', 'winner_premium_price',
                   'guardrail_lower', 'guardrail_upper', 'rounding_unit',
+                  # [2026-05-25] 판매가 정책 ('color' / 'cheapest')
+                  'pricing_policy',
                   'ss_normal_price', 'ss_boxhero_sale_price', 'ss_external_sale_price',
                   'ss_fee_rate', 'ss_margin_rate', 'ss_delivery_fee',
                   'ss_return_fee', 'ss_exchange_fee',

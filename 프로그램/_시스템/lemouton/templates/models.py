@@ -65,6 +65,11 @@ class PriceTemplate(Base):
     boxhero_margin_mode_external = Column(String(8), default='rate')    # 외부 사입 (소싱처)
     boxhero_margin_value_external = Column(Integer, default=2000)       # 20.00%
 
+    # [2026-05-25] 판매가 정책 (색상 통일 / 옵션별 cheapest)
+    # 'cheapest' (기본) — 각 옵션마다 소싱처 MIN 가격 + 마진 → 마진 최대 (SmartStore SEO 불리)
+    # 'color'    — 같은 색상은 동일 판매가 (소싱처 MAX 기준) → 역마진 방지 + SEO 유리
+    pricing_policy = Column(String(16), default='cheapest', nullable=False)
+
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc),
                         onupdate=lambda: datetime.now(timezone.utc))

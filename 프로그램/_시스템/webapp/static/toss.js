@@ -1361,6 +1361,41 @@ async function openPriceTplModal(id, initialTab) {
     ${row('배송타입', delivery(prefix))}
     ${row('반품비', num(prefix + '_return_fee', '원'))}
     ${row('교환비', num(prefix + '_exchange_fee', '원'))}`;
+
+  // [2026-05-25] D3 시안 — 판매가 정책 토글 (색상 통일 / 옵션별 cheapest) + 르무통 케이스 ! 툴팁
+  const policyBlock = (curPolicy) => {
+    const isColor = curPolicy === 'color';
+    const sliderBg = isColor ? '#3182F6' : '#D1D6DB';
+    const knobX = isColor ? '23px' : '3px';
+    const pillBg = isColor ? '#3182F6' : '#E5E8EB';
+    const pillFg = isColor ? '#fff' : '#4E5968';
+    const pillTx = isColor ? '켜짐' : '꺼짐';
+    const statusTx = isColor ? '색상 통일' : '옵션별 cheapest (기본)';
+    return `
+    <div class="ptm-policy-block" style="margin-top:14px; padding-top:14px; border-top:1px dashed #E5E8EB;">
+      <div style="font-size:12.5px; color:#3182F6; font-weight:700; margin-bottom:10px; letter-spacing:.2px;">▦ 판매가 정책</div>
+      <div style="display:flex; align-items:flex-start; gap:14px; padding:14px 16px; background:#FAFBFC; border:1.5px solid #E5E8EB; border-radius:12px;">
+        <label id="ptm-policy-switch" style="position:relative; width:48px; height:28px; flex-shrink:0; cursor:pointer; margin-top:2px;">
+          <span class="ptm-policy-slider" style="position:absolute; inset:0; background:${sliderBg}; border-radius:28px; transition:.2s;">
+            <span class="ptm-policy-knob" style="position:absolute; height:22px; width:22px; left:${knobX}; top:3px; background:#fff; border-radius:50%; transition:.2s; box-shadow:0 2px 6px rgba(0,0,0,.2);"></span>
+          </span>
+        </label>
+        <div style="flex:1; min-width:0;">
+          <div style="display:flex; align-items:center; gap:7px; font-size:15px; font-weight:700; color:#191F28; letter-spacing:-.2px;">
+            색상 통일 모드
+            <span class="ptm-policy-info" style="position:relative; display:inline-flex; width:18px; height:18px; align-items:center; justify-content:center; border-radius:50%; background:#3182F6; color:#fff; font-size:12px; font-weight:700; cursor:help; font-family:Georgia,serif; font-style:italic; user-select:none;">!</span>
+          </div>
+          <div style="font-size:13px; color:#6B7684; margin-top:3px; line-height:1.55;">
+            같은 색상은 같은 가격으로 통일해요.<br>비싼 소싱처 기준이라 손해 볼 일이 없어요.
+          </div>
+          <div style="font-size:12px; color:#8B95A1; margin-top:6px;">
+            현재 <span class="ptm-policy-pill" style="display:inline-block; padding:2px 8px; background:${pillBg}; color:${pillFg}; border-radius:5px; font-weight:700; font-size:11px;">${pillTx}</span> · <span class="ptm-policy-status">${statusTx}</span>
+          </div>
+        </div>
+      </div>
+      <input type="hidden" data-key="pricing_policy" id="ptm-policy-hidden" value="${curPolicy}">
+    </div>`;
+  };
   const tabBtn = (key, label) => `
     <button type="button" class="ptm-tab" data-tab="${key}"
             style="padding:8px 16px;background:none;border:none;border-bottom:2px solid transparent;font-size:14px;color:#8B95A1;font-weight:500;cursor:pointer">${label}</button>`;
@@ -1380,6 +1415,7 @@ async function openPriceTplModal(id, initialTab) {
       ${row('평균 매입가', num('boxhero_purchase_price', '원'))}
       ${row('매입가 하한', num('guardrail_lower', '원'))}
       ${row('매입가 상한', num('guardrail_upper', '원'))}
+      ${policyBlock(v('pricing_policy') || 'cheapest')}
     </div>
     <div class="ptm-panel" data-panel="ss" style="display:none">
       ${market('ss')}
@@ -1430,6 +1466,70 @@ async function openPriceTplModal(id, initialTab) {
       });
     });
   });
+
+  // [2026-05-25] D3 — 정책 토글 스위치 (색상 통일 ↔ 옵션별 cheapest)
+  const policySwitch = box.querySelector('#ptm-policy-switch');
+  const policyHidden = box.querySelector('#ptm-policy-hidden');
+  if (policySwitch && policyHidden) {
+    policySwitch.addEventListener('click', () => {
+      const cur = policyHidden.value === 'color' ? 'color' : 'cheapest';
+      const next = cur === 'color' ? 'cheapest' : 'color';
+      policyHidden.value = next;
+      const isColor = next === 'color';
+      const slider = policySwitch.querySelector('.ptm-policy-slider');
+      const knob   = policySwitch.querySelector('.ptm-policy-knob');
+      if (slider) slider.style.background = isColor ? '#3182F6' : '#D1D6DB';
+      if (knob)   knob.style.left = isColor ? '23px' : '3px';
+      const pill = box.querySelector('.ptm-policy-pill');
+      if (pill) {
+        pill.textContent = isColor ? '켜짐' : '꺼짐';
+        pill.style.background = isColor ? '#3182F6' : '#E5E8EB';
+        pill.style.color = isColor ? '#fff' : '#4E5968';
+      }
+      const status = box.querySelector('.ptm-policy-status');
+      if (status) status.textContent = isColor ? '색상 통일' : '옵션별 cheapest (기본)';
+    });
+  }
+  // [2026-05-25] D3 — ! 정보 hover 시 르무통 메이트 블랙 240mm 케이스 툴팁
+  const policyInfo = box.querySelector('.ptm-policy-info');
+  if (policyInfo) {
+    const tip = document.createElement('div');
+    tip.style.cssText = 'display:none; position:absolute; bottom:calc(100% + 10px); left:50%; transform:translateX(-50%); width:380px; background:#191F28; border-radius:14px; box-shadow:0 16px 40px rgba(0,0,0,.4); padding:16px 18px 14px; color:#E5E8EB; font-family:inherit; font-style:normal; font-weight:400; text-align:left; z-index:10000; pointer-events:none;';
+    tip.innerHTML = `
+      <div style="font-size:13px; color:#9BC1FF; font-weight:700;">예시</div>
+      <div style="font-size:14.5px; color:#fff; font-weight:700; margin-top:2px;">르무통 메이트 블랙 240mm</div>
+      <div style="margin-top:10px; padding:10px 12px; background:#0F141A; border-radius:8px;">
+        <div style="display:grid; grid-template-columns:1fr auto auto; gap:10px; padding:3px 0; font-size:12.5px;">
+          <span style="color:#E5E8EB; font-weight:600;">무신사</span>
+          <span style="color:#fff; font-weight:700;">90,000원</span>
+          <span style="color:#FBBF24; font-size:11px;">240mm 품절</span>
+        </div>
+        <div style="display:grid; grid-template-columns:1fr auto auto; gap:10px; padding:3px 0; font-size:12.5px;">
+          <span style="color:#E5E8EB; font-weight:600;">르무통</span>
+          <span style="color:#fff; font-weight:700;">100,000원</span>
+          <span style="color:#9BE0BD; font-size:11px;">전체 재고</span>
+        </div>
+      </div>
+      <div style="margin-top:12px; display:flex; flex-direction:column; gap:8px;">
+        <div style="display:flex; gap:10px; align-items:flex-start; padding:9px 11px; border-radius:8px; font-size:12.5px; line-height:1.55; background:#0F141A;">
+          <span style="flex-shrink:0; font-size:14px;">⚪</span>
+          <div>
+            <div style="color:#FCA5A5; font-weight:700; font-size:11.5px;">끄면 — 옵션별 cheapest (기본)</div>
+            <div style="color:#CBD5E1; margin-top:4px;">판매가는 <b style="color:#fff;">90,000원</b>인데<br>240mm가 팔리면 <b style="color:#fff;">100,000원</b>에 사야 해요.<br><b style="color:#FCA5A5;">건당 10,000원씩 손해</b>예요.</div>
+          </div>
+        </div>
+        <div style="display:flex; gap:10px; align-items:flex-start; padding:9px 11px; border-radius:8px; font-size:12.5px; line-height:1.55; background:#0F141A;">
+          <span style="flex-shrink:0; font-size:14px;">🟢</span>
+          <div>
+            <div style="color:#9BE0BD; font-weight:700; font-size:11.5px;">켜면 — 색상 통일</div>
+            <div style="color:#CBD5E1; margin-top:4px;">판매가를 <b style="color:#fff;">100,000원</b>으로 통일해요.<br>다른 사이즈는 무신사 90,000에 살 수 있어서<br><b style="color:#9BE0BD;">건당 10,000원 추가 마진</b>까지 나요.</div>
+          </div>
+        </div>
+      </div>`;
+    policyInfo.appendChild(tip);
+    policyInfo.addEventListener('mouseenter', () => { tip.style.display = 'block'; });
+    policyInfo.addEventListener('mouseleave', () => { tip.style.display = 'none'; });
+  }
 
   // 제품 검색 → 평균 매입가 자동 불러오기
   const searchInput = box.querySelector('#ptm-prod-search');

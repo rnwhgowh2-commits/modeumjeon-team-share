@@ -674,11 +674,11 @@
                     style="display:block; width:100%; text-align:left; padding:9px 14px; border:0; background:{% if applied_price and applied_price.id == t.id %}#eff6ff{% else %}transparent{% endif %}; color:{% if applied_price and applied_price.id == t.id %}#1e40af{% else %}#191f28{% endif %}; font-size:15px; font-weight:{% if applied_price and applied_price.id == t.id %}700{% else %}500{% endif %}; cursor:pointer; font-family:inherit;">{{ t.name }}</button>
             {% endfor %}
           </div>
-          {# 고정 footer — v4: ＋ 를 absolute 로 띄워 글자 흐름에서 빼고, "새 템플릿 추가" 본문만 진짜 가운데 정렬 #}
-          {# 이전 시도 (c3) 는 "＋ 새 템플릿 추가" 전체를 가운데에 두어 본문이 오른쪽으로 밀려 보였음 — 시각 중심 ≠ 기하 중심 #}
-          <button type="button" id="bp-tpl-add-footer" data-cv="20260525-c4"
-                  style="position:relative !important; display:block !important; width:100% !important; padding:11px 0 !important; border:0; border-top:1px solid #eaedf0; background:#fafbfc; color:#3B82F6; font-size:14px; font-weight:700; cursor:pointer; font-family:inherit; text-align:center !important; box-sizing:border-box !important;"
-                  title="새 가격 템플릿 추가"><span aria-hidden="true" style="position:absolute; left:14px; top:50%; transform:translateY(-50%); pointer-events:none; line-height:1;">＋</span>새 템플릿 추가</button>
+          {# 고정 footer — v5: ＋ 와 본문을 한 덩어리로 붙이고 flex justify-center 로 가운데 정렬. gap:5px 로 ＋ 와 본문 사이 여백 최소 #}
+          {# c4 (＋ absolute) 는 ＋ 와 본문 사이 여백이 너무 커서 따로 떨어져 보였음 → 다시 한 덩어리로 #}
+          <button type="button" id="bp-tpl-add-footer" data-cv="20260525-c5"
+                  style="display:flex !important; align-items:center; justify-content:center; gap:5px; width:100% !important; padding:11px 0 !important; border:0; border-top:1px solid #eaedf0; background:#fafbfc; color:#3B82F6; font-size:14px; font-weight:700; cursor:pointer; font-family:inherit; box-sizing:border-box !important;"
+                  title="새 가격 템플릿 추가"><span style="line-height:1;">＋</span><span>새 템플릿 추가</span></button>
         </div>
       </div>
       <span id="bp-tpl-status" style="font-size:14px; color:#10b981; font-weight:600; min-width:120px;">
@@ -763,17 +763,10 @@
       })();
     </script>
 
-    {# 사올 때 (매입) — 한 줄 #}
+    {# 사올 때 (매입) — 매입가 상한만. 정책은 판매가 규칙이므로 팔 때로 이동 (A2, 2026-05-25). #}
     <div style="display:flex; align-items:center; gap:14px; flex-wrap:wrap;">
       <span style="font-size:24px; flex-shrink:0;">📥</span>
       <span style="font-size:18px; color:#6b7684; font-weight:700; min-width:140px;">사올 때 (매입)</span>
-      <div class="bp-chip" data-bp-chip="policy">
-        <span class="bp-k">정책</span> <b id="bp-policy-v">색상 통일</b> <span class="bp-ar">▼</span>
-        <div class="bp-pop">
-          <button type="button" class="bp-opt on" data-bp-policy="color">색상 통일 (같은 색상은 같은 매입가)</button>
-          <button type="button" class="bp-opt" data-bp-policy="cheapest">옵션별 cheapest (각 사이즈 최저)</button>
-        </div>
-      </div>
       <div class="bp-chip" data-bp-chip="ceiling">
         <span class="bp-k">상한</span> ≤ <b class="bp-v" id="bp-ceiling-v">108,984원</b> <span class="bp-ar">▼</span>
         <div class="bp-pop">
@@ -781,15 +774,30 @@
           <div class="bp-input-row"><input type="number" step="100" id="bp-ceiling-input" value="108984"><span>원</span></div>
         </div>
       </div>
-      <button type="button" class="bp-recalc" id="bp-recalc-btn" style="margin-left:auto;">매트릭스 재계산 ▶</button>
     </div>
 
-    {# 팔 때 (마진) — [2026-05-25] B4 미니멀 표 + C2 빈 슬롯 #}
+    {# 팔 때 (마진) — [2026-05-25] A2 시안: 표 위 컨트롤바 + B4 미니멀 표 + C2 빈 슬롯 #}
     {# 표 = 마켓×공급방식 매트릭스. 책정 모드(rate/amount/fixed) + 값은 적용된 PriceTemplate 데이터. #}
     {# 인라인 chip 제거 — 가격 템플릿 편집 모달이 single source of truth. #}
     <div style="display:flex; align-items:flex-start; gap:14px; flex-wrap:wrap; padding-top:14px; border-top:1px dashed #e5e8eb;">
       <span style="font-size:18px; color:#191f28; font-weight:700; min-width:140px; padding-top:8px;">팔 때 (마진)</span>
       <div style="flex:1; min-width:0;">
+        {# A2 컨트롤바 — 판매가 규칙 (정책) + 매트릭스 재계산. PriceTemplate.pricing_policy 와 양방향 #}
+        {% set _policy = (applied_price.pricing_policy if applied_price and applied_price.pricing_policy else 'cheapest') %}
+        <div style="display:flex; align-items:center; gap:10px; padding:10px 14px; background:#F2F4F6; border-radius:8px; margin-bottom:12px; flex-wrap:wrap;">
+          <span style="font-size:13px; color:#6b7684; font-weight:600;">판매가 규칙</span>
+          <div class="bp-chip" data-bp-chip="policy"
+               data-tpl-id="{{ applied_price.id if applied_price else '' }}">
+            <span class="bp-k">정책</span>
+            <b id="bp-policy-v">{{ '색상 통일' if _policy == 'color' else '옵션별 cheapest' }}</b>
+            <span class="bp-ar">▼</span>
+            <div class="bp-pop">
+              <button type="button" class="bp-opt {% if _policy == 'color' %}on{% endif %}" data-bp-policy="color">색상 통일 (같은 색상 = 같은 판매가)</button>
+              <button type="button" class="bp-opt {% if _policy == 'cheapest' %}on{% endif %}" data-bp-policy="cheapest">옵션별 cheapest (각 사이즈 최저, 기본)</button>
+            </div>
+          </div>
+          <button type="button" class="bp-recalc" id="bp-recalc-btn" style="margin-left:auto;">매트릭스 재계산 ▶</button>
+        </div>
         <table class="pm-table" style="width:100%; border-collapse:collapse; font-size:16px;">
           <thead>
             <tr style="border-bottom:1px solid #e5e8eb; font-size:16px; color:#6b7684;">
@@ -2675,6 +2683,17 @@
       if (policy) {
         chip.querySelector('b').textContent = policy === 'color' ? '색상 통일' : '옵션별 cheapest';
         window.BP_POLICY = policy;
+        // [2026-05-25] A2 — 정책 변경 즉시 PriceTemplate.pricing_policy 에 저장
+        const tplId = chip.dataset.tplId;
+        if (tplId) {
+          fetch('/api/templates/price', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id: parseInt(tplId, 10), pricing_policy: policy }),
+          }).then(r => r.json()).then(j => {
+            if (!j || !j.ok) console.warn('정책 저장 실패:', j);
+          }).catch(err => console.warn('정책 저장 오류:', err));
+        }
       } else if (marginu) {
         chip.querySelector('b').textContent = marginu === 'rate' ? '% 비율' : '₩ 정액';
         window.BP_MARGINU = marginu;

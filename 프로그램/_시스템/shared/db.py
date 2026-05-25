@@ -120,6 +120,8 @@ def _apply_lightweight_migrations() -> None:
         ("options", "offline_only", "BOOLEAN DEFAULT 0 NOT NULL"),
         # 2026-05-24: BundleSourceUrl 라벨 (URL 구분용 — "통합 모음전" / "단품 - 그레이")
         ("bundle_source_urls", "label", "VARCHAR(120)"),
+        # 2026-05-25: 판매가 정책 (색상 통일 / 옵션별 cheapest) — A2+D3 시안 적용
+        ("price_templates", "pricing_policy", "VARCHAR(16) DEFAULT 'cheapest'"),
     ]
     inspector = inspect(engine)
     existing_tables = set(inspector.get_table_names())

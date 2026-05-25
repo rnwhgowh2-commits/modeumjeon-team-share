@@ -8,6 +8,7 @@
     <p class="subtitle">각 소싱처 로그인에 사용될 ID/PW를 입력하세요</p>
   </div>
   <div class="sj-actions">
+    <button class="btn btn-sm sj-btn-outline" type="button" onclick="sjHelpOpen()">❓ 계정 추가 방법</button>
     <label class="sj-checkbox">
       <input type="checkbox" id="sj-select-all-master" onchange="sjToggleSelectAll(this.checked)"> 전체선택
     </label>
@@ -262,6 +263,26 @@ document.addEventListener('DOMContentLoaded', sbLoadAll);
   <div id="batch-current" class="batch-current"></div>
   <div id="batch-log" class="batch-log"></div>
 </div>
+
+{# 소싱처 계정 추가 방법 안내 모달 #}
+<div id="sj-help-modal" class="sj-help-modal" hidden>
+  <div class="sj-help-overlay" onclick="sjHelpClose()"></div>
+  <div class="sj-help-body" role="dialog" aria-modal="true" aria-labelledby="sj-help-title">
+    <header class="sj-help-head">
+      <h3 id="sj-help-title">🔐 소싱처 계정 추가 방법</h3>
+      <button type="button" class="sj-help-x" onclick="sjHelpClose()" aria-label="닫기">✕</button>
+    </header>
+    <ol class="sj-help-steps">
+      <li><b>STEP 1</b> 추가할 사이트 그룹에서 <b>「+ 추가」</b> 클릭 → 빈 입력 행 생성</li>
+      <li><b>STEP 2</b> (네이버·카카오 로그인 사이트면) 로그인 방식 선택 — <b>직접 / 네이버 / 카카오</b></li>
+      <li><b>STEP 3</b> <b>ID · PW · 명의자</b> 입력</li>
+      <li><b>STEP 4</b> <b>💾 저장</b> 클릭 → 행에 계정 등록</li>
+      <li><b>STEP 5</b> <b>🔑 자동 로그인</b> 클릭 → Chrome 미니창에서 로그인 (캡차·2단계 인증은 직접 처리)</li>
+      <li><b>STEP 6</b> <b>🟢 초록 점</b>이면 완료 · <b>⭐</b> 클릭 시 대표 크롤 계정으로 지정</li>
+    </ol>
+    <p class="sj-help-tip">💡 한 사이트에 여러 계정(명의자)도 등록 가능 — 그룹 헤더의 「+ 추가」를 다시 누르세요.</p>
+  </div>
+</div>
 {% endblock %}
 
 {% block scripts %}
@@ -322,6 +343,20 @@ document.addEventListener('DOMContentLoaded', sbLoadAll);
 .batch-log .log-info { color: #C5D8F0; }
 .batch-log .log-warning { color: #F2C94C; }
 .batch-log .log-error { color: #FF7A7A; }
+
+/* 소싱처 계정 추가 방법 안내 모달 */
+.sj-help-modal { position: fixed; inset: 0; z-index: 9000; display: flex; align-items: center; justify-content: center; }
+.sj-help-modal[hidden] { display: none !important; }
+.sj-help-overlay { position: absolute; inset: 0; background: rgba(15,20,25,0.55); }
+.sj-help-body { position: relative; background: var(--surface); border-radius: 14px; width: 520px; max-width: 92%; padding: 22px 26px; box-shadow: var(--shadow-lg); }
+.sj-help-head { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; padding-bottom: 12px; border-bottom: 1px solid var(--n100); }
+.sj-help-head h3 { margin: 0; font-size: 17px; font-weight: 800; }
+.sj-help-x { margin-left: auto; background: var(--surface); border: 1px solid var(--n200); border-radius: 6px; padding: 5px 11px; cursor: pointer; font-size: 14px; }
+.sj-help-x:hover { background: var(--n50); }
+.sj-help-steps { margin: 0; padding-left: 0; list-style: none; display: flex; flex-direction: column; gap: 8px; }
+.sj-help-steps li { padding: 10px 12px; background: var(--n50); border-radius: 8px; font-size: 14px; line-height: 1.55; color: var(--n800); }
+.sj-help-steps li b:first-child { display: inline-block; min-width: 56px; margin-right: 6px; color: var(--primary); font-weight: 800; }
+.sj-help-tip { margin: 14px 0 0; padding: 10px 12px; background: var(--primary-tint); border-radius: 8px; font-size: 13px; color: var(--n700); }
 </style>
 
 <script>
@@ -330,6 +365,13 @@ document.addEventListener('DOMContentLoaded', sbLoadAll);
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 let SJ_SITES = [];
+
+// 소싱처 계정 추가 방법 안내 모달
+function sjHelpOpen() { document.getElementById('sj-help-modal').hidden = false; }
+function sjHelpClose() { document.getElementById('sj-help-modal').hidden = true; }
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') sjHelpClose();
+});
 
 async function loadGroups() {
   try {

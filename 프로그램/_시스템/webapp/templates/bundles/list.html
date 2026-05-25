@@ -203,7 +203,7 @@
            data-icon-color="default"
            data-icon-label="등록된 상품">📦</div>
       <div class="hub-hero-body">
-        <h2>등록된 상품 <span class="hub-hero-cnt">{{ (counts.draft|default(0)) + (counts.active|default(0)) }}</span></h2>
+        <h2>등록된 상품 <span class="hub-hero-cnt">{{ (counts.registered|default(0)) + (counts.draft|default(0)) }}</span></h2>
         <div class="hub-hero-desc">현재 운영 중인 모음전 모두 보기 — 매트릭스·재고·가격·자동화</div>
       </div>
     </a>
@@ -250,7 +250,19 @@
   </div>
 
 
-  {# [통합] 임시저장/정규 탭 제거 — 단일 목록 + 상태 컬럼 #}
+  {# 등록 상태 / 등록전 가로 탭 (세그먼트 토글) — status 파라미터로 서버 필터 #}
+  {% set _seg_q = ('&q=' ~ q) if q else '' %}
+  {% set _seg_brand = ('&brand=' ~ selected_brand) if selected_brand else '' %}
+  <div class="bl-seg-tabs" role="tablist">
+    <a class="bl-seg{% if selected_status == 'registered' %} on reg{% endif %}"
+       href="/bundles?status=registered{{ _seg_brand }}{{ _seg_q }}" role="tab">
+      📦 등록 상태 <b>{{ counts.registered|default(0) }}</b>
+    </a>
+    <a class="bl-seg{% if selected_status == 'draft' %} on draft{% endif %}"
+       href="/bundles?status=draft{{ _seg_brand }}{{ _seg_q }}" role="tab">
+      📝 등록전 <b>{{ counts.draft|default(0) }}</b>
+    </a>
+  </div>
 
   <form method="get" action="/bundles" class="qsearch" style="margin-bottom:14px;display:flex;align-items:center;gap:8px">
     <input type="hidden" name="status" value="{{ selected_status }}">
@@ -268,7 +280,7 @@
       <a class="bn-row {% if not selected_brand %}on{% endif %}" href="/bundles{{ _qs_status }}{{ _qs_q }}">
         <span class="brand-app-logo unknown sm">전</span>
         <span class="bn-name">전체</span>
-        <span class="bn-count">{{ counts.draft + counts.active }}</span>
+        <span class="bn-count">{{ brand_total }}</span>
       </a>
       {% for b in brand_chips %}
         {# 브랜드 키 매핑 — 한글 첫글자 #}
@@ -302,7 +314,7 @@
     </span>
   {%- endmacro %}
 
-  {% macro render_row(b, status_label='') -%}
+  {% macro render_row(b) -%}
   {% set _link = b.link_code or b.model_code %}
   <tr class="bl-row{% if b.musinsa_non_member_count %} nm-alert-row{% endif %}" data-bundle-code="{{ b.model_code }}" data-status="{{ b.status_key or '' }}">
     <td class="bl-c-check"><input type="checkbox" class="bl-row-check" onclick="event.stopPropagation()"></td>
@@ -342,6 +354,13 @@
       {% elif b.upload_kind == 'fail' %}<span class="bl-when fail">DLQ {{ b.dlq_failed }}건</span>
       {% else %}<span class="bl-when {{ 'stale' if b.upload_kind == 'stale' else '' }}">{{ b.last_uploaded_ago }}</span>{% endif %}
     </td>
+    {% if selected_status != 'draft' %}
+    <td class="bl-c-rmkt">
+      {% if b.registered_markets %}
+        {% for mk in b.registered_markets %}<span class="rmkt-tag {{ mk }}"><span class="rmkt-dot"></span>{{ {'smartstore':'스마트스토어','coupang':'쿠팡'}.get(mk, mk) }}</span>{% endfor %}
+      {% else %}<span class="bl-empty">—</span>{% endif %}
+    </td>
+    {% endif %}
     <td class="bl-c-status" data-sort-val="{{ b.badge_text or '' }}">
       <span class="pill-v2 {{ 'ok' if b.badge_kind == 'ok' else ('warn' if b.badge_kind == 'warn' else 'danger') }}">{{ b.badge_text }}</span>
     </td>
@@ -357,7 +376,11 @@
 
   {% if not bundles %}
   <div class="card" style="text-align:center;padding:48px 0">
-    <p style="color:var(--n500);margin-bottom:12px">{% if q or selected_brand %}검색 결과가 없어요.{% else %}아직 등록된 모음전이 없어요.{% endif %}</p>
+    <p style="color:var(--n500);margin-bottom:12px">
+      {% if q or selected_brand %}검색 결과가 없어요.
+      {% elif selected_status == 'draft' %}임시저장(등록전) 상태인 모음전이 없어요.
+      {% else %}아직 마켓에 등록된 모음전이 없어요.{% endif %}
+    </p>
   </div>
   {% else %}
   <div class="bl-table-wrap">
@@ -378,15 +401,15 @@
           <th class="bl-sort" data-sort-key="src" data-type="num">소싱처 <span class="sort-ind">⇅</span></th>
           <th class="bl-sort" data-sort-key="crawl" data-type="num">크롤 <span class="sort-ind">⇅</span></th>
           <th class="bl-sort" data-sort-key="upload" data-type="num">업로드 <span class="sort-ind">⇅</span></th>
+          {% if selected_status != 'draft' %}
+          <th class="bl-c-rmkt-h">등록 마켓</th>
+          {% endif %}
           <th class="bl-sort" data-sort-key="status" data-type="str">상태 <span class="sort-ind">⇅</span></th>
           <th class="bl-c-action-h">액션</th>
         </tr>
       </thead>
       <tbody id="bl-tbody">
-        {# [통합 목록] 임시저장 탭 제거 — 모든 모음전, 상태는 컬럼으로 구분 #}
-        {% for b in groups.new_wip %}{{ render_row(b, '신규 작업중') }}{% endfor %}
-        {% for b in groups.migrate_wip %}{{ render_row(b, '연동 작업중') }}{% endfor %}
-        {% for b in groups.active %}{{ render_row(b, '정규 등록') }}{% endfor %}
+        {% for b in bundles %}{{ render_row(b) }}{% endfor %}
       </tbody>
     </table>
   </div>
@@ -594,6 +617,40 @@
   .pill-v2.danger{ background: #FEE2E2; color: #991B1B; }
   .bl-c-action, .bl-c-action-h { width: 96px; text-align: right; }
   .bl-empty { color: var(--n400, #B0B8C1); font-size: 14px; }
+
+  /* 등록 상태 / 등록전 세그먼트 토글 탭 */
+  .bl-seg-tabs {
+    display: inline-flex; gap: 3px; background: #EDF0F3;
+    border-radius: 10px; padding: 4px; margin-bottom: 14px;
+  }
+  .bl-seg {
+    display: inline-flex; align-items: center; gap: 7px;
+    padding: 8px 18px; border-radius: 7px;
+    font-size: 13px; font-weight: 700; color: var(--n600, #6B7684);
+    text-decoration: none; transition: background .12s, color .12s;
+  }
+  .bl-seg:hover { color: var(--n700, #4E5968); }
+  .bl-seg.on { background: var(--surface, #fff); color: var(--n900, #191F28); box-shadow: 0 1px 4px rgba(0,0,0,.12); }
+  .bl-seg b {
+    font-family: ui-monospace, monospace; font-size: 12px; font-weight: 700;
+    background: var(--n100, #f2f4f6); color: var(--n500, #8B95A1);
+    padding: 1px 7px; border-radius: 9px;
+  }
+  .bl-seg.on.reg b { background: #DCFCE7; color: #16a34a; }
+  .bl-seg.on.draft b { background: #DBEAFE; color: #1d4ed8; }
+
+  /* 등록 마켓 컬럼 */
+  .bl-c-rmkt, .bl-c-rmkt-h { min-width: 150px; white-space: nowrap; }
+  .rmkt-tag {
+    display: inline-flex; align-items: center; gap: 4px;
+    padding: 2px 8px; border-radius: 8px;
+    font-size: 12px; font-weight: 700; margin-right: 4px;
+  }
+  .rmkt-tag .rmkt-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+  .rmkt-tag.smartstore { background: #ECFDF5; color: #166534; border: 1px solid #A7F3D0; }
+  .rmkt-tag.smartstore .rmkt-dot { background: #16a34a; }
+  .rmkt-tag.coupang { background: #FEF2F2; color: #991B1B; border: 1px solid #FECACA; }
+  .rmkt-tag.coupang .rmkt-dot { background: #dc2626; }
   .bl-when.fail { color: #991B1B; font-weight: 700; }
   .bl-when.stale { color: #92400E; }
 
