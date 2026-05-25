@@ -11,15 +11,16 @@
 <link rel="stylesheet" href="{{ url_for('static', filename='toss.css') }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='toss_add_benefit.css') }}"><!-- v6 D2-A 혜택추가폼 -->
 <link rel="stylesheet" href="{{ url_for('static', filename='stripe.css') }}">
-{# v32 — 아이콘 picker (노션 스타일). v34.8: SSR 인라인 brand 색 + 캐시 무효화. #}
-<link rel="stylesheet" href="{{ url_for('static', filename='icon_picker.css') }}?v=v34.8">
-<script src="{{ url_for('static', filename='icon_picker.js') }}?v=v34.8" defer></script>
-{# v34.8 — brand 색 SSR 인라인 주입 (클라이언트 fetch 실패와 무관하게 즉시 적용) #}
+{# v32 — 아이콘 picker (노션 스타일). v34.9: brand-favi selector 추가 + SSR safety guard. #}
+<link rel="stylesheet" href="{{ url_for('static', filename='icon_picker.css') }}?v=v34.9">
+<script src="{{ url_for('static', filename='icon_picker.js') }}?v=v34.9" defer></script>
+{# v34.9 — brand 색 SSR 인라인 주입 (클라이언트 fetch 실패와 무관하게 즉시 적용)
+   selector: .brand-{k} (pill) / .brand-app-logo.{k} (sourcing·list 카드형) / .brand-favi.{k} (매트릭스 헤더 favicon 컨테이너) #}
 {% if brand_color_overrides %}
 <style id="brand-overrides">
 {%- for _bkey, _bval in brand_color_overrides.items() %}
 {%- if _bval.get('bg_color') or _bval.get('fg_color') %}
-.brand-{{ _bkey }}, .brand-app-logo.{{ _bkey }} { {% if _bval.get('bg_color') %}background: {{ _bval.bg_color }} !important;{% endif %}{% if _bval.get('fg_color') %} color: {{ _bval.fg_color }} !important;{% endif %} }
+.brand-{{ _bkey }}, .brand-app-logo.{{ _bkey }}, .brand-favi.{{ _bkey }} { {% if _bval.get('bg_color') %}background: {{ _bval.bg_color }} !important;{% endif %}{% if _bval.get('fg_color') %} color: {{ _bval.fg_color }} !important;{% endif %} }
 {%- endif %}
 {%- endfor %}
 </style>

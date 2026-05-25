@@ -937,9 +937,12 @@
     const style = _ensureBrandStyle();
     const rules = [];
     for (const [key, val] of Object.entries(_brandColorCache)) {
-      // v34.7 — 두 패턴 모두 매치: '.brand-ssf' (기존) + '.brand-app-logo.ssf' (sourcing·list 등)
+      // v34.9 — 세 패턴 모두 매치:
+      //   '.brand-ssf' (기존 brand pill)
+      //   '.brand-app-logo.ssf' (sourcing·list 등 카드형)
+      //   '.brand-favi.ssf' (매트릭스 헤더 카드의 favicon 컨테이너)
       const k = CSS.escape(key);
-      const sel = `.brand-${k}, .brand-app-logo.${k}`;
+      const sel = `.brand-${k}, .brand-app-logo.${k}, .brand-favi.${k}`;
       const decls = [];
       if (val.bg) decls.push(`background: ${val.bg} !important`);
       if (val.fg) decls.push(`color: ${val.fg} !important`);
@@ -948,16 +951,23 @@
     style.textContent = rules.join('\n');
   }
   // 부트스트랩 — /api/icon/list 의 'brand' 컨텍스트 항목 적용
-  // v34.8: 서버 응답이 진실 원천. cache 전체 reset 후 응답으로 채움.
-  //   - 응답에 없는 키는 cache 에서 제거 (다른 사용자가 색을 초기화한 경우 반영)
-  //   - fetch 실패 시 SSR 인라인 stylesheet (base.html) 가 fallback 으로 이미 적용되어 있음
+  // v34.9 — Fly.io 멀티 인스턴스 + 파일 시스템 분리 환경 안전망:
+  //   - 페이지 HTML 응답 SSR stylesheet 는 항상 진실 (Flask context_processor 가 박음)
+  //   - fetch /api/icon/list 가 다른 머신으로 가서 빈 응답일 수 있음 → SSR 덮어쓰면 색 사라짐
+  //   - 따라서 응답이 비어있으면 SSR stylesheet 유지 (cache 갱신·rebuildStyle 호출 X)
   async function _bootstrapBrandColors() {
     try {
       const r = await fetch('/api/icon/list');
-      if (!r.ok) return;
+      if (!r.ok) return;  // 401/5xx → SSR fallback 유지
       const d = await r.json();
       const brandMap = (d.icons || {}).brand || {};
-      // cache 전체 리셋
+      const hasAnyData = Object.values(brandMap).some(e => e && (e.bg_color || e.fg_color));
+      if (!hasAnyData) {
+        // 응답에 brand 데이터 없음 — SSR stylesheet 유지 (덮어쓰지 않음).
+        // 사용자가 진짜로 모든 색을 초기화했다면 다음 페이지 로드 시 SSR 가 빈 stylesheet 로 박힘.
+        return;
+      }
+      // cache 전체 리셋 후 응답으로 채움 (응답이 진실 원천)
       Object.keys(_brandColorCache).forEach(k => delete _brandColorCache[k]);
       for (const [key, entry] of Object.entries(brandMap)) {
         if (entry && (entry.bg_color || entry.fg_color)) {
