@@ -1506,7 +1506,8 @@ async function openPriceTplModal(id, initialTab) {
   if (policyInfo) {
     const tip = document.createElement('div');
     // [2026-05-25] 가독성 — 글씨·창 180% 스케일 (사용자 요청, ×1.8)
-    tip.style.cssText = 'display:none; position:absolute; bottom:calc(100% + 18px); left:50%; transform:translateX(-50%); width:680px; background:#191F28; border-radius:14px; box-shadow:0 16px 40px rgba(0,0,0,.4); padding:32px 36px 28px; color:#E5E8EB; font-family:inherit; font-style:normal; font-weight:400; text-align:left; z-index:10000; pointer-events:none; font-variant-numeric:tabular-nums; letter-spacing:-.1px;';
+    // position:fixed + document.body portal — 모달 overflow 에 잘리지 않음
+    tip.style.cssText = 'display:none; position:fixed; top:0; left:0; width:680px; background:#191F28; border-radius:14px; box-shadow:0 16px 40px rgba(0,0,0,.4); padding:32px 36px 28px; color:#E5E8EB; font-family:inherit; font-style:normal; font-weight:400; text-align:left; z-index:10000; pointer-events:none; font-variant-numeric:tabular-nums; letter-spacing:-.1px;';
     tip.innerHTML = `
       <div style="font-size:22px; color:#9BC1FF; font-weight:700; letter-spacing:.3px;">예시</div>
       <div style="font-size:27px; color:#fff; font-weight:700; margin-top:5px; letter-spacing:-.3px;">르무통 메이트 블랙 240mm</div>
@@ -1545,9 +1546,45 @@ async function openPriceTplModal(id, initialTab) {
           </p>
         </div>
       </div>`;
-    policyInfo.appendChild(tip);
-    policyInfo.addEventListener('mouseenter', () => { tip.style.display = 'block'; });
-    policyInfo.addEventListener('mouseleave', () => { tip.style.display = 'none'; });
+    // Portal to body — 모달 overflow:hidden 으로 잘리지 않게
+    document.body.appendChild(tip);
+
+    function positionTip() {
+      const r = policyInfo.getBoundingClientRect();
+      const tipR = tip.getBoundingClientRect();
+      const margin = 12;
+      // 기본: ! 아이콘 위 + 가운데 정렬
+      let top = r.top - tipR.height - 18;
+      let left = r.left + r.width / 2 - tipR.width / 2;
+      // viewport 가로 clamp
+      if (left < margin) left = margin;
+      if (left + tipR.width > window.innerWidth - margin) {
+        left = window.innerWidth - tipR.width - margin;
+      }
+      // 위로 못 띄우면 아래로 뒤집기
+      if (top < margin) top = r.bottom + 18;
+      tip.style.top = top + 'px';
+      tip.style.left = left + 'px';
+    }
+
+    policyInfo.addEventListener('mouseenter', () => {
+      tip.style.display = 'block';
+      // 보여진 다음 프레임에 측정 (정확한 height 얻기)
+      requestAnimationFrame(positionTip);
+    });
+    policyInfo.addEventListener('mouseleave', () => {
+      tip.style.display = 'none';
+    });
+
+    // 모달 닫힐 때 tip 도 정리
+    const cleanup = () => {
+      if (tip.parentNode) tip.parentNode.removeChild(tip);
+      observer.disconnect();
+    };
+    const observer = new MutationObserver(() => {
+      if (!document.body.contains(policyInfo)) cleanup();
+    });
+    observer.observe(document.body, { childList: true, subtree: true });
   }
 
   // 제품 검색 → 평균 매입가 자동 불러오기
