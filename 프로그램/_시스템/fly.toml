@@ -12,14 +12,17 @@ primary_region = 'nrt'
 [http_service]
   internal_port = 8080
   force_https = true
-  auto_stop_machines = 'stop'
-  auto_start_machines = true
+  # v34.10 — 단일 머신 강제. icon_overrides.json 이 머신 로컬 파일이라
+  #   여러 머신 spawn 시 데이터 불일치 (한 머신에 저장 → 다른 머신에 없음 → 색 사라짐).
+  #   해결: 자동 스케일링 비활성 + 항상 1대 유지.
+  auto_stop_machines = 'off'
+  auto_start_machines = false
   min_machines_running = 1
 
   [http_service.concurrency]
     type = 'connections'
-    hard_limit = 25
-    soft_limit = 20
+    hard_limit = 200
+    soft_limit = 150
 
   [[http_service.checks]]
     interval = '30s'
