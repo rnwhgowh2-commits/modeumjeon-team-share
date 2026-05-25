@@ -236,10 +236,16 @@ class Option(Base):
     use_purchase_inventory = Column(Boolean, default=False, nullable=False)
 
     # ★ M4/P3/C9 (2026-05-08) — 사입 우선순위 + 수기 판매가
-    # purchase_priority: 'auto' (default — 사입재고≥1→사입, 0→소싱) | 'source' | 'purchase'
+    # purchase_priority: 'auto' (default — 사입재고≥1→사입, 0→소싱) | 'source' | 'purchase' | 'fixed'
+    #   'fixed' 추가 (2026-05-25) — 옵션별 지정가 모드 (fixed_ss_price/fixed_cp_price 사용)
     # purchase_manual_price: option_boxhero_margin_mode='manual' 일 때 직접 판매가 (₩ 정수)
     purchase_priority = Column(String(16), default='auto', nullable=False)
     purchase_manual_price = Column(Integer)
+
+    # ★ (2026-05-25) 옵션별 지정가 — purchase_priority='fixed' 일 때만 사용
+    # 마켓별 다른 값. NULL/0 이면 입력 안 됨 (지정가 모드 활성화해도 차단).
+    fixed_ss_price = Column(Integer)  # 스마트스토어 지정가
+    fixed_cp_price = Column(Integer)  # 쿠팡 지정가
 
     # ★ 제품 이미지 (박스히어로 1:1)
     image_url = Column(String(500))

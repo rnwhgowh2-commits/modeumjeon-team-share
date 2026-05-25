@@ -2254,6 +2254,97 @@
   font-family: ui-monospace, monospace; font-weight: 800; font-size: 14px;
 }
 
+/* ═══ V5 (2026-05-25) — 사입 카드 매입가 0원 차단 ═══ */
+.m4v1-card.pur.blocked {
+  border-color: #DC2626;
+  background: linear-gradient(135deg, #FEF2F2 0%, #fff 70%);
+}
+.m4v1-card.pur.blocked::before {
+  content: '🚫 차단'; position: absolute; top: -10px; right: 10px;
+  background: #DC2626; color: #fff; padding: 2px 9px; border-radius: 8px;
+  font-size: 14px; font-weight: 800;
+}
+.m4v1-card.pur.blocked .m4v1-head { color: #B91C1C; }
+.m4v1-card.pur.blocked .m4v1-stock-chip { background: #FEE2E2; color: #B91C1C; }
+.m4v1-card.pur.blocked .m4v1-mkt-price { color: #DC2626; font-weight: 700; }
+.m4v1-card.pur.blocked .m4v1-mkt-margin { color: #FCA5A5; text-decoration: line-through; }
+.m4v1-card.pur.blocked .m4v1-pur-info { color: #B91C1C; border-top-color: #FECACA; }
+.m4v1-card.pur.blocked .m4v1-pur-info b { color: #DC2626; }
+.m4v1-card.pur.blocked .m4v1-pur-info .missing {
+  background: #DC2626; color: #fff; font-size: 11px; padding: 1px 6px;
+  border-radius: 3px; margin-left: 5px; font-weight: 700; font-family: var(--font);
+}
+.m4v1-card.pur.blocked .m4v1-inv-link { color: #DC2626 !important; border-top-color: #FECACA; }
+.m4v1-card.pur.blocked .m4v1-inv-link:hover { background: #FEE2E2; }
+/* V5 우선순위 미니 토글 */
+.v5-prio {
+  margin-top: 6px; padding: 6px 8px; background: #fff;
+  border: 1px solid #FECACA; border-radius: 5px;
+}
+.v5-prio-h {
+  font-size: 11px; color: #7F1D1D; font-weight: 700; margin-bottom: 4px;
+  display: flex; align-items: center; gap: 4px;
+}
+.v5-prio-h .help { color: #9CA3AF; font-weight: 500; font-size: 10px; }
+.v5-prio-seg { display: flex; border: 1px solid #E5E7EB; border-radius: 4px; overflow: hidden; }
+.v5-prio-seg button {
+  flex: 1; background: #F9FAFB; border: none; padding: 5px 4px;
+  font-size: 11px; color: #6B7280; cursor: pointer; font-family: var(--font); font-weight: 600;
+}
+.v5-prio-seg button:not(:last-child) { border-right: 1px solid #E5E7EB; }
+.v5-prio-seg button.on { background: #DC2626; color: #fff; }
+.v5-prio-vals { font-size: 10px; color: #6B7280; margin-top: 3px; font-family: ui-monospace, monospace; }
+.v5-input-btn {
+  display: flex; align-items: center; justify-content: center; gap: 5px;
+  margin-top: 6px; width: 100%; padding: 8px 0;
+  background: #DC2626; color: #fff; border: none; border-radius: 5px;
+  font-size: 13px; font-weight: 700; cursor: pointer; font-family: var(--font);
+}
+.v5-input-btn:hover { background: #B91C1C; }
+
+/* ═══ C1 (2026-05-25) — 지정가 카드 (3번째 카드) ═══ */
+.m4v1-card.fix.active {
+  border-color: #7C3AED;
+  background: linear-gradient(135deg, #F3E8FF 0%, #fff 70%);
+}
+.m4v1-card.fix.active::before { background: #7C3AED; }
+.m4v1-card.fix.active .m4v1-head { color: #5B21B6; }
+.m4v1-card.fix.active .m4v1-mkt-price { color: #5B21B6; }
+.m4v1-card.fix.active .m4v1-inv-link {
+  color: #5B21B6 !important; border-top-color: #DDD6FE;
+}
+.m4v1-card.fix.active .m4v1-inv-link:hover { background: #F3E8FF; }
+.m4v1-card.fix.dim { opacity: .55; cursor: pointer; }
+.m4v1-card.fix.dim:hover { opacity: .85; }
+/* C1 인라인 인풋 (마켓별 지정가 입력) */
+.c1-fix-row {
+  display: grid; grid-template-columns: 22px minmax(72px, 1fr) auto;
+  gap: 4px; align-items: center; padding: 3px 0;
+}
+.c1-fix-row input {
+  width: 90px; padding: 4px 8px; border: 1.5px solid #DDD6FE;
+  border-radius: 5px; font-family: ui-monospace, monospace;
+  font-size: 13.5px; text-align: right; background: #fff;
+}
+.c1-fix-row input:focus {
+  outline: none; border-color: #7C3AED;
+  box-shadow: 0 0 0 2px rgba(124, 58, 237, .15);
+}
+.c1-fix-save-row {
+  display: flex; justify-content: flex-end; padding: 4px 0 0;
+  border-top: 1px dashed #DDD6FE; margin-top: 5px; gap: 6px; align-items: center;
+}
+.c1-fix-save-btn {
+  background: #7C3AED; color: #fff; border: none;
+  padding: 5px 12px; border-radius: 5px;
+  font-size: 12px; font-weight: 700; cursor: pointer; font-family: var(--font);
+}
+.c1-fix-save-btn:hover { background: #6D28D9; }
+.c1-fix-loss-chip {
+  background: #FEF3C7; color: #92400E; font-size: 10.5px;
+  padding: 2px 7px; border-radius: 10px; font-weight: 700;
+}
+
 /* ━━━ 최소 폰트 14px 룰 (사용자 요청) ━━━ */
 /* 매트릭스 본문 옵션·모델·재고 셀 */
 .opt-table.integrated-mtx td { font-size: 14px; }

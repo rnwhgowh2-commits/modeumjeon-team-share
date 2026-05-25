@@ -1371,6 +1371,33 @@ async function openPriceTplModal(id, initialTab) {
     ${row('반품비', num(prefix + '_return_fee', '원'))}
     ${row('교환비', num(prefix + '_exchange_fee', '원'))}`;
 
+  // [2026-05-25 V5] 매입가 산정 우선순위 블록 (template / avg)
+  //   사입 카드 0원 차단 UX 의 단일 진실 원천. 같은 템플릿 옵션 모두 일괄 적용.
+  const prioBlock = (curPri) => {
+    const isAvg = curPri === 'avg';
+    return `
+    <div class="ptm-prio-block" style="margin-top:14px; padding-top:14px; border-top:1px dashed #E5E8EB;">
+      <div style="font-size:12.5px; color:#DC2626; font-weight:700; margin-bottom:10px; letter-spacing:.2px;">▦ 매입가 산정 우선순위 <span style="background:#DC2626; color:#fff; font-size:10px; padding:1px 6px; border-radius:3px; margin-left:6px;">NEW</span></div>
+      <div style="padding:14px 16px; background:#FAFBFC; border:1.5px solid #E5E8EB; border-radius:12px;">
+        <div style="display:flex; border:1px solid #D1D6DB; border-radius:6px; overflow:hidden; margin-bottom:10px;">
+          <button type="button" class="ptm-prio-opt" data-prio="template"
+                  style="flex:1; padding:10px 0; background:${isAvg?'#fff':'#3182F6'}; color:${isAvg?'#4E5968':'#fff'}; border:none; font-size:13px; font-weight:700; cursor:pointer; font-family:inherit; border-right:1px solid #D1D6DB;">
+            템플릿 평균매입가 우선
+          </button>
+          <button type="button" class="ptm-prio-opt" data-prio="avg"
+                  style="flex:1; padding:10px 0; background:${isAvg?'#3182F6':'#fff'}; color:${isAvg?'#fff':'#4E5968'}; border:none; font-size:13px; font-weight:700; cursor:pointer; font-family:inherit;">
+            옵션 평균매입가 우선
+          </button>
+        </div>
+        <div style="font-size:12px; color:#6B7684; line-height:1.7;">
+          ● <b>템플릿 우선</b> — 위 「평균 매입가」 값 → 0이면 옵션 평균매입가 → 둘 다 0이면 <b style="color:#DC2626;">판매 차단</b><br>
+          ○ <b>옵션 우선</b> — 옵션 평균매입가 → 0이면 위 「평균 매입가」 → 둘 다 0이면 <b style="color:#DC2626;">판매 차단</b>
+        </div>
+      </div>
+      <input type="hidden" data-key="price_source_priority" id="ptm-prio-hidden" value="${curPri}">
+    </div>`;
+  };
+
   // [2026-05-25] D3 시안 — 판매가 정책 토글 (색상 통일 / 옵션별 cheapest) + 르무통 케이스 ! 툴팁
   const policyBlock = (curPolicy) => {
     const isColor = curPolicy === 'color';
@@ -1424,6 +1451,7 @@ async function openPriceTplModal(id, initialTab) {
       ${row('평균 매입가', num('boxhero_purchase_price', '원'))}
       ${row('매입가 하한', num('guardrail_lower', '원'))}
       ${row('매입가 상한', num('guardrail_upper', '원'))}
+      ${prioBlock(v('price_source_priority') || 'template')}
       ${policyBlock(v('pricing_policy') || 'cheapest')}
     </div>
     <div class="ptm-panel" data-panel="ss" style="display:none">
@@ -1501,6 +1529,23 @@ async function openPriceTplModal(id, initialTab) {
       if (status) status.textContent = isColor ? '색상 통일' : '옵션별 cheapest (기본)';
     });
   }
+  // [2026-05-25 V5] 매입가 우선순위 토글 (template / avg)
+  const prioHidden = box.querySelector('#ptm-prio-hidden');
+  const prioBtns = box.querySelectorAll('.ptm-prio-opt');
+  if (prioHidden && prioBtns.length) {
+    prioBtns.forEach(btn => {
+      btn.addEventListener('click', () => {
+        const next = btn.dataset.prio === 'avg' ? 'avg' : 'template';
+        prioHidden.value = next;
+        prioBtns.forEach(b => {
+          const on = b.dataset.prio === next;
+          b.style.background = on ? '#3182F6' : '#fff';
+          b.style.color = on ? '#fff' : '#4E5968';
+        });
+      });
+    });
+  }
+
   // [2026-05-25] D3 — ! 정보 hover 시 르무통 메이트 블랙 240mm 케이스 툴팁
   const policyInfo = box.querySelector('.ptm-policy-info');
   if (policyInfo) {

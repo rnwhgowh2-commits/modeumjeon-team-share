@@ -377,6 +377,12 @@ def get_option_matrix(code: str):
                           else ss_price)
             display_cp = (cfg.manual_cp_price if cfg and not auto and cfg.manual_cp_price
                           else cp_price)
+            # [2026-05-25 C1] 지정가 모드 → 마켓 가격에 fixed 값 우선 반영
+            if (o.purchase_priority or '').lower() == 'fixed':
+                if o.fixed_ss_price:
+                    display_ss = o.fixed_ss_price
+                if o.fixed_cp_price:
+                    display_cp = o.fixed_cp_price
             color_groups.setdefault(o.color_code, []).append({
                 'sku': o.canonical_sku, 'size': o.size_code,
                 'src_count': len(sources_for_opt),
@@ -390,22 +396,45 @@ def get_option_matrix(code: str):
             _val = o.option_boxhero_margin_value or 0
             _enabled = bool(o.use_purchase_inventory)
             _pri = (o.purchase_priority or 'auto').lower()
-            # 우선순위 결정 — 재고 ≥1 = 무조건 사입 (override 무관) / 재고 0 = priority 따름
-            if _stock >= 1:
+
+            # [2026-05-25 V5] 매입가 산정 우선순위 (PriceTemplate.price_source_priority)
+            #   'template' (기본) — 템플릿 boxhero_purchase_price → 0이면 옵션 _avg 폴백
+            #   'avg'             — 옵션 _avg → 0이면 템플릿값 폴백
+            #   둘 다 0이면 사입 카드 차단 (UI 빨간 🚫)
+            _tpl_purchase = (tpl.boxhero_purchase_price if tpl else 0) or 0
+            _src_pri = (tpl.price_source_priority if tpl else 'template') or 'template'
+            if _src_pri == 'avg':
+                _resolved_avg = _avg or _tpl_purchase
+            else:
+                _resolved_avg = _tpl_purchase or _avg
+            _purchase_blocked = (_resolved_avg == 0)
+
+            # [2026-05-25 C1] 지정가 모드 — 옵션별 fixed 값
+            _fix_ss = o.fixed_ss_price or 0
+            _fix_cp = o.fixed_cp_price or 0
+            _fix_blocked = (_fix_ss == 0 and _fix_cp == 0)
+            # 역마진 경고 — 지정가가 매입가보다 낮을 때 (둘 다 > 0 일 때만)
+            _fix_loss_ss = bool(_fix_ss and _resolved_avg and _fix_ss < _resolved_avg)
+            _fix_loss_cp = bool(_fix_cp and _resolved_avg and _fix_cp < _resolved_avg)
+
+            # 우선순위 결정 — 지정가 > (재고 ≥1 = 무조건 사입) > priority 따름
+            if _pri == 'fixed':
+                _resolved_pri = 'fixed'
+            elif _stock >= 1:
                 _resolved_pri = 'purchase'
             elif _pri == 'purchase':
                 _resolved_pri = 'purchase'
             else:
                 _resolved_pri = 'source'
-            # 사입 판매가 산출 (재고 있으면 시도)
+            # 사입 판매가 산출 (재고 있으면 시도, 차단 시 None)
             _purchase_price = None
-            if _stock >= 1:
+            if _stock >= 1 and not _purchase_blocked:
                 if _mode == 'manual':
                     _purchase_price = o.purchase_manual_price
                 elif _mode == 'rate':
-                    _purchase_price = int(_avg * (1 + _val / 10000.0)) if _avg else None
+                    _purchase_price = int(_resolved_avg * (1 + _val / 10000.0))
                 elif _mode == 'amount':
-                    _purchase_price = int(_avg + _val) if _avg else None
+                    _purchase_price = int(_resolved_avg + _val)
             opt_rows.append({
                 'sku': o.canonical_sku,
                 'model_code': o.model_code,  # [v3 시나리오 C] 그룹 안 모델 식별
@@ -439,6 +468,17 @@ def get_option_matrix(code: str):
                 'purchase_margin_value': _val,
                 'purchase_manual_price': o.purchase_manual_price,
                 'purchase_final_price': _purchase_price,
+                # [2026-05-25 V5] 매입가 우선순위 + 차단 플래그
+                'purchase_resolved_avg': _resolved_avg,
+                'purchase_blocked': _purchase_blocked,
+                'price_source_priority': _src_pri,
+                'template_purchase_price': _tpl_purchase,
+                # [2026-05-25 C1] 옵션별 지정가
+                'fixed_ss_price': _fix_ss or None,
+                'fixed_cp_price': _fix_cp or None,
+                'fixed_blocked': _fix_blocked,
+                'fixed_loss_ss': _fix_loss_ss,
+                'fixed_loss_cp': _fix_loss_cp,
             })
 
         # 트리 구조화 (color → sizes)
@@ -1427,6 +1467,8 @@ def update_option_purchase(sku: str):
             'use_purchase_inventory', 'purchase_priority',
             'boxhero_avg_purchase_price', 'option_boxhero_margin_mode',
             'option_boxhero_margin_value', 'purchase_manual_price',
+            # [2026-05-25 C1] 옵션별 지정가 (purchase_priority='fixed' 와 짝)
+            'fixed_ss_price', 'fixed_cp_price',
         }
         for k, v in data.items():
             if k in ALLOWED:
@@ -1478,6 +1520,8 @@ def update_options_purchase_bulk():
             'use_purchase_inventory', 'purchase_priority',
             'boxhero_avg_purchase_price', 'option_boxhero_margin_mode',
             'option_boxhero_margin_value', 'purchase_manual_price',
+            # [2026-05-25 C1] 옵션별 지정가 (purchase_priority='fixed' 와 짝)
+            'fixed_ss_price', 'fixed_cp_price',
         }
         applied = 0
         skipped_bh0 = 0
