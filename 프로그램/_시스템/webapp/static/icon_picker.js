@@ -988,9 +988,7 @@
       try { _applyBrandLetters(); } catch(_) {}
     }, 100);
   }
-  // dummy unused
-    style.textContent = rules.join('\n');
-  }
+
   // 부트스트랩 — /api/icon/list 의 'brand' 컨텍스트 항목 적용
   // v34.9 — Fly.io 멀티 인스턴스 + 파일 시스템 분리 환경 안전망:
   //   - 페이지 HTML 응답 SSR stylesheet 는 항상 진실 (Flask context_processor 가 박음)
