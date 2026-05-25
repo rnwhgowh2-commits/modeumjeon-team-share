@@ -512,9 +512,7 @@
   </script>
 
   <style>
-  .group-by-bar { display:flex; gap:10px; align-items:center; padding:10px 14px; background:#f9fafb; border:1px solid #e5e8eb; border-radius:8px; margin-bottom:10px; flex-wrap:wrap; }
-  .gb-label { font-size:13px; font-weight:600; color:var(--n700); }
-  .gb-select { padding:6px 12px; border:1px solid var(--n300); border-radius:5px; font-size:13px; background:#fff; cursor:pointer; }
+  /* [2026-05-25] .group-by-bar / .gb-label / .gb-select 제거 — 정렬 dropdown UI 삭제 */
   .gb-action { padding:6px 12px; border:1px solid var(--n300); border-radius:5px; font-size:13px; background:#fff; cursor:pointer; font-weight:600; color:var(--n700); transition:.12s; }
   .gb-action:hover { background:#f1f3f5; border-color:var(--n500); }
   .gb-action[data-collapsed="true"] { color:#15803d; border-color:#dcfce7; background:#f0fdf4; }
@@ -571,30 +569,8 @@
   })();
   </script>
 
-  {# [2026-05-24 B-2] 전체 크롤 = CTA (컬러 풀). 가격 템플릿은 사올때/팔때 박스로 흡수 #}
-  <div class="global-actions-v2" id="global-actions">
-    <button class="ga-btn-v2 crawl ga-cta" id="crawl-all-btn"
-            data-action="bundle-run-now"
-            data-code="{{ bundle.model_code }}"
-            data-phase="crawl">
-      <span class="ga-ico"></span>
-      <span class="ga-body">
-        <span class="ga-name">전체 크롤 ({{ options|length }})</span>
-        <span class="ga-sub">4 사이트 자동 수집</span>
-      </span>
-    </button>
-  </div>
-
-  {# 정렬 (글로벌 액션바 아래) — 모두 펼치기/접기는 매트릭스 안 toolbar 로 이동 #}
-  <div class="group-by-bar">
-    <span class="gb-label">정렬</span>
-    <select id="group-by-select" class="gb-select">
-      <option value="color" selected>색상별</option>
-      <option value="size">사이즈별</option>
-      <option value="model">모델별</option>
-      <option value="none">정렬 없음</option>
-    </select>
-  </div>
+  {# [2026-05-25] 정렬 dropdown 제거 — getGroupBy() 는 fallback 'color' 로 기본 동작 유지 #}
+  {# [2026-05-25] 전체 크롤 CTA 는 가격 템플릿 아래 + 진행 카드(sm-side-h) 위로 이동 #}
   <style>
   /* J4 — CTA + 아이콘 버튼 위계 */
   .global-actions-v2 { display:flex; gap:12px; padding:12px 16px; background:linear-gradient(to right,#f9fafb,#fff); border:1.5px solid #e5e8eb; border-radius:10px; margin-bottom:14px; align-items:center; }
@@ -1097,6 +1073,20 @@
       });
     })();
   </script>
+
+  {# [2026-05-25] 전체 크롤 CTA — 진행/사이트/최저가 카드 위로 위상 배치 #}
+  <div class="global-actions-v2" id="global-actions">
+    <button class="ga-btn-v2 crawl ga-cta" id="crawl-all-btn"
+            data-action="bundle-run-now"
+            data-code="{{ bundle.model_code }}"
+            data-phase="crawl">
+      <span class="ga-ico"></span>
+      <span class="ga-body">
+        <span class="ga-name">전체 크롤 ({{ options|length }})</span>
+        <span class="ga-sub">4 사이트 자동 수집</span>
+      </span>
+    </button>
+  </div>
 
   {# v17 Phase 6 — 사이트별 진행 통계 가로 띠 (sm-side 의 세로 stack 을 가로로 재배치) #}
   <div class="sm-side-h" id="sm-side-h"><!-- JS 렌더: 진행 ring + 사이트별 카드 + winner --></div>
