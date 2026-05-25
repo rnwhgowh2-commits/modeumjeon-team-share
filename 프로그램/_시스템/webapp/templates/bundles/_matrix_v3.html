@@ -4378,17 +4378,28 @@
     // ─── 소싱 카드 ───
     const srcCardClass = isPurchasePri ? 'm4v1-card src dim' : 'm4v1-card src active';
     const srcLabel = isPurchasePri ? '참고용' : '우선';
-    // [A1] 소싱 카드 재고 chip + 지정가 토글 + 인풋 변환
+    // [A1] 소싱 카드 재고 chip + 지정가 토글 + 인풋 변환 + 실시간 마진 계산
     const _srcStock = o.src_stock || 0;
     const _srcStockChip = _srcStock >= 1 ? `<span class="m4v1-stock-chip" title="재고 있는 소싱처 중 최저가의 재고">재고 ${_srcStock}</span>` : '';
     const _srcFixOn = !!o.src_fixed_active;
     const _srcFixToggle = `<span class="a1-fix-toggle ${_srcFixOn?'on':''}" data-a1-toggle="src" data-sku="${o.sku}" title="소싱 카드 지정가 ${_srcFixOn?'ON':'OFF'}"><span class="a1-sw"></span><b>지정가</b></span>`;
+    const _srcCost = o.src_cost || 0;
+    // 지정가 모드 마진율 계산 helper (소싱·사입 공통) — (가격 - 원가) / 원가 × 100
+    const _mkMargin = (cardKey, mkt, baseRate, fixOn, fixVal, cost) => {
+      if (!fixOn) return `<span class="m4v1-mkt-margin">${baseRate.toFixed(2)}%</span>`;
+      if (!fixVal || !cost) return `<span class="m4v1-mkt-margin a1-fix-margin" data-a1-margin="${cardKey}-${mkt}" data-cost="${cost||0}" title="지정가 입력 후 마진율 자동 계산">—</span>`;
+      const m = ((fixVal - cost) / cost) * 100;
+      const cls = m < 0 ? ' loss' : '';
+      return `<span class="m4v1-mkt-margin a1-fix-margin${cls}" data-a1-margin="${cardKey}-${mkt}" data-cost="${cost}" title="(지정가 ${fixVal.toLocaleString('ko-KR')}원 - 원가 ${cost.toLocaleString('ko-KR')}원) / 원가 × 100">${m.toFixed(2)}%</span>`;
+    };
     const _srcSsCell = _srcFixOn
       ? `<input class="a1-fix-input" type="number" step="100" data-a1-fix="src-ss" data-sku="${o.sku}" value="${o.src_fixed_ss_price || ''}" placeholder="${srcSsPrice}"><span class="a1-saved-chip idle" data-a1-saved="src-ss"></span>`
       : `<span class="m4v1-auto">AUTO</span><span class="m4v1-mkt-price">${srcSsPrice.toLocaleString('ko-KR')}원</span>`;
     const _srcCpCell = _srcFixOn
       ? `<input class="a1-fix-input" type="number" step="100" data-a1-fix="src-cp" data-sku="${o.sku}" value="${o.src_fixed_cp_price || ''}" placeholder="${srcCpPrice}"><span class="a1-saved-chip idle" data-a1-saved="src-cp"></span>`
       : `<span class="m4v1-auto">AUTO</span><span class="m4v1-mkt-price">${srcCpPrice.toLocaleString('ko-KR')}원</span>`;
+    const _srcSsMarginCell = _mkMargin('src', 'ss', ssMargin, _srcFixOn, o.src_fixed_ss_price || 0, _srcCost);
+    const _srcCpMarginCell = _mkMargin('src', 'cp', cpMargin, _srcFixOn, o.src_fixed_cp_price || 0, _srcCost);
     const srcCard = `
       <div class="${srcCardClass}" data-m4-card="source" data-sku="${o.sku}">
         ${_srcFixToggle}
@@ -4397,13 +4408,13 @@
           <span class="m4v1-mkt-logo">${marketLogoHtml('스마트스토어')}</span>
           <span class="m4v1-mkt-name">스마트스토어</span>
           ${_srcSsCell}
-          <span class="m4v1-mkt-margin">${ssMargin.toFixed(2)}%</span>
+          ${_srcSsMarginCell}
         </div>
         <div class="m4v1-mkt-row">
           <span class="m4v1-mkt-logo">${marketLogoHtml('쿠팡')}</span>
           <span class="m4v1-mkt-name">쿠팡</span>
           ${_srcCpCell}
-          <span class="m4v1-mkt-margin">${cpMargin.toFixed(2)}%</span>
+          ${_srcCpMarginCell}
         </div>
         ${fxBtn ? `<div class="m4v1-fx-row">${fxBtn}</div>` : ''}
       </div>`;
@@ -4454,7 +4465,7 @@
       const purLabel = isPurchasePri ? '우선' : '참고용';
       // v28 시안 ④ — 카드 푸터 전체 폭 「재고관리에서 자세히 보기 →」 link
       const invFootHtml = `<a class="m4v1-inv-link" href="/inventory/?q=${encodeURIComponent(o.sku)}" target="_blank" title="재고관리 제품 목록 (이 옵션으로 필터)">재고관리에서 자세히 보기 →</a>`;
-      // [A1] 사입 카드 지정가 토글 + 인풋 변환 + 역마진 chip
+      // [A1] 사입 카드 지정가 토글 + 인풋 변환 + 역마진 chip + 실시간 마진 계산
       const _purFixOn = !!o.pur_fixed_active;
       const _purFixToggle = `<span class="a1-fix-toggle ${_purFixOn?'on':''}" data-a1-toggle="pur" data-sku="${o.sku}" title="사입 카드 지정가 ${_purFixOn?'ON':'OFF'}"><span class="a1-sw"></span><b>지정가</b></span>`;
       const _ssLossChip = o.pur_loss_ss ? '<span class="a1-loss-chip" title="역마진 — 지정가가 매입가보다 낮음">⚠ 역마진</span>' : '';
@@ -4465,6 +4476,9 @@
       const _purCpCell = _purFixOn
         ? `<input class="a1-fix-input" type="number" step="100" data-a1-fix="pur-cp" data-sku="${o.sku}" value="${o.pur_fixed_cp_price || ''}" placeholder="${purCpPrice}"><span class="a1-saved-chip idle" data-a1-saved="pur-cp"></span>${_cpLossChip}`
         : `<span class="m4v1-mkt-price">${purCpPrice.toLocaleString('ko-KR')}원</span>`;
+      const _purCost = avg || 0;  // 사입 카드 원가 = 매입가
+      const _purSsMarginCell = _mkMargin('pur', 'ss', ssMargin, _purFixOn, o.pur_fixed_ss_price || 0, _purCost);
+      const _purCpMarginCell = _mkMargin('pur', 'cp', cpMargin, _purFixOn, o.pur_fixed_cp_price || 0, _purCost);
       purCard = `
         <div class="${purCardClass}" data-m4-card="purchase" data-sku="${o.sku}">
           ${_purFixToggle}
@@ -4473,13 +4487,13 @@
             <span class="m4v1-mkt-logo">${marketLogoHtml('스마트스토어')}</span>
             <span class="m4v1-mkt-name">스마트스토어</span>
             ${_purSsCell}
-            <span class="m4v1-mkt-margin">${ssMargin.toFixed(2)}%</span>
+            ${_purSsMarginCell}
           </div>
           <div class="m4v1-mkt-row">
             <span class="m4v1-mkt-logo">${marketLogoHtml('쿠팡')}</span>
             <span class="m4v1-mkt-name">쿠팡</span>
             ${_purCpCell}
-            <span class="m4v1-mkt-margin">${cpMargin.toFixed(2)}%</span>
+            ${_purCpMarginCell}
           </div>
           <div class="m4v1-pur-info">매입가 <b>${(avg || 0).toLocaleString('ko-KR')}원</b></div>
           ${invFootHtml}
@@ -5463,7 +5477,7 @@
     }
   }
 
-  // [2026-05-25 A1] 카드 안 지정가 인풋 — 1초 debounce 자동 저장
+  // [2026-05-25 A1] 카드 안 지정가 인풋 — 1초 debounce 자동 저장 + 실시간 마진 % 갱신
   const _a1FixTimers = new Map();  // sku|which → setTimeout id
   document.addEventListener('input', (e) => {
     const inp = e.target.closest('input[data-a1-fix]');
@@ -5477,6 +5491,23 @@
       savedChip.textContent = '저장중';
     }
     inp.classList.remove('saved'); inp.classList.add('saving');
+    // 마진 셀 실시간 갱신 (debounce 없이 즉시 — 시각 피드백 빠르게)
+    const marginEl = card?.querySelector(`[data-a1-margin="${which}"]`);
+    if (marginEl) {
+      const cost = parseInt(marginEl.dataset.cost || '0', 10);
+      const valStr = inp.value.trim();
+      const val = valStr === '' ? 0 : parseInt(valStr, 10);
+      if (val && cost) {
+        const m = ((val - cost) / cost) * 100;
+        marginEl.textContent = m.toFixed(2) + '%';
+        marginEl.classList.toggle('loss', m < 0);
+        marginEl.title = `(지정가 ${val.toLocaleString('ko-KR')}원 - 원가 ${cost.toLocaleString('ko-KR')}원) / 원가 × 100`;
+      } else {
+        marginEl.textContent = '—';
+        marginEl.classList.remove('loss');
+        marginEl.title = '지정가 입력 후 마진율 자동 계산';
+      }
+    }
     const key = `${sku}|${which}`;
     if (_a1FixTimers.has(key)) clearTimeout(_a1FixTimers.get(key));
     _a1FixTimers.set(key, setTimeout(async () => {

@@ -484,8 +484,9 @@ def get_option_matrix(code: str):
                 'purchase_blocked': _purchase_blocked,
                 'price_source_priority': _src_pri,
                 'template_purchase_price': _tpl_purchase,
-                # [2026-05-25 A1] 카드별 지정가 (소싱·사입 각각) + 소싱 카드 재고
+                # [2026-05-25 A1] 카드별 지정가 (소싱·사입 각각) + 소싱 카드 재고 + 원가 (실시간 마진 계산용)
                 'src_stock': _src_stock,
+                'src_cost': purchase,   # 소싱처 원가 (르무통→첫 active→템플릿 매입가) — JS 마진 계산
                 'src_fixed_active': _src_fix_on,
                 'src_fixed_ss_price': _src_fix_ss or None,
                 'src_fixed_cp_price': _src_fix_cp or None,
