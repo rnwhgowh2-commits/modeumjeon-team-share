@@ -2302,48 +2302,67 @@
 }
 .v5-input-btn:hover { background: #B91C1C; }
 
-/* ═══ C1 (2026-05-25) — 지정가 카드 (3번째 카드) ═══ */
-.m4v1-card.fix.active {
-  border-color: #7C3AED;
-  background: linear-gradient(135deg, #F3E8FF 0%, #fff 70%);
+/* ═══ A1 (2026-05-25) — 카드 안 지정가 활성화 토글 (소싱·사입 각각) ═══ */
+/* 우상단 작은 ON/OFF 토글 — ✓적용 라벨 옆에 배치 */
+.a1-fix-toggle {
+  position: absolute; top: -10px; right: 60px;
+  display: inline-flex; align-items: center; gap: 4px;
+  background: #fff; border: 1px solid #DDD6FE; border-radius: 11px;
+  padding: 1px 7px 1px 4px; font-size: 10.5px; cursor: pointer;
+  box-shadow: 0 1px 3px rgba(0,0,0,.08); font-family: var(--font);
+  user-select: none; z-index: 2;
 }
-.m4v1-card.fix.active::before { background: #7C3AED; }
-.m4v1-card.fix.active .m4v1-head { color: #5B21B6; }
-.m4v1-card.fix.active .m4v1-mkt-price { color: #5B21B6; }
-.m4v1-card.fix.active .m4v1-inv-link {
-  color: #5B21B6 !important; border-top-color: #DDD6FE;
+.a1-fix-toggle:hover { border-color: #7C3AED; }
+.a1-fix-toggle .a1-sw {
+  width: 20px; height: 11px; border-radius: 11px;
+  background: #D1D5DB; position: relative; transition: background .15s;
 }
-.m4v1-card.fix.active .m4v1-inv-link:hover { background: #F3E8FF; }
-.m4v1-card.fix.dim { opacity: .55; cursor: pointer; }
-.m4v1-card.fix.dim:hover { opacity: .85; }
-/* C1 인라인 인풋 (마켓별 지정가 입력) */
-.c1-fix-row {
-  display: grid; grid-template-columns: 22px minmax(72px, 1fr) auto;
-  gap: 4px; align-items: center; padding: 3px 0;
+.a1-fix-toggle .a1-sw::after {
+  content: ''; position: absolute; top: 1px; left: 1px;
+  width: 9px; height: 9px; border-radius: 50%; background: #fff;
+  transition: left .15s;
 }
-.c1-fix-row input {
-  width: 90px; padding: 4px 8px; border: 1.5px solid #DDD6FE;
-  border-radius: 5px; font-family: ui-monospace, monospace;
+.a1-fix-toggle.on .a1-sw { background: #7C3AED; }
+.a1-fix-toggle.on .a1-sw::after { left: 10px; }
+.a1-fix-toggle b { color: #9CA3AF; font-weight: 700; font-size: 10.5px; }
+.a1-fix-toggle.on b { color: #5B21B6; }
+
+/* 인풋 (가격 자리 변환) */
+.a1-fix-input {
+  width: 70px; padding: 2px 6px; border: 1.5px solid #7C3AED;
+  border-radius: 4px; font-family: ui-monospace, monospace;
   font-size: 13.5px; text-align: right; background: #fff;
+  font-weight: 800; color: #5B21B6;
 }
-.c1-fix-row input:focus {
-  outline: none; border-color: #7C3AED;
-  box-shadow: 0 0 0 2px rgba(124, 58, 237, .15);
+.a1-fix-input:focus { outline: none; box-shadow: 0 0 0 2px rgba(124,58,237,.2); }
+.a1-fix-input.saving { border-color: #F59E0B; }
+.a1-fix-input.saved  { border-color: #03C75A; }
+
+/* 자동 저장 상태 chip */
+.a1-saved-chip {
+  font-size: 10px; font-weight: 700; padding: 0 5px;
+  border-radius: 8px; display: inline-flex; align-items: center; gap: 2px;
+  font-family: var(--font);
 }
-.c1-fix-save-row {
-  display: flex; justify-content: flex-end; padding: 4px 0 0;
-  border-top: 1px dashed #DDD6FE; margin-top: 5px; gap: 6px; align-items: center;
+.a1-saved-chip.saving { background: #FEF3C7; color: #92400E; }
+.a1-saved-chip.saved  { background: #D1FAE5; color: #0E7C3A; }
+.a1-saved-chip.idle   { display: none; }
+
+/* 소싱 카드 active 상태일 때 토글 배치 미세 조정 (✓적용 라벨 충돌 방지) */
+.m4v1-card.src.active .a1-fix-toggle { right: 70px; }
+.m4v1-card.pur.active .a1-fix-toggle { right: 70px; }
+/* dim 카드는 토글이 우상단 평범한 위치 (✓적용 라벨 없으므로) */
+.m4v1-card.dim .a1-fix-toggle { top: 6px; right: 8px; }
+
+/* 역마진 chip — 마켓 행 끝에 작은 경고 */
+.a1-loss-chip {
+  background: #FEF3C7; color: #92400E; font-size: 9.5px;
+  padding: 1px 5px; border-radius: 8px; font-weight: 700;
+  margin-left: 4px; font-family: var(--font);
 }
-.c1-fix-save-btn {
-  background: #7C3AED; color: #fff; border: none;
-  padding: 5px 12px; border-radius: 5px;
-  font-size: 12px; font-weight: 700; cursor: pointer; font-family: var(--font);
-}
-.c1-fix-save-btn:hover { background: #6D28D9; }
-.c1-fix-loss-chip {
-  background: #FEF3C7; color: #92400E; font-size: 10.5px;
-  padding: 2px 7px; border-radius: 10px; font-weight: 700;
-}
+
+/* 소싱 카드 재고 chip (사입 카드와 동일 톤, 초록 배경) */
+.m4v1-card.src.active .m4v1-stock-chip { background: #D1FAE5; color: #0E7C3A; }
 
 /* ━━━ 최소 폰트 14px 룰 (사용자 요청) ━━━ */
 /* 매트릭스 본문 옵션·모델·재고 셀 */

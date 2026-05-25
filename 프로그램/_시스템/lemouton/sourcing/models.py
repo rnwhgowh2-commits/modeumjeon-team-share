@@ -236,16 +236,23 @@ class Option(Base):
     use_purchase_inventory = Column(Boolean, default=False, nullable=False)
 
     # ★ M4/P3/C9 (2026-05-08) — 사입 우선순위 + 수기 판매가
-    # purchase_priority: 'auto' (default — 사입재고≥1→사입, 0→소싱) | 'source' | 'purchase' | 'fixed'
-    #   'fixed' 추가 (2026-05-25) — 옵션별 지정가 모드 (fixed_ss_price/fixed_cp_price 사용)
+    # purchase_priority: 'auto' (default — 사입재고≥1→사입, 0→소싱) | 'source' | 'purchase'
     # purchase_manual_price: option_boxhero_margin_mode='manual' 일 때 직접 판매가 (₩ 정수)
     purchase_priority = Column(String(16), default='auto', nullable=False)
     purchase_manual_price = Column(Integer)
 
-    # ★ (2026-05-25) 옵션별 지정가 — purchase_priority='fixed' 일 때만 사용
-    # 마켓별 다른 값. NULL/0 이면 입력 안 됨 (지정가 모드 활성화해도 차단).
-    fixed_ss_price = Column(Integer)  # 스마트스토어 지정가
-    fixed_cp_price = Column(Integer)  # 쿠팡 지정가
+    # ★ (2026-05-25 A1) 카드별 지정가 — 소싱·사입 카드 각각 활성화 토글
+    # active=ON 이면 그 카드의 마켓 가격을 fixed 값으로 덮어쓰기.
+    # 값이 NULL/0 인 마켓은 자동값 폴백 (카드 ON 이어도 마켓별 비워두면 자동).
+    src_fixed_active = Column(Boolean, default=False, nullable=False)
+    src_fixed_ss_price = Column(Integer)
+    src_fixed_cp_price = Column(Integer)
+    pur_fixed_active = Column(Boolean, default=False, nullable=False)
+    pur_fixed_ss_price = Column(Integer)
+    pur_fixed_cp_price = Column(Integer)
+    # [DEPRECATED 2026-05-25] 이전 C1 (3번째 보라 카드) — A1 전환 후 코드 미사용. DB 컬럼은 안전상 유지.
+    fixed_ss_price = Column(Integer)
+    fixed_cp_price = Column(Integer)
 
     # ★ 제품 이미지 (박스히어로 1:1)
     image_url = Column(String(500))
