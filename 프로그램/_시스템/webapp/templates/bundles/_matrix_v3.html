@@ -674,10 +674,10 @@
                     style="display:block; width:100%; text-align:left; padding:9px 14px; border:0; background:{% if applied_price and applied_price.id == t.id %}#eff6ff{% else %}transparent{% endif %}; color:{% if applied_price and applied_price.id == t.id %}#1e40af{% else %}#191f28{% endif %}; font-size:15px; font-weight:{% if applied_price and applied_price.id == t.id %}700{% else %}500{% endif %}; cursor:pointer; font-family:inherit;">{{ t.name }}</button>
             {% endfor %}
           </div>
-          {# 고정 footer — 스크롤 무관, 항상 6번째 자리. text-align:center 로 단순 가운데 정렬 #}
-          <button type="button" id="bp-tpl-add-footer"
-                  style="display:block; width:100%; padding:11px 14px; border:0; border-top:1px solid #eaedf0; background:#fafbfc; color:#3B82F6; font-size:14px; font-weight:700; cursor:pointer; font-family:inherit; text-align:center; box-sizing:border-box;"
-                  title="새 가격 템플릿 추가">＋ 새 템플릿 추가</button>
+          {# 고정 footer — v3 가운데 정렬 bulletproof: inline !important + 명시 span 래퍼 #}
+          <button type="button" id="bp-tpl-add-footer" data-cv="20260525-c3"
+                  style="display:block !important; width:100% !important; padding:11px 0 !important; border:0; border-top:1px solid #eaedf0; background:#fafbfc; color:#3B82F6; font-size:14px; font-weight:700; cursor:pointer; font-family:inherit; text-align:center !important; box-sizing:border-box !important;"
+                  title="새 가격 템플릿 추가"><span style="display:inline-block; text-align:center;">＋ 새 템플릿 추가</span></button>
         </div>
       </div>
       <span id="bp-tpl-status" style="font-size:14px; color:#10b981; font-weight:600; min-width:120px;">
