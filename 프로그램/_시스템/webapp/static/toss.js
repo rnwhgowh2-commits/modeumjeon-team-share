@@ -1505,40 +1505,40 @@ async function openPriceTplModal(id, initialTab) {
   const policyInfo = box.querySelector('.ptm-policy-info');
   if (policyInfo) {
     const tip = document.createElement('div');
-    // [2026-05-25] 가독성 정리 — tabular-nums + 일관 폰트·여백·강조
-    tip.style.cssText = 'display:none; position:absolute; bottom:calc(100% + 10px); left:50%; transform:translateX(-50%); width:380px; background:#191F28; border-radius:14px; box-shadow:0 16px 40px rgba(0,0,0,.4); padding:18px 20px 16px; color:#E5E8EB; font-family:inherit; font-style:normal; font-weight:400; text-align:left; z-index:10000; pointer-events:none; font-variant-numeric:tabular-nums; letter-spacing:-.1px;';
+    // [2026-05-25] 가독성 — 글씨·창 180% 스케일 (사용자 요청, ×1.8)
+    tip.style.cssText = 'display:none; position:absolute; bottom:calc(100% + 18px); left:50%; transform:translateX(-50%); width:680px; background:#191F28; border-radius:14px; box-shadow:0 16px 40px rgba(0,0,0,.4); padding:32px 36px 28px; color:#E5E8EB; font-family:inherit; font-style:normal; font-weight:400; text-align:left; z-index:10000; pointer-events:none; font-variant-numeric:tabular-nums; letter-spacing:-.1px;';
     tip.innerHTML = `
-      <div style="font-size:12px; color:#9BC1FF; font-weight:700; letter-spacing:.3px;">예시</div>
-      <div style="font-size:15px; color:#fff; font-weight:700; margin-top:3px; letter-spacing:-.3px;">르무통 메이트 블랙 240mm</div>
+      <div style="font-size:22px; color:#9BC1FF; font-weight:700; letter-spacing:.3px;">예시</div>
+      <div style="font-size:27px; color:#fff; font-weight:700; margin-top:5px; letter-spacing:-.3px;">르무통 메이트 블랙 240mm</div>
 
-      <div style="margin-top:12px; padding:12px 14px; background:#0F141A; border-radius:10px;">
-        <div style="display:grid; grid-template-columns:60px 88px 1fr; gap:14px; padding:4px 0; font-size:13px; align-items:baseline;">
+      <div style="margin-top:22px; padding:22px 25px; background:#0F141A; border-radius:12px;">
+        <div style="display:grid; grid-template-columns:108px 158px 1fr; gap:25px; padding:7px 0; font-size:23px; align-items:baseline;">
           <span style="color:#9CA3AF;">무신사</span>
           <span style="color:#fff; font-weight:600; text-align:right;">90,000원</span>
-          <span style="color:#FBBF24; font-size:11.5px;">240mm 품절</span>
+          <span style="color:#FBBF24; font-size:21px;">240mm 품절</span>
         </div>
-        <div style="display:grid; grid-template-columns:60px 88px 1fr; gap:14px; padding:4px 0; font-size:13px; align-items:baseline;">
+        <div style="display:grid; grid-template-columns:108px 158px 1fr; gap:25px; padding:7px 0; font-size:23px; align-items:baseline;">
           <span style="color:#9CA3AF;">르무통</span>
           <span style="color:#fff; font-weight:600; text-align:right;">100,000원</span>
-          <span style="color:#9BE0BD; font-size:11.5px;">전체 재고</span>
+          <span style="color:#9BE0BD; font-size:21px;">전체 재고</span>
         </div>
       </div>
 
-      <div style="margin-top:12px; display:flex; flex-direction:column; gap:8px;">
-        <div style="padding:12px 14px; border-radius:10px; background:#0F141A;">
-          <div style="display:flex; align-items:center; gap:8px; font-size:12px; font-weight:700; color:#FCA5A5; letter-spacing:-.1px;">
-            <span style="font-size:13px;">⚪</span>끄면 · 옵션별 cheapest (기본)
+      <div style="margin-top:22px; display:flex; flex-direction:column; gap:14px;">
+        <div style="padding:22px 25px; border-radius:12px; background:#0F141A;">
+          <div style="display:flex; align-items:center; gap:14px; font-size:22px; font-weight:700; color:#FCA5A5; letter-spacing:-.1px;">
+            <span style="font-size:23px;">⚪</span>끄면 · 옵션별 cheapest (기본)
           </div>
-          <p style="margin:7px 0 0; color:#CBD5E1; font-size:12.5px; line-height:1.75;">
+          <p style="margin:13px 0 0; color:#CBD5E1; font-size:22px; line-height:1.75;">
             판매가는 <span style="color:#fff; font-weight:600;">90,000원</span>인데 240mm가 팔리면 <span style="color:#fff; font-weight:600;">100,000원</span>에 사야 해요.<br>
             <span style="color:#FCA5A5; font-weight:600;">건당 10,000원씩 손해</span>예요.
           </p>
         </div>
-        <div style="padding:12px 14px; border-radius:10px; background:#0F141A;">
-          <div style="display:flex; align-items:center; gap:8px; font-size:12px; font-weight:700; color:#9BE0BD; letter-spacing:-.1px;">
-            <span style="font-size:13px;">🟢</span>켜면 · 색상 통일
+        <div style="padding:22px 25px; border-radius:12px; background:#0F141A;">
+          <div style="display:flex; align-items:center; gap:14px; font-size:22px; font-weight:700; color:#9BE0BD; letter-spacing:-.1px;">
+            <span style="font-size:23px;">🟢</span>켜면 · 색상 통일
           </div>
-          <p style="margin:7px 0 0; color:#CBD5E1; font-size:12.5px; line-height:1.75;">
+          <p style="margin:13px 0 0; color:#CBD5E1; font-size:22px; line-height:1.75;">
             판매가를 <span style="color:#fff; font-weight:600;">100,000원</span>으로 통일해요.<br>
             다른 사이즈는 무신사에서 <span style="color:#fff; font-weight:600;">90,000원</span>에 살 수 있어서<br>
             <span style="color:#9BE0BD; font-weight:600;">건당 10,000원 추가 마진</span>까지 나요.
