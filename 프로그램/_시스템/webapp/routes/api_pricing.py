@@ -377,12 +377,6 @@ def get_option_matrix(code: str):
                           else ss_price)
             display_cp = (cfg.manual_cp_price if cfg and not auto and cfg.manual_cp_price
                           else cp_price)
-            # [2026-05-25 C1] 지정가 모드 → 마켓 가격에 fixed 값 우선 반영
-            if (o.purchase_priority or '').lower() == 'fixed':
-                if o.fixed_ss_price:
-                    display_ss = o.fixed_ss_price
-                if o.fixed_cp_price:
-                    display_cp = o.fixed_cp_price
             color_groups.setdefault(o.color_code, []).append({
                 'sku': o.canonical_sku, 'size': o.size_code,
                 'src_count': len(sources_for_opt),
@@ -409,23 +403,40 @@ def get_option_matrix(code: str):
                 _resolved_avg = _tpl_purchase or _avg
             _purchase_blocked = (_resolved_avg == 0)
 
-            # [2026-05-25 C1] 지정가 모드 — 옵션별 fixed 값
-            _fix_ss = o.fixed_ss_price or 0
-            _fix_cp = o.fixed_cp_price or 0
-            _fix_blocked = (_fix_ss == 0 and _fix_cp == 0)
-            # 역마진 경고 — 지정가가 매입가보다 낮을 때 (둘 다 > 0 일 때만)
-            _fix_loss_ss = bool(_fix_ss and _resolved_avg and _fix_ss < _resolved_avg)
-            _fix_loss_cp = bool(_fix_cp and _resolved_avg and _fix_cp < _resolved_avg)
+            # [2026-05-25 A1] 카드별 지정가 (소싱·사입 각각)
+            _src_fix_on = bool(o.src_fixed_active)
+            _src_fix_ss = o.src_fixed_ss_price or 0
+            _src_fix_cp = o.src_fixed_cp_price or 0
+            _pur_fix_on = bool(o.pur_fixed_active)
+            _pur_fix_ss = o.pur_fixed_ss_price or 0
+            _pur_fix_cp = o.pur_fixed_cp_price or 0
+            # 역마진 경고 — 사입 카드 지정가가 매입가보다 낮을 때만 (소싱은 매입가 무관 → 경고 X)
+            _pur_loss_ss = bool(_pur_fix_on and _pur_fix_ss and _resolved_avg and _pur_fix_ss < _resolved_avg)
+            _pur_loss_cp = bool(_pur_fix_on and _pur_fix_cp and _resolved_avg and _pur_fix_cp < _resolved_avg)
 
-            # 우선순위 결정 — 지정가 > (재고 ≥1 = 무조건 사입) > priority 따름
-            if _pri == 'fixed':
-                _resolved_pri = 'fixed'
-            elif _stock >= 1:
+            # [2026-05-25 A1] 소싱 카드 재고 = 재고 ≥1 인 소싱처 중 최저가의 재고
+            _src_stock = 0
+            _src_with_stock = [_s for _s in sources_for_opt
+                               if (_s.get('crawled_stock') or 0) >= 1 and (_s.get('crawled_price') or 0) > 0]
+            if _src_with_stock:
+                _cheapest_src = min(_src_with_stock, key=lambda x: x.get('crawled_price') or 9999999)
+                _src_stock = _cheapest_src.get('crawled_stock') or 0
+
+            # 우선순위 결정 — 재고 ≥1 = 무조건 사입 / 재고 0 = priority 따름
+            if _stock >= 1:
                 _resolved_pri = 'purchase'
             elif _pri == 'purchase':
                 _resolved_pri = 'purchase'
             else:
                 _resolved_pri = 'source'
+
+            # [2026-05-25 A1] 적용 카드의 지정가를 마켓 가격에 반영 (마켓에 업로드되는 가격)
+            if _resolved_pri == 'source' and _src_fix_on:
+                if _src_fix_ss: display_ss = _src_fix_ss
+                if _src_fix_cp: display_cp = _src_fix_cp
+            elif _resolved_pri == 'purchase' and _pur_fix_on:
+                if _pur_fix_ss: display_ss = _pur_fix_ss
+                if _pur_fix_cp: display_cp = _pur_fix_cp
             # 사입 판매가 산출 (재고 있으면 시도, 차단 시 None)
             _purchase_price = None
             if _stock >= 1 and not _purchase_blocked:
@@ -473,12 +484,16 @@ def get_option_matrix(code: str):
                 'purchase_blocked': _purchase_blocked,
                 'price_source_priority': _src_pri,
                 'template_purchase_price': _tpl_purchase,
-                # [2026-05-25 C1] 옵션별 지정가
-                'fixed_ss_price': _fix_ss or None,
-                'fixed_cp_price': _fix_cp or None,
-                'fixed_blocked': _fix_blocked,
-                'fixed_loss_ss': _fix_loss_ss,
-                'fixed_loss_cp': _fix_loss_cp,
+                # [2026-05-25 A1] 카드별 지정가 (소싱·사입 각각) + 소싱 카드 재고
+                'src_stock': _src_stock,
+                'src_fixed_active': _src_fix_on,
+                'src_fixed_ss_price': _src_fix_ss or None,
+                'src_fixed_cp_price': _src_fix_cp or None,
+                'pur_fixed_active': _pur_fix_on,
+                'pur_fixed_ss_price': _pur_fix_ss or None,
+                'pur_fixed_cp_price': _pur_fix_cp or None,
+                'pur_loss_ss': _pur_loss_ss,
+                'pur_loss_cp': _pur_loss_cp,
             })
 
         # 트리 구조화 (color → sizes)
@@ -1467,8 +1482,9 @@ def update_option_purchase(sku: str):
             'use_purchase_inventory', 'purchase_priority',
             'boxhero_avg_purchase_price', 'option_boxhero_margin_mode',
             'option_boxhero_margin_value', 'purchase_manual_price',
-            # [2026-05-25 C1] 옵션별 지정가 (purchase_priority='fixed' 와 짝)
-            'fixed_ss_price', 'fixed_cp_price',
+            # [2026-05-25 A1] 카드별 지정가 활성화 + 마켓별 값 (소싱·사입 각각)
+            'src_fixed_active', 'src_fixed_ss_price', 'src_fixed_cp_price',
+            'pur_fixed_active', 'pur_fixed_ss_price', 'pur_fixed_cp_price',
         }
         for k, v in data.items():
             if k in ALLOWED:
@@ -1520,8 +1536,9 @@ def update_options_purchase_bulk():
             'use_purchase_inventory', 'purchase_priority',
             'boxhero_avg_purchase_price', 'option_boxhero_margin_mode',
             'option_boxhero_margin_value', 'purchase_manual_price',
-            # [2026-05-25 C1] 옵션별 지정가 (purchase_priority='fixed' 와 짝)
-            'fixed_ss_price', 'fixed_cp_price',
+            # [2026-05-25 A1] 카드별 지정가 활성화 + 마켓별 값 (소싱·사입 각각)
+            'src_fixed_active', 'src_fixed_ss_price', 'src_fixed_cp_price',
+            'pur_fixed_active', 'pur_fixed_ss_price', 'pur_fixed_cp_price',
         }
         applied = 0
         skipped_bh0 = 0

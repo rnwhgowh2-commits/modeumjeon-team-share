@@ -127,6 +127,13 @@ def _apply_lightweight_migrations() -> None:
         # 2026-05-25: 옵션별 지정가 (C1 시안 — 3번째 가격 카드)
         ("options", "fixed_ss_price", "INTEGER"),
         ("options", "fixed_cp_price", "INTEGER"),
+        # 2026-05-25 A1: 소싱·사입 카드 각각 지정가 활성화 토글 + 마켓별 값
+        ("options", "src_fixed_active", "BOOLEAN DEFAULT 0 NOT NULL"),
+        ("options", "src_fixed_ss_price", "INTEGER"),
+        ("options", "src_fixed_cp_price", "INTEGER"),
+        ("options", "pur_fixed_active", "BOOLEAN DEFAULT 0 NOT NULL"),
+        ("options", "pur_fixed_ss_price", "INTEGER"),
+        ("options", "pur_fixed_cp_price", "INTEGER"),
         # v34.13 (2026-05-25): brand 박스 안 텍스트 사용자 커스터마이징
         ("brand_color_overrides", "letter", "VARCHAR(16)"),
     ]
