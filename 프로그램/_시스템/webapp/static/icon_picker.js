@@ -882,16 +882,32 @@
   // ─── v34 — 브랜드 클래스 감지 ───
   //   element 의 class 중 'brand-musinsa' 같은 패턴이 있으면 브랜드 모드 진입.
   //   target_id = 'musinsa' (즉 brand- 접두 제거).
+  // v34.7 — .brand-app-logo 패턴도 인식: <span class="brand-app-logo ssf"> → "ssf"
+  const _BRAND_KEYS_APP_LOGO = new Set([
+    // 마켓
+    'smartstore', 'coupang', 'gmarket', 'auction', 'eleven', 'wemakeprice', 'tmon',
+    'kakaogift', 'cafe24', 'naver',
+    // 소싱처
+    'musinsa', 'lemouton', 'ssf', 'lotteon', 'lotte', 'cm29', 'wconcept',
+    'eqlnow', 'handsome', 'interpark', '29cm', 'ssg',
+  ]);
   function _detectBrand(el) {
     if (!el) return null;
-    // 자기 자신 + 가까운 .brand-icon / .brand-favi 컨테이너 확인
-    const node = el.closest('.brand-icon, .brand-favi') || el;
+    // 자기 자신 + 가까운 brand 컨테이너 확인
+    const node = el.closest('.brand-icon, .brand-favi, .brand-app-logo') || el;
     const cls = (node.className || '').split(/\s+/);
+    // 우선 — brand-* 접두어 (기존 시스템)
     for (const c of cls) {
       if (c.startsWith('brand-') && c !== 'brand-icon' && c !== 'brand-favi' && c !== 'brand-card'
           && c !== 'brand-info' && c !== 'brand-name' && c !== 'brand-meta'
-          && c !== 'brand-actions' && c !== 'brand-default') {
+          && c !== 'brand-actions' && c !== 'brand-default' && c !== 'brand-app-logo') {
         return c.slice(6);  // 'brand-musinsa' → 'musinsa'
+      }
+    }
+    // v34.7 — brand-app-logo 패턴: 같은 element 에 'ssf', 'musinsa' 같은 별도 key 클래스
+    if (cls.includes('brand-app-logo')) {
+      for (const c of cls) {
+        if (_BRAND_KEYS_APP_LOGO.has(c)) return c;
       }
     }
     return null;
@@ -921,7 +937,9 @@
     const style = _ensureBrandStyle();
     const rules = [];
     for (const [key, val] of Object.entries(_brandColorCache)) {
-      const sel = `.brand-${CSS.escape(key)}`;
+      // v34.7 — 두 패턴 모두 매치: '.brand-ssf' (기존) + '.brand-app-logo.ssf' (sourcing·list 등)
+      const k = CSS.escape(key);
+      const sel = `.brand-${k}, .brand-app-logo.${k}`;
       const decls = [];
       if (val.bg) decls.push(`background: ${val.bg} !important`);
       if (val.fg) decls.push(`color: ${val.fg} !important`);
@@ -1273,6 +1291,9 @@
 
   // 색상 박스 auto-discovery — known class 가진 chip/badge
   const COLOR_BOX_SELECTORS = [
+    '.brand-app-logo',     // v34.7 — 마켓·소싱처 박스 (sourcing/list/upload 도처) — brand-app-logo.ssf 등
+    '.brand-icon',         // 브랜드 풀네임 칩 (brand-musinsa 등)
+    '.brand-favi',         // 브랜드 favicon container
     '.m4v1-pri',           // 매트릭스 우선 chip (소싱/사입)
     '.applied-badge',      // ✓ 적용 뱃지
     '.m4v1-stock-chip',    // 재고 chip
