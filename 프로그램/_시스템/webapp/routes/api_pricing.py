@@ -403,16 +403,18 @@ def get_option_matrix(code: str):
                 _resolved_avg = _tpl_purchase or _avg
             _purchase_blocked = (_resolved_avg == 0)
 
-            # [2026-05-25 A1] 카드별 지정가 (소싱·사입 각각)
-            _src_fix_on = bool(o.src_fixed_active)
+            # [2026-05-25 M] 마켓별 지정가 활성화 (소싱·사입 × 스마트·쿠팡 = 4개)
+            _src_fix_ss_on = bool(o.src_fixed_ss_active)
+            _src_fix_cp_on = bool(o.src_fixed_cp_active)
             _src_fix_ss = o.src_fixed_ss_price or 0
             _src_fix_cp = o.src_fixed_cp_price or 0
-            _pur_fix_on = bool(o.pur_fixed_active)
+            _pur_fix_ss_on = bool(o.pur_fixed_ss_active)
+            _pur_fix_cp_on = bool(o.pur_fixed_cp_active)
             _pur_fix_ss = o.pur_fixed_ss_price or 0
             _pur_fix_cp = o.pur_fixed_cp_price or 0
-            # 역마진 경고 — 사입 카드 지정가가 매입가보다 낮을 때만 (소싱은 매입가 무관 → 경고 X)
-            _pur_loss_ss = bool(_pur_fix_on and _pur_fix_ss and _resolved_avg and _pur_fix_ss < _resolved_avg)
-            _pur_loss_cp = bool(_pur_fix_on and _pur_fix_cp and _resolved_avg and _pur_fix_cp < _resolved_avg)
+            # 역마진 경고 — 사입 마켓 active+값+매입가 있을 때 값 < 매입가
+            _pur_loss_ss = bool(_pur_fix_ss_on and _pur_fix_ss and _resolved_avg and _pur_fix_ss < _resolved_avg)
+            _pur_loss_cp = bool(_pur_fix_cp_on and _pur_fix_cp and _resolved_avg and _pur_fix_cp < _resolved_avg)
 
             # [2026-05-25 A1] 소싱 카드 재고 = 재고 ≥1 인 소싱처 중 최저가의 재고
             _src_stock = 0
@@ -430,13 +432,13 @@ def get_option_matrix(code: str):
             else:
                 _resolved_pri = 'source'
 
-            # [2026-05-25 A1] 적용 카드의 지정가를 마켓 가격에 반영 (마켓에 업로드되는 가격)
-            if _resolved_pri == 'source' and _src_fix_on:
-                if _src_fix_ss: display_ss = _src_fix_ss
-                if _src_fix_cp: display_cp = _src_fix_cp
-            elif _resolved_pri == 'purchase' and _pur_fix_on:
-                if _pur_fix_ss: display_ss = _pur_fix_ss
-                if _pur_fix_cp: display_cp = _pur_fix_cp
+            # [2026-05-25 M] 적용 카드의 마켓별 active 토글 ON + 값 있으면 display 덮어쓰기
+            if _resolved_pri == 'source':
+                if _src_fix_ss_on and _src_fix_ss: display_ss = _src_fix_ss
+                if _src_fix_cp_on and _src_fix_cp: display_cp = _src_fix_cp
+            elif _resolved_pri == 'purchase':
+                if _pur_fix_ss_on and _pur_fix_ss: display_ss = _pur_fix_ss
+                if _pur_fix_cp_on and _pur_fix_cp: display_cp = _pur_fix_cp
             # 사입 판매가 산출 (재고 있으면 시도, 차단 시 None)
             _purchase_price = None
             if _stock >= 1 and not _purchase_blocked:
@@ -484,13 +486,15 @@ def get_option_matrix(code: str):
                 'purchase_blocked': _purchase_blocked,
                 'price_source_priority': _src_pri,
                 'template_purchase_price': _tpl_purchase,
-                # [2026-05-25 A1] 카드별 지정가 (소싱·사입 각각) + 소싱 카드 재고 + 원가 (실시간 마진 계산용)
+                # [2026-05-25 M] 마켓별 지정가 active + 가격 + 소싱 재고 + 원가 (JS 마진 계산용)
                 'src_stock': _src_stock,
-                'src_cost': purchase,   # 소싱처 원가 (르무통→첫 active→템플릿 매입가) — JS 마진 계산
-                'src_fixed_active': _src_fix_on,
+                'src_cost': purchase,
+                'src_fixed_ss_active': _src_fix_ss_on,
+                'src_fixed_cp_active': _src_fix_cp_on,
                 'src_fixed_ss_price': _src_fix_ss or None,
                 'src_fixed_cp_price': _src_fix_cp or None,
-                'pur_fixed_active': _pur_fix_on,
+                'pur_fixed_ss_active': _pur_fix_ss_on,
+                'pur_fixed_cp_active': _pur_fix_cp_on,
                 'pur_fixed_ss_price': _pur_fix_ss or None,
                 'pur_fixed_cp_price': _pur_fix_cp or None,
                 'pur_loss_ss': _pur_loss_ss,
@@ -1483,9 +1487,11 @@ def update_option_purchase(sku: str):
             'use_purchase_inventory', 'purchase_priority',
             'boxhero_avg_purchase_price', 'option_boxhero_margin_mode',
             'option_boxhero_margin_value', 'purchase_manual_price',
-            # [2026-05-25 A1] 카드별 지정가 활성화 + 마켓별 값 (소싱·사입 각각)
-            'src_fixed_active', 'src_fixed_ss_price', 'src_fixed_cp_price',
-            'pur_fixed_active', 'pur_fixed_ss_price', 'pur_fixed_cp_price',
+            # [2026-05-25 M] 마켓별 지정가 활성화 + 가격 (소싱·사입 × 스마트·쿠팡)
+            'src_fixed_ss_active', 'src_fixed_cp_active',
+            'src_fixed_ss_price', 'src_fixed_cp_price',
+            'pur_fixed_ss_active', 'pur_fixed_cp_active',
+            'pur_fixed_ss_price', 'pur_fixed_cp_price',
         }
         for k, v in data.items():
             if k in ALLOWED:
@@ -1537,9 +1543,11 @@ def update_options_purchase_bulk():
             'use_purchase_inventory', 'purchase_priority',
             'boxhero_avg_purchase_price', 'option_boxhero_margin_mode',
             'option_boxhero_margin_value', 'purchase_manual_price',
-            # [2026-05-25 A1] 카드별 지정가 활성화 + 마켓별 값 (소싱·사입 각각)
-            'src_fixed_active', 'src_fixed_ss_price', 'src_fixed_cp_price',
-            'pur_fixed_active', 'pur_fixed_ss_price', 'pur_fixed_cp_price',
+            # [2026-05-25 M] 마켓별 지정가 활성화 + 가격 (소싱·사입 × 스마트·쿠팡)
+            'src_fixed_ss_active', 'src_fixed_cp_active',
+            'src_fixed_ss_price', 'src_fixed_cp_price',
+            'pur_fixed_ss_active', 'pur_fixed_cp_active',
+            'pur_fixed_ss_price', 'pur_fixed_cp_price',
         }
         applied = 0
         skipped_bh0 = 0
