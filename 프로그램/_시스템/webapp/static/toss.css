@@ -2303,28 +2303,28 @@
 .v5-input-btn:hover { background: #B91C1C; }
 
 /* ═══ A1 (2026-05-25) — 카드 안 지정가 활성화 토글 (소싱·사입 각각) ═══ */
-/* 우상단 ON/OFF 토글 — ✓적용 라벨과 동일 사이즈, 라벨 왼쪽에 배치 */
+/* 우상단 ON/OFF 토글 — ✓적용보다 한 단계 큼 (사용자 피드백 ×2 누적) */
 .a1-fix-toggle {
-  position: absolute; top: -11px; right: 78px;
-  display: inline-flex; align-items: center; gap: 6px;
-  background: #fff; border: 1.5px solid #DDD6FE; border-radius: 14px;
-  padding: 2px 11px 2px 6px; font-size: 13px; cursor: pointer;
-  box-shadow: 0 1px 4px rgba(0,0,0,.1); font-family: var(--font);
+  position: absolute; top: -14px; right: 95px;
+  display: inline-flex; align-items: center; gap: 8px;
+  background: #fff; border: 2px solid #DDD6FE; border-radius: 18px;
+  padding: 4px 14px 4px 8px; font-size: 17px; cursor: pointer;
+  box-shadow: 0 2px 6px rgba(0,0,0,.12); font-family: var(--font);
   user-select: none; z-index: 2; line-height: 1;
 }
 .a1-fix-toggle:hover { border-color: #7C3AED; }
 .a1-fix-toggle .a1-sw {
-  width: 28px; height: 16px; border-radius: 16px;
+  width: 44px; height: 24px; border-radius: 24px;
   background: #D1D5DB; position: relative; transition: background .15s;
 }
 .a1-fix-toggle .a1-sw::after {
-  content: ''; position: absolute; top: 2px; left: 2px;
-  width: 12px; height: 12px; border-radius: 50%; background: #fff;
-  transition: left .15s; box-shadow: 0 1px 2px rgba(0,0,0,.15);
+  content: ''; position: absolute; top: 3px; left: 3px;
+  width: 18px; height: 18px; border-radius: 50%; background: #fff;
+  transition: left .15s; box-shadow: 0 1px 3px rgba(0,0,0,.2);
 }
 .a1-fix-toggle.on .a1-sw { background: #7C3AED; }
-.a1-fix-toggle.on .a1-sw::after { left: 14px; }
-.a1-fix-toggle b { color: #9CA3AF; font-weight: 800; font-size: 13px; letter-spacing: -.2px; }
+.a1-fix-toggle.on .a1-sw::after { left: 23px; }
+.a1-fix-toggle b { color: #9CA3AF; font-weight: 800; font-size: 17px; letter-spacing: -.3px; }
 .a1-fix-toggle.on b { color: #5B21B6; }
 
 /* 인풋 (가격 자리 변환) */
