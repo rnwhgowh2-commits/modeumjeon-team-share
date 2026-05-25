@@ -1309,8 +1309,9 @@ async function openPriceTplModal(id, initialTab) {
         <span style="font-size:12px;color:#9CA3AF">원</span>
       </div>`;
   };
-  // [2026-05-25] A1 카드 선택형 — 소싱처/사입 각각 (마진율 / 마진금액 / 지정가) 카드 3개
-  // 활성 카드 = 진한 테두리, 비활성 = 회색. 비활성 입력값도 보존 (전환 시 잃지 않음).
+  // [2026-05-25] B6 라디오+인라인 한 줄 — 소싱처/사입 각각 (마진율 / 마진금액 / 지정가) 행 3개
+  // 활성 행 = 파란 보더 + 밑줄, 비활성 = 보더 없음 회색. 비활성 입력값도 보존 (전환 시 잃지 않음).
+  // 좌측 채널 색 세로줄 없음. 소싱처 색상 = 초록(옵션 트리·toss.css btn-bulk-conv 와 통일).
   const modeCards = (prefix, side) => {
     // side = 'sourcing' (소싱처) | 'purchase' (사입)
     const modeKey   = `${prefix}_mode_${side}`;
@@ -1319,7 +1320,7 @@ async function openPriceTplModal(id, initialTab) {
     // 지정가는 기존 컬럼 재사용: 소싱 = external_sale_price, 사입 = boxhero_sale_price
     const fixedKey = side === 'sourcing' ? `${prefix}_external_sale_price` : `${prefix}_boxhero_sale_price`;
     const curMode = initial[modeKey] || 'rate';
-    const card = (mode, label, valKey, suffix, defaultRate) => {
+    const radioRow = (mode, label, valKey, suffix, defaultRate) => {
       const isOn = curMode === mode;
       const rawVal = initial[valKey];
       // rate 모드는 0.0945 → 9.45 로 표시 (사용자 친화 %)
@@ -1327,27 +1328,33 @@ async function openPriceTplModal(id, initialTab) {
       if (mode === 'rate' && rawVal != null) dispVal = (Number(rawVal) * 100).toFixed(2);
       return `
         <button type="button" class="ptm-modecard" data-prefix="${prefix}" data-side="${side}" data-mode="${mode}"
-                style="background:${isOn ? '#E8F3FF' : '#fff'};border:2px solid ${isOn ? '#3182F6' : '#EAEDF0'};border-radius:8px;padding:10px;cursor:pointer;text-align:center;font-family:inherit;transition:all .15s">
-          <div style="font-size:11.5px;color:${isOn ? '#1D4CB0' : '#6B7684'};margin-bottom:4px;font-weight:600">${label}</div>
+                style="display:grid;grid-template-columns:16px 60px 1fr 60px;gap:8px;align-items:center;padding:7px 10px;background:${isOn ? '#E8F3FF' : 'transparent'};border:1px solid ${isOn ? '#3182F6' : 'transparent'};border-radius:7px;cursor:pointer;font-family:inherit;transition:all .12s;width:100%;text-align:left">
+          <span style="width:14px;height:14px;border-radius:50%;border:1.5px solid ${isOn ? '#3182F6' : '#D1D6DB'};display:inline-block;position:relative;box-sizing:border-box">
+            ${isOn ? '<span style="position:absolute;inset:2px;background:#3182F6;border-radius:50%;display:block"></span>' : ''}
+          </span>
+          <span style="font-size:12px;color:#191F28;font-weight:700">${label}</span>
           <input type="number" data-key="${valKey}" data-mode-input="${mode}" data-rate-display="${mode === 'rate' ? '1' : '0'}"
                  value="${dispVal}" step="${mode === 'rate' ? '0.01' : '1'}"
-                 style="width:100%;padding:5px 6px;border:1px solid ${isOn ? '#3182F6' : '#D1D6DB'};border-radius:5px;font-size:13px;text-align:center;font-family:inherit;${isOn ? 'font-weight:700' : 'background:#FAFBFC;color:#AAB1B8'}">
-          <div style="font-size:10.5px;color:#6B7684;margin-top:3px">${suffix}</div>
+                 style="width:100%;border:0;border-bottom:1px solid ${isOn ? '#3182F6' : 'transparent'};background:transparent;outline:none;font-weight:800;font-size:14px;font-family:inherit;color:${isOn ? '#191F28' : '#9CA3AF'};padding:2px 0;text-align:right">
+          <span style="font-size:11px;color:#6B7684;text-align:right">${suffix}</span>
         </button>`;
     };
     const sideLabel = side === 'sourcing' ? '소싱처' : '사입';
-    const sideColor = side === 'sourcing' ? {bg:'#DBEAFE', tx:'#1E3A8A'} : {bg:'#FEF3C7', tx:'#92400E'};
+    // 색 통일: 소싱처 = 초록(#DCFCE7/#0E7C3A), 사입 = 앰버(#FEF3C7/#92400E) — toss.css btn-bulk-conv 와 일치
+    const sideColor = side === 'sourcing'
+      ? {bg:'#DCFCE7', tx:'#0E7C3A'}
+      : {bg:'#FEF3C7', tx:'#92400E'};
     const defaultRate = prefix === 'ss' ? '9.45' : '12.42';
     return `
       <div style="background:#FAFBFC;border:1px solid #EAEDF0;border-radius:8px;padding:12px 14px;margin-bottom:10px">
-        <div style="font-size:12px;font-weight:700;color:#4E5968;margin-bottom:10px;display:flex;align-items:center;gap:6px">
+        <div style="font-size:12px;font-weight:700;color:#4E5968;margin-bottom:8px;display:flex;align-items:center;gap:6px">
           <span style="background:${sideColor.bg};color:${sideColor.tx};padding:2px 8px;border-radius:4px;font-size:11px;font-weight:700">${sideLabel}</span>
-          책정 방식 — 카드를 클릭해 선택
+          책정 방식
         </div>
-        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px">
-          ${card('rate',   '마진율',   rateKey,   '%',         defaultRate)}
-          ${card('amount', '마진금액', amountKey, '원',        '')}
-          ${card('fixed',  '지정가',   fixedKey,  '원 (할인가)', '')}
+        <div style="display:flex;flex-direction:column;gap:3px">
+          ${radioRow('rate',   '마진율',   rateKey,   '%',         defaultRate)}
+          ${radioRow('amount', '마진금액', amountKey, '원',        '')}
+          ${radioRow('fixed',  '지정가',   fixedKey,  '원 (할인가)', '')}
         </div>
         <input type="hidden" data-key="${modeKey}" data-mode-hidden="${prefix}-${side}" value="${curMode}">
       </div>`;
@@ -1356,8 +1363,10 @@ async function openPriceTplModal(id, initialTab) {
     ${topHtml || ''}
     ${row('마켓 수수료율', num(prefix + '_fee_rate', '0.06 = 6%', '0.0001'))}
     ${row('정상가', num(prefix + '_normal_price', '원'))}
-    ${modeCards(prefix, 'sourcing')}
-    ${modeCards(prefix, 'purchase')}
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      ${modeCards(prefix, 'sourcing')}
+      ${modeCards(prefix, 'purchase')}
+    </div>
     ${row('배송타입', delivery(prefix))}
     ${row('반품비', num(prefix + '_return_fee', '원'))}
     ${row('교환비', num(prefix + '_exchange_fee', '원'))}`;
@@ -1383,7 +1392,7 @@ async function openPriceTplModal(id, initialTab) {
         <div style="flex:1; min-width:0;">
           <div style="display:flex; align-items:center; gap:7px; font-size:15px; font-weight:700; color:#191F28; letter-spacing:-.2px;">
             색상 통일 모드
-            <span class="ptm-policy-info" style="position:relative; display:inline-flex; width:18px; height:18px; align-items:center; justify-content:center; border-radius:50%; background:#3182F6; color:#fff; font-size:12px; font-weight:700; cursor:help; font-family:Georgia,serif; font-style:italic; user-select:none;">!</span>
+            <span class="ptm-policy-info" style="position:relative; display:inline-flex; width:18px; height:18px; align-items:center; justify-content:center; border-radius:50%; background:#3182F6; color:#fff; font-size:11px; font-weight:800; cursor:help; font-family:inherit; font-style:normal; user-select:none; line-height:1;">!</span>
           </div>
           <div style="font-size:13px; color:#6B7684; margin-top:3px; line-height:1.55;">
             같은 색상은 같은 가격으로 통일해요.<br>비싼 소싱처 기준이라 손해 볼 일이 없어요.
@@ -1430,6 +1439,8 @@ async function openPriceTplModal(id, initialTab) {
     `<button class="btn" id="ptm-cancel">취소</button>
      <button class="btn btn-primary" id="ptm-save">저장</button>`
   );
+  // [2026-05-25] B6 좌우 병렬 적용 — 소싱처/사입 2열 들어가도록 모달 폭 확장
+  box.style.maxWidth = '960px';
   const bg = _modalBg(box);
 
   // 탭 전환
@@ -1494,36 +1505,44 @@ async function openPriceTplModal(id, initialTab) {
   const policyInfo = box.querySelector('.ptm-policy-info');
   if (policyInfo) {
     const tip = document.createElement('div');
-    tip.style.cssText = 'display:none; position:absolute; bottom:calc(100% + 10px); left:50%; transform:translateX(-50%); width:380px; background:#191F28; border-radius:14px; box-shadow:0 16px 40px rgba(0,0,0,.4); padding:16px 18px 14px; color:#E5E8EB; font-family:inherit; font-style:normal; font-weight:400; text-align:left; z-index:10000; pointer-events:none;';
+    // [2026-05-25] 가독성 정리 — tabular-nums + 일관 폰트·여백·강조
+    tip.style.cssText = 'display:none; position:absolute; bottom:calc(100% + 10px); left:50%; transform:translateX(-50%); width:380px; background:#191F28; border-radius:14px; box-shadow:0 16px 40px rgba(0,0,0,.4); padding:18px 20px 16px; color:#E5E8EB; font-family:inherit; font-style:normal; font-weight:400; text-align:left; z-index:10000; pointer-events:none; font-variant-numeric:tabular-nums; letter-spacing:-.1px;';
     tip.innerHTML = `
-      <div style="font-size:13px; color:#9BC1FF; font-weight:700;">예시</div>
-      <div style="font-size:14.5px; color:#fff; font-weight:700; margin-top:2px;">르무통 메이트 블랙 240mm</div>
-      <div style="margin-top:10px; padding:10px 12px; background:#0F141A; border-radius:8px;">
-        <div style="display:grid; grid-template-columns:1fr auto auto; gap:10px; padding:3px 0; font-size:12.5px;">
-          <span style="color:#E5E8EB; font-weight:600;">무신사</span>
-          <span style="color:#fff; font-weight:700;">90,000원</span>
-          <span style="color:#FBBF24; font-size:11px;">240mm 품절</span>
+      <div style="font-size:12px; color:#9BC1FF; font-weight:700; letter-spacing:.3px;">예시</div>
+      <div style="font-size:15px; color:#fff; font-weight:700; margin-top:3px; letter-spacing:-.3px;">르무통 메이트 블랙 240mm</div>
+
+      <div style="margin-top:12px; padding:12px 14px; background:#0F141A; border-radius:10px;">
+        <div style="display:grid; grid-template-columns:60px 88px 1fr; gap:14px; padding:4px 0; font-size:13px; align-items:baseline;">
+          <span style="color:#9CA3AF;">무신사</span>
+          <span style="color:#fff; font-weight:600; text-align:right;">90,000원</span>
+          <span style="color:#FBBF24; font-size:11.5px;">240mm 품절</span>
         </div>
-        <div style="display:grid; grid-template-columns:1fr auto auto; gap:10px; padding:3px 0; font-size:12.5px;">
-          <span style="color:#E5E8EB; font-weight:600;">르무통</span>
-          <span style="color:#fff; font-weight:700;">100,000원</span>
-          <span style="color:#9BE0BD; font-size:11px;">전체 재고</span>
+        <div style="display:grid; grid-template-columns:60px 88px 1fr; gap:14px; padding:4px 0; font-size:13px; align-items:baseline;">
+          <span style="color:#9CA3AF;">르무통</span>
+          <span style="color:#fff; font-weight:600; text-align:right;">100,000원</span>
+          <span style="color:#9BE0BD; font-size:11.5px;">전체 재고</span>
         </div>
       </div>
+
       <div style="margin-top:12px; display:flex; flex-direction:column; gap:8px;">
-        <div style="display:flex; gap:10px; align-items:flex-start; padding:9px 11px; border-radius:8px; font-size:12.5px; line-height:1.55; background:#0F141A;">
-          <span style="flex-shrink:0; font-size:14px;">⚪</span>
-          <div>
-            <div style="color:#FCA5A5; font-weight:700; font-size:11.5px;">끄면 — 옵션별 cheapest (기본)</div>
-            <div style="color:#CBD5E1; margin-top:4px;">판매가는 <b style="color:#fff;">90,000원</b>인데<br>240mm가 팔리면 <b style="color:#fff;">100,000원</b>에 사야 해요.<br><b style="color:#FCA5A5;">건당 10,000원씩 손해</b>예요.</div>
+        <div style="padding:12px 14px; border-radius:10px; background:#0F141A;">
+          <div style="display:flex; align-items:center; gap:8px; font-size:12px; font-weight:700; color:#FCA5A5; letter-spacing:-.1px;">
+            <span style="font-size:13px;">⚪</span>끄면 · 옵션별 cheapest (기본)
           </div>
+          <p style="margin:7px 0 0; color:#CBD5E1; font-size:12.5px; line-height:1.75;">
+            판매가는 <span style="color:#fff; font-weight:600;">90,000원</span>인데 240mm가 팔리면 <span style="color:#fff; font-weight:600;">100,000원</span>에 사야 해요.<br>
+            <span style="color:#FCA5A5; font-weight:600;">건당 10,000원씩 손해</span>예요.
+          </p>
         </div>
-        <div style="display:flex; gap:10px; align-items:flex-start; padding:9px 11px; border-radius:8px; font-size:12.5px; line-height:1.55; background:#0F141A;">
-          <span style="flex-shrink:0; font-size:14px;">🟢</span>
-          <div>
-            <div style="color:#9BE0BD; font-weight:700; font-size:11.5px;">켜면 — 색상 통일</div>
-            <div style="color:#CBD5E1; margin-top:4px;">판매가를 <b style="color:#fff;">100,000원</b>으로 통일해요.<br>다른 사이즈는 무신사 90,000에 살 수 있어서<br><b style="color:#9BE0BD;">건당 10,000원 추가 마진</b>까지 나요.</div>
+        <div style="padding:12px 14px; border-radius:10px; background:#0F141A;">
+          <div style="display:flex; align-items:center; gap:8px; font-size:12px; font-weight:700; color:#9BE0BD; letter-spacing:-.1px;">
+            <span style="font-size:13px;">🟢</span>켜면 · 색상 통일
           </div>
+          <p style="margin:7px 0 0; color:#CBD5E1; font-size:12.5px; line-height:1.75;">
+            판매가를 <span style="color:#fff; font-weight:600;">100,000원</span>으로 통일해요.<br>
+            다른 사이즈는 무신사에서 <span style="color:#fff; font-weight:600;">90,000원</span>에 살 수 있어서<br>
+            <span style="color:#9BE0BD; font-weight:600;">건당 10,000원 추가 마진</span>까지 나요.
+          </p>
         </div>
       </div>`;
     policyInfo.appendChild(tip);
