@@ -4777,9 +4777,11 @@
         'br-na': '#22c55e', 'br-mu': '#191F28', 'br-ssf': '#14b8a6',
         'br-lo': '#ef4444', 'br-le': '#a78bfa',
       }[brandPx.cls] || '#3B82F6';
+      // v34.10 — site-logo 에 brand key 클래스 부여 → brand-overrides stylesheet (.site-logo.{k}) 매치
+      const _logoBrandKey = brandClass(sName).replace(/^brand-/, '');
       th.innerHTML = `
         <div class="hsrc-top" style="display:flex; flex-direction:column; align-items:center; gap:6px; padding:8px 4px;">
-          <span class="site-logo" title="${escapeHtml(sName)} (클릭해서 색·글자 변경)" data-src-logo-id="${s.id}"
+          <span class="site-logo ${_logoBrandKey}" title="${escapeHtml(sName)} (클릭해서 색·글자 변경)" data-src-logo-id="${s.id}"
                 style="width:36px; height:36px; border-radius:8px; background:${logoColor}; color:#fff; display:inline-flex; align-items:center; justify-content:center; font-weight:800; font-size:13px; letter-spacing:.3px; cursor:pointer;">${escapeHtml(abbr)}</span>
           <span class="hsrc-nm" style="font-size:13px; font-weight:700; text-align:center;">${escapeHtml(sName)}</span>
         </div>

@@ -937,12 +937,13 @@
     const style = _ensureBrandStyle();
     const rules = [];
     for (const [key, val] of Object.entries(_brandColorCache)) {
-      // v34.9 — 세 패턴 모두 매치:
-      //   '.brand-ssf' (기존 brand pill)
-      //   '.brand-app-logo.ssf' (sourcing·list 등 카드형)
-      //   '.brand-favi.ssf' (매트릭스 헤더 카드의 favicon 컨테이너)
+      // v34.10 — 네 패턴 모두 매치:
+      //   '.brand-ssf'         (기존 brand pill)
+      //   '.brand-app-logo.ssf' (sourcing·list·옵션상세 카드형)
+      //   '.brand-favi.ssf'    (매트릭스 사이트 진행 통계 favicon 컨테이너)
+      //   '.site-logo.ssf'     (매트릭스 thead 의 마켓 헤더 박스)
       const k = CSS.escape(key);
-      const sel = `.brand-${k}, .brand-app-logo.${k}, .brand-favi.${k}`;
+      const sel = `.brand-${k}, .brand-app-logo.${k}, .brand-favi.${k}, .site-logo.${k}`;
       const decls = [];
       if (val.bg) decls.push(`background: ${val.bg} !important`);
       if (val.fg) decls.push(`color: ${val.fg} !important`);
