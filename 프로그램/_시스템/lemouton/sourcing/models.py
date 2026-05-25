@@ -241,16 +241,20 @@ class Option(Base):
     purchase_priority = Column(String(16), default='auto', nullable=False)
     purchase_manual_price = Column(Integer)
 
-    # ★ (2026-05-25 A1) 카드별 지정가 — 소싱·사입 카드 각각 활성화 토글
-    # active=ON 이면 그 카드의 마켓 가격을 fixed 값으로 덮어쓰기.
-    # 값이 NULL/0 인 마켓은 자동값 폴백 (카드 ON 이어도 마켓별 비워두면 자동).
-    src_fixed_active = Column(Boolean, default=False, nullable=False)
+    # ★ (2026-05-25 M) 마켓별 지정가 활성화 — 소싱·사입 카드 각 마켓 따로 ON/OFF
+    # 마켓별 active=ON 이면 그 마켓 가격을 fixed 값으로 덮어쓰기. OFF 면 자동값.
+    src_fixed_ss_active = Column(Boolean, default=False, nullable=False)
+    src_fixed_cp_active = Column(Boolean, default=False, nullable=False)
     src_fixed_ss_price = Column(Integer)
     src_fixed_cp_price = Column(Integer)
-    pur_fixed_active = Column(Boolean, default=False, nullable=False)
+    pur_fixed_ss_active = Column(Boolean, default=False, nullable=False)
+    pur_fixed_cp_active = Column(Boolean, default=False, nullable=False)
     pur_fixed_ss_price = Column(Integer)
     pur_fixed_cp_price = Column(Integer)
-    # [DEPRECATED 2026-05-25] 이전 C1 (3번째 보라 카드) — A1 전환 후 코드 미사용. DB 컬럼은 안전상 유지.
+    # [DEPRECATED 2026-05-25] 이전 A1 카드 단위 active — M 전환 후 미사용. DB 컬럼 안전상 유지.
+    src_fixed_active = Column(Boolean, default=False, nullable=False)
+    pur_fixed_active = Column(Boolean, default=False, nullable=False)
+    # [DEPRECATED 2026-05-25] 이전 C1 — 미사용
     fixed_ss_price = Column(Integer)
     fixed_cp_price = Column(Integer)
 

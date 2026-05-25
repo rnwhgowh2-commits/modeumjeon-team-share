@@ -4378,43 +4378,46 @@
     // ─── 소싱 카드 ───
     const srcCardClass = isPurchasePri ? 'm4v1-card src dim' : 'm4v1-card src active';
     const srcLabel = isPurchasePri ? '참고용' : '우선';
-    // [A1] 소싱 카드 재고 chip + 지정가 토글 + 인풋 변환 + 실시간 마진 계산
+    // [M] 소싱 카드 재고 chip + 마켓별 지정가 토글 + 인풋 변환 + 실시간 마진 계산
     const _srcStock = o.src_stock || 0;
     const _srcStockChip = _srcStock >= 1 ? `<span class="m4v1-stock-chip" title="재고 있는 소싱처 중 최저가의 재고">재고 ${_srcStock}</span>` : '';
-    const _srcFixOn = !!o.src_fixed_active;
-    const _srcFixToggle = `<span class="a1-fix-toggle ${_srcFixOn?'on':''}" data-a1-toggle="src" data-sku="${o.sku}" title="소싱 카드 지정가 ${_srcFixOn?'ON':'OFF'}"><span class="a1-sw"></span><b>지정가</b></span>`;
     const _srcCost = o.src_cost || 0;
-    // 지정가 모드 마진율 계산 helper (소싱·사입 공통) — (가격 - 원가) / 원가 × 100
-    const _mkMargin = (cardKey, mkt, baseRate, fixOn, fixVal, cost) => {
+    const _srcSsOn = !!o.src_fixed_ss_active;
+    const _srcCpOn = !!o.src_fixed_cp_active;
+    // [M] 마켓 행 토글 helper (마켓별 ON/OFF — disabled=false)
+    const _mkToggle = (which, on, disabled) => `<span class="m-fix-toggle ${on?'on':''} ${disabled?'disabled':''}" data-m-toggle="${which}" data-sku="${o.sku}" title="${disabled?'매입가 입력 후 활성 가능':'지정가 '+(on?'ON':'OFF')}"><span class="sw"></span><b>지정가</b></span>`;
+    // [M] 가격/인풋 셀 helper
+    const _mkCell = (which, autoPrice, fixOn, fixVal, showAuto) => fixOn
+      ? `<span><input class="a1-fix-input" type="number" step="100" data-a1-fix="${which}" data-sku="${o.sku}" value="${fixVal || ''}" placeholder="${autoPrice}"><span class="a1-saved-chip idle" data-a1-saved="${which}" style="margin-left:4px;"></span></span>`
+      : `<span class="m4v1-mkt-price">${showAuto?'<span class="m4v1-auto">AUTO</span> ':''}${autoPrice.toLocaleString('ko-KR')}원</span>`;
+    // [M] 마진 셀 helper — (가격 - 원가) / 원가 × 100
+    const _mkMargin = (which, baseRate, fixOn, fixVal, cost) => {
       if (!fixOn) return `<span class="m4v1-mkt-margin">${baseRate.toFixed(2)}%</span>`;
-      if (!fixVal || !cost) return `<span class="m4v1-mkt-margin a1-fix-margin" data-a1-margin="${cardKey}-${mkt}" data-cost="${cost||0}" title="지정가 입력 후 마진율 자동 계산">—</span>`;
+      if (!fixVal || !cost) return `<span class="m4v1-mkt-margin a1-fix-margin" data-a1-margin="${which}" data-cost="${cost||0}" title="지정가 입력 후 마진율 자동 계산">—</span>`;
       const m = ((fixVal - cost) / cost) * 100;
       const cls = m < 0 ? ' loss' : '';
-      return `<span class="m4v1-mkt-margin a1-fix-margin${cls}" data-a1-margin="${cardKey}-${mkt}" data-cost="${cost}" title="(지정가 ${fixVal.toLocaleString('ko-KR')}원 - 원가 ${cost.toLocaleString('ko-KR')}원) / 원가 × 100">${m.toFixed(2)}%</span>`;
+      return `<span class="m4v1-mkt-margin a1-fix-margin${cls}" data-a1-margin="${which}" data-cost="${cost}" title="(지정가 ${fixVal.toLocaleString('ko-KR')}원 - 원가 ${cost.toLocaleString('ko-KR')}원) / 원가 × 100">${m.toFixed(2)}%</span>`;
     };
-    const _srcSsCell = _srcFixOn
-      ? `<input class="a1-fix-input" type="number" step="100" data-a1-fix="src-ss" data-sku="${o.sku}" value="${o.src_fixed_ss_price || ''}" placeholder="${srcSsPrice}"><span class="a1-saved-chip idle" data-a1-saved="src-ss"></span>`
-      : `<span class="m4v1-auto">AUTO</span><span class="m4v1-mkt-price">${srcSsPrice.toLocaleString('ko-KR')}원</span>`;
-    const _srcCpCell = _srcFixOn
-      ? `<input class="a1-fix-input" type="number" step="100" data-a1-fix="src-cp" data-sku="${o.sku}" value="${o.src_fixed_cp_price || ''}" placeholder="${srcCpPrice}"><span class="a1-saved-chip idle" data-a1-saved="src-cp"></span>`
-      : `<span class="m4v1-auto">AUTO</span><span class="m4v1-mkt-price">${srcCpPrice.toLocaleString('ko-KR')}원</span>`;
-    const _srcSsMarginCell = _mkMargin('src', 'ss', ssMargin, _srcFixOn, o.src_fixed_ss_price || 0, _srcCost);
-    const _srcCpMarginCell = _mkMargin('src', 'cp', cpMargin, _srcFixOn, o.src_fixed_cp_price || 0, _srcCost);
+    const _srcAppliedChip = !isPurchasePri ? '<span class="m4v1-chip-applied">✓ 적용</span>' : '';
     const srcCard = `
       <div class="${srcCardClass}" data-m4-card="source" data-sku="${o.sku}">
-        ${_srcFixToggle}
-        <div class="m4v1-head">소싱 <span class="m4v1-pri">${srcLabel}</span> ${_srcStockChip}</div>
+        <div class="m4v1-head">
+          <span>소싱</span> <span class="m4v1-pri">${srcLabel}</span> ${_srcStockChip}
+          <span class="m4v1-head-right">${_srcAppliedChip}</span>
+        </div>
         <div class="m4v1-mkt-row">
           <span class="m4v1-mkt-logo">${marketLogoHtml('스마트스토어')}</span>
           <span class="m4v1-mkt-name">스마트스토어</span>
-          ${_srcSsCell}
-          ${_srcSsMarginCell}
+          ${_mkToggle('src-ss', _srcSsOn, false)}
+          ${_mkCell('src-ss', srcSsPrice, _srcSsOn, o.src_fixed_ss_price, true)}
+          ${_mkMargin('src-ss', ssMargin, _srcSsOn, o.src_fixed_ss_price || 0, _srcCost)}
         </div>
         <div class="m4v1-mkt-row">
           <span class="m4v1-mkt-logo">${marketLogoHtml('쿠팡')}</span>
           <span class="m4v1-mkt-name">쿠팡</span>
-          ${_srcCpCell}
-          ${_srcCpMarginCell}
+          ${_mkToggle('src-cp', _srcCpOn, false)}
+          ${_mkCell('src-cp', srcCpPrice, _srcCpOn, o.src_fixed_cp_price, true)}
+          ${_mkMargin('src-cp', cpMargin, _srcCpOn, o.src_fixed_cp_price || 0, _srcCost)}
         </div>
         ${fxBtn ? `<div class="m4v1-fx-row">${fxBtn}</div>` : ''}
       </div>`;
@@ -4429,22 +4432,27 @@
           <div class="m4v1-fallback">사입재고 0 · 소싱 자동 fallback</div>
         </div>`;
     } else if (o.purchase_blocked) {
-      // [2026-05-25 V5] 매입가 0원 차단 — 빨간 🚫 카드
+      // [V5] 매입가 0원 차단 — 빨간 🚫 카드 (헤더 인라인 칩)
       const _tplP = (o.template_purchase_price || 0).toLocaleString('ko-KR');
       const _avgV = (avg || 0).toLocaleString('ko-KR');
       const _srcPri = o.price_source_priority || 'template';
       purCard = `
         <div class="m4v1-card pur blocked" data-m4-card="purchase" data-sku="${o.sku}" data-model-code="${o.model_code || ''}">
-          <div class="m4v1-head">사입 <span class="m4v1-pri pur">우선</span> <span class="m4v1-stock-chip">재고 ${stock}</span></div>
+          <div class="m4v1-head">
+            <span>사입</span> <span class="m4v1-pri pur">우선</span> <span class="m4v1-stock-chip">재고 ${stock}</span>
+            <span class="m4v1-head-right"><span class="m4v1-chip-applied">🚫 차단</span></span>
+          </div>
           <div class="m4v1-mkt-row">
             <span class="m4v1-mkt-logo">${marketLogoHtml('스마트스토어')}</span>
             <span class="m4v1-mkt-name">스마트스토어</span>
+            ${_mkToggle('pur-ss', false, true)}
             <span class="m4v1-mkt-price">— 원</span>
             <span class="m4v1-mkt-margin">${ssMargin.toFixed(2)}%</span>
           </div>
           <div class="m4v1-mkt-row">
             <span class="m4v1-mkt-logo">${marketLogoHtml('쿠팡')}</span>
             <span class="m4v1-mkt-name">쿠팡</span>
+            ${_mkToggle('pur-cp', false, true)}
             <span class="m4v1-mkt-price">— 원</span>
             <span class="m4v1-mkt-margin">${cpMargin.toFixed(2)}%</span>
           </div>
@@ -4463,37 +4471,33 @@
       // 사입 ON (재고 1 이상, 매입가 정상)
       const purCardClass = isPurchasePri ? 'm4v1-card pur active' : 'm4v1-card pur dim';
       const purLabel = isPurchasePri ? '우선' : '참고용';
-      // v28 시안 ④ — 카드 푸터 전체 폭 「재고관리에서 자세히 보기 →」 link
       const invFootHtml = `<a class="m4v1-inv-link" href="/inventory/?q=${encodeURIComponent(o.sku)}" target="_blank" title="재고관리 제품 목록 (이 옵션으로 필터)">재고관리에서 자세히 보기 →</a>`;
-      // [A1] 사입 카드 지정가 토글 + 인풋 변환 + 역마진 chip + 실시간 마진 계산
-      const _purFixOn = !!o.pur_fixed_active;
-      const _purFixToggle = `<span class="a1-fix-toggle ${_purFixOn?'on':''}" data-a1-toggle="pur" data-sku="${o.sku}" title="사입 카드 지정가 ${_purFixOn?'ON':'OFF'}"><span class="a1-sw"></span><b>지정가</b></span>`;
+      // [M] 사입 카드 마켓별 지정가 토글 + 인풋 + 마진
+      const _purSsOn = !!o.pur_fixed_ss_active;
+      const _purCpOn = !!o.pur_fixed_cp_active;
+      const _purCost = avg || 0;
       const _ssLossChip = o.pur_loss_ss ? '<span class="a1-loss-chip" title="역마진 — 지정가가 매입가보다 낮음">⚠ 역마진</span>' : '';
       const _cpLossChip = o.pur_loss_cp ? '<span class="a1-loss-chip" title="역마진 — 지정가가 매입가보다 낮음">⚠ 역마진</span>' : '';
-      const _purSsCell = _purFixOn
-        ? `<input class="a1-fix-input" type="number" step="100" data-a1-fix="pur-ss" data-sku="${o.sku}" value="${o.pur_fixed_ss_price || ''}" placeholder="${purSsPrice}"><span class="a1-saved-chip idle" data-a1-saved="pur-ss"></span>${_ssLossChip}`
-        : `<span class="m4v1-mkt-price">${purSsPrice.toLocaleString('ko-KR')}원</span>`;
-      const _purCpCell = _purFixOn
-        ? `<input class="a1-fix-input" type="number" step="100" data-a1-fix="pur-cp" data-sku="${o.sku}" value="${o.pur_fixed_cp_price || ''}" placeholder="${purCpPrice}"><span class="a1-saved-chip idle" data-a1-saved="pur-cp"></span>${_cpLossChip}`
-        : `<span class="m4v1-mkt-price">${purCpPrice.toLocaleString('ko-KR')}원</span>`;
-      const _purCost = avg || 0;  // 사입 카드 원가 = 매입가
-      const _purSsMarginCell = _mkMargin('pur', 'ss', ssMargin, _purFixOn, o.pur_fixed_ss_price || 0, _purCost);
-      const _purCpMarginCell = _mkMargin('pur', 'cp', cpMargin, _purFixOn, o.pur_fixed_cp_price || 0, _purCost);
+      const _purAppliedChip = isPurchasePri ? '<span class="m4v1-chip-applied">✓ 적용</span>' : '';
       purCard = `
         <div class="${purCardClass}" data-m4-card="purchase" data-sku="${o.sku}">
-          ${_purFixToggle}
-          <div class="m4v1-head">사입 <span class="m4v1-pri pur">${purLabel}</span> <span class="m4v1-stock-chip">재고 ${stock}</span></div>
+          <div class="m4v1-head">
+            <span>사입</span> <span class="m4v1-pri pur">${purLabel}</span> <span class="m4v1-stock-chip">재고 ${stock}</span>
+            <span class="m4v1-head-right">${_purAppliedChip}</span>
+          </div>
           <div class="m4v1-mkt-row">
             <span class="m4v1-mkt-logo">${marketLogoHtml('스마트스토어')}</span>
-            <span class="m4v1-mkt-name">스마트스토어</span>
-            ${_purSsCell}
-            ${_purSsMarginCell}
+            <span class="m4v1-mkt-name">스마트스토어 ${_ssLossChip}</span>
+            ${_mkToggle('pur-ss', _purSsOn, false)}
+            ${_mkCell('pur-ss', purSsPrice, _purSsOn, o.pur_fixed_ss_price, false)}
+            ${_mkMargin('pur-ss', ssMargin, _purSsOn, o.pur_fixed_ss_price || 0, _purCost)}
           </div>
           <div class="m4v1-mkt-row">
             <span class="m4v1-mkt-logo">${marketLogoHtml('쿠팡')}</span>
-            <span class="m4v1-mkt-name">쿠팡</span>
-            ${_purCpCell}
-            ${_purCpMarginCell}
+            <span class="m4v1-mkt-name">쿠팡 ${_cpLossChip}</span>
+            ${_mkToggle('pur-cp', _purCpOn, false)}
+            ${_mkCell('pur-cp', purCpPrice, _purCpOn, o.pur_fixed_cp_price, false)}
+            ${_mkMargin('pur-cp', cpMargin, _purCpOn, o.pur_fixed_cp_price || 0, _purCost)}
           </div>
           <div class="m4v1-pur-info">매입가 <b>${(avg || 0).toLocaleString('ko-KR')}원</b></div>
           ${invFootHtml}
@@ -5570,20 +5574,22 @@
       } catch (err) { console.error(err); alert('우선순위 저장 중 오류'); }
       return;
     }
-    // [2026-05-25 A1] 카드 안 우상단 지정가 토글 클릭 → 즉시 저장 + 카드 재렌더
-    const a1Toggle = e.target.closest('[data-a1-toggle]');
-    if (a1Toggle) {
+    // [2026-05-25 M] 마켓 행 안 지정가 토글 클릭 → 즉시 저장 + 카드 재렌더
+    const mToggle = e.target.closest('[data-m-toggle]');
+    if (mToggle) {
       e.preventDefault(); e.stopPropagation();
-      const which = a1Toggle.dataset.a1Toggle;  // 'src' | 'pur'
-      const sku = a1Toggle.dataset.sku;
+      if (mToggle.classList.contains('disabled')) return;  // 차단 카드 토글 무시
+      const which = mToggle.dataset.mToggle;  // 'src-ss' | 'src-cp' | 'pur-ss' | 'pur-cp'
+      const sku = mToggle.dataset.sku;
       const opt = (window.DATA?.options || []).find(o => o.sku === sku);
       if (!opt) return;
-      const field = which === 'src' ? 'src_fixed_active' : 'pur_fixed_active';
+      // which 'src-ss' → field 'src_fixed_ss_active'
+      const field = which.replace('-', '_fixed_') + '_active';
       const nextOn = !(opt[field]);
       const j = await _saveOptionPurchase(sku, { [field]: nextOn });
       if (j) {
         opt[field] = nextOn;
-        const card = a1Toggle.closest('.m4v1-card');
+        const card = mToggle.closest('.m4v1-card');
         const tr = card?.closest('tr[data-price-row]');
         if (tr) {
           const opsCell = tr.querySelector('td.mc-unified-cell');

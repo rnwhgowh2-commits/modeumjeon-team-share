@@ -2164,30 +2164,41 @@
 .m4v1-card.dim { opacity: .55; cursor: pointer; }
 .m4v1-card.dim:hover { opacity: .85; }
 .m4v1-card.disabled { background: #FEF2F2; opacity: .65; }
-.m4v1-card.active::before {
-  content: '✓ 적용'; position: absolute; top: -10px; right: 10px;
-  background: #03C75A; color: #fff; padding: 2px 9px; border-radius: 8px;
-  font-size: 14px; font-weight: 800; letter-spacing: .2px;
-}
-.m4v1-card.pur.active::before { background: #F59E0B; }
+/* [M] 우상단 absolute 라벨 제거 — 헤더 안 인라인 칩(.m4v1-chip-applied)으로 통합 */
+.m4v1-card.active::before, .m4v1-card.pur.active::before, .m4v1-card.pur.blocked::before { display:none !important; content:none !important; }
+
 .m4v1-head {
-  font-size: 14px; font-weight: 700; color: #4E5968; margin-bottom: 6px;
-  display: flex; align-items: center; gap: 7px;
+  font-size: 13px; font-weight: 700; color: #4E5968; margin-bottom: 7px;
+  display: flex; align-items: center; gap: 6px;
 }
 .m4v1-card.src.active .m4v1-head { color: #0E7C3A; }
 .m4v1-card.pur.active .m4v1-head { color: #92400E; }
+.m4v1-card.pur.blocked .m4v1-head { color: #B91C1C; }
+
+/* [M] 단일 토큰 — 모든 헤더 칩 5px radius / 12px font / 2px 8px padding 통일 */
 .m4v1-pri {
-  font-size: 14px; padding: 2px 7px; border-radius: 3px;
-  background: #fff; border: 1px solid currentColor; font-weight: 700;
+  font-size: 12px; padding: 2px 8px; border-radius: 5px;
+  background: #F2F4F6; color: #4E5968; border: none; font-weight: 700;
 }
-.m4v1-pri.zero { color: #8B95A1; border-color: #D1D6DB; }
+.m4v1-pri.zero { color: #8B95A1; }
 .m4v1-pri.pur { color: inherit; }
 .m4v1-stock-chip {
-  margin-left: auto; background: #F2F4F6; color: #4E5968;
-  padding: 2px 8px; border-radius: 3px; font-size: 14px; font-weight: 700;
+  background: #F2F4F6; color: #4E5968;
+  padding: 2px 8px; border-radius: 5px; font-size: 12px; font-weight: 700;
   font-family: ui-monospace, monospace;
 }
+.m4v1-card.src.active .m4v1-stock-chip { background: #D1FAE5; color: #0E7C3A; }
 .m4v1-card.pur.active .m4v1-stock-chip { background: #FEF3C7; color: #92400E; }
+.m4v1-card.pur.blocked .m4v1-stock-chip { background: #FEE2E2; color: #B91C1C; }
+
+/* [M] 헤더 안 ✓ 적용 / 🚫 차단 인라인 칩 — 우측 정렬 */
+.m4v1-head-right { margin-left: auto; display: flex; align-items: center; gap: 5px; }
+.m4v1-chip-applied {
+  font-size: 12px; font-weight: 800; padding: 2px 8px; border-radius: 5px;
+  background: #03C75A; color: #fff; font-family: var(--font); letter-spacing: -.1px;
+}
+.m4v1-card.pur.active .m4v1-chip-applied { background: #F59E0B; }
+.m4v1-card.pur.blocked .m4v1-chip-applied { background: #DC2626; }
 /* v28 시안 ④ — 사입 카드 푸터 「재고관리에서 자세히 보기」 전체 폭 link */
 .m4v1-inv-link {
   display: flex; align-items: center; justify-content: center;
@@ -2206,10 +2217,11 @@
   border-top-color: #92400E;
 }
 .m4v1-card.pur.active .m4v1-inv-link:hover { background: #FEF3C7; }
+/* [M] 마켓 행 — logo · 이름 · 마켓 지정가 토글 · 가격/인풋 · 마진 */
 .m4v1-mkt-row {
   display: grid;
-  grid-template-columns: 22px minmax(72px, 1fr) auto auto auto;
-  gap: 4px; align-items: baseline;
+  grid-template-columns: 22px minmax(72px, auto) auto 1fr auto;
+  gap: 4px 6px; align-items: center;
   padding: 4px 0; font-size: 13.5px;
 }
 .m4v1-br {
@@ -2302,34 +2314,33 @@
 }
 .v5-input-btn:hover { background: #B91C1C; }
 
-/* ═══ A1 (2026-05-25) — 카드 안 지정가 활성화 토글 (소싱·사입 각각) ═══ */
-/* 우상단 ON/OFF 토글 — ✓적용보다 한 단계 큼 (사용자 피드백 ×2 누적) */
-.a1-fix-toggle {
-  position: absolute; top: -14px; right: 95px;
-  display: inline-flex; align-items: center; gap: 8px;
-  background: #fff; border: 2px solid #DDD6FE; border-radius: 18px;
-  padding: 4px 14px 4px 8px; font-size: 17px; cursor: pointer;
-  box-shadow: 0 2px 6px rgba(0,0,0,.12); font-family: var(--font);
-  user-select: none; z-index: 2; line-height: 1;
+/* ═══ M (2026-05-25) — 마켓 행 안 미니 ON/OFF 토글 ═══ */
+.m-fix-toggle {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 2px 8px 2px 5px; border-radius: 99px;
+  background: #fff; border: 1px solid #E5E8EB; cursor: pointer;
+  font-size: 11px; line-height: 1; user-select: none;
+  font-family: var(--font); transition: border-color .12s;
 }
-.a1-fix-toggle:hover { border-color: #7C3AED; }
-.a1-fix-toggle .a1-sw {
-  width: 44px; height: 24px; border-radius: 24px;
+.m-fix-toggle:hover { border-color: #7C3AED; }
+.m-fix-toggle .sw {
+  width: 20px; height: 12px; border-radius: 12px;
   background: #D1D5DB; position: relative; transition: background .15s;
 }
-.a1-fix-toggle .a1-sw::after {
-  content: ''; position: absolute; top: 3px; left: 3px;
-  width: 18px; height: 18px; border-radius: 50%; background: #fff;
-  transition: left .15s; box-shadow: 0 1px 3px rgba(0,0,0,.2);
+.m-fix-toggle .sw::after {
+  content: ''; position: absolute; top: 1px; left: 1px;
+  width: 10px; height: 10px; border-radius: 50%; background: #fff;
+  transition: left .15s;
 }
-.a1-fix-toggle.on .a1-sw { background: #7C3AED; }
-.a1-fix-toggle.on .a1-sw::after { left: 23px; }
-.a1-fix-toggle b { color: #9CA3AF; font-weight: 800; font-size: 17px; letter-spacing: -.3px; }
-.a1-fix-toggle.on b { color: #5B21B6; }
+.m-fix-toggle.on .sw { background: #7C3AED; }
+.m-fix-toggle.on .sw::after { left: 9px; }
+.m-fix-toggle b { color: #9CA3AF; font-weight: 700; font-size: 11px; }
+.m-fix-toggle.on b { color: #5B21B6; }
+.m-fix-toggle[disabled], .m-fix-toggle.disabled { opacity: .5; cursor: not-allowed; }
 
-/* 인풋 (가격 자리 변환) */
+/* 마켓 지정가 인풋 (가격 자리 변환) */
 .a1-fix-input {
-  width: 70px; padding: 2px 6px; border: 1.5px solid #7C3AED;
+  width: 78px; padding: 2px 6px; border: 1.5px solid #7C3AED;
   border-radius: 4px; font-family: ui-monospace, monospace;
   font-size: 13.5px; text-align: right; background: #fff;
   font-weight: 800; color: #5B21B6;
@@ -2348,9 +2359,7 @@
 .a1-saved-chip.saved  { background: #D1FAE5; color: #0E7C3A; }
 .a1-saved-chip.idle   { display: none; }
 
-/* dim 카드는 ✓적용 라벨이 없으므로 토글이 우상단 평범한 위치 */
-.m4v1-card.dim .a1-fix-toggle { top: 6px; right: 8px; }
-/* 지정가 마진 셀 — 자동 마진과 동일 사이즈, 보라 강조 */
+/* 지정가 마진 셀 — 보라 강조, 역마진은 빨강 */
 .a1-fix-margin { color: #5B21B6 !important; font-weight: 800 !important; }
 .a1-fix-margin.loss { color: #DC2626 !important; }
 
