@@ -1550,20 +1550,11 @@ async function openPriceTplModal(id, initialTab) {
     document.body.appendChild(tip);
 
     function positionTip() {
-      const r = policyInfo.getBoundingClientRect();
+      // viewport 정중앙
       const tipR = tip.getBoundingClientRect();
-      const margin = 12;
-      // 기본: ! 아이콘 위 + 가운데 정렬
-      let top = r.top - tipR.height - 18;
-      let left = r.left + r.width / 2 - tipR.width / 2;
-      // viewport 가로 clamp
-      if (left < margin) left = margin;
-      if (left + tipR.width > window.innerWidth - margin) {
-        left = window.innerWidth - tipR.width - margin;
-      }
-      // 위로 못 띄우면 아래로 뒤집기
-      if (top < margin) top = r.bottom + 18;
-      tip.style.top = top + 'px';
+      const top  = Math.max(12, (window.innerHeight - tipR.height) / 2);
+      const left = Math.max(12, (window.innerWidth  - tipR.width)  / 2);
+      tip.style.top  = top  + 'px';
       tip.style.left = left + 'px';
     }
 
