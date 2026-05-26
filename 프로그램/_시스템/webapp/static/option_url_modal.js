@@ -139,11 +139,17 @@
       .oum-green .oum-mtx-grp-h { color:#15803d; }
       .oum-mtx-table { border-collapse:collapse; font-size:10.5px; width:100%; }
       .oum-mtx-table th, .oum-mtx-table td { border:1px solid #fff; padding:0; text-align:center; height:28px; background:#fff; }
-      .oum-mtx-table th { font-weight:500; font-size:10px; cursor:pointer; user-select:none; }
+      .oum-mtx-table th { font-weight:500; font-size:10px; cursor:pointer; user-select:none; transition:background .12s, color .12s; }
       .oum-blue .oum-mtx-table th { background:#EFF6FF; color:#1d4ed8; }
       .oum-blue .oum-mtx-table th.corner { background:#dbeafe; }
+      .oum-blue .oum-mtx-table th:hover { background:#3B82F6; color:#fff; }
       .oum-green .oum-mtx-table th { background:#F0FDF4; color:#15803d; }
       .oum-green .oum-mtx-table th.corner { background:#dcfce7; }
+      .oum-green .oum-mtx-table th:hover { background:#10b981; color:#fff; }
+      /* 그룹 헤더(3축) 호버 — div 라 transition 별도 */
+      .oum-mtx-grp-h { transition:background .12s, color .12s; padding:5px 8px; border-radius:5px; }
+      .oum-blue .oum-mtx-grp-h:hover { background:#dbeafe; }
+      .oum-green .oum-mtx-grp-h:hover { background:#dcfce7; }
       .oum-cell { display:inline-block; width:30px; height:22px; line-height:22px; border-radius:4px; cursor:pointer; font-size:11px; font-weight:600; position:relative; user-select:none; }
       .oum-blue .oum-cell.on { background:#3B82F6; color:#fff; }
       .oum-green .oum-cell.on { background:#10b981; color:#fff; }
@@ -190,6 +196,27 @@
     document.head.appendChild(s);
   }
 
+  // ─── 마지막 작업 상태 저장·복원 (localStorage) ───
+  //   모음전 코드별로 마지막 활성 탭(currentSrc) + 펼친 카드의 URL dbId 저장
+  //   재진입 시 자동 복원 — "작업하던 그대로" 열림
+  const LS_KEY = (bundleCode) => `oum:lastState:${bundleCode}`;
+  function saveLastState(bundleCode, currentSrc, openDbId) {
+    try {
+      localStorage.setItem(LS_KEY(bundleCode), JSON.stringify({
+        currentSrc: currentSrc || null,
+        openDbId: openDbId || null,
+        ts: Date.now(),
+      }));
+    } catch (e) { /* private mode 등 — 조용히 무시 */ }
+  }
+  function loadLastState(bundleCode) {
+    try {
+      const raw = localStorage.getItem(LS_KEY(bundleCode));
+      if (!raw) return null;
+      return JSON.parse(raw);
+    } catch (e) { return null; }
+  }
+
   // ───────────────────────────────────────────────────────────
   //                       MAIN ENTRY
   // ───────────────────────────────────────────────────────────
@@ -212,7 +239,15 @@
     // 모달 마크업
     const bg = document.createElement('div');
     bg.className = 'oum-bg';
-    bg.addEventListener('click', e => { if (e.target === bg) bg.remove(); });
+    // 배경 클릭 닫기 — 자동 저장 fire-and-forget + 마지막 상태 기록
+    //   (snapshotLastState 는 아래에서 정의되므로 클로저 캡처 가능 — addEventListener 호출 시점은 정의 이후)
+    bg.addEventListener('click', e => {
+      if (e.target === bg) {
+        try { snapshotLastState(); } catch (err) {}
+        autoSave();
+        bg.remove();
+      }
+    });
 
     const modal = document.createElement('div');
     modal.className = 'oum-modal';
@@ -253,7 +288,15 @@
       const j = await r.json();
       if (j && j.ok) {
         state.sources = (j.sources || []).map(k => ({ key: k, label: k }));
-        // 기존 URL 도 가져옴 (있으면 표시)
+        // [2026-05-25] 옵션 canonical_sku ↔ axis values key 매핑 — 매핑 복원·자동저장 공용
+        //   재진입 시 option_ids 를 option_keys 로 복원해야 매트릭스 매핑이 살아 있음
+        const keyBySku = {};
+        (j.options || []).forEach(o => {
+          if (Array.isArray(o.axis_values)) {
+            keyBySku[o.canonical_sku] = JSON.stringify(o.axis_values.map(v => String(v)));
+          }
+        });
+        // 기존 URL 도 가져옴 (있으면 표시) — option_ids → option_keys 복원
         Object.keys(j.urls || {}).forEach(sk => {
           const arr = (j.urls[sk] || []).filter(u => u.id);
           if (arr.length) {
@@ -262,7 +305,9 @@
               dbId: u.id,
               label: u.label || '',
               url: u.url || '',
-              option_keys: [],  // 기존 매핑은 옵션 sku 기반 → 새 옵션 만들면 매핑 무효
+              option_keys: (u.option_ids || [])
+                .map(sku => keyBySku[sku])
+                .filter(Boolean),
             }));
           }
         });
@@ -331,7 +376,23 @@
         state.sources.unshift({ key: k, label: SRC_LABELS[k] || k });
       }
     });
-    state.currentSrc = state.sources[0]?.key || 'lemouton';
+
+    // ─── 마지막 작업 상태 복원 — "작업하던 그대로" 열림 ───
+    //   1) currentSrc — 저장된 탭이 sources 에 있으면 그걸로, 없으면 default 첫 탭
+    //   2) openUrlId  — 저장된 dbId 의 URL 카드가 현재 탭에 있으면 자동 펼침
+    const lastState = loadLastState(bundleCode);
+    const savedSrc = lastState && lastState.currentSrc;
+    if (savedSrc && state.sources.find(s => s.key === savedSrc)) {
+      state.currentSrc = savedSrc;
+    } else {
+      state.currentSrc = state.sources[0]?.key || 'lemouton';
+    }
+    const savedOpenDbId = lastState && lastState.openDbId;
+    if (savedOpenDbId) {
+      const arr = state.urls[state.currentSrc] || [];
+      const target = arr.find(u => u.dbId === savedOpenDbId);
+      if (target) state.openUrlId = target.tempId;
+    }
 
     // ─── 유틸 ───
     function validAxes() {
@@ -578,8 +639,12 @@
       }
       const mappedSet = new Set(u.option_keys || []);
 
-      // [2026-05-24] 우측 빠른 선택 칩 영역 제거 — 매트릭스 행/열 헤더로 충분
-      let html = '';
+      // [2026-05-26] 헤더 클릭 일괄 선택 안내 — 사용자가 헤더 클릭 가능함을 인지하게
+      let html = `<div style="font-size:11px; color:#15803d; padding:4px 8px 8px; display:flex; gap:10px; flex-wrap:wrap;">
+        <span>💡 <b>색상/사이즈 헤더 클릭</b> → 그 줄 전체 일괄 ON/OFF</span>
+        <span>·</span>
+        <span>⌐ 코너 클릭 → 전체</span>
+      </div>`;
 
       // 매트릭스 — 활성 옵션만 매핑 가능, 비활성은 회색 disabled
       html += renderUrlMatrix(u, valid, mappedSet);
@@ -615,7 +680,7 @@
       const colAxis = valid[0], rowAxis = valid[1];
       let html = `<div class="oum-mtx">`;
       groupAxis.values.forEach(gv => {
-        html += `<div class="oum-mtx-grp"><div class="oum-mtx-grp-h">▾ ${esc(groupAxis.name || '축')}: ${esc(gv)}</div>`;
+        html += `<div class="oum-mtx-grp"><div class="oum-mtx-grp-h" data-url-grp-axis="${esc(groupAxis.name)}" data-url-grp-val="${esc(gv)}">▾ ${esc(groupAxis.name || '축')}: ${esc(gv)}</div>`;
         html += renderUrlMatrix2D(u, colAxis, rowAxis, [{ idx: valid.length - 1, val: gv }], mappedSet, sharedMap);
         html += `</div>`;
       });
@@ -629,14 +694,15 @@
       const colIdx = valid.findIndex(a => a.name === colAxis.name);
       const rowIdx = valid.findIndex(a => a.name === rowAxis.name);
 
-      let html = `<table class="oum-mtx-table"><thead><tr><th class="corner">⌐</th>`;
+      const baseStr = esc(JSON.stringify(baseFilter));
+      let html = `<table class="oum-mtx-table"><thead><tr><th class="corner" data-url-corner-axes='${baseStr}'>⌐</th>`;
       colAxis.values.forEach(cv => {
-        html += `<th>${esc(cv)}</th>`;
+        html += `<th data-url-col-axis="${esc(colAxis.name)}" data-url-col-val="${esc(cv)}" data-url-base='${baseStr}'>${esc(cv)}</th>`;
       });
       html += `</tr></thead><tbody>`;
 
       rowAxis.values.forEach(rv => {
-        html += `<tr><th>${esc(rv)}</th>`;
+        html += `<tr><th data-url-row-axis="${esc(rowAxis.name)}" data-url-row-val="${esc(rv)}" data-url-base='${baseStr}'>${esc(rv)}</th>`;
         colAxis.values.forEach(cv => {
           const arr = new Array(valid.length);
           baseFilter.forEach(b => { arr[b.idx] = b.val; });
@@ -882,16 +948,29 @@
       toggleAxis(axisName, val);
     }
 
-    // 우측 이벤트
-    $('#oum-right').addEventListener('click', e => {
-      // 탭 전환
+    // 우측 이벤트 — async (탭 전환 시 autoSave await 필요)
+    $('#oum-right').addEventListener('click', async e => {
+      // 탭 전환 — 직전 자동 저장 후 전환 + 마지막 상태 기록
       const tab = e.target.closest('[data-src-tab]');
       if (tab) {
+        if (tab.dataset.srcTab !== state.currentSrc) {
+          await autoSave();
+        }
         state.currentSrc = tab.dataset.srcTab;
         state.openUrlId = null;
         renderRight();
+        saveLastState(bundleCode, state.currentSrc, null);
         return;
       }
+      // 매트릭스 헤더 (col/row/corner/group) — 활성 옵션 한정 일괄 토글
+      const colH = e.target.closest('[data-url-col-axis]');
+      if (colH) { toggleUrlHeaderRange(colH); return; }
+      const rowH = e.target.closest('[data-url-row-axis]');
+      if (rowH) { toggleUrlHeaderRange(rowH); return; }
+      const cornerH = e.target.closest('[data-url-corner-axes]');
+      if (cornerH) { toggleUrlCorner(cornerH); return; }
+      const grpH = e.target.closest('[data-url-grp-axis]');
+      if (grpH) { toggleUrlGroup(grpH.dataset.urlGrpAxis, grpH.dataset.urlGrpVal); return; }
       // URL 추가
       if (e.target.closest('[data-add-url]')) {
         const url = prompt(`새 ${SRC_LABELS[state.currentSrc] || state.currentSrc} URL 입력:`);
@@ -903,13 +982,15 @@
         renderRight();
         return;
       }
-      // URL 카드 토글
+      // URL 카드 토글 — 펼친 카드의 dbId 기록 (없으면 null)
       const card = e.target.closest('[data-url-id]');
       const tog = e.target.closest('[data-url-tog]');
       if (tog && card) {
         const tid = +card.dataset.urlId;
         state.openUrlId = (state.openUrlId === tid) ? null : tid;
         renderRight();
+        const openedU = state.openUrlId ? (state.urls[state.currentSrc] || []).find(u => u.tempId === state.openUrlId) : null;
+        saveLastState(bundleCode, state.currentSrc, openedU ? openedU.dbId : null);
         return;
       }
       // URL 삭제
@@ -979,9 +1060,142 @@
       renderRight();
     }
 
-    // 모달 닫기 / 저장
-    $('.oum-mh .close').addEventListener('click', () => bg.remove());
-    $('#oum-cancel').addEventListener('click', () => bg.remove());
+    // ─── 우측 매트릭스 헤더 일괄 토글 (좌측 옵션 매트릭스와 동등) ───
+    //   활성 옵션(state.selected) 중에서만 토글 — 비활성 셀은 건드리지 않음
+    function toggleUrlHeaderRange(el) {
+      const u = currentUrl();
+      if (!u) return;
+      const isCol = !!el.dataset.urlColAxis;
+      const axisName = isCol ? el.dataset.urlColAxis : el.dataset.urlRowAxis;
+      const val = isCol ? el.dataset.urlColVal : el.dataset.urlRowVal;
+      let base = [];
+      try { base = JSON.parse(el.dataset.urlBase || '[]'); } catch (e) {}
+      const valid = validAxes();
+      const ax = String(axisName == null ? '' : axisName).trim();
+      const axisIdx = valid.findIndex(a => String(a.name || '').trim() === ax);
+      if (axisIdx < 0) return;
+      const allCombos = cartesian(valid.map(a => a.values));
+      const matching = allCombos.filter(c => {
+        if (c[axisIdx] !== val) return false;
+        if (!base.every(b => c[b.idx] === b.val)) return false;
+        return state.selected.has(keyOf(c));
+      });
+      if (!matching.length) return;
+      applyUrlToggle(u, matching);
+    }
+
+    function toggleUrlCorner(el) {
+      const u = currentUrl();
+      if (!u) return;
+      let base = [];
+      try { base = JSON.parse(el.dataset.urlCornerAxes || '[]'); } catch (e) {}
+      const valid = validAxes();
+      const allCombos = cartesian(valid.map(a => a.values));
+      const matching = allCombos.filter(c =>
+        base.every(b => c[b.idx] === b.val) && state.selected.has(keyOf(c)));
+      if (!matching.length) return;
+      applyUrlToggle(u, matching);
+    }
+
+    function toggleUrlGroup(axisName, val) {
+      const u = currentUrl();
+      if (!u) return;
+      const valid = validAxes();
+      const ax = String(axisName == null ? '' : axisName).trim();
+      const axisIdx = valid.findIndex(a => String(a.name || '').trim() === ax);
+      if (axisIdx < 0) return;
+      const allCombos = cartesian(valid.map(a => a.values));
+      const matching = allCombos.filter(c =>
+        c[axisIdx] === val && state.selected.has(keyOf(c)));
+      if (!matching.length) return;
+      applyUrlToggle(u, matching);
+    }
+
+    function applyUrlToggle(u, combos) {
+      const set = new Set(u.option_keys);
+      const allOn = combos.every(c => set.has(keyOf(c)));
+      combos.forEach(c => {
+        const k = keyOf(c);
+        if (allOn) set.delete(k);
+        else set.add(k);
+      });
+      u.option_keys = [...set];
+      renderRight();
+    }
+
+    // ─── 자동 저장 ───────────────────────────────────────────────
+    //   가로 탭 전환·모달 닫기 직전 호출 — 옵션·URL·매핑 모두 저장
+    //   실패는 console.warn 만 — 사용자 알림 X (사용자 결정)
+    //   - 새 URL 카드 (dbId 없음) → POST → 응답 id 를 dbId 로 설정
+    //   - 기존 URL (dbId 있음) → PUT
+    //   - 옵션 매트릭스 매핑(option_keys) → axis_values → canonical_sku 변환 → option_ids
+    let _autoSaveInflight = null;
+    async function autoSave() {
+      if (!state.selected.size || !state.applied) return;
+      // 중복 호출 방지 — 이미 저장 중이면 그 promise 를 기다림
+      if (_autoSaveInflight) { try { await _autoSaveInflight; } catch (e) {} return; }
+      _autoSaveInflight = (async () => {
+        try {
+          // 1. 옵션 콤보 (prune=true) — selected 와 동기화
+          const validList = validAxes();
+          const selectedArr = [...state.selected].map(getAxisValuesArray);
+          await fetch(`/api/bundles/${encodeURIComponent(bundleCode)}/options/combo`, {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ steps: validList, selected: selectedArr, prune: true }),
+          });
+
+          // 2. 옵션 axis_values → canonical_sku 매핑 재로딩
+          const r = await fetch(`/api/bundles/${encodeURIComponent(bundleCode)}/source-urls`);
+          const j = await r.json();
+          const skuByKey = {};
+          if (j && Array.isArray(j.options)) {
+            j.options.forEach(o => {
+              if (Array.isArray(o.axis_values)) {
+                skuByKey[JSON.stringify(o.axis_values.map(v => String(v)))] = o.canonical_sku;
+              }
+            });
+          }
+
+          // 3. 각 URL 카드 저장 — POST(new) / PUT(existing) + option_ids
+          for (const sk of Object.keys(state.urls)) {
+            for (const u of (state.urls[sk] || [])) {
+              if (!u.url || !u.url.trim()) continue;
+              const option_ids = (u.option_keys || [])
+                .map(k => skuByKey[k])
+                .filter(Boolean);
+              try {
+                if (u.dbId) {
+                  await fetch(`/api/bundles/${encodeURIComponent(bundleCode)}/source-urls/${u.dbId}`, {
+                    method: 'PUT', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ url: u.url.trim(), label: u.label || null, option_ids }),
+                  });
+                } else {
+                  const res = await fetch(`/api/bundles/${encodeURIComponent(bundleCode)}/source-urls`, {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ source_key: sk, url: u.url.trim(), label: u.label || null, option_ids }),
+                  });
+                  const rj = await res.json();
+                  if (rj && rj.id) u.dbId = rj.id;
+                }
+              } catch (e) {
+                console.warn('[oum] auto-save URL fail:', e);
+              }
+            }
+          }
+        } catch (e) {
+          console.warn('[oum] auto-save fail:', e);
+        }
+      })();
+      try { await _autoSaveInflight; } finally { _autoSaveInflight = null; }
+    }
+
+    // 모달 닫기 / 저장 — X·취소 클릭 시 자동 저장 fire-and-forget + 마지막 상태 기록
+    function snapshotLastState() {
+      const openedU = state.openUrlId ? (state.urls[state.currentSrc] || []).find(u => u.tempId === state.openUrlId) : null;
+      saveLastState(bundleCode, state.currentSrc, openedU ? openedU.dbId : null);
+    }
+    $('.oum-mh .close').addEventListener('click', () => { snapshotLastState(); autoSave(); bg.remove(); });
+    $('#oum-cancel').addEventListener('click', () => { snapshotLastState(); autoSave(); bg.remove(); });
 
     $('#oum-save').addEventListener('click', async () => {
       if (!state.selected.size) return;
