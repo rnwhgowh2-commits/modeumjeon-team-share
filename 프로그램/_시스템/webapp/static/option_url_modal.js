@@ -1197,55 +1197,18 @@
     $('.oum-mh .close').addEventListener('click', () => { snapshotLastState(); autoSave(); bg.remove(); });
     $('#oum-cancel').addEventListener('click', () => { snapshotLastState(); autoSave(); bg.remove(); });
 
+    // [2026-05-26 BUG-FIX] [저장] 버튼은 이전에 dbId 검사 없이 무조건 POST 했음 → 누를 때마다
+    //   같은 URL 카드가 새로 생성되어 누적되는 심각한 버그. autoSave() 로 통일 — dbId 있으면 PUT,
+    //   없으면 POST 후 응답.id 를 dbId 로 설정. matrix option_ids 매핑도 함께 저장.
     $('#oum-save').addEventListener('click', async () => {
       if (!state.selected.size) return;
       const save = $('#oum-save');
       save.disabled = true; save.textContent = '저장 중...';
 
       try {
-        // 1) 옵션 생성 + 비활성 셀 REPLACE (prune)
-        //   [2026-05-25 A-2-FIX] 모달 = 단일 진실 원천 → selected 에 없는 기존 옵션은 삭제
-        //   다른 데이터 매핑 있어 못 지운 옵션은 응답.skus_protected 로 회신 → 토스트로 안내
-        const validList = validAxes();
-        const selectedArr = [...state.selected].map(getAxisValuesArray);
-        const res = await fetch(`/api/bundles/${encodeURIComponent(bundleCode)}/options/combo`, {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ steps: validList, selected: selectedArr, prune: true }),
-        });
-        const j = await res.json();
-        if (!j || !j.ok) {
-          alert('옵션 생성 실패: ' + ((j && j.error) || ''));
-          save.disabled = false; save.textContent = '옵션 + URL 저장';
-          return;
-        }
-
-        // 2) URL 매핑 저장 — 각 URL을 POST + option_keys → canonical_sku 매핑은 백엔드가 알아서
-        // 우선 URL만 저장 (옵션 sku 매핑은 별도 단계 — 추후 통합)
-        let urlSaved = 0, urlFailed = 0;
-        for (const sk of Object.keys(state.urls)) {
-          for (const u of state.urls[sk]) {
-            if (!u.url || !u.url.trim()) continue;
-            try {
-              await fetch(`/api/bundles/${encodeURIComponent(bundleCode)}/source-urls`, {
-                method: 'POST', headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ source_key: sk, url: u.url.trim(), label: u.label || null }),
-              });
-              urlSaved++;
-            } catch (e) { urlFailed++; }
-          }
-        }
-
-        // 알림 + 리로드 — A-2-FIX prune 결과도 표시
-        if (typeof flash === 'function') {
-          const parts = [];
-          if (j.created) parts.push(`옵션 +${j.created}개`);
-          if (j.deleted) parts.push(`-${j.deleted}개`);
-          if (urlSaved) parts.push(`URL +${urlSaved}개`);
-          let msg = parts.length ? parts.join(' / ') + ' 저장됨' : '저장 완료';
-          if (j.protected) msg += ` · ⚠ ${j.protected}개는 매핑 데이터 있어 보존`;
-          if (urlFailed) msg += ` (URL ${urlFailed}개 실패)`;
-          flash(msg);
-        }
+        snapshotLastState();
+        await autoSave();
+        if (typeof flash === 'function') flash('저장 완료');
         bg.remove();
         setTimeout(() => location.reload(), 700);
       } catch (e) {
