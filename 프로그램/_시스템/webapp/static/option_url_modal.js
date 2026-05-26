@@ -297,6 +297,8 @@
           }
         });
         // 기존 URL 도 가져옴 (있으면 표시) — option_ids → option_keys 복원
+        //   [2026-05-27] 옛 sku + 새 sku 가 같은 axis_values 로 중복 매핑된 경우
+        //   같은 key 가 두 번 들어가서 shared 카운트가 부풀려짐 → Set 으로 중복 제거
         Object.keys(j.urls || {}).forEach(sk => {
           const arr = (j.urls[sk] || []).filter(u => u.id);
           if (arr.length) {
@@ -305,9 +307,11 @@
               dbId: u.id,
               label: u.label || '',
               url: u.url || '',
-              option_keys: (u.option_ids || [])
-                .map(sku => keyBySku[sku])
-                .filter(Boolean),
+              option_keys: [...new Set(
+                (u.option_ids || [])
+                  .map(sku => keyBySku[sku])
+                  .filter(Boolean)
+              )],
             }));
           }
         });
@@ -661,11 +665,13 @@
           const k = keyOf([v]);
           const active = state.selected.has(k);
           const on = mappedSet.has(k);
-          const sh = sharedMap[k] || 0;
+          const info = sharedMap[k] || { count: 0, mappings: [] };
+          const sh = info.count;
           let cls = active ? (on ? 'on' : 'off') : 'disabled';
           if (on && sh > 1) cls += ' shared';
           const sharedAttr = (on && sh > 1) ? ` data-shared="${sh}"` : '';
-          html += `<td><span class="oum-cell ${cls}" data-url-cell-key='${esc(k)}'${sharedAttr}>${active ? (on ? '✓' : '·') : '·'}</span></td>`;
+          const titleAttr = (sh > 1) ? ` title="${esc(buildSharedTooltip(info.mappings))}"` : '';
+          html += `<td><span class="oum-cell ${cls}" data-url-cell-key='${esc(k)}'${sharedAttr}${titleAttr}>${active ? (on ? '✓' : '·') : '·'}</span></td>`;
         });
         html += `</tr></tbody></table></div>`;
         return html;
@@ -711,11 +717,13 @@
           const k = keyOf(arr);
           const active = state.selected.has(k);
           const on = mappedSet.has(k);
-          const sh = sharedMap[k] || 0;
+          const info = sharedMap[k] || { count: 0, mappings: [] };
+          const sh = info.count;
           let cls = active ? (on ? 'on' : 'off') : 'disabled';
           if (on && sh > 1) cls += ' shared';
           const sharedAttr = (on && sh > 1) ? ` data-shared="${sh}"` : '';
-          html += `<td><span class="oum-cell ${cls}" data-url-cell-key='${esc(k)}'${sharedAttr}>${active ? (on ? '✓' : '·') : '·'}</span></td>`;
+          const titleAttr = (sh > 1) ? ` title="${esc(buildSharedTooltip(info.mappings))}"` : '';
+          html += `<td><span class="oum-cell ${cls}" data-url-cell-key='${esc(k)}'${sharedAttr}${titleAttr}>${active ? (on ? '✓' : '·') : '·'}</span></td>`;
         });
         html += `</tr>`;
       });
@@ -724,15 +732,31 @@
       return html;
     }
 
-    function computeSharedMap(currentUrl) {
+    // [2026-05-26] 전체 소싱처 합산 — 한 옵션이 모든 탭/카드 통틀어 몇 개 URL 에 매핑됐는지
+    //   반환: { [optionKey]: { count, mappings: [{sk, label, url}, ...] } }
+    //   매트릭스 셀 우상단 배지 카운트 + hover tooltip 데이터로 사용
+    function computeSharedMap() {
       const map = {};
-      const arr = state.urls[state.currentSrc] || [];
-      arr.forEach(u => {
-        (u.option_keys || []).forEach(k => {
-          map[k] = (map[k] || 0) + 1;
+      Object.keys(state.urls || {}).forEach(sk => {
+        (state.urls[sk] || []).forEach(u => {
+          (u.option_keys || []).forEach(k => {
+            if (!map[k]) map[k] = { count: 0, mappings: [] };
+            map[k].count += 1;
+            map[k].mappings.push({ sk, label: u.label || '', url: u.url || '' });
+          });
         });
       });
       return map;
+    }
+
+    // 셀 tooltip 텍스트 생성 — "소싱처명 (라벨): URL" 줄바꿈
+    function buildSharedTooltip(mappings) {
+      if (!mappings || !mappings.length) return '';
+      return mappings.map(m => {
+        const srcName = SRC_LABELS[m.sk] || m.sk;
+        const labelPart = m.label ? ` (${m.label})` : '';
+        return `${srcName}${labelPart}: ${m.url}`;
+      }).join('\n');
     }
 
     // ─── 이벤트 ───
