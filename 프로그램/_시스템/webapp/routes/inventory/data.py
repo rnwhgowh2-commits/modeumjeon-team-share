@@ -460,9 +460,15 @@ def data_items():
             from flask import jsonify
             def _size(o):
                 return (o.size_display or o.size_code or '').strip() or 'FREE'
+            # [2026-05-27] SKU 표시 룰: canonical_sku 가 옛 sku (한글) 형식이면 boxhero_sku 사용
+            def _display_sku(o):
+                cs = o.canonical_sku
+                if cs and not cs.startswith('SKU-') and o.boxhero_sku:
+                    return o.boxhero_sku
+                return cs
             rows = [
                 {
-                    'sku': o.canonical_sku,
+                    'sku': _display_sku(o),
                     'bh': o.boxhero_sku or '',
                     'barcode': o.barcode or '',
                     'name': display_pname.get(o.canonical_sku, ''),
@@ -1116,7 +1122,11 @@ def data_items_export():
             size = o.size_display or o.size_code or '-'
             avg = int(o.boxhero_avg_purchase_price or 0)
             total = int(total_stock_map.get(o.canonical_sku, 0))
-            row = [o.canonical_sku, barcode, article, brand, category, mname,
+            # [2026-05-27] SKU 표시 룰: canonical_sku 가 옛 sku 형식이면 boxhero_sku 사용
+            sku_display = o.canonical_sku
+            if sku_display and not sku_display.startswith('SKU-') and o.boxhero_sku:
+                sku_display = o.boxhero_sku
+            row = [sku_display, barcode, article, brand, category, mname,
                    color, size, avg, total]
             for loc in locs:
                 row.append(int(per_loc_stock.get(o.canonical_sku, {}).get(loc.id, 0)))
