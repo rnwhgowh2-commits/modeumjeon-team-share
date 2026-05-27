@@ -169,6 +169,10 @@
       .oum-blue .oum-cell.on { background:#3B82F6; color:#fff; }
       .oum-green .oum-cell.on { background:#10b981; color:#fff; }
       .oum-cell.off { background:#e5e8eb; color:#9ca3af; }
+      /* [2026-05-27 D1] 사용자 OFF 했지만 URL 매핑 있어 데이터 보존 — 노란 빗금 + 🔗 */
+      .oum-cell.mapped-off { background:repeating-linear-gradient(45deg, #fef3c7 0 5px, #fde68a 5px 10px); color:#92400E; font-size:11px; }
+      .oum-cell.mapped-off:hover { outline:2px solid #f59e0b; }
+      .oum-cell.mapped-off:hover::before { content:attr(data-mapped-off-tip); position:absolute; bottom:calc(100% + 8px); left:50%; transform:translateX(-50%); background:#191F28; color:#fff; padding:6px 10px; border-radius:6px; font-size:12px; white-space:nowrap; z-index:1000; pointer-events:none; }
       .oum-cell.shared::after { content:attr(data-shared); position:absolute; top:-4px; right:-4px; background:#f59e0b; color:#fff; font-size:12.75px; width:18px; height:18px; border-radius:50%; line-height:18px; font-weight:700; }
       .oum-cell.disabled { background:#f8fafb; color:#cbd5e0; cursor:not-allowed; opacity:.5; }
 
@@ -299,6 +303,9 @@
       axes: [{ name: '', values: '' }, { name: '', values: '' }],  // [{name, values}]
       selected: new Set(),     // 옵션 활성 (JSON.stringify(axisVals))
       seen: new Set(),         // 매트릭스 변경 시 자동 ON 보존
+      // [2026-05-27 D1] is_active=false 옵션 — 사용자 OFF 했지만 매핑 있어 데이터 보존
+      // 매트릭스에서 mapped-off (노란 빗금 + 🔗 + tooltip) 으로 표시. selected 에는 들어가지 않음.
+      mappedOff: new Set(),
       applied: false,          // 좌→우 적용 여부
       sources: [],             // [{key, label, color}]
       urls: {},                // {sourceKey: [{tempId, label, url, option_keys: [k,...]}]}
@@ -409,12 +416,17 @@
             cartesian(stepValuesList).forEach(c => state.seen.add(JSON.stringify(c)));
           }
           // selected — 각 옵션 axis_values (값 array) 를 그대로 key 로
+          //   [2026-05-27 D1] is_active=false 옵션은 mappedOff 로 (selected 아님 — 매트릭스에서 빗금 표시)
           opts.forEach(o => {
             const av = Array.isArray(o.axis_values) ? o.axis_values : null;
             if (!av || av.length !== axisSteps.length) return;
             const key = JSON.stringify(av.map(v => String(v)));
-            state.selected.add(key);
             state.seen.add(key);
+            if (o.is_active === false) {
+              state.mappedOff.add(key);
+            } else {
+              state.selected.add(key);
+            }
           });
         } else if (opts.length > 0) {
           // 레거시 폴백: axis_steps 없으면 옵션의 color_code/size_code 로 2축 추정
@@ -598,7 +610,11 @@
       axis.values.forEach(v => {
         const k = keyOf([v]);
         const on = state.selected.has(k);
-        html += `<td><span class="oum-cell ${on ? 'on' : 'off'}" data-cell-key='${esc(k)}'>${on ? '✓' : '·'}</span></td>`;
+        // [2026-05-27 D1] mapped-off — 사용자 OFF 했지만 매핑 있어 데이터 보존
+        const mappedOff = !on && state.mappedOff && state.mappedOff.has(k);
+        const cls = on ? 'on' : (mappedOff ? 'mapped-off' : 'off');
+        const tip = mappedOff ? ` data-mapped-off-tip="🔗 URL 매핑 있음 — 클릭 시 다시 활성"` : '';
+        html += `<td><span class="oum-cell ${cls}" data-cell-key='${esc(k)}'${tip}>${on ? '✓' : (mappedOff ? '🔗' : '·')}</span></td>`;
       });
       html += `</tr></tbody></table>`;
       return html;
@@ -629,7 +645,11 @@
           arr[rowIdx] = rv;
           const k = keyOf(arr);
           const on = state.selected.has(k);
-          html += `<td><span class="oum-cell ${on ? 'on' : 'off'}" data-cell-key='${esc(k)}'>${on ? '✓' : '·'}</span></td>`;
+          // [2026-05-27 D1] mapped-off — 사용자 OFF 했지만 매핑 있어 데이터 보존
+        const mappedOff = !on && state.mappedOff && state.mappedOff.has(k);
+        const cls = on ? 'on' : (mappedOff ? 'mapped-off' : 'off');
+        const tip = mappedOff ? ` data-mapped-off-tip="🔗 URL 매핑 있음 — 클릭 시 다시 활성"` : '';
+        html += `<td><span class="oum-cell ${cls}" data-cell-key='${esc(k)}'${tip}>${on ? '✓' : (mappedOff ? '🔗' : '·')}</span></td>`;
         });
         html += `</tr>`;
       });

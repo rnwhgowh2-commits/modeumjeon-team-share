@@ -925,6 +925,8 @@ def api_list_source_urls(code):
                 'size_code': o.size_code,
                 'size_display': o.size_display or o.size_code,
                 'axis_values': axis_values,
+                # [2026-05-27 D1] 사용자 OFF 한 옵션 표시 (False=빗금, True=일반)
+                'is_active': bool(getattr(o, 'is_active', True)),
             })
 
         # [2026-05-24 A-1 FIX] BundleOptionStep — 축 이름·값 단일 진실 원천

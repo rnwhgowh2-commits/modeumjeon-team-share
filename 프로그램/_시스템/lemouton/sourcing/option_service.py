@@ -77,42 +77,77 @@ def create_combination_options(
 
     deleted: list[str] = []
     protected: list[str] = []
+    disabled: list[str] = []   # [2026-05-27 D1] is_active=False 로 mark 된 옵션
     if prune and selected is not None:
-        # selected 의 조합만 유지 — 그 외 옵션은 삭제 시도
+        # selected 의 조합만 유지 — 그 외 옵션은 삭제 또는 비활성
         from .option_combo import build_sku, generate_combinations
+        from .models import OptionSourceUrlLink
         keep_skus = {build_sku(model_code, vals) for vals in selected}
         # 방금 생성한 신규도 keep (안전망)
         keep_skus.update(created)
-        # [2026-05-25 SAFETY] 매트릭스 안에 있는 옵션만 prune 대상
-        #   배경: 매트릭스 값 풀 밖 옵션(다른 모음전·옛 다른 색상·외부 등) 은
-        #   사용자가 모달에서 보지도 못함 → selected 에서 빠진 게 의도가 아님
-        #   → 매트릭스 밖 옵션은 무조건 보호 (untracked, 보호 카운트로만 알림)
+        # [2026-05-25 SAFETY] 매트릭스 안 옵션만 prune 대상 (밖 옵션은 무조건 보호)
         matrix_skus = {build_sku(model_code, c['values'])
                        for c in generate_combinations(steps)}
         raw_to_delete = existing - keep_skus
         to_delete = raw_to_delete & matrix_skus
         untracked = raw_to_delete - matrix_skus
         protected.extend(sorted(untracked))
+
+        # [2026-05-27 D1] 매핑 미리 조회 — 매핑 있으면 is_active=False 로 mark (삭제 X)
+        skus_with_mapping = set()
+        if to_delete:
+            links = session.query(OptionSourceUrlLink.option_canonical_sku).filter(
+                OptionSourceUrlLink.option_canonical_sku.in_(list(to_delete))
+            ).all()
+            skus_with_mapping = {ln[0] for ln in links}
+
         # 신규 추가는 한 트랜잭션에 flush 해야 FK 위반 검증 가능
         try:
             session.flush()
         except Exception:
             session.rollback()
             raise
+
+        # [2026-05-27 D1] selected 안 옵션은 is_active=True 로 자동 복원 (사용자가 다시 ON)
+        if keep_skus:
+            (session.query(Option)
+             .filter(Option.model_code == model_code,
+                     Option.canonical_sku.in_(list(keep_skus)),
+                     Option.is_active == False)  # noqa: E712
+             .update({Option.is_active: True}, synchronize_session=False))
+
         for sku in to_delete:
-            sp = session.begin_nested()  # SAVEPOINT — FK 위반 시 그 옵션만 rollback
+            sp = session.begin_nested()
             try:
                 obj = session.query(Option).filter_by(
                     canonical_sku=sku, model_code=model_code).first()
                 if obj is None:
                     sp.rollback()
                     continue
+                # 매핑 있으면 삭제 대신 is_active=False mark — 사용자 OFF 선택 영구 보존
+                if sku in skus_with_mapping:
+                    obj.is_active = False
+                    sp.commit()
+                    disabled.append(sku)
+                    continue
+                # 매핑 없으면 안전하게 삭제
                 session.delete(obj)
                 session.flush()
                 sp.commit()
                 deleted.append(sku)
             except IntegrityError:
                 sp.rollback()
+                # FK 위반 — 매핑 외 다른 데이터 (가격·재고 등) 가 있는 경우. is_active=False 로 fallback.
+                try:
+                    obj = session.query(Option).filter_by(
+                        canonical_sku=sku, model_code=model_code).first()
+                    if obj is not None:
+                        obj.is_active = False
+                        session.flush()
+                        disabled.append(sku)
+                        continue
+                except Exception:
+                    pass
                 protected.append(sku)
             except Exception:
                 sp.rollback()
@@ -123,8 +158,10 @@ def create_combination_options(
         'created': len(created),
         'deleted': len(deleted),
         'protected': len(protected),
+        'disabled': len(disabled),
         'skipped': 0,
         'skus': created,
         'skus_deleted': deleted,
         'skus_protected': protected,
+        'skus_disabled': disabled,
     }

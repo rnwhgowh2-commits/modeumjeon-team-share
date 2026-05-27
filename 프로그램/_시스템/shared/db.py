@@ -141,6 +141,8 @@ def _apply_lightweight_migrations() -> None:
         ("options", "pur_fixed_cp_active", "BOOLEAN DEFAULT 0 NOT NULL"),
         # v34.13 (2026-05-25): brand 박스 안 텍스트 사용자 커스터마이징
         ("brand_color_overrides", "letter", "VARCHAR(16)"),
+        # [2026-05-27 D1] 사용자가 매트릭스에서 OFF 한 옵션 (URL 매핑 있어 데이터 보존). True=활성, False=비활성.
+        ("options", "is_active", "BOOLEAN DEFAULT 1 NOT NULL"),
     ]
     inspector = inspect(engine)
     existing_tables = set(inspector.get_table_names())

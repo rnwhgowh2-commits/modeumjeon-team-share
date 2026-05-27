@@ -206,6 +206,11 @@ class Option(Base):
     # [Phase 3] 오프라인 전용 옵션 — 소싱처 URL 없이 사입 재고만 (크롤 경고 X, 사입가 기준)
     offline_only = Column(Boolean, default=False, nullable=False)
 
+    # [2026-05-27 D1] 사용자가 매트릭스에서 OFF 한 옵션. URL 매핑이 있어 데이터 보존 중.
+    # is_active=False 인 옵션은 모달에서 노란 빗금(mapped-off)으로 표시.
+    # True (기본) = 활성. 셀 클릭으로 토글.
+    is_active = Column(Boolean, default=True, nullable=False)
+
     # 소싱처별 옵션 ID (NULL 가능)
     option_id_lemouton = Column(String(128))
     option_id_musinsa = Column(String(128))
