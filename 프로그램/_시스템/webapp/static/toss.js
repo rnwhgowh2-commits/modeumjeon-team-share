@@ -2607,13 +2607,13 @@ document.addEventListener('click', (e) => {
           : `↑${v.uploaded || 0} ⏭${v.skipped || 0} ✗${v.failed || 0}`;
         lines.push(`<div><span class="ts">[${startTs}]</span> <span class="ok">${lbl}: ${detail}</span></div>`);
       } else if (v.error) {
-        lines.push(`<div><span class="ts">[${startTs}]</span> <span class="err">${lbl}: ${escapeHtml(String(v.error).slice(0, 120))}</span></div>`);
+        lines.push(`<div><span class="ts">[${startTs}]</span> <span class="err">${lbl}: ${linkifyUrls(String(v.error).slice(0, 200))}</span></div>`);
       }
     }
     if (item.status === 'running') {
       lines.push(`<div><span class="cur">진행 중...</span> <span class="pg-pulse-dot" style="margin-left:4px"></span></div>`);
     } else if (item.status === 'failed' && item.error) {
-      lines.push(`<div><span class="err">FAILED — ${escapeHtml(item.error.slice(0, 120))}</span></div>`);
+      lines.push(`<div><span class="err">FAILED — ${linkifyUrls(item.error.slice(0, 200))}</span></div>`);
     } else if (item.status === 'ok' || item.status === 'partial') {
       const summary = isCrawl
         ? `FINISHED — ${done}/${total} ok · ${dur}`
@@ -2674,6 +2674,15 @@ document.addEventListener('click', (e) => {
   function escapeHtml(s) {
     return String(s).replace(/[&<>"']/g, c =>
       ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  }
+
+  // [2026-05-27] 실행 로그 에러 메시지 안의 URL 을 자동 linkify — 발견된 URL 뒤에 ↗ 추가
+  function linkifyUrls(s) {
+    const esc = escapeHtml(s);
+    return esc.replace(/(https?:\/\/[^\s<>'"]+)/g, (m) => {
+      const safe = m.replace(/"/g, '&quot;');
+      return `${m} <a class="url-go dark" href="${safe}" target="_blank" rel="noopener noreferrer" title="새 탭에서 열기">↗</a>`;
+    });
   }
 
   // 펼침 상태를 토글 후에도 보존

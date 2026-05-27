@@ -108,8 +108,9 @@
         <!-- URL probe (자동 채우기) -->
         <div class="sa-field" style="background:#F9FAFB;padding:14px;border-radius:8px;border:1px dashed #CBCCD3">
           <label class="sa-lbl">🚀 URL 자동 분석 (선택 — 빠른 등록)</label>
-          <div style="display:flex;gap:6px">
+          <div style="display:flex;gap:6px;align-items:center">
             <input type="text" id="probeUrl" class="sa-inp sa-mono" placeholder="예: https://www.ssg.com/item/itemView.ssg?itemId=..." value="{{ form.test_url }}" style="flex:1">
+            <a class="url-go" id="probeGo" href="{{ form.test_url or '#' }}" target="_blank" rel="noopener noreferrer" title="입력 URL 새 탭에서 미리 열기" {% if not form.test_url %}style="opacity:.4;pointer-events:none"{% endif %}>↗</a>
             <button type="button" class="sa-btn sa-btn-primary" id="probeBtn" onclick="probeUrl()">🤖 분석</button>
           </div>
           <div class="sa-help">상품 URL 1개 입력 → 도메인 · 로고색 · favicon 자동 추출</div>
@@ -189,6 +190,18 @@
 </div>
 
 <script>
+// [2026-05-27] probe input 변경 시 ↗ 버튼의 href 도 동기화 (사용자가 입력하자마자 바로가기 활성화)
+(function(){
+  const inp = document.getElementById('probeUrl');
+  const go = document.getElementById('probeGo');
+  if (!inp || !go) return;
+  inp.addEventListener('input', () => {
+    const v = inp.value.trim();
+    if (v) { go.setAttribute('href', v); go.style.opacity = ''; go.style.pointerEvents = ''; }
+    else { go.setAttribute('href', '#'); go.style.opacity = '.4'; go.style.pointerEvents = 'none'; }
+  });
+})();
+
 async function probeUrl(){
   const url = document.getElementById('probeUrl').value.trim();
   const btn = document.getElementById('probeBtn');

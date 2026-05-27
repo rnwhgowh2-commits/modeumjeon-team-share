@@ -34,6 +34,16 @@
     document.documentElement.setAttribute('data-theme', t);
   })();
 </script>
+<style id="url-go-common">
+  /* [2026-05-27] 공통 URL 바로가기 ↗ 버튼 — 프로그램 전체에서 같은 디자인
+     적용: P2 sources/detail, P3 매핑 매트릭스, P4 소싱처 추가, P5 실행 로그 + 옵션 매핑 모달 */
+  .url-go { background:transparent; border:1px solid #d1d6db; border-radius:4px; width:22px; height:22px; display:inline-flex; align-items:center; justify-content:center; cursor:pointer; color:#4e5968; font-size:13px; line-height:1; padding:0; transition:all .12s; flex-shrink:0; text-decoration:none; vertical-align:middle; }
+  .url-go:hover { background:#3B82F6; color:#fff; border-color:#3B82F6; }
+  .url-go:active { transform:scale(.95); }
+  /* 어두운 배경(실행 로그 등) — 다크 modifier */
+  .url-go.dark { background:#374151; border-color:#4b5563; color:#fff; }
+  .url-go.dark:hover { background:#3B82F6; border-color:#3B82F6; }
+</style>
 {% block head %}{% endblock %}
 </head>
 <body>

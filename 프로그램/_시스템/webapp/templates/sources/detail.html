@@ -16,7 +16,10 @@
 
     <div class="field">
       <label class="field-label">URL</label>
-      <input class="field-input mono" value="{{ sp.url }}" readonly />
+      <div style="display:flex; gap:8px; align-items:center;">
+        <input class="field-input mono" value="{{ sp.url }}" readonly style="flex:1;" />
+        {% if sp.url %}<a class="url-go" href="{{ sp.url }}" target="_blank" rel="noopener noreferrer" title="새 탭에서 열기">↗</a>{% endif %}
+      </div>
     </div>
 
     <div style="display:flex;gap:14px;flex-wrap:wrap;font-size:13px;color:var(--n600);margin-top:10px">

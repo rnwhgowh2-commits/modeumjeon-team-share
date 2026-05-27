@@ -34,7 +34,7 @@
         <td><strong>{{ src.label }}</strong></td>
         <td><span class="mapping-fraction {% if src.mapped_count == src.total %}full{% elif src.mapped_count == 0 %}empty{% else %}partial{% endif %}">{{ src.mapped_count }}/{{ src.total }}</span></td>
         {% for cell in src.cells %}
-        <td>{% if cell.mapped %}<a href="{{ cell.url }}" target="_blank" rel="noopener" title="{{ cell.url }}">✓</a>{% else %}<span class="text-muted">−</span>{% endif %}</td>
+        <td>{% if cell.mapped %}<a class="url-go" href="{{ cell.url }}" target="_blank" rel="noopener noreferrer" title="{{ cell.url }}">↗</a>{% else %}<span class="text-muted">−</span>{% endif %}</td>
         {% endfor %}
         <td>{% if src.needs_login %}<span class="badge badge-warn">필요</span>{% else %}<span class="text-muted">불필요</span>{% endif %}</td>
       </tr>
