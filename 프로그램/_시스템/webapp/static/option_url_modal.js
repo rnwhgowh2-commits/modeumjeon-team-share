@@ -202,20 +202,26 @@
       .oum-url-label { border:none; background:transparent; font:inherit; font-size:18px; font-weight:600; outline:none; padding:9px 9px; border-radius:6px; width:210px; color:#15803d; }
       .oum-url-label:hover, .oum-url-label:focus { background:#fff; }
       .oum-url-input { flex:1; min-width:270px; border:1px solid #bbf7d0; border-radius:7.5px; padding:11.25px 13.5px; font:inherit; font-size:17.25px; font-family:ui-monospace,monospace; color:#15803d; }
-      .oum-url-cnt { background:#F0FDF4; padding:2px 10.5px; border-radius:12px; font-size:15px; color:#15803d; white-space:nowrap; }
-      .oum-url-cnt b { color:#10b981; font-weight:700; }
-      .oum-url-tog, .oum-url-del { background:#fff; border:1px solid #bbf7d0; border-radius:6px; padding:6.75px 10.5px; font:inherit; font-size:15.75px; color:#15803d; cursor:pointer; }
+      /* [2026-05-27 통일] URL 카드 액션 버튼 — 모두 같은 height·padding (시안 2 변형 적용) */
+      .oum-url-cnt, .oum-url-tog, .oum-url-copy, .oum-url-del {
+        height: 36px; padding: 0 12px; border: 1px solid #bbf7d0; background: #fff;
+        border-radius: 7.5px; font: inherit; font-size: 15px; font-weight: 600;
+        color: #15803d; cursor: pointer; display: inline-flex; align-items: center; gap: 5px;
+        white-space: nowrap; line-height: 1; box-sizing: border-box;
+      }
+      .oum-url-cnt { background: #F0FDF4; cursor: default; font-variant-numeric: tabular-nums; }
+      .oum-url-cnt b { color: #10b981; font-weight: 800; }
+      .oum-url-tog:hover, .oum-url-copy:hover { background:#F0FDF4; }
       .oum-url-del { color:#dc2626; border-color:#fecaca; }
+      .oum-url-del:hover { background:#FEF2F2; }
       /* [2026-05-27] 카드 미니 액션 — 순서 변경 ↑↓ + 복사 ⎘ */
       .oum-url-actions { display:inline-flex; gap:2px; }
       .oum-url-mini { background:#fff; border:1px solid #d1d6db; border-radius:6px; width:33px; height:33px; display:inline-flex; align-items:center; justify-content:center; font-size:18px; color:#4e5968; cursor:pointer; padding:0; line-height:1; transition:all .12s; }
       .oum-url-mini:hover:not(:disabled) { background:#3B82F6; color:#fff; border-color:#3B82F6; }
       .oum-url-mini:disabled { opacity:.35; cursor:not-allowed; }
       /* [2026-05-27] C5 복사 버튼 — SVG 아이콘 + "복사" 텍스트 콤보 (▸매핑·✕ 와 동일 톤) */
-      .oum-url-copy { background:#fff; border:1px solid #bbf7d0; border-radius:6px; padding:6px 10.5px; font:inherit; font-size:15.75px; color:#15803d; cursor:pointer; display:inline-flex; align-items:center; gap:6px; line-height:1; transition:all .12s; }
-      .oum-url-copy:hover { background:#3B82F6; color:#fff; border-color:#3B82F6; }
+      /* [2026-05-27] oum-url-copy 는 위 통일 스타일 사용 — active scale 만 유지 */
       .oum-url-copy:active { transform:scale(.97); }
-      .oum-url-copy svg { width:15px; height:15px; flex-shrink:0; }
       /* [2026-05-27] 드래그앤드랍 — ⋮⋮ 핸들 + 드래그 시각 피드백 + 드롭 라인 */
       .oum-url-drag { display:inline-flex; align-items:center; justify-content:center; width:30px; height:33px; color:#9ca3af; cursor:grab; font-size:24px; line-height:1; letter-spacing:-4px; user-select:none; flex-shrink:0; }
       .oum-url-drag:hover { color:#3B82F6; }
@@ -263,8 +269,9 @@
       .oum-shared-tip .stp-grp-body::-webkit-scrollbar-thumb:hover { background:#94a3b8; }
 
       /* [2026-05-27 B1] URL 바로가기 버튼 — ↗ 22×22 사각형, 호버 시 파란색 */
-      .oum-url-go { background:transparent; border:1px solid #d1d6db; border-radius:6px; width:33px; height:33px; display:inline-flex; align-items:center; justify-content:center; cursor:pointer; color:#4e5968; font-size:19.5px; line-height:1; padding:0; transition:all .12s; flex-shrink:0; text-decoration:none; }
-      .oum-url-go:hover { background:#3B82F6; color:#fff; border-color:#3B82F6; }
+      /* [2026-05-27 통일] ↗ 열기 — 다른 액션 버튼과 같은 36 height + 아이콘만 (width=height) */
+      .oum-url-go { background:#fff; border:1px solid #bbf7d0; border-radius:7.5px; width:36px; height:36px; display:inline-flex; align-items:center; justify-content:center; cursor:pointer; color:#3B82F6; font-size:18px; font-weight:700; line-height:1; padding:0; transition:all .12s; flex-shrink:0; text-decoration:none; box-sizing:border-box; }
+      .oum-url-go:hover { background:#EFF6FF; border-color:#bfdbfe; }
       .oum-url-go:active { transform:scale(.95); }
     `;
     document.head.appendChild(s);
@@ -733,10 +740,10 @@
           <input class="oum-url-label" data-field="label" value="${esc(u.label)}" placeholder="라벨 (선택)">
           <input class="oum-url-input" data-field="url" value="${esc(u.url)}" placeholder="URL 입력">
           ${goBtn}
-          <span class="oum-url-cnt"><b>${mapped}</b>/${totalActive}</span>
+          <span class="oum-url-cnt" title="이 URL 에 매핑된 옵션 / 전체 활성 옵션">📌 <b>${mapped}</b>/${totalActive}</span>
           <button class="oum-url-tog" data-url-tog type="button">${isOpen ? '▾ 닫기' : '▸ 매핑'}</button>
-          <button class="oum-url-copy" data-url-copy type="button" title="이 카드 그대로 복사"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>복사</button>
-          <button class="oum-url-del" data-url-del type="button">✕</button>
+          <button class="oum-url-copy" data-url-copy type="button" title="이 카드 그대로 복사">📋 복사</button>
+          <button class="oum-url-del" data-url-del type="button">✕ 삭제</button>
         </div>`;
 
       if (isOpen) {
