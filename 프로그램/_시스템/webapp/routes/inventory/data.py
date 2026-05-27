@@ -351,8 +351,9 @@ def data_items():
     from lemouton.sourcing.models import Option, Model
     from lemouton.inventory.models import InventoryLocation
     from shared.search import split_tokens, apply_and_filter
-    from shared.inventory_stock import get_stock_batch
+    from shared.inventory_stock import get_stock_batch, get_stock_by_location_batch
     from sqlalchemy import func
+    from sqlalchemy.orm import contains_eager
 
     page = max(1, int(request.args.get('page', 1)))
     # ★ 엑셀식 정렬·필터가 전체 데이터 대상이 되도록 한 페이지에 전체 로드 (기본 2000)
@@ -368,7 +369,12 @@ def data_items():
 
     s = SessionLocal()
     try:
-        query = s.query(Option).join(Model, Option.model_code == Model.model_code)
+        # contains_eager → 템플릿 o.model.* 접근 시 추가 SELECT 0회 (N+1 제거)
+        query = (
+            s.query(Option)
+            .join(Model, Option.model_code == Model.model_code)
+            .options(contains_eager(Option.model))
+        )
         # 다중 키워드 AND 교집합 — 토큰별 OR (SKU·바코드·브랜드·제품명·모델명·컬러·사이즈)
         query = apply_and_filter(
             query, search_tokens,
@@ -428,12 +434,9 @@ def data_items():
             .order_by(InventoryLocation.sort_order, InventoryLocation.id)
             .all()
         )
+        # 위치별 재고 — 한 쿼리로 N 위치 × M SKU pivot (구 for loc 루프 = 2N 쿼리)
         page_skus = [o.canonical_sku for o in items]
-        per_loc_stock: dict[str, dict[int, int]] = {}
-        for loc in locs:
-            loc_map = get_stock_batch(s, page_skus, location_id=loc.id)
-            for sku, st in loc_map.items():
-                per_loc_stock.setdefault(sku, {})[loc.id] = st
+        per_loc_stock = get_stock_by_location_batch(s, page_skus)
 
         # ★ ⑤ 역참조 — 제품별 사용처(모음전·옵션) batch 조회 (N+1 회피)
         # OptionProductLink 를 product_canonical_sku 로 한 번에 조회.

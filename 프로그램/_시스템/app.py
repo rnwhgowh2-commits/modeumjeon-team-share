@@ -144,6 +144,61 @@ def create_app() -> Flask:
     register_routes(app)
 
     # ─────────────────────────────────────────────────────────────────
+    # 응답 시간 계측 + gzip 압축 — 페이로드 50%+ 축소 (텍스트 응답 한정)
+    # DevTools Network 탭에서 X-Server-Time-Ms 헤더로 응답시간 확인.
+    # 500ms 이상은 콘솔에도 WARN. /static/* 측정 제외.
+    # ─────────────────────────────────────────────────────────────────
+    import time as _time
+    import gzip as _gzip
+    from io import BytesIO as _BytesIO
+    from flask import g as _g, request as _req
+
+    _GZIP_TYPES = (
+        'text/html', 'text/css', 'text/plain', 'text/xml',
+        'application/json', 'application/javascript', 'application/xml',
+        'image/svg+xml',
+    )
+
+    @app.before_request
+    def _perf_t0():
+        if _req.path.startswith('/static/'):
+            return
+        _g._perf_t0 = _time.perf_counter()
+
+    @app.after_request
+    def _perf_log(resp):
+        t0 = getattr(_g, '_perf_t0', None)
+        if t0 is not None:
+            ms = (_time.perf_counter() - t0) * 1000.0
+            resp.headers['X-Server-Time-Ms'] = f"{ms:.1f}"
+            if ms >= 500:
+                app.logger.warning(f"[perf-slow] {ms:6.0f}ms {_req.method} {_req.full_path}")
+
+        # gzip 압축 — 텍스트성 응답만, 256B 이상, 클라이언트가 수락 시
+        try:
+            if (
+                resp.status_code < 300
+                and resp.content_length is not None and resp.content_length >= 256
+                and 'Content-Encoding' not in resp.headers
+                and 'gzip' in (_req.headers.get('Accept-Encoding') or '').lower()
+                and (resp.content_type or '').split(';')[0].strip() in _GZIP_TYPES
+                and resp.direct_passthrough is False
+            ):
+                buf = _BytesIO()
+                with _gzip.GzipFile(fileobj=buf, mode='wb', compresslevel=5) as gz:
+                    gz.write(resp.get_data())
+                gz_data = buf.getvalue()
+                if len(gz_data) < (resp.content_length or 0):
+                    resp.set_data(gz_data)
+                    resp.headers['Content-Encoding'] = 'gzip'
+                    resp.headers['Content-Length'] = str(len(gz_data))
+                    vary = resp.headers.get('Vary')
+                    resp.headers['Vary'] = (vary + ', Accept-Encoding') if vary else 'Accept-Encoding'
+        except Exception:
+            pass  # 압축 실패 시 원본 그대로 — 절대 사용자 영향 X
+        return resp
+
+    # ─────────────────────────────────────────────────────────────────
     # 팀공유 모드 — 인증 시스템 활성화 (env-gated, 백워드 호환)
     # ENVIRONMENT=team-share-dev 일 때만 Flask-Login 통합.
     # 기존 (env 미설정) 에서는 import 도 안 됨 → 기존 동작 100% 동일.

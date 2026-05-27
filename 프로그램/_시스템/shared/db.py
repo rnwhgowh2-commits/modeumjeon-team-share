@@ -16,7 +16,21 @@ class Base(DeclarativeBase):
 # (보통 5~10분 idle) 첫 쿼리가 실패하던 문제 방지. checkout 시 SELECT 1 로
 # 검증. 검증 비용 ~5ms (Tokyo-Tokyo RTT) 이지만 stale connection 으로 인한
 # 첫 요청 500 에러 / 재시도 비용보다 훨씬 작음.
-engine = create_engine(Config.DB_URL, future=True, pool_pre_ping=True)
+#
+# pool_size + max_overflow: Supabase session pooler 가 max 15 client 라
+# 그 이하로 묶어 풀 고갈 회피. 풀 추가 생성 비용 < 고갈 시 5초+ 대기 비용.
+# pool_recycle: idle connection 5분 후 폐기 — pgbouncer idle timeout 회피.
+# SQLite 폴백 시에는 pool 옵션이 무시되므로 동일 코드로 안전.
+_is_sqlite = Config.DB_URL.startswith('sqlite')
+_engine_kwargs = dict(future=True, pool_pre_ping=True)
+if not _is_sqlite:
+    _engine_kwargs.update(
+        pool_size=5,        # 항상 유지하는 idle conn 수
+        max_overflow=8,     # 피크 시 추가 — 총 13 < Supabase 15 한도
+        pool_recycle=300,   # 5분 후 재생성 (pgbouncer idle timeout 우회)
+        pool_timeout=10,    # 풀 고갈 시 대기 한계 (디폴트 30s → 10s 로 빠른 실패)
+    )
+engine = create_engine(Config.DB_URL, **_engine_kwargs)
 # expire_on_commit=False: commit 후 객체 컬럼 expire 방지 — session.close() 후에도 컬럼 access 가능
 # (DetachedInstanceError + InFailedSqlTransaction 회피)
 SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False, future=True, expire_on_commit=False)

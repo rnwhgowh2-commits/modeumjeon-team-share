@@ -109,6 +109,60 @@ def get_stock_batch(session, skus: Iterable[str], location_id: int | None = None
     return {opt: prod_stock.get(psku_map[opt], 0) for opt in option_skus}
 
 
+def get_stock_by_location_batch(session, skus: Iterable[str]) -> dict[str, dict[int, int]]:
+    """N SKU × 모든 위치 → {sku: {loc_id: stock}} 한 번에 (2 쿼리만).
+
+    기존 `for loc in locs: get_stock_batch(skus, location_id=loc.id)` 패턴(위치당
+    2 쿼리)을 한 번의 group-by 쿼리로 치환. 위치 N개 → 2N 쿼리 → 2 쿼리.
+    """
+    option_skus = list(set(s for s in skus if s))
+    if not option_skus:
+        return {}
+    psku_map = _product_sku_map(session, option_skus)
+    product_skus = list(set(psku_map.values()))
+
+    # 1) in/out/adjust + move 출발지 (location_id 기준 group-by)
+    rows = session.query(
+        InventoryTx.option_canonical_sku,
+        InventoryTx.location_id,
+        func.coalesce(func.sum(_stock_expr()), 0).label('s'),
+    ).filter(
+        InventoryTx.option_canonical_sku.in_(product_skus),
+        InventoryTx.status == 'completed',
+    ).group_by(
+        InventoryTx.option_canonical_sku,
+        InventoryTx.location_id,
+    ).all()
+
+    prod_stock: dict[str, dict[int, int]] = {}
+    for sk, loc_id, s in rows:
+        if loc_id is None:
+            continue
+        prod_stock.setdefault(sk, {})[loc_id] = int(s or 0)
+
+    # 2) move 도착지 보정 (location_to_id)
+    mrows = session.query(
+        InventoryTx.option_canonical_sku,
+        InventoryTx.location_to_id,
+        func.coalesce(func.sum(InventoryTx.qty), 0).label('s'),
+    ).filter(
+        InventoryTx.option_canonical_sku.in_(product_skus),
+        InventoryTx.tx_type == 'move',
+        InventoryTx.status == 'completed',
+    ).group_by(
+        InventoryTx.option_canonical_sku,
+        InventoryTx.location_to_id,
+    ).all()
+    for sk, loc_id, s in mrows:
+        if loc_id is None:
+            continue
+        cur = prod_stock.setdefault(sk, {})
+        cur[loc_id] = cur.get(loc_id, 0) + int(s or 0)
+
+    # 옵션 → 재고제품 매핑 (제품 공유 v1 대응)
+    return {opt: dict(prod_stock.get(psku_map[opt], {})) for opt in option_skus}
+
+
 def get_total_stock(session) -> int:
     """전체 옵션의 재고 수량 합 (InventoryTx 기반 실시간)."""
     base = session.query(func.coalesce(func.sum(_stock_expr()), 0)).filter(

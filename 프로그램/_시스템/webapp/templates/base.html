@@ -309,14 +309,35 @@
     setVisible(true);
   }
   let _pollInflight = false;
+  let _pollTimer = null;
+  let _idleStreak = 0;  // 연속 idle 응답 횟수 — 백오프용
   async function poll() {
     if (_pollInflight) return;
     _pollInflight = true;
     try {
       const r = await fetch('/api/progress', {cache: 'no-store'});
       const j = await r.json();
-      if (j.ok) render(j);
-    } catch(_) {} finally { _pollInflight = false; }
+      if (j.ok) {
+        render(j);
+        // 활성 작업 유무로 다음 폴링 간격 결정
+        const hasActive = j.tasks && Object.values(j.tasks).some(
+          t => t && !t.finished_at
+        );
+        _idleStreak = hasActive ? 0 : _idleStreak + 1;
+      }
+    } catch(_) {} finally {
+      _pollInflight = false;
+      schedule();
+    }
+  }
+  function schedule(){
+    if (_pollTimer) { clearTimeout(_pollTimer); _pollTimer = null; }
+    // 활성: 1s · idle 3회 미만: 2s · 그 이후: 8s · 페이지 hidden: 멈춤
+    let delay = 1000;
+    if (document.hidden) return;  // 탭 가려진 동안은 polling 중지 (visibility 핸들러가 재개)
+    if (_idleStreak >= 3) delay = 8000;
+    else if (_idleStreak >= 1) delay = 2000;
+    _pollTimer = setTimeout(poll, delay);
   }
   collapsed.addEventListener('click', () => {
     userCollapsed = false; localStorage.removeItem('gpw-collapsed');
@@ -326,17 +347,15 @@
     userCollapsed = true; localStorage.setItem('gpw-collapsed', '1');
     collapsed.style.display = 'flex'; expanded.hidden = true;
   });
-  // v27 — Page Visibility API: 탭 전환 후 복귀 시 즉시 polling (Chrome throttling 우회)
+  // 탭 visible 시 idle 카운터 reset + 즉시 1회 (이후는 schedule 이 백오프 결정)
   document.addEventListener('visibilitychange', () => {
-    if (!document.hidden) poll();  // 탭 visible 즉시 1회 + setInterval 정상 속도로 복귀
+    if (!document.hidden) { _idleStreak = 0; poll(); }
   });
-  // 페이지 포커스 (window focus) 시에도 즉시 poll (탭 클릭 → focus 만 일어나는 경우 대비)
-  window.addEventListener('focus', poll);
-  // localStorage 다른 탭 동기화 — 다른 탭에서 진행 상태 변경 시 이 탭도 즉시 갱신
-  window.addEventListener('storage', e => { if (e.key === 'gpw-broadcast') poll(); });
-  // 초기 + 1초 간격 폴링 (1.5s → 1s 로 단축)
+  window.addEventListener('focus', () => { _idleStreak = 0; poll(); });
+  // 다른 탭에서 진행 상태 변경 broadcast — 이 탭도 즉시 갱신
+  window.addEventListener('storage', e => { if (e.key === 'gpw-broadcast') { _idleStreak = 0; poll(); } });
+  // 초기 1회 — 이후는 schedule() 가 백오프해서 setTimeout 재예약
   poll();
-  setInterval(poll, 1000);
 })();
 </script>
 

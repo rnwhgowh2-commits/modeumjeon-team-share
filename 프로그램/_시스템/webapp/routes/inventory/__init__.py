@@ -8,8 +8,12 @@ sub-routes는 추후 task 에서 별도 모듈로 분리 (Sprint 1~4).
 """
 from flask import Blueprint, render_template, request
 from sqlalchemy import or_
+from sqlalchemy.orm import contains_eager
 from shared.search import split_tokens, apply_and_filter
-from shared.inventory_stock import get_stock_batch, get_stock_summary, get_loc_stock_map
+from shared.inventory_stock import (
+    get_stock_batch, get_stock_summary, get_loc_stock_map,
+    get_stock_by_location_batch,
+)
 
 bp = Blueprint('inventory', __name__, url_prefix='/inventory')
 
@@ -34,7 +38,12 @@ def home():
         )
 
         # ★ Model join — 제품명·품번·브랜드·색상까지 검색 (SKU·바코드만 아님)
-        q = s.query(Option).outerjoin(Model, Option.model_code == Model.model_code)
+        #   contains_eager → 템플릿 o.model.* 접근 시 추가 SELECT 0회 (N+1 제거)
+        q = (
+            s.query(Option)
+            .outerjoin(Model, Option.model_code == Model.model_code)
+            .options(contains_eager(Option.model))
+        )
         # ★ 박스히어로식 다중 키워드 AND 교집합 필터 (shared.search 헬퍼)
         search_tokens = split_tokens(search_q)
         q = apply_and_filter(
@@ -119,13 +128,9 @@ def home():
         from shared.product_display import compute_display_maps
         cleaned_color, display_pname = compute_display_maps(options, one_color_label='one')
 
-        # 위치별 재고 — 사용자 spec: ... / 총재고 / 위치별 재고 N
+        # 위치별 재고 — 한 쿼리로 N 위치 × M SKU pivot (구 for loc 루프 = 2N 쿼리)
         page_skus = [o.canonical_sku for o in options]
-        per_loc_stock: dict[str, dict[int, int]] = {}
-        for loc in all_locs:
-            loc_map = get_stock_batch(s, page_skus, location_id=loc.id)
-            for sku, st in loc_map.items():
-                per_loc_stock.setdefault(sku, {})[loc.id] = st
+        per_loc_stock = get_stock_by_location_batch(s, page_skus)
 
         # ★ 검색 결과 요약 배너 (시안 A) — 검색·필터 적용 시에만
         _sum_rows = q.with_entities(Option.boxhero_avg_purchase_price, Model.brand).all()
