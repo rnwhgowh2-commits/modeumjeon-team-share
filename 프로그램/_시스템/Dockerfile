@@ -40,13 +40,14 @@ RUN echo '--- base.html 진단 ---' && \
 #   런타임에 volume 마운트하면 /app/data 가 빈 volume 으로 가려짐 → entrypoint 가 빈 경우만 시드
 RUN mkdir -p /app/data_initial && cp -rT /app/data /app/data_initial 2>/dev/null || true
 
-# entrypoint 스크립트 — 첫 부팅 시 volume 비어있으면 default 복사 후 gunicorn 실행
+# entrypoint 스크립트 — Fly Volume 의 lost+found 때문에 "빈 디렉토리" 체크 불가능
+#   cp -n (no-clobber) 로 destination 에 없는 파일만 복사 — 사용자 데이터 안 덮어씀, 빠진 default 만 채움
 RUN echo '#!/bin/sh' > /app/entrypoint.sh && \
     echo 'set -e' >> /app/entrypoint.sh && \
-    echo '# Fly Volume 이 /app/data 에 마운트된 경우 빈 디렉토리일 수 있음 — git default 시드' >> /app/entrypoint.sh && \
-    echo 'if [ -d /app/data_initial ] && [ -z "$(ls -A /app/data 2>/dev/null)" ]; then' >> /app/entrypoint.sh && \
-    echo '  echo "[entrypoint] /app/data 비어있음 — /app/data_initial 시드 복사"' >> /app/entrypoint.sh && \
-    echo '  cp -rT /app/data_initial /app/data' >> /app/entrypoint.sh && \
+    echo '# /app/data_initial 의 default 중 destination 에 없는 것만 복사 (사용자 데이터 보존)' >> /app/entrypoint.sh && \
+    echo 'if [ -d /app/data_initial ]; then' >> /app/entrypoint.sh && \
+    echo '  echo "[entrypoint] /app/data_initial → /app/data 시드 (no-clobber)"' >> /app/entrypoint.sh && \
+    echo '  cp -rn /app/data_initial/. /app/data/ 2>/dev/null || true' >> /app/entrypoint.sh && \
     echo 'fi' >> /app/entrypoint.sh && \
     echo 'exec "$@"' >> /app/entrypoint.sh && \
     chmod +x /app/entrypoint.sh
