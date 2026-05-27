@@ -192,6 +192,11 @@
       .oum-url-mini { background:#fff; border:1px solid #d1d6db; border-radius:6px; width:33px; height:33px; display:inline-flex; align-items:center; justify-content:center; font-size:18px; color:#4e5968; cursor:pointer; padding:0; line-height:1; transition:all .12s; }
       .oum-url-mini:hover:not(:disabled) { background:#3B82F6; color:#fff; border-color:#3B82F6; }
       .oum-url-mini:disabled { opacity:.35; cursor:not-allowed; }
+      /* [2026-05-27] C5 복사 버튼 — SVG 아이콘 + "복사" 텍스트 콤보 (▸매핑·✕ 와 동일 톤) */
+      .oum-url-copy { background:#fff; border:1px solid #bbf7d0; border-radius:6px; padding:6px 10.5px; font:inherit; font-size:15.75px; color:#15803d; cursor:pointer; display:inline-flex; align-items:center; gap:6px; line-height:1; transition:all .12s; }
+      .oum-url-copy:hover { background:#3B82F6; color:#fff; border-color:#3B82F6; }
+      .oum-url-copy:active { transform:scale(.97); }
+      .oum-url-copy svg { width:15px; height:15px; flex-shrink:0; }
       /* [2026-05-27] 드래그앤드랍 — ⋮⋮ 핸들 + 드래그 시각 피드백 + 드롭 라인 */
       .oum-url-drag { display:inline-flex; align-items:center; justify-content:center; width:30px; height:33px; color:#9ca3af; cursor:grab; font-size:24px; line-height:1; letter-spacing:-4px; user-select:none; flex-shrink:0; }
       .oum-url-drag:hover { color:#3B82F6; }
@@ -407,16 +412,16 @@
 
     // 소싱처 라벨 매핑 (사용자 친화)
     const SRC_LABELS = {
-      lemouton: '르무통 공홈', musinsa: '무신사', ssf: 'SSF샵',
+      lemouton: '르무통 공홈', musinsa: '무신사', ssf: 'SSF샵', ssg: 'SSG',
       lotteon: '롯데온', ss_lemouton: '스마트스토어 르무통',
     };
     const SRC_COLORS = {
-      lemouton: '#a78bfa', musinsa: '#191F28', ssf: '#14b8a6',
+      lemouton: '#a78bfa', musinsa: '#191F28', ssf: '#14b8a6', ssg: '#F47216',
       lotteon: '#ef4444', ss_lemouton: '#22c55e',
     };
 
-    // 활성 소싱처 (기본 5개 보장)
-    const builtinKeys = ['lemouton', 'musinsa', 'ssf', 'lotteon', 'ss_lemouton'];
+    // 활성 소싱처 (기본 6개 보장)
+    const builtinKeys = ['lemouton', 'musinsa', 'ssf', 'ssg', 'lotteon', 'ss_lemouton'];
     builtinKeys.forEach(k => {
       if (!state.sources.find(s => s.key === k)) {
         state.sources.unshift({ key: k, label: SRC_LABELS[k] || k });
@@ -676,9 +681,7 @@
           ${goBtn}
           <span class="oum-url-cnt"><b>${mapped}</b>/${totalActive}</span>
           <button class="oum-url-tog" data-url-tog type="button">${isOpen ? '▾ 닫기' : '▸ 매핑'}</button>
-          <span class="oum-url-actions">
-            <button class="oum-url-mini" data-url-copy type="button" title="이 카드 그대로 복사">⎘</button>
-          </span>
+          <button class="oum-url-copy" data-url-copy type="button" title="이 카드 그대로 복사"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>복사</button>
           <button class="oum-url-del" data-url-del type="button">✕</button>
         </div>`;
 
