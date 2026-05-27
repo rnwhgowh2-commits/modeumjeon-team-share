@@ -393,8 +393,10 @@ def data_items():
             query = query.filter(Option.canonical_sku.in_(in_skus) if in_skus else False)
 
         total = query.count()
+        # [2026-05-27] 정렬: 브랜드 > 카테고리 > 모델명 > 색상 > 사이즈 (사용자 룰)
         items = (
-            query.order_by(Model.model_name_raw, Option.color_code, Option.size_code)
+            query.order_by(Model.brand, Model.category, Model.model_name_display,
+                           Option.color_display, Option.size_display)
             .offset((page - 1) * page_size).limit(page_size).all()
         )
 
@@ -1070,10 +1072,10 @@ def data_items_export():
         q = s.query(Option).options(joinedload(Option.model))
         if is_filtered:
             q = q.filter(Option.canonical_sku.in_(request.values.getlist('skus')))
-        # 브랜드 → model_code → 색상 → 사이즈 순 정렬
+        # [2026-05-27] 정렬: 브랜드 > 카테고리 > 모델명 > 색상 > 사이즈 (사용자 룰)
         options = (
             q.join(Model, Option.model_code == Model.model_code)
-             .order_by(Model.brand, Option.model_code,
+             .order_by(Model.brand, Model.category, Model.model_name_display,
                        Option.color_display, Option.size_display).all()
         )
         all_skus = [o.canonical_sku for o in options]
