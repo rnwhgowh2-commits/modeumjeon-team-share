@@ -16,6 +16,7 @@ SOURCES = [
     {'key': 'lemouton',    'label': '르무통 공홈',         'brand': 'lemouton',   'glyph': '르', 'crawler': True,  'legacy': True,  'logo_color': '#191F28', 'builtin': True},
     {'key': 'musinsa',     'label': '무신사',              'brand': 'musinsa',    'glyph': 'M',  'crawler': True,  'legacy': True,  'logo_color': '#000000', 'builtin': True},
     {'key': 'ssf',         'label': 'SSF샵',               'brand': 'ssf',        'glyph': 'SS', 'crawler': True,  'legacy': True,  'logo_color': '#FF6B00', 'builtin': True},
+    {'key': 'ssg',         'label': 'SSG',                 'brand': 'ssg',        'glyph': 'SG', 'crawler': False, 'legacy': False, 'logo_color': '#F47216', 'builtin': True},
     {'key': 'lotteon',     'label': '롯데온',              'brand': 'lotteon',    'glyph': '롯', 'crawler': True,  'legacy': True,  'logo_color': '#ED2025', 'builtin': True},
     {'key': 'ss_lemouton', 'label': '스마트스토어 르무통', 'brand': 'smartstore', 'glyph': 'N',  'crawler': True,  'legacy': True,  'logo_color': '#03C75A', 'builtin': True},
 ]

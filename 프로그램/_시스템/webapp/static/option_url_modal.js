@@ -213,7 +213,7 @@
       /* [2026-05-27 B2-2] 셀 shared 배지 hover floating card — Card Stack 스타일
          pointer-events:auto — 마우스가 tooltip 안에 있으면 안 닫힘 (↗ 버튼 클릭 가능)
          max-height + overflow-y:auto — 매핑 많아도 휠 스크롤로 모두 확인 */
-      .oum-shared-tip { position:fixed; z-index:99999; background:#fff; border:1px solid #d1d6db; border-radius:15px; padding:15px; min-width:510px; max-width:660px; max-height:80vh; overflow-y:auto; box-shadow:0 10px 24px rgba(0,0,0,.18); pointer-events:auto; }
+      .oum-shared-tip { position:fixed; z-index:99999; background:#fff; border:1px solid #d1d6db; border-radius:15px; padding:15px; min-width:510px; max-width:660px; max-height:80vh; overflow-y:auto; box-shadow:0 10px 24px rgba(0,0,0,.18); pointer-events:none; }
       /* tooltip 내부 스크롤바 — 깔끔하게 */
       .oum-shared-tip::-webkit-scrollbar { width:12px; }
       .oum-shared-tip::-webkit-scrollbar-track { background:#f2f4f6; border-radius:0 15px 15px 0; }
