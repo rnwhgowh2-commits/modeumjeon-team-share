@@ -402,7 +402,8 @@ def data_items():
             .offset((page - 1) * page_size).limit(page_size).all()
         )
 
-        all_options_count = s.query(func.count(Option.canonical_sku)).scalar() or 0
+        # [2026-05-28] 활성 옵션만 카운트 (비활성 31건 숨김 룰)
+        all_options_count = s.query(func.count(Option.canonical_sku)).filter(Option.is_active == True).scalar() or 0  # noqa: E712
         in_stock_count = sum(1 for st in stock_map.values() if st > 0)
         total_qty = sum(stock_map.values())
         kpi = {
