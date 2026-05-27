@@ -247,8 +247,11 @@ def import_xlsx(xlsx_path: str, session: Session,
     fmt = detect_format(xlsx_path)
     records = list(parse_xlsx_auto(xlsx_path))
 
-    # 1.5. ADR-005 자동 생성 — 빈 DB 부트스트랩용 (옵션 0건이어도 안전)
-    auto_master = _auto_create_master(session, records)
+    # 1.5. [2026-05-27 사용자 결정] 박스히어로 import 의 옵션 자동 생성 비활성화
+    #   배경: 사용자가 매트릭스에서 OFF 한 옵션을 박스히어로 import 가 재생성 → OFF 풀림
+    #   결정: 신규 옵션은 사용자가 모음전 모달에서 직접 추가. 박스히어로 import 는 재고만 갱신.
+    # auto_master = _auto_create_master(session, records)  # ← 비활성화
+    auto_master = {'created_models': 0, 'created_options': 0}
 
     # 2. fuzzy 자동 매핑 (Option.boxhero_sku 갱신)
     mapping_result = sku_mapping.auto_map_all(session, records, threshold_auto=threshold_auto)

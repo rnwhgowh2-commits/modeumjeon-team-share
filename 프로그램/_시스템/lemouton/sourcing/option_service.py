@@ -116,6 +116,8 @@ def create_combination_options(
                      Option.is_active == False)  # noqa: E712
              .update({Option.is_active: True}, synchronize_session=False))
 
+        # [2026-05-27 사용자 결정] 옵션 절대 삭제 X — 모두 is_active=False 로만 mark.
+        #   배경: 사용자 OFF 선택을 영구 보존. 매핑 유무·박스히어로 동기화와 무관하게 일관 동작.
         for sku in to_delete:
             sp = session.begin_nested()
             try:
@@ -124,31 +126,9 @@ def create_combination_options(
                 if obj is None:
                     sp.rollback()
                     continue
-                # 매핑 있으면 삭제 대신 is_active=False mark — 사용자 OFF 선택 영구 보존
-                if sku in skus_with_mapping:
-                    obj.is_active = False
-                    sp.commit()
-                    disabled.append(sku)
-                    continue
-                # 매핑 없으면 안전하게 삭제
-                session.delete(obj)
-                session.flush()
+                obj.is_active = False
                 sp.commit()
-                deleted.append(sku)
-            except IntegrityError:
-                sp.rollback()
-                # FK 위반 — 매핑 외 다른 데이터 (가격·재고 등) 가 있는 경우. is_active=False 로 fallback.
-                try:
-                    obj = session.query(Option).filter_by(
-                        canonical_sku=sku, model_code=model_code).first()
-                    if obj is not None:
-                        obj.is_active = False
-                        session.flush()
-                        disabled.append(sku)
-                        continue
-                except Exception:
-                    pass
-                protected.append(sku)
+                disabled.append(sku)
             except Exception:
                 sp.rollback()
                 protected.append(sku)
