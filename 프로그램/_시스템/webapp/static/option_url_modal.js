@@ -193,8 +193,9 @@
       .oum-add-url:hover { background:#F0FDF4; border-color:#10b981; }
       .oum-add-url:disabled { opacity:.4; cursor:not-allowed; }
 
-      /* [2026-05-27 B2-2] 셀 shared 배지 hover floating card — Card Stack 스타일 */
-      .oum-shared-tip { position:fixed; z-index:99999; background:#fff; border:1px solid #d1d6db; border-radius:10px; padding:10px; min-width:340px; max-width:440px; box-shadow:0 10px 24px rgba(0,0,0,.18); pointer-events:none; }
+      /* [2026-05-27 B2-2] 셀 shared 배지 hover floating card — Card Stack 스타일
+         pointer-events:auto — 마우스가 tooltip 안에 있으면 안 닫힘 (↗ 버튼 클릭 가능) */
+      .oum-shared-tip { position:fixed; z-index:99999; background:#fff; border:1px solid #d1d6db; border-radius:10px; padding:10px; min-width:340px; max-width:440px; box-shadow:0 10px 24px rgba(0,0,0,.18); pointer-events:auto; }
       .oum-shared-tip .arrow { position:absolute; width:0; height:0; border:6px solid transparent; }
       .oum-shared-tip.below .arrow { bottom:100%; left:50%; transform:translateX(-50%); border-bottom-color:#fff; }
       .oum-shared-tip.below .arrow::before { content:''; position:absolute; top:1px; left:-7px; width:0; height:0; border:7px solid transparent; border-bottom-color:#d1d6db; z-index:-1; }
@@ -206,9 +207,15 @@
       .oum-shared-tip .stp-chip { width:22px; height:22px; border-radius:6px; display:flex; align-items:center; justify-content:center; font-size:10px; font-weight:800; color:#fff; flex-shrink:0; }
       .oum-shared-tip .stp-name { font-size:12.5px; font-weight:700; color:#191F28; flex:1; text-align:left; }
       .oum-shared-tip .stp-cnt { background:#3B82F6; color:#fff; font-size:10.5px; font-weight:700; padding:2px 8px; border-radius:8px; flex-shrink:0; }
-      .oum-shared-tip .stp-url-row { padding:3px 0; text-align:left; }
+      .oum-shared-tip .stp-url-row { padding:3px 0; text-align:left; display:flex; align-items:center; gap:6px; }
+      .oum-shared-tip .stp-url-row .stp-text { flex:1; min-width:0; }
       .oum-shared-tip .stp-lbl { font-size:11px; font-weight:600; color:#191F28; }
       .oum-shared-tip .stp-url { font-family:ui-monospace,monospace; font-size:10px; color:#6b7684; word-break:break-all; }
+
+      /* [2026-05-27 B1] URL 바로가기 버튼 — ↗ 22×22 사각형, 호버 시 파란색 */
+      .oum-url-go { background:transparent; border:1px solid #d1d6db; border-radius:4px; width:22px; height:22px; display:inline-flex; align-items:center; justify-content:center; cursor:pointer; color:#4e5968; font-size:13px; line-height:1; padding:0; transition:all .12s; flex-shrink:0; text-decoration:none; }
+      .oum-url-go:hover { background:#3B82F6; color:#fff; border-color:#3B82F6; }
+      .oum-url-go:active { transform:scale(.95); }
     `;
     document.head.appendChild(s);
   }
@@ -636,11 +643,16 @@
       const totalActive = state.selected.size;
       const mapped = (u.option_keys || []).length;
 
+      // [2026-05-27 B1] URL input 옆에 ↗ 바로가기 버튼 — URL 있을 때만 표시
+      const goBtn = u.url && u.url.trim()
+        ? `<a class="oum-url-go" href="${esc(u.url)}" target="_blank" rel="noopener noreferrer" title="새 탭에서 열기">↗</a>`
+        : '';
       let html = `<div class="oum-url-card ${isOpen ? 'open' : ''}" data-url-id="${u.tempId}">
         <div class="oum-url-ch">
           <span class="oum-url-num">${num}</span>
           <input class="oum-url-label" data-field="label" value="${esc(u.label)}" placeholder="라벨 (선택)">
           <input class="oum-url-input" data-field="url" value="${esc(u.url)}" placeholder="URL 입력">
+          ${goBtn}
           <span class="oum-url-cnt"><b>${mapped}</b>/${totalActive}</span>
           <button class="oum-url-tog" data-url-tog type="button">${isOpen ? '▾ 닫기' : '▸ 매핑'}</button>
           <button class="oum-url-del" data-url-del type="button">✕</button>
@@ -802,17 +814,36 @@
             <span class="stp-cnt">${items.length}개</span>
           </div>`;
         items.forEach(m => {
+          // [2026-05-27 B1] 각 URL row 에 ↗ 바로가기 버튼 — 새 탭에서 URL 열기
           html += `<div class="stp-url-row">
-            ${m.label ? `<div class="stp-lbl">${esc(m.label)}</div>` : ''}
-            <div class="stp-url">${esc(m.url)}</div>
+            <div class="stp-text">
+              ${m.label ? `<div class="stp-lbl">${esc(m.label)}</div>` : ''}
+              <div class="stp-url">${esc(m.url)}</div>
+            </div>
+            <a class="oum-url-go" href="${esc(m.url)}" target="_blank" rel="noopener noreferrer" title="새 탭에서 열기">↗</a>
           </div>`;
         });
         html += `</div>`;
       });
       tip.innerHTML = html;
+      // [2026-05-27 B1] tooltip 자체에 hover 시 닫기 delay 취소 — 마우스가 tooltip 안에 있으면 유지
+      tip.addEventListener('mouseenter', () => {
+        if (_sharedTipCloseTimer) { clearTimeout(_sharedTipCloseTimer); _sharedTipCloseTimer = null; }
+      });
+      tip.addEventListener('mouseleave', () => scheduleSharedTipClose());
       document.body.appendChild(tip);
       _sharedTipEl = tip;
       positionSharedTip(cellEl, tip);
+    }
+
+    // 셀에서 mouseout 후 일정 시간 동안 tooltip 으로 이동할 시간 (gap) 허용
+    let _sharedTipCloseTimer = null;
+    function scheduleSharedTipClose() {
+      if (_sharedTipCloseTimer) clearTimeout(_sharedTipCloseTimer);
+      _sharedTipCloseTimer = setTimeout(() => { hideSharedTip(); }, 200);
+    }
+    function cancelSharedTipClose() {
+      if (_sharedTipCloseTimer) { clearTimeout(_sharedTipCloseTimer); _sharedTipCloseTimer = null; }
     }
 
     function positionSharedTip(cellEl, tip) {
@@ -1073,14 +1104,19 @@
       toggleAxis(axisName, val);
     }
 
-    // [2026-05-27 B2-2] 우측 매트릭스 셀 hover → floating card 동적 생성
+    // [2026-05-27 B2-2 + B1] 우측 매트릭스 셀 hover → floating card 동적 생성
+    // delay 메커니즘: 셀 mouseout → 200ms 후 닫기, tooltip mouseenter → 취소
+    //   사용자가 셀에서 tooltip 안 ↗ 버튼으로 마우스 이동할 시간 확보
     $('#oum-right').addEventListener('mouseover', e => {
       const cell = e.target.closest('[data-shared-mappings]');
-      if (cell) showSharedTip(cell);
+      if (cell) {
+        cancelSharedTipClose();
+        showSharedTip(cell);
+      }
     });
     $('#oum-right').addEventListener('mouseout', e => {
       const cell = e.target.closest('[data-shared-mappings]');
-      if (cell) hideSharedTip();
+      if (cell) scheduleSharedTipClose();
     });
     // 모달 닫기/스크롤 시 tooltip 제거
     bg.addEventListener('scroll', hideSharedTip, true);
