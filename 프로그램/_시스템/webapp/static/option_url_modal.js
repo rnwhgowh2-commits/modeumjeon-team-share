@@ -26,6 +26,21 @@
       ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   }
 
+  // [2026-05-27] URL → 도메인 강조용 분리 (시안 2 적용)
+  //   "https://www.lemouton.co.kr/product/detail.html?product_no=121&..."
+  //   → { domain: "lemouton.co.kr", rest: "/product/detail.html?product_no=121&..." }
+  //   파싱 실패 시 rest 에 원본, domain 빈 문자열 — 마크업이 안전하게 fallback
+  function splitUrl(url) {
+    try {
+      const u = new URL(url);
+      const domain = u.hostname.replace(/^www\./, '');
+      const rest = (u.pathname || '') + (u.search || '') + (u.hash || '');
+      return { domain, rest };
+    } catch (e) {
+      return { domain: '', rest: String(url || '') };
+    }
+  }
+
   function parseValues(text) {
     const out = [];
     (text || '').split(',').forEach(raw => {
@@ -233,7 +248,9 @@
       .oum-shared-tip .stp-url-row { padding:4.5px 0; text-align:left; display:flex; align-items:center; gap:9px; }
       .oum-shared-tip .stp-url-row .stp-text { flex:1; min-width:0; }
       .oum-shared-tip .stp-lbl { font-size:16.5px; font-weight:600; color:#191F28; }
-      .oum-shared-tip .stp-url { font-family:ui-monospace,monospace; font-size:15px; color:#6b7684; word-break:break-all; }
+      /* [2026-05-27 시안2] URL 한 줄 + 도메인 강조 — 셀 가림 완화 */
+      .oum-shared-tip .stp-url { font-family:ui-monospace,monospace; font-size:15px; color:#6b7684; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; word-break:normal; }
+      .oum-shared-tip .stp-url .stp-url-domain { color:#1d4ed8; font-weight:700; }
       /* [2026-05-27 A4] 그룹 내부 스크롤 — 헤더는 보이고 그룹 안 URL list 만 max-height 180px + 휠 스크롤 */
       .oum-shared-tip .stp-grp-body { max-height:180px; overflow-y:auto; padding-right:4px; }
       .oum-shared-tip .stp-grp-body::-webkit-scrollbar { width:6px; }
@@ -861,10 +878,15 @@
           <div class="stp-grp-body">`;
         items.forEach(m => {
           // [2026-05-27 B1] 각 URL row 에 ↗ 바로가기 버튼 — 새 탭에서 URL 열기
+          // [2026-05-27 시안2] URL → domain 강조 + 한 줄 ellipsis. 전체 URL 은 title attr 로 hover 시 확인.
+          const sp = splitUrl(m.url);
+          const urlInner = sp.domain
+            ? `<span class="stp-url-domain">${esc(sp.domain)}</span>${esc(sp.rest)}`
+            : esc(sp.rest);
           html += `<div class="stp-url-row">
             <div class="stp-text">
               ${m.label ? `<div class="stp-lbl">${esc(m.label)}</div>` : ''}
-              <div class="stp-url">${esc(m.url)}</div>
+              <div class="stp-url" title="${esc(m.url)}">${urlInner}</div>
             </div>
             <a class="oum-url-go" href="${esc(m.url)}" target="_blank" rel="noopener noreferrer" title="새 탭에서 열기">↗</a>
           </div>`;
