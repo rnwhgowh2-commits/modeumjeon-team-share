@@ -192,6 +192,13 @@
       .oum-url-mini { background:#fff; border:1px solid #d1d6db; border-radius:6px; width:33px; height:33px; display:inline-flex; align-items:center; justify-content:center; font-size:18px; color:#4e5968; cursor:pointer; padding:0; line-height:1; transition:all .12s; }
       .oum-url-mini:hover:not(:disabled) { background:#3B82F6; color:#fff; border-color:#3B82F6; }
       .oum-url-mini:disabled { opacity:.35; cursor:not-allowed; }
+      /* [2026-05-27] 드래그앤드랍 — ⋮⋮ 핸들 + 드래그 시각 피드백 + 드롭 라인 */
+      .oum-url-drag { display:inline-flex; align-items:center; justify-content:center; width:30px; height:33px; color:#9ca3af; cursor:grab; font-size:24px; line-height:1; letter-spacing:-4px; user-select:none; flex-shrink:0; }
+      .oum-url-drag:hover { color:#3B82F6; }
+      .oum-url-card { cursor:default; }
+      .oum-url-card.dragging { opacity:.4; cursor:grabbing; }
+      .oum-url-card.drop-above { box-shadow:0 -3px 0 0 #3B82F6 inset; }
+      .oum-url-card.drop-below { box-shadow:0 3px 0 0 #3B82F6 inset; }
       .oum-url-body { padding:22.5px 16.5px; background:#F0FDF4; }
       .oum-url-card:not(.open) .oum-url-body { display:none; }
       .oum-add-url { width:100%; background:#fff; border:1.5px dashed #bbf7d0; color:#10b981; padding:13.5px; border-radius:10.5px; font:inherit; font-size:18px; cursor:pointer; font-weight:700; margin-top:9px; }
@@ -658,13 +665,11 @@
       const goBtn = u.url && u.url.trim()
         ? `<a class="oum-url-go" href="${esc(u.url)}" target="_blank" rel="noopener noreferrer" title="새 탭에서 열기">↗</a>`
         : '';
-      // [2026-05-27] 순서 변경 ↑/↓ + 복사 📋 버튼
-      const arr = state.urls[state.currentSrc] || [];
-      const idx = arr.findIndex(x => x.tempId === u.tempId);
-      const upDisabled = idx <= 0 ? 'disabled' : '';
-      const dnDisabled = idx < 0 || idx >= arr.length - 1 ? 'disabled' : '';
-      let html = `<div class="oum-url-card ${isOpen ? 'open' : ''}" data-url-id="${u.tempId}">
+      // [2026-05-27] 드래그앤드랍 — 카드 전체 draggable + 드래그 핸들 ⋮⋮ 표시
+      //   복사 ⎘ 버튼은 유지 (시안 v8 선택 후 디자인 교체 예정)
+      let html = `<div class="oum-url-card ${isOpen ? 'open' : ''}" data-url-id="${u.tempId}" draggable="true">
         <div class="oum-url-ch">
+          <span class="oum-url-drag" title="드래그해서 순서 변경" data-url-drag>⋮⋮</span>
           <span class="oum-url-num">${num}</span>
           <input class="oum-url-label" data-field="label" value="${esc(u.label)}" placeholder="라벨 (선택)">
           <input class="oum-url-input" data-field="url" value="${esc(u.url)}" placeholder="URL 입력">
@@ -672,8 +677,6 @@
           <span class="oum-url-cnt"><b>${mapped}</b>/${totalActive}</span>
           <button class="oum-url-tog" data-url-tog type="button">${isOpen ? '▾ 닫기' : '▸ 매핑'}</button>
           <span class="oum-url-actions">
-            <button class="oum-url-mini" data-url-up type="button" title="위로 이동" ${upDisabled}>↑</button>
-            <button class="oum-url-mini" data-url-down type="button" title="아래로 이동" ${dnDisabled}>↓</button>
             <button class="oum-url-mini" data-url-copy type="button" title="이 카드 그대로 복사">⎘</button>
           </span>
           <button class="oum-url-del" data-url-del type="button">✕</button>
@@ -1144,6 +1147,53 @@
       toggleAxis(axisName, val);
     }
 
+    // [2026-05-27] 드래그앤드랍 — 같은 소싱처 안에서 카드 순서 변경
+    let _dragSrcCard = null;
+    $('#oum-right').addEventListener('dragstart', e => {
+      const card = e.target.closest('.oum-url-card');
+      if (!card) return;
+      _dragSrcCard = card;
+      card.classList.add('dragging');
+      try { e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', card.dataset.urlId); } catch (err) {}
+    });
+    $('#oum-right').addEventListener('dragend', e => {
+      const card = e.target.closest('.oum-url-card');
+      if (card) card.classList.remove('dragging');
+      // 모든 drop 표시 제거
+      $$('.oum-url-card').forEach(c => c.classList.remove('drop-above', 'drop-below'));
+      _dragSrcCard = null;
+    });
+    $('#oum-right').addEventListener('dragover', e => {
+      const target = e.target.closest('.oum-url-card');
+      if (!target || !_dragSrcCard || target === _dragSrcCard) return;
+      e.preventDefault();
+      try { e.dataTransfer.dropEffect = 'move'; } catch (err) {}
+      // 상/하 표시
+      const rect = target.getBoundingClientRect();
+      const isAbove = e.clientY < rect.top + rect.height / 2;
+      $$('.oum-url-card').forEach(c => c.classList.remove('drop-above', 'drop-below'));
+      target.classList.add(isAbove ? 'drop-above' : 'drop-below');
+    });
+    $('#oum-right').addEventListener('drop', e => {
+      const target = e.target.closest('.oum-url-card');
+      if (!target || !_dragSrcCard || target === _dragSrcCard) return;
+      e.preventDefault();
+      const srcId = +_dragSrcCard.dataset.urlId;
+      const tgtId = +target.dataset.urlId;
+      const arr = state.urls[state.currentSrc] || [];
+      const srcIdx = arr.findIndex(u => u.tempId === srcId);
+      const tgtIdx = arr.findIndex(u => u.tempId === tgtId);
+      if (srcIdx < 0 || tgtIdx < 0) return;
+      const rect = target.getBoundingClientRect();
+      const isAbove = e.clientY < rect.top + rect.height / 2;
+      // src 를 제거하고 target 위/아래에 삽입
+      const [moved] = arr.splice(srcIdx, 1);
+      let insertIdx = arr.findIndex(u => u.tempId === tgtId);
+      if (!isAbove) insertIdx += 1;
+      arr.splice(insertIdx, 0, moved);
+      renderRight();
+    });
+
     // [2026-05-27 B2-2 + B1] 우측 매트릭스 셀 hover → floating card 동적 생성
     // delay 메커니즘: 셀 mouseout → 200ms 후 닫기, tooltip mouseenter → 취소
     //   사용자가 셀에서 tooltip 안 ↗ 버튼으로 마우스 이동할 시간 확보
@@ -1220,21 +1270,7 @@
         renderRight();
         return;
       }
-      // [2026-05-27] 순서 변경 — ↑ / ↓ 같은 소싱처 안에서 swap
-      const upBtn = e.target.closest('[data-url-up]');
-      const dnBtn = e.target.closest('[data-url-down]');
-      if (upBtn || dnBtn) {
-        const card = (upBtn || dnBtn).closest('[data-url-id]');
-        const tid = +card.dataset.urlId;
-        const arr = state.urls[state.currentSrc] || [];
-        const idx = arr.findIndex(u => u.tempId === tid);
-        if (idx < 0) return;
-        const newIdx = upBtn ? idx - 1 : idx + 1;
-        if (newIdx < 0 || newIdx >= arr.length) return;
-        [arr[idx], arr[newIdx]] = [arr[newIdx], arr[idx]];
-        renderRight();
-        return;
-      }
+      // [2026-05-27] 순서 변경은 드래그앤드랍으로 대체 — ↑/↓ 버튼 제거됨
       // URL 카드 토글 — 펼친 카드의 dbId 기록 (없으면 null)
       const card = e.target.closest('[data-url-id]');
       const tog = e.target.closest('[data-url-tog]');
