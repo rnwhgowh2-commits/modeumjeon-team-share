@@ -194,8 +194,14 @@
       .oum-add-url:disabled { opacity:.4; cursor:not-allowed; }
 
       /* [2026-05-27 B2-2] 셀 shared 배지 hover floating card — Card Stack 스타일
-         pointer-events:auto — 마우스가 tooltip 안에 있으면 안 닫힘 (↗ 버튼 클릭 가능) */
-      .oum-shared-tip { position:fixed; z-index:99999; background:#fff; border:1px solid #d1d6db; border-radius:10px; padding:10px; min-width:340px; max-width:440px; box-shadow:0 10px 24px rgba(0,0,0,.18); pointer-events:auto; }
+         pointer-events:auto — 마우스가 tooltip 안에 있으면 안 닫힘 (↗ 버튼 클릭 가능)
+         max-height + overflow-y:auto — 매핑 많아도 휠 스크롤로 모두 확인 */
+      .oum-shared-tip { position:fixed; z-index:99999; background:#fff; border:1px solid #d1d6db; border-radius:10px; padding:10px; min-width:340px; max-width:440px; max-height:80vh; overflow-y:auto; box-shadow:0 10px 24px rgba(0,0,0,.18); pointer-events:auto; }
+      /* tooltip 내부 스크롤바 — 깔끔하게 */
+      .oum-shared-tip::-webkit-scrollbar { width:8px; }
+      .oum-shared-tip::-webkit-scrollbar-track { background:#f2f4f6; border-radius:0 10px 10px 0; }
+      .oum-shared-tip::-webkit-scrollbar-thumb { background:#cbd5e0; border-radius:4px; }
+      .oum-shared-tip::-webkit-scrollbar-thumb:hover { background:#94a3b8; }
       .oum-shared-tip .arrow { position:absolute; width:0; height:0; border:6px solid transparent; }
       .oum-shared-tip.below .arrow { bottom:100%; left:50%; transform:translateX(-50%); border-bottom-color:#fff; }
       .oum-shared-tip.below .arrow::before { content:''; position:absolute; top:1px; left:-7px; width:0; height:0; border:7px solid transparent; border-bottom-color:#d1d6db; z-index:-1; }
@@ -852,23 +858,33 @@
       const vw = window.innerWidth;
       const vh = window.innerHeight;
       const gap = 10;
+      const margin = 8;  // viewport 가장자리 여백
 
-      // 수직: 셀 아래 공간이 tooltip 높이보다 작으면 위로
-      const spaceBelow = vh - cellRect.bottom;
-      const spaceAbove = cellRect.top;
+      // 수직: 셀 아래 vs 위 공간 비교 — 더 큰 쪽으로 펼침
+      const spaceBelow = vh - cellRect.bottom - gap - margin;
+      const spaceAbove = cellRect.top - gap - margin;
       let top, placement;
-      if (spaceBelow >= tipRect.height + gap || spaceBelow >= spaceAbove) {
+      if (spaceBelow >= tipRect.height || spaceBelow >= spaceAbove) {
+        // 아래로
         top = cellRect.bottom + gap;
         placement = 'below';
       } else {
+        // 위로
         top = cellRect.top - tipRect.height - gap;
         placement = 'above';
       }
 
+      // [2026-05-27] viewport 위/아래로 나가지 않게 클램프
+      //   tooltip 자체 max-height:80vh + overflow-y:auto 이므로 잘림 영역은 휠 스크롤 가능
+      if (top < margin) top = margin;
+      if (top + tipRect.height > vh - margin) top = vh - tipRect.height - margin;
+      if (top < margin) top = margin;  // 그래도 크면 위에서 잘림
+
       // 수평: 셀 중앙에 tooltip 중앙 맞추되 화면 밖 안 나가게 클램프
+      //   [2026-05-27] vw < tipRect.width 인 좁은 화면에서도 음수 안 되게 Math.max 강화
       let left = cellRect.left + cellRect.width / 2 - tipRect.width / 2;
-      if (left < 8) left = 8;
-      if (left + tipRect.width > vw - 8) left = vw - tipRect.width - 8;
+      const maxLeft = Math.max(margin, vw - tipRect.width - margin);
+      left = Math.max(margin, Math.min(left, maxLeft));
 
       tip.style.top = top + 'px';
       tip.style.left = left + 'px';
