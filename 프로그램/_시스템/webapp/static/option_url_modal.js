@@ -169,10 +169,8 @@
       .oum-blue .oum-cell.on { background:#3B82F6; color:#fff; }
       .oum-green .oum-cell.on { background:#10b981; color:#fff; }
       .oum-cell.off { background:#e5e8eb; color:#9ca3af; }
-      /* [2026-05-27 D1] 사용자 OFF 했지만 URL 매핑 있어 데이터 보존 — 노란 빗금 + 🔗 */
-      .oum-cell.mapped-off { background:repeating-linear-gradient(45deg, #fef3c7 0 5px, #fde68a 5px 10px); color:#92400E; font-size:11px; }
-      .oum-cell.mapped-off:hover { outline:2px solid #f59e0b; }
-      .oum-cell.mapped-off:hover::before { content:attr(data-mapped-off-tip); position:absolute; bottom:calc(100% + 8px); left:50%; transform:translateX(-50%); background:#191F28; color:#fff; padding:6px 10px; border-radius:6px; font-size:12px; white-space:nowrap; z-index:1000; pointer-events:none; }
+      /* [2026-05-27 D1-update] 사용자 OFF + 매핑 있어 데이터 보존 — 시각은 일반 off 와 동일 (빗금 제거) */
+      .oum-cell.mapped-off { background:#e5e8eb; color:#9ca3af; }
       .oum-cell.shared::after { content:attr(data-shared); position:absolute; top:-4px; right:-4px; background:#f59e0b; color:#fff; font-size:12.75px; width:18px; height:18px; border-radius:50%; line-height:18px; font-weight:700; }
       .oum-cell.disabled { background:#f8fafb; color:#cbd5e0; cursor:not-allowed; opacity:.5; }
 
@@ -617,11 +615,10 @@
       axis.values.forEach(v => {
         const k = keyOf([v]);
         const on = state.selected.has(k);
-        // [2026-05-27 D1] mapped-off — 사용자 OFF 했지만 매핑 있어 데이터 보존
+        // [2026-05-27 D1-update] mapped-off — 데이터 보존만, 시각은 일반 off
         const mappedOff = !on && state.mappedOff && state.mappedOff.has(k);
         const cls = on ? 'on' : (mappedOff ? 'mapped-off' : 'off');
-        const tip = mappedOff ? ` data-mapped-off-tip="🔗 URL 매핑 있음 — 클릭 시 다시 활성"` : '';
-        html += `<td><span class="oum-cell ${cls}" data-cell-key='${esc(k)}'${tip}>${on ? '✓' : (mappedOff ? '🔗' : '·')}</span></td>`;
+        html += `<td><span class="oum-cell ${cls}" data-cell-key='${esc(k)}'>${on ? '✓' : '·'}</span></td>`;
       });
       html += `</tr></tbody></table>`;
       return html;
@@ -652,11 +649,10 @@
           arr[rowIdx] = rv;
           const k = keyOf(arr);
           const on = state.selected.has(k);
-          // [2026-05-27 D1] mapped-off — 사용자 OFF 했지만 매핑 있어 데이터 보존
-        const mappedOff = !on && state.mappedOff && state.mappedOff.has(k);
-        const cls = on ? 'on' : (mappedOff ? 'mapped-off' : 'off');
-        const tip = mappedOff ? ` data-mapped-off-tip="🔗 URL 매핑 있음 — 클릭 시 다시 활성"` : '';
-        html += `<td><span class="oum-cell ${cls}" data-cell-key='${esc(k)}'${tip}>${on ? '✓' : (mappedOff ? '🔗' : '·')}</span></td>`;
+          // [2026-05-27 D1-update] mapped-off — 데이터 보존만, 시각은 일반 off
+          const mappedOff = !on && state.mappedOff && state.mappedOff.has(k);
+          const cls = on ? 'on' : (mappedOff ? 'mapped-off' : 'off');
+          html += `<td><span class="oum-cell ${cls}" data-cell-key='${esc(k)}'>${on ? '✓' : '·'}</span></td>`;
         });
         html += `</tr>`;
       });
