@@ -36,11 +36,28 @@ RUN echo '--- base.html 진단 ---' && \
     grep "script src" /app/webapp/templates/base.html | tail -3 && \
     echo '--- end ---'
 
+# [2026-05-27] Fly Volume mount 대비 — /app/data 의 git 기본 파일을 별도 위치로 백업
+#   런타임에 volume 마운트하면 /app/data 가 빈 volume 으로 가려짐 → entrypoint 가 빈 경우만 시드
+RUN mkdir -p /app/data_initial && cp -rT /app/data /app/data_initial 2>/dev/null || true
+
+# entrypoint 스크립트 — 첫 부팅 시 volume 비어있으면 default 복사 후 gunicorn 실행
+RUN echo '#!/bin/sh' > /app/entrypoint.sh && \
+    echo 'set -e' >> /app/entrypoint.sh && \
+    echo '# Fly Volume 이 /app/data 에 마운트된 경우 빈 디렉토리일 수 있음 — git default 시드' >> /app/entrypoint.sh && \
+    echo 'if [ -d /app/data_initial ] && [ -z "$(ls -A /app/data 2>/dev/null)" ]; then' >> /app/entrypoint.sh && \
+    echo '  echo "[entrypoint] /app/data 비어있음 — /app/data_initial 시드 복사"' >> /app/entrypoint.sh && \
+    echo '  cp -rT /app/data_initial /app/data' >> /app/entrypoint.sh && \
+    echo 'fi' >> /app/entrypoint.sh && \
+    echo 'exec "$@"' >> /app/entrypoint.sh && \
+    chmod +x /app/entrypoint.sh
+
 # 비-root 사용자 (보안)
 RUN useradd -m -u 1000 app && chown -R app:app /app
 USER app
 
 EXPOSE 8080
+
+ENTRYPOINT ["/app/entrypoint.sh"]
 
 # Gunicorn — Flask 앱 진입점 = app:create_app()
 # 워커 2개 × 스레드 4개 = 동시 요청 처리 8개. --preload 로 모델 import 메모리
