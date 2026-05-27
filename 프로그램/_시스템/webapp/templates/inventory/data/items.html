@@ -8,6 +8,7 @@
     <h1 style="font-size:22px;font-weight:700;margin:0;color:#292A2F">제품 마스터</h1>
     <span title="행 클릭 → 인라인 popover 편집" style="display:inline-flex;align-items:center;justify-content:center;width:14px;height:14px;border-radius:50%;background:#F1F1F4;color:#8F91A0;font-size:9.5px;font-weight:700;cursor:help">i</span>
     <div style="margin-left:auto;display:flex;gap:6px;align-items:center">
+      <button type="button" onclick="openNewItemModal()" style="background:#4F67FF;border:none;color:#fff;padding:7px 14px;border-radius:5px;font-size:14px;cursor:pointer;font-weight:600">+ 제품 추가</button>
       <a href="{{ url_for('inventory.data_boxhero_import') }}" style="background:#EEF1FE;border:1px solid #4F67FF;color:#4F67FF;padding:7px 12px;border-radius:5px;font-size:14px;text-decoration:none;font-weight:600">📥 제품 엑셀 업로드</a>
       <button type="button" onclick="exportFilteredXlsx()" style="background:#fff;border:1px solid #CBCCD3;color:#292A2F;padding:7px 12px;border-radius:5px;font-size:14px;cursor:pointer">⬇ 엑셀 내보내기</button>
       <button type="button" onclick="document.getElementById('wipeModal').style.display='flex'" style="background:#fff;border:1px solid #FCA5A5;color:#DC2626;padding:7px 12px;border-radius:5px;font-size:14px;cursor:pointer;font-weight:600">🗑 전체 삭제</button>
@@ -871,6 +872,173 @@ function onWipeInput(e){
   #wipeConfirmInput::placeholder{color:#9CA3AF;font-style:italic}
   th.sortable-th:hover{background:#E9EBF0 !important}
 </style>
+
+{# 신규 제품 추가 모달 — 박스히어로 1:1 #}
+<div id="newItemModal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);z-index:200;align-items:center;justify-content:center" onclick="if(event.target.id==='newItemModal')closeNewItemModal()">
+  <div style="background:#fff;border-radius:10px;width:560px;max-width:90vw;max-height:90vh;overflow-y:auto;box-shadow:0 10px 40px rgba(0,0,0,0.25)">
+    <div style="padding:16px 22px;border-bottom:1px solid #E5E8EB;background:#F9FAFB;border-radius:10px 10px 0 0;display:flex;justify-content:space-between;align-items:center">
+      <h3 style="font-size:16px;font-weight:700;margin:0;color:#191F28">+ 제품 추가</h3>
+      <button type="button" onclick="closeNewItemModal()" style="background:none;border:none;font-size:20px;color:#9CA3AF;cursor:pointer;padding:0 4px;line-height:1">×</button>
+    </div>
+    <form id="newItemForm" method="post" action="{{ url_for('inventory.data_items_create') }}" style="padding:18px 22px">
+      {# SKU #}
+      <div style="margin-bottom:12px">
+        <label style="display:block;font-size:12px;color:#525866;margin-bottom:4px;font-weight:600">SKU <span style="color:#9CA3AF;font-weight:400">(비우면 자동 생성)</span></label>
+        <div style="display:flex;gap:6px">
+          <input id="niSku" name="canonical_sku" type="text" placeholder="SKU-XXXXXXXX" style="flex:1;padding:8px 11px;border:1px solid #CBCCD3;border-radius:5px;font-size:14px;font-family:ui-monospace,monospace;box-sizing:border-box">
+          <button type="button" onclick="genSku()" style="padding:8px 14px;background:#16A34A;color:#fff;border:none;border-radius:5px;font-size:13px;cursor:pointer;font-weight:600;white-space:nowrap">자동 생성</button>
+        </div>
+      </div>
+
+      {# 제품명 #}
+      <div style="margin-bottom:12px">
+        <label style="display:block;font-size:12px;color:#525866;margin-bottom:4px;font-weight:600">제품명 <span style="color:#DC2626">*</span></label>
+        <input name="model_name" type="text" required placeholder="예: 에어포스1" style="width:100%;padding:8px 11px;border:1px solid #CBCCD3;border-radius:5px;font-size:14px;box-sizing:border-box">
+      </div>
+
+      {# 바코드 #}
+      <div style="margin-bottom:12px">
+        <label style="display:block;font-size:12px;color:#525866;margin-bottom:4px;font-weight:600">바코드 <span style="color:#9CA3AF;font-weight:400">(비우면 자동 생성)</span></label>
+        <div style="display:flex;gap:6px">
+          <input id="niBarcode" name="barcode" type="text" placeholder="EAN-13 13자리" style="flex:1;padding:8px 11px;border:1px solid #CBCCD3;border-radius:5px;font-size:14px;font-family:ui-monospace,monospace;box-sizing:border-box">
+          <button type="button" onclick="genBarcode()" style="padding:8px 14px;background:#16A34A;color:#fff;border:none;border-radius:5px;font-size:13px;cursor:pointer;font-weight:600;white-space:nowrap">자동 생성</button>
+        </div>
+      </div>
+
+      {# 브랜드 + 품번 #}
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px">
+        <div>
+          <label style="display:block;font-size:12px;color:#525866;margin-bottom:4px;font-weight:600">브랜드</label>
+          <input name="brand" type="text" placeholder="예: 나이키" list="brandsList" style="width:100%;padding:8px 11px;border:1px solid #CBCCD3;border-radius:5px;font-size:14px;box-sizing:border-box">
+          <datalist id="brandsList">
+            {% for b in brands %}<option value="{{ b }}">{% endfor %}
+          </datalist>
+        </div>
+        <div>
+          <label style="display:block;font-size:12px;color:#525866;margin-bottom:4px;font-weight:600">품번 (모델명)</label>
+          <input name="article_no" type="text" placeholder="예: CW2288-001" style="width:100%;padding:8px 11px;border:1px solid #CBCCD3;border-radius:5px;font-size:14px;font-family:ui-monospace,monospace;box-sizing:border-box">
+        </div>
+      </div>
+
+      {# 색상 + 사이즈 #}
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px">
+        <div>
+          <label style="display:block;font-size:12px;color:#525866;margin-bottom:4px;font-weight:600">색상</label>
+          <input name="color" type="text" placeholder="예: 블랙(올검)" style="width:100%;padding:8px 11px;border:1px solid #CBCCD3;border-radius:5px;font-size:14px;box-sizing:border-box">
+        </div>
+        <div>
+          <label style="display:block;font-size:12px;color:#525866;margin-bottom:4px;font-weight:600">사이즈</label>
+          <input name="size" type="text" placeholder="예: 270" style="width:100%;padding:8px 11px;border:1px solid #CBCCD3;border-radius:5px;font-size:14px;box-sizing:border-box">
+        </div>
+      </div>
+
+      {# 카테고리 + 평균매입가 #}
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px">
+        <div>
+          <label style="display:block;font-size:12px;color:#525866;margin-bottom:4px;font-weight:600">카테고리</label>
+          <input name="category" type="text" placeholder="예: 신발" style="width:100%;padding:8px 11px;border:1px solid #CBCCD3;border-radius:5px;font-size:14px;box-sizing:border-box">
+        </div>
+        <div>
+          <label style="display:block;font-size:12px;color:#525866;margin-bottom:4px;font-weight:600">평균매입가</label>
+          <input id="niAvgPrice" name="avg_purchase_price" type="text" inputmode="numeric" placeholder="원 (숫자만)" style="width:100%;padding:8px 11px;border:1px solid #CBCCD3;border-radius:5px;font-size:14px;font-family:ui-monospace,monospace;box-sizing:border-box">
+        </div>
+      </div>
+
+      {# 📍 위치별 초기 재고 (DB 의 InventoryLocation 활성 행 자동 렌더 — 위치 추가/삭제 시 자동 반영) #}
+      <div style="background:#F8FAFC;border:1px solid #E2E8F0;border-radius:7px;padding:12px 14px;margin-bottom:14px">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;font-size:12.5px;font-weight:700;color:#191F28">
+          <span>📍 위치별 초기 재고 <span style="color:#6B7684;font-weight:400;font-size:10.5px;margin-left:6px">(전체 합산 = 총 재고)</span></span>
+          <a href="{{ url_for('inventory.data_locations') }}" target="_blank" style="font-size:11px;color:#3182F6;text-decoration:none;font-weight:500">⚙ 위치 관리 →</a>
+        </div>
+        <div id="niLocList">
+          {% for loc in locs %}
+            <div style="display:grid;grid-template-columns:24px 1fr 110px 36px;gap:8px;align-items:center;padding:7px 4px;{% if not loop.last %}border-bottom:1px solid #EAEFF5;{% endif %}">
+              <div style="color:#F59E0B;text-align:center">📍</div>
+              <div style="font-size:13px;color:#191F28">
+                <b style="display:block">{{ loc.name }}</b>
+                <small style="color:#8B95A1;font-size:10.5px">id={{ loc.id }}{% if loc.is_default %} · 기본{% endif %}</small>
+              </div>
+              <div>
+                <input class="ni-loc-stock" type="number" min="0" inputmode="numeric"
+                       name="stock_loc_{{ loc.id }}" placeholder="0"
+                       oninput="recalcLocTotal()"
+                       style="width:100%;padding:6px 9px;border:1px solid #CBCCD3;border-radius:4px;font-size:13px;font-family:ui-monospace,monospace;text-align:right;outline:none;box-sizing:border-box">
+              </div>
+              <div style="color:#8B95A1;font-size:11.5px">개</div>
+            </div>
+          {% else %}
+            <div style="padding:14px;text-align:center;color:#8B95A1;font-size:12px">활성 위치 없음 — 먼저 <a href="{{ url_for('inventory.data_locations') }}" target="_blank" style="color:#3182F6">위치 관리</a> 에서 등록하세요.</div>
+          {% endfor %}
+        </div>
+        {% if locs %}
+        <div style="margin-top:8px;padding:8px 10px;background:#fff;border:1px dashed #BCD2FF;border-radius:5px;display:flex;justify-content:space-between;font-size:12px;color:#1B64DA;font-weight:600">
+          <span>합계 (총 재고)</span>
+          <span><span id="niLocTotal" style="font-family:ui-monospace,monospace">0</span> 개</span>
+        </div>
+        {% endif %}
+      </div>
+
+      {# 메모 #}
+      <div style="margin-bottom:14px">
+        <label style="display:block;font-size:12px;color:#525866;margin-bottom:4px;font-weight:600">메모</label>
+        <textarea name="memo" rows="2" placeholder="선택 입력" style="width:100%;padding:8px 11px;border:1px solid #CBCCD3;border-radius:5px;font-size:14px;box-sizing:border-box;resize:vertical;font-family:inherit"></textarea>
+      </div>
+
+      <div style="background:#F9FAFB;border:1px solid #E5E8EB;border-radius:6px;padding:9px 12px;margin-bottom:14px;font-size:12px;color:#6B7684;line-height:1.6">
+        💡 위치별 수량을 비우면 재고 <b>0</b> 으로 시작. 추가 후 좌측 메뉴 <b>입고</b> 에서도 수량 추가 가능.<br>
+        💡 위치 행은 <b>재고관리 → 위치 관리</b> 에서 추가/삭제 시 자동 반영.
+      </div>
+
+      <div style="display:flex;gap:8px;justify-content:flex-end">
+        <button type="button" onclick="closeNewItemModal()" style="padding:9px 16px;background:#fff;border:1px solid #CBCCD3;color:#292A2F;border-radius:5px;font-size:14px;cursor:pointer">취소</button>
+        <button type="submit" style="padding:9px 20px;background:#4F67FF;border:none;color:#fff;border-radius:5px;font-size:14px;font-weight:600;cursor:pointer">+ 추가</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+function openNewItemModal(){
+  document.getElementById('newItemModal').style.display = 'flex';
+  if(!document.getElementById('niSku').value) genSku();
+  if(!document.getElementById('niBarcode').value) genBarcode();
+  recalcLocTotal();
+  setTimeout(function(){ var el = document.querySelector('#newItemForm input[name="model_name"]'); if(el) el.focus(); }, 60);
+}
+function recalcLocTotal(){
+  var inputs = document.querySelectorAll('.ni-loc-stock');
+  var total = 0;
+  inputs.forEach(function(inp){ total += parseInt(inp.value, 10) || 0; });
+  var t = document.getElementById('niLocTotal');
+  if(t) t.textContent = total.toLocaleString();
+}
+function closeNewItemModal(){
+  document.getElementById('newItemModal').style.display = 'none';
+  if(location.hash === '#new') history.replaceState(null, '', location.pathname + location.search);
+}
+function genSku(){
+  var chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+  var s = 'SKU-';
+  for(var i = 0; i < 8; i++) s += chars[Math.floor(Math.random() * chars.length)];
+  document.getElementById('niSku').value = s;
+}
+function genBarcode(){
+  // EAN-13: 200 prefix (내부용) + 9 random + checksum
+  var s = '200';
+  for(var i = 0; i < 9; i++) s += Math.floor(Math.random() * 10);
+  var sum = 0;
+  for(var i = 0; i < 12; i++){
+    var d = parseInt(s[i], 10);
+    sum += (i % 2 === 0) ? d : d * 3;
+  }
+  document.getElementById('niBarcode').value = s + String((10 - sum % 10) % 10);
+}
+// 페이지 진입 시 #new 해시 자동 오픈 (재고관리 home 의 [+ 제품 추가] 버튼 호환)
+if(location.hash === '#new'){
+  document.addEventListener('DOMContentLoaded', function(){ setTimeout(openNewItemModal, 50); });
+  if(document.readyState !== 'loading') setTimeout(openNewItemModal, 50);
+}
+</script>
 
 {# ============ 엑셀식 정렬 + 컬럼 필터 ============ #}
 <script>

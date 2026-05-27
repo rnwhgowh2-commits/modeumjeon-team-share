@@ -509,6 +509,157 @@ def data_items():
         s.close()
 
 
+# ============ 신규 제품 1건 추가 (박스히어로 1:1 모달 폼) ============
+
+@bp.post('/data/items/create')
+def data_items_create():
+    """신규 옵션 1건 생성 — 박스히어로 '제품 추가' 폼 1:1.
+
+    필드: SKU(자동/직접), 제품명, 바코드(자동/직접), 브랜드, 품번, 색상, 사이즈,
+          카테고리, 평균매입가, 메모.
+    - Model 은 upsert (model_code = derive(brand, article_no or model_name, sku))
+    - Option 은 신규 INSERT — canonical_sku 중복 시 자동 재생성 시도
+    """
+    import random
+    import string
+
+    from lemouton.sourcing.master import upsert_model
+    from lemouton.inventory.boxhero_import import _derive_model_code, _clean_article_no
+    from lemouton.inventory.inbound import create_inbound
+    from lemouton.inventory.models import InventoryLocation
+
+    f = request.form
+    canonical_sku = (f.get('canonical_sku') or '').strip()
+    model_name = (f.get('model_name') or '').strip()
+    barcode = (f.get('barcode') or '').strip()
+    brand = (f.get('brand') or '').strip() or '미상'
+    article_no_in = (f.get('article_no') or '').strip()
+    color = (f.get('color') or '').strip() or 'ONE'
+    size = (f.get('size') or '').strip() or 'FREE'
+    category = (f.get('category') or '').strip()
+    avg_price_raw = (f.get('avg_purchase_price') or '').strip()
+    memo = (f.get('memo') or '').strip()
+
+    if not model_name:
+        flash('제품명은 필수입니다.', 'error')
+        return redirect(url_for('inventory.data_items') + '#new')
+
+    def _gen_sku() -> str:
+        chars = string.ascii_uppercase + string.digits
+        return 'SKU-' + ''.join(random.choices(chars, k=8))
+
+    def _gen_barcode() -> str:
+        # EAN-13 (prefix 200 = 내부용) + 9 random + checksum
+        digits = '200' + ''.join(random.choices(string.digits, k=9))
+        chk = sum(int(d) * (3 if i % 2 else 1) for i, d in enumerate(digits))
+        return digits + str((10 - chk % 10) % 10)
+
+    s = SessionLocal()
+    try:
+        # SKU 중복 회피 — 비었으면 생성, 입력값이 이미 있으면 에러
+        if not canonical_sku:
+            for _ in range(30):
+                cand = _gen_sku()
+                if not s.query(Option).filter_by(canonical_sku=cand).first():
+                    canonical_sku = cand
+                    break
+            else:
+                flash('SKU 자동 생성 실패 — 다시 시도해 주세요.', 'error')
+                return redirect(url_for('inventory.data_items') + '#new')
+        else:
+            if s.query(Option).filter_by(canonical_sku=canonical_sku).first():
+                flash(f'SKU 중복 — "{canonical_sku}" 는 이미 사용 중입니다.', 'error')
+                return redirect(url_for('inventory.data_items') + '#new')
+
+        if not barcode:
+            barcode = _gen_barcode()
+
+        try:
+            avg_price = int(avg_price_raw.replace(',', '').replace(' ', '')) if avg_price_raw else 0
+        except ValueError:
+            avg_price = 0
+
+        # Model upsert — article_no(품번) 우선, 없으면 model_name 으로 model_code 도출
+        model_code = _derive_model_code(brand, article_no_in or model_name, canonical_sku)
+        upsert_model(
+            s,
+            model_code=model_code,
+            model_name_raw=model_name[:255],
+            brand=brand[:100],
+        )
+        m_obj = s.query(Model).filter_by(model_code=model_code).first()
+        if m_obj:
+            if model_name and not (m_obj.model_name_display or '').strip():
+                m_obj.model_name_display = model_name[:255]
+            if article_no_in and not (getattr(m_obj, 'article_no', None) or '').strip():
+                m_obj.article_no = _clean_article_no(article_no_in)[:64]
+            if category and not (getattr(m_obj, 'category', None) or '').strip():
+                m_obj.category = category[:100]
+            if memo and not (getattr(m_obj, 'note', None) or '').strip():
+                m_obj.note = memo
+
+        opt = Option(
+            canonical_sku=canonical_sku,
+            model_code=model_code,
+            color_code=color[:32],
+            color_display=color[:64],
+            size_code=size[:32],
+            size_display=size[:64],
+            boxhero_sku=canonical_sku,
+            barcode=barcode[:64],
+            # 매입가 — 위치 입력이 없으면 직접 set (입고가 없으면 moving avg 계산 안 됨)
+            boxhero_avg_purchase_price=avg_price,
+            boxhero_stock_total=0,
+        )
+        s.add(opt)
+        s.flush()  # Option 확정 후에 create_inbound 가 조회할 수 있도록
+
+        # 📍 위치별 초기 재고 — stock_loc_<id> 폼 필드를 모두 받아 InventoryTx('in') 로 등록
+        active_locs = (
+            s.query(InventoryLocation)
+            .filter(InventoryLocation.deleted_at.is_(None))
+            .all()
+        )
+        initial_stock_total = 0
+        initial_stock_detail: list[str] = []
+        for loc in active_locs:
+            raw = (f.get(f'stock_loc_{loc.id}') or '').strip()
+            if not raw:
+                continue
+            try:
+                qty = int(raw.replace(',', ''))
+            except ValueError:
+                continue
+            if qty <= 0:
+                continue
+            create_inbound(
+                s,
+                location_id=loc.id,
+                option_canonical_sku=canonical_sku,
+                qty=qty,
+                unit_purchase_price=avg_price,
+                memo='신규 제품 등록 초기 재고',
+                created_by='제품 추가 폼',
+            )
+            initial_stock_total += qty
+            initial_stock_detail.append(f'{loc.name} {qty}')
+
+        s.commit()
+
+        msg = f'✅ 제품 추가 완료 — {canonical_sku} ({model_name} / {color} / {size})'
+        if initial_stock_total > 0:
+            msg += f' · 초기 재고 {initial_stock_total}개 ({", ".join(initial_stock_detail)})'
+        flash(msg, 'success')
+    except Exception as e:
+        s.rollback()
+        flash(f'제품 추가 실패: {e}', 'error')
+        return redirect(url_for('inventory.data_items') + '#new')
+    finally:
+        s.close()
+
+    return redirect(url_for('inventory.data_items'))
+
+
 # ============ 제품 마스터 전체 삭제 (TEST 리셋) ============
 
 DATA_DIR = Path(__file__).resolve().parents[3] / 'data'
