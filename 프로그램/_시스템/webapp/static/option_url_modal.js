@@ -192,6 +192,23 @@
       .oum-add-url { width:100%; background:#fff; border:1.5px dashed #bbf7d0; color:#10b981; padding:9px; border-radius:7px; font:inherit; font-size:12px; cursor:pointer; font-weight:700; margin-top:6px; }
       .oum-add-url:hover { background:#F0FDF4; border-color:#10b981; }
       .oum-add-url:disabled { opacity:.4; cursor:not-allowed; }
+
+      /* [2026-05-27 B2-2] 셀 shared 배지 hover floating card — Card Stack 스타일 */
+      .oum-shared-tip { position:fixed; z-index:99999; background:#fff; border:1px solid #d1d6db; border-radius:10px; padding:10px; min-width:340px; max-width:440px; box-shadow:0 10px 24px rgba(0,0,0,.18); pointer-events:none; }
+      .oum-shared-tip .arrow { position:absolute; width:0; height:0; border:6px solid transparent; }
+      .oum-shared-tip.below .arrow { bottom:100%; left:50%; transform:translateX(-50%); border-bottom-color:#fff; }
+      .oum-shared-tip.below .arrow::before { content:''; position:absolute; top:1px; left:-7px; width:0; height:0; border:7px solid transparent; border-bottom-color:#d1d6db; z-index:-1; }
+      .oum-shared-tip.above .arrow { top:100%; left:50%; transform:translateX(-50%); border-top-color:#fff; }
+      .oum-shared-tip.above .arrow::before { content:''; position:absolute; bottom:1px; left:-7px; width:0; height:0; border:7px solid transparent; border-top-color:#d1d6db; z-index:-1; }
+      .oum-shared-tip .stp-grp { background:#FAFBFC; border-radius:7px; padding:7px 9px; margin-bottom:6px; }
+      .oum-shared-tip .stp-grp:last-child { margin-bottom:0; }
+      .oum-shared-tip .stp-grp-h { display:flex; align-items:center; gap:7px; margin-bottom:5px; padding-bottom:4px; border-bottom:1px dashed #e5e8eb; text-align:left; }
+      .oum-shared-tip .stp-chip { width:22px; height:22px; border-radius:6px; display:flex; align-items:center; justify-content:center; font-size:10px; font-weight:800; color:#fff; flex-shrink:0; }
+      .oum-shared-tip .stp-name { font-size:12.5px; font-weight:700; color:#191F28; flex:1; text-align:left; }
+      .oum-shared-tip .stp-cnt { background:#3B82F6; color:#fff; font-size:10.5px; font-weight:700; padding:2px 8px; border-radius:8px; flex-shrink:0; }
+      .oum-shared-tip .stp-url-row { padding:3px 0; text-align:left; }
+      .oum-shared-tip .stp-lbl { font-size:11px; font-weight:600; color:#191F28; }
+      .oum-shared-tip .stp-url { font-family:ui-monospace,monospace; font-size:10px; color:#6b7684; word-break:break-all; }
     `;
     document.head.appendChild(s);
   }
@@ -670,8 +687,9 @@
           let cls = active ? (on ? 'on' : 'off') : 'disabled';
           if (on && sh > 1) cls += ' shared';
           const sharedAttr = (on && sh > 1) ? ` data-shared="${sh}"` : '';
-          const titleAttr = (sh > 1) ? ` title="${esc(buildSharedTooltip(info.mappings))}"` : '';
-          html += `<td><span class="oum-cell ${cls}" data-url-cell-key='${esc(k)}'${sharedAttr}${titleAttr}>${active ? (on ? '✓' : '·') : '·'}</span></td>`;
+          // [2026-05-27 B2-2] title 제거 → data-shared-mappings 에 JSON 저장 → JS hover 시 floating card
+          const mappingsAttr = (sh > 1) ? ` data-shared-mappings='${esc(JSON.stringify(info.mappings))}'` : '';
+          html += `<td><span class="oum-cell ${cls}" data-url-cell-key='${esc(k)}'${sharedAttr}${mappingsAttr}>${active ? (on ? '✓' : '·') : '·'}</span></td>`;
         });
         html += `</tr></tbody></table></div>`;
         return html;
@@ -722,8 +740,8 @@
           let cls = active ? (on ? 'on' : 'off') : 'disabled';
           if (on && sh > 1) cls += ' shared';
           const sharedAttr = (on && sh > 1) ? ` data-shared="${sh}"` : '';
-          const titleAttr = (sh > 1) ? ` title="${esc(buildSharedTooltip(info.mappings))}"` : '';
-          html += `<td><span class="oum-cell ${cls}" data-url-cell-key='${esc(k)}'${sharedAttr}${titleAttr}>${active ? (on ? '✓' : '·') : '·'}</span></td>`;
+          const mappingsAttr = (sh > 1) ? ` data-shared-mappings='${esc(JSON.stringify(info.mappings))}'` : '';
+          html += `<td><span class="oum-cell ${cls}" data-url-cell-key='${esc(k)}'${sharedAttr}${mappingsAttr}>${active ? (on ? '✓' : '·') : '·'}</span></td>`;
         });
         html += `</tr>`;
       });
@@ -749,14 +767,97 @@
       return map;
     }
 
-    // 셀 tooltip 텍스트 생성 — "소싱처명 (라벨): URL" 줄바꿈
-    function buildSharedTooltip(mappings) {
-      if (!mappings || !mappings.length) return '';
-      return mappings.map(m => {
-        const srcName = SRC_LABELS[m.sk] || m.sk;
-        const labelPart = m.label ? ` (${m.label})` : '';
-        return `${srcName}${labelPart}: ${m.url}`;
-      }).join('\n');
+    // [2026-05-27 B2-2] 셀 hover floating card — Card Stack 스타일
+    //   소싱처별 그룹 → 흰 카드 + 회색 그룹 카드 + 색칩+소싱처명+카운트뱃지 + URL 들
+    //   document.body 에 fixed 로 append (모달 overflow:hidden 영향 X)
+    //   위치 자동: 셀 아래 공간 부족하면 위로, 좌우 화면 밖이면 클램프
+    let _sharedTipEl = null;
+    function showSharedTip(cellEl) {
+      hideSharedTip();
+      const raw = cellEl.getAttribute('data-shared-mappings');
+      if (!raw) return;
+      let mappings;
+      try { mappings = JSON.parse(raw); } catch (e) { return; }
+      if (!mappings || !mappings.length) return;
+
+      // 소싱처별 그룹화 — 처음 등장 순서 유지
+      const groups = {};
+      const order = [];
+      mappings.forEach(m => {
+        if (!groups[m.sk]) { groups[m.sk] = []; order.push(m.sk); }
+        groups[m.sk].push(m);
+      });
+
+      const tip = document.createElement('div');
+      tip.className = 'oum-shared-tip';
+      let html = '<div class="arrow"></div>';
+      order.forEach(sk => {
+        const label = SRC_LABELS[sk] || sk;
+        const color = SRC_COLORS[sk] || '#3B82F6';
+        const items = groups[sk];
+        html += `<div class="stp-grp">
+          <div class="stp-grp-h">
+            <span class="stp-chip" style="background:${esc(color)};">${esc(abbr(label))}</span>
+            <span class="stp-name">${esc(label)}</span>
+            <span class="stp-cnt">${items.length}개</span>
+          </div>`;
+        items.forEach(m => {
+          html += `<div class="stp-url-row">
+            ${m.label ? `<div class="stp-lbl">${esc(m.label)}</div>` : ''}
+            <div class="stp-url">${esc(m.url)}</div>
+          </div>`;
+        });
+        html += `</div>`;
+      });
+      tip.innerHTML = html;
+      document.body.appendChild(tip);
+      _sharedTipEl = tip;
+      positionSharedTip(cellEl, tip);
+    }
+
+    function positionSharedTip(cellEl, tip) {
+      const cellRect = cellEl.getBoundingClientRect();
+      const tipRect = tip.getBoundingClientRect();
+      const vw = window.innerWidth;
+      const vh = window.innerHeight;
+      const gap = 10;
+
+      // 수직: 셀 아래 공간이 tooltip 높이보다 작으면 위로
+      const spaceBelow = vh - cellRect.bottom;
+      const spaceAbove = cellRect.top;
+      let top, placement;
+      if (spaceBelow >= tipRect.height + gap || spaceBelow >= spaceAbove) {
+        top = cellRect.bottom + gap;
+        placement = 'below';
+      } else {
+        top = cellRect.top - tipRect.height - gap;
+        placement = 'above';
+      }
+
+      // 수평: 셀 중앙에 tooltip 중앙 맞추되 화면 밖 안 나가게 클램프
+      let left = cellRect.left + cellRect.width / 2 - tipRect.width / 2;
+      if (left < 8) left = 8;
+      if (left + tipRect.width > vw - 8) left = vw - tipRect.width - 8;
+
+      tip.style.top = top + 'px';
+      tip.style.left = left + 'px';
+      tip.classList.add(placement);
+
+      // 화살표 — 셀 중앙 위치에 맞춰 left 보정
+      const arrow = tip.querySelector('.arrow');
+      if (arrow) {
+        const cellCenterX = cellRect.left + cellRect.width / 2;
+        const arrowLeft = cellCenterX - left;
+        arrow.style.left = Math.max(12, Math.min(tipRect.width - 12, arrowLeft)) + 'px';
+        arrow.style.transform = 'translateX(-50%)';
+      }
+    }
+
+    function hideSharedTip() {
+      if (_sharedTipEl && _sharedTipEl.parentNode) {
+        _sharedTipEl.parentNode.removeChild(_sharedTipEl);
+      }
+      _sharedTipEl = null;
     }
 
     // ─── 이벤트 ───
@@ -971,6 +1072,18 @@
     function toggleGroup(axisName, val) {
       toggleAxis(axisName, val);
     }
+
+    // [2026-05-27 B2-2] 우측 매트릭스 셀 hover → floating card 동적 생성
+    $('#oum-right').addEventListener('mouseover', e => {
+      const cell = e.target.closest('[data-shared-mappings]');
+      if (cell) showSharedTip(cell);
+    });
+    $('#oum-right').addEventListener('mouseout', e => {
+      const cell = e.target.closest('[data-shared-mappings]');
+      if (cell) hideSharedTip();
+    });
+    // 모달 닫기/스크롤 시 tooltip 제거
+    bg.addEventListener('scroll', hideSharedTip, true);
 
     // 우측 이벤트 — async (탭 전환 시 autoSave await 필요)
     $('#oum-right').addEventListener('click', async e => {
@@ -1218,8 +1331,8 @@
       const openedU = state.openUrlId ? (state.urls[state.currentSrc] || []).find(u => u.tempId === state.openUrlId) : null;
       saveLastState(bundleCode, state.currentSrc, openedU ? openedU.dbId : null);
     }
-    $('.oum-mh .close').addEventListener('click', () => { snapshotLastState(); autoSave(); bg.remove(); });
-    $('#oum-cancel').addEventListener('click', () => { snapshotLastState(); autoSave(); bg.remove(); });
+    $('.oum-mh .close').addEventListener('click', () => { snapshotLastState(); hideSharedTip(); autoSave(); bg.remove(); });
+    $('#oum-cancel').addEventListener('click', () => { snapshotLastState(); hideSharedTip(); autoSave(); bg.remove(); });
 
     // [2026-05-26 BUG-FIX] [저장] 버튼은 이전에 dbId 검사 없이 무조건 POST 했음 → 누를 때마다
     //   같은 URL 카드가 새로 생성되어 누적되는 심각한 버그. autoSave() 로 통일 — dbId 있으면 PUT,
