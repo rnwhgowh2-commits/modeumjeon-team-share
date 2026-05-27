@@ -1137,13 +1137,14 @@
     // 모달 닫기/스크롤 시 tooltip 제거
     bg.addEventListener('scroll', hideSharedTip, true);
 
-    // 우측 이벤트 — async (탭 전환 시 autoSave await 필요)
+    // 우측 이벤트 — async (autoSave 는 fire-and-forget, await 안 함)
     $('#oum-right').addEventListener('click', async e => {
-      // 탭 전환 — 직전 자동 저장 후 전환 + 마지막 상태 기록
+      // [2026-05-27] 탭 전환 즉시 — autoSave 백그라운드 (사용자 대기 X)
+      //   pending 큐 가드로 inflight 중 호출도 마지막 저장 보장
       const tab = e.target.closest('[data-src-tab]');
       if (tab) {
         if (tab.dataset.srcTab !== state.currentSrc) {
-          await autoSave();
+          autoSave();  // fire-and-forget
         }
         state.currentSrc = tab.dataset.srcTab;
         state.openUrlId = null;
@@ -1318,12 +1319,18 @@
     //   - 새 URL 카드 (dbId 없음) → POST → 응답 id 를 dbId 로 설정
     //   - 기존 URL (dbId 있음) → PUT
     //   - 옵션 매트릭스 매핑(option_keys) → axis_values → canonical_sku 변환 → option_ids
+    // [2026-05-27] inflight 중 새 호출 오면 pending 표시 → 첫 호출 끝나면 한 번 더 실행
+    //   탭 빠르게 전환해도 마지막 상태가 반드시 저장됨
     let _autoSaveInflight = null;
+    let _autoSavePending = false;
     async function autoSave() {
       if (!state.selected.size || !state.applied) return;
-      // 중복 호출 방지 — 이미 저장 중이면 그 promise 를 기다림
-      if (_autoSaveInflight) { try { await _autoSaveInflight; } catch (e) {} return; }
+      // 중복 호출 — pending 표시만 하고 첫 promise 만 기다림 (실제 저장은 첫 promise 의 do-while 가 처리)
+      if (_autoSaveInflight) { _autoSavePending = true; try { await _autoSaveInflight; } catch (e) {} return; }
       _autoSaveInflight = (async () => {
+        // do-while 로 pending 플래그 처리 — 도중에 들어온 변경도 한 번 더 저장
+        do {
+          _autoSavePending = false;
         try {
           // 1. 옵션 콤보 (prune=true) — selected 와 동기화
           const validList = validAxes();
@@ -1374,8 +1381,9 @@
         } catch (e) {
           console.warn('[oum] auto-save fail:', e);
         }
+        } while (_autoSavePending);  // pending 있으면 한 번 더
       })();
-      try { await _autoSaveInflight; } finally { _autoSaveInflight = null; }
+      try { await _autoSaveInflight; } finally { _autoSaveInflight = null; _autoSavePending = false; }
     }
 
     // 모달 닫기 / 저장 — X·취소 클릭 시 자동 저장 fire-and-forget + 마지막 상태 기록
