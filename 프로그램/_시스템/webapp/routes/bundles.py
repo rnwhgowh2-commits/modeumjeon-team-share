@@ -1129,6 +1129,13 @@ def api_update_source_url(code, url_id):
             return jsonify({'ok': False, 'error': 'option_ids must be list'}), 400
         _sync_option_links(s, code, row.id, option_ids)
 
+        # [2026-05-27] sort_order — 카드 순서 변경 지원
+        if 'sort_order' in body:
+            try:
+                row.sort_order = int(body['sort_order'])
+            except (TypeError, ValueError):
+                pass
+
         _sync_legacy_url_column(s, code, row.source_key)
         s.commit()
 

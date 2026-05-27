@@ -187,6 +187,11 @@
       .oum-url-cnt b { color:#10b981; font-weight:700; }
       .oum-url-tog, .oum-url-del { background:#fff; border:1px solid #bbf7d0; border-radius:4px; padding:3px 7px; font:inherit; font-size:10.5px; color:#15803d; cursor:pointer; }
       .oum-url-del { color:#dc2626; border-color:#fecaca; }
+      /* [2026-05-27] 카드 미니 액션 — 순서 변경 ↑↓ + 복사 ⎘ */
+      .oum-url-actions { display:inline-flex; gap:2px; }
+      .oum-url-mini { background:#fff; border:1px solid #d1d6db; border-radius:4px; width:22px; height:22px; display:inline-flex; align-items:center; justify-content:center; font-size:12px; color:#4e5968; cursor:pointer; padding:0; line-height:1; transition:all .12s; }
+      .oum-url-mini:hover:not(:disabled) { background:#3B82F6; color:#fff; border-color:#3B82F6; }
+      .oum-url-mini:disabled { opacity:.35; cursor:not-allowed; }
       .oum-url-body { padding:10px 11px; background:#F0FDF4; }
       .oum-url-card:not(.open) .oum-url-body { display:none; }
       .oum-add-url { width:100%; background:#fff; border:1.5px dashed #bbf7d0; color:#10b981; padding:9px; border-radius:7px; font:inherit; font-size:12px; cursor:pointer; font-weight:700; margin-top:6px; }
@@ -653,6 +658,11 @@
       const goBtn = u.url && u.url.trim()
         ? `<a class="oum-url-go" href="${esc(u.url)}" target="_blank" rel="noopener noreferrer" title="새 탭에서 열기">↗</a>`
         : '';
+      // [2026-05-27] 순서 변경 ↑/↓ + 복사 📋 버튼
+      const arr = state.urls[state.currentSrc] || [];
+      const idx = arr.findIndex(x => x.tempId === u.tempId);
+      const upDisabled = idx <= 0 ? 'disabled' : '';
+      const dnDisabled = idx < 0 || idx >= arr.length - 1 ? 'disabled' : '';
       let html = `<div class="oum-url-card ${isOpen ? 'open' : ''}" data-url-id="${u.tempId}">
         <div class="oum-url-ch">
           <span class="oum-url-num">${num}</span>
@@ -661,6 +671,11 @@
           ${goBtn}
           <span class="oum-url-cnt"><b>${mapped}</b>/${totalActive}</span>
           <button class="oum-url-tog" data-url-tog type="button">${isOpen ? '▾ 닫기' : '▸ 매핑'}</button>
+          <span class="oum-url-actions">
+            <button class="oum-url-mini" data-url-up type="button" title="위로 이동" ${upDisabled}>↑</button>
+            <button class="oum-url-mini" data-url-down type="button" title="아래로 이동" ${dnDisabled}>↓</button>
+            <button class="oum-url-mini" data-url-copy type="button" title="이 카드 그대로 복사">⎘</button>
+          </span>
           <button class="oum-url-del" data-url-del type="button">✕</button>
         </div>`;
 
@@ -1161,14 +1176,53 @@
       if (cornerH) { toggleUrlCorner(cornerH); return; }
       const grpH = e.target.closest('[data-url-grp-axis]');
       if (grpH) { toggleUrlGroup(grpH.dataset.urlGrpAxis, grpH.dataset.urlGrpVal); return; }
-      // URL 추가
+      // [2026-05-27] URL 추가 — prompt 제거, 빈 카드 직접 추가 + 자동 펼침 + URL input focus
       if (e.target.closest('[data-add-url]')) {
-        const url = prompt(`새 ${SRC_LABELS[state.currentSrc] || state.currentSrc} URL 입력:`);
-        if (!url || !url.trim()) return;
         if (!state.urls[state.currentSrc]) state.urls[state.currentSrc] = [];
-        const newU = { tempId: state.tempIdSeq++, label: '', url: url.trim(), option_keys: [] };
+        const newU = { tempId: state.tempIdSeq++, label: '', url: '', option_keys: [] };
         state.urls[state.currentSrc].push(newU);
         state.openUrlId = newU.tempId;
+        renderRight();
+        // 추가된 카드의 URL input 에 자동 focus
+        setTimeout(() => {
+          const card = modal.querySelector(`[data-url-id="${newU.tempId}"]`);
+          const inp = card && card.querySelector('.oum-url-input');
+          if (inp) inp.focus();
+        }, 0);
+        return;
+      }
+      // [2026-05-27] URL 복사 — 위 카드 그대로 복제 (바로 아래에 삽입)
+      const cpBtn = e.target.closest('[data-url-copy]');
+      if (cpBtn) {
+        const card = cpBtn.closest('[data-url-id]');
+        const tid = +card.dataset.urlId;
+        const arr = state.urls[state.currentSrc] || [];
+        const idx = arr.findIndex(u => u.tempId === tid);
+        if (idx < 0) return;
+        const src = arr[idx];
+        const dup = {
+          tempId: state.tempIdSeq++,
+          label: src.label || '',
+          url: src.url || '',
+          option_keys: [...(src.option_keys || [])],
+        };
+        arr.splice(idx + 1, 0, dup);  // 바로 아래에 삽입
+        state.openUrlId = dup.tempId;
+        renderRight();
+        return;
+      }
+      // [2026-05-27] 순서 변경 — ↑ / ↓ 같은 소싱처 안에서 swap
+      const upBtn = e.target.closest('[data-url-up]');
+      const dnBtn = e.target.closest('[data-url-down]');
+      if (upBtn || dnBtn) {
+        const card = (upBtn || dnBtn).closest('[data-url-id]');
+        const tid = +card.dataset.urlId;
+        const arr = state.urls[state.currentSrc] || [];
+        const idx = arr.findIndex(u => u.tempId === tid);
+        if (idx < 0) return;
+        const newIdx = upBtn ? idx - 1 : idx + 1;
+        if (newIdx < 0 || newIdx >= arr.length) return;
+        [arr[idx], arr[newIdx]] = [arr[newIdx], arr[idx]];
         renderRight();
         return;
       }
@@ -1352,9 +1406,11 @@
             });
           }
 
-          // 3. 각 URL 카드 저장 — POST(new) / PUT(existing) + option_ids
+          // 3. 각 URL 카드 저장 — POST(new) / PUT(existing) + option_ids + sort_order (배열 인덱스)
           for (const sk of Object.keys(state.urls)) {
-            for (const u of (state.urls[sk] || [])) {
+            const arr = state.urls[sk] || [];
+            for (let i = 0; i < arr.length; i++) {
+              const u = arr[i];
               if (!u.url || !u.url.trim()) continue;
               const option_ids = (u.option_keys || [])
                 .map(k => skuByKey[k])
@@ -1363,7 +1419,7 @@
                 if (u.dbId) {
                   await fetch(`/api/bundles/${encodeURIComponent(bundleCode)}/source-urls/${u.dbId}`, {
                     method: 'PUT', headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ url: u.url.trim(), label: u.label || null, option_ids }),
+                    body: JSON.stringify({ url: u.url.trim(), label: u.label || null, option_ids, sort_order: i }),
                   });
                 } else {
                   const res = await fetch(`/api/bundles/${encodeURIComponent(bundleCode)}/source-urls`, {
