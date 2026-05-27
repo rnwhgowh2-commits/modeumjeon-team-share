@@ -181,7 +181,12 @@ def inbound_new():
         from lemouton.inventory.locations import list_active
         locations = list_active(s)
         # 제품 추가 모달용 — 모든 옵션 (model_name + canonical_sku + 색상/사이즈)
-        options = (s.query(Option).order_by(Option.model_code, Option.canonical_sku).limit(500).all())
+        # [2026-05-27] 정렬: 브랜드 > 카테고리 > 모델명 > 색상 > 사이즈
+        from lemouton.sourcing.models import Model as _M
+        options = (s.query(Option).join(_M, Option.model_code == _M.model_code)
+                   .order_by(_M.brand, _M.category, _M.model_name_display,
+                             Option.color_display, Option.size_display)
+                   .limit(500).all())
         # ★ LCP 색상 정리 + 제품명 brand-strip (전 시스템 통일)
         from shared.product_display import compute_display_maps
         cleaned_color, display_pname = compute_display_maps(options)
@@ -253,7 +258,12 @@ def inbound_create():
 
 def _opt_data_all(s, include_bundles: bool = False):
     """제품 추가 모달용 — 전체 옵션 JSON. include_bundles=True 면 묶음 SKU 포함 (출고용)."""
-    options = (s.query(Option).order_by(Option.model_code, Option.canonical_sku).limit(500).all())
+    # [2026-05-27] 정렬: 브랜드 > 카테고리 > 모델명 > 색상 > 사이즈
+    from lemouton.sourcing.models import Model as _M
+    options = (s.query(Option).join(_M, Option.model_code == _M.model_code)
+               .order_by(_M.brand, _M.category, _M.model_name_display,
+                         Option.color_display, Option.size_display)
+               .limit(500).all())
     # ★ LCP 색상 정리 + 제품명 brand-strip (전 시스템 통일)
     from shared.product_display import compute_display_maps
     cleaned_color, display_pname = compute_display_maps(options)
@@ -843,7 +853,11 @@ def inventory_export():
     import openpyxl
     s = SessionLocal()
     try:
-        options = s.query(Option).order_by(Option.model_code).all()
+        # [2026-05-27] 정렬: 브랜드 > 카테고리 > 모델명 > 색상 > 사이즈
+        from lemouton.sourcing.models import Model as _M
+        options = (s.query(Option).join(_M, Option.model_code == _M.model_code)
+                   .order_by(_M.brand, _M.category, _M.model_name_display,
+                             Option.color_display, Option.size_display).all())
         wb = openpyxl.Workbook()
         ws = wb.active
         ws.title = '재고분석'

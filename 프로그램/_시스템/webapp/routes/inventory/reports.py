@@ -45,7 +45,12 @@ def reports_inventory():
     """재고 현황 분석 — 모델·색상·사이즈별 집계."""
     s = SessionLocal()
     try:
-        options = s.query(Option).order_by(Option.model_code).limit(500).all()
+        # [2026-05-27] 정렬: 브랜드 > 카테고리 > 모델명 > 색상 > 사이즈
+        from lemouton.sourcing.models import Model as _M
+        options = (s.query(Option).join(_M, Option.model_code == _M.model_code)
+                   .order_by(_M.brand, _M.category, _M.model_name_display,
+                             Option.color_display, Option.size_display)
+                   .limit(500).all())
         # 모델별 집계
         by_model = {}
         for o in options:
@@ -447,7 +452,11 @@ def share_public(token):
         if not link:
             return '<h1>링크 만료 또는 폐기됨</h1>', 404
         # filter_json 적용 (간단히 전체 재고 read-only 표시)
-        options = (s.query(Option).order_by(Option.model_code, Option.canonical_sku)
+        # [2026-05-27] 정렬: 브랜드 > 카테고리 > 모델명 > 색상 > 사이즈
+        from lemouton.sourcing.models import Model as _M
+        options = (s.query(Option).join(_M, Option.model_code == _M.model_code)
+                   .order_by(_M.brand, _M.category, _M.model_name_display,
+                             Option.color_display, Option.size_display)
                    .limit(500).all())
         # ★ LCP 색상 정리 + 제품명 brand-strip (전 시스템 통일)
         from shared.product_display import compute_display_maps

@@ -78,7 +78,10 @@ def home():
                                 {m for m, sk in zip([r[1] for r in all_rows], [r[0] for r in all_rows])
                                  if sk in all_skus})
 
-        options = q.order_by(Option.model_code, Option.sort_order, Option.canonical_sku).limit(500).all()
+        # [2026-05-27] 정렬: 브랜드 > 카테고리 > 모델명 > 색상 > 사이즈 (사용자 룰)
+        options = (q.order_by(Model.brand, Model.category, Model.model_name_display,
+                              Option.color_display, Option.size_display)
+                    .limit(500).all())
 
         # 묶어보기 — model_code별 그룹
         grouped = {}

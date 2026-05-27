@@ -156,7 +156,12 @@ def _audit(s, *, table, target_id, action, actor, state):
 
 
 def _opt_data_all(s):
-    options = (s.query(Option).order_by(Option.model_code, Option.canonical_sku).limit(500).all())
+    # [2026-05-27] 정렬: 브랜드 > 카테고리 > 모델명 > 색상 > 사이즈
+    from lemouton.sourcing.models import Model as _M
+    options = (s.query(Option).join(_M, Option.model_code == _M.model_code)
+               .order_by(_M.brand, _M.category, _M.model_name_display,
+                         Option.color_display, Option.size_display)
+               .limit(500).all())
     return [{
         'sku': o.canonical_sku, 'model': o.model_code,
         'color': o.color_display or o.color_code,
