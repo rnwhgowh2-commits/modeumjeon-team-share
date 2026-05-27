@@ -234,6 +234,12 @@
       .oum-shared-tip .stp-url-row .stp-text { flex:1; min-width:0; }
       .oum-shared-tip .stp-lbl { font-size:16.5px; font-weight:600; color:#191F28; }
       .oum-shared-tip .stp-url { font-family:ui-monospace,monospace; font-size:15px; color:#6b7684; word-break:break-all; }
+      /* [2026-05-27 A4] 그룹 내부 스크롤 — 헤더는 보이고 그룹 안 URL list 만 max-height 180px + 휠 스크롤 */
+      .oum-shared-tip .stp-grp-body { max-height:180px; overflow-y:auto; padding-right:4px; }
+      .oum-shared-tip .stp-grp-body::-webkit-scrollbar { width:6px; }
+      .oum-shared-tip .stp-grp-body::-webkit-scrollbar-track { background:#f2f4f6; border-radius:3px; }
+      .oum-shared-tip .stp-grp-body::-webkit-scrollbar-thumb { background:#cbd5e0; border-radius:3px; }
+      .oum-shared-tip .stp-grp-body::-webkit-scrollbar-thumb:hover { background:#94a3b8; }
 
       /* [2026-05-27 B1] URL 바로가기 버튼 — ↗ 22×22 사각형, 호버 시 파란색 */
       .oum-url-go { background:transparent; border:1px solid #d1d6db; border-radius:6px; width:33px; height:33px; display:inline-flex; align-items:center; justify-content:center; cursor:pointer; color:#4e5968; font-size:19.5px; line-height:1; padding:0; transition:all .12s; flex-shrink:0; text-decoration:none; }
@@ -376,6 +382,15 @@
             values: (st.values || []).join(','),
           }));
           state.applied = true;
+          // [2026-05-27 FIX] 비활성 상태 보존 — 매트릭스 전체 콤보를 seen 에 미리 채움
+          //   배경: recalcMatrix() 가 seen 에 없는 콤보를 "처음 보는 새 콤보" 로 인식해
+          //   자동 활성화함. DB 엔 활성 옵션만 저장돼 재진입 시 비활성 24 개가 seen 누락
+          //   → 어떤 trigger 로든 recalcMatrix() 호출되면 비활성이 활성으로 되돌아오는 버그.
+          //   매트릭스 풀(BundleOptionStep cartesian)은 이미 사용자가 본 적 있다고 간주.
+          const stepValuesList = axisSteps.map(st => (st.values || []).map(v => String(v)));
+          if (stepValuesList.every(v => v.length > 0)) {
+            cartesian(stepValuesList).forEach(c => state.seen.add(JSON.stringify(c)));
+          }
           // selected — 각 옵션 axis_values (값 array) 를 그대로 key 로
           opts.forEach(o => {
             const av = Array.isArray(o.axis_values) ? o.axis_values : null;
@@ -419,6 +434,8 @@
       lemouton: '#a78bfa', musinsa: '#191F28', ssf: '#14b8a6', ssg: '#F47216',
       lotteon: '#ef4444', ss_lemouton: '#22c55e',
     };
+    // 약식 오버라이드 — abbr(label) 이 SSF/SSG 둘 다 'ss' 로 만들어 혼동되는 케이스 구분
+    const SRC_ABBR = { ssg: 'sg' };
 
     // 활성 소싱처 (기본 6개 보장)
     const builtinKeys = ['lemouton', 'musinsa', 'ssf', 'ssg', 'lotteon', 'ss_lemouton'];
@@ -632,7 +649,7 @@
         const label = SRC_LABELS[src.key] || src.label;
         const color = SRC_COLORS[src.key] || '#3B82F6';
         html += `<button class="oum-src-tab ${isOn ? 'on' : ''}" data-src-tab="${esc(src.key)}" type="button">
-          <span class="lg" style="background:${color};">${abbr(label)}</span>
+          <span class="lg" style="background:${color};">${SRC_ABBR[src.key] || abbr(label)}</span>
           <span class="full">${esc(label)}</span>
           <span class="cnt">${cnt}</span>
         </button>`;
@@ -834,12 +851,14 @@
         const label = SRC_LABELS[sk] || sk;
         const color = SRC_COLORS[sk] || '#3B82F6';
         const items = groups[sk];
+        // [2026-05-27 A4] 그룹 헤더는 항상 보이고, 그룹 안 URL list 만 자체 스크롤 (max-height 120px)
         html += `<div class="stp-grp">
           <div class="stp-grp-h">
-            <span class="stp-chip" style="background:${esc(color)};">${esc(abbr(label))}</span>
+            <span class="stp-chip" style="background:${esc(color)};">${esc((typeof SRC_ABBR !== 'undefined' && SRC_ABBR[sk]) || abbr(label))}</span>
             <span class="stp-name">${esc(label)}</span>
             <span class="stp-cnt">${items.length}개</span>
-          </div>`;
+          </div>
+          <div class="stp-grp-body">`;
         items.forEach(m => {
           // [2026-05-27 B1] 각 URL row 에 ↗ 바로가기 버튼 — 새 탭에서 URL 열기
           html += `<div class="stp-url-row">
@@ -850,7 +869,7 @@
             <a class="oum-url-go" href="${esc(m.url)}" target="_blank" rel="noopener noreferrer" title="새 탭에서 열기">↗</a>
           </div>`;
         });
-        html += `</div>`;
+        html += `</div></div>`;
       });
       tip.innerHTML = html;
       // [2026-05-27 B1] tooltip 자체에 hover 시 닫기 delay 취소 — 마우스가 tooltip 안에 있으면 유지
