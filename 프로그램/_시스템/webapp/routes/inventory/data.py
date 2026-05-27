@@ -370,10 +370,12 @@ def data_items():
     s = SessionLocal()
     try:
         # contains_eager → 템플릿 o.model.* 접근 시 추가 SELECT 0회 (N+1 제거)
+        # [2026-05-28] is_active=True 만 표시 (사용자 OFF 비활성 옵션은 DB 보존하되 화면에서 숨김)
         query = (
             s.query(Option)
             .join(Model, Option.model_code == Model.model_code)
             .options(contains_eager(Option.model))
+            .filter(Option.is_active == True)  # noqa: E712
         )
         # 다중 키워드 AND 교집합 — 토큰별 OR (SKU·바코드·브랜드·제품명·모델명·컬러·사이즈)
         query = apply_and_filter(
@@ -1075,7 +1077,9 @@ def data_items_export():
     try:
         # 화면에서 필터된 SKU 목록 — filtered=1 이면 그 옵션만 export (없으면 전체)
         is_filtered = request.values.get('filtered') == '1'
-        q = s.query(Option).options(joinedload(Option.model))
+        # [2026-05-28] is_active=True 만 export (사용자 OFF 비활성은 숨김)
+        q = (s.query(Option).options(joinedload(Option.model))
+             .filter(Option.is_active == True))  # noqa: E712
         if is_filtered:
             q = q.filter(Option.canonical_sku.in_(request.values.getlist('skus')))
         # [2026-05-27] 정렬: 브랜드 > 카테고리 > 모델명 > 색상 > 사이즈 (사용자 룰)

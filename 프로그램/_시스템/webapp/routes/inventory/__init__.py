@@ -43,6 +43,7 @@ def home():
             s.query(Option)
             .outerjoin(Model, Option.model_code == Model.model_code)
             .options(contains_eager(Option.model))
+            .filter(Option.is_active == True)  # noqa: E712  [2026-05-28] 비활성 숨김
         )
         # ★ 박스히어로식 다중 키워드 AND 교집합 필터 (shared.search 헬퍼)
         search_tokens = split_tokens(search_q)
