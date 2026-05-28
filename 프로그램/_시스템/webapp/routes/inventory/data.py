@@ -792,11 +792,13 @@ def data_items_bulk_create():
             if memo and not (getattr(m_obj, 'note', None) or '').strip():
                 m_obj.note = memo
 
-        # DB 사전 중복 검사 — 동일 (model_code, color, size) 존재 시 거부
+        # DB 사전 중복 검사 — 동일 (model_code, color, size) 활성 옵션 존재 시 거부.
+        # is_active=False (사용자 OFF) 옵션은 UI 에서 숨겨져 있으므로 일괄 생성 시 무시.
         existing_pairs: set[tuple[str, str]] = set()
         dup_in_db = (
             s.query(Option.color_code, Option.size_code)
             .filter(Option.model_code == model_code)
+            .filter(Option.is_active == True)  # noqa: E712
             .all()
         )
         for cc, sc in dup_in_db:
