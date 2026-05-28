@@ -106,7 +106,8 @@
           <td style="padding:9px 6px;text-align:center">
             <span class="ref-toggle" title="쓰이는 모음전·옵션 펼치기" onclick="event.stopPropagation();toggleRefRow(this)" style="cursor:pointer;color:#8F91A0;font-weight:800;user-select:none">▸</span>
           </td>
-          <td style="padding:9px 10px;font-family:ui-monospace,monospace;font-size:16px;color:#292A2F;cursor:pointer" onclick="openItemPopover(this.parentNode)">{{ opt.canonical_sku }}</td>
+          {% set _disp_sku = opt.boxhero_sku if (opt.canonical_sku and not opt.canonical_sku.startswith('SKU-') and opt.boxhero_sku) else opt.canonical_sku %}
+          <td style="padding:9px 10px;font-family:ui-monospace,monospace;font-size:16px;color:#292A2F;cursor:pointer" onclick="openItemPopover(this.parentNode)">{{ _disp_sku }}</td>
           <td style="padding:9px 10px;font-family:ui-monospace,monospace;font-size:16px;color:{% if opt.barcode %}#292A2F{% else %}#8F91A0{% endif %};cursor:pointer" onclick="openItemPopover(this.parentNode)">{{ opt.barcode or '—' }}</td>
           <td style="padding:9px 10px;color:#292A2F;cursor:pointer" onclick="openItemPopover(this.parentNode)">{{ _brand or '—' }}</td>
           <td style="padding:9px 10px;cursor:pointer" onclick="openItemPopover(this.parentNode)">
