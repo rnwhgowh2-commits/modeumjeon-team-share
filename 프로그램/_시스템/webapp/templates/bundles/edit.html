@@ -49,11 +49,34 @@
         </div>
       </div>
       <div class="bh-actions" style="flex-direction:column;align-items:stretch;gap:6px;min-width:260px">
-        <div style="display:flex;gap:6px;justify-content:flex-end;align-items:center">
+        <div style="display:flex;gap:6px;justify-content:flex-end;align-items:center;flex-wrap:wrap">
           <span id="autosave-indicator" class="autosave-indicator" data-state="idle" title="변경 시 자동 저장됩니다"></span>
+          {# Phase 4 (2026-05-28) — 재고관리 매핑 페이지 진입 + E2 누적 매핑 카운트 chip #}
+          <a id="invMappingLink" class="btn btn-sm" href="{{ url_for('bundles.bundle_inventory_mapping', code=bundle.model_code) }}"
+             title="옵션 ↔ 재고관리 SKU 매핑"
+             style="text-decoration:none;background:#F0FDF4;color:#15803D;border:1px solid #BBF7D0;display:inline-flex;align-items:center;gap:5px">
+            📦 재고 매핑
+            <span id="invMappingBadge" style="background:#10B981;color:#fff;padding:1px 7px;border-radius:99px;font-size:11px;font-weight:700;display:none">0</span>
+          </a>
           <button class="btn btn-sm" data-action="duplicate-bundle">📄 복제</button>
           <button class="btn btn-sm" style="color:var(--danger)" data-action="delete-bundle">🗑 삭제</button>
         </div>
+        {# 매핑 카운트 비동기 로드 — 부담 0 #}
+        <script>
+        (function(){
+          fetch('{{ url_for("bundles.api_get_inventory_mapping", code=bundle.model_code) }}')
+            .then(r => r.json())
+            .then(res => {
+              if(!res.ok) return;
+              const mapped = Object.values(res.mappings || {}).filter(a => a && a.length > 0).length;
+              const badge = document.getElementById('invMappingBadge');
+              if(mapped > 0){
+                badge.textContent = mapped;
+                badge.style.display = '';
+              }
+            }).catch(() => {});
+        })();
+        </script>
         <style>
           .autosave-indicator {
             font-size: 13px; font-weight: 600;

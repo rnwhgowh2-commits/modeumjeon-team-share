@@ -6,7 +6,7 @@ from datetime import datetime, timezone, timedelta
 from flask import Blueprint, abort, jsonify, redirect, render_template, request
 
 from shared.db import SessionLocal
-from lemouton.sourcing.models import Model, Option, DiscoveryQueueItem, BundleSourceUrl, OptionSourceUrlLink
+from lemouton.sourcing.models import Model, Option, DiscoveryQueueItem, BundleSourceUrl, OptionSourceUrlLink, OptionInventoryLink
 from lemouton.sourcing.source_registry import SOURCES as SOURCE_REGISTRY, get_keys as _src_keys, get_all_sources, get_all_keys
 from lemouton.sourcing.models_v2 import UploadAccount
 from lemouton.templates.models import (
@@ -1170,5 +1170,178 @@ def api_delete_source_url(code, url_id):
         _sync_legacy_url_column(s, code, sk)
         s.commit()
         return jsonify({'ok': True})
+    finally:
+        s.close()
+
+
+# ═══════════════════════════════════════════════════════════════════
+#  Phase 4 (2026-05-28) — 모음전 옵션 ↔ 재고관리 옵션 매핑 (페이지 + API)
+# ═══════════════════════════════════════════════════════════════════
+
+@bp.route('/bundles/<code>/inventory-mapping')
+def bundle_inventory_mapping(code):
+    """B3-3 in-place 매핑 표 + E2 누적 색·도트 페이지."""
+    s = SessionLocal()
+    try:
+        m = s.query(Model).filter_by(model_code=code).first()
+        if not m:
+            return ('bundle not found', 404)
+        opts = (s.query(Option)
+                .filter_by(model_code=code)
+                .order_by(Option.sort_order, Option.canonical_sku)
+                .all())
+        return render_template(
+            'bundles/inventory_mapping.html',
+            active='bundles',
+            bundle=m,
+            bundle_options=opts,
+        )
+    finally:
+        s.close()
+
+def _normalize_label(text: str | None) -> str:
+    """색상·사이즈 표기 차이 흡수.
+
+    'BLACK', 'Black', '블랙', ' 블랙 ' → 'black' / '블랙'
+    소문자화 + 공백·하이픈 strip. 한글은 보존.
+    """
+    if not text:
+        return ''
+    t = text.strip().lower()
+    # 공백·언더바·하이픈 통일
+    t = t.replace(' ', '').replace('_', '').replace('-', '')
+    return t
+
+
+@bp.route('/api/bundles/<code>/inventory-mapping', methods=['GET'])
+def api_get_inventory_mapping(code):
+    """모음전의 옵션 ↔ 재고 매핑 + 매핑 후보 (alias 매칭) 조회.
+
+    Returns:
+      {
+        ok: True,
+        mappings: { bundle_sku: [inventory_sku, ...], ... },
+        inventory_options: [{ sku, model_code, model_name, color, size,
+                              stock_total, brand }, ...],
+        candidates: { bundle_sku: [inv_sku, ...], ... }  # alias 자동 추론
+      }
+    """
+    s = SessionLocal()
+    try:
+        m = s.query(Model).filter_by(model_code=code).first()
+        if not m:
+            return jsonify({'ok': False, 'error': 'bundle not found'}), 404
+
+        # 1. 모음전 옵션
+        bundle_opts = s.query(Option).filter_by(model_code=code).all()
+        bundle_skus = [o.canonical_sku for o in bundle_opts]
+
+        # 2. 기존 매핑
+        links = s.query(OptionInventoryLink).filter(
+            OptionInventoryLink.bundle_option_sku.in_(bundle_skus)
+        ).all() if bundle_skus else []
+        mappings: dict[str, list[str]] = {sk: [] for sk in bundle_skus}
+        for ln in links:
+            mappings.setdefault(ln.bundle_option_sku, []).append(ln.inventory_option_sku)
+
+        # 3. 재고관리 옵션 — 모음전 외 모든 옵션 (단독_ 우선, 그러나 다른 모음전 옵션도 후보로 노출)
+        inv_opts_q = s.query(Option, Model).join(
+            Model, Option.model_code == Model.model_code
+        ).filter(Option.model_code != code)
+        inv_opts = inv_opts_q.all()
+        inventory_options = []
+        for opt, mdl in inv_opts:
+            inventory_options.append({
+                'sku': opt.canonical_sku,
+                'boxhero_sku': opt.boxhero_sku or '',
+                'model_code': opt.model_code,
+                'model_name': (mdl.model_name_display or mdl.model_name_raw or '').strip(),
+                'brand': (mdl.brand or '').strip(),
+                'color': (opt.color_display or opt.color_code or '').strip(),
+                'size': (opt.size_display or opt.size_code or '').strip(),
+                'stock_total': opt.boxhero_stock_total or 0,
+                'is_standalone': opt.model_code.startswith('단독_'),
+            })
+
+        # 4. 자동 후보 — alias normalize 일치
+        candidates: dict[str, list[str]] = {}
+        for b_opt in bundle_opts:
+            b_color = _normalize_label(b_opt.color_display or b_opt.color_code)
+            b_size = _normalize_label(b_opt.size_display or b_opt.size_code)
+            picks = []
+            for inv in inventory_options:
+                if _normalize_label(inv['color']) == b_color and _normalize_label(inv['size']) == b_size:
+                    picks.append(inv['sku'])
+            if picks:
+                candidates[b_opt.canonical_sku] = picks
+
+        return jsonify({
+            'ok': True,
+            'mappings': mappings,
+            'inventory_options': inventory_options,
+            'candidates': candidates,
+        })
+    finally:
+        s.close()
+
+
+@bp.route('/api/bundles/<code>/inventory-mapping', methods=['POST'])
+def api_save_inventory_mapping(code):
+    """모음전 옵션 ↔ 재고 매핑 일괄 저장.
+
+    body: { mappings: { bundle_sku: [inventory_sku, ...], ... } }
+    동작:
+      - 본 모음전 옵션들의 기존 매핑 모두 삭제 → 새로 INSERT (replace 패턴)
+      - 본 모음전이 아닌 sku 는 무시
+    """
+    body = request.get_json(silent=True) or {}
+    mappings = body.get('mappings') or {}
+    if not isinstance(mappings, dict):
+        return jsonify({'ok': False, 'error': 'mappings must be object'}), 400
+
+    s = SessionLocal()
+    try:
+        m = s.query(Model).filter_by(model_code=code).first()
+        if not m:
+            return jsonify({'ok': False, 'error': 'bundle not found'}), 404
+
+        bundle_skus = [o.canonical_sku for o in s.query(Option).filter_by(model_code=code).all()]
+        bundle_sku_set = set(bundle_skus)
+
+        # 기존 매핑 전부 삭제 (본 모음전 옵션들만)
+        if bundle_skus:
+            (s.query(OptionInventoryLink)
+             .filter(OptionInventoryLink.bundle_option_sku.in_(bundle_skus))
+             .delete(synchronize_session=False))
+
+        # 새 매핑 추가 — 유효한 본 모음전 sku + 존재하는 inventory sku 만
+        all_skus = {row[0] for row in s.query(Option.canonical_sku).all()}
+        added = 0
+        for b_sku, inv_list in mappings.items():
+            if b_sku not in bundle_sku_set:
+                continue
+            if not isinstance(inv_list, list):
+                continue
+            seen = set()
+            for inv_sku in inv_list:
+                if not isinstance(inv_sku, str):
+                    continue
+                if inv_sku == b_sku:           # 자기 자신 매핑 방지
+                    continue
+                if inv_sku in seen:            # 같은 매핑 중복 방지
+                    continue
+                if inv_sku not in all_skus:    # 존재하지 않는 sku 차단
+                    continue
+                seen.add(inv_sku)
+                s.add(OptionInventoryLink(
+                    bundle_option_sku=b_sku,
+                    inventory_option_sku=inv_sku,
+                ))
+                added += 1
+        s.commit()
+        return jsonify({'ok': True, 'mapped': added})
+    except Exception as e:
+        s.rollback()
+        return jsonify({'ok': False, 'error': str(e)}), 500
     finally:
         s.close()

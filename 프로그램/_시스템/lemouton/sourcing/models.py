@@ -483,3 +483,48 @@ class BundleOptionStep(Base):
         UniqueConstraint("model_code", "step_no", name="uq_bundle_option_steps"),
         Index("ix_bundle_option_steps_model", "model_code"),
     )
+
+
+# ════════════════════════════════════════════════════════════
+#  Phase 4 (2026-05-28) — 모음전 옵션 ↔ 재고관리 옵션 매핑
+# ════════════════════════════════════════════════════════════
+
+class OptionInventoryLink(Base):
+    """모음전 매트릭스 옵션 ↔ 재고관리 옵션 N:N 매핑.
+
+    [2026-05-28] Phase 4 (B3-3 + E2 누적 색·도트):
+      - 모음전 옵션 (model_code != '단독_%') 은 매트릭스 셀
+      - 재고관리 옵션 (model_code = '단독_%' 또는 별도 재고 SKU) 은 실재고
+      - 한 모음전 셀에 N개 재고 SKU 매핑 가능 (예: 사이즈 묶음 판매)
+      - 한 재고 SKU 가 여러 모음전에 등장 가능 (예: 빨강 운동화 = 봄·여름 모음전)
+
+    UNIQUE(bundle_sku, inventory_sku) — 중복 매핑 차단.
+    옵션 삭제 시 CASCADE.
+    """
+    __tablename__ = "option_inventory_links"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    bundle_option_sku = Column(
+        String(128),
+        ForeignKey("options.canonical_sku", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    inventory_option_sku = Column(
+        String(128),
+        ForeignKey("options.canonical_sku", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+
+    __table_args__ = (
+        UniqueConstraint(
+            "bundle_option_sku", "inventory_option_sku",
+            name="uq_option_inventory_link",
+        ),
+        Index(
+            "ix_oil_inventory_bundle",
+            "inventory_option_sku", "bundle_option_sku",
+        ),
+    )

@@ -1,0 +1,266 @@
+{% extends 'base.html' %}
+{# Phase 4 (2026-05-28) — 모음전 옵션 ↔ 재고관리 옵션 매핑 페이지 (B3-3 in-place 표) #}
+{% block content %}
+<div style="max-width:1700px;margin:0 auto;padding:18px 22px">
+  <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px">
+    <a href="{{ url_for('bundles.bundle_edit', code=bundle.model_code) }}" style="color:#3182F6;text-decoration:none;font-size:13.5px;font-weight:600">← 모음전으로 돌아가기</a>
+    <h1 style="font-size:20px;font-weight:700;margin:0;color:#191F28">
+      📦 {{ bundle.model_name_display or bundle.model_name_raw }} <span style="color:#8B95A1;font-weight:400">— 재고관리 매핑</span>
+    </h1>
+  </div>
+
+  {# 범례 — Phase 4-5 #}
+  <div style="background:#F9FAFB;border:1px solid #E5E8EB;border-radius:8px;padding:12px 16px;margin-bottom:14px;display:flex;gap:18px;align-items:center;flex-wrap:wrap;font-size:13px">
+    <strong style="color:#191F28">🎨 셀 색 의미:</strong>
+    <span style="display:inline-flex;align-items:center;gap:6px"><span style="display:inline-block;width:16px;height:16px;border-radius:3px;background:#E5E7EB;border:1px solid #CBCCD3"></span>옵션만 ON</span>
+    <span style="display:inline-flex;align-items:center;gap:6px"><span style="display:inline-block;width:16px;height:16px;border-radius:3px;background:#DBEAFE;border:1px solid #3B82F6"></span>+ URL 매핑</span>
+    <span style="display:inline-flex;align-items:center;gap:6px"><span style="display:inline-block;width:16px;height:16px;border-radius:3px;background:#DCFCE7;border:1px solid #10B981"></span>+ 재고 매핑</span>
+    <span style="margin-left:auto;color:#8B95A1;font-size:12px">옵션마다 0~N개 재고 SKU 매핑 가능 · 표기 차이 자동 추론 ✨</span>
+  </div>
+
+  <div style="display:grid;grid-template-columns:1fr;gap:14px">
+
+    {# 매핑 표 — Phase 4-2 (B3-3 in-place 편집) #}
+    <div style="background:#fff;border:1px solid #E5E8EB;border-radius:10px;overflow:hidden">
+      <div style="padding:14px 18px;border-bottom:1px solid #E5E8EB;display:flex;align-items:center;gap:10px">
+        <strong style="font-size:15px;color:#191F28">옵션 매핑 표</strong>
+        <span id="mappingCountBadge" style="background:#EFF6FF;color:#1E3A8A;padding:2px 9px;border-radius:99px;font-size:12px;font-weight:700">로딩...</span>
+        <button type="button" id="applyCandidatesBtn" style="margin-left:auto;background:#3182F6;color:#fff;border:none;padding:7px 14px;border-radius:5px;font-size:12.5px;font-weight:700;cursor:pointer">✨ 자동 추론 일괄 적용</button>
+        <button type="button" id="saveMappingBtn" style="background:#03A65A;color:#fff;border:none;padding:7px 14px;border-radius:5px;font-size:12.5px;font-weight:700;cursor:pointer">💾 매핑 저장</button>
+      </div>
+      <div style="overflow:auto">
+        <table id="mappingTable" style="width:100%;border-collapse:collapse;font-size:13.5px">
+          <thead style="background:#F9FAFB;border-bottom:1px solid #E5E8EB">
+            <tr>
+              <th style="padding:9px 12px;text-align:left;font-weight:700;color:#4E5968;width:180px">모음전 옵션</th>
+              <th style="padding:9px 12px;text-align:left;font-weight:700;color:#4E5968;width:120px">색상</th>
+              <th style="padding:9px 12px;text-align:left;font-weight:700;color:#4E5968;width:90px">사이즈</th>
+              <th style="padding:9px 12px;text-align:left;font-weight:700;color:#4E5968">매핑된 재고 SKU</th>
+              <th style="padding:9px 12px;text-align:left;font-weight:700;color:#4E5968;width:280px">재고 검색·추가</th>
+            </tr>
+          </thead>
+          <tbody id="mappingTbody">
+            <tr><td colspan="5" style="padding:30px;text-align:center;color:#8B95A1">⏳ 로딩 중...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div id="toast" style="position:fixed;bottom:30px;left:50%;transform:translateX(-50%);background:#191F28;color:#fff;padding:11px 22px;border-radius:8px;font-size:13.5px;display:none;z-index:1200;box-shadow:0 6px 20px rgba(0,0,0,0.2)"></div>
+</div>
+
+<script>
+(function(){
+  const BUNDLE_CODE = {{ bundle.model_code | tojson }};
+  const API_URL = '{{ url_for("bundles.api_get_inventory_mapping", code=bundle.model_code) }}';
+  const SAVE_URL = '{{ url_for("bundles.api_save_inventory_mapping", code=bundle.model_code) }}';
+
+  // state
+  let bundleOptions = [];          // {sku, color, size}
+  let inventoryOptions = [];       // {sku, model_name, color, size, stock_total, brand}
+  let mappings = {};               // {bundle_sku: [inv_sku, ...]}
+  let candidates = {};             // {bundle_sku: [inv_sku, ...]}
+
+  function toast(msg, color){
+    const el = document.getElementById('toast');
+    el.textContent = msg;
+    el.style.background = color || '#191F28';
+    el.style.display = 'block';
+    clearTimeout(el._t);
+    el._t = setTimeout(() => { el.style.display = 'none'; }, 2400);
+  }
+
+  function escHtml(s){ return String(s == null ? '' : s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+
+  function fmtInvOption(inv){
+    const stock = inv.stock_total > 0
+      ? `<span style="color:#16A34A;font-weight:700">재고 ${inv.stock_total}</span>`
+      : `<span style="color:#9CA3AF">재고 0</span>`;
+    const standalone = inv.is_standalone ? '<span style="background:#FEF3C7;color:#92400E;padding:1px 5px;border-radius:3px;font-size:10.5px;margin-left:4px">단독</span>' : '';
+    return `<span style="font-family:ui-monospace,monospace">${escHtml(inv.sku)}</span>${standalone} · ${escHtml(inv.model_name || inv.model_code)} · ${escHtml(inv.color || '-')}/${escHtml(inv.size || '-')} · ${stock}`;
+  }
+
+  function renderRow(bopt){
+    const invSkus = mappings[bopt.canonical_sku] || [];
+    const chips = invSkus.map(invSku => {
+      const inv = inventoryOptions.find(x => x.sku === invSku);
+      const lbl = inv
+        ? `<span style="font-family:ui-monospace,monospace">${escHtml(invSku)}</span> · ${escHtml(inv.color || '')}/${escHtml(inv.size || '')}`
+        : `<span style="font-family:ui-monospace,monospace;color:#DC2626">${escHtml(invSku)} (없음)</span>`;
+      return `<span class="map-chip" data-b-sku="${escHtml(bopt.canonical_sku)}" data-inv-sku="${escHtml(invSku)}" style="display:inline-flex;align-items:center;gap:5px;background:#DCFCE7;border:1px solid #10B981;color:#065F46;padding:3px 8px;border-radius:4px;margin:2px;font-size:12px">
+        ${lbl}
+        <button type="button" class="map-chip-x" data-b-sku="${escHtml(bopt.canonical_sku)}" data-inv-sku="${escHtml(invSku)}" style="background:transparent;border:none;color:#065F46;cursor:pointer;padding:0 0 0 4px;font-weight:700">×</button>
+      </span>`;
+    }).join('');
+
+    const candList = candidates[bopt.canonical_sku] || [];
+    const candBtn = candList.length
+      ? `<button type="button" class="apply-cand-btn" data-b-sku="${escHtml(bopt.canonical_sku)}" style="background:#EFF6FF;border:1px solid #BFDBFE;color:#1E40AF;padding:3px 8px;border-radius:4px;font-size:11.5px;cursor:pointer;margin-left:4px">✨ 추론 (${candList.length})</button>`
+      : '';
+
+    const ucolor = bopt.color || '-';
+    const usize = bopt.size || '-';
+    const bg = invSkus.length > 0 ? '#F0FDF4' : '#fff';
+
+    return `<tr data-b-sku="${escHtml(bopt.canonical_sku)}" style="border-bottom:1px solid #F1F1F4;background:${bg}">
+      <td style="padding:9px 12px;font-family:ui-monospace,monospace;font-size:12.5px;color:#292A2F">${escHtml(bopt.canonical_sku)}</td>
+      <td style="padding:9px 12px;color:#292A2F">${escHtml(ucolor)}</td>
+      <td style="padding:9px 12px;color:#292A2F">${escHtml(usize)}</td>
+      <td style="padding:9px 12px;min-height:34px">
+        ${chips || '<span style="color:#9CA3AF">— 매핑 없음</span>'}
+      </td>
+      <td style="padding:9px 12px">
+        <input type="text" class="inv-search" data-b-sku="${escHtml(bopt.canonical_sku)}" placeholder="SKU·이름·색상 검색" style="width:185px;padding:5px 9px;border:1px solid #CBCCD3;border-radius:4px;font-size:12.5px;font-family:ui-monospace,monospace">
+        ${candBtn}
+        <div class="inv-search-dropdown" data-b-sku="${escHtml(bopt.canonical_sku)}" style="position:relative"></div>
+      </td>
+    </tr>`;
+  }
+
+  function renderTable(){
+    const tbody = document.getElementById('mappingTbody');
+    if(bundleOptions.length === 0){
+      tbody.innerHTML = '<tr><td colspan="5" style="padding:30px;text-align:center;color:#8B95A1">옵션이 없습니다.</td></tr>';
+    } else {
+      tbody.innerHTML = bundleOptions.map(renderRow).join('');
+    }
+    const totalMapped = Object.values(mappings).reduce((sum, arr) => sum + (arr ? arr.length : 0), 0);
+    const totalOpts = bundleOptions.length;
+    const mappedOpts = bundleOptions.filter(o => (mappings[o.canonical_sku] || []).length > 0).length;
+    document.getElementById('mappingCountBadge').textContent =
+      `${mappedOpts}/${totalOpts}개 매핑 · 총 ${totalMapped}건`;
+  }
+
+  // 검색 결과 (재고 옵션에서 query 매칭)
+  function searchInvOptions(query, bSku){
+    const q = (query || '').trim().toLowerCase();
+    if(!q) return [];
+    const alreadyMapped = new Set(mappings[bSku] || []);
+    return inventoryOptions
+      .filter(inv => !alreadyMapped.has(inv.sku) && inv.sku !== bSku)
+      .filter(inv => {
+        const haystack = [
+          inv.sku, inv.boxhero_sku, inv.model_code, inv.model_name,
+          inv.brand, inv.color, inv.size
+        ].filter(Boolean).join(' ').toLowerCase();
+        return haystack.includes(q);
+      })
+      .slice(0, 20);
+  }
+
+  function showSearchResults(bSku, query, anchorInput){
+    const tr = anchorInput.closest('tr');
+    const dropZone = tr.querySelector(`.inv-search-dropdown[data-b-sku="${bSku.replace(/"/g, '\\"')}"]`);
+    const hits = searchInvOptions(query, bSku);
+    if(hits.length === 0){
+      dropZone.innerHTML = query
+        ? '<div style="position:absolute;background:#fff;border:1px solid #CBCCD3;border-radius:5px;padding:8px;color:#9CA3AF;font-size:12px;width:280px;z-index:20">결과 없음</div>'
+        : '';
+      return;
+    }
+    dropZone.innerHTML =
+      '<div style="position:absolute;background:#fff;border:1px solid #CBCCD3;border-radius:5px;max-height:260px;overflow:auto;width:340px;z-index:20;box-shadow:0 6px 16px rgba(0,0,0,0.12)">' +
+      hits.map(inv => `<div class="inv-hit" data-b-sku="${escHtml(bSku)}" data-inv-sku="${escHtml(inv.sku)}" style="padding:7px 10px;cursor:pointer;font-size:12px;border-bottom:1px solid #F1F1F4">${fmtInvOption(inv)}</div>`).join('') +
+      '</div>';
+  }
+
+  // delegated 이벤트
+  document.addEventListener('input', function(e){
+    if(e.target.matches && e.target.matches('.inv-search')){
+      showSearchResults(e.target.dataset.bSku, e.target.value, e.target);
+    }
+  });
+  document.addEventListener('click', function(e){
+    const hit = e.target.closest('.inv-hit');
+    if(hit){
+      const b = hit.dataset.bSku, inv = hit.dataset.invSku;
+      if(!mappings[b]) mappings[b] = [];
+      if(mappings[b].indexOf(inv) === -1) mappings[b].push(inv);
+      renderTable();
+      return;
+    }
+    const xb = e.target.closest('.map-chip-x');
+    if(xb){
+      const b = xb.dataset.bSku, inv = xb.dataset.invSku;
+      mappings[b] = (mappings[b] || []).filter(x => x !== inv);
+      renderTable();
+      return;
+    }
+    const cb = e.target.closest('.apply-cand-btn');
+    if(cb){
+      const b = cb.dataset.bSku;
+      const cands = candidates[b] || [];
+      const cur = new Set(mappings[b] || []);
+      cands.forEach(c => cur.add(c));
+      mappings[b] = Array.from(cur);
+      renderTable();
+      toast('✨ 자동 추론 적용 — ' + cands.length + '건 매핑');
+      return;
+    }
+    // 검색 드롭다운 외부 클릭 시 닫기
+    if(!e.target.matches || !e.target.matches('.inv-search')){
+      document.querySelectorAll('.inv-search-dropdown').forEach(d => { d.innerHTML = ''; });
+    }
+  });
+
+  document.getElementById('applyCandidatesBtn').addEventListener('click', function(){
+    let n = 0;
+    Object.keys(candidates).forEach(b => {
+      const cands = candidates[b];
+      if(!cands || !cands.length) return;
+      const cur = new Set(mappings[b] || []);
+      cands.forEach(c => { if(!cur.has(c)){ cur.add(c); n++; } });
+      mappings[b] = Array.from(cur);
+    });
+    renderTable();
+    toast('✨ 전체 자동 추론 적용 — ' + n + '건 신규 매핑');
+  });
+
+  document.getElementById('saveMappingBtn').addEventListener('click', function(){
+    const btn = this;
+    btn.disabled = true; btn.textContent = '⏳ 저장 중...';
+    fetch(SAVE_URL, {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({mappings: mappings})
+    })
+    .then(r => r.json())
+    .then(res => {
+      if(res.ok){
+        toast('✅ 저장 완료 — 매핑 ' + res.mapped + '건', '#03A65A');
+      } else {
+        toast('❌ 저장 실패: ' + (res.error || '알 수 없음'), '#DC2626');
+      }
+    })
+    .catch(e => toast('❌ 요청 실패: ' + e.message, '#DC2626'))
+    .finally(() => { btn.disabled = false; btn.textContent = '💾 매핑 저장'; });
+  });
+
+  // 초기 로드
+  fetch(API_URL)
+    .then(r => r.json())
+    .then(res => {
+      if(!res.ok){ toast('❌ 로드 실패: ' + (res.error || '알 수 없음'), '#DC2626'); return; }
+      // bundle 옵션은 서버에서 받지 않으므로 inventory_options 와 mappings 키에서 도출 + Bundle 정보는 페이지 컨텍스트
+      mappings = res.mappings || {};
+      candidates = res.candidates || {};
+      inventoryOptions = res.inventory_options || [];
+      // 모음전 옵션 = mappings 키들 (서버가 모든 b_sku 를 키로 보냄)
+      // 색상·사이즈는 서버 응답에 없으므로 페이지 인라인 데이터에서 가져옴
+      bundleOptions = (window.BUNDLE_OPTIONS_INLINE || []);
+      renderTable();
+    })
+    .catch(e => toast('❌ 요청 실패: ' + e.message, '#DC2626'));
+})();
+</script>
+
+{# 모음전 옵션 인라인 데이터 — 색상·사이즈 #}
+<script>
+window.BUNDLE_OPTIONS_INLINE = [
+  {%- for opt in bundle_options %}
+  {canonical_sku: {{ opt.canonical_sku | tojson }}, color: {{ (opt.color_display or opt.color_code or '') | tojson }}, size: {{ (opt.size_display or opt.size_code or '') | tojson }}}{% if not loop.last %},{% endif %}
+  {%- endfor %}
+];
+</script>
+{% endblock %}
