@@ -73,6 +73,113 @@ def data_product_image(filename):
     return send_from_directory(str(UPLOAD_DIR), filename)
 
 
+# ============ [Phase 3-3 · A2] 다중 선택 → 모음전 일괄 등록 ============
+
+@bp.post('/data/items/bulk-bundle-register')
+def data_items_bulk_bundle_register():
+    """선택된 옵션들을 모음전으로 일괄 등록.
+
+    [2026-05-28] Phase 3-3 (A2 시안):
+      - 같은 모델·색상에 사이즈만 다른 N개 옵션 → 모음전 매트릭스로 묶기
+      - 옵션의 model_code 변경 + Model upsert + BundleOptionStep 자동 추론
+
+    body (JSON):
+      {
+        "skus": ["SKU-XXX", ...],            # 선택된 옵션 SKU 들
+        "bundle_name": "메이트",              # 신규 모음전 이름
+        "bundle_brand": "르무통",
+        "bundle_category": "스니커즈",
+        "bundle_article_no": "FV5420-002",   # 선택
+      }
+    Returns:
+      {ok: True, new_model_code, options_moved, steps_inferred}
+    """
+    from flask import jsonify
+    from lemouton.sourcing.master import upsert_model
+    from lemouton.sourcing.option_service import save_step_design
+    from lemouton.inventory.boxhero_import import _derive_model_code
+    from shared.sku_format import clean_article_no
+    import json as _json
+
+    payload = request.get_json(silent=True) or {}
+    skus = payload.get('skus') or []
+    bundle_name = (payload.get('bundle_name') or '').strip()
+    bundle_brand = (payload.get('bundle_brand') or '').strip() or '미상'
+    bundle_category = (payload.get('bundle_category') or '').strip()
+    bundle_article_no = clean_article_no(payload.get('bundle_article_no'))
+
+    if not isinstance(skus, list) or not skus:
+        return jsonify({'ok': False, 'error': 'SKU 목록이 비어있어요.'}), 400
+    if not bundle_name:
+        return jsonify({'ok': False, 'error': '모음전 이름은 필수예요.'}), 400
+
+    s = SessionLocal()
+    try:
+        # 1. 선택된 옵션 조회
+        opts = s.query(Option).filter(Option.canonical_sku.in_(skus)).all()
+        if not opts:
+            return jsonify({'ok': False, 'error': '옵션을 찾을 수 없어요.'}), 404
+
+        # 2. 자동 단계 추론 — 색상 unique + 사이즈 unique
+        colors = sorted({(o.color_display or o.color_code or '').strip() for o in opts if o.color_display or o.color_code})
+        sizes = sorted({(o.size_display or o.size_code or '').strip() for o in opts if o.size_display or o.size_code})
+        steps = []
+        if colors:
+            steps.append({'axis_name': '색상', 'values': list(colors)})
+        if sizes:
+            steps.append({'axis_name': '사이즈', 'values': list(sizes)})
+
+        # 3. 새 model_code 생성 + Model upsert
+        # 임시 SKU 로 model_code 도출 (옵션의 첫 SKU 기준)
+        ref_sku = opts[0].canonical_sku
+        new_model_code = _derive_model_code(bundle_brand,
+                                             bundle_article_no if bundle_article_no != '-' else bundle_name,
+                                             ref_sku)
+        upsert_model(
+            s,
+            model_code=new_model_code,
+            model_name_raw=bundle_name[:255],
+            brand=bundle_brand[:100],
+        )
+        m_obj = s.query(Model).filter_by(model_code=new_model_code).first()
+        if m_obj:
+            if not (m_obj.model_name_display or '').strip():
+                m_obj.model_name_display = bundle_name[:255]
+            if bundle_brand and not (m_obj.brand or '').strip():
+                m_obj.brand = bundle_brand[:100]
+            if bundle_category and not (getattr(m_obj, 'category', None) or '').strip():
+                m_obj.category = bundle_category[:100]
+            if bundle_article_no != '-' and not (getattr(m_obj, 'article_no', None) or '').strip():
+                m_obj.article_no = bundle_article_no
+
+        # 4. 옵션의 model_code 를 새 모음전으로 변경
+        for opt in opts:
+            opt.model_code = new_model_code
+
+        # 5. 단계 설계 저장
+        save_step_design(s, new_model_code, steps)
+
+        s.commit()
+        # 모음전 상세 페이지 URL (있으면)
+        try:
+            bundle_url = url_for('bundles.bundle_edit', code=new_model_code)
+        except Exception:
+            bundle_url = None
+        return jsonify({
+            'ok': True,
+            'new_model_code': new_model_code,
+            'created': len(opts),         # JS 와 호환 (options_moved 와 동일)
+            'options_moved': len(opts),
+            'steps_inferred': steps,
+            'bundle_url': bundle_url,
+        })
+    except Exception as e:
+        s.rollback()
+        return jsonify({'ok': False, 'error': str(e)}), 500
+    finally:
+        s.close()
+
+
 @bp.post('/data/items/backfill-article-no')
 def data_items_backfill_article_no():
     """박스히어로 model_name → Model.article_no 일괄 백필.
