@@ -587,8 +587,18 @@ def data_items_create():
         except ValueError:
             avg_price = 0
 
-        # Model upsert — article_no(품번) 우선, 없으면 model_name 으로 model_code 도출
-        model_code = _derive_model_code(brand, article_no_in or model_name, canonical_sku)
+        # [2026-05-28] Phase 2-2 — 사용자 룰: 자동 모음전 등록 X.
+        #   "register_as_bundle" 체크박스 시에만 정상 model 생성 → 모음전 list 에 노출.
+        #   기본 (체크 X) → "단독_SKU-XXX" prefix 모델로 분리 (모음전 list 에서 제외).
+        register_as_bundle = (f.get('register_as_bundle') or '').lower() in ('on', 'true', '1')
+
+        if register_as_bundle:
+            # 정상 모음전 등록 — Model 자동 생성·갱신
+            model_code = _derive_model_code(brand, article_no_in or model_name, canonical_sku)
+        else:
+            # 단독 옵션 — "단독_{canonical_sku}" 모델로 분리 (모음전 X)
+            model_code = f'단독_{canonical_sku}'
+
         upsert_model(
             s,
             model_code=model_code,

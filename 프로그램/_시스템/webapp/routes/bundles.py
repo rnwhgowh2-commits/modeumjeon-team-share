@@ -455,7 +455,8 @@ def bundle_list():
         selected_status = 'draft'
     s = SessionLocal()
     try:
-        query = s.query(Model)
+        # [2026-05-28] Phase 2-2 — "단독_" prefix 모델은 모음전 list 제외 (사용자 룰)
+        query = s.query(Model).filter(~Model.model_code.like('단독_%'))
         # ★ 박스히어로식 다중 키워드 AND 교집합
         query = apply_and_filter(
             query, search_tokens,

@@ -182,29 +182,44 @@ def test_gen_canonical_sku_dedup():
 # ============ build_options_from_steps (Phase 1-1 — SKU-XXX 형식) ============
 
 def test_build_options_2axis():
-    """canonical_sku 는 SKU-XXX 형식 (사용자 룰). axis_values 는 그대로."""
+    """[Phase 2-1] selected 명시 필수. None 이면 0건."""
     steps = [{"axis_name": "색상", "values": ["블랙", "화이트"]},
              {"axis_name": "사이즈", "values": ["250", "260"]}]
+    # selected=None → 0건 (사용자 룰: 자동 카르테시안 금지)
     specs = build_options_from_steps("AF", steps)
+    assert specs == []
+    # selected 명시 → 그 조합만
+    specs = build_options_from_steps(
+        "AF", steps,
+        selected=[["블랙", "250"], ["블랙", "260"], ["화이트", "250"], ["화이트", "260"]])
     assert len(specs) == 4
-    # canonical_sku = SKU-XXX 형식
     for spec in specs:
-        assert re.match(r'^SKU-[A-Z0-9]{8}$', spec["canonical_sku"]), \
-            f"한글·옛 형식 SKU 발견: {spec['canonical_sku']}"
-    # axis_values 는 그대로
-    assert specs[0]["axis_values"] == ["블랙", "250"]
+        assert re.match(r'^SKU-[A-Z0-9]{8}$', spec["canonical_sku"])
 
 
 def test_build_options_skips_existing_axes():
-    """existing_axes 로 중복 옵션 회피 (model_code, axis_tuple) 기반."""
+    """existing_axes 로 중복 옵션 회피 — selected 안에서도 동작."""
     steps = [{"axis_name": "색상", "values": ["블랙", "화이트", "그레이"]}]
-    existing_axes = {("AF", ("블랙",))}  # 이미 존재하는 블랙 옵션
-    specs = build_options_from_steps("AF", steps, existing_axes=existing_axes)
+    existing_axes = {("AF", ("블랙",))}
+    specs = build_options_from_steps(
+        "AF", steps,
+        existing_axes=existing_axes,
+        selected=[["블랙"], ["화이트"], ["그레이"]])
     axis_values = [s["axis_values"] for s in specs]
     assert ["블랙"] not in axis_values
     assert ["화이트"] in axis_values
     assert ["그레이"] in axis_values
     assert len(specs) == 2
+
+
+def test_build_options_no_selected_returns_empty():
+    """[Phase 2-1 핵심] selected=None 이면 자동 cartesian 생성 X."""
+    steps = [{"axis_name": "색상", "values": ["블랙", "화이트", "그레이"]},
+             {"axis_name": "사이즈", "values": ["220", "230", "240"]}]
+    # selected 미전달 (None) → 0건 (3×3 = 9건 만들지 X)
+    assert build_options_from_steps("AF", steps) == []
+    # selected=[] → 0건
+    assert build_options_from_steps("AF", steps, selected=[]) == []
 
 
 def test_build_options_selected():
@@ -222,19 +237,21 @@ def test_build_options_selected():
 
 
 def test_build_options_axis_json():
-    specs = build_options_from_steps("AF", [{"axis_name": "색상",
-                                             "values": ["블랙"]}])
+    """selected 명시 → axis_values_json 정상 저장."""
+    specs = build_options_from_steps(
+        "AF", [{"axis_name": "색상", "values": ["블랙"]}],
+        selected=[["블랙"]])
     import json as _j
     assert _j.loads(specs[0]["axis_values_json"]) == ["블랙"]
 
 
 def test_build_options_no_korean_in_sku():
-    """Phase 1 핵심 — 어떤 입력에도 canonical_sku 에 한글 X."""
+    """Phase 1 핵심 — selected 명시해도 canonical_sku 에 한글 X."""
     steps = [{"axis_name": "색상", "values": ["블랙", "화이트", "그레이"]},
              {"axis_name": "사이즈", "values": ["250", "260"]}]
-    specs = build_options_from_steps("르무통_메이트", steps)
+    sel = [[c, sz] for c in ["블랙", "화이트", "그레이"] for sz in ["250", "260"]]
+    specs = build_options_from_steps("르무통_메이트", steps, selected=sel)
     for spec in specs:
-        # 한글 코드포인트 (가-힣) 없음 검증
         assert not any('가' <= ch <= '힣' for ch in spec["canonical_sku"]), \
             f"한글 SKU 발견: {spec['canonical_sku']}"
 

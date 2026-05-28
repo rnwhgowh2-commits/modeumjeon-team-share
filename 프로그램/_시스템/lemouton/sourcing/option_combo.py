@@ -172,12 +172,19 @@ def build_options_from_steps(
     Returns:
         [{"canonical_sku","model_code","axis_values","axis_values_json"}, ...]
     """
+    # [2026-05-28] Phase 2-1 — 사용자 룰: 자동 카르테시안 X. selected 명시 필수.
+    #   selected=None → 0건 (단계 설계만 저장, 옵션 0건 생성)
+    #   selected=[] → 0건
+    #   selected=[[...]] → 그 조합만
+    if selected is None:
+        return []
+
     seen_skus: set[str] = set(existing_skus or set())
     seen_axes: set[tuple] = set(existing_axes or set())
     specs: list[dict] = []
     for combo in generate_combinations(steps):
         values = combo['values']
-        if selected is not None and values not in selected:
+        if values not in selected:
             continue
         axis_key = (model_code, tuple(values))
         if axis_key in seen_axes:

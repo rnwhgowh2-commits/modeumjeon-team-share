@@ -1001,7 +1001,19 @@ function onWipeInput(e){
         💡 위치 행은 <b>재고관리 → 위치 관리</b> 에서 추가/삭제 시 자동 반영.
       </div>
 
-      <div style="display:flex;gap:8px;justify-content:flex-end">
+      {# [2026-05-28] Phase 2-2 — 모음전 등록 옵션 (기본 OFF, 사용자 룰) #}
+      <div style="background:#F0FDF4;border:1.5px solid #03A65A;border-radius:8px;padding:11px 14px;margin-top:10px;font-size:12.5px">
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;color:#065F46;font-weight:600">
+          <input type="checkbox" name="register_as_bundle" value="on" style="width:16px;height:16px;cursor:pointer">
+          🎁 모음전에도 등록
+        </label>
+        <div style="margin-top:4px;font-size:11.5px;color:#047857;padding-left:24px;line-height:1.5">
+          체크 X → 단독 옵션 (재고관리에만 표시).<br>
+          체크 ✓ → 정상 모음전 모델 등록 (옵션 매트릭스 사용 가능).
+        </div>
+      </div>
+
+      <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px">
         <button type="button" onclick="closeNewItemModal()" style="padding:9px 16px;background:#fff;border:1px solid #CBCCD3;color:#292A2F;border-radius:5px;font-size:14px;cursor:pointer">취소</button>
         <button id="niSubmitBtn" type="submit" style="padding:9px 20px;background:#4F67FF;border:none;color:#fff;border-radius:5px;font-size:14px;font-weight:600;cursor:pointer">+ 추가</button>
       </div>

@@ -42,35 +42,47 @@ def db():
 
 
 def test_create_2axis(db):
-    """[Phase 1-2] canonical_sku = SKU-XXX 형식. axis_values 로 검색."""
+    """[Phase 2-1] selected 명시 필수. 그 조합만 생성."""
     import re
     steps = [
         {"axis_name": "색상", "values": ["블랙", "화이트"]},
         {"axis_name": "사이즈", "values": ["250", "260"]},
     ]
-    r = create_combination_options(db, "AF", steps)
+    # selected 명시 — 4 조합 모두
+    r = create_combination_options(db, "AF", steps,
+                                   selected=[["블랙", "250"], ["블랙", "260"],
+                                             ["화이트", "250"], ["화이트", "260"]])
     assert r['created'] == 4
     opts = db.query(M.Option).filter_by(model_code="AF").all()
     assert len(opts) == 4
-    # SKU-XXX 형식 검증 (사용자 룰)
     for o in opts:
-        assert re.match(r'^SKU-[A-Z0-9]{8}$', o.canonical_sku), \
-            f"SKU 형식 위반: {o.canonical_sku}"
-        assert o.boxhero_sku == o.canonical_sku, "boxhero_sku = canonical_sku"
-        assert o.barcode and len(o.barcode) == 13, "EAN-13 자동 생성"
-    # axis_values 로 옵션 식별
-    bk250 = next((o for o in opts if o.color_code == "블랙" and o.size_code == "250"), None)
-    assert bk250 is not None
-    assert json.loads(bk250.axis_values_json) == ["블랙", "250"]
+        assert re.match(r'^SKU-[A-Z0-9]{8}$', o.canonical_sku)
+        assert o.boxhero_sku == o.canonical_sku
+        assert o.barcode and len(o.barcode) == 13
+
+
+def test_create_no_selected_only_step_design(db):
+    """[Phase 2-1 핵심] selected 없으면 옵션 0건 (자동 카르테시안 금지). 단계 설계만 저장."""
+    r = create_combination_options(db, "AF", [
+        {"axis_name": "색상", "values": ["블랙", "화이트"]},
+        {"axis_name": "사이즈", "values": ["250", "260"]},
+    ])
+    assert r['created'] == 0
+    assert db.query(M.Option).filter_by(model_code="AF").count() == 0
+    # 단계 설계는 저장됨
+    assert db.query(M.BundleOptionStep).filter_by(model_code="AF").count() == 2
 
 
 def test_create_dedup_on_recall(db):
     """[Phase 1-2] axis 기반 중복 검사 — 같은 (model, axis) 면 신규 생성 X."""
-    create_combination_options(db, "AF", [{"axis_name": "색상",
-                                           "values": ["블랙", "화이트"]}])
+    create_combination_options(db, "AF",
+                               [{"axis_name": "색상", "values": ["블랙", "화이트"]}],
+                               selected=[["블랙"], ["화이트"]])
     # 재호출 — 블랙은 이미 있으니 그레이만 신규
-    r = create_combination_options(db, "AF", [{"axis_name": "색상",
-                                               "values": ["블랙", "그레이"]}])
+    r = create_combination_options(db, "AF",
+                                   [{"axis_name": "색상",
+                                     "values": ["블랙", "그레이"]}],
+                                   selected=[["블랙"], ["그레이"]])
     assert r['created'] == 1
     assert db.query(M.Option).filter_by(model_code="AF").count() == 3
 
@@ -108,8 +120,9 @@ def test_no_korean_canonical_sku(db):
 
 
 def test_step_design_saved(db):
-    create_combination_options(db, "AF", [{"axis_name": "색상",
-                                           "values": ["블랙"]}])
+    create_combination_options(db, "AF",
+                               [{"axis_name": "색상", "values": ["블랙"]}],
+                               selected=[["블랙"]])
     rows = db.query(M.BundleOptionStep).filter_by(model_code="AF").all()
     assert len(rows) == 1
     assert rows[0].axis_name == "색상" and rows[0].step_no == 1
