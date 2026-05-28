@@ -4968,6 +4968,53 @@
     bindPriceEvents();
     // v17 B1 — 재고 이력 lazy load (모든 옵션 한 번에 bulk fetch)
     loadStockHistoryAll();
+    // [Phase 4-3 E2] 셀 좌상단/우상단 도트 (URL + 재고 매핑 상태)
+    decorateE2Dots();
+  }
+
+  // [Phase 4-3 E2] 누적 도트 — URL 매핑(파랑) + 재고 매핑(초록) 시각화
+  async function decorateE2Dots() {
+    const rows = document.querySelectorAll('tr[data-price-row]');
+    if (!rows.length) return;
+    // 1) URL 매핑 수: state.options[i].sources 에서 도출 (이미 로드된 데이터)
+    const urlCount = {};
+    (state && state.options ? state.options : []).forEach(o => {
+      urlCount[o.sku] = (o.sources || []).filter(s => s && s.url).length;
+    });
+    // 2) 재고 매핑: 비동기 fetch (실패해도 무방)
+    let invMap = {};
+    try {
+      const r = await fetch(`/api/bundles/${encodeURIComponent(BUNDLE_CODE)}/inventory-mapping`);
+      const j = await r.json();
+      if (j && j.ok) invMap = j.mappings || {};
+    } catch(e) { /* ignore */ }
+    // 3) 행마다 도트 배지 부착 (mc-unified-cell 좌상단/우상단)
+    rows.forEach(tr => {
+      const sku = tr.dataset.sku;
+      if (!sku) return;
+      const cell = tr.querySelector('td.mc-unified-cell');
+      if (!cell) return;
+      // 기존 도트 제거 (재호출 시)
+      const old = cell.querySelector('.e2-dots');
+      if (old) old.remove();
+      const uCnt = urlCount[sku] || 0;
+      const iCnt = (invMap[sku] || []).length;
+      // 어떤 매핑도 없으면 도트 X (gray 상태 — 옵션 ON 만)
+      if (uCnt === 0 && iCnt === 0) return;
+      const dots = document.createElement('div');
+      dots.className = 'e2-dots';
+      dots.style.cssText = 'position:absolute;top:3px;right:5px;display:flex;gap:3px;z-index:2;pointer-events:none';
+      if (uCnt > 0) {
+        dots.innerHTML += `<span title="URL 매핑 ${uCnt}건" style="background:#3B82F6;color:#fff;font-size:9.5px;font-weight:700;padding:1px 5px;border-radius:99px;line-height:1.2">📡${uCnt}</span>`;
+      }
+      if (iCnt > 0) {
+        dots.innerHTML += `<span title="재고 매핑 ${iCnt}건" style="background:#10B981;color:#fff;font-size:9.5px;font-weight:700;padding:1px 5px;border-radius:99px;line-height:1.2">📦${iCnt}</span>`;
+      }
+      // 셀 position:relative 가 아니면 부모 row 기준
+      const css = window.getComputedStyle(cell);
+      if (css.position === 'static') cell.style.position = 'relative';
+      cell.appendChild(dots);
+    });
   }
 
   // v17 B1 — 재고 이력 일괄 fetch + 표시
