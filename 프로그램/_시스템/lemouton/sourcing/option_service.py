@@ -57,17 +57,33 @@ def create_combination_options(
 
     save_step_design(session, model_code, steps)
 
-    existing = {
-        row[0] for row in
-        session.query(Option.canonical_sku).filter_by(model_code=model_code).all()
-    }
+    # [2026-05-28] Phase 1-2 — canonical_sku 형식 통일 (SKU-XXX) + axis 기반 중복 검사
+    #   - existing_skus: 전체 DB의 SKU 중복 회피 (UNIQUE PK 충돌 방지)
+    #   - existing_axes: 이 모음전 model 안의 (axis_tuple) 중복 회피
+    existing_skus = {row[0] for row in session.query(Option.canonical_sku).all()}
+    existing_axes: set[tuple] = set()
+    for (av_json,) in session.query(Option.axis_values_json).filter_by(
+            model_code=model_code).all():
+        try:
+            vals = json.loads(av_json or '[]')
+            if vals:
+                existing_axes.add((model_code, tuple(vals)))
+        except (ValueError, TypeError):
+            pass
     specs = build_options_from_steps(model_code, steps,
-                                     existing_skus=existing, selected=selected)
+                                     existing_skus=existing_skus,
+                                     existing_axes=existing_axes,
+                                     selected=selected)
+    # [2026-05-28] Phase 1-2/1-4 — 컬럼 규칙: shared.sku_format 모듈로 통일
+    from shared.sku_format import gen_barcode
+
     created: list[str] = []
     for spec in specs:
         values = spec['axis_values']
         session.add(Option(
             canonical_sku=spec['canonical_sku'],
+            boxhero_sku=spec['canonical_sku'],  # 사용자 룰: 자체 SKU 가 박스히어로 SKU
+            barcode=gen_barcode(),               # 자동 EAN-13
             model_code=model_code,
             color_code=(values[0] if len(values) > 0 else ''),
             size_code=(values[1] if len(values) > 1 else ''),

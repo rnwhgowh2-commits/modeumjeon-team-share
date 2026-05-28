@@ -5,8 +5,9 @@ ai-workflow cycle 20260521 · Phase 2 · Task 1
 from types import SimpleNamespace
 
 from lemouton.sourcing.option_combo import (
-    parse_comma_values, generate_combinations, build_sku, steps_from_rows,
-    option_axis_values, option_sku, build_options_from_steps, option_is_offline,
+    parse_comma_values, generate_combinations, build_sku, gen_canonical_sku,
+    steps_from_rows, option_axis_values, option_sku, build_options_from_steps,
+    option_is_offline,
 )
 
 
@@ -160,31 +161,64 @@ def test_option_sku_legacy():
     assert option_sku(o) == "AF-BK-250"
 
 
-# ============ build_options_from_steps (조합 추가 핵심 — 순수) ============
+# ============ gen_canonical_sku (Phase 1-1 — 사용자 룰) ============
+
+import re
+
+def test_gen_canonical_sku_format():
+    """SKU-XXX 형식 (영숫자 대문자 8자) — 한글 없음."""
+    sku = gen_canonical_sku(set())
+    assert re.match(r'^SKU-[A-Z0-9]{8}$', sku), f"형식 위반: {sku}"
+
+
+def test_gen_canonical_sku_dedup():
+    """existing set 에 추가하여 중복 회피."""
+    existing = set()
+    skus = [gen_canonical_sku(existing) for _ in range(20)]
+    assert len(set(skus)) == 20  # 모두 unique
+    assert all(s in existing for s in skus)
+
+
+# ============ build_options_from_steps (Phase 1-1 — SKU-XXX 형식) ============
 
 def test_build_options_2axis():
+    """canonical_sku 는 SKU-XXX 형식 (사용자 룰). axis_values 는 그대로."""
     steps = [{"axis_name": "색상", "values": ["블랙", "화이트"]},
              {"axis_name": "사이즈", "values": ["250", "260"]}]
     specs = build_options_from_steps("AF", steps)
     assert len(specs) == 4
-    assert specs[0]["canonical_sku"] == "AF-블랙-250"
+    # canonical_sku = SKU-XXX 형식
+    for spec in specs:
+        assert re.match(r'^SKU-[A-Z0-9]{8}$', spec["canonical_sku"]), \
+            f"한글·옛 형식 SKU 발견: {spec['canonical_sku']}"
+    # axis_values 는 그대로
     assert specs[0]["axis_values"] == ["블랙", "250"]
 
 
-def test_build_options_skips_existing():
+def test_build_options_skips_existing_axes():
+    """existing_axes 로 중복 옵션 회피 (model_code, axis_tuple) 기반."""
     steps = [{"axis_name": "색상", "values": ["블랙", "화이트", "그레이"]}]
-    specs = build_options_from_steps("AF", steps, existing_skus={"AF-블랙"})
-    skus = [s["canonical_sku"] for s in specs]
-    assert "AF-블랙" not in skus and len(specs) == 2
+    existing_axes = {("AF", ("블랙",))}  # 이미 존재하는 블랙 옵션
+    specs = build_options_from_steps("AF", steps, existing_axes=existing_axes)
+    axis_values = [s["axis_values"] for s in specs]
+    assert ["블랙"] not in axis_values
+    assert ["화이트"] in axis_values
+    assert ["그레이"] in axis_values
+    assert len(specs) == 2
 
 
 def test_build_options_selected():
+    """selected 만 처리. canonical_sku 는 SKU-XXX."""
     steps = [{"axis_name": "색상", "values": ["블랙", "화이트"]},
              {"axis_name": "사이즈", "values": ["250", "260"]}]
     specs = build_options_from_steps(
         "AF", steps, selected=[["블랙", "250"], ["화이트", "260"]])
-    assert sorted(s["canonical_sku"] for s in specs) == \
-        ["AF-블랙-250", "AF-화이트-260"]
+    assert len(specs) == 2
+    axis_values_set = {tuple(s["axis_values"]) for s in specs}
+    assert axis_values_set == {("블랙", "250"), ("화이트", "260")}
+    # SKU-XXX 형식 검증
+    for spec in specs:
+        assert re.match(r'^SKU-[A-Z0-9]{8}$', spec["canonical_sku"])
 
 
 def test_build_options_axis_json():
@@ -192,6 +226,17 @@ def test_build_options_axis_json():
                                              "values": ["블랙"]}])
     import json as _j
     assert _j.loads(specs[0]["axis_values_json"]) == ["블랙"]
+
+
+def test_build_options_no_korean_in_sku():
+    """Phase 1 핵심 — 어떤 입력에도 canonical_sku 에 한글 X."""
+    steps = [{"axis_name": "색상", "values": ["블랙", "화이트", "그레이"]},
+             {"axis_name": "사이즈", "values": ["250", "260"]}]
+    specs = build_options_from_steps("르무통_메이트", steps)
+    for spec in specs:
+        # 한글 코드포인트 (가-힣) 없음 검증
+        assert not any('가' <= ch <= '힣' for ch in spec["canonical_sku"]), \
+            f"한글 SKU 발견: {spec['canonical_sku']}"
 
 
 # ============ option_is_offline (오프라인 전용 옵션 — Phase 3) ============

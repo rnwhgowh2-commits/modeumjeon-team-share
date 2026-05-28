@@ -4,17 +4,24 @@ ai-workflow cycle 20260521 · Phase 2 · Task 1
 
 단계형 옵션:
   모음전마다 1~3단계. 각 단계 = 이름(자유: 색상·사이즈·모델·재질…) + 값 목록.
-  옵션ID 는 단계 값들의 조합(cartesian product)으로 생성.
 
 이 모듈은 단계 설계 → 옵션 조합을 만드는 **순수 함수**들 (DB 의존 ❌).
   · parse_comma_values  — 1축 쉼표 입력 파싱
   · generate_combinations — 1~3축 cartesian product
-  · build_sku           — 모델코드 + 단계 값 → 옵션ID
+  · build_sku           — 모델코드 + 단계 값 → 식별 키 (옛 형식 — 내부 호환용)
+  · gen_canonical_sku   — SKU-XXX 형식 (사용자 룰 — 영숫자 8자, 중복 회피)
+
+[2026-05-28] 사용자 룰 (Phase 1):
+  - canonical_sku 는 항상 'SKU-XXXXXXXX' 형식 (한글 X).
+  - 옵션 중복 검사는 (model_code, axis_values_tuple) 기반.
+  - build_sku 는 옵션 매트릭스 매핑 키 (내부 호환) 로만 사용.
 """
 from __future__ import annotations
 
 import itertools
 import json
+import secrets
+import string
 
 
 def parse_comma_values(text: str) -> list[str]:
@@ -67,7 +74,11 @@ def generate_combinations(steps: list[dict]) -> list[dict]:
 
 
 def build_sku(model_code: str, values: list[str]) -> str:
-    """모델코드 + 단계 값들 → 옵션ID.
+    """모델코드 + 단계 값들 → 옵션 식별 키 (내부 호환용).
+
+    [2026-05-28] **canonical_sku 가 아닌 내부 식별 키**.
+    옵션 매트릭스 매핑·테스트·기존 호출자 호환을 위해 유지.
+    실제 DB canonical_sku 는 `gen_canonical_sku()` 가 생성.
 
     build_sku("AF", ["블랙", "260"]) → "AF-블랙-260"
     build_sku("AF", [])              → "AF"
@@ -75,6 +86,16 @@ def build_sku(model_code: str, values: list[str]) -> str:
     parts = [str(model_code).strip()]
     parts += [str(v).strip() for v in (values or []) if str(v).strip()]
     return '-'.join(p for p in parts if p)
+
+
+def gen_canonical_sku(existing: set[str]) -> str:
+    """SKU-XXX 형식 (사용자 룰) — shared.sku_format.gen_sku 로 위임.
+
+    [2026-05-28] Phase 1-4 — shared 모듈로 통합.
+    이 함수는 호환을 위해 유지 (호출자가 점진적으로 shared 직접 사용).
+    """
+    from shared.sku_format import gen_sku
+    return gen_sku(existing)
 
 
 def steps_from_rows(rows) -> list[dict]:
@@ -131,30 +152,39 @@ def build_options_from_steps(
     steps: list[dict],
     existing_skus: set[str] | None = None,
     selected: list[list[str]] | None = None,
+    existing_axes: set[tuple] | None = None,
 ) -> list[dict]:
     """단계 설계 → 생성할 Option 사양 목록 (순수 — DB 의존 ❌).
+
+    [2026-05-28] Phase 1-1 변경:
+      - canonical_sku 는 SKU-XXX 형식 (사용자 룰).
+      - 중복 검사 = (model_code, axis_values_tuple) 기반 (existing_axes).
+      - 호환: existing_skus 도 받아 SKU 중복 회피에만 사용 (기존 호출자 깨지지 않게).
 
     Args:
         model_code: 모음전 코드.
         steps: [{"axis_name","values"}] — generate_combinations 입력.
-        existing_skus: 이미 존재하는 canonical_sku — 중복 제외.
-        selected: 일부 조합만 만들 때, 만들 조합의 values 리스트들.
-                  None 이면 전체 cartesian (2·3축 매트릭스 '전체 생성').
+        existing_skus: 기존 canonical_sku set (SKU-XXX 중복 회피용).
+        selected: 일부 조합만. None 이면 전체 cartesian.
+        existing_axes: 기존 옵션의 (model_code, tuple(axis_values)) set —
+                       중복 옵션 회피. 미전달 시 빈 set (모두 신규로 처리).
 
     Returns:
         [{"canonical_sku","model_code","axis_values","axis_values_json"}, ...]
-        — 신규(미존재) 대상만.
     """
-    seen: set[str] = set(existing_skus or set())
+    seen_skus: set[str] = set(existing_skus or set())
+    seen_axes: set[tuple] = set(existing_axes or set())
     specs: list[dict] = []
     for combo in generate_combinations(steps):
         values = combo['values']
         if selected is not None and values not in selected:
             continue
-        sku = build_sku(model_code, values)
-        if sku in seen:
+        axis_key = (model_code, tuple(values))
+        if axis_key in seen_axes:
             continue
-        seen.add(sku)
+        seen_axes.add(axis_key)
+        # canonical_sku — SKU-XXX 형식 (사용자 룰, 중복 회피)
+        sku = gen_canonical_sku(seen_skus)
         specs.append({
             'canonical_sku': sku,
             'model_code': model_code,

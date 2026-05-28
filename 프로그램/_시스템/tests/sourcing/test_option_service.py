@@ -42,6 +42,8 @@ def db():
 
 
 def test_create_2axis(db):
+    """[Phase 1-2] canonical_sku = SKU-XXX 형식. axis_values 로 검색."""
+    import re
     steps = [
         {"axis_name": "색상", "values": ["블랙", "화이트"]},
         {"axis_name": "사이즈", "values": ["250", "260"]},
@@ -50,13 +52,20 @@ def test_create_2axis(db):
     assert r['created'] == 4
     opts = db.query(M.Option).filter_by(model_code="AF").all()
     assert len(opts) == 4
-    bk250 = db.query(M.Option).filter_by(canonical_sku="AF-블랙-250").first()
+    # SKU-XXX 형식 검증 (사용자 룰)
+    for o in opts:
+        assert re.match(r'^SKU-[A-Z0-9]{8}$', o.canonical_sku), \
+            f"SKU 형식 위반: {o.canonical_sku}"
+        assert o.boxhero_sku == o.canonical_sku, "boxhero_sku = canonical_sku"
+        assert o.barcode and len(o.barcode) == 13, "EAN-13 자동 생성"
+    # axis_values 로 옵션 식별
+    bk250 = next((o for o in opts if o.color_code == "블랙" and o.size_code == "250"), None)
     assert bk250 is not None
     assert json.loads(bk250.axis_values_json) == ["블랙", "250"]
-    assert bk250.color_code == "블랙" and bk250.size_code == "250"
 
 
 def test_create_dedup_on_recall(db):
+    """[Phase 1-2] axis 기반 중복 검사 — 같은 (model, axis) 면 신규 생성 X."""
     create_combination_options(db, "AF", [{"axis_name": "색상",
                                            "values": ["블랙", "화이트"]}])
     # 재호출 — 블랙은 이미 있으니 그레이만 신규
@@ -67,6 +76,8 @@ def test_create_dedup_on_recall(db):
 
 
 def test_create_selected_only(db):
+    """[Phase 1-2] selected 만 생성. canonical_sku 는 SKU-XXX 형식."""
+    import re
     steps = [
         {"axis_name": "색상", "values": ["블랙", "화이트"]},
         {"axis_name": "사이즈", "values": ["250", "260"]},
@@ -74,7 +85,26 @@ def test_create_selected_only(db):
     r = create_combination_options(db, "AF", steps,
                                    selected=[["블랙", "250"], ["화이트", "260"]])
     assert r['created'] == 2
-    assert sorted(r['skus']) == ["AF-블랙-250", "AF-화이트-260"]
+    # SKU-XXX 형식 검증
+    for sku in r['skus']:
+        assert re.match(r'^SKU-[A-Z0-9]{8}$', sku), f"SKU 형식 위반: {sku}"
+    # axis 로 옵션 확인
+    opts = db.query(M.Option).filter_by(model_code="AF").all()
+    axis_set = {(o.color_code, o.size_code) for o in opts}
+    assert axis_set == {("블랙", "250"), ("화이트", "260")}
+
+
+def test_no_korean_canonical_sku(db):
+    """[Phase 1 핵심] 어떤 매트릭스 입력도 한글 canonical_sku 생성 X."""
+    create_combination_options(db, "AF", [
+        {"axis_name": "색상", "values": ["블랙", "스카이블루", "다크네이비"]},
+        {"axis_name": "사이즈", "values": ["220", "230"]},
+    ])
+    opts = db.query(M.Option).filter_by(model_code="AF").all()
+    for o in opts:
+        # 한글 코드포인트 (가-힣) 검증
+        assert not any('가' <= ch <= '힣' for ch in o.canonical_sku), \
+            f"한글 SKU 발견: {o.canonical_sku}"
 
 
 def test_step_design_saved(db):

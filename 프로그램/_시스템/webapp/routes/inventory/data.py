@@ -534,8 +534,8 @@ def data_items_create():
     - Model 은 upsert (model_code = derive(brand, article_no or model_name, sku))
     - Option 은 신규 INSERT — canonical_sku 중복 시 자동 재생성 시도
     """
-    import random
-    import string
+    # [2026-05-28] Phase 1-4 — shared.sku_format 통일
+    from shared.sku_format import gen_sku as _shared_gen_sku, gen_barcode as _shared_gen_barcode
 
     from lemouton.sourcing.master import upsert_model
     from lemouton.inventory.boxhero_import import _derive_model_code, _clean_article_no
@@ -558,15 +558,9 @@ def data_items_create():
         flash('모델명은 필수입니다.', 'error')
         return redirect(url_for('inventory.data_items') + '#new')
 
-    def _gen_sku() -> str:
-        chars = string.ascii_uppercase + string.digits
-        return 'SKU-' + ''.join(random.choices(chars, k=8))
-
-    def _gen_barcode() -> str:
-        # EAN-13 (prefix 200 = 내부용) + 9 random + checksum
-        digits = '200' + ''.join(random.choices(string.digits, k=9))
-        chk = sum(int(d) * (3 if i % 2 else 1) for i, d in enumerate(digits))
-        return digits + str((10 - chk % 10) % 10)
+    # [2026-05-28] Phase 1-4 — shared.sku_format 모듈 사용
+    _gen_sku = _shared_gen_sku
+    _gen_barcode = _shared_gen_barcode
 
     s = SessionLocal()
     try:
