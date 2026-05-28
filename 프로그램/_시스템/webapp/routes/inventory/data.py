@@ -555,7 +555,7 @@ def data_items_create():
     memo = (f.get('memo') or '').strip()
 
     if not model_name:
-        flash('제품명은 필수입니다.', 'error')
+        flash('모델명은 필수입니다.', 'error')
         return redirect(url_for('inventory.data_items') + '#new')
 
     def _gen_sku() -> str:
@@ -705,7 +705,7 @@ def data_items_bulk_create():
     cells_json = (f.get('bulk_cells_json') or '').strip()
 
     if not model_name:
-        flash('제품명은 필수입니다.', 'error')
+        flash('모델명은 필수입니다.', 'error')
         return redirect(url_for('inventory.data_items') + '#new')
 
     try:

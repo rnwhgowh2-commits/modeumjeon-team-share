@@ -15,7 +15,7 @@ th, td { padding:8px 10px; text-align:left; border-bottom:1px solid #F2F4F6; }
 <h1>{{ link.name }}</h1>
 <div class="subtitle">read-only · 모음전 재고 현황 ({{ options|length }} 옵션)</div>
 <table>
-<thead><tr><th>SKU</th><th>제품명</th><th>품번</th><th>색상</th><th>사이즈</th><th style="text-align:right">재고</th></tr></thead>
+<thead><tr><th>SKU</th><th>모델명</th><th>품번</th><th>색상</th><th>사이즈</th><th style="text-align:right">재고</th></tr></thead>
 <tbody>
 {% for o in options %}<tr>
   <td class="mono">{{ o.canonical_sku }}</td>

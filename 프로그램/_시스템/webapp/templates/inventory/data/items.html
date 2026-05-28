@@ -53,7 +53,7 @@
   {# ★ 검색 결과 요약 배너 (시안 A) — 검색·필터 적용 시에만 노출 #}
   <div id="searchSummary" style="display:none;background:linear-gradient(90deg,#EEF4FF,#F4F8FF);border:1px solid #BCD2FF;border-radius:8px;padding:11px 18px;margin-bottom:14px;align-items:center;font-size:14px"></div>
 
-  {# 제품 목록 표 — 클릭 시 인라인 popover 편집. 컬럼: ▸·SKU·바코드·브랜드·제품명·품번·색상·사이즈·평균매입가·총재고·위치들·사용·편집 #}
+  {# 제품 목록 표 — 클릭 시 인라인 popover 편집. 컬럼: ▸·SKU·바코드·브랜드·모델명·품번·색상·사이즈·평균매입가·총재고·위치들·사용·편집 #}
   <div style="background:#fff;border:1px solid #E5E8EB;border-radius:8px;overflow-x:auto">
     <table style="width:100%;min-width:1180px;border-collapse:collapse;font-size:14px">
       <thead style="background:#F1F1F4;border-bottom:1px solid #E5E8EB">
@@ -62,7 +62,7 @@
           <th style="padding:11px 10px;text-align:left;font-size:12px;color:#292A2F;font-weight:600">SKU</th>
           <th style="padding:11px 10px;text-align:left;font-size:12px;color:#292A2F;font-weight:600">바코드</th>
           <th style="padding:11px 10px;text-align:left;font-size:12px;color:#292A2F;font-weight:600">브랜드</th>
-          <th style="padding:11px 10px;text-align:left;font-size:12px;color:#292A2F;font-weight:600">제품명</th>
+          <th style="padding:11px 10px;text-align:left;font-size:12px;color:#292A2F;font-weight:600">모델명</th>
           <th style="padding:11px 10px;text-align:left;font-size:12px;color:#292A2F;font-weight:600">품번</th>
           <th style="padding:11px 10px;text-align:left;font-size:12px;color:#292A2F;font-weight:600">색상</th>
           <th style="padding:11px 10px;text-align:left;font-size:12px;color:#292A2F;font-weight:600">사이즈</th>
@@ -153,7 +153,7 @@
   {% endif %}
 
   <div style="margin-top:18px;font-size:12px;color:#8F91A0;line-height:1.6">
-    <strong>인라인 편집:</strong> 행 클릭 → 인라인 popover 편집 (제품명·브랜드·컬러·사이즈·이미지). 사이즈 빈값은 <code style="background:#F1F1F4;padding:1px 5px;border-radius:3px">FREE</code>, 컬러 빈값은 <code style="background:#F1F1F4;padding:1px 5px;border-radius:3px">ONE Color</code> 로 표시됩니다.<br>
+    <strong>인라인 편집:</strong> 행 클릭 → 인라인 popover 편집 (모델명·브랜드·컬러·사이즈·이미지). 사이즈 빈값은 <code style="background:#F1F1F4;padding:1px 5px;border-radius:3px">FREE</code>, 컬러 빈값은 <code style="background:#F1F1F4;padding:1px 5px;border-radius:3px">ONE Color</code> 로 표시됩니다.<br>
     <strong>제품 추가:</strong> 행 <strong>⧉ 복사</strong> — 한 행을 복제해 색상·사이즈만 수정. <strong>편집 popover</strong> 안 ⊞ 일괄 생성 — 색상×사이즈 매트릭스로 한 번에.<br>
     <strong>사용처:</strong> 행 좌측 <strong>▸</strong> 또는 🔗 배지 클릭 → 그 제품을 쓰는 모음전·옵션 인라인 트리. 삭제 시 사용처 경고 표시.
   </div>
@@ -170,7 +170,7 @@
     <form id="popForm" method="post" enctype="multipart/form-data" style="padding:20px 22px">
       <div style="display:grid;gap:14px">
         <div>
-          <label style="display:block;font-size:14px;color:#292A2F;font-weight:600;margin-bottom:5px">제품명</label>
+          <label style="display:block;font-size:14px;color:#292A2F;font-weight:600;margin-bottom:5px">모델명</label>
           <input id="popName" name="model_name" style="width:100%;padding:9px 12px;border:1px solid #CBCCD3;border-radius:5px;font-size:14px;color:#292A2F">
         </div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
@@ -891,9 +891,9 @@ function onWipeInput(e){
         </div>
       </div>
 
-      {# 제품명 #}
+      {# 모델명 #}
       <div style="margin-bottom:12px">
-        <label style="display:block;font-size:12px;color:#525866;margin-bottom:4px;font-weight:600">제품명 <span style="color:#DC2626">*</span></label>
+        <label style="display:block;font-size:12px;color:#525866;margin-bottom:4px;font-weight:600">모델명 <span style="color:#DC2626">*</span></label>
         <input name="model_name" type="text" required placeholder="예: 에어포스1" style="width:100%;padding:8px 11px;border:1px solid #CBCCD3;border-radius:5px;font-size:14px;box-sizing:border-box">
       </div>
 

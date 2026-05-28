@@ -122,10 +122,10 @@ const wCode = settings.w_code || 400;
 
 document.querySelectorAll('.label').forEach(el => {
   const name = el.dataset.name || '';
-  // 5-line layout: 제품명 / 사이즈 / 색상 / 바코드 / 바코드번호
+  // 5-line layout: 모델명 / 사이즈 / 색상 / 바코드 / 바코드번호
   let size = el.dataset.size || 'free';
   let color = el.dataset.color || 'one';
-  // smart fallback — 색상이 제품명과 같으면 (데이터 정리 안 된 옵션) 'one' 으로 표시
+  // smart fallback — 색상이 모델명과 같으면 (데이터 정리 안 된 옵션) 'one' 으로 표시
   if (color === name || (color.length > 12 && name.includes(color.substring(0, 8)))) color = 'one';
   const rawCode = el.dataset.code || '';
   const code = asciiSafeCode(rawCode);
@@ -139,7 +139,7 @@ document.querySelectorAll('.label').forEach(el => {
   const codeStr = code + (isAuto ? ' <span style="color:#F59E0B;font-size:'+(parseFloat(sCode)*0.8)+'pt">★ 자동</span>' : '');
   const bundleTag = isBundle ? `<div class="bundle-tag">묶음</div>` : '';
 
-  // 제품명 line (variant 3: 검은 배경 chip)
+  // 모델명 line (variant 3: 검은 배경 chip)
   const nameLine = (variant === '3')
     ? `<div style="background:#000;color:#fff;padding:0.3mm 1.5mm;border-radius:0.5mm;font-size:${sName};font-weight:${wName};line-height:1.05">${name}</div>`
     : `<div style="font-size:${sName};font-weight:${wName};line-height:1.05">${name}</div>`;

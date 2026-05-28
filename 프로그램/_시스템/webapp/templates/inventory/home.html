@@ -6,7 +6,7 @@
   {# 박스히어로 1:1 헤더 — 제목+ⓘ + 우측 [+제품 추가][▾][데이터 관리][매트릭스 R2] #}
   <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px">
     <h1 style="font-size:22px;font-weight:700;margin:0;color:#292A2F">제품목록</h1>
-    <span title="우리 보유 옵션 전체 — SKU·바코드·브랜드·제품명·색상·사이즈·평균매입가·총재고·위치별 재고" style="display:inline-flex;align-items:center;justify-content:center;width:14px;height:14px;border-radius:50%;background:#F1F1F4;color:#8F91A0;font-size:9.5px;font-weight:700;cursor:help">i</span>
+    <span title="우리 보유 옵션 전체 — SKU·바코드·브랜드·모델명·색상·사이즈·평균매입가·총재고·위치별 재고" style="display:inline-flex;align-items:center;justify-content:center;width:14px;height:14px;border-radius:50%;background:#F1F1F4;color:#8F91A0;font-size:9.5px;font-weight:700;cursor:help">i</span>
     <div style="margin-left:auto;display:flex;gap:6px;align-items:center">
       <a href="{{ url_for('inventory.data_items') }}#new" style="background:#4F67FF;color:#fff;padding:7px 14px;border-radius:5px;font-size:14px;text-decoration:none;font-weight:600">+ 제품 추가</a>
       <button type="button" onclick="document.getElementById('headerMore').classList.toggle('open')" style="background:#4F67FF;color:#fff;padding:7px 8px;border:none;border-radius:5px;font-size:12px;cursor:pointer;font-weight:700">▾</button>
@@ -319,7 +319,7 @@
               <th style="padding:8px;text-align:left">SKU</th>
               <th style="padding:8px;text-align:left">바코드</th>
               <th style="padding:8px;text-align:left">브랜드</th>
-              <th style="padding:8px;text-align:left">제품명</th>
+              <th style="padding:8px;text-align:left">모델명</th>
               <th style="padding:8px;text-align:left">품번</th>
               <th style="padding:8px;text-align:left">색상</th>
               <th style="padding:8px;text-align:left">사이즈</th>
