@@ -881,9 +881,9 @@ function onWipeInput(e){
       <h3 style="font-size:16px;font-weight:700;margin:0;color:#191F28">+ 제품 추가</h3>
       <button type="button" onclick="closeNewItemModal()" style="background:none;border:none;font-size:20px;color:#9CA3AF;cursor:pointer;padding:0 4px;line-height:1">×</button>
     </div>
-    <form id="newItemForm" method="post" action="{{ url_for('inventory.data_items_create') }}" style="padding:18px 22px">
-      {# SKU #}
-      <div style="margin-bottom:12px">
+    <form id="newItemForm" method="post" action="{{ url_for('inventory.data_items_create') }}" style="padding:18px 22px" onsubmit="return onSubmitNewItem(event)">
+      {# SKU — 매트릭스 모드에서 숨김 (각 SKU 자동 부여) #}
+      <div id="niSkuRow" style="margin-bottom:12px">
         <label style="display:block;font-size:12px;color:#525866;margin-bottom:4px;font-weight:600">SKU <span style="color:#9CA3AF;font-weight:400">(비우면 자동 생성)</span></label>
         <div style="display:flex;gap:6px">
           <input id="niSku" name="canonical_sku" type="text" placeholder="SKU-XXXXXXXX" style="flex:1;padding:8px 11px;border:1px solid #CBCCD3;border-radius:5px;font-size:14px;font-family:ui-monospace,monospace;box-sizing:border-box">
@@ -897,8 +897,8 @@ function onWipeInput(e){
         <input name="model_name" type="text" required placeholder="예: 에어포스1" style="width:100%;padding:8px 11px;border:1px solid #CBCCD3;border-radius:5px;font-size:14px;box-sizing:border-box">
       </div>
 
-      {# 바코드 #}
-      <div style="margin-bottom:12px">
+      {# 바코드 — 매트릭스 모드에서 숨김 #}
+      <div id="niBarcodeRow" style="margin-bottom:12px">
         <label style="display:block;font-size:12px;color:#525866;margin-bottom:4px;font-weight:600">바코드 <span style="color:#9CA3AF;font-weight:400">(비우면 자동 생성)</span></label>
         <div style="display:flex;gap:6px">
           <input id="niBarcode" name="barcode" type="text" placeholder="EAN-13 13자리" style="flex:1;padding:8px 11px;border:1px solid #CBCCD3;border-radius:5px;font-size:14px;font-family:ui-monospace,monospace;box-sizing:border-box">
@@ -921,15 +921,26 @@ function onWipeInput(e){
         </div>
       </div>
 
-      {# 색상 + 사이즈 #}
+      {# 색상 + 사이즈 — 단일 또는 쉼표로 여러 개 입력 가능. 쉼표 ≥ 2개 또는 색상×사이즈 합산 ≥ 2 시 매트릭스 모드 자동 활성 #}
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px">
         <div>
-          <label style="display:block;font-size:12px;color:#525866;margin-bottom:4px;font-weight:600">색상</label>
-          <input name="color" type="text" placeholder="예: 블랙(올검)" style="width:100%;padding:8px 11px;border:1px solid #CBCCD3;border-radius:5px;font-size:14px;box-sizing:border-box">
+          <label style="display:block;font-size:12px;color:#525866;margin-bottom:4px;font-weight:600">색상 <span style="color:#9CA3AF;font-weight:400;font-size:11px">단일 또는 쉼표로 여러 개</span></label>
+          <input id="niColor" name="color" type="text" placeholder="예: 블랙  또는  블랙, 화이트, 베이지" oninput="onOptionsInput()" style="width:100%;padding:8px 11px;border:1px solid #CBCCD3;border-radius:5px;font-size:14px;box-sizing:border-box">
         </div>
         <div>
-          <label style="display:block;font-size:12px;color:#525866;margin-bottom:4px;font-weight:600">사이즈</label>
-          <input name="size" type="text" placeholder="예: 270" style="width:100%;padding:8px 11px;border:1px solid #CBCCD3;border-radius:5px;font-size:14px;box-sizing:border-box">
+          <label style="display:block;font-size:12px;color:#525866;margin-bottom:4px;font-weight:600">사이즈 <span style="color:#9CA3AF;font-weight:400;font-size:11px">단일 또는 쉼표로 여러 개</span></label>
+          <input id="niSize" name="size" type="text" placeholder="예: 270  또는  250, 260, 270, 280" oninput="onOptionsInput()" style="width:100%;padding:8px 11px;border:1px solid #CBCCD3;border-radius:5px;font-size:14px;box-sizing:border-box">
+        </div>
+      </div>
+
+      {# 🎨 옵션 일괄 생성 매트릭스 — 색상·사이즈에 쉼표 또는 합산 ≥ 2 일 때 자동 노출 #}
+      <div id="matrixSection" style="display:none;background:#FFFAF0;border:1px solid #F5D899;border-radius:6px;padding:12px 14px;margin-bottom:12px">
+        <div style="font-size:12.5px;color:#7C5A14;font-weight:700;margin-bottom:6px">🎨 옵션 일괄 생성 매트릭스</div>
+        <div style="font-size:11.5px;color:#92400E;margin-bottom:10px;line-height:1.5">• 체크박스로 ON/OFF · 행/열 헤더의 "전체"로 일괄 토글 · 셀에 초기 재고 입력<br>• 셀 수량은 <b>기본 위치</b>로 입고 처리 (다른 위치로 보내려면 등록 후 재고 이동)</div>
+        <div id="matrixWrap" style="overflow-x:auto"></div>
+        <div id="matrixCounter" style="background:linear-gradient(90deg,#EEF4FF,#F4F8FF);border:1px solid #BCD2FF;border-radius:5px;padding:9px 13px;font-size:12.5px;color:#1B64DA;display:flex;justify-content:space-between;align-items:center;margin-top:10px">
+          <span>🧮 생성될 SKU <span style="color:#525866;font-weight:400;font-size:11px">(체크된 셀만)</span></span>
+          <span><b id="matrixSkuCount" style="font-family:ui-monospace,monospace;font-size:14px">0</b> 개 · 합계 재고 <b id="matrixQtyTotal" style="font-family:ui-monospace,monospace;font-size:14px">0</b></span>
         </div>
       </div>
 
@@ -945,8 +956,8 @@ function onWipeInput(e){
         </div>
       </div>
 
-      {# 📍 위치별 초기 재고 (DB 의 InventoryLocation 활성 행 자동 렌더 — 위치 추가/삭제 시 자동 반영) #}
-      <div style="background:#F8FAFC;border:1px solid #E2E8F0;border-radius:7px;padding:12px 14px;margin-bottom:14px">
+      {# 📍 위치별 초기 재고 (DB 의 InventoryLocation 활성 행 자동 렌더 — 위치 추가/삭제 시 자동 반영). 매트릭스 모드에서는 숨김 — 셀 수량이 기본 위치로 들어감 #}
+      <div id="niLocSection" style="background:#F8FAFC;border:1px solid #E2E8F0;border-radius:7px;padding:12px 14px;margin-bottom:14px">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;font-size:12.5px;font-weight:700;color:#191F28">
           <span>📍 위치별 초기 재고 <span style="color:#6B7684;font-weight:400;font-size:10.5px;margin-left:6px">(전체 합산 = 총 재고)</span></span>
           <a href="{{ url_for('inventory.data_locations') }}" target="_blank" style="font-size:11px;color:#3182F6;text-decoration:none;font-weight:500">⚙ 위치 관리 →</a>
@@ -992,7 +1003,7 @@ function onWipeInput(e){
 
       <div style="display:flex;gap:8px;justify-content:flex-end">
         <button type="button" onclick="closeNewItemModal()" style="padding:9px 16px;background:#fff;border:1px solid #CBCCD3;color:#292A2F;border-radius:5px;font-size:14px;cursor:pointer">취소</button>
-        <button type="submit" style="padding:9px 20px;background:#4F67FF;border:none;color:#fff;border-radius:5px;font-size:14px;font-weight:600;cursor:pointer">+ 추가</button>
+        <button id="niSubmitBtn" type="submit" style="padding:9px 20px;background:#4F67FF;border:none;color:#fff;border-radius:5px;font-size:14px;font-weight:600;cursor:pointer">+ 추가</button>
       </div>
     </form>
   </div>
@@ -1038,6 +1049,178 @@ function genBarcode(){
 if(location.hash === '#new'){
   document.addEventListener('DOMContentLoaded', function(){ setTimeout(openNewItemModal, 50); });
   if(document.readyState !== 'loading') setTimeout(openNewItemModal, 50);
+}
+
+/* ===================== 🎨 옵션 일괄 생성 매트릭스 ===================== */
+// 색상·사이즈 인풋에 쉼표가 있거나 색상·사이즈 합산 ≥ 2 시 자동 활성. 단일이면 기존 단일 추가 흐름.
+function parseList_(s){
+  return (s || '').split(/[,\n、]/).map(function(x){ return x.trim(); }).filter(function(x){ return x.length > 0; });
+}
+function onOptionsInput(){
+  var colors = parseList_(document.getElementById('niColor').value);
+  var sizes  = parseList_(document.getElementById('niSize').value);
+  var isBulk = (colors.length > 1 || sizes.length > 1);
+  document.getElementById('matrixSection').style.display = isBulk ? 'block' : 'none';
+  // SKU·바코드 자동 부여, 위치별 영역 → 매트릭스 모드면 숨김
+  document.getElementById('niSkuRow').style.display     = isBulk ? 'none' : '';
+  document.getElementById('niBarcodeRow').style.display = isBulk ? 'none' : '';
+  document.getElementById('niLocSection').style.display = isBulk ? 'none' : '';
+  if(isBulk){
+    renderMatrix(colors.length ? colors : ['ONE'], sizes.length ? sizes : ['FREE']);
+  } else {
+    document.getElementById('niSubmitBtn').textContent = '+ 추가';
+  }
+}
+function renderMatrix(colors, sizes){
+  var wrap = document.getElementById('matrixWrap');
+  // 기존 셀의 체크·수량 보존 (재렌더링 시 사용자 입력 유지)
+  var prev = {};
+  wrap.querySelectorAll('td.mx-cell').forEach(function(td){
+    var k = td.dataset.color + '␟' + td.dataset.size;
+    prev[k] = { on: td.querySelector('.mx-on').checked, qty: td.querySelector('.mx-qty').value };
+  });
+
+  var html = '<table style="width:100%;border-collapse:separate;border-spacing:0;font-size:13px;background:#fff;border:1px solid #E5E8EB;border-radius:5px;overflow:hidden">';
+  html += '<thead><tr><th style="background:#F1F1F4;padding:6px 8px;font-size:11px;color:#525866;border-bottom:1px solid #E5E8EB;border-right:1px solid #E5E8EB;min-width:88px;text-align:left">색상 ＼ 사이즈</th>';
+  sizes.forEach(function(sz, i){
+    html += '<th style="background:#F1F1F4;padding:6px 8px;font-size:12px;color:#191F28;border-bottom:1px solid #E5E8EB;'+(i < sizes.length - 1 ? 'border-right:1px solid #E5E8EB;' : '')+'text-align:center;font-weight:700">'
+         + escapeHtml_(sz)
+         + '<br><label style="display:inline-flex;align-items:center;gap:3px;font-size:10px;font-weight:500;color:#6B7684;margin-top:2px;cursor:pointer">'
+         + '<input type="checkbox" class="mx-col-all" data-size="'+escapeHtml_(sz)+'" checked style="accent-color:#4F67FF;width:12px;height:12px"> 전체</label></th>';
+  });
+  html += '</tr></thead><tbody>';
+  colors.forEach(function(c, ri){
+    html += '<tr>';
+    html += '<th style="background:#FAFBFC;padding:7px 10px;text-align:left;font-weight:700;color:#191F28;font-size:12.5px;'+(ri < colors.length - 1 ? 'border-bottom:1px solid #F1F1F4;' : '')+'border-right:1px solid #E5E8EB">'
+         + escapeHtml_(c)
+         + '<br><label style="display:inline-flex;align-items:center;gap:3px;font-size:10px;font-weight:500;color:#6B7684;margin-top:2px;cursor:pointer">'
+         + '<input type="checkbox" class="mx-row-all" data-color="'+escapeHtml_(c)+'" checked style="accent-color:#4F67FF;width:12px;height:12px"> 전체</label></th>';
+    sizes.forEach(function(sz, ci){
+      var k = c + '␟' + sz;
+      var p = prev[k] || { on: true, qty: '0' };
+      html += '<td class="mx-cell" data-color="'+escapeHtml_(c)+'" data-size="'+escapeHtml_(sz)+'" style="padding:6px 8px;text-align:center;'+(ri < colors.length - 1 ? 'border-bottom:1px solid #F1F1F4;' : '')+(ci < sizes.length - 1 ? 'border-right:1px solid #F1F1F4;' : '')+(p.on ? '' : 'background:#FAFBFC;')+'">'
+           + '<div style="display:inline-flex;align-items:center;gap:6px">'
+           + '<input type="checkbox" class="mx-on" '+(p.on ? 'checked' : '')+' style="accent-color:#4F67FF;width:15px;height:15px;cursor:pointer">'
+           + '<input type="number" class="mx-qty" min="0" inputmode="numeric" value="'+escapeHtml_(p.qty)+'" '+(p.on ? '' : 'disabled')+' style="width:54px;padding:4px 6px;border:1px solid #CBCCD3;border-radius:4px;font-size:12.5px;font-family:ui-monospace,monospace;text-align:right;outline:none'+(p.on ? '' : ';background:#F1F1F4;color:#9CA3AF')+'">'
+           + '</div></td>';
+    });
+    html += '</tr>';
+  });
+  html += '</tbody></table>';
+  wrap.innerHTML = html;
+
+  // 셀 토글
+  wrap.querySelectorAll('.mx-on').forEach(function(cb){
+    cb.addEventListener('change', function(){
+      var td = cb.closest('td');
+      var qty = td.querySelector('.mx-qty');
+      qty.disabled = !cb.checked;
+      qty.style.background = cb.checked ? '' : '#F1F1F4';
+      qty.style.color = cb.checked ? '' : '#9CA3AF';
+      td.style.background = cb.checked ? '' : '#FAFBFC';
+      syncRowColAllStates_();
+      updateMatrixCounter_();
+    });
+  });
+  wrap.querySelectorAll('.mx-qty').forEach(function(q){
+    q.addEventListener('input', updateMatrixCounter_);
+  });
+  // 행 일괄
+  wrap.querySelectorAll('.mx-row-all').forEach(function(cb){
+    cb.addEventListener('change', function(){
+      var color = cb.dataset.color;
+      wrap.querySelectorAll('td.mx-cell[data-color="'+cssEscape_(color)+'"]').forEach(function(td){
+        var on = td.querySelector('.mx-on');
+        if(on.checked !== cb.checked){ on.checked = cb.checked; on.dispatchEvent(new Event('change')); }
+      });
+    });
+  });
+  // 열 일괄
+  wrap.querySelectorAll('.mx-col-all').forEach(function(cb){
+    cb.addEventListener('change', function(){
+      var sz = cb.dataset.size;
+      wrap.querySelectorAll('td.mx-cell[data-size="'+cssEscape_(sz)+'"]').forEach(function(td){
+        var on = td.querySelector('.mx-on');
+        if(on.checked !== cb.checked){ on.checked = cb.checked; on.dispatchEvent(new Event('change')); }
+      });
+    });
+  });
+  updateMatrixCounter_();
+}
+function syncRowColAllStates_(){
+  var wrap = document.getElementById('matrixWrap');
+  wrap.querySelectorAll('.mx-row-all').forEach(function(cb){
+    var cells = wrap.querySelectorAll('td.mx-cell[data-color="'+cssEscape_(cb.dataset.color)+'"]');
+    var allOn = Array.prototype.every.call(cells, function(td){ return td.querySelector('.mx-on').checked; });
+    cb.checked = allOn;
+  });
+  wrap.querySelectorAll('.mx-col-all').forEach(function(cb){
+    var cells = wrap.querySelectorAll('td.mx-cell[data-size="'+cssEscape_(cb.dataset.size)+'"]');
+    var allOn = Array.prototype.every.call(cells, function(td){ return td.querySelector('.mx-on').checked; });
+    cb.checked = allOn;
+  });
+}
+function updateMatrixCounter_(){
+  var wrap = document.getElementById('matrixWrap');
+  var skuN = 0, qtyTotal = 0;
+  wrap.querySelectorAll('td.mx-cell').forEach(function(td){
+    if(td.querySelector('.mx-on').checked){
+      skuN += 1;
+      qtyTotal += parseInt(td.querySelector('.mx-qty').value, 10) || 0;
+    }
+  });
+  document.getElementById('matrixSkuCount').textContent = skuN.toLocaleString();
+  document.getElementById('matrixQtyTotal').textContent = qtyTotal.toLocaleString();
+  document.getElementById('niSubmitBtn').textContent = skuN > 0 ? ('+ ' + skuN + '개 일괄 추가') : '+ 추가';
+  document.getElementById('niSubmitBtn').disabled = (skuN === 0);
+  document.getElementById('niSubmitBtn').style.opacity = (skuN === 0) ? '0.55' : '1';
+  document.getElementById('niSubmitBtn').style.cursor = (skuN === 0) ? 'not-allowed' : 'pointer';
+}
+function onSubmitNewItem(ev){
+  // 매트릭스 모드 활성이면 폼 action 을 bulk_create 로 바꾸고 cells JSON 을 hidden 으로 첨부
+  var bulkOn = document.getElementById('matrixSection').style.display !== 'none';
+  if(!bulkOn) return true;  // 단일 모드 — 기존 흐름 그대로
+  var cells = [];
+  document.getElementById('matrixWrap').querySelectorAll('td.mx-cell').forEach(function(td){
+    if(td.querySelector('.mx-on').checked){
+      cells.push({
+        color: td.dataset.color,
+        size: td.dataset.size,
+        qty: parseInt(td.querySelector('.mx-qty').value, 10) || 0
+      });
+    }
+  });
+  if(cells.length === 0){
+    alert('최소 1개 옵션을 체크하세요.');
+    ev.preventDefault();
+    return false;
+  }
+  // hidden input 추가
+  var form = document.getElementById('newItemForm');
+  var prev = form.querySelector('input[name="bulk_cells_json"]');
+  if(prev) prev.remove();
+  var inp = document.createElement('input');
+  inp.type = 'hidden';
+  inp.name = 'bulk_cells_json';
+  inp.value = JSON.stringify(cells);
+  form.appendChild(inp);
+  // 단일 모드용 SKU/바코드/위치 인풋이 같이 submit 되지 않도록 비활성 — name 제거가 가장 안전
+  ['niSku','niBarcode'].forEach(function(id){ var el = document.getElementById(id); if(el) el.disabled = true; });
+  document.querySelectorAll('.ni-loc-stock').forEach(function(el){ el.disabled = true; });
+  // 단일 color/size 인풋도 disabled — 매트릭스가 진실의 원천
+  document.getElementById('niColor').disabled = true;
+  document.getElementById('niSize').disabled = true;
+  // action 변경
+  form.action = '{{ url_for("inventory.data_items_bulk_create") }}';
+  return true;
+}
+function escapeHtml_(s){
+  return String(s).replace(/[&<>"']/g, function(c){
+    return { '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c];
+  });
+}
+function cssEscape_(s){
+  return String(s).replace(/(["\\])/g, '\\$1');
 }
 </script>
 

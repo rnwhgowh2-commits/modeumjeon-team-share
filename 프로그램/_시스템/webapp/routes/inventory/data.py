@@ -674,6 +674,200 @@ def data_items_create():
     return redirect(url_for('inventory.data_items'))
 
 
+# ============ 옵션 매트릭스 일괄 생성 (색상 N × 사이즈 M) ============
+
+@bp.post('/data/items/bulk_create')
+def data_items_bulk_create():
+    """옵션 매트릭스 일괄 생성 — 1회 POST 로 N개 SKU 생성.
+
+    프론트 폼: bulk_cells_json = [{color, size, qty}, ...]  체크된 셀만 포함.
+    공통 필드: model_name, brand, article_no, category, avg_purchase_price, memo
+    위치 분배: qty > 0 인 셀은 모두 "기본 위치" 1곳으로 입고 (사용자 결정 옵션 (1)).
+    무결성: SKU/바코드 자동 부여, 동일 (model_code, color, size) 중복 거부.
+            중간 1건이라도 실패하면 전체 롤백 (부분 성공 금지).
+    """
+    import random
+    import string
+    import json as _json
+
+    from lemouton.sourcing.master import upsert_model
+    from lemouton.inventory.boxhero_import import _derive_model_code, _clean_article_no
+    from lemouton.inventory.inbound import create_inbound
+    from lemouton.inventory.models import InventoryLocation
+
+    f = request.form
+    model_name = (f.get('model_name') or '').strip()
+    brand = (f.get('brand') or '').strip() or '미상'
+    article_no_in = (f.get('article_no') or '').strip()
+    category = (f.get('category') or '').strip()
+    avg_price_raw = (f.get('avg_purchase_price') or '').strip()
+    memo = (f.get('memo') or '').strip()
+    cells_json = (f.get('bulk_cells_json') or '').strip()
+
+    if not model_name:
+        flash('제품명은 필수입니다.', 'error')
+        return redirect(url_for('inventory.data_items') + '#new')
+
+    try:
+        cells = _json.loads(cells_json) if cells_json else []
+    except Exception:
+        flash('옵션 데이터 파싱 실패 — 다시 시도해 주세요.', 'error')
+        return redirect(url_for('inventory.data_items') + '#new')
+
+    if not isinstance(cells, list) or not cells:
+        flash('최소 1개 옵션을 체크하세요.', 'error')
+        return redirect(url_for('inventory.data_items') + '#new')
+
+    # 셀 정규화 + 중복 (color, size) 검사
+    norm_cells: list[dict] = []
+    seen_combos: set[tuple[str, str]] = set()
+    for c in cells:
+        color = (str(c.get('color', '')).strip() or 'ONE')[:64]
+        size = (str(c.get('size', '')).strip() or 'FREE')[:64]
+        try:
+            qty = int(c.get('qty') or 0)
+        except (TypeError, ValueError):
+            qty = 0
+        if qty < 0:
+            qty = 0
+        key = (color, size)
+        if key in seen_combos:
+            flash(f'중복 옵션 — ({color} / {size}) 가 2번 이상 입력되었습니다.', 'error')
+            return redirect(url_for('inventory.data_items') + '#new')
+        seen_combos.add(key)
+        norm_cells.append({'color': color, 'size': size, 'qty': qty})
+
+    try:
+        avg_price = int(avg_price_raw.replace(',', '').replace(' ', '')) if avg_price_raw else 0
+    except ValueError:
+        avg_price = 0
+
+    def _gen_sku() -> str:
+        chars = string.ascii_uppercase + string.digits
+        return 'SKU-' + ''.join(random.choices(chars, k=8))
+
+    def _gen_barcode() -> str:
+        digits = '200' + ''.join(random.choices(string.digits, k=9))
+        chk = sum(int(d) * (3 if i % 2 else 1) for i, d in enumerate(digits))
+        return digits + str((10 - chk % 10) % 10)
+
+    s = SessionLocal()
+    try:
+        # 기본 위치 결정 — is_default=True 우선, 없으면 가장 오래된 활성 위치
+        default_loc = (
+            s.query(InventoryLocation)
+            .filter(InventoryLocation.deleted_at.is_(None))
+            .filter(InventoryLocation.is_default.is_(True))
+            .first()
+        )
+        if not default_loc:
+            default_loc = (
+                s.query(InventoryLocation)
+                .filter(InventoryLocation.deleted_at.is_(None))
+                .order_by(InventoryLocation.id.asc())
+                .first()
+            )
+        # qty > 0 셀이 하나라도 있는데 활성 위치가 없으면 막음
+        any_qty = any(c['qty'] > 0 for c in norm_cells)
+        if any_qty and not default_loc:
+            flash('재고를 입력했지만 활성 위치가 없습니다 — 먼저 위치 관리에서 등록하세요.', 'error')
+            return redirect(url_for('inventory.data_items') + '#new')
+
+        # Model upsert (1회) — 모든 셀이 같은 모델 공유
+        model_code = _derive_model_code(brand, article_no_in or model_name, model_name)
+        upsert_model(
+            s,
+            model_code=model_code,
+            model_name_raw=model_name[:255],
+            brand=brand[:100],
+        )
+        m_obj = s.query(Model).filter_by(model_code=model_code).first()
+        if m_obj:
+            if model_name and not (m_obj.model_name_display or '').strip():
+                m_obj.model_name_display = model_name[:255]
+            if article_no_in and not (getattr(m_obj, 'article_no', None) or '').strip():
+                m_obj.article_no = _clean_article_no(article_no_in)[:64]
+            if category and not (getattr(m_obj, 'category', None) or '').strip():
+                m_obj.category = category[:100]
+            if memo and not (getattr(m_obj, 'note', None) or '').strip():
+                m_obj.note = memo
+
+        # DB 사전 중복 검사 — 동일 (model_code, color, size) 존재 시 거부
+        existing_pairs: set[tuple[str, str]] = set()
+        dup_in_db = (
+            s.query(Option.color_code, Option.size_code)
+            .filter(Option.model_code == model_code)
+            .all()
+        )
+        for cc, sc in dup_in_db:
+            existing_pairs.add(((cc or 'ONE')[:64], (sc or 'FREE')[:64]))
+
+        clashes = []
+        for c in norm_cells:
+            if (c['color'][:32], c['size'][:32]) in existing_pairs:
+                clashes.append(f"({c['color']} / {c['size']})")
+        if clashes:
+            flash('이미 등록된 조합이 있어 일괄 생성을 취소했습니다: ' + ', '.join(clashes[:5])
+                  + (f' 외 {len(clashes) - 5}건' if len(clashes) > 5 else ''), 'error')
+            s.rollback()
+            return redirect(url_for('inventory.data_items') + '#new')
+
+        # SKU 일괄 생성 — 각 셀마다 SKU/바코드 자동 부여
+        created_skus: list[str] = []
+        total_inbound = 0
+        for c in norm_cells:
+            # SKU 중복 회피
+            canonical_sku = ''
+            for _ in range(30):
+                cand = _gen_sku()
+                if not s.query(Option).filter_by(canonical_sku=cand).first() and cand not in created_skus:
+                    canonical_sku = cand
+                    break
+            if not canonical_sku:
+                raise RuntimeError('SKU 자동 생성 실패 — 다시 시도해 주세요')
+
+            opt = Option(
+                canonical_sku=canonical_sku,
+                model_code=model_code,
+                color_code=c['color'][:32],
+                color_display=c['color'][:64],
+                size_code=c['size'][:32],
+                size_display=c['size'][:64],
+                boxhero_sku=canonical_sku,
+                barcode=_gen_barcode()[:64],
+                boxhero_avg_purchase_price=avg_price,
+                boxhero_stock_total=0,
+            )
+            s.add(opt)
+            s.flush()
+            created_skus.append(canonical_sku)
+
+            if c['qty'] > 0 and default_loc:
+                create_inbound(
+                    s,
+                    location_id=default_loc.id,
+                    option_canonical_sku=canonical_sku,
+                    qty=c['qty'],
+                    unit_purchase_price=avg_price,
+                    memo='매트릭스 일괄 생성 초기 재고',
+                    created_by='제품 추가 폼 (일괄)',
+                )
+                total_inbound += c['qty']
+
+        s.commit()
+
+        loc_label = f' · 기본 위치 [{default_loc.name}] 입고 {total_inbound}개' if total_inbound > 0 else ''
+        flash(f'✅ {len(created_skus)}개 SKU 일괄 추가 완료 — {model_name}{loc_label}', 'success')
+    except Exception as e:
+        s.rollback()
+        flash(f'일괄 생성 실패 (전체 롤백): {e}', 'error')
+        return redirect(url_for('inventory.data_items') + '#new')
+    finally:
+        s.close()
+
+    return redirect(url_for('inventory.data_items'))
+
+
 # ============ 제품 마스터 전체 삭제 (TEST 리셋) ============
 
 DATA_DIR = Path(__file__).resolve().parents[3] / 'data'
