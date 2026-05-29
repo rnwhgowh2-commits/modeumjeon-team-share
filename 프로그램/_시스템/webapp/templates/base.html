@@ -163,7 +163,7 @@
 
 <script src="{{ url_for('static', filename='toss.js') }}"></script>
 <script src="{{ url_for('static', filename='toss_add_benefit.js') }}"></script><!-- v6 D2-A 혜택추가폼 인터랙션 -->
-<script src="{{ url_for('static', filename='option_url_modal.js') }}?v=20260529_c3_inv_tab"></script><!-- 2026-05-29 시안 v3 C3 — 우측 [URL]/[재고관리] 2탭 + B3-3 in-place 표 -->
+<script src="{{ url_for('static', filename='option_url_modal.js') }}?v=20260529_perf_instant"></script><!-- 2026-05-29 perf — 즉시 렌더(재고매핑 배경 로드)+fetch 병렬화. ⚠️ option_url_modal.js 수정 시 이 버전 문자열 반드시 갱신(브라우저 캐시버스트) -->
 
 {# ────────── v27 시안 ③ — 전역 진행 widget (크롤·업로드, 페이지 이동 유지) ────────── #}
 <div id="g-progress-widget" style="display:none">
