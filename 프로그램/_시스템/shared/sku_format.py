@@ -225,31 +225,62 @@ def normalize_label(text: str | None) -> str:
     return t
 
 
-def color_matches(a: str | None, b: str | None) -> bool:
-    """두 색상 표기가 같은 의미인지 (alias 사전 반영)."""
+# ────────────────────────────────────────────────────────────
+# [perf 2026-05-29] 별칭 매칭 O(1)화 — 동작 보존
+#   기존: color_matches/size_matches 호출마다 ALIASES 사전 전체를
+#         재-normalize (호출당 ~100 normalize_label) → 모달 후보매칭
+#         B×I=9만회에서 6초+. 워커 점유 → 전체 적체.
+#   개선: 모듈 로드 시 1회만 "정규화형 → 소속 canonical 그룹 집합" 역인덱스
+#         구축. 매칭 = dict 조회 + 집합 교집합 = O(1). 결과 100% 동일.
+#   주의: SIZE_ALIASES 는 한 별칭이 여러 그룹에 속함(예 '7us' ∈ {240,250}).
+#         그래서 그룹 '집합'을 저장하고 교집합으로 판정 → 기존 for-loop
+#         (na·nb 가 같은 그룹에 동시 존재?) 와 의미 동일.
+# ────────────────────────────────────────────────────────────
+
+
+def _build_alias_index(alias_dict: dict[str, set[str]]) -> dict[str, set[str]]:
+    """정규화형(normalize_label) → 소속 canonical key 집합 역인덱스."""
+    index: dict[str, set[str]] = {}
+    for canonical, aliases in alias_dict.items():
+        forms = {normalize_label(canonical)}
+        forms |= {normalize_label(x) for x in aliases}
+        for f in forms:
+            if not f:
+                continue
+            index.setdefault(f, set()).add(canonical)
+    return index
+
+
+_COLOR_INDEX = _build_alias_index(COLOR_ALIASES)
+_SIZE_INDEX = _build_alias_index(SIZE_ALIASES)
+
+
+def _alias_match(index: dict[str, set[str]], a: str | None, b: str | None) -> bool:
     na, nb = normalize_label(a), normalize_label(b)
     if not na or not nb:
         return False
     if na == nb:
         return True
-    for canonical, aliases in COLOR_ALIASES.items():
-        canon_n = normalize_label(canonical)
-        all_forms = {canon_n} | {normalize_label(x) for x in aliases}
-        if na in all_forms and nb in all_forms:
-            return True
-    return False
+    ga = index.get(na)
+    gb = index.get(nb)
+    return bool(ga and gb and (ga & gb))
+
+
+def color_matches(a: str | None, b: str | None) -> bool:
+    """두 색상 표기가 같은 의미인지 (alias 사전 반영). O(1)."""
+    return _alias_match(_COLOR_INDEX, a, b)
 
 
 def size_matches(a: str | None, b: str | None) -> bool:
-    """두 사이즈 표기가 같은 의미인지 (KR mm ↔ US 환산 반영)."""
-    na, nb = normalize_label(a), normalize_label(b)
-    if not na or not nb:
-        return False
-    if na == nb:
-        return True
-    for canonical, aliases in SIZE_ALIASES.items():
-        canon_n = normalize_label(canonical)
-        all_forms = {canon_n} | {normalize_label(x) for x in aliases}
-        if na in all_forms and nb in all_forms:
-            return True
-    return False
+    """두 사이즈 표기가 같은 의미인지 (KR mm ↔ US 환산 반영). O(1)."""
+    return _alias_match(_SIZE_INDEX, a, b)
+
+
+def color_groups(s: str | None) -> set[str]:
+    """색상 정규화형이 속한 canonical 그룹 집합 (사전계산 매칭용)."""
+    return _COLOR_INDEX.get(normalize_label(s), set())
+
+
+def size_groups(s: str | None) -> set[str]:
+    """사이즈 정규화형이 속한 canonical 그룹 집합 (사전계산 매칭용)."""
+    return _SIZE_INDEX.get(normalize_label(s), set())

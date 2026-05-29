@@ -1,57 +1,94 @@
 {% extends 'base.html' %}
-{% block title %}이동서 작성{% endblock %}
+{% block title %}이동{% endblock %}
 {% block content %}
-<div style="padding:24px 32px;max-width:1100px;margin:0 auto">
-  <div style="display:flex;align-items:center;gap:14px;margin-bottom:14px">
-    <a href="{{ url_for('inventory.move_list') }}" style="font-size:14px;color:#3182F6;text-decoration:none">← 이동 목록</a>
-    <h1 style="font-size:22px;font-weight:700;margin:0">이동서 작성</h1>
-    <div style="margin-left:auto;display:flex;gap:18px;font-size:14px;color:#4E5968"><span><strong id="kpiItems">0</strong>개 품목</span><span>총 수량 <strong id="kpiTotalQty" style="color:#7C3AED">0</strong></span></div>
+{# [2026-05-29 2부-3] 박스히어로 스타일 이동서 #}
+<div style="padding:20px 32px;max-width:1200px;margin:0 auto">
+  <div style="display:flex;align-items:center;gap:8px;margin-bottom:18px">
+    <h1 style="font-size:21px;font-weight:700;margin:0;color:#7C3AED">이동</h1>
+    <span title="박스히어로 1:1 이동서" style="display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:50%;background:#E5E8EB;color:#6B7684;font-size:11px;cursor:help">ⓘ</span>
+    <a href="{{ url_for('inventory.move_new') }}" style="margin-left:auto;font-size:13px;color:#6B7684;text-decoration:none">초기화</a>
   </div>
-  <form method="post" action="{{ url_for('inventory.move_create') }}" id="txForm" style="background:#fff;border:1px solid #E5E8EB;border-radius:8px;padding:20px;display:grid;gap:14px">
-    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px">
-      <div><label style="display:block;font-size:12px;color:#4E5968;margin-bottom:4px;font-weight:600">From 위치 *</label><select name="from_location_id" required style="width:100%;padding:9px 12px;border:1px solid #D1D6DB;border-radius:5px;font-size:14px">{% for loc in locations %}<option value="{{ loc.id }}">{{ loc.name }}</option>{% endfor %}</select></div>
-      <div><label style="display:block;font-size:12px;color:#4E5968;margin-bottom:4px;font-weight:600">To 위치 *</label><select name="to_location_id" required style="width:100%;padding:9px 12px;border:1px solid #D1D6DB;border-radius:5px;font-size:14px">{% for loc in locations %}<option value="{{ loc.id }}">{{ loc.name }}</option>{% endfor %}</select></div>
-      <div><label style="display:block;font-size:12px;color:#4E5968;margin-bottom:4px;font-weight:600">담당자</label><input name="created_by" placeholder="운영자" style="width:100%;padding:9px 12px;border:1px solid #D1D6DB;border-radius:5px;font-size:14px"></div>
+  {% with msgs = get_flashed_messages(with_categories=true) %}{% for cat,msg in msgs %}<div style="background:{% if cat=='error' %}#FEF2F2{% else %}#ECFDF5{% endif %};border:1px solid {% if cat=='error' %}#FCA5A5{% else %}#86EFAC{% endif %};padding:10px 14px;border-radius:6px;margin-bottom:12px;font-size:14px">{{ msg }}</div>{% endfor %}{% endwith %}
+  <form method="post" action="{{ url_for('inventory.move_create') }}" id="txForm" style="display:grid;gap:16px">
+    <div style="display:grid;grid-template-columns:80px 1fr;gap:11px 16px;align-items:center;background:#fff;border:1px solid #E5E8EB;border-radius:8px;padding:18px 22px">
+      <label style="font-size:13.5px;color:#191F28;font-weight:500">위치 <span style="color:#7C3AED">*</span></label>
+      <div style="display:flex;align-items:center;gap:10px">
+        <select name="from_location_id" required style="padding:9px 12px;border:1px solid #D1D6DB;border-radius:5px;font-size:14px;background:#fff;color:#191F28;width:230px">{% for loc in locations %}<option value="{{ loc.id }}">{{ loc.name }}</option>{% endfor %}</select>
+        <span style="color:#F59E0B;font-size:18px">→</span>
+        <select name="to_location_id" required style="padding:9px 12px;border:1px solid #D1D6DB;border-radius:5px;font-size:14px;background:#fff;color:#191F28;width:230px"><option value="">새 위치</option>{% for loc in locations %}<option value="{{ loc.id }}">{{ loc.name }}</option>{% endfor %}</select>
+      </div>
+      <label style="font-size:13.5px;color:#191F28;font-weight:500">날짜</label>
+      <input name="tx_date" type="text" placeholder="현재" style="padding:9px 12px;border:1px solid #D1D6DB;border-radius:5px;font-size:14px;color:#191F28;width:280px;max-width:100%">
     </div>
-    <div>
-      <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px"><label style="font-size:12px;color:#4E5968;font-weight:600">제품 *</label><span style="font-size:12px;color:#9CA3AF">위치 변경만, 총합 영향 ❌</span><button type="button" onclick="openProductModal()" style="margin-left:auto;background:#7C3AED;color:#fff;border:none;padding:7px 14px;border-radius:5px;font-size:14px;font-weight:600;cursor:pointer">+ 제품 추가</button></div>
-      <table style="width:100%;border-collapse:collapse;font-size:14px;border:1px solid #E5E8EB;border-radius:5px;overflow:hidden">
-        <thead style="background:#F9FAFB"><tr><th style="padding:8px;text-align:left;font-size:12px;color:#6B7684">제품</th><th style="padding:8px;text-align:right;font-size:12px;color:#6B7684;width:120px">수량</th><th style="padding:8px;text-align:center;font-size:12px;color:#6B7684;width:40px"></th></tr></thead>
-        <tbody id="lines"><tr id="emptyRow"><td colspan="3" style="padding:32px;text-align:center;color:#9CA3AF;font-size:12px">제품 없음 — [+ 제품 추가] 클릭</td></tr></tbody>
+    <div style="background:#fff;border:1px solid #E5E8EB;border-radius:8px;padding:18px 22px">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px">
+        <label style="font-size:14px;color:#191F28;font-weight:600">제품 목록</label>
+        <div style="margin-left:auto;display:flex;gap:6px">
+          <button type="button" onclick="openProductModal()" style="background:#fff;border:1px solid #CBCCD3;color:#191F28;padding:7px 13px;border-radius:5px;font-size:12.5px;font-weight:600;cursor:pointer">➕ 일괄 추가</button>
+          <button type="button" onclick="alert('엑셀 가져오기 — 준비 중')" style="background:#fff;border:1px solid #CBCCD3;color:#191F28;padding:7px 13px;border-radius:5px;font-size:12.5px;font-weight:600;cursor:pointer">📊 엑셀 가져오기</button>
+          <button type="button" onclick="alert('바코드 스캔 — 준비 중')" style="background:#fff;border:1px solid #CBCCD3;color:#191F28;padding:7px 13px;border-radius:5px;font-size:12.5px;font-weight:600;cursor:pointer">📷 바코드 스캔</button>
+        </div>
+      </div>
+      <table style="width:100%;border-collapse:collapse;font-size:14px">
+        <thead><tr style="border-bottom:1px solid #E5E8EB">
+          <th style="padding:9px 6px;text-align:left;font-size:12px;color:#6B7684;font-weight:500;width:30px"></th>
+          <th style="padding:9px 8px;text-align:left;font-size:12px;color:#6B7684;font-weight:500">제품</th>
+          <th style="padding:9px 8px;text-align:right;font-size:12px;color:#6B7684;font-weight:500;width:90px">현재고</th>
+          <th style="padding:9px 8px;text-align:right;font-size:12px;color:#7C3AED;font-weight:500;width:120px">이동 수량 <span>*</span></th>
+          <th style="padding:9px 8px;width:30px"></th>
+        </tr></thead>
+        <tbody id="lines"><tr id="emptyRow"><td colspan="5" style="padding:32px;text-align:center;color:#9CA3AF;font-size:13px">제품 없음 — 우측 [➕ 일괄 추가] 또는 아래 검색</td></tr></tbody>
       </table>
+      <div style="margin-top:10px;display:flex;align-items:center;gap:6px;padding:7px 9px;border:1px solid #E5E8EB;border-radius:5px;background:#F9FAFB">
+        <span style="color:#9CA3AF;font-size:13.5px">+</span>
+        <input id="inlineSearch" type="text" placeholder="제품 검색 (SKU, 이름, 바코드)" oninput="inlineSearchHandler()" style="flex:1;border:0;background:transparent;outline:0;font-size:13px;color:#191F28">
+      </div>
+      <div id="inlineResults" style="margin-top:4px;max-height:240px;overflow-y:auto;border:1px solid #E5E8EB;border-radius:5px;display:none"></div>
+      <div style="display:flex;justify-content:flex-end;gap:14px;margin-top:14px;font-size:13px;color:#4E5968">
+        <span><span id="kpiItems">0</span>개 품목</span>
+        <span>총 수량 <strong id="kpiTotalQty" style="color:#7C3AED;font-weight:700">0</strong></span>
+      </div>
     </div>
-    <div><label style="display:block;font-size:12px;color:#4E5968;margin-bottom:4px;font-weight:600">메모</label><textarea name="memo" rows="2" style="width:100%;padding:9px 12px;border:1px solid #D1D6DB;border-radius:5px;font-size:14px"></textarea></div>
-    <div style="display:flex;gap:8px;align-items:center"><a href="{{ url_for('inventory.move_list') }}" style="padding:9px 18px;border:1px solid #D1D6DB;border-radius:5px;text-decoration:none;color:#4E5968;font-size:14px">취소</a><button type="button" onclick="saveDraft()" style="padding:9px 16px;border:1px solid #D1D6DB;background:#F9FAFB;color:#4E5968;border-radius:5px;font-size:14px;font-weight:600;cursor:pointer">💾 임시 저장</button><button type="submit" id="submitBtn" disabled style="background:#7C3AED;color:#fff;padding:9px 22px;border:none;border-radius:5px;font-size:14px;font-weight:600;cursor:pointer;opacity:0.5">이동 완료</button></div>
+    <div style="background:#fff;border:1px solid #E5E8EB;border-radius:8px;padding:14px 18px">
+      <textarea name="memo" rows="4" placeholder="메모 입력&#10;TIP) #태그 입력 시 목록에서 '태그'로 검색할 수 있습니다." style="width:100%;border:0;outline:0;font-size:13.5px;color:#191F28;font-family:inherit;resize:vertical"></textarea>
+      <div style="font-size:11.5px;color:#9CA3AF;margin-top:6px;padding-top:8px;border-top:1px solid #F1F1F4">파일을 끌어다 놓거나 붙여넣기로 첨부할 수 있습니다.</div>
+    </div>
+    <div style="display:flex;gap:10px;align-items:center">
+      <button type="submit" id="submitBtn" disabled style="background:#7C3AED;color:#fff;padding:11px 26px;border:none;border-radius:6px;font-size:14px;font-weight:700;cursor:pointer;opacity:0.5">이동 완료</button>
+      <button type="button" onclick="saveDraft()" style="padding:11px 18px;border:1px solid #CBCCD3;background:#fff;color:#4E5968;border-radius:6px;font-size:13.5px;font-weight:600;cursor:pointer">임시 저장</button>
+      <a href="#" onclick="alert('미리보기 — 준비 중');return false;" style="margin-left:auto;color:#4F67FF;text-decoration:none;font-size:13.5px;font-weight:500">미리보기</a>
+    </div>
   </form>
 </div>
-<div id="productModal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);z-index:100;align-items:center;justify-content:center"><div style="background:#fff;border-radius:10px;width:760px;max-width:90vw;max-height:80vh;display:flex;flex-direction:column;box-shadow:0 10px 40px rgba(0,0,0,0.2)"><div style="padding:18px 22px;border-bottom:1px solid #E5E8EB;display:flex;align-items:center;gap:12px"><h3 style="font-size:16px;font-weight:700;margin:0">제품 추가</h3><span id="modalCount" style="font-size:12px;color:#6B7684"></span><button type="button" onclick="closeProductModal()" style="margin-left:auto;background:none;border:none;color:#9CA3AF;font-size:22px;cursor:pointer">×</button></div><div style="padding:14px 22px;border-bottom:1px solid #E5E8EB"><input id="productSearch" type="text" placeholder="검색" style="width:100%;padding:9px 12px;border:1px solid #D1D6DB;border-radius:5px;font-size:14px" oninput="filterProducts()"></div><div style="overflow-y:auto;flex:1"><table style="width:100%;border-collapse:collapse;font-size:14px"><thead style="background:#F9FAFB;position:sticky;top:0"><tr><th style="padding:9px;width:36px;text-align:center"><input type="checkbox" id="modalCheckAll" onclick="modalToggleAll(this)"></th><th style="padding:9px;text-align:left;font-size:12px;color:#6B7684">SKU</th><th style="padding:9px;text-align:left;font-size:12px;color:#6B7684">색상/사이즈</th><th style="padding:9px;text-align:right;font-size:12px;color:#6B7684">현재 재고</th></tr></thead><tbody id="modalProductRows"></tbody></table></div><div style="padding:14px 22px;border-top:1px solid #E5E8EB;display:flex;align-items:center;gap:8px"><span id="modalSelected" style="font-size:12px;color:#6B7684">선택 0개</span><button type="button" onclick="closeProductModal()" style="margin-left:auto;padding:8px 16px;border:1px solid #D1D6DB;background:#fff;color:#4E5968;border-radius:5px;font-size:14px;cursor:pointer">취소</button><button type="button" onclick="addSelected()" style="padding:8px 18px;background:#7C3AED;color:#fff;border:none;border-radius:5px;font-size:14px;font-weight:600;cursor:pointer">선택 항목 추가</button></div></div></div>
+<div id="productModal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);z-index:100;align-items:center;justify-content:center">
+  <div style="background:#fff;border-radius:10px;width:760px;max-width:90vw;max-height:80vh;display:flex;flex-direction:column;box-shadow:0 10px 40px rgba(0,0,0,0.2)">
+    <div style="padding:18px 22px;border-bottom:1px solid #E5E8EB;display:flex;align-items:center;gap:12px"><h3 style="font-size:16px;font-weight:700;margin:0">제품 추가</h3><span id="modalCount" style="font-size:12px;color:#8F91A0">전체 0</span><button type="button" onclick="closeProductModal()" style="margin-left:auto;background:none;border:none;color:#8F91A0;font-size:22px;cursor:pointer">×</button></div>
+    <div style="padding:14px 22px;border-bottom:1px solid #E5E8EB"><input id="productSearch" type="text" placeholder="이름·SKU·바코드 검색" style="width:100%;padding:9px 12px;border:1px solid #CBCCD3;border-radius:5px;font-size:14px" oninput="filterProducts()"></div>
+    <div style="overflow-y:auto;flex:1"><table style="width:100%;border-collapse:collapse;font-size:14px"><thead style="background:#F1F1F4;position:sticky;top:0"><tr><th style="padding:9px;width:36px;text-align:center"><input type="checkbox" id="modalCheckAll" onclick="modalToggleAll(this)"></th><th style="padding:9px;text-align:left;font-size:12px">SKU</th><th style="padding:9px;text-align:left;font-size:12px">색상/사이즈</th><th style="padding:9px;text-align:right;font-size:12px">현재 재고</th></tr></thead><tbody id="modalProductRows"></tbody></table></div>
+    <div style="padding:14px 22px;border-top:1px solid #E5E8EB;display:flex;align-items:center;gap:8px"><span id="modalSelected" style="font-size:12px;color:#8F91A0">선택 0개</span><button type="button" onclick="closeProductModal()" style="margin-left:auto;padding:8px 16px;border:1px solid #CBCCD3;background:#fff;color:#4E5968;border-radius:5px;font-size:14px;cursor:pointer">취소</button><button type="button" onclick="addSelected()" style="padding:8px 18px;background:#7C3AED;color:#fff;border:none;border-radius:5px;font-size:14px;font-weight:600;cursor:pointer">선택 항목 추가</button></div>
+  </div>
+</div>
 <script>
 const OPTIONS = {{ opt_data | tojson }};
 let lines = [];
 function openProductModal(){renderModalRows(OPTIONS);document.getElementById('productSearch').value='';document.getElementById('productModal').style.display='flex';setTimeout(()=>document.getElementById('productSearch').focus(),100)}
 function closeProductModal(){document.getElementById('productModal').style.display='none'}
 function filterProducts(){const q=document.getElementById('productSearch').value.trim().toLowerCase();renderModalRows(OPTIONS.filter(o=>!q||o.sku.toLowerCase().includes(q)||(o.color||'').toLowerCase().includes(q)))}
-function renderModalRows(list){document.getElementById('modalProductRows').innerHTML=list.slice(0,200).map(o=>`<tr style="border-bottom:1px solid #F2F4F6"><td style="padding:7px 9px;text-align:center"><input type="checkbox" class="modal-pick" value="${o.sku}" onchange="updateSelectedCount()"></td><td style="padding:7px 9px;font-family:ui-monospace,monospace;font-size:10.5px">${o.sku}</td><td style="padding:7px 9px">${o.color} / ${o.size}</td><td style="padding:7px 9px;text-align:right;font-family:ui-monospace,monospace;color:${o.stock>0?'#7C3AED':'#9CA3AF'}">${o.stock}</td></tr>`).join('');document.getElementById('modalCount').textContent=`전체 ${list.length}`;document.getElementById('modalCheckAll').checked=false;updateSelectedCount()}
+function renderModalRows(list){document.getElementById('modalProductRows').innerHTML=list.slice(0,200).map(o=>`<tr style="border-bottom:1px solid #F1F1F4"><td style="padding:7px 9px;text-align:center"><input type="checkbox" class="modal-pick" value="${o.sku}" data-stock="${o.stock||0}" data-name="${o.color}/${o.size}" onchange="updateSelectedCount()" style="accent-color:#7C3AED"></td><td style="padding:7px 9px;font-family:ui-monospace,monospace;font-size:10.5px">${o.sku}</td><td style="padding:7px 9px">${o.color} / ${o.size}</td><td style="padding:7px 9px;text-align:right;font-family:ui-monospace,monospace;color:${o.stock>0?'#7C3AED':'#8F91A0'}">${o.stock||0}</td></tr>`).join('');document.getElementById('modalCount').textContent=`전체 ${list.length}`;document.getElementById('modalCheckAll').checked=false;updateSelectedCount()}
 function modalToggleAll(m){document.querySelectorAll('.modal-pick').forEach(c=>c.checked=m.checked);updateSelectedCount()}
 function updateSelectedCount(){document.getElementById('modalSelected').textContent='선택 '+document.querySelectorAll('.modal-pick:checked').length+'개'}
-function addSelected(){[...document.querySelectorAll('.modal-pick:checked')].forEach(cb=>{if(lines.some(l=>l.sku===cb.value))return;lines.push({sku:cb.value,qty:1})});renderLines();closeProductModal()}
-function renderLines(){const tb=document.getElementById('lines');if(!lines.length){tb.innerHTML='<tr id="emptyRow"><td colspan="3" style="padding:32px;text-align:center;color:#9CA3AF;font-size:12px">제품 없음</td></tr>'}else{tb.innerHTML=lines.map((l,i)=>`<tr style="border-top:1px solid #F2F4F6"><td style="padding:6px 8px;font-family:ui-monospace,monospace;font-size:12px"><input type="hidden" name="option_canonical_sku" value="${l.sku}">${l.sku}</td><td style="padding:5px 8px"><input type="number" name="qty" min="1" value="${l.qty}" required onchange="updateKpi()" style="width:100%;padding:6px;border:1px solid #D1D6DB;border-radius:4px;font-size:12px;text-align:right"></td><td style="padding:5px 8px;text-align:center"><button type="button" onclick="removeLine(${i})" style="background:none;border:none;color:#EF4444;cursor:pointer;font-size:14px">×</button></td></tr>`).join('')}updateKpi()}
+function addSelected(){[...document.querySelectorAll('.modal-pick:checked')].forEach(cb=>{if(lines.some(l=>l.sku===cb.value))return;lines.push({sku:cb.value,qty:1,stock:parseInt(cb.dataset.stock)||0,name:cb.dataset.name||cb.value})});renderLines();closeProductModal()}
+function renderLines(){const tb=document.getElementById('lines');if(!lines.length){tb.innerHTML='<tr id="emptyRow"><td colspan="5" style="padding:32px;text-align:center;color:#9CA3AF;font-size:13px">제품 없음</td></tr>'}else{tb.innerHTML=lines.map((l,i)=>`<tr style="border-bottom:1px solid #F1F1F4"><td style="padding:9px 6px;text-align:center"><button type="button" onclick="removeLine(${i})" style="background:#FEF2F2;border:1px solid #FCA5A5;color:#DC2626;border-radius:50%;width:22px;height:22px;cursor:pointer;font-size:13px;line-height:1;padding:0">−</button></td><td style="padding:8px"><input type="hidden" name="option_canonical_sku" value="${l.sku}"><div style="font-size:13.5px;color:#191F28">${l.name||l.sku}</div><div style="font-size:11px;color:#6B7684;font-family:ui-monospace,monospace;margin-top:2px">${l.sku}</div></td><td style="padding:8px;text-align:right;font-family:ui-monospace,monospace;color:${l.stock>0?'#191F28':'#9CA3AF'}">${l.stock||0}</td><td style="padding:6px 8px"><input type="number" name="qty" min="1" value="${l.qty}" required onchange="updateKpi()" style="width:100%;padding:7px;border:1px solid #C4B5FD;border-radius:5px;font-size:13px;text-align:right;background:#F5F3FF"></td><td style="padding:8px"></td></tr>`).join('')}updateKpi()}
 function removeLine(i){lines.splice(i,1);renderLines()}
 function updateKpi(){document.getElementById('kpiItems').textContent=lines.length;document.getElementById('kpiTotalQty').textContent=[...document.querySelectorAll('input[name="qty"]')].reduce((a,e)=>a+(parseInt(e.value)||0),0);const sb=document.getElementById('submitBtn');sb.disabled=!lines.length;sb.style.opacity=lines.length?'1':'0.5'}
+function inlineSearchHandler(){const q=document.getElementById('inlineSearch').value.trim().toLowerCase();const box=document.getElementById('inlineResults');if(!q){box.style.display='none';box.innerHTML='';return}const hits=OPTIONS.filter(o=>o.sku.toLowerCase().includes(q)||(o.color||'').toLowerCase().includes(q)).slice(0,15);if(!hits.length){box.style.display='block';box.innerHTML='<div style="padding:9px;color:#9CA3AF;font-size:12.5px">결과 없음</div>';return}box.style.display='block';box.innerHTML=hits.map(o=>`<div onclick="inlineAdd('${o.sku}')" style="padding:8px 10px;cursor:pointer;border-bottom:1px solid #F1F1F4;font-size:12.5px" onmouseover="this.style.background='#F9FAFB'" onmouseout="this.style.background=''"><span style="font-family:ui-monospace,monospace;color:#6B7684">${o.sku}</span> · ${o.color}/${o.size} <span style="float:right;color:${o.stock>0?'#191F28':'#9CA3AF'}">재고 ${o.stock||0}</span></div>`).join('')}
+function inlineAdd(sku){const o=OPTIONS.find(x=>x.sku===sku);if(!o||lines.some(l=>l.sku===sku))return;lines.push({sku:o.sku,qty:1,stock:o.stock||0,name:o.color+'/'+o.size});renderLines();document.getElementById('inlineSearch').value='';document.getElementById('inlineResults').style.display='none';}
 async function saveDraft(){const fd=new FormData(document.getElementById('txForm'));fd.append('tx_type','move');await fetch('{{ url_for("inventory.pending_save") }}',{method:'POST',body:fd,redirect:'manual'});window.location.href='{{ url_for("inventory.pending_list") }}'}
 document.addEventListener('keydown',e=>{if(e.key==='Escape')closeProductModal()});
-// 제품목록에서 [🔄 이동] 클릭 진입 시 SKU 자동 prefill
 {% if prefill_skus %}
-(function prefillFromQuery(){
-  const PREFILL_SKUS = {{ prefill_skus | tojson }};
-  for (const sku of PREFILL_SKUS) {
-    const opt = OPTIONS.find(o => o.sku === sku);
-    if (opt && !lines.some(l => l.sku === sku)) {
-      lines.push({sku: opt.sku, qty: 1});
-    }
-  }
-  renderLines();
-})();
+(function prefillFromQuery(){const PREFILL_SKUS={{ prefill_skus | tojson }};for(const sku of PREFILL_SKUS){const opt=OPTIONS.find(o=>o.sku===sku);if(opt && !lines.some(l=>l.sku===sku)){lines.push({sku:opt.sku,qty:1,stock:opt.stock||0,name:opt.color+'/'+opt.size});}}renderLines()})();
 {% endif %}
 </script>
 {% endblock %}
+</content>
+</invoke>

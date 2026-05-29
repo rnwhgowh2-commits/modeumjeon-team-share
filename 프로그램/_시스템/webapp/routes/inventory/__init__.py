@@ -98,8 +98,11 @@ def home():
                 model = s.query(Model).filter(Model.model_code == opt.model_code).first()
                 # 위치별 재고 — SSOT 헬퍼 사용 (실시간 InventoryTx 기반)
                 locs = s.query(InventoryLocation).filter(InventoryLocation.deleted_at.is_(None)).all()
-                loc_stock = get_loc_stock_map(s, selected_sku, locs)
-                # SKU 의 실시간 총 재고 (Option.boxhero_stock_total 대신)
+                # [perf 2026-05-29] 위치마다 쿼리(get_loc_stock_map=위치당 3쿼리=N+1) 대신
+                #   batch 1회(2쿼리)로 위치별 재고 조회. 값·표시 형태 동일.
+                _per_loc = get_stock_by_location_batch(s, [selected_sku]).get(selected_sku, {})
+                loc_stock = {loc.id: {'name': loc.name, 'stock': _per_loc.get(loc.id, 0)} for loc in locs}
+                # SKU 의 실시간 총 재고 (Option.boxhero_stock_total 대신) — location=None tx 포함 위해 별도 조회 유지
                 from shared.inventory_stock import get_stock_by_sku
                 selected_realtime_stock = get_stock_by_sku(s, selected_sku)
                 selected_detail = {'opt': opt, 'model': model, 'loc_stock': loc_stock,

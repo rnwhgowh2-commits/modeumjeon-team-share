@@ -77,16 +77,31 @@ def matrix_view():
         for r in rows:
             r['realtime_stock'] = stock_map.get(r['opt'].canonical_sku, 0)
 
-        # 요약 통계 (실시간)
+        # 요약 통계 (실시간) — ★ 전체 rows 기준으로 먼저 계산 (행 제한과 무관하게 정확)
         total = len(rows)
         mapped = sum(1 for r in rows if r['opt'].boxhero_sku)
         with_stock = sum(1 for r in rows if r['realtime_stock'] > 0)
         with_avg = sum(1 for r in rows if (r['opt'].boxhero_avg_purchase_price or 0) > 0)
 
+        # [perf 2026-05-29] 렌더 행 수 제한 — 재고목록 "상위 500" 패턴과 동일.
+        #   배경: 전체(844옵션) 렌더 시 HTML 2.7MB → 브라우저 스크롤·반응 둔화.
+        #   필터(모델·미매핑) 적용 시엔 이미 좁혀졌으니 제한 없음. ?all=1 로 전체 강제 가능.
+        #   ★ 통계는 위에서 전체 기준 계산했으므로 제한과 무관하게 정확.
+        ROW_CAP = 300
+        show_all = (request.args.get('all') == '1') or bool(model_filter) or unmapped_only
+        rows_to_render = rows if show_all else rows[:ROW_CAP]
+        row_cap = {
+            'capped': (not show_all) and total > ROW_CAP,
+            'shown': len(rows_to_render),
+            'total': total,
+            'cap': ROW_CAP,
+        }
+
         return render_template(
             'inventory/matrix.html',
             active='matrix',
-            rows=rows,
+            rows=rows_to_render,
+            row_cap=row_cap,
             all_models=all_models,
             model_filter=model_filter,
             unmapped_only=unmapped_only,

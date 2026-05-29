@@ -1259,14 +1259,37 @@ def api_get_inventory_mapping(code):
             })
 
         # 4. 자동 후보 — color_matches / size_matches (KR↔EN, KR mm↔US 환산 포함)
+        #   [perf 2026-05-29] 옵션별 정규화·그룹을 1회만 사전계산 (재고옵션 I개 + 번들 B개).
+        #   기존: B×I 비교마다 normalize_label 을 매칭함수 내부에서 재계산 → 6초+.
+        #   개선: 각 옵션의 (정규화형, canonical 그룹집합) 캐시 후 내부 루프는 집합연산만.
+        #   결과(candidates)는 _color_matches/_size_matches 와 동일 (회귀 테스트 보증).
+        from shared.sku_format import (
+            normalize_label as _norm, color_groups as _cgroups, size_groups as _sgroups,
+        )
+        inv_norm = []  # [(sku, cn, cg, sn, sg), ...]
+        for inv in inventory_options:
+            inv_norm.append((
+                inv['sku'],
+                _norm(inv['color']), _cgroups(inv['color']),
+                _norm(inv['size']), _sgroups(inv['size']),
+            ))
+
         candidates: dict[str, list[str]] = {}
         for b_opt in bundle_opts:
             b_color_raw = b_opt.color_display or b_opt.color_code
             b_size_raw = b_opt.size_display or b_opt.size_code
+            bcn, bcg = _norm(b_color_raw), _cgroups(b_color_raw)
+            bsn, bsg = _norm(b_size_raw), _sgroups(b_size_raw)
+            if not bcn or not bsn:
+                continue  # 매칭함수도 빈값이면 False → 후보 없음
             picks = []
-            for inv in inventory_options:
-                if _color_matches(inv['color'], b_color_raw) and _size_matches(inv['size'], b_size_raw):
-                    picks.append(inv['sku'])
+            for sku, cn, cg, sn, sg in inv_norm:
+                color_ok = cn and (cn == bcn or (cg and bcg and (cg & bcg)))
+                if not color_ok:
+                    continue
+                size_ok = sn and (sn == bsn or (sg and bsg and (sg & bsg)))
+                if size_ok:
+                    picks.append(sku)
             if picks:
                 candidates[b_opt.canonical_sku] = picks
 
