@@ -160,3 +160,57 @@ def test_size_matches_kr_us():
     assert size_matches('FREE', 'free')
     assert size_matches('FREE', 'OneSize')
     assert not size_matches('250', '260')
+
+
+# ============ [perf 2026-05-29] 별칭 매칭 O(1)화 — 동작 보존 회귀 ============
+
+def _orig_alias_match(alias_dict, a, b):
+    """최적화 전 brute-force 구현 (회귀 기준)."""
+    na, nb = normalize_label(a), normalize_label(b)
+    if not na or not nb:
+        return False
+    if na == nb:
+        return True
+    for canonical, aliases in alias_dict.items():
+        canon_n = normalize_label(canonical)
+        all_forms = {canon_n} | {normalize_label(x) for x in aliases}
+        if na in all_forms and nb in all_forms:
+            return True
+    return False
+
+
+def _all_forms(alias_dict):
+    forms = []
+    for canonical, aliases in alias_dict.items():
+        forms.append(canonical)
+        forms.extend(aliases)
+    return forms
+
+
+def test_color_matches_identical_to_bruteforce_all_pairs():
+    """모든 색상 별칭 form 쌍에서 최적화본 == 기존 brute-force."""
+    from shared.sku_format import COLOR_ALIASES
+    forms = _all_forms(COLOR_ALIASES) + ['없는색', '', 'XYZ', '블랙 ', 'Sky-Blue']
+    for a in forms:
+        for b in forms:
+            assert color_matches(a, b) == _orig_alias_match(COLOR_ALIASES, a, b), \
+                f'color mismatch: {a!r} vs {b!r}'
+
+
+def test_size_matches_identical_to_bruteforce_all_pairs():
+    """모든 사이즈 별칭 form 쌍에서 최적화본 == 기존 brute-force.
+    (겹치는 별칭 '7us'∈{240,250} 등 다중그룹 케이스 포함)"""
+    from shared.sku_format import SIZE_ALIASES
+    forms = _all_forms(SIZE_ALIASES) + ['999', '', 'US', '2 5 0', '7-US']
+    for a in forms:
+        for b in forms:
+            assert size_matches(a, b) == _orig_alias_match(SIZE_ALIASES, a, b), \
+                f'size mismatch: {a!r} vs {b!r}'
+
+
+def test_alias_groups_helpers():
+    from shared.sku_format import color_groups, size_groups
+    assert '블랙' in color_groups('BK')
+    assert size_groups('7us') & size_groups('250')   # 7us 가 250 그룹 포함
+    assert not (size_groups('250') & size_groups('260'))
+    assert color_groups('없는색') == set()

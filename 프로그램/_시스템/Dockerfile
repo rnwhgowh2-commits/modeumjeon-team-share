@@ -61,17 +61,21 @@ EXPOSE 8080
 ENTRYPOINT ["/app/entrypoint.sh"]
 
 # Gunicorn — Flask 앱 진입점 = app:create_app()
-# 워커 2개 × 스레드 4개 = 동시 요청 처리 8개. --preload 로 모델 import 메모리
-# 공유 → 두 워커 추가 메모리 ~50-100MB (1GB 머신 안 충분).
-# --worker-tmp-dir /dev/shm: 워커 heartbeat 파일을 tmpfs(메모리)에 → 디스크 IO
-# 제거. 컨테이너 환경 best practice. /dev/shm 은 기본 64MB.
-# --max-requests 1000 + jitter 100: 워커가 1000±100 요청 처리 후 재시작 →
-# 메모리 누수 누적 방지 (안정성↑, 속도 직접 영향 없음).
+# [perf 2026-05-29] 워커 3 × 스레드 6 = 동시 요청 처리 18개 (기존 2×4=8).
+#   배경: 무거운 요청 1개가 워커를 점유하면 다른 사용자/탭 요청이 줄서서 적체
+#         (라이브 전수조사에서 재현 — 무거운 요청 시 전체 20초+ 먹통).
+#   근본 원인(옵션조합 모달 6초 CPU)은 이번 커밋에서 제거했고, 여기서는 동시성
+#   여유를 보강해 잔여 적체를 완화. --preload 로 코드 메모리 공유(fork COW) →
+#   워커 1개 추가 메모리 ~25-50MB, 1GB 머신 내 충분.
+#   ⚠️ CPU 는 shared-cpu-1x(1코어)라 CPU-bound 병렬은 워커 수만큼만. 더 필요하면
+#      fly.toml [[vm]] size 를 shared-cpu-2x 로 (비용 발생 — 사용자 승인 필요).
+# --worker-tmp-dir /dev/shm: 워커 heartbeat 파일을 tmpfs(메모리)에 → 디스크 IO 제거.
+# --max-requests 1000 + jitter 100: 워커 1000±100 요청 후 재시작 → 메모리 누수 방지.
 # 타임아웃 60초 (크롤러 대시보드 등 무거운 요청 대비)
 CMD ["gunicorn", \
      "--bind", "0.0.0.0:8080", \
-     "--workers", "2", \
-     "--threads", "4", \
+     "--workers", "3", \
+     "--threads", "6", \
      "--worker-tmp-dir", "/dev/shm", \
      "--max-requests", "1000", \
      "--max-requests-jitter", "100", \

@@ -419,6 +419,10 @@
 
     // 소싱처 목록 + 기존 옵션 로드 (기존 모음전 GET 활용)
     try {
+      // [perf 2026-05-29] 두 요청 병렬화 — inventory-mapping 을 먼저 띄워두고
+      //   source-urls 처리와 동시에 진행 (기존: 순차 await → 대기시간 합산).
+      const _invMapPromise = fetch(`/api/bundles/${encodeURIComponent(bundleCode)}/inventory-mapping`)
+        .then(res => res.json()).catch(() => null);
       const r = await fetch(`/api/bundles/${encodeURIComponent(bundleCode)}/source-urls`);
       const j = await r.json();
       if (j && j.ok) {
@@ -443,8 +447,7 @@
         state.invCandidates = {};
         state.invOptions = [];
         try {
-          const ir = await fetch(`/api/bundles/${encodeURIComponent(bundleCode)}/inventory-mapping`);
-          const ij = await ir.json();
+          const ij = await _invMapPromise;  // [perf] 위에서 병렬로 띄운 결과 수령
           if (ij && ij.ok) {
             state.invOptions = ij.inventory_options || [];
             state.invCandidates = ij.candidates || {};
