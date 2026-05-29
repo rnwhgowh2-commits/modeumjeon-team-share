@@ -81,11 +81,17 @@
       .oum-btn-pri:disabled { opacity:.4; cursor:not-allowed; }
       .oum-btn-sec { background:#fff; color:#4e5968; border:1px solid #d1d6db; }
 
-      .oum-legend { display:flex; gap:27px; font-size:21px; color:#6b7684; padding:24.75px 24px; background:#fff; border-radius:12px; margin-bottom:21px; align-items:center; flex-wrap:wrap; border:1px solid #e5e8eb; }
+      .oum-legend { display:flex; gap:18px; font-size:18px; color:#6b7684; padding:18px 24px; background:#fff; border-radius:12px; margin-bottom:21px; align-items:center; flex-wrap:wrap; border:1px solid #e5e8eb; }
       .oum-legend span { display:inline-flex; align-items:center; gap:7.5px; }
-      .oum-legend .leg-b { display:inline-block; width:42px; height:33px; background:#3B82F6; border-radius:7.5px; }
-      .oum-legend .leg-g { display:inline-block; width:42px; height:33px; background:#10b981; border-radius:7.5px; }
-      .oum-legend .leg-off { display:inline-block; width:42px; height:33px; background:#e5e8eb; border-radius:7.5px; }
+      /* [2026-05-29 시안 v6] 누적 색 시스템 범례 — 회색→파랑→초록 */
+      .oum-legend .leg-empty { display:inline-block; width:38px; height:30px; background:#F3F4F6; border:1px dashed #D1D6DB; border-radius:6px; }
+      .oum-legend .leg-gray { display:inline-block; width:38px; height:30px; background:#9CA3AF; border-radius:6px; }
+      .oum-legend .leg-blue { display:inline-block; width:38px; height:30px; background:#4F67FF; border-radius:6px; }
+      .oum-legend .leg-green { display:inline-block; width:38px; height:30px; background:#03A65A; border-radius:6px; }
+      /* 옛 클래스 — 호환 (다른 곳에서 참조 가능) */
+      .oum-legend .leg-b { display:inline-block; width:38px; height:30px; background:#4F67FF; border-radius:6px; }
+      .oum-legend .leg-g { display:inline-block; width:38px; height:30px; background:#03A65A; border-radius:6px; }
+      .oum-legend .leg-off { display:inline-block; width:38px; height:30px; background:#9CA3AF; border-radius:6px; }
 
       .oum-split { display:grid; grid-template-columns:1fr 70px 1fr; gap:0; align-items:stretch; }
 
@@ -166,13 +172,18 @@
       .oum-blue .oum-mtx-grp-h:hover { background:#dbeafe; }
       .oum-green .oum-mtx-grp-h:hover { background:#dcfce7; }
       .oum-cell { display:inline-block; width:45px; height:33px; line-height:33px; border-radius:6px; cursor:pointer; font-size:16.5px; font-weight:600; position:relative; user-select:none; }
-      .oum-blue .oum-cell.on { background:#3B82F6; color:#fff; }
-      .oum-green .oum-cell.on { background:#10b981; color:#fff; }
-      .oum-cell.off { background:#e5e8eb; color:#9ca3af; }
-      /* [2026-05-27 D1-update] 사용자 OFF + 매핑 있어 데이터 보존 — 시각은 일반 off 와 동일 (빗금 제거) */
-      .oum-cell.mapped-off { background:#e5e8eb; color:#9ca3af; }
+      /* [2026-05-29] 시안 v6 — 누적 색 시스템 (회색→파랑→초록).
+         사용자 룰: 회색=옵션ON / 파랑=+URL / 초록=+URL+재고 / 옅음=비활성. */
+      .oum-cell.off { background:#9CA3AF; color:#fff; }                        /* 회색 — 옵션 ON, URL/재고 X */
+      .oum-cell.mapped-off { background:#9CA3AF; color:#fff; }                 /* 동일 회색 (옛 D1) */
+      .oum-blue .oum-cell.on { background:#4F67FF; color:#fff; }               /* 파랑 — 옵션 ON + URL 매핑 */
+      .oum-green .oum-cell.on { background:#4F67FF; color:#fff; }              /* 파랑 (모달 톤 무관) */
+      .oum-cell.has-inv,
+      .oum-cell.on.has-inv,
+      .oum-blue .oum-cell.on.has-inv,
+      .oum-green .oum-cell.on.has-inv { background:#03A65A !important; color:#fff !important; }  /* 초록 — + 재고 매핑 */
       .oum-cell.shared::after { content:attr(data-shared); position:absolute; top:-4px; right:-4px; background:#f59e0b; color:#fff; font-size:12.75px; width:18px; height:18px; border-radius:50%; line-height:18px; font-weight:700; }
-      .oum-cell.disabled { background:#f8fafb; color:#cbd5e0; cursor:not-allowed; opacity:.5; }
+      .oum-cell.disabled { background:#F3F4F6; color:#9CA3AF; cursor:not-allowed; border:1px dashed #D1D6DB; }  /* 옅음 — 비활성/미선택 */
 
       /* 적용 바 (좌측) - 가운데 정렬 */
       .oum-apply-bar { background:#fff; border:1px solid #bfdbfe; border-radius:10.5px; padding:16.5px; margin-top:15px; display:flex; flex-direction:column; align-items:center; gap:10.5px; }
@@ -341,11 +352,12 @@
       </div>
       <div class="oum-mb">
         <div class="oum-legend">
-          <b style="color:#191F28;">📖 셀 색 의미:</b>
-          <span><span class="leg-b"></span>옵션 ON (좌측)</span>
-          <span><span class="leg-g"></span>URL 연결 ON (우측)</span>
-          <span><span class="leg-off"></span>비활성 (회색)</span>
-          <span style="margin-left:auto; color:#92400E;">💡 좌측에서 옵션 만들고 [URL 매핑에 적용 →] 클릭</span>
+          <b style="color:#191F28;">📖 셀 색 의미 (시안 v6 누적):</b>
+          <span><span class="leg-empty"></span>비활성·미선택</span>
+          <span><span class="leg-gray"></span>옵션 ON</span>
+          <span><span class="leg-blue"></span>+ URL 매핑</span>
+          <span><span class="leg-green"></span>+ 재고 매핑</span>
+          <span style="margin-left:auto; color:#92400E;">💡 좌측에서 옵션 만들고 [URL 매핑에 적용 →]</span>
         </div>
         <div class="oum-split">
           <div class="oum-panel oum-blue" id="oum-left"></div>
@@ -373,11 +385,32 @@
         // [2026-05-25] 옵션 canonical_sku ↔ axis values key 매핑 — 매핑 복원·자동저장 공용
         //   재진입 시 option_ids 를 option_keys 로 복원해야 매트릭스 매핑이 살아 있음
         const keyBySku = {};
+        const skuByKey = {};
         (j.options || []).forEach(o => {
           if (Array.isArray(o.axis_values)) {
-            keyBySku[o.canonical_sku] = JSON.stringify(o.axis_values.map(v => String(v)));
+            const k = JSON.stringify(o.axis_values.map(v => String(v)));
+            keyBySku[o.canonical_sku] = k;
+            skuByKey[k] = o.canonical_sku;
           }
         });
+        state.skuByKey = skuByKey;
+
+        // [2026-05-29 시안 v6] 누적 색 시스템 — 재고 매핑 있는 셀 key Set
+        //   GET /api/bundles/<code>/inventory-mapping → {bundle_sku: [inv_sku, ...]}
+        //   bundle_sku 에 1건+ inv 매핑 있으면 셀에 has-inv 클래스 → 초록색
+        state.invMappedKeys = new Set();
+        try {
+          const ir = await fetch(`/api/bundles/${encodeURIComponent(bundleCode)}/inventory-mapping`);
+          const ij = await ir.json();
+          if (ij && ij.ok) {
+            Object.entries(ij.mappings || {}).forEach(([bSku, invList]) => {
+              if (Array.isArray(invList) && invList.length > 0) {
+                const k = keyBySku[bSku];
+                if (k) state.invMappedKeys.add(k);
+              }
+            });
+          }
+        } catch (_e) { /* ignore — 재고 매핑 없어도 모달 동작 */ }
         // 기존 URL 도 가져옴 (있으면 표시) — option_ids → option_keys 복원
         //   [2026-05-27] 옛 sku + 새 sku 가 같은 axis_values 로 중복 매핑된 경우
         //   같은 key 가 두 번 들어가서 shared 카운트가 부풀려짐 → Set 으로 중복 제거
@@ -617,7 +650,9 @@
         const on = state.selected.has(k);
         // [2026-05-27 D1-update] mapped-off — 데이터 보존만, 시각은 일반 off
         const mappedOff = !on && state.mappedOff && state.mappedOff.has(k);
-        const cls = on ? 'on' : (mappedOff ? 'mapped-off' : 'off');
+        let cls = on ? 'on' : (mappedOff ? 'mapped-off' : 'off');
+        // [2026-05-29 시안 v6] 옵션 ON + 재고 매핑 → has-inv → 초록
+        if (on && state.invMappedKeys && state.invMappedKeys.has(k)) cls += ' has-inv';
         html += `<td><span class="oum-cell ${cls}" data-cell-key='${esc(k)}'>${on ? '✓' : '·'}</span></td>`;
       });
       html += `</tr></tbody></table>`;
@@ -651,7 +686,9 @@
           const on = state.selected.has(k);
           // [2026-05-27 D1-update] mapped-off — 데이터 보존만, 시각은 일반 off
           const mappedOff = !on && state.mappedOff && state.mappedOff.has(k);
-          const cls = on ? 'on' : (mappedOff ? 'mapped-off' : 'off');
+          let cls = on ? 'on' : (mappedOff ? 'mapped-off' : 'off');
+          // [2026-05-29 시안 v6] 옵션 ON + 재고 매핑 → has-inv → 초록
+          if (on && state.invMappedKeys && state.invMappedKeys.has(k)) cls += ' has-inv';
           html += `<td><span class="oum-cell ${cls}" data-cell-key='${esc(k)}'>${on ? '✓' : '·'}</span></td>`;
         });
         html += `</tr>`;
@@ -782,6 +819,8 @@
           const sh = info.count;
           let cls = active ? (on ? 'on' : 'off') : 'disabled';
           if (on && sh > 1) cls += ' shared';
+          // [2026-05-29 시안 v6] 재고 매핑 있는 옵션 셀 → has-inv → 초록색
+          if (active && on && state.invMappedKeys && state.invMappedKeys.has(k)) cls += ' has-inv';
           const sharedAttr = (on && sh > 1) ? ` data-shared="${sh}"` : '';
           // [2026-05-27 B2-2] title 제거 → data-shared-mappings 에 JSON 저장 → JS hover 시 floating card
           const mappingsAttr = (sh > 1) ? ` data-shared-mappings='${esc(JSON.stringify(info.mappings))}'` : '';
@@ -835,6 +874,8 @@
           const sh = info.count;
           let cls = active ? (on ? 'on' : 'off') : 'disabled';
           if (on && sh > 1) cls += ' shared';
+          // [2026-05-29 시안 v6] 재고 매핑 있는 옵션 셀 → has-inv → 초록색
+          if (active && on && state.invMappedKeys && state.invMappedKeys.has(k)) cls += ' has-inv';
           const sharedAttr = (on && sh > 1) ? ` data-shared="${sh}"` : '';
           const mappingsAttr = (sh > 1) ? ` data-shared-mappings='${esc(JSON.stringify(info.mappings))}'` : '';
           html += `<td><span class="oum-cell ${cls}" data-url-cell-key='${esc(k)}'${sharedAttr}${mappingsAttr}>${active ? (on ? '✓' : '·') : '·'}</span></td>`;
