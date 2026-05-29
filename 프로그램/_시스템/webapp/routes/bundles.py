@@ -706,12 +706,29 @@ def bundle_edit(code: str):
             from lemouton.sources.service import get_share_count_by_url
         except Exception:
             get_share_count_by_url = None
+        # [perf 2026-05-29] BundleSourceUrl 을 소스키마다 쿼리(N+1)하지 않고 1회 조회 후 group.
+        _bsu_by_key = {}
+        try:
+            for _r in (s.query(BundleSourceUrl)
+                       .filter_by(model_code=code)
+                       .order_by(BundleSourceUrl.source_key,
+                                 BundleSourceUrl.sort_order, BundleSourceUrl.id)
+                       .all()):
+                _bsu_by_key.setdefault(_r.source_key, []).append(_r)
+        except Exception as _e:
+            import logging
+            logging.warning(f"BundleSourceUrl batch query fail (code={code}): {_e}")
+            try:
+                s.rollback()
+            except Exception:
+                pass
         for src in all_sources:
             sk = src['key']
             # legacy 단일 URL — builtin 만 Model 컬럼 보유 (custom 은 컬럼 없음)
             legacy_url = (getattr(m, f'url_{sk}', None) or '') if src.get('legacy') else ''
-            # share_count — PG 트랜잭션 abort 방지 (실패 시 outside session rollback)
-            if get_share_count_by_url:
+            # share_count — [perf] legacy_url 이 비어있으면 의미 없는 쿼리이므로 skip (0).
+            #   대부분 모음전은 legacy_url 없음 → SourceProduct N+1 제거.
+            if get_share_count_by_url and legacy_url:
                 try:
                     share_counts[sk] = get_share_count_by_url(s, sk, legacy_url)
                 except Exception as _e:
@@ -724,20 +741,8 @@ def bundle_edit(code: str):
                     share_counts[sk] = 0
             else:
                 share_counts[sk] = 0
-            # 다중 URL (BundleSourceUrl) — builtin·custom 공통
-            try:
-                rows = (s.query(BundleSourceUrl)
-                        .filter_by(model_code=code, source_key=sk)
-                        .order_by(BundleSourceUrl.sort_order, BundleSourceUrl.id)
-                        .all())
-            except Exception as _e:
-                import logging
-                logging.warning(f"BundleSourceUrl query fail (sk={sk}, code={code}): {_e}")
-                try:
-                    s.rollback()
-                except Exception:
-                    pass
-                rows = []
+            # 다중 URL (BundleSourceUrl) — 위에서 batch 조회한 것 사용
+            rows = _bsu_by_key.get(sk, [])
             if rows:
                 source_urls[sk] = [{'id': r.id, 'url': r.url} for r in rows]
             elif legacy_url:

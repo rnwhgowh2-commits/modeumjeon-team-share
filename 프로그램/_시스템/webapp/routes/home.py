@@ -34,15 +34,31 @@ def _get_musinsa_non_member_alert():
         product_count = 0
         option_count = 0
         details = []
+
+        # [perf 2026-05-29] 상품마다 2쿼리(OptionSourceUrl + SourceOption) N+1 → 3쿼리로 배치.
+        #   기존: 1 + 2N (무신사 상품 N개). 변경: sps 1 + OptionSourceUrl 1 + SourceOption 1.
+        _sp_ids = [sp.id for sp in sps]
+        _urls = [sp.url for sp in sps if sp.url]
+        _osu_by_url = {}
+        if _urls:
+            for _o in (s.query(OptionSourceUrl)
+                       .filter(OptionSourceUrl.source_id == 3,
+                               OptionSourceUrl.product_url.in_(_urls)).all()):
+                _osu_by_url.setdefault(_o.product_url, []).append(_o)
+        _so_by_spid = {}
+        if _sp_ids:
+            for _so in (s.query(SourceOption)
+                        .filter(SourceOption.source_product_id.in_(_sp_ids),
+                                SourceOption.deleted_at.is_(None)).all()):
+                _so_by_spid.setdefault(_so.source_product_id, []).append(_so)
+
         for sp in sps:
             # 옵션별 비회원가 판정 (SourceOption.dynamic_benefits_json 검사)
             opts = []
-            sk_rows = (s.query(OptionSourceUrl)
-                       .filter_by(source_id=3, product_url=sp.url)
-                       .all())
-            # SourceOption (옵션 단위 dyn) 조회 — sku 별 dyn 확인
+            sk_rows = _osu_by_url.get(sp.url, [])
+            # SourceOption (옵션 단위 dyn) — 배치 결과에서 색/사이즈 키로 dyn 매핑
             so_by_sku = {}
-            for so in (s.query(SourceOption).filter_by(source_product_id=sp.id, deleted_at=None).all()):
+            for so in _so_by_spid.get(sp.id, []):
                 try:
                     so_dyn = json.loads(so.dynamic_benefits_json or '{}') if so.dynamic_benefits_json else {}
                 except Exception:

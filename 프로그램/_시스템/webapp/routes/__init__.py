@@ -16,11 +16,15 @@ _MODE_DEFAULTS = {'bundles': '📦', 'inventory': '🏷'}
 
 
 def _sidebar_mode_icons() -> dict:
-    """저장된 모드 전환 아이콘(모음전/재고관리) 조회 — 없으면 기본 이모지 폴백."""
-    from webapp.icon_store import get_icon
+    """저장된 모드 전환 아이콘(모음전/재고관리) 조회 — 없으면 기본 이모지 폴백.
+
+    [perf 2026-05-29] 매 페이지 get_icon 2회 쿼리 → 캐시된 list_icons() 1회 참조로 대체.
+    """
+    from webapp.icon_store import list_icons
+    mode_icons = list_icons().get('mode', {})  # TTL 캐시 → 쿼리 0
     result = {}
     for key, default_emoji in _MODE_DEFAULTS.items():
-        rec = get_icon('mode', key)
+        rec = mode_icons.get(key)
         if rec and rec.get('icon'):
             result[key] = {
                 'emoji': rec['icon'],
@@ -29,6 +33,13 @@ def _sidebar_mode_icons() -> dict:
         else:
             result[key] = {'emoji': default_emoji, 'color': ''}
     return result
+
+
+# [perf 2026-05-29] 사이드바 뱃지 카운트 — 매 페이지 2 count 쿼리였음.
+#   20초 TTL 캐시 (뱃지 숫자는 실시간일 필요 없음). 워커별 캐시.
+import time as _time
+_counts_cache = {'ts': 0.0, 'unmapped': 0, 'failed': 0}
+_COUNTS_TTL = 20.0
 
 
 def register_routes(app: Flask) -> None:
@@ -78,16 +89,22 @@ def register_routes(app: Flask) -> None:
     @app.context_processor
     def inject_sidebar_counts():
         """사이드바 nav-badge 동적 카운트 + 사용자 레이아웃 주입."""
-        from shared.db import SessionLocal
-        from lemouton.sourcing.models import DiscoveryQueueItem
-        from lemouton.uploader.models import MarketRegistration
         from webapp.routes.api_sidebar import get_layout_for_template
-        s = SessionLocal()
-        try:
-            unmapped = s.query(DiscoveryQueueItem).filter_by(status='pending').count()
-            failed = s.query(MarketRegistration).filter_by(status='failed').count()
-        finally:
-            s.close()
+        # [perf 2026-05-29] 카운트 20초 TTL 캐시 — 매 페이지 2 count 쿼리 제거
+        now = _time.monotonic()
+        if (now - _counts_cache['ts']) >= _COUNTS_TTL:
+            from shared.db import SessionLocal
+            from lemouton.sourcing.models import DiscoveryQueueItem
+            from lemouton.uploader.models import MarketRegistration
+            s = SessionLocal()
+            try:
+                _counts_cache['unmapped'] = s.query(DiscoveryQueueItem).filter_by(status='pending').count()
+                _counts_cache['failed'] = s.query(MarketRegistration).filter_by(status='failed').count()
+                _counts_cache['ts'] = now
+            finally:
+                s.close()
+        unmapped = _counts_cache['unmapped']
+        failed = _counts_cache['failed']
         return {
             'sidebar_unmapped_count': unmapped,
             'sidebar_failed_count': failed,

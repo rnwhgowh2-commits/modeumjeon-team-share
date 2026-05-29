@@ -35,6 +35,21 @@ from webapp.icon_store_model import BrandColorOverride
 _lock = threading.RLock()
 _logger = logging.getLogger(__name__)
 
+# [perf 2026-05-29] list_icons() 인메모리 TTL 캐시.
+#   brand_color_overrides 는 거의 안 바뀌는데 매 페이지(컨텍스트 프로세서)에서
+#   여러 번 조회돼 전 페이지 공통 오버헤드였음. 60초 TTL 캐시로 쿼리 제거.
+#   set_icon/clear_icon 시 즉시 무효화(이 워커 한정). 워커별 캐시라 다른 워커는
+#   최대 60초 staleness — brand 색 변경 빈도상 무해.
+import time as _time
+_icons_cache = None
+_icons_cache_ts = 0.0
+_ICONS_CACHE_TTL = 60.0
+
+
+def _invalidate_icons_cache() -> None:
+    global _icons_cache
+    _icons_cache = None
+
 # 기존 JSON 위치 — startup 시 자동 마이그레이션 후 폐기 (rename .bak)
 _LEGACY_JSON_PATH = PROJECT_ROOT / 'data' / 'icon_overrides.json'
 
@@ -58,6 +73,7 @@ def set_icon(
     - 그 외 컨텍스트: icon is None 이면 삭제.
     """
     with _lock:
+        _invalidate_icons_cache()  # [perf] 쓰기 시 캐시 무효화 (이 워커)
         is_brand = context == 'brand'
         should_delete = (
             (is_brand and bg_color is None and fg_color is None and (letter is None or letter == ''))
@@ -110,14 +126,20 @@ def get_icon(context: str, target_id: str) -> dict | None:
 
 
 def list_icons() -> dict[str, dict[str, dict[str, Any]]]:
-    """전체 저장 dict. API 응답 형식 호환."""
+    """전체 저장 dict. API 응답 형식 호환. [perf] 60초 TTL 캐시."""
+    global _icons_cache, _icons_cache_ts
     with _lock:
+        now = _time.monotonic()
+        if _icons_cache is not None and (now - _icons_cache_ts) < _ICONS_CACHE_TTL:
+            return _icons_cache
         s = SessionLocal()
         try:
             rows = s.query(BrandColorOverride).all()
             result: dict[str, dict[str, dict[str, Any]]] = {}
             for r in rows:
                 result.setdefault(r.context, {})[r.target_id] = _row_to_dict(r)
+            _icons_cache = result
+            _icons_cache_ts = now
             return result
         except Exception:
             _logger.exception("list_icons failed")
