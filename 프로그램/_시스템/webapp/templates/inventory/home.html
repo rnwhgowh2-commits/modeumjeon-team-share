@@ -178,7 +178,7 @@
       var tbody = document.getElementById('homeTbody');
       if(!tbody) return;
       var locs = data.locs || [];
-      var totalCols = 9 + locs.length;
+      var totalCols = 10 + locs.length;  // [1부-1] +1 = 체크박스 컬럼
       tbody.innerHTML = '';
       if(!data.items || data.items.length === 0){
         tbody.innerHTML = '<tr><td colspan="'+totalCols+'" style="padding:32px;text-align:center;color:#9CA3AF">옵션 없음</td></tr>';
@@ -186,6 +186,12 @@
         var frag = document.createDocumentFragment();
         data.items.forEach(function(o){
           var tr = document.createElement('tr');
+          tr.className = 'home-row';
+          tr.dataset.sku = o.sku;
+          tr.dataset.brand = o.brand || '';
+          tr.dataset.name = o.name || '';
+          tr.dataset.color = o.color || '';
+          tr.dataset.size = o.size || '';
           tr.style.cssText = 'border-bottom:1px solid #F2F4F6;cursor:pointer';
           tr.onclick = function(){ window.location.href = '?sku=' + encodeURIComponent(o.sku); };
           var locCells = '';
@@ -195,6 +201,7 @@
           });
           var avgCell = o.avg > 0 ? fmt(o.avg) : '—';
           tr.innerHTML =
+            '<td style="padding:7px 8px;text-align:center" onclick="event.stopPropagation()"><input type="checkbox" class="bulk-row-check" data-sku="'+esc(o.sku)+'" onclick="onBulkRowCheck(this)" style="cursor:pointer;width:14px;height:14px"></td>' +
             '<td style="padding:7px 8px;font-family:ui-monospace,monospace;font-size:16px">'+esc(o.sku)+'</td>' +
             '<td style="padding:7px 8px;font-family:ui-monospace,monospace;font-size:16px;color:#6B7684">'+esc(o.barcode||'—')+'</td>' +
             '<td style="padding:7px 8px;font-size:12px;color:#191F28">'+esc(o.brand||'—')+'</td>' +
@@ -313,9 +320,17 @@
             background: #F9FAFB !important;
           }
         </style>
+        {# [2026-05-29 1부-1] 다중 선택 + 모음전 일괄 등록 액션바 — A2 시안 #}
+        <div id="bulkActionBar" style="display:none;background:#191F28;color:#fff;border-radius:8px;padding:11px 18px;margin-bottom:14px;align-items:center;gap:10px;font-size:14px">
+          ✅ <span id="bulkCount" style="background:#fff;color:#191F28;padding:2px 10px;border-radius:4px;font-weight:700">0건</span> 선택됨 —
+          <button type="button" onclick="openBulkBundleModal()" style="background:#FFB454;color:#191F28;border:none;padding:6px 14px;border-radius:5px;font-size:12.5px;font-weight:700;cursor:pointer">🎁 모음전 일괄 등록</button>
+          <button type="button" onclick="clearBulkSelection()" style="background:transparent;border:1px solid #fff;color:#fff;padding:6px 14px;border-radius:5px;font-size:12.5px;cursor:pointer">선택 해제</button>
+          <span style="margin-left:auto;color:#FFB454;font-size:11.5px">같은 모델·색상·사이즈만 다르면 매트릭스 자동 추론</span>
+        </div>
         <table id="homeTable" style="width:100%;border-collapse:collapse">
           <thead style="position:sticky;top:0">
             <tr>
+              <th style="padding:8px;text-align:center;width:34px"><input type="checkbox" id="bulkSelectAll" onclick="toggleBulkSelectAll(this)" style="cursor:pointer;width:14px;height:14px"></th>
               <th style="padding:8px;text-align:left">SKU</th>
               <th style="padding:8px;text-align:left">바코드</th>
               <th style="padding:8px;text-align:left">브랜드</th>
@@ -337,7 +352,10 @@
               {% set _color = (cleaned_color.get(o.canonical_sku) if cleaned_color is defined else None) or (o.color_display or o.color_code or 'one') %}
               {% set _size = (o.size_display or o.size_code or 'free') %}
               {% set _rt = stock_map.get(o.canonical_sku, 0) %}
-              <tr style="border-bottom:1px solid #F2F4F6;{% if selected_detail and selected_detail.opt.canonical_sku == o.canonical_sku %}background:#EFF6FF !important{% endif %};cursor:pointer" onclick="window.location.href='?sku={{ o.canonical_sku }}{% if in_stock_only %}&in_stock=1{% endif %}{% if search_q %}&q={{ search_q }}{% endif %}'">
+              <tr class="home-row" data-sku="{{ o.canonical_sku }}" data-brand="{{ _brand if _brand != '—' else '' }}" data-name="{{ _pname }}" data-color="{{ _color }}" data-size="{{ _size }}" style="border-bottom:1px solid #F2F4F6;{% if selected_detail and selected_detail.opt.canonical_sku == o.canonical_sku %}background:#EFF6FF !important{% endif %};cursor:pointer" onclick="window.location.href='?sku={{ o.canonical_sku }}{% if in_stock_only %}&in_stock=1{% endif %}{% if search_q %}&q={{ search_q }}{% endif %}'">
+                <td style="padding:7px 8px;text-align:center" onclick="event.stopPropagation()">
+                  <input type="checkbox" class="bulk-row-check" data-sku="{{ o.canonical_sku }}" onclick="onBulkRowCheck(this)" style="cursor:pointer;width:14px;height:14px">
+                </td>
                 <td style="padding:7px 8px">{{ o.canonical_sku }}</td>
                 <td style="padding:7px 8px">{{ _bc }}</td>
                 <td style="padding:7px 8px">{{ _brand }}</td>
@@ -353,7 +371,7 @@
                 {% endfor %}
               </tr>
             {% else %}
-              <tr><td colspan="{{ 9 + (all_locs|length) }}" style="padding:32px;text-align:center">옵션 없음</td></tr>
+              <tr><td colspan="{{ 10 + (all_locs|length) }}" style="padding:32px;text-align:center">옵션 없음</td></tr>
             {% endfor %}
           </tbody>
         </table>
@@ -719,5 +737,167 @@
     }
   });
 })();
+</script>
+
+{# ============ [1부-1 A2] 다중 선택 + 모음전 일괄 등록 모달 + JS ============ #}
+<div id="bulkBundleModal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);z-index:1100;align-items:center;justify-content:center">
+  <div style="background:#fff;border-radius:10px;width:580px;max-width:92vw;max-height:88vh;overflow:auto;box-shadow:0 16px 48px rgba(0,0,0,0.18)">
+    <div style="padding:16px 22px;border-bottom:1px solid #E5E8EB;display:flex;align-items:center;gap:10px">
+      <h3 style="font-size:16px;font-weight:700;margin:0;color:#191F28;flex:1">🎁 모음전 일괄 등록</h3>
+      <button type="button" onclick="closeBulkBundleModal()" style="background:transparent;border:none;font-size:22px;color:#8B95A1;cursor:pointer">×</button>
+    </div>
+    <div style="padding:18px 22px">
+      <div style="background:#EFF6FF;border:1px solid #BCD2FF;border-radius:6px;padding:10px 14px;margin-bottom:14px;font-size:12.5px;color:#1E3A8A">
+        <strong>📦 선택된 옵션:</strong> <span id="bbm_count">0</span>건<br>
+        <span id="bbm_preview" style="font-size:11.5px;color:#3B4DD1"></span>
+      </div>
+      <div style="margin-bottom:10px">
+        <label style="display:block;font-size:12px;color:#4E5968;margin-bottom:4px;font-weight:600">모음전 이름 <span style="color:#DC2626">*</span></label>
+        <input id="bbm_name" type="text" placeholder="예: 메이트" style="width:100%;padding:8px 11px;border:1px solid #CBCCD3;border-radius:5px;font-size:14px">
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
+        <div>
+          <label style="display:block;font-size:12px;color:#4E5968;margin-bottom:4px;font-weight:600">브랜드</label>
+          <input id="bbm_brand" type="text" placeholder="예: 르무통" style="width:100%;padding:8px 11px;border:1px solid #CBCCD3;border-radius:5px;font-size:14px">
+        </div>
+        <div>
+          <label style="display:block;font-size:12px;color:#4E5968;margin-bottom:4px;font-weight:600">카테고리</label>
+          <input id="bbm_category" type="text" placeholder="예: 스니커즈" style="width:100%;padding:8px 11px;border:1px solid #CBCCD3;border-radius:5px;font-size:14px">
+        </div>
+      </div>
+      <div style="margin-bottom:14px">
+        <label style="display:block;font-size:12px;color:#4E5968;margin-bottom:4px;font-weight:600">품번 (선택)</label>
+        <input id="bbm_article_no" type="text" placeholder="예: FV5420-002 (영숫자+하이픈)" style="width:100%;padding:8px 11px;border:1px solid #CBCCD3;border-radius:5px;font-size:14px;font-family:ui-monospace,monospace">
+      </div>
+      <div id="bbm_axes_preview" style="background:#F9FAFB;border-radius:6px;padding:10px 14px;margin-bottom:14px;font-size:11.5px">
+        <div style="font-weight:700;color:#191F28;margin-bottom:6px">🪄 자동 추론 단계 설계</div>
+        <div id="bbm_axes_body" style="color:#4E5968"></div>
+      </div>
+      <div style="display:flex;gap:8px;justify-content:flex-end">
+        <button type="button" onclick="closeBulkBundleModal()" style="padding:8px 16px;background:#fff;border:1px solid #CBCCD3;color:#292A2F;border-radius:5px;font-size:13px;cursor:pointer">취소</button>
+        <button id="bbm_submit" type="button" onclick="submitBulkBundle()" style="padding:8px 18px;background:#03A65A;border:none;color:#fff;border-radius:5px;font-size:13px;font-weight:700;cursor:pointer">🎁 일괄 등록</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// 행 체크 → 카운트 갱신 + 액션바 표시
+function _hmBulkCheckedRows(){
+  return Array.prototype.slice.call(document.querySelectorAll('#homeTbody .bulk-row-check:checked'));
+}
+function _hmRefreshBulkBar(){
+  var n = _hmBulkCheckedRows().length;
+  var bar = document.getElementById('bulkActionBar');
+  var cnt = document.getElementById('bulkCount');
+  if(cnt) cnt.textContent = n + '건';
+  if(bar) bar.style.display = (n > 0) ? 'flex' : 'none';
+  var all = document.querySelectorAll('#homeTbody .bulk-row-check');
+  var head = document.getElementById('bulkSelectAll');
+  if(head){
+    head.checked = (n > 0 && n === all.length);
+    head.indeterminate = (n > 0 && n < all.length);
+  }
+}
+function onBulkRowCheck(){ _hmRefreshBulkBar(); }
+function toggleBulkSelectAll(cb){
+  document.querySelectorAll('#homeTbody .bulk-row-check').forEach(function(c){ c.checked = !!cb.checked; });
+  _hmRefreshBulkBar();
+}
+function clearBulkSelection(){
+  document.querySelectorAll('#homeTbody .bulk-row-check').forEach(function(c){ c.checked = false; });
+  var head = document.getElementById('bulkSelectAll');
+  if(head){ head.checked = false; head.indeterminate = false; }
+  _hmRefreshBulkBar();
+}
+
+function _hmInferAxesFromSelection(){
+  var rows = _hmBulkCheckedRows().map(function(c){ return c.closest('tr.home-row'); });
+  var colors = [], sizes = [];
+  rows.forEach(function(r){
+    if(!r) return;
+    var c = (r.dataset.color || '').trim();
+    var s = (r.dataset.size || '').trim();
+    if(c && colors.indexOf(c) === -1) colors.push(c);
+    if(s && sizes.indexOf(s) === -1) sizes.push(s);
+  });
+  var steps = [];
+  if(colors.length) steps.push({axis_name: '색상', values: colors});
+  if(sizes.length) steps.push({axis_name: '사이즈', values: sizes});
+  return {rows: rows, steps: steps, colors: colors, sizes: sizes};
+}
+
+function openBulkBundleModal(){
+  var info = _hmInferAxesFromSelection();
+  if(info.rows.length === 0){ alert('선택된 옵션이 없습니다.'); return; }
+  document.getElementById('bbm_count').textContent = info.rows.length;
+  var skuPreview = info.rows.slice(0, 4).map(function(r){ return r.dataset.sku; }).join(', ');
+  if(info.rows.length > 4) skuPreview += ' 외 ' + (info.rows.length - 4) + '건';
+  document.getElementById('bbm_preview').textContent = skuPreview;
+  var body = document.getElementById('bbm_axes_body');
+  if(info.steps.length === 0){
+    body.innerHTML = '<span style="color:#DC2626">⚠ 색상·사이즈 정보가 없어 단계 추론 불가. 등록은 가능하나 매트릭스가 비어 있습니다.</span>';
+  } else {
+    body.innerHTML = info.steps.map(function(st, i){
+      return '<div style="margin:3px 0"><strong>' + (i+1) + '단계 · ' + st.axis_name + ':</strong> ' +
+             st.values.map(function(v){ return '<span style="display:inline-block;background:#fff;border:1px solid #D1D6DB;padding:2px 7px;border-radius:99px;margin:0 2px 2px 0">' + v + '</span>'; }).join('') +
+             ' <span style="color:#8B95A1">(' + st.values.length + '개)</span></div>';
+    }).join('');
+  }
+  if(info.rows[0]){
+    var b = (info.rows[0].dataset.brand || '').trim();
+    if(b) document.getElementById('bbm_brand').value = b;
+  }
+  document.getElementById('bulkBundleModal').style.display = 'flex';
+}
+function closeBulkBundleModal(){
+  document.getElementById('bulkBundleModal').style.display = 'none';
+}
+
+function submitBulkBundle(){
+  var btn = document.getElementById('bbm_submit');
+  var info = _hmInferAxesFromSelection();
+  if(info.rows.length === 0){ alert('선택된 옵션이 없습니다.'); return; }
+  var name = (document.getElementById('bbm_name').value || '').trim();
+  if(!name){ alert('모음전 이름을 입력해주세요.'); document.getElementById('bbm_name').focus(); return; }
+  var article = (document.getElementById('bbm_article_no').value || '').trim();
+  if(article && !/^[A-Za-z0-9_\-]+$/.test(article)){
+    alert('품번은 영숫자·하이픈·언더스코어만 사용할 수 있습니다.');
+    document.getElementById('bbm_article_no').focus();
+    return;
+  }
+  var payload = {
+    skus: info.rows.map(function(r){ return r.dataset.sku; }),
+    bundle_name: name,
+    bundle_brand: (document.getElementById('bbm_brand').value || '').trim(),
+    bundle_category: (document.getElementById('bbm_category').value || '').trim(),
+    bundle_article_no: article
+  };
+  btn.disabled = true; btn.textContent = '⏳ 등록 중...';
+  fetch('{{ url_for("inventory.data_items_bulk_bundle_register") }}', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify(payload)
+  })
+  .then(function(r){ return r.json().then(function(j){ return {ok: r.ok, body: j}; }); })
+  .then(function(res){
+    if(!res.ok || res.body.error){
+      alert('❌ 등록 실패: ' + (res.body.error || res.body.message || '알 수 없는 오류'));
+      btn.disabled = false; btn.textContent = '🎁 일괄 등록';
+      return;
+    }
+    alert('✅ 모음전 "' + name + '" 등록 완료 (' + res.body.created + '개 옵션 이관).');
+    closeBulkBundleModal();
+    if(res.body.bundle_url && confirm('모음전 페이지로 이동하시겠어요?')){
+      window.location.href = res.body.bundle_url;
+    } else {
+      window.location.reload();
+    }
+  })
+  .catch(function(e){
+    alert('❌ 요청 실패: ' + e.message);
+    btn.disabled = false; btn.textContent = '🎁 일괄 등록';
+  });
+}
 </script>
 {% endblock %}
