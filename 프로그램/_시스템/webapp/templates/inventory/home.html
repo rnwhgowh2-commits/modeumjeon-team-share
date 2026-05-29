@@ -155,11 +155,11 @@
       return toks.join(' ');
     }
 
-    // ★ 실시간 라이브 검색 — 새로고침 없이 표 갱신
+    // ★ 실시간 라이브 검색 — 새로고침 없이 카드 리스트 갱신
     function liveSearch(){
       // 묶어보기 모드는 서버 그룹 렌더 → 폼 submit fallback
       if(groupCheckbox && groupCheckbox.checked){ sync(); form.submit(); return; }
-      if(!document.getElementById('homeTbody')) return;
+      if(!document.getElementById('homeCardList')) return;
       var params = new URLSearchParams();
       params.set('q', buildQ());
       if(inStockCheckbox && inStockCheckbox.checked) params.set('in_stock','1');

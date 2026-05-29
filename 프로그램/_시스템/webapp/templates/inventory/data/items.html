@@ -1707,11 +1707,16 @@ function submitBulkBundle(){
         </div>
         {# 사진 — 드래그앤드롭 가능 영역 #}
         <div style="text-align:center">
-          <div id="phxDropZone" style="width:130px;height:130px;background:#F9FAFB;border:2px dashed #CBCCD3;border-radius:8px;display:flex;flex-direction:column;align-items:center;justify-content:center;color:#9CA3AF;font-size:11px;overflow:hidden;cursor:pointer;transition:border-color .15s,background .15s">
-            <span id="phxImgPlaceholder" style="text-align:center;padding:0 6px;line-height:1.4">📤<br>드래그하거나<br>클릭해서 업로드</span>
-            <img id="phxImg" style="display:none;width:100%;height:100%;object-fit:cover">
+          <div style="position:relative;width:130px;height:130px;margin:0 auto">
+            <div id="phxDropZone" style="width:100%;height:100%;background:#F9FAFB;border:2px dashed #CBCCD3;border-radius:8px;display:flex;flex-direction:column;align-items:center;justify-content:center;color:#9CA3AF;font-size:11px;overflow:hidden;cursor:pointer;transition:border-color .15s,background .15s">
+              <span id="phxImgPlaceholder" style="text-align:center;padding:0 6px;line-height:1.4">📤<br>드래그하거나<br>클릭해서 업로드</span>
+              <img id="phxImg" style="display:none;width:100%;height:100%;object-fit:cover">
+            </div>
+            {# [2부-1] 사진 삭제 버튼 — 사진 있을 때만 노출 #}
+            <button type="button" id="phxImgDelete" onclick="deletePhxImage()" title="사진 삭제" style="display:none;position:absolute;top:-7px;right:-7px;width:22px;height:22px;border-radius:50%;background:#DC2626;color:#fff;border:2px solid #fff;cursor:pointer;font-size:13px;line-height:1;padding:0;box-shadow:0 2px 6px rgba(0,0,0,0.25);z-index:5">×</button>
           </div>
           <input id="phxImgInput" name="image" type="file" accept="image/*" style="display:none">
+          <input type="hidden" id="phxImgDeleteFlag" name="image_delete" value="">
           <div style="margin-top:6px;font-size:11px;color:#8B95A1">jpg / png / webp / gif · 최대 10MB</div>
         </div>
       </div>
@@ -1790,8 +1795,12 @@ function openPhxEdit(sku){
   var ph = document.getElementById('phxImgPlaceholder');
   img.style.display = 'none'; img.src = '';
   ph.style.display = '';
-  // file input 초기화
+  // file input 초기화 + 삭제 플래그 초기화
   document.getElementById('phxImgInput').value = '';
+  var delBtn = document.getElementById('phxImgDelete');
+  if(delBtn) delBtn.style.display = 'none';
+  var delFlag = document.getElementById('phxImgDeleteFlag');
+  if(delFlag) delFlag.value = '';
 
   fetch('/inventory/data/items/' + encodeURIComponent(sku) + '/info')
     .then(function(r){ return r.json(); })
@@ -1810,12 +1819,28 @@ function openPhxEdit(sku){
         img.src = j.image_url + '?t=' + Date.now();
         img.style.display = '';
         ph.style.display = 'none';
+        // 사진 있으면 × 삭제 버튼 노출
+        var dBtn = document.getElementById('phxImgDelete');
+        if(dBtn) dBtn.style.display = '';
       }
     })
     .catch(function(e){ alert('요청 실패: ' + e.message); });
 }
 function closePhxEdit(){
   document.getElementById('phxEditModal').style.display = 'none';
+}
+
+// [2부-1] 사진 삭제 — 미리보기 즉시 비우고 저장 시 서버에 image_delete=1 전송
+function deletePhxImage(){
+  if(!confirm('사진을 삭제하시겠어요?')) return;
+  var img = document.getElementById('phxImg');
+  var ph = document.getElementById('phxImgPlaceholder');
+  img.style.display = 'none'; img.src = '';
+  ph.style.display = '';
+  document.getElementById('phxImgInput').value = '';
+  document.getElementById('phxImgDelete').style.display = 'none';
+  // 저장 시 같은 모델+색상 그룹에서 image_url 제거하라는 플래그
+  document.getElementById('phxImgDeleteFlag').value = '1';
 }
 function submitPhxEdit(){
   var sku = document.getElementById('phxSku').value;
@@ -1862,6 +1887,11 @@ function submitPhxEdit(){
       img.src = e.target.result;
       img.style.display = '';
       ph.style.display = 'none';
+      // 사진 들어왔으니 × 삭제 버튼 노출 + 삭제 플래그 해제
+      var dBtn = document.getElementById('phxImgDelete');
+      if(dBtn) dBtn.style.display = '';
+      var dFlag = document.getElementById('phxImgDeleteFlag');
+      if(dFlag) dFlag.value = '';
     };
     reader.readAsDataURL(file);
   }

@@ -384,6 +384,25 @@ def data_item_update(sku):
                     from shared.sku_format import clean_category
                     model.category = clean_category(new_category)
 
+        # [2부-1] 사진 삭제 플래그 처리 — 같은 모델+색상 그룹 모두 image_url 제거
+        if request.form.get('image_delete') == '1':
+            color_key = (opt.color_display or opt.color_code or '').strip()
+            if hasattr(opt, 'image_url'):
+                opt.image_url = None
+            if opt.model_code:
+                same_color = lambda o: (
+                    (o.color_display or o.color_code or '').strip() == color_key
+                )
+                siblings = (
+                    s.query(Option)
+                    .filter(Option.model_code == opt.model_code)
+                    .filter(Option.canonical_sku != sku)
+                    .all()
+                )
+                for sib in siblings:
+                    if same_color(sib) and hasattr(sib, 'image_url'):
+                        sib.image_url = None
+
         file = request.files.get('image')
         if file and file.filename:
             ext = file.filename.rsplit('.', 1)[-1].lower()
