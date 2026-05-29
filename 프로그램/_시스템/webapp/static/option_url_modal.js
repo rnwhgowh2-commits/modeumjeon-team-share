@@ -368,6 +368,8 @@
       invCandidates: {},
       // 재고 옵션 풀 (검색·드롭다운용)
       invOptions: [],
+      // [perf 2026-05-29] 재고 매핑 셀(초록) 표시용 — 배경 로드 전 빈 Set 으로 안전
+      invMappedKeys: new Set(),
     };
 
     // 모달 마크업
@@ -417,11 +419,48 @@
     const $ = sel => modal.querySelector(sel);
     const $$ = sel => modal.querySelectorAll(sel);
 
+    // [perf 2026-05-29] 즉시 로딩 표시 — 데이터 도착 전에도 창이 살아있음을 보여줌
+    //   (모달 껍데기는 위에서 이미 append 됨 → 클릭 즉시 창이 뜨고 "불러오는 중" 노출)
+    $('#oum-left').innerHTML = '<div style="padding:48px 16px;text-align:center;color:#8B95A1;font-size:14px">옵션 매트릭스 불러오는 중…</div>';
+    $('#oum-right').innerHTML = '<div style="padding:48px 16px;text-align:center;color:#8B95A1;font-size:14px">불러오는 중…</div>';
+
+    // [perf 2026-05-29] 함수 스코프로 hoist — 재고 매핑은 배경 로드(.then) 후 적용하므로
+    //   keyBySku / _invMapPromise 를 try 바깥에서 참조 가능해야 함.
+    let keyBySku = {};
+    let _invMapPromise = null;
+
+    // 재고 매핑 데이터 적용 — 배경 로드 완료 시 호출 (모달 초기 표시를 막지 않음).
+    //   기존: source-urls 처리 중 await 로 블로킹 → 안 보이는 재고탭 데이터 때문에 표시 지연.
+    //   변경: 옵션·URL UI 는 즉시 렌더, 재고 매핑은 도착하면 셀 초록색·재고탭만 갱신.
+    function applyInvData(ij) {
+      if (!ij || !ij.ok) return;
+      state.invOptions = ij.inventory_options || [];
+      state.invCandidates = ij.candidates || {};
+      state.invMappedKeys = new Set();
+      state.invRows = {};
+      Object.entries(ij.mappings || {}).forEach(([bSku, invList]) => {
+        if (Array.isArray(invList) && invList.length > 0) {
+          const k = keyBySku[bSku];
+          if (k) state.invMappedKeys.add(k);
+          // B3-3 표는 1:1 — 첫 매핑 inv_sku 표시
+          const inv = state.invOptions.find(o => o.sku === invList[0]);
+          state.invRows[bSku] = {
+            invSku: invList[0],
+            model: inv ? inv.model_name : '',
+            color: inv ? inv.color : '',
+            size: inv ? inv.size : '',
+            isManual: false,
+            isUnused: false,
+          };
+        }
+      });
+    }
+
     // 소싱처 목록 + 기존 옵션 로드 (기존 모음전 GET 활용)
     try {
-      // [perf 2026-05-29] 두 요청 병렬화 — inventory-mapping 을 먼저 띄워두고
-      //   source-urls 처리와 동시에 진행 (기존: 순차 await → 대기시간 합산).
-      const _invMapPromise = fetch(`/api/bundles/${encodeURIComponent(bundleCode)}/inventory-mapping`)
+      // [perf 2026-05-29] 두 요청 병렬화 — inventory-mapping 을 배경으로 먼저 띄워두고
+      //   source-urls 만 await. 재고 매핑은 아래 rerender 이후 .then 으로 비동기 적용.
+      _invMapPromise = fetch(`/api/bundles/${encodeURIComponent(bundleCode)}/inventory-mapping`)
         .then(res => res.json()).catch(() => null);
       const r = await fetch(`/api/bundles/${encodeURIComponent(bundleCode)}/source-urls`);
       const j = await r.json();
@@ -429,7 +468,7 @@
         state.sources = (j.sources || []).map(k => ({ key: k, label: k }));
         // [2026-05-25] 옵션 canonical_sku ↔ axis values key 매핑 — 매핑 복원·자동저장 공용
         //   재진입 시 option_ids 를 option_keys 로 복원해야 매트릭스 매핑이 살아 있음
-        const keyBySku = {};
+        keyBySku = {};
         const skuByKey = {};
         (j.options || []).forEach(o => {
           if (Array.isArray(o.axis_values)) {
@@ -439,37 +478,9 @@
           }
         });
         state.skuByKey = skuByKey;
+        // 재고 매핑(invRows/invOptions/...)은 await 하지 않음 → 모달 즉시 표시.
+        //   실제 적용은 함수 끝 rerender() 직후 _invMapPromise.then(applyInvData) 에서.
 
-        // [2026-05-29 시안 v6/v3 B3-3] 재고 매핑 fetch — 셀 색·도트 + 우측 매핑 표
-        //   GET /api/bundles/<code>/inventory-mapping → {bundle_sku: [inv_sku, ...], candidates, inventory_options}
-        state.invMappedKeys = new Set();
-        state.invRows = {};
-        state.invCandidates = {};
-        state.invOptions = [];
-        try {
-          const ij = await _invMapPromise;  // [perf] 위에서 병렬로 띄운 결과 수령
-          if (ij && ij.ok) {
-            state.invOptions = ij.inventory_options || [];
-            state.invCandidates = ij.candidates || {};
-            // 옵션 SKU 별 매핑 풀어서 invRows + invMappedKeys
-            Object.entries(ij.mappings || {}).forEach(([bSku, invList]) => {
-              if (Array.isArray(invList) && invList.length > 0) {
-                const k = keyBySku[bSku];
-                if (k) state.invMappedKeys.add(k);
-                // B3-3 표는 1:1 — 첫 매핑 inv_sku 표시
-                const inv = state.invOptions.find(o => o.sku === invList[0]);
-                state.invRows[bSku] = {
-                  invSku: invList[0],
-                  model: inv ? inv.model_name : '',
-                  color: inv ? inv.color : '',
-                  size: inv ? inv.size : '',
-                  isManual: false,
-                  isUnused: false,
-                };
-              }
-            });
-          }
-        } catch (_e) { /* ignore — 재고 매핑 없어도 모달 동작 */ }
         // 기존 URL 도 가져옴 (있으면 표시) — option_ids → option_keys 복원
         //   [2026-05-27] 옛 sku + 새 sku 가 같은 axis_values 로 중복 매핑된 경우
         //   같은 key 가 두 번 들어가서 shared 카운트가 부풀려짐 → Set 으로 중복 제거
@@ -1885,8 +1896,17 @@
       }
     });
 
-    // 초기 렌더
+    // 초기 렌더 — source-urls 만으로 옵션 매트릭스·URL UI 즉시 표시 (재고 매핑 기다리지 않음)
     rerender();
+
+    // [perf 2026-05-29] 재고 매핑은 배경 로드 → 도착 시 셀 초록색·재고탭 갱신.
+    //   모달 표시·옵션 작업은 이미 가능한 상태. 데이터 도착이 늦어도 UI 안 막힘.
+    if (_invMapPromise) {
+      _invMapPromise.then(ij => {
+        applyInvData(ij);
+        rerender();
+      }).catch(() => { /* 재고 매핑 실패해도 모달은 정상 동작 */ });
+    }
   }
 
   window.openOptionUrlModal = openOptionUrlModal;
