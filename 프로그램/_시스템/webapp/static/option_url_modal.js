@@ -171,19 +171,23 @@
       .oum-mtx-grp-h { transition:background .12s, color .12s; padding:11.25px 12px; border-radius:7.5px; }
       .oum-blue .oum-mtx-grp-h:hover { background:#dbeafe; }
       .oum-green .oum-mtx-grp-h:hover { background:#dcfce7; }
-      .oum-cell { display:inline-block; width:45px; height:33px; line-height:33px; border-radius:6px; cursor:pointer; font-size:16.5px; font-weight:600; position:relative; user-select:none; }
-      /* [2026-05-29] 시안 v6 — 누적 색 시스템 (회색→파랑→초록).
-         사용자 룰: 회색=옵션ON / 파랑=+URL / 초록=+URL+재고 / 옅음=비활성. */
-      .oum-cell.off { background:#9CA3AF; color:#fff; }                        /* 회색 — 옵션 ON, URL/재고 X */
-      .oum-cell.mapped-off { background:#9CA3AF; color:#fff; }                 /* 동일 회색 (옛 D1) */
-      .oum-blue .oum-cell.on { background:#4F67FF; color:#fff; }               /* 파랑 — 옵션 ON + URL 매핑 */
-      .oum-green .oum-cell.on { background:#4F67FF; color:#fff; }              /* 파랑 (모달 톤 무관) */
+      /* [2026-05-29 시안 v6 E3] 셀에 상태 태그까지 — 세로 stack (체크표시 + 작은 라벨) */
+      .oum-cell { display:inline-flex; flex-direction:column; align-items:center; justify-content:center; width:56px; height:38px; line-height:1.1; border-radius:6px; cursor:pointer; font-size:14px; font-weight:700; position:relative; user-select:none; padding:2px 0; }
+      .oum-cell .tag { font-size:9.5px; font-weight:600; opacity:.92; letter-spacing:.2px; margin-top:1px; }
+      /* [2026-05-29] 시안 v6 E3 — 누적 색 시스템 (회색→파랑→초록) + 상태 태그.
+         단일 진실 원천: opt-on / url-on / has-inv 클래스만 의미. */
+      .oum-cell.disabled,
+      .oum-cell.off,
+      .oum-cell.mapped-off { background:#F3F4F6 !important; color:#9CA3AF !important; border:1px dashed #D1D6DB; cursor:not-allowed; }  /* ⬜ 옅음 — 비활성/미선택 */
+      .oum-cell.opt-on { background:#9CA3AF !important; color:#fff !important; border:none; cursor:pointer; }                            /* 🩶 회색 — 옵션 ON */
+      .oum-cell.url-on,
+      .oum-cell.opt-on.url-on,
+      .oum-cell.on { background:#4F67FF !important; color:#fff !important; border:none; cursor:pointer; }                                /* 🟦 파랑 — + URL 매핑 */
       .oum-cell.has-inv,
-      .oum-cell.on.has-inv,
-      .oum-blue .oum-cell.on.has-inv,
-      .oum-green .oum-cell.on.has-inv { background:#03A65A !important; color:#fff !important; }  /* 초록 — + 재고 매핑 */
+      .oum-cell.opt-on.has-inv,
+      .oum-cell.url-on.has-inv,
+      .oum-cell.on.has-inv { background:#03A65A !important; color:#fff !important; border:none; cursor:pointer; }                        /* 🟩 초록 — + 재고 매핑 */
       .oum-cell.shared::after { content:attr(data-shared); position:absolute; top:-4px; right:-4px; background:#f59e0b; color:#fff; font-size:12.75px; width:18px; height:18px; border-radius:50%; line-height:18px; font-weight:700; }
-      .oum-cell.disabled { background:#F3F4F6; color:#9CA3AF; cursor:not-allowed; border:1px dashed #D1D6DB; }  /* 옅음 — 비활성/미선택 */
 
       /* 적용 바 (좌측) - 가운데 정렬 */
       .oum-apply-bar { background:#fff; border:1px solid #bfdbfe; border-radius:10.5px; padding:16.5px; margin-top:15px; display:flex; flex-direction:column; align-items:center; gap:10.5px; }
@@ -642,18 +646,28 @@
       return html;
     }
 
+    // [2026-05-29 시안 v6 E3] 셀 클래스 + 라벨 통합 결정
+    //   active = 옵션 ON (state.selected.has) | urlMapped = 이 URL 에 매핑 (우측만 의미) | hasInv = 재고 매핑 있음
+    //   반환: { cls, inner } — 우선순위 has-inv > url-on > opt-on > disabled
+    function cellState(active, urlMapped, hasInv) {
+      if (!active) return { cls: 'disabled', inner: '<span>·</span>' };
+      if (hasInv)   return { cls: 'opt-on has-inv', inner: '<span>✓</span><span class="tag">+재고</span>' };
+      if (urlMapped) return { cls: 'opt-on url-on', inner: '<span>✓</span><span class="tag">+URL</span>' };
+      return { cls: 'opt-on', inner: '<span>✓</span><span class="tag">옵션</span>' };
+    }
+
     function renderMatrix1D(axis) {
       const valid = validAxes();
       let html = `<table class="oum-mtx-table"><tbody><tr>`;
       axis.values.forEach(v => {
         const k = keyOf([v]);
         const on = state.selected.has(k);
-        // [2026-05-27 D1-update] mapped-off — 데이터 보존만, 시각은 일반 off
         const mappedOff = !on && state.mappedOff && state.mappedOff.has(k);
-        let cls = on ? 'on' : (mappedOff ? 'mapped-off' : 'off');
-        // [2026-05-29 시안 v6] 옵션 ON + 재고 매핑 → has-inv → 초록
-        if (on && state.invMappedKeys && state.invMappedKeys.has(k)) cls += ' has-inv';
-        html += `<td><span class="oum-cell ${cls}" data-cell-key='${esc(k)}'>${on ? '✓' : '·'}</span></td>`;
+        const active = on || mappedOff;
+        const hasInv = active && state.invMappedKeys && state.invMappedKeys.has(k);
+        // 좌측 매트릭스: URL 매핑은 표시 안 함 (우측에서) → urlMapped=false
+        const s = cellState(active, false, hasInv);
+        html += `<td><span class="oum-cell ${s.cls}" data-cell-key='${esc(k)}'>${s.inner}</span></td>`;
       });
       html += `</tr></tbody></table>`;
       return html;
@@ -684,12 +698,11 @@
           arr[rowIdx] = rv;
           const k = keyOf(arr);
           const on = state.selected.has(k);
-          // [2026-05-27 D1-update] mapped-off — 데이터 보존만, 시각은 일반 off
           const mappedOff = !on && state.mappedOff && state.mappedOff.has(k);
-          let cls = on ? 'on' : (mappedOff ? 'mapped-off' : 'off');
-          // [2026-05-29 시안 v6] 옵션 ON + 재고 매핑 → has-inv → 초록
-          if (on && state.invMappedKeys && state.invMappedKeys.has(k)) cls += ' has-inv';
-          html += `<td><span class="oum-cell ${cls}" data-cell-key='${esc(k)}'>${on ? '✓' : '·'}</span></td>`;
+          const active = on || mappedOff;
+          const hasInv = active && state.invMappedKeys && state.invMappedKeys.has(k);
+          const s = cellState(active, false, hasInv);
+          html += `<td><span class="oum-cell ${s.cls}" data-cell-key='${esc(k)}'>${s.inner}</span></td>`;
         });
         html += `</tr>`;
       });
@@ -814,17 +827,16 @@
         valid[0].values.forEach(v => {
           const k = keyOf([v]);
           const active = state.selected.has(k);
-          const on = mappedSet.has(k);
+          const urlMapped = mappedSet.has(k);
+          const hasInv = active && state.invMappedKeys && state.invMappedKeys.has(k);
           const info = sharedMap[k] || { count: 0, mappings: [] };
           const sh = info.count;
-          let cls = active ? (on ? 'on' : 'off') : 'disabled';
-          if (on && sh > 1) cls += ' shared';
-          // [2026-05-29 시안 v6] 재고 매핑 있는 옵션 셀 → has-inv → 초록색
-          if (active && on && state.invMappedKeys && state.invMappedKeys.has(k)) cls += ' has-inv';
-          const sharedAttr = (on && sh > 1) ? ` data-shared="${sh}"` : '';
-          // [2026-05-27 B2-2] title 제거 → data-shared-mappings 에 JSON 저장 → JS hover 시 floating card
+          const s = cellState(active, urlMapped, hasInv);
+          let cls = s.cls;
+          if (urlMapped && sh > 1) cls += ' shared';
+          const sharedAttr = (urlMapped && sh > 1) ? ` data-shared="${sh}"` : '';
           const mappingsAttr = (sh > 1) ? ` data-shared-mappings='${esc(JSON.stringify(info.mappings))}'` : '';
-          html += `<td><span class="oum-cell ${cls}" data-url-cell-key='${esc(k)}'${sharedAttr}${mappingsAttr}>${active ? (on ? '✓' : '·') : '·'}</span></td>`;
+          html += `<td><span class="oum-cell ${cls}" data-url-cell-key='${esc(k)}'${sharedAttr}${mappingsAttr}>${s.inner}</span></td>`;
         });
         html += `</tr></tbody></table></div>`;
         return html;
@@ -869,16 +881,16 @@
           arr[rowIdx] = rv;
           const k = keyOf(arr);
           const active = state.selected.has(k);
-          const on = mappedSet.has(k);
+          const urlMapped = mappedSet.has(k);
+          const hasInv = active && state.invMappedKeys && state.invMappedKeys.has(k);
           const info = sharedMap[k] || { count: 0, mappings: [] };
           const sh = info.count;
-          let cls = active ? (on ? 'on' : 'off') : 'disabled';
-          if (on && sh > 1) cls += ' shared';
-          // [2026-05-29 시안 v6] 재고 매핑 있는 옵션 셀 → has-inv → 초록색
-          if (active && on && state.invMappedKeys && state.invMappedKeys.has(k)) cls += ' has-inv';
-          const sharedAttr = (on && sh > 1) ? ` data-shared="${sh}"` : '';
+          const s = cellState(active, urlMapped, hasInv);
+          let cls = s.cls;
+          if (urlMapped && sh > 1) cls += ' shared';
+          const sharedAttr = (urlMapped && sh > 1) ? ` data-shared="${sh}"` : '';
           const mappingsAttr = (sh > 1) ? ` data-shared-mappings='${esc(JSON.stringify(info.mappings))}'` : '';
-          html += `<td><span class="oum-cell ${cls}" data-url-cell-key='${esc(k)}'${sharedAttr}${mappingsAttr}>${active ? (on ? '✓' : '·') : '·'}</span></td>`;
+          html += `<td><span class="oum-cell ${cls}" data-url-cell-key='${esc(k)}'${sharedAttr}${mappingsAttr}>${s.inner}</span></td>`;
         });
         html += `</tr>`;
       });
