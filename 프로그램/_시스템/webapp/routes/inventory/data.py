@@ -389,11 +389,32 @@ def data_item_update(sku):
             ext = file.filename.rsplit('.', 1)[-1].lower()
             if ext in ('jpg', 'jpeg', 'png', 'webp', 'gif'):
                 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
-                safe = sku.replace('/', '_').replace(' ', '_')
-                fname = f'{safe}.{ext}'
+                # [2026-05-29 2부-1] 모델+색상 그룹 키로 저장 → 같은 모델·색상 모든 옵션 공유
+                #   파일명: img_<model_code>_<color>.<ext> (sanitize)
+                import re as _re
+                color_key = (opt.color_display or opt.color_code or 'one').strip() or 'one'
+                model_key = opt.model_code or sku
+                safe_model = _re.sub(r'[^A-Za-z0-9가-힣_\-]', '_', model_key)[:40]
+                safe_color = _re.sub(r'[^A-Za-z0-9가-힣_\-]', '_', color_key)[:30]
+                fname = f'img_{safe_model}_{safe_color}.{ext}'
                 file.save(str(UPLOAD_DIR / fname))
+                new_url = f'/inventory/data/product-image/{fname}'
+                # 본 옵션
                 if hasattr(opt, 'image_url'):
-                    opt.image_url = f'/inventory/data/product-image/{fname}'
+                    opt.image_url = new_url
+                # [2부-1] 같은 모델+색상의 모든 옵션 (사이즈만 다른 형제들) 에 동일 적용
+                if opt.model_code:
+                    siblings = (
+                        s.query(Option)
+                        .filter(Option.model_code == opt.model_code)
+                        .filter(Option.canonical_sku != sku)
+                        .all()
+                    )
+                    same_color = lambda o: ((o.color_display or o.color_code or '').strip()
+                                            == (opt.color_display or opt.color_code or '').strip())
+                    for sib in siblings:
+                        if same_color(sib) and hasattr(sib, 'image_url'):
+                            sib.image_url = new_url
 
         s.commit()
         # [1부-2] AJAX 요청은 JSON 응답 (모달에서 페이지 이동 없이 처리)

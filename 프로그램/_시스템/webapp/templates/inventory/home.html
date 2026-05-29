@@ -178,7 +178,7 @@
       var tbody = document.getElementById('homeTbody');
       if(!tbody) return;
       var locs = data.locs || [];
-      var totalCols = 10 + locs.length;  // [1부-1] +1 = 체크박스 컬럼
+      var totalCols = 11 + locs.length;  // [2부-1] +1 = 체크박스 +1 = 사진
       tbody.innerHTML = '';
       if(!data.items || data.items.length === 0){
         tbody.innerHTML = '<tr><td colspan="'+totalCols+'" style="padding:32px;text-align:center;color:#9CA3AF">옵션 없음</td></tr>';
@@ -200,8 +200,12 @@
             locCells += '<td style="padding:7px 8px;text-align:right;font-family:ui-monospace,monospace;color:'+(v>0?'#3182F6':'#9CA3AF')+';background:'+(v>0?'#F8FBFF':'')+'">'+v+'</td>';
           });
           var avgCell = o.avg > 0 ? fmt(o.avg) : '—';
+          var imgTd = o.image_url
+            ? '<img src="'+esc(o.image_url)+'" style="width:42px;height:42px;object-fit:cover;border-radius:5px;border:1px solid #E5E8EB">'
+            : '<div style="width:42px;height:42px;background:#F2F4F6;border-radius:5px;display:inline-flex;align-items:center;justify-content:center;color:#CBCCD3;font-size:16px">👟</div>';
           tr.innerHTML =
             '<td style="padding:7px 8px;text-align:center" onclick="event.stopPropagation()"><input type="checkbox" class="bulk-row-check" data-sku="'+esc(o.sku)+'" onclick="onBulkRowCheck(this)" style="cursor:pointer;width:14px;height:14px"></td>' +
+            '<td style="padding:4px 6px;text-align:center">'+imgTd+'</td>' +
             '<td style="padding:7px 8px;font-family:ui-monospace,monospace;font-size:16px">'+esc(o.sku)+'</td>' +
             '<td style="padding:7px 8px;font-family:ui-monospace,monospace;font-size:16px;color:#6B7684">'+esc(o.barcode||'—')+'</td>' +
             '<td style="padding:7px 8px;font-size:12px;color:#191F28">'+esc(o.brand||'—')+'</td>' +
@@ -331,6 +335,7 @@
           <thead style="position:sticky;top:0">
             <tr>
               <th style="padding:8px;text-align:center;width:34px"><input type="checkbox" id="bulkSelectAll" onclick="toggleBulkSelectAll(this)" style="cursor:pointer;width:14px;height:14px"></th>
+              <th style="padding:8px;text-align:center;width:54px">사진</th>
               <th style="padding:8px;text-align:left">SKU</th>
               <th style="padding:8px;text-align:left">바코드</th>
               <th style="padding:8px;text-align:left">브랜드</th>
@@ -355,6 +360,14 @@
               <tr class="home-row" data-sku="{{ o.canonical_sku }}" data-brand="{{ _brand if _brand != '—' else '' }}" data-name="{{ _pname }}" data-color="{{ _color }}" data-size="{{ _size }}" style="border-bottom:1px solid #F2F4F6;{% if selected_detail and selected_detail.opt.canonical_sku == o.canonical_sku %}background:#EFF6FF !important{% endif %};cursor:pointer" onclick="window.location.href='?sku={{ o.canonical_sku }}{% if in_stock_only %}&in_stock=1{% endif %}{% if search_q %}&q={{ search_q }}{% endif %}'">
                 <td style="padding:7px 8px;text-align:center" onclick="event.stopPropagation()">
                   <input type="checkbox" class="bulk-row-check" data-sku="{{ o.canonical_sku }}" onclick="onBulkRowCheck(this)" style="cursor:pointer;width:14px;height:14px">
+                </td>
+                {# [2부-1] 사진 썸네일 — 모델+색상 그룹 #}
+                <td style="padding:4px 6px;text-align:center">
+                  {% if o.image_url %}
+                    <img src="{{ o.image_url }}" style="width:42px;height:42px;object-fit:cover;border-radius:5px;border:1px solid #E5E8EB" alt="">
+                  {% else %}
+                    <div style="width:42px;height:42px;background:#F2F4F6;border-radius:5px;display:inline-flex;align-items:center;justify-content:center;color:#CBCCD3;font-size:16px">👟</div>
+                  {% endif %}
                 </td>
                 <td style="padding:7px 8px">{{ o.canonical_sku }}</td>
                 <td style="padding:7px 8px">{{ _bc }}</td>

@@ -167,6 +167,8 @@ def home():
                     'size': (o.size_display or o.size_code or 'free'),
                     'avg': int(o.boxhero_avg_purchase_price or 0),
                     'stock': int(stock_map.get(o.canonical_sku, 0)),
+                    # [2부-1] 사진 — 모델+색상 그룹 공유
+                    'image_url': getattr(o, 'image_url', '') or '',
                     'loc_stock': {str(loc.id): int(per_loc_stock.get(o.canonical_sku, {}).get(loc.id, 0)) for loc in all_locs},
                 })
             return jsonify({
