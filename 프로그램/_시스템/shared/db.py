@@ -27,8 +27,21 @@ if not _is_sqlite:
     _engine_kwargs.update(
         pool_size=5,        # 항상 유지하는 idle conn 수
         max_overflow=8,     # 피크 시 추가 — 총 13 < Supabase 15 한도
-        pool_recycle=300,   # 5분 후 재생성 (pgbouncer idle timeout 우회)
+        pool_recycle=120,   # [perf 2026-05-29] 5분→2분: half-open 되기 전에 선제 재생성
         pool_timeout=10,    # 풀 고갈 시 대기 한계 (디폴트 30s → 10s 로 빠른 실패)
+        # [perf 2026-05-29] TCP keepalive — 유휴 후 "첫 요청 수십 초 멈춤" 근본 해결.
+        #   증상: 앱이 잠깐 쉰 뒤 첫 클릭(예: 옵션조합 모달) 시 ~40초 멈춤, 직후엔 0.4초.
+        #   원인: Fly↔Supabase pooler 사이 NAT 가 유휴 TCP 를 조용히 끊음(half-open).
+        #         pool_pre_ping 의 SELECT 1 이 죽은 소켓을 붙잡고 TCP 재전송 타임아웃까지 대기.
+        #   해결: keepalives 로 30초마다 probe → NAT 매핑 유지(끊김 자체 예방) +
+        #         connect_timeout 으로 신규 연결도 10초 내 실패하도록 상한.
+        connect_args={
+            'connect_timeout': 10,
+            'keepalives': 1,
+            'keepalives_idle': 30,
+            'keepalives_interval': 10,
+            'keepalives_count': 5,
+        },
     )
 engine = create_engine(Config.DB_URL, **_engine_kwargs)
 # expire_on_commit=False: commit 후 객체 컬럼 expire 방지 — session.close() 후에도 컬럼 access 가능
