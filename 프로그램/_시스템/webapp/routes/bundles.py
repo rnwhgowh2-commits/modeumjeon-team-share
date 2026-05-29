@@ -885,11 +885,18 @@ def api_list_source_urls(code):
 
         urls = {}
         all_keys = set(get_all_keys(session=s))  # builtin + DB
+        # [perf 2026-05-29] 소스키마다 쿼리(N회) 하지 않고 model_code 1회 조회 후 in-memory group.
+        #   모달 임계경로(source-urls) 지연을 줄임 — 결과 동일.
+        from collections import defaultdict as _dd
+        _rows_by_key = _dd(list)
+        for r in (s.query(BundleSourceUrl)
+                  .filter_by(model_code=code)
+                  .order_by(BundleSourceUrl.source_key,
+                            BundleSourceUrl.sort_order, BundleSourceUrl.id)
+                  .all()):
+            _rows_by_key[r.source_key].append(r)
         for sk in all_keys:
-            rows = (s.query(BundleSourceUrl)
-                    .filter_by(model_code=code, source_key=sk)
-                    .order_by(BundleSourceUrl.sort_order, BundleSourceUrl.id)
-                    .all())
+            rows = _rows_by_key.get(sk, [])
             if rows:
                 urls[sk] = [{
                     'id': r.id,
