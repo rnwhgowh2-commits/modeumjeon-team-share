@@ -91,3 +91,165 @@ def has_korean(s: str | None) -> bool:
     if not s:
         return False
     return any('가' <= ch <= '힣' for ch in s)
+
+
+# ════════════════════════════════════════════════════════════
+#  [2026-05-29] 컬럼 규칙 강제 — 사용자 캡처 표 그대로 (10개)
+#  단일 진실 원천: 모든 입력 경로 (items 추가/수정·박스히어로·일괄 등록) 가 호출.
+# ════════════════════════════════════════════════════════════
+
+
+def clean_brand(s: str | None) -> str:
+    """브랜드 — 단일 단어, 한글 허용, 100자, 미상 fallback."""
+    if not s:
+        return '미상'
+    s = ' '.join(s.split())  # 공백 정리
+    if not s:
+        return '미상'
+    return s[:100]
+
+
+def clean_category(s: str | None) -> str:
+    """카테고리 — 단어, 한글 허용, 100자, 빈 값 허용."""
+    if not s:
+        return ''
+    return ' '.join(s.split())[:100]
+
+
+def clean_model_name(s: str | None) -> str | None:
+    """제품명·모델명 — 자유 텍스트, 한글 허용, 255자, 필수.
+
+    None 반환 = 미입력 (호출처에서 필수 체크 후 사용자에게 에러).
+    빈 문자열은 None 으로 정규화.
+    """
+    if not s or not s.strip():
+        return None
+    return s.strip()[:255]
+
+
+def clean_color(s: str | None) -> str:
+    """색상 — 단일 색상, 한글 허용, 64자, 'ONE' fallback."""
+    if not s or not s.strip():
+        return 'ONE'
+    return s.strip()[:64]
+
+
+def clean_size(s: str | None) -> str:
+    """사이즈 — 숫자 또는 FREE, 한글 허용, 64자, 'FREE' fallback."""
+    if not s or not s.strip():
+        return 'FREE'
+    return s.strip()[:64]
+
+
+def clean_avg_price(s) -> int:
+    """평균매입가 — 정수(원), 0 허용. 비숫자 → 0."""
+    if s is None or s == '':
+        return 0
+    try:
+        v = int(float(str(s).replace(',', '').strip()))
+        return max(0, v)
+    except (ValueError, TypeError):
+        return 0
+
+
+def clean_memo(s: str | None) -> str:
+    """메모 — 자유 텍스트, 한글 허용. 1000자 안전 제한 (사용자 명시 X, DB 보호용)."""
+    if not s:
+        return ''
+    return s.strip()[:1000]
+
+
+# ════════════════════════════════════════════════════════════
+#  [2026-05-29] 표기 차이 alias — 자동 매칭용
+#  사용자 시안 v3: "메이트↔Mate", "스카이블루↔Sky Blue↔SB", "240↔7US"
+# ════════════════════════════════════════════════════════════
+
+
+# 색상·모델명 alias (소문자 normalize 후 매칭)
+COLOR_ALIASES: dict[str, set[str]] = {
+    # 한글 ↔ 영어 ↔ 약어
+    '블랙':       {'black', 'bk', 'blk', '검정', '흑'},
+    '화이트':     {'white', 'wh', 'wt', '흰', '백'},
+    '그레이':     {'gray', 'grey', 'gy', '회색', '회'},
+    '네이비':     {'navy', 'nv'},
+    '다크네이비': {'darknavy', 'dnv', 'dn'},
+    '스카이블루': {'skyblue', 'sb'},
+    '라이트블루': {'lightblue', 'lb'},
+    '아이보리':   {'ivory', 'iv'},
+    '크림':       {'cream', 'cr'},
+    '크림핑크':   {'creampink', 'cp'},
+    '베이지':     {'beige', 'bg'},
+    '브라운':     {'brown', 'br'},
+    '레드':       {'red', 'rd', '빨강', '빨간'},
+    '오렌지':     {'orange', 'or'},
+    '옐로우':     {'yellow', 'yl', '노랑', '노란'},
+    '그린':       {'green', 'gr', '초록'},
+    '올리브그린': {'olivegreen', 'olive', 'og'},
+    '핑크':       {'pink', 'pk', '분홍'},
+    '퍼플':       {'purple', 'pp', '보라'},
+    'ONE':        {'one', 'default', '기본', 'all'},
+}
+
+
+# 사이즈 alias — KR (mm) ↔ US (남성 운동화 기준)
+SIZE_ALIASES: dict[str, set[str]] = {
+    '220': {'4us', '4', 'us4', '220mm'},
+    '225': {'4.5us', '4.5', 'us4.5', '225mm'},
+    '230': {'5us', '5', 'us5', '230mm'},
+    '235': {'5.5us', '5.5', 'us5.5', '235mm'},
+    '240': {'6us', '6', 'us6', '7us', '7', '240mm'},  # 한국 240 ≈ US 6 (여성 7)
+    '245': {'6.5us', '6.5', '7.5us', '7.5', '245mm'},
+    '250': {'7us', '7', '8us', '8', '250mm'},
+    '255': {'7.5us', '7.5', '8.5us', '8.5', '255mm'},
+    '260': {'8us', '8', '9us', '9', '260mm'},
+    '265': {'8.5us', '8.5', '9.5us', '9.5', '265mm'},
+    '270': {'9us', '9', '10us', '10', '270mm'},
+    '275': {'9.5us', '9.5', '10.5us', '10.5', '275mm'},
+    '280': {'10us', '10', '11us', '11', '280mm'},
+    '285': {'10.5us', '10.5', '11.5us', '11.5', '285mm'},
+    '290': {'11us', '11', '12us', '12', '290mm'},
+    'FREE': {'free', 'onesize', 'os', 'f', '균일'},
+}
+
+
+def normalize_label(text: str | None) -> str:
+    """색상·사이즈·모델명 normalize — alias 매칭의 키.
+
+    소문자화 + 공백·하이픈·언더바·점 제거. 한글 유지.
+    """
+    if not text:
+        return ''
+    t = str(text).strip().lower()
+    for ch in (' ', '_', '-', '.'):
+        t = t.replace(ch, '')
+    return t
+
+
+def color_matches(a: str | None, b: str | None) -> bool:
+    """두 색상 표기가 같은 의미인지 (alias 사전 반영)."""
+    na, nb = normalize_label(a), normalize_label(b)
+    if not na or not nb:
+        return False
+    if na == nb:
+        return True
+    for canonical, aliases in COLOR_ALIASES.items():
+        canon_n = normalize_label(canonical)
+        all_forms = {canon_n} | {normalize_label(x) for x in aliases}
+        if na in all_forms and nb in all_forms:
+            return True
+    return False
+
+
+def size_matches(a: str | None, b: str | None) -> bool:
+    """두 사이즈 표기가 같은 의미인지 (KR mm ↔ US 환산 반영)."""
+    na, nb = normalize_label(a), normalize_label(b)
+    if not na or not nb:
+        return False
+    if na == nb:
+        return True
+    for canonical, aliases in SIZE_ALIASES.items():
+        canon_n = normalize_label(canonical)
+        all_forms = {canon_n} | {normalize_label(x) for x in aliases}
+        if na in all_forms and nb in all_forms:
+            return True
+    return False

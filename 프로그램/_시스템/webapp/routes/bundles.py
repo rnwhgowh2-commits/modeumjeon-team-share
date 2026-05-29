@@ -1199,18 +1199,13 @@ def bundle_inventory_mapping(code):
     finally:
         s.close()
 
-def _normalize_label(text: str | None) -> str:
-    """색상·사이즈 표기 차이 흡수.
-
-    'BLACK', 'Black', '블랙', ' 블랙 ' → 'black' / '블랙'
-    소문자화 + 공백·하이픈 strip. 한글은 보존.
-    """
-    if not text:
-        return ''
-    t = text.strip().lower()
-    # 공백·언더바·하이픈 통일
-    t = t.replace(' ', '').replace('_', '').replace('-', '')
-    return t
+# [2026-05-29] 표기 차이 alias — shared 단일 진실 원천 사용
+#   기존 _normalize_label 은 normalize_label 의 alias (호환)
+from shared.sku_format import (
+    normalize_label as _normalize_label,
+    color_matches as _color_matches,
+    size_matches as _size_matches,
+)
 
 
 @bp.route('/api/bundles/<code>/inventory-mapping', methods=['GET'])
@@ -1263,14 +1258,14 @@ def api_get_inventory_mapping(code):
                 'is_standalone': opt.model_code.startswith('단독_'),
             })
 
-        # 4. 자동 후보 — alias normalize 일치
+        # 4. 자동 후보 — color_matches / size_matches (KR↔EN, KR mm↔US 환산 포함)
         candidates: dict[str, list[str]] = {}
         for b_opt in bundle_opts:
-            b_color = _normalize_label(b_opt.color_display or b_opt.color_code)
-            b_size = _normalize_label(b_opt.size_display or b_opt.size_code)
+            b_color_raw = b_opt.color_display or b_opt.color_code
+            b_size_raw = b_opt.size_display or b_opt.size_code
             picks = []
             for inv in inventory_options:
-                if _normalize_label(inv['color']) == b_color and _normalize_label(inv['size']) == b_size:
+                if _color_matches(inv['color'], b_color_raw) and _size_matches(inv['size'], b_size_raw):
                     picks.append(inv['sku'])
             if picks:
                 candidates[b_opt.canonical_sku] = picks

@@ -189,6 +189,34 @@
       .oum-cell.on.has-inv { background:#03A65A !important; color:#fff !important; border:none; cursor:pointer; }                        /* 🟩 초록 — + 재고 매핑 */
       .oum-cell.shared::after { content:attr(data-shared); position:absolute; top:-4px; right:-4px; background:#f59e0b; color:#fff; font-size:12.75px; width:18px; height:18px; border-radius:50%; line-height:18px; font-weight:700; }
 
+      /* [2026-05-29] 시안 v3 C3 — 우측 패널 [URL]/[재고관리] 2탭 + B3-3 in-place 매핑 표 */
+      .oum-rt-tabs { display:flex; gap:4px; border-bottom:2px solid #E5E8EB; margin-bottom:14px; padding:0 4px; }
+      .oum-rt-tab { background:transparent; border:0; padding:11px 18px; font:inherit; font-size:14.5px; font-weight:700; color:#8B95A1; cursor:pointer; border-bottom:3px solid transparent; margin-bottom:-2px; display:inline-flex; align-items:center; gap:7px; }
+      .oum-rt-tab.on { color:#03A65A; border-bottom-color:#03A65A; }
+      .oum-rt-tab .cnt { background:#F2F4F6; color:#8B95A1; padding:1px 8px; border-radius:99px; font-size:11.5px; font-weight:700; }
+      .oum-rt-tab.on .cnt { background:#F0FDF4; color:#03A65A; }
+      /* B3-3 in-place 표 */
+      .oum-inv-tbl { width:100%; border-collapse:separate; border-spacing:0; font-size:12.5px; background:#fff; border:1px solid #E5E8EB; border-radius:8px; overflow:hidden; }
+      .oum-inv-tbl th { background:#F9FAFB; padding:8px 10px; text-align:left; font-weight:700; color:#4E5968; font-size:11.5px; border-bottom:1px solid #E5E8EB; }
+      .oum-inv-tbl td { padding:7px 10px; border-bottom:1px solid #F1F1F4; vertical-align:middle; }
+      .oum-inv-tbl tr.auto-matched { background:#F0FDF4; }                   /* 초록 — 자동 매칭 */
+      .oum-inv-tbl tr.manual { background:#FFFBEB; }                          /* 노란 — 수동 입력 (시안 v3) */
+      .oum-inv-tbl tr.unused { background:#F9FAFB; color:#9CA3AF; font-style:italic; }
+      .oum-inv-tbl input { width:100%; padding:4px 7px; border:1px dashed transparent; border-radius:3px; font-size:12px; background:transparent; font-family:inherit; }
+      .oum-inv-tbl tr.manual input { background:#FFFBEB; border-color:#F59E0B; }
+      .oum-inv-tbl input:focus { background:#fff; border:1px solid #F59E0B; outline:none; }
+      .oum-inv-tbl .stat-ok { background:#03A65A; color:#fff; padding:3px 8px; border-radius:99px; font-size:11px; font-weight:700; }
+      .oum-inv-tbl .stat-manual { background:#FFB454; color:#fff; padding:3px 8px; border-radius:99px; font-size:11px; font-weight:700; }
+      .oum-inv-tbl .stat-empty { background:#E5E8EB; color:#6B7684; padding:3px 8px; border-radius:99px; font-size:11px; font-weight:700; }
+      .oum-inv-tbl .sku-mono { font-family:ui-monospace,monospace; color:#292A2F; }
+      .oum-inv-toolbar { display:flex; align-items:center; gap:8px; padding:10px 12px; background:#FFF7ED; border:1px solid #FED7AA; border-radius:8px; margin-bottom:12px; font-size:12.5px; }
+      .oum-inv-toolbar .auto-btn { background:#F59E0B; color:#fff; border:0; padding:6px 13px; border-radius:5px; font-size:12px; font-weight:700; cursor:pointer; margin-left:auto; }
+      .oum-inv-toolbar .auto-btn:hover { background:#D97706; }
+      .oum-inv-foot { display:flex; align-items:center; gap:10px; margin-top:10px; font-size:11.5px; color:#6B7684; }
+      .oum-inv-foot .legend-sw { display:inline-block; width:11px; height:11px; border-radius:2px; vertical-align:middle; margin-right:4px; }
+      .oum-inv-foot .add-btn { background:#fff; border:1px solid #CBCCD3; color:#292A2F; padding:5px 11px; border-radius:5px; font-size:11.5px; cursor:pointer; margin-left:auto; }
+      .oum-inv-foot .apply-btn { background:#03A65A; color:#fff; border:0; padding:6px 13px; border-radius:5px; font-size:12px; font-weight:700; cursor:pointer; margin-left:6px; }
+
       /* 적용 바 (좌측) - 가운데 정렬 */
       .oum-apply-bar { background:#fff; border:1px solid #bfdbfe; border-radius:10.5px; padding:16.5px; margin-top:15px; display:flex; flex-direction:column; align-items:center; gap:10.5px; }
       .oum-apply-bar .sum { font-size:17.25px; color:#1d4ed8; text-align:center; }
@@ -331,6 +359,15 @@
       urls: {},                // {sourceKey: [{tempId, label, url, option_keys: [k,...]}]}
       openUrlId: null,         // 펼친 URL tempId
       tempIdSeq: 1,
+      // [2026-05-29 시안 v3 C3] 우측 패널 탭 — 'url' (소싱처 URL) | 'inv' (재고관리 매핑 B3-3)
+      rightTab: 'url',
+      // [B3-3] 재고관리 매핑 표 — {bundleSku: {invSku, color, size, model, isManual, isUnused}}
+      //   (셀 자동매칭 결과 + 사용자 수정값. 적용 클릭 시 서버에 mappings 로 push)
+      invRows: {},
+      // candidates 백업 (서버 alias 매칭 결과)
+      invCandidates: {},
+      // 재고 옵션 풀 (검색·드롭다운용)
+      invOptions: [],
     };
 
     // 모달 마크업
@@ -399,18 +436,33 @@
         });
         state.skuByKey = skuByKey;
 
-        // [2026-05-29 시안 v6] 누적 색 시스템 — 재고 매핑 있는 셀 key Set
-        //   GET /api/bundles/<code>/inventory-mapping → {bundle_sku: [inv_sku, ...]}
-        //   bundle_sku 에 1건+ inv 매핑 있으면 셀에 has-inv 클래스 → 초록색
+        // [2026-05-29 시안 v6/v3 B3-3] 재고 매핑 fetch — 셀 색·도트 + 우측 매핑 표
+        //   GET /api/bundles/<code>/inventory-mapping → {bundle_sku: [inv_sku, ...], candidates, inventory_options}
         state.invMappedKeys = new Set();
+        state.invRows = {};
+        state.invCandidates = {};
+        state.invOptions = [];
         try {
           const ir = await fetch(`/api/bundles/${encodeURIComponent(bundleCode)}/inventory-mapping`);
           const ij = await ir.json();
           if (ij && ij.ok) {
+            state.invOptions = ij.inventory_options || [];
+            state.invCandidates = ij.candidates || {};
+            // 옵션 SKU 별 매핑 풀어서 invRows + invMappedKeys
             Object.entries(ij.mappings || {}).forEach(([bSku, invList]) => {
               if (Array.isArray(invList) && invList.length > 0) {
                 const k = keyBySku[bSku];
                 if (k) state.invMappedKeys.add(k);
+                // B3-3 표는 1:1 — 첫 매핑 inv_sku 표시
+                const inv = state.invOptions.find(o => o.sku === invList[0]);
+                state.invRows[bSku] = {
+                  invSku: invList[0],
+                  model: inv ? inv.model_name : '',
+                  color: inv ? inv.color : '',
+                  size: inv ? inv.size : '',
+                  isManual: false,
+                  isUnused: false,
+                };
               }
             });
           }
@@ -711,14 +763,159 @@
       return html;
     }
 
-    // ─── 우측 렌더 (USL 풀) ───
+    // [B3-3] 자동 매칭 — candidates(서버 alias 매칭) 결과 → invRows
+    function invAutoMatch() {
+      const skuByKey = state.skuByKey || {};
+      [...state.selected].forEach(k => {
+        const bSku = skuByKey[k];
+        if (!bSku) return;
+        const cands = state.invCandidates[bSku] || [];
+        if (cands.length > 0) {
+          const invSku = cands[0];
+          const inv = (state.invOptions || []).find(o => o.sku === invSku);
+          state.invRows[bSku] = {
+            invSku: invSku,
+            model: inv ? inv.model_name : '',
+            color: inv ? inv.color : '',
+            size: inv ? inv.size : '',
+            isManual: false,
+            isUnused: false,
+          };
+          state.invMappedKeys.add(k);
+        }
+      });
+    }
+
+    // [B3-3] 매핑 서버 저장 (POST /api/bundles/<code>/inventory-mapping)
+    async function invApplyMapping(bundleCode) {
+      const skuByKey = state.skuByKey || {};
+      const mappings = {};
+      [...state.selected].forEach(k => {
+        const bSku = skuByKey[k];
+        if (!bSku) return;
+        const row = state.invRows[bSku];
+        if (row && row.invSku && row.invSku.trim()) {
+          mappings[bSku] = [row.invSku.trim()];
+        }
+      });
+      try {
+        const r = await fetch(`/api/bundles/${encodeURIComponent(bundleCode)}/inventory-mapping`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ mappings }),
+        });
+        const j = await r.json();
+        if (j && j.ok) {
+          alert('✅ 재고 매핑 저장 완료 — ' + (j.mapped || 0) + '건');
+        } else {
+          alert('❌ 저장 실패: ' + (j.error || '알 수 없음'));
+        }
+      } catch (err) {
+        alert('❌ 요청 실패: ' + err.message);
+      }
+    }
+
+    // [시안 v3 B3-3] 재고관리 매핑 패널 — in-place 표
+    function renderInvPanel() {
+      // 좌측에서 활성한 옵션 (selected) 들의 axis_values 기준 매트릭스 셀 = 행
+      const selectedKeys = [...state.selected];
+      // skuByKey 가 있으면 옵션 SKU 도. 없으면 임시 키.
+      const skuByKey = state.skuByKey || {};
+
+      // 자동 매칭 / 수동 / 미사용 카운트
+      let autoN = 0, manualN = 0, unusedN = 0;
+      selectedKeys.forEach(k => {
+        const bSku = skuByKey[k];
+        if (!bSku) { unusedN++; return; }
+        const row = state.invRows[bSku];
+        if (!row || !row.invSku) { unusedN++; return; }
+        if (row.isManual) manualN++;
+        else autoN++;
+      });
+
+      let html = '<div class="oum-inv-toolbar">';
+      html += `<span><b style="color:#92400E">📋 자동 매칭</b> · 옵션 ${autoN}건 / 수동 ${manualN}건 / 미사용 ${unusedN}건</span>`;
+      html += `<button class="auto-btn" data-inv-auto type="button">⚡ 재고관리 자동 매칭</button>`;
+      html += '</div>';
+
+      if (!state.applied) {
+        html += `<div style="padding:60px 20px; text-align:center; color:#9ca3af; background:#fff; border:2px dashed #FBBF24; border-radius:8px;">
+          <div style="font-size:32px; margin-bottom:10px;">⬅</div>
+          <div style="font-size:13px; font-weight:600; color:#92400E;">좌측에서 옵션 만들고 [적용 →] 클릭하면 활성화</div>
+        </div>`;
+        return html;
+      }
+
+      // B3-3 표 — 매트릭스 셀별 행
+      html += '<div style="overflow:auto; max-height:60vh">';
+      html += '<table class="oum-inv-tbl"><thead><tr>';
+      html += '<th style="width:130px">매트릭스 셀</th>';
+      html += '<th style="width:130px">재고관리 SKU</th>';
+      html += '<th>모델</th>';
+      html += '<th>색상</th>';
+      html += '<th style="width:70px">사이즈</th>';
+      html += '<th style="width:70px">상태</th>';
+      html += '</tr></thead><tbody>';
+
+      if (selectedKeys.length === 0) {
+        html += '<tr><td colspan="6" style="text-align:center; padding:30px; color:#9CA3AF">좌측 매트릭스에서 옵션 선택 후 [적용→] 클릭</td></tr>';
+      } else {
+        selectedKeys.forEach(k => {
+          const bSku = skuByKey[k];
+          const row = (bSku && state.invRows[bSku]) || { invSku: '', model: '', color: '', size: '', isManual: false };
+          const cellLabel = k.replace(/^\[/, '').replace(/\]$/, '').replace(/","/g, ' × ').replace(/"/g, '');
+          let cls = '';
+          let stat = '';
+          if (row.invSku) {
+            if (row.isManual) { cls = 'manual'; stat = '<span class="stat-manual">수정</span>'; }
+            else { cls = 'auto-matched'; stat = '<span class="stat-ok">✓ 자동</span>'; }
+          } else {
+            cls = ''; stat = '<span class="stat-empty">미매칭</span>';
+          }
+          html += `<tr class="${cls}" data-inv-row='${esc(k)}'>`;
+          html += `<td>${esc(cellLabel)}</td>`;
+          html += `<td><input class="sku-mono" data-inv-fld="invSku" data-key='${esc(k)}' value="${esc(row.invSku || '')}" placeholder="SKU-XXXXXXXX"></td>`;
+          html += `<td><input data-inv-fld="model" data-key='${esc(k)}' value="${esc(row.model || '')}" placeholder="모델"></td>`;
+          html += `<td><input data-inv-fld="color" data-key='${esc(k)}' value="${esc(row.color || '')}" placeholder="색상"></td>`;
+          html += `<td><input data-inv-fld="size" data-key='${esc(k)}' value="${esc(row.size || '')}" placeholder="사이즈"></td>`;
+          html += `<td>${stat}</td>`;
+          html += '</tr>';
+        });
+      }
+      html += '</tbody></table>';
+      html += '</div>';
+
+      // 범례 + 액션
+      html += '<div class="oum-inv-foot">';
+      html += `<span><span class="legend-sw" style="background:#F0FDF4; border:1px solid #BBF7D0"></span>자동 매칭 ${autoN}건</span>`;
+      html += `<span><span class="legend-sw" style="background:#FFFBEB; border:1px solid #F59E0B"></span>수동 입력 ${manualN}건</span>`;
+      html += `<button class="apply-btn" data-inv-apply type="button">💾 ${selectedKeys.length}건 적용</button>`;
+      html += '</div>';
+      return html;
+    }
+
+    // ─── 우측 렌더 (시안 v3 C3 — 2탭 분기) ───
     function renderRight() {
       const right = $('#oum-right');
       const totalActive = state.selected.size;
+      const urlCount = countAllUrls();
+      const invCount = Object.keys(state.invRows || {}).filter(k => (state.invRows[k] || {}).invSku).length;
 
-      let html = `<div class="oum-ph">
+      // 탭 nav (항상)
+      let html = `<div class="oum-rt-tabs">
+        <button class="oum-rt-tab ${state.rightTab === 'url' ? 'on' : ''}" data-rt-tab="url" type="button">📍 소싱처 URL 매핑 <span class="cnt">${urlCount}</span></button>
+        <button class="oum-rt-tab ${state.rightTab === 'inv' ? 'on' : ''}" data-rt-tab="inv" type="button">📋 재고관리 매핑 <span class="cnt">${invCount}</span></button>
+      </div>`;
+
+      if (state.rightTab === 'inv') {
+        html += renderInvPanel();
+        right.innerHTML = html;
+        return;
+      }
+
+      // URL 탭 — 기존 헤더 + 적용 가드
+      html += `<div class="oum-ph">
         <span>📍</span><span>소싱처 URL 매핑</span>
-        <span class="badge">${countAllUrls()} URL</span>
+        <span class="badge">${urlCount} URL</span>
         <span class="right">${state.applied ? `활성 옵션 ${totalActive}개에 매핑` : '먼저 좌측에서 [적용 →] 클릭'}</span>
       </div>`;
 
@@ -1333,6 +1530,28 @@
 
     // 우측 이벤트 — async (autoSave 는 fire-and-forget, await 안 함)
     $('#oum-right').addEventListener('click', async e => {
+      // [2026-05-29 시안 v3 C3] 우측 탭 전환 (URL ↔ 재고관리)
+      const rtTab = e.target.closest('[data-rt-tab]');
+      if (rtTab) {
+        const tgt = rtTab.dataset.rtTab;
+        if (tgt && tgt !== state.rightTab) {
+          state.rightTab = tgt;
+          renderRight();
+        }
+        return;
+      }
+      // [B3-3] 재고 자동 매칭 버튼
+      if (e.target.closest('[data-inv-auto]')) {
+        invAutoMatch();
+        renderRight();
+        rerender();
+        return;
+      }
+      // [B3-3] 적용 버튼 — 매핑 서버 저장
+      if (e.target.closest('[data-inv-apply]')) {
+        await invApplyMapping(bundleCode);
+        return;
+      }
       // [2026-05-27] 탭 전환 즉시 — autoSave 백그라운드 (사용자 대기 X)
       //   pending 큐 가드로 inflight 중 호출도 마지막 저장 보장
       const tab = e.target.closest('[data-src-tab]');
@@ -1440,8 +1659,36 @@
       }
     });
 
-    // 우측 input 변경 (label / url)
+    // [B3-3] 재고관리 매핑 표 인라인 편집
     $('#oum-right').addEventListener('input', e => {
+      const invInp = e.target.closest('[data-inv-fld]');
+      if (invInp) {
+        const k = invInp.dataset.key;
+        const fld = invInp.dataset.invFld;
+        const skuByKey = state.skuByKey || {};
+        const bSku = skuByKey[k];
+        if (!bSku) return;
+        if (!state.invRows[bSku]) state.invRows[bSku] = {};
+        state.invRows[bSku][fld] = invInp.value;
+        state.invRows[bSku].isManual = true;  // 사용자 수정 → 수동 표시
+        // 매트릭스 셀 색 갱신 (invMappedKeys)
+        if (fld === 'invSku') {
+          if (invInp.value.trim()) state.invMappedKeys.add(k);
+          else state.invMappedKeys.delete(k);
+        }
+        // 상태 chip 갱신 + 행 배경만 부분 갱신 (전체 rerender 피함)
+        const tr = invInp.closest('tr');
+        if (tr) {
+          tr.classList.remove('auto-matched');
+          tr.classList.add('manual');
+          const statTd = tr.querySelector('td:last-child');
+          if (statTd && state.invRows[bSku].invSku) {
+            statTd.innerHTML = '<span class="stat-manual">수정</span>';
+          }
+        }
+        return;
+      }
+      // 우측 input 변경 (label / url)
       const card = e.target.closest('[data-url-id]');
       if (!card) return;
       const tid = +card.dataset.urlId;

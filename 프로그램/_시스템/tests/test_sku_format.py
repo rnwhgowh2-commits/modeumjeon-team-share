@@ -6,6 +6,9 @@ from shared.sku_format import (
     gen_barcode, is_valid_barcode,
     is_valid_article_no, clean_article_no,
     has_korean,
+    clean_brand, clean_category, clean_model_name,
+    clean_color, clean_size, clean_avg_price, clean_memo,
+    normalize_label, color_matches, size_matches,
 )
 
 
@@ -81,3 +84,79 @@ def test_has_korean():
     assert not has_korean('CW2288-001')
     assert not has_korean('')
     assert not has_korean(None)
+
+
+# ============ [2026-05-29] 컬럼 규칙 강제 (10개 룰) ============
+
+def test_clean_brand_fallback():
+    assert clean_brand('나이키') == '나이키'
+    assert clean_brand('') == '미상'
+    assert clean_brand(None) == '미상'
+    assert clean_brand('  ') == '미상'
+    assert clean_brand('a' * 200) == 'a' * 100  # 100자 제한
+
+
+def test_clean_category_blank_allowed():
+    assert clean_category('스니커즈') == '스니커즈'
+    assert clean_category('') == ''      # 빈 값 허용
+    assert clean_category(None) == ''
+
+
+def test_clean_model_name_required():
+    assert clean_model_name('메이트') == '메이트'
+    assert clean_model_name('') is None  # None = 미입력 (호출처 필수 체크)
+    assert clean_model_name(None) is None
+    assert clean_model_name('a' * 300) == 'a' * 255  # 255자
+
+
+def test_clean_color_fallback():
+    assert clean_color('블랙') == '블랙'
+    assert clean_color('') == 'ONE'
+    assert clean_color(None) == 'ONE'
+
+
+def test_clean_size_fallback():
+    assert clean_size('260') == '260'
+    assert clean_size('') == 'FREE'
+    assert clean_size(None) == 'FREE'
+
+
+def test_clean_avg_price():
+    assert clean_avg_price(50000) == 50000
+    assert clean_avg_price('50,000') == 50000
+    assert clean_avg_price('') == 0       # 0 허용
+    assert clean_avg_price(None) == 0
+    assert clean_avg_price('abc') == 0    # 비숫자
+    assert clean_avg_price(-100) == 0     # 음수 차단
+
+
+def test_clean_memo():
+    assert clean_memo('테스트 메모') == '테스트 메모'
+    assert clean_memo('') == ''
+    assert clean_memo(None) == ''
+
+
+# ============ 표기 차이 alias ============
+
+def test_normalize_label():
+    assert normalize_label('Sky Blue') == 'skyblue'
+    assert normalize_label('  BLACK  ') == 'black'
+    assert normalize_label('스카이블루') == '스카이블루'  # 한글은 보존
+
+
+def test_color_matches_kr_en():
+    assert color_matches('블랙', 'BLACK')
+    assert color_matches('블랙', 'black')
+    assert color_matches('블랙', 'BK')
+    assert color_matches('스카이블루', 'Sky Blue')
+    assert color_matches('스카이블루', 'SB')
+    assert not color_matches('블랙', '화이트')
+
+
+def test_size_matches_kr_us():
+    assert size_matches('250', '250')
+    assert size_matches('250', '7US')      # KR 250 ↔ US 7
+    assert size_matches('245', '7.5US')
+    assert size_matches('FREE', 'free')
+    assert size_matches('FREE', 'OneSize')
+    assert not size_matches('250', '260')
