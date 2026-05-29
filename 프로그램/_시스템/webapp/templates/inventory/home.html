@@ -175,52 +175,48 @@
     }
 
     function renderList(data){
-      var tbody = document.getElementById('homeTbody');
-      if(!tbody) return;
-      var locs = data.locs || [];
-      var totalCols = 11 + locs.length;  // [2부-1] +1 = 체크박스 +1 = 사진
-      tbody.innerHTML = '';
+      var list = document.getElementById('homeCardList');
+      if(!list) return;
+      list.innerHTML = '';
       if(!data.items || data.items.length === 0){
-        tbody.innerHTML = '<tr><td colspan="'+totalCols+'" style="padding:32px;text-align:center;color:#9CA3AF">옵션 없음</td></tr>';
+        list.innerHTML = '<div style="padding:60px 20px;text-align:center;color:#9CA3AF;font-size:13.5px">옵션 없음</div>';
       } else {
         var frag = document.createDocumentFragment();
         data.items.forEach(function(o){
-          var tr = document.createElement('tr');
-          tr.className = 'home-row';
-          tr.dataset.sku = o.sku;
-          tr.dataset.brand = o.brand || '';
-          tr.dataset.name = o.name || '';
-          tr.dataset.color = o.color || '';
-          tr.dataset.size = o.size || '';
-          tr.style.cssText = 'border-bottom:1px solid #F2F4F6;cursor:pointer';
-          tr.onclick = function(){ window.location.href = '?sku=' + encodeURIComponent(o.sku); };
-          var locCells = '';
-          locs.forEach(function(L){
-            var v = (o.loc_stock && o.loc_stock[String(L.id)]) || 0;
-            locCells += '<td style="padding:7px 8px;text-align:right;font-family:ui-monospace,monospace;color:'+(v>0?'#3182F6':'#9CA3AF')+';background:'+(v>0?'#F8FBFF':'')+'">'+v+'</td>';
-          });
-          var avgCell = o.avg > 0 ? fmt(o.avg) : '—';
-          var imgTd = o.image_url
-            ? '<img src="'+esc(o.image_url)+'" style="width:42px;height:42px;object-fit:cover;border-radius:5px;border:1px solid #E5E8EB">'
-            : '<div style="width:42px;height:42px;background:#F2F4F6;border-radius:5px;display:inline-flex;align-items:center;justify-content:center;color:#CBCCD3;font-size:16px">👟</div>';
-          tr.innerHTML =
-            '<td style="padding:7px 8px;text-align:center" onclick="event.stopPropagation()"><input type="checkbox" class="bulk-row-check" data-sku="'+esc(o.sku)+'" onclick="onBulkRowCheck(this)" style="cursor:pointer;width:14px;height:14px"></td>' +
-            '<td style="padding:4px 6px;text-align:center">'+imgTd+'</td>' +
-            '<td style="padding:7px 8px;font-family:ui-monospace,monospace;font-size:16px">'+esc(o.sku)+'</td>' +
-            '<td style="padding:7px 8px;font-family:ui-monospace,monospace;font-size:16px;color:#6B7684">'+esc(o.barcode||'—')+'</td>' +
-            '<td style="padding:7px 8px;font-size:12px;color:#191F28">'+esc(o.brand||'—')+'</td>' +
-            '<td style="padding:7px 8px;font-size:12px;color:#191F28">'+esc(o.name||'—')+'</td>' +
-            '<td style="padding:7px 8px;font-family:ui-monospace,monospace;font-size:16px;color:#4E5968">'+esc(o.article_no||'—')+'</td>' +
-            '<td style="padding:7px 8px;font-size:12px;color:#4E5968">'+esc(o.color)+'</td>' +
-            '<td style="padding:7px 8px;font-size:12px;color:#4E5968">'+esc(o.size)+'</td>' +
-            '<td style="padding:7px 8px;text-align:right;font-family:ui-monospace,monospace;color:'+(o.avg>0?'#191F28':'#9CA3AF')+'">'+avgCell+'</td>' +
-            '<td style="padding:7px 8px;text-align:right;font-weight:600;font-family:ui-monospace,monospace;color:'+(o.stock>0?'#7C3AED':'#9CA3AF')+'">'+o.stock+'</td>' +
-            locCells;
-          frag.appendChild(tr);
+          var row = document.createElement('div');
+          row.className = 'home-row';
+          row.dataset.sku = o.sku;
+          row.dataset.brand = o.brand || '';
+          row.dataset.name = o.name || '';
+          row.dataset.color = o.color || '';
+          row.dataset.size = o.size || '';
+          row.style.cssText = 'display:flex;align-items:center;gap:10px;padding:9px 14px;border-bottom:1px solid #F2F4F6;cursor:pointer;background:#fff;transition:background .12s';
+          row.onmouseover = function(){ this.style.background = '#FAFBFC'; };
+          row.onmouseout = function(){ this.style.background = '#fff'; };
+          row.onclick = function(){ window.location.href = '?sku=' + encodeURIComponent(o.sku); };
+          // 메타 조립
+          var metaParts = [];
+          if(o.brand) metaParts.push(o.brand);
+          if(o.article_no) metaParts.push(o.article_no);
+          metaParts.push(o.size || 'FREE');
+          var metaStr = metaParts.join(' / ');
+          var imgEl = o.image_url
+            ? '<img src="'+esc(o.image_url)+'" style="width:40px;height:40px;object-fit:cover;border-radius:5px;border:1px solid #E5E8EB">'
+            : '<div style="width:40px;height:40px;background:#F2F4F6;border-radius:5px;display:flex;align-items:center;justify-content:center;color:#CBCCD3;font-size:16px">👟</div>';
+          var stockColor = o.stock > 0 ? '#191F28' : '#9CA3AF';
+          row.innerHTML =
+            '<div onclick="event.stopPropagation()" style="flex-shrink:0"><input type="checkbox" class="bulk-row-check" data-sku="'+esc(o.sku)+'" onclick="onBulkRowCheck(this)" style="cursor:pointer;width:14px;height:14px"></div>' +
+            '<div style="flex-shrink:0">'+imgEl+'</div>' +
+            '<div style="flex:1;min-width:0">' +
+              '<div style="font-size:13.5px;color:#191F28;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;line-height:1.3">'+esc(o.name||o.sku)+'</div>' +
+              '<div style="font-size:11.5px;color:#6B7684;margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(metaStr)+'</div>' +
+            '</div>' +
+            '<div style="flex-shrink:0;font-weight:600;font-family:ui-monospace,monospace;font-size:14px;color:'+stockColor+';min-width:38px;text-align:right">'+o.stock+'</div>';
+          frag.appendChild(row);
         });
-        tbody.appendChild(frag);
+        list.appendChild(frag);
       }
-      // 건수 안내 갱신
+      // 건수 안내 갱신 (옛 노드 — 새 UI 에서는 없을 수 있음. 안전하게 if 체크)
       var ct = document.getElementById('homeCountText');
       if(ct && data.stats){
         var st = data.stats;
@@ -283,150 +279,104 @@
   <!-- split layout: 좌측 list + 우측 detail -->
   <div style="display:grid;grid-template-columns:{% if selected_detail %}1.2fr 1fr{% else %}1fr{% endif %};gap:14px;align-items:start">
 
-    <!-- 좌측 list -->
-    <div style="background:#fff;border:1px solid #E5E8EB;border-radius:8px;overflow:hidden">
-      <!-- 표 헤더 — 필터된 옵션 수 안내 (시안 C 의 표 헤더 이동) -->
-      <div style="padding:10px 16px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #E5E8EB;background:#F9FAFB;font-size:12px;font-weight:600;color:#4E5968">
-        <div>SKU</div>
-        <div id="homeCountText" style="color:#6B7684;font-weight:400;font-size:12px">
-          {% if stats.shown_limited %}
-            <b style="color:#191F28;font-weight:700">{{ '{:,}'.format(stats.total) }}</b>건 중 상위 <b style="color:#191F28;font-weight:700">{{ '{:,}'.format(stats.shown) }}</b>개 표시 · <span style="color:#FF8E3C;font-weight:600">검색·필터로 좁히세요</span>
-          {% else %}
-            <b style="color:#191F28;font-weight:700">{{ '{:,}'.format(stats.shown) }}</b>건 표시
-          {% endif %}
-        </div>
+    {# [2026-05-29 2부-2] 박스히어로 스타일 카드 리스트 — 좌측 패널 #}
+    <div style="background:#fff;border:1px solid #E5E8EB;border-radius:8px;overflow:hidden;display:flex;flex-direction:column;max-height:calc(100vh - 220px)">
+      {# 헤더: 묶어보기 + 정렬 #}
+      <div style="padding:10px 16px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #E5E8EB;background:#fff">
+        <a href="?{% if in_stock_only %}in_stock=1&{% endif %}{% if search_q %}q={{ search_q }}&{% endif %}{% if not group_by_model %}group_by_model=1{% endif %}" style="font-size:13.5px;color:#191F28;text-decoration:none;font-weight:500;display:inline-flex;align-items:center;gap:5px">
+          묶어보기 <span style="font-size:10px;color:#6B7684">▾</span>
+        </a>
+        <button type="button" title="정렬" style="background:transparent;border:0;color:#6B7684;cursor:pointer;font-size:14px;padding:4px 8px">↕</button>
       </div>
-      {% if group_by_model and grouped %}
-        {% for model_code, opts in grouped.items() %}
-          <div style="background:#F9FAFB;padding:8px 14px;font-size:12px;font-weight:600;color:#4E5968;border-bottom:1px solid #E5E8EB">
-            {{ model_code }} <span style="color:#9CA3AF;font-weight:400">({{ opts|length }} 옵션)</span>
+
+      {# 카운트 #}
+      <div style="padding:8px 16px;background:#F9FAFB;border-bottom:1px solid #E5E8EB;font-size:12px;display:flex;justify-content:space-between;align-items:center">
+        <span style="color:#191F28;font-weight:600">{{ '{:,}'.format(stats.total) }}개 품목{% if stats.shown_limited %} <span style="color:#FF8E3C;font-size:11px">· 상위 {{ '{:,}'.format(stats.shown) }}개 표시</span>{% endif %}</span>
+        <span style="color:#6B7684">총 <b style="color:#191F28;font-weight:700">{{ '{:,}'.format(stats.total_stock) }}</b></span>
+      </div>
+
+      {# 1부-1 다중 선택 액션바 #}
+      <div id="bulkActionBar" style="display:none;background:#191F28;color:#fff;padding:9px 16px;align-items:center;gap:9px;font-size:13px">
+        <input type="checkbox" id="bulkSelectAll" onclick="toggleBulkSelectAll(this)" style="cursor:pointer;width:14px;height:14px">
+        ✅ <span id="bulkCount" style="background:#fff;color:#191F28;padding:2px 9px;border-radius:4px;font-weight:700">0건</span>
+        <button type="button" onclick="openBulkBundleModal()" style="background:#FFB454;color:#191F28;border:none;padding:5px 12px;border-radius:4px;font-size:12px;font-weight:700;cursor:pointer">🎁 모음전 일괄 등록</button>
+        <button type="button" onclick="clearBulkSelection()" style="background:transparent;border:1px solid #fff;color:#fff;padding:5px 12px;border-radius:4px;font-size:12px;cursor:pointer">선택 해제</button>
+      </div>
+
+      {# 카드 리스트 — 박스히어로 스타일 #}
+      <div id="homeCardList" style="flex:1;overflow-y:auto">
+        {% for o in options %}
+          {% set _brand = (o.model.brand or '') if o.model else '' %}
+          {% set _category = (o.model.category or '') if (o.model and o.model.category is defined) else '' %}
+          {% set _pname = (display_pname.get(o.canonical_sku) if display_pname is defined else None) or ((o.model.model_name_display or o.model.model_name_raw) if o.model else o.canonical_sku) %}
+          {% set _article = (o.model.article_no or '') if (o.model and o.model.article_no is defined) else '' %}
+          {% set _size = (o.size_display or o.size_code or 'FREE') %}
+          {% set _rt = stock_map.get(o.canonical_sku, 0) %}
+          {% set _is_selected = (selected_detail and selected_detail.opt.canonical_sku == o.canonical_sku) %}
+          {% set _meta_parts = [] %}
+          {% if _category %}{% set _ = _meta_parts.append(_category) %}{% endif %}
+          {% if _brand %}{% set _ = _meta_parts.append(_brand) %}{% endif %}
+          {% if _article %}{% set _ = _meta_parts.append(_article) %}{% endif %}
+          {% set _ = _meta_parts.append(_size) %}
+          <div class="home-row" data-sku="{{ o.canonical_sku }}" data-brand="{{ _brand }}" data-name="{{ _pname }}" data-color="{{ (cleaned_color.get(o.canonical_sku) if cleaned_color is defined else None) or '' }}" data-size="{{ _size }}"
+               style="display:flex;align-items:center;gap:10px;padding:9px 14px;border-bottom:1px solid #F2F4F6;cursor:pointer;background:{% if _is_selected %}#EFF6FF{% else %}#fff{% endif %};transition:background .12s"
+               onmouseover="if(!this.classList.contains('selected'))this.style.background='#FAFBFC'"
+               onmouseout="if(!this.classList.contains('selected'))this.style.background='{% if _is_selected %}#EFF6FF{% else %}#fff{% endif %}'"
+               onclick="window.location.href='?sku={{ o.canonical_sku }}{% if in_stock_only %}&in_stock=1{% endif %}{% if search_q %}&q={{ search_q }}{% endif %}'">
+            {# 체크박스 (작게) #}
+            <div onclick="event.stopPropagation()" style="flex-shrink:0">
+              <input type="checkbox" class="bulk-row-check" data-sku="{{ o.canonical_sku }}" onclick="onBulkRowCheck(this)" style="cursor:pointer;width:14px;height:14px">
+            </div>
+            {# 사진 40×40 #}
+            <div style="flex-shrink:0">
+              {% if o.image_url %}
+                <img src="{{ o.image_url }}" style="width:40px;height:40px;object-fit:cover;border-radius:5px;border:1px solid #E5E8EB" alt="">
+              {% else %}
+                <div style="width:40px;height:40px;background:#F2F4F6;border-radius:5px;display:flex;align-items:center;justify-content:center;color:#CBCCD3;font-size:16px">👟</div>
+              {% endif %}
+            </div>
+            {# 제품명 + 메타 #}
+            <div style="flex:1;min-width:0">
+              <div style="font-size:13.5px;color:#191F28;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;line-height:1.3">{{ _pname }}</div>
+              <div style="font-size:11.5px;color:#6B7684;margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ _meta_parts | join(' / ') }}</div>
+            </div>
+            {# 재고 수량 #}
+            <div style="flex-shrink:0;font-weight:600;font-family:ui-monospace,monospace;font-size:14px;color:{% if _rt > 0 %}#191F28{% else %}#9CA3AF{% endif %};min-width:38px;text-align:right">{{ _rt }}</div>
           </div>
-          {% for o in opts %}
-            <a href="?sku={{ o.canonical_sku }}{% if in_stock_only %}&in_stock=1{% endif %}{% if group_by_model %}&group_by_model=1{% endif %}{% if search_q %}&q={{ search_q }}{% endif %}" style="display:flex;align-items:center;padding:8px 14px;border-bottom:1px solid #F2F4F6;text-decoration:none;color:#191F28;{% if selected_detail and selected_detail.opt.canonical_sku == o.canonical_sku %}background:#EFF6FF{% endif %}">
-              <div style="flex:1;font-family:ui-monospace,monospace;font-size:12px">{{ o.canonical_sku }}</div>
-              <div style="font-size:12px;color:#6B7684;margin-right:12px">{{ (cleaned_color.get(o.canonical_sku) if cleaned_color is defined else None) or (o | cleaned_color_single) }} / {{ (o.size_display or o.size_code) | size_or_default }}</div>
-              <div style="font-weight:600;font-family:ui-monospace,monospace;color:{% if (o.boxhero_stock_total or 0) > 0 %}#7C3AED{% else %}#9CA3AF{% endif %};min-width:50px;text-align:right">{{ o.boxhero_stock_total or 0 }}</div>
-            </a>
-          {% endfor %}
+        {% else %}
+          <div style="padding:60px 20px;text-align:center;color:#9CA3AF;font-size:13.5px">옵션 없음</div>
         {% endfor %}
-      {% else %}
-        {# [2026-05-25 UI-1] 사용자 명시: 모든 셀 폰트 14px·색상 #191F28·굵기 normal 통일 #}
-        <style>
-          #homeTable, #homeTable th, #homeTable td {
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Apple SD Gothic Neo", "Malgun Gothic", sans-serif !important;
-            font-size: 14px !important;
-            font-weight: normal !important;
-            color: #191F28 !important;
-            background: transparent !important;
-          }
-          #homeTable thead th {
-            color: #6B7684 !important;
-            background: #F9FAFB !important;
-          }
-        </style>
-        {# [2026-05-29 1부-1] 다중 선택 + 모음전 일괄 등록 액션바 — A2 시안 #}
-        <div id="bulkActionBar" style="display:none;background:#191F28;color:#fff;border-radius:8px;padding:11px 18px;margin-bottom:14px;align-items:center;gap:10px;font-size:14px">
-          ✅ <span id="bulkCount" style="background:#fff;color:#191F28;padding:2px 10px;border-radius:4px;font-weight:700">0건</span> 선택됨 —
-          <button type="button" onclick="openBulkBundleModal()" style="background:#FFB454;color:#191F28;border:none;padding:6px 14px;border-radius:5px;font-size:12.5px;font-weight:700;cursor:pointer">🎁 모음전 일괄 등록</button>
-          <button type="button" onclick="clearBulkSelection()" style="background:transparent;border:1px solid #fff;color:#fff;padding:6px 14px;border-radius:5px;font-size:12.5px;cursor:pointer">선택 해제</button>
-          <span style="margin-left:auto;color:#FFB454;font-size:11.5px">같은 모델·색상·사이즈만 다르면 매트릭스 자동 추론</span>
-        </div>
-        <table id="homeTable" style="width:100%;border-collapse:collapse">
-          <thead style="position:sticky;top:0">
-            <tr>
-              <th style="padding:8px;text-align:center;width:34px"><input type="checkbox" id="bulkSelectAll" onclick="toggleBulkSelectAll(this)" style="cursor:pointer;width:14px;height:14px"></th>
-              <th style="padding:8px;text-align:center;width:54px">사진</th>
-              <th style="padding:8px;text-align:left">SKU</th>
-              <th style="padding:8px;text-align:left">바코드</th>
-              <th style="padding:8px;text-align:left">브랜드</th>
-              <th style="padding:8px;text-align:left">모델명</th>
-              <th style="padding:8px;text-align:left">품번</th>
-              <th style="padding:8px;text-align:left">색상</th>
-              <th style="padding:8px;text-align:left">사이즈</th>
-              <th style="padding:8px;text-align:right">평균매입가</th>
-              <th style="padding:8px;text-align:right">총재고</th>
-              {% for loc in all_locs %}<th style="padding:8px;text-align:right">{{ loc.name }}</th>{% endfor %}
-            </tr>
-          </thead>
-          <tbody id="homeTbody">
-            {% for o in options %}
-              {% set _bc = o.barcode or '—' %}
-              {% set _brand = (o.model.brand or '—') if o.model else '—' %}
-              {% set _pname = (display_pname.get(o.canonical_sku) if display_pname is defined else None) or ((o.model.model_name_display or o.model.model_name_raw) if o.model else o.canonical_sku) %}
-              {% set _article = (o.model.article_no or '—') if (o.model and o.model.article_no is defined) else '—' %}
-              {% set _color = (cleaned_color.get(o.canonical_sku) if cleaned_color is defined else None) or (o.color_display or o.color_code or 'one') %}
-              {% set _size = (o.size_display or o.size_code or 'free') %}
-              {% set _rt = stock_map.get(o.canonical_sku, 0) %}
-              <tr class="home-row" data-sku="{{ o.canonical_sku }}" data-brand="{{ _brand if _brand != '—' else '' }}" data-name="{{ _pname }}" data-color="{{ _color }}" data-size="{{ _size }}" style="border-bottom:1px solid #F2F4F6;{% if selected_detail and selected_detail.opt.canonical_sku == o.canonical_sku %}background:#EFF6FF !important{% endif %};cursor:pointer" onclick="window.location.href='?sku={{ o.canonical_sku }}{% if in_stock_only %}&in_stock=1{% endif %}{% if search_q %}&q={{ search_q }}{% endif %}'">
-                <td style="padding:7px 8px;text-align:center" onclick="event.stopPropagation()">
-                  <input type="checkbox" class="bulk-row-check" data-sku="{{ o.canonical_sku }}" onclick="onBulkRowCheck(this)" style="cursor:pointer;width:14px;height:14px">
-                </td>
-                {# [2부-1] 사진 썸네일 — 모델+색상 그룹 #}
-                <td style="padding:4px 6px;text-align:center">
-                  {% if o.image_url %}
-                    <img src="{{ o.image_url }}" style="width:42px;height:42px;object-fit:cover;border-radius:5px;border:1px solid #E5E8EB" alt="">
-                  {% else %}
-                    <div style="width:42px;height:42px;background:#F2F4F6;border-radius:5px;display:inline-flex;align-items:center;justify-content:center;color:#CBCCD3;font-size:16px">👟</div>
-                  {% endif %}
-                </td>
-                <td style="padding:7px 8px">{{ o.canonical_sku }}</td>
-                <td style="padding:7px 8px">{{ _bc }}</td>
-                <td style="padding:7px 8px">{{ _brand }}</td>
-                <td style="padding:7px 8px">{{ _pname }}</td>
-                <td style="padding:7px 8px">{{ _article }}</td>
-                <td style="padding:7px 8px">{{ _color }}</td>
-                <td style="padding:7px 8px">{{ _size }}</td>
-                <td style="padding:7px 8px;text-align:right">{% if o.boxhero_avg_purchase_price %}{{ '{:,}'.format(o.boxhero_avg_purchase_price) }}{% else %}—{% endif %}</td>
-                <td style="padding:7px 8px;text-align:right">{{ _rt }}</td>
-                {% for loc in all_locs %}
-                  {% set _lst = (per_loc_stock.get(o.canonical_sku, {}).get(loc.id, 0)) if per_loc_stock is defined else 0 %}
-                  <td style="padding:7px 8px;text-align:right">{{ _lst }}</td>
-                {% endfor %}
-              </tr>
-            {% else %}
-              <tr><td colspan="{{ 10 + (all_locs|length) }}" style="padding:32px;text-align:center">옵션 없음</td></tr>
-            {% endfor %}
-          </tbody>
-        </table>
-      {% endif %}
+      </div>
     </div>
 
     <!-- 우측 detail 패널 (박스히어로 1:1) -->
     {% if selected_detail %}
     <div style="background:#fff;border:1px solid #E5E8EB;border-radius:8px;padding:18px;position:sticky;top:60px">
       {% set d = selected_detail %}
-      <div style="display:flex;align-items:start;gap:12px;margin-bottom:14px">
-        <div style="flex:1">
-          <div style="font-size:12px;color:#6B7684;margin-bottom:2px">{{ d.opt.canonical_sku }}</div>
-          <div style="font-size:15px;font-weight:700">{{ (display_pname.get(d.opt.canonical_sku) if display_pname is defined else None) or (d.opt | display_pname_single) or d.opt.model_code }}</div>
-          <div style="font-size:12px;color:#6B7684;margin-top:2px">{{ (cleaned_color.get(d.opt.canonical_sku) if cleaned_color is defined else None) or (d.opt | cleaned_color_single) }} · {{ (d.opt.size_display or d.opt.size_code) | size_or_default }}</div>
+      {# [2부-2] 박스히어로 스타일 헤더 — 사진(작게) + 제품명 + 메타 한 줄 + 재고 #}
+      {% set _d_brand = (d.model.brand or '') if d.model else '' %}
+      {% set _d_category = (d.model.category or '') if (d.model and d.model.category is defined) else '' %}
+      {% set _d_article = (d.model.article_no or '') if (d.model and d.model.article_no is defined) else '' %}
+      {% set _d_size = (d.opt.size_display or d.opt.size_code or 'FREE') %}
+      {% set _d_pname = (display_pname.get(d.opt.canonical_sku) if display_pname is defined else None) or ((d.model.model_name_display or d.model.model_name_raw) if d.model else d.opt.canonical_sku) %}
+      {% set _d_meta = [_d_category, _d_brand, _d_article, _d_size] | select | join(' / ') %}
+      <div style="display:flex;align-items:center;gap:11px;margin-bottom:14px;padding-bottom:14px;border-bottom:1px solid #F1F1F4">
+        {% if d.opt.image_url %}
+          <img src="{{ d.opt.image_url }}" style="width:50px;height:50px;object-fit:cover;border-radius:6px;border:1px solid #E5E8EB;flex-shrink:0" alt="">
+        {% else %}
+          <div style="width:50px;height:50px;background:#F2F4F6;border-radius:6px;display:flex;align-items:center;justify-content:center;color:#CBCCD3;font-size:20px;flex-shrink:0">👟</div>
+        {% endif %}
+        <div style="flex:1;min-width:0">
+          <div style="font-size:14px;color:#191F28;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ _d_pname }}</div>
+          <div style="font-size:11.5px;color:#6B7684;margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ _d_meta }}</div>
         </div>
-        <a href="?" style="font-size:18px;color:#9CA3AF;text-decoration:none">×</a>
+        <div style="flex-shrink:0;display:flex;align-items:center;gap:6px">
+          <span style="font-weight:700;font-family:ui-monospace,monospace;font-size:15px;color:{% if (d.realtime_stock or 0) > 0 %}#191F28{% else %}#9CA3AF{% endif %}">{{ d.realtime_stock or 0 }}</span>
+          <a href="?" title="닫기" style="font-size:18px;color:#9CA3AF;text-decoration:none;margin-left:4px">×</a>
+        </div>
       </div>
 
-      {# 사진 + 인라인 수정 (박스히어로 1:1) #}
-      <div style="background:#F9FAFB;border-radius:8px;padding:12px;margin-bottom:14px;display:flex;gap:12px;align-items:center">
-        <div id="optImg" style="width:64px;height:64px;border-radius:8px;background:#fff;border:1px solid #E5E8EB;display:flex;align-items:center;justify-content:center;flex-shrink:0;cursor:pointer;overflow:hidden" onclick="editImage('{{ d.opt.canonical_sku }}')">
-          {% if d.opt.image_url %}
-            <img src="{{ d.opt.image_url }}" style="width:100%;height:100%;object-fit:cover" onerror="this.outerHTML='<span style=&quot;font-size:24px;color:#9CA3AF&quot;>📦</span>'">
-          {% else %}
-            <span style="font-size:24px;color:#9CA3AF">📦</span>
-          {% endif %}
-        </div>
-        <div style="flex:1;min-width:0">
-          <div contenteditable="true" spellcheck="false" id="editName" data-sku="{{ d.opt.canonical_sku }}" data-field="model_name_display" style="font-size:14px;font-weight:700;color:#191F28;outline:0;padding:2px 4px;border-radius:4px;cursor:text" onblur="saveField(this)" onkeydown="if(event.key==='Enter'){event.preventDefault();this.blur()}">{{ (d.model.model_name_display or d.model.model_name_raw) if d.model else d.opt.canonical_sku }}</div>
-          <div style="font-size:10.5px;color:#6B7684;margin-top:2px">총 재고 <span style="color:#16A34A">● 실시간</span></div>
-          <div style="font-size:24px;font-weight:700;color:#7C3AED;line-height:1.1">{{ d.realtime_stock or 0 }}</div>
-        </div>
-      </div>
-      {# 추가 메타 인라인 수정 #}
-      <div style="background:#fff;border:1px solid #E5E8EB;border-radius:8px;padding:10px 12px;margin-bottom:14px;font-size:12px">
-        <div style="display:flex;gap:6px;padding:3px 0;color:#6B7684"><span style="width:60px">카테고리</span><span contenteditable="true" spellcheck="false" data-sku="{{ d.opt.canonical_sku }}" data-field="category" onblur="saveField(this)" onkeydown="if(event.key==='Enter'){event.preventDefault();this.blur()}" style="flex:1;color:#191F28;outline:0;padding:1px 4px;border-radius:3px">{{ d.model.category if d.model else '—' }}</span></div>
-        <div style="display:flex;gap:6px;padding:3px 0;color:#6B7684"><span style="width:60px">색상</span><span contenteditable="true" spellcheck="false" data-sku="{{ d.opt.canonical_sku }}" data-field="color_display" onblur="saveField(this)" onkeydown="if(event.key==='Enter'){event.preventDefault();this.blur()}" style="flex:1;color:#191F28;outline:0;padding:1px 4px;border-radius:3px">{{ d.opt.color_display or d.opt.color_code or '—' }}</span></div>
-        <div style="display:flex;gap:6px;padding:3px 0;color:#6B7684"><span style="width:60px">사이즈</span><span contenteditable="true" spellcheck="false" data-sku="{{ d.opt.canonical_sku }}" data-field="size_display" onblur="saveField(this)" onkeydown="if(event.key==='Enter'){event.preventDefault();this.blur()}" style="flex:1;color:#191F28;outline:0;padding:1px 4px;border-radius:3px">{{ d.opt.size_display or d.opt.size_code or '—' }}</span></div>
-        <div style="display:flex;gap:6px;padding:3px 0;color:#6B7684"><span style="width:60px">평균매입가</span><span style="flex:1;color:#191F28;font-family:'SF Mono',monospace">{{ '{:,}'.format(d.opt.boxhero_avg_purchase_price or 0) }}원</span></div>
-        <div id="saveHint" style="text-align:center;font-size:10.5px;color:#16A34A;margin-top:6px;opacity:0;transition:.3s">✓ 저장됨</div>
-      </div>
+      {# [2부-2] 인라인 편집·큰 사진 박스 제거 — 박스히어로 모달(1부-2)로 대체됨 #}
       <script>
       async function saveField(el){
         const sku = el.dataset.sku, field = el.dataset.field;
@@ -457,7 +407,7 @@
       }
       </script>
 
-      <h3 style="font-size:14px;font-weight:600;margin:0 0 8px;color:#292A2F">📍 위치별 재고 <span style="font-weight:400;color:#8F91A0">({{ d.loc_stock|length }}개 위치)</span></h3>
+      <div style="font-size:12.5px;font-weight:600;margin:0 0 8px;color:#191F28">{{ d.loc_stock|length }}개 위치</div>
       <div style="border:1px solid #E5E8EB;border-radius:6px;overflow:hidden;margin-bottom:8px">
         {% for loc_id, info in d.loc_stock.items() %}
           <div onclick="openHistMod('{{ d.opt.canonical_sku }}', {{ loc_id }}, '{{ info.name }}')" style="display:flex;align-items:center;gap:8px;padding:8px 11px;border-bottom:1px solid #F1F1F4;font-size:14px;color:#292A2F;cursor:pointer" onmouseover="this.style.background='#F9FAFB'" onmouseout="this.style.background=''">
