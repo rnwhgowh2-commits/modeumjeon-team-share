@@ -193,7 +193,7 @@
           tr.dataset.color = o.color || '';
           tr.dataset.size = o.size || '';
           tr.style.cssText = 'border-bottom:1px solid #F2F4F6;cursor:pointer';
-          tr.onclick = function(){ window.location.href = '?sku=' + encodeURIComponent(o.sku); };
+          // [1부-2] tr.onclick 제거 — capture phase 핸들러가 박스히어로 모달 띄움
           var locCells = '';
           locs.forEach(function(L){
             var v = (o.loc_stock && o.loc_stock[String(L.id)]) || 0;
@@ -352,7 +352,8 @@
               {% set _color = (cleaned_color.get(o.canonical_sku) if cleaned_color is defined else None) or (o.color_display or o.color_code or 'one') %}
               {% set _size = (o.size_display or o.size_code or 'free') %}
               {% set _rt = stock_map.get(o.canonical_sku, 0) %}
-              <tr class="home-row" data-sku="{{ o.canonical_sku }}" data-brand="{{ _brand if _brand != '—' else '' }}" data-name="{{ _pname }}" data-color="{{ _color }}" data-size="{{ _size }}" style="border-bottom:1px solid #F2F4F6;{% if selected_detail and selected_detail.opt.canonical_sku == o.canonical_sku %}background:#EFF6FF !important{% endif %};cursor:pointer" onclick="window.location.href='?sku={{ o.canonical_sku }}{% if in_stock_only %}&in_stock=1{% endif %}{% if search_q %}&q={{ search_q }}{% endif %}'">
+              {# [1부-2] inline onclick 제거 — 행 클릭 = 박스히어로 모달만 (URL 이동 X) #}
+              <tr class="home-row" data-sku="{{ o.canonical_sku }}" data-brand="{{ _brand if _brand != '—' else '' }}" data-name="{{ _pname }}" data-color="{{ _color }}" data-size="{{ _size }}" style="border-bottom:1px solid #F2F4F6;{% if selected_detail and selected_detail.opt.canonical_sku == o.canonical_sku %}background:#EFF6FF !important{% endif %};cursor:pointer">
                 <td style="padding:7px 8px;text-align:center" onclick="event.stopPropagation()">
                   <input type="checkbox" class="bulk-row-check" data-sku="{{ o.canonical_sku }}" onclick="onBulkRowCheck(this)" style="cursor:pointer;width:14px;height:14px">
                 </td>
@@ -820,17 +821,20 @@
 </div>
 
 <script>
-// [1부-2] 행 클릭 시 박스히어로 모달 — 우측 detail 패널 이동(?sku=) 막고 모달 열기
+// [1부-2] 행 클릭 시 박스히어로 모달 — capture phase 로 a 태그·기타 onclick 차단
 (function(){
   document.addEventListener('click', function(e){
     var tr = e.target.closest('tr.home-row');
     if(!tr) return;
     // 체크박스 영역 클릭은 모달 X
-    if(e.target.closest('.bulk-row-check, input[type="checkbox"]')) return;
+    if(e.target.closest('.bulk-row-check, input[type="checkbox"], label')) return;
+    // a 태그 클릭도 모달로 (페이지 이동 차단)
     e.preventDefault();
     e.stopPropagation();
+    e.stopImmediatePropagation();
     openPhxEdit(tr.dataset.sku);
-  }, true);  // capture phase — 기존 onclick(URL 변경) 보다 먼저
+    return false;
+  }, true);  // capture phase — 가장 먼저
 })();
 
 function openPhxEdit(sku){
