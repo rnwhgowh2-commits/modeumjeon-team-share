@@ -306,6 +306,39 @@ def data_items_auto_clean_colors():
     return redirect(url_for('inventory.home'))
 
 
+@bp.get('/data/items/<path:sku>/info')
+def data_item_info(sku):
+    """[1부-2] 박스히어로 스타일 모달용 — 옵션 + 모델 통합 정보 JSON."""
+    from flask import jsonify
+    from lemouton.sourcing.models import Model as ModelM
+    s = SessionLocal()
+    try:
+        opt = s.query(Option).filter(Option.canonical_sku == sku).first()
+        if not opt:
+            return jsonify({'ok': False, 'error': 'not found'}), 404
+        model = s.query(ModelM).filter(ModelM.model_code == opt.model_code).first() if opt.model_code else None
+        from shared.inventory_stock import get_stock_by_sku
+        stock = get_stock_by_sku(s, sku)
+        return jsonify({
+            'ok': True,
+            'sku': opt.canonical_sku,
+            'barcode': opt.barcode or '',
+            'boxhero_sku': opt.boxhero_sku or '',
+            'color_display': opt.color_display or '',
+            'size_display': opt.size_display or '',
+            'avg_purchase_price': opt.boxhero_avg_purchase_price or 0,
+            'image_url': getattr(opt, 'image_url', '') or '',
+            'stock': stock,
+            'model_code': opt.model_code or '',
+            'model_name': (model.model_name_display or model.model_name_raw) if model else '',
+            'brand': (model.brand if model else '') or '',
+            'category': (model.category if model else '') or '',
+            'article_no': (model.article_no if model else '') or '',
+        })
+    finally:
+        s.close()
+
+
 @bp.post('/data/items/<path:sku>/update')
 def data_item_update(sku):
     """박스히어로 1:1 인라인 popover 편집 — 제품명·박스히어로 SKU·컬러·사이즈·이미지 동시 저장."""
@@ -327,12 +360,18 @@ def data_item_update(sku):
         if new_bh:
             opt.boxhero_sku = new_bh
 
+        # [2026-05-29 1부-2] 평균매입가 수정 + JSON 응답 옵션
+        if 'avg_purchase_price' in request.form:
+            from shared.sku_format import clean_avg_price
+            opt.boxhero_avg_purchase_price = clean_avg_price(request.form.get('avg_purchase_price'))
+
         if opt.model_code:
             model = s.query(ModelM).filter(ModelM.model_code == opt.model_code).first()
             if model:
                 new_name = (request.form.get('model_name') or '').strip()
                 new_brand = (request.form.get('brand') or '').strip()
                 new_article = (request.form.get('article_no') or '').strip()
+                new_category = request.form.get('category')
                 if new_name:
                     model.model_name_display = new_name
                 if new_brand:
@@ -340,6 +379,10 @@ def data_item_update(sku):
                 # 품번은 빈 문자열도 허용 (= 명시적 삭제 의도)
                 if 'article_no' in request.form:
                     model.article_no = new_article[:64] if new_article else None
+                # [1부-2] 카테고리 — clean_category fallback 적용
+                if new_category is not None:
+                    from shared.sku_format import clean_category
+                    model.category = clean_category(new_category)
 
         file = request.files.get('image')
         if file and file.filename:
@@ -353,9 +396,16 @@ def data_item_update(sku):
                     opt.image_url = f'/inventory/data/product-image/{fname}'
 
         s.commit()
+        # [1부-2] AJAX 요청은 JSON 응답 (모달에서 페이지 이동 없이 처리)
+        if request.headers.get('X-Requested-With') == 'fetch' or request.headers.get('Accept') == 'application/json':
+            from flask import jsonify
+            return jsonify({'ok': True, 'sku': sku, 'message': f'{sku} 저장됨'})
         flash(f'{sku} 저장됨', 'success')
     except Exception as e:
         s.rollback()
+        if request.headers.get('X-Requested-With') == 'fetch':
+            from flask import jsonify
+            return jsonify({'ok': False, 'error': str(e)}), 500
         flash(f'저장 실패: {e}', 'error')
     finally:
         s.close()

@@ -739,6 +739,176 @@
 })();
 </script>
 
+{# ============ [1부-2] 박스히어로 스타일 제품 수정 모달 ============ #}
+<div id="phxEditModal" style="display:none;position:fixed;inset:0;background:rgba(15,20,30,0.55);z-index:1200;align-items:center;justify-content:center" onclick="if(event.target.id==='phxEditModal')closePhxEdit()">
+  <div style="background:#fff;border-radius:12px;width:680px;max-width:94vw;max-height:90vh;display:flex;flex-direction:column;box-shadow:0 24px 60px rgba(0,0,0,0.35);overflow:hidden">
+    <div style="padding:14px 22px;border-bottom:1px solid #E5E8EB;display:flex;align-items:center;gap:10px">
+      <strong style="font-size:16px;color:#191F28">제품 수정</strong>
+      <button type="button" onclick="closePhxEdit()" style="margin-left:auto;background:transparent;border:0;font-size:22px;color:#8B95A1;cursor:pointer">×</button>
+    </div>
+    <form id="phxEditForm" enctype="multipart/form-data" style="padding:18px 22px;overflow-y:auto;flex:1">
+      <div style="display:grid;grid-template-columns:1fr 110px;gap:18px;align-items:start">
+        <div>
+          {# SKU + 자동생성 (read-only — 기존 옵션은 SKU 고정) #}
+          <div style="margin-bottom:12px">
+            <label style="display:block;font-size:12px;color:#4E5968;margin-bottom:4px;font-weight:600">SKU <span style="color:#DC2626">*</span></label>
+            <input id="phxSku" readonly style="width:100%;padding:8px 11px;border:1px solid #E5E8EB;border-radius:5px;font-size:13.5px;font-family:ui-monospace,monospace;background:#FAFBFC;color:#6B7684">
+          </div>
+          {# 제품명 (= Model.model_name_display) #}
+          <div style="margin-bottom:12px">
+            <label style="display:block;font-size:12px;color:#4E5968;margin-bottom:4px;font-weight:600">제품명 <span style="color:#DC2626">*</span></label>
+            <input id="phxName" name="model_name" style="width:100%;padding:8px 11px;border:1px solid #CBCCD3;border-radius:5px;font-size:13.5px">
+          </div>
+          {# 바코드 (read-only — 자동 채워짐) #}
+          <div style="margin-bottom:12px">
+            <label style="display:block;font-size:12px;color:#4E5968;margin-bottom:4px;font-weight:600">바코드</label>
+            <input id="phxBarcode" readonly style="width:100%;padding:8px 11px;border:1px solid #E5E8EB;border-radius:5px;font-size:13.5px;font-family:ui-monospace,monospace;background:#FAFBFC;color:#6B7684">
+          </div>
+        </div>
+        {# 사진 미리보기 #}
+        <div style="text-align:center">
+          <div id="phxImgWrap" style="width:110px;height:110px;background:#F2F4F6;border:1px solid #E5E8EB;border-radius:8px;display:flex;align-items:center;justify-content:center;color:#9CA3AF;font-size:11px;overflow:hidden">
+            <span id="phxImgPlaceholder">사진 없음</span>
+            <img id="phxImg" style="display:none;width:100%;height:100%;object-fit:cover">
+          </div>
+          <input id="phxImgInput" name="image" type="file" accept="image/*" style="margin-top:6px;font-size:11px;width:110px">
+        </div>
+      </div>
+
+      <hr style="border:none;border-top:1px solid #F1F1F4;margin:8px 0 14px">
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px">
+        <div>
+          <label style="display:block;font-size:12px;color:#4E5968;margin-bottom:4px;font-weight:600">카테고리</label>
+          <input id="phxCategory" name="category" placeholder="예: 스니커즈" style="width:100%;padding:8px 11px;border:1px solid #CBCCD3;border-radius:5px;font-size:13.5px">
+        </div>
+        <div>
+          <label style="display:block;font-size:12px;color:#4E5968;margin-bottom:4px;font-weight:600">브랜드 <span style="color:#8B95A1;font-weight:400">(빈값 → 미상)</span></label>
+          <input id="phxBrand" name="brand" placeholder="미상" style="width:100%;padding:8px 11px;border:1px solid #CBCCD3;border-radius:5px;font-size:13.5px">
+        </div>
+      </div>
+      <div style="margin-bottom:12px">
+        <label style="display:block;font-size:12px;color:#4E5968;margin-bottom:4px;font-weight:600">모델명 (품번) <span style="color:#8B95A1;font-weight:400">· 영숫자+하이픈+언더스코어</span></label>
+        <input id="phxArticleNo" name="article_no" placeholder="예: FV5420-002" style="width:100%;padding:8px 11px;border:1px solid #CBCCD3;border-radius:5px;font-size:13.5px;font-family:ui-monospace,monospace">
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px">
+        <div>
+          <label style="display:block;font-size:12px;color:#4E5968;margin-bottom:4px;font-weight:600">색상 <span style="color:#8B95A1;font-weight:400">(빈값 → ONE)</span></label>
+          <input id="phxColor" name="color_display" placeholder="ONE" style="width:100%;padding:8px 11px;border:1px solid #CBCCD3;border-radius:5px;font-size:13.5px">
+        </div>
+        <div>
+          <label style="display:block;font-size:12px;color:#4E5968;margin-bottom:4px;font-weight:600">사이즈 <span style="color:#8B95A1;font-weight:400">(빈값 → FREE)</span></label>
+          <input id="phxSize" name="size_display" placeholder="FREE" style="width:100%;padding:8px 11px;border:1px solid #CBCCD3;border-radius:5px;font-size:13.5px">
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px">
+        <div>
+          <label style="display:block;font-size:12px;color:#4E5968;margin-bottom:4px;font-weight:600">평균매입가 (원)</label>
+          <input id="phxAvg" name="avg_purchase_price" type="number" min="0" placeholder="0" style="width:100%;padding:8px 11px;border:1px solid #CBCCD3;border-radius:5px;font-size:13.5px;font-family:ui-monospace,monospace">
+        </div>
+        <div>
+          <label style="display:block;font-size:12px;color:#4E5968;margin-bottom:4px;font-weight:600">총 재고 (자동)</label>
+          <input id="phxStock" readonly style="width:100%;padding:8px 11px;border:1px solid #E5E8EB;border-radius:5px;font-size:13.5px;background:#FAFBFC;color:#6B7684;font-family:ui-monospace,monospace">
+        </div>
+      </div>
+    </form>
+    <div style="padding:13px 22px;border-top:1px solid #E5E8EB;background:#F9FAFB;display:flex;gap:9px;justify-content:flex-end">
+      <button type="button" onclick="closePhxEdit()" style="border:1px solid #CBCCD3;background:#fff;color:#4E5968;border-radius:5px;padding:8px 16px;font-size:13px;font-weight:600;cursor:pointer">취소</button>
+      <button type="button" id="phxSaveBtn" onclick="submitPhxEdit()" style="background:#3182F6;color:#fff;border:0;border-radius:5px;padding:8px 20px;font-size:13px;font-weight:700;cursor:pointer">수정 완료</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// [1부-2] 행 클릭 시 박스히어로 모달 — 우측 detail 패널 이동(?sku=) 막고 모달 열기
+(function(){
+  document.addEventListener('click', function(e){
+    var tr = e.target.closest('tr.home-row');
+    if(!tr) return;
+    // 체크박스 영역 클릭은 모달 X
+    if(e.target.closest('.bulk-row-check, input[type="checkbox"]')) return;
+    e.preventDefault();
+    e.stopPropagation();
+    openPhxEdit(tr.dataset.sku);
+  }, true);  // capture phase — 기존 onclick(URL 변경) 보다 먼저
+})();
+
+function openPhxEdit(sku){
+  if(!sku) return;
+  var modal = document.getElementById('phxEditModal');
+  modal.style.display = 'flex';
+  document.getElementById('phxSku').value = sku;
+  document.getElementById('phxName').value = '⏳ 로딩 중...';
+  // GET 옵션 정보
+  fetch('/inventory/data/items/' + encodeURIComponent(sku) + '/info')
+    .then(function(r){ return r.json(); })
+    .then(function(j){
+      if(!j.ok){ alert('옵션 정보 로드 실패: ' + (j.error || '')); return; }
+      document.getElementById('phxName').value = j.model_name || '';
+      document.getElementById('phxBarcode').value = j.barcode || '';
+      document.getElementById('phxCategory').value = j.category || '';
+      document.getElementById('phxBrand').value = j.brand || '';
+      document.getElementById('phxArticleNo').value = j.article_no || '';
+      document.getElementById('phxColor').value = j.color_display || '';
+      document.getElementById('phxSize').value = j.size_display || '';
+      document.getElementById('phxAvg').value = j.avg_purchase_price || 0;
+      document.getElementById('phxStock').value = j.stock || 0;
+      var img = document.getElementById('phxImg');
+      var ph = document.getElementById('phxImgPlaceholder');
+      if(j.image_url){
+        img.src = j.image_url;
+        img.style.display = '';
+        ph.style.display = 'none';
+      } else {
+        img.style.display = 'none';
+        ph.style.display = '';
+      }
+    })
+    .catch(function(e){ alert('요청 실패: ' + e.message); });
+}
+function closePhxEdit(){
+  document.getElementById('phxEditModal').style.display = 'none';
+}
+function submitPhxEdit(){
+  var sku = document.getElementById('phxSku').value;
+  if(!sku){ alert('SKU 없음'); return; }
+  var name = (document.getElementById('phxName').value || '').trim();
+  if(!name){ alert('제품명은 필수입니다.'); document.getElementById('phxName').focus(); return; }
+  var btn = document.getElementById('phxSaveBtn');
+  var form = document.getElementById('phxEditForm');
+  var fd = new FormData(form);
+  // SKU 는 URL 로 전달 (form에는 없음)
+  btn.disabled = true; btn.textContent = '⏳ 저장 중...';
+  fetch('/inventory/data/items/' + encodeURIComponent(sku) + '/update', {
+    method: 'POST',
+    headers: { 'X-Requested-With': 'fetch' },
+    body: fd
+  })
+  .then(function(r){ return r.json().then(function(j){ return {ok: r.ok, body: j}; }); })
+  .then(function(res){
+    if(!res.ok || !res.body.ok){
+      alert('❌ 저장 실패: ' + (res.body.error || res.body.message || '알 수 없음'));
+      btn.disabled = false; btn.textContent = '수정 완료';
+      return;
+    }
+    alert('✅ ' + (res.body.message || '저장 완료'));
+    closePhxEdit();
+    window.location.reload();
+  })
+  .catch(function(e){
+    alert('❌ 요청 실패: ' + e.message);
+    btn.disabled = false; btn.textContent = '수정 완료';
+  });
+}
+// ESC 닫기
+document.addEventListener('keydown', function(e){
+  if(e.key === 'Escape'){
+    var m = document.getElementById('phxEditModal');
+    if(m && m.style.display === 'flex') closePhxEdit();
+  }
+});
+</script>
+
 {# ============ [1부-1 A2] 다중 선택 + 모음전 일괄 등록 모달 + JS ============ #}
 <div id="bulkBundleModal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);z-index:1100;align-items:center;justify-content:center">
   <div style="background:#fff;border-radius:10px;width:580px;max-width:92vw;max-height:88vh;overflow:auto;box-shadow:0 16px 48px rgba(0,0,0,0.18)">
