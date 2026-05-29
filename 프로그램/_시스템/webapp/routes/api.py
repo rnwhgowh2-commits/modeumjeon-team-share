@@ -1202,18 +1202,71 @@ def bundle_duplicate(code: str):
 
 @bp.post('/bundles/<code>/delete')
 def bundle_delete(code: str):
+    """모음전 삭제 — 옵션·자식 행 전부 정리 후 모델 삭제.
+
+    PostgreSQL 은 FK 를 항상 강제하므로, 자식 행(bundle_source_urls,
+    bundle_option_steps, *_registrations, source_links 등)을 먼저 지우지 않으면
+    models 삭제가 ForeignKeyViolation 으로 막혀 'internal_error' 가 났음.
+    inventory_product_delete 와 동일하게 각 DELETE 를 SAVEPOINT 로 격리해
+    한 문(테이블 부재 등)이 실패해도 트랜잭션이 abort 되지 않게 한다.
+    """
+    from sqlalchemy import text, bindparam
     s = SessionLocal()
+
+    def _safe(stmt, params):
+        sp = s.begin_nested()
+        try:
+            s.execute(stmt, params)
+            sp.commit()
+        except Exception:
+            sp.rollback()
+
     try:
         m = s.query(Model).filter_by(model_code=code).first()
         if m is None:
             return _err('모음전을 찾을 수 없어요.', 404)
-        # 옵션 + 콤보셋 cascade
-        s.query(Option).filter_by(model_code=code).delete()
-        from lemouton.templates.models import ComboSet
-        s.query(ComboSet).filter_by(model_code=code).delete()
-        s.delete(m)
+
+        skus = [r[0] for r in s.execute(
+            text("SELECT canonical_sku FROM options WHERE model_code = :c"),
+            {"c": code}).fetchall()]
+
+        # 1) 옵션(canonical_sku)을 가리키는 자식 행 정리
+        if skus:
+            in_skus = lambda: bindparam("skus", expanding=True)
+            for tbl, col in (
+                ("etc_source_urls", "canonical_sku"),
+                ("price_track_history", "canonical_sku"),
+                ("market_registrations", "canonical_sku"),
+                ("option_source_links", "canonical_sku"),
+                ("option_account_registrations", "canonical_sku"),
+                ("option_benefit_overrides", "canonical_sku"),
+                ("option_source_url_links", "option_canonical_sku"),
+            ):
+                _safe(text(f"DELETE FROM {tbl} WHERE {col} IN :skus")
+                      .bindparams(in_skus()), {"skus": skus})
+            # 양방향(옵션이 매핑 양쪽에 올 수 있음) 정리
+            _safe(text("DELETE FROM option_product_links "
+                       "WHERE option_canonical_sku IN :skus "
+                       "OR product_canonical_sku IN :skus")
+                  .bindparams(in_skus()), {"skus": skus})
+            _safe(text("DELETE FROM option_inventory_links "
+                       "WHERE bundle_option_sku IN :skus "
+                       "OR inventory_option_sku IN :skus")
+                  .bindparams(in_skus()), {"skus": skus})
+
+        # 2) 모델(model_code)을 가리키는 자식 행 정리
+        for tbl in ("bundle_account_registrations", "model_source_links",
+                    "bundle_source_urls", "bundle_option_steps", "combo_sets"):
+            _safe(text(f"DELETE FROM {tbl} WHERE model_code = :c"), {"c": code})
+
+        # 3) 옵션 → 모델 순서로 삭제
+        _safe(text("DELETE FROM options WHERE model_code = :c"), {"c": code})
+        s.execute(text("DELETE FROM models WHERE model_code = :c"), {"c": code})
         s.commit()
         return _ok(deleted_code=code)
+    except Exception as e:
+        s.rollback()
+        return _err(f'삭제 실패: {e}', 500)
     finally:
         s.close()
 
