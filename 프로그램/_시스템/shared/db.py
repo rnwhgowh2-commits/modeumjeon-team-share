@@ -27,7 +27,9 @@ if not _is_sqlite:
     _engine_kwargs.update(
         pool_size=5,        # 항상 유지하는 idle conn 수
         max_overflow=8,     # 피크 시 추가 — 총 13 < Supabase 15 한도
-        pool_recycle=120,   # [perf 2026-05-29] 5분→2분: half-open 되기 전에 선제 재생성
+        pool_recycle=60,    # [perf 2026-05-29] 60초: 유휴 커넥션이 half-open 되기 전에
+                            #   선제 폐기 → 유휴 후 첫 요청은 항상 새 커넥션(~0.3s, 동일 리전)
+                            #   사용. keepalive(42s→10s)로도 남던 잔여 멈춤을 제거.
         pool_timeout=10,    # 풀 고갈 시 대기 한계 (디폴트 30s → 10s 로 빠른 실패)
         # [perf 2026-05-29] TCP keepalive — 유휴 후 "첫 요청 수십 초 멈춤" 근본 해결.
         #   증상: 앱이 잠깐 쉰 뒤 첫 클릭(예: 옵션조합 모달) 시 ~40초 멈춤, 직후엔 0.4초.
