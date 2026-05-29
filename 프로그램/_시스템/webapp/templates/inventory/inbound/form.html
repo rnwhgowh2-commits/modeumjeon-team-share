@@ -114,26 +114,26 @@ function filterProducts(){
   renderModalRows(OPTIONS.filter(o=>!q||o.sku.toLowerCase().includes(q)||(o.bh||'').toLowerCase().includes(q)||(o.color||'').toLowerCase().includes(q)||(o.model||'').toLowerCase().includes(q)));
 }
 function renderModalRows(list){
-  document.getElementById('modalProductRows').innerHTML=list.slice(0,200).map(o=>`<tr style="border-bottom:1px solid #F1F1F4"><td style="padding:7px 9px;text-align:center"><input type="checkbox" class="modal-pick" value="${o.sku}" data-stock="${o.stock||0}" data-avg="${o.avg||0}" data-name="${o.color}/${o.size}" onchange="updateSelectedCount()" style="accent-color:#16A34A"></td><td style="padding:7px 9px;font-family:ui-monospace,monospace;font-size:10.5px">${o.sku}</td><td style="padding:7px 9px">${o.color} / ${o.size}</td><td style="padding:7px 9px;text-align:right;font-family:ui-monospace,monospace;color:${o.stock>0?'#22C55E':'#8F91A0'}">${o.stock||0}</td><td style="padding:7px 9px;text-align:right;font-family:ui-monospace,monospace">${o.avg?o.avg.toLocaleString():'—'}</td></tr>`).join('');
+  document.getElementById('modalProductRows').innerHTML=list.slice(0,200).map(o=>{const imgEl=o.img?`<img src="${o.img}" style="width:32px;height:32px;object-fit:cover;border-radius:4px;border:1px solid #E5E8EB" alt="">`:`<div style="width:32px;height:32px;background:#F2F4F6;border-radius:4px;display:inline-flex;align-items:center;justify-content:center;color:#CBCCD3;font-size:14px">👟</div>`;return `<tr style="border-bottom:1px solid #F1F1F4"><td style="padding:7px 9px;text-align:center"><input type="checkbox" class="modal-pick" value="${o.sku}" data-stock="${o.stock||0}" data-avg="${o.avg||0}" data-name="${o.color}/${o.size}" data-img="${o.img||''}" onchange="updateSelectedCount()" style="accent-color:#16A34A"></td><td style="padding:4px 6px;text-align:center">${imgEl}</td><td style="padding:7px 9px;font-family:ui-monospace,monospace;font-size:10.5px">${o.sku}</td><td style="padding:7px 9px">${o.color} / ${o.size}</td><td style="padding:7px 9px;text-align:right;font-family:ui-monospace,monospace;color:${o.stock>0?'#22C55E':'#8F91A0'}">${o.stock||0}</td><td style="padding:7px 9px;text-align:right;font-family:ui-monospace,monospace">${o.avg?o.avg.toLocaleString():'—'}</td></tr>`}).join('');
   document.getElementById('modalCount').textContent=`전체 ${list.length}`;
   document.getElementById('modalCheckAll').checked=false;updateSelectedCount();
 }
 function modalToggleAll(m){document.querySelectorAll('.modal-pick').forEach(c=>c.checked=m.checked);updateSelectedCount()}
 function updateSelectedCount(){document.getElementById('modalSelected').textContent='선택 '+document.querySelectorAll('.modal-pick:checked').length+'개'}
-function addSelected(){[...document.querySelectorAll('.modal-pick:checked')].forEach(cb=>{if(lines.some(l=>l.sku===cb.value))return;lines.push({sku:cb.value,qty:1,price:parseInt(cb.dataset.avg)||0,stock:parseInt(cb.dataset.stock)||0,name:cb.dataset.name||cb.value})});renderLines();closeProductModal()}
+function addSelected(){[...document.querySelectorAll('.modal-pick:checked')].forEach(cb=>{if(lines.some(l=>l.sku===cb.value))return;lines.push({sku:cb.value,qty:1,price:parseInt(cb.dataset.avg)||0,stock:parseInt(cb.dataset.stock)||0,name:cb.dataset.name||cb.value,img:cb.dataset.img||''})});renderLines();closeProductModal()}
 function renderLines(){
   const tb=document.getElementById('lines');
   if(!lines.length){
     tb.innerHTML='<tr id="emptyRow"><td colspan="6" style="padding:32px;text-align:center;color:#9CA3AF;font-size:13px">제품 없음 — 우측 [➕ 일괄 추가] 또는 아래 검색</td></tr>';
   } else {
-    tb.innerHTML=lines.map((l,i)=>`<tr style="border-bottom:1px solid #F1F1F4">
+    tb.innerHTML=lines.map((l,i)=>{const imgEl=l.img?`<img src="${l.img}" style="width:36px;height:36px;object-fit:cover;border-radius:5px;border:1px solid #E5E8EB" alt="">`:`<div style="width:36px;height:36px;background:#F2F4F6;border-radius:5px;display:flex;align-items:center;justify-content:center;color:#CBCCD3;font-size:14px">👟</div>`;return `<tr style="border-bottom:1px solid #F1F1F4">
       <td style="padding:9px 6px;text-align:center"><button type="button" onclick="removeLine(${i})" title="제거" style="background:#FEF2F2;border:1px solid #FCA5A5;color:#DC2626;border-radius:50%;width:22px;height:22px;cursor:pointer;font-size:13px;line-height:1;padding:0">−</button></td>
-      <td style="padding:8px"><input type="hidden" name="option_canonical_sku" value="${l.sku}"><div style="font-size:13.5px;color:#191F28">${l.name||l.sku}</div><div style="font-size:11px;color:#6B7684;font-family:ui-monospace,monospace;margin-top:2px">${l.sku}</div></td>
+      <td style="padding:4px 4px"><div style="display:flex;align-items:center;gap:9px"><input type="hidden" name="option_canonical_sku" value="${l.sku}">${imgEl}<div style="min-width:0"><div style="font-size:13.5px;color:#191F28">${l.name||l.sku}</div><div style="font-size:11px;color:#6B7684;font-family:ui-monospace,monospace;margin-top:2px">${l.sku}</div></div></div></td>
       <td style="padding:8px;text-align:right;font-family:ui-monospace,monospace;color:${l.stock>0?'#191F28':'#9CA3AF'}">${l.stock||0}</td>
       <td style="padding:6px 8px"><input type="number" name="qty" min="1" value="${l.qty}" required onchange="updateKpi()" style="width:100%;padding:7px;border:1px solid #86EFAC;border-radius:5px;font-size:13px;text-align:right;background:#ECFDF5"></td>
       <td style="padding:6px 8px"><input type="number" name="unit_purchase_price" min="0" value="${l.price}" style="width:100%;padding:7px;border:1px solid #D1D6DB;border-radius:5px;font-size:13px;text-align:right"></td>
       <td style="padding:8px"></td>
-    </tr>`).join('');
+    </tr>`}).join('');
   }
   updateKpi();
 }
@@ -150,7 +150,7 @@ function inlineSearchHandler(){
 }
 function inlineAdd(sku){
   const o=OPTIONS.find(x=>x.sku===sku);if(!o||lines.some(l=>l.sku===sku))return;
-  lines.push({sku:o.sku,qty:1,price:parseInt(o.avg)||0,stock:o.stock||0,name:o.color+'/'+o.size});
+  lines.push({sku:o.sku,qty:1,price:parseInt(o.avg)||0,stock:o.stock||0,name:o.color+'/'+o.size,img:o.img||''});
   renderLines();
   document.getElementById('inlineSearch').value='';
   document.getElementById('inlineResults').style.display='none';
@@ -160,7 +160,7 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape')closeProductModal()}
 {% if prefill_skus %}
 (function prefillFromQuery(){
   const PREFILL_SKUS={{ prefill_skus | tojson }};
-  for(const sku of PREFILL_SKUS){const opt=OPTIONS.find(o=>o.sku===sku);if(opt && !lines.some(l=>l.sku===sku)){lines.push({sku:opt.sku,qty:1,price:parseInt(opt.avg)||0,stock:opt.stock||0,name:opt.color+'/'+opt.size});}}
+  for(const sku of PREFILL_SKUS){const opt=OPTIONS.find(o=>o.sku===sku);if(opt && !lines.some(l=>l.sku===sku)){lines.push({sku:opt.sku,qty:1,price:parseInt(opt.avg)||0,stock:opt.stock||0,name:opt.color+'/'+opt.size,img:opt.img||''});}}
   renderLines();
 })();
 {% endif %}

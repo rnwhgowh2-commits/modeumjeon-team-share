@@ -198,6 +198,8 @@ def inbound_new():
             'size': (o.size_display or o.size_code or 'FREE'),
             'bh': o.boxhero_sku or '', 'stock': o.boxhero_stock_total or 0,
             'avg': o.boxhero_avg_purchase_price or 0,
+            # [2부-3] 옵션 사진 — 라인·모달에서 썸네일 표시 (2부-1 그룹 사진)
+            'img': getattr(o, 'image_url', '') or '',
         } for o in options]
         # ?sku=... 으로 진입한 경우 prefill 지원 (제품목록에서 [📥 입고] 클릭)
         prefill_skus = request.args.getlist('sku')
