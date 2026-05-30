@@ -119,9 +119,19 @@ def _get_kpis():
     bundles 전체를 ON 으로 가정 (placeholder)."""
     s = SessionLocal()
     try:
-        bundles = s.query(Model).count()
-        unmapped = s.query(DiscoveryQueueItem).filter_by(status='pending').count()
-        upload_failed = s.query(MarketRegistration).filter_by(status='failed').count()
+        # [perf 2026-05-29] bundles + auto_on 을 1 쿼리로 (case 집계). 기존 2 쿼리.
+        from sqlalchemy import func, case
+        bundles, auto_on = (
+            s.query(
+                func.count(Model.model_code),
+                func.count(case((Model.auto_enabled == True, 1))),  # noqa: E712
+            ).one()
+        )
+        auto_off = bundles - auto_on
+
+        # [perf 2026-05-29] unmapped/upload_failed 는 사이드바와 동일 → 캐시 공유 (중복 count 제거)
+        from webapp.routes import get_cached_badge_counts
+        unmapped, upload_failed = get_cached_badge_counts()
 
         # 최근 24시간 내 가격이 변한 옵션 수 (PriceTrackHistory 기반)
         cutoff = datetime.now(timezone.utc) - timedelta(hours=24)
@@ -131,10 +141,6 @@ def _get_kpis():
             .distinct()
             .count()
         )
-
-        # 자동화 ON / OFF 실 카운트 (v6 Phase 3.5 — 2026-05-07)
-        auto_on = s.query(Model).filter_by(auto_enabled=True).count()
-        auto_off = bundles - auto_on
 
         # ⚠ 무신사 비회원가 크롤링 알림 (Phase 8.8.1 — D1 드로워)
         nm_alert = _get_musinsa_non_member_alert()

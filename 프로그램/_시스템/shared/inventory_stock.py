@@ -39,6 +39,8 @@ def _product_sku_map(session, option_skus) -> dict[str, str]:
     """[제품 공유 v1] 옵션 SKU → 연결된 재고제품 SKU.
 
     OptionProductLink 가 없으면 자기 자신으로 fallback (마이그레이션 전 호환).
+    ※ 재고(stock) 정확성 경로이므로 캐시하지 않음 — 항상 실시간 조회
+      (데이터 무결성 절대 원칙: 재고 귀속 지연 금지).
     """
     from lemouton.inventory.models import OptionProductLink
     skus = list(set(s for s in option_skus if s))

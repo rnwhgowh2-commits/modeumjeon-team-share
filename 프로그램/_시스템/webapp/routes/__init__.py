@@ -42,6 +42,25 @@ _counts_cache = {'ts': 0.0, 'unmapped': 0, 'failed': 0}
 _COUNTS_TTL = 20.0
 
 
+def get_cached_badge_counts() -> tuple[int, int]:
+    """(unmapped 대기 수, upload 실패 수) — 20초 TTL 캐시.
+    사이드바와 홈 KPI 가 동일 값을 공유 (중복 count 제거). 카운트라 캐시 안전.
+    """
+    now = _time.monotonic()
+    if (now - _counts_cache['ts']) >= _COUNTS_TTL:
+        from shared.db import SessionLocal
+        from lemouton.sourcing.models import DiscoveryQueueItem
+        from lemouton.uploader.models import MarketRegistration
+        s = SessionLocal()
+        try:
+            _counts_cache['unmapped'] = s.query(DiscoveryQueueItem).filter_by(status='pending').count()
+            _counts_cache['failed'] = s.query(MarketRegistration).filter_by(status='failed').count()
+            _counts_cache['ts'] = now
+        finally:
+            s.close()
+    return _counts_cache['unmapped'], _counts_cache['failed']
+
+
 def register_routes(app: Flask) -> None:
     from webapp.routes.home import bp as home_bp
     from webapp.routes.bundles import bp as bundles_bp
@@ -90,21 +109,7 @@ def register_routes(app: Flask) -> None:
     def inject_sidebar_counts():
         """사이드바 nav-badge 동적 카운트 + 사용자 레이아웃 주입."""
         from webapp.routes.api_sidebar import get_layout_for_template
-        # [perf 2026-05-29] 카운트 20초 TTL 캐시 — 매 페이지 2 count 쿼리 제거
-        now = _time.monotonic()
-        if (now - _counts_cache['ts']) >= _COUNTS_TTL:
-            from shared.db import SessionLocal
-            from lemouton.sourcing.models import DiscoveryQueueItem
-            from lemouton.uploader.models import MarketRegistration
-            s = SessionLocal()
-            try:
-                _counts_cache['unmapped'] = s.query(DiscoveryQueueItem).filter_by(status='pending').count()
-                _counts_cache['failed'] = s.query(MarketRegistration).filter_by(status='failed').count()
-                _counts_cache['ts'] = now
-            finally:
-                s.close()
-        unmapped = _counts_cache['unmapped']
-        failed = _counts_cache['failed']
+        unmapped, failed = get_cached_badge_counts()  # [perf] 20초 TTL 캐시 공유
         return {
             'sidebar_unmapped_count': unmapped,
             'sidebar_failed_count': failed,
