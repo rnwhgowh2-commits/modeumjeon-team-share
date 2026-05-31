@@ -287,6 +287,17 @@
       .oum-inv-grp summary .cnt.warn { background:#FFFBEB; color:#92400E; }
       .oum-inv-grp summary .cnt.err { background:#FEF2F2; color:#991B1B; }
 
+      /* [v20.8 T1] 정렬 가능 컬럼 헤더 */
+      .oum-inv-sort-head { display:flex; background:#F9FAFB; font-size:11.5px; color:#6B7684; font-weight:700; border-bottom:1px solid #E5E8EB; }
+      .oum-inv-sort-col { padding:9px 14px; cursor:pointer; display:inline-flex; align-items:center; gap:5px; user-select:none; transition:background .1s; }
+      .oum-inv-sort-col:hover { background:#F2F4F6; }
+      .oum-inv-sort-col.sorted { color:#1d4ed8; background:#EFF6FF; }
+      .oum-inv-sort-col .arrow { font-size:10px; opacity:.4; font-weight:800; }
+      .oum-inv-sort-col.sorted .arrow { opacity:1; color:#3B82F6; }
+      .oum-inv-sort-col.col-opt { width:120px; }
+      .oum-inv-sort-col.col-prod { flex:1; }
+      .oum-inv-sort-col.col-stat { width:90px; justify-content:center; }
+
       /* 표 (행 색 G1: 자동=초록 / 수기=노랑 / 미매핑=빨강) */
       .oum-inv-tbl-new { width:100%; border-collapse:separate; border-spacing:0; font-size:13px; }
       .oum-inv-tbl-new td { padding:10px 14px; border-bottom:1px solid #F1F1F4; vertical-align:middle; }
@@ -516,6 +527,8 @@
       // [v20.4] 사용자가 직접 변경했는지 추적 — 변경 후엔 bundle_meta fallback 안 함
       invFilterUserSet: { brand: false, model: false },
       invGroupBy: 'axis-0',                   // 그룹화 기준 — 'axis-0' / 'axis-1' / ... / 'flat' / 'status'
+      // [v20.8] 표 컬럼 정렬 — col: 'opt' (옵션값=사이즈 등) / 'prod' (제품명) / 'status' (자동/수기/미매핑)
+      invSort: { col: 'opt', dir: 'asc' },
       invBrandDdOpen: false,
       invModelDdOpen: false,
     };
@@ -1089,6 +1102,16 @@
         const cntCls = g.matchedN === g.total ? '' : (g.matchedN === 0 ? ' err' : ' warn');
         html += `<details class="oum-inv-grp" ${g.open ? 'open' : ''}>`;
         html += `<summary><span class="val">${esc(g.label)}</span><span class="cnt${cntCls}">${g.matchedN}/${g.total} 매핑</span></summary>`;
+        // [v20.8 T1] 정렬 가능 컬럼 헤더 — 정렬 컬럼은 옅은 파란 배경 + ▲▼
+        const sc = state.invSort && state.invSort.col || 'opt';
+        const sd = state.invSort && state.invSort.dir || 'asc';
+        const arr = (col) => sc === col ? (sd === 'asc' ? '▲' : '▼') : '⬍';
+        const cls = (col) => sc === col ? 'sorted' : '';
+        html += `<div class="oum-inv-sort-head">`;
+        html += `<div class="oum-inv-sort-col col-opt ${cls('opt')}" data-inv-sort="opt">옵션값 <span class="arrow">${arr('opt')}</span></div>`;
+        html += `<div class="oum-inv-sort-col col-prod ${cls('prod')}" data-inv-sort="prod">제품 정보 <span class="arrow">${arr('prod')}</span></div>`;
+        html += `<div class="oum-inv-sort-col col-stat ${cls('status')}" data-inv-sort="status">상태 <span class="arrow">${arr('status')}</span></div>`;
+        html += `</div>`;
         html += '<table class="oum-inv-tbl-new"><tbody>';
         g.rows.forEach(r => {
           const cls = r.cls;  // auto / manual / empty
@@ -1148,18 +1171,39 @@
         return { key: k, status, cls, opt: optMatched, axes: arr, optLabel, allLabel };
       });
 
+      // [v20.8] 정렬 — col: 'opt'(옵션값) / 'prod'(제품명) / 'status'(자동→수기→미매핑)
+      //   자연 정렬 (220, 240, 250 / S, M, L / SKU 등 적절히)
+      const _statusOrder = { auto: 1, manual: 2, empty: 3 };
+      function _sortRows(rs) {
+        const { col, dir } = state.invSort || { col: 'opt', dir: 'asc' };
+        const sign = dir === 'desc' ? -1 : 1;
+        const cmp = (a, b) => {
+          let ka, kb;
+          if (col === 'status') { ka = _statusOrder[a.status] || 9; kb = _statusOrder[b.status] || 9; }
+          else if (col === 'prod') {
+            ka = a.opt ? `${a.opt.model_name} ${a.opt.color} ${a.opt.size}` : 'zzz';
+            kb = b.opt ? `${b.opt.model_name} ${b.opt.color} ${b.opt.size}` : 'zzz';
+            return sign * String(ka).localeCompare(String(kb), undefined, { numeric: true, sensitivity: 'base' });
+          }
+          else { ka = a.optLabel || ''; kb = b.optLabel || ''; return sign * String(ka).localeCompare(String(kb), undefined, { numeric: true, sensitivity: 'base' }); }
+          if (ka === kb) return 0;
+          return sign * (ka < kb ? -1 : 1);
+        };
+        return rs.slice().sort(cmp);
+      }
+
       // 그룹화
       const groups = [];  // [{label, rows, total, matchedN, open}]
       const grpMap = new Map();
       if (groupBy === 'flat') {
-        groups.push({ label: '전체', rows, total: rows.length,
+        groups.push({ label: '전체', rows: _sortRows(rows), total: rows.length,
                       matchedN: rows.filter(r => r.status !== 'empty').length, open: true });
       } else if (groupBy === 'status') {
         const buckets = { auto: [], manual: [], empty: [] };
         rows.forEach(r => buckets[r.status].push(r));
-        if (buckets.auto.length) groups.push({ label: '⚡ 자동 매칭', rows: buckets.auto, total: buckets.auto.length, matchedN: buckets.auto.length, open: false });
-        if (buckets.manual.length) groups.push({ label: '✏️ 수기 입력', rows: buckets.manual, total: buckets.manual.length, matchedN: buckets.manual.length, open: true });
-        if (buckets.empty.length) groups.push({ label: '❌ 미매핑', rows: buckets.empty, total: buckets.empty.length, matchedN: 0, open: true });
+        if (buckets.auto.length) groups.push({ label: '⚡ 자동 매칭', rows: _sortRows(buckets.auto), total: buckets.auto.length, matchedN: buckets.auto.length, open: false });
+        if (buckets.manual.length) groups.push({ label: '✏️ 수기 입력', rows: _sortRows(buckets.manual), total: buckets.manual.length, matchedN: buckets.manual.length, open: true });
+        if (buckets.empty.length) groups.push({ label: '❌ 미매핑', rows: _sortRows(buckets.empty), total: buckets.empty.length, matchedN: 0, open: true });
       } else {
         // axis-N
         const axisIdx = parseInt(String(groupBy).split('-')[1] || '0', 10) || 0;
@@ -1173,7 +1217,7 @@
         });
         [...grpMap.entries()].forEach(([label, gRows]) => {
           const matchedN = gRows.filter(r => r.status !== 'empty').length;
-          groups.push({ label, rows: gRows, total: gRows.length, matchedN, open: matchedN < gRows.length });
+          groups.push({ label, rows: _sortRows(gRows), total: gRows.length, matchedN, open: matchedN < gRows.length });
         });
       }
       return groups;
@@ -1919,6 +1963,21 @@
       if (mdIt) {
         state.invFilter.model = mdIt.dataset.mdName;
         state.invFilterUserSet.model = true;
+        renderRight();
+        return;
+      }
+      // [v20.8 T1] 컬럼 헤더 클릭 → 정렬 토글
+      const sortCol = e.target.closest('[data-inv-sort]');
+      if (sortCol) {
+        const c = sortCol.dataset.invSort;
+        if (!state.invSort) state.invSort = { col: 'opt', dir: 'asc' };
+        if (state.invSort.col === c) {
+          // 같은 컬럼 → 방향 반전
+          state.invSort.dir = state.invSort.dir === 'asc' ? 'desc' : 'asc';
+        } else {
+          state.invSort.col = c;
+          state.invSort.dir = 'asc';
+        }
         renderRight();
         return;
       }
