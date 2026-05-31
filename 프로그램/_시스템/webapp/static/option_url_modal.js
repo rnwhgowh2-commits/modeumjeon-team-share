@@ -1585,28 +1585,19 @@
         toggleAxis(qs.dataset.qsAxis, qs.dataset.qsVal);
         return;
       }
-      // 빠른 선택 reset
+      // 빠른 선택 reset — mappedOff 도 같이 정리 (v20.5)
       if (e.target.closest('[data-qs-reset]')) {
         state.selected.clear();
+        if (state.mappedOff) state.mappedOff.clear();
         rerender();
         return;
       }
-      // 매트릭스 셀
+      // 매트릭스 셀 — _isCellActive 헬퍼 사용 (v20.5 통일)
       const cell = e.target.closest('[data-cell-key]');
       if (cell) {
         const k = cell.dataset.cellKey;
-        // [v20.3 fix] mappedOff (URL/재고 매핑 데이터 살아있는 셀) 도 ON 으로 보이므로
-        //   "active = selected OR mappedOff" 기준으로 토글. 안 그러면 mappedOff 셀
-        //   첫 클릭이 단순 add 만 돼서 시각 변화 0 → 사용자에겐 "안 먹힘" 버그.
-        const inSel = state.selected.has(k);
-        const inMappedOff = state.mappedOff && state.mappedOff.has(k);
-        const wasActive = inSel || inMappedOff;
-        if (wasActive) {
-          state.selected.delete(k);
-          if (state.mappedOff) state.mappedOff.delete(k);
-        } else {
-          state.selected.add(k);
-        }
+        if (_isCellActive(k)) _deactivateCell(k);
+        else _activateCell(k);
         rerender();
         return;
       }
@@ -1620,12 +1611,16 @@
       if (corner) { toggleCorner(corner); return; }
       const grp = e.target.closest('[data-grp-axis]');
       if (grp) { toggleGroup(grp.dataset.grpAxis, grp.dataset.grpVal); return; }
-      // 전체 선택/해제
+      // 전체 선택/해제 — mappedOff 도 함께 정리 (v20.5 fix)
       if (e.target.closest('[data-mtx-all]')) {
         const all = cartesian(validAxes().map(a => a.values));
-        const allOn = all.every(c => state.selected.has(keyOf(c)));
-        if (allOn) state.selected.clear();
-        else all.forEach(c => state.selected.add(keyOf(c)));
+        const allOn = all.every(c => _isCellActive(keyOf(c)));
+        if (allOn) {
+          state.selected.clear();
+          if (state.mappedOff) state.mappedOff.clear();
+        } else {
+          all.forEach(c => { const k = keyOf(c); _activateCell(k); });
+        }
         rerender();
         return;
       }
@@ -1729,11 +1724,26 @@
       // state.applied 는 그대로 유지 — 사용자가 [적용 →] 다시 안 눌러도 우측 보임
     }
 
+    // [v20.5 fix] 좌측 매트릭스 active 통합 헬퍼 — selected 또는 mappedOff 둘 중 하나라도 있으면 ON
+    //   토글 시 mappedOff 도 같이 정리해야 "전체 해제"·"줄/코너 해제" 등 일괄 토글에서
+    //   잔류 mappedOff 셀이 ON 으로 남는 버그 차단. 단일 셀 클릭은 이미 v20.3 에서 처리됨.
+    function _isCellActive(k) {
+      return state.selected.has(k) || (state.mappedOff && state.mappedOff.has(k));
+    }
+    function _activateCell(k) {
+      state.selected.add(k);
+      if (state.mappedOff) state.mappedOff.delete(k);
+    }
+    function _deactivateCell(k) {
+      state.selected.delete(k);
+      if (state.mappedOff) state.mappedOff.delete(k);
+    }
+
     function toggleAxis(axisName, val) {
       const matching = filterCombos(axisName, val);
       if (!matching.length) return;  // axis 못 찾았으면 동작 안 함
-      const allOn = matching.every(c => state.selected.has(keyOf(c)));
-      matching.forEach(c => { const k = keyOf(c); if (allOn) state.selected.delete(k); else state.selected.add(k); });
+      const allOn = matching.every(c => _isCellActive(keyOf(c)));
+      matching.forEach(c => { const k = keyOf(c); if (allOn) _deactivateCell(k); else _activateCell(k); });
       rerender();
     }
 
@@ -1758,8 +1768,8 @@
         return base.every(b => c[b.idx] === b.val);
       });
       if (!matching.length) return;
-      const allOn = matching.every(c => state.selected.has(keyOf(c)));
-      matching.forEach(c => { const k = keyOf(c); if (allOn) state.selected.delete(k); else state.selected.add(k); });
+      const allOn = matching.every(c => _isCellActive(keyOf(c)));
+      matching.forEach(c => { const k = keyOf(c); if (allOn) _deactivateCell(k); else _activateCell(k); });
       rerender();
     }
 
@@ -1769,8 +1779,8 @@
       const valid = validAxes();
       const allCombos = cartesian(valid.map(a => a.values));
       const matching = allCombos.filter(c => base.every(b => c[b.idx] === b.val));
-      const allOn = matching.every(c => state.selected.has(keyOf(c)));
-      matching.forEach(c => { const k = keyOf(c); if (allOn) state.selected.delete(k); else state.selected.add(k); });
+      const allOn = matching.every(c => _isCellActive(keyOf(c)));
+      matching.forEach(c => { const k = keyOf(c); if (allOn) _deactivateCell(k); else _activateCell(k); });
       rerender();
     }
 
