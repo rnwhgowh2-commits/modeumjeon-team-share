@@ -23,6 +23,15 @@ class Config:
 
     LOG_DIR = PROJECT_ROOT / "logs"
 
+    # ─── Cloudflare R2 (이미지/첨부 오브젝트 스토리지) ───
+    # 값은 .env / Fly secrets 에서 주입. 미설정 시 R2_ENABLED=False → 업로드는 디스크 폴백.
+    R2_ACCOUNT_ID = os.environ.get("R2_ACCOUNT_ID", "")
+    R2_ACCESS_KEY_ID = os.environ.get("R2_ACCESS_KEY_ID", "")
+    R2_SECRET_ACCESS_KEY = os.environ.get("R2_SECRET_ACCESS_KEY", "")
+    R2_BUCKET = os.environ.get("R2_BUCKET", "modeumjeon-images")
+    R2_PUBLIC_BASE_URL = os.environ.get("R2_PUBLIC_BASE_URL", "")  # 예: https://pub-xxxx.r2.dev
+    R2_ENABLED = bool(R2_ACCOUNT_ID and R2_PUBLIC_BASE_URL)
+
 
 Config.DB_PATH.parent.mkdir(parents=True, exist_ok=True)
 Config.LOG_DIR.mkdir(parents=True, exist_ok=True)
