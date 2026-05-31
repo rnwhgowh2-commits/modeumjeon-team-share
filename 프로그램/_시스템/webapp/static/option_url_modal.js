@@ -233,9 +233,12 @@
       .oum-br-it.kbd-hl, .oum-md-it.kbd-hl { background:#F5F3FF; box-shadow:inset 3px 0 0 #7C3AED; }
       .oum-md-it.kbd-hl { background:#EFF6FF; box-shadow:inset 3px 0 0 #3B82F6; }
 
-      /* [v20.2] 인라인 SKU/제품명 자동완성 dropdown */
+      /* [v20.2/v20.7] 인라인 SKU/제품명 자동완성 dropdown — body 직속 + position:fixed (JS 로 위치 계산) */
       .oum-ac-wrap { position:relative; }
-      .oum-inv-ac-dd { position:absolute; top:36px; left:0; right:0; background:#fff; border:1px solid #03A65A; border-radius:7px; box-shadow:0 6px 18px rgba(0,0,0,0.12); max-height:280px; overflow-y:auto; z-index:30; }
+      .oum-inv-ac-dd { background:#fff; border:1px solid #03A65A; border-radius:7px; box-shadow:0 6px 18px rgba(0,0,0,0.15); overflow-y:auto; z-index:99999; }
+      .oum-inv-ac-dd::-webkit-scrollbar { width:8px; }
+      .oum-inv-ac-dd::-webkit-scrollbar-thumb { background:#BBF7D0; border-radius:4px; }
+      .oum-inv-ac-dd::-webkit-scrollbar-thumb:hover { background:#03A65A; }
       .oum-inv-ac-it { padding:8px 12px; font-size:12.5px; cursor:pointer; border-bottom:1px solid #F1F1F4; }
       .oum-inv-ac-it:last-child { border-bottom:0; }
       .oum-inv-ac-it:hover, .oum-inv-ac-it.kbd-hl { background:#F0FDF4; box-shadow:inset 3px 0 0 #03A65A; }
@@ -1933,28 +1936,7 @@
         renderRight();
         return;
       }
-      // [v20.2] 인라인 SKU 자동완성 항목 클릭 → 매핑 확정
-      const acPick = e.target.closest('[data-inv-pick-sku]');
-      if (acPick) {
-        const pickSku = acPick.dataset.invPickSku;
-        const k = acPick.dataset.invPickKey;
-        const skuByKey = state.skuByKey || {};
-        const bSku = skuByKey[k];
-        if (bSku) {
-          const inv = (state.invOptions || []).find(o => o.sku === pickSku);
-          state.invRows[bSku] = {
-            invSku: pickSku,
-            model: inv ? inv.model_name : '',
-            color: inv ? inv.color : '',
-            size: inv ? inv.size : '',
-            isManual: true,
-            isUnused: false,
-          };
-          state.invMappedKeys.add(k);
-        }
-        renderRight();
-        return;
-      }
+      // [v20.7] 인라인 SKU 자동완성 항목 클릭은 body 레벨 _handleInvAcPickClick 가 처리
       // [v20] 브랜드/모델 input 클릭 — dropdown 열기
       if (e.target.id === 'oum-br-in') {
         const dd = e.target.parentElement.querySelector('.oum-br-dd');
@@ -2084,9 +2066,29 @@
 
     // [v20.2 2026-05-31] 인라인 SKU/제품명 자동완성 — 미매칭/수기 행 input 에 dropdown 표시
     //   state.invOptions(모음전 외 모든 재고 옵션) 에서 brand/model_name/color/size/sku 매칭
+    //   [v20.7] dropdown 을 body 직속 + position:fixed 로 띄워 그룹 details overflow:hidden 클리핑 회피
+    function _removeAllInvAcDd() {
+      document.querySelectorAll('.oum-inv-ac-dd').forEach(d => d.remove());
+    }
+    function _positionInvAcDd(dd, input) {
+      const r = input.getBoundingClientRect();
+      const vw = window.innerWidth, vh = window.innerHeight;
+      const maxH = 280;
+      // 아래 공간 우선, 부족하면 위로
+      const spaceBelow = vh - r.bottom - 8;
+      const spaceAbove = r.top - 8;
+      const useAbove = spaceBelow < 180 && spaceAbove > spaceBelow;
+      const h = Math.min(maxH, useAbove ? spaceAbove : spaceBelow);
+      dd.style.position = 'fixed';
+      dd.style.left = r.left + 'px';
+      dd.style.width = r.width + 'px';
+      dd.style.maxHeight = h + 'px';
+      if (useAbove) { dd.style.bottom = (vh - r.top + 4) + 'px'; dd.style.top = ''; }
+      else          { dd.style.top    = (r.bottom + 4) + 'px';   dd.style.bottom = ''; }
+      dd.style.zIndex = 99999;
+    }
     function showInvSearchDd(input, key) {
-      // 기존 dropdown 제거
-      input.parentElement.querySelectorAll('.oum-inv-ac-dd').forEach(d => d.remove());
+      _removeAllInvAcDd();  // 모든 기존 dropdown 제거 (다른 input 의 것도)
       const q = (input.value || '').trim().toLowerCase();
       if (!q || q.length < 1) return;
       // brand/model 필터 우선 + 텍스트 매칭
@@ -2124,7 +2126,12 @@
         </div>`;
       });
       dd.innerHTML = html;
-      input.parentElement.appendChild(dd);
+      // [v20.7] body 직속 + position:fixed → 그룹 details overflow:hidden 클리핑 회피
+      document.body.appendChild(dd);
+      _positionInvAcDd(dd, input);
+      // input ↔ dd 연결 (이벤트 핸들러용)
+      dd.__sourceInput = input;
+      input.__activeDd = dd;
     }
 
     // [v20.1 2026-05-31] 브랜드/모델 input 자동완성 — typing 시 dropdown 필터
@@ -2145,12 +2152,54 @@
       if (visibleItems[0]) visibleItems[0].classList.add('kbd-hl');
       return visibleItems;
     }
+    // [v20.7] body 직속 dropdown 클릭 → 매핑 확정 (body 레벨 핸들러)
+    function _handleInvAcPickClick(e) {
+      const acPick = e.target.closest('[data-inv-pick-sku]');
+      if (!acPick) {
+        // 외부 클릭 시 dropdown 닫기 (input 도 제외)
+        if (!e.target.closest('[data-inv-search-key]')) _removeAllInvAcDd();
+        return;
+      }
+      const pickSku = acPick.dataset.invPickSku;
+      const k = acPick.dataset.invPickKey;
+      const skuByKey = state.skuByKey || {};
+      const bSku = skuByKey[k];
+      if (bSku) {
+        const inv = (state.invOptions || []).find(o => o.sku === pickSku);
+        state.invRows[bSku] = {
+          invSku: pickSku,
+          model: inv ? inv.model_name : '',
+          color: inv ? inv.color : '',
+          size: inv ? inv.size : '',
+          isManual: true,
+          isUnused: false,
+        };
+        state.invMappedKeys.add(k);
+      }
+      _removeAllInvAcDd();
+      renderRight();
+    }
+    document.addEventListener('click', _handleInvAcPickClick);
+    // 모달 닫힐 때 핸들러 제거 + dropdown 정리
+    bg.addEventListener('click', e => { if (e.target === bg) { document.removeEventListener('click', _handleInvAcPickClick); _removeAllInvAcDd(); } });
+    // 스크롤 시 dropdown 재배치
+    document.addEventListener('scroll', () => {
+      document.querySelectorAll('.oum-inv-ac-dd').forEach(dd => {
+        if (dd.__sourceInput && document.body.contains(dd.__sourceInput)) {
+          _positionInvAcDd(dd, dd.__sourceInput);
+        } else {
+          dd.remove();
+        }
+      });
+    }, true);
+
     // [v20.1/v20.2] 키보드 — Enter(첫매칭 선택) / Esc(닫기) / ArrowUp/Down(이동)
     $('#oum-right').addEventListener('keydown', e => {
       // [v20.2] 인라인 SKU 검색 input — Enter 시 첫 매칭 자동 선택
       const acInp = e.target.closest('[data-inv-search-key]');
       if (acInp) {
-        const dd = acInp.parentElement.querySelector('.oum-inv-ac-dd');
+        // [v20.7] dropdown 이 body 직속이라 input.__activeDd 로 직접 참조
+        const dd = acInp.__activeDd || document.querySelector('.oum-inv-ac-dd');
         if (!dd) return;
         const visible = [...dd.querySelectorAll('.oum-inv-ac-it')];
         const curHl = dd.querySelector('.oum-inv-ac-it.kbd-hl');
