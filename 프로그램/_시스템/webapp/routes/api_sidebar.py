@@ -151,9 +151,29 @@ def _validate(layout: dict) -> tuple[bool, str]:
     return True, ''
 
 
+# 로드맵 탭 — 저장된 레이아웃에 없으면 렌더 시 standalone 끝에 주입(저장은 안 함).
+#   기존 사용자 레이아웃을 건드리지 않고 모두에게 항상 보이게 함.
+_ROADMAP_ITEM = {'id': 'i_roadmap', 'emoji': '🗺', 'name': '로드맵 · 추가예정',
+                 'url': '/roadmap', 'active_key': 'roadmap', 'badge_key': None}
+
+
+def _has_roadmap(layout: dict) -> bool:
+    def _has(items):
+        return any(isinstance(i, dict) and i.get('id') == 'i_roadmap' for i in items)
+    if _has(layout.get('standalone', [])):
+        return True
+    return any(_has(st.get('items', [])) for st in layout.get('stages', []))
+
+
 def get_layout_for_template() -> dict:
-    """템플릿 렌더 시 호출 — sidebar.html context 용."""
-    return _load()
+    """템플릿 렌더 시 호출 — sidebar.html context 용. 로드맵 탭 항상 주입."""
+    layout = _load()
+    if _has_roadmap(layout):
+        return layout
+    # 캐시된 dict 를 변형하지 않도록 얕은 복사 후 주입
+    out = dict(layout)
+    out['standalone'] = list(layout.get('standalone', [])) + [dict(_ROADMAP_ITEM)]
+    return out
 
 
 @bp.get('/layout')
