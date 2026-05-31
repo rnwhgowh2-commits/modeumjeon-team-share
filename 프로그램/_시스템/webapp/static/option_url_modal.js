@@ -227,6 +227,8 @@
       .oum-br-it:hover { background:#F5F3FF; }
       .oum-br-it.on { background:#F5F3FF; color:#7C3AED; font-weight:700; }
       .oum-br-it.on::before { content:'✓'; color:#7C3AED; font-weight:800; margin-right:3px; }
+      .oum-br-it.kbd-hl, .oum-md-it.kbd-hl { background:#F5F3FF; box-shadow:inset 3px 0 0 #7C3AED; }
+      .oum-md-it.kbd-hl { background:#EFF6FF; box-shadow:inset 3px 0 0 #3B82F6; }
       .oum-br-it:not(.on)::before { content:''; display:inline-block; width:12px; }
       .oum-br-it .swatch { width:22px; height:22px; border-radius:5px; background:#7C3AED; color:#fff; font-size:10px; display:inline-flex; align-items:center; justify-content:center; font-weight:800; flex-shrink:0; }
       .oum-br-it .nm { flex:1; }
@@ -1993,8 +1995,94 @@
       }
     });
 
-    // [B3-3] 재고관리 매핑 표 인라인 편집
+    // [v20.1 2026-05-31] 브랜드/모델 input 자동완성 — typing 시 dropdown 필터
+    function filterDdItems(input, ddSel, itemSel, getTextFn) {
+      const dd = input.parentElement.querySelector(ddSel);
+      if (!dd) return [];
+      dd.style.display = 'block';
+      const q = (input.value || '').trim().toLowerCase();
+      let visibleItems = [];
+      dd.querySelectorAll(itemSel).forEach(it => {
+        const txt = (getTextFn ? getTextFn(it) : it.textContent).toLowerCase();
+        const show = !q || txt.includes(q);
+        it.style.display = show ? '' : 'none';
+        if (show) visibleItems.push(it);
+      });
+      // 첫 visible item 강조 (keyboard nav 용)
+      dd.querySelectorAll('.kbd-hl').forEach(x => x.classList.remove('kbd-hl'));
+      if (visibleItems[0]) visibleItems[0].classList.add('kbd-hl');
+      return visibleItems;
+    }
+    // [v20.1] 키보드 — Enter(첫매칭 선택) / Esc(닫기) / ArrowUp/Down(이동)
+    $('#oum-right').addEventListener('keydown', e => {
+      const isBr = e.target.id === 'oum-br-in';
+      const isMd = e.target.id === 'oum-md-in' && !e.target.disabled;
+      if (!isBr && !isMd) return;
+      const ddSel = isBr ? '.oum-br-dd' : '.oum-md-dd';
+      const itemSel = isBr ? '.oum-br-it' : '.oum-md-it';
+      const dd = e.target.parentElement.querySelector(ddSel);
+      if (!dd) return;
+      const visible = [...dd.querySelectorAll(itemSel)].filter(it => it.style.display !== 'none');
+      const curHl = dd.querySelector('.kbd-hl');
+      const curIdx = visible.indexOf(curHl);
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        const pick = curHl || visible[0];
+        if (!pick) return;
+        const brName = pick.dataset.brName;
+        const mdName = pick.dataset.mdName;
+        if (brName !== undefined) {
+          state.invFilter.brand = brName;
+          state.invFilter.model = '';
+          renderRight();
+        } else if (mdName !== undefined) {
+          state.invFilter.model = mdName;
+          renderRight();
+        } else if (pick.dataset.brClear !== undefined) {
+          state.invFilter.brand = '';
+          state.invFilter.model = '';
+          renderRight();
+        }
+        return;
+      }
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        dd.style.display = 'none';
+        e.target.blur();
+        return;
+      }
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        if (curHl) curHl.classList.remove('kbd-hl');
+        const next = visible[Math.min(curIdx + 1, visible.length - 1)] || visible[0];
+        if (next) { next.classList.add('kbd-hl'); next.scrollIntoView({block: 'nearest'}); }
+        return;
+      }
+      if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        if (curHl) curHl.classList.remove('kbd-hl');
+        const prev = visible[Math.max(curIdx - 1, 0)] || visible[visible.length - 1];
+        if (prev) { prev.classList.add('kbd-hl'); prev.scrollIntoView({block: 'nearest'}); }
+        return;
+      }
+    });
     $('#oum-right').addEventListener('input', e => {
+      // [v20.1] 브랜드 input 자동완성
+      if (e.target.id === 'oum-br-in') {
+        filterDdItems(e.target, '.oum-br-dd', '.oum-br-it', it => {
+          const nm = it.querySelector('.nm');
+          return (nm ? nm.textContent : it.textContent);
+        });
+        return;
+      }
+      // [v20.1] 모델 input 자동완성
+      if (e.target.id === 'oum-md-in' && !e.target.disabled) {
+        filterDdItems(e.target, '.oum-md-dd', '.oum-md-it', it => {
+          const nm = it.querySelector('.nm');
+          return (nm ? nm.textContent : it.textContent);
+        });
+        return;
+      }
       // [v20] 새 oum-inv-search input — 수기 입력 시 invRows 갱신
       const searchInp = e.target.closest('[data-inv-search-key]');
       if (searchInp) {
