@@ -178,7 +178,10 @@
          단일 진실 원천: opt-on / url-on / has-inv 클래스만 의미. */
       .oum-cell.disabled,
       .oum-cell.off,
-      .oum-cell.mapped-off { background:#F3F4F6 !important; color:#9CA3AF !important; border:1px dashed #D1D6DB; cursor:not-allowed; }  /* ⬜ 옅음 — 비활성/미선택 */
+      .oum-cell.mapped-off { background:#F3F4F6 !important; color:#9CA3AF !important; border:1px dashed #D1D6DB; cursor:pointer; }  /* ⬜ 옅음 — 비활성/미선택. cursor:pointer (클릭으로 ON 토글 가능) */
+      .oum-cell.disabled:hover,
+      .oum-cell.off:hover,
+      .oum-cell.mapped-off:hover { background:#E5E8EB !important; color:#4E5968 !important; }
       .oum-cell.opt-on { background:#9CA3AF !important; color:#fff !important; border:none; cursor:pointer; }                            /* 🩶 회색 — 옵션 ON */
       .oum-cell.url-on,
       .oum-cell.opt-on.url-on,
@@ -229,6 +232,17 @@
       .oum-br-it.on::before { content:'✓'; color:#7C3AED; font-weight:800; margin-right:3px; }
       .oum-br-it.kbd-hl, .oum-md-it.kbd-hl { background:#F5F3FF; box-shadow:inset 3px 0 0 #7C3AED; }
       .oum-md-it.kbd-hl { background:#EFF6FF; box-shadow:inset 3px 0 0 #3B82F6; }
+
+      /* [v20.2] 인라인 SKU/제품명 자동완성 dropdown */
+      .oum-ac-wrap { position:relative; }
+      .oum-inv-ac-dd { position:absolute; top:36px; left:0; right:0; background:#fff; border:1px solid #03A65A; border-radius:7px; box-shadow:0 6px 18px rgba(0,0,0,0.12); max-height:280px; overflow-y:auto; z-index:30; }
+      .oum-inv-ac-it { padding:8px 12px; font-size:12.5px; cursor:pointer; border-bottom:1px solid #F1F1F4; }
+      .oum-inv-ac-it:last-child { border-bottom:0; }
+      .oum-inv-ac-it:hover, .oum-inv-ac-it.kbd-hl { background:#F0FDF4; box-shadow:inset 3px 0 0 #03A65A; }
+      .oum-inv-ac-it .nm { font-weight:600; color:#191F28; margin-bottom:2px; }
+      .oum-inv-ac-it .meta { font-size:10.5px; color:#15803d; font-family:ui-monospace,monospace; display:flex; gap:8px; align-items:center; }
+      .oum-inv-ac-it .meta .stk { color:#03A65A; font-weight:700; font-family:inherit; }
+      .oum-inv-ac-it .meta .stk.zero { color:#DC2626; }
       .oum-br-it:not(.on)::before { content:''; display:inline-block; width:12px; }
       .oum-br-it .swatch { width:22px; height:22px; border-radius:5px; background:#7C3AED; color:#fff; font-size:10px; display:inline-flex; align-items:center; justify-content:center; font-weight:800; flex-shrink:0; }
       .oum-br-it .nm { flex:1; }
@@ -1868,6 +1882,28 @@
         renderRight();
         return;
       }
+      // [v20.2] 인라인 SKU 자동완성 항목 클릭 → 매핑 확정
+      const acPick = e.target.closest('[data-inv-pick-sku]');
+      if (acPick) {
+        const pickSku = acPick.dataset.invPickSku;
+        const k = acPick.dataset.invPickKey;
+        const skuByKey = state.skuByKey || {};
+        const bSku = skuByKey[k];
+        if (bSku) {
+          const inv = (state.invOptions || []).find(o => o.sku === pickSku);
+          state.invRows[bSku] = {
+            invSku: pickSku,
+            model: inv ? inv.model_name : '',
+            color: inv ? inv.color : '',
+            size: inv ? inv.size : '',
+            isManual: true,
+            isUnused: false,
+          };
+          state.invMappedKeys.add(k);
+        }
+        renderRight();
+        return;
+      }
       // [v20] 브랜드/모델 input 클릭 — dropdown 열기
       if (e.target.id === 'oum-br-in') {
         const dd = e.target.parentElement.querySelector('.oum-br-dd');
@@ -1995,6 +2031,46 @@
       }
     });
 
+    // [v20.2 2026-05-31] 인라인 SKU/제품명 자동완성 — 미매칭/수기 행 input 에 dropdown 표시
+    //   state.invOptions(모음전 외 모든 재고 옵션) 에서 brand/model_name/color/size/sku 매칭
+    function showInvSearchDd(input, key) {
+      // 기존 dropdown 제거
+      input.parentElement.querySelectorAll('.oum-inv-ac-dd').forEach(d => d.remove());
+      const q = (input.value || '').trim().toLowerCase();
+      if (!q || q.length < 1) return;
+      // brand/model 필터 우선 + 텍스트 매칭
+      const fb = state.invFilter.brand || state.invBundleMeta.brand || '';
+      const fm = state.invFilter.model || state.invBundleMeta.model_name || '';
+      const matched = [];
+      for (const o of (state.invOptions || [])) {
+        const hay = `${o.brand} ${o.model_name} ${o.color} ${o.size} ${o.sku}`.toLowerCase();
+        if (!hay.includes(q)) continue;
+        let score = 0;
+        if (fb && o.brand === fb) score += 10;
+        if (fm && o.model_name === fm) score += 10;
+        matched.push({ o, score });
+        if (matched.length > 30) break;  // 안전 cap
+      }
+      matched.sort((a, b) => b.score - a.score);
+      if (!matched.length) return;
+      // dropdown DOM
+      const dd = document.createElement('div');
+      dd.className = 'oum-inv-ac-dd';
+      dd.setAttribute('data-key', key);
+      let html = '';
+      matched.slice(0, 15).forEach((m, i) => {
+        const o = m.o;
+        const stock = (o.stock_total != null) ? o.stock_total : 0;
+        const stockHtml = stock > 0 ? `<span class="stk">📦 ${stock}개</span>` : '<span class="stk zero">📦 0개</span>';
+        html += `<div class="oum-inv-ac-it ${i===0?'kbd-hl':''}" data-inv-pick-sku="${esc(o.sku)}" data-inv-pick-key="${esc(key)}">
+          <div class="nm">${esc(o.brand)} ${esc(o.model_name)} ${esc(o.color)} ${esc(o.size)}</div>
+          <div class="meta">${esc(o.sku)} ${stockHtml}</div>
+        </div>`;
+      });
+      dd.innerHTML = html;
+      input.parentElement.appendChild(dd);
+    }
+
     // [v20.1 2026-05-31] 브랜드/모델 input 자동완성 — typing 시 dropdown 필터
     function filterDdItems(input, ddSel, itemSel, getTextFn) {
       const dd = input.parentElement.querySelector(ddSel);
@@ -2013,8 +2089,38 @@
       if (visibleItems[0]) visibleItems[0].classList.add('kbd-hl');
       return visibleItems;
     }
-    // [v20.1] 키보드 — Enter(첫매칭 선택) / Esc(닫기) / ArrowUp/Down(이동)
+    // [v20.1/v20.2] 키보드 — Enter(첫매칭 선택) / Esc(닫기) / ArrowUp/Down(이동)
     $('#oum-right').addEventListener('keydown', e => {
+      // [v20.2] 인라인 SKU 검색 input — Enter 시 첫 매칭 자동 선택
+      const acInp = e.target.closest('[data-inv-search-key]');
+      if (acInp) {
+        const dd = acInp.parentElement.querySelector('.oum-inv-ac-dd');
+        if (!dd) return;
+        const visible = [...dd.querySelectorAll('.oum-inv-ac-it')];
+        const curHl = dd.querySelector('.oum-inv-ac-it.kbd-hl');
+        const curIdx = visible.indexOf(curHl);
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          (curHl || visible[0])?.click();
+          return;
+        }
+        if (e.key === 'Escape') { e.preventDefault(); dd.remove(); acInp.blur(); return; }
+        if (e.key === 'ArrowDown') {
+          e.preventDefault();
+          if (curHl) curHl.classList.remove('kbd-hl');
+          const next = visible[Math.min(curIdx + 1, visible.length - 1)] || visible[0];
+          if (next) { next.classList.add('kbd-hl'); next.scrollIntoView({block:'nearest'}); }
+          return;
+        }
+        if (e.key === 'ArrowUp') {
+          e.preventDefault();
+          if (curHl) curHl.classList.remove('kbd-hl');
+          const prev = visible[Math.max(curIdx - 1, 0)] || visible[visible.length - 1];
+          if (prev) { prev.classList.add('kbd-hl'); prev.scrollIntoView({block:'nearest'}); }
+          return;
+        }
+        return;
+      }
       const isBr = e.target.id === 'oum-br-in';
       const isMd = e.target.id === 'oum-md-in' && !e.target.disabled;
       if (!isBr && !isMd) return;
@@ -2083,12 +2189,14 @@
         });
         return;
       }
-      // [v20] 새 oum-inv-search input — 수기 입력 시 invRows 갱신
+      // [v20] 새 oum-inv-search input — 수기 입력 시 invRows 갱신 + 자동완성 dropdown
       const searchInp = e.target.closest('[data-inv-search-key]');
       if (searchInp) {
         const k = searchInp.dataset.invSearchKey;
         const skuByKey = state.skuByKey || {};
         const bSku = skuByKey[k];
+        // [v20.2] 자동완성 dropdown — invOptions 필터링
+        showInvSearchDd(searchInp, k);
         if (!bSku) return;
         if (!state.invRows[bSku]) state.invRows[bSku] = {};
         state.invRows[bSku].invSku = searchInp.value.trim();
