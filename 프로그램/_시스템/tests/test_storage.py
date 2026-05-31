@@ -59,6 +59,7 @@ def test_processors_run_in_order_before_upload(fake):
 def test_put_upload_infers_content_type_from_ext(fake):
     class _FS:
         def read(self): return b"data"
+        def seek(self, *a): pass
     storage.put_upload(_FS(), "attachment/doc.pdf")
     assert fake.puts[0]["ContentType"] == "application/pdf"
     assert fake.puts[0]["Key"] == "attachment/doc.pdf"
@@ -67,8 +68,18 @@ def test_put_upload_infers_content_type_from_ext(fake):
 def test_put_upload_unknown_ext_falls_back_to_octet_stream(fake):
     class _FS:
         def read(self): return b"data"
+        def seek(self, *a): pass
     storage.put_upload(_FS(), "x.bin")
     assert fake.puts[0]["ContentType"] == "application/octet-stream"
+
+
+def test_put_upload_no_extension_falls_back_to_octet_stream(fake):
+    class _FS:
+        def read(self): return b"data"
+        def seek(self, *a): pass
+    storage.put_upload(_FS(), "product/SKU-NO-DOT")
+    assert fake.puts[0]["ContentType"] == "application/octet-stream"
+    assert fake.puts[0]["Key"] == "product/SKU-NO-DOT"
 
 
 def test_delete_object_calls_client(fake):
