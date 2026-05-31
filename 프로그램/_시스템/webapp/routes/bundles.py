@@ -1222,7 +1222,11 @@ from shared.sku_format import (
 
 @bp.route('/api/bundles/<code>/inventory-mapping', methods=['GET'])
 def api_get_inventory_mapping(code):
-    """모음전의 옵션 ↔ 재고 매핑 + 매핑 후보 (alias 매칭) 조회.
+    """모음전의 옵션 ↔ 재고 매핑 + 매핑 후보 (브랜드/모델 우선 + alias 매칭) 조회.
+
+    Query Params:
+      brand: 매칭 한정 브랜드 (선택). 없으면 모음전 자체 브랜드 자동 사용.
+      model: 매칭 한정 모델명 (선택). 없으면 모음전 자체 모델 자동 사용.
 
     Returns:
       {
@@ -1230,7 +1234,10 @@ def api_get_inventory_mapping(code):
         mappings: { bundle_sku: [inventory_sku, ...], ... },
         inventory_options: [{ sku, model_code, model_name, color, size,
                               stock_total, brand }, ...],
-        candidates: { bundle_sku: [inv_sku, ...], ... }  # alias 자동 추론
+        candidates: { bundle_sku: [inv_sku, ...], ... }  # 점수 순 정렬
+        bundle_meta: { brand, model_name, model_code }   # 자동 추론용
+        brands: [{ name, model_count, option_count }, ...]   # 브랜드 검색용
+        models_by_brand: { 브랜드: [{ model_name, option_count }, ...] }
       }
     """
     s = SessionLocal()
@@ -1238,6 +1245,12 @@ def api_get_inventory_mapping(code):
         m = s.query(Model).filter_by(model_code=code).first()
         if not m:
             return jsonify({'ok': False, 'error': 'bundle not found'}), 404
+
+        # [v20] 브랜드+모델 필터 — Query Param 우선, 없으면 모음전 자체값
+        bundle_brand = (m.brand or '').strip()
+        bundle_model_name = (m.model_name_display or m.model_name_raw or '').strip()
+        filter_brand = (request.args.get('brand') or bundle_brand).strip()
+        filter_model = (request.args.get('model') or bundle_model_name).strip()
 
         # 1. 모음전 옵션
         bundle_opts = s.query(Option).filter_by(model_code=code).all()
@@ -1251,7 +1264,7 @@ def api_get_inventory_mapping(code):
         for ln in links:
             mappings.setdefault(ln.bundle_option_sku, []).append(ln.inventory_option_sku)
 
-        # 3. 재고관리 옵션 — 모음전 외 모든 옵션 (단독_ 우선, 그러나 다른 모음전 옵션도 후보로 노출)
+        # 3. 재고관리 옵션 — 모음전 외 모든 옵션
         inv_opts_q = s.query(Option, Model).join(
             Model, Option.model_code == Model.model_code
         ).filter(Option.model_code != code)
@@ -1270,22 +1283,42 @@ def api_get_inventory_mapping(code):
                 'is_standalone': opt.model_code.startswith('단독_'),
             })
 
-        # 4. 자동 후보 — color_matches / size_matches (KR↔EN, KR mm↔US 환산 포함)
-        #   [perf 2026-05-29] 옵션별 정규화·그룹을 1회만 사전계산 (재고옵션 I개 + 번들 B개).
-        #   기존: B×I 비교마다 normalize_label 을 매칭함수 내부에서 재계산 → 6초+.
-        #   개선: 각 옵션의 (정규화형, canonical 그룹집합) 캐시 후 내부 루프는 집합연산만.
-        #   결과(candidates)는 _color_matches/_size_matches 와 동일 (회귀 테스트 보증).
+        # [v20] 브랜드·모델 메타 (검색 dropdown 용)
+        #   모음전 외 모든 모델을 브랜드별 그룹화.
+        brand_counts: dict[str, dict] = {}
+        models_by_brand: dict[str, dict[str, int]] = {}
+        for inv in inventory_options:
+            b = inv['brand'] or '미상'
+            mn = inv['model_name'] or '미상'
+            brand_counts.setdefault(b, {'name': b, 'model_set': set(), 'option_count': 0})
+            brand_counts[b]['model_set'].add(mn)
+            brand_counts[b]['option_count'] += 1
+            models_by_brand.setdefault(b, {}).setdefault(mn, 0)
+            models_by_brand[b][mn] += 1
+        brands = [
+            {'name': v['name'], 'model_count': len(v['model_set']), 'option_count': v['option_count']}
+            for v in sorted(brand_counts.values(), key=lambda x: -x['option_count'])
+        ]
+        models_by_brand_serial = {
+            b: sorted([{'model_name': mn, 'option_count': c} for mn, c in mdic.items()],
+                      key=lambda x: -x['option_count'])
+            for b, mdic in models_by_brand.items()
+        }
+
+        # 4. 자동 후보 — color/size alias 매칭 + 브랜드/모델 점수제
         from shared.sku_format import (
             normalize_label as _norm, color_groups as _cgroups, size_groups as _sgroups,
         )
-        inv_norm = []  # [(sku, cn, cg, sn, sg), ...]
+        inv_norm = []  # [(sku, cn, cg, sn, sg, brand, model_name, model_code), ...]
         for inv in inventory_options:
             inv_norm.append((
                 inv['sku'],
                 _norm(inv['color']), _cgroups(inv['color']),
                 _norm(inv['size']), _sgroups(inv['size']),
+                inv['brand'], inv['model_name'], inv['model_code'],
             ))
 
+        # 점수제 매칭 — 선택 브랜드+모델 (100) > 모음전 model_code 동일 (50) > color+size alias (각 10)
         candidates: dict[str, list[str]] = {}
         for b_opt in bundle_opts:
             b_color_raw = b_opt.color_display or b_opt.color_code
@@ -1293,23 +1326,46 @@ def api_get_inventory_mapping(code):
             bcn, bcg = _norm(b_color_raw), _cgroups(b_color_raw)
             bsn, bsg = _norm(b_size_raw), _sgroups(b_size_raw)
             if not bcn or not bsn:
-                continue  # 매칭함수도 빈값이면 False → 후보 없음
-            picks = []
-            for sku, cn, cg, sn, sg in inv_norm:
+                continue
+            scored = []  # [(score, sku), ...]
+            for sku, cn, cg, sn, sg, ibr, imn, imc in inv_norm:
                 color_ok = cn and (cn == bcn or (cg and bcg and (cg & bcg)))
                 if not color_ok:
                     continue
                 size_ok = sn and (sn == bsn or (sg and bsg and (sg & bsg)))
-                if size_ok:
-                    picks.append(sku)
-            if picks:
-                candidates[b_opt.canonical_sku] = picks
+                if not size_ok:
+                    continue
+                # 점수 계산
+                score = 20  # base = color+size alias 매칭
+                if filter_brand and filter_model and ibr == filter_brand and imn == filter_model:
+                    score += 100
+                elif imc == code:
+                    score += 50  # (이론상 model_code != code 필터로 제외됐으나 안전)
+                # 같은 브랜드만 일치도 부분 점수
+                if filter_brand and ibr == filter_brand and score < 100:
+                    score += 5
+                scored.append((score, sku))
+            if scored:
+                # 점수 높은 순 정렬, 동점은 sku 사전순
+                scored.sort(key=lambda x: (-x[0], x[1]))
+                candidates[b_opt.canonical_sku] = [s for _, s in scored]
 
         return jsonify({
             'ok': True,
             'mappings': mappings,
             'inventory_options': inventory_options,
             'candidates': candidates,
+            'bundle_meta': {
+                'brand': bundle_brand,
+                'model_name': bundle_model_name,
+                'model_code': code,
+            },
+            'filter_applied': {
+                'brand': filter_brand,
+                'model': filter_model,
+            },
+            'brands': brands,
+            'models_by_brand': models_by_brand_serial,
         })
     finally:
         s.close()

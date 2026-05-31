@@ -190,11 +190,127 @@
       .oum-cell.shared::after { content:attr(data-shared); position:absolute; top:-4px; right:-4px; background:#f59e0b; color:#fff; font-size:12.75px; width:18px; height:18px; border-radius:50%; line-height:18px; font-weight:700; }
 
       /* [2026-05-29] 시안 v3 C3 — 우측 패널 [URL]/[재고관리] 2탭 + B3-3 in-place 매핑 표 */
-      .oum-rt-tabs { display:flex; gap:4px; border-bottom:2px solid #E5E8EB; margin-bottom:14px; padding:0 4px; }
+      .oum-rt-tabs { display:flex; gap:4px; border-bottom:2px solid #E5E8EB; margin-bottom:14px; padding:0 4px; align-items:flex-end; }
       .oum-rt-tab { background:transparent; border:0; padding:11px 18px; font:inherit; font-size:14.5px; font-weight:700; color:#8B95A1; cursor:pointer; border-bottom:3px solid transparent; margin-bottom:-2px; display:inline-flex; align-items:center; gap:7px; }
       .oum-rt-tab.on { color:#03A65A; border-bottom-color:#03A65A; }
+      .oum-rt-tab.on[data-rt-tab="url"] { color:#3B82F6; border-bottom-color:#3B82F6; }
       .oum-rt-tab .cnt { background:#F2F4F6; color:#8B95A1; padding:1px 8px; border-radius:99px; font-size:11.5px; font-weight:700; }
       .oum-rt-tab.on .cnt { background:#F0FDF4; color:#03A65A; }
+      .oum-rt-tab.on[data-rt-tab="url"] .cnt { background:#EFF6FF; color:#3B82F6; }
+      /* [v20 D4] 통계 흡수 — 탭 우측 인라인 (E4 폰트 150% = 17px) */
+      .oum-rt-stats { margin-left:auto; padding-bottom:8px; font-size:17px; color:#6B7684; display:inline-flex; align-items:center; gap:10px; }
+      .oum-rt-stats b { font-weight:800; }
+      .oum-rt-stats .ok b { color:#15803d; }
+      .oum-rt-stats .wn b { color:#F59E0B; }
+      .oum-rt-stats .er b { color:#DC2626; }
+      .oum-rt-stats .sep { color:#D1D6DB; }
+
+      /* [v20] 재고관리 매핑 — 액션바 (정리 + 브랜드/모델 + 자동매칭) */
+      .oum-inv-action { display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; margin-bottom:10px; }
+      .oum-inv-action-left, .oum-inv-action-right { display:inline-flex; align-items:center; gap:7px; flex-wrap:wrap; }
+      .oum-inv-label { font-size:13px; font-weight:600; color:#6B7684; }
+      .oum-grp-dd { position:relative; display:inline-block; }
+      .oum-grp-dd-btn { background:#fff; border:1px solid #BBF7D0; color:#03A65A; padding:6px 12px; border-radius:6px; font:inherit; font-size:13px; font-weight:700; cursor:pointer; display:inline-flex; align-items:center; gap:5px; }
+      .oum-grp-dd-btn::after { content:'▾'; font-size:10px; margin-left:3px; }
+      .oum-grp-dd-menu { position:absolute; top:38px; left:0; background:#fff; border:1px solid #E5E8EB; border-radius:7px; box-shadow:0 4px 12px rgba(0,0,0,0.1); min-width:200px; z-index:20; overflow:hidden; }
+      .oum-grp-dd-it { padding:9px 14px; font-size:13px; cursor:pointer; color:#4E5968; }
+      .oum-grp-dd-it:hover { background:#F0FDF4; color:#03A65A; }
+      .oum-grp-dd-it.on { background:#F0FDF4; color:#03A65A; font-weight:700; }
+      .oum-grp-dd-it.on::before { content:'✓ '; }
+      /* 브랜드 검색 (보라) */
+      .oum-br-search { position:relative; display:inline-block; }
+      .oum-br-search .ic { position:absolute; left:9px; top:50%; transform:translateY(-50%); font-size:12px; pointer-events:none; }
+      .oum-br-search input { padding:6px 10px 6px 30px; border:1px solid #DDD6FE; border-radius:6px; font:inherit; font-size:13px; width:130px; outline:none; }
+      .oum-br-search input:focus { border-color:#7C3AED; }
+      .oum-br-dd { position:absolute; top:38px; left:0; background:#fff; border:1px solid #DDD6FE; border-radius:7px; box-shadow:0 4px 12px rgba(0,0,0,0.1); min-width:260px; max-height:260px; overflow-y:auto; z-index:21; }
+      .oum-br-it { padding:8px 12px; font-size:13px; cursor:pointer; border-bottom:1px solid #F1F1F4; display:flex; align-items:center; gap:8px; }
+      .oum-br-it:hover { background:#F5F3FF; }
+      .oum-br-it.on { background:#F5F3FF; color:#7C3AED; font-weight:700; }
+      .oum-br-it.on::before { content:'✓'; color:#7C3AED; font-weight:800; margin-right:3px; }
+      .oum-br-it:not(.on)::before { content:''; display:inline-block; width:12px; }
+      .oum-br-it .swatch { width:22px; height:22px; border-radius:5px; background:#7C3AED; color:#fff; font-size:10px; display:inline-flex; align-items:center; justify-content:center; font-weight:800; flex-shrink:0; }
+      .oum-br-it .nm { flex:1; }
+      .oum-br-it .meta { font-size:10.5px; color:#9CA3AF; font-weight:600; }
+      .oum-step-arrow { color:#9CA3AF; font-size:13px; margin:0 2px; }
+      /* 모델 검색 (파랑) */
+      .oum-md-search { position:relative; display:inline-block; }
+      .oum-md-search .ic { position:absolute; left:9px; top:50%; transform:translateY(-50%); font-size:12px; pointer-events:none; }
+      .oum-md-search input { padding:6px 10px 6px 30px; border:1px solid #BFDBFE; border-radius:6px; font:inherit; font-size:13px; width:170px; outline:none; }
+      .oum-md-search input:focus { border-color:#3B82F6; }
+      .oum-md-search.disabled input { background:#F9FAFB; color:#9CA3AF; cursor:not-allowed; border-color:#E5E8EB; }
+      .oum-md-search.disabled .ic { opacity:.4; }
+      .oum-md-dd { position:absolute; top:38px; left:0; background:#fff; border:1px solid #BFDBFE; border-radius:7px; box-shadow:0 4px 12px rgba(0,0,0,0.1); min-width:260px; max-height:260px; overflow-y:auto; z-index:20; }
+      .oum-md-grp-h { padding:5px 12px; background:#F5F3FF; font-size:11px; color:#7C3AED; font-weight:800; }
+      .oum-md-it { padding:8px 12px; font-size:13px; cursor:pointer; border-bottom:1px solid #F1F1F4; display:flex; align-items:center; gap:8px; }
+      .oum-md-it:hover { background:#EFF6FF; }
+      .oum-md-it.on { background:#EFF6FF; color:#1d4ed8; font-weight:700; }
+      .oum-md-it.on::before { content:'✓'; color:#3B82F6; font-weight:800; margin-right:3px; }
+      .oum-md-it:not(.on)::before { content:''; display:inline-block; width:12px; }
+      .oum-md-it .nm { flex:1; }
+      .oum-md-it .meta { font-size:10.5px; color:#9CA3AF; font-family:ui-monospace,monospace; }
+      /* 자동 매칭 (옅은 outline) */
+      .oum-auto-btn-sm { background:#fff; border:1px solid #FED7AA; color:#92400E; padding:6px 12px; border-radius:6px; font:inherit; font-size:13px; font-weight:700; cursor:pointer; }
+      .oum-auto-btn-sm:hover { background:#FFF7ED; }
+
+      /* 매칭 범위 안내 */
+      .oum-inv-filter-hint { padding:7px 11px; background:#F5F3FF; border:1px solid #DDD6FE; border-radius:6px; font-size:12px; color:#6B21A8; margin-bottom:10px; }
+      .oum-inv-filter-hint b { color:#7C3AED; font-weight:800; }
+
+      /* 그룹 details */
+      .oum-inv-grp { border:1px solid #E5E8EB; border-radius:8px; margin-bottom:8px; overflow:hidden; background:#fff; }
+      .oum-inv-grp summary { padding:11px 14px; background:#F9FAFB; cursor:pointer; display:flex; align-items:center; gap:10px; font-size:14px; font-weight:700; list-style:none; }
+      .oum-inv-grp summary::-webkit-details-marker { display:none; }
+      .oum-inv-grp summary::before { content:'▶'; font-size:10px; color:#9CA3AF; margin-right:5px; transition:transform 0.15s; }
+      .oum-inv-grp[open] summary { border-bottom:1px solid #E5E8EB; }
+      .oum-inv-grp[open] summary::before { transform:rotate(90deg); }
+      .oum-inv-grp summary .val { font-weight:800; font-size:14px; }
+      .oum-inv-grp summary .cnt { background:#F0FDF4; color:#15803d; padding:2px 10px; border-radius:99px; font-size:12px; font-weight:700; margin-left:auto; white-space:nowrap; }
+      .oum-inv-grp summary .cnt.warn { background:#FFFBEB; color:#92400E; }
+      .oum-inv-grp summary .cnt.err { background:#FEF2F2; color:#991B1B; }
+
+      /* 표 (행 색 G1: 자동=초록 / 수기=노랑 / 미매핑=빨강) */
+      .oum-inv-tbl-new { width:100%; border-collapse:separate; border-spacing:0; font-size:13px; }
+      .oum-inv-tbl-new td { padding:10px 14px; border-bottom:1px solid #F1F1F4; vertical-align:middle; }
+      .oum-inv-tbl-new tr:last-child td { border-bottom:0; }
+      .oum-inv-tbl-new tr.auto { background:#F0FDF4; }
+      .oum-inv-tbl-new tr.manual { background:#FFFBEB; }
+      .oum-inv-tbl-new tr.empty { background:#FEF2F2; }
+      .oum-col-opt { width:120px; font-weight:600; color:#191F28; }
+      .oum-col-prod { color:#191F28; }
+      .oum-col-stat { width:90px; text-align:center; }
+      .oum-prod-info { display:flex; flex-direction:column; gap:2px; }
+      .oum-prod-name { font-weight:600; font-size:13px; color:#191F28; }
+      .oum-prod-meta { font-size:11px; color:#15803d; font-family:ui-monospace,monospace; font-weight:600; }
+      /* 상태 뱃지 (한 줄, min-width 보장) */
+      .oum-stat-pill { padding:3px 10px; border-radius:99px; font-size:12px; font-weight:700; color:#fff; white-space:nowrap; display:inline-flex; align-items:center; gap:3px; min-width:54px; justify-content:center; }
+      .oum-stat-pill.auto { background:#03A65A; }
+      .oum-stat-pill.manual { background:#F59E0B; }
+      .oum-stat-pill.empty { background:#9CA3AF; }
+      /* 인라인 SKU 검색 input */
+      .oum-inv-search { width:100%; padding:6px 10px; border:1px solid transparent; border-radius:5px; font:inherit; font-size:12.5px; background:transparent; font-family:ui-monospace,monospace; outline:none; }
+      .oum-inv-tbl-new tr.manual .oum-inv-search { background:#FFFBEB; border-color:#F59E0B; }
+      .oum-inv-tbl-new tr.empty .oum-inv-search { background:#FEF2F2; border-color:#FCA5A5; color:#991B1B; }
+      .oum-inv-tbl-new .oum-inv-search:focus { background:#fff; border-color:#F59E0B; }
+      .oum-ac-wrap { position:relative; }
+
+      /* 적용 버튼 */
+      .oum-inv-foot-new { margin-top:12px; display:flex; justify-content:flex-end; }
+      .oum-apply-btn-new { background:#03A65A; color:#fff; border:0; padding:9px 18px; border-radius:7px; font:inherit; font-size:13.5px; font-weight:700; cursor:pointer; }
+      .oum-apply-btn-new:hover { background:#15803d; }
+
+      /* (옛 oum-rt-tabs 정의는 위에서 v20 으로 갈음 — 아래 옛 정의 유지) */
+
+      /* [v20 B3] 좌측 4단계 progress dot */
+      .oum-step-progress { display:flex; gap:0; margin-bottom:14px; padding:11px 14px; background:#fff; border:1px solid #BFDBFE; border-radius:8px; position:relative; }
+      .oum-step-dot { flex:1; display:flex; flex-direction:column; align-items:center; position:relative; }
+      .oum-step-dot::after { content:''; position:absolute; top:11px; left:calc(50% + 16px); right:calc(-50% + 16px); height:2px; background:#E5E8EB; z-index:0; }
+      .oum-step-dot:last-child::after { display:none; }
+      .oum-step-dot .n { width:22px; height:22px; border-radius:50%; background:#E5E8EB; color:#9CA3AF; display:inline-flex; align-items:center; justify-content:center; font-size:12px; font-weight:800; position:relative; z-index:1; }
+      .oum-step-dot.done .n { background:#10b981; color:#fff; }
+      .oum-step-dot.now .n { background:#3B82F6; color:#fff; box-shadow:0 0 0 3px rgba(59,130,246,0.2); }
+      .oum-step-dot .lbl { margin-top:5px; font-size:12px; color:#9CA3AF; font-weight:600; }
+      .oum-step-dot.done .lbl { color:#15803d; }
+      .oum-step-dot.now .lbl { color:#1d4ed8; font-weight:700; }
       /* B3-3 in-place 표 */
       .oum-inv-tbl { width:100%; border-collapse:separate; border-spacing:0; font-size:12.5px; background:#fff; border:1px solid #E5E8EB; border-radius:8px; overflow:hidden; }
       .oum-inv-tbl th { background:#F9FAFB; padding:8px 10px; text-align:left; font-weight:700; color:#4E5968; font-size:11.5px; border-bottom:1px solid #E5E8EB; }
@@ -370,6 +486,14 @@
       invOptions: [],
       // [perf 2026-05-29] 재고 매핑 셀(초록) 표시용 — 배경 로드 전 빈 Set 으로 안전
       invMappedKeys: new Set(),
+      // [v20 2026-05-30] 브랜드 → 모델 2단계 검색 메타
+      invBrands: [],                          // [{name, model_count, option_count}]
+      invModelsByBrand: {},                   // {brand: [{model_name, option_count}]}
+      invBundleMeta: { brand: '', model_name: '', model_code: '' },  // 모음전 자체 메타 (자동 추론용)
+      invFilter: { brand: '', model: '' },    // 사용자 선택 필터 (없으면 bundle_meta 사용)
+      invGroupBy: 'axis-0',                   // 그룹화 기준 — 'axis-0' / 'axis-1' / ... / 'flat' / 'status'
+      invBrandDdOpen: false,
+      invModelDdOpen: false,
     };
 
     // 모달 마크업
@@ -395,12 +519,10 @@
       </div>
       <div class="oum-mb">
         <div class="oum-legend">
-          <b style="color:#191F28;">📖 셀 색 의미 (시안 v6 누적):</b>
-          <span><span class="leg-empty"></span>비활성·미선택</span>
-          <span><span class="leg-gray"></span>옵션 ON</span>
-          <span><span class="leg-blue"></span>+ URL 매핑</span>
-          <span><span class="leg-green"></span>+ 재고 매핑</span>
-          <span style="margin-left:auto; color:#92400E;">💡 좌측에서 옵션 만들고 [URL 매핑에 적용 →]</span>
+          <b style="color:#191F28;">📖 셀 색 (좌측 매트릭스):</b>
+          <span><span class="leg-empty"></span>OFF (꺼짐)</span>
+          <span><span class="leg-gray"></span>ON (옵션 켜짐)</span>
+          <span style="margin-left:auto; color:#92400E;">💡 좌측에서 옵션 만들고 [URL 매핑에 적용 →] · 매핑 색(파랑/초록)은 우측 탭 안에서</span>
         </div>
         <div class="oum-split">
           <div class="oum-panel oum-blue" id="oum-left"></div>
@@ -436,6 +558,17 @@
       if (!ij || !ij.ok) return;
       state.invOptions = ij.inventory_options || [];
       state.invCandidates = ij.candidates || {};
+      // [v20] 브랜드 → 모델 검색 메타
+      state.invBrands = ij.brands || [];
+      state.invModelsByBrand = ij.models_by_brand || {};
+      state.invBundleMeta = ij.bundle_meta || { brand: '', model_name: '', model_code: '' };
+      // 초기 필터 = 서버가 적용한 값 (없으면 bundle_meta)
+      if (ij.filter_applied) {
+        state.invFilter = {
+          brand: ij.filter_applied.brand || state.invBundleMeta.brand || '',
+          model: ij.filter_applied.model || state.invBundleMeta.model_name || '',
+        };
+      }
       state.invMappedKeys = new Set();
       state.invRows = {};
       Object.entries(ij.mappings || {}).forEach(([bSku, invList]) => {
@@ -624,7 +757,23 @@
       const totalCnt = totalCombos();
       const onCnt = state.selected.size;
 
-      let html = `<div class="oum-ph">
+      // [v20 B3] 4단계 진행 표시 — 현재 단계 추론
+      //   ① 축 생성 / ② 옵션명 입력 / ③ 매트릭스 자동 생성 / ④ OFF 클릭
+      let stepNow;
+      if (state.axes.length === 0 || state.axes.every(a => !a.name)) stepNow = 1;
+      else if (valid.length === 0 || valid.every(a => a.values.length === 0)) stepNow = 2;
+      else if (onCnt === totalCnt && totalCnt > 0) stepNow = 3;  // 모든 셀 ON = 자동 생성 직후
+      else stepNow = 4;  // 일부 OFF = 사용자 편집 중
+      const STEPS = ['축 생성', '옵션명', '자동 생성', 'OFF 클릭'];
+      let html = '<div class="oum-step-progress">';
+      STEPS.forEach((lbl, i) => {
+        const n = i + 1;
+        const cls = n < stepNow ? 'done' : (n === stepNow ? 'now' : '');
+        html += `<div class="oum-step-dot ${cls}"><span class="n">${n}</span><span class="lbl">${lbl}</span></div>`;
+      });
+      html += '</div>';
+
+      html += `<div class="oum-ph">
         <span>🧩</span><span>옵션 매트릭스</span>
         <span class="badge">${onCnt}개</span>
         <span class="right">${valid.map(a => a.values.length).join(' × ') || '축 미정'}</span>
@@ -712,14 +861,16 @@
       return html;
     }
 
-    // [2026-05-29 시안 v6 E3] 셀 클래스 + 라벨 통합 결정
-    //   active = 옵션 ON (state.selected.has) | urlMapped = 이 URL 에 매핑 (우측만 의미) | hasInv = 재고 매핑 있음
-    //   반환: { cls, inner } — 우선순위 has-inv > url-on > opt-on > disabled
-    function cellState(active, urlMapped, hasInv) {
+    // [2026-05-30 시안 v18 색 단순화] 좌측 옵션 매트릭스 = ON/OFF 2색만 (파랑·초록 제거)
+    //   URL 카드 안 매트릭스 = ON / URL 매핑 2색만 (초록 제거)
+    //   urlMapped 인자로 분기:
+    //     - 좌측(주 옵션 매트릭스): cellState(active, false, _) → opt-on / disabled
+    //     - URL 카드(매핑): cellState(active, urlMapped, _) → opt-on / url-on / disabled
+    //   재고 매핑(has-inv) 은 더 이상 매트릭스 색으로 표시 안 함 (재고관리 매핑 탭의 그룹 표에서 상태)
+    function cellState(active, urlMapped, _hasInvLegacy) {
       if (!active) return { cls: 'disabled', inner: '<span>·</span>' };
-      if (hasInv)   return { cls: 'opt-on has-inv', inner: '<span>✓</span><span class="tag">+재고</span>' };
-      if (urlMapped) return { cls: 'opt-on url-on', inner: '<span>✓</span><span class="tag">+URL</span>' };
-      return { cls: 'opt-on', inner: '<span>✓</span><span class="tag">옵션</span>' };
+      if (urlMapped) return { cls: 'opt-on url-on', inner: '<span>✓</span>' };
+      return { cls: 'opt-on', inner: '<span>ON</span>' };
     }
 
     function renderMatrix1D(axis) {
@@ -828,83 +979,174 @@
       }
     }
 
-    // [시안 v3 B3-3] 재고관리 매핑 패널 — in-place 표
+    // [v20 2026-05-30] 재고관리 매핑 패널 — D4 통계 흡수 + 브랜드/모델 검색 + 그룹 details
+    //   변경 사항:
+    //     - 큰 통계 카드 3개 → renderRight 에서 탭 우측 인라인 흡수
+    //     - 옵션축 박스 / "정리 기준" 박스 → 작은 액션바
+    //     - "alias 자동매칭" → "⚡ 자동 매칭"
+    //     - 그룹 details (첫 축 기준) + 행 색 3색 (auto/manual/empty)
+    //     - 인라인 자동완성 (브랜드/모델 그룹 헤더)
+    //     - 뱃지 한 줄 (white-space:nowrap + min-width)
     function renderInvPanel() {
-      // 좌측에서 활성한 옵션 (selected) 들의 axis_values 기준 매트릭스 셀 = 행
       const selectedKeys = [...state.selected];
-      // skuByKey 가 있으면 옵션 SKU 도. 없으면 임시 키.
       const skuByKey = state.skuByKey || {};
 
-      // 자동 매칭 / 수동 / 미사용 카운트
-      let autoN = 0, manualN = 0, unusedN = 0;
-      selectedKeys.forEach(k => {
-        const bSku = skuByKey[k];
-        if (!bSku) { unusedN++; return; }
-        const row = state.invRows[bSku];
-        if (!row || !row.invSku) { unusedN++; return; }
-        if (row.isManual) manualN++;
-        else autoN++;
-      });
-
-      let html = '<div class="oum-inv-toolbar">';
-      html += `<span><b style="color:#92400E">📋 자동 매칭</b> · 옵션 ${autoN}건 / 수동 ${manualN}건 / 미사용 ${unusedN}건</span>`;
-      html += `<button class="auto-btn" data-inv-auto type="button">⚡ 재고관리 자동 매칭</button>`;
-      html += '</div>';
-
       if (!state.applied) {
-        html += `<div style="padding:60px 20px; text-align:center; color:#9ca3af; background:#fff; border:2px dashed #FBBF24; border-radius:8px;">
+        return `<div style="padding:60px 20px; text-align:center; color:#9CA3AF; background:#fff; border:2px dashed #FBBF24; border-radius:8px;">
           <div style="font-size:32px; margin-bottom:10px;">⬅</div>
           <div style="font-size:13px; font-weight:600; color:#92400E;">좌측에서 옵션 만들고 [적용 →] 클릭하면 활성화</div>
         </div>`;
-        return html;
       }
-
-      // B3-3 표 — 매트릭스 셀별 행
-      html += '<div style="overflow:auto; max-height:60vh">';
-      html += '<table class="oum-inv-tbl"><thead><tr>';
-      html += '<th style="width:130px">매트릭스 셀</th>';
-      html += '<th style="width:130px">재고관리 SKU</th>';
-      html += '<th>모델</th>';
-      html += '<th>색상</th>';
-      html += '<th style="width:70px">사이즈</th>';
-      html += '<th style="width:70px">상태</th>';
-      html += '</tr></thead><tbody>';
 
       if (selectedKeys.length === 0) {
-        html += '<tr><td colspan="6" style="text-align:center; padding:30px; color:#9CA3AF">좌측 매트릭스에서 옵션 선택 후 [적용→] 클릭</td></tr>';
-      } else {
-        selectedKeys.forEach(k => {
-          const bSku = skuByKey[k];
-          const row = (bSku && state.invRows[bSku]) || { invSku: '', model: '', color: '', size: '', isManual: false };
-          const cellLabel = k.replace(/^\[/, '').replace(/\]$/, '').replace(/","/g, ' × ').replace(/"/g, '');
-          let cls = '';
-          let stat = '';
-          if (row.invSku) {
-            if (row.isManual) { cls = 'manual'; stat = '<span class="stat-manual">수정</span>'; }
-            else { cls = 'auto-matched'; stat = '<span class="stat-ok">✓ 자동</span>'; }
-          } else {
-            cls = ''; stat = '<span class="stat-empty">미매칭</span>';
-          }
-          html += `<tr class="${cls}" data-inv-row='${esc(k)}'>`;
-          html += `<td>${esc(cellLabel)}</td>`;
-          html += `<td><input class="sku-mono" data-inv-fld="invSku" data-key='${esc(k)}' value="${esc(row.invSku || '')}" placeholder="SKU-XXXXXXXX"></td>`;
-          html += `<td><input data-inv-fld="model" data-key='${esc(k)}' value="${esc(row.model || '')}" placeholder="모델"></td>`;
-          html += `<td><input data-inv-fld="color" data-key='${esc(k)}' value="${esc(row.color || '')}" placeholder="색상"></td>`;
-          html += `<td><input data-inv-fld="size" data-key='${esc(k)}' value="${esc(row.size || '')}" placeholder="사이즈"></td>`;
-          html += `<td>${stat}</td>`;
-          html += '</tr>';
-        });
+        return `<div style="padding:50px 20px;text-align:center;color:#9CA3AF;background:#fff;border:1px dashed #BBF7D0;border-radius:8px;font-size:13px">활성 옵션이 없습니다 — 좌측 매트릭스에서 옵션 ON 후 [적용 →]</div>`;
       }
-      html += '</tbody></table>';
+
+      // 액션바 — 정리 + 브랜드/모델 + 자동매칭
+      const valid = validAxes();
+      const groupOpts = [];
+      valid.forEach((ax, i) => {
+        groupOpts.push({ key: 'axis-' + i, label: `축 ${i+1} (${ax.name || '이름없음'})별` });
+      });
+      groupOpts.push({ key: 'flat', label: '그룹화 X (평면)' });
+      groupOpts.push({ key: 'status', label: '매핑 상태별' });
+      const curGrp = groupOpts.find(g => g.key === state.invGroupBy) || groupOpts[0];
+
+      const fb = state.invFilter.brand || state.invBundleMeta.brand || '';
+      const fm = state.invFilter.model || state.invBundleMeta.model_name || '';
+
+      let html = '<div class="oum-inv-action">';
+      html += '<div class="oum-inv-action-left">';
+      html += '<span class="oum-inv-label">정리</span>';
+      html += `<div class="oum-grp-dd"><button class="oum-grp-dd-btn" data-grp-toggle type="button">${esc(curGrp.label)}</button>`;
+      html += `<div class="oum-grp-dd-menu" style="display:none">`;
+      groupOpts.forEach(g => {
+        html += `<div class="oum-grp-dd-it ${g.key === state.invGroupBy ? 'on' : ''}" data-grp-key="${esc(g.key)}">${esc(g.label)}</div>`;
+      });
+      html += `</div></div>`;
       html += '</div>';
 
-      // 범례 + 액션
-      html += '<div class="oum-inv-foot">';
-      html += `<span><span class="legend-sw" style="background:#F0FDF4; border:1px solid #BBF7D0"></span>자동 매칭 ${autoN}건</span>`;
-      html += `<span><span class="legend-sw" style="background:#FFFBEB; border:1px solid #F59E0B"></span>수동 입력 ${manualN}건</span>`;
-      html += `<button class="apply-btn" data-inv-apply type="button">💾 ${selectedKeys.length}건 적용</button>`;
+      html += '<div class="oum-inv-action-right">';
+      html += '<span class="oum-inv-label">매칭</span>';
+      // 브랜드 검색
+      html += `<div class="oum-br-search"><span class="ic">🏷️</span><input id="oum-br-in" type="text" placeholder="브랜드" value="${esc(fb)}" autocomplete="off">`;
+      html += `<div class="oum-br-dd" style="display:none">`;
+      (state.invBrands || []).forEach(b => {
+        const on = b.name === fb;
+        html += `<div class="oum-br-it ${on ? 'on' : ''}" data-br-name="${esc(b.name)}"><span class="swatch">${esc((b.name||'?').slice(0,2))}</span><span class="nm">${esc(b.name)}</span><span class="meta">${b.model_count} 모델 · ${b.option_count} 옵션</span></div>`;
+      });
+      if (fb) html += `<div class="oum-br-it" data-br-clear style="color:#9CA3AF"><span style="font-style:italic">필터 해제 (모든 브랜드)</span></div>`;
+      html += `</div></div>`;
+      html += `<span class="oum-step-arrow">→</span>`;
+      // 모델 검색
+      const modelsForBrand = (state.invModelsByBrand && fb) ? (state.invModelsByBrand[fb] || []) : [];
+      const mdDisabled = !fb ? ' disabled' : '';
+      html += `<div class="oum-md-search${mdDisabled ? ' disabled' : ''}"><span class="ic">🧩</span><input id="oum-md-in" type="text" placeholder="${fb ? '모델' : '브랜드 먼저'}" value="${esc(fm)}" autocomplete="off"${mdDisabled}>`;
+      html += `<div class="oum-md-dd" style="display:none">`;
+      if (fb) html += `<div class="oum-md-grp-h">🏷️ ${esc(fb)}</div>`;
+      modelsForBrand.forEach(m => {
+        const on = m.model_name === fm;
+        html += `<div class="oum-md-it ${on ? 'on' : ''}" data-md-name="${esc(m.model_name)}"><span class="nm">${esc(m.model_name)}</span><span class="meta">${m.option_count} 옵션</span></div>`;
+      });
+      html += `</div></div>`;
+      html += `<button class="oum-auto-btn-sm" data-inv-auto type="button">⚡ 자동 매칭</button>`;
       html += '</div>';
+      html += '</div>';
+
+      // 매칭 범위 안내 (얇게)
+      if (fb && fm) {
+        html += `<div class="oum-inv-filter-hint">🔎 매칭 범위: <b>${esc(fb)}</b> · <b>${esc(fm)}</b></div>`;
+      }
+
+      // 그룹화 + 표
+      const groups = buildInvGroups(selectedKeys, skuByKey, valid);
+      groups.forEach(g => {
+        const cntCls = g.matchedN === g.total ? '' : (g.matchedN === 0 ? ' err' : ' warn');
+        html += `<details class="oum-inv-grp" ${g.open ? 'open' : ''}>`;
+        html += `<summary><span class="val">${esc(g.label)}</span><span class="cnt${cntCls}">${g.matchedN}/${g.total} 매핑</span></summary>`;
+        html += '<table class="oum-inv-tbl-new"><tbody>';
+        g.rows.forEach(r => {
+          const cls = r.cls;  // auto / manual / empty
+          const opt = r.opt;
+          const statHtml = r.status === 'auto'
+            ? '<span class="oum-stat-pill auto">⚡ 자동</span>'
+            : r.status === 'manual'
+              ? '<span class="oum-stat-pill manual">✏️ 수기</span>'
+              : '<span class="oum-stat-pill empty">❌ 미매핑</span>';
+          html += `<tr class="${cls}" data-inv-row='${esc(r.key)}'>`;
+          html += `<td class="oum-col-opt">${esc(r.optLabel)}</td>`;
+          // 제품명 + SKU (또는 input)
+          if (r.status === 'auto' && opt) {
+            html += `<td class="oum-col-prod"><div class="oum-prod-info"><span class="oum-prod-name">${esc(opt.model_name)} ${esc(opt.color)} ${esc(opt.size)}</span><span class="oum-prod-meta">${esc(opt.sku)}</span></div></td>`;
+          } else {
+            const bSku = skuByKey[r.key];
+            const row = (bSku && state.invRows[bSku]) || { invSku: '' };
+            html += `<td class="oum-col-prod"><div class="oum-ac-wrap"><input class="oum-inv-search" data-inv-search-key='${esc(r.key)}' value="${esc(row.invSku || '')}" placeholder="🔍 SKU/제품명 검색..."></div></td>`;
+          }
+          html += `<td class="oum-col-stat">${statHtml}</td>`;
+          html += '</tr>';
+        });
+        html += '</tbody></table>';
+        html += '</details>';
+      });
+
+      // 적용 버튼
+      html += `<div class="oum-inv-foot-new"><button class="oum-apply-btn-new" data-inv-apply type="button">💾 ${selectedKeys.length}건 적용 저장</button></div>`;
+
       return html;
+    }
+
+    // [v20] 그룹화 빌더 — state.invGroupBy 기반 행 묶음
+    function buildInvGroups(selectedKeys, skuByKey, valid) {
+      const groupBy = state.invGroupBy || 'axis-0';
+      // 키 → 행 정보
+      const rows = selectedKeys.map(k => {
+        const bSku = skuByKey[k];
+        const row = (bSku && state.invRows[bSku]) || null;
+        let status = 'empty', cls = 'empty', optMatched = null;
+        if (row && row.invSku) {
+          status = row.isManual ? 'manual' : 'auto';
+          cls = status;
+          optMatched = (state.invOptions || []).find(o => o.sku === row.invSku) || null;
+        }
+        // 축 값 파싱 (k = JSON stringified array)
+        let arr = [];
+        try { arr = JSON.parse(k); } catch (e) { arr = []; }
+        const optLabel = arr.length === 1 ? String(arr[0])
+                       : (arr.slice(1).map(String).join(' · ') || String(arr[0] || ''));
+        const allLabel = arr.map(String).join(' · ');
+        return { key: k, status, cls, opt: optMatched, axes: arr, optLabel, allLabel };
+      });
+
+      // 그룹화
+      const groups = [];  // [{label, rows, total, matchedN, open}]
+      const grpMap = new Map();
+      if (groupBy === 'flat') {
+        groups.push({ label: '전체', rows, total: rows.length,
+                      matchedN: rows.filter(r => r.status !== 'empty').length, open: true });
+      } else if (groupBy === 'status') {
+        const buckets = { auto: [], manual: [], empty: [] };
+        rows.forEach(r => buckets[r.status].push(r));
+        if (buckets.auto.length) groups.push({ label: '⚡ 자동 매칭', rows: buckets.auto, total: buckets.auto.length, matchedN: buckets.auto.length, open: false });
+        if (buckets.manual.length) groups.push({ label: '✏️ 수기 입력', rows: buckets.manual, total: buckets.manual.length, matchedN: buckets.manual.length, open: true });
+        if (buckets.empty.length) groups.push({ label: '❌ 미매핑', rows: buckets.empty, total: buckets.empty.length, matchedN: 0, open: true });
+      } else {
+        // axis-N
+        const axisIdx = parseInt(String(groupBy).split('-')[1] || '0', 10) || 0;
+        rows.forEach(r => {
+          const gv = (r.axes[axisIdx] != null) ? String(r.axes[axisIdx]) : '(없음)';
+          // 그룹 안 행 라벨 = 나머지 축 값
+          const otherVals = r.axes.filter((_, i) => i !== axisIdx).map(String);
+          const innerLabel = otherVals.join(' · ') || gv;
+          if (!grpMap.has(gv)) grpMap.set(gv, []);
+          grpMap.get(gv).push({ ...r, optLabel: innerLabel });
+        });
+        [...grpMap.entries()].forEach(([label, gRows]) => {
+          const matchedN = gRows.filter(r => r.status !== 'empty').length;
+          groups.push({ label, rows: gRows, total: gRows.length, matchedN, open: matchedN < gRows.length });
+        });
+      }
+      return groups;
     }
 
     // ─── 우측 렌더 (시안 v3 C3 — 2탭 분기) ───
@@ -914,10 +1156,27 @@
       const urlCount = countAllUrls();
       const invCount = Object.keys(state.invRows || {}).filter(k => (state.invRows[k] || {}).invSku).length;
 
+      // [v20 D4] 재고 탭 통계 흡수 — 자동/수기/미매핑 카운트
+      let invAuto = 0, invManual = 0, invEmpty = 0;
+      if (state.rightTab === 'inv') {
+        const skuByKey0 = state.skuByKey || {};
+        [...state.selected].forEach(k => {
+          const bSku = skuByKey0[k];
+          const row = (bSku && state.invRows[bSku]) || null;
+          if (!row || !row.invSku) invEmpty++;
+          else if (row.isManual) invManual++;
+          else invAuto++;
+        });
+      }
+      const invStatsHtml = state.rightTab === 'inv'
+        ? `<div class="oum-rt-stats"><span class="ok">자동 <b>${invAuto}</b></span><span class="sep">·</span><span class="wn">수기 <b>${invManual}</b></span><span class="sep">·</span><span class="er">미매핑 <b>${invEmpty}</b></span></div>`
+        : '';
+
       // 탭 nav (항상)
       let html = `<div class="oum-rt-tabs">
         <button class="oum-rt-tab ${state.rightTab === 'url' ? 'on' : ''}" data-rt-tab="url" type="button">📍 소싱처 URL 매핑 <span class="cnt">${urlCount}</span></button>
         <button class="oum-rt-tab ${state.rightTab === 'inv' ? 'on' : ''}" data-rt-tab="inv" type="button">📋 재고관리 매핑 <span class="cnt">${invCount}</span></button>
+        ${invStatsHtml}
       </div>`;
 
       if (state.rightTab === 'inv') {
@@ -1556,10 +1815,71 @@
       }
       // [B3-3] 재고 자동 매칭 버튼
       if (e.target.closest('[data-inv-auto]')) {
+        // [v20] 필터(브랜드+모델) 가 변경됐을 수 있으니 서버에 재요청 후 자동 매칭
+        const fb = state.invFilter.brand || '';
+        const fm = state.invFilter.model || '';
+        const qs = (fb || fm) ? `?brand=${encodeURIComponent(fb)}&model=${encodeURIComponent(fm)}` : '';
+        try {
+          const r = await fetch(`/api/bundles/${encodeURIComponent(bundleCode)}/inventory-mapping${qs}`);
+          const ij = await r.json();
+          if (ij && ij.ok) {
+            state.invCandidates = ij.candidates || {};
+            state.invOptions = ij.inventory_options || [];
+          }
+        } catch (err) { /* fallback to cached candidates */ }
         invAutoMatch();
         renderRight();
         rerender();
         return;
+      }
+      // [v20] 정리 기준 드롭다운 토글
+      const grpTog = e.target.closest('[data-grp-toggle]');
+      if (grpTog) {
+        const menu = grpTog.parentElement.querySelector('.oum-grp-dd-menu');
+        if (menu) menu.style.display = menu.style.display === 'none' ? 'block' : 'none';
+        return;
+      }
+      const grpIt = e.target.closest('[data-grp-key]');
+      if (grpIt) {
+        state.invGroupBy = grpIt.dataset.grpKey;
+        renderRight();
+        return;
+      }
+      // [v20] 브랜드 선택
+      const brIt = e.target.closest('[data-br-name]');
+      if (brIt) {
+        state.invFilter.brand = brIt.dataset.brName;
+        state.invFilter.model = '';  // 브랜드 바뀌면 모델 초기화
+        renderRight();
+        return;
+      }
+      if (e.target.closest('[data-br-clear]')) {
+        state.invFilter.brand = '';
+        state.invFilter.model = '';
+        renderRight();
+        return;
+      }
+      // [v20] 모델 선택
+      const mdIt = e.target.closest('[data-md-name]');
+      if (mdIt) {
+        state.invFilter.model = mdIt.dataset.mdName;
+        renderRight();
+        return;
+      }
+      // [v20] 브랜드/모델 input 클릭 — dropdown 열기
+      if (e.target.id === 'oum-br-in') {
+        const dd = e.target.parentElement.querySelector('.oum-br-dd');
+        if (dd) dd.style.display = 'block';
+        return;
+      }
+      if (e.target.id === 'oum-md-in' && !e.target.disabled) {
+        const dd = e.target.parentElement.querySelector('.oum-md-dd');
+        if (dd) dd.style.display = 'block';
+        return;
+      }
+      // 외부 클릭 시 dropdown 닫기
+      if (!e.target.closest('.oum-br-search') && !e.target.closest('.oum-md-search') && !e.target.closest('.oum-grp-dd')) {
+        modal.querySelectorAll('.oum-br-dd, .oum-md-dd, .oum-grp-dd-menu').forEach(d => d.style.display = 'none');
       }
       // [B3-3] 적용 버튼 — 매핑 서버 저장
       if (e.target.closest('[data-inv-apply]')) {
@@ -1675,6 +1995,20 @@
 
     // [B3-3] 재고관리 매핑 표 인라인 편집
     $('#oum-right').addEventListener('input', e => {
+      // [v20] 새 oum-inv-search input — 수기 입력 시 invRows 갱신
+      const searchInp = e.target.closest('[data-inv-search-key]');
+      if (searchInp) {
+        const k = searchInp.dataset.invSearchKey;
+        const skuByKey = state.skuByKey || {};
+        const bSku = skuByKey[k];
+        if (!bSku) return;
+        if (!state.invRows[bSku]) state.invRows[bSku] = {};
+        state.invRows[bSku].invSku = searchInp.value.trim();
+        state.invRows[bSku].isManual = true;
+        if (searchInp.value.trim()) state.invMappedKeys.add(k);
+        else state.invMappedKeys.delete(k);
+        return;
+      }
       const invInp = e.target.closest('[data-inv-fld]');
       if (invInp) {
         const k = invInp.dataset.key;
