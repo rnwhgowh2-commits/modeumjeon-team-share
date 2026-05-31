@@ -62,11 +62,17 @@ def upload_attachment():
     file.seek(0)
     if size > MAX_BYTES:
         return jsonify(error='10MB 초과'), 400
-    ATTACHMENT_DIR.mkdir(parents=True, exist_ok=True)
     safe_name = secrets.token_hex(8) + '.' + ext
-    file.save(str(ATTACHMENT_DIR / safe_name))
+    from config import Config
+    if Config.R2_ENABLED:
+        from shared import storage
+        url = storage.put_upload(file, f'attachment/{safe_name}')
+    else:
+        ATTACHMENT_DIR.mkdir(parents=True, exist_ok=True)
+        file.save(str(ATTACHMENT_DIR / safe_name))
+        url = f'/inventory/api/attachment/{safe_name}'
     return jsonify(
-        url=f'/inventory/api/attachment/{safe_name}',
+        url=url,
         name=file.filename,
         size=size,
         stored=safe_name,
