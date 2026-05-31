@@ -583,11 +583,11 @@
       state.invBrands = ij.brands || [];
       state.invModelsByBrand = ij.models_by_brand || {};
       state.invBundleMeta = ij.bundle_meta || { brand: '', model_name: '', model_code: '' };
-      // 초기 필터 = 서버가 적용한 값 (없으면 bundle_meta)
+      // [v20.6] 초기 필터 = 서버가 받은 값 그대로 (공란이면 공란 유지, bundle_meta fallback 없음)
       if (ij.filter_applied) {
         state.invFilter = {
-          brand: ij.filter_applied.brand || state.invBundleMeta.brand || '',
-          model: ij.filter_applied.model || state.invBundleMeta.model_name || '',
+          brand: ij.filter_applied.brand || '',
+          model: ij.filter_applied.model || '',
         };
       }
       state.invMappedKeys = new Set();
@@ -1033,13 +1033,9 @@
       groupOpts.push({ key: 'status', label: '매핑 상태별' });
       const curGrp = groupOpts.find(g => g.key === state.invGroupBy) || groupOpts[0];
 
-      // [v20.4] 사용자가 직접 설정했으면 그 값 그대로, 아니면 bundle_meta 로 자동 추론
-      const fb = state.invFilterUserSet.brand
-        ? state.invFilter.brand
-        : (state.invFilter.brand || state.invBundleMeta.brand || '');
-      const fm = state.invFilterUserSet.model
-        ? state.invFilter.model
-        : (state.invFilter.model || state.invBundleMeta.model_name || '');
+      // [v20.6] invFilter 그대로 사용 (bundle_meta 자동 추론 제거 — 초기엔 공란)
+      const fb = state.invFilter.brand || '';
+      const fm = state.invFilter.model || '';
 
       let html = '<div class="oum-inv-action">';
       html += '<div class="oum-inv-action-left">';

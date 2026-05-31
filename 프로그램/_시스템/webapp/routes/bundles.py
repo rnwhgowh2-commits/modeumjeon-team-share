@@ -1246,11 +1246,12 @@ def api_get_inventory_mapping(code):
         if not m:
             return jsonify({'ok': False, 'error': 'bundle not found'}), 404
 
-        # [v20] 브랜드+모델 필터 — Query Param 우선, 없으면 모음전 자체값
+        # [v20.6] 브랜드+모델 필터 — Query Param 명시한 경우만. 빈값이면 전체 풀에서 매칭.
+        #   사용자 의도: 처음엔 공란 → 사용자가 직접 선택. bundle_meta 자동 추론 안 함.
         bundle_brand = (m.brand or '').strip()
         bundle_model_name = (m.model_name_display or m.model_name_raw or '').strip()
-        filter_brand = (request.args.get('brand') or bundle_brand).strip()
-        filter_model = (request.args.get('model') or bundle_model_name).strip()
+        filter_brand = (request.args.get('brand') or '').strip()
+        filter_model = (request.args.get('model') or '').strip()
 
         # 1. 모음전 옵션
         bundle_opts = s.query(Option).filter_by(model_code=code).all()
