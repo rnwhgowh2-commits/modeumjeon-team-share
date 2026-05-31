@@ -295,8 +295,11 @@
       .oum-col-prod { color:#191F28; }
       .oum-col-stat { width:90px; text-align:center; }
       .oum-prod-info { display:flex; flex-direction:column; gap:2px; }
-      .oum-prod-name { font-weight:600; font-size:13px; color:#191F28; }
+      .oum-prod-name { font-weight:600; font-size:13px; color:#191F28; display:inline-flex; align-items:center; gap:6px; }
       .oum-prod-meta { font-size:11px; color:#15803d; font-family:ui-monospace,monospace; font-weight:600; }
+      /* [v20.4] 수기 매핑 행의 ✎ 다시 입력 버튼 */
+      .oum-row-reedit { background:#fff; border:1px solid #FCD34D; color:#92400E; width:22px; height:22px; border-radius:5px; font-size:11px; cursor:pointer; padding:0; line-height:1; display:inline-flex; align-items:center; justify-content:center; transition:all .12s; }
+      .oum-row-reedit:hover { background:#FFFBEB; border-color:#F59E0B; }
       /* 상태 뱃지 (한 줄, min-width 보장) */
       .oum-stat-pill { padding:3px 10px; border-radius:99px; font-size:12px; font-weight:700; color:#fff; white-space:nowrap; display:inline-flex; align-items:center; gap:3px; min-width:54px; justify-content:center; }
       .oum-stat-pill.auto { background:#03A65A; }
@@ -507,6 +510,8 @@
       invModelsByBrand: {},                   // {brand: [{model_name, option_count}]}
       invBundleMeta: { brand: '', model_name: '', model_code: '' },  // 모음전 자체 메타 (자동 추론용)
       invFilter: { brand: '', model: '' },    // 사용자 선택 필터 (없으면 bundle_meta 사용)
+      // [v20.4] 사용자가 직접 변경했는지 추적 — 변경 후엔 bundle_meta fallback 안 함
+      invFilterUserSet: { brand: false, model: false },
       invGroupBy: 'axis-0',                   // 그룹화 기준 — 'axis-0' / 'axis-1' / ... / 'flat' / 'status'
       invBrandDdOpen: false,
       invModelDdOpen: false,
@@ -1028,8 +1033,13 @@
       groupOpts.push({ key: 'status', label: '매핑 상태별' });
       const curGrp = groupOpts.find(g => g.key === state.invGroupBy) || groupOpts[0];
 
-      const fb = state.invFilter.brand || state.invBundleMeta.brand || '';
-      const fm = state.invFilter.model || state.invBundleMeta.model_name || '';
+      // [v20.4] 사용자가 직접 설정했으면 그 값 그대로, 아니면 bundle_meta 로 자동 추론
+      const fb = state.invFilterUserSet.brand
+        ? state.invFilter.brand
+        : (state.invFilter.brand || state.invBundleMeta.brand || '');
+      const fm = state.invFilterUserSet.model
+        ? state.invFilter.model
+        : (state.invFilter.model || state.invBundleMeta.model_name || '');
 
       let html = '<div class="oum-inv-action">';
       html += '<div class="oum-inv-action-left">';
@@ -1091,9 +1101,14 @@
               : '<span class="oum-stat-pill empty">❌ 미매핑</span>';
           html += `<tr class="${cls}" data-inv-row='${esc(r.key)}'>`;
           html += `<td class="oum-col-opt">${esc(r.optLabel)}</td>`;
-          // 제품명 + SKU (또는 input)
-          if (r.status === 'auto' && opt) {
-            html += `<td class="oum-col-prod"><div class="oum-prod-info"><span class="oum-prod-name">${esc(opt.model_name)} ${esc(opt.color)} ${esc(opt.size)}</span><span class="oum-prod-meta">${esc(opt.sku)}</span></div></td>`;
+          // [v20.4] 자동/수기 매핑 완료 (opt 있음) = 동일 양식 (모델명+색상+사이즈 + SKU)
+          //         미매핑 = 검색 input
+          if (opt) {
+            // 수기 행에도 "다시 입력" 버튼 (data-inv-reedit) 제공 → 클릭 시 input 모드
+            const reEdit = r.status === 'manual'
+              ? `<button class="oum-row-reedit" data-inv-reedit='${esc(r.key)}' title="다시 입력" type="button">✎</button>`
+              : '';
+            html += `<td class="oum-col-prod"><div class="oum-prod-info"><span class="oum-prod-name">${esc(opt.model_name)} ${esc(opt.color)} ${esc(opt.size)} ${reEdit}</span><span class="oum-prod-meta">${esc(opt.sku)}</span></div></td>`;
           } else {
             const bSku = skuByKey[r.key];
             const row = (bSku && state.invRows[bSku]) || { invSku: '' };
@@ -1876,12 +1891,17 @@
       if (brIt) {
         state.invFilter.brand = brIt.dataset.brName;
         state.invFilter.model = '';  // 브랜드 바뀌면 모델 초기화
+        // [v20.4] 사용자 직접 설정 — bundle_meta fallback 비활성 (모델 input 공란 유지)
+        state.invFilterUserSet.brand = true;
+        state.invFilterUserSet.model = true;
         renderRight();
         return;
       }
       if (e.target.closest('[data-br-clear]')) {
         state.invFilter.brand = '';
         state.invFilter.model = '';
+        state.invFilterUserSet.brand = true;
+        state.invFilterUserSet.model = true;
         renderRight();
         return;
       }
@@ -1889,6 +1909,21 @@
       const mdIt = e.target.closest('[data-md-name]');
       if (mdIt) {
         state.invFilter.model = mdIt.dataset.mdName;
+        state.invFilterUserSet.model = true;
+        renderRight();
+        return;
+      }
+      // [v20.4] 수기 행의 ✎ 다시 입력 — invRows[bSku] 비우고 input 모드로
+      const reEdit = e.target.closest('[data-inv-reedit]');
+      if (reEdit) {
+        e.stopPropagation();
+        const k = reEdit.dataset.invReedit;
+        const skuByKey = state.skuByKey || {};
+        const bSku = skuByKey[k];
+        if (bSku && state.invRows[bSku]) {
+          delete state.invRows[bSku];
+          state.invMappedKeys.delete(k);
+        }
         renderRight();
         return;
       }
@@ -2049,8 +2084,13 @@
       const q = (input.value || '').trim().toLowerCase();
       if (!q || q.length < 1) return;
       // brand/model 필터 우선 + 텍스트 매칭
-      const fb = state.invFilter.brand || state.invBundleMeta.brand || '';
-      const fm = state.invFilter.model || state.invBundleMeta.model_name || '';
+      // [v20.4] 사용자 직접 설정 우선
+      const fb = state.invFilterUserSet.brand
+        ? state.invFilter.brand
+        : (state.invFilter.brand || state.invBundleMeta.brand || '');
+      const fm = state.invFilterUserSet.model
+        ? state.invFilter.model
+        : (state.invFilter.model || state.invBundleMeta.model_name || '');
       const matched = [];
       for (const o of (state.invOptions || [])) {
         const hay = `${o.brand} ${o.model_name} ${o.color} ${o.size} ${o.sku}`.toLowerCase();
