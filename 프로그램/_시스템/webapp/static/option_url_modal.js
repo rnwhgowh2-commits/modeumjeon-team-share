@@ -1580,8 +1580,18 @@
       const cell = e.target.closest('[data-cell-key]');
       if (cell) {
         const k = cell.dataset.cellKey;
-        if (state.selected.has(k)) state.selected.delete(k);
-        else state.selected.add(k);
+        // [v20.3 fix] mappedOff (URL/재고 매핑 데이터 살아있는 셀) 도 ON 으로 보이므로
+        //   "active = selected OR mappedOff" 기준으로 토글. 안 그러면 mappedOff 셀
+        //   첫 클릭이 단순 add 만 돼서 시각 변화 0 → 사용자에겐 "안 먹힘" 버그.
+        const inSel = state.selected.has(k);
+        const inMappedOff = state.mappedOff && state.mappedOff.has(k);
+        const wasActive = inSel || inMappedOff;
+        if (wasActive) {
+          state.selected.delete(k);
+          if (state.mappedOff) state.mappedOff.delete(k);
+        } else {
+          state.selected.add(k);
+        }
         rerender();
         return;
       }
