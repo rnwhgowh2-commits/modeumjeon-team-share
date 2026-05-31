@@ -51,15 +51,21 @@ def data_item_upload_image(sku):
     if ext not in ('jpg', 'jpeg', 'png', 'webp', 'gif'):
         flash('이미지 형식 jpg/png/webp/gif 만 가능', 'error')
         return redirect(url_for('inventory.data_items'))
-    UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
     safe = sku.replace('/', '_').replace(' ', '_')
     fname = f'{safe}.{ext}'
-    file.save(str(UPLOAD_DIR / fname))
+    from config import Config
+    if Config.R2_ENABLED:
+        from shared import storage
+        new_url = storage.put_upload(file, f'product/{fname}')
+    else:
+        UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+        file.save(str(UPLOAD_DIR / fname))
+        new_url = f'/inventory/data/product-image/{fname}'
     s = SessionLocal()
     try:
         opt = s.query(Option).filter(Option.canonical_sku == sku).first()
         if opt:
-            opt.image_url = f'/inventory/data/product-image/{fname}'
+            opt.image_url = new_url
             s.commit()
             flash(f'이미지 업로드 완료 — {sku}', 'success')
     finally:
@@ -407,7 +413,6 @@ def data_item_update(sku):
         if file and file.filename:
             ext = file.filename.rsplit('.', 1)[-1].lower()
             if ext in ('jpg', 'jpeg', 'png', 'webp', 'gif'):
-                UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
                 # [2026-05-29 2부-1] 모델+색상 그룹 키로 저장 → 같은 모델·색상 모든 옵션 공유
                 #   파일명: img_<model_code>_<color>.<ext> (sanitize)
                 import re as _re
@@ -416,8 +421,14 @@ def data_item_update(sku):
                 safe_model = _re.sub(r'[^A-Za-z0-9가-힣_\-]', '_', model_key)[:40]
                 safe_color = _re.sub(r'[^A-Za-z0-9가-힣_\-]', '_', color_key)[:30]
                 fname = f'img_{safe_model}_{safe_color}.{ext}'
-                file.save(str(UPLOAD_DIR / fname))
-                new_url = f'/inventory/data/product-image/{fname}'
+                from config import Config
+                if Config.R2_ENABLED:
+                    from shared import storage
+                    new_url = storage.put_upload(file, f'product/{fname}')
+                else:
+                    UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+                    file.save(str(UPLOAD_DIR / fname))
+                    new_url = f'/inventory/data/product-image/{fname}'
                 # 본 옵션
                 if hasattr(opt, 'image_url'):
                     opt.image_url = new_url
