@@ -18,6 +18,9 @@
 # 소싱처 로그인 쿠키 (per-PC, 민감)
 _시스템/data/auth/
 
+# Wrangler (Cloudflare CLI) 로컬 상태·캐시
+**/.wrangler/
+
 # ─── Python ───
 **/__pycache__/
 **/*.pyc
