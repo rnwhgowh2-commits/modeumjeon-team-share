@@ -153,7 +153,7 @@ def _validate(layout: dict) -> tuple[bool, str]:
 
 # 로드맵 탭 — 저장된 레이아웃에 없으면 렌더 시 standalone 끝에 주입(저장은 안 함).
 #   기존 사용자 레이아웃을 건드리지 않고 모두에게 항상 보이게 함.
-_ROADMAP_ITEM = {'id': 'i_roadmap', 'emoji': '🗺', 'name': '로드맵 · 추가예정',
+_ROADMAP_ITEM = {'id': 'i_roadmap', 'emoji': '🗺', 'name': '로드맵',
                  'url': '/roadmap', 'active_key': 'roadmap', 'badge_key': None}
 
 

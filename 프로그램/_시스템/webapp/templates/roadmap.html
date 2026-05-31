@@ -1,39 +1,85 @@
 {% extends 'base.html' %}
-{% block title %}로드맵 · 추가예정 — 모음전 자동화{% endblock %}
+{% block title %}로드맵 — 모음전 자동화{% endblock %}
 {% block content %}
+<style>
+  #screen-roadmap .principle-card { background:#fff; border:1px solid #EEF1F4; border-radius:12px; padding:16px 20px; margin-bottom:18px; }
+  #screen-roadmap .principle-card h3 { font-size:14px; margin-bottom:7px; }
+  #screen-roadmap .principle { font-size:14px; color:#4E5968; line-height:1.65; }
+  #screen-roadmap .cat { background:#fff; border:1px solid #E5E8EB; border-radius:14px; margin-bottom:16px; overflow:hidden; box-shadow:0 1px 4px rgba(0,0,0,.04); }
+  #screen-roadmap .cat-btn { display:flex; align-items:center; gap:11px; width:100%; padding:17px 20px; border:none; background:#fff; cursor:pointer; font-family:inherit; text-align:left; }
+  #screen-roadmap .cat-btn:hover { background:#FAFBFC; }
+  #screen-roadmap .cat-ico { width:38px; height:38px; border-radius:10px; display:flex; align-items:center; justify-content:center; font-size:20px; background:#ECFDF5; flex:none; }
+  #screen-roadmap .cat-tt { font-size:17px; font-weight:800; color:#191F28; }
+  #screen-roadmap .cat-sub { font-size:12.5px; color:#8B95A1; margin-top:2px; }
+  #screen-roadmap .cat-meta { margin-left:auto; display:flex; align-items:center; gap:12px; flex:none; }
+  #screen-roadmap .cat-prog { font-size:12px; color:#6B7684; white-space:nowrap; }
+  #screen-roadmap .chev { font-size:13px; color:#8B95A1; transition:transform .18s; }
+  #screen-roadmap .cat.collapsed .chev { transform:rotate(-90deg); }
+  #screen-roadmap .cat.collapsed .cat-body { display:none; }
+  #screen-roadmap .cat-body { padding:4px 18px 16px; }
+  #screen-roadmap .step { border-top:1px solid #F2F4F6; padding:14px 6px 14px 8px; display:flex; gap:13px; }
+  #screen-roadmap .step:first-child { border-top:none; }
+  #screen-roadmap .step-num { flex:none; width:26px; height:26px; border-radius:50%; background:#F2F4F6; color:#8B95A1; font-size:12px; font-weight:800; display:flex; align-items:center; justify-content:center; margin-top:1px; }
+  #screen-roadmap .step.done .step-num { background:#E7F9EE; color:#03A65A; }
+  #screen-roadmap .step-tt { font-size:14.5px; font-weight:700; color:#191F28; display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+  #screen-roadmap .badge { display:inline-block; padding:2px 9px; border-radius:10px; font-size:11px; font-weight:700; }
+  #screen-roadmap .b-done { background:#E7F9EE; color:#03A65A; }
+  #screen-roadmap .b-todo { background:#F2F4F6; color:#8B95A1; }
+  #screen-roadmap .step .code { color:#A7AEB6; font-weight:500; font-size:12px; }
+  #screen-roadmap .step ul { margin:7px 0 0; padding-left:17px; color:#4E5968; font-size:13.5px; line-height:1.75; }
+  #screen-roadmap .cat-add { border:1.5px dashed #CBD2D9; background:#FAFBFC; border-radius:14px; padding:18px 20px; display:flex; align-items:center; gap:11px; color:#8B95A1; font-size:14px; font-weight:600; margin-bottom:16px; }
+  #screen-roadmap .cat-add .cat-ico { background:#F2F4F6; }
+  #screen-roadmap .notes { background:#F9FAFB; border:1px solid #EEF1F4; border-radius:12px; padding:14px 20px; }
+  #screen-roadmap .notes h3 { font-size:13px; margin-bottom:6px; color:#6B7684; }
+  #screen-roadmap .notes ul { margin:0; padding-left:17px; color:#6B7684; font-size:13px; line-height:1.75; }
+</style>
 <section class="screen active" id="screen-roadmap">
-  <h1>🗺 로드맵 · 추가예정 기능</h1>
-  <p class="greeting">우리 모음전 자동화에 더할 기능들. 까먹지 않게 여기 모아둡니다.</p>
+  <h1>🗺 로드맵</h1>
+  <p class="greeting">우리 모음전 자동화에 더할 기능들. 분야별 대분류로 묶어둡니다. (까먹지 않게)</p>
 
-  <div class="card" style="margin-bottom:16px">
-    <h3 style="margin:0 0 8px">📐 데이터 관리 원칙</h3>
-    <div style="font-size:14px;color:#4E5968;line-height:1.6">{{ roadmap.principle }}</div>
+  <div class="principle-card">
+    <h3>📐 데이터 관리 원칙</h3>
+    <div class="principle">{{ roadmap.principle }}</div>
   </div>
 
-  {% for ph in roadmap.phases %}
-  <div class="card" style="margin-bottom:12px">
-    <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;flex-wrap:wrap">
-      {% if ph.status == 'done' %}
-        <span style="display:inline-block;padding:2px 9px;border-radius:11px;background:#E7F9EE;color:#03A65A;font-size:12px;font-weight:700">✓ 완료{% if ph.when %} · {{ ph.when }}{% endif %}</span>
-      {% elif ph.status == 'doing' %}
-        <span style="display:inline-block;padding:2px 9px;border-radius:11px;background:#EBF3FE;color:#3182F6;font-size:12px;font-weight:700">진행중</span>
-      {% else %}
-        <span style="display:inline-block;padding:2px 9px;border-radius:11px;background:#F2F4F6;color:#8B95A1;font-size:12px;font-weight:700">예정</span>
-      {% endif %}
-      <strong style="font-size:15px;color:#191F28">{{ ph.title }}</strong>
+  {% for cat in roadmap.categories %}
+  <div class="cat">
+    <button class="cat-btn" type="button" onclick="this.closest('.cat').classList.toggle('collapsed')">
+      <div class="cat-ico">{{ cat.icon }}</div>
+      <div>
+        <div class="cat-tt">{{ cat.title }}</div>
+        <div class="cat-sub">{{ cat.subtitle }}</div>
+      </div>
+      <div class="cat-meta"><span class="cat-prog">{{ cat.progress }}</span><span class="chev">▼</span></div>
+    </button>
+    <div class="cat-body">
+      {% for st in cat['steps'] %}
+      <div class="step {% if st.status == 'done' %}done{% endif %}">
+        <div class="step-num">{{ st.num }}</div>
+        <div>
+          <div class="step-tt">
+            <span class="badge {% if st.status == 'done' %}b-done{% else %}b-todo{% endif %}">{{ st.tag }}</span>
+            {{ st.title }}{% if st.code %} <span class="code">{{ st.code }}</span>{% endif %}
+          </div>
+          <ul>{% for it in st['items'] %}<li>{{ it }}</li>{% endfor %}</ul>
+        </div>
+      </div>
+      {% endfor %}
     </div>
-    <ul style="margin:0;padding-left:18px;color:#4E5968;font-size:14px;line-height:1.75">
-      {% for it in ph['items'] %}<li>{{ it }}</li>{% endfor %}
-    </ul>
   </div>
   {% endfor %}
 
+  {% if roadmap.future_hint %}
+  <div class="cat-add">
+    <div class="cat-ico">＋</div>
+    <div>{{ roadmap.future_hint }}</div>
+  </div>
+  {% endif %}
+
   {% if roadmap.notes %}
-  <div class="card" style="background:#F9FAFB;border:1px solid #EEF1F4">
-    <h3 style="margin:0 0 8px">📝 메모</h3>
-    <ul style="margin:0;padding-left:18px;color:#6B7684;font-size:13px;line-height:1.75">
-      {% for n in roadmap.notes %}<li>{{ n }}</li>{% endfor %}
-    </ul>
+  <div class="notes">
+    <h3>📝 메모</h3>
+    <ul>{% for n in roadmap.notes %}<li>{{ n }}</li>{% endfor %}</ul>
   </div>
   {% endif %}
 </section>
