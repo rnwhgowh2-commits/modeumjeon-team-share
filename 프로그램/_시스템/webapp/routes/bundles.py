@@ -1265,14 +1265,12 @@ def api_get_inventory_mapping(code):
         for ln in links:
             mappings.setdefault(ln.bundle_option_sku, []).append(ln.inventory_option_sku)
 
-        # 3. 재고관리 옵션 — 자기 자신 SKU 만 제외 (모음전 자체 옵션)
-        #   [v20.10 2026-06-01] 이전: Option.model_code != code → 모음전 코드와 동일한
-        #   재고관리 모델 (예: 르무통_메이트 모음전 ↔ 재고관리 메이트 134개) 통째로 제외돼
-        #   매핑 dropdown 에서 자기 모델이 빠지고 자동 매칭이 다른 모델로 잘못 됨.
-        #   수정: 자기 옵션의 canonical_sku 만 제외 → 같은 model_code 라도 메이트는 후보 풀에 포함.
+        # 3. 재고관리 옵션 — 전체 옵션 (필터 없음, 자기 자신 SKU 포함)
+        #   [v20.11 2026-06-01] 모음전 옵션 = 재고관리 옵션 동일 row 케이스
+        #   (르무통·잔스포츠·빔즈 — model_code 공유) 에서 자기 SKU 제외 시 자기 모델 통째로 빠짐.
+        #   해결: 필터 자체 제거 → 모든 옵션 후보 풀 포함. dropdown 에 자기 모델 표시되어
+        #   사용자가 동일 SKU 와 매핑 가능 (자기 자신 매핑 방지는 POST 저장 시 처리 — 1422 라인).
         inv_opts_q = s.query(Option, Model).join(
-            Model, Option.model_code == Model.model_code
-        ).filter(~Option.canonical_sku.in_(bundle_skus)) if bundle_skus else s.query(Option, Model).join(
             Model, Option.model_code == Model.model_code
         )
         inv_opts = inv_opts_q.all()
