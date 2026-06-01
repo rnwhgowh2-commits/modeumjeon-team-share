@@ -1125,12 +1125,13 @@
             {# v23 — 모델 열 삭제 (드로어/사이드바에서만 보임) #}
             <th class="center" style="width:50px">자동</th>
             <th style="width:300px">판매가 · 마켓별</th>
-            <th class="center stock-col" style="width:230px">재고</th>
+            {# [v20.9 2026-06-01] "재고" 컬럼 삭제 — 판매가·마켓별 카드의 '사입' 영역에 재고 정보 이미 포함.
+               옵션↔재고 매핑은 옵션 모달 [📋 재고관리 매핑] 탭에서. #}
             {# 사이트 칼럼은 JS 가 동적 삽입 (.th-site-col 클래스) #}
           </tr>
         </thead>
         <tbody id="price-matrix-body">
-          <tr><td colspan="5" style="padding:24px;text-align:center;color:var(--n500)">로딩 중…</td></tr>
+          <tr><td colspan="4" style="padding:24px;text-align:center;color:var(--n500)">로딩 중…</td></tr>
         </tbody>
       </table>
       </div>
@@ -4614,7 +4615,7 @@
     // 📡 D2 — 세로 카드 그리드 (가격 + 재고 + 업데이트일)
     const sources = o.sources || [];
     if (!sources.length) {
-      return `<tr class="verify-row" data-verify-row="${o.sku}"><td></td><td colspan="5"><div class="d2-src-empty">📡 등록된 소싱처 URL 없음 — 위 인스펙터에서 추가</div></td></tr>`;
+      return `<tr class="verify-row" data-verify-row="${o.sku}"><td></td><td colspan="4"><div class="d2-src-empty">📡 등록된 소싱처 URL 없음 — 위 인스펙터에서 추가</div></td></tr>`;
     }
     // 최저가 (가격 있는 것만 비교)
     const prices = sources.map(s => s.crawled_price).filter(p => p != null && p > 0);
@@ -4648,7 +4649,7 @@
         ${body}
       </div>`;
     }
-    return `<tr class="verify-row" data-verify-row="${o.sku}"><td></td><td colspan="5">
+    return `<tr class="verify-row" data-verify-row="${o.sku}"><td></td><td colspan="4">
       <div class="verify-row-label">📡 소싱처 가격 비교</div>
       <div class="d2-sources">${cards}</div>
     </td></tr>`;
@@ -4943,7 +4944,7 @@
         {# v23 — 모델 열 삭제 #}
         <td class="center"><label class="switch"><input type="checkbox" data-auto-toggle="${o.sku}" ${o.auto_enabled ? 'checked':''}><span class="switch-slider"></span></label></td>
         <td class="mc-unified-cell">${renderM4Stack(o)}</td>
-        <td class="stock-col">${renderStockCell(o)}</td>
+        {# [v20.9] 재고 컬럼 td 제거 — 판매가·마켓별 카드의 '사입' 섹션에 재고 정보 포함됨 #}
         ${siteCells}
       </tr>`;
       // 자동 모드 ▼ 펼침 영역 (계산식 산출과정) — fx 버튼으로 진입
