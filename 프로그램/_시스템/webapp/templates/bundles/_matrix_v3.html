@@ -4551,21 +4551,17 @@
   function renderStockCell(o) {
     const v = o.manual_stock != null ? o.manual_stock : '';
     const invId = getInvId(o);
-    const invLink = renderInvLinkCell(o);
-    // v20 G3 — 미연동 옵션 = [+ 재고관리] 버튼만 (input 숨김)
-    // v23 — 안내 문구 삭제 (버튼 자체가 의미 전달)
+    // [v20.9 2026-06-01] "재고제품 연결" 카드 제거 — 옵션 모달의 [📋 재고관리 매핑] 탭에 통합됨
+    //   미연동 옵션 = 안내만 / LIVE 옵션 = 수량·상태 + 입출고 이력만 표시
     if (!invId) {
       return `<div class="cell-stock-wrap stock-local">
-        ${invLink}
-        <button type="button" class="stock-local-btn" data-act="inv-add" data-sku="${escapeHtml(o.sku)}">＋ 제품 목록에 추가</button>
+        <div class="stock-local-empty" style="padding:14px;text-align:center;color:#9CA3AF;font-size:11.5px;line-height:1.6">
+          미연동<br><span style="font-size:10.5px;color:#6B7684">옵션 모달 [📋 재고관리 매핑] 탭에서 연결</span>
+        </div>
       </div>`;
     }
-    // v20 G3 — LIVE 옵션 = 라벨 grid + separator + 이력 타이틀
+    // v20.9 — LIVE 옵션 = 수량 · 상태 + 입출고 이력 (재고제품 연결 카드 제거)
     return `<div class="cell-stock-wrap stock-live skv2">
-      <div class="skv2-card">
-        <div class="skv2-h">재고제품 연결</div>
-        ${invLink}
-      </div>
       <div class="skv2-card">
         <div class="skv2-h">수량 · 상태</div>
         <div class="skv2-fld">
