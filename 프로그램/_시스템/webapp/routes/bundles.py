@@ -1269,7 +1269,8 @@ def api_get_inventory_mapping(code):
         #   [v20.11 2026-06-01] 모음전 옵션 = 재고관리 옵션 동일 row 케이스
         #   (르무통·잔스포츠·빔즈 — model_code 공유) 에서 자기 SKU 제외 시 자기 모델 통째로 빠짐.
         #   해결: 필터 자체 제거 → 모든 옵션 후보 풀 포함. dropdown 에 자기 모델 표시되어
-        #   사용자가 동일 SKU 와 매핑 가능 (자기 자신 매핑 방지는 POST 저장 시 처리 — 1422 라인).
+        #   사용자가 동일 SKU 와 매핑 가능. [2026-06-02] POST 저장도 self 매핑 허용으로
+        #   일치시킴 (이전엔 POST 가 self 를 차단해 102건→8건만 저장되던 모순 버그).
         inv_opts_q = s.query(Option, Model).join(
             Model, Option.model_code == Model.model_code
         )
@@ -1417,8 +1418,12 @@ def api_save_inventory_mapping(code):
             for inv_sku in inv_list:
                 if not isinstance(inv_sku, str):
                     continue
-                if inv_sku == b_sku:           # 자기 자신 매핑 방지
-                    continue
+                # [2026-06-02 BUG FIX] 자기 자신 매핑 허용.
+                #   르무통·잔스포츠·빔즈 등 모음전 옵션 = 재고관리 옵션이 같은 row(model_code 공유)
+                #   인 경우, 정상 매핑이 곧 동일 SKU(identity)다. 이전엔 여기서 차단해
+                #   자동매칭 102건 중 self 매핑 94건이 조용히 버려지고 8건만 저장되는 버그였음.
+                #   GET(api_get_inventory_mapping, line ~1271) 은 이미 self 후보를 의도적으로
+                #   포함 → 저장도 일치시켜 허용. (UNIQUE(bundle,inventory) 로 중복은 차단됨.)
                 if inv_sku in seen:            # 같은 매핑 중복 방지
                     continue
                 if inv_sku not in all_skus:    # 존재하지 않는 sku 차단
