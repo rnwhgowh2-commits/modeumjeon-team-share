@@ -439,6 +439,11 @@
       .oum-shared-tip.below .arrow::before { content:''; position:absolute; top:1px; left:-7px; width:0; height:0; border:7px solid transparent; border-bottom-color:#d1d6db; z-index:-1; }
       .oum-shared-tip.above .arrow { top:100%; left:50%; transform:translateX(-50%); border-top-color:#fff; }
       .oum-shared-tip.above .arrow::before { content:''; position:absolute; bottom:1px; left:-7px; width:0; height:0; border:7px solid transparent; border-top-color:#d1d6db; z-index:-1; }
+      /* [v25-A 2026-06-01] 가로 placement — 카드를 셀 우측/좌측 옆에 띄움 (위·아래 인접 행 안 가림) */
+      .oum-shared-tip.right .arrow { right:100%; top:50%; transform:translateY(-50%); border-right-color:#fff; }
+      .oum-shared-tip.right .arrow::before { content:''; position:absolute; left:1px; top:-7px; width:0; height:0; border:7px solid transparent; border-right-color:#d1d6db; z-index:-1; }
+      .oum-shared-tip.left .arrow { left:100%; top:50%; transform:translateY(-50%); border-left-color:#fff; }
+      .oum-shared-tip.left .arrow::before { content:''; position:absolute; right:1px; top:-7px; width:0; height:0; border:7px solid transparent; border-left-color:#d1d6db; z-index:-1; }
       .oum-shared-tip .stp-grp { background:#FAFBFC; border-radius:10.5px; padding:15.75px 13.5px; margin-bottom:9px; }
       .oum-shared-tip .stp-grp:last-child { margin-bottom:0; }
       .oum-shared-tip .stp-grp-h { display:flex; align-items:center; gap:10.5px; margin-bottom:7.5px; padding-bottom:6px; border-bottom:1px dashed #e5e8eb; text-align:left; }
@@ -1535,6 +1540,9 @@
     }
 
     function positionSharedTip(cellEl, tip) {
+      // [v25-A 2026-06-01] 카드를 셀 우측/좌측 옆으로 배치 (위/아래 인접 행 안 가림)
+      //   이전: 셀 아래 vs 위 → 같은 컬럼의 다른 행 셀들이 카드에 가려짐
+      //   변경: 셀 우측 vs 좌측 → 다른 행 셀들 항상 보임. URL 데이터·매핑 0 변경.
       const cellRect = cellEl.getBoundingClientRect();
       const tipRect = tip.getBoundingClientRect();
       const vw = window.innerWidth;
@@ -1542,43 +1550,42 @@
       const gap = 10;
       const margin = 8;  // viewport 가장자리 여백
 
-      // 수직: 셀 아래 vs 위 공간 비교 — 더 큰 쪽으로 펼침
-      const spaceBelow = vh - cellRect.bottom - gap - margin;
-      const spaceAbove = cellRect.top - gap - margin;
-      let top, placement;
-      if (spaceBelow >= tipRect.height || spaceBelow >= spaceAbove) {
-        // 아래로
-        top = cellRect.bottom + gap;
-        placement = 'below';
+      // 수평: 셀 우측 vs 좌측 공간 비교 — 더 큰 쪽으로 펼침 (우측 우선)
+      const spaceRight = vw - cellRect.right - gap - margin;
+      const spaceLeft = cellRect.left - gap - margin;
+      let left, placement;
+      if (spaceRight >= tipRect.width || spaceRight >= spaceLeft) {
+        // 우측으로 — 카드 화살표는 카드 좌측에 표시 (left placement class)
+        left = cellRect.right + gap;
+        placement = 'left';   // arrow points from left edge of card → cell on left
       } else {
-        // 위로
-        top = cellRect.top - tipRect.height - gap;
-        placement = 'above';
+        // 좌측으로 — 카드 화살표는 카드 우측에 표시 (right placement class)
+        left = cellRect.left - tipRect.width - gap;
+        placement = 'right';  // arrow points from right edge of card → cell on right
       }
 
-      // [2026-05-27] viewport 위/아래로 나가지 않게 클램프
-      //   tooltip 자체 max-height:80vh + overflow-y:auto 이므로 잘림 영역은 휠 스크롤 가능
-      if (top < margin) top = margin;
-      if (top + tipRect.height > vh - margin) top = vh - tipRect.height - margin;
-      if (top < margin) top = margin;  // 그래도 크면 위에서 잘림
+      // viewport 좌/우 가장자리 클램프
+      if (left < margin) left = margin;
+      if (left + tipRect.width > vw - margin) left = vw - tipRect.width - margin;
+      if (left < margin) left = margin;
 
-      // 수평: 셀 중앙에 tooltip 중앙 맞추되 화면 밖 안 나가게 클램프
-      //   [2026-05-27] vw < tipRect.width 인 좁은 화면에서도 음수 안 되게 Math.max 강화
-      let left = cellRect.left + cellRect.width / 2 - tipRect.width / 2;
-      const maxLeft = Math.max(margin, vw - tipRect.width - margin);
-      left = Math.max(margin, Math.min(left, maxLeft));
+      // 수직: 셀 중앙에 카드 중앙 맞추되 viewport 안에 들어오게 클램프
+      let top = cellRect.top + cellRect.height / 2 - tipRect.height / 2;
+      const maxTop = Math.max(margin, vh - tipRect.height - margin);
+      top = Math.max(margin, Math.min(top, maxTop));
 
       tip.style.top = top + 'px';
       tip.style.left = left + 'px';
       tip.classList.add(placement);
 
-      // 화살표 — 셀 중앙 위치에 맞춰 left 보정
+      // 화살표 — 셀 수직 중앙 위치에 맞춰 top 보정 (가로 placement 라 top 보정)
       const arrow = tip.querySelector('.arrow');
       if (arrow) {
-        const cellCenterX = cellRect.left + cellRect.width / 2;
-        const arrowLeft = cellCenterX - left;
-        arrow.style.left = Math.max(12, Math.min(tipRect.width - 12, arrowLeft)) + 'px';
-        arrow.style.transform = 'translateX(-50%)';
+        const cellCenterY = cellRect.top + cellRect.height / 2;
+        const arrowTop = cellCenterY - top;
+        arrow.style.top = Math.max(12, Math.min(tipRect.height - 12, arrowTop)) + 'px';
+        arrow.style.transform = 'translateY(-50%)';
+        arrow.style.left = '';  // 가로 placement 에선 left 초기화
       }
     }
 
