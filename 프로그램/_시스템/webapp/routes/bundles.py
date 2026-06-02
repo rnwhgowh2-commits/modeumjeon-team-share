@@ -1436,3 +1436,186 @@ def api_save_inventory_mapping(code):
         return jsonify({'ok': False, 'error': str(e)}), 500
     finally:
         s.close()
+
+
+# ───────── v26 [2026-06-01] color_code 잔존 모델명 prefix 정리 ─────────
+
+@bp.route('/api/admin/color-code-audit', methods=['GET'])
+def api_color_code_audit():
+    """전수 진단 — Option.color_code != color_display 인 옵션 모음전별 그룹.
+
+    Returns:
+      {
+        ok: True,
+        total_dirty: N,
+        by_bundle: {
+          model_code: [
+            {sku, color_code, color_display, size_display, is_active,
+             dup_with_sku (같은 color_display+size 인 정상 sku), url_links, inv_links},
+            ...
+          ]
+        }
+      }
+    """
+    s = SessionLocal()
+    try:
+        from sqlalchemy import func
+        # color_display 비어있지 않으면서 color_code != color_display 인 옵션
+        dirty = s.query(Option).filter(
+            Option.color_display.isnot(None),
+            Option.color_display != '',
+            Option.color_code != Option.color_display,
+        ).all()
+
+        # 매핑 카운트 (url, inv) 집계
+        skus = [o.canonical_sku for o in dirty]
+        url_link_count = {}
+        inv_link_count = {}
+        if skus:
+            url_rows = s.query(
+                OptionSourceUrlLink.bundle_option_sku, func.count(OptionSourceUrlLink.id)
+            ).filter(OptionSourceUrlLink.bundle_option_sku.in_(skus)
+            ).group_by(OptionSourceUrlLink.bundle_option_sku).all()
+            url_link_count = {sku: cnt for sku, cnt in url_rows}
+            inv_rows = s.query(
+                OptionInventoryLink.bundle_option_sku, func.count(OptionInventoryLink.id)
+            ).filter(OptionInventoryLink.bundle_option_sku.in_(skus)
+            ).group_by(OptionInventoryLink.bundle_option_sku).all()
+            inv_link_count = {sku: cnt for sku, cnt in inv_rows}
+
+        # 같은 (color_display, size_display) 정상 sku 가 있는지 — 중복 후보
+        # 모델별로 lookup table
+        by_bundle = {}
+        for o in dirty:
+            row = {
+                'sku': o.canonical_sku,
+                'color_code': o.color_code,
+                'color_display': o.color_display,
+                'size_code': o.size_code,
+                'size_display': o.size_display,
+                'is_active': bool(o.is_active),
+                'stock': o.boxhero_stock_total or 0,
+                'url_links': int(url_link_count.get(o.canonical_sku, 0)),
+                'inv_links': int(inv_link_count.get(o.canonical_sku, 0)),
+            }
+            # 같은 모델 내 정상 sku 찾기
+            twin = s.query(Option).filter(
+                Option.model_code == o.model_code,
+                Option.color_code == o.color_display,  # 정상 color_code = display 와 일치
+                Option.size_display == o.size_display,
+                Option.canonical_sku != o.canonical_sku,
+            ).first()
+            row['dup_with_sku'] = twin.canonical_sku if twin else None
+            by_bundle.setdefault(o.model_code, []).append(row)
+
+        # 정렬 — 모음전 코드 알파벳
+        sorted_bundles = dict(sorted(by_bundle.items()))
+        return jsonify({
+            'ok': True,
+            'total_dirty': len(dirty),
+            'bundle_count': len(sorted_bundles),
+            'by_bundle': sorted_bundles,
+        })
+    finally:
+        s.close()
+
+
+@bp.route('/api/admin/options/cleanup-dupes', methods=['POST'])
+def api_cleanup_dup_options():
+    """잉여 옵션 일괄 삭제. body: {skus: [...], dry_run: bool}
+
+    매핑 카운트 0 인 옵션만 삭제 (안전 가드). dry_run=True 면 삭제 안 하고 결과만.
+    """
+    body = request.get_json(silent=True) or {}
+    skus = body.get('skus') or []
+    dry_run = bool(body.get('dry_run', True))
+    if not isinstance(skus, list) or not skus:
+        return jsonify({'ok': False, 'error': 'skus required'}), 400
+    s = SessionLocal()
+    try:
+        from sqlalchemy import func
+        url_cnt = dict(s.query(OptionSourceUrlLink.bundle_option_sku, func.count(OptionSourceUrlLink.id))
+                       .filter(OptionSourceUrlLink.bundle_option_sku.in_(skus))
+                       .group_by(OptionSourceUrlLink.bundle_option_sku).all())
+        inv_cnt = dict(s.query(OptionInventoryLink.bundle_option_sku, func.count(OptionInventoryLink.id))
+                       .filter(OptionInventoryLink.bundle_option_sku.in_(skus))
+                       .group_by(OptionInventoryLink.bundle_option_sku).all())
+        safe, unsafe = [], []
+        for sku in skus:
+            u = int(url_cnt.get(sku, 0)); i = int(inv_cnt.get(sku, 0))
+            if u == 0 and i == 0:
+                safe.append(sku)
+            else:
+                unsafe.append({'sku': sku, 'url_links': u, 'inv_links': i})
+        deleted = 0
+        if not dry_run and safe:
+            opts = s.query(Option).filter(Option.canonical_sku.in_(safe)).all()
+            for o in opts:
+                s.delete(o)
+            s.commit()
+            deleted = len(opts)
+        return jsonify({
+            'ok': True, 'dry_run': dry_run,
+            'safe_count': len(safe), 'safe_skus': safe,
+            'unsafe_count': len(unsafe), 'unsafe_skus': unsafe,
+            'deleted': deleted,
+        })
+    except Exception as e:
+        s.rollback()
+        return jsonify({'ok': False, 'error': str(e)}), 500
+    finally:
+        s.close()
+
+
+@bp.route('/api/admin/color-code-normalize', methods=['POST'])
+def api_color_code_normalize():
+    """color_code = color_display 로 자동 정정. body: {dry_run: bool}
+
+    color_display 비어있지 않으면서 color_code != color_display 인 옵션 대상.
+    같은 모음전 내 충돌 (color_code, size_display) UNIQUE 가능성 검증 후 정정.
+    """
+    body = request.get_json(silent=True) or {}
+    dry_run = bool(body.get('dry_run', True))
+    s = SessionLocal()
+    try:
+        dirty = s.query(Option).filter(
+            Option.color_display.isnot(None),
+            Option.color_display != '',
+            Option.color_code != Option.color_display,
+        ).all()
+        to_normalize = []
+        conflict = []
+        for o in dirty:
+            # 같은 모델·color_display 와 같은 color_code 로 변경 시 충돌 검사
+            twin = s.query(Option).filter(
+                Option.model_code == o.model_code,
+                Option.color_code == o.color_display,
+                Option.size_display == o.size_display,
+                Option.canonical_sku != o.canonical_sku,
+            ).first()
+            if twin:
+                conflict.append({'sku': o.canonical_sku, 'twin': twin.canonical_sku,
+                                 'reason': 'duplicate after normalize — delete dirty first'})
+            else:
+                to_normalize.append({'sku': o.canonical_sku, 'old': o.color_code, 'new': o.color_display})
+        updated = 0
+        if not dry_run and to_normalize:
+            skus = [r['sku'] for r in to_normalize]
+            opts = s.query(Option).filter(Option.canonical_sku.in_(skus)).all()
+            for o in opts:
+                o.color_code = o.color_display
+                updated += 1
+            s.commit()
+        return jsonify({
+            'ok': True, 'dry_run': dry_run,
+            'normalize_count': len(to_normalize),
+            'normalize_preview': to_normalize[:50],
+            'conflict_count': len(conflict),
+            'conflicts': conflict,
+            'updated': updated,
+        })
+    except Exception as e:
+        s.rollback()
+        return jsonify({'ok': False, 'error': str(e)}), 500
+    finally:
+        s.close()
