@@ -1473,9 +1473,9 @@ def api_color_code_audit():
         inv_link_count = {}
         if skus:
             url_rows = s.query(
-                OptionSourceUrlLink.bundle_option_sku, func.count(OptionSourceUrlLink.id)
-            ).filter(OptionSourceUrlLink.bundle_option_sku.in_(skus)
-            ).group_by(OptionSourceUrlLink.bundle_option_sku).all()
+                OptionSourceUrlLink.option_canonical_sku, func.count(OptionSourceUrlLink.id)
+            ).filter(OptionSourceUrlLink.option_canonical_sku.in_(skus)
+            ).group_by(OptionSourceUrlLink.option_canonical_sku).all()
             url_link_count = {sku: cnt for sku, cnt in url_rows}
             inv_rows = s.query(
                 OptionInventoryLink.bundle_option_sku, func.count(OptionInventoryLink.id)
@@ -1534,9 +1534,9 @@ def api_cleanup_dup_options():
     s = SessionLocal()
     try:
         from sqlalchemy import func
-        url_cnt = dict(s.query(OptionSourceUrlLink.bundle_option_sku, func.count(OptionSourceUrlLink.id))
-                       .filter(OptionSourceUrlLink.bundle_option_sku.in_(skus))
-                       .group_by(OptionSourceUrlLink.bundle_option_sku).all())
+        url_cnt = dict(s.query(OptionSourceUrlLink.option_canonical_sku, func.count(OptionSourceUrlLink.id))
+                       .filter(OptionSourceUrlLink.option_canonical_sku.in_(skus))
+                       .group_by(OptionSourceUrlLink.option_canonical_sku).all())
         inv_cnt = dict(s.query(OptionInventoryLink.bundle_option_sku, func.count(OptionInventoryLink.id))
                        .filter(OptionInventoryLink.bundle_option_sku.in_(skus))
                        .group_by(OptionInventoryLink.bundle_option_sku).all())
