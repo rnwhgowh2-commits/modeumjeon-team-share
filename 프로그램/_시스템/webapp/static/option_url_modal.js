@@ -444,6 +444,11 @@
       .oum-shared-tip.right .arrow::before { content:''; position:absolute; left:1px; top:-7px; width:0; height:0; border:7px solid transparent; border-right-color:#d1d6db; z-index:-1; }
       .oum-shared-tip.left .arrow { left:100%; top:50%; transform:translateY(-50%); border-left-color:#fff; }
       .oum-shared-tip.left .arrow::before { content:''; position:absolute; right:1px; top:-7px; width:0; height:0; border:7px solid transparent; border-left-color:#d1d6db; z-index:-1; }
+      /* [v25-A.1 2026-06-02] hover bridge — 카드 좌/우 가상 padding 으로 hover 영역 확장 (셀↔카드 사이 deadzone 0)
+         pointer-events:auto + tip 자체 mouseenter 가 ::before/::after 영역에서도 트리거됨 */
+      .oum-shared-tip { pointer-events:auto; }
+      .oum-shared-tip.left::after { content:''; position:absolute; left:-14px; top:0; width:14px; height:100%; background:transparent; }
+      .oum-shared-tip.right::after { content:''; position:absolute; right:-14px; top:0; width:14px; height:100%; background:transparent; }
       .oum-shared-tip .stp-grp { background:#FAFBFC; border-radius:10.5px; padding:15.75px 13.5px; margin-bottom:9px; }
       .oum-shared-tip .stp-grp:last-child { margin-bottom:0; }
       .oum-shared-tip .stp-grp-h { display:flex; align-items:center; gap:10.5px; margin-bottom:7.5px; padding-bottom:6px; border-bottom:1px dashed #e5e8eb; text-align:left; }
@@ -1471,6 +1476,12 @@
     //   위치 자동: 셀 아래 공간 부족하면 위로, 좌우 화면 밖이면 클램프
     let _sharedTipEl = null;
     function showSharedTip(cellEl) {
+      // [v25-A.1 2026-06-02] 같은 셀이면 재생성 X (깜빡임 + race 방지)
+      //   셀 안의 자식 element 사이 mouseover 가 반복 발동해도 카드 그대로 유지.
+      if (_sharedTipEl && _sharedTipEl._cellRef === cellEl) {
+        cancelSharedTipClose();
+        return;
+      }
       hideSharedTip();
       const raw = cellEl.getAttribute('data-shared-mappings');
       if (!raw) return;
@@ -1526,14 +1537,16 @@
       tip.addEventListener('mouseleave', () => scheduleSharedTipClose());
       document.body.appendChild(tip);
       _sharedTipEl = tip;
+      _sharedTipEl._cellRef = cellEl;  // [v25-A.1] 같은 셀 재진입 시 재생성 skip 용
       positionSharedTip(cellEl, tip);
     }
 
     // 셀에서 mouseout 후 일정 시간 동안 tooltip 으로 이동할 시간 (gap) 허용
+    //   [v25-A.1 2026-06-02] 200 → 500ms — hover deadzone (셀↔카드 사이 빈 공간) 통과 시간 확보
     let _sharedTipCloseTimer = null;
     function scheduleSharedTipClose() {
       if (_sharedTipCloseTimer) clearTimeout(_sharedTipCloseTimer);
-      _sharedTipCloseTimer = setTimeout(() => { hideSharedTip(); }, 200);
+      _sharedTipCloseTimer = setTimeout(() => { hideSharedTip(); }, 500);
     }
     function cancelSharedTipClose() {
       if (_sharedTipCloseTimer) { clearTimeout(_sharedTipCloseTimer); _sharedTipCloseTimer = null; }
@@ -1547,7 +1560,9 @@
       const tipRect = tip.getBoundingClientRect();
       const vw = window.innerWidth;
       const vh = window.innerHeight;
-      const gap = 10;
+      // [v25-A.1 2026-06-02] gap 10 → 4 — 셀↔카드 사이 hover deadzone 최소화
+      //   카드 좌측 CSS padding (::before bridge) + 짧은 gap 으로 마우스 이동 끊김 없음
+      const gap = 4;
       const margin = 8;  // viewport 가장자리 여백
 
       // 수평: 셀 우측 vs 좌측 공간 비교 — 더 큰 쪽으로 펼침 (우측 우선)
