@@ -1498,11 +1498,19 @@ def api_color_code_audit():
                 'url_links': int(url_link_count.get(o.canonical_sku, 0)),
                 'inv_links': int(inv_link_count.get(o.canonical_sku, 0)),
             }
-            # 같은 모델 내 정상 sku 찾기
+            # 같은 모델 내 정상 sku 찾기 — size_code + size_display 양쪽 매칭 (NULL 대응)
+            from sqlalchemy import or_, and_
+            size_filters = []
+            if o.size_code:
+                size_filters.append(Option.size_code == o.size_code)
+            if o.size_display:
+                size_filters.append(Option.size_display == o.size_display)
+            if not size_filters:
+                size_filters.append(Option.size_code.is_(None))
             twin = s.query(Option).filter(
                 Option.model_code == o.model_code,
                 Option.color_code == o.color_display,  # 정상 color_code = display 와 일치
-                Option.size_display == o.size_display,
+                or_(*size_filters),
                 Option.canonical_sku != o.canonical_sku,
             ).first()
             row['dup_with_sku'] = twin.canonical_sku if twin else None
@@ -1585,12 +1593,20 @@ def api_color_code_normalize():
         ).all()
         to_normalize = []
         conflict = []
+        from sqlalchemy import or_
         for o in dirty:
-            # 같은 모델·color_display 와 같은 color_code 로 변경 시 충돌 검사
+            # 같은 모델·color_display 와 같은 color_code 로 변경 시 충돌 검사 (size NULL 대응)
+            size_filters = []
+            if o.size_code:
+                size_filters.append(Option.size_code == o.size_code)
+            if o.size_display:
+                size_filters.append(Option.size_display == o.size_display)
+            if not size_filters:
+                size_filters.append(Option.size_code.is_(None))
             twin = s.query(Option).filter(
                 Option.model_code == o.model_code,
                 Option.color_code == o.color_display,
-                Option.size_display == o.size_display,
+                or_(*size_filters),
                 Option.canonical_sku != o.canonical_sku,
             ).first()
             if twin:
