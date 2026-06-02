@@ -67,6 +67,7 @@ import html as html_lib
 import logging
 import re
 from typing import Optional
+from urllib.parse import urlsplit, urlunsplit, parse_qsl, urlencode
 
 from curl_cffi import requests as cffi_requests
 from bs4 import BeautifulSoup
@@ -82,6 +83,37 @@ logger = logging.getLogger(__name__)
 # ─────────────────────────────────────────────────────────────
 DEFAULT_TIMEOUT = 30
 IMPERSONATE = "chrome120"  # 다른 사이트 크롤러와 동일 (T10/T11/T12)
+
+# 네이버 쇼핑 유입 위장 파라미터 — ckwhere=ssg_naver 가 채널 전용 제휴쿠폰
+# (예: "[제휴할인] 백화점 8% 쿠폰")을 PDP 에 노출시킨다.
+#   2026-06-02 익명 curl_cffi(본 크롤러 실환경) 실측 확정:
+#     나이키 모자(itemId=1000552535854, siteNo=6009) — clean ❌ / s_naver ❌ /
+#     ssg_naver ✅ 8% 제휴쿠폰. 네이버 토큰(NaPm)·로그인 모두 불필요.
+#   ckwhere 값은 몰별로 다름(신세계몰 6004 → s_naver, 백화점 6009 → ssg_naver).
+#   현재는 ssg_naver 단일 적용(실데이터 다수가 6009 + 6004 에서도 기존 쿠폰을
+#   깨지 않음 확인). 신세계몰 전용 쿠폰 관측 시 siteNo 매핑 추가 검토.
+NAVER_COUPON_PARAMS = {
+    "ckwhere": "ssg_naver",
+    "appPopYn": "n",
+    "utm_medium": "PCS",
+    "utm_source": "naver",
+    "utm_campaign": "naver_pcs",
+}
+
+
+def _apply_naver_coupon_params(url: str) -> str:
+    """SSG 상품 URL 에 네이버 유입 파라미터(ckwhere=ssg_naver 등)를 set/override.
+
+    기존 query(itemId·siteNo·salestrNo·검색어 등)는 보존하고 ckwhere 등 5개만
+    강제 세팅한다(기존 ``ckwhere=s_naver`` 가 있으면 덮어씀). itemId 없는 URL은
+    그대로 둔다(안전).
+    """
+    parts = urlsplit(url)
+    query = dict(parse_qsl(parts.query, keep_blank_values=True))
+    if "itemId" not in query:
+        return url
+    query.update(NAVER_COUPON_PARAMS)
+    return urlunsplit(parts._replace(query=urlencode(query)))
 
 # SSG 인라인 JS: ``uitemObj = {itemId:'...', uitemId:'...', ...};``
 # 각 단품(옵션 1개) 1 블록. 첫 번째(uitemId='00000') = 대표단품(전체 합산용) → 제외.
@@ -555,8 +587,10 @@ class SsgCrawler(AbstractCrawler):
         self.timeout = timeout
 
     def _fetch_html(self, product_url: str) -> str:
+        # 네이버 유입 위장(ckwhere=ssg_naver)으로 채널 전용 제휴쿠폰까지 HTML 에 포함시킨다.
+        fetch_url = _apply_naver_coupon_params(product_url)
         resp = cffi_requests.get(
-            product_url,
+            fetch_url,
             impersonate=IMPERSONATE,
             timeout=self.timeout,
             headers={
