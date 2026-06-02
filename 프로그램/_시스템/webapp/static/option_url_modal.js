@@ -2549,6 +2549,10 @@
           }
 
           // 3. 각 URL 카드 저장 — POST(new) / PUT(existing) + option_ids + sort_order (배열 인덱스)
+          //   [v27 2026-06-02] 병렬화 — for-await 순차 처리에서 Promise.all 로 변경.
+          //   기존: 41개 URL × ~50ms = 2초+ 직렬. 변경 후: 41개 동시 = ~200ms.
+          //   PUT/POST 페이로드·endpoint·DB 동작 100% 그대로. 처리 순서만 병렬.
+          const urlSavePromises = [];
           for (const sk of Object.keys(state.urls)) {
             const arr = state.urls[sk] || [];
             for (let i = 0; i < arr.length; i++) {
@@ -2557,25 +2561,29 @@
               const option_ids = (u.option_keys || [])
                 .map(k => skuByKey[k])
                 .filter(Boolean);
-              try {
-                if (u.dbId) {
-                  await fetch(`/api/bundles/${encodeURIComponent(bundleCode)}/source-urls/${u.dbId}`, {
-                    method: 'PUT', headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ url: u.url.trim(), label: u.label || null, option_ids, sort_order: i }),
-                  });
-                } else {
-                  const res = await fetch(`/api/bundles/${encodeURIComponent(bundleCode)}/source-urls`, {
-                    method: 'POST', headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ source_key: sk, url: u.url.trim(), label: u.label || null, option_ids }),
-                  });
-                  const rj = await res.json();
-                  if (rj && rj.id) u.dbId = rj.id;
+              const task = (async () => {
+                try {
+                  if (u.dbId) {
+                    await fetch(`/api/bundles/${encodeURIComponent(bundleCode)}/source-urls/${u.dbId}`, {
+                      method: 'PUT', headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ url: u.url.trim(), label: u.label || null, option_ids, sort_order: i }),
+                    });
+                  } else {
+                    const res = await fetch(`/api/bundles/${encodeURIComponent(bundleCode)}/source-urls`, {
+                      method: 'POST', headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ source_key: sk, url: u.url.trim(), label: u.label || null, option_ids }),
+                    });
+                    const rj = await res.json();
+                    if (rj && rj.id) u.dbId = rj.id;
+                  }
+                } catch (e) {
+                  console.warn('[oum] auto-save URL fail:', e);
                 }
-              } catch (e) {
-                console.warn('[oum] auto-save URL fail:', e);
-              }
+              })();
+              urlSavePromises.push(task);
             }
           }
+          await Promise.all(urlSavePromises);
         } catch (e) {
           console.warn('[oum] auto-save fail:', e);
         }
@@ -2605,7 +2613,8 @@
         await autoSave();
         if (typeof flash === 'function') flash('저장 완료');
         bg.remove();
-        setTimeout(() => location.reload(), 700);
+        // [v27 2026-06-02] reload 대기 700 → 200ms — 체감 즉시 갱신
+        setTimeout(() => location.reload(), 200);
       } catch (e) {
         alert('저장 중 오류: ' + e.message);
         save.disabled = false; save.textContent = '옵션 + URL 저장';
