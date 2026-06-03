@@ -163,7 +163,7 @@
 
 <script src="{{ url_for('static', filename='toss.js') }}?v=20260603_crawlprogress"></script><!-- ⚠️ toss.js 수정 시 이 버전 문자열 반드시 갱신 (정적 캐시 max-age=1일 우회) -->
 <script src="{{ url_for('static', filename='toss_add_benefit.js') }}"></script><!-- v6 D2-A 혜택추가폼 인터랙션 -->
-<script src="{{ url_for('static', filename='option_url_modal.js') }}?v=20260602_v27_save_parallel"></script><!-- 2026-06-02 v27 — autoSave URL 카드 PUT/POST 병렬화 (for-await → Promise.all) + reload 200ms. ⚠️ option_url_modal.js 수정 시 이 버전 문자열 반드시 갱신 -->
+<script src="{{ url_for('static', filename='option_url_modal.js') }}?v=20260603_v28_no_optmodal_override"></script><!-- 2026-06-03 v28 — window.openOptionUrlModal 덮어쓰기 제거(toss.js 옵션별 URL 팝업 복원). bundle 모달은 openStepDesignModal 로만 노출. ⚠️ option_url_modal.js 수정 시 이 버전 문자열 반드시 갱신 -->
 
 {# ────────── v27 시안 ③ — 전역 진행 widget (크롤·업로드, 페이지 이동 유지) ────────── #}
 <div id="g-progress-widget" style="display:none">
@@ -384,7 +384,11 @@
     //   1) 활성 크롤(수동 우선, 없으면 자동) → 실시간 진행
     //   2) 없으면 '마지막 크롤 결과'(last 스냅샷) → 직전 결과 유지
     //   3) 그것도 없으면 기본 6개
-    const activeCrawl = crawlActive ? crawl : (autoActive ? auto : null);
+    // [2026-06-03] ★ 자동(백그라운드) 크롤은 패널을 라이브로 그리지 않는다.
+    //   이유: 자동 크롤은 매 사이클 시작 시 '전부 대기중'으로 리셋돼 첫번째 이미지(빈 대기중)가 떴음.
+    //   패널은 (1) 수동 크롤 라이브  (2) 없으면 '마지막 크롤 결과'(채워진 완료 뷰)를 항상 유지.
+    //   자동 크롤은 제목 '진행 중' + 하단 라이브 텍스트로만 표시.
+    const activeCrawl = crawlActive ? crawl : null;
     const last = state.last;
     const lastAge = (last && last.finished_at) ? (Date.now() / 1000 - last.finished_at) : Infinity;
     const lastRecent = lastAge < 90;   // 90초 이내 = 연속 크롤 진행 중으로 간주 (스케줄러 gap 흡수)
@@ -422,9 +426,10 @@
       html += `<div class="gpw-uprow">📤 업로드 ${up}% (${upload.done}/${upload.total})</div>`;
     }
 
-    // 현재 항목 / 마지막 갱신 시각 (※ '대기 중' 안내 문구는 표시하지 않음 — 사용자 요청)
-    const cur = (activeCrawl && activeCrawl.current) ? activeCrawl.current.replace(/</g, '&lt;') : '';
-    if ((crawlActive || autoActive) && cur) html += `<div class="gpw-now">▸ ${cur}</div>`;
+    // 하단 라이브 텍스트: 수동 크롤 > 자동 크롤 current (패널은 마지막 결과여도 활동은 표시)
+    const liveCur = (crawlActive && crawl.current) ? crawl.current
+                  : (autoActive && auto.current ? auto.current : '');
+    if (liveCur) html += `<div class="gpw-now">▸ ${liveCur.replace(/</g, '&lt;')}</div>`;
     else if (mode === 'last' && finishedAt) html += `<div class="gpw-now done">✓ 마지막 갱신 ${gpwRelTime(finishedAt)}</div>`;
 
     // 수동·자동 크롤이 동시에 돌면, 자동은 작은 안내만 (패널은 수동 우선 표시)

@@ -159,11 +159,61 @@ def _pick_cheapest_buyable(sources):
 # ════════════════════════════════════════════
 #  v27 시안 ③ — 전역 progress widget API
 # ════════════════════════════════════════════
+_SEED_SRC_LABELS = {'lemouton': '르무통 공홈', 'ss_lemouton': '스마트스토어',
+                    'musinsa': '무신사', 'ssf': 'SSF', 'lotteon': '롯데온', 'ssg': 'SSG'}
+_SEED_ORDER = ['lemouton', 'ss_lemouton', 'musinsa', 'ssf', 'lotteon', 'ssg']
+
+
+def _build_last_seed_from_db():
+    """DB 의 소싱처별 마지막 크롤 상태 → '마지막 크롤 결과' 스냅샷 (콜드스타트 시드용)."""
+    try:
+        from datetime import timezone
+        import time as _t
+        from sqlalchemy import func
+        from shared.db import SessionLocal
+        from lemouton.sources.models import SourceProduct
+        s = SessionLocal()
+        try:
+            rows = (s.query(SourceProduct.site,
+                            func.count(SourceProduct.id),
+                            func.max(SourceProduct.last_fetched_at))
+                    .filter(SourceProduct.deleted_at.is_(None))
+                    .group_by(SourceProduct.site).all())
+        finally:
+            s.close()
+        by_site = {site: (cnt, maxf) for site, cnt, maxf in rows}
+        breakdown, latest = [], 0.0
+        for key in _SEED_ORDER:
+            cnt, maxf = by_site.get(key, (0, None))
+            if not cnt:
+                continue
+            breakdown.append({'key': key, 'label': _SEED_SRC_LABELS.get(key, key),
+                              'total': cnt, 'done': cnt, 'status': 'done'})
+            if maxf is not None:
+                ts = maxf.replace(tzinfo=timezone.utc).timestamp()  # naive UTC → epoch
+                latest = max(latest, ts)
+        if not breakdown:
+            return None
+        return {'breakdown': breakdown,
+                'total': sum(b['total'] for b in breakdown),
+                'done': sum(b['done'] for b in breakdown),
+                'finished_at': latest or _t.time(),
+                'label': '마지막 크롤 (저장됨)'}
+    except Exception:
+        return None
+
+
 @bp.get('/progress')
 def api_get_progress():
     """전역 진행 상태 (크롤·업로드) 조회 — base.html widget 폴링용."""
-    from webapp.progress_state import progress_get
-    return jsonify(progress_get())
+    from webapp.progress_state import progress_get, progress_seed_last
+    data = progress_get()
+    if data.get('last') is None:   # 콜드스타트 — DB 로 '마지막 크롤 결과' 시드
+        snap = _build_last_seed_from_db()
+        if snap:
+            progress_seed_last(snap)
+            data = progress_get()
+    return jsonify(data)
 
 
 # ════════════════════════════════════════════

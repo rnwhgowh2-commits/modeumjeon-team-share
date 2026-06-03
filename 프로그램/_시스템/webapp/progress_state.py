@@ -105,6 +105,17 @@ def progress_finish(kind: str) -> None:
                 }
 
 
+def progress_seed_last(snapshot: dict[str, Any]) -> None:
+    """_LAST 가 비어있을 때만 '마지막 크롤 결과'를 시드.
+
+    콜드스타트(서버 재시작 직후) 위젯이 빈 '대기중'으로 보이는 것 방지 —
+    DB 의 소싱처별 마지막 크롤 상태로 채워준다. 이미 값 있으면 무시.
+    """
+    with _lock:
+        if _LAST.get('crawl') is None and snapshot:
+            _LAST['crawl'] = snapshot
+
+
 def progress_clear(kind: str | None = None) -> None:
     """강제 클리어 (테스트/관리)."""
     with _lock:
