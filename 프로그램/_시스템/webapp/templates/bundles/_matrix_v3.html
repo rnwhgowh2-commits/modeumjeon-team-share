@@ -4392,21 +4392,32 @@
     const _srcCost = o.src_cost || 0;
     const _srcSsOn = !!o.src_fixed_ss_active;
     const _srcCpOn = !!o.src_fixed_cp_active;
-    // [M] 마켓 행 토글 helper (마켓별 ON/OFF — disabled=false)
-    const _mkToggle = (which, on, disabled) => `<span class="m-fix-toggle ${on?'on':''} ${disabled?'disabled':''}" data-m-toggle="${which}" data-sku="${o.sku}" title="${disabled?'매입가 입력 후 활성 가능':'지정가 '+(on?'ON':'OFF')}"><span class="sw"></span><b>지정가</b></span>`;
-    // [M] 가격/인풋 셀 helper
-    const _mkCell = (which, autoPrice, fixOn, fixVal, showAuto) => fixOn
-      ? `<span><input class="a1-fix-input" type="number" step="100" data-a1-fix="${which}" data-sku="${o.sku}" value="${fixVal || ''}" placeholder="${autoPrice}"><span class="a1-saved-chip idle" data-a1-saved="${which}" style="margin-left:4px;"></span></span>`
-      : `<span class="m4v1-mkt-price">${showAuto?'<span class="m4v1-auto">AUTO</span> ':''}${autoPrice.toLocaleString('ko-KR')}원</span>`;
-    // [M] 마진 셀 helper — 실제 표시가 기준 (판매가 - 원가) / 원가 × 100
-    // [2026-06-02] 전 카드 일관: DOM 마진칩(phantom) 대신 실제 표시 판매가로 계산.
-    //   fixOn 이면 지정가 입력값, 아니면 백엔드 정책 산출가(dispPrice) 기준.
-    const _mkMargin = (which, dispPrice, fixOn, fixVal, cost) => {
-      const eff = (fixOn && fixVal) ? fixVal : dispPrice;
-      if (!cost || !eff) return `<span class="m4v1-mkt-margin a1-fix-margin" data-a1-margin="${which}" data-cost="${cost||0}" title="원가 정보 없어 마진율 계산 불가">—</span>`;
-      const m = ((eff - cost) / cost) * 100;
-      const cls = m < 0 ? ' loss' : '';
-      return `<span class="m4v1-mkt-margin a1-fix-margin${cls}" data-a1-margin="${which}" data-cost="${cost}" title="(${eff.toLocaleString('ko-KR')}원 - 원가 ${cost.toLocaleString('ko-KR')}원) / 원가 × 100">${m.toFixed(2)}%</span>`;
+    // [2026-06-03 시안A] 모드 세그먼트 [AUTO|지정] — 채움 버튼. 비활성 버튼에만 data-m-toggle(클릭=전환).
+    //   active=AUTO 면 'AUTO' 채움+무동작, '지정' 클릭 시 fixed ON. (반대도 동일) disabled 면 '지정' 비활성.
+    const _mkSeg = (which, on, disabled) => {
+      const sku = o.sku;
+      const autoBtn = on
+        ? `<button type="button" class="m4-seg-b" data-m-toggle="${which}" data-sku="${sku}" title="자동계산으로 전환">AUTO</button>`
+        : `<button type="button" class="m4-seg-b on-auto">AUTO</button>`;
+      const fixBtn = on
+        ? `<button type="button" class="m4-seg-b on-fix">지정</button>`
+        : `<button type="button" class="m4-seg-b ${disabled?'disabled':''}" ${disabled?'':`data-m-toggle="${which}" data-sku="${sku}"`} title="${disabled?'매입가 입력 후 가능':'지정가로 전환'}">지정</button>`;
+      return `<span class="m4-seg">${autoBtn}${fixBtn}</span>`;
+    };
+    // [2026-06-03 시안A] 2번째 줄 = 가격(글자, 박스X) + 마진. AUTO 뱃지 제거, '마진' 문구 통일.
+    const _mkLine2 = (which, autoPrice, fixOn, fixVal, cost) => {
+      const eff = (fixOn && fixVal) ? fixVal : autoPrice;
+      let mtxt = '마진 —', mcls = '', mtitle = '원가 정보 없어 마진율 계산 불가';
+      if (cost && eff) {
+        const m = ((eff - cost) / cost) * 100;
+        mcls = m < 0 ? ' loss' : '';
+        mtxt = '마진 ' + m.toFixed(2) + '%';
+        mtitle = `(${eff.toLocaleString('ko-KR')}원 - 원가 ${cost.toLocaleString('ko-KR')}원) / 원가 × 100`;
+      }
+      const priceHtml = fixOn
+        ? `<input class="a1-fix-input bare" type="number" step="100" data-a1-fix="${which}" data-sku="${o.sku}" value="${fixVal || ''}" placeholder="${autoPrice}"><span class="m4v1-won">원</span><span class="a1-saved-chip idle" data-a1-saved="${which}"></span>`
+        : `<span class="m4v1-mkt-price">${autoPrice.toLocaleString('ko-KR')}원</span>`;
+      return `<div class="m4v1-l2"><span class="m4v1-l2-price ${fixOn?'fix':''}">${priceHtml}</span><span class="m4v1-mkt-margin a1-fix-margin${mcls}" data-a1-margin="${which}" data-cost="${cost||0}" title="${mtitle}">${mtxt}</span></div>`;
     };
     const _srcAppliedChip = !isPurchasePri ? '<span class="m4v1-chip-applied">✓ 적용</span>' : '';
     const srcCard = `
@@ -4416,18 +4427,12 @@
           <span class="m4v1-head-right">${_srcAppliedChip}</span>
         </div>
         <div class="m4v1-mkt-row">
-          <span class="m4v1-mkt-logo">${marketLogoHtml('스마트스토어')}</span>
-          <span class="m4v1-mkt-name">스마트스토어</span>
-          ${_mkToggle('src-ss', _srcSsOn, false)}
-          ${_mkCell('src-ss', srcSsPrice, _srcSsOn, o.src_fixed_ss_price, true)}
-          ${_mkMargin('src-ss', srcSsPrice, _srcSsOn, o.src_fixed_ss_price || 0, _srcCost)}
+          <div class="m4v1-l1"><span class="m4v1-mkt-logo">${marketLogoHtml('스마트스토어')}</span><span class="m4v1-mkt-name">스마트스토어</span>${_mkSeg('src-ss', _srcSsOn, false)}</div>
+          ${_mkLine2('src-ss', srcSsPrice, _srcSsOn, o.src_fixed_ss_price, _srcCost)}
         </div>
         <div class="m4v1-mkt-row">
-          <span class="m4v1-mkt-logo">${marketLogoHtml('쿠팡')}</span>
-          <span class="m4v1-mkt-name">쿠팡</span>
-          ${_mkToggle('src-cp', _srcCpOn, false)}
-          ${_mkCell('src-cp', srcCpPrice, _srcCpOn, o.src_fixed_cp_price, true)}
-          ${_mkMargin('src-cp', srcCpPrice, _srcCpOn, o.src_fixed_cp_price || 0, _srcCost)}
+          <div class="m4v1-l1"><span class="m4v1-mkt-logo">${marketLogoHtml('쿠팡')}</span><span class="m4v1-mkt-name">쿠팡</span>${_mkSeg('src-cp', _srcCpOn, false)}</div>
+          ${_mkLine2('src-cp', srcCpPrice, _srcCpOn, o.src_fixed_cp_price, _srcCost)}
         </div>
         ${fxBtn ? `<div class="m4v1-fx-row">${fxBtn}</div>` : ''}
         <div class="m4v1-footzone" style="margin-top:9px;padding-top:8px;border-top:1px dashed #bbf7d0;display:flex;flex-direction:column;gap:5px;align-items:flex-start">
@@ -4457,18 +4462,12 @@
             <span class="m4v1-head-right"><span class="m4v1-chip-applied">🚫 차단</span></span>
           </div>
           <div class="m4v1-mkt-row">
-            <span class="m4v1-mkt-logo">${marketLogoHtml('스마트스토어')}</span>
-            <span class="m4v1-mkt-name">스마트스토어</span>
-            ${_mkToggle('pur-ss', false, true)}
-            <span class="m4v1-mkt-price">— 원</span>
-            <span class="m4v1-mkt-margin">${ssMargin.toFixed(2)}%</span>
+            <div class="m4v1-l1"><span class="m4v1-mkt-logo">${marketLogoHtml('스마트스토어')}</span><span class="m4v1-mkt-name">스마트스토어</span>${_mkSeg('pur-ss', false, true)}</div>
+            <div class="m4v1-l2"><span class="m4v1-l2-price"><span class="m4v1-mkt-price">— 원</span></span><span class="m4v1-mkt-margin">마진 ${ssMargin.toFixed(2)}%</span></div>
           </div>
           <div class="m4v1-mkt-row">
-            <span class="m4v1-mkt-logo">${marketLogoHtml('쿠팡')}</span>
-            <span class="m4v1-mkt-name">쿠팡</span>
-            ${_mkToggle('pur-cp', false, true)}
-            <span class="m4v1-mkt-price">— 원</span>
-            <span class="m4v1-mkt-margin">${cpMargin.toFixed(2)}%</span>
+            <div class="m4v1-l1"><span class="m4v1-mkt-logo">${marketLogoHtml('쿠팡')}</span><span class="m4v1-mkt-name">쿠팡</span>${_mkSeg('pur-cp', false, true)}</div>
+            <div class="m4v1-l2"><span class="m4v1-l2-price"><span class="m4v1-mkt-price">— 원</span></span><span class="m4v1-mkt-margin">마진 ${cpMargin.toFixed(2)}%</span></div>
           </div>
           <div class="m4v1-pur-info">매입가 <b>0원</b><span class="missing">미설정</span></div>
           <div class="v5-prio">
@@ -4500,18 +4499,12 @@
             <span class="m4v1-head-right">${_purAppliedChip}</span>
           </div>
           <div class="m4v1-mkt-row">
-            <span class="m4v1-mkt-logo">${marketLogoHtml('스마트스토어')}</span>
-            <span class="m4v1-mkt-name">스마트스토어 ${_ssLossChip}</span>
-            ${_mkToggle('pur-ss', _purSsOn, false)}
-            ${_mkCell('pur-ss', purSsPrice, _purSsOn, o.pur_fixed_ss_price, false)}
-            ${_mkMargin('pur-ss', purSsPrice, _purSsOn, o.pur_fixed_ss_price || 0, _purCost)}
+            <div class="m4v1-l1"><span class="m4v1-mkt-logo">${marketLogoHtml('스마트스토어')}</span><span class="m4v1-mkt-name">스마트스토어 ${_ssLossChip}</span>${_mkSeg('pur-ss', _purSsOn, false)}</div>
+            ${_mkLine2('pur-ss', purSsPrice, _purSsOn, o.pur_fixed_ss_price, _purCost)}
           </div>
           <div class="m4v1-mkt-row">
-            <span class="m4v1-mkt-logo">${marketLogoHtml('쿠팡')}</span>
-            <span class="m4v1-mkt-name">쿠팡 ${_cpLossChip}</span>
-            ${_mkToggle('pur-cp', _purCpOn, false)}
-            ${_mkCell('pur-cp', purCpPrice, _purCpOn, o.pur_fixed_cp_price, false)}
-            ${_mkMargin('pur-cp', purCpPrice, _purCpOn, o.pur_fixed_cp_price || 0, _purCost)}
+            <div class="m4v1-l1"><span class="m4v1-mkt-logo">${marketLogoHtml('쿠팡')}</span><span class="m4v1-mkt-name">쿠팡 ${_cpLossChip}</span>${_mkSeg('pur-cp', _purCpOn, false)}</div>
+            ${_mkLine2('pur-cp', purCpPrice, _purCpOn, o.pur_fixed_cp_price, _purCost)}
           </div>
           <div class="m4v1-pur-info">매입가 <b>${(avg || 0).toLocaleString('ko-KR')}원</b></div>
           ${invFootHtml}
@@ -5781,11 +5774,11 @@
       const val = valStr === '' ? 0 : parseInt(valStr, 10);
       if (val && cost) {
         const m = ((val - cost) / cost) * 100;
-        marginEl.textContent = m.toFixed(2) + '%';
+        marginEl.textContent = '마진 ' + m.toFixed(2) + '%';
         marginEl.classList.toggle('loss', m < 0);
         marginEl.title = `(지정가 ${val.toLocaleString('ko-KR')}원 - 원가 ${cost.toLocaleString('ko-KR')}원) / 원가 × 100`;
       } else {
-        marginEl.textContent = '—';
+        marginEl.textContent = '마진 —';
         marginEl.classList.remove('loss');
         marginEl.title = '지정가 입력 후 마진율 자동 계산';
       }

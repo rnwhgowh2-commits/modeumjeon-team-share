@@ -2218,36 +2218,46 @@
 }
 .m4v1-card.pur.active .m4v1-inv-link:hover { background: #FEF3C7; }
 /* [M] 마켓 행 — logo · 이름 · 마켓 지정가 토글 · 가격/인풋 · 마진 */
-.m4v1-mkt-row {
-  /* [2026-06-03] 그리드 5칼럼이 좁은 카드서 짓눌려 글자 줄바꿈 → flex-wrap 으로 변경.
-     정보·요소 그대로, 안 맞으면 '가격+마진'이 통째로 깔끔히 다음 줄로(단어 안 쪼개짐). */
-  display: flex; flex-wrap: wrap; align-items: center;
-  gap: 3px 6px; padding: 5px 0; font-size: 13px; line-height: 1.5;
-}
+/* [2026-06-03 시안A 적용] 마켓 행 = 2줄. l1(로고+이름+[AUTO|지정] 세그) / l2(가격 글자 + 마진). */
+.m4v1-mkt-row { display: block; padding: 6px 0; }
+.m4v1-mkt-row + .m4v1-mkt-row { border-top: 1px solid #eafaf0; }
+.m4v1-l1 { display: flex; align-items: center; gap: 6px; }
+.m4v1-l2 { display: flex; align-items: baseline; gap: 6px; margin-top: 3px; padding-left: 26px; }
+/* 모드 세그먼트 — 채움 버튼 (active AUTO=파랑, 지정=앰버) */
+.m4-seg { margin-left: auto; display: inline-flex; flex: none; border: 1px solid #E5E8EB; border-radius: 20px; overflow: hidden; }
+.m4-seg-b { font: inherit; font-size: 9.5px; font-weight: 800; padding: 2px 9px; border: none; background: #fff; color: #6B7684; cursor: pointer; line-height: 1.5; }
+.m4-seg-b.on-auto { background: #1B64DA; color: #fff; }
+.m4-seg-b.on-fix { background: #B45309; color: #fff; }
+.m4-seg-b.disabled { opacity: .4; cursor: not-allowed; }
 .m4v1-br {
   display: inline-flex; align-items: center; justify-content: center;
   width: 22px; height: 22px; border-radius: 4px; font-weight: 700; font-size: 14px;
 }
 .m4v1-br-na { background: #03C75A; color: #fff; }
 .m4v1-br-cp { background: #1B64DA; color: #fff; }
-.m4v1-mkt-name { color: #191F28; font-weight: 600; font-size: 13.5px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.m4v1-mkt-name { color: #191F28; font-weight: 600; font-size: 13px; white-space: nowrap; }
 .m4v1-auto {
   background: #E8F2FE; color: #1B64DA; padding: 1px 4px;
   border-radius: 3px; font-size: 11px; font-weight: 800;
 }
-.m4v1-mkt-price {
-  font-family: ui-monospace, monospace; font-weight: 800;
-  color: #191F28; font-size: 13.5px; text-align: right; min-width: 70px;
-  white-space: nowrap;        /* '137,100원' 절대 안 쪼개짐 */
-  margin-left: auto;          /* 우측 정렬 — 가격+마진을 행 오른쪽으로 */
-}
-.m4v1-card.src.active .m4v1-mkt-price { color: #0E7C3A; }
+/* 가격 = 박스 없이 글자만 (AUTO=초록, 지정=앰버). */
+.m4v1-l2-price { white-space: nowrap; }
+.m4v1-mkt-price { font-family: ui-monospace, monospace; font-weight: 800; font-size: 14px; color: #0E7C3A; white-space: nowrap; }
 .m4v1-card.pur.active .m4v1-mkt-price { color: #92400E; }
-.m4v1-mkt-margin {
-  font-size: 13.5px; color: #8B95A1; font-family: ui-monospace, monospace;
-  min-width: 42px; text-align: right; font-weight: 600; margin-left: 6px;
-  white-space: nowrap;        /* 마진율 '10.65%' 안 쪼개짐 */
+.m4v1-l2-price.fix .m4v1-mkt-price { color: #B45309; }
+.a1-fix-input.bare {
+  border: none; background: transparent; color: #B45309; font-weight: 800;
+  font-family: ui-monospace, monospace; font-size: 14px; width: 64px; padding: 0;
+  text-align: left; -moz-appearance: textfield;
 }
+.a1-fix-input.bare::-webkit-outer-spin-button,
+.a1-fix-input.bare::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.m4v1-won { font-size: 11px; color: #6B7684; font-weight: 600; }
+.m4v1-mkt-margin {
+  font-family: ui-monospace, monospace; font-size: 12px; font-weight: 700;
+  color: #7C3AED; margin-left: auto; text-align: right; white-space: nowrap;
+}
+.m4v1-mkt-margin.loss { color: #DC2626; }
 .m4v1-fx-row {
   display: flex; justify-content: flex-end; margin-top: 6px;
   border-top: 1px dashed #F2F4F6; padding-top: 5px;
