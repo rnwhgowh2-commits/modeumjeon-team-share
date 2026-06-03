@@ -4717,6 +4717,26 @@
   function openOptionUrlPopup(sku) {
     const opt = ((window.DATA && window.DATA.options) || []).find(o => o.sku === sku);
     const sources = ((opt && opt.sources) || []).filter(s => s.product_url);
+    // [2026-06-03 시안③] 소싱처 마크 = 파비콘 + 브랜드색 이름.
+    //   META 는 source_registry.py 와 동기. 파비콘은 URL 도메인에서 추출, 실패 시 브랜드색 글자 배지로 자동 대체.
+    const SRC_META = {
+      '르무통 공홈':         { glyph: '르', color: '#191F28' },
+      '롯데온':              { glyph: '롯', color: '#ED2025' },
+      '무신사':              { glyph: 'M',  color: '#000000' },
+      '스마트스토어 르무통': { glyph: 'N',  color: '#03C75A' },
+      'SSF샵':               { glyph: 'SS', color: '#FF6B00' },
+      'SSG':                 { glyph: 'SG', color: '#F47216' },
+    };
+    function srcMark(name, sampleUrl) {
+      const m = SRC_META[name] || { glyph: String(name || '?').slice(0, 2), color: '#6B7684' };
+      let domain = '';
+      try { domain = new URL(sampleUrl).hostname; } catch (e) {}
+      const fb = `<span style=&quot;flex-shrink:0;display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;border-radius:5px;font-size:8px;font-weight:800;color:#fff;background:${m.color}&quot;>${escapeHtml(m.glyph)}</span>`;
+      const icon = domain
+        ? `<img src="https://www.google.com/s2/favicons?domain=${domain}&sz=64" width="16" height="16" style="flex-shrink:0;width:16px;height:16px;border-radius:5px;background:#fff;border:1px solid #E5E8EB" onerror="this.outerHTML='${fb}'">`
+        : fb.replace(/&quot;/g, '"');
+      return { icon, color: m.color };
+    }
     let body;
     if (!sources.length) {
       body = '<div style="padding:20px;text-align:center;background:#f7f8f9;border-radius:9px;color:#8b95a1;font-size:13px">등록된 소싱처 URL이 없습니다.</div>';
@@ -4728,8 +4748,9 @@
       });
       body = Object.keys(groups).map(name => {
         const items = groups[name];
+        const mk = srcMark(name, items[0] && items[0].product_url);
         return `<div style="margin-bottom:12px">`
-          + `<div style="font-size:12px;font-weight:800;color:#3182f6;margin-bottom:6px">${escapeHtml(name)} <span style="color:#b0b8c1">· ${items.length}개</span></div>`
+          + `<div style="display:flex;align-items:center;gap:7px;font-size:12px;font-weight:800;color:${mk.color};margin-bottom:6px">${mk.icon}<span>${escapeHtml(name)}</span><span style="color:#b0b8c1;font-weight:700">· ${items.length}개</span></div>`
           + items.map(s => {
               const u = s.product_url;
               return `<div style="display:flex;align-items:center;gap:8px;padding:8px 10px;border:1px solid #eceef1;border-radius:8px;margin-bottom:5px">`
