@@ -411,7 +411,9 @@ if __name__ == "__main__":
     _setup_logging()
     app = create_app()
     # 스케줄러는 운영 모드에서만 시작 (테스트 모드는 명시적으로 호출)
-    if not Config.DEBUG:
+    # [2026-06-03] DISABLE_SCHEDULER=1 (로컬 '보면서 크롤' 모드) 이면 자동 스케줄러 끔
+    #   → 매분 자동 크롤로 브라우저 창이 계속 뜨는 것 방지. 수동 「전체 크롤」만 동작.
+    if not Config.DEBUG and os.environ.get("DISABLE_SCHEDULER") != "1":
         try:
             from scheduler.main import start_scheduler
             start_scheduler()

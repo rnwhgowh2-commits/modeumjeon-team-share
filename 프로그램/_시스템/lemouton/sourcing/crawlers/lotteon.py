@@ -651,7 +651,8 @@ def _fetch_lotteon_via_playwright(product_url: str, timeout_sec: int) -> dict:
     page_title_fallback = ""
 
     with sync_playwright() as p:
-        browser = p.chromium.launch(headless=True)
+        import os as _os
+        browser = p.chromium.launch(headless=_os.environ.get('WATCH_CRAWL') != '1')  # WATCH_CRAWL=1 → 보이는 창
         ctx = browser.new_context(
             user_agent=(
                 "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "

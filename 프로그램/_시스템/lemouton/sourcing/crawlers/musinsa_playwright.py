@@ -529,9 +529,10 @@ class MusinsaPlaywrightCrawler(AbstractCrawler):
                 args = ["--disable-blink-features=AutomationControlled"]
                 for ch in ("chrome", "msedge", None):
                     try:
+                        import os as _os
                         kwargs = dict(
                             user_data_dir=str(prof_path),
-                            headless=self.headless,
+                            headless=self.headless and _os.environ.get('WATCH_CRAWL') != '1',  # WATCH_CRAWL=1 → 보이는 창
                             args=args,
                         )
                         if ch:

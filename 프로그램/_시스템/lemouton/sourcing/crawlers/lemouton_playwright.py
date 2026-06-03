@@ -98,6 +98,9 @@ class PlaywrightLemoutonCrawler(AbstractCrawler):
         self.profile_dir = profile_dir
 
     def fetch(self, product_url: str) -> CrawlResult:
+        # [2026-06-03] WATCH_CRAWL=1 (내 PC 보면서 크롤) 이면 headful(보이는 창)로 강제.
+        import os as _os
+        _hl = self.headless and _os.environ.get('WATCH_CRAWL') != '1'
         with sync_playwright() as pw:
             # ★ profile_dir 모드 — 영구 프로필 (로그인 유지)
             if self.profile_dir:
@@ -106,7 +109,7 @@ class PlaywrightLemoutonCrawler(AbstractCrawler):
                     raise RuntimeError(f"프로필 디렉터리 없음: {self.profile_dir}")
                 context = pw.chromium.launch_persistent_context(
                     user_data_dir=str(self.profile_dir),
-                    headless=self.headless,
+                    headless=_hl,
                     user_agent=USER_AGENT,
                     args=["--disable-blink-features=AutomationControlled"],
                 )
@@ -121,7 +124,7 @@ class PlaywrightLemoutonCrawler(AbstractCrawler):
                 return  # unreachable
 
             # ── Legacy: 비로그인
-            browser = pw.chromium.launch(headless=self.headless)
+            browser = pw.chromium.launch(headless=_hl)
             try:
                 context = browser.new_context(user_agent=USER_AGENT)
                 page = context.new_page()
