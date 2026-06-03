@@ -161,7 +161,7 @@
   })();
 </script>
 
-<script src="{{ url_for('static', filename='toss.js') }}"></script>
+<script src="{{ url_for('static', filename='toss.js') }}?v=20260603_radiofix"></script><!-- ⚠️ toss.js 수정 시 이 버전 문자열 반드시 갱신 (정적 캐시 max-age=1일 우회) -->
 <script src="{{ url_for('static', filename='toss_add_benefit.js') }}"></script><!-- v6 D2-A 혜택추가폼 인터랙션 -->
 <script src="{{ url_for('static', filename='option_url_modal.js') }}?v=20260602_v27_save_parallel"></script><!-- 2026-06-02 v27 — autoSave URL 카드 PUT/POST 병렬화 (for-await → Promise.all) + reload 200ms. ⚠️ option_url_modal.js 수정 시 이 버전 문자열 반드시 갱신 -->
 
