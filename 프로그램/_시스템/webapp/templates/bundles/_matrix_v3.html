@@ -2859,7 +2859,7 @@
     // 분자 = 그 중 crawled_price 있는 옵션 수
     const srcStats = {};
     sources.forEach(s => {
-      srcStats[s.id] = { name: s.name, urls: 0, done: 0, running: 0 };
+      srcStats[s.id] = { name: s.name, urls: 0, done: 0, running: 0, lastFetched: null };
     });
     opts.forEach(o => {
       (o.sources || []).forEach(src => {
@@ -2868,6 +2868,11 @@
         if (src.product_url) st.urls++;
         if (src.crawled_price && src.crawled_price > 0) st.done++;
         else if (src.last_status === 'running') st.running++;
+        // [2026-06-03] 소싱처별 최근 크롤 시각 = 옵션들 last_fetched_at 중 최댓값.
+        //   (ISO UTC 문자열이라 사전식 비교로 최신 판별 가능)
+        if (src.last_fetched_at && (!st.lastFetched || src.last_fetched_at > st.lastFetched)) {
+          st.lastFetched = src.last_fetched_at;
+        }
       });
     });
 
@@ -2910,12 +2915,20 @@
       const pct = st.urls ? Math.round((st.done / st.urls) * 100) : 0;
       const stateCls = isWait ? 'wait' : (isPartial ? 'partial' : '');
       const pctTxt = isWait ? '—' : pct;
+      // [2026-06-03] 소싱처별 최근 크롤 시각 (회색) — 없으면 '크롤 전'.
+      //   last_fetched_at 은 타임존 없는 UTC 문자열 → 'Z' 보정 후 파싱(로컬시간 오해 방지).
+      const _lfUtc = st.lastFetched
+        ? (/[Z+]|[+-]\d\d:\d\d$/.test(st.lastFetched) ? st.lastFetched : st.lastFetched + 'Z')
+        : null;
+      const crawlTxt = _lfUtc ? ('🕒 ' + fmtRelDate(_lfUtc) + ' 크롤') : '🕒 크롤 전';
+      const crawlTitle = _lfUtc ? new Date(_lfUtc).toLocaleString('ko-KR') : '아직 크롤 안 함';
       // Phase 7 — 모바일 앱 이미지 로고 사용
       sideHHtml += `
         <div class="scell ${stateCls}" title="${escapeHtml(s.name)} · ${st.done}/${st.urls} URL">
           <div class="top"><span class="site-logo">${brandIconHtml(s.name, 'sm')}</span><span class="nm">${escapeHtml(s.name)}</span></div>
           <div class="pct">${pctTxt}${!isWait ? '%' : ''}</div>
           <div class="frac">${st.done}/${st.urls} · URL ${st.urls}${isPartial && !isWait ? '개만' : ''}</div>
+          <div class="crawl-time" title="${crawlTitle}">${crawlTxt}</div>
         </div>`;
     });
     sideHHtml += '</div>';

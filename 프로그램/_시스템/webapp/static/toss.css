@@ -1545,6 +1545,8 @@
 .sm-side-h .srcs-grid .scell .pct { font-size: 28px; font-weight: 800; color: #0E7C3A; font-family: ui-monospace, monospace; line-height: 1; }
 .sm-side-h .srcs-grid .scell.wait .pct { color: #B0B8C1; }
 .sm-side-h .srcs-grid .scell .frac { font-size: 14px; color: #8B95A1; font-weight: 600; margin-top: 5px; }
+/* [2026-06-03] 소싱처별 최근 크롤 시각 — 회색, frac 아래 작게 */
+.sm-side-h .srcs-grid .scell .crawl-time { font-size: 12px; color: #B0B8C1; font-weight: 600; margin-top: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .sm-side-h .srcs-grid .scell.partial::after { content: '⚠'; position: absolute; right: 8px; top: 8px; font-size: 13px; color: #92400E; }
 
 /* Winner 카드 — 강조 강화 */
