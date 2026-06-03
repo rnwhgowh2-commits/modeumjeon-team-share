@@ -283,6 +283,28 @@
   #g-progress-widget.idle #gpw-expanded { border-color: #D1D6DB; }
   #g-progress-widget.idle .gpw-dot { background: #B0B8C1; animation: none; }
   #gpw-tasks .gpw-idle { font-size: 12.5px; color: #8B95A1; line-height: 1.65; padding: 4px 2px; }
+  /* [2026-06-03 V5] 활성 행 하이라이트 — 항상 소싱처별 표시, 실행중 행 펄스 + 점멸 태그 */
+  @keyframes gpw-rowpulse { 0%,100% { background:#F2F8FF; } 50% { background:#E3F0FF; } }
+  #gpw-tasks .gpw-sub2 { display:flex; justify-content:space-between; font-size:11.5px; color:#8B95A1; margin:2px 2px 7px; }
+  #gpw-tasks .gpw-sub2 .cnt { font-family:ui-monospace,monospace; font-weight:800; color:#4E5968; }
+  #gpw-tasks .gpw-v5row { padding:7px 9px; border-radius:8px; margin-bottom:3px; }
+  #gpw-tasks .gpw-v5row.run { animation: gpw-rowpulse 1.6s ease infinite; }
+  #gpw-tasks .gpw-v5row.done { background:#F4FBF7; }
+  #gpw-tasks .gpw-v5top { display:flex; align-items:center; gap:7px; font-size:12.5px; margin-bottom:4px; }
+  #gpw-tasks .gpw-v5nm { font-weight:700; color:#333D4B; }
+  #gpw-tasks .gpw-v5cnt { margin-left:auto; font-family:ui-monospace,monospace; font-weight:800; font-size:11.5px; color:#4E5968; }
+  #gpw-tasks .gpw-v5tag { font-size:10px; font-weight:800; padding:1px 7px; border-radius:10px; display:inline-flex; align-items:center; gap:4px; }
+  #gpw-tasks .gpw-v5tag.run { background:#E5F0FF; color:#1B64DA; }
+  #gpw-tasks .gpw-v5tag.done { background:#E7F8EE; color:#0E7C3A; }
+  #gpw-tasks .gpw-v5tag.wait { background:#F2F4F6; color:#8B95A1; }
+  #gpw-tasks .gpw-v5tag.fail { background:#FFE9EC; color:#F04452; }
+  #gpw-tasks .gpw-v5tag.run .b { width:6px; height:6px; border-radius:50%; background:#3182F6; animation: gpw-pulse .9s ease infinite; }
+  #gpw-tasks .gpw-v5bar { height:5px; background:#E9ECEF; border-radius:3px; overflow:hidden; }
+  #gpw-tasks .gpw-v5bar > i { display:block; height:100%; border-radius:3px; background:#0E7C3A; transition:width .3s; }
+  #gpw-tasks .gpw-v5bar.wait > i { background:#CBD2D9; }
+  #gpw-tasks .gpw-v5bar.run > i { background:#3182F6; }
+  #gpw-tasks .gpw-uprow { font-size:12px; color:#1B64DA; font-weight:700; margin-top:7px; }
+  #gpw-tasks .gpw-now.idle { color:#B0B8C1; }
 </style>
 <script>
 (function() {
@@ -307,71 +329,68 @@
       expanded.hidden = false;
     }
   }
+  // [2026-06-03 V5] 유휴에도 항상 보일 기본 소싱처 6개 (대기중 표시용)
+  const GPW_DEFAULT_SRC = [
+    {key:'lemouton',    label:'르무통 공홈'},
+    {key:'ss_lemouton', label:'스마트스토어'},
+    {key:'musinsa',     label:'무신사'},
+    {key:'ssf',         label:'SSF'},
+    {key:'lotteon',     label:'롯데온'},
+    {key:'ssg',         label:'SSG'},
+  ];
+  const GPW_ST_LBL = {done:'완료', run:'실행중', wait:'대기중', fail:'실패'};
+
+  function gpwSrcRow(s) {
+    const sp = s.total > 0 ? Math.min(100, Math.round((s.done / s.total) * 100)) : 0;
+    const st = s.status || 'wait';
+    const nm = (s.label || s.key || '').replace(/</g, '&lt;');
+    const cnt = (s.total != null && s.total !== '') ? `${s.done || 0}/${s.total}` : '';
+    const tag = st === 'run'
+      ? '<span class="gpw-v5tag run"><span class="b"></span>실행중</span>'
+      : `<span class="gpw-v5tag ${st}">${GPW_ST_LBL[st] || '대기중'}</span>`;
+    return `<div class="gpw-v5row ${st}">
+      <div class="gpw-v5top"><span class="gpw-v5nm">${nm}</span>${tag}<span class="gpw-v5cnt">${cnt}</span></div>
+      <div class="gpw-v5bar ${st}"><i style="width:${sp}%"></i></div>
+    </div>`;
+  }
+
+  // [2026-06-03 V5] 항상 소싱처별 작업창 표시 — 유휴=전부 대기중, 실행중=점멸·행 펄스.
+  //   숨김/표시는 사용자 최소화·펼치기 토글로만 제어 (깜빡임 없음).
   function render(state) {
     const tasks = state.tasks || {};
-    const active = Object.entries(tasks).filter(([k, v]) => v != null);
-    if (!active.length) {
-      // [2026-06-03] 유휴 상태에도 숨기지 않고 '대기 중'으로 항상 표시 — 깜빡임 방지.
-      //   (이전엔 활성 작업이 없으면 위젯을 통째로 숨겨, 스케줄러 사이클 사이마다
-      //    나타났다 사라졌다 반복했음.) 여닫이(최소화/펼치기)는 사용자 토글로만 제어.
-      widget.classList.add('idle');
-      pctEl.textContent = '–';
-      titleEl.textContent = '크롤 대기 중';
-      tasksEl.innerHTML = '<div class="gpw-idle">진행 중인 크롤·업로드 작업이 없어요.<br>「전체 크롤」을 실행하면 여기에 실시간 진행이 표시됩니다.</div>';
-      setVisible(true);
-      return;
-    }
-    widget.classList.remove('idle');
+    const crawl = tasks.crawl;
+    const upload = tasks.upload;
+    const crawlActive = !!(crawl && !crawl.finished_at);
+    const anyActive = crawlActive || !!(upload && !upload.finished_at);
+    widget.classList.toggle('idle', !anyActive);
 
-    // 평균 진행률 (전체) — 100% cap (백엔드 total 추정값과 실 작업 불일치 대비)
-    const totalDone = active.reduce((a, [k,v]) => a + (v.done||0), 0);
-    const totalTotal = active.reduce((a, [k,v]) => a + (v.total||0), 0);
-    const avgPct = totalTotal > 0 ? Math.min(100, Math.round(totalDone / totalTotal * 100)) : 0;
-    pctEl.textContent = avgPct + '%';
-    titleEl.textContent = '진행 중 (' + active.length + ')';
+    // 소싱처 rows — 크롤 breakdown 있으면 사용, 없으면 기본 6개(대기중)
+    const bd = (crawl && Array.isArray(crawl.breakdown)) ? crawl.breakdown : [];
+    const rows = bd.length ? bd
+      : GPW_DEFAULT_SRC.map(d => ({key:d.key, label:d.label, total:null, done:0, status:'wait'}));
 
-    // 작업 카드 렌더
-    let html = '';
-    const META = {
-      crawl: {ic: '', name: '크롤'},
-      upload: {ic: '📤', name: '업로드'},
-    };
-    for (const [kind, t] of active) {
-      const meta = META[kind] || {ic: '⚙', name: kind};
-      const pct = t.total > 0 ? Math.min(100, Math.round((t.done / t.total) * 100)) : 0;
-      const cur = (t.current || '').replace(/</g, '&lt;');
-      const label = (t.label || '').replace(/</g, '&lt;');
-      const finished = !!t.finished_at;
-      // 소싱처별 진행 줄 (crawl 작업, breakdown 있을 때) — 무엇을 몇 개 중 몇 개 크롤 중인지
-      let bdHtml = '';
-      const bd = Array.isArray(t.breakdown) ? t.breakdown : [];
-      if (bd.length) {
-        const ST = {done:['done','완료'], run:['run','진행'], wait:['wait','대기'], fail:['fail','실패']};
-        bdHtml = '<div class="gpw-bd">' + bd.map(s => {
-          const sp = s.total > 0 ? Math.min(100, Math.round((s.done / s.total) * 100)) : 0;
-          const [sc, sl] = ST[s.status] || ST.wait;
-          const nm = (s.label || s.key || '').replace(/</g, '&lt;');
-          return `<div class="gpw-bd-row">
-            <div class="gpw-bd-top">
-              <span class="gpw-bd-nm">${nm}</span>
-              <span class="gpw-bd-st ${sc}">${sl}</span>
-              <span class="gpw-bd-cnt">${s.done}/${s.total}</span>
-            </div>
-            <div class="gpw-bd-bar ${sc}"><i style="width:${sp}%"></i></div>
-          </div>`;
-        }).join('') + '</div>';
-      }
-      html += `<div class="gpw-task ${kind}">
-        <div class="gpw-trow1">
-          <span>${meta.ic} ${meta.name} ${finished ? '✓ 완료' : '중'}</span>
-          <span class="gpw-pct-text">${pct}%</span>
-        </div>
-        <div class="gpw-bar"><div class="fill" style="width:${pct}%"></div></div>
-        <div class="gpw-cnt">${t.done}/${t.total}${label ? ' · ' + label : ''}</div>
-        ${bdHtml}
-        ${cur ? `<div class="gpw-now">▸ ${cur}</div>` : ''}
-      </div>`;
+    // 헤더 — 전체 %
+    let pctTxt = '–';
+    if (crawl && crawl.total > 0) pctTxt = Math.min(100, Math.round(crawl.done / crawl.total * 100)) + '%';
+    pctEl.textContent = pctTxt;
+    titleEl.textContent = crawlActive ? '크롤 진행 중'
+                        : (crawl && crawl.finished_at ? '크롤 완료' : '크롤 대기 중');
+
+    const doneCnt = rows.filter(r => r.status === 'done').length;
+    let html = `<div class="gpw-sub2"><span>소싱처별 진행</span><span class="cnt">${doneCnt}/${rows.length} 완료</span></div>`;
+    html += '<div class="gpw-v5list">' + rows.map(gpwSrcRow).join('') + '</div>';
+
+    // 업로드 작업(진행 중일 때만 간단 표시)
+    if (upload && !upload.finished_at) {
+      const up = upload.total > 0 ? Math.min(100, Math.round(upload.done / upload.total * 100)) : 0;
+      html += `<div class="gpw-uprow">📤 업로드 ${up}% (${upload.done}/${upload.total})</div>`;
     }
+
+    // 현재 항목 / 대기 안내
+    const cur = (crawl && crawl.current) ? crawl.current.replace(/</g, '&lt;') : '';
+    if (crawlActive && cur) html += `<div class="gpw-now">▸ ${cur}</div>`;
+    else if (!anyActive) html += `<div class="gpw-now idle">대기 중 — 「전체 크롤」 실행 시 시작</div>`;
+
     tasksEl.innerHTML = html;
     setVisible(true);
   }
