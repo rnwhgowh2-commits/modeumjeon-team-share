@@ -219,11 +219,14 @@ def fetch_unique_sources(
     session: Session,
     *,
     crawlers: dict[str, Any],
+    progress_cb: Any = None,
 ) -> dict[int, dict]:
     """모든 활성 SourceProduct 를 사이트별로 dedup 호출.
 
     Args:
       crawlers: {source_name: AbstractCrawler}
+      progress_cb: 선택. 상품 1개 크롤할 때마다 호출 — 소싱처별 실시간 진행 표시용.
+        ``progress_cb(done, total, site, src_totals, src_done)``. 콜백 예외는 무시.
 
     Returns:
       {source_product_id: {'status': 'ok'|'error'|'no_crawler',
@@ -240,26 +243,44 @@ def fetch_unique_sources(
                 .filter_by(deleted_at=None)
                 .all())
 
+    # 소싱처(site)별 총개수 — 진행 표시용
+    src_totals: dict[str, int] = {}
+    for sp in products:
+        src_totals[sp.site] = src_totals.get(sp.site, 0) + 1
+    src_done: dict[str, int] = {k: 0 for k in src_totals}
+    total = len(products)
+
+    def _emit(done: int, site) -> None:
+        if progress_cb is None:
+            return
+        try:
+            progress_cb(done, total, site, dict(src_totals), dict(src_done))
+        except Exception:
+            pass
+
+    _emit(0, None)  # 시작 — 전부 대기중으로 즉시 표시
+    done = 0
     for sp in products:
         crawler = crawlers.get(sp.site)
         if crawler is None:
             results[sp.id] = {'status': 'no_crawler',
                               'crawl_result': None, 'error': None}
             sp.last_status = 'no_crawler'
-            continue
-        try:
-            cr = crawler.fetch(sp.url)
-        except Exception as e:
-            results[sp.id] = {'status': 'error',
-                              'crawl_result': None, 'error': str(e)}
-            sp.last_status = 'error'
-            sp.last_error_msg = str(e)[:500]
-            sp.last_fetched_at = _utcnow()
-            continue
-
-        results[sp.id] = {'status': 'ok',
-                          'crawl_result': cr, 'error': None}
-        save_crawl_result(session, source_product=sp, crawl_result=cr)
+        else:
+            try:
+                cr = crawler.fetch(sp.url)
+                results[sp.id] = {'status': 'ok',
+                                  'crawl_result': cr, 'error': None}
+                save_crawl_result(session, source_product=sp, crawl_result=cr)
+            except Exception as e:
+                results[sp.id] = {'status': 'error',
+                                  'crawl_result': None, 'error': str(e)}
+                sp.last_status = 'error'
+                sp.last_error_msg = str(e)[:500]
+                sp.last_fetched_at = _utcnow()
+        src_done[sp.site] = src_done.get(sp.site, 0) + 1
+        done += 1
+        _emit(done, sp.site)  # 상품 1개 완료 — 소싱처별 진행 갱신
 
     return results
 

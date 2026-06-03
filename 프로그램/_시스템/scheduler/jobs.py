@@ -52,9 +52,21 @@ def full_cycle(*, dry_run: bool = False) -> dict:
         s = SessionLocal()
         try:
             # Step 1: 모든 SourceProduct 실제 크롤 + DB 갱신 (멱등)
-            try: progress_tick('auto', current='fetch_unique_sources — 모든 SourceProduct 크롤 중...')
-            except Exception: pass
-            fetch_results = fetch_unique_sources(s, crawlers=crawlers)
+            # [2026-06-03] 자동 크롤도 소싱처별 진행을 위젯에 표시 (수동 크롤과 동일한 뷰 유지)
+            _AUTO_SRC_LABELS = {'lemouton': '르무통 공홈', 'ss_lemouton': '스마트스토어',
+                                'musinsa': '무신사', 'ssf': 'SSF', 'lotteon': '롯데온', 'ssg': 'SSG'}
+            def _auto_progress(done, total, site, src_totals, src_done):
+                breakdown = []
+                for k, t in src_totals.items():
+                    d = src_done.get(k, 0)
+                    status = 'done' if d >= t else ('wait' if d == 0 else 'run')
+                    breakdown.append({'key': k, 'label': _AUTO_SRC_LABELS.get(k, str(k)),
+                                      'total': t, 'done': d, 'status': status})
+                cur = (f"{_AUTO_SRC_LABELS.get(site, site)} 크롤 중 ({done}/{total})"
+                       if site else f"{total}개 상품 크롤 준비...")
+                try: progress_tick('auto', done=done, total=total, current=cur, breakdown=breakdown)
+                except Exception: pass
+            fetch_results = fetch_unique_sources(s, crawlers=crawlers, progress_cb=_auto_progress)
             ok = sum(1 for r in fetch_results.values() if r['status'] == 'ok')
             err = sum(1 for r in fetch_results.values() if r['status'] == 'error')
             none = sum(1 for r in fetch_results.values() if r['status'] == 'no_crawler')
