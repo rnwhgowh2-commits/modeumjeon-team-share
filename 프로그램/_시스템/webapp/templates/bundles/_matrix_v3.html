@@ -4731,9 +4731,9 @@
       const m = SRC_META[name] || { glyph: String(name || '?').slice(0, 2), color: '#6B7684' };
       let domain = '';
       try { domain = new URL(sampleUrl).hostname; } catch (e) {}
-      const fb = `<span style=&quot;flex-shrink:0;display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;border-radius:5px;font-size:8px;font-weight:800;color:#fff;background:${m.color}&quot;>${escapeHtml(m.glyph)}</span>`;
+      const fb = `<span style=&quot;flex-shrink:0;display:inline-flex;align-items:center;justify-content:center;width:21px;height:21px;border-radius:6px;font-size:11px;font-weight:800;color:#fff;background:${m.color}&quot;>${escapeHtml(m.glyph)}</span>`;
       const icon = domain
-        ? `<img src="https://www.google.com/s2/favicons?domain=${domain}&sz=64" width="16" height="16" style="flex-shrink:0;width:16px;height:16px;border-radius:5px;background:#fff;border:1px solid #E5E8EB" onerror="this.outerHTML='${fb}'">`
+        ? `<img src="https://www.google.com/s2/favicons?domain=${domain}&sz=64" width="21" height="21" style="flex-shrink:0;width:21px;height:21px;border-radius:6px;background:#fff;border:1px solid #E5E8EB" onerror="this.outerHTML='${fb}'">`
         : fb.replace(/&quot;/g, '"');
       return { icon, color: m.color };
     }
@@ -4746,11 +4746,11 @@
         const name = s.source_name || ('소싱처 ' + s.source_id);
         (groups[name] = groups[name] || []).push(s);
       });
-      body = Object.keys(groups).map(name => {
+      body = '<div style="max-height:58vh;overflow-y:auto;margin-right:-6px;padding-right:6px">' + Object.keys(groups).map(name => {
         const items = groups[name];
         const mk = srcMark(name, items[0] && items[0].product_url);
         return `<div style="margin-bottom:12px">`
-          + `<div style="display:flex;align-items:center;gap:7px;font-size:12px;font-weight:800;color:${mk.color};margin-bottom:6px">${mk.icon}<span>${escapeHtml(name)}</span><span style="color:#b0b8c1;font-weight:700">· ${items.length}개</span></div>`
+          + `<div style="display:flex;align-items:center;gap:9px;font-size:16px;font-weight:800;color:${mk.color};margin-bottom:7px">${mk.icon}<span>${escapeHtml(name)}</span><span style="color:#b0b8c1;font-weight:700;font-size:13px">· ${items.length}개</span></div>`
           + items.map(s => {
               const u = s.product_url;
               return `<div style="display:flex;align-items:center;gap:8px;padding:8px 10px;border:1px solid #eceef1;border-radius:8px;margin-bottom:5px">`
@@ -4759,7 +4759,7 @@
                 + `</div>`;
             }).join('')
           + `</div>`;
-      }).join('');
+      }).join('') + '</div>';
     }
     const note = '<div style="font-size:11.5px;color:#8b95a1;margin-top:8px">＋ 추가·수정·삭제는 상단 <b>옵션 조합 생성 및 수정</b> 버튼에서 관리합니다.</div>';
     const box = _modalBox('등록 소싱처 URL · ' + escapeHtml(sku), body + note,
