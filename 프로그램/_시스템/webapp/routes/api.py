@@ -1939,20 +1939,21 @@ def _build_color_mapping(s, model_code: str, result) -> dict:
     matched_our: set[str] = set()
     for raw in raw_colors_set:
         raw_low = raw.lower()
+        raw_ns = raw_low.replace(' ', '')  # 공백 무시 비교
         chosen: str | None = None
         method: str = ''
-        # 1단: 직접 부분 매칭
+        # 1단: 직접 부분 매칭 (공백 무시)
         for oc in our_colors_set:
-            ol = oc.lower()
-            if ol in raw_low or raw_low in ol:
+            ol = oc.lower().replace(' ', '')
+            if ol in raw_ns or raw_ns in ol:
                 chosen = oc
                 method = 'direct (부분일치)'
                 break
-        # 2단: 색상 사전 variants
+        # 2단: 색상 사전 variants (공백 무시)
         if not chosen:
             for oc in our_colors_set:
                 for v in cdicts.get(oc.lower(), []):
-                    if v and v in raw_low:
+                    if v and v.replace(' ', '') in raw_ns:
                         chosen = oc
                         method = f'color_dict variant: "{v}"'
                         break
@@ -2061,6 +2062,8 @@ def _save_crawl_to_track(s, model_code: str, result) -> int:
         if not s_norm:
             continue
 
+        # 공백 무시 — '올리브 그린'(소싱처) == '올리브그린'(우리)
+        c_text_ns = c_text.replace(' ', '')
         matched = None
         for our in our_options:
             if (our.size_code or '').strip() != s_norm:
@@ -2068,13 +2071,15 @@ def _save_crawl_to_track(s, model_code: str, result) -> int:
             our_color = (our.color_code or '').strip().lower()
             if not our_color:
                 continue
-            # 직접 부분 매칭 (양방향)
-            if our_color in c_text or c_text in our_color:
+            our_color_ns = our_color.replace(' ', '')
+            # 직접 부분 매칭 (양방향, 공백 무시)
+            if our_color_ns in c_text_ns or c_text_ns in our_color_ns:
                 matched = our
                 break
-            # 색상 사전 variants 매칭
+            # 색상 사전 variants 매칭 (공백 무시)
             for variant in cdicts.get(our_color, []):
-                if variant and variant in c_text:
+                v = (variant or '').replace(' ', '')
+                if v and v in c_text_ns:
                     matched = our
                     break
             if matched:
@@ -3071,9 +3076,15 @@ def cycle_crawl_all():
 
     def _bulk_bg():
         from shared.db import SessionLocal as SL2
+        from lemouton.sourcing.bulk_crawl import SOURCE_URL_FIELD as _SUF
+        from lemouton.sourcing.models import Option as _Opt
         s_init = SL2()
         try:
-            codes = [m.model_code for m in s_init.query(Model).all()]
+            # 크롤 대상 = URL 보유 + 우리 Option(색상/사이즈) 보유 모음전만
+            _url_cols = list(_SUF.values())
+            _opt_codes = {r[0] for r in s_init.query(_Opt.model_code).distinct().all()}
+            codes = [m.model_code for m in s_init.query(Model).order_by(Model.model_code).all()
+                     if any(getattr(m, c, None) for c in _url_cols) and m.model_code in _opt_codes]
         finally:
             s_init.close()
         # widget 시작 — 전체 모음전 N개
@@ -3092,45 +3103,45 @@ def cycle_crawl_all():
             try: progress_tick('crawl', current=f'{code} 크롤 중...')
             except Exception: pass
             try:
-                from lemouton.sourcing.pipeline import run_pipeline
-                from lemouton.sourcing.crawlers import build_crawlers
-                ss = SL2()
-                try:
-                    crawlers = build_crawlers()
-                    try:
-                        r = run_pipeline(ss, crawlers=crawlers, boxhero_records=[], model_code=code)
-                    except TypeError:
-                        r = run_pipeline(ss, crawlers=crawlers, boxhero_records=[])
-                    if isinstance(r, dict) and 'per_source' in r:
-                        d['sources'] = r['per_source']
-                    else:
-                        d['sources'] = {k: {'ok': True, 'items_crawled': 0,
-                                             'note': 'pipeline returned without per-source breakdown'}
-                                         for k in SOURCE_KEYS}
-                finally:
-                    ss.close()
+                # [2026-06-03] 저장 배선 — run_pipeline(미저장) → crawl_and_save_model(PriceTrackHistory 저장)
+                from lemouton.sourcing.bulk_crawl import crawl_and_save_model
+                res = crawl_and_save_model(code)
+                srcs = {k: v for k, v in res.items() if not k.startswith('_')}
+                d['sources'] = {
+                    k: {'ok': v.get('ok'), 'items_crawled': v.get('options', 0),
+                        'saved': v.get('saved', 0), 'error': v.get('error')}
+                    for k, v in srcs.items()
+                }
+                d['saved'] = sum(v.get('saved', 0) for v in srcs.values() if v.get('ok'))
+                oks = [v for v in srcs.values() if v.get('ok')]
+                if srcs and not oks:
+                    st = 'failed'
+                elif len(oks) < len(srcs):
+                    st = 'partial'
+                else:
+                    st = 'ok'
             except Exception as e:
                 err = str(e)
                 st = 'failed'
-                d['sources'] = {k: {'ok': False, 'error': err} for k in SOURCE_KEYS}
+                d['sources'] = {}
             d['duration_sec'] = round(_time.monotonic() - t0, 1)
-            if st != 'failed':
-                st = summarize_status(d)
             record_end(cid, status=st, details=d, error=err)
             per_child[code] = {'ok': st != 'failed', 'status': st,
-                                'duration_sec': d['duration_sec']}
+                                'duration_sec': d['duration_sec'], 'saved': d.get('saved', 0)}
             try: progress_tick('crawl', delta=1, current=f'{code} ✓ ({len(per_child)}/{len(codes)})')
             except Exception: pass
 
         if codes:
-            with ThreadPoolExecutor(max_workers=4) as ex:
+            with ThreadPoolExecutor(max_workers=3) as ex:
                 list(ex.map(_one, codes))
 
         # 부모 집계
         oks = sum(1 for v in per_child.values() if v.get('ok'))
         fails = len(per_child) - oks
+        total_saved = sum(v.get('saved', 0) for v in per_child.values())
         parent_details = {
             'sources': {k: {'ok': True, 'items_crawled': 0} for k in SOURCE_KEYS},
+            'saved': total_saved,
             'children': per_child,
             'duration_sec': round(_time.monotonic() - started_parent, 1),
             'children_total': len(per_child),

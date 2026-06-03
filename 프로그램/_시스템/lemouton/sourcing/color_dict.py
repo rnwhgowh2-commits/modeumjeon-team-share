@@ -28,19 +28,36 @@ def list_colors(session: Session) -> list[ColorDict]:
     return list(session.scalars(select(ColorDict)).all())
 
 
+def _ns(text: str) -> str:
+    """공백 무시 비교용 정규화 — 모든 공백 제거 + 소문자.
+
+    소싱처 옵션 색상명은 '올리브 그린'처럼 띄어쓰기가 있을 수 있어,
+    우리 표준 '올리브그린'(붙임)과 매칭되도록 공백을 무조건 제거한다.
+    """
+    return "".join((text or "").split()).lower()
+
+
 def normalize(session: Session, raw: str) -> str | None:
-    """텍스트 → 표준 색상 코드 (한글). 매칭 안 되면 None."""
+    """텍스트 → 표준 색상 코드 (한글). 매칭 안 되면 None.
+
+    공백 무시 매칭 — '올리브 그린' == '올리브그린'.
+    """
     if not raw:
         return None
-    raw_clean = raw.strip()
+    raw_ns = _ns(raw)
+    if not raw_ns:
+        return None
 
     for cd in list_colors(session):
         try:
             variants = json.loads(cd.variants_json)
         except (json.JSONDecodeError, TypeError):
             continue
+        # color_code 자체도 후보에 포함 (사전에 없어도 코드명과 직접 일치 허용)
+        if _ns(cd.color_code) == raw_ns:
+            return cd.color_code
         for v in variants:
-            if v and v.strip().lower() == raw_clean.lower():
+            if v and _ns(v) == raw_ns:
                 return cd.color_code
     return None
 
