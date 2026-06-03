@@ -356,6 +356,12 @@ def crawl_bundle_registered_urls(
         except Exception:
             pass
 
+    # [2026-06-03] '보면서 크롤'(WATCH_CRAWL=1): HTTP(curl) 방식 소싱처는 자체 브라우저가
+    #   없으므로 보기 전용 브라우저로 URL 을 띄워 보여준다. (Playwright 크롤러는 자체 headful.)
+    from lemouton.sources.watch_browser import watch_enabled as _watch_on, show_url as _watch_show
+    _HTTP_SHOW_SOURCES = {'ssf', 'ssg', 'ss_lemouton'}
+    _watch = _watch_on()
+
     out = {'total': 0, 'ok': 0, 'error': 0, 'no_crawler': 0, 'per_source': {}}
     _emit(0, None)  # 시작 — 위젯 즉시 표시 (소싱처별 0/N)
     done = 0
@@ -366,6 +372,9 @@ def crawl_bundle_registered_urls(
             link_model_to_source(session, model_code=model_code, source_product_id=sp.id)
         except Exception:
             pass
+        # 보면서 크롤 — HTTP 소싱처 URL 을 보이는 브라우저로 잠깐 표시 (fetch 전)
+        if _watch and bsu.source_key in _HTTP_SHOW_SOURCES:
+            _watch_show(bsu.url)
         r = fetch_one_source(session, source_product_id=sp.id, crawlers=crawlers)
         st = r.get('status')
         if st == 'skipped_no_browser':
