@@ -946,25 +946,69 @@ def _test_smartstore(creds, display_name: str, env_prefix: str):
         }), 500
 
     elapsed = round(_time.time() - started, 2)
-    if r.status_code == 200:
-        data = r.json()
-        token = data.get("access_token", "")
+    if r.status_code != 200:
+        body_snippet = (r.text or "")[:300]
+        hint = ""
+        if r.status_code == 403:
+            hint = ("403 — 해외 IP 차단 또는 셀러센터 API 허용목록 미등록. "
+                    "AWS 서버라면 네이버 커머스 API 센터에 서버 IP(54.116.196.90) 등록 필요.")
+        elif r.status_code == 401:
+            hint = "401 — Client ID/Secret 또는 서명 오류. 키를 다시 확인하세요."
         return jsonify({
-            "ok": True,
-            "message": f"✅ {display_name} 스마트스토어 OAuth 토큰 발급 성공 ({elapsed}s)",
+            "ok": False,
+            "error": f"스마트스토어 OAuth 실패 — HTTP {r.status_code}",
             "status_code": r.status_code,
             "elapsed_sec": elapsed,
-            "token_masked": (token[:8] + "***") if token else "<empty>",
-            "expires_in": data.get("expires_in"),
-        })
-    body_snippet = (r.text or "")[:300]
+            "body_snippet": body_snippet,
+            "hint": hint,
+        }), 502
+
+    # ── 토큰 발급 성공 → 상품/재고 조회까지 검증 (읽기 전용) ──
+    data = r.json()
+    token = data.get("access_token", "")
+    steps = [f"토큰 발급 성공 ({elapsed}s)"]
+    product_count = None
+    sample = None
+    try:
+        from shared.platforms.smartstore.client import SmartStoreClient
+        client = SmartStoreClient()
+        resp = client.request("POST", "/external/v1/products/search",
+                              body={"page": 1, "size": 5})
+        contents = (resp or {}).get("contents") or []
+        product_count = (resp or {}).get("totalElements", len(contents))
+        steps.append(f"상품 목록 조회 성공 (전체 {product_count}건)")
+
+        # 첫 상품의 옵션별 재고 조회
+        first_origin = contents[0].get("originProductNo") if contents else None
+        if first_origin:
+            from shared.platforms.smartstore.get_options import fetch_product_options
+            opt = fetch_product_options(int(first_origin), client=client)
+            if opt.success:
+                stock_total = sum(o.stock for o in opt.options)
+                sample = {
+                    "origin_product_no": first_origin,
+                    "name": opt.product_name,
+                    "sale_price": opt.sale_price,
+                    "option_count": len(opt.options),
+                    "stock_total": stock_total,
+                }
+                steps.append(
+                    f"재고 조회 성공 — '{opt.product_name}' "
+                    f"옵션 {len(opt.options)}개 / 총재고 {stock_total}"
+                )
+    except Exception as e:  # noqa: BLE001
+        steps.append(f"⚠️ 상품/재고 조회 단계 실패: {type(e).__name__}: {e}")
+
     return jsonify({
-        "ok": False,
-        "error": f"스마트스토어 OAuth 실패 — HTTP {r.status_code}",
+        "ok": True,
+        "message": f"✅ {display_name} 연결 성공 — " + " · ".join(steps),
         "status_code": r.status_code,
         "elapsed_sec": elapsed,
-        "body_snippet": body_snippet,
-    }), 502
+        "token_masked": (token[:8] + "***") if token else "<empty>",
+        "expires_in": data.get("expires_in"),
+        "product_count": product_count,
+        "sample": sample,
+    })
 
 
 @bp.route("/api/upload/accounts/<int:account_id>", methods=["DELETE"])
