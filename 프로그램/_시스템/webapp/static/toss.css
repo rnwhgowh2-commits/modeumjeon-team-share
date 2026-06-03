@@ -2258,6 +2258,14 @@
   color: #7C3AED; margin-left: auto; text-align: right; white-space: nowrap;
 }
 .m4v1-mkt-margin.loss { color: #DC2626; }
+/* [2026-06-03 시안A v3] 푸터 칩 — 재고/URL 동일 가로폭 + 숫자 우측 정렬(같은 칼럼) + ▸ 슬롯 통일 */
+.m4-fchip { display: flex; align-items: center; gap: 6px; width: 100%; box-sizing: border-box; font-size: 11.5px; font-weight: 700; border-radius: 8px; padding: 4px 10px; }
+.m4-fchip .m4-fic { width: 16px; text-align: center; flex: none; }
+.m4-fchip .m4-flabel { white-space: nowrap; }
+.m4-fchip .m4-fval { margin-left: auto; text-align: right; min-width: 38px; font-variant-numeric: tabular-nums; }
+.m4-fchip .m4-fchev { width: 12px; text-align: center; flex: none; }
+.m4-fchip.stk { background: #fff; border: 1px solid #d1fae5; color: #15803d; }
+.m4-fchip.url { background: #EFF6FF; border: 1px solid #bfdbfe; color: #3182F6; cursor: pointer; }
 .m4v1-fx-row {
   display: flex; justify-content: flex-end; margin-top: 6px;
   border-top: 1px dashed #F2F4F6; padding-top: 5px;
