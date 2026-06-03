@@ -32,6 +32,17 @@ def create_app() -> Flask:
     # 등 재검증 비용을 제거. 동적 라우트에는 영향 없음.
     app.config["SEND_FILE_MAX_AGE_DEFAULT"] = 86400
 
+    # [2026-06-03] 정적 캐시버스트 — toss.css 변경 시 ?v=<수정시각> 로 즉시 반영.
+    #   배경: 위 1일 캐시 때문에 CSS 수정해도 브라우저가 옛 파일을 써서 안 바뀌던 문제.
+    #   toss.css mtime 을 버전으로 주입 → 파일 바뀔 때만 URL 변경 → 캐시 자동 무효화.
+    @app.context_processor
+    def _inject_static_ver():
+        try:
+            _p = os.path.join(os.path.dirname(__file__), 'webapp', 'static', 'toss.css')
+            return {'STATIC_VER': str(int(os.path.getmtime(_p)))}
+        except Exception:
+            return {'STATIC_VER': '1'}
+
     import lemouton.sourcing.models  # noqa: F401  # SQLAlchemy 모델 등록
     import lemouton.sourcing.models_pricing  # noqa: F401  # v3 — 소싱처사전+가격설정
     import lemouton.pricing.settings  # noqa: F401
