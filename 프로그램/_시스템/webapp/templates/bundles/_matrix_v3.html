@@ -4746,6 +4746,9 @@
     const bg = _modalBg(box);
     box.querySelector('#oup-close').addEventListener('click', () => bg.remove());
   }
+  // ⚠️ 이 스크립트는 IIFE 로 감싸여 있어 함수가 전역이 아니다. 칩의 인라인 onclick
+  //    (전역 스코프에서 평가)이 호출하려면 window 에 노출해야 한다. (closure 로 DATA·escapeHtml 접근은 유지)
+  window.openOptionUrlPopup = openOptionUrlPopup;
 
   // 소싱처 main_url 조회 (DATA.sources 룩업)
   function getSourceUrl(name) {
