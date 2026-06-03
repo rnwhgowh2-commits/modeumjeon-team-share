@@ -290,6 +290,19 @@ def get_option_matrix(code: str):
                             _sp_by_norm2.setdefault(_norm_url(_sp.url), _sp)
                 except Exception:
                     pass
+                # [2026-06-03] source_key → SourceRegistry id 매핑 (main_url 도메인 매칭).
+                #   매트릭스 사이트 칼럼은 o.sources 를 source_id===site.id(레지스트리 id)로
+                #   매칭하므로, 등록 URL 의 source_id 를 레지스트리 id 로 줘야 칼럼에 가격/재고 노출.
+                _key_domain = {
+                    'lemouton': 'lemouton.co.kr', 'ss_lemouton': 'smartstore.naver.com',
+                    'musinsa': 'musinsa.com', 'ssf': 'ssfshop.com', 'lotteon': 'lotteon.com',
+                }
+                _key_to_regid = {}
+                for _k, _dom in _key_domain.items():
+                    for _rid, _rv in source_dict.items():
+                        if _dom in (_rv.get('main_url') or ''):
+                            _key_to_regid[_k] = _rid
+                            break
                 _link_rows = (
                     s.query(OptionSourceUrlLink, BundleSourceUrl)
                     .join(BundleSourceUrl,
@@ -302,8 +315,10 @@ def get_option_matrix(code: str):
                     if any(e.get('product_url') == bsu.url for e in existing):
                         continue  # legacy 로 이미 추가된 동일 URL 중복 방지
                     sp = _sp_by_norm2.get(_norm_url(bsu.url)) if bsu.url else None
+                    _reg_id = _key_to_regid.get(bsu.source_key)  # 칼럼 매칭용 레지스트리 id
                     existing.append({
-                        'source_id': sp.id if sp else None,
+                        # 칼럼 매칭 = 레지스트리 id (없으면 SSG 등 — 칼럼 없음). refetch 도 동일.
+                        'source_id': _reg_id,
                         'source_key': bsu.source_key,
                         'source_name': _labels.get(bsu.source_key, bsu.source_key),
                         'product_url': bsu.url,
