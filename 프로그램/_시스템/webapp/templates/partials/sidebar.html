@@ -88,6 +88,28 @@
 
   {# 편집 모드 토글 (호버 발견성 보완 — 도움말) #}
   <button type="button" class="sb3-edit-toggle" id="sb3-edit-toggle" title="편집 가이드 보기">✎ 사이드바 편집 가이드</button>
+
+  {# [2026-06-03] AWS 서버 요금·상태 위젯 (사이드바 하단). Lightsail 정액제라 키 없이 표시 + /health 실시간 상태. #}
+  <div class="sb-cost" title="AWS Lightsail 서울 · 2GB · 정액제(월 ~$12). 현재 무료 기간.">
+    <div class="sb-cost-h"><span>💰 AWS 서버</span><span class="sb-cost-st" id="sb-cost-st">🟢 정상</span></div>
+    <div class="sb-cost-amt">~$12<span>/월</span> · <b>현재 무료</b></div>
+    <div class="sb-cost-sub">Lightsail 2GB · 서울 · 정액제</div>
+  </div>
+  <style>
+    .sb-cost{ margin:8px 12px 14px; padding:9px 11px; border:1px solid #d1fae5; background:#f0fdf4; border-radius:10px; }
+    .sb-cost-h{ display:flex; align-items:center; justify-content:space-between; font-size:11.5px; font-weight:800; color:#166534; }
+    .sb-cost-st{ font-size:11px; font-weight:700; white-space:nowrap; }
+    .sb-cost-amt{ font-size:14.5px; font-weight:800; color:#14532d; margin:4px 0 1px; }
+    .sb-cost-amt span{ font-size:11px; color:#4d7c5a; font-weight:700; }
+    .sb-cost-amt b{ color:#15803d; }
+    .sb-cost-sub{ font-size:10px; color:#16a34a; }
+  </style>
+  <script>
+    (function(){
+      function chk(){ fetch('/health',{cache:'no-store'}).then(function(r){ var el=document.getElementById('sb-cost-st'); if(el) el.textContent = r.ok ? '🟢 정상' : '🟠 점검'; }).catch(function(){ var el=document.getElementById('sb-cost-st'); if(el) el.textContent='🔴 응답없음'; }); }
+      setInterval(chk, 60000);
+    })();
+  </script>
 </aside>
 
 {# 드롭다운 (호버 ⋮ 클릭) #}

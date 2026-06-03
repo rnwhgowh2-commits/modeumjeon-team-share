@@ -92,8 +92,10 @@ def _build_so_index(source_options):
     return idx
 
 
-def _match_option_stock(so_index, sp_id, opt_color, opt_size):
-    """옵션(색상+사이즈) ↔ SourceOption 매칭 → current_stock. 실패 시 None.
+def _match_option_so(so_index, sp_id, opt_color, opt_size):
+    """옵션(색상+사이즈) ↔ SourceOption 매칭 → 매칭된 SourceOption 객체. 실패 시 None.
+
+    재고·가격 모두 이 단일 매칭을 통해 파생한다(둘이 따로 매칭돼 어긋나는 것 방지).
 
     - size: SourceOption.size_text 우선, 없으면 color_text 의 숫자(롯데온/SSG).
     - color: size_text 가 있을 때만 color_text 를 진짜 색으로 간주(르무통/SSF 등
@@ -117,11 +119,24 @@ def _match_option_stock(so_index, sp_id, opt_color, opt_size):
         if has_color:
             sc = _stk_cnorm(so.color_text)
             if oc and sc and (oc == sc or oc in sc or sc in oc):
-                return so.current_stock          # 색+사이즈 정확 매칭
+                return so                         # 색+사이즈 정확 매칭
             continue                              # 색 불일치 → 계속 탐색
         if size_only is None:
-            size_only = so.current_stock          # 단일색 URL — 사이즈만으로 매칭
+            size_only = so                        # 단일색 URL — 사이즈만으로 매칭
     return size_only
+
+
+def _match_option_stock(so_index, sp_id, opt_color, opt_size):
+    """옵션(색+사이즈) 매칭 SourceOption.current_stock. 실패 시 None."""
+    so = _match_option_so(so_index, sp_id, opt_color, opt_size)
+    return so.current_stock if so is not None else None
+
+
+def _match_option_price(so_index, sp_id, opt_color, opt_size):
+    """옵션(색+사이즈) 매칭 SourceOption.current_price. 실패 시 None.
+       매트릭스 가격을 재고와 동일한 옵션단위로 맞추기 위함(상품단위 대표가 오염 방지)."""
+    so = _match_option_so(so_index, sp_id, opt_color, opt_size)
+    return so.current_price if so is not None else None
 
 
 def _resolve_stock(site, raw):
@@ -486,13 +501,23 @@ def get_option_matrix(code: str):
                         continue  # legacy 로 이미 추가된 동일 URL 중복 방지
                     sp = _sp_by_norm2.get(_norm_url(bsu.url)) if bsu.url else None
                     _reg_id = _key_to_regid.get(bsu.source_key)  # 칼럼 매칭용 레지스트리 id
-                    # 옵션별 실재고 — 색상+사이즈 매칭. 실패 시에만 상품합계 fallback.
+                    # 옵션별 실재고·실가격 — 색상+사이즈로 매칭된 동일 SourceOption 에서 파생.
+                    #   실패 시에만 상품단위(last_stock/last_price)로 fallback.
+                    #   [2026-06-03] 가격도 옵션단위 우선 — 기존엔 가격만 상품 last_price 라
+                    #   SSF 처럼 옵션가(119,900)≠상품대표가(122,376) 일 때 틀린 값 표시되던 버그.
                     _opt_stock = None
+                    _opt_price = None
                     if sp:
-                        _opt_stock = _match_option_stock(
+                        _so_m = _match_option_so(
                             _so_index, sp.id,
                             _sku_color.get(lk.option_canonical_sku),
                             _sku_size.get(lk.option_canonical_sku))
+                        if _so_m is not None:
+                            _opt_stock = _so_m.current_stock
+                            _opt_price = _so_m.current_price
+                    # 옵션 크롤가(>0) 우선, 없으면 상품 last_price fallback
+                    _disp_price = (_opt_price if (_opt_price and _opt_price > 0)
+                                   else (sp.last_price if sp else None))
                     existing.append({
                         # 칼럼 매칭 = 레지스트리 id (없으면 SSG 등 — 칼럼 없음). refetch 도 동일.
                         'source_id': _reg_id,
@@ -504,8 +529,8 @@ def get_option_matrix(code: str):
                         'price_cached': None,
                         'stock_cached': None,
                         'source_product_id': sp.id if sp else None,
-                        'crawled_price': (sp.last_price if sp else None),
-                        'crawled_price_raw': (sp.last_price if sp else None),
+                        'crawled_price': _disp_price,
+                        'crawled_price_raw': _disp_price,
                         'crawled_stock': (_opt_stock if _opt_stock is not None
                                           else (sp.last_stock if sp else None)),
                         'last_fetched_at': (sp.last_fetched_at.isoformat()
