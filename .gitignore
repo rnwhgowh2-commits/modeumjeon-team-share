@@ -45,6 +45,8 @@ _시스템/data/_resolve_*
 
 # ─── Playwright 브라우저 프로필 (2.7GB, 재생성 가능, per-PC) ───
 _시스템/data/profiles/
+# ─── 소싱처 세션 storage_state (로그인 쿠키 = 인증정보, 커밋 금지) ───
+**/data/sessions/
 _시스템/data/platform_cache/
 _시스템/data/bootstrap/
 _시스템/data/attachments/

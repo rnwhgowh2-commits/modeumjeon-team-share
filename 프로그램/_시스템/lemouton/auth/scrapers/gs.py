@@ -16,6 +16,9 @@ class GSScraper(BaseScraper):
         "login_url": "https://www.gsshop.com/cust/login/login.gs",
         "naver_btn": 'a#naverLogin, a:has-text("네이버"), [class*="naver"]',
         "main_url": "https://www.gsshop.com",
+        # ★ GS샵은 grm.gsretail.com 브리지 팝업 방식 — window.open 가로채기 시 콜백 stuck.
+        #   진짜 팝업으로 처리해야 로그인 완료 (송장전송기 popup_mode=True 동일).
+        "popup_mode": True,
     }
 
     def _do_login(self, account_id: str, account_pw: str) -> bool:

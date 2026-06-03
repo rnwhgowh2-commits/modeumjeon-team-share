@@ -12,6 +12,7 @@
 """
 from __future__ import annotations
 
+import json
 import logging
 import time
 from pathlib import Path
@@ -24,6 +25,10 @@ from lemouton.auth.profile_store import (
 )
 
 logger = logging.getLogger(__name__)
+
+# 세션 storage_state JSON 백업 위치 (송장전송기 SESSION_DIR 패턴 포팅)
+#   base.py = _시스템/lemouton/auth/scrapers/base.py → parents[3] = _시스템
+SESSION_DIR = Path(__file__).resolve().parents[3] / "data" / "sessions"
 
 
 class BaseScraper:
@@ -218,6 +223,71 @@ class BaseScraper:
     #  공통 헬퍼
     # ──────────────────────────────────────────────────────
 
+    # ──────────────────────────────────────────────────────
+    #  세션 storage_state JSON 저장/복원 (송장전송기 _save/_restore_session 포팅)
+    #  ★ 네이버/구글 SSO 로그인 토큰(NID_AUT·NID_SES 등)은 session 쿠키(expires=-1)라
+    #    Chrome 종료 시 디스크에서 소멸 → persistent 프로필만으로는 유지 불가.
+    #    JSON 백업분을 매 실행 시 컨텍스트에 주입해 무인 재로그인 없이 세션 이어감.
+    # ──────────────────────────────────────────────────────
+
+    def _session_file_path(self, account_id: str, login_method: str = "direct") -> Path:
+        """세션 JSON 경로 — 송장전송기와 동일 명명: {site_key}_{id}_{method}.json"""
+        import re
+        safe_id = re.sub(r"[^\w\-.]", "_", account_id or "default")
+        safe_method = re.sub(r"[^\w\-]", "_", login_method or "direct")
+        return SESSION_DIR / f"{self.site_key}_{safe_id}_{safe_method}.json"
+
+    def _save_session(self, account_id: str, login_method: str = "direct") -> bool:
+        """로그인 성공 후 storage_state(세션 쿠키 포함)를 JSON 에 원자적 저장."""
+        ctx = self._browser
+        if ctx is None:
+            return False
+        try:
+            storage = ctx.storage_state()
+            path = self._session_file_path(account_id, login_method)
+            path.parent.mkdir(parents=True, exist_ok=True)
+            tmp = path.with_suffix(path.suffix + ".tmp")
+            tmp.write_text(json.dumps(storage, ensure_ascii=False), encoding="utf-8")
+            tmp.replace(path)
+            n = len(storage.get("cookies", []) or [])
+            self.log("info", f"[{self.site_name}] 💾 세션 저장: {account_id} ({n}개 쿠키)")
+            return True
+        except Exception as e:
+            self.log("warning", f"[{self.site_name}] 세션 저장 실패 (무시): {e}")
+            return False
+
+    def _restore_session(self, account_id: str, login_method: str = "direct") -> bool:
+        """저장된 세션 쿠키가 있으면 현재 컨텍스트에 주입 (만료 쿠키는 제외).
+
+        Playwright add_cookies 는 expires < now 인 만료 쿠키를 거부 → 세션(-1/0)·
+        유효 쿠키만 복원. 서버가 무효 처리하면 어차피 재로그인으로 흐름.
+        """
+        ctx = self._browser
+        if ctx is None:
+            return False
+        try:
+            path = self._session_file_path(account_id, login_method)
+            if not path.exists():
+                return False
+            storage = json.loads(path.read_text(encoding="utf-8"))
+            cookies = storage.get("cookies", []) or []
+            if not cookies:
+                return False
+            now = time.time()
+            valid = []
+            for c in cookies:
+                exp = c.get("expires", -1)
+                if exp in (-1, 0, None) or (isinstance(exp, (int, float)) and exp > now):
+                    valid.append(c)
+            if not valid:
+                return False
+            ctx.add_cookies(valid)
+            self.log("info", f"[{self.site_name}] 🔑 세션 복원: {account_id} ({len(valid)}개 쿠키)")
+            return True
+        except Exception as e:
+            self.log("warning", f"[{self.site_name}] 세션 복원 실패 (무시): {e}")
+            return False
+
     def close_chatbots(self, page) -> None:
         """챗봇·해피톡·채널톡 등 셀렉터 가리는 요소 자동 제거."""
         try:
@@ -305,20 +375,73 @@ class BaseScraper:
                      f"[{self.site_name}] ⏱ 로그인 대기 타임아웃 ({timeout}초)")
         return False
 
-    def check_login_status_by_logout(self, base_url: str, logout_selector: str = "a[href*='logout']") -> bool:
-        """공통 로그인 상태 검사 — 로그아웃 링크 존재 여부.
+    def check_login_status_by_logout(self, base_url: str) -> bool:
+        """견고한 로그인 판별 (송장전송기 _check_login_status_by_logout 이식).
 
-        Subclass 의 ``_check_login_status`` 가 호출.
+        ★ 약한 판별(URL에 'login' 없음, 콜백/브리지 도달)의 거짓 성공을 차단.
+        판별 순서:
+          1) 로그인 페이지로 리다이렉트 = 확정 비로그인
+          2) **보이는** 로그아웃 링크 = 확정 로그인 (숨은 링크는 무시 — is_visible)
+          3) **보이는** 로그인 링크 = 확정 비로그인
+          4) 둘 다 없음/애매 = True (CSR 로딩 지연 + 세션 쿠키 신뢰)
         """
         if self._page is None:
             return False
         try:
             self._page.goto(base_url, wait_until="domcontentloaded", timeout=15000)
-            time.sleep(1)
-            return self._page.locator(logout_selector).count() > 0
+            time.sleep(2)
+            cur = (self._page.url or "").lower()
+            # 1) 로그인 페이지로 리다이렉트 = 확정 비로그인
+            if any(k in cur for k in ("/login", "lcloginmem", "signin", "loginform", "nid.naver.com")):
+                return False
+
+            def _any_visible(selectors):
+                for sel in selectors:
+                    try:
+                        for el in self._page.query_selector_all(sel):
+                            try:
+                                if el.is_visible():
+                                    return True
+                            except Exception:
+                                continue
+                    except Exception:
+                        continue
+                return False
+
+            # 2) 보이는 로그아웃 링크/버튼 → 확정 로그인
+            if _any_visible(['a[href*="logout"]', 'a[onclick*="logout"]',
+                             'button[onclick*="logout"]', 'a:has-text("로그아웃")',
+                             'button:has-text("로그아웃")', 'a:has-text("LOGOUT")']):
+                return True
+
+            # 3) 보이는 로그인 링크 → 확정 비로그인
+            #    ★ href 기반만 사용 — a:has-text("로그인")은 프로모 문구("간편로그인 혜택" 등)를
+            #      greedy 매칭해 로그인 상태 SSG를 오탐(False)시킴 (실측 확인). href에 login/signin
+            #      포함된 실제 링크만 비로그인 신호로 인정. (javascript:redirectURL('login') 도 매칭)
+            if _any_visible(['a[href*="login"]', 'a[href*="signin"]', 'a[href*="member/login"]']):
+                return False
+
+            # 4) 애매 → 낙관 (세션 쿠키 신뢰)
+            return True
         except Exception as e:
             self.log("debug", f"[{self.site_name}] 로그인 상태 검사 실패: {e}")
             return False
+
+    def _verify_logged_in(self) -> bool:
+        """로그인 시도 직후 실제 로그인 여부 견고 검증 — 소싱처 main_url 기준.
+
+        ``_do_naver_login`` / ``_do_login`` 이 콜백·브리지 URL을 거짓 성공으로
+        반환하는 것을 차단하는 최종 게이트.
+        """
+        cfg = getattr(self, "naver_login_config", None) or {}
+        main_url = cfg.get("main_url") or getattr(self, "main_url", None)
+        if not main_url:
+            # 자체 ID/PW 사이트 — login_url 도메인 루트 사용.
+            #   login_url(로그인 경로)로 가면 URL에 'login'이 있어 항상 '미로그인' 오판됨.
+            from urllib.parse import urlparse
+            u = urlparse(self.login_url)
+            main_url = f"{u.scheme}://{u.netloc}" if u.netloc else self.login_url
+        return self.check_login_status_by_logout(main_url)
 
     # ──────────────────────────────────────────────────────
     #  메인 로그인 흐름 (송장전송기 ensure_logged_in 의 sync 포팅)
@@ -360,9 +483,13 @@ class BaseScraper:
         _profile_path = _ps().profile_dir(self.site_key, account_id)
         login_success = False
         try:
-            # 2) 이미 로그인된 상태면 스킵
-            if skip_if_logged_in and self._already_logged_in_quick():
-                self.log("info", f"[{self.site_name}] {account_id} 이미 로그인됨 — 스킵")
+            # 0) 저장된 세션 쿠키 복원 (송장전송기 패턴) — 네이버/구글 SSO 세션 부활
+            #    persistent 프로필이 잃어버린 session 쿠키(NID_AUT 등)를 JSON 백업분으로 주입
+            self._restore_session(account_id, login_method)
+
+            # 2) 이미 로그인된 상태면 스킵 (★ 견고 검증 — main_url 로그아웃 링크 가시성 기준)
+            if skip_if_logged_in and self._verify_logged_in():
+                self.log("info", f"[{self.site_name}] {account_id} 이미 로그인됨 — 스킵 (검증 통과)")
                 login_success = True
                 return True
 
@@ -370,16 +497,21 @@ class BaseScraper:
             backoffs = [5, 10, 20]
             for attempt in range(1, max_retry + 1):
                 try:
-                    # 네이버 SSO 분기 — login_method == "naver" + naver_login_config 정의된 경우
+                    # 로그인 시도 (네이버 SSO 또는 자체 ID/PW)
                     if login_method == "naver" and getattr(self, "naver_login_config", None):
-                        if self._do_naver_login(account_id, account_pw):
-                            self.log("info", f"[{self.site_name}] {account_id} 네이버 로그인 성공")
-                            login_success = True
-                            return True
-                    elif self._do_login(account_id, account_pw):
-                        self.log("info", f"[{self.site_name}] {account_id} 로그인 성공")
+                        attempted = self._do_naver_login(account_id, account_pw)
+                    else:
+                        attempted = self._do_login(account_id, account_pw)
+
+                    # ★ 신뢰성 게이트 — 시도가 True여도 실제 로그인 검증 통과해야 성공
+                    #   (콜백/브리지 URL 거짓 성공 차단 — 송장전송기 _check_login_status 패턴)
+                    if attempted and self._verify_logged_in():
+                        self.log("info", f"[{self.site_name}] {account_id} 로그인 성공 (검증 통과)")
                         login_success = True
                         return True
+                    if attempted:
+                        self.log("warning",
+                                 f"[{self.site_name}] {account_id} 로그인 반환 True지만 검증 실패 — 거짓 성공 차단, 재시도")
                     if attempt < max_retry:
                         wait_sec = backoffs[min(attempt - 1, len(backoffs) - 1)]
                         self.log("warning", f"[{self.site_name}] 재시도 {wait_sec}초 후 ({attempt}/{max_retry})")
@@ -397,6 +529,12 @@ class BaseScraper:
             self.log("error", f"[{self.site_name}] {account_id} 로그인 최종 실패")
             return False
         finally:
+            # ★ 로그인 성공 시 storage_state JSON 저장 (close() 전 — 컨텍스트 필요)
+            if login_success:
+                try:
+                    self._save_session(account_id, login_method)
+                except Exception as e:
+                    self.log("warning", f"[{self.site_name}] 세션 저장 예외: {e}")
             # 자동 cleanup — 호출자 부담 없음 (송장전송기 _close_browser 패턴)
             self.close()
             # ★ 로그인 성공 시 session 쿠키 → persistent 강제 변환
@@ -458,6 +596,19 @@ class BaseScraper:
 
             cur_url = (target_page.url or "").lower()
             self.log("info", f"[{self.site_name}] 네이버 {label} URL 확인: {cur_url[:80]}")
+            # ★ 중간 브릿지 페이지(GS샵 grm.gsretail.com/.../signin/bridge?page=naver)에서
+            #   네이버 로그인 폼(nid.naver.com)으로 리다이렉트되는 데 수 초 걸릴 수 있음 → 대기
+            #   (송장전송기 _naver_fill_login 패턴 — 미이식 시 GS 즉시 포기 → 거짓 실패)
+            if "nid.naver.com" not in cur_url:
+                for _ in range(24):  # 최대 12초
+                    time.sleep(0.5)
+                    try:
+                        cur_url = (target_page.url or "").lower()
+                    except Exception:
+                        break
+                    if "nid.naver.com" in cur_url:
+                        self.log("info", f"[{self.site_name}] 네이버 {label} 폼 리다이렉트 도달: {cur_url[:80]}")
+                        break
             if "nid.naver.com" not in cur_url:
                 self.log("warning", f"[{self.site_name}] 네이버 {label}: 네이버 로그인 페이지 아님")
                 return False
@@ -536,31 +687,38 @@ class BaseScraper:
         first_selector = naver_selector.split(",")[0].strip()
         # 따옴표 이스케이프 (JS 문자열 안에 들어가야 함)
         js_safe_selector = first_selector.replace("\\", "\\\\").replace("'", "\\'")
+        # ★ popup_mode 사이트(GS 등): window.open 가로채면 콜백 페이지가 window.close()
+        #   를 못 해 stuck → 브리지 URL을 거짓 성공으로 오판. 가로채기 건너뛰고 아래
+        #   '진짜 팝업' 분기로 처리 (송장전송기 popup_mode 패턴).
+        is_popup_mode = bool(cfg.get("popup_mode", False))
         naver_url = None
-        try:
-            naver_url = self._page.evaluate(f"""
-                () => {{
-                    return new Promise(resolve => {{
-                        const origOpen = window.open;
-                        window.open = function(url) {{
-                            resolve(url || null);
-                            return null;
-                        }};
-                        const btn = document.querySelector('{js_safe_selector}');
-                        if (btn) btn.click();
-                        setTimeout(() => resolve(null), 3000);
-                    }});
-                }}
-            """)
-        except Exception as e:
-            # btn.click() 이 즉시 navigation 발생 시 context 파괴 — 직접 navigation 발생한 것
-            self.log("info",
-                     f"[{self.site_name}] 네이버 버튼 클릭 → 직접 navigation (evaluate context 파괴): {type(e).__name__}")
-            # 잠깐 대기 후 현재 URL 검사
-            time.sleep(3)
-            cur_after_click = (self._page.url or "").lower()
-            self.log("info", f"[{self.site_name}] 클릭 후 URL: {cur_after_click[:80]}")
-            # 네이버 OAuth 로 이미 이동한 경우 → naver_url 은 None 으로 두고 fallback 분기로 진입
+        if is_popup_mode:
+            self.log("info", f"[{self.site_name}] popup_mode — window.open 가로채기 건너뜀 (진짜 팝업 처리)")
+        else:
+            try:
+                naver_url = self._page.evaluate(f"""
+                    () => {{
+                        return new Promise(resolve => {{
+                            const origOpen = window.open;
+                            window.open = function(url) {{
+                                resolve(url || null);
+                                return null;
+                            }};
+                            const btn = document.querySelector('{js_safe_selector}');
+                            if (btn) btn.click();
+                            setTimeout(() => resolve(null), 3000);
+                        }});
+                    }}
+                """)
+            except Exception as e:
+                # btn.click() 이 즉시 navigation 발생 시 context 파괴 — 직접 navigation 발생한 것
+                self.log("info",
+                         f"[{self.site_name}] 네이버 버튼 클릭 → 직접 navigation (evaluate context 파괴): {type(e).__name__}")
+                # 잠깐 대기 후 현재 URL 검사
+                time.sleep(3)
+                cur_after_click = (self._page.url or "").lower()
+                self.log("info", f"[{self.site_name}] 클릭 후 URL: {cur_after_click[:80]}")
+                # 네이버 OAuth 로 이미 이동한 경우 → naver_url 은 None 으로 두고 fallback 분기로 진입
 
         if naver_url:
             # 상대 URL 이면 절대 URL 로 변환

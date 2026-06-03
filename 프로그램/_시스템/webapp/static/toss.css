@@ -1387,14 +1387,40 @@
 
 /* ━━━ v21 C1 — 사이트 셀 컴팩트 + hover tooltip (가로 스크롤 X · 우측 여백 활용) ━━━ */
 .opt-table.integrated-mtx td.td-site-col {
-  min-width: 110px; padding: 8px 8px;
+  min-width: 160px; padding: 8px 8px; text-align: center; vertical-align: middle;
 }
 .opt-table.integrated-mtx th.th-site-col {
-  min-width: 110px;
+  min-width: 160px;
 }
+/* [2026-06-03 v12] 소싱처 셀 = 2행 그리드(가격↔↗ / 재고↔fx). 비최저 라인없음 / 최저 테두리+우상단 딱지. */
+.opt-table.integrated-mtx td.td-site-col .sc-mc {
+  position: relative; width: 148px; min-height: 84px; margin: 0 auto; border-radius: 12px;
+  display: grid; grid-template-columns: 1fr auto; align-items: center; justify-items: center;
+  column-gap: 7px; row-gap: 2px; padding: 11px 11px;
+  border: 1.5px solid transparent; background: transparent;
+}
+.opt-table.integrated-mtx td.td-site-col .sc-mc.low { border-color: #93b4f5; background: #F7FAFF; }
 .opt-table.integrated-mtx td.td-site-col .px-main {
-  font-size: 14px; font-weight: 800; font-family: ui-monospace, monospace;
+  font-size: 20px; font-weight: 800; font-family: ui-monospace, monospace; color: #191F28; white-space: nowrap;
 }
+.opt-table.integrated-mtx td.td-site-col .sc-won { font-size: 14px; font-weight: 600; color: #6B7684; }
+.opt-table.integrated-mtx td.td-site-col .sc-stk { font-size: 15px; color: #6B7684; white-space: nowrap; }
+.opt-table.integrated-mtx td.td-site-col .sc-stk.out { color: #dc2626; font-weight: 700; }
+.opt-table.integrated-mtx td.td-site-col .sc-lowtag {
+  position: absolute; top: 0; right: 0; font-size: 10px; font-weight: 800; color: #fff; background: #3182F6;
+  border-radius: 0 11px 0 11px; padding: 2px 9px 3px; box-shadow: 0 1px 3px rgba(49,130,246,.35); z-index: 3;
+}
+/* ↗·fx 동일 크기 라운드 박스 */
+.opt-table.integrated-mtx td.td-site-col .sc-go,
+.opt-table.integrated-mtx td.td-site-col .sc-fx {
+  display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px;
+  border-radius: 7px; border: 1px solid #E5E8EB; background: #fff; line-height: 1;
+  text-decoration: none; cursor: pointer; font-weight: 800; font-size: 13px; padding: 0; z-index: 3;
+}
+.opt-table.integrated-mtx td.td-site-col .sc-go { color: #3182F6; }
+.opt-table.integrated-mtx td.td-site-col .sc-go:hover { border-color: #93b4f5; background: #F0F6FF; }
+.opt-table.integrated-mtx td.td-site-col .sc-fx { color: #7C3AED; background: #FBF7FF; border-color: #E9DDFB; }
+.opt-table.integrated-mtx td.td-site-col .sc-fx:hover { background: #F3E8FF; }
 /* hover tooltip */
 .opt-table.integrated-mtx td.td-site-col.has-c1-tip:hover .c1-tip {
   visibility: visible; opacity: 1;
@@ -2217,14 +2243,19 @@
   border-top-color: #92400E;
 }
 .m4v1-card.pur.active .m4v1-inv-link:hover { background: #FEF3C7; }
-/* [M] 마켓 행 — logo · 이름 · 마켓 지정가 토글 · 가격/인풋 · 마진 */
-/* [2026-06-03 시안A 적용] 마켓 행 = 2줄. l1(로고+이름+[AUTO|지정] 세그) / l2(가격 글자 + 마진). */
-.m4v1-mkt-row { display: block; padding: 6px 0; }
+/* [2026-06-03 v12] 마켓 행 = 좌(로고·이름 / 가격 150%) + 우(세그 [AUTO|지정] / 마진). 마켓은 헤더 아래~점선 세로 가운데. */
+.m4v1-card.src { display: flex; flex-direction: column; }
+.m4v1-top-region { position: relative; display: flex; flex-direction: column; min-height: 150px; }
+.m4v1-mkt-block { flex: 1; display: flex; flex-direction: column; justify-content: center; }
+.m4v1-mkt-row { display: flex; gap: 8px; align-items: flex-start; padding: 7px 0; }
 .m4v1-mkt-row + .m4v1-mkt-row { border-top: 1px solid #eafaf0; }
-.m4v1-l1 { display: flex; align-items: center; gap: 6px; }
-.m4v1-l2 { display: flex; align-items: baseline; gap: 6px; margin-top: 3px; padding-left: 26px; }
+.m4v1-mleft { flex: 1; min-width: 0; }
+.m4v1-namerow { display: flex; align-items: center; gap: 7px; }
+.m4v1-mright { display: flex; flex-direction: column; align-items: flex-end; gap: 5px; flex: none; }
+/* fx = 흐름에서 빼 카드 하단 우측 코너 (마진과 안 겹침) */
+.m4v1-fx-row { position: absolute; right: 0; bottom: 0; }
 /* 모드 세그먼트 — 채움 버튼 (active AUTO=파랑, 지정=앰버) */
-.m4-seg { margin-left: auto; display: inline-flex; flex: none; border: 1px solid #E5E8EB; border-radius: 20px; overflow: hidden; }
+.m4-seg { display: inline-flex; flex: none; border: 1px solid #E5E8EB; border-radius: 20px; overflow: hidden; }
 .m4-seg-b { font: inherit; font-size: 9.5px; font-weight: 800; padding: 2px 9px; border: none; background: #fff; color: #6B7684; cursor: pointer; line-height: 1.5; }
 .m4-seg-b.on-auto { background: #1B64DA; color: #fff; }
 .m4-seg-b.on-fix { background: #B45309; color: #fff; }
@@ -2235,35 +2266,37 @@
 }
 .m4v1-br-na { background: #03C75A; color: #fff; }
 .m4v1-br-cp { background: #1B64DA; color: #fff; }
-.m4v1-mkt-name { color: #191F28; font-weight: 600; font-size: 13px; white-space: nowrap; }
-.m4v1-auto {
-  background: #E8F2FE; color: #1B64DA; padding: 1px 4px;
-  border-radius: 3px; font-size: 11px; font-weight: 800;
-}
-/* 가격 = 박스 없이 글자만 (AUTO=초록, 지정=앰버). */
-.m4v1-l2-price { white-space: nowrap; }
-.m4v1-mkt-price { font-family: ui-monospace, monospace; font-weight: 800; font-size: 14px; color: #0E7C3A; white-space: nowrap; }
+/* ① 마켓명 150% */
+.m4v1-mkt-name { color: #191F28; font-weight: 700; font-size: 19px; white-space: nowrap; }
+.m4v1-auto { background: #E8F2FE; color: #1B64DA; padding: 1px 4px; border-radius: 3px; font-size: 11px; font-weight: 800; }
+/* ① 금액 150% — 박스 없이 글자만 (AUTO=초록, 지정=앰버) */
+.m4v1-l2-price { white-space: nowrap; padding-left: 31px; margin-top: 2px; }
+.m4v1-mkt-price { font-family: ui-monospace, monospace; font-weight: 800; font-size: 21px; color: #0E7C3A; white-space: nowrap; }
 .m4v1-card.pur.active .m4v1-mkt-price { color: #92400E; }
 .m4v1-l2-price.fix .m4v1-mkt-price { color: #B45309; }
 .a1-fix-input.bare {
   border: none; background: transparent; color: #B45309; font-weight: 800;
-  font-family: ui-monospace, monospace; font-size: 14px; width: 64px; padding: 0;
+  font-family: ui-monospace, monospace; font-size: 21px; width: 96px; padding: 0;
   text-align: left; -moz-appearance: textfield;
 }
 .a1-fix-input.bare::-webkit-outer-spin-button,
 .a1-fix-input.bare::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
-.m4v1-won { font-size: 11px; color: #6B7684; font-weight: 600; }
+.m4v1-won { font-size: 14px; color: #6B7684; font-weight: 600; }
+/* ② 마진 = AUTO/지정 바로 아래 (우측 정렬) */
 .m4v1-mkt-margin {
-  font-family: ui-monospace, monospace; font-size: 12px; font-weight: 700;
-  color: #7C3AED; margin-left: auto; text-align: right; white-space: nowrap;
+  font-family: ui-monospace, monospace; font-size: 11.5px; font-weight: 700;
+  color: #7C3AED; text-align: right; white-space: nowrap;
 }
 .m4v1-mkt-margin.loss { color: #DC2626; }
 /* [2026-06-03 시안A v3] 푸터 칩 — 재고/URL 동일 가로폭 + 숫자 우측 정렬(같은 칼럼) + ▸ 슬롯 통일 */
-.m4-fchip { display: flex; align-items: center; gap: 6px; width: 100%; box-sizing: border-box; font-size: 11.5px; font-weight: 700; border-radius: 8px; padding: 4px 10px; }
-.m4-fchip .m4-fic { width: 16px; text-align: center; flex: none; }
-.m4-fchip .m4-flabel { white-space: nowrap; }
-.m4-fchip .m4-fval { margin-left: auto; text-align: right; min-width: 38px; font-variant-numeric: tabular-nums; }
-.m4-fchip .m4-fchev { width: 12px; text-align: center; flex: none; }
+/* [2026-06-03 v12] 두 칩 폰트·아이콘·값 픽셀 단위 완전 동일 */
+.m4-fchip { display: flex; align-items: center; gap: 6px; width: 100%; box-sizing: border-box; font-size: 12px; font-weight: 700; line-height: 1.35; border-radius: 8px; padding: 5px 10px; text-decoration: none; }
+.m4-fchip.stk.linkable { cursor: pointer; transition: background .12s, border-color .12s; }
+.m4-fchip.stk.linkable:hover { background: #ECFDF5; border-color: #6EE7B7; }
+.m4-fchip .m4-fic { width: 18px; text-align: center; flex: none; font-size: 13px; }
+.m4-fchip .m4-flabel { white-space: nowrap; font-size: 12px; font-weight: 700; }
+.m4-fchip .m4-fval { margin-left: auto; text-align: right; min-width: 38px; font-size: 12px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.m4-fchip .m4-fchev { width: 12px; text-align: center; flex: none; font-size: 12px; }
 .m4-fchip.stk { background: #fff; border: 1px solid #d1fae5; color: #15803d; }
 .m4-fchip.url { background: #EFF6FF; border: 1px solid #bfdbfe; color: #3182F6; cursor: pointer; }
 .m4v1-fx-row {

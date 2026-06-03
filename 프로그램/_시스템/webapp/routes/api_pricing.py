@@ -631,6 +631,7 @@ def get_option_matrix(code: str):
             _src_stock = 0
             _src_stock_label = None   # '품절'|'재고있음'|'N개' (None = 재고 있는 소싱처 없음)
             _src_stock_qty = None     # 실수량 (없으면 None → '재고있음')
+            _src_stock_url = None     # [2026-06-03] 최저가 winner 소싱처의 상품 URL (재고 칩 클릭 → 그 페이지)
             # 재고 존재(품절 아님) + 크롤 성공 + 가격 있음 → 그 중 최저가의 재고. (winner 와 동일 정의)
             _src_with_stock = [_s for _s in sources_for_opt
                                if not _s.get('stock_out')
@@ -641,6 +642,7 @@ def get_option_matrix(code: str):
                 _src_stock = _cheapest_src.get('crawled_stock') or 0
                 _src_stock_label = _cheapest_src.get('stock_label')
                 _src_stock_qty = _cheapest_src.get('stock_qty')
+                _src_stock_url = _cheapest_src.get('product_url') or None
 
             # 우선순위 결정 — 재고 ≥1 = 무조건 사입 / 재고 0 = priority 따름
             if _stock >= 1:
@@ -721,6 +723,7 @@ def get_option_matrix(code: str):
                 'src_stock': _src_stock,
                 'src_stock_label': _src_stock_label,
                 'src_stock_qty': _src_stock_qty,
+                'src_stock_url': _src_stock_url,
                 'src_cost': purchase,
                 'src_fixed_ss_active': _src_fix_ss_on,
                 'src_fixed_cp_active': _src_fix_cp_on,

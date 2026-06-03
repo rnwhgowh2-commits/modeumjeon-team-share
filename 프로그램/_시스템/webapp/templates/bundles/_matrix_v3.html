@@ -1116,15 +1116,15 @@
         .mit-btn:hover { background:#dcfce7; border-color:#15803d; color:#15803d; }
         .mit-spacer { flex:1; }
       </style>
-      <div style="border:1px solid var(--n200);border-radius:0 0 10px 10px;overflow:hidden;background:#fff;border-top:none">
+      <div style="border:1px solid var(--n200);border-radius:0 0 10px 10px;overflow-x:auto;background:#fff;border-top:none">{# [2026-06-03 ③] 셀 폰트 1.5× 로 넓어진 칼럼 → 가로 스크롤 허용(클립 방지) #}
       <table class="opt-table integrated-mtx" id="price-matrix-table" style="width:100%;border-collapse:collapse">
         <thead id="price-matrix-thead">
           <tr id="price-matrix-thead-row">
             <th style="width:36px"><input type="checkbox" id="price-check-all"></th>
-            <th>옵션</th>
+            <th style="width:120px">옵션</th>{# [2026-06-03 ①] 옵션명 칼럼 절반 축소 → 카드에 공간 양보 #}
             {# v23 — 모델 열 삭제 (드로어/사이드바에서만 보임) #}
             <th class="center" style="width:50px">자동</th>
-            <th style="width:300px">판매가 · 마켓별</th>
+            <th style="width:380px">판매가 · 마켓별</th>{# [2026-06-03 ②] 판매가·마켓별 카드 확대 #}
             {# [v20.9 2026-06-01] "재고" 컬럼 삭제 — 판매가·마켓별 카드의 '사입' 영역에 재고 정보 이미 포함.
                옵션↔재고 매핑은 옵션 모달 [📋 재고관리 매핑] 탭에서. #}
             {# 사이트 칼럼은 JS 가 동적 삽입 (.th-site-col 클래스) #}
@@ -4390,6 +4390,7 @@
     const _srcStockTxt = o.src_stock_qty != null ? o.src_stock_qty.toLocaleString('ko-KR') + '개' : '재고있음';
     const _srcStockChip = _srcStock >= 1 ? `<span class="m4v1-stock-chip" title="재고 있는 소싱처 중 최저가의 재고">${_srcStockTxt}</span>` : '';
     const _srcCost = o.src_cost || 0;
+    const _srcStockUrl = o.src_stock_url || '';  // [2026-06-03 ⑤] 최저가 winner 소싱처 상품 URL (재고 칩 클릭 대상)
     const _srcSsOn = !!o.src_fixed_ss_active;
     const _srcCpOn = !!o.src_fixed_cp_active;
     // [2026-06-03 시안A] 모드 세그먼트 [AUTO|지정] — 채움 버튼. 비활성 버튼에만 data-m-toggle(클릭=전환).
@@ -4404,9 +4405,9 @@
         : `<button type="button" class="m4-seg-b ${disabled?'disabled':''}" ${disabled?'':`data-m-toggle="${which}" data-sku="${sku}"`} title="${disabled?'매입가 입력 후 가능':'지정가로 전환'}">지정</button>`;
       return `<span class="m4-seg">${autoBtn}${fixBtn}</span>`;
     };
-    // [2026-06-03 시안A] 2번째 줄 = 가격(글자, 박스X) + 마진. AUTO 뱃지 제거, '마진' 문구 통일.
-    const _mkLine2 = (which, autoPrice, fixOn, fixVal, cost) => {
-      const eff = (fixOn && fixVal) ? fixVal : autoPrice;
+    // [2026-06-03 v12] 마켓 행 = 좌(로고·이름 / 가격 150%) + 우(세그 [AUTO|지정] / 마진). 토글·지정가·마진 JS 보존.
+    const _mkMktRow = (which, mktName, on, autoPrice, fixVal, cost, extraChip = '', disabled = false) => {
+      const eff = (on && fixVal) ? fixVal : autoPrice;
       let mtxt = '마진 —', mcls = '', mtitle = '원가 정보 없어 마진율 계산 불가';
       if (cost && eff) {
         const m = ((eff - cost) / cost) * 100;
@@ -4414,29 +4415,40 @@
         mtxt = '마진 ' + m.toFixed(2) + '%';
         mtitle = `(${eff.toLocaleString('ko-KR')}원 - 원가 ${cost.toLocaleString('ko-KR')}원) / 원가 × 100`;
       }
-      const priceHtml = fixOn
-        ? `<input class="a1-fix-input bare" type="number" step="100" data-a1-fix="${which}" data-sku="${o.sku}" value="${fixVal || ''}" placeholder="${autoPrice}"><span class="m4v1-won">원</span><span class="a1-saved-chip idle" data-a1-saved="${which}"></span>`
-        : `<span class="m4v1-mkt-price">${autoPrice.toLocaleString('ko-KR')}원</span>`;
-      return `<div class="m4v1-l2"><span class="m4v1-l2-price ${fixOn?'fix':''}">${priceHtml}</span><span class="m4v1-mkt-margin a1-fix-margin${mcls}" data-a1-margin="${which}" data-cost="${cost||0}" title="${mtitle}">${mtxt}</span></div>`;
+      const priceHtml = disabled
+        ? `<span class="m4v1-mkt-price">— 원</span>`
+        : (on
+          ? `<input class="a1-fix-input bare" type="number" step="100" data-a1-fix="${which}" data-sku="${o.sku}" value="${fixVal || ''}" placeholder="${autoPrice}"><span class="m4v1-won">원</span><span class="a1-saved-chip idle" data-a1-saved="${which}"></span>`
+          : `<span class="m4v1-mkt-price">${autoPrice.toLocaleString('ko-KR')}원</span>`);
+      return `<div class="m4v1-mkt-row">
+          <div class="m4v1-mleft">
+            <div class="m4v1-namerow"><span class="m4v1-mkt-logo">${marketLogoHtml(mktName)}</span><span class="m4v1-mkt-name">${mktName}${extraChip}</span></div>
+            <div class="m4v1-l2-price ${on?'fix':''}">${priceHtml}</div>
+          </div>
+          <div class="m4v1-mright">
+            ${_mkSeg(which, on, disabled)}
+            <span class="m4v1-mkt-margin a1-fix-margin${mcls}" data-a1-margin="${which}" data-cost="${cost||0}" title="${mtitle}">${mtxt}</span>
+          </div>
+        </div>`;
     };
     const _srcAppliedChip = !isPurchasePri ? '<span class="m4v1-chip-applied">✓ 적용</span>' : '';
     const srcCard = `
       <div class="${srcCardClass}" data-m4-card="source" data-sku="${o.sku}">
-        <div class="m4v1-head">
-          <span>소싱</span> <span class="m4v1-pri">${srcLabel}</span>
-          <span class="m4v1-head-right">${_srcAppliedChip}</span>
+        <div class="m4v1-top-region">
+          <div class="m4v1-head">
+            <span>소싱</span> <span class="m4v1-pri">${srcLabel}</span>
+            <span class="m4v1-head-right">${_srcAppliedChip}</span>
+          </div>
+          <div class="m4v1-mkt-block">
+            ${_mkMktRow('src-ss', '스마트스토어', _srcSsOn, srcSsPrice, o.src_fixed_ss_price, _srcCost)}
+            ${_mkMktRow('src-cp', '쿠팡', _srcCpOn, srcCpPrice, o.src_fixed_cp_price, _srcCost)}
+          </div>
+          ${fxBtn ? `<div class="m4v1-fx-row">${fxBtn}</div>` : ''}
         </div>
-        <div class="m4v1-mkt-row">
-          <div class="m4v1-l1"><span class="m4v1-mkt-logo">${marketLogoHtml('스마트스토어')}</span><span class="m4v1-mkt-name">스마트스토어</span>${_mkSeg('src-ss', _srcSsOn, false)}</div>
-          ${_mkLine2('src-ss', srcSsPrice, _srcSsOn, o.src_fixed_ss_price, _srcCost)}
-        </div>
-        <div class="m4v1-mkt-row">
-          <div class="m4v1-l1"><span class="m4v1-mkt-logo">${marketLogoHtml('쿠팡')}</span><span class="m4v1-mkt-name">쿠팡</span>${_mkSeg('src-cp', _srcCpOn, false)}</div>
-          ${_mkLine2('src-cp', srcCpPrice, _srcCpOn, o.src_fixed_cp_price, _srcCost)}
-        </div>
-        ${fxBtn ? `<div class="m4v1-fx-row">${fxBtn}</div>` : ''}
         <div class="m4v1-footzone" style="margin-top:9px;padding-top:8px;border-top:1px dashed #bbf7d0;display:flex;flex-direction:column;gap:6px">
-          <span class="m4-fchip stk" title="최저가 선정 소싱처의 재고"><span class="m4-fic">📦</span><span class="m4-flabel">최저 소싱처 재고</span><span class="m4-fval">${_srcStock >= 1 ? _srcStockTxt : '없음'}</span><span class="m4-fchev"></span></span>
+          ${_srcStockUrl
+            ? `<a class="m4-fchip stk linkable" href="${escapeHtml(_srcStockUrl)}" target="_blank" rel="noopener" title="최저가 선정 소싱처의 해당 재고 페이지 열기" onclick="event.stopPropagation()"><span class="m4-fic">📦</span><span class="m4-flabel">최저 소싱처 재고</span><span class="m4-fval">${_srcStock >= 1 ? _srcStockTxt : '없음'}</span><span class="m4-fchev">↗</span></a>`
+            : `<span class="m4-fchip stk" title="최저가 선정 소싱처의 재고"><span class="m4-fic">📦</span><span class="m4-flabel">최저 소싱처 재고</span><span class="m4-fval">${_srcStock >= 1 ? _srcStockTxt : '없음'}</span><span class="m4-fchev"></span></span>`}
           ${o.src_count ? `<span class="m4-fchip url src-urlchip" onclick="if(typeof openOptionUrlModal==='function')openOptionUrlModal('${o.sku}', loadMatrix)" title="클릭: 소싱처 URL 관리(추가·수정·삭제·열기)"><span class="m4-fic">🔗</span><span class="m4-flabel">등록 URL</span><span class="m4-fval">${o.src_count}개</span><span class="m4-fchev">▸</span></span>` : ''}
         </div>
       </div>`;
@@ -4461,14 +4473,8 @@
             <span>사입</span> <span class="m4v1-pri pur">우선</span> <span class="m4v1-stock-chip">재고 ${stock}</span>
             <span class="m4v1-head-right"><span class="m4v1-chip-applied">🚫 차단</span></span>
           </div>
-          <div class="m4v1-mkt-row">
-            <div class="m4v1-l1"><span class="m4v1-mkt-logo">${marketLogoHtml('스마트스토어')}</span><span class="m4v1-mkt-name">스마트스토어</span>${_mkSeg('pur-ss', false, true)}</div>
-            <div class="m4v1-l2"><span class="m4v1-l2-price"><span class="m4v1-mkt-price">— 원</span></span><span class="m4v1-mkt-margin">마진 ${ssMargin.toFixed(2)}%</span></div>
-          </div>
-          <div class="m4v1-mkt-row">
-            <div class="m4v1-l1"><span class="m4v1-mkt-logo">${marketLogoHtml('쿠팡')}</span><span class="m4v1-mkt-name">쿠팡</span>${_mkSeg('pur-cp', false, true)}</div>
-            <div class="m4v1-l2"><span class="m4v1-l2-price"><span class="m4v1-mkt-price">— 원</span></span><span class="m4v1-mkt-margin">마진 ${cpMargin.toFixed(2)}%</span></div>
-          </div>
+          ${_mkMktRow('pur-ss', '스마트스토어', false, 0, null, 0, '', true)}
+          ${_mkMktRow('pur-cp', '쿠팡', false, 0, null, 0, '', true)}
           <div class="m4v1-pur-info">매입가 <b>0원</b><span class="missing">미설정</span></div>
           <div class="v5-prio">
             <div class="v5-prio-h">매입가 우선순위 <span class="help">(같은 템플릿 옵션 일괄 적용)</span></div>
@@ -4498,14 +4504,8 @@
             <span>사입</span> <span class="m4v1-pri pur">${purLabel}</span> <span class="m4v1-stock-chip">재고 ${stock}</span>
             <span class="m4v1-head-right">${_purAppliedChip}</span>
           </div>
-          <div class="m4v1-mkt-row">
-            <div class="m4v1-l1"><span class="m4v1-mkt-logo">${marketLogoHtml('스마트스토어')}</span><span class="m4v1-mkt-name">스마트스토어 ${_ssLossChip}</span>${_mkSeg('pur-ss', _purSsOn, false)}</div>
-            ${_mkLine2('pur-ss', purSsPrice, _purSsOn, o.pur_fixed_ss_price, _purCost)}
-          </div>
-          <div class="m4v1-mkt-row">
-            <div class="m4v1-l1"><span class="m4v1-mkt-logo">${marketLogoHtml('쿠팡')}</span><span class="m4v1-mkt-name">쿠팡 ${_cpLossChip}</span>${_mkSeg('pur-cp', _purCpOn, false)}</div>
-            ${_mkLine2('pur-cp', purCpPrice, _purCpOn, o.pur_fixed_cp_price, _purCost)}
-          </div>
+          ${_mkMktRow('pur-ss', '스마트스토어', _purSsOn, purSsPrice, o.pur_fixed_ss_price, _purCost, ' ' + _ssLossChip)}
+          ${_mkMktRow('pur-cp', '쿠팡', _purCpOn, purCpPrice, o.pur_fixed_cp_price, _purCost, ' ' + _cpLossChip)}
           <div class="m4v1-pur-info">매입가 <b>${(avg || 0).toLocaleString('ko-KR')}원</b></div>
           ${invFootHtml}
         </div>`;
@@ -4930,20 +4930,16 @@
     // [2026-06-03 재작성] 재고 표시 = 백엔드 확정값(stock_label/qty/out)만 사용.
     //   정책: 정확한 수량 있으면 'N개', 없으면 '재고있음', 0이면 '품절'. (가짜 '재고 10' 제거)
     //   백엔드가 site별 센티넬(999·무신사 cap·상품합계 더미)을 이미 해석함.
-    let _isOut = false, stockHtml;
-    if (src.stock_out || src.crawled_stock === 0) {
-      _isOut = true;
-      stockHtml = `<div class="cell-stock" style="font-size:11px;font-weight:700;color:#dc2626;margin-top:2px;line-height:1.2">품절</div>`;
-    } else if (src.stock_qty != null) {
-      stockHtml = `<div class="cell-stock" style="font-size:11px;color:#6B7684;margin-top:2px;line-height:1.2">재고 ${src.stock_qty.toLocaleString('ko-KR')}개</div>`;
-    } else {
-      stockHtml = `<div class="cell-stock" style="font-size:11px;color:#6B7684;margin-top:2px;line-height:1.2">재고있음</div>`;
-    }
-    // 시안C 레이아웃: 판매가 라벨 + 가격(원) + 최저 태그 + 재고. fx는 회색 보조(코너).
-    const _won = `<span style="font-size:11px;font-weight:600;color:#6B7684">원</span>`;
-    const _lowTag = isLowest ? `<span style="display:inline-block;font-size:9.5px;font-weight:800;color:#fff;background:#3182F6;border-radius:4px;padding:0 5px;margin-left:3px;vertical-align:middle">최저</span>` : '';
-    const _fxBtn = `<button type="button" class="cell-fx" title="혜택 계산식 클릭" style="position:absolute;top:2px;right:22px;background:none;border:none;color:#B0B8C1;font-size:10px;font-weight:700;cursor:pointer;padding:0;z-index:3">fx</button>`;
-    return `<td class="td-site-col cd${loCls} has-c1-tip" data-cell-sku="${escapeHtml(o.sku)}" data-cell-src="${s.id}" data-cell-price="${src.crawled_price}" style="position:relative;text-align:center;${_isOut ? 'opacity:.55;' : ''}">${_corner}${_fxBtn}<div style="font-size:10px;color:#94A3B8;line-height:1.1">판매가</div><span class="px-main">${finalPrice.toLocaleString('ko-KR')}${_won}</span>${_lowTag}${stockHtml}${tipHtml}</td>`;
+    let _isOut = false, stkTxt, stkCls = 'sc-stk';
+    if (src.stock_out || src.crawled_stock === 0) { _isOut = true; stkTxt = '품절'; stkCls += ' out'; }
+    else if (src.stock_qty != null) { stkTxt = '재고 ' + src.stock_qty.toLocaleString('ko-KR') + '개'; }
+    else { stkTxt = '재고있음'; }
+    // [2026-06-03 v12] 2행 그리드 — 가격↔↗ / 재고↔fx. ↗·fx 동일 크기 라운드 박스. 최저=테두리+우상단 딱지. '원' 한 줄.
+    const _won = `<span class="sc-won">원</span>`;
+    const _go = `<a class="sc-go" href="${escapeHtml(src.product_url)}" target="_blank" rel="noopener" title="${escapeHtml((src.source_name||'소싱처')+' 페이지 열기')}" onclick="event.stopPropagation()">↗</a>`;
+    const _fx = `<button type="button" class="cell-fx sc-fx" title="혜택 계산식 클릭">fx</button>`;
+    const _lowTag = isLowest ? `<span class="sc-lowtag">최저</span>` : '';
+    return `<td class="td-site-col cd${loCls} has-c1-tip" data-cell-sku="${escapeHtml(o.sku)}" data-cell-src="${s.id}" data-cell-price="${src.crawled_price}" style="position:relative;${_isOut ? 'opacity:.55;' : ''}"><div class="sc-mc${isLowest?' low':''}">${_lowTag}<span class="px-main">${finalPrice.toLocaleString('ko-KR')}${_won}</span>${_go}<span class="${stkCls}">${stkTxt}</span>${_fx}${tipHtml}</div></td>`;
   }
 
   // Phase 6 — 최저가/절감 캐시 (renderSourceMatrix 가 채움)
