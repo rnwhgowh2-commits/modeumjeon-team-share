@@ -2283,20 +2283,22 @@
 .a1-fix-input.bare::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
 .m4v1-won { font-size: 14px; color: #6B7684; font-weight: 600; }
 /* ② 마진 = AUTO/지정 바로 아래 (우측 정렬) */
+/* [2026-06-03] 마진 150% 확대 (사용자 요청) */
 .m4v1-mkt-margin {
-  font-family: ui-monospace, monospace; font-size: 11.5px; font-weight: 700;
+  font-family: ui-monospace, monospace; font-size: 17px; font-weight: 700;
   color: #7C3AED; text-align: right; white-space: nowrap;
 }
 .m4v1-mkt-margin.loss { color: #DC2626; }
 /* [2026-06-03 시안A v3] 푸터 칩 — 재고/URL 동일 가로폭 + 숫자 우측 정렬(같은 칼럼) + ▸ 슬롯 통일 */
 /* [2026-06-03 v12] 두 칩 폰트·아이콘·값 픽셀 단위 완전 동일 */
-.m4-fchip { display: flex; align-items: center; gap: 6px; width: 100%; box-sizing: border-box; font-size: 12px; font-weight: 700; line-height: 1.35; border-radius: 8px; padding: 5px 10px; text-decoration: none; }
+/* [2026-06-03] 푸터 칩 130% 확대 (사용자 요청) */
+.m4-fchip { display: flex; align-items: center; gap: 7px; width: 100%; box-sizing: border-box; font-size: 16px; font-weight: 700; line-height: 1.35; border-radius: 8px; padding: 6px 12px; text-decoration: none; }
 .m4-fchip.stk.linkable { cursor: pointer; transition: background .12s, border-color .12s; }
 .m4-fchip.stk.linkable:hover { background: #ECFDF5; border-color: #6EE7B7; }
-.m4-fchip .m4-fic { width: 18px; text-align: center; flex: none; font-size: 13px; }
-.m4-fchip .m4-flabel { white-space: nowrap; font-size: 12px; font-weight: 700; }
-.m4-fchip .m4-fval { margin-left: auto; text-align: right; min-width: 38px; font-size: 12px; font-weight: 700; font-variant-numeric: tabular-nums; }
-.m4-fchip .m4-fchev { width: 12px; text-align: center; flex: none; font-size: 12px; }
+.m4-fchip .m4-fic { width: 22px; text-align: center; flex: none; font-size: 17px; }
+.m4-fchip .m4-flabel { white-space: nowrap; font-size: 16px; font-weight: 700; }
+.m4-fchip .m4-fval { margin-left: auto; text-align: right; min-width: 48px; font-size: 16px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.m4-fchip .m4-fchev { width: 16px; text-align: center; flex: none; font-size: 16px; }
 .m4-fchip.stk { background: #fff; border: 1px solid #d1fae5; color: #15803d; }
 .m4-fchip.url { background: #EFF6FF; border: 1px solid #bfdbfe; color: #3182F6; cursor: pointer; }
 .m4v1-fx-row {
