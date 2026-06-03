@@ -9,9 +9,12 @@
 """
 from __future__ import annotations
 
+import logging
 from collections import defaultdict
 from datetime import datetime, timezone
 from typing import Any
+
+_log = logging.getLogger(__name__)
 
 from sqlalchemy.orm import Session
 
@@ -184,6 +187,21 @@ def link_option_to_source(
 # Fetch dedup — 같은 URL 한 번만 호출
 # ─────────────────────────────────────────────────────────────────────────────
 
+def _is_missing_browser_error(exc: Exception) -> bool:
+    """Playwright 브라우저(chrome-headless-shell 등) 미설치로 인한 launch 실패인지 판별.
+
+    배경(Plan A): Playwright 가 필요한 소싱처(lotteon.com 등)는 크롬이 깔린 사용자
+    PC 가 크롤해 Supabase 에 채운다. 크롬 없는 서버(AWS 1GB)가 같은 소싱처를 크롤하면
+    'BrowserType.launch: Executable doesn't exist ...' 로 실패하는데, 이때 last_status
+    를 'error' 로 덮어쓰면 사용자 PC 가 채운 정상 데이터(가격/재고)가 사라진다.
+    → 이 에러는 '실패'가 아니라 '이 호스트는 담당 아님'으로 보고 기존 데이터를 보존한다.
+    """
+    msg = str(exc or '')
+    low = msg.lower()
+    return ("executable doesn't exist" in low
+            or ("playwright" in low and "launch" in low))
+
+
 def fetch_one_source(
     session: Session,
     *,
@@ -207,6 +225,10 @@ def fetch_one_source(
     try:
         cr = crawler.fetch(sp.url)
     except Exception as e:
+        if _is_missing_browser_error(e):
+            # 크롬 미설치 호스트(서버) — 기존 데이터 보존, 상태 손대지 않음.
+            _log.warning("Playwright 브라우저 미설치 — %s 크롤 건너뜀(기존 데이터 유지)", sp.url)
+            return {'status': 'skipped_no_browser', 'crawl_result': None, 'error': None}
         sp.last_status = 'error'
         sp.last_error_msg = str(e)[:500]
         sp.last_fetched_at = _utcnow()
@@ -273,11 +295,17 @@ def fetch_unique_sources(
                                   'crawl_result': cr, 'error': None}
                 save_crawl_result(session, source_product=sp, crawl_result=cr)
             except Exception as e:
-                results[sp.id] = {'status': 'error',
-                                  'crawl_result': None, 'error': str(e)}
-                sp.last_status = 'error'
-                sp.last_error_msg = str(e)[:500]
-                sp.last_fetched_at = _utcnow()
+                if _is_missing_browser_error(e):
+                    # 크롬 미설치 호스트(서버) — 사용자 PC 가 채운 데이터 보존, 덮어쓰지 않음.
+                    _log.warning("Playwright 브라우저 미설치 — %s 크롤 건너뜀(기존 데이터 유지)", sp.url)
+                    results[sp.id] = {'status': 'skipped_no_browser',
+                                      'crawl_result': None, 'error': None}
+                else:
+                    results[sp.id] = {'status': 'error',
+                                      'crawl_result': None, 'error': str(e)}
+                    sp.last_status = 'error'
+                    sp.last_error_msg = str(e)[:500]
+                    sp.last_fetched_at = _utcnow()
         src_done[sp.site] = src_done.get(sp.site, 0) + 1
         done += 1
         _emit(done, sp.site)  # 상품 1개 완료 — 소싱처별 진행 갱신
@@ -340,6 +368,8 @@ def crawl_bundle_registered_urls(
             pass
         r = fetch_one_source(session, source_product_id=sp.id, crawlers=crawlers)
         st = r.get('status')
+        if st == 'skipped_no_browser':
+            st = 'no_crawler'  # 이 호스트는 담당 아님(사용자 PC 크롤) — error 로 집계하지 않음
         bucket = st if st in ('ok', 'no_crawler') else 'error'
         out['ok' if bucket == 'ok' else ('no_crawler' if bucket == 'no_crawler' else 'error')] += 1
         ps = out['per_source'].setdefault(bsu.source_key, {'ok': 0, 'error': 0, 'no_crawler': 0})
