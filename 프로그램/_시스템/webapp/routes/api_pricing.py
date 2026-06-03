@@ -280,6 +280,16 @@ def get_option_matrix(code: str):
             from lemouton.sourcing.source_registry import get_labels as _src_labels
             _labels = _src_labels()
             if sku_list:
+                # [2026-06-03] 크롤가 매칭 — legacy url_set 이 비어 sp_by_norm 이 미생성되는
+                #   경우(신규 URL 모델만 쓰는 번들)를 대비해 SourceProduct 전체로 보강 매핑.
+                _sp_by_norm2 = dict(sp_by_norm)
+                try:
+                    for _sp in (s.query(SourceProduct)
+                                .filter(SourceProduct.deleted_at.is_(None)).all()):
+                        if _sp.url:
+                            _sp_by_norm2.setdefault(_norm_url(_sp.url), _sp)
+                except Exception:
+                    pass
                 _link_rows = (
                     s.query(OptionSourceUrlLink, BundleSourceUrl)
                     .join(BundleSourceUrl,
@@ -291,7 +301,7 @@ def get_option_matrix(code: str):
                     existing = sku_to_sources.setdefault(lk.option_canonical_sku, [])
                     if any(e.get('product_url') == bsu.url for e in existing):
                         continue  # legacy 로 이미 추가된 동일 URL 중복 방지
-                    sp = sp_by_norm.get(_norm_url(bsu.url)) if bsu.url else None
+                    sp = _sp_by_norm2.get(_norm_url(bsu.url)) if bsu.url else None
                     existing.append({
                         'source_id': sp.id if sp else None,
                         'source_key': bsu.source_key,
