@@ -1329,10 +1329,10 @@ async function openPriceTplModal(id, initialTab) {
       return `
         <button type="button" class="ptm-modecard" data-prefix="${prefix}" data-side="${side}" data-mode="${mode}"
                 style="display:grid;grid-template-columns:16px 60px 1fr 60px;gap:8px;align-items:center;padding:7px 10px;background:${isOn ? '#E8F3FF' : 'transparent'};border:1px solid ${isOn ? '#3182F6' : 'transparent'};border-radius:7px;cursor:pointer;font-family:inherit;transition:all .12s;width:100%;text-align:left">
-          <span style="width:14px;height:14px;border-radius:50%;border:1.5px solid ${isOn ? '#3182F6' : '#D1D6DB'};display:inline-block;position:relative;box-sizing:border-box">
-            ${isOn ? '<span style="position:absolute;inset:2px;background:#3182F6;border-radius:50%;display:block"></span>' : ''}
+          <span class="ptm-radio" style="width:14px;height:14px;border-radius:50%;border:1.5px solid ${isOn ? '#3182F6' : '#D1D6DB'};display:inline-block;position:relative;box-sizing:border-box">
+            <span class="ptm-radio-fill" style="position:absolute;inset:2px;background:#3182F6;border-radius:50%;display:${isOn ? 'block' : 'none'}"></span>
           </span>
-          <span style="font-size:12px;color:#191F28;font-weight:700">${label}</span>
+          <span class="ptm-mode-label" style="font-size:12px;color:${isOn ? '#1D4CB0' : '#4E5968'};font-weight:700">${label}</span>
           <input type="number" data-key="${valKey}" data-mode-input="${mode}" data-rate-display="${mode === 'rate' ? '1' : '0'}"
                  value="${dispVal}" step="${mode === 'rate' ? '0.01' : '1'}"
                  style="width:100%;border:0;border-bottom:1px solid ${isOn ? '#3182F6' : 'transparent'};background:transparent;outline:none;font-weight:800;font-size:14px;font-family:inherit;color:${isOn ? '#191F28' : '#9CA3AF'};padding:2px 0;text-align:right">
@@ -1371,31 +1371,33 @@ async function openPriceTplModal(id, initialTab) {
     ${row('반품비', num(prefix + '_return_fee', '원'))}
     ${row('교환비', num(prefix + '_exchange_fee', '원'))}`;
 
-  // [2026-05-25 V5] 매입가 산정 우선순위 블록 (template / avg)
+  // [2026-06-02] 매입가 산정 우선순위 — 「평균 매입가」 바로 아래 보조행 (시안3)
   //   사입 카드 0원 차단 UX 의 단일 진실 원천. 같은 템플릿 옵션 모두 일괄 적용.
-  const prioBlock = (curPri) => {
+  //   설명은 초딩도 알아듣게 평이하게. 버튼 선택에 따라 PRIO_DESC 로 교체.
+  const PRIO_DESC = {
+    template: `📌 <b>이 칸에 직접 적은 매입가</b>를 먼저 써요.<br>` +
+              `• 이 칸이 비어 있으면(0원) → <b>옵션마다 실제로 사온 평균 가격</b>을 대신 써요.<br>` +
+              `• 두 값이 모두 없으면 → 원가를 몰라 손해 볼 수 있으니 <b style="color:#DC2626;">판매를 멈춰요.</b>`,
+    avg: `📌 <b>옵션마다 실제로 사온 평균 가격</b>을 먼저 써요.<br>` +
+         `• 그 값이 없으면(0원) → <b>이 칸에 직접 적은 매입가</b>를 대신 써요.<br>` +
+         `• 두 값이 모두 없으면 → 원가를 몰라 손해 볼 수 있으니 <b style="color:#DC2626;">판매를 멈춰요.</b>`,
+  };
+  const prioSubRow = (curPri) => {
     const isAvg = curPri === 'avg';
     return `
-    <div class="ptm-prio-block" style="margin-top:14px; padding-top:14px; border-top:1px dashed #E5E8EB;">
-      <div style="font-size:12.5px; color:#DC2626; font-weight:700; margin-bottom:10px; letter-spacing:.2px;">▦ 매입가 산정 우선순위 <span style="background:#DC2626; color:#fff; font-size:10px; padding:1px 6px; border-radius:3px; margin-left:6px;">NEW</span></div>
-      <div style="padding:14px 16px; background:#FAFBFC; border:1.5px solid #E5E8EB; border-radius:12px;">
-        <div style="display:flex; border:1px solid #D1D6DB; border-radius:6px; overflow:hidden; margin-bottom:10px;">
+    <div class="ptm-prio-sub" style="display:flex; flex-direction:column; gap:9px; padding:8px 0 12px; border-bottom:1px solid #f3f3f3;">
+      <div style="display:flex; align-items:center; gap:8px;">
+        <span style="flex:0 0 200px; font-size:13px; color:#555;">매입가(원가) 어느 걸 먼저?</span>
+        <div style="display:inline-flex; border:1px solid #D1D6DB; border-radius:7px; overflow:hidden;">
           <button type="button" class="ptm-prio-opt" data-prio="template"
-                  style="flex:1; padding:10px 0; background:${isAvg?'#fff':'#3182F6'}; color:${isAvg?'#4E5968':'#fff'}; border:none; font-size:13px; font-weight:700; cursor:pointer; font-family:inherit; border-right:1px solid #D1D6DB;">
-            템플릿 평균매입가 우선
-          </button>
+                  style="border:none; background:${isAvg?'#fff':'#3182F6'}; color:${isAvg?'#4E5968':'#fff'}; font-size:12px; font-weight:700; padding:7px 13px; cursor:pointer; font-family:inherit; border-right:1px solid #D1D6DB; white-space:nowrap;">이 칸에 적은 값</button>
           <button type="button" class="ptm-prio-opt" data-prio="avg"
-                  style="flex:1; padding:10px 0; background:${isAvg?'#3182F6':'#fff'}; color:${isAvg?'#fff':'#4E5968'}; border:none; font-size:13px; font-weight:700; cursor:pointer; font-family:inherit;">
-            옵션 평균매입가 우선
-          </button>
-        </div>
-        <div style="font-size:12px; color:#6B7684; line-height:1.7;">
-          ● <b>템플릿 우선</b> — 위 「평균 매입가」 값 → 0이면 옵션 평균매입가 → 둘 다 0이면 <b style="color:#DC2626;">판매 차단</b><br>
-          ○ <b>옵션 우선</b> — 옵션 평균매입가 → 0이면 위 「평균 매입가」 → 둘 다 0이면 <b style="color:#DC2626;">판매 차단</b>
+                  style="border:none; background:${isAvg?'#3182F6':'#fff'}; color:${isAvg?'#fff':'#4E5968'}; font-size:12px; font-weight:700; padding:7px 13px; cursor:pointer; font-family:inherit; white-space:nowrap;">옵션 실제 매입가</button>
         </div>
       </div>
-      <input type="hidden" data-key="price_source_priority" id="ptm-prio-hidden" value="${curPri}">
-    </div>`;
+      <div id="ptm-prio-desc" style="font-size:12px; color:#8B95A1; line-height:1.75; padding-left:208px;">${isAvg?PRIO_DESC.avg:PRIO_DESC.template}</div>
+    </div>
+    <input type="hidden" data-key="price_source_priority" id="ptm-prio-hidden" value="${curPri}">`;
   };
 
   // [2026-05-25] D3 시안 — 판매가 정책 토글 (색상 통일 / 옵션별 cheapest) + 르무통 케이스 ! 툴팁
@@ -1449,13 +1451,13 @@ async function openPriceTplModal(id, initialTab) {
       </div>
       ${row('템플릿명', txt('name', '브랜드명 + 모델명 (예: 르무통 클래식)'))}
       ${row('평균 매입가', num('boxhero_purchase_price', '원'))}
+      ${prioSubRow(v('price_source_priority') || 'template')}
       ${row('매입가 하한', num('guardrail_lower', '원'))}
       ${row('매입가 상한', num('guardrail_upper', '원'))}
-      ${prioBlock(v('price_source_priority') || 'template')}
-      ${policyBlock(v('pricing_policy') || 'cheapest')}
     </div>
     <div class="ptm-panel" data-panel="ss" style="display:none">
       ${market('ss')}
+      ${policyBlock(v('pricing_policy') || 'cheapest')}
     </div>
     <div class="ptm-panel" data-panel="cp" style="display:none">
       ${market('coupang', row('위너 프리미엄가', num('winner_premium_price', '원')))}
@@ -1529,9 +1531,10 @@ async function openPriceTplModal(id, initialTab) {
       if (status) status.textContent = isColor ? '색상 통일' : '옵션별 cheapest (기본)';
     });
   }
-  // [2026-05-25 V5] 매입가 우선순위 토글 (template / avg)
+  // [2026-06-02] 매입가 우선순위 토글 (template / avg) — 선택 시 설명도 교체
   const prioHidden = box.querySelector('#ptm-prio-hidden');
   const prioBtns = box.querySelectorAll('.ptm-prio-opt');
+  const prioDesc = box.querySelector('#ptm-prio-desc');
   if (prioHidden && prioBtns.length) {
     prioBtns.forEach(btn => {
       btn.addEventListener('click', () => {
@@ -1542,6 +1545,7 @@ async function openPriceTplModal(id, initialTab) {
           b.style.background = on ? '#3182F6' : '#fff';
           b.style.color = on ? '#fff' : '#4E5968';
         });
+        if (prioDesc) prioDesc.innerHTML = PRIO_DESC[next];
       });
     });
   }
@@ -1685,16 +1689,21 @@ async function openPriceTplModal(id, initialTab) {
       // 같은 (prefix, side) 카드 그룹의 모든 카드 비활성
       box.querySelectorAll(`.ptm-modecard[data-prefix="${prefix}"][data-side="${side}"]`).forEach(c => {
         const isOn = c.dataset.mode === mode;
-        c.style.background = isOn ? '#E8F3FF' : '#fff';
-        c.style.border = `2px solid ${isOn ? '#3182F6' : '#EAEDF0'}`;
-        const nameEl = c.querySelector('div:first-child');
-        if (nameEl) { nameEl.style.color = isOn ? '#1D4CB0' : '#6B7684'; }
+        c.style.background = isOn ? '#E8F3FF' : 'transparent';
+        c.style.border = `1px solid ${isOn ? '#3182F6' : 'transparent'}`;
+        // 라디오 점을 선택 항목으로 이동 (핵심 수정)
+        const radio = c.querySelector('.ptm-radio');
+        if (radio) radio.style.border = `1.5px solid ${isOn ? '#3182F6' : '#D1D6DB'}`;
+        const fill = c.querySelector('.ptm-radio-fill');
+        if (fill) fill.style.display = isOn ? 'block' : 'none';
+        const nameEl = c.querySelector('.ptm-mode-label');
+        if (nameEl) { nameEl.style.color = isOn ? '#1D4CB0' : '#4E5968'; }
         const inp = c.querySelector('input');
         if (inp) {
-          inp.style.border = `1px solid ${isOn ? '#3182F6' : '#D1D6DB'}`;
-          inp.style.fontWeight = isOn ? '700' : '';
-          inp.style.background = isOn ? '' : '#FAFBFC';
-          inp.style.color = isOn ? '' : '#AAB1B8';
+          inp.style.borderBottom = `1px solid ${isOn ? '#3182F6' : 'transparent'}`;
+          inp.style.fontWeight = isOn ? '800' : '800';
+          inp.style.background = 'transparent';
+          inp.style.color = isOn ? '#191F28' : '#9CA3AF';
         }
       });
       // hidden mode 인풋 갱신
