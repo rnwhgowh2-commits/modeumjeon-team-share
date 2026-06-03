@@ -4880,9 +4880,9 @@
     }
     // [2026-06-03 시안D] 소싱처 URL 열기 — 셀 우상단 ↗ (등록 URL 있으면 항상). 클릭=새 탭.
     const _corner = `<a class="src-corner" href="${escapeHtml(src.product_url)}" target="_blank" rel="noopener" title="${escapeHtml((src.source_name||'소싱처')+' 페이지 열기')}" onclick="event.stopPropagation()" style="position:absolute;top:1px;right:3px;font-size:12px;line-height:1;color:#3182F6;font-weight:800;text-decoration:none;z-index:3;padding:1px 3px;border-radius:3px;background:rgba(239,246,255,.9)">↗</a>`;
-    // 크롤 실패
+    // 크롤 실패 — [2026-06-03] 2행: 1행 '크롤 실패' / 2행 🔄 재크롤 버튼 (다른 셀과 동일 2단)
     if (src.last_status === 'error') {
-      return `<td class="td-site-col cf" data-cell-sku="${escapeHtml(o.sku)}" data-cell-src="${s.id}" style="position:relative">${_corner}실패</td>`;
+      return `<td class="td-site-col cf" data-cell-sku="${escapeHtml(o.sku)}" data-cell-src="${s.id}" style="position:relative;text-align:center;line-height:1.4">${_corner}<div style="color:#dc2626;font-size:12px;font-weight:600">크롤 실패</div><button type="button" class="btn-ico" data-refetch-sku="${escapeHtml(o.sku)}" data-refetch-src="${s.id}" title="다시 크롤" style="margin-top:4px;font-size:10.5px;font-weight:700;color:#dc2626;background:#FEF2F2;border:1px solid #fecaca;border-radius:6px;padding:2px 8px;cursor:pointer">🔄 재크롤</button></td>`;
     }
     // 크롤 안됨 (대기 / 진행 중)
     if (!src.crawled_price || src.crawled_price <= 0) {
@@ -5578,8 +5578,12 @@
         setTimeout(() => t.remove(), 200);
       }, 3500);
     }
-    document.querySelectorAll('[data-refetch-sku]').forEach(btn => {
-      btn.addEventListener('click', async () => {
+    // [2026-06-03] 이벤트 위임 (1회 가드) — 동적 렌더되는 재크롤 버튼(실패 셀 포함)도 항상 작동.
+    if (!window._refetchDelegated) {
+      window._refetchDelegated = true;
+      document.addEventListener('click', async (e) => {
+        const btn = e.target.closest('[data-refetch-sku]');
+        if (!btn || btn.disabled) return;
         const sku = btn.dataset.refetchSku;
         const srcId = btn.dataset.refetchSrc;
         btn.textContent = '⏳';
@@ -5600,11 +5604,9 @@
           } else if (j.status === 'error') {
             _refetchToast('크롤 중 오류: ' + (j.error || ''), 'error');
           } else {
-            // ★ 성공 — 가격 + 로그인 여부 표시 (사용자 피드백)
             const price = j.crawled_price ? j.crawled_price.toLocaleString() + '원' : '가격 추출 실패';
             const loginTag = j.login_used ? ' (회원가)' : '';
             _refetchToast(`✓ 갱신 완료: ${price}${loginTag}`, 'ok');
-            // 잠깐 ✓ 표시 후 🔄 복구
             btn.textContent = '✓';
             setTimeout(() => { btn.textContent = '🔄'; btn.disabled = false; }, 1500);
           }
@@ -5615,7 +5617,7 @@
           btn.disabled = false;
         }
       });
-    });
+    }
   }
 
   // ═══════ V9 필터 사이드 토글 (기본 collapse) ═══════
