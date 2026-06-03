@@ -1443,6 +1443,49 @@ def api_save_inventory_mapping(code):
         s.close()
 
 
+@bp.route('/api/options/<sku>/adjust-stock', methods=['POST'])
+def api_adjust_option_stock(sku):
+    """[2026-06-03] 가격 매트릭스 '재고' 배지 팝업 — 단일 옵션 재고 수정.
+
+    기존 재고관리 '조정'(create_adjustment) 경로를 그대로 재사용 → 이력 남고
+    boxhero_stock_total 한 칸만 절대값 set. 전체 화면 동기화 + 중복/모순 없음.
+
+    body: { new_qty: int (>=0), memo?: str }
+    """
+    body = request.get_json(silent=True) or {}
+    try:
+        new_qty = int(body.get('new_qty'))
+    except (TypeError, ValueError):
+        return jsonify({'ok': False, 'error': 'new_qty 정수 필요'}), 400
+    if new_qty < 0:
+        return jsonify({'ok': False, 'error': '재고는 0 이상이어야 합니다'}), 400
+    memo = (body.get('memo') or '').strip()
+
+    s = SessionLocal()
+    try:
+        opt = s.query(Option).filter_by(canonical_sku=sku).first()
+        if not opt:
+            return jsonify({'ok': False, 'error': '옵션 없음'}), 404
+        from lemouton.inventory.locations import list_active
+        from lemouton.inventory import inbound as tx_svc
+        locs = list_active(s)
+        if not locs:
+            return jsonify({'ok': False, 'error': '재고 위치가 없습니다'}), 400
+        # 기본 위치 (is_default) → 없으면 첫 위치
+        loc = next((l for l in locs if getattr(l, 'is_default', False)), locs[0])
+        tx_svc.create_adjustment(
+            s, location_id=loc.id, option_canonical_sku=sku, new_qty=new_qty,
+            memo=memo or '가격 매트릭스에서 재고 수정', created_by='운영자',
+        )
+        s.commit()
+        return jsonify({'ok': True, 'new_qty': new_qty})
+    except Exception as e:
+        s.rollback()
+        return jsonify({'ok': False, 'error': str(e)}), 500
+    finally:
+        s.close()
+
+
 # ───────── v26 [2026-06-01] color_code 잔존 모델명 prefix 정리 ─────────
 
 @bp.route('/api/admin/color-code-audit', methods=['GET'])

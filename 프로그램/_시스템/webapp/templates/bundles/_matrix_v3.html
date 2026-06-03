@@ -4972,47 +4972,230 @@
   }
 
   // [Phase 4-3 E2] 누적 도트 — URL 매핑(파랑) + 재고 매핑(초록) 시각화
+  // [2026-06-03] E2 배지 — 글자 배지(URL/재고) + 옵션매트릭스와 동일한 Card Stack 호버 카드
+  //   + URL 클릭 → 소싱처 URL 매핑 모달 / 재고 클릭 → 재고 수정 팝업.
+  //   (이전 버그: state.options 참조 → ReferenceError. 이 페이지 변수는 DATA.options)
+  function _pmEnsureStyle() {
+    if (document.getElementById('pm-e2-style')) return;
+    const st = document.createElement('style');
+    st.id = 'pm-e2-style';
+    st.textContent = `
+      .pm-e2{position:absolute;top:4px;right:6px;display:flex;gap:5px;z-index:6}
+      .pm-badge{position:relative;color:#fff;font-size:10px;font-weight:800;padding:2px 8px;border-radius:6px;cursor:pointer;letter-spacing:.03em;line-height:1.5}
+      .pm-badge.u{background:#3B82F6}.pm-badge.i{background:#10B981}
+      .pm-badge:active{transform:scale(.95)}
+      .pm-card{display:none;position:fixed;z-index:99999;background:#fff;border:1px solid #d1d6db;border-radius:14px;padding:13px;width:400px;max-height:70vh;overflow-y:auto;box-shadow:0 10px 26px rgba(0,0,0,.2);cursor:default;text-align:left;white-space:normal}
+      .pm-card.on{display:block}
+      .pmc-grp{background:#FAFBFC;border:1px solid #F1F3F5;border-radius:10px;padding:12px 12px;margin-bottom:8px}
+      .pmc-grp:last-child{margin-bottom:0}
+      .pmc-h{display:flex;align-items:center;gap:9px;margin-bottom:7px;padding-bottom:6px;border-bottom:1px dashed #e5e8eb}
+      .pmc-chip{width:30px;height:30px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;color:#fff;flex-shrink:0}
+      .pmc-name{font-size:15px;font-weight:700;color:#191F28;flex:1}
+      .pmc-cnt{background:#3B82F6;color:#fff;font-size:12px;font-weight:700;padding:2px 11px;border-radius:11px;flex-shrink:0}
+      .pmc-grp.inv .pmc-cnt{background:#10B981}
+      .pmc-row{padding:4px 0;display:flex;align-items:center;gap:8px}
+      .pmc-tx{flex:1;min-width:0}
+      .pmc-lbl{font-size:13px;font-weight:600;color:#191F28}
+      .pmc-url{font-family:ui-monospace,monospace;font-size:12px;color:#6b7684;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+      .pmc-url .dom{color:#1d4ed8;font-weight:700}
+      .pmc-go{background:#fff;border:1px solid #bbf7d0;border-radius:7px;width:32px;height:32px;display:inline-flex;align-items:center;justify-content:center;color:#3B82F6;font-size:16px;font-weight:700;flex-shrink:0;text-decoration:none}
+      .pmc-go:hover{background:#EFF6FF;border-color:#bfdbfe}
+      .pmc-stock{font-size:12px;color:#8B95A1}.pmc-stock b{color:#191F28;font-size:13px}
+      /* 재고 수정 팝업 */
+      .pm-ov{display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9999;align-items:center;justify-content:center}
+      .pm-ov.on{display:flex}
+      .pm-ov-modal{background:#fff;border-radius:14px;box-shadow:0 20px 60px rgba(0,0,0,.3);width:420px;max-width:92vw;overflow:hidden}
+      .pm-ov-head{display:flex;align-items:center;justify-content:space-between;padding:15px 19px;border-bottom:1px solid #EEF0F2;font-size:15px;font-weight:800}
+      .pm-ov-x{border:none;background:#F2F4F6;width:30px;height:30px;border-radius:8px;cursor:pointer;font-size:14px;color:#4E5968}
+      .pm-ov-body{padding:18px 19px}
+      .pm-sk-title{font-size:14px;font-weight:800;margin-bottom:15px}
+      .pm-sk-title .mono{font-family:ui-monospace,monospace;font-size:12px;color:#8B95A1;font-weight:600;margin-left:6px}
+      .pm-sk-row{margin-bottom:13px}
+      .pm-sk-row label{display:block;font-size:12px;font-weight:700;color:#4E5968;margin-bottom:5px}
+      .pm-sk-row input{width:100%;border:1px solid #D1D6DB;border-radius:8px;padding:9px 11px;font-size:15px;box-sizing:border-box}
+      .pm-sk-foot{display:flex;gap:8px;justify-content:flex-end;margin-top:18px}
+      .pm-btn-c{border:1px solid #D1D6DB;background:#fff;border-radius:8px;padding:9px 18px;font-weight:700;cursor:pointer;color:#4E5968}
+      .pm-btn-s{border:none;background:#3182F6;color:#fff;border-radius:8px;padding:9px 20px;font-weight:700;cursor:pointer}
+      .pm-btn-s:disabled{opacity:.5;cursor:default}
+    `;
+    document.head.appendChild(st);
+  }
+  function _pmEsc(s){ return String(s==null?'':s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+  function _pmDomain(url){
+    try { const u = new URL(url); return { dom: u.hostname.replace(/^www\./,''), rest: (u.pathname||'') + (u.search||'') }; }
+    catch(e){ const m = String(url||'').match(/^https?:\/\/([^\/]+)(.*)$/); return m ? {dom:m[1].replace(/^www\./,''), rest:m[2]} : {dom:'', rest:String(url||'')}; }
+  }
+  const _PM_PALETTE = ['#10B981','#22C55E','#3B82F6','#8B5CF6','#F59E0B','#EF4444','#06B6D4','#EC4899'];
+  function _pmColor(name){ let h=0; const s=String(name||''); for(let i=0;i<s.length;i++) h=(h*31+s.charCodeAt(i))>>>0; return _PM_PALETTE[h % _PM_PALETTE.length]; }
+  function _pmAbbr(name){ const s=String(name||'').trim(); return s ? s.slice(0,2) : '··'; }
+  function _pmUrlCard(grp, names){
+    let html = '';
+    names.forEach(nm => {
+      const items = grp[nm];
+      html += `<div class="pmc-grp"><div class="pmc-h"><span class="pmc-chip" style="background:${_pmColor(nm)}">${_pmEsc(_pmAbbr(nm))}</span><span class="pmc-name">${_pmEsc(nm)}</span><span class="pmc-cnt">${items.length}개</span></div>`;
+      items.forEach(it => {
+        const sp = _pmDomain(it.url);
+        const inner = sp.dom ? `<span class="dom">${_pmEsc(sp.dom)}</span>${_pmEsc(sp.rest)}` : _pmEsc(sp.rest);
+        html += `<div class="pmc-row"><div class="pmc-tx">${it.label?`<div class="pmc-lbl">${_pmEsc(it.label)}</div>`:''}<div class="pmc-url" title="${_pmEsc(it.url)}">${inner}</div></div><a class="pmc-go" href="${_pmEsc(it.url)}" target="_blank" rel="noopener noreferrer" title="새 탭에서 열기" onclick="event.stopPropagation()">↗</a></div>`;
+      });
+      html += '</div>';
+    });
+    return html;
+  }
+  function _pmInvCard(skus, info){
+    let html = '<div class="pmc-grp inv"><div class="pmc-h"><span class="pmc-chip" style="background:#10B981">재고</span><span class="pmc-name">재고 매핑</span><span class="pmc-cnt">'+skus.length+'개</span></div>';
+    skus.forEach(isku => {
+      const io = info[isku] || {};
+      const nm = `${io.model_name||''} ${io.color||''} ${io.size||''}`.trim() || isku;
+      html += `<div class="pmc-row"><div class="pmc-tx"><div class="pmc-lbl">${_pmEsc(nm)}</div><div class="pmc-url">${_pmEsc(isku)}</div></div><span class="pmc-stock">재고 <b>${(io.stock_total!=null?io.stock_total:0)}</b></span></div>`;
+    });
+    return html + '</div>';
+  }
+  // 호버 카드 — body 로 띄우는 fixed 포털 (표 overflow:hidden 잘림 방지)
+  let _pmFloatEl = null, _pmHideTimer = null;
+  function _pmFloat(){
+    if (_pmFloatEl) return _pmFloatEl;
+    const el = document.createElement('div');
+    el.className = 'pm-card';
+    el.addEventListener('mouseenter', () => { if (_pmHideTimer){ clearTimeout(_pmHideTimer); _pmHideTimer=null; } });
+    el.addEventListener('mouseleave', _pmScheduleHide);
+    document.body.appendChild(el);
+    _pmFloatEl = el; return el;
+  }
+  function _pmShowFloat(anchor, html){
+    if (_pmHideTimer){ clearTimeout(_pmHideTimer); _pmHideTimer=null; }
+    const el = _pmFloat();
+    el.innerHTML = html;
+    el.classList.add('on');
+    const r = anchor.getBoundingClientRect();
+    const cw = el.offsetWidth, ch = el.offsetHeight;
+    let left = r.right - cw; if (left < 8) left = 8;
+    let top = r.bottom + 7;
+    if (top + ch > window.innerHeight - 8) top = r.top - ch - 7;
+    if (top < 8) top = 8;
+    el.style.left = left + 'px';
+    el.style.top = top + 'px';
+  }
+  function _pmScheduleHide(){
+    if (_pmHideTimer) clearTimeout(_pmHideTimer);
+    _pmHideTimer = setTimeout(() => { if (_pmFloatEl) _pmFloatEl.classList.remove('on'); }, 250);
+  }
+
+  let _pmStockTarget = null;
+  function _pmOpenStock(skus, info){
+    _pmEnsureStyle();
+    const isku = skus[0];
+    const io = info[isku] || {};
+    _pmStockTarget = isku;
+    let ov = document.getElementById('pm-stock-ov');
+    if (!ov) {
+      ov = document.createElement('div');
+      ov.id = 'pm-stock-ov';
+      ov.className = 'pm-ov';
+      ov.innerHTML = `<div class="pm-ov-modal">
+        <div class="pm-ov-head"><div>📦 재고 수정</div><button class="pm-ov-x" id="pm-stk-x">✕</button></div>
+        <div class="pm-ov-body">
+          <div class="pm-sk-title" id="pm-stk-title"></div>
+          <div class="pm-sk-row"><label>현재 재고 수량</label><input type="number" id="pm-stk-qty" min="0"></div>
+          <div class="pm-sk-row"><label>사유 (선택)</label><input type="text" id="pm-stk-memo" placeholder="예: 재고 실사 조정"></div>
+          <div id="pm-stk-msg" style="font-size:12px;color:#E5484D;min-height:16px"></div>
+          <div class="pm-sk-foot"><button class="pm-btn-c" id="pm-stk-cancel">취소</button><button class="pm-btn-s" id="pm-stk-save">저장</button></div>
+        </div></div>`;
+      document.body.appendChild(ov);
+      ov.addEventListener('click', e => { if (e.target === ov) ov.classList.remove('on'); });
+      ov.querySelector('#pm-stk-x').addEventListener('click', () => ov.classList.remove('on'));
+      ov.querySelector('#pm-stk-cancel').addEventListener('click', () => ov.classList.remove('on'));
+      ov.querySelector('#pm-stk-save').addEventListener('click', _pmSaveStock);
+    }
+    const nm = `${io.model_name||''} ${io.color||''} ${io.size||''}`.trim() || (BUNDLE_CODE+' 옵션');
+    ov.querySelector('#pm-stk-title').innerHTML = `${_pmEsc(nm)} <span class="mono">${_pmEsc(isku)}</span>`;
+    ov.querySelector('#pm-stk-qty').value = (io.stock_total!=null ? io.stock_total : 0);
+    ov.querySelector('#pm-stk-memo').value = '';
+    ov.querySelector('#pm-stk-msg').textContent = '';
+    ov.querySelector('#pm-stk-save').disabled = false;
+    ov.classList.add('on');
+    setTimeout(() => ov.querySelector('#pm-stk-qty').focus(), 30);
+  }
+  async function _pmSaveStock(){
+    const ov = document.getElementById('pm-stock-ov');
+    const qty = parseInt(ov.querySelector('#pm-stk-qty').value, 10);
+    const memo = ov.querySelector('#pm-stk-memo').value || '';
+    const msg = ov.querySelector('#pm-stk-msg');
+    const btn = ov.querySelector('#pm-stk-save');
+    if (isNaN(qty) || qty < 0) { msg.textContent = '0 이상 숫자를 입력하세요'; return; }
+    btn.disabled = true; msg.style.color = '#8B95A1'; msg.textContent = '저장 중…';
+    try {
+      const r = await fetch(`/api/options/${encodeURIComponent(_pmStockTarget)}/adjust-stock`, {
+        method: 'POST', headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({ new_qty: qty, memo }),
+      });
+      const j = await r.json();
+      if (j && j.ok) { ov.classList.remove('on'); if (typeof loadMatrix === 'function') loadMatrix(); }
+      else { msg.style.color = '#E5484D'; msg.textContent = '저장 실패: ' + (j.error || '알 수 없음'); btn.disabled = false; }
+    } catch(e) { msg.style.color = '#E5484D'; msg.textContent = '요청 실패: ' + e.message; btn.disabled = false; }
+  }
+
   async function decorateE2Dots() {
+    _pmEnsureStyle();
     const rows = document.querySelectorAll('tr[data-price-row]');
     if (!rows.length) return;
-    // 1) URL 매핑 수: state.options[i].sources 에서 도출 (이미 로드된 데이터)
-    const urlCount = {};
-    (state && state.options ? state.options : []).forEach(o => {
-      urlCount[o.sku] = (o.sources || []).filter(s => s && s.url).length;
+    // 1) URL 매핑 — DATA.options[].sources (product_url 있는 것만), 소싱처별 그룹
+    const urlByS = {};
+    ((DATA && DATA.options) ? DATA.options : []).forEach(o => {
+      const grp = {};
+      (o.sources || []).forEach(s => {
+        if (!s || !s.product_url) return;
+        const nm = s.source_name || '소싱처';
+        (grp[nm] = grp[nm] || []).push({ url: s.product_url, label: s.label || '' });
+      });
+      urlByS[o.sku] = grp;
     });
-    // 2) 재고 매핑: 비동기 fetch (실패해도 무방)
-    let invMap = {};
+    // 2) 재고 매핑 + 재고 옵션 정보 (모델/색/사이즈/재고)
+    let invMap = {}, invInfo = {};
     try {
       const r = await fetch(`/api/bundles/${encodeURIComponent(BUNDLE_CODE)}/inventory-mapping`);
       const j = await r.json();
-      if (j && j.ok) invMap = j.mappings || {};
+      if (j && j.ok) {
+        invMap = j.mappings || {};
+        (j.inventory_options || []).forEach(io => { invInfo[io.sku] = io; });
+      }
     } catch(e) { /* ignore */ }
-    // 3) 행마다 도트 배지 부착 (mc-unified-cell 좌상단/우상단)
+    // 3) 행마다 글자 배지 부착 (mc-unified-cell 우상단)
     rows.forEach(tr => {
       const sku = tr.dataset.sku;
       if (!sku) return;
       const cell = tr.querySelector('td.mc-unified-cell');
       if (!cell) return;
-      // 기존 도트 제거 (재호출 시)
-      const old = cell.querySelector('.e2-dots');
+      const old = cell.querySelector('.pm-e2');
       if (old) old.remove();
-      const uCnt = urlCount[sku] || 0;
-      const iCnt = (invMap[sku] || []).length;
-      // 어떤 매핑도 없으면 도트 X (gray 상태 — 옵션 ON 만)
+      const grp = urlByS[sku] || {};
+      const names = Object.keys(grp);
+      const uCnt = names.reduce((a, n) => a + grp[n].length, 0);
+      const invSkus = invMap[sku] || [];
+      const iCnt = invSkus.length;
       if (uCnt === 0 && iCnt === 0) return;
-      const dots = document.createElement('div');
-      dots.className = 'e2-dots';
-      dots.style.cssText = 'position:absolute;top:3px;right:5px;display:flex;gap:3px;z-index:2;pointer-events:none';
-      if (uCnt > 0) {
-        dots.innerHTML += `<span title="URL 매핑 ${uCnt}건" style="background:#3B82F6;color:#fff;font-size:9.5px;font-weight:700;padding:1px 5px;border-radius:99px;line-height:1.2">📡${uCnt}</span>`;
+      const wrap = document.createElement('div');
+      wrap.className = 'pm-e2';
+      wrap.innerHTML =
+        (uCnt > 0 ? `<span class="pm-badge u" title="클릭: 소싱처 URL 매핑 열기">URL ${uCnt}</span>` : '') +
+        (iCnt > 0 ? `<span class="pm-badge i" title="클릭: 재고 수정">재고 ${iCnt}</span>` : '');
+      const ub = wrap.querySelector('.pm-badge.u');
+      if (ub) {
+        const cardHtml = _pmUrlCard(grp, names);
+        ub.addEventListener('mouseenter', () => _pmShowFloat(ub, cardHtml));
+        ub.addEventListener('mouseleave', _pmScheduleHide);
+        ub.addEventListener('click', () => { if (typeof openOptionUrlModal === 'function') openOptionUrlModal(sku, loadMatrix); });
       }
-      if (iCnt > 0) {
-        dots.innerHTML += `<span title="재고 매핑 ${iCnt}건" style="background:#10B981;color:#fff;font-size:9.5px;font-weight:700;padding:1px 5px;border-radius:99px;line-height:1.2">📦${iCnt}</span>`;
+      const ib = wrap.querySelector('.pm-badge.i');
+      if (ib) {
+        const cardHtml = _pmInvCard(invSkus, invInfo);
+        ib.addEventListener('mouseenter', () => _pmShowFloat(ib, cardHtml));
+        ib.addEventListener('mouseleave', _pmScheduleHide);
+        ib.addEventListener('click', () => _pmOpenStock(invSkus, invInfo));
       }
-      // 셀 position:relative 가 아니면 부모 row 기준
       const css = window.getComputedStyle(cell);
       if (css.position === 'static') cell.style.position = 'relative';
-      cell.appendChild(dots);
+      cell.appendChild(wrap);
     });
   }
 
