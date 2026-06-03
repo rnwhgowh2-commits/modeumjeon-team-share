@@ -2,7 +2,7 @@
 
 > Flask + Supabase PostgreSQL + Fly.io. 팀 다중 사용자 재고·모음전·소싱·발주 관리.
 
-🌐 **라이브**: https://modeumjeon-team-share.fly.dev
+🌐 **라이브**: http://54.116.196.90
 
 ---
 

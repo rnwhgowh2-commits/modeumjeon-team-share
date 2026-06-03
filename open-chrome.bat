@@ -1,8 +1,8 @@
 @echo off
-REM Open Modeumjeon (Fly.io) in Chrome
+REM Open Modeumjeon (AWS Lightsail) in Chrome
 REM English filename - avoids Korean encoding display issues
 
-set "URL=https://modeumjeon-team-share.fly.dev"
+set "URL=http://54.116.196.90"
 
 set "CHROME1=C:\Program Files\Google\Chrome\Application\chrome.exe"
 set "CHROME2=C:\Program Files (x86)\Google\Chrome\Application\chrome.exe"
