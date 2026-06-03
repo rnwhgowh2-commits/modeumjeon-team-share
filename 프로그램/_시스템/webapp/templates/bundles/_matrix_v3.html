@@ -1190,6 +1190,8 @@
 
     /* ═══════ 매트릭스 레이아웃 개선 (문제 1·2·3·4·5) ═══════ */
     /* 문제1 (1-2) — 옵션명: 색상 + 사이즈/FREE 칩 */
+    /* [2026-06-03] 옵션명 가로 가운데 정렬 — 셀이 flex(외부 CSS)라 색상+칩+⚙ 한 덩어리를 center. */
+    .opt-cell { justify-content: center; gap: 2px; }
     .opt-cell .opt-size-chip { display: inline-block; margin-left: 5px; border-radius: 5px;
       padding: 1px 6px; font-size: 11px; font-weight: 800; vertical-align: 1px;
       background: var(--primary-tint, #EAF3FF); color: var(--primary, #3182F6); }
@@ -5209,12 +5211,12 @@
       const uCnt = names.reduce((a, n) => a + grp[n].length, 0);
       const invSkus = invMap[sku] || [];
       const iCnt = invSkus.length;
-      if (uCnt === 0 && iCnt === 0) return;
+      // [2026-06-03] '재고 N'(pm-badge i, 재고매핑 카운트) 배지 제거 — 사용자 요청. URL 배지만 노출.
+      if (uCnt === 0) return;
       const wrap = document.createElement('div');
       wrap.className = 'pm-e2';
       wrap.innerHTML =
-        (uCnt > 0 ? `<span class="pm-badge u" title="클릭: 소싱처 URL 매핑 열기">URL ${uCnt}</span>` : '') +
-        (iCnt > 0 ? `<span class="pm-badge i" title="클릭: 재고 수정">재고 ${iCnt}</span>` : '');
+        (uCnt > 0 ? `<span class="pm-badge u" title="클릭: 소싱처 URL 매핑 열기">URL ${uCnt}</span>` : '');
       const ub = wrap.querySelector('.pm-badge.u');
       if (ub) {
         const cardHtml = _pmUrlCard(grp, names);
