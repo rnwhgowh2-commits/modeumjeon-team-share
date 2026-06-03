@@ -1,0 +1,73 @@
+# ════════════════════════════════════════════════════════════
+# AWS Lightsail 자동배포 — git push(main) 시 자동 빌드·배포 (Fly 대체)
+# ════════════════════════════════════════════════════════════
+# 흐름: GitHub Actions 가 Docker 이미지를 빌드 → GHCR(공개) 푸시 →
+#       Lightsail 서버에 SSH 접속해 pull + 재시작 → 헬스체크.
+#
+# 활성화 전 준비 (사장님 1회):
+#   GitHub → Settings → Secrets and variables → Actions 에 2개 등록:
+#     - LIGHTSAIL_HOST     : Lightsail 고정 공인 IP (예: 13.124.x.x)
+#     - LIGHTSAIL_SSH_KEY  : 인스턴스 SSH 개인키(.pem) 내용 전체
+#   서버 1회 셋업: deploy/lightsail-bootstrap.sh 참고 (docker 설치 + app.env).
+#
+# 준비되면 아래 `push:` 주석을 풀고 fly-deploy.yml 은 비활성화하면 전환 완료.
+# ════════════════════════════════════════════════════════════
+name: AWS Lightsail 자동배포
+
+on:
+  workflow_dispatch:        # 초기: 수동 실행 (Actions 탭에서 Run). 준비 후 push 로 전환.
+  # push:
+  #   branches: [main]
+
+env:
+  IMAGE: ghcr.io/${{ github.repository }}:latest
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write       # GHCR 푸시용
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: GHCR 로그인
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: 이미지 빌드·푸시 (context = 프로그램/_시스템)
+        uses: docker/build-push-action@v6
+        with:
+          context: 프로그램/_시스템
+          push: true
+          tags: ${{ env.IMAGE }}
+
+      - name: Lightsail 에 SSH 배포 (pull + 재시작)
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.LIGHTSAIL_HOST }}
+          username: ubuntu
+          key: ${{ secrets.LIGHTSAIL_SSH_KEY }}
+          script: |
+            set -e
+            docker pull ${{ env.IMAGE }}
+            docker stop modeumjeon 2>/dev/null || true
+            docker rm   modeumjeon 2>/dev/null || true
+            docker run -d --name modeumjeon --restart unless-stopped \
+              -p 80:8080 --env-file /home/ubuntu/app.env ${{ env.IMAGE }}
+            docker image prune -f || true
+
+      - name: 헬스체크 (콜드스타트 관대 — Fly 워크플로와 동일 정책)
+        run: |
+          echo "배포 후 헬스체크..."
+          sleep 12
+          for i in $(seq 1 12); do
+            if curl -fsS --max-time 20 "http://${{ secrets.LIGHTSAIL_HOST }}/health"; then
+              echo "✅ 헬스체크 성공 (시도 $i)"; exit 0
+            fi
+            echo "대기 중... ($i/12, 15초 후 재시도)"; sleep 15
+          done
+          echo "❌ 헬스체크 실패 — 3분+ 무응답"; exit 1
