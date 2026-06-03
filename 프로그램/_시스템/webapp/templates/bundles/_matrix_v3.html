@@ -4874,17 +4874,19 @@
       // [2026-05-25] URL 미매핑 — "크롤링 미실시" 회색 글씨 (CSS ::before 의 ⚠ 는 위에서 제거됨)
       return `<td class="td-site-col cn" data-cell-sku="${escapeHtml(o.sku)}" data-cell-src="${s.id}" style="text-align:center; padding:10px 4px; font-size:13px; color:#94A3B8; font-weight:500; white-space:nowrap;">크롤링 미실시</td>`;
     }
+    // [2026-06-03 시안D] 소싱처 URL 열기 — 셀 우상단 ↗ (등록 URL 있으면 항상). 클릭=새 탭.
+    const _corner = `<a class="src-corner" href="${escapeHtml(src.product_url)}" target="_blank" rel="noopener" title="${escapeHtml((src.source_name||'소싱처')+' 페이지 열기')}" onclick="event.stopPropagation()" style="position:absolute;top:1px;right:3px;font-size:12px;line-height:1;color:#3182F6;font-weight:800;text-decoration:none;z-index:3;padding:1px 3px;border-radius:3px;background:rgba(239,246,255,.9)">↗</a>`;
     // 크롤 실패
     if (src.last_status === 'error') {
-      return `<td class="td-site-col cf" data-cell-sku="${escapeHtml(o.sku)}" data-cell-src="${s.id}">실패</td>`;
+      return `<td class="td-site-col cf" data-cell-sku="${escapeHtml(o.sku)}" data-cell-src="${s.id}" style="position:relative">${_corner}실패</td>`;
     }
     // 크롤 안됨 (대기 / 진행 중)
     if (!src.crawled_price || src.crawled_price <= 0) {
       if (src.last_status === 'running') {
         return `<td class="td-site-col cr" data-cell-sku="${escapeHtml(o.sku)}" data-cell-src="${s.id}"><span class="sm-spin"></span></td>`;
       }
-      // [2026-05-25] 크롤 미실행 — 회색 글씨로 명시 ("크롤링 미실시")
-      return `<td class="td-site-col cw" data-cell-sku="${escapeHtml(o.sku)}" data-cell-src="${s.id}" style="text-align:center; padding:10px 4px; font-size:13px; color:#94A3B8; font-weight:500; white-space:nowrap;">크롤링 미실시</td>`;
+      // [2026-05-25] 크롤 미실행 — 회색 글씨로 명시 ("크롤링 미실시") + 시안D ↗ URL 열기
+      return `<td class="td-site-col cw" data-cell-sku="${escapeHtml(o.sku)}" data-cell-src="${s.id}" style="position:relative; text-align:center; padding:10px 4px; font-size:13px; color:#94A3B8; font-weight:500; white-space:nowrap;">${_corner}크롤링 미실시</td>`;
     }
     // 가격 있음 — breakdown 적용된 매입가 사용
     const bk = SM_BREAKDOWNS[`${o.sku}|${s.id}`];
@@ -4911,7 +4913,7 @@
       else if (_stk >= 900) stockHtml = `<div class="cell-stock" style="font-size:11px;color:#15803d;margin-top:2px;line-height:1.2">재고 있음</div>`;
       else stockHtml = `<div class="cell-stock" style="font-size:11px;color:#8B95A1;margin-top:2px;line-height:1.2">재고 ${_stk.toLocaleString('ko-KR')}</div>`;
     }
-    return `<td class="td-site-col cd${loCls} has-c1-tip" data-cell-sku="${escapeHtml(o.sku)}" data-cell-src="${s.id}" data-cell-price="${src.crawled_price}"><button type="button" class="cell-fx" title="혜택 계산식 클릭">fx</button><span class="px-main">${finalPrice.toLocaleString('ko-KR')}</span>${stockHtml}${tipHtml}</td>`;
+    return `<td class="td-site-col cd${loCls} has-c1-tip" data-cell-sku="${escapeHtml(o.sku)}" data-cell-src="${s.id}" data-cell-price="${src.crawled_price}" style="position:relative">${_corner}<button type="button" class="cell-fx" title="혜택 계산식 클릭">fx</button><span class="px-main">${finalPrice.toLocaleString('ko-KR')}</span>${stockHtml}${tipHtml}</td>`;
   }
 
   // Phase 6 — 최저가/절감 캐시 (renderSourceMatrix 가 채움)
