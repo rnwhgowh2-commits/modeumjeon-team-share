@@ -4470,7 +4470,7 @@
           ${_srcStockUrl
             ? `<a class="m4-fchip stk linkable" href="${escapeHtml(_srcStockUrl)}" target="_blank" rel="noopener" title="최저가 선정 소싱처의 해당 재고 페이지 열기" onclick="event.stopPropagation()"><span class="m4-fic">📦</span><span class="m4-flabel">최저 소싱처 재고</span><span class="m4-fval">${_srcStock >= 1 ? _srcStockTxt : '없음'}</span><span class="m4-fchev">↗</span></a>`
             : `<span class="m4-fchip stk" title="최저가 선정 소싱처의 재고"><span class="m4-fic">📦</span><span class="m4-flabel">최저 소싱처 재고</span><span class="m4-fval">${_srcStock >= 1 ? _srcStockTxt : '없음'}</span><span class="m4-fchev"></span></span>`}
-          ${o.src_count ? `<span class="m4-fchip url src-urlchip" onclick="if(typeof openOptionUrlModal==='function')openOptionUrlModal('${o.sku}', loadMatrix)" title="클릭: 소싱처 URL 관리(추가·수정·삭제·열기)"><span class="m4-fic">🔗</span><span class="m4-flabel">등록 URL</span><span class="m4-fval">${o.src_count}개</span><span class="m4-fchev">▸</span></span>` : ''}
+          ${o.src_count ? `<span class="m4-fchip url src-urlchip" onclick="openOptionUrlPopup('${o.sku}')" title="클릭: 이 옵션에 등록된 소싱처 URL 보기·열기"><span class="m4-fic">🔗</span><span class="m4-flabel">등록 URL</span><span class="m4-fval">${o.src_count}개</span><span class="m4-fchev">▸</span></span>` : ''}
         </div>
       </div>`;
 
@@ -4709,6 +4709,44 @@
     try { return new URL(url).hostname; }
     catch (e) { return url.replace(/^https?:\/\//, '').split('/')[0]; }
   }
+  // [2026-06-03] '등록 URL N개' 칩 클릭 → 이 옵션의 등록 소싱처 URL 목록 팝업.
+  //   ⚠️ 칩 카운트(o.src_count)와 '동일한' 데이터(DATA.options[].sources = 등록 URL)를 사용한다.
+  //   과거엔 openOptionUrlModal(sku) 가 (a)sku를 bundleCode로 잘못 받거나 (b)빈 option_source_urls
+  //   저장소를 읽어 '9개인데 팝업은 빈값/엉뚱한 모달' 이었음. 여기선 매트릭스가 이미 들고 있는
+  //   진짜 URL 을 그대로 보여줘 불일치를 원천 차단. (관리=추가·수정·삭제는 상단 옵션 편집기 사용)
+  function openOptionUrlPopup(sku) {
+    const opt = ((window.DATA && window.DATA.options) || []).find(o => o.sku === sku);
+    const sources = ((opt && opt.sources) || []).filter(s => s.product_url);
+    let body;
+    if (!sources.length) {
+      body = '<div style="padding:20px;text-align:center;background:#f7f8f9;border-radius:9px;color:#8b95a1;font-size:13px">등록된 소싱처 URL이 없습니다.</div>';
+    } else {
+      const groups = {};
+      sources.forEach(s => {
+        const name = s.source_name || ('소싱처 ' + s.source_id);
+        (groups[name] = groups[name] || []).push(s);
+      });
+      body = Object.keys(groups).map(name => {
+        const items = groups[name];
+        return `<div style="margin-bottom:12px">`
+          + `<div style="font-size:12px;font-weight:800;color:#3182f6;margin-bottom:6px">${escapeHtml(name)} <span style="color:#b0b8c1">· ${items.length}개</span></div>`
+          + items.map(s => {
+              const u = s.product_url;
+              return `<div style="display:flex;align-items:center;gap:8px;padding:8px 10px;border:1px solid #eceef1;border-radius:8px;margin-bottom:5px">`
+                + `<span style="flex:1;min-width:0;font-size:12px;color:#4e5968;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${escapeHtml(u)}">${escapeHtml(u)}</span>`
+                + `<a href="${escapeHtml(u)}" target="_blank" rel="noopener" title="새 탭에서 열기" style="flex-shrink:0;text-decoration:none;background:#3182f6;color:#fff;width:26px;height:26px;border-radius:6px;display:inline-flex;align-items:center;justify-content:center;font-size:13px">↗</a>`
+                + `</div>`;
+            }).join('')
+          + `</div>`;
+      }).join('');
+    }
+    const note = '<div style="font-size:11.5px;color:#8b95a1;margin-top:8px">＋ 추가·수정·삭제는 상단 <b>옵션 조합 생성 및 수정</b> 버튼에서 관리합니다.</div>';
+    const box = _modalBox('등록 소싱처 URL · ' + escapeHtml(sku), body + note,
+      '<button class="btn" id="oup-close" type="button" style="padding:8px 16px;border:1px solid #d1d6db;border-radius:8px;background:#fff;cursor:pointer;font:inherit">닫기</button>');
+    const bg = _modalBg(box);
+    box.querySelector('#oup-close').addEventListener('click', () => bg.remove());
+  }
+
   // 소싱처 main_url 조회 (DATA.sources 룩업)
   function getSourceUrl(name) {
     const src = (DATA.sources || []).find(s => s.name === name);
