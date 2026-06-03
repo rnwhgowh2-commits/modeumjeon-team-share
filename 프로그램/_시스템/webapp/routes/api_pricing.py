@@ -271,6 +271,49 @@ def get_option_matrix(code: str):
                 'card_enabled': _card_enabled,
             })
 
+        # [2026-06-03] 신규 URL 모델 통합 — bundle_source_urls + option_source_url_links.
+        #   배경: 등록 UI 는 이 테이블에 쓰는데 매트릭스는 legacy option_source_urls(빈 테이블)만
+        #   읽어 "0 URLs · 크롤링 미실시" 로 보이던 문제. 등록된 URL 을 옵션별로 노출하고,
+        #   이미 크롤된 SourceProduct 가 있으면 가격/재고 연결. (additive + 안전 try)
+        try:
+            from lemouton.sourcing.models import BundleSourceUrl, OptionSourceUrlLink
+            from lemouton.sourcing.source_registry import get_labels as _src_labels
+            _labels = _src_labels()
+            if sku_list:
+                _link_rows = (
+                    s.query(OptionSourceUrlLink, BundleSourceUrl)
+                    .join(BundleSourceUrl,
+                          OptionSourceUrlLink.bundle_source_url_id == BundleSourceUrl.id)
+                    .filter(OptionSourceUrlLink.option_canonical_sku.in_(sku_list))
+                    .all()
+                )
+                for lk, bsu in _link_rows:
+                    existing = sku_to_sources.setdefault(lk.option_canonical_sku, [])
+                    if any(e.get('product_url') == bsu.url for e in existing):
+                        continue  # legacy 로 이미 추가된 동일 URL 중복 방지
+                    sp = sp_by_norm.get(_norm_url(bsu.url)) if bsu.url else None
+                    existing.append({
+                        'source_id': sp.id if sp else None,
+                        'source_key': bsu.source_key,
+                        'source_name': _labels.get(bsu.source_key, bsu.source_key),
+                        'product_url': bsu.url,
+                        'label': bsu.label or '',
+                        'price_cached': None,
+                        'stock_cached': None,
+                        'source_product_id': sp.id if sp else None,
+                        'crawled_price': (sp.last_price if sp else None),
+                        'crawled_price_raw': (sp.last_price if sp else None),
+                        'crawled_stock': (sp.last_stock if sp else None),
+                        'last_fetched_at': (sp.last_fetched_at.isoformat()
+                                            if sp and sp.last_fetched_at else None),
+                        'last_status': (sp.last_status if sp else None),
+                        'auto_card_discount': None,
+                        'card_enabled': True,
+                        'crawled': bool(sp),
+                    })
+        except Exception:
+            pass
+
         # 가격 설정
         configs = (
             s.query(OptionPriceConfig)
