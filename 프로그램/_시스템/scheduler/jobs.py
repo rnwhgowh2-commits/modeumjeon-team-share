@@ -39,7 +39,8 @@ def full_cycle(*, dry_run: bool = False) -> dict:
     # v27 — scheduler 자동 cycle 도 widget 으로 표시
     try:
         from webapp.progress_state import progress_set, progress_finish, progress_tick
-        progress_set('crawl', total=1, label='자동 cycle (scheduler)', current='Phase A 시작...')
+        # [2026-06-03] 'auto' 슬롯 — 수동 per-bundle 크롤('crawl')과 분리(위젯 깜빡임 방지)
+        progress_set('auto', total=1, label='자동 cycle (scheduler)', current='Phase A 시작...')
     except Exception:
         pass
     try:
@@ -51,13 +52,13 @@ def full_cycle(*, dry_run: bool = False) -> dict:
         s = SessionLocal()
         try:
             # Step 1: 모든 SourceProduct 실제 크롤 + DB 갱신 (멱등)
-            try: progress_tick('crawl', current='fetch_unique_sources — 모든 SourceProduct 크롤 중...')
+            try: progress_tick('auto', current='fetch_unique_sources — 모든 SourceProduct 크롤 중...')
             except Exception: pass
             fetch_results = fetch_unique_sources(s, crawlers=crawlers)
             ok = sum(1 for r in fetch_results.values() if r['status'] == 'ok')
             err = sum(1 for r in fetch_results.values() if r['status'] == 'error')
             none = sum(1 for r in fetch_results.values() if r['status'] == 'no_crawler')
-            try: progress_tick('crawl', done=1, total=1, current=f'Phase A 완료 ({ok}/{len(fetch_results)} ok)')
+            try: progress_tick('auto', done=1, total=1, current=f'Phase A 완료 ({ok}/{len(fetch_results)} ok)')
             except Exception: pass
             fetch_summary = {'sources_total': len(fetch_results),
                              'ok': ok, 'error': err, 'no_crawler': none}
@@ -66,7 +67,7 @@ def full_cycle(*, dry_run: bool = False) -> dict:
             # Step 2: matcher + aggregate (a_output) — 매핑 실패는 무시
             try:
                 a_output = run_pipeline(s, crawlers=crawlers,
-                                        boxhero_records=[]) or {}
+                                        boxhero_records=[], progress_kind='auto') or {}
             except Exception as agg_e:
                 logger.warning('phase A aggregate skipped: %s', agg_e)
                 a_output = {}
@@ -205,7 +206,7 @@ def full_cycle(*, dry_run: bool = False) -> dict:
     # v27 — scheduler cycle 진행 widget 종료
     try:
         from webapp.progress_state import progress_finish
-        progress_finish('crawl')
+        progress_finish('auto')
     except Exception:
         pass
 

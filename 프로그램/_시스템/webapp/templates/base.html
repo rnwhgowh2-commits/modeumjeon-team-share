@@ -305,6 +305,10 @@
   #gpw-tasks .gpw-v5bar.run > i { background:#3182F6; }
   #gpw-tasks .gpw-uprow { font-size:12px; color:#1B64DA; font-weight:700; margin-top:7px; }
   #gpw-tasks .gpw-now.idle { color:#B0B8C1; }
+  /* [2026-06-03] 자동 스케줄러 크롤 — 별도 푸터 (수동 크롤 패널과 분리) */
+  #gpw-tasks .gpw-autorow { display:flex; align-items:center; gap:6px; margin-top:8px; padding-top:8px;
+    border-top:1px dashed #E5E8EB; font-size:11px; color:#8B95A1; }
+  #gpw-tasks .gpw-autorow .b { width:6px; height:6px; border-radius:50%; background:#8B95A1; animation: gpw-pulse 1.3s ease infinite; }
 </style>
 <script>
 (function() {
@@ -360,8 +364,11 @@
     const tasks = state.tasks || {};
     const crawl = tasks.crawl;
     const upload = tasks.upload;
+    const auto = tasks.auto;
     const crawlActive = !!(crawl && !crawl.finished_at);
-    const anyActive = crawlActive || !!(upload && !upload.finished_at);
+    const uploadActive = !!(upload && !upload.finished_at);
+    const autoActive = !!(auto && !auto.finished_at);
+    const anyActive = crawlActive || uploadActive || autoActive;
     widget.classList.toggle('idle', !anyActive);
 
     // 소싱처 rows — 크롤 breakdown 있으면 사용, 없으면 기본 6개(대기중)
@@ -381,15 +388,18 @@
     html += '<div class="gpw-v5list">' + rows.map(gpwSrcRow).join('') + '</div>';
 
     // 업로드 작업(진행 중일 때만 간단 표시)
-    if (upload && !upload.finished_at) {
+    if (uploadActive) {
       const up = upload.total > 0 ? Math.min(100, Math.round(upload.done / upload.total * 100)) : 0;
       html += `<div class="gpw-uprow">📤 업로드 ${up}% (${upload.done}/${upload.total})</div>`;
     }
 
-    // 현재 항목 / 대기 안내
+    // 현재 항목 / 대기 안내 (수동 크롤 기준)
     const cur = (crawl && crawl.current) ? crawl.current.replace(/</g, '&lt;') : '';
     if (crawlActive && cur) html += `<div class="gpw-now">▸ ${cur}</div>`;
-    else if (!anyActive) html += `<div class="gpw-now idle">대기 중 — 「전체 크롤」 실행 시 시작</div>`;
+    else if (!crawlActive && !uploadActive && !autoActive) html += `<div class="gpw-now idle">대기 중 — 「전체 크롤」 실행 시 시작</div>`;
+
+    // [2026-06-03] 백그라운드 자동 스케줄러 크롤은 별도 푸터로만 표시 (소싱처 패널은 수동 크롤 전용 → 깜빡임 없음)
+    if (autoActive) html += `<div class="gpw-autorow"><span class="b"></span>자동 전체 크롤 백그라운드 진행 중</div>`;
 
     tasksEl.innerHTML = html;
     setVisible(true);

@@ -27,8 +27,9 @@ from typing import Any
 
 _lock = threading.RLock()
 _STATE: dict[str, dict[str, Any] | None] = {
-    'crawl': None,
+    'crawl': None,    # 수동 per-bundle 크롤 (소싱처별 breakdown) — 위젯 메인 패널
     'upload': None,
+    'auto': None,     # [2026-06-03] 백그라운드 스케줄러 자동 cycle — 'crawl' 과 분리(깜빡임 방지)
 }
 
 

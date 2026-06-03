@@ -28,6 +28,7 @@ def run_pipeline(
     *,
     crawlers: dict,           # {source_name: AbstractCrawler}
     boxhero_records: list[dict],
+    progress_kind: str = 'crawl',   # [2026-06-03] 진행 위젯 슬롯 — 스케줄러는 'auto'
 ) -> dict[str, dict]:
     """전체 [A] 파이프라인 실행.
     반환: { canonical_sku: aggregated_dict }
@@ -72,7 +73,7 @@ def run_pipeline(
     def _tick(current_label: str, *, delta: int = 0):
         try:
             from webapp.progress_state import progress_tick
-            progress_tick('crawl', current=current_label, delta=delta)
+            progress_tick(progress_kind, current=current_label, delta=delta)
         except Exception:
             pass
 
