@@ -2333,7 +2333,7 @@ document.addEventListener('click', async (e) => {
   const code = btn.getAttribute('data-code');
   const phase = btn.getAttribute('data-phase') || 'full';
   if (!code) return;
-  const phaseLabel = phase === 'crawl' ? '크롤링' : phase === 'upload' ? '업로드' : '전체 실행';
+  const phaseLabel = phase === 'crawl' ? '크롤링' : phase === 'upload' ? '업로드' : '크롤링 + 업로드';
   if (!confirm(`'${code}' ${phaseLabel}을(를) 지금 실행할까요?`)) return;
   const original = btn.innerHTML;
   btn.disabled = true;

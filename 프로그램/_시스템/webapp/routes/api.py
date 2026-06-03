@@ -2822,6 +2822,7 @@ def bundle_run_now(code: str):
         details: dict = {}
         error: str | None = None
         status = 'ok'
+        crawl_ok = True  # [2026-06-03 안정화] 크롤 성공 여부 — full 실행 시 실패면 업로드 스킵
         try:
             if phase in ('crawl', 'full'):
                 progress_set('crawl', total=len(SOURCE_KEYS),
@@ -2851,10 +2852,21 @@ def bundle_run_now(code: str):
                         s2.close()
                 except Exception as e:
                     sources_result = {k: {'ok': False, 'error': str(e)} for k in SOURCE_KEYS}
+                    crawl_ok = False
+                # 사이트 전부 실패면 크롤 실패로 간주 (full 실행 시 업로드 스킵 판단용)
+                if sources_result and not any(v.get('ok') for v in sources_result.values()):
+                    crawl_ok = False
                 details['sources'] = sources_result
                 progress_finish('crawl')
 
-            if phase in ('upload', 'full'):
+            # [2026-06-03 안정화] full 실행: 크롤 실패 시 업로드 건너뜀
+            #   (실패·미수집 가격으로 마켓에 잘못 올리는 사고 방지 — "크롤 완료 후 업로드" 원칙).
+            if phase == 'full' and not crawl_ok:
+                progress_set('upload', total=len(MARKET_KEYS), label=f'{code} 업로드', current='크롤 실패 — 건너뜀')
+                details['markets'] = {k: {'ok': False, 'error': '크롤링 실패로 업로드 건너뜀'} for k in MARKET_KEYS}
+                details['upload_skipped'] = '크롤링 실패 — 업로드 미진행'
+                progress_finish('upload')
+            elif phase in ('upload', 'full'):
                 progress_set('upload', total=len(MARKET_KEYS),
                              label=f'{code} 업로드', current='시작...')
                 # [2026-06-03] 업로드 = 드라이런 미리보기 (표시가=업로드가 단일 진실 원천).
