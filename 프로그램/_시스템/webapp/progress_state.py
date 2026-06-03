@@ -31,6 +31,9 @@ _STATE: dict[str, dict[str, Any] | None] = {
     'upload': None,
     'auto': None,     # [2026-06-03] 백그라운드 스케줄러 자동 cycle — 'crawl' 과 분리(깜빡임 방지)
 }
+# [2026-06-03] 마지막 완료 크롤 스냅샷 — 유휴 시 위젯에 '직전 크롤 결과' 유지 표시용.
+#   {breakdown, total, done, finished_at, label} (crawl/auto 중 가장 최근 완료분)
+_LAST: dict[str, Any] = {'crawl': None}
 
 
 def progress_set(kind: str, *, total: int, label: str = '', current: str = '',
@@ -90,6 +93,16 @@ def progress_finish(kind: str) -> None:
                 row['done'] = row.get('total', row.get('done', 0))
                 row['status'] = 'done'
             st['updated_at'] = time.time()
+            # [2026-06-03] 마지막 크롤 결과 스냅샷 — 유휴 시 위젯에 '직전 결과' 유지.
+            #   crawl/auto 중 breakdown 있는 것만, 가장 최근 완료분으로 갱신.
+            if kind in ('crawl', 'auto') and st.get('breakdown'):
+                _LAST['crawl'] = {
+                    'breakdown': [dict(r) for r in st['breakdown']],
+                    'total': st.get('total', 0),
+                    'done': st.get('total', 0),
+                    'finished_at': st['finished_at'],
+                    'label': st.get('label', ''),
+                }
 
 
 def progress_clear(kind: str | None = None) -> None:
@@ -117,4 +130,6 @@ def progress_get() -> dict[str, Any]:
                 out[k] = None
                 continue
             out[k] = dict(v)
-        return {'ok': True, 'tasks': out, 'now': now}
+        last = _LAST.get('crawl')
+        return {'ok': True, 'tasks': out, 'now': now,
+                'last': (dict(last) if last else None)}
