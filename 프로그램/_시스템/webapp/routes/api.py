@@ -2857,33 +2857,45 @@ def bundle_run_now(code: str):
             if phase in ('upload', 'full'):
                 progress_set('upload', total=len(MARKET_KEYS),
                              label=f'{code} 업로드', current='시작...')
+                # [2026-06-03] 업로드 = 드라이런 미리보기 (표시가=업로드가 단일 진실 원천).
+                #   기존 run_uploader 직접 호출은 시그니처 불일치로 작동 불가 → 미리보기로 대체.
+                #   실제 마켓 PUT 은 자동전송 활성(별도 승인) 전까지 하지 않음.
                 markets_result: dict = {}
                 try:
-                    from lemouton.uploader.orchestrator import run_uploader
+                    from lemouton.uploader.preview import build_upload_preview
+                    from shared.db import SessionLocal as SLU
+                    s3 = SLU()
                     try:
-                        r = run_uploader(model_code=code, dry_run=False)
-                    except TypeError:
-                        r = run_uploader(dry_run=False)
-                    if isinstance(r, dict):
-                        if 'per_market' in r:
-                            markets_result = r['per_market']
-                            ok_cnt = sum(1 for v in markets_result.values() if v.get('ok'))
-                            progress_tick('upload', done=ok_cnt, current=f'마켓 {ok_cnt}/{len(MARKET_KEYS)} 완료')
-                        else:
-                            for mk in MARKET_KEYS:
-                                markets_result[mk] = {
-                                    'ok': not bool(r.get('failed', 0)) or bool(r.get('uploaded', 0)),
-                                    'uploaded': r.get('uploaded', 0),
-                                    'skipped': r.get('skipped', 0),
-                                    'failed': r.get('failed', 0),
-                                }
-                            progress_tick('upload', done=len(MARKET_KEYS))
+                        pv = build_upload_preview(s3, code)
+                    finally:
+                        s3.close()
+                    if pv.get('ok'):
+                        mk = pv.get('markets', {})
+                        for name in ('smartstore', 'coupang'):
+                            mm = mk.get(name, {})
+                            markets_result[name] = {
+                                'ok': True, 'dry_run': True,
+                                'active': mm.get('active'),
+                                'product_id': bool(mm.get('product_id')),
+                                'matched': mm.get('matched', 0),
+                                'total': mm.get('total', 0),
+                            }
+                        details['upload_preview'] = {
+                            'dry_run': True,
+                            'total_options': pv.get('total_options'),
+                            'ready_to_upload': pv.get('ready_to_upload'),
+                            'missing': pv.get('missing'),
+                            'note': pv.get('note'),
+                        }
+                        progress_tick('upload', done=len(MARKET_KEYS),
+                                      current='드라이런 미리보기 완료 (실제 전송 안 함)')
                     else:
-                        markets_result = {k: {'ok': True} for k in MARKET_KEYS}
-                        progress_tick('upload', done=len(MARKET_KEYS))
+                        markets_result = {k: {'ok': False, 'error': pv.get('error', '미리보기 실패')}
+                                          for k in MARKET_KEYS}
                 except Exception as e:
                     markets_result = {k: {'ok': False, 'error': str(e)} for k in MARKET_KEYS}
                 details['markets'] = markets_result
+                details['dry_run'] = True
                 progress_finish('upload')
         except Exception as e:
             error = str(e)
