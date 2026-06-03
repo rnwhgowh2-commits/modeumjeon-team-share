@@ -1190,8 +1190,11 @@
 
     /* ═══════ 매트릭스 레이아웃 개선 (문제 1·2·3·4·5) ═══════ */
     /* 문제1 (1-2) — 옵션명: 색상 + 사이즈/FREE 칩 */
-    /* [2026-06-03 v12] 옵션명 = 가운데 정렬 + 2줄(색 / 사이즈·⚙). td 를 flex column 으로 강제. */
-    .opt-cell { display: flex !important; flex-direction: column; align-items: center; justify-content: center; gap: 4px; text-align: center; }
+    /* [2026-06-03 v13] 옵션명 = 가로+세로 중앙 + 2줄(색 / 사이즈·⚙).
+       v12(flex column)는 td 가 행 높이(407px)를 안 채우고 내용높이(88px)로 줄어 위로 붙던 문제 →
+       table-cell + vertical-align:middle 로 행 높이 세로 중앙, text-align:center 로 가로 중앙.
+       opt-color(inline)+opt-row2(block flex) 가 자연스레 2줄 유지. */
+    .opt-cell { display: table-cell !important; vertical-align: middle !important; text-align: center !important; }
     .opt-cell .opt-color { font-weight: 800; font-size: 18px; line-height: 1.2; }
     .opt-cell .opt-row2 { display: flex; align-items: center; justify-content: center; gap: 5px; }
     .opt-cell .opt-size-chip { display: inline-block; border-radius: 6px;
