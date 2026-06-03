@@ -2245,7 +2245,7 @@
 .m4v1-card.pur.active .m4v1-inv-link:hover { background: #FEF3C7; }
 /* [2026-06-03 v12] 마켓 행 = 좌(로고·이름 / 가격 150%) + 우(세그 [AUTO|지정] / 마진). 마켓은 헤더 아래~점선 세로 가운데. */
 .m4v1-card.src { display: flex; flex-direction: column; }
-.m4v1-top-region { position: relative; display: flex; flex-direction: column; min-height: 150px; }
+.m4v1-top-region { position: relative; display: flex; flex-direction: column; min-height: 180px; padding-bottom: 14px; }
 .m4v1-mkt-block { flex: 1; display: flex; flex-direction: column; justify-content: center; }
 .m4v1-mkt-row { display: flex; gap: 8px; align-items: flex-start; padding: 7px 0; }
 .m4v1-mkt-row + .m4v1-mkt-row { border-top: 1px solid #eafaf0; }
