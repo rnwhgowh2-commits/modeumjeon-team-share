@@ -264,6 +264,46 @@ def fetch_unique_sources(
     return results
 
 
+def crawl_bundle_registered_urls(
+    session: Session,
+    *,
+    model_code: str,
+    crawlers: dict[str, Any],
+) -> dict:
+    """[2026-06-03] 모음전에 등록된 소싱처 URL(bundle_source_urls)을 SourceProduct 로
+    보장(get-or-create)한 뒤 크롤 → last_price 저장.
+
+    배경: 등록 UI(bundle_source_urls/links)와 크롤 저장소(SourceProduct)가 분리돼,
+    등록만 하고는 매트릭스에 가격이 안 뜨던 문제. 이 함수가 둘을 잇는다 —
+    등록 URL → upsert SourceProduct(site=source_key) → fetch → save_crawl_result.
+    SourceProduct.url 이 등록 URL 과 동일하므로 매트릭스(normalize_url 매칭)가 가격 표시.
+
+    Returns: {total, ok, error, no_crawler, per_source:{key:{ok,error,no_crawler}}}.
+    """
+    from lemouton.sourcing.models import BundleSourceUrl
+    rows = (session.query(BundleSourceUrl)
+            .filter_by(model_code=model_code)
+            .order_by(BundleSourceUrl.sort_order, BundleSourceUrl.id).all())
+    out = {'total': 0, 'ok': 0, 'error': 0, 'no_crawler': 0, 'per_source': {}}
+    for bsu in rows:
+        if not bsu.url:
+            continue
+        out['total'] += 1
+        sp = upsert_source_product(session, site=bsu.source_key, url=bsu.url)
+        try:
+            link_model_to_source(session, model_code=model_code, source_product_id=sp.id)
+        except Exception:
+            pass
+        r = fetch_one_source(session, source_product_id=sp.id, crawlers=crawlers)
+        st = r.get('status')
+        bucket = st if st in ('ok', 'no_crawler') else 'error'
+        out['ok' if bucket == 'ok' else ('no_crawler' if bucket == 'no_crawler' else 'error')] += 1
+        ps = out['per_source'].setdefault(bsu.source_key, {'ok': 0, 'error': 0, 'no_crawler': 0})
+        ps[bucket] += 1
+    session.commit()
+    return out
+
+
 def save_crawl_result(
     session: Session,
     *,

@@ -2829,31 +2829,35 @@ def bundle_run_now(code: str):
                              label=f'{code} 전체 크롤링', current='시작...')
                 sources_result: dict = {}
                 try:
-                    from lemouton.sourcing.pipeline import run_pipeline
+                    # [2026-06-03] 등록 소싱처 URL(bundle_source_urls) 크롤 — SourceProduct
+                    #   보장 + fetch + last_price 저장 → 매트릭스 표시 연결. (run_pipeline 의
+                    #   model.url_* 단일 컬럼 대신 사용자가 등록한 URL 전부 크롤.)
+                    from lemouton.sources.service import crawl_bundle_registered_urls
                     from lemouton.sourcing.crawlers import build_crawlers
                     from shared.db import SessionLocal as SL2
                     s2 = SL2()
                     try:
                         crawlers = build_crawlers()
-                        try:
-                            r = run_pipeline(s2, crawlers=crawlers, boxhero_records=[], model_code=code)
-                        except TypeError:
-                            r = run_pipeline(s2, crawlers=crawlers, boxhero_records=[])
-                        if isinstance(r, dict) and 'per_source' in r:
-                            sources_result = r['per_source']
-                            ok_cnt = sum(1 for v in sources_result.values() if v.get('ok'))
-                            progress_tick('crawl', done=ok_cnt, current=f'사이트 {ok_cnt}/{len(SOURCE_KEYS)} 완료')
-                        else:
-                            sources_result = {k: {'ok': True, 'items_crawled': 0,
-                                                  'note': 'pipeline returned without per-source breakdown'}
-                                              for k in SOURCE_KEYS}
-                            progress_tick('crawl', done=len(SOURCE_KEYS))
+                        cr = crawl_bundle_registered_urls(s2, model_code=code, crawlers=crawlers)
+                        # per_source → {ok:bool} 형태로 변환 (이력/표시 호환)
+                        sources_result = {
+                            k: {'ok': v.get('ok', 0) > 0,
+                                'crawled': v.get('ok', 0),
+                                'failed': v.get('error', 0),
+                                'no_crawler': v.get('no_crawler', 0)}
+                            for k, v in (cr.get('per_source') or {}).items()
+                        }
+                        # 등록 URL 이 있는데 1건도 ok 아니면 크롤 실패 (full 시 업로드 스킵)
+                        if cr.get('total', 0) > 0 and cr.get('ok', 0) == 0:
+                            crawl_ok = False
+                        progress_tick('crawl', done=cr.get('ok', 0),
+                                      current=f"크롤 {cr.get('ok', 0)}/{cr.get('total', 0)} URL")
                     finally:
                         s2.close()
                 except Exception as e:
-                    sources_result = {k: {'ok': False, 'error': str(e)} for k in SOURCE_KEYS}
+                    sources_result = {'_error': {'ok': False, 'error': str(e)}}
                     crawl_ok = False
-                # 사이트 전부 실패면 크롤 실패로 간주 (full 실행 시 업로드 스킵 판단용)
+                # (등록 URL 0개면 sources_result 비어도 crawl_ok 유지 — 실패 아님)
                 if sources_result and not any(v.get('ok') for v in sources_result.values()):
                     crawl_ok = False
                 details['sources'] = sources_result
