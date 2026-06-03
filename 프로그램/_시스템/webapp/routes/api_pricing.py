@@ -142,6 +142,20 @@ def _resolve_stock(site, raw):
     return (int(raw), f'{int(raw)}개', False)
 
 
+def _pick_cheapest_buyable(sources):
+    """옵션의 소싱처들 중 "재고존재(품절X) + 크롤성공(error X) + 가격>0" 최저가.
+       없으면 가격있는 것 중 최저(품절·실패 포함). 그것도 없으면 None.
+       winner(★최저)·원가의 단일 정의 — 품절/stale 소싱처가 원가로 잡히는 것 방지.
+    """
+    buyable = [s for s in sources
+               if s.get('crawled_price') and s.get('last_status') != 'error'
+               and not s.get('stock_out')]
+    priced = buyable or [s for s in sources if s.get('crawled_price')]
+    if not priced:
+        return None
+    return min(priced, key=lambda x: x.get('crawled_price') or 9e15)
+
+
 # ════════════════════════════════════════════
 #  v27 시안 ③ — 전역 progress widget API
 # ════════════════════════════════════════════
@@ -556,12 +570,7 @@ def get_option_matrix(code: str):
             #    또 source_id=='lemouton' 비교는 source_id 가 레지스트리 int 라 항상 미스 = dead code.)
             #   사입처는 '재고 있고 가장 싼 곳'에서 산다 → 그 가격이 원가. 없으면 템플릿 매입가 → 95000.
             sources_for_opt = sku_to_sources.get(o.canonical_sku, [])
-            _buyable = [_s for _s in sources_for_opt
-                        if _s.get('crawled_price') and _s.get('last_status') != 'error'
-                        and not _s.get('stock_out')]
-            _priced = _buyable or [_s for _s in sources_for_opt if _s.get('crawled_price')]
-            _cost_src = (min(_priced, key=lambda x: x.get('crawled_price') or 9e15)
-                         if _priced else None)
+            _cost_src = _pick_cheapest_buyable(sources_for_opt)
             purchase = ((_cost_src or {}).get('crawled_price')
                         or (tpl.boxhero_purchase_price if tpl else None)
                         or 95000)

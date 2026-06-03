@@ -82,16 +82,20 @@ jobs:
 
       - name: 배포 검증 (헬스체크)
         run: |
-          echo "Cold start 대기 (10초)..."
-          sleep 10
-          for i in 1 2 3; do
-            if curl -fsS https://modeumjeon-team-share.fly.dev/health > /tmp/health.json; then
-              echo "✅ 헬스체크 성공:"
+          # Fly 무료 티어 머신은 스케일-투-제로에서 깨어나며 콜드스타트가 길 수 있어
+          # (앱 부팅 + DB 풀 워밍업). 기존 ~25초 윈도우는 너무 짧아 정상 배포도 503으로
+          # 오탐 → "failed" 표시 → 진짜 실패 식별력 상실. 넉넉히 재시도하되 각 curl 은
+          # --max-time 으로 바운드(행 방지). 끝까지 응답 없으면 진짜 문제로 보고 실패.
+          echo "Fly 콜드스타트 대기 — 머신 부팅까지 최대 ~3분 재시도"
+          sleep 15
+          for i in $(seq 1 12); do
+            if curl -fsS --max-time 20 https://modeumjeon-team-share.fly.dev/health > /tmp/health.json 2>/dev/null; then
+              echo "✅ 헬스체크 성공 (시도 $i):"
               cat /tmp/health.json
               exit 0
             fi
-            echo "재시도 $i/3..."
-            sleep 5
+            echo "대기 중... (시도 $i/12 — 15초 후 재시도)"
+            sleep 15
           done
-          echo "❌ 헬스체크 실패"
+          echo "❌ 헬스체크 실패 — 3분+ 동안 /health 무응답 (실제 배포 문제 가능성)"
           exit 1
