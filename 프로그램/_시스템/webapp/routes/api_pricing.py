@@ -23,6 +23,7 @@ from lemouton.sourcing.models import Model, Option
 from lemouton.sourcing.models_pricing import (
     SourceRegistry, OptionSourceUrl, OptionPriceConfig, calc_auto_price,
 )
+from lemouton.pricing.unified import compute_market_price
 from lemouton.templates.models import PriceTemplate
 from lemouton.sources.models import SourceProduct
 
@@ -368,10 +369,13 @@ def get_option_matrix(code: str):
                         or (tpl.boxhero_purchase_price if tpl else None)
                         or 95000)
 
-            ss_price, ss_break = calc_auto_price(purchase, margin, ss_fee,
-                                                  ss_ship, rounding)
-            cp_price, cp_break = calc_auto_price(purchase, margin, cp_fee,
-                                                  cp_ship, rounding)
+            # [2026-06-02] 소싱 카드 가격 — 단일 진실 원천(compute_market_price)로 통일.
+            #   모달 마켓별·소싱 정책(rate/amount/지정가)을 그대로 반영. 화면=업로드 보장.
+            #   기존 calc_auto_price(ss_margin_rate 를 쿠팡에도 쓰던 버그) 대체.
+            _src_ss_res = compute_market_price(tpl, 'ss', 'sourcing', purchase)
+            _src_cp_res = compute_market_price(tpl, 'coupang', 'sourcing', purchase)
+            ss_price, ss_break = _src_ss_res.final_price, _src_ss_res.breakdown
+            cp_price, cp_break = _src_cp_res.final_price, _src_cp_res.breakdown
 
             display_ss = (cfg.manual_ss_price if cfg and not auto and cfg.manual_ss_price
                           else ss_price)
@@ -432,14 +436,24 @@ def get_option_matrix(code: str):
             else:
                 _resolved_pri = 'source'
 
-            # [2026-05-25 M] 적용 카드의 마켓별 active 토글 ON + 값 있으면 display 덮어쓰기
-            if _resolved_pri == 'source':
-                if _src_fix_ss_on and _src_fix_ss: display_ss = _src_fix_ss
-                if _src_fix_cp_on and _src_fix_cp: display_cp = _src_fix_cp
-            elif _resolved_pri == 'purchase':
-                if _pur_fix_ss_on and _pur_fix_ss: display_ss = _pur_fix_ss
-                if _pur_fix_cp_on and _pur_fix_cp: display_cp = _pur_fix_cp
-            # 사입 판매가 산출 (재고 있으면 시도, 차단 시 None)
+            # [2026-06-02] 소싱 카드 — 옵션별 지정가 토글(최우선) > 템플릿 정책(위에서 산출)
+            #   소싱/사입 카드는 항상 각자 가격을 표시하므로 카드별로 분리 산출(기존 conflation 제거).
+            src_ss_price = _src_fix_ss if (_src_fix_ss_on and _src_fix_ss) else display_ss
+            src_cp_price = _src_fix_cp if (_src_fix_cp_on and _src_fix_cp) else display_cp
+
+            # [2026-06-02] 사입 카드 — 마켓별 매입 정책(rate/amount/지정가) 단일 진실 원천 산출.
+            #   원가 = 매입가(_resolved_avg). 옵션별 지정가 토글 ON 이면 그 값 최우선.
+            pur_ss_price = None
+            pur_cp_price = None
+            if _stock >= 1 and not _purchase_blocked:
+                _pur_ss_res = compute_market_price(tpl, 'ss', 'purchase', _resolved_avg)
+                _pur_cp_res = compute_market_price(tpl, 'coupang', 'purchase', _resolved_avg)
+                pur_ss_price = _pur_ss_res.final_price
+                pur_cp_price = _pur_cp_res.final_price
+                if _pur_fix_ss_on and _pur_fix_ss: pur_ss_price = _pur_fix_ss
+                if _pur_fix_cp_on and _pur_fix_cp: pur_cp_price = _pur_fix_cp
+
+            # 사입 판매가(레거시 단일값) — 백워드 호환 유지 (FE 카드 가격은 pur_ss/cp_price 사용)
             _purchase_price = None
             if _stock >= 1 and not _purchase_blocked:
                 if _mode == 'manual':
@@ -459,8 +473,11 @@ def get_option_matrix(code: str):
                 'margin_rate': margin,
                 'ss_fee_rate': ss_fee,
                 'cp_fee_rate': cp_fee,
-                'ss_price': display_ss,
-                'cp_price': display_cp,
+                'ss_price': src_ss_price,
+                'cp_price': src_cp_price,
+                # [2026-06-02] 사입 카드 마켓별 가격 (정책 기반, FE 재계산 제거용)
+                'pur_ss_price': pur_ss_price,
+                'pur_cp_price': pur_cp_price,
                 'ss_breakdown': ss_break,
                 'cp_breakdown': cp_break,
                 'manual_stock': cfg.manual_stock if cfg else None,

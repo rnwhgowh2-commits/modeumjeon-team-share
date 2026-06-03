@@ -1084,13 +1084,13 @@
   {# v17 Phase 6 — 사이트별 진행 통계 가로 띠 (sm-side 의 세로 stack 을 가로로 재배치) #}
   <div class="sm-side-h" id="sm-side-h"><!-- JS 렌더: 진행 ring + 사이트별 카드 + winner --></div>
 
-  {# 크롤·선택 액션 바 (sm-section 에서 이동) #}
+  {# 선택 크롤·선택 도구 액션 바 — [2026-06-03 시안B] 전체 크롤은 위 CTA 카드 단일화.
+     중복이던 'sm-crawl-all'(전체 크롤 N셀) 제거 → 전체 크롤은 상단 초록 CTA 1개만. #}
   <div class="sm-action-bar">
-    <button type="button" class="sm-btn sm-btn-primary" id="sm-crawl-all">전체 크롤 (<span id="sm-crawl-all-count">144</span>셀)</button>
     <button type="button" class="sm-btn sm-btn-success" id="sm-crawl-sel" disabled>선택 크롤 (<span id="sm-crawl-sel-count">0</span>)</button>
     <button type="button" class="sm-btn sm-btn-ghost" id="sm-sel-toggle">☐ 전체 선택</button>
     <button type="button" class="sm-btn sm-btn-ghost" id="sm-sel-clear">해제</button>
-    <span class="sm-sel-hint" id="sm-sel-hint">옵션 row 또는 트리 leaf 체크 → 선택 / 해제</span>
+    <span class="sm-sel-hint" id="sm-sel-hint">옵션 row 또는 트리 leaf 체크 → 선택 후 「선택 크롤」 / 해제</span>
   </div>
   <div class="sm-legend">
     <div class="lg"><div class="sw g"></div>완료</div>
@@ -4368,9 +4368,9 @@
     const srcSsPrice = o.ss_price || 0;
     const srcCpPrice = o.cp_price || 0;
 
-    // 사입 모드 마켓별 가격 (사입 매입가 × (1 + 마진))
-    const purSsPrice = finalP ? Math.round(finalP * (1 + ssMargin/100)) : 0;
-    const purCpPrice = finalP ? Math.round(finalP * (1 + cpMargin/100)) : 0;
+    // [2026-06-02] 사입 마켓별 가격 — 백엔드 정책 산출값 그대로 사용 (FE 재계산 제거, 화면=업로드)
+    const purSsPrice = o.pur_ss_price || 0;
+    const purCpPrice = o.pur_cp_price || 0;
 
     const fxBtn = o.auto_enabled
       ? `<button class="btn-formula" data-expand="${o.sku}" title="자동계산 산출과정">fx</button>`
@@ -4391,13 +4391,15 @@
     const _mkCell = (which, autoPrice, fixOn, fixVal, showAuto) => fixOn
       ? `<span><input class="a1-fix-input" type="number" step="100" data-a1-fix="${which}" data-sku="${o.sku}" value="${fixVal || ''}" placeholder="${autoPrice}"><span class="a1-saved-chip idle" data-a1-saved="${which}" style="margin-left:4px;"></span></span>`
       : `<span class="m4v1-mkt-price">${showAuto?'<span class="m4v1-auto">AUTO</span> ':''}${autoPrice.toLocaleString('ko-KR')}원</span>`;
-    // [M] 마진 셀 helper — (가격 - 원가) / 원가 × 100
-    const _mkMargin = (which, baseRate, fixOn, fixVal, cost) => {
-      if (!fixOn) return `<span class="m4v1-mkt-margin">${baseRate.toFixed(2)}%</span>`;
-      if (!fixVal || !cost) return `<span class="m4v1-mkt-margin a1-fix-margin" data-a1-margin="${which}" data-cost="${cost||0}" title="지정가 입력 후 마진율 자동 계산">—</span>`;
-      const m = ((fixVal - cost) / cost) * 100;
+    // [M] 마진 셀 helper — 실제 표시가 기준 (판매가 - 원가) / 원가 × 100
+    // [2026-06-02] 전 카드 일관: DOM 마진칩(phantom) 대신 실제 표시 판매가로 계산.
+    //   fixOn 이면 지정가 입력값, 아니면 백엔드 정책 산출가(dispPrice) 기준.
+    const _mkMargin = (which, dispPrice, fixOn, fixVal, cost) => {
+      const eff = (fixOn && fixVal) ? fixVal : dispPrice;
+      if (!cost || !eff) return `<span class="m4v1-mkt-margin a1-fix-margin" data-a1-margin="${which}" data-cost="${cost||0}" title="원가 정보 없어 마진율 계산 불가">—</span>`;
+      const m = ((eff - cost) / cost) * 100;
       const cls = m < 0 ? ' loss' : '';
-      return `<span class="m4v1-mkt-margin a1-fix-margin${cls}" data-a1-margin="${which}" data-cost="${cost}" title="(지정가 ${fixVal.toLocaleString('ko-KR')}원 - 원가 ${cost.toLocaleString('ko-KR')}원) / 원가 × 100">${m.toFixed(2)}%</span>`;
+      return `<span class="m4v1-mkt-margin a1-fix-margin${cls}" data-a1-margin="${which}" data-cost="${cost}" title="(${eff.toLocaleString('ko-KR')}원 - 원가 ${cost.toLocaleString('ko-KR')}원) / 원가 × 100">${m.toFixed(2)}%</span>`;
     };
     const _srcAppliedChip = !isPurchasePri ? '<span class="m4v1-chip-applied">✓ 적용</span>' : '';
     const srcCard = `
@@ -4411,14 +4413,14 @@
           <span class="m4v1-mkt-name">스마트스토어</span>
           ${_mkToggle('src-ss', _srcSsOn, false)}
           ${_mkCell('src-ss', srcSsPrice, _srcSsOn, o.src_fixed_ss_price, true)}
-          ${_mkMargin('src-ss', ssMargin, _srcSsOn, o.src_fixed_ss_price || 0, _srcCost)}
+          ${_mkMargin('src-ss', srcSsPrice, _srcSsOn, o.src_fixed_ss_price || 0, _srcCost)}
         </div>
         <div class="m4v1-mkt-row">
           <span class="m4v1-mkt-logo">${marketLogoHtml('쿠팡')}</span>
           <span class="m4v1-mkt-name">쿠팡</span>
           ${_mkToggle('src-cp', _srcCpOn, false)}
           ${_mkCell('src-cp', srcCpPrice, _srcCpOn, o.src_fixed_cp_price, true)}
-          ${_mkMargin('src-cp', cpMargin, _srcCpOn, o.src_fixed_cp_price || 0, _srcCost)}
+          ${_mkMargin('src-cp', srcCpPrice, _srcCpOn, o.src_fixed_cp_price || 0, _srcCost)}
         </div>
         ${fxBtn ? `<div class="m4v1-fx-row">${fxBtn}</div>` : ''}
       </div>`;
@@ -4491,14 +4493,14 @@
             <span class="m4v1-mkt-name">스마트스토어 ${_ssLossChip}</span>
             ${_mkToggle('pur-ss', _purSsOn, false)}
             ${_mkCell('pur-ss', purSsPrice, _purSsOn, o.pur_fixed_ss_price, false)}
-            ${_mkMargin('pur-ss', ssMargin, _purSsOn, o.pur_fixed_ss_price || 0, _purCost)}
+            ${_mkMargin('pur-ss', purSsPrice, _purSsOn, o.pur_fixed_ss_price || 0, _purCost)}
           </div>
           <div class="m4v1-mkt-row">
             <span class="m4v1-mkt-logo">${marketLogoHtml('쿠팡')}</span>
             <span class="m4v1-mkt-name">쿠팡 ${_cpLossChip}</span>
             ${_mkToggle('pur-cp', _purCpOn, false)}
             ${_mkCell('pur-cp', purCpPrice, _purCpOn, o.pur_fixed_cp_price, false)}
-            ${_mkMargin('pur-cp', cpMargin, _purCpOn, o.pur_fixed_cp_price || 0, _purCost)}
+            ${_mkMargin('pur-cp', purCpPrice, _purCpOn, o.pur_fixed_cp_price || 0, _purCost)}
           </div>
           <div class="m4v1-pur-info">매입가 <b>${(avg || 0).toLocaleString('ko-KR')}원</b></div>
           ${invFootHtml}

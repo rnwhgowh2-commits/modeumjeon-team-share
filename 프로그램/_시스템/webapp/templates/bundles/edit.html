@@ -72,8 +72,8 @@
           <span class="ic">▶</span> 이 모음전 지금 전체 실행
         </button>
         <div class="run-sub" style="width:100%">
-          <button class="run-sub-btn crawl" data-action="bundle-run-now" data-code="{{ bundle.model_code }}" data-phase="crawl">크롤링 실행</button>
-          <button class="run-sub-btn upload" data-action="bundle-run-now" data-code="{{ bundle.model_code }}" data-phase="upload"><span class="ic">📤</span> 업로드 실행</button>
+          {# [2026-06-03 item1] 업로드 실행은 마켓 탭(3단계)으로 이동 — 마켓ID·옵션매칭 후 실행하는 흐름이라 그곳이 맞음. #}
+          <button class="run-sub-btn crawl" data-action="bundle-run-now" data-code="{{ bundle.model_code }}" data-phase="crawl" style="width:100%">크롤링 실행</button>
         </div>
       </div>
     </div>
@@ -403,7 +403,23 @@
           </div>
         </div>
 
+        {# [2026-06-03 item1] 업로드 실행 — 헤더에서 이곳(마켓탭)으로 이동.
+           흐름: ① 상품번호 입력 → ② 동기화(옵션 매칭) → ③ 업로드(가격·재고 전송). #}
+        <div class="mk4-upload">
+          <button class="btn btn-primary mk4-upload-btn" data-action="bundle-run-now"
+                  data-code="{{ bundle.model_code }}" data-phase="upload">
+            <span class="ic">📤</span> 업로드 실행 — 활성 마켓에 가격·재고 전송
+          </button>
+          <div class="mk4-upload-note">
+            위에서 상품번호 입력 → <b>동기화 실행</b>(옵션 매칭)을 끝낸 뒤 누르세요.
+            옵션 탭에서 정한 <b>가격·재고</b>가 매칭된 마켓 옵션에 반영됩니다.
+          </div>
+        </div>
+
         <style>
+          .mk4-upload { margin-top:18px; padding-top:18px; border-top:1px dashed var(--n200); }
+          .mk4-upload-btn { width:100%; font-size:15px; padding:14px; }
+          .mk4-upload-note { margin-top:9px; font-size:12.5px; color:var(--n500); line-height:1.6; text-align:center; }
           .mk4 { display:flex; gap:14px; align-items:flex-start; }
           .mk4-left { width:230px; flex:none; display:flex; flex-direction:column; gap:8px; }
           .mk4-mcard { display:flex; align-items:center; gap:12px; padding:13px; border:1px solid var(--n200); border-radius:12px; cursor:pointer; background:#fff; transition:border-color .12s, box-shadow .12s; }

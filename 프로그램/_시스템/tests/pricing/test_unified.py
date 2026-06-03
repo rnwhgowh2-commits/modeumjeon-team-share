@@ -2,9 +2,14 @@
 
 ai-workflow cycle 20260521 · Phase 1 · Task 1
 """
+import types
+
 import pytest
 
-from lemouton.pricing.unified import compute_sale_price_unified, PriceResult
+from lemouton.pricing.unified import (
+    compute_sale_price_unified, PriceResult,
+    resolve_market_policy, compute_market_price,
+)
 
 
 # ============ 기본 곱셈형 계산 ============
@@ -102,3 +107,138 @@ def test_breakdown_values():
 def test_result_type():
     r = compute_sale_price_unified(95_000, 0.10, 0.1155)
     assert isinstance(r, PriceResult)
+
+
+# ============ [2026-06-02] mode='amount' (마진금액 = 수수료 뒤 실수령) ============
+
+def test_amount_mode_basic():
+    # (100,000 + 5,000) / (1 - 0.0945) = 115,958.03 → 115,958 → 100단위 → 116,000
+    r = compute_sale_price_unified(
+        100_000, 0.0, 0.0945, shipping_fee=0,
+        mode='amount', margin_amount=5_000)
+    assert r.breakdown['mode'] == 'amount'
+    assert r.final_price == 116_000
+
+
+def test_amount_mode_net_received_equals_amount():
+    # 핵심 의미 검증: 수수료(판매가×수수료율) 차감 후 실수령 ≈ 원가 + 마진금액
+    fee = 0.0945
+    r = compute_sale_price_unified(
+        100_000, 0.0, fee, shipping_fee=0, mode='amount', margin_amount=5_000)
+    net = r.final_price - r.final_price * fee  # 판매가 - 수수료
+    # 라운딩 오차(±100) 내에서 원가+마진금액(105,000) 회수
+    assert abs(net - 105_000) < 150
+
+
+def test_amount_mode_with_shipping():
+    # base + 배송비 3,000
+    r = compute_sale_price_unified(
+        100_000, 0.0, 0.0945, shipping_fee=3_000,
+        mode='amount', margin_amount=5_000)
+    assert r.final_price == 119_000
+
+
+def test_amount_mode_zero_purchase():
+    r = compute_sale_price_unified(0, 0.0, 0.0945, mode='amount', margin_amount=5_000)
+    assert r.final_price == 0
+
+
+# ============ [2026-06-02] mode='fixed' (지정가 — 그대로) ============
+
+def test_fixed_mode_exact():
+    # 지정가 133,900 → 계산 없이 그대로 (라운딩도 안 함)
+    r = compute_sale_price_unified(
+        95_000, 0.10, 0.1155, mode='fixed', fixed_price=133_900)
+    assert r.breakdown['mode'] == 'fixed'
+    assert r.final_price == 133_900
+
+
+def test_fixed_mode_independent_of_purchase():
+    # 원가가 0이어도 지정가는 유지
+    r = compute_sale_price_unified(0, 0.10, 0.1155, mode='fixed', fixed_price=128_900)
+    assert r.final_price == 128_900
+
+
+def test_fixed_mode_fallback_to_rate_when_zero():
+    # mode=fixed 인데 지정가 미설정(0) → rate 폴백 (판매가 0 방지)
+    r = compute_sale_price_unified(
+        95_000, 0.10, 0.1155, mode='fixed', fixed_price=0)
+    assert r.breakdown['mode'] == 'rate'
+    assert r.final_price == 116_600  # rate 모드 기존값
+
+
+def test_fixed_mode_guardrail():
+    r = compute_sale_price_unified(
+        95_000, 0.10, 0.1155, mode='fixed', fixed_price=133_900,
+        guardrail=(100_000, 130_000))
+    assert r.guardrail_status == 'above'  # 133,900 >= 130,000
+
+
+# ============ rate 모드 회귀 — 기존 동작 불변 ============
+
+def test_rate_mode_unchanged_default():
+    # mode 기본값 'rate' — 기존 곱셈형 그대로
+    r = compute_sale_price_unified(95_000, 0.10, 0.1155, shipping_fee=0)
+    assert r.final_price == 116_600
+    assert r.breakdown['mode'] == 'rate'
+
+
+# ============ 정책 해석기 resolve_market_policy ============
+
+def _tpl(**kw):
+    base = dict(
+        ss_mode_sourcing='rate', ss_rate_sourcing=0.0945, ss_amount_sourcing=0,
+        ss_mode_purchase='rate', ss_rate_purchase=0.0945, ss_amount_purchase=0,
+        ss_external_sale_price=0, ss_boxhero_sale_price=0,
+        ss_fee_rate=0.06, ss_delivery_fee=3_000,
+        coupang_mode_sourcing='rate', coupang_rate_sourcing=0.1242,
+        coupang_amount_sourcing=0, coupang_mode_purchase='rate',
+        coupang_rate_purchase=0.1242, coupang_amount_purchase=0,
+        coupang_external_sale_price=0, coupang_boxhero_sale_price=0,
+        coupang_fee_rate=0.1155, coupang_delivery_fee=3_500,
+        rounding_unit=100,
+    )
+    base.update(kw)
+    return types.SimpleNamespace(**base)
+
+
+def test_resolve_ss_sourcing_amount():
+    tpl = _tpl(ss_mode_sourcing='amount', ss_amount_sourcing=5_000)
+    pol = resolve_market_policy(tpl, 'ss', 'sourcing')
+    assert pol['mode'] == 'amount'
+    assert pol['amount'] == 5_000
+    assert pol['fee_rate'] == 0.06
+
+
+def test_resolve_coupang_sourcing_fixed():
+    tpl = _tpl(coupang_mode_sourcing='fixed', coupang_external_sale_price=133_900)
+    pol = resolve_market_policy(tpl, 'coupang', 'sourcing')
+    assert pol['mode'] == 'fixed'
+    assert pol['fixed_price'] == 133_900
+
+
+def test_resolve_ss_purchase_fixed_uses_boxhero_price():
+    tpl = _tpl(ss_mode_purchase='fixed', ss_boxhero_sale_price=116_900)
+    pol = resolve_market_policy(tpl, 'smartstore', 'purchase')
+    assert pol['fixed_price'] == 116_900
+
+
+def test_resolve_none_template_defaults():
+    pol = resolve_market_policy(None, 'ss', 'sourcing')
+    assert pol['mode'] == 'rate'
+    assert pol['rate'] == 0.0945
+
+
+# ============ compute_market_price — 해석기 + 계산 단일 진입점 ============
+
+def test_compute_market_price_coupang_fixed():
+    tpl = _tpl(coupang_mode_sourcing='fixed', coupang_external_sale_price=133_900)
+    r = compute_market_price(tpl, 'coupang', 'sourcing', 100_000)
+    assert r.final_price == 133_900
+
+
+def test_compute_market_price_ss_sourcing_amount():
+    tpl = _tpl(ss_mode_sourcing='amount', ss_amount_sourcing=5_000,
+               ss_fee_rate=0.0945, ss_delivery_fee=0)
+    r = compute_market_price(tpl, 'ss', 'sourcing', 100_000)
+    assert r.final_price == 116_000
