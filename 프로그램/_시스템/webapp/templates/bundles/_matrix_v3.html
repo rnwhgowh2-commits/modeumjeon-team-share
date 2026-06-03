@@ -4405,7 +4405,7 @@
     const srcCard = `
       <div class="${srcCardClass}" data-m4-card="source" data-sku="${o.sku}">
         <div class="m4v1-head">
-          <span>소싱</span> <span class="m4v1-pri">${srcLabel}</span> ${_srcStockChip}
+          <span>소싱</span> <span class="m4v1-pri">${srcLabel}</span>
           <span class="m4v1-head-right">${_srcAppliedChip}</span>
         </div>
         <div class="m4v1-mkt-row">
@@ -4423,6 +4423,10 @@
           ${_mkMargin('src-cp', srcCpPrice, _srcCpOn, o.src_fixed_cp_price || 0, _srcCost)}
         </div>
         ${fxBtn ? `<div class="m4v1-fx-row">${fxBtn}</div>` : ''}
+        <div class="m4v1-footzone" style="margin-top:9px;padding-top:8px;border-top:1px dashed #bbf7d0;display:flex;flex-direction:column;gap:5px;align-items:flex-start">
+          <span style="display:inline-flex;align-items:center;gap:4px;font-size:11.5px;font-weight:700;background:#fff;border:1px solid #d1fae5;color:#15803d;border-radius:8px;padding:3px 9px" title="최저가 선정 소싱처의 재고">📦 최저 소싱처 재고 ${_srcStock >= 1 ? _srcStkDisp(_srcStock) + '개' : '없음'}</span>
+          ${o.src_count ? `<span class="src-urlchip" onclick="if(typeof openOptionUrlModal==='function')openOptionUrlModal('${o.sku}', loadMatrix)" style="display:inline-flex;align-items:center;gap:4px;font-size:11.5px;font-weight:700;background:#EFF6FF;border:1px solid #bfdbfe;color:#3182F6;border-radius:8px;padding:3px 9px;cursor:pointer" title="클릭: 소싱처 URL 관리(추가·수정·삭제·열기)">🔗 URL ${o.src_count}개 ▸</span>` : ''}
+        </div>
       </div>`;
 
     // ─── 사입 카드 ───
