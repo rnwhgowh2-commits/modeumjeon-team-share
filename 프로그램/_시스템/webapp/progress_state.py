@@ -32,8 +32,12 @@ _STATE: dict[str, dict[str, Any] | None] = {
 }
 
 
-def progress_set(kind: str, *, total: int, label: str = '', current: str = '') -> None:
-    """작업 시작 — 진행 상태 초기화."""
+def progress_set(kind: str, *, total: int, label: str = '', current: str = '',
+                 breakdown: list[dict[str, Any]] | None = None) -> None:
+    """작업 시작 — 진행 상태 초기화.
+
+    breakdown: 소싱처별 진행 [{key, label, total, done, status}, ...] (선택).
+    """
     with _lock:
         _STATE[kind] = {
             'kind': kind,
@@ -41,6 +45,7 @@ def progress_set(kind: str, *, total: int, label: str = '', current: str = '') -
             'done': 0,
             'current': current or '',
             'label': label or '',
+            'breakdown': list(breakdown) if breakdown else [],
             'started_at': time.time(),
             'updated_at': time.time(),
             'finished_at': None,
@@ -48,8 +53,13 @@ def progress_set(kind: str, *, total: int, label: str = '', current: str = '') -
 
 
 def progress_tick(kind: str, *, done: int | None = None,
-                  current: str = '', delta: int = 0) -> None:
-    """진행 갱신. ``done`` 절댓값 또는 ``delta`` 증분 중 하나."""
+                  current: str = '', delta: int = 0,
+                  total: int | None = None,
+                  breakdown: list[dict[str, Any]] | None = None) -> None:
+    """진행 갱신. ``done`` 절댓값 또는 ``delta`` 증분 중 하나.
+
+    total/breakdown 도 함께 갱신 가능 (소싱처별 진행 표시용).
+    """
     with _lock:
         st = _STATE.get(kind)
         if not st:
@@ -58,8 +68,12 @@ def progress_tick(kind: str, *, done: int | None = None,
             st['done'] = max(int(done), 0)
         elif delta:
             st['done'] = max(st['done'] + int(delta), 0)
+        if total is not None:
+            st['total'] = max(int(total), 0)
         if current:
             st['current'] = current
+        if breakdown is not None:
+            st['breakdown'] = list(breakdown)
         st['updated_at'] = time.time()
 
 
@@ -70,6 +84,10 @@ def progress_finish(kind: str) -> None:
         if st:
             st['finished_at'] = time.time()
             st['done'] = st.get('total', 0)
+            # 소싱처별 진행도 모두 완료 처리 (마지막 tick 누락 대비)
+            for row in st.get('breakdown') or []:
+                row['done'] = row.get('total', row.get('done', 0))
+                row['status'] = 'done'
             st['updated_at'] = time.time()
 
 

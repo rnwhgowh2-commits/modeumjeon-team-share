@@ -269,6 +269,7 @@ def crawl_bundle_registered_urls(
     *,
     model_code: str,
     crawlers: dict[str, Any],
+    progress_cb: Any = None,
 ) -> dict:
     """[2026-06-03] 모음전에 등록된 소싱처 URL(bundle_source_urls)을 SourceProduct 로
     보장(get-or-create)한 뒤 크롤 → last_price 저장.
@@ -278,16 +279,38 @@ def crawl_bundle_registered_urls(
     등록 URL → upsert SourceProduct(site=source_key) → fetch → save_crawl_result.
     SourceProduct.url 이 등록 URL 과 동일하므로 매트릭스(normalize_url 매칭)가 가격 표시.
 
+    progress_cb: 선택. URL 1개 크롤할 때마다 호출 — 실시간 진행 표시용.
+        시그니처 ``progress_cb(done:int, total:int, source_key:str|None,
+                              src_totals:dict[str,int], src_done:dict[str,int])``.
+        루프 시작 전 1회(done=0, source_key=None) + 각 URL 완료 후 1회 호출.
+        콜백 예외는 크롤을 막지 않도록 무시한다.
+
     Returns: {total, ok, error, no_crawler, per_source:{key:{ok,error,no_crawler}}}.
     """
     from lemouton.sourcing.models import BundleSourceUrl
     rows = (session.query(BundleSourceUrl)
             .filter_by(model_code=model_code)
             .order_by(BundleSourceUrl.sort_order, BundleSourceUrl.id).all())
+    valid = [b for b in rows if b.url]
+    # 소싱처별 크롤할 URL 총개수 (등록 순서 보존)
+    src_totals: dict[str, int] = {}
+    for b in valid:
+        src_totals[b.source_key] = src_totals.get(b.source_key, 0) + 1
+    src_done: dict[str, int] = {k: 0 for k in src_totals}
+    total = len(valid)
+
+    def _emit(done: int, key: str | None) -> None:
+        if progress_cb is None:
+            return
+        try:
+            progress_cb(done, total, key, dict(src_totals), dict(src_done))
+        except Exception:
+            pass
+
     out = {'total': 0, 'ok': 0, 'error': 0, 'no_crawler': 0, 'per_source': {}}
-    for bsu in rows:
-        if not bsu.url:
-            continue
+    _emit(0, None)  # 시작 — 위젯 즉시 표시 (소싱처별 0/N)
+    done = 0
+    for bsu in valid:
         out['total'] += 1
         sp = upsert_source_product(session, site=bsu.source_key, url=bsu.url)
         try:
@@ -300,6 +323,9 @@ def crawl_bundle_registered_urls(
         out['ok' if bucket == 'ok' else ('no_crawler' if bucket == 'no_crawler' else 'error')] += 1
         ps = out['per_source'].setdefault(bsu.source_key, {'ok': 0, 'error': 0, 'no_crawler': 0})
         ps[bucket] += 1
+        src_done[bsu.source_key] += 1
+        done += 1
+        _emit(done, bsu.source_key)  # URL 1개 완료 — 실시간 진행 갱신
     session.commit()
     return out
 

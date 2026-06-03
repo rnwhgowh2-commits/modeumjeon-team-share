@@ -54,6 +54,39 @@ _URL_FIELD_TO_SOURCE_NAME = {
     'url_lotteon': '롯데온',
 }
 
+# source_key → 한글 라벨 (진행 위젯 소싱처별 표시용)
+_BUILTIN_SOURCE_LABELS = {
+    'lemouton': '르무통 공홈',
+    'ss_lemouton': '스스 르무통',
+    'musinsa': '무신사',
+    'ssf': 'SSF',
+    'lotteon': '롯데온',
+}
+_custom_source_labels: dict[str, str] = {}  # 사용자 추가 소싱처 캐시 (key→label)
+
+
+def _source_label(key) -> str:
+    """소싱처 key → 사람이 읽는 라벨. 내장 5개 + 사용자 추가분(SourcingSource) 캐시."""
+    if not key:
+        return ''
+    if key in _BUILTIN_SOURCE_LABELS:
+        return _BUILTIN_SOURCE_LABELS[key]
+    if key in _custom_source_labels:
+        return _custom_source_labels[key]
+    # 미지의 key — SourcingSource 테이블 1회 로드 후 캐시 (이후엔 메모리 hit)
+    try:
+        from lemouton.sourcing.models import SourcingSource
+        from shared.db import SessionLocal as _SL
+        _s = _SL()
+        try:
+            for r in _s.query(SourcingSource).all():
+                _custom_source_labels[r.source_key] = r.label
+        finally:
+            _s.close()
+    except Exception:
+        pass
+    return _custom_source_labels.get(key, str(key).upper())
+
 
 def _propagate_bundle_urls_to_options(session, model_code, payload):
     """번들 url_* 필드 → 모든 옵션의 OptionSourceUrl 자동 upsert.
@@ -2825,8 +2858,8 @@ def bundle_run_now(code: str):
         crawl_ok = True  # [2026-06-03 안정화] 크롤 성공 여부 — full 실행 시 실패면 업로드 스킵
         try:
             if phase in ('crawl', 'full'):
-                progress_set('crawl', total=len(SOURCE_KEYS),
-                             label=f'{code} 전체 크롤링', current='시작...')
+                progress_set('crawl', total=0,
+                             label=f'{code} 전체 크롤링', current='소싱처 URL 집계 중...')
                 sources_result: dict = {}
                 try:
                     # [2026-06-03] 등록 소싱처 URL(bundle_source_urls) 크롤 — SourceProduct
@@ -2835,10 +2868,26 @@ def bundle_run_now(code: str):
                     from lemouton.sources.service import crawl_bundle_registered_urls
                     from lemouton.sourcing.crawlers import build_crawlers
                     from shared.db import SessionLocal as SL2
+
+                    # [2026-06-03] URL 1개 크롤할 때마다 진행 위젯 갱신 (소싱처별 N/M·%).
+                    def _crawl_progress(done, total, key, src_totals, src_done):
+                        breakdown = []
+                        for k, t in src_totals.items():
+                            d = src_done.get(k, 0)
+                            status = 'done' if d >= t else ('wait' if d == 0 else 'run')
+                            breakdown.append({'key': k, 'label': _source_label(k),
+                                              'total': t, 'done': d, 'status': status})
+                        cur = (f"{_source_label(key)} 크롤 중 ({done}/{total} URL)"
+                               if key else f"{total}개 URL 크롤 준비...")
+                        progress_tick('crawl', done=done, total=total,
+                                      current=cur, breakdown=breakdown)
+
                     s2 = SL2()
                     try:
                         crawlers = build_crawlers()
-                        cr = crawl_bundle_registered_urls(s2, model_code=code, crawlers=crawlers)
+                        cr = crawl_bundle_registered_urls(
+                            s2, model_code=code, crawlers=crawlers,
+                            progress_cb=_crawl_progress)
                         # per_source → {ok:bool} 형태로 변환 (이력/표시 호환)
                         sources_result = {
                             k: {'ok': v.get('ok', 0) > 0,
@@ -2850,8 +2899,6 @@ def bundle_run_now(code: str):
                         # 등록 URL 이 있는데 1건도 ok 아니면 크롤 실패 (full 시 업로드 스킵)
                         if cr.get('total', 0) > 0 and cr.get('ok', 0) == 0:
                             crawl_ok = False
-                        progress_tick('crawl', done=cr.get('ok', 0),
-                                      current=f"크롤 {cr.get('ok', 0)}/{cr.get('total', 0)} URL")
                     finally:
                         s2.close()
                 except Exception as e:

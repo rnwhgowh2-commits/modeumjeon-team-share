@@ -214,13 +214,16 @@ def api_set_progress(kind):
         return _err('kind must be crawl|upload', 400)
     body = request.get_json(silent=True) or {}
     op = (body.get('op') or '').lower()
+    bd = body.get('breakdown') if isinstance(body.get('breakdown'), list) else None
     if op == 'start':
         progress_set(kind, total=int(body.get('total') or 0),
-                     label=body.get('label') or '', current=body.get('current') or '')
+                     label=body.get('label') or '', current=body.get('current') or '',
+                     breakdown=bd)
     elif op == 'tick':
         progress_tick(kind, done=body.get('done'),
                       current=body.get('current') or '',
-                      delta=int(body.get('delta') or 0))
+                      delta=int(body.get('delta') or 0),
+                      breakdown=bd)
     elif op == 'finish':
         progress_finish(kind)
     else:

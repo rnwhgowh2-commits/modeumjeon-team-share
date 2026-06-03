@@ -247,6 +247,36 @@
   #gpw-tasks .gpw-task .gpw-cnt {
     font-family: ui-monospace, monospace; font-size: 14px; color: #4E5968; margin-top: 2px;
   }
+  /* 소싱처별 진행 줄 — 스크롤 내려도 위젯은 fixed 라 항상 보임. 행 많으면 내부 스크롤. */
+  #gpw-tasks .gpw-bd {
+    margin-top: 8px; padding-top: 8px; border-top: 1px dashed #E5E8EB;
+    max-height: 168px; overflow-y: auto;
+  }
+  #gpw-tasks .gpw-bd-row { margin-bottom: 7px; }
+  #gpw-tasks .gpw-bd-row:last-child { margin-bottom: 0; }
+  #gpw-tasks .gpw-bd-top {
+    display: flex; align-items: center; gap: 5px; font-size: 12px; margin-bottom: 3px;
+  }
+  #gpw-tasks .gpw-bd-nm { font-weight: 700; color: #333D4B; }
+  #gpw-tasks .gpw-bd-st {
+    font-size: 10px; font-weight: 800; padding: 1px 6px; border-radius: 10px;
+  }
+  #gpw-tasks .gpw-bd-st.done { background: #E7F8EE; color: #0E7C3A; }
+  #gpw-tasks .gpw-bd-st.run  { background: #E5F0FF; color: #1B64DA; }
+  #gpw-tasks .gpw-bd-st.wait { background: #F2F4F6; color: #8B95A1; }
+  #gpw-tasks .gpw-bd-st.fail { background: #FFE9EC; color: #F04452; }
+  #gpw-tasks .gpw-bd-cnt {
+    margin-left: auto; font-family: ui-monospace, monospace; font-weight: 800;
+    font-size: 11.5px; color: #4E5968;
+  }
+  #gpw-tasks .gpw-bd-bar {
+    height: 4px; background: #EAEDF0; border-radius: 3px; overflow: hidden;
+  }
+  #gpw-tasks .gpw-bd-bar > i { display: block; height: 100%; border-radius: 3px; background: #03C75A; transition: width .3s; }
+  #gpw-tasks .gpw-bd-bar.done > i { background: #0E7C3A; }
+  #gpw-tasks .gpw-bd-bar.run  > i { background: #3182F6; }
+  #gpw-tasks .gpw-bd-bar.wait > i { background: #CBD2D9; }
+  #gpw-tasks .gpw-bd-bar.fail > i { background: #F04452; }
 </style>
 <script>
 (function() {
@@ -295,14 +325,34 @@
       const cur = (t.current || '').replace(/</g, '&lt;');
       const label = (t.label || '').replace(/</g, '&lt;');
       const finished = !!t.finished_at;
+      // 소싱처별 진행 줄 (crawl 작업, breakdown 있을 때) — 무엇을 몇 개 중 몇 개 크롤 중인지
+      let bdHtml = '';
+      const bd = Array.isArray(t.breakdown) ? t.breakdown : [];
+      if (bd.length) {
+        const ST = {done:['done','완료'], run:['run','진행'], wait:['wait','대기'], fail:['fail','실패']};
+        bdHtml = '<div class="gpw-bd">' + bd.map(s => {
+          const sp = s.total > 0 ? Math.min(100, Math.round((s.done / s.total) * 100)) : 0;
+          const [sc, sl] = ST[s.status] || ST.wait;
+          const nm = (s.label || s.key || '').replace(/</g, '&lt;');
+          return `<div class="gpw-bd-row">
+            <div class="gpw-bd-top">
+              <span class="gpw-bd-nm">${nm}</span>
+              <span class="gpw-bd-st ${sc}">${sl}</span>
+              <span class="gpw-bd-cnt">${s.done}/${s.total}</span>
+            </div>
+            <div class="gpw-bd-bar ${sc}"><i style="width:${sp}%"></i></div>
+          </div>`;
+        }).join('') + '</div>';
+      }
       html += `<div class="gpw-task ${kind}">
         <div class="gpw-trow1">
           <span>${meta.ic} ${meta.name} ${finished ? '✓ 완료' : '중'}</span>
           <span class="gpw-pct-text">${pct}%</span>
         </div>
         <div class="gpw-bar"><div class="fill" style="width:${pct}%"></div></div>
-        ${cur ? `<div class="gpw-now">${cur}</div>` : ''}
         <div class="gpw-cnt">${t.done}/${t.total}${label ? ' · ' + label : ''}</div>
+        ${bdHtml}
+        ${cur ? `<div class="gpw-now">▸ ${cur}</div>` : ''}
       </div>`;
     }
     tasksEl.innerHTML = html;

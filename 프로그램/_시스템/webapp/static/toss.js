@@ -2343,7 +2343,16 @@ document.addEventListener('click', async (e) => {
   try {
     const res = await apiPost(
       `/api/bundles/${encodeURIComponent(code)}/run-now`, { phase });
-    showActionResult(res, `'${code}' ${phaseLabel}`);
+    // [2026-06-03] run-now 는 백그라운드 스레드 → 즉시 'running' 반환.
+    //   예전엔 이 즉시 응답을 showActionResult 가 "완료"로 잘못 표시했음(가짜 완료).
+    //   백그라운드면 '진행 중'만 안내 → 실제 완료는 아래 crawl-status 폴러가 알림.
+    if (!res.ok) {
+      showActionResult(res, `'${code}' ${phaseLabel}`);  // 실패 표시
+    } else if (res.accepted || res.status === 'running') {
+      flash(`'${code}' ${phaseLabel} 진행 중 — 우상단 진행 위젯에서 실시간 확인`, 'ok');
+    } else {
+      showActionResult(res, `'${code}' ${phaseLabel}`);  // 동기 완료(레거시)
+    }
     if (res.ok && phase === 'crawl') {
       // 백그라운드 크롤 완료 폴링 — page reload 없이 ticker 자동 갱신
       // (run-now 는 background thread, API 는 즉시 반환 → record_end 가
