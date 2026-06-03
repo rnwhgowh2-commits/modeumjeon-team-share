@@ -4903,7 +4903,15 @@
       tipParts.push(`<div class="tip-row"><span>절감</span><span>-${_SAVINGS_PER_OPT[o.sku].toLocaleString('ko-KR')}원</span></div>`);
     }
     const tipHtml = `<div class="c1-tip">${tipParts.join('')}</div>`;
-    return `<td class="td-site-col cd${loCls} has-c1-tip" data-cell-sku="${escapeHtml(o.sku)}" data-cell-src="${s.id}" data-cell-price="${src.crawled_price}"><button type="button" class="cell-fx" title="혜택 계산식 클릭">fx</button><span class="px-main">${finalPrice.toLocaleString('ko-KR')}</span>${tipHtml}</td>`;
+    // [2026-06-03 시안A] 소싱처별 재고 한 줄 (가격 아래). 0=품절(빨강), 999↑=재고있음(센티넬), 그 외=숫자.
+    const _stk = src.crawled_stock;
+    let stockHtml = '';
+    if (_stk != null) {
+      if (_stk <= 0) stockHtml = `<div class="cell-stock" style="font-size:11px;font-weight:700;color:#dc2626;margin-top:2px;line-height:1.2">품절</div>`;
+      else if (_stk >= 900) stockHtml = `<div class="cell-stock" style="font-size:11px;color:#15803d;margin-top:2px;line-height:1.2">재고 있음</div>`;
+      else stockHtml = `<div class="cell-stock" style="font-size:11px;color:#8B95A1;margin-top:2px;line-height:1.2">재고 ${_stk.toLocaleString('ko-KR')}</div>`;
+    }
+    return `<td class="td-site-col cd${loCls} has-c1-tip" data-cell-sku="${escapeHtml(o.sku)}" data-cell-src="${s.id}" data-cell-price="${src.crawled_price}"><button type="button" class="cell-fx" title="혜택 계산식 클릭">fx</button><span class="px-main">${finalPrice.toLocaleString('ko-KR')}</span>${stockHtml}${tipHtml}</td>`;
   }
 
   // Phase 6 — 최저가/절감 캐시 (renderSourceMatrix 가 채움)

@@ -303,6 +303,23 @@ def get_option_matrix(code: str):
                         if _dom in (_rv.get('main_url') or ''):
                             _key_to_regid[_k] = _rid
                             break
+                # [2026-06-03] 옵션별 실재고 — SourceOption.current_stock 매칭.
+                #   URL 1개 = 보통 한 색상 상품페이지 → (source_product_id, 사이즈숫자)로 매칭.
+                #   sp.last_stock(상품합계) 대신 옵션 실재고 사용. 999=재고있음 센티넬.
+                def _digits(x):
+                    return ''.join(ch for ch in str(x or '') if ch.isdigit())
+                _so_lookup = {}
+                try:
+                    from lemouton.sources.models import SourceOption as _SO
+                    _spids = list({_v.id for _v in _sp_by_norm2.values() if _v})
+                    if _spids:
+                        for _so in (s.query(_SO)
+                                    .filter(_SO.source_product_id.in_(_spids),
+                                            _SO.deleted_at.is_(None)).all()):
+                            _so_lookup[(_so.source_product_id, _digits(_so.size_text))] = _so.current_stock
+                except Exception:
+                    pass
+                _sku_size = {o.canonical_sku: o.size_code for o in opts}
                 _link_rows = (
                     s.query(OptionSourceUrlLink, BundleSourceUrl)
                     .join(BundleSourceUrl,
@@ -316,6 +333,10 @@ def get_option_matrix(code: str):
                         continue  # legacy 로 이미 추가된 동일 URL 중복 방지
                     sp = _sp_by_norm2.get(_norm_url(bsu.url)) if bsu.url else None
                     _reg_id = _key_to_regid.get(bsu.source_key)  # 칼럼 매칭용 레지스트리 id
+                    # 옵션별 실재고 (매칭 실패 시 상품합계 fallback)
+                    _opt_stock = None
+                    if sp:
+                        _opt_stock = _so_lookup.get((sp.id, _digits(_sku_size.get(lk.option_canonical_sku))))
                     existing.append({
                         # 칼럼 매칭 = 레지스트리 id (없으면 SSG 등 — 칼럼 없음). refetch 도 동일.
                         'source_id': _reg_id,
@@ -328,7 +349,8 @@ def get_option_matrix(code: str):
                         'source_product_id': sp.id if sp else None,
                         'crawled_price': (sp.last_price if sp else None),
                         'crawled_price_raw': (sp.last_price if sp else None),
-                        'crawled_stock': (sp.last_stock if sp else None),
+                        'crawled_stock': (_opt_stock if _opt_stock is not None
+                                          else (sp.last_stock if sp else None)),
                         'last_fetched_at': (sp.last_fetched_at.isoformat()
                                             if sp and sp.last_fetched_at else None),
                         'last_status': (sp.last_status if sp else None),
