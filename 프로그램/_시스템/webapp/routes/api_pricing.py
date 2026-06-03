@@ -61,6 +61,88 @@ def _err(msg, code=400):
 
 
 # ════════════════════════════════════════════
+#  재고 매칭·의미 확정 (2026-06-03 전면 재작성)
+#  배경: 기존 매칭은 (상품, 사이즈숫자) 키라 ① 1URL=여러색(르무통/SSF) 일 때
+#        색을 무시해 엉뚱한 색 재고를 가져오고 ② size 가 color_text 에 들어간
+#        사이트(롯데온/SSG)는 매칭 자체가 깨져 상품합계(999 센티넬 합)로 fallback.
+#        → 화면 "재고 10"(가짜)·"품절"(오류) 의 근본 원인.
+#  정책(사용자 확정): 정확한 수량 있으면 표기, 없으면 '재고있음', 0=품절.
+# ════════════════════════════════════════════
+import re as _re
+
+# config.SOURCING_AUTH['stock_cap'] 와 동일 — 무신사는 '충분'을 이 값으로 저장(센티넬).
+_STOCK_CAP = 10
+
+
+def _stk_digits(x):
+    return ''.join(c for c in str(x or '') if c.isdigit())
+
+
+def _stk_cnorm(x):
+    """색상 비교용 정규화 — 공백·괄호·구분자 제거 + 소문자."""
+    return _re.sub(r'[\s()（）\[\]·,/\-_:：]', '', str(x or '')).lower()
+
+
+def _build_so_index(source_options):
+    """source_product_id -> [SourceOption] (deleted 제외 리스트 입력 가정)."""
+    from collections import defaultdict
+    idx = defaultdict(list)
+    for so in source_options:
+        idx[so.source_product_id].append(so)
+    return idx
+
+
+def _match_option_stock(so_index, sp_id, opt_color, opt_size):
+    """옵션(색상+사이즈) ↔ SourceOption 매칭 → current_stock. 실패 시 None.
+
+    - size: SourceOption.size_text 우선, 없으면 color_text 의 숫자(롯데온/SSG).
+    - color: size_text 가 있을 때만 color_text 를 진짜 색으로 간주(르무통/SSF 등
+             1URL=여러색). color_text 가 비었거나 size 를 담은 단일색 URL
+             (롯데온/SSG/무신사)은 사이즈만으로 매칭(상품=단일색이라 안전).
+    """
+    cands = so_index.get(sp_id)
+    if not cands:
+        return None
+    osz = _stk_digits(opt_size)
+    if not osz:
+        return None
+    oc = _stk_cnorm(opt_color)
+    size_only = None
+    for so in cands:
+        st = (so.size_text or '').strip()
+        s_size = _stk_digits(st) or _stk_digits(so.color_text)
+        if not s_size or s_size != osz:
+            continue
+        has_color = bool(st) and bool((so.color_text or '').strip())
+        if has_color:
+            sc = _stk_cnorm(so.color_text)
+            if oc and sc and (oc == sc or oc in sc or sc in oc):
+                return so.current_stock          # 색+사이즈 정확 매칭
+            continue                              # 색 불일치 → 계속 탐색
+        if size_only is None:
+            size_only = so.current_stock          # 단일색 URL — 사이즈만으로 매칭
+    return size_only
+
+
+def _resolve_stock(site, raw):
+    """site + raw → (qty:int|None, label:str, is_out:bool). 화면 표시 단일 진실 원천.
+
+      raw == 0          → 품절
+      raw is None       → 재고있음 (크롤됐으나 수량 미상)
+      raw >= 900        → 재고있음 (999 센티넬 · 상품합계 더미)
+      무신사 raw >= CAP → 재고있음 (stock_cap=10 이 '충분' 센티넬)
+      그 외 1~899       → 실수량 'N개'
+    """
+    if raw == 0:
+        return (0, '품절', True)
+    if raw is None or raw >= 900:
+        return (None, '재고있음', False)
+    if (site or '') == 'musinsa' and raw >= _STOCK_CAP:
+        return (None, '재고있음', False)
+    return (int(raw), f'{int(raw)}개', False)
+
+
+# ════════════════════════════════════════════
 #  v27 시안 ③ — 전역 progress widget API
 # ════════════════════════════════════════════
 @bp.get('/progress')
@@ -253,6 +335,7 @@ def get_option_matrix(code: str):
 
             sku_to_sources.setdefault(link.canonical_sku, []).append({
                 'source_id': link.source_id,
+                'site': (sp.site if sp else None),
                 'source_name': source_dict.get(link.source_id, {}).get('name', '?'),
                 'product_url': link.product_url,
                 # 캐시(legacy 호환)
@@ -296,6 +379,9 @@ def get_option_matrix(code: str):
                 _key_domain = {
                     'lemouton': 'lemouton.co.kr', 'ss_lemouton': 'smartstore.naver.com',
                     'musinsa': 'musinsa.com', 'ssf': 'ssfshop.com', 'lotteon': 'lotteon.com',
+                    # [2026-06-03] SSG 컬럼 추가 — SourceRegistry 에 SSG(main_url=ssg.com) 행 필요.
+                    #   ssg.com 은 다른 소싱처 도메인과 겹치지 않음(ssfshop.com 에 'ssg.com' 미포함).
+                    'ssg': 'ssg.com',
                 }
                 _key_to_regid = {}
                 for _k, _dom in _key_domain.items():
@@ -303,23 +389,23 @@ def get_option_matrix(code: str):
                         if _dom in (_rv.get('main_url') or ''):
                             _key_to_regid[_k] = _rid
                             break
-                # [2026-06-03] 옵션별 실재고 — SourceOption.current_stock 매칭.
-                #   URL 1개 = 보통 한 색상 상품페이지 → (source_product_id, 사이즈숫자)로 매칭.
-                #   sp.last_stock(상품합계) 대신 옵션 실재고 사용. 999=재고있음 센티넬.
-                def _digits(x):
-                    return ''.join(ch for ch in str(x or '') if ch.isdigit())
-                _so_lookup = {}
+                # [2026-06-03 재작성] 옵션별 실재고 — 색상+사이즈 매칭(_match_option_stock).
+                #   기존 (상품,사이즈숫자) 키는 ① 1URL=여러색이면 색 무시로 오매칭
+                #   ② size 가 color_text 에 든 사이트(롯데온/SSG)는 매칭 자체 실패.
+                #   → SourceOption 객체 그대로 인덱싱 후 색·사이즈로 정확 매칭.
+                _so_index = {}
                 try:
                     from lemouton.sources.models import SourceOption as _SO
                     _spids = list({_v.id for _v in _sp_by_norm2.values() if _v})
                     if _spids:
-                        for _so in (s.query(_SO)
-                                    .filter(_SO.source_product_id.in_(_spids),
-                                            _SO.deleted_at.is_(None)).all()):
-                            _so_lookup[(_so.source_product_id, _digits(_so.size_text))] = _so.current_stock
+                        _so_index = _build_so_index(
+                            s.query(_SO)
+                            .filter(_SO.source_product_id.in_(_spids),
+                                    _SO.deleted_at.is_(None)).all())
                 except Exception:
                     pass
                 _sku_size = {o.canonical_sku: o.size_code for o in opts}
+                _sku_color = {o.canonical_sku: o.color_code for o in opts}
                 _link_rows = (
                     s.query(OptionSourceUrlLink, BundleSourceUrl)
                     .join(BundleSourceUrl,
@@ -333,14 +419,18 @@ def get_option_matrix(code: str):
                         continue  # legacy 로 이미 추가된 동일 URL 중복 방지
                     sp = _sp_by_norm2.get(_norm_url(bsu.url)) if bsu.url else None
                     _reg_id = _key_to_regid.get(bsu.source_key)  # 칼럼 매칭용 레지스트리 id
-                    # 옵션별 실재고 (매칭 실패 시 상품합계 fallback)
+                    # 옵션별 실재고 — 색상+사이즈 매칭. 실패 시에만 상품합계 fallback.
                     _opt_stock = None
                     if sp:
-                        _opt_stock = _so_lookup.get((sp.id, _digits(_sku_size.get(lk.option_canonical_sku))))
+                        _opt_stock = _match_option_stock(
+                            _so_index, sp.id,
+                            _sku_color.get(lk.option_canonical_sku),
+                            _sku_size.get(lk.option_canonical_sku))
                     existing.append({
                         # 칼럼 매칭 = 레지스트리 id (없으면 SSG 등 — 칼럼 없음). refetch 도 동일.
                         'source_id': _reg_id,
                         'source_key': bsu.source_key,
+                        'site': (sp.site if sp else bsu.source_key),
                         'source_name': _labels.get(bsu.source_key, bsu.source_key),
                         'product_url': bsu.url,
                         'label': bsu.label or '',
@@ -360,6 +450,17 @@ def get_option_matrix(code: str):
                     })
         except Exception:
             pass
+
+        # [2026-06-03] 재고 의미 확정 — 화면 표시 단일 진실 원천.
+        #   사이트별 센티넬(999·무신사 cap 10·상품합계 더미)을 백엔드에서 해석해
+        #   stock_qty(실수량|None)·stock_label('품절'|'재고있음'|'N개')·stock_out 로 확정.
+        #   프론트는 이 값만 렌더(가짜 '재고 10' 제거). 정책: 수량 있으면 표기, 없으면 '재고있음'.
+        for _srcs in sku_to_sources.values():
+            for _d in _srcs:
+                _q, _lbl, _out = _resolve_stock(_d.get('site'), _d.get('crawled_stock'))
+                _d['stock_qty'] = _q
+                _d['stock_label'] = _lbl
+                _d['stock_out'] = _out
 
         # 가격 설정
         configs = (
@@ -450,12 +551,18 @@ def get_option_matrix(code: str):
             cp_ship = (tpl.coupang_delivery_fee if tpl else 0) or 0
             rounding = (tpl.rounding_unit if tpl else 100) or 100
 
-            # 원가 = 소싱처 실시간 크롤 가격 우선 (르무통 → 첫 번째 active 소싱처) → 템플릿 매입가 → 95000 fallback (2026-05-09 fix)
+            # [2026-06-03 핵심 로직] 원가 = "재고 존재 + 크롤 성공" 소싱처 중 최저 크롤가.
+            #   (기존: 첫 번째 가격있는 소싱처 — 품절·크롤실패 stale 가격도 원가로 잡히던 버그.
+            #    또 source_id=='lemouton' 비교는 source_id 가 레지스트리 int 라 항상 미스 = dead code.)
+            #   사입처는 '재고 있고 가장 싼 곳'에서 산다 → 그 가격이 원가. 없으면 템플릿 매입가 → 95000.
             sources_for_opt = sku_to_sources.get(o.canonical_sku, [])
-            _lemouton_src = next((s for s in sources_for_opt
-                                  if (s.get('source_id') == 'lemouton') and s.get('crawled_price')), None)
-            _any_src = next((s for s in sources_for_opt if s.get('crawled_price')), None) if not _lemouton_src else None
-            purchase = ((_lemouton_src or _any_src or {}).get('crawled_price')
+            _buyable = [_s for _s in sources_for_opt
+                        if _s.get('crawled_price') and _s.get('last_status') != 'error'
+                        and not _s.get('stock_out')]
+            _priced = _buyable or [_s for _s in sources_for_opt if _s.get('crawled_price')]
+            _cost_src = (min(_priced, key=lambda x: x.get('crawled_price') or 9e15)
+                         if _priced else None)
+            purchase = ((_cost_src or {}).get('crawled_price')
                         or (tpl.boxhero_purchase_price if tpl else None)
                         or 95000)
 
@@ -511,12 +618,20 @@ def get_option_matrix(code: str):
             _pur_loss_cp = bool(_pur_fix_cp_on and _pur_fix_cp and _resolved_avg and _pur_fix_cp < _resolved_avg)
 
             # [2026-05-25 A1] 소싱 카드 재고 = 재고 ≥1 인 소싱처 중 최저가의 재고
+            #   [2026-06-03] 표시 라벨도 백엔드 확정값(stock_label/qty) 사용 → '재고 10' 가짜 제거.
             _src_stock = 0
+            _src_stock_label = None   # '품절'|'재고있음'|'N개' (None = 재고 있는 소싱처 없음)
+            _src_stock_qty = None     # 실수량 (없으면 None → '재고있음')
+            # 재고 존재(품절 아님) + 크롤 성공 + 가격 있음 → 그 중 최저가의 재고. (winner 와 동일 정의)
             _src_with_stock = [_s for _s in sources_for_opt
-                               if (_s.get('crawled_stock') or 0) >= 1 and (_s.get('crawled_price') or 0) > 0]
+                               if not _s.get('stock_out')
+                               and _s.get('last_status') != 'error'
+                               and (_s.get('crawled_price') or 0) > 0]
             if _src_with_stock:
                 _cheapest_src = min(_src_with_stock, key=lambda x: x.get('crawled_price') or 9999999)
                 _src_stock = _cheapest_src.get('crawled_stock') or 0
+                _src_stock_label = _cheapest_src.get('stock_label')
+                _src_stock_qty = _cheapest_src.get('stock_qty')
 
             # 우선순위 결정 — 재고 ≥1 = 무조건 사입 / 재고 0 = priority 따름
             if _stock >= 1:
@@ -595,6 +710,8 @@ def get_option_matrix(code: str):
                 'template_purchase_price': _tpl_purchase,
                 # [2026-05-25 M] 마켓별 지정가 active + 가격 + 소싱 재고 + 원가 (JS 마진 계산용)
                 'src_stock': _src_stock,
+                'src_stock_label': _src_stock_label,
+                'src_stock_qty': _src_stock_qty,
                 'src_cost': purchase,
                 'src_fixed_ss_active': _src_fix_ss_on,
                 'src_fixed_cp_active': _src_fix_cp_on,

@@ -2817,10 +2817,15 @@
     // ─── 옵션별 최저가 산출 (breakdown 적용 후 매입가 기준) ───
     const lowestSrcPerOpt = {};   // sku -> source_id
     const savingsPerOpt   = {};   // sku -> savings (vs 차순)
+    // [2026-06-03 핵심 로직] 옵션마다 같은 소싱처에 URL 여러개·여러 소싱처 가능.
+    //   최저가 winner = "재고 존재 + 크롤 성공 + 가격 있음" 후보 중 최저가.
+    //   → 품절·크롤실패(stale) 소싱처는 최저가로 뽑히지 않음(오발주·금전손실 방지).
     opts.forEach(o => {
       const srcs = o.sources || [];
       const priced = srcs
         .filter(s => s.crawled_price && s.crawled_price > 0)
+        .filter(s => s.last_status !== 'error')   // 크롤 실패(가격 stale) 제외
+        .filter(s => !s.stock_out)                 // 품절(재고 0) 제외 — 재고 존재 조건
         .map(s => ({...s, _finalPrice: getCellPrice(o.sku, s)}))
         .filter(s => s._finalPrice > 0);
       if (!priced.length) return;
@@ -3884,9 +3889,9 @@
     tr.querySelectorAll('td.cd, td.cn, td.cw, td.cr').forEach(td => {
       td.classList.add('cell-expanded-loading');
     });
-    // 4 사이트 breakdown 병렬 fetch
+    // 4 사이트 breakdown 병렬 fetch — 표시 셀과 동일한 best URL 기준 (재고존재+최저가)
     const promises = sources.map(s => {
-      const src = (opt.sources || []).find(x => x.source_id === s.id);
+      const src = _pickBestSrc((opt.sources || []).filter(x => x.source_id === s.id));
       const price = (src && src.crawled_price) || 0;
       if (!price) return Promise.resolve({source: s, src, breakdown: null, error: src ? 'no_price' : 'no_url'});
       return fetch(`/api/source-benefits/breakdown/${encodeURIComponent(sku)}/${s.id}?sale_price=${price}`)
@@ -4381,7 +4386,9 @@
     const srcLabel = isPurchasePri ? '참고용' : '우선';
     // [M] 소싱 카드 재고 chip + 마켓별 지정가 토글 + 인풋 변환 + 실시간 마진 계산
     const _srcStock = o.src_stock || 0;
-    const _srcStockChip = _srcStock >= 1 ? `<span class="m4v1-stock-chip" title="재고 있는 소싱처 중 최저가의 재고">재고 ${_srcStkDisp(_srcStock)}</span>` : '';
+    // [2026-06-03] 백엔드 확정 라벨 사용 — 실수량이면 'N개', 충분이면 '재고있음' (가짜 '재고 10' 제거)
+    const _srcStockTxt = o.src_stock_qty != null ? o.src_stock_qty.toLocaleString('ko-KR') + '개' : '재고있음';
+    const _srcStockChip = _srcStock >= 1 ? `<span class="m4v1-stock-chip" title="재고 있는 소싱처 중 최저가의 재고">${_srcStockTxt}</span>` : '';
     const _srcCost = o.src_cost || 0;
     const _srcSsOn = !!o.src_fixed_ss_active;
     const _srcCpOn = !!o.src_fixed_cp_active;
@@ -4424,7 +4431,7 @@
         </div>
         ${fxBtn ? `<div class="m4v1-fx-row">${fxBtn}</div>` : ''}
         <div class="m4v1-footzone" style="margin-top:9px;padding-top:8px;border-top:1px dashed #bbf7d0;display:flex;flex-direction:column;gap:5px;align-items:flex-start">
-          <span style="display:inline-flex;align-items:center;gap:4px;font-size:11.5px;font-weight:700;background:#fff;border:1px solid #d1fae5;color:#15803d;border-radius:8px;padding:3px 9px" title="최저가 선정 소싱처의 재고">📦 최저 소싱처 재고 ${_srcStock >= 1 ? _srcStkDisp(_srcStock) + '개' : '없음'}</span>
+          <span style="display:inline-flex;align-items:center;gap:4px;font-size:11.5px;font-weight:700;background:#fff;border:1px solid #d1fae5;color:#15803d;border-radius:8px;padding:3px 9px" title="최저가 선정 소싱처의 재고">📦 최저 소싱처 재고 ${_srcStock >= 1 ? _srcStockTxt : '없음'}</span>
           ${o.src_count ? `<span class="src-urlchip" onclick="if(typeof openOptionUrlModal==='function')openOptionUrlModal('${o.sku}', loadMatrix)" style="display:inline-flex;align-items:center;gap:4px;font-size:11.5px;font-weight:700;background:#EFF6FF;border:1px solid #bfdbfe;color:#3182F6;border-radius:8px;padding:3px 9px;cursor:pointer" title="클릭: 소싱처 URL 관리(추가·수정·삭제·열기)">🔗 URL ${o.src_count}개 ▸</span>` : ''}
         </div>
       </div>`;
@@ -4636,8 +4643,8 @@
 
       let body;
       if (hasPrice) {
-        const stockTxt = src.crawled_stock != null
-          ? `<span class="d2-src-stock ${src.crawled_stock === 0 ? 'zero' : ''}">${src.crawled_stock === 0 ? '재고 0 ⛔' : '재고 ' + _srcStkDisp(src.crawled_stock) + '개'}</span>`
+        const stockTxt = src.stock_label
+          ? `<span class="d2-src-stock ${src.stock_out ? 'zero' : ''}">${src.stock_label === '품절' ? '품절 ⛔' : (src.stock_qty != null ? '재고 ' + src.stock_qty.toLocaleString('ko-KR') + '개' : '재고있음')}</span>`
           : '<span class="d2-src-stock">재고 —</span>';
         const dateTxt = `<span class="d2-src-date">${fmtRelDate(src.last_fetched_at)}</span>`;
         body = `<div class="d2-src-price">${src.crawled_price.toLocaleString('ko-KR')}원</div>
@@ -4754,8 +4761,8 @@
         const link = src.product_url ? `<a class="btn-icon" href="${src.product_url}" target="_blank" rel="noopener" title="원 페이지">↗</a>` : '';
         let body;
         if (hasPrice) {
-          const stockTxt = src.crawled_stock != null
-            ? `<span class="d2-src-stock ${src.crawled_stock === 0 ? 'zero' : ''}">${src.crawled_stock === 0 ? '재고 0 ⛔' : '재고 ' + _srcStkDisp(src.crawled_stock)}</span>`
+          const stockTxt = src.stock_label
+            ? `<span class="d2-src-stock ${src.stock_out ? 'zero' : ''}">${src.stock_label === '품절' ? '품절 ⛔' : (src.stock_qty != null ? '재고 ' + src.stock_qty.toLocaleString('ko-KR') + '개' : '재고있음')}</span>`
             : '<span class="d2-src-stock">재고 —</span>';
           body = `<div class="d2-src-price">${src.crawled_price.toLocaleString('ko-KR')}원</div>
             <div class="d2-src-meta">${stockTxt}<span class="d2-src-date">${fmtRelDate(src.last_fetched_at)}</span></div>`;
@@ -4870,13 +4877,27 @@
     if (allCntEl) allCntEl.textContent = crawlable;
   }
 
-  // [2026-06-03] 소싱처 재고 표시 규칙 — 실수(1~899)는 그대로, 999 센티넬·9천대 더미·미표시는 충분 가정 10.
-  //   (소싱처가 정확한 재고수를 노출 안 할 때 '충분히 있음'을 10으로 표기 — 사용자 정의)
-  function _srcStkDisp(v) { return (v != null && v > 0 && v < 900) ? v : 10; }
+  // [2026-06-03 폐기] 재고 표시는 백엔드 확정값(stock_label/qty/out)으로 일원화됨.
+  //   가짜 '10' 반환 금지. 잔존 호출이 있으면 실수량만 반환, 미상이면 빈 문자열('재고있음'은 호출부가 처리).
+  function _srcStkDisp(v) { return (v != null && v > 0 && v < 900) ? v : ''; }
+
+  // [2026-06-03 핵심] 한 컬럼(같은 소싱처)에 옵션의 URL 이 여러개일 수 있음.
+  //   그 중 대표 1개 선택: ① 크롤성공+재고존재+가격 중 최저가 → ② 가격있는 것 중 최저가(품절 포함)
+  //   → ③ URL 있는 것(실패/미실시 표시). cheapest = "재고존재+최저가" 핵심 로직과 일치.
+  function _pickBestSrc(list) {
+    if (!list || !list.length) return null;
+    const _cheapest = arr => arr.reduce((a, b) => ((b.crawled_price || 9e15) < (a.crawled_price || 9e15) ? b : a));
+    const good = list.filter(s => s.product_url && s.last_status !== 'error' && !s.stock_out && s.crawled_price > 0);
+    if (good.length) return _cheapest(good);
+    const priced = list.filter(s => s.product_url && s.crawled_price > 0);
+    if (priced.length) return _cheapest(priced);
+    const withUrl = list.filter(s => s.product_url);
+    return withUrl[0] || list[0];
+  }
 
   // Phase 6 — 한 옵션 × 한 사이트 셀 (4색 상태 + ★최저 + fx + breakdown)
   function renderSiteCell(o, s) {
-    const src = (o.sources || []).find(x => x.source_id === s.id);
+    const src = _pickBestSrc((o.sources || []).filter(x => x.source_id === s.id));
     // [2026-05-24] URL 미매핑 — 옵션 조합 생성 모달에서 매핑하므로 여기서는 "—" 표시만
     if (!src || !src.product_url) {
       // [2026-05-25] URL 미매핑 — "크롤링 미실시" 회색 글씨 (CSS ::before 의 ⚠ 는 위에서 제거됨)
@@ -4913,16 +4934,17 @@
       tipParts.push(`<div class="tip-row"><span>절감</span><span>-${_SAVINGS_PER_OPT[o.sku].toLocaleString('ko-KR')}원</span></div>`);
     }
     const tipHtml = `<div class="c1-tip">${tipParts.join('')}</div>`;
-    // [2026-06-03 시안C+규칙] 재고 "수"로 표기. 0=품절(빨강), 1~899=실수,
-    //   그 외(999 센티넬·9천대 더미·null = 소싱처가 재고수 미표시) = 충분 가정 → 10.
-    const _stkRaw = src.crawled_stock;
+    // [2026-06-03 재작성] 재고 표시 = 백엔드 확정값(stock_label/qty/out)만 사용.
+    //   정책: 정확한 수량 있으면 'N개', 없으면 '재고있음', 0이면 '품절'. (가짜 '재고 10' 제거)
+    //   백엔드가 site별 센티넬(999·무신사 cap·상품합계 더미)을 이미 해석함.
     let _isOut = false, stockHtml;
-    if (_stkRaw === 0) {
+    if (src.stock_out || src.crawled_stock === 0) {
       _isOut = true;
       stockHtml = `<div class="cell-stock" style="font-size:11px;font-weight:700;color:#dc2626;margin-top:2px;line-height:1.2">품절</div>`;
+    } else if (src.stock_qty != null) {
+      stockHtml = `<div class="cell-stock" style="font-size:11px;color:#6B7684;margin-top:2px;line-height:1.2">재고 ${src.stock_qty.toLocaleString('ko-KR')}개</div>`;
     } else {
-      const _n = (_stkRaw != null && _stkRaw > 0 && _stkRaw < 900) ? _stkRaw : 10;
-      stockHtml = `<div class="cell-stock" style="font-size:11px;color:#6B7684;margin-top:2px;line-height:1.2">재고 ${_n.toLocaleString('ko-KR')}</div>`;
+      stockHtml = `<div class="cell-stock" style="font-size:11px;color:#6B7684;margin-top:2px;line-height:1.2">재고있음</div>`;
     }
     // 시안C 레이아웃: 판매가 라벨 + 가격(원) + 최저 태그 + 재고. fx는 회색 보조(코너).
     const _won = `<span style="font-size:11px;font-weight:600;color:#6B7684">원</span>`;

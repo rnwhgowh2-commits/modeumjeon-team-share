@@ -49,6 +49,13 @@ def ensure_source_registry(s, dry_run: bool = False) -> dict[str, int]:
         else:
             s.add(SourceRegistry(name=name, main_url=url, sort_order=order))
             created += 1
+    # [2026-06-03] SSG 추가 — legacy Model.url_* 슬롯 없는 소싱처(crawler=http). 매트릭스 6번째 컬럼.
+    if 'SSG' not in existing:
+        if dry_run:
+            print('  [DRY] INSERT SourceRegistry(SSG, https://www.ssg.com, sort=5)')
+        else:
+            s.add(SourceRegistry(name='SSG', main_url='https://www.ssg.com', sort_order=5))
+            created += 1
     if not dry_run and created:
         s.flush()
         existing = {r.name: r.id for r in s.query(SourceRegistry).all()}
