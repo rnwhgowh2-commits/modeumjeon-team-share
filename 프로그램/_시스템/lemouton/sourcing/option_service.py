@@ -25,7 +25,7 @@ def save_step_design(session: Session, model_code: str, steps: list[dict]) -> No
         session.add(BundleOptionStep(
             model_code=model_code,
             step_no=i,
-            axis_name=(st.get('axis_name') or f'단계{i}'),
+            axis_name=(st.get('axis_name') or st.get('name') or f'단계{i}'),
             values_json=json.dumps(st.get('values') or [], ensure_ascii=False),
         ))
 

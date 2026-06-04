@@ -100,6 +100,43 @@ NAVER_COUPON_PARAMS = {
     "utm_campaign": "naver_pcs",
 }
 
+# ─────────────────────────────────────────────────────────────
+# 세션(쿠키) 워밍업 — 익명 단발 요청은 SSG anti-bot 이 429 로 막는다.
+# 실제 브라우징처럼 홈(ssg.com) 방문으로 쿠키 확보 후 재사용하면 통과율이 크게 오른다.
+# ─────────────────────────────────────────────────────────────
+import time as _time
+
+_SSG_SESSION = None
+_SSG_WARMED = False
+
+_SSG_HEADERS = {
+    "Accept-Language": "ko-KR,ko;q=0.9,en;q=0.8",
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+    "Referer": "https://www.ssg.com/",
+}
+
+
+def _get_ssg_session(timeout: int = DEFAULT_TIMEOUT):
+    """쿠키 유지 세션 반환 (최초 1회 홈 방문으로 워밍업)."""
+    global _SSG_SESSION, _SSG_WARMED
+    if _SSG_SESSION is None:
+        _SSG_SESSION = cffi_requests.Session(impersonate=IMPERSONATE)
+    if not _SSG_WARMED:
+        try:
+            _SSG_SESSION.get("https://www.ssg.com/", timeout=timeout,
+                             headers={"Accept-Language": "ko-KR,ko;q=0.9,en;q=0.8"})
+            _SSG_WARMED = True
+            _time.sleep(1.2)
+        except Exception:
+            pass
+    return _SSG_SESSION
+
+
+def _reset_ssg_session():
+    global _SSG_SESSION, _SSG_WARMED
+    _SSG_SESSION = None
+    _SSG_WARMED = False
+
 
 def _apply_naver_coupon_params(url: str) -> str:
     """SSG 상품 URL 에 네이버 유입 파라미터(ckwhere=ssg_naver 등)를 set/override.
@@ -589,17 +626,25 @@ class SsgCrawler(AbstractCrawler):
     def _fetch_html(self, product_url: str) -> str:
         # 네이버 유입 위장(ckwhere=ssg_naver)으로 채널 전용 제휴쿠폰까지 HTML 에 포함시킨다.
         fetch_url = _apply_naver_coupon_params(product_url)
-        resp = cffi_requests.get(
-            fetch_url,
-            impersonate=IMPERSONATE,
-            timeout=self.timeout,
-            headers={
-                "Accept-Language": "ko-KR,ko;q=0.9,en;q=0.8",
-                "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-            },
-        )
-        resp.raise_for_status()
-        return resp.text
+        last_exc = None
+        for attempt in range(4):
+            sess = _get_ssg_session(self.timeout)
+            try:
+                resp = sess.get(fetch_url, timeout=self.timeout, headers=_SSG_HEADERS)
+            except Exception as e:  # 네트워크/타임아웃
+                last_exc = e
+                _reset_ssg_session()
+                _time.sleep(4 * (attempt + 1))
+                continue
+            if resp.status_code == 429:
+                # 차단 — 세션 새로(쿠키 리셋) + 점증 대기 후 재시도
+                last_exc = RuntimeError("HTTP Error 429: ")
+                _reset_ssg_session()
+                _time.sleep(8 * (attempt + 1))
+                continue
+            resp.raise_for_status()
+            return resp.text
+        raise last_exc or RuntimeError("[SSG] fetch 실패")
 
     def fetch(self, product_url: str) -> CrawlResult:
         html = self._fetch_html(product_url)

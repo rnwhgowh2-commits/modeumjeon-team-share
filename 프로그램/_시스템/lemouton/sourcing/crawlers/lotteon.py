@@ -729,7 +729,24 @@ def _parse_lotteon_options(option_data: dict, base_data: dict) -> tuple[list[dic
     # 첫번째 axis = 색상, 두번째 = 사이즈 (롯데ON optionList 순서)
     colors = _parse_axis(0, "색상")
     sizes = _parse_axis(1, "사이즈")
+    # 단일색 상품(단품): 옵션축이 1개뿐이고 값이 사이즈 형태면 → 색상축이 아니라 사이즈축.
+    # (이대로 두면 '230' 이 색상으로 잡혀 매칭/필터가 전부 실패)
+    if not sizes and colors and _looks_like_sizes(colors):
+        return [], colors
     return colors, sizes
+
+
+def _looks_like_sizes(items: list[dict]) -> bool:
+    """축 값들이 신발 사이즈 형태(숫자/ mm, 150~400)인지 다수결 판정."""
+    if not items:
+        return False
+    n = 0
+    for it in items:
+        raw = (it.get("name") or "").lower().replace("mm", "").strip()
+        d = "".join(ch for ch in raw if ch.isdigit())
+        if d and 150 <= int(d) <= 400:
+            n += 1
+    return n >= max(1, len(items) * 0.6)
 
 
 def _extract_unmet_reason(promo: dict, sale_price: int) -> tuple[str, str]:

@@ -312,7 +312,8 @@ class PlaywrightLemoutonCrawler(AbstractCrawler):
                         "size_text": size["name"],
                         "price": sale_price, "sale_price": sale_price,
                         "auto_card_discount": _auto_card,
-                        "stock": 0 if is_unavailable else 1,
+                        # 999 = 재고있음(수량 미상) — 타 소싱처(무신사/SSF/롯데온) 센티넬과 통일. 0 = 품절.
+                        "stock": 0 if is_unavailable else 999,
                     })
 
         elif initial_sizes and not colors:
@@ -326,7 +327,7 @@ class PlaywrightLemoutonCrawler(AbstractCrawler):
                     "size_text": size["name"],
                     "price": sale_price, "sale_price": sale_price,
                     "auto_card_discount": _auto_card,
-                    "stock": 0 if size["soldOut"] else 1,
+                    "stock": 0 if size["soldOut"] else 999,
                 })
 
         elif colors and not initial_sizes:
@@ -338,7 +339,7 @@ class PlaywrightLemoutonCrawler(AbstractCrawler):
                     "size_text": "",
                     "price": sale_price, "sale_price": sale_price,
                     "auto_card_discount": _auto_card,
-                    "stock": 0 if color["soldOut"] else 1,
+                    "stock": 0 if color["soldOut"] else 999,
                 })
 
         else:
@@ -351,7 +352,7 @@ class PlaywrightLemoutonCrawler(AbstractCrawler):
                 "size_text": "",
                 "price": sale_price, "sale_price": sale_price,
                 "auto_card_discount": _auto_card,
-                "stock": 1,
+                "stock": 999,
             })
 
         # discount_info: 기본할인 % 만 (혜택은 api_benefits 가 단일 진실 원천)

@@ -926,11 +926,11 @@
       axis.values.forEach(v => {
         const k = keyOf([v]);
         const on = state.selected.has(k);
-        const mappedOff = !on && state.mappedOff && state.mappedOff.has(k);
-        const active = on || mappedOff;
-        const hasInv = active && state.invMappedKeys && state.invMappedKeys.has(k);
-        // 좌측 매트릭스: URL 매핑은 표시 안 함 (우측에서) → urlMapped=false
-        const s = cellState(active, false, hasInv);
+        // [2026-06-04 FIX] mappedOff(is_active=false)는 OFF 로 표시해야 함.
+        //   기존 active = on||mappedOff → OFF 저장한 옵션이 재진입 시 ON 으로 보이던 버그.
+        const hasInv = on && state.invMappedKeys && state.invMappedKeys.has(k);
+        // 좌측 매트릭스: URL 매핑은 표시 안 함 (우측에서) → urlMapped=false. ON 은 selected 만.
+        const s = cellState(on, false, hasInv);
         html += `<td><span class="oum-cell ${s.cls}" data-cell-key='${esc(k)}'>${s.inner}</span></td>`;
       });
       html += `</tr></tbody></table>`;
@@ -962,10 +962,9 @@
           arr[rowIdx] = rv;
           const k = keyOf(arr);
           const on = state.selected.has(k);
-          const mappedOff = !on && state.mappedOff && state.mappedOff.has(k);
-          const active = on || mappedOff;
-          const hasInv = active && state.invMappedKeys && state.invMappedKeys.has(k);
-          const s = cellState(active, false, hasInv);
+          // [2026-06-04 FIX] mappedOff 는 OFF 로 표시 (ON 은 selected 만).
+          const hasInv = on && state.invMappedKeys && state.invMappedKeys.has(k);
+          const s = cellState(on, false, hasInv);
           html += `<td><span class="oum-cell ${s.cls}" data-cell-key='${esc(k)}'>${s.inner}</span></td>`;
         });
         html += `</tr>`;
@@ -1793,7 +1792,8 @@
     //   토글 시 mappedOff 도 같이 정리해야 "전체 해제"·"줄/코너 해제" 등 일괄 토글에서
     //   잔류 mappedOff 셀이 ON 으로 남는 버그 차단. 단일 셀 클릭은 이미 v20.3 에서 처리됨.
     function _isCellActive(k) {
-      return state.selected.has(k) || (state.mappedOff && state.mappedOff.has(k));
+      // [2026-06-04 FIX] ON 판정 = selected 만. (mappedOff=비활성이므로 클릭하면 다시 켜져야 함)
+      return state.selected.has(k);
     }
     function _activateCell(k) {
       state.selected.add(k);

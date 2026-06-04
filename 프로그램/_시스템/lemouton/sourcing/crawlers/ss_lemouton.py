@@ -356,9 +356,9 @@ class SsLemoutonCrawler(AbstractCrawler):
                     # 단품: 상품 전체 stockQuantity 노출 (상한 없음)
                     stock_int = max(int(total_stock), 0)
                 else:
-                    # 옵션 다중: SKU 단위 정보가 없으므로 '재고있음=1' 매핑.
-                    # (다른 크롤러의 stockStatus='재고있음' → 1 과 동일.)
-                    stock_int = 1
+                    # 옵션 다중: SKU 단위 정보가 없으므로 '재고있음' 센티넬 매핑.
+                    # 999 = 재고있음(수량 미상) — 타 소싱처와 통일 (기존 1 → 오해 소지로 변경).
+                    stock_int = 999
                 options.append({
                     "option_id": f"{product_id}|{color}|{size}",
                     "color_text": color,

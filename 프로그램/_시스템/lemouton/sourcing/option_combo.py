@@ -61,7 +61,7 @@ def generate_combinations(steps: list[dict]) -> list[dict]:
         vals = st.get('values') or []
         if not vals:
             return []          # 값 없는 단계 → 조합 불가
-        names.append(st.get('axis_name') or '')
+        names.append(st.get('axis_name') or st.get('name') or '')
         value_lists.append(list(vals))
 
     combos: list[dict] = []
