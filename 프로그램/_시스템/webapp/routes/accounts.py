@@ -523,21 +523,33 @@ def save_secrets(env_prefix: str):
             "error": "env_prefix 형식 오류 (영숫자 + 언더스코어만)",
         }), 400
 
-    # 입력 검증
+    # 입력 검증 — 빈 칸 + 기존값 있으면 기존 유지(확인만 하고 저장 시 안 깨짐)
     expected_suffixes = MARKET_KEY_SUFFIXES[market]
-    missing = [sfx for sfx in expected_suffixes
-               if not values.get(sfx) or not values.get(sfx, "").strip()]
-    if missing:
+    env_keys = {}
+    truly_missing = []
+    for sfx in expected_suffixes:
+        v = (values.get(sfx) or "").strip()
+        if v:
+            env_keys[f"{env_prefix}_{sfx}"] = v
+        elif os.environ.get(f"{env_prefix}_{sfx}"):
+            continue  # 비워둠 + 기존값 존재 → 기존 유지
+        else:
+            truly_missing.append(sfx)
+
+    if truly_missing:
         return jsonify({
             "ok": False,
-            "error": f"필수 필드 누락: {missing}",
+            "error": f"필수 필드 누락(기존값도 없음): {truly_missing}",
         }), 400
 
-    # env 키 매핑: SMARTSTORE_MAIN_CLIENT_ID 등
-    env_keys = {
-        f"{env_prefix}_{sfx}": values[sfx].strip()
-        for sfx in expected_suffixes
-    }
+    if not env_keys:
+        return jsonify({
+            "ok": True,
+            "env_prefix": env_prefix,
+            "market": market,
+            "masked": {},
+            "message": "변경 사항 없음 — 기존 키 그대로 유지됩니다.",
+        })
 
     project_root = Path(__file__).resolve().parents[2]
     env_path = project_root / ".env"
@@ -1046,12 +1058,16 @@ def secrets_schema(env_prefix: str):
     fields = []
     for sfx in MARKET_KEY_SUFFIXES[market]:
         label, is_sensitive = KEY_LABELS.get(sfx, (sfx, True))
+        env_key = f"{env_prefix}_{sfx}"
+        cur_val = os.environ.get(env_key, "")
         fields.append({
             "suffix": sfx,
-            "env_key": f"{env_prefix}_{sfx}",
+            "env_key": env_key,
             "label": label,
             "sensitive": is_sensitive,
-            "current_set": bool(os.environ.get(f"{env_prefix}_{sfx}")),
+            "current_set": bool(cur_val),
+            # 저장된 값 확인용 마스킹 (앞4***뒤4). 평문 노출 X.
+            "masked": S.mask_secret(cur_val) if cur_val else None,
         })
     meta = MARKET_METADATA.get(market, {})
     return jsonify({
