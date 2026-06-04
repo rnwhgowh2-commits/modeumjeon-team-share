@@ -100,35 +100,50 @@ def _split_managed_code(managed_code: str) -> tuple[str, str]:
     return managed_code.strip(), ""
 
 
-def _get_default_musinsa_account() -> Optional[tuple]:
+def _get_default_musinsa_account(strict: bool = False) -> Optional[tuple]:
     """대표 크롤 계정 (sourcing_accounts.is_default_for_crawl=1) 의 (source, account_key) 반환.
 
     auth 파일 (data/auth/{source}_{account_key}.json) 도 존재해야 함.
+
+    Args:
+        strict: True 면 DB 조회 실패(연결 끊김·풀 고갈 등) 시 예외를 그대로 전파한다.
+                False(기본) 면 기존 호환 — 모든 예외를 삼키고 None 반환.
+
+    ⚠️ 2026-06-05: 회원가 크롤 차단 로직(`_fetch_single`)은 strict=True 로 호출한다.
+       DB 오류를 삼켜 None 으로 만들면 "로그인 세션 만료"로 오인되어, 단순 DB 끊김에도
+       잘못된 차단/자동 재로그인이 발생하기 때문. strict 모드에서 DB 오류는 그대로 올라가
+       호출자가 "로그인 문제"가 아닌 "인프라 문제"로 구분 처리한다.
     """
+    from pathlib import Path
+    from shared.db import SessionLocal
+    from sqlalchemy import text
     try:
-        from pathlib import Path
-        from shared.db import SessionLocal
-        from sqlalchemy import text
         s = SessionLocal()
         try:
+            # ⚠️ is_default_for_crawl/is_active 는 PostgreSQL(Supabase)에서 BOOLEAN,
+            #    SQLite 에선 INTEGER(0/1). "= 1" 로 비교하면 Postgres 에서
+            #    'operator does not exist: boolean = integer' 에러가 난다.
+            #    bare 컬럼(truthy 평가)은 두 DB 모두 호환 → = 1 제거. (2026-06-05 fix)
             r = s.execute(text(
                 "SELECT source, account_key FROM sourcing_accounts "
-                "WHERE source IN ('musinsa', '무신사') AND is_default_for_crawl = 1 "
-                "AND is_active = 1 LIMIT 1"
+                "WHERE source IN ('musinsa', '무신사') AND is_default_for_crawl "
+                "AND is_active LIMIT 1"
             )).first()
-            if not r:
-                return None
-            db_source, acc_key = r[0], r[1]
         finally:
             s.close()
-        # auth 파일 — 한글/영문 source 둘 다 시도
-        auth_dir = Path("data/auth")
-        for src in (db_source, "musinsa", "무신사"):
-            if (auth_dir / f"{src}_{acc_key}.json").exists():
-                return (src, acc_key)
-        return None
     except Exception:
+        if strict:
+            raise  # DB 오류 → 로그인 만료로 위장하지 않고 호출자에게 전파
         return None
+    if not r:
+        return None
+    db_source, acc_key = r[0], r[1]
+    # auth 파일 — 한글/영문 source 둘 다 시도
+    auth_dir = Path("data/auth")
+    for src in (db_source, "musinsa", "무신사"):
+        if (auth_dir / f"{src}_{acc_key}.json").exists():
+            return (src, acc_key)
+    return None
 
 
 # 모듈 레벨 캐시 — process 수명 동안 styleNo→variant_urls 재사용
@@ -231,10 +246,12 @@ class MusinsaCrawler(AbstractCrawler):
     """무신사 디스패처 — 로그인 세션 있으면 회원가 (Playwright), 없으면 비로그인 API.
 
     동작:
-      1. ``prefer_member_price=True`` (기본) + ``data/auth/무신사_default.json`` 존재
-         → ``MusinsaPlaywrightCrawler`` 호출 (회원가 = 무신사머니/적립금/선할인 차감)
-      2. 위 조건 미충족 또는 Playwright 실패 → 기존 비로그인 API (V7 ``crawlNewPage``)
-         로 폴백 — ``salePrice`` 만 사용 (회원가 ❌)
+      1. ``prefer_member_price=True`` (기본) → 반드시 로그인(회원가) 상태로만 크롤.
+         대표 계정 + 세션 있으면 ``MusinsaPlaywrightCrawler`` (무신사머니/적립금/선할인 차감).
+         로그인 불가(대표계정 없음·세션 만료·Playwright 실패) 시 → ``LoginExpiredError`` 로
+         **막는다** (2026-06-05 정책: 비로그인 가격 = 잘못된 매입가 = 금전 손실).
+      2. ``prefer_member_price=False`` (다중 색상 variant 사이즈 추출 전용) → 비로그인 API
+         (V7 ``crawlNewPage``) 로 ``salePrice`` 만 추출 (회원가 ❌, 의도된 동작).
 
     세션 등록:
       ``python -m scripts.musinsa_login`` 으로 1회 수동 로그인.
@@ -316,19 +333,37 @@ class MusinsaCrawler(AbstractCrawler):
         )
 
     def _fetch_single(self, product_url: str) -> CrawlResult:
-        default_acc = _get_default_musinsa_account()
-        if self.prefer_member_price and default_acc:
-            db_source, acc_key = default_acc
-            try:
-                from .musinsa_playwright import MusinsaPlaywrightCrawler
-                return MusinsaPlaywrightCrawler(account_name=acc_key).fetch(product_url)
-            except Exception as e:
-                import logging
-                logging.getLogger(__name__).warning(
-                    "[musinsa] Playwright 회원가 크롤 실패 (account=%s) — 비로그인 API fallback. err=%s: %s",
-                    acc_key, type(e).__name__, e,
-                )
-        return self._fetch_via_api(product_url)
+        # 비회원가 모드 (다중 색상 variant 사이즈 추출 전용) — 의도적으로 비로그인 API 사용
+        if not self.prefer_member_price:
+            return self._fetch_via_api(product_url)
+
+        # ── 회원가 모드: 반드시 로그인 상태로만 크롤. 로그인 불가 시 비로그인 폴백 금지 (막는다) ──
+        #    사용자 정책 (2026-06-05): 비로그인 가격은 회원가가 아님 → 잘못된 매입가 = 금전 손실.
+        #    기존엔 Playwright 실패 시 _fetch_via_api 로 조용히 폴백했으나, 이제 예외를 위로 전파한다.
+        from .base import LoginExpiredError
+        # strict=True → DB 조회 실패는 그대로 전파(로그인 만료로 위장 ❌). 계정이 진짜
+        # 없을 때만 None → 아래서 LoginExpiredError 로 차단.
+        default_acc = _get_default_musinsa_account(strict=True)
+        if not default_acc:
+            raise LoginExpiredError(
+                "musinsa",
+                "대표 크롤 계정 미지정 또는 세션 파일 없음 — 회원가 크롤 불가 (비로그인 폴백 차단)",
+            )
+        db_source, acc_key = default_acc
+        from .musinsa_playwright import MusinsaPlaywrightCrawler
+        # Playwright 예외(LoginExpiredError 등)는 잡지 않고 위로 전파 → 호출자가 차단/재로그인 처리
+        result = MusinsaPlaywrightCrawler(account_name=acc_key).fetch(product_url)
+        # account_name(storage_state) 모드는 비로그인 페이지를 자동 감지하지 못하므로,
+        # 결과에 로그인 마커가 전무하면(세션 만료로 비로그인 크롤됨) 여기서 막는다.
+        if result.options and not any(
+            o.get("login_marker_present") or o.get("is_member_price")
+            for o in result.options
+        ):
+            raise LoginExpiredError(
+                "musinsa",
+                f"로그인 마커 없음 — 세션 만료 추정 (account={acc_key}, 비로그인 폴백 차단)",
+            )
+        return result
 
     # ── 메타: V7 __NEXT_DATA__ goodsNm/brandName/normalPrice/salePrice 와 동일 의미 ──
     def _fetch_meta(self, product_id: str, product_url: str) -> dict:
