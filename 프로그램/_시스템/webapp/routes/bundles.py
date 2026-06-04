@@ -900,22 +900,49 @@ def api_list_source_urls(code):
                             BundleSourceUrl.sort_order, BundleSourceUrl.id)
                   .all()):
             _rows_by_key[r.source_key].append(r)
+        # [2026-06-05] URL별 크롤 상태 — 실패 URL 빨강·재크롤(모달)용.
+        #   SourceProduct(last_price>0)=성공, error/미크롤=실패. 매트릭스 대시보드와 동일 기준.
+        from lemouton.sources.models import SourceProduct as _SP
+        from lemouton.sources.service import normalize_url as _nu
+        _crawl_idx = {}
+        try:
+            for _sp in (s.query(_SP.url, _SP.last_price, _SP.last_status)
+                        .filter(_SP.deleted_at.is_(None)).all()):
+                if _sp.url:
+                    _crawl_idx[_nu(_sp.url)] = (_sp.last_price, _sp.last_status)
+        except Exception:
+            _crawl_idx = {}
+        def _crawl_state(u):
+            rec = _crawl_idx.get(_nu(u)) if u else None
+            ok = bool(rec and rec[0] and rec[0] > 0)
+            return ok, (rec[1] if rec else 'not_crawled'), (rec[0] if rec else None)
         for sk in all_keys:
             rows = _rows_by_key.get(sk, [])
             if rows:
-                urls[sk] = [{
-                    'id': r.id,
-                    'url': r.url,
-                    'label': r.label or '',
-                    'sort_order': r.sort_order,
-                    'option_ids': link_map.get(r.id, []),
-                } for r in rows]
+                urls[sk] = []
+                for r in rows:
+                    _ok, _stt, _pr = _crawl_state(r.url)
+                    urls[sk].append({
+                        'id': r.id,
+                        'url': r.url,
+                        'label': r.label or '',
+                        'sort_order': r.sort_order,
+                        'option_ids': link_map.get(r.id, []),
+                        'crawled': _ok,
+                        'last_status': _stt,
+                        'last_price': _pr,
+                    })
             else:
                 legacy = getattr(m, f'url_{sk}', None) if sk in VALID_SOURCE_KEYS else None
-                urls[sk] = [{
-                    'id': None, 'url': legacy, 'label': '',
-                    'sort_order': 0, 'option_ids': [],
-                }] if legacy else []
+                if legacy:
+                    _ok, _stt, _pr = _crawl_state(legacy)
+                    urls[sk] = [{
+                        'id': None, 'url': legacy, 'label': '',
+                        'sort_order': 0, 'option_ids': [],
+                        'crawled': _ok, 'last_status': _stt, 'last_price': _pr,
+                    }]
+                else:
+                    urls[sk] = []
 
         # 옵션 매트릭스 정보 — 프론트가 빠른 선택 칩 + 매트릭스 그릴 때 사용
         import json as _json

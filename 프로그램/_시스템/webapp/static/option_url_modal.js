@@ -404,6 +404,14 @@
       .oum-url-tog:hover, .oum-url-copy:hover { background:#F0FDF4; }
       .oum-url-del { color:#dc2626; border-color:#fecaca; }
       .oum-url-del:hover { background:#FEF2F2; }
+      /* [2026-06-05] 크롤 실패 URL — 빨강 카드 + ❌ 배지 + 🔄 재크롤 */
+      .oum-url-card.crawl-fail { border-color:#fca5a5; background:#FFF7F7; }
+      .oum-url-card.crawl-fail .oum-url-ch { background:#FEF2F2; }
+      .oum-url-cnt.fail { background:#FEE2E2; }
+      .oum-url-cnt.fail b { color:#dc2626; }
+      .oum-url-recrawl { background:#E4002B; color:#fff; border:1px solid #E4002B; border-radius:7px; padding:0 11px; height:33px; font-size:12px; font-weight:800; cursor:pointer; white-space:nowrap; }
+      .oum-url-recrawl:hover { background:#c00; }
+      .oum-url-failmsg { padding:8px 14px; background:#FEF2F2; color:#B91C1C; font-size:11.5px; font-weight:700; line-height:1.5; border-top:1px dashed #fca5a5; }
       /* [2026-05-27] 카드 미니 액션 — 순서 변경 ↑↓ + 복사 ⎘ */
       .oum-url-actions { display:inline-flex; gap:2px; }
       .oum-url-mini { background:#fff; border:1px solid #d1d6db; border-radius:6px; width:33px; height:33px; display:inline-flex; align-items:center; justify-content:center; font-size:18px; color:#4e5968; cursor:pointer; padding:0; line-height:1; transition:all .12s; }
@@ -501,8 +509,10 @@
   // ───────────────────────────────────────────────────────────
   //                       MAIN ENTRY
   // ───────────────────────────────────────────────────────────
-  async function openOptionUrlModal(bundleCode) {
+  async function openOptionUrlModal(bundleCode, opts) {
     if (!bundleCode) { alert('모음전 코드를 찾을 수 없어요.'); return; }
+    // [2026-06-05] opts.focusSourceKey — 매트릭스 실패 카드 클릭 시 해당 소싱처 탭을 우선 활성화.
+    const _focusSourceKey = (opts && typeof opts === 'object') ? (opts.focusSourceKey || null) : null;
     injectStyle();
 
     // 상태
@@ -672,6 +682,9 @@
               dbId: u.id,
               label: u.label || '',
               url: u.url || '',
+              // [2026-06-05] 크롤 상태 — 실패 URL 빨강·재크롤 표시용 (신규 추가 URL은 undefined)
+              crawled: u.crawled,
+              lastStatus: u.last_status || null,
               option_keys: [...new Set(
                 (u.option_ids || [])
                   .map(sku => keyBySku[sku])
@@ -767,7 +780,9 @@
     //   2) openUrlId  — 저장된 dbId 의 URL 카드가 현재 탭에 있으면 자동 펼침
     const lastState = loadLastState(bundleCode);
     const savedSrc = lastState && lastState.currentSrc;
-    if (savedSrc && state.sources.find(s => s.key === savedSrc)) {
+    if (_focusSourceKey && state.sources.find(s => s.key === _focusSourceKey)) {
+      state.currentSrc = _focusSourceKey;   // 실패 카드 클릭 → 해당 소싱처 탭 우선
+    } else if (savedSrc && state.sources.find(s => s.key === savedSrc)) {
       state.currentSrc = savedSrc;
     } else {
       state.currentSrc = state.sources[0]?.key || 'lemouton';
@@ -1325,6 +1340,10 @@
       const isOpen = state.openUrlId === u.tempId;
       const totalActive = state.selected.size;
       const mapped = (u.option_keys || []).length;
+      // [2026-06-05] 크롤 실패 URL — 빨강 카드 + ❌ 배지 + 🔄 재크롤. (신규 추가 URL=undefined 는 정상 취급)
+      const isFail = u.crawled === false;
+      const statusTxt = u.lastStatus === 'error' ? '응답 오류'
+        : (u.lastStatus === 'not_crawled' ? '아직 크롤 안 됨' : (u.lastStatus || '실패'));
 
       // [2026-05-27 B1] URL input 옆에 ↗ 바로가기 버튼 — URL 있을 때만 표시
       const goBtn = u.url && u.url.trim()
@@ -1332,18 +1351,20 @@
         : '';
       // [2026-05-27] 드래그앤드랍 — 카드 전체 draggable + 드래그 핸들 ⋮⋮ 표시
       //   복사 ⎘ 버튼은 유지 (시안 v8 선택 후 디자인 교체 예정)
-      let html = `<div class="oum-url-card ${isOpen ? 'open' : ''}" data-url-id="${u.tempId}" draggable="true">
+      let html = `<div class="oum-url-card ${isOpen ? 'open' : ''}${isFail ? ' crawl-fail' : ''}" data-url-id="${u.tempId}" draggable="true">
         <div class="oum-url-ch">
           <span class="oum-url-drag" title="드래그해서 순서 변경" data-url-drag>⋮⋮</span>
           <span class="oum-url-num">${num}</span>
           <input class="oum-url-label" data-field="label" value="${esc(u.label)}" placeholder="라벨 (선택)">
           <input class="oum-url-input" data-field="url" value="${esc(u.url)}" placeholder="URL 입력">
           ${goBtn}
-          <span class="oum-url-cnt" title="이 URL 에 매핑된 옵션 / 전체 활성 옵션">📌 <b>${mapped}</b>/${totalActive}</span>
+          <span class="oum-url-cnt ${isFail ? 'fail' : ''}" title="이 URL 에 매핑된 옵션 / 전체 활성 옵션">📌 <b>${mapped}</b>/${totalActive}</span>
+          ${isFail ? `<button class="oum-url-recrawl" data-url-recrawl type="button" title="이 URL 다시 크롤">🔄 재크롤</button>` : ''}
           <button class="oum-url-tog" data-url-tog type="button">${isOpen ? '▾ 닫기' : '▸ 매핑'}</button>
           <button class="oum-url-copy" data-url-copy type="button" title="이 카드 그대로 복사">📋 복사</button>
           <button class="oum-url-del" data-url-del type="button">✕ 삭제</button>
-        </div>`;
+        </div>
+        ${isFail ? `<div class="oum-url-failmsg">❌ 크롤 실패 (${esc(statusTxt)}) — 이 URL 의 옵션 <b>${mapped}건</b>은 가격/재고를 못 받았어요. 🔄 재크롤하거나 URL 을 확인하세요.</div>` : ''}`;
 
       if (isOpen) {
         html += `<div class="oum-url-body">${renderUrlBody(u)}</div>`;
@@ -1926,6 +1947,19 @@
         if (tgt && tgt !== state.rightTab) {
           state.rightTab = tgt;
           renderRight();
+        }
+        return;
+      }
+      // [2026-06-05] 크롤 실패 URL 재크롤 — 크롤은 로컬 크롤러에서 실행되므로
+      //   여기선 해당 URL 을 새 탭으로 열어 사용자가 페이지 점검·로컬 재수집하게 안내.
+      const recrawlBtn = e.target.closest('[data-url-recrawl]');
+      if (recrawlBtn) {
+        const card = recrawlBtn.closest('[data-url-id]');
+        const u = (state.urls[state.currentSrc] || []).find(x => String(x.tempId) === (card && card.dataset.urlId));
+        if (u && u.url) {
+          if (confirm('이 URL 을 다시 크롤할까요?\n\n' + u.url + '\n\n※ 크롤은 로컬 크롤러에서 실행됩니다. [확인] 시 페이지를 새 탭으로 엽니다 — 정상 표시되면 로컬 크롤러로 재수집하세요.')) {
+            window.open(u.url, '_blank', 'noopener');
+          }
         }
         return;
       }

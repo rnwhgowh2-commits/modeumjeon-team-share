@@ -848,8 +848,74 @@ def get_option_matrix(code: str):
                 ],
             }
 
+        # [2026-06-05] 소싱처별 URL·매핑 집계 — 듀얼 미니바 카드 + 실패 모달 공용 단일 진실 원천.
+        #   url_try/url_done : 소싱처에 등록된 고유 URL 수 / 그중 크롤 성공(last_price>0) URL 수
+        #   map_try/map_done : 옵션-URL 매핑 건수(중복 미제거 = 모달 N열 총합) / 그중 크롤 성공 건수
+        #   fail_urls        : 크롤 실패 URL 목록(label·url·영향 매핑수·status) — 모달 빨강/재크롤용
+        #   ※ 매트릭스 프론트가 o.sources 로 세던 값(URL 중복 제거되어 부정확)을 대체.
+        source_stats = {}
+        try:
+            from lemouton.sourcing.models import (
+                BundleSourceUrl as _BSU, OptionSourceUrlLink as _OSL)
+            from lemouton.sourcing.source_registry import get_labels as _lbls
+            from sqlalchemy import func as _func
+            _label_map = _lbls()
+            _key_dom = {
+                'lemouton': 'lemouton.co.kr', 'ss_lemouton': 'smartstore.naver.com',
+                'musinsa': 'musinsa.com', 'ssf': 'ssfshop.com',
+                'lotteon': 'lotteon.com', 'ssg': 'ssg.com',
+            }
+            _k2reg = {}
+            for _k, _dom in _key_dom.items():
+                for _rid, _rv in source_dict.items():
+                    if _dom in (_rv.get('main_url') or ''):
+                        _k2reg[_k] = _rid
+                        break
+            # 크롤 성공 판정용 — url(정규화) → (last_price, last_status)
+            _crawl_idx = {}
+            for _sp in (s.query(SourceProduct)
+                        .filter(SourceProduct.deleted_at.is_(None)).all()):
+                if _sp.url:
+                    _crawl_idx[_norm_url(_sp.url)] = (_sp.last_price, _sp.last_status)
+            _bsus = (s.query(_BSU)
+                     .filter(_BSU.model_code.in_(model_codes)).all())
+            _bids = [b.id for b in _bsus]
+            _lcnt = {}
+            if _bids:
+                for _bid, _c in (s.query(_OSL.bundle_source_url_id, _func.count())
+                                 .filter(_OSL.bundle_source_url_id.in_(_bids))
+                                 .group_by(_OSL.bundle_source_url_id).all()):
+                    _lcnt[_bid] = _c
+            for _b in _bsus:
+                _sk = _b.source_key
+                _rid = _k2reg.get(_sk)
+                _key = _rid if _rid is not None else 'key:' + str(_sk)
+                _st = source_stats.setdefault(str(_key), {
+                    'source_id': _rid, 'source_key': _sk,
+                    'source_name': _label_map.get(_sk, _sk),
+                    'url_try': 0, 'url_done': 0, 'map_try': 0, 'map_done': 0,
+                    'fail_urls': [],
+                })
+                _rec = _crawl_idx.get(_norm_url(_b.url)) if _b.url else None
+                _ok_url = bool(_rec and _rec[0] and _rec[0] > 0)
+                _links = _lcnt.get(_b.id, 0)
+                _st['url_try'] += 1
+                _st['map_try'] += _links
+                if _ok_url:
+                    _st['url_done'] += 1
+                    _st['map_done'] += _links
+                else:
+                    _st['fail_urls'].append({
+                        'id': _b.id, 'label': _b.label or '', 'url': _b.url,
+                        'affected': _links,
+                        'status': (_rec[1] if _rec else 'not_crawled'),
+                    })
+        except Exception:
+            source_stats = {}
+
         return _ok(
             sources=list(source_dict.values()),
+            source_stats=source_stats,
             tree=tree,
             options=opt_rows,
             bundle_group=bundle_group_payload,

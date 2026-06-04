@@ -1548,6 +1548,17 @@
 /* [2026-06-03] 소싱처별 최근 크롤 시각 — 회색, frac 아래 작게 */
 .sm-side-h .srcs-grid .scell .crawl-time { font-size: 12px; color: #B0B8C1; font-weight: 600; margin-top: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .sm-side-h .srcs-grid .scell.partial::after { content: '⚠'; position: absolute; right: 8px; top: 8px; font-size: 13px; color: #92400E; }
+/* [2026-06-05] 듀얼 미니바 — 🔗URL(완료/시도) + 📌매핑(완료/시도, N열 총합) */
+.sm-side-h .srcs-grid .scell .dual-bars { margin-top: 8px; display: flex; flex-direction: column; gap: 6px; }
+.sm-side-h .srcs-grid .scell .dual-bars .dbar .dbar-lab { display: flex; justify-content: space-between; font-size: 11px; font-weight: 800; color: #6B7684; }
+.sm-side-h .srcs-grid .scell .dual-bars .dbar .dbar-track { height: 6px; background: #E5E8EB; border-radius: 3px; overflow: hidden; margin-top: 2px; }
+.sm-side-h .srcs-grid .scell .dual-bars .dbar .dbar-fill { height: 100%; border-radius: 3px; transition: width .3s; }
+.sm-side-h .srcs-grid .scell .dual-bars .dbar .dbar-fill.u { background: #3182F6; }
+.sm-side-h .srcs-grid .scell .dual-bars .dbar .dbar-fill.m { background: #7C3AED; }
+.sm-side-h .srcs-grid .scell .dual-bars .dbar .dbar-fill.bad { background: #E4002B; }
+.sm-side-h .srcs-grid .scell .scell-fail { margin-top: 8px; background: #FEE2E2; color: #B91C1C; font-size: 11px; font-weight: 800; border-radius: 6px; padding: 5px 8px; line-height: 1.4; }
+.sm-side-h .srcs-grid .scell.has-fail { cursor: pointer; }
+.sm-side-h .srcs-grid .scell.has-fail:hover { box-shadow: 0 0 0 2px #FCA5A5; }
 
 /* Winner 카드 — 강조 강화 */
 .sm-side-h .winner-blk {

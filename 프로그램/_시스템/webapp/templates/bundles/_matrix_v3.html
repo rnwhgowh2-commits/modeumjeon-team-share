@@ -2854,33 +2854,38 @@
       if (lowestCntBySrc[sid] != null) lowestCntBySrc[sid]++;
     });
 
-    // ─── 사이트별 진행 (URL 등록 분모 / 완료 분자) ───
-    // 분모 = 그 사이트에 URL 등록된 옵션 수
-    // 분자 = 그 중 crawled_price 있는 옵션 수
+    // ─── [2026-06-05] 사이트별 진행 — 백엔드 source_stats(단일 진실) 사용 ───
+    //   urlTry/urlDone = 고유 URL 시도/완료, mapTry/mapDone = 매핑 건수 시도/완료(N열 총합).
+    //   (기존엔 o.sources 로 세어 URL 중복 제거로 부정확 → 백엔드 집계로 교체)
+    //   lastFetched(최근 크롤 시각)만 o.sources 에서 보강.
+    const SS = DATA.source_stats || {};
     const srcStats = {};
     sources.forEach(s => {
-      srcStats[s.id] = { name: s.name, urls: 0, done: 0, running: 0, lastFetched: null };
+      const ss = SS[String(s.id)] || {};
+      srcStats[s.id] = {
+        name: s.name,
+        urlTry: ss.url_try || 0, urlDone: ss.url_done || 0,
+        mapTry: ss.map_try || 0, mapDone: ss.map_done || 0,
+        failUrls: ss.fail_urls || [],
+        lastFetched: null,
+      };
     });
     opts.forEach(o => {
       (o.sources || []).forEach(src => {
         const st = srcStats[src.source_id];
         if (!st) return;
-        if (src.product_url) st.urls++;
-        if (src.crawled_price && src.crawled_price > 0) st.done++;
-        else if (src.last_status === 'running') st.running++;
-        // [2026-06-03] 소싱처별 최근 크롤 시각 = 옵션들 last_fetched_at 중 최댓값.
-        //   (ISO UTC 문자열이라 사전식 비교로 최신 판별 가능)
+        // [2026-06-03] 소싱처별 최근 크롤 시각 = 옵션들 last_fetched_at 중 최댓값(사전식 비교).
         if (src.last_fetched_at && (!st.lastFetched || src.last_fetched_at > st.lastFetched)) {
           st.lastFetched = src.last_fetched_at;
         }
       });
     });
 
-    // ─── 전체 진행률 ───
+    // ─── 전체 진행률 (매핑 건수 기준) ───
     const totalCells = opts.length * sources.length;
     let doneCells = 0;
     let totalUrls = 0;
-    Object.values(srcStats).forEach(st => { doneCells += st.done; totalUrls += st.urls; });
+    Object.values(srcStats).forEach(st => { doneCells += st.mapDone; totalUrls += st.mapTry; });
     const overallPct = totalUrls ? Math.round((doneCells / totalUrls) * 100) : 0;
 
     // Phase 6 — 캐시 노출 (renderSiteCell 가 사용)
@@ -2899,21 +2904,22 @@
           <div class="v"><b>${overallPct}%</b><small>전체</small></div>
         </div>
         <div class="meta">
-          <div class="lbl">📈 진행</div>
+          <div class="lbl">📈 진행 (매핑 기준)</div>
           <div class="val">${doneCells} / ${totalUrls}</div>
-          <div class="sub">${sources.length} 사이트 · ${opts.length} 옵션</div>
+          <div class="sub">${sources.length} 사이트 · 옵션 ${opts.length}</div>
         </div>
       </div>
       <div class="srcs-grid">`;
     sources.forEach(s => {
       const st = srcStats[s.id];
-      const bp = brandPrefix(s.name);
-      const allOptsCount = opts.length;
-      const isPartial = st.urls < allOptsCount;
-      const isDone = st.urls > 0 && st.done === st.urls;
-      const isWait = st.urls === 0;
-      const pct = st.urls ? Math.round((st.done / st.urls) * 100) : 0;
-      const stateCls = isWait ? 'wait' : (isPartial ? 'partial' : '');
+      // [2026-06-05] 듀얼 미니바 — URL(완료/시도) + 매핑(완료/시도, N열 총합).
+      const isWait = st.urlTry === 0;                                  // 등록 URL 없음 = 대기
+      const pct = st.mapTry ? Math.round((st.mapDone / st.mapTry) * 100) : 0;  // 매핑 기준 %
+      const urlPct = st.urlTry ? Math.round((st.urlDone / st.urlTry) * 100) : 0;
+      const failUrlCnt = st.urlTry - st.urlDone;
+      const failMapCnt = st.mapTry - st.mapDone;
+      const hasFail = failUrlCnt > 0 || failMapCnt > 0;                // 크롤 실패 존재
+      const stateCls = isWait ? 'wait' : (hasFail ? 'partial' : '');
       const pctTxt = isWait ? '—' : pct;
       // [2026-06-03] 소싱처별 최근 크롤 시각 (회색) — 없으면 '크롤 전'.
       //   last_fetched_at 은 타임존 없는 UTC 문자열 → 'Z' 보정 후 파싱(로컬시간 오해 방지).
@@ -2922,12 +2928,18 @@
         : null;
       const crawlTxt = _lfUtc ? ('🕒 ' + fmtRelDate(_lfUtc) + ' 크롤') : '🕒 크롤 전';
       const crawlTitle = _lfUtc ? new Date(_lfUtc).toLocaleString('ko-KR') : '아직 크롤 안 함';
-      // Phase 7 — 모바일 앱 이미지 로고 사용
+      // 실패 시 카드 클릭 → 소싱처 URL 매핑 모달(해당 소싱처 탭) 열림 (data-fail-src).
       sideHHtml += `
-        <div class="scell ${stateCls}" title="${escapeHtml(s.name)} · ${st.done}/${st.urls} URL">
+        <div class="scell ${stateCls}${hasFail ? ' has-fail' : ''}" ${hasFail ? `data-fail-src="${s.id}" data-fail-key="${st.failUrls[0] ? (SS[String(s.id)]||{}).source_key||'' : ''}"` : ''} title="${escapeHtml(s.name)} · URL ${st.urlDone}/${st.urlTry} · 매핑 ${st.mapDone}/${st.mapTry}">
           <div class="top"><span class="site-logo">${brandIconHtml(s.name, 'sm')}</span><span class="nm">${escapeHtml(s.name)}</span></div>
           <div class="pct">${pctTxt}${!isWait ? '%' : ''}</div>
-          <div class="frac">${st.done}/${st.urls} · URL ${st.urls}${isPartial && !isWait ? '개만' : ''}</div>
+          <div class="dual-bars">
+            <div class="dbar"><div class="dbar-lab"><span>🔗 URL</span><span>${st.urlDone}/${st.urlTry}</span></div>
+              <div class="dbar-track"><div class="dbar-fill u" style="width:${urlPct}%"></div></div></div>
+            <div class="dbar"><div class="dbar-lab"><span>📌 매핑</span><span>${st.mapDone}/${st.mapTry}</span></div>
+              <div class="dbar-track"><div class="dbar-fill ${hasFail ? 'bad' : 'm'}" style="width:${pct}%"></div></div></div>
+          </div>
+          ${hasFail ? `<div class="scell-fail">⚠ ${failUrlCnt ? `URL ${failUrlCnt}개` : ''}${failUrlCnt && failMapCnt ? '·' : ''}${failMapCnt ? `매핑 ${failMapCnt}건` : ''} 실패 · 클릭하여 보기</div>` : ''}
           <div class="crawl-time" title="${crawlTitle}">${crawlTxt}</div>
         </div>`;
     });
@@ -2966,6 +2978,14 @@
 
   // ─── 선택·크롤 액션 이벤트 (event delegation, 1회만 바인딩) ───
   document.addEventListener('click', e => {
+    // 0) [2026-06-05] 크롤 실패 소싱처 카드 클릭 → 소싱처 URL 매핑 모달(해당 소싱처 탭·실패 URL 빨강)
+    const failCell = e.target.closest('.scell.has-fail[data-fail-src]');
+    if (failCell) {
+      if (typeof window.openOptionUrlModal === 'function') {
+        window.openOptionUrlModal(BUNDLE_CODE, { focusSourceKey: failCell.dataset.failKey || null });
+      }
+      return;
+    }
     // 1) 옵션 행 클릭 → 선택 토글
     const optCell = e.target.closest('#sm-mtx-container tr[data-sm-sku] td.opt');
     if (optCell) {
