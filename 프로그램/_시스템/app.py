@@ -185,6 +185,17 @@ def create_app() -> Flask:
             if ms >= 500:
                 app.logger.warning(f"[perf-slow] {ms:6.0f}ms {_req.method} {_req.full_path}")
 
+        # [2026-06-04 FIX] 정적 JS/CSS 는 항상 재검증(no-cache) — 배포 후에도 브라우저가
+        #   1일 캐시(SEND_FILE_MAX_AGE_DEFAULT)로 옛 코드를 들고 있어 수정이 사용자에게
+        #   안 닿던 문제(매트릭스 OFF 버그가 '안 고쳐진다'의 진짜 원인). ETag 기반 304 로
+        #   대역폭은 거의 그대로 + 파일 변경 시 즉시 새 버전 다운로드.
+        try:
+            _p = _req.path or ''
+            if _p.startswith('/static/') and (_p.endswith('.js') or _p.endswith('.css')):
+                resp.headers['Cache-Control'] = 'no-cache, must-revalidate'
+        except Exception:
+            pass
+
         # gzip 압축 — 텍스트성 응답만, 256B 이상, 클라이언트가 수락 시
         try:
             if (
