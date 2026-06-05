@@ -461,10 +461,16 @@ def compute_breakdown(session, *, sku: str, source_id: int, sale_price: float,
     except Exception:
         pass
 
-    # ★ 2026-06-05 — 무신사(src=3) 보강 조회: OptionSourceUrl 미연결(모음전/단품 매칭) 옵션은
-    #   option_source_links → SourceProduct.dynamic_benefits_json 에서 무신사 breakdown(표면가/
-    #   등급적립/무신사머니 금액)을 읽는다. SourceProduct 레벨이라 relogin(옵션레벨)에 안 덮인다.
-    if str(source_id) == '3' and not _dynamic_benefits.get('surface_price'):
+    # ★ 2026-06-05 — 전 소싱처 보강 조회: OptionSourceUrl 미연결(모음전/단품 매칭) 옵션은
+    #   option_source_links → SourceProduct.dynamic_benefits_json 에서 동적 혜택(무신사 등급적립·
+    #   무신사머니, SSF 멤버십포인트·기프트포인트, SSG MONEY, 롯데오너스 등)을 읽는다.
+    #   SourceProduct 레벨이라 relogin(옵션레벨)에 안 덮인다. source_id→site 매핑(source_registry 기준).
+    _SITE_BY_SRC = {1: 'lemouton', 2: 'ss_lemouton', 3: 'musinsa', 4: 'ssf', 5: 'lotteon', 6: 'ssg'}
+    try:
+        _site_for = _SITE_BY_SRC.get(int(source_id))
+    except (TypeError, ValueError):
+        _site_for = None
+    if _site_for and not _dynamic_benefits:
         try:
             from sqlalchemy import text as _sqltext
             import json as _json
@@ -472,20 +478,24 @@ def compute_breakdown(session, *, sku: str, source_id: int, sale_price: float,
                 "SELECT sp.dynamic_benefits_json FROM option_source_links l "
                 "JOIN source_options so ON l.source_option_id = so.id "
                 "JOIN source_products sp ON so.source_product_id = sp.id "
-                "WHERE l.canonical_sku = :sku AND sp.site = 'musinsa' "
+                "WHERE l.canonical_sku = :sku AND sp.site = :site "
                 "AND so.deleted_at IS NULL AND sp.deleted_at IS NULL "
                 "AND sp.dynamic_benefits_json IS NOT NULL"
-            ), {'sku': sku}).fetchall()
+            ), {'sku': sku, 'site': _site_for}).fetchall()
             _best2 = None
             for (_dj,) in _rows2:
                 try:
                     _d2 = _json.loads(_dj) or {}
                 except Exception:
                     continue
-                if _d2.get('surface_price'):
-                    # 여러 listing 중 등급적립 금액이 가장 큰(모음전 회원가) breakdown 채택
-                    if _best2 is None or (_d2.get('grade_reward_amount') or 0) > (_best2.get('grade_reward_amount') or 0):
+                if not _d2:
+                    continue
+                # 무신사: 표면가 있고 등급적립 금액 최대(모음전 회원가) 채택. 그 외: 첫 non-empty.
+                if _site_for == 'musinsa':
+                    if _d2.get('surface_price') and (_best2 is None or (_d2.get('grade_reward_amount') or 0) > (_best2.get('grade_reward_amount') or 0)):
                         _best2 = _d2
+                elif _best2 is None:
+                    _best2 = _d2
             if _best2:
                 _dynamic_benefits = _best2
         except Exception:
