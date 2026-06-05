@@ -344,7 +344,7 @@ def _option_matrix_data(code: str):
         opts = (
             s.query(Option)
             .filter(Option.model_code.in_(model_codes))
-            .order_by(Option.model_code, Option.color_code, Option.size_code)
+            .order_by(Option.model_code, Option.sort_order, Option.color_code, Option.size_code)
             .all()
         )
         sku_list = [o.canonical_sku for o in opts]
@@ -680,6 +680,7 @@ def _option_matrix_data(code: str):
             color_groups.setdefault(o.color_code, []).append({
                 'sku': o.canonical_sku, 'size': o.size_code,
                 'src_count': len(sources_for_opt),
+                'sort_order': o.sort_order,  # [순서 v33] 사용자 배치 순서
             })
             # [2026-05-25 UI-3] 재고 = SSOT (inv_stock_dict = get_stock_batch 결과)만 사용
             #   배경: 박스히어로 import 가 boxhero_stock_total snapshot 갱신 + InventoryTx 생성
@@ -827,10 +828,17 @@ def _option_matrix_data(code: str):
                 'pur_loss_cp': _pur_loss_cp,
             })
 
-        # 트리 구조화 (color → sizes)
+        # [순서 v33] 트리 구조화 (color → sizes) — sort_order 우선 (사용자가 매트릭스에서 배치한 순서).
+        #   sort_order 미설정(모두 0/None) 시엔 기존처럼 이름·사이즈 순으로 자연 폴백.
+        def _so(v):
+            return v if isinstance(v, int) else 9999
         tree = []
-        for color_code in sorted(color_groups.keys()):
-            sizes = sorted(color_groups[color_code], key=lambda x: x['size'])
+        _color_order = sorted(
+            color_groups.keys(),
+            key=lambda cc: (min(_so(r.get('sort_order')) for r in color_groups[cc]), cc),
+        )
+        for color_code in _color_order:
+            sizes = sorted(color_groups[color_code], key=lambda x: (_so(x.get('sort_order')), x['size']))
             tree.append({
                 'color_code': color_code,
                 'sizes': sizes,

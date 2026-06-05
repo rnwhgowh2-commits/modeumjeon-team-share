@@ -2351,7 +2351,7 @@ def get_option_payload_preview(gid: int):
         model_codes = [m.model_code for m in g.models]
         opts = (s.query(Option)
                 .filter(Option.model_code.in_(model_codes))
-                .order_by(Option.model_code, Option.color_code, Option.size_code)
+                .order_by(Option.model_code, Option.sort_order, Option.color_code, Option.size_code)
                 .all()) if model_codes else []
         opt_dicts = [{
             'canonical_sku': o.canonical_sku,

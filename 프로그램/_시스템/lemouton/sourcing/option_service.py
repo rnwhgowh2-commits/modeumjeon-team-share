@@ -142,6 +142,32 @@ def create_combination_options(
                 if opt.canonical_sku not in created_set:
                     protected.append(opt.canonical_sku)
 
+    # [순서 v33] axis(steps) 순서대로 Option.sort_order 기록.
+    #   → 매트릭스 메인 트리·옵션 목록·업로드가 사용자가 배치한 순서를 따르게 한다.
+    #   (정렬 실패해도 옵션 저장 자체는 진행 — best effort)
+    try:
+        from .option_combo import generate_combinations as _gen_combos
+
+        _order_index: dict[tuple, int] = {}
+        for _idx, _c in enumerate(_gen_combos(steps)):
+            _order_index[tuple(_c['values'])] = _idx
+
+        def _axes_of(_opt) -> tuple:
+            try:
+                _v = json.loads(_opt.axis_values_json or '[]')
+                if _v:
+                    return tuple(_v)
+            except Exception:
+                pass
+            return tuple(x for x in [_opt.color_code or '', _opt.size_code or ''] if x)
+
+        for _opt in session.query(Option).filter_by(model_code=model_code).all():
+            _oi = _order_index.get(_axes_of(_opt))
+            if _oi is not None and _opt.sort_order != _oi:
+                _opt.sort_order = _oi
+    except Exception:
+        pass
+
     session.commit()
     return {
         'created': len(created),

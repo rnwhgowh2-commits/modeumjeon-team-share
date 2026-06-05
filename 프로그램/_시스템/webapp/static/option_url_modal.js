@@ -121,8 +121,18 @@
       .oum-axis-in { display:grid; grid-template-columns:160px 1fr; gap:13.5px; margin-bottom:12px; }
       .oum-axis-in input { border:1.5px solid #d1d6db; border-radius:9px; padding:22.5px 21px; font:inherit; font-size:25.5px; background:#fff; }
       .oum-axis-in input:focus { border-color:#3B82F6; outline:none; }
-      .oum-axis-chips { display:flex; flex-wrap:wrap; gap:7.5px; }
-      .oum-axis-chips .c { background:#EFF6FF; color:#1d4ed8; border-radius:18px; padding:9px 16.5px; font-size:20.25px; }
+      .oum-axis-chips { display:flex; flex-wrap:wrap; gap:7.5px; align-items:center; }
+      .oum-axis-chips .c { background:#EFF6FF; color:#1d4ed8; border-radius:18px; padding:9px 16.5px; font-size:20.25px; display:inline-flex; align-items:center; gap:6px; cursor:grab; user-select:none; }
+      .oum-axis-chips .c .dh { color:#9bb7e8; font-size:18px; cursor:grab; line-height:1; }
+      .oum-axis-chips .c.dragging { opacity:.35; }
+      .oum-axis-chips .c.over { outline:3px dashed #3B82F6; outline-offset:2px; }
+      .oum-drag-hint { font-size:16.5px; color:#b0b8c1; margin-left:4px; }
+      .oum-sortbtns { display:inline-flex; gap:5px; }
+      .oum-sortb { font:inherit; font-size:18px; cursor:pointer; border:1.5px solid #d1d6db; background:#fff; color:#475569; border-radius:9px; padding:7px 14px; font-weight:600; }
+      .oum-sortb:hover { background:#EFF6FF; border-color:#bfdbfe; color:#1d4ed8; }
+      .oum-mtx-table th.oum-th-drag { cursor:grab; }
+      .oum-mtx-table th.oum-th-dragging { opacity:.4; }
+      .oum-mtx-table th.oum-th-over { outline:2.5px dashed #3B82F6; outline-offset:-3px; background:#dbeafe; }
       .oum-add-axis { width:100%; background:#fff; border:2px dashed #bfdbfe; color:#3B82F6; padding:16.5px; border-radius:13.5px; font:inherit; font-size:22.5px; cursor:pointer; font-weight:600; margin-bottom:13.5px; }
       .oum-add-axis:disabled { opacity:.4; cursor:not-allowed; }
 
@@ -849,13 +859,19 @@
               <span class="pos">${POS[i] || `${i + 1}축`}</span>
               <span class="rec">💡 추천: ${REC[i] || '-'}</span>
             </div>
-            ${state.axes.length > 1 ? `<button class="del" data-axis-del="${i}" type="button">삭제</button>` : ''}
+            <div style="display:flex; align-items:center; gap:6px; margin-left:auto;">
+              <span class="oum-sortbtns">
+                <button class="oum-sortb" data-axis-sort="${i}" data-dir="asc" type="button" title="오름차순 정렬">▲ 오름</button>
+                <button class="oum-sortb" data-axis-sort="${i}" data-dir="desc" type="button" title="내림차순 정렬">▼ 내림</button>
+              </span>
+              ${state.axes.length > 1 ? `<button class="del" data-axis-del="${i}" type="button">삭제</button>` : ''}
+            </div>
           </div>
           <div class="oum-axis-in">
             <input data-axis-name="${i}" placeholder="축 이름 (예: ${REC[i] || '용량'})" value="${esc(axis.name)}">
             <input data-axis-values="${i}" placeholder="값 — 쉼표 구분 (예: 그레이,블랙,옐로우)" value="${esc(axis.values)}">
           </div>
-          <div class="oum-axis-chips">${parseValues(axis.values).map(v => `<span class="c">${esc(v)}</span>`).join('')}</div>
+          <div class="oum-axis-chips">${parseValues(axis.values).map(v => `<span class="c">${esc(v)}</span>`).join('')}<span class="oum-drag-hint">순서 변경: 아래 매트릭스 헤더를 드래그하세요</span></div>
         </div>`;
       });
 
@@ -963,12 +979,12 @@
       let html = `<table class="oum-mtx-table"><thead><tr>
         <th class="corner" data-corner-axes='${esc(JSON.stringify(baseFilter))}'>⌐</th>`;
       colAxis.values.forEach(cv => {
-        html += `<th data-col-axis="${esc(colAxis.name)}" data-col-val="${esc(cv)}" data-base='${esc(JSON.stringify(baseFilter))}'>${esc(cv)}</th>`;
+        html += `<th class="oum-th-drag" draggable="true" data-col-axis="${esc(colAxis.name)}" data-col-val="${esc(cv)}" data-base='${esc(JSON.stringify(baseFilter))}' title="클릭=열 전체 토글 · 드래그=순서 변경">${esc(cv)}</th>`;
       });
       html += `</tr></thead><tbody>`;
 
       rowAxis.values.forEach(rv => {
-        html += `<tr><th data-row-axis="${esc(rowAxis.name)}" data-row-val="${esc(rv)}" data-base='${esc(JSON.stringify(baseFilter))}'>${esc(rv)}</th>`;
+        html += `<tr><th class="oum-th-drag" draggable="true" data-row-axis="${esc(rowAxis.name)}" data-row-val="${esc(rv)}" data-base='${esc(JSON.stringify(baseFilter))}' title="클릭=행 전체 토글 · 드래그=순서 변경">${esc(rv)}</th>`;
         colAxis.values.forEach(cv => {
           // 키 만들기 — base + col + row 조합
           const arr = new Array(valid.length);
@@ -1662,6 +1678,18 @@
         }
         return;
       }
+      // [순서 v33] 축 정렬 (오름/내림) — 값이 모두 숫자면 숫자 정렬, 아니면 한글/문자 정렬
+      const sortb = e.target.closest('[data-axis-sort]');
+      if (sortb) {
+        const ai = +sortb.dataset.axisSort;
+        const vals = parseValues(state.axes[ai].values);
+        const numeric = vals.length > 0 && vals.every(v => v.trim() !== '' && isFinite(v.trim()));
+        vals.sort((a, b) => numeric ? (parseFloat(a) - parseFloat(b)) : String(a).localeCompare(String(b), 'ko'));
+        if (sortb.dataset.dir === 'desc') vals.reverse();
+        state.axes[ai].values = vals.join(',');
+        recalcMatrix(); rerender();
+        return;
+      }
       // 빠른 선택 칩
       const qs = e.target.closest('[data-qs-axis]');
       if (qs) {
@@ -1718,6 +1746,86 @@
         console.error('[oum] click handler error:', err);
       }
     });
+
+    // ─── [순서 v33] 칩 드래그앤드랍 수동 순서 변경 (axis.values 재배열) ───
+    let _dragChip = null;
+    function _clearDragMarks() {
+      $('#oum-left').querySelectorAll('.oum-axis-chips .c.dragging, .oum-axis-chips .c.over')
+        .forEach(x => x.classList.remove('dragging', 'over'));
+    }
+    $('#oum-left').addEventListener('dragstart', e => {
+      const c = e.target.closest('[data-axis-chip]');
+      if (!c) return;
+      _dragChip = c; c.classList.add('dragging');
+      try { e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', ''); } catch (_) {}
+    });
+    $('#oum-left').addEventListener('dragover', e => {
+      const c = e.target.closest('[data-axis-chip]');
+      if (!c || !_dragChip || c.dataset.axisChip !== _dragChip.dataset.axisChip || c === _dragChip) return;
+      e.preventDefault();
+      $('#oum-left').querySelectorAll('.oum-axis-chips .c.over').forEach(x => x.classList.remove('over'));
+      c.classList.add('over');
+    });
+    $('#oum-left').addEventListener('drop', e => {
+      const c = e.target.closest('[data-axis-chip]');
+      if (!c || !_dragChip || c.dataset.axisChip !== _dragChip.dataset.axisChip) { _clearDragMarks(); _dragChip = null; return; }
+      e.preventDefault();
+      const ai = +_dragChip.dataset.axisChip;
+      const from = +_dragChip.dataset.chipIdx, to = +c.dataset.chipIdx;
+      _clearDragMarks(); _dragChip = null;
+      if (from === to || isNaN(from) || isNaN(to)) return;
+      const vals = parseValues(state.axes[ai].values);
+      const moved = vals.splice(from, 1)[0];
+      vals.splice(to, 0, moved);
+      state.axes[ai].values = vals.join(',');
+      recalcMatrix(); rerender();
+    });
+    $('#oum-left').addEventListener('dragend', () => { _clearDragMarks(); _dragChip = null; });
+
+    // ─── [순서 v33] 매트릭스 헤더 드래그 → 행/열 순서 변경 (헤더 클릭=토글은 그대로 유지) ───
+    let _dragHdr = null; // { axisName, val, kind:'col'|'row' }
+    function _clearHdrMarks() {
+      $('#oum-left').querySelectorAll('.oum-th-dragging, .oum-th-over').forEach(x => x.classList.remove('oum-th-dragging', 'oum-th-over'));
+    }
+    function _hdrInfo(th) {
+      if (!th) return null;
+      if (th.dataset.colAxis != null) return { axisName: th.dataset.colAxis, val: th.dataset.colVal, kind: 'col' };
+      if (th.dataset.rowAxis != null) return { axisName: th.dataset.rowAxis, val: th.dataset.rowVal, kind: 'row' };
+      return null;
+    }
+    $('#oum-left').addEventListener('dragstart', e => {
+      const th = e.target.closest('.oum-th-drag');
+      const info = _hdrInfo(th);
+      if (!info) return;
+      _dragHdr = info; th.classList.add('oum-th-dragging');
+      try { e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', ''); } catch (_) {}
+    });
+    $('#oum-left').addEventListener('dragover', e => {
+      const th = e.target.closest('.oum-th-drag');
+      const info = _hdrInfo(th);
+      if (!info || !_dragHdr || info.kind !== _dragHdr.kind) return;
+      e.preventDefault();
+      $('#oum-left').querySelectorAll('.oum-th-over').forEach(x => x.classList.remove('oum-th-over'));
+      th.classList.add('oum-th-over');
+    });
+    $('#oum-left').addEventListener('drop', e => {
+      const th = e.target.closest('.oum-th-drag');
+      const info = _hdrInfo(th);
+      if (!info || !_dragHdr || info.kind !== _dragHdr.kind) { _clearHdrMarks(); _dragHdr = null; return; }
+      e.preventDefault();
+      const axisName = _dragHdr.axisName, movingVal = _dragHdr.val, targetVal = info.val;
+      _clearHdrMarks(); _dragHdr = null;
+      if (movingVal === targetVal) return;
+      const ax = state.axes.find(a => a.name === axisName);
+      if (!ax) return;
+      const vals = parseValues(ax.values);
+      const from = vals.indexOf(movingVal), to = vals.indexOf(targetVal);
+      if (from < 0 || to < 0) return;
+      const m = vals.splice(from, 1)[0]; vals.splice(to, 0, m);
+      ax.values = vals.join(',');
+      recalcMatrix(); rerender();
+    });
+    $('#oum-left').addEventListener('dragend', () => { _clearHdrMarks(); _dragHdr = null; });
 
     // ─── 좌측 input 변경 — 한글 IME 안전 + focus 유지 ───
     // [핵심] composition 이벤트 추적 — IME 활성 중 rerender 절대 skip
