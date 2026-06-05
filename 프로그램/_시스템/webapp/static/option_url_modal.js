@@ -1167,8 +1167,7 @@
         html += '</details>';
       });
 
-      // 적용 버튼
-      html += `<div class="oum-inv-foot-new">
+      // [v31] 적용 버튼 제거 — on/off 우측 패널 자동 반영. (foot div 통째 삭제)
       return html;
     }
 
