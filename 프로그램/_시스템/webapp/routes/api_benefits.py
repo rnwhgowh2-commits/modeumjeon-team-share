@@ -792,6 +792,7 @@ def compute_breakdown(session, *, sku: str, source_id: int, sale_price: float,
             'name': it.benefit_name,
             'type': it.benefit_type,
             'value': float(it.value or 0),
+            'category': getattr(it, 'category', None),  # 사용자 지정 표시 카테고리 (NULL=휴리스틱)
             'enabled': is_effective_enabled,
             'disabled_by_card_off': _by_card_off,
         })

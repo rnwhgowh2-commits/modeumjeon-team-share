@@ -355,3 +355,78 @@
 .cell-fx-row .val { font-size: 18px; }
 .cell-fx-row .del { font-size: 17px; }
 
+/* ════════════════════════════════════════════════════════════
+   2026-06-05 v5 — 새 혜택 추가 = 모달 팝업 + 분류 select + 원/% 단위 토글
+   ════════════════════════════════════════════════════════════ */
+/* 화면 정중앙 모달 (인라인 → 팝업). 좌측 accent 제거, 큰 그림자. */
+.cell-fx-pop .add-form.add-modal:not([hidden]) {
+  position: fixed;
+  left: 50%; top: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 100001;
+  width: 380px; max-width: 92vw;
+  max-height: 88vh; overflow-y: auto;
+  margin: 0;
+  border: 1px solid var(--m-line);
+  border-left: 1px solid var(--m-line);   /* 좌측 검정 accent 제거 */
+  border-radius: 16px;
+  padding: 22px 24px;
+  box-shadow: 0 18px 54px rgba(17,24,39,.30);
+  animation: addmodal-pop .18s ease;
+}
+@keyframes addmodal-pop {
+  from { opacity: 0; transform: translate(-50%, -47%) scale(.97); }
+  to   { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+}
+/* 모달 백드롭 (화면 전체 딤) */
+.cell-fx-pop .add-backdrop {
+  position: fixed; inset: 0;
+  background: rgba(17, 24, 39, .42);
+  z-index: 100000;
+}
+.cell-fx-pop .add-backdrop[hidden] { display: none !important; }
+.cell-fx-pop .add-form.add-modal .title {
+  font-size: 18px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--m-line);
+  margin-bottom: 2px;
+}
+
+/* ── 분류 select (5 카테고리 드롭다운) ── */
+.cell-fx-pop .add-form .cat-select {
+  width: 100%;
+  border: 1px solid var(--m-border);
+  padding: 11px 38px 11px 14px;
+  border-radius: 7px;
+  font-size: 16px;
+  font-family: inherit;
+  font-weight: 600;
+  color: var(--m-ink);
+  background-color: var(--m-white);
+  cursor: pointer;
+  box-sizing: border-box;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'><path d='M1 1l5 5 5-5' stroke='%238B95A1' stroke-width='2' fill='none' stroke-linecap='round' stroke-linejoin='round'/></svg>");
+  background-repeat: no-repeat;
+  background-position: right 14px center;
+}
+.cell-fx-pop .add-form .cat-select:focus {
+  outline: 0;
+  border-color: var(--m-ink);
+  box-shadow: 0 0 0 3px var(--m-fill);
+}
+
+/* ── 값 옆 원/% 단위 토글 (pills 재사용, 컴팩트) ── */
+.cell-fx-pop .add-form .val-row .unit-pills {
+  flex: 0 0 auto;
+  padding: 3px;
+  gap: 3px;
+}
+.cell-fx-pop .add-form .val-row .unit-pills .pill {
+  flex: 0 0 auto;
+  min-width: 44px;
+  padding: 8px 12px;
+}
+

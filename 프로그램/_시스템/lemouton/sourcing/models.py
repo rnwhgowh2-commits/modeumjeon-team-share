@@ -393,6 +393,8 @@ class SourceBenefitTemplate(Base):
     benefit_name = Column(String(120), nullable=False)
     benefit_type = Column(String(10), nullable=False, default='rate')  # 'rate' | 'amount'
     value = Column(Float, nullable=False, default=0.0)  # rate: 0.01 = 1% / amount: 5000 = 5,000원
+    # 2026-06-05: 표시 카테고리 — '정액'|'정률'|'결제'|'캐시백'|'기타' (NULL=이름/타입 휴리스틱 자동분류)
+    category = Column(String(16))
     enabled = Column(Boolean, nullable=False, default=True)
     sort_order = Column(Integer, default=0)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
@@ -440,6 +442,8 @@ class OptionBenefitOverride(Base):
     benefit_name = Column(String(120), nullable=False)
     benefit_type = Column(String(10), nullable=False, default='rate')
     value = Column(Float, nullable=False, default=0.0)
+    # 2026-06-05: 표시 카테고리 — '정액'|'정률'|'결제'|'캐시백'|'기타' (NULL=휴리스틱 자동분류)
+    category = Column(String(16))
     enabled = Column(Boolean, nullable=False, default=True)
     sort_order = Column(Integer, default=0)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))

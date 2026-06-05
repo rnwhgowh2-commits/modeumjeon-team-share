@@ -32,10 +32,20 @@
       e.preventDefault();
       e.stopPropagation();
       form.hidden = false;
+      const bd = form.parentElement && form.parentElement.querySelector('.add-backdrop');
+      if (bd) bd.hidden = false;
       addBtn.style.display = 'none';
       resetForm(form);
       const nameInput = form.querySelector('input[name=name]');
       if (nameInput) nameInput.focus();
+      return;
+    }
+
+    // 모달 백드롭 클릭 → 닫기
+    const bdrop = e.target.closest('.add-backdrop');
+    if (bdrop) {
+      const form2 = bdrop.parentElement && bdrop.parentElement.querySelector('.add-form');
+      if (form2) closeForm(form2);
       return;
     }
 
@@ -126,17 +136,36 @@
     updatePreview(form);
   });
 
+  // ─── 분류(카테고리) 선택 → 기본 단위 자동 (정액=원, 그 외=%). 사용자가 단위 토글로 재변경 가능.
+  document.addEventListener('change', function(e) {
+    const sel = e.target.closest('.add-form .cat-select');
+    if (!sel) return;
+    const form = sel.closest('.add-form');
+    const defType = (sel.value === '정액') ? 'amount' : 'rate';
+    setUnit(form, defType);
+    updatePreview(form);
+  });
+
+  // 단위 토글 상태 설정 (pills + unit span 동기화)
+  function setUnit(form, type) {
+    const isAmount = type === 'amount';
+    form.querySelectorAll('.unit-pills .pill').forEach(p => {
+      const on = (p.dataset.type === type);
+      p.classList.toggle('on', on);
+      p.setAttribute('aria-checked', String(on));
+    });
+    const unitEl = form.querySelector('.unit');
+    if (unitEl) unitEl.textContent = isAmount ? '원' : '%';
+  }
+
   // ─── 폼 reset ─────────────────────────────────────────
   function resetForm(form) {
     form.querySelectorAll('input[type=text]').forEach(i => i.value = '');
-    // type 기본 = 정률
-    form.querySelectorAll('.pill').forEach(c => {
-      const isRate = c.dataset.type === 'rate';
-      c.classList.toggle('on', isRate);
-      c.setAttribute('aria-checked', String(isRate));
-    });
-    const unitEl = form.querySelector('.unit');
-    if (unitEl) unitEl.textContent = '%';
+    // 분류 기본 = 정률
+    const catSel = form.querySelector('.cat-select');
+    if (catSel) catSel.value = '정률';
+    // 단위 기본 = % (정률)
+    setUnit(form, 'rate');
     // scope 기본 = 모음전 전체 (bundle)
     const drop = form.querySelector('.b2-drop');
     if (drop) {
@@ -159,6 +188,8 @@
   // ─── 폼 닫기 ──────────────────────────────────────────
   function closeForm(form) {
     form.hidden = true;
+    const bd = form.parentElement && form.parentElement.querySelector('.add-backdrop');
+    if (bd) bd.hidden = true;
     const pop = form.closest('.cell-fx-pop');
     if (pop) {
       const addBtn = pop.querySelector('.pop-add');
@@ -225,13 +256,15 @@
   async function submitForm(form, saveBtn) {
     const name = form.querySelector('input[name=name]').value.trim();
     const val = parseFloat(form.querySelector('input[name=value]').value.replace(/[^0-9.]/g, ''));
-    const type = form.querySelector('.pill.on')?.dataset.type || 'rate';
+    const type = form.querySelector('.unit-pills .pill.on')?.dataset.type || 'rate';
+    const category = form.querySelector('.cat-select')?.value || null;
     const scope = form.querySelector('.b2-drop')?.dataset.active || 'bundle';
 
     const payload = {
       name: name,
       benefit_type: type === 'amount' ? 'amount' : 'rate',
       value: type === 'amount' ? val : (val / 100),
+      category: category,
       scope: scope,
       source_id: parseInt(form.dataset.sourceId, 10),
       canonical_sku: form.dataset.sku || null,

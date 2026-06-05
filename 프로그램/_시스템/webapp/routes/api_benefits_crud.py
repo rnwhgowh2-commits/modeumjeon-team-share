@@ -143,6 +143,12 @@ def add_benefit():
     except (TypeError, ValueError):
         return _err(f"source_id 정수 필수 (받음: {source_id})")
 
+    # 표시 카테고리 (정액/정률/결제/캐시백/기타) — 미지정·미허용 시 None(휴리스틱 자동분류)
+    _ALLOWED_CATS = ('정액', '정률', '결제', '캐시백', '기타')
+    category = (data.get('category') or '').strip() or None
+    if category not in _ALLOWED_CATS:
+        category = None
+
     canonical_sku = (data.get('canonical_sku') or '').strip() or None
     bundle_id = data.get('bundle_id')
     if bundle_id:
@@ -164,6 +170,7 @@ def add_benefit():
                 benefit_name=name,
                 benefit_type=benefit_type,
                 value=value,
+                category=category,
                 enabled=1,
                 sort_order=999,
             )
@@ -213,6 +220,7 @@ def add_benefit():
                 benefit_name=name,
                 benefit_type=benefit_type,
                 value=value,
+                category=category,
                 enabled=1,
                 sort_order=999,
             )

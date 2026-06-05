@@ -3414,7 +3414,10 @@
     //   무신사: 등급적립·무신사머니는 compute_breakdown 이 크롤 breakdown 에서 항목으로 주입.
     // ★ 2026-06-05 v4 — 5 카테고리 (① 정액 ② 정률 ③ 결제(택1) ④ 추가캐시백 ⑤ 기타). 이름+타입 휴리스틱 분류.
     const _isPay = (nm) => ['카드', '페이', '네이버', '무신사머니', '청구할인', '캐시백'].some(t => (nm || '').includes(t));
+    // 사용자 지정 카테고리(새 혜택 추가 모달) → 그룹 키. NULL 이면 이름/타입 휴리스틱.
+    const _CAT2GRP = {'정액':'amount', '정률':'rate', '결제':'pay', '캐시백':'cashback', '기타':'etc'};
     const _catOf = (it) => {
+      if (it.category && _CAT2GRP[it.category]) return _CAT2GRP[it.category]; // ★ 사용자 지정 우선
       const nm = it.name || '';
       if (_isPay(nm)) return 'pay';                                  // ③ 결제 (카드/페이/머니/캐시백)
       if (/리뷰|후기/.test(nm)) return 'amount';                      // ① 정액 (리뷰·후기 = 고정 원)
@@ -3468,7 +3471,8 @@
     const addRowHtml = `
       <div class="add-zone">
         <button class="pop-add" type="button">＋ 새 혜택 추가</button>
-        <div class="add-form"
+        <div class="add-backdrop" hidden></div>
+        <div class="add-form add-modal"
              data-sku="${escapeHtml(sku)}"
              data-source-id="${srcId}"
              data-source-name="${escapeHtml(_srcName)}"
@@ -3483,17 +3487,24 @@
             <input type="text" name="name" placeholder="예: 멤버십 추가 적립" autocomplete="off">
           </div>
           <div class="field">
-            <label>타입</label>
-            <div class="pills">
-              <button type="button" class="pill" data-type="amount">정액</button>
-              <button type="button" class="pill on" data-type="rate">정률</button>
-            </div>
+            <label>분류</label>
+            <select class="cat-select" name="category">
+              <option value="정액">① 정액 할인</option>
+              <option value="정률" selected>② 정률 할인</option>
+              <option value="결제">③ 결제 할인 (카드·페이)</option>
+              <option value="캐시백">④ 추가 캐시백</option>
+              <option value="기타">⑤ 기타 할인</option>
+            </select>
           </div>
           <div class="field">
-            <label>값</label>
+            <label>값 · 단위</label>
             <div class="val-row">
               <input type="text" name="value" class="val" inputmode="decimal" placeholder="0">
-              <span class="unit">%</span>
+              <div class="pills unit-pills">
+                <button type="button" class="pill" data-type="amount">원</button>
+                <button type="button" class="pill on" data-type="rate">%</button>
+              </div>
+              <span class="unit" hidden>%</span>
             </div>
           </div>
           <div>
