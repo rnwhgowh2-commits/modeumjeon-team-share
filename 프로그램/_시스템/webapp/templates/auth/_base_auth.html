@@ -4,6 +4,24 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block title %}로그인{% endblock %} · 모음전</title>
+  {# 파비콘 (브라우저 탭 아이콘) #}
+  <link rel="icon" type="image/png" sizes="32x32" href="{{ url_for('static', filename='icons/favicon-32.png') }}">
+  <link rel="apple-touch-icon" href="{{ url_for('static', filename='icons/apple-touch-icon.png') }}">
+  {# 링크 미리보기 카드 (카카오톡·슬랙·페북 등) — Open Graph + Twitter
+     이미지는 절대 URL 이어야 메신저가 가져갈 수 있어 도메인을 고정한다 (mou-m.com). #}
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="모음전 솔루션">
+  <meta property="og:title" content="모음전 솔루션">
+  <meta property="og:description" content="팀 공유 · 재고 · 모음전 · 소싱 · 발주 관리 시스템">
+  <meta property="og:url" content="https://www.mou-m.com{{ request.path }}">
+  <meta property="og:image" content="https://www.mou-m.com{{ url_for('static', filename='icons/og-card.png') }}">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="Yb.company · 모음전 솔루션">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="모음전 솔루션">
+  <meta name="twitter:description" content="팀 공유 · 재고 · 모음전 · 소싱 · 발주 관리 시스템">
+  <meta name="twitter:image" content="https://www.mou-m.com{{ url_for('static', filename='icons/og-card.png') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='toss.css') }}">
   <style>
     body {
