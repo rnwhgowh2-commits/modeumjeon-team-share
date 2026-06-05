@@ -1,6 +1,0 @@
-2026/05/06-23:07:59.678 4c14 Creating DB C:\Users\seung\OneDrive\바탕 화면\모음전 관리 프로그램\프로그램\_시스템\data\profiles\lotteon_ditodalal\Default\IndexedDB\https_github.com_0.indexeddb.leveldb since it was missing.
-2026/05/06-23:07:59.686 4c14 Reusing MANIFEST C:\Users\seung\OneDrive\바탕 화면\모음전 관리 프로그램\프로그램\_시스템\data\profiles\lotteon_ditodalal\Default\IndexedDB\https_github.com_0.indexeddb.leveldb/MANIFEST-000001
-2026/05/06-23:08:04.461 4c14 Level-0 table #5: started
-2026/05/06-23:08:04.463 4c14 Level-0 table #5: 862 bytes OK
-2026/05/06-23:08:04.466 4c14 Delete type=0 #3
-2026/05/06-23:08:04.467 4c14 Manual compaction at level-0 from (begin) .. (end); will stop at (end)

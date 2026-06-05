@@ -1,6 +1,0 @@
-2026/05/05-21:37:08.096 aabc Creating DB C:\Users\seung\OneDrive\바탕 화면\모음전 관리 프로그램\프로그램\_시스템\data\profiles\musinsa_rnwhgowh\Default\IndexedDB\chrome-extension_nmmicjeknamkfloonkhhcjmomieiodli_0.indexeddb.leveldb since it was missing.
-2026/05/05-21:37:08.107 aabc Reusing MANIFEST C:\Users\seung\OneDrive\바탕 화면\모음전 관리 프로그램\프로그램\_시스템\data\profiles\musinsa_rnwhgowh\Default\IndexedDB\chrome-extension_nmmicjeknamkfloonkhhcjmomieiodli_0.indexeddb.leveldb/MANIFEST-000001
-2026/05/05-21:37:08.121 a8d0 Level-0 table #5: started
-2026/05/05-21:37:08.124 a8d0 Level-0 table #5: 1321 bytes OK
-2026/05/05-21:37:08.128 a8d0 Delete type=0 #3
-2026/05/05-21:37:08.128 a8d0 Manual compaction at level-0 from '\x00\x01\x00\x00\x00' @ 72057594037927935 : 1 .. '\x00\x02\x00\x00\x00' @ 0 : 0; will stop at (end)

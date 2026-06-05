@@ -27,13 +27,14 @@ def create_app() -> Flask:
     app.jinja_env.auto_reload = True
     # trailing slash 자동 매칭 — /bundles 와 /bundles/ 둘 다 정상 처리
     app.url_map.strict_slashes = False
-    # 정적 자원 캐싱 — /static/* 응답에 Cache-Control: max-age=86400 (1일).
-    # 한국 → SJC 엣지 우회로 RTT ~670ms 인 환경에서 매 페이지마다 toss.css(172KB)
-    # 등 재검증 비용을 제거. 동적 라우트에는 영향 없음.
-    app.config["SEND_FILE_MAX_AGE_DEFAULT"] = 86400
+    # 정적 자원 캐싱 — /static/* 응답에 Cache-Control: max-age=2592000 (30일).
+    # [2026-06-05 PERF] 아래 _static_auto_version 이 모든 정적 URL 에 파일별 ?v=<mtime>
+    #   을 자동 주입하므로, 파일이 바뀌면 URL 이 바뀌어 즉시 새 버전을 받는다(freshness 보장).
+    #   따라서 안전하게 장기 캐시 가능 → 같은 작업 세션 내 페이지 이동 시 재검증 왕복 0.
+    app.config["SEND_FILE_MAX_AGE_DEFAULT"] = 2592000
 
     # [2026-06-03] 정적 캐시버스트 — toss.css 변경 시 ?v=<수정시각> 로 즉시 반영.
-    #   배경: 위 1일 캐시 때문에 CSS 수정해도 브라우저가 옛 파일을 써서 안 바뀌던 문제.
+    #   배경: 위 캐시 때문에 CSS 수정해도 브라우저가 옛 파일을 써서 안 바뀌던 문제.
     #   toss.css mtime 을 버전으로 주입 → 파일 바뀔 때만 URL 변경 → 캐시 자동 무효화.
     @app.context_processor
     def _inject_static_ver():
@@ -42,6 +43,20 @@ def create_app() -> Flask:
             return {'STATIC_VER': str(int(os.path.getmtime(_p)))}
         except Exception:
             return {'STATIC_VER': '1'}
+
+    # [2026-06-05 PERF] 모든 정적 URL 에 파일별 수정시각(mtime)을 ?v= 로 자동 주입.
+    #   기존엔 toss.css(STATIC_VER) 만 버스트했고, 나머지 JS/CSS 는 후처리에서
+    #   'no-cache, must-revalidate' 로 강제돼 매 페이지 로드마다 서버 재검증(왕복)이 발생 → 느렸음.
+    #   이 훅으로 모든 정적파일이 "바뀌면 URL 변경(=즉시 갱신), 안 바뀌면 동일 URL(=캐시 재사용,
+    #   재검증 왕복 0)" 가 되어 freshness 와 속도를 동시에 확보. (url_for('static',...) 전부 적용)
+    @app.url_defaults
+    def _static_auto_version(endpoint, values):
+        if endpoint == 'static' and values.get('filename') and 'v' not in values:
+            try:
+                _fp = os.path.join(app.static_folder, values['filename'])
+                values['v'] = int(os.path.getmtime(_fp))
+            except Exception:
+                pass
 
     import lemouton.sourcing.models  # noqa: F401  # SQLAlchemy 모델 등록
     import lemouton.sourcing.models_pricing  # noqa: F401  # v3 — 소싱처사전+가격설정
@@ -166,7 +181,7 @@ def create_app() -> Flask:
 
     _GZIP_TYPES = (
         'text/html', 'text/css', 'text/plain', 'text/xml',
-        'application/json', 'application/javascript', 'application/xml',
+        'application/json', 'application/javascript', 'text/javascript', 'application/xml',
         'image/svg+xml',
     )
 
@@ -185,37 +200,33 @@ def create_app() -> Flask:
             if ms >= 500:
                 app.logger.warning(f"[perf-slow] {ms:6.0f}ms {_req.method} {_req.full_path}")
 
-        # [2026-06-04 FIX] 정적 JS/CSS 는 항상 재검증(no-cache) — 배포 후에도 브라우저가
-        #   1일 캐시(SEND_FILE_MAX_AGE_DEFAULT)로 옛 코드를 들고 있어 수정이 사용자에게
-        #   안 닿던 문제(매트릭스 OFF 버그가 '안 고쳐진다'의 진짜 원인). ETag 기반 304 로
-        #   대역폭은 거의 그대로 + 파일 변경 시 즉시 새 버전 다운로드.
+        # [2026-06-05 PERF] gzip 압축 — 텍스트성 응답(동적 HTML/JSON + 정적 JS/CSS/SVG) 모두.
+        #   기존엔 정적파일(send_file = direct_passthrough)이 압축에서 제외돼 toss.css(188KB)·
+        #   toss.js(141KB) 등이 무압축 전송됐음. 실측: 정적 JS/CSS 합계 694KB → 172KB (75%↓).
+        #   no-cache 강제는 제거(위 _static_auto_version 의 ?v=mtime 으로 freshness 보장하므로 불필요).
         try:
-            _p = _req.path or ''
-            if _p.startswith('/static/') and (_p.endswith('.js') or _p.endswith('.css')):
-                resp.headers['Cache-Control'] = 'no-cache, must-revalidate'
-        except Exception:
-            pass
-
-        # gzip 압축 — 텍스트성 응답만, 256B 이상, 클라이언트가 수락 시
-        try:
+            _ctype = (resp.content_type or '').split(';')[0].strip()
             if (
-                resp.status_code < 300
-                and resp.content_length is not None and resp.content_length >= 256
+                resp.status_code == 200
+                and _ctype in _GZIP_TYPES
                 and 'Content-Encoding' not in resp.headers
                 and 'gzip' in (_req.headers.get('Accept-Encoding') or '').lower()
-                and (resp.content_type or '').split(';')[0].strip() in _GZIP_TYPES
-                and resp.direct_passthrough is False
             ):
-                buf = _BytesIO()
-                with _gzip.GzipFile(fileobj=buf, mode='wb', compresslevel=5) as gz:
-                    gz.write(resp.get_data())
-                gz_data = buf.getvalue()
-                if len(gz_data) < (resp.content_length or 0):
-                    resp.set_data(gz_data)
-                    resp.headers['Content-Encoding'] = 'gzip'
-                    resp.headers['Content-Length'] = str(len(gz_data))
-                    vary = resp.headers.get('Vary')
-                    resp.headers['Vary'] = (vary + ', Accept-Encoding') if vary else 'Accept-Encoding'
+                if resp.direct_passthrough:
+                    resp.direct_passthrough = False  # 정적파일 본문 읽기 허용
+                _data = resp.get_data()
+                if len(_data) >= 256:
+                    buf = _BytesIO()
+                    with _gzip.GzipFile(fileobj=buf, mode='wb', compresslevel=5) as gz:
+                        gz.write(_data)
+                    gz_data = buf.getvalue()
+                    if len(gz_data) < len(_data):
+                        resp.set_data(gz_data)
+                        resp.headers['Content-Encoding'] = 'gzip'
+                        resp.headers['Content-Length'] = str(len(gz_data))
+                        vary = resp.headers.get('Vary')
+                        if not vary or 'accept-encoding' not in vary.lower():
+                            resp.headers['Vary'] = (vary + ', Accept-Encoding') if vary else 'Accept-Encoding'
         except Exception:
             pass  # 압축 실패 시 원본 그대로 — 절대 사용자 영향 X
         return resp

@@ -44,6 +44,9 @@ _시스템/data/_inspect_*
 _시스템/data/_resolve_*
 
 # ─── Playwright 브라우저 프로필 (2.7GB, 재생성 가능, per-PC) ───
+# [2026-06-05] 경로 수정 — 실제 트리는 프로그램/_시스템/... 이라 기존 '_시스템/...' 패턴이
+#   anchor 불일치로 동작 안 했음(그래서 1.5만개가 계속 추적됨). **/ 로 어디서든 매칭되게 교정.
+**/data/profiles/
 _시스템/data/profiles/
 # ─── 소싱처 세션 storage_state (로그인 쿠키 = 인증정보, 커밋 금지) ───
 **/data/sessions/
