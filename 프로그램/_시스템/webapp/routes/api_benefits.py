@@ -700,6 +700,24 @@ def compute_breakdown(session, *, sku: str, source_id: int, sale_price: float,
             if '무신사머니 fallback' in (_it.benefit_name or ''):
                 _it.enabled = False
 
+    # ★ 2026-06-05 — 결제 수단 택1 (사용자 정책 "결제방식은 1개만 되어야해").
+    #   결제 수단(카드/페이/네이버/무신사머니/청구할인/캐시백)은 상호배타 — 동시 결제 불가.
+    #   enabled 인 결제 수단이 2개 이상이면 차감액이 '가장 큰' 1개만 남기고 나머지 비활성.
+    #   (적립류 '포인트/후기/리뷰/등급'은 결제수단 아님 → 누적 유지.) 토큰 목록은
+    #   source_benefit_templates 전수 대조로 검증(2026-06-05). 신규 결제수단 추가 시 토큰 보강.
+    def _is_payment(nm):
+        nm = nm or ''
+        return any(t in nm for t in ('카드', '페이', '네이버', '무신사머니', '청구할인', '캐시백'))
+    _pay = [(_k, _it) for (_k, _it) in effective if _it.enabled and _is_payment(_it.benefit_name)]
+    if len(_pay) > 1:
+        def _approx_deduct(it):
+            v = float(it.value or 0)
+            return v if (it.benefit_type or 'rate') == 'amount' else float(sale_price) * v
+        _best_it = max((it for _k, it in _pay), key=_approx_deduct)
+        for _k, _it in _pay:
+            if _it is not _best_it:
+                _it.enabled = False
+
     # 누적 차감
     base = float(sale_price)
     steps = []
