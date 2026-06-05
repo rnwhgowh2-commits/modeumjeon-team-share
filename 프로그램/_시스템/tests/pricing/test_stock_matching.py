@@ -147,10 +147,16 @@ class TestPickCheapestBuyable:
         srcs = [self._src(100000, status='error'), self._src(118000)]
         assert _pick_cheapest_buyable(srcs)['crawled_price'] == 118000
 
-    def test_fallback_to_priced_when_none_buyable(self):
-        # 재고있는 게 하나도 없으면(전부 품절/실패) 가격있는 것 중 최저로 fallback.
+    def test_fallback_skips_error_keeps_soldout(self):
+        # [2026-06-05] 재고있는 게 없으면(전부 품절/실패) → 크롤 성공(error X)한 것 중 최저로 fallback.
+        #   error(stale)는 폴백에서도 절대 제외. 품절이라도 '실가격'인 130000 을 선택
+        #   (기존엔 더 싼 error 120000 을 끌어쓰던 stale 누수 — 봉쇄).
         srcs = [self._src(130000, out=True), self._src(120000, status='error')]
-        assert _pick_cheapest_buyable(srcs)['crawled_price'] == 120000
+        assert _pick_cheapest_buyable(srcs)['crawled_price'] == 130000
+
+    def test_fallback_never_uses_error_as_last_resort(self):
+        # 유일 후보가 크롤 실패면 None — stale 가격을 끝까지 원가로 쓰지 않음.
+        assert _pick_cheapest_buyable([self._src(120000, status='error')]) is None
 
     def test_no_priced_returns_none(self):
         srcs = [self._src(None), self._src(0)]

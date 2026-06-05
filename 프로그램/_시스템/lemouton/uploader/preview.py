@@ -20,7 +20,7 @@ from sqlalchemy.orm import Session
 from lemouton.sourcing.models import Model, Option
 from lemouton.sourcing.models_pricing import SourceRegistry, OptionSourceUrl, OptionPriceConfig
 from lemouton.templates.models import PriceTemplate
-from lemouton.pricing.unified import compute_market_price
+from lemouton.pricing.unified import compute_market_price, is_crawl_valid
 
 
 def _resolve_option_upload(o: Option, cfg, tpl, sources_for_opt, stock: int) -> dict:
@@ -29,9 +29,13 @@ def _resolve_option_upload(o: Option, cfg, tpl, sources_for_opt, stock: int) -> 
     Returns: {resolved_side, src: {ss,cp}, pur: {ss,cp}|None, upload: {ss,cp}}.
     """
     # 원가(소싱) = 르무통 크롤가 우선 → 임의 크롤가 → 템플릿 매입가 → 95000 (api_pricing 동일)
+    # [2026-06-05] is_crawl_valid 게이트 — 크롤 실패(error)한 소싱처의 옛 가격(stale)이
+    #   업로드 원가로 잡혀 잘못된 판매가가 마켓에 올라가던 누수 봉쇄(돈 직결, 화면·매트릭스와 동일 기준).
     _lem = next((x for x in sources_for_opt
-                 if x.get('source_id') == 'lemouton' and x.get('crawled_price')), None)
-    _any = next((x for x in sources_for_opt if x.get('crawled_price')), None) if not _lem else None
+                 if x.get('source_id') == 'lemouton'
+                 and is_crawl_valid(x.get('crawled_price'), x.get('last_status'))), None)
+    _any = next((x for x in sources_for_opt
+                 if is_crawl_valid(x.get('crawled_price'), x.get('last_status'))), None) if not _lem else None
     purchase = ((_lem or _any or {}).get('crawled_price')
                 or (tpl.boxhero_purchase_price if tpl else None)
                 or 95000)
@@ -116,9 +120,12 @@ def build_upload_preview(s: Session, code: str) -> dict:
         for lk in links:
             sp = sp_by_norm.get(_norm(lk.product_url)) if lk.product_url else None
             price = (sp.last_price if sp and sp.last_price else lk.price_cached)
+            # [2026-06-05] last_status 동반 — is_crawl_valid 게이트가 error 소싱처의
+            #   stale 가격을 업로드 원가에서 배제하려면 상태가 반드시 함께 있어야 함.
+            _status = sp.last_status if sp else None
             src_id = 'lemouton' if (src_name.get(lk.source_id, '') or '').startswith('르무통') else lk.source_id
             sku_to_sources.setdefault(lk.canonical_sku, []).append(
-                {'source_id': src_id, 'crawled_price': price})
+                {'source_id': src_id, 'crawled_price': price, 'last_status': _status})
 
     cfg_dict = {c.canonical_sku: c
                 for c in (s.query(OptionPriceConfig)

@@ -23,7 +23,7 @@ from lemouton.sourcing.models import Model, Option
 from lemouton.sourcing.models_pricing import (
     SourceRegistry, OptionSourceUrl, OptionPriceConfig, calc_auto_price,
 )
-from lemouton.pricing.unified import compute_market_price
+from lemouton.pricing.unified import compute_market_price, is_crawl_valid
 from lemouton.templates.models import PriceTemplate
 from lemouton.sources.models import SourceProduct
 
@@ -159,13 +159,20 @@ def _resolve_stock(site, raw):
 
 def _pick_cheapest_buyable(sources):
     """옵션의 소싱처들 중 "재고존재(품절X) + 크롤성공(error X) + 가격>0" 최저가.
-       없으면 가격있는 것 중 최저(품절·실패 포함). 그것도 없으면 None.
+       없으면 크롤성공+가격있는 것 중 최저(품절은 허용 — 실가격은 유효).
+       그것도 없으면 None.
        winner(★최저)·원가의 단일 정의 — 품절/stale 소싱처가 원가로 잡히는 것 방지.
+
+    [2026-06-05] 폴백도 is_crawl_valid 게이트를 통과해야 한다. 기존엔 폴백이
+       `crawled_price` 만 봐서, 모든 소싱처가 크롤 실패(error)면 옛 가격(stale)이
+       원가로 잡혀 잘못된 판매가가 계산되던 누수가 있었음. 품절(stock_out)은
+       '실가격은 받았으나 재고 0'이라 폴백 후보로 허용하되, error 는 끝까지 배제.
     """
     buyable = [s for s in sources
-               if s.get('crawled_price') and s.get('last_status') != 'error'
+               if is_crawl_valid(s.get('crawled_price'), s.get('last_status'))
                and not s.get('stock_out')]
-    priced = buyable or [s for s in sources if s.get('crawled_price')]
+    priced = buyable or [s for s in sources
+                         if is_crawl_valid(s.get('crawled_price'), s.get('last_status'))]
     if not priced:
         return None
     return min(priced, key=lambda x: x.get('crawled_price') or 9e15)
@@ -897,7 +904,11 @@ def get_option_matrix(code: str):
                     'fail_urls': [],
                 })
                 _rec = _crawl_idx.get(_norm_url(_b.url)) if _b.url else None
-                _ok_url = bool(_rec and _rec[0] and _rec[0] > 0)
+                # [2026-06-05] 성공 판정 = is_crawl_valid(가격>0 AND status!=error) 단일 게이트.
+                #   매트릭스 셀(renderSiteCell)은 last_status=='error' 면 '크롤 실패'로 표시하는데,
+                #   여기서 가격만 보면 옛 가격(stale)이 남은 실패 URL을 '성공(100%)'으로 집계해
+                #   상단 카드와 셀이 모순됨(거짓 100%). 셀·원가·업로드와 동일 기준으로 통일.
+                _ok_url = bool(_rec) and is_crawl_valid(_rec[0], _rec[1])
                 _links = _lcnt.get(_b.id, 0)
                 _st['url_try'] += 1
                 _st['map_try'] += _links

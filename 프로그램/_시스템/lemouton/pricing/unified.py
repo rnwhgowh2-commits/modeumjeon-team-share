@@ -40,6 +40,19 @@ from dataclasses import dataclass, field
 from .rounding import round_to_unit
 
 
+def is_crawl_valid(price, status) -> bool:
+    """크롤 결과를 '실가격'으로 신뢰할 수 있는가 — 단일 진실 원천.
+
+    조건: 가격 > 0  AND  last_status != 'error'.
+
+    [2026-06-05] 실패(error)한 소싱처는 예전 성공 때의 옛 가격(stale)이 그대로
+    남아 있어도 **절대 유효한 가격으로 취급하지 않는다**. 옛 가격을 성공으로
+    둔갑시키면 거짓 100%·잘못된 원가·금전 손실로 직결되기 때문(데이터 무결성 원칙).
+    화면 진행률 집계·최저가 winner·원가 선정·업로드 원가 — 전 경로 공용 게이트.
+    """
+    return bool(price and price > 0 and status != 'error')
+
+
 @dataclass
 class PriceResult:
     """통합 가격 계산 결과."""
