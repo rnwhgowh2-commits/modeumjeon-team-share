@@ -352,9 +352,19 @@ class MusinsaCrawler(AbstractCrawler):
                 "대표 크롤 계정 미지정 또는 세션 파일 없음 — 회원가 크롤 불가 (비로그인 폴백 차단)",
             )
         db_source, acc_key = default_acc
+        # [2026-06-05] 송장자동화 프로필(%LOCALAPPDATA%/invoice_profiles/무신사_{login_id})을
+        #   그대로 사용 → 사용자가 송장자동화로 로그인해둔 세션 재사용(재로그인 불필요).
+        #   account_key(영빈) 가 아니라 실제 login_id 로 프로필을 찾아야 매칭됨.
+        from lemouton.auth.sourcing_credentials import default_store as _creds_store
+        from lemouton.auth.profile_store import resolve_profile_dir
+        _c = _creds_store().load_all().get(db_source, {}).get(acc_key, {})
+        _login_id = _c.get("id", acc_key)
+        _login_method = _c.get("login_method", "direct")
+        _prof_dir = str(resolve_profile_dir(db_source, _login_id, _login_method))
         from .musinsa_playwright import MusinsaPlaywrightCrawler
         # Playwright 예외(LoginExpiredError 등)는 잡지 않고 위로 전파 → 호출자가 차단/재로그인 처리
-        result = MusinsaPlaywrightCrawler(account_name=acc_key).fetch(product_url)
+        result = MusinsaPlaywrightCrawler(
+            account_name=acc_key, profile_dir=_prof_dir).fetch(product_url)
         # account_name(storage_state) 모드는 비로그인 페이지를 자동 감지하지 못하므로,
         # 결과에 로그인 마커가 전무하면(세션 만료로 비로그인 크롤됨) 여기서 막는다.
         if result.options and not any(

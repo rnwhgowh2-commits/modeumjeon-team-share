@@ -1361,11 +1361,14 @@ def _get_default_crawl_profile(session, site_key: str, ensure_login: bool = True
            .first())
     if not acc:
         return None
-    # 실 ID 기반 프로필 디렉터리 (cookie checker 와 동일 패턴)
+    # [2026-06-05] 송장자동화와 동일 프로필 위치·네이밍으로 통일 — 사용자가 송장자동화로
+    #   이미 로그인해둔 %LOCALAPPDATA%/invoice_profiles/{...} 프로필을 그대로 재사용.
+    #   direct=한글사이트명_{id}, naver 등=site_key_method_{id}. (login_method 반영)
+    from lemouton.auth.profile_store import resolve_profile_dir
     creds = creds_default_store().load_all().get(site_key, {}).get(acc.account_key, {})
     actual_id = creds.get("id", acc.account_key)
-    profile_store = profile_default_store()
-    prof_path = profile_store.profiles_root / f"{_safe_key(site_key)}_{_safe_key(actual_id)}"
+    login_method = creds.get("login_method", "direct")
+    prof_path = resolve_profile_dir(site_key, actual_id, login_method)
 
     if not prof_path.exists():
         # 프로필 자체가 없음 → 마법사 1회 실행 필요 시 ensure_login 으로 신규 생성

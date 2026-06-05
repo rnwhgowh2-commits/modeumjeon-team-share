@@ -36,6 +36,41 @@ def _safe_key(value: str) -> str:
     return safe[:64] or "default"
 
 
+# [2026-06-05] 송장자동화(sourcing_scrapers.py)와 100% 동일한 프로필 위치·네이밍.
+#   사용자가 송장자동화로 이미 로그인해둔 프로필을 그대로 재사용 → 재로그인 불필요.
+#   · 위치: %LOCALAPPDATA%/invoice_profiles/  (프로그램 밖 → 배포·재설치에도 영구)
+#   · direct 로그인:  {site_name(한글)}_{safe(login_id)}      예) 무신사_rnwhgowh
+#   · 외부(naver 등): {site_key}_{login_method}_{safe(login_id)}  예) ssg_naver_ditodalal
+#   ※ account_key(영빈) 가 아니라 실제 login_id(rnwhgowh) 로 네이밍해야 매칭됨.
+SITE_NAME_KR = {
+    "musinsa": "무신사", "ssg": "SSG", "abc": "ABC마트", "grandstage": "그랜드스테이지",
+    "gs": "GS샵", "folder": "폴더스타일", "ssf": "SSF샵", "lotteimall": "롯데아이몰",
+    "lotteon": "롯데온", "nike": "나이키", "oliveyoung": "올리브영", "gmarket": "지마켓",
+    "fashionplus": "패션플러스",
+}
+
+
+def invoice_profiles_root() -> Path:
+    """송장자동화 프로필 루트 — %LOCALAPPDATA%/invoice_profiles/."""
+    base = os.environ.get("LOCALAPPDATA") or str(Path.home() / "AppData" / "Local")
+    return Path(base) / "invoice_profiles"
+
+
+def _safe_id(login_id: str) -> str:
+    """송장자동화 _profile_dir 와 동일 — [^\\w\\-] → _ (유니코드 word 유지)."""
+    return re.sub(r"[^\w\-]", "_", login_id or "default")
+
+
+def resolve_profile_dir(site_key: str, login_id: str,
+                        login_method: str = "direct") -> Path:
+    """송장자동화식 프로필 경로 (login_id·login_method 기반). 생성 안 함(경로만)."""
+    sid = _safe_id(login_id)
+    root = invoice_profiles_root()
+    if login_method and login_method != "direct":
+        return root / f"{site_key}_{login_method}_{sid}"
+    return root / f"{SITE_NAME_KR.get(site_key, site_key)}_{sid}"
+
+
 class ProfileStore:
     """계정별 user_data_dir 관리.
 

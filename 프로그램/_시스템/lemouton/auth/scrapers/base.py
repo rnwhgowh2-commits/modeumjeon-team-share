@@ -104,8 +104,13 @@ class BaseScraper:
         self.close()
         self._start_playwright()
 
-        profile_path = self._profile_store.profile_dir(self.site_key, account_id)
-        is_new = not self._profile_store.has_profile(self.site_key, account_id)
+        # [2026-06-05] 송장자동화와 동일 프로필(invoice_profiles/{...}) 사용 — 로그인이
+        #   크롤과 같은 프로필에 저장돼야 함(직접=한글명_{id}, naver 등=key_method_{id}).
+        from lemouton.auth.profile_store import resolve_profile_dir
+        profile_path = resolve_profile_dir(self.site_key, account_id, login_method)
+        profile_path.mkdir(parents=True, exist_ok=True)
+        is_new = not any((profile_path / m).exists()
+                         for m in ("Default", "Local State", "Cookies"))
 
         # SingletonLock 충돌 정리
         self._profile_store.kill_chrome_using(profile_path)
@@ -465,9 +470,8 @@ class BaseScraper:
         # 0) 송장전송기 패턴 — 사전 쿠키 검증 (부팅 회피)
         try:
             from lemouton.auth.cookie_checker import is_likely_logged_in
-            from lemouton.auth.profile_store import default_store as profile_default_store
-            ps = profile_default_store()
-            profile_path = ps.profile_dir(self.site_key, account_id)
+            from lemouton.auth.profile_store import resolve_profile_dir
+            profile_path = resolve_profile_dir(self.site_key, account_id, login_method)
             if skip_if_logged_in and is_likely_logged_in(profile_path, self.site_key):
                 self.log("info", f"[{self.site_name}] {account_id} 쿠키 사전 검증 통과 — 부팅 시 검증 모드")
         except Exception as e:
@@ -479,8 +483,8 @@ class BaseScraper:
             return False
 
         # 변환 대상 프로필 경로 (성공 시 close() 후 session→persistent 변환)
-        from lemouton.auth.profile_store import default_store as _ps
-        _profile_path = _ps().profile_dir(self.site_key, account_id)
+        from lemouton.auth.profile_store import resolve_profile_dir as _rpd
+        _profile_path = _rpd(self.site_key, account_id, login_method)
         login_success = False
         try:
             # 0) 저장된 세션 쿠키 복원 (송장전송기 패턴) — 네이버/구글 SSO 세션 부활
