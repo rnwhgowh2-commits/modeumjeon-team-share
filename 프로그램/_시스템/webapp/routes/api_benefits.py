@@ -627,6 +627,19 @@ def compute_breakdown(session, *, sku: str, source_id: int, sale_price: float,
             return 1
         return 2
     effective.sort(key=lambda x: _benefit_priority(x[1]))
+
+    # ★ 2026-06-05 — '무신사머니 fallback' 이중 차감 차단 (사용자 정책).
+    #   무신사 크롤 베이스(sale_price)는 '회원가' = 무신사머니 적립이 이미 반영된 값이다.
+    #   '현대카드 (무신사머니 fallback)' 은 무신사머니와 택1(상호배타) — 그 위에서 또 차감하면 이중.
+    #   → money_active=False (무신사머니 명시 비활성) 일 때만 fallback 적용, 그 외(플래그 없음/True)는
+    #     비활성. 안전 방향(원가 과소 → 언더프라이싱 방지). 기존 _dynamic_benefits 가드 밖이라
+    #     dynamic_benefits 가 비어 있어도 항상 동작한다. 이름에 '무신사머니 fallback' 포함 항목만 대상.
+    _ma_flag = _dynamic_benefits.get('money_active') if _dynamic_benefits else None
+    if _ma_flag is not False:
+        for _k, _it in effective:
+            if '무신사머니 fallback' in (_it.benefit_name or ''):
+                _it.enabled = False
+
     # 누적 차감
     base = float(sale_price)
     steps = []
