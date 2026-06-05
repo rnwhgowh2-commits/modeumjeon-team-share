@@ -2783,7 +2783,7 @@
     } catch(e) { SM_BREAKDOWNS = {}; }
   }
 
-  async function renderSourceMatrix() {
+  async function renderSourceMatrix(_bdReady) {
     // Phase 6 — sm-section 제거, 가로 stats (sm-side-h) 만 렌더 + breakdown 캐시 갱신
     const sideHEl = document.getElementById('sm-side-h');
     if (!DATA) return;
@@ -2793,8 +2793,13 @@
       if (sideHEl) sideHEl.innerHTML = '<div style="padding:14px;text-align:center;color:var(--n500);font-size: 14px">옵션 / 소싱처 데이터 없음</div>';
       return;
     }
-    // breakdown 일괄 fetch (혜택 적용된 매입가)
-    await smFetchBreakdowns();
+    // [2026-06-05] breakdown(혜택 적용 매입가) API 가 최대 ~2분(perf-slow) 걸려 await 시
+    //   소싱처 카드 렌더 전체를 막던 버그(새로고침하면 크롤 현황이 빈 채로 남음) 수정.
+    //   → await 제거. 현재 캐시(SM_BREAKDOWNS)로 즉시 렌더(없으면 crawled_price fallback),
+    //   breakdown 도착 시 1회만 재렌더(_bdReady=true)해 최저가만 정확화. (무한 재호출 방지)
+    if (!_bdReady) {
+      smFetchBreakdowns().then(() => { try { renderSourceMatrix(true); } catch (_) {} });
+    }
 
     // 브랜드 prefix 매핑 (specific 패턴 먼저 — 스마트스토어 르무통 vs 르무통 공홈 구분)
     const brandPrefix = (name) => {
