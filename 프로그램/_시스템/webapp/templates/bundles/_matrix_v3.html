@@ -3400,15 +3400,26 @@
          </div>`
       : '';
     const _isMusinsa = String(srcId) === '3';
-    const _saleLbl = _isMusinsa ? '무신사 표면 할인가 (사이트 노출가)' : '마켓 판매가';
+    const _saleLbl = _isMusinsa ? '무신사 표면 할인가 (사이트 노출가)' : '소싱처 판매가';
+    // ★ 2026-06-06 — 상단 영수증: 소싱처 판매가 → 적용 혜택 → 혜택 적용가 (하단 '매입가' 박스 폐지).
+    //   적용 혜택 = _deductSum (= 소싱처 판매가 - 혜택 적용가, 순차 차감이므로 정확히 일치).
     const saleHtml = `
-      <div class="cf-sale">
-        <div class="left">
-          <div class="lbl">${_saleLbl}</div>
-          <div class="num">${(j.sale_price||0).toLocaleString('ko-KR')}원</div>
+      <div class="cf-receipt">
+        <div class="cf-rc-ln">
+          <span class="lbl">${_saleLbl}</span>
+          <span class="num">${(j.sale_price||0).toLocaleString('ko-KR')}원</span>
         </div>
-        <div class="right">${_cardChipHtml}</div>
-      </div>`;
+        <div class="cf-rc-ln disc">
+          <span class="lbl">적용 혜택</span>
+          <span class="num">-${_deductSum.toLocaleString('ko-KR')}원</span>
+        </div>
+        <div class="cf-rc-div"></div>
+        <div class="cf-rc-ln fin">
+          <span class="lbl">혜택 적용가</span>
+          <span class="num">${(j.final_price||0).toLocaleString('ko-KR')}원</span>
+        </div>
+      </div>
+      ${_cardChipHtml ? `<div class="cf-chip-row">${_cardChipHtml}</div>` : ''}`;
     // ★ 2026-06-05 v3 — 혜택을 3그룹으로 (쿠폰 / 등급·적립 / 결제 방식 택1).
     //   결제 수단(카드/페이/네이버/무신사머니/청구할인/캐시백)은 택1 그룹(라디오). 적립류는 누적(토글).
     //   무신사: 등급적립·무신사머니는 compute_breakdown 이 크롤 breakdown 에서 항목으로 주입.
@@ -3438,8 +3449,8 @@
         : `<span class="rt">${valDisp}</span>`;
     };
     const _rowHtml = (it) => `<div class="cell-fx-row ${it.enabled ? 'on' : 'off'}" data-bid="${it.id}" data-bkind="${it.kind}"><div class="tg" onclick="smCellTog(this)"></div><span class="nm">${escapeHtml(it.name)}</span><span class="val">${_valHtml(it, false)}</span>${_delBtn(it)}</div>`;
-    // 결제 방식 = 라디오 (택1, 카드/페이). 활성 = ◉ 파랑.
-    const _payRowHtml = (it) => `<div class="cell-fx-row cf-pay-row ${it.enabled ? 'on' : 'off'}" data-bid="${it.id}" data-bkind="${it.kind}"><div class="cf-radio ${it.enabled ? 'on' : ''}"></div><span class="nm">${escapeHtml(it.name)}</span><span class="val">${_valHtml(it, true)}</span>${_delBtn(it)}</div>`;
+    // 결제 방식 = 택1 선택 카드 (B 시안). 활성 = 파란 테두리 + 체크(✓).
+    const _payRowHtml = (it) => `<div class="cell-fx-row cf-pay-row cf-paycard ${it.enabled ? 'on' : 'off'}" data-bid="${it.id}" data-bkind="${it.kind}"><div class="cf-chk">${it.enabled ? '✓' : ''}</div><span class="nm">${escapeHtml(it.name)}</span><span class="val">${_valHtml(it, true)}</span>${_delBtn(it)}</div>`;
     const _items = (j.items_used || []);
     const _g = {amount:[], rate:[], pay:[], cashback:[], etc:[]};
     _items.forEach(it => { _g[_catOf(it)].push(it); });
@@ -3454,7 +3465,7 @@
     benHtml += _payCards.map(_payRowHtml).join('');
     benHtml += _payNaver.map(_rowHtml).join('');  // 네이버페이 = 토글(카드와 동시 적용, 누적)
     if (_isMusinsa) {
-      benHtml += `<div class="cell-fx-row cf-pay-row cf-soon off"><div class="cf-radio"></div><span class="nm">혜택 카드 결제 (무신사페이·토스페이)<span style="display:block;font-size:11px;color:#B0B8C1">추후 지원 · 곧 설정 가능</span></span><span class="val rt">설정 예정</span></div>`;
+      benHtml += `<div class="cell-fx-row cf-pay-row cf-paycard cf-soon off"><div class="cf-chk"></div><span class="nm">혜택 카드 결제 (무신사페이·토스페이)<span style="display:block;font-size:11px;color:#B0B8C1">추후 지원 · 곧 설정 가능</span></span><span class="val rt">설정 예정</span></div>`;
     } else if (!_payCards.length && !_payNaver.length) { benHtml += _emptyRow; }
     benHtml += `<div class="cf-grp">④ 추가 캐시백<span class="cf-grp-note"> · 선택(경유)</span></div>` + (_g.cashback.length ? _g.cashback.map(_rowHtml).join('') : _emptyRow);
     benHtml += `<div class="cf-grp">⑤ 기타 할인</div>` + (_g.etc.length ? _g.etc.map(_rowHtml).join('') : _emptyRow);
@@ -3553,20 +3564,13 @@
           </div>
         </div>
       </div>`;
-    const totalHtml = `
-      <div class="cf-total">
-        <span class="lbl">💰 매입가</span>
-        <span class="num">${j.final_price.toLocaleString('ko-KR')}원</span>
-      </div>`;
     pop.innerHTML = `
       <h6>💰 ${escapeHtml(getSrcName(srcId))} · ${escapeHtml(sku.split('-').slice(-2).join('-'))} 계산식<button class="close" onclick="this.closest('.cell-fx-pop').remove();document.querySelectorAll('td.fx-open').forEach(t=>t.classList.remove('fx-open'))">✕</button></h6>
       ${saleHtml}
       <div class="cell-fx-ben">
-        <h7>⚙ 적용 혜택 (이 옵션)<span class="deduct-sum">-${_deductSum.toLocaleString('ko-KR')}원</span></h7>
         ${benHtml}
       </div>
       ${addRowHtml}
-      ${totalHtml}
       <div class="pop-actions">
         <button onclick="this.closest('.cell-fx-pop').remove();document.querySelectorAll('td.fx-open').forEach(t=>t.classList.remove('fx-open'))">닫기</button>
         <a href="/accounts/sourcing" target="_blank">📦 사이트 템플릿 →</a>

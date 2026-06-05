@@ -2990,8 +2990,9 @@
   max-height: none; overflow: visible;
 }
 /* [2026-06-05] v3 — 혜택 그룹 헤더 (쿠폰 / 등급·적립 / 결제 방식 택1) */
+/* [2026-06-06] 모든 그룹 헤더 = 결제 할인 헤더와 동일 위상·동일 폰트 (#191F28, 12.5px) */
 .cell-fx-ben .cf-grp {
-  font-size: 11px; font-weight: 800; color: #8B95A1; letter-spacing: .3px;
+  font-size: 12.5px; font-weight: 800; color: #191F28; letter-spacing: .3px;
   padding: 12px 2px 5px; margin-top: 4px; border-top: 1px solid #F2F4F6;
 }
 .cell-fx-ben .cf-grp:first-child { border-top: none; margin-top: 0; padding-top: 2px; }
@@ -3019,7 +3020,8 @@
 .cell-fx-ben .cell-fx-row.off .nm { color: #8B95A1; }
 .cell-fx-ben .cell-fx-row .val { font-family: inherit; }
 .cell-fx-ben .cell-fx-row .val .n { font-size: 13px; font-weight: 700; color: #F04452; font-family: inherit; }
-.cell-fx-ben .cell-fx-row .val .n.blue { color: #3182F6; }
+/* [2026-06-06] 차감액은 전 행 동일 빨강(같은 위상). 결제 선택행도 파랑 X — 선택은 라디오 점(●)으로만 표시 */
+.cell-fx-ben .cell-fx-row .val .n.blue { color: #F04452; }
 .cell-fx-ben .cell-fx-row.off .val .n { color: #8B95A1; }
 .cell-fx-ben .cell-fx-row .val .rt { font-size: 11px; font-weight: 500; color: #8B95A1; font-family: inherit; }
 .cell-fx-ben .cell-fx-row .nm .sm { font-size: 11px; font-weight: 500; color: #8B95A1; }
@@ -3088,6 +3090,43 @@
   font-family: ui-monospace, 'SF Mono', Consolas, monospace;
   letter-spacing: -0.02em;
 }
+
+/* [2026-06-06] FX 팝업 개편 — 상단 영수증(소싱처 판매가 → 적용 혜택 → 혜택 적용가) */
+.cf-receipt {
+  background: #fff; border: 1px solid #E5E8EB; border-left: 3px solid #4E5968;
+  border-radius: 0 8px 8px 0; padding: 12px 18px;
+}
+.cf-receipt .cf-rc-ln { display: flex; align-items: center; gap: 10px; padding: 5px 0; }
+.cf-receipt .cf-rc-ln .lbl { font-size: 13px; color: #4E5968; font-weight: 600; }
+.cf-receipt .cf-rc-ln .num {
+  margin-left: auto; font-size: 14px; font-weight: 700; color: #191F28;
+  font-family: ui-monospace, 'SF Mono', Consolas, monospace; letter-spacing: -0.02em;
+}
+.cf-receipt .cf-rc-ln.disc .num { color: #F04452; font-weight: 800; }
+.cf-receipt .cf-rc-div { border-top: 1px dashed #D7DDE3; margin: 6px 0; }
+.cf-receipt .cf-rc-ln.fin { padding-top: 8px; }
+.cf-receipt .cf-rc-ln.fin .lbl { font-size: 14px; font-weight: 800; color: #3182F6; }
+.cf-receipt .cf-rc-ln.fin .num { font-size: 21px; font-weight: 800; color: #3182F6; }
+.cf-chip-row { display: flex; justify-content: flex-end; margin-top: 2px; }
+
+/* [2026-06-06] 결제수단 택1 = 선택 카드 (B 시안): 선택 시 파란 테두리 + 체크(✓) */
+.cell-fx-ben .cf-paycard {
+  display: flex; align-items: center; gap: 10px;
+  border: 1.5px solid #E5E8EB; border-radius: 11px;
+  padding: 10px 13px; margin: 6px 0; cursor: pointer; transition: .12s;
+}
+.cell-fx-ben .cf-paycard:hover { border-color: #C4CCD4; }
+.cell-fx-ben .cf-paycard.on { border-color: #3182F6; background: #F4F9FF; box-shadow: 0 0 0 2px rgba(49,130,246,.10); }
+.cell-fx-ben .cf-paycard .cf-chk {
+  width: 20px; height: 20px; border-radius: 50%; border: 2px solid #CDD3DA;
+  flex: 0 0 20px; display: flex; align-items: center; justify-content: center;
+  font-size: 11px; color: #fff; font-weight: 800;
+}
+.cell-fx-ben .cf-paycard.on .cf-chk { background: #3182F6; border-color: #3182F6; }
+.cell-fx-ben .cf-paycard .nm { flex: 1; }
+.cell-fx-ben .cf-paycard .val { margin-left: auto; }
+.cell-fx-ben .cf-paycard.off .nm { text-decoration: none; color: #4E5968; }
+.cell-fx-ben .cf-paycard.off .val { text-decoration: none; }
 
 /* 5) 액션 영역 (닫기 / 사이트 템플릿) */
 .cell-fx-pop .pop-actions {
