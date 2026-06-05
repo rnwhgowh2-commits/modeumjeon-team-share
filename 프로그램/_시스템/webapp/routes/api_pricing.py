@@ -306,9 +306,14 @@ def api_set_progress(kind):
 # ════════════════════════════════════════════
 #  GET /api/bundles/<code>/option-matrix
 # ════════════════════════════════════════════
-@bp.get('/bundles/<code>/option-matrix')
-def get_option_matrix(code: str):
-    """옵션 트리 + 소싱처 + 가격설정 + 자동계산 가격 일괄 조회.
+def _option_matrix_data(code: str):
+    """옵션 트리 + 소싱처 + 가격설정 + 자동계산 가격 일괄 조회 (데이터 dict 반환).
+
+    [2026-06-05] 라우트(get_option_matrix)와 분리 — 업로드 드라이런(preview)이
+    이 함수를 직접 호출해 '표시가=업로드가' 단일 진실 원천(parity)을 공유한다.
+    반환: 성공 {'ok':True, ...}, 실패 {'ok':False,'error','status'}.
+
+    옵션 트리 + 소싱처 + 가격설정 + 자동계산 가격 일괄 조회.
 
     [v3 시나리오 C] code 가 model_code 또는 bundle_groups.group_code 둘 다 인식.
     group 일 경우 그 group 의 모든 Model 의 옵션을 통합 반환.
@@ -327,7 +332,7 @@ def get_option_matrix(code: str):
                 models_in_group = list(bundle_group.models)
                 m = models_in_group[0] if models_in_group else None
         if not m:
-            return _err('모음전을 찾을 수 없어요.', 404)
+            return {'ok': False, 'error': '모음전을 찾을 수 없어요.', 'status': 404}
         # 1 모음전 1 모델 (기존) → 그 모델의 그룹 통해 형제 모델들 조회
         if not bundle_group and m.bundle_group_id:
             bundle_group = s.query(BundleGroup).filter_by(id=m.bundle_group_id).first()
@@ -924,7 +929,8 @@ def get_option_matrix(code: str):
         except Exception:
             source_stats = {}
 
-        return _ok(
+        return dict(
+            ok=True,
             sources=list(source_dict.values()),
             source_stats=source_stats,
             tree=tree,
@@ -944,6 +950,15 @@ def get_option_matrix(code: str):
         )
     finally:
         s.close()
+
+
+@bp.get('/bundles/<code>/option-matrix')
+def get_option_matrix(code: str):
+    """라우트 래퍼 — 데이터는 _option_matrix_data(단일 진실 원천), 여기선 응답 직렬화만."""
+    d = _option_matrix_data(code)
+    if not d.get('ok'):
+        return _err(d.get('error', '오류'), d.get('status', 400))
+    return _ok(**{k: v for k, v in d.items() if k != 'ok'})
 
 
 # ════════════════════════════════════════════

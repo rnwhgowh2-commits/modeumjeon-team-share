@@ -18,9 +18,9 @@ from __future__ import annotations
 from sqlalchemy.orm import Session
 
 from lemouton.sourcing.models import Model, Option
-from lemouton.sourcing.models_pricing import SourceRegistry, OptionSourceUrl, OptionPriceConfig
+from lemouton.sourcing.models_pricing import OptionPriceConfig
 from lemouton.templates.models import PriceTemplate
-from lemouton.pricing.unified import compute_market_price, is_crawl_valid
+from lemouton.pricing.unified import compute_market_price
 
 
 def _resolve_option_upload(o: Option, cfg, tpl, sources_for_opt, stock: int) -> dict:
@@ -28,15 +28,13 @@ def _resolve_option_upload(o: Option, cfg, tpl, sources_for_opt, stock: int) -> 
 
     Returns: {resolved_side, src: {ss,cp}, pur: {ss,cp}|None, upload: {ss,cp}}.
     """
-    # 원가(소싱) = 르무통 크롤가 우선 → 임의 크롤가 → 템플릿 매입가 → 95000 (api_pricing 동일)
-    # [2026-06-05] is_crawl_valid 게이트 — 크롤 실패(error)한 소싱처의 옛 가격(stale)이
-    #   업로드 원가로 잡혀 잘못된 판매가가 마켓에 올라가던 누수 봉쇄(돈 직결, 화면·매트릭스와 동일 기준).
-    _lem = next((x for x in sources_for_opt
-                 if x.get('source_id') == 'lemouton'
-                 and is_crawl_valid(x.get('crawled_price'), x.get('last_status'))), None)
-    _any = next((x for x in sources_for_opt
-                 if is_crawl_valid(x.get('crawled_price'), x.get('last_status'))), None) if not _lem else None
-    purchase = ((_lem or _any or {}).get('crawled_price')
+    # 원가(소싱) = 매트릭스와 100% 동일 규칙: 재고존재+크롤성공(error X) 중 최저 크롤가
+    #   (_pick_cheapest_buyable) → 없으면 템플릿 매입가 → 95000.
+    #   [2026-06-05] api_pricing 의 원가 선정과 같은 함수를 써서 '표시가=업로드가' 보장.
+    #   stale(크롤 실패+옛값) 배제는 _pick_cheapest_buyable 내부 is_crawl_valid 가 담당.
+    from webapp.routes.api_pricing import _pick_cheapest_buyable
+    _cost_src = _pick_cheapest_buyable(sources_for_opt)
+    purchase = ((_cost_src or {}).get('crawled_price')
                 or (tpl.boxhero_purchase_price if tpl else None)
                 or 95000)
 
@@ -103,29 +101,16 @@ def build_upload_preview(s: Session, code: str) -> dict:
             .order_by(Option.color_code, Option.size_code).all())
     sku_list = [o.canonical_sku for o in opts]
 
-    # 소싱처 크롤가 매핑 (매트릭스와 동일 소스: OptionSourceUrl + SourceProduct.last_price)
-    sources = s.query(SourceRegistry).all()
-    src_name = {x.id: x.name for x in sources}
-    sku_to_sources: dict[str, list] = {}
-    if sku_list:
-        from lemouton.sources.models import SourceProduct
-        from lemouton.sources.service import normalize_url as _norm
-        links = (s.query(OptionSourceUrl)
-                 .filter(OptionSourceUrl.canonical_sku.in_(sku_list)).all())
-        sp_by_norm = {}
-        url_set = {lk.product_url for lk in links if lk.product_url}
-        if url_set:
-            for sp in s.query(SourceProduct).filter(SourceProduct.deleted_at.is_(None)).all():
-                sp_by_norm[_norm(sp.url)] = sp
-        for lk in links:
-            sp = sp_by_norm.get(_norm(lk.product_url)) if lk.product_url else None
-            price = (sp.last_price if sp and sp.last_price else lk.price_cached)
-            # [2026-06-05] last_status 동반 — is_crawl_valid 게이트가 error 소싱처의
-            #   stale 가격을 업로드 원가에서 배제하려면 상태가 반드시 함께 있어야 함.
-            _status = sp.last_status if sp else None
-            src_id = 'lemouton' if (src_name.get(lk.source_id, '') or '').startswith('르무통') else lk.source_id
-            sku_to_sources.setdefault(lk.canonical_sku, []).append(
-                {'source_id': src_id, 'crawled_price': price, 'last_status': _status})
+    # [2026-06-05] 소싱처/크롤가 = 매트릭스(_option_matrix_data) 와 100% 동일 소스 사용.
+    #   기존엔 OptionSourceUrl(구 저장소)만 읽어 신규 등록 URL(bundle_source_urls)을 놓쳐
+    #   원가가 가짜 95000 으로 폴백 → 표시가≠업로드가 62건 불일치. 매트릭스가 두 저장소를
+    #   통합하고 옵션단위 크롤가·카드할인까지 반영하므로, 그 결과(o['sources'])를 그대로
+    #   재사용해 '표시가=업로드가' 단일 진실 원천(parity)을 보장한다.
+    from webapp.routes.api_pricing import _option_matrix_data
+    _md = _option_matrix_data(code)
+    sku_to_sources: dict[str, list] = (
+        {o['sku']: o.get('sources', []) for o in (_md.get('options') or [])}
+        if _md.get('ok') else {})
 
     cfg_dict = {c.canonical_sku: c
                 for c in (s.query(OptionPriceConfig)
