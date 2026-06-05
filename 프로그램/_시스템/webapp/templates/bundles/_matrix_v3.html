@@ -3399,17 +3399,19 @@
            <span class="cf-oi ${_cardOn ? '' : 'off'}" onclick="smCardToggle(this, event)"><span class="knob"></span></span>
          </div>`
       : '';
+    const _isMusinsa = String(srcId) === '3';
+    const _saleLbl = _isMusinsa ? '무신사 표면 할인가 (사이트 노출가)' : '마켓 판매가';
     const saleHtml = `
       <div class="cf-sale">
         <div class="left">
-          <div class="lbl">마켓 판매가</div>
+          <div class="lbl">${_saleLbl}</div>
           <div class="num">${(j.sale_price||0).toLocaleString('ko-KR')}원</div>
         </div>
         <div class="right">${_cardChipHtml}</div>
       </div>`;
     // ★ 2026-06-05 v3 — 혜택을 3그룹으로 (쿠폰 / 등급·적립 / 결제 방식 택1).
-    //   결제 수단(카드/페이/네이버/무신사머니/청구할인/캐시백)은 택1 그룹. 적립류는 누적.
-    //   무신사(srcId=3): 무신사머니는 회원가(base)에 이미 반영 → '선택됨' 정보행 + 무신사페이 '추후 지원' 회색행.
+    //   결제 수단(카드/페이/네이버/무신사머니/청구할인/캐시백)은 택1 그룹(라디오). 적립류는 누적(토글).
+    //   무신사: 등급적립·무신사머니는 compute_breakdown 이 크롤 breakdown 에서 항목으로 주입.
     const _payTok = ['카드', '페이', '네이버', '무신사머니', '청구할인', '캐시백'];
     const _isPay = (nm) => _payTok.some(t => (nm || '').includes(t));
     const _isCoupon = (nm) => (nm || '').includes('쿠폰');
@@ -3420,21 +3422,27 @@
       const ded = it.enabled ? (j.steps.find(s => s.name === it.name)?.deduct || 0) : 0;
       return `<div class="cell-fx-row ${it.enabled ? 'on' : 'off'}" data-bid="${it.id}" data-bkind="${it.kind}"><div class="tg" onclick="smCellTog(this)"></div><span class="nm ${cls}" title="${it.kind === 'tpl' ? '템플릿 상속' : it.kind === 'ovr' ? '템플릿 변경' : '옵션 단독'}">${escapeHtml(it.name)}</span><span class="val">-${ded.toLocaleString('ko-KR')}원 <span style="opacity:.7;font-size: 14px;font-weight:500">(${valDisp})</span></span><button class="del" title="삭제 (옵션 override 만)" onclick="smCellDel(this, '${sku}', ${srcId})">${it.kind === 'tpl' ? '' : '🗑'}</button></div>`;
     };
+    // 결제 방식 = 라디오 (택1). 활성 = ◉ 파랑 + 차감액, 비활성 = ○ 회색 + 비율만.
+    const _payRowHtml = (it) => {
+      const isRate = it.type === 'rate';
+      const valDisp = isRate ? (it.value * 100).toFixed(2) + '%' : Math.round(it.value).toLocaleString('ko-KR') + '원';
+      const ded = it.enabled ? (j.steps.find(s => s.name === it.name)?.deduct || 0) : 0;
+      const valHtml = it.enabled
+        ? `<span class="n" style="color:#3182F6;font-weight:800">-${ded.toLocaleString('ko-KR')}원</span> <span style="opacity:.7;font-size:14px;font-weight:500">(${valDisp})</span>`
+        : `<span style="opacity:.7;font-size:14px;font-weight:500;color:#8B95A1">${valDisp}</span>`;
+      return `<div class="cell-fx-row cf-pay-row ${it.enabled ? 'on' : 'off'}"><div class="cf-radio ${it.enabled ? 'on' : ''}"></div><span class="nm">${escapeHtml(it.name)}</span><span class="val">${valHtml}</span></div>`;
+    };
     const _items = (j.items_used || []);
     const _gC = _items.filter(it => _isCoupon(it.name));
     const _gP = _items.filter(it => _isPay(it.name) && !_isCoupon(it.name));
     const _gR = _items.filter(it => !_isPay(it.name) && !_isCoupon(it.name));
-    const _isMusinsa = String(srcId) === '3';
     let benHtml = '';
     if (_gC.length) benHtml += `<div class="cf-grp">쿠폰</div>` + _gC.map(_rowHtml).join('');
     benHtml += `<div class="cf-grp">등급 · 적립</div>` + (_gR.length ? _gR.map(_rowHtml).join('') : `<div class="cell-fx-row off" style="opacity:.6"><span class="nm" style="color:#B0B8C1">해당 없음</span></div>`);
-    benHtml += `<div class="cf-grp pay">결제 방식<span class="cf-grp-note"> · 택1 (가장 큰 1개)</span></div>`;
+    benHtml += `<div class="cf-grp pay">결제 방식<span class="cf-grp-note"> · 아래 중 택1 (가장 큰 1개)</span></div>`;
+    benHtml += (_gP.length ? _gP.map(_payRowHtml).join('') : (_isMusinsa ? '' : `<div class="cell-fx-row off" style="opacity:.6"><span class="nm" style="color:#B0B8C1">없음</span></div>`));
     if (_isMusinsa) {
-      benHtml += `<div class="cell-fx-row on cf-pay-base"><div class="tg" style="opacity:.5;pointer-events:none"></div><span class="nm">무신사머니 결제 적립<span style="display:block;font-size:11px;color:#8B95A1">회원가(매입 기준가)에 이미 반영됨</span></span><span class="val" style="color:#3182F6;font-weight:700">반영됨 ✓</span></div>`;
-    }
-    benHtml += _gP.map(_rowHtml).join('');
-    if (_isMusinsa) {
-      benHtml += `<div class="cell-fx-row off cf-soon"><div class="tg" style="opacity:.35;pointer-events:none"></div><span class="nm" style="color:#B0B8C1">혜택 카드 결제 (무신사페이)<span style="display:block;font-size:11px;color:#B0B8C1">추후 지원 · 곧 설정 가능</span></span><span class="val" style="color:#B0B8C1">설정 예정</span></div>`;
+      benHtml += `<div class="cell-fx-row cf-pay-row cf-soon off"><div class="cf-radio"></div><span class="nm" style="color:#B0B8C1">혜택 카드 결제 (무신사페이)<span style="display:block;font-size:11px;color:#B0B8C1">추후 지원 · 곧 설정 가능</span></span><span class="val" style="color:#B0B8C1">설정 예정</span></div>`;
     }
     // ★ 2026-05-19 v7.1 A2 — 무채색 (좌측 검정 accent + 슬라이드 다운).
     //   v6 D2-A (#3182F6 파랑 + #DC2626 빨강) → A2 (monochrome only).

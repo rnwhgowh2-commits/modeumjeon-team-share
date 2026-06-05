@@ -212,10 +212,30 @@ def crawl_registered_urls(
                     color_text = raw_color        # 모음전 → 크롤된 색 그대로
                 price = o.get("price")
                 stock = o.get("stock")
+                # ★ 2026-06-05 — 무신사 옵션 breakdown 저장 (팝업 v3 항목 표시용).
+                #   표면가/등급할인/쿠폰/등급적립/무신사머니/후기/money_active 를 dynamic_benefits_json 에.
+                #   compute_breakdown 이 이 값을 읽어 등급적립·무신사머니를 항목으로 차감 → 시안대로.
+                _dyn_json = None
+                if src == "musinsa":
+                    import json as _json
+                    _bd = o.get("breakdown") or {}
+                    _dyn = {
+                        "surface_price": o.get("sale_price"),          # 표면 할인가 (등급할인·쿠폰 후, 보통 사이트 노출가)
+                        "grade_discount": int(_bd.get("grade_discount") or 0),
+                        "coupon": int(_bd.get("coupon") or 0),
+                        "grade_reward": int(_bd.get("grade_reward_amount") or 0),
+                        "review": 500 if _bd.get("review_reward_active") else 0,  # 후기 적립 (정책상 500 고정)
+                        "money_reward": int(_bd.get("money_reward_amount") or 0),
+                        "money_active": _bd.get("money_active"),
+                        "member_price": o.get("member_price"),
+                        "is_member_price": o.get("is_member_price"),
+                    }
+                    _dyn_json = _json.dumps(_dyn, ensure_ascii=False)
                 so = upsert_source_option(
                     s, source_product_id=sp.id,
                     color_text=color_text, size_text=size_text,
                     current_price=price, current_stock=stock,
+                    dynamic_benefits_json=_dyn_json,
                 )
                 rec["saved"] += 1
                 if isinstance(price, (int, float)) and price and (stock != 0):

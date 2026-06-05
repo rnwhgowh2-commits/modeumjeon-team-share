@@ -686,6 +686,43 @@ def compute_breakdown(session, *, sku: str, source_id: int, sale_price: float,
         if '적립' in (it.benefit_name or ''):
             return 1
         return 2
+    # ★ 2026-06-05 — 무신사 옵션 크롤 breakdown 주입 (시안 v3: 표면가 base + 등급적립·무신사머니 항목).
+    #   SourceOption.dynamic_benefits_json(crawl_registered_urls 저장)에서 표면가/등급할인/쿠폰/등급적립/무신사머니.
+    #   base 를 표면가로 고정하고 항목을 차감 → 매입가 = 표면가 − 등급적립 − 무신사머니 − 후기(템플릿).
+    _base_override = None
+    if str(source_id) == '3':
+        try:
+            from lemouton.sources.models import (
+                OptionSourceLink as _OSL, SourceOption as _SO2, SourceProduct as _SP2,
+            )
+            import json as _json3
+            _cand = None
+            for _ln in session.query(_OSL).filter_by(canonical_sku=sku).all():
+                _so2 = session.get(_SO2, _ln.source_option_id)
+                if not _so2 or _so2.deleted_at is not None or not _so2.dynamic_benefits_json:
+                    continue
+                _sp3 = session.get(_SP2, _so2.source_product_id)
+                if not _sp3 or _sp3.site != 'musinsa':
+                    continue
+                _bd2 = _json3.loads(_so2.dynamic_benefits_json) or {}
+                if _bd2.get('surface_price'):
+                    # 모음전 회원가(등급적립>0) 우선
+                    if _cand is None or (_bd2.get('grade_reward') or 0) > (_cand.get('grade_reward') or 0):
+                        _cand = _bd2
+            if _cand:
+                class _Inj:
+                    def __init__(self, name, value, enabled=True):
+                        self.id = -1; self.benefit_name = name; self.benefit_type = 'amount'
+                        self.value = value; self.enabled = enabled
+                        self.sort_order = 999; self.template_id = None
+                _base_override = float(_cand.get('surface_price') or 0)
+                effective.append(('dyn', _Inj('상품쿠폰', float(_cand.get('coupon') or 0), enabled=bool(_cand.get('coupon')))))
+                effective.append(('dyn', _Inj('등급할인', float(_cand.get('grade_discount') or 0), enabled=bool(_cand.get('grade_discount')))))
+                effective.append(('dyn', _Inj('등급적립', float(_cand.get('grade_reward') or 0), enabled=bool(_cand.get('grade_reward')))))
+                effective.append(('dyn', _Inj('무신사머니 결제 적립', float(_cand.get('money_reward') or 0), enabled=bool(_cand.get('money_reward')))))
+        except Exception:
+            _base_override = None
+
     effective.sort(key=lambda x: _benefit_priority(x[1]))
 
     # ★ 2026-06-05 — '무신사머니 fallback' 이중 차감 차단 (사용자 정책).
@@ -718,8 +755,8 @@ def compute_breakdown(session, *, sku: str, source_id: int, sale_price: float,
             if _it is not _best_it:
                 _it.enabled = False
 
-    # 누적 차감
-    base = float(sale_price)
+    # 누적 차감 (무신사 breakdown 있으면 base = 표면가 override)
+    base = float(_base_override if _base_override is not None else sale_price)
     steps = []
     items_used = []
     for kind, it in effective:
@@ -755,7 +792,7 @@ def compute_breakdown(session, *, sku: str, source_id: int, sale_price: float,
             'base_after': int(base),
         })
     return {
-        'sale_price': float(sale_price),
+        'sale_price': float(_base_override if _base_override is not None else sale_price),
         'final_price': int(base),
         'steps': steps,
         'items_used': items_used,

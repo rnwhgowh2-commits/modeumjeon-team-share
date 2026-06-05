@@ -2999,6 +2999,13 @@
 .cell-fx-ben .cf-grp .cf-grp-note { font-weight: 500; color: #8B95A1; font-size: 11px; }
 .cell-fx-ben .cell-fx-row.cf-soon,
 .cell-fx-ben .cell-fx-row.cf-pay-base { cursor: default; }
+/* [2026-06-05] v3 — 결제 방식 라디오 (택1) */
+.cell-fx-ben .cf-pay-row { display: flex; align-items: center; gap: 9px; cursor: default; }
+.cell-fx-ben .cf-radio { width: 16px; height: 16px; border-radius: 50%; border: 2px solid #CDD3DA; flex: 0 0 auto; position: relative; }
+.cell-fx-ben .cf-radio.on { border-color: #3182F6; }
+.cell-fx-ben .cf-radio.on::after { content: ""; position: absolute; inset: 2.5px; border-radius: 50%; background: #3182F6; }
+.cell-fx-ben .cf-pay-row .nm { flex: 1; }
+.cell-fx-ben .cf-pay-row .val { margin-left: auto; }
 .cell-fx-ben h7 {
   display: flex; align-items: center; gap: 8px;
   font-size: 14px; font-weight: 700; color: #6B7684;
