@@ -1254,11 +1254,52 @@ def save_sourcing_credentials():
     except ValueError as e:
         return jsonify({"ok": False, "error": str(e)}), 400
 
+    # [2026-06-06] 송장자동화 패턴 — id/pw 저장 시 자동으로:
+    #   (1) sourcing_account 등록 (대표 선택·크롤 대상이 되도록)
+    #   (2) 백그라운드 자동 로그인 (direct) → 세션/프로필 생성. (로컬에서 헤디드 창)
+    auto_login_started = False
+    try:
+        from lemouton.sourcing.models_v2 import SourcingAccount
+        from shared.db import SessionLocal as _SL
+        _s = _SL()
+        try:
+            _acc = (_s.query(SourcingAccount)
+                    .filter_by(source=source, account_key=account_key).one_or_none())
+            if _acc is None:
+                _has_def = (_s.query(SourcingAccount)
+                            .filter_by(source=source, is_default_for_crawl=True).first() is not None)
+                _s.add(SourcingAccount(
+                    source=source, account_key=account_key,
+                    display_name=f"{source} / {account_key}",
+                    is_active=True, is_default_for_crawl=not _has_def))
+                _s.commit()
+        finally:
+            _s.close()
+    except Exception:
+        pass
+
+    if login_method == "direct" and pw_value:
+        import threading
+
+        def _bg_login(src=source, key=account_key, aid=id_value):
+            try:
+                from webapp.routes.api_pricing import _ensure_default_crawl_login
+                # force=False → 이미 로그인돼 있으면 스킵, 아니면 로그인 (세션/프로필 생성)
+                _ensure_default_crawl_login(src, key, aid, force=False)
+            except Exception:
+                pass
+
+        threading.Thread(target=_bg_login, name=f"autologin-{source}-{account_key}",
+                         daemon=True).start()
+        auto_login_started = True
+
     return jsonify({
         "ok": True,
         "saved": result,
-        "message": f"{source}/{account_key} 자격증명 저장 완료. "
-                   + ("자동 로그인 가능." if login_method == "direct" else "수동 로그인 모드 — 위저드 시작 시 사용자 직접 로그인."),
+        "auto_login_started": auto_login_started,
+        "message": f"{source}/{account_key} 저장 + 계정 등록 완료. "
+                   + ("자동 로그인 시작됨(백그라운드)." if auto_login_started
+                      else "수동 로그인 모드 — 위저드에서 직접 로그인."),
     })
 
 
