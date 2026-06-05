@@ -185,6 +185,32 @@ RESULT_BRAND_NM_RE = re.compile(r"brandNm\s*:\s*'((?:\\'|[^'])*)'")
 # itemId 추출 (URL fallback)
 ITEM_ID_FROM_URL_RE = re.compile(r"[?&]itemId=([0-9]+)")
 
+# [2026-06-05] 딜 페이지(dealItemView) 내부 itemView 링크의 itemId.
+#   dealItemView 는 여러 단품을 묶은 "딜/기획전" 페이지로 uitemObj 인라인 JS 가 없어
+#   본 크롤러로 직접 파싱 불가 → HTML 안 첫 itemView(대표 상품) 로 재크롤한다.
+#   예: SSG_모음전 딜(1000616111568) → 첫 itemView=르무통 메이트(1000607152603).
+DEAL_ITEMVIEW_LINK_RE = re.compile(r"itemView\.ssg\?itemId=(\d{10,})")
+
+
+def _resolve_deal_representative_url(product_url: str, html: str) -> Optional[str]:
+    """dealItemView(딜 묶음 페이지) → 대표 상품 itemView URL.
+
+    딜 페이지엔 uitemObj 가 없어 직접 옵션 파싱 불가. HTML 안 첫 ``itemView.ssg``
+    링크(=대표 상품)의 itemId 로 교체한 itemView URL 을 돌려준다. siteNo/salestrNo
+    등 원본 쿼리는 보존한다. 링크가 없으면 None.
+    """
+    m = DEAL_ITEMVIEW_LINK_RE.search(html)
+    if not m:
+        return None
+    rep_id = m.group(1)
+    parts = urlsplit(product_url)
+    query = dict(parse_qsl(parts.query, keep_blank_values=True))
+    query["itemId"] = rep_id
+    new_path = parts.path.replace("dealItemView.ssg", "itemView.ssg")
+    if "itemView.ssg" not in new_path:
+        new_path = "/item/itemView.ssg"
+    return urlunsplit(parts._replace(path=new_path, query=urlencode(query)))
+
 # 카드혜택가 — DOM 셀렉터로 추출.
 #   <span class="mndtl_price"><em class="ssg_price">98,767</em> ...</span>
 # 조건 텍스트: <span class="mndtl_info_desc">5만원 이상 결제 시 98,767원</span>
@@ -648,6 +674,16 @@ class SsgCrawler(AbstractCrawler):
 
     def fetch(self, product_url: str) -> CrawlResult:
         html = self._fetch_html(product_url)
+
+        # [2026-06-05] 딜 페이지(dealItemView) 대응 — uitemObj 인라인 JS 가 없으므로
+        #   딜에 묶인 대표 itemView(첫 상품)로 재크롤. (예: SSG_모음전 → 르무통 메이트)
+        if "uitemObjArr.push" not in html:
+            rep_url = _resolve_deal_representative_url(product_url, html)
+            if rep_url:
+                logger.info("[SSG] 딜 페이지 감지 → 대표 itemView 재크롤: %s", rep_url)
+                html = self._fetch_html(rep_url)
+                product_url = rep_url
+
         soup = BeautifulSoup(html, "lxml")
 
         item_id = _extract_item_id(product_url, html)
