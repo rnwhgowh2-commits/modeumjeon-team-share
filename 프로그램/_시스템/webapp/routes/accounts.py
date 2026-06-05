@@ -1240,8 +1240,9 @@ def save_sourcing_credentials():
 
     if source not in {s["key"] for s in SOURCING_SITES}:
         return jsonify({"ok": False, "error": f"지원하지 않는 source: {source}"}), 400
-    if login_method not in ("direct", "manual"):
-        return jsonify({"ok": False, "error": "login_method 는 direct|manual"}), 400
+    # [2026-06-06] 네이버/카카오/구글 SNS 로그인도 허용 (어떤 계정이든 로그인).
+    if login_method not in ("direct", "manual", "naver", "kakao", "google"):
+        return jsonify({"ok": False, "error": "login_method 는 direct|manual|naver|kakao|google"}), 400
 
     try:
         result = default_store().upsert(
@@ -1278,7 +1279,8 @@ def save_sourcing_credentials():
     except Exception:
         pass
 
-    if login_method == "direct" and pw_value:
+    # direct·naver·kakao·google 모두 자동 로그인 시도 (manual 만 위저드). PW 있어야.
+    if login_method != "manual" and pw_value:
         import threading
 
         def _bg_login(src=source, key=account_key, aid=id_value):

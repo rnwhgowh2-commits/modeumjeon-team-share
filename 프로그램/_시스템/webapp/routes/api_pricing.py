@@ -1414,21 +1414,28 @@ def _ensure_default_crawl_login(site_key: str, account_key: str, actual_id: str,
         )
         return None
 
-    # 사이트별 스크래퍼 매핑 — 송장전송기 sourcing_scrapers 의 sync 포팅
+    # [2026-06-06] 전 소싱처 스크래퍼 매핑 (네이버 포함) — 어떤 계정이든 로그인.
+    login_method = creds.get("login_method", "direct")
+    _SCRAPER_MAP = {
+        "musinsa":    ("lemouton.auth.scrapers.musinsa", "MusinsaScraper"),
+        "ssf":        ("lemouton.auth.scrapers.ssf", "SSFShopScraper"),
+        "lotteon":    ("lemouton.auth.scrapers.lotteon", "LotteonScraper"),
+        "lotteimall": ("lemouton.auth.scrapers.lotteimall", "LotteimallScraper"),
+        "abc":        ("lemouton.auth.scrapers.abc", "ABCMartScraper"),
+        "abcGs":      ("lemouton.auth.scrapers.abc", "ABCMartGSScraper"),
+        "grandstage": ("lemouton.auth.scrapers.abc", "GrandStageScraper"),
+        "gs":         ("lemouton.auth.scrapers.gs", "GSScraper"),
+        "folder":     ("lemouton.auth.scrapers.gs", "FolderScraper"),
+        "ssg":        ("lemouton.auth.scrapers.ssg", "SSGScraper"),
+    }
     scraper_cls = None
-    if site_key == "musinsa":
-        from lemouton.auth.scrapers.musinsa import MusinsaScraper
-        scraper_cls = MusinsaScraper
-    elif site_key == "ssf":
-        from lemouton.auth.scrapers.ssf import SSFShopScraper
-        scraper_cls = SSFShopScraper
-    elif site_key == "lotteon":
-        from lemouton.auth.scrapers.lotteon import LotteonScraper
-        scraper_cls = LotteonScraper
-    elif site_key == "lotteimall":
-        from lemouton.auth.scrapers.lotteimall import LotteimallScraper
-        scraper_cls = LotteimallScraper
-    # TODO: lemouton, ss_lemouton 스크래퍼는 신규 작성 필요
+    if site_key in _SCRAPER_MAP:
+        import importlib
+        _mod, _cls = _SCRAPER_MAP[site_key]
+        try:
+            scraper_cls = getattr(importlib.import_module(_mod), _cls)
+        except Exception as _e:
+            logging.getLogger(__name__).warning("[%s] 스크래퍼 import 실패: %s", site_key, _e)
     if scraper_cls is None:
         logging.getLogger(__name__).warning(
             "[%s] 자동 재로그인 미지원 (스크래퍼 클래스 매핑 없음)", site_key
@@ -1440,14 +1447,15 @@ def _ensure_default_crawl_login(site_key: str, account_key: str, actual_id: str,
         ok = sc.ensure_logged_in(
             account_id=actual_id,
             account_pw=pw,
-            login_method="direct",
+            login_method=login_method,   # ★ 실제 방식(direct/naver) 반영 (하드코딩 제거)
             max_retry=2,
             skip_if_logged_in=not force,
         )
         if not ok:
             return None
-        ps = profile_default_store()
-        prof_path = ps.profiles_root / f"{_safe_key(site_key)}_{_safe_key(actual_id)}"
+        # [2026-06-06] 로그인 후 프로필 경로 = 송장자동화식(invoice_profiles, login_method 반영)
+        from lemouton.auth.profile_store import resolve_profile_dir as _rpd
+        prof_path = _rpd(site_key, actual_id, login_method)
         return str(prof_path) if prof_path.exists() else None
     finally:
         try:
