@@ -755,14 +755,15 @@ def compute_breakdown(session, *, sku: str, source_id: int, sale_price: float,
             if '무신사머니 fallback' in (_it.benefit_name or ''):
                 _it.enabled = False
 
-    # ★ 2026-06-05 — 결제 수단 택1 (사용자 정책 "결제방식은 1개만 되어야해").
-    #   결제 수단(카드/페이/네이버/무신사머니/청구할인/캐시백)은 상호배타 — 동시 결제 불가.
-    #   enabled 인 결제 수단이 2개 이상이면 차감액이 '가장 큰' 1개만 남기고 나머지 비활성.
-    #   (적립류 '포인트/후기/리뷰/등급'은 결제수단 아님 → 누적 유지.) 토큰 목록은
-    #   source_benefit_templates 전수 대조로 검증(2026-06-05). 신규 결제수단 추가 시 토큰 보강.
+    # ★ 2026-06-05 — 결제 수단 택1 (결제수단 자체가 배타: 카드/머니/페이 중 1개로 결제).
+    #   ⚠️ 네이버페이는 제외 — 네이버페이는 '카드 결제와 동시'(네이버페이로 현대카드 결제 →
+    #      네이버 적립 1% + 카드 캐시백 2.73% 둘 다)이므로 택1이 아니라 항상 누적. (사용자 정책 2026-06-05)
+    #   enabled 인 (네이버 제외) 결제 수단이 2개 이상이면 차감액 '가장 큰' 1개만 남기고 비활성.
     def _is_payment(nm):
         nm = nm or ''
-        return any(t in nm for t in ('카드', '페이', '네이버', '무신사머니', '청구할인', '캐시백'))
+        if '네이버' in nm:
+            return False  # 네이버페이 적립 = 카드와 동시 적용 → 택1 그룹에서 제외(누적 유지)
+        return any(t in nm for t in ('카드', '페이', '무신사머니', '청구할인', '캐시백'))
     _pay = [(_k, _it) for (_k, _it) in effective if _it.enabled and _is_payment(_it.benefit_name)]
     if len(_pay) > 1:
         def _approx_deduct(it):

@@ -3425,23 +3425,18 @@
     // 삭제: 템플릿/오버라이드만(크롤 동적 id<0 은 토글만). kind 로 엔드포인트 라우팅.
     const _delBtn = (it) => (it.id && it.id > 0)
       ? `<button class="del" title="삭제" onclick="smCellDel(this, '${sku}', ${srcId})">🗑</button>` : '';
-    const _rowHtml = (it) => {
-      const cls = it.kind === 'ovr_new' ? 'ovr-new' : (it.kind === 'tpl' ? 'tpl' : '');
+    // 전 혜택 동일 폰트 — 이름(.nm) / 차감액(.n) / 비율(.rt) 클래스로만 (인라인 font 변동 금지)
+    const _valHtml = (it, blue) => {
       const isRate = it.type === 'rate';
       const valDisp = isRate ? (it.value * 100).toFixed(2) + '%' : Math.round(it.value).toLocaleString('ko-KR') + '원';
       const ded = it.enabled ? (j.steps.find(s => s.name === it.name)?.deduct || 0) : 0;
-      return `<div class="cell-fx-row ${it.enabled ? 'on' : 'off'}" data-bid="${it.id}" data-bkind="${it.kind}"><div class="tg" onclick="smCellTog(this)"></div><span class="nm ${cls}">${escapeHtml(it.name)}</span><span class="val">-${ded.toLocaleString('ko-KR')}원 <span style="opacity:.7;font-size: 14px;font-weight:500">(${valDisp})</span></span>${_delBtn(it)}</div>`;
+      return it.enabled
+        ? `<span class="n${blue ? ' blue' : ''}">-${ded.toLocaleString('ko-KR')}원</span> <span class="rt">(${valDisp})</span>`
+        : `<span class="rt">${valDisp}</span>`;
     };
-    // 결제 방식 = 라디오 (택1). 활성 = ◉ 파랑 + 차감액, 비활성 = ○ 회색 + 비율만. (+ 삭제)
-    const _payRowHtml = (it) => {
-      const isRate = it.type === 'rate';
-      const valDisp = isRate ? (it.value * 100).toFixed(2) + '%' : Math.round(it.value).toLocaleString('ko-KR') + '원';
-      const ded = it.enabled ? (j.steps.find(s => s.name === it.name)?.deduct || 0) : 0;
-      const valHtml = it.enabled
-        ? `<span class="n" style="color:#3182F6;font-weight:800">-${ded.toLocaleString('ko-KR')}원</span> <span style="opacity:.7;font-size:14px;font-weight:500">(${valDisp})</span>`
-        : `<span style="opacity:.7;font-size:14px;font-weight:500;color:#8B95A1">${valDisp}</span>`;
-      return `<div class="cell-fx-row cf-pay-row ${it.enabled ? 'on' : 'off'}" data-bid="${it.id}" data-bkind="${it.kind}"><div class="cf-radio ${it.enabled ? 'on' : ''}"></div><span class="nm">${escapeHtml(it.name)}</span><span class="val">${valHtml}</span>${_delBtn(it)}</div>`;
-    };
+    const _rowHtml = (it) => `<div class="cell-fx-row ${it.enabled ? 'on' : 'off'}" data-bid="${it.id}" data-bkind="${it.kind}"><div class="tg" onclick="smCellTog(this)"></div><span class="nm">${escapeHtml(it.name)}</span><span class="val">${_valHtml(it, false)}</span>${_delBtn(it)}</div>`;
+    // 결제 방식 = 라디오 (택1, 카드/페이). 활성 = ◉ 파랑.
+    const _payRowHtml = (it) => `<div class="cell-fx-row cf-pay-row ${it.enabled ? 'on' : 'off'}" data-bid="${it.id}" data-bkind="${it.kind}"><div class="cf-radio ${it.enabled ? 'on' : ''}"></div><span class="nm">${escapeHtml(it.name)}</span><span class="val">${_valHtml(it, true)}</span>${_delBtn(it)}</div>`;
     const _items = (j.items_used || []);
     const _g = {amount:[], rate:[], pay:[], cashback:[], etc:[]};
     _items.forEach(it => { _g[_catOf(it)].push(it); });
@@ -3449,11 +3444,15 @@
     let benHtml = '';
     benHtml += `<div class="cf-grp">① 정액 할인</div>` + (_g.amount.length ? _g.amount.map(_rowHtml).join('') : _emptyRow);
     benHtml += `<div class="cf-grp">② 정률 할인</div>` + (_g.rate.length ? _g.rate.map(_rowHtml).join('') : _emptyRow);
-    benHtml += `<div class="cf-grp pay">③ 결제 할인<span class="cf-grp-note"> · 아래 중 택1 (가장 큰 1개)</span></div>`;
-    benHtml += (_g.pay.length ? _g.pay.map(_payRowHtml).join('') : '');
+    // 결제: 카드/페이는 택1(라디오), 네이버페이는 카드와 '동시 적용'(토글) — 택1 아님.
+    const _payCards = _g.pay.filter(it => !/네이버/.test(it.name || ''));
+    const _payNaver = _g.pay.filter(it => /네이버/.test(it.name || ''));
+    benHtml += `<div class="cf-grp pay">③ 결제 할인<span class="cf-grp-note"> · 카드/페이 택1 + 네이버페이 동시</span></div>`;
+    benHtml += _payCards.map(_payRowHtml).join('');
+    benHtml += _payNaver.map(_rowHtml).join('');  // 네이버페이 = 토글(카드와 동시 적용, 누적)
     if (_isMusinsa) {
-      benHtml += `<div class="cell-fx-row cf-pay-row cf-soon off"><div class="cf-radio"></div><span class="nm" style="color:#B0B8C1">혜택 카드 결제 (무신사페이·토스페이)<span style="display:block;font-size:11px;color:#B0B8C1">추후 지원 · 곧 설정 가능</span></span><span class="val" style="color:#B0B8C1">설정 예정</span></div>`;
-    } else if (!_g.pay.length) { benHtml += _emptyRow; }
+      benHtml += `<div class="cell-fx-row cf-pay-row cf-soon off"><div class="cf-radio"></div><span class="nm">혜택 카드 결제 (무신사페이·토스페이)<span style="display:block;font-size:11px;color:#B0B8C1">추후 지원 · 곧 설정 가능</span></span><span class="val rt">설정 예정</span></div>`;
+    } else if (!_payCards.length && !_payNaver.length) { benHtml += _emptyRow; }
     benHtml += `<div class="cf-grp">④ 추가 캐시백<span class="cf-grp-note"> · 선택(경유)</span></div>` + (_g.cashback.length ? _g.cashback.map(_rowHtml).join('') : _emptyRow);
     benHtml += `<div class="cf-grp">⑤ 기타 할인</div>` + (_g.etc.length ? _g.etc.map(_rowHtml).join('') : _emptyRow);
     // ★ 2026-05-19 v7.1 A2 — 무채색 (좌측 검정 accent + 슬라이드 다운).

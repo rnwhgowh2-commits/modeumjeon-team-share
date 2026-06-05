@@ -3012,6 +3012,17 @@
 .cell-fx-ben .cf-radio.on::after { content: ""; position: absolute; inset: 2.5px; border-radius: 50%; background: #3182F6; }
 .cell-fx-ben .cf-pay-row .nm { flex: 1; }
 .cell-fx-ben .cf-pay-row .val { margin-left: auto; }
+/* [2026-06-05] v4 — 전 혜택 폰트 통일 (이름/차감액/비율 일관, kind별 차이 제거) */
+.cell-fx-ben .cell-fx-row .nm,
+.cell-fx-ben .cell-fx-row .nm.tpl,
+.cell-fx-ben .cell-fx-row .nm.ovr-new { font-size: 13px; font-weight: 600; color: #191F28; }
+.cell-fx-ben .cell-fx-row.off .nm { color: #8B95A1; }
+.cell-fx-ben .cell-fx-row .val { font-family: inherit; }
+.cell-fx-ben .cell-fx-row .val .n { font-size: 13px; font-weight: 700; color: #F04452; font-family: inherit; }
+.cell-fx-ben .cell-fx-row .val .n.blue { color: #3182F6; }
+.cell-fx-ben .cell-fx-row.off .val .n { color: #8B95A1; }
+.cell-fx-ben .cell-fx-row .val .rt { font-size: 11px; font-weight: 500; color: #8B95A1; font-family: inherit; }
+.cell-fx-ben .cell-fx-row .nm .sm { font-size: 11px; font-weight: 500; color: #8B95A1; }
 .cell-fx-ben h7 {
   display: flex; align-items: center; gap: 8px;
   font-size: 14px; font-weight: 700; color: #6B7684;
