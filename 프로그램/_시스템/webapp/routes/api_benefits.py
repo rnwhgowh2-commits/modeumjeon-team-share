@@ -356,8 +356,55 @@ def save_all_overrides(sku: str, source_id: int):
 
 
 # ─────────── 계산 엔진 (누적 차감) ───────────
+def _build_breakdown_cache(session, items: list) -> dict:
+    """[2026-06-05 perf] bulk_breakdowns N+1 제거 — compute_breakdown 이 item 당
+    5개씩 하던 쿼리(OptionSourceUrl·SourceProduct 전체·Template·Override·CardPref)를
+    여기서 1회씩만 조회해 인덱스로 만든다. (876건×5쿼리×원격RTT ≈ 110초 → 5쿼리)."""
+    from collections import defaultdict
+    from lemouton.sources.models import SourceProduct
+    from lemouton.sourcing.models_pricing import OptionSourceUrl
+    from lemouton.sources.service import normalize_url as _nu
+    skus = list({it.get('sku') for it in items if it.get('sku')})
+    sids = list({int(it.get('source_id')) for it in items
+                 if it.get('source_id') is not None})
+    link_by = {}
+    if skus and sids:
+        for l in (session.query(OptionSourceUrl)
+                  .filter(OptionSourceUrl.canonical_sku.in_(skus),
+                          OptionSourceUrl.source_id.in_(sids)).all()):
+            link_by[(l.canonical_sku, l.source_id)] = l
+    sp_by_norm = {}
+    for sp in (session.query(SourceProduct)
+               .filter(SourceProduct.deleted_at.is_(None)).all()):
+        if sp.url:
+            sp_by_norm[_nu(sp.url)] = sp
+    tpl_by_src = defaultdict(list)
+    if sids:
+        for t in (session.query(SourceBenefitTemplate)
+                  .filter(SourceBenefitTemplate.source_id.in_(sids))
+                  .order_by(SourceBenefitTemplate.sort_order,
+                            SourceBenefitTemplate.id).all()):
+            tpl_by_src[t.source_id].append(t)
+    ovr_by = defaultdict(list)
+    if skus and sids:
+        for o in (session.query(OptionBenefitOverride)
+                  .filter(OptionBenefitOverride.canonical_sku.in_(skus),
+                          OptionBenefitOverride.source_id.in_(sids))
+                  .order_by(OptionBenefitOverride.sort_order,
+                            OptionBenefitOverride.id).all()):
+            ovr_by[(o.canonical_sku, o.source_id)].append(o)
+    prefs = []
+    if sids:
+        prefs = (session.query(CardDiscountUserPref)
+                 .filter(CardDiscountUserPref.source_id.in_(sids)).all())
+    return {'link_by': link_by, 'sp_by_norm': sp_by_norm,
+            'tpl_by_src': tpl_by_src, 'ovr_by': ovr_by, 'prefs': prefs}
+
+
 def compute_breakdown(session, *, sku: str, source_id: int, sale_price: float,
-                       bundle_code: str = None):
+                       bundle_code: str = None, _cache: dict = None):
+    """_cache: bulk 호출 시 N+1 제거용 사전 로드 인덱스(_build_breakdown_cache).
+    None 이면(단일 호출) 기존처럼 매번 쿼리."""
     """누적 차감 계산.
 
     1. SourceBenefitTemplate (사이트 default) 조회
@@ -376,16 +423,22 @@ def compute_breakdown(session, *, sku: str, source_id: int, sale_price: float,
         from lemouton.sources.models import SourceProduct
         from lemouton.sourcing.models_pricing import OptionSourceUrl
         # 옵션의 sku 와 source_id 로 product_url → SourceProduct lookup
-        link = (session.query(OptionSourceUrl)
-                .filter_by(canonical_sku=sku, source_id=source_id)
-                .first())
+        if _cache is not None:
+            link = _cache['link_by'].get((sku, source_id))
+        else:
+            link = (session.query(OptionSourceUrl)
+                    .filter_by(canonical_sku=sku, source_id=source_id)
+                    .first())
         if link and link.product_url:
             from lemouton.sources.service import normalize_url as _nu
             target_norm = _nu(link.product_url)
-            sps = (session.query(SourceProduct)
-                   .filter(SourceProduct.deleted_at.is_(None))
-                   .all())
-            sp = next((s for s in sps if _nu(s.url) == target_norm), None)
+            if _cache is not None:
+                sp = _cache['sp_by_norm'].get(target_norm)
+            else:
+                sps = (session.query(SourceProduct)
+                       .filter(SourceProduct.deleted_at.is_(None))
+                       .all())
+                sp = next((s for s in sps if _nu(s.url) == target_norm), None)
             if sp:
                 import json as _json
                 if sp.auto_card_discount_json:
@@ -403,17 +456,24 @@ def compute_breakdown(session, *, sku: str, source_id: int, sale_price: float,
                 _card_enabled = resolve_card_enabled(
                     session,
                     canonical_sku=sku, source_id=source_id, bundle_code=bundle_code,
+                    _prefs=(_cache['prefs'] if _cache is not None else None),
                 )
     except Exception:
         pass
-    tpl_items = (session.query(SourceBenefitTemplate)
-                 .filter_by(source_id=source_id)
-                 .order_by(SourceBenefitTemplate.sort_order, SourceBenefitTemplate.id)
-                 .all())
-    ovr_items = (session.query(OptionBenefitOverride)
-                 .filter_by(canonical_sku=sku, source_id=source_id)
-                 .order_by(OptionBenefitOverride.sort_order, OptionBenefitOverride.id)
-                 .all())
+    if _cache is not None:
+        tpl_items = _cache['tpl_by_src'].get(source_id, [])
+    else:
+        tpl_items = (session.query(SourceBenefitTemplate)
+                     .filter_by(source_id=source_id)
+                     .order_by(SourceBenefitTemplate.sort_order, SourceBenefitTemplate.id)
+                     .all())
+    if _cache is not None:
+        ovr_items = _cache['ovr_by'].get((sku, source_id), [])
+    else:
+        ovr_items = (session.query(OptionBenefitOverride)
+                     .filter_by(canonical_sku=sku, source_id=source_id)
+                     .order_by(OptionBenefitOverride.sort_order, OptionBenefitOverride.id)
+                     .all())
     # 매칭: ovr 의 template_id 가 매핑된 tpl 은 ovr 로 대체
     ovr_by_tpl = {ovr.template_id: ovr for ovr in ovr_items if ovr.template_id}
     ovr_standalone = [ovr for ovr in ovr_items if not ovr.template_id]
@@ -709,6 +769,7 @@ def bulk_breakdowns():
     items = data.get('items') or []
     s = SessionLocal()
     try:
+        cache = _build_breakdown_cache(s, items)  # [perf] 공통 데이터 1회 로드 (N+1 제거)
         out = {}
         for it in items:
             sku = it.get('sku')
@@ -718,7 +779,8 @@ def bulk_breakdowns():
                 continue
             key = f"{sku}|{sid}"
             try:
-                out[key] = compute_breakdown(s, sku=sku, source_id=int(sid), sale_price=sp)
+                out[key] = compute_breakdown(s, sku=sku, source_id=int(sid),
+                                             sale_price=sp, _cache=cache)
             except Exception as e:
                 out[key] = {'error': str(e)}
         return _ok(results=out)
@@ -730,8 +792,21 @@ def bulk_breakdowns():
 #  카드 미반영 토글 (시안 A1)
 # ════════════════════════════════════════════
 def resolve_card_enabled(session, *, canonical_sku: str, source_id: int,
-                          bundle_code: str = None) -> bool:
-    """카드 적용 여부 우선순위 조회: option > bundle > global > default ON."""
+                          bundle_code: str = None, _prefs: list = None) -> bool:
+    """카드 적용 여부 우선순위 조회: option > bundle > global > default ON.
+    _prefs: bulk 호출 시 사전 로드한 CardDiscountUserPref 리스트(N+1 제거). 인메모리 조회."""
+    if _prefs is not None:
+        for p in _prefs:
+            if p.scope == 'option' and p.canonical_sku == canonical_sku and p.source_id == source_id:
+                return bool(p.enabled)
+        if bundle_code:
+            for p in _prefs:
+                if p.scope == 'bundle' and p.bundle_code == bundle_code and p.source_id == source_id:
+                    return bool(p.enabled)
+        for p in _prefs:
+            if p.scope == 'global' and p.source_id == source_id:
+                return bool(p.enabled)
+        return True
     row = (session.query(CardDiscountUserPref)
            .filter_by(scope='option', canonical_sku=canonical_sku, source_id=source_id)
            .first())
