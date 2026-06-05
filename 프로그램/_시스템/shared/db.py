@@ -25,8 +25,11 @@ _is_sqlite = Config.DB_URL.startswith('sqlite')
 _engine_kwargs = dict(future=True, pool_pre_ping=True)
 if not _is_sqlite:
     _engine_kwargs.update(
-        pool_size=5,        # 항상 유지하는 idle conn 수
-        max_overflow=8,     # 피크 시 추가 — 총 13 < Supabase 15 한도
+        # [2026-06-06] 라이브(서버)+로컬(크롤) 동시 실행 대응 — 앱당 최대 7로 축소.
+        #   기존 13/앱 은 단일 앱 가정. 두 인스턴스면 26>15(Supabase 한도) → 풀 고갈.
+        #   7×2=14<15 로 라이브·로컬 공존 가능.
+        pool_size=3,        # 항상 유지하는 idle conn 수
+        max_overflow=4,     # 피크 시 추가 — 총 7/앱 (라이브+로컬 = 14 < 15)
         pool_recycle=60,    # [perf 2026-05-29] 60초: 유휴 커넥션이 half-open 되기 전에
                             #   선제 폐기 → 유휴 후 첫 요청은 항상 새 커넥션(~0.3s, 동일 리전)
                             #   사용. keepalive(42s→10s)로도 남던 잔여 멈춤을 제거.
