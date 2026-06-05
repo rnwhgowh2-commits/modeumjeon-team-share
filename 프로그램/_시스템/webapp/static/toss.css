@@ -2989,6 +2989,16 @@
   background: transparent; border: none; border-left: 1px dotted #D1D6DB; border-radius: 0;
   max-height: none; overflow: visible;
 }
+/* [2026-06-05] v3 — 혜택 그룹 헤더 (쿠폰 / 등급·적립 / 결제 방식 택1) */
+.cell-fx-ben .cf-grp {
+  font-size: 11px; font-weight: 800; color: #8B95A1; letter-spacing: .3px;
+  padding: 12px 2px 5px; margin-top: 4px; border-top: 1px solid #F2F4F6;
+}
+.cell-fx-ben .cf-grp:first-child { border-top: none; margin-top: 0; padding-top: 2px; }
+.cell-fx-ben .cf-grp.pay { color: #191F28; font-size: 12.5px; }
+.cell-fx-ben .cf-grp .cf-grp-note { font-weight: 500; color: #8B95A1; font-size: 11px; }
+.cell-fx-ben .cell-fx-row.cf-soon,
+.cell-fx-ben .cell-fx-row.cf-pay-base { cursor: default; }
 .cell-fx-ben h7 {
   display: flex; align-items: center; gap: 8px;
   font-size: 14px; font-weight: 700; color: #6B7684;

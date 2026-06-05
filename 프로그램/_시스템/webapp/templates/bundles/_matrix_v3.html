@@ -3407,13 +3407,35 @@
         </div>
         <div class="right">${_cardChipHtml}</div>
       </div>`;
-    let benHtml = '';
-    (j.items_used || []).forEach((it) => {
+    // ★ 2026-06-05 v3 — 혜택을 3그룹으로 (쿠폰 / 등급·적립 / 결제 방식 택1).
+    //   결제 수단(카드/페이/네이버/무신사머니/청구할인/캐시백)은 택1 그룹. 적립류는 누적.
+    //   무신사(srcId=3): 무신사머니는 회원가(base)에 이미 반영 → '선택됨' 정보행 + 무신사페이 '추후 지원' 회색행.
+    const _payTok = ['카드', '페이', '네이버', '무신사머니', '청구할인', '캐시백'];
+    const _isPay = (nm) => _payTok.some(t => (nm || '').includes(t));
+    const _isCoupon = (nm) => (nm || '').includes('쿠폰');
+    const _rowHtml = (it) => {
       const cls = it.kind === 'ovr_new' ? 'ovr-new' : (it.kind === 'tpl' ? 'tpl' : '');
       const isRate = it.type === 'rate';
       const valDisp = isRate ? (it.value * 100).toFixed(2) + '%' : Math.round(it.value).toLocaleString('ko-KR') + '원';
-      benHtml += `<div class="cell-fx-row ${it.enabled ? 'on' : 'off'}" data-bid="${it.id}" data-bkind="${it.kind}"><div class="tg" onclick="smCellTog(this)"></div><span class="nm ${cls}" title="${it.kind === 'tpl' ? '템플릿 상속' : it.kind === 'ovr' ? '템플릿 변경' : '옵션 단독'}">${escapeHtml(it.name)}</span><span class="val">-${(it.enabled ? (j.steps.find(s=>s.name===it.name)?.deduct||0) : 0).toLocaleString('ko-KR')}원 <span style="opacity:.7;font-size: 14px;font-weight:500">(${valDisp})</span></span><button class="del" title="삭제 (옵션 override 만)" onclick="smCellDel(this, '${sku}', ${srcId})">${it.kind === 'tpl' ? '' : '🗑'}</button></div>`;
-    });
+      const ded = it.enabled ? (j.steps.find(s => s.name === it.name)?.deduct || 0) : 0;
+      return `<div class="cell-fx-row ${it.enabled ? 'on' : 'off'}" data-bid="${it.id}" data-bkind="${it.kind}"><div class="tg" onclick="smCellTog(this)"></div><span class="nm ${cls}" title="${it.kind === 'tpl' ? '템플릿 상속' : it.kind === 'ovr' ? '템플릿 변경' : '옵션 단독'}">${escapeHtml(it.name)}</span><span class="val">-${ded.toLocaleString('ko-KR')}원 <span style="opacity:.7;font-size: 14px;font-weight:500">(${valDisp})</span></span><button class="del" title="삭제 (옵션 override 만)" onclick="smCellDel(this, '${sku}', ${srcId})">${it.kind === 'tpl' ? '' : '🗑'}</button></div>`;
+    };
+    const _items = (j.items_used || []);
+    const _gC = _items.filter(it => _isCoupon(it.name));
+    const _gP = _items.filter(it => _isPay(it.name) && !_isCoupon(it.name));
+    const _gR = _items.filter(it => !_isPay(it.name) && !_isCoupon(it.name));
+    const _isMusinsa = String(srcId) === '3';
+    let benHtml = '';
+    if (_gC.length) benHtml += `<div class="cf-grp">쿠폰</div>` + _gC.map(_rowHtml).join('');
+    benHtml += `<div class="cf-grp">등급 · 적립</div>` + (_gR.length ? _gR.map(_rowHtml).join('') : `<div class="cell-fx-row off" style="opacity:.6"><span class="nm" style="color:#B0B8C1">해당 없음</span></div>`);
+    benHtml += `<div class="cf-grp pay">결제 방식<span class="cf-grp-note"> · 택1 (가장 큰 1개)</span></div>`;
+    if (_isMusinsa) {
+      benHtml += `<div class="cell-fx-row on cf-pay-base"><div class="tg" style="opacity:.5;pointer-events:none"></div><span class="nm">무신사머니 결제 적립<span style="display:block;font-size:11px;color:#8B95A1">회원가(매입 기준가)에 이미 반영됨</span></span><span class="val" style="color:#3182F6;font-weight:700">반영됨 ✓</span></div>`;
+    }
+    benHtml += _gP.map(_rowHtml).join('');
+    if (_isMusinsa) {
+      benHtml += `<div class="cell-fx-row off cf-soon"><div class="tg" style="opacity:.35;pointer-events:none"></div><span class="nm" style="color:#B0B8C1">혜택 카드 결제 (무신사페이)<span style="display:block;font-size:11px;color:#B0B8C1">추후 지원 · 곧 설정 가능</span></span><span class="val" style="color:#B0B8C1">설정 예정</span></div>`;
+    }
     // ★ 2026-05-19 v7.1 A2 — 무채색 (좌측 검정 accent + 슬라이드 다운).
     //   v6 D2-A (#3182F6 파랑 + #DC2626 빨강) → A2 (monochrome only).
     //   scope = .scope-list .item (단일 border 박스 + 소싱처 default gsep).
