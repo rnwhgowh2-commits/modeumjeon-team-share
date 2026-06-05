@@ -1135,20 +1135,30 @@ def sourcing_sites():
     # mkdir 부작용 회피 — 경로만 계산
     from lemouton.auth.profile_store import _safe_key
 
-    # ── DB SourcingAccount → (source, account_key) → is_default_for_crawl 매핑
+    # ── DB SourcingAccount → (source, account_key) → is_default_for_crawl / is_active 매핑
     db = SessionLocal()
     try:
         db_accounts = db.query(SourcingAccount).all()
         default_crawl_map = {(a.source, a.account_key): a.is_default_for_crawl for a in db_accounts}
+        active_map = {(a.source, a.account_key): a.is_active for a in db_accounts}
     finally:
         db.close()
 
+    # [2026-06-06] 로그인 상태는 크롤과 동일 프로필(invoice_profiles, login_method 반영) 기준으로
+    #   검사해야 정확함. (기존 data/profiles 경로 검사는 크롤이 쓰는 경로와 달라 오표시)
+    from lemouton.auth.profile_store import resolve_profile_dir
+    _all_creds = store.load_all()
     summary_by_key: dict[str, list[dict]] = {}
     for row in store.list_summary():
-        # 쿠키 상태 검증 — 실 ID 기반 프로필 디렉터리 매칭 (생성 X, 검사만)
-        all_creds = store.load_all().get(row["source"], {}).get(row["account_key"], {})
+        _key = (row["source"], row["account_key"])
+        # 비활성 계정은 목록에서 제외 (활성 계정만 노출)
+        if _key in active_map and not active_map[_key]:
+            continue
+        # 쿠키 상태 검증 — 크롤과 동일 프로필(invoice_profiles) 기준 (생성 X, 검사만)
+        all_creds = _all_creds.get(row["source"], {}).get(row["account_key"], {})
         actual_id = all_creds.get("id", row["account_key"])
-        prof_path = profile_store.profiles_root / f"{_safe_key(row['source'])}_{_safe_key(actual_id)}"
+        login_method = all_creds.get("login_method", "direct")
+        prof_path = resolve_profile_dir(row["source"], actual_id, login_method)
         cookie_state = quick_check(prof_path, row["source"]) if prof_path.exists() else {
             "exists": False, "size_kb": 0, "has_key_cookies": False, "matched_keys": []
         }
