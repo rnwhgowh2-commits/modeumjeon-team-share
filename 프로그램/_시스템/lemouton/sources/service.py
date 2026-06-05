@@ -459,6 +459,16 @@ def save_crawl_result(
                        'coupon', 'cart_coupons', 'purchase_extra_reward'):
                 if _k in _bd and _bd[_k] not in (None, 0, '', False, []):
                     _dyn[_k] = _bd[_k]
+            # ★ 2026-06-05 — 무신사 시안 v3: 표면가 + 등급적립/무신사머니 '금액'을 SourceProduct 레벨에
+            #   영속 저장 (relogin 등 옵션레벨 덮어쓰기에 안전). compute_breakdown 이 항목으로 차감.
+            _surface = _o.get('sale_price')
+            if _surface:
+                _dyn['surface_price'] = int(_surface)
+                _dyn['grade_reward_amount'] = int(_bd.get('grade_reward_amount') or 0)
+                _dyn['money_reward_amount'] = int(_bd.get('money_reward_amount') or 0)
+                _dyn['grade_discount_amount'] = int(_bd.get('grade_discount') or 0)
+                _dyn['coupon_amount'] = int(_bd.get('coupon') or 0)
+                _dyn['review_amount'] = 500 if _bd.get('review_reward_active') else 0
         if _dyn:
             break  # 첫 non-empty 옵션만 (상품 단위 가정)
     source_product.dynamic_benefits_json = _json.dumps(_dyn, ensure_ascii=False) if _dyn else None

@@ -460,6 +460,36 @@ def compute_breakdown(session, *, sku: str, source_id: int, sale_price: float,
                 )
     except Exception:
         pass
+
+    # ★ 2026-06-05 — 무신사(src=3) 보강 조회: OptionSourceUrl 미연결(모음전/단품 매칭) 옵션은
+    #   option_source_links → SourceProduct.dynamic_benefits_json 에서 무신사 breakdown(표면가/
+    #   등급적립/무신사머니 금액)을 읽는다. SourceProduct 레벨이라 relogin(옵션레벨)에 안 덮인다.
+    if str(source_id) == '3' and not _dynamic_benefits.get('surface_price'):
+        try:
+            from sqlalchemy import text as _sqltext
+            import json as _json
+            _rows2 = session.execute(_sqltext(
+                "SELECT sp.dynamic_benefits_json FROM option_source_links l "
+                "JOIN source_options so ON l.source_option_id = so.id "
+                "JOIN source_products sp ON so.source_product_id = sp.id "
+                "WHERE l.canonical_sku = :sku AND sp.site = 'musinsa' "
+                "AND so.deleted_at IS NULL AND sp.deleted_at IS NULL "
+                "AND sp.dynamic_benefits_json IS NOT NULL"
+            ), {'sku': sku}).fetchall()
+            _best2 = None
+            for (_dj,) in _rows2:
+                try:
+                    _d2 = _json.loads(_dj) or {}
+                except Exception:
+                    continue
+                if _d2.get('surface_price'):
+                    # 여러 listing 중 등급적립 금액이 가장 큰(모음전 회원가) breakdown 채택
+                    if _best2 is None or (_d2.get('grade_reward_amount') or 0) > (_best2.get('grade_reward_amount') or 0):
+                        _best2 = _d2
+            if _best2:
+                _dynamic_benefits = _best2
+        except Exception:
+            pass
     if _cache is not None:
         tpl_items = _cache['tpl_by_src'].get(source_id, [])
     else:
@@ -686,6 +716,21 @@ def compute_breakdown(session, *, sku: str, source_id: int, sale_price: float,
         if '적립' in (it.benefit_name or ''):
             return 1
         return 2
+    # ★ 2026-06-05 — 무신사 옵션 breakdown 금액 항목 주입 (시안 v3: 표면가 base + 등급적립·무신사머니).
+    #   _dynamic_benefits(SourceProduct, option_source_links 조회)의 금액을 항목으로 차감 → 매입가 정확.
+    _base_override = None
+    if str(source_id) == '3' and _dynamic_benefits.get('surface_price'):
+        class _Inj:
+            def __init__(self, name, value, enabled=True):
+                self.id = -1; self.benefit_name = name; self.benefit_type = 'amount'
+                self.value = value; self.enabled = enabled
+                self.sort_order = 999; self.template_id = None
+        _base_override = float(_dynamic_benefits.get('surface_price') or 0)
+        effective.append(('dyn', _Inj('상품쿠폰', float(_dynamic_benefits.get('coupon_amount') or 0), enabled=bool(_dynamic_benefits.get('coupon_amount')))))
+        effective.append(('dyn', _Inj('등급할인', float(_dynamic_benefits.get('grade_discount_amount') or 0), enabled=bool(_dynamic_benefits.get('grade_discount_amount')))))
+        effective.append(('dyn', _Inj('등급적립', float(_dynamic_benefits.get('grade_reward_amount') or 0), enabled=bool(_dynamic_benefits.get('grade_reward_amount')))))
+        effective.append(('dyn', _Inj('무신사머니 결제 적립', float(_dynamic_benefits.get('money_reward_amount') or 0), enabled=bool(_dynamic_benefits.get('money_reward_amount')))))
+
     effective.sort(key=lambda x: _benefit_priority(x[1]))
 
     # ★ 2026-06-05 — '무신사머니 fallback' 이중 차감 차단 (사용자 정책).
@@ -718,8 +763,8 @@ def compute_breakdown(session, *, sku: str, source_id: int, sale_price: float,
             if _it is not _best_it:
                 _it.enabled = False
 
-    # 누적 차감
-    base = float(sale_price)
+    # 누적 차감 (무신사 breakdown 있으면 base = 표면가 override)
+    base = float(_base_override if _base_override is not None else sale_price)
     steps = []
     items_used = []
     for kind, it in effective:
@@ -755,7 +800,7 @@ def compute_breakdown(session, *, sku: str, source_id: int, sale_price: float,
             'base_after': int(base),
         })
     return {
-        'sale_price': float(sale_price),
+        'sale_price': float(_base_override if _base_override is not None else sale_price),
         'final_price': int(base),
         'steps': steps,
         'items_used': items_used,

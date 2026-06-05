@@ -177,6 +177,23 @@ def crawl_registered_urls(
                 product_name=getattr(result, "product_name_raw", None),
             )
             link_model_to_source(s, model_code=model_code, source_product_id=sp.id)
+            # ★ 2026-06-05 — 무신사 표면가 + 등급적립/무신사머니 '금액'을 SourceProduct 레벨 저장 (시안 v3).
+            #   relogin 등 옵션레벨 덮어쓰기에 안전. compute_breakdown 이 항목으로 차감 → 매입가 정확.
+            if src == 'musinsa' and opts:
+                import json as _jsonp
+                _o0 = opts[0]
+                _bd0 = _o0.get('breakdown') if isinstance(_o0.get('breakdown'), dict) else {}
+                _surface0 = _o0.get('sale_price')
+                if _surface0:
+                    sp.dynamic_benefits_json = _jsonp.dumps({
+                        'surface_price': int(_surface0),
+                        'grade_reward_amount': int(_bd0.get('grade_reward_amount') or 0),
+                        'money_reward_amount': int(_bd0.get('money_reward_amount') or 0),
+                        'grade_discount_amount': int(_bd0.get('grade_discount') or 0),
+                        'coupon_amount': int(_bd0.get('coupon') or 0),
+                        'review_amount': 500 if _bd0.get('review_reward_active') else 0,
+                        'money_active': _bd0.get('money_active'),
+                    }, ensure_ascii=False)
             prices = []
             pcns = _ns(page_color) if page_color else None
             color_ns_keys = [k for k in our_colors_ns.keys() if k]
