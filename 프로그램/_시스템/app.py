@@ -419,11 +419,19 @@ from datetime import datetime, timezone  # noqa: E402, F811
 
 
 def _setup_logging() -> None:
+    # [2026-06-05 PERF] 로그 자동 회전 — app.log 가 무한정 커지던 문제(27MB+ 관측) 방지.
+    #   5MB 초과 시 app.log.1~3 으로 밀고, 4개 초과분(가장 오래된 것)은 자동 삭제.
+    #   → 로그 총량 최대 ~20MB 로 상한. 로그인·크롤·데이터엔 영향 없음(단순 기록 파일).
+    from logging.handlers import RotatingFileHandler
+    _fh = RotatingFileHandler(
+        Config.LOG_DIR / "app.log", encoding="utf-8",
+        maxBytes=5 * 1024 * 1024, backupCount=3,
+    )
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
         handlers=[
-            logging.FileHandler(Config.LOG_DIR / "app.log", encoding="utf-8"),
+            _fh,
             logging.StreamHandler(),
         ],
     )
