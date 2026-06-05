@@ -872,10 +872,10 @@
         ${renderMatrix(valid)}
       </div>`;
 
-      // 적용 바 (가운데)
+      // [2026-06-04] 적용 버튼 제거 — on/off 가 우측 URL/재고 패널에 자동 반영
+      if (valid.length) state.applied = true;
       html += `<div class="oum-apply-bar">
         <div class="sum">${valid.length ? `✓ 옵션 <b>${onCnt}개</b> 활성 / ${totalCnt - onCnt}개 비활성 — 우측에 적용?` : '먼저 축을 입력하세요'}</div>
-        <button class="oum-apply-btn ${state.applied ? 'applied' : ''}" id="oum-apply" ${onCnt === 0 ? 'disabled' : ''} type="button">${state.applied ? '✓ 적용됨 (다시 적용)' : 'URL 매핑에 적용 →'}</button>
       </div>`;
 
       left.innerHTML = html;
@@ -1168,8 +1168,7 @@
       });
 
       // 적용 버튼
-      html += `<div class="oum-inv-foot-new"><button class="oum-apply-btn-new" data-inv-apply type="button">💾 ${selectedKeys.length}건 적용 저장</button></div>`;
-
+      html += `<div class="oum-inv-foot-new">
       return html;
     }
 
