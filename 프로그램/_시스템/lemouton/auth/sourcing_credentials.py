@@ -158,7 +158,106 @@ class SourcingCredentialsStore:
         os.replace(tmp_path, self.path)
 
 
-def default_store() -> SourcingCredentialsStore:
-    """기본 store — ``data/sourcing_credentials.json``."""
+class DbSourcingCredentialsStore:
+    """DB(``sourcing_credentials`` 테이블) 백엔드 — 파일 store 와 동일 인터페이스.
+
+    [2026-06-05] 파일(data/sourcing_credentials.json)은 서버 배포 때마다 삭제돼
+    계정이 사라졌다. Supabase DB 로 이전해 배포와 무관하게 영구 보존.
+    호출처(load_all/get/upsert/remove/list_summary)는 그대로 동작한다.
+    """
+
+    def load_all(self) -> dict:
+        from shared.db import SessionLocal
+        from lemouton.sourcing.models_v2 import SourcingCredential
+        out: dict = {}
+        s = SessionLocal()
+        try:
+            for c in s.query(SourcingCredential).all():
+                out.setdefault(c.source, {})[c.account_key] = {
+                    "id": c.login_id,
+                    "pw": c.login_pw,
+                    "login_method": c.login_method or "direct",
+                }
+        finally:
+            s.close()
+        return out
+
+    def get(self, source: str, account_key: str = "default") -> Optional[dict]:
+        return self.load_all().get(source, {}).get(account_key)
+
+    def upsert(self, source: str, account_key: str, id_value: str, pw_value: str,
+               *, login_method: str = "direct") -> dict:
+        if not source or not source.strip():
+            raise ValueError("source 비어있음")
+        if not account_key:
+            account_key = "default"
+        if not id_value or not id_value.strip():
+            raise ValueError("id 비어있음")
+        if not pw_value or not pw_value.strip():
+            raise ValueError("pw 비어있음")
+        from shared.db import SessionLocal
+        from lemouton.sourcing.models_v2 import SourcingCredential
+        s = SessionLocal()
+        try:
+            row = (s.query(SourcingCredential)
+                   .filter_by(source=source, account_key=account_key).one_or_none())
+            if row is None:
+                row = SourcingCredential(source=source, account_key=account_key,
+                                         login_id=id_value.strip(), login_pw=pw_value.strip(),
+                                         login_method=login_method)
+                s.add(row)
+            else:
+                row.login_id = id_value.strip()
+                row.login_pw = pw_value.strip()
+                row.login_method = login_method
+            s.commit()
+        finally:
+            s.close()
+        logger.info("[sourcing_creds:db] upsert — %s/%s id=%s",
+                    source, account_key, _mask_id(id_value))
+        return {"source": source, "account_key": account_key,
+                "id_masked": _mask_id(id_value), "login_method": login_method}
+
+    def remove(self, source: str, account_key: str = "default") -> bool:
+        from shared.db import SessionLocal
+        from lemouton.sourcing.models_v2 import SourcingCredential
+        s = SessionLocal()
+        try:
+            row = (s.query(SourcingCredential)
+                   .filter_by(source=source, account_key=account_key).one_or_none())
+            if row is None:
+                return False
+            s.delete(row)
+            s.commit()
+            return True
+        finally:
+            s.close()
+
+    def list_summary(self) -> list[dict]:
+        rows = []
+        for source, accounts in self.load_all().items():
+            for account_key, creds in accounts.items():
+                pw = creds.get("pw") or ""
+                rows.append({
+                    "source": source,
+                    "account_key": account_key,
+                    "id_masked": _mask_id(creds.get("id")),
+                    "login_method": creds.get("login_method", "direct"),
+                    "has_pw": bool(pw),
+                    "pw_length": len(pw),
+                })
+        return rows
+
+
+def file_store() -> SourcingCredentialsStore:
+    """레거시 파일 store — 일회 이전(migration) 시 로컬 파일 읽기용."""
     project_root = Path(__file__).resolve().parents[2]
     return SourcingCredentialsStore(project_root / "data" / "sourcing_credentials.json")
+
+
+def default_store() -> "DbSourcingCredentialsStore":
+    """기본 store — DB(sourcing_credentials). [2026-06-05] 파일 → DB 이전.
+
+    배포(rm -rf ~/app + tar --exclude=data)로 파일이 사라지던 문제 해결.
+    """
+    return DbSourcingCredentialsStore()

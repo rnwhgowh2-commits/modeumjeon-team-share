@@ -126,6 +126,34 @@ class SourcingAccount(Base):
     )
 
 
+class SourcingCredential(Base):
+    """소싱처 회원 로그인 ID/PW — DB 영구 저장.
+
+    [2026-06-05] 기존 파일(``data/sourcing_credentials.json``)은 서버 배포 때마다
+    ``rm -rf ~/app`` + tar ``--exclude=data`` 로 통째 삭제돼 계정이 사라졌다.
+    → DB(Supabase)로 이전해 배포와 무관하게 영구 보존. (파일 store 와 동일 인터페이스)
+
+    구조: (source, account_key) → {login_id, login_pw, login_method}
+    ※ login_pw 는 현재 평문(기존 파일과 동일 수준). 추후 env 키 기반 암호화 권장.
+    """
+    __tablename__ = "sourcing_credentials"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    source = Column(String(32), nullable=False)            # "musinsa" | "ssf" | ...
+    account_key = Column(String(64), nullable=False)       # "default" | "영빈" | ...
+    login_id = Column(Text, nullable=False)
+    login_pw = Column(Text, nullable=False)
+    login_method = Column(String(16), default="direct", nullable=False)  # direct | manual | naver | kakao
+
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc),
+                        onupdate=lambda: datetime.now(timezone.utc))
+
+    __table_args__ = (
+        UniqueConstraint("source", "account_key", name="uq_sourcing_credentials_source_key"),
+    )
+
+
 # ════════════════════════════════════════════════════════════
 #  UPLOAD LAYER (계정별)
 # ════════════════════════════════════════════════════════════
