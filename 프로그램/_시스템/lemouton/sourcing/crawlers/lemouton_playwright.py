@@ -115,6 +115,8 @@ class PlaywrightLemoutonCrawler(AbstractCrawler):
                 )
                 try:
                     page = context.new_page()
+                    from .base import block_heavy_resources
+                    block_heavy_resources(page)  # [PERF] 이미지/영상/폰트 차단 — 회원가 데이터는 그대로
                     try:
                         return self._crawl_with_page(page, product_url)
                     finally:
@@ -128,6 +130,8 @@ class PlaywrightLemoutonCrawler(AbstractCrawler):
             try:
                 context = browser.new_context(user_agent=USER_AGENT)
                 page = context.new_page()
+                from .base import block_heavy_resources
+                block_heavy_resources(page)  # [PERF] 이미지/영상/폰트 차단
                 try:
                     return self._crawl_with_page(page, product_url)
                 finally:

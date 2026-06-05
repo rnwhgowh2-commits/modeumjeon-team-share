@@ -661,6 +661,8 @@ def _fetch_lotteon_via_playwright(product_url: str, timeout_sec: int) -> dict:
             viewport={"width": 1440, "height": 900},
         )
         page = ctx.new_page()
+        from .base import block_heavy_resources
+        block_heavy_resources(page)  # [PERF] 이미지/영상/폰트 차단 — JSON API 데이터는 그대로
 
         def on_response(resp):
             u = resp.url

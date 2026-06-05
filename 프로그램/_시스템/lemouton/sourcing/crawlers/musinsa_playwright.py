@@ -547,6 +547,8 @@ class MusinsaPlaywrightCrawler(AbstractCrawler):
                     raise RuntimeError(f"모든 채널 실패: {last_err}")
                 try:
                     page = context.new_page()
+                    from .base import block_heavy_resources
+                    block_heavy_resources(page)  # [PERF] 이미지/영상/폰트 차단 — 회원가 데이터는 그대로
                     try:
                         return self._crawl_with_retry(page, product_url)
                     finally:
@@ -571,6 +573,8 @@ class MusinsaPlaywrightCrawler(AbstractCrawler):
             browser, context = new_context_with_state(pw, _src_used, self.account_name, browser=None)
             try:
                 page = context.new_page()
+                from .base import block_heavy_resources
+                block_heavy_resources(page)  # [PERF] 이미지/영상/폰트 차단
                 try:
                     return self._crawl_with_retry(page, product_url)
                 finally:

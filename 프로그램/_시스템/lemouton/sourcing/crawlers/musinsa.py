@@ -210,6 +210,8 @@ def _discover_color_variants(product_url: str) -> list:
                 ctx = browser.new_context(locale="ko-KR",
                     user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36")
                 page = ctx.new_page()
+                from .base import block_heavy_resources
+                block_heavy_resources(page)  # [PERF] 이미지/영상/폰트 차단 — 검색결과 텍스트는 그대로
                 # base 모델명 + brand 로 검색 (URL 인코딩)
                 from urllib.parse import quote as _q
                 search_kw = f"{brand_name} {base}".strip() if brand_name else base

@@ -37,6 +37,39 @@ class CrawlResult:
     fetched_at: str | None = None  # ISO 8601, pipeline에서 set
 
 
+# ─────────────────────────────────────────────────────────────────
+# [2026-06-05 PERF] 크롤 속도·대역폭 최적화 — 불필요 리소스 차단
+#   가격·재고 데이터는 document/script/xhr/fetch 로 오므로, 그 외
+#   image/media/font 만 차단한다. → 추출 데이터 100% 동일, 다운로드만 절약.
+#   (JS·CSS·API 응답은 절대 차단 안 함. 로그인 캡차 위험 회피 위해 상품조회 page 에만 적용.)
+# ─────────────────────────────────────────────────────────────────
+_BLOCK_RESOURCE_TYPES = ("image", "media", "font")
+
+
+def block_heavy_resources(context_or_page) -> bool:
+    """이미지/동영상/폰트 다운로드를 차단(가격·재고 데이터는 그대로 수신).
+
+    크롤 페이지 또는 컨텍스트에 적용. 실패해도 크롤은 정상 진행(차단만 미적용).
+    반환 True=적용됨. 사용: page = ctx.new_page(); block_heavy_resources(page)
+    """
+    try:
+        def _route(route):
+            try:
+                if route.request.resource_type in _BLOCK_RESOURCE_TYPES:
+                    route.abort()
+                else:
+                    route.continue_()
+            except Exception:
+                try:
+                    route.continue_()
+                except Exception:
+                    pass
+        context_or_page.route("**/*", _route)
+        return True
+    except Exception:
+        return False
+
+
 class AbstractCrawler(ABC):
     """모든 사이트 크롤러의 베이스."""
     source_name: str = ""
