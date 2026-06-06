@@ -532,3 +532,78 @@ class OptionInventoryLink(Base):
             "inventory_option_sku", "bundle_option_sku",
         ),
     )
+
+
+# ════════════════════════════════════════════════════════════
+#  다중 워커 크롤 시스템 (2026-06-06) — 서버는 트리거(잡 등록)만 하고,
+#  실제 크롤은 팀 로컬 PC 워커가 실행한다. 설계: docs/crawl-worker-system.md
+#  배경: 라이브 검증 결과 서버 직접 크롤로 무신사(로그인)·롯데온(playwright) 실패.
+# ════════════════════════════════════════════════════════════
+
+class CrawlWorker(Base):
+    """등록된 팀 크롤 PC(워커).
+
+    식별자 = name(별명, 중복 불가). 우선순위는 낮을수록 먼저(priority ASC).
+    online 판정 = last_heartbeat_at 이 HEARTBEAT_ONLINE_SEC(기본 90초) 이내.
+    logins_json = 이 PC 가 크롤 가능한(로그인 보유) 소싱처 키 목록 ["musinsa", ...].
+    ip_address = 선택. 등록 시 그 IP 에서 '전체 크롤' 누르면 자동으로 이 PC 를
+                 '내 PC' 로 인식(미등록이면 수동 선택).
+    """
+    __tablename__ = "crawl_workers"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    name = Column(String(120), nullable=False, unique=True)   # 별명 = 식별자
+    owner = Column(String(120))                               # 소유 팀원
+    enabled = Column(Boolean, default=True, nullable=False)   # 활성/비활성 토글
+    priority = Column(Integer, default=100, nullable=False)   # 낮을수록 먼저
+    logins_json = Column(Text, default="[]")                  # 보유 로그인 목록
+    ip_address = Column(String(64))                           # 선택 — 내 PC 자동인식
+    last_heartbeat_at = Column(DateTime)                      # ON/OFF 판정
+    app_version = Column(String(32))
+    note = Column(String(255))
+    registered_at = Column(
+        DateTime, nullable=False, default=lambda: datetime.now(timezone.utc))
+
+    __table_args__ = (
+        Index("ix_crawl_workers_priority", "priority"),
+    )
+
+
+class CrawlJob(Base):
+    """크롤 잡 큐. 서버(스케줄러/버튼)가 등록(pending), 워커가 원자적 선점·실행.
+
+    status:  pending → claimed → running → done | failed | expired | canceled
+    routing: 'queue'(우선순위 경쟁) | 'pinned'(assigned_worker 전용 — 수동 '내 PC')
+    required_login: 이 잡 크롤에 로그인이 꼭 필요한 소싱처(예 'musinsa'). 그 로그인
+        보유 워커만 선점. NULL = 아무 워커나.
+    lease_expires_at: 선점 후 이 시각까지 하트비트 갱신 없으면 잡 회수(pending) —
+        워커 PC 가 크롤 중 꺼져도 다른 PC 가 이어받게 함(좀비 'running' 방지).
+    """
+    __tablename__ = "crawl_jobs"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    model_code = Column(String(64), index=True)               # NULL = 전체 번들
+    phase = Column(String(16), default="crawl", nullable=False)
+    status = Column(String(16), default="pending", nullable=False)
+    routing = Column(String(16), default="queue", nullable=False)
+    required_login = Column(String(32))                       # 'musinsa' 등 / NULL
+    priority = Column(Integer, default=100, nullable=False)   # 잡 우선순위(작을수록 먼저)
+    assigned_worker = Column(String(120))                     # pinned 대상 별명
+    worker_name = Column(String(120), index=True)             # 실제 선점한 워커
+    attempts = Column(Integer, default=0, nullable=False)
+    triggered_by = Column(String(32), default="manual", nullable=False)
+    claimed_at = Column(DateTime)
+    lease_expires_at = Column(DateTime)
+    started_at = Column(DateTime)
+    finished_at = Column(DateTime)
+    result_json = Column(Text)                                # 소싱처별 결과 요약
+    error = Column(Text)
+    created_at = Column(
+        DateTime, nullable=False, default=lambda: datetime.now(timezone.utc))
+
+    __table_args__ = (
+        Index("ix_crawl_jobs_status", "status"),
+        Index("ix_crawl_jobs_lease", "lease_expires_at"),
+        Index("ix_crawl_jobs_created", "created_at"),
+        Index("ix_crawl_jobs_dispatch", "status", "priority", "created_at"),
+    )
