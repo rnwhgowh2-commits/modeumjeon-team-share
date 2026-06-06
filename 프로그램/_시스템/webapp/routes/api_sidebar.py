@@ -38,6 +38,8 @@ def _default_layout() -> dict:
                  'url': '/source-registry', 'active_key': 'source_registry', 'badge_key': None},
                 {'id': 'i_src_acct', 'emoji': '🔑', 'name': '소싱처 계정',
                  'url': '/accounts/sourcing', 'active_key': 'accounts_sourcing', 'badge_key': None},
+                {'id': 'i_crawl_guide', 'emoji': '🗒', 'name': '크롤링 가이드',
+                 'url': '/sourcing-guide/', 'active_key': 'sourcing_guide', 'badge_key': None},
             ]},
             {'id': 's2', 'emoji': '📦', 'name': '모음전 등록', 'color': '#3182F6',
              'collapsed': False, 'items': [
@@ -156,23 +158,42 @@ def _validate(layout: dict) -> tuple[bool, str]:
 _ROADMAP_ITEM = {'id': 'i_roadmap', 'emoji': '🗺', 'name': '로드맵',
                  'url': '/roadmap', 'active_key': 'roadmap', 'badge_key': None}
 
+# 크롤링 가이드 탭 — 소싱·발견(s1) 스테이지 끝에 항상 주입.
+_CRAWL_GUIDE_ITEM = {'id': 'i_crawl_guide', 'emoji': '🗒', 'name': '크롤링 가이드',
+                     'url': '/sourcing-guide/', 'active_key': 'sourcing_guide', 'badge_key': None}
 
-def _has_roadmap(layout: dict) -> bool:
+
+def _has_item_id(layout: dict, item_id: str) -> bool:
     def _has(items):
-        return any(isinstance(i, dict) and i.get('id') == 'i_roadmap' for i in items)
+        return any(isinstance(i, dict) and i.get('id') == item_id for i in items)
     if _has(layout.get('standalone', [])):
         return True
     return any(_has(st.get('items', [])) for st in layout.get('stages', []))
 
 
+def _has_roadmap(layout: dict) -> bool:
+    return _has_item_id(layout, 'i_roadmap')
+
+
 def get_layout_for_template() -> dict:
-    """템플릿 렌더 시 호출 — sidebar.html context 용. 로드맵 탭 항상 주입."""
+    """템플릿 렌더 시 호출 — sidebar.html context 용. 로드맵·크롤링가이드 탭 항상 주입."""
     layout = _load()
-    if _has_roadmap(layout):
-        return layout
-    # 캐시된 dict 를 변형하지 않도록 얕은 복사 후 주입
     out = dict(layout)
-    out['standalone'] = list(layout.get('standalone', [])) + [dict(_ROADMAP_ITEM)]
+
+    # 로드맵 — standalone 끝에 주입
+    if not _has_roadmap(layout):
+        out['standalone'] = list(layout.get('standalone', [])) + [dict(_ROADMAP_ITEM)]
+
+    # 크롤링 가이드 — 소싱 스테이지(s1) 끝에 주입
+    if not _has_item_id(layout, 'i_crawl_guide'):
+        new_stages = []
+        for st in out.get('stages', []):
+            if st.get('id') == 's1':
+                st = dict(st)
+                st['items'] = list(st.get('items', [])) + [dict(_CRAWL_GUIDE_ITEM)]
+            new_stages.append(st)
+        out['stages'] = new_stages
+
     return out
 
 
