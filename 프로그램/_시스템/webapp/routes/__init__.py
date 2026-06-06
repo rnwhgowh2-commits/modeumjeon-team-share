@@ -83,6 +83,7 @@ def register_routes(app: Flask) -> None:
     from webapp.routes.api_sidebar import bp as api_sidebar_bp  # [v3] 사이드바 커스터마이징
     from webapp.routes.mapping import bp as mapping_bp  # 맵핑 — 모음전 상품 ↔ 재고관리 SKU
     from webapp.routes.roadmap import bp as roadmap_bp  # 로드맵 · 추가예정 기능
+    from webapp.routes.sourcing_guide import bp as sourcing_guide_bp  # 소싱처 크롤링 가이드
     from scheduler.webhook import bp as webhook_bp
     app.register_blueprint(home_bp)
     app.register_blueprint(bundles_bp)
@@ -105,6 +106,7 @@ def register_routes(app: Flask) -> None:
     app.register_blueprint(api_sidebar_bp)  # [v3] 사이드바 커스터마이징
     app.register_blueprint(mapping_bp)  # 맵핑 — 모음전 상품 ↔ 재고관리 SKU
     app.register_blueprint(roadmap_bp)  # 로드맵 · 추가예정 기능
+    app.register_blueprint(sourcing_guide_bp)  # 소싱처 크롤링 가이드
     app.register_blueprint(webhook_bp)
 
     @app.context_processor
