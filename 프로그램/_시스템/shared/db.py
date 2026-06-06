@@ -178,6 +178,9 @@ def _apply_lightweight_migrations() -> None:
         # 2026-06-05: 혜택 표시 카테고리 (정액/정률/결제/캐시백/기타) — 새 혜택 추가 모달에서 사용자 지정
         ("source_benefit_templates", "category", "VARCHAR(16)"),
         ("option_benefit_overrides", "category", "VARCHAR(16)"),
+        # 2026-06-06: 소싱처 크롤링 가이드 JSON (crawl_guide) + 크롤 작업 검증 URL
+        ("source_registry", "crawl_guide", "TEXT"),
+        ("crawl_jobs", "verify_url", "VARCHAR(512)"),
     ]
     inspector = inspect(engine)
     existing_tables = set(inspector.get_table_names())
