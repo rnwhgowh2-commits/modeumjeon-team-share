@@ -1,20 +1,20 @@
 """소싱처 크롤링 가이드 카드 = SourceRegistry.crawl_guide(JSON 문자열) 의
 스켈레톤·검증·검증결과 병합. 순수 로직(DB 의존 없음) — 유닛 테스트 대상.
 
-스펙: docs/superpowers/specs/2026-06-06-소싱처-크롤링-가이드-design.md (스키마 v2)
+스펙: docs/superpowers/specs/2026-06-06-소싱처-크롤링-가이드-design.md (스키마 v3)
 """
 from __future__ import annotations
 
 import json
 from typing import Any
 
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 
 FIELD_KEYS = ("thumbnail", "title", "price", "benefit", "option_stock", "detail_image")
 FIELD_METHODS = {"crawl", "manual", "none", "crawl_per_product", "uniform"}
 FIELD_STATUSES = {"ok", "warn", "none"}
 
-BENEFIT_METHODS = {"rate", "accrue", "amount", "amount_or_rate", "payment"}
+BENEFIT_APPLY = {"preapplied", "deduct", "accrue", "payment", "cashback"}
 BENEFIT_STATUSES = {"always", "conditional", "optional", "planned"}
 BENEFIT_COLLECTION = {"per_product", "uniform"}
 
@@ -23,7 +23,7 @@ VERIFY_STATUSES = {"pending", "claimed", "running", "done", "failed"}
 
 
 def empty_skeleton() -> dict:
-    """미작성 카드의 빈 스켈레톤(v2)."""
+    """미작성 카드의 빈 스켈레톤(v3)."""
     return {
         "version": SCHEMA_VERSION,
         "sample_urls": [],
@@ -92,16 +92,16 @@ def validate_guide(data: dict) -> dict:
         if not isinstance(b, dict):
             raise ValueError("each benefit must be an object")
         name = str(b.get("name", "")).strip()
-        method = b.get("method")
+        apply = b.get("apply")
         status = b.get("status")
         if not name:
             raise ValueError("benefit.name must be non-empty")
-        if method not in BENEFIT_METHODS:
-            raise ValueError(f"benefit.method invalid: {method}")
+        if apply not in BENEFIT_APPLY:
+            raise ValueError(f"benefit.apply invalid: {apply}")
         if status not in BENEFIT_STATUSES:
             raise ValueError(f"benefit.status invalid: {status}")
         clean_benefits.append({
-            "name": name, "method": method,
+            "name": name, "apply": apply,
             "rule": str(b.get("rule", "")), "status": status,
         })
     out["pricing"] = {

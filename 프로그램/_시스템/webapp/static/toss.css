@@ -3449,6 +3449,12 @@
 .sg-ty.rate{background:#E8F3FF;color:#3182F6;} .sg-ty.accrue{background:#E7F7F0;color:#0E9F6E;}
 .sg-ty.amount{background:#FEF3E2;color:#C2730A;} .sg-ty.amount_or_rate{background:#FEF3E2;color:#C2730A;}
 .sg-ty.payment{background:#F3EEFF;color:#7C3AED;}
+.sg-ap{font-size:10.5px;font-weight:800;border-radius:6px;padding:2px 8px;white-space:nowrap;}
+.sg-ap.preapplied{background:#E8F3FF;color:#3182F6;}
+.sg-ap.deduct{background:#FFF0F0;color:#F04452;}
+.sg-ap.accrue{background:#E7F7F0;color:#0E9F6E;}
+.sg-ap.payment{background:#F3EEFF;color:#7C3AED;}
+.sg-ap.cashback{background:#FEF3E2;color:#C2730A;}
 .sg-st{display:inline-flex;align-items:center;gap:8px;font-size:12.5px;font-weight:700;}
 .sg-st .d{flex:0 0 auto;width:8px;height:8px;border-radius:50%;}
 .sg-st.always{color:#10B981;} .sg-st.always .d{background:#10B981;}

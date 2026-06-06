@@ -19,8 +19,8 @@
     });
     base.fields = fields;
     base.pricing = base.pricing || {base_label:'표면 노출가', benefit_collection:'per_product', benefits:[], note:''};
-    base.pricing.benefits = [...document.querySelectorAll('#sg-benefits tr[data-method]')].map(tr=>(
-      {name:tr.querySelector('.sg-name').textContent.trim(), method:tr.dataset.method,
+    base.pricing.benefits = [...document.querySelectorAll('#sg-benefits tr[data-apply]')].map(tr=>(
+      {name:tr.querySelector('.sg-name').textContent.trim(), apply:tr.dataset.apply,
        rule:tr.querySelector('.sg-rule').textContent.trim(), status:tr.dataset.status}));
     return base;
   }

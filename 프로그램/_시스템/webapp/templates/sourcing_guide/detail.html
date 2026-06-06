@@ -44,14 +44,14 @@
   <div class="sg-card">
     <div class="sg-ct"><span class="n">3</span><span class="tt">최종 매입가 로직</span><span class="src">{{ src.name }}</span></div>
     <table class="sg-atbl" id="sg-benefits">
-      <thead><tr><th style="width:170px;">혜택명</th><th style="width:120px;">혜택 방식</th><th>계산 규칙</th><th style="width:150px;">적용</th></tr></thead>
+      <thead><tr><th style="width:170px;">혜택명</th><th style="width:120px;">반영 방식</th><th>계산 규칙</th><th style="width:150px;">적용</th></tr></thead>
       <tbody>
-        {% set tylab = {'rate':'정률 %','accrue':'적립 %','amount':'정액 원','amount_or_rate':'정액·정률','payment':'결제'} %}
+        {% set aplab = {'preapplied':'선반영','deduct':'차감','accrue':'적립','payment':'결제','cashback':'캐시백'} %}
         {% set stlab = {'always':'상시','conditional':'조건부','optional':'선택','planned':'업데이트 예정'} %}
         {% for b in guide.pricing.benefits %}
-        <tr data-method="{{ b.method }}" data-status="{{ b.status }}">
+        <tr data-apply="{{ b.apply }}" data-status="{{ b.status }}">
           <td class="sg-name">{{ b.name }}</td>
-          <td><span class="sg-ty {{ b.method }}">{{ tylab[b.method] }}</span></td>
+          <td><span class="sg-ap {{ b.apply }}">{{ aplab[b.apply] }}</span></td>
           <td class="sg-rule">{{ b.rule }}</td>
           <td><span class="sg-st {{ b.status }}"><span class="d"></span>{{ stlab[b.status] }}</span></td>
         </tr>
