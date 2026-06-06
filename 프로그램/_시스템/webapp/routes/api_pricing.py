@@ -985,6 +985,7 @@ def save_crawl_result():
     """
     import datetime as _dt
     from lemouton.sources.service import normalize_url
+    from lemouton.sources.models import SourceOption
     body = request.get_json(silent=True) or {}
     items = body.get('items') or []
     if not isinstance(items, list) or not items:
@@ -1028,6 +1029,16 @@ def save_crawl_result():
             pn = it.get('product_name')
             if pn:
                 sp.product_name = str(pn)[:255]
+            # [2026-06-06] 옵션단위 표시가 갱신 — 매트릭스는 SourceOption.current_price 를
+            #   우선 표시한다(상품 last_price 는 fallback). 무신사 회원가·롯데온 혜택가는
+            #   상품 내 균일하므로 이 상품의 모든 옵션 가격을 일괄 갱신 → 화면에 신규가 반영.
+            if price not in (None, '', 0):
+                try:
+                    s.query(SourceOption).filter_by(
+                        source_product_id=sp.id, deleted_at=None
+                    ).update({SourceOption.current_price: int(price)})
+                except Exception:
+                    pass
             updated += 1
         s.commit()
         return _ok(updated=updated, not_found=not_found, total=len(items))

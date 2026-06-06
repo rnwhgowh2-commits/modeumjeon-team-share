@@ -4,7 +4,7 @@
 //  (로그인된 브라우저로 직접 긁으므로 무신사 회원가·롯데온 SPA가 그대로 읽힘.)
 //  결과 저장은 mou-m.com /api/sources/crawl-result (ext_bridge.crawlBundle 이 호출).
 
-const MOUM_EXT_VERSION = "0.3.0";
+const MOUM_EXT_VERSION = "0.3.1";
 
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   const type = msg && msg.type;
@@ -91,16 +91,19 @@ async function musinsaExtractor() {
     (ij.data || []).forEach((x) => { invMap[x.productVariantId] = x; });
   } catch (e) { /* 재고 실패해도 가격은 진행 */ }
 
+  // 회원가 = '114,490원 나의 할인가'(숫자가 라벨 앞). 적립줄('18,519원 최대 적립') 오독 방지:
+  //   숫자가 라벨 뒤에 오는 느슨한 fallback 제거 + 4자리 이상만.
   let member = null;
   for (let i = 0; i < 12; i++) {
-    const m = document.body.innerText.match(/([\d,]+)\s*원\s*나의\s*할인가/) ||
-              document.body.innerText.match(/나의\s*할인가[^\d]*([\d,]+)/);
+    const m = document.body.innerText.match(/([\d,]{4,})\s*원\s*나의\s*할인가/);
     if (m) { member = parseInt(m[1].replace(/,/g, ""), 10); break; }
     await sleep(500);
   }
   let sale = null;
   const sm = document.body.innerText.match(/(\d+)%\s*([\d,]+)\s*원/);
   if (sm) sale = parseInt(sm[2].replace(/,/g, ""), 10);
+  // 사니티 가드: 회원가가 판매가의 절반 미만이면 적립금 등 오독 → 버리고 판매가 사용(금전손실 방지)
+  if (member && sale && member < sale * 0.5) member = null;
   const price = member || sale;
 
   const options = items.map((it) => {
