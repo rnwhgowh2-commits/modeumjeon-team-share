@@ -3316,3 +3316,117 @@
 .sm-mtx td.cell-expanded-loading::after {
   content: '⏳'; font-size: 16px; display: block; text-align: center;
 }
+
+/* ════════════════════════════════════════════════════════════════
+   [2026-06-06] FX 계산식 팝업 = 시안 B(흰 카드형)와 100% 동일하게.
+   .fxpop-v2 스코프로 기존 팝업 스타일(회색 배경·패널·들여쓰기·화살표 등)을 전면 덮어씀.
+   매핑: .pop→.cell-fx-pop / .ph→h6 / .topE→.cf-receipt / .grp→.cf-grp
+        / .row→.cell-fx-row / .pcard→.cf-paycard / .addb→.pop-add
+   ════════════════════════════════════════════════════════════════ */
+/* 컨테이너 — 단일 흰 카드 (회색 배경·패딩·gap 제거), 꼬리 화살표 숨김 */
+.fxpop-v2.cell-fx-pop {
+  background: #fff; border: 1px solid #E1E5EA; border-radius: 16px;
+  width: 390px; padding: 0 17px 17px; gap: 0;
+  box-shadow: 0 14px 40px rgba(20,30,45,.20);
+  font-variant-numeric: tabular-nums; letter-spacing: -0.01em;
+}
+.fxpop-v2.cell-fx-pop::before, .fxpop-v2.cell-fx-pop::after { display: none; }
+/* 헤더 — 흰 패널 X, 플랫 타이틀 */
+.fxpop-v2.cell-fx-pop h6 {
+  margin: 0 -17px 0; padding: 16px 17px 13px;
+  background: transparent; border: none; border-radius: 0;
+  font-size: 14.5px; font-weight: 800; color: #191F28;
+  display: flex; align-items: center; gap: 8px;
+}
+.fxpop-v2.cell-fx-pop h6 .close {
+  margin-left: auto; background: transparent; border: none;
+  color: #B0B8C1; font-size: 17px; cursor: pointer; line-height: 1;
+}
+/* 상단 영수증 — 회색 박스(좌측 액센트 X, 12px 라운드), 숫자 본문폰트 */
+.fxpop-v2 .cf-receipt {
+  background: #F7F8FA; border: none; border-radius: 12px; padding: 13px 16px; margin-top: 2px;
+}
+.fxpop-v2 .cf-receipt .cf-rc-ln { display: flex; align-items: center; gap: 10px; padding: 5px 0; }
+.fxpop-v2 .cf-receipt .cf-rc-ln .lbl { font-size: 13px; color: #4E5968; font-weight: 600; }
+.fxpop-v2 .cf-receipt .cf-rc-ln .num {
+  margin-left: auto; font-size: 14px; font-weight: 700; color: #191F28;
+  font-family: inherit; letter-spacing: -0.01em;
+}
+.fxpop-v2 .cf-receipt .cf-rc-ln.disc .num { color: #F04452; font-weight: 800; }
+.fxpop-v2 .cf-receipt .cf-rc-div { border-top: 1px dashed #D7DDE3; margin: 6px 0; }
+.fxpop-v2 .cf-receipt .cf-rc-ln.fin { padding-top: 8px; }
+.fxpop-v2 .cf-receipt .cf-rc-ln.fin .lbl { font-size: 14px; font-weight: 800; color: #3182F6; }
+.fxpop-v2 .cf-receipt .cf-rc-ln.fin .num { font-size: 20px; font-weight: 800; color: #3182F6; letter-spacing: -0.02em; }
+/* 카드칩 줄(있을 때만) */
+.fxpop-v2 .cf-chip-row { display: flex; justify-content: flex-end; margin-top: 6px; }
+/* 혜택 영역 — 좌측 점선 들여쓰기 제거 */
+.fxpop-v2 .cell-fx-ben { margin: 0; padding: 0; border: none; max-height: none; overflow: visible; }
+/* 그룹 헤더 */
+.fxpop-v2 .cell-fx-ben .cf-grp {
+  font-size: 12.5px; font-weight: 800; color: #191F28; letter-spacing: .3px;
+  padding: 14px 2px 6px; margin-top: 6px; border-top: 1px solid #EEF1F4; text-align: left;
+}
+.fxpop-v2 .cell-fx-ben .cf-grp:first-child { border-top: none; margin-top: 0; padding-top: 2px; }
+.fxpop-v2 .cell-fx-ben .cf-grp.pay { color: #191F28; font-size: 12.5px; }
+.fxpop-v2 .cell-fx-ben .cf-grp .cf-grp-note { font-weight: 500; color: #8B95A1; font-size: 11px; }
+/* 토글 행 — grid→flex, 줄긋기·들여쓰기 제거 */
+.fxpop-v2 .cell-fx-ben .cell-fx-row {
+  display: flex; align-items: center; gap: 10px; padding: 10px 2px;
+  grid-template-columns: none; font-size: 14px;
+}
+.fxpop-v2 .cell-fx-ben .cell-fx-row .nm {
+  flex: 1; min-width: 0; font-size: 14px; font-weight: 600; color: #191F28; text-decoration: none;
+}
+.fxpop-v2 .cell-fx-ben .cell-fx-row.off .nm { color: #8B95A1; text-decoration: none; }
+.fxpop-v2 .cell-fx-ben .cell-fx-row .val {
+  flex: 0 0 auto; text-align: right; min-width: 78px; font-family: inherit; font-weight: 400; text-decoration: none;
+}
+.fxpop-v2 .cell-fx-ben .cell-fx-row .val .n { font-size: 14px; font-weight: 700; color: #F04452; }
+.fxpop-v2 .cell-fx-ben .cell-fx-row .val .rt { display: block; font-size: 12px; font-weight: 500; color: #8B95A1; margin-top: 1px; text-decoration: none; }
+.fxpop-v2 .cell-fx-ben .cell-fx-row.off .val { text-decoration: none; }
+.fxpop-v2 .cell-fx-ben .cell-fx-row.off .val .n { display: none; }
+.fxpop-v2 .cell-fx-ben .cell-fx-row.off .val .rt { color: #B0B8C1; }
+.fxpop-v2 .cell-fx-ben .cell-fx-row .del {
+  flex: 0 0 18px; width: 18px; text-align: center; color: #C4CCD4;
+  font-size: 14px; cursor: pointer; background: transparent; border: none; padding: 0;
+}
+.fxpop-v2 .cell-fx-ben .cell-fx-row .del:hover { color: #F04452; }
+/* 토글 스위치 — 34×20, knob 16 */
+.fxpop-v2 .cell-fx-row .tg {
+  width: 34px; height: 20px; border-radius: 20px; background: #CDD3DA;
+  position: relative; flex: 0 0 34px;
+}
+.fxpop-v2 .cell-fx-row .tg::after {
+  content: ""; position: absolute; top: 2px; left: 2px;
+  width: 16px; height: 16px; border-radius: 50%; background: #fff;
+}
+.fxpop-v2 .cell-fx-row.on .tg { background: #191F28; }
+.fxpop-v2 .cell-fx-row.on .tg::after { left: 16px; }
+/* 결제수단 선택 카드 (B) */
+.fxpop-v2 .cell-fx-ben .cf-paycard {
+  display: flex; align-items: center; gap: 10px;
+  border: 1.5px solid #E5E8EB; border-radius: 11px; padding: 11px 13px; margin: 8px 0 0;
+  cursor: pointer; transition: .12s; grid-template-columns: none;
+}
+.fxpop-v2 .cell-fx-ben .cf-paycard:hover { border-color: #C4CCD4; }
+.fxpop-v2 .cell-fx-ben .cf-paycard.on { border-color: #3182F6; background: #F4F9FF; box-shadow: 0 0 0 2px rgba(49,130,246,.10); }
+.fxpop-v2 .cell-fx-ben .cf-paycard .cf-chk {
+  width: 20px; height: 20px; border-radius: 50%; border: 2px solid #CDD3DA; flex: 0 0 20px;
+  display: flex; align-items: center; justify-content: center; font-size: 11px; color: #fff; font-weight: 800;
+}
+.fxpop-v2 .cell-fx-ben .cf-paycard.on .cf-chk { background: #3182F6; border-color: #3182F6; }
+.fxpop-v2 .cell-fx-ben .cf-paycard .nm { flex: 1; font-size: 14px; font-weight: 600; color: #4E5968; text-decoration: none; }
+.fxpop-v2 .cell-fx-ben .cf-paycard.on .nm { color: #191F28; font-weight: 700; }
+.fxpop-v2 .cell-fx-ben .cf-paycard .val { flex: 0 0 auto; text-align: right; min-width: 78px; }
+.fxpop-v2 .cell-fx-ben .cf-paycard .val .n { font-size: 14px; font-weight: 700; color: #8B95A1; }
+.fxpop-v2 .cell-fx-ben .cf-paycard.on .val .n { color: #F04452; font-weight: 800; }
+.fxpop-v2 .cell-fx-ben .cf-paycard .val .rt { display: block; font-size: 11.5px; color: #8B95A1; margin-top: 1px; }
+/* '＋ 새 혜택 추가' — 시안 점선 버튼 */
+.fxpop-v2 .add-zone { margin: 0; }
+.fxpop-v2 .pop-add {
+  margin-top: 13px; width: 100%; border: 1px dashed #E5E8EB; background: #FAFBFC;
+  border-radius: 10px; padding: 12px; font-size: 13px; color: #8B95A1; font-weight: 600; text-align: center;
+}
+.fxpop-v2 .pop-add:hover { border-color: #191F28; color: #191F28; background: #F9FAFB; }
+/* 하단 푸터(닫기/사이트 템플릿) — 시안에 없음 → 숨김 (닫기는 헤더 ✕ 사용) */
+.fxpop-v2 .pop-actions { display: none; }

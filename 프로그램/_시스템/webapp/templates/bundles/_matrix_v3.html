@@ -3387,6 +3387,7 @@
   // ★ 2026-05-13 — fx 팝업 내용 in-place 렌더 (DOM 노드 유지).
   //   click handler 와 smRefreshFxInPlace 가 공유. 팝업 element 그대로 두고 innerHTML 만 갱신.
   function smRenderFxPopBody(pop, j, sku, srcId) {
+    pop.classList.add('fxpop-v2');  // ★ 2026-06-06 — 시안 B(흰 카드형) 전용 스타일 스코프
     const _opt = (DATA.options || []).find(o => o.sku === sku);
     const _src = _opt ? (_opt.sources || []).find(s => s.source_id === srcId) : null;
     const _acd = _src && _src.auto_card_discount ? _src.auto_card_discount : null;
