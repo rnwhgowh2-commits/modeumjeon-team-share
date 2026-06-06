@@ -159,7 +159,8 @@ def _validate(layout: dict) -> tuple[bool, str]:
 _ROADMAP_ITEM = {'id': 'i_roadmap', 'emoji': '🗺', 'name': '로드맵',
                  'url': '/roadmap', 'active_key': 'roadmap', 'badge_key': None}
 
-# 크롤링 가이드 탭 — 크롤링&업로드(s_crawl) 스테이지 끝에 주입.
+# 크롤링 가이드 탭 — s_crawl 기본 레이아웃에 이미 포함됨.
+# 이 상수는 구형 커스텀 레이아웃(i_crawl_guide 없는 저장분)에 대한 폴백 주입용.
 _CRAWL_GUIDE_ITEM = {'id': 'i_crawl_guide', 'emoji': '🗒', 'name': '크롤링 가이드',
                      'url': '/sourcing-guide/', 'active_key': 'sourcing_guide', 'badge_key': None}
 
