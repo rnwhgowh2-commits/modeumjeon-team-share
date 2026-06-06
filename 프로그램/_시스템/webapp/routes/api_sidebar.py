@@ -19,7 +19,8 @@ _lock = Lock()
 
 
 def _default_layout() -> dict:
-    """기존 sidebar.html 의 18개 메뉴를 A1 4스테이지 + 독립 1개로 재배치한 기본값."""
+    """기능별 6분류 기본 레이아웃. 항목 id/url/active_key/badge 는 기존 페이지 그대로 유지(이동만).
+    숨김 3종(i_src_acct/i_mk_upload/i_boxhero)은 미포함 — 기능·URL 은 살아있음."""
     return {
         'version': 1,
         'updated_at': None,
@@ -28,20 +29,7 @@ def _default_layout() -> dict:
              'url': '/', 'active_key': 'home', 'badge_key': None},
         ],
         'stages': [
-            {'id': 's1', 'emoji': '🛒', 'name': '소싱·발견', 'color': '#FF9500',
-             'collapsed': False, 'items': [
-                {'id': 'i_sources', 'emoji': '🏠', 'name': '소싱처 운영센터',
-                 'url': '/sources', 'active_key': 'sources', 'badge_key': None},
-                {'id': 'i_queue', 'emoji': '🔍', 'name': '미맵핑 큐',
-                 'url': '/queue', 'active_key': 'queue', 'badge_key': 'unmapped'},
-                {'id': 'i_src_dict', 'emoji': '📖', 'name': '소싱처 사전',
-                 'url': '/source-registry', 'active_key': 'source_registry', 'badge_key': None},
-                {'id': 'i_src_acct', 'emoji': '🔑', 'name': '소싱처 계정',
-                 'url': '/accounts/sourcing', 'active_key': 'accounts_sourcing', 'badge_key': None},
-                {'id': 'i_crawl_guide', 'emoji': '🗒', 'name': '크롤링 가이드',
-                 'url': '/sourcing-guide/', 'active_key': 'sourcing_guide', 'badge_key': None},
-            ]},
-            {'id': 's2', 'emoji': '📦', 'name': '모음전 등록', 'color': '#3182F6',
+            {'id': 's_bundles', 'emoji': '📦', 'name': '모음전 상품관리', 'color': '#3182F6',
              'collapsed': False, 'items': [
                 {'id': 'i_new', 'emoji': '➕', 'name': '신규 모음전 등록',
                  'url': '/bundles/new', 'active_key': 'bundles_new', 'badge_key': None},
@@ -49,32 +37,45 @@ def _default_layout() -> dict:
                  'url': '/bundles', 'active_key': 'bundles', 'badge_key': None},
                 {'id': 'i_migrate', 'emoji': '🔗', 'name': '기존 마켓 연동',
                  'url': '/bundles/migrate', 'active_key': 'bundles_migrate', 'badge_key': None},
-                {'id': 'i_templates', 'emoji': '📄', 'name': '템플릿',
-                 'url': '/templates', 'active_key': 'templates', 'badge_key': None},
+            ]},
+            {'id': 's_mapping', 'emoji': '🔗', 'name': '매핑 현황', 'color': '#FF9500',
+             'collapsed': False, 'items': [
+                {'id': 'i_sources', 'emoji': '🏠', 'name': '소싱처 운영센터',
+                 'url': '/sources', 'active_key': 'sources', 'badge_key': None},
+                {'id': 'i_queue', 'emoji': '🔍', 'name': '미맵핑 큐',
+                 'url': '/queue', 'active_key': 'queue', 'badge_key': 'unmapped'},
                 {'id': 'i_mapping', 'emoji': '🔗', 'name': '맵핑',
                  'url': '/mapping/', 'active_key': 'mapping', 'badge_key': None},
             ]},
-            {'id': 's3', 'emoji': '🛍', 'name': '판매·운영', 'color': '#03C75A',
+            {'id': 's_crawl', 'emoji': '🛒', 'name': '크롤링&업로드', 'color': '#03C75A',
              'collapsed': False, 'items': [
+                {'id': 'i_crawl_guide', 'emoji': '🗒', 'name': '크롤링 가이드',
+                 'url': '/sourcing-guide/', 'active_key': 'sourcing_guide', 'badge_key': None},
+                {'id': 'i_src_dict', 'emoji': '📖', 'name': '소싱처 사전',
+                 'url': '/source-registry', 'active_key': 'source_registry', 'badge_key': None},
                 {'id': 'i_dlq', 'emoji': '⚠️', 'name': '업로드 실패함',
                  'url': '/dlq', 'active_key': 'dlq', 'badge_key': 'failed'},
+                {'id': 'i_mk_acct', 'emoji': '🏪', 'name': '판매처 계정',
+                 'url': '/accounts/upload', 'active_key': 'accounts_upload', 'badge_key': None},
+            ]},
+            {'id': 's_buy', 'emoji': '🛍', 'name': '구매', 'color': '#EF4444',
+             'collapsed': False, 'items': [
                 {'id': 'i_track', 'emoji': '📈', 'name': '가격·재고 추적',
                  'url': '/track', 'active_key': 'track', 'badge_key': None},
+            ]},
+            {'id': 's_sell', 'emoji': '💰', 'name': '판매', 'color': '#A855F7',
+             'collapsed': False, 'items': [
+                {'id': 'i_templates', 'emoji': '📄', 'name': '템플릿',
+                 'url': '/templates', 'active_key': 'templates', 'badge_key': None},
                 {'id': 'i_orders', 'emoji': '📦', 'name': '주문 내역',
                  'url': '/orders/?tab=list', 'active_key': 'orders_list', 'badge_key': None},
-                {'id': 'i_mk_upload', 'emoji': '⬆️', 'name': '마켓 업로드 설정',
-                 'url': '/market-upload-config', 'active_key': 'market_upload', 'badge_key': None},
-            ]},
-            {'id': 's4', 'emoji': '💰', 'name': '정산·관리', 'color': '#A855F7',
-             'collapsed': False, 'items': [
                 {'id': 'i_sales', 'emoji': '💵', 'name': '매출 관리',
                  'url': '/orders/?tab=sales', 'active_key': 'orders_sales', 'badge_key': None},
                 {'id': 'i_margin', 'emoji': '📊', 'name': '마진 계산기',
                  'url': '/orders/?tab=margin', 'active_key': 'orders_margin', 'badge_key': None},
-                {'id': 'i_mk_acct', 'emoji': '🏪', 'name': '판매처 계정',
-                 'url': '/accounts/upload', 'active_key': 'accounts_upload', 'badge_key': None},
-                {'id': 'i_boxhero', 'emoji': '📥', 'name': '사입 재고 연동',
-                 'url': '/boxhero', 'active_key': 'boxhero', 'badge_key': None},
+            ]},
+            {'id': 's_etc', 'emoji': '⚙️', 'name': '기타', 'color': '#6B7280',
+             'collapsed': False, 'items': [
                 {'id': 'i_trash', 'emoji': '🗑', 'name': '휴지통·변경 이력',
                  'url': '/trash', 'active_key': 'trash', 'badge_key': None},
                 {'id': 'i_alerts', 'emoji': '🔔', 'name': '알림 채널 설정',
@@ -158,7 +159,7 @@ def _validate(layout: dict) -> tuple[bool, str]:
 _ROADMAP_ITEM = {'id': 'i_roadmap', 'emoji': '🗺', 'name': '로드맵',
                  'url': '/roadmap', 'active_key': 'roadmap', 'badge_key': None}
 
-# 크롤링 가이드 탭 — 소싱·발견(s1) 스테이지 끝에 항상 주입.
+# 크롤링 가이드 탭 — 크롤링&업로드(s_crawl) 스테이지 끝에 주입.
 _CRAWL_GUIDE_ITEM = {'id': 'i_crawl_guide', 'emoji': '🗒', 'name': '크롤링 가이드',
                      'url': '/sourcing-guide/', 'active_key': 'sourcing_guide', 'badge_key': None}
 
@@ -184,11 +185,11 @@ def get_layout_for_template() -> dict:
     if not _has_roadmap(layout):
         out['standalone'] = list(layout.get('standalone', [])) + [dict(_ROADMAP_ITEM)]
 
-    # 크롤링 가이드 — 소싱 스테이지(s1) 끝에 주입
+    # 크롤링 가이드 — 크롤링&업로드 스테이지(s_crawl) 끝에 주입(없을 때만)
     if not _has_item_id(layout, 'i_crawl_guide'):
         new_stages = []
         for st in out.get('stages', []):
-            if st.get('id') == 's1':
+            if st.get('id') == 's_crawl':
                 st = dict(st)
                 st['items'] = list(st.get('items', [])) + [dict(_CRAWL_GUIDE_ITEM)]
             new_stages.append(st)
