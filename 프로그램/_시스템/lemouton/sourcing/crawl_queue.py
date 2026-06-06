@@ -215,3 +215,58 @@ def _loads(raw: Optional[str]) -> list:
         return v if isinstance(v, list) else []
     except Exception:
         return []
+
+
+def enqueue_verify(
+    verify_url: str,
+    *,
+    required_login: Optional[str] = None,
+    triggered_by: str = "guide_verify",
+    priority: int = 50,
+) -> dict:
+    """가이드 ④ 검증용 단건 URL 크롤 잡 등록. phase='verify'.
+
+    같은 URL 의 미완 verify 잡이 있으면 재사용(dedup). priority 50 = 일반 크롤(100)보다 우선.
+    """
+    if not (verify_url.startswith("http://") or verify_url.startswith("https://")):
+        raise ValueError("verify_url must be http(s)")
+    s = SessionLocal()
+    try:
+        existing = (s.query(CrawlJob)
+                    .filter(CrawlJob.status.in_(LIVE_STATUSES))
+                    .filter(CrawlJob.phase == "verify")
+                    .filter(CrawlJob.verify_url == verify_url)
+                    .order_by(CrawlJob.id.desc()).first())
+        if existing is not None:
+            return {"id": existing.id, "created": False, "status": existing.status}
+        job = CrawlJob(
+            model_code=None, phase="verify", status="pending", routing="queue",
+            required_login=required_login, priority=priority,
+            verify_url=verify_url, triggered_by=triggered_by, created_at=_now(),
+        )
+        s.add(job)
+        s.commit()
+        return {"id": job.id, "created": True, "status": "pending"}
+    finally:
+        s.close()
+
+
+def get_job(job_id: int) -> Optional[dict]:
+    """잡 1건 상태/결과 조회(폴링용)."""
+    import json as _json
+    s = SessionLocal()
+    try:
+        job = s.query(CrawlJob).get(job_id)
+        if job is None:
+            return None
+        result = None
+        if job.result_json:
+            try:
+                result = _json.loads(job.result_json)
+            except Exception:
+                result = None
+        return {"id": job.id, "status": job.status, "phase": job.phase,
+                "worker_name": job.worker_name, "verify_url": job.verify_url,
+                "result": result, "error": job.error}
+    finally:
+        s.close()
