@@ -969,6 +969,83 @@ def get_option_matrix(code: str):
     return _ok(**{k: v for k, v in d.items() if k != 'ok'})
 
 
+# ════════════════════════════════════════════════════════════
+#  POST /api/sources/crawl-result — 크롬 확장(로그인 브라우저) 크롤 결과 저장
+#  [2026-06-06] '모음전 크롤러' 확장이 로컬 브라우저로 긁은 가격/재고를 SourceProduct
+#    에 반영(서버가 직접 못 긁는 무신사 회원가·롯데온 SPA 등). 매트릭스·fx 가
+#    SourceProduct.last_price/last_stock/last_status 를 읽으므로 여기 쓰면 UI·계산식에
+#    그대로 반영된다. 설계: docs/소싱처관리_아키텍처.md
+# ════════════════════════════════════════════════════════════
+@bp.post('/sources/crawl-result')
+def save_crawl_result():
+    """확장 크롤 결과 일괄 저장.
+
+    body: { items: [{url, price, stock?, status?, product_name?, error?}] }
+    url(정규화) 로 SourceProduct 를 찾아 last_price/last_stock/last_status 갱신.
+    """
+    import datetime as _dt
+    from lemouton.sources.service import normalize_url
+    body = request.get_json(silent=True) or {}
+    items = body.get('items') or []
+    if not isinstance(items, list) or not items:
+        return _err('items(배열)가 필요해요.', 400)
+
+    s = SessionLocal()
+    try:
+        # 정규화 url → SourceProduct 인덱스 (1회 빌드)
+        idx = {}
+        for sp in (s.query(SourceProduct)
+                   .filter(SourceProduct.deleted_at.is_(None)).all()):
+            if sp.url:
+                idx.setdefault(normalize_url(sp.url), sp)
+
+        now = _dt.datetime.now(_dt.timezone.utc)
+        updated, not_found = 0, []
+        for it in items:
+            url = (it or {}).get('url')
+            if not url:
+                continue
+            sp = idx.get(normalize_url(url))
+            if sp is None:
+                not_found.append(str(url)[:80])
+                continue
+            price = it.get('price')
+            stock = it.get('stock')
+            status = it.get('status') or ('ok' if price else 'error')
+            if price not in (None, '', 0):
+                try:
+                    sp.last_price = int(price)
+                except Exception:
+                    pass
+            if stock is not None:
+                try:
+                    sp.last_stock = int(stock)
+                except Exception:
+                    pass
+            sp.last_status = status
+            sp.last_fetched_at = now
+            sp.last_error_msg = it.get('error') or None
+            pn = it.get('product_name')
+            if pn:
+                sp.product_name = str(pn)[:255]
+            updated += 1
+        s.commit()
+        return _ok(updated=updated, not_found=not_found, total=len(items))
+    finally:
+        s.close()
+
+
+@bp.get('/bundles/codes')
+def list_bundle_codes():
+    """전체 모음전 코드 목록 — 이 PC 스케줄 크롤(ext_bridge)이 순회하는 데 사용."""
+    s = SessionLocal()
+    try:
+        rows = s.query(Model.model_code).order_by(Model.model_code).all()
+        return _ok(codes=[r[0] for r in rows if r[0]])
+    finally:
+        s.close()
+
+
 # ════════════════════════════════════════════
 #  POST /api/options/sources/bulk
 # ════════════════════════════════════════════

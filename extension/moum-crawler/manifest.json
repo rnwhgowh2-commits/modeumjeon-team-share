@@ -1,0 +1,26 @@
+{
+  "manifest_version": 3,
+  "name": "모음전 크롤러",
+  "version": "0.2.0",
+  "description": "모음전 자동화 — 로그인된 이 브라우저로 소싱처(무신사·롯데온·SSF·SSG·르무통·스마트스토어) 가격을 수집해 mou-m.com 에 전달합니다.",
+  "permissions": ["storage", "tabs", "scripting"],
+  "host_permissions": [
+    "https://www.mou-m.com/*",
+    "https://*.musinsa.com/*",
+    "https://*.lotteon.com/*",
+    "https://*.ssfshop.com/*",
+    "https://*.ssg.com/*",
+    "https://*.lemouton.co.kr/*",
+    "https://smartstore.naver.com/*",
+    "https://brand.naver.com/*",
+    "https://search.shopping.naver.com/*"
+  ],
+  "background": { "service_worker": "background.js" },
+  "content_scripts": [
+    {
+      "matches": ["https://www.mou-m.com/*"],
+      "js": ["content_mou.js"],
+      "run_at": "document_start"
+    }
+  ]
+}

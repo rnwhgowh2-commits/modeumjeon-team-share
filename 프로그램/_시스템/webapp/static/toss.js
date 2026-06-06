@@ -2353,6 +2353,25 @@ document.addEventListener('click', async (e) => {
     } else {
       showActionResult(res, `'${code}' ${phaseLabel}`);  // 동기 완료(레거시)
     }
+    // [2026-06-06] 무신사·롯데온은 서버가 못 긁음(로그인·SPA) → '전체크롤 누른 이 PC'의
+    //   크롬 확장(로그인 브라우저)이 직접 크롤·저장. 서버 크롤(HTTP 4소싱처)과 병행.
+    //   확장 미설치면 기존 동작 유지(서버만) + 안내. 기존 흐름 깨지 않게 방어적.
+    if (phase === 'crawl' || phase === 'full') {
+      if (window.MoumExt && window.MoumExt.installed()) {
+        flash(`'${code}' 무신사·롯데온은 이 PC(확장)에서 크롤 중...`, 'ok');
+        window.MoumExt.crawlBundle(code).then((r) => {
+          if (r && r.ok) {
+            const saved = (r.save && r.save.updated) || 0;
+            flash(`확장 크롤 완료 — ${r.ok_count}/${r.crawled} 성공 · 저장 ${saved}건`, 'ok');
+            if (typeof loadMatrix === 'function') { try { loadMatrix(); } catch (_) {} }
+          } else {
+            flash(`확장 크롤 실패: ${(r && r.error) || '알 수 없음'}`, 'err');
+          }
+        }).catch((e) => flash('확장 크롤 오류: ' + e, 'err'));
+      } else {
+        flash('무신사·롯데온 크롤은 "모음전 크롤러" 확장 필요 — 설치 후 가능', 'err');
+      }
+    }
     if (res.ok && phase === 'crawl') {
       // 백그라운드 크롤 완료 폴링 — page reload 없이 ticker 자동 갱신
       // (run-now 는 background thread, API 는 즉시 반환 → record_end 가
