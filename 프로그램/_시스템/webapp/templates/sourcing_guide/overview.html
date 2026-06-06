@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block title %}소싱처별 크롤링 가이드{% endblock %}
+{% block content %}
+<div style="padding:22px 26px;">
+  <div class="page-head" style="display:flex;align-items:center;gap:12px;margin-bottom:14px;">
+    <h2 style="font-size:19px;font-weight:800;">소싱처별 크롤링 가이드</h2>
+  </div>
+  <div class="sg-card" style="padding:0;overflow:hidden;">
+    <table class="sg-atbl">
+      <thead><tr><th>소싱처</th><th>샘플 URL</th><th>구조</th><th>매입가 로직</th><th>가격 검증</th><th>혜택 방식</th></tr></thead>
+      <tbody>
+        {% for r in rows %}
+        {% set g = r.guide %}
+        <tr style="cursor:pointer;" onclick="location.href='/sourcing-guide/{{ r.id }}'">
+          <td class="sg-name" style="font-size:13px;">{{ r.name }}</td>
+          <td>{{ g.sample_urls|length }}개</td>
+          <td>{% set okf = g.fields.values()|selectattr('status','equalto','ok')|list|length %}{{ okf }}/6</td>
+          <td>{{ '정의됨' if g.pricing.benefits else '미정의' }}</td>
+          <td>{% if g.verification.last_new_check %}검증함{% else %}—{% endif %}</td>
+          <td>{{ '상품별 크롤' if g.pricing.benefit_collection=='per_product' else '일괄' }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <div class="muted" style="margin-top:12px;">행 클릭 → 상세 4단계.</div>
+</div>
+{% endblock %}
