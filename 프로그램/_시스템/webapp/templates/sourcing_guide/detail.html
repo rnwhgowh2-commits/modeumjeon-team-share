@@ -1,0 +1,95 @@
+{% extends "base.html" %}
+{% block title %}크롤링 가이드 · {{ src.name }}{% endblock %}
+{% block content %}
+<div class="sg-wrap" data-sid="{{ src.id }}" style="padding:20px 24px;">
+  <a href="/sourcing-guide/" class="sg-back">← 전체보기</a>
+  <div class="page-head" style="display:flex;align-items:center;gap:12px;margin:12px 0;">
+    <h2 style="font-size:19px;font-weight:800;">{{ src.name }}</h2>
+    <button class="btn btn-primary btn-sm" id="sg-save" style="margin-left:auto;">저장</button>
+  </div>
+
+  <div class="sg-card">
+    <div class="sg-ct"><span class="n">1</span><span class="tt">기준 샘플 URL</span></div>
+    <div id="sg-urls">
+      {% for u in guide.sample_urls %}
+      <div class="sg-urlrow" data-url="{{ u.url }}">
+        {% if u.is_lead %}<span class="tagk">대표</span>{% endif %}
+        <span class="u">{{ u.url }}</span>
+        <a href="{{ u.url }}" target="_blank" class="btn btn-ghost btn-sm">↗ 열기</a>
+      </div>
+      {% endfor %}
+    </div>
+    <button class="btn btn-ghost btn-sm" id="sg-add-url">+ URL 추가</button>
+  </div>
+
+  <div class="sg-card">
+    <div class="sg-ct"><span class="n">2</span><span class="tt">크롤 구조 분석</span></div>
+    <table class="sg-atbl" id="sg-fields">
+      <thead><tr><th style="width:110px;">항목</th><th style="width:150px;">수집 방법</th><th>위치(셀렉터·설명)</th><th style="width:80px;">상태</th></tr></thead>
+      <tbody>
+        {% set labels = {'thumbnail':'썸네일','title':'상품명','price':'가격','benefit':'혜택','option_stock':'옵션·재고','detail_image':'상세 이미지'} %}
+        {% for key, lab in labels.items() %}
+        {% set f = guide.fields[key] %}
+        <tr data-field="{{ key }}">
+          <td class="sg-name" style="font-size:13px;">{{ lab }}</td>
+          <td><input class="sg-method" value="{{ f.method }}"></td>
+          <td><input class="sg-loc" value="{{ f.locator }}" style="width:100%;"></td>
+          <td><input class="sg-fstatus" value="{{ f.status }}" style="width:60px;"></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <div class="sg-card">
+    <div class="sg-ct"><span class="n">3</span><span class="tt">최종 매입가 로직</span><span class="src">{{ src.name }}</span></div>
+    <table class="sg-atbl" id="sg-benefits">
+      <thead><tr><th style="width:170px;">혜택명</th><th style="width:120px;">혜택 방식</th><th>계산 규칙</th><th style="width:150px;">적용</th></tr></thead>
+      <tbody>
+        {% set tylab = {'rate':'정률 %','accrue':'적립 %','amount':'정액 원','amount_or_rate':'정액·정률','payment':'결제'} %}
+        {% set stlab = {'always':'상시','conditional':'조건부','optional':'선택','planned':'업데이트 예정'} %}
+        {% for b in guide.pricing.benefits %}
+        <tr data-method="{{ b.method }}" data-status="{{ b.status }}">
+          <td class="sg-name">{{ b.name }}</td>
+          <td><span class="sg-ty {{ b.method }}">{{ tylab[b.method] }}</span></td>
+          <td class="sg-rule">{{ b.rule }}</td>
+          <td><span class="sg-st {{ b.status }}"><span class="d"></span>{{ stlab[b.status] }}</span></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <div class="sg-card">
+    <div class="sg-ct"><span class="n">4</span><span class="tt">가격 검증</span></div>
+    <div class="sg-sub">
+      <button class="on" data-sub="sample">기존 샘플</button>
+      <button data-sub="new">신규 검증</button>
+    </div>
+    <div class="sg-subpane on" id="sub-sample">
+      <div class="sg-grid2" id="sg-leadcards">
+        {% set lc = guide.verification.lead_cache %}
+        {% if lc %}
+        <div class="fxpop"><div class="body"><div class="cf-receipt">
+          <div class="cf-rc-ln"><span class="lbl">표면 노출가</span><span class="num">{{ lc.surface_price }}원</span></div>
+          <div class="cf-rc-ln disc"><span class="lbl">적용 혜택</span><span class="num">{{ lc.benefit_total }}원</span></div>
+          <div class="cf-rc-div"></div>
+          <div class="cf-rc-ln fin"><span class="lbl">최종 매입가</span><span class="num">{{ lc.final_price }}원</span></div>
+        </div></div></div>
+        {% else %}<div class="muted">아직 기존 샘플 캐시값이 없습니다.</div>{% endif %}
+      </div>
+    </div>
+    <div class="sg-subpane" id="sub-new">
+      <div class="sg-new">
+        <div class="sg-nvin"><input id="sg-verify-url" placeholder="검증할 새 URL 붙여넣기"><button class="btn btn-primary" id="sg-verify-btn">검증</button></div>
+        <div style="text-align:center;"><span class="sg-status" id="sg-verify-status" style="display:none;"><span class="d"></span><span id="sg-verify-msg"></span></span></div>
+        <div id="sg-verify-result"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+{% include "sourcing_guide/detail.js" %}
+</script>
+{% endblock %}
