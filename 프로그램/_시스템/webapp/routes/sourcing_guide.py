@@ -79,7 +79,10 @@ def api_put(sid: int):
         if src is None:
             return jsonify(ok=False, error="not_found"), 404
         try:
-            guide = cg.validate_guide(request.get_json(force=True) or {})
+            incoming = request.get_json(force=True) or {}
+            if "verification" not in incoming:
+                incoming["verification"] = cg.loads(src.crawl_guide).get("verification")
+            guide = cg.validate_guide(incoming)
         except ValueError as e:
             return jsonify(ok=False, error="invalid", message=str(e)), 400
         guide["updated_at"] = _now_iso()
@@ -114,12 +117,14 @@ def api_verify_status(sid: int, job_id: int):
         try:
             src = s.query(SourceRegistry).get(sid)
             if src is not None:
-                merged = cg.merge_verification(cg.loads(src.crawl_guide),
-                                               "last_new_check",
-                                               {**job["result"], "job_id": job_id,
-                                                "status": "done"})
-                src.crawl_guide = cg.dumps(merged)
-                s.commit()
+                cur = cg.loads(src.crawl_guide)
+                lnc = (cur.get("verification") or {}).get("last_new_check") or {}
+                if lnc.get("job_id") != job_id:   # 이미 병합된 잡이면 재기록 안 함
+                    merged = cg.merge_verification(cur, "last_new_check",
+                                                   {**job["result"], "job_id": job_id,
+                                                    "status": "done"})
+                    src.crawl_guide = cg.dumps(merged)
+                    s.commit()
         finally:
             s.close()
     return jsonify(ok=True, job=job)

@@ -8,18 +8,21 @@
   }));
 
   function collect(){
-    const urls=[...document.querySelectorAll('#sg-urls .sg-urlrow')].map(r=>(
+    const base = (window.__guideInit ? JSON.parse(JSON.stringify(window.__guideInit)) : {version:2, pricing:{}});
+    base.version = 2;
+    base.sample_urls = [...document.querySelectorAll('#sg-urls .sg-urlrow')].map(r=>(
       {url:r.dataset.url, is_lead:!!r.querySelector('.tagk')}));
     const fields={};
     document.querySelectorAll('#sg-fields tr[data-field]').forEach(tr=>{
       fields[tr.dataset.field]={method:tr.querySelector('.sg-method').value,
         locator:tr.querySelector('.sg-loc').value, status:tr.querySelector('.sg-fstatus').value, note:''};
     });
-    const benefits=[...document.querySelectorAll('#sg-benefits tr[data-method]')].map(tr=>(
+    base.fields = fields;
+    base.pricing = base.pricing || {base_label:'표면 노출가', benefit_collection:'per_product', benefits:[], note:''};
+    base.pricing.benefits = [...document.querySelectorAll('#sg-benefits tr[data-method]')].map(tr=>(
       {name:tr.querySelector('.sg-name').textContent.trim(), method:tr.dataset.method,
        rule:tr.querySelector('.sg-rule').textContent.trim(), status:tr.dataset.status}));
-    return {version:2, sample_urls:urls, fields:fields,
-      pricing:{base_label:'표면 노출가', benefit_collection:'per_product', benefits:benefits, note:''}};
+    return base;
   }
 
   document.getElementById('sg-save').addEventListener('click', async ()=>{
