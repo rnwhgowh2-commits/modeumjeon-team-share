@@ -109,7 +109,7 @@ def api_verify_status(sid: int, job_id: int):
     job = get_job(job_id)
     if job is None:
         return jsonify(ok=False, error="not_found"), 404
-    if job["status"] == "done" and job.get("result"):
+    if job["status"] == "done" and job.get("result") and job.get("phase") == "verify":
         s = SessionLocal()
         try:
             src = s.query(SourceRegistry).get(sid)
