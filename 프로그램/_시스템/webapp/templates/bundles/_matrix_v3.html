@@ -3449,7 +3449,7 @@
         ? `<span class="n${blue ? ' blue' : ''}">-${ded.toLocaleString('ko-KR')}원</span> <span class="rt">(${valDisp})</span>`
         : `<span class="rt">${valDisp}</span>`;
     };
-    const _rowHtml = (it) => `<div class="cell-fx-row ${it.enabled ? 'on' : 'off'}" data-bid="${it.id}" data-bkind="${it.kind}"><div class="tg" onclick="smCellTog(this)"></div><span class="nm">${escapeHtml(it.name)}</span><span class="val">${_valHtml(it, false)}</span>${_delBtn(it)}</div>`;
+    const _rowHtml = (it) => `<div class="cell-fx-row ${it.enabled ? 'on' : 'off'}" data-bid="${it.id}" data-bkind="${it.kind}" data-bval="${it.value != null ? it.value : 0}" data-btype="${it.type || 'rate'}"><div class="tg" onclick="smCellTog(this)"></div><span class="nm">${escapeHtml(it.name)}</span><span class="val">${_valHtml(it, false)}</span>${_delBtn(it)}</div>`;
     // 결제 방식 = 택1 선택 카드 (B 시안). 활성 = 파란 테두리 + 체크(✓).
     const _payRowHtml = (it) => `<div class="cell-fx-row cf-pay-row cf-paycard ${it.enabled ? 'on' : 'off'}" data-bid="${it.id}" data-bkind="${it.kind}"><div class="cf-chk">${it.enabled ? '✓' : ''}</div><span class="nm">${escapeHtml(it.name)}</span><span class="val">${_valHtml(it, true)}</span>${_delBtn(it)}</div>`;
     const _items = (j.items_used || []);
@@ -3583,33 +3583,17 @@
   async function smRefreshFxInPlace(sku, srcId) {
     const pop = document.querySelector('.cell-fx-pop');
     if (!pop) return;  // 팝업 이미 닫힘 — 갱신 불필요
-    try {
-      // 1) option-matrix 다시 fetch → DATA + 영향 셀의 data-cell-price 갱신 (DOM 재구성 X)
-      const r = await fetch(`/api/bundles/${encodeURIComponent(BUNDLE_CODE)}/option-matrix`);
-      const j = await r.json();
-      if (j.ok) {
-        _normalizeSourceNames(j.sources);
-        DATA = j; window.DATA = j;
-        // DATA 의 source crawled_price 를 td.data-cell-price 에 in-place 동기화
-        document.querySelectorAll('td[data-cell-sku][data-cell-src]').forEach(td => {
-          const _sku = td.dataset.cellSku;
-          const _sid = parseInt(td.dataset.cellSrc, 10);
-          const _opt = (j.options || []).find(o => o.sku === _sku);
-          const _src = _opt ? (_opt.sources || []).find(s => s.source_id === _sid) : null;
-          if (_src && _src.crawled_price != null) td.dataset.cellPrice = _src.crawled_price;
-        });
-      }
-    } catch(e) {}
-    // 2) breakdown 다시 fetch → 팝업 내용 in-place 재렌더 + 매트릭스 셀 px-main 갱신
-    const opt2 = (DATA.options || []).find(o => o.sku === sku);
-    const src2 = opt2 ? (opt2.sources || []).find(s => s.source_id === srcId) : null;
-    const newPrice = (src2 && src2.crawled_price) ? src2.crawled_price : 0;
+    // [2026-06-06 perf] 혜택 토글은 크롤가가 안 바뀜 → 무거운 전체 option-matrix refetch 를
+    //   '먼저' 기다리지 않는다. (1) 현재 DATA 가격으로 breakdown 즉시 재렌더(빠름),
+    //   (2) 전체 매트릭스는 백그라운드 동기화. → 토글 반응이 즉각적.
+    const opt0 = (DATA.options || []).find(o => o.sku === sku);
+    const src0 = opt0 ? (opt0.sources || []).find(s => s.source_id === srcId) : null;
+    const newPrice = (src0 && src0.crawled_price) ? src0.crawled_price : 0;
     try {
       const r2 = await fetch(`/api/source-benefits/breakdown/${encodeURIComponent(sku)}/${srcId}?sale_price=${newPrice}`);
       const bd = await r2.json();
       if (bd.ok) {
         smRenderFxPopBody(pop, bd, sku, srcId);
-        // 매트릭스 셀의 px-main (매입가) in-place 갱신
         const td = [...document.querySelectorAll('td[data-cell-sku][data-cell-src]')]
           .find(t => t.dataset.cellSku === sku && parseInt(t.dataset.cellSrc, 10) === srcId);
         const pxMain = td && td.querySelector('.px-main');
@@ -3617,6 +3601,20 @@
         adjustFxPopPosition(pop);
       }
     } catch(e) {}
+    // 백그라운드: 전체 매트릭스 동기화(다른 영향 셀 가격·DATA) — 팝업 렌더를 막지 않음.
+    fetch(`/api/bundles/${encodeURIComponent(BUNDLE_CODE)}/option-matrix`)
+      .then(r => r.json())
+      .then(j => {
+        if (!j.ok) return;
+        _normalizeSourceNames(j.sources);
+        DATA = j; window.DATA = j;
+        document.querySelectorAll('td[data-cell-sku][data-cell-src]').forEach(td => {
+          const _opt = (j.options || []).find(o => o.sku === td.dataset.cellSku);
+          const _src = _opt ? (_opt.sources || []).find(s => s.source_id === parseInt(td.dataset.cellSrc, 10)) : null;
+          if (_src && _src.crawled_price != null) td.dataset.cellPrice = _src.crawled_price;
+        });
+      })
+      .catch(() => {});
   }
 
   window.smCellTog = function(el) {
@@ -3625,6 +3623,10 @@
     const kind = row.dataset.bkind;
     const wasOn = row.classList.contains('on');
     const benefitName = row.querySelector('.nm')?.textContent.trim() || '';
+    // [2026-06-06] off→on 시 0원 버그 fix — 현재 적립률 값/타입을 같이 보내,
+    //   override 새로 생성·재활성 시 그 값을 보존(서버가 value=0 으로 덮지 않게).
+    const bVal = parseFloat(row.dataset.bval || '0');
+    const bType = row.dataset.btype || 'rate';
     const td = el.closest('td.cd');
     const ctxSku = td ? td.dataset.cellSku : null;
     const ctxSrcId = td ? parseInt(td.dataset.cellSrc, 10) : null;
@@ -3646,6 +3648,8 @@
               skus: selectedSkus,
               template_id: kind === 'tpl' ? bid : null,
               benefit_name: benefitName,
+              benefit_type: bType,
+              value: bVal,
               enabled: willEnable,
             }),
           });
