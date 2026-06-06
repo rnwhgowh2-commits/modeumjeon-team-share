@@ -35,6 +35,9 @@ class SourceRegistry(Base):
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc),
                         onupdate=lambda: datetime.now(timezone.utc))
+    # 소싱처 크롤링 가이드 카드(JSON 문자열). NULL = 미작성(빈 스켈레톤).
+    # 스키마 v2: lemouton/sourcing/crawl_guide.py
+    crawl_guide = Column(Text, nullable=True)
 
 
 class OptionSourceUrl(Base):

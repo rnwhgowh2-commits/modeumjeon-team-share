@@ -583,6 +583,7 @@ class CrawlJob(Base):
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     model_code = Column(String(64), index=True)               # NULL = 전체 번들
+    verify_url = Column(String(512))   # phase="verify" 단건 검증 잡의 대상 URL (NULL=일반 크롤)
     phase = Column(String(16), default="crawl", nullable=False)
     status = Column(String(16), default="pending", nullable=False)
     routing = Column(String(16), default="queue", nullable=False)
