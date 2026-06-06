@@ -160,3 +160,12 @@ def loads(raw: str | None) -> dict:
 def dumps(guide: dict) -> str:
     """dict → DB Text(JSON 문자열). 검증 후 직렬화."""
     return json.dumps(validate_guide(guide), ensure_ascii=False)
+
+
+def merge_verification(guide: dict, kind: str, result: dict) -> dict:
+    """검증 크롤 결과를 guide.verification[kind] 에 병합. kind in {lead_cache,last_new_check}."""
+    if kind not in ("lead_cache", "last_new_check"):
+        raise ValueError(f"invalid verification kind: {kind}")
+    out = validate_guide(guide)
+    out["verification"][kind] = _clean_check(result)
+    return out
