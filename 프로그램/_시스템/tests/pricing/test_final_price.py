@@ -7,7 +7,7 @@ from lemouton.pricing.final_price import compute_final_price
 
 
 class B:
-    """Minimal fake benefit item."""
+    """Minimal fake benefit item (legacy — no tagged fields)."""
     def __init__(self, *, id=1, name='', btype='rate', value=0.0, enabled=True, category=None):
         self.id = id
         self.benefit_name = name
@@ -15,6 +15,21 @@ class B:
         self.value = value
         self.enabled = enabled
         self.category = category
+
+
+class T:
+    """Tagged fake benefit item — supports apply_mode/pay_method/channel."""
+    def __init__(self, *, id=1, name='', btype='rate', value=0.0, enabled=True,
+                 category=None, apply_mode=None, pay_method=None, channel=None):
+        self.id = id
+        self.benefit_name = name
+        self.benefit_type = btype
+        self.value = value
+        self.enabled = enabled
+        self.category = category
+        self.apply_mode = apply_mode
+        self.pay_method = pay_method
+        self.channel = channel
 
 
 # ── Test 1: 순차 누적 정률 ──────────────────────────────────────────────────────
@@ -114,3 +129,85 @@ def test_no_negative_final_price():
     result = compute_final_price(10000, items)
     assert result['final_price'] == 0
     assert result['steps'][0]['deduct'] == 10000  # min(99999, 10000)
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# M2b 신규 테스트 (tagged-mode + preapplied)
+# ══════════════════════════════════════════════════════════════════════════════
+
+# ── Test 8: legacy unchanged (태그 없음 → path is None) ────────────────────────
+def test_legacy_no_tags_path_is_none():
+    """태그 없는 항목 집합 → path=None, 결과 동일."""
+    items = [
+        ('tpl', B(id=1, name='할인A', btype='rate', value=0.10)),
+        ('tpl', B(id=2, name='할인B', btype='rate', value=0.05)),
+    ]
+    result = compute_final_price(10000, items)
+    assert result['path'] is None
+    # 10000 → 9000 → 8550
+    assert result['final_price'] == 8550
+
+
+# ── Test 9: preapplied skip ────────────────────────────────────────────────────
+def test_preapplied_skip():
+    """apply_mode='preapplied' 항목은 차감 안 되고 items_used 에 preapplied=True 기록."""
+    pre = T(id=1, name='선반영쿠폰', btype='amount', value=5000.0,
+            apply_mode='preapplied')
+    normal = T(id=2, name='일반할인', btype='rate', value=0.10)
+    items = [('tpl', pre), ('tpl', normal)]
+    result = compute_final_price(10000, items)
+    # 선반영 항목은 차감 없음 → base 그대로
+    assert result['final_price'] == 9000  # 10000 * (1-0.10) = 9000
+    # items_used: preapplied=True
+    used = {iu['name']: iu for iu in result['items_used']}
+    assert used['선반영쿠폰'].get('preapplied') is True
+    # steps 에 선반영 항목 없음
+    step_names = [s['name'] for s in result['steps']]
+    assert '선반영쿠폰' not in step_names
+    assert '일반할인' in step_names
+
+
+# ── Test 10: 제휴카드↔네이버페이 택1 (path min) ────────────────────────────────
+def test_payment_affiliate_vs_naver_pay_min():
+    """affiliate_card(10%) vs naver_pay(5%) — affiliate_card 가 더 싸므로 선택."""
+    aff = T(id=1, name='제휴카드결제', btype='rate', value=0.10,
+            apply_mode='payment', pay_method='affiliate_card')
+    naver = T(id=2, name='네이버페이결제', btype='rate', value=0.05,
+              apply_mode='payment', pay_method='naver_pay')
+    # 둘 다 tagged → tagged mode
+    items = [('tpl', aff), ('tpl', naver)]
+    result = compute_final_price(10000, items)
+    assert result['path']['pay_method'] == 'affiliate_card'
+    # 10000 * (1-0.10) = 9000
+    assert result['final_price'] == 9000
+
+
+# ── Test 11: naver_via ↔ cashback exclusion ────────────────────────────────────
+def test_naver_via_cashback_exclusion():
+    """캐시백(2%) + 네이버경유 쿠폰(8%) — via=True: cashback off, coupon on → 9200.
+    via=False: cashback on, coupon off → 9800. min → via=True (9200) 선택."""
+    cashback = T(id=1, name='캐시백', btype='rate', value=0.02, apply_mode='cashback')
+    coupon = T(id=2, name='네이버경유쿠폰', btype='rate', value=0.08, channel='naver_via')
+    items = [('tpl', cashback), ('tpl', coupon)]
+    result = compute_final_price(10000, items)
+    # via=True → deduct 8% → 9200
+    assert result['final_price'] == 9200
+    assert result['path']['naver_via'] is True
+    # steps 에 캐시백 없어야 함 (via=True 경로 선택 → cashback 비활성)
+    step_names = [s['name'] for s in result['steps']]
+    assert '캐시백' not in step_names
+    assert '네이버경유쿠폰' in step_names
+
+
+# ── Test 12: 무결제 경로 포함 ───────────────────────────────────────────────────
+def test_no_payment_path_included():
+    """affiliate_card 결제항목 1개 + 일반할인 5% → affiliate_card 경로가 더 싸면 선택."""
+    pay = T(id=1, name='제휴카드결제', btype='rate', value=0.10,
+            apply_mode='payment', pay_method='affiliate_card')
+    discount = T(id=2, name='일반할인', btype='rate', value=0.05)
+    items = [('tpl', pay), ('tpl', discount)]
+    result = compute_final_price(10000, items)
+    # 무결제(None): 일반할인만 → 9500
+    # affiliate_card: 결제10% + 일반할인5% → 10000*0.9*0.95 = 8550
+    assert result['final_price'] == 8550
+    assert result['path']['pay_method'] == 'affiliate_card'
