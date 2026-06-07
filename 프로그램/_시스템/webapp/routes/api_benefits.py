@@ -541,6 +541,16 @@ def compute_breakdown(session, *, sku: str, source_id: int, sale_price: float,
             self.enabled = enabled
             self.sort_order = 999  # 같은 카테고리 내 마지막
             self.template_id = None
+    # ★ 2026-06-06 — SSF 기프트포인트는 '항상' 노출 (정률 10%).
+    #   크롤에 기프트포인트(gift_point_amount)가 있으면 활성, 없으면 비활성 placeholder.
+    #   (사용자 요구: "크롤링 시 있으면 10% 활성화, 없으면 비활성화")
+    if _site_for == 'ssf':
+        _gp_present = bool((_dynamic_benefits or {}).get('gift_point_amount'))
+        effective.append(('dyn', _DynBenefit(
+            name='기프트포인트 (멤버십 한정)',
+            btype='rate', value=0.10,
+            enabled=_gp_present,
+        )))
     if _dynamic_benefits:
         # SSF 멤버십포인트 (사이트 노출 적립률 — 변동값)
         _pr = _dynamic_benefits.get('point_rate')
@@ -549,14 +559,7 @@ def compute_breakdown(session, *, sku: str, source_id: int, sale_price: float,
                 name='멤버십포인트 (사이트 적립)',
                 btype='rate', value=float(_pr),
             )))
-        # SSF 기프트포인트 (정액, 멤버십 한정) — 사용자 무료 보유분 多 → 활성 기본.
-        _gpa = _dynamic_benefits.get('gift_point_amount')
-        if _gpa and isinstance(_gpa, (int, float)) and _gpa > 0:
-            effective.append(('dyn', _DynBenefit(
-                name='기프트포인트 (멤버십 한정)',
-                btype='amount', value=float(_gpa),
-                enabled=True,
-            )))
+        # (SSF 기프트포인트는 위 _site_for=='ssf' 블록에서 항상 처리 — 여기서 중복 주입 X)
         # SSG MONEY 별도 적립 (already_applied=False 일 때만 차감 — 중복 매입 방지)
         # 사용자 명세 (2026-05-15) 3 케이스:
         #   (1) 무조건 X% 적립 → 항상 활성 (매입가 반영)
@@ -714,18 +717,6 @@ def compute_breakdown(session, *, sku: str, source_id: int, sale_price: float,
                 name=_label, btype='amount', value=float(_sjc),
                 enabled=False,  # 사용자 토글로 결정 (받기 조건)
             )))
-    # ★ 2026-05-14 — 카테고리 계산 순서 강제:
-    #   1) 정액 (amount)  먼저 차감
-    #   2) % 적립금       (rate + benefit_name 에 '적립' 포함) — 정액 차감 후 베이스 기준
-    #   3) % 추가 할인    (rate, 그 외)                       — 적립금까지 차감 후 베이스 기준
-    #   적립금은 미래에 또 사용될 자산이므로 카드·할인 % 의 베이스에서도 미리 빼고 본다.
-    #   Python 정렬은 stable → 같은 카테고리 내 원래 sort_order 유지.
-    def _benefit_priority(it):
-        if (it.benefit_type or 'rate') == 'amount':
-            return 0
-        if '적립' in (it.benefit_name or ''):
-            return 1
-        return 2
     # ★ 2026-06-05 — 무신사 옵션 breakdown 금액 항목 주입 (시안 v3: 표면가 base + 등급적립·무신사머니).
     #   _dynamic_benefits(SourceProduct, option_source_links 조회)의 금액을 항목으로 차감 → 매입가 정확.
     _base_override = None
@@ -741,8 +732,6 @@ def compute_breakdown(session, *, sku: str, source_id: int, sale_price: float,
         effective.append(('dyn', _Inj('등급적립', float(_dynamic_benefits.get('grade_reward_amount') or 0), enabled=bool(_dynamic_benefits.get('grade_reward_amount')))))
         effective.append(('dyn', _Inj('무신사머니 결제 적립', float(_dynamic_benefits.get('money_reward_amount') or 0), enabled=bool(_dynamic_benefits.get('money_reward_amount')))))
 
-    effective.sort(key=lambda x: _benefit_priority(x[1]))
-
     # ★ 2026-06-05 — '무신사머니 fallback' 이중 차감 차단 (사용자 정책).
     #   무신사 크롤 베이스(sale_price)는 '회원가' = 무신사머니 적립이 이미 반영된 값이다.
     #   '현대카드 (무신사머니 fallback)' 은 무신사머니와 택1(상호배타) — 그 위에서 또 차감하면 이중.
@@ -755,68 +744,13 @@ def compute_breakdown(session, *, sku: str, source_id: int, sale_price: float,
             if '무신사머니 fallback' in (_it.benefit_name or ''):
                 _it.enabled = False
 
-    # ★ 2026-06-05 — 결제 수단 택1 (결제수단 자체가 배타: 카드/머니/페이 중 1개로 결제).
-    #   ⚠️ 네이버페이는 제외 — 네이버페이는 '카드 결제와 동시'(네이버페이로 현대카드 결제 →
-    #      네이버 적립 1% + 카드 캐시백 2.73% 둘 다)이므로 택1이 아니라 항상 누적. (사용자 정책 2026-06-05)
-    #   enabled 인 (네이버 제외) 결제 수단이 2개 이상이면 차감액 '가장 큰' 1개만 남기고 비활성.
-    def _is_payment(nm):
-        nm = nm or ''
-        if '네이버' in nm:
-            return False  # 네이버페이 적립 = 카드와 동시 적용 → 택1 그룹에서 제외(누적 유지)
-        return any(t in nm for t in ('카드', '페이', '무신사머니', '청구할인', '캐시백'))
-    _pay = [(_k, _it) for (_k, _it) in effective if _it.enabled and _is_payment(_it.benefit_name)]
-    if len(_pay) > 1:
-        def _approx_deduct(it):
-            v = float(it.value or 0)
-            return v if (it.benefit_type or 'rate') == 'amount' else float(sale_price) * v
-        _best_it = max((it for _k, it in _pay), key=_approx_deduct)
-        for _k, _it in _pay:
-            if _it is not _best_it:
-                _it.enabled = False
-
-    # 누적 차감 (무신사 breakdown 있으면 base = 표면가 override)
-    base = float(_base_override if _base_override is not None else sale_price)
-    steps = []
-    items_used = []
-    for kind, it in effective:
-        # ★ 카드 미반영 토글 적용 — issuer 가 benefit_name 안 포함 + card_enabled=False
-        #    → 그 항목 자동 비활성화 (캐시백·카드할인 카테고리).
-        _by_card_off = (
-            (not _card_enabled) and _card_issuer
-            and (_card_issuer in (it.benefit_name or ''))
-        )
-        is_effective_enabled = bool(it.enabled) and not _by_card_off
-        items_used.append({
-            'kind': kind,  # 'tpl' / 'ovr' / 'ovr_new'
-            'id': it.id,
-            'name': it.benefit_name,
-            'type': it.benefit_type,
-            'value': float(it.value or 0),
-            'category': getattr(it, 'category', None),  # 사용자 지정 표시 카테고리 (NULL=휴리스틱)
-            'enabled': is_effective_enabled,
-            'disabled_by_card_off': _by_card_off,
-        })
-        if not is_effective_enabled:
-            continue
-        if it.benefit_type == 'rate':
-            deduct = int(base * (it.value or 0))
-        else:  # amount
-            deduct = int(it.value or 0)
-        deduct = min(deduct, int(base))  # 음수 방지
-        base = max(base - deduct, 0)
-        steps.append({
-            'name': it.benefit_name,
-            'type': it.benefit_type,
-            'value': float(it.value or 0),
-            'deduct': deduct,
-            'base_after': int(base),
-        })
-    return {
-        'sale_price': float(_base_override if _base_override is not None else sale_price),
-        'final_price': int(base),
-        'steps': steps,
-        'items_used': items_used,
-    }
+    # ★ 카테고리 정렬 + 결제 택1 + 누적 차감 → 순수 계산 함수로 위임 (M1 추출, 2026-06-08)
+    from lemouton.pricing.final_price import compute_final_price
+    return compute_final_price(
+        sale_price, effective,
+        card_enabled=_card_enabled, card_issuer=_card_issuer,
+        base_override=_base_override,
+    )
 
 
 @bp.get('/breakdown/<sku>/<int:source_id>')
