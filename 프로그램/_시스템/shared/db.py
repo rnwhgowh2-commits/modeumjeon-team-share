@@ -181,6 +181,13 @@ def _apply_lightweight_migrations() -> None:
         # 2026-06-06: 소싱처 크롤링 가이드 JSON (crawl_guide) + 크롤 작업 검증 URL
         ("source_registry", "crawl_guide", "TEXT"),
         ("crawl_jobs", "verify_url", "VARCHAR(512)"),
+        # 2026-06-08: 혜택 태그 (최종 매입가 계산 엔진)
+        ("source_benefit_templates", "apply_mode", "VARCHAR(16)"),
+        ("source_benefit_templates", "pay_method", "VARCHAR(16)"),
+        ("source_benefit_templates", "channel", "VARCHAR(16)"),
+        ("option_benefit_overrides", "apply_mode", "VARCHAR(16)"),
+        ("option_benefit_overrides", "pay_method", "VARCHAR(16)"),
+        ("option_benefit_overrides", "channel", "VARCHAR(16)"),
     ]
     inspector = inspect(engine)
     existing_tables = set(inspector.get_table_names())
