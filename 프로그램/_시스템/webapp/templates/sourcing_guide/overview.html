@@ -1,9 +1,30 @@
 {% extends "base.html" %}
 {% block title %}소싱처별 크롤링 가이드{% endblock %}
 {% block content %}
-<div class="sg-page" style="padding:22px 26px;">
+<style>
+  /* ── 크롤가이드 전체보기 · E안(현행 최소 정리) 스코프 스타일 ── */
+  .sg-ov .page-head h2{font-size:19px;font-weight:800;letter-spacing:-.3px;}
+  .sg-ov .sg-card{border:1px solid #E5E8EB;border-radius:10px;}
+  .sg-ov table.sg-atbl{width:100%;border-collapse:collapse;background:#fff;}
+  .sg-ov .sg-atbl th{font-size:12px;font-weight:700;color:#4E5968;text-align:left;
+    padding:12px 16px;background:#F6F8FA;border-bottom:1px solid #E5E8EB;}
+  .sg-ov .sg-atbl td{padding:13px 16px;border-bottom:1px solid #F1F3F5;
+    font-size:13px;color:#191F28;vertical-align:middle;}
+  .sg-ov .sg-atbl tbody tr:last-child td{border-bottom:none;}
+  .sg-ov .sg-atbl tbody tr{cursor:pointer;transition:background .12s;}
+  .sg-ov .sg-atbl tbody tr:hover{background:#F7F9FB;}
+  .sg-ov .sg-atbl .sg-name{font-size:13.5px;font-weight:700;}
+  .sg-ov .sg-atbl td.u{color:#8B95A1;}
+  /* 상태 칩 */
+  .sg-ov .sg-chip{display:inline-flex;align-items:center;font-size:12px;font-weight:700;
+    border-radius:7px;padding:3px 9px;line-height:1.4;white-space:nowrap;}
+  .sg-ov .sg-chip.ok{background:#E7F6EF;color:#11A36B;}
+  .sg-ov .sg-chip.idle{background:#F2F4F6;color:#8B95A1;}
+  .sg-ov .sg-hint{margin-top:12px;color:#8B95A1;font-size:12.5px;}
+</style>
+<div class="sg-ov" style="padding:22px 26px;">
   <div class="page-head" style="display:flex;align-items:center;gap:12px;margin-bottom:14px;">
-    <h2 style="font-size:19px;font-weight:800;">소싱처별 크롤링 가이드</h2>
+    <h2>소싱처별 크롤링 가이드</h2>
   </div>
   <div class="sg-card" style="padding:0;overflow:hidden;">
     <table class="sg-atbl">
@@ -11,18 +32,23 @@
       <tbody>
         {% for r in rows %}
         {% set g = r.guide %}
-        <tr style="cursor:pointer;" onclick="location.href='/sourcing-guide/{{ r.id }}'">
-          <td class="sg-name" style="font-size:13px;">{{ r.name }}</td>
-          <td>{{ g.sample_urls|length }}개</td>
-          <td>{% set okf = g.fields.values()|selectattr('status','equalto','ok')|list|length %}{{ okf }}/6</td>
-          <td>{{ '정의됨' if g.pricing.benefits else '미정의' }}</td>
-          <td>{% if g.verification.last_new_check %}검증함{% else %}—{% endif %}</td>
+        <tr onclick="location.href='/sourcing-guide/{{ r.id }}'">
+          <td class="sg-name">{{ r.name }}</td>
+          {% set nurl = g.sample_urls|length %}
+          <td {% if nurl == 0 %}class="u"{% endif %}>{{ nurl }}개</td>
+          {% set okf = g.fields.values()|selectattr('status','equalto','ok')|list|length %}
+          <td {% if okf == 0 %}class="u"{% endif %}>{{ okf }}/6</td>
+          <td>
+            {% if g.pricing.benefits %}<span class="sg-chip ok">정의됨</span>
+            {% else %}<span class="sg-chip idle">미정의</span>{% endif %}
+          </td>
+          <td {% if not g.verification.last_new_check %}class="u"{% endif %}>{% if g.verification.last_new_check %}검증함{% else %}—{% endif %}</td>
           <td>{{ '상품별 크롤' if g.pricing.benefit_collection=='per_product' else '일괄' }}</td>
         </tr>
         {% endfor %}
       </tbody>
     </table>
   </div>
-  <div class="muted" style="margin-top:12px;">행 클릭 → 상세 4단계.</div>
+  <div class="sg-hint">행 클릭 → 상세 4단계.</div>
 </div>
 {% endblock %}
