@@ -51,6 +51,12 @@ def overview():
     return render_template("sourcing_guide/overview.html", rows=rows, active="sourcing_guide")
 
 
+@bp.route("/how-to")
+def how_to_add():
+    """신규 소싱처 추가 가이드 (시안 E 분기 순서도). 정식 SOP = docs/신규-소싱처-추가-가이드.md."""
+    return render_template("sourcing_guide/how_to_add.html", active="sourcing_guide")
+
+
 @bp.route("/<int:sid>")
 def detail(sid: int):
     src = _source(sid)

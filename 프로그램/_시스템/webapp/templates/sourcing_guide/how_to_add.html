@@ -1,0 +1,91 @@
+{% extends "base.html" %}
+{% block title %}신규 소싱처 추가 가이드{% endblock %}
+{% block content %}
+<style>
+  .sgh{padding:40px 56px;max-width:1100px;}
+  .sgh h2{font-size:26px;font-weight:800;letter-spacing:-.4px;margin-bottom:4px;}
+  .sgh .sub{color:#8B95A1;font-size:14px;margin-bottom:22px;}
+  /* 하위탭 */
+  .sgh .subtabs{display:flex;gap:26px;border-bottom:1.5px solid #E5E8EB;margin-bottom:26px;}
+  .sgh .subtab{padding:10px 2px;font-size:15px;color:#8B95A1;font-weight:600;text-decoration:none;position:relative;}
+  .sgh .subtab.on{color:#191F28;font-weight:800;}
+  .sgh .subtab.on::after{content:'';position:absolute;left:0;right:0;bottom:-1.5px;height:2.5px;background:#191F28;border-radius:2px;}
+  /* 지시 배너 */
+  .sgh .cmd{background:#191F28;color:#fff;border-radius:14px;padding:18px 22px;margin-bottom:30px;display:flex;align-items:center;gap:16px;}
+  .sgh .cmd .ic{font-size:22px;}
+  .sgh .cmd .tx{font-size:14px;line-height:1.55;}
+  .sgh .cmd .tx b{color:#A9E34B;font-family:ui-monospace,'D2Coding',monospace;}
+  .sgh .cmd .tx .mini{color:#9AA4B2;font-size:12.5px;}
+  .who{display:inline-block;font-size:11px;font-weight:700;padding:1px 8px;border-radius:20px;vertical-align:middle;}
+  .who.u{background:#E8F3FF;color:#1B64DA;}
+  .who.c{background:#33424F;color:#E5E8EB;}
+  /* 분기 순서도 */
+  .dec{display:flex;flex-direction:column;align-items:center;}
+  .dec .node{background:#fff;border:1.5px solid #E5E8EB;border-radius:12px;padding:14px 22px;text-align:center;min-width:340px;}
+  .dec .node .t{font-size:15px;font-weight:700;}
+  .dec .node .d{font-size:12.5px;color:#8B95A1;margin-top:3px;}
+  .dec .num{display:inline-block;width:22px;height:22px;border-radius:50%;background:#191F28;color:#fff;font-size:12px;font-weight:700;line-height:22px;margin-right:7px;}
+  .dec .diamond{background:#FFF4E6;border:1.5px solid #FFD8A8;border-radius:12px;padding:15px 26px;text-align:center;color:#E8830C;font-weight:700;font-size:14.5px;min-width:360px;}
+  .dec .diamond .num{background:#E8830C;}
+  .dec .branch{font-size:12px;color:#8B95A1;margin:5px 0;}
+  .dec .vline{width:2px;height:22px;background:#D1D6DB;}
+  .end{margin:24px auto 0;max-width:600px;background:#E6F9F1;border:1px solid #63E6BE;border-radius:11px;padding:14px 18px;font-size:13.5px;color:#066649;font-weight:600;text-align:center;}
+  .doc-note{margin-top:18px;color:#B0B8C1;font-size:12px;text-align:center;}
+</style>
+
+<div class="sgh">
+  <h2>소싱처별 크롤링 가이드</h2>
+  <div class="sub">신규 소싱처를 추가하는 표준 절차입니다.</div>
+
+  <div class="subtabs">
+    <a class="subtab" href="/sourcing-guide/">전체보기</a>
+    <a class="subtab on" href="/sourcing-guide/how-to">➕ 신규 소싱처 추가 가이드</a>
+  </div>
+
+  <div class="cmd">
+    <span class="ic">💬</span>
+    <span class="tx">
+      지시 예시 — <b>"신규 소싱처 추가 가이드 참고해서 SSF샵 추가해줘"</b><br>
+      <span class="mini">사용자는 <span class="who u">URL 1개</span>만 제공 · 2~6단계는 <span class="who c">Claude</span> 자동 수행</span>
+    </span>
+  </div>
+
+  <div class="dec">
+    <div class="node">
+      <div class="t"><span class="num">1</span>샘플 URL 1개 제공 <span class="who u">사용자</span></div>
+      <div class="d">대표 상품 상세 페이지 주소</div>
+    </div>
+    <div class="vline"></div>
+
+    <div class="diamond"><span class="num">2</span>어떻게 수집? — API 있나 / 로그인 필요한가</div>
+    <div class="branch">└ 4분면 중 하나로 분류 (API·HTML × 인증·비인증) ┘</div>
+    <div class="vline"></div>
+
+    <div class="node">
+      <div class="t"><span class="num">3</span>항목별 위치 추출 <span class="who c">Claude</span></div>
+      <div class="d">6항목 셀렉터 / API 엔드포인트 확정</div>
+    </div>
+    <div class="vline"></div>
+
+    <div class="node">
+      <div class="t"><span class="num">4</span>매입가 로직 정리 <span class="who c">Claude</span></div>
+      <div class="d">혜택 순차 차감 규칙 (등급·적립·쿠폰…)</div>
+    </div>
+    <div class="vline"></div>
+
+    <div class="node">
+      <div class="t"><span class="num">5</span>검증 크롤·대조 <span class="who c">Claude</span></div>
+      <div class="d">표면가 / 혜택 / 최종가 / 옵션·재고 정답 확인</div>
+    </div>
+    <div class="vline"></div>
+
+    <div class="node">
+      <div class="t"><span class="num">6</span>가이드 카드 저장 <span class="who c">Claude</span></div>
+      <div class="d">정답 카드 완성 → 복제 가능</div>
+    </div>
+  </div>
+
+  <div class="end">✅ 완료 시 = 해당 소싱처 "정답 카드" 생성 → 이후 같은 절차로 다른 소싱처 복제 가능</div>
+  <div class="doc-note">정식 절차 문서: docs/신규-소싱처-추가-가이드.md (Claude 실행 SOP)</div>
+</div>
+{% endblock %}

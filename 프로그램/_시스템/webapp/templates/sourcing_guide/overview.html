@@ -21,10 +21,19 @@
   .sg-ov .sg-chip.ok{background:#E7F6EF;color:#11A36B;}
   .sg-ov .sg-chip.idle{background:#F2F4F6;color:#8B95A1;}
   .sg-ov .sg-hint{margin-top:24px;color:#8B95A1;font-size:21px;}
+  /* 하위탭 */
+  .sg-ov .subtabs{display:flex;gap:40px;border-bottom:2px solid #E5E8EB;margin-bottom:34px;}
+  .sg-ov .subtab{padding:14px 2px;font-size:22px;color:#8B95A1;font-weight:600;text-decoration:none;position:relative;}
+  .sg-ov .subtab.on{color:#191F28;font-weight:800;}
+  .sg-ov .subtab.on::after{content:'';position:absolute;left:0;right:0;bottom:-2px;height:3px;background:#191F28;border-radius:2px;}
 </style>
 <div class="sg-ov" style="padding:52px 64px;">
   <div class="page-head" style="display:flex;align-items:center;gap:12px;margin-bottom:30px;">
     <h2>소싱처별 크롤링 가이드</h2>
+  </div>
+  <div class="subtabs">
+    <a class="subtab on" href="/sourcing-guide/">전체보기</a>
+    <a class="subtab" href="/sourcing-guide/how-to">➕ 신규 소싱처 추가 가이드</a>
   </div>
   <div class="sg-card" style="padding:0;overflow:hidden;">
     <table class="sg-atbl">
