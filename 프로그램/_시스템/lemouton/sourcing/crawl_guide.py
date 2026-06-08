@@ -35,7 +35,7 @@ def empty_skeleton() -> dict:
             "benefits": [],
             "note": "",
         },
-        "verification": {"lead_cache": None, "last_new_check": None},
+        "verification": {"lead_cache": None, "last_new_check": None, "examples": []},
         "updated_at": None,
     }
 
@@ -115,6 +115,7 @@ def validate_guide(data: dict) -> dict:
     out["verification"] = {
         "lead_cache": _clean_check(ver.get("lead_cache")),
         "last_new_check": _clean_check(ver.get("last_new_check")),
+        "examples": _clean_examples(ver.get("examples")),
     }
 
     out["updated_at"] = data.get("updated_at")
@@ -144,6 +145,37 @@ def _int_or_none(v: Any) -> int | None:
         return int(v)
     except (TypeError, ValueError):
         return None
+
+
+def _clean_examples(arr: Any) -> list:
+    """verification.examples 배열 정제."""
+    if not isinstance(arr, list):
+        return []
+    out = []
+    for e in arr:
+        if not isinstance(e, dict):
+            continue
+        pay_raw = e.get("pay")
+        pay = ({"label": str(pay_raw.get("label", "")),
+                "amount": _int_or_none(pay_raw.get("amount"))}
+               if isinstance(pay_raw, dict) else None)
+        out.append({
+            "url": e.get("url") if _is_http_url(e.get("url")) else None,
+            "name": str(e.get("name", "")),
+            "surface_price": _int_or_none(e.get("surface_price")),
+            "pre": [{"label": str(p.get("label", "")), "amount": _int_or_none(p.get("amount"))}
+                    for p in (e.get("pre") or []) if isinstance(p, dict)],
+            "base1": _int_or_none(e.get("base1")),
+            "deducts": [{"label": str(d.get("label", "")), "amount": _int_or_none(d.get("amount"))}
+                        for d in (e.get("deducts") or []) if isinstance(d, dict)],
+            "base2": _int_or_none(e.get("base2")),
+            "pay": pay,
+            "final_price": _int_or_none(e.get("final_price")),
+            "note": str(e.get("note", "")),
+            "captured_at": e.get("captured_at"),
+            "screenshot_url": e.get("screenshot_url"),
+        })
+    return out
 
 
 def loads(raw: str | None) -> dict:

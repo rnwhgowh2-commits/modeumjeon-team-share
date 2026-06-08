@@ -1,89 +1,254 @@
 {% extends "base.html" %}
 {% block title %}크롤링 가이드 · {{ src.name }}{% endblock %}
 {% block content %}
-<div class="sg-wrap sg-page" data-sid="{{ src.id }}" style="padding:20px 24px;">
-  <a href="/sourcing-guide/" class="sg-back">← 전체보기</a>
-  <div class="page-head" style="display:flex;align-items:center;gap:12px;margin:12px 0;">
-    <h2 style="font-size:19px;font-weight:800;">{{ src.name }}</h2>
-    <button class="btn btn-primary btn-sm" id="sg-save" style="margin-left:auto;">저장</button>
+<style>
+/* ── 소싱처 크롤링 가이드 상세 · 에어리 클린 스타일 ── scoped under .sgd */
+.sgd *{box-sizing:border-box;}
+.sgd{max-width:640px;margin:0 auto;padding:32px 20px 80px;font-family:'Pretendard','Apple SD Gothic Neo','Malgun Gothic',system-ui,sans-serif;font-size:14px;line-height:1.6;color:#191F28;-webkit-font-smoothing:antialiased;}
+.sgd .hd{display:flex;align-items:center;gap:10px;margin-bottom:22px;}
+.sgd .hd .back{font-size:12.5px;color:#3182F6;font-weight:600;cursor:pointer;text-decoration:none;}
+.sgd .hd h2{font-size:19px;font-weight:800;}
+.sgd .hd .save-btn{margin-left:auto;font-size:12.5px;font-weight:700;color:#fff;background:#3182F6;border:none;border-radius:8px;padding:8px 16px;cursor:pointer;}
+.sgd .hd .save-btn:hover{background:#1a6fe0;}
+.sgd .sec{margin-bottom:22px;}
+.sgd .st{display:flex;align-items:center;gap:8px;margin-bottom:10px;}
+.sgd .st .n{width:21px;height:21px;border-radius:6px;background:#191F28;color:#fff;font-size:11.5px;font-weight:800;display:flex;align-items:center;justify-content:center;}
+.sgd .st .tt{font-size:14.5px;font-weight:700;}
+.sgd .st .sub{font-size:11.5px;color:#8B95A1;font-weight:500;}
+.sgd .card{background:#fff;border-radius:14px;padding:18px 20px;box-shadow:0 2px 10px rgba(0,0,0,.05);}
+
+/* ① URL 행 */
+.sgd .urlrow{display:grid;grid-template-columns:34px 1fr auto;align-items:center;gap:10px;padding:9px 11px;border-radius:9px;background:#F7F8FA;margin-bottom:6px;font-size:12.5px;}
+.sgd .urlrow .lead-chip{font-size:10px;font-weight:700;color:#3182F6;border:1px solid #3182F6;border-radius:999px;padding:1px 6px;text-align:center;white-space:nowrap;}
+.sgd .urlrow .lead-empty{border:none;width:34px;}
+.sgd .urlrow .u{font-family:ui-monospace,monospace;color:#3A4A5A;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.sgd .urlrow .op{font-size:11.5px;color:#3182F6;white-space:nowrap;text-decoration:none;}
+.sgd .urlrow .op:hover{text-decoration:underline;}
+.sgd .addbtn{font-size:12px;color:#6B7684;padding:8px 2px 0;cursor:pointer;background:none;border:none;}
+
+/* ② 크롤 구조 분석 테이블 */
+.sgd table.t2{width:100%;border-collapse:collapse;font-size:12.5px;table-layout:fixed;}
+.sgd table.t2 th{text-align:left;font-size:11px;color:#8B95A1;font-weight:700;padding:8px;border-bottom:1px solid #EEF0F3;}
+.sgd table.t2 td{padding:10px 8px;border-bottom:1px solid #F4F5F7;vertical-align:middle;}
+.sgd table.t2 tr:last-child td{border-bottom:none;}
+/* inputs styled as chips/loc */
+.sgd .sg-method{display:inline-block;border:1px solid #E1E4E8;border-radius:6px;padding:3px 8px;font-size:11.5px;font-family:ui-monospace,monospace;color:#4E5968;background:#FAFBFC;width:100%;}
+.sgd .sg-loc{font-family:ui-monospace,monospace;color:#3A4A5A;font-size:11.5px;border:1px solid #E1E4E8;border-radius:4px;padding:3px 6px;width:100%;background:#FAFBFC;}
+.sgd .sg-fstatus{font-size:11.5px;border:1px solid #E1E4E8;border-radius:4px;padding:3px 6px;width:54px;background:#FAFBFC;}
+.sgd .ok-badge{color:#10B981;font-weight:700;font-size:11.5px;}
+.sgd .wn-badge{color:#F59E0B;font-weight:700;font-size:11.5px;}
+
+/* ③ 매입가 로직 — dl 행이 #sg-benefits tr 겸용 */
+.sgd table.sg-ben{width:100%;border-collapse:collapse;font-size:13px;}
+.sgd table.sg-ben tr{display:grid;grid-template-columns:110px 1fr;column-gap:14px;row-gap:0;align-items:baseline;padding:5.5px 0;}
+.sgd table.sg-ben tr:not(:last-child){border-bottom:1px solid #F4F5F7;}
+.sgd table.sg-ben td.sg-name{font-size:13px;font-weight:600;color:#4E5968;padding:0;}
+.sgd table.sg-ben td.sg-rule{font-size:13px;color:#191F28;padding:0;}
+.sgd table.sg-ben td.sg-ap,.sgd table.sg-ben td.sg-st{display:none;}/* hide apply/status cols, JS reads from data attrs */
+.sgd .flow{margin-top:16px;padding-top:14px;border-top:1px dashed #E8EAED;font-size:12.5px;line-height:1.55;}
+.sgd .flow .fr{display:flex;gap:8px;padding:2px 0;}
+.sgd .flow .fr .ar{color:#C6CDD4;flex:0 0 14px;}
+.sgd .flow .fr b{font-weight:700;}
+.sgd .flow .rule{margin-top:8px;color:#8B95A1;font-size:12px;}
+
+/* ④ 가격 검증 — 서브탭 */
+.sgd .sg-sub{display:flex;gap:20px;border-bottom:1px solid #E5E8EB;margin-bottom:16px;}
+.sgd .sg-sub button{font-size:13px;font-weight:700;padding:7px 1px 10px;border:none;border-bottom:2px solid transparent;cursor:pointer;color:#8B95A1;background:none;}
+.sgd .sg-sub button.on{color:#3182F6;border-bottom-color:#3182F6;}
+.sgd .sg-subpane{display:none;}
+.sgd .sg-subpane.on{display:block;}
+
+/* 예제 카드 */
+.sgd .ex{border:1px solid #EEF0F3;border-radius:12px;padding:14px;margin-bottom:12px;}
+.sgd .ex:last-child{margin-bottom:0;}
+.sgd .exh{display:flex;align-items:center;gap:9px;margin-bottom:11px;}
+.sgd .exh .qn{width:20px;height:20px;border-radius:50%;background:#EEF1F4;color:#4E5968;font-size:11px;font-weight:800;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+.sgd .exh .nm{font-weight:700;font-size:13.5px;}
+.sgd .exh .ex-url{font-family:ui-monospace,monospace;font-size:11px;color:#A8B0B8;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.sgd .exh .price{margin-left:auto;font-size:14px;font-weight:800;color:#3182F6;font-variant-numeric:tabular-nums;white-space:nowrap;}
+.sgd .exb{display:grid;grid-template-columns:188px 1fr;gap:14px;align-items:start;}
+.sgd .shot{border:1px solid #E5E8EB;border-radius:9px;background:#F4F6F8;height:172px;display:flex;flex-direction:column;align-items:center;justify-content:center;color:#A0A8B0;font-size:11px;gap:5px;text-align:center;padding:8px;}
+.sgd .shot .cam{font-size:22px;}
+.sgd .shot .dt{font-size:10px;color:#B8C0C8;}
+/* FX 영수증 */
+.sgd .rc{background:#F7F8FA;border-radius:10px;padding:11px 14px;font-variant-numeric:tabular-nums;}
+.sgd .rc .l{display:flex;justify-content:space-between;gap:10px;padding:3px 0;font-size:12.5px;}
+.sgd .rc .l .lb{color:#4E5968;}
+.sgd .rc .l .nm{font-weight:700;color:#191F28;}
+.sgd .rc .l.base .lb,.sgd .rc .l.base .nm{color:#3182F6;font-weight:700;}
+.sgd .rc .l.disc .nm{color:#F04452;}
+.sgd .rc .l.in{padding-left:12px;}
+.sgd .rc .l.in .lb{color:#8B95A1;}
+.sgd .rc .dv{border-top:1px dashed #D7DDE3;margin:5px 0;}
+.sgd .rc .l.fin .lb{font-weight:800;color:#3182F6;}
+.sgd .rc .l.fin .nm{font-size:16px;font-weight:800;color:#3182F6;}
+.sgd .exnote{margin-top:8px;font-size:11px;color:#8B95A1;}
+.sgd .fxnote{font-size:11.5px;color:#8B95A1;margin-top:12px;}
+/* 신규 검증 탭 */
+.sgd .sg-nvin{display:flex;gap:8px;margin-bottom:10px;}
+.sgd .sg-nvin input{flex:1;border:1px solid #E1E4E8;border-radius:8px;padding:8px 12px;font-size:13px;}
+.sgd .sg-nvin button{font-size:13px;font-weight:700;color:#fff;background:#3182F6;border:none;border-radius:8px;padding:8px 16px;cursor:pointer;}
+.sgd .muted{color:#8B95A1;font-size:13px;}
+</style>
+
+<div class="sgd sg-wrap sg-page" data-sid="{{ src.id }}">
+  <!-- 헤더 -->
+  <div class="hd">
+    <a href="/sourcing-guide/" class="back">← 전체보기</a>
+    <h2>{{ src.name }}</h2>
+    <button class="save-btn" id="sg-save">저장</button>
   </div>
 
-  <div class="sg-card">
-    <div class="sg-ct"><span class="n">1</span><span class="tt">기준 샘플 URL</span></div>
-    <div id="sg-urls">
-      {% for u in guide.sample_urls %}
-      <div class="sg-urlrow" data-url="{{ u.url }}">
-        {% if u.is_lead %}<span class="tagk">대표</span>{% endif %}
-        <span class="u">{{ u.url }}</span>
-        <a href="{{ u.url }}" target="_blank" class="btn btn-ghost btn-sm">↗ 열기</a>
-      </div>
-      {% endfor %}
-    </div>
-    <button class="btn btn-ghost btn-sm" id="sg-add-url">+ URL 추가</button>
-  </div>
-
-  <div class="sg-card">
-    <div class="sg-ct"><span class="n">2</span><span class="tt">크롤 구조 분석</span></div>
-    <table class="sg-atbl" id="sg-fields">
-      <thead><tr><th style="width:110px;">항목</th><th style="width:150px;">수집 방법</th><th>위치(셀렉터·설명)</th><th style="width:80px;">상태</th></tr></thead>
-      <tbody>
-        {% set labels = {'thumbnail':'썸네일','title':'상품명','price':'가격','benefit':'혜택','option_stock':'옵션·재고','detail_image':'상세 이미지'} %}
-        {% for key, lab in labels.items() %}
-        {% set f = guide.fields[key] %}
-        <tr data-field="{{ key }}">
-          <td class="sg-name" style="font-size:13px;">{{ lab }}</td>
-          <td><input class="sg-method" value="{{ f.method }}"></td>
-          <td><input class="sg-loc" value="{{ f.locator }}" style="width:100%;"></td>
-          <td><input class="sg-fstatus" value="{{ f.status }}" style="width:60px;"></td>
-        </tr>
+  <!-- ① 기준 샘플 URL -->
+  <div class="sec">
+    <div class="st"><span class="n">1</span><span class="tt">기준 샘플 URL</span></div>
+    <div class="card">
+      <div id="sg-urls">
+        {% for u in guide.sample_urls %}
+        <div class="urlrow sg-urlrow" data-url="{{ u.url }}">
+          {% if u.is_lead %}<span class="lead-chip tagk">대표</span>{% else %}<span class="lead-empty"></span>{% endif %}
+          <span class="u">{{ u.url }}</span>
+          <a href="{{ u.url }}" target="_blank" class="op">↗ 열기</a>
+        </div>
         {% endfor %}
-      </tbody>
-    </table>
-  </div>
-
-  <div class="sg-card">
-    <div class="sg-ct"><span class="n">3</span><span class="tt">최종 매입가 로직</span><span class="src">{{ src.name }}</span></div>
-    <table class="sg-atbl" id="sg-benefits">
-      <thead><tr><th style="width:170px;">혜택명</th><th style="width:120px;">반영 방식</th><th>계산 규칙</th><th style="width:150px;">적용</th></tr></thead>
-      <tbody>
-        {% set aplab = {'preapplied':'선반영','deduct':'차감','accrue':'적립','payment':'결제','cashback':'캐시백'} %}
-        {% set stlab = {'always':'상시','conditional':'조건부','optional':'선택','planned':'업데이트 예정'} %}
-        {% for b in guide.pricing.benefits %}
-        <tr data-apply="{{ b.apply }}" data-status="{{ b.status }}">
-          <td class="sg-name">{{ b.name }}</td>
-          <td><span class="sg-ap {{ b.apply }}">{{ aplab[b.apply] }}</span></td>
-          <td class="sg-rule">{{ b.rule }}</td>
-          <td><span class="sg-st {{ b.status }}"><span class="d"></span>{{ stlab[b.status] }}</span></td>
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
-  </div>
-
-  <div class="sg-card">
-    <div class="sg-ct"><span class="n">4</span><span class="tt">가격 검증</span></div>
-    <div class="sg-sub">
-      <button class="on" data-sub="sample">기존 샘플</button>
-      <button data-sub="new">신규 검증</button>
+      </div>
+      <button class="addbtn" id="sg-add-url">+ URL 추가</button>
     </div>
-    <div class="sg-subpane on" id="sub-sample">
-      <div class="sg-grid2" id="sg-leadcards">
-        {% set lc = guide.verification.lead_cache %}
-        {% if lc %}
-        <div class="fxpop"><div class="body"><div class="cf-receipt">
-          <div class="cf-rc-ln"><span class="lbl">표면 노출가</span><span class="num">{{ lc.surface_price }}원</span></div>
-          <div class="cf-rc-ln disc"><span class="lbl">적용 혜택</span><span class="num">{{ lc.benefit_total }}원</span></div>
-          <div class="cf-rc-div"></div>
-          <div class="cf-rc-ln fin"><span class="lbl">최종 매입가</span><span class="num">{{ lc.final_price }}원</span></div>
-        </div></div></div>
-        {% else %}<div class="muted">아직 기존 샘플 캐시값이 없습니다.</div>{% endif %}
+  </div>
+
+  <!-- ② 크롤 구조 분석 -->
+  <div class="sec">
+    <div class="st"><span class="n">2</span><span class="tt">크롤 구조 분석</span></div>
+    <div class="card">
+      <table class="t2" id="sg-fields">
+        <colgroup><col style="width:72px"><col style="width:120px"><col><col style="width:52px"></colgroup>
+        <thead><tr><th>항목</th><th>수집 방법</th><th>위치</th><th>상태</th></tr></thead>
+        <tbody>
+          {% set labels = {'thumbnail':'썸네일','title':'상품명','price':'가격','benefit':'혜택','option_stock':'옵션·재고','detail_image':'상세이미지'} %}
+          {% for key, lab in labels.items() %}
+          {% set f = guide.fields[key] %}
+          <tr data-field="{{ key }}">
+            <td style="font-size:13px;">{{ lab }}</td>
+            <td><input class="sg-method" value="{{ f.method }}"></td>
+            <td><input class="sg-loc" value="{{ f.locator }}" style="width:100%;"></td>
+            <td><input class="sg-fstatus" value="{{ f.status }}" style="width:52px;"></td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ③ 최종 매입가 로직 -->
+  <div class="sec">
+    <div class="st"><span class="n">3</span><span class="tt">최종 매입가 로직</span><span class="sub">{{ src.name }} · 확정</span></div>
+    <div class="card">
+      <!-- #sg-benefits 테이블: JS collect()가 읽는 실제 데이터 컨테이너.
+           display:grid으로 dl처럼 보이도록 스타일링. -->
+      <table class="sg-ben" id="sg-benefits">
+        <tbody>
+          {% set aplab = {'preapplied':'선반영','deduct':'차감','accrue':'적립','payment':'결제','cashback':'캐시백'} %}
+          {% set stlab = {'always':'상시','conditional':'조건부','optional':'선택','planned':'업데이트 예정'} %}
+          {% for b in guide.pricing.benefits %}
+          <tr data-apply="{{ b.apply }}" data-status="{{ b.status }}">
+            <td class="sg-name">{{ b.name }}</td>
+            <td class="sg-rule">{{ b.rule }}</td>
+            <td class="sg-ap" style="display:none;">{{ aplab.get(b.apply, b.apply) }}</td>
+            <td class="sg-st" style="display:none;">{{ stlab.get(b.status, b.status) }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      <!-- 가격 흐름 다이어그램 -->
+      <div class="flow">
+        <div class="fr"><span class="ar"></span><span>표면 노출가</span></div>
+        <div class="fr"><span class="ar">→</span><span><b>나의 할인가 = 베이스금액①</b></span></div>
+        <div class="fr"><span class="ar">→</span><span>− 구매적립%(①) − 후기 500 = <b>베이스금액②</b></span></div>
+        <div class="fr"><span class="ar">→</span><span>− 결제적립%(②)</span></div>
+        <div class="fr"><span class="ar">=</span><span><b>최종 매입가</b></span></div>
+        <div class="rule">각 %는 직전 잔액에 곱함(순차) · 10원 내림 · 1회성(첫결제·카드 3만)·적립금 제외</div>
       </div>
     </div>
-    <div class="sg-subpane" id="sub-new">
-      <div class="sg-new">
-        <div class="sg-nvin"><input id="sg-verify-url" placeholder="검증할 새 URL 붙여넣기"><button class="btn btn-primary" id="sg-verify-btn">검증</button></div>
-        <div style="text-align:center;"><span class="sg-status" id="sg-verify-status" style="display:none;"><span class="d"></span><span id="sg-verify-msg"></span></span></div>
-        <div id="sg-verify-result"></div>
+  </div>
+
+  <!-- ④ 가격 검증 -->
+  <div class="sec">
+    <div class="st"><span class="n">4</span><span class="tt">가격 검증</span><span class="sub">예제 문제 · URL별 기준 스크린샷 + 정답 영수증</span></div>
+    <div class="card">
+      <div class="sg-sub">
+        <button class="on" data-sub="sample">기존 샘플 (예제)</button>
+        <button data-sub="new">신규 검증</button>
+      </div>
+
+      <!-- 기존 샘플 예제 탭 -->
+      <div class="sg-subpane on" id="sub-sample">
+        {% set examples = guide.verification.get('examples', []) %}
+        {% if examples %}
+          {% for ex in examples %}
+          <div class="ex">
+            <div class="exh">
+              <span class="qn">{{ loop.index }}</span>
+              <span class="nm">{{ ex.name }}</span>
+              {% if ex.url %}<span class="ex-url">{{ ex.url }}</span>{% endif %}
+              {% if ex.final_price is not none %}
+              <span class="price">{{ "{:,}".format(ex.final_price) }}원</span>
+              {% endif %}
+            </div>
+            <div class="exb">
+              <!-- 스크린샷 플레이스홀더 -->
+              {% if ex.screenshot_url %}
+              <img src="{{ ex.screenshot_url }}" style="border-radius:9px;width:100%;height:172px;object-fit:cover;border:1px solid #E5E8EB;">
+              {% else %}
+              <div class="shot">
+                <span class="cam">📷</span>
+                <span>기준 스크린샷</span>
+                <span>{{ ex.name }}</span>
+                <span class="dt">{{ ex.captured_at or '미수집' }}</span>
+              </div>
+              {% endif %}
+              <!-- FX 영수증 -->
+              <div class="rc">
+                <!-- 표면 노출가 -->
+                <div class="l"><span class="lb">표면 노출가</span><span class="nm">{{ "{:,}".format(ex.surface_price) if ex.surface_price is not none else '—' }}원</span></div>
+                <!-- pre 차감들 (선반영 할인 등) -->
+                {% for p in (ex.pre or []) %}
+                <div class="l in disc"><span class="lb">− {{ p.label }}</span><span class="nm">{{ "{:,}".format(p.amount) if p.amount is not none else '—' }}</span></div>
+                {% endfor %}
+                <!-- 베이스금액① -->
+                <div class="l base"><span class="lb">나의 할인가 = 베이스금액①</span><span class="nm">{{ "{:,}".format(ex.base1) if ex.base1 is not none else '—' }}원</span></div>
+                <!-- deducts (구매적립, 후기적립 등) -->
+                {% for d in (ex.deducts or []) %}
+                <div class="l in disc"><span class="lb">− {{ d.label }}</span><span class="nm">{{ "{:,}".format(d.amount) if d.amount is not none else '—' }}</span></div>
+                {% endfor %}
+                <!-- 베이스금액② -->
+                <div class="l base"><span class="lb">베이스금액②</span><span class="nm">{{ "{:,}".format(ex.base2) if ex.base2 is not none else '—' }}원</span></div>
+                <!-- 결제 적립 -->
+                {% if ex.pay %}
+                <div class="l in disc"><span class="lb">− 결제적립 · {{ ex.pay.label }}</span><span class="nm">{{ "{:,}".format(ex.pay.amount) if ex.pay.amount is not none else '—' }}</span></div>
+                {% endif %}
+                <div class="dv"></div>
+                <!-- 최종 매입가 -->
+                <div class="l fin"><span class="lb">최종 매입가</span><span class="nm">{{ "{:,}".format(ex.final_price) if ex.final_price is not none else '—' }}원</span></div>
+              </div>
+              {% if ex.note %}
+              <div class="exnote" style="grid-column:1/-1;">※ {{ ex.note }}</div>
+              {% endif %}
+            </div>
+          </div>
+          {% endfor %}
+        {% else %}
+          <div class="muted">아직 예제가 없습니다.</div>
+        {% endif %}
+        <div class="fxnote">※ 기준 스크린샷 = 그 시점 화면. 구조 바뀌면 재크롤 결과와 대조용. · 신규 검증 탭: URL 입력 → 로컬 크롤 → 같은 영수증 자동 표시</div>
+      </div>
+
+      <!-- 신규 검증 탭 -->
+      <div class="sg-subpane" id="sub-new">
+        <div class="sg-new">
+          <div class="sg-nvin"><input id="sg-verify-url" placeholder="검증할 새 URL 붙여넣기"><button id="sg-verify-btn">검증</button></div>
+          <div style="text-align:center;"><span class="sg-status" id="sg-verify-status" style="display:none;"><span class="d"></span><span id="sg-verify-msg"></span></span></div>
+          <div id="sg-verify-result"></div>
+        </div>
       </div>
     </div>
   </div>
