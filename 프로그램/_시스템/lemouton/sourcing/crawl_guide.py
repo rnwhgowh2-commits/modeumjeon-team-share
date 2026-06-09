@@ -18,6 +18,35 @@ BENEFIT_APPLY = {"preapplied", "deduct", "accrue", "payment", "cashback"}
 BENEFIT_STATUSES = {"always", "conditional", "optional", "planned"}
 BENEFIT_COLLECTION = {"per_product", "uniform"}
 
+# 혜택 모아보기 속성 (드롭다운) — 값은 표시 문자열 그대로 저장(화이트리스트)
+BENEFIT_METHODS = {"정률(%)", "정액(원)", "정액·정률", "적립(%→원)", "고정액", "옵션(개월)", "-"}
+BENEFIT_BASES = {"표면 노출가", "베이스금액①", "베이스금액②", "—", "-"}
+BENEFIT_FREQS = {"무제한", "정기", "1회성", "-"}
+
+
+def _derive_method(name: str, apply: str, rule: str) -> str:
+    if apply == "accrue":
+        return "적립(%→원)"
+    if "고정" in rule or "500원" in rule or "600" in rule:
+        return "고정액"
+    if "할부" in name:
+        return "옵션(개월)"
+    return "정률(%)"
+
+
+def _derive_base(apply: str) -> str:
+    if apply == "preapplied":
+        return "표면 노출가"
+    if apply in ("payment", "cashback"):
+        return "베이스금액②"
+    return "베이스금액①"
+
+
+def _derive_freq(name: str) -> str:
+    if "후기" in name or "리뷰" in name or "첫" in name:
+        return "1회성"
+    return "무제한"
+
 FLAG_VALUES = {"ok", "warn"}
 VERIFY_STATUSES = {"pending", "claimed", "running", "done", "failed"}
 
@@ -100,9 +129,19 @@ def validate_guide(data: dict) -> dict:
             raise ValueError(f"benefit.apply invalid: {apply}")
         if status not in BENEFIT_STATUSES:
             raise ValueError(f"benefit.status invalid: {status}")
+        rule = str(b.get("rule", ""))
+        method = b.get("method")
+        if method not in BENEFIT_METHODS:
+            method = _derive_method(name, apply, rule)
+        base = b.get("base")
+        if base not in BENEFIT_BASES:
+            base = _derive_base(apply)
+        freq = b.get("freq")
+        if freq not in BENEFIT_FREQS:
+            freq = _derive_freq(name)
         clean_benefits.append({
-            "name": name, "apply": apply,
-            "rule": str(b.get("rule", "")), "status": status,
+            "name": name, "apply": apply, "rule": rule, "status": status,
+            "method": method, "base": base, "freq": freq,
         })
     out["pricing"] = {
         "base_label": str(pricing.get("base_label", "표면 노출가")),

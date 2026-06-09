@@ -38,18 +38,36 @@
 .sgd .ok-badge{color:#10B981;font-weight:700;font-size:11.5px;}
 .sgd .wn-badge{color:#F59E0B;font-weight:700;font-size:11.5px;}
 
-/* ③ 매입가 로직 — dl 행이 #sg-benefits tr 겸용 */
-.sgd table.sg-ben{width:100%;border-collapse:collapse;font-size:13px;}
-.sgd table.sg-ben tr{display:grid;grid-template-columns:110px 1fr;column-gap:14px;row-gap:0;align-items:baseline;padding:5.5px 0;}
-.sgd table.sg-ben tr:not(:last-child){border-bottom:1px solid #F4F5F7;}
-.sgd table.sg-ben td.sg-name{font-size:13px;font-weight:600;color:#4E5968;padding:0;}
-.sgd table.sg-ben td.sg-rule{font-size:13px;color:#191F28;padding:0;}
-.sgd table.sg-ben td.sg-ap,.sgd table.sg-ben td.sg-st{display:none;}/* hide apply/status cols, JS reads from data attrs */
+/* ③ 매입가 로직 — 가격 흐름 도식 */
 .sgd .flow{margin-top:16px;padding-top:14px;border-top:1px dashed #E8EAED;font-size:12.5px;line-height:1.55;}
 .sgd .flow .fr{display:flex;gap:8px;padding:2px 0;}
 .sgd .flow .fr .ar{color:#C6CDD4;flex:0 0 14px;}
 .sgd .flow .fr b{font-weight:700;}
 .sgd .flow .rule{margin-top:8px;color:#8B95A1;font-size:12px;}
+
+/* ③ 혜택 모아보기 (편집형 카드+칩) */
+.sgd .moa-lbl{font-size:12.5px;font-weight:700;color:#4E5968;margin-bottom:10px;}
+.sgd .moa-lbl span{font-weight:500;color:#8B95A1;font-size:11px;}
+.sgd .moa-flow-lbl{font-size:11.5px;font-weight:700;color:#8B95A1;border-top:1px dashed #E1E4E8;padding-top:12px;margin:18px 0 10px;}
+.sgd .sg-moa{display:block;}
+.sgd .sg-moa .bgroup{background:#F7F8FA;border-radius:11px;padding:10px;margin-bottom:9px;}
+.sgd .sg-moa .gh{font-size:11.5px;font-weight:800;border-radius:7px;padding:5px 10px;margin-bottom:9px;display:inline-block;}
+.sgd .sg-moa .blist{display:flex;flex-wrap:wrap;gap:7px;}
+.sgd .sg-moa .bitem{background:#fff;border:1px solid #E5E8EB;border-radius:9px;padding:9px;width:calc(50% - 3.5px);}
+.sgd .sg-moa .addb{margin-top:8px;}
+.sgd .sg-moa .bih{display:flex;align-items:center;gap:5px;margin-bottom:7px;}
+.sgd .sg-moa .bn{font-size:12.5px;font-weight:700;border:none;border-bottom:1.5px solid #EEF0F3;flex:1;padding:2px 0;color:#191F28;min-width:0;}
+.sgd .sg-moa .bn:focus{outline:none;border-bottom-color:#3182F6;}
+.sgd .sg-moa .bdel{border:none;background:#F2F4F6;color:#8B95A1;border-radius:6px;width:20px;height:20px;cursor:pointer;font-size:13px;flex:0 0 20px;line-height:1;}
+.sgd .sg-moa .bdel:hover{background:#FFE9EC;color:#F04452;}
+.sgd .sg-moa .bsel{display:flex;flex-wrap:wrap;gap:4px;margin-bottom:7px;}
+.sgd .sg-moa .cs{display:inline-flex;align-items:center;gap:2px;font-size:10px;color:#8B95A1;font-weight:700;background:#F2F4F6;border-radius:999px;padding:1px 3px 1px 8px;}
+.sgd .sg-moa .cs select{font-size:10.5px;border:none;background:none;color:#191F28;font-weight:600;font-family:inherit;max-width:92px;padding:1px;}
+.sgd .sg-moa .cs select:focus{outline:none;}
+.sgd .sg-moa .bcond{width:100%;font-size:11px;border:1px solid #E1E4E8;border-radius:6px;padding:4px 6px;background:#fff;font-family:inherit;}
+.sgd .sg-moa .addb{width:100%;border:1px dashed #C6CDD4;background:#fff;color:#6B7684;border-radius:7px;padding:6px;font-size:11.5px;cursor:pointer;font-weight:600;}
+.sgd .sg-moa .addb:hover{border-color:#3182F6;color:#3182F6;}
+@media(max-width:560px){.sgd .sg-moa{grid-template-columns:1fr 1fr;}}
 
 /* ④ 가격 검증 — 서브탭 */
 .sgd .sg-sub{display:flex;gap:20px;border-bottom:1px solid #E5E8EB;margin-bottom:16px;}
@@ -143,31 +161,59 @@
   <div class="sec">
     <div class="st"><span class="n">3</span><span class="tt">최종 매입가 로직</span><span class="sub">{{ src.name }} · 확정</span></div>
     <div class="card">
-      <!-- #sg-benefits 테이블: JS collect()가 읽는 실제 데이터 컨테이너.
-           display:grid으로 dl처럼 보이도록 스타일링. -->
-      <table class="sg-ben" id="sg-benefits">
-        <tbody>
-          {% set aplab = {'preapplied':'선반영','deduct':'차감','accrue':'적립','payment':'결제','cashback':'캐시백'} %}
-          {% set stlab = {'always':'상시','conditional':'조건부','optional':'선택','planned':'업데이트 예정'} %}
-          {% for b in guide.pricing.benefits %}
-          <tr data-apply="{{ b.apply }}" data-status="{{ b.status }}">
-            <td class="sg-name">{{ b.name }}</td>
-            <td class="sg-rule">{{ b.rule }}</td>
-            <td class="sg-ap" style="display:none;">{{ aplab.get(b.apply, b.apply) }}</td>
-            <td class="sg-st" style="display:none;">{{ stlab.get(b.status, b.status) }}</td>
-          </tr>
-          {% endfor %}
-        </tbody>
-      </table>
-      <!-- 가격 흐름 다이어그램 -->
-      <div class="flow">
-        <div class="fr"><span class="ar"></span><span>표면 노출가</span></div>
-        <div class="fr"><span class="ar">→</span><span><b>나의 할인가 = 베이스금액①</b></span></div>
-        <div class="fr"><span class="ar">→</span><span>− 구매적립%(①) − 후기 500 = <b>베이스금액②</b></span></div>
-        <div class="fr"><span class="ar">→</span><span>− 결제적립%(②)</span></div>
-        <div class="fr"><span class="ar">=</span><span><b>최종 매입가</b></span></div>
-        <div class="rule">각 %는 직전 잔액에 곱함(순차) · 10원 내림 · 1회성(첫결제·카드 3만)·적립금 제외</div>
+      <!-- 혜택 모아보기 (편집형) — JS collect()가 읽는 실제 데이터 컨테이너 -->
+      <div class="moa-lbl">혜택 모아보기 <span>· 단계별 · 드롭다운 수정 / ＋추가 / ×삭제</span></div>
+      {% set STAGES = [('preapplied','선반영','#3182F6'),('deduct','차감','#F04452'),('accrue','적립','#10B981'),('payment','결제','#8B5CF6'),('cashback','캐시백','#F59E0B')] %}
+      {% set M_OPTS = ['정률(%)','정액(원)','정액·정률','적립(%→원)','고정액','옵션(개월)'] %}
+      {% set B_OPTS = ['표면 노출가','베이스금액①','베이스금액②','—'] %}
+      {% set F_OPTS = ['무제한','정기','1회성'] %}
+      {% set S_OPTS = [('always','상시'),('conditional','조건부'),('optional','선택'),('planned','예정')] %}
+      <div class="sg-moa" id="sg-moa">
+        {% for ap, label, color in STAGES %}
+        <div class="bgroup" data-apply="{{ ap }}">
+          <div class="gh" style="background:{{ color }}1a;color:{{ color }}">{{ label }}</div>
+          <div class="blist">
+            {% for b in guide.pricing.benefits if b.apply == ap %}
+            <div class="bitem">
+              <div class="bih"><input class="bn" value="{{ b.name }}" placeholder="혜택명"><button type="button" class="bdel" title="삭제">×</button></div>
+              <div class="bsel">
+                <span class="cs">방식<select class="s-m">{% for o in M_OPTS %}<option{% if o==b.method %} selected{% endif %}>{{ o }}</option>{% endfor %}</select></span>
+                <span class="cs">기준<select class="s-b">{% for o in B_OPTS %}<option{% if o==b.base %} selected{% endif %}>{{ o }}</option>{% endfor %}</select></span>
+                <span class="cs">상시<select class="s-s">{% for code,lab in S_OPTS %}<option value="{{ code }}"{% if code==b.status %} selected{% endif %}>{{ lab }}</option>{% endfor %}</select></span>
+                <span class="cs">횟수<select class="s-c">{% for o in F_OPTS %}<option{% if o==b.freq %} selected{% endif %}>{{ o }}</option>{% endfor %}</select></span>
+              </div>
+              <input class="bcond" value="{{ b.rule }}" placeholder="계산 규칙·조건 (예: 베이스금액① × 10%)">
+            </div>
+            {% endfor %}
+          </div>
+          <button type="button" class="addb" data-apply="{{ ap }}">＋ 혜택 추가</button>
+        </div>
+        {% endfor %}
       </div>
+      <div class="moa-flow-lbl">▼ 가격 흐름 (위 혜택에서 자동 생성)</div>
+      <!-- 가격 흐름 다이어그램 — 소싱처별 혜택(apply)에서 자동 생성 -->
+      {% set _bens = guide.pricing.benefits %}
+      {% set pre  = _bens | selectattr('apply','equalto','preapplied') | map(attribute='name') | list %}
+      {% set ded  = _bens | selectattr('apply','equalto','deduct')     | map(attribute='name') | list %}
+      {% set acc  = _bens | selectattr('apply','equalto','accrue')     | map(attribute='name') | list %}
+      {% set pay  = _bens | selectattr('apply','equalto','payment')    | map(attribute='name') | list %}
+      {% set cash = _bens | selectattr('apply','equalto','cashback')   | map(attribute='name') | list %}
+      {% set mid  = ded + acc %}
+      {% if _bens %}
+      <div class="flow">
+        <div class="fr"><span class="ar"></span><span>{{ guide.pricing.base_label or '표면 노출가' }}</span></div>
+        {% if pre %}
+        <div class="fr"><span class="ar">→</span><span>− {{ pre | join(' · ') }} = <b>나의 할인가(베이스금액①)</b></span></div>
+        {% else %}
+        <div class="fr"><span class="ar">→</span><span><b>나의 할인가(베이스금액①)</b></span></div>
+        {% endif %}
+        {% if mid %}<div class="fr"><span class="ar">→</span><span>− {{ mid | join(' · ') }} = <b>베이스금액②</b></span></div>{% endif %}
+        {% if pay %}<div class="fr"><span class="ar">→</span><span>− {{ pay | join(' · ') }} (결제 적립)</span></div>{% endif %}
+        {% if cash %}<div class="fr"><span class="ar">→</span><span>− {{ cash | join(' · ') }} (캐시백)</span></div>{% endif %}
+        <div class="fr"><span class="ar">=</span><span><b>최종 매입가</b></span></div>
+        <div class="rule">각 %는 직전 잔액에 곱함(순차) · 10원 내림 · <b>선반영</b>=나의 할인가에 자동 포함 · <b>적립/캐시백</b>=매입가 차감</div>
+      </div>
+      {% endif %}
     </div>
   </div>
 

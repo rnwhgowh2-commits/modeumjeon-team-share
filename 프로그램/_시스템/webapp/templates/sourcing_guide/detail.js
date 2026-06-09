@@ -19,10 +19,49 @@
     });
     base.fields = fields;
     base.pricing = base.pricing || {base_label:'표면 노출가', benefit_collection:'per_product', benefits:[], note:''};
-    base.pricing.benefits = [...document.querySelectorAll('#sg-benefits tr[data-apply]')].map(tr=>(
-      {name:tr.querySelector('.sg-name').textContent.trim(), apply:tr.dataset.apply,
-       rule:tr.querySelector('.sg-rule').textContent.trim(), status:tr.dataset.status}));
+    const benefits=[];
+    document.querySelectorAll('#sg-moa .bgroup').forEach(g=>{
+      const apply=g.dataset.apply;
+      g.querySelectorAll('.bitem').forEach(it=>{
+        const name=it.querySelector('.bn').value.trim();
+        if(!name) return;
+        benefits.push({name, apply,
+          method:it.querySelector('.s-m').value,
+          base:it.querySelector('.s-b').value,
+          status:it.querySelector('.s-s').value,
+          freq:it.querySelector('.s-c').value,
+          rule:it.querySelector('.bcond').value.trim()});
+      });
+    });
+    base.pricing.benefits = benefits;
     return base;
+  }
+
+  // 혜택 모아보기 — 추가/삭제
+  const _M=['정률(%)','정액(원)','정액·정률','적립(%→원)','고정액','옵션(개월)'];
+  const _B=['표면 노출가','베이스금액①','베이스금액②','—'];
+  const _F=['무제한','정기','1회성'];
+  const _S=[['always','상시'],['conditional','조건부'],['optional','선택'],['planned','예정']];
+  const _opt=a=>a.map(x=>`<option>${x}</option>`).join('');
+  const _optS=()=>_S.map(([v,l])=>`<option value="${v}">${l}</option>`).join('');
+  function newCard(){
+    const d=document.createElement('div'); d.className='bitem';
+    d.innerHTML=`<div class="bih"><input class="bn" placeholder="혜택명"><button type="button" class="bdel" title="삭제">×</button></div>`+
+      `<div class="bsel"><span class="cs">방식<select class="s-m">${_opt(_M)}</select></span>`+
+      `<span class="cs">기준<select class="s-b">${_opt(_B)}</select></span>`+
+      `<span class="cs">상시<select class="s-s">${_optS()}</select></span>`+
+      `<span class="cs">횟수<select class="s-c">${_opt(_F)}</select></span></div>`+
+      `<input class="bcond" placeholder="계산 규칙·조건 (예: 베이스금액① × 10%)">`;
+    return d;
+  }
+  const moa=document.getElementById('sg-moa');
+  if(moa){
+    moa.querySelectorAll('.addb').forEach(btn=>btn.addEventListener('click',()=>{
+      btn.closest('.bgroup').querySelector('.blist').appendChild(newCard());
+    }));
+    moa.addEventListener('click',e=>{
+      if(e.target.classList.contains('bdel')) e.target.closest('.bitem').remove();
+    });
   }
 
   document.getElementById('sg-save').addEventListener('click', async ()=>{
