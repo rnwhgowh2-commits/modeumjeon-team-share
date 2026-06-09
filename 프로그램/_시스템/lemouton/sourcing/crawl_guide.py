@@ -13,6 +13,11 @@ SCHEMA_VERSION = 3
 FIELD_KEYS = ("thumbnail", "title", "price", "benefit", "option_stock", "detail_image")
 FIELD_METHODS = {"crawl", "manual", "none", "crawl_per_product", "uniform"}
 FIELD_STATUSES = {"ok", "warn", "none"}
+# 수집 방법 2축 상세 분류 (Claude가 분석해 채움) — JSON 키라 DB 마이그레이션 불필요.
+#  mechanism = 수집 방식: html(HTML 스크래핑) · api(API 크롤링) · crawl(크롤·방식 미분류=하위호환) · manual · none
+#  auth      = 인증:      open(비인증) · auth(인증=로그인 세션 필요)
+FIELD_MECHANISMS = {"html", "api", "crawl", "manual", "none"}
+FIELD_AUTH = {"open", "auth"}
 
 BENEFIT_APPLY = {"preapplied", "deduct", "accrue", "payment", "cashback"}
 BENEFIT_STATUSES = {"always", "conditional", "optional", "planned"}
@@ -22,6 +27,15 @@ BENEFIT_COLLECTION = {"per_product", "uniform"}
 BENEFIT_METHODS = {"정률(%)", "정액(원)", "정액·정률", "적립(%→원)", "고정액", "옵션(개월)", "-"}
 BENEFIT_BASES = {"표면 노출가", "베이스금액①", "베이스금액②", "—", "-"}
 BENEFIT_FREQS = {"무제한", "정기", "1회성", "-"}
+
+
+def _derive_mechanism(method: str) -> str:
+    """기존 카드(mechanism 키 없음)의 하위호환 기본값 — method 에서 유추."""
+    if method in ("crawl", "crawl_per_product", "uniform"):
+        return "crawl"   # 크롤이지만 HTML/API 미분류 → 재분석 신호
+    if method == "manual":
+        return "manual"
+    return "none"
 
 
 def _derive_method(name: str, apply: str, rule: str) -> str:
@@ -56,7 +70,8 @@ def empty_skeleton() -> dict:
     return {
         "version": SCHEMA_VERSION,
         "sample_urls": [],
-        "fields": {k: {"method": "none", "locator": "", "status": "none", "note": ""}
+        "fields": {k: {"method": "none", "mechanism": "none", "auth": "open",
+                       "locator": "", "status": "none", "note": ""}
                    for k in FIELD_KEYS},
         "pricing": {
             "base_label": "표면 노출가",
@@ -102,8 +117,17 @@ def validate_guide(data: dict) -> dict:
             raise ValueError(f"fields.{k}.method invalid: {method}")
         if status not in FIELD_STATUSES:
             raise ValueError(f"fields.{k}.status invalid: {status}")
+        # 2축 상세 분류 — 없으면(기존 카드) method 에서 유추(하위호환)
+        mechanism = f.get("mechanism")
+        if mechanism not in FIELD_MECHANISMS:
+            mechanism = _derive_mechanism(method)
+        auth = f.get("auth")
+        if auth not in FIELD_AUTH:
+            auth = "open"
         out["fields"][k] = {
             "method": method,
+            "mechanism": mechanism,
+            "auth": auth,
             "locator": str(f.get("locator", "")),
             "status": status,
             "note": str(f.get("note", "")),
@@ -139,9 +163,15 @@ def validate_guide(data: dict) -> dict:
         freq = b.get("freq")
         if freq not in BENEFIT_FREQS:
             freq = _derive_freq(name)
+        # 적용 문구(triggers): 페이지에 이 문구가 있으면 해당 혜택 수집/적용 (크롤 게이트)
+        triggers_in = b.get("triggers", [])
+        if isinstance(triggers_in, str):
+            triggers_in = triggers_in.split(",")
+        triggers = ([str(t).strip() for t in triggers_in if str(t).strip()]
+                    if isinstance(triggers_in, list) else [])
         clean_benefits.append({
             "name": name, "apply": apply, "rule": rule, "status": status,
-            "method": method, "base": base, "freq": freq,
+            "method": method, "base": base, "freq": freq, "triggers": triggers,
         })
     out["pricing"] = {
         "base_label": str(pricing.get("base_label", "표면 노출가")),

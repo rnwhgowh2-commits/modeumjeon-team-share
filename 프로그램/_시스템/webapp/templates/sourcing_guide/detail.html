@@ -37,6 +37,25 @@
 .sgd .sg-fstatus{font-size:11.5px;border:1px solid #E1E4E8;border-radius:4px;padding:3px 6px;width:54px;background:#FAFBFC;}
 .sgd .ok-badge{color:#10B981;font-weight:700;font-size:11.5px;}
 .sgd .wn-badge{color:#F59E0B;font-weight:700;font-size:11.5px;}
+/* ② 2축 분류 배지 (수집 방식 + 인증 + 상태) — Claude가 채운 결과 읽기용 */
+.sgd table.t2 td .fico{font-size:14px;margin-right:6px;}
+.sgd .bdg{display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:700;padding:3px 9px;border-radius:20px;white-space:nowrap;}
+.sgd .bdg.m-html{background:#EAF2FF;color:#1B64DA;}
+.sgd .bdg.m-api{background:#FFF3E6;color:#E8830C;}
+.sgd .bdg.m-crawl{background:#EEF1F4;color:#4E5968;}
+.sgd .bdg.m-manual{background:#F3EEFF;color:#7C3AED;}
+.sgd .bdg.m-none{background:#F4F5F7;color:#B0B8C1;}
+.sgd .bdg.a-auth{background:#FFEDED;color:#E0392B;}
+.sgd .bdg.a-open{background:#EEF1F4;color:#8B95A1;}
+.sgd .bdg.s-ok{background:#E7F6EF;color:#11A36B;}
+.sgd .bdg.s-warn{background:#FFF3E0;color:#E8830C;}
+.sgd .bdg.s-none{background:#F4F5F7;color:#B0B8C1;}
+.sgd .t2-legend{display:flex;flex-wrap:wrap;gap:6px 14px;margin-bottom:10px;font-size:10.5px;color:#8B95A1;}
+.sgd .t2-legend b{color:#4E5968;}
+.sgd .note-row td{border-bottom:1px solid #F4F5F7;padding-top:0;padding-bottom:9px;}
+.sgd .note-cell{display:flex;align-items:center;gap:6px;padding-left:22px;}
+.sgd .note-cell .tg{font-size:9.5px;font-weight:700;color:#B0B8C1;background:#F2F4F6;padding:1px 6px;border-radius:5px;flex:0 0 auto;}
+.sgd .sg-note{border:none;border-bottom:1px dashed #DDE1E6;font-size:11px;color:#6B7684;padding:2px 0;width:100%;background:transparent;}
 
 /* ③ 매입가 로직 — 가격 흐름 도식 */
 .sgd .flow{margin-top:16px;padding-top:14px;border-top:1px dashed #E8EAED;font-size:12.5px;line-height:1.55;}
@@ -65,8 +84,13 @@
 .sgd .sg-moa .cs{display:inline-flex;align-items:center;gap:2px;font-size:10px;color:#8B95A1;font-weight:700;background:#F2F4F6;border-radius:999px;padding:1px 3px 1px 8px;}
 .sgd .sg-moa .cs select{font-size:10.5px;border:none;background:none;color:#191F28;font-weight:600;font-family:inherit;max-width:92px;padding:1px;}
 .sgd .sg-moa .cs select:focus{outline:none;}
-.sgd .sg-moa .bcond{width:100%;font-size:11px;border:none;background:none;padding:2px 0;color:#4E5968;font-family:inherit;}
+.sgd .sg-moa .bcond{width:100%;font-size:11.5px;border:none;background:none;padding:2px 0;color:#4E5968;font-family:inherit;}
+.sgd .sg-moa textarea.bcond{display:block;resize:none;overflow:hidden;line-height:1.55;min-height:20px;white-space:pre-wrap;word-break:break-word;}
 .sgd .sg-moa .bcond:focus{outline:none;}
+.sgd .sg-moa .btrig{display:flex;align-items:center;gap:7px;margin-top:9px;border-top:1px dashed #EEF0F3;padding-top:8px;}
+.sgd .sg-moa .tlbl{font-size:10px;font-weight:800;color:#3182F6;background:#3182F60d;border-radius:6px;padding:3px 8px;white-space:nowrap;flex:0 0 auto;}
+.sgd .sg-moa .btrig-in{flex:1;min-width:0;font-size:11px;border:1px solid #E1E4E8;border-radius:6px;padding:4px 7px;background:#fff;font-family:inherit;color:#191F28;}
+.sgd .sg-moa .btrig-in:focus{outline:none;border-color:#3182F6;}
 .sgd .sg-moa .addb{width:100%;border:1px dashed #C6CDD4;background:#fff;color:#6B7684;border-radius:7px;padding:6px;font-size:11.5px;cursor:pointer;font-weight:600;}
 .sgd .sg-moa .addb:hover{border-color:#3182F6;color:#3182F6;}
 @media(max-width:560px){.sgd .sg-moa{grid-template-columns:1fr 1fr;}}
@@ -140,19 +164,30 @@
   <div class="sec">
     <div class="st"><span class="n">2</span><span class="tt">크롤 구조 분석</span></div>
     <div class="card">
+      <div class="t2-legend">
+        <span><b>수집 방식</b></span>
+        <span><b>HTML 스크래핑</b> 화면(DOM) 파싱</span>
+        <span><b>API 크롤링</b> 내부 API(JSON) 호출</span>
+        <span><b>인증</b> 비인증=로그인X · 인증=로그인 세션 필요(회원가·혜택)</span>
+      </div>
       <table class="t2" id="sg-fields">
-        <colgroup><col style="width:72px"><col style="width:120px"><col><col style="width:52px"></colgroup>
-        <thead><tr><th>항목</th><th>수집 방법</th><th>위치</th><th>상태</th></tr></thead>
+        <colgroup><col style="width:104px"><col style="width:118px"><col style="width:72px"><col><col style="width:88px"></colgroup>
+        <thead><tr><th>항목</th><th>수집 방식</th><th>인증</th><th>위치 (셀렉터/엔드포인트)</th><th>상태</th></tr></thead>
         <tbody>
-          {% set labels = {'thumbnail':'썸네일','title':'상품명','price':'가격','benefit':'혜택','option_stock':'옵션·재고','detail_image':'상세이미지'} %}
+          {% set labels = {'thumbnail':('썸네일','🖼️'),'title':('상품명','🏷️'),'price':('가격','💰'),'benefit':('혜택','🎁'),'option_stock':('옵션·재고','📦'),'detail_image':('상세이미지','🖼️')} %}
+          {% set mlab = {'html':'HTML 스크래핑','api':'API 크롤링','crawl':'크롤(미분류)','manual':'수동','none':'없음'} %}
+          {% set alab = {'open':'비인증','auth':'인증'} %}
+          {% set slab = {'ok':'✅ 정상','warn':'⚠️ 확인필요','none':'—'} %}
           {% for key, lab in labels.items() %}
           {% set f = guide.fields[key] %}
-          <tr data-field="{{ key }}">
-            <td style="font-size:13px;">{{ lab }}</td>
-            <td><input class="sg-method" value="{{ f.method }}"></td>
+          <tr data-field="{{ key }}" data-method="{{ f.method }}" data-mechanism="{{ f.mechanism }}" data-auth="{{ f.auth }}" data-status="{{ f.status }}">
+            <td style="font-size:13px;font-weight:600;"><span class="fico">{{ lab[1] }}</span>{{ lab[0] }}</td>
+            <td><span class="bdg m-{{ f.mechanism }}">{{ mlab[f.mechanism] }}</span></td>
+            <td><span class="bdg a-{{ f.auth }}">{{ alab[f.auth] }}</span></td>
             <td><input class="sg-loc" value="{{ f.locator }}" style="width:100%;"></td>
-            <td><input class="sg-fstatus" value="{{ f.status }}" style="width:52px;"></td>
+            <td><span class="bdg s-{{ f.status }}">{{ slab[f.status] }}</span></td>
           </tr>
+          <tr class="note-row"><td colspan="5"><div class="note-cell"><span class="tg">비고</span><input class="sg-note" value="{{ f.note }}" placeholder="메모 (예: 적립금을 가격으로 오독 주의)"></div></td></tr>
           {% endfor %}
         </tbody>
       </table>
@@ -178,13 +213,14 @@
             {% for b in guide.pricing.benefits if b.apply == ap %}
             <div class="bitem">
               <div class="bih"><input class="bn" value="{{ b.name }}" placeholder="혜택명"><button type="button" class="bdel" title="삭제">×</button></div>
-              <div class="bq"><input class="bcond" value="{{ b.rule }}" placeholder="계산 규칙·조건 (예: 베이스금액① × 10%)"></div>
+              <div class="bq"><textarea class="bcond" rows="1" placeholder="계산 규칙·조건 (예: 베이스금액① × 10%)">{{ b.rule }}</textarea></div>
               <div class="bsel">
                 <span class="cs">방식<select class="s-m">{% for o in M_OPTS %}<option{% if o==b.method %} selected{% endif %}>{{ o }}</option>{% endfor %}</select></span>
                 <span class="cs">기준<select class="s-b">{% for o in B_OPTS %}<option{% if o==b.base %} selected{% endif %}>{{ o }}</option>{% endfor %}</select></span>
                 <span class="cs">상시<select class="s-s">{% for code,lab in S_OPTS %}<option value="{{ code }}"{% if code==b.status %} selected{% endif %}>{{ lab }}</option>{% endfor %}</select></span>
                 <span class="cs">횟수<select class="s-c">{% for o in F_OPTS %}<option{% if o==b.freq %} selected{% endif %}>{{ o }}</option>{% endfor %}</select></span>
               </div>
+              <div class="btrig"><span class="tlbl">적용 문구</span><input class="btrig-in" value="{{ b.triggers | join(', ') }}" placeholder="크롤 감지 문구 (쉼표, 예: 기프트포인트, 멤버십)"></div>
             </div>
             {% endfor %}
           </div>

@@ -25,12 +25,15 @@
       g.querySelectorAll('.bitem').forEach(it=>{
         const name=it.querySelector('.bn').value.trim();
         if(!name) return;
+        const tEl=it.querySelector('.btrig-in');
+        const triggers=(tEl?tEl.value:'').split(',').map(s=>s.trim()).filter(Boolean);
         benefits.push({name, apply,
           method:it.querySelector('.s-m').value,
           base:it.querySelector('.s-b').value,
           status:it.querySelector('.s-s').value,
           freq:it.querySelector('.s-c').value,
-          rule:it.querySelector('.bcond').value.trim()});
+          rule:it.querySelector('.bcond').value.trim(),
+          triggers});
       });
     });
     base.pricing.benefits = benefits;
@@ -47,18 +50,24 @@
   function newCard(){
     const d=document.createElement('div'); d.className='bitem';
     d.innerHTML=`<div class="bih"><input class="bn" placeholder="혜택명"><button type="button" class="bdel" title="삭제">×</button></div>`+
-      `<div class="bq"><input class="bcond" placeholder="계산 규칙·조건 (예: 베이스금액① × 10%)"></div>`+
+      `<div class="bq"><textarea class="bcond" rows="1" placeholder="계산 규칙·조건 (예: 베이스금액① × 10%)"></textarea></div>`+
       `<div class="bsel"><span class="cs">방식<select class="s-m">${_opt(_M)}</select></span>`+
       `<span class="cs">기준<select class="s-b">${_opt(_B)}</select></span>`+
       `<span class="cs">상시<select class="s-s">${_optS()}</select></span>`+
-      `<span class="cs">횟수<select class="s-c">${_opt(_F)}</select></span></div>`;
+      `<span class="cs">횟수<select class="s-c">${_opt(_F)}</select></span></div>`+
+      `<div class="btrig"><span class="tlbl">적용 문구</span><input class="btrig-in" placeholder="크롤 감지 문구 (쉼표, 예: 기프트포인트, 멤버십)"></div>`;
     return d;
   }
+  function autoGrow(ta){ ta.style.height='auto'; ta.style.height=(ta.scrollHeight)+'px'; }
   const moa=document.getElementById('sg-moa');
   if(moa){
+    moa.querySelectorAll('textarea.bcond').forEach(autoGrow);
     moa.querySelectorAll('.addb').forEach(btn=>btn.addEventListener('click',()=>{
-      btn.closest('.bgroup').querySelector('.blist').appendChild(newCard());
+      const card=newCard();
+      btn.closest('.bgroup').querySelector('.blist').appendChild(card);
+      const ta=card.querySelector('textarea.bcond'); if(ta) autoGrow(ta);
     }));
+    moa.addEventListener('input',e=>{ if(e.target.classList.contains('bcond')) autoGrow(e.target); });
     moa.addEventListener('click',e=>{
       if(e.target.classList.contains('bdel')) e.target.closest('.bitem').remove();
     });
