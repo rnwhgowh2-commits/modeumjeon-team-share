@@ -27,6 +27,31 @@ BENEFIT_COLLECTION = {"per_product", "uniform"}
 BENEFIT_METHODS = {"정률(%)", "정액(원)", "정액·정률", "적립(%→원)", "고정액", "옵션(개월)", "-"}
 BENEFIT_BASES = {"표면 노출가", "베이스금액①", "베이스금액②", "—", "-"}
 BENEFIT_FREQS = {"무제한", "정기", "1회성", "-"}
+BENEFIT_MATCH = {"any", "all"}  # 혜택 적용 기준: any=키워드 1개 이상 / all=키워드 모두
+
+
+def _strlist(v: Any) -> list:
+    """문자열(쉼표) 또는 리스트 → 비어있지 않은 문자열 리스트."""
+    if isinstance(v, str):
+        v = v.split(",")
+    if not isinstance(v, list):
+        return []
+    return [str(t).strip() for t in v if str(t).strip()]
+
+
+def _clean_excludes(arr: Any) -> list:
+    """공통 제외 키워드 정제: [{word, with[], except[]}]. with=함께(있으면 제외) / except=예외(있으면 포함)."""
+    if not isinstance(arr, list):
+        return []
+    out = []
+    for e in arr:
+        if not isinstance(e, dict):
+            continue
+        word = str(e.get("word", "")).strip()
+        if not word:
+            continue
+        out.append({"word": word, "with": _strlist(e.get("with")), "except": _strlist(e.get("except"))})
+    return out
 
 
 def _derive_mechanism(method: str) -> str:
@@ -79,6 +104,7 @@ def empty_skeleton() -> dict:
             "benefits": [],
             "note": "",
         },
+        "exclude_keywords": [],
         "verification": {"lead_cache": None, "last_new_check": None, "examples": []},
         "updated_at": None,
     }
@@ -163,15 +189,16 @@ def validate_guide(data: dict) -> dict:
         freq = b.get("freq")
         if freq not in BENEFIT_FREQS:
             freq = _derive_freq(name)
-        # 적용 문구(triggers): 페이지에 이 문구가 있으면 해당 혜택 수집/적용 (크롤 게이트)
-        triggers_in = b.get("triggers", [])
-        if isinstance(triggers_in, str):
-            triggers_in = triggers_in.split(",")
-        triggers = ([str(t).strip() for t in triggers_in if str(t).strip()]
-                    if isinstance(triggers_in, list) else [])
+        # 포함 키워드(triggers): 페이지에 이 단어가 있으면 해당 혜택 적용 (크롤 게이트)
+        triggers = _strlist(b.get("triggers", []))
+        # 혜택 적용 기준: any=1개 이상 포함 / all=모두 포함
+        match = b.get("match")
+        if match not in BENEFIT_MATCH:
+            match = "any"
         clean_benefits.append({
             "name": name, "apply": apply, "rule": rule, "status": status,
             "method": method, "base": base, "freq": freq, "triggers": triggers,
+            "match": match,
         })
     out["pricing"] = {
         "base_label": str(pricing.get("base_label", "표면 노출가")),
@@ -179,6 +206,8 @@ def validate_guide(data: dict) -> dict:
         "benefits": clean_benefits,
         "note": str(pricing.get("note", "")),
     }
+
+    out["exclude_keywords"] = _clean_excludes(data.get("exclude_keywords"))
 
     ver = data.get("verification", {}) or {}
     out["verification"] = {

@@ -29,59 +29,90 @@
     });
     base.fields = fields;
     base.pricing = base.pricing || {base_label:'표면 노출가', benefit_collection:'per_product', benefits:[], note:''};
+    const kchips=(el,kind)=>[...el.querySelectorAll('.bkw[data-kind="'+kind+'"] .kc')].map(k=>(k.firstChild?k.firstChild.textContent:'').trim()).filter(Boolean);
     const benefits=[];
-    document.querySelectorAll('#sg-moa .bgroup').forEach(g=>{
-      const apply=g.dataset.apply;
-      g.querySelectorAll('.bitem').forEach(it=>{
-        const name=it.querySelector('.bn').value.trim();
-        if(!name) return;
-        const tEl=it.querySelector('.btrig-in');
-        const triggers=(tEl?tEl.value:'').split(',').map(s=>s.trim()).filter(Boolean);
-        benefits.push({name, apply,
-          method:it.querySelector('.s-m').value,
-          base:it.querySelector('.s-b').value,
-          status:it.querySelector('.s-s').value,
-          freq:it.querySelector('.s-c').value,
-          rule:it.querySelector('.bcond').value.trim(),
-          triggers});
-      });
+    document.querySelectorAll('#sg-inc .bcard').forEach(c=>{
+      const name=c.querySelector('.bn').value.trim();
+      if(!name) return;
+      const m=c.querySelector('.bcrit input[type=radio]:checked');
+      benefits.push({name, apply:c.dataset.apply,
+        method:c.querySelector('.s-m').value,
+        base:c.querySelector('.s-b').value,
+        status:c.querySelector('.s-s').value,
+        freq:c.querySelector('.s-c').value,
+        rule:c.querySelector('.brule').value.trim(),
+        triggers:kchips(c,'inc'),
+        match:m?m.value:'any'});
     });
     base.pricing.benefits = benefits;
+    const excludes=[];
+    document.querySelectorAll('#sg-exlist .exrule').forEach(r=>{
+      const word=r.querySelector('.exw').value.trim();
+      if(!word) return;
+      excludes.push({word, 'with':kchips(r,'with'), 'except':kchips(r,'except')});
+    });
+    base.exclude_keywords = excludes;
     return base;
   }
 
-  // 혜택 모아보기 — 추가/삭제
+  // ③ 포함(혜택 카드)/제외(공통) — 추가·삭제·키워드 칩
   const _M=['정률(%)','정액(원)','정액·정률','적립(%→원)','고정액','옵션(개월)'];
   const _B=['표면 노출가','베이스금액①','베이스금액②','—'];
   const _F=['무제한','정기','1회성'];
   const _S=[['always','상시'],['conditional','조건부'],['optional','선택'],['planned','예정']];
   const _opt=a=>a.map(x=>`<option>${x}</option>`).join('');
   const _optS=()=>_S.map(([v,l])=>`<option value="${v}">${l}</option>`).join('');
-  function newCard(){
-    const d=document.createElement('div'); d.className='bitem';
-    d.innerHTML=`<div class="bih"><input class="bn" placeholder="혜택명"><button type="button" class="bdel" title="삭제">×</button></div>`+
-      `<div class="bq"><textarea class="bcond" rows="1" placeholder="계산 규칙·조건 (예: 베이스금액① × 10%)"></textarea></div>`+
-      `<div class="bsel"><span class="cs">방식<select class="s-m">${_opt(_M)}</select></span>`+
-      `<span class="cs">기준<select class="s-b">${_opt(_B)}</select></span>`+
-      `<span class="cs">상시<select class="s-s">${_optS()}</select></span>`+
-      `<span class="cs">횟수<select class="s-c">${_opt(_F)}</select></span></div>`+
-      `<div class="btrig"><span class="tlbl">적용 문구</span><input class="btrig-in" placeholder="크롤 감지 문구 (쉼표, 예: 기프트포인트, 멤버십)"></div>`;
+  let _ridx=10000;
+  function kchip(w,kind){
+    const cls=kind==='with'?'dn':kind==='except'?'nx':'inc';
+    const s=document.createElement('span'); s.className='kc '+cls;
+    s.appendChild(document.createTextNode(w));
+    const i=document.createElement('i'); i.textContent='×'; s.appendChild(i);
+    return s;
+  }
+  function newCard(apply,color){
+    const id=++_ridx;
+    const d=document.createElement('div'); d.className='bcard'; d.dataset.apply=apply; d.style.borderLeft='3px solid '+color;
+    d.innerHTML=`<div class="bch"><input class="bn" placeholder="혜택명"><button type="button" class="bdel" title="삭제">×</button></div>`+
+      `<input class="brule" placeholder="계산 규칙 (예: 베이스금액① × 10%)">`+
+      `<div class="battrs"><span class="pill"><em>방식</em><select class="s-m">${_opt(_M)}</select></span>`+
+      `<span class="pill"><em>기준</em><select class="s-b">${_opt(_B)}</select></span>`+
+      `<span class="pill"><em>상시</em><select class="s-s">${_optS()}</select></span>`+
+      `<span class="pill"><em>횟수</em><select class="s-c">${_opt(_F)}</select></span></div>`+
+      `<div class="bkwl">포함 키워드</div><div class="bkw" data-kind="inc"><input class="kin" data-kind="inc" placeholder="단어 추가"></div>`+
+      `<div class="bcrit"><em class="cl">혜택 적용 기준</em><div class="copts"><label><input type="radio" name="mt${id}" value="any" checked><span>키워드 1개 이상 포함</span></label><label><input type="radio" name="mt${id}" value="all"><span>키워드 모두 포함</span></label></div></div>`;
     return d;
   }
-  function autoGrow(ta){ ta.style.height='auto'; ta.style.height=(ta.scrollHeight)+'px'; }
-  const moa=document.getElementById('sg-moa');
-  if(moa){
-    moa.querySelectorAll('textarea.bcond').forEach(autoGrow);
-    moa.querySelectorAll('.addb').forEach(btn=>btn.addEventListener('click',()=>{
-      const card=newCard();
-      btn.closest('.bgroup').querySelector('.blist').appendChild(card);
-      const ta=card.querySelector('textarea.bcond'); if(ta) autoGrow(ta);
-    }));
-    moa.addEventListener('input',e=>{ if(e.target.classList.contains('bcond')) autoGrow(e.target); });
-    moa.addEventListener('click',e=>{
-      if(e.target.classList.contains('bdel')) e.target.closest('.bitem').remove();
-    });
+  function newEx(){
+    const d=document.createElement('div'); d.className='exrule';
+    d.innerHTML=`<div class="exrh"><input class="exw" placeholder="제외 단어"><button type="button" class="exdel" title="삭제">×</button></div>`+
+      `<div class="exl">함께 <em>이 단어와 같이 있으면 제외</em></div><div class="bkw" data-kind="with"><input class="kin" data-kind="with" placeholder="단어 추가"></div>`+
+      `<div class="exl">예외 <em>이 단어와 같이 있으면 포함</em></div><div class="bkw" data-kind="except"><input class="kin" data-kind="except" placeholder="단어 추가"></div>`;
+    return d;
   }
+  const incEl=document.getElementById('sg-inc');
+  if(incEl){
+    incEl.querySelectorAll('.addb').forEach(btn=>btn.addEventListener('click',()=>{
+      btn.closest('.cat').querySelector('.cardlist').appendChild(newCard(btn.dataset.apply,btn.dataset.color));
+    }));
+    incEl.addEventListener('click',e=>{ if(e.target.classList.contains('bdel')) e.target.closest('.bcard').remove(); });
+  }
+  const exlist=document.getElementById('sg-exlist');
+  const addexBtn=document.querySelector('.addex');
+  if(addexBtn&&exlist){
+    addexBtn.addEventListener('click',()=>exlist.appendChild(newEx()));
+    exlist.addEventListener('click',e=>{ if(e.target.classList.contains('exdel')) e.target.closest('.exrule').remove(); });
+  }
+  // 키워드 칩: Enter 추가 / × 삭제
+  document.addEventListener('keydown',e=>{
+    if(e.target.classList&&e.target.classList.contains('kin')&&e.key==='Enter'){
+      e.preventDefault(); const v=e.target.value.trim(); if(!v) return;
+      const box=e.target.closest('.bkw'); box.insertBefore(kchip(v,e.target.dataset.kind), e.target); e.target.value='';
+    }
+  });
+  document.addEventListener('click',e=>{
+    if(e.target.tagName==='I'&&e.target.parentElement&&e.target.parentElement.classList.contains('kc')) e.target.parentElement.remove();
+  });
 
   document.getElementById('sg-save').addEventListener('click', async ()=>{
     const res=await fetch(`/sourcing-guide/api/${sid}`,{method:'PUT',
