@@ -14,8 +14,18 @@
       {url:r.dataset.url, is_lead:!!r.querySelector('.tagk')}));
     const fields={};
     document.querySelectorAll('#sg-fields tr[data-field]').forEach(tr=>{
-      fields[tr.dataset.field]={method:tr.querySelector('.sg-method').value,
-        locator:tr.querySelector('.sg-loc').value, status:tr.querySelector('.sg-fstatus').value, note:''};
+      const noteEl = tr.nextElementSibling && tr.nextElementSibling.classList.contains('note-row')
+        ? tr.nextElementSibling.querySelector('.sg-note') : null;
+      // 수집 방식·인증·상태는 Claude가 채운 배지(읽기용) → data 속성에서 그대로 보존.
+      // 위치(셀렉터)·비고만 화면에서 편집 가능.
+      fields[tr.dataset.field]={
+        method: tr.dataset.method || 'none',
+        mechanism: tr.dataset.mechanism || 'none',
+        auth: tr.dataset.auth || 'open',
+        locator: tr.querySelector('.sg-loc').value,
+        status: tr.dataset.status || 'none',
+        note: noteEl ? noteEl.value : ''
+      };
     });
     base.fields = fields;
     base.pricing = base.pricing || {base_label:'표면 노출가', benefit_collection:'per_product', benefits:[], note:''};

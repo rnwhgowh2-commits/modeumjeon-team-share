@@ -55,6 +55,38 @@ def test_validate_rejects_empty_benefit_name():
     with pytest.raises(ValueError):
         validate_guide(data)
 
+def test_field_mechanism_auth_preserved():
+    """수집 방식(html/api)·인증(open/auth) 2축이 보존된다."""
+    data = empty_skeleton()
+    data["fields"]["benefit"] = {
+        "method": "crawl_per_product", "mechanism": "api", "auth": "auth",
+        "locator": "/api/goods", "status": "warn", "note": "오독주의"}
+    out = validate_guide(data)["fields"]["benefit"]
+    assert out["mechanism"] == "api"
+    assert out["auth"] == "auth"
+    assert out["note"] == "오독주의"
+
+
+def test_field_mechanism_derived_for_legacy_card():
+    """기존 카드(mechanism/auth 키 없음)는 method에서 하위호환 유추한다."""
+    legacy = {"version": 3, "sample_urls": [],
+              "fields": {"price": {"method": "crawl", "locator": "x", "status": "ok"}},
+              "pricing": {"benefit_collection": "per_product", "benefits": []}}
+    out = validate_guide(legacy)["fields"]["price"]
+    assert out["mechanism"] == "crawl"   # 크롤·방식 미분류
+    assert out["auth"] == "open"
+
+
+def test_field_bad_mechanism_falls_back():
+    """잘못된 mechanism/auth 값은 안전 기본으로 폴백(기존 값 보존 정책)."""
+    data = empty_skeleton()
+    data["fields"]["price"] = {"method": "crawl", "mechanism": "WRONG", "auth": "X",
+                               "locator": "", "status": "ok", "note": ""}
+    out = validate_guide(data)["fields"]["price"]
+    assert out["mechanism"] == "crawl"
+    assert out["auth"] == "open"
+
+
 def test_merge_verification_last_new_check():
     guide = empty_skeleton()
     result = {
