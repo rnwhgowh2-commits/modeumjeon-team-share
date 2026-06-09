@@ -47,11 +47,11 @@
   function newCard(){
     const d=document.createElement('div'); d.className='bitem';
     d.innerHTML=`<div class="bih"><input class="bn" placeholder="혜택명"><button type="button" class="bdel" title="삭제">×</button></div>`+
+      `<div class="bq"><input class="bcond" placeholder="계산 규칙·조건 (예: 베이스금액① × 10%)"></div>`+
       `<div class="bsel"><span class="cs">방식<select class="s-m">${_opt(_M)}</select></span>`+
       `<span class="cs">기준<select class="s-b">${_opt(_B)}</select></span>`+
       `<span class="cs">상시<select class="s-s">${_optS()}</select></span>`+
-      `<span class="cs">횟수<select class="s-c">${_opt(_F)}</select></span></div>`+
-      `<input class="bcond" placeholder="계산 규칙·조건 (예: 베이스금액① × 10%)">`;
+      `<span class="cs">횟수<select class="s-c">${_opt(_F)}</select></span></div>`;
     return d;
   }
   const moa=document.getElementById('sg-moa');
