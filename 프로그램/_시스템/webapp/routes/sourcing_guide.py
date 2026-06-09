@@ -99,6 +99,34 @@ def api_put(sid: int):
         s.close()
 
 
+@bp.route("/api/<int:sid>/example-shot", methods=["POST"])
+def api_example_shot(sid: int):
+    """④ 예제 기준 스크린샷 — 드래그앤드랍 업로드. 이미지는 data URL 로 guide JSON 에 저장(재배포 영속)."""
+    s = SessionLocal()
+    try:
+        src = s.query(SourceRegistry).get(sid)
+        if src is None:
+            return jsonify(ok=False, error="not_found"), 404
+        body = request.get_json(force=True) or {}
+        idx = body.get("index")
+        img = body.get("image", "")
+        if not isinstance(idx, int) or not isinstance(img, str) or not img.startswith("data:image/"):
+            return jsonify(ok=False, error="invalid"), 400
+        if len(img) > 600_000:
+            return jsonify(ok=False, error="too_large", message="이미지가 너무 큽니다"), 400
+        guide = cg.loads(src.crawl_guide)
+        exs = (guide.get("verification") or {}).get("examples") or []
+        if idx < 0 or idx >= len(exs):
+            return jsonify(ok=False, error="bad_index"), 400
+        exs[idx]["screenshot_url"] = img
+        guide["updated_at"] = _now_iso()
+        src.crawl_guide = cg.dumps(guide)
+        s.commit()
+        return jsonify(ok=True)
+    finally:
+        s.close()
+
+
 @bp.route("/api/<int:sid>/verify", methods=["POST"])
 def api_verify(sid: int):
     src = _source(sid)

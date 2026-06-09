@@ -157,4 +157,26 @@
     if(pollTimer) clearInterval(pollTimer);
     poll(j.job_id); pollTimer=setInterval(()=>poll(j.job_id), 2500);
   });
+
+  // ④ 예제 기준 스크린샷 — 드래그앤드랍 업로드 (리사이즈 → data URL → 저장)
+  function resizeImg(file,maxW,q){return new Promise((res,rej)=>{const r=new FileReader();r.onerror=rej;r.onload=()=>{const im=new Image();im.onload=()=>{const sc=Math.min(1,maxW/im.width);const c=document.createElement('canvas');c.width=Math.round(im.width*sc);c.height=Math.round(im.height*sc);c.getContext('2d').drawImage(im,0,0,c.width,c.height);res(c.toDataURL('image/jpeg',q));};im.onerror=rej;im.src=r.result;};r.readAsDataURL(file);});}
+  document.querySelectorAll('.exshot').forEach(zone=>{
+    zone.addEventListener('dragover',e=>{e.preventDefault();zone.classList.add('drag');});
+    zone.addEventListener('dragleave',e=>{if(!zone.contains(e.relatedTarget))zone.classList.remove('drag');});
+    zone.addEventListener('drop',async e=>{
+      e.preventDefault();zone.classList.remove('drag');
+      const f=[...((e.dataTransfer&&e.dataTransfer.files)||[])].find(x=>x.type&&x.type.indexOf('image/')===0);
+      if(!f){alert('이미지 파일을 드래그해 주세요.');return;}
+      zone.classList.add('busy');
+      try{
+        const dataUrl=await resizeImg(f,640,0.82);
+        if(dataUrl.length>600000){alert('이미지가 너무 큽니다. 더 작은 영역을 캡처해 주세요.');zone.classList.remove('busy');return;}
+        const res=await fetch(`/sourcing-guide/api/${sid}/example-shot`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({index:+zone.dataset.exIndex,image:dataUrl})});
+        const j=await res.json();
+        if(j.ok){ zone.innerHTML='<a class="exshot-link" href="'+dataUrl+'" target="_blank"><img src="'+dataUrl+'"></a>'; }
+        else alert('업로드 실패: '+(j.message||j.error));
+      }catch(err){ alert('이미지 처리 실패: '+err); }
+      zone.classList.remove('busy');
+    });
+  });
 })();

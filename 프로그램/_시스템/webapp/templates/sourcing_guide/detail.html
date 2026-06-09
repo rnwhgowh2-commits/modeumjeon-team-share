@@ -127,6 +127,12 @@
 .sgd .exh .price{margin-left:auto;font-size:14px;font-weight:800;color:#3182F6;font-variant-numeric:tabular-nums;white-space:nowrap;}
 .sgd .exb{display:grid;grid-template-columns:188px 1fr;gap:14px;align-items:start;}
 .sgd .shot{border:1px solid #E5E8EB;border-radius:9px;background:#F4F6F8;height:172px;display:flex;flex-direction:column;align-items:center;justify-content:center;color:#A0A8B0;font-size:11px;gap:5px;text-align:center;padding:8px;}
+.sgd .exshot{position:relative;border-radius:9px;}
+.sgd .exshot img{border-radius:9px;width:100%;height:auto;max-height:360px;object-fit:contain;border:1px solid #E5E8EB;background:#fff;display:block;}
+.sgd .exshot .drop-hint{color:#3182F6;font-weight:700;}
+.sgd .exshot.drag{outline:2px dashed #3182F6;outline-offset:2px;}
+.sgd .exshot.drag::after{content:"여기에 놓기";position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:#3182F6cc;color:#fff;font-weight:800;font-size:13px;border-radius:9px;}
+.sgd .exshot.busy::after{content:"업로드 중…";position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:#191F28aa;color:#fff;font-weight:700;font-size:12px;border-radius:9px;}
 .sgd .shot .cam{font-size:22px;}
 .sgd .shot .dt{font-size:10px;color:#B8C0C8;}
 /* FX 영수증 */
@@ -296,17 +302,19 @@
               {% endif %}
             </div>
             <div class="exb">
-              <!-- 스크린샷 플레이스홀더 -->
-              {% if ex.screenshot_url %}
-              <a href="{{ ex.screenshot_url }}" target="_blank"><img src="{{ ex.screenshot_url }}" style="border-radius:9px;width:100%;height:auto;max-height:360px;object-fit:contain;border:1px solid #E5E8EB;background:#fff;display:block;"></a>
-              {% else %}
-              <div class="shot">
-                <span class="cam">📷</span>
-                <span>기준 스크린샷</span>
-                <span>{{ ex.name }}</span>
-                <span class="dt">{{ ex.captured_at or '미수집' }}</span>
+              <!-- 스크린샷 (드래그앤드랍 업로드) -->
+              <div class="exshot" data-ex-index="{{ loop.index0 }}" title="이미지를 드래그해 넣으세요">
+                {% if ex.screenshot_url %}
+                <a class="exshot-link" href="{{ ex.screenshot_url }}" target="_blank"><img src="{{ ex.screenshot_url }}"></a>
+                {% else %}
+                <div class="shot">
+                  <span class="cam">📷</span>
+                  <span>기준 스크린샷</span>
+                  <span class="drop-hint">이미지 드래그앤드랍</span>
+                  <span class="dt">{{ ex.name }}</span>
+                </div>
+                {% endif %}
               </div>
-              {% endif %}
               <!-- FX 영수증 -->
               <div class="rc">
                 <!-- 표면 노출가 -->
