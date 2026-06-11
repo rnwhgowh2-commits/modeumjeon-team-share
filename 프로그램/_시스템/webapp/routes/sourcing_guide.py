@@ -152,7 +152,7 @@ def api_example_shot_auto(sid: int):
             return jsonify(ok=False, error="no_url", message="예제에 URL이 없습니다"), 400
         from lemouton.sourcing import screenshot as shot
         try:
-            data = shot.capture_screenshot(url)
+            data = shot.capture_screenshot(url, source_name=src.name)
             public = shot.store_guide_screenshot(sid, idx, data)
         except RuntimeError as e:
             return jsonify(ok=False, error="capture_failed", message=str(e)), 502

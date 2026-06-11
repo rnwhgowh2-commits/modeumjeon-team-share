@@ -28,6 +28,40 @@ MUSINSA_EXPANDED_ANCHORS = (
     '[class*="MaxBenefitPrice"]',
 )
 
+# ── 소싱처별 '가격 택' 캡처 프로파일 ──────────────────────────────
+#  match: src.name 에 이 문자열이 들어가면 해당 프로파일 적용
+#  login: (source, account) 세션 — None 이면 비로그인 공개가
+#  expand: 무신사 '나의 할인가/적립' 상세 펼침 여부
+#  anchors: 가격 영역 합집합 bbox 크롭 셀렉터 (probe 로 확정)
+SOURCE_PROFILES = (
+    {"key": "musinsa", "match": ("무신사", "musinsa"),
+     "login": ("musinsa", None), "expand": True,
+     "anchors": MUSINSA_EXPANDED_ANCHORS,
+     "anchors_nologin": MUSINSA_PRICE_ANCHORS},
+    {"key": "ssf", "match": ("SSF", "ssf"),
+     "login": None, "expand": False,
+     "anchors": ('[class*="price-info"]', '[class*="first-benefit"]')},
+    {"key": "lotteon", "match": ("롯데온", "lotteon"),
+     "login": None, "expand": False,
+     "anchors": ('[class*="pd-price"]', '[class*="advantageBox"]')},
+    {"key": "ssg", "match": ("SSG", "ssg"),
+     "login": ("ssg", "ditodalal"), "expand": False,
+     "anchors": ('[class*="cdtl_optprice_wrap"]', '[class*="mndtl_card_price"]')},
+    {"key": "lotteimall", "match": ("롯데아이몰", "lotteimall", "lotteimall"),
+     "login": None, "expand": False,
+     "anchors": ('[class*="price_product"]', '[class*="final_price_area"]',
+                 '[class*="detail_benefit_area"]')},
+)
+
+
+def profile_for(source_name: str):
+    """src.name → 소싱처 프로파일. 매칭 없으면 None."""
+    name = source_name or ""
+    for prof in SOURCE_PROFILES:
+        if any(m in name for m in prof["match"]):
+            return prof
+    return None
+
 # 무신사 PDP '나의 할인가/최대 적립' 상세 펼침 — 크롤러(musinsa_playwright)의 펼침 로직 포팅.
 #   1) lazy render 발동(스크롤) → 2) CollapseButton 클릭(나의 할인가 펼침)
 #   → 3) PointSummaryWrap 반복 클릭(적립 상세) → PointDetailWrap 에 후기/등급/결제수단 적립 보이면 성공
@@ -64,14 +98,14 @@ def latest_account(source: str = "musinsa"):
     return base[len(prefix):] if base.startswith(prefix) else None
 
 
-def capture_screenshot(url: str, *, source: str = "musinsa", account=None,
-                       expand: bool = True, pad: int = 14, width: int = 1024,
-                       timeout_ms: int = 30000) -> bytes:
-    """url 의 가격 상세를 JPEG 로 캡처. 로그인 세션이 있으면 회원가 상세를 펼쳐 캡처.
+def capture_screenshot(url: str, *, source_name: str = "무신사", pad: int = 14,
+                       width: int = 1280, timeout_ms: int = 30000) -> bytes:
+    """url 의 '가격 택' 영역을 JPEG 로 캡처. 소싱처 프로파일에 따라 로그인/펼침/앵커 결정.
 
-    - source/account: data/auth/{source}_{account}.json 세션. account=None 이면 최신 세션 자동 선택.
-    - expand=True: 무신사 '나의 할인가/적립' 상세 펼침 후 캡처.
-    - 세션이 있으면 로그인 컨텍스트, 없으면 비로그인 폴백(접힌 공개가).
+    - source_name: src.name (예 '무신사','SSF','롯데온','SSG','롯데아이몰') → SOURCE_PROFILES 매칭.
+    - 프로파일에 login 세션이 있으면 로그인 컨텍스트(회원가), 없으면 비로그인 공개가.
+    - 무신사는 '나의 할인가/적립' 상세 펼침 후 캡처.
+    - 미등록 소싱처는 무신사 기본 프로파일로 폴백.
     브라우저 미설치/실행 실패 시 RuntimeError.
     """
     if not (url.startswith("http://") or url.startswith("https://")):
@@ -82,14 +116,25 @@ def capture_screenshot(url: str, *, source: str = "musinsa", account=None,
         raise RuntimeError(f"Playwright 미설치: {e}")
 
     from lemouton.sourcing import auth as sauth
-    acct = account or latest_account(source)
-    logged_in = bool(acct and sauth.has_state(source, acct))
+    prof = profile_for(source_name) or SOURCE_PROFILES[0]  # 폴백: 무신사
+    expand = prof.get("expand", False)
+
+    # 로그인 세션 결정 (account=None 이면 최신 세션 자동선택)
+    logged_in = False
+    login_src = login_acct = None
+    if prof.get("login"):
+        login_src, login_acct = prof["login"]
+        login_acct = login_acct or latest_account(login_src)
+        logged_in = bool(login_acct and sauth.has_state(login_src, login_acct))
+
+    anchors = prof["anchors"]
+    if not logged_in and prof.get("anchors_nologin"):
+        anchors = prof["anchors_nologin"]
 
     try:
         with sync_playwright() as p:
             if logged_in:
-                browser, ctx = sauth.new_context_with_state(p, source, acct)
-                anchors = MUSINSA_EXPANDED_ANCHORS if expand else MUSINSA_PRICE_ANCHORS
+                browser, ctx = sauth.new_context_with_state(p, login_src, login_acct)
             else:
                 browser = p.chromium.launch(headless=True)
                 ctx = browser.new_context(
@@ -97,12 +142,11 @@ def capture_screenshot(url: str, *, source: str = "musinsa", account=None,
                                 "AppleWebKit/537.36 (KHTML, like Gecko) "
                                 "Chrome/124.0 Safari/537.36"),
                 )
-                anchors = MUSINSA_PRICE_ANCHORS
             try:
                 page = ctx.new_page()
                 page.set_viewport_size({"width": width, "height": 1500})
                 page.goto(url, wait_until="domcontentloaded", timeout=timeout_ms)
-                page.wait_for_timeout(1800)
+                page.wait_for_timeout(2200)
                 if logged_in and expand:
                     try:
                         page.evaluate(_EXPAND_JS)
