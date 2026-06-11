@@ -158,6 +158,48 @@
     poll(j.job_id); pollTimer=setInterval(()=>poll(j.job_id), 2500);
   });
 
+  // 🔑 키워드 게이트 검증 — 크롤된 혜택 라인 + ③ 저장된 포함/제외 키워드 → 영수증
+  const kwBtn=document.getElementById('sg-kw-btn');
+  const kwRes=document.getElementById('sg-kw-result');
+  // 크롤 금액(없으면 매입가 계산 생략). 실제 크롤 dynamic_benefits 값이 들어갈 자리.
+  const KW_AMOUNTS={
+    "등급 할인":{type:"amount",value:0}, "상품 쿠폰":{type:"amount",value:5000},
+    "구매적립":{type:"rate",value:0.10}, "후기 적립":{type:"rate",value:0.01},
+    "결제 적립":{type:"rate",value:0.0},
+  };
+  function kwReceipt(j){
+    const rows=(j.gated||[]).map(g=>{
+      const mark = g.applied
+        ? '<span style="color:#22A06B;font-weight:800;">● 적용</span>'
+        : ((g.excluded&&g.excluded.length)
+            ? '<span style="color:#E5484D;font-weight:800;">✕ 제외</span>'
+            : '<span style="color:#8B95A1;font-weight:700;">○ 미적용</span>');
+      return `<div class="cf-rc-ln"><span class="lbl">${g.name} &nbsp;${mark}</span>`+
+             `<span class="num" style="font-size:11px;color:#6B7684;font-weight:600;">${g.reason}</span></div>`;
+    }).join('');
+    const price=(j.final_price!=null)
+      ? `<div class="cf-rc-div"></div><div class="cf-rc-ln"><span class="lbl">표면 노출가</span><span class="num">${(j.base_price||0).toLocaleString()}원</span></div>`+
+        `<div class="cf-rc-div"></div><div class="cf-rc-ln fin"><span class="lbl">최종 매입가</span><span class="num">${j.final_price.toLocaleString()}원</span></div>`
+      : '';
+    return `<div class="fxpop" style="margin-top:13px;"><div class="body"><div class="cf-receipt">${rows}${price}</div></div></div>`;
+  }
+  if(kwBtn){
+    kwBtn.addEventListener('click', async ()=>{
+      const lines=document.getElementById('sg-kw-lines').value.split('\n').map(s=>s.trim()).filter(Boolean);
+      if(!lines.length){ alert('크롤된 혜택 라인을 입력하세요 (한 줄에 하나).'); return; }
+      const base=parseFloat(document.getElementById('sg-kw-base').value)||0;
+      const body={benefit_lines:lines};
+      if(base>0){ body.base_price=base; body.amounts=KW_AMOUNTS; }
+      kwRes.innerHTML='<div class="muted" style="margin-top:10px;">검증 중…</div>';
+      try{
+        const r=await fetch(`/sourcing-guide/api/${sid}/gate-preview`,{method:'POST',
+          headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)});
+        const j=await r.json();
+        kwRes.innerHTML = j.ok ? kwReceipt(j) : `<div class="muted">검증 실패: ${j.message||j.error||''}</div>`;
+      }catch(err){ kwRes.innerHTML=`<div class="muted">오류: ${err}</div>`; }
+    });
+  }
+
   // ④ 예제 기준 스크린샷 — 드래그앤드랍 업로드 (리사이즈 → data URL → 저장)
   function resizeImg(file,maxW,q){return new Promise((res,rej)=>{const r=new FileReader();r.onerror=rej;r.onload=()=>{const im=new Image();im.onload=()=>{const sc=Math.min(1,maxW/im.width);const c=document.createElement('canvas');c.width=Math.round(im.width*sc);c.height=Math.round(im.height*sc);c.getContext('2d').drawImage(im,0,0,c.width,c.height);res(c.toDataURL('image/jpeg',q));};im.onerror=rej;im.src=r.result;};r.readAsDataURL(file);});}
   document.querySelectorAll('.exshot').forEach(zone=>{
