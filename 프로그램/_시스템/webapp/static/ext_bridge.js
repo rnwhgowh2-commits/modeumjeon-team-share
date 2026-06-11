@@ -106,19 +106,19 @@
     } catch (_) { return { cpu: null, mem: null }; }
   }
 
-  // 1건 처리 — 소싱처 종류에 따라 JS 추출기 또는 grabHtml+서버 parse.
-  async function _crawlItem(code, item) {
+  // 1건 처리(창 재사용) — 이미 열린 tabId 에서 url 로 이동하며 크롤.
+  //  무신사·롯데온 = navExtract(창 안 JS 추출기). 비로그인 4개 = navGrab(렌더 HTML) → 서버 parse.
+  async function _crawlItemInTab(tabId, code, item) {
     const sk = item.source_key, url = item.url;
     if (JS_SOURCES.indexOf(sk) >= 0) {
-      const res = await send("crawl", { model_code: code, sources: [{ source_key: sk, url: url }] }, 120000);
-      const x = (res && res.results && res.results[0]) || {};
+      const x = await send("navExtract", { tabId: tabId, url: url, source_key: sk }, 120000) || {};
       return {
         url: url, source_key: sk, price: x.price, stock: x.stock,
         status: x.ok ? "ok" : "error", product_name: x.product_name, error: x.error || null,
       };
     }
-    // 비로그인 4개: 창 HTML 수집 → 서버 parse
-    const grab = await send("grabHtml", { url: url }, 60000);
+    // 비로그인 4개: 창에서 렌더 HTML 수집 → 서버 parse
+    const grab = await send("navGrab", { tabId: tabId, url: url }, 90000);
     if (!grab || !grab.ok || !grab.html) {
       return { url: url, source_key: sk, status: "error", error: (grab && grab.error) || "HTML 수집 실패" };
     }
@@ -200,36 +200,56 @@
     let stopped = false;
 
     // 한 소싱처의 URL들을 순차로 모두 처리(같은 소싱처 병렬 금지 — 차단 방지).
+    //  소싱처별로 보이는 창 1개를 열고(openWin), 그 창에서 URL을 차례로 이동하며 크롤,
+    //  끝나면 창을 닫는다(closeWin). finally 로 창 닫힘 보장(에러나도 창 안 남게).
     async function runSource(sk) {
-      _emitLog("window-open", { source: sk, level: "", msg: sk + " 창 시작", metrics: { concurrency, cap, done, total } });
       const list = bySource[sk];
-      for (let i = 0; i < list.length; i++) {
-        if (stopped) break;
-        const t0 = Date.now();
-        let out;
-        try { out = await _crawlItem(code, list[i]); }
-        catch (e) { out = { url: list[i].url, source_key: sk, status: "error", error: String(e && e.message ? e.message : e) }; }
-        const sec = (Date.now() - t0) / 1000;
-        latencies.push(sec);
-        if (latencies.length > 12) latencies.shift();
-        results.push(out);
-        done++;
-        if (cooldown > 0) cooldown--;
-        _emitLog("item-done", {
-          source: sk, level: out.status === "ok" ? "" : "warn",
-          msg: out.status === "ok"
-            ? (sk + " " + (out.price != null ? out.price.toLocaleString() + "원" : "가격없음") + " (" + sec.toFixed(1) + "s)")
-            : (sk + " 실패: " + (out.error || "")),
-          metrics: { concurrency, cap, done, total, avgSec: +_median(latencies).toFixed(2), cpu: lastSys.cpu, mem: lastSys.mem },
-        });
-        // 주기적 시스템 폴(2~3건마다) — 보조 신호
-        if (done % 3 === 0) {
-          lastSys = await _sysinfo();
-          if (lastSys.cpu != null || lastSys.mem != null) {
-            const hot = (lastSys.cpu != null && lastSys.cpu >= 90) || (lastSys.mem != null && lastSys.mem >= 90);
-            if (hot) _emitLog("resource", { level: "warn", msg: "자원 높음 — CPU " + lastSys.cpu + "% / MEM " + lastSys.mem + "%", metrics: { concurrency, cap, cpu: lastSys.cpu, mem: lastSys.mem } });
+      let winId = null, tabId = null;
+      try {
+        const w = await send("openWin", {}, 30000);
+        if (!w || !w.ok || w.tabId == null) {
+          // 창을 못 열면 이 소싱처 전체를 에러로 기록(다른 소싱처는 계속)
+          for (let j = 0; j < list.length; j++) {
+            results.push({ url: list[j].url, source_key: sk, status: "error", error: (w && w.error) || "창 생성 실패" });
+            done++;
+          }
+          _emitLog("source-done", { source: sk, level: "warn", msg: sk + " 창 생성 실패 — " + list.length + "건 건너뜀", metrics: { concurrency, cap, done, total } });
+          return;
+        }
+        winId = w.winId; tabId = w.tabId;
+        _emitLog("window-open", { source: sk, level: "", msg: sk + " 창 시작", metrics: { concurrency, cap, done, total } });
+
+        for (let i = 0; i < list.length; i++) {
+          if (stopped) break;
+          const t0 = Date.now();
+          let out;
+          try { out = await _crawlItemInTab(tabId, code, list[i]); }
+          catch (e) { out = { url: list[i].url, source_key: sk, status: "error", error: String(e && e.message ? e.message : e) }; }
+          const sec = (Date.now() - t0) / 1000;
+          latencies.push(sec);
+          if (latencies.length > 12) latencies.shift();
+          results.push(out);
+          done++;
+          if (cooldown > 0) cooldown--;
+          _emitLog("item-done", {
+            source: sk, level: out.status === "ok" ? "" : "warn",
+            msg: out.status === "ok"
+              ? (sk + " " + (out.price != null ? out.price.toLocaleString() + "원" : "가격없음") + " (" + sec.toFixed(1) + "s)")
+              : (sk + " 실패: " + (out.error || "")),
+            metrics: { concurrency, cap, done, total, avgSec: +_median(latencies).toFixed(2), cpu: lastSys.cpu, mem: lastSys.mem },
+          });
+          // 주기적 시스템 폴(2~3건마다) — 보조 신호
+          if (done % 3 === 0) {
+            lastSys = await _sysinfo();
+            if (lastSys.cpu != null || lastSys.mem != null) {
+              const hot = (lastSys.cpu != null && lastSys.cpu >= 90) || (lastSys.mem != null && lastSys.mem >= 90);
+              if (hot) _emitLog("resource", { level: "warn", msg: "자원 높음 — CPU " + lastSys.cpu + "% / MEM " + lastSys.mem + "%", metrics: { concurrency, cap, cpu: lastSys.cpu, mem: lastSys.mem } });
+            }
           }
         }
+      } finally {
+        // ⚠️ 에러·정지 어떤 경우에도 창을 반드시 닫는다(창 누수 방지).
+        if (winId != null) { try { await send("closeWin", { winId: winId }, 15000); } catch (_) {} }
       }
       _emitLog("source-done", { source: sk, level: "done", msg: sk + " 완료 (" + list.length + "건)", metrics: { concurrency, cap, done, total } });
     }
@@ -363,6 +383,11 @@
     ping: () => send("ping", {}, 8000),
     crawl: (payload, timeoutMs) => send("crawl", payload, timeoutMs),
     grabHtml: (url, timeoutMs) => send("grabHtml", { url }, timeoutMs || 60000),
+    // 창 재사용 래퍼(v0.4.1) — 소싱처별 창 1개로 순차 크롤
+    openWin: (timeoutMs) => send("openWin", {}, timeoutMs || 30000),
+    navGrab: (tabId, url, timeoutMs) => send("navGrab", { tabId, url }, timeoutMs || 90000),
+    navExtract: (tabId, url, source_key, timeoutMs) => send("navExtract", { tabId, url, source_key }, timeoutMs || 120000),
+    closeWin: (winId, timeoutMs) => send("closeWin", { winId }, timeoutMs || 15000),
     sysinfo: () => send("sysinfo", {}, 8000),
     crawlBundle,
     crawlBundleAll,

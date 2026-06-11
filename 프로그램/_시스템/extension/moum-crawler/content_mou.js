@@ -4,7 +4,7 @@
 //   (2) 페이지 ↔ 확장 메시지 브리지 — window.postMessage 와 chrome.runtime 사이를 중계.
 //  (더망고도 동일 패턴: 콘텐츠 스크립트가 마커를 심고 페이지가 getAttribute 로 감지)
 
-const MOUM_EXT_VERSION = "0.4.0";
+const MOUM_EXT_VERSION = "0.4.1";
 
 // (1) 설치 마커 — document_start 시점이라 documentElement 는 이미 존재
 try {
