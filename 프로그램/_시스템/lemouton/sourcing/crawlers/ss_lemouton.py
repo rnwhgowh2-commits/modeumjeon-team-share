@@ -224,11 +224,14 @@ class SsLemoutonCrawler(AbstractCrawler):
         resp.raise_for_status()
         return resp.text
 
-    def fetch(self, product_url: str) -> CrawlResult:
-        normalized_url = _normalize_url(product_url)
-        product_id = _extract_product_id(normalized_url)
+    def parse_html(self, html: str, product_url: str) -> CrawlResult:
+        """받은 HTML 을 파싱해 CrawlResult 반환 (네트워크 없음 — A안 확장 진입점).
 
-        html = self._fetch_html(normalized_url)
+        window.__PRELOADED_STATE__ JSON 파싱 포함.
+        fetch 의 URL 정규화는 fetch 단계에서 처리하며, parse_html 은 받은 html 만 파싱한다.
+        """
+        product_id = _extract_product_id(product_url)
+
         state = _extract_preloaded_state(html)
         if state is None:
             # 파싱 실패 — 빈 결과 반환 (호출자가 fail-fast 결정)
@@ -381,3 +384,9 @@ class SsLemoutonCrawler(AbstractCrawler):
             options=options,
             discount_info=discount_info_text,
         )
+
+    def fetch(self, product_url: str) -> CrawlResult:
+        normalized_url = _normalize_url(product_url)
+
+        html = self._fetch_html(normalized_url)
+        return self.parse_html(html, product_url)

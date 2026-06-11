@@ -369,9 +369,13 @@ class SsfCrawler(AbstractCrawler):
         # 단일 페이지 fallback
         return self._fetch_one_page(product_url)
 
-    def _fetch_one_page(self, product_url: str) -> CrawlResult:
+    def parse_html(self, html: str, product_url: str) -> CrawlResult:
+        """받은 HTML 을 파싱해 CrawlResult 반환 (네트워크 없음 — A안 확장 진입점).
+
+        _fetch_one_page 의 순수 파싱 부분을 분리한 메서드.
+        fetch / _fetch_one_page 의 동작은 100% 불변.
+        """
         product_id = _extract_product_id(product_url)
-        html = self._fetch_html(product_url)
         soup = BeautifulSoup(html, "lxml")
 
         # V7 ssfParseProduct 흐름 1:1
@@ -459,3 +463,8 @@ class SsfCrawler(AbstractCrawler):
             brand=brand,
             discount_info=discount_info,
         )
+
+    def _fetch_one_page(self, product_url: str) -> CrawlResult:
+        html = self._fetch_html(product_url)
+        return self.parse_html(html, product_url)
+

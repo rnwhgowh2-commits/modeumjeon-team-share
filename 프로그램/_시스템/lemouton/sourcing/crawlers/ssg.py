@@ -672,18 +672,12 @@ class SsgCrawler(AbstractCrawler):
             return resp.text
         raise last_exc or RuntimeError("[SSG] fetch 실패")
 
-    def fetch(self, product_url: str) -> CrawlResult:
-        html = self._fetch_html(product_url)
+    def parse_html(self, html: str, product_url: str) -> CrawlResult:
+        """받은 HTML 을 파싱해 CrawlResult 반환 (네트워크 없음 — A안 확장 진입점).
 
-        # [2026-06-05] 딜 페이지(dealItemView) 대응 — uitemObj 인라인 JS 가 없으므로
-        #   딜에 묶인 대표 itemView(첫 상품)로 재크롤. (예: SSG_모음전 → 르무통 메이트)
-        if "uitemObjArr.push" not in html:
-            rep_url = _resolve_deal_representative_url(product_url, html)
-            if rep_url:
-                logger.info("[SSG] 딜 페이지 감지 → 대표 itemView 재크롤: %s", rep_url)
-                html = self._fetch_html(rep_url)
-                product_url = rep_url
-
+        fetch 의 세션 워밍업·딜 페이지 재크롤은 fetch 단계에서 처리.
+        parse_html 은 받은 html 을 그대로 파싱한다.
+        """
         soup = BeautifulSoup(html, "lxml")
 
         item_id = _extract_item_id(product_url, html)
@@ -764,3 +758,17 @@ class SsgCrawler(AbstractCrawler):
             brand=brand,
             discount_info=discount_info,
         )
+
+    def fetch(self, product_url: str) -> CrawlResult:
+        html = self._fetch_html(product_url)
+
+        # [2026-06-05] 딜 페이지(dealItemView) 대응 — uitemObj 인라인 JS 가 없으므로
+        #   딜에 묶인 대표 itemView(첫 상품)로 재크롤. (예: SSG_모음전 → 르무통 메이트)
+        if "uitemObjArr.push" not in html:
+            rep_url = _resolve_deal_representative_url(product_url, html)
+            if rep_url:
+                logger.info("[SSG] 딜 페이지 감지 → 대표 itemView 재크롤: %s", rep_url)
+                html = self._fetch_html(rep_url)
+                product_url = rep_url
+
+        return self.parse_html(html, product_url)

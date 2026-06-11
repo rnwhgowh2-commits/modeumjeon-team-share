@@ -263,14 +263,12 @@ class LemoutonCrawler(AbstractCrawler):
                 )
         return self._fetch_static(product_url)
 
-    def _fetch_static(self, product_url: str) -> CrawlResult:
-        resp = requests.get(
-            product_url,
-            headers={"User-Agent": USER_AGENT},
-            timeout=DEFAULT_TIMEOUT,
-        )
-        resp.raise_for_status()
-        html = resp.text
+    def parse_html(self, html: str, product_url: str) -> CrawlResult:
+        """받은 HTML 을 파싱해 CrawlResult 반환 (네트워크 없음 — A안 확장 진입점).
+
+        _fetch_static 의 순수 파싱 부분을 분리한 메서드.
+        fetch / _fetch_static 의 동작은 100% 불변.
+        """
         soup = BeautifulSoup(html, "lxml")
 
         product_no = _extract_product_no(product_url)
@@ -342,3 +340,13 @@ class LemoutonCrawler(AbstractCrawler):
             brand="르무통",
             discount_info=f"기본할인 {discount_rate}%" if discount_rate else "",
         )
+
+    def _fetch_static(self, product_url: str) -> CrawlResult:
+        resp = requests.get(
+            product_url,
+            headers={"User-Agent": USER_AGENT},
+            timeout=DEFAULT_TIMEOUT,
+        )
+        resp.raise_for_status()
+        html = resp.text
+        return self.parse_html(html, product_url)
