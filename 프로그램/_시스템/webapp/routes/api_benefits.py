@@ -514,18 +514,18 @@ def compute_breakdown(session, *, sku: str, source_id: int, sale_price: float,
                      .filter_by(canonical_sku=sku, source_id=source_id)
                      .order_by(OptionBenefitOverride.sort_order, OptionBenefitOverride.id)
                      .all())
-    # 매칭: ovr 의 template_id 가 매핑된 tpl 은 ovr 로 대체
-    ovr_by_tpl = {ovr.template_id: ovr for ovr in ovr_items if ovr.template_id}
-    ovr_standalone = [ovr for ovr in ovr_items if not ovr.template_id]
-    # 적용 순서: tpl 순서 (ovr 대체) → ovr 단독 추가
+    # ★ 2026-06-11 스냅샷 모델 — 이 옵션에 override(자기 복사본)가 하나라도 있으면
+    #   '스냅샷됨' = 소싱처 템플릿을 무시하고 옵션 override 만 사용(독립). 소싱처 기본값이
+    #   바뀌어도 영향 0. override 0건이면 기존처럼 소싱처 템플릿 사용(미스냅샷·하위호환,
+    #   byte-identical). 게이트는 마이그레이션(전 모음전 스냅샷)과 원자적으로 적용해야 안전.
+    #   spec: docs/superpowers/specs/2026-06-11-혜택-스냅샷-모델-design.md
     effective = []
-    for tpl in tpl_items:
-        if tpl.id in ovr_by_tpl:
-            effective.append(('ovr', ovr_by_tpl[tpl.id]))
-        else:
+    if ovr_items:
+        for ovr in ovr_items:
+            effective.append(('ovr_new', ovr))
+    else:
+        for tpl in tpl_items:
             effective.append(('tpl', tpl))
-    for ovr in ovr_standalone:
-        effective.append(('ovr_new', ovr))
 
     # ★ 2026-05-15 — SourceProduct.dynamic_benefits_json 에서 동적 혜택 차감 항목 추가.
     #   옵션 dict 의 사이트 특화 동적 키들 (point_rate / ssg_money_rate / card_benefit_price
@@ -1005,6 +1005,44 @@ def _bundle_skus(session, bundle_code: str) -> list:
     return [o['sku'] for o in _options_by_bundle_code(session, bundle_code)]
 
 
+def snapshot_bundle_from_templates(session, bundle_code: str, source_ids=None) -> dict:
+    """모음전 옵션들에 소싱처 기본셋팅(SourceBenefitTemplate)을 standalone override 로 복제.
+
+    스냅샷 모델의 단일 헬퍼 — 생성 훅 / 초기화(reset) / 따라쓰기(apply-to-all) 공용.
+    각 (옵션 sku, source) 의 기존 override 를 삭제 후, 그 source 템플릿을 그대로 복제
+    (value/type/enabled/category/apply_mode/pay_method/channel/sort_order, template_id=NULL).
+    → 엔진 게이트가 'override 있으면 템플릿 무시' 이므로, 복제 직후 그 옵션은 현재 기본값으로 고정.
+    idempotent (재실행 = 삭제 후 재복제). 커밋은 호출자 책임.
+    spec: docs/superpowers/specs/2026-06-11-혜택-스냅샷-모델-design.md
+    """
+    skus = _bundle_skus(session, bundle_code)
+    if not skus:
+        return {'options': 0, 'sources': 0, 'created': 0}
+    q = session.query(SourceBenefitTemplate)
+    if source_ids:
+        q = q.filter(SourceBenefitTemplate.source_id.in_(list(source_ids)))
+    tpls_by_src: dict = {}
+    for t in q.all():
+        tpls_by_src.setdefault(t.source_id, []).append(t)
+    created = 0
+    for src_id, tpls in tpls_by_src.items():
+        tpls_sorted = sorted(tpls, key=lambda x: ((x.sort_order or 0), x.id))
+        for sku in skus:
+            (session.query(OptionBenefitOverride)
+             .filter_by(canonical_sku=sku, source_id=src_id)
+             .delete(synchronize_session=False))
+            for i, t in enumerate(tpls_sorted):
+                session.add(OptionBenefitOverride(
+                    canonical_sku=sku, source_id=src_id, template_id=None,
+                    benefit_name=t.benefit_name, benefit_type=t.benefit_type,
+                    value=t.value, category=t.category, apply_mode=t.apply_mode,
+                    pay_method=t.pay_method, channel=t.channel,
+                    enabled=t.enabled, sort_order=i,
+                ))
+                created += 1
+    return {'options': len(skus), 'sources': len(tpls_by_src), 'created': created}
+
+
 def _upsert_value_for_skus(s, source_id, skus, nm, bt, val):
     """주어진 sku 목록에 (source_id, benefit_name) override 값 upsert.
 
@@ -1161,49 +1199,104 @@ def set_value_bundle():
         target_skus = _bundle_skus(s, bundle_code)
         if not target_skus:
             return _err('대상 옵션 0건 (bundle_code 확인)')
+        # ★ 스냅샷 모델 — 이 (모음전, 소싱처)가 아직 스냅샷 안 됐으면(override 0건) 먼저
+        #   현재 기본값 전체를 복사(고정)한 뒤 이 수정을 얹는다. = '첫 수정 시 고정'.
+        already = (s.query(OptionBenefitOverride)
+                   .filter(OptionBenefitOverride.source_id == source_id,
+                           OptionBenefitOverride.canonical_sku.in_(target_skus))
+                   .first())
+        snapped = 0
+        if not already:
+            snapped = snapshot_bundle_from_templates(
+                s, bundle_code, source_ids=[source_id]).get('created', 0)
+            s.flush()
         affected = _upsert_value_for_skus(s, source_id, target_skus, nm, bt, val)
         s.commit()
-        return _ok(affected=affected, scope='bundle')
+        return _ok(affected=affected, scope='bundle', snapshotted=snapped)
     finally:
         s.close()
 
 
 @bp.post('/overrides/reset-bundle')
 def reset_bundle():
-    """모음전(bundle_code) 단위 혜택 초기화 — 이 모음전 옵션들의 해당 override 전부 삭제.
+    """모음전(bundle_code) 초기화 — 이 모음전을 '현재 소싱처 기본값'으로 다시 복사(A3-1).
 
-    payload: {source_id, bundle_code, benefit_name}
-    동작:
-      - delete-scoped 와 달리 '비활성 스텁'을 만들지 않는다.
-        대상 옵션들의 (source_id, benefit_name) override 행을 단순 삭제 →
-        엔진이 소싱처 공통 템플릿 + 크롤 동적값으로 재계산 = '원래 계산값' 복귀.
+    payload: {source_id, bundle_code}   (benefit_name 은 무시 — 소싱처 단위 전체 초기화)
+    스냅샷 모델: 그 (bundle, source) 의 기존 override 를 지우고 현재 SourceBenefitTemplate 을
+    standalone override 로 재복제 → 소싱처 기본값이 바뀌었어도 '현재 기본값'으로 통일.
     """
     data = request.get_json(silent=True) or {}
     try:
         source_id = int(data.get('source_id'))
     except (TypeError, ValueError):
         return _err('source_id 정수 필수')
-    nm = (data.get('benefit_name') or '').strip()
-    if not nm:
-        return _err('benefit_name 필수')
     bundle_code = (data.get('bundle_code') or '').strip() or None
     if not bundle_code:
         return _err('bundle_code 필수')
     s = SessionLocal()
     try:
-        target_skus = _bundle_skus(s, bundle_code)
-        if not target_skus:
+        if not _bundle_skus(s, bundle_code):
             return _err('대상 옵션 0건 (bundle_code 확인)')
-        rows = (s.query(OptionBenefitOverride)
-                .filter(OptionBenefitOverride.source_id == source_id,
-                        OptionBenefitOverride.benefit_name == nm,
-                        OptionBenefitOverride.canonical_sku.in_(target_skus))
-                .all())
-        deleted = len(rows)
-        for r in rows:
-            s.delete(r)
+        r = snapshot_bundle_from_templates(s, bundle_code, source_ids=[source_id])
         s.commit()
-        return _ok(deleted=deleted, scope='bundle')
+        return _ok(scope='bundle', **r)
+    finally:
+        s.close()
+
+
+@bp.get('/diff/<bundle_code>/<int:source_id>')
+def bundle_diff(bundle_code: str, source_id: int):
+    """이 모음전(bundle_code)이 현재 소싱처 기본값(SourceBenefitTemplate)과 다른지 판정 (A3-1 배너).
+
+    모음전 옵션의 override 값(스냅샷) ↔ 현재 템플릿 값을 이름으로 비교.
+    returns {differs: bool, count: int, items: [{name, current, default, type}]}
+    옵션마다 값이 같다고 가정(✎ 수정이 모음전 전체 적용) → 첫 옵션 기준 비교.
+    """
+    s = SessionLocal()
+    try:
+        skus = _bundle_skus(s, bundle_code)
+        if not skus:
+            return _ok(differs=False, count=0, items=[])
+        tpls = {t.benefit_name: t for t in (s.query(SourceBenefitTemplate)
+                .filter_by(source_id=source_id).all())}
+        ovrs = {o.benefit_name: o for o in (s.query(OptionBenefitOverride)
+                .filter_by(canonical_sku=skus[0], source_id=source_id).all())}
+        items = []
+        for nm, t in tpls.items():
+            o = ovrs.get(nm)
+            cur = float(o.value) if o is not None else float(t.value)
+            dft = float(t.value)
+            if abs(cur - dft) > 1e-9 or (o is not None and bool(o.enabled) != bool(t.enabled)):
+                items.append({'name': nm, 'current': cur, 'default': dft,
+                              'type': t.benefit_type})
+        return _ok(differs=bool(items), count=len(items), items=items)
+    finally:
+        s.close()
+
+
+@bp.post('/templates/<int:source_id>/apply-to-all')
+def apply_to_all_bundles(source_id: int):
+    """소싱처 기본값을 '모든 모음전'에 따라쓰기 (B1, 2중 잠금) — 전 모음전 덮어쓰기.
+
+    payload: {confirm: true}  (UI 2중 잠금 통과 표시)
+    전 모음전 옵션의 (이 source) override 를 현재 템플릿으로 재복제. 비가역.
+    """
+    data = request.get_json(silent=True) or {}
+    if not data.get('confirm'):
+        return _err('confirm=true 필수 (2중 잠금)')
+    s = SessionLocal()
+    try:
+        from lemouton.sourcing.models import Model
+        codes = [c[0] for c in s.query(Model.model_code).all() if c[0]]
+        bundles = 0
+        created = 0
+        for code in codes:
+            r = snapshot_bundle_from_templates(s, code, source_ids=[source_id])
+            if r['options']:
+                bundles += 1
+                created += r['created']
+        s.commit()
+        return _ok(scope='all', bundles=bundles, created=created)
     finally:
         s.close()
 

@@ -305,8 +305,42 @@
           <button type="button" class="addex">＋ 제외 단어 추가</button>
         </div>
       </div>
+      <!-- B1 — 모든 모음전에 따라쓰기 (2중 잠금). 스냅샷 모델: 기본값을 전 모음전에 덮어씀. -->
+      <div class="sg3-applyall" style="margin-top:16px;border:1.5px solid #F04452;background:#FFF0F1;border-radius:12px;padding:16px 18px">
+        <div style="display:flex;align-items:center;gap:8px;font-size:14px;font-weight:800;color:#191F28;margin-bottom:6px">🔒 모든 모음전에 따라쓰기</div>
+        <div style="font-size:12.5px;color:#4E5968;line-height:1.55;margin-bottom:13px">평소 모음전은 <b>생성 시점의 기본값을 복사</b>해 독립적으로 동작합니다. 이 버튼은 이 소싱처의 현재 기본값을 <b style="color:#F04452">기존 모음전 전부</b>에 덮어씁니다. 각 모음전에서 직접 수정한 값은 사라지며 <b>되돌릴 수 없습니다.</b></div>
+        <label style="display:flex;align-items:center;gap:9px;padding:10px 12px;background:#fff;border:1px solid #E5E8EB;border-radius:9px;margin-bottom:10px;font-size:12.5px;cursor:pointer">
+          <input type="checkbox" id="aa-confirm" style="width:17px;height:17px;cursor:pointer;flex:0 0 auto">
+          <span>네, <b>모든 모음전</b>이 이 소싱처 기본값으로 덮어써지는 것을 이해합니다.</span>
+        </label>
+        <button type="button" id="aa-btn" disabled style="width:100%;padding:10px;border:none;border-radius:9px;background:#F4C7CB;color:#fff;font-weight:800;font-size:13px;cursor:not-allowed;font-family:inherit">🔒 따라쓰기 (잠김)</button>
+        <div id="aa-toast" style="display:none;margin-top:10px;font-size:12.5px;font-weight:700;color:#0E7C3A"></div>
+      </div>
     </div>
   </div>
+  <script>
+  (function(){
+    var cb=document.getElementById('aa-confirm'), btn=document.getElementById('aa-btn'), toast=document.getElementById('aa-toast');
+    if(!cb||!btn) return;
+    var SID={{ src.id }};
+    cb.addEventListener('change',function(){
+      btn.disabled=!cb.checked;
+      btn.style.background=cb.checked?'#F04452':'#F4C7CB';
+      btn.style.cursor=cb.checked?'pointer':'not-allowed';
+      btn.textContent=cb.checked?'🔓 모든 모음전에 따라쓰기':'🔒 따라쓰기 (잠김)';
+    });
+    btn.addEventListener('click',function(){
+      if(btn.disabled) return;
+      btn.disabled=true; btn.textContent='적용 중...';
+      fetch('/api/source-benefits/templates/'+SID+'/apply-to-all',{
+        method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({confirm:true})
+      }).then(function(r){return r.json();}).then(function(j){
+        if(j.ok){ toast.style.display='block'; toast.textContent='✓ '+j.bundles+'개 모음전에 적용되었습니다.'; btn.textContent='✓ 적용 완료'; cb.checked=false; }
+        else { alert('따라쓰기 실패: '+(j.error||'오류')); btn.disabled=false; btn.textContent='🔓 모든 모음전에 따라쓰기'; }
+      }).catch(function(e){ alert('오류: '+e.message); btn.disabled=false; btn.textContent='🔓 모든 모음전에 따라쓰기'; });
+    });
+  })();
+  </script>
 
   <!-- ④ 가격 검증 -->
   <div class="sec">

@@ -3039,9 +3039,11 @@
   text-transform: none;
 }
 .cell-fx-row {
-  display: grid; grid-template-columns: 30px 1fr 80px 22px 22px;
+  display: grid; grid-template-columns: 30px 1fr 80px auto;
   gap: 8px; align-items: center; padding: 6px 0; font-size: 13.5px;
 }
+/* [2026-06-11] 액션 버튼 묶음 — ✎ 값수정 / ↺ 초기화 / 🗑 삭제 (1~3개, 우측 정렬) */
+.cell-fx-row .cf-acts { display: inline-flex; gap: 4px; align-items: center; justify-content: flex-end; }
 .cell-fx-row .tg {
   position: relative; width: 30px; height: 16px; background: #D1D6DB;
   border-radius: 8px; cursor: pointer; transition: .15s;
@@ -3077,6 +3079,8 @@
   transition: color .12s;
 }
 .cell-fx-row .edit:hover { color: #3182F6; }
+/* [2026-06-11] ↺ 초기화 = .edit 스타일 재사용 + 호버는 앰버(되돌리기 의미) */
+.cell-fx-row .edit.reset:hover { color: #F59E0B; }
 .cell-fx-pop .pop-add {
   padding: 8px 12px; background: #fff; border: 1.5px dashed #D1D6DB;
   color: #6B7684; border-radius: 8px; font-size: 14px; font-weight: 600;
@@ -3421,6 +3425,19 @@
   font-size: 14px; cursor: pointer; background: transparent; border: none; padding: 0;
 }
 .fxpop-v2 .cell-fx-ben .cell-fx-row .edit:hover { color: #3182F6; }
+.fxpop-v2 .cell-fx-ben .cell-fx-row .edit.reset:hover { color: #F59E0B; }
+.fxpop-v2 .cell-fx-ben .cell-fx-row .cf-acts { display: inline-flex; gap: 4px; align-items: center; flex: 0 0 auto; }
+
+/* ── A3-1 슬림 배너 (모음전이 소싱처 기본값과 다를 때만) ── */
+.cf-diffbar-host:empty { display:none; }
+.cf-diffbar { display:flex; align-items:center; gap:9px; background:#FFF7E6; border:1px solid #F7D58A;
+  border-radius:10px; padding:8px 11px; margin:10px 0 4px; }
+.cf-diffbar .ic { font-size:13px; }
+.cf-diffbar .msg { flex:1; font-size:12px; color:#7A5B00; font-weight:600; }
+.cf-diffbar .msg b { color:#F59E0B; }
+.cf-diffbar .db-reset { background:#F59E0B; color:#fff; border:none; border-radius:7px;
+  font-size:11.5px; font-weight:700; padding:5px 10px; cursor:pointer; font-family:inherit; }
+.cf-diffbar .db-reset:hover { background:#D98908; }
 
 /* ── A1 인라인 값 편집 (✎ 클릭 시 .val → 입력칸) ── */
 .cell-fx-row .inline-edit { display:inline-flex; align-items:center; gap:5px; }

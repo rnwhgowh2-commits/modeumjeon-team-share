@@ -3608,9 +3608,8 @@ table.ompk-tab th.corner{color:#b0b8c1;cursor:default}
     // ✎ 값 수정: 템플릿/오버라이드만(크롤 동적 id<0 은 수정 불가). 저장은 '이 모음전'에만 적용.
     const _editBtn = (it) => (it.id && it.id > 0)
       ? `<button class="edit" title="값 수정 (이 모음전만)" onclick="smCellEdit(this, '${sku}', ${srcId})">✎</button>` : '';
-    // ↺ 기본값 초기화: 이 모음전에서 수정한 override 항목만 노출(ovr/ovr_new). 원래 계산값으로 복귀.
-    const _resetBtn = (it) => (it.id && it.id > 0 && (it.kind === 'ovr' || it.kind === 'ovr_new'))
-      ? `<button class="edit reset" title="이 모음전 수정 취소 — 원래 계산값으로 초기화" onclick="smCellReset(this, '${sku}', ${srcId})">↺</button>` : '';
+    // ↺ 행별 초기화는 A3-1 상단 배너(소싱처 단위 초기화)로 대체 — 행 버튼 제거.
+    const _resetBtn = (it) => '';
     // 전 혜택 동일 폰트 — 이름(.nm) / 차감액(.n) / 비율(.rt) 클래스로만 (인라인 font 변동 금지)
     const _valHtml = (it, blue) => {
       const isRate = it.type === 'rate';
@@ -3713,6 +3712,7 @@ table.ompk-tab th.corner{color:#b0b8c1;cursor:default}
       </div>`;
     pop.innerHTML = `
       <h6>💰 ${escapeHtml(getSrcName(srcId))} · ${escapeHtml(sku.split('-').slice(-2).join('-'))} 계산식<button class="close" onclick="this.closest('.cell-fx-pop').remove();document.querySelectorAll('td.fx-open').forEach(t=>t.classList.remove('fx-open'))">✕</button></h6>
+      <div class="cf-diffbar-host" data-diffbar></div>
       ${saleHtml}
       <div class="cell-fx-ben">
         ${benHtml}
@@ -3722,7 +3722,43 @@ table.ompk-tab th.corner{color:#b0b8c1;cursor:default}
         <button onclick="this.closest('.cell-fx-pop').remove();document.querySelectorAll('td.fx-open').forEach(t=>t.classList.remove('fx-open'))">닫기</button>
         <a href="/accounts/sourcing" target="_blank">📦 사이트 템플릿 →</a>
       </div>`;
+    // ★ 2026-06-11 A3-1 — 이 모음전이 소싱처 기본값과 다르면 상단 슬림 배너 표시.
+    smLoadDiffBar(pop, srcId);
   }
+
+  // A3-1 슬림 배너 — diff API 로 '기본값과 다름' 판정해 placeholder 채움(다르면만).
+  async function smLoadDiffBar(pop, srcId) {
+    const host = pop.querySelector('[data-diffbar]');
+    if (!host) return;
+    const bundleCode = (typeof BUNDLE_CODE !== 'undefined') ? BUNDLE_CODE : '';
+    if (!bundleCode) return;
+    try {
+      const r = await fetch(`/api/source-benefits/diff/${encodeURIComponent(bundleCode)}/${srcId}`);
+      const j = await r.json();
+      if (!j.ok || !j.differs) { host.innerHTML = ''; return; }
+      const names = (j.items || []).map(it => escapeHtml(it.name)).join(', ');
+      host.innerHTML = `<div class="cf-diffbar" title="${names}">
+        <span class="ic">⚠️</span>
+        <span class="msg">소싱처 기본값과 <b>${j.count}개 항목</b> 다름</span>
+        <button type="button" class="db-reset" onclick="smBundleReset(${srcId})">기본값으로 초기화</button>
+      </div>`;
+    } catch (e) { host.innerHTML = ''; }
+  }
+
+  // A3-1 초기화 — 이 모음전을 현재 소싱처 기본값으로 재복사(소싱처 단위).
+  window.smBundleReset = function(srcId) {
+    const bundleCode = (typeof BUNDLE_CODE !== 'undefined') ? BUNDLE_CODE : '';
+    const bundleCount = (typeof DATA !== 'undefined' && DATA?.options?.length) || 0;
+    if (!bundleCode) return;
+    if (!confirm(`이 모음전(${bundleCount}개 옵션)의 혜택을 현재 소싱처 기본값으로 되돌립니다.\n이 모음전에서 수정한 값은 사라집니다.\n\n계속할까요?`)) return;
+    fetch('/api/source-benefits/overrides/reset-bundle', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ source_id: srcId, bundle_code: bundleCode }),
+    }).then(r => r.json()).then(j => {
+      if (j.ok) { if (typeof window.reloadMatrix === 'function') window.reloadMatrix(); }
+      else alert('초기화 실패: ' + (j.error || '오류'));
+    }).catch(err => alert('초기화 오류: ' + err.message));
+  };
 
   // ★ 2026-05-13 — 매트릭스 데이터 + 팝업 내용 in-place 갱신 (팝업 DOM 노드 유지!).
   //   사용자가 X 버튼 / 외부 클릭 시에만 팝업 종료. 설정 변경 후엔 그 자리 그대로.
