@@ -914,6 +914,11 @@ def api_list_source_urls(code):
         except Exception:
             _crawl_idx = {}
         def _crawl_state(u):
+            # [2026-06-12] SSG 딜(dealItemView) = 색상별 단품 URL 로 가격·재고가 커버되는 허브.
+            #   파이프라인이 크롤을 skip 하므로 '실패'가 아니라 'covered'(중립)로 표시한다.
+            #   (URL 패턴으로 감지 — SourceProduct 의 옛 error 상태를 무시)
+            if u and 'dealitemview' in u.lower():
+                return True, 'covered', None
             rec = _crawl_idx.get(_nu(u)) if u else None
             # [2026-06-11] 대시보드(api_pricing)와 동일 게이트로 통일 — 가격>0 AND status!=error.
             #   기존엔 가격>0 만 보고 status 를 무시 → error+옛가격(stale) URL 을 '성공'으로
