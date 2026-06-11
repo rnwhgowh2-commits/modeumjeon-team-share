@@ -3453,7 +3453,7 @@
     const colBySku = {}, sizeBySku = {};
     opts.forEach(o => { const c=colorOf(o), z=sizeOf(o); byCell[c+'|'+z]=o.sku; colBySku[o.sku]=c; sizeBySku[o.sku]=z; });
     const sel = new Set(preselect || []);
-    const total = opts.length;
+    const total = Object.keys(byCell).length;  // 실제 선택가능 칸 수(색×사이즈 고유)
 
     const cellHtml = (c, z) => {
       const sku = byCell[c+'|'+z];
@@ -3541,7 +3541,7 @@ table.ompk-tab th.corner{color:#b0b8c1;cursor:default}
          </div>`
       : '';
     const _isMusinsa = String(srcId) === '3';
-    const _saleLbl = _isMusinsa ? '무신사 표면 할인가 (사이트 노출가)' : '소싱처 판매가';
+    const _saleLbl = _isMusinsa ? '표면 노출가 (사이트 노출가)' : '표면 노출가';
     // 동그라미 베이스금액 번호 (①~⑨, 초과 시 'N')
     const _circ = (n) => ['', '①', '②', '③', '④', '⑤', '⑥', '⑦', '⑧', '⑨'][n] || String(n);
     // ★ 2026-06-11 — 영수증을 단계별 '베이스금액' 노출형으로 (무신사 영수증 가이드 방식).
@@ -3571,7 +3571,7 @@ table.ompk-tab th.corner{color:#b0b8c1;cursor:default}
           ? `<span class="tag">${(_nx.value * 100).toFixed(2)}% 기준</span>` : '';
         _rcLines += `
         <div class="cf-rc-ln base">
-          <span class="lbl">베이스금액 ${_circ(_baseNo)}${_tag}</span>
+          <span class="lbl">베이스금액${_circ(_baseNo)}${_tag}</span>
           <span class="num">${(st.base_after || 0).toLocaleString('ko-KR')}원</span>
         </div>`;
       }
@@ -3581,7 +3581,7 @@ table.ompk-tab th.corner{color:#b0b8c1;cursor:default}
         ${_rcLines}
         <div class="cf-rc-div"></div>
         <div class="cf-rc-ln fin">
-          <span class="lbl">혜택 적용가</span>
+          <span class="lbl">최종 매입가</span>
           <span class="num">${(j.final_price||0).toLocaleString('ko-KR')}원</span>
         </div>
       </div>
@@ -3621,32 +3621,42 @@ table.ompk-tab th.corner{color:#b0b8c1;cursor:default}
       const ded = _si >= 0 ? (j.steps[_si].deduct || 0) : 0;
       let _ref = `(${valDisp})`, _refCls = 'rt';
       if (isRate && _si >= 0) {
-        _ref = (_si === 0) ? `${_saleLbl} × ${valDisp}` : `베이스금액 ${_circ(_si)} × ${valDisp}`;
+        _ref = (_si === 0) ? `${_saleLbl} × ${valDisp}` : `베이스금액${_circ(_si)} × ${valDisp}`;
         _refCls = 'rt ref';
       }
       return `<span class="n${blue ? ' blue' : ''}">-${ded.toLocaleString('ko-KR')}원</span> <span class="${_refCls}">${_ref}</span>`;
     };
-    const _rowHtml = (it) => `<div class="cell-fx-row ${it.enabled ? 'on' : 'off'}" data-bid="${it.id}" data-bkind="${it.kind}" data-bval="${it.value != null ? it.value : 0}" data-btype="${it.type || 'rate'}"><div class="tg" onclick="smCellTog(this)"></div><span class="nm">${escapeHtml(it.name)}</span><span class="val">${_valHtml(it, false)}</span><span class="cf-acts">${_editBtn(it)}${_resetBtn(it)}${_delBtn(it)}</span></div>`;
+    // 방식 배지 — 정액(원) / 정률(%). 선반영·후반영 통일(2026-06-12).
+    const _wayBadge = (it) => { const r = (it.type || 'rate') === 'rate'; return `<span class="cf-way ${r ? 'rt' : 'amt'}">${r ? '정률' : '정액'}</span>`; };
+    const _rowHtml = (it) => `<div class="cell-fx-row ${it.enabled ? 'on' : 'off'}" data-bid="${it.id}" data-bkind="${it.kind}" data-bval="${it.value != null ? it.value : 0}" data-btype="${it.type || 'rate'}"><div class="tg" onclick="smCellTog(this)"></div><span class="nm">${escapeHtml(it.name)}${_wayBadge(it)}</span><span class="val">${_valHtml(it, false)}</span><span class="cf-acts">${_editBtn(it)}${_resetBtn(it)}${_delBtn(it)}</span></div>`;
     // 결제 방식 = 택1 선택 카드 (B 시안). 활성 = 파란 테두리 + 체크(✓).
-    const _payRowHtml = (it) => `<div class="cell-fx-row cf-pay-row cf-paycard ${it.enabled ? 'on' : 'off'}" data-bid="${it.id}" data-bkind="${it.kind}" data-bval="${it.value != null ? it.value : 0}" data-btype="${it.type || 'rate'}"><div class="cf-chk">${it.enabled ? '✓' : ''}</div><span class="nm">${escapeHtml(it.name)}</span><span class="val">${_valHtml(it, true)}</span><span class="cf-acts">${_editBtn(it)}${_resetBtn(it)}${_delBtn(it)}</span></div>`;
+    const _payRowHtml = (it) => `<div class="cell-fx-row cf-pay-row cf-paycard ${it.enabled ? 'on' : 'off'}" data-bid="${it.id}" data-bkind="${it.kind}" data-bval="${it.value != null ? it.value : 0}" data-btype="${it.type || 'rate'}"><div class="cf-chk">${it.enabled ? '✓' : ''}</div><span class="nm">${escapeHtml(it.name)}${_wayBadge(it)}</span><span class="val">${_valHtml(it, true)}</span><span class="cf-acts">${_editBtn(it)}${_resetBtn(it)}${_delBtn(it)}</span></div>`;
     const _items = (j.items_used || []);
-    const _g = {amount:[], rate:[], pay:[], cashback:[], etc:[]};
-    _items.forEach(it => { _g[_catOf(it)].push(it); });
+    const _g = {pre:[], amount:[], rate:[], pay:[], cashback:[], etc:[]};
+    _items.forEach(it => {
+      if (it.preapplied === true) { _g.pre.push(it); return; }  // 선반영 = 표면가에 이미 반영(표시만)
+      _g[_catOf(it)].push(it);
+    });
     const _emptyRow = `<div class="cell-fx-row off" style="opacity:.55"><span class="nm" style="color:#B0B8C1">해당 없음</span></div>`;
     let benHtml = '';
-    benHtml += `<div class="cf-grp">① 정액 할인</div>` + (_g.amount.length ? _g.amount.map(_rowHtml).join('') : _emptyRow);
-    benHtml += `<div class="cf-grp">② 정률 할인</div>` + (_g.rate.length ? _g.rate.map(_rowHtml).join('') : _emptyRow);
+    // 🔵 선반영 — 표면 노출가에 이미 반영(표시만). preapplied 항목 있을 때만 노출.
+    if (_g.pre.length) {
+      benHtml += `<div class="cf-grp pre">🔵 선반영<span class="cf-grp-note"> · 표면 노출가에 이미 반영(표시만)</span></div>` + _g.pre.map(_rowHtml).join('');
+    }
+    // 후반영 — 베이스금액에서 차감
+    benHtml += `<div class="cf-grp">후반영 · 정액</div>` + (_g.amount.length ? _g.amount.map(_rowHtml).join('') : _emptyRow);
+    benHtml += `<div class="cf-grp">후반영 · 정률·적립</div>` + (_g.rate.length ? _g.rate.map(_rowHtml).join('') : _emptyRow);
     // 결제: 카드/페이는 택1(라디오), 네이버페이는 카드와 '동시 적용'(토글) — 택1 아님.
     const _payCards = _g.pay.filter(it => !/네이버/.test(it.name || ''));
     const _payNaver = _g.pay.filter(it => /네이버/.test(it.name || ''));
-    benHtml += `<div class="cf-grp pay">③ 결제 할인<span class="cf-grp-note"> · 카드/페이 택1 + 네이버페이 동시</span></div>`;
+    benHtml += `<div class="cf-grp pay">후반영 · 결제 할인<span class="cf-grp-note"> · 카드/페이 택1 + 네이버페이 동시</span></div>`;
     benHtml += _payCards.map(_payRowHtml).join('');
     benHtml += _payNaver.map(_rowHtml).join('');  // 네이버페이 = 토글(카드와 동시 적용, 누적)
     if (_isMusinsa) {
       benHtml += `<div class="cell-fx-row cf-pay-row cf-paycard cf-soon off"><div class="cf-chk"></div><span class="nm">혜택 카드 결제 (무신사페이·토스페이)<span style="display:block;font-size:11px;color:#B0B8C1">추후 지원 · 곧 설정 가능</span></span><span class="val rt">설정 예정</span></div>`;
     } else if (!_payCards.length && !_payNaver.length) { benHtml += _emptyRow; }
-    benHtml += `<div class="cf-grp">④ 추가 캐시백<span class="cf-grp-note"> · 선택(경유)</span></div>` + (_g.cashback.length ? _g.cashback.map(_rowHtml).join('') : _emptyRow);
-    benHtml += `<div class="cf-grp">⑤ 기타 할인</div>` + (_g.etc.length ? _g.etc.map(_rowHtml).join('') : _emptyRow);
+    benHtml += `<div class="cf-grp">후반영 · 추가 캐시백<span class="cf-grp-note"> · 선택(경유)</span></div>` + (_g.cashback.length ? _g.cashback.map(_rowHtml).join('') : _emptyRow);
+    benHtml += `<div class="cf-grp">기타</div>` + (_g.etc.length ? _g.etc.map(_rowHtml).join('') : _emptyRow);
     // ★ 2026-05-19 v7.1 A2 — 무채색 (좌측 검정 accent + 슬라이드 다운).
     //   v6 D2-A (#3182F6 파랑 + #DC2626 빨강) → A2 (monochrome only).
     //   scope = .scope-list .item (단일 border 박스 + 소싱처 default gsep).
@@ -3679,11 +3689,11 @@ table.ompk-tab th.corner{color:#b0b8c1;cursor:default}
           <div class="field">
             <label>분류</label>
             <select class="cat-select" name="category">
-              <option value="정액">① 정액 할인</option>
-              <option value="정률" selected>② 정률 할인</option>
-              <option value="결제">③ 결제 할인 (카드·페이)</option>
-              <option value="캐시백">④ 추가 캐시백</option>
-              <option value="기타">⑤ 기타 할인</option>
+              <option value="정액">후반영 · 정액</option>
+              <option value="정률" selected>후반영 · 정률·적립</option>
+              <option value="결제">후반영 · 결제 할인 (카드·페이)</option>
+              <option value="캐시백">후반영 · 추가 캐시백</option>
+              <option value="기타">기타</option>
             </select>
           </div>
           <div class="field">

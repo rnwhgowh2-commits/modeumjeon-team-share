@@ -35,9 +35,10 @@ for (cc,) in s.query(Model.model_code).all():
         if len(o) > len(best_opts):
             best_code, best_opts = cc, o
 SKUS = [o['sku'] for o in best_opts]
+ACTIVE = [o['sku'] for o in _options_by_bundle_code(s, best_code, active_only=True)]
 SRC = [r.id for r in s.query(SourceRegistry).order_by(SourceRegistry.id).all()]
 S0 = SRC[0]
-print(f'대상 모음전: {best_code}  옵션 {len(SKUS)} · 소싱처 {len(SRC)}\n')
+print(f'대상 모음전: {best_code}  옵션 {len(SKUS)}(활성 {len(ACTIVE)}) · 소싱처 {len(SRC)}\n')
 
 def n_ovr(name):
     return s.query(OptionBenefitOverride).filter_by(benefit_name=name).count()
@@ -71,8 +72,8 @@ def payloads(scope, name, value):
     return base
 
 EXPECT = {
-    'option': 1, 'select': 2, 'bundle': len(SKUS),
-    'bundle_all_src': len(SKUS) * len(SRC), 'source': 1,
+    'option': 1, 'select': 2, 'bundle': len(ACTIVE),
+    'bundle_all_src': len(ACTIVE) * len(SRC), 'source': 1,
 }
 
 for scope in ['option', 'select', 'bundle', 'bundle_all_src', 'source']:
