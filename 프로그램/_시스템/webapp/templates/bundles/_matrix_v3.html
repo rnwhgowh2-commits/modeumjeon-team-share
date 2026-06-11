@@ -647,6 +647,8 @@
     #bulk-policy-bar .bp-pop input { font-size:15px !important; padding:8px 12px !important; }
     #bulk-policy-bar .bp-opt { font-size:15px !important; padding:9px 12px !important; }
   </style>
+  {# [2026-06-11] 위상 1 · 현황/설정 (강도3 구분선만) — 가격 템플릿·전체 크롤·진행 카드 묶음 #}
+  <span class="tier-lab">위상 1 · 현황 / 설정</span>
   <div class="bulk-policy-bar" id="bulk-policy-bar" style="flex-direction:column; align-items:stretch; gap:14px; padding:20px 22px; font-size:18px;">
 
     {# [2026-05-24 B-2] 가격 템플릿 — 최상단 행 (사올때/팔때 기본값 묶음). 큰 탭 대신 인라인 #}
@@ -1083,6 +1085,9 @@
 
   {# v17 Phase 6 — 사이트별 진행 통계 가로 띠 (sm-side 의 세로 stack 을 가로로 재배치) #}
   <div class="sm-side-h" id="sm-side-h"><!-- JS 렌더: 진행 ring + 사이트별 카드 + winner --></div>
+
+  {# [2026-06-11] 위상 구분선 (강도3) — 위상 1(현황/설정) ↔ 위상 2(데이터 작업대) 경계 #}
+  <div class="tier-divider"><span class="d-lab">위상 2 · 데이터 작업대 (넓은 폭)</span></div>
 
   {# 선택 크롤·선택 도구 액션 바 — [2026-06-03 시안B] 전체 크롤은 위 CTA 카드 단일화.
      중복이던 'sm-crawl-all'(전체 크롤 N셀) 제거 → 전체 크롤은 상단 초록 CTA 1개만. #}

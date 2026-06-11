@@ -689,6 +689,24 @@
   }
   /* hidden 시 sec-matrix 등 모두 숨김 */
   .bundle-content > .bundle-section[data-tab].tab-hidden { display: none !important; }
+
+  /* === [2026-06-11] 모음전 상세 전용: 꽉 채움 + 위상 구분(강도3 · 구분선만) ===
+     이 스타일은 edit.html 에서만 로드 → 모음전 상세 페이지에만 적용 (전역 toss.css 미수정). */
+  .main { max-width: none !important;
+    padding-left: clamp(16px, 2vw, 44px) !important;
+    padding-right: clamp(16px, 2vw, 44px) !important; }
+  /* 위상 라벨 — 무채색 (색 없음) */
+  .tier-lab { display: inline-flex; align-items: center; gap: 6px;
+    font-size: 14px; font-weight: 800;
+    background: var(--n100, #f2f4f6); color: var(--n600, #6b7684);
+    border: 1px solid var(--n300, #d1d6db); border-radius: 18px;
+    padding: 3px 13px; margin: 6px 0 12px; }
+  /* 위상 구분선 (강도3 핵심) — 현황 ↔ 데이터 작업대 경계 */
+  .tier-divider { display: flex; align-items: center; gap: 14px; margin: 26px 0 18px; }
+  .tier-divider::before, .tier-divider::after { content: ""; height: 2px; background: var(--n200, #e5e8eb); flex: 1; }
+  .tier-divider .d-lab { font-size: 14px; font-weight: 800; color: var(--n600, #6b7684);
+    background: var(--n100, #f2f4f6); border: 1px solid var(--n300, #d1d6db);
+    border-radius: 18px; padding: 4px 15px; white-space: nowrap; }
 </style>
 
   <script>
