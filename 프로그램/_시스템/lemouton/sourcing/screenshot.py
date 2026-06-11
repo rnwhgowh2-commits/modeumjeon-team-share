@@ -45,8 +45,14 @@ SOURCE_PROFILES = (
      "login": None, "expand": False, "box": (500, 250),
      "anchors": ('[class*="price-info"]',)},
     {"key": "lotteon", "match": ("롯데온", "lotteon"),
-     "login": None, "expand": False, "box": (455, 175),
-     "anchors": ('[class*="pd-price"]',)},
+     "login": None, "expand": False, "width": 460,
+     "anchors": ('[class*="pd-price"]',),
+     # 옵션 선택·구매버튼·배너·상세영역을 숨겨 가격+추가혜택만 인접 캡처
+     "hide": ('[class*="banner-image"]', '[class*="priceOptionWrap"]',
+              '[class*="detailLayout"]', '[class*="option"]'),
+     "hide_texts": r"(선물하기|장바구니|바로 ?구매)",
+     # 공개 '추가혜택'(L.POINT 적립·충전결제·무이자)·롯데카드 결제가까지 동적 바닥
+     "bottom_anchors": ('[class*="tbl-list"]', '[class*="totalPrice"]')},
     {"key": "ssg", "match": ("SSG", "ssg"),
      "login": ("ssg", "ditodalal"), "expand": False, "box": (580, 530),
      "anchors": ('[class*="cdtl_optprice_wrap"]',)},
@@ -155,7 +161,10 @@ def capture_screenshot(url: str, *, source_name: str = "무신사", pad: int = 1
                     except Exception:
                         pass
                     page.wait_for_timeout(500)
-                clip = _price_clip(page, anchors, pad, box=prof.get("box"))
+                _apply_hide(page, prof)
+                clip = _price_clip(page, anchors, pad, box=prof.get("box"),
+                                   bottom_anchors=prof.get("bottom_anchors"),
+                                   width=prof.get("width"))
                 if clip:
                     return page.screenshot(type="jpeg", quality=85, clip=clip)
                 return page.screenshot(type="jpeg", quality=80)
@@ -170,12 +179,7 @@ def capture_screenshot(url: str, *, source_name: str = "무신사", pad: int = 1
         raise RuntimeError(f"캡처 실패: {msg[:200]}")
 
 
-def _price_clip(page, anchors, pad: int, box=None):
-    """anchors 요소들의 합집합 bounding box(+pad) 반환. 못 찾으면 None.
-
-    box=(w,h) 가 주어지면 좌상단(anchors min x,y - pad)에서 고정 크기로 크롭
-    (가격+혜택 부문 전체를 잘리지 않게). 뷰포트(1500) 안으로 클램프.
-    """
+def _collect_boxes(page, anchors):
     boxes = []
     for sel in anchors:
         try:
@@ -185,18 +189,59 @@ def _price_clip(page, anchors, pad: int, box=None):
                     boxes.append(bb)
         except Exception:
             continue
+    return boxes
+
+
+def _apply_hide(page, prof):
+    """가격영역 노이즈(옵션·구매버튼·배너 등)를 display:none 으로 숨김."""
+    sels = prof.get("hide")
+    texts = prof.get("hide_texts")
+    if not sels and not texts:
+        return
+    try:
+        page.evaluate(
+            """(arg) => {
+              (arg.sels||[]).forEach(s=>document.querySelectorAll(s).forEach(el=>{el.style.display='none'}));
+              if(arg.texts){ const re=new RegExp(arg.texts);
+                document.querySelectorAll('button,a').forEach(el=>{
+                  const t=(el.innerText||'').trim();
+                  if(t && re.test(t)){ const w=el.closest('div'); if(w) w.style.display='none'; }
+                });
+              }
+            }""",
+            {"sels": list(sels or []), "texts": texts},
+        )
+        page.wait_for_timeout(400)
+    except Exception:
+        pass
+
+
+def _price_clip(page, anchors, pad: int, box=None, bottom_anchors=None, width=None):
+    """anchors 합집합 bbox(+pad). 못 찾으면 None. 뷰포트(1500) 클램프.
+
+    - bottom_anchors: 주어지면 그 요소들의 최하단까지 높이를 동적으로 확장(추가혜택 포함).
+    - box=(w,h): 좌상단에서 고정 크기.
+    - width: 폭 override.
+    """
+    boxes = _collect_boxes(page, anchors)
     if not boxes:
         return None
     x0 = min(b["x"] for b in boxes)
     y0 = min(b["y"] for b in boxes)
     x = max(0, x0 - pad)
     y = max(0, y0 - pad)
+
+    if bottom_anchors:
+        bb = _collect_boxes(page, bottom_anchors)
+        bottom = max((b["y"] + b["height"] for b in bb if b["y"] >= y0), default=y0 + 200)
+        w = width or (max(b["x"] + b["width"] for b in boxes) - x0 + 2 * pad)
+        return {"x": x, "y": y, "width": w, "height": min((bottom - y) + pad, 1500 - y - 1)}
     if box:
         w, h = box
-        return {"x": x, "y": y, "width": w, "height": min(h, 1500 - y - 1)}
+        return {"x": x, "y": y, "width": width or w, "height": min(h, 1500 - y - 1)}
     x1 = max(b["x"] + b["width"] for b in boxes)
     y1 = max(b["y"] + b["height"] for b in boxes)
-    return {"x": x, "y": y, "width": (x1 - x0) + 2 * pad, "height": (y1 - y0) + 2 * pad}
+    return {"x": x, "y": y, "width": width or (x1 - x0) + 2 * pad, "height": (y1 - y0) + 2 * pad}
 
 
 def store_guide_screenshot(sid: int, index: int, data: bytes) -> str:
