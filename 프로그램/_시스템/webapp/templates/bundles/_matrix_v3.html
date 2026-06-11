@@ -3443,6 +3443,9 @@
     // 삭제: 템플릿/오버라이드만(크롤 동적 id<0 은 토글만). kind 로 엔드포인트 라우팅.
     const _delBtn = (it) => (it.id && it.id > 0)
       ? `<button class="del" title="삭제" onclick="smCellDel(this, '${sku}', ${srcId})">🗑</button>` : '';
+    // ✎ 값 수정: 템플릿/오버라이드만(크롤 동적 id<0 은 수정 불가). kind 로 PUT 라우팅.
+    const _editBtn = (it) => (it.id && it.id > 0)
+      ? `<button class="edit" title="값 수정" onclick="smCellEdit(this, '${sku}', ${srcId})">✎</button>` : '';
     // 전 혜택 동일 폰트 — 이름(.nm) / 차감액(.n) / 비율(.rt) 클래스로만 (인라인 font 변동 금지)
     const _valHtml = (it, blue) => {
       const isRate = it.type === 'rate';
@@ -3452,9 +3455,9 @@
         ? `<span class="n${blue ? ' blue' : ''}">-${ded.toLocaleString('ko-KR')}원</span> <span class="rt">(${valDisp})</span>`
         : `<span class="rt">${valDisp}</span>`;
     };
-    const _rowHtml = (it) => `<div class="cell-fx-row ${it.enabled ? 'on' : 'off'}" data-bid="${it.id}" data-bkind="${it.kind}" data-bval="${it.value != null ? it.value : 0}" data-btype="${it.type || 'rate'}"><div class="tg" onclick="smCellTog(this)"></div><span class="nm">${escapeHtml(it.name)}</span><span class="val">${_valHtml(it, false)}</span>${_delBtn(it)}</div>`;
+    const _rowHtml = (it) => `<div class="cell-fx-row ${it.enabled ? 'on' : 'off'}" data-bid="${it.id}" data-bkind="${it.kind}" data-bval="${it.value != null ? it.value : 0}" data-btype="${it.type || 'rate'}"><div class="tg" onclick="smCellTog(this)"></div><span class="nm">${escapeHtml(it.name)}</span><span class="val">${_valHtml(it, false)}</span>${_editBtn(it)}${_delBtn(it)}</div>`;
     // 결제 방식 = 택1 선택 카드 (B 시안). 활성 = 파란 테두리 + 체크(✓).
-    const _payRowHtml = (it) => `<div class="cell-fx-row cf-pay-row cf-paycard ${it.enabled ? 'on' : 'off'}" data-bid="${it.id}" data-bkind="${it.kind}"><div class="cf-chk">${it.enabled ? '✓' : ''}</div><span class="nm">${escapeHtml(it.name)}</span><span class="val">${_valHtml(it, true)}</span>${_delBtn(it)}</div>`;
+    const _payRowHtml = (it) => `<div class="cell-fx-row cf-pay-row cf-paycard ${it.enabled ? 'on' : 'off'}" data-bid="${it.id}" data-bkind="${it.kind}"><div class="cf-chk">${it.enabled ? '✓' : ''}</div><span class="nm">${escapeHtml(it.name)}</span><span class="val">${_valHtml(it, true)}</span>${_editBtn(it)}${_delBtn(it)}</div>`;
     const _items = (j.items_used || []);
     const _g = {amount:[], rate:[], pay:[], cashback:[], etc:[]};
     _items.forEach(it => { _g[_catOf(it)].push(it); });
@@ -3492,6 +3495,7 @@
              data-source-id="${srcId}"
              data-source-name="${escapeHtml(_srcName)}"
              data-bundle-id="${escapeHtml(String(_bundleCode))}"
+             data-bundle-code="${escapeHtml(String(_bundleCode))}"
              data-option-count-bundle="${_bundleCount}"
              data-option-count-color="${_colorCount}"
              data-color-label="${escapeHtml(_curColor)}"
@@ -3681,6 +3685,37 @@
       if (j.ok) smRefreshFxInPlace(sku, srcId);
       else alert('삭제 실패: ' + (j.error || ''));
     } catch(err) { alert('삭제 오류: ' + err.message); }
+  };
+  // ✎ 값 수정 — 기존 혜택의 값(%/원)만 바꿈. kind 로 PUT 라우팅(tpl=소싱처 공통, ovr=옵션 단독).
+  window.smCellEdit = async function(btn, sku, srcId) {
+    const row = btn.closest('.cell-fx-row');
+    const bid = parseInt(row.dataset.bid, 10);
+    const kind = row.dataset.bkind;
+    if (!bid || bid < 0) return;  // 크롤 동적 항목(id<0)은 수정 불가 — 토글만
+    const bType = row.dataset.btype || 'rate';
+    const bVal = parseFloat(row.dataset.bval || '0');
+    const benefitName = row.querySelector('.nm')?.textContent.trim() || '';
+    const isTpl = (kind === 'tpl');
+    const unit = bType === 'rate' ? '%' : '원';
+    const curDisp = bType === 'rate' ? +(bVal * 100).toFixed(4) : Math.round(bVal);
+    const warn = isTpl
+      ? '\n\n⚠ 소싱처 공통 혜택(템플릿) — 이 소싱처의 모든 옵션에 반영됩니다.'
+      : '';
+    const raw = prompt(`"${benefitName}" 값 수정 (${unit})${warn}`, String(curDisp));
+    if (raw == null) return;
+    const num = parseFloat(String(raw).replace(/[^0-9.]/g, ''));
+    if (isNaN(num) || num < 0) { alert('0 이상의 숫자를 입력해주세요'); return; }
+    const value = bType === 'rate' ? num / 100 : num;
+    const ep = isTpl ? `/api/source-benefits/templates/${bid}` : `/api/source-benefits/overrides/${bid}`;
+    try {
+      const r = await fetch(ep, {
+        method: 'PUT', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ value }),
+      });
+      const j = await r.json();
+      if (j.ok) smRefreshFxInPlace(sku, srcId);
+      else alert('수정 실패: ' + (j.error || '오류'));
+    } catch(err) { alert('수정 오류: ' + err.message); }
   };
   window.smCellAdd = async function(sku, srcId, bundleScope) {
     const scopeTxt = bundleScope ? '모음전 전체 (' + ((DATA.options||[]).length) + ' 옵션)' : '이 옵션만';

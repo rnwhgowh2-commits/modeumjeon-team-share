@@ -97,6 +97,33 @@ def _option_bundle_id(session, canonical_sku: str) -> int | None:
     return int(row[0]) if row else None
 
 
+def _options_by_bundle_code(session, code: str, color_filter: str | None = None) -> list[dict]:
+    """모음전 코드(model_code 또는 group_code) → 소속 옵션 (canonical_sku, color).
+
+    실제 옵션↔모음전 매핑은 Option.model_code 기반 (매트릭스 bundles.bundle_edit 와 동일).
+    bundle_options 정션 테이블은 미사용/빈 상태라 여기선 쓰지 않는다.
+    """
+    from lemouton.sourcing.models import Model, Option, BundleGroup
+    m = session.query(Model).filter_by(model_code=code).first()
+    if m:
+        q = session.query(Option).filter_by(model_code=code)
+    else:
+        grp = session.query(BundleGroup).filter_by(group_code=code).first()
+        if not grp or not grp.models:
+            return []
+        codes = [mm.model_code for mm in grp.models]
+        q = session.query(Option).filter(Option.model_code.in_(codes))
+    out = []
+    for o in q.all():
+        if not o.canonical_sku:
+            continue
+        color = getattr(o, 'color_display', None)
+        if color_filter and color != color_filter:
+            continue
+        out.append({'sku': o.canonical_sku, 'color': color})
+    return out
+
+
 # ─── POST /api/benefits/crud — 혜택 추가 (scope 분기) ────────
 @bp.post('')
 @bp.post('/')
@@ -150,6 +177,7 @@ def add_benefit():
         category = None
 
     canonical_sku = (data.get('canonical_sku') or '').strip() or None
+    bundle_code = (data.get('bundle_code') or '').strip() or None
     bundle_id = data.get('bundle_id')
     if bundle_id:
         try:
@@ -191,22 +219,33 @@ def add_benefit():
         elif scope == 'color':
             if not canonical_sku:
                 return _err('color scope 는 canonical_sku 필수 (컬러 lookup 기준)')
-            # bundle_id 미명시 시 sku 에서 lookup
-            if not bundle_id:
-                bundle_id = _option_bundle_id(session, canonical_sku)
-                if not bundle_id:
-                    return _err(f'sku "{canonical_sku}" 의 bundle 찾지 못함')
             color = _option_color(session, canonical_sku)
             if not color:
                 return _err(f'sku "{canonical_sku}" 의 color_text 찾지 못함')
-            target_skus = [o['sku'] for o in _bundle_options(session, bundle_id, color_filter=color)]
+            # ① 모음전 코드 기반 (실제 매핑 = Option.model_code) — 우선
+            if bundle_code:
+                target_skus = [o['sku'] for o in _options_by_bundle_code(session, bundle_code, color_filter=color)]
+            # ② 코드 없거나 0건 → 레거시 bundle_options 정션 경로 (구 데이터 호환)
+            if not target_skus:
+                if not bundle_id:
+                    bundle_id = _option_bundle_id(session, canonical_sku)
+                if bundle_id:
+                    target_skus = [o['sku'] for o in _bundle_options(session, bundle_id, color_filter=color)]
+            if not target_skus:
+                return _err(f'color scope 적용 대상 옵션 0건 (color={color}, bundle_code={bundle_code})')
 
         elif scope == 'bundle':
-            if not bundle_id and canonical_sku:
-                bundle_id = _option_bundle_id(session, canonical_sku)
-            if not bundle_id:
-                return _err('bundle scope 는 bundle_id 또는 canonical_sku 필수')
-            target_skus = [o['sku'] for o in _bundle_options(session, bundle_id)]
+            # ① 모음전 코드 기반 (실제 매핑 = Option.model_code) — 우선
+            if bundle_code:
+                target_skus = [o['sku'] for o in _options_by_bundle_code(session, bundle_code)]
+            # ② 코드 없거나 0건 → 레거시 bundle_options 정션 경로 (구 데이터 호환)
+            if not target_skus:
+                if not bundle_id and canonical_sku:
+                    bundle_id = _option_bundle_id(session, canonical_sku)
+                if bundle_id:
+                    target_skus = [o['sku'] for o in _bundle_options(session, bundle_id)]
+            if not target_skus:
+                return _err('bundle scope 적용 대상 옵션 0건 (bundle_code 또는 canonical_sku 확인)')
 
         if not target_skus:
             return _err(f'적용 대상 옵션 0건 (scope={scope})')
