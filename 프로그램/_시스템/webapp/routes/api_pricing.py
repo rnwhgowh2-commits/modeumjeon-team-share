@@ -776,6 +776,8 @@ def _option_matrix_data(code: str):
                 'color_display': o.color_display or o.color_code,
                 'size_code': o.size_code,
                 'size_display': o.size_display or o.size_code,
+                # 옵션 매트릭스 활성 여부 (혜택 '옵션 직접 선택' 팝업이 활성 옵션만 노출)
+                'is_active': bool(getattr(o, 'is_active', True)),
                 'auto_enabled': auto,
                 'margin_rate': margin,
                 'ss_fee_rate': ss_fee,
