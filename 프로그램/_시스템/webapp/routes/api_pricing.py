@@ -910,6 +910,11 @@ def _option_matrix_data(code: str):
                     _lcnt[_bid] = _c
             for _b in _bsus:
                 _sk = _b.source_key
+                # [2026-06-12] SSG 딜(dealItemView) = 색상별 단품 URL 로 커버되는 허브.
+                #   파이프라인이 크롤을 skip → 크롤 대상이 아니므로 집계(try/done/fail)에서 제외.
+                #   (포함하면 영구 '실패'로 잡혀 거짓 실패율을 만든다. 가격·재고는 단품 URL 제공.)
+                if _sk == 'ssg' and 'dealitemview' in (_b.url or '').lower():
+                    continue
                 _rid = _k2reg.get(_sk)
                 _key = _rid if _rid is not None else 'key:' + str(_sk)
                 _st = source_stats.setdefault(str(_key), {

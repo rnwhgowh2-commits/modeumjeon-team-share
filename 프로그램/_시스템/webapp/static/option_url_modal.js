@@ -422,6 +422,9 @@
       .oum-url-recrawl { background:#E4002B; color:#fff; border:1px solid #E4002B; border-radius:7px; padding:0 11px; height:33px; font-size:12px; font-weight:800; cursor:pointer; white-space:nowrap; }
       .oum-url-recrawl:hover { background:#c00; }
       .oum-url-failmsg { padding:8px 14px; background:#FEF2F2; color:#B91C1C; font-size:11.5px; font-weight:700; line-height:1.5; border-top:1px dashed #fca5a5; }
+      /* [2026-06-12] 딜·기획전 허브 — 단품으로 커버됨 (실패 아님, 중립 안내) */
+      .oum-url-card.crawl-covered { border-color:#bfdbfe; background:#F5F9FF; }
+      .oum-url-covered { padding:8px 14px; background:#EFF6FF; color:#1D4ED8; font-size:11.5px; font-weight:700; line-height:1.5; border-top:1px dashed #bfdbfe; }
       /* [2026-06-11] 크롤 실패 요약 배너 — 어떤 URL이 왜 실패했는지 한눈에 */
       .oum-failsum { margin:0 0 10px; padding:10px 12px; background:#FEF2F2; border:1px solid #fca5a5; border-radius:9px; }
       .oum-failsum-h { display:flex; align-items:center; gap:8px; flex-wrap:wrap; color:#B91C1C; font-size:13px; font-weight:800; }
@@ -1387,7 +1390,10 @@
       const totalActive = state.selected.size;
       const mapped = (u.option_keys || []).length;
       // [2026-06-05] 크롤 실패 URL — 빨강 카드 + ❌ 배지 + 🔄 재크롤. (신규 추가 URL=undefined 는 정상 취급)
-      const isFail = u.crawled === false;
+      // [2026-06-12] SSG 딜(dealItemView) = 색상별 단품 URL로 커버되는 허브 → 'covered' 중립 상태.
+      //   실패가 아니므로 빨강 카드/재크롤 대상에서 제외, 안내 배지만 표시.
+      const isCovered = u.lastStatus === 'covered';
+      const isFail = u.crawled === false && !isCovered;
       const statusTxt = u.lastStatus === 'error' ? '응답 오류'
         : (u.lastStatus === 'not_crawled' ? '아직 크롤 안 됨' : (u.lastStatus || '실패'));
 
@@ -1397,7 +1403,7 @@
         : '';
       // [2026-05-27] 드래그앤드랍 — 카드 전체 draggable + 드래그 핸들 ⋮⋮ 표시
       //   복사 ⎘ 버튼은 유지 (시안 v8 선택 후 디자인 교체 예정)
-      let html = `<div class="oum-url-card ${isOpen ? 'open' : ''}${isFail ? ' crawl-fail' : ''}" data-url-id="${u.tempId}" draggable="true">
+      let html = `<div class="oum-url-card ${isOpen ? 'open' : ''}${isFail ? ' crawl-fail' : ''}${isCovered ? ' crawl-covered' : ''}" data-url-id="${u.tempId}" draggable="true">
         <div class="oum-url-ch">
           <span class="oum-url-drag" title="드래그해서 순서 변경" data-url-drag>⋮⋮</span>
           <span class="oum-url-num">${num}</span>
@@ -1410,7 +1416,8 @@
           <button class="oum-url-copy" data-url-copy type="button" title="이 카드 그대로 복사">📋 복사</button>
           <button class="oum-url-del" data-url-del type="button">✕ 삭제</button>
         </div>
-        ${isFail ? `<div class="oum-url-failmsg">❌ 크롤 실패 (${esc(statusTxt)}) — 이 URL 의 옵션 <b>${mapped}건</b>은 가격/재고를 못 받았어요. 🔄 재크롤하거나 URL 을 확인하세요.</div>` : ''}`;
+        ${isFail ? `<div class="oum-url-failmsg">❌ 크롤 실패 (${esc(statusTxt)}) — 이 URL 의 옵션 <b>${mapped}건</b>은 가격/재고를 못 받았어요. 🔄 재크롤하거나 URL 을 확인하세요.</div>` : ''}
+        ${isCovered ? `<div class="oum-url-covered">📦 딜·기획전 허브 — 색상별 단품 URL로 가격·재고가 커버됩니다. 이 URL은 따로 크롤하지 않아요 (정상).</div>` : ''}`;
 
       if (isOpen) {
         html += `<div class="oum-url-body">${renderUrlBody(u)}</div>`;
