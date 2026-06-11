@@ -242,7 +242,9 @@
   .m2-fields .field { margin-bottom: 0; }
   .m2-actions { display: flex; gap: var(--sp-sm); }
 
-  .main { flex: 1; padding: 40px 56px; max-width: 1500px; }
+  /* [2026-06-11] 폭 제한(max-width:1500px) 해제 → 모든 페이지가 화면 가로폭에 맞게 꽉 참.
+     좌우 여백은 넓은 화면에서도 과하지 않게 clamp(반응형). 모음전 상세(edit.html)와 동일 규칙. */
+  .main { flex: 1; padding: 40px clamp(16px, 2vw, 44px); }
 
   h1 { font-size: 28px; font-weight: 700; margin: 0 0 6px; line-height: 1.25; letter-spacing: -0.02em; }
   .greeting { font-size: 15px; color: var(--n600); margin: 0 0 28px; }
