@@ -242,7 +242,8 @@
           if (done % 3 === 0) {
             lastSys = await _sysinfo();
             if (lastSys.cpu != null || lastSys.mem != null) {
-              const hot = (lastSys.cpu != null && lastSys.cpu >= 90) || (lastSys.mem != null && lastSys.mem >= 90);
+              // Windows 는 캐시로 메모리 사용률이 평상시 85~95% 라 메모리 임계는 높게(96/98), CPU 는 유지.
+              const hot = (lastSys.cpu != null && lastSys.cpu >= 90) || (lastSys.mem != null && lastSys.mem >= 96);
               if (hot) _emitLog("resource", { level: "warn", msg: "자원 높음 — CPU " + lastSys.cpu + "% / MEM " + lastSys.mem + "%", metrics: { concurrency, cap, cpu: lastSys.cpu, mem: lastSys.mem } });
             }
           }
@@ -263,14 +264,14 @@
       const throughput = concurrency / med;           // 분당 환산 불필요(상대비교)
       // 자원 안전 브레이크(보조)
       const cpu = lastSys.cpu, mem = lastSys.mem;
-      if ((cpu != null && cpu >= 95) || (mem != null && mem >= 95)) {
+      if ((cpu != null && cpu >= 95) || (mem != null && mem >= 98)) {
         if (concurrency > 1) {
           concurrency--; cooldown = 3; prevThroughput = throughput;
-          _emitLog("concurrency", { level: "down", msg: "자원 95%↑ 강제 −1 → " + concurrency, metrics: { concurrency, cap, cpu, mem, done, total } });
+          _emitLog("concurrency", { level: "down", msg: "자원 한계(CPU≥95·MEM≥98) 강제 −1 → " + concurrency, metrics: { concurrency, cap, cpu, mem, done, total } });
         }
         return;
       }
-      const blockUp = (cpu != null && cpu >= 90) || (mem != null && mem >= 90);
+      const blockUp = (cpu != null && cpu >= 90) || (mem != null && mem >= 96);
       if (throughput > prevThroughput * 1.05) {
         // 개선 → 채택, 가능하면 +1 탐침
         prevThroughput = throughput;
@@ -278,7 +279,7 @@
           concurrency++; cooldown = 3;
           _emitLog("concurrency", { level: "up", msg: "처리량 개선 → 창 +1 = " + concurrency + (blockUp ? "" : ""), metrics: { concurrency, cap, cpu, mem, done, total } });
         } else if (blockUp && concurrency < cap) {
-          _emitLog("resource", { level: "warn", msg: "처리량 여력 있으나 자원 90%↑ → +1 보류", metrics: { concurrency, cap, cpu, mem, done, total } });
+          _emitLog("resource", { level: "warn", msg: "처리량 여력 있으나 자원 높음(CPU≥90·MEM≥96) → +1 보류", metrics: { concurrency, cap, cpu, mem, done, total } });
         }
       } else if (throughput < prevThroughput * 0.9 && concurrency > 1) {
         // 처리량 하락/정체 → 직전으로 되돌림(−1)
@@ -328,6 +329,12 @@
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ items }),
     }).then((x) => x.json()).catch((e) => ({ ok: false, error: String(e) }));
+
+    // 4) '마지막 크롤 ㅇㅇ전' 표시 갱신 — 확장 크롤은 서버 run-now 를 안 거치므로
+    //    Model.last_crawled_at 을 여기서 직접 bump(touch-crawled). 실패해도 저장엔 무관.
+    try {
+      await fetch("/api/bundles/" + encodeURIComponent(code) + "/touch-crawled", { method: "POST" });
+    } catch (_) {}
 
     const okCount = results.filter((x) => x.status === "ok").length;
     _emitLog("finish", {
