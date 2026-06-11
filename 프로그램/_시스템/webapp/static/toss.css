@@ -3421,6 +3421,40 @@
   font-size: 14px; cursor: pointer; background: transparent; border: none; padding: 0;
 }
 .fxpop-v2 .cell-fx-ben .cell-fx-row .edit:hover { color: #3182F6; }
+
+/* ── A1 인라인 값 편집 (✎ 클릭 시 .val → 입력칸) ── */
+.cell-fx-row .inline-edit { display:inline-flex; align-items:center; gap:5px; }
+.cell-fx-row .inline-edit .ie-tpl { font-size:10px; font-weight:700; color:#fff; background:#8B95A1; border-radius:5px; padding:1px 5px; }
+.cell-fx-row .inline-edit .ie-input { width:58px; border:1.5px solid #3182F6; border-radius:7px; padding:4px 7px; font-size:13px; font-weight:700; text-align:right; outline:none; font-family:inherit; color:#191F28; }
+.cell-fx-row .inline-edit .ie-u { font-size:12px; font-weight:700; color:#8B95A1; }
+.cell-fx-row .inline-edit .ie-ic { width:24px; height:24px; border-radius:6px; border:none; font-size:12px; cursor:pointer; display:inline-flex; align-items:center; justify-content:center; padding:0; }
+.cell-fx-row .inline-edit .ie-ic.ok { background:#3182F6; color:#fff; }
+.cell-fx-row .inline-edit .ie-ic.no { background:#F2F4F6; color:#8B95A1; }
+
+/* ── B2 범위별 삭제 모달 ── */
+.del-scope-overlay { position:fixed; inset:0; background:rgba(20,25,34,.42); display:flex; align-items:center; justify-content:center; z-index:9000; }
+.del-scope-modal { background:#fff; border-radius:16px; box-shadow:0 18px 50px rgba(0,0,0,.28); width:360px; max-width:92vw; padding:20px; font-family:inherit; }
+.del-scope-modal h3 { margin:0 0 4px; font-size:16px; font-weight:800; color:#191F28; }
+.del-scope-modal .dsm-sub { font-size:12.5px; color:#4E5968; margin-bottom:14px; }
+.del-scope-modal .dsm-card { display:flex; align-items:center; gap:11px; width:100%; text-align:left; border:1.5px solid #E5E8EB; border-radius:11px; padding:12px 13px; margin-bottom:8px; cursor:pointer; transition:.12s; background:#fff; }
+.del-scope-modal .dsm-card:hover { border-color:#B0B8C1; }
+.del-scope-modal .dsm-card.on { border-color:#3182F6; background:#F4F9FF; box-shadow:0 0 0 2px rgba(49,130,246,.1); }
+.del-scope-modal .dsm-card.on.red { border-color:#F04452; background:#FFF0F1; box-shadow:0 0 0 2px rgba(240,68,82,.1); }
+.del-scope-modal .dsm-rdo { width:18px; height:18px; border-radius:50%; border:2px solid #B0B8C1; flex:0 0 18px; position:relative; }
+.del-scope-modal .dsm-card.on .dsm-rdo { border-color:#3182F6; }
+.del-scope-modal .dsm-card.on .dsm-rdo::after { content:""; position:absolute; inset:3px; border-radius:50%; background:#3182F6; }
+.del-scope-modal .dsm-card.on.red .dsm-rdo { border-color:#F04452; }
+.del-scope-modal .dsm-card.on.red .dsm-rdo::after { background:#F04452; }
+.del-scope-modal .dsm-ttl { flex:1; font-weight:700; font-size:14px; color:#191F28; }
+.del-scope-modal .dsm-ttl small { display:block; font-size:11.5px; color:#8B95A1; font-weight:500; margin-top:2px; }
+.del-scope-modal .dsm-badge { background:#F2F4F6; color:#4E5968; font-weight:800; font-size:12px; border-radius:7px; padding:3px 9px; }
+.del-scope-modal .dsm-card.on .dsm-badge { background:#3182F6; color:#fff; }
+.del-scope-modal .dsm-card.on.red .dsm-badge { background:#F04452; color:#fff; }
+.del-scope-modal .dsm-acts { display:flex; gap:8px; margin-top:16px; }
+.del-scope-modal .dsm-acts button { flex:1; padding:11px; border-radius:10px; font-weight:800; font-size:14px; cursor:pointer; border:1.5px solid #E5E8EB; background:#fff; color:#4E5968; font-family:inherit; }
+.del-scope-modal .dsm-acts button.danger { background:#F04452; color:#fff; border-color:#F04452; }
+.del-scope-modal .dsm-acts button:disabled { opacity:.6; cursor:default; }
+
 /* 토글 스위치 — 34×20, knob 16 */
 .fxpop-v2 .cell-fx-row .tg {
   width: 34px; height: 20px; border-radius: 20px; background: #CDD3DA;
