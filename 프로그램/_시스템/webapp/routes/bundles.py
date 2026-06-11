@@ -901,9 +901,10 @@ def api_list_source_urls(code):
                   .all()):
             _rows_by_key[r.source_key].append(r)
         # [2026-06-05] URL별 크롤 상태 — 실패 URL 빨강·재크롤(모달)용.
-        #   SourceProduct(last_price>0)=성공, error/미크롤=실패. 매트릭스 대시보드와 동일 기준.
+        #   성공 판정 = is_crawl_valid(가격>0 AND status!=error). 매트릭스 대시보드와 동일 게이트.
         from lemouton.sources.models import SourceProduct as _SP
         from lemouton.sources.service import normalize_url as _nu
+        from lemouton.pricing.unified import is_crawl_valid as _is_crawl_valid
         _crawl_idx = {}
         try:
             for _sp in (s.query(_SP.url, _SP.last_price, _SP.last_status)
@@ -914,7 +915,11 @@ def api_list_source_urls(code):
             _crawl_idx = {}
         def _crawl_state(u):
             rec = _crawl_idx.get(_nu(u)) if u else None
-            ok = bool(rec and rec[0] and rec[0] > 0)
+            # [2026-06-11] 대시보드(api_pricing)와 동일 게이트로 통일 — 가격>0 AND status!=error.
+            #   기존엔 가격>0 만 보고 status 를 무시 → error+옛가격(stale) URL 을 '성공'으로
+            #   둔갑시킴. 그 결과 대시보드 카드는 "URL N개 실패", 모달은 전부 정상(초록)으로
+            #   서로 모순. is_crawl_valid 단일 게이트로 묶어 두 화면 판정을 일치시킨다.
+            ok = bool(_is_crawl_valid(rec[0], rec[1])) if rec else False
             return ok, (rec[1] if rec else 'not_crawled'), (rec[0] if rec else None)
         for sk in all_keys:
             rows = _rows_by_key.get(sk, [])
