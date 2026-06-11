@@ -58,11 +58,16 @@ SOURCE_PROFILES = (
      # 공개 '추가혜택'(L.POINT 적립·충전결제·무이자)·롯데카드 결제가까지 동적 바닥
      "bottom_anchors": ('[class*="tbl-list"]', '[class*="totalPrice"]')},
     {"key": "ssg", "match": ("SSG", "ssg"),
-     "login": ("ssg", "ditodalal"), "expand": False, "box": (580, 530),
-     "anchors": ('[class*="cdtl_optprice_wrap"]',)},
+     "login": ("ssg", "ditodalal"), "expand": False, "width": 580,
+     "anchors": ('[class*="cdtl_optprice_wrap"]',),
+     # 고정 530px 은 상품쿠폰이 있는 상품에서 구매혜택(SSG MONEY 적립) 하단을 잘랐음
+     # (2026-06-11). 혜택 리스트(cdtl_lst) 하단까지 동적 확장(SSF 패턴).
+     "bottom_anchors": ('[class*="cdtl_lst"]',)},
     {"key": "lotteimall", "match": ("롯데아이몰", "lotteimall"),
-     "login": None, "expand": False, "box": (500, 360),
-     "anchors": ('[class*="price_product"]',)},
+     "login": None, "expand": False, "width": 500,
+     "anchors": ('[class*="price_product"]',),
+     # 고정 360px → 혜택박스(benefit_details_box) 하단까지 동적 확장(SSF 패턴, 2026-06-11)
+     "bottom_anchors": ('[class*="benefit_details_box"]',)},
 )
 
 
