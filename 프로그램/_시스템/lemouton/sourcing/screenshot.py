@@ -42,8 +42,12 @@ SOURCE_PROFILES = (
      "anchors": MUSINSA_EXPANDED_ANCHORS,
      "anchors_nologin": MUSINSA_PRICE_ANCHORS},
     {"key": "ssf", "match": ("SSF", "ssf"),
-     "login": None, "expand": False, "box": (500, 250), "viewport": 1280,
-     "anchors": ('[class*="price-info"]',)},
+     "login": None, "expand": False, "viewport": 1280, "width": 500,
+     "anchors": ('[class*="price-info"]',),
+     # 가격(price-info) 상단 → 혜택 블록(gods-benefit) 하단까지 동적 확장.
+     # 고정 높이 250px 은 '포인트 적립(멤버십포인트 N P)' 행이 기프트포인트 아래에
+     # 있어 잘렸음(2026-06-11). bottom_anchors 로 적립 행까지 포함(롯데온 패턴).
+     "bottom_anchors": ('[class*="gods-benefit"]',)},
     {"key": "lotteon", "match": ("롯데온", "lotteon"),
      "login": None, "expand": False, "width": 460,
      "anchors": ('[class*="pd-price"]',),

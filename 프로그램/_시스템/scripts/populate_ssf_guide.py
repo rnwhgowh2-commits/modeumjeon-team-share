@@ -79,23 +79,23 @@ SSF_GUIDE = {
                 "captured_at":  "2026-06-09",
                 "screenshot_url": None,
             },
-            # 2. 르무통 메이트 — 메리노울 운동화 아이보리
+            # 2. 르무통 메이트 — 메리노울 운동화 아이보리  (2026-06-11 재측정: 시즌 20%→15%)
             {
                 "url":          "https://www.ssfshop.com/LEMOUTON/GRG426021974780/good",
                 "name":         "르무통 메이트 운동화",
                 "surface_price": 149000,
                 "pre": [
-                    {"label": "시즌 할인 20%", "amount": -29100},
+                    {"label": "시즌 할인 15%", "amount": -22700},
                 ],
-                "base1":        119900,
+                "base1":        126300,
                 "deducts": [
-                    {"label": "멤버십포인트 0.5% 적립", "amount": -599},
+                    {"label": "멤버십포인트 0.5% 적립", "amount": -631},
                 ],
-                "base2":        119301,
-                "pay":          {"label": "토스페이 5%", "amount": -5960},
-                "final_price":  113341,
+                "base2":        125669,
+                "pay":          {"label": "토스페이 5%", "amount": -6283},
+                "final_price":  119386,
                 "note":         "포인트 0.5%만(기프트포인트 없음). 결제=토스페이 5% 가정(택1).",
-                "captured_at":  "2026-06-09",
+                "captured_at":  "2026-06-11",
                 "screenshot_url": None,
             },
             # 3. 바오바오백 — Prism Frost White Beige
