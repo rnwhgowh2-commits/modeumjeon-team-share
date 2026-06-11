@@ -127,6 +127,45 @@ def api_example_shot(sid: int):
         s.close()
 
 
+@bp.route("/api/<int:sid>/example-shot/auto", methods=["POST"])
+def api_example_shot_auto(sid: int):
+    """④ 예제 기준 스크린샷 — 서버 Playwright 자동 캡처 → R2 → screenshot_url 저장.
+
+    캡처는 Playwright 브라우저가 설치된 환경(개발 PC)에서 실행. 결과 URL 은
+    Supabase guide JSON 에 저장되어 prod/dev 어디서나 표시된다.
+    """
+    s = SessionLocal()
+    try:
+        src = s.query(SourceRegistry).get(sid)
+        if src is None:
+            return jsonify(ok=False, error="not_found"), 404
+        body = request.get_json(force=True) or {}
+        idx = body.get("index")
+        if not isinstance(idx, int):
+            return jsonify(ok=False, error="invalid"), 400
+        guide = cg.loads(src.crawl_guide)
+        exs = (guide.get("verification") or {}).get("examples") or []
+        if idx < 0 or idx >= len(exs):
+            return jsonify(ok=False, error="bad_index"), 400
+        url = exs[idx].get("url")
+        if not url:
+            return jsonify(ok=False, error="no_url", message="예제에 URL이 없습니다"), 400
+        from lemouton.sourcing import screenshot as shot
+        try:
+            data = shot.capture_screenshot(url)
+            public = shot.store_guide_screenshot(sid, idx, data)
+        except RuntimeError as e:
+            return jsonify(ok=False, error="capture_failed", message=str(e)), 502
+        exs[idx]["screenshot_url"] = public
+        exs[idx]["captured_at"] = _now_iso()
+        guide["updated_at"] = _now_iso()
+        src.crawl_guide = cg.dumps(guide)
+        s.commit()
+        return jsonify(ok=True, url=public)
+    finally:
+        s.close()
+
+
 @bp.route("/api/<int:sid>/verify", methods=["POST"])
 def api_verify(sid: int):
     src = _source(sid)

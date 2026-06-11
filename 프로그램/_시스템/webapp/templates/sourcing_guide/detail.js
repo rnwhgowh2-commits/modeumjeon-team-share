@@ -179,4 +179,21 @@
       zone.classList.remove('busy');
     });
   });
+
+  // ④ 예제 기준 스크린샷 — 서버 자동 캡처 (Playwright → R2)
+  document.querySelectorAll('.shot-auto').forEach(btn=>{
+    btn.addEventListener('click',async e=>{
+      e.preventDefault();e.stopPropagation();
+      const zone=btn.closest('.exshot'); const idx=+btn.dataset.exIndex;
+      if(!zone) return;
+      zone.classList.add('capturing');
+      try{
+        const res=await fetch(`/sourcing-guide/api/${sid}/example-shot/auto`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({index:idx})});
+        const j=await res.json();
+        if(j.ok&&j.url){ zone.innerHTML='<a class="exshot-link" href="'+j.url+'" target="_blank"><img src="'+j.url+'"></a>'; }
+        else alert('자동 캡처 실패: '+(j.message||j.error||'알 수 없는 오류'));
+      }catch(err){ alert('자동 캡처 오류: '+err); }
+      zone.classList.remove('capturing');
+    });
+  });
 })();

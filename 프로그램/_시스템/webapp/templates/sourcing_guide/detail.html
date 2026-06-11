@@ -133,6 +133,9 @@
 .sgd .exshot.drag{outline:2px dashed #3182F6;outline-offset:2px;}
 .sgd .exshot.drag::after{content:"여기에 놓기";position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:#3182F6cc;color:#fff;font-weight:800;font-size:13px;border-radius:9px;}
 .sgd .exshot.busy::after{content:"업로드 중…";position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:#191F28aa;color:#fff;font-weight:700;font-size:12px;border-radius:9px;}
+.sgd .exshot.capturing::after{content:"캡처 중… (약 10초)";position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:#191F28cc;color:#fff;font-weight:700;font-size:12px;border-radius:9px;}
+.sgd .shot-auto{margin-top:2px;border:1px solid #3182F6;background:#fff;color:#3182F6;font-size:11px;font-weight:700;border-radius:7px;padding:4px 10px;cursor:pointer;}
+.sgd .shot-auto:hover{background:#3182F6;color:#fff;}
 .sgd .shot .cam{font-size:22px;}
 .sgd .shot .dt{font-size:10px;color:#B8C0C8;}
 /* FX 영수증 */
@@ -310,7 +313,8 @@
                 <div class="shot">
                   <span class="cam">📷</span>
                   <span>기준 스크린샷</span>
-                  <span class="drop-hint">이미지 드래그앤드랍</span>
+                  <button type="button" class="shot-auto" data-ex-index="{{ loop.index0 }}">🤖 자동 캡처</button>
+                  <span class="drop-hint">또는 이미지 드래그앤드랍</span>
                   <span class="dt">{{ ex.name }}</span>
                 </div>
                 {% endif %}
