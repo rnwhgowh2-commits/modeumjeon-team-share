@@ -163,8 +163,8 @@ def add_benefit():
         return _err(f"value 숫자 필수 (받음: {value})")
     if value <= 0:
         return _err('value > 0 필수')
-    if scope not in ('option', 'color', 'bundle', 'source'):
-        return _err(f"scope 'option|color|bundle|source' 만 허용 (받음: {scope})")
+    if scope not in ('option', 'color', 'bundle', 'source', 'select', 'bundle_all_src'):
+        return _err(f"scope 미허용 (받음: {scope})")
     try:
         source_id = int(source_id)
     except (TypeError, ValueError):
@@ -178,6 +178,18 @@ def add_benefit():
 
     canonical_sku = (data.get('canonical_sku') or '').strip() or None
     bundle_code = (data.get('bundle_code') or '').strip() or None
+    # 신규 scope 용 — 선택 옵션 목록(select) / 대상 소싱처 목록(bundle_all_src)
+    skus_in = data.get('skus') or []
+    if not isinstance(skus_in, list):
+        skus_in = []
+    skus_in = [str(x).strip() for x in skus_in if str(x).strip()]
+    source_ids_in = data.get('source_ids') or []
+    if not isinstance(source_ids_in, list):
+        source_ids_in = []
+    try:
+        source_ids_in = [int(x) for x in source_ids_in]
+    except (TypeError, ValueError):
+        source_ids_in = []
     bundle_id = data.get('bundle_id')
     if bundle_id:
         try:
@@ -233,6 +245,38 @@ def add_benefit():
                     target_skus = [o['sku'] for o in _bundle_options(session, bundle_id, color_filter=color)]
             if not target_skus:
                 return _err(f'color scope 적용 대상 옵션 0건 (color={color}, bundle_code={bundle_code})')
+
+        elif scope == 'select':
+            # 옵션 매트릭스 직접 선택 — 프런트가 켠(ON) sku 목록
+            if not skus_in:
+                return _err('select scope 는 skus[] 필수 (최소 1개)')
+            target_skus = skus_in
+
+        elif scope == 'bundle_all_src':
+            # 해당 모음전 모든 옵션 × 모든 소싱처 열 → (sku × source_id) 다중.
+            # 공통 루프(단일 source_id)를 우회하고 분기 안에서 즉시 처리.
+            if not source_ids_in:
+                return _err('bundle_all_src scope 는 source_ids[] 필수')
+            if not bundle_code:
+                return _err('bundle_all_src 대상 옵션 0건 (bundle_code 필수)')
+            base = [o['sku'] for o in _options_by_bundle_code(session, bundle_code)]
+            if not base:
+                return _err('bundle_all_src 대상 옵션 0건 (bundle_code 확인)')
+            inserted = 0
+            for sid in source_ids_in:
+                for sku in base:
+                    ov = OptionBenefitOverride(
+                        canonical_sku=sku, source_id=sid, template_id=None,
+                        benefit_name=name, benefit_type=benefit_type, value=value,
+                        category=category, enabled=1, sort_order=999,
+                    )
+                    session.add(ov)
+                    session.flush()
+                    inserted_ids.append(ov.id)
+                    inserted += 1
+            session.commit()
+            return _ok(scope='bundle_all_src', applied_count=inserted,
+                       ids=inserted_ids[:10], table='option_benefit_overrides')
 
         elif scope == 'bundle':
             # ① 모음전 코드 기반 (실제 매핑 = Option.model_code) — 우선
