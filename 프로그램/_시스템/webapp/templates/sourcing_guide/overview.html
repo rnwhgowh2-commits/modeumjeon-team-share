@@ -21,19 +21,105 @@
   .sg-ov .sg-chip.ok{background:#E7F6EF;color:#11A36B;}
   .sg-ov .sg-chip.idle{background:#F2F4F6;color:#8B95A1;}
   .sg-ov .sg-hint{margin-top:24px;color:#8B95A1;font-size:21px;}
-  /* 하위탭 */
-  .sg-ov .subtabs{display:flex;gap:40px;border-bottom:2px solid #E5E8EB;margin-bottom:34px;}
+  /* 하위탭 + 신규추가 버튼 */
+  .sg-ov .subtabs{display:flex;align-items:center;gap:40px;border-bottom:2px solid #E5E8EB;margin-bottom:34px;}
   .sg-ov .subtab{padding:14px 2px;font-size:22px;color:#8B95A1;font-weight:600;text-decoration:none;position:relative;}
   .sg-ov .subtab.on{color:#191F28;font-weight:800;}
   .sg-ov .subtab.on::after{content:'';position:absolute;left:0;right:0;bottom:-2px;height:3px;background:#191F28;border-radius:2px;}
+  .sg-ov .nsg-openbtn{margin-left:auto;display:inline-flex;align-items:center;gap:9px;background:#191F28;color:#fff;
+    border:none;border-radius:12px;padding:14px 22px;font-size:19px;font-weight:700;cursor:pointer;transition:.15s;}
+  .sg-ov .nsg-openbtn:hover{background:#2B333C;}
+
+  /* ════════ 신규 소싱처 추가 — 팝오버 + 상세 모달 (v5 시안) ════════ */
+  :root{--ink:#191F28;--line:#E5E8EB;--soft:#F6F8FA;--navy:#0A2540;--chip:#F2F4F6;}
+  .nsg-pop, .nsg-detail{font-family:'Pretendard','Malgun Gothic',sans-serif;color:var(--ink);line-height:1.5;}
+
+  /* 팝오버 */
+  .nsg-pop{position:fixed;z-index:9001;width:540px;max-width:calc(100vw - 32px);background:#fff;border:1px solid var(--line);
+    border-radius:14px;box-shadow:0 18px 50px rgba(0,0,0,.3);padding:22px 24px;}
+  .nsg-pop::before{content:'';position:absolute;top:-9px;right:42px;width:18px;height:18px;background:#fff;transform:rotate(45deg);border-top:1px solid var(--line);border-left:1px solid var(--line);}
+  .nsg-pop .ph{display:flex;align-items:flex-start;justify-content:space-between;gap:14px;margin-bottom:14px;}
+  .nsg-pop .ph h3{font-size:17px;font-weight:800;margin:0;}
+  .nsg-pop .ph .ps{font-size:12px;color:var(--ink);margin-top:3px;}
+  .nsg-x{background:#F2F4F6;border:none;width:32px;height:32px;border-radius:9px;font-size:16px;color:#4E5968;cursor:pointer;flex-shrink:0;}
+  .nsg-ms{display:flex;flex-direction:column;gap:8px;}
+  .nsg-ms .m{display:flex;gap:11px;align-items:flex-start;padding:9px 11px;border-radius:10px;background:var(--soft);}
+  .nsg-ms .m .n{width:22px;height:22px;border-radius:50%;background:#191F28;color:#fff;font-size:11.5px;font-weight:700;text-align:center;line-height:22px;flex-shrink:0;}
+  .nsg-ms .m.q .n{background:#E8830C;}
+  .nsg-ms .m .t{font-size:13px;font-weight:700;}
+  .nsg-ms .m .d{font-size:11.5px;color:#4E5968;}
+  .nsg-who{display:inline-block;font-size:10.5px;font-weight:700;padding:1px 7px;border-radius:20px;}
+  .nsg-who.u{background:#E8F3FF;color:#1B64DA;}.nsg-who.c{background:#33424F;color:#fff;}
+  .nsg-more{margin-top:14px;width:100%;display:flex;align-items:center;justify-content:center;gap:7px;background:#0A2540;color:#fff;
+    border:none;border-radius:10px;padding:12px;font-size:13.5px;font-weight:700;cursor:pointer;}
+  .nsg-more:hover{background:#143356;}
+
+  /* 상세 모달 */
+  .nsg-dim{position:fixed;inset:0;background:rgba(15,20,28,.5);z-index:9100;}
+  .nsg-detail{position:fixed;z-index:9101;top:50%;left:50%;transform:translate(-50%,-50%);width:1060px;max-width:calc(100vw - 40px);
+    max-height:88vh;background:#fff;border-radius:18px;box-shadow:0 28px 80px rgba(0,0,0,.42);padding:28px 32px;overflow:auto;}
+  .nsg-dh{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;margin-bottom:6px;}
+  .nsg-dh h3{font-size:21px;font-weight:800;margin:0;}
+  .nsg-dh .ds{font-size:12.5px;color:var(--ink);margin-top:4px;}
+  .nsg-cmd{background:#191F28;color:#fff;border-radius:12px;padding:14px 18px;margin:18px 0;display:flex;align-items:center;gap:12px;}
+  .nsg-cmd .ic{font-size:19px;}
+  .nsg-cmd .tx{font-size:13px;line-height:1.55;}
+  .nsg-cmd .tx b{color:#A9E34B;font-family:ui-monospace,monospace;}
+  .nsg-cmd .tx .mini{color:#C9D1D9;font-size:11.5px;}
+  .nsg-detail code{background:#EEF1F4;padding:1px 6px;border-radius:4px;font-family:ui-monospace,monospace;font-size:12px;color:var(--ink);}
+
+  .nsg-sec{margin-top:24px;}
+  .nsg-sec h4{font-size:15px;font-weight:800;margin:0 0 10px;padding-left:10px;border-left:4px solid #0A2540;}
+  .nsg-lab{font-size:11px;font-weight:800;color:var(--ink);}
+
+  /* 표 공용 (전부 검정) */
+  .nsg-t{width:100%;border-collapse:collapse;font-size:13px;}
+  .nsg-t th{background:var(--soft);font-weight:700;color:var(--ink);text-align:left;padding:10px 13px;border-bottom:1.5px solid var(--line);font-size:12.5px;}
+  .nsg-t td{padding:11px 13px;border-bottom:1px solid #F1F3F5;color:var(--ink);vertical-align:middle;}
+  .nsg-t .nm{font-weight:700;}
+  /* 회색 타원 pill (적용·인증) */
+  .nsg-pill{display:inline-block;background:var(--chip);color:var(--ink);font-size:12px;font-weight:600;border-radius:20px;padding:3px 12px;white-space:nowrap;}
+  /* 빈 양식 점선 박스 */
+  .nsg-box{display:inline-block;min-width:104px;height:21px;border:1px dashed #C8CDD3;border-radius:6px;vertical-align:middle;}
+  .nsg-box.sel{min-width:72px;position:relative;}
+  .nsg-box.sel::after{content:'▾';position:absolute;right:9px;top:0;color:var(--ink);font-size:11px;}
+
+  /* 4분면 */
+  .nsg-quad{width:100%;border-collapse:collapse;font-size:12.5px;}
+  .nsg-quad th,.nsg-quad td{border:1px solid var(--line);padding:11px 13px;text-align:left;color:var(--ink);}
+  .nsg-quad th{background:var(--soft);font-weight:700;}
+  .nsg-quad td b{font-weight:800;}
+
+  /* STEP4 좌우 */
+  .nsg-tplgrid{display:grid;grid-template-columns:1fr 1fr;gap:24px;}
+  .nsg-st{font-size:13.5px;font-weight:800;margin:0 0 10px;}
+  .nsg-hint{font-size:12px;color:var(--ink);margin-top:12px;}
+  .nsg-legend{display:flex;flex-wrap:wrap;gap:8px;margin-top:16px;padding-top:14px;border-top:1px solid #F1F3F5;}
+  .nsg-legend .lg{font-size:11.5px;color:var(--ink);background:var(--soft);border:1px solid var(--line);border-radius:7px;padding:5px 10px;}
+  .nsg-legend .lg b{font-weight:800;}
+
+  /* 무결성 */
+  .nsg-integrity{background:#FFF4E6;border:1px solid #FFD8A8;border-radius:11px;padding:14px 18px;font-size:12.5px;color:var(--ink);line-height:1.7;}
+
+  /* 용어사전 세로카드 */
+  .nsg-qa{border:1px solid var(--line);border-radius:14px;padding:20px 22px;margin-bottom:14px;}
+  .nsg-qa .q{font-size:15px;font-weight:800;display:flex;align-items:center;gap:10px;}
+  .nsg-qa .q .bub{width:25px;height:25px;border-radius:50%;background:var(--navy);color:#fff;font-size:13px;text-align:center;line-height:25px;flex-shrink:0;}
+  .nsg-qa .blk{margin-top:14px;}
+  .nsg-qa .role{font-size:13px;line-height:1.7;margin-top:4px;}
+  .nsg-qa .abbr{font-size:12.5px;line-height:1.65;margin-top:4px;}
+  .nsg-qa .ex{font-size:12.5px;line-height:1.65;margin-top:4px;background:var(--soft);border-radius:8px;padding:10px 13px;}
+
+  @media (max-width:760px){ .nsg-tplgrid{grid-template-columns:1fr;} }
 </style>
+
 <div class="sg-ov" style="padding:52px 64px;">
   <div class="page-head" style="display:flex;align-items:center;gap:12px;margin-bottom:30px;">
     <h2>소싱처별 크롤링 가이드</h2>
   </div>
   <div class="subtabs">
     <a class="subtab on" href="/sourcing-guide/">전체보기</a>
-    <a class="subtab" href="/sourcing-guide/how-to">➕ 신규 소싱처 추가 가이드</a>
+    <button type="button" id="nsgOpenBtn" class="nsg-openbtn">➕ 신규 소싱처 추가 가이드</button>
   </div>
   <div class="sg-card" style="padding:0;overflow:hidden;">
     <table class="sg-atbl">
@@ -60,4 +146,198 @@
   </div>
   <div class="sg-hint">행 클릭 → 상세 4단계.</div>
 </div>
+
+<!-- 신규 소싱처 추가 — 팝오버 -->
+<div id="nsgPop" class="nsg-pop" hidden>
+  <div class="ph">
+    <div><h3>➕ 신규 소싱처 추가</h3><div class="ps">URL 1개만 주면 2~6단계는 Claude 가 자동으로 진행합니다.</div></div>
+    <button type="button" class="nsg-x" data-nsg-close-pop>✕</button>
+  </div>
+  <div class="nsg-ms">
+    <div class="m"><span class="n">1</span><div><div class="t">샘플 URL 1개 제공 <span class="nsg-who u">사용자</span></div><div class="d">대표 상품 상세 페이지 주소</div></div></div>
+    <div class="m q"><span class="n">2</span><div><div class="t">어떻게 수집?</div><div class="d">API 있나 / 로그인 필요한가 분류</div></div></div>
+    <div class="m"><span class="n">3</span><div><div class="t">항목별 위치 추출 <span class="nsg-who c">Claude</span></div><div class="d">6항목 셀렉터 / 엔드포인트 확정</div></div></div>
+    <div class="m"><span class="n">4</span><div><div class="t">매입가 로직 정리 <span class="nsg-who c">Claude</span></div><div class="d">혜택 순차 차감 규칙</div></div></div>
+    <div class="m"><span class="n">5</span><div><div class="t">검증 크롤·대조 <span class="nsg-who c">Claude</span></div><div class="d">최종가 / 옵션·재고 확인</div></div></div>
+    <div class="m"><span class="n">6</span><div><div class="t">가이드 카드 저장 <span class="nsg-who c">Claude</span></div><div class="d">정답 카드 완성 → 복제 가능</div></div></div>
+  </div>
+  <button type="button" class="nsg-more" data-nsg-open-detail>📖 상세 로직 · 설명 전체 보기 →</button>
+</div>
+
+<!-- 상세 로직 모달 -->
+<div id="nsgDim" class="nsg-dim" hidden></div>
+<div id="nsgDetail" class="nsg-detail" hidden>
+  <div class="nsg-dh">
+    <div>
+      <h3>📖 신규 소싱처 크롤링 — 상세 로직 (Claude 실행 SOP)</h3>
+      <div class="ds">단일 진실원천: <code>docs/신규-소싱처-추가-가이드.md</code> — 위 6단계 요약을 실제로 실행하는 구체 로직입니다.</div>
+    </div>
+    <button type="button" class="nsg-x" data-nsg-close-detail>✕</button>
+  </div>
+
+  <div class="nsg-cmd"><span class="ic">💬</span><span class="tx">지시 예시 — <b>"신규 소싱처 추가 가이드 참고해서 SSF샵 추가해줘"</b><br><span class="mini">사용자는 URL 1개만 제공 · 2~6단계는 Claude 자동 수행</span></span></div>
+
+  <div class="nsg-sec">
+    <h4>STEP 2 · 수집 방식 4분면 분류 (어떻게 긁나 × 로그인 필요한가)</h4>
+    <table class="nsg-quad">
+      <tr><th style="width:14%;"></th><th>비인증(공개)</th><th>인증 필요(로그인)</th></tr>
+      <tr><th>API 방식</th><td>가장 쉬움 — 로그인 없이 내부 API(JSON) 호출</td><td>로그인 세션 + 내부 API <b>(예: 무신사 = 회원가·혜택형)</b></td></tr>
+      <tr><th>HTML 방식</th><td>API 없음 — 공개 화면(DOM) 파싱</td><td>가장 까다로움 — 로그인 + 화면 파싱</td></tr>
+    </table>
+    <div class="nsg-hint">→ <b>API 크롤링</b>(내부 요청 직접 호출)이 빠르고 안정적이라 우선. HTML 스크래핑은 화면 바뀌면 깨짐.</div>
+  </div>
+
+  <div class="nsg-sec">
+    <h4>STEP 3 · 항목별 수집 양식 — 6항목을 2축(수집 방식 × 인증)으로 분류 (예: 무신사)</h4>
+    <table class="nsg-t">
+      <thead><tr><th>항목</th><th>수집 방식</th><th>인증</th><th>위치(셀렉터/엔드포인트)</th><th>비고</th></tr></thead>
+      <tbody>
+        <tr><td class="nm">썸네일</td><td>HTML</td><td><span class="nsg-pill">비인증</span></td><td><code>.thumb img@src</code></td><td>목록</td></tr>
+        <tr><td class="nm">상품명</td><td>HTML</td><td><span class="nsg-pill">비인증</span></td><td><code>.goods_name</code></td><td>상세</td></tr>
+        <tr><td class="nm">가격(표면가)</td><td>API</td><td><span class="nsg-pill">인증</span></td><td><code>/api/goods/{id}</code></td><td>회원가</td></tr>
+        <tr><td class="nm">혜택</td><td>API</td><td><span class="nsg-pill">인증</span></td><td><code>/api/benefit/{id}</code></td><td>상품별·상세</td></tr>
+        <tr><td class="nm">옵션·재고</td><td>API</td><td><span class="nsg-pill">인증</span></td><td><code>/api/goods/{id}/options</code></td><td>색×사이즈</td></tr>
+        <tr><td class="nm">상세이미지</td><td>HTML</td><td><span class="nsg-pill">비인증</span></td><td><code>.detail_area img</code></td><td>다중</td></tr>
+      </tbody>
+    </table>
+    <div class="nsg-legend">
+      <span class="lg"><b>수집 방식</b> — HTML(화면 파싱) · API(데이터 주소 직접 호출) · 수동 · 없음</span>
+      <span class="lg"><b>인증</b> — 비인증(로그인 없이 보임) · 인증(로그인 세션 필요)</span>
+    </div>
+  </div>
+
+  <div class="nsg-sec">
+    <h4>STEP 4 · 최종 매입가 로직 (혜택 순차 차감 · 소싱처마다 상이)</h4>
+    <div id="nsgStep4"></div>
+  </div>
+
+  <div class="nsg-sec">
+    <h4>STEP 5 · 검증 크롤 → 정답 대조 (무결성)</h4>
+    <div class="nsg-integrity">샘플 URL을 실제 크롤(로그인 세션/확장 경로)해서 <b>표면가 / 혜택합 / 최종가 / 옵션·재고</b>를 뽑고, 사용자가 실제 화면에서 본 값과 <b>100% 일치</b>하는지 대조.<br>⚠️ 불일치 시 STEP 2~4로 되돌아가 셀렉터·로직 수정. <b>일치 전에는 "추가 완료" 선언 금지</b> (가격·재고 오류 = 금전 손실).</div>
+  </div>
+
+  <div class="nsg-sec">
+    <h4>용어 사전 (사용자용 풀이)</h4>
+    <div id="nsgGloss"></div>
+  </div>
+</div>
+
+<script>
+(function(){
+  /* ===== 팝오버 / 모달 열고 닫기 ===== */
+  var openBtn = document.getElementById('nsgOpenBtn');
+  var pop = document.getElementById('nsgPop');
+  var dim = document.getElementById('nsgDim');
+  var detail = document.getElementById('nsgDetail');
+  var built = false;
+
+  function placePop(){
+    var r = openBtn.getBoundingClientRect();
+    pop.style.top = (r.bottom + 10) + 'px';
+    var right = Math.max(16, window.innerWidth - r.right);
+    pop.style.right = right + 'px';
+    pop.style.left = 'auto';
+  }
+  function openPop(){ buildDetail(); pop.hidden = false; placePop(); }
+  function closePop(){ pop.hidden = true; }
+  function openDetail(){ buildDetail(); closePop(); dim.hidden = false; detail.hidden = false; }
+  function closeDetail(){ dim.hidden = true; detail.hidden = true; }
+
+  openBtn.addEventListener('click', function(e){ e.stopPropagation(); pop.hidden ? openPop() : closePop(); });
+  window.addEventListener('resize', function(){ if(!pop.hidden) placePop(); });
+  document.addEventListener('click', function(e){
+    if(!pop.hidden && !pop.contains(e.target) && e.target !== openBtn) closePop();
+  });
+  document.addEventListener('keydown', function(e){
+    if(e.key === 'Escape'){ if(!detail.hidden) closeDetail(); else closePop(); }
+  });
+  pop.querySelector('[data-nsg-close-pop]').addEventListener('click', closePop);
+  pop.querySelector('[data-nsg-open-detail]').addEventListener('click', openDetail);
+  detail.querySelector('[data-nsg-close-detail]').addEventListener('click', closeDetail);
+  dim.addEventListener('click', closeDetail);
+
+  /* ===== STEP4 (시안1 좌우 나란히) + 용어사전 (시안1 세로카드) 렌더 ===== */
+  var EX = [
+    {n:'회원 등급 할인',       way:'정률 (%)',  rule:'표면가 × 등급% (3~7%)',    ap:'상시'},
+    {n:'무신사 카드 즉시할인',  way:'결제 할인', rule:'잔액 × 5%',                ap:'선택'},
+    {n:'다운로드 쿠폰',        way:'정액·정률', rule:'− 3,000원 또는 잔액 ×10%', ap:'선택'},
+    {n:'적립금',              way:'적립 (%)',  rule:'잔액 × 1% 적립',           ap:'조건부'}
+  ];
+  function rows(blank){
+    return EX.map(function(b){
+      return blank
+        ? '<tr><td><span class="nsg-box"></span></td><td><span class="nsg-box sel"></span></td><td><span class="nsg-box"></span></td><td><span class="nsg-box sel"></span></td></tr>'
+        : '<tr><td class="nm">'+b.n+'</td><td>'+b.way+'</td><td>'+b.rule+'</td><td><span class="nsg-pill">'+b.ap+'</span></td></tr>';
+    }).join('');
+  }
+  function tbl(blank){
+    return '<table class="nsg-t"><thead><tr><th>혜택명</th><th>혜택 방식</th><th>계산 규칙</th><th>적용</th></tr></thead><tbody>'+rows(blank)+'</tbody></table>';
+  }
+  var LEGEND = '<div class="nsg-legend">'
+    +'<span class="lg"><b>정률 (%)</b> — 금액의 몇 % 할인</span>'
+    +'<span class="lg"><b>적립 (%)</b> — 몇 %를 포인트로 돌려줌</span>'
+    +'<span class="lg"><b>정액 (원)</b> — 정해진 금액만큼 할인</span>'
+    +'<span class="lg"><b>정액·정률</b> — 원/% 중 택1</span>'
+    +'<span class="lg"><b>결제 할인</b> — 특정 카드·페이 결제 시 할인</span>'
+    +'</div>';
+
+  var TERMS = [
+    {term:'HTML 스크래핑', sub:'(= 화면 긁기)',
+     abbr:'DOM = Document Object Model(문서 객체 모델) — 웹페이지를 이루는 글자·그림·표 하나하나를 가리키는 말.',
+     role:'소싱처 상품 페이지에 <b>보이는 글자·숫자를 그대로 읽어와</b> 우리 프로그램의 상품명·가격 칸에 넣는 방법.',
+     ex:'SSF 상품페이지에 <code>49,000원</code>이라 적힌 글자를 그대로 읽어 가격에 저장.'},
+    {term:'API 크롤링', sub:'(= 데이터 직접 받기)',
+     abbr:'API = Application Programming Interface(응용 프로그램 인터페이스) — 프로그램끼리 데이터를 주고받는 통로.',
+     role:'화면 글자를 읽는 대신, 소싱처 서버의 <b>“데이터 주소”에 직접 물어봐</b> 깔끔한 데이터로 받는 방법. 화면이 바뀌어도 잘 안 깨져 <b>우선 사용</b>.',
+     ex:'무신사가 <code>/api/goods/12345</code>로 가격·옵션을 한 번에 내려줌 → 거기서 바로 받음.'},
+    {term:'엔드포인트', sub:'(Endpoint)',
+     abbr:'줄임말 아님 — 뜻은 “데이터를 받아오는 주소”.',
+     role:'API로 데이터를 받을 때 <b>어디에 물어봐야 데이터가 오는지 그 주소</b>. 소싱처마다 다름.',
+     ex:'<code>/api/goods/12345</code> (상품정보) · <code>/api/goods/12345/options</code> (옵션·재고).'},
+    {term:'네트워크 요청', sub:'(XHR / Fetch)',
+     abbr:'XHR = XMLHttpRequest — 웹페이지가 뒤에서 서버에 보내는 데이터 요청. Fetch = 같은 일을 하는 최신 방식.',
+     role:'페이지가 <b>눈에 안 보이게 서버에 “데이터 줘”라고 보내는 요청</b>. 여기서 숨은 API(엔드포인트)를 찾아냄.',
+     ex:'무신사 상품페이지를 열면 뒤에서 가격 API를 자동 요청 → 그 요청을 우리가 잡음.'},
+    {term:'JSON 응답', sub:'',
+     abbr:'JSON = JavaScript Object Notation — 데이터를 칸칸이 정리해 담은 글자 묶음.',
+     role:'API에 물어보면 돌아오는 <b>“정리된 데이터 덩어리”</b>. 우리 프로그램이 가격·옵션만 골라 담기 쉬움.',
+     ex:'<code>{"price":49000,"soldout":false}</code> → price 값 49000을 가격에 저장.'},
+    {term:'개발자도구 Network 탭', sub:'',
+     abbr:'줄임말 아님 — 크롬에서 <code>F12</code>를 누르면 나오는 도구의 한 칸.',
+     role:'페이지가 주고받는 <b>모든 네트워크 요청을 볼 수 있는 곳</b>. 숨은 API를 찾는 장소.',
+     ex:'<code>F12</code> → Network → 상품 새로고침 → “goods” 들어간 요청 클릭 → 가격 데이터 발견.'},
+    {term:'인증', sub:'(세션·쿠키·토큰)',
+     abbr:'세션·쿠키·토큰 = “내가 로그인했다”는 것을 증명하는 표(딱지).',
+     role:'회원만 보이는 <b>회원가·혜택을 받으려면 “나 로그인했음” 증명이 필요</b>. 그 증명이 인증.',
+     ex:'무신사 회원가를 보려면 로그인 쿠키가 있어야 함 → 크롬 확장으로 로그인 상태에서 크롤.'},
+    {term:'SSR / CSR', sub:'',
+     abbr:'SSR = Server-Side Rendering(서버가 화면을 미리 완성해 보냄) / CSR = Client-Side Rendering(브라우저가 나중에 데이터를 채워 그림).',
+     role:'값이 HTML에 <b>이미 박혀오면(SSR) 화면 긁기 쉬움</b>. <b>나중에 채워지면(CSR) API를 잡아야 함</b>. 수집 방법을 고르는 기준.',
+     ex:'SSR이면 페이지 소스에 <code>49,000</code>이 그대로 보임 / CSR이면 소스엔 없고 API로만 옴.'},
+    {term:'셀렉터', sub:'(Selector)',
+     abbr:'줄임말 아님 — 뜻은 “HTML 안에서 값의 위치 표시”.',
+     role:'화면 긁기(HTML)를 할 때 <b>가격이 어디 있는지 콕 집어주는 위치 표</b>. 소싱처마다 다름.',
+     ex:'<code>.price-area .amount</code> → 그 위치의 글자(49,000)를 가격으로 가져옴.'}
+  ];
+
+  function buildDetail(){
+    if(built) return;
+    document.getElementById('nsgStep4').innerHTML =
+      '<div class="nsg-tplgrid">'
+      + '<div><div class="nsg-st">① 빈 양식 — Claude가 소싱처마다 채움</div>'+tbl(true)+'</div>'
+      + '<div><div class="nsg-st">② 채워진 예시 — 무신사</div>'+tbl(false)+'</div>'
+      + '</div><div class="nsg-hint">양식(칸)은 같지만 채워지는 내용은 소싱처마다 다릅니다.</div>'+LEGEND;
+
+    document.getElementById('nsgGloss').innerHTML = TERMS.map(function(t){
+      return '<div class="nsg-qa">'
+        + '<div class="q"><span class="bub">Q</span>'+t.term+' '+t.sub+' 가(이) 뭐예요?</div>'
+        + '<div class="blk"><div class="nsg-lab">우리 프로그램에서의 역할</div><div class="role">'+t.role+'</div></div>'
+        + '<div class="blk"><div class="nsg-lab">줄임말 풀이 · 정의</div><div class="abbr">'+t.abbr+'</div></div>'
+        + '<div class="blk"><div class="nsg-lab">예시</div><div class="ex">'+t.ex+'</div></div>'
+        + '</div>';
+    }).join('');
+    built = true;
+  }
+})();
+</script>
 {% endblock %}
