@@ -992,3 +992,107 @@ def add_override_to_bundle(source_id: int):
         return _ok(added=added, skus=skus)
     finally:
         s.close()
+
+
+@bp.post('/delete-scoped')
+def delete_scoped():
+    """혜택을 범위(scope)별로 삭제 — 해당 옵션 / 이 모음전 전체 / 소싱처 전체.
+
+    payload: {
+      source_id: int,
+      benefit_name: str,            # 매칭 기준 (필수)
+      scope: 'option'|'bundle'|'source',
+      canonical_sku?: str,          # option scope
+      bundle_code?: str,            # bundle scope (model_code/group_code)
+      template_id?: int,            # source scope 에서 템플릿도 삭제
+    }
+    동작:
+      - 매칭되는 OptionBenefitOverride 행 삭제 (scope 에 해당하는 옵션들).
+      - source scope: 같은 이름 SourceBenefitTemplate 도 삭제.
+      - option/bundle scope 인데 소싱처 공통 템플릿이 존재하면, 대상 옵션에
+        '비활성(enabled=0) override' 를 만들어 그 범위에서만 안 보이게 처리
+        (템플릿은 소싱처 전체 공유라 행 자체는 못 지움 — 토글 OFF 와 동일 패턴).
+    """
+    data = request.get_json(silent=True) or {}
+    try:
+        source_id = int(data.get('source_id'))
+    except (TypeError, ValueError):
+        return _err('source_id 정수 필수')
+    nm = (data.get('benefit_name') or '').strip()
+    if not nm:
+        return _err('benefit_name 필수')
+    scope = data.get('scope')
+    if scope not in ('option', 'bundle', 'source'):
+        return _err("scope 는 option|bundle|source")
+    canonical_sku = (data.get('canonical_sku') or '').strip() or None
+    bundle_code = (data.get('bundle_code') or '').strip() or None
+    template_id = data.get('template_id')
+
+    s = SessionLocal()
+    try:
+        # ── 대상 옵션 sku 결정 ──
+        target_skus = None  # None = 전체(source scope)
+        if scope == 'option':
+            if not canonical_sku:
+                return _err('option scope 는 canonical_sku 필수')
+            target_skus = [canonical_sku]
+        elif scope == 'bundle':
+            from webapp.routes.api_benefits_crud import _options_by_bundle_code
+            if not bundle_code:
+                return _err('bundle scope 는 bundle_code 필수')
+            target_skus = [o['sku'] for o in _options_by_bundle_code(s, bundle_code)]
+            if not target_skus:
+                return _err('bundle scope 대상 옵션 0건 (bundle_code 확인)')
+
+        # ── ① 매칭 override 삭제 ──
+        q = s.query(OptionBenefitOverride).filter_by(source_id=source_id, benefit_name=nm)
+        if target_skus is not None:
+            q = q.filter(OptionBenefitOverride.canonical_sku.in_(target_skus))
+        rows = q.all()
+        deleted_ovr = len(rows)
+        for r in rows:
+            s.delete(r)
+        s.flush()  # 삭제 반영 (③ 의 중복 체크 정확성)
+
+        # ── ② 소싱처 전체: 템플릿도 삭제 ──
+        deleted_tpl = 0
+        if scope == 'source':
+            tpls = (s.query(SourceBenefitTemplate)
+                    .filter_by(source_id=source_id, benefit_name=nm).all())
+            if not tpls and template_id:
+                tpl = s.get(SourceBenefitTemplate, template_id)
+                if tpl:
+                    tpls = [tpl]
+            for t in tpls:
+                s.delete(t)
+                deleted_tpl += 1
+
+        # ── ③ option/bundle scope + 소싱처 공통 템플릿 존재 → 비활성 override 로 숨김 ──
+        disabled = 0
+        if scope in ('option', 'bundle'):
+            tpl = (s.query(SourceBenefitTemplate)
+                   .filter_by(source_id=source_id, benefit_name=nm).first())
+            if tpl:
+                for sku in target_skus:
+                    has = (s.query(OptionBenefitOverride)
+                           .filter_by(source_id=source_id, canonical_sku=sku, benefit_name=nm)
+                           .first())
+                    if not has:
+                        s.add(OptionBenefitOverride(
+                            canonical_sku=sku, source_id=source_id,
+                            template_id=tpl.id, benefit_name=nm,
+                            benefit_type=tpl.benefit_type, value=tpl.value,
+                            enabled=0, sort_order=999,
+                        ))
+                        disabled += 1
+
+        s.commit()
+        return _ok(
+            scope=scope,
+            deleted_overrides=deleted_ovr,
+            deleted_templates=deleted_tpl,
+            hidden_via_disabled=disabled,
+            affected=(len(target_skus) if target_skus is not None else 'all'),
+        )
+    finally:
+        s.close()

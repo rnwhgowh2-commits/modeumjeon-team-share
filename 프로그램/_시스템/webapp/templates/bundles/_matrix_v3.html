@@ -3699,55 +3699,126 @@
       }
     });
   };
-  window.smCellDel = async function(btn, sku, srcId) {
+  // 🗑 삭제 — B2 범위 카드 모달 (해당 옵션 / 이 모음전 전체 / 소싱처 전체)
+  window.smCellDel = function(btn, sku, srcId) {
     const row = btn.closest('.cell-fx-row');
     const bid = parseInt(row.dataset.bid, 10);
     const kind = row.dataset.bkind;
     if (!bid || bid < 0) return;  // 크롤 동적 항목(id<0)은 삭제 불가 — 토글만
-    // kind 로 엔드포인트 라우팅: tpl → 소싱처 공통 템플릿, ovr/ovr_new → 옵션 override
-    const isTpl = (kind === 'tpl');
-    const ep = isTpl ? `/api/source-benefits/templates/${bid}` : `/api/source-benefits/overrides/${bid}`;
-    const msg = isTpl
-      ? '이 소싱처 공통 혜택(템플릿)을 삭제할까요?\n→ 이 소싱처의 모든 옵션에서 사라집니다.'
-      : '이 옵션 혜택을 삭제할까요?';
-    if (!confirm(msg)) return;
-    try {
-      const r = await fetch(ep, { method:'DELETE' });
-      const j = await r.json();
-      if (j.ok) smRefreshFxInPlace(sku, srcId);
-      else alert('삭제 실패: ' + (j.error || ''));
-    } catch(err) { alert('삭제 오류: ' + err.message); }
+    const benefitName = row.querySelector('.nm')?.textContent.trim() || '';
+    smOpenDeleteScopeModal({ benefitName, sku, srcId, kind, templateId: bid });
   };
-  // ✎ 값 수정 — 기존 혜택의 값(%/원)만 바꿈. kind 로 PUT 라우팅(tpl=소싱처 공통, ovr=옵션 단독).
-  window.smCellEdit = async function(btn, sku, srcId) {
+
+  // 🗑 범위별 삭제 모달 (시안 B2)
+  window.smOpenDeleteScopeModal = function({ benefitName, sku, srcId, kind, templateId }) {
+    const bundleCount = (typeof DATA !== 'undefined' && DATA?.options?.length) || 0;
+    const bundleCode = (typeof BUNDLE_CODE !== 'undefined') ? BUNDLE_CODE : '';
+    const ov = document.createElement('div');
+    ov.className = 'del-scope-overlay';
+    ov.innerHTML = `
+      <div class="del-scope-modal" role="dialog" aria-modal="true">
+        <h3>🗑 "${escapeHtml(benefitName)}" 삭제</h3>
+        <div class="dsm-sub">어느 범위에서 삭제할까요?</div>
+        <button type="button" class="dsm-card on" data-scope="option">
+          <span class="dsm-rdo"></span>
+          <span class="dsm-ttl">해당 옵션만<small>${escapeHtml(sku)}</small></span>
+          <span class="dsm-badge">1</span>
+        </button>
+        <button type="button" class="dsm-card" data-scope="bundle">
+          <span class="dsm-rdo"></span>
+          <span class="dsm-ttl">이 모음전 전체<small>${escapeHtml(bundleCode)}</small></span>
+          <span class="dsm-badge">${bundleCount}</span>
+        </button>
+        <button type="button" class="dsm-card" data-scope="source">
+          <span class="dsm-rdo"></span>
+          <span class="dsm-ttl">소싱처 전체<small>이 소싱처 모든 모음전</small></span>
+          <span class="dsm-badge">다수</span>
+        </button>
+        <div class="dsm-acts">
+          <button type="button" data-act="cancel">취소</button>
+          <button type="button" class="danger" data-act="apply">해당 옵션만 삭제 (1)</button>
+        </div>
+      </div>`;
+    document.body.appendChild(ov);
+    let scope = 'option';
+    const applyBtn = ov.querySelector('[data-act="apply"]');
+    const labels = { option: '해당 옵션만 삭제 (1)', bundle: `이 모음전 ${bundleCount}개에서 삭제`, source: '소싱처 전체에서 삭제' };
+    ov.querySelectorAll('.dsm-card').forEach(c => c.addEventListener('click', () => {
+      ov.querySelectorAll('.dsm-card').forEach(x => x.classList.remove('on', 'red'));
+      c.classList.add('on');
+      scope = c.dataset.scope;
+      if (scope !== 'option') c.classList.add('red');
+      applyBtn.textContent = labels[scope];
+    }));
+    const close = () => ov.remove();
+    ov.addEventListener('click', e => { if (e.target === ov) close(); });
+    ov.querySelector('[data-act="cancel"]').addEventListener('click', close);
+    applyBtn.addEventListener('click', async () => {
+      applyBtn.disabled = true;
+      const orig = applyBtn.textContent;
+      applyBtn.textContent = '삭제 중...';
+      try {
+        const r = await fetch('/api/source-benefits/delete-scoped', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            source_id: srcId, benefit_name: benefitName, scope,
+            canonical_sku: sku, bundle_code: bundleCode,
+            template_id: kind === 'tpl' ? templateId : null,
+          }),
+        });
+        const j = await r.json();
+        if (!j.ok) { alert('삭제 실패: ' + (j.error || '오류')); applyBtn.disabled = false; applyBtn.textContent = orig; return; }
+        close();
+        if (scope !== 'option' && typeof window.reloadMatrix === 'function') window.reloadMatrix();
+        else smRefreshFxInPlace(sku, srcId);
+      } catch (err) { alert('삭제 오류: ' + err.message); applyBtn.disabled = false; applyBtn.textContent = orig; }
+    });
+  };
+
+  // ✎ 값 수정 — A1 인라인 편집. 행의 값(.val)을 입력칸으로 바꿔 즉시 수정.
+  window.smCellEdit = function(btn, sku, srcId) {
     const row = btn.closest('.cell-fx-row');
     const bid = parseInt(row.dataset.bid, 10);
     const kind = row.dataset.bkind;
     if (!bid || bid < 0) return;  // 크롤 동적 항목(id<0)은 수정 불가 — 토글만
+    if (row.querySelector('.inline-edit')) return;  // 이미 편집 중
     const bType = row.dataset.btype || 'rate';
     const bVal = parseFloat(row.dataset.bval || '0');
-    const benefitName = row.querySelector('.nm')?.textContent.trim() || '';
     const isTpl = (kind === 'tpl');
     const unit = bType === 'rate' ? '%' : '원';
     const curDisp = bType === 'rate' ? +(bVal * 100).toFixed(4) : Math.round(bVal);
-    const warn = isTpl
-      ? '\n\n⚠ 소싱처 공통 혜택(템플릿) — 이 소싱처의 모든 옵션에 반영됩니다.'
-      : '';
-    const raw = prompt(`"${benefitName}" 값 수정 (${unit})${warn}`, String(curDisp));
-    if (raw == null) return;
-    const num = parseFloat(String(raw).replace(/[^0-9.]/g, ''));
-    if (isNaN(num) || num < 0) { alert('0 이상의 숫자를 입력해주세요'); return; }
-    const value = bType === 'rate' ? num / 100 : num;
-    const ep = isTpl ? `/api/source-benefits/templates/${bid}` : `/api/source-benefits/overrides/${bid}`;
-    try {
-      const r = await fetch(ep, {
-        method: 'PUT', headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({ value }),
-      });
-      const j = await r.json();
-      if (j.ok) smRefreshFxInPlace(sku, srcId);
-      else alert('수정 실패: ' + (j.error || '오류'));
-    } catch(err) { alert('수정 오류: ' + err.message); }
+    const valEl = row.querySelector('.val');
+    if (!valEl) return;
+    const origHtml = valEl.innerHTML;
+    const tplTag = isTpl ? '<span class="ie-tpl" title="소싱처 공통 — 모든 옵션에 반영됩니다">공통</span>' : '';
+    valEl.innerHTML = `<span class="inline-edit">${tplTag}
+        <input type="text" class="ie-input" value="${curDisp}" inputmode="decimal">
+        <span class="ie-u">${unit}</span>
+        <button type="button" class="ie-ic ok" title="저장">✓</button>
+        <button type="button" class="ie-ic no" title="취소">✕</button>
+      </span>`;
+    const input = valEl.querySelector('.ie-input');
+    input.focus(); input.select();
+    const restore = () => { valEl.innerHTML = origHtml; };
+    const save = async () => {
+      const num = parseFloat(String(input.value).replace(/[^0-9.]/g, ''));
+      if (isNaN(num) || num < 0) { input.style.borderColor = '#F04452'; input.focus(); return; }
+      const value = bType === 'rate' ? num / 100 : num;
+      const ep = isTpl ? `/api/source-benefits/templates/${bid}` : `/api/source-benefits/overrides/${bid}`;
+      try {
+        const r = await fetch(ep, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ value }) });
+        const j = await r.json();
+        if (j.ok) smRefreshFxInPlace(sku, srcId);
+        else { alert('수정 실패: ' + (j.error || '오류')); restore(); }
+      } catch (err) { alert('수정 오류: ' + err.message); restore(); }
+    };
+    valEl.querySelector('.ie-ic.ok').addEventListener('click', e => { e.stopPropagation(); save(); });
+    valEl.querySelector('.ie-ic.no').addEventListener('click', e => { e.stopPropagation(); restore(); });
+    input.addEventListener('click', e => e.stopPropagation());
+    input.addEventListener('keydown', e => {
+      if (e.key === 'Enter') { e.preventDefault(); save(); }
+      else if (e.key === 'Escape') { e.preventDefault(); restore(); }
+    });
   };
   window.smCellAdd = async function(sku, srcId, bundleScope) {
     const scopeTxt = bundleScope ? '모음전 전체 (' + ((DATA.options||[]).length) + ' 옵션)' : '이 옵션만';
