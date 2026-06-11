@@ -3039,7 +3039,7 @@
   text-transform: none;
 }
 .cell-fx-row {
-  display: grid; grid-template-columns: 30px 1fr 80px 22px;
+  display: grid; grid-template-columns: 30px 1fr 80px 22px 22px;
   gap: 8px; align-items: center; padding: 6px 0; font-size: 13.5px;
 }
 .cell-fx-row .tg {
@@ -3071,6 +3071,12 @@
   transition: color .12s;
 }
 .cell-fx-row .del:hover { color: #EF4444; }
+.cell-fx-row .edit {
+  background: transparent; border: none; color: #8B95A1;
+  font-size: 13px; cursor: pointer; padding: 0; line-height: 1; width: 22px;
+  transition: color .12s;
+}
+.cell-fx-row .edit:hover { color: #3182F6; }
 .cell-fx-pop .pop-add {
   padding: 8px 12px; background: #fff; border: 1.5px dashed #D1D6DB;
   color: #6B7684; border-radius: 8px; font-size: 14px; font-weight: 600;
@@ -3394,6 +3400,11 @@
   font-size: 14px; cursor: pointer; background: transparent; border: none; padding: 0;
 }
 .fxpop-v2 .cell-fx-ben .cell-fx-row .del:hover { color: #F04452; }
+.fxpop-v2 .cell-fx-ben .cell-fx-row .edit {
+  flex: 0 0 18px; width: 18px; text-align: center; color: #C4CCD4;
+  font-size: 14px; cursor: pointer; background: transparent; border: none; padding: 0;
+}
+.fxpop-v2 .cell-fx-ben .cell-fx-row .edit:hover { color: #3182F6; }
 /* 토글 스위치 — 34×20, knob 16 */
 .fxpop-v2 .cell-fx-row .tg {
   width: 34px; height: 20px; border-radius: 20px; background: #CDD3DA;

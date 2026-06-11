@@ -268,7 +268,10 @@
       scope: scope,
       source_id: parseInt(form.dataset.sourceId, 10),
       canonical_sku: form.dataset.sku || null,
-      bundle_id: form.dataset.bundleId ? parseInt(form.dataset.bundleId, 10) : null,
+      // bundle_id 는 정수 PK(있으면), bundle_code 는 모음전 코드(model_code/group_code).
+      // 실제 옵션↔모음전 매핑은 코드 기반이므로 코드도 함께 전송 (bundle scope 해석용).
+      bundle_id: (form.dataset.bundleId && /^\d+$/.test(form.dataset.bundleId)) ? parseInt(form.dataset.bundleId, 10) : null,
+      bundle_code: form.dataset.bundleCode || form.dataset.bundleId || null,
     };
 
     saveBtn.disabled = true;
