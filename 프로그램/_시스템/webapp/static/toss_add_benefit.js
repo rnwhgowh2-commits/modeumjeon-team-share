@@ -17,8 +17,8 @@
 (function() {
   'use strict';
 
-  // scope bar 채움 단계 (영향도)
-  const SCOPE_FILLS = { option: 1, color: 2, bundle: 3, source: 4 };
+  // _matrix_v3.html 의 .sp-row 위임이 추가 폼 preview 를 갱신할 수 있도록 노출
+  window._tossUpdateAddPreview = function(form) { if (form) updatePreview(form); };
 
   // ─── popover 안 + 추가 버튼 클릭 → 폼 toggle ───────────
   document.addEventListener('click', function(e) {
@@ -166,21 +166,13 @@
     if (catSel) catSel.value = '정률';
     // 단위 기본 = % (정률)
     setUnit(form, 'rate');
-    // scope 기본 = 모음전 전체 (bundle)
-    const drop = form.querySelector('.b2-drop');
-    if (drop) {
-      drop.dataset.active = 'bundle';
-      drop.classList.remove('open');
-      drop.querySelectorAll('.b2-opt').forEach(o => o.classList.toggle('on', o.dataset.scope === 'bundle'));
-      const bundleOpt = drop.querySelector('.b2-opt[data-scope=bundle]');
-      if (bundleOpt) {
-        drop.querySelector('.b2-selected .b2-lbl').textContent = bundleOpt.querySelector('.b2-opt-lbl').textContent;
-        drop.querySelector('.b2-selected .b2-cnt').textContent = bundleOpt.querySelector('.b2-opt-cnt').textContent.replace(' 옵션', '');
-      }
-      // 게이지 3 칸 채움 (bundle)
-      drop.querySelectorAll('.b2-bars .b2-bar').forEach((bar, i) => {
-        bar.className = 'b2-bar' + (i < 3 ? ' on b2-bundle' : '');
-      });
+    // scope 기본 = 모음전 전체 (bundle) — 세로 카드 picker
+    const host = form.querySelector('.sp-host');
+    if (host) {
+      host.dataset.skus = '[]';
+      host.querySelectorAll('.sp-row').forEach(r => r.classList.toggle('on', r.dataset.scope === 'bundle'));
+      const selAct = host.querySelector('.sp-row[data-scope=select] .sp-act');
+      if (selAct) selAct.textContent = '선택 →';
     }
     updatePreview(form);
   }
@@ -204,24 +196,26 @@
     const val = parseFloat(valStr.replace(/[^0-9.]/g, ''));
     const typeEl = form.querySelector('.pill.on');
     const type = typeEl?.dataset.type || 'rate';
-    const drop = form.querySelector('.b2-drop');
-    const scope = drop?.dataset.active || 'bundle';
+    const host = form.querySelector('.sp-host');
+    const st = window.readScopePicker ? window.readScopePicker(host) : {scope:'bundle', skus:[]};
+    const scope = st.scope;
 
     const cntBundle = parseInt(form.dataset.optionCountBundle, 10) || 0;
-    const cntColor = parseInt(form.dataset.optionCountColor, 10) || 0;
     const sourceName = form.dataset.sourceName || '소싱처';
 
     // 영향 요약 텍스트
     const summaryMap = {
       option: `이 옵션만 (1 옵션)`,
-      color: `동일 컬러 (${cntColor} 옵션)`,
+      select: `옵션 매트릭스 직접 선택 (${st.skus.length} 옵션)`,
       bundle: `모음전 전체 (${cntBundle} 옵션)`,
-      source: `${sourceName} 소싱처 전체 (다수 모음전)`,
+      bundle_all_src: `해당 모음전 소싱처 전체 (다수)`,
+      source: `프로그램 소싱처 전체 (${sourceName})`,
     };
     const noteMap = {
       option: ' · 다른 옵션 영향 없음',
-      color: ' · 다른 컬러 영향 없음',
+      select: ' · 선택한 옵션만',
       bundle: ' · 다른 모음전 영향 없음',
+      bundle_all_src: ' · 이 모음전 전 소싱처',
       source: ' · 다수 모음전 영향',
     };
     const summaryEl = form.querySelector('.impact-preview .scope-summary');
@@ -258,7 +252,14 @@
     const val = parseFloat(form.querySelector('input[name=value]').value.replace(/[^0-9.]/g, ''));
     const type = form.querySelector('.unit-pills .pill.on')?.dataset.type || 'rate';
     const category = form.querySelector('.cat-select')?.value || null;
-    const scope = form.querySelector('.b2-drop')?.dataset.active || 'bundle';
+    const host = form.querySelector('.sp-host');
+    const st = window.readScopePicker ? window.readScopePicker(host) : {scope:'bundle', skus:[]};
+    const scope = st.scope;
+    if (scope === 'select' && !st.skus.length) {
+      alert('옵션을 먼저 선택하세요 ("옵션 매트릭스 직접 선택" 클릭)');
+      return;
+    }
+    const sources = (window.DATA && window.DATA.sources) || [];
 
     const payload = {
       name: name,
@@ -272,6 +273,8 @@
       // 실제 옵션↔모음전 매핑은 코드 기반이므로 코드도 함께 전송 (bundle scope 해석용).
       bundle_id: (form.dataset.bundleId && /^\d+$/.test(form.dataset.bundleId)) ? parseInt(form.dataset.bundleId, 10) : null,
       bundle_code: form.dataset.bundleCode || form.dataset.bundleId || null,
+      skus: scope === 'select' ? st.skus : undefined,
+      source_ids: scope === 'bundle_all_src' ? sources.map(x => x.source_id != null ? x.source_id : x.id) : undefined,
     };
 
     saveBtn.disabled = true;
