@@ -1109,7 +1109,7 @@ def set_value_scoped():
         elif scope in ('bundle', 'bundle_all_src'):
             if not bundle_code:
                 return _err('bundle 계열 scope 는 bundle_code 필수')
-            skus = [o['sku'] for o in _options_by_bundle_code(s, bundle_code)]
+            skus = [o['sku'] for o in _options_by_bundle_code(s, bundle_code, active_only=True)]
         else:
             return _err('scope 미허용')
         if not skus:

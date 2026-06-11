@@ -97,11 +97,15 @@ def _option_bundle_id(session, canonical_sku: str) -> int | None:
     return int(row[0]) if row else None
 
 
-def _options_by_bundle_code(session, code: str, color_filter: str | None = None) -> list[dict]:
+def _options_by_bundle_code(session, code: str, color_filter: str | None = None,
+                            active_only: bool = False) -> list[dict]:
     """모음전 코드(model_code 또는 group_code) → 소속 옵션 (canonical_sku, color).
 
     실제 옵션↔모음전 매핑은 Option.model_code 기반 (매트릭스 bundles.bundle_edit 와 동일).
     bundle_options 정션 테이블은 미사용/빈 상태라 여기선 쓰지 않는다.
+
+    active_only=True → is_active 옵션만 (혜택 추가/수정의 bundle 계열 scope 용 —
+    비활성 옵션엔 혜택 안 검). 삭제 등 정리 경로는 기본(False, 전체)으로 둔다.
     """
     from lemouton.sourcing.models import Model, Option, BundleGroup
     m = session.query(Model).filter_by(model_code=code).first()
@@ -116,6 +120,8 @@ def _options_by_bundle_code(session, code: str, color_filter: str | None = None)
     out = []
     for o in q.all():
         if not o.canonical_sku:
+            continue
+        if active_only and getattr(o, 'is_active', True) is False:
             continue
         color = getattr(o, 'color_display', None)
         if color_filter and color != color_filter:
@@ -259,7 +265,7 @@ def add_benefit():
                 return _err('bundle_all_src scope 는 source_ids[] 필수')
             if not bundle_code:
                 return _err('bundle_all_src 대상 옵션 0건 (bundle_code 필수)')
-            base = [o['sku'] for o in _options_by_bundle_code(session, bundle_code)]
+            base = [o['sku'] for o in _options_by_bundle_code(session, bundle_code, active_only=True)]
             if not base:
                 return _err('bundle_all_src 대상 옵션 0건 (bundle_code 확인)')
             # ★ 성능: 행마다 flush 금지 — 벌크 insert 1회 (sku×source 대량 대응)
@@ -277,9 +283,9 @@ def add_benefit():
                        table='option_benefit_overrides')
 
         elif scope == 'bundle':
-            # ① 모음전 코드 기반 (실제 매핑 = Option.model_code) — 우선
+            # ① 모음전 코드 기반 (실제 매핑 = Option.model_code) — 우선. 활성 옵션만.
             if bundle_code:
-                target_skus = [o['sku'] for o in _options_by_bundle_code(session, bundle_code)]
+                target_skus = [o['sku'] for o in _options_by_bundle_code(session, bundle_code, active_only=True)]
             # ② 코드 없거나 0건 → 레거시 bundle_options 정션 경로 (구 데이터 호환)
             if not target_skus:
                 if not bundle_id and canonical_sku:
