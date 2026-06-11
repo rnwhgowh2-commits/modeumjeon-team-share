@@ -3405,25 +3405,51 @@
       : '';
     const _isMusinsa = String(srcId) === '3';
     const _saleLbl = _isMusinsa ? '무신사 표면 할인가 (사이트 노출가)' : '소싱처 판매가';
-    // ★ 2026-06-06 — 상단 영수증: 소싱처 판매가 → 적용 혜택 → 혜택 적용가 (하단 '매입가' 박스 폐지).
-    //   적용 혜택 = _deductSum (= 소싱처 판매가 - 혜택 적용가, 순차 차감이므로 정확히 일치).
-    const saleHtml = `
-      <div class="cf-receipt">
+    // 동그라미 베이스금액 번호 (①~⑨, 초과 시 'N')
+    const _circ = (n) => ['', '①', '②', '③', '④', '⑤', '⑥', '⑦', '⑧', '⑨'][n] || String(n);
+    // ★ 2026-06-11 — 영수증을 단계별 '베이스금액' 노출형으로 (무신사 영수증 가이드 방식).
+    //   엔진(final_price.py)이 steps[].base_after(차감 후 누적 베이스)를 주므로 그대로 표시.
+    //   각 차감 단계 뒤에 다음 % 혜택의 곱셈 기준이 되는 '베이스금액 ①②…' 줄을 끼움.
+    //   마지막 단계 뒤는 베이스금액 줄 생략 (= 혜택 적용가와 동일).
+    const _steps = (j.steps || []);
+    let _rcLines = `
         <div class="cf-rc-ln">
           <span class="lbl">${_saleLbl}</span>
           <span class="num">${(j.sale_price||0).toLocaleString('ko-KR')}원</span>
-        </div>
-        <div class="cf-rc-ln disc">
-          <span class="lbl">적용 혜택</span>
-          <span class="num">-${_deductSum.toLocaleString('ko-KR')}원</span>
-        </div>
+        </div>`;
+    let _baseNo = 0;
+    _steps.forEach((st, i) => {
+      const _isLast = (i === _steps.length - 1);
+      const _pct = (st.type === 'rate')
+        ? ` <span class="rc-pct">(${(st.value * 100).toFixed(2)}%)</span>` : '';
+      _rcLines += `
+        <div class="cf-rc-ln sub">
+          <span class="lbl">└ ${escapeHtml(st.name)}${_pct}</span>
+          <span class="num">-${(st.deduct || 0).toLocaleString('ko-KR')}원</span>
+        </div>`;
+      if (!_isLast) {
+        _baseNo += 1;
+        const _nx = _steps[i + 1];
+        const _tag = (_nx && _nx.type === 'rate')
+          ? `<span class="tag">${(_nx.value * 100).toFixed(2)}% 기준</span>` : '';
+        _rcLines += `
+        <div class="cf-rc-ln base">
+          <span class="lbl">베이스금액 ${_circ(_baseNo)}${_tag}</span>
+          <span class="num">${(st.base_after || 0).toLocaleString('ko-KR')}원</span>
+        </div>`;
+      }
+    });
+    const saleHtml = `
+      <div class="cf-receipt">
+        ${_rcLines}
         <div class="cf-rc-div"></div>
         <div class="cf-rc-ln fin">
           <span class="lbl">혜택 적용가</span>
           <span class="num">${(j.final_price||0).toLocaleString('ko-KR')}원</span>
         </div>
       </div>
-      ${_cardChipHtml ? `<div class="cf-chip-row">${_cardChipHtml}</div>` : ''}`;
+      ${_cardChipHtml ? `<div class="cf-chip-row">${_cardChipHtml}</div>` : ''}
+      <hr class="cf-phase-sep">`;
     // ★ 2026-06-05 v3 — 혜택을 3그룹으로 (쿠폰 / 등급·적립 / 결제 방식 택1).
     //   결제 수단(카드/페이/네이버/무신사머니/청구할인/캐시백)은 택1 그룹(라디오). 적립류는 누적(토글).
     //   무신사: 등급적립·무신사머니는 compute_breakdown 이 크롤 breakdown 에서 항목으로 주입.
@@ -3450,10 +3476,16 @@
     const _valHtml = (it, blue) => {
       const isRate = it.type === 'rate';
       const valDisp = isRate ? (it.value * 100).toFixed(2) + '%' : Math.round(it.value).toLocaleString('ko-KR') + '원';
-      const ded = it.enabled ? (j.steps.find(s => s.name === it.name)?.deduct || 0) : 0;
-      return it.enabled
-        ? `<span class="n${blue ? ' blue' : ''}">-${ded.toLocaleString('ko-KR')}원</span> <span class="rt">(${valDisp})</span>`
-        : `<span class="rt">${valDisp}</span>`;
+      if (!it.enabled) return `<span class="rt">${valDisp}</span>`;
+      // 정률 혜택은 어느 '베이스금액'에 곱했는지 표기 (앞선 차감 단계 수 = 베이스 번호; 0이면 판매가).
+      const _si = j.steps.findIndex(s => s.name === it.name);
+      const ded = _si >= 0 ? (j.steps[_si].deduct || 0) : 0;
+      let _ref = `(${valDisp})`, _refCls = 'rt';
+      if (isRate && _si >= 0) {
+        _ref = (_si === 0) ? `${_saleLbl} × ${valDisp}` : `베이스금액 ${_circ(_si)} × ${valDisp}`;
+        _refCls = 'rt ref';
+      }
+      return `<span class="n${blue ? ' blue' : ''}">-${ded.toLocaleString('ko-KR')}원</span> <span class="${_refCls}">${_ref}</span>`;
     };
     const _rowHtml = (it) => `<div class="cell-fx-row ${it.enabled ? 'on' : 'off'}" data-bid="${it.id}" data-bkind="${it.kind}" data-bval="${it.value != null ? it.value : 0}" data-btype="${it.type || 'rate'}"><div class="tg" onclick="smCellTog(this)"></div><span class="nm">${escapeHtml(it.name)}</span><span class="val">${_valHtml(it, false)}</span>${_editBtn(it)}${_delBtn(it)}</div>`;
     // 결제 방식 = 택1 선택 카드 (B 시안). 활성 = 파란 테두리 + 체크(✓).
