@@ -182,7 +182,7 @@
         `<div class="cf-rc-div"></div><div class="cf-rc-ln fin"><span class="lbl">최종 매입가</span><span class="num">${j.final_price.toLocaleString()}원</span></div>`
       : '';
     const save=`<div style="margin-top:11px;display:flex;align-items:center;gap:10px;">`+
-      `<button id="sg-kw-save" style="background:#191F28;color:#fff;border:none;border-radius:8px;padding:8px 14px;font-size:12px;font-weight:700;cursor:pointer;">✓ 검증 통과 → ① 기준 샘플 URL에 저장</button>`+
+      `<button id="sg-kw-save" style="background:#191F28;color:#fff;border:none;border-radius:8px;padding:8px 14px;font-size:12px;font-weight:700;cursor:pointer;">✓ 이 검증 결과 저장</button>`+
       `<span id="sg-kw-save-msg" style="font-size:11.5px;color:#6B7684;"></span></div>`;
     return `<div class="fxpop" style="margin-top:13px;"><div class="body"><div class="cf-receipt">${rows}${price}</div></div></div>${save}`;
   }
@@ -198,29 +198,43 @@
         const r=await fetch(`/sourcing-guide/api/${sid}/gate-preview`,{method:'POST',
           headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)});
         const j=await r.json();
+        window.__lastGate = j.ok ? j : null;   // 저장에 사용
         kwRes.innerHTML = j.ok ? kwReceipt(j) : `<div class="muted">검증 실패: ${j.message||j.error||''}</div>`;
       }catch(err){ kwRes.innerHTML=`<div class="muted">오류: ${err}</div>`; }
     });
   }
 
-  // ✓ 저장 — 검증 통과한 ④ URL 을 ① 기준 샘플 URL 에 추가 (중복 방지)
+  // ✓ 저장 — 검증 결과를 '저장된 검증' 리스트(우측)에 누적 + ① 동시 등록 (시안 2-C)
+  function nameFromUrl(u){ const m=(u||'').match(/\/products\/(\d+)/); return m? ('상품 '+m[1]) : (u||'검증'); }
   document.addEventListener('click', async e=>{
     if(!e.target || e.target.id!=='sg-kw-save') return;
     const btn=e.target, msg=document.getElementById('sg-kw-save-msg');
     const url=document.getElementById('sg-verify-url').value.trim();
-    if(!url){ if(msg) msg.textContent='① 검증할 URL 칸에 URL 을 먼저 넣어주세요.'; return; }
+    const g=window.__lastGate;
+    if(!g){ if(msg) msg.textContent='먼저 키워드 게이트 검증을 실행하세요.'; return; }
+    const applied=(g.gated||[]).filter(x=>x.applied).length;
+    const excluded=(g.gated||[]).filter(x=>x.excluded&&x.excluded.length).length;
+    const summary=`적용 ${applied} · 제외 ${excluded}`;
     btn.disabled=true; if(msg) msg.textContent='저장 중…';
     try{
-      const g=await fetch(`/sourcing-guide/api/${sid}`).then(r=>r.json());
-      const guide=g.guide; guide.sample_urls=guide.sample_urls||[];
-      const exists=guide.sample_urls.some(u=>u.url===url);
-      if(!exists) guide.sample_urls.push({url, is_lead:false});
-      const res=await fetch(`/sourcing-guide/api/${sid}`,{method:'PUT',
-        headers:{'Content-Type':'application/json'}, body:JSON.stringify(guide)});
+      const res=await fetch(`/sourcing-guide/api/${sid}/save-check`,{method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({url, name:nameFromUrl(url), final_price:(g.final_price!=null?g.final_price:null), summary})});
       const j=await res.json();
       if(j.ok){
-        btn.textContent = exists ? '이미 ① 기준 샘플 URL에 있음' : '✓ ① 기준 샘플 URL에 저장됨';
-        if(msg) msg.textContent = exists ? '중복이라 추가 안 함.' : '①에 추가됨 — 새로고침하면 ① 목록에 보입니다.';
+        // 우측 '저장된 검증' 리스트 맨 위에 추가
+        const list=document.getElementById('sg-saved-list');
+        const empty=document.querySelector('.sg-saved-empty'); if(empty) empty.style.display='none';
+        if(list){
+          const item=document.createElement('div'); item.className='sg-saved-item'; item.dataset.url=url||'';
+          const price=(g.final_price!=null)? `<b>${g.final_price.toLocaleString()}원</b> · ` : '';
+          item.innerHTML=`<div class="nm">${nameFromUrl(url)}</div><div class="meta">${price}${summary} · 방금</div>`;
+          // 같은 URL 기존 항목 제거 후 prepend
+          [...list.querySelectorAll('.sg-saved-item')].forEach(it=>{ if(url && it.dataset.url===url) it.remove(); });
+          list.insertBefore(item, list.firstChild);
+        }
+        btn.textContent='✓ 저장됨';
+        if(msg) msg.textContent = j.added_to_samples ? '저장된 검증 + ① 기준 샘플 URL 등록 완료.' : '저장된 검증에 추가 (① 이미 등록됨).';
       } else { btn.disabled=false; if(msg) msg.textContent='저장 실패: '+(j.message||j.error||''); }
     }catch(err){ btn.disabled=false; if(msg) msg.textContent='오류: '+err; }
   });

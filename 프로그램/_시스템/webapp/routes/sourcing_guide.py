@@ -202,6 +202,52 @@ def api_gate_preview(sid: int):
     return jsonify(out)
 
 
+@bp.route("/api/<int:sid>/save-check", methods=["POST"])
+def api_save_check(sid: int):
+    """④ 신규 검증 결과 저장 (시안 2-C) — verification.saved_checks 에 누적(최신순) + ① 기준 샘플 URL 동시 등록.
+
+    payload: {url, name?, final_price?, summary?}
+    """
+    s = SessionLocal()
+    try:
+        src = s.query(SourceRegistry).get(sid)
+        if src is None:
+            return jsonify(ok=False, error="not_found"), 404
+        body = request.get_json(force=True) or {}
+        url = (body.get("url") or "").strip()
+        guide = cg.loads(src.crawl_guide)
+        ver = guide.get("verification") or {}
+        checks = list(ver.get("saved_checks") or [])
+        entry = {
+            "url": url or None,
+            "name": str(body.get("name", ""))[:80],
+            "final_price": body.get("final_price"),
+            "summary": str(body.get("summary", ""))[:200],
+            "saved_at": _now_iso(),
+        }
+        # 같은 URL 이전 기록 제거 후 맨 앞에 (최신순, 최대 50)
+        checks = [c for c in checks if c.get("url") != url or not url]
+        checks.insert(0, entry)
+        ver["saved_checks"] = checks[:50]
+        guide["verification"] = ver
+        # ① 기준 샘플 URL 동시 등록 (중복 방지)
+        added_to_samples = False
+        if url and (url.startswith("http://") or url.startswith("https://")):
+            samples = list(guide.get("sample_urls") or [])
+            if not any(u.get("url") == url for u in samples):
+                samples.append({"url": url, "is_lead": False})
+                guide["sample_urls"] = samples
+                added_to_samples = True
+        guide = cg.validate_guide(guide)
+        guide["updated_at"] = _now_iso()
+        src.crawl_guide = cg.dumps(guide)
+        s.commit()
+        return jsonify(ok=True, saved_checks=guide["verification"]["saved_checks"],
+                       added_to_samples=added_to_samples)
+    finally:
+        s.close()
+
+
 @bp.route("/api/<int:sid>/example-shot", methods=["POST"])
 def api_example_shot(sid: int):
     """④ 예제 기준 스크린샷 — 드래그앤드랍 업로드. 이미지는 data URL 로 guide JSON 에 저장(재배포 영속)."""

@@ -105,7 +105,7 @@ def empty_skeleton() -> dict:
             "note": "",
         },
         "exclude_keywords": [],
-        "verification": {"lead_cache": None, "last_new_check": None, "examples": []},
+        "verification": {"lead_cache": None, "last_new_check": None, "examples": [], "saved_checks": []},
         "updated_at": None,
     }
 
@@ -214,6 +214,7 @@ def validate_guide(data: dict) -> dict:
         "lead_cache": _clean_check(ver.get("lead_cache")),
         "last_new_check": _clean_check(ver.get("last_new_check")),
         "examples": _clean_examples(ver.get("examples")),
+        "saved_checks": _clean_saved_checks(ver.get("saved_checks")),
     }
 
     out["updated_at"] = data.get("updated_at")
@@ -272,6 +273,25 @@ def _clean_examples(arr: Any) -> list:
             "note": str(e.get("note", "")),
             "captured_at": e.get("captured_at"),
             "screenshot_url": e.get("screenshot_url"),
+        })
+    return out
+
+
+def _clean_saved_checks(arr: Any) -> list:
+    """verification.saved_checks 정제 — ④ 신규 검증 '저장된 검증' 리스트 (최신순, 최대 50)."""
+    if not isinstance(arr, list):
+        return []
+    out = []
+    for c in arr[:50]:
+        if not isinstance(c, dict):
+            continue
+        url = c.get("url")
+        out.append({
+            "url": url if _is_http_url(url) else None,
+            "name": str(c.get("name", ""))[:80],
+            "final_price": _int_or_none(c.get("final_price")),
+            "summary": str(c.get("summary", ""))[:200],
+            "saved_at": c.get("saved_at"),
         })
     return out
 

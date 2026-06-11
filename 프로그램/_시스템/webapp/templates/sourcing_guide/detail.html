@@ -157,6 +157,16 @@
 .sgd .sg-nvin input{flex:1;border:1px solid #E1E4E8;border-radius:8px;padding:8px 12px;font-size:13px;}
 .sgd .sg-nvin button{font-size:13px;font-weight:700;color:#fff;background:#3182F6;border:none;border-radius:8px;padding:8px 16px;cursor:pointer;}
 .sgd .muted{color:#8B95A1;font-size:13px;}
+/* 신규 검증 2열 + 저장된 검증 (시안 2-C) */
+.sgd .sg-new-grid{display:grid;grid-template-columns:1.55fr 1fr;gap:16px;align-items:start;}
+.sgd .sg-saved{background:#F8FAFB;border:1px solid #EEF0F3;border-radius:12px;padding:14px 15px;position:sticky;top:12px;}
+.sgd .sg-saved-h{font-size:13px;font-weight:800;color:#191F28;margin-bottom:11px;}
+.sgd .sg-saved-item{background:#fff;border:1px solid #EAECEF;border-radius:10px;padding:10px 12px;margin-bottom:8px;}
+.sgd .sg-saved-item .nm{font-weight:700;font-size:12.5px;color:#191F28;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.sgd .sg-saved-item .meta{font-size:11px;color:#8B95A1;margin-top:2px;}
+.sgd .sg-saved-item .meta b{color:#3182F6;font-weight:800;}
+.sgd .sg-saved-empty{font-size:11.5px;color:#A0A8B0;line-height:1.6;padding:8px 2px;}
+@media(max-width:900px){.sgd .sg-new-grid{grid-template-columns:1fr;}}
 </style>
 
 <div class="sgd sg-wrap" data-sid="{{ src.id }}">
@@ -355,19 +365,35 @@
         <div class="fxnote">※ 기준 스크린샷 = 그 시점 화면. 구조 바뀌면 재크롤 결과와 대조용. · 신규 검증 탭: URL 입력 → 로컬 크롤 → 같은 영수증 자동 표시</div>
       </div>
 
-      <!-- 신규 검증 탭 -->
+      <!-- 신규 검증 탭 (시안 2-C: 좌 검증 / 우 저장된 검증) -->
       <div class="sg-subpane" id="sub-new">
-        <div class="sg-new">
-          <div class="sg-nvin"><input id="sg-verify-url" placeholder="검증할 새 URL 붙여넣기"><button id="sg-verify-btn">검증</button></div>
-          <div style="text-align:center;"><span class="sg-status" id="sg-verify-status" style="display:none;"><span class="d"></span><span id="sg-verify-msg"></span></span></div>
-          <div id="sg-verify-result"></div>
+        <div class="sg-new-grid">
+          <div class="sg-new">
+            <div class="sg-nvin"><input id="sg-verify-url" placeholder="검증할 새 URL 붙여넣기"><button id="sg-verify-btn">검증</button></div>
+            <div style="text-align:center;"><span class="sg-status" id="sg-verify-status" style="display:none;"><span class="d"></span><span id="sg-verify-msg"></span></span></div>
+            <div id="sg-verify-result"></div>
 
-          <!-- 🔑 키워드 게이트 검증 — ③ 포함/제외 키워드 반영 영수증 -->
-          <div class="sg-kwgate" style="margin-top:20px;border-top:1px dashed #E5E8EB;padding-top:15px;">
-            <div class="fxnote" style="margin-bottom:9px;">🔑 <b>키워드 게이트 검증</b> — 크롤된 혜택 라인에 ③의 <b>포함/제외 키워드</b>를 적용해 어떤 혜택이 잡히는지·최종 매입가를 영수증으로 확인. (혜택 라인 = 로그인 브라우저·확장이 페이지에서 읽은 값)</div>
-            <textarea id="sg-kw-lines" placeholder="크롤된 혜택 라인 (한 줄에 하나)&#10;예)&#10;등급 할인 불가&#10;상품 쿠폰&#10;구매 적립 / 선할인&#10;10% 추가 적립&#10;결제혜택" style="width:100%;min-height:88px;box-sizing:border-box;border:1px solid #E5E8EB;border-radius:8px;padding:9px 11px;font-size:12px;line-height:1.7;color:#3a424b;resize:vertical;"></textarea>
-            <div class="sg-nvin" style="margin-top:9px;"><input id="sg-kw-base" type="number" placeholder="회원가(표면 노출가) — 매입가 계산용(선택)"><button id="sg-kw-btn">키워드 게이트 검증</button></div>
-            <div id="sg-kw-result"></div>
+            <!-- 🔑 키워드 게이트 검증 — ③ 포함/제외 키워드 반영 영수증 -->
+            <div class="sg-kwgate" style="margin-top:20px;border-top:1px dashed #E5E8EB;padding-top:15px;">
+              <div class="fxnote" style="margin-bottom:9px;">🔑 <b>키워드 게이트 검증</b> — 크롤된 혜택 라인에 ③의 <b>포함/제외 키워드</b>를 적용해 어떤 혜택이 잡히는지·최종 매입가를 영수증으로 확인. (혜택 라인 = 로그인 브라우저·확장이 페이지에서 읽은 값)</div>
+              <textarea id="sg-kw-lines" placeholder="크롤된 혜택 라인 (한 줄에 하나)&#10;예)&#10;등급 할인 불가&#10;상품 쿠폰&#10;구매 적립 / 선할인&#10;10% 추가 적립&#10;결제혜택" style="width:100%;min-height:88px;box-sizing:border-box;border:1px solid #E5E8EB;border-radius:8px;padding:9px 11px;font-size:12px;line-height:1.7;color:#3a424b;resize:vertical;"></textarea>
+              <div class="sg-nvin" style="margin-top:9px;"><input id="sg-kw-base" type="number" placeholder="회원가(표면 노출가) — 매입가 계산용(선택)"><button id="sg-kw-btn">키워드 게이트 검증</button></div>
+              <div id="sg-kw-result"></div>
+            </div>
+          </div>
+
+          <!-- 우측: 저장된 검증 (시안 2-C) -->
+          <div class="sg-saved">
+            <div class="sg-saved-h">📑 저장된 검증</div>
+            <div id="sg-saved-list">
+              {% for c in guide.verification.get('saved_checks', []) %}
+              <div class="sg-saved-item" data-url="{{ c.url or '' }}">
+                <div class="nm">{{ c.name or c.url or '검증' }}</div>
+                <div class="meta">{% if c.final_price is not none %}<b>{{ "{:,}".format(c.final_price) }}원</b> · {% endif %}{{ c.summary }}</div>
+              </div>
+              {% endfor %}
+            </div>
+            <div class="sg-saved-empty" {% if guide.verification.get('saved_checks') %}style="display:none;"{% endif %}>아직 저장된 검증이 없습니다.<br>왼쪽에서 검증 후 <b>저장</b>하면 여기에 쌓입니다.</div>
           </div>
         </div>
       </div>
