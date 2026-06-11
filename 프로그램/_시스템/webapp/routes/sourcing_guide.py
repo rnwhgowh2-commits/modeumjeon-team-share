@@ -99,6 +99,68 @@ def api_put(sid: int):
         s.close()
 
 
+@bp.route("/api/<int:sid>/gate-preview", methods=["POST"])
+def api_gate_preview(sid: int):
+    """키워드 게이트 실검증 — 크롤된 혜택 라인에 '저장된' 포함/제외 키워드를 적용.
+
+    설계: 무신사 = 로그인 브라우저가 크롤러. 브라우저가 르무통 페이지에서 읽은
+    혜택 라인을 보내면, 서버가 이 소싱처 가이드 ③의 저장된 키워드 규칙으로
+    어떤 혜택이 포함/제외되는지 판정(+선택적으로 최종 매입가 계산)해 돌려준다.
+    DB 쓰기 없음 — 순수 미리보기(머니 경로 무영향).
+
+    payload: {
+      benefit_lines: [str, ...],          # 크롤된 혜택 문구 라인 (필수)
+      base_price?: int,                    # 회원가(표면 노출가) — 최종가 계산용
+      amounts?: {benefit_name: {type:'rate'|'amount', value: float}}  # 크롤된 혜택 금액
+    }
+    returns: {ok, lines, gated:[{name,applied,matched_lines,excluded,reason}],
+              final_price?, base_price?}
+    """
+    from lemouton.pricing.benefit_gate import gate_benefits
+
+    src = _source(sid)
+    if src is None:
+        return jsonify(ok=False, error="not_found"), 404
+    body = request.get_json(force=True) or {}
+    lines = body.get("benefit_lines")
+    if not isinstance(lines, list) or not all(isinstance(x, str) for x in lines):
+        return jsonify(ok=False, error="invalid", message="benefit_lines 는 문자열 리스트"), 400
+
+    guide = cg.loads(src.crawl_guide)
+    pricing = guide.get("pricing") or {}
+    benefits = pricing.get("benefits") or []
+    excludes = guide.get("exclude_keywords") or []
+
+    gated = gate_benefits(benefits, lines, excludes)
+
+    out = {"ok": True, "lines": lines, "gated": gated,
+           "exclude_keywords": excludes}
+
+    # 선택: 크롤 금액(amounts)이 오면 게이트 결과로 최종 매입가까지 계산.
+    base_price = body.get("base_price")
+    amounts = body.get("amounts") or {}
+    if isinstance(base_price, (int, float)) and base_price > 0 and amounts:
+        from lemouton.pricing.final_price import compute_final_price
+
+        class _It:
+            def __init__(self, name, btype, value, enabled):
+                self.id = -1; self.benefit_name = name; self.benefit_type = btype
+                self.value = value; self.enabled = enabled
+                self.category = None; self.sort_order = 999; self.template_id = None
+
+        items = []
+        for g in gated:
+            a = amounts.get(g["name"]) or {}
+            bt = a.get("type", "amount")
+            val = float(a.get("value") or 0)
+            items.append(("dyn", _It(g["name"], bt, val, enabled=g["applied"])))
+        res = compute_final_price(float(base_price), items, base_override=None)
+        out["base_price"] = int(base_price)
+        out["final_price"] = res["final_price"]
+        out["steps"] = res["steps"]
+    return jsonify(out)
+
+
 @bp.route("/api/<int:sid>/example-shot", methods=["POST"])
 def api_example_shot(sid: int):
     """④ 예제 기준 스크린샷 — 드래그앤드랍 업로드. 이미지는 data URL 로 guide JSON 에 저장(재배포 영속)."""
