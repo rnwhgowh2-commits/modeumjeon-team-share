@@ -1,4 +1,4 @@
-// crawl_log.js — Phase 4 실시간 크롤 대시보드 (시안 8, moum-crawl-log 구독)
+// crawl_log.js — Phase 4 실시간 크롤 대시보드 (D안: 소싱처별 카드 + 인라인 펼침)
 // IIFE — 전역 오염 최소. window.addEventListener('moum-crawl-log', ...) 1회 등록.
 (function () {
   'use strict';
@@ -15,24 +15,19 @@
   var SOURCE_ORDER = ['lemouton', 'ssf', 'ssg', 'ss_lemouton', 'musinsa', 'lotteon'];
 
   // ── 내부 상태 ────────────────────────────────────────────────────
-  var state = {
-    sources: {},   // key -> { status:'wait'|'run'|'done', done:0, total:null }
-    metrics: { concurrency: 0, cap: 0, active: 0, cpu: null, mem: null, avgSec: null, done: 0, total: 0 },
-    logs:    [],   // { ts, level, msg }
-    startTs: 0,
-    elapsed: 0,
-  };
+  // bySource: key → { status:'wait'|'run'|'done', done:0, total:null, logs:[],
+  //                   expanded:bool, el:cardEl, logListEl:el, logToggleEl:el,
+  //                   barFillEl:el, tagEl:el, cntEl:el }
+  var bySource = {};
+
+  var metrics = { concurrency: 0, cap: 0, active: 0, cpu: null, mem: null, avgSec: null, done: 0, total: 0 };
+  var startTs = 0;
   var _elapsedTimer = null;
 
   function initState(total) {
-    state.sources = {};
-    SOURCE_ORDER.forEach(function (k) {
-      state.sources[k] = { status: 'wait', done: 0, total: null };
-    });
-    state.metrics = { concurrency: 0, cap: 0, active: 0, cpu: null, mem: null, avgSec: null, done: 0, total: total || 0 };
-    state.logs = [];
-    state.startTs = Date.now();
-    state.elapsed = 0;
+    bySource = {};
+    metrics = { concurrency: 0, cap: 0, active: 0, cpu: null, mem: null, avgSec: null, done: 0, total: total || 0 };
+    startTs = Date.now();
   }
 
   // ── CSS 주입 (1회) ───────────────────────────────────────────────
@@ -42,9 +37,10 @@
     var style = document.createElement('style');
     style.id = CSS_ID;
     style.textContent = [
+      /* 패널 */
       '#mcl-panel {',
       '  position:fixed; top:0; right:0; width:440px; height:100vh;',
-      '  background:#191F28; color:#F2F4F6; z-index:9000;',
+      '  background:#141B22; color:#CBD5E1; z-index:9000;',
       '  display:flex; flex-direction:column; font-family:"Pretendard",sans-serif;',
       '  box-shadow:-8px 0 32px rgba(0,0,0,.45); transition:transform .25s ease;',
       '}',
@@ -52,7 +48,7 @@
 
       /* 헤더 */
       '#mcl-header {',
-      '  padding:16px 18px 12px; border-bottom:1px solid #2B3547; flex-shrink:0;',
+      '  padding:16px 18px 12px; border-bottom:1px solid #25303b; flex-shrink:0;',
       '}',
       '#mcl-header-top { display:flex; align-items:center; gap:10px; margin-bottom:10px; }',
       '#mcl-title { font-size:15px; font-weight:800; color:#F2F4F6; flex:1; }',
@@ -65,7 +61,7 @@
       '#mcl-overall { display:flex; align-items:center; gap:10px; }',
       '#mcl-overall-label { font-size:12px; color:#8B95A1; }',
       '#mcl-overall-cnt { font-family:ui-monospace,monospace; font-size:13px; font-weight:800; color:#3182F6; }',
-      '#mcl-overall-bar { flex:1; height:5px; background:#2B3547; border-radius:3px; overflow:hidden; }',
+      '#mcl-overall-bar { flex:1; height:5px; background:#25303b; border-radius:3px; overflow:hidden; }',
       '#mcl-overall-fill { height:100%; background:#3182F6; border-radius:3px; transition:width .3s; width:0%; }',
       '#mcl-finish-summary {',
       '  display:none; margin-top:10px; padding:9px 12px; background:#0E3A6A;',
@@ -75,52 +71,86 @@
 
       /* 게이지 섹션 */
       '#mcl-gauges {',
-      '  padding:12px 18px; border-bottom:1px solid #2B3547; flex-shrink:0;',
+      '  padding:12px 18px; border-bottom:1px solid #25303b; flex-shrink:0;',
       '}',
       '.mcl-gauge-row { margin-bottom:9px; }',
       '.mcl-gauge-row:last-child { margin-bottom:0; }',
       '.mcl-gauge-head { display:flex; align-items:center; gap:8px; margin-bottom:4px; }',
       '.mcl-gauge-lbl { font-size:11.5px; font-weight:700; color:#8B95A1; }',
-      '.mcl-gauge-val { margin-left:auto; font-family:ui-monospace,monospace; font-size:11px; color:#CBD2D9; }',
-      '.mcl-gauge-track { height:6px; background:#2B3547; border-radius:4px; overflow:hidden; }',
+      '.mcl-gauge-val { margin-left:auto; font-family:ui-monospace,monospace; font-size:11px; color:#CBD5E1; }',
+      '.mcl-gauge-track { height:6px; background:#25303b; border-radius:4px; overflow:hidden; }',
       '.mcl-gauge-fill { height:100%; border-radius:4px; transition:width .35s; width:0%; }',
       '.mcl-gauge-fill.conc { background:#3182F6; }',
       '.mcl-gauge-fill.cpu  { background:#F97316; }',
       '.mcl-gauge-fill.mem  { background:#8B5CF6; }',
-      '.mcl-gauge-na { font-size:11px; color:#6B7684; font-style:italic; }',
 
-      /* 소싱처 진행 */
-      '#mcl-sources {',
-      '  padding:12px 18px; border-bottom:1px solid #2B3547; flex-shrink:0;',
-      '}',
-      '#mcl-sources-title { font-size:11.5px; font-weight:700; color:#8B95A1; margin-bottom:8px; }',
-      '.mcl-src-row { display:flex; align-items:center; gap:8px; margin-bottom:6px; }',
-      '.mcl-src-row:last-child { margin-bottom:0; }',
-      '.mcl-src-nm { font-size:12px; font-weight:700; color:#CBD2D9; width:84px; flex-shrink:0; }',
-      '.mcl-src-tag { font-size:10px; font-weight:800; padding:2px 7px; border-radius:10px; flex-shrink:0; }',
-      '.mcl-src-tag.wait { background:#2B3547; color:#8B95A1; }',
-      '.mcl-src-tag.run  { background:#1B3A6A; color:#60A5FA; }',
-      '.mcl-src-tag.done { background:#064E3B; color:#34D399; }',
-      '.mcl-src-bar-wrap { flex:1; height:5px; background:#2B3547; border-radius:3px; overflow:hidden; }',
-      '.mcl-src-bar-fill { height:100%; border-radius:3px; transition:width .3s; width:0%; }',
-      '.mcl-src-bar-fill.wait { background:#4B5563; }',
-      '.mcl-src-bar-fill.run  { background:#3182F6; }',
-      '.mcl-src-bar-fill.done { background:#10B981; }',
-      '.mcl-src-cnt { font-family:ui-monospace,monospace; font-size:11px; color:#8B95A1; width:42px; text-align:right; flex-shrink:0; }',
-
-      /* 로그 스트림 */
-      '#mcl-log-wrap {',
-      '  flex:1; overflow-y:auto; padding:10px 18px 14px;',
+      /* 소싱처 카드 스크롤 영역 */
+      '#mcl-cards-wrap {',
+      '  flex:1; overflow-y:auto; padding:10px 14px 16px;',
       '  min-height:0;',
       '}',
-      '#mcl-log-wrap::-webkit-scrollbar { width:4px; }',
-      '#mcl-log-wrap::-webkit-scrollbar-thumb { background:#2B3547; border-radius:4px; }',
-      '#mcl-log-wrap::-webkit-scrollbar-track { background:transparent; }',
-      '.mcl-log-line { display:flex; gap:8px; font-size:11.5px; line-height:1.5; margin-bottom:2px; }',
+      '#mcl-cards-wrap::-webkit-scrollbar { width:4px; }',
+      '#mcl-cards-wrap::-webkit-scrollbar-thumb { background:#25303b; border-radius:4px; }',
+      '#mcl-cards-wrap::-webkit-scrollbar-track { background:transparent; }',
+
+      /* 개별 카드 */
+      '.mcl-card {',
+      '  background:#1A2332; border:1px solid #25303b; border-radius:8px;',
+      '  margin-bottom:8px; overflow:hidden;',
+      '}',
+      '.mcl-card:last-child { margin-bottom:0; }',
+
+      /* 카드 헤더 행 */
+      '.mcl-card-header {',
+      '  display:flex; align-items:center; gap:8px; padding:9px 12px 8px;',
+      '}',
+      '.mcl-card-name {',
+      '  font-size:12px; font-weight:700; color:#CBD5E1; min-width:76px;',
+      '}',
+      '.mcl-card-tag {',
+      '  font-size:10px; font-weight:800; padding:2px 7px; border-radius:10px; flex-shrink:0;',
+      '}',
+      '.mcl-card-tag.wait { background:#25303b; color:#8B95A1; }',
+      '.mcl-card-tag.run  { background:#1B3A6A; color:#60A5FA; }',
+      '.mcl-card-tag.done { background:#064E3B; color:#34D399; }',
+      '.mcl-card-cnt {',
+      '  font-family:ui-monospace,monospace; font-size:11px; color:#8B95A1;',
+      '  margin-left:auto; flex-shrink:0;',
+      '}',
+      '.mcl-card-toggle {',
+      '  font-size:11px; color:#60A5FA; background:none; border:none; cursor:pointer;',
+      '  padding:0 0 0 8px; flex-shrink:0; white-space:nowrap;',
+      '}',
+      '.mcl-card-toggle:hover { color:#93C5FD; }',
+
+      /* 카드 진행바 */
+      '.mcl-card-bar-wrap {',
+      '  height:4px; background:#25303b; margin:0 12px 8px;',
+      '  border-radius:3px; overflow:hidden;',
+      '}',
+      '.mcl-card-bar-fill {',
+      '  height:100%; border-radius:3px; transition:width .3s; width:0%;',
+      '}',
+      '.mcl-card-bar-fill.wait { background:#4B5563; }',
+      '.mcl-card-bar-fill.run  { background:#38bdf8; }',
+      '.mcl-card-bar-fill.done { background:#4ADE80; }',
+
+      /* 카드 인라인 로그 */
+      '.mcl-card-logs {',
+      '  border-top:1px solid #25303b; padding:6px 12px 8px;',
+      '  max-height:180px; overflow-y:auto;',
+      '}',
+      '.mcl-card-logs::-webkit-scrollbar { width:3px; }',
+      '.mcl-card-logs::-webkit-scrollbar-thumb { background:#25303b; border-radius:3px; }',
+      '.mcl-card-logs::-webkit-scrollbar-track { background:transparent; }',
+      '.mcl-card-logs.mcl-hidden { display:none; }',
+
+      /* 로그 라인 */
+      '.mcl-log-line { display:flex; gap:7px; font-size:11px; line-height:1.5; margin-bottom:1px; }',
       '.mcl-log-ts { font-family:ui-monospace,monospace; color:#4E5968; flex-shrink:0; }',
       '.mcl-log-ico { flex-shrink:0; }',
       '.mcl-log-msg { color:#9CA3AF; word-break:break-all; }',
-      '.mcl-log-line.lvl-up   .mcl-log-msg { color:#34D399; }',
+      '.mcl-log-line.lvl-up   .mcl-log-msg { color:#4ADE80; }',
       '.mcl-log-line.lvl-down .mcl-log-msg { color:#FB923C; }',
       '.mcl-log-line.lvl-warn .mcl-log-msg { color:#FBBF24; }',
       '.mcl-log-line.lvl-done .mcl-log-msg { color:#60A5FA; font-weight:700; }',
@@ -131,7 +161,10 @@
   // ── 패널 DOM 생성 ────────────────────────────────────────────────
   var PANEL_ID = 'mcl-panel';
 
-  function buildPanel() {
+  function buildPanelDOM() {
+    var old = document.getElementById(PANEL_ID);
+    if (old) old.parentNode.removeChild(old);
+
     var p = document.createElement('div');
     p.id = PANEL_ID;
     p.classList.add('mcl-hidden');
@@ -141,7 +174,7 @@
       '  <div id="mcl-header-top">',
       '    <span id="mcl-title">크롤 진행 중</span>',
       '    <span id="mcl-elapsed">0s</span>',
-      '    <button id="mcl-close-btn" type="button" title="닫기">×</button>',
+      '    <button id="mcl-close-btn" type="button" title="닫기">\xd7</button>',
       '  </div>',
       '  <div id="mcl-overall">',
       '    <span id="mcl-overall-label">전체</span>',
@@ -152,21 +185,21 @@
       '</div>',
       /* 게이지 */
       '<div id="mcl-gauges">',
-      '  <div class="mcl-gauge-row" id="mcl-g-conc">',
+      '  <div class="mcl-gauge-row">',
       '    <div class="mcl-gauge-head">',
       '      <span class="mcl-gauge-lbl">동시 창</span>',
       '      <span class="mcl-gauge-val" id="mcl-g-conc-val">0 / 0</span>',
       '    </div>',
       '    <div class="mcl-gauge-track"><div class="mcl-gauge-fill conc" id="mcl-g-conc-fill"></div></div>',
       '  </div>',
-      '  <div class="mcl-gauge-row" id="mcl-g-cpu">',
+      '  <div class="mcl-gauge-row">',
       '    <div class="mcl-gauge-head">',
       '      <span class="mcl-gauge-lbl">CPU</span>',
       '      <span class="mcl-gauge-val" id="mcl-g-cpu-val">측정 안함</span>',
       '    </div>',
       '    <div class="mcl-gauge-track"><div class="mcl-gauge-fill cpu" id="mcl-g-cpu-fill"></div></div>',
       '  </div>',
-      '  <div class="mcl-gauge-row" id="mcl-g-mem">',
+      '  <div class="mcl-gauge-row">',
       '    <div class="mcl-gauge-head">',
       '      <span class="mcl-gauge-lbl">메모리</span>',
       '      <span class="mcl-gauge-val" id="mcl-g-mem-val">측정 안함</span>',
@@ -174,36 +207,22 @@
       '    <div class="mcl-gauge-track"><div class="mcl-gauge-fill mem" id="mcl-g-mem-fill"></div></div>',
       '  </div>',
       '</div>',
-      /* 소싱처 */
-      '<div id="mcl-sources">',
-      '  <div id="mcl-sources-title">소싱처별 진행</div>',
-      '  <div id="mcl-src-list"></div>',
-      '</div>',
-      /* 로그 */
-      '<div id="mcl-log-wrap"><div id="mcl-log-list"></div></div>',
+      /* 소싱처 카드 */
+      '<div id="mcl-cards-wrap"></div>',
     ].join('');
     document.body.appendChild(p);
 
-    /* 닫기 버튼 */
     document.getElementById('mcl-close-btn').addEventListener('click', function () {
-      hidePanel();
+      var panel = document.getElementById(PANEL_ID);
+      if (panel) panel.classList.add('mcl-hidden');
     });
 
     return p;
   }
 
-  function getPanel() {
-    return document.getElementById(PANEL_ID) || buildPanel();
-  }
-
   function showPanel() {
-    var p = getPanel();
-    p.classList.remove('mcl-hidden');
-  }
-
-  function hidePanel() {
     var p = document.getElementById(PANEL_ID);
-    if (p) p.classList.add('mcl-hidden');
+    if (p) p.classList.remove('mcl-hidden');
   }
 
   // ── 렌더 헬퍼 ────────────────────────────────────────────────────
@@ -215,18 +234,35 @@
     if (el) el.style.width = Math.min(100, Math.max(0, pct)) + '%';
   }
 
-  function renderGauges() {
-    var m = state.metrics;
+  function fmtTime(ts) {
+    var d = new Date(ts);
+    var hh = String(d.getHours()).padStart(2, '0');
+    var mm = String(d.getMinutes()).padStart(2, '0');
+    var ss = String(d.getSeconds()).padStart(2, '0');
+    return hh + ':' + mm + ':' + ss;
+  }
 
-    /* 동시 창 — 분자=실제 열린 창(active), 분모=cap. 목표 concurrency도 병기. */
+  function icoForLevel(level) {
+    if (level === 'up')   return '▲';
+    if (level === 'down') return '▼';
+    if (level === 'warn') return '⚠';
+    if (level === 'done') return '✓';
+    return '\xb7';
+  }
+
+  // ── 게이지 렌더 ─────────────────────────────────────────────────
+  function renderGauges() {
+    var m = metrics;
     var activeWin = (m.active != null) ? m.active : m.concurrency;
-    var concPct = m.cap > 0 ? (activeWin / m.cap * 100) : 0;
+    var concPct   = m.cap > 0 ? (activeWin / m.cap * 100) : 0;
     var concLabel = activeWin + ' / ' + m.cap + '  (목표 ' + m.concurrency + ')';
+    if (m.avgSec != null) {
+      concLabel += ' · 중앙 ' + m.avgSec + 's';
+    }
     safeText(document.getElementById('mcl-g-conc-val'), concLabel);
     setWidth(document.getElementById('mcl-g-conc-fill'), concPct);
 
-    /* CPU */
-    var cpuVal = document.getElementById('mcl-g-cpu-val');
+    var cpuVal  = document.getElementById('mcl-g-cpu-val');
     var cpuFill = document.getElementById('mcl-g-cpu-fill');
     if (m.cpu == null) {
       safeText(cpuVal, '측정 안함');
@@ -236,8 +272,7 @@
       setWidth(cpuFill, m.cpu);
     }
 
-    /* 메모리 */
-    var memVal = document.getElementById('mcl-g-mem-val');
+    var memVal  = document.getElementById('mcl-g-mem-val');
     var memFill = document.getElementById('mcl-g-mem-fill');
     if (m.mem == null) {
       safeText(memVal, '측정 안함');
@@ -249,117 +284,240 @@
   }
 
   function renderOverall() {
-    var m = state.metrics;
-    var total = m.total || 0;
-    var done = m.done || 0;
-    var pct = total > 0 ? (done / total * 100) : 0;
+    var total = metrics.total || 0;
+    var done  = metrics.done  || 0;
+    var pct   = total > 0 ? (done / total * 100) : 0;
     safeText(document.getElementById('mcl-overall-cnt'), done + ' / ' + total);
     setWidth(document.getElementById('mcl-overall-fill'), pct);
   }
 
-  function renderSources() {
-    var list = document.getElementById('mcl-src-list');
-    if (!list) return;
-    var html = '';
-    SOURCE_ORDER.forEach(function (k) {
-      var s = state.sources[k] || { status: 'wait', done: 0, total: null };
-      var st = s.status;
-      var lbl = SOURCE_LABELS[k] || k;
-      var pct = (s.total != null && s.total > 0)
-        ? Math.min(100, Math.round(s.done / s.total * 100))
-        : (st === 'done' ? 100 : 0);
-      var tagTxt = st === 'run' ? '진행중' : st === 'done' ? '완료' : '대기';
-      var cntTxt = (s.total != null) ? (s.done + '/' + s.total) : '';
-      /* XSS 안전: lbl, tagTxt, cntTxt, pct 모두 우리가 만든 값. k는 소싱처 키(영문). */
-      html += '<div class="mcl-src-row">';
-      html += '<span class="mcl-src-nm">' + lbl + '</span>';
-      html += '<span class="mcl-src-tag ' + st + '">' + tagTxt + '</span>';
-      html += '<div class="mcl-src-bar-wrap"><div class="mcl-src-bar-fill ' + st + '" style="width:' + pct + '%"></div></div>';
-      html += '<span class="mcl-src-cnt">' + cntTxt + '</span>';
-      html += '</div>';
+  // ── metrics 부분 갱신 — null 인 필드는 덮어쓰지 않음 ───────────
+  function mergeMetrics(m) {
+    if (!m) return;
+    var keys = ['concurrency', 'cap', 'active', 'cpu', 'mem', 'avgSec', 'done', 'total'];
+    keys.forEach(function (k) {
+      if (m[k] != null) metrics[k] = m[k];
     });
-    list.innerHTML = html;
   }
 
+  // ── 경과 타이머 ─────────────────────────────────────────────────
   function renderElapsed() {
-    var sec = Math.floor((Date.now() - state.startTs) / 1000);
-    var txt;
-    if (sec < 60) {
-      txt = sec + 's';
-    } else {
-      txt = Math.floor(sec / 60) + 'm ' + (sec % 60) + 's';
-    }
+    var sec = Math.floor((Date.now() - startTs) / 1000);
+    var txt = sec < 60 ? (sec + 's') : (Math.floor(sec / 60) + 'm ' + (sec % 60) + 's');
     safeText(document.getElementById('mcl-elapsed'), txt);
   }
 
-  /* 로그 자동스크롤 — 사용자가 위로 스크롤 중이면 건드리지 않는다 */
-  function appendLog(ts, level, msg) {
-    var wrap = document.getElementById('mcl-log-wrap');
-    var logList = document.getElementById('mcl-log-list');
-    if (!wrap || !logList) return;
+  function startElapsedTimer() {
+    stopElapsedTimer();
+    renderElapsed();
+    _elapsedTimer = setInterval(renderElapsed, 1000);
+  }
 
-    /* 스크롤이 맨 아래 근처(16px 이내)인지 확인 */
-    var atBottom = (wrap.scrollHeight - wrap.scrollTop - wrap.clientHeight) <= 16;
+  function stopElapsedTimer() {
+    if (_elapsedTimer) { clearInterval(_elapsedTimer); _elapsedTimer = null; }
+  }
 
-    var d = new Date(ts);
-    var hh = String(d.getHours()).padStart(2, '0');
-    var mm = String(d.getMinutes()).padStart(2, '0');
-    var ss = String(d.getSeconds()).padStart(2, '0');
-    var timeStr = hh + ':' + mm + ':' + ss;
+  // ── 소싱처 카드 생성 ─────────────────────────────────────────────
+  function createSourceCard(key, autoExpand) {
+    var lbl  = SOURCE_LABELS[key] || key;
+    var card = document.createElement('div');
+    card.className = 'mcl-card';
+    card.id = 'mcl-card-' + key;
 
-    var ico = level === 'up' ? '▲' : level === 'down' ? '▼' : level === 'warn' ? '⚠' : level === 'done' ? '✓' : '·';
+    /* 헤더 행 */
+    var header = document.createElement('div');
+    header.className = 'mcl-card-header';
+
+    var nameEl = document.createElement('span');
+    nameEl.className = 'mcl-card-name';
+    nameEl.textContent = lbl;
+
+    var tagEl = document.createElement('span');
+    tagEl.className = 'mcl-card-tag wait';
+    tagEl.textContent = '대기';
+
+    var cntEl = document.createElement('span');
+    cntEl.className = 'mcl-card-cnt';
+    cntEl.textContent = '';
+
+    var toggleEl = document.createElement('button');
+    toggleEl.type = 'button';
+    toggleEl.className = 'mcl-card-toggle';
+    toggleEl.textContent = '로그 0건 ▾';
+
+    header.appendChild(nameEl);
+    header.appendChild(tagEl);
+    header.appendChild(cntEl);
+    header.appendChild(toggleEl);
+
+    /* 진행바 */
+    var barWrap = document.createElement('div');
+    barWrap.className = 'mcl-card-bar-wrap';
+    var barFill = document.createElement('div');
+    barFill.className = 'mcl-card-bar-fill wait';
+    barWrap.appendChild(barFill);
+
+    /* 인라인 로그 영역 */
+    var logArea = document.createElement('div');
+    logArea.className = 'mcl-card-logs' + (autoExpand ? '' : ' mcl-hidden');
+
+    card.appendChild(header);
+    card.appendChild(barWrap);
+    card.appendChild(logArea);
+
+    /* 토글 클릭 */
+    toggleEl.addEventListener('click', function () {
+      var bk = bySource[key];
+      if (!bk) return;
+      bk.expanded = !bk.expanded;
+      if (bk.expanded) {
+        logArea.classList.remove('mcl-hidden');
+        /* 열릴 때 맨 아래로 스크롤 */
+        logArea.scrollTop = logArea.scrollHeight;
+      } else {
+        logArea.classList.add('mcl-hidden');
+      }
+      updateToggleLabel(key);
+    });
+
+    /* 카드를 wrap에 삽입 (SOURCE_ORDER 순서 유지) */
+    var wrap = document.getElementById('mcl-cards-wrap');
+    if (wrap) {
+      /* SOURCE_ORDER 기준 올바른 위치 찾기 */
+      var myIdx = SOURCE_ORDER.indexOf(key);
+      var inserted = false;
+      var existingCards = wrap.children;
+      for (var i = 0; i < existingCards.length; i++) {
+        var cardId = existingCards[i].id; // 'mcl-card-<key>'
+        var cardKey = cardId.replace('mcl-card-', '');
+        if (SOURCE_ORDER.indexOf(cardKey) > myIdx) {
+          wrap.insertBefore(card, existingCards[i]);
+          inserted = true;
+          break;
+        }
+      }
+      if (!inserted) wrap.appendChild(card);
+    }
+
+    /* bySource 버킷 등록 */
+    bySource[key] = {
+      status:     'wait',
+      done:       0,
+      total:      null,
+      logs:       [],
+      expanded:   !!autoExpand,
+      el:         card,
+      logListEl:  logArea,
+      barFillEl:  barFill,
+      tagEl:      tagEl,
+      cntEl:      cntEl,
+      toggleEl:   toggleEl,
+    };
+
+    return bySource[key];
+  }
+
+  function getOrCreateBucket(key) {
+    if (!bySource[key]) {
+      createSourceCard(key, false);
+    }
+    return bySource[key];
+  }
+
+  // ── 카드 상태 갱신 ───────────────────────────────────────────────
+  function updateCardStatus(key, status) {
+    var bk = bySource[key];
+    if (!bk) return;
+    bk.status = status;
+
+    /* 태그 */
+    bk.tagEl.className = 'mcl-card-tag ' + status;
+    bk.tagEl.textContent = status === 'run' ? '진행중' : status === 'done' ? '완료' : '대기';
+
+    /* 진행바 색 */
+    bk.barFillEl.className = 'mcl-card-bar-fill ' + status;
+
+    /* 진행중이면 자동 펼침 */
+    if (status === 'run' && !bk.expanded) {
+      bk.expanded = true;
+      bk.logListEl.classList.remove('mcl-hidden');
+    }
+    /* 완료이면 자동 접힘 */
+    if (status === 'done' && bk.expanded) {
+      bk.expanded = false;
+      bk.logListEl.classList.add('mcl-hidden');
+    }
+    updateToggleLabel(key);
+  }
+
+  function updateCardProgress(key) {
+    var bk = bySource[key];
+    if (!bk) return;
+    var total = bk.total;
+    var done  = bk.done;
+    var pct;
+    if (bk.status === 'done') {
+      pct = 100;
+    } else if (total != null && total > 0) {
+      pct = Math.min(100, Math.round(done / total * 100));
+    } else {
+      pct = 0;
+    }
+    bk.barFillEl.style.width = pct + '%';
+    bk.cntEl.textContent = (total != null) ? (done + '/' + total) : (done > 0 ? done + '' : '');
+  }
+
+  function updateToggleLabel(key) {
+    var bk = bySource[key];
+    if (!bk) return;
+    var cnt   = bk.logs.length;
+    var arrow = bk.expanded ? '▴' : '▾';
+    bk.toggleEl.textContent = '로그 ' + cnt + '건 ' + arrow;
+  }
+
+  // ── 카드 로그 추가 ───────────────────────────────────────────────
+  function appendCardLog(key, ts, level, msg) {
+    var bk = bySource[key];
+    if (!bk) return;
+
+    /* 로그 배열 누적 (최대 200) */
+    bk.logs.push({ ts: ts, level: level, msg: msg });
+    if (bk.logs.length > 200) bk.logs.shift();
+
+    /* DOM 행 생성 (XSS: textContent) */
+    var logArea = bk.logListEl;
+    var atBottom = (logArea.scrollHeight - logArea.scrollTop - logArea.clientHeight) <= 16;
 
     var row = document.createElement('div');
     row.className = 'mcl-log-line' + (level ? ' lvl-' + level : '');
 
     var tsSpan = document.createElement('span');
     tsSpan.className = 'mcl-log-ts';
-    tsSpan.textContent = timeStr;
+    tsSpan.textContent = fmtTime(ts);
 
     var icoSpan = document.createElement('span');
     icoSpan.className = 'mcl-log-ico';
-    icoSpan.textContent = ico;
+    icoSpan.textContent = icoForLevel(level);
 
     var msgSpan = document.createElement('span');
     msgSpan.className = 'mcl-log-msg';
-    msgSpan.textContent = msg;  /* XSS 안전: textContent */
+    msgSpan.textContent = msg;   /* XSS 안전: textContent */
 
     row.appendChild(tsSpan);
     row.appendChild(icoSpan);
     row.appendChild(msgSpan);
-    logList.appendChild(row);
+    logArea.appendChild(row);
 
-    /* 로그 최대 200줄 유지 (DOM 누적 방지) */
-    var lines = logList.children;
-    if (lines.length > 200) {
-      logList.removeChild(lines[0]);
+    /* DOM 로그 최대 200줄 유지 */
+    var lines = logArea.children;
+    if (lines.length > 200) logArea.removeChild(lines[0]);
+
+    /* 펼쳐져 있고 맨 아래 근처일 때만 auto-scroll */
+    if (bk.expanded && atBottom) {
+      logArea.scrollTop = logArea.scrollHeight;
     }
 
-    if (atBottom) {
-      wrap.scrollTop = wrap.scrollHeight;
-    }
-  }
-
-  /* metrics 부분 갱신 — null 인 필드는 덮어쓰지 않음 */
-  function mergeMetrics(m) {
-    if (!m) return;
-    var keys = ['concurrency', 'cap', 'active', 'cpu', 'mem', 'avgSec', 'done', 'total'];
-    keys.forEach(function (k) {
-      if (m[k] != null) state.metrics[k] = m[k];
-    });
-  }
-
-  // ── 경과 타이머 ──────────────────────────────────────────────────
-  function startElapsedTimer() {
-    stopElapsedTimer();
-    renderElapsed();
-    _elapsedTimer = setInterval(function () {
-      renderElapsed();
-    }, 1000);
-  }
-
-  function stopElapsedTimer() {
-    if (_elapsedTimer) { clearInterval(_elapsedTimer); _elapsedTimer = null; }
+    updateToggleLabel(key);
   }
 
   // ── 이벤트 핸들러 ────────────────────────────────────────────────
@@ -368,26 +526,25 @@
   function handleCrawlLog(e) {
     var d = e.detail;
     if (!d) return;
-    var type = d.type;
-    var ts = d.ts || Date.now();
-    var src = d.source;
+    var type  = d.type;
+    var ts    = d.ts || Date.now();
+    var src   = d.source;   // 소싱처 키 또는 null
     var level = d.level || '';
-    var msg = d.msg || '';
-    var m = d.metrics;
+    var msg   = d.msg || '';
+    var m     = d.metrics;
 
     switch (type) {
 
       case 'start': {
-        /* 패널 생성·표시, 상태 초기화 */
         injectCSS();
         var total = (m && m.total) || 0;
         initState(total);
-        buildPanel(); /* 중복 방지: buildPanel 내부에서 기존 패널 제거 후 재생성 */
+        buildPanelDOM();
         showPanel();
         startElapsedTimer();
         mergeMetrics(m);
-        renderAll();
-        appendLog(ts, level, msg);
+        renderGauges();
+        renderOverall();
         /* 완료 배너·닫기 버튼 초기 숨김 */
         var finDiv = document.getElementById('mcl-finish-summary');
         if (finDiv) finDiv.style.display = 'none';
@@ -399,81 +556,81 @@
       case 'concurrency': {
         mergeMetrics(m);
         renderGauges();
-        appendLog(ts, level, msg);
+        /* source=null 이므로 카드 없음 */
         break;
       }
 
       case 'resource': {
         mergeMetrics(m);
         renderGauges();
-        appendLog(ts, level, msg);
         break;
       }
 
       case 'window-open': {
-        /* 해당 source 상태 → '진행' */
-        if (src && state.sources[src]) {
-          state.sources[src].status = 'run';
+        /* 해당 source 카드 → 진행중, 로그 추가 */
+        if (src) {
+          var bkWO = getOrCreateBucket(src);
+          updateCardStatus(src, 'run');
+          /* total 초기화 — 이후 item-done metrics.done/total 로 보정 */
+          bkWO.done  = 0;
+          bkWO.total = null;
+          updateCardProgress(src);
+          appendCardLog(src, ts, level, msg || '창 시작');
         }
         mergeMetrics(m);
-        renderSources();
         renderGauges();
-        appendLog(ts, level, msg);
         break;
       }
 
       case 'item-done': {
-        /* source done++ / 전체 done 갱신 */
-        if (src && state.sources[src]) {
-          state.sources[src].done = (state.sources[src].done || 0) + 1;
-          /* total은 bySource 목록 길이인데 직접 알 수 없음 — metrics.done/total 기준 */
+        if (src) {
+          var bkID = getOrCreateBucket(src);
+          bkID.done = (bkID.done || 0) + 1;
+          /* source 단위 total 은 모름 — 카드 카운터는 누적 done 만 표시 */
+          updateCardProgress(src);
+          appendCardLog(src, ts, level, msg);
         }
         mergeMetrics(m);
-        /* avgSec 게이지 반영: 동시창 게이지에 avgSec 표기 추가 */
-        if (state.metrics.avgSec != null) {
-          var avgEl = document.getElementById('mcl-g-conc-val');
-          if (avgEl) {
-            var activeNow = (state.metrics.active != null) ? state.metrics.active : state.metrics.concurrency;
-            avgEl.textContent = activeNow + ' / ' + state.metrics.cap
-              + '  (목표 ' + state.metrics.concurrency + ' · 중앙 ' + state.metrics.avgSec + 's)';
-          }
-        }
+        renderGauges();
         renderOverall();
-        renderSources();
-        appendLog(ts, level, msg);
         break;
       }
 
       case 'source-done': {
-        /* 해당 source 완료, 진행바 100% */
-        if (src && state.sources[src]) {
-          var s = state.sources[src];
-          s.status = 'done';
-          /* done/total 을 metrics 에서 추론: total = metrics.total 기준으론 전체라 그대로,
-             source 단위 total 을 모르면 done == done 으로 막힘. done을 total과 같이 표시하기 위해 */
-          if (s.total != null) {
-            s.done = s.total;
+        if (src) {
+          var bkSD = getOrCreateBucket(src);
+          /* 완료 처리 */
+          if (bkSD.total != null) {
+            bkSD.done = bkSD.total;
           }
+          updateCardProgress(src);
+          updateCardStatus(src, 'done');
+          appendCardLog(src, ts, level, msg);
         }
         mergeMetrics(m);
-        renderSources();
+        renderGauges();
         renderOverall();
-        appendLog(ts, level, msg);
         break;
       }
 
       case 'finish': {
-        /* 경과 타이머 중단, 요약 강조, 닫기 버튼 노출 */
         stopElapsedTimer();
         mergeMetrics(m);
-        renderAll();
-        appendLog(ts, level, msg);
+        renderGauges();
+        renderOverall();
+
+        /* 아직 run 상태인 카드 done으로 마킹 */
+        SOURCE_ORDER.forEach(function (k) {
+          if (bySource[k] && bySource[k].status === 'run') {
+            updateCardStatus(k, 'done');
+          }
+        });
 
         /* 완료 배너 */
-        var summary = document.getElementById('mcl-finish-summary');
-        if (summary) {
-          summary.style.display = 'block';
-          summary.textContent = msg;  /* XSS 안전: textContent */
+        var finSummary = document.getElementById('mcl-finish-summary');
+        if (finSummary) {
+          finSummary.style.display = 'block';
+          finSummary.textContent = msg;   /* XSS 안전: textContent */
         }
 
         /* 타이틀 갱신 */
@@ -482,35 +639,12 @@
         /* 닫기 버튼 노출 */
         var closeBtnF = document.getElementById('mcl-close-btn');
         if (closeBtnF) closeBtnF.style.display = 'inline-block';
-
-        /* 완료된 소싱처 전부 done 으로 마킹 */
-        SOURCE_ORDER.forEach(function (k) {
-          if (state.sources[k] && state.sources[k].status === 'run') {
-            state.sources[k].status = 'done';
-          }
-        });
-        renderSources();
         break;
       }
     }
   }
 
-  function renderAll() {
-    renderGauges();
-    renderOverall();
-    renderSources();
-  }
-
-  // buildPanel 을 중복 방지 처리: 기존 패널 있으면 제거 후 새로 생성
-  // (이미 선언된 buildPanel 을 덮어쓰는 형태로 래핑)
-  var _buildPanelOrig = buildPanel;
-  buildPanel = function () { // eslint-disable-line no-func-assign
-    var old = document.getElementById(PANEL_ID);
-    if (old) old.parentNode.removeChild(old);
-    return _buildPanelOrig();
-  };
-
-  // ── 리스너 등록 (DOMContentLoaded 후, 또는 이미 로드됐으면 즉시) ──
+  // ── 리스너 등록 ─────────────────────────────────────────────────
   function register() {
     if (_registered) return;
     _registered = true;
