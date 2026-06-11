@@ -128,6 +128,11 @@ def crawl_and_save_model(model_code: str, sources: Optional[list[str]] = None) -
             url = getattr(m, SOURCE_URL_FIELD[src], None)
             if not url:
                 continue
+            # [2026-06-12] SSG 딜(dealItemView) = 색상별 단품 URL 로 커버되는 허브.
+            #   uitemObj 없어 "[SSG] 옵션 추출 실패"로 잡힘(거짓 실패) → 크롤 대상에서 제외.
+            #   (전 크롤 경로 공통 정책 — service / bundle_url_crawl 과 동일.)
+            if src == 'ssg' and 'dealitemview' in url.lower():
+                continue
             crawler = make_crawler(src)
             if crawler is None:
                 out[src] = {"ok": False, "saved": 0, "options": 0, "error": "no_crawler"}

@@ -341,6 +341,12 @@ def crawl_bundle_registered_urls(
             .filter_by(model_code=model_code)
             .order_by(BundleSourceUrl.sort_order, BundleSourceUrl.id).all())
     valid = [b for b in rows if b.url]
+    # [2026-06-12] SSG 딜(dealItemView) = 색상별 단품 URL 로 가격·재고가 커버되는 허브.
+    #   uitemObj 인라인 JS 가 없어 fetch 시 "[SSG] 옵션 추출 실패"로 잡힘(거짓 실패).
+    #   bundle_url_crawl.crawl_registered_urls 와 동일 정책으로 크롤 대상에서 제외한다.
+    #   (가격·재고는 등록된 개별 색상 itemView URL 이 제공.)
+    valid = [b for b in valid
+             if not (b.source_key == 'ssg' and 'dealitemview' in b.url.lower())]
     # 소싱처별 크롤할 URL 총개수 (등록 순서 보존)
     src_totals: dict[str, int] = {}
     for b in valid:
