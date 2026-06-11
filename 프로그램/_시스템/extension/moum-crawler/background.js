@@ -1,10 +1,13 @@
 // background.js — 확장 서비스 워커. 실제 크롤(소싱처 수집)을 담당.
-//  소싱처별 "레시피(추출 함수)" = EXTRACTORS. 크롤 엔진이 각 URL을 백그라운드 탭으로
-//  열고 → 그 페이지 컨텍스트에서 추출 함수 실행 → 결과 수집 → 탭 닫음.
+//  소싱처별 "레시피(추출 함수)" = EXTRACTORS. 크롤 엔진이 각 URL을 보이는 새 창으로
+//  열고(chrome.windows.create) → 그 페이지 컨텍스트에서 추출 함수 실행 → 결과 수집 → 창 닫음.
 //  (로그인된 브라우저로 직접 긁으므로 무신사 회원가·롯데온 SPA가 그대로 읽힘.)
-//  결과 저장은 mou-m.com /api/sources/crawl-result (ext_bridge.crawlBundle 이 호출).
+//  v0.4.0(전체 로컬 크롤): 비로그인 4개(르무통·SSF·SSG·스스르무통)는 추출기 없이
+//   grabHtml 로 렌더 HTML 만 수집 → 서버 /api/sources/parse 가 추출(ext_bridge 가 배선).
+//   sysinfo: chrome.system.cpu/memory 로 CPU·메모리 사용률 측정(적응형 컨트롤러 보조 신호).
+//  결과 저장은 mou-m.com /api/sources/crawl-result (ext_bridge.crawlBundleAll 이 호출).
 
-const MOUM_EXT_VERSION = "0.3.1";
+const MOUM_EXT_VERSION = "0.4.0";
 
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   const type = msg && msg.type;
@@ -17,6 +20,18 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     handleCrawl(msg.payload || {})
       .then((r) => sendResponse(r))
       .catch((e) => sendResponse({ ok: false, error: String(e && e.message ? e.message : e) }));
+    return true; // async
+  }
+  if (type === "grabHtml") {
+    handleGrabHtml(msg.payload || {})
+      .then((r) => sendResponse(r))
+      .catch((e) => sendResponse({ ok: false, error: String(e && e.message ? e.message : e) }));
+    return true; // async
+  }
+  if (type === "sysinfo") {
+    handleSysinfo()
+      .then((r) => sendResponse(r))
+      .catch((_) => sendResponse({ ok: true, cpu: null, mem: null }));
     return true; // async
   }
   sendResponse({ error: "unknown type: " + type });
@@ -43,7 +58,10 @@ async function handleCrawl(payload) {
 async function crawlOne(s) {
   const extractor = EXTRACTORS[s.source_key];
   if (!extractor) return { ok: false, error: "레시피 없음(미구현 소싱처): " + s.source_key };
-  const tab = await chrome.tabs.create({ url: s.url, active: false });
+  // 보이는 새 창으로 열기(focused:false → 사용자 작업 방해 최소화하되 화면엔 보임).
+  const win = await chrome.windows.create({ url: s.url, focused: false });
+  const tab = win && win.tabs && win.tabs[0];
+  if (!tab) { try { await chrome.windows.remove(win.id); } catch (_) {} return { ok: false, error: "창 탭 없음" }; }
   try {
     await waitTabComplete(tab.id, 25000);
     const out = await chrome.scripting.executeScript({
@@ -51,8 +69,67 @@ async function crawlOne(s) {
     });
     return (out && out[0] && out[0].result) || { ok: false, error: "추출 결과 없음" };
   } finally {
-    try { await chrome.tabs.remove(tab.id); } catch (_) {}
+    try { await chrome.windows.remove(win.id); } catch (_) {}
   }
+}
+
+// ── 비로그인 4개용: 보이는 창에서 렌더 HTML 수집(추출은 서버 /api/sources/parse) ──
+async function handleGrabHtml(payload) {
+  const url = payload.url;
+  if (!url) return { ok: false, error: "url 없음" };
+  const win = await chrome.windows.create({ url, focused: false });
+  const tab = win && win.tabs && win.tabs[0];
+  if (!tab) { try { await chrome.windows.remove(win.id); } catch (_) {} return { ok: false, error: "창 탭 없음" }; }
+  try {
+    await waitTabComplete(tab.id, 25000);
+    const out = await chrome.scripting.executeScript({
+      target: { tabId: tab.id }, world: "ISOLATED",
+      func: () => document.documentElement.outerHTML,
+    });
+    const html = out && out[0] && out[0].result;
+    return html ? { ok: true, html } : { ok: false, error: "HTML 수집 실패" };
+  } finally {
+    try { await chrome.windows.remove(win.id); } catch (_) {}
+  }
+}
+
+// ── 시스템 신호(보조): CPU/메모리 사용률 0~100. 권한·측정 실패 시 null. ──
+//   chrome.system.cpu 의 processors[].usage 는 누적값(kernel+user+idle 틱)이라
+//   두 번 샘플(400ms)해 델타로 % 계산. memory 는 (total-available)/total.
+async function handleSysinfo() {
+  const cpuApi = chrome.system && chrome.system.cpu;
+  const memApi = chrome.system && chrome.system.memory;
+  if (!cpuApi || !memApi) return { ok: true, cpu: null, mem: null };
+  const getCpu = () => new Promise((res) => { try { cpuApi.getInfo((i) => res(i || null)); } catch (_) { res(null); } });
+  const getMem = () => new Promise((res) => { try { memApi.getInfo((i) => res(i || null)); } catch (_) { res(null); } });
+
+  let cpu = null;
+  try {
+    const a = await getCpu();
+    await new Promise((r) => setTimeout(r, 400));
+    const b = await getCpu();
+    if (a && b && a.processors && b.processors && a.processors.length === b.processors.length) {
+      let busyDelta = 0, totalDelta = 0;
+      for (let i = 0; i < b.processors.length; i++) {
+        const ua = a.processors[i].usage, ub = b.processors[i].usage;
+        if (!ua || !ub) continue;
+        const idle = ub.idle - ua.idle;
+        const total = ub.total - ua.total;
+        if (total > 0) { busyDelta += (total - idle); totalDelta += total; }
+      }
+      if (totalDelta > 0) cpu = Math.round(Math.max(0, Math.min(100, (busyDelta / totalDelta) * 100)));
+    }
+  } catch (_) { cpu = null; }
+
+  let mem = null;
+  try {
+    const m = await getMem();
+    if (m && m.capacity > 0) {
+      mem = Math.round(Math.max(0, Math.min(100, ((m.capacity - m.availableCapacity) / m.capacity) * 100)));
+    }
+  } catch (_) { mem = null; }
+
+  return { ok: true, cpu, mem };
 }
 
 function waitTabComplete(tabId, timeoutMs) {

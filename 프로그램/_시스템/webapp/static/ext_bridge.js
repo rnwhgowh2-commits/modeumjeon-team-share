@@ -72,6 +72,252 @@
     return { ok: true, crawled: results.length, ok_count: results.filter((x) => x.ok).length, save, results };
   }
 
+  // ════════════════════════════════════════════════════════════════════
+  //  crawlBundleAll — 6개 소싱처 전부 이 PC(확장)에서 로컬 창 크롤(A안).
+  //   무신사·롯데온 = 기존 JS 추출기(send "crawl").
+  //   르무통·SSF·SSG·스스르무통 = 창 HTML 수집(grabHtml) → POST /api/sources/parse.
+  //   동시 창 수 = 적응형 처리량 언덕오르기 컨트롤러(설계 §4).
+  //   주요 시점마다 'moum-crawl-log' CustomEvent 방출(대시보드 Phase 4 가 구독).
+  // ════════════════════════════════════════════════════════════════════
+  const PARSE_SOURCES = ["lemouton", "ssf", "ssg", "ss_lemouton"];
+  const JS_SOURCES = ["musinsa", "lotteon"];
+
+  function _emitLog(type, fields) {
+    try {
+      window.dispatchEvent(new CustomEvent("moum-crawl-log", {
+        detail: Object.assign({ type: type, ts: Date.now(), source: null, level: "", msg: "", metrics: null }, fields || {}),
+      }));
+    } catch (_) { /* CustomEvent 미지원 등 — 로그는 베스트에포트 */ }
+  }
+
+  function _median(arr) {
+    if (!arr.length) return 0;
+    const s = arr.slice().sort((a, b) => a - b);
+    const m = Math.floor(s.length / 2);
+    return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
+  }
+
+  // 시스템 신호 폴(보조). 권한·실패 시 {cpu:null,mem:null}.
+  async function _sysinfo() {
+    try {
+      const r = await send("sysinfo", {}, 8000);
+      return { cpu: r && typeof r.cpu === "number" ? r.cpu : null,
+               mem: r && typeof r.mem === "number" ? r.mem : null };
+    } catch (_) { return { cpu: null, mem: null }; }
+  }
+
+  // 1건 처리 — 소싱처 종류에 따라 JS 추출기 또는 grabHtml+서버 parse.
+  async function _crawlItem(code, item) {
+    const sk = item.source_key, url = item.url;
+    if (JS_SOURCES.indexOf(sk) >= 0) {
+      const res = await send("crawl", { model_code: code, sources: [{ source_key: sk, url: url }] }, 120000);
+      const x = (res && res.results && res.results[0]) || {};
+      return {
+        url: url, source_key: sk, price: x.price, stock: x.stock,
+        status: x.ok ? "ok" : "error", product_name: x.product_name, error: x.error || null,
+      };
+    }
+    // 비로그인 4개: 창 HTML 수집 → 서버 parse
+    const grab = await send("grabHtml", { url: url }, 60000);
+    if (!grab || !grab.ok || !grab.html) {
+      return { url: url, source_key: sk, status: "error", error: (grab && grab.error) || "HTML 수집 실패" };
+    }
+    let p;
+    try {
+      p = await fetch("/api/sources/parse", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ source_key: sk, url: url, html: grab.html }),
+      }).then((x) => x.json());
+    } catch (e) {
+      return { url: url, source_key: sk, status: "error", error: "parse 호출 실패: " + e };
+    }
+    if (!p || !p.ok) {
+      return { url: url, source_key: sk, status: "error", error: (p && (p.message || p.error)) || "parse 실패" };
+    }
+    // 서버 parse_html → CrawlResult(asdict): {source, product_url, product_name_raw, options:[{price,stock,...}], ...}
+    //  crawl-result 엔드포인트는 상품단위 {price,stock} 를 받아 모든 옵션에 일괄 반영하므로,
+    //  옵션들에서 대표값을 도출: price = 재고있는 옵션 중 최저가(없으면 전체 최저가), stock = 옵션 재고 합.
+    const opts2 = Array.isArray(p.options) ? p.options : [];
+    const priced = opts2.filter((o) => o && typeof o.price === "number" && o.price > 0);
+    const buyable = priced.filter((o) => (o.stock == null) || o.stock > 0);
+    const pool = buyable.length ? buyable : priced;
+    let price = null;
+    if (pool.length) price = pool.reduce((m, o) => (o.price < m ? o.price : m), pool[0].price);
+    let stock = null;
+    const stocks = opts2.filter((o) => o && typeof o.stock === "number");
+    if (stocks.length) stock = stocks.reduce((sum, o) => sum + Math.max(0, o.stock), 0);
+    const ok = price != null;
+    return {
+      url: url, source_key: sk,
+      price: price,
+      stock: stock,
+      status: ok ? "ok" : "error",
+      product_name: p.product_name_raw || null,
+      error: ok ? null : "옵션 가격 없음",
+    };
+  }
+
+  function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
+
+  async function crawlBundleAll(code, opts) {
+    opts = opts || {};
+    _emitLog("start", { level: "", msg: "전체 로컬 크롤 시작: " + code });
+
+    // 1) 소싱처별 URL 목록 수집(중복 제거). 6개 전부 대상.
+    const r = await fetch("/api/bundles/" + encodeURIComponent(code) + "/option-matrix").then((x) => x.json());
+    const ALL = JS_SOURCES.concat(PARSE_SOURCES);
+    const seen = new Set();
+    const bySource = {}; // source_key -> [{source_key,url}]  (같은 소싱처는 순차)
+    (r.options || []).forEach((o) =>
+      (o.sources || []).forEach((s) => {
+        if (!s.product_url || ALL.indexOf(s.source_key) < 0) return;
+        const key = s.source_key + "|" + s.product_url;
+        if (seen.has(key)) return;
+        seen.add(key);
+        (bySource[s.source_key] = bySource[s.source_key] || []).push({ source_key: s.source_key, url: s.product_url });
+      })
+    );
+    const sourceKeys = Object.keys(bySource);
+    const total = sourceKeys.reduce((n, k) => n + bySource[k].length, 0);
+    if (!total) { _emitLog("finish", { level: "warn", msg: "대상 URL 없음" }); return { ok: false, error: "대상 URL 없음" }; }
+
+    // 2) 컨트롤러 상태 — "같은 소싱처는 순차, 다른 소싱처는 동시".
+    //    각 소싱처를 독립 큐로 두고, 활성 소싱처 수 = concurrency 만큼만 동시에 진행.
+    let cap = clamp((navigator.hardwareConcurrency || 4) - 1, 1, 5);
+    if (navigator.deviceMemory && navigator.deviceMemory < 4) cap = Math.min(cap, 2);
+    if (opts.maxConcurrency) cap = Math.min(cap, opts.maxConcurrency); // 사용자 상한 우선
+    let concurrency = 1;
+    _emitLog("concurrency", { level: "", msg: "초기 동시 창 " + concurrency + "/" + cap, metrics: { concurrency, cap, total, done: 0 } });
+
+    const pendingSources = sourceKeys.slice();  // 아직 시작 안 한 소싱처
+    const results = [];
+    const latencies = [];        // 최근 1건 소요(sec)
+    let done = 0;
+    let lastSys = { cpu: null, mem: null };
+    let cooldown = 0;            // concurrency 변경 후 재판정 보류 카운터
+    let prevThroughput = 0;      // 직전 채택 처리량
+    let active = 0;              // 현재 진행 중 소싱처(창) 수
+    let stopped = false;
+
+    // 한 소싱처의 URL들을 순차로 모두 처리(같은 소싱처 병렬 금지 — 차단 방지).
+    async function runSource(sk) {
+      _emitLog("window-open", { source: sk, level: "", msg: sk + " 창 시작", metrics: { concurrency, cap, done, total } });
+      const list = bySource[sk];
+      for (let i = 0; i < list.length; i++) {
+        if (stopped) break;
+        const t0 = Date.now();
+        let out;
+        try { out = await _crawlItem(code, list[i]); }
+        catch (e) { out = { url: list[i].url, source_key: sk, status: "error", error: String(e && e.message ? e.message : e) }; }
+        const sec = (Date.now() - t0) / 1000;
+        latencies.push(sec);
+        if (latencies.length > 12) latencies.shift();
+        results.push(out);
+        done++;
+        if (cooldown > 0) cooldown--;
+        _emitLog("item-done", {
+          source: sk, level: out.status === "ok" ? "" : "warn",
+          msg: out.status === "ok"
+            ? (sk + " " + (out.price != null ? out.price.toLocaleString() + "원" : "가격없음") + " (" + sec.toFixed(1) + "s)")
+            : (sk + " 실패: " + (out.error || "")),
+          metrics: { concurrency, cap, done, total, avgSec: +_median(latencies).toFixed(2), cpu: lastSys.cpu, mem: lastSys.mem },
+        });
+        // 주기적 시스템 폴(2~3건마다) — 보조 신호
+        if (done % 3 === 0) {
+          lastSys = await _sysinfo();
+          if (lastSys.cpu != null || lastSys.mem != null) {
+            const hot = (lastSys.cpu != null && lastSys.cpu >= 90) || (lastSys.mem != null && lastSys.mem >= 90);
+            if (hot) _emitLog("resource", { level: "warn", msg: "자원 높음 — CPU " + lastSys.cpu + "% / MEM " + lastSys.mem + "%", metrics: { concurrency, cap, cpu: lastSys.cpu, mem: lastSys.mem } });
+          }
+        }
+      }
+      _emitLog("source-done", { source: sk, level: "done", msg: sk + " 완료 (" + list.length + "건)", metrics: { concurrency, cap, done, total } });
+    }
+
+    // 처리량 언덕오르기 — 활성 소싱처 수(=동시 창)를 concurrency 에 맞춰 채운다.
+    //   유효 처리량 = concurrency / (최근 latency 중앙값).  변경 후 최소 3건 쿨다운.
+    function evaluateConcurrency() {
+      if (cooldown > 0) return;                       // 변경 직후엔 보류
+      if (latencies.length < 3) return;               // 표본 부족
+      const med = _median(latencies) || 0.001;
+      const throughput = concurrency / med;           // 분당 환산 불필요(상대비교)
+      // 자원 안전 브레이크(보조)
+      const cpu = lastSys.cpu, mem = lastSys.mem;
+      if ((cpu != null && cpu >= 95) || (mem != null && mem >= 95)) {
+        if (concurrency > 1) {
+          concurrency--; cooldown = 3; prevThroughput = throughput;
+          _emitLog("concurrency", { level: "down", msg: "자원 95%↑ 강제 −1 → " + concurrency, metrics: { concurrency, cap, cpu, mem, done, total } });
+        }
+        return;
+      }
+      const blockUp = (cpu != null && cpu >= 90) || (mem != null && mem >= 90);
+      if (throughput > prevThroughput * 1.05) {
+        // 개선 → 채택, 가능하면 +1 탐침
+        prevThroughput = throughput;
+        if (concurrency < cap && !blockUp) {
+          concurrency++; cooldown = 3;
+          _emitLog("concurrency", { level: "up", msg: "처리량 개선 → 창 +1 = " + concurrency + (blockUp ? "" : ""), metrics: { concurrency, cap, cpu, mem, done, total } });
+        } else if (blockUp && concurrency < cap) {
+          _emitLog("resource", { level: "warn", msg: "처리량 여력 있으나 자원 90%↑ → +1 보류", metrics: { concurrency, cap, cpu, mem, done, total } });
+        }
+      } else if (throughput < prevThroughput * 0.9 && concurrency > 1) {
+        // 처리량 하락/정체 → 직전으로 되돌림(−1)
+        concurrency--; cooldown = 3; prevThroughput = throughput;
+        _emitLog("concurrency", { level: "down", msg: "처리량 하락 → 창 −1 = " + concurrency, metrics: { concurrency, cap, cpu, mem, done, total } });
+      } else {
+        prevThroughput = Math.max(prevThroughput, throughput);
+      }
+    }
+
+    // 스케줄러 루프: active < concurrency 면 대기 소싱처를 하나 더 띄운다.
+    //   타이머는 단 1개만 유지(중복 setTimeout 누적 방지). pump 는 (1)소싱처 완료 시,
+    //   (2)단일 폴 타이머에서만 호출된다.
+    await new Promise((resolveAll) => {
+      let done2 = false;
+      let pollTimer = null;
+      function finish() { if (done2) return; done2 = true; if (pollTimer) clearTimeout(pollTimer); resolveAll(); }
+      function schedulePoll() {
+        if (pollTimer) clearTimeout(pollTimer);
+        pollTimer = setTimeout(() => { pollTimer = null; pump(); }, 1200);
+      }
+      function pump() {
+        if (done2) return;
+        if (stopped) { if (active === 0) finish(); return; }
+        evaluateConcurrency();
+        while (active < concurrency && pendingSources.length > 0) {
+          const sk = pendingSources.shift();
+          active++;
+          runSource(sk).catch((_) => {}).then(() => {
+            active--;
+            pump();   // 한 소싱처 끝나면 다음 채움
+          });
+        }
+        if (active === 0 && pendingSources.length === 0) { finish(); return; }
+        // 진행 중이면 단일 폴 타이머로 다음 평가(처리량/자원 변화 반영)
+        schedulePoll();
+      }
+      pump();
+    });
+
+    // 3) 결과 저장(기존 엔드포인트 형식 그대로)
+    const items = results.map((x) => ({
+      url: x.url, price: x.price, stock: x.stock,
+      status: x.status, product_name: x.product_name, error: x.error,
+    }));
+    const save = await fetch("/api/sources/crawl-result", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ items }),
+    }).then((x) => x.json()).catch((e) => ({ ok: false, error: String(e) }));
+
+    const okCount = results.filter((x) => x.status === "ok").length;
+    _emitLog("finish", {
+      level: "done",
+      msg: "완료 — " + okCount + "/" + results.length + " 성공 · 저장 " + ((save && save.updated) || 0) + "건",
+      metrics: { concurrency, cap, done, total, cpu: lastSys.cpu, mem: lastSys.mem },
+    });
+    return { ok: true, crawled: results.length, ok_count: okCount, save };
+  }
+
   // ── 이 PC 스케줄 크롤 ──
   //  '스케줄 크롤은 현재 컴퓨터로': localStorage['moum_sched_pc']==='1' 이고 확장 설치 시,
   //  mou-m.com 탭이 열려 있는 동안 주기적으로 전체 모음전의 무신사·롯데온을 확장으로 크롤.
@@ -116,7 +362,10 @@
     version,
     ping: () => send("ping", {}, 8000),
     crawl: (payload, timeoutMs) => send("crawl", payload, timeoutMs),
+    grabHtml: (url, timeoutMs) => send("grabHtml", { url }, timeoutMs || 60000),
+    sysinfo: () => send("sysinfo", {}, 8000),
     crawlBundle,
+    crawlBundleAll,
     startSchedule,
     stopSchedule,
     scheduleStatus,

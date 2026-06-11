@@ -2341,38 +2341,59 @@ document.addEventListener('click', async (e) => {
   btn.classList.add('running');
   flash(`'${code}' ${phaseLabel} 시작 — 완료 시 결과 표시`, 'ok');
   try {
-    const res = await apiPost(
-      `/api/bundles/${encodeURIComponent(code)}/run-now`, { phase });
-    // [2026-06-03] run-now 는 백그라운드 스레드 → 즉시 'running' 반환.
-    //   예전엔 이 즉시 응답을 showActionResult 가 "완료"로 잘못 표시했음(가짜 완료).
-    //   백그라운드면 '진행 중'만 안내 → 실제 완료는 아래 crawl-status 폴러가 알림.
-    if (!res.ok) {
-      showActionResult(res, `'${code}' ${phaseLabel}`);  // 실패 표시
-    } else if (res.accepted || res.status === 'running') {
-      flash(`'${code}' ${phaseLabel} 진행 중 — 우상단 진행 위젯에서 실시간 확인`, 'ok');
-    } else {
-      showActionResult(res, `'${code}' ${phaseLabel}`);  // 동기 완료(레거시)
-    }
-    // [2026-06-06] 무신사·롯데온은 서버가 못 긁음(로그인·SPA) → '전체크롤 누른 이 PC'의
-    //   크롬 확장(로그인 브라우저)이 직접 크롤·저장. 서버 크롤(HTTP 4소싱처)과 병행.
-    //   확장 미설치면 기존 동작 유지(서버만) + 안내. 기존 흐름 깨지 않게 방어적.
-    if (phase === 'crawl' || phase === 'full') {
-      if (window.MoumExt && window.MoumExt.installed()) {
-        flash(`'${code}' 무신사·롯데온은 이 PC(확장)에서 크롤 중...`, 'ok');
-        window.MoumExt.crawlBundle(code).then((r) => {
-          if (r && r.ok) {
-            const saved = (r.save && r.save.updated) || 0;
-            flash(`확장 크롤 완료 — ${r.ok_count}/${r.crawled} 성공 · 저장 ${saved}건`, 'ok');
-            if (typeof loadMatrix === 'function') { try { loadMatrix(); } catch (_) {} }
-          } else {
-            flash(`확장 크롤 실패: ${(r && r.error) || '알 수 없음'}`, 'err');
+    // [2026-06-11] 전체 로컬 크롤(A안): 확장 설치 시 6개 소싱처 전부 이 PC(확장)가
+    //   보이는 창으로 크롤한다(crawlBundleAll, 적응형 동시성). 서버 자동 크롤은 호출 안 함.
+    //   - phase 'crawl' → 로컬 크롤만(서버 run-now 미호출).
+    //   - phase 'full'  → 로컬 크롤 완료 후 서버 업로드(run-now phase='upload')만 호출.
+    //   - phase 'upload'→ 서버 run-now 그대로(확장 무관).
+    //   확장 미설치 → 기존 폴백: 서버 run-now(주어진 phase) + 설치 안내.
+    const extInstalled = !!(window.MoumExt && window.MoumExt.installed());
+
+    if ((phase === 'crawl' || phase === 'full') && extInstalled) {
+      flash(`'${code}' 6개 소싱처를 이 PC(확장)에서 로컬 크롤 중...`, 'ok');
+      try {
+        const r = await window.MoumExt.crawlBundleAll(code);
+        if (r && r.ok) {
+          const saved = (r.save && r.save.updated) || 0;
+          flash(`로컬 크롤 완료 — ${r.ok_count}/${r.crawled} 성공 · 저장 ${saved}건`, 'ok');
+          if (typeof loadMatrix === 'function') { try { loadMatrix(); } catch (_) {} }
+          if (typeof window.setLastCrawled === 'function') {
+            try { window.setLastCrawled(new Date().toISOString()); } catch (_) {}
           }
-        }).catch((e) => flash('확장 크롤 오류: ' + e, 'err'));
+        } else {
+          flash(`로컬 크롤 실패: ${(r && r.error) || '알 수 없음'}`, 'err');
+        }
+      } catch (e) {
+        flash('로컬 크롤 오류: ' + e, 'err');
+      }
+      // full 이면 크롤 후 서버 업로드만 실행(크롤은 위에서 로컬로 끝냄)
+      if (phase === 'full') {
+        try {
+          const up = await apiPost(`/api/bundles/${encodeURIComponent(code)}/run-now`, { phase: 'upload' });
+          if (!up.ok) showActionResult(up, `'${code}' 업로드`);
+          else flash(`'${code}' 업로드 진행 중 — 우상단 진행 위젯에서 확인`, 'ok');
+        } catch (e) {
+          flash('업로드 호출 실패: ' + e, 'err');
+        }
+      }
+    } else {
+      // 확장 미설치(또는 upload 전용) → 기존 서버 run-now 경로
+      const res = await apiPost(
+        `/api/bundles/${encodeURIComponent(code)}/run-now`, { phase });
+      // [2026-06-03] run-now 는 백그라운드 스레드 → 즉시 'running' 반환.
+      if (!res.ok) {
+        showActionResult(res, `'${code}' ${phaseLabel}`);  // 실패 표시
+      } else if (res.accepted || res.status === 'running') {
+        flash(`'${code}' ${phaseLabel} 진행 중 — 우상단 진행 위젯에서 실시간 확인`, 'ok');
       } else {
-        flash('무신사·롯데온 크롤은 "모음전 크롤러" 확장 필요 — 설치 후 가능', 'err');
+        showActionResult(res, `'${code}' ${phaseLabel}`);  // 동기 완료(레거시)
+      }
+      if ((phase === 'crawl' || phase === 'full') && !extInstalled) {
+        flash('전체 로컬 크롤은 "모음전 크롤러" 확장 필요 — 설치 시 6개 소싱처 모두 이 PC에서 크롤', 'err');
       }
     }
-    if (res.ok && phase === 'crawl') {
+
+    if (!extInstalled && phase === 'crawl') {
       // 백그라운드 크롤 완료 폴링 — page reload 없이 ticker 자동 갱신
       // (run-now 는 background thread, API 는 즉시 반환 → record_end 가
       //  last_crawled_at 업데이트할 때까지 polling)
