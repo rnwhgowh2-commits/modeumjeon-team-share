@@ -233,6 +233,7 @@
           if (cooldown > 0) cooldown--;
           _emitLog("item-done", {
             source: sk, level: out.status === "ok" ? "" : "warn",
+            url: (out && out.url) || (list[i] && list[i].url) || null,
             msg: out.status === "ok"
               ? (sk + " " + (out.price != null ? out.price.toLocaleString() + "원" : "가격없음") + " (" + sec.toFixed(1) + "s)")
               : (sk + " 실패: " + (out.error || "")),

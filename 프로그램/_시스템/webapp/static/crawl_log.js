@@ -154,6 +154,8 @@
       '.mcl-log-line.lvl-down .mcl-log-msg { color:#FB923C; }',
       '.mcl-log-line.lvl-warn .mcl-log-msg { color:#FBBF24; }',
       '.mcl-log-line.lvl-done .mcl-log-msg { color:#60A5FA; font-weight:700; }',
+      '.mcl-log-url { flex-shrink:0; margin-left:auto; color:#60A5FA; text-decoration:none; font-size:11px; opacity:.8; }',
+      '.mcl-log-url:hover { opacity:1; text-decoration:underline; }',
     ].join('\n');
     document.head.appendChild(style);
   }
@@ -476,12 +478,12 @@
   }
 
   // ── 카드 로그 추가 ───────────────────────────────────────────────
-  function appendCardLog(key, ts, level, msg) {
+  function appendCardLog(key, ts, level, msg, url) {
     var bk = bySource[key];
     if (!bk) return;
 
     /* 로그 배열 누적 (최대 200) */
-    bk.logs.push({ ts: ts, level: level, msg: msg });
+    bk.logs.push({ ts: ts, level: level, msg: msg, url: url });
     if (bk.logs.length > 200) bk.logs.shift();
 
     /* DOM 행 생성 (XSS: textContent) */
@@ -506,6 +508,17 @@
     row.appendChild(tsSpan);
     row.appendChild(icoSpan);
     row.appendChild(msgSpan);
+    /* 크롤한 URL 링크 — 클릭 시 그 상품 페이지 열림(새 탭), hover 시 전체 URL */
+    if (url && /^https?:\/\//.test(url)) {
+      var aUrl = document.createElement('a');
+      aUrl.className = 'mcl-log-url';
+      aUrl.href = url;
+      aUrl.target = '_blank';
+      aUrl.rel = 'noopener noreferrer';
+      aUrl.textContent = '↗';
+      aUrl.title = url;   /* XSS 안전: title 속성 텍스트 */
+      row.appendChild(aUrl);
+    }
     logArea.appendChild(row);
 
     /* DOM 로그 최대 200줄 유지 */
@@ -588,7 +601,7 @@
           bkID.done = (bkID.done || 0) + 1;
           /* source 단위 total 은 모름 — 카드 카운터는 누적 done 만 표시 */
           updateCardProgress(src);
-          appendCardLog(src, ts, level, msg);
+          appendCardLog(src, ts, level, msg, d.url);   /* 크롤한 URL 링크 부착 */
         }
         mergeMetrics(m);
         renderGauges();
