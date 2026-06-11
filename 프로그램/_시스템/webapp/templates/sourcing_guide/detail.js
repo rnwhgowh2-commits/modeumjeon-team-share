@@ -181,7 +181,10 @@
       ? `<div class="cf-rc-div"></div><div class="cf-rc-ln"><span class="lbl">표면 노출가</span><span class="num">${(j.base_price||0).toLocaleString()}원</span></div>`+
         `<div class="cf-rc-div"></div><div class="cf-rc-ln fin"><span class="lbl">최종 매입가</span><span class="num">${j.final_price.toLocaleString()}원</span></div>`
       : '';
-    return `<div class="fxpop" style="margin-top:13px;"><div class="body"><div class="cf-receipt">${rows}${price}</div></div></div>`;
+    const save=`<div style="margin-top:11px;display:flex;align-items:center;gap:10px;">`+
+      `<button id="sg-kw-save" style="background:#191F28;color:#fff;border:none;border-radius:8px;padding:8px 14px;font-size:12px;font-weight:700;cursor:pointer;">✓ 검증 통과 → ① 기준 샘플 URL에 저장</button>`+
+      `<span id="sg-kw-save-msg" style="font-size:11.5px;color:#6B7684;"></span></div>`;
+    return `<div class="fxpop" style="margin-top:13px;"><div class="body"><div class="cf-receipt">${rows}${price}</div></div></div>${save}`;
   }
   if(kwBtn){
     kwBtn.addEventListener('click', async ()=>{
@@ -199,6 +202,28 @@
       }catch(err){ kwRes.innerHTML=`<div class="muted">오류: ${err}</div>`; }
     });
   }
+
+  // ✓ 저장 — 검증 통과한 ④ URL 을 ① 기준 샘플 URL 에 추가 (중복 방지)
+  document.addEventListener('click', async e=>{
+    if(!e.target || e.target.id!=='sg-kw-save') return;
+    const btn=e.target, msg=document.getElementById('sg-kw-save-msg');
+    const url=document.getElementById('sg-verify-url').value.trim();
+    if(!url){ if(msg) msg.textContent='① 검증할 URL 칸에 URL 을 먼저 넣어주세요.'; return; }
+    btn.disabled=true; if(msg) msg.textContent='저장 중…';
+    try{
+      const g=await fetch(`/sourcing-guide/api/${sid}`).then(r=>r.json());
+      const guide=g.guide; guide.sample_urls=guide.sample_urls||[];
+      const exists=guide.sample_urls.some(u=>u.url===url);
+      if(!exists) guide.sample_urls.push({url, is_lead:false});
+      const res=await fetch(`/sourcing-guide/api/${sid}`,{method:'PUT',
+        headers:{'Content-Type':'application/json'}, body:JSON.stringify(guide)});
+      const j=await res.json();
+      if(j.ok){
+        btn.textContent = exists ? '이미 ① 기준 샘플 URL에 있음' : '✓ ① 기준 샘플 URL에 저장됨';
+        if(msg) msg.textContent = exists ? '중복이라 추가 안 함.' : '①에 추가됨 — 새로고침하면 ① 목록에 보입니다.';
+      } else { btn.disabled=false; if(msg) msg.textContent='저장 실패: '+(j.message||j.error||''); }
+    }catch(err){ btn.disabled=false; if(msg) msg.textContent='오류: '+err; }
+  });
 
   // ④ 예제 기준 스크린샷 — 드래그앤드랍 업로드 (리사이즈 → data URL → 저장)
   function resizeImg(file,maxW,q){return new Promise((res,rej)=>{const r=new FileReader();r.onerror=rej;r.onload=()=>{const im=new Image();im.onload=()=>{const sc=Math.min(1,maxW/im.width);const c=document.createElement('canvas');c.width=Math.round(im.width*sc);c.height=Math.round(im.height*sc);c.getContext('2d').drawImage(im,0,0,c.width,c.height);res(c.toDataURL('image/jpeg',q));};im.onerror=rej;im.src=r.result;};r.readAsDataURL(file);});}
