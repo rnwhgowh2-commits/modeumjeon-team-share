@@ -10,7 +10,7 @@
 //  결과 저장은 mou-m.com /api/sources/crawl-result (ext_bridge.crawlBundleAll 이 호출).
 //  grabHtml/crawl(URL마다 창 생성·즉시 닫기) 핸들러는 하위호환 위해 유지.
 
-const MOUM_EXT_VERSION = "0.4.2";
+const MOUM_EXT_VERSION = "0.4.3";
 
 // cascade 위치 시퀀서 — 창이 여러 개 열려도 서로 어긋나 보임
 let _winSeq = 0;
@@ -306,24 +306,44 @@ async function musinsaExtractor() {
 // ════════════════════════════════════════════
 async function lotteonExtractor() {
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  // [2026-06-12 버그픽스] 1원 오인 방지:
+  //   기존 보조식 `나의 혜택가[^\d]*([\d,]+)` 가 라벨 뒤 첫 숫자를 잡는데, 롯데온은
+  //   가격이 라벨 *앞*("119,910원 나의 혜택가")에 있고 뒤엔 "1회 최대 20개 구매"의 "1"이
+  //   와서 SPA 렌더 전 순간 "1"을 가격으로 오인 → 1원 저장됨.
+  //   대책: ① 숫자 4자리 이상 + '원' 인접만 인정(한 자리/원 없는 숫자 배제)
+  //         ② 1000원 미만 거부(MIN)  ③ 유효 가격 렌더될 때까지 폴링.
+  const MIN = 1000;
+  function pickBenefit(t) {
+    // (A) [가격]원 나의 혜택가  — 롯데온 기본 레이아웃(가격이 라벨 앞)
+    let m = t.match(/([\d,]{4,})\s*원\s*나의\s*혜택가/);
+    if (m) { const v = parseInt(m[1].replace(/,/g, ""), 10); if (v >= MIN) return v; }
+    // (B) 혜택가 [가격]원  — 라벨 뒤 가격('원' 인접 필수라 "1회"는 배제됨)
+    m = t.match(/혜택가\s*([\d,]{4,})\s*원/);
+    if (m) { const v = parseInt(m[1].replace(/,/g, ""), 10); if (v >= MIN) return v; }
+    return null;
+  }
+  function pickSale(t) {
+    const m = t.match(/(\d+)%\s*([\d,]{4,})\s*원/);
+    if (m) { const v = parseInt(m[2].replace(/,/g, ""), 10); if (v >= MIN) return v; }
+    return null;
+  }
   let benefit = null, sale = null;
   for (let i = 0; i < 16; i++) {
     const t = document.body.innerText;
-    const b = t.match(/([\d,]+)\s*원\s*나의\s*혜택가/) || t.match(/나의\s*혜택가[^\d]*([\d,]+)/);
-    if (b) { benefit = parseInt(b[1].replace(/,/g, ""), 10); }
-    const sm = t.match(/(\d+)%\s*([\d,]+)\s*원/);
-    if (sm) sale = parseInt(sm[2].replace(/,/g, ""), 10);
-    if (benefit) break;
+    if (benefit == null) benefit = pickBenefit(t);
+    if (sale == null) sale = pickSale(t);
+    if (benefit != null) break;   // MIN 통과한 유효 혜택가만 종료 조건
     await sleep(500);
   }
-  const price = benefit || sale;
-  const soldOut = /품절|일시품절/.test(document.body.innerText) && !price;
+  const price = (benefit != null) ? benefit : sale;
+  const valid = (price != null && price >= MIN);   // 하한 재확인(방어)
+  const soldOut = /품절|일시품절/.test(document.body.innerText) && !valid;
   return {
-    ok: !!price,
-    price: price,
-    stock: price && !soldOut ? 999 : 0,
+    ok: valid,
+    price: valid ? price : null,
+    stock: valid && !soldOut ? 999 : 0,
     product_name: document.title.split(":")[0].trim().slice(0, 120),
     benefit_price: benefit, sale_price: sale,
-    error: price ? null : "가격 추출 실패(렌더 확인)",
+    error: valid ? null : (soldOut ? "품절" : "가격 추출 실패(렌더 미완/하한 미달)"),
   };
 }

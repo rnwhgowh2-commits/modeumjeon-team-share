@@ -1019,8 +1019,19 @@ def save_crawl_result():
                 continue
             price = it.get('price')
             stock = it.get('stock')
-            status = it.get('status') or ('ok' if price else 'error')
-            if price not in (None, '', 0):
+            # [2026-06-12 방어] 비정상 저가(<100원, 예: 1원) 거부 — 추출 오류값이
+            #   last_price/current_price 를 덮어써 잘못된 최저가가 잡히는 금전 사고 방지.
+            #   (전 소싱처 공통 안전망 — 확장 버전 무관)
+            rejected_low = False
+            try:
+                if price not in (None, '', 0) and int(price) < 100:
+                    rejected_low = True
+            except Exception:
+                pass
+            status = it.get('status') or ('ok' if (price and not rejected_low) else 'error')
+            if rejected_low:
+                status = 'error'
+            if price not in (None, '', 0) and not rejected_low:
                 try:
                     sp.last_price = int(price)
                 except Exception:
@@ -1032,14 +1043,14 @@ def save_crawl_result():
                     pass
             sp.last_status = status
             sp.last_fetched_at = now
-            sp.last_error_msg = it.get('error') or None
+            sp.last_error_msg = ('비정상 저가 거부(%s원)' % price) if rejected_low else (it.get('error') or None)
             pn = it.get('product_name')
             if pn:
                 sp.product_name = str(pn)[:255]
             # [2026-06-06] 옵션단위 표시가 갱신 — 매트릭스는 SourceOption.current_price 를
             #   우선 표시한다(상품 last_price 는 fallback). 무신사 회원가·롯데온 혜택가는
             #   상품 내 균일하므로 이 상품의 모든 옵션 가격을 일괄 갱신 → 화면에 신규가 반영.
-            if price not in (None, '', 0):
+            if price not in (None, '', 0) and not rejected_low:
                 try:
                     s.query(SourceOption).filter_by(
                         source_product_id=sp.id, deleted_at=None
