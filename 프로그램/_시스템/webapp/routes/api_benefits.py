@@ -994,6 +994,220 @@ def add_override_to_bundle(source_id: int):
         s.close()
 
 
+# ════════════════════════════════════════════
+#  2026-06-11 — 모음전 한정 값 수정 + 기본값 초기화
+#   매트릭스 ✎ 인라인 수정이 소싱처 공통 템플릿을 직접 바꾸던 동작을
+#   '이 모음전 전체에만' override 로 적용하도록 분리. ↺ 초기화는 그 override 를
+#   깨끗이 삭제해 소싱처 공통값+크롤값(=원래 계산값)으로 복귀.
+# ════════════════════════════════════════════
+def _bundle_skus(session, bundle_code: str) -> list:
+    from webapp.routes.api_benefits_crud import _options_by_bundle_code
+    return [o['sku'] for o in _options_by_bundle_code(session, bundle_code)]
+
+
+def _upsert_value_for_skus(s, source_id, skus, nm, bt, val):
+    """주어진 sku 목록에 (source_id, benefit_name) override 값 upsert.
+
+    소싱처 공통 템플릿(같은 이름)이 있으면 template_id 연결 + 태그 복사
+    (set-value-bundle 와 동일 로직을 공유 — DRY).
+    """
+    tpl = (s.query(SourceBenefitTemplate)
+           .filter_by(source_id=source_id, benefit_name=nm).first())
+    tpl_id = tpl.id if tpl else None
+    affected = 0
+    for sku in skus:
+        existing = (s.query(OptionBenefitOverride)
+                    .filter_by(source_id=source_id, canonical_sku=sku, benefit_name=nm)
+                    .first())
+        if existing:
+            existing.benefit_type = bt
+            existing.value = val
+            existing.enabled = 1
+            if tpl_id and not existing.template_id:
+                existing.template_id = tpl_id
+            if tpl is not None:
+                existing.category = tpl.category
+                existing.apply_mode = tpl.apply_mode
+                existing.pay_method = tpl.pay_method
+                existing.channel = tpl.channel
+        else:
+            last = (s.query(OptionBenefitOverride)
+                    .filter_by(canonical_sku=sku, source_id=source_id)
+                    .order_by(OptionBenefitOverride.sort_order.desc()).first())
+            next_order = (last.sort_order + 1) if last else 0
+            s.add(OptionBenefitOverride(
+                canonical_sku=sku, source_id=source_id,
+                template_id=tpl_id, benefit_name=nm,
+                benefit_type=bt, value=val,
+                category=(tpl.category if tpl else None),
+                apply_mode=(tpl.apply_mode if tpl else None),
+                pay_method=(tpl.pay_method if tpl else None),
+                channel=(tpl.channel if tpl else None),
+                enabled=1, sort_order=next_order,
+            ))
+        affected += 1
+    return affected
+
+
+@bp.post('/overrides/set-value-scoped')
+def set_value_scoped():
+    """scope 인지 값 수정 — option/select/bundle/bundle_all_src/source.
+
+    payload: {source_id, benefit_name, benefit_type, value, scope,
+              canonical_sku?, bundle_code?, skus?[], source_ids?[]}
+    - source scope: SourceBenefitTemplate.value 직접 수정 (소싱처 전 모음전 반영).
+    - 그 외: 대상 옵션들에 override upsert (_upsert_value_for_skus).
+    """
+    data = request.get_json(silent=True) or {}
+    try:
+        source_id = int(data.get('source_id'))
+    except (TypeError, ValueError):
+        return _err('source_id 정수 필수')
+    nm = (data.get('benefit_name') or '').strip()
+    if not nm:
+        return _err('benefit_name 필수')
+    bt = data.get('benefit_type', 'rate')
+    if bt not in ('rate', 'amount'):
+        return _err('benefit_type 은 rate 또는 amount')
+    try:
+        val = float(data.get('value'))
+    except (TypeError, ValueError):
+        return _err('value 숫자 필수')
+    if val < 0:
+        return _err('value >= 0 필수')
+    scope = data.get('scope', 'bundle')
+    bundle_code = (data.get('bundle_code') or '').strip() or None
+    canonical_sku = (data.get('canonical_sku') or '').strip() or None
+    skus_in = data.get('skus') or []
+    skus_in = [str(x).strip() for x in skus_in if str(x).strip()] if isinstance(skus_in, list) else []
+    source_ids_in = data.get('source_ids') or []
+    try:
+        source_ids_in = [int(x) for x in source_ids_in] if isinstance(source_ids_in, list) else []
+    except (TypeError, ValueError):
+        source_ids_in = []
+
+    s = SessionLocal()
+    try:
+        from webapp.routes.api_benefits_crud import _options_by_bundle_code
+        if scope == 'source':
+            tpl = (s.query(SourceBenefitTemplate)
+                   .filter_by(source_id=source_id, benefit_name=nm).first())
+            if not tpl:
+                return _err('source scope: 해당 소싱처 공통 템플릿 없음')
+            tpl.benefit_type = bt
+            tpl.value = val
+            s.commit()
+            return _ok(scope='source', affected='template')
+
+        if scope == 'option':
+            skus = [canonical_sku] if canonical_sku else []
+        elif scope == 'select':
+            skus = skus_in
+        elif scope in ('bundle', 'bundle_all_src'):
+            if not bundle_code:
+                return _err('bundle 계열 scope 는 bundle_code 필수')
+            skus = [o['sku'] for o in _options_by_bundle_code(s, bundle_code)]
+        else:
+            return _err('scope 미허용')
+        if not skus:
+            return _err(f'대상 옵션 0건 (scope={scope})')
+
+        if scope == 'bundle_all_src':
+            if not source_ids_in:
+                return _err('bundle_all_src 는 source_ids[] 필수')
+            total = sum(_upsert_value_for_skus(s, sid, skus, nm, bt, val) for sid in source_ids_in)
+        else:
+            total = _upsert_value_for_skus(s, source_id, skus, nm, bt, val)
+        s.commit()
+        return _ok(scope=scope, affected=total)
+    finally:
+        s.close()
+
+
+@bp.post('/overrides/set-value-bundle')
+def set_value_bundle():
+    """모음전(bundle_code) 전 옵션에 혜택 값을 적용 — 소싱처 공통 템플릿은 보존.
+
+    payload: {source_id, bundle_code, benefit_name, benefit_type, value}
+    동작:
+      - bundle_code 의 모든 옵션에 (source_id, sku, benefit_name) override 를 upsert.
+      - 같은 이름의 소싱처 템플릿이 있으면 template_id 로 연결 + 태그(category/apply_mode/
+        pay_method/channel) 복사 → 엔진이 템플릿을 이 override 로 대체(결제경로 계산 보존).
+      - 매트릭스 ✎ 인라인 수정의 새 저장 경로('이 모음전만' 반영).
+    """
+    data = request.get_json(silent=True) or {}
+    try:
+        source_id = int(data.get('source_id'))
+    except (TypeError, ValueError):
+        return _err('source_id 정수 필수')
+    nm = (data.get('benefit_name') or '').strip()
+    if not nm:
+        return _err('benefit_name 필수')
+    bt = data.get('benefit_type', 'rate')
+    if bt not in ('rate', 'amount'):
+        return _err('benefit_type 은 rate 또는 amount')
+    try:
+        val = float(data.get('value'))
+    except (TypeError, ValueError):
+        return _err('value 숫자 필수')
+    if val < 0:
+        return _err('value >= 0 필수')
+    bundle_code = (data.get('bundle_code') or '').strip() or None
+    if not bundle_code:
+        return _err('bundle_code 필수')
+
+    s = SessionLocal()
+    try:
+        target_skus = _bundle_skus(s, bundle_code)
+        if not target_skus:
+            return _err('대상 옵션 0건 (bundle_code 확인)')
+        affected = _upsert_value_for_skus(s, source_id, target_skus, nm, bt, val)
+        s.commit()
+        return _ok(affected=affected, scope='bundle')
+    finally:
+        s.close()
+
+
+@bp.post('/overrides/reset-bundle')
+def reset_bundle():
+    """모음전(bundle_code) 단위 혜택 초기화 — 이 모음전 옵션들의 해당 override 전부 삭제.
+
+    payload: {source_id, bundle_code, benefit_name}
+    동작:
+      - delete-scoped 와 달리 '비활성 스텁'을 만들지 않는다.
+        대상 옵션들의 (source_id, benefit_name) override 행을 단순 삭제 →
+        엔진이 소싱처 공통 템플릿 + 크롤 동적값으로 재계산 = '원래 계산값' 복귀.
+    """
+    data = request.get_json(silent=True) or {}
+    try:
+        source_id = int(data.get('source_id'))
+    except (TypeError, ValueError):
+        return _err('source_id 정수 필수')
+    nm = (data.get('benefit_name') or '').strip()
+    if not nm:
+        return _err('benefit_name 필수')
+    bundle_code = (data.get('bundle_code') or '').strip() or None
+    if not bundle_code:
+        return _err('bundle_code 필수')
+    s = SessionLocal()
+    try:
+        target_skus = _bundle_skus(s, bundle_code)
+        if not target_skus:
+            return _err('대상 옵션 0건 (bundle_code 확인)')
+        rows = (s.query(OptionBenefitOverride)
+                .filter(OptionBenefitOverride.source_id == source_id,
+                        OptionBenefitOverride.benefit_name == nm,
+                        OptionBenefitOverride.canonical_sku.in_(target_skus))
+                .all())
+        deleted = len(rows)
+        for r in rows:
+            s.delete(r)
+        s.commit()
+        return _ok(deleted=deleted, scope='bundle')
+    finally:
+        s.close()
+
+
 @bp.post('/delete-scoped')
 def delete_scoped():
     """혜택을 범위(scope)별로 삭제 — 해당 옵션 / 이 모음전 전체 / 소싱처 전체.
@@ -1022,20 +1236,51 @@ def delete_scoped():
     if not nm:
         return _err('benefit_name 필수')
     scope = data.get('scope')
-    if scope not in ('option', 'bundle', 'source'):
-        return _err("scope 는 option|bundle|source")
+    if scope not in ('option', 'bundle', 'source', 'select', 'bundle_all_src'):
+        return _err("scope 는 option|bundle|source|select|bundle_all_src")
     canonical_sku = (data.get('canonical_sku') or '').strip() or None
     bundle_code = (data.get('bundle_code') or '').strip() or None
     template_id = data.get('template_id')
+    skus_in = data.get('skus') or []
+    skus_in = [str(x).strip() for x in skus_in if str(x).strip()] if isinstance(skus_in, list) else []
+    source_ids_in = data.get('source_ids') or []
+    try:
+        source_ids_in = [int(x) for x in source_ids_in] if isinstance(source_ids_in, list) else []
+    except (TypeError, ValueError):
+        source_ids_in = []
 
     s = SessionLocal()
     try:
+        # ── bundle_all_src: 단일 source_id 가정을 벗어나므로 별도 처리 후 early-return ──
+        if scope == 'bundle_all_src':
+            from webapp.routes.api_benefits_crud import _options_by_bundle_code
+            if not source_ids_in or not bundle_code:
+                return _err('bundle_all_src 는 source_ids[]·bundle_code 필수')
+            base = [o['sku'] for o in _options_by_bundle_code(s, bundle_code)]
+            if not base:
+                return _err('bundle_all_src 대상 옵션 0건 (bundle_code 확인)')
+            total_del = 0
+            for sid in source_ids_in:
+                rows = (s.query(OptionBenefitOverride)
+                        .filter(OptionBenefitOverride.source_id == sid,
+                                OptionBenefitOverride.benefit_name == nm,
+                                OptionBenefitOverride.canonical_sku.in_(base)).all())
+                for r in rows:
+                    s.delete(r)
+                    total_del += 1
+            s.commit()
+            return _ok(scope='bundle_all_src', deleted_overrides=total_del,
+                       affected=len(base) * len(source_ids_in))
         # ── 대상 옵션 sku 결정 ──
         target_skus = None  # None = 전체(source scope)
         if scope == 'option':
             if not canonical_sku:
                 return _err('option scope 는 canonical_sku 필수')
             target_skus = [canonical_sku]
+        elif scope == 'select':
+            if not skus_in:
+                return _err('select scope 는 skus[] 필수')
+            target_skus = skus_in
         elif scope == 'bundle':
             from webapp.routes.api_benefits_crud import _options_by_bundle_code
             if not bundle_code:
@@ -1069,7 +1314,7 @@ def delete_scoped():
 
         # ── ③ option/bundle scope + 소싱처 공통 템플릿 존재 → 비활성 override 로 숨김 ──
         disabled = 0
-        if scope in ('option', 'bundle'):
+        if scope in ('option', 'bundle', 'select'):
             tpl = (s.query(SourceBenefitTemplate)
                    .filter_by(source_id=source_id, benefit_name=nm).first())
             if tpl:
