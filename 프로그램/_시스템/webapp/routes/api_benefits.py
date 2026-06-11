@@ -1014,11 +1014,16 @@ def _upsert_value_for_skus(s, source_id, skus, nm, bt, val):
     tpl = (s.query(SourceBenefitTemplate)
            .filter_by(source_id=source_id, benefit_name=nm).first())
     tpl_id = tpl.id if tpl else None
+    # ★ 성능: 기존행을 sku별 N쿼리 대신 IN 1쿼리로, 신규는 벌크 insert.
+    existing_rows = (s.query(OptionBenefitOverride)
+                     .filter(OptionBenefitOverride.source_id == source_id,
+                             OptionBenefitOverride.benefit_name == nm,
+                             OptionBenefitOverride.canonical_sku.in_(skus)).all())
+    by_sku = {r.canonical_sku: r for r in existing_rows}
+    new_objs = []
     affected = 0
     for sku in skus:
-        existing = (s.query(OptionBenefitOverride)
-                    .filter_by(source_id=source_id, canonical_sku=sku, benefit_name=nm)
-                    .first())
+        existing = by_sku.get(sku)
         if existing:
             existing.benefit_type = bt
             existing.value = val
@@ -1031,11 +1036,7 @@ def _upsert_value_for_skus(s, source_id, skus, nm, bt, val):
                 existing.pay_method = tpl.pay_method
                 existing.channel = tpl.channel
         else:
-            last = (s.query(OptionBenefitOverride)
-                    .filter_by(canonical_sku=sku, source_id=source_id)
-                    .order_by(OptionBenefitOverride.sort_order.desc()).first())
-            next_order = (last.sort_order + 1) if last else 0
-            s.add(OptionBenefitOverride(
+            new_objs.append(OptionBenefitOverride(
                 canonical_sku=sku, source_id=source_id,
                 template_id=tpl_id, benefit_name=nm,
                 benefit_type=bt, value=val,
@@ -1043,9 +1044,11 @@ def _upsert_value_for_skus(s, source_id, skus, nm, bt, val):
                 apply_mode=(tpl.apply_mode if tpl else None),
                 pay_method=(tpl.pay_method if tpl else None),
                 channel=(tpl.channel if tpl else None),
-                enabled=1, sort_order=next_order,
+                enabled=1, sort_order=999,
             ))
         affected += 1
+    if new_objs:
+        s.bulk_save_objects(new_objs)
     return affected
 
 
@@ -1259,15 +1262,14 @@ def delete_scoped():
             base = [o['sku'] for o in _options_by_bundle_code(s, bundle_code)]
             if not base:
                 return _err('bundle_all_src 대상 옵션 0건 (bundle_code 확인)')
+            # ★ 성능: 행마다 delete 금지 — source 별 벌크 DELETE 1회
             total_del = 0
             for sid in source_ids_in:
-                rows = (s.query(OptionBenefitOverride)
-                        .filter(OptionBenefitOverride.source_id == sid,
-                                OptionBenefitOverride.benefit_name == nm,
-                                OptionBenefitOverride.canonical_sku.in_(base)).all())
-                for r in rows:
-                    s.delete(r)
-                    total_del += 1
+                total_del += (s.query(OptionBenefitOverride)
+                              .filter(OptionBenefitOverride.source_id == sid,
+                                      OptionBenefitOverride.benefit_name == nm,
+                                      OptionBenefitOverride.canonical_sku.in_(base))
+                              .delete(synchronize_session=False))
             s.commit()
             return _ok(scope='bundle_all_src', deleted_overrides=total_del,
                        affected=len(base) * len(source_ids_in))

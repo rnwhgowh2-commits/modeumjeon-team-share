@@ -262,21 +262,19 @@ def add_benefit():
             base = [o['sku'] for o in _options_by_bundle_code(session, bundle_code)]
             if not base:
                 return _err('bundle_all_src 대상 옵션 0건 (bundle_code 확인)')
-            inserted = 0
-            for sid in source_ids_in:
-                for sku in base:
-                    ov = OptionBenefitOverride(
-                        canonical_sku=sku, source_id=sid, template_id=None,
-                        benefit_name=name, benefit_type=benefit_type, value=value,
-                        category=category, enabled=1, sort_order=999,
-                    )
-                    session.add(ov)
-                    session.flush()
-                    inserted_ids.append(ov.id)
-                    inserted += 1
+            # ★ 성능: 행마다 flush 금지 — 벌크 insert 1회 (sku×source 대량 대응)
+            new_rows = [
+                OptionBenefitOverride(
+                    canonical_sku=sku, source_id=sid, template_id=None,
+                    benefit_name=name, benefit_type=benefit_type, value=value,
+                    category=category, enabled=1, sort_order=999,
+                )
+                for sid in source_ids_in for sku in base
+            ]
+            session.bulk_save_objects(new_rows)
             session.commit()
-            return _ok(scope='bundle_all_src', applied_count=inserted,
-                       ids=inserted_ids[:10], table='option_benefit_overrides')
+            return _ok(scope='bundle_all_src', applied_count=len(new_rows),
+                       table='option_benefit_overrides')
 
         elif scope == 'bundle':
             # ① 모음전 코드 기반 (실제 매핑 = Option.model_code) — 우선
@@ -294,9 +292,9 @@ def add_benefit():
         if not target_skus:
             return _err(f'적용 대상 옵션 0건 (scope={scope})')
 
-        # ── 일괄 INSERT ─────────────────────────────────
-        for sku in target_skus:
-            ov = OptionBenefitOverride(
+        # ── 일괄 INSERT (★ 성능: 행마다 flush 금지 → 벌크 1회) ──
+        new_rows = [
+            OptionBenefitOverride(
                 canonical_sku=sku,
                 source_id=source_id,
                 template_id=None,  # 단독 신규 (template 기반 X)
@@ -307,17 +305,14 @@ def add_benefit():
                 enabled=1,
                 sort_order=999,
             )
-            session.add(ov)
-            session.flush()
-            inserted_ids.append(ov.id)
-            applied_skus.append(sku)
-
+            for sku in target_skus
+        ]
+        session.bulk_save_objects(new_rows)
         session.commit()
         return _ok(
             scope=scope,
             applied_count=len(target_skus),
-            ids=inserted_ids,
-            applied_skus=applied_skus[:10],  # 상위 10개만 응답 (response 크기 제한)
+            applied_skus=target_skus[:10],  # 상위 10개만 응답 (response 크기 제한)
             table='option_benefit_overrides',
         )
 
