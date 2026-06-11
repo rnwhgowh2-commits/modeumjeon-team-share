@@ -42,7 +42,7 @@ SOURCE_PROFILES = (
      "anchors": MUSINSA_EXPANDED_ANCHORS,
      "anchors_nologin": MUSINSA_PRICE_ANCHORS},
     {"key": "ssf", "match": ("SSF", "ssf"),
-     "login": None, "expand": False, "box": (500, 250),
+     "login": None, "expand": False, "box": (500, 250), "viewport": 1280,
      "anchors": ('[class*="price-info"]',)},
     {"key": "lotteon", "match": ("롯데온", "lotteon"),
      "login": None, "expand": False, "width": 460,
@@ -107,7 +107,7 @@ def latest_account(source: str = "musinsa"):
 
 
 def capture_screenshot(url: str, *, source_name: str = "무신사", pad: int = 14,
-                       width: int = 1280, timeout_ms: int = 30000) -> bytes:
+                       width: int = 1600, timeout_ms: int = 30000) -> bytes:
     """url 의 '가격 택' 영역을 JPEG 로 캡처. 소싱처 프로파일에 따라 로그인/펼침/앵커 결정.
 
     - source_name: src.name (예 '무신사','SSF','롯데온','SSG','롯데아이몰') → SOURCE_PROFILES 매칭.
@@ -152,7 +152,8 @@ def capture_screenshot(url: str, *, source_name: str = "무신사", pad: int = 1
                 )
             try:
                 page = ctx.new_page()
-                page.set_viewport_size({"width": width, "height": 1500})
+                vw = prof.get("viewport") or width
+                page.set_viewport_size({"width": vw, "height": 1500})
                 page.goto(url, wait_until="domcontentloaded", timeout=timeout_ms)
                 page.wait_for_timeout(2200)
                 if logged_in and expand:
