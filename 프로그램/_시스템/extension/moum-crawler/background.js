@@ -10,7 +10,10 @@
 //  결과 저장은 mou-m.com /api/sources/crawl-result (ext_bridge.crawlBundleAll 이 호출).
 //  grabHtml/crawl(URL마다 창 생성·즉시 닫기) 핸들러는 하위호환 위해 유지.
 
-const MOUM_EXT_VERSION = "0.4.1";
+const MOUM_EXT_VERSION = "0.4.2";
+
+// cascade 위치 시퀀서 — 창이 여러 개 열려도 서로 어긋나 보임
+let _winSeq = 0;
 
 // SPA(르무통·SSG·스스르무통) 가격 DOM 이 로드 완료 후에도 늦게 뜰 수 있어
 //  navGrab 은 로드 완료 뒤 추가 안정화 대기 후 outerHTML 을 뜬다(빈 HTML 방지).
@@ -128,10 +131,14 @@ async function handleGrabHtml(payload) {
 //  창 재사용 모델 (v0.4.1) — 소싱처 1곳당 창 1개, URL은 그 창에서 순차 이동
 // ════════════════════════════════════════════
 
-// openWin — 보이는 빈 창 1개 생성(focused:false). 첫 탭 id 확보.
+// openWin — 보이는 빈 창 1개 생성(focused:true, cascade 위치). 첫 탭 id 확보.
 async function handleOpenWin(_payload) {
+  const k = _winSeq++ % 6;
+  const left = 60 + k * 70;
+  const top  = 60 + k * 48;
   const win = await chrome.windows.create({
-    url: "about:blank", focused: false, width: 1100, height: 800,
+    url: "about:blank", focused: true, type: "normal",
+    left, top, width: 1000, height: 760,
   });
   const tab = win && win.tabs && win.tabs[0];
   if (!win || !tab) {

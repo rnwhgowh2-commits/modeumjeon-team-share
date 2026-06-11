@@ -187,7 +187,7 @@
     if (navigator.deviceMemory && navigator.deviceMemory < 4) cap = Math.min(cap, 2);
     if (opts.maxConcurrency) cap = Math.min(cap, opts.maxConcurrency); // 사용자 상한 우선
     let concurrency = 1;
-    _emitLog("concurrency", { level: "", msg: "초기 동시 창 " + concurrency + "/" + cap, metrics: { concurrency, cap, total, done: 0 } });
+    _emitLog("concurrency", { level: "", msg: "초기 동시 창 " + concurrency + "/" + cap, metrics: { concurrency, cap, active: 0, total, done: 0 } });
 
     const pendingSources = sourceKeys.slice();  // 아직 시작 안 한 소싱처
     const results = [];
@@ -213,11 +213,11 @@
             results.push({ url: list[j].url, source_key: sk, status: "error", error: (w && w.error) || "창 생성 실패" });
             done++;
           }
-          _emitLog("source-done", { source: sk, level: "warn", msg: sk + " 창 생성 실패 — " + list.length + "건 건너뜀", metrics: { concurrency, cap, done, total } });
+          _emitLog("source-done", { source: sk, level: "warn", msg: sk + " 창 생성 실패 — " + list.length + "건 건너뜀", metrics: { concurrency, cap, active, done, total } });
           return;
         }
         winId = w.winId; tabId = w.tabId;
-        _emitLog("window-open", { source: sk, level: "", msg: sk + " 창 시작", metrics: { concurrency, cap, done, total } });
+        _emitLog("window-open", { source: sk, level: "", msg: sk + " 창 시작", metrics: { concurrency, cap, active, done, total } });
 
         for (let i = 0; i < list.length; i++) {
           if (stopped) break;
@@ -236,7 +236,7 @@
             msg: out.status === "ok"
               ? (sk + " " + (out.price != null ? out.price.toLocaleString() + "원" : "가격없음") + " (" + sec.toFixed(1) + "s)")
               : (sk + " 실패: " + (out.error || "")),
-            metrics: { concurrency, cap, done, total, avgSec: +_median(latencies).toFixed(2), cpu: lastSys.cpu, mem: lastSys.mem },
+            metrics: { concurrency, cap, active, done, total, avgSec: +_median(latencies).toFixed(2), cpu: lastSys.cpu, mem: lastSys.mem },
           });
           // 주기적 시스템 폴(2~3건마다) — 보조 신호
           if (done % 3 === 0) {
@@ -244,7 +244,7 @@
             if (lastSys.cpu != null || lastSys.mem != null) {
               // Windows 는 캐시로 메모리 사용률이 평상시 85~95% 라 메모리 임계는 높게(96/98), CPU 는 유지.
               const hot = (lastSys.cpu != null && lastSys.cpu >= 90) || (lastSys.mem != null && lastSys.mem >= 96);
-              if (hot) _emitLog("resource", { level: "warn", msg: "자원 높음 — CPU " + lastSys.cpu + "% / MEM " + lastSys.mem + "%", metrics: { concurrency, cap, cpu: lastSys.cpu, mem: lastSys.mem } });
+              if (hot) _emitLog("resource", { level: "warn", msg: "자원 높음 — CPU " + lastSys.cpu + "% / MEM " + lastSys.mem + "%", metrics: { concurrency, cap, active, cpu: lastSys.cpu, mem: lastSys.mem } });
             }
           }
         }
@@ -252,7 +252,7 @@
         // ⚠️ 에러·정지 어떤 경우에도 창을 반드시 닫는다(창 누수 방지).
         if (winId != null) { try { await send("closeWin", { winId: winId }, 15000); } catch (_) {} }
       }
-      _emitLog("source-done", { source: sk, level: "done", msg: sk + " 완료 (" + list.length + "건)", metrics: { concurrency, cap, done, total } });
+      _emitLog("source-done", { source: sk, level: "done", msg: sk + " 완료 (" + list.length + "건)", metrics: { concurrency, cap, active, done, total } });
     }
 
     // 처리량 언덕오르기 — 활성 소싱처 수(=동시 창)를 concurrency 에 맞춰 채운다.
@@ -267,7 +267,7 @@
       if ((cpu != null && cpu >= 95) || (mem != null && mem >= 98)) {
         if (concurrency > 1) {
           concurrency--; cooldown = 3; prevThroughput = throughput;
-          _emitLog("concurrency", { level: "down", msg: "자원 한계(CPU≥95·MEM≥98) 강제 −1 → " + concurrency, metrics: { concurrency, cap, cpu, mem, done, total } });
+          _emitLog("concurrency", { level: "down", msg: "자원 한계(CPU≥95·MEM≥98) 강제 −1 → " + concurrency, metrics: { concurrency, cap, active, cpu, mem, done, total } });
         }
         return;
       }
@@ -277,14 +277,14 @@
         prevThroughput = throughput;
         if (concurrency < cap && !blockUp) {
           concurrency++; cooldown = 3;
-          _emitLog("concurrency", { level: "up", msg: "처리량 개선 → 창 +1 = " + concurrency + (blockUp ? "" : ""), metrics: { concurrency, cap, cpu, mem, done, total } });
+          _emitLog("concurrency", { level: "up", msg: "처리량 개선 → 창 +1 = " + concurrency + (blockUp ? "" : ""), metrics: { concurrency, cap, active, cpu, mem, done, total } });
         } else if (blockUp && concurrency < cap) {
-          _emitLog("resource", { level: "warn", msg: "처리량 여력 있으나 자원 높음(CPU≥90·MEM≥96) → +1 보류", metrics: { concurrency, cap, cpu, mem, done, total } });
+          _emitLog("resource", { level: "warn", msg: "처리량 여력 있으나 자원 높음(CPU≥90·MEM≥96) → +1 보류", metrics: { concurrency, cap, active, cpu, mem, done, total } });
         }
       } else if (throughput < prevThroughput * 0.9 && concurrency > 1) {
         // 처리량 하락/정체 → 직전으로 되돌림(−1)
         concurrency--; cooldown = 3; prevThroughput = throughput;
-        _emitLog("concurrency", { level: "down", msg: "처리량 하락 → 창 −1 = " + concurrency, metrics: { concurrency, cap, cpu, mem, done, total } });
+        _emitLog("concurrency", { level: "down", msg: "처리량 하락 → 창 −1 = " + concurrency, metrics: { concurrency, cap, active, cpu, mem, done, total } });
       } else {
         prevThroughput = Math.max(prevThroughput, throughput);
       }
@@ -340,7 +340,7 @@
     _emitLog("finish", {
       level: "done",
       msg: "완료 — " + okCount + "/" + results.length + " 성공 · 저장 " + ((save && save.updated) || 0) + "건",
-      metrics: { concurrency, cap, done, total, cpu: lastSys.cpu, mem: lastSys.mem },
+      metrics: { concurrency, cap, active, done, total, cpu: lastSys.cpu, mem: lastSys.mem },
     });
     return { ok: true, crawled: results.length, ok_count: okCount, save };
   }

@@ -17,7 +17,7 @@
   // ── 내부 상태 ────────────────────────────────────────────────────
   var state = {
     sources: {},   // key -> { status:'wait'|'run'|'done', done:0, total:null }
-    metrics: { concurrency: 0, cap: 0, cpu: null, mem: null, avgSec: null, done: 0, total: 0 },
+    metrics: { concurrency: 0, cap: 0, active: 0, cpu: null, mem: null, avgSec: null, done: 0, total: 0 },
     logs:    [],   // { ts, level, msg }
     startTs: 0,
     elapsed: 0,
@@ -29,7 +29,7 @@
     SOURCE_ORDER.forEach(function (k) {
       state.sources[k] = { status: 'wait', done: 0, total: null };
     });
-    state.metrics = { concurrency: 0, cap: 0, cpu: null, mem: null, avgSec: null, done: 0, total: total || 0 };
+    state.metrics = { concurrency: 0, cap: 0, active: 0, cpu: null, mem: null, avgSec: null, done: 0, total: total || 0 };
     state.logs = [];
     state.startTs = Date.now();
     state.elapsed = 0;
@@ -218,9 +218,11 @@
   function renderGauges() {
     var m = state.metrics;
 
-    /* 동시 창 */
-    var concPct = m.cap > 0 ? (m.concurrency / m.cap * 100) : 0;
-    safeText(document.getElementById('mcl-g-conc-val'), m.concurrency + ' / ' + m.cap);
+    /* 동시 창 — 분자=실제 열린 창(active), 분모=cap. 목표 concurrency도 병기. */
+    var activeWin = (m.active != null) ? m.active : m.concurrency;
+    var concPct = m.cap > 0 ? (activeWin / m.cap * 100) : 0;
+    var concLabel = activeWin + ' / ' + m.cap + '  (목표 ' + m.concurrency + ')';
+    safeText(document.getElementById('mcl-g-conc-val'), concLabel);
     setWidth(document.getElementById('mcl-g-conc-fill'), concPct);
 
     /* CPU */
@@ -341,7 +343,7 @@
   /* metrics 부분 갱신 — null 인 필드는 덮어쓰지 않음 */
   function mergeMetrics(m) {
     if (!m) return;
-    var keys = ['concurrency', 'cap', 'cpu', 'mem', 'avgSec', 'done', 'total'];
+    var keys = ['concurrency', 'cap', 'active', 'cpu', 'mem', 'avgSec', 'done', 'total'];
     keys.forEach(function (k) {
       if (m[k] != null) state.metrics[k] = m[k];
     });
@@ -431,8 +433,9 @@
         if (state.metrics.avgSec != null) {
           var avgEl = document.getElementById('mcl-g-conc-val');
           if (avgEl) {
-            avgEl.textContent = state.metrics.concurrency + ' / ' + state.metrics.cap
-              + '  (중앙 ' + state.metrics.avgSec + 's)';
+            var activeNow = (state.metrics.active != null) ? state.metrics.active : state.metrics.concurrency;
+            avgEl.textContent = activeNow + ' / ' + state.metrics.cap
+              + '  (목표 ' + state.metrics.concurrency + ' · 중앙 ' + state.metrics.avgSec + 's)';
           }
         }
         renderOverall();
