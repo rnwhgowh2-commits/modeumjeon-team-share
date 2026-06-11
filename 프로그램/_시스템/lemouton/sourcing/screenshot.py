@@ -33,24 +33,26 @@ MUSINSA_EXPANDED_ANCHORS = (
 #  login: (source, account) 세션 — None 이면 비로그인 공개가
 #  expand: 무신사 '나의 할인가/적립' 상세 펼침 여부
 #  anchors: 가격 영역 합집합 bbox 크롭 셀렉터 (probe 로 확정)
+# box=(w,h): 가격영역 좌상단(anchors 의 min x,y)에서 고정 크기 박스로 크롭 →
+#   가격+혜택 '부문 전체'가 잘리지 않게 충분히 넓게 잡는다(혜택 가능한 상세히).
+#   box 없으면 anchors 합집합 bbox(무신사=펼침 가변 높이).
 SOURCE_PROFILES = (
     {"key": "musinsa", "match": ("무신사", "musinsa"),
      "login": ("musinsa", None), "expand": True,
      "anchors": MUSINSA_EXPANDED_ANCHORS,
      "anchors_nologin": MUSINSA_PRICE_ANCHORS},
     {"key": "ssf", "match": ("SSF", "ssf"),
-     "login": None, "expand": False,
-     "anchors": ('[class*="price-info"]', '[class*="first-benefit"]')},
+     "login": None, "expand": False, "box": (500, 250),
+     "anchors": ('[class*="price-info"]',)},
     {"key": "lotteon", "match": ("롯데온", "lotteon"),
-     "login": None, "expand": False,
-     "anchors": ('[class*="pd-price"]', '[class*="advantageBox"]')},
+     "login": None, "expand": False, "box": (455, 175),
+     "anchors": ('[class*="pd-price"]',)},
     {"key": "ssg", "match": ("SSG", "ssg"),
-     "login": ("ssg", "ditodalal"), "expand": False,
-     "anchors": ('[class*="cdtl_optprice_wrap"]', '[class*="mndtl_card_price"]')},
-    {"key": "lotteimall", "match": ("롯데아이몰", "lotteimall", "lotteimall"),
-     "login": None, "expand": False,
-     "anchors": ('[class*="price_product"]', '[class*="final_price_area"]',
-                 '[class*="detail_benefit_area"]')},
+     "login": ("ssg", "ditodalal"), "expand": False, "box": (580, 530),
+     "anchors": ('[class*="cdtl_optprice_wrap"]',)},
+    {"key": "lotteimall", "match": ("롯데아이몰", "lotteimall"),
+     "login": None, "expand": False, "box": (500, 360),
+     "anchors": ('[class*="price_product"]',)},
 )
 
 
@@ -153,7 +155,7 @@ def capture_screenshot(url: str, *, source_name: str = "무신사", pad: int = 1
                     except Exception:
                         pass
                     page.wait_for_timeout(500)
-                clip = _price_clip(page, anchors, pad)
+                clip = _price_clip(page, anchors, pad, box=prof.get("box"))
                 if clip:
                     return page.screenshot(type="jpeg", quality=85, clip=clip)
                 return page.screenshot(type="jpeg", quality=80)
@@ -168,8 +170,12 @@ def capture_screenshot(url: str, *, source_name: str = "무신사", pad: int = 1
         raise RuntimeError(f"캡처 실패: {msg[:200]}")
 
 
-def _price_clip(page, anchors, pad: int):
-    """anchors 요소들의 합집합 bounding box(+pad) 반환. 못 찾으면 None."""
+def _price_clip(page, anchors, pad: int, box=None):
+    """anchors 요소들의 합집합 bounding box(+pad) 반환. 못 찾으면 None.
+
+    box=(w,h) 가 주어지면 좌상단(anchors min x,y - pad)에서 고정 크기로 크롭
+    (가격+혜택 부문 전체를 잘리지 않게). 뷰포트(1500) 안으로 클램프.
+    """
     boxes = []
     for sel in anchors:
         try:
@@ -183,10 +189,13 @@ def _price_clip(page, anchors, pad: int):
         return None
     x0 = min(b["x"] for b in boxes)
     y0 = min(b["y"] for b in boxes)
-    x1 = max(b["x"] + b["width"] for b in boxes)
-    y1 = max(b["y"] + b["height"] for b in boxes)
     x = max(0, x0 - pad)
     y = max(0, y0 - pad)
+    if box:
+        w, h = box
+        return {"x": x, "y": y, "width": w, "height": min(h, 1500 - y - 1)}
+    x1 = max(b["x"] + b["width"] for b in boxes)
+    y1 = max(b["y"] + b["height"] for b in boxes)
     return {"x": x, "y": y, "width": (x1 - x0) + 2 * pad, "height": (y1 - y0) + 2 * pad}
 
 
