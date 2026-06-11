@@ -1,10 +1,12 @@
 """소싱처 크롤링 가이드 — 전체보기/상세 렌더 + crawl_guide JSON GET/PUT + ④ 검증."""
 from __future__ import annotations
 
+import io
 import os
+import zipfile
 from datetime import datetime, timezone
 
-from flask import Blueprint, jsonify, render_template, request
+from flask import Blueprint, jsonify, render_template, request, send_file, abort
 
 from shared.db import SessionLocal
 from lemouton.sourcing.models_pricing import SourceRegistry
@@ -55,6 +57,45 @@ def overview():
 def how_to_add():
     """신규 소싱처 추가 가이드 (시안 E 분기 순서도). 정식 SOP = docs/신규-소싱처-추가-가이드.md."""
     return render_template("sourcing_guide/how_to_add.html", active="sourcing_guide")
+
+
+# ════════════════════════════════════════════════════════════
+#  크롤러 설치 가이드 — 팀원이 본인 PC 크롬에 '모음전 크롤러' 확장을 설치해
+#  무신사·롯데온을 로컬 로그인 브라우저로 긁고 결과를 서버에 저장하게 안내.
+#  확장 단일 원본 = 프로그램/_시스템/extension/moum-crawler (배포 트리 안 → 라이브 다운로드 가능).
+# ════════════════════════════════════════════════════════════
+# 이 파일: .../webapp/routes/sourcing_guide.py → 두 단계 위가 앱 루트(_시스템)
+_EXT_DIR = os.path.normpath(
+    os.path.join(os.path.dirname(__file__), "..", "..", "extension", "moum-crawler")
+)
+
+
+@bp.route("/install")
+def install():
+    """크롤러 설치 가이드 페이지 (시안 5 — 진행 체크리스트)."""
+    return render_template("sourcing_guide/install.html", active="sourcing_guide",
+                           ext_available=os.path.isdir(_EXT_DIR))
+
+
+@bp.route("/install/download")
+def install_download():
+    """'모음전 크롤러' 확장 폴더를 즉석 zip 으로 묶어 다운로드.
+
+    압축 후 풀면 `moum-crawler/` 폴더가 생기고, 사용자는 chrome://extensions 에서
+    이 폴더를 '압축해제된 확장 로드'로 선택하면 된다.
+    """
+    if not os.path.isdir(_EXT_DIR):
+        abort(404, description="확장 원본 폴더를 찾을 수 없습니다.")
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+        for root, _dirs, files in os.walk(_EXT_DIR):
+            for fn in files:
+                full = os.path.join(root, fn)
+                rel = os.path.relpath(full, _EXT_DIR)
+                zf.write(full, os.path.join("moum-crawler", rel))
+    buf.seek(0)
+    return send_file(buf, mimetype="application/zip", as_attachment=True,
+                     download_name="모음전-크롤러.zip")
 
 
 @bp.route("/<int:sid>")

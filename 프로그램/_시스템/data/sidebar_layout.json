@@ -94,6 +94,14 @@
           "badge_key": null
         },
         {
+          "id": "i_crawl_install",
+          "emoji": "🧩",
+          "name": "크롤러 설치",
+          "url": "/sourcing-guide/install",
+          "active_key": "sourcing_guide",
+          "badge_key": null
+        },
+        {
           "id": "i_src_dict",
           "emoji": "📖",
           "name": "소싱처 사전",
