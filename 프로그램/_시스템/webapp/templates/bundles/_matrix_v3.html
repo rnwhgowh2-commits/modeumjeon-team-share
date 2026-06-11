@@ -3443,7 +3443,8 @@
 
   // 색×사이즈 매트릭스 팝업. preselect=초기 선택 sku[]. onApply(skus[]).
   window.openOptionMatrixPicker = function(preselect, onApply) {
-    const opts = (window.DATA && window.DATA.options) || [];
+    // ★ 활성(is_active) 옵션만 선택 가능 — 비활성/미생성 조합은 비활성(·)로 표시.
+    const opts = ((window.DATA && window.DATA.options) || []).filter(o => o.is_active !== false);
     const colorOf = o => (o.color_display || o.color_code || '기타');
     const sizeOf  = o => (o.size_display || o.size_code || o.size || '기타');
     const colors = [...new Set(opts.map(colorOf))];
