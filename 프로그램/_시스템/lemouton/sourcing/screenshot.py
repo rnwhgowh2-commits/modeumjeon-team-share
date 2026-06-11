@@ -1,35 +1,78 @@
-"""④ 예제 '기준 스크린샷' 서버 캡처 — Playwright 로 공개 PDP 를 찍어 R2 에 저장.
+"""④ 예제 '기준 스크린샷' 서버 캡처 — Playwright 로 PDP 가격 상세를 찍어 R2 에 저장.
 
-캡처(Playwright)는 브라우저 바이너리가 설치된 환경(개발 PC)에서 admin 이 실행한다.
+캡처(Playwright)는 브라우저 바이너리·로그인 세션이 있는 환경(개발 PC)에서 admin 이 실행한다.
 결과 public URL 은 Supabase 의 guide JSON 에 저장되므로, 표시는 prod/dev 어디서나
 R2 URL 만 렌더하면 된다(Playwright 불필요).
 
-크롤 회원가/혜택 펼침과 무관한 '레이아웃 기준 스냅샷'이다 — 비로그인 공개화면.
+무신사는 **로그인 세션(data/auth/musinsa_*.json)** 으로 접속해 '나의 할인가/최대 적립'
+상세를 펼친(셀렉터 클릭) 뒤 그 회원가 상세 영역만 크롭한다 — 비로그인 공개가 아님.
 """
 from __future__ import annotations
 
+import glob
 import hashlib
+import os
 
 from shared import storage
 
-# 무신사 PDP '가격 택' 영역 셀렉터(합집합 bbox 로 크롭) — 크롤러와 동일 클래스 패턴.
-#  PriceTotal/DiscountWrap/CurrentPrice = 정가·할인율·할인가, MaxBenefitPrice__Wrap = 나의 할인가·최대적립
+# 비로그인/폴백용 '가격 택' 셀렉터(접힌 요약).
 MUSINSA_PRICE_ANCHORS = (
     '[class*="PriceTotal"]',
     '[class*="DiscountWrap"]',
     '[class*="CurrentPrice"]',
     '[class*="MaxBenefitPrice__Wrap"]',
 )
+# 로그인+펼침 후 캡처용 — 정가/할인가(PriceTotal) + 펼쳐진 나의할인가·적립 상세(MaxBenefitPrice 전체).
+MUSINSA_EXPANDED_ANCHORS = (
+    '[class*="PriceTotal"]',
+    '[class*="MaxBenefitPrice"]',
+)
+
+# 무신사 PDP '나의 할인가/최대 적립' 상세 펼침 — 크롤러(musinsa_playwright)의 펼침 로직 포팅.
+#   1) lazy render 발동(스크롤) → 2) CollapseButton 클릭(나의 할인가 펼침)
+#   → 3) PointSummaryWrap 반복 클릭(적립 상세) → PointDetailWrap 에 후기/등급/결제수단 적립 보이면 성공
+_EXPAND_JS = r"""async () => {
+  document.querySelectorAll('[class*="Dimmed"],[class*="Modal"]').forEach(el=>{try{el.remove()}catch(_){}})
+  window.scrollTo(0,800); await new Promise(r=>setTimeout(r,1200));
+  window.scrollTo(0,0);   await new Promise(r=>setTimeout(r,1200));
+  document.querySelectorAll('[class*="MaxBenefitPriceTitle__CollapseButton"]').forEach(el=>{try{el.click()}catch(_){}})
+  await new Promise(r=>setTimeout(r,700));
+  const mk=/후기\s*적립|등급\s*적립|결제수단\s*적립/;
+  for(let i=0;i<12;i++){
+    document.querySelectorAll('[class*="MaxBenefitPrice__PointSummaryWrap"]').forEach(el=>{try{el.click()}catch(_){}})
+    if(i>=8){document.querySelectorAll('button[aria-expanded="false"]').forEach(el=>{try{el.click()}catch(_){}})}
+    await new Promise(r=>setTimeout(r,i<8?450:750));
+    const d=document.querySelector('[class*="MaxBenefitPrice__PointDetailWrap"]');
+    if(d&&mk.test(d.textContent||'')){await new Promise(r=>setTimeout(r,300));return {ok:true,attempt:i+1};}
+  }
+  return {ok:false};
+}"""
 
 
-def capture_screenshot(url: str, *, anchors=MUSINSA_PRICE_ANCHORS, pad: int = 16,
-                       width: int = 1024, full_page: bool = False,
-                       timeout_ms: int = 25000) -> bytes:
-    """url 을 headless Chromium 으로 열어 JPEG 스크린샷 bytes 반환.
+def latest_account(source: str = "musinsa"):
+    """auth_dir 에서 가장 최근(mtime) {source}_*.json 세션의 account 명 반환. 없으면 None."""
+    from config import SOURCING_AUTH
+    auth_dir = SOURCING_AUTH["auth_dir"]
+    files = glob.glob(os.path.join(auth_dir, f"{source}_*.json"))
+    if not files:
+        return None
+    newest = max(files, key=os.path.getmtime)
+    base = os.path.basename(newest)
+    if base.endswith(".json"):
+        base = base[:-5]
+    prefix = f"{source}_"
+    return base[len(prefix):] if base.startswith(prefix) else None
 
-    anchors 가 주어지면 해당 요소들의 합집합 bounding box(+pad)만 크롭(='가격 택'만).
-    anchors 매칭 실패 또는 anchors=None 이면 full_page/뷰포트 폴백.
-    브라우저 미설치/실행 실패 시 RuntimeError(사용자에게 그대로 노출).
+
+def capture_screenshot(url: str, *, source: str = "musinsa", account=None,
+                       expand: bool = True, pad: int = 14, width: int = 1024,
+                       timeout_ms: int = 30000) -> bytes:
+    """url 의 가격 상세를 JPEG 로 캡처. 로그인 세션이 있으면 회원가 상세를 펼쳐 캡처.
+
+    - source/account: data/auth/{source}_{account}.json 세션. account=None 이면 최신 세션 자동 선택.
+    - expand=True: 무신사 '나의 할인가/적립' 상세 펼침 후 캡처.
+    - 세션이 있으면 로그인 컨텍스트, 없으면 비로그인 폴백(접힌 공개가).
+    브라우저 미설치/실행 실패 시 RuntimeError.
     """
     if not (url.startswith("http://") or url.startswith("https://")):
         raise RuntimeError("http(s) URL 이 아닙니다")
@@ -38,24 +81,38 @@ def capture_screenshot(url: str, *, anchors=MUSINSA_PRICE_ANCHORS, pad: int = 16
     except Exception as e:  # pragma: no cover - import 환경 의존
         raise RuntimeError(f"Playwright 미설치: {e}")
 
+    from lemouton.sourcing import auth as sauth
+    acct = account or latest_account(source)
+    logged_in = bool(acct and sauth.has_state(source, acct))
+
     try:
         with sync_playwright() as p:
-            browser = p.chromium.launch(headless=True)
-            try:
+            if logged_in:
+                browser, ctx = sauth.new_context_with_state(p, source, acct)
+                anchors = MUSINSA_EXPANDED_ANCHORS if expand else MUSINSA_PRICE_ANCHORS
+            else:
+                browser = p.chromium.launch(headless=True)
                 ctx = browser.new_context(
-                    viewport={"width": width, "height": 1400},
-                    device_scale_factor=1,
                     user_agent=("Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
                                 "AppleWebKit/537.36 (KHTML, like Gecko) "
                                 "Chrome/124.0 Safari/537.36"),
                 )
+                anchors = MUSINSA_PRICE_ANCHORS
+            try:
                 page = ctx.new_page()
+                page.set_viewport_size({"width": width, "height": 1500})
                 page.goto(url, wait_until="domcontentloaded", timeout=timeout_ms)
-                page.wait_for_timeout(2500)  # 가격/이미지 렌더 대기
-                clip = _price_clip(page, anchors, pad) if anchors else None
+                page.wait_for_timeout(1800)
+                if logged_in and expand:
+                    try:
+                        page.evaluate(_EXPAND_JS)
+                    except Exception:
+                        pass
+                    page.wait_for_timeout(500)
+                clip = _price_clip(page, anchors, pad)
                 if clip:
                     return page.screenshot(type="jpeg", quality=85, clip=clip)
-                return page.screenshot(full_page=full_page, type="jpeg", quality=78)
+                return page.screenshot(type="jpeg", quality=80)
             finally:
                 browser.close()
     except RuntimeError:
