@@ -422,6 +422,17 @@
       .oum-url-recrawl { background:#E4002B; color:#fff; border:1px solid #E4002B; border-radius:7px; padding:0 11px; height:33px; font-size:12px; font-weight:800; cursor:pointer; white-space:nowrap; }
       .oum-url-recrawl:hover { background:#c00; }
       .oum-url-failmsg { padding:8px 14px; background:#FEF2F2; color:#B91C1C; font-size:11.5px; font-weight:700; line-height:1.5; border-top:1px dashed #fca5a5; }
+      /* [2026-06-11] 크롤 실패 요약 배너 — 어떤 URL이 왜 실패했는지 한눈에 */
+      .oum-failsum { margin:0 0 10px; padding:10px 12px; background:#FEF2F2; border:1px solid #fca5a5; border-radius:9px; }
+      .oum-failsum-h { display:flex; align-items:center; gap:8px; flex-wrap:wrap; color:#B91C1C; font-size:13px; font-weight:800; }
+      .oum-failsum-jump { margin-left:auto; background:#E4002B; color:#fff; border:0; border-radius:7px; padding:4px 10px; font-size:11.5px; font-weight:800; cursor:pointer; white-space:nowrap; }
+      .oum-failsum-jump:hover { background:#c00; }
+      .oum-failsum-list { display:flex; flex-wrap:wrap; gap:6px; margin-top:8px; }
+      .oum-failsum-item { background:#fff; border:1px solid #fca5a5; border-radius:999px; padding:3px 10px; font-size:11.5px; font-weight:700; color:#7f1d1d; }
+      .oum-failsum-item em { font-style:normal; color:#dc2626; font-weight:800; }
+      /* 실패 카드 깜빡임 강조 (자동 스크롤 도착 시) */
+      @keyframes oumFailFlash { 0%,100%{ box-shadow:0 0 0 0 rgba(228,0,43,0); } 30%{ box-shadow:0 0 0 4px rgba(228,0,43,.45); } 60%{ box-shadow:0 0 0 4px rgba(228,0,43,.20); } }
+      .oum-url-card.oum-fail-flash { animation:oumFailFlash 1.6s ease-in-out 1; }
       /* [2026-05-27] 카드 미니 액션 — 순서 변경 ↑↓ + 복사 ⎘ */
       .oum-url-actions { display:inline-flex; gap:2px; }
       .oum-url-mini { background:#fff; border:1px solid #d1d6db; border-radius:6px; width:33px; height:33px; display:inline-flex; align-items:center; justify-content:center; font-size:18px; color:#4e5968; cursor:pointer; padding:0; line-height:1; transition:all .12s; }
@@ -523,6 +534,9 @@
     if (!bundleCode) { alert('모음전 코드를 찾을 수 없어요.'); return; }
     // [2026-06-05] opts.focusSourceKey — 매트릭스 실패 카드 클릭 시 해당 소싱처 탭을 우선 활성화.
     const _focusSourceKey = (opts && typeof opts === 'object') ? (opts.focusSourceKey || null) : null;
+    // [2026-06-11] opts.scrollToFail — 매트릭스 "URL N개 실패" 카드 클릭으로 들어온 경우,
+    //   초기 렌더 후 첫 실패 URL 카드로 자동 스크롤 + 깜빡임 강조 (1회만).
+    let _pendingFailScroll = (opts && typeof opts === 'object') ? !!opts.scrollToFail : false;
     injectStyle();
 
     // 상태
@@ -1331,6 +1345,24 @@
       // 현재 탭 URL 카드 리스트
       const srcLabel = SRC_LABELS[state.currentSrc] || state.currentSrc;
       const arr = state.urls[state.currentSrc] || [];
+
+      // [2026-06-11] 크롤 실패 요약 배너 — "어떤 URL이 왜 실패했는지" 한눈에.
+      //   대시보드 "URL N개 실패" 와 동일 기준(crawled===false). 아래 빨강 카드와 1:1 대응.
+      const _failArr = arr.filter(u => u.crawled === false);
+      if (_failArr.length) {
+        const _items = _failArr.map(u => {
+          const _reason = u.lastStatus === 'error' ? '응답 오류'
+            : (u.lastStatus === 'not_crawled' ? '미크롤' : (u.lastStatus || '실패'));
+          let _nm = (u.label && u.label.trim()) || (u.url || '');
+          if (_nm.length > 38) _nm = _nm.slice(0, 38) + '…';
+          return `<span class="oum-failsum-item">${esc(_nm)} <em>(${esc(_reason)})</em></span>`;
+        }).join('');
+        html += `<div class="oum-failsum" data-failsum>
+          <div class="oum-failsum-h">⚠ ${esc(srcLabel)} URL ${_failArr.length}개 크롤 실패 — 가격·재고를 못 받았어요 <button class="oum-failsum-jump" data-failsum-jump type="button">↓ 실패 URL로 이동</button></div>
+          <div class="oum-failsum-list">${_items}</div>
+        </div>`;
+      }
+
       if (!arr.length) {
         html += `<div style="padding:14px; text-align:center; color:#9ca3af; font-size:12px; background:#fff; border:1px dashed #bbf7d0; border-radius:7px;">등록된 URL이 없습니다</div>`;
       } else {
@@ -1650,6 +1682,20 @@
       renderLeft();
       renderRight();
       updateSaveBtn();
+    }
+
+    // [2026-06-11] 현재 탭의 첫 크롤 실패 URL 카드로 스크롤 + 깜빡임 강조.
+    //   매트릭스 실패 카드 클릭(scrollToFail)·배너 "↓ 실패 URL로 이동" 버튼에서 호출.
+    function scrollToFirstFail() {
+      const card = modal.querySelector('.oum-url-card.crawl-fail');
+      if (!card) return false;
+      try { card.scrollIntoView({ behavior: 'smooth', block: 'center' }); } catch (e) { card.scrollIntoView(); }
+      card.classList.remove('oum-fail-flash');
+      // reflow 강제 후 클래스 재부여 — 같은 카드 반복 클릭에도 애니메이션 재생
+      void card.offsetWidth;
+      card.classList.add('oum-fail-flash');
+      setTimeout(() => card.classList.remove('oum-fail-flash'), 1800);
+      return true;
     }
 
     function updateSaveBtn() {
@@ -2180,6 +2226,9 @@
       }
       // [2026-05-27] 탭 전환 즉시 — autoSave 백그라운드 (사용자 대기 X)
       //   pending 큐 가드로 inflight 중 호출도 마지막 저장 보장
+      // [2026-06-11] 실패 요약 배너 "↓ 실패 URL로 이동" — 첫 실패 카드로 스크롤·강조
+      const failJump = e.target.closest('[data-failsum-jump]');
+      if (failJump) { scrollToFirstFail(); return; }
       const tab = e.target.closest('[data-src-tab]');
       if (tab) {
         if (tab.dataset.srcTab !== state.currentSrc) {
@@ -2763,6 +2812,13 @@
 
     // 초기 렌더 — source-urls 만으로 옵션 매트릭스·URL UI 즉시 표시 (재고 매핑 기다리지 않음)
     rerender();
+
+    // [2026-06-11] 매트릭스 "URL N개 실패" 카드 클릭으로 들어온 경우 — 첫 실패 URL 로 자동 이동.
+    //   렌더 직후 DOM 이 준비되면 1회만 스크롤·강조 (실패 카드 없으면 조용히 skip).
+    if (_pendingFailScroll) {
+      _pendingFailScroll = false;
+      setTimeout(() => { try { scrollToFirstFail(); } catch (e) {} }, 120);
+    }
 
     // [perf 2026-05-29] 재고 매핑은 배경 로드 → 도착 시 셀 초록색·재고탭 갱신.
     //   모달 표시·옵션 작업은 이미 가능한 상태. 데이터 도착이 늦어도 UI 안 막힘.

@@ -2990,7 +2990,7 @@
     const failCell = e.target.closest('.scell.has-fail[data-fail-src]');
     if (failCell) {
       if (typeof window.openOptionUrlModal === 'function') {
-        window.openOptionUrlModal(BUNDLE_CODE, { focusSourceKey: failCell.dataset.failKey || null });
+        window.openOptionUrlModal(BUNDLE_CODE, { focusSourceKey: failCell.dataset.failKey || null, scrollToFail: true });
       }
       return;
     }
