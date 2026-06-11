@@ -204,6 +204,35 @@
     });
   }
 
+  // 🟢🔴 시안 2 — ③ 키워드 실시간 하이라이트 미리보기 (포함=초록 / 제외=빨강취소선)
+  const kwHl=document.getElementById('sg-kw-hl');
+  const kwLinesEl=document.getElementById('sg-kw-lines');
+  function _esc(s){return String(s).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));}
+  function _kwSets(){
+    const init=window.__guideInit||{};
+    const benefits=(init.pricing&&init.pricing.benefits)||[];
+    const inc=[...new Set(benefits.flatMap(b=>b.triggers||[]).filter(Boolean))];
+    const exc=((init.exclude_keywords)||[]).map(e=>e&&e.word).filter(Boolean);
+    return {inc, exc};
+  }
+  function renderHl(){
+    if(!kwHl||!kwLinesEl) return;
+    const {inc,exc}=_kwSets();
+    const lines=kwLinesEl.value.split('\n').filter(l=>l.trim());
+    if(!lines.length){ kwHl.innerHTML='<span class="muted" style="font-size:11.5px;">위에 문구를 붙여넣으면 ③ 키워드가 어디에 걸리는지 색으로 표시됩니다.</span>'; return; }
+    kwHl.innerHTML=lines.map(line=>{
+      const exHit=exc.find(k=>k&&line.includes(k));
+      if(exHit) return `<div class="ln"><span class="hit-exc">${_esc(line)}</span><span class="why exc">← 제외 ‘${_esc(exHit)}’</span></div>`;
+      let h=_esc(line), incHit=null;
+      inc.forEach(k=>{ if(k&&line.includes(k)){ if(!incHit) incHit=k; h=h.split(_esc(k)).join(`<span class="hit-inc">${_esc(k)}</span>`); }});
+      return `<div class="ln">${h}${incHit?` <span class="why inc">← 포함 ‘${_esc(incHit)}’</span>`:''}</div>`;
+    }).join('');
+  }
+  if(kwLinesEl){ kwLinesEl.addEventListener('input', renderHl); renderHl(); }
+  document.querySelector('.sg-go3')?.addEventListener('click', e=>{ e.preventDefault();
+    document.querySelector('.sg-sub button[data-sub="sample"]'); // (혜택 ③ 섹션으로)
+    const el=document.getElementById('sg-inc')||document.querySelector('.bcard'); if(el) el.scrollIntoView({behavior:'smooth',block:'center'}); });
+
   // ✓ 저장 — 검증 결과를 '저장된 검증' 리스트(우측)에 누적 + ① 동시 등록 (시안 2-C)
   function nameFromUrl(u){ const m=(u||'').match(/\/products\/(\d+)/); return m? ('상품 '+m[1]) : (u||'검증'); }
   document.addEventListener('click', async e=>{
