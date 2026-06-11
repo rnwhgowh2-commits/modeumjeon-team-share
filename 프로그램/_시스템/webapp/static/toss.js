@@ -2348,8 +2348,23 @@ document.addEventListener('click', async (e) => {
     //   - phase 'upload'→ 서버 run-now 그대로(확장 무관).
     //   확장 미설치 → 기존 폴백: 서버 run-now(주어진 phase) + 설치 안내.
     const extInstalled = !!(window.MoumExt && window.MoumExt.installed());
+    // [2026-06-11] 버전 게이트: 전부-로컬(crawlBundleAll)은 grabHtml/sysinfo 가 있는
+    //   확장 v0.4.0+ 에서만 사용. 구버전(v0.3.x)이 설치돼 있으면 grabHtml 미지원이라
+    //   4개 공개 소싱처가 깨지므로 → 서버 run-now 폴백으로 안전 처리(배포-재설치 순서 무관).
+    function _verGte(v, min) {
+      const a = String(v || '0').split('.').map((n) => parseInt(n, 10) || 0);
+      const b = String(min).split('.').map((n) => parseInt(n, 10) || 0);
+      for (let i = 0; i < Math.max(a.length, b.length); i++) {
+        if ((a[i] || 0) !== (b[i] || 0)) return (a[i] || 0) > (b[i] || 0);
+      }
+      return true;
+    }
+    let extV4 = false;
+    if (extInstalled && (phase === 'crawl' || phase === 'full')) {
+      try { const p = await window.MoumExt.ping(); extV4 = _verGte(p && p.version, '0.4.0'); } catch (_) {}
+    }
 
-    if ((phase === 'crawl' || phase === 'full') && extInstalled) {
+    if ((phase === 'crawl' || phase === 'full') && extV4) {
       flash(`'${code}' 6개 소싱처를 이 PC(확장)에서 로컬 크롤 중...`, 'ok');
       try {
         const r = await window.MoumExt.crawlBundleAll(code);
@@ -2388,12 +2403,16 @@ document.addEventListener('click', async (e) => {
       } else {
         showActionResult(res, `'${code}' ${phaseLabel}`);  // 동기 완료(레거시)
       }
-      if ((phase === 'crawl' || phase === 'full') && !extInstalled) {
-        flash('전체 로컬 크롤은 "모음전 크롤러" 확장 필요 — 설치 시 6개 소싱처 모두 이 PC에서 크롤', 'err');
+      if (phase === 'crawl' || phase === 'full') {
+        if (!extInstalled) {
+          flash('전체 로컬 크롤은 "모음전 크롤러" 확장 필요 — 설치 시 6개 소싱처 모두 이 PC에서 크롤', 'err');
+        } else if (!extV4) {
+          flash('확장이 구버전이에요 — v0.4.0으로 업데이트하면 6개 소싱처 전부 이 PC에서 크롤됩니다(지금은 서버 크롤).', 'err');
+        }
       }
     }
 
-    if (!extInstalled && phase === 'crawl') {
+    if (!extV4 && phase === 'crawl') {
       // 백그라운드 크롤 완료 폴링 — page reload 없이 ticker 자동 갱신
       // (run-now 는 background thread, API 는 즉시 반환 → record_end 가
       //  last_crawled_at 업데이트할 때까지 polling)
