@@ -2769,10 +2769,20 @@
     const opts = DATA.options || [];
     const items = [];
     opts.forEach(o => {
+      // [2026-06-12] 같은 소싱처(source_id)에 URL 여러개(예: 롯데온 모음전 119,910 + 블랙 149,000)면
+      //   breakdown 결과 키가 'sku|src_id' 라 마지막 항목이 캐시를 덮어써, 셀 매입가(146,773)가
+      //   판매가 라벨·모달(119,910→118,118)과 어긋났다. → 셀 표시와 동일 기준
+      //   (재고존재+크롤성공 중 최저 crawled_price, 전부 제외 시 최저가 폴백)으로 src_id 당 1개만 전송.
+      const groups = {};
       (o.sources || []).forEach(src => {
-        if (src.crawled_price && src.crawled_price > 0) {
-          items.push({sku: o.sku, source_id: src.source_id, sale_price: src.crawled_price});
-        }
+        if (!(src.crawled_price && src.crawled_price > 0)) return;
+        (groups[src.source_id] = groups[src.source_id] || []).push(src);
+      });
+      Object.values(groups).forEach(list => {
+        const buyable = list.filter(s => s.last_status !== 'error' && !s.stock_out);
+        const pool = buyable.length ? buyable : list;
+        const pick = pool.reduce((a, b) => (b.crawled_price < a.crawled_price ? b : a));
+        items.push({sku: o.sku, source_id: pick.source_id, sale_price: pick.crawled_price});
       });
     });
     if (!items.length) { SM_BREAKDOWNS = {}; return; }
@@ -3629,9 +3639,9 @@ table.ompk-tab th.corner{color:#b0b8c1;cursor:default}
     };
     // 방식 배지 — 정액(원) / 정률(%). 선반영·후반영 통일(2026-06-12).
     const _wayBadge = (it) => { const r = (it.type || 'rate') === 'rate'; return `<span class="cf-way ${r ? 'rt' : 'amt'}">${r ? '정률' : '정액'}</span>`; };
-    const _rowHtml = (it) => `<div class="cell-fx-row ${it.enabled ? 'on' : 'off'}" data-bid="${it.id}" data-bkind="${it.kind}" data-bval="${it.value != null ? it.value : 0}" data-btype="${it.type || 'rate'}"><div class="tg" onclick="smCellTog(this)"></div><span class="nm">${escapeHtml(it.name)}${_wayBadge(it)}</span><span class="val">${_valHtml(it, false)}</span><span class="cf-acts">${_editBtn(it)}${_resetBtn(it)}${_delBtn(it)}</span></div>`;
+    const _rowHtml = (it) => `<div class="cell-fx-row ${it.enabled ? 'on' : 'off'}" data-bid="${it.id}" data-bkind="${it.kind}" data-bname="${escapeHtml(it.name)}" data-bval="${it.value != null ? it.value : 0}" data-btype="${it.type || 'rate'}"><div class="tg" onclick="smCellTog(this)"></div><span class="nm">${escapeHtml(it.name)}${_wayBadge(it)}</span><span class="val">${_valHtml(it, false)}</span><span class="cf-acts">${_editBtn(it)}${_resetBtn(it)}${_delBtn(it)}</span></div>`;
     // 결제 방식 = 택1 선택 카드 (B 시안). 활성 = 파란 테두리 + 체크(✓).
-    const _payRowHtml = (it) => `<div class="cell-fx-row cf-pay-row cf-paycard ${it.enabled ? 'on' : 'off'}" data-bid="${it.id}" data-bkind="${it.kind}" data-bval="${it.value != null ? it.value : 0}" data-btype="${it.type || 'rate'}"><div class="cf-chk">${it.enabled ? '✓' : ''}</div><span class="nm">${escapeHtml(it.name)}${_wayBadge(it)}</span><span class="val">${_valHtml(it, true)}</span><span class="cf-acts">${_editBtn(it)}${_resetBtn(it)}${_delBtn(it)}</span></div>`;
+    const _payRowHtml = (it) => `<div class="cell-fx-row cf-pay-row cf-paycard ${it.enabled ? 'on' : 'off'}" data-bid="${it.id}" data-bkind="${it.kind}" data-bname="${escapeHtml(it.name)}" data-bval="${it.value != null ? it.value : 0}" data-btype="${it.type || 'rate'}"><div class="cf-chk">${it.enabled ? '✓' : ''}</div><span class="nm">${escapeHtml(it.name)}${_wayBadge(it)}</span><span class="val">${_valHtml(it, true)}</span><span class="cf-acts">${_editBtn(it)}${_resetBtn(it)}${_delBtn(it)}</span></div>`;
     const _items = (j.items_used || []);
     const _g = {pre:[], amount:[], rate:[], pay:[], cashback:[], etc:[]};
     _items.forEach(it => {
@@ -3783,7 +3793,10 @@ table.ompk-tab th.corner{color:#b0b8c1;cursor:default}
     const bid = parseInt(row.dataset.bid, 10);
     const kind = row.dataset.bkind;
     const wasOn = row.classList.contains('on');
-    const benefitName = row.querySelector('.nm')?.textContent.trim() || '';
+    // ★ 이름은 data-bname(원본)에서 — .nm.textContent 는 _wayBadge('정률'/'정액')가
+    //   붙어 "추가적립정률" 처럼 오염됨(삭제·수정·토글이 DB 이름과 불일치 → 무동작).
+    const benefitName = (row.dataset.bname != null ? row.dataset.bname
+                         : (row.querySelector('.nm')?.textContent.trim() || ''));
     // [2026-06-06] off→on 시 0원 버그 fix — 현재 적립률 값/타입을 같이 보내,
     //   override 새로 생성·재활성 시 그 값을 보존(서버가 value=0 으로 덮지 않게).
     const bVal = parseFloat(row.dataset.bval || '0');
@@ -3827,7 +3840,10 @@ table.ompk-tab th.corner{color:#b0b8c1;cursor:default}
     const bid = parseInt(row.dataset.bid, 10);
     const kind = row.dataset.bkind;
     if (!bid || bid < 0) return;  // 크롤 동적 항목(id<0)은 삭제 불가 — 토글만
-    const benefitName = row.querySelector('.nm')?.textContent.trim() || '';
+    // ★ 이름은 data-bname(원본)에서 — .nm.textContent 는 _wayBadge('정률'/'정액')가
+    //   붙어 "추가적립정률" 처럼 오염됨(삭제·수정·토글이 DB 이름과 불일치 → 무동작).
+    const benefitName = (row.dataset.bname != null ? row.dataset.bname
+                         : (row.querySelector('.nm')?.textContent.trim() || ''));
     smOpenDeleteScopeModal({ benefitName, sku, srcId, kind, templateId: bid });
   };
 
@@ -3890,7 +3906,10 @@ table.ompk-tab th.corner{color:#b0b8c1;cursor:default}
     if (!bid || bid < 0) return;  // 크롤 동적 항목(id<0)은 수정 불가 — 토글만
     const bType = row.dataset.btype || 'rate';
     const bVal = parseFloat(row.dataset.bval || '0');
-    const benefitName = row.querySelector('.nm')?.textContent.trim() || '';
+    // ★ 이름은 data-bname(원본)에서 — .nm.textContent 는 _wayBadge('정률'/'정액')가
+    //   붙어 "추가적립정률" 처럼 오염됨(삭제·수정·토글이 DB 이름과 불일치 → 무동작).
+    const benefitName = (row.dataset.bname != null ? row.dataset.bname
+                         : (row.querySelector('.nm')?.textContent.trim() || ''));
     const bundleCode = (typeof BUNDLE_CODE !== 'undefined') ? BUNDLE_CODE : '';
     const bundleCount = (typeof DATA !== 'undefined' && DATA?.options?.length) || 0;
     const unit = bType === 'rate' ? '%' : '원';
@@ -3951,7 +3970,10 @@ table.ompk-tab th.corner{color:#b0b8c1;cursor:default}
     const row = btn.closest('.cell-fx-row');
     const bid = parseInt(row.dataset.bid, 10);
     if (!bid || bid < 0) return;  // 크롤 동적(id<0)은 초기화 대상 아님
-    const benefitName = row.querySelector('.nm')?.textContent.trim() || '';
+    // ★ 이름은 data-bname(원본)에서 — .nm.textContent 는 _wayBadge('정률'/'정액')가
+    //   붙어 "추가적립정률" 처럼 오염됨(삭제·수정·토글이 DB 이름과 불일치 → 무동작).
+    const benefitName = (row.dataset.bname != null ? row.dataset.bname
+                         : (row.querySelector('.nm')?.textContent.trim() || ''));
     const bundleCode = (typeof BUNDLE_CODE !== 'undefined') ? BUNDLE_CODE : '';
     const bundleCount = (typeof DATA !== 'undefined' && DATA?.options?.length) || 0;
     if (!benefitName || !bundleCode) { alert('초기화 대상 정보를 찾지 못했습니다.'); return; }
