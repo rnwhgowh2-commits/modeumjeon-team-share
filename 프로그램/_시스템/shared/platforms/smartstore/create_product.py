@@ -127,6 +127,9 @@ def create_product(
     Returns:
         CreateResult
     """
+    # [안전 게이트 2026-06-13] 0/음수/비정상 판매가 라이브 등록(POST) 차단.
+    from shared.platforms.price_guard import assert_live_sale_price
+    assert_live_sale_price(reg.sale_price, context=f"smartstore create_product name={reg.name!r}")
     client = client or SmartStoreClient()
     path = client.path_for("create_product")
     body = reg.to_body()

@@ -70,6 +70,12 @@ def edit_options(
     """
     if origin_product_no is None or int(origin_product_no) <= 0:
         raise ValueError(f"origin_product_no 양의 정수 필요 (입력: {origin_product_no})")
+    # [안전 게이트 2026-06-13] 0/음수/비정상 판매가 라이브 PUT 차단(송신 전 abort).
+    #   sale_price=None 은 '현재값 유지'라 허용. shared/platforms/price_guard.
+    if sale_price is not None:
+        from shared.platforms.price_guard import assert_live_sale_price
+        assert_live_sale_price(
+            sale_price, context=f"smartstore edit_options origin={origin_product_no}")
     option_updates = option_updates or {}
 
     client = client or SmartStoreClient()
