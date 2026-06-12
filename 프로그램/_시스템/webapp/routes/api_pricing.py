@@ -370,13 +370,13 @@ def _option_matrix_data(code: str):
         #   ``NaPm`` / ``nl-ts-pid`` 같은 광고 트래킹이 매칭 실패 원인이라 매트릭스
         #   가 빈칸으로 표시되던 문제 해결.
         from lemouton.sources.service import normalize_url as _norm_url
-        url_set = {link.product_url for link in url_links if link.product_url}
+        # [perf 2026-06-12] SourceProduct 전체 풀스캔을 1회로 통합.
+        #   기존: 여기(legacy URL 매칭) + 아래 신규 URL 모델 블록에서 각각 풀스캔 → 2회 왕복.
+        #   SourceProduct 는 소량(수십행)이라 항상 1회 조회해 sp_by_norm 으로 재사용.
         sp_by_norm = {}  # normalized URL → SourceProduct
-        if url_set:
-            sps = (s.query(SourceProduct)
-                   .filter(SourceProduct.deleted_at.is_(None))
-                   .all())
-            for sp in sps:
+        for sp in (s.query(SourceProduct)
+                   .filter(SourceProduct.deleted_at.is_(None)).all()):
+            if sp.url:
                 sp_by_norm[_norm_url(sp.url)] = sp
 
         sku_to_sources = {}  # sku -> [{source_id, source_name, product_url, ...}]
@@ -457,16 +457,9 @@ def _option_matrix_data(code: str):
             from lemouton.sourcing.source_registry import get_labels as _src_labels
             _labels = _src_labels()
             if sku_list:
-                # [2026-06-03] 크롤가 매칭 — legacy url_set 이 비어 sp_by_norm 이 미생성되는
-                #   경우(신규 URL 모델만 쓰는 번들)를 대비해 SourceProduct 전체로 보강 매핑.
-                _sp_by_norm2 = dict(sp_by_norm)
-                try:
-                    for _sp in (s.query(SourceProduct)
-                                .filter(SourceProduct.deleted_at.is_(None)).all()):
-                        if _sp.url:
-                            _sp_by_norm2.setdefault(_norm_url(_sp.url), _sp)
-                except Exception:
-                    pass
+                # [perf 2026-06-12] sp_by_norm 은 위에서 SourceProduct 전체를 이미 담았으므로
+                #   재조회 없이 그대로 재사용 (기존: 여기서 풀스캔 1회 더 = 중복 왕복).
+                _sp_by_norm2 = sp_by_norm
                 # [2026-06-03] source_key → SourceRegistry id 매핑 (main_url 도메인 매칭).
                 #   매트릭스 사이트 칼럼은 o.sources 를 source_id===site.id(레지스트리 id)로
                 #   매칭하므로, 등록 URL 의 source_id 를 레지스트리 id 로 줘야 칼럼에 가격/재고 노출.
@@ -587,6 +580,7 @@ def _option_matrix_data(code: str):
 
         # ④ 옵션 재고연결 — OptionProductLink 로 연결된 재고제품 (옵션 SKU 와 다를 수 있음)
         linked_product_dict: dict[str, dict] = {}
+        _opl_psku_map = None  # [perf] 아래 get_stock_batch 재사용용 (OPL 1회 조회분)
         try:
             from lemouton.inventory.models import (
                 InventoryProduct as _IP, OptionProductLink as _OPL,
@@ -595,6 +589,10 @@ def _option_matrix_data(code: str):
             links = (s.query(_OPL)
                      .filter(_OPL.option_canonical_sku.in_(sku_list))
                      .all() if sku_list else [])
+            # [perf 2026-06-12] 이 OPL 조회 결과를 옵션→재고제품 map 으로 만들어
+            #   아래 get_stock_batch 에 넘겨 OptionProductLink 중복 조회 제거.
+            _opl_psku_map = {lk.option_canonical_sku: lk.product_canonical_sku
+                             for lk in links}
             # 옵션 SKU 와 동일한 product 를 가리키는 self-link 는 표시 안 함
             #   (1:1 시딩 링크 = 기존 +재고관리 흐름과 동일 의미 → inv_product_id 로 충분)
             ext_links = {lk.option_canonical_sku: lk.product_canonical_sku
@@ -630,7 +628,8 @@ def _option_matrix_data(code: str):
         inv_stock_dict: dict[str, int] = {}
         try:
             from shared.inventory_stock import get_stock_batch
-            inv_stock_dict = get_stock_batch(s, [o.canonical_sku for o in opts])
+            inv_stock_dict = get_stock_batch(
+                s, [o.canonical_sku for o in opts], psku_map=_opl_psku_map)
         except Exception:
             inv_stock_dict = {}
 
@@ -894,11 +893,10 @@ def _option_matrix_data(code: str):
                         _k2reg[_k] = _rid
                         break
             # 크롤 성공 판정용 — url(정규화) → (last_price, last_status)
-            _crawl_idx = {}
-            for _sp in (s.query(SourceProduct)
-                        .filter(SourceProduct.deleted_at.is_(None)).all()):
-                if _sp.url:
-                    _crawl_idx[_norm_url(_sp.url)] = (_sp.last_price, _sp.last_status)
+            # [perf 2026-06-12] sp_by_norm 재사용 — 위에서 SourceProduct 전체를 이미 로드함.
+            #   (기존: 여기서 동일 풀스캔 1회 더 = 매트릭스 로드당 SourceProduct 3회 왕복.)
+            _crawl_idx = {_k: (_sp.last_price, _sp.last_status)
+                          for _k, _sp in sp_by_norm.items()}
             _bsus = (s.query(_BSU)
                      .filter(_BSU.model_code.in_(model_codes)).all())
             _bids = [b.id for b in _bsus]

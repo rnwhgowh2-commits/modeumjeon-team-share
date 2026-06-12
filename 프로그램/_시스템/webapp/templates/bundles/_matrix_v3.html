@@ -1747,11 +1747,24 @@
       window._matrixV9PopulateFilters();
     }
   }
-  // [2026-06-12] 혜택(삭제·수정·리셋) 변경 후 매트릭스 전체 재조회·재렌더 진입점.
-  //   기존엔 호출부가 window.reloadMatrix 를 참조했으나 어디에도 할당된 적이 없어
-  //   (typeof !== 'function') → 갱신이 통째로 누락됐다(삭제했는데 카드 매입가 그대로).
-  //   loadMatrix 가 DATA 재조회 → renderSourceMatrix → smFetchBreakdowns(캐시 갱신) 까지 수행.
-  window.reloadMatrix = loadMatrix;
+  // [2026-06-12 perf] 혜택(삭제·수정·리셋) 변경 후 매트릭스 갱신 — 경량 경로.
+  //   배경: 혜택은 '최종매입가(breakdowns)'만 바꾼다. 크롤가·옵션구조(option-matrix)는
+  //         혜택과 무관 → 무거운 option-matrix 전체 재조회는 불필요했다(이중 서버 왕복 = 느림).
+  //   변경: 메모리의 DATA 재사용 → breakdowns 만 재계산 → 즉시 재렌더(블로킹 서버 1회).
+  //         크롤 동기화는 백그라운드(UI 비차단)로 — smRefreshFxInPlace 와 동일 검증된 패턴.
+  //   안전: DATA 없으면 기존 loadMatrix 풀로드로 폴백. 매입가 계산은 동일 breakdowns API → 값 불변.
+  async function reloadBenefitsMatrix() {
+    if (!DATA || !(DATA.options || []).length) { return loadMatrix(); }  // 안전 폴백
+    try { await smFetchBreakdowns(); } catch (_) {}     // 최종매입가만 재계산(혜택 반영)
+    try { renderSourceMatrix(true); } catch (_) {}      // 캐시로 즉시 재렌더(재fetch 안 함)
+    try { renderPriceMatrix(); } catch (_) {}           // 좌측 가격표 동기화
+    // 백그라운드: 다른 사용자의 크롤 변경 등 동기화 — UI 막지 않음(체감 즉각).
+    fetch(`/api/bundles/${encodeURIComponent(BUNDLE_CODE)}/option-matrix`)
+      .then(r => r.json())
+      .then(j => { if (j.ok) { _normalizeSourceNames(j.sources); DATA = j; window.DATA = j; } })
+      .catch(() => {});
+  }
+  window.reloadMatrix = reloadBenefitsMatrix;
 
   // ════════════════════════════════════════════════════════════
   //  v5 시안 ① 소싱처×옵션 매트릭스 (4색 + 최저가 박스 + 통계)
