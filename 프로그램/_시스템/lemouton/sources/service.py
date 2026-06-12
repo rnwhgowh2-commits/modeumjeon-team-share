@@ -734,6 +734,34 @@ def get_share_count_by_url(session: Session, site: str, url: str) -> int:
             .count())
 
 
+def get_share_counts_batch(session: Session, site_url_pairs) -> dict:
+    """[(site, url), ...] → {(site, url): share_count}. get_share_count_by_url 의 배치판.
+
+    [perf 2026-06-12] bundle_edit 페이지가 소싱처마다 get_share_count_by_url(2쿼리)을
+      호출하던 N+1(5소싱처=10쿼리)을 2쿼리로 축소. 값은 동일(같은 필터·count).
+    """
+    from sqlalchemy import tuple_, func
+    pairs = [(s, u) for s, u in site_url_pairs if s and u]
+    if not pairs:
+        return {}
+    out = {p: 0 for p in pairs}
+    try:
+        sps = (session.query(SourceProduct.id, SourceProduct.site, SourceProduct.url)
+               .filter(SourceProduct.deleted_at.is_(None),
+                       tuple_(SourceProduct.site, SourceProduct.url).in_(pairs)).all())
+        id_to_key = {sp_id: (site, url) for sp_id, site, url in sps}
+        if id_to_key:
+            counts = dict(session.query(ModelSourceLink.source_product_id, func.count())
+                          .filter(ModelSourceLink.source_product_id.in_(list(id_to_key)))
+                          .group_by(ModelSourceLink.source_product_id).all())
+            for sp_id, key in id_to_key.items():
+                out[key] = counts.get(sp_id, 0)
+    except Exception:
+        # 실패 시 전부 0 (배지 표시 전용 — 페이지 렌더는 절대 막지 않음)
+        pass
+    return out
+
+
 def kpi_summary(session: Session) -> dict:
     """소싱처 운영센터 KPI."""
     base = session.query(SourceProduct).filter_by(deleted_at=None)

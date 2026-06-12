@@ -702,10 +702,20 @@ def bundle_edit(code: str):
             pass  # 테이블 미존재 / 기타 → builtin 만 (안전 fallback)
         share_counts = {}
         source_urls = {}
+        # [perf 2026-06-12] share_count 를 소싱처마다(N+1) 대신 1회 배치로 — pre-pass 로
+        #   (source_key, legacy_url) 쌍을 모아 한 번에 조회.
+        _share_map = {}
         try:
-            from lemouton.sources.service import get_share_count_by_url
+            from lemouton.sources.service import get_share_counts_batch
+            _share_pairs = [
+                (src['key'], getattr(m, f"url_{src['key']}", None) or '')
+                for src in all_sources
+                if src.get('legacy') and (getattr(m, f"url_{src['key']}", None) or '')
+            ]
+            if _share_pairs:
+                _share_map = get_share_counts_batch(s, _share_pairs)
         except Exception:
-            get_share_count_by_url = None
+            _share_map = {}
         # [perf 2026-05-29] BundleSourceUrl 을 소스키마다 쿼리(N+1)하지 않고 1회 조회 후 group.
         _bsu_by_key = {}
         try:
@@ -726,21 +736,8 @@ def bundle_edit(code: str):
             sk = src['key']
             # legacy 단일 URL — builtin 만 Model 컬럼 보유 (custom 은 컬럼 없음)
             legacy_url = (getattr(m, f'url_{sk}', None) or '') if src.get('legacy') else ''
-            # share_count — [perf] legacy_url 이 비어있으면 의미 없는 쿼리이므로 skip (0).
-            #   대부분 모음전은 legacy_url 없음 → SourceProduct N+1 제거.
-            if get_share_count_by_url and legacy_url:
-                try:
-                    share_counts[sk] = get_share_count_by_url(s, sk, legacy_url)
-                except Exception as _e:
-                    import logging
-                    logging.warning(f"get_share_count_by_url fail (sk={sk}, code={code}): {_e}")
-                    try:
-                        s.rollback()  # ★ PG InFailedSqlTransaction 복구
-                    except Exception:
-                        pass
-                    share_counts[sk] = 0
-            else:
-                share_counts[sk] = 0
+            # share_count — [perf 2026-06-12] 위 pre-pass 배치 결과(_share_map)에서 읽음(N+1 제거).
+            share_counts[sk] = _share_map.get((sk, legacy_url), 0) if legacy_url else 0
             # 다중 URL (BundleSourceUrl) — 위에서 batch 조회한 것 사용
             rows = _bsu_by_key.get(sk, [])
             if rows:
