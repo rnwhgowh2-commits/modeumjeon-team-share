@@ -1628,6 +1628,38 @@ _MARKET_ID_FIELDS = [
     'option_id_ssf', 'option_id_lotteon', 'option_id_ss_lemouton', 'boxhero_sku', 'barcode',
 ]
 
+# canonical_sku 를 참조하지만 ondelete=CASCADE 가 '아닌' FK 테이블 — 옵션 삭제 전 보존행으로
+# 이전해야 FK 위반 없이 삭제 가능. (table, fk_col, unique_other_cols). CASCADE 테이블
+# (option_source_url_links / option_inventory_links / option_price_config / option_source_urls)은
+# 옵션 삭제 시 자동 정리되므로 여기 불필요.
+_FK_REASSIGN_TABLES = [
+    ('option_source_links', 'canonical_sku', ['source_option_id']),       # 옵션↔SourceOption 크롤매핑
+    ('option_account_registrations', 'canonical_sku', ['account_id']),    # 마켓 계정 등록(보존 필수)
+    ('etc_source_urls', 'canonical_sku', ['site_name', 'url']),           # 기타 소싱처 URL
+]
+
+
+def _reassign_fk_refs(s, red_sku, keep_sku, dry_run, rep):
+    """잉여행(red)을 참조하는 비-CASCADE FK 행을 보존행(keep)으로 이전.
+       보존행이 같은 unique 키를 이미 가지면 중복 제거(삭제). 데이터 손실 방지."""
+    from sqlalchemy import text as _t
+    for tbl, col, uniq in _FK_REASSIGN_TABLES:
+        n = s.execute(_t(f"SELECT COUNT(*) FROM {tbl} WHERE {col}=:r"),
+                      {'r': red_sku}).scalar() or 0
+        if not n:
+            continue
+        rep.setdefault('fk_moved', {})
+        rep['fk_moved'][tbl] = rep['fk_moved'].get(tbl, 0) + int(n)
+        if not dry_run:
+            if uniq:
+                cols = ', '.join(uniq)
+                s.execute(_t(
+                    f"DELETE FROM {tbl} WHERE {col}=:r AND ({cols}) IN "
+                    f"(SELECT {cols} FROM {tbl} WHERE {col}=:k)"),
+                    {'r': red_sku, 'k': keep_sku})
+            s.execute(_t(f"UPDATE {tbl} SET {col}=:k WHERE {col}=:r"),
+                      {'r': red_sku, 'k': keep_sku})
+
 
 def _dedup_merge(s, dry_run=True):
     """(model,color,size) 중복 옵션을 '보존행 1개'로 안전 병합.
@@ -1703,6 +1735,8 @@ def _dedup_merge(s, dry_run=True):
                     rep['ids_copied'] += 1
                     if not dry_run:
                         setattr(keeper, f, getattr(r, f))
+            # 비-CASCADE FK 참조(크롤매핑·마켓등록·기타URL) 보존행으로 이전 (FK 위반 방지)
+            _reassign_fk_refs(s, r.canonical_sku, keeper.canonical_sku, dry_run, rep)
             rep['deleted'] += 1
             rep['deleted_skus'].append(r.canonical_sku)
             if not dry_run:

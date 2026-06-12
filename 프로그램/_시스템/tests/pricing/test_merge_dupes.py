@@ -77,6 +77,33 @@ def test_merge_moves_mappings_and_deletes_redundant(session):
     assert s.query(M.OptionSourceUrlLink).filter_by(option_canonical_sku="dupe").count() == 0
 
 
+def test_merge_reassigns_blocking_fk_option_source_links(session):
+    """라이브 실패 재현: 잉여행이 option_source_links(비-CASCADE FK)에 참조되면
+       삭제가 FK로 막혔었음 → 보존행으로 이전 후 삭제(손실 없음)."""
+    import lemouton.sourcing.models as M
+    import lemouton.sources.models as SM
+    s = session
+    from webapp.routes.bundles import _dedup_merge
+    s.add(_opt(M, "keep", active=True))
+    s.add(_opt(M, "dupe", active=False))
+    sp = SM.SourceProduct(site="ssf", url="https://x/y")
+    s.add(sp)
+    s.flush()
+    so = SM.SourceOption(source_product_id=sp.id, color_text="스카이블루", size_text="220")
+    s.add(so)
+    s.flush()
+    # 잉여행에 크롤매핑(option_source_links) — 이게 라이브에서 삭제를 막았다
+    s.add(SM.OptionSourceLink(canonical_sku="dupe", source_option_id=so.id))
+    s.commit()
+
+    rep = _dedup_merge(s, dry_run=False)
+    assert rep["deleted"] == 1
+    assert s.query(M.Option).filter_by(model_code=_M).count() == 1
+    # 크롤매핑이 keeper 로 이전됨(손실·FK위반 없음)
+    link = s.query(SM.OptionSourceLink).filter_by(source_option_id=so.id).first()
+    assert link is not None and link.canonical_sku == "keep"
+
+
 def test_no_dupes_noop(session):
     import lemouton.sourcing.models as M
     s = session
