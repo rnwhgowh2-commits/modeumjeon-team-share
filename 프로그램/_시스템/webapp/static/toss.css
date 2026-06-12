@@ -2999,7 +2999,12 @@
 }
 .cell-fx-ben .cf-grp:first-child { border-top: none; margin-top: 0; padding-top: 2px; }
 .cell-fx-ben .cf-grp.pay { color: #191F28; font-size: 12.5px; }
+.cell-fx-ben .cf-grp.pre { color: #1B64DA; }
 .cell-fx-ben .cf-grp .cf-grp-note { font-weight: 500; color: #8B95A1; font-size: 11px; }
+/* [2026-06-12] 방식 배지 (정액/정률) — 선반영/후반영 통일 */
+.cell-fx-ben .cf-way { display:inline-block; font-size:10px; font-weight:700; padding:1px 5px; border-radius:4px; margin-left:6px; vertical-align:middle; }
+.cell-fx-ben .cf-way.amt { color:#1B64DA; background:#EEF3FF; }
+.cell-fx-ben .cf-way.rt { color:#0B8A5B; background:#E8F8F1; }
 .cell-fx-ben .cell-fx-row.cf-soon,
 .cell-fx-ben .cell-fx-row.cf-pay-base { cursor: default; }
 /* [2026-06-05] v3 — 팝업 혜택 영역 왼쪽 정렬 (시안 일치, 가운데 정렬 상속 차단) */
@@ -3393,7 +3398,12 @@
 }
 .fxpop-v2 .cell-fx-ben .cf-grp:first-child { border-top: none; margin-top: 0; padding-top: 2px; }
 .fxpop-v2 .cell-fx-ben .cf-grp.pay { color: #191F28; font-size: 12.5px; }
+.fxpop-v2 .cell-fx-ben .cf-grp.pre { color: #1B64DA; }
 .fxpop-v2 .cell-fx-ben .cf-grp .cf-grp-note { font-weight: 500; color: #8B95A1; font-size: 11px; }
+/* [2026-06-12] 방식 배지 (정액/정률) */
+.fxpop-v2 .cell-fx-ben .cf-way { display:inline-block; font-size:10px; font-weight:700; padding:1px 5px; border-radius:4px; margin-left:6px; vertical-align:middle; }
+.fxpop-v2 .cell-fx-ben .cf-way.amt { color:#1B64DA; background:#EEF3FF; }
+.fxpop-v2 .cell-fx-ben .cf-way.rt { color:#0B8A5B; background:#E8F8F1; }
 /* 토글 행 — grid→flex, 줄긋기·들여쓰기 제거 */
 .fxpop-v2 .cell-fx-ben .cell-fx-row {
   display: flex; align-items: center; gap: 10px; padding: 10px 2px;

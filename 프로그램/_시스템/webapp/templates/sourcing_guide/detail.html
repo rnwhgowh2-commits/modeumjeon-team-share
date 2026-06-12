@@ -305,6 +305,48 @@
           <button type="button" class="addex">＋ 제외 단어 추가</button>
         </div>
       </div>
+
+      <!-- ③-요약 — 가격 계산 로직 한눈에 보기 (읽기 전용, 위 카드와 동일 benefits 소스) -->
+      {% set SMAP = {'always':'상시','conditional':'조건부','optional':'선택','planned':'예정'} %}
+      <div class="sg3-logic" style="margin-top:18px;border:1px solid #E5E8EB;border-radius:12px;overflow:hidden">
+        <div style="padding:13px 16px;background:#F9FAFB;border-bottom:1px solid #E5E8EB;font-size:13.5px;font-weight:800;color:#191F28">💰 가격 계산 로직 — 한눈에 보기 <span style="font-weight:600;color:#8B95A1;font-size:12px">· 위 설정값 요약 (읽기 전용) · 표면 노출가 → 최종 매입가 순</span></div>
+        <div style="overflow-x:auto">
+        <table style="width:100%;border-collapse:collapse;font-size:12.5px;min-width:560px">
+          <thead>
+            <tr style="background:#FBFCFD;color:#4E5968;font-weight:700;text-align:left">
+              <th style="padding:9px 12px;border-bottom:1px solid #E5E8EB">단계</th>
+              <th style="padding:9px 12px;border-bottom:1px solid #E5E8EB">혜택</th>
+              <th style="padding:9px 12px;border-bottom:1px solid #E5E8EB">방식</th>
+              <th style="padding:9px 12px;border-bottom:1px solid #E5E8EB">기준</th>
+              <th style="padding:9px 12px;border-bottom:1px solid #E5E8EB">값 · 규칙</th>
+              <th style="padding:9px 12px;border-bottom:1px solid #E5E8EB">조건</th>
+            </tr>
+          </thead>
+          <tbody>
+          {% set lg = namespace(rows=0) %}
+          {% for cname, applies, color in CATS %}
+            {% for b in guide.pricing.benefits if b.apply in applies %}
+            {% set lg.rows = lg.rows + 1 %}
+            {% set _method = b.method or ('정률' if '%' in (b.rule or '') else ('정액' if '원' in (b.rule or '') else '—')) %}
+            {% set _base = b.base or ('베이스금액②' if '베이스금액②' in (b.rule or '') else ('베이스금액①' if '베이스금액①' in (b.rule or '') else ('표면 노출가' if '표면' in (b.rule or '') else '—'))) %}
+            <tr style="border-bottom:1px solid #F2F4F6">
+              <td style="padding:9px 12px;white-space:nowrap"><span style="display:inline-block;padding:2px 8px;border-radius:6px;background:{{ color }};color:#fff;font-weight:700;font-size:11px">{{ cname }}</span></td>
+              <td style="padding:9px 12px;font-weight:600;color:#191F28">{{ b.name }}</td>
+              <td style="padding:9px 12px;white-space:nowrap;color:#4E5968">{{ _method }}</td>
+              <td style="padding:9px 12px;white-space:nowrap;color:#4E5968">{{ _base }}</td>
+              <td style="padding:9px 12px;color:#4E5968">{{ b.rule or '—' }}</td>
+              <td style="padding:9px 12px;white-space:nowrap;color:#8B95A1">{{ SMAP.get(b.status, b.status or '—') }}</td>
+            </tr>
+            {% endfor %}
+          {% endfor %}
+          {% if lg.rows == 0 %}
+            <tr><td colspan="6" style="padding:16px;text-align:center;color:#B0B8C1">등록된 혜택이 없습니다.</td></tr>
+          {% endif %}
+          </tbody>
+        </table>
+        </div>
+      </div>
+
     </div>
   </div>
 
