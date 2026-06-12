@@ -62,14 +62,20 @@ def create_combination_options(
     #   - existing_axes: 이 모음전 model 안의 (axis_tuple) 중복 회피
     existing_skus = {row[0] for row in session.query(Option.canonical_sku).all()}
     existing_axes: set[tuple] = set()
-    for (av_json,) in session.query(Option.axis_values_json).filter_by(
-            model_code=model_code).all():
+    # [2026-06-13 중복 차단] axis_values_json 우선, 비었으면 color_code/size_code 폴백.
+    #   기존엔 axis_values_json 만 봐 그 값이 NULL/빈 옛 행을 못 보고 같은 (색·사이즈)
+    #   조합을 또 생성 → 스카이블루 처럼 사이즈별 2행 중복. 폴백으로 그 사각을 닫는다.
+    for color_code, size_code, av_json in session.query(
+            Option.color_code, Option.size_code, Option.axis_values_json
+    ).filter_by(model_code=model_code).all():
         try:
             vals = json.loads(av_json or '[]')
-            if vals:
-                existing_axes.add((model_code, tuple(vals)))
         except (ValueError, TypeError):
-            pass
+            vals = []
+        if not vals:
+            vals = [v for v in [color_code or '', size_code or ''] if v]
+        if vals:
+            existing_axes.add((model_code, tuple(vals)))
     specs = build_options_from_steps(model_code, steps,
                                      existing_skus=existing_skus,
                                      existing_axes=existing_axes,

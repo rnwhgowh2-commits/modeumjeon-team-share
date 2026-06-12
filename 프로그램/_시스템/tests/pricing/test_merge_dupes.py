@@ -86,3 +86,46 @@ def test_no_dupes_noop(session):
     rep = _dedup_merge(s, dry_run=False)
     assert rep["groups"] == 0 and rep["deleted"] == 0
     assert s.query(M.Option).filter_by(model_code=_M).count() == 1
+
+
+def test_endpoint_merge_creates_unique_index_blocking_future_dupes(monkeypatch):
+    """병합 실행 후 UNIQUE 인덱스 생성 → 이후 같은 (model,color,size) 삽입 차단."""
+    from sqlalchemy import create_engine
+    from sqlalchemy.orm import sessionmaker
+    from sqlalchemy.pool import StaticPool
+    from sqlalchemy.exc import IntegrityError
+    for _m in ("lemouton.sourcing.models", "lemouton.sources.models",
+               "lemouton.templates.models", "lemouton.inventory.models"):
+        try:
+            __import__(_m)
+        except ImportError:
+            pass
+    from shared.db import Base
+    import lemouton.sourcing.models as M
+    eng = create_engine("sqlite://", connect_args={"check_same_thread": False},
+                        poolclass=StaticPool)
+    Base.metadata.create_all(eng)
+    TS = sessionmaker(bind=eng)
+    s = TS()
+    s.add(_opt(M, "keep", active=True))
+    s.add(_opt(M, "dupe", active=False))
+    s.commit()
+    s.close()
+
+    import webapp.routes.bundles as B
+    monkeypatch.setattr(B, "SessionLocal", TS)
+    from flask import Flask
+    app = Flask(__name__)
+    app.register_blueprint(B.bp)
+    d = app.test_client().post("/api/admin/options/merge-dupes",
+                               json={"dry_run": False}).get_json()
+    assert d["ok"] and d["deleted"] == 1
+    assert d["unique_index"].startswith("ok")
+
+    # 이제 같은 (model,color,size) 삽입 시도 → UNIQUE 인덱스가 차단
+    s2 = TS()
+    s2.add(_opt(M, "new-dupe", active=True))
+    with pytest.raises(IntegrityError):
+        s2.commit()
+    s2.rollback()
+    s2.close()

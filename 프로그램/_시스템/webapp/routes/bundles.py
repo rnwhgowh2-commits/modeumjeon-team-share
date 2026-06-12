@@ -1726,6 +1726,25 @@ def api_merge_dupes():
         rep = _dedup_merge(s, dry_run=dry_run)
         rep['ok'] = True
         rep['dry_run'] = dry_run
+        if not dry_run:
+            # 병합 후 잔여 중복 0 이면 DB UNIQUE 인덱스 생성 → 향후 어떤 경로로도 중복 영구 차단.
+            from sqlalchemy import func, text as _text
+            remaining = len(
+                s.query(Option.model_code, Option.color_code, Option.size_code)
+                .group_by(Option.model_code, Option.color_code, Option.size_code)
+                .having(func.count(Option.canonical_sku) > 1).all())
+            if remaining == 0:
+                try:
+                    s.execute(_text(
+                        "CREATE UNIQUE INDEX IF NOT EXISTS uq_options_mcs "
+                        "ON options (model_code, color_code, size_code)"))
+                    s.commit()
+                    rep['unique_index'] = 'ok(영구 차단 적용)'
+                except Exception as e:
+                    s.rollback()
+                    rep['unique_index'] = f'skipped: {type(e).__name__}: {str(e)[:80]}'
+            else:
+                rep['unique_index'] = f'대기(중복 {remaining}군 남음)'
         return jsonify(rep)
     except Exception as e:
         s.rollback()
