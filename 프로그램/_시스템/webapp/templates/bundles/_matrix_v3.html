@@ -1138,6 +1138,9 @@
               <span><i style="background:#dc2626"></i>품절</span>
               <span><i style="background:#9aa3af"></i>크롤실패</span>
               <span><i style="background:#d1d6db"></i>미크롤</span>
+              <span style="color:#cbd1d8">|</span>
+              <span style="color:#aab2bd;text-decoration:line-through;text-decoration-color:#cdd3da">표면노출가</span>
+              <span style="color:#1b64da;font-weight:700">최종매입가</span>
             </div>
             <button type="button" class="cmtx-x" id="cmtx-close">×</button>
           </div>
@@ -1171,6 +1174,14 @@
         td.cmtx-cell .cmtx-p.oos { color:#dc2626; }
         td.cmtx-cell .cmtx-p.miss { color:#c5cbd3; font-weight:600; }
         td.cmtx-cell .cmtx-sk { display:block; text-align:right; font-size:9.5px; color:#8b95a1; margin-top:1px; }
+        /* [2026-06-13] 4B — 표면노출가(취소선) + 최종매입가(강조) 2단 표기 */
+        td.cmtx-cell .cmtx-2tier { display:inline-flex; flex-direction:column; align-items:flex-end; gap:2px; }
+        td.cmtx-cell .cmtx-2tier .cmtx-r { display:inline-flex; align-items:center; gap:5px; }
+        td.cmtx-cell .cmtx-lab { font-size:9px; font-weight:700; color:#b0b8c1; min-width:24px; text-align:right; }
+        td.cmtx-cell .cmtx-lab.f { color:#5b8def; }
+        td.cmtx-cell .cmtx-surf { font-family:ui-monospace,monospace; font-size:10.5px; color:#aab2bd; text-decoration:line-through; text-decoration-color:#d3d8de; }
+        td.cmtx-cell .cmtx-final { font-family:ui-monospace,monospace; font-weight:800; color:#1b64da; }
+        td.cmtx-cell .cmtx-final.oos { color:#dc2626; }
         td.cmtx-cell.clickable { cursor:pointer; }
         td.cmtx-cell.clickable:hover { background:#f0f7ff; }
         td.cmtx-cell.cmtx-empty { background:#fcfcfd; }
@@ -1303,11 +1314,19 @@
               }
               const dot = COLOR[st.kind];
               const sk = st.kind === 'oos' ? '품절' : (st.q != null ? st.q + '개' : '있음');
-              const pCls = st.kind === 'oos' ? 'cmtx-p oos' : 'cmtx-p';
-              const price = cellPrice(o.sku, src.source_id, src.crawled_price);
+              const surf = src.crawled_price;                                    // 표면노출가(크롤 원가)
+              const price = cellPrice(o.sku, src.source_id, src.crawled_price);   // 최종매입가(혜택 적용)
+              const finCls = st.kind === 'oos' ? 'cmtx-final oos' : 'cmtx-final';
               const url = src.product_url ? esc(src.product_url) : '';
+              // [2026-06-13] 4B — 표면 ≠ 최종(혜택으로 낮아짐)일 때만 2단 표기. 같으면(혜택 없음) 최종만(중복·모순 방지).
+              const inner = (surf != null && surf > 0 && price != null && price < surf)
+                ? '<span class="cmtx-2tier">'
+                    + '<span class="cmtx-r"><span class="cmtx-lab">표면</span><span class="cmtx-surf">' + won(surf) + '</span></span>'
+                    + '<span class="cmtx-r"><span class="cmtx-lab f">최종</span><span class="' + finCls + '">' + won(price) + '</span><i class="cmtx-pdot" style="background:' + dot + '"></i></span>'
+                  + '</span>'
+                : '<span class="cmtx-line"><i class="cmtx-pdot" style="background:' + dot + '"></i><span class="' + finCls + '">' + won(price) + '</span></span>';
               cells += '<td class="cmtx-cell' + (url ? ' clickable' : '') + '"' + (url ? ' data-url="' + url + '"' : '') + (st.kind === 'oos' ? ' style="opacity:.62"' : '') +
-                       '><span class="cmtx-line"><i class="cmtx-pdot" style="background:' + dot + '"></i><span class="' + pCls + '">' + won(price) + '</span></span><span class="cmtx-sk">' + sk + '</span></td>';
+                       '>' + inner + '<span class="cmtx-sk">' + sk + '</span></td>';
             });
             body += `<tr class="cmtx-optrow"><td class="cmtx-optcol">${esc(color)} ${esc(o.size_display || o.size_code || '')}</td>${cells}</tr>`;
           });
