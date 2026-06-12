@@ -41,12 +41,19 @@ _TRACKING_PARAM_PATTERNS = [
 ]
 
 
+from functools import lru_cache as _lru_cache
+
+
+@_lru_cache(maxsize=8192)
 def normalize_url(url: str) -> str:
     """트래킹 파라미터를 제거한 정규화 URL 반환. 비교·매칭 용도.
 
     예:
       ``brand.naver.com/lemouton/products/9496367527?nl-ts-pid=xxx&NaPm=yyy``
       → ``brand.naver.com/lemouton/products/9496367527``
+
+    [perf 2026-06-12] 순수 함수(url→정규화url) 이며 매트릭스/breakdown 빌드 중 동일 URL 에
+      수백~수천 번 호출되므로 lru_cache 로 메모이즈. 입력 URL 집합은 유한(상품 URL)이라 안전.
     """
     if not url:
         return url

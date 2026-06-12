@@ -69,17 +69,22 @@ def _err(msg, code=400):
 #  정책(사용자 확정): 정확한 수량 있으면 표기, 없으면 '재고있음', 0=품절.
 # ════════════════════════════════════════════
 import re as _re
+from functools import lru_cache as _lru_cache
 
 # config.SOURCING_AUTH['stock_cap'] 와 동일 — 무신사는 '충분'을 이 값으로 저장(센티넬).
 _STOCK_CAP = 10
 
 
+@_lru_cache(maxsize=16384)
 def _stk_digits(x):
+    # [perf 2026-06-12] 순수 함수 — 매트릭스 매칭에서 동일 size/color 문자열에 수천 번
+    #   호출되므로 메모이즈. 입력은 옵션·SourceOption 의 size/color(유한 집합).
     return ''.join(c for c in str(x or '') if c.isdigit())
 
 
+@_lru_cache(maxsize=16384)
 def _stk_cnorm(x):
-    """색상 비교용 정규화 — 공백·괄호·구분자 제거 + 소문자."""
+    """색상 비교용 정규화 — 공백·괄호·구분자 제거 + 소문자. (순수 함수 메모이즈)"""
     return _re.sub(r'[\s()（）\[\]·,/\-_:：]', '', str(x or '')).lower()
 
 
