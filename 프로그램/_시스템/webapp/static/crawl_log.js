@@ -58,6 +58,38 @@
       '  color:#8B95A1; font-size:18px; line-height:1; padding:2px 4px;',
       '}',
       '#mcl-close-btn:hover { color:#F2F4F6; }',
+      /* 최소화(접기) 버튼 — 또렷 박스 「─」 (항상 표시) */
+      '#mcl-min-btn {',
+      '  background:#25303b; border:1px solid #3A455C; cursor:pointer;',
+      '  color:#E6E9EF; width:30px; height:26px; border-radius:7px;',
+      '  display:inline-flex; align-items:center; justify-content:center;',
+      '  font-size:15px; line-height:1; padding:0; flex-shrink:0; transition:.12s;',
+      '}',
+      '#mcl-min-btn:hover { background:#313A4D; border-color:#54627D; color:#fff; }',
+
+      /* 최소화 후 세로 레일 — 도넛 + 가로 숫자 */
+      '#mcl-rail {',
+      '  display:none; position:fixed; top:14px; right:14px; width:86px; z-index:9001;',
+      '  background:#141B22; border:1px solid #25303b; border-radius:12px;',
+      '  box-shadow:-6px 6px 24px rgba(0,0,0,.4); padding:13px 8px 11px;',
+      '  text-align:center; cursor:pointer; font-family:"Pretendard",sans-serif;',
+      '  transition:transform .12s, box-shadow .12s;',
+      '}',
+      '#mcl-rail:hover { transform:translateY(-1px); box-shadow:-8px 8px 28px rgba(0,0,0,.5); }',
+      '#mcl-rail-ring {',
+      '  width:46px; height:46px; border-radius:50%; margin:0 auto 9px;',
+      '  background:conic-gradient(#3182F6 0deg,#25303b 0deg);',
+      '  display:flex; align-items:center; justify-content:center; transition:background .3s;',
+      '}',
+      '#mcl-rail-ring > i {',
+      '  width:34px; height:34px; border-radius:50%; background:#141B22;',
+      '  display:flex; align-items:center; justify-content:center;',
+      '  font-size:11px; font-weight:800; color:#CFE0FF; font-style:normal;',
+      '}',
+      '#mcl-rail-num { font-size:14px; font-weight:800; letter-spacing:.5px; color:#CBD5E1; }',
+      '#mcl-rail-num b { color:#60A5FA; }',
+      '#mcl-rail-exp { color:#8B95A1; font-size:12px; margin-top:6px; }',
+
       '#mcl-overall { display:flex; align-items:center; gap:10px; }',
       '#mcl-overall-label { font-size:12px; color:#8B95A1; }',
       '#mcl-overall-cnt { font-family:ui-monospace,monospace; font-size:13px; font-weight:800; color:#3182F6; }',
@@ -176,6 +208,7 @@
       '  <div id="mcl-header-top">',
       '    <span id="mcl-title">크롤 진행 중</span>',
       '    <span id="mcl-elapsed">0s</span>',
+      '    <button id="mcl-min-btn" type="button" title="최소화">─</button>',
       '    <button id="mcl-close-btn" type="button" title="닫기">\xd7</button>',
       '  </div>',
       '  <div id="mcl-overall">',
@@ -217,9 +250,74 @@
     document.getElementById('mcl-close-btn').addEventListener('click', function () {
       var panel = document.getElementById(PANEL_ID);
       if (panel) panel.classList.add('mcl-hidden');
+      hideRail();
     });
 
+    /* 최소화(접기) — 패널 슬라이드 아웃 + 레일 노출 */
+    document.getElementById('mcl-min-btn').addEventListener('click', minimizePanel);
+
+    buildRailDOM();
+
     return p;
+  }
+
+  // ── 최소화 레일 DOM ──────────────────────────────────────────────
+  var RAIL_ID = 'mcl-rail';
+
+  function buildRailDOM() {
+    var old = document.getElementById(RAIL_ID);
+    if (old) old.parentNode.removeChild(old);
+
+    var rail = document.createElement('div');
+    rail.id = RAIL_ID;
+    rail.title = '펼치기';
+    rail.innerHTML = [
+      '<div id="mcl-rail-ring"><i>0%</i></div>',
+      '<div id="mcl-rail-num">0 / 0</div>',
+      '<div id="mcl-rail-exp">‹ 펼치기</div>',  /* ‹ 펼치기 */
+    ].join('');
+    document.body.appendChild(rail);
+
+    rail.addEventListener('click', restorePanel);
+    return rail;
+  }
+
+  function minimizePanel() {
+    var panel = document.getElementById(PANEL_ID);
+    if (panel) panel.classList.add('mcl-hidden');
+    renderRail();
+    var rail = document.getElementById(RAIL_ID);
+    if (rail) rail.style.display = 'block';
+  }
+
+  function restorePanel() {
+    var panel = document.getElementById(PANEL_ID);
+    if (panel) panel.classList.remove('mcl-hidden');
+    hideRail();
+  }
+
+  function hideRail() {
+    var rail = document.getElementById(RAIL_ID);
+    if (rail) rail.style.display = 'none';
+  }
+
+  /* 레일 도넛·숫자를 현재 진행률로 갱신 */
+  function renderRail() {
+    var rail = document.getElementById(RAIL_ID);
+    if (!rail || rail.style.display === 'none') {
+      /* 보이지 않을 때도 값은 갱신해 두면 복원 직전 깜빡임 방지 */
+    }
+    var total = metrics.total || 0;
+    var done  = metrics.done  || 0;
+    var pct   = total > 0 ? Math.round(done / total * 100) : 0;
+    var ring  = document.getElementById('mcl-rail-ring');
+    if (ring) {
+      ring.style.background = 'conic-gradient(#3182F6 ' + (pct * 3.6) + 'deg,#25303b 0deg)';
+      var inner = ring.querySelector('i');
+      if (inner) inner.textContent = pct + '%';
+    }
+    var numEl = document.getElementById('mcl-rail-num');
+    if (numEl) numEl.innerHTML = '<b>' + done + '</b> / ' + total;
   }
 
   function showPanel() {
@@ -291,6 +389,7 @@
     var pct   = total > 0 ? (done / total * 100) : 0;
     safeText(document.getElementById('mcl-overall-cnt'), done + ' / ' + total);
     setWidth(document.getElementById('mcl-overall-fill'), pct);
+    renderRail();   /* 최소화 레일도 동기화 */
   }
 
   // ── metrics 부분 갱신 — null 인 필드는 덮어쓰지 않음 ───────────
