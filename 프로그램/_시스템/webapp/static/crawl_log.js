@@ -20,12 +20,16 @@
   //                   barFillEl:el, tagEl:el, cntEl:el }
   var bySource = {};
 
+  // [2026-06-12] 줄(lineId) → 그 줄의 {key, row, msgSpan}. 저장 후 '표면 → 매입' 제자리 갱신용.
+  var lineEls = {};
+
   var metrics = { concurrency: 0, cap: 0, active: 0, cpu: null, mem: null, avgSec: null, done: 0, total: 0 };
   var startTs = 0;
   var _elapsedTimer = null;
 
   function initState(total) {
     bySource = {};
+    lineEls = {};
     metrics = { concurrency: 0, cap: 0, active: 0, cpu: null, mem: null, avgSec: null, done: 0, total: total || 0 };
     startTs = Date.now();
   }
@@ -186,6 +190,11 @@
       '.mcl-log-line.lvl-down .mcl-log-msg { color:#FB923C; }',
       '.mcl-log-line.lvl-warn .mcl-log-msg { color:#FBBF24; }',
       '.mcl-log-line.lvl-done .mcl-log-msg { color:#60A5FA; font-weight:700; }',
+      /* V2 가격 병기 토큰 — 표면(회색) → 매입(하늘·굵게). lvl-done 색을 덮어쓴다. */
+      '.mcl-log-line .mcl-pSurf { color:#9CA3AF; font-weight:400; }',
+      '.mcl-log-line .mcl-pBuy  { color:#7DD3FC; font-weight:800; }',
+      '.mcl-log-line .mcl-lbl   { color:#6B7684; font-weight:700; }',
+      '.mcl-log-line .mcl-arrow { color:#5B6876; margin:0 3px; }',
       '.mcl-log-url { flex-shrink:0; margin-left:auto; color:#60A5FA; text-decoration:none; font-size:11px; opacity:.8; }',
       '.mcl-log-url:hover { opacity:1; text-decoration:underline; }',
     ].join('\n');
@@ -577,7 +586,7 @@
   }
 
   // ── 카드 로그 추가 ───────────────────────────────────────────────
-  function appendCardLog(key, ts, level, msg, url) {
+  function appendCardLog(key, ts, level, msg, url, lineId) {
     var bk = bySource[key];
     if (!bk) return;
 
@@ -620,6 +629,9 @@
     }
     logArea.appendChild(row);
 
+    /* [2026-06-12] lineId 가 있으면 줄 핸들 저장 → 저장 후 '→ 매입 N원' 제자리 갱신 */
+    if (lineId) lineEls[lineId] = { key: key, row: row, msgSpan: msgSpan };
+
     /* DOM 로그 최대 200줄 유지 */
     var lines = logArea.children;
     if (lines.length > 200) logArea.removeChild(lines[0]);
@@ -630,6 +642,36 @@
     }
 
     updateToggleLabel(key);
+  }
+
+  // ── 줄 제자리 갱신: '표면 N원 → 매입 N원' (V2) ──────────────────────
+  //  저장 후, 실시간 줄(lineId)을 찾아 표면(회색)+화살표+매입(하늘·굵게) 토큰으로 다시 그린다.
+  //  줄을 못 찾으면(스크롤 정리 등) source 카드에 새 줄로 append(fallback).
+  function makePriceTokens(srcLabel, surf, buy) {
+    var frag = document.createDocumentFragment();
+    function span(cls, txt) { var s = document.createElement('span'); if (cls) s.className = cls; s.textContent = txt; return s; }
+    frag.appendChild(span('', srcLabel + ' '));
+    frag.appendChild(span('mcl-lbl', '표면 '));
+    frag.appendChild(span('mcl-pSurf', won(surf)));
+    frag.appendChild(span('mcl-arrow', '→'));
+    frag.appendChild(span('mcl-lbl', '매입 '));
+    frag.appendChild(span('mcl-pBuy', won(buy)));
+    return frag;
+  }
+  function won(n) { return Number(n).toLocaleString() + '원'; }
+
+  function updateLineFinal(lineId, srcKey, surf, buy, fallbackMsg) {
+    var srcLabel = SOURCE_LABELS[srcKey] || srcKey || '';
+    var rec = lineEls[lineId];
+    if (rec && rec.msgSpan && rec.row && rec.row.parentNode) {
+      while (rec.msgSpan.firstChild) rec.msgSpan.removeChild(rec.msgSpan.firstChild);
+      rec.msgSpan.appendChild(makePriceTokens(srcLabel, surf, buy));
+      rec.row.classList.add('lvl-done');   /* 정산 완료 줄 강조 */
+      return true;
+    }
+    /* fallback — 줄을 못 찾으면 새 줄로 */
+    appendCardLog(srcKey, Date.now(), 'done', fallbackMsg, null);
+    return false;
   }
 
   // ── 이벤트 핸들러 ────────────────────────────────────────────────
@@ -700,11 +742,22 @@
           bkID.done = (bkID.done || 0) + 1;
           /* source 단위 total 은 모름 — 카드 카운터는 누적 done 만 표시 */
           updateCardProgress(src);
-          appendCardLog(src, ts, level, msg, d.url);   /* 크롤한 URL 링크 부착 */
+          appendCardLog(src, ts, level, msg, d.url, d.lineId);   /* URL 링크 + lineId(저장후 갱신용) */
         }
         mergeMetrics(m);
         renderGauges();
         renderOverall();
+        break;
+      }
+
+      case 'item-final': {
+        /* [2026-06-12] 저장 후 — 같은 줄(lineId)을 '표면 N원 → 매입 N원'(V2)으로 제자리 갱신 */
+        if (src) getOrCreateBucket(src);
+        if (d.lineId != null && d.surf != null && d.buy != null) {
+          updateLineFinal(d.lineId, src, d.surf, d.buy, msg);
+        } else if (src) {
+          appendCardLog(src, ts, 'done', msg);   /* 값 누락 시 메시지 줄로 fallback */
+        }
         break;
       }
 

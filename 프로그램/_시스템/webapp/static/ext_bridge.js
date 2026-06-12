@@ -231,11 +231,14 @@
           results.push(out);
           done++;
           if (cooldown > 0) cooldown--;
+          // [2026-06-12] 실시간 줄 = '표면노출가'(크롤 raw)만. lineId 를 붙여 저장 후
+          //   같은 줄에 '→ 매입 N원'(최종매입가)을 덧붙여 갱신(아래 5)단계). V2 화살표 표기.
           _emitLog("item-done", {
             source: sk, level: out.status === "ok" ? "" : "warn",
             url: (out && out.url) || (list[i] && list[i].url) || null,
+            lineId: out.status === "ok" ? (sk + "|" + ((out && out.url) || (list[i] && list[i].url) || "")) : null,
             msg: out.status === "ok"
-              ? (sk + " 크롤 " + (out.price != null ? out.price.toLocaleString() + "원" : "가격없음") + " (" + sec.toFixed(1) + "s)")
+              ? (sk + " 표면 " + (out.price != null ? out.price.toLocaleString() + "원" : "가격없음") + " (" + sec.toFixed(1) + "s)")
               : (sk + " 실패: " + (out.error || "")),
             metrics: { concurrency, cap, active, done, total, avgSec: +_median(latencies).toFixed(2), cpu: lastSys.cpu, mem: lastSys.mem },
           });
@@ -337,26 +340,27 @@
       await fetch("/api/bundles/" + encodeURIComponent(code) + "/touch-crawled", { method: "POST" });
     } catch (_) {}
 
-    // 5) [2026-06-12] 소싱처별 최종매입가 요약 — fx 계산식과 100% 동일 출처.
-    //   per-item 로그는 '표면노출가'(크롤 raw)만 찍는다. 저장이 끝난 뒤(=무신사 등 동적
-    //   혜택까지 갱신된 상태) 매트릭스를 다시 읽어, 소싱처별 대표(재고있는 최저가) 옵션을
-    //   fx 패널과 같은 /api/source-benefits/breakdowns 로 계산해 '표면 → 최종' 한 줄을 덧붙인다.
-    //   동일 엔드포인트·동일 sale_price 이므로 fx 누를 때 값과 소수점까지 일치한다.
+    // 5) [2026-06-12] 줄(URL)마다 최종매입가 갱신 — fx 계산식과 100% 동일 출처(V2 표기).
+    //   실시간 줄은 '표면노출가'(크롤 raw)만 찍는다. 저장이 끝난 뒤(=무신사 등 동적 혜택까지
+    //   갱신된 상태) 매트릭스를 다시 읽어, 크롤한 URL마다 대표(재고있는 최저가) 옵션을 fx 패널과
+    //   같은 /api/source-benefits/breakdowns 로 계산해, 같은 줄(lineId=source_key|url)에
+    //   '표면 N원 → 매입 N원' 으로 제자리 갱신한다. 동일 엔드포인트·동일 sale_price 이므로
+    //   fx 누를 때 값과 소수점까지 일치한다. (out-of-stock URL은 매입 갱신 없이 표면만 유지)
     try {
       const rr = await fetch("/api/bundles/" + encodeURIComponent(code) + "/option-matrix").then((x) => x.json());
-      const repBySrc = {}; // source_id -> {sku, source_id, source_key, sale_price}
+      const repByLine = {}; // "source_key|product_url" -> {sku, source_id, source_key, url, sale_price, lineId}
       (rr.options || []).forEach((o) => (o.sources || []).forEach((s) => {
         const p = s.crawled_price;
-        if (!(p > 0)) return;
+        if (!(p > 0) || !s.product_url) return;
         const inStock = (s.crawled_stock == null) || (s.crawled_stock > 0);
         if (!inStock) return;
-        const sid = s.source_id;
-        const cur = repBySrc[sid];
+        const lid = s.source_key + "|" + s.product_url;
+        const cur = repByLine[lid];
         if (!cur || p < cur.sale_price) {
-          repBySrc[sid] = { sku: o.sku, source_id: sid, source_key: s.source_key, sale_price: p };
+          repByLine[lid] = { sku: o.sku, source_id: s.source_id, source_key: s.source_key, url: s.product_url, sale_price: p, lineId: lid };
         }
       }));
-      const reps = Object.values(repBySrc);
+      const reps = Object.values(repByLine);
       if (reps.length) {
         const bd = await fetch("/api/source-benefits/breakdowns", {
           method: "POST", headers: { "Content-Type": "application/json" },
@@ -366,14 +370,18 @@
         reps.forEach((r) => {
           const b = bdres[r.sku + "|" + r.source_id];
           if (!b || b.error || b.final_price == null) return;
-          const surf = (b.sale_price != null ? b.sale_price : r.sale_price);
-          _emitLog("source-done", {
-            source: r.source_key, level: "done",
-            msg: r.source_key + " 최종매입가 " + Math.round(b.final_price).toLocaleString() + "원 (표면 " + Math.round(surf).toLocaleString() + "원)",
+          const surf = Math.round(b.sale_price != null ? b.sale_price : r.sale_price);
+          const buy = Math.round(b.final_price);
+          // item-final: 같은 줄(lineId)을 '표면 → 매입' V2 형태로 제자리 갱신.
+          //   대시보드가 lineId 줄을 못 찾으면(스크롤 정리 등) 새 줄로 append(fallback).
+          _emitLog("item-final", {
+            source: r.source_key, level: "done", lineId: r.lineId, url: r.url,
+            surf: surf, buy: buy,
+            msg: r.source_key + " 표면 " + surf.toLocaleString() + "원 → 매입 " + buy.toLocaleString() + "원",
           });
         });
       }
-    } catch (_) { /* 요약 실패는 크롤 저장 결과와 무관 — 무시 */ }
+    } catch (_) { /* 갱신 실패는 크롤 저장 결과와 무관 — 무시 */ }
 
     const okCount = results.filter((x) => x.status === "ok").length;
     _emitLog("finish", {
