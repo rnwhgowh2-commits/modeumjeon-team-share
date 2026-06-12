@@ -151,6 +151,25 @@ def _match_option_price(so_index, sp_id, opt_color, opt_size):
     return so.current_price if so is not None else None
 
 
+def _resolve_display_price(opt_price, sp_present):
+    """옵션 매칭가만 신뢰. 매칭 실패 시 상품 대표가(평균/최저)로 폴백 '금지'.
+
+    [2026-06-13 사용자 정책 — feedback_no_fallback_price_on_match_fail]
+      대표가(SourceProduct.last_price)가 옵션 실가격과 달라, 폴백가로 주문이 나가면
+      전량 손실("최저로 주문나가면 다 손실"). 옵션가가 없으면 가격없음(None)으로 두고
+      매칭실패(=크롤실패)로 표면화 → winner/주문 후보에서 제외, 화면엔 빈칸.
+      단일색 URL(롯데온/SSG/무신사 단일색)은 _match_option_so 가 사이즈로 매칭해
+      opt_price 를 채워 주므로 영향 없음 — '진짜 매칭 실패'일 때만 None.
+
+    return: (display_price: int|None, match_failed: bool)
+    """
+    if opt_price and opt_price > 0:
+        return opt_price, False
+    # 크롤된 상품(sp)이 있는데 옵션가가 없음 = 매칭 실패 → 크롤실패로 표시.
+    # sp 자체가 없으면 '아직 미크롤'(상태 None)이라 실패로 단정하지 않음(가격은 동일 None).
+    return None, bool(sp_present)
+
+
 def _resolve_stock(site, raw):
     """site + raw → (qty:int|None, label:str, is_out:bool). 화면 표시 단일 진실 원천.
 
@@ -539,9 +558,13 @@ def _option_matrix_data(code: str):
                         if _so_m is not None:
                             _opt_stock = _so_m.current_stock
                             _opt_price = _so_m.current_price
-                    # 옵션 크롤가(>0) 우선, 없으면 상품 last_price fallback
-                    _disp_price = (_opt_price if (_opt_price and _opt_price > 0)
-                                   else (sp.last_price if sp else None))
+                    # 옵션 크롤가(>0)만 사용. 매칭 실패 시 상품 대표가 폴백 금지 →
+                    #   가격없음(None)+크롤실패로 표면화(2026-06-13 사용자 정책).
+                    _disp_price, _match_failed = _resolve_display_price(
+                        _opt_price, sp is not None)
+                    _disp_status = (sp.last_status if sp else None)
+                    if _match_failed:
+                        _disp_status = 'error'  # 옵션 매칭 실패 = 크롤실패(폴백가 금지)
                     existing.append({
                         # 칼럼 매칭 = 레지스트리 id (없으면 SSG 등 — 칼럼 없음). refetch 도 동일.
                         'source_id': _reg_id,
@@ -559,7 +582,7 @@ def _option_matrix_data(code: str):
                                           else (sp.last_stock if sp else None)),
                         'last_fetched_at': (sp.last_fetched_at.isoformat()
                                             if sp and sp.last_fetched_at else None),
-                        'last_status': (sp.last_status if sp else None),
+                        'last_status': _disp_status,
                         'auto_card_discount': None,
                         'card_enabled': True,
                         'crawled': bool(sp),
