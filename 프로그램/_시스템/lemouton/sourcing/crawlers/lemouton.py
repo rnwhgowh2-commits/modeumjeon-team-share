@@ -32,6 +32,7 @@ Python 환경 한계 보강 (V7 로직 보존, 셀렉터 동일):
 """
 from __future__ import annotations
 
+import json
 import logging
 import re
 from typing import Optional
@@ -229,6 +230,83 @@ def _parse_prices(soup: BeautifulSoup, html: str) -> tuple[int, int, int]:
     return sale_price, origin_price, discount_rate
 
 
+def _parse_option_stock_data(html: str) -> list[dict] | None:
+    """Cafe24 가 raw HTML 에 심어둔 ``var option_stock_data`` JSON 을 파싱.
+
+    이 변수는 색상×사이즈 **실제 조합** 만 키로 가지며, 각 조합의 실재고
+    (``stock_number``)·판매여부(``is_selling``)·노출여부(``is_display``)·
+    조합가(``option_price``)·축원본값(``option_value_orginal`` = [색상, 사이즈]) 을 담는다.
+
+    ``_parse_buttons`` 의 데카르트 곱(색상 × 사이즈 전체 → 미판매 사이즈까지 999 로 날조)과
+    달리, 여기엔 그 색상이 **실제로 파는 사이즈만** 들어있다. 따라서 미판매 조합
+    (예: 오렌지 260~290mm) 은 키 자체가 없어 원천적으로 제외되고, 품절(stock_number=0)·
+    실수량(stock_number>0) 이 정확히 구분된다. 정적 HTML 만으로 Playwright 동등 정확도.
+
+    Returns:
+        조합 dict 리스트 ``[{color_text, size_text, price, stock}, ...]``.
+        변수 부재(구형 템플릿)·파싱 실패·빈 데이터면 ``None`` → 호출자는 레거시 버튼 파서로 폴백.
+    """
+    m = re.search(r"var\s+option_stock_data\s*=\s*'(.*?)';", html, re.S)
+    if not m:
+        return None
+    try:
+        # JS 단일따옴표 문자열 본문 = JSON 문자열 본문(\" \\ \\uXXXX 이스케이프) → 2단 디코드.
+        #   1단: json.loads('"' + 본문 + '"')  → JS 이스케이프 해제 → JSON 텍스트
+        #   2단: json.loads(JSON 텍스트)        → dict
+        data = json.loads(json.loads('"' + m.group(1) + '"'))
+    except (ValueError, json.JSONDecodeError):
+        return None
+    if not isinstance(data, dict) or not data:
+        return None
+
+    rows: list[dict] = []
+    for entry in data.values():
+        if not isinstance(entry, dict):
+            continue
+        # 페이지에 노출되지 않는 옵션(is_display=F)은 판매 대상이 아님 → 제외.
+        if str(entry.get("is_display", "T")).upper() == "F":
+            continue
+        ov = entry.get("option_value_orginal")
+        if not isinstance(ov, list) or not ov:
+            continue
+        # 축 순서 무관 분류: mm 로 끝나는 토큰 = 사이즈, 나머지 = 색상
+        # (V7 버튼 분류 ``/mm$/i`` 와 동일 규칙 — 단품/사이즈만 옵션도 안전 처리).
+        size_text = ""
+        color_parts: list[str] = []
+        for tok in ov:
+            tok = (tok or "").strip()
+            if not tok:
+                continue
+            if not size_text and SIZE_PATTERN.search(tok):
+                size_text = tok
+            else:
+                color_parts.append(tok)
+        color_text = " ".join(color_parts)
+
+        # 재고: stock_number 가 실수량. 판매중지(is_selling=F)면 품절(0)로 표면화.
+        try:
+            stock = int(entry.get("stock_number"))
+        except (TypeError, ValueError):
+            stock = 0
+        if stock < 0:
+            stock = 0
+        if str(entry.get("is_selling", "T")).upper() == "F":
+            stock = 0
+
+        try:
+            price = int(entry.get("option_price"))
+        except (TypeError, ValueError):
+            price = 0
+
+        rows.append({
+            "color_text": color_text,
+            "size_text": size_text,
+            "price": price,
+            "stock": stock,
+        })
+    return rows or None
+
+
 class LemoutonCrawler(AbstractCrawler):
     """르무통 공식몰 크롤러 — Playwright 우선, 정적 HTML fallback.
 
@@ -275,6 +353,41 @@ class LemoutonCrawler(AbstractCrawler):
         product_name = _parse_product_name(soup, override_name=None)
         sale_price, origin_price, discount_rate = _parse_prices(soup, html)
 
+        # ★ 1순위: Cafe24 ``option_stock_data`` (실조합·실재고).
+        #   색상별 실제 판매 사이즈만 들어있어 미판매 사이즈가 원천 배제되고,
+        #   품절/실수량이 정확. 버튼 데카르트 곱(전 색상 × 전 사이즈 = 999 날조)을 대체.
+        stock_rows = _parse_option_stock_data(html)
+        if stock_rows:
+            name_parts = product_name.split(" ")
+            fallback_color = name_parts[-1] if name_parts else ""
+            options: list[dict] = []
+            for r in stock_rows:
+                color_text = r["color_text"] or fallback_color
+                price = r["price"] or sale_price
+                options.append({
+                    "option_id": f"{product_no}|{color_text}|{r['size_text']}",
+                    "color_text": color_text,
+                    "size_text": r["size_text"],
+                    "price": price,
+                    "sale_price": price,
+                    "stock": r["stock"],
+                })
+            return CrawlResult(
+                source=self.source_name,
+                product_url=product_url,
+                product_name_raw=product_name,
+                options=options,
+                brand="르무통",
+                discount_info=f"기본할인 {discount_rate}%" if discount_rate else "",
+            )
+
+        # 폴백: option_stock_data 부재(구형 템플릿/비정상 페이지) → 레거시 버튼 파서.
+        #   ⚠️ 이 경로는 색상별 사이즈 가용 정보를 raw HTML 에서 알 수 없어 데카르트 곱을
+        #   쓴다(미판매 사이즈가 999 로 섞일 수 있음). 정상 상품은 항상 1순위로 처리됨.
+        logger.warning(
+            "[lemouton] option_stock_data 없음 — 레거시 버튼 파서 폴백 (데카르트 곱). url=%s",
+            product_url,
+        )
         btns = _parse_buttons(soup)
         color_btns = [b for b in btns if not b["isMm"]]
         size_btns = [b for b in btns if b["isMm"]]

@@ -6014,6 +6014,12 @@ table.ompk-tab th.corner{color:#b0b8c1;cursor:default}
 
   function renderAutoExpand(o) {
     const ssBr = o.ss_breakdown, cpBr = o.cp_breakdown;
+    // [2026-06-13 폴백가 금지 회귀 수정] 실제 크롤가가 없는 옵션(안 파는 비활성 조합 등)은
+    //   서버가 breakdown=null 로 준다(가짜 폴백가 금지 정책). null 을 여기서 안전 처리하지
+    //   않으면 그 옵션 하나 때문에 renderPriceMatrix 전체가 throw → 매트릭스가 '로딩 중' 고착.
+    if (!ssBr || !cpBr) {
+      return `<div class="price-formula" style="color:var(--n500)">실제 크롤 가격이 없어 자동 산출가를 만들 수 없어요. (소싱처 크롤 성공 시 표시 · 가짜 폴백가 금지)</div>`;
+    }
     return `
       <div class="price-formula">
         <strong>스마트스토어 산출:</strong>

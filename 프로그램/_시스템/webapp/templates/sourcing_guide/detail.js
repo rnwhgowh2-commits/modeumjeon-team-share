@@ -35,12 +35,15 @@
       const name=c.querySelector('.bn').value.trim();
       if(!name) return;
       const m=c.querySelector('.bcrit input[type=radio]:checked');
+      const valStr=((c.querySelector('.bval')||{}).value||'').replace(/,/g,'').trim();
+      const value = valStr==='' ? null : parseFloat(valStr);
       benefits.push({name, apply:c.dataset.apply,
         method:c.querySelector('.s-m').value,
         base:c.querySelector('.s-b').value,
         status:c.querySelector('.s-s').value,
         freq:c.querySelector('.s-c').value,
-        rule:c.querySelector('.brule').value.trim(),
+        value: (value!=null && !isNaN(value)) ? value : null,
+        rule:((c.querySelector('.brule')||{}).value||'').trim(),
         triggers:kchips(c,'inc'),
         match:m?m.value:'any'});
     });
@@ -74,7 +77,9 @@
     const id=++_ridx;
     const d=document.createElement('div'); d.className='bcard'; d.dataset.apply=apply; d.style.borderLeft='3px solid '+color;
     d.innerHTML=`<div class="bch"><input class="bn" placeholder="혜택명"><button type="button" class="bdel" title="삭제">×</button></div>`+
-      `<input class="brule" placeholder="계산 규칙 (예: 베이스금액① × 10%)">`+
+      `<div class="bvalrow"><span class="bval-wrap"><input class="bval" inputmode="decimal" placeholder="0"><span class="bunit"></span></span>`+
+      `<span class="btgl-seg"><button type="button" class="btgl" data-u="rate">% 정률</button><button type="button" class="btgl" data-u="amount">원 정액</button></span></div>`+
+      `<div class="bprev"></div><input type="hidden" class="brule">`+
       `<div class="battrs"><span class="pill"><em>방식</em><select class="s-m">${_opt(_M)}</select></span>`+
       `<span class="pill"><em>기준</em><select class="s-b">${_opt(_B)}</select></span>`+
       `<span class="pill"><em>상시</em><select class="s-s">${_optS()}</select></span>`+
@@ -90,12 +95,51 @@
       `<div class="exl">예외 <em>이 단어와 같이 있으면 포함</em></div><div class="bkw" data-kind="except"><input class="kin" data-kind="except" placeholder="단어 추가"></div>`;
     return d;
   }
+  // 혜택 '값' 카드 동기화 — 단위(방식)·토글·미리보기·자동 rule (시안 B)
+  function _unitOf(method){
+    if(!method) return '';
+    if(method.indexOf('%')>=0) return '%';
+    if(method.indexOf('개월')>=0) return '개월';
+    if(method.indexOf('원')>=0 || method==='고정액') return '원';
+    return '';
+  }
+  function refreshCard(c){
+    const mEl=c.querySelector('.s-m'); if(!mEl) return;
+    const method=mEl.value, u=_unitOf(method);
+    const unitEl=c.querySelector('.bunit'); if(unitEl) unitEl.textContent=u;
+    c.querySelectorAll('.btgl').forEach(b=>{
+      const on=(b.dataset.u==='rate'&&method==='정률(%)')||(b.dataset.u==='amount'&&method==='정액(원)');
+      b.classList.toggle('on',on);
+    });
+    const base=((c.querySelector('.s-b')||{}).value||'').trim();
+    const val=((c.querySelector('.bval')||{}).value||'').trim();
+    let rule='';
+    if(val!==''){
+      if(u==='%') rule=`${base} × ${val}%`;
+      else if(u==='원') rule=`${base} − ${val}원`;
+      else if(u==='개월') rule=`${val}개월`;
+      else rule=`${base} ${val}`.trim();
+    }
+    const hr=c.querySelector('.brule'); if(hr) hr.value=rule;
+    const pv=c.querySelector('.bprev'); if(pv) pv.textContent = rule? ('미리보기 → '+rule) : '';
+  }
   const incEl=document.getElementById('sg-inc');
   if(incEl){
     incEl.querySelectorAll('.addb').forEach(btn=>btn.addEventListener('click',()=>{
-      btn.closest('.cat').querySelector('.cardlist').appendChild(newCard(btn.dataset.apply,btn.dataset.color));
+      const card=newCard(btn.dataset.apply,btn.dataset.color);
+      btn.closest('.cat').querySelector('.cardlist').appendChild(card);
+      refreshCard(card);
     }));
-    incEl.addEventListener('click',e=>{ if(e.target.classList.contains('bdel')) e.target.closest('.bcard').remove(); });
+    incEl.addEventListener('click',e=>{
+      if(e.target.classList.contains('bdel')){ e.target.closest('.bcard').remove(); return; }
+      if(e.target.classList.contains('btgl')){
+        const c=e.target.closest('.bcard'); const mEl=c.querySelector('.s-m');
+        if(mEl){ mEl.value = e.target.dataset.u==='rate' ? '정률(%)' : '정액(원)'; refreshCard(c); }
+      }
+    });
+    incEl.addEventListener('input',e=>{ if(e.target.classList.contains('bval')) refreshCard(e.target.closest('.bcard')); });
+    incEl.addEventListener('change',e=>{ if(e.target.classList.contains('s-m')||e.target.classList.contains('s-b')) refreshCard(e.target.closest('.bcard')); });
+    incEl.querySelectorAll('.bcard').forEach(refreshCard);
   }
   const exlist=document.getElementById('sg-exlist');
   const addexBtn=document.querySelector('.addex');

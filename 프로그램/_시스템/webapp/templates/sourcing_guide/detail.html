@@ -77,6 +77,17 @@
 .sgd .bcard .bdel:hover,.sgd .exdel:hover{background:#FFE9EC;color:#E0392B;}
 .sgd .brule{width:100%;font-size:12px;color:#46505B;font-weight:600;border:none;padding:3px 0;margin-bottom:11px;font-family:inherit;background:none;}
 .sgd .brule:focus{outline:none;color:#191F28;}
+/* 혜택 '값' 입력칸 + 단위 토글 (시안 B) */
+.sgd .bvalrow{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:7px;}
+.sgd .bval-wrap{display:inline-flex;align-items:center;border:1.5px solid #DCE0E5;border-radius:10px;overflow:hidden;background:#fff;}
+.sgd .bval-wrap:focus-within{border-color:#3182F6;}
+.sgd .bval{border:none;outline:none;font-size:18px;font-weight:800;color:#191F28;font-family:inherit;width:94px;text-align:right;padding:7px 4px 7px 13px;background:none;}
+.sgd .bval::placeholder{color:#C2C8CF;}
+.sgd .bunit{font-size:15px;font-weight:800;color:#8B95A1;padding:0 13px 0 6px;}
+.sgd .btgl-seg{display:inline-flex;border:1px solid #DCE0E5;border-radius:9px;overflow:hidden;}
+.sgd .btgl{border:none;background:#F1F3F5;color:#6B7684;font-size:12px;font-weight:800;padding:8px 14px;cursor:pointer;font-family:inherit;}
+.sgd .btgl.on{background:#3182F6;color:#fff;}
+.sgd .bprev{font-size:11.5px;color:#0E7C3A;font-weight:700;margin-bottom:11px;min-height:13px;}
 .sgd .battrs{display:flex;flex-wrap:wrap;gap:7px;margin-bottom:15px;}
 .sgd .pill{display:inline-flex;align-items:center;border:1px solid #DCE0E5;border-radius:999px;overflow:hidden;font-size:12px;}
 .sgd .pill em{font-style:normal;background:#F1F3F5;color:#46505B;font-weight:700;font-size:11px;padding:5px 9px;}
@@ -269,7 +280,13 @@
               {% set ns.i = ns.i + 1 %}
               <div class="bcard" data-apply="{{ b.apply }}" style="border-left:3px solid {{ color }}">
                 <div class="bch"><input class="bn" value="{{ b.name }}" placeholder="혜택명"><button type="button" class="bdel" title="삭제">×</button></div>
-                <input class="brule" value="{{ b.rule }}" placeholder="계산 규칙 (예: 베이스금액① × 10%)">
+                {% set _bv = b.get('value') %}
+                <div class="bvalrow">
+                  <span class="bval-wrap"><input class="bval" inputmode="decimal" value="{{ _bv if _bv is not none else '' }}" placeholder="0"><span class="bunit"></span></span>
+                  <span class="btgl-seg"><button type="button" class="btgl" data-u="rate">% 정률</button><button type="button" class="btgl" data-u="amount">원 정액</button></span>
+                </div>
+                <div class="bprev"></div>
+                <input type="hidden" class="brule" value="{{ b.rule }}">
                 <div class="battrs">
                   <span class="pill"><em>방식</em><select class="s-m">{% for o in M_OPTS %}<option{% if o==b.method %} selected{% endif %}>{{ o }}</option>{% endfor %}</select></span>
                   <span class="pill"><em>기준</em><select class="s-b">{% for o in B_OPTS %}<option{% if o==b.base %} selected{% endif %}>{{ o }}</option>{% endfor %}</select></span>

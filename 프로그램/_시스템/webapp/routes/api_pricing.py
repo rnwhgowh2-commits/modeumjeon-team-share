@@ -380,14 +380,16 @@ def _option_matrix_data(code: str):
         )
         sku_list = [o.canonical_sku for o in opts]
 
-        # 소싱처 사전
-        sources = (
-            s.query(SourceRegistry)
-            .order_by(SourceRegistry.sort_order, SourceRegistry.id)
-            .all()
-        )
-        source_dict = {src.id: {'id': src.id, 'name': src.name,
-                                'main_url': src.main_url or ''} for src in sources}
+        # 소싱처 사전 — [perf 2026-06-12] 소싱처 레지스트리는 관리자가 가끔만 바꾸는
+        #   설정 데이터(가격·재고 아님) → plain dict 를 60초 TTL 캐시(매 매트릭스 로드 쿼리 제거).
+        from shared.ref_cache import cached as _ref_cached
+
+        def _load_source_dict():
+            _rows = (s.query(SourceRegistry)
+                     .order_by(SourceRegistry.sort_order, SourceRegistry.id).all())
+            return {src.id: {'id': src.id, 'name': src.name,
+                             'main_url': src.main_url or ''} for src in _rows}
+        source_dict = _ref_cached('matrix:source_dict', 60.0, _load_source_dict)
 
         # 옵션 × 소싱처 매핑
         url_links = (

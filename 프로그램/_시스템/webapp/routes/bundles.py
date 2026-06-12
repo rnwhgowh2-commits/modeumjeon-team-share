@@ -678,26 +678,34 @@ def bundle_edit(code: str):
         # → 완전 별개 engine.connect() 로 자체 격리
         all_sources = list(SOURCE_REGISTRY)
         try:
+            # [perf 2026-06-12] 커스텀 소싱처(sourcing_sources)는 관리자가 가끔만 추가하는
+            #   설정 데이터(가격 아님) → plain dict 리스트를 60초 TTL 캐시(매 페이지 쿼리 제거).
+            from shared.ref_cache import cached as _ref_cached
             from sqlalchemy import text as _sql_text
             from shared.db import engine as _engine
-            with _engine.connect() as _conn:
-                rs = _conn.execute(_sql_text(
-                    "SELECT source_key, label, logo_letter, logo_color, has_adapter, "
-                    "favicon_url, domain, needs_login "
-                    "FROM sourcing_sources WHERE is_active=true "
-                    "ORDER BY sort_order, id"
-                ))
-                for r in rs.fetchall():
-                    sk, lbl, lt, lc, ha, fv, dm, nl = r
-                    all_sources.append({
-                        'key': sk, 'label': lbl,
-                        'brand': 'custom-' + sk,
-                        'glyph': lt or (lbl[:1].upper() if lbl else 'X'),
-                        'crawler': bool(ha), 'legacy': False,
-                        'logo_color': lc or '#3182F6',
-                        'favicon_url': fv, 'domain': dm,
-                        'needs_login': bool(nl), 'builtin': False,
-                    })
+
+            def _load_custom_sources():
+                _out = []
+                with _engine.connect() as _conn:
+                    rs = _conn.execute(_sql_text(
+                        "SELECT source_key, label, logo_letter, logo_color, has_adapter, "
+                        "favicon_url, domain, needs_login "
+                        "FROM sourcing_sources WHERE is_active=true "
+                        "ORDER BY sort_order, id"
+                    ))
+                    for r in rs.fetchall():
+                        sk, lbl, lt, lc, ha, fv, dm, nl = r
+                        _out.append({
+                            'key': sk, 'label': lbl,
+                            'brand': 'custom-' + sk,
+                            'glyph': lt or (lbl[:1].upper() if lbl else 'X'),
+                            'crawler': bool(ha), 'legacy': False,
+                            'logo_color': lc or '#3182F6',
+                            'favicon_url': fv, 'domain': dm,
+                            'needs_login': bool(nl), 'builtin': False,
+                        })
+                return _out
+            all_sources.extend(_ref_cached('page:custom_sources', 60.0, _load_custom_sources))
         except Exception:
             pass  # 테이블 미존재 / 기타 → builtin 만 (안전 fallback)
         share_counts = {}
@@ -774,16 +782,20 @@ def bundle_edit(code: str):
         # builtin (스토어/쿠팡) = 기존 ss_margin_*, coupang_margin_* 컬럼 마진 사용
         # custom (11번가/G마켓 등) = placeholder (마진 입력 disabled — Phase 2 일반화)
         try:
+            # [perf 2026-06-12] 마켓 레지스트리도 관리자가 가끔만 바꾸는 설정 → 60초 TTL 캐시.
+            from shared.ref_cache import cached as _ref_cached
             from lemouton.sourcing.models import MarketRegistry
-            market_rows = (s.query(MarketRegistry)
-                           .filter_by(is_active=True)
-                           .order_by(MarketRegistry.sort_order, MarketRegistry.id)
-                           .all())
-            markets_payload = [{
-                'id': mk.id, 'market_key': mk.market_key, 'label': mk.label,
-                'logo_color': mk.logo_color, 'logo_letter': mk.logo_letter,
-                'is_builtin': mk.is_builtin,
-            } for mk in market_rows]
+
+            def _load_markets():
+                _rows = (s.query(MarketRegistry)
+                         .filter_by(is_active=True)
+                         .order_by(MarketRegistry.sort_order, MarketRegistry.id).all())
+                return [{
+                    'id': mk.id, 'market_key': mk.market_key, 'label': mk.label,
+                    'logo_color': mk.logo_color, 'logo_letter': mk.logo_letter,
+                    'is_builtin': mk.is_builtin,
+                } for mk in _rows]
+            markets_payload = _ref_cached('page:markets_payload', 60.0, _load_markets)
         except Exception:
             markets_payload = []
     finally:
