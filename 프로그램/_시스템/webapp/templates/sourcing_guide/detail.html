@@ -77,6 +77,17 @@
 .sgd .bcard .bdel:hover,.sgd .exdel:hover{background:#FFE9EC;color:#E0392B;}
 .sgd .brule{width:100%;font-size:12px;color:#46505B;font-weight:600;border:none;padding:3px 0;margin-bottom:11px;font-family:inherit;background:none;}
 .sgd .brule:focus{outline:none;color:#191F28;}
+/* 혜택 '값' 입력칸 + 단위 토글 (시안 B) */
+.sgd .bvalrow{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:7px;}
+.sgd .bval-wrap{display:inline-flex;align-items:center;border:1.5px solid #DCE0E5;border-radius:10px;overflow:hidden;background:#fff;}
+.sgd .bval-wrap:focus-within{border-color:#3182F6;}
+.sgd .bval{border:none;outline:none;font-size:18px;font-weight:800;color:#191F28;font-family:inherit;width:94px;text-align:right;padding:7px 4px 7px 13px;background:none;}
+.sgd .bval::placeholder{color:#C2C8CF;}
+.sgd .bunit{font-size:15px;font-weight:800;color:#8B95A1;padding:0 13px 0 6px;}
+.sgd .btgl-seg{display:inline-flex;border:1px solid #DCE0E5;border-radius:9px;overflow:hidden;}
+.sgd .btgl{border:none;background:#F1F3F5;color:#6B7684;font-size:12px;font-weight:800;padding:8px 14px;cursor:pointer;font-family:inherit;}
+.sgd .btgl.on{background:#3182F6;color:#fff;}
+.sgd .bprev{font-size:11.5px;color:#0E7C3A;font-weight:700;margin-bottom:11px;min-height:13px;}
 .sgd .battrs{display:flex;flex-wrap:wrap;gap:7px;margin-bottom:15px;}
 .sgd .pill{display:inline-flex;align-items:center;border:1px solid #DCE0E5;border-radius:999px;overflow:hidden;font-size:12px;}
 .sgd .pill em{font-style:normal;background:#F1F3F5;color:#46505B;font-weight:700;font-size:11px;padding:5px 9px;}
@@ -269,7 +280,13 @@
               {% set ns.i = ns.i + 1 %}
               <div class="bcard" data-apply="{{ b.apply }}" style="border-left:3px solid {{ color }}">
                 <div class="bch"><input class="bn" value="{{ b.name }}" placeholder="혜택명"><button type="button" class="bdel" title="삭제">×</button></div>
-                <input class="brule" value="{{ b.rule }}" placeholder="계산 규칙 (예: 베이스금액① × 10%)">
+                {% set _bv = b.get('value') %}
+                <div class="bvalrow">
+                  <span class="bval-wrap"><input class="bval" inputmode="decimal" value="{{ _bv if _bv is not none else '' }}" placeholder="0"><span class="bunit"></span></span>
+                  <span class="btgl-seg"><button type="button" class="btgl" data-u="rate">% 정률</button><button type="button" class="btgl" data-u="amount">원 정액</button></span>
+                </div>
+                <div class="bprev"></div>
+                <input type="hidden" class="brule" value="{{ b.rule }}">
                 <div class="battrs">
                   <span class="pill"><em>방식</em><select class="s-m">{% for o in M_OPTS %}<option{% if o==b.method %} selected{% endif %}>{{ o }}</option>{% endfor %}</select></span>
                   <span class="pill"><em>기준</em><select class="s-b">{% for o in B_OPTS %}<option{% if o==b.base %} selected{% endif %}>{{ o }}</option>{% endfor %}</select></span>
@@ -305,6 +322,48 @@
           <button type="button" class="addex">＋ 제외 단어 추가</button>
         </div>
       </div>
+
+      <!-- ③-요약 — 가격 계산 로직 한눈에 보기 (읽기 전용, 위 카드와 동일 benefits 소스) -->
+      {% set SMAP = {'always':'상시','conditional':'조건부','optional':'선택','planned':'예정'} %}
+      <div class="sg3-logic" style="margin-top:18px;border:1px solid #E5E8EB;border-radius:12px;overflow:hidden">
+        <div style="padding:13px 16px;background:#F9FAFB;border-bottom:1px solid #E5E8EB;font-size:13.5px;font-weight:800;color:#191F28">💰 가격 계산 로직 — 한눈에 보기 <span style="font-weight:600;color:#8B95A1;font-size:12px">· 위 설정값 요약 (읽기 전용) · 표면 노출가 → 최종 매입가 순</span></div>
+        <div style="overflow-x:auto">
+        <table style="width:100%;border-collapse:collapse;font-size:12.5px;min-width:560px">
+          <thead>
+            <tr style="background:#FBFCFD;color:#4E5968;font-weight:700;text-align:left">
+              <th style="padding:9px 12px;border-bottom:1px solid #E5E8EB">단계</th>
+              <th style="padding:9px 12px;border-bottom:1px solid #E5E8EB">혜택</th>
+              <th style="padding:9px 12px;border-bottom:1px solid #E5E8EB">방식</th>
+              <th style="padding:9px 12px;border-bottom:1px solid #E5E8EB">기준</th>
+              <th style="padding:9px 12px;border-bottom:1px solid #E5E8EB">값 · 규칙</th>
+              <th style="padding:9px 12px;border-bottom:1px solid #E5E8EB">조건</th>
+            </tr>
+          </thead>
+          <tbody>
+          {% set lg = namespace(rows=0) %}
+          {% for cname, applies, color in CATS %}
+            {% for b in guide.pricing.benefits if b.apply in applies %}
+            {% set lg.rows = lg.rows + 1 %}
+            {% set _method = b.method or ('정률' if '%' in (b.rule or '') else ('정액' if '원' in (b.rule or '') else '—')) %}
+            {% set _base = b.base or ('베이스금액②' if '베이스금액②' in (b.rule or '') else ('베이스금액①' if '베이스금액①' in (b.rule or '') else ('표면 노출가' if '표면' in (b.rule or '') else '—'))) %}
+            <tr style="border-bottom:1px solid #F2F4F6">
+              <td style="padding:9px 12px;white-space:nowrap"><span style="display:inline-block;padding:2px 8px;border-radius:6px;background:{{ color }};color:#fff;font-weight:700;font-size:11px">{{ cname }}</span></td>
+              <td style="padding:9px 12px;font-weight:600;color:#191F28">{{ b.name }}</td>
+              <td style="padding:9px 12px;white-space:nowrap;color:#4E5968">{{ _method }}</td>
+              <td style="padding:9px 12px;white-space:nowrap;color:#4E5968">{{ _base }}</td>
+              <td style="padding:9px 12px;color:#4E5968">{{ b.rule or '—' }}</td>
+              <td style="padding:9px 12px;white-space:nowrap;color:#8B95A1">{{ SMAP.get(b.status, b.status or '—') }}</td>
+            </tr>
+            {% endfor %}
+          {% endfor %}
+          {% if lg.rows == 0 %}
+            <tr><td colspan="6" style="padding:16px;text-align:center;color:#B0B8C1">등록된 혜택이 없습니다.</td></tr>
+          {% endif %}
+          </tbody>
+        </table>
+        </div>
+      </div>
+
       <!-- B1 — 모든 모음전에 따라쓰기 (2중 잠금). 스냅샷 모델: 기본값을 전 모음전에 덮어씀. -->
       <div class="sg3-applyall" style="margin-top:16px;border:1.5px solid #F04452;background:#FFF0F1;border-radius:12px;padding:16px 18px">
         <div style="display:flex;align-items:center;gap:8px;font-size:14px;font-weight:800;color:#191F28;margin-bottom:6px">🔒 모든 모음전에 따라쓰기</div>
