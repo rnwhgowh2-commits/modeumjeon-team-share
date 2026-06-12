@@ -18,15 +18,9 @@ import sys
 from pathlib import Path
 from urllib.parse import urlsplit, parse_qsl, urlencode, urlunsplit
 
-# Windows 콘솔(cp949)에서도 이모지/박스문자 출력되도록 utf-8 강제.
-try:
-    sys.stdout.reconfigure(encoding="utf-8")
-    sys.stderr.reconfigure(encoding="utf-8")
-except Exception:
-    pass
-
 ROOT = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(ROOT))
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
 
 from sqlalchemy import text  # noqa: E402
 from shared.db import SessionLocal  # noqa: E402
@@ -70,6 +64,17 @@ class Check:
         self.count += 1
         if len(self.samples) < 8:
             self.samples.append(sample)
+
+    def to_dict(self) -> dict:
+        return {
+            "code": self.code,
+            "title": self.title,
+            "money_impact": self.money_impact,
+            "count": self.count,
+            "ok": self.count == 0,
+            "errored": self.count < 0,
+            "samples": self.samples,
+        }
 
 
 def _rows(s, sql, **params):
@@ -205,26 +210,37 @@ CHECKS = [
 ]
 
 
+def run_checks(session) -> list:
+    """전 불변식 실행 → Check 리스트. CLI·웹 엔드포인트 공용 (읽기 전용)."""
+    results = []
+    for fn in CHECKS:
+        try:
+            results.append(fn(session))
+        except Exception as e:  # 한 점검 실패가 전체를 막지 않게
+            c = Check(fn.__name__, f"(점검 실패: {type(e).__name__})", str(e)[:120])
+            c.count = -1
+            results.append(c)
+    return results
+
+
 def main() -> int:
+    # Windows 콘솔(cp949)에서도 이모지/박스문자 출력되도록 utf-8 강제 (CLI 전용).
+    try:
+        sys.stdout.reconfigure(encoding="utf-8")
+        sys.stderr.reconfigure(encoding="utf-8")
+    except Exception:
+        pass
     s = SessionLocal()
     try:
         # 어느 DB 인지 표시
         try:
-            from config import Config
             dialect = s.bind.dialect.name
             label = "라이브/원격" if "postgres" in dialect else "로컬 SQLite"
             print(f"[verify_integrity] DB={dialect} ({label})\n")
         except Exception:
             print("[verify_integrity] DB 확인 실패\n")
 
-        results = []
-        for fn in CHECKS:
-            try:
-                results.append(fn(s))
-            except Exception as e:
-                c = Check(fn.__name__, f"(점검 실패: {type(e).__name__})", str(e)[:80])
-                c.count = -1
-                results.append(c)
+        results = run_checks(s)
 
         total_viol = 0
         errored = 0
