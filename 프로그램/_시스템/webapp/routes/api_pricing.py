@@ -517,6 +517,7 @@ def _option_matrix_data(code: str):
                     #   SSF 처럼 옵션가(119,900)≠상품대표가(122,376) 일 때 틀린 값 표시되던 버그.
                     _opt_stock = None
                     _opt_price = None
+                    _match_failed = False
                     if sp:
                         _so_m = _match_option_so(
                             _so_index, sp.id,
@@ -525,9 +526,20 @@ def _option_matrix_data(code: str):
                         if _so_m is not None:
                             _opt_stock = _so_m.current_stock
                             _opt_price = _so_m.current_price
-                    # 옵션 크롤가(>0) 우선, 없으면 상품 last_price fallback
-                    _disp_price = (_opt_price if (_opt_price and _opt_price > 0)
-                                   else (sp.last_price if sp else None))
+                        elif _so_index.get(sp.id):
+                            # [2026-06-13 폴백가 금지] 이 소싱처는 옵션(색·사이즈)을 크롤했는데
+                            #   이 색/사이즈가 그 목록에 없음 = 소싱처가 실제로 안 파는 조합.
+                            #   기존엔 상품 대표가(last_price)로 폴백 → '안 파는 사이즈에 가짜 가격'이
+                            #   떠서(예: 르무통 오렌지 260·270 이 255와 동일가) 잘못된 매입 판단 → 손실.
+                            #   폴백 금지하고 '매칭 실패'로 표면화한다(이상한 값 넣지 않음).
+                            _match_failed = True
+                    # 매칭 실패(안 파는 조합) = 폴백 금지(가격·재고 None). 그 외엔 옵션가(>0) 우선,
+                    #   옵션 단위 가격이 없을 때만(=옵션 크롤 안 한 소싱처) 상품가 fallback.
+                    if _match_failed:
+                        _disp_price = None
+                    else:
+                        _disp_price = (_opt_price if (_opt_price and _opt_price > 0)
+                                       else (sp.last_price if sp else None))
                     existing.append({
                         # 칼럼 매칭 = 레지스트리 id (없으면 SSG 등 — 칼럼 없음). refetch 도 동일.
                         'source_id': _reg_id,
@@ -541,11 +553,15 @@ def _option_matrix_data(code: str):
                         'source_product_id': sp.id if sp else None,
                         'crawled_price': _disp_price,
                         'crawled_price_raw': _disp_price,
-                        'crawled_stock': (_opt_stock if _opt_stock is not None
-                                          else (sp.last_stock if sp else None)),
+                        'crawled_stock': (None if _match_failed else
+                                          (_opt_stock if _opt_stock is not None
+                                           else (sp.last_stock if sp else None))),
                         'last_fetched_at': (sp.last_fetched_at.isoformat()
                                             if sp and sp.last_fetched_at else None),
                         'last_status': (sp.last_status if sp else None),
+                        # [2026-06-13] 매칭 실패(소싱처가 안 파는 색/사이즈) — 프론트가 '매칭 실패'
+                        #   로 표시하고 가격/재고 없는 것으로 처리(폴백가 금지).
+                        'match_failed': _match_failed,
                         'auto_card_discount': None,
                         'card_enabled': True,
                         'crawled': bool(sp),

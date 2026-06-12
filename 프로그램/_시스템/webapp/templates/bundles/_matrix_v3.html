@@ -1243,6 +1243,8 @@
         function cellState(src){
           if (!src || !src.product_url) return { kind:'miss' };                         // 크롤링 미실시(URL 미매핑 포함)
           if (src.last_status === 'error') return { kind:'fail' };                       // 크롤 실패(가격 stale → 숨김)
+          // [2026-06-13] 매칭 실패 — 이 소싱처가 이 색/사이즈를 실제로 안 팜. 폴백가 금지(가짜 가격 X).
+          if (src.match_failed && (src.crawled_price == null || src.crawled_price <= 0)) return { kind:'nomatch' };
           if (src.crawled_price == null || src.crawled_price <= 0) return { kind:'miss' }; // 크롤 대기/미실시
           if (src.stock_out || src.crawled_stock === 0) return { kind:'oos' };           // 품절
           const q = src.stock_qty != null ? src.stock_qty : null;
@@ -1275,12 +1277,24 @@
               curColor = color;
               body += `<tr class="cmtx-grp"><td colspan="${sources.length + 1}"><span class="csw" style="background:${colorSwatch(color)}"></span>${esc(color)}</td></tr>`;
             }
+            // [2026-06-13] 비활성(OFF) 옵션 — 어떤 소싱처 가격도 표시하지 않음(옵션 매트릭스와 일치).
+            //   OFF 해도 URL 매핑은 보존되므로, 여기서 막지 않으면 '비활성인데 가격 있음' 모순.
+            if (o.is_active === false){
+              let offCells = '';
+              sources.forEach(() => { offCells += '<td class="cmtx-cell"><span class="cmtx-line"><span class="cmtx-p miss" style="color:#c4ccd6">비활성</span></span></td>'; });
+              body += `<tr class="cmtx-optrow" style="opacity:.5"><td class="cmtx-optcol">${esc(color)} ${esc(o.size_display || o.size_code || '')}</td>${offCells}</tr>`;
+              return;
+            }
             let cells = '';
             sources.forEach(col => {
               const src = pickBest((o.sources || []).filter(x => x.source_id === col.id));
               const st = cellState(src);
               if (st.kind === 'miss'){
                 cells += '<td class="cmtx-cell"><span class="cmtx-line"><i class="cmtx-pdot" style="background:#d1d6db"></i><span class="cmtx-p miss">미크롤</span></span></td>';
+                return;
+              }
+              if (st.kind === 'nomatch'){
+                cells += '<td class="cmtx-cell"><span class="cmtx-line"><i class="cmtx-pdot" style="background:#f59e0b"></i><span class="cmtx-p" style="color:#b45309;font-weight:700">매칭 실패</span></span></td>';
                 return;
               }
               if (st.kind === 'fail'){
@@ -5620,6 +5634,11 @@ table.ompk-tab th.corner{color:#b0b8c1;cursor:default}
 
   // Phase 6 — 한 옵션 × 한 사이트 셀 (4색 상태 + ★최저 + fx + breakdown)
   function renderSiteCell(o, s) {
+    // [2026-06-13] 비활성(OFF) 옵션 — 어떤 소싱처 가격도 표시하지 않음(옵션 매트릭스와 일치).
+    //   OFF 해도 URL 매핑은 보존되므로(is_active=false), 여기서 막지 않으면 '비활성인데 가격 있음' 모순.
+    if (o.is_active === false) {
+      return `<td class="td-site-col cn" data-cell-sku="${escapeHtml(o.sku)}" data-cell-src="${s.id}" style="text-align:center; padding:10px 4px; font-size:13px; color:#c4ccd6; font-weight:600; white-space:nowrap;">비활성</td>`;
+    }
     const src = _pickBestSrc((o.sources || []).filter(x => x.source_id === s.id));
     // [2026-05-24] URL 미매핑 — 옵션 조합 생성 모달에서 매핑하므로 여기서는 "—" 표시만
     if (!src || !src.product_url) {
@@ -5631,6 +5650,11 @@ table.ompk-tab th.corner{color:#b0b8c1;cursor:default}
     // 크롤 실패 — [2026-06-03] 2행: 1행 '크롤 실패' / 2행 🔄 재크롤 버튼 (다른 셀과 동일 2단)
     if (src.last_status === 'error') {
       return `<td class="td-site-col cf" data-cell-sku="${escapeHtml(o.sku)}" data-cell-src="${s.id}" style="position:relative;text-align:center;line-height:1.4">${_corner}<div style="color:#dc2626;font-size:12px;font-weight:600">크롤 실패</div><button type="button" class="btn-ico" data-refetch-sku="${escapeHtml(o.sku)}" data-refetch-src="${s.id}" title="다시 크롤" style="margin-top:4px;font-size:10.5px;font-weight:700;color:#dc2626;background:#FEF2F2;border:1px solid #fecaca;border-radius:6px;padding:2px 8px;cursor:pointer">🔄 재크롤</button></td>`;
+    }
+    // [2026-06-13] 매칭 실패 — 이 소싱처가 이 색/사이즈를 실제로 안 팜(옵션 목록에 없음).
+    //   폴백가(상품 대표가) 금지 정책 — 가짜 가격 대신 '매칭 실패' 명시(이상한 값 X).
+    if (src.match_failed && (!src.crawled_price || src.crawled_price <= 0)) {
+      return `<td class="td-site-col cf" data-cell-sku="${escapeHtml(o.sku)}" data-cell-src="${s.id}" style="position:relative;text-align:center;line-height:1.4">${_corner}<div style="color:#b45309;font-size:12px;font-weight:700">매칭 실패</div><div style="color:#94A3B8;font-size:10.5px;margin-top:2px">이 사이즈 없음</div></td>`;
     }
     // 크롤 안됨 (대기 / 진행 중)
     if (!src.crawled_price || src.crawled_price <= 0) {
