@@ -159,10 +159,25 @@
   });
 
   document.getElementById('sg-save').addEventListener('click', async ()=>{
+    const payload=collect();
+    // 값이 입력된 혜택(=기본셋팅으로 흘러갈 것) 카운트. 할부(개월)·빈값 제외.
+    const valued=((payload.pricing&&payload.pricing.benefits)||[]).filter(b=>
+      b.value!=null && !(String(b.method||'').indexOf('개월')>=0));
+    if(valued.length){
+      const names=valued.map(b=>b.name).join(', ');
+      const ok=confirm('저장하면 이 소싱처 혜택 기본값('+valued.length+'개: '+names+')이\n'+
+        '전(全) 모음전에 덮어써집니다. 모음전별로 따로 수정한 값은 사라지며 되돌릴 수 없습니다.\n\n'+
+        '계속할까요?\n(취소를 누르면 저장은 하되 기존 모음전은 건드리지 않습니다)');
+      payload.apply_to_bundles = ok;
+    }
     const res=await fetch(`/sourcing-guide/api/${sid}`,{method:'PUT',
-      headers:{'Content-Type':'application/json'}, body:JSON.stringify(collect())});
+      headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload)});
     const j=await res.json();
-    alert(j.ok? '저장됨':('저장 실패: '+(j.message||j.error)));
+    if(!j.ok){ alert('저장 실패: '+(j.message||j.error)); return; }
+    let msg='저장됨';
+    if(j.benefits_synced)  msg+=' · 기본셋팅 '+j.benefits_synced+'개 반영';
+    if(j.bundles_applied)  msg+=' · 모음전 '+j.bundles_applied+'개 덮어씀';
+    alert(msg);
   });
 
   const stEl=document.getElementById('sg-verify-status');

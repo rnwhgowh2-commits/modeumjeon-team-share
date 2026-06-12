@@ -435,10 +435,17 @@ def compute_breakdown(session, *, sku: str, source_id: int, sale_price: float,
             if _cache is not None:
                 sp = _cache['sp_by_norm'].get(target_norm)
             else:
-                sps = (session.query(SourceProduct)
-                       .filter(SourceProduct.deleted_at.is_(None))
-                       .all())
-                sp = next((s for s in sps if _nu(s.url) == target_norm), None)
+                # [perf 2026-06-12] 단일 호출(=FX 셀 클릭)도 전체 source_products 를
+                #   fetch+파이썬 normalize 하던 것을 경로 prefix 로 좁힌다. normalize_url 은
+                #   '?' 뒤 추적 파라미터만 제거하고 scheme://host/path 는 보존하므로, 물음표
+                #   앞 prefix 로 DB에서 거른 소수 후보만 normalize 비교하면 결과 byte-identical.
+                #   원격 Supabase 에서 전체 테이블 fetch(수백행×RTT) → 1~수 행으로 축소.
+                _base = (link.product_url or '').split('?', 1)[0]
+                _q = (session.query(SourceProduct)
+                      .filter(SourceProduct.deleted_at.is_(None)))
+                if _base:
+                    _q = _q.filter(SourceProduct.url.startswith(_base, autoescape=True))
+                sp = next((s for s in _q.all() if _nu(s.url) == target_norm), None)
             if sp:
                 import json as _json
                 if sp.auto_card_discount_json:
@@ -1058,6 +1065,60 @@ def snapshot_bundle_from_templates(session, bundle_code: str, source_ids=None) -
                 ))
                 created += 1
     return {'options': len(skus), 'sources': len(tpls_by_src), 'created': created}
+
+
+def sync_templates_from_crawl_guide(session, source_id: int, guide: dict) -> int:
+    """크롤가이드 혜택 카드(값 입력된 것) → SourceBenefitTemplate upsert (기본셋팅 연결).
+
+    설계(2026-06-13): 크롤가이드 detail 페이지의 혜택 '값' 입력칸을 소싱처 기본셋팅으로
+    흘려보낸다. 안전 규칙:
+      - 값(value)이 입력된 혜택만 반영. 빈 값(=크롤로 매번 긁는 등급할인 등)은 건드리지 않음
+        → 0원/잘못된 고정값 덮어쓰기·이중차감 방지.
+      - 방식 '옵션(개월)'(무이자 할부)은 차감 혜택이 아니므로 제외.
+      - 이름(benefit_name) 기준 upsert. 크롤가이드에 없는 기존 템플릿은 삭제하지 않음(데이터 보존).
+      - rate(정률/적립%)는 사람이 넣은 % 를 소수로 변환(15 → 0.15). amount(정액/고정액)는 그대로.
+      - 기존 행 update 시 category/pay_method/channel 은 보존(운영센터에서 세팅한 태그 클로버 방지).
+    반환: 반영된 혜택 개수.
+    """
+    benefits = ((guide.get('pricing') or {}).get('benefits')) or []
+    existing = {t.benefit_name: t for t in
+                session.query(SourceBenefitTemplate)
+                .filter_by(source_id=source_id).all()}
+    n = 0
+    for i, b in enumerate(benefits):
+        v = b.get('value')
+        if v is None:
+            continue
+        method = b.get('method') or ''
+        if '개월' in method:
+            continue
+        name = (b.get('name') or '').strip()
+        if not name:
+            continue
+        is_rate = ('%' in method)
+        btype = 'rate' if is_rate else 'amount'
+        try:
+            val = float(v) / 100.0 if is_rate else float(v)
+        except (TypeError, ValueError):
+            continue
+        apply_mode = b.get('apply')
+        enabled = (b.get('status') != 'planned')
+        t = existing.get(name)
+        if t is not None:
+            t.benefit_type = btype
+            t.value = val
+            if apply_mode:
+                t.apply_mode = apply_mode
+            t.enabled = enabled
+            t.sort_order = i
+        else:
+            session.add(SourceBenefitTemplate(
+                source_id=source_id, benefit_name=name,
+                benefit_type=btype, value=val,
+                apply_mode=apply_mode, enabled=enabled, sort_order=i,
+            ))
+        n += 1
+    return n
 
 
 def _upsert_value_for_skus(s, source_id, skus, nm, bt, val):

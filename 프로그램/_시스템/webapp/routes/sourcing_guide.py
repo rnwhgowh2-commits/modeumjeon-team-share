@@ -127,6 +127,7 @@ def api_put(sid: int):
             return jsonify(ok=False, error="not_found"), 404
         try:
             incoming = request.get_json(force=True) or {}
+            apply_bundles = bool(incoming.get("apply_to_bundles"))
             if "verification" not in incoming:
                 incoming["verification"] = cg.loads(src.crawl_guide).get("verification")
             guide = cg.validate_guide(incoming)
@@ -134,8 +135,23 @@ def api_put(sid: int):
             return jsonify(ok=False, error="invalid", message=str(e)), 400
         guide["updated_at"] = _now_iso()
         src.crawl_guide = cg.dumps(guide)
+        # 혜택 '값' 입력칸 → 소싱처 기본셋팅(SourceBenefitTemplate) 연결 (2026-06-13).
+        #   템플릿 동기화는 항상(새 모음전부터 반영). apply_to_bundles 확인 시 기존 모음전까지 덮어씀(비가역).
+        from webapp.routes.api_benefits import (
+            sync_templates_from_crawl_guide, snapshot_bundle_from_templates,
+        )
+        benefits_synced = sync_templates_from_crawl_guide(s, sid, guide)
+        bundles_applied = 0
+        if apply_bundles and benefits_synced:
+            from lemouton.sourcing.models import Model
+            codes = [c[0] for c in s.query(Model.model_code).all() if c[0]]
+            for code in codes:
+                r = snapshot_bundle_from_templates(s, code, source_ids=[sid])
+                if r["options"]:
+                    bundles_applied += 1
         s.commit()
-        return jsonify(ok=True, guide=guide)
+        return jsonify(ok=True, guide=guide,
+                       benefits_synced=benefits_synced, bundles_applied=bundles_applied)
     finally:
         s.close()
 
