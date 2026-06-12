@@ -1657,6 +1657,122 @@ def api_cleanup_dup_options():
         s.close()
 
 
+@bp.route('/api/admin/option-dupes', methods=['GET'])
+def api_option_dupes():
+    """[2026-06-13] (model_code, color_code, size_code) 정확 중복 옵션 전수 진단 — 읽기 전용.
+
+    스카이블루 처럼 같은 모델·색·사이즈가 2행 이상인 중복(options UNIQUE 제약 부재).
+    각 중복군에서 '보존할 1행(keeper)'과 '잉여행'을 정하고, 잉여행 중 URL·재고 매핑이
+    0 인 것을 '안전 삭제 후보'로 표시. 삭제는 기존 /api/admin/options/cleanup-dupes
+    (dry-run + 매핑0 가드)로 수행. 이 엔드포인트는 SELECT 만 — 데이터 변경 없음.
+
+    keeper 우선순위: ① 활성(is_active) ② 매핑(url+inv) 많은 것 ③ 먼저 생성된 것.
+    ?format=json 이면 JSON, 기본은 사람이 읽는 HTML.
+    """
+    import html as _html
+    from sqlalchemy import func
+    s = SessionLocal()
+    try:
+        # 1) 중복 (model,color,size) 키
+        dup_keys = (s.query(Option.model_code, Option.color_code, Option.size_code,
+                            func.count(Option.canonical_sku))
+                    .group_by(Option.model_code, Option.color_code, Option.size_code)
+                    .having(func.count(Option.canonical_sku) > 1).all())
+        groups = []
+        safe_delete_skus = []
+        total_rows = 0
+        total_redundant = 0
+        for model_code, color_code, size_code, _cnt in dup_keys:
+            rows = (s.query(Option)
+                    .filter(Option.model_code == model_code,
+                            Option.color_code == color_code,
+                            Option.size_code == size_code).all())
+            skus = [o.canonical_sku for o in rows]
+            url_cnt = dict(s.query(OptionSourceUrlLink.option_canonical_sku,
+                                   func.count(OptionSourceUrlLink.id))
+                           .filter(OptionSourceUrlLink.option_canonical_sku.in_(skus))
+                           .group_by(OptionSourceUrlLink.option_canonical_sku).all())
+            inv_cnt = dict(s.query(OptionInventoryLink.bundle_option_sku,
+                                   func.count(OptionInventoryLink.id))
+                           .filter(OptionInventoryLink.bundle_option_sku.in_(skus))
+                           .group_by(OptionInventoryLink.bundle_option_sku).all())
+
+            def _score(o):
+                u = int(url_cnt.get(o.canonical_sku, 0))
+                i = int(inv_cnt.get(o.canonical_sku, 0))
+                return (1 if o.is_active else 0, u + i,
+                        -(o.created_at.timestamp() if o.created_at else 0))
+            ordered = sorted(rows, key=_score, reverse=True)
+            keeper = ordered[0]
+            row_infos = []
+            for o in ordered:
+                u = int(url_cnt.get(o.canonical_sku, 0))
+                i = int(inv_cnt.get(o.canonical_sku, 0))
+                is_keeper = (o.canonical_sku == keeper.canonical_sku)
+                deletable = (not is_keeper) and u == 0 and i == 0
+                if deletable:
+                    safe_delete_skus.append(o.canonical_sku)
+                if not is_keeper:
+                    total_redundant += 1
+                row_infos.append({
+                    'sku': o.canonical_sku, 'is_active': bool(o.is_active),
+                    'url_links': u, 'inv_links': i,
+                    'boxhero_stock': o.boxhero_stock_total or 0,
+                    'created_at': o.created_at.isoformat() if o.created_at else None,
+                    'keeper': is_keeper, 'deletable': deletable,
+                })
+            total_rows += len(rows)
+            groups.append({'model_code': model_code, 'color_code': color_code,
+                           'size_code': size_code, 'rows': row_infos})
+
+        if (request.args.get('format') or '').lower() == 'json':
+            return jsonify({'ok': True, 'dup_group_count': len(groups),
+                            'total_rows': total_rows, 'redundant_rows': total_redundant,
+                            'safe_delete_count': len(safe_delete_skus),
+                            'safe_delete_skus': safe_delete_skus, 'groups': groups})
+
+        # HTML (비개발자용)
+        trs = []
+        for g in groups:
+            head = (f"{_html.escape(g['model_code'])} · "
+                    f"{_html.escape(g['color_code'])} · {_html.escape(g['size_code'])}")
+            trs.append(f"<tr class=grp><td colspan=6><b>{head}</b> "
+                       f"({len(g['rows'])}행)</td></tr>")
+            for r in g['rows']:
+                tag = ('<span class=keep>보존</span>' if r['keeper']
+                       else ('<span class=del>삭제후보</span>' if r['deletable']
+                             else '<span class=warn>잉여(매핑有·수동)</span>'))
+                act = '활성' if r['is_active'] else '비활성'
+                trs.append(
+                    f"<tr><td class=mono>{_html.escape(r['sku'])}</td><td>{tag}</td>"
+                    f"<td>{act}</td><td class=num>{r['url_links']}</td>"
+                    f"<td class=num>{r['inv_links']}</td>"
+                    f"<td class=num>{r['boxhero_stock']}</td></tr>")
+        page = f"""<!doctype html><html lang=ko><head><meta charset=utf-8>
+<meta name=viewport content='width=device-width,initial-scale=1'>
+<title>옵션 중복 진단</title><style>
+body{{font-family:-apple-system,'Malgun Gothic',sans-serif;max-width:960px;margin:24px auto;padding:0 16px;color:#1f2328}}
+h1{{font-size:20px}} .sub{{color:#656d76;font-size:13px;margin-bottom:14px}}
+.ban{{padding:12px 16px;border-radius:8px;font-weight:600;margin:12px 0;background:#fff8c5}}
+table{{border-collapse:collapse;width:100%;font-size:13px}}
+td{{border-top:1px solid #d0d7de;padding:7px 8px}}
+tr.grp td{{background:#f6f8fa;border-top:2px solid #afb8c1}}
+.mono{{font-family:monospace;font-size:12px}} .num{{text-align:right;font-variant-numeric:tabular-nums}}
+.keep{{color:#1a7f37;font-weight:700}} .del{{color:#cf222e;font-weight:700}} .warn{{color:#9a6700}}
+code{{background:#f6f8fa;padding:2px 6px;border-radius:4px}}
+</style></head><body>
+<h1>옵션 중복 진단 (model·color·size)</h1>
+<div class=sub>읽기 전용 · 데이터 변경 없음. '보존'=남길 1행, '삭제후보'=잉여+매핑0(안전), '잉여(매핑有)'=수동 확인 필요.</div>
+<div class=ban>중복군 {len(groups)}개 · 총 {total_rows}행 · 잉여 {total_redundant}행 · <b>안전 삭제후보 {len(safe_delete_skus)}개</b></div>
+<p class=sub>안전 삭제 실행: <code>POST /api/admin/options/cleanup-dupes</code> body=<code>{{"skus":[...], "dry_run":true}}</code>
+(먼저 dry_run=true 로 확인 후 false). 안전 후보 SKU 목록은 <code>?format=json</code> 의 safe_delete_skus 참고.</p>
+<table><tbody>{''.join(trs) or '<tr><td>중복 없음 ✅</td></tr>'}</tbody></table>
+</body></html>"""
+        return page, 200, {'Content-Type': 'text/html; charset=utf-8'}
+    finally:
+        s.close()
+
+
 @bp.route('/api/admin/color-code-normalize', methods=['POST'])
 def api_color_code_normalize():
     """color_code = color_display 로 자동 정정. body: {dry_run: bool}
