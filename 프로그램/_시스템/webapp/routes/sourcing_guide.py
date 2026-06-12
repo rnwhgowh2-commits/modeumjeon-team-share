@@ -134,8 +134,13 @@ def api_put(sid: int):
             return jsonify(ok=False, error="invalid", message=str(e)), 400
         guide["updated_at"] = _now_iso()
         src.crawl_guide = cg.dumps(guide)
+        # 혜택 '값' 입력칸 → 소싱처 기본셋팅(SourceBenefitTemplate) 반영 (2026-06-13).
+        #   라이브=템플릿 직결 모드라 이게 매입가에 직접 반영됨. update-only(이름 매칭되는
+        #   기존 템플릿만 갱신) → 새 차감행 생성 없음(언더프라이싱 방지). 스냅샷/apply-to-all 미사용.
+        from webapp.routes.api_benefits import sync_templates_from_crawl_guide
+        sync = sync_templates_from_crawl_guide(s, sid, guide, create_new=False)
         s.commit()
-        return jsonify(ok=True, guide=guide)
+        return jsonify(ok=True, guide=guide, sync=sync)
     finally:
         s.close()
 
