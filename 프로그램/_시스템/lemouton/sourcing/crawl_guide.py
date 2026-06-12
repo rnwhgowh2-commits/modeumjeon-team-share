@@ -195,10 +195,13 @@ def validate_guide(data: dict) -> dict:
         match = b.get("match")
         if match not in BENEFIT_MATCH:
             match = "any"
+        # 혜택 '값' — 화면의 숫자 입력칸(시안 B). 단위는 method 가 결정(정률→%, 정액→원).
+        #   인간 입력값 그대로 보존(15 = 15%, 5000 = 5,000원). None=미입력.
+        value = _num_or_none(b.get("value"))
         clean_benefits.append({
             "name": name, "apply": apply, "rule": rule, "status": status,
             "method": method, "base": base, "freq": freq, "triggers": triggers,
-            "match": match,
+            "match": match, "value": value,
         })
     out["pricing"] = {
         "base_label": str(pricing.get("base_label", "표면 노출가")),
@@ -244,6 +247,22 @@ def _int_or_none(v: Any) -> int | None:
         return int(v)
     except (TypeError, ValueError):
         return None
+
+
+def _num_or_none(v: Any) -> float | int | None:
+    """혜택 '값' 입력 정제 — 숫자(또는 '5,000' 같은 쉼표 포함 문자열) → 숫자.
+    빈값·파싱실패 시 None. 정수는 정수로(15), 소수는 float 로(2.73) 보존."""
+    if v is None or v == "":
+        return None
+    try:
+        if isinstance(v, str):
+            v = v.replace(",", "").strip()
+            if v == "":
+                return None
+        f = float(v)
+    except (TypeError, ValueError):
+        return None
+    return int(f) if f == int(f) else f
 
 
 def _clean_examples(arr: Any) -> list:
