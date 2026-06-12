@@ -446,7 +446,9 @@
       .oum-dupwarn-item { background:#fff; border:1px solid #FCD34D; border-radius:999px; padding:4px 11px; font-size:11.5px; font-weight:700; color:#78350f; cursor:pointer; }
       .oum-dupwarn-item:hover { background:#FFFBEB; }
       .oum-dupwarn-item.cross { border-color:#fca5a5; color:#7f1d1d; }
+      .oum-dupwarn-item.covered { border-color:#bfdbfe; color:#1d4ed8; }
       .oum-dupwarn-item em { font-style:normal; color:#dc2626; font-weight:800; }
+      .oum-dupwarn-why { color:#9ca3af; font-weight:600; font-size:10.5px; margin-left:4px; }
       /* [2026-05-27] 카드 미니 액션 — 순서 변경 ↑↓ + 복사 ⎘ */
       .oum-url-actions { display:inline-flex; gap:2px; }
       .oum-url-mini { background:#fff; border:1px solid #d1d6db; border-radius:6px; width:33px; height:33px; display:inline-flex; align-items:center; justify-content:center; font-size:18px; color:#4e5968; cursor:pointer; padding:0; line-height:1; transition:all .12s; }
@@ -1325,21 +1327,36 @@
         return;
       }
 
-      // [2026-06-13] URL 중복 경고 배너 (시안 A) — 등록 수 ≠ 실제 크롤 수일 때 표면화.
+      // [2026-06-13] 등록 URL 수 ≠ 실제 크롤 수 경고 배너 (시안 A).
+      //   크롤 제외 사유 2가지: ① 같은 주소 중복(dedup, 1번만 크롤)
+      //   ② SSG 딜·기획전 URL(last_status='covered' — 색상별 단품이 가격·재고 커버, 크롤 제외).
+      //   실제 크롤 = 등록 - 중복분 - covered. 차이를 사유별로 표면화한다.
       const _dupGroups = findDuplicateUrls();
-      if (_dupGroups.length) {
-        const _reg = urlCount;
-        const _extra = _dupGroups.reduce((n, g) => n + (g.entries.length - 1), 0);
-        const _uniq = _reg - _extra;
+      const _coveredUrls = [];
+      Object.keys(state.urls || {}).forEach(sk => {
+        (state.urls[sk] || []).forEach(u => {
+          const _isDeal = (u.lastStatus === 'covered') ||
+            (sk === 'ssg' && (u.url || '').toLowerCase().includes('dealitemview'));
+          if (_isDeal) _coveredUrls.push({ srcKey: sk, label: (u.label || '').trim() });
+        });
+      });
+      const _dupExtra = _dupGroups.reduce((n, g) => n + (g.entries.length - 1), 0);
+      const _reg = urlCount;
+      const _crawl = _reg - _dupExtra - _coveredUrls.length;
+      if (_dupExtra > 0 || _coveredUrls.length > 0) {
         const _hasCross = _dupGroups.some(g => g.crossOption);
-        const _items = _dupGroups.map(g => {
+        let _items = _dupGroups.map(g => {
           const _lab = SRC_LABELS[g.srcKey] || g.srcKey;
           const _names = g.entries.map(en => esc(en.label || '(라벨 없음)')).join(' ＝ ');
           const _cr = g.crossOption ? ` <em>⚠ 다른 옵션끼리 — 오타 의심</em>` : '';
-          return `<button class="oum-dupwarn-item${g.crossOption ? ' cross' : ''}" data-dupjump="${esc(g.srcKey)}" type="button">[${esc(_lab)}] ${_names}${_cr}</button>`;
+          return `<button class="oum-dupwarn-item${g.crossOption ? ' cross' : ''}" data-dupjump="${esc(g.srcKey)}" type="button">🔗 [${esc(_lab)}] ${_names}${_cr} <span class="oum-dupwarn-why">같은 주소 — 1번만 크롤</span></button>`;
+        }).join('');
+        _items += _coveredUrls.map(d => {
+          const _lab = SRC_LABELS[d.srcKey] || d.srcKey;
+          return `<button class="oum-dupwarn-item covered" data-dupjump="${esc(d.srcKey)}" type="button">📌 [${esc(_lab)}] ${esc(d.label || '(라벨 없음)')} <span class="oum-dupwarn-why">딜·기획전 — 단품이 커버, 크롤 제외</span></button>`;
         }).join('');
         html += `<div class="oum-dupwarn${_hasCross ? ' cross' : ''}" data-dupwarn>
-          <div class="oum-dupwarn-h">⚠ 등록 <b>${_reg}개</b> ≠ 실제 크롤 <b>${_uniq}개</b> — 같은 주소 <b>${_extra}건</b>이 중복이라 크롤은 1번만 가져옵니다 (아래 클릭 시 해당 소싱처로 이동)</div>
+          <div class="oum-dupwarn-h">⚠ 등록 <b>${_reg}개</b> ≠ 실제 크롤 <b>${_crawl}개</b> — 아래 <b>${_reg - _crawl}건</b>이 크롤에서 빠집니다 (클릭 시 해당 소싱처로 이동)</div>
           <div class="oum-dupwarn-list">${_items}</div>
         </div>`;
       }
