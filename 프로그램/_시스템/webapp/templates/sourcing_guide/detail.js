@@ -159,10 +159,26 @@
   });
 
   document.getElementById('sg-save').addEventListener('click', async ()=>{
+    const payload=collect();
+    // 값이 입력된 혜택(=기본셋팅 매입가에 반영될 것). 할부(개월)·빈값 제외.
+    const valued=((payload.pricing&&payload.pricing.benefits)||[]).filter(b=>
+      b.value!=null && !(String(b.method||'').indexOf('개월')>=0));
+    if(valued.length){
+      const ok=confirm('저장하면 이 소싱처의 기본 혜택값('+valued.length+'개)이 갱신되어,\n'+
+        '이 소싱처를 쓰는 모든 옵션의 매입가에 바로 반영됩니다.\n\n계속할까요?');
+      if(!ok) return;
+    }
     const res=await fetch(`/sourcing-guide/api/${sid}`,{method:'PUT',
-      headers:{'Content-Type':'application/json'}, body:JSON.stringify(collect())});
+      headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload)});
     const j=await res.json();
-    alert(j.ok? '저장됨':('저장 실패: '+(j.message||j.error)));
+    if(!j.ok){ alert('저장 실패: '+(j.message||j.error)); return; }
+    let msg='저장됨';
+    const sy=j.sync||{};
+    if(sy.updated) msg+=' · 기본셋팅 '+sy.updated+'개 반영(매입가)';
+    if(sy.skipped&&sy.skipped.length)
+      msg+='\n\n※ 매칭되는 기본셋팅이 없어 건너뛴 혜택: '+sy.skipped.join(', ')+
+           '\n(이름을 기존 소싱처 혜택과 맞춰야 매입가에 반영됩니다)';
+    alert(msg);
   });
 
   const stEl=document.getElementById('sg-verify-status');

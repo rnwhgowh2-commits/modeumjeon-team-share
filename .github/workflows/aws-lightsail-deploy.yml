@@ -44,8 +44,14 @@ jobs:
               sudo docker build -t modeumjeon . >/tmp/build.log 2>&1 || { tail -30 /tmp/build.log; exit 1; }
               sudo docker stop modeumjeon 2>/dev/null || true
               sudo docker rm   modeumjeon 2>/dev/null || true
+              DBURL="${{ secrets.DATABASE_URL }}"
+              EXTRA=""
+              case "$DBURL" in
+                postgresql://*ap-northeast-2*supabase*) EXTRA="-e DATABASE_URL=$DBURL"; echo "[deploy] DATABASE_URL override → Seoul 적용" ;;
+                *) echo "[deploy] DATABASE_URL 미설정/형식불일치 → app.env(도쿄) 유지" ;;
+              esac
               sudo docker run -d --name modeumjeon --restart unless-stopped \
-                -p 80:8080 --env-file ~/app.env modeumjeon
+                -p 80:8080 --env-file ~/app.env $EXTRA modeumjeon
               sudo docker image prune -f || true
             '
 

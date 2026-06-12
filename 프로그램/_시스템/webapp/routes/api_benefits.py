@@ -66,6 +66,63 @@ def _item_dict(it, kind='tpl'):
     }
 
 
+def sync_templates_from_crawl_guide(session, source_id: int, guide: dict,
+                                    create_new: bool = False) -> dict:
+    """크롤가이드 혜택 '값' 입력칸 → 소싱처 기본셋팅(SourceBenefitTemplate) 반영 (2026-06-13).
+
+    라이브는 '템플릿 직결' 모드(스냅샷 override 0건)라 이 템플릿이 매입가를 직접 굴린다.
+    안전 규칙(언더프라이싱·이중차감 방지):
+      - 값(value)이 입력된 혜택만 반영. 빈 값(=크롤 동적)·방식 '옵션(개월)'(무이자할부)은 제외.
+      - **update-only 기본**(create_new=False): 이름이 기존 템플릿과 매칭될 때만 값 갱신.
+        매칭 안 되면 건너뜀(skipped) → 크롤가이드에 새 이름 넣어도 차감행이 새로 안 생김.
+      - rate(정률/적립%)는 % → 소수 변환(15 → 0.15). amount(정액/고정액)는 그대로.
+      - 기존 행 update 시 category/pay_method/channel(운영센터 태그)은 보존.
+    반환: {'updated': n, 'created': n, 'skipped': [이름...]}.
+    """
+    benefits = ((guide.get('pricing') or {}).get('benefits')) or []
+    existing = {t.benefit_name: t for t in
+                session.query(SourceBenefitTemplate)
+                .filter_by(source_id=source_id).all()}
+    updated, created, skipped = 0, 0, []
+    for i, b in enumerate(benefits):
+        v = b.get('value')
+        if v is None:
+            continue
+        method = b.get('method') or ''
+        if '개월' in method:
+            continue
+        name = (b.get('name') or '').strip()
+        if not name:
+            continue
+        is_rate = ('%' in method)
+        btype = 'rate' if is_rate else 'amount'
+        try:
+            val = float(v) / 100.0 if is_rate else float(v)
+        except (TypeError, ValueError):
+            continue
+        apply_mode = b.get('apply')
+        enabled = (b.get('status') != 'planned')
+        t = existing.get(name)
+        if t is not None:
+            t.benefit_type = btype
+            t.value = val
+            if apply_mode:
+                t.apply_mode = apply_mode
+            t.enabled = enabled
+            t.sort_order = i
+            updated += 1
+        elif create_new:
+            session.add(SourceBenefitTemplate(
+                source_id=source_id, benefit_name=name,
+                benefit_type=btype, value=val,
+                apply_mode=apply_mode, enabled=enabled, sort_order=i,
+            ))
+            created += 1
+        else:
+            skipped.append(name)
+    return {'updated': updated, 'created': created, 'skipped': skipped}
+
+
 # ─────────── 템플릿 ───────────
 @bp.get('/templates')
 def list_all_templates():
