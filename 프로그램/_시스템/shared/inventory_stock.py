@@ -66,18 +66,26 @@ def get_stock_by_sku(session, sku: str, location_id: int | None = None) -> int:
     return get_stock_batch(session, [sku], location_id).get(sku, 0)
 
 
-def get_stock_batch(session, skus: Iterable[str], location_id: int | None = None) -> dict[str, int]:
+def get_stock_batch(session, skus: Iterable[str], location_id: int | None = None,
+                    *, psku_map: dict[str, str] | None = None) -> dict[str, int]:
     """N 옵션 SKU 의 재고 한 번에 조회. {option_sku: stock}.
 
     [제품 공유 v1] 옵션 → 연결된 재고제품의 재고를 반환.
     같은 재고제품을 공유하는 여러 모음전 옵션은 동일한 재고값을 받는다.
     location_id 지정 시 그 위치만.
+
+    [perf 2026-06-12] psku_map: 호출부가 이미 OptionProductLink 를 조회했다면 그
+      옵션→재고제품 매핑을 넘겨 중복 조회를 피한다. None 이면 기존처럼 내부 조회.
+      넘겨도 option_skus 기준으로 self-fallback 재구성하므로 의미 동일(안전).
     """
     option_skus = list(set(s for s in skus if s))
     if not option_skus:
         return {}
-    # 옵션 → 재고제품 SKU 해석
-    psku_map = _product_sku_map(session, option_skus)
+    # 옵션 → 재고제품 SKU 해석 (전달 map 재사용 또는 내부 조회)
+    if psku_map is None:
+        psku_map = _product_sku_map(session, option_skus)
+    else:
+        psku_map = {sk: psku_map.get(sk, sk) for sk in option_skus}
     product_skus = list(set(psku_map.values()))
 
     # 1) in/out/adjust 합 + move 출발 차감 — 재고제품 SKU 단위 집계

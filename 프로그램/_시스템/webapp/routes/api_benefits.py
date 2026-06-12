@@ -397,8 +397,27 @@ def _build_breakdown_cache(session, items: list) -> dict:
     if sids:
         prefs = (session.query(CardDiscountUserPref)
                  .filter(CardDiscountUserPref.source_id.in_(sids)).all())
+    # [perf 2026-06-12] 동적혜택 fallback(option_source_links 경유)을 1회 배치로 묶음.
+    #   compute_breakdown 이 캐시가 있어도 item 당 raw SQL 1쿼리 하던 누수(legacy
+    #   option_source_urls 빈 번들은 거의 모든 item 이 이 경로 → 300건=300쿼리≈12.5s)를 제거.
+    #   동일 JOIN·필터를 sku 전체로 한 번에 → (sku, site) 별 dynamic_benefits_json 리스트.
+    dyn_by_sku_site = defaultdict(list)
+    if skus:
+        from sqlalchemy import text as _sqltext, bindparam as _bindparam
+        _dq = _sqltext(
+            "SELECT l.canonical_sku, sp.site, sp.dynamic_benefits_json "
+            "FROM option_source_links l "
+            "JOIN source_options so ON l.source_option_id = so.id "
+            "JOIN source_products sp ON so.source_product_id = sp.id "
+            "WHERE l.canonical_sku IN :skus "
+            "AND so.deleted_at IS NULL AND sp.deleted_at IS NULL "
+            "AND sp.dynamic_benefits_json IS NOT NULL"
+        ).bindparams(_bindparam('skus', expanding=True))
+        for _sku_v, _site_v, _dj in session.execute(_dq, {'skus': skus}).fetchall():
+            dyn_by_sku_site[(_sku_v, _site_v)].append(_dj)
     return {'link_by': link_by, 'sp_by_norm': sp_by_norm,
-            'tpl_by_src': tpl_by_src, 'ovr_by': ovr_by, 'prefs': prefs}
+            'tpl_by_src': tpl_by_src, 'ovr_by': ovr_by, 'prefs': prefs,
+            'dyn_by_sku_site': dyn_by_sku_site}
 
 
 def compute_breakdown(session, *, sku: str, source_id: int, sale_price: float,
@@ -472,16 +491,22 @@ def compute_breakdown(session, *, sku: str, source_id: int, sale_price: float,
         _site_for = None
     if _site_for and not _dynamic_benefits:
         try:
-            from sqlalchemy import text as _sqltext
             import json as _json
-            _rows2 = session.execute(_sqltext(
-                "SELECT sp.dynamic_benefits_json FROM option_source_links l "
-                "JOIN source_options so ON l.source_option_id = so.id "
-                "JOIN source_products sp ON so.source_product_id = sp.id "
-                "WHERE l.canonical_sku = :sku AND sp.site = :site "
-                "AND so.deleted_at IS NULL AND sp.deleted_at IS NULL "
-                "AND sp.dynamic_benefits_json IS NOT NULL"
-            ), {'sku': sku, 'site': _site_for}).fetchall()
+            # [perf 2026-06-12] 캐시가 있으면 배치 프리로드(dyn_by_sku_site)에서 읽어
+            #   item 당 raw SQL 1쿼리 제거. 없으면(단일 호출) 기존처럼 즉시 조회.
+            if _cache is not None:
+                _rows2 = [(_dj,) for _dj
+                          in _cache.get('dyn_by_sku_site', {}).get((sku, _site_for), [])]
+            else:
+                from sqlalchemy import text as _sqltext
+                _rows2 = session.execute(_sqltext(
+                    "SELECT sp.dynamic_benefits_json FROM option_source_links l "
+                    "JOIN source_options so ON l.source_option_id = so.id "
+                    "JOIN source_products sp ON so.source_product_id = sp.id "
+                    "WHERE l.canonical_sku = :sku AND sp.site = :site "
+                    "AND so.deleted_at IS NULL AND sp.deleted_at IS NULL "
+                    "AND sp.dynamic_benefits_json IS NOT NULL"
+                ), {'sku': sku, 'site': _site_for}).fetchall()
             _best2 = None
             for (_dj,) in _rows2:
                 try:

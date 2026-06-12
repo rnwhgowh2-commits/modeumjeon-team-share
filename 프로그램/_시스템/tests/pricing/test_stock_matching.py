@@ -21,7 +21,6 @@ from webapp.routes.api_pricing import (
     _match_option_stock,
     _build_so_index,
     _pick_cheapest_buyable,
-    _resolve_display_price,
     _resolve_sourcing_cost,
     _STOCK_CAP,
 )
@@ -156,25 +155,6 @@ class TestMatchOptionStock:
         # 정당한 부분매칭은 유지: '블랙' ↔ '블랙(아웃솔)' 단일 후보면 매칭.
         idx = _build_so_index([_so(5, '250mm', '블랙(아웃솔)', 7)])
         assert _match_option_stock(idx, 5, '블랙', '250') == 7
-
-
-# ─────────────────────────────────────────────────────────────
-# _resolve_display_price — 옵션 매칭 실패 시 대표가 폴백 금지 (2026-06-13 정책)
-# ─────────────────────────────────────────────────────────────
-class TestResolveDisplayPrice:
-    def test_option_price_used_when_present(self):
-        # 옵션 매칭가가 있으면 그대로 사용, 실패 아님.
-        assert _resolve_display_price(119900, True) == (119900, False)
-
-    def test_no_fallback_to_representative_on_match_fail(self):
-        # ★ 핵심: 옵션가 없고 상품(sp)은 크롤됨 → 대표가 폴백 금지 → (None, 매칭실패).
-        #   (기존엔 sp.last_price 대표가로 폴백 → 최저로 주문나가 손실)
-        assert _resolve_display_price(None, True) == (None, True)
-        assert _resolve_display_price(0, True) == (None, True)
-
-    def test_uncrawled_product_is_none_but_not_failure(self):
-        # sp 자체가 없음(미크롤) → 가격 None 이지만 '크롤실패'로 단정하지 않음.
-        assert _resolve_display_price(None, False) == (None, False)
 
 
 # ─────────────────────────────────────────────────────────────

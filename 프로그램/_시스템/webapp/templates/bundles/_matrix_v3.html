@@ -1112,13 +1112,224 @@
         <button type="button" id="expand-all-btn" class="mit-btn">▼ 모두 펼치기</button>
         <button type="button" id="collapse-all-btn" class="mit-btn">▲ 모두 접기</button>
         <span class="mit-spacer"></span>
+        {# 소싱처×옵션 압축 매트릭스 팝업 — 카드 스크롤 없이 가격/재고 한눈에 #}
+        <button type="button" id="compact-mtx-btn" class="mit-btn mit-btn-cmtx" title="소싱처×옵션 전체를 한 표로 보기"><svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><rect x="1" y="1" width="14" height="14" rx="2.5"/><line x1="6" y1="1" x2="6" y2="15"/><line x1="11" y1="1" x2="11" y2="15"/><line x1="1" y1="8" x2="15" y2="8"/></svg>매트릭스 보기</button>
       </div>
       <style>
         .matrix-inner-toolbar { display:flex; align-items:center; gap:8px; padding:10px 14px; background:#fafbfc; border-bottom:1px solid #e5e8eb; }
         .mit-btn { background:#fff; border:1.5px solid #e5e8eb; border-radius:7px; padding:8px 14px; font-size:14.5px; font-weight:700; color:#4E5968; cursor:pointer; font-family:var(--font); transition:.12s; }
         .mit-btn:hover { background:#dcfce7; border-color:#15803d; color:#15803d; }
         .mit-spacer { flex:1; }
+        /* 우리 프로그램 기본색(--primary #3182F6 / strong #1B64DA) = btn-primary 와 동일 톤 */
+        .mit-btn-cmtx { background:var(--primary,#3182F6); border-color:var(--primary,#3182F6); color:#fff; display:inline-flex; align-items:center; gap:6px; }
+        .mit-btn-cmtx svg { display:block; }
+        .mit-btn-cmtx:hover { background:var(--primary-strong,#1B64DA); border-color:var(--primary-strong,#1B64DA); color:#fff; }
       </style>
+
+      {# ════ 소싱처 × 옵션 압축 매트릭스 팝업 (좌측 점 재고신호등) ════ #}
+      <div id="cmtx-overlay" class="cmtx-overlay" hidden>
+        <div class="cmtx-modal" role="dialog" aria-modal="true" aria-label="소싱처별 가격 재고 매트릭스">
+          <div class="cmtx-head">
+            <div class="cmtx-title">📐 소싱처 × 옵션 — 가격 / 재고</div>
+            <div class="cmtx-sub" id="cmtx-sub"></div>
+            <div class="cmtx-legend">
+              <span><i style="background:#10b981"></i>충분</span>
+              <span><i style="background:#f59e0b"></i>소량(3개↓)</span>
+              <span><i style="background:#dc2626"></i>품절</span>
+              <span><i style="background:#9aa3af"></i>크롤실패</span>
+              <span><i style="background:#d1d6db"></i>미크롤</span>
+            </div>
+            <button type="button" class="cmtx-x" id="cmtx-close">×</button>
+          </div>
+          <div class="cmtx-wrap" id="cmtx-wrap"><!-- JS 가 표 렌더 --></div>
+        </div>
+      </div>
+      <style>
+        .cmtx-overlay { position:fixed; inset:0; z-index:9000; background:rgba(15,20,30,.45); display:flex; align-items:center; justify-content:center; padding:24px; }
+        .cmtx-overlay[hidden] { display:none; }
+        .cmtx-modal { background:#fff; border-radius:14px; box-shadow:0 24px 64px rgba(0,0,0,.32); width:min(1380px,96vw); max-height:92vh; display:flex; flex-direction:column; overflow:hidden; }
+        .cmtx-head { display:flex; align-items:center; gap:12px; padding:14px 18px; border-bottom:1px solid #f2f4f6; flex-wrap:wrap; }
+        .cmtx-title { font-size:16px; font-weight:800; color:#191F28; }
+        .cmtx-sub { font-size:12.5px; color:#6b7684; }
+        .cmtx-legend { margin-left:auto; display:flex; gap:13px; font-size:11.5px; color:#6b7684; align-items:center; }
+        .cmtx-legend i { display:inline-block; width:10px; height:10px; border-radius:50%; margin-right:5px; vertical-align:-1px; }
+        .cmtx-x { width:30px; height:30px; border-radius:8px; border:none; background:#f2f4f6; color:#6b7684; font-size:18px; line-height:1; cursor:pointer; }
+        .cmtx-x:hover { background:#e5e8eb; color:#191F28; }
+        .cmtx-wrap { overflow:auto; }
+        table.cmtx-tbl { border-collapse:separate; border-spacing:0; width:100%; font-size:12px; }
+        table.cmtx-tbl th, table.cmtx-tbl td { border-bottom:1px solid #f2f4f6; border-right:1px solid #f2f4f6; white-space:nowrap; }
+        table.cmtx-tbl thead th { position:sticky; top:0; z-index:5; background:#f9fafb; padding:9px 8px; text-align:center; font-weight:700; color:#4e5968; }
+        table.cmtx-tbl thead th .cdot { display:inline-block; width:9px; height:9px; border-radius:3px; margin-right:5px; vertical-align:0; }
+        table.cmtx-tbl th.cmtx-optcol, table.cmtx-tbl td.cmtx-optcol { position:sticky; left:0; z-index:4; background:#fff; text-align:left; padding:7px 14px; font-weight:700; color:#333d4b; min-width:104px; box-shadow:1px 0 0 #e5e8eb; }
+        table.cmtx-tbl thead th.cmtx-optcol { z-index:6; background:#f9fafb; }
+        tr.cmtx-grp td { position:sticky; left:0; background:linear-gradient(90deg,#eef2f7,#f7f9fc); font-weight:800; color:#333d4b; padding:7px 14px; font-size:11.5px; box-shadow:inset 0 -1px 0 #e5e8eb; }
+        tr.cmtx-grp td .csw { display:inline-block; width:11px; height:11px; border-radius:3px; margin-right:7px; vertical-align:-1px; }
+        td.cmtx-cell { padding:6px 9px; text-align:right; font-variant-numeric:tabular-nums; }
+        td.cmtx-cell .cmtx-line { display:inline-flex; align-items:center; gap:6px; justify-content:flex-end; }
+        td.cmtx-cell .cmtx-pdot { width:9px; height:9px; border-radius:50%; flex-shrink:0; }
+        td.cmtx-cell .cmtx-p { font-family:ui-monospace,monospace; font-weight:700; color:#191F28; }
+        td.cmtx-cell .cmtx-p.oos { color:#dc2626; }
+        td.cmtx-cell .cmtx-p.miss { color:#c5cbd3; font-weight:600; }
+        td.cmtx-cell .cmtx-sk { display:block; text-align:right; font-size:9.5px; color:#8b95a1; margin-top:1px; }
+        td.cmtx-cell.clickable { cursor:pointer; }
+        td.cmtx-cell.clickable:hover { background:#f0f7ff; }
+        td.cmtx-cell.cmtx-empty { background:#fcfcfd; }
+        tr.cmtx-optrow:hover td.cmtx-cell { background:#f5f9ff; }
+        tr.cmtx-optrow:hover td.cmtx-optcol { background:#f5f9ff; }
+      </style>
+      <script>
+      (function(){
+        const overlay = document.getElementById('cmtx-overlay');
+        const btn = document.getElementById('compact-mtx-btn');
+        const closeBtn = document.getElementById('cmtx-close');
+        const wrap = document.getElementById('cmtx-wrap');
+        const subEl = document.getElementById('cmtx-sub');
+        if (!overlay || !btn) return;
+
+        const won = n => (n == null ? '—' : Number(n).toLocaleString('ko-KR'));
+        const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+        // 색상 점 (소싱처 헤더용) — 기존 매트릭스의 사이트 식별색과 동일 계열
+        function siteColor(name){
+          const n = (name||'').toLowerCase();
+          if (n.includes('스마트')||n.includes('스토어')||n.includes('naver')) return '#2db400';
+          if (n.includes('무신사')||n.includes('musinsa')) return '#000000';
+          if (n.includes('ssf')) return '#191F28';
+          if (n.includes('롯데아이몰')||n.includes('아이몰')) return '#da291c';
+          if (n.includes('롯데')||n.includes('lotte')) return '#e60012';
+          if (n.includes('ssg')) return '#cd163f';
+          if (n.includes('쿠팡')||n.includes('coupang')) return '#ff5a5f';
+          return '#5b8def'; // 르무통 등 기본
+        }
+
+        // 색상 그룹 헤더 스와치 — 색상명에서 대표 hex 추정 (DB 에 color_hex 없음)
+        function colorSwatch(name){
+          const n = (name||'').toLowerCase();
+          if (n.includes('블랙')||n.includes('black')) return '#191F28';
+          if (n.includes('다크네이비')||n.includes('네이비')||n.includes('navy')) return '#26324d';
+          if (n.includes('올리브')||n.includes('olive')) return '#5a6638';
+          if (n.includes('그레이')||n.includes('회색')||n.includes('gray')||n.includes('grey')) return '#9aa3af';
+          if (n.includes('아이보리')||n.includes('ivory')) return '#ece6d6';
+          if (n.includes('오렌지')||n.includes('orange')) return '#f57c00';
+          if (n.includes('크림')||n.includes('cream')) return '#f6d9d2';
+          if (n.includes('라이트블루')||n.includes('스카이')||n.includes('블루')||n.includes('blue')) return '#79b6e8';
+          if (n.includes('화이트')||n.includes('white')) return '#e5e8eb';
+          if (n.includes('베이지')||n.includes('beige')) return '#d8c4a0';
+          if (n.includes('브라운')||n.includes('brown')) return '#7a5230';
+          if (n.includes('레드')||n.includes('red')) return '#dc2626';
+          if (n.includes('그린')||n.includes('green')) return '#10b981';
+          return '#d1d6db';
+        }
+
+        // 재고 상태 판정 (확정값 stock_out / stock_qty 사용) — 소량 기준 3개 이하
+        const COLOR = { full:'#10b981', low:'#f59e0b', oos:'#dc2626', miss:'#d1d6db', fail:'#9aa3af' };
+        // 매트릭스 셀과 동일한 소싱처 선택 로직(_pickBestSrc 복제) — 같은 칸 = 같은 값 보장
+        function pickBest(list){
+          if (!list || !list.length) return null;
+          const cheapest = arr => arr.reduce((a, b) => ((b.crawled_price || 9e15) < (a.crawled_price || 9e15) ? b : a));
+          const good = list.filter(s => s.product_url && s.last_status !== 'error' && !s.stock_out && s.crawled_price > 0);
+          if (good.length) return cheapest(good);
+          const priced = list.filter(s => s.product_url && s.crawled_price > 0);
+          if (priced.length) return cheapest(priced);
+          const withUrl = list.filter(s => s.product_url);
+          return withUrl[0] || list[0];
+        }
+        // 표시가 = 매트릭스 셀과 동일(혜택 적용 매입가 우선, 없으면 크롤가). window 헬퍼(메인 스크립트)가 SM_BREAKDOWNS 제공.
+        function cellPrice(sku, srcId, fallback){
+          return (typeof window.__cmtxCellPrice === 'function')
+            ? window.__cmtxCellPrice(sku, srcId, fallback) : fallback;
+        }
+        // 재고 상태 판정 — renderSiteCell 과 동일 규칙. 소량 = 3개 이하.
+        function cellState(src){
+          if (!src || !src.product_url) return { kind:'miss' };                         // 크롤링 미실시(URL 미매핑 포함)
+          if (src.last_status === 'error') return { kind:'fail' };                       // 크롤 실패(가격 stale → 숨김)
+          // [2026-06-13] 매칭 실패 — 이 소싱처가 이 색/사이즈를 실제로 안 팜. 폴백가 금지(가짜 가격 X).
+          if (src.match_failed && (src.crawled_price == null || src.crawled_price <= 0)) return { kind:'nomatch' };
+          if (src.crawled_price == null || src.crawled_price <= 0) return { kind:'miss' }; // 크롤 대기/미실시
+          if (src.stock_out || src.crawled_stock === 0) return { kind:'oos' };           // 품절
+          const q = src.stock_qty != null ? src.stock_qty : null;
+          return { kind: (q != null && q <= 3) ? 'low' : 'full', q };                    // 소량(3개↓) / 충분
+        }
+
+        function render(){
+          const DATA = window.DATA;
+          if (!DATA || !Array.isArray(DATA.options) || !DATA.options.length || !Array.isArray(DATA.sources) || !DATA.sources.length){
+            wrap.innerHTML = '<div style="padding:40px;text-align:center;color:#8b95a1;font-size:13px">옵션 / 소싱처 데이터가 아직 없어요. 매트릭스를 먼저 불러와 주세요.</div>';
+            subEl.textContent = '';
+            return;
+          }
+          const sources = DATA.sources;       // 가로축 (소싱처 칼럼)
+          const options = DATA.options;       // 세로축 (옵션 전부)
+
+          // 헤더
+          let head = '<tr><th class="cmtx-optcol">옵션 \\ 소싱처</th>';
+          sources.forEach(col => {
+            head += `<th><span class="cdot" style="background:${siteColor(col.name)}"></span>${esc(col.name)}</th>`;
+          });
+          head += '</tr>';
+
+          // 본문 — 색상 그룹 헤더 + 옵션 행
+          let body = '';
+          let curColor = null;
+          options.forEach(o => {
+            const color = o.color_display || o.color_code || '';
+            if (color !== curColor){
+              curColor = color;
+              body += `<tr class="cmtx-grp"><td colspan="${sources.length + 1}"><span class="csw" style="background:${colorSwatch(color)}"></span>${esc(color)}</td></tr>`;
+            }
+            // [2026-06-13] 비활성(OFF) 옵션 — 어떤 소싱처 가격도 표시하지 않음(옵션 매트릭스와 일치).
+            //   OFF 해도 URL 매핑은 보존되므로, 여기서 막지 않으면 '비활성인데 가격 있음' 모순.
+            if (o.is_active === false){
+              let offCells = '';
+              sources.forEach(() => { offCells += '<td class="cmtx-cell"><span class="cmtx-line"><span class="cmtx-p miss" style="color:#c4ccd6">비활성</span></span></td>'; });
+              body += `<tr class="cmtx-optrow" style="opacity:.5"><td class="cmtx-optcol">${esc(color)} ${esc(o.size_display || o.size_code || '')}</td>${offCells}</tr>`;
+              return;
+            }
+            let cells = '';
+            sources.forEach(col => {
+              const src = pickBest((o.sources || []).filter(x => x.source_id === col.id));
+              const st = cellState(src);
+              if (st.kind === 'miss'){
+                cells += '<td class="cmtx-cell"><span class="cmtx-line"><i class="cmtx-pdot" style="background:#d1d6db"></i><span class="cmtx-p miss">미크롤</span></span></td>';
+                return;
+              }
+              if (st.kind === 'nomatch'){
+                cells += '<td class="cmtx-cell"><span class="cmtx-line"><i class="cmtx-pdot" style="background:#f59e0b"></i><span class="cmtx-p" style="color:#b45309;font-weight:700">매칭 실패</span></span></td>';
+                return;
+              }
+              if (st.kind === 'fail'){
+                cells += '<td class="cmtx-cell"><span class="cmtx-line"><i class="cmtx-pdot" style="background:#9aa3af"></i><span class="cmtx-p" style="color:#dc2626;font-weight:700">크롤실패</span></span></td>';
+                return;
+              }
+              const dot = COLOR[st.kind];
+              const sk = st.kind === 'oos' ? '품절' : (st.q != null ? st.q + '개' : '있음');
+              const pCls = st.kind === 'oos' ? 'cmtx-p oos' : 'cmtx-p';
+              const price = cellPrice(o.sku, src.source_id, src.crawled_price);
+              const url = src.product_url ? esc(src.product_url) : '';
+              cells += '<td class="cmtx-cell' + (url ? ' clickable' : '') + '"' + (url ? ' data-url="' + url + '"' : '') + (st.kind === 'oos' ? ' style="opacity:.62"' : '') +
+                       '><span class="cmtx-line"><i class="cmtx-pdot" style="background:' + dot + '"></i><span class="' + pCls + '">' + won(price) + '</span></span><span class="cmtx-sk">' + sk + '</span></td>';
+            });
+            body += `<tr class="cmtx-optrow"><td class="cmtx-optcol">${esc(color)} ${esc(o.size_display || o.size_code || '')}</td>${cells}</tr>`;
+          });
+
+          wrap.innerHTML = `<table class="cmtx-tbl"><thead>${head}</thead><tbody>${body}</tbody></table>`;
+          subEl.textContent = `옵션 ${options.length}개 × 소싱처 ${sources.length}곳`;
+
+          // 칸 클릭 → 그 소싱처 상품 페이지 열기 (기존 매트릭스 동작과 동일)
+          wrap.querySelectorAll('td.cmtx-cell.clickable').forEach(td => {
+            td.addEventListener('click', () => { const u = td.getAttribute('data-url'); if (u) window.open(u, '_blank', 'noopener'); });
+          });
+        }
+
+        function open(){ render(); overlay.hidden = false; document.body.style.overflow = 'hidden'; }
+        function close(){ overlay.hidden = true; document.body.style.overflow = ''; }
+
+        btn.addEventListener('click', open);
+        closeBtn.addEventListener('click', close);
+        overlay.addEventListener('click', e => { if (e.target === overlay) close(); });
+        document.addEventListener('keydown', e => { if (e.key === 'Escape' && !overlay.hidden) close(); });
+      })();
+      </script>
       <div style="border:1px solid var(--n200);border-radius:0 0 10px 10px;overflow-x:auto;background:#fff;border-top:none">{# [2026-06-03 ③] 셀 폰트 1.5× 로 넓어진 칼럼 → 가로 스크롤 허용(클립 방지) #}
       <table class="opt-table integrated-mtx" id="price-matrix-table" style="width:100%;border-collapse:collapse">
         <thead id="price-matrix-thead">
@@ -1550,11 +1761,24 @@
       window._matrixV9PopulateFilters();
     }
   }
-  // [2026-06-12] 혜택(삭제·수정·리셋) 변경 후 매트릭스 전체 재조회·재렌더 진입점.
-  //   기존엔 호출부가 window.reloadMatrix 를 참조했으나 어디에도 할당된 적이 없어
-  //   (typeof !== 'function') → 갱신이 통째로 누락됐다(삭제했는데 카드 매입가 그대로).
-  //   loadMatrix 가 DATA 재조회 → renderSourceMatrix → smFetchBreakdowns(캐시 갱신) 까지 수행.
-  window.reloadMatrix = loadMatrix;
+  // [2026-06-12 perf] 혜택(삭제·수정·리셋) 변경 후 매트릭스 갱신 — 경량 경로.
+  //   배경: 혜택은 '최종매입가(breakdowns)'만 바꾼다. 크롤가·옵션구조(option-matrix)는
+  //         혜택과 무관 → 무거운 option-matrix 전체 재조회는 불필요했다(이중 서버 왕복 = 느림).
+  //   변경: 메모리의 DATA 재사용 → breakdowns 만 재계산 → 즉시 재렌더(블로킹 서버 1회).
+  //         크롤 동기화는 백그라운드(UI 비차단)로 — smRefreshFxInPlace 와 동일 검증된 패턴.
+  //   안전: DATA 없으면 기존 loadMatrix 풀로드로 폴백. 매입가 계산은 동일 breakdowns API → 값 불변.
+  async function reloadBenefitsMatrix() {
+    if (!DATA || !(DATA.options || []).length) { return loadMatrix(); }  // 안전 폴백
+    try { await smFetchBreakdowns(); } catch (_) {}     // 최종매입가만 재계산(혜택 반영)
+    try { renderSourceMatrix(true); } catch (_) {}      // 캐시로 즉시 재렌더(재fetch 안 함)
+    try { renderPriceMatrix(); } catch (_) {}           // 좌측 가격표 동기화
+    // 백그라운드: 다른 사용자의 크롤 변경 등 동기화 — UI 막지 않음(체감 즉각).
+    fetch(`/api/bundles/${encodeURIComponent(BUNDLE_CODE)}/option-matrix`)
+      .then(r => r.json())
+      .then(j => { if (j.ok) { _normalizeSourceNames(j.sources); DATA = j; window.DATA = j; } })
+      .catch(() => {});
+  }
+  window.reloadMatrix = reloadBenefitsMatrix;
 
   // ════════════════════════════════════════════════════════════
   //  v5 시안 ① 소싱처×옵션 매트릭스 (4색 + 최저가 박스 + 통계)
@@ -3188,15 +3412,23 @@
     td.appendChild(pop);
     // Phase 7 — popover viewport overflow 시 좌측 자동 전환
     adjustFxPopPosition(pop);
+    // [perf 2026-06-12] 매트릭스 벌크가 이미 받아둔 breakdown(SM_BREAKDOWNS)이 있으면
+    //   즉시 렌더(서버 대기 0) → 팝업 체감 즉각. 이어서 단일셀로 백그라운드 새로고침(최신 보장).
+    //   캐시 없으면 기존처럼 로딩 표시 후 fetch. 값은 동일 compute_breakdown 출력이라 안전.
+    const _cachedBd = SM_BREAKDOWNS[`${sku}|${srcId}`];
+    if (_cachedBd && _cachedBd.final_price != null) {
+      try { smRenderFxPopBody(pop, _cachedBd, sku, srcId); adjustFxPopPosition(pop); } catch(_) {}
+    }
     try {
       const r = await fetch(`/api/source-benefits/breakdown/${encodeURIComponent(sku)}/${srcId}?sale_price=${price}`);
       const j = await r.json();
-      if (!j.ok) { pop.innerHTML = `<h6>계산식 로드 실패<button class="close" onclick="this.closest('.cell-fx-pop').remove()">✕</button></h6><div style="padding:8px;color:var(--red)">${j.error || '오류'}</div>`; return; }
+      if (!j.ok) { if (!_cachedBd) { pop.innerHTML = `<h6>계산식 로드 실패<button class="close" onclick="this.closest('.cell-fx-pop').remove()">✕</button></h6><div style="padding:8px;color:var(--red)">${j.error || '오류'}</div>`; } return; }
       // 시안 10 v5-A 차콜 — 4-카드 stack 렌더 (smRefreshFxInPlace 와 공유 함수)
       smRenderFxPopBody(pop, j, sku, srcId);
+      SM_BREAKDOWNS[`${sku}|${srcId}`] = j;  // 캐시 갱신(최신)
       adjustFxPopPosition(pop);
     } catch(err) {
-      pop.innerHTML = `<h6>오류<button class="close" onclick="this.closest('.cell-fx-pop').remove()">✕</button></h6><div style="padding:8px;color:var(--red);font-size: 14px">${err.message}</div>`;
+      if (!_cachedBd) { pop.innerHTML = `<h6>오류<button class="close" onclick="this.closest('.cell-fx-pop').remove()">✕</button></h6><div style="padding:8px;color:var(--red);font-size: 14px">${err.message}</div>`; }
     }
   });
 
@@ -5402,6 +5634,11 @@ table.ompk-tab th.corner{color:#b0b8c1;cursor:default}
 
   // Phase 6 — 한 옵션 × 한 사이트 셀 (4색 상태 + ★최저 + fx + breakdown)
   function renderSiteCell(o, s) {
+    // [2026-06-13] 비활성(OFF) 옵션 — 어떤 소싱처 가격도 표시하지 않음(옵션 매트릭스와 일치).
+    //   OFF 해도 URL 매핑은 보존되므로(is_active=false), 여기서 막지 않으면 '비활성인데 가격 있음' 모순.
+    if (o.is_active === false) {
+      return `<td class="td-site-col cn" data-cell-sku="${escapeHtml(o.sku)}" data-cell-src="${s.id}" style="text-align:center; padding:10px 4px; font-size:13px; color:#c4ccd6; font-weight:600; white-space:nowrap;">비활성</td>`;
+    }
     const src = _pickBestSrc((o.sources || []).filter(x => x.source_id === s.id));
     // [2026-05-24] URL 미매핑 — 옵션 조합 생성 모달에서 매핑하므로 여기서는 "—" 표시만
     if (!src || !src.product_url) {
@@ -5413,6 +5650,11 @@ table.ompk-tab th.corner{color:#b0b8c1;cursor:default}
     // 크롤 실패 — [2026-06-03] 2행: 1행 '크롤 실패' / 2행 🔄 재크롤 버튼 (다른 셀과 동일 2단)
     if (src.last_status === 'error') {
       return `<td class="td-site-col cf" data-cell-sku="${escapeHtml(o.sku)}" data-cell-src="${s.id}" style="position:relative;text-align:center;line-height:1.4">${_corner}<div style="color:#dc2626;font-size:12px;font-weight:600">크롤 실패</div><button type="button" class="btn-ico" data-refetch-sku="${escapeHtml(o.sku)}" data-refetch-src="${s.id}" title="다시 크롤" style="margin-top:4px;font-size:10.5px;font-weight:700;color:#dc2626;background:#FEF2F2;border:1px solid #fecaca;border-radius:6px;padding:2px 8px;cursor:pointer">🔄 재크롤</button></td>`;
+    }
+    // [2026-06-13] 매칭 실패 — 이 소싱처가 이 색/사이즈를 실제로 안 팜(옵션 목록에 없음).
+    //   폴백가(상품 대표가) 금지 정책 — 가짜 가격 대신 '매칭 실패' 명시(이상한 값 X).
+    if (src.match_failed && (!src.crawled_price || src.crawled_price <= 0)) {
+      return `<td class="td-site-col cf" data-cell-sku="${escapeHtml(o.sku)}" data-cell-src="${s.id}" style="position:relative;text-align:center;line-height:1.4">${_corner}<div style="color:#b45309;font-size:12px;font-weight:700">매칭 실패</div><div style="color:#94A3B8;font-size:10.5px;margin-top:2px">이 사이즈 없음</div></td>`;
     }
     // 크롤 안됨 (대기 / 진행 중)
     if (!src.crawled_price || src.crawled_price <= 0) {
@@ -5453,6 +5695,13 @@ table.ompk-tab th.corner{color:#b0b8c1;cursor:default}
     const _lowTag = isLowest ? `<span class="sc-lowtag">최저</span>` : '';
     return `<td class="td-site-col cd${loCls} has-c1-tip" data-cell-sku="${escapeHtml(o.sku)}" data-cell-src="${s.id}" data-cell-price="${src.crawled_price}" style="position:relative;${_isOut ? 'opacity:.55;' : ''}"><div class="sc-mc${isLowest?' low':''}">${_lowTag}<span class="px-main">${finalPrice.toLocaleString('ko-KR')}${_won}</span>${_go}<span class="${stkCls}">${stkTxt}</span>${_fx}${tipHtml}</div></td>`;
   }
+
+  // [압축 매트릭스 팝업] 셀 표시가를 매트릭스와 동일하게 — 혜택 적용 매입가(SM_BREAKDOWNS) 우선.
+  //   SM_BREAKDOWNS 는 비동기로 let 재할당되므로 클로저로 현재값을 항상 읽는다.
+  window.__cmtxCellPrice = function(sku, srcId, fallback){
+    const bk = SM_BREAKDOWNS[`${sku}|${srcId}`];
+    return (bk && typeof bk.final_price === 'number') ? bk.final_price : fallback;
+  };
 
   // Phase 6 — 최저가/절감 캐시 (renderSourceMatrix 가 채움)
   let _LOWEST_SRC_PER_OPT = {};
