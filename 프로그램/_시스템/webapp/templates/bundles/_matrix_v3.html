@@ -3398,15 +3398,23 @@
     td.appendChild(pop);
     // Phase 7 — popover viewport overflow 시 좌측 자동 전환
     adjustFxPopPosition(pop);
+    // [perf 2026-06-12] 매트릭스 벌크가 이미 받아둔 breakdown(SM_BREAKDOWNS)이 있으면
+    //   즉시 렌더(서버 대기 0) → 팝업 체감 즉각. 이어서 단일셀로 백그라운드 새로고침(최신 보장).
+    //   캐시 없으면 기존처럼 로딩 표시 후 fetch. 값은 동일 compute_breakdown 출력이라 안전.
+    const _cachedBd = SM_BREAKDOWNS[`${sku}|${srcId}`];
+    if (_cachedBd && _cachedBd.final_price != null) {
+      try { smRenderFxPopBody(pop, _cachedBd, sku, srcId); adjustFxPopPosition(pop); } catch(_) {}
+    }
     try {
       const r = await fetch(`/api/source-benefits/breakdown/${encodeURIComponent(sku)}/${srcId}?sale_price=${price}`);
       const j = await r.json();
-      if (!j.ok) { pop.innerHTML = `<h6>계산식 로드 실패<button class="close" onclick="this.closest('.cell-fx-pop').remove()">✕</button></h6><div style="padding:8px;color:var(--red)">${j.error || '오류'}</div>`; return; }
+      if (!j.ok) { if (!_cachedBd) { pop.innerHTML = `<h6>계산식 로드 실패<button class="close" onclick="this.closest('.cell-fx-pop').remove()">✕</button></h6><div style="padding:8px;color:var(--red)">${j.error || '오류'}</div>`; } return; }
       // 시안 10 v5-A 차콜 — 4-카드 stack 렌더 (smRefreshFxInPlace 와 공유 함수)
       smRenderFxPopBody(pop, j, sku, srcId);
+      SM_BREAKDOWNS[`${sku}|${srcId}`] = j;  // 캐시 갱신(최신)
       adjustFxPopPosition(pop);
     } catch(err) {
-      pop.innerHTML = `<h6>오류<button class="close" onclick="this.closest('.cell-fx-pop').remove()">✕</button></h6><div style="padding:8px;color:var(--red);font-size: 14px">${err.message}</div>`;
+      if (!_cachedBd) { pop.innerHTML = `<h6>오류<button class="close" onclick="this.closest('.cell-fx-pop').remove()">✕</button></h6><div style="padding:8px;color:var(--red);font-size: 14px">${err.message}</div>`; }
     }
   });
 
