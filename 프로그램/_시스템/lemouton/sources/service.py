@@ -81,7 +81,13 @@ def upsert_source_product(
     """site + url 조합으로 SourceProduct 가져오거나 생성.
 
     같은 URL을 N 번 호출해도 1 행만 만들어짐 (uq_source_product_site_url).
+
+    [INV-2 2026-06-13] url 을 normalize_url 로 정규화 후 조회·저장한다. utag/NaPm
+    같은 트래킹 파라미터만 다른 같은 상품이 2행으로 분열(매트릭스 stale 픽 위험)
+    되던 것을 차단. ckwhere 등 가격에 영향 주는 파라미터는 normalize 가 보존하므로
+    별도 상품으로 유지된다(쿠폰가/비쿠폰가 혼선 방지).
     """
+    url = normalize_url(url)
     existing = (session.query(SourceProduct)
                 .filter_by(site=site, url=url, deleted_at=None)
                 .first())
