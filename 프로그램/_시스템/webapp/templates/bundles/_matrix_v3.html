@@ -1550,6 +1550,11 @@
       window._matrixV9PopulateFilters();
     }
   }
+  // [2026-06-12] 혜택(삭제·수정·리셋) 변경 후 매트릭스 전체 재조회·재렌더 진입점.
+  //   기존엔 호출부가 window.reloadMatrix 를 참조했으나 어디에도 할당된 적이 없어
+  //   (typeof !== 'function') → 갱신이 통째로 누락됐다(삭제했는데 카드 매입가 그대로).
+  //   loadMatrix 가 DATA 재조회 → renderSourceMatrix → smFetchBreakdowns(캐시 갱신) 까지 수행.
+  window.reloadMatrix = loadMatrix;
 
   // ════════════════════════════════════════════════════════════
   //  v5 시안 ① 소싱처×옵션 매트릭스 (4색 + 최저가 박스 + 통계)
@@ -3779,6 +3784,10 @@ table.ompk-tab th.corner{color:#b0b8c1;cursor:default}
       const r2 = await fetch(`/api/source-benefits/breakdown/${encodeURIComponent(sku)}/${srcId}?sale_price=${newPrice}`);
       const bd = await r2.json();
       if (bd.ok) {
+        // ★ [2026-06-12] 캐시(SM_BREAKDOWNS)도 같이 갱신 — 안 하면 px-main 만 바꿔도
+        //   다음 재렌더(renderSiteCell)가 stale 캐시값으로 되돌려, 삭제·토글이 카드에
+        //   반영 안 되는 것처럼 보였다. 카드 매입가·최저가 산정의 단일 진실 원천.
+        SM_BREAKDOWNS[`${sku}|${srcId}`] = bd;
         smRenderFxPopBody(pop, bd, sku, srcId);
         const td = [...document.querySelectorAll('td[data-cell-sku][data-cell-src]')]
           .find(t => t.dataset.cellSku === sku && parseInt(t.dataset.cellSrc, 10) === srcId);
