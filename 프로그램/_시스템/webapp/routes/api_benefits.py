@@ -744,6 +744,23 @@ def compute_breakdown(session, *, sku: str, source_id: int, sale_price: float,
             if '무신사머니 fallback' in (_it.benefit_name or ''):
                 _it.enabled = False
 
+    # ★ 2026-06-12 — 롯데온·SSG 현대카드 2.73% 결제할인 (청구할인 fallback / 직전 잔액 기준).
+    #   사용자 명세: "롯데 청구할인 미적용 시, 결제 혜택으로 결제 금액 기준 현대카드(2.73%) 적용.
+    #   SSG도 마찬가지로 청구할인 없으면 현대카드 2.73% 자동 (단 SSG는 네이버페이 적용 안됨)".
+    #   - 결제 택1(legacy pick-best, _is_payment '카드'/'청구할인' 매칭): 청구할인·추가카드 할인·
+    #     SSG 카드혜택가 등 다른 '카드' 결제할인이 enabled 면 차감 큰 쪽이 자동 우선 → 현대카드 자동
+    #     비활성(택1). 다른 카드 혜택이 없으면(기본값) 현대카드만 남아 적용 = "청구할인 없을 시 현대카드".
+    #   - 롯데오너스/SSG MONEY 적립(위 dynamic 블록에서 먼저 append, '적립'은 우선순위상 앞) '뒤'에
+    #     차감 = '직전 잔액 기준 2.73%' (사용자 Q3 확정).
+    #   - 네이버페이는 롯데온 템플릿(이름에 '네이버' → 택1 제외)만 앞단 동시 적용. SSG는 네이버페이
+    #     템플릿·주입이 없어 자동 미적용(사용자 요구 충족).
+    if _site_for in ('lotteon', 'ssg'):
+        effective.append(('dyn', _DynBenefit(
+            name='현대카드 2.73% (청구할인 fallback)',
+            btype='rate', value=0.0273,
+            enabled=True,
+        )))
+
     # ★ 카테고리 정렬 + 결제 택1 + 누적 차감 → 순수 계산 함수로 위임 (M1 추출, 2026-06-08)
     from lemouton.pricing.final_price import compute_final_price
     return compute_final_price(
