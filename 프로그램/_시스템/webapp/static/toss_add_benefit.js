@@ -166,11 +166,11 @@
     if (catSel) catSel.value = '정률';
     // 단위 기본 = % (정률)
     setUnit(form, 'rate');
-    // scope 기본 = 모음전 전체 (bundle) — 세로 카드 picker
+    // scope 기본 = 옵션 1개 (option) — 위상 2단계 그룹 picker
     const host = form.querySelector('.sp-host');
     if (host) {
       host.dataset.skus = '[]';
-      host.querySelectorAll('.sp-row').forEach(r => r.classList.toggle('on', r.dataset.scope === 'bundle'));
+      host.querySelectorAll('.sp-row').forEach(r => r.classList.toggle('on', r.dataset.scope === 'option'));
       const selAct = host.querySelector('.sp-row[data-scope=select] .sp-act');
       if (selAct) selAct.textContent = '선택 →';
     }
@@ -197,31 +197,29 @@
     const typeEl = form.querySelector('.pill.on');
     const type = typeEl?.dataset.type || 'rate';
     const host = form.querySelector('.sp-host');
-    const st = window.readScopePicker ? window.readScopePicker(host) : {scope:'bundle', skus:[]};
+    const st = window.readScopePicker ? window.readScopePicker(host) : {scope:'option', skus:[]};
     const scope = st.scope;
 
     const cntBundle = parseInt(form.dataset.optionCountBundle, 10) || 0;
     const sourceName = form.dataset.sourceName || '소싱처';
 
-    // 영향 요약 텍스트
+    // 영향 요약 텍스트 (위상 2단계 4항목 — 옛 bundle 제거)
     const summaryMap = {
-      option: `이 옵션만 (1 옵션)`,
-      select: `옵션 매트릭스 직접 선택 (${st.skus.length} 옵션)`,
-      bundle: `모음전 전체 (${cntBundle} 옵션)`,
-      bundle_all_src: `해당 모음전 소싱처 전체 (다수)`,
-      source: `프로그램 소싱처 전체 (${sourceName})`,
+      option: `옵션 1개 (1 옵션)`,
+      select: `고른 옵션 (${st.skus.length} 옵션)`,
+      bundle_all_src: `옵션 전체 · 모든 소싱처 (${cntBundle} 옵션 × 소싱처)`,
+      source: `해당 소싱처 기본값 (${sourceName})`,
     };
     const noteMap = {
-      option: ' · 다른 옵션 영향 없음',
-      select: ' · 선택한 옵션만',
-      bundle: ' · 다른 모음전 영향 없음',
-      bundle_all_src: ' · 이 모음전 전 소싱처',
-      source: ' · 다수 모음전 영향',
+      option: ' · 해당 모음전 · 해당 소싱처',
+      select: ' · 해당 모음전 · 해당 소싱처',
+      bundle_all_src: ' · 해당 모음전 · 모든 소싱처',
+      source: ' · 전체 모음전 적용',
     };
     const summaryEl = form.querySelector('.impact-preview .scope-summary');
     const noteSpan = form.querySelector('.impact-preview .text');
-    if (summaryEl) summaryEl.textContent = summaryMap[scope] || summaryMap.bundle;
-    if (noteSpan) noteSpan.innerHTML = `선택: <b class="scope-summary">${summaryMap[scope] || summaryMap.bundle}</b>${noteMap[scope] || ''}`;
+    if (summaryEl) summaryEl.textContent = summaryMap[scope] || summaryMap.option;
+    if (noteSpan) noteSpan.innerHTML = `선택: <b class="scope-summary">${summaryMap[scope] || summaryMap.option}</b>${noteMap[scope] || ''}`;
 
     // 계산식 미리보기 (sale_price 기반 추정)
     const popSale = form.closest('.cell-fx-pop')?.querySelector('.cf-sale .num')?.textContent;
@@ -253,7 +251,7 @@
     const type = form.querySelector('.unit-pills .pill.on')?.dataset.type || 'rate';
     const category = form.querySelector('.cat-select')?.value || null;
     const host = form.querySelector('.sp-host');
-    const st = window.readScopePicker ? window.readScopePicker(host) : {scope:'bundle', skus:[]};
+    const st = window.readScopePicker ? window.readScopePicker(host) : {scope:'option', skus:[]};
     const scope = st.scope;
     if (scope === 'select' && !st.skus.length) {
       alert('옵션을 먼저 선택하세요 ("옵션 매트릭스 직접 선택" 클릭)');
