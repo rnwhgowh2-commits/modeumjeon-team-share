@@ -1182,6 +1182,10 @@
         td.cmtx-cell .cmtx-surf { font-family:ui-monospace,monospace; font-size:10.5px; color:#aab2bd; text-decoration:line-through; text-decoration-color:#d3d8de; }
         td.cmtx-cell .cmtx-final { font-family:ui-monospace,monospace; font-weight:800; color:#1b64da; }
         td.cmtx-cell .cmtx-final.oos { color:#dc2626; }
+        /* [2026-06-13] ①혜택없음(계산완료·표면=최종) / ②혜택 계산중(breakdown 미도착) 구분 */
+        td.cmtx-cell .cmtx-surf.nostrike { text-decoration:none; color:#8b95a1; }
+        td.cmtx-cell .cmtx-calc { font-size:9px; font-weight:700; color:#c2872a; }
+        td.cmtx-cell .cmtx-nobenefit { display:block; text-align:right; font-size:8.5px; color:#c4ccd6; margin-top:1px; }
         td.cmtx-cell.clickable { cursor:pointer; }
         td.cmtx-cell.clickable:hover { background:#f0f7ff; }
         td.cmtx-cell.cmtx-empty { background:#fcfcfd; }
@@ -1315,16 +1319,29 @@
               const dot = COLOR[st.kind];
               const sk = st.kind === 'oos' ? '품절' : (st.q != null ? st.q + '개' : '있음');
               const surf = src.crawled_price;                                    // 표면노출가(크롤 원가)
-              const price = cellPrice(o.sku, src.source_id, src.crawled_price);   // 최종매입가(혜택 적용)
+              // 최종매입가 — breakdown(혜택) 도착 시 number, 미도착/실패면 null(표면가만 확정).
+              const fin = (typeof window.__cmtxCellFinal === 'function') ? window.__cmtxCellFinal(o.sku, src.source_id) : null;
               const finCls = st.kind === 'oos' ? 'cmtx-final oos' : 'cmtx-final';
               const url = src.product_url ? esc(src.product_url) : '';
-              // [2026-06-13] 4B — 표면 ≠ 최종(혜택으로 낮아짐)일 때만 2단 표기. 같으면(혜택 없음) 최종만(중복·모순 방지).
-              const inner = (surf != null && surf > 0 && price != null && price < surf)
-                ? '<span class="cmtx-2tier">'
-                    + '<span class="cmtx-r"><span class="cmtx-lab">표면</span><span class="cmtx-surf">' + won(surf) + '</span></span>'
-                    + '<span class="cmtx-r"><span class="cmtx-lab f">최종</span><span class="' + finCls + '">' + won(price) + '</span><i class="cmtx-pdot" style="background:' + dot + '"></i></span>'
-                  + '</span>'
-                : '<span class="cmtx-line"><i class="cmtx-pdot" style="background:' + dot + '"></i><span class="' + finCls + '">' + won(price) + '</span></span>';
+              // [2026-06-13] 3-state — ②계산중(breakdown 없음) / 2단(혜택으로 낮아짐) / ①혜택없음(표면=최종).
+              let inner;
+              if (fin == null && surf != null && surf > 0){
+                // ② breakdown 미도착·실패 — '최종' 단정 금지. 표면가만(취소선 X) + '혜택 계산중'.
+                inner = '<span class="cmtx-2tier">'
+                      + '<span class="cmtx-r"><span class="cmtx-lab">표면</span><span class="cmtx-surf nostrike">' + won(surf) + '</span><i class="cmtx-pdot" style="background:' + dot + '"></i></span>'
+                      + '<span class="cmtx-r"><span class="cmtx-calc">혜택 계산중…</span></span>'
+                      + '</span>';
+              } else if (fin != null && surf != null && surf > 0 && fin < surf){
+                // 2단 — 표면(취소선) → 최종(강조)
+                inner = '<span class="cmtx-2tier">'
+                      + '<span class="cmtx-r"><span class="cmtx-lab">표면</span><span class="cmtx-surf">' + won(surf) + '</span></span>'
+                      + '<span class="cmtx-r"><span class="cmtx-lab f">최종</span><span class="' + finCls + '">' + won(fin) + '</span><i class="cmtx-pdot" style="background:' + dot + '"></i></span>'
+                      + '</span>';
+              } else {
+                // ① 혜택없음(계산완료·표면=최종) — 최종 단독 + 작게 '혜택없음'.
+                inner = '<span class="cmtx-line"><i class="cmtx-pdot" style="background:' + dot + '"></i><span class="' + finCls + '">' + won(fin != null ? fin : surf) + '</span></span>'
+                      + '<span class="cmtx-nobenefit">혜택없음</span>';
+              }
               cells += '<td class="cmtx-cell' + (url ? ' clickable' : '') + '"' + (url ? ' data-url="' + url + '"' : '') + (st.kind === 'oos' ? ' style="opacity:.62"' : '') +
                        '>' + inner + '<span class="cmtx-sk">' + sk + '</span></td>';
             });
@@ -1340,7 +1357,13 @@
           });
         }
 
-        function open(){ render(); overlay.hidden = false; document.body.style.overflow = 'hidden'; }
+        function open(){
+          render(); overlay.hidden = false; document.body.style.overflow = 'hidden';
+          // breakdown(혜택) 캐시가 비어있으면 1회 로드 후 재렌더 — '혜택 계산중' 셀이 표면→최종 2단으로 채워짐.
+          if (typeof window.__cmtxEnsureBreakdowns === 'function'){
+            window.__cmtxEnsureBreakdowns().then(s => { if (s === 'fetched' && !overlay.hidden) render(); });
+          }
+        }
         function close(){ overlay.hidden = true; document.body.style.overflow = ''; }
 
         btn.addEventListener('click', open);
@@ -5720,6 +5743,18 @@ table.ompk-tab th.corner{color:#b0b8c1;cursor:default}
   window.__cmtxCellPrice = function(sku, srcId, fallback){
     const bk = SM_BREAKDOWNS[`${sku}|${srcId}`];
     return (bk && typeof bk.final_price === 'number') ? bk.final_price : fallback;
+  };
+  // [2026-06-13] 최종매입가(breakdown final_price) — 도착 시 number, 미도착/실패면 null.
+  //   null 이면 팝업이 '혜택 계산중'으로 표시(표면=최종 폴백과 구분).
+  window.__cmtxCellFinal = function(sku, srcId){
+    const bk = SM_BREAKDOWNS[`${sku}|${srcId}`];
+    return (bk && typeof bk.final_price === 'number') ? bk.final_price : null;
+  };
+  // breakdown 캐시가 비어있으면(미도착) 1회 로드. 'fetched'=방금 채움(재렌더 필요) / 'cached'=이미 있음.
+  window.__cmtxEnsureBreakdowns = async function(){
+    if (Object.keys(SM_BREAKDOWNS).length) return 'cached';
+    try { await smFetchBreakdowns(); } catch(_) {}
+    return Object.keys(SM_BREAKDOWNS).length ? 'fetched' : 'empty';
   };
 
   // Phase 6 — 최저가/절감 캐시 (renderSourceMatrix 가 채움)
