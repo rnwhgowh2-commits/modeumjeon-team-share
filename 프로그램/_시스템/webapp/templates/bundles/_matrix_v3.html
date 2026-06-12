@@ -3404,26 +3404,37 @@
   // ─────────────────────────────────────────────────────────────
   function renderScopePicker(ctx) {
     ctx = ctx || {};
-    const def = ctx.defaultScope || 'bundle';
-    const items = [
-      {scope:'option',         dot:'g', lbl:'이 옵션만',               cnt:'+1'},
-      {scope:'select',         dot:'t', lbl:'옵션 매트릭스 직접 선택', act:'선택 →'},
-      {scope:'bundle',         dot:'b', lbl:'모음전 전체',             cnt:'+'+(ctx.bundleCount||0)},
-      {scope:'bundle_all_src', dot:'o', lbl:'해당 모음전 소싱처 전체', cnt:'다수'},
-      {scope:'source',         dot:'p', lbl:'프로그램 소싱처 전체',    cnt:'다수'},
+    const def = ctx.defaultScope || 'option';
+    // 위상 2단계 그룹 (V2 칩 헤더). 옛 'bundle'(모음전 전체×1소싱처)은 제거 —
+    //   'select'+전체선택과 DB 결과 동일(옵션별 override 전 옵션 생성)이라 무손실.
+    const groups = [
+      {head:'해당 모음전 · 해당 소싱처', items:[
+        {scope:'option',         dot:'g', lbl:'옵션 1개',  cnt:'+1'},
+        {scope:'select',         dot:'t', lbl:'고른 옵션',  act:'선택 →'},
+      ]},
+      {head:'해당 모음전 · 전체 소싱처', items:[
+        {scope:'bundle_all_src', dot:'o', lbl:'옵션 전체',  cnt:'다수'},
+      ]},
+      {head:'전체 모음전', items:[
+        {scope:'source',         dot:'p', lbl:'해당 소싱처 기본값', cnt:'기본'},
+      ]},
     ];
-    return `<div class="sp-host" data-skus="[]">` + items.map(it => `
+    const rowHtml = it => `
       <button type="button" class="sp-row${it.scope===def?' on':''}" data-scope="${it.scope}">
         <span class="sp-rdo"></span><span class="sp-dot ${it.dot}"></span>
         <span class="sp-lbl">${it.lbl}</span>
         ${it.act ? `<span class="sp-act">${it.act}</span>` : `<span class="sp-cnt">${it.cnt}</span>`}
-      </button>`).join('') + `</div>`;
+      </button>`;
+    const body = groups.map(g =>
+      `<div class="sp-grp"><div class="sp-grp-h"><span>${g.head}</span></div>${g.items.map(rowHtml).join('')}</div>`
+    ).join('');
+    return `<div class="sp-host" data-skus="[]">${body}</div>`;
   }
 
   // picker 상태 조회 (모달·폼 공통). host = .sp-host element.
   window.readScopePicker = function(host) {
-    if (!host) return {scope:'bundle', skus:[]};
-    const scope = host.querySelector('.sp-row.on')?.dataset.scope || 'bundle';
+    if (!host) return {scope:'option', skus:[]};
+    const scope = host.querySelector('.sp-row.on')?.dataset.scope || 'option';
     let skus = [];
     try { skus = JSON.parse(host.dataset.skus || '[]'); } catch(e) {}
     return {scope, skus};
@@ -3502,6 +3513,10 @@
     const st = document.createElement('style'); st.id = 'sp-picker-css';
     st.textContent = `
 .sp-host{display:flex;flex-direction:column;gap:8px;margin-top:6px}
+.sp-grp{display:flex;flex-direction:column;gap:8px}
+.sp-grp + .sp-grp{margin-top:6px}
+.sp-grp-h{padding:2px 2px 0}
+.sp-grp-h span{display:inline-block;background:#f2f4f6;color:#6b7684;font-size:10.5px;font-weight:700;letter-spacing:.01em;padding:4px 10px;border-radius:20px}
 .sp-row{display:flex;align-items:center;gap:11px;border:1.5px solid #e5e8eb;border-radius:11px;padding:13px 14px;cursor:pointer;background:#fff;width:100%;text-align:left}
 .sp-row.on{border-color:#3182F6;background:#f4f9ff}
 .sp-rdo{width:18px;height:18px;border-radius:50%;border:2px solid #c7ccd1;flex:none;box-sizing:border-box}
@@ -3720,7 +3735,7 @@ table.ompk-tab th.corner{color:#b0b8c1;cursor:default}
           </div>
           <div>
             <label class="scope-label">적용 범위</label>
-            ${renderScopePicker({bundleCount:_bundleCount, srcName:_srcName, defaultScope:'bundle'})}
+            ${renderScopePicker({bundleCount:_bundleCount, srcName:_srcName, defaultScope:'option'})}
           </div>
           <div class="impact-preview">
             <span class="text">선택: <b class="scope-summary">모음전 전체 (${_bundleCount} 옵션)</b> · 다른 모음전 영향 없음</span>
@@ -3921,7 +3936,7 @@ table.ompk-tab th.corner{color:#b0b8c1;cursor:default}
         <h3>✎ "${escapeHtml(benefitName)}" 값 수정</h3>
         <div class="ie-modal-val"><input type="text" class="ie-input2" value="${curDisp}" inputmode="decimal"><span class="ie-u">${unit}</span></div>
         <div class="dsm-sub">어느 범위에 적용할까요?</div>
-        ${renderScopePicker({bundleCount, srcName:'', defaultScope:'bundle'})}
+        ${renderScopePicker({bundleCount, srcName:'', defaultScope:'option'})}
         <div class="dsm-acts">
           <button type="button" data-act="cancel">취소</button>
           <button type="button" class="ok" data-act="apply">저장</button>
