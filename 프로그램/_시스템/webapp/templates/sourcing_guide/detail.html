@@ -306,44 +306,59 @@
         </div>
       </div>
 
-      <!-- ③-요약 — 가격 계산 로직 한눈에 보기 (읽기 전용, 위 카드와 동일 benefits 소스) -->
+      <!-- ③-요약 — 가격 계산 로직 (시안 B5: 예시 영수증 + 규칙표, 단계 동그라미) -->
       {% set SMAP = {'always':'상시','conditional':'조건부','optional':'선택','planned':'예정'} %}
+      {% set _exs = guide.verification.get('examples', []) %}
+      {% set _ex = _exs[0] if _exs else None %}
       <div class="sg3-logic" style="margin-top:18px;border:1px solid #E5E8EB;border-radius:12px;overflow:hidden">
-        <div style="padding:13px 16px;background:#F9FAFB;border-bottom:1px solid #E5E8EB;font-size:13.5px;font-weight:800;color:#191F28">💰 가격 계산 로직 — 한눈에 보기 <span style="font-weight:600;color:#8B95A1;font-size:12px">· 위 설정값 요약 (읽기 전용) · 표면 노출가 → 최종 매입가 순</span></div>
-        <div style="overflow-x:auto">
-        <table style="width:100%;border-collapse:collapse;font-size:12.5px;min-width:560px">
-          <thead>
-            <tr style="background:#FBFCFD;color:#4E5968;font-weight:700;text-align:left">
-              <th style="padding:9px 12px;border-bottom:1px solid #E5E8EB">단계</th>
-              <th style="padding:9px 12px;border-bottom:1px solid #E5E8EB">혜택</th>
-              <th style="padding:9px 12px;border-bottom:1px solid #E5E8EB">방식</th>
-              <th style="padding:9px 12px;border-bottom:1px solid #E5E8EB">기준</th>
-              <th style="padding:9px 12px;border-bottom:1px solid #E5E8EB">값 · 규칙</th>
-              <th style="padding:9px 12px;border-bottom:1px solid #E5E8EB">조건</th>
-            </tr>
-          </thead>
-          <tbody>
-          {% set lg = namespace(rows=0) %}
-          {% for cname, applies, color in CATS %}
-            {% for b in guide.pricing.benefits if b.apply in applies %}
-            {% set lg.rows = lg.rows + 1 %}
-            {% set _method = b.method or ('정률' if '%' in (b.rule or '') else ('정액' if '원' in (b.rule or '') else '—')) %}
-            {% set _base = b.base or ('베이스금액②' if '베이스금액②' in (b.rule or '') else ('베이스금액①' if '베이스금액①' in (b.rule or '') else ('표면 노출가' if '표면' in (b.rule or '') else '—'))) %}
-            <tr style="border-bottom:1px solid #F2F4F6">
-              <td style="padding:9px 12px;white-space:nowrap"><span style="display:inline-block;padding:2px 8px;border-radius:6px;background:{{ color }};color:#fff;font-weight:700;font-size:11px">{{ cname }}</span></td>
-              <td style="padding:9px 12px;font-weight:600;color:#191F28">{{ b.name }}</td>
-              <td style="padding:9px 12px;white-space:nowrap;color:#4E5968">{{ _method }}</td>
-              <td style="padding:9px 12px;white-space:nowrap;color:#4E5968">{{ _base }}</td>
-              <td style="padding:9px 12px;color:#4E5968">{{ b.rule or '—' }}</td>
-              <td style="padding:9px 12px;white-space:nowrap;color:#8B95A1">{{ SMAP.get(b.status, b.status or '—') }}</td>
-            </tr>
-            {% endfor %}
-          {% endfor %}
-          {% if lg.rows == 0 %}
-            <tr><td colspan="6" style="padding:16px;text-align:center;color:#B0B8C1">등록된 혜택이 없습니다.</td></tr>
+        <div style="padding:13px 16px;background:#F9FAFB;border-bottom:1px solid #E5E8EB;font-size:13.5px;font-weight:800;color:#191F28">💰 가격 계산 로직 — 한눈에 보기 <span style="font-weight:600;color:#8B95A1;font-size:12px">· 표면 노출가 → 최종 매입가 순 · {% if _ex %}예시 영수증 + {% endif %}규칙</span></div>
+        <div style="display:grid;grid-template-columns:{% if _ex %}minmax(220px,260px) 1fr{% else %}1fr{% endif %};gap:14px;padding:14px 16px;align-items:start">
+          {% if _ex %}
+          <div style="background:#fff;border:1px solid #E5E8EB;border-radius:10px;padding:12px 14px">
+            <div style="font-size:11.5px;font-weight:800;color:#8B95A1;margin-bottom:8px">📄 예시 영수증 · {{ _ex.name }}</div>
+            <div style="display:flex;justify-content:space-between;font-size:12px;padding:3px 0"><span style="color:#4E5968">표면 노출가</span><b>{{ "{:,}".format(_ex.surface_price) if _ex.surface_price is not none else '—' }}원</b></div>
+            {% for p in (_ex.pre or []) %}<div style="display:flex;justify-content:space-between;font-size:11.5px;padding:2px 0 2px 8px;color:#8B95A1"><span>└ {{ p.label }}</span><span style="color:#F04452">{{ "{:,}".format(p.amount) if p.amount is not none else '' }}</span></div>{% endfor %}
+            <div style="display:flex;justify-content:space-between;font-size:12px;padding:5px 8px;background:#F4F8FF;border-radius:6px;margin:3px 0"><span style="color:#1B64DA;font-weight:700">베이스금액①</span><b style="color:#1B64DA">{{ "{:,}".format(_ex.base1) if _ex.base1 is not none else '—' }}원</b></div>
+            {% for d in (_ex.deducts or []) %}<div style="display:flex;justify-content:space-between;font-size:11.5px;padding:2px 0 2px 8px;color:#8B95A1"><span>└ {{ d.label }}</span><span style="color:#F04452">{{ "{:,}".format(d.amount) if d.amount is not none else '' }}</span></div>{% endfor %}
+            <div style="display:flex;justify-content:space-between;font-size:12px;padding:5px 8px;background:#F4F8FF;border-radius:6px;margin:3px 0"><span style="color:#1B64DA;font-weight:700">베이스금액②</span><b style="color:#1B64DA">{{ "{:,}".format(_ex.base2) if _ex.base2 is not none else '—' }}원</b></div>
+            {% if _ex.pay %}<div style="display:flex;justify-content:space-between;font-size:11.5px;padding:2px 0 2px 8px;color:#8B95A1"><span>└ {{ _ex.pay.label }}</span><span style="color:#F04452">{{ "{:,}".format(_ex.pay.amount) if _ex.pay.amount is not none else '' }}</span></div>{% endif %}
+            <div style="height:1px;background:#E5E8EB;margin:7px 0"></div>
+            <div style="display:flex;justify-content:space-between;align-items:center"><span style="color:#3182F6;font-weight:800;font-size:13px">최종 매입가</span><b style="color:#3182F6;font-size:15px">{{ "{:,}".format(_ex.final_price) if _ex.final_price is not none else '—' }}원</b></div>
+          </div>
           {% endif %}
-          </tbody>
-        </table>
+          <div style="overflow-x:auto;border:1px solid #E5E8EB;border-radius:10px">
+          <table style="width:100%;border-collapse:collapse;font-size:12.5px;min-width:400px">
+            <thead>
+              <tr style="background:#FBFCFD;color:#4E5968;font-weight:700;text-align:left">
+                <th style="padding:9px 12px;border-bottom:1px solid #E5E8EB">단계</th>
+                <th style="padding:9px 12px;border-bottom:1px solid #E5E8EB">혜택</th>
+                <th style="padding:9px 12px;border-bottom:1px solid #E5E8EB">방식</th>
+                <th style="padding:9px 12px;border-bottom:1px solid #E5E8EB">기준</th>
+                <th style="padding:9px 12px;border-bottom:1px solid #E5E8EB">조건</th>
+              </tr>
+            </thead>
+            <tbody>
+            {% set lg = namespace(rows=0) %}
+            {% for cname, applies, color in CATS %}
+              {% for b in guide.pricing.benefits if b.apply in applies %}
+              {% set lg.rows = lg.rows + 1 %}
+              {% set _method = b.method or ('정률' if '%' in (b.rule or '') else ('정액' if '원' in (b.rule or '') else '—')) %}
+              {% set _base = b.base or ('베이스금액②' if '베이스금액②' in (b.rule or '') else ('베이스금액①' if '베이스금액①' in (b.rule or '') else ('표면 노출가' if '표면' in (b.rule or '') else '—'))) %}
+              <tr style="border-bottom:1px solid #F2F4F6" title="{{ b.rule or '' }}">
+                <td style="padding:9px 12px;white-space:nowrap"><span style="display:inline-flex;align-items:center;gap:5px"><span style="width:8px;height:8px;border-radius:50%;background:{{ color }};display:inline-block;flex:0 0 auto"></span><span style="padding:2px 8px;border-radius:6px;background:{{ color }};color:#fff;font-weight:700;font-size:11px">{{ cname }}</span></span></td>
+                <td style="padding:9px 12px;font-weight:600;color:#191F28">{{ b.name }}</td>
+                <td style="padding:9px 12px;white-space:nowrap;color:#4E5968">{{ _method }}</td>
+                <td style="padding:9px 12px;white-space:nowrap;color:#4E5968">{{ _base }}</td>
+                <td style="padding:9px 12px;white-space:nowrap;color:#8B95A1">{{ SMAP.get(b.status, b.status or '—') }}</td>
+              </tr>
+              {% endfor %}
+            {% endfor %}
+            {% if lg.rows == 0 %}
+              <tr><td colspan="5" style="padding:16px;text-align:center;color:#B0B8C1">등록된 혜택이 없습니다.</td></tr>
+            {% endif %}
+            </tbody>
+          </table>
+          </div>
         </div>
       </div>
 

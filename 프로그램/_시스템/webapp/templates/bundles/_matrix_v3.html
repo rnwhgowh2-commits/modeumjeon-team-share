@@ -3642,22 +3642,22 @@ table.ompk-tab th.corner{color:#b0b8c1;cursor:default}
     let benHtml = '';
     // 🔵 선반영 — 표면 노출가에 이미 반영(표시만). preapplied 항목 있을 때만 노출.
     if (_g.pre.length) {
-      benHtml += `<div class="cf-grp pre">🔵 선반영<span class="cf-grp-note"> · 표면 노출가에 이미 반영(표시만)</span></div>` + _g.pre.map(_rowHtml).join('');
+      benHtml += `<div class="cf-grp pre"><span class="gdot" style="background:#3182F6"></span>선반영<span class="cf-grp-note"> · 표면 노출가에 이미 반영(표시만)</span></div>` + _g.pre.map(_rowHtml).join('');
     }
     // 후반영 — 베이스금액에서 차감
-    benHtml += `<div class="cf-grp">후반영 · 정액</div>` + (_g.amount.length ? _g.amount.map(_rowHtml).join('') : _emptyRow);
-    benHtml += `<div class="cf-grp">후반영 · 정률·적립</div>` + (_g.rate.length ? _g.rate.map(_rowHtml).join('') : _emptyRow);
+    benHtml += `<div class="cf-grp"><span class="gdot" style="background:#10B981"></span>후반영 · 정액</div>` + (_g.amount.length ? _g.amount.map(_rowHtml).join('') : _emptyRow);
+    benHtml += `<div class="cf-grp"><span class="gdot" style="background:#10B981"></span>후반영 · 정률·적립</div>` + (_g.rate.length ? _g.rate.map(_rowHtml).join('') : _emptyRow);
     // 결제: 카드/페이는 택1(라디오), 네이버페이는 카드와 '동시 적용'(토글) — 택1 아님.
     const _payCards = _g.pay.filter(it => !/네이버/.test(it.name || ''));
     const _payNaver = _g.pay.filter(it => /네이버/.test(it.name || ''));
-    benHtml += `<div class="cf-grp pay">후반영 · 결제 할인<span class="cf-grp-note"> · 카드/페이 택1 + 네이버페이 동시</span></div>`;
+    benHtml += `<div class="cf-grp pay"><span class="gdot" style="background:#8B5CF6"></span>후반영 · 결제 할인<span class="cf-grp-note"> · 카드/페이 택1 + 네이버페이 동시</span></div>`;
     benHtml += _payCards.map(_payRowHtml).join('');
     benHtml += _payNaver.map(_rowHtml).join('');  // 네이버페이 = 토글(카드와 동시 적용, 누적)
     if (_isMusinsa) {
       benHtml += `<div class="cell-fx-row cf-pay-row cf-paycard cf-soon off"><div class="cf-chk"></div><span class="nm">혜택 카드 결제 (무신사페이·토스페이)<span style="display:block;font-size:11px;color:#B0B8C1">추후 지원 · 곧 설정 가능</span></span><span class="val rt">설정 예정</span></div>`;
     } else if (!_payCards.length && !_payNaver.length) { benHtml += _emptyRow; }
-    benHtml += `<div class="cf-grp">후반영 · 추가 캐시백<span class="cf-grp-note"> · 선택(경유)</span></div>` + (_g.cashback.length ? _g.cashback.map(_rowHtml).join('') : _emptyRow);
-    benHtml += `<div class="cf-grp">기타</div>` + (_g.etc.length ? _g.etc.map(_rowHtml).join('') : _emptyRow);
+    benHtml += `<div class="cf-grp"><span class="gdot" style="background:#F59E0B"></span>후반영 · 추가 캐시백<span class="cf-grp-note"> · 선택(경유)</span></div>` + (_g.cashback.length ? _g.cashback.map(_rowHtml).join('') : _emptyRow);
+    benHtml += `<div class="cf-grp"><span class="gdot" style="background:#B0B8C1"></span>기타</div>` + (_g.etc.length ? _g.etc.map(_rowHtml).join('') : _emptyRow);
     // ★ 2026-05-19 v7.1 A2 — 무채색 (좌측 검정 accent + 슬라이드 다운).
     //   v6 D2-A (#3182F6 파랑 + #DC2626 빨강) → A2 (monochrome only).
     //   scope = .scope-list .item (단일 border 박스 + 소싱처 default gsep).
@@ -3724,11 +3724,15 @@ table.ompk-tab th.corner{color:#b0b8c1;cursor:default}
       </div>`;
     pop.innerHTML = `
       <h6>💰 ${escapeHtml(getSrcName(srcId))} · ${escapeHtml(sku.split('-').slice(-2).join('-'))} 계산식<button class="close" onclick="this.closest('.cell-fx-pop').remove();document.querySelectorAll('td.fx-open').forEach(t=>t.classList.remove('fx-open'))">✕</button></h6>
-      ${saleHtml}
-      <div class="cell-fx-ben">
-        ${benHtml}
+      <div class="cf-split">
+        <div class="cf-split-l">${saleHtml}</div>
+        <div class="cf-split-r">
+          <div class="cell-fx-ben">
+            ${benHtml}
+          </div>
+          ${addRowHtml}
+        </div>
       </div>
-      ${addRowHtml}
       <div class="pop-actions">
         <button onclick="this.closest('.cell-fx-pop').remove();document.querySelectorAll('td.fx-open').forEach(t=>t.classList.remove('fx-open'))">닫기</button>
         <a href="/accounts/sourcing" target="_blank">📦 사이트 템플릿 →</a>

@@ -3339,10 +3339,10 @@
 /* 컨테이너 — 단일 흰 카드 (회색 배경·패딩·gap 제거), 꼬리 화살표 숨김 */
 .fxpop-v2.cell-fx-pop {
   background: #fff; border: 1px solid #E1E5EA; border-radius: 16px;
-  width: 390px; padding: 0 17px 17px; gap: 0;
+  width: 560px; padding: 0 17px 17px; gap: 0;
   box-shadow: 0 14px 40px rgba(20,30,45,.20);
   font-variant-numeric: tabular-nums; letter-spacing: -0.01em;
-  zoom: 1.4;  /* ★ 2026-06-06 — 팝업 전체 140% 확대 (디자인 비율 유지, 글자가 작다는 피드백) */
+  zoom: 1.15;  /* 2026-06-12 — 좌우분할(시안 A4)로 폭 확대 → zoom 소폭 축소(글자 크기 유지) */
 }
 .fxpop-v2.cell-fx-pop::before, .fxpop-v2.cell-fx-pop::after { display: none; }
 /* 헤더 — 흰 패널 X, 플랫 타이틀 */
@@ -3404,6 +3404,11 @@
 .fxpop-v2 .cell-fx-ben .cf-way { display:inline-block; font-size:10px; font-weight:700; padding:1px 5px; border-radius:4px; margin-left:6px; vertical-align:middle; }
 .fxpop-v2 .cell-fx-ben .cf-way.amt { color:#1B64DA; background:#EEF3FF; }
 .fxpop-v2 .cell-fx-ben .cf-way.rt { color:#0B8A5B; background:#E8F8F1; }
+.fxpop-v2 .cell-fx-ben .cf-grp .gdot { display:inline-block; width:9px; height:9px; border-radius:50%; margin-right:7px; vertical-align:middle; }
+/* [2026-06-12] 시안 A4 — fx 모달 좌우분할 (좌 영수증 / 우 토글) */
+.fxpop-v2 .cf-split { display:grid; grid-template-columns: minmax(0,0.92fr) minmax(0,1.08fr); gap:13px; align-items:start; }
+.fxpop-v2 .cf-split-l, .fxpop-v2 .cf-split-r { min-width:0; }
+.fxpop-v2 .cf-split-l .cf-phase-sep { display:none; }
 /* 토글 행 — grid→flex, 줄긋기·들여쓰기 제거 */
 .fxpop-v2 .cell-fx-ben .cell-fx-row {
   display: flex; align-items: center; gap: 10px; padding: 10px 2px;
