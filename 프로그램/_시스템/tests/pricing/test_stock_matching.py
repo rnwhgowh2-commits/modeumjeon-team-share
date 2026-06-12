@@ -125,6 +125,36 @@ class TestMatchOptionStock:
         idx = _build_so_index([_so(57, '', '220', 0)])
         assert _match_option_stock(idx, 57, '그레이', '220') == 0
 
+    # ── H1 회귀: 색상 부분일치(substring) 오매칭 봉쇄 (2026-06-12) ──
+    def test_exact_color_preferred_over_substring(self):
+        # '그레이' 는 '라이트그레이'(부분포함)가 후보 먼저 와도 정확매칭을 골라야 한다.
+        #   기존: oc in sc 로 '라이트그레이'(111) 를 먼저 잡아 엉뚱한 색 재고/가격 반환.
+        idx = _build_so_index([
+            _so(5, '240mm', '라이트그레이', 111),
+            _so(5, '240mm', '그레이', 999),
+        ])
+        assert _match_option_stock(idx, 5, '그레이', '240') == 999
+        # 순서 반대여도 동일.
+        idx2 = _build_so_index([
+            _so(5, '240mm', '그레이', 999),
+            _so(5, '240mm', '라이트그레이', 111),
+        ])
+        assert _match_option_stock(idx2, 5, '그레이', '240') == 999
+
+    def test_ambiguous_substring_returns_none(self):
+        # 정확매칭 없고 부분매칭 후보가 2개 이상이면 추측 금지 → None.
+        #   (엉뚱한 색을 비결정적으로 찍느니 미매칭이 안전 — 금전 사고 방지)
+        idx = _build_so_index([
+            _so(5, '240mm', '라이트그레이', 111),
+            _so(5, '240mm', '다크그레이', 222),
+        ])
+        assert _match_option_stock(idx, 5, '그레이', '240') is None
+
+    def test_single_substring_descriptor_still_matches(self):
+        # 정당한 부분매칭은 유지: '블랙' ↔ '블랙(아웃솔)' 단일 후보면 매칭.
+        idx = _build_so_index([_so(5, '250mm', '블랙(아웃솔)', 7)])
+        assert _match_option_stock(idx, 5, '블랙', '250') == 7
+
 
 # ─────────────────────────────────────────────────────────────
 # _pick_cheapest_buyable — 재고존재+최저가 winner/원가 정의

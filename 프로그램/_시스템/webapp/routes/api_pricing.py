@@ -110,6 +110,7 @@ def _match_option_so(so_index, sp_id, opt_color, opt_size):
         return None
     oc = _stk_cnorm(opt_color)
     size_only = None
+    subs = []                                     # 부분일치 후보(정확매칭 없을 때만)
     for so in cands:
         st = (so.size_text or '').strip()
         s_size = _stk_digits(st) or _stk_digits(so.color_text)
@@ -118,11 +119,22 @@ def _match_option_so(so_index, sp_id, opt_color, opt_size):
         has_color = bool(st) and bool((so.color_text or '').strip())
         if has_color:
             sc = _stk_cnorm(so.color_text)
-            if oc and sc and (oc == sc or oc in sc or sc in oc):
-                return so                         # 색+사이즈 정확 매칭
+            if not (oc and sc):
+                continue
+            if oc == sc:
+                return so                         # ★ 정확 매칭 최우선 (즉시 확정)
+            if oc in sc or sc in oc:
+                subs.append(so)                   # 부분일치 — 일단 보류
             continue                              # 색 불일치 → 계속 탐색
         if size_only is None:
             size_only = so                        # 단일색 URL — 사이즈만으로 매칭
+    # 정확 매칭이 없었던 경우: 부분일치는 '모호하지 않을 때만' 채택.
+    #   [H1 2026-06-12] 기존엔 첫 부분일치를 즉시 반환 → '그레이'가 '라이트그레이'에
+    #   붙는 비결정적 오매칭. 후보가 2개 이상이면 추측 금지(None)가 안전(금전 사고 방지).
+    if len(subs) == 1:
+        return subs[0]
+    if len(subs) > 1:
+        return None
     return size_only
 
 
