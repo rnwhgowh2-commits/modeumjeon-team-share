@@ -1622,6 +1622,118 @@ def api_color_code_audit():
         s.close()
 
 
+# 중복 병합 시 보존행으로 이전할 시장/매입 식별자 (잉여행에만 있고 보존행이 비면 복사).
+_MARKET_ID_FIELDS = [
+    'naver_option_id', 'coupang_option_id', 'option_id_lemouton', 'option_id_musinsa',
+    'option_id_ssf', 'option_id_lotteon', 'option_id_ss_lemouton', 'boxhero_sku', 'barcode',
+]
+
+
+def _dedup_merge(s, dry_run=True):
+    """(model,color,size) 중복 옵션을 '보존행 1개'로 안전 병합.
+
+    잉여행의 URL/재고 매핑을 보존행으로 이전(보존행이 이미 가진 매핑은 중복제거),
+    시장ID(naver/coupang 등)는 보존행이 비었을 때만 복사(등록 손실 방지), 그 뒤 잉여행 삭제.
+    dry_run=True 면 무엇을 할지 카운트만 하고 변경하지 않는다. 데이터 손실 없는 병합.
+    """
+    from sqlalchemy import func
+    rep = {'groups': 0, 'redundant': 0, 'url_moved': 0, 'url_deduped': 0,
+           'inv_moved': 0, 'inv_deduped': 0, 'ids_copied': 0, 'deleted': 0,
+           'deleted_skus': []}
+    dup_keys = (s.query(Option.model_code, Option.color_code, Option.size_code,
+                        func.count(Option.canonical_sku))
+                .group_by(Option.model_code, Option.color_code, Option.size_code)
+                .having(func.count(Option.canonical_sku) > 1).all())
+    for mc, cc, sz, _cnt in dup_keys:
+        rows = (s.query(Option).filter(Option.model_code == mc,
+                                       Option.color_code == cc,
+                                       Option.size_code == sz).all())
+        skus = [o.canonical_sku for o in rows]
+        url_cnt = dict(s.query(OptionSourceUrlLink.option_canonical_sku,
+                               func.count(OptionSourceUrlLink.id))
+                       .filter(OptionSourceUrlLink.option_canonical_sku.in_(skus))
+                       .group_by(OptionSourceUrlLink.option_canonical_sku).all())
+        inv_cnt = dict(s.query(OptionInventoryLink.bundle_option_sku,
+                               func.count(OptionInventoryLink.id))
+                       .filter(OptionInventoryLink.bundle_option_sku.in_(skus))
+                       .group_by(OptionInventoryLink.bundle_option_sku).all())
+
+        def _score(o):
+            return (1 if o.is_active else 0,
+                    int(url_cnt.get(o.canonical_sku, 0)) + int(inv_cnt.get(o.canonical_sku, 0)),
+                    -(o.created_at.timestamp() if o.created_at else 0))
+        ordered = sorted(rows, key=_score, reverse=True)
+        keeper = ordered[0]
+        rep['groups'] += 1
+        for r in ordered[1:]:
+            rep['redundant'] += 1
+            # URL 매핑 이전 (보존행이 같은 bundle_source_url 이미 있으면 중복제거)
+            for lk in (s.query(OptionSourceUrlLink)
+                       .filter(OptionSourceUrlLink.option_canonical_sku == r.canonical_sku).all()):
+                dup = (s.query(OptionSourceUrlLink)
+                       .filter(OptionSourceUrlLink.option_canonical_sku == keeper.canonical_sku,
+                               OptionSourceUrlLink.bundle_source_url_id == lk.bundle_source_url_id)
+                       .first())
+                if dup is not None:
+                    rep['url_deduped'] += 1
+                    if not dry_run:
+                        s.delete(lk)
+                else:
+                    rep['url_moved'] += 1
+                    if not dry_run:
+                        lk.option_canonical_sku = keeper.canonical_sku
+            # 재고 매핑 이전
+            for lk in (s.query(OptionInventoryLink)
+                       .filter(OptionInventoryLink.bundle_option_sku == r.canonical_sku).all()):
+                dup = (s.query(OptionInventoryLink)
+                       .filter(OptionInventoryLink.bundle_option_sku == keeper.canonical_sku,
+                               OptionInventoryLink.inventory_option_sku == lk.inventory_option_sku)
+                       .first())
+                if dup is not None:
+                    rep['inv_deduped'] += 1
+                    if not dry_run:
+                        s.delete(lk)
+                else:
+                    rep['inv_moved'] += 1
+                    if not dry_run:
+                        lk.bundle_option_sku = keeper.canonical_sku
+            # 시장/매입 ID 보존 (등록 손실 방지)
+            for f in _MARKET_ID_FIELDS:
+                if getattr(r, f, None) and not getattr(keeper, f, None):
+                    rep['ids_copied'] += 1
+                    if not dry_run:
+                        setattr(keeper, f, getattr(r, f))
+            rep['deleted'] += 1
+            rep['deleted_skus'].append(r.canonical_sku)
+            if not dry_run:
+                s.flush()  # 매핑 이전(update/delete) 먼저 반영 후 잉여행 삭제
+                s.delete(r)
+    if not dry_run:
+        s.commit()
+    return rep
+
+
+@bp.route('/api/admin/options/merge-dupes', methods=['POST'])
+def api_merge_dupes():
+    """(model,color,size) 중복 옵션 안전 병합. body: {dry_run: bool(기본 True)}
+
+    잉여행 매핑을 보존행으로 이전 후 잉여행 삭제(데이터 손실 없음). dry_run=True 면 미리보기.
+    """
+    body = request.get_json(silent=True) or {}
+    dry_run = bool(body.get('dry_run', True))
+    s = SessionLocal()
+    try:
+        rep = _dedup_merge(s, dry_run=dry_run)
+        rep['ok'] = True
+        rep['dry_run'] = dry_run
+        return jsonify(rep)
+    except Exception as e:
+        s.rollback()
+        return jsonify({'ok': False, 'error': str(e)}), 500
+    finally:
+        s.close()
+
+
 @bp.route('/api/admin/options/cleanup-dupes', methods=['POST'])
 def api_cleanup_dup_options():
     """잉여 옵션 일괄 삭제. body: {skus: [...], dry_run: bool}
@@ -1760,6 +1872,40 @@ def api_option_dupes():
                     f"<td>{act}</td><td class=num>{r['url_links']}</td>"
                     f"<td class=num>{r['inv_links']}</td>"
                     f"<td class=num>{r['boxhero_stock']}</td></tr>")
+        _controls = """
+<div style='margin:14px 0;display:flex;gap:8px;align-items:center;flex-wrap:wrap'>
+  <button id=mPreview style='padding:8px 14px;border:1px solid #d0d7de;border-radius:6px;background:#fff;cursor:pointer'>① 미리보기(dry-run)</button>
+  <button id=mExec style='padding:8px 14px;border:0;border-radius:6px;background:#cf222e;color:#fff;cursor:pointer;display:none'>② 실제 병합·삭제 실행</button>
+  <span id=mMsg style='color:#656d76;font-size:13px'></span>
+</div>
+<pre id=mOut style='background:#f6f8fa;padding:10px;border-radius:6px;font-size:12px;white-space:pre-wrap;display:none'></pre>
+<script>
+(function(){
+  var out=document.getElementById('mOut'), msg=document.getElementById('mMsg');
+  function call(dry){return fetch('/api/admin/options/merge-dupes',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({dry_run:dry})}).then(function(r){return r.json()});}
+  document.getElementById('mPreview').onclick=function(){
+    msg.textContent='미리보기 중...';
+    call(true).then(function(d){
+      if(!d.ok){msg.textContent='오류: '+(d.error||'');return;}
+      out.style.display='block';
+      out.textContent='[미리보기] 삭제될 잉여행 '+d.deleted+'개 · URL이전 '+d.url_moved+'/중복제거 '+d.url_deduped+' · 재고이전 '+d.inv_moved+'/중복제거 '+d.inv_deduped+' · 시장ID복사 '+d.ids_copied+'\\n삭제 SKU: '+((d.deleted_skus||[]).join(', ')||'(없음)');
+      msg.textContent='확인했으면 ② 실제 실행을 누르세요.';
+      document.getElementById('mExec').style.display=d.deleted>0?'inline-block':'none';
+    });
+  };
+  document.getElementById('mExec').onclick=function(){
+    if(!confirm('잉여 중복행을 보존행으로 병합(매핑 이전·시장ID 보존)하고 삭제합니다. 진행할까요?'))return;
+    msg.textContent='병합 중...';
+    call(false).then(function(d){
+      if(!d.ok){msg.textContent='오류: '+(d.error||'');return;}
+      out.textContent='[완료] 삭제 '+d.deleted+'개 · URL이전 '+d.url_moved+' · 재고이전 '+d.inv_moved+'. 새로고침합니다.';
+      msg.textContent='완료!';
+      setTimeout(function(){location.reload();},1300);
+    });
+  };
+})();
+</script>
+"""
         page = f"""<!doctype html><html lang=ko><head><meta charset=utf-8>
 <meta name=viewport content='width=device-width,initial-scale=1'>
 <title>옵션 중복 진단</title><style>
@@ -1776,8 +1922,7 @@ code{{background:#f6f8fa;padding:2px 6px;border-radius:4px}}
 <h1>옵션 중복 진단 (model·color·size)</h1>
 <div class=sub>읽기 전용 · 데이터 변경 없음. '보존'=남길 1행, '삭제후보'=잉여+매핑0(안전), '잉여(매핑有)'=수동 확인 필요.</div>
 <div class=ban>중복군 {len(groups)}개 · 총 {total_rows}행 · 잉여 {total_redundant}행 · <b>안전 삭제후보 {len(safe_delete_skus)}개</b></div>
-<p class=sub>안전 삭제 실행: <code>POST /api/admin/options/cleanup-dupes</code> body=<code>{{"skus":[...], "dry_run":true}}</code>
-(먼저 dry_run=true 로 확인 후 false). 안전 후보 SKU 목록은 <code>?format=json</code> 의 safe_delete_skus 참고.</p>
+{_controls}
 <table><tbody>{''.join(trs) or '<tr><td>중복 없음 ✅</td></tr>'}</tbody></table>
 </body></html>"""
         return page, 200, {'Content-Type': 'text/html; charset=utf-8'}
