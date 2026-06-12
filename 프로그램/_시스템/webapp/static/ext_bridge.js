@@ -235,7 +235,7 @@
             source: sk, level: out.status === "ok" ? "" : "warn",
             url: (out && out.url) || (list[i] && list[i].url) || null,
             msg: out.status === "ok"
-              ? (sk + " " + (out.price != null ? out.price.toLocaleString() + "원" : "가격없음") + " (" + sec.toFixed(1) + "s)")
+              ? (sk + " 크롤 " + (out.price != null ? out.price.toLocaleString() + "원" : "가격없음") + " (" + sec.toFixed(1) + "s)")
               : (sk + " 실패: " + (out.error || "")),
             metrics: { concurrency, cap, active, done, total, avgSec: +_median(latencies).toFixed(2), cpu: lastSys.cpu, mem: lastSys.mem },
           });
@@ -336,6 +336,44 @@
     try {
       await fetch("/api/bundles/" + encodeURIComponent(code) + "/touch-crawled", { method: "POST" });
     } catch (_) {}
+
+    // 5) [2026-06-12] 소싱처별 최종매입가 요약 — fx 계산식과 100% 동일 출처.
+    //   per-item 로그는 '표면노출가'(크롤 raw)만 찍는다. 저장이 끝난 뒤(=무신사 등 동적
+    //   혜택까지 갱신된 상태) 매트릭스를 다시 읽어, 소싱처별 대표(재고있는 최저가) 옵션을
+    //   fx 패널과 같은 /api/source-benefits/breakdowns 로 계산해 '표면 → 최종' 한 줄을 덧붙인다.
+    //   동일 엔드포인트·동일 sale_price 이므로 fx 누를 때 값과 소수점까지 일치한다.
+    try {
+      const rr = await fetch("/api/bundles/" + encodeURIComponent(code) + "/option-matrix").then((x) => x.json());
+      const repBySrc = {}; // source_id -> {sku, source_id, source_key, sale_price}
+      (rr.options || []).forEach((o) => (o.sources || []).forEach((s) => {
+        const p = s.crawled_price;
+        if (!(p > 0)) return;
+        const inStock = (s.crawled_stock == null) || (s.crawled_stock > 0);
+        if (!inStock) return;
+        const sid = s.source_id;
+        const cur = repBySrc[sid];
+        if (!cur || p < cur.sale_price) {
+          repBySrc[sid] = { sku: o.sku, source_id: sid, source_key: s.source_key, sale_price: p };
+        }
+      }));
+      const reps = Object.values(repBySrc);
+      if (reps.length) {
+        const bd = await fetch("/api/source-benefits/breakdowns", {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ items: reps.map((r) => ({ sku: r.sku, source_id: r.source_id, sale_price: r.sale_price })) }),
+        }).then((x) => x.json()).catch(() => null);
+        const bdres = (bd && bd.results) || {};
+        reps.forEach((r) => {
+          const b = bdres[r.sku + "|" + r.source_id];
+          if (!b || b.error || b.final_price == null) return;
+          const surf = (b.sale_price != null ? b.sale_price : r.sale_price);
+          _emitLog("source-done", {
+            source: r.source_key, level: "done",
+            msg: r.source_key + " 최종매입가 " + Math.round(b.final_price).toLocaleString() + "원 (표면 " + Math.round(surf).toLocaleString() + "원)",
+          });
+        });
+      }
+    } catch (_) { /* 요약 실패는 크롤 저장 결과와 무관 — 무시 */ }
 
     const okCount = results.filter((x) => x.status === "ok").length;
     _emitLog("finish", {
