@@ -170,6 +170,20 @@ def _resolve_display_price(opt_price, sp_present):
     return None, bool(sp_present)
 
 
+def _resolve_sourcing_cost(cost_src):
+    """소싱 카드 원가 = 크롤 실제가만. 폴백(사입가·하드코딩 95000) 금지.
+
+    [#4 2026-06-13 — feedback_no_fallback_price_on_match_fail]
+      소싱 카드는 '크롤된 소싱처에서 산다'는 전제라 원가는 크롤 실제가여야 한다.
+      크롤 실패/누락 시 boxhero 사입가(다른 개념) 또는 95000 상수로 메우면 가짜
+      판매가가 화면에 떠 수동주문을 유발 → 손실. 없으면 None(소싱 카드 가격없음).
+
+    return: 크롤 원가 int | None
+    """
+    p = (cost_src or {}).get('crawled_price')
+    return p if (p and p > 0) else None
+
+
 def _resolve_stock(site, raw):
     """site + raw → (qty:int|None, label:str, is_out:bool). 화면 표시 단일 진실 원천.
 
@@ -691,22 +705,24 @@ def _option_matrix_data(code: str):
             rounding = (tpl.rounding_unit if tpl else 100) or 100
 
             # [2026-06-03 핵심 로직] 원가 = "재고 존재 + 크롤 성공" 소싱처 중 최저 크롤가.
-            #   (기존: 첫 번째 가격있는 소싱처 — 품절·크롤실패 stale 가격도 원가로 잡히던 버그.
-            #    또 source_id=='lemouton' 비교는 source_id 가 레지스트리 int 라 항상 미스 = dead code.)
-            #   사입처는 '재고 있고 가장 싼 곳'에서 산다 → 그 가격이 원가. 없으면 템플릿 매입가 → 95000.
+            #   (기존: 첫 번째 가격있는 소싱처 — 품절·크롤실패 stale 가격도 원가로 잡히던 버그.)
+            #   [#4 2026-06-13] 소싱 카드 원가는 '크롤 실제가'만. 크롤 실패/누락 시 boxhero
+            #   사입가·하드코딩 95000 폴백 '금지'(정책) → 가짜 판매가가 화면에 떠 수동주문
+            #   유발하는 손실 차단. 없으면 소싱 카드 가격없음(None).
             sources_for_opt = sku_to_sources.get(o.canonical_sku, [])
             _cost_src = _pick_cheapest_buyable(sources_for_opt)
-            purchase = ((_cost_src or {}).get('crawled_price')
-                        or (tpl.boxhero_purchase_price if tpl else None)
-                        or 95000)
+            purchase = _resolve_sourcing_cost(_cost_src)
 
             # [2026-06-02] 소싱 카드 가격 — 단일 진실 원천(compute_market_price)로 통일.
-            #   모달 마켓별·소싱 정책(rate/amount/지정가)을 그대로 반영. 화면=업로드 보장.
-            #   기존 calc_auto_price(ss_margin_rate 를 쿠팡에도 쓰던 버그) 대체.
-            _src_ss_res = compute_market_price(tpl, 'ss', 'sourcing', purchase)
-            _src_cp_res = compute_market_price(tpl, 'coupang', 'sourcing', purchase)
-            ss_price, ss_break = _src_ss_res.final_price, _src_ss_res.breakdown
-            cp_price, cp_break = _src_cp_res.final_price, _src_cp_res.breakdown
+            #   크롤 실제가 있을 때만 산출. 없으면 None(가격없음/크롤실패) — 폴백 조작 금지.
+            if purchase is not None:
+                _src_ss_res = compute_market_price(tpl, 'ss', 'sourcing', purchase)
+                _src_cp_res = compute_market_price(tpl, 'coupang', 'sourcing', purchase)
+                ss_price, ss_break = _src_ss_res.final_price, _src_ss_res.breakdown
+                cp_price, cp_break = _src_cp_res.final_price, _src_cp_res.breakdown
+            else:
+                ss_price = cp_price = None
+                ss_break = cp_break = None
 
             display_ss = (cfg.manual_ss_price if cfg and not auto and cfg.manual_ss_price
                           else ss_price)

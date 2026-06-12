@@ -22,6 +22,7 @@ from webapp.routes.api_pricing import (
     _build_so_index,
     _pick_cheapest_buyable,
     _resolve_display_price,
+    _resolve_sourcing_cost,
     _STOCK_CAP,
 )
 
@@ -174,6 +175,23 @@ class TestResolveDisplayPrice:
     def test_uncrawled_product_is_none_but_not_failure(self):
         # sp 자체가 없음(미크롤) → 가격 None 이지만 '크롤실패'로 단정하지 않음.
         assert _resolve_display_price(None, False) == (None, False)
+
+
+# ─────────────────────────────────────────────────────────────
+# _resolve_sourcing_cost — 소싱 카드 원가는 크롤 실제가만(폴백 금지, #4)
+# ─────────────────────────────────────────────────────────────
+class TestResolveSourcingCost:
+    def test_uses_crawled_cost(self):
+        assert _resolve_sourcing_cost({'crawled_price': 112000}) == 112000
+
+    def test_none_when_no_source(self):
+        # 전 소싱처 실패(_pick_cheapest_buyable=None) → 폴백 금지 → None.
+        #   (기존엔 boxhero 사입가/95000 으로 메워 가짜 판매가 표시 → 손실)
+        assert _resolve_sourcing_cost(None) is None
+
+    def test_none_when_zero_or_missing(self):
+        assert _resolve_sourcing_cost({'crawled_price': 0}) is None
+        assert _resolve_sourcing_cost({}) is None
 
 
 # ─────────────────────────────────────────────────────────────
