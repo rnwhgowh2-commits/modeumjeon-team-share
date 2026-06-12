@@ -185,20 +185,54 @@ def create_app() -> Flask:
         'image/svg+xml',
     )
 
+    # [2026-06-12 perf-B] 요청별 DB 시간 분리 — 라이브 로그/헤더에서 'DB vs Python' 가시화.
+    #   목적: 느린 요청이 원격DB 왕복 때문인지(쿼리 ms 큼) Python 처리 때문인지(쿼리 ms 작음)를
+    #         라이브 로그만 보고 확정 → 어디를 최적화할지 추측 없이 결정.
+    #   비용: 쿼리당 perf_counter 2회 + g 접근 — 무시 가능. 실패해도 절대 응답 영향 X.
+    try:
+        from shared.db import engine as _perf_engine
+        from sqlalchemy import event as _perf_event
+        from flask import has_request_context as _has_ctx
+
+        @_perf_event.listens_for(_perf_engine, "before_cursor_execute")
+        def _db_q_t0(conn, cursor, statement, params, context, executemany):
+            context._perf_q_t0 = _time.perf_counter()
+
+        @_perf_event.listens_for(_perf_engine, "after_cursor_execute")
+        def _db_q_t1(conn, cursor, statement, params, context, executemany):
+            try:
+                if _has_ctx():
+                    dt = (_time.perf_counter() - getattr(context, '_perf_q_t0', _time.perf_counter())) * 1000.0
+                    _g._db_ms = getattr(_g, '_db_ms', 0.0) + dt
+                    _g._db_n = getattr(_g, '_db_n', 0) + 1
+            except Exception:
+                pass
+    except Exception:
+        pass
+
     @app.before_request
     def _perf_t0():
         if _req.path.startswith('/static/'):
             return
         _g._perf_t0 = _time.perf_counter()
+        _g._db_ms = 0.0
+        _g._db_n = 0
 
     @app.after_request
     def _perf_log(resp):
         t0 = getattr(_g, '_perf_t0', None)
         if t0 is not None:
             ms = (_time.perf_counter() - t0) * 1000.0
+            db_ms = getattr(_g, '_db_ms', 0.0)
+            db_n = getattr(_g, '_db_n', 0)
+            py_ms = ms - db_ms
             resp.headers['X-Server-Time-Ms'] = f"{ms:.1f}"
+            resp.headers['X-Server-DB-Ms'] = f"{db_ms:.1f}"      # DB 왕복 합계
+            resp.headers['X-Server-DB-Q'] = str(db_n)            # 쿼리 수
             if ms >= 500:
-                app.logger.warning(f"[perf-slow] {ms:6.0f}ms {_req.method} {_req.full_path}")
+                app.logger.warning(
+                    f"[perf-slow] {ms:6.0f}ms (DB {db_ms:5.0f}ms/{db_n}q, Py {py_ms:5.0f}ms) "
+                    f"{_req.method} {_req.full_path}")
 
         # [2026-06-05 PERF] gzip 압축 — 텍스트성 응답(동적 HTML/JSON + 정적 JS/CSS/SVG) 모두.
         #   기존엔 정적파일(send_file = direct_passthrough)이 압축에서 제외돼 toss.css(188KB)·
