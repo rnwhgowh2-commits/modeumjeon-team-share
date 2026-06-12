@@ -95,6 +95,11 @@ def decide_ss_color_group(
     source_alerts = []
     for opt in options:
         for src in opt.get("sources", []):
+            # [H3 2026-06-12] 재고 없는 소싱처는 최저가 후보에서 제외.
+            #   쿠팡 경로(coupang_decide)와 대칭. 빠뜨리면 품절인 최저가 소싱처가
+            #   선정돼 재고있는 더 비싼 소싱처가 있어도 색상 전체가 숨겨진다(손실).
+            if (src.get("stock", 0) or 0) <= 0:
+                continue
             gr = check_external_price(
                 external_price=src["price"],
                 guardrail_lower=opt["pricing"].get("guardrail_lower_effective", 99000),
