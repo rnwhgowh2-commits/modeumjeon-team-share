@@ -159,12 +159,38 @@ def create_app() -> Flask:
 
     @app.get("/health")
     def health():
-        return jsonify(
+        out = dict(
             status="ok",
             app="lemouton-stock-update",
             port=Config.PORT,
             db=Config.DB_PATH.name,
         )
+        # [perf 2026-06-12] ?db=1 → 라이브 DB 왕복 지연 진단(공개·timing+엔진종류만, 데이터 X).
+        #   라이브가 SQLite(로컬파일·빠름)인지 원격 Postgres(왕복 지연)인지 즉시 판별용.
+        from flask import request as _rq
+        if _rq.args.get('db'):
+            import time as _t
+            from sqlalchemy import text as _sqltext
+            from shared.db import SessionLocal as _SL
+            _s = _SL()
+            try:
+                _times = []
+                for _ in range(5):
+                    _a = _t.perf_counter()
+                    _s.execute(_sqltext("SELECT 1")).scalar()
+                    _times.append((_t.perf_counter() - _a) * 1000)
+                _a = _t.perf_counter()
+                _s.execute(_sqltext("SELECT count(*) FROM options")).scalar()
+                _cnt_ms = (_t.perf_counter() - _a) * 1000
+                out['db_engine'] = 'sqlite' if Config.DB_URL.startswith('sqlite') else 'postgres'
+                out['db_select1_avg_ms'] = round(sum(_times) / len(_times), 2)
+                out['db_select1_min_ms'] = round(min(_times), 2)
+                out['db_count_options_ms'] = round(_cnt_ms, 2)
+            except Exception as _e:
+                out['db_error'] = str(_e)[:120]
+            finally:
+                _s.close()
+        return jsonify(**out)
 
     from webapp.routes import register_routes
     register_routes(app)
