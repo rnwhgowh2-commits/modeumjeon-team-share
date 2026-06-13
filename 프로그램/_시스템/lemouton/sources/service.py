@@ -383,6 +383,13 @@ def crawl_bundle_registered_urls(
 
     out = {'total': 0, 'ok': 0, 'error': 0, 'no_crawler': 0, 'per_source': {}}
     _emit(0, None)  # 시작 — 위젯 즉시 표시 (소싱처별 0/N)
+    # [2026-06-13] 크롤 시작 하드 리셋 — 옛 가격/재고/혜택 비우고 옵션 pessimistic block.
+    #   크롤/마무리 실패 시 차단 유지(fail-safe) → 옛값으로 잘못 판매되는 사고 방지.
+    try:
+        from webapp.routes.api_pricing import _reset_bundle_crawl_state
+        _reset_bundle_crawl_state(session, model_code)
+    except Exception:
+        pass
     done = 0
     for bsu in valid:
         out['total'] += 1
@@ -406,6 +413,12 @@ def crawl_bundle_registered_urls(
         done += 1
         _emit(done, bsu.source_key)  # URL 1개 완료 — 실시간 진행 갱신
     session.commit()
+    # [2026-06-13] 크롤 종료 마무리 — 유효 소싱가 없는 옵션 crawl_blocked 확정(성공=해제).
+    try:
+        from webapp.routes.api_pricing import _finalize_bundle_crawl_block
+        _finalize_bundle_crawl_block(session, model_code)
+    except Exception:
+        pass
     return out
 
 

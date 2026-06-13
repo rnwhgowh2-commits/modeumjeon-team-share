@@ -1300,6 +1300,14 @@
               body += `<tr class="cmtx-optrow" style="opacity:.5"><td class="cmtx-optcol">${esc(color)} ${esc(o.size_display || o.size_code || '')}</td>${offCells}</tr>`;
               return;
             }
+            // [2026-06-13] 크롤 실패·유효가격 없음 자동 판매차단(crawl_blocked) — 옛값으로 잘못
+            //   판매되는 사고 방지. 빨강 '판매중단' 표시. 재크롤로 유효가격 잡히면 자동 해제.
+            if (o.crawl_blocked === true){
+              let offCells = '';
+              sources.forEach(() => { offCells += '<td class="cmtx-cell"><span class="cmtx-line"><span class="cmtx-p miss" style="color:#e0564a">판매중단</span></span></td>'; });
+              body += `<tr class="cmtx-optrow" style="opacity:.6;background:#fff5f4"><td class="cmtx-optcol" title="크롤 실패·유효가격 없음 — 자동 판매차단(재크롤 시 해제)">${esc(color)} ${esc(o.size_display || o.size_code || '')} <span style="color:#e0564a;font-size:10px;font-weight:700">⛔판매중단</span></td>${offCells}</tr>`;
+              return;
+            }
             let cells = '';
             sources.forEach(col => {
               const src = pickBest((o.sources || []).filter(x => x.source_id === col.id));
