@@ -2,6 +2,7 @@ import pytest
 from lemouton.sourcing.crawl_guide import (
     empty_skeleton, validate_guide, merge_verification,
     default_checklist, _CHECKLIST_TEMPLATE,
+    auto_checklist_updates, apply_checklist_updates,
 )
 
 def test_empty_skeleton_shape():
@@ -190,3 +191,38 @@ def test_legacy_card_gets_full_checklist():
     out = validate_guide(legacy)["verification"]["checklist"]
     assert len(out) == len(_CHECKLIST_TEMPLATE)
     assert all(c["status"] == "pending" for c in out)
+
+
+# ─────────────────────────────────────────────────────────────
+# [동시·무결성 8단계] 정답 자동 대조 (auto_checklist_updates / apply)
+# ─────────────────────────────────────────────────────────────
+def test_auto_checklist_basic_pass():
+    r = {"surface_price": 42000, "final_price": 39900, "option_stock": "그레이/250 재고○"}
+    u = auto_checklist_updates(r)
+    assert u["collect_price"] == "pass"
+    assert u["process_sequential_deduct"] == "pass"
+    assert u["collect_option_match"] == "pass"
+    assert "transmit_price_match" not in u   # 정답 없으면 미판정
+
+
+def test_auto_checklist_price_match_vs_truth():
+    r = {"surface_price": 42000, "final_price": 39900}
+    assert auto_checklist_updates(r, {"final_price": 39900})["transmit_price_match"] == "pass"
+    assert auto_checklist_updates(r, {"final_price": 35000})["transmit_price_match"] == "fail"
+
+
+def test_auto_checklist_ignores_bad_input():
+    assert auto_checklist_updates({"surface_price": 0}) == {}     # 표면가 0 → 판정 없음
+    assert auto_checklist_updates(None) == {}
+    # 최종가 > 표면가(비정상) → 순차차감 pass 안 함
+    assert "process_sequential_deduct" not in auto_checklist_updates(
+        {"surface_price": 100, "final_price": 200})
+
+
+def test_apply_checklist_updates_safe():
+    g = empty_skeleton()
+    g2 = apply_checklist_updates(g, {"collect_price": "pass", "UNKNOWN": "pass", "stock_qty": "BAD"})
+    by = {c["key"]: c["status"] for c in g2["verification"]["checklist"]}
+    assert by["collect_price"] == "pass"
+    assert by["stock_qty"] == "pending"     # 잘못된 status 무시
+    assert "UNKNOWN" not in by              # 모르는 key 무시

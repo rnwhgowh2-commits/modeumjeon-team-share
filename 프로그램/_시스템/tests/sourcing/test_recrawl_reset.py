@@ -97,6 +97,32 @@ def test_empty_crawl_does_not_prune(db):
     assert len(_active(db, sp)) == 1
 
 
+def test_concurrent_products_no_cross_contamination(db):
+    """[동시·무결성 6단계] 여러 상품을 번갈아 저장해도 옵션이 상품 간 섞이지 않는다.
+
+    각 save_crawl_result 는 자기 source_product.id 로만 쓰고, prune 도 그 상품
+    범위에서만 동작 → A 의 조합이 B 로 새지 않음을 증명.
+    """
+    spA = upsert_source_product(db, site="lemouton",
+                                url="https://lemouton.co.kr/product/detail.html?product_no=200")
+    spB = upsert_source_product(db, site="musinsa",
+                                url="https://www.musinsa.com/products/4800825")
+    db.commit()
+    # 인터리브: A → B → A(추가조합) 순으로 저장
+    save_crawl_result(db, source_product=spA, crawl_result=_cr([_opt("크림핑크", "240mm", 116900, 3)]))
+    save_crawl_result(db, source_product=spB, crawl_result=_cr([_opt("블랙", "250mm", 112765, 5)]))
+    save_crawl_result(db, source_product=spA, crawl_result=_cr([
+        _opt("크림핑크", "240mm", 116900, 2), _opt("크림핑크", "245mm", 116900, 8)]))
+    db.commit()
+    a, b = _active(db, spA), _active(db, spB)
+    assert {(o.color_text, o.size_text) for o in a} == {("크림핑크", "240mm"), ("크림핑크", "245mm")}
+    assert {(o.color_text, o.size_text) for o in b} == {("블랙", "250mm")}
+    assert all(o.source_product_id == spA.id for o in a)
+    assert all(o.source_product_id == spB.id for o in b)
+    # B 의 재고는 A 재크롤(prune 포함)에 영향받지 않음
+    assert b[0].current_stock == 5
+
+
 def test_recrawl_all_present_no_prune(db):
     sp = upsert_source_product(db, site="lemouton",
                                url="https://lemouton.co.kr/product/detail.html?product_no=132")

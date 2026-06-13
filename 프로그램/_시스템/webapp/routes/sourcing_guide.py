@@ -349,9 +349,14 @@ def api_verify_status(sid: int, job_id: int):
                 cur = cg.loads(src.crawl_guide)
                 lnc = (cur.get("verification") or {}).get("last_new_check") or {}
                 if lnc.get("job_id") != job_id:   # 이미 병합된 잡이면 재기록 안 함
-                    merged = cg.merge_verification(cur, "last_new_check",
-                                                   {**job["result"], "job_id": job_id,
-                                                    "status": "done"})
+                    result = {**job["result"], "job_id": job_id, "status": "done"}
+                    merged = cg.merge_verification(cur, "last_new_check", result)
+                    # [동시·무결성 8단계] 정답(lead_cache) 자동 대조 → 판정 가능한
+                    #   체크리스트 항목 status 자동 갱신(가격·옵션·최종가 일치 등).
+                    truth = (merged.get("verification") or {}).get("lead_cache")
+                    updates = cg.auto_checklist_updates(result, truth)
+                    if updates:
+                        merged = cg.apply_checklist_updates(merged, updates)
                     src.crawl_guide = cg.dumps(merged)
                     s.commit()
         finally:

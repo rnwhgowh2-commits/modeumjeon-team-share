@@ -441,3 +441,42 @@ def merge_verification(guide: dict, kind: str, result: dict) -> dict:
     out = validate_guide(guide)
     out["verification"][kind] = _clean_check(result)
     return out
+
+
+def auto_checklist_updates(result: Any, truth: Any = None) -> dict:
+    """[동시·무결성 8단계] 검증 크롤 결과(result) + 정답(truth)을 대조해 자동 판정
+    가능한 체크리스트 항목의 status 만 반환 {key: 'pass'|'fail'}.
+
+    확신 가능한 항목만 판정한다 — 나머지는 손대지 않아(pending 유지) 사람이 판단.
+      · collect_price            : 표면가 > 0 → pass
+      · process_sequential_deduct: 0 < 최종가 ≤ 표면가 → pass
+      · collect_option_match     : option_stock 문자열 존재 → pass
+      · transmit_price_match     : 정답 final_price 와 ±0.1% 이내 → pass / 아니면 fail
+    """
+    out: dict = {}
+    if not isinstance(result, dict):
+        return out
+    sp = result.get("surface_price")
+    fp = result.get("final_price")
+    if isinstance(sp, int) and sp > 0:
+        out["collect_price"] = "pass"
+    if isinstance(sp, int) and isinstance(fp, int) and 0 < fp <= sp:
+        out["process_sequential_deduct"] = "pass"
+    if str(result.get("option_stock") or "").strip():
+        out["collect_option_match"] = "pass"
+    if isinstance(fp, int) and isinstance(truth, dict) and isinstance(truth.get("final_price"), int):
+        tfp = truth["final_price"]
+        tol = max(1, round(tfp * 0.001))
+        out["transmit_price_match"] = "pass" if abs(fp - tfp) <= tol else "fail"
+    return out
+
+
+def apply_checklist_updates(guide: dict, updates: dict) -> dict:
+    """auto_checklist_updates 결과를 guide.verification.checklist 의 status 에 반영.
+    템플릿에 없는 key·잘못된 status 는 무시(안전). 정제본 반환."""
+    out = validate_guide(guide)
+    by_key = {c["key"]: c for c in out["verification"]["checklist"]}
+    for k, st in (updates or {}).items():
+        if k in by_key and st in CHECKLIST_STATUSES:
+            by_key[k]["status"] = st
+    return out
