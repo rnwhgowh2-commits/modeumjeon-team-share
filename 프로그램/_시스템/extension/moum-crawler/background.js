@@ -10,7 +10,7 @@
 //  결과 저장은 mou-m.com /api/sources/crawl-result (ext_bridge.crawlBundleAll 이 호출).
 //  grabHtml/crawl(URL마다 창 생성·즉시 닫기) 핸들러는 하위호환 위해 유지.
 
-const MOUM_EXT_VERSION = "0.4.3";
+const MOUM_EXT_VERSION = "0.4.4";
 
 // cascade 위치 시퀀서 — 창이 여러 개 열려도 서로 어긋나 보임
 let _winSeq = 0;
@@ -263,20 +263,29 @@ async function musinsaExtractor() {
     (ij.data || []).forEach((x) => { invMap[x.productVariantId] = x; });
   } catch (e) { /* 재고 실패해도 가격은 진행 */ }
 
-  // 회원가 = '114,490원 나의 할인가'(숫자가 라벨 앞). 적립줄('18,519원 최대 적립') 오독 방지:
-  //   숫자가 라벨 뒤에 오는 느슨한 fallback 제거 + 4자리 이상만.
+  // ★ 2026-06-13 — 표면노출가 = 무신사 구조화 API(goodsPrice.salePrice) 직읽기.
+  //   기존: document.body.innerText 정규식으로 '나의 할인가'(회원가)를 price 로 오긁어
+  //         표면가 자리에 회원가(예: 110,300)가 들어가 → 이중차감·언더프라이싱 사고. → 폐기.
+  //   변경: API 가 표면가(salePrice)·정가(normalPrice)를 숫자로 직접 제공 → 결정적·로그인 불필요.
+  //   회원가('나의 할인가')는 참고용 member_price 로만 (계산 base 아님).
+  let surface = null, normal = null;
+  try {
+    const gj = await fetch(base, { credentials: "include", headers: { Accept: "application/json" } }).then((r) => r.json());
+    const gp = ((gj && (gj.data || gj)) || {}).goodsPrice || {};
+    surface = parseInt(gp.salePrice, 10);
+    normal = parseInt(gp.normalPrice, 10);
+  } catch (e) { /* surface=null → 아래 게이트에서 크롤실패 처리 */ }
+
+  // 회원가('나의 할인가')는 참고용으로만 1회 추출 (price base 아님 — 사고 원인 제거).
   let member = null;
-  for (let i = 0; i < 12; i++) {
-    const m = document.body.innerText.match(/([\d,]{4,})\s*원\s*나의\s*할인가/);
-    if (m) { member = parseInt(m[1].replace(/,/g, ""), 10); break; }
-    await sleep(500);
-  }
-  let sale = null;
-  const sm = document.body.innerText.match(/(\d+)%\s*([\d,]+)\s*원/);
-  if (sm) sale = parseInt(sm[2].replace(/,/g, ""), 10);
-  // 사니티 가드: 회원가가 판매가의 절반 미만이면 적립금 등 오독 → 버리고 판매가 사용(금전손실 방지)
-  if (member && sale && member < sale * 0.5) member = null;
-  const price = member || sale;
+  const mm = document.body.innerText.match(/([\d,]{4,})\s*원\s*나의\s*할인가/);
+  if (mm) member = parseInt(mm[1].replace(/,/g, ""), 10);
+
+  // ★ 표면가 검증 게이트 — 통과 못 하면 price=null(크롤실패). 폴백(회원가·정가 등) 일절 금지.
+  //   G1 존재: salePrice 양수.  G2 상한: salePrice ≤ normalPrice(정가).
+  const surfaceValid = Number.isFinite(surface) && surface > 0
+    && (!Number.isFinite(normal) || normal <= 0 || surface <= normal);
+  const price = surfaceValid ? surface : null;
 
   const options = items.map((it) => {
     const code = it.managedCode || "";
@@ -287,17 +296,18 @@ async function musinsaExtractor() {
     const stock = inv.outOfStock ? 0 : (inv.remainQuantity == null ? 999 : Math.max(0, inv.remainQuantity));
     return { color, size: size.replace("mm", "").trim(), price, stock };
   });
-  const anyStock = options.some((o) => o.stock > 0) || (member != null);
+  const anyStock = options.some((o) => o.stock > 0) || (price != null);
 
   return {
     ok: !!price,
-    price: price,                       // product-level (회원가)
+    price: price,                       // 표면노출가(salePrice) — 검증 통과 시만, 아니면 null
     stock: anyStock ? 999 : 0,          // 재고 있으면 sentinel
     product_name: document.title.split("-")[0].trim().slice(0, 120),
-    member_price: member, sale_price: sale,
+    member_price: member,               // 참고용(회원가, '나의 할인가') — 계산 base 아님
+    sale_price: surface, surface_price: surface, normal_price: normal,
     is_logged_in: member != null,
     option_count: options.length, options,
-    error: price ? null : "가격 추출 실패(로그인/렌더 확인)",
+    error: price ? null : "표면가 검증 실패(salePrice 없음/0/정가 초과) — 크롤실패(폴백 금지)",
   };
 }
 
