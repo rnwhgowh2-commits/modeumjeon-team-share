@@ -2192,17 +2192,56 @@
         }
         return;
       }
-      // [2026-06-05] 크롤 실패 URL 재크롤 — 크롤은 로컬 크롤러에서 실행되므로
-      //   여기선 해당 URL 을 새 탭으로 열어 사용자가 페이지 점검·로컬 재수집하게 안내.
+      // [2026-06-13] 크롤 실패 URL 재크롤 — 실제로 서버사이드 크롤 호출 후 성공/실패 표시.
+      //   HTTP 소싱처(ssf·ssg·lemouton·smartstore)=서버 크롤. 무신사·롯데온=브라우저 필요라
+      //   서버가 status='need_extension' 반환 → 크롬 확장(MoumExt)으로 크롤 후 결과 저장.
       const recrawlBtn = e.target.closest('[data-url-recrawl]');
       if (recrawlBtn) {
         const card = recrawlBtn.closest('[data-url-id]');
         const u = (state.urls[state.currentSrc] || []).find(x => String(x.tempId) === (card && card.dataset.urlId));
-        if (u && u.url) {
-          if (confirm('이 URL 을 다시 크롤할까요?\n\n' + u.url + '\n\n※ 크롤은 로컬 크롤러에서 실행됩니다. [확인] 시 페이지를 새 탭으로 엽니다 — 정상 표시되면 로컬 크롤러로 재수집하세요.')) {
-            window.open(u.url, '_blank', 'noopener');
+        if (!u || !u.url) return;
+        const _src = state.currentSrc;
+        const _toast = (m, k) => { try { if (window.showToast) window.showToast(m, k); } catch (_) {} };
+        recrawlBtn.disabled = true;
+        recrawlBtn.textContent = '⏳ 크롤 중…';
+        try {
+          let res = await fetch(`/api/bundles/${encodeURIComponent(bundleCode)}/recrawl-url`, {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ source_key: _src, url: u.url }),
+          }).then(r => r.json()).catch(err => ({ ok: false, error: String(err) }));
+          // 서버에 브라우저 없음(무신사·롯데온) → 크롬 확장으로 크롤 시도
+          if (res && res.status === 'need_extension') {
+            if (window.MoumExt && window.MoumExt.installed && window.MoumExt.installed()) {
+              _toast('🧩 확장으로 크롤 중…', 'ok');
+              const ext = await window.MoumExt.crawl(
+                { model_code: bundleCode, sources: [{ source_key: _src, url: u.url }] }, 120000
+              ).catch(err => ({ ok: false, error: String(err) }));
+              const one = ext && ext.results && ext.results[0];
+              if (one) {
+                await fetch('/api/sources/crawl-result', {
+                  method: 'POST', headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ items: [{ url: u.url, price: one.price, stock: one.stock, status: one.ok ? 'ok' : 'error', product_name: one.product_name, error: one.error }] }),
+                }).catch(() => {});
+                res = { crawl_ok: !!one.ok, price: one.price, stock: one.stock, error: one.error };
+              } else {
+                res = { crawl_ok: false, error: (ext && ext.error) || '확장 크롤 실패' };
+              }
+            } else {
+              res = { crawl_ok: false, error: '이 소싱처는 크롬 확장(모음전 크롤러)이 필요합니다' };
+            }
           }
+          if (res && res.crawl_ok) {
+            u.crawled = true; u.lastStatus = 'ok';
+            _toast(`✅ 크롤 성공 — ${u.label || _src}${res.price ? ` · ${Number(res.price).toLocaleString()}원` : ''}`, 'ok');
+          } else {
+            u.crawled = false; u.lastStatus = 'error';
+            _toast(`❌ 크롤 실패 — ${(res && res.error) || '알 수 없는 오류'}`, 'err');
+          }
+        } catch (err) {
+          u.crawled = false; u.lastStatus = 'error';
+          _toast(`❌ 크롤 실패 — ${err}`, 'err');
         }
+        renderRight();
         return;
       }
       // [B3-3] 재고 자동 매칭 버튼

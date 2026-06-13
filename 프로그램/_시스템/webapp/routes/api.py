@@ -1895,6 +1895,56 @@ def test_crawl_single(code: str):
         s.close()
 
 
+@bp.post('/bundles/<code>/recrawl-url')
+def recrawl_single_url(code: str):
+    """[2026-06-13] 단일 등록 URL 재크롤 — 옵션 모달의 🔄 재크롤 버튼용.
+
+    body: {source_key, url}
+    서버사이드 HTTP 크롤러(ssf·ssg·lemouton·smartstore)는 즉시 크롤·저장 후 결과 반환.
+    무신사·롯데온은 서버에 브라우저가 없어 status='need_extension' 반환
+      → 프론트가 크롬 확장(MoumExt)으로 크롤하게 안내.
+
+    Returns: {ok, crawl_ok, status, price, stock, options_count, product_name, error}
+    """
+    from lemouton.sources.service import upsert_source_product, fetch_one_source
+    from lemouton.sourcing.crawlers import build_crawlers
+    payload = request.get_json(silent=True) or {}
+    source_key = (payload.get('source_key') or '').strip()
+    url = (payload.get('url') or '').strip()
+    if not source_key or not url:
+        return _err('source_key·url 필요', 400)
+    s = SessionLocal()
+    try:
+        crawlers = build_crawlers()
+        sp = upsert_source_product(s, site=source_key, url=url)
+        r = fetch_one_source(s, source_product_id=sp.id, crawlers=crawlers)
+        st = r.get('status')
+        if st == 'skipped_no_browser':
+            # 서버에 브라우저 없음 — 무신사·롯데온은 크롬 확장으로 크롤해야 함
+            s.rollback()
+            return _ok(crawl_ok=False, status='need_extension',
+                       error='이 소싱처는 로그인 브라우저(크롬 확장)로 크롤합니다')
+        s.commit()
+        cr = r.get('crawl_result')
+        return _ok(
+            crawl_ok=(st == 'ok'),
+            status=st,
+            price=getattr(sp, 'last_price', None),
+            stock=getattr(sp, 'last_stock', None),
+            options_count=(len(getattr(cr, 'options', []) or []) if cr else 0),
+            product_name=(getattr(cr, 'product_name_raw', None) if cr else None),
+            error=r.get('error'),
+        )
+    except Exception as e:
+        try:
+            s.rollback()
+        except Exception:
+            pass
+        return _err(f'재크롤 실패: {type(e).__name__}: {e}', 500)
+    finally:
+        s.close()
+
+
 def _build_color_mapping(s, model_code: str, result) -> dict:
     """소싱처 raw color_text → 우리 color_code 매핑 결과 (사용자 검증용).
 
