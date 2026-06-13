@@ -574,6 +574,24 @@ def save_crawl_result(
             counts['options_inserted'] += 1
         else:
             counts['options_updated'] += 1
+
+    # ★ [동시·무결성 1단계] 재크롤 리셋 — 이번 크롤에 없는 옛 옵션 조합은 soft-delete.
+    #   기존엔 upsert 만 해서, 한 번 긁힌 (색·사이즈) 조합이 다음 크롤에서 사라져도
+    #   옛 가격·재고가 그대로 남아 그 값으로 판매되는 오발주(치명적 손실)가 가능했다.
+    #   성공 크롤(옵션 ≥1)에서만 prune — 빈 결과(크롤 실패 추정)면 옛 데이터 보존.
+    #   (crawl_guide 체크리스트 integrity_recrawl_reset 의 코드 구현.)
+    counts['options_pruned'] = 0
+    if crawl_result.options:
+        new_keys = {(o.get('color_text'), o.get('size_text'))
+                    for o in crawl_result.options}
+        stale_opts = (session.query(SourceOption)
+                      .filter_by(source_product_id=source_product.id,
+                                 deleted_at=None)
+                      .all())
+        for so in stale_opts:
+            if (so.color_text, so.size_text) not in new_keys:
+                so.deleted_at = _utcnow()
+                counts['options_pruned'] += 1
     return counts
 
 

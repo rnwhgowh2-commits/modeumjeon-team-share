@@ -437,8 +437,11 @@ async (cfg) => {
         // 표기 3종: (1) 잔여 N개  (2) N개 남음  (3) 마지막 N개
         const m = text.match(/잔여\\s*(\\d+)\\s*개|(\\d+)\\s*개\\s*남음|마지막\\s*(\\d+)\\s*개/);
         if (m) qty = parseInt(m[1] || m[2] || m[3]);
-        // 매칭 → 실수량(≥CAP 이면 cap). 미매칭 → '표식 없음'=충분(CAP).
-        return { name, soldout, qty: soldout ? 0 : Math.min(qty, STOCK_CAP) };
+        // ★ [재고 4단계] 표시없음 재확인 가드 — 위 3종에 안 걸렸는데 '숫자+개' 같은
+        //   수량 신호가 보이면 '충분'으로 단정 금지(미지의 표기 = 둔갑 위험). suspect 표시.
+        const suspect = !soldout && !m && /\\d+\\s*개/.test(text);
+        // 매칭 → 실수량(≥CAP 이면 cap). 미매칭 → '표식 없음'=충분(CAP). suspect 는 호출부가 처리.
+        return { name, soldout, suspect, qty: soldout ? 0 : Math.min(qty, STOCK_CAP) };
     }
 
     if (triggers.length === 0) {
@@ -448,7 +451,7 @@ async (cfg) => {
         await new Promise(r => setTimeout(r, DROPDOWN_WAIT));
         for (const item of document.querySelectorAll('[data-mds="StaticDropdownMenuItem"]')) {
             const s = parseSizeItem(item);
-            options.push({ color: '', size: s.name, soldout: s.soldout, qty: s.qty });
+            options.push({ color: '', size: s.name, soldout: s.soldout, qty: s.qty, suspect: s.suspect });
         }
         document.body.click();
     } else {
@@ -476,7 +479,7 @@ async (cfg) => {
             await new Promise(r => setTimeout(r, DROPDOWN_WAIT));
             for (const item of document.querySelectorAll('[data-mds="StaticDropdownMenuItem"]')) {
                 const s = parseSizeItem(item);
-                options.push({ color: colors[ci].name, size: s.name, soldout: s.soldout, qty: s.qty });
+                options.push({ color: colors[ci].name, size: s.name, soldout: s.soldout, qty: s.qty, suspect: s.suspect });
             }
             document.body.click();
             await new Promise(r => setTimeout(r, 50));
@@ -918,6 +921,16 @@ class MusinsaPlaywrightCrawler(AbstractCrawler):
             size = opt.get("size") or ""
             soldout = bool(opt.get("soldout"))
             qty = int(opt.get("qty") or 0)
+            # ★ [재고 4단계] 표시없음 재확인 가드 — 미지의 수량 표기를 못 읽은 옵션(suspect)은
+            #   '충분'으로 단정하지 않는다. 손실 방지 방향(과대재고 금지)으로 0(품절) 처리 +
+            #   stock_suspect 플래그로 표면화 → 새 표기 발견 시 qty_patterns 에 추가하라는 신호.
+            suspect = bool(opt.get("suspect"))
+            if suspect:
+                qty = 0
+                import logging as _slg
+                _slg.getLogger(__name__).warning(
+                    "[musinsa] 재고 표기 미해석(suspect) — color=%s size=%s 텍스트에 수량 신호 있으나 "
+                    "패턴 미매칭 → 안전상 0 처리. qty_patterns 보강 필요.", color, size)
             # ★ Phase 8.8.3 (2026-05-17) — "나의 할인가" 회원가 추출 결과를 옵션 dyn 으로 박음.
             #   - my_discount_price (회원가, 사이트 노출값) → matrix 의 비회원가 검출 룰의 진실 원천
             #   - is_member_price (True): 회원가가 추출됐고 sale_price 보다 작음 = 로그인 정상
@@ -933,6 +946,7 @@ class MusinsaPlaywrightCrawler(AbstractCrawler):
                 # ★ price = 계층2 (회원가) — 마켓 가격 산정의 기준
                 "price": tier2_expected,
                 "stock": 0 if soldout else qty,
+                "stock_suspect": suspect,   # [재고 4단계] 미해석 수량 표기 표면화
                 # 추가 진단 필드 (옵셔널 — 호출자가 사용할 수 있음)
                 "original_price": orig_price,
                 "sale_price": tier1_confirmed,
