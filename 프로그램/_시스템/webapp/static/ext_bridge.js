@@ -46,7 +46,14 @@
   async function crawlBundle(code, opts) {
     opts = opts || {};
     const sourceKeys = opts.sources || ["musinsa", "lotteon"];
-    const r = await fetch("/api/bundles/" + encodeURIComponent(code) + "/option-matrix")
+    const ENC = encodeURIComponent(code);
+    // [2026-06-13] 크롤 시작 하드 리셋 — 옛 가격/재고/혜택 비우고 옵션 pessimistic block.
+    //   크롤/마무리가 실패하면 차단 유지(fail-safe) → 옛값으로 잘못 판매되는 사고 방지.
+    try { await fetch("/api/bundles/" + ENC + "/crawl-reset", { method: "POST" }); } catch (_) {}
+    // 크롤 종료 후 — 유효 소싱가 없는 옵션 crawl_blocked 확정(성공=해제).
+    const _finalize = () => fetch("/api/bundles/" + ENC + "/crawl-finalize",
+      { method: "POST" }).then((x) => x.json()).catch(() => null);
+    const r = await fetch("/api/bundles/" + ENC + "/option-matrix")
       .then((x) => x.json());
     const seen = new Set();
     const list = [];
@@ -58,7 +65,7 @@
         list.push({ source_key: s.source_key, url: s.product_url });
       })
     );
-    if (!list.length) return { ok: false, error: "대상 URL 없음" };
+    if (!list.length) { const finalize = await _finalize(); return { ok: false, error: "대상 URL 없음", finalize }; }
     const res = await send("crawl", { model_code: code, sources: list }, opts.timeoutMs || 300000);
     const results = (res && res.results) || [];
     const items = results.map((x) => ({
@@ -70,7 +77,8 @@
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ items }),
     }).then((x) => x.json()).catch((e) => ({ ok: false, error: String(e) }));
-    return { ok: true, crawled: results.length, ok_count: results.filter((x) => x.ok).length, save, results };
+    const finalize = await _finalize();
+    return { ok: true, crawled: results.length, ok_count: results.filter((x) => x.ok).length, save, finalize, results };
   }
 
   // ════════════════════════════════════════════════════════════════════
@@ -164,6 +172,12 @@
   async function crawlBundleAll(code, opts) {
     opts = opts || {};
     _emitLog("start", { level: "", msg: "전체 로컬 크롤 시작: " + code });
+    const _ENC = encodeURIComponent(code);
+    // [2026-06-13] 크롤 시작 하드 리셋 — 옛 가격/재고/혜택 비우고 옵션 pessimistic block.
+    //   크롤/마무리 실패 시 차단 유지(fail-safe) → 옛값으로 잘못 판매되는 사고 방지.
+    try { await fetch("/api/bundles/" + _ENC + "/crawl-reset", { method: "POST" }); } catch (_) {}
+    const _finalize = () => fetch("/api/bundles/" + _ENC + "/crawl-finalize",
+      { method: "POST" }).then((x) => x.json()).catch(() => null);
 
     // 1) 소싱처별 URL 목록 수집(중복 제거). 6개 전부 대상.
     const r = await fetch("/api/bundles/" + encodeURIComponent(code) + "/option-matrix").then((x) => x.json());
@@ -181,7 +195,7 @@
     );
     const sourceKeys = Object.keys(bySource);
     const total = sourceKeys.reduce((n, k) => n + bySource[k].length, 0);
-    if (!total) { _emitLog("finish", { level: "warn", msg: "대상 URL 없음" }); return { ok: false, error: "대상 URL 없음" }; }
+    if (!total) { await _finalize(); _emitLog("finish", { level: "warn", msg: "대상 URL 없음" }); return { ok: false, error: "대상 URL 없음" }; }
 
     // 2) 컨트롤러 상태 — "같은 소싱처는 순차, 다른 소싱처는 동시".
     //    각 소싱처를 독립 큐로 두고, 활성 소싱처 수 = concurrency 만큼만 동시에 진행.
@@ -387,12 +401,15 @@
     } catch (_) { /* 갱신 실패는 크롤 저장 결과와 무관 — 무시 */ }
 
     const okCount = results.filter((x) => x.status === "ok").length;
+    // [2026-06-13] 크롤 종료 마무리 — 유효 소싱가 없는 옵션 crawl_blocked 확정(성공=해제).
+    const finalize = await _finalize();
     _emitLog("finish", {
       level: "done",
-      msg: "완료 — " + okCount + "/" + results.length + " 성공 · 저장 " + ((save && save.updated) || 0) + "건",
+      msg: "완료 — " + okCount + "/" + results.length + " 성공 · 저장 " + ((save && save.updated) || 0)
+           + "건" + (finalize && finalize.blocked ? " · 판매차단 " + finalize.blocked : ""),
       metrics: { concurrency, cap, active, done, total, cpu: lastSys.cpu, mem: lastSys.mem },
     });
-    return { ok: true, crawled: results.length, ok_count: okCount, save };
+    return { ok: true, crawled: results.length, ok_count: okCount, save, finalize };
   }
 
   // ── 이 PC 스케줄 크롤 ──

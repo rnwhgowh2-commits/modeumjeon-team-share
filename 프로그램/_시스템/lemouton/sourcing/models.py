@@ -211,6 +211,11 @@ class Option(Base):
     # True (기본) = 활성. 셀 클릭으로 토글.
     is_active = Column(Boolean, default=True, nullable=False)
 
+    # [2026-06-13] 크롤 실패/유효가격 없음으로 자동 판매차단된 옵션. is_active(사용자 수동)와 분리.
+    #   판매가능 = is_active(수동 ON) AND NOT crawl_blocked(크롤 정상). 크롤 시작 시 리셋되고
+    #   유효가격이 다시 잡히면 자동 해제. 옛 가격/재고로 잘못 판매되는 사고 방지.
+    crawl_blocked = Column(Boolean, default=False, nullable=False)
+
     # 소싱처별 옵션 ID (NULL 가능)
     option_id_lemouton = Column(String(128))
     option_id_musinsa = Column(String(128))

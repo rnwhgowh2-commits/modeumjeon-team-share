@@ -134,7 +134,13 @@ def build_upload_preview(s: Session, code: str) -> dict:
 
     rows = []
     ss_ready = cp_ready = 0
+    excluded_blocked = 0
     for o in opts:
+        # [2026-06-13] 판매 게이트 — 사용자 OFF(is_active=False) 또는 크롤 차단(crawl_blocked)
+        #   옵션은 업로드(판매)에서 제외. 옛/잘못된 가격·재고로 파는 치명적 사고 방지.
+        if (not getattr(o, 'is_active', True)) or getattr(o, 'crawl_blocked', False):
+            excluded_blocked += 1
+            continue
         stock = stock_dict.get(o.canonical_sku, 0)
         r = _resolve_option_upload(o, cfg_dict.get(o.canonical_sku), tpl,
                                    sku_to_sources.get(o.canonical_sku, []), stock)
@@ -180,6 +186,7 @@ def build_upload_preview(s: Session, code: str) -> dict:
                         'matched': cp_ready, 'total': total},
         },
         'ready_to_upload': (ss_ready + cp_ready),
+        'excluded_blocked': excluded_blocked,  # [2026-06-13] 크롤차단·비활성으로 판매 제외된 옵션 수
         'missing': missing,
         'rows': rows,
         'note': '드라이런 — 실제 마켓 전송 없음. 표시(옵션트리) 가격과 동일 산출.',
