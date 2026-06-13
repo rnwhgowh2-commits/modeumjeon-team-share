@@ -195,6 +195,17 @@
 .sgd .sg-kwchips .chip{display:inline-block;border-radius:999px;padding:3px 11px;font-size:11.5px;font-weight:700;margin:2px 4px 2px 0;}
 .sgd .sg-kwchips .chip.inc{background:#E3F2EA;color:#1A7F52;}.sgd .sg-kwchips .chip.exc{background:#FCE6E6;color:#C0392B;}
 .sgd .sg-kwchips .chip-empty{font-size:11px;color:#A0A8B0;}
+/* ② 재고 규칙 편집기 */
+.sgd .sg-srin{font-family:inherit;font-size:11.5px;border:1px solid #FDE68A;border-radius:6px;padding:5px 8px;width:100%;background:#fff;color:#3A4A5A;}
+.sgd .sg-srin:focus{outline:none;border-color:#F59E0B;}
+.sgd select.sg-srin{cursor:pointer;}
+/* ⑤ 검증 체크리스트 */
+.sgd .sg-ck-seg{display:inline-flex;border:1px solid #DCE0E5;border-radius:7px;overflow:hidden;flex:0 0 auto;}
+.sgd .sg-ck-b{border:none;background:#F4F5F7;color:#8B95A1;font-size:11px;font-weight:800;padding:5px 11px;cursor:pointer;font-family:inherit;border-left:1px solid #E5E8EB;}
+.sgd .sg-ck-b:first-child{border-left:none;}
+.sgd .sg-ck-b.on[data-st="pending"]{background:#EEF1F4;color:#4E5968;}
+.sgd .sg-ck-b.on[data-st="pass"]{background:#10B981;color:#fff;}
+.sgd .sg-ck-b.on[data-st="fail"]{background:#F04452;color:#fff;}
 </style>
 
 <div class="sgd sg-wrap" data-sid="{{ src.id }}">
@@ -250,6 +261,26 @@
             <td><span class="bdg s-{{ f.status }}">{{ slab[f.status] }}</span></td>
           </tr>
           <tr class="note-row"><td colspan="5"><div class="note-cell"><span class="tg">비고</span><input class="sg-note" value="{{ f.note }}" placeholder="메모 (예: 적립금을 가격으로 오독 주의)"></div></td></tr>
+          {% if key == 'option_stock' %}
+          {% set sr = f.stock_rules or {} %}
+          <tr class="stock-rules-row"><td colspan="5">
+            <div style="margin:2px 0 4px;padding:11px 13px;background:#FFFBEB;border:1px solid #FDE68A;border-radius:9px;">
+              <div style="font-size:11.5px;font-weight:800;color:#B45309;margin-bottom:9px;">📦 재고 3단계 캡처 규칙 <span style="font-weight:600;color:#92702A;">— 한정수량 표기를 빠짐없이 적어야 '재고있음' 둔갑을 막음</span></div>
+              <div style="display:grid;grid-template-columns:118px 1fr;gap:8px 10px;align-items:center;">
+                <label style="color:#7C5E1E;font-weight:700;font-size:11.5px;">① 품절 마커</label>
+                <input class="sg-srin sg-stock-soldout" value="{{ (sr.soldout_markers or [])|join(', ') }}" placeholder="품절, 재입고 알림, SLDOUT, disabled …">
+                <label style="color:#7C5E1E;font-weight:700;font-size:11.5px;">② 한정수량 표기</label>
+                <input class="sg-srin sg-stock-qty" value="{{ (sr.qty_patterns or [])|join(', ') }}" placeholder="잔여 N개, N개 남음, 마지막 N개, 품절임박 (N) …">
+                <label style="color:#7C5E1E;font-weight:700;font-size:11.5px;">③ 표식 없을 때</label>
+                <select class="sg-srin sg-stock-nomarker">
+                  <option value="in_stock"{% if sr.no_marker_means != 'unknown' %} selected{% endif %}>충분 (재고있음)</option>
+                  <option value="unknown"{% if sr.no_marker_means == 'unknown' %} selected{% endif %}>수량 미상 (수량 안 주는 사이트 — 롯데 등)</option>
+                </select>
+              </div>
+              <div style="font-size:10.5px;color:#92702A;margin-top:8px;line-height:1.5;">쉼표로 구분. ②는 그 사이트가 쓰는 표기를 <b>전부</b> 적기 (한 가지만 적고 빠뜨리면 한정재고가 '재고있음'으로 둔갑). 수량을 아예 안 주면 ③을 '수량 미상'으로.</div>
+            </div>
+          </td></tr>
+          {% endif %}
           {% endfor %}
         </tbody>
       </table>
@@ -500,6 +531,33 @@
           </div>
         </div>
       </div>
+    </div>
+  </div>
+
+  <!-- ⑤ 검증 체크리스트 (수집·가공·전송) -->
+  <div class="sec">
+    <div class="st"><span class="n">5</span><span class="tt">검증 체크리스트</span><span class="sub">수집 · 가공 · 전송 — 신규 추가 시 전부 통과해야 완료 (특히 재고 둔갑)</span></div>
+    <div class="card">
+      <div id="sg-checklist">
+        {% set phases = [('integrity','⚡ 동시·무결성 (integrity)','#E0392B'),('collect','🔍 수집 (collect)','#1B64DA'),('process','⚙️ 가공 (process)','#7C3AED'),('transmit','📡 전송 (transmit)','#10B981')] %}
+        {% set _cl = guide.verification.get('checklist', []) %}
+        {% for pkey, plab, pcolor in phases %}
+        <div style="margin-bottom:15px;">
+          <div style="font-size:12px;font-weight:800;color:{{ pcolor }};margin-bottom:8px;">{{ plab }}</div>
+          {% for c in _cl if c.phase == pkey %}
+          <div class="sg-ck-item" data-key="{{ c.key }}" style="display:grid;grid-template-columns:1fr auto;gap:10px;align-items:center;padding:8px 11px;border:1px solid #EEF0F3;border-radius:8px;margin-bottom:5px;">
+            <div style="font-size:12.5px;color:#191F28;">{{ c.label }}{% if c.required %}<span style="color:#E0392B;font-size:11px;" title="필수"> *</span>{% endif %}</div>
+            <div class="sg-ck-seg">
+              <button type="button" class="sg-ck-b{% if c.status not in ['pass','fail'] %} on{% endif %}" data-st="pending">대기</button>
+              <button type="button" class="sg-ck-b{% if c.status == 'pass' %} on{% endif %}" data-st="pass">통과</button>
+              <button type="button" class="sg-ck-b{% if c.status == 'fail' %} on{% endif %}" data-st="fail">실패</button>
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+        {% endfor %}
+      </div>
+      <div style="font-size:11px;color:#8B95A1;margin-top:6px;">* = 필수 항목. 단일 진실원천 = <code style="font-family:ui-monospace,monospace;">crawl_guide.py</code>의 <code style="font-family:ui-monospace,monospace;">_CHECKLIST_TEMPLATE</code>. 상단 <b>저장</b>으로 상태 보존.</div>
     </div>
   </div>
 </div>

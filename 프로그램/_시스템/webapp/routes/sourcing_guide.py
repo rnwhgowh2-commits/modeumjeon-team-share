@@ -50,7 +50,9 @@ def overview():
     for src in _sources():
         guide = cg.loads(src.crawl_guide)
         rows.append({"id": src.id, "name": src.name, "guide": guide})
-    return render_template("sourcing_guide/overview.html", rows=rows, active="sourcing_guide")
+    # 상세 로직 모달 STEP5 = 표준 검증 체크리스트(코드의 _CHECKLIST_TEMPLATE) 를 그대로 노출
+    return render_template("sourcing_guide/overview.html", rows=rows,
+                           checklist=cg.default_checklist(), active="sourcing_guide")
 
 
 @bp.route("/how-to")

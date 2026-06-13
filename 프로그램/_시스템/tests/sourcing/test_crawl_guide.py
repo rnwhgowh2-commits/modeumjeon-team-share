@@ -1,5 +1,8 @@
 import pytest
-from lemouton.sourcing.crawl_guide import empty_skeleton, validate_guide, merge_verification
+from lemouton.sourcing.crawl_guide import (
+    empty_skeleton, validate_guide, merge_verification,
+    default_checklist, _CHECKLIST_TEMPLATE,
+)
 
 def test_empty_skeleton_shape():
     sk = empty_skeleton()
@@ -104,3 +107,86 @@ def test_merge_verification_last_new_check():
 def test_merge_verification_rejects_bad_kind():
     with pytest.raises(ValueError):
         merge_verification(empty_skeleton(), "WRONG", {})
+
+
+# ─────────────────────────────────────────────────────────────
+# 재고 반영 규칙 (option_stock.stock_rules) + 검증 체크리스트 (2026-06-13)
+# ─────────────────────────────────────────────────────────────
+def test_empty_skeleton_has_stock_rules():
+    """option_stock 만 재고 규칙을 가진다 (기본 in_stock)."""
+    sk = empty_skeleton()
+    sr = sk["fields"]["option_stock"]["stock_rules"]
+    assert sr == {"soldout_markers": [], "qty_patterns": [], "no_marker_means": "in_stock"}
+    # 다른 필드엔 stock_rules 없음
+    assert "stock_rules" not in sk["fields"]["price"]
+
+
+def test_stock_rules_preserved():
+    """소싱처별 품절 마커·한정수량 표기·표식없음 처리가 보존된다."""
+    data = empty_skeleton()
+    data["fields"]["option_stock"]["stock_rules"] = {
+        "soldout_markers": ["품절", "재입고 알림"],
+        "qty_patterns": ["잔여 N개", "N개 남음", "마지막 N개", "품절임박 (N)"],
+        "no_marker_means": "in_stock",
+    }
+    out = validate_guide(data)["fields"]["option_stock"]["stock_rules"]
+    assert out["soldout_markers"] == ["품절", "재입고 알림"]
+    assert "N개 남음" in out["qty_patterns"]
+    assert out["no_marker_means"] == "in_stock"
+
+
+def test_stock_rules_bad_no_marker_falls_back():
+    """잘못된 no_marker_means → 안전 기본(in_stock)."""
+    data = empty_skeleton()
+    data["fields"]["option_stock"]["stock_rules"] = {"no_marker_means": "WRONG"}
+    out = validate_guide(data)["fields"]["option_stock"]["stock_rules"]
+    assert out["no_marker_means"] == "in_stock"
+
+
+def test_stock_rules_accepts_unknown_marker_policy():
+    data = empty_skeleton()
+    data["fields"]["option_stock"]["stock_rules"] = {"no_marker_means": "unknown"}
+    out = validate_guide(data)["fields"]["option_stock"]["stock_rules"]
+    assert out["no_marker_means"] == "unknown"
+
+
+def test_checklist_default_covers_template():
+    """기본 체크리스트 = 템플릿 전체 (전부 pending)."""
+    cl = default_checklist()
+    assert len(cl) == len(_CHECKLIST_TEMPLATE)
+    keys = {c["key"] for c in cl}
+    # 재고 3단계가 반드시 포함
+    assert {"stock_soldout", "stock_qty", "stock_none"} <= keys
+    # 동시·무결성 3항목(손실 방지 핵심: 동시정확·실패처리·재크롤 리셋)도 포함
+    assert {"integrity_batch_accuracy", "integrity_fail_loud", "integrity_recrawl_reset"} <= keys
+    # 4단계(phase) 모두 존재
+    assert {c["phase"] for c in cl} == {"integrity", "collect", "process", "transmit"}
+    assert all(c["status"] == "pending" for c in cl)
+
+
+def test_checklist_status_preserved_and_normalized():
+    """카드별 status/note 보존, label/phase 는 템플릿이 진실원천(덮어씀)."""
+    sk = empty_skeleton()
+    sk["verification"]["checklist"] = [
+        {"key": "stock_qty", "status": "pass", "note": "잔여/남음/마지막 매칭 확인",
+         "label": "사용자가 바꾼 라벨(무시됨)", "phase": "transmit"},
+        {"key": "UNKNOWN_KEY", "status": "pass"},  # 폐기되어야 함
+    ]
+    out = validate_guide(sk)["verification"]["checklist"]
+    keys = {c["key"] for c in out}
+    assert "UNKNOWN_KEY" not in keys                       # 모르는 key 폐기
+    sq = next(c for c in out if c["key"] == "stock_qty")
+    assert sq["status"] == "pass"                          # status 보존
+    assert sq["note"] == "잔여/남음/마지막 매칭 확인"        # note 보존
+    assert sq["phase"] == "collect"                        # 템플릿이 진실원천(덮어씀)
+    assert sq["label"] != "사용자가 바꾼 라벨(무시됨)"
+
+
+def test_legacy_card_gets_full_checklist():
+    """checklist 키 없는 기존 카드 → 전체 pending 으로 자동 보강(하위호환)."""
+    legacy = {"version": 3, "sample_urls": [],
+              "fields": {}, "pricing": {"benefit_collection": "per_product", "benefits": []},
+              "verification": {"lead_cache": None}}
+    out = validate_guide(legacy)["verification"]["checklist"]
+    assert len(out) == len(_CHECKLIST_TEMPLATE)
+    assert all(c["status"] == "pending" for c in out)
