@@ -64,6 +64,7 @@
     const items = results.map((x) => ({
       url: x.url, price: x.price, stock: x.stock,
       status: x.ok ? "ok" : "error", product_name: x.product_name, error: x.error,
+      is_logged_in: (x.is_logged_in === undefined ? null : x.is_logged_in),
     }));
     const save = await fetch("/api/sources/crawl-result", {
       method: "POST", headers: { "Content-Type": "application/json" },
@@ -115,6 +116,7 @@
       return {
         url: url, source_key: sk, price: x.price, stock: x.stock,
         status: x.ok ? "ok" : "error", product_name: x.product_name, error: x.error || null,
+        is_logged_in: (x.is_logged_in === undefined ? null : x.is_logged_in),
       };
     }
     // 비로그인 4개: 창에서 렌더 HTML 수집 → 서버 parse
@@ -328,6 +330,7 @@
     const items = results.map((x) => ({
       url: x.url, price: x.price, stock: x.stock,
       status: x.status, product_name: x.product_name, error: x.error,
+      is_logged_in: (x.is_logged_in === undefined ? null : x.is_logged_in),
     }));
     const save = await fetch("/api/sources/crawl-result", {
       method: "POST", headers: { "Content-Type": "application/json" },

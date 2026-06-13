@@ -1106,6 +1106,28 @@ def save_crawl_result():
                     ).update({SourceOption.current_price: int(price)})
                 except Exception:
                     pass
+            # ★ 2026-06-13 — '있는 그대로' 적용: 비로그인 무신사 크롤은 계정 의존 혜택
+            #   (등급적립·무신사머니·등급할인·상품쿠폰)을 페이지에서 못 봤으므로 0 으로 비운다.
+            #   어제 로그인 크롤의 stale 값을 끌어다 쓰는 사고 차단(폴백·해석 금지).
+            #   표면가(salePrice=price)는 갱신, 후기적립(템플릿·계정무관)은 그대로 둠.
+            #   무신사머니 미적용 → money_active=False (현대카드 fallback 결제택1 일관).
+            #   로그인 크롤(is_logged_in=True)이면 잡힌 값 그대로 유지.
+            if getattr(sp, 'site', None) == 'musinsa' and it.get('is_logged_in') is False:
+                import json as _json
+                try:
+                    _dyn = _json.loads(sp.dynamic_benefits_json) if sp.dynamic_benefits_json else {}
+                except (ValueError, TypeError):
+                    _dyn = {}
+                for _k in ('grade_reward_amount', 'money_reward_amount',
+                           'grade_discount_amount', 'coupon_amount'):
+                    _dyn[_k] = 0
+                _dyn['money_active'] = False
+                if price not in (None, '', 0):
+                    try:
+                        _dyn['surface_price'] = int(price)
+                    except Exception:
+                        pass
+                sp.dynamic_benefits_json = _json.dumps(_dyn, ensure_ascii=False)
             updated += 1
         s.commit()
         return _ok(updated=updated, not_found=not_found, total=len(items))
