@@ -29,6 +29,48 @@ BENEFIT_BASES = {"표면 노출가", "베이스금액①", "베이스금액②",
 BENEFIT_FREQS = {"무제한", "정기", "1회성", "-"}
 BENEFIT_MATCH = {"any", "all"}  # 혜택 적용 기준: any=키워드 1개 이상 / all=키워드 모두
 
+# ─────────────────────────────────────────────────────────────
+# 재고 반영 규칙 (option_stock 전용) + 검증 체크리스트 (2026-06-13)
+#   조용한 실패 버그클래스(한정재고가 '재고있음'으로 둔갑) 재발 방지를 위한 구조.
+#   소싱처별 재고 표기는 제각각(잔여/N개 남음/마지막/품절임박/usablInvQty…)이라
+#   "어떤 신호로 품절·한정수량을 잡는지"를 카드에 명시하고, 신규 소싱처 추가 시
+#   수집(collect)·가공(process)·전송(transmit) 3단계를 체크리스트로 강제 검증한다.
+# ─────────────────────────────────────────────────────────────
+STOCK_NO_MARKER = {"in_stock", "unknown"}  # 표식 없을 때 처리: 충분(재고있음) / 미상
+
+CHECKLIST_PHASES = {"integrity", "collect", "process", "transmit"}
+CHECKLIST_STATUSES = {"pass", "fail", "pending"}
+
+# 표준 검증 체크리스트(전 소싱처 공통). (key, label, phase, required).
+#   label/phase/required 는 본 템플릿이 단일 진실원천 — 카드별로 status/note 만 편집.
+#   누락 항목은 자동 보강(pending), 모르는 key 는 폐기 → 항상 일관된 체크리스트 유지.
+_CHECKLIST_TEMPLATE = (
+    # ── 동시·무결성(integrity): 빠르게·많이 긁어도 정확, 어긋나면 실패 처리 ──
+    #   "엉뚱한 값 저장으로 인한 큰 손실 방지" — 사용자 최우선 원칙(2026-06-13).
+    ("integrity_batch_accuracy", "여러 상품 동시·고속 크롤에도 상품 간 값 안 섞이고 정확",            "integrity", True),
+    ("integrity_fail_loud",      "수집값이 가이드 로직과 불일치 시 크롤실패 처리 (엉뚱한 값 저장·성공 위장 금지)", "integrity", True),
+    ("integrity_recrawl_reset",  "모음전 재크롤 시 해당 상품 가격·재고 먼저 리셋 (옛 데이터 잔존 → 오발주 치명적 손실 방지)", "integrity", True),
+    # ── 수집(collect): 6항목이 실제로 긁히는가 ──
+    ("collect_title",        "상품명 수집",                                  "collect",  True),
+    ("collect_price",        "모든 가격 정보(표면가·정가·혜택금액) 정확 수집",   "collect",  True),
+    ("collect_benefit",      "혜택 라인 수집",                               "collect",  True),
+    ("collect_option_match", "옵션(색×사이즈) 정확 수집",                     "collect",  True),
+    ("collect_thumbnail",    "썸네일 수집",                                  "collect",  False),
+    ("collect_detail_image", "상세이미지 수집",                              "collect",  False),
+    # ── 재고 3단계 (조용한 실패의 핵심 지점) ──
+    ("stock_soldout", "품절 → 재고 0 으로 수집 (품절 마커 인식)",                          "collect", True),
+    ("stock_qty",     "한정수량 → 실수량 N 수집 (잔여·N개 남음·마지막·품절임박 등 표기 전부)", "collect", True),
+    ("stock_none",    "표식 없을 때만 '충분(재고있음)' 처리 (표식 있는데 못 읽으면 버그)",      "collect", True),
+    # ── 가공(process): 표면가→매입가, 센티넬·매칭 ──
+    ("process_sequential_deduct", "매입가 순차 차감 정확 (표면가 − Σ혜택)",                 "process", True),
+    ("process_sentinel",          "재고 센티넬(999·cap) 해석 정확 → '재고있음'/'N개' 구분",   "process", True),
+    ("process_no_fallback_price", "매칭/크롤 실패 시 폴백가(평균·최저) 금지 → 가격없음 표면화", "process", True),
+    # ── 전송(transmit): DB→매트릭스 표시까지 값 보존 ──
+    ("transmit_stock_preserved",  "크롤 수량이 DB→매트릭스 표시까지 보존 (둔갑 없음)",        "transmit", True),
+    ("transmit_inactive_no_leak", "비활성(OFF) 옵션 가격·재고 누출 없음",                   "transmit", True),
+    ("transmit_price_match",      "매트릭스 최종가 = 실제 화면값 100% 일치",                "transmit", True),
+)
+
 
 def _strlist(v: Any) -> list:
     """문자열(쉼표) 또는 리스트 → 비어있지 않은 문자열 리스트."""
@@ -51,6 +93,59 @@ def _clean_excludes(arr: Any) -> list:
         if not word:
             continue
         out.append({"word": word, "with": _strlist(e.get("with")), "except": _strlist(e.get("except"))})
+    return out
+
+
+def default_stock_rules() -> dict:
+    """option_stock 재고 규칙 기본값(빈 카드). 신규 소싱처가 채워 넣는다."""
+    return {"soldout_markers": [], "qty_patterns": [], "no_marker_means": "in_stock"}
+
+
+def _clean_stock_rules(d: Any) -> dict:
+    """재고 규칙 정제 — soldout_markers/qty_patterns 리스트 + no_marker_means enum."""
+    if not isinstance(d, dict):
+        return default_stock_rules()
+    nmm = d.get("no_marker_means")
+    if nmm not in STOCK_NO_MARKER:
+        nmm = "in_stock"
+    return {
+        "soldout_markers": _strlist(d.get("soldout_markers")),
+        "qty_patterns": _strlist(d.get("qty_patterns")),
+        "no_marker_means": nmm,
+    }
+
+
+def default_checklist() -> list:
+    """표준 검증 체크리스트(전 항목 pending). 빈 카드·하위호환 보강에 사용."""
+    return _clean_checklist([])
+
+
+def _clean_checklist(arr: Any) -> list:
+    """검증 체크리스트 정제 — 템플릿이 label/phase/required 의 단일 진실원천.
+
+    카드별로는 status(pass/fail/pending)·note 만 보존. 누락 항목은 pending 으로
+    자동 보강, 템플릿에 없는 key 는 폐기 → 전 소싱처가 항상 같은 체크리스트를 갖는다.
+    (기존 카드: checklist 키 없음 → 전체 pending 으로 자동 생성 = 하위호환.)
+    """
+    by_key: dict[str, dict] = {}
+    if isinstance(arr, list):
+        for it in arr:
+            if not isinstance(it, dict):
+                continue
+            key = str(it.get("key", "")).strip()
+            if key:
+                by_key[key] = it
+    out = []
+    for key, label, phase, required in _CHECKLIST_TEMPLATE:
+        it = by_key.get(key, {})
+        status = it.get("status")
+        if status not in CHECKLIST_STATUSES:
+            status = "pending"
+        out.append({
+            "key": key, "label": label, "phase": phase,
+            "required": required, "status": status,
+            "note": str(it.get("note", "")),
+        })
     return out
 
 
@@ -92,12 +187,15 @@ VERIFY_STATUSES = {"pending", "claimed", "running", "done", "failed"}
 
 def empty_skeleton() -> dict:
     """미작성 카드의 빈 스켈레톤(v3)."""
+    fields = {k: {"method": "none", "mechanism": "none", "auth": "open",
+                  "locator": "", "status": "none", "note": ""}
+              for k in FIELD_KEYS}
+    # option_stock 만 재고 규칙(품절/한정수량 마커 + 표식없음 처리) 보유.
+    fields["option_stock"]["stock_rules"] = default_stock_rules()
     return {
         "version": SCHEMA_VERSION,
         "sample_urls": [],
-        "fields": {k: {"method": "none", "mechanism": "none", "auth": "open",
-                       "locator": "", "status": "none", "note": ""}
-                   for k in FIELD_KEYS},
+        "fields": fields,
         "pricing": {
             "base_label": "표면 노출가",
             "benefit_collection": "per_product",
@@ -105,7 +203,8 @@ def empty_skeleton() -> dict:
             "note": "",
         },
         "exclude_keywords": [],
-        "verification": {"lead_cache": None, "last_new_check": None, "examples": [], "saved_checks": []},
+        "verification": {"lead_cache": None, "last_new_check": None, "examples": [],
+                         "saved_checks": [], "checklist": default_checklist()},
         "updated_at": None,
     }
 
@@ -158,6 +257,9 @@ def validate_guide(data: dict) -> dict:
             "status": status,
             "note": str(f.get("note", "")),
         }
+        # option_stock 만 재고 규칙(품절/한정수량 마커 + 표식없음 처리) 보존.
+        if k == "option_stock":
+            out["fields"][k]["stock_rules"] = _clean_stock_rules(f.get("stock_rules"))
 
     pricing = data.get("pricing", {}) or {}
     collection = pricing.get("benefit_collection", "per_product")
@@ -218,6 +320,7 @@ def validate_guide(data: dict) -> dict:
         "last_new_check": _clean_check(ver.get("last_new_check")),
         "examples": _clean_examples(ver.get("examples")),
         "saved_checks": _clean_saved_checks(ver.get("saved_checks")),
+        "checklist": _clean_checklist(ver.get("checklist")),
     }
 
     out["updated_at"] = data.get("updated_at")

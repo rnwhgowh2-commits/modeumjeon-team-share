@@ -97,6 +97,26 @@
   .nsg-legend .lg{font-size:15px;color:var(--ink);background:var(--soft);border:1px solid var(--line);border-radius:8px;padding:7px 13px;}
   .nsg-legend .lg b{font-weight:800;}
 
+  /* STEP5 검증 체크리스트 (시안 C — 체크박스 + 진행률) */
+  .nsg-ckg{margin-bottom:22px;--c:#1B64DA;}
+  .nsg-ckg.c-integrity{--c:#E0392B;} .nsg-ckg.c-collect{--c:#1B64DA;} .nsg-ckg.c-process{--c:#7C3AED;} .nsg-ckg.c-transmit{--c:#10B981;}
+  .nsg-ckh{display:flex;align-items:center;gap:15px;margin-bottom:12px;}
+  .nsg-ckh .lbl{font-size:18px;font-weight:800;color:var(--c);white-space:nowrap;}
+  .nsg-ckh .lbl .en{font-size:12px;font-weight:600;color:#B0B8C1;font-family:ui-monospace,monospace;}
+  .nsg-ckh .bar{flex:1;height:9px;background:#EEF0F3;border-radius:20px;overflow:hidden;}
+  .nsg-ckh .bar i{display:block;height:100%;width:0;background:var(--c);transition:.25s;}
+  .nsg-ckh .frac{font-size:15px;font-weight:800;color:#8B95A1;min-width:48px;text-align:right;}
+  .nsg-cki{display:flex;align-items:center;gap:14px;padding:12px 16px;border:1px solid #EEF0F3;border-radius:12px;margin-bottom:8px;cursor:pointer;transition:.1s;}
+  .nsg-cki:hover{background:#FAFBFC;}
+  .nsg-cki:focus{outline:2px solid var(--c);outline-offset:1px;}
+  .nsg-cki.done{background:#F1FBF6;border-color:#C7EDD9;}
+  .nsg-cki .box{width:29px;height:29px;border:2px solid #C5CCD3;border-radius:8px;flex:0 0 auto;display:flex;align-items:center;justify-content:center;color:#fff;font-size:18px;font-weight:900;}
+  .nsg-cki.done .box{background:#10B981;border-color:#10B981;}
+  .nsg-cki .tx{font-size:16px;line-height:1.45;color:#191F28;}
+  .nsg-cki.done .tx{color:#5E6670;text-decoration:line-through;text-decoration-color:#B7C0C8;}
+  .nsg-cki .rq{color:#E0392B;font-weight:800;font-size:14px;}
+  .nsg-cktot{text-align:right;font-size:16px;font-weight:800;color:#10B981;margin-top:8px;}
+
   /* 무결성 */
   .nsg-integrity{background:#FFF4E6;border:1px solid #FFD8A8;border-radius:13px;padding:19px 24px;font-size:17px;color:var(--ink);line-height:1.75;}
 
@@ -204,6 +224,11 @@
       <span class="lg"><b>수집 방식</b> — HTML(화면 파싱) · API(데이터 주소 직접 호출) · 수동 · 없음</span>
       <span class="lg"><b>인증</b> — 비인증(로그인 없이 보임) · 인증(로그인 세션 필요)</span>
     </div>
+    <div class="nsg-hint" style="margin-top:10px;background:#FFF4E6;border:1px solid #FFD8A8;border-radius:8px;padding:9px 12px;color:#B45309;">
+      ⚠️ <b>옵션·재고는 위치만 적고 끝내지 않는다 — 재고 3단계를 명시.</b>
+      ① 품절(마커 → 0) · ② 한정수량(<b>잔여·N개 남음·마지막·품절임박 등 표기 전부</b> → 실수량 N) · ③ 표식없음(표식 정말 없을 때만 '재고있음').
+      ②를 한 가지만 적고 다른 표기를 빠뜨리면 = 한정재고가 "재고있음"으로 둔갑하는 버그(실제 무신사 사례).
+    </div>
   </div>
 
   <div class="nsg-sec">
@@ -212,8 +237,29 @@
   </div>
 
   <div class="nsg-sec">
-    <h4>STEP 5 · 검증 크롤 → 정답 대조 (무결성)</h4>
-    <div class="nsg-integrity">샘플 URL을 실제 크롤(로그인 세션/확장 경로)해서 <b>표면가 / 혜택합 / 최종가 / 옵션·재고</b>를 뽑고, 사용자가 실제 화면에서 본 값과 <b>100% 일치</b>하는지 대조.<br>⚠️ 불일치 시 STEP 2~4로 되돌아가 셀렉터·로직 수정. <b>일치 전에는 "추가 완료" 선언 금지</b> (가격·재고 오류 = 금전 손실).</div>
+    <h4>STEP 5 · 검증 체크리스트 — 수집 · 가공 · 전송 (무결성)</h4>
+    <div class="nsg-integrity">샘플 URL을 실제 크롤(로그인 세션/확장 경로)해서 사용자가 화면에서 본 값과 <b>100% 일치</b>하는지 대조.<br>"최종가만 맞으면 끝"이 아니라 <b>수집 → 가공 → 전송</b> 3단계를 항목별로 통과시킨다. 특히 재고는 한정수량 N이 매트릭스 표시까지 <b>둔갑 없이</b> 보존되는지 본다.</div>
+    <div class="nsg-ck" id="nsgCk" style="margin-top:14px;">
+      {% set ph_meta = [('integrity','⚡ 동시·무결성','integrity'),('collect','🔍 수집','collect'),('process','⚙️ 가공','process'),('transmit','📡 전송','transmit')] %}
+      {% for pkey, plab, pcls in ph_meta %}
+      {% set pit = checklist | selectattr('phase','equalto',pkey) | list %}
+      <div class="nsg-ckg c-{{ pcls }}" data-ph="{{ pkey }}">
+        <div class="nsg-ckh">
+          <span class="lbl">{{ plab }} <span class="en">{{ pkey }}</span></span>
+          <span class="bar"><i></i></span>
+          <span class="frac">0/{{ pit|length }}</span>
+        </div>
+        {% for c in pit %}
+        <div class="nsg-cki" tabindex="0" role="checkbox" aria-checked="false">
+          <span class="box">✓</span>
+          <span class="tx">{{ c.label }}{% if c.required %} <span class="rq">*</span>{% endif %}</span>
+        </div>
+        {% endfor %}
+      </div>
+      {% endfor %}
+      <div class="nsg-cktot">전체 <b id="nsgCkTot">0</b> / {{ checklist|length }} 통과</div>
+    </div>
+    <div class="nsg-hint">✅ 항목을 클릭하면 통과 체크 + 단계별 진행률이 채워집니다. ⚠️ <b>전부 통과</b> 전에는 "추가 완료" 선언 금지 (가격·재고 오류 = 금전 손실). 소싱처별 실제 통과/실패 상태는 각 소싱처 상세 ▸ ⑤ 체크리스트에서 저장. 단일 진실원천 = <code>crawl_guide.py</code>의 <code>_CHECKLIST_TEMPLATE</code>.</div>
   </div>
 
   <div class="nsg-sec">
@@ -338,6 +384,30 @@
     }).join('');
     built = true;
   }
+})();
+</script>
+<script>
+/* STEP5 검증 체크리스트(시안 C) — 클릭 토글 + 단계별/전체 진행률.
+   설명용(상세 로직 모달)이라 상태는 저장 안 함 — 소싱처별 실저장은 상세 ▸ ⑤. */
+(function(){
+  var root = document.getElementById('nsgCk');
+  if(!root) return;
+  function refresh(){
+    var total = 0;
+    root.querySelectorAll('.nsg-ckg').forEach(function(g){
+      var items = g.querySelectorAll('.nsg-cki');
+      var done = g.querySelectorAll('.nsg-cki.done').length;
+      total += done;
+      g.querySelector('.frac').textContent = done + '/' + items.length;
+      g.querySelector('.bar i').style.width = (items.length ? done/items.length*100 : 0) + '%';
+    });
+    var t = document.getElementById('nsgCkTot'); if(t) t.textContent = total;
+  }
+  function toggle(it){ it.classList.toggle('done'); it.setAttribute('aria-checked', it.classList.contains('done')); refresh(); }
+  root.addEventListener('click', function(e){ var it = e.target.closest('.nsg-cki'); if(it) toggle(it); });
+  root.addEventListener('keydown', function(e){
+    if((e.key===' '||e.key==='Enter')){ var it = e.target.closest('.nsg-cki'); if(it){ e.preventDefault(); toggle(it); } }
+  });
 })();
 </script>
 {% endblock %}

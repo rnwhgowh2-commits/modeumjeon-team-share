@@ -28,6 +28,16 @@
       };
     });
     base.fields = fields;
+    // ② 재고 규칙 (option_stock 전용) — DOM 편집기 → fields.option_stock.stock_rules.
+    //   base.fields 재구성 시 __guideInit 의 stock_rules 가 날아가므로 여기서 다시 채운다.
+    if(base.fields.option_stock){
+      const csv = el => ((el&&el.value)||'').split(',').map(s=>s.trim()).filter(Boolean);
+      base.fields.option_stock.stock_rules = {
+        soldout_markers: csv(document.querySelector('.sg-stock-soldout')),
+        qty_patterns: csv(document.querySelector('.sg-stock-qty')),
+        no_marker_means: (document.querySelector('.sg-stock-nomarker')||{}).value || 'in_stock'
+      };
+    }
     base.pricing = base.pricing || {base_label:'표면 노출가', benefit_collection:'per_product', benefits:[], note:''};
     const kchips=(el,kind)=>[...el.querySelectorAll('.bkw[data-kind="'+kind+'"] .kc')].map(k=>(k.firstChild?k.firstChild.textContent:'').trim()).filter(Boolean);
     const benefits=[];
@@ -55,8 +65,27 @@
       excludes.push({word, 'with':kchips(r,'with'), 'except':kchips(r,'except')});
     });
     base.exclude_keywords = excludes;
+    // ⑤ 검증 체크리스트 status — UI 토글값을 verification.checklist 에 반영.
+    //   (label/phase 는 서버 템플릿이 진실원천 → status/note 만 보냄. base 는 __guideInit 클론이라 checklist 보유.)
+    base.verification = base.verification || {};
+    const cl = (base.verification.checklist || []).map(c=>Object.assign({}, c));
+    document.querySelectorAll('#sg-checklist .sg-ck-item').forEach(it=>{
+      const on = it.querySelector('.sg-ck-b.on');
+      const st = on ? on.dataset.st : 'pending';
+      const found = cl.find(c=>c.key===it.dataset.key);
+      if(found) found.status = st;
+    });
+    base.verification.checklist = cl;
     return base;
   }
+
+  // ⑤ 체크리스트 status 토글 — 세그먼트 버튼 클릭 시 같은 행에서 하나만 on.
+  document.addEventListener('click', e=>{
+    const b = e.target.closest('#sg-checklist .sg-ck-b');
+    if(!b) return;
+    const seg = b.closest('.sg-ck-seg');
+    seg.querySelectorAll('.sg-ck-b').forEach(x=>x.classList.toggle('on', x===b));
+  });
 
   // ③ 포함(혜택 카드)/제외(공통) — 추가·삭제·키워드 칩
   const _M=['정률(%)','정액(원)','정액·정률','적립(%→원)','고정액','옵션(개월)'];

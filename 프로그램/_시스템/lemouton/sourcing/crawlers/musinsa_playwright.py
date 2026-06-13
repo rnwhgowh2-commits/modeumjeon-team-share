@@ -424,12 +424,20 @@ async (cfg) => {
     function parseSizeItem(item) {
         const text = item.innerText.trim();
         const soldout = text.includes('품절') || text.includes('재입고');
+        // ★ 2026-06-13 재고 정합성 — 무신사 한정수량 표기는 한 가지가 아니다.
+        //   실측 표기 3종: '잔여 N개' / 'N개 남음' / '마지막 N개'.
+        //   과거엔 '잔여 N개' 만 매칭 → 'N개 남음'·'마지막 1개' 는 못 잡고 기본값
+        //   STOCK_CAP(10) 으로 떨어져 백엔드가 '충분'으로 둔갑(한정재고가 '재고있음'으로 표시)
+        //   → 실수량 N 을 못 읽는 조용한 실패였다. 표기 3종을 모두 매칭한다.
+        //   ('품절임박'은 SSF 표기이지 무신사가 아니며, 품절 substring 검사와 충돌하므로 제외.)
         const name = text.split('\\n')[0]
-            .replace(/\\s*\\(?\\s*(품절|재입고\\s*알림|잔여\\s*\\d+\\s*개)\\s*\\)?.*$/g, '')
+            .replace(/\\s*\\(?\\s*(품절|재입고\\s*알림|잔여\\s*\\d+\\s*개|\\d+\\s*개\\s*남음|마지막\\s*\\d+\\s*개)\\s*\\)?.*$/g, '')
             .trim();
         let qty = STOCK_CAP;
-        const m = text.match(/잔여\\s*(\\d+)\\s*개/);
-        if (m) qty = parseInt(m[1]);
+        // 표기 3종: (1) 잔여 N개  (2) N개 남음  (3) 마지막 N개
+        const m = text.match(/잔여\\s*(\\d+)\\s*개|(\\d+)\\s*개\\s*남음|마지막\\s*(\\d+)\\s*개/);
+        if (m) qty = parseInt(m[1] || m[2] || m[3]);
+        // 매칭 → 실수량(≥CAP 이면 cap). 미매칭 → '표식 없음'=충분(CAP).
         return { name, soldout, qty: soldout ? 0 : Math.min(qty, STOCK_CAP) };
     }
 
