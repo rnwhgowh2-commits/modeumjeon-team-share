@@ -2400,11 +2400,39 @@
         return;
       }
       // URL 삭제
+      //   [BUG-FIX 2026-06-13] 이전엔 화면(state)에서만 제거하고 서버 DELETE 를 호출하지
+      //   않아, 저장(autoSave)이 '남은 URL' 만 POST/PUT → 삭제된 행이 DB 에 영구 잔류 →
+      //   새로고침 시 부활하는 버그. dbId 있으면 서버에서도 삭제하고, 실패하면 화면도 유지
+      //   (조용한 실패 금지 — 화면과 DB 상태를 항상 일치시킴).
       const del = e.target.closest('[data-url-del]');
       if (del && card) {
         if (!confirm('이 URL 삭제?')) return;
         const tid = +card.dataset.urlId;
-        state.urls[state.currentSrc] = state.urls[state.currentSrc].filter(u => u.tempId !== tid);
+        const arr = state.urls[state.currentSrc] || [];
+        const target = arr.find(u => u.tempId === tid);
+        if (!target) return;
+        // 진행 중인 자동 저장이 끝난 뒤 삭제 — 신규 카드가 POST 로 dbId 를 받기 전에
+        // 화면에서 지워 DB 에 고아(orphan) 행이 남는 경우를 방지
+        if (_autoSaveInflight) { try { await _autoSaveInflight; } catch (_) {} }
+        // DB 에 이미 저장된 URL 이면 서버에서도 삭제 (dbId 없으면 화면만 제거)
+        if (target.dbId) {
+          del.disabled = true;
+          try {
+            const r = await fetch(`/api/bundles/${encodeURIComponent(bundleCode)}/source-urls/${target.dbId}`, { method: 'DELETE' });
+            const j = await r.json().catch(() => ({}));
+            if (!r.ok || !j.ok) {
+              alert('URL 삭제 실패 — 서버에서 삭제하지 못했습니다.\n새로고침 후 다시 시도해 주세요.');
+              del.disabled = false;
+              return;  // 화면에서도 제거하지 않음 → 실제(DB) 상태와 일치 유지
+            }
+          } catch (err) {
+            console.warn('[oum] URL delete fail:', err);
+            alert('URL 삭제 실패 — 네트워크 오류.\n잠시 후 다시 시도해 주세요.');
+            del.disabled = false;
+            return;
+          }
+        }
+        state.urls[state.currentSrc] = arr.filter(u => u.tempId !== tid);
         if (state.openUrlId === tid) state.openUrlId = null;
         renderRight();
         return;
