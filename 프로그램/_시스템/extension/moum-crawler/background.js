@@ -10,7 +10,7 @@
 //  결과 저장은 mou-m.com /api/sources/crawl-result (ext_bridge.crawlBundleAll 이 호출).
 //  grabHtml/crawl(URL마다 창 생성·즉시 닫기) 핸들러는 하위호환 위해 유지.
 
-const MOUM_EXT_VERSION = "0.4.4";
+const MOUM_EXT_VERSION = "0.4.5";
 
 // cascade 위치 시퀀서 — 창이 여러 개 열려도 서로 어긋나 보임
 let _winSeq = 0;
@@ -254,14 +254,17 @@ async function musinsaExtractor() {
   const valueNos = [];
   basic.forEach((g) => (g.optionValues || g.values || []).forEach((v) => { if (v.no != null) valueNos.push(v.no); }));
   const invMap = {};
+  let invOk = false;
   try {
     const ij = await fetch(base + "/options/v2/prioritized-inventories", {
       method: "POST", credentials: "include",
       headers: { "Content-Type": "application/json", Accept: "application/json" },
       body: JSON.stringify({ optionValueNos: valueNos }),
     }).then((r) => r.json());
-    (ij.data || []).forEach((x) => { invMap[x.productVariantId] = x; });
-  } catch (e) { /* 재고 실패해도 가격은 진행 */ }
+    const arr = (ij && ij.data) || [];
+    arr.forEach((x) => { invMap[x.productVariantId] = x; });
+    invOk = arr.length > 0;   // ★ 재고 데이터 실제 수신 여부 (실패/빈응답이면 false)
+  } catch (e) { invOk = false; /* 재고 호출 실패 → 아래서 null(불명), 가격은 진행 */ }
 
   // ★ 2026-06-13 — 표면노출가 = 무신사 구조화 API(goodsPrice.salePrice) 직읽기.
   //   기존: document.body.innerText 정규식으로 '나의 할인가'(회원가)를 price 로 오긁어
@@ -293,7 +296,11 @@ async function musinsaExtractor() {
     if (code.includes("^")) { const p = code.split("^"); color = (p[0] || "").trim(); size = (p[1] || "").trim(); }
     else { size = code.trim(); }
     const inv = invMap[it.no] || {};
-    const stock = inv.outOfStock ? 0 : (inv.remainQuantity == null ? 999 : Math.max(0, inv.remainQuantity));
+    // ★ [재고 안전망] 인벤토리 호출 실패(invOk=false) 시 999(충분) 둔갑 금지 → null(불명).
+    //   서버 _ingest_option_stocks 가 null 은 스킵 → 옛 좋은 값(예: 2)을 999로 덮어쓰지 않음.
+    //   (인벤토리 성공인데 이 variant 만 없는 경우는 기존대로 999=충분 유지.)
+    const stock = !invOk ? null
+      : (inv.outOfStock ? 0 : (inv.remainQuantity == null ? 999 : Math.max(0, inv.remainQuantity)));
     return { color, size: size.replace("mm", "").trim(), price, stock };
   });
   const anyStock = options.some((o) => o.stock > 0) || (price != null);
