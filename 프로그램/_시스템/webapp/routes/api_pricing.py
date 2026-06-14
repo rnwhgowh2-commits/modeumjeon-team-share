@@ -1175,6 +1175,25 @@ def post_crawl_finalize(code: str):
 #    SourceProduct.last_price/last_stock/last_status 를 읽으므로 여기 쓰면 UI·계산식에
 #    그대로 반영된다. 설계: docs/소싱처관리_아키텍처.md
 # ════════════════════════════════════════════════════════════
+def _build_crawl_snapshot(item: dict, *, now_iso: str) -> dict:
+    """확장 크롤 1건(item)에서 '이번 브라우저 기준' 혜택 스냅샷을 만든다.
+
+    benefit_lines/benefit_amounts 가 오면 benefits_ok=True. 없으면 빈 스냅샷
+    (benefits_ok=False) — 빈 배열을 '혜택 없음'으로 둔갑시키지 않는다(미수집).
+    """
+    lines = item.get('benefit_lines')
+    amounts = item.get('benefit_amounts')
+    has = isinstance(lines, list) and bool(item.get('benefits_ok'))
+    return {
+        'crawled_at': now_iso,
+        'is_logged_in': (None if item.get('is_logged_in') is None
+                         else bool(item.get('is_logged_in'))),
+        'benefits_ok': bool(has),
+        'lines': list(lines) if isinstance(lines, list) else [],
+        'amounts': dict(amounts) if isinstance(amounts, dict) else {},
+    }
+
+
 @bp.post('/sources/crawl-result')
 def save_crawl_result():
     """확장 크롤 결과 일괄 저장.
@@ -1254,22 +1273,17 @@ def save_crawl_result():
             #   둔갑(한정수량·품절 누락 = 오발주 손실) 교정. status=ok 인 성공 크롤만.
             if status == 'ok':
                 _ingest_option_stocks(s, sp.id, it.get('options'))
-            # ★ 2026-06-13 — '있는 그대로' 적용: 비로그인 무신사 크롤은 계정 의존 혜택
-            #   (등급적립·무신사머니·등급할인·상품쿠폰)을 페이지에서 못 봤으므로 0 으로 비운다.
-            #   어제 로그인 크롤의 stale 값을 끌어다 쓰는 사고 차단(폴백·해석 금지).
-            #   표면가(salePrice=price)는 갱신, 후기적립(템플릿·계정무관)은 그대로 둠.
-            #   무신사머니 미적용 → money_active=False (현대카드 fallback 결제택1 일관).
-            #   로그인 크롤(is_logged_in=True)이면 잡힌 값 그대로 유지.
-            if getattr(sp, 'site', None) == 'musinsa' and it.get('is_logged_in') is False:
+            # ★ 2026-06-14 — '있는 그대로(현재 브라우저)' 혜택 스냅샷 저장.
+            #   확장이 현재 페이지에서 긁은 혜택 라인/금액을 dynamic_benefits_json['_crawl']에
+            #   타임스탬프·로그인상태와 함께 기록. 크롤 실패(status='error')면 스냅샷 미갱신
+            #   → 신선도 게이트(benefits_fresh)가 옛 값을 자동 배제. (폴백 금지)
+            if getattr(sp, 'site', None) == 'musinsa' and status != 'error':
                 import json as _json
                 try:
                     _dyn = _json.loads(sp.dynamic_benefits_json) if sp.dynamic_benefits_json else {}
                 except (ValueError, TypeError):
                     _dyn = {}
-                for _k in ('grade_reward_amount', 'money_reward_amount',
-                           'grade_discount_amount', 'coupon_amount'):
-                    _dyn[_k] = 0
-                _dyn['money_active'] = False
+                _dyn['_crawl'] = _build_crawl_snapshot(it, now_iso=now.isoformat())
                 if price not in (None, '', 0):
                     try:
                         _dyn['surface_price'] = int(price)
