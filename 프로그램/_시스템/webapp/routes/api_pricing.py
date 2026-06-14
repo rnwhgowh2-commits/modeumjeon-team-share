@@ -213,11 +213,14 @@ def _ingest_option_stocks(session, source_product_id, options):
         if not isinstance(o, dict):
             continue
         st = o.get('stock')
-        sz = _stk_digits(o.get('size'))
+        # 확장 추출기는 color/size, 서버 parse_html 은 color_text/size_text 키 사용 → 둘 다 수용.
+        _color = o.get('color') if o.get('color') is not None else o.get('color_text')
+        _size = o.get('size') if o.get('size') is not None else o.get('size_text')
+        sz = _stk_digits(_size)
         if st is None or not sz:
             continue
         # 색+사이즈 정밀 매칭 우선, 모호하지 않으면 사이즈 단일 매칭(단일색 상품)
-        target = by_cs.get((_stk_cnorm(o.get('color')), sz))
+        target = by_cs.get((_stk_cnorm(_color), sz))
         if target is None:
             cands = by_size.get(sz) or []
             target = cands[0] if len(cands) == 1 else None

@@ -101,6 +101,25 @@ def test_single_color_size_only_match(db):
     assert db.query(SourceOption).filter_by(source_product_id=sp.id).first().current_stock == 2
 
 
+def test_parse_html_key_format(db):
+    """서버 parse_html 포맷(color_text/size_text) 도 수용 (전체크롤 비무신사 경로)."""
+    sp = upsert_source_product(db, site="ssf",
+                               url="https://www.ssfshop.com/LEMOUTON/GRG1/good")
+    db.commit()
+    _opt(db, sp.id, "크림핑크", "240mm", 999)
+    _opt(db, sp.id, "크림핑크", "235mm", 999)
+    db.commit()
+    n = _ingest_option_stocks(db, sp.id, [
+        {"color_text": "크림핑크", "size_text": "240mm", "stock": 7},
+        {"color_text": "크림핑크", "size_text": "235mm", "stock": 0},
+    ])
+    db.commit()
+    assert n == 2
+    got = _stocks(db, sp)
+    assert got["240mm"] == 7
+    assert got["235mm"] == 0
+
+
 def test_empty_or_bad_options_noop(db):
     sp = upsert_source_product(db, site="musinsa", url="https://www.musinsa.com/products/9")
     db.commit()
