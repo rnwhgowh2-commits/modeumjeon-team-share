@@ -49,6 +49,16 @@
   .nsg-ms .m .d{font-size:15.5px;color:#4E5968;margin-top:2px;}
   .nsg-who{display:inline-block;font-size:14px;font-weight:700;padding:2px 10px;border-radius:20px;}
   .nsg-who.u{background:#E8F3FF;color:#1B64DA;}.nsg-who.c{background:#33424F;color:#fff;}
+  /* 단계 그룹핑 (시안 C) */
+  .nsg-grp{margin-bottom:12px;border:1px solid var(--line);border-radius:14px;overflow:hidden;}
+  .nsg-grp:last-child{margin-bottom:0;}
+  .nsg-gh{display:flex;align-items:center;gap:10px;padding:11px 16px;background:var(--soft);font-size:16px;font-weight:800;}
+  .nsg-gh .nsg-gi{width:25px;height:25px;border-radius:8px;background:#191F28;color:#fff;font-size:14px;text-align:center;line-height:25px;flex-shrink:0;}
+  .nsg-gh .nsg-who{margin-left:auto;}
+  .nsg-gbody{padding:5px 16px 13px;}
+  .nsg-grp .m{background:transparent;border-radius:0;padding:11px 0;border-bottom:1px dashed var(--line);}
+  .nsg-grp .m:last-child{border-bottom:none;}
+  .nsg-grp .m .n{width:28px;height:28px;line-height:24px;background:#fff;border:2px solid #191F28;color:#191F28;font-size:14px;}
   .nsg-more{margin-top:18px;width:100%;display:flex;align-items:center;justify-content:center;gap:9px;background:#0A2540;color:#fff;
     border:none;border-radius:12px;padding:16px;font-size:18px;font-weight:700;cursor:pointer;}
   .nsg-more:hover{background:#143356;}
@@ -170,16 +180,32 @@
 <!-- 신규 소싱처 추가 — 팝오버 -->
 <div id="nsgPop" class="nsg-pop" hidden>
   <div class="ph">
-    <div><h3>➕ 신규 소싱처 추가</h3><div class="ps">URL 1개만 주면 2~6단계는 Claude 가 자동으로 진행합니다.</div></div>
+    <div><h3>➕ 신규 소싱처 추가</h3><div class="ps">URL 1개만 주면 분석·검증은 Claude 가 자동으로 진행합니다.</div></div>
     <button type="button" class="nsg-x" data-nsg-close-pop>✕</button>
   </div>
   <div class="nsg-ms">
-    <div class="m"><span class="n">1</span><div><div class="t">샘플 URL 1개 제공 <span class="nsg-who u">사용자</span></div><div class="d">대표 상품 상세 페이지 주소</div></div></div>
-    <div class="m"><span class="n">2</span><div><div class="t">어떻게 수집? <span class="nsg-who c">Claude</span></div><div class="d">API 있나 / 로그인 필요한가 분류</div></div></div>
-    <div class="m"><span class="n">3</span><div><div class="t">항목별 위치 추출 <span class="nsg-who c">Claude</span></div><div class="d">6항목 셀렉터 / 엔드포인트 확정</div></div></div>
-    <div class="m"><span class="n">4</span><div><div class="t">매입가 로직 정리 <span class="nsg-who c">Claude</span></div><div class="d">혜택 순차 차감 규칙</div></div></div>
-    <div class="m"><span class="n">5</span><div><div class="t">검증 크롤·대조 <span class="nsg-who c">Claude</span></div><div class="d">최종가 / 옵션·재고 확인</div></div></div>
-    <div class="m"><span class="n">6</span><div><div class="t">가이드 카드 저장 <span class="nsg-who c">Claude</span></div><div class="d">정답 카드 완성 → 복제 가능</div></div></div>
+    <div class="nsg-grp">
+      <div class="nsg-gh"><span class="nsg-gi">①</span>입력 <span class="nsg-who u">사용자</span></div>
+      <div class="nsg-gbody">
+        <div class="m"><span class="n">1</span><div><div class="t">샘플 URL 1개 제공</div><div class="d">대표 상품 상세 페이지 주소</div></div></div>
+      </div>
+    </div>
+    <div class="nsg-grp">
+      <div class="nsg-gh"><span class="nsg-gi">②</span>수집·추출 <span class="nsg-who c">Claude</span></div>
+      <div class="nsg-gbody">
+        <div class="m"><span class="n">2</span><div><div class="t">어떻게 수집?</div><div class="d">API 있나 / 로그인 필요한가 분류</div></div></div>
+        <div class="m"><span class="n">3</span><div><div class="t">항목별 위치 추출</div><div class="d">6항목 셀렉터 / 엔드포인트 확정</div></div></div>
+        <div class="m"><span class="n">4</span><div><div class="t">재고 점검</div><div class="d">색×사이즈 실조합·실재고만 / 재고 3종(정상·한정수량·품절) 파싱</div></div></div>
+      </div>
+    </div>
+    <div class="nsg-grp">
+      <div class="nsg-gh"><span class="nsg-gi">③</span>검증·저장 <span class="nsg-who c">Claude</span></div>
+      <div class="nsg-gbody">
+        <div class="m"><span class="n">5</span><div><div class="t">매입가 로직 정리</div><div class="d">혜택 순차 차감 규칙</div></div></div>
+        <div class="m"><span class="n">6</span><div><div class="t">검증 크롤·대조</div><div class="d">최종가 / 옵션·재고 확인</div></div></div>
+        <div class="m"><span class="n">7</span><div><div class="t">가이드 카드 저장</div><div class="d">정답 카드 완성 → 복제 가능</div></div></div>
+      </div>
+    </div>
   </div>
   <button type="button" class="nsg-more" data-nsg-open-detail>📖 상세 로직 · 설명 전체 보기 →</button>
 </div>
@@ -195,7 +221,7 @@
     <button type="button" class="nsg-x" data-nsg-close-detail>✕</button>
   </div>
 
-  <div class="nsg-cmd"><span class="ic">💬</span><span class="tx">지시 예시 — <b>"신규 소싱처 추가 가이드 참고해서 SSF샵 추가해줘"</b><br><span class="mini">사용자는 URL 1개만 제공 · 2~6단계는 Claude 자동 수행</span></span></div>
+  <div class="nsg-cmd"><span class="ic">💬</span><span class="tx">지시 예시 — <b>"신규 소싱처 추가 가이드 참고해서 SSF샵 추가해줘"</b><br><span class="mini">사용자는 URL 1개만 제공 · 2~7단계는 Claude 자동 수행</span></span></div>
 
   <div class="nsg-sec">
     <h4>STEP 2 · 수집 방식 4분면 분류 (어떻게 긁나 × 로그인 필요한가)</h4>
