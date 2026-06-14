@@ -1134,7 +1134,7 @@
             <div class="cmtx-sub" id="cmtx-sub"></div>
             <div class="cmtx-legend">
               <span><i style="background:#10b981"></i>충분</span>
-              <span><i style="background:#f59e0b"></i>소량(3개↓)</span>
+              <span><i style="background:#f59e0b"></i>소량(4개↓)</span>
               <span><i style="background:#dc2626"></i>품절</span>
               <span><i style="background:#9aa3af"></i>크롤실패</span>
               <span><i style="background:#d1d6db"></i>미크롤</span>
@@ -1236,7 +1236,7 @@
           return '#d1d6db';
         }
 
-        // 재고 상태 판정 (확정값 stock_out / stock_qty 사용) — 소량 기준 3개 이하
+        // 재고 상태 판정 (확정값 stock_out / stock_qty 사용) — 소량 기준 4개 이하
         const COLOR = { full:'#10b981', low:'#f59e0b', oos:'#dc2626', miss:'#d1d6db', fail:'#9aa3af' };
         // 매트릭스 셀과 동일한 소싱처 선택 로직(_pickBestSrc 복제) — 같은 칸 = 같은 값 보장
         function pickBest(list){
@@ -1254,7 +1254,7 @@
           return (typeof window.__cmtxCellPrice === 'function')
             ? window.__cmtxCellPrice(sku, srcId, fallback) : fallback;
         }
-        // 재고 상태 판정 — renderSiteCell 과 동일 규칙. 소량 = 3개 이하.
+        // 재고 상태 판정 — renderSiteCell 과 동일 규칙. 소량 = 4개 이하.
         function cellState(src){
           if (!src || !src.product_url) return { kind:'miss' };                         // 크롤링 미실시(URL 미매핑 포함)
           if (src.last_status === 'error') return { kind:'fail' };                       // 크롤 실패(가격 stale → 숨김)
@@ -1263,7 +1263,7 @@
           if (src.crawled_price == null || src.crawled_price <= 0) return { kind:'miss' }; // 크롤 대기/미실시
           if (src.stock_out || src.crawled_stock === 0) return { kind:'oos' };           // 품절
           const q = src.stock_qty != null ? src.stock_qty : null;
-          return { kind: (q != null && q <= 3) ? 'low' : 'full', q };                    // 소량(3개↓) / 충분
+          return { kind: (q != null && q <= 4) ? 'low' : 'full', q };                    // 소량(4개↓·주황) / 충분(초록)
         }
 
         function render(){
