@@ -305,6 +305,33 @@ async function musinsaExtractor() {
   });
   const anyStock = options.some((o) => o.stock > 0) || (price != null);
 
+  // ★ 2026-06-14 — 현재 페이지(로그인 상태 그대로) 혜택영역 자동 수집.
+  //   특정 DOM 구조 의존 ❌ — 혜택 키워드가 들어간 잎(leaf-ish) 요소 텍스트를 스캔해
+  //   라인 리스트로 수집(라인이 키워드+숫자를 함께 보유). on/off 게이트는 서버가 라인으로 판정.
+  //   금액은 추후(키워드 사전 확정 후) 단계에서 라인 기반 추출 — 지금은 benefit_amounts={}.
+  function collectBenefitLines() {
+    try {
+      const KW = /(쿠폰|적립|할인|머니|혜택|등급|카드|페이|무이자|행사|즉시|중복|장바구니)/;
+      const seen = new Set();
+      const lines = [];
+      const nodes = document.querySelectorAll("body *");
+      for (let i = 0; i < nodes.length; i++) {
+        const el = nodes[i];
+        if (el.children && el.children.length > 3) continue; // 잎에 가까운 요소만
+        const t = (el.innerText || "").replace(/\s+/g, " ").trim();
+        if (!t || t.length > 90 || !KW.test(t)) continue;
+        if (seen.has(t)) continue;
+        seen.add(t);
+        lines.push(t);
+        if (lines.length >= 60) break; // 폭주 방지
+      }
+      return lines;
+    } catch (e) {
+      return null; // 수집 실패 — benefits_ok=false 로 표면화
+    }
+  }
+  const _benLines = collectBenefitLines();
+
   return {
     ok: !!price,
     price: price,                       // 표면노출가(salePrice) — 검증 통과 시만, 아니면 null
@@ -313,6 +340,9 @@ async function musinsaExtractor() {
     member_price: member,               // 참고용(회원가, '나의 할인가') — 계산 base 아님
     sale_price: surface, surface_price: surface, normal_price: normal,
     is_logged_in: member != null,
+    benefits_ok: Array.isArray(_benLines) && _benLines.length > 0,
+    benefit_lines: Array.isArray(_benLines) ? _benLines : [],
+    benefit_amounts: {},
     option_count: options.length, options,
     error: price ? null : "표면가 검증 실패(salePrice 없음/0/정가 초과) — 크롤실패(폴백 금지)",
   };

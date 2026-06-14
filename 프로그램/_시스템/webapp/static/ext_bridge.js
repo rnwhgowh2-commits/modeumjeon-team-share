@@ -73,6 +73,9 @@
       options: x.options,   // ★ 사이즈별 재고[{color,size,stock}] — 서버가 SourceOption.current_stock 에 반영
       status: x.ok ? "ok" : "error", product_name: x.product_name, error: x.error,
       is_logged_in: (x.is_logged_in === undefined ? null : x.is_logged_in),
+      benefits_ok: (x.benefits_ok === undefined ? false : !!x.benefits_ok),
+      benefit_lines: x.benefit_lines || [],
+      benefit_amounts: x.benefit_amounts || {},
     }));
     const save = await fetch("/api/sources/crawl-result", {
       method: "POST", headers: { "Content-Type": "application/json" },
@@ -351,6 +354,9 @@
       options: x.options,   // ★ 사이즈별 재고[{color,size,stock}] — 서버가 SourceOption.current_stock 에 반영
       status: x.status, product_name: x.product_name, error: x.error,
       is_logged_in: (x.is_logged_in === undefined ? null : x.is_logged_in),
+      benefits_ok: (x.benefits_ok === undefined ? false : !!x.benefits_ok),
+      benefit_lines: x.benefit_lines || [],
+      benefit_amounts: x.benefit_amounts || {},
     }));
     const save = await fetch("/api/sources/crawl-result", {
       method: "POST", headers: { "Content-Type": "application/json" },
