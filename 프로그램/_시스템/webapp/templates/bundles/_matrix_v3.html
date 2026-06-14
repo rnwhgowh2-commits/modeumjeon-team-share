@@ -1829,6 +1829,11 @@
       .catch(() => {});
   }
   window.reloadMatrix = reloadBenefitsMatrix;
+  // [2026-06-13] 크롤 후 자동 갱신 버그픽스 — loadMatrix 가 IIFE 안에 갇혀 전역 미노출이라,
+  //   대시보드 크롤(toss.js)의 `if (typeof loadMatrix==='function') loadMatrix()` 가 조용히
+  //   건너뛰어 크롤해도 매트릭스 최종매입가가 새로고침 전까지 옛 캐시로 남았다(FX 모달만 갱신).
+  //   → 전역 노출해 크롤 직후 option-matrix+breakdowns 재조회·재렌더되게 한다.
+  window.loadMatrix = loadMatrix;
 
   // ════════════════════════════════════════════════════════════
   //  v5 시안 ① 소싱처×옵션 매트릭스 (4색 + 최저가 박스 + 통계)
