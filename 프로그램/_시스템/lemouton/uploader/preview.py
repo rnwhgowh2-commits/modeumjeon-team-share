@@ -29,14 +29,17 @@ def _resolve_option_upload(o: Option, cfg, tpl, sources_for_opt, stock: int) -> 
     Returns: {resolved_side, src: {ss,cp}, pur: {ss,cp}|None, upload: {ss,cp}}.
     """
     # 원가(소싱) = 매트릭스와 100% 동일 규칙: 재고존재+크롤성공(error X) 중 최저 크롤가
-    #   (_pick_cheapest_buyable) → 없으면 템플릿 매입가 → 95000.
+    #   (_pick_cheapest_buyable) → 없으면 None.
     #   [2026-06-05] api_pricing 의 원가 선정과 같은 함수를 써서 '표시가=업로드가' 보장.
     #   stale(크롤 실패+옛값) 배제는 _pick_cheapest_buyable 내부 is_crawl_valid 가 담당.
-    from webapp.routes.api_pricing import _pick_cheapest_buyable
+    #   [2026-06-14 #1 폴백금지] 매트릭스와 동일하게 _resolve_sourcing_cost 사용 — 크롤
+    #   실제가가 없으면 None(가짜 95000·사입가 폴백 절대 금지). 과거엔 `or boxhero or 95000`
+    #   폴백이 있어 크롤 실패 옵션이 가짜 95000 기반 '업로드가'로 둔갑 → 마켓 오송신/손실 위험.
+    #   crawl_blocked 게이트(build_upload_preview)가 1차로 막지만, 게이트가 stale·미설정인
+    #   경우까지 대비한 방어선(price_guard 는 0/비정상만 거르고 95000 둔갑은 못 잡음).
+    from webapp.routes.api_pricing import _pick_cheapest_buyable, _resolve_sourcing_cost
     _cost_src = _pick_cheapest_buyable(sources_for_opt)
-    purchase = ((_cost_src or {}).get('crawled_price')
-                or (tpl.boxhero_purchase_price if tpl else None)
-                or 95000)
+    purchase = _resolve_sourcing_cost(_cost_src)  # 크롤 실제가 int | None
 
     # 매입가(사입) 우선순위 (template/avg) — api_pricing 동일
     _avg = o.boxhero_avg_purchase_price or 0
@@ -54,9 +57,14 @@ def _resolve_option_upload(o: Option, cfg, tpl, sources_for_opt, stock: int) -> 
     else:
         resolved_side = 'source'
 
-    # 소싱 카드 가격 (옵션별 지정가 토글 최우선)
-    src_ss = compute_market_price(tpl, 'ss', 'sourcing', purchase).final_price
-    src_cp = compute_market_price(tpl, 'coupang', 'sourcing', purchase).final_price
+    # 소싱 카드 가격 — 크롤 실제가 있을 때만 산출. 없으면 None(가격없음/크롤실패) — 매트릭스
+    #   (_option_matrix_data: purchase None → ss/cp None)와 100% 동일. 폴백 조작 금지.
+    if purchase is not None:
+        src_ss = compute_market_price(tpl, 'ss', 'sourcing', purchase).final_price
+        src_cp = compute_market_price(tpl, 'coupang', 'sourcing', purchase).final_price
+    else:
+        src_ss = src_cp = None
+    # 옵션별 지정가 토글은 크롤가와 무관한 사용자 확정값 → 최우선(폴백 아님).
     if o.src_fixed_ss_active and o.src_fixed_ss_price:
         src_ss = o.src_fixed_ss_price
     if o.src_fixed_cp_active and o.src_fixed_cp_price:

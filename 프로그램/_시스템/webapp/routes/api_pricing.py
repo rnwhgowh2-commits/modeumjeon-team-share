@@ -1583,9 +1583,17 @@ def get_price_breakdown(sku: str):
             _src_purchase = (_lem or _any).crawled_price if (_lem or _any) else None
         except Exception:
             _src_purchase = None
-        purchase = (_src_purchase
-                    or (tpl.boxhero_purchase_price if tpl else None)
-                    or 95000)
+        # [2026-06-14 #1 폴백금지] 원가 = 크롤 실제가만. 사입가·하드코딩 95000 폴백 금지
+        #   (전 시스템 공통 정책 — 매트릭스/업로더와 동일). 크롤가 없으면 '가격없음'으로 표면화.
+        purchase = _src_purchase  # 크롤 실제가 int | None
+        if purchase is None:
+            return _ok(
+                sku=sku, color=opt.color_code, size=opt.size_code,
+                auto_enabled=cfg.auto_enabled if cfg else True,
+                ss=None, cp=None, ss_final=None, cp_final=None,
+                template_name=(tpl.name if tpl else None),
+                price_missing=True, reason='크롤 실제가 없음 (가격없음/크롤실패)',
+            )
         ss_price, ss_break = calc_auto_price(purchase, margin, ss_fee,
                                               ss_ship, rounding)
         cp_price, cp_break = calc_auto_price(purchase, margin, cp_fee,
