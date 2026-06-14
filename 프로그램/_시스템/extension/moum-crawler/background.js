@@ -10,7 +10,7 @@
 //  결과 저장은 mou-m.com /api/sources/crawl-result (ext_bridge.crawlBundleAll 이 호출).
 //  grabHtml/crawl(URL마다 창 생성·즉시 닫기) 핸들러는 하위호환 위해 유지.
 
-const MOUM_EXT_VERSION = "0.4.6";
+const MOUM_EXT_VERSION = "0.4.7";
 
 // cascade 위치 시퀀서 — 창이 여러 개 열려도 서로 어긋나 보임
 let _winSeq = 0;
@@ -313,13 +313,20 @@ async function musinsaExtractor() {
   //   금액은 서버가 라인(matched_lines)에서 추출 — 별도 키 계약 불필요. (실브라우저 3상태 검증)
   async function collectBenefitLines() {
     try {
-      const toggles = [...document.querySelectorAll("body *")].filter((el) => {
-        if (el.childElementCount > 4) return false;
-        const t = (el.textContent || "").replace(/\s+/g, " ").trim();
-        return /최대 적립|나의 할인가/.test(t) && t.length < 40;
-      });
-      toggles.slice(0, 4).forEach((el) => { try { el.click(); } catch (_) {} });
-      await new Promise((r) => setTimeout(r, 700));
+      const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+      const norm = () => (document.body.textContent || "").replace(/\s+/g, " ");
+      // 적립 내역(접힌 '최대 적립')이 렌더됐는지 검증식 — 이게 보일 때까지 펼침 재시도.
+      const hasAccrual = () => /후기 적립\s*[\d,]+\s*원|포인트 10% 적립\s*[\d,]+|등급 적립\([^)]*\)\s*[\d,]+/.test(norm());
+      // ★ 크롤 새 창은 React 하이드레이션 전이라 1회 클릭이 자주 실패 → '펼쳐질 때까지' 재시도
+      //   (최대 ~8초). 검증식 통과하면 즉시 종료. (실패해도 아래서 있는 만큼 수집)
+      for (let i = 0; i < 16 && !hasAccrual(); i++) {
+        [...document.querySelectorAll("body *")].forEach((el) => {
+          if (el.childElementCount > 4) return;
+          const t = (el.textContent || "").replace(/\s+/g, " ").trim();
+          if (/최대 적립|나의 할인가/.test(t) && t.length < 40) { try { el.click(); } catch (_) {} }
+        });
+        await sleep(500);
+      }
       const KW = /(쿠폰|적립|할인|머니|혜택|등급|페이|즉시|불가|없음|적용\s*안함|삼성|토스|카카오|후기|결제)/;
       const AMT = /([\-+]?\s*[\d,]{2,}\s*원|\d+(\.\d+)?\s*%)/;
       const SKIP = new Set(["SCRIPT", "STYLE", "NOSCRIPT", "svg", "path"]);
