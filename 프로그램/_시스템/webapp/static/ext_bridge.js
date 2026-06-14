@@ -124,6 +124,7 @@
       const x = await send("navExtract", { tabId: tabId, url: url, source_key: sk }, 120000) || {};
       return {
         url: url, source_key: sk, price: x.price, stock: x.stock,
+        options: x.options,   // ★ 사이즈별 재고 보존(전체크롤 경로) — 없으면 상품레벨 999 둔갑
         status: x.ok ? "ok" : "error", product_name: x.product_name, error: x.error || null,
         is_logged_in: (x.is_logged_in === undefined ? null : x.is_logged_in),
       };
@@ -162,6 +163,9 @@
       url: url, source_key: sk,
       price: price,
       stock: stock,
+      // ★ 사이즈별 재고 보존 — 서버가 SourceOption.current_stock 에 옵션별 반영.
+      //   기존엔 상품레벨 합계(stock)만 보내 모든 사이즈가 '재고있음' 둔갑(르무통 24935 등).
+      options: opts2.map((o) => ({ color: o.color_text, size: o.size_text, stock: o.stock })),
       status: ok ? "ok" : "error",
       product_name: p.product_name_raw || null,
       error: ok ? null : "옵션 가격 없음",
