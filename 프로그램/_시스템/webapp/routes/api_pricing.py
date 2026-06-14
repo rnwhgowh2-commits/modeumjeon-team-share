@@ -188,6 +188,48 @@ def _resolve_stock(site, raw):
     return (int(raw), f'{int(raw)}개', False)
 
 
+def _ingest_option_stocks(session, source_product_id, options):
+    """확장 options[{color,size,stock}] → SourceOption.current_stock 갱신 (색·사이즈 매칭).
+
+    무신사·롯데온(확장 크롤)은 상품 레벨 stock 하나만 보내던 것을, 사이즈별 실재고
+    (0=품절 / N=실수량 / 999=충분, 확장이 센티넬 적용 완료)로 옵션별 교정한다.
+    색+사이즈 정밀 매칭 우선, 같은 사이즈 SourceOption 이 1개뿐이면 사이즈만으로 매칭.
+    Returns: 갱신된 옵션 수.
+    """
+    if not isinstance(options, list) or not options:
+        return 0
+    from lemouton.sources.models import SourceOption
+    rows = (session.query(SourceOption)
+            .filter_by(source_product_id=source_product_id, deleted_at=None).all())
+    by_cs, by_size = {}, {}
+    for so in rows:
+        sz = _stk_digits(so.size_text) or _stk_digits(so.color_text)
+        if not sz:
+            continue
+        by_cs[(_stk_cnorm(so.color_text), sz)] = so
+        by_size.setdefault(sz, []).append(so)
+    n = 0
+    for o in options:
+        if not isinstance(o, dict):
+            continue
+        st = o.get('stock')
+        sz = _stk_digits(o.get('size'))
+        if st is None or not sz:
+            continue
+        # 색+사이즈 정밀 매칭 우선, 모호하지 않으면 사이즈 단일 매칭(단일색 상품)
+        target = by_cs.get((_stk_cnorm(o.get('color')), sz))
+        if target is None:
+            cands = by_size.get(sz) or []
+            target = cands[0] if len(cands) == 1 else None
+        if target is not None:
+            try:
+                target.current_stock = int(st)
+                n += 1
+            except (TypeError, ValueError):
+                pass
+    return n
+
+
 def _pick_cheapest_buyable(sources):
     """옵션의 소싱처들 중 "재고존재(품절X) + 크롤성공(error X) + 가격>0" 최저가.
        없으면 크롤성공+가격있는 것 중 최저(품절은 허용 — 실가격은 유효).
@@ -1204,6 +1246,11 @@ def save_crawl_result():
                     ).update({SourceOption.current_price: int(price)})
                 except Exception:
                     pass
+            # ★ 2026-06-14 — 사이즈별 재고 반영 (확장 options[{color,size,stock}] → current_stock).
+            #   기존 상품레벨 stock(=확장 anyStock?999:0)만 저장 → 전 사이즈 '재고있음'
+            #   둔갑(한정수량·품절 누락 = 오발주 손실) 교정. status=ok 인 성공 크롤만.
+            if status == 'ok':
+                _ingest_option_stocks(s, sp.id, it.get('options'))
             # ★ 2026-06-13 — '있는 그대로' 적용: 비로그인 무신사 크롤은 계정 의존 혜택
             #   (등급적립·무신사머니·등급할인·상품쿠폰)을 페이지에서 못 봤으므로 0 으로 비운다.
             #   어제 로그인 크롤의 stale 값을 끌어다 쓰는 사고 차단(폴백·해석 금지).

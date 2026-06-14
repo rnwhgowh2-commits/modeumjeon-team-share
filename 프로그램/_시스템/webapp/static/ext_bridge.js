@@ -70,6 +70,7 @@
     const results = (res && res.results) || [];
     const items = results.map((x) => ({
       url: x.url, price: x.price, stock: x.stock,
+      options: x.options,   // ★ 사이즈별 재고[{color,size,stock}] — 서버가 SourceOption.current_stock 에 반영
       status: x.ok ? "ok" : "error", product_name: x.product_name, error: x.error,
       is_logged_in: (x.is_logged_in === undefined ? null : x.is_logged_in),
     }));
@@ -343,6 +344,7 @@
     // 3) 결과 저장(기존 엔드포인트 형식 그대로)
     const items = results.map((x) => ({
       url: x.url, price: x.price, stock: x.stock,
+      options: x.options,   // ★ 사이즈별 재고[{color,size,stock}] — 서버가 SourceOption.current_stock 에 반영
       status: x.status, product_name: x.product_name, error: x.error,
       is_logged_in: (x.is_logged_in === undefined ? null : x.is_logged_in),
     }));
