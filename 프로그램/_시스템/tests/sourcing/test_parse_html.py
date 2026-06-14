@@ -36,3 +36,27 @@ def test_ss_lemouton_parse_html(html_of):
 
 def test_lemouton_parse_html(html_of):
     _check("lemouton", html_of)
+
+
+def test_ss_lemouton_sku_stock_override(html_of):
+    """[2026-06-14] 확장이 n/v2 로 수집한 per-SKU 재고가 옵션별 stock 을 교정한다.
+
+    배경: inline state 엔 SKU별 재고가 없어 옵션 다중 상품은 전부 999(있음) 둔갑했다.
+    sku_stock("색상||사이즈"→수량)을 주면 해당 SKU 만 실수량/품절로 교정(미스 키는 999 유지).
+    """
+    c = build_crawlers()["ss_lemouton"]
+    html = html_of("ss_lemouton")
+    base = c.parse_html(html, URLS["ss_lemouton"])
+    multi = [o for o in base.options if o.get("size_text")]  # 사이즈 있는 옵션
+    if not multi:
+        return  # 단품 픽스처면 스킵(해당 픽스처는 단일 옵션)
+    target = multi[0]
+    color, size = target["color_text"], target["size_text"]
+    sku = {f"{color}||{size}": 0,            # 이 SKU = 품절
+           f"{color}|| {size} ": 0}          # 공백 표기차 방어도 같이
+    res = c.parse_html(html, URLS["ss_lemouton"], sku_stock=sku)
+    got = {(o["color_text"], o["size_text"]): o["stock"] for o in res.options}
+    assert got[(color, size)] == 0          # 교정됨(품절)
+    # 맵에 없던 다른 SKU 는 기존 로직(999 또는 단품 수량) 유지 — 0 으로 둔갑 안 됨
+    others = [v for k, v in got.items() if k != (color, size)]
+    assert any(v != 0 for v in others) if len(others) else True

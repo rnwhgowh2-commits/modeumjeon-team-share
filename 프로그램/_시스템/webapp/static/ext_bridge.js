@@ -134,11 +134,15 @@
     if (!grab || !grab.ok || !grab.html) {
       return { url: url, source_key: sk, status: "error", error: (grab && grab.error) || "HTML 수집 실패" };
     }
+    // 스스 per-SKU 수집 진단(콘솔) — "ok:N" 성공 / "err:..." 실패 사유(둔갑 방지 null 유지).
+    if (grab.sku_diag) console.log("[moum] sku_stock", sk, url, grab.sku_diag);
     let p;
     try {
       p = await fetch("/api/sources/parse", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ source_key: sk, url: url, html: grab.html }),
+        // sku_stock: 스스 per-SKU 재고 맵("색상||사이즈"→수량). 확장(로그인 브라우저)이
+        //   n/v2 API 로 수집해 동봉 → 서버 파서가 옵션별 stock 을 이 값으로 교정.
+        body: JSON.stringify({ source_key: sk, url: url, html: grab.html, sku_stock: grab.sku_stock || null }),
       }).then((x) => x.json());
     } catch (e) {
       return { url: url, source_key: sk, status: "error", error: "parse 호출 실패: " + e };
