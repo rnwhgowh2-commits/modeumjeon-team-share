@@ -10,7 +10,7 @@
 //  결과 저장은 mou-m.com /api/sources/crawl-result (ext_bridge.crawlBundleAll 이 호출).
 //  grabHtml/crawl(URL마다 창 생성·즉시 닫기) 핸들러는 하위호환 위해 유지.
 
-const MOUM_EXT_VERSION = "0.4.5";
+const MOUM_EXT_VERSION = "0.4.6";
 
 // cascade 위치 시퀀서 — 창이 여러 개 열려도 서로 어긋나 보임
 let _winSeq = 0;
@@ -305,32 +305,47 @@ async function musinsaExtractor() {
   });
   const anyStock = options.some((o) => o.stock > 0) || (price != null);
 
-  // ★ 2026-06-14 — 현재 페이지(로그인 상태 그대로) 혜택영역 자동 수집.
-  //   특정 DOM 구조 의존 ❌ — 혜택 키워드가 들어간 잎(leaf-ish) 요소 텍스트를 스캔해
-  //   라인 리스트로 수집(라인이 키워드+숫자를 함께 보유). on/off 게이트는 서버가 라인으로 판정.
-  //   금액은 추후(키워드 사전 확정 후) 단계에서 라인 기반 추출 — 지금은 benefit_amounts={}.
-  function collectBenefitLines() {
+  // ★ 2026-06-14 — 현재 페이지(로그인 상태 그대로) 혜택영역 자동 수집 (v0.4.6).
+  //   ① 접힌 아코디언('최대 적립' 등)을 펼친다 — innerText 는 숨김=빈값이라 적립내역을
+  //      놓침(무신사머니 결제적립 누락 사고). textContent + 펼침으로 빠짐없이.
+  //   ② 행(row) 단위 textContent 수집 = 라벨+금액 한 줄(키워드+금액 둘 다 있는 행).
+  //   ③ off 신호('등급 할인 불가'/'쿠폰 없음'/'적용 안함')는 금액 없어도 게이트 veto용 포함.
+  //   금액은 서버가 라인(matched_lines)에서 추출 — 별도 키 계약 불필요. (실브라우저 3상태 검증)
+  async function collectBenefitLines() {
     try {
-      const KW = /(쿠폰|적립|할인|머니|혜택|등급|카드|페이|무이자|행사|즉시|중복|장바구니)/;
-      const seen = new Set();
-      const lines = [];
-      const nodes = document.querySelectorAll("body *");
-      for (let i = 0; i < nodes.length; i++) {
-        const el = nodes[i];
-        if (el.children && el.children.length > 3) continue; // 잎에 가까운 요소만
-        const t = (el.innerText || "").replace(/\s+/g, " ").trim();
-        if (!t || t.length > 90 || !KW.test(t)) continue;
-        if (seen.has(t)) continue;
-        seen.add(t);
-        lines.push(t);
-        if (lines.length >= 60) break; // 폭주 방지
-      }
-      return lines;
+      const toggles = [...document.querySelectorAll("body *")].filter((el) => {
+        if (el.childElementCount > 4) return false;
+        const t = (el.textContent || "").replace(/\s+/g, " ").trim();
+        return /최대 적립|나의 할인가/.test(t) && t.length < 40;
+      });
+      toggles.slice(0, 4).forEach((el) => { try { el.click(); } catch (_) {} });
+      await new Promise((r) => setTimeout(r, 700));
+      const KW = /(쿠폰|적립|할인|머니|혜택|등급|페이|즉시|불가|없음|적용\s*안함|삼성|토스|카카오|후기|결제)/;
+      const AMT = /([\-+]?\s*[\d,]{2,}\s*원|\d+(\.\d+)?\s*%)/;
+      const SKIP = new Set(["SCRIPT", "STYLE", "NOSCRIPT", "svg", "path"]);
+      const rows = [];
+      document.querySelectorAll("body *").forEach((el) => {
+        if (SKIP.has(el.tagName) || el.childElementCount > 6) return;
+        const t = (el.textContent || "").replace(/\s+/g, " ").trim();
+        if (!t || t.length > 90) return;
+        if (/\{|\}|props|pageProps/.test(t)) return; // SPA JSON 잔재 배제
+        if (!KW.test(t) || !AMT.test(t)) return;
+        rows.push(t);
+      });
+      document.querySelectorAll("body *").forEach((el) => {
+        if (el.childElementCount !== 0) return;
+        const t = (el.textContent || "").replace(/\s+/g, " ").trim();
+        if (/등급 할인 불가|쿠폰 없음|적용 안함/.test(t)) rows.push(t);
+      });
+      const uniq = [...new Set(rows)].sort((a, b) => a.length - b.length);
+      const kept = [];
+      uniq.forEach((t) => { if (!kept.some((k) => k.includes(t))) kept.push(t); });
+      return kept;
     } catch (e) {
       return null; // 수집 실패 — benefits_ok=false 로 표면화
     }
   }
-  const _benLines = collectBenefitLines();
+  const _benLines = await collectBenefitLines();
 
   return {
     ok: !!price,
