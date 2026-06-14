@@ -281,15 +281,26 @@ def _parse_gift_point(html: str) -> Optional[int]:
 
 
 def _parse_sizes(soup: BeautifulSoup, html: str = "") -> list[dict]:
-    """SSF 사이즈별 (name, soldOut, stock) 추출 — 정규식(JS 문자열) 우선, DOM 폴백.
+    """SSF 사이즈별 (name, soldOut, stock) 추출 — DOM(렌더 navGrab) 우선, 정규식(curl raw) 폴백.
 
     재고 의미: statCd=SLDOUT → 품절(soldOut) / 품절임박(N) → N(한정 잔여) /
               표시 없음 → 충분(stock=None → 호출부서 999).
 
-    [2026-06-14] SSF DOM 변경(JS 문자열·camelCase·lazy 렌더)으로 a[optcd] 셀렉터가
-      0개가 되어 전 사이즈 999 둔갑(한정수량·품절 누락)하던 것을, raw HTML JS 문자열
-      정규식 파싱으로 교정. 같은 사이즈 중복 블록(타 색/템플릿)은 첫 출현만 사용.
+    [2026-06-14] 경로별 옵션 임베드 방식이 달라 두 파서를 둔다:
+      - 확장 navGrab(실제 크롤): 옵션이 실제 DOM(#optionDiv1 li a[optcd], li 텍스트에
+        품절임박(N)) 으로 렌더됨 → DOM 파서 사용. (렌더본은 JS 문자열 optCd 가 소진됨)
+      - curl_cffi raw(서버 직접): 옵션이 <script> JS 문자열(optCd camelCase)로만 존재해
+        a[optcd] 셀렉터가 0개 → 정규식 파싱(폴백). 중복 사이즈는 첫 출현만.
+      (둘 다 못 잡으면 전 사이즈 999 둔갑 = 한정수량·품절 누락 → 오발주 손실)
     """
+    # ① 확장 navGrab(렌더 HTML, 실제 크롤 경로): #optionDiv1 li a[optcd] 가 실제 DOM 으로
+    #    채워지고 li 텍스트에 '품절임박(N)' 이 들어있다 → DOM 파서가 정확.
+    #    (렌더본에선 JS 문자열 optCd 가 소진돼 2개만 남으므로 정규식 먼저면 오답)
+    dom = _parse_sizes_dom(soup)
+    if dom:
+        return dom
+    # ② curl_cffi raw HTML(서버 직접 fetch): 옵션이 <script> JS 문자열(optCd camelCase)로만
+    #    존재해 a[optcd] DOM 셀렉터가 0개 → 정규식으로 JS 문자열 직접 파싱(폴백).
     if html:
         out: list[dict] = []
         seen: set[str] = set()
@@ -306,7 +317,7 @@ def _parse_sizes(soup: BeautifulSoup, html: str = "") -> list[dict]:
             })
         if out:
             return out
-    return _parse_sizes_dom(soup)
+    return dom
 
 
 def _parse_sizes_dom(soup: BeautifulSoup) -> list[dict]:
