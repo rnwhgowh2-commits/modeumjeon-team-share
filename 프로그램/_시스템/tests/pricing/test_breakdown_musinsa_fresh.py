@@ -25,3 +25,30 @@ def test_fresh_crawl_gates_on_present_lines_only():
 def test_not_fresh_returns_none_no_fallback():
     eff = _musinsa_effective_from_crawl(GUIDE_BENEFITS, EXCLUDES, None)
     assert eff is None
+
+
+def test_rate_value_over_one_is_normalized_to_fraction():
+    # 확장이 5(=5%)를 잘못 보내도 0.05 로 정규화 (500% 차감→매입가0 사고 방지)
+    snap = {
+        "benefits_ok": True,
+        "lines": ["등급 적립 5%"],
+        "amounts": {"등급적립": {"type": "rate", "value": 5}},
+    }
+    guide = [{"name": "등급적립", "triggers": ["등급 적립"], "match": "any", "method": "정률(%)"}]
+    eff = _musinsa_effective_from_crawl(guide, [], snap)
+    it = [it for _k, it in eff if it.benefit_name == "등급적립"][0]
+    assert it.benefit_type == "rate"
+    assert it.value == 0.05
+    assert it.enabled is True
+
+
+def test_rate_value_already_fraction_unchanged():
+    snap = {
+        "benefits_ok": True,
+        "lines": ["등급 적립"],
+        "amounts": {"등급적립": {"type": "rate", "value": 0.05}},
+    }
+    guide = [{"name": "등급적립", "triggers": ["등급 적립"], "match": "any", "method": "정률(%)"}]
+    eff = _musinsa_effective_from_crawl(guide, [], snap)
+    it = [it for _k, it in eff if it.benefit_name == "등급적립"][0]
+    assert it.value == 0.05

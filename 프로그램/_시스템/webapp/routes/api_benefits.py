@@ -484,6 +484,9 @@ def _musinsa_effective_from_crawl(guide_benefits, exclude_keywords, snap):
     - gate_benefits(가이드 키워드, snap.lines, excludes)로 on/off 판정.
     - 금액은 snap.amounts[name] (이번 크롤값). 가이드는 키워드·속성만 제공.
     폴백 금지: 템플릿/옛 값으로 대체하지 않는다.
+    조인 키 계약: snap['amounts'] 의 키 = crawl_guide.pricing.benefits[].name 과 정확히 일치해야
+    한다(확장 parser 가 가이드 혜택 이름으로 금액을 내보낸다). 불일치 시 금액 0 → 해당 혜택 미적용
+    (과대 매입가, 언더프라이싱 없음). Phase 0 대조표/Phase 4 라이브검증이 이 불일치를 잡는다.
     """
     if not isinstance(snap, dict):
         return None
@@ -505,6 +508,9 @@ def _musinsa_effective_from_crawl(guide_benefits, exclude_keywords, snap):
         a = amounts.get(nm) or {}
         btype = a.get('type') or ('rate' if (b.get('method') or '').startswith('정률') else 'amount')
         val = float(a.get('value') or 0)
+        # 치명 가드: rate 는 분수(0.05=5%). 확장이 퍼센트(5)로 보내면 정규화 — 500% 차감→매입가0 방지.
+        if btype == 'rate' and val > 1:
+            val = val / 100.0
         eff.append(('crawl', _Inj(nm, btype, val, enabled=(nm in applied and val > 0))))
     return eff
 
