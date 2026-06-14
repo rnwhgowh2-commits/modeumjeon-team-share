@@ -5721,6 +5721,17 @@ table.ompk-tab th.corner{color:#b0b8c1;cursor:default}
     }
     // 가격 있음 — breakdown 적용된 매입가 사용
     const bk = SM_BREAKDOWNS[`${o.sku}|${s.id}`];
+    // [2026-06-14] 혜택 미수집 배지 — breakdown 이 도착했지만 final_price=null(무신사 재크롤 필요).
+    //   폴백가(src.crawled_price) 절대 표시 금지 — 혜택 미반영 가격을 최종가로 오인 방지.
+    if (bk && (bk.final_price == null || bk.benefits_status === '미수집')) {
+      // TODO(N1): 크롤시각 — src.last_fetched_at 은 '크롤 완료 시각'이지 '혜택 수집 시각'이 아님.
+      //   breakdown.crawled_at(혜택 스냅샷 시각)이 SM_BREAKDOWNS 에 없음 → 백엔드 노출 필요.
+      const _crawlTxt = src.last_fetched_at
+        ? `크롤 ${fmtRelDate(src.last_fetched_at)}`
+        : '';
+      const _corner2 = `<a class="sc-go" href="${escapeHtml(src.product_url)}" target="_blank" rel="noopener" title="${escapeHtml((src.source_name||'소싱처')+' 페이지 열기')}" onclick="event.stopPropagation()">↗</a>`;
+      return `<td class="td-site-col cf" data-cell-sku="${escapeHtml(o.sku)}" data-cell-src="${s.id}" style="position:relative;text-align:center;line-height:1.4" title="현재 브라우저 크롤 혜택 없음 — 재크롤 필요 (폴백 금지)">${_corner2}<div style="color:#b45309;font-size:11px;font-weight:700;white-space:nowrap">혜택 미수집 · 재크롤</div>${_crawlTxt ? `<div style="color:#94A3B8;font-size:10px;margin-top:1px">${_crawlTxt}</div>` : ''}</td>`;
+    }
     const finalPrice = (bk && typeof bk.final_price === 'number') ? bk.final_price : src.crawled_price;
     const hasBenefits = bk && bk.steps && bk.steps.length > 0;
     // 최저가 여부
