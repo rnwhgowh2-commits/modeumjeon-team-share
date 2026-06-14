@@ -53,6 +53,19 @@ def is_crawl_valid(price, status) -> bool:
     return bool(price and price > 0 and status != 'error')
 
 
+def benefits_fresh(snapshot, last_status) -> bool:
+    """혜택 크롤 스냅샷을 '이번 브라우저 기준'으로 신뢰할 수 있는가 — 혜택용 게이트.
+
+    is_crawl_valid(표면가)와 동형. 통과 못 하면 혜택은 '미수집'으로 표면화하고
+    옛 스냅샷·템플릿 값으로 폴백하지 않는다(데이터 무결성·폴백 금지).
+    """
+    if not isinstance(snapshot, dict):
+        return False
+    if not snapshot.get('benefits_ok'):
+        return False
+    return last_status != 'error'
+
+
 @dataclass
 class PriceResult:
     """통합 가격 계산 결과."""
