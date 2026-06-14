@@ -10,7 +10,7 @@
 //  결과 저장은 mou-m.com /api/sources/crawl-result (ext_bridge.crawlBundleAll 이 호출).
 //  grabHtml/crawl(URL마다 창 생성·즉시 닫기) 핸들러는 하위호환 위해 유지.
 
-const MOUM_EXT_VERSION = "0.5.0";  // 0.5.0+ = 백그라운드 크롤 엔진(탭 닫아도 지속) 지원
+const MOUM_EXT_VERSION = "0.5.1";  // 0.5.0+ = 백그라운드 크롤 엔진(탭 닫아도 지속) 지원
 
 // cascade 위치 시퀀서 — 창이 여러 개 열려도 서로 어긋나 보임
 let _winSeq = 0;
@@ -217,8 +217,19 @@ function naverSkuStockFetch() {
 // navGrab — 그 탭을 url 로 이동 → 로드 완료 + 안정화 대기 → outerHTML 반환. (창 안 닫음)
 async function handleNavGrab(payload) {
   const tabId = payload.tabId, url = payload.url;
-  if (tabId == null) return { ok: false, error: "tabId 없음" };
   if (!url) return { ok: false, error: "url 없음" };
+  // [2026-06-14] SSF: 옵션 재고(품절임박 N·품절)는 '한국 IP' raw HTML 의 JS문자열에만 존재.
+  //   - AWS 서버 curl(도쿄 IP) = 품절임박 숫자 없는 버전
+  //   - navGrab 렌더본 = JS문자열 optCd 소진 + 옵션리스트 lazy 렌더(콜드 창서 빈 결과)
+  //   → 이 브라우저(한국)에서 raw HTML 을 직접 fetch 해 서버 정규식 파서에 넘긴다(렌더 X).
+  if (/ssfshop\.com/.test(url)) {
+    try {
+      const resp = await fetch(url, { credentials: "include" });
+      const raw = await resp.text();
+      if (raw && raw.length > 5000) return { ok: true, html: raw };
+    } catch (e) { /* 실패 시 아래 렌더 grab 폴백 */ }
+  }
+  if (tabId == null) return { ok: false, error: "tabId 없음" };
   await chrome.tabs.update(tabId, { url });
   await waitTabComplete(tabId, 25000);
   // SPA 가격 DOM 늦게 뜨는 경우 대비 추가 안정화 대기(빈 HTML 방지)
@@ -470,7 +481,7 @@ async function lotteonExtractor() {
     const liSold = /품절|sold|disable|soldout/i.test((li.className || "").toString())
       || li.getAttribute("aria-disabled") === "true";
     const stock = liSold ? 0 : lotteStock(stEl ? stEl.textContent.trim() : "");
-    options.push({ color: titleColor, size, price: valid ? price : null, stock });
+    options.push({ color: "", size, price: valid ? price : null, stock });
   }
 
   return {
