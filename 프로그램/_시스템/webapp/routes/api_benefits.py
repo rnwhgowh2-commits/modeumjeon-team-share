@@ -497,6 +497,10 @@ def _musinsa_effective_from_crawl(guide_benefits, exclude_keywords, snap):
     def _max_won(matched):
         best = 0
         for ln in (matched or []):
+            # 잔액/한도 문맥('보유 적립금 1,055,728원', '~보유)') 숫자는 혜택 금액이 아니다 —
+            #   가이드 트리거가 느슨해져도 잔액을 금액으로 오추출(→매입가 0) 하지 않도록 배제.
+            if '보유' in (ln or ''):
+                continue
             for m in _re.findall(r'([\d,]{2,})\s*원', ln or ''):
                 try:
                     v = int(m.replace(',', ''))
