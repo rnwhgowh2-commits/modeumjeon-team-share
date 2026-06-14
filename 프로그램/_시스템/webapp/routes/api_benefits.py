@@ -477,6 +477,38 @@ def _build_breakdown_cache(session, items: list) -> dict:
             'dyn_by_sku_site': dyn_by_sku_site}
 
 
+def _musinsa_effective_from_crawl(guide_benefits, exclude_keywords, snap):
+    """무신사: 이번 크롤 스냅샷(snap)으로 effective 혜택 리스트를 만든다.
+
+    - snap 없음/None → None (미수집 신호; 호출부가 산출불가 처리).
+    - gate_benefits(가이드 키워드, snap.lines, excludes)로 on/off 판정.
+    - 금액은 snap.amounts[name] (이번 크롤값). 가이드는 키워드·속성만 제공.
+    폴백 금지: 템플릿/옛 값으로 대체하지 않는다.
+    """
+    if not isinstance(snap, dict):
+        return None
+    from lemouton.pricing.benefit_gate import gate_benefits
+    gated = gate_benefits(guide_benefits or [], snap.get('lines') or [],
+                          exclude_keywords or [])
+    applied = {g['name'] for g in gated if g['applied']}
+    amounts = snap.get('amounts') or {}
+
+    class _Inj:
+        def __init__(self, name, btype, value, enabled):
+            self.id = -1; self.benefit_name = name; self.benefit_type = btype
+            self.value = value; self.enabled = enabled
+            self.sort_order = 999; self.template_id = None
+
+    eff = []
+    for b in (guide_benefits or []):
+        nm = b.get('name')
+        a = amounts.get(nm) or {}
+        btype = a.get('type') or ('rate' if (b.get('method') or '').startswith('정률') else 'amount')
+        val = float(a.get('value') or 0)
+        eff.append(('crawl', _Inj(nm, btype, val, enabled=(nm in applied and val > 0))))
+    return eff
+
+
 def compute_breakdown(session, *, sku: str, source_id: int, sale_price: float,
                        bundle_code: str = None, _cache: dict = None):
     """_cache: bulk 호출 시 N+1 제거용 사전 로드 인덱스(_build_breakdown_cache).
@@ -799,20 +831,32 @@ def compute_breakdown(session, *, sku: str, source_id: int, sale_price: float,
                 name=_label, btype='amount', value=float(_sjc),
                 enabled=False,  # 사용자 토글로 결정 (받기 조건)
             )))
-    # ★ 2026-06-05 — 무신사 옵션 breakdown 금액 항목 주입 (시안 v3: 표면가 base + 등급적립·무신사머니).
-    #   _dynamic_benefits(SourceProduct, option_source_links 조회)의 금액을 항목으로 차감 → 매입가 정확.
+    # ★ 2026-06-14 — 무신사: 현재 브라우저 크롤 스냅샷(_crawl)만으로 계산.
+    #   신선도 게이트 통과 못 하면 산출불가(미수집). 옛 dynamic·템플릿 폴백 금지.
     _base_override = None
-    if str(source_id) == '3' and _dynamic_benefits.get('surface_price'):
-        class _Inj:
-            def __init__(self, name, value, enabled=True):
-                self.id = -1; self.benefit_name = name; self.benefit_type = 'amount'
-                self.value = value; self.enabled = enabled
-                self.sort_order = 999; self.template_id = None
-        _base_override = float(_dynamic_benefits.get('surface_price') or 0)
-        effective.append(('dyn', _Inj('상품쿠폰', float(_dynamic_benefits.get('coupon_amount') or 0), enabled=bool(_dynamic_benefits.get('coupon_amount')))))
-        effective.append(('dyn', _Inj('등급할인', float(_dynamic_benefits.get('grade_discount_amount') or 0), enabled=bool(_dynamic_benefits.get('grade_discount_amount')))))
-        effective.append(('dyn', _Inj('등급적립', float(_dynamic_benefits.get('grade_reward_amount') or 0), enabled=bool(_dynamic_benefits.get('grade_reward_amount')))))
-        effective.append(('dyn', _Inj('무신사머니 결제 적립', float(_dynamic_benefits.get('money_reward_amount') or 0), enabled=bool(_dynamic_benefits.get('money_reward_amount')))))
+    _benefits_status = 'ok'
+    if str(source_id) == '3':
+        from lemouton.pricing.unified import benefits_fresh
+        from lemouton.sourcing.models_pricing import SourceRegistry as _SR
+        from lemouton.sourcing import crawl_guide as _cg
+        _snap = (_dynamic_benefits or {}).get('_crawl')
+        try:
+            _last_status = getattr(sp, 'last_status', None)
+        except NameError:
+            _last_status = None
+        if not benefits_fresh(_snap, _last_status):
+            _benefits_status = '미수집'
+        else:
+            _src = session.query(_SR).get(3)
+            _guide = _cg.loads(_src.crawl_guide) if _src else {}
+            _gb = (_guide.get('pricing') or {}).get('benefits') or []
+            _ex = _guide.get('exclude_keywords') or []
+            _crawl_eff = _musinsa_effective_from_crawl(_gb, _ex, _snap)
+            if _crawl_eff is None:
+                _benefits_status = '미수집'
+            else:
+                effective = _crawl_eff  # 템플릿/오버라이드 무시 — 크롤만 (폴백 금지)
+                _base_override = float((_dynamic_benefits or {}).get('surface_price') or sale_price)
 
     # ★ 2026-06-05 — '무신사머니 fallback' 이중 차감 차단 (사용자 정책).
     #   무신사 크롤 베이스(sale_price)는 '회원가' = 무신사머니 적립이 이미 반영된 값이다.
@@ -845,11 +889,19 @@ def compute_breakdown(session, *, sku: str, source_id: int, sale_price: float,
 
     # ★ 카테고리 정렬 + 결제 택1 + 누적 차감 → 순수 계산 함수로 위임 (M1 추출, 2026-06-08)
     from lemouton.pricing.final_price import compute_final_price
-    return compute_final_price(
+    if _benefits_status == '미수집':
+        return {
+            'final_price': None, 'steps': [], 'items_used': [],
+            'benefits_status': '미수집',
+            'note': '현재 브라우저 크롤 혜택 없음 — 재크롤 필요(폴백 금지)',
+        }
+    out = compute_final_price(
         sale_price, effective,
         card_enabled=_card_enabled, card_issuer=_card_issuer,
         base_override=_base_override,
     )
+    out['benefits_status'] = 'ok'
+    return out
 
 
 @bp.get('/breakdown/<sku>/<int:source_id>')
