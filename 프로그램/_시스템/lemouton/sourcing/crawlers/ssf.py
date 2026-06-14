@@ -447,6 +447,17 @@ class SsfCrawler(AbstractCrawler):
 
         # V7: 컬러는 항상 단일 (현재 페이지 컬러)
         sizes = _parse_sizes(soup, html)
+        # [2026-06-14] 확장 navGrab(콜드 창) 렌더본은 SSF 옵션리스트(#optionDiv1)가 lazy
+        #   렌더 전이라 비고, 렌더본은 JS문자열 optCd 도 소진돼 정규식도 0 → 사이즈 전무.
+        #   SSF 는 공개 사이트라 curl_cffi raw(JS문자열로 옵션 항상 존재)로 폴백 재수집한다.
+        #   (둔갑 방지: 사이즈 못 잡으면 품절/품절임박 누락 = 오발주. _fetch_one_page 의 curl
+        #    경로는 이미 정규식으로 잡으므로 이 폴백은 navGrab 경로에서만 발동.)
+        if not sizes:
+            try:
+                _raw = self._fetch_html(product_url)
+                sizes = _parse_sizes(BeautifulSoup(_raw, "lxml"), _raw)
+            except Exception:
+                pass
 
         options: list[dict] = []
 
