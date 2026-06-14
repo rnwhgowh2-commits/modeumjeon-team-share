@@ -53,17 +53,20 @@ def is_crawl_valid(price, status) -> bool:
     return bool(price and price > 0 and status != 'error')
 
 
-def benefits_fresh(snapshot, last_status) -> bool:
-    """혜택 크롤 스냅샷을 '이번 브라우저 기준'으로 신뢰할 수 있는가 — 혜택용 게이트.
+def benefits_fresh(snapshot, last_status=None) -> bool:
+    """혜택 크롤 스냅샷(dynamic_benefits_json['_crawl'])이 계산에 쓸 수 있는가 — 혜택용 게이트.
 
-    is_crawl_valid(표면가)와 동형. 통과 못 하면 혜택은 '미수집'으로 표면화하고
-    옛 스냅샷·템플릿 값으로 폴백하지 않는다(데이터 무결성·폴백 금지).
+    조건: 스냅샷이 dict이고 benefits_ok=True (= 실제로 혜택영역을 긁은 성공 크롤).
+    스냅샷 없음/benefits_ok=False → '미수집'(폴백·템플릿 금지). 옛 시스템이 템플릿/타-소싱처
+    값을 현재처럼 쓰던 사고(문제2·3)를 막는 핵심 게이트.
+
+    last_status 는 신선도에 반영하지 않는다(N1, 사용자 2026-06-14): crawl-result 는 성공
+    크롤에서만 _crawl 을 덮어쓰므로 스냅샷은 '마지막 성공 크롤'이다. 이후 재크롤이 error 여도
+    마지막 성공값을 유지(+화면에 크롤 시각 표시)한다. (표면가는 별도 is_crawl_valid 가 error 차단)
     """
     if not isinstance(snapshot, dict):
         return False
-    if not snapshot.get('benefits_ok'):
-        return False
-    return last_status != 'error'
+    return bool(snapshot.get('benefits_ok'))
 
 
 @dataclass

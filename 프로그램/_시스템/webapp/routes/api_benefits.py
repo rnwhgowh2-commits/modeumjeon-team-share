@@ -621,9 +621,20 @@ def compute_breakdown(session, *, sku: str, source_id: int, sale_price: float,
                     continue
                 if not _d2:
                     continue
-                # 무신사: 표면가 있고 등급적립 금액 최대(모음전 회원가) 채택. 그 외: 첫 non-empty.
+                # 무신사: 한 SKU가 여러 무신사 SP에 매핑될 수 있다. ① 이번 브라우저 크롤
+                #   스냅샷(_crawl, benefits_ok)을 가진 SP 최우선(현재가 기준 — 신모델). ② 동률이면
+                #   기존 휴리스틱(표면가 있고 등급적립 최대=모음전 회원가). 그 외 사이트: 첫 non-empty.
                 if _site_for == 'musinsa':
-                    if _d2.get('surface_price') and (_best2 is None or (_d2.get('grade_reward_amount') or 0) > (_best2.get('grade_reward_amount') or 0)):
+                    _cand_crawl = bool((_d2.get('_crawl') or {}).get('benefits_ok'))
+                    _best_crawl = bool((_best2.get('_crawl') or {}).get('benefits_ok')) if _best2 else False
+                    _take = False
+                    if _best2 is None:
+                        _take = bool(_d2.get('surface_price') or _cand_crawl)
+                    elif _cand_crawl and not _best_crawl:
+                        _take = True
+                    elif _cand_crawl == _best_crawl and _d2.get('surface_price') and (_d2.get('grade_reward_amount') or 0) > (_best2.get('grade_reward_amount') or 0):
+                        _take = True
+                    if _take:
                         _best2 = _d2
                 elif _best2 is None:
                     _best2 = _d2
