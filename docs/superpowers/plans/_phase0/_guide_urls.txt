@@ -1,0 +1,17 @@
+{
+ "sample_urls": [
+  "https://www.musinsa.com/products/4046672",
+  "https://www.musinsa.com/products/6538205",
+  "https://www.musinsa.com/products/4128817",
+  "https://www.musinsa.com/products/4941819"
+ ],
+ "examples": [
+  "https://www.musinsa.com/products/4046672",
+  "https://www.musinsa.com/products/6538205",
+  "https://www.musinsa.com/products/4128817",
+  "https://www.musinsa.com/products/4941819"
+ ],
+ "saved_checks": [],
+ "lead_cache_url": null,
+ "last_new_check_url": null
+}

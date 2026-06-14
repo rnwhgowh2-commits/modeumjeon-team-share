@@ -1,0 +1,42 @@
+[
+ {
+  "name": "등급 할인",
+  "value": null,
+  "method": "정률(%)",
+  "triggers": [
+   "등급 할인"
+  ]
+ },
+ {
+  "name": "상품 쿠폰",
+  "value": null,
+  "method": "정률(%)",
+  "triggers": [
+   "상품 쿠폰"
+  ]
+ },
+ {
+  "name": "구매적립",
+  "value": null,
+  "method": "적립(%→원)",
+  "triggers": [
+   "구매 적립"
+  ]
+ },
+ {
+  "name": "후기 적립",
+  "value": 500,
+  "method": "정액(원)",
+  "triggers": [
+   "후기 적립"
+  ]
+ },
+ {
+  "name": "결제 적립",
+  "value": null,
+  "method": "정률(%)",
+  "triggers": [
+   "무신사머니"
+  ]
+ }
+]
