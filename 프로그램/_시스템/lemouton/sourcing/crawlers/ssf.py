@@ -62,6 +62,18 @@ PRODUCT_ID_PATTERN_LOOSE = re.compile(r"/([^/]+)/good")
 # V7: ``liText.match(/품절임박\s*\((\d+)\)/)``
 NEAR_SOLDOUT_PATTERN = re.compile(r"품절임박\s*\((\d+)\)")
 
+# [2026-06-14] SSF 가 옵션 리스트를 <script> 안 JS 문자열로 임베드하도록 DOM 을 바꿈.
+#   속성이 camelCase(optCd/statCd) 이고, 드롭다운을 열어야 실제 DOM 이 렌더(lazy)된다.
+#   → BeautifulSoup ``a[optcd]`` 셀렉터는 0개(curl raw=JS문자열·navGrab=lazy미렌더).
+#   raw HTML 의 JS 문자열을 정규식으로 직접 파싱한다(양쪽 HTML 에 항상 존재).
+#   옵션블록 예: optCd="220" statCd="SALE_PROGRS"><em>220[220] / <span>품절임박</span>(<em>3</em>)
+_SSF_JS_OPT_PATTERN = re.compile(
+    r'optCd="(\d+)"[^>]*statCd="([^"]+)"(.*?)(?=optCd=|</ul>|</script>|$)',
+    re.DOTALL,
+)
+# 품절임박 뒤 첫 숫자(태그 무관): "품절임박</span>(<em>3</em>)" · "품절임박(3)" 모두 매칭
+_SSF_NEAR_QTY_PATTERN = re.compile(r"품절임박\D{0,15}?(\d+)")
+
 # 2026-05-14 — 기프트포인트 (멤버십 한정, 활성 시만 노출 / 변동값)
 #   HTML 예시: ``<dt>기프트포인트</dt><dd>멤버십 고객 한정 최대 5,600원 할인(10%)``
 #   ``\d{1,3}(?:,\d{3})*원`` — 콤마 포함 숫자 + '원'
@@ -268,8 +280,37 @@ def _parse_gift_point(html: str) -> Optional[int]:
         return None
 
 
-def _parse_sizes(soup: BeautifulSoup) -> list[dict]:
-    """V7: ``#optionDiv1 li a[optcd]`` → {name, soldOut, stock}.
+def _parse_sizes(soup: BeautifulSoup, html: str = "") -> list[dict]:
+    """SSF 사이즈별 (name, soldOut, stock) 추출 — 정규식(JS 문자열) 우선, DOM 폴백.
+
+    재고 의미: statCd=SLDOUT → 품절(soldOut) / 품절임박(N) → N(한정 잔여) /
+              표시 없음 → 충분(stock=None → 호출부서 999).
+
+    [2026-06-14] SSF DOM 변경(JS 문자열·camelCase·lazy 렌더)으로 a[optcd] 셀렉터가
+      0개가 되어 전 사이즈 999 둔갑(한정수량·품절 누락)하던 것을, raw HTML JS 문자열
+      정규식 파싱으로 교정. 같은 사이즈 중복 블록(타 색/템플릿)은 첫 출현만 사용.
+    """
+    if html:
+        out: list[dict] = []
+        seen: set[str] = set()
+        for m in _SSF_JS_OPT_PATTERN.finditer(html):
+            size, statcd, tail = m.group(1), m.group(2), m.group(3) or ""
+            if size in seen:
+                continue
+            seen.add(size)
+            qty = _SSF_NEAR_QTY_PATTERN.search(tail)
+            out.append({
+                "name": f"{size}mm",
+                "soldOut": statcd == STATCD_SOLDOUT,
+                "stock": int(qty.group(1)) if qty else None,
+            })
+        if out:
+            return out
+    return _parse_sizes_dom(soup)
+
+
+def _parse_sizes_dom(soup: BeautifulSoup) -> list[dict]:
+    """폴백(구 DOM 구조): ``#optionDiv1 li a[optcd]`` → {name, soldOut, stock}.
 
     V7 원본:
         const sizeEls = [...document.querySelectorAll('#optionDiv1 li a[optcd]')];
@@ -394,7 +435,7 @@ class SsfCrawler(AbstractCrawler):
             raise RuntimeError(f"[SSF] sale_price 추출 실패 ({sale_price}) — Fail-safe")
 
         # V7: 컬러는 항상 단일 (현재 페이지 컬러)
-        sizes = _parse_sizes(soup)
+        sizes = _parse_sizes(soup, html)
 
         options: list[dict] = []
 
