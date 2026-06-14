@@ -540,12 +540,27 @@ def _musinsa_effective_from_crawl(guide_benefits, exclude_keywords, snap):
             self.sort_order = 999; self.template_id = None
 
     eff = []
+    payment_found = False   # 무신사머니 결제적립이 실제로 잡혔는가(현대카드 fallback 판정)
     for b in (guide_benefits or []):
         nm = b.get('name')
         g = by_name.get(nm) or {}
         applied = bool(g.get('applied'))
-        val = _amt_after_triggers(g.get('matched_lines'), b.get('triggers')) if applied else 0
-        eff.append(('crawl', _Inj(nm, 'amount', float(val), enabled=(applied and val > 0))))
+        # 가이드에 고정값(value)이 있으면 그 값 사용(예: 후기적립 500원 — 사진후기 2,500은 제외).
+        #   없으면(value=None) 현재 크롤 라인에서 트리거 뒤 금액 추출.
+        fixed = b.get('value')
+        if fixed is not None:
+            val = float(fixed) if applied else 0.0
+        else:
+            val = float(_amt_after_triggers(g.get('matched_lines'), b.get('triggers'))) if applied else 0.0
+        en = applied and val > 0
+        if nm == '결제 적립' and en:
+            payment_found = True
+        eff.append(('crawl', _Inj(nm, 'amount', val, enabled=en)))
+    # ★ 결제수단 적립 fallback (사용자 정의 2026-06-14): 무신사머니 결제적립이 없으면 현대카드 2.73%
+    #   를 직전잔액(다른 혜택 차감 후 = 최종매입가 직전)에 적용. rate 라 정액 차감 뒤(마지막) 처리됨.
+    #   무신사머니 적립이 있으면 택1로 현대카드 미적용(중복 방지).
+    if not payment_found:
+        eff.append(('crawl', _Inj('현대카드 2.73% (결제 fallback)', 'rate', 0.0273, enabled=True)))
     return eff
 
 
