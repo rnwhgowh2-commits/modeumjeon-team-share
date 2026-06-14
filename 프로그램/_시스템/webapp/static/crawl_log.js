@@ -588,6 +588,44 @@
       return;
     }
 
+    // 'snapshot' — [2단계] 페이지 (재)진입 시 백그라운드 진행 상태로 위젯 복원.
+    //   로그 히스토리는 없지만(이후 로그는 실시간 스트림) 진행중·대기·완료와 진행률·게이지는 복원.
+    if (type === 'snapshot') {
+      var snap = d.snapshot; if (!snap) return;
+      ensurePanel();
+      var view = snap.view || {};
+      Object.keys(view).forEach(function (bc) {
+        var sv = view[bc];
+        var bb = getBundle(bc);
+        bb.label = sv.label || bc;
+        bb.status = sv.status || 'run';
+        if (sv.total != null) bb.total = sv.total;
+        if (sv.done != null) bb.doneCount = sv.done;
+        if (sv.metrics) { ['concurrency', 'cap', 'active', 'cpu', 'mem', 'avgSec'].forEach(function (k) { if (sv.metrics[k] != null) bb.metrics[k] = sv.metrics[k]; }); }
+        if (sv.finishMsg) bb.finishMsg = sv.finishMsg;
+        var svs = sv.sources || {};
+        Object.keys(svs).forEach(function (sk) {
+          var s = getSource(bb, sk);
+          s.status = svs[sk].status || 'wait';
+          if (svs[sk].done != null) s.done = svs[sk].done;
+          if (svs[sk].total != null) s.total = svs[sk].total;
+        });
+      });
+      // 대기열 순서: running 먼저 + queue(wait) + 나머지(done 등)
+      var qcodes = (snap.queue || []).slice();
+      var newOrd = [];
+      if (snap.running && newOrd.indexOf(snap.running) < 0) newOrd.push(snap.running);
+      qcodes.forEach(function (c) { if (newOrd.indexOf(c) < 0) newOrd.push(c); });
+      Object.keys(view).forEach(function (c) { if (newOrd.indexOf(c) < 0) newOrd.push(c); });
+      order = newOrd;
+      // 대기 모음전 bucket 의 상태도 wait 로(큐에 있으면)
+      qcodes.forEach(function (c) { if (bundles[c]) bundles[c].status = 'wait'; });
+      selected = snap.running || (qcodes[0]) || order[0] || null;
+      if (snap.running || qcodes.length) { if (!globalStartTs) { globalStartTs = Date.now(); startElapsedTimer(); } }
+      renderAll();
+      return;
+    }
+
     if (!code) return;          // bundle 없는 이벤트(구버전) 무시
     var b = getBundle(code);
     b.label = code;

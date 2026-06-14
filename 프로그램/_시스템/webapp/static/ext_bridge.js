@@ -15,14 +15,27 @@
   const _pending = {};
   let _seq = 0;
 
+  // [2026-06-14] 2단계: 백그라운드 크롤 엔진이 보낸 진행 로그(content_mou 가 중계)를
+  //   'moum-crawl-log' CustomEvent 로 변환해 대시보드(crawl_log.js)가 그리게 한다.
+  //   동시에 최신 queue 를 캐시(getCrawlState 동기 응답용).
+  const _bgCache = { running: null, paused: false, queue: [] };
   window.addEventListener("message", (ev) => {
     if (ev.source !== window) return;
     const d = ev.data;
-    if (!d || d.__moum !== "ext" || !d.reqId) return;
-    const cb = _pending[d.reqId];
-    if (cb) {
-      delete _pending[d.reqId];
-      cb(d);
+    if (!d) return;
+    if (d.__moum === "ext" && d.reqId) {
+      const cb = _pending[d.reqId];
+      if (cb) { delete _pending[d.reqId]; cb(d); }
+      return;
+    }
+    if (d.__moum === "log" && d.detail) {
+      const det = d.detail;
+      if (det.type === "queue") {
+        _bgCache.running = det.running || null;
+        _bgCache.paused = !!det.paused;
+        _bgCache.queue = (det.queue || []).filter((q) => q.status === "wait").map((q) => q.code);
+      }
+      try { window.dispatchEvent(new CustomEvent("moum-crawl-log", { detail: det })); } catch (_) {}
     }
   });
 
@@ -193,6 +206,19 @@
   // ────────────────────────────────────────────────────────────────────
   const _mgr = { queue: [], running: null, paused: false, stopped: false, _kick: null };
 
+  // [2026-06-14] 2단계 게이트 — 확장 0.5.0+ 면 크롤 엔진이 백그라운드(서비스워커)에 있어
+  //   탭을 닫아도 지속된다. 그 경우 제어를 백그라운드로 위임. 구버전(<0.5.0)이면 페이지 엔진(1단계).
+  function _bgEngine() {
+    const v = version();   // content_mou 가 심은 data-moum-ext = 확장 버전
+    if (!v) return false;
+    const a = String(v).split(".").map((n) => parseInt(n, 10) || 0);
+    return a[0] > 0 || a[1] >= 5;   // >= 0.5.0
+  }
+  // 백그라운드로 제어 메시지(베스트에포트, 응답 무시 가능)
+  function _bgSend(type, payload) {
+    try { return send(type, payload || {}, 15000); } catch (e) { return Promise.reject(e); }
+  }
+
   function _emitQueue() {
     const q = [];
     if (_mgr.running) q.push({ code: _mgr.running, status: _mgr.paused ? "pause" : "run" });
@@ -201,8 +227,13 @@
   }
 
   // 모음전을 큐에 추가(중복 무시) → 진행 중이 없으면 러너 시작.
+  //  [2단계] 확장 0.5.0+ 면 백그라운드 엔진으로 위임(탭 닫아도 지속). 아니면 페이지 엔진.
   function enqueueCrawl(code, opts) {
     if (!code) return { ok: false, error: "code 없음" };
+    if (_bgEngine()) {
+      _bgSend("crawl.enqueue", { codes: [code], base: location.origin }).catch(() => {});
+      return { ok: true, queued: true, bg: true };
+    }
     if (code === _mgr.running) return { ok: true, already: true };
     if (_mgr.queue.indexOf(code) >= 0) return { ok: true, already: true };
     _mgr.queue.push(code);
@@ -233,6 +264,7 @@
   }
 
   function pauseCrawl() {
+    if (_bgEngine()) { _bgSend("crawl.pause").catch(() => {}); return { ok: true, bg: true }; }
     if (!_mgr.running) return { ok: false, error: "진행 중 아님" };
     if (_mgr.paused) return { ok: true, already: true };
     _mgr.paused = true;
@@ -241,6 +273,7 @@
     return { ok: true };
   }
   function resumeCrawl() {
+    if (_bgEngine()) { _bgSend("crawl.resume").catch(() => {}); return { ok: true, bg: true }; }
     if (!_mgr.running) return { ok: false, error: "진행 중 아님" };
     if (!_mgr.paused) return { ok: true, already: true };
     _mgr.paused = false;
@@ -250,6 +283,7 @@
     return { ok: true };
   }
   function stopCrawl() {
+    if (_bgEngine()) { _bgSend("crawl.stop").catch(() => {}); return { ok: true, bg: true }; }
     if (!_mgr.running && !_mgr.queue.length) return { ok: false, error: "진행 중 아님" };
     _mgr.stopped = true;
     _mgr.paused = false;
@@ -260,12 +294,34 @@
     return { ok: true };
   }
   function cancelQueued(code) {
+    if (_bgEngine()) { _bgSend("crawl.cancel", { code: code }).catch(() => {}); return { ok: true, bg: true }; }
     const i = _mgr.queue.indexOf(code);
     if (i >= 0) { _mgr.queue.splice(i, 1); _emitQueue(); return { ok: true }; }
     return { ok: false, error: "대기열에 없음" };
   }
   function getCrawlState() {
+    if (_bgEngine()) {
+      return { running: _bgCache.running, paused: _bgCache.paused, stopped: false, queue: _bgCache.queue.slice(), bg: true };
+    }
     return { running: _mgr.running, paused: _mgr.paused, stopped: _mgr.stopped, queue: _mgr.queue.slice() };
+  }
+
+  // [2단계] 페이지 (재)진입 시 백그라운드에 진행 상태를 물어 위젯을 재연결.
+  //   진행 중인 크롤이 있으면 'snapshot' 이벤트로 대시보드를 복원한다(탭 닫았다 다시 와도 보임).
+  function reattachFromBackground() {
+    if (!_bgEngine()) return;
+    _bgSend("crawl.getState").then((resp) => {
+      const st = resp && resp.resp ? resp.resp : resp;   // send() 는 resp 를 그대로 resolve
+      if (!st || !st.ok) return;
+      _bgCache.running = st.running || null;
+      _bgCache.paused = !!st.paused;
+      _bgCache.queue = (st.queue || []).slice();
+      const hasWork = st.running || (st.queue && st.queue.length) ||
+        (st.view && Object.keys(st.view).some((k) => { const b = st.view[k]; return b && (b.status === "run" || b.status === "pause"); }));
+      if (hasWork) {
+        try { window.dispatchEvent(new CustomEvent("moum-crawl-log", { detail: { type: "snapshot", snapshot: st, ts: Date.now() } })); } catch (_) {}
+      }
+    }).catch(() => {});
   }
 
   async function crawlBundleAll(code, opts) {
@@ -593,15 +649,26 @@
     sysinfo: () => send("sysinfo", {}, 8000),
     crawlBundle,
     crawlBundleAll,
-    // [2026-06-14] 멀티 큐 + 일시중지/중지(1단계)
+    // [2026-06-14] 멀티 큐 + 일시중지/중지(1단계) · 백그라운드 위임(2단계)
     enqueueCrawl,
     pauseCrawl,
     resumeCrawl,
     stopCrawl,
     cancelQueued,
     getCrawlState,
+    reattachFromBackground,
     startSchedule,
     stopSchedule,
     scheduleStatus,
   };
+
+  // [2단계] 페이지 로드 시 백그라운드에 진행 중 크롤이 있으면 위젯 재연결.
+  //   확장(content_mou)이 data-moum-ext 를 document_start 에 심으므로 보통 이미 준비됨.
+  //   혹시 늦을 수 있어 약간의 지연 후 시도(베스트에포트).
+  function _initReattach() { try { reattachFromBackground(); } catch (_) {} }
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", () => setTimeout(_initReattach, 600));
+  } else {
+    setTimeout(_initReattach, 600);
+  }
 })();

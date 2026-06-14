@@ -162,8 +162,8 @@
 </script>
 
 <script src="{{ url_for('static', filename='toss.js') }}?v=20260614_queue_pausestop"></script><!-- ⚠️ toss.js 수정 시 이 버전 문자열 반드시 갱신 (정적 캐시 max-age=1일 우회) | v 갱신: bundle-run-now → enqueueCrawl 멀티 큐 -->
-<script src="{{ url_for('static', filename='ext_bridge.js') }}?v=20260614_queue_pausestop"></script><!-- 모음전 크롤러 확장 브리지 — window.MoumExt (설치감지·enqueueCrawl·pause/resume/stopCrawl·sysinfo) | v 갱신: 멀티 큐 + 일시중지/중지 -->
-<script src="{{ url_for('static', filename='crawl_log.js') }}?v=20260614_master_detail"></script><!-- 실시간 크롤 대시보드 (moum-crawl-log 구독, 마스터–디테일: 모음전 레일+상세, 일시중지/중지) -->
+<script src="{{ url_for('static', filename='ext_bridge.js') }}?v=20260614_bg_engine"></script><!-- 모음전 크롤러 확장 브리지 — window.MoumExt | v 갱신: 2단계 백그라운드 엔진 위임(확장0.5+)·백그라운드 로그 중계·재연결 -->
+<script src="{{ url_for('static', filename='crawl_log.js') }}?v=20260614_bg_engine"></script><!-- 실시간 크롤 대시보드 (마스터–디테일 + snapshot 재연결) -->
 <script src="{{ url_for('static', filename='toss_add_benefit.js') }}"></script><!-- v6 D2-A 혜택추가폼 인터랙션 -->
 <script src="{{ url_for('static', filename='option_url_modal.js') }}?v=20260606_v34_matrixdrag"></script><!-- 2026-06-06 v34 — 옵션 축 정렬(오름/내림)+매트릭스 헤더 드래그+칩 드래그 수동순서, 저장 시 sort_order 기록. ⚠️ option_url_modal.js 수정 시 이 버전 문자열 반드시 갱신 -->
 
