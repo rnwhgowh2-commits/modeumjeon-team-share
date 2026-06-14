@@ -3,18 +3,39 @@
 //  확장의 content_mou.js 와 window.postMessage 규약으로 통신:
 //    페이지 → { __moum:"page", type, payload, reqId }
 //    확장   → { __moum:"ext",  reqId, ok, resp, error }
+//
+//  [2026-06-14] 멀티 모음전 큐 + 일시중지/중지/재개(1단계):
+//   - enqueueCrawl(code) 로 여러 모음전을 줄세워 순차 크롤(같은 시점 모음전 1개만 실행).
+//   - pauseCrawl/resumeCrawl/stopCrawl — 일시중지·중지 둘 다 열린 크롤 창을 닫는다.
+//     · 일시중지 = 진행 위치(소싱처별 인덱스) 기억 → 재개 시 이어서. 저장은 모음전 완료 시 1회.
+//     · 중지     = 큐 비우고 현재 모음전 중단 → 긁은 것만 저장 + finalize(미크롤=판매차단 유지).
+//   - 'moum-crawl-log' 이벤트에 bundle(모음전 코드) 태그 추가 → 대시보드가 모음전별로 분리 표시.
+//   - 'queue' 이벤트로 진행중+대기중 모음전 목록 방출(마스터–디테일 레일).
 (function () {
   const _pending = {};
   let _seq = 0;
 
+  // [2026-06-14] 2단계: 백그라운드 크롤 엔진이 보낸 진행 로그(content_mou 가 중계)를
+  //   'moum-crawl-log' CustomEvent 로 변환해 대시보드(crawl_log.js)가 그리게 한다.
+  //   동시에 최신 queue 를 캐시(getCrawlState 동기 응답용).
+  const _bgCache = { running: null, paused: false, queue: [] };
   window.addEventListener("message", (ev) => {
     if (ev.source !== window) return;
     const d = ev.data;
-    if (!d || d.__moum !== "ext" || !d.reqId) return;
-    const cb = _pending[d.reqId];
-    if (cb) {
-      delete _pending[d.reqId];
-      cb(d);
+    if (!d) return;
+    if (d.__moum === "ext" && d.reqId) {
+      const cb = _pending[d.reqId];
+      if (cb) { delete _pending[d.reqId]; cb(d); }
+      return;
+    }
+    if (d.__moum === "log" && d.detail) {
+      const det = d.detail;
+      if (det.type === "queue") {
+        _bgCache.running = det.running || null;
+        _bgCache.paused = !!det.paused;
+        _bgCache.queue = (det.queue || []).filter((q) => q.status === "wait").map((q) => q.code);
+      }
+      try { window.dispatchEvent(new CustomEvent("moum-crawl-log", { detail: det })); } catch (_) {}
     }
   });
 
@@ -98,7 +119,7 @@
   function _emitLog(type, fields) {
     try {
       window.dispatchEvent(new CustomEvent("moum-crawl-log", {
-        detail: Object.assign({ type: type, ts: Date.now(), source: null, level: "", msg: "", metrics: null }, fields || {}),
+        detail: Object.assign({ type: type, ts: Date.now(), source: null, bundle: null, level: "", msg: "", metrics: null }, fields || {}),
       }));
     } catch (_) { /* CustomEvent 미지원 등 — 로그는 베스트에포트 */ }
   }
@@ -137,11 +158,15 @@
     if (!grab || !grab.ok || !grab.html) {
       return { url: url, source_key: sk, status: "error", error: (grab && grab.error) || "HTML 수집 실패" };
     }
+    // 스스 per-SKU 수집 진단(콘솔) — "ok:N" 성공 / "err:..." 실패 사유(둔갑 방지 null 유지).
+    if (grab.sku_diag) console.log("[moum] sku_stock", sk, url, grab.sku_diag);
     let p;
     try {
       p = await fetch("/api/sources/parse", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ source_key: sk, url: url, html: grab.html }),
+        // sku_stock: 스스 per-SKU 재고 맵("색상||사이즈"→수량). 확장(로그인 브라우저)이
+        //   n/v2 API 로 수집해 동봉 → 서버 파서가 옵션별 stock 을 이 값으로 교정.
+        body: JSON.stringify({ source_key: sk, url: url, html: grab.html, sku_stock: grab.sku_stock || null }),
       }).then((x) => x.json());
     } catch (e) {
       return { url: url, source_key: sk, status: "error", error: "parse 호출 실패: " + e };
@@ -177,9 +202,139 @@
 
   function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
 
+  // ────────────────────────────────────────────────────────────────────
+  //  멀티 모음전 큐 매니저 — 한 시점에 모음전 1개만 크롤, 나머지는 대기.
+  //   pauseCrawl/resumeCrawl/stopCrawl 이 읽는 플래그(_mgr.paused/_mgr.stopped)를
+  //   crawlBundleAll 의 루프가 매 아이템마다 확인한다. _mgr._kick = 현재 모음전의 pump.
+  // ────────────────────────────────────────────────────────────────────
+  const _mgr = { queue: [], running: null, paused: false, stopped: false, _kick: null };
+
+  // [2026-06-14] 2단계 게이트 — 확장 0.5.0+ 면 크롤 엔진이 백그라운드(서비스워커)에 있어
+  //   탭을 닫아도 지속된다. 그 경우 제어를 백그라운드로 위임. 구버전(<0.5.0)이면 페이지 엔진(1단계).
+  function _bgEngine() {
+    const v = version();   // content_mou 가 심은 data-moum-ext = 확장 버전
+    if (!v) return false;
+    const a = String(v).split(".").map((n) => parseInt(n, 10) || 0);
+    return a[0] > 0 || a[1] >= 5;   // >= 0.5.0
+  }
+  // 백그라운드로 제어 메시지(베스트에포트, 응답 무시 가능)
+  function _bgSend(type, payload) {
+    try { return send(type, payload || {}, 15000); } catch (e) { return Promise.reject(e); }
+  }
+
+  function _emitQueue() {
+    const q = [];
+    if (_mgr.running) q.push({ code: _mgr.running, status: _mgr.paused ? "pause" : "run" });
+    _mgr.queue.forEach((c) => q.push({ code: c, status: "wait" }));
+    _emitLog("queue", { queue: q, running: _mgr.running, paused: _mgr.paused });
+  }
+
+  // 모음전을 큐에 추가(중복 무시) → 진행 중이 없으면 러너 시작.
+  //  [2단계] 확장 0.5.0+ 면 백그라운드 엔진으로 위임(탭 닫아도 지속). 아니면 페이지 엔진.
+  function enqueueCrawl(code, opts) {
+    if (!code) return { ok: false, error: "code 없음" };
+    if (_bgEngine()) {
+      _bgSend("crawl.enqueue", { codes: [code], base: location.origin }).catch(() => {});
+      return { ok: true, queued: true, bg: true };
+    }
+    if (code === _mgr.running) return { ok: true, already: true };
+    if (_mgr.queue.indexOf(code) >= 0) return { ok: true, already: true };
+    _mgr.queue.push(code);
+    _emitQueue();
+    if (!_mgr.running) _runQueue(opts);
+    return { ok: true, queued: true, position: _mgr.queue.length };
+  }
+
+  // 큐 러너 — 모음전을 하나씩 꺼내 순차 크롤. 중지 시 큐 비움.
+  async function _runQueue(opts) {
+    while (_mgr.queue.length) {
+      if (_mgr.stopped) break;
+      const code = _mgr.queue.shift();
+      _mgr.running = code;
+      _mgr.paused = false;
+      _emitQueue();
+      try { await crawlBundleAll(code, opts); } catch (_) {}
+      if (_mgr.stopped) break;
+    }
+    _mgr.queue = [];
+    _mgr.running = null;
+    _mgr.paused = false;
+    _mgr.stopped = false;
+    _mgr._kick = null;
+    _emitQueue();
+    // 모든 모음전 종료 — 현재 매트릭스 페이지면 자동 갱신
+    try { if (typeof window.loadMatrix === "function") window.loadMatrix(); } catch (_) {}
+  }
+
+  function pauseCrawl() {
+    if (_bgEngine()) { _bgSend("crawl.pause").catch(() => {}); return { ok: true, bg: true }; }
+    if (!_mgr.running) return { ok: false, error: "진행 중 아님" };
+    if (_mgr.paused) return { ok: true, already: true };
+    _mgr.paused = true;
+    _emitLog("bundle-paused", { bundle: _mgr.running, level: "warn", msg: "일시중지 — 창 닫는 중 (재개하면 이어서 크롤)" });
+    _emitQueue();
+    return { ok: true };
+  }
+  function resumeCrawl() {
+    if (_bgEngine()) { _bgSend("crawl.resume").catch(() => {}); return { ok: true, bg: true }; }
+    if (!_mgr.running) return { ok: false, error: "진행 중 아님" };
+    if (!_mgr.paused) return { ok: true, already: true };
+    _mgr.paused = false;
+    _emitLog("bundle-resumed", { bundle: _mgr.running, level: "", msg: "재개 — 이어서 크롤" });
+    _emitQueue();
+    if (_mgr._kick) { try { _mgr._kick(); } catch (_) {} }
+    return { ok: true };
+  }
+  function stopCrawl() {
+    if (_bgEngine()) { _bgSend("crawl.stop").catch(() => {}); return { ok: true, bg: true }; }
+    if (!_mgr.running && !_mgr.queue.length) return { ok: false, error: "진행 중 아님" };
+    _mgr.stopped = true;
+    _mgr.paused = false;
+    _mgr.queue = [];
+    _emitLog("bundle-stopping", { bundle: _mgr.running, level: "warn", msg: "중지 — 창 닫고 종료 (긁은 것까지 저장)" });
+    if (_mgr._kick) { try { _mgr._kick(); } catch (_) {} }
+    _emitQueue();
+    return { ok: true };
+  }
+  function cancelQueued(code) {
+    if (_bgEngine()) { _bgSend("crawl.cancel", { code: code }).catch(() => {}); return { ok: true, bg: true }; }
+    const i = _mgr.queue.indexOf(code);
+    if (i >= 0) { _mgr.queue.splice(i, 1); _emitQueue(); return { ok: true }; }
+    return { ok: false, error: "대기열에 없음" };
+  }
+  function getCrawlState() {
+    if (_bgEngine()) {
+      return { running: _bgCache.running, paused: _bgCache.paused, stopped: false, queue: _bgCache.queue.slice(), bg: true };
+    }
+    return { running: _mgr.running, paused: _mgr.paused, stopped: _mgr.stopped, queue: _mgr.queue.slice() };
+  }
+
+  // [2단계] 페이지 (재)진입 시 백그라운드에 진행 상태를 물어 위젯을 재연결.
+  //   진행 중인 크롤이 있으면 'snapshot' 이벤트로 대시보드를 복원한다(탭 닫았다 다시 와도 보임).
+  function reattachFromBackground() {
+    if (!_bgEngine()) return;
+    _bgSend("crawl.getState").then((resp) => {
+      const st = resp && resp.resp ? resp.resp : resp;   // send() 는 resp 를 그대로 resolve
+      if (!st || !st.ok) return;
+      _bgCache.running = st.running || null;
+      _bgCache.paused = !!st.paused;
+      _bgCache.queue = (st.queue || []).slice();
+      const hasWork = st.running || (st.queue && st.queue.length) ||
+        (st.view && Object.keys(st.view).some((k) => { const b = st.view[k]; return b && (b.status === "run" || b.status === "pause"); }));
+      if (hasWork) {
+        try { window.dispatchEvent(new CustomEvent("moum-crawl-log", { detail: { type: "snapshot", snapshot: st, ts: Date.now() } })); } catch (_) {}
+      }
+    }).catch(() => {});
+  }
+
   async function crawlBundleAll(code, opts) {
     opts = opts || {};
-    _emitLog("start", { level: "", msg: "전체 로컬 크롤 시작: " + code });
+    // 직접 호출(레거시) 안전 — 큐 러너가 안 거쳐도 일시중지/중지가 이 모음전에 걸리게.
+    _mgr.running = code;
+    _mgr.paused = false;
+    // bundle(모음전 코드)을 모든 로그 이벤트에 태깅 → 대시보드 마스터–디테일 분리용.
+    const emit = (type, fields) => _emitLog(type, Object.assign({ bundle: code }, fields || {}));
+    emit("start", { level: "", msg: "전체 로컬 크롤 시작: " + code });
     const _ENC = encodeURIComponent(code);
     // [2026-06-13] 크롤 시작 하드 리셋 — 옛 가격/재고/혜택 비우고 옵션 pessimistic block.
     //   크롤/마무리 실패 시 차단 유지(fail-safe) → 옛값으로 잘못 판매되는 사고 방지.
@@ -203,7 +358,7 @@
     );
     const sourceKeys = Object.keys(bySource);
     const total = sourceKeys.reduce((n, k) => n + bySource[k].length, 0);
-    if (!total) { await _finalize(); _emitLog("finish", { level: "warn", msg: "대상 URL 없음" }); return { ok: false, error: "대상 URL 없음" }; }
+    if (!total) { await _finalize(); emit("finish", { level: "warn", msg: "대상 URL 없음" }); return { ok: false, error: "대상 URL 없음" }; }
 
     // 2) 컨트롤러 상태 — "같은 소싱처는 순차, 다른 소싱처는 동시".
     //    각 소싱처를 독립 큐로 두고, 활성 소싱처 수 = concurrency 만큼만 동시에 진행.
@@ -211,9 +366,10 @@
     if (navigator.deviceMemory && navigator.deviceMemory < 4) cap = Math.min(cap, 2);
     if (opts.maxConcurrency) cap = Math.min(cap, opts.maxConcurrency); // 사용자 상한 우선
     let concurrency = 1;
-    _emitLog("concurrency", { level: "", msg: "초기 동시 창 " + concurrency + "/" + cap, metrics: { concurrency, cap, active: 0, total, done: 0 } });
+    emit("concurrency", { level: "", msg: "초기 동시 창 " + concurrency + "/" + cap, metrics: { concurrency, cap, active: 0, total, done: 0 } });
 
-    const pendingSources = sourceKeys.slice();  // 아직 시작 안 한 소싱처
+    const pendingSources = sourceKeys.slice();  // 아직 시작/완료 안 한 소싱처
+    const sourceProgress = {};   // sk -> 다음 처리할 인덱스(일시중지 재개용). 완료 시 삭제.
     const results = [];
     const latencies = [];        // 최근 1건 소요(sec)
     let done = 0;
@@ -221,30 +377,35 @@
     let cooldown = 0;            // concurrency 변경 후 재판정 보류 카운터
     let prevThroughput = 0;      // 직전 채택 처리량
     let active = 0;              // 현재 진행 중 소싱처(창) 수
-    let stopped = false;
 
     // 한 소싱처의 URL들을 순차로 모두 처리(같은 소싱처 병렬 금지 — 차단 방지).
     //  소싱처별로 보이는 창 1개를 열고(openWin), 그 창에서 URL을 차례로 이동하며 크롤,
-    //  끝나면 창을 닫는다(closeWin). finally 로 창 닫힘 보장(에러나도 창 안 남게).
+    //  끝나면 창을 닫는다(closeWin). finally 로 창 닫힘 보장(에러나도·중지·일시중지도 창 안 남게).
+    //  [2026-06-14] 중지(_mgr.stopped)/일시중지(_mgr.paused) 시 루프 중단 → finally 가 창 닫음.
+    //   일시중지면 sourceProgress[sk]=다음인덱스 저장 + pendingSources 재투입 → 재개 시 이어서.
     async function runSource(sk) {
       const list = bySource[sk];
+      const startIdx = sourceProgress[sk] || 0;
       let winId = null, tabId = null;
+      let pausedMid = false;
       try {
         const w = await send("openWin", {}, 30000);
         if (!w || !w.ok || w.tabId == null) {
-          // 창을 못 열면 이 소싱처 전체를 에러로 기록(다른 소싱처는 계속)
-          for (let j = 0; j < list.length; j++) {
+          // 창을 못 열면 이 소싱처 남은 건을 에러로 기록(다른 소싱처는 계속)
+          for (let j = startIdx; j < list.length; j++) {
             results.push({ url: list[j].url, source_key: sk, status: "error", error: (w && w.error) || "창 생성 실패" });
             done++;
           }
-          _emitLog("source-done", { source: sk, level: "warn", msg: sk + " 창 생성 실패 — " + list.length + "건 건너뜀", metrics: { concurrency, cap, active, done, total } });
+          delete sourceProgress[sk];
+          emit("source-done", { source: sk, level: "warn", msg: sk + " 창 생성 실패 — " + (list.length - startIdx) + "건 건너뜀", metrics: { concurrency, cap, active, done, total } });
           return;
         }
         winId = w.winId; tabId = w.tabId;
-        _emitLog("window-open", { source: sk, level: "", msg: sk + " 창 시작", metrics: { concurrency, cap, active, done, total } });
+        emit("window-open", { source: sk, level: "", msg: sk + " 창 시작", metrics: { concurrency, cap, active, done, total } });
 
-        for (let i = 0; i < list.length; i++) {
-          if (stopped) break;
+        for (let i = startIdx; i < list.length; i++) {
+          if (_mgr.stopped) break;                                   // 중지 — 즉시 중단
+          if (_mgr.paused) { sourceProgress[sk] = i; pausedMid = true; break; }  // 일시중지 — 위치 저장
           const t0 = Date.now();
           let out;
           try { out = await _crawlItemInTab(tabId, code, list[i]); }
@@ -254,10 +415,11 @@
           if (latencies.length > 12) latencies.shift();
           results.push(out);
           done++;
+          sourceProgress[sk] = i + 1;
           if (cooldown > 0) cooldown--;
           // [2026-06-12] 실시간 줄 = '표면노출가'(크롤 raw)만. lineId 를 붙여 저장 후
           //   같은 줄에 '→ 매입 N원'(최종매입가)을 덧붙여 갱신(아래 5)단계). V2 화살표 표기.
-          _emitLog("item-done", {
+          emit("item-done", {
             source: sk, level: out.status === "ok" ? "" : "warn",
             url: (out && out.url) || (list[i] && list[i].url) || null,
             lineId: out.status === "ok" ? (sk + "|" + ((out && out.url) || (list[i] && list[i].url) || "")) : null,
@@ -272,15 +434,18 @@
             if (lastSys.cpu != null || lastSys.mem != null) {
               // Windows 는 캐시로 메모리 사용률이 평상시 85~95% 라 메모리 임계는 높게(96/98), CPU 는 유지.
               const hot = (lastSys.cpu != null && lastSys.cpu >= 90) || (lastSys.mem != null && lastSys.mem >= 96);
-              if (hot) _emitLog("resource", { level: "warn", msg: "자원 높음 — CPU " + lastSys.cpu + "% / MEM " + lastSys.mem + "%", metrics: { concurrency, cap, active, cpu: lastSys.cpu, mem: lastSys.mem } });
+              if (hot) emit("resource", { level: "warn", msg: "자원 높음 — CPU " + lastSys.cpu + "% / MEM " + lastSys.mem + "%", metrics: { concurrency, cap, active, cpu: lastSys.cpu, mem: lastSys.mem } });
             }
           }
         }
       } finally {
-        // ⚠️ 에러·정지 어떤 경우에도 창을 반드시 닫는다(창 누수 방지).
+        // ⚠️ 에러·정지·일시중지 어떤 경우에도 창을 반드시 닫는다(창 누수 방지).
         if (winId != null) { try { await send("closeWin", { winId: winId }, 15000); } catch (_) {} }
       }
-      _emitLog("source-done", { source: sk, level: "done", msg: sk + " 완료 (" + list.length + "건)", metrics: { concurrency, cap, active, done, total } });
+      if (pausedMid) { pendingSources.unshift(sk); return; }   // 재개 시 이어서(같은 sk 재투입)
+      if (_mgr.stopped) return;                                // 중지 — source-done 생략
+      delete sourceProgress[sk];
+      emit("source-done", { source: sk, level: "done", msg: sk + " 완료 (" + list.length + "건)", metrics: { concurrency, cap, active, done, total } });
     }
 
     // 처리량 언덕오르기 — 활성 소싱처 수(=동시 창)를 concurrency 에 맞춰 채운다.
@@ -295,7 +460,7 @@
       if ((cpu != null && cpu >= 95) || (mem != null && mem >= 98)) {
         if (concurrency > 1) {
           concurrency--; cooldown = 3; prevThroughput = throughput;
-          _emitLog("concurrency", { level: "down", msg: "자원 한계(CPU≥95·MEM≥98) 강제 −1 → " + concurrency, metrics: { concurrency, cap, active, cpu, mem, done, total } });
+          emit("concurrency", { level: "down", msg: "자원 한계(CPU≥95·MEM≥98) 강제 −1 → " + concurrency, metrics: { concurrency, cap, active, cpu, mem, done, total } });
         }
         return;
       }
@@ -305,14 +470,14 @@
         prevThroughput = throughput;
         if (concurrency < cap && !blockUp) {
           concurrency++; cooldown = 3;
-          _emitLog("concurrency", { level: "up", msg: "처리량 개선 → 창 +1 = " + concurrency + (blockUp ? "" : ""), metrics: { concurrency, cap, active, cpu, mem, done, total } });
+          emit("concurrency", { level: "up", msg: "처리량 개선 → 창 +1 = " + concurrency + (blockUp ? "" : ""), metrics: { concurrency, cap, active, cpu, mem, done, total } });
         } else if (blockUp && concurrency < cap) {
-          _emitLog("resource", { level: "warn", msg: "처리량 여력 있으나 자원 높음(CPU≥90·MEM≥96) → +1 보류", metrics: { concurrency, cap, active, cpu, mem, done, total } });
+          emit("resource", { level: "warn", msg: "처리량 여력 있으나 자원 높음(CPU≥90·MEM≥96) → +1 보류", metrics: { concurrency, cap, active, cpu, mem, done, total } });
         }
       } else if (throughput < prevThroughput * 0.9 && concurrency > 1) {
         // 처리량 하락/정체 → 직전으로 되돌림(−1)
         concurrency--; cooldown = 3; prevThroughput = throughput;
-        _emitLog("concurrency", { level: "down", msg: "처리량 하락 → 창 −1 = " + concurrency, metrics: { concurrency, cap, active, cpu, mem, done, total } });
+        emit("concurrency", { level: "down", msg: "처리량 하락 → 창 −1 = " + concurrency, metrics: { concurrency, cap, active, cpu, mem, done, total } });
       } else {
         prevThroughput = Math.max(prevThroughput, throughput);
       }
@@ -321,17 +486,26 @@
     // 스케줄러 루프: active < concurrency 면 대기 소싱처를 하나 더 띄운다.
     //   타이머는 단 1개만 유지(중복 setTimeout 누적 방지). pump 는 (1)소싱처 완료 시,
     //   (2)단일 폴 타이머에서만 호출된다.
+    //   [2026-06-14] 일시중지(_mgr.paused) 시 새 소싱처 안 띄움 + promise 안 resolve(재개 대기).
+    //               중지(_mgr.stopped) 시 active=0 되면 즉시 종료(긁은 것까지 저장으로 진행).
+    let endReason = "done";
     await new Promise((resolveAll) => {
       let done2 = false;
       let pollTimer = null;
-      function finish() { if (done2) return; done2 = true; if (pollTimer) clearTimeout(pollTimer); resolveAll(); }
+      function finish(reason) { if (done2) return; done2 = true; endReason = reason; if (pollTimer) clearTimeout(pollTimer); resolveAll(); }
       function schedulePoll() {
         if (pollTimer) clearTimeout(pollTimer);
         pollTimer = setTimeout(() => { pollTimer = null; pump(); }, 1200);
       }
       function pump() {
         if (done2) return;
-        if (stopped) { if (active === 0) finish(); return; }
+        if (_mgr.stopped) { if (active === 0) finish("stopped"); else schedulePoll(); return; }
+        if (_mgr.paused) {
+          // 일시중지: 새 소싱처 스케줄 안 함. in-flight 는 곧 멈춰 active=0 됨.
+          //   active=0 이어도 resolve 안 함 → 재개(_kick) 때까지 대기.
+          if (active > 0) schedulePoll();
+          return;
+        }
         evaluateConcurrency();
         while (active < concurrency && pendingSources.length > 0) {
           const sk = pendingSources.shift();
@@ -341,14 +515,16 @@
             pump();   // 한 소싱처 끝나면 다음 채움
           });
         }
-        if (active === 0 && pendingSources.length === 0) { finish(); return; }
+        if (active === 0 && pendingSources.length === 0) { finish("done"); return; }
         // 진행 중이면 단일 폴 타이머로 다음 평가(처리량/자원 변화 반영)
         schedulePoll();
       }
+      _mgr._kick = pump;   // 재개 시 resumeCrawl 이 이 pump 를 호출
       pump();
     });
+    _mgr._kick = null;
 
-    // 3) 결과 저장(기존 엔드포인트 형식 그대로)
+    // 3) 결과 저장(기존 엔드포인트 형식 그대로). 중지여도 긁은 것까지는 저장(폴백 아님 — 실제 크롤값).
     const items = results.map((x) => ({
       url: x.url, price: x.price, stock: x.stock,
       options: x.options,   // ★ 사이즈별 재고[{color,size,stock}] — 서버가 SourceOption.current_stock 에 반영
@@ -403,7 +579,7 @@
           const buy = Math.round(b.final_price);
           // item-final: 같은 줄(lineId)을 '표면 → 매입' V2 형태로 제자리 갱신.
           //   대시보드가 lineId 줄을 못 찾으면(스크롤 정리 등) 새 줄로 append(fallback).
-          _emitLog("item-final", {
+          emit("item-final", {
             source: r.source_key, level: "done", lineId: r.lineId, url: r.url,
             surf: surf, buy: buy,
             msg: r.source_key + " 표면 " + surf.toLocaleString() + "원 → 매입 " + buy.toLocaleString() + "원",
@@ -415,13 +591,15 @@
     const okCount = results.filter((x) => x.status === "ok").length;
     // [2026-06-13] 크롤 종료 마무리 — 유효 소싱가 없는 옵션 crawl_blocked 확정(성공=해제).
     const finalize = await _finalize();
-    _emitLog("finish", {
-      level: "done",
-      msg: "완료 — " + okCount + "/" + results.length + " 성공 · 저장 " + ((save && save.updated) || 0)
+    const stoppedTxt = endReason === "stopped" ? "중지됨 — " : "완료 — ";
+    emit("finish", {
+      level: endReason === "stopped" ? "warn" : "done",
+      stopped: endReason === "stopped",
+      msg: stoppedTxt + okCount + "/" + results.length + " 성공 · 저장 " + ((save && save.updated) || 0)
            + "건" + (finalize && finalize.blocked ? " · 판매차단 " + finalize.blocked : ""),
       metrics: { concurrency, cap, active, done, total, cpu: lastSys.cpu, mem: lastSys.mem },
     });
-    return { ok: true, crawled: results.length, ok_count: okCount, save, finalize };
+    return { ok: true, crawled: results.length, ok_count: okCount, save, finalize, stopped: endReason === "stopped" };
   }
 
   // ── 이 PC 스케줄 크롤 ──
@@ -477,8 +655,26 @@
     sysinfo: () => send("sysinfo", {}, 8000),
     crawlBundle,
     crawlBundleAll,
+    // [2026-06-14] 멀티 큐 + 일시중지/중지(1단계) · 백그라운드 위임(2단계)
+    enqueueCrawl,
+    pauseCrawl,
+    resumeCrawl,
+    stopCrawl,
+    cancelQueued,
+    getCrawlState,
+    reattachFromBackground,
     startSchedule,
     stopSchedule,
     scheduleStatus,
   };
+
+  // [2단계] 페이지 로드 시 백그라운드에 진행 중 크롤이 있으면 위젯 재연결.
+  //   확장(content_mou)이 data-moum-ext 를 document_start 에 심으므로 보통 이미 준비됨.
+  //   혹시 늦을 수 있어 약간의 지연 후 시도(베스트에포트).
+  function _initReattach() { try { reattachFromBackground(); } catch (_) {} }
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", () => setTimeout(_initReattach, 600));
+  } else {
+    setTimeout(_initReattach, 600);
+  }
 })();

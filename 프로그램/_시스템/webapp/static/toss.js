@@ -2365,31 +2365,40 @@ document.addEventListener('click', async (e) => {
     }
 
     if ((phase === 'crawl' || phase === 'full') && extV4) {
-      flash(`'${code}' 6개 소싱처를 이 PC(확장)에서 로컬 크롤 중...`, 'ok');
+      // [2026-06-14] 멀티 모음전 큐 — 이미 크롤 중이면 줄세움(동시 실행 금지),
+      //   아니면 즉시 시작. 진행/대기/완료는 우상단 마스터–디테일 위젯에서 확인.
+      //   crawlBundleAll 을 직접 await 하지 않고 enqueueCrawl(비동기 러너)로 위임 →
+      //   여러 번 눌러도 안전하고 일시중지/중지가 올바르게 걸린다.
+      let busy = false;
       try {
-        const r = await window.MoumExt.crawlBundleAll(code);
-        if (r && r.ok) {
-          const saved = (r.save && r.save.updated) || 0;
-          flash(`로컬 크롤 완료 — ${r.ok_count}/${r.crawled} 성공 · 저장 ${saved}건`, 'ok');
-          if (typeof loadMatrix === 'function') { try { loadMatrix(); } catch (_) {} }
-          if (typeof window.setLastCrawled === 'function') {
-            try { window.setLastCrawled(new Date().toISOString()); } catch (_) {}
-          }
+        const st = window.MoumExt.getCrawlState && window.MoumExt.getCrawlState();
+        busy = !!(st && (st.running || (st.queue && st.queue.length)));
+      } catch (_) {}
+      try {
+        if (window.MoumExt.enqueueCrawl) {
+          window.MoumExt.enqueueCrawl(code);
         } else {
-          flash(`로컬 크롤 실패: ${(r && r.error) || '알 수 없음'}`, 'err');
+          // 구버전 ext_bridge 폴백 — 단일 실행
+          window.MoumExt.crawlBundleAll(code).then((r) => {
+            if (typeof loadMatrix === 'function') { try { loadMatrix(); } catch (_) {} }
+          }).catch(() => {});
         }
-      } catch (e) {
-        flash('로컬 크롤 오류: ' + e, 'err');
-      }
-      // full 이면 크롤 후 서버 업로드만 실행(크롤은 위에서 로컬로 끝냄)
+      } catch (e) { flash('로컬 크롤 오류: ' + e, 'err'); }
+      flash(busy
+        ? `'${code}' 크롤 대기열에 추가 — 우상단 위젯에서 진행 확인`
+        : `'${code}' 6개 소싱처 로컬 크롤 시작 — 우상단 위젯에서 진행 확인`, 'ok');
+      // full 이면 이 모음전 크롤 완료(finish 이벤트) 시 1회 업로드.
       if (phase === 'full') {
-        try {
-          const up = await apiPost(`/api/bundles/${encodeURIComponent(code)}/run-now`, { phase: 'upload' });
-          if (!up.ok) showActionResult(up, `'${code}' 업로드`);
-          else flash(`'${code}' 업로드 진행 중 — 우상단 진행 위젯에서 확인`, 'ok');
-        } catch (e) {
-          flash('업로드 호출 실패: ' + e, 'err');
-        }
+        const onFin = (ev) => {
+          const dd = ev.detail;
+          if (!dd || dd.type !== 'finish' || dd.bundle !== code) return;
+          window.removeEventListener('moum-crawl-log', onFin);
+          if (dd.stopped) { flash(`'${code}' 크롤 중지됨 — 업로드 생략`, 'warn'); return; }
+          apiPost(`/api/bundles/${encodeURIComponent(code)}/run-now`, { phase: 'upload' })
+            .then((up) => { if (up && up.ok) flash(`'${code}' 업로드 진행 중 — 우상단 위젯에서 확인`, 'ok'); })
+            .catch(() => {});
+        };
+        window.addEventListener('moum-crawl-log', onFin);
       }
     } else {
       // 확장 미설치(또는 upload 전용) → 기존 서버 run-now 경로

@@ -27,6 +27,8 @@ def parse_source_html():
     source_key = body.get("source_key")
     url = body.get("url")
     html = body.get("html")
+    # 스스 per-SKU 재고 맵("색상||사이즈"→수량) — 확장이 n/v2 API 로 수집해 동봉(선택).
+    sku_stock = body.get("sku_stock") if isinstance(body.get("sku_stock"), dict) else None
     if source_key not in _PARSE_SOURCES:
         return jsonify(ok=False, error="bad_source",
                        message=f"parse 지원 소싱처 아님: {source_key}"), 400
@@ -37,7 +39,11 @@ def parse_source_html():
     if crawler is None or not hasattr(crawler, "parse_html"):
         return jsonify(ok=False, error="no_parser"), 400
     try:
-        res = crawler.parse_html(html, url)
+        # ss_lemouton 만 sku_stock 을 받아 옵션별 재고 교정. 타 파서는 (html,url) 시그니처.
+        if source_key == "ss_lemouton" and sku_stock:
+            res = crawler.parse_html(html, url, sku_stock=sku_stock)
+        else:
+            res = crawler.parse_html(html, url)
     except Exception as e:
         return jsonify(ok=False, error="parse_failed", message=str(e)[:200]), 200
     return jsonify(ok=True, **asdict(res))

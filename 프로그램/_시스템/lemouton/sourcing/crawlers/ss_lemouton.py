@@ -224,11 +224,16 @@ class SsLemoutonCrawler(AbstractCrawler):
         resp.raise_for_status()
         return resp.text
 
-    def parse_html(self, html: str, product_url: str) -> CrawlResult:
+    def parse_html(self, html: str, product_url: str,
+                   sku_stock: Optional[dict] = None) -> CrawlResult:
         """받은 HTML 을 파싱해 CrawlResult 반환 (네트워크 없음 — A안 확장 진입점).
 
         window.__PRELOADED_STATE__ JSON 파싱 포함.
         fetch 의 URL 정규화는 fetch 단계에서 처리하며, parse_html 은 받은 html 만 파싱한다.
+
+        sku_stock(선택): {"색상||사이즈": 수량} 맵 — 확장이 로그인 브라우저에서 n/v2
+          옵션조합 API 로 수집한 per-SKU 재고. 주어지면 옵션별 stock 을 이 값으로 교정한다
+          (inline state 엔 SKU별 재고가 없어 999 둔갑하던 문제 해소). 키 미스 시 기존 로직.
         """
         product_id = _extract_product_id(product_url)
 
@@ -353,13 +358,26 @@ class SsLemoutonCrawler(AbstractCrawler):
         options: list[dict] = []
         for color in colors:
             for size in sizes:
-                if soldout:
+                # ① per-SKU 재고(확장 n/v2 수집)가 있으면 최우선 — 색상||사이즈 키 매칭.
+                sku_qty = None
+                if sku_stock:
+                    sku_qty = sku_stock.get(f"{color}||{size}")
+                    if sku_qty is None:  # 공백/표기 차이 방어: 양쪽 strip 비교
+                        ck, sk_ = color.strip(), size.strip()
+                        for k, v in sku_stock.items():
+                            kc, _, ks = k.partition("||")
+                            if kc.strip() == ck and ks.strip() == sk_:
+                                sku_qty = v
+                                break
+                if isinstance(sku_qty, (int, float)):
+                    stock_int = max(int(sku_qty), 0)
+                elif soldout:
                     stock_int = 0
                 elif is_single_row:
                     # 단품: 상품 전체 stockQuantity 노출 (상한 없음)
                     stock_int = max(int(total_stock), 0)
                 else:
-                    # 옵션 다중: SKU 단위 정보가 없으므로 '재고있음' 센티넬 매핑.
+                    # 옵션 다중 + per-SKU 미수집: '재고있음' 센티넬(수량 미상).
                     # 999 = 재고있음(수량 미상) — 타 소싱처와 통일 (기존 1 → 오해 소지로 변경).
                     stock_int = 999
                 options.append({

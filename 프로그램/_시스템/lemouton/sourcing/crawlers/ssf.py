@@ -62,6 +62,18 @@ PRODUCT_ID_PATTERN_LOOSE = re.compile(r"/([^/]+)/good")
 # V7: ``liText.match(/품절임박\s*\((\d+)\)/)``
 NEAR_SOLDOUT_PATTERN = re.compile(r"품절임박\s*\((\d+)\)")
 
+# [2026-06-14] SSF 가 옵션 리스트를 <script> 안 JS 문자열로 임베드하도록 DOM 을 바꿈.
+#   속성이 camelCase(optCd/statCd) 이고, 드롭다운을 열어야 실제 DOM 이 렌더(lazy)된다.
+#   → BeautifulSoup ``a[optcd]`` 셀렉터는 0개(curl raw=JS문자열·navGrab=lazy미렌더).
+#   raw HTML 의 JS 문자열을 정규식으로 직접 파싱한다(양쪽 HTML 에 항상 존재).
+#   옵션블록 예: optCd="220" statCd="SALE_PROGRS"><em>220[220] / <span>품절임박</span>(<em>3</em>)
+_SSF_JS_OPT_PATTERN = re.compile(
+    r'optCd="(\d+)"[^>]*statCd="([^"]+)"(.*?)(?=optCd=|</ul>|</script>|$)',
+    re.DOTALL,
+)
+# 품절임박 뒤 첫 숫자(태그 무관): "품절임박</span>(<em>3</em>)" · "품절임박(3)" 모두 매칭
+_SSF_NEAR_QTY_PATTERN = re.compile(r"품절임박\D{0,15}?(\d+)")
+
 # 2026-05-14 — 기프트포인트 (멤버십 한정, 활성 시만 노출 / 변동값)
 #   HTML 예시: ``<dt>기프트포인트</dt><dd>멤버십 고객 한정 최대 5,600원 할인(10%)``
 #   ``\d{1,3}(?:,\d{3})*원`` — 콤마 포함 숫자 + '원'
@@ -268,8 +280,48 @@ def _parse_gift_point(html: str) -> Optional[int]:
         return None
 
 
-def _parse_sizes(soup: BeautifulSoup) -> list[dict]:
-    """V7: ``#optionDiv1 li a[optcd]`` → {name, soldOut, stock}.
+def _parse_sizes(soup: BeautifulSoup, html: str = "") -> list[dict]:
+    """SSF 사이즈별 (name, soldOut, stock) 추출 — DOM(렌더 navGrab) 우선, 정규식(curl raw) 폴백.
+
+    재고 의미: statCd=SLDOUT → 품절(soldOut) / 품절임박(N) → N(한정 잔여) /
+              표시 없음 → 충분(stock=None → 호출부서 999).
+
+    [2026-06-14] 경로별 옵션 임베드 방식이 달라 두 파서를 둔다:
+      - 확장 navGrab(실제 크롤): 옵션이 실제 DOM(#optionDiv1 li a[optcd], li 텍스트에
+        품절임박(N)) 으로 렌더됨 → DOM 파서 사용. (렌더본은 JS 문자열 optCd 가 소진됨)
+      - curl_cffi raw(서버 직접): 옵션이 <script> JS 문자열(optCd camelCase)로만 존재해
+        a[optcd] 셀렉터가 0개 → 정규식 파싱(폴백). 중복 사이즈는 첫 출현만.
+      (둘 다 못 잡으면 전 사이즈 999 둔갑 = 한정수량·품절 누락 → 오발주 손실)
+    """
+    # ① 확장 navGrab(렌더 HTML, 실제 크롤 경로): #optionDiv1 li a[optcd] 가 실제 DOM 으로
+    #    채워지고 li 텍스트에 '품절임박(N)' 이 들어있다 → DOM 파서가 정확.
+    #    (렌더본에선 JS 문자열 optCd 가 소진돼 2개만 남으므로 정규식 먼저면 오답)
+    dom = _parse_sizes_dom(soup)
+    if dom:
+        return dom
+    # ② curl_cffi raw HTML(서버 직접 fetch): 옵션이 <script> JS 문자열(optCd camelCase)로만
+    #    존재해 a[optcd] DOM 셀렉터가 0개 → 정규식으로 JS 문자열 직접 파싱(폴백).
+    if html:
+        out: list[dict] = []
+        seen: set[str] = set()
+        for m in _SSF_JS_OPT_PATTERN.finditer(html):
+            size, statcd, tail = m.group(1), m.group(2), m.group(3) or ""
+            if size in seen:
+                continue
+            seen.add(size)
+            qty = _SSF_NEAR_QTY_PATTERN.search(tail)
+            out.append({
+                "name": f"{size}mm",
+                "soldOut": statcd == STATCD_SOLDOUT,
+                "stock": int(qty.group(1)) if qty else None,
+            })
+        if out:
+            return out
+    return dom
+
+
+def _parse_sizes_dom(soup: BeautifulSoup) -> list[dict]:
+    """폴백(구 DOM 구조): ``#optionDiv1 li a[optcd]`` → {name, soldOut, stock}.
 
     V7 원본:
         const sizeEls = [...document.querySelectorAll('#optionDiv1 li a[optcd]')];
@@ -394,7 +446,18 @@ class SsfCrawler(AbstractCrawler):
             raise RuntimeError(f"[SSF] sale_price 추출 실패 ({sale_price}) — Fail-safe")
 
         # V7: 컬러는 항상 단일 (현재 페이지 컬러)
-        sizes = _parse_sizes(soup)
+        sizes = _parse_sizes(soup, html)
+        # [2026-06-14] 확장 navGrab(콜드 창) 렌더본은 SSF 옵션리스트(#optionDiv1)가 lazy
+        #   렌더 전이라 비고, 렌더본은 JS문자열 optCd 도 소진돼 정규식도 0 → 사이즈 전무.
+        #   SSF 는 공개 사이트라 curl_cffi raw(JS문자열로 옵션 항상 존재)로 폴백 재수집한다.
+        #   (둔갑 방지: 사이즈 못 잡으면 품절/품절임박 누락 = 오발주. _fetch_one_page 의 curl
+        #    경로는 이미 정규식으로 잡으므로 이 폴백은 navGrab 경로에서만 발동.)
+        if not sizes:
+            try:
+                _raw = self._fetch_html(product_url)
+                sizes = _parse_sizes(BeautifulSoup(_raw, "lxml"), _raw)
+            except Exception:
+                pass
 
         options: list[dict] = []
 
