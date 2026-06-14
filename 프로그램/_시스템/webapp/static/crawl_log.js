@@ -621,8 +621,12 @@
       // 대기 모음전 bucket 의 상태도 wait 로(큐에 있으면)
       qcodes.forEach(function (c) { if (bundles[c]) bundles[c].status = 'wait'; });
       selected = snap.running || (qcodes[0]) || order[0] || null;
-      if (snap.running || qcodes.length) { if (!globalStartTs) { globalStartTs = Date.now(); startElapsedTimer(); } }
+      var snapActive = snap.running || qcodes.length;
+      if (snapActive) { if (!globalStartTs) { globalStartTs = Date.now(); startElapsedTimer(); } }
       renderAll();
+      // 재진입(다른 페이지서 돌아옴)은 '최소화 레일'로 표시 — 큰 패널이 갑자기 덮지 않게.
+      //   진행 중이면 레일로, 이미 끝났으면 그대로(완료 요약). (사용자 요청: 사라지지 말고 최소화)
+      if (snap.running) { minimizePanel(); }
       return;
     }
 
@@ -711,10 +715,37 @@
     }
   }
 
+  // ── [2026-06-14] 탭/창 전환 시 사라지지 말고 '최소화(레일)'로 남게 ──────────
+  //   페이지가 가려지면(다른 탭/창) 진행 중 크롤이 있을 때 큰 패널을 레일로 접는다.
+  //   → 돌아와도 위젯이 사라지지 않고 작은 도넛 레일로 유지된다(사용자 요청).
+  //   진행 중인데 패널·레일이 둘 다 없으면(어떤 이유로 숨겨짐) 레일을 복원한다.
+  function ensureMinimizedWhileActive() {
+    if (!runningBundle()) return;                 // 진행 중 아니면 관여 안 함
+    var panel = document.getElementById(PANEL_ID);
+    if (!panel) { buildPanelDOM(); renderAll(); }
+    minimizePanel();                              // 패널 접고 레일 표시
+  }
+  function onVisibilityChange() {
+    if (document.hidden) {
+      ensureMinimizedWhileActive();
+    } else {
+      // 돌아왔을 때: 진행 중인데 위젯이 하나도 안 보이면 최소화 레일로 복원
+      if (!runningBundle()) return;
+      var panel = document.getElementById(PANEL_ID);
+      var rail = document.getElementById(RAIL_MIN_ID);
+      var panelShown = panel && !panel.classList.contains('mcl-hidden');
+      var railShown = rail && rail.style.display !== 'none';
+      if (!panelShown && !railShown) ensureMinimizedWhileActive();
+    }
+  }
+
   function register() {
     if (_registered) return;
     _registered = true;
     window.addEventListener('moum-crawl-log', handleCrawlLog);
+    document.addEventListener('visibilitychange', onVisibilityChange);
+    window.addEventListener('pagehide', ensureMinimizedWhileActive);
+    window.addEventListener('blur', function () { if (document.hidden) ensureMinimizedWhileActive(); });
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', register);
   else register();
