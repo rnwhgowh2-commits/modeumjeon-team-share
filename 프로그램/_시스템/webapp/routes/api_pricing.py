@@ -239,12 +239,31 @@ def _ingest_option_stocks(session, source_product_id, options):
                 cands = by_size.get(sz) or []
                 t = cands[0] if len(cands) == 1 else None
             targets = [t] if t is not None else []
-        for target in targets:
+        if targets:
+            for target in targets:
+                try:
+                    target.current_stock = int(st)
+                    n += 1
+                except (TypeError, ValueError):
+                    pass
+        else:
+            # [2026-06-14] 매칭 행 없음 → 생성(upsert). 롯데온·스스처럼 늘 상품레벨 stock
+            #   하나만 저장해 per-size SourceOption 이 아예 없던 소싱처도, 이제 사이즈별
+            #   재고 행을 만들어 매트릭스(Path B _match_option_so)가 옵션단위로 읽게 한다.
+            #   (update-only 였을 때는 갱신할 행이 없어 상품레벨 999 폴백 = 한정수량 둔갑.)
             try:
-                target.current_stock = int(st)
-                n += 1
+                _st_int = int(st)
             except (TypeError, ValueError):
-                pass
+                continue
+            from lemouton.sources.service import upsert_source_option
+            so = upsert_source_option(
+                session, source_product_id=source_product_id,
+                color_text=(_color or ''), size_text=(_size or sz),
+                current_stock=_st_int)
+            # 같은 크롤 내 동일 사이즈 재등장 대비 인덱스 갱신
+            by_cs[(_stk_cnorm(_color), sz)] = so
+            by_size.setdefault(sz, []).append(so)
+            n += 1
     return n
 
 

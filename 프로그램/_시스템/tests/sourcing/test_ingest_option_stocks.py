@@ -155,6 +155,35 @@ def test_prune_removes_stale_sizes(db):
     assert "240" in active
 
 
+def test_creates_when_no_existing_options(db):
+    """[2026-06-14] per-size SourceOption 이 없던 소싱처(롯데온)는 upsert 로 생성.
+
+    롯데온은 늘 상품레벨 stock(999) 하나만 저장 → SourceOption 이 없어 update-only
+    _ingest 가 아무 행도 못 고치고 매트릭스가 999 폴백(한정수량 둔갑)했다. 이제 들어온
+    사이즈별 재고로 행을 생성해 옵션단위로 읽히게 한다.
+    """
+    sp = upsert_source_product(db, site="lotteon",
+                               url="https://www.lotteon.com/p/product/LO2158462485")
+    db.commit()
+    # 기존 SourceOption 전혀 없음(롯데온 상품레벨만)
+    assert db.query(SourceOption).filter_by(source_product_id=sp.id).count() == 0
+    n = _ingest_option_stocks(db, sp.id, [
+        {"color": "블랙", "size": "220", "stock": 10},
+        {"color": "블랙", "size": "255", "stock": 9},    # 한정수량
+        {"color": "블랙", "size": "240", "stock": 999},  # 충분
+    ])
+    db.commit()
+    assert n == 3
+    got = {so.size_text: so.current_stock
+           for so in db.query(SourceOption).filter_by(source_product_id=sp.id).all()}
+    assert got["220"] == 10
+    assert got["255"] == 9      # 둔갑 안 됨(999 아님)
+    assert got["240"] == 999
+    # 색은 블랙으로 생성(다른 색 행에 새지 않음)
+    colors = {so.color_text for so in db.query(SourceOption).filter_by(source_product_id=sp.id).all()}
+    assert colors == {"블랙"}
+
+
 def test_empty_or_bad_options_noop(db):
     sp = upsert_source_product(db, site="musinsa", url="https://www.musinsa.com/products/9")
     db.commit()
