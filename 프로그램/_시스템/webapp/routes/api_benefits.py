@@ -494,20 +494,43 @@ def _musinsa_effective_from_crawl(guide_benefits, exclude_keywords, snap):
     gated = gate_benefits(guide_benefits or [], lines, exclude_keywords or [])
     by_name = {g['name']: g for g in gated}
 
-    def _max_won(matched):
+    def _amt_after_triggers(matched, triggers):
+        """혜택 금액 = '트리거 키워드 뒤'의 첫 원-금액(라인별), 라인 간 최대(택1 선택값 대응).
+
+        라인-전체 최대(_max_won)는 결합행에서 오추출한다: 예) '기본 적립등급 적립 3,420원
+        후기 적립 2,500원' 한 줄에서 후기적립=후기 적립'뒤'의 2,500 이어야 하는데 전체최대면
+        3,420(등급적립)을 잘못 집음. → 트리거 뒤 금액만 본다. '보유'(잔액) 라인은 제외.
+        triggers 가 비면(하위호환) 라인 전체 최대.
+        """
+        trgs = [t for t in (triggers or []) if t]
         best = 0
         for ln in (matched or []):
-            # 잔액/한도 문맥('보유 적립금 1,055,728원', '~보유)') 숫자는 혜택 금액이 아니다 —
-            #   가이드 트리거가 느슨해져도 잔액을 금액으로 오추출(→매입가 0) 하지 않도록 배제.
-            if '보유' in (ln or ''):
+            if not ln or '보유' in ln:
                 continue
-            for m in _re.findall(r'([\d,]{2,})\s*원', ln or ''):
-                try:
-                    v = int(m.replace(',', ''))
-                except ValueError:
-                    continue
-                if v > best:
-                    best = v
+            if not trgs:
+                for m in _re.findall(r'([\d,]{2,})\s*원', ln):
+                    try:
+                        v = int(m.replace(',', ''))
+                    except ValueError:
+                        continue
+                    if v > best:
+                        best = v
+                continue
+            for trg in trgs:
+                start = 0
+                while True:
+                    idx = ln.find(trg, start)
+                    if idx < 0:
+                        break
+                    m = _re.search(r'([\d,]{2,})\s*원', ln[idx + len(trg):])
+                    if m:
+                        try:
+                            v = int(m.group(1).replace(',', ''))
+                            if v > best:
+                                best = v
+                        except ValueError:
+                            pass
+                    start = idx + len(trg)
         return best
 
     class _Inj:
@@ -521,7 +544,7 @@ def _musinsa_effective_from_crawl(guide_benefits, exclude_keywords, snap):
         nm = b.get('name')
         g = by_name.get(nm) or {}
         applied = bool(g.get('applied'))
-        val = _max_won(g.get('matched_lines')) if applied else 0
+        val = _amt_after_triggers(g.get('matched_lines'), b.get('triggers')) if applied else 0
         eff.append(('crawl', _Inj(nm, 'amount', float(val), enabled=(applied and val > 0))))
     return eff
 
