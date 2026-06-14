@@ -10,7 +10,7 @@
 //  결과 저장은 mou-m.com /api/sources/crawl-result (ext_bridge.crawlBundleAll 이 호출).
 //  grabHtml/crawl(URL마다 창 생성·즉시 닫기) 핸들러는 하위호환 위해 유지.
 
-const MOUM_EXT_VERSION = "0.4.7";
+const MOUM_EXT_VERSION = "0.4.8";
 
 // cascade 위치 시퀀서 — 창이 여러 개 열려도 서로 어긋나 보임
 let _winSeq = 0;
@@ -149,6 +149,61 @@ async function handleOpenWin(_payload) {
 }
 
 // navGrab — 그 탭을 url 로 이동 → 로드 완료 + 안정화 대기 → outerHTML 반환. (창 안 닫음)
+// ────────────────────────────────────────────────────────────
+//  스스(스마트스토어/브랜드스토어) per-SKU 재고 — 로그인 브라우저 전용.
+//  R&D(2026-06-14): inline __PRELOADED_STATE__ 엔 SKU별 재고가 없고(상품 합계만),
+//  per-SKU 는 n/v2 옵션조합 API 가 준다. 그 API 는 비브라우저(curl/서버)에서 429 WAF →
+//  로그인된 이 브라우저(동일출처+쿠키)에서만 200. 그래서 무신사 inventories 처럼
+//  확장이 페이지 컨텍스트에서 직접 호출한다.
+//  구조 무관 walker: 응답 어디든 (stockQuantity + optionName1/optionName) 를 가진
+//  객체 배열을 찾아 "색상||사이즈"→수량 맵 생성. 실패 시 null(현행 유지=둔갑 안 함)+진단.
+// ────────────────────────────────────────────────────────────
+function naverSkuStockFetch() {
+  return (async () => {
+    try {
+      const html = document.documentElement.outerHTML;
+      const m = html.match(/window\.__PRELOADED_STATE__\s*=\s*([\s\S]+?)<\/script>/);
+      if (!m) return { err: "no-state" };
+      let raw = m[1].trim();
+      if (raw.endsWith(";")) raw = raw.slice(0, -1);
+      raw = raw.replace(/(?<![\w"])undefined(?![\w"])/g, "null");
+      let state;
+      try { state = JSON.parse(raw); } catch (e) { return { err: "state-parse" }; }
+      const A = (state.simpleProductForDetailPage && state.simpleProductForDetailPage.A) || {};
+      const ch = A.channel || {};
+      const cu = ch.channelUid;
+      const pno = A.productNo || A.id;
+      if (!cu || !pno) return { err: "no-ids" };
+      const resp = await fetch(`/n/v2/channels/${cu}/products/${pno}`, {
+        credentials: "include", headers: { accept: "application/json" },
+      });
+      if (!resp.ok) return { err: "http-" + resp.status };
+      const j = await resp.json();
+      const map = {};
+      let combos = 0;
+      (function walk(o, d) {
+        if (!o || d > 7) return;
+        if (Array.isArray(o)) {
+          for (const it of o) {
+            if (it && typeof it === "object" && "stockQuantity" in it &&
+                (("optionName1" in it) || ("optionName" in it))) {
+              const c = (it.optionName1 || "").toString().trim();
+              const s = (it.optionName2 || it.optionName || "").toString().trim();
+              const q = it.stockQuantity;
+              const usable = it.usable !== false && it.sellable !== false && it.useYn !== "N";
+              if (typeof q === "number") { map[c + "||" + s] = usable ? q : 0; combos++; }
+            } else { walk(it, d + 1); }
+          }
+        } else if (typeof o === "object") {
+          for (const k in o) walk(o[k], d + 1);
+        }
+      })(j, 0);
+      if (!combos) return { err: "no-combos", topKeys: Object.keys(j).slice(0, 14) };
+      return { map, combos };
+    } catch (e) { return { err: String(e).slice(0, 90) }; }
+  })();
+}
+
 async function handleNavGrab(payload) {
   const tabId = payload.tabId, url = payload.url;
   if (tabId == null) return { ok: false, error: "tabId 없음" };
@@ -162,7 +217,24 @@ async function handleNavGrab(payload) {
     func: () => document.documentElement.outerHTML,
   });
   const html = out && out[0] && out[0].result;
-  return html ? { ok: true, html } : { ok: false, error: "HTML 수집 실패" };
+  if (!html) return { ok: false, error: "HTML 수집 실패" };
+  // 스스만: per-SKU 재고를 로그인 브라우저 컨텍스트에서 n/v2 API 로 수집(같은 탭).
+  let sku_stock = null, sku_diag = null;
+  if (/(?:brand|smartstore)\.naver\.com/.test(url)) {
+    try {
+      const sk = await chrome.scripting.executeScript({
+        target: { tabId: tabId }, world: "ISOLATED", func: naverSkuStockFetch,
+      });
+      const r = sk && sk[0] && sk[0].result;
+      if (r && r.map && Object.keys(r.map).length) {
+        sku_stock = r.map;
+        sku_diag = "ok:" + r.combos;
+      } else if (r && r.err) {
+        sku_diag = "err:" + r.err + (r.topKeys ? "|" + r.topKeys.join(",") : "");
+      }
+    } catch (e) { sku_diag = "exc:" + String(e).slice(0, 60); }
+  }
+  return { ok: true, html, sku_stock, sku_diag };
 }
 
 // navExtract — 그 탭을 url 로 이동 → 로드 완료 대기 → 소싱처 추출기 실행. (창 안 닫음)
@@ -327,22 +399,29 @@ async function musinsaExtractor() {
         });
         await sleep(500);
       }
-      const KW = /(쿠폰|적립|할인|머니|혜택|등급|페이|즉시|불가|없음|적용\s*안함|삼성|토스|카카오|후기|결제)/;
+      const KW = /(쿠폰|적립|할인|머니|혜택|등급|페이|즉시|삼성|토스|카카오|후기|결제)/;
+      // 값: 금액(원) 또는 율(%).  부재신호: 없음/불가/적용안함/품절/사용불가 등(혜택이 '없다'는 상태).
       const AMT = /([\-+]?\s*[\d,]{2,}\s*원|\d+(\.\d+)?\s*%)/;
+      const ABS = /(없음|불가|불가능|사용\s*불가|적용\s*안함|미적용|품절|해당\s*없음)/;
       const SKIP = new Set(["SCRIPT", "STYLE", "NOSCRIPT", "svg", "path"]);
       const rows = [];
+      // ★ 완전수집: 혜택 키워드가 있고 (값이 있거나 || '없음/불가' 부재신호가 있으면) 한 줄로 담는다.
+      //   '없으면 없다'까지 인지하도록 부재 라인도 포함 — 서버 게이트가 exclude(없음/불가)로 off 판정.
       document.querySelectorAll("body *").forEach((el) => {
         if (SKIP.has(el.tagName) || el.childElementCount > 6) return;
         const t = (el.textContent || "").replace(/\s+/g, " ").trim();
         if (!t || t.length > 90) return;
         if (/\{|\}|props|pageProps/.test(t)) return; // SPA JSON 잔재 배제
-        if (!KW.test(t) || !AMT.test(t)) return;
+        if (!KW.test(t)) return;
+        if (!AMT.test(t) && !ABS.test(t)) return;   // 값도 부재신호도 없으면 의미 없음 → 제외
         rows.push(t);
       });
+      // 부재신호 단독 잎(키워드+없음/불가만, 값 없는 짧은 라벨)도 빠짐없이 — 게이트 veto 재료.
       document.querySelectorAll("body *").forEach((el) => {
         if (el.childElementCount !== 0) return;
         const t = (el.textContent || "").replace(/\s+/g, " ").trim();
-        if (/등급 할인 불가|쿠폰 없음|적용 안함/.test(t)) rows.push(t);
+        if (!t || t.length > 40) return;
+        if (KW.test(t) && ABS.test(t)) rows.push(t);
       });
       const uniq = [...new Set(rows)].sort((a, b) => a.length - b.length);
       const kept = [];
@@ -407,12 +486,46 @@ async function lotteonExtractor() {
   const price = (benefit != null) ? benefit : sale;
   const valid = (price != null && price >= MIN);   // 하한 재확인(방어)
   const soldOut = /품절|일시품절/.test(document.body.innerText) && !valid;
+
+  // ── [2026-06-14] 사이즈별 재고 추출 (무신사 일반화) ──────────────
+  //   롯데온 옵션 패널 구조(실측):
+  //     ul.selectLists > li > div.labelTextWrap > span.caption(사이즈)
+  //                                              + span.price(가격)
+  //                                              + span.stock("10개 남음" 등 마커)
+  //   span.stock 마커:  "N개 남음"/"마지막 N개" = 한정수량(N) · "품절" = 0 · 없음 = 충분(999)
+  //   색상: 롯데온은 색상별 별도 listing(모델 LM-06-BK) → title 마지막 토큰 1개.
+  //   ※ ul.selectLists 가 2개(PC/모바일 중복) 노출되므로 size 로 dedup.
+  function lotteStock(txt) {
+    if (!txt) return 999;                                 // 마커 없음 = 충분
+    if (/품절|일시품절|sold\s*out/i.test(txt)) return 0;   // 품절
+    const m = txt.match(/(\d+)\s*개\s*남음/) || txt.match(/마지막\s*(\d+)\s*개/);
+    if (m) return Math.max(0, parseInt(m[1], 10));         // 한정수량(실수량)
+    return 999;
+  }
+  // 색상명: "[르무통]…운동화 블랙 : 롯데ON" → '블랙'
+  const titleColor = (document.title.split(":")[0].trim().split(/\s+/).pop()) || "";
+  const seenSize = new Set();
+  const options = [];
+  for (const li of document.querySelectorAll("ul.selectLists > li")) {
+    const cap = li.querySelector(".caption");
+    if (!cap) continue;
+    const size = (cap.textContent || "").replace(/mm/i, "").trim();
+    if (!size || seenSize.has(size)) continue;
+    seenSize.add(size);
+    const stEl = li.querySelector(".stock");
+    const liSold = /품절|sold|disable|soldout/i.test((li.className || "").toString())
+      || li.getAttribute("aria-disabled") === "true";
+    const stock = liSold ? 0 : lotteStock(stEl ? stEl.textContent.trim() : "");
+    options.push({ color: titleColor, size, price: valid ? price : null, stock });
+  }
+
   return {
     ok: valid,
     price: valid ? price : null,
     stock: valid && !soldOut ? 999 : 0,
     product_name: document.title.split(":")[0].trim().slice(0, 120),
     benefit_price: benefit, sale_price: sale,
+    option_count: options.length, options,
     error: valid ? null : (soldOut ? "품절" : "가격 추출 실패(렌더 미완/하한 미달)"),
   };
 }
