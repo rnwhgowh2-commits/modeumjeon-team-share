@@ -26,7 +26,7 @@ for _m in (
 
 from lemouton.sources.models import SourceProduct, SourceOption
 from lemouton.sources.service import upsert_source_product, upsert_source_option
-from webapp.routes.api_pricing import _ingest_option_stocks
+from webapp.routes.api_pricing import _ingest_option_stocks, _prune_stale_option_sizes
 
 
 @pytest.fixture
@@ -118,6 +118,41 @@ def test_parse_html_key_format(db):
     got = _stocks(db, sp)
     assert got["240mm"] == 7
     assert got["235mm"] == 0
+
+
+def test_single_color_updates_all_by_size(db):
+    """단일색 상품(color='')인데 옛 다색 행이 섞여도 사이즈로 전부 갱신 (#65 4800825 잔여)."""
+    sp = upsert_source_product(db, site="musinsa",
+                               url="https://www.musinsa.com/products/4800825")
+    db.commit()
+    # 옛 크롤이 잘못 다색으로 저장 (크림핑크 240 + 블랙 240) — 둘 다 999
+    _opt(db, sp.id, "크림핑크", "240", 999)
+    _opt(db, sp.id, "블랙", "240", 999)
+    db.commit()
+    # 단일색 크롤: color='' (단일 드롭다운)
+    n = _ingest_option_stocks(db, sp.id, [{"color": "", "size": "240", "stock": 2}])
+    db.commit()
+    rows = {so.color_text: so.current_stock
+            for so in db.query(SourceOption).filter_by(source_product_id=sp.id).all()}
+    assert n == 2                        # 그 사이즈 전부 갱신
+    assert rows["크림핑크"] == 2 and rows["블랙"] == 2
+
+
+def test_prune_removes_stale_sizes(db):
+    """이번 크롤에 없는 사이즈는 soft-delete (SSF 235=6993 잔존 제거)."""
+    sp = upsert_source_product(db, site="ssf",
+                               url="https://www.ssfshop.com/LEMOUTON/GRG9/good")
+    db.commit()
+    _opt(db, sp.id, "크림핑크", "235", 6993)   # 옛 미판매 사이즈 잔존
+    _opt(db, sp.id, "크림핑크", "240", 999)
+    db.commit()
+    pruned = _prune_stale_option_sizes(db, sp.id, [{"color": "", "size": "240", "stock": 5}])
+    db.commit()
+    assert pruned == 1
+    active = {so.size_text for so in db.query(SourceOption)
+              .filter_by(source_product_id=sp.id, deleted_at=None).all()}
+    assert "235" not in active            # 235 prune됨
+    assert "240" in active
 
 
 def test_empty_or_bad_options_noop(db):
