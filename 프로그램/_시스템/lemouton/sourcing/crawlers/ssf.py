@@ -60,7 +60,10 @@ PRODUCT_ID_PATTERN_STRICT = re.compile(r"/([A-Z0-9]+)/good")
 PRODUCT_ID_PATTERN_LOOSE = re.compile(r"/([^/]+)/good")
 
 # V7: ``liText.match(/품절임박\s*\((\d+)\)/)``
-NEAR_SOLDOUT_PATTERN = re.compile(r"품절임박\s*\((\d+)\)")
+# [2026-06-15 fix] BeautifulSoup get_text(" ") 가 <span>품절임박</span>(<em>1</em>) 를
+#   "품절임박 ( 1 )" 로 풀어 괄호 안에 공백이 낀다. 기존 정규식은 "품절임박(1)"만 매칭 →
+#   한정재고 N 을 전부 놓치고 None→999(충분) 둔갑. 괄호 안 \s* 2개 추가로 공백 허용.
+NEAR_SOLDOUT_PATTERN = re.compile(r"품절임박\s*\(\s*(\d+)\s*\)")
 
 # [2026-06-14] SSF 가 옵션 리스트를 <script> 안 JS 문자열로 임베드하도록 DOM 을 바꿈.
 #   속성이 camelCase(optCd/statCd) 이고, 드롭다운을 열어야 실제 DOM 이 렌더(lazy)된다.
