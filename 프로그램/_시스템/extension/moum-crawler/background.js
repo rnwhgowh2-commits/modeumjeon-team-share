@@ -182,7 +182,10 @@ function naverSkuStockFetch() {
       const A = (state.simpleProductForDetailPage && state.simpleProductForDetailPage.A) || {};
       const ch = A.channel || {};
       const cu = ch.channelUid;
-      const pno = A.productNo || A.id;
+      // [2026-06-15 fix] A.productNo(예 5817455588)를 쓰면 /n/v2/.../products/{productNo} 가
+      //   HTTP 204(빈 응답) → resp.ok=true라 resp.json() throw → 조용히 999 폴백(silent fail).
+      //   channelProductNo(=A.id, URL의 상품번호 5844147017)를 써야 200 + per-SKU 재고가 온다.
+      const pno = A.channelProductNo || A.id;   // ⚠️ A.productNo 는 쓰지 말 것(204)
       if (!cu || !pno) return { err: "no-ids" };
       const resp = await fetch(`/n/v2/channels/${cu}/products/${pno}`, {
         credentials: "include", headers: { accept: "application/json" },
@@ -238,7 +241,10 @@ function naverSkuStockFetch() {
       const A = (state.simpleProductForDetailPage && state.simpleProductForDetailPage.A) || {};
       const ch = A.channel || {};
       const cu = ch.channelUid;
-      const pno = A.productNo || A.id;
+      // [2026-06-15 fix] A.productNo(예 5817455588)를 쓰면 /n/v2/.../products/{productNo} 가
+      //   HTTP 204(빈 응답) → resp.ok=true라 resp.json() throw → 조용히 999 폴백(silent fail).
+      //   channelProductNo(=A.id, URL의 상품번호 5844147017)를 써야 200 + per-SKU 재고가 온다.
+      const pno = A.channelProductNo || A.id;   // ⚠️ A.productNo 는 쓰지 말 것(204)
       if (!cu || !pno) return { err: "no-ids" };
       const resp = await fetch(`/n/v2/channels/${cu}/products/${pno}`, {
         credentials: "include", headers: { accept: "application/json" },
