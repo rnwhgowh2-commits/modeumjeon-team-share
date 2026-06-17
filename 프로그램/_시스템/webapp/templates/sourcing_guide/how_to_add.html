@@ -5,12 +5,10 @@
   .sgh{padding:40px 56px;max-width:1100px;}
   .sgh h2{font-size:26px;font-weight:800;letter-spacing:-.4px;margin-bottom:4px;}
   .sgh .sub{color:#8B95A1;font-size:14px;margin-bottom:22px;}
-  /* 하위탭 */
   .sgh .subtabs{display:flex;gap:26px;border-bottom:1.5px solid #E5E8EB;margin-bottom:26px;}
   .sgh .subtab{padding:10px 2px;font-size:15px;color:#8B95A1;font-weight:600;text-decoration:none;position:relative;}
   .sgh .subtab.on{color:#191F28;font-weight:800;}
   .sgh .subtab.on::after{content:'';position:absolute;left:0;right:0;bottom:-1.5px;height:2.5px;background:#191F28;border-radius:2px;}
-  /* 지시 배너 */
   .sgh .cmd{background:#191F28;color:#fff;border-radius:14px;padding:18px 22px;margin-bottom:30px;display:flex;align-items:center;gap:16px;}
   .sgh .cmd .ic{font-size:22px;}
   .sgh .cmd .tx{font-size:14px;line-height:1.55;}
@@ -19,7 +17,6 @@
   .who{display:inline-block;font-size:11px;font-weight:700;padding:1px 8px;border-radius:20px;vertical-align:middle;}
   .who.u{background:#E8F3FF;color:#1B64DA;}
   .who.c{background:#33424F;color:#E5E8EB;}
-  /* 분기 순서도 */
   .dec{display:flex;flex-direction:column;align-items:center;}
   .dec .node{background:#fff;border:1.5px solid #E5E8EB;border-radius:12px;padding:14px 22px;text-align:center;min-width:340px;}
   .dec .node .t{font-size:15px;font-weight:700;}
@@ -57,29 +54,24 @@
       <div class="d">대표 상품 상세 페이지 주소</div>
     </div>
     <div class="vline"></div>
-
     <div class="diamond"><span class="num">2</span>어떻게 수집? — API 있나 / 로그인 필요한가</div>
     <div class="branch">└ 4분면 중 하나로 분류 (API·HTML × 인증·비인증) ┘</div>
     <div class="vline"></div>
-
     <div class="node">
       <div class="t"><span class="num">3</span>항목별 위치 추출 <span class="who c">Claude</span></div>
       <div class="d">6항목 셀렉터 / API 엔드포인트 확정</div>
     </div>
     <div class="vline"></div>
-
     <div class="node">
       <div class="t"><span class="num">4</span>매입가 로직 정리 <span class="who c">Claude</span></div>
       <div class="d">혜택 순차 차감 규칙 (등급·적립·쿠폰…)</div>
     </div>
     <div class="vline"></div>
-
     <div class="node">
       <div class="t"><span class="num">5</span>검증 크롤·대조 <span class="who c">Claude</span></div>
       <div class="d">표면가 / 혜택 / 최종가 / 옵션·재고 정답 확인</div>
     </div>
     <div class="vline"></div>
-
     <div class="node">
       <div class="t"><span class="num">6</span>가이드 카드 저장 <span class="who c">Claude</span></div>
       <div class="d">정답 카드 완성 → 복제 가능</div>
@@ -88,5 +80,167 @@
 
   <div class="end">✅ 완료 시 = 해당 소싱처 "정답 카드" 생성 → 이후 같은 절차로 다른 소싱처 복제 가능</div>
   <div class="doc-note">정식 절차 문서: docs/신규-소싱처-추가-가이드.md (Claude 실행 SOP)</div>
+
+  <!-- ───────── 소싱처별 재고 정보 수집 (위치2 접이식 개념표 + 디자인4 칩 + 비교표 + 팝오버) ───────── -->
+  <div class="st-sec">
+    <h3 class="st-h">📦 소싱처별 재고 정보 수집</h3>
+    <div class="st-subh">데이터 원본 개념 → 소싱처별 비교표 → 행을 누르면 상세(엔드포인트·재고규칙·함정).</div>
+
+    <!-- 위치2: 데이터 원본 개념 (접이식) -->
+    <div class="st-coll" id="stColl">
+      <span class="qi">?</span><span>데이터 원본 차이 — HTML · API · DOM</span><span class="car">▾</span>
+    </div>
+    <div class="st-collbody" id="stCollBody">
+      <!-- 디자인4: 컴팩트 칩 (특징·왜 줄간격 보강) -->
+      <div class="st-chips">
+        <div class="st-chip html">
+          <div class="nm">원본 HTML</div>
+          <div class="def">서버가 처음 보내주는 페이지 코드 자체(소스보기에 보이는 그것)에서 값을 읽는 방식</div>
+          <div class="more">
+            <div class="ln"><b>수집 특징</b>추가 요청 없이, 코드·내장 JS변수에 박힌 값을 그대로 파싱. 로그인 불필요한 경우가 많음</div>
+            <div class="ln"><b>왜 이렇게?</b>재고·가격이 처음 HTML에 다 담겨 올 때(서버가 미리 그려 보냄). 가장 단순하고 빠름</div>
+          </div>
+        </div>
+        <div class="st-chip api">
+          <div class="nm">API (JSON)</div>
+          <div class="def">페이지가 따로 서버에 요청해 받아오는 데이터(JSON)를, 그 요청을 직접 불러 읽는 방식</div>
+          <div class="more">
+            <div class="ln"><b>수집 특징</b>정확한 숫자(실재고 등)를 구조화된 형태로 받음. 로그인·인증·WAF 통과가 필요할 수 있음</div>
+            <div class="ln"><b>왜 이렇게?</b>화면 숫자가 원래 이 API에서 온 것 → 원본을 직접 읽어 가장 정확(화면은 이걸 가공한 결과)</div>
+          </div>
+        </div>
+        <div class="st-chip dom">
+          <div class="nm">DOM (화면)</div>
+          <div class="def">브라우저가 화면에 다 그려낸 뒤의 결과(보이는 요소)에서 텍스트를 읽는 방식</div>
+          <div class="more">
+            <div class="ln"><b>수집 특징</b>사람이 보는 그대로. 단 클릭·스크롤로 렌더돼야 보이고, "10개"처럼 캡·가공된 표시일 수 있음</div>
+            <div class="ln"><b>왜 이렇게?</b>API를 못 찾거나 막힐 때, 화면에 보이는 걸 직접 긁는 최후 수단</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="st-note">💡 데이터 소스 우선순위 <code>API &gt; 원본 HTML/JS &gt; DOM</code> · 🛡 전체크롤=하드리셋 · <b>크롤 실패 시 "크롤 실패" 표기 · 옛 가격/재고 절대 금지</b>(폴백가 금지).</div>
+
+    <!-- 소싱처별 비교표 -->
+    <div class="st-cmpw"><table class="st-cmp"><thead><tr><th>소싱처 / 방식</th><th>데이터</th><th>재고 표기</th><th>난이도</th><th></th></tr></thead><tbody id="stTbody"></tbody></table></div>
+  </div>
 </div>
+
+<div class="st-pop" id="stPop"></div>
+
+<style>
+  .st-sec{margin-top:42px;padding-top:28px;border-top:1.5px solid #E5E8EB;}
+  .st-h{font-size:20px;font-weight:800;letter-spacing:-.3px;}
+  .st-subh{color:#8B95A1;font-size:13px;margin:4px 0 16px;}
+  /* 접이식 헤더 */
+  .st-coll{display:flex;align-items:center;gap:9px;font-size:13.5px;font-weight:700;cursor:pointer;background:#fff;border:1px solid #E5E8EB;border-radius:11px;padding:12px 16px;}
+  .st-coll .qi{width:20px;height:20px;border-radius:50%;background:#3182f6;color:#fff;font-size:12px;display:grid;place-items:center;}
+  .st-coll .car{margin-left:auto;color:#3182f6;font-size:12px;transition:.2s;}
+  .st-coll.open .car{transform:rotate(180deg);}
+  .st-collbody{margin:11px 0 0;overflow:hidden;}
+  /* 디자인4 칩 */
+  .st-chips{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;}
+  .st-chip{border:1px solid #E5E8EB;border-left-width:4px;border-radius:11px;padding:14px 16px;background:#fff;}
+  .st-chip.html{border-left-color:#15a06e;} .st-chip.api{border-left-color:#3182f6;} .st-chip.dom{border-left-color:#d98300;}
+  .st-chip .nm{font-weight:800;font-size:14px;margin-bottom:5px;}
+  .st-chip.html .nm{color:#15a06e;} .st-chip.api .nm{color:#3182f6;} .st-chip.dom .nm{color:#d98300;}
+  .st-chip .def{font-size:12px;color:#4E5968;line-height:1.62;}
+  .st-chip .more{margin-top:11px;padding-top:11px;border-top:1px dashed #EDF0F3;}
+  .st-chip .more .ln{font-size:12px;color:#555E6B;line-height:1.62;margin-bottom:11px;}
+  .st-chip .more .ln:last-child{margin-bottom:0;}
+  .st-chip .more .ln b{display:block;font-size:11px;font-weight:700;margin-bottom:3px;letter-spacing:.01em;}
+  .st-chip.html .more .ln b{color:#15a06e;} .st-chip.api .more .ln b{color:#3182f6;} .st-chip.dom .more .ln b{color:#d98300;}
+  .st-note{font-size:12px;color:#4E5968;background:#F3F8FF;border:1px solid #DCEBFF;border-radius:10px;padding:10px 14px;margin:18px 0 16px;line-height:1.6;}
+  .st-note b{color:#1B64DA;} .st-note code{background:#E6F0FF;border-radius:4px;padding:1px 6px;font-family:ui-monospace,monospace;font-size:11.5px;}
+  /* 비교표 */
+  .st-cmpw{border:1px solid #E5E8EB;border-radius:12px;overflow:hidden;}
+  table.st-cmp{width:100%;border-collapse:collapse;font-size:13px;background:#fff;}
+  table.st-cmp th{text-align:left;padding:10px 14px;color:#8B95A1;font-weight:600;font-size:11.5px;border-bottom:1px solid #E5E8EB;}
+  table.st-cmp td{padding:12px 14px;border-bottom:1px solid #F2F4F6;color:#4E5968;}
+  table.st-cmp tr:last-child td{border-bottom:none;}
+  table.st-cmp tr.r{cursor:pointer;} table.st-cmp tr.r:hover{background:#F7FAFE;}
+  table.st-cmp tr.sub td:first-child{padding-left:30px;color:#8B95A1;font-size:12px;}
+  .st-dot{font-size:11.5px;font-weight:600;color:#4E5968;display:inline-flex;align-items:center;gap:5px;} .st-dot .d{width:8px;height:8px;border-radius:50%;}
+  .d.api{background:#3182f6;}.d.html{background:#15a06e;}.d.mix{background:#7b5bd6;}.d.dom{background:#d98300;}.d.wip{background:#99a1ab;}
+  .st-ci{width:9px;height:9px;border-radius:50%;display:inline-block;} .st-src{display:inline-flex;align-items:center;gap:7px;font-weight:600;}
+  .st-lv{font-size:11.5px;font-weight:600;} .st-lv.easy{color:#15a06e;}.st-lv.mid{color:#d98300;}.st-lv.hard{color:#e0455e;}.st-lv.wip{color:#99a1ab;}
+  .st-lotbar{display:inline-block;width:3px;height:13px;background:#e0455e;border-radius:2px;margin-right:6px;vertical-align:middle;}
+  .st-tap{color:#3182f6;font-size:11.5px;font-weight:600;}
+  /* 팝오버 (가독성) */
+  .st-pop{position:fixed;z-index:1000;background:#fff;border:1px solid #E5E8EB;border-radius:14px;box-shadow:0 16px 44px rgba(0,0,0,.18);max-width:480px;width:480px;display:none;overflow:hidden;}
+  .st-pop.on{display:block;}
+  .st-pop .ph{display:flex;align-items:center;gap:9px;padding:16px 20px;border-bottom:1px solid #F2F4F6;}
+  .st-pop .ph .nm{font-size:15px;font-weight:800;} .st-pop .x{margin-left:auto;border:none;background:#F2F4F6;border-radius:8px;width:28px;height:28px;color:#777;font-size:14px;cursor:pointer;}
+  .st-pop .pb{padding:16px 20px 18px;}
+  .st-ps{margin-bottom:14px;} .st-ps:last-child{margin-bottom:0;}
+  .st-ps .lab{font-size:11px;font-weight:700;color:#8B95A1;margin-bottom:5px;letter-spacing:.02em;}
+  .st-ps .ep{font-family:ui-monospace,monospace;font-size:11.5px;color:#4E5968;background:#F5F7F9;border-radius:7px;padding:9px 11px;line-height:1.6;word-break:break-all;}
+  .st-ps .rules{display:flex;flex-direction:column;gap:6px;}
+  .st-ps .rule{display:flex;align-items:center;gap:8px;font-size:12px;line-height:1.55;}
+  .st-ps .rule .tag{flex:0 0 auto;font-size:10.5px;font-weight:700;border-radius:6px;padding:3px 9px;}
+  .st-ps .rule .tag.x{background:#FDECEF;color:#e0455e;}.st-ps .rule .tag.n{background:#FDF4E6;color:#d98300;}.st-ps .rule .tag.o{background:#EAF8F1;color:#15a06e;}
+  .st-ps.warn{background:#FFF7F8;border-radius:9px;padding:11px 13px;} .st-ps.warn .lab{color:#e0455e;} .st-ps.warn .tx{font-size:12px;line-height:1.65;color:#9a2436;}
+  .st-ps.tip{background:#F0FAF5;border-radius:9px;padding:11px 13px;} .st-ps.tip .lab{color:#15a06e;} .st-ps.tip .tx{font-size:12px;line-height:1.65;color:#0f6e4c;}
+  .st-mtabs{display:flex;gap:6px;margin-bottom:12px;} .st-mtab{border:1px solid #E5E8EB;background:#fff;border-radius:8px;padding:5px 12px;font-size:11.5px;font-weight:700;color:#4E5968;cursor:pointer;}
+  .st-mtab.on{border-color:#3182f6;background:#F3F8FF;color:#1B64DA;} .st-mpanel{display:none;} .st-mpanel.on{display:block;}
+  .st-dualnote{font-size:11.5px;color:#1B64DA;background:#F3F8FF;border-radius:8px;padding:8px 11px;margin-bottom:12px;line-height:1.6;}
+</style>
+
+<script>
+(function(){
+ const SRC=[
+  {key:'lemouton',name:'르무통 공홈',color:'#3182f6',diff:'easy',diffL:'쉬움',ds:'html',dsL:'원본 HTML',state:'실수량',
+   methods:[{ds:'html',dsL:'원본 HTML',ep:'페이지 raw HTML (Cafe24 inline JS 변수 option_stock_data)',
+    rules:[['o','표시 그대로','실수량(실조합만)']],warn:'데카르트곱으로 미판매 사이즈 999 채우면 가격 누출 → 실조합만 수집.',tip:'SSR HTML에 다 들어있어 로그인·API 불필요. 가장 단순.'}]},
+  {key:'naver',name:'스마트스토어(네이버)',color:'#03c75a',diff:'mid',diffL:'중',ds:'api',dsL:'API',state:'SKU 정확수량',
+   methods:[{ds:'api',dsL:'API (JSON)',ep:'/n/v2/channels/{channelUid}/products/{channelProductNo}',
+    rules:[['x','stockQuantity 0 · usable=false','품절'],['o','stockQuantity > 0','정확 수량']],warn:'productNo 쓰면 204 빈응답 → 999 둔갑. channelProductNo(A.id) 필수. 비브라우저는 429 WAF.',tip:'SKU별 재고는 이 API가 유일. 로그인 브라우저 first-party가 WAF 통과.'}]},
+  {key:'musinsa',name:'무신사',color:'#191f28',diff:'mid',diffL:'중',ds:'mix',dsL:'API+DOM',state:'한정/품절/충분',
+   methods:[{ds:'mix',dsL:'API + DOM',ep:'goods API(회원가 salePrice) + inventories(사이즈별)',
+    rules:[['x','품절 · sold out','품절'],['n','N개 남음 · 마지막 N개','한정 N'],['o','표시 없음','충분']],warn:'한정수량 정규식 미스 시 충분으로 둔갑. 회원가 오긁음 폴백 금지.',tip:'로그인 브라우저라야 회원가가 읽힘.'}]},
+  {key:'ssf',name:'SSF샵',color:'#111',diff:'mid',diffL:'중',ds:'html',dsL:'원본 HTML',state:'품절/한정N/충분',
+   methods:[{ds:'html',dsL:'원본 HTML',ep:'상품 raw HTML (SSR · 한국 IP에서만 품절임박 숫자 노출)',
+    rules:[['x','statCd = SLDOUT','품절'],['n','품절임박 ( N )','한정 N'],['o','표시 없음','충분']],warn:'정규식 괄호 공백 "품절임박 ( N )" 처리 필수. 도쿄 IP(AWS)는 숫자 없는 버전.',tip:'확장이 한국 IP raw HTML 떠서 서버 파서로 전달.'}]},
+  {key:'lotteon',name:'롯데온',color:'#da291c',diff:'easy',diffL:'쉬움',ds:'api',dsL:'API/DOM',state:'SKU 실수량 / 3상태',dual:true,
+   dualNote:'⚙️ <b>전략 — API 우선 시도 → 실패 시 DOM 폴백.</b> 화면(DOM)은 이 API 데이터를 받아 그린 결과라 API가 더 정확.',
+   methods:[
+    {tag:'① API (우선)',ds:'api',dsL:'API',ep:'pbf.lotteon.com/product/v2/detail/option/mapping/{spd}/{sitm}',
+     rules:[['x','SALE 아님 · stkQty 0','품절'],['o','SALE & stkQty > 0','실수량'],['n','키 없음','미존재(제외)']],warn:'단품은 색 라벨이 비어 color="" → 전 색 번짐. 상품명 끝 토큰("…블랙")으로 색 라벨.',tip:'경로만으로 200 · ISOLATED서도 fetch. 실수량+없는사이즈 정확 제외. 1fetch 전색.'},
+    {tag:'② DOM (폴백)',ds:'dom',dsL:'DOM',ep:'ul.selectLists > li · .caption(사이즈) + .stock(마커)',
+     rules:[['x','품절 · [품절] · 재입고알림','품절'],['n','N개 남음 · 마지막 N개','한정 N'],['o','표시 없음','충분(999)']],warn:'"10개"가 캡이라 실수량 못 구분. 없는 사이즈는 빈 마커 → false 충분. 모음전 색 클릭은 60초 타임아웃 주의.',tip:'단품은 무클릭(이미지와 100% 일치). 모음전은 색 클릭 순회.'}]},
+  {key:'ssg',name:'SSG',color:'#e60012',diff:'wip',diffL:'미완',ds:'wip',dsL:'조사중',state:'부분',
+   methods:[{ds:'wip',dsL:'조사중',ep:'itemView(단품) / dealItemView(딜 허브 건너뜀)',rules:[['n','진행 중','일부 미해결']],warn:'미해결 구간은 거짓충분 대신 "크롤 실패/미상"으로 표면화.',tip:'네이버 유입 쿠폰가는 ckwhere 파라미터.'}]},
+ ];
+ const ic=s=>`<span class="st-src"><span class="st-ci" style="background:${s.color}"></span>${s.name}</span>`;
+ /* 비교표 */
+ let rows='';
+ SRC.forEach(s=>{
+  if(s.dual){
+   rows+=`<tr class="r" data-key="${s.key}"><td><span class="st-lotbar"></span>${ic(s)}</td><td colspan="2" style="color:#99a1ab">API 우선 → DOM 폴백</td><td><span class="st-lv ${s.diff}">${s.diffL}</span></td><td><span class="st-tap">상세 ▸</span></td></tr>`;
+   s.methods.forEach(m=>rows+=`<tr class="sub"><td>${m.tag}</td><td><span class="st-dot"><span class="d ${m.ds}"></span>${m.dsL}</span></td><td>${m.rules.map(r=>r[2]).join(' / ')}</td><td></td><td></td></tr>`);
+  }else rows+=`<tr class="r" data-key="${s.key}"><td>${ic(s)}</td><td><span class="st-dot"><span class="d ${s.ds}"></span>${s.dsL}</span></td><td>${s.state}</td><td><span class="st-lv ${s.diff}">${s.diffL}</span></td><td><span class="st-tap">상세 ▸</span></td></tr>`;
+ });
+ document.getElementById('stTbody').innerHTML=rows;
+ /* 접이식 토글 */
+ const coll=document.getElementById('stColl'),body=document.getElementById('stCollBody');
+ body.style.display='block';coll.classList.add('open');
+ coll.onclick=()=>{const open=body.style.display!=='none';body.style.display=open?'none':'block';coll.classList.toggle('open',!open);};
+ /* 팝오버 */
+ function secs(m){const r=m.rules.map(x=>`<div class="rule"><span class="tag ${x[0]}">${x[1]}</span><span>→ ${x[2]}</span></div>`).join('');
+  return `<div class="st-ps"><div class="lab">데이터 소스 · 엔드포인트</div><div class="ep"><span class="st-dot"><span class="d ${m.ds}"></span>${m.dsL}</span><br>${m.ep}</div></div>
+   <div class="st-ps"><div class="lab">재고 판정 규칙</div><div class="rules">${r}</div></div>
+   <div class="st-ps warn"><div class="lab">⚠ 함정</div><div class="tx">${m.warn}</div></div>
+   <div class="st-ps tip"><div class="lab">✓ 팁</div><div class="tx">${m.tip}</div></div>`;}
+ function inner(s){let b;if(s.dual){b=`<div class="st-dualnote">${s.dualNote}</div><div class="st-mtabs">`+s.methods.map((m,i)=>`<button class="st-mtab ${i===0?'on':''}" data-mt="${s.key}-${i}">${m.tag}</button>`).join('')+`</div>`+s.methods.map((m,i)=>`<div class="st-mpanel ${i===0?'on':''}" id="stmp-${s.key}-${i}">${secs(m)}</div>`).join('');}else b=secs(s.methods[0]);
+  return `<div class="ph"><span class="st-ci" style="width:11px;height:11px;background:${s.color}"></span><span class="nm">${s.name}</span><button class="x" onclick="document.getElementById('stPop').classList.remove('on')">✕</button></div><div class="pb">${b}</div>`;}
+ const pop=document.getElementById('stPop');
+ function open(rowEl,key){const s=SRC.find(x=>x.key===key);pop.innerHTML=inner(s);
+  const rc=rowEl.getBoundingClientRect();pop.style.top=Math.min(rc.bottom+8,window.innerHeight-380)+'px';pop.style.left=Math.min(Math.max(rc.left-30,12),window.innerWidth-496)+'px';
+  pop.classList.add('on');pop.querySelectorAll('.st-mtab').forEach(b=>b.onclick=()=>{pop.querySelectorAll('.st-mtab').forEach(x=>x.classList.toggle('on',x===b));pop.querySelectorAll('.st-mpanel').forEach(p=>p.classList.toggle('on',p.id==='stmp-'+b.dataset.mt));});}
+ document.querySelectorAll('#stTbody tr.r').forEach(r=>r.onclick=()=>open(r,r.dataset.key));
+ document.addEventListener('click',e=>{if(pop.classList.contains('on')&&!pop.contains(e.target)&&!e.target.closest('#stTbody tr.r'))pop.classList.remove('on');});
+ document.addEventListener('keydown',e=>{if(e.key==='Escape')pop.classList.remove('on');});
+})();
+</script>
 {% endblock %}
