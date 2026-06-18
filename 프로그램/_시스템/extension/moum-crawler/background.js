@@ -179,6 +179,31 @@ function naverSkuStockFetch() {
       raw = raw.replace(/(?<![\w"])undefined(?![\w"])/g, "null");
       let state;
       try { state = JSON.parse(raw); } catch (e) { return { err: "state-parse" }; }
+      // 공통 walker: 객체트리서 (stockQuantity + optionName1/optionName) 배열 찾아 색||사이즈→수량
+      function walkFor(root) {
+        const map = {}; let combos = 0;
+        (function walk(o, d) {
+          if (!o || d > 8) return;
+          if (Array.isArray(o)) {
+            for (const it of o) {
+              if (it && typeof it === "object" && "stockQuantity" in it &&
+                  (("optionName1" in it) || ("optionName" in it))) {
+                const c = (it.optionName1 || "").toString().trim();
+                const s = (it.optionName2 || it.optionName || "").toString().trim();
+                const q = it.stockQuantity;
+                const usable = it.usable !== false && it.sellable !== false && it.useYn !== "N";
+                if (typeof q === "number") { map[c + "||" + s] = usable ? q : 0; combos++; }
+              } else { walk(it, d + 1); }
+            }
+          } else if (typeof o === "object") { for (const k in o) walk(o[k], d + 1); }
+        })(root, 0);
+        return { map, combos };
+      }
+      // [2026-06-15 fix 스스] ① __PRELOADED_STATE__ 직접 훑기 — 드롭다운(품절임박/품절)을 그리는
+      //   소스가 state 안에 있다. API(빈응답 다발) 안 거치고 여기서 잡으면 가장 견고.
+      const st = walkFor(state);
+      if (st.combos) return { map: st.map, combos: st.combos, via: "state" };
+      // ② API 폴백 (state 에 옵션조합 없을 때)
       const A = (state.simpleProductForDetailPage && state.simpleProductForDetailPage.A) || {};
       const ch = A.channel || {};
       const cu = ch.channelUid;
@@ -186,33 +211,18 @@ function naverSkuStockFetch() {
       //   HTTP 204(빈 응답) → resp.ok=true라 resp.json() throw → 조용히 999 폴백(silent fail).
       //   channelProductNo(=A.id, URL의 상품번호 5844147017)를 써야 200 + per-SKU 재고가 온다.
       const pno = A.channelProductNo || A.id;   // ⚠️ A.productNo 는 쓰지 말 것(204)
-      if (!cu || !pno) return { err: "no-ids" };
-      const resp = await fetch(`/n/v2/channels/${cu}/products/${pno}`, {
-        credentials: "include", headers: { accept: "application/json" },
-      });
+      if (!cu || !pno) return { err: "no-ids:stCombos0" };
+      let resp, txt = "";
+      try {
+        resp = await fetch(`/n/v2/channels/${cu}/products/${pno}`, { credentials: "include", headers: { accept: "application/json" } });
+        txt = await resp.text();
+      } catch (e) { return { err: "fetch-exc:" + String(e).slice(0, 40) }; }
       if (!resp.ok) return { err: "http-" + resp.status };
-      const j = await resp.json();
-      const map = {};
-      let combos = 0;
-      (function walk(o, d) {
-        if (!o || d > 7) return;
-        if (Array.isArray(o)) {
-          for (const it of o) {
-            if (it && typeof it === "object" && "stockQuantity" in it &&
-                (("optionName1" in it) || ("optionName" in it))) {
-              const c = (it.optionName1 || "").toString().trim();
-              const s = (it.optionName2 || it.optionName || "").toString().trim();
-              const q = it.stockQuantity;
-              const usable = it.usable !== false && it.sellable !== false && it.useYn !== "N";
-              if (typeof q === "number") { map[c + "||" + s] = usable ? q : 0; combos++; }
-            } else { walk(it, d + 1); }
-          }
-        } else if (typeof o === "object") {
-          for (const k in o) walk(o[k], d + 1);
-        }
-      })(j, 0);
-      if (!combos) return { err: "no-combos", topKeys: Object.keys(j).slice(0, 14) };
-      return { map, combos };
+      if (!txt || txt.length < 2) return { err: "empty-body:" + (txt ? txt.length : 0) };
+      let j; try { j = JSON.parse(txt); } catch (e) { return { err: "api-parse:len" + txt.length }; }
+      const ap = walkFor(j);
+      if (!ap.combos) return { err: "no-combos", topKeys: Object.keys(j).slice(0, 14) };
+      return { map: ap.map, combos: ap.combos, via: "api" };
     } catch (e) { return { err: String(e).slice(0, 90) }; }
   })();
 }
@@ -238,6 +248,31 @@ function naverSkuStockFetch() {
       raw = raw.replace(/(?<![\w"])undefined(?![\w"])/g, "null");
       let state;
       try { state = JSON.parse(raw); } catch (e) { return { err: "state-parse" }; }
+      // 공통 walker: 객체트리서 (stockQuantity + optionName1/optionName) 배열 찾아 색||사이즈→수량
+      function walkFor(root) {
+        const map = {}; let combos = 0;
+        (function walk(o, d) {
+          if (!o || d > 8) return;
+          if (Array.isArray(o)) {
+            for (const it of o) {
+              if (it && typeof it === "object" && "stockQuantity" in it &&
+                  (("optionName1" in it) || ("optionName" in it))) {
+                const c = (it.optionName1 || "").toString().trim();
+                const s = (it.optionName2 || it.optionName || "").toString().trim();
+                const q = it.stockQuantity;
+                const usable = it.usable !== false && it.sellable !== false && it.useYn !== "N";
+                if (typeof q === "number") { map[c + "||" + s] = usable ? q : 0; combos++; }
+              } else { walk(it, d + 1); }
+            }
+          } else if (typeof o === "object") { for (const k in o) walk(o[k], d + 1); }
+        })(root, 0);
+        return { map, combos };
+      }
+      // [2026-06-15 fix 스스] ① __PRELOADED_STATE__ 직접 훑기 — 드롭다운(품절임박/품절)을 그리는
+      //   소스가 state 안에 있다. API(빈응답 다발) 안 거치고 여기서 잡으면 가장 견고.
+      const st = walkFor(state);
+      if (st.combos) return { map: st.map, combos: st.combos, via: "state" };
+      // ② API 폴백 (state 에 옵션조합 없을 때)
       const A = (state.simpleProductForDetailPage && state.simpleProductForDetailPage.A) || {};
       const ch = A.channel || {};
       const cu = ch.channelUid;
@@ -245,33 +280,18 @@ function naverSkuStockFetch() {
       //   HTTP 204(빈 응답) → resp.ok=true라 resp.json() throw → 조용히 999 폴백(silent fail).
       //   channelProductNo(=A.id, URL의 상품번호 5844147017)를 써야 200 + per-SKU 재고가 온다.
       const pno = A.channelProductNo || A.id;   // ⚠️ A.productNo 는 쓰지 말 것(204)
-      if (!cu || !pno) return { err: "no-ids" };
-      const resp = await fetch(`/n/v2/channels/${cu}/products/${pno}`, {
-        credentials: "include", headers: { accept: "application/json" },
-      });
+      if (!cu || !pno) return { err: "no-ids:stCombos0" };
+      let resp, txt = "";
+      try {
+        resp = await fetch(`/n/v2/channels/${cu}/products/${pno}`, { credentials: "include", headers: { accept: "application/json" } });
+        txt = await resp.text();
+      } catch (e) { return { err: "fetch-exc:" + String(e).slice(0, 40) }; }
       if (!resp.ok) return { err: "http-" + resp.status };
-      const j = await resp.json();
-      const map = {};
-      let combos = 0;
-      (function walk(o, d) {
-        if (!o || d > 7) return;
-        if (Array.isArray(o)) {
-          for (const it of o) {
-            if (it && typeof it === "object" && "stockQuantity" in it &&
-                (("optionName1" in it) || ("optionName" in it))) {
-              const c = (it.optionName1 || "").toString().trim();
-              const s = (it.optionName2 || it.optionName || "").toString().trim();
-              const q = it.stockQuantity;
-              const usable = it.usable !== false && it.sellable !== false && it.useYn !== "N";
-              if (typeof q === "number") { map[c + "||" + s] = usable ? q : 0; combos++; }
-            } else { walk(it, d + 1); }
-          }
-        } else if (typeof o === "object") {
-          for (const k in o) walk(o[k], d + 1);
-        }
-      })(j, 0);
-      if (!combos) return { err: "no-combos", topKeys: Object.keys(j).slice(0, 14) };
-      return { map, combos };
+      if (!txt || txt.length < 2) return { err: "empty-body:" + (txt ? txt.length : 0) };
+      let j; try { j = JSON.parse(txt); } catch (e) { return { err: "api-parse:len" + txt.length }; }
+      const ap = walkFor(j);
+      if (!ap.combos) return { err: "no-combos", topKeys: Object.keys(j).slice(0, 14) };
+      return { map: ap.map, combos: ap.combos, via: "api" };
     } catch (e) { return { err: String(e).slice(0, 90) }; }
   })();
 }
@@ -330,8 +350,9 @@ async function handleNavExtract(payload) {
   if (!extractor) return { ok: false, error: "레시피 없음(미구현 소싱처): " + sk };
   await chrome.tabs.update(tabId, { url });
   await waitTabComplete(tabId, 25000);
+  const world = (sk === "lotteon") ? "MAIN" : "ISOLATED";
   const out = await chrome.scripting.executeScript({
-    target: { tabId: tabId }, world: "ISOLATED", func: extractor,
+    target: { tabId: tabId }, world: world, func: extractor,
   });
   return (out && out[0] && out[0].result) || { ok: false, error: "추출 결과 없음" };
 }
@@ -391,6 +412,21 @@ function waitTabComplete(tabId, timeoutMs) {
     function listener(id, info) { if (id === tabId && info.status === "complete") { clearTimeout(to); finish(); } }
     chrome.tabs.onUpdated.addListener(listener);
     chrome.tabs.get(tabId, (t) => { if (t && t.status === "complete") { clearTimeout(to); finish(); } });
+  });
+}
+
+// [2026-06-14 fix F] 유닛당 하드 타임아웃 — 한 소싱처 1건이 행(예: 네이버 봇차단 페이지가
+//   never-complete)해도 전체크롤이 영구 정지하지 않게. 정상 무신사 유닛(waitTabComplete 25s
+//   + 혜택 아코디언 ~8s)보다 넉넉히 큰 60s. 타임아웃 시 그 유닛만 error 로 표면화하고 진행.
+const UNIT_TIMEOUT_MS = 60000;
+function withTimeout(promise, ms) {
+  return new Promise((resolve) => {
+    let settled = false;
+    const to = setTimeout(() => { if (!settled) { settled = true; resolve({ __timeout: true }); } }, ms);
+    Promise.resolve(promise).then(
+      (v) => { if (!settled) { settled = true; clearTimeout(to); resolve(v); } },
+      (e) => { if (!settled) { settled = true; clearTimeout(to); resolve({ __error: String(e && e.message ? e.message : e) }); } }
+    );
   });
 }
 
@@ -571,37 +607,87 @@ async function lotteonExtractor() {
   const valid = (price != null && price >= MIN);   // 하한 재확인(방어)
   const soldOut = /품절|일시품절/.test(document.body.innerText) && !valid;
 
-  // ── [2026-06-14] 사이즈별 재고 추출 (무신사 일반화) ──────────────
-  //   롯데온 옵션 패널 구조(실측):
-  //     ul.selectLists > li > div.labelTextWrap > span.caption(사이즈)
-  //                                              + span.price(가격)
-  //                                              + span.stock("10개 남음" 등 마커)
-  //   span.stock 마커:  "N개 남음"/"마지막 N개" = 한정수량(N) · "품절" = 0 · 없음 = 충분(999)
-  //   색상: 롯데온은 색상별 별도 listing(모델 LM-06-BK) → title 마지막 토큰 1개.
-  //   ※ ul.selectLists 가 2개(PC/모바일 중복) 노출되므로 size 로 dedup.
-  function lotteStock(txt) {
-    if (!txt) return 999;                                 // 마커 없음 = 충분
-    if (/품절|일시품절|sold\s*out/i.test(txt)) return 0;   // 품절
-    const m = txt.match(/(\d+)\s*개\s*남음/) || txt.match(/마지막\s*(\d+)\s*개/);
-    if (m) return Math.max(0, parseInt(m[1], 10));         // 한정수량(실수량)
-    return 999;
+  // ── [2026-06-15 fix 롯데온 v3] 옵션매핑 API 직읽기 (범용·fail-safe, 라이브 ★FIN 검증) ──
+  //   롯데온 플랫폼 표준 API 한 번 fetch → 전 옵션조합 재고 즉시(클릭/색순회/렌더대기 전부 폐기).
+  //     URL: pbf.lotteon.com/product/v2/detail/option/mapping/{spdNo}/{sitmNo}  (쿼리 없이 경로만 200, ★URL검증)
+  //     data.optionInfo.optionList = 옵션 축들(각 {label,value}) — 축 이름 안 고정(범용: 색상/사이즈/기타 N축)
+  //     data.optionInfo.optionMappingInfo["{축1value}_{축2value}…"] = {stkQty, sitmNoSlStatCd, displayPrc}
+  //   재고: sitmNoSlStatCd==="SALE" && stkQty>0 → stkQty(실수량) / 아니면 0(품절) / 키없음 → 미존재(제외, 거짓충분 방지)
+  //   URL 확보: ① 페이지가 부른 mapping URL(performance) ② location 에서 spd/sitm 조립.
+  //   ★ fail-safe: API 실패(URL/CORS/파싱/빈옵션) → DOM 스캔 폴백 → 그래도 0건이면 옵션 비움(거짓충분 절대 금지).
+  let options = [];
+  let mapUrl = "";
+  // ① performance 엔트리(페이지가 이미 호출 — LO·PD 공통). 늦으면 ~10s 폴링. 쿼리 제거(경로만으로 200).
+  for (let i = 0; i < 25; i++) {
+    const hit = (performance.getEntriesByType("resource") || [])
+      .map((e) => e.name).find((u) => /\/product\/v2\/detail\/option\/mapping\//.test(u));
+    if (hit) { mapUrl = hit.split("?")[0]; break; }
+    await sleep(400);
   }
-  // 색상명: "[르무통]…운동화 블랙 : 롯데ON" → '블랙'
-  const titleColor = (document.title.split(":")[0].trim().split(/\s+/).pop()) || "";
-  const seenSize = new Set();
-  const options = [];
-  for (const li of document.querySelectorAll("ul.selectLists > li")) {
-    const cap = li.querySelector(".caption");
-    if (!cap) continue;
-    const size = (cap.textContent || "").replace(/mm/i, "").trim();
-    if (!size || seenSize.has(size)) continue;
-    seenSize.add(size);
-    const stEl = li.querySelector(".stock");
-    // li 전체가 비활성/품절 처리된 경우도 0 (방어)
-    const liSold = /품절|sold|disable|soldout/i.test((li.className || "").toString())
-      || li.getAttribute("aria-disabled") === "true";
-    const stock = liSold ? 0 : lotteStock(stEl ? stEl.textContent.trim() : "");
-    options.push({ color: "", size, price: valid ? price : null, stock });
+  // ② 폴백: location 에서 조립 (/p/product/{spd}?sitmNo={sitm}) — LO형 URL 커버
+  if (!mapUrl) {
+    const spd = (location.pathname.match(/\/product\/([A-Za-z0-9]+)/) || [])[1] || "";
+    const sitm = new URLSearchParams(location.search).get("sitmNo") || "";
+    if (spd && sitm) mapUrl = "https://pbf.lotteon.com/product/v2/detail/option/mapping/" + spd + "/" + sitm;
+  }
+  if (mapUrl) {
+    try {
+      const resp = await fetch(mapUrl, { credentials: "include", headers: { accept: "application/json" } });
+      if (resp.ok) {
+        const j = await resp.json();
+        const oi = (j && j.data && j.data.optionInfo) || {};
+        const axes = oi.optionList || [];
+        const omi = oi.optionMappingInfo || {};
+        const colorAxis = axes.find((a) => a.title === "색상") || null;
+        const sizeAxis = axes.find((a) => /사이즈|size/i.test(a.title || "")) || null;
+        const colorOpts = (colorAxis && colorAxis.options) || [{ value: "", label: "" }];
+        const sizeOpts = (sizeAxis && sizeAxis.options)
+          || (axes.length ? (axes[axes.length - 1].options || []) : []);
+        const skuStock = (sku) => {
+          const sale = sku && sku.sitmNoSlStatCd === "SALE";
+          const q = Number(sku && sku.stkQty);
+          return (sale && q > 0) ? q : 0;
+        };
+        if (sizeOpts.length) {
+          for (const c of colorOpts) {
+            for (const s of sizeOpts) {
+              const key = (c.value || "") + "_" + (s.value || "");
+              const sku = omi[key] || (!c.value ? omi[s.value] : null);
+              if (!sku) continue;                          // 미존재 조합 제외(거짓충분 방지)
+              const size = (s.label || "").replace(/mm/i, "").trim();
+              if (!size) continue;
+              options.push({ color: (c.label || "").trim(), size, price: valid ? price : null, stock: skuStock(sku) });
+            }
+          }
+        } else {
+          // 옵션 없는 단일상품 — 매핑 1건이면 상품레벨 재고로
+          const vals = Object.values(omi);
+          if (vals.length === 1) options.push({ color: "", size: "", price: valid ? price : null, stock: skuStock(vals[0]) });
+        }
+      }
+    } catch (e) { /* CORS/파싱 실패 → DOM 폴백 */ }
+  }
+  // ③ DOM 스캔 폴백 (API 0건). [품절]제거·숫자필터·N먼저(버그1수정).
+  if (!options.length) {
+    const m = {};
+    for (const li of document.querySelectorAll("ul.selectLists > li")) {
+      const cap = li.querySelector(".caption");
+      if (!cap) continue;
+      const size = (cap.textContent || "").replace(/^\s*\[품절\]\s*/, "").replace(/mm/i, "").trim();
+      if (!/^\d{2,3}$/.test(size)) continue;
+      const stEl = li.querySelector(".stock");
+      const liSold = /품절|sold|disable|soldout/i.test((li.className || "").toString())
+        || li.getAttribute("aria-disabled") === "true";
+      let st = 999;
+      if (liSold) st = 0;
+      else {
+        const t = stEl ? stEl.textContent.trim() : "";
+        const mm = t.match(/(\d+)\s*개\s*남음/) || t.match(/마지막\s*(\d+)\s*개/);
+        st = mm ? Math.max(0, parseInt(mm[1], 10)) : (/품절|일시품절/.test(t) ? 0 : 999);
+      }
+      if (!(size in m) || st < m[size]) m[size] = st;
+    }
+    options = Object.keys(m).map((size) => ({ color: "", size, price: valid ? price : null, stock: m[size] }));
   }
 
   return {
@@ -834,6 +920,10 @@ async function crawlItemInTabBG(tabId, code, item) {
       url: url, source_key: sk, price: x.price, stock: x.stock, options: x.options,
       status: x.ok ? "ok" : "error", product_name: x.product_name, error: x.error || null,
       is_logged_in: (x.is_logged_in === undefined ? null : x.is_logged_in),
+      // [2026-06-14 fix] '현재 브라우저 기준' 혜택 스냅샷 필드 — 추출기가 긁은 혜택을
+      //   서버(_build_crawl_snapshot)까지 전달. 이전엔 여기서 누락돼 무신사 미수집(폴백 게이트)됐음.
+      benefits_ok: x.benefits_ok, benefit_lines: x.benefit_lines, benefit_amounts: x.benefit_amounts,
+      surface_price: x.surface_price, member_price: x.member_price,
     };
   }
   const grab = await handleNavGrab({ tabId: tabId, url: url });
@@ -931,8 +1021,16 @@ async function crawlBundleAllBG(code) {
         if (_mgr.paused) { sourceProgress[sk] = i; pausedMid = true; break; }
         const t0 = Date.now();
         let out;
-        try { out = await crawlItemInTabBG(tabId, code, list[i]); }
-        catch (e) { out = { url: list[i].url, source_key: sk, status: "error", error: String(e && e.message ? e.message : e) }; }
+        // [2026-06-14 fix F] 하드 타임아웃으로 감싸 행 방지. 타임아웃/예외도 error 유닛으로
+        //   표면화하고 다음 유닛 진행 → 한 건 행이 전체크롤을 마비시키지 않음 + 중지 반응성 회복.
+        const _r = await withTimeout(crawlItemInTabBG(tabId, code, list[i]), UNIT_TIMEOUT_MS);
+        if (_r && _r.__timeout) {
+          out = { url: list[i].url, source_key: sk, status: "error", error: "유닛 타임아웃 " + (UNIT_TIMEOUT_MS / 1000) + "s(행 추정·건너뜀)" };
+        } else if (_r && _r.__error) {
+          out = { url: list[i].url, source_key: sk, status: "error", error: _r.__error };
+        } else {
+          out = _r || { url: list[i].url, source_key: sk, status: "error", error: "결과 없음" };
+        }
         const sec = (Date.now() - t0) / 1000;
         latencies.push(sec); if (latencies.length > 12) latencies.shift();
         results.push(out); done++; sourceProgress[sk] = i + 1;
@@ -1009,6 +1107,9 @@ async function crawlBundleAllBG(code) {
     url: x.url, price: x.price, stock: x.stock, options: x.options,
     status: x.status, product_name: x.product_name, error: x.error,
     is_logged_in: (x.is_logged_in === undefined ? null : x.is_logged_in),
+    // [2026-06-14 fix] 혜택 스냅샷 필드 서버 전달(누락 시 무신사 미수집).
+    benefits_ok: x.benefits_ok, benefit_lines: x.benefit_lines, benefit_amounts: x.benefit_amounts,
+    surface_price: x.surface_price, member_price: x.member_price,
   }));
   const save = await bgFetch("/api/sources/crawl-result", {
     method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ items }),

@@ -4,7 +4,7 @@
 //   (2) 페이지 ↔ 확장 메시지 브리지 — window.postMessage 와 chrome.runtime 사이를 중계.
 //  (더망고도 동일 패턴: 콘텐츠 스크립트가 마커를 심고 페이지가 getAttribute 로 감지)
 
-const MOUM_EXT_VERSION = "0.5.2";  // 0.5.0+ 백그라운드 엔진(탭 닫아도 지속) + 0.5.2 혜택 수집(현재 브라우저 기준)
+const MOUM_EXT_VERSION = "0.5.13";  // 클린본 — 재고 3소싱처 수정(스스 pno·롯데온·SSF서버regex) + 무신사혜택·타임아웃 보존, 임시계측 전부 제거
 
 // (1) 설치 마커 — document_start 시점이라 documentElement 는 이미 존재
 try {
