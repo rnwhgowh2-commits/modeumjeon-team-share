@@ -68,7 +68,9 @@
     style.id = CSS_ID;
     style.textContent = [
       '#mcl-panel {',
-      '  position:fixed; top:0; right:0; width:520px; height:100vh;',
+      // [2026-06-19] 폰트·크기 전체 1.5× + 좌측 확장. zoom 1.5 로 폭(520→780 렌더)·폰트 1.5배.
+      //   full-height 드로어라 height 는 calc(100vh/1.5) 로 둬 zoom 후 화면엔 정확히 100vh.
+      '  position:fixed; top:0; right:0; width:520px; height:calc(100vh / 1.5); zoom:1.5;',
       '  background:#141B22; color:#CBD5E1; z-index:9000;',
       '  display:flex; flex-direction:column; font-family:"Pretendard",sans-serif;',
       '  box-shadow:-8px 0 32px rgba(0,0,0,.45); transition:transform .25s ease;',
