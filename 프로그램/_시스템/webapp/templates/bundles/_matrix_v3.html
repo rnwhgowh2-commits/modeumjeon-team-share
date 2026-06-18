@@ -1835,6 +1835,28 @@
   //   → 전역 노출해 크롤 직후 option-matrix+breakdowns 재조회·재렌더되게 한다.
   window.loadMatrix = loadMatrix;
 
+  // [2026-06-18] 백그라운드 크롤 완료 시 매트릭스 자동 동기화 (새로고침 불필요).
+  //   문제: 확장 0.5+ 백그라운드 크롤은 서비스워커에서 돌아 끝나도 페이지가 loadMatrix 를
+  //   호출하지 않았다(toss.js 의 finish 핸들러는 업로드만 함). 그래서 breakdown 캐시
+  //   (SM_BREAKDOWNS)가 stale 로 남아, 무신사 등 '현재 브라우저 기준' 동적혜택 소싱처의
+  //   최종매입가가 새로고침 전까지 옛값으로 표시됐다(셀 ≠ fx). 정적혜택 소싱처는 값이 안 변해
+  //   문제 없어 보였을 뿐.
+  //   대책: 크롤 finish 이벤트마다 loadMatrix() 풀갱신 → option-matrix(표면·재고) + breakdowns
+  //   (전 소싱처 fx 최종매입가) 모두 최신화 → 모든 소싱처 셀이 fx 와 일치. (여러 모음전 연속
+  //   finish 는 디바운스해 마지막 1회만 풀로드.) 매트릭스 팝업도 동일 SM_BREAKDOWNS 캐시를
+  //   쓰므로 갱신 후 열면 fx 값으로 보인다.
+  (function () {
+    var _fxSyncTimer = null;
+    window.addEventListener('moum-crawl-log', function (ev) {
+      var d = ev && ev.detail;
+      if (!d || d.type !== 'finish') return;   // 중지(stopped)여도 긁은 것까지 저장됐으므로 갱신
+      if (_fxSyncTimer) clearTimeout(_fxSyncTimer);
+      _fxSyncTimer = setTimeout(function () {
+        try { if (typeof loadMatrix === 'function') loadMatrix(); } catch (_) {}
+      }, 800);
+    });
+  })();
+
   // ════════════════════════════════════════════════════════════
   //  v5 시안 ① 소싱처×옵션 매트릭스 (4색 + 최저가 박스 + 통계)
   // ════════════════════════════════════════════════════════════
