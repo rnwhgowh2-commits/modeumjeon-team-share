@@ -94,6 +94,8 @@
       '#mcl-close-btn { display:none; }',
 
       '#mcl-overall { display:flex; align-items:center; gap:10px; }',
+      '#mcl-overall-ring { width:34px; height:34px; border-radius:50%; flex-shrink:0; background:conic-gradient(#3182F6 0deg,#25303b 0deg); display:flex; align-items:center; justify-content:center; }',
+      '#mcl-overall-ring > i { width:25px; height:25px; border-radius:50%; background:#141B22; display:flex; align-items:center; justify-content:center; font-size:8.5px; font-weight:800; color:#CFE0FF; font-style:normal; }',
       '#mcl-overall-label { font-size:12px; color:#8B95A1; white-space:nowrap; }',
       '#mcl-overall-cnt { font-family:ui-monospace,monospace; font-size:13px; font-weight:800; color:#3182F6; }',
       '#mcl-overall-bar { flex:1; height:5px; background:#25303b; border-radius:3px; overflow:hidden; }',
@@ -189,19 +191,23 @@
       '.mcl-log-url { flex-shrink:0; margin-left:auto; color:#60A5FA; text-decoration:none; font-size:11px; opacity:.8; }',
       '.mcl-log-url:hover { opacity:1; text-decoration:underline; }',
 
-      /* 최소화 레일(도넛) */
+      /* 최소화 카드(M4) — 스피너+모음전명+총 URL 진행률+바 */
       '#mcl-rail-min {',
-      '  display:none; position:fixed; top:14px; right:14px; width:86px; z-index:9001;',
-      '  background:#141B22; border:1px solid #25303b; border-radius:12px;',
-      '  box-shadow:-6px 6px 24px rgba(0,0,0,.4); padding:13px 8px 11px; text-align:center; cursor:pointer;',
+      '  display:none; position:fixed; top:14px; right:14px; width:230px; z-index:9001;',
+      '  background:#141B22; border:1px solid #25303b; border-radius:13px;',
+      '  box-shadow:-6px 6px 24px rgba(0,0,0,.4); padding:13px 15px; cursor:pointer;',
       '  font-family:"Pretendard",sans-serif; transition:transform .12s;',
       '}',
       '#mcl-rail-min:hover { transform:translateY(-1px); }',
-      '#mcl-rail-min-ring { width:46px; height:46px; border-radius:50%; margin:0 auto 9px; background:conic-gradient(#3182F6 0deg,#25303b 0deg); display:flex; align-items:center; justify-content:center; }',
-      '#mcl-rail-min-ring > i { width:34px; height:34px; border-radius:50%; background:#141B22; display:flex; align-items:center; justify-content:center; font-size:11px; font-weight:800; color:#CFE0FF; font-style:normal; }',
-      '#mcl-rail-min-num { font-size:13px; font-weight:800; color:#CBD5E1; }',
+      '#mcl-rail-min .rm-top { display:flex; align-items:center; gap:8px; }',
+      '#mcl-rail-min .rm-spin { width:16px; height:16px; border-radius:50%; border:2px solid #25303b; border-top-color:#3182F6; animation:mcl-spin 1s linear infinite; flex-shrink:0; }',
+      '@keyframes mcl-spin { to { transform:rotate(360deg); } }',
+      '#mcl-rail-min .rm-name { font-size:13px; font-weight:800; color:#E5EAF0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }',
+      '#mcl-rail-min .rm-exp { margin-left:auto; color:#8B95A1; font-size:15px; flex-shrink:0; }',
+      '#mcl-rail-min-num { font-size:18px; font-weight:800; color:#CBD5E1; margin-top:7px; font-variant-numeric:tabular-nums; }',
       '#mcl-rail-min-num b { color:#60A5FA; }',
-      '#mcl-rail-min-exp { color:#8B95A1; font-size:11px; margin-top:5px; }',
+      '#mcl-rail-min .rm-bar { height:6px; background:#202a34; border-radius:5px; overflow:hidden; margin-top:7px; }',
+      '#mcl-rail-min .rm-bar > i { display:block; height:100%; background:linear-gradient(90deg,#3182F6,#60A5FA); width:0%; transition:width .3s; }',
     ].join('\n');
     document.head.appendChild(style);
   }
@@ -228,6 +234,7 @@
       '    <button id="mcl-close-btn" class="mcl-cbtn sq" type="button" title="닫기">\xd7</button>',
       '  </div>',
       '  <div id="mcl-overall">',
+      '    <div id="mcl-overall-ring"><i>0%</i></div>',
       '    <span id="mcl-overall-label">전체</span>',
       '    <span id="mcl-overall-cnt">0 / 0</span>',
       '    <div id="mcl-overall-bar"><div id="mcl-overall-fill"></div></div>',
@@ -268,9 +275,9 @@
     rail.id = RAIL_MIN_ID;
     rail.title = '펼치기';
     rail.innerHTML = [
-      '<div id="mcl-rail-min-ring"><i>0%</i></div>',
+      '<div class="rm-top"><span class="rm-spin"></span><span class="rm-name" id="mcl-rail-min-name">크롤 진행 중</span><span class="rm-exp" title="펼치기">‹</span></div>',
       '<div id="mcl-rail-min-num">0 / 0</div>',
-      '<div id="mcl-rail-min-exp">‹ 펼치기</div>',
+      '<div class="rm-bar"><i id="mcl-rail-min-bar"></i></div>',
     ].join('');
     document.body.appendChild(rail);
     rail.addEventListener('click', restorePanel);
@@ -600,6 +607,9 @@
     var prog = b ? bundleProgress(b) : { done: 0, total: 0, pct: 0 };
     safeText(document.getElementById('mcl-overall-cnt'), prog.done + ' / ' + (prog.total || prog.done));
     setWidth(document.getElementById('mcl-overall-fill'), prog.pct);
+    // [2026-06-19 R2] 전체 진행률 도넛
+    var oring = document.getElementById('mcl-overall-ring');
+    if (oring) { oring.style.background = 'conic-gradient(#3182F6 ' + (prog.pct * 3.6) + 'deg,#25303b 0deg)'; var oi = oring.querySelector('i'); if (oi) oi.textContent = prog.pct + '%'; }
 
     // 완료 배너 — 선택 모음전이 끝났을 때
     var fin = document.getElementById('mcl-finish-summary');
@@ -619,13 +629,12 @@
     var rb = runningBundle();
     var b = rb || bundles[selected];
     var prog = b ? bundleProgress(b) : { done: 0, total: 0, pct: 0 };
-    var ring = document.getElementById('mcl-rail-min-ring');
-    if (ring) {
-      ring.style.background = 'conic-gradient(#3182F6 ' + (prog.pct * 3.6) + 'deg,#25303b 0deg)';
-      var inner = ring.querySelector('i'); if (inner) inner.textContent = prog.pct + '%';
-    }
+    var nameEl = document.getElementById('mcl-rail-min-name');
+    if (nameEl && b) nameEl.textContent = b.label || b.code || '크롤 진행 중';
     var numEl = document.getElementById('mcl-rail-min-num');
     if (numEl) numEl.innerHTML = '<b>' + prog.done + '</b> / ' + (prog.total || prog.done);
+    var bar = document.getElementById('mcl-rail-min-bar');
+    if (bar) bar.style.width = prog.pct + '%';
   }
 
   function renderAll() { renderRail(); renderDetail(); renderHeader(); }
