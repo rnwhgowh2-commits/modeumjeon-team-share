@@ -1105,7 +1105,15 @@ async function crawlBundleAllBG(code) {
         + ((sv && sv.error) ? (" ⚠️실패: " + sv.error) : ((okOuts.length && !svOk) ? " ⚠️0건(저장 실패)" : "")),
       metrics: { concurrency, cap, active, done, total },
     });
-    emit("source-done", { source: sk, level: "done", msg: sk + " 완료 (" + list.length + "건)", metrics: { concurrency, cap, active, done, total } });
+    // [2026-06-18] 정직성 게이트 — 성공 0건인데 '완료'로 위장하던 버그 제거(silent fail 표면화).
+    //   okOuts = 이 소싱처 status==='ok' 건. 전건성공=완료 / 부분=부분실패 / 0건=전건실패.
+    const _okN = okOuts.length;
+    emit("source-done", {
+      source: sk,
+      level: (_okN > 0 && _okN >= list.length) ? "done" : "warn",
+      msg: sk + (_okN === 0 ? " ⚠️ 전건 실패" : (_okN >= list.length ? " 완료" : " ⚠️ 부분 실패")) + " (" + _okN + "/" + list.length + "건 성공)",
+      metrics: { concurrency, cap, active, done, total },
+    });
   }
 
   function evaluateConcurrency() {

@@ -388,6 +388,7 @@
       const startIdx = sourceProgress[sk] || 0;
       let winId = null, tabId = null;
       let pausedMid = false;
+      let _okN = 0;   // [2026-06-18] 이 소싱처 성공 건수(정직성 게이트용)
       try {
         const w = await send("openWin", {}, 30000);
         if (!w || !w.ok || w.tabId == null) {
@@ -415,6 +416,7 @@
           if (latencies.length > 12) latencies.shift();
           results.push(out);
           done++;
+          if (out && out.status === "ok") _okN++;
           sourceProgress[sk] = i + 1;
           if (cooldown > 0) cooldown--;
           // [2026-06-12] 실시간 줄 = '표면노출가'(크롤 raw)만. lineId 를 붙여 저장 후
@@ -445,7 +447,13 @@
       if (pausedMid) { pendingSources.unshift(sk); return; }   // 재개 시 이어서(같은 sk 재투입)
       if (_mgr.stopped) return;                                // 중지 — source-done 생략
       delete sourceProgress[sk];
-      emit("source-done", { source: sk, level: "done", msg: sk + " 완료 (" + list.length + "건)", metrics: { concurrency, cap, active, done, total } });
+      // [2026-06-18] 정직성 게이트 — 성공 0건 '완료' 위장 제거(background.js 와 동일 규칙).
+      emit("source-done", {
+        source: sk,
+        level: (_okN > 0 && _okN >= list.length) ? "done" : "warn",
+        msg: sk + (_okN === 0 ? " ⚠️ 전건 실패" : (_okN >= list.length ? " 완료" : " ⚠️ 부분 실패")) + " (" + _okN + "/" + list.length + "건 성공)",
+        metrics: { concurrency, cap, active, done, total },
+      });
     }
 
     // 처리량 언덕오르기 — 활성 소싱처 수(=동시 창)를 concurrency 에 맞춰 채운다.
