@@ -1286,7 +1286,7 @@ def save_crawl_result():
                 idx.setdefault(normalize_url(sp.url), sp)
 
         now = _dt.datetime.now(_dt.timezone.utc)
-        updated, not_found = 0, []
+        updated, not_found, item_errors = 0, [], []
         for it in items:
             url = (it or {}).get('url')
             if not url:
@@ -1340,9 +1340,17 @@ def save_crawl_result():
             #   둔갑(한정수량·품절 누락 = 오발주 손실) 교정. status=ok 인 성공 크롤만.
             if status == 'ok':
                 _opts_in = it.get('options')
-                # 먼저 이번에 없는 사이즈 prune(옛 다색·날조 행 제거) → 단일색 매칭 모호성 해소.
-                _prune_stale_option_sizes(s, sp.id, _opts_in)
-                _ingest_option_stocks(s, sp.id, _opts_in)
+                # [2026-06-18] 옵션 재고 반영을 savepoint 로 격리 — 한 건이 예외(예: ssf 특정
+                #   옵션 데이터로 internal_error) 나도 그 건만 롤백하고 배치 전체(다른 소싱처·이 건의
+                #   가격)는 보존·커밋되게. 기존엔 한 건 예외가 루프를 깨 commit 미도달 → 배치 전량
+                #   0건 저장 → 하드리셋만 남아 가격 소실되는 사고였음. 에러는 item_errors 로 표면화.
+                try:
+                    with s.begin_nested():
+                        # 먼저 이번에 없는 사이즈 prune(옛 다색·날조 행 제거) → 단일색 매칭 모호성 해소.
+                        _prune_stale_option_sizes(s, sp.id, _opts_in)
+                        _ingest_option_stocks(s, sp.id, _opts_in)
+                except Exception as _e:
+                    item_errors.append({'url': str(url)[:80], 'where': 'option_stock', 'error': str(_e)[:160]})
             # ★ 2026-06-14 — '있는 그대로(현재 브라우저)' 혜택 스냅샷 저장.
             #   확장이 현재 페이지에서 긁은 혜택 라인/금액을 dynamic_benefits_json['_crawl']에
             #   타임스탬프·로그인상태와 함께 기록. 크롤 실패(status='error')면 스냅샷 미갱신
@@ -1362,7 +1370,7 @@ def save_crawl_result():
                 sp.dynamic_benefits_json = _json.dumps(_dyn, ensure_ascii=False)
             updated += 1
         s.commit()
-        return _ok(updated=updated, not_found=not_found, total=len(items))
+        return _ok(updated=updated, not_found=not_found, item_errors=item_errors, total=len(items))
     finally:
         s.close()
 
