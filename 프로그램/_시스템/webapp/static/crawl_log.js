@@ -103,12 +103,13 @@
       '  border-radius:8px; font-size:13px; font-weight:700; color:#93C5FD; border-left:4px solid #3182F6;',
       '}',
       '#mcl-finish-summary.stopped { background:#3f1d1d; color:#fca5a5; border-left-color:#f87171; }',
-      '#mcl-fd .fd-sec { margin-bottom:8px; } #mcl-fd .fd-sec:last-child { margin-bottom:0; }',
-      '#mcl-fd .fd-h { font-size:10px; font-weight:800; color:#7FA8D6; letter-spacing:.4px; margin-bottom:3px; }',
-      '#mcl-fd .fd-row { display:flex; justify-content:space-between; align-items:baseline; padding:2px 1px; font-weight:700; }',
-      '#mcl-fd .fd-row.sub { padding-left:11px; font-size:11.5px; font-weight:600; }',
-      '#mcl-fd .fd-row .k { color:#AFCBEC; } #mcl-fd .fd-row .v { font-variant-numeric:tabular-nums; }',
-      '#mcl-fd .fd-det { color:#9FC3FF; text-decoration:underline; text-underline-offset:2px; font-size:10px; cursor:pointer; margin-left:4px; }',
+      '#mcl-fd { display:grid; grid-template-columns:1fr 1fr; gap:18px; }',
+      '#mcl-fd .fd-row { display:flex; justify-content:space-between; align-items:baseline; padding:4px 2px; font-weight:700; line-height:1.5; }',
+      '#mcl-fd .fd-row.top { font-size:14px; border-bottom:1px solid #214a78; padding-bottom:6px; margin-bottom:3px; }',
+      '#mcl-fd .fd-row.sub { padding-left:10px; font-size:12.5px; font-weight:600; }',
+      '#mcl-fd .fd-row .k { color:#AFCBEC; } #mcl-fd .fd-row .v { font-variant-numeric:tabular-nums; font-weight:800; }',
+      '#mcl-fd .fd-det { color:#9FC3FF; text-decoration:underline; text-underline-offset:2px; font-size:10px; cursor:pointer; margin-left:5px; }',
+      '#mcl-fd .fd-stop { color:#fca5a5; font-size:11px; font-weight:700; margin-top:5px; }',
       '#mcl-fd .gn{color:#34D399} #mcl-fd .rd{color:#F87171} #mcl-fd .gy{color:#9aa6b2} #mcl-fd .bl{color:#7FB6FF}',
 
       /* 분할: 좌측 레일 + 우측 상세 */
@@ -164,6 +165,11 @@
       '.mcl-card-tag.wait { background:#25303b; color:#8B95A1; } .mcl-card-tag.run { background:#1B3A6A; color:#60A5FA; }',
       '.mcl-card-tag.done { background:#064E3B; color:#34D399; }',
       '.mcl-card-cnt { font-family:ui-monospace,monospace; font-size:11px; color:#8B95A1; margin-left:auto; flex-shrink:0; }',
+      '.mcl-card-cnt .mcl-c-reg { color:#E5EAF0; font-weight:800; }',
+      '.mcl-card-cnt .mcl-vdiv { color:#3a4654; margin:0 3px; }',
+      '.mcl-card-cnt .mcl-c-ok { color:#34D399; font-weight:800; }',
+      '.mcl-card-cnt .mcl-c-no { color:#F87171; font-weight:800; text-decoration:underline; text-underline-offset:2px; cursor:pointer; margin-left:4px; }',
+      '.mcl-card-tag.mcl-hidden { display:none; }',
       '.mcl-card-toggle { font-size:11px; color:#60A5FA; background:none; border:none; cursor:pointer; padding:0 0 0 8px; flex-shrink:0; white-space:nowrap; }',
       '.mcl-card-toggle:hover { color:#93C5FD; }',
       '.mcl-card-bar-wrap { height:4px; background:#25303b; margin:0 12px 8px; border-radius:3px; overflow:hidden; }',
@@ -447,6 +453,16 @@
     msgSpan.appendChild(span('mcl-pBuy', won(buy)));
   }
 
+  // [2026-06-18 H2] 소싱처 ✗(실패) 클릭 → 옵션 매트릭스 열기(어떤 옵션이 실패했는지 확인).
+  //   현재 페이지에 '매트릭스 보기' 버튼 있으면 팝업, 없으면 그 모음전 매트릭스 탭으로 이동.
+  function openMatrixForFail(code) {
+    try {
+      var btns = [].slice.call(document.querySelectorAll('button,a,div,span'));
+      for (var i = 0; i < btns.length; i++) { var t = (btns[i].textContent || '').trim(); if (t === '매트릭스 보기' && t.length < 12) { btns[i].click(); return; } }
+    } catch (_) {}
+    try { if (code) location.href = '/bundles/' + encodeURIComponent(code) + '#tab=opt'; } catch (_) {}
+  }
+
   function renderDetail() {
     renderGauges();
     var wrap = document.getElementById('mcl-cards-wrap');
@@ -464,17 +480,24 @@
       var card = document.createElement('div'); card.className = 'mcl-card';
       var header = document.createElement('div'); header.className = 'mcl-card-header';
       var nameEl = document.createElement('span'); nameEl.className = 'mcl-card-name'; nameEl.textContent = SOURCE_LABELS[sk] || sk;
-      var tagEl = document.createElement('span'); tagEl.className = 'mcl-card-tag ' + s.status;
+      // [2026-06-18 H2] 완료딱지는 성공 완료(실패 0)일 때만. 실패 있으면 딱지 제거.
+      var _ok = s.ok || 0, _fail = s.fail || 0;
+      var _hideTag = (s.status === 'done' && _fail > 0);
+      var tagEl = document.createElement('span'); tagEl.className = 'mcl-card-tag ' + s.status + (_hideTag ? ' mcl-hidden' : '');
       tagEl.textContent = s.status === 'run' ? '진행중' : s.status === 'done' ? '완료' : '대기';
+      // [2026-06-18 H2] URL 등록수(흰색·구조값) │ ✓성공 ✗실패(빨강·클릭→매트릭스). 실패 0이면 ✗ 숨김.
       var cntEl = document.createElement('span'); cntEl.className = 'mcl-card-cnt';
-      // [2026-06-18] 'URL 등록수' 라벨 — 이 소싱처에 등록된(크롤 대상) URL 개수.
-      cntEl.textContent = (s.total != null) ? ('URL 등록수 ' + s.done + '/' + s.total) : (s.done > 0 ? ('URL 등록수 ' + s.done) : '');
+      var _reg = (s.total != null) ? (s.done + '/' + s.total) : (s.done || 0);
+      var _res = '';
+      if (s.status !== 'wait') {
+        _res = ' <span class="mcl-vdiv">│</span> <span class="mcl-c-ok">✓ ' + _ok + '</span>'
+             + (_fail > 0 ? ' <span class="mcl-c-no" title="클릭 → 옵션 매트릭스">✗ ' + _fail + '</span>' : '');
+      }
+      cntEl.innerHTML = '<span class="mcl-c-reg">URL 등록수 ' + _reg + '</span>' + _res;
+      var _noEl = cntEl.querySelector('.mcl-c-no');
+      if (_noEl) _noEl.addEventListener('click', function (e) { e.stopPropagation(); openMatrixForFail(selected); });
       var toggleEl = document.createElement('button'); toggleEl.type = 'button'; toggleEl.className = 'mcl-card-toggle';
-      // [2026-06-18] 로그 N건 + (URL크롤 수 · 완료/실패 분해). 시작·완료 2건은 비표기(중요X).
-      var _logN = s.logs.length;
-      var _ok = s.ok || 0, _fail = s.fail || 0, _crawlN = _ok + _fail;
-      toggleEl.textContent = '로그 ' + _logN + '건 (URL크롤 ' + _crawlN + ' · 완료 ' + _ok + ' · 실패 ' + _fail + ') '
-        + (s.expanded ? '▴' : '▾');
+      toggleEl.textContent = '로그 ' + s.logs.length + '건 ' + (s.expanded ? '▴' : '▾');
       toggleEl.addEventListener('click', function () { s.expanded = !s.expanded; renderDetail(); });
       header.appendChild(nameEl); header.appendChild(tagEl); header.appendChild(cntEl); header.appendChild(toggleEl);
 
@@ -527,19 +550,25 @@
       var opts = (window.DATA && window.DATA.options) || null;
       if (opts && opts.length) { X = opts.length; X2 = opts.filter(function (x) { return x.is_active === false; }).length; X1 = X - X2; }
     } catch (_) {}
+    // 크롤을 좌측·우선(지적3) · '옵션/크롤링' 헤더 없음(지적2) · 행 여백 균등(지적1).
     var h = '<div id="mcl-fd">';
-    if (X != null) {
-      h += '<div class="fd-sec"><div class="fd-h">옵션</div>'
-        + '<div class="fd-row"><span class="k">전체 옵션</span><span class="v">' + X + '</span></div>'
-        + '<div class="fd-row sub"><span class="k">└ 활성<span class="fd-det" data-mcl-active="1">상세보기</span></span><span class="v gn">' + X1 + '</span></div>'
-        + '<div class="fd-row sub"><span class="k">└ 비활성</span><span class="v gy">' + X2 + '</span></div></div>';
-    }
-    h += '<div class="fd-sec"><div class="fd-h">크롤링' + (b.status === 'stop' ? ' · 중지됨' : '') + '</div>'
-      + '<div class="fd-row"><span class="k">총 URL · 진행률</span><span class="v bl">' + Y1 + ' / ' + Y + '</span></div>'
-      + '<div class="fd-row sub"><span class="k">└ 완료</span><span class="v">' + Y1 + '</span></div>'
-      + '<div class="fd-row sub"><span class="k">　└ 성공</span><span class="v gn">' + Y2 + '</span></div>'
-      + '<div class="fd-row sub"><span class="k">　└ 실패</span><span class="v rd">' + Y3 + '</span></div></div>'
+    // 좌: 크롤 (우선)
+    h += '<div class="fd-col">'
+      + '<div class="fd-row top"><span class="k">총 URL · 진행률</span><span class="v bl">' + Y1 + ' / ' + Y + '</span></div>'
+      + '<div class="fd-row sub"><span class="k">완료</span><span class="v">' + Y1 + '</span></div>'
+      + '<div class="fd-row sub"><span class="k">성공</span><span class="v gn">' + Y2 + '</span></div>'
+      + '<div class="fd-row sub"><span class="k">실패</span><span class="v rd">' + Y3 + '</span></div>'
+      + (b.status === 'stop' ? '<div class="fd-stop">■ 중지됨</div>' : '')
       + '</div>';
+    // 우: 옵션 (매트릭스 데이터 있을 때만)
+    if (X != null) {
+      h += '<div class="fd-col">'
+        + '<div class="fd-row top"><span class="k">전체 옵션</span><span class="v">' + X + '</span></div>'
+        + '<div class="fd-row sub"><span class="k">활성<span class="fd-det">상세보기</span></span><span class="v gn">' + X1 + '</span></div>'
+        + '<div class="fd-row sub"><span class="k">비활성</span><span class="v gy">' + X2 + '</span></div>'
+        + '</div>';
+    }
+    h += '</div>';
     return h;
   }
 
