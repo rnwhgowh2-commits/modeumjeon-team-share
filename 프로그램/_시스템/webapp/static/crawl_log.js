@@ -180,6 +180,31 @@
       '.mcl-card-logs { border-top:1px solid #25303b; padding:6px 12px 8px; max-height:200px; overflow-y:auto; }',
       '.mcl-card-logs::-webkit-scrollbar { width:3px; } .mcl-card-logs::-webkit-scrollbar-thumb { background:#25303b; border-radius:3px; }',
       '.mcl-card-logs.mcl-hidden { display:none; }',
+      '.mcl-d8-head { display:grid; grid-template-columns:1fr 92px 108px; gap:8px; padding:3px 4px 5px; border-bottom:1px solid #2a3744; font-size:9.5px; color:#6B7A8C; font-weight:800; }',
+      '.mcl-d8-head span:nth-child(2), .mcl-d8-head span:nth-child(3) { text-align:right; }',
+      '.mcl-d8-row { display:grid; grid-template-columns:1fr 92px 108px; gap:8px; padding:5px 4px; border-bottom:1px solid #1c2630; font-size:11.5px; align-items:baseline; }',
+      '.mcl-d8-nm { color:#CBD5E1; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }',
+      '.mcl-d8-row.fail .mcl-d8-nm { color:#F87171; }',
+      '.mcl-d8-surf { color:#8B95A1; text-decoration:line-through; text-align:right; font-variant-numeric:tabular-nums; }',
+      '.mcl-d8-buy { text-align:right; font-weight:800; color:#7FB6FF; font-variant-numeric:tabular-nums; }',
+      '.mcl-d8-buy.clk { cursor:pointer; text-decoration:underline; text-underline-offset:2px; }',
+      '.mcl-d8-buy.fail { color:#F87171; text-decoration:none; font-weight:700; }',
+      '.mcl-d8-buy.calc { color:#6B7A8C; font-weight:600; }',
+      '#mcl-rc-ov { position:fixed; inset:0; background:rgba(8,12,18,.55); z-index:9100; display:flex; align-items:center; justify-content:center; }',
+      '#mcl-rc-ov.mcl-hidden { display:none; }',
+      '#mcl-rc { width:330px; background:#161E28; border:1px solid #2a3744; border-radius:13px; box-shadow:0 24px 60px rgba(0,0,0,.55); color:#E5EAF0; overflow:hidden; font-family:"Pretendard",sans-serif; }',
+      '#mcl-rc .rc-h { display:flex; align-items:center; gap:8px; padding:13px 15px; border-bottom:1px solid #25303b; }',
+      '#mcl-rc .rc-fx { background:#3182F6; color:#fff; font-size:10px; font-weight:800; padding:2px 8px; border-radius:6px; }',
+      '#mcl-rc .rc-t { font-size:13px; font-weight:800; } #mcl-rc .rc-x { margin-left:auto; cursor:pointer; color:#8B95A1; font-size:17px; }',
+      '#mcl-rc .rc-b { padding:13px 16px; }',
+      '#mcl-rc .rc-prod { font-size:12px; color:#9aa6b2; margin-bottom:9px; }',
+      '#mcl-rc .rc-r { display:flex; justify-content:space-between; align-items:baseline; padding:5px 0; font-size:13px; }',
+      '#mcl-rc .rc-r.surf { font-weight:700; } #mcl-rc .rc-r.surf .rc-v { color:#CBD5E1; }',
+      '#mcl-rc .rc-r.step { font-size:12px; color:#AFCBEC; padding-left:8px; } #mcl-rc .rc-r.step .rc-v { color:#34D399; }',
+      '#mcl-rc .rc-div { height:1px; background:#25303b; margin:8px 0; }',
+      '#mcl-rc .rc-r.final { font-size:15px; font-weight:800; } #mcl-rc .rc-r.final .rc-v { color:#7FB6FF; }',
+      '#mcl-rc .rc-v { font-variant-numeric:tabular-nums; }',
+      '#mcl-rc .rc-note { font-size:10px; color:#6B7A8C; margin-top:9px; text-align:center; }',
       '.mcl-log-line { display:flex; gap:7px; font-size:11px; line-height:1.5; margin-bottom:1px; }',
       '.mcl-log-ts { font-family:ui-monospace,monospace; color:#4E5968; flex-shrink:0; }',
       '.mcl-log-ico { flex-shrink:0; }',
@@ -470,6 +495,43 @@
     try { if (code) location.href = '/bundles/' + encodeURIComponent(code) + '#tab=opt'; } catch (_) {}
   }
 
+  // [2026-06-19 D8] URL → 짧은 표시명(상품명 없을 때 폴백).
+  function shortUrl(u) {
+    if (!u) return '';
+    try { var p = u.split('?')[0].split('/').filter(Boolean); return decodeURIComponent(p[p.length - 1] || u).slice(0, 30); }
+    catch (_) { return (u || '').slice(0, 30); }
+  }
+  function closeReceipt() { var ov = document.getElementById('mcl-rc-ov'); if (ov) ov.classList.add('mcl-hidden'); }
+  // [2026-06-19] 최종매입가 클릭 → fx 영수증(표면→혜택 steps→최종). steps는 크롤 item-final 이 전달.
+  function openReceipt(line, srcLabel) {
+    var ov = document.getElementById('mcl-rc-ov');
+    if (!ov) {
+      ov = document.createElement('div'); ov.id = 'mcl-rc-ov'; ov.className = 'mcl-hidden';
+      ov.innerHTML = '<div id="mcl-rc"><div class="rc-h"><span class="rc-fx">fx</span><span class="rc-t">최종매입가 영수증</span><span class="rc-x" title="닫기">\xd7</span></div><div class="rc-b" id="mcl-rc-b"></div></div>';
+      document.body.appendChild(ov);
+      ov.addEventListener('click', function (e) { if (e.target === ov) closeReceipt(); });
+      ov.querySelector('.rc-x').addEventListener('click', closeReceipt);
+    }
+    var nm = line.name || shortUrl(line.url);
+    var h = '<div class="rc-prod">' + (srcLabel || '') + ' · ' + nm + '</div>'
+      + '<div class="rc-r surf"><span>표면노출가</span><span class="rc-v">' + won(line.surf) + '</span></div>';
+    var steps = line.steps || [];
+    if (steps.length) {
+      steps.forEach(function (st) {
+        var label = st.label || st.name || st.type || '혜택';
+        var amt = (st.amount != null ? st.amount : (st.value != null ? st.value : null));
+        var amtTxt = amt == null ? '' : (Math.abs(amt) < 1
+          ? ('−' + (+(amt * 100).toFixed(2)) + '%')
+          : ('−' + Math.round(amt).toLocaleString() + '원'));
+        h += '<div class="rc-r step"><span>' + label + '</span><span class="rc-v">' + amtTxt + '</span></div>';
+      });
+    }
+    h += '<div class="rc-div"></div><div class="rc-r final"><span>최종매입가</span><span class="rc-v">' + won(line.buy) + '</span></div>';
+    if (line.surf != null && line.buy != null) h += '<div class="rc-note">매트릭스 fx와 동일 계산 · 절감 −' + (line.surf - line.buy).toLocaleString() + '원</div>';
+    document.getElementById('mcl-rc-b').innerHTML = h;
+    ov.classList.remove('mcl-hidden');
+  }
+
   function renderDetail() {
     renderGauges();
     var wrap = document.getElementById('mcl-cards-wrap');
@@ -515,20 +577,33 @@
       barWrap.appendChild(barFill);
 
       var logArea = document.createElement('div'); logArea.className = 'mcl-card-logs' + (s.expanded ? '' : ' mcl-hidden');
-      s.logs.forEach(function (lg) {
-        var row = document.createElement('div'); row.className = 'mcl-log-line' + (lg.level ? ' lvl-' + lg.level : '') + (lg.surf != null ? ' lvl-done' : '');
-        var ts = document.createElement('span'); ts.className = 'mcl-log-ts'; ts.textContent = fmtTime(lg.ts);
-        var ico = document.createElement('span'); ico.className = 'mcl-log-ico'; ico.textContent = icoForLevel(lg.surf != null ? 'done' : lg.level);
-        var msg = document.createElement('span'); msg.className = 'mcl-log-msg';
-        if (lg.surf != null && lg.buy != null) priceTokensInto(msg, SOURCE_LABELS[sk] || sk, lg.surf, lg.buy);
-        else msg.textContent = lg.msg;
-        row.appendChild(ts); row.appendChild(ico); row.appendChild(msg);
-        if (lg.url && /^https?:\/\//.test(lg.url)) {
-          var a = document.createElement('a'); a.className = 'mcl-log-url'; a.href = lg.url; a.target = '_blank';
-          a.rel = 'noopener noreferrer'; a.textContent = '↗'; a.title = lg.url; row.appendChild(a);
-        }
-        logArea.appendChild(row);
-      });
+      // [2026-06-19 D8] URL별 상세표 — URL행(item-done)만: 상품명 · 표면노출가 · 최종매입가(fx, 클릭→영수증).
+      var urlLines = s.logs.filter(function (lg) { return lg.url; });
+      if (urlLines.length) {
+        var thead = document.createElement('div'); thead.className = 'mcl-d8-head';
+        thead.innerHTML = '<span>URL</span><span>표면노출가</span><span>최종매입가(fx)</span>';
+        logArea.appendChild(thead);
+        urlLines.forEach(function (lg) {
+          var r = document.createElement('div'); r.className = 'mcl-d8-row' + (lg.level === 'warn' ? ' fail' : '');
+          var nm = document.createElement('span'); nm.className = 'mcl-d8-nm'; nm.textContent = lg.name || shortUrl(lg.url); nm.title = lg.url;
+          var sf = document.createElement('span'); sf.className = 'mcl-d8-surf'; sf.textContent = lg.surf != null ? won(lg.surf) : '-';
+          var by = document.createElement('span'); by.className = 'mcl-d8-buy';
+          if (lg.level === 'warn') { by.classList.add('fail'); by.textContent = '크롤실패'; }
+          else if (lg.buy != null) {
+            by.classList.add('clk'); by.textContent = won(lg.buy); by.title = '클릭 → fx 영수증';
+            (function (line) { by.addEventListener('click', function () { openReceipt(line, SOURCE_LABELS[sk] || sk); }); })(lg);
+          } else { by.textContent = '계산중…'; by.classList.add('calc'); }
+          r.appendChild(nm); r.appendChild(sf); r.appendChild(by);
+          logArea.appendChild(r);
+        });
+      } else {
+        s.logs.forEach(function (lg) {
+          var row = document.createElement('div'); row.className = 'mcl-log-line' + (lg.level ? ' lvl-' + lg.level : '');
+          var ts = document.createElement('span'); ts.className = 'mcl-log-ts'; ts.textContent = fmtTime(lg.ts);
+          var msg = document.createElement('span'); msg.className = 'mcl-log-msg'; msg.textContent = lg.msg;
+          row.appendChild(ts); row.appendChild(msg); logArea.appendChild(row);
+        });
+      }
 
       card.appendChild(header); card.appendChild(barWrap); card.appendChild(logArea);
       wrap.appendChild(card);
@@ -761,7 +836,7 @@
           var s2 = getSource(b, sk); s2.done = (s2.done || 0) + 1;
           // [2026-06-18] URL별 성공/실패 카운트(시안D·소싱처카드 분해표기용). warn=실패, 그 외=성공.
           if (level === 'warn') s2.fail = (s2.fail || 0) + 1; else s2.ok = (s2.ok || 0) + 1;
-          var line = { ts: ts, level: level, msg: msg, url: d.url || null, lineId: d.lineId || null };
+          var line = { ts: ts, level: level, msg: msg, url: d.url || null, lineId: d.lineId || null, name: d.name || null, surf: (d.surf != null ? d.surf : null), buy: null, steps: null };
           s2.logs.push(line);
           if (s2.logs.length > 200) s2.logs.shift();
           if (d.lineId) b.lineIndex[d.lineId] = { sk: sk, line: line };
@@ -775,8 +850,8 @@
         // 저장 후 '표면 → 매입' 제자리 갱신
         if (d.lineId != null && d.surf != null && d.buy != null) {
           var rec = b.lineIndex[d.lineId];
-          if (rec && rec.line) { rec.line.surf = d.surf; rec.line.buy = d.buy; rec.line.level = 'done'; }
-          else if (sk) { getSource(b, sk).logs.push({ ts: ts, level: 'done', msg: msg, surf: d.surf, buy: d.buy }); }
+          if (rec && rec.line) { rec.line.surf = d.surf; rec.line.buy = d.buy; rec.line.steps = d.steps || null; rec.line.level = 'done'; }
+          else if (sk) { getSource(b, sk).logs.push({ ts: ts, level: 'done', msg: msg, surf: d.surf, buy: d.buy, steps: d.steps || null }); }
         } else if (sk) {
           getSource(b, sk).logs.push({ ts: ts, level: 'done', msg: msg });
         }

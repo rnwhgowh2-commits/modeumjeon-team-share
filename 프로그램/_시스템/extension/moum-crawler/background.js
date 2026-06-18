@@ -10,7 +10,7 @@
 //  결과 저장은 mou-m.com /api/sources/crawl-result (ext_bridge.crawlBundleAll 이 호출).
 //  grabHtml/crawl(URL마다 창 생성·즉시 닫기) 핸들러는 하위호환 위해 유지.
 
-const MOUM_EXT_VERSION = "0.6.1";  // 0.6.0 = 백그라운드 크롤 상태 영속(chrome.storage.session)+SW 재가동 자동재개. 0.5.x: 백그라운드 엔진·혜택 수집·롯데온 옵션매핑API
+const MOUM_EXT_VERSION = "0.6.2";  // 0.6.0 = 백그라운드 크롤 상태 영속(chrome.storage.session)+SW 재가동 자동재개. 0.5.x: 백그라운드 엔진·혜택 수집·롯데온 옵션매핑API
 
 // cascade 위치 시퀀서 — 창이 여러 개 열려도 서로 어긋나 보임
 let _winSeq = 0;
@@ -1074,6 +1074,9 @@ async function crawlBundleAllBG(code) {
         emit("item-done", {
           source: sk, level: out.status === "ok" ? "" : "warn",
           url: (out && out.url) || (list[i] && list[i].url) || null,
+          // [2026-06-19 D8] URL별 상세표(상품명·표면노출가)용 — 위젯이 per-URL 행 렌더에 사용.
+          name: (out && out.product_name) || null,
+          surf: (out && out.price != null) ? out.price : null,
           lineId: out.status === "ok" ? (sk + "|" + ((out && out.url) || (list[i] && list[i].url) || "")) : null,
           msg: out.status === "ok"
             ? (sk + " 표면 " + (out.price != null ? out.price.toLocaleString() + "원" : "가격없음") + " (" + sec.toFixed(1) + "s)")
@@ -1193,7 +1196,7 @@ async function crawlBundleAllBG(code) {
         if (!b || b.error || b.final_price == null) return;
         const surf = Math.round(b.sale_price != null ? b.sale_price : r.sale_price);
         const buy = Math.round(b.final_price);
-        emit("item-final", { source: r.source_key, level: "done", lineId: r.lineId, url: r.url, surf: surf, buy: buy, msg: r.source_key + " 표면 " + surf.toLocaleString() + "원 → 매입 " + buy.toLocaleString() + "원" });
+        emit("item-final", { source: r.source_key, level: "done", lineId: r.lineId, url: r.url, surf: surf, buy: buy, steps: (b.steps || null), msg: r.source_key + " 표면 " + surf.toLocaleString() + "원 → 매입 " + buy.toLocaleString() + "원" });
       });
     }
   } catch (_) {}
