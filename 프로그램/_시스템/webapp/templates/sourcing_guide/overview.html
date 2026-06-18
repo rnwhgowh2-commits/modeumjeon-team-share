@@ -448,21 +448,20 @@
 
 <style>
   /* STEP4 '재고 점검' = 클릭 항목 강조 + 글씨 150% */
-  .nsg-st4{cursor:pointer;background:#F3F8FF !important;border:1px solid #DCEBFF !important;border-radius:12px;transition:.15s;padding:14px 16px !important;}
-  .nsg-st4:hover{background:#E9F2FF !important;}
-  .nsg-st4 .n{align-self:center;width:36px !important;height:36px !important;line-height:32px !important;font-size:18px !important;}
-  .nsg-st4 .t{font-size:27px !important;} .nsg-st4 .d{font-size:23px !important;margin-top:6px !important;line-height:1.5;}
-  .nsg-st4 .nsg-st4-tap{margin-left:auto;align-self:center;color:#3182f6;font-size:16px;font-weight:700;white-space:nowrap;padding-left:12px;}
-  /* ── 재고 서랍 = 폰트 ~150% (시안 D) ── */
-  .nsg-st-dim{position:fixed;inset:0;background:rgba(20,28,40,.4);z-index:1200;}
-  .nsg-st-drawer{position:fixed;top:0;right:0;height:100%;width:820px;max-width:96vw;background:#fff;z-index:1300;box-shadow:-12px 0 40px rgba(0,0,0,.2);display:flex;flex-direction:column;}
+  /* STEP4 '재고 점검' = 다른 단계와 동일 위상(동일 글씨) + '방식 보기' affordance만 */
+  .nsg-st4{cursor:pointer;border-radius:8px;transition:.15s;}
+  .nsg-st4:hover{background:#F7FAFE;}
+  .nsg-st4 .nsg-st4-tap{margin-left:auto;align-self:center;color:#3182f6;font-size:16px;font-weight:700;white-space:nowrap;padding-left:10px;}
+  /* ── 재고 모달 = 가운데(시안 B) · 폰트 ~150% · 신규소싱처 서랍보다 위(z) ── */
+  .nsg-st-dim{position:fixed;inset:0;background:rgba(15,20,28,.5);z-index:9200;}
+  .nsg-st-drawer{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);width:900px;max-width:94vw;max-height:88vh;background:#fff;z-index:9300;border-radius:20px;box-shadow:0 28px 80px rgba(0,0,0,.42);display:flex;flex-direction:column;overflow:hidden;}
   .nsg-st-drawer[hidden]{display:none;}
-  .nsg-st-h{display:flex;align-items:center;gap:12px;padding:24px 30px;border-bottom:1px solid #F2F4F6;} .nsg-st-h .ic{font-size:28px;} .nsg-st-h h3{margin:0;font-size:25px;font-weight:800;}
+  .nsg-st-h{display:flex;align-items:center;gap:12px;padding:24px 32px;border-bottom:1px solid #F2F4F6;flex:0 0 auto;} .nsg-st-h .ic{font-size:28px;} .nsg-st-h h3{margin:0;font-size:25px;font-weight:800;}
   .nsg-st-x{margin-left:auto;border:none;background:#F2F4F6;border-radius:10px;width:42px;height:42px;font-size:21px;color:#777;cursor:pointer;}
-  .nsg-st-body{padding:24px 30px;overflow:auto;}
-  .nsg-st-coll{display:flex;align-items:center;gap:11px;font-size:18px;font-weight:700;cursor:pointer;background:#fff;border:1px solid #E5E8EB;border-radius:12px;padding:14px 18px;margin-bottom:15px;}
+  .nsg-st-body{padding:28px 32px;overflow:auto;flex:1 1 auto;min-height:0;}
+  .nsg-st-coll{display:flex;align-items:center;gap:11px;font-size:18px;font-weight:700;cursor:pointer;background:#fff;border:1px solid #E5E8EB;border-radius:12px;padding:15px 18px;margin-bottom:18px;}
   .nsg-st-coll .qi{width:26px;height:26px;border-radius:50%;background:#3182f6;color:#fff;font-size:15px;display:grid;place-items:center;} .nsg-st-coll .car{margin-left:auto;color:#3182f6;font-size:15px;transition:.2s;} .nsg-st-coll.open .car{transform:rotate(180deg);}
-  .nsg-st-chips{display:grid;grid-template-columns:1fr;gap:12px;margin-bottom:18px;}
+  .nsg-st-chips{display:grid;grid-template-columns:1fr;gap:14px;margin-bottom:24px;}
   .nsg-st-chip{border:1px solid #E5E8EB;border-left-width:5px;border-radius:12px;padding:16px 18px;}
   .nsg-st-chip.html{border-left-color:#15a06e;}.nsg-st-chip.api{border-left-color:#3182f6;}.nsg-st-chip.dom{border-left-color:#d98300;}
   .nsg-st-chip .nm{font-weight:800;font-size:19px;margin-bottom:6px;} .nsg-st-chip.html .nm{color:#15a06e;}.nsg-st-chip.api .nm{color:#3182f6;}.nsg-st-chip.dom .nm{color:#d98300;}
@@ -471,7 +470,7 @@
   .nsg-st-chip .more .ln{font-size:17px;color:#555E6B;line-height:1.7;margin-bottom:11px;} .nsg-st-chip .more .ln:last-child{margin-bottom:0;}
   .nsg-st-chip .more .ln b{display:block;font-size:14px;font-weight:700;margin-bottom:3px;}
   .nsg-st-chip.html .more .ln b{color:#15a06e;}.nsg-st-chip.api .more .ln b{color:#3182f6;}.nsg-st-chip.dom .more .ln b{color:#d98300;}
-  .nsg-st-note{font-size:17px;color:#555E6B;background:#F3F8FF;border:1px solid #DCEBFF;border-radius:11px;padding:14px 17px;margin-bottom:18px;line-height:1.7;} .nsg-st-note b{color:#1B64DA;} .nsg-st-note code{background:#E6F0FF;border-radius:5px;padding:2px 7px;font-family:ui-monospace,monospace;font-size:15px;}
+  .nsg-st-note{font-size:17px;color:#555E6B;background:#F3F8FF;border:1px solid #DCEBFF;border-radius:11px;padding:16px 20px;margin-bottom:24px;line-height:1.85;} .nsg-st-note b{color:#1B64DA;} .nsg-st-note code{background:#E6F0FF;border-radius:5px;padding:2px 7px;font-family:ui-monospace,monospace;font-size:15px;}
   .nsg-st-cmpw{border:1px solid #E5E8EB;border-radius:12px;overflow:hidden;}
   table.nsg-st-cmp{width:100%;border-collapse:collapse;font-size:17px;}
   table.nsg-st-cmp th{text-align:left;padding:13px 16px;color:#99a1ab;font-weight:600;font-size:15px;border-bottom:1px solid #E5E8EB;}
@@ -483,7 +482,7 @@
   .nsg-st-ci{width:11px;height:11px;border-radius:50%;display:inline-block;} .nsg-st-sr{display:inline-flex;align-items:center;gap:8px;font-weight:600;color:#191F28;}
   .nsg-st-lv{font-size:15px;font-weight:600;}.nsg-st-lv.easy{color:#15a06e;}.nsg-st-lv.mid{color:#d98300;}.nsg-st-lv.hard{color:#e0455e;}.nsg-st-lv.wip{color:#99a1ab;}
   .nsg-st-bar{display:inline-block;width:4px;height:16px;background:#e0455e;border-radius:2px;margin-right:7px;vertical-align:middle;} .nsg-st-tap{color:#3182f6;font-size:15px;font-weight:600;}
-  .nsg-st-dpop{position:fixed;z-index:1400;background:#fff;border:1px solid #E5E8EB;border-radius:14px;box-shadow:0 16px 40px rgba(0,0,0,.22);width:540px;max-width:92vw;display:none;overflow:auto;max-height:78vh;}
+  .nsg-st-dpop{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:9400;background:#fff;border:1px solid #E5E8EB;border-radius:14px;box-shadow:0 18px 48px rgba(0,0,0,.28);width:560px;max-width:92vw;display:none;overflow:auto;max-height:80vh;}
   .nsg-st-dpop.on{display:block;}
   .nsg-st-dpop .ph{display:flex;align-items:center;gap:10px;padding:16px 20px;border-bottom:1px solid #F4F6F8;} .nsg-st-dpop .ph .nm{font-weight:800;font-size:19px;} .nsg-st-dpop .x{margin-left:auto;border:none;background:#F2F4F6;border-radius:9px;width:34px;height:34px;font-size:16px;color:#777;cursor:pointer;}
   .nsg-st-dpop .pb{padding:18px 20px;}
@@ -557,10 +556,7 @@
         +s.methods.map(function(m,i){return '<div class="nsg-st-mp '+(i===0?'on':'')+'" id="nsgstmp-'+key+'-'+i+'">'+secs(m)+'</div>';}).join(''); }
     else b=secs(s.methods[0]);
     dpop.innerHTML='<div class="ph"><span class="nsg-st-ci" style="width:11px;height:11px;background:'+s.color+'"></span><span class="nm">'+s.name+'</span><button class="x" id="nsgStDpopX">✕</button></div><div class="pb">'+b+'</div>';
-    var rc=rowEl.getBoundingClientRect();
-    dpop.style.top=Math.min(rc.bottom+6, window.innerHeight-420)+'px';
-    dpop.style.left=Math.max(12, rc.left-560)+'px';
-    dpop.classList.add('on');
+    dpop.classList.add('on');  /* 위치=CSS 화면중앙(transform), z 9400 → 모달 위 */
     document.getElementById('nsgStDpopX').addEventListener('click', function(){ dpop.classList.remove('on'); });
     dpop.querySelectorAll('.nsg-st-mt button').forEach(function(btn){ btn.addEventListener('click', function(){
       dpop.querySelectorAll('.nsg-st-mt button').forEach(function(x){x.classList.toggle('on',x===btn);});
