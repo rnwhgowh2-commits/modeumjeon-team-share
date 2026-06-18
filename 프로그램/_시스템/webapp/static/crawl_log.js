@@ -55,7 +55,7 @@
 
   function getSource(b, sk) {
     if (!b.sources[sk]) {
-      b.sources[sk] = { status: 'wait', done: 0, total: null, expanded: false, logs: [] };
+      b.sources[sk] = { status: 'wait', done: 0, ok: 0, fail: 0, total: null, expanded: false, logs: [] };
     }
     return b.sources[sk];
   }
@@ -103,6 +103,13 @@
       '  border-radius:8px; font-size:13px; font-weight:700; color:#93C5FD; border-left:4px solid #3182F6;',
       '}',
       '#mcl-finish-summary.stopped { background:#3f1d1d; color:#fca5a5; border-left-color:#f87171; }',
+      '#mcl-fd .fd-sec { margin-bottom:8px; } #mcl-fd .fd-sec:last-child { margin-bottom:0; }',
+      '#mcl-fd .fd-h { font-size:10px; font-weight:800; color:#7FA8D6; letter-spacing:.4px; margin-bottom:3px; }',
+      '#mcl-fd .fd-row { display:flex; justify-content:space-between; align-items:baseline; padding:2px 1px; font-weight:700; }',
+      '#mcl-fd .fd-row.sub { padding-left:11px; font-size:11.5px; font-weight:600; }',
+      '#mcl-fd .fd-row .k { color:#AFCBEC; } #mcl-fd .fd-row .v { font-variant-numeric:tabular-nums; }',
+      '#mcl-fd .fd-det { color:#9FC3FF; text-decoration:underline; text-underline-offset:2px; font-size:10px; cursor:pointer; margin-left:4px; }',
+      '#mcl-fd .gn{color:#34D399} #mcl-fd .rd{color:#F87171} #mcl-fd .gy{color:#9aa6b2} #mcl-fd .bl{color:#7FB6FF}',
 
       /* 분할: 좌측 레일 + 우측 상세 */
       '#mcl-split { flex:1; display:flex; overflow:hidden; min-height:0; }',
@@ -463,13 +470,11 @@
       // [2026-06-18] 'URL 등록수' 라벨 — 이 소싱처에 등록된(크롤 대상) URL 개수.
       cntEl.textContent = (s.total != null) ? ('URL 등록수 ' + s.done + '/' + s.total) : (s.done > 0 ? ('URL 등록수 ' + s.done) : '');
       var toggleEl = document.createElement('button'); toggleEl.type = 'button'; toggleEl.className = 'mcl-card-toggle';
-      // [2026-06-18] 로그 건수 = URL 크롤링수 + 2(시작·완료). 분해 표기로 의미 명확화.
-      //   로그 구성: 시작(창 열림) 1 + URL별 크롤 N + 완료(소싱처 끝) 1 = N+2.
+      // [2026-06-18] 로그 N건 + (URL크롤 수 · 완료/실패 분해). 시작·완료 2건은 비표기(중요X).
       var _logN = s.logs.length;
-      var _crawlN = Math.max(0, _logN - 2);
-      toggleEl.textContent = ((_logN >= 2)
-        ? ('로그 ' + _logN + '건 (URL크롤 ' + _crawlN + ' + 시작·완료 2)')
-        : ('로그 ' + _logN + '건')) + ' ' + (s.expanded ? '▴' : '▾');
+      var _ok = s.ok || 0, _fail = s.fail || 0, _crawlN = _ok + _fail;
+      toggleEl.textContent = '로그 ' + _logN + '건 (URL크롤 ' + _crawlN + ' · 완료 ' + _ok + ' · 실패 ' + _fail + ') '
+        + (s.expanded ? '▴' : '▾');
       toggleEl.addEventListener('click', function () { s.expanded = !s.expanded; renderDetail(); });
       header.appendChild(nameEl); header.appendChild(tagEl); header.appendChild(cntEl); header.appendChild(toggleEl);
 
@@ -504,6 +509,40 @@
   }
 
   // ── 헤더(타이틀·버튼·전체바·완료배너) 렌더 ──────────────────────
+  // [2026-06-18 시안D] 완료 요약 — 옵션(전체=활성+비활성) + 크롤(완료=성공+실패) 구조 표기.
+  //   크롤 수치는 위젯 소싱처 상태에서 집계. 옵션 활성/비활성은 현재 매트릭스 페이지의
+  //   window.DATA(option-matrix)에서 카운트(같은 모음전일 때만 — 없으면 옵션 섹션 생략).
+  function buildFinishHTML(b) {
+    var Y = 0, Y2 = 0, Y3 = 0;
+    SOURCE_ORDER.forEach(function (sk) {
+      var s = b.sources[sk]; if (!s) return;
+      var ok = s.ok || 0, fail = s.fail || 0;
+      Y2 += ok; Y3 += fail;
+      Y += (s.total != null ? s.total : (ok + fail));
+    });
+    var Y1 = Y2 + Y3;
+    if (Y < Y1) Y = Y1;
+    var X = null, X1 = null, X2 = null;
+    try {
+      var opts = (window.DATA && window.DATA.options) || null;
+      if (opts && opts.length) { X = opts.length; X2 = opts.filter(function (x) { return x.is_active === false; }).length; X1 = X - X2; }
+    } catch (_) {}
+    var h = '<div id="mcl-fd">';
+    if (X != null) {
+      h += '<div class="fd-sec"><div class="fd-h">옵션</div>'
+        + '<div class="fd-row"><span class="k">전체 옵션</span><span class="v">' + X + '</span></div>'
+        + '<div class="fd-row sub"><span class="k">└ 활성<span class="fd-det" data-mcl-active="1">상세보기</span></span><span class="v gn">' + X1 + '</span></div>'
+        + '<div class="fd-row sub"><span class="k">└ 비활성</span><span class="v gy">' + X2 + '</span></div></div>';
+    }
+    h += '<div class="fd-sec"><div class="fd-h">크롤링' + (b.status === 'stop' ? ' · 중지됨' : '') + '</div>'
+      + '<div class="fd-row"><span class="k">총 URL · 진행률</span><span class="v bl">' + Y1 + ' / ' + Y + '</span></div>'
+      + '<div class="fd-row sub"><span class="k">└ 완료</span><span class="v">' + Y1 + '</span></div>'
+      + '<div class="fd-row sub"><span class="k">　└ 성공</span><span class="v gn">' + Y2 + '</span></div>'
+      + '<div class="fd-row sub"><span class="k">　└ 실패</span><span class="v rd">' + Y3 + '</span></div></div>'
+      + '</div>';
+    return h;
+  }
+
   function renderHeader() {
     var rb = runningBundle();
     var title = document.getElementById('mcl-title');
@@ -539,7 +578,7 @@
       if (b && (b.status === 'done' || b.status === 'stop') && b.finishMsg) {
         fin.style.display = 'block';
         fin.className = b.status === 'stop' ? 'stopped' : '';
-        fin.textContent = b.finishMsg;
+        fin.innerHTML = buildFinishHTML(b);
       } else {
         fin.style.display = 'none';
       }
@@ -682,6 +721,8 @@
       case 'item-done': {
         if (sk) {
           var s2 = getSource(b, sk); s2.done = (s2.done || 0) + 1;
+          // [2026-06-18] URL별 성공/실패 카운트(시안D·소싱처카드 분해표기용). warn=실패, 그 외=성공.
+          if (level === 'warn') s2.fail = (s2.fail || 0) + 1; else s2.ok = (s2.ok || 0) + 1;
           var line = { ts: ts, level: level, msg: msg, url: d.url || null, lineId: d.lineId || null };
           s2.logs.push(line);
           if (s2.logs.length > 200) s2.logs.shift();
