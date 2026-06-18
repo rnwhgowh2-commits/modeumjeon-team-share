@@ -68,14 +68,16 @@
     style.id = CSS_ID;
     style.textContent = [
       '#mcl-panel {',
-      // [2026-06-19] 폰트·크기 전체 1.5× + 좌측 확장. zoom 1.5 로 폭(520→780 렌더)·폰트 1.5배.
-      //   full-height 드로어라 height 는 calc(100vh/1.5) 로 둬 zoom 후 화면엔 정확히 100vh.
-      '  position:fixed; top:0; right:0; width:520px; height:calc(100vh / 1.5); zoom:1.5;',
+      // [2026-06-19] 폰트·크기 전체 1.5× + 좌측 확장. transform scale(우상단 기준)로 우측 고정·좌측 확장.
+      //   (zoom은 좌상단 기준이라 right:0 패널이 화면 밖으로 밀림 → transform 사용.)
+      //   height calc(100vh/1.5) × scale 1.5 = 화면상 100vh.
+      '  position:fixed; top:0; right:0; width:520px; height:calc(100vh / 1.5);',
+      '  transform:scale(1.5); transform-origin:top right;',
       '  background:#141B22; color:#CBD5E1; z-index:9000;',
       '  display:flex; flex-direction:column; font-family:"Pretendard",sans-serif;',
       '  box-shadow:-8px 0 32px rgba(0,0,0,.45); transition:transform .25s ease;',
       '}',
-      '#mcl-panel.mcl-hidden { transform:translateX(100%); pointer-events:none; }',
+      '#mcl-panel.mcl-hidden { transform:scale(1.5) translateX(100%); pointer-events:none; }',
 
       '#mcl-header { padding:14px 16px 12px; border-bottom:1px solid #25303b; flex-shrink:0; }',
       '#mcl-header-top { display:flex; align-items:center; gap:7px; margin-bottom:10px; }',
