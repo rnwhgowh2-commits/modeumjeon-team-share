@@ -10,7 +10,7 @@
 //  결과 저장은 mou-m.com /api/sources/crawl-result (ext_bridge.crawlBundleAll 이 호출).
 //  grabHtml/crawl(URL마다 창 생성·즉시 닫기) 핸들러는 하위호환 위해 유지.
 
-const MOUM_EXT_VERSION = "0.5.2";  // 0.5.0+ 백그라운드 엔진(탭 닫아도 지속) + 0.5.2 혜택 수집(현재 브라우저 기준)
+const MOUM_EXT_VERSION = "0.6.0";  // 0.6.0 = 백그라운드 크롤 상태 영속(chrome.storage.session)+SW 재가동 자동재개. 0.5.x: 백그라운드 엔진·혜택 수집·롯데온 옵션매핑API
 
 // cascade 위치 시퀀서 — 창이 여러 개 열려도 서로 어긋나 보임
 let _winSeq = 0;
@@ -742,6 +742,7 @@ function bgEmitQueue() {
   if (_mgr.running) q.push({ code: _mgr.running, status: _mgr.paused ? "pause" : "run" });
   _mgr.queue.forEach((c) => q.push({ code: c, status: "wait" }));
   bgEmit({ type: "queue", queue: q, running: _mgr.running, paused: _mgr.paused });
+  try { bgPersist(); } catch (_) {}   // 큐/상태 변화마다 체크포인트 갱신
 }
 
 // compact view (재연결 스냅샷용 — 로그 제외, 상태/진행/게이지만)
@@ -765,13 +766,22 @@ function bgUpdateView(d) {
     case "bundle-resumed": v.status = "run"; break;
     case "finish": v.status = d.stopped ? "stop" : "done"; v.finishMsg = d.msg || ""; break;
   }
+  try { bgPersist(); } catch (_) {}   // 진행 변화마다 체크포인트 갱신
 }
 
-// ── SW 깨우기(보조) — 활성 크롤 중 30s idle 로 잠들지 않게. 크롤 자체의 chrome API 호출이
-//   1차 keepalive 이고, alarm 은 조용한 구간 백업. (SW 가 죽으면 in-memory 루프는 사라지므로
-//   resume 은 안 하나, 하드리셋+finalize fail-safe 로 잘못된 가격 저장은 없음.)
+// ── SW 깨우기 + 자동 재개(2026-06-18) ──────────────────────────────────────
+//   MV3 서비스워커는 유휴 ~30s 면 크롬이 잠재워 in-memory 루프(_mgr)가 사라진다.
+//   대책: ① 상태를 chrome.storage.session 에 영속(bgPersist) ② keepalive 알람이
+//   크롤 중 ~30s 마다 SW 를 깨움 → 깨어날 때 top-level bgBootResume 이 체크포인트의
+//   '진행 중 크롤'을 감지해 runQueueBG 로 이어서 재가동(끊긴 모음전은 처음부터 재크롤,
+//   하드리셋+finalize fail-safe 라 잘못 저장 없음). → "탭 닫아도/새로고침해도 지속".
 try {
-  chrome.alarms.onAlarm.addListener((a) => { if (a && a.name === "moum-keepalive") { /* wake only */ } });
+  chrome.alarms.onAlarm.addListener((a) => {
+    if (!a || a.name !== "moum-keepalive") return;
+    try { if (_mgr.running) bgPersist(); } catch (_) {}
+    // SW 가 죽었다 알람으로 깨어난 경우(_mgr 비어있음) → 체크포인트로 재가동
+    try { if (!_mgr.running) bgBootResume(); } catch (_) {}
+  });
 } catch (_) {}
 function bgKeepaliveStart() { try { chrome.alarms.create("moum-keepalive", { periodInMinutes: 0.4 }); } catch (_) {} }
 function bgKeepaliveStop() { try { chrome.alarms.clear("moum-keepalive"); } catch (_) {} }
@@ -907,6 +917,7 @@ async function runQueueBG() {
     _mgr.queue = []; _mgr.running = null; _mgr.paused = false; _mgr.stopped = false; _mgr._kick = null;
     bgEmitQueue();
     bgKeepaliveStop();
+    try { bgClearPersist(); } catch (_) {}   // 크롤 종료 — 체크포인트 제거(불필요 재가동 방지)
     await closeServiceTabIfOwned();   // SW 가 띄운 백그라운드 mou-m 탭 정리
   }
 }
@@ -1156,3 +1167,46 @@ async function crawlBundleAllBG(code) {
   });
   return { ok: true, crawled: results.length, ok_count: okCount, save, finalize, stopped: endReason === "stopped" };
 }
+
+// ════════════════════════════════════════════════════════════════════
+//  [2026-06-18] 백그라운드 크롤 상태 영속 + SW 재가동 자동재개
+//   _mgr(큐·running·base·view)를 chrome.storage.session 에 저장한다(브라우저 세션 한정 —
+//   브라우저 완전 종료 시 자동 소멸 = 재부팅 후엔 재개 안 함이 맞음). MV3 SW 가 잠들었다/
+//   죽었다 다시 깨어나면(top-level 1회 + keepalive 알람) bgBootResume 이 체크포인트를 읽어
+//   진행 중이던 크롤을 runQueueBG 로 이어서 돌린다. 추출·아이템 로직은 일절 안 건드림
+//   (끊긴 모음전을 처음부터 재크롤만 — 하드리셋+finalize fail-safe 라 잘못 저장 없음).
+// ════════════════════════════════════════════════════════════════════
+const _CKPT_KEY = "moum_crawl_ckpt";
+function bgPersist() {
+  try {
+    const ck = { queue: _mgr.queue.slice(), running: _mgr.running, base: _mgr.base,
+                 paused: _mgr.paused, view: _mgr.view, ts: Date.now() };
+    chrome.storage.session.set({ [_CKPT_KEY]: ck }, () => { void chrome.runtime.lastError; });
+  } catch (_) {}
+}
+function bgClearPersist() {
+  try { chrome.storage.session.remove(_CKPT_KEY, () => { void chrome.runtime.lastError; }); } catch (_) {}
+}
+let _bootResumed = false;
+function bgBootResume() {
+  if (_bootResumed || _mgr.running) return;   // 이미 재가동했거나 진행 중이면 중복 방지
+  try {
+    chrome.storage.session.get(_CKPT_KEY, (o) => {
+      void chrome.runtime.lastError;
+      const ck = o && o[_CKPT_KEY];
+      if (!ck || !ck.running) return;          // 진행 중이던 크롤 없음 → no-op
+      if (_bootResumed || _mgr.running) return; // 비동기 사이 새 크롤이 시작됐으면 양보
+      _bootResumed = true;
+      _mgr.base = ck.base || _mgr.base;
+      _mgr.view = ck.view || {};
+      const q = [ck.running];                  // 끊긴 모음전을 큐 맨 앞에 + 나머지 대기열 복원
+      (ck.queue || []).forEach((c) => { if (c && q.indexOf(c) < 0) q.push(c); });
+      _mgr.queue = q; _mgr.running = null; _mgr.paused = false; _mgr.stopped = false;
+      bgEmit({ type: "resume-boot", bundle: ck.running, level: "", msg: "백그라운드 재가동 — 중단된 크롤 이어서 진행" });
+      bgEmitQueue();
+      runQueueBG();
+    });
+  } catch (_) {}
+}
+// SW 가 (재)기동될 때마다 1회 시도 — 진행 중이던 크롤이 있으면 자동 재개.
+try { bgBootResume(); } catch (_) {}
