@@ -1,0 +1,104 @@
+<!-- 크롤러 설치 — 화면 가운데 팝업 모달 (시안 A). overview.html 등에서 {% include %} 로 사용.
+     트리거 = id="instOpenBtn" 버튼 클릭 또는 URL ?install=1. 포함하는 라우트는 ext_available 을 넘겨야 함. -->
+<style>
+  .instm-dim{position:fixed;inset:0;background:rgba(15,20,28,.5);z-index:9200;}
+  .instm-dim[hidden]{display:none;}
+  .instm{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);width:760px;max-width:94vw;max-height:88vh;background:#fff;border-radius:20px;box-shadow:0 30px 90px rgba(0,0,0,.45);z-index:9300;display:flex;flex-direction:column;overflow:hidden;font-family:'Pretendard','Malgun Gothic',sans-serif;}
+  .instm[hidden]{display:none;}
+  .instm-h{display:flex;align-items:flex-start;gap:14px;padding:24px 30px;border-bottom:1px solid #F2F4F6;flex:0 0 auto;}
+  .instm-h .ic{font-size:28px;} .instm-h h3{margin:0;font-size:23px;font-weight:800;color:#191F28;} .instm-h .s{font-size:14px;color:#8B95A1;margin-top:6px;line-height:1.5;}
+  .instm-x{margin-left:auto;border:none;background:#F2F4F6;border-radius:11px;width:42px;height:42px;font-size:21px;color:#777;cursor:pointer;flex:0 0 auto;}
+  .instm-b{padding:24px 30px;overflow:auto;flex:1 1 auto;min-height:0;}
+  .instm .why{background:#191F28;color:#fff;border-radius:14px;padding:16px 22px;display:flex;gap:14px;align-items:center;margin-bottom:20px;}
+  .instm .why .ic{font-size:21px;} .instm .why .tx{font-size:14px;line-height:1.6;color:#D7DDE3;} .instm .why .tx b{color:#A9E34B;}
+  .instm .progwrap{display:flex;align-items:center;gap:12px;margin-bottom:18px;}
+  .instm .prog{height:9px;background:#E5E8EB;border-radius:99px;overflow:hidden;flex:1;} .instm .prog .bar{height:100%;width:0;background:#3182F6;border-radius:99px;transition:width .25s;}
+  .instm .prog-t{font-size:13px;font-weight:700;color:#3182F6;white-space:nowrap;}
+  .instm .ci{display:flex;align-items:flex-start;gap:14px;background:#fff;border:1px solid #E5E8EB;border-radius:12px;padding:16px 18px;margin-bottom:10px;cursor:pointer;transition:.12s;}
+  .instm .ci:hover{border-color:#C6CCD3;}
+  .instm .box{width:25px;height:25px;border-radius:7px;border:2px solid #C6CCD3;flex:0 0 auto;display:flex;align-items:center;justify-content:center;color:#fff;font-size:15px;margin-top:1px;transition:.12s;}
+  .instm .ci.done .box{background:#10B981;border-color:#10B981;}
+  .instm .st-t{font-size:16px;font-weight:800;display:flex;align-items:center;gap:8px;color:#191F28;}
+  .instm .st-d{font-size:14px;color:#5B6573;line-height:1.6;margin-top:5px;}
+  .instm .st-d code{background:#EEF1F4;border-radius:5px;padding:1px 7px;font-family:ui-monospace,monospace;font-size:13px;color:#C2410C;}
+  .instm .ci.done .st-t{color:#9AA4B2;} .instm .ci.done .st-t .nm{text-decoration:line-through;}
+  .instm .dl-btn{display:inline-flex;align-items:center;gap:10px;background:#3182F6;color:#fff;font-size:15px;font-weight:800;border:none;border-radius:11px;padding:12px 20px;cursor:pointer;box-shadow:0 4px 14px rgba(49,130,246,.32);text-decoration:none;margin-top:12px;}
+  .instm .dl-btn:hover{background:#1B6FE0;} .instm .dl-btn .ico{font-size:17px;} .instm .dl-btn .sz{font-size:11px;font-weight:600;opacity:.85;}
+  .instm .dl-off{margin-top:12px;font-size:13px;color:#E03131;background:#FFF0F0;border:1px solid #FFC9C9;border-radius:9px;padding:9px 13px;}
+  .instm .endbar{margin-top:18px;background:#E6F9F1;border:1px solid #63E6BE;border-radius:11px;padding:14px 18px;font-size:14px;color:#066649;font-weight:700;line-height:1.6;}
+  .instm .help{margin-top:22px;border-top:1px solid #E5E8EB;padding-top:18px;}
+  .instm .help h3{font-size:15px;font-weight:800;margin-bottom:10px;color:#191F28;}
+  .instm .help .qa{font-size:13px;color:#5B6573;line-height:1.6;margin-bottom:9px;} .instm .help .qa b{color:#191F28;} .instm .help .qa code{background:#EEF1F4;border-radius:5px;padding:1px 7px;font-family:ui-monospace,monospace;font-size:12px;color:#C2410C;}
+  @media(max-width:820px){ .instm{width:96vw;} }
+</style>
+
+<div id="instDim" class="instm-dim" hidden></div>
+<div id="instModal" class="instm" hidden>
+  <div class="instm-h"><span class="ic">🧩</span>
+    <div><h3>크롤러 설치 — 본인 PC에서 크롤하기</h3>
+      <div class="s">본인 PC(또는 다른 PC) 크롬에 「모음전 크롤러」를 한 번만 설치하면, 무신사·롯데온까지 긁어 모음전에 자동 저장됩니다.</div></div>
+    <button type="button" class="instm-x" id="instClose">✕</button></div>
+  <div class="instm-b">
+    <div class="why"><span class="ic">💡</span><span class="tx">무신사·롯데온은 <b>로그인·SPA</b>라 서버가 직접 못 긁어요. 그래서 <b>내 로그인 크롬</b>이 대신 긁는 확장이 필요합니다. 한 번만 설치하면 끝 — 크롤한 가격·재고는 모두 <b>www.mou-m.com</b>에 저장돼 팀 전체가 함께 봅니다.</span></div>
+    <div class="progwrap"><div class="prog"><div class="bar" id="instBar"></div></div><span class="prog-t" id="instPct">0 / 6 단계</span></div>
+    <div id="instChk">
+      <div class="ci" data-step="0"><div class="box">✓</div><div>
+        <div class="st-t">📥 <span class="nm">확장 파일 다운로드</span></div>
+        <div class="st-d">아래 버튼으로 「모음전 크롤러」 압축파일(zip)을 받습니다.</div>
+        {% if ext_available %}
+        <a class="dl-btn" href="/sourcing-guide/install/download" onclick="event.stopPropagation()"><span class="ico">📥</span> 모음전 크롤러 다운로드 <span class="sz">(.zip)</span></a>
+        {% else %}
+        <div class="dl-off">⚠️ 지금은 다운로드를 준비할 수 없어요. 관리자에게 알려주세요.</div>
+        {% endif %}
+      </div></div>
+      <div class="ci" data-step="1"><div class="box">✓</div><div>
+        <div class="st-t">🗂️ <span class="nm">압축 풀기</span></div>
+        <div class="st-d">받은 zip을 우클릭 → <b>"압축 풀기"</b>. <code>moum-crawler</code> 폴더가 생깁니다.</div></div></div>
+      <div class="ci" data-step="2"><div class="box">✓</div><div>
+        <div class="st-t">🧩 <span class="nm">크롬 확장 페이지 열기</span></div>
+        <div class="st-d">크롬 주소창에 <code>chrome://extensions</code> 입력 → 오른쪽 위 <b>「개발자 모드」</b> 켜기.</div></div></div>
+      <div class="ci" data-step="3"><div class="box">✓</div><div>
+        <div class="st-t">📂 <span class="nm">확장 불러오기</span></div>
+        <div class="st-d"><b>「압축해제된 확장 프로그램을 로드합니다」</b> 클릭 → 방금 푼 <code>moum-crawler</code> 폴더 선택. 목록에 "모음전 크롤러"가 뜨면 설치 완료.</div></div></div>
+      <div class="ci" data-step="4"><div class="box">✓</div><div>
+        <div class="st-t">🔑 <span class="nm">무신사·롯데온 로그인</span></div>
+        <div class="st-d">같은 크롬에서 무신사·롯데온에 <b>로그인</b>해 둡니다. (회원가를 읽으려면 필수 — 로그아웃 상태면 비회원가로 긁힙니다.)</div></div></div>
+      <div class="ci" data-step="5"><div class="box">✓</div><div>
+        <div class="st-t">🚀 <span class="nm">크롤 실행</span></div>
+        <div class="st-d"><code>www.mou-m.com</code> 접속(IP 주소 ❌) → 상품에서 <b>「전체 크롤」</b>. 이제 무신사·롯데온 카드도 0% → 채워집니다.</div></div></div>
+    </div>
+    <div class="endbar">✅ 설치 후 「전체 크롤」을 누르면 무신사·롯데온이 내 PC에서 긁혀 www.mou-m.com에 저장됩니다.</div>
+    <div class="help">
+      <h3>🛟 안 될 때</h3>
+      <div class="qa"><b>Q. 설치했는데 계속 "확장 필요"가 떠요.</b><br>주소가 <b>www.mou-m.com</b>인지 확인하세요. IP 주소(54.x)에서는 확장이 작동하지 않습니다.</div>
+      <div class="qa"><b>Q. 무신사 가격이 비싸게 나와요.</b><br>무신사에 로그인됐는지 확인하세요. 로그아웃 상태면 비회원가로 읽힙니다.</div>
+      <div class="qa"><b>Q. 잘 깔렸는지 확인하고 싶어요.</b><br>www.mou-m.com 새로고침 → <b>F12</b> → Console에 <code>document.documentElement.getAttribute('data-moum-ext')</code> 입력 → 버전 번호가 나오면 성공.</div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+  var modal=document.getElementById('instModal'), dim=document.getElementById('instDim');
+  if(!modal) return;
+  var trg=document.getElementById('instOpenBtn');
+  function open(){ modal.hidden=false; dim.hidden=false; }
+  function close(){ modal.hidden=true; dim.hidden=true; }
+  if(trg) trg.addEventListener('click', function(e){ e.stopPropagation(); open(); });
+  dim.addEventListener('click', close);
+  document.getElementById('instClose').addEventListener('click', close);
+  document.addEventListener('keydown', function(e){ if(e.key==='Escape' && !modal.hidden) close(); });
+  try{ if(new URLSearchParams(location.search).has('install')) open(); }catch(e){}
+  /* 설치 단계 진행 체크 (localStorage) */
+  var KEY='moum_install_progress';
+  var chk=document.getElementById('instChk'), bar=document.getElementById('instBar'), pct=document.getElementById('instPct');
+  var items=[].slice.call(chk.querySelectorAll('.ci'));
+  function ld(){ try{return JSON.parse(localStorage.getItem(KEY)||'[]');}catch(e){return [];} }
+  function sv(a){ try{localStorage.setItem(KEY,JSON.stringify(a));}catch(e){} }
+  function render(){ var d=items.filter(function(c){return c.classList.contains('done');}).length; bar.style.width=Math.round(d/items.length*100)+'%'; pct.textContent=d+' / '+items.length+' 단계'; }
+  var saved=ld();
+  items.forEach(function(c){ if(saved.indexOf(parseInt(c.dataset.step,10))>=0) c.classList.add('done');
+    c.addEventListener('click',function(){ c.classList.toggle('done'); sv(items.filter(function(x){return x.classList.contains('done');}).map(function(x){return parseInt(x.dataset.step,10);})); render(); }); });
+  render();
+})();
+</script>

@@ -6,7 +6,7 @@ import os
 import zipfile
 from datetime import datetime, timezone
 
-from flask import Blueprint, jsonify, render_template, request, send_file, abort
+from flask import Blueprint, jsonify, render_template, request, send_file, abort, redirect
 
 from shared.db import SessionLocal
 from lemouton.sourcing.models_pricing import SourceRegistry
@@ -52,7 +52,8 @@ def overview():
         rows.append({"id": src.id, "name": src.name, "guide": guide})
     # 상세 로직 모달 STEP5 = 표준 검증 체크리스트(코드의 _CHECKLIST_TEMPLATE) 를 그대로 노출
     return render_template("sourcing_guide/overview.html", rows=rows,
-                           checklist=cg.default_checklist(), active="sourcing_guide")
+                           checklist=cg.default_checklist(), active="sourcing_guide",
+                           ext_available=os.path.isdir(_EXT_DIR))
 
 
 @bp.route("/how-to")
@@ -74,9 +75,9 @@ _EXT_DIR = os.path.normpath(
 
 @bp.route("/install")
 def install():
-    """크롤러 설치 가이드 페이지 (시안 5 — 진행 체크리스트)."""
-    return render_template("sourcing_guide/install.html", active="sourcing_guide",
-                           ext_available=os.path.isdir(_EXT_DIR))
+    """크롤러 설치 = 더 이상 별도 페이지가 아니라 전체보기 위 가운데 팝업 모달.
+    옛 링크/북마크는 전체보기로 보내 모달을 자동으로 연다."""
+    return redirect("/sourcing-guide/?install=1", code=302)
 
 
 @bp.route("/install/download")
