@@ -195,7 +195,7 @@
       <div class="nsg-gbody">
         <div class="m"><span class="n">2</span><div><div class="t">어떻게 수집?</div><div class="d">API 있나 / 로그인 필요한가 분류</div></div></div>
         <div class="m"><span class="n">3</span><div><div class="t">항목별 위치 추출</div><div class="d">6항목 셀렉터 / 엔드포인트 확정</div></div></div>
-        <div class="m"><span class="n">4</span><div><div class="t">재고 점검</div><div class="d">색×사이즈 실조합·실재고만 / 재고 3종(정상·한정수량·품절) 파싱</div></div></div>
+        <div class="m nsg-st4" id="nsgStock4" role="button" tabindex="0"><span class="n">4</span><div><div class="t">재고 점검</div><div class="d">색×사이즈 실조합·실재고만 / 재고 3종(정상·한정수량·품절) 파싱</div></div><span class="nsg-st4-tap">방식 보기 ▸</span></div>
       </div>
     </div>
     <div class="nsg-grp">
@@ -434,6 +434,147 @@
   root.addEventListener('keydown', function(e){
     if((e.key===' '||e.key==='Enter')){ var it = e.target.closest('.nsg-cki'); if(it){ e.preventDefault(); toggle(it); } }
   });
+})();
+</script>
+
+<!-- ───────── 재고 점검(STEP4) 상세 — 우측 슬라이드 드로어 (시안2) ───────── -->
+<div id="nsgStDim" class="nsg-st-dim" hidden></div>
+<aside id="nsgStDrawer" class="nsg-st-drawer" hidden>
+  <div class="nsg-st-h"><span class="ic">📦</span><h3>재고 점검 — 소싱처별 수집 방식</h3><button type="button" class="nsg-st-x" id="nsgStClose">✕</button></div>
+  <div class="nsg-st-body">
+    <div class="nsg-st-coll" id="nsgStColl"><span class="qi">?</span><span>데이터 원본 차이 — HTML · API · DOM</span><span class="car">▾</span></div>
+    <div class="nsg-st-chips" id="nsgStChips"></div>
+    <div class="nsg-st-note">💡 우선순위 <code>API &gt; 원본 HTML/JS &gt; DOM</code> · 🛡 전체크롤=하드리셋 · <b>크롤 실패 시 "크롤 실패" 표기 · 옛 가격/재고 금지</b>(폴백가 금지).</div>
+    <div class="nsg-st-cmpw"><table class="nsg-st-cmp"><thead><tr><th>소싱처 / 방식</th><th>데이터</th><th>재고 표기</th><th>난이도</th><th></th></tr></thead><tbody id="nsgStTb"></tbody></table></div>
+    <div class="nsg-st-dpop" id="nsgStDpop"></div>
+  </div>
+</aside>
+
+<style>
+  .nsg-st4{cursor:pointer;border:1px solid transparent;border-radius:10px;transition:.15s;}
+  .nsg-st4:hover{background:#F3F8FF;border-color:#DCEBFF;} .nsg-st4 .nsg-st4-tap{margin-left:auto;align-self:center;color:#3182f6;font-size:11px;font-weight:700;white-space:nowrap;padding-left:8px;}
+  .nsg-st-dim{position:fixed;inset:0;background:rgba(20,28,40,.4);z-index:1200;}
+  .nsg-st-drawer{position:fixed;top:0;right:0;height:100%;width:600px;max-width:94vw;background:#fff;z-index:1300;box-shadow:-10px 0 36px rgba(0,0,0,.18);display:flex;flex-direction:column;}
+  .nsg-st-drawer[hidden]{display:none;}
+  .nsg-st-h{display:flex;align-items:center;gap:9px;padding:18px 22px;border-bottom:1px solid #F2F4F6;} .nsg-st-h .ic{font-size:19px;} .nsg-st-h h3{margin:0;font-size:17px;font-weight:800;}
+  .nsg-st-x{margin-left:auto;border:none;background:#F2F4F6;border-radius:8px;width:30px;height:30px;font-size:15px;color:#777;cursor:pointer;}
+  .nsg-st-body{padding:18px 22px;overflow:auto;}
+  .nsg-st-coll{display:flex;align-items:center;gap:9px;font-size:13px;font-weight:700;cursor:pointer;background:#fff;border:1px solid #E5E8EB;border-radius:10px;padding:10px 14px;margin-bottom:11px;}
+  .nsg-st-coll .qi{width:19px;height:19px;border-radius:50%;background:#3182f6;color:#fff;font-size:11px;display:grid;place-items:center;} .nsg-st-coll .car{margin-left:auto;color:#3182f6;font-size:11px;transition:.2s;} .nsg-st-coll.open .car{transform:rotate(180deg);}
+  .nsg-st-chips{display:grid;grid-template-columns:1fr;gap:9px;margin-bottom:14px;}
+  .nsg-st-chip{border:1px solid #E5E8EB;border-left-width:4px;border-radius:10px;padding:12px 14px;}
+  .nsg-st-chip.html{border-left-color:#15a06e;}.nsg-st-chip.api{border-left-color:#3182f6;}.nsg-st-chip.dom{border-left-color:#d98300;}
+  .nsg-st-chip .nm{font-weight:800;font-size:13px;margin-bottom:4px;} .nsg-st-chip.html .nm{color:#15a06e;}.nsg-st-chip.api .nm{color:#3182f6;}.nsg-st-chip.dom .nm{color:#d98300;}
+  .nsg-st-chip .def{font-size:12px;color:#555E6B;line-height:1.6;}
+  .nsg-st-chip .more{margin-top:9px;padding-top:9px;border-top:1px dashed #EDF0F3;}
+  .nsg-st-chip .more .ln{font-size:12px;color:#555E6B;line-height:1.6;margin-bottom:9px;} .nsg-st-chip .more .ln:last-child{margin-bottom:0;}
+  .nsg-st-chip .more .ln b{display:block;font-size:10.5px;font-weight:700;margin-bottom:2px;}
+  .nsg-st-chip.html .more .ln b{color:#15a06e;}.nsg-st-chip.api .more .ln b{color:#3182f6;}.nsg-st-chip.dom .more .ln b{color:#d98300;}
+  .nsg-st-note{font-size:12px;color:#555E6B;background:#F3F8FF;border:1px solid #DCEBFF;border-radius:9px;padding:9px 12px;margin-bottom:14px;line-height:1.55;} .nsg-st-note b{color:#1B64DA;} .nsg-st-note code{background:#E6F0FF;border-radius:4px;padding:1px 5px;font-family:ui-monospace,monospace;font-size:11px;}
+  .nsg-st-cmpw{border:1px solid #E5E8EB;border-radius:11px;overflow:hidden;}
+  table.nsg-st-cmp{width:100%;border-collapse:collapse;font-size:12.5px;}
+  table.nsg-st-cmp th{text-align:left;padding:9px 12px;color:#99a1ab;font-weight:600;font-size:11px;border-bottom:1px solid #E5E8EB;}
+  table.nsg-st-cmp td{padding:11px 12px;border-bottom:1px solid #F4F6F8;color:#555E6B;} table.nsg-st-cmp tr:last-child td{border-bottom:none;}
+  table.nsg-st-cmp tr.r{cursor:pointer;} table.nsg-st-cmp tr.r:hover{background:#F7FAFE;}
+  table.nsg-st-cmp tr.sub td:first-child{padding-left:26px;color:#99a1ab;font-size:11.5px;}
+  .nsg-st-dt{font-size:11px;font-weight:600;color:#555E6B;display:inline-flex;align-items:center;gap:5px;} .nsg-st-dt .d{width:7px;height:7px;border-radius:50%;}
+  .nsg-st-dt .api{background:#3182f6;}.nsg-st-dt .html{background:#15a06e;}.nsg-st-dt .mix{background:#7b5bd6;}.nsg-st-dt .dom{background:#d98300;}.nsg-st-dt .wip{background:#99a1ab;}
+  .nsg-st-ci{width:8px;height:8px;border-radius:50%;display:inline-block;} .nsg-st-sr{display:inline-flex;align-items:center;gap:6px;font-weight:600;color:#191F28;}
+  .nsg-st-lv{font-size:11px;font-weight:600;}.nsg-st-lv.easy{color:#15a06e;}.nsg-st-lv.mid{color:#d98300;}.nsg-st-lv.hard{color:#e0455e;}.nsg-st-lv.wip{color:#99a1ab;}
+  .nsg-st-bar{display:inline-block;width:3px;height:12px;background:#e0455e;border-radius:2px;margin-right:5px;vertical-align:middle;} .nsg-st-tap{color:#3182f6;font-size:11px;font-weight:600;}
+  .nsg-st-dpop{position:fixed;z-index:1400;background:#fff;border:1px solid #E5E8EB;border-radius:12px;box-shadow:0 14px 36px rgba(0,0,0,.2);width:420px;max-width:92vw;display:none;overflow:auto;max-height:70vh;}
+  .nsg-st-dpop.on{display:block;}
+  .nsg-st-dpop .ph{display:flex;align-items:center;gap:8px;padding:13px 16px;border-bottom:1px solid #F4F6F8;} .nsg-st-dpop .ph .nm{font-weight:800;font-size:14px;} .nsg-st-dpop .x{margin-left:auto;border:none;background:#F2F4F6;border-radius:7px;width:25px;height:25px;color:#777;cursor:pointer;}
+  .nsg-st-dpop .pb{padding:14px 16px;}
+  .nsg-st-ps{margin-bottom:12px;}.nsg-st-ps:last-child{margin-bottom:0;} .nsg-st-ps .lab{font-size:10.5px;font-weight:700;color:#99a1ab;margin-bottom:4px;}
+  .nsg-st-ps .ep{font-family:ui-monospace,monospace;font-size:11px;color:#555E6B;background:#F5F7F9;border-radius:6px;padding:8px 10px;line-height:1.55;word-break:break-all;}
+  .nsg-st-ps .rule{display:flex;gap:7px;align-items:center;font-size:11.5px;margin-bottom:5px;} .nsg-st-ps .rule .tg{font-size:10px;font-weight:700;border-radius:5px;padding:2px 8px;} .tg.x{background:#FDECEF;color:#e0455e;}.tg.n{background:#FDF4E6;color:#d98300;}.tg.o{background:#EAF8F1;color:#15a06e;}
+  .nsg-st-ps.warn{background:#FFF7F8;border-radius:8px;padding:9px 11px;} .nsg-st-ps.warn .lab{color:#e0455e;} .nsg-st-ps.warn .tx{font-size:11.5px;color:#9a2436;line-height:1.6;}
+  .nsg-st-ps.tip{background:#F0FAF5;border-radius:8px;padding:9px 11px;} .nsg-st-ps.tip .lab{color:#15a06e;} .nsg-st-ps.tip .tx{font-size:11.5px;color:#0f6e4c;line-height:1.6;}
+  .nsg-st-mt{display:flex;gap:5px;margin-bottom:10px;} .nsg-st-mt button{border:1px solid #E5E8EB;background:#fff;border-radius:7px;padding:4px 11px;font-size:11px;font-weight:700;color:#555E6B;cursor:pointer;} .nsg-st-mt button.on{border-color:#3182f6;background:#F3F8FF;color:#1B64DA;}
+  .nsg-st-mp{display:none;} .nsg-st-mp.on{display:block;}
+  .nsg-st-dn{font-size:11px;color:#1B64DA;background:#F3F8FF;border-radius:7px;padding:7px 10px;margin-bottom:10px;line-height:1.5;}
+  @media(max-width:640px){ .nsg-st-drawer{width:100vw;} .nsg-st-dpop{width:92vw;} }
+</style>
+
+<script>
+(function(){
+  var trg=document.getElementById('nsgStock4'); if(!trg) return;
+  var dim=document.getElementById('nsgStDim'), drawer=document.getElementById('nsgStDrawer'),
+      coll=document.getElementById('nsgStColl'), dpop=document.getElementById('nsgStDpop'), built=false;
+  var SRC=[
+   {key:'lemouton',name:'르무통 공홈',color:'#3182f6',diff:'easy',diffL:'쉬움',ds:'html',dsL:'원본 HTML',state:'실수량',
+    methods:[{ds:'html',dsL:'원본 HTML',ep:'페이지 raw HTML (Cafe24 inline JS · option_stock_data)',rules:[['o','표시 그대로','실수량(실조합)']],warn:'데카르트곱 날조 금지 → 실조합만.',tip:'SSR HTML에 다 있음, 로그인·API 불필요.'}]},
+   {key:'naver',name:'스마트스토어(네이버)',color:'#03c75a',diff:'mid',diffL:'중',ds:'api',dsL:'API',state:'SKU 정확수량',
+    methods:[{ds:'api',dsL:'API (JSON)',ep:'/n/v2/channels/{channelUid}/products/{channelProductNo}',rules:[['x','stockQuantity 0','품절'],['o','>0','정확 수량']],warn:'productNo 쓰면 204 빈응답→999 둔갑. channelProductNo(A.id) 필수. 비브라우저 429 WAF.',tip:'SKU별은 이 API가 유일. 로그인 first-party가 WAF 통과.'}]},
+   {key:'musinsa',name:'무신사',color:'#191f28',diff:'mid',diffL:'중',ds:'mix',dsL:'API+DOM',state:'한정/품절/충분',
+    methods:[{ds:'mix',dsL:'API + DOM',ep:'goods API(회원가 salePrice) + inventories',rules:[['x','품절','품절'],['n','N개 남음·마지막 N개','한정 N'],['o','표시 없음','충분']],warn:'한정수량 정규식 미스→충분 둔갑. 회원가 폴백 금지.',tip:'로그인 브라우저라야 회원가 읽힘.'}]},
+   {key:'ssf',name:'SSF샵',color:'#111',diff:'mid',diffL:'중',ds:'html',dsL:'원본 HTML',state:'품절/한정N/충분',
+    methods:[{ds:'html',dsL:'원본 HTML',ep:'상품 raw HTML (SSR · 한국 IP)',rules:[['x','statCd=SLDOUT','품절'],['n','품절임박 ( N )','한정 N'],['o','표시 없음','충분']],warn:'정규식 괄호공백 "품절임박 ( N )" 필수. 도쿄 IP는 숫자 없음.',tip:'확장이 한국 IP raw HTML 떠서 서버 파서로.'}]},
+   {key:'lotteon',name:'롯데온',color:'#da291c',diff:'easy',diffL:'쉬움',ds:'api',dsL:'API/DOM',state:'SKU 실수량 / 3상태',dual:true,
+    dualNote:'⚙️ <b>API 우선 → 실패 시 DOM 폴백.</b> 화면(DOM)은 API 데이터를 그린 결과라 API가 더 정확.',
+    methods:[
+     {tag:'① API (우선)',ds:'api',dsL:'API',ep:'pbf.lotteon.com/product/v2/detail/option/mapping/{spd}/{sitm}',rules:[['x','SALE 아님·stkQty 0','품절'],['o','SALE & stkQty>0','실수량'],['n','키 없음','미존재(제외)']],warn:'단품은 color="" → 전 색 번짐. 상품명 끝 토큰("…블랙")으로 색 라벨.',tip:'경로만 200·격리(ISOLATED)서도 fetch. 실수량+없는사이즈 제외.'},
+     {tag:'② DOM (폴백)',ds:'dom',dsL:'DOM',ep:'ul.selectLists > li · .caption / .stock',rules:[['x','품절·[품절]·재입고알림','품절'],['n','N개 남음·마지막 N개','한정 N'],['o','표시 없음','충분']],warn:'"10개" 캡·없는사이즈 false충분. 모음전 색클릭 60초 타임아웃 주의.',tip:'단품 무클릭(이미지 일치). 모음전 색 클릭 순회.'}]},
+   {key:'ssg',name:'SSG',color:'#e60012',diff:'wip',diffL:'미완',ds:'wip',dsL:'조사중',state:'부분',
+    methods:[{ds:'wip',dsL:'조사중',ep:'itemView(단품) / dealItemView(딜 허브 건너뜀)',rules:[['n','진행 중','일부 미해결']],warn:'미해결은 거짓충분 대신 "크롤 실패" 표면화.',tip:'네이버 유입 쿠폰가 ckwhere 파라미터.'}]}
+  ];
+  var CC=[
+   {cls:'html',nm:'원본 HTML',def:'서버가 처음 보내는 페이지 코드 자체에서 값을 읽음',feat:'추가 요청 없이 코드·JS변수 파싱. 로그인 불필요인 경우 많음',why:'재고가 처음 HTML에 다 올 때. 가장 단순·빠름'},
+   {cls:'api',nm:'API (JSON)',def:'페이지가 받아오는 데이터(JSON) 요청을 직접 호출해 읽음',feat:'정확한 숫자를 구조화로 받음. 인증·WAF 필요할 수 있음',why:'화면 숫자의 원본 → 직접 읽어 가장 정확'},
+   {cls:'dom',nm:'DOM (화면)',def:'다 그려진 화면 요소에서 텍스트를 읽음',feat:'보는 그대로. 렌더돼야 보이고 "10개"처럼 캡될 수 있음',why:'API 막힐 때 최후 수단'}
+  ];
+  function esc(){return '';}
+  function build(){
+    if(built) return; built=true;
+    document.getElementById('nsgStChips').innerHTML = CC.map(function(c){
+      return '<div class="nsg-st-chip '+c.cls+'"><div class="nm">'+c.nm+'</div><div class="def">'+c.def+'</div>'
+        +'<div class="more"><div class="ln"><b>수집 특징</b>'+c.feat+'</div><div class="ln"><b>왜 이렇게?</b>'+c.why+'</div></div></div>';
+    }).join('');
+    var rows='';
+    SRC.forEach(function(s){
+      var nm='<span class="nsg-st-sr"><span class="nsg-st-ci" style="background:'+s.color+'"></span>'+s.name+'</span>';
+      if(s.dual){
+        rows+='<tr class="r" data-key="'+s.key+'"><td><span class="nsg-st-bar"></span>'+nm+'</td><td colspan="2" style="color:#99a1ab">API 우선 → DOM 폴백</td><td><span class="nsg-st-lv '+s.diff+'">'+s.diffL+'</span></td><td><span class="nsg-st-tap">상세 ▸</span></td></tr>';
+        s.methods.forEach(function(m){ rows+='<tr class="sub"><td>'+m.tag+'</td><td><span class="nsg-st-dt"><span class="d '+m.ds+'"></span>'+m.dsL+'</span></td><td>'+m.rules.map(function(r){return r[2];}).join(' / ')+'</td><td></td><td></td></tr>'; });
+      } else rows+='<tr class="r" data-key="'+s.key+'"><td>'+nm+'</td><td><span class="nsg-st-dt"><span class="d '+s.ds+'"></span>'+s.dsL+'</span></td><td>'+s.state+'</td><td><span class="nsg-st-lv '+s.diff+'">'+s.diffL+'</span></td><td><span class="nsg-st-tap">상세 ▸</span></td></tr>';
+    });
+    document.getElementById('nsgStTb').innerHTML=rows;
+    document.querySelectorAll('#nsgStTb tr.r').forEach(function(r){ r.addEventListener('click', function(){ openDpop(r, r.getAttribute('data-key')); }); });
+  }
+  function secs(m){
+    var r=m.rules.map(function(x){return '<div class="rule"><span class="tg '+x[0]+'">'+x[1]+'</span><span>→ '+x[2]+'</span></div>';}).join('');
+    return '<div class="nsg-st-ps"><div class="lab">데이터 소스 · 엔드포인트</div><div class="ep"><span class="nsg-st-dt"><span class="d '+m.ds+'"></span>'+m.dsL+'</span><br>'+m.ep+'</div></div>'
+      +'<div class="nsg-st-ps"><div class="lab">재고 판정 규칙</div>'+r+'</div>'
+      +'<div class="nsg-st-ps warn"><div class="lab">⚠ 함정</div><div class="tx">'+m.warn+'</div></div>'
+      +'<div class="nsg-st-ps tip"><div class="lab">✓ 팁</div><div class="tx">'+m.tip+'</div></div>';
+  }
+  function openDpop(rowEl,key){
+    var s=null; SRC.forEach(function(x){if(x.key===key)s=x;}); if(!s)return;
+    var b;
+    if(s.dual){ b='<div class="nsg-st-dn">'+s.dualNote+'</div><div class="nsg-st-mt">'+s.methods.map(function(m,i){return '<button class="'+(i===0?'on':'')+'" data-mt="'+key+'-'+i+'">'+m.tag+'</button>';}).join('')+'</div>'
+        +s.methods.map(function(m,i){return '<div class="nsg-st-mp '+(i===0?'on':'')+'" id="nsgstmp-'+key+'-'+i+'">'+secs(m)+'</div>';}).join(''); }
+    else b=secs(s.methods[0]);
+    dpop.innerHTML='<div class="ph"><span class="nsg-st-ci" style="width:11px;height:11px;background:'+s.color+'"></span><span class="nm">'+s.name+'</span><button class="x" id="nsgStDpopX">✕</button></div><div class="pb">'+b+'</div>';
+    var rc=rowEl.getBoundingClientRect();
+    dpop.style.top=Math.min(rc.bottom+6, window.innerHeight-360)+'px';
+    dpop.style.left=Math.max(12, rc.left-440)+'px';
+    dpop.classList.add('on');
+    document.getElementById('nsgStDpopX').addEventListener('click', function(){ dpop.classList.remove('on'); });
+    dpop.querySelectorAll('.nsg-st-mt button').forEach(function(btn){ btn.addEventListener('click', function(){
+      dpop.querySelectorAll('.nsg-st-mt button').forEach(function(x){x.classList.toggle('on',x===btn);});
+      dpop.querySelectorAll('.nsg-st-mp').forEach(function(p){p.classList.toggle('on', p.id==='nsgstmp-'+btn.getAttribute('data-mt'));});
+    }); });
+  }
+  function open(){ build(); dim.hidden=false; drawer.hidden=false; }
+  function close(){ dim.hidden=true; drawer.hidden=true; dpop.classList.remove('on'); }
+  trg.addEventListener('click', function(e){ e.stopPropagation(); open(); });
+  trg.addEventListener('keydown', function(e){ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); open(); } });
+  document.getElementById('nsgStClose').addEventListener('click', close);
+  dim.addEventListener('click', close);
+  document.addEventListener('keydown', function(e){ if(e.key==='Escape' && !drawer.hidden){ if(dpop.classList.contains('on')) dpop.classList.remove('on'); else close(); } });
+  coll.classList.add('open');
+  coll.addEventListener('click', function(){ var ch=document.getElementById('nsgStChips'); var open=ch.style.display!=='none'; ch.style.display=open?'none':'grid'; coll.classList.toggle('open',!open); });
 })();
 </script>
 {% endblock %}
