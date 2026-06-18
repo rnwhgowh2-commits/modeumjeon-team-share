@@ -141,16 +141,39 @@
   .nsg-qa .ex{font-size:17px;line-height:1.7;margin-top:6px;background:var(--soft);border-radius:10px;padding:14px 17px;}
 
   @media (max-width:900px){ .nsg-tplgrid{grid-template-columns:1fr;} }
+
+  /* ════ 가이드 네비 = 3카드 런처 (시안 3) ════ */
+  .sg-launch{display:grid;grid-template-columns:repeat(3,1fr);gap:18px;margin-bottom:36px;}
+  .sg-launch .lc{display:block;text-align:left;text-decoration:none;border:2px solid #E5E8EB;background:#fff;border-radius:18px;padding:24px 26px;cursor:pointer;transition:.15s;font-family:inherit;width:100%;}
+  .sg-launch .lc:hover{border-color:#C9D2DC;box-shadow:0 8px 20px rgba(0,0,0,.07);transform:translateY(-2px);}
+  .sg-launch .lc .lc-ic{font-size:34px;line-height:1;}
+  .sg-launch .lc .lc-t{font-size:22px;font-weight:800;margin-top:14px;color:#191F28;}
+  .sg-launch .lc .lc-d{font-size:15px;color:#555E6B;margin-top:9px;line-height:1.6;min-height:48px;}
+  .sg-launch .lc .lc-tag{display:inline-block;font-size:13px;font-weight:800;border-radius:8px;padding:5px 12px;margin-top:14px;}
+  .sg-launch .lc .lc-tag.b{background:#E8F1FF;color:#1B64DA;} .sg-launch .lc .lc-tag.g{background:#E6F6EC;color:#0F9D58;} .sg-launch .lc .lc-tag.p{background:#F1EAFE;color:#7C3AED;}
+  .sg-launch .lc.on.c-blue{border-color:#1B64DA;background:#F4F8FF;} .sg-launch .lc.on.c-blue .lc-t{color:#1B64DA;}
+  .sg-launch .lc.on.c-green{border-color:#0F9D58;background:#F1FBF5;} .sg-launch .lc.on.c-green .lc-t{color:#0F9D58;}
+  .sg-launch .lc.on.c-purple{border-color:#7C3AED;background:#F8F4FF;} .sg-launch .lc.on.c-purple .lc-t{color:#7C3AED;}
+  @media (max-width:900px){ .sg-launch{grid-template-columns:1fr;} .sg-launch .lc .lc-d{min-height:0;} }
 </style>
 
 <div class="sg-ov" style="padding:52px 64px;">
   <div class="page-head" style="display:flex;align-items:center;gap:12px;margin-bottom:30px;">
     <h2>소싱처별 크롤링 가이드</h2>
   </div>
-  <div class="subtabs">
-    <a class="subtab on" href="/sourcing-guide/">전체보기</a>
-    <a class="subtab" href="/sourcing-guide/install">🧩 크롤러 설치</a>
-    <button type="button" id="nsgOpenBtn" class="nsg-openbtn">➕ 신규 소싱처 추가 가이드</button>
+  <div class="sg-launch">
+    <a class="lc on c-blue" href="/sourcing-guide/">
+      <div class="lc-ic">📊</div><div class="lc-t">전체보기</div>
+      <div class="lc-d">소싱처별 크롤링 정보가 한눈에 — 구조·매입가 로직·혜택 방식</div>
+      <span class="lc-tag b">👥 모두 · 조회</span></a>
+    <a class="lc c-green" href="/sourcing-guide/install">
+      <div class="lc-ic">🧩</div><div class="lc-t">크롤러 설치</div>
+      <div class="lc-d">로컬 PC에서 크롤하기 위한 필수 프로그램(크롬 확장) 설치법</div>
+      <span class="lc-tag g">🛠 팀원 · 셋업</span></a>
+    <button type="button" id="nsgOpenBtn" class="lc c-purple">
+      <div class="lc-ic">📖</div><div class="lc-t">신규 소싱처 추가 가이드</div>
+      <div class="lc-d">Claude Code가 읽고 소싱처 개발환경을 참고하는 단계별 가이드</div>
+      <span class="lc-tag p">🤖 개발 · 가이드</span></button>
   </div>
   <div class="sg-card" style="padding:0;overflow:hidden;">
     <table class="sg-atbl">
@@ -313,6 +336,8 @@
 
   openBtn.addEventListener('click', function(e){ e.stopPropagation(); pop.hidden ? openPop() : closePop(); });
   popDim.addEventListener('click', closePop);
+  /* 다른 페이지(크롤러 설치)의 '신규 소싱처 추가 가이드' 카드 → /?guide=1 로 와서 자동 오픈 */
+  try{ if(new URLSearchParams(location.search).has('guide')) openPop(); }catch(e){}
   document.addEventListener('click', function(e){
     if(!pop.hidden && !pop.contains(e.target) && e.target !== openBtn) closePop();
   });
