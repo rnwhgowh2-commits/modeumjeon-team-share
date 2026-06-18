@@ -129,6 +129,8 @@
       '.mcl-rb-sub.wait { color:#6B7684; } .mcl-rb-sub.done { color:#34D399; } .mcl-rb-sub.stop { color:#F87171; }',
       '.mcl-rb-x { color:#4E5968; cursor:pointer; font-size:14px; line-height:1; padding:2px 3px; flex-shrink:0; }',
       '.mcl-rb-x:hover { color:#F87171; }',
+      '.mcl-rb-goto { color:#4E5968; cursor:pointer; font-size:13px; line-height:1; padding:3px 5px; margin-top:1px; flex-shrink:0; border-radius:6px; }',
+      '.mcl-rb-goto:hover { color:#9FC3FF; background:#1D2A3A; }',
       '.mcl-rb-minibar { height:3px; background:#25303b; border-radius:2px; overflow:hidden; margin-top:5px; }',
       '.mcl-rb-minibar > i { display:block; height:100%; border-radius:2px; transition:width .3s; }',
 
@@ -394,6 +396,15 @@
         });
         row.appendChild(x);
       }
+      // [2026-06-18 시안A] 바로가기(↗) — 이 모음전 편집 화면으로(새 탭). 행 클릭(상세 선택)과 분리.
+      var go = document.createElement('div'); go.className = 'mcl-rb-goto'; go.textContent = '↗';
+      go.title = '이 모음전 편집 화면으로 이동';
+      go.addEventListener('click', function (e) {
+        e.stopPropagation();
+        var u = '/bundles/' + encodeURIComponent(code);
+        try { window.open(u, '_blank'); } catch (_) { location.href = u; }
+      });
+      row.appendChild(go);
       row.addEventListener('click', function () { selected = code; renderRail(); renderDetail(); });
       rail.appendChild(row);
     });
