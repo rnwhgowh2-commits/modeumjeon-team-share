@@ -10,7 +10,7 @@
 //  결과 저장은 mou-m.com /api/sources/crawl-result (ext_bridge.crawlBundleAll 이 호출).
 //  grabHtml/crawl(URL마다 창 생성·즉시 닫기) 핸들러는 하위호환 위해 유지.
 
-const MOUM_EXT_VERSION = "0.6.0";  // 0.6.0 = 백그라운드 크롤 상태 영속(chrome.storage.session)+SW 재가동 자동재개. 0.5.x: 백그라운드 엔진·혜택 수집·롯데온 옵션매핑API
+const MOUM_EXT_VERSION = "0.6.1";  // 0.6.0 = 백그라운드 크롤 상태 영속(chrome.storage.session)+SW 재가동 자동재개. 0.5.x: 백그라운드 엔진·혜택 수집·롯데온 옵션매핑API
 
 // cascade 위치 시퀀서 — 창이 여러 개 열려도 서로 어긋나 보임
 let _winSeq = 0;
@@ -972,6 +972,29 @@ async function crawlItemInTabBG(tabId, code, item) {
   };
 }
 
+// ── [2026-06-18] 저장 헬퍼 — 결과 item 매핑 + crawl-result 저장(소싱처별 증분/최종 공용) ──
+//   ★ 버그 수정: 기존엔 모든 소싱처 크롤이 끝난 뒤 '최종 1회'만 bgFetch 저장했는데,
+//   그 마지막 저장이 조용히 0건 실패(창 다 닫힌 뒤 서비스탭 fetch 불안정)하면 수집한
+//   가격이 전부 버려지고(하드리셋만 남아) 전 옵션이 판매차단됐다. 대책=소싱처가 끝날
+//   때마다 그 소싱처 결과를 즉시 저장(크롤 도중 = bgFetch 정상 동작 구간) + 저장결과를
+//   로그에 표면화(조용한 실패 제거). 최종 일괄 저장은 백스톱으로 유지(중복 저장은 무해).
+function toItemBG(x) {
+  return {
+    url: x.url, price: x.price, stock: x.stock, options: x.options,
+    status: x.status, product_name: x.product_name, error: x.error,
+    is_logged_in: (x.is_logged_in === undefined ? null : x.is_logged_in),
+    benefits_ok: x.benefits_ok, benefit_lines: x.benefit_lines, benefit_amounts: x.benefit_amounts,
+    surface_price: x.surface_price, member_price: x.member_price,
+  };
+}
+async function saveItemsBG(items) {
+  if (!items || !items.length) return { ok: true, updated: 0 };
+  return await bgFetch("/api/sources/crawl-result", {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ items: items.map(toItemBG) }),
+  }).then((x) => x.json()).catch((e) => ({ ok: false, error: String(e && e.message ? e.message : e) }));
+}
+
 // ── 모음전 1건 전체 크롤(백그라운드판) — ext_bridge.crawlBundleAll 과 동일 로직 ──
 async function crawlBundleAllBG(code) {
   _mgr.paused = false;
@@ -980,6 +1003,7 @@ async function crawlBundleAllBG(code) {
   const ENC = encodeURIComponent(code);
   try { await bgFetch("/api/bundles/" + ENC + "/crawl-reset", { method: "POST" }); } catch (_) {}
   const _finalize = () => bgFetch("/api/bundles/" + ENC + "/crawl-finalize", { method: "POST" }).then((x) => x.json()).catch(() => null);
+  let savedTotal = 0;   // 소싱처별 증분 저장 누적(완료 메시지·표면화용)
 
   const r = await bgFetch("/api/bundles/" + ENC + "/option-matrix").then((x) => x.json());
   const ALL = BG_JS_SOURCES.concat(BG_PARSE_SOURCES);
@@ -1017,6 +1041,7 @@ async function crawlBundleAllBG(code) {
     const startIdx = sourceProgress[sk] || 0;
     let winId = null, tabId = null;
     let pausedMid = false;
+    const srcOuts = [];   // 이 소싱처 결과 누적 → 소싱처 완료 즉시 증분 저장용
     try {
       const w = await handleOpenWin({});
       if (!w || !w.ok || w.tabId == null) {
@@ -1044,7 +1069,7 @@ async function crawlBundleAllBG(code) {
         }
         const sec = (Date.now() - t0) / 1000;
         latencies.push(sec); if (latencies.length > 12) latencies.shift();
-        results.push(out); done++; sourceProgress[sk] = i + 1;
+        results.push(out); srcOuts.push(out); done++; sourceProgress[sk] = i + 1;
         if (cooldown > 0) cooldown--;
         emit("item-done", {
           source: sk, level: out.status === "ok" ? "" : "warn",
@@ -1069,6 +1094,17 @@ async function crawlBundleAllBG(code) {
     if (pausedMid) { pendingSources.unshift(sk); return; }
     if (_mgr.stopped) return;
     delete sourceProgress[sk];
+    // ★ 소싱처 완료 즉시 증분 저장(크롤 도중 = bgFetch 정상 구간). 최종 일괄저장 실패해도 보존.
+    const okOuts = srcOuts.filter((o) => o && o.status === "ok");
+    const sv = await saveItemsBG(okOuts);
+    const svOk = !!(sv && sv.ok && (sv.updated || 0) > 0);
+    savedTotal += (sv && sv.updated) || 0;
+    emit("source-saved", {
+      source: sk, level: svOk ? "done" : (okOuts.length ? "warn" : ""),
+      msg: sk + " 저장 " + ((sv && sv.updated) || 0) + "/" + okOuts.length + "건"
+        + ((sv && sv.error) ? (" ⚠️실패: " + sv.error) : ((okOuts.length && !svOk) ? " ⚠️0건(저장 실패)" : "")),
+      metrics: { concurrency, cap, active, done, total },
+    });
     emit("source-done", { source: sk, level: "done", msg: sk + " 완료 (" + list.length + "건)", metrics: { concurrency, cap, active, done, total } });
   }
 
@@ -1114,17 +1150,14 @@ async function crawlBundleAllBG(code) {
   });
   _mgr._kick = null;
 
-  const items = results.map((x) => ({
-    url: x.url, price: x.price, stock: x.stock, options: x.options,
-    status: x.status, product_name: x.product_name, error: x.error,
-    is_logged_in: (x.is_logged_in === undefined ? null : x.is_logged_in),
-    // [2026-06-14 fix] 혜택 스냅샷 필드 서버 전달(누락 시 무신사 미수집).
-    benefits_ok: x.benefits_ok, benefit_lines: x.benefit_lines, benefit_amounts: x.benefit_amounts,
-    surface_price: x.surface_price, member_price: x.member_price,
-  }));
-  const save = await bgFetch("/api/sources/crawl-result", {
-    method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ items }),
-  }).then((x) => x.json()).catch((e) => ({ ok: false, error: String(e) }));
+  // 최종 일괄 저장(백스톱) — 소싱처별 증분 저장이 이미 됐으면 중복(무해). toItemBG 공용 매핑.
+  const save = await saveItemsBG(results);
+  // ★ 저장 결과 표면화 — 조용한 실패 제거([[project_silent_failure_bug_class]]).
+  emit("save-result", {
+    level: (save && save.ok && (save.updated || 0) > 0) ? "" : "warn",
+    msg: "최종 일괄 저장 " + ((save && save.updated) || 0) + "건"
+      + ((save && save.error) ? (" ⚠️실패: " + save.error) : ((save && !(save.updated > 0)) ? " ⚠️0건" : "")),
+  });
 
   try { await bgFetch("/api/bundles/" + ENC + "/touch-crawled", { method: "POST" }); } catch (_) {}
 
@@ -1162,7 +1195,7 @@ async function crawlBundleAllBG(code) {
   const stoppedTxt = endReason === "stopped" ? "중지됨 — " : "완료 — ";
   emit("finish", {
     level: endReason === "stopped" ? "warn" : "done", stopped: endReason === "stopped",
-    msg: stoppedTxt + okCount + "/" + results.length + " 성공 · 저장 " + ((save && save.updated) || 0) + "건" + (finalize && finalize.blocked ? " · 판매차단 " + finalize.blocked : ""),
+    msg: stoppedTxt + okCount + "/" + results.length + " 성공 · 저장 " + Math.max(savedTotal, (save && save.updated) || 0) + "건" + (finalize && finalize.blocked ? " · 판매차단 " + finalize.blocked : ""),
     metrics: { concurrency, cap, active, done, total, cpu: lastSys.cpu, mem: lastSys.mem },
   });
   return { ok: true, crawled: results.length, ok_count: okCount, save, finalize, stopped: endReason === "stopped" };
