@@ -460,9 +460,16 @@
       var tagEl = document.createElement('span'); tagEl.className = 'mcl-card-tag ' + s.status;
       tagEl.textContent = s.status === 'run' ? '진행중' : s.status === 'done' ? '완료' : '대기';
       var cntEl = document.createElement('span'); cntEl.className = 'mcl-card-cnt';
-      cntEl.textContent = (s.total != null) ? (s.done + '/' + s.total) : (s.done > 0 ? ('' + s.done) : '');
+      // [2026-06-18] 'URL 등록수' 라벨 — 이 소싱처에 등록된(크롤 대상) URL 개수.
+      cntEl.textContent = (s.total != null) ? ('URL 등록수 ' + s.done + '/' + s.total) : (s.done > 0 ? ('URL 등록수 ' + s.done) : '');
       var toggleEl = document.createElement('button'); toggleEl.type = 'button'; toggleEl.className = 'mcl-card-toggle';
-      toggleEl.textContent = '로그 ' + s.logs.length + '건 ' + (s.expanded ? '▴' : '▾');
+      // [2026-06-18] 로그 건수 = URL 크롤링수 + 2(시작·완료). 분해 표기로 의미 명확화.
+      //   로그 구성: 시작(창 열림) 1 + URL별 크롤 N + 완료(소싱처 끝) 1 = N+2.
+      var _logN = s.logs.length;
+      var _crawlN = Math.max(0, _logN - 2);
+      toggleEl.textContent = ((_logN >= 2)
+        ? ('로그 ' + _logN + '건 (URL크롤 ' + _crawlN + ' + 시작·완료 2)')
+        : ('로그 ' + _logN + '건')) + ' ' + (s.expanded ? '▴' : '▾');
       toggleEl.addEventListener('click', function () { s.expanded = !s.expanded; renderDetail(); });
       header.appendChild(nameEl); header.appendChild(tagEl); header.appendChild(cntEl); header.appendChild(toggleEl);
 
