@@ -98,6 +98,23 @@ def upsert_source_product(
     existing = (session.query(SourceProduct)
                 .filter_by(site=site, url=url, deleted_at=None)
                 .first())
+    if existing is None:
+        # [2026-06-19 fix] 레거시 행: 2026-06-13 정규화 도입 전 생성된 SourceProduct 는
+        #   저장 url 이 raw(utag 등 포함)라 위 정확매칭(저장url==정규화input)이 빗나간다 →
+        #   같은 상품인데 새 행을 만들어 중복 누적(SSF 다크네이비 3행). 매트릭스 sp_by_norm
+        #   과 동일하게 normalize_url 양쪽 비교로 재탐색해 중복 생성을 막는다(정규화된 행 우선).
+        #   url self-heal 은 하지 않는다(기존 중복 정규화행과 uq_source_product_site_url 충돌
+        #   회피) — 정규화·병합은 dedupe 마이그레이션에서 일괄 처리.
+        cands = [c for c in (session.query(SourceProduct)
+                             .filter_by(site=site, deleted_at=None).all())
+                 if normalize_url(c.url or '') == url]
+        if cands:
+            cands.sort(key=lambda c: (
+                (c.url or '') == url,                       # 이미 정규화된 행 우선
+                getattr(c, 'last_status', None) == 'ok',    # 성공 데이터 보유 우선
+                str(getattr(c, 'last_fetched_at', '') or '')),  # 최신 우선
+                reverse=True)
+            existing = cands[0]
     if existing is not None:
         # 메타 정보 보강 (옵션)
         if external_product_id and not existing.external_product_id:

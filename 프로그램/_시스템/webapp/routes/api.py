@@ -1987,6 +1987,84 @@ def diag_source_products():
         s.close()
 
 
+@bp.post('/_diag/dedupe-source-products')
+def diag_dedupe_source_products():
+    """[2026-06-19] 중복 SourceProduct 병합·정리. ?dry_run=1 이면 계획만(쓰기 없음).
+
+    원인: 2026-06-13 정규화 도입 전 생성된 raw-url 행을 upsert 가 못 찾아 같은 상품을
+    여러 행으로 분열(SSF 다크네이비 3행). 매트릭스 sp_by_norm 이 그중 pending 행을 픽 →
+    영구 미반영. (site, normalize_url(url)) 그룹마다 생존자 1행만 남기고 나머지+그 옵션은
+    soft-delete. 생존자 = 정규화됨 > 크롤성공(ok) > 최신 순. 생존자 url 은 정규화로 교정.
+    """
+    from datetime import datetime, timezone
+    from collections import defaultdict
+    from lemouton.sources.service import normalize_url
+    from lemouton.sources.models import SourceProduct, SourceOption
+    dry = request.args.get('dry_run') in ('1', 'true', 'yes')
+    site = (request.args.get('site') or '').strip()
+    now = datetime.now(timezone.utc)
+    s = SessionLocal()
+    try:
+        q = s.query(SourceProduct).filter(SourceProduct.deleted_at.is_(None))
+        if site:
+            q = q.filter(SourceProduct.site == site)
+        groups = defaultdict(list)
+        for sp in q.all():
+            groups[(sp.site, normalize_url(sp.url or ''))].append(sp)
+        plan = []
+        prod_del = 0
+        opt_del = 0
+        for (gsite, gnorm), members in groups.items():
+            if len(members) < 2:
+                continue
+            members.sort(key=lambda c: (
+                (c.url or '') == gnorm,
+                getattr(c, 'last_status', None) == 'ok',
+                str(getattr(c, 'last_fetched_at', '') or '')),
+                reverse=True)
+            survivor = members[0]
+            removed = members[1:]
+            rm_opts = 0
+            for other in removed:
+                cnt = (s.query(SourceOption)
+                       .filter(SourceOption.source_product_id == other.id,
+                               SourceOption.deleted_at.is_(None)).count())
+                rm_opts += cnt
+                if not dry:
+                    (s.query(SourceOption)
+                     .filter(SourceOption.source_product_id == other.id,
+                             SourceOption.deleted_at.is_(None))
+                     .update({SourceOption.deleted_at: now}, synchronize_session=False))
+                    other.deleted_at = now
+            if not dry and (survivor.url or '') != gnorm:
+                survivor.url = gnorm   # 정규화 교정 (다른 멤버는 위에서 soft-delete 됨)
+            prod_del += len(removed)
+            opt_del += rm_opts
+            plan.append({
+                'site': gsite,
+                'group_size': len(members),
+                'survivor_id': survivor.id,
+                'survivor_status': getattr(survivor, 'last_status', None),
+                'survivor_normalized': (survivor.url or '') == gnorm,
+                'remove_ids': [o.id for o in removed],
+                'remove_option_rows': rm_opts,
+            })
+        if dry:
+            s.rollback()
+        else:
+            s.commit()
+        return _ok(dry_run=dry, groups_merged=len(plan),
+                   products_removed=prod_del, option_rows_removed=opt_del, plan=plan)
+    except Exception as e:
+        try:
+            s.rollback()
+        except Exception:
+            pass
+        return _err(f'dedupe 실패: {type(e).__name__}: {e}', 500)
+    finally:
+        s.close()
+
+
 def _build_color_mapping(s, model_code: str, result) -> dict:
     """소싱처 raw color_text → 우리 color_code 매핑 결과 (사용자 검증용).
 
