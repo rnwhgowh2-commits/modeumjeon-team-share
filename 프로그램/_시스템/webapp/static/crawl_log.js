@@ -186,8 +186,12 @@
       '.mcl-card-logs.mcl-hidden { display:none; }',
       '.mcl-d8-head { display:grid; grid-template-columns:1fr 92px 108px; gap:8px; padding:3px 4px 5px; border-bottom:1px solid #2a3744; font-size:9.5px; color:#6B7A8C; font-weight:800; }',
       '.mcl-d8-head span:nth-child(2), .mcl-d8-head span:nth-child(3) { text-align:right; }',
-      '.mcl-d8-row { display:grid; grid-template-columns:1fr 92px 108px; gap:8px; padding:5px 4px; border-bottom:1px solid #1c2630; font-size:11.5px; align-items:baseline; }',
-      '.mcl-d8-nm { color:#CBD5E1; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }',
+      '.mcl-d8-row { display:grid; grid-template-columns:1fr 92px 108px; gap:8px; padding:6px 4px; border-bottom:1px solid #1c2630; font-size:11.5px; align-items:start; }',
+      // [2026-06-19 시안A] 상품명 전체표시(줄바꿈) + URL 링크(↗). 기존 말줄임(nowrap/ellipsis) 제거.
+      '.mcl-d8-nm { color:#CBD5E1; font-weight:600; white-space:normal; line-height:1.34; min-width:0; }',
+      '.mcl-d8-nm a { color:#7FB4FF; text-decoration:none; }',
+      '.mcl-d8-nm a:hover { text-decoration:underline; }',
+      '.mcl-d8-nm .mcl-d8-ext { color:#4D9FFF; font-size:9.5px; margin-left:2px; white-space:nowrap; }',
       '.mcl-d8-row.fail .mcl-d8-nm { color:#F87171; }',
       '.mcl-d8-surf { color:#8B95A1; text-decoration:line-through; text-align:right; font-variant-numeric:tabular-nums; }',
       '.mcl-d8-buy { text-align:right; font-weight:800; color:#7FB6FF; font-variant-numeric:tabular-nums; }',
@@ -589,7 +593,12 @@
         logArea.appendChild(thead);
         urlLines.forEach(function (lg) {
           var r = document.createElement('div'); r.className = 'mcl-d8-row' + (lg.level === 'warn' ? ' fail' : '');
-          var nm = document.createElement('span'); nm.className = 'mcl-d8-nm'; nm.textContent = lg.name || shortUrl(lg.url); nm.title = lg.url;
+          // [2026-06-19 시안A] 상품명 = 클릭 시 URL 열기 링크(↗) + 전체표시(CSS 줄바꿈).
+          var nm = document.createElement('span'); nm.className = 'mcl-d8-nm';
+          var nmA = document.createElement('a'); nmA.href = lg.url; nmA.target = '_blank'; nmA.rel = 'noopener'; nmA.title = lg.url;
+          nmA.textContent = lg.name || shortUrl(lg.url);
+          var nmExt = document.createElement('span'); nmExt.className = 'mcl-d8-ext'; nmExt.textContent = ' ↗';
+          nmA.appendChild(nmExt); nm.appendChild(nmA);
           var sf = document.createElement('span'); sf.className = 'mcl-d8-surf'; sf.textContent = lg.surf != null ? won(lg.surf) : '-';
           var by = document.createElement('span'); by.className = 'mcl-d8-buy';
           if (lg.level === 'warn') { by.classList.add('fail'); by.textContent = '크롤실패'; }
