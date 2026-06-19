@@ -178,6 +178,10 @@ FIELD_BEST_AMT_RE = _build_field_re("bestAmt")
 # sellprc 는 parseInt('NNNNN', 10) 형식
 FIELD_SELLPRC_RE = re.compile(r"sellprc\s*:\s*parseInt\(\s*'([^']*)'")
 
+# 옵션 값이 '사이즈'인지 판별 (220mm / 250 등). 단일 옵션축(단일색 상품)이 사이즈일 때
+#   그 값을 size_text 로 보내기 위함. 색상명(블랙 등)·자유텍스트는 매칭 안 됨.
+_SIZE_VALUE_RE = re.compile(r"^\s*\d{2,3}\s*(mm|cm)?\s*$", re.I)
+
 # resultItemObj.itemNm / brandNm / brandId — 페이지 헤더 메타.
 RESULT_ITEM_NM_RE = re.compile(r"itemNm\s*:\s*'((?:\\'|[^'])*)'")
 RESULT_BRAND_NM_RE = re.compile(r"brandNm\s*:\s*'((?:\\'|[^'])*)'")
@@ -615,8 +619,22 @@ def _parse_uitem_options(
 
         # type1/type2 가 '색상'/'사이즈' 인 일반 케이스만 의미 부여.
         # 그 외는 type1 텍스트 자체를 color_text 칸에 넣음 (UI 가 그냥 보여줌).
-        color_text = optn1 if (type1 == "색상" or not type1) else f"{type1}:{optn1}"
-        size_text = optn2 if (type2 == "사이즈" or not type2) else (f"{type2}:{optn2}" if optn2 else "")
+        #
+        # [2026-06-19 fix] 단일색 상품(블랙·다크네이비 등)은 옵션축이 '사이즈' 하나뿐이라
+        #   type1='사이즈', optn1='220mm', optn2='' 로 온다. 기존 로직은 type1!='색상' 이라
+        #   color_text=f"사이즈:220mm", size_text="" 로 만들어 → 저장단(_ingest)이 size_text 에
+        #   숫자가 없어 '사이즈 미상'으로 전 옵션을 조용히 skip → 사이즈별 재고가 통째로 사라지고
+        #   상품레벨 재고(합계)로 둔갑(전 사이즈 동일 수치)하던 버그. 단일축이 사이즈면 그 값을
+        #   size_text 로 보내고 color 는 비운다(상품=단일색 → 매칭은 사이즈만으로 안전).
+        if (not optn2) and (type1 == "사이즈" or _SIZE_VALUE_RE.match(optn1 or "")):
+            color_text = ""
+            size_text = optn1
+        elif type1 == "색상" or not type1:
+            color_text = optn1
+            size_text = optn2 if (type2 == "사이즈" or not type2) else (f"{type2}:{optn2}" if optn2 else "")
+        else:
+            color_text = f"{type1}:{optn1}"
+            size_text = optn2 if (type2 == "사이즈" or not type2) else (f"{type2}:{optn2}" if optn2 else "")
 
         option_id = f"{block_item_id or item_id_from_url}|{uitem_id}"
 
