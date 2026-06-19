@@ -1291,6 +1291,65 @@
       return groups;
     }
 
+    // ─── [2026-06-19 P4] URL 크롤링 검증 탭 — 소싱처별 수집·최종매입가·매칭 ───
+    function renderVerifyPanel() {
+      try {
+        if (state.verifyLoading) return '<div style="padding:34px;text-align:center;color:#8B95A1;font-size:15px">🔍 검증 중… (소싱처 수집 · 최종매입가 · 우리옵션 매칭 계산)</div>';
+        const data = state.verifyData;
+        if (!data) return '<div style="padding:34px;text-align:center;color:#8B95A1;font-size:15px">검증 데이터 로딩…</div>';
+        if (data.error) return '<div style="padding:34px;text-align:center;color:#dc2626;font-size:15px">검증 실패: ' + esc(String(data.error)) + '</div>';
+        const srcs = data.sources || [];
+        const rows = srcs.map(function (s) {
+          const exp = state.verifyExpand === s.source_id;
+          let detail = '';
+          if (exp) {
+            const opts = (s.options || []).slice(0, 300).map(function (o) {
+              const dot = o.status === 'ok' ? '#16a34a' : (o.status === 'absent' ? '#94A3B8' : '#dc2626');
+              const stat = o.status === 'ok' ? (o.stock_out ? '품절' : '매칭') : (o.status === 'absent' ? '옵션없음 혹은 매칭실패' : '가격없음');
+              return '<tr><td style="text-align:left;padding:5px 9px">' + esc((o.color || '') + ' ' + (o.size == null ? '' : o.size)) + '</td>' +
+                '<td style="text-align:center"><span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:' + dot + '"></span> ' + stat + '</td>' +
+                '<td style="text-align:center">' + (o.stock_label || '—') + '</td>' +
+                '<td style="text-align:center;color:#94A3B8;text-decoration:line-through;font-family:monospace">' + (o.surface ? o.surface.toLocaleString() : '—') + '</td>' +
+                '<td style="text-align:center;color:#1B64DA;font-weight:700;font-family:monospace">' + (o.final ? o.final.toLocaleString() : '—') + '</td></tr>';
+            }).join('');
+            detail = '<tr><td colspan="6" style="padding:0 12px 14px;background:#FAFBFF"><table style="width:100%;border-collapse:collapse;font-size:13px">' +
+              '<tr style="color:#8B95A1;font-size:12px"><td style="text-align:left;padding:6px 9px">옵션</td><td style="text-align:center">상태</td><td style="text-align:center">재고</td><td style="text-align:center">표면노출가</td><td style="text-align:center">최종매입가</td></tr>' +
+              opts + '</table></td></tr>';
+          }
+          return '<tr data-verify-src="' + s.source_id + '" style="cursor:pointer;border-bottom:1px solid #F2F4F6">' +
+            '<td style="padding:12px 12px;font-weight:700">' + esc(s.name) + '</td>' +
+            '<td style="text-align:center;color:#16a34a;font-weight:700">✓' + s.ok + '</td>' +
+            '<td style="text-align:center;color:#94A3B8;font-weight:700">⚠' + s.absent + '</td>' +
+            '<td style="text-align:center;color:#dc2626;font-weight:700">❌' + s.noprice + '</td>' +
+            '<td style="text-align:center;color:#1B64DA;font-weight:800;font-family:monospace">' + (s.min_final ? s.min_final.toLocaleString() + '원' : '—') + '</td>' +
+            '<td style="text-align:center;color:#7c3aed">' + (exp ? '▴' : '▾') + '</td></tr>' + detail;
+        }).join('');
+        return '<div style="padding:4px 2px 16px">' +
+          '<div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">' +
+          '<div style="font-size:14px;color:#6B7684">URL 수집(재고·표면노출가·혜택) → 최종매입가 → 우리옵션 매칭 (소싱처 클릭 = 옵션 상세)</div>' +
+          '<button data-verify-refresh type="button" style="margin-left:auto;background:#7c3aed;color:#fff;border:0;border-radius:9px;padding:9px 15px;font-weight:700;font-size:13px;cursor:pointer">🔍 전체 재검증</button></div>' +
+          '<table style="width:100%;border-collapse:collapse;font-size:14px">' +
+          '<tr style="color:#8B95A1;font-size:12px;border-bottom:2px solid #E5E8EB"><td style="text-align:left;padding:8px 12px">소싱처</td><td style="text-align:center">매칭 ✓</td><td style="text-align:center">옵션없음 ⚠</td><td style="text-align:center">가격없음 ❌</td><td style="text-align:center">최저 최종매입가</td><td></td></tr>' +
+          rows + '</table></div>';
+      } catch (e) {
+        return '<div style="padding:22px;color:#dc2626">검증 패널 오류: ' + esc(String((e && e.message) || e)) + '</div>';
+      }
+    }
+    async function loadVerifyData() {
+      state.verifyLoading = true;
+      try {
+        const code = window.BUNDLE_CODE || window.currentBundleCode || '';
+        const r = await fetch('/api/bundles/' + encodeURIComponent(code) + '/verify-urls',
+          { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
+        const j = await r.json();
+        state.verifyData = j.ok ? j : { error: (j.error || ('HTTP ' + r.status)) };
+      } catch (e) {
+        state.verifyData = { error: String((e && e.message) || e) };
+      }
+      state.verifyLoading = false;
+      if (state.rightTab === 'verify') renderRight();
+    }
+
     // ─── 우측 렌더 (시안 v3 C3 — 2탭 분기) ───
     function renderRight() {
       const right = $('#oum-right');
@@ -1318,12 +1377,20 @@
       let html = `<div class="oum-rt-tabs">
         <button class="oum-rt-tab ${state.rightTab === 'url' ? 'on' : ''}" data-rt-tab="url" type="button">📍 소싱처 URL 매핑 <span class="cnt">${urlCount}</span></button>
         <button class="oum-rt-tab ${state.rightTab === 'inv' ? 'on' : ''}" data-rt-tab="inv" type="button">📋 재고관리 매핑 <span class="cnt">${invCount}</span></button>
+        <button class="oum-rt-tab ${state.rightTab === 'verify' ? 'on' : ''}" data-rt-tab="verify" type="button" style="${state.rightTab === 'verify' ? 'color:#7c3aed;border-bottom-color:#7c3aed' : ''}">🔍 크롤링 검증</button>
         ${invStatsHtml}
       </div>`;
 
       if (state.rightTab === 'inv') {
         html += renderInvPanel();
         right.innerHTML = html;
+        return;
+      }
+
+      if (state.rightTab === 'verify') {
+        html += renderVerifyPanel();
+        right.innerHTML = html;
+        if (!state.verifyData && !state.verifyLoading) loadVerifyData();
         return;
       }
 
@@ -2190,6 +2257,16 @@
           state.rightTab = tgt;
           renderRight();
         }
+        return;
+      }
+      // [2026-06-19 P4] 검증 탭 — 소싱처 펼침 / 전체 재검증
+      const vRef = e.target.closest('[data-verify-refresh]');
+      if (vRef) { state.verifyData = null; state.verifyExpand = null; renderRight(); loadVerifyData(); return; }
+      const vSrc = e.target.closest('[data-verify-src]');
+      if (vSrc) {
+        const vid = parseInt(vSrc.dataset.verifySrc, 10);
+        state.verifyExpand = (state.verifyExpand === vid) ? null : vid;
+        renderRight();
         return;
       }
       // [2026-06-13] 크롤 실패 URL 재크롤 — 실제로 서버사이드 크롤 호출 후 성공/실패 표시.
