@@ -1078,25 +1078,10 @@ def _option_matrix_data(code: str):
                     _q_lcnt = _q_lcnt.filter(~_OSL.option_canonical_sku.in_(_inactive_skus))
                 for _bid, _c in _q_lcnt.group_by(_OSL.bundle_source_url_id).all():
                     _lcnt[_bid] = _c
-            # [2026-06-19] 카드 '옵션' 성공수 = 셀과 동일 기준(매칭성공+가격>0). 기존엔 URL 성공 시
-            #   그 URL 매핑 전수(_links)를 done 으로 가산 → 색/사이즈 매칭실패 옵션까지 흡수해 거짓 100%
-            #   (SSG 등). product_url 별 '실제 사용가능' 매핑수로 done 을 집계해 셀(renderSiteCell)과 맞춘다.
-            _usable_by_url = {}
-            for _sku2, _entries in sku_to_sources.items():
-                if _sku2 in _inactive_skus:
-                    continue   # 비활성 옵션은 done 집계에서도 제외 (map_try 와 동일 기준)
-                for _e in _entries:
-                    if (not _e.get('match_failed')) and ((_e.get('crawled_price') or 0) > 0):
-                        _u = _e.get('product_url')
-                        if _u:
-                            _usable_by_url[_u] = _usable_by_url.get(_u, 0) + 1
+            # [2026-06-19] URL 통계(시도/성공/실패목록)는 URL 단위로 집계. 딜 URL 도 제외하지 않는다 —
+            #   딜페이지가 대표 itemView 재크롤로 풀려 이제 정상 크롤되므로 일반 URL 로 취급.
             for _b in _bsus:
                 _sk = _b.source_key
-                # [2026-06-12] SSG 딜(dealItemView) = 색상별 단품 URL 로 커버되는 허브.
-                #   파이프라인이 크롤을 skip → 크롤 대상이 아니므로 집계(try/done/fail)에서 제외.
-                #   (포함하면 영구 '실패'로 잡혀 거짓 실패율을 만든다. 가격·재고는 단품 URL 제공.)
-                if _sk == 'ssg' and 'dealitemview' in (_b.url or '').lower():
-                    continue
                 _rid = _k2reg.get(_sk)
                 _key = _rid if _rid is not None else 'key:' + str(_sk)
                 _st = source_stats.setdefault(str(_key), {
@@ -1113,7 +1098,6 @@ def _option_matrix_data(code: str):
                 _ok_url = bool(_rec) and is_crawl_valid(_rec[0], _rec[1])
                 _links = _lcnt.get(_b.id, 0)
                 _st['url_try'] += 1
-                _st['map_try'] += _links
                 if _ok_url:
                     _st['url_done'] += 1
                 else:
@@ -1122,9 +1106,25 @@ def _option_matrix_data(code: str):
                         'affected': _links,
                         'status': (_rec[1] if _rec else 'not_crawled'),
                     })
-                # [2026-06-19] map_done = '실제 사용가능 매핑수'(셀 기준). URL 이 가격 긁었어도 색/사이즈
-                #   매칭 실패한 옵션은 셀에서 '매칭실패'라 done 에서 제외 → 카드=셀 일치(거짓 100% 제거).
-                _st['map_done'] += _usable_by_url.get(_b.url, 0)
+            # [2026-06-19] map(옵션) 집계 = per-option(셀과 동일): 옵션이 그 소싱처에 등록되고, 그중 한
+            #   URL이라도 usable(매칭성공+가격>0)이면 done. 같은 소싱처 여러 URL 중복제거 + 딜 URL 포함
+            #   (딜이 가격 주면 그 옵션 성공) + 비활성 제외. (예: SSG 단품 매칭실패라도 딜이 커버하면 성공.)
+            for _sku2, _entries in sku_to_sources.items():
+                if _sku2 in _inactive_skus:
+                    continue
+                _by_src = {}
+                for _e in _entries:
+                    _by_src.setdefault(_e.get('source_key'), []).append(_e)
+                for _ek, _elist in _by_src.items():
+                    _rid2 = _k2reg.get(_ek)
+                    _key2 = str(_rid2 if _rid2 is not None else 'key:' + str(_ek))
+                    _st2 = source_stats.get(_key2)
+                    if _st2 is None:
+                        continue
+                    _st2['map_try'] += 1
+                    if any((not _e2.get('match_failed')) and ((_e2.get('crawled_price') or 0) > 0)
+                           for _e2 in _elist):
+                        _st2['map_done'] += 1
         except Exception:
             source_stats = {}
 
