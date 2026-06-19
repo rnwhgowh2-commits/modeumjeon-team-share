@@ -1066,17 +1066,25 @@ def _option_matrix_data(code: str):
             _bsus = (s.query(_BSU)
                      .filter(_BSU.model_code.in_(model_codes)).all())
             _bids = [b.id for b in _bsus]
+            # [2026-06-19] 비활성(is_active=false) 옵션은 판매 대상이 아니므로 카드 집계(매핑 시도·성공)에서
+            #   제외한다. (셀은 '비활성' 표시. 기존엔 비활성 옵션의 URL 링크가 map_try 에 잡혀, 그 사이즈를
+            #   안 파는 소싱처에서 match_failed → '실패'로 둔갑. 예: 르무통 오렌지 260/270 수동 OFF.)
+            _inactive_skus = {r['sku'] for r in opt_rows if not r.get('is_active', True)}
             _lcnt = {}
             if _bids:
-                for _bid, _c in (s.query(_OSL.bundle_source_url_id, _func.count())
-                                 .filter(_OSL.bundle_source_url_id.in_(_bids))
-                                 .group_by(_OSL.bundle_source_url_id).all()):
+                _q_lcnt = (s.query(_OSL.bundle_source_url_id, _func.count())
+                           .filter(_OSL.bundle_source_url_id.in_(_bids)))
+                if _inactive_skus:
+                    _q_lcnt = _q_lcnt.filter(~_OSL.option_canonical_sku.in_(_inactive_skus))
+                for _bid, _c in _q_lcnt.group_by(_OSL.bundle_source_url_id).all():
                     _lcnt[_bid] = _c
             # [2026-06-19] 카드 '옵션' 성공수 = 셀과 동일 기준(매칭성공+가격>0). 기존엔 URL 성공 시
             #   그 URL 매핑 전수(_links)를 done 으로 가산 → 색/사이즈 매칭실패 옵션까지 흡수해 거짓 100%
             #   (SSG 등). product_url 별 '실제 사용가능' 매핑수로 done 을 집계해 셀(renderSiteCell)과 맞춘다.
             _usable_by_url = {}
-            for _entries in sku_to_sources.values():
+            for _sku2, _entries in sku_to_sources.items():
+                if _sku2 in _inactive_skus:
+                    continue   # 비활성 옵션은 done 집계에서도 제외 (map_try 와 동일 기준)
                 for _e in _entries:
                     if (not _e.get('match_failed')) and ((_e.get('crawled_price') or 0) > 0):
                         _u = _e.get('product_url')
