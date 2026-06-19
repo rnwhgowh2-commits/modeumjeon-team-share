@@ -3284,6 +3284,9 @@
         : null;
       const crawlTxt = _lfUtc ? ('🕒 ' + fmtRelDate(_lfUtc) + ' 크롤') : '🕒 크롤 전';
       const crawlTitle = _lfUtc ? new Date(_lfUtc).toLocaleString('ko-KR') : '아직 크롤 안 함';
+      // [2026-06-19] 신선도 경고 — 마지막 크롤 6시간↑ = 재고/가격 묵음(stale). 빨강+⚠ 로 재크롤 유도(발주 사고 방지).
+      const _crawlAgeH = _lfUtc ? (Date.now() - new Date(_lfUtc).getTime()) / 3600000 : null;
+      const _crawlStale = (_crawlAgeH != null && _crawlAgeH >= 6);
       // [2026-06-19] S1+O1 — 옵션 성공률 + URL 성공률(듀얼바, 단일 진실 source_stats).
       //   색: 100% 초록 / 부분 주황 / 0% 빨강. 카드 클릭 → 옵션·URL 상세(O1) 모달.
       const _sk = (SS[String(s.id)] || {}).source_key || '';
@@ -3300,7 +3303,7 @@
               <div class="dbar-track"><div class="dbar-fill" style="width:${urlPct}%;background:${urlCol}"></div></div></div>
           </div>
           ${hasFail ? `<div class="scell-fail">⚠ ${failUrlCnt ? `URL ${failUrlCnt}개` : ''}${failUrlCnt && failMapCnt ? '·' : ''}${failMapCnt ? `옵션 ${failMapCnt}건` : ''} 실패 · 클릭하여 보기</div>` : (!isWait ? `<div class="scell-ok">옵션 상세 보기 ›</div>` : '')}
-          <div class="crawl-time" title="${crawlTitle}">${crawlTxt}</div>
+          <div class="crawl-time${_crawlStale ? ' stale' : ''}" title="${crawlTitle}${_crawlStale ? ' — 재고 오래됨, 재크롤 권장' : ''}"${_crawlStale ? ' style="color:#E4002B;font-weight:700"' : ''}>${_crawlStale ? '⚠ ' : ''}${crawlTxt}${_crawlStale ? ' (오래됨)' : ''}</div>
         </div>`;
     });
     sideHHtml += '</div>';

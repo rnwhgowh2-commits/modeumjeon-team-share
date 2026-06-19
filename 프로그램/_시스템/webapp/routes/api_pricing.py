@@ -1072,6 +1072,16 @@ def _option_matrix_data(code: str):
                                  .filter(_OSL.bundle_source_url_id.in_(_bids))
                                  .group_by(_OSL.bundle_source_url_id).all()):
                     _lcnt[_bid] = _c
+            # [2026-06-19] 카드 '옵션' 성공수 = 셀과 동일 기준(매칭성공+가격>0). 기존엔 URL 성공 시
+            #   그 URL 매핑 전수(_links)를 done 으로 가산 → 색/사이즈 매칭실패 옵션까지 흡수해 거짓 100%
+            #   (SSG 등). product_url 별 '실제 사용가능' 매핑수로 done 을 집계해 셀(renderSiteCell)과 맞춘다.
+            _usable_by_url = {}
+            for _entries in sku_to_sources.values():
+                for _e in _entries:
+                    if (not _e.get('match_failed')) and ((_e.get('crawled_price') or 0) > 0):
+                        _u = _e.get('product_url')
+                        if _u:
+                            _usable_by_url[_u] = _usable_by_url.get(_u, 0) + 1
             for _b in _bsus:
                 _sk = _b.source_key
                 # [2026-06-12] SSG 딜(dealItemView) = 색상별 단품 URL 로 커버되는 허브.
@@ -1098,13 +1108,15 @@ def _option_matrix_data(code: str):
                 _st['map_try'] += _links
                 if _ok_url:
                     _st['url_done'] += 1
-                    _st['map_done'] += _links
                 else:
                     _st['fail_urls'].append({
                         'id': _b.id, 'label': _b.label or '', 'url': _b.url,
                         'affected': _links,
                         'status': (_rec[1] if _rec else 'not_crawled'),
                     })
+                # [2026-06-19] map_done = '실제 사용가능 매핑수'(셀 기준). URL 이 가격 긁었어도 색/사이즈
+                #   매칭 실패한 옵션은 셀에서 '매칭실패'라 done 에서 제외 → 카드=셀 일치(거짓 100% 제거).
+                _st['map_done'] += _usable_by_url.get(_b.url, 0)
         except Exception:
             source_stats = {}
 

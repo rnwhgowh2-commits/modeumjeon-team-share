@@ -1096,6 +1096,25 @@ async function crawlBundleAllBG(code) {
           }
         }
       }
+      // [2026-06-19 fix ②③] 실패(error) URL 1회 자동 재시도 — 일시 실패(타임아웃·순간차단) 자가치유.
+      //   창이 아직 열린 상태에서 재크롤. 성공 시 srcOuts/results 의 해당 항목을 교체(저장은 ok만).
+      if (!_mgr.stopped && !_mgr.paused) {
+        const _failed = srcOuts.filter((o) => o && o.status === "error");
+        if (_failed.length && tabId != null) {
+          emit("retry", { source: sk, level: "", msg: sk + " 실패 " + _failed.length + "건 자동 재시도", metrics: { concurrency, cap, active, done, total } });
+          for (const _f of _failed) {
+            if (_mgr.stopped || _mgr.paused) break;
+            const _orig = list.find((x) => x.url === _f.url) || { url: _f.url };
+            const _r2 = await withTimeout(crawlItemInTabBG(tabId, code, _orig), UNIT_TIMEOUT_MS);
+            const _out2 = (_r2 && !_r2.__timeout && !_r2.__error && _r2.status === "ok") ? _r2 : null;
+            if (_out2) {
+              const _si = srcOuts.indexOf(_f); if (_si >= 0) srcOuts[_si] = _out2;
+              const _ri = results.indexOf(_f); if (_ri >= 0) results[_ri] = _out2;
+              emit("item-done", { source: sk, level: "", url: _out2.url, name: _out2.product_name || null, surf: (_out2.price != null) ? _out2.price : null, lineId: sk + "|" + _out2.url, msg: sk + " 재시도 성공 — 표면 " + (_out2.price != null ? _out2.price.toLocaleString() + "원" : "가격없음"), metrics: { concurrency, cap, active, done, total } });
+            }
+          }
+        }
+      }
     } finally {
       if (winId != null) { try { await handleCloseWin({ winId: winId }); } catch (_) {} }
     }
