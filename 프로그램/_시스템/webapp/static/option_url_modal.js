@@ -1535,6 +1535,40 @@
       return groups;
     }
 
+    // [2026-06-19 P3] 딜 URL 모델 선택 드롭다운 + 모델 목록 로드
+    function renderModelPicker(u) {
+      const md = (state.urlModelData || {})[u.tempId];
+      const box = function (inner) { return '<div style="margin:2px 0 9px;padding:11px 13px;background:#faf5ff;border:1.5px solid #ddd6fe;border-radius:10px">' + inner + '</div>'; };
+      if (!md || md.loading) return box('<div style="font-size:13px;color:#7c3aed">🧩 묶인 모델 불러오는 중… (상품들 확인, 최대 ~10초)</div>');
+      if (md.error) return box('<div style="font-size:13px;color:#dc2626">모델 해석 실패: ' + esc(String(md.error)) + '</div>');
+      if (md.is_multi === false) return box('<div style="font-size:13px;color:#6B7684">단일상품 URL — 모델 선택 불필요</div>');
+      const matchedId = md.matched ? md.matched.item_id : null;
+      const items = (md.models || []).map(function (m) {
+        const sel = (m.item_id === matchedId);
+        return '<div data-model-pick="' + esc(m.url) + '" data-model-name="' + esc(m.name) + '" style="display:flex;align-items:center;gap:8px;padding:8px 10px;border:1px solid ' + (sel ? '#7c3aed' : '#eceaf5') + ';border-radius:8px;margin:4px 0;cursor:pointer;font-size:12.5px;background:' + (sel ? '#f0e9ff' : '#fff') + '">' +
+          (sel ? '<b style="color:#7c3aed">✓ 추천</b> ' : '') + esc(m.name) + '</div>';
+      }).join('');
+      return box('<div style="font-size:12.5px;font-weight:700;color:#7c3aed;margin-bottom:6px">🧩 이 딜에 묶인 ' + (md.models || []).length + '개 모델 — 우리 모음전에 쓸 모델을 고르면 <b>그 모델만</b> 수집합니다</div>' + items +
+        '<div style="text-align:right;margin-top:6px"><button data-model-close type="button" style="background:#f2f4f6;border:0;border-radius:7px;padding:6px 12px;font-size:12px;cursor:pointer">닫기</button></div>');
+    }
+    async function loadUrlModels(u) {
+      state.urlModelData = state.urlModelData || {};
+      state.urlModelData[u.tempId] = { loading: true };
+      renderRight();
+      try {
+        const target = (window.BUNDLE_CODE || '').replace(/_/g, ' ');
+        const r = await fetch('/api/sources/resolve-deal-models', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ url: u.url, target_model: target })
+        });
+        const j = await r.json();
+        state.urlModelData[u.tempId] = j.ok ? j : { error: (j.error || ('HTTP ' + r.status)) };
+      } catch (e) {
+        state.urlModelData[u.tempId] = { error: String((e && e.message) || e) };
+      }
+      if (state.urlModelPicker === u.tempId) renderRight();
+    }
+
     function renderUrlCard(u, num) {
       const isOpen = state.openUrlId === u.tempId;
       const totalActive = state.selected.size;
@@ -1544,6 +1578,8 @@
       //   실패가 아니므로 빨강 카드/재크롤 대상에서 제외, 안내 배지만 표시.
       const isCovered = u.lastStatus === 'covered';
       const isFail = u.crawled === false && !isCovered;
+      // [2026-06-19 P3] 딜(멀티모델) URL — 모델 배지로 우리 모델만 골라 수집
+      const isDeal = (u.url || '').toLowerCase().includes('dealitemview');
       const statusTxt = u.lastStatus === 'error' ? '응답 오류'
         : (u.lastStatus === 'not_crawled' ? '아직 크롤 안 됨' : (u.lastStatus || '실패'));
 
@@ -1561,13 +1597,15 @@
           <input class="oum-url-input" data-field="url" value="${esc(u.url)}" placeholder="URL 입력">
           ${goBtn}
           <span class="oum-url-cnt ${isFail ? 'fail' : ''}" title="이 URL 에 매핑된 옵션 / 전체 활성 옵션">📌 <b>${mapped}</b>/${totalActive}</span>
+          ${isDeal ? `<button class="oum-url-model" data-url-model type="button" title="이 딜 URL은 여러 모델 묶음 — 우리 모델만 골라 수집" style="background:#ede9fe;color:#7c3aed;border:1px solid #ddd6fe;border-radius:8px;padding:5px 10px;font-size:12.5px;font-weight:700;cursor:pointer;white-space:nowrap">🧩 ${u.modelLabel ? '모델: ' + esc(u.modelLabel) : '모델 선택'} ▾</button>` : ''}
           ${isFail ? `<button class="oum-url-recrawl" data-url-recrawl type="button" title="이 URL 다시 크롤">🔄 재크롤</button>` : ''}
           <button class="oum-url-tog" data-url-tog type="button">${isOpen ? '▾ 닫기' : '▸ 매핑'}</button>
           <button class="oum-url-copy" data-url-copy type="button" title="이 카드 그대로 복사">📋 복사</button>
           <button class="oum-url-del" data-url-del type="button">✕ 삭제</button>
         </div>
         ${isFail ? `<div class="oum-url-failmsg">❌ 크롤 실패 (${esc(statusTxt)}) — 이 URL 의 옵션 <b>${mapped}건</b>은 가격/재고를 못 받았어요. 🔄 재크롤하거나 URL 을 확인하세요.</div>` : ''}
-        ${isCovered ? `<div class="oum-url-covered">📦 딜·기획전 허브 — 색상별 단품 URL로 가격·재고가 커버됩니다. 이 URL은 따로 크롤하지 않아요 (정상).</div>` : ''}`;
+        ${isCovered ? `<div class="oum-url-covered">📦 딜·기획전 허브 — 색상별 단품 URL로 가격·재고가 커버됩니다. 이 URL은 따로 크롤하지 않아요 (정상).</div>` : ''}
+        ${(isDeal && state.urlModelPicker === u.tempId) ? renderModelPicker(u) : ''}`;
 
       if (isOpen) {
         html += `<div class="oum-url-body">${renderUrlBody(u)}</div>`;
@@ -2269,6 +2307,32 @@
         renderRight();
         return;
       }
+      // [2026-06-19 P3] 딜 URL 모델 배지 — 열기/선택/닫기
+      const mBtn = e.target.closest('[data-url-model]');
+      if (mBtn) {
+        const card = mBtn.closest('[data-url-id]');
+        const u = (state.urls[state.currentSrc] || []).find(x => String(x.tempId) === (card && card.dataset.urlId));
+        if (u) {
+          state.urlModelPicker = (state.urlModelPicker === u.tempId) ? null : u.tempId;
+          renderRight();
+          if (state.urlModelPicker === u.tempId && !(state.urlModelData || {})[u.tempId]) loadUrlModels(u);
+        }
+        return;
+      }
+      const mPick = e.target.closest('[data-model-pick]');
+      if (mPick) {
+        const card = mPick.closest('[data-url-id]');
+        const u = (state.urls[state.currentSrc] || []).find(x => String(x.tempId) === (card && card.dataset.urlId));
+        if (u) {
+          u.url = mPick.dataset.modelPick;
+          u.modelLabel = mPick.dataset.modelName;
+          state.urlModelPicker = null;
+          renderRight();
+        }
+        return;
+      }
+      const mClose = e.target.closest('[data-model-close]');
+      if (mClose) { state.urlModelPicker = null; renderRight(); return; }
       // [2026-06-13] 크롤 실패 URL 재크롤 — 실제로 서버사이드 크롤 호출 후 성공/실패 표시.
       //   HTTP 소싱처(ssf·ssg·lemouton·smartstore)=서버 크롤. 무신사·롯데온=브라우저 필요라
       //   서버가 status='need_extension' 반환 → 크롬 확장(MoumExt)으로 크롤 후 결과 저장.
