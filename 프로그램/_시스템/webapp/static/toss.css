@@ -1561,6 +1561,34 @@
 .sm-side-h .srcs-grid .scell .scell-fail { margin-top: 8px; background: #FEE2E2; color: #B91C1C; font-size: 11px; font-weight: 800; border-radius: 6px; padding: 5px 8px; line-height: 1.4; }
 .sm-side-h .srcs-grid .scell.has-fail { cursor: pointer; }
 .sm-side-h .srcs-grid .scell.has-fail:hover { box-shadow: 0 0 0 2px #FCA5A5; }
+/* [2026-06-19] S1+O1 — 정상 카드도 클릭하여 옵션·URL 상세(O1) */
+.sm-side-h .srcs-grid .scell.clickable { cursor: pointer; }
+.sm-side-h .srcs-grid .scell.clickable:not(.has-fail):hover { box-shadow: 0 0 0 2px #BFD8FF; }
+.sm-side-h .srcs-grid .scell .scell-ok { margin-top: 8px; color: #8B95A1; font-size: 11px; font-weight: 700; }
+.sm-side-h .srcs-grid .scell.clickable:hover .scell-ok { color: #3182F6; }
+.sm-side-h .srcs-grid .scell.active { box-shadow: 0 0 0 2px #3182F6; }
+/* [2026-06-19] O1 — 소싱처 카드 클릭 시 펼쳐지는 옵션별 상세(전폭 인라인 표) */
+.sm-side-h .sm-src-detail { margin: 12px 0 4px; background: #fff; border: 1px solid #E5E8EB; border-radius: 10px; overflow: hidden; box-shadow: 0 1px 6px rgba(0,0,0,.06); }
+.sm-side-h .sm-src-detail .ssd-head { display: flex; align-items: center; gap: 8px; padding: 11px 14px; border-bottom: 1px solid #EEF1F4; background: #F9FAFB; }
+.sm-side-h .sm-src-detail .ssd-logo { display: inline-flex; }
+.sm-side-h .sm-src-detail .ssd-logo img, .sm-side-h .sm-src-detail .ssd-logo span { width: 20px; height: 20px; border-radius: 4px; }
+.sm-side-h .sm-src-detail .ssd-title { font-size: 14px; font-weight: 800; color: #191F28; }
+.sm-side-h .sm-src-detail .ssd-sum { margin-left: auto; font-size: 12.5px; color: #6B7684; font-weight: 700; }
+.sm-side-h .sm-src-detail .ssd-edit { border: 1px solid #D1D6DB; background: #fff; color: #4E5968; font-size: 12px; font-weight: 700; padding: 5px 10px; border-radius: 6px; cursor: pointer; font-family: inherit; }
+.sm-side-h .sm-src-detail .ssd-edit:hover { background: #F2F4F6; }
+.sm-side-h .sm-src-detail .ssd-x { border: 0; background: #F2F4F6; color: #6B7684; width: 26px; height: 26px; border-radius: 6px; cursor: pointer; font-size: 14px; line-height: 1; }
+.sm-side-h .sm-src-detail .ssd-table { padding: 4px 14px 12px; max-height: 360px; overflow-y: auto; }
+.sm-side-h .sm-src-detail .ssd-thead { display: grid; grid-template-columns: 1fr 70px 1fr 56px; gap: 12px; padding: 8px 2px 6px; border-bottom: 1px solid #EEF1F4; font-size: 11px; font-weight: 800; color: #8B95A1; position: sticky; top: 0; background: #fff; }
+.sm-side-h .sm-src-detail .ssd-thead span:nth-child(2) { text-align: center; }
+.sm-side-h .sm-src-detail .ssd-thead span:nth-child(4) { text-align: right; }
+.sm-side-h .sm-src-detail .ssd-row { display: grid; grid-template-columns: 1fr 70px 1fr 56px; gap: 12px; align-items: center; padding: 8px 2px; border-bottom: 1px solid #F4F5F7; font-size: 14px; }
+.sm-side-h .sm-src-detail .ssd-row .ssd-nm { font-weight: 600; color: #191F28; }
+.sm-side-h .sm-src-detail .ssd-row.fail .ssd-nm { color: #B91C1C; }
+.sm-side-h .sm-src-detail .ssd-row .ssd-u { text-align: center; color: #6B7684; font-variant-numeric: tabular-nums; }
+.sm-side-h .sm-src-detail .ssd-bar { height: 7px; background: #EAEDF0; border-radius: 4px; overflow: hidden; }
+.sm-side-h .sm-src-detail .ssd-bar i { display: block; height: 100%; border-radius: 4px; }
+.sm-side-h .sm-src-detail .ssd-pct { text-align: right; font-weight: 800; font-variant-numeric: tabular-nums; }
+.sm-side-h .sm-src-detail .ssd-empty { padding: 18px; text-align: center; color: #8B95A1; font-size: 13px; }
 
 /* Winner 카드 — 강조 강화 */
 .sm-side-h .winner-blk {

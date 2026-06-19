@@ -3252,22 +3252,28 @@
         : null;
       const crawlTxt = _lfUtc ? ('🕒 ' + fmtRelDate(_lfUtc) + ' 크롤') : '🕒 크롤 전';
       const crawlTitle = _lfUtc ? new Date(_lfUtc).toLocaleString('ko-KR') : '아직 크롤 안 함';
-      // 실패 시 카드 클릭 → 소싱처 URL 매핑 모달(해당 소싱처 탭) 열림 (data-fail-src).
+      // [2026-06-19] S1+O1 — 옵션 성공률 + URL 성공률(듀얼바, 단일 진실 source_stats).
+      //   색: 100% 초록 / 부분 주황 / 0% 빨강. 카드 클릭 → 옵션·URL 상세(O1) 모달.
+      const _sk = (SS[String(s.id)] || {}).source_key || '';
+      const s1col  = isWait ? '#8B95A1' : (pct    >= 100 ? '#03C75A' : (pct    <= 0 ? '#E4002B' : '#F59E0B'));
+      const urlCol = isWait ? '#8B95A1' : (urlPct >= 100 ? '#03C75A' : (urlPct <= 0 ? '#E4002B' : '#F59E0B'));
       sideHHtml += `
-        <div class="scell ${stateCls}${hasFail ? ' has-fail' : ''}" ${hasFail ? `data-fail-src="${s.id}" data-fail-key="${st.failUrls[0] ? (SS[String(s.id)]||{}).source_key||'' : ''}"` : ''} title="${escapeHtml(s.name)} · URL ${st.urlDone}/${st.urlTry} · 매핑 ${st.mapDone}/${st.mapTry}">
+        <div class="scell ${stateCls}${hasFail ? ' has-fail' : ''}${!isWait ? ' clickable' : ''}" ${!isWait ? `data-src="${s.id}" data-src-key="${_sk}"` : ''} ${hasFail ? `data-fail-src="${s.id}" data-fail-key="${st.failUrls[0] ? _sk : ''}"` : ''} title="${escapeHtml(s.name)} · 옵션 ${st.mapDone}/${st.mapTry} · URL ${st.urlDone}/${st.urlTry}${!isWait ? ' · 클릭하여 옵션 상세' : ''}">
           <div class="top"><span class="site-logo">${brandIconHtml(s.name, 'sm')}</span><span class="nm">${escapeHtml(s.name)}</span></div>
-          <div class="pct">${pctTxt}${!isWait ? '%' : ''}</div>
+          <div class="pct" style="${!isWait ? `color:${s1col}` : ''}">${pctTxt}${!isWait ? '%' : ''}</div>
           <div class="dual-bars">
+            <div class="dbar"><div class="dbar-lab"><span>📦 옵션</span><span>${st.mapDone}/${st.mapTry}</span></div>
+              <div class="dbar-track"><div class="dbar-fill" style="width:${pct}%;background:${s1col}"></div></div></div>
             <div class="dbar"><div class="dbar-lab"><span>🔗 URL</span><span>${st.urlDone}/${st.urlTry}</span></div>
-              <div class="dbar-track"><div class="dbar-fill u" style="width:${urlPct}%"></div></div></div>
-            <div class="dbar"><div class="dbar-lab"><span>📌 매핑</span><span>${st.mapDone}/${st.mapTry}</span></div>
-              <div class="dbar-track"><div class="dbar-fill ${hasFail ? 'bad' : 'm'}" style="width:${pct}%"></div></div></div>
+              <div class="dbar-track"><div class="dbar-fill" style="width:${urlPct}%;background:${urlCol}"></div></div></div>
           </div>
-          ${hasFail ? `<div class="scell-fail">⚠ ${failUrlCnt ? `URL ${failUrlCnt}개` : ''}${failUrlCnt && failMapCnt ? '·' : ''}${failMapCnt ? `매핑 ${failMapCnt}건` : ''} 실패 · 클릭하여 보기</div>` : ''}
+          ${hasFail ? `<div class="scell-fail">⚠ ${failUrlCnt ? `URL ${failUrlCnt}개` : ''}${failUrlCnt && failMapCnt ? '·' : ''}${failMapCnt ? `옵션 ${failMapCnt}건` : ''} 실패 · 클릭하여 보기</div>` : (!isWait ? `<div class="scell-ok">옵션 상세 보기 ›</div>` : '')}
           <div class="crawl-time" title="${crawlTitle}">${crawlTxt}</div>
         </div>`;
     });
     sideHHtml += '</div>';
+    // [2026-06-19] O1 — 소싱처 카드 클릭 시 펼쳐지는 옵션별 상세(전폭) 컨테이너
+    sideHHtml += '<div id="sm-src-detail" class="sm-src-detail" style="display:none"></div>';
     if (winner) {
       sideHHtml += `
         <div class="winner-blk">
@@ -3300,14 +3306,87 @@
     renderPriceMatrix();
   }
 
+  // ─── [2026-06-19] O1 — 소싱처별 옵션 상세(인라인 표) ───
+  //   카드 클릭 → 그리드 아래 전폭으로 해당 소싱처의 옵션별 URL수·크롤 성공률 표시.
+  //   데이터 출처 = option-matrix(셀과 동일 DB). 성공 판정 = 가격>0 AND status!=='error'(백엔드 동일).
+  let _srcDetailOpenId = null;
+  function _o1col(p) { return p >= 100 ? '#03C75A' : (p <= 0 ? '#E4002B' : '#F59E0B'); }
+  function renderSrcDetailO1(sourceId, sourceKey) {
+    const sid = Number(sourceId);
+    const D = window.DATA || {};
+    const src = (D.sources || []).find(s => Number(s.id) === sid) || {};
+    const opts = D.options || [];
+    const rows = [];
+    let tOk = 0, tU = 0, tOptOk = 0, tOpt = 0;
+    opts.forEach(o => {
+      const ents = (o.sources || []).filter(s => Number(s.source_id) === sid && s.product_url);
+      if (!ents.length) return;
+      const u = ents.length;
+      const ok = ents.filter(e => (e.crawled_price > 0) && (e.last_status !== 'error')).length;
+      tU += u; tOk += ok; tOpt += 1; if (ok >= u) tOptOk += 1;
+      const pct = u ? Math.round((ok / u) * 100) : 0;
+      rows.push({ nm: optLabelText(o), u, ok, pct });
+    });
+    rows.sort((a, b) => (a.pct - b.pct) || a.nm.localeCompare(b.nm));  // 실패(낮은%) 먼저
+    const optPct = tOpt ? Math.round((tOptOk / tOpt) * 100) : 0;
+    const urlPctAll = tU ? Math.round((tOk / tU) * 100) : 0;
+    let body = '';
+    if (!rows.length) {
+      body = '<div class="ssd-empty">이 소싱처에 등록된 옵션 URL 이 없습니다.</div>';
+    } else {
+      body = '<div class="ssd-thead"><span>옵션</span><span>URL</span><span>크롤 성공률</span><span>%</span></div>';
+      rows.forEach(r => {
+        const c = _o1col(r.pct);
+        body += `<div class="ssd-row${r.pct < 100 ? ' fail' : ''}">`
+          + `<span class="ssd-nm">${escapeHtml(r.nm)}</span>`
+          + `<span class="ssd-u">${r.u}개</span>`
+          + `<span class="ssd-bar"><i style="width:${r.pct}%;background:${c}"></i></span>`
+          + `<span class="ssd-pct" style="color:${c}">${r.pct}%</span></div>`;
+      });
+    }
+    return `
+      <div class="ssd-head">
+        <span class="ssd-logo">${brandIconHtml(src.name || sourceKey, 'sm')}</span>
+        <span class="ssd-title">${escapeHtml(src.name || sourceKey)} · 옵션별 크롤 상세</span>
+        <span class="ssd-sum">옵션 <b style="color:${_o1col(optPct)}">${tOptOk}/${tOpt}</b> · URL <b style="color:${_o1col(urlPctAll)}">${tOk}/${tU}</b></span>
+        <button type="button" class="ssd-edit" data-ssd-edit="${escapeHtml(sourceKey || '')}">🔧 URL 편집·재크롤</button>
+        <button type="button" class="ssd-x" data-ssd-close>✕</button>
+      </div>
+      <div class="ssd-table">${body}</div>`;
+  }
+  function toggleSrcDetailO1(sourceId, sourceKey) {
+    const el = document.getElementById('sm-src-detail');
+    if (!el) return;
+    const sid = String(sourceId);
+    if (_srcDetailOpenId === sid && el.style.display !== 'none') {
+      el.style.display = 'none'; el.innerHTML = ''; _srcDetailOpenId = null;
+      document.querySelectorAll('.sm-side-h .srcs-grid .scell.active').forEach(c => c.classList.remove('active'));
+      return;
+    }
+    el.innerHTML = renderSrcDetailO1(sourceId, sourceKey);
+    el.style.display = 'block';
+    _srcDetailOpenId = sid;
+    document.querySelectorAll('.sm-side-h .srcs-grid .scell.active').forEach(c => c.classList.remove('active'));
+    const card = document.querySelector(`.sm-side-h .srcs-grid .scell[data-src="${sid}"]`);
+    if (card) card.classList.add('active');
+  }
+
   // ─── 선택·크롤 액션 이벤트 (event delegation, 1회만 바인딩) ───
   document.addEventListener('click', e => {
-    // 0) [2026-06-05] 크롤 실패 소싱처 카드 클릭 → 소싱처 URL 매핑 모달(해당 소싱처 탭·실패 URL 빨강)
-    const failCell = e.target.closest('.scell.has-fail[data-fail-src]');
-    if (failCell) {
+    // O1 상세 패널 내부 버튼 (닫기 / URL 편집)
+    const ssdClose = e.target.closest('[data-ssd-close]');
+    if (ssdClose) { toggleSrcDetailO1(_srcDetailOpenId, null); return; }
+    const ssdEdit = e.target.closest('[data-ssd-edit]');
+    if (ssdEdit) {
       if (typeof window.openOptionUrlModal === 'function') {
-        window.openOptionUrlModal(BUNDLE_CODE, { focusSourceKey: failCell.dataset.failKey || null, scrollToFail: true });
+        window.openOptionUrlModal(BUNDLE_CODE, { focusSourceKey: ssdEdit.dataset.ssdEdit || null, scrollToFail: true });
       }
+      return;
+    }
+    // 0) [2026-06-19] 소싱처 카드 클릭 → 옵션·URL 상세(O1) 인라인 표 토글 (그리드 아래 전폭)
+    const srcCell = e.target.closest('.scell[data-src-key]');
+    if (srcCell) {
+      toggleSrcDetailO1(srcCell.dataset.src, srcCell.dataset.srcKey);
       return;
     }
     // 1) 옵션 행 클릭 → 선택 토글
