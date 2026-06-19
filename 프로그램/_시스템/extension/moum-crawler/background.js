@@ -648,6 +648,10 @@ async function lotteonExtractor() {
           const q = Number(sku && sku.stkQty);
           return (sale && q > 0) ? q : 0;
         };
+        // [2026-06-19 fix #4] 대체상품 가드 — 롯데온은 사이즈가 품절되면 그 옵션 슬롯에 '다른 상품'
+        //   (spdNo 다름·stkQty 999·가격 다름)을 끼워넣는다. 그 상품 재고를 이 사이즈 재고로 오인하면
+        //   '품절인데 재고있음' 사고. 리스팅 진짜 상품 spdNo(=URL의 LO번호)와 다른 SKU → 실제 품절(0).
+        const _realSpd = ((location.pathname.match(/\/product\/(LO[0-9]+)/i) || [])[1] || "").toUpperCase();
         if (sizeOpts.length) {
           for (const c of colorOpts) {
             for (const s of sizeOpts) {
@@ -656,7 +660,8 @@ async function lotteonExtractor() {
               if (!sku) continue;                          // 미존재 조합 제외(거짓충분 방지)
               const size = (s.label || "").replace(/mm/i, "").trim();
               if (!size) continue;
-              options.push({ color: (c.label || "").trim(), size, price: valid ? price : null, stock: skuStock(sku) });
+              const _isSub = _realSpd && sku.spdNo && String(sku.spdNo).toUpperCase() !== _realSpd;
+              options.push({ color: (c.label || "").trim(), size, price: valid ? price : null, stock: _isSub ? 0 : skuStock(sku) });
             }
           }
         } else {

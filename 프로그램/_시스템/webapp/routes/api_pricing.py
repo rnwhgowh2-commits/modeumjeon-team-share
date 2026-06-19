@@ -234,10 +234,11 @@ def _ingest_option_stocks(session, source_product_id, options):
         if single_color:
             targets = by_size.get(sz) or []     # 그 사이즈 전부(중복·옛 다색 행 포함) 교정
         else:
+            # [2026-06-19 fix #4] 다색 상품: (색+사이즈) 정밀 매칭만 한다. 사이즈-단독 폴백 제거 —
+            #   허브(다색 1URL)에 색 구분 없는 행이 사이즈당 1개뿐이면, 9색이 그 한 행을 차례로
+            #   덮어써 색상별 재고가 통째로 뭉개지던(color-blind) 버그. 매칭 행 없으면 아래 else 의
+            #   upsert 가 (색,사이즈) 행을 새로 만들어 색상별로 보존한다.
             t = by_cs.get((_stk_cnorm(_color), sz))
-            if t is None:
-                cands = by_size.get(sz) or []
-                t = cands[0] if len(cands) == 1 else None
             targets = [t] if t is not None else []
         if targets:
             for target in targets:
