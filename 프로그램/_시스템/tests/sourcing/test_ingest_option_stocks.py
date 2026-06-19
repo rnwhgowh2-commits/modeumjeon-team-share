@@ -184,6 +184,29 @@ def test_creates_when_no_existing_options(db):
     assert colors == {"블랙"}
 
 
+def test_revive_soft_deleted_option(db):
+    """[2026-06-19] prune 로 soft-delete 된 (색,사이즈) 행을 재크롤하면, 새 INSERT(유니크
+    제약 uq_source_option_product_color_size 중복키 충돌) 대신 같은 행을 되살려(revive)
+    갱신한다. (SSF 오렌지 UniqueViolation '조용한 실패' = 저장 전체 실패 회귀 방지.)"""
+    from datetime import datetime, timezone
+    sp = upsert_source_product(db, site="ssf",
+                               url="https://www.ssfshop.com/LEMOUTON/GRG_revive/good")
+    db.commit()
+    so = _opt(db, sp.id, "블랙", "260mm", 5)
+    db.commit()
+    # prune 가 soft-delete (이번 크롤에 없던 사이즈)
+    so.deleted_at = datetime.now(timezone.utc)
+    db.commit()
+    # 같은 (색,사이즈) 재크롤 → 충돌 없이 되살림(같은 행)
+    so2 = upsert_source_option(db, source_product_id=sp.id,
+                               color_text="블랙", size_text="260mm", current_stock=12)
+    db.commit()
+    assert so2.id == so.id                 # 새 INSERT 아님 — 같은 행
+    assert so2.deleted_at is None          # 되살림
+    assert so2.current_stock == 12
+    assert db.query(SourceOption).filter_by(source_product_id=sp.id).count() == 1  # 중복 생성 없음
+
+
 def test_empty_or_bad_options_noop(db):
     sp = upsert_source_product(db, site="musinsa", url="https://www.musinsa.com/products/9")
     db.commit()

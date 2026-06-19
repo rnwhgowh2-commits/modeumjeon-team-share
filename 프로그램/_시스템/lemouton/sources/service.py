@@ -127,12 +127,19 @@ def upsert_source_option(
     dynamic_benefits_json: str | None = None,
 ) -> SourceOption:
     """SourceProduct + (color, size) 조합으로 SourceOption upsert."""
+    # [2026-06-19 fix] deleted_at 필터 제거 — 유니크 제약
+    #   uq_source_option_product_color_size 는 (source_product_id, color_text, size_text)
+    #   만 보고 deleted_at 을 무시한다. prune 으로 soft-delete 된 (색,사이즈) 행이 남아 있는데
+    #   deleted_at=None 으로만 조회하면 '없음'으로 보여 새 INSERT → 중복키 충돌(UniqueViolation)
+    #   → 크롤 저장 전체가 IntegrityError 로 실패하던 '조용한 실패'(예: SSF 오렌지). 매치되면
+    #   soft-delete 여부와 무관히 같은 행을 되살려(revive) 갱신한다.
     existing = (session.query(SourceOption)
                 .filter_by(source_product_id=source_product_id,
-                           color_text=color_text, size_text=size_text,
-                           deleted_at=None)
+                           color_text=color_text, size_text=size_text)
                 .first())
     if existing is not None:
+        if getattr(existing, 'deleted_at', None) is not None:
+            existing.deleted_at = None   # soft-delete 행 되살림
         if external_option_id and not existing.external_option_id:
             existing.external_option_id = external_option_id
         if current_price is not None:
