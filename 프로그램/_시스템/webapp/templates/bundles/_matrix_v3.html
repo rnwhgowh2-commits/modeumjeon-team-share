@@ -1852,7 +1852,11 @@
       if (!d || d.type !== 'finish') return;   // 중지(stopped)여도 긁은 것까지 저장됐으므로 갱신
       if (_fxSyncTimer) clearTimeout(_fxSyncTimer);
       _fxSyncTimer = setTimeout(function () {
-        try { if (typeof loadMatrix === 'function') loadMatrix(); } catch (_) {}
+        try {
+          var _p = (typeof loadMatrix === 'function') ? loadMatrix() : null;
+          // [2026-06-19 P4] DB(source_stats) 재로딩 완료 후 위젯에 알림 → 종료요약을 카드와 동일 DB값으로 재렌더
+          if (_p && _p.then) _p.then(function () { try { window.dispatchEvent(new CustomEvent('moum-matrix-refreshed')); } catch (_) {} });
+        } catch (_) {}
       }, 800);
     });
   })();
