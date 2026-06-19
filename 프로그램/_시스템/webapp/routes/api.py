@@ -1945,6 +1945,48 @@ def recrawl_single_url(code: str):
         s.close()
 
 
+@bp.get('/_diag/source-products')
+def diag_source_products():
+    """[2026-06-19 read-only 진단] SourceProduct 정규화/중복 점검.
+
+    SSF 다크네이비 미반영 원인(저장 url 비정규화로 upsert 가 매칭 못 해 중복 행 생성)
+    을 라이브 실측하기 위한 읽기전용 엔드포인트. 데이터 변경 없음.
+    query: ?site=ssf  또는  ?url_like=GRG4241025  (둘 다 선택)
+    """
+    from collections import defaultdict
+    from lemouton.sources.service import normalize_url
+    from lemouton.sources.models import SourceProduct
+    site = (request.args.get('site') or '').strip()
+    like = (request.args.get('url_like') or '').strip()
+    s = SessionLocal()
+    try:
+        q = s.query(SourceProduct)
+        if site:
+            q = q.filter(SourceProduct.site == site)
+        if like:
+            q = q.filter(SourceProduct.url.like('%' + like + '%'))
+        rows = q.all()
+        out = []
+        groups = defaultdict(list)
+        for sp in rows:
+            nu = normalize_url(sp.url or '')
+            groups[nu].append(sp.id)
+            out.append({
+                'id': sp.id, 'site': sp.site,
+                'url_tail': (sp.url or '')[-58:],
+                'norm_tail': (nu or '')[-58:],
+                'is_normalized': (sp.url == nu),
+                'last_status': getattr(sp, 'last_status', None),
+                'last_price': getattr(sp, 'last_price', None),
+                'last_fetched_at': str(getattr(sp, 'last_fetched_at', None))[:19],
+                'deleted': getattr(sp, 'deleted_at', None) is not None,
+            })
+        dupes = {(k or '')[-50:]: v for k, v in groups.items() if len(v) > 1}
+        return _ok(count=len(rows), rows=out, dupe_groups=dupes)
+    finally:
+        s.close()
+
+
 def _build_color_mapping(s, model_code: str, result) -> dict:
     """소싱처 raw color_text → 우리 color_code 매핑 결과 (사용자 검증용).
 
