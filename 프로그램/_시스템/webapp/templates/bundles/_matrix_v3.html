@@ -1323,7 +1323,7 @@
                 return;
               }
               if (st.kind === 'nomatch'){
-                cells += '<td class="cmtx-cell"><span class="cmtx-line"><i class="cmtx-pdot" style="background:#f59e0b"></i><span class="cmtx-p" style="color:#b45309;font-weight:700">매칭 실패</span></span></td>';
+                cells += '<td class="cmtx-cell"><span class="cmtx-line"><i class="cmtx-pdot" style="background:#c4ccd6"></i><span class="cmtx-p" style="color:#94A3B8;font-weight:700;font-size:10px;line-height:1.2">옵션없음<br>혹은 매칭실패</span></span></td>';
                 return;
               }
               if (st.kind === 'fail'){
@@ -5852,7 +5852,7 @@ table.ompk-tab th.corner{color:#b0b8c1;cursor:default}
     // [2026-06-13] 매칭 실패 — 이 소싱처가 이 색/사이즈를 실제로 안 팜(옵션 목록에 없음).
     //   폴백가(상품 대표가) 금지 정책 — 가짜 가격 대신 '매칭 실패' 명시(이상한 값 X).
     if (src.match_failed && (!src.crawled_price || src.crawled_price <= 0)) {
-      return `<td class="td-site-col cf" data-cell-sku="${escapeHtml(o.sku)}" data-cell-src="${s.id}" style="position:relative;text-align:center;line-height:1.4">${_corner}<div style="color:#b45309;font-size:12px;font-weight:700">매칭 실패</div><div style="color:#94A3B8;font-size:10.5px;margin-top:2px">이 사이즈 없음</div></td>`;
+      return `<td class="td-site-col cf" data-cell-sku="${escapeHtml(o.sku)}" data-cell-src="${s.id}" style="position:relative;text-align:center;line-height:1.4" title="이 소싱처 URL 에 이 옵션(색/사이즈)이 없거나 매칭 안 됨 — 선정 제외(폴백 금지)">${_corner}<div style="color:#94A3B8;font-size:12px;font-weight:700">옵션없음 혹은</div><div style="color:#94A3B8;font-size:12px;font-weight:700;margin-top:-1px">매칭실패</div></td>`;
     }
     // 크롤 안됨 (대기 / 진행 중)
     if (!src.crawled_price || src.crawled_price <= 0) {

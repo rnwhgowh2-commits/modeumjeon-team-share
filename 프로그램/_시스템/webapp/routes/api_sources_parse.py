@@ -59,3 +59,36 @@ def parse_source_html():
     except Exception as e:
         return jsonify(ok=False, error="parse_failed", message=str(e)[:200]), 200
     return jsonify(ok=True, **asdict(res))
+
+
+@bp.post("/sources/resolve-deal-models")
+def resolve_deal_models_ep():
+    """[2026-06-19 모델매핑] 멀티모델 딜 URL → 묶인 모델 목록 + 우리 모델 자동매칭.
+
+    body: {url, target_model?} — target_model(예: "메이트") 주면 자동매칭 결과 동봉.
+    Returns: {ok, is_multi, models:[{item_id,name,url}], matched, ambiguous}
+    """
+    body = request.get_json(silent=True) or {}
+    url = body.get("url")
+    target = (body.get("target_model") or "").strip()
+    if not isinstance(url, str) or not url.strip():
+        return jsonify(ok=False, error="url 필요"), 400
+    from lemouton.sourcing.crawlers import build_crawlers
+    from lemouton.sourcing.crawlers.ssg import resolve_deal_models, match_deal_model
+    crawler = build_crawlers().get("ssg")
+    if crawler is None or not hasattr(crawler, "_fetch_html"):
+        return jsonify(ok=False, error="ssg 크롤러 없음"), 400
+    try:
+        html = crawler._fetch_html(url)
+    except Exception as e:
+        return jsonify(ok=False, error=f"딜 페이지 로드 실패: {str(e)[:120]}"), 200
+    # 딜(멀티모델)이 아니면 단일상품 — 매핑 불필요
+    if "uitemObjArr.push" in html:
+        return jsonify(ok=True, is_multi=False, models=[], matched=None, ambiguous=False)
+    try:
+        models = resolve_deal_models(url, html, fetch_html=crawler._fetch_html,
+                                     parse_html=crawler.parse_html)
+    except Exception as e:
+        return jsonify(ok=False, error=f"딜 모델 해석 실패: {str(e)[:120]}"), 200
+    matched, ambiguous = match_deal_model(models, target) if target else (None, False)
+    return jsonify(ok=True, is_multi=True, models=models, matched=matched, ambiguous=ambiguous)

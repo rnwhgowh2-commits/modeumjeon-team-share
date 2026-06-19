@@ -206,14 +206,80 @@ def _resolve_deal_representative_url(product_url: str, html: str) -> Optional[st
     m = DEAL_ITEMVIEW_LINK_RE.search(html)
     if not m:
         return None
-    rep_id = m.group(1)
+    return _item_view_url(product_url, m.group(1))
+
+
+def _item_view_url(product_url: str, item_id: str) -> str:
+    """dealItemView/itemView URL 의 itemId 를 바꿔 단일 itemView URL 생성(쿼리 보존)."""
     parts = urlsplit(product_url)
     query = dict(parse_qsl(parts.query, keep_blank_values=True))
-    query["itemId"] = rep_id
+    query["itemId"] = item_id
     new_path = parts.path.replace("dealItemView.ssg", "itemView.ssg")
     if "itemView.ssg" not in new_path:
         new_path = "/item/itemView.ssg"
     return urlunsplit(parts._replace(path=new_path, query=urlencode(query)))
+
+
+def _model_core(name: str) -> str:
+    """모델 핵심명 — 브랜드/프로모/공통 수식어 제거(메이트·업·메이트 메리제인 등만 남김)."""
+    s = re.sub(r"\[[^\]]*\]", " ", name or "")
+    for w in ("르무통", "발 편한", "발편한", "메리노울", "운동화", "컬러", ",", "·"):
+        s = s.replace(w, " ")
+    return re.sub(r"\s+", " ", s).strip()
+
+
+def resolve_deal_models(product_url: str, html: str, fetch_html=None, parse_html=None) -> list[dict]:
+    """[2026-06-19 모델매핑] 딜(dealItemView) 묶음 → 묶인 '모델' 전체 목록.
+
+    Returns: [{item_id, name, url}] — fetch_html·parse_html 주면 각 itemView 의 정확한
+      product_name 으로 name 을 채운다(모달 표시·모델명 매칭용). 없으면 itemId.
+    """
+    ids: list[str] = []
+    for m in DEAL_ITEMVIEW_LINK_RE.finditer(html):
+        if m.group(1) not in ids:
+            ids.append(m.group(1))
+    out = []
+    for iid in ids:
+        url = _item_view_url(product_url, iid)
+        name = None
+        if fetch_html and parse_html:
+            try:
+                res = parse_html(fetch_html(url), url)
+                name = getattr(res, "product_name_raw", None) or getattr(res, "product_name", None)
+            except Exception:
+                name = None
+        out.append({"item_id": iid, "name": (name or iid), "url": url})
+    return out
+
+
+def match_deal_model(models: list[dict], target_name: str):
+    """묶인 모델들 중 우리 모음전 모델명(target)에 맞는 1개 선정.
+
+    Returns: (matched_dict | None, ambiguous: bool)
+      - 핵심명 토큰셋 동일 = 확정. 첫 토큰만 같고 여러 개 = ambiguous(사용자 확인).
+      - '메이트' vs '메이트 메리제인' 처럼 헷갈리면 ambiguous=True 로 표시.
+    """
+    t = _model_core(target_name).split()
+    if not t:
+        return None, False
+    t0, tset = t[0], set(t)
+    scored = []
+    for m in models:
+        toks = _model_core(m.get("name", "")).split()
+        score = 0
+        if set(toks) == tset:
+            score += 5                       # 정확히 같은 모델
+        if toks and toks[0] == t0:
+            score += 2                       # 첫 토큰(핵심) 일치
+        if t0 in "".join(toks):
+            score += 1
+        scored.append((score, m))
+    scored.sort(key=lambda x: -x[0])
+    best = scored[0]
+    if best[0] <= 0:
+        return None, False
+    ambiguous = len(scored) > 1 and scored[1][0] == best[0]
+    return best[1], ambiguous
 
 # 카드혜택가 — DOM 셀렉터로 추출.
 #   <span class="mndtl_price"><em class="ssg_price">98,767</em> ...</span>

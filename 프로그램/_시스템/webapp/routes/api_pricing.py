@@ -269,24 +269,30 @@ def _ingest_option_stocks(session, source_product_id, options):
 
 
 def _prune_stale_option_sizes(session, source_product_id, options):
-    """이번 크롤에 없는 '사이즈'의 SourceOption 을 soft-delete (확장-push 재크롤 리셋).
+    """이번 크롤에 없는 (색,사이즈)의 SourceOption 을 soft-delete — 사라진/판매중지 옵션 정리.
 
-    색 무관 사이즈 기준 — 단일색 상품의 색-빈값 옵션과 옛 색-지정 행이 안 섞이게.
-    옛 미판매 사이즈(예: SSF 235=6993 잔존)·날조 행 정리. 성공 크롤(옵션 ≥1)만.
+    [2026-06-19 색+사이즈 정밀화 + 부분실패 가드] 4번째 케이스(옵션 자체가 사라짐) 처리:
+      - 이번 크롤에 '그 색이 있었는데' (색,사이즈)가 없으면 → 사라진 옵션 → soft-delete
+        → 매트릭스가 '옵션없음 혹은 매칭실패'로 표시(폴백 금지).
+      - 이번 크롤에 '그 색 자체가 없으면'(부분실패·다른 색만 크롤) → 건드리지 않음(불확실 보존).
+    단일색 상품(색-빈값)은 색='' 로 묶여 기존 '사이즈 기준'과 동일하게 동작.
+    멀티색 1URL(딜 등)에서 특정 색의 사이즈만 사라진 갭을 이걸로 잡는다. 성공 크롤(옵션 ≥1)만.
     Returns: prune 된 수.
     """
     if not isinstance(options, list) or not options:
         return 0
     from lemouton.sources.models import SourceOption
-    new_sizes = set()
+    new_cs, new_colors = set(), set()
     for o in options:
         if not isinstance(o, dict):
             continue
         _c, _s = _opt_color_size(o)
         d = _stk_digits(_s)
         if d:
-            new_sizes.add(d)
-    if not new_sizes:
+            cc = _stk_cnorm(_c)
+            new_cs.add((cc, d))
+            new_colors.add(cc)
+    if not new_cs:
         return 0
     rows = (session.query(SourceOption)
             .filter_by(source_product_id=source_product_id, deleted_at=None).all())
@@ -294,8 +300,15 @@ def _prune_stale_option_sizes(session, source_product_id, options):
     now = _dt.datetime.now(_dt.timezone.utc)
     n = 0
     for so in rows:
-        sz = _stk_digits(so.size_text) or _stk_digits(so.color_text)
-        if sz and sz not in new_sizes:
+        st = (so.size_text or '').strip()
+        sz = _stk_digits(st) or _stk_digits(so.color_text)
+        if not sz:
+            continue
+        # 색 키: size_text·color_text 둘 다 있으면 진짜 색(다색), 아니면 단일색('')
+        cc = _stk_cnorm(so.color_text) if (st and (so.color_text or '').strip()) else ''
+        # 그 색이 이번 크롤에 있었는데 (색,사이즈)가 없으면 = 사라진 옵션 → prune.
+        # 그 색 자체가 이번 크롤에 없으면(부분실패) → 보존(불확실 — 옛값 유지보다 다음 크롤 대기).
+        if cc in new_colors and (cc, sz) not in new_cs:
             so.deleted_at = now
             n += 1
     return n
@@ -1158,6 +1171,74 @@ def get_option_matrix(code: str):
     if not d.get('ok'):
         return _err(d.get('error', '오류'), d.get('status', 400))
     return _ok(**{k: v for k, v in d.items() if k != 'ok'})
+
+
+@bp.post('/bundles/<code>/verify-urls')
+def verify_urls(code: str):
+    """[2026-06-19 P4] URL 크롤링 검증 — 소싱처별 수집·최종매입가·우리옵션 매칭 결과.
+
+    body: {source_ids?: [...]} (생략=전체). 현재 저장된 크롤 데이터 기준(재크롤은 recrawl-url 별도).
+    옵션별 status: ok(매칭·가격) / absent('옵션없음 혹은 매칭실패') / noprice(가격없음·크롤실패).
+    Returns: {sources:[{source_id,name,ok,absent,noprice,min_final,options:[...]}]}
+    """
+    body = request.get_json(silent=True) or {}
+    want = set(body.get('source_ids') or [])
+    d = _option_matrix_data(code)
+    if not d.get('ok'):
+        return _err(d.get('error', '데이터 없음'), d.get('status', 404))
+    rows = d.get('options') or []
+    sname = {x['id']: x['name'] for x in (d.get('sources') or [])}
+    s = SessionLocal()
+    try:
+        from webapp.routes.api_benefits import compute_breakdown, _build_breakdown_cache
+        items = []
+        for o in rows:
+            for src in (o.get('sources') or []):
+                if (src.get('crawled_price') and not src.get('match_failed')
+                        and src.get('source_id') is not None):
+                    items.append({'sku': o['sku'], 'source_id': src['source_id'],
+                                  'sale_price': src['crawled_price']})
+        try:
+            cache = _build_breakdown_cache(s, items)
+        except Exception:
+            cache = None
+        per = {}
+        for o in rows:
+            for src in (o.get('sources') or []):
+                sid = src.get('source_id')
+                if sid is None or (want and sid not in want):
+                    continue
+                e = per.setdefault(sid, {'source_id': sid, 'name': sname.get(sid, '?'),
+                                         'ok': 0, 'absent': 0, 'noprice': 0,
+                                         'min_final': None, 'options': []})
+                if src.get('match_failed'):
+                    status = 'absent'
+                elif not src.get('crawled_price') or src.get('last_status') == 'error':
+                    status = 'noprice'
+                else:
+                    status = 'ok'
+                fin = None
+                if status == 'ok':
+                    try:
+                        fin = (compute_breakdown(s, sku=o['sku'], source_id=int(sid),
+                                                 sale_price=float(src['crawled_price']),
+                                                 _cache=cache) or {}).get('final_price')
+                    except Exception:
+                        fin = None
+                    e['ok'] += 1
+                    if fin and (e['min_final'] is None or fin < e['min_final']):
+                        e['min_final'] = fin
+                else:
+                    e[status] += 1
+                e['options'].append({
+                    'color': o.get('color_display'), 'size': o.get('size_display'),
+                    'stock_label': src.get('stock_label'), 'stock_out': src.get('stock_out'),
+                    'surface': src.get('crawled_price'), 'final': fin, 'status': status,
+                    'product_url': src.get('product_url'),
+                })
+        return _ok(sources=list(per.values()))
+    finally:
+        s.close()
 
 
 # ════════════════════════════════════════════════════════════
