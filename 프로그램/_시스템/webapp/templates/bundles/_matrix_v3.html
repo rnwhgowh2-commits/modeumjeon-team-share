@@ -3348,7 +3348,7 @@
       <div class="ssd-head">
         <span class="ssd-logo">${brandIconHtml(src.name || sourceKey, 'sm')}</span>
         <span class="ssd-title">${escapeHtml(src.name || sourceKey)} · 옵션별 크롤 상세</span>
-        <span class="ssd-sum">옵션 <b style="color:${_o1col(optPct)}">${tOptOk}/${tOpt}</b> · URL <b style="color:${_o1col(urlPctAll)}">${tOk}/${tU}</b></span>
+        <span class="ssd-sum">옵션 성공 <b style="color:${_o1col(optPct)}">${tOptOk}/${tOpt}</b> (${optPct}%)</span>
         <button type="button" class="ssd-edit" data-ssd-edit="${escapeHtml(sourceKey || '')}">🔧 URL 편집·재크롤</button>
         <button type="button" class="ssd-x" data-ssd-close>✕</button>
       </div>
