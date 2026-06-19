@@ -1239,13 +1239,19 @@
         // 재고 상태 판정 (확정값 stock_out / stock_qty 사용) — 소량 기준 4개 이하
         const COLOR = { full:'#10b981', low:'#f59e0b', oos:'#dc2626', miss:'#d1d6db', fail:'#9aa3af' };
         // 매트릭스 셀과 동일한 소싱처 선택 로직(_pickBestSrc 복제) — 같은 칸 = 같은 값 보장
-        function pickBest(list){
+        function pickBest(list, sku){
           if (!list || !list.length) return null;
           const cheapest = arr => arr.reduce((a, b) => ((b.crawled_price || 9e15) < (a.crawled_price || 9e15) ? b : a));
+          // [2026-06-19 fix] 최종매입가 최저 URL 우선(window 헬퍼). 미도착 시 표면가 폴백.
+          const winner = arr => {
+            if (sku == null || !arr.length || typeof window.__cmtxBestUrl !== 'function') return null;
+            const bu = window.__cmtxBestUrl(sku, arr[0].source_id);
+            return bu ? arr.find(s => (s.product_url || '') === bu) : null;
+          };
           const good = list.filter(s => s.product_url && s.last_status !== 'error' && !s.stock_out && s.crawled_price > 0);
-          if (good.length) return cheapest(good);
+          if (good.length) return winner(good) || cheapest(good);
           const priced = list.filter(s => s.product_url && s.crawled_price > 0);
-          if (priced.length) return cheapest(priced);
+          if (priced.length) return winner(priced) || cheapest(priced);
           const withUrl = list.filter(s => s.product_url);
           return withUrl[0] || list[0];
         }
@@ -1310,7 +1316,7 @@
             }
             let cells = '';
             sources.forEach(col => {
-              const src = pickBest((o.sources || []).filter(x => x.source_id === col.id));
+              const src = pickBest((o.sources || []).filter(x => x.source_id === col.id), o.sku);
               const st = cellState(src);
               if (st.kind === 'miss'){
                 cells += '<td class="cmtx-cell"><span class="cmtx-line"><i class="cmtx-pdot" style="background:#d1d6db"></i><span class="cmtx-p miss">미크롤</span></span></td>';
@@ -3072,17 +3078,20 @@
     } catch(err) { alert('오류: ' + err.message); }
   }
 
-  // breakdown 캐시 — { 'sku|src_id': {final_price, steps, ...} }
+  // breakdown 캐시 — { 'sku|src_id': {final_price, steps, ...} }  (src_id 당 = 최종매입가 최저 URL)
   let SM_BREAKDOWNS = {};
+  // [2026-06-19] 소싱처별 '최종매입가 최저' URL — 한 소싱처에 URL 여러개(롯데온 단품+모음전)일 때
+  //   표면가가 아니라 최종매입가(혜택 적용) 기준으로 표시·선정할 winner URL. key='sku|src_id' → product_url.
+  let _BEST_URL_PER_SRC = {};
 
   async function smFetchBreakdowns() {
     const opts = DATA.options || [];
     const items = [];
+    const cidMeta = {};   // cid -> {sku, sid, url}
     opts.forEach(o => {
-      // [2026-06-12] 같은 소싱처(source_id)에 URL 여러개(예: 롯데온 모음전 119,910 + 블랙 149,000)면
-      //   breakdown 결과 키가 'sku|src_id' 라 마지막 항목이 캐시를 덮어써, 셀 매입가(146,773)가
-      //   판매가 라벨·모달(119,910→118,118)과 어긋났다. → 셀 표시와 동일 기준
-      //   (재고존재+크롤성공 중 최저 crawled_price, 전부 제외 시 최저가 폴백)으로 src_id 당 1개만 전송.
+      // [2026-06-19 fix] 같은 소싱처에 URL 여러개(롯데온 단품+모음전)면, 표면가 싼 URL 1개만 계산하던 것을
+      //   '재고있는 모든 URL'을 보내 각각 최종매입가(혜택 적용)를 계산한다. 그 중 최종가 최저 URL을 winner 로
+      //   골라야 '재고있는 것 중 최종매입가 최저'가 정확해진다(표면가 최저 ≠ 최종가 최저일 수 있음).
       const groups = {};
       (o.sources || []).forEach(src => {
         if (!(src.crawled_price && src.crawled_price > 0)) return;
@@ -3090,20 +3099,39 @@
       });
       Object.values(groups).forEach(list => {
         const buyable = list.filter(s => s.last_status !== 'error' && !s.stock_out);
-        const pool = buyable.length ? buyable : list;
-        const pick = pool.reduce((a, b) => (b.crawled_price < a.crawled_price ? b : a));
-        items.push({sku: o.sku, source_id: pick.source_id, sale_price: pick.crawled_price});
+        const pool = buyable.length ? buyable : list;   // 재고있는 URL만(없으면 전체) — 모두 계산
+        pool.forEach(src => {
+          const cid = `${o.sku}|${src.source_id}|${src.product_url || src.crawled_price}`;
+          items.push({sku: o.sku, source_id: src.source_id, sale_price: src.crawled_price, cid});
+          cidMeta[cid] = {sku: o.sku, sid: src.source_id, url: src.product_url || ''};
+        });
       });
     });
-    if (!items.length) { SM_BREAKDOWNS = {}; return; }
+    if (!items.length) { SM_BREAKDOWNS = {}; _BEST_URL_PER_SRC = {}; return; }
     try {
       const r = await fetch('/api/source-benefits/breakdowns', {
         method:'POST', headers:{'Content-Type':'application/json'},
         body: JSON.stringify({items}),
       });
       const j = await r.json();
-      SM_BREAKDOWNS = (j.ok && j.results) ? j.results : {};
-    } catch(e) { SM_BREAKDOWNS = {}; }
+      const perCid = (j.ok && j.results) ? j.results : {};
+      // 소싱처별(sku|sid): 재고있는 URL들 중 '최종매입가(final_price)' 최저를 winner 로.
+      //   final 없는 것(혜택 미수집)은 score=Infinity 로 후순위. SM_BREAKDOWNS 는 winner 의 breakdown 만 보관.
+      const winner = {};   // 'sku|sid' -> {bk, url, score}
+      Object.keys(perCid).forEach(cid => {
+        const m = cidMeta[cid]; if (!m) return;
+        const bd = perCid[cid];
+        const fp = (bd && typeof bd.final_price === 'number') ? bd.final_price : null;
+        const score = (fp == null) ? Infinity : fp;
+        const k = `${m.sku}|${m.sid}`;
+        const cur = winner[k];
+        if (!cur || score < cur.score) winner[k] = {bk: bd, url: m.url, score};
+      });
+      const newBd = {}, bestUrl = {};
+      Object.keys(winner).forEach(k => { newBd[k] = winner[k].bk; bestUrl[k] = winner[k].url; });
+      SM_BREAKDOWNS = newBd;
+      _BEST_URL_PER_SRC = bestUrl;
+    } catch(e) { SM_BREAKDOWNS = {}; _BEST_URL_PER_SRC = {}; }
   }
 
   async function renderSourceMatrix(_bdReady) {
@@ -4731,7 +4759,7 @@ table.ompk-tab th.corner{color:#b0b8c1;cursor:default}
     });
     // 4 사이트 breakdown 병렬 fetch — 표시 셀과 동일한 best URL 기준 (재고존재+최저가)
     const promises = sources.map(s => {
-      const src = _pickBestSrc((opt.sources || []).filter(x => x.source_id === s.id));
+      const src = _pickBestSrc((opt.sources || []).filter(x => x.source_id === s.id), opt.sku);
       const price = (src && src.crawled_price) || 0;
       if (!price) return Promise.resolve({source: s, src, breakdown: null, error: src ? 'no_price' : 'no_url'});
       return fetch(`/api/source-benefits/breakdown/${encodeURIComponent(sku)}/${s.id}?sale_price=${price}`)
@@ -5781,13 +5809,20 @@ table.ompk-tab th.corner{color:#b0b8c1;cursor:default}
   // [2026-06-03 핵심] 한 컬럼(같은 소싱처)에 옵션의 URL 이 여러개일 수 있음.
   //   그 중 대표 1개 선택: ① 크롤성공+재고존재+가격 중 최저가 → ② 가격있는 것 중 최저가(품절 포함)
   //   → ③ URL 있는 것(실패/미실시 표시). cheapest = "재고존재+최저가" 핵심 로직과 일치.
-  function _pickBestSrc(list) {
+  function _pickBestSrc(list, sku) {
     if (!list || !list.length) return null;
     const _cheapest = arr => arr.reduce((a, b) => ((b.crawled_price || 9e15) < (a.crawled_price || 9e15) ? b : a));
+    // [2026-06-19 fix] 한 소싱처에 URL 여러개 → '최종매입가' 최저 URL(_BEST_URL_PER_SRC) 우선 선택.
+    //   smFetchBreakdowns 가 재고있는 모든 URL 의 최종가를 비교해 winner 산정. breakdown 미도착 시 표면가 폴백.
+    const _winner = arr => {
+      if (sku == null || !arr.length) return null;
+      const bu = _BEST_URL_PER_SRC[`${sku}|${arr[0].source_id}`];
+      return bu ? arr.find(s => (s.product_url || '') === bu) : null;
+    };
     const good = list.filter(s => s.product_url && s.last_status !== 'error' && !s.stock_out && s.crawled_price > 0);
-    if (good.length) return _cheapest(good);
+    if (good.length) return _winner(good) || _cheapest(good);
     const priced = list.filter(s => s.product_url && s.crawled_price > 0);
-    if (priced.length) return _cheapest(priced);
+    if (priced.length) return _winner(priced) || _cheapest(priced);
     const withUrl = list.filter(s => s.product_url);
     return withUrl[0] || list[0];
   }
@@ -5799,7 +5834,7 @@ table.ompk-tab th.corner{color:#b0b8c1;cursor:default}
     if (o.is_active === false) {
       return `<td class="td-site-col cn" data-cell-sku="${escapeHtml(o.sku)}" data-cell-src="${s.id}" style="text-align:center; padding:10px 4px; font-size:13px; color:#c4ccd6; font-weight:600; white-space:nowrap;">비활성</td>`;
     }
-    const src = _pickBestSrc((o.sources || []).filter(x => x.source_id === s.id));
+    const src = _pickBestSrc((o.sources || []).filter(x => x.source_id === s.id), o.sku);
     // [2026-05-24] URL 미매핑 — 옵션 조합 생성 모달에서 매핑하므로 여기서는 "—" 표시만
     if (!src || !src.product_url) {
       // [2026-05-25] URL 미매핑 — "크롤링 미실시" 회색 글씨 (CSS ::before 의 ⚠ 는 위에서 제거됨)
@@ -5873,6 +5908,8 @@ table.ompk-tab th.corner{color:#b0b8c1;cursor:default}
     const bk = SM_BREAKDOWNS[`${sku}|${srcId}`];
     return (bk && typeof bk.final_price === 'number') ? bk.final_price : fallback;
   };
+  // [2026-06-19] 소싱처별 최종매입가 최저 URL 조회 헬퍼(다른 스코프의 복제 선택로직용).
+  window.__cmtxBestUrl = function(sku, srcId){ return _BEST_URL_PER_SRC[`${sku}|${srcId}`]; };
   // [2026-06-13] 최종매입가(breakdown final_price) — 도착 시 number, 미도착/실패면 null.
   //   null 이면 팝업이 '혜택 계산중'으로 표시(표면=최종 폴백과 구분).
   window.__cmtxCellFinal = function(sku, srcId){

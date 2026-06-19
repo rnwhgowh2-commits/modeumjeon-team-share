@@ -1003,7 +1003,8 @@ def bulk_breakdowns():
             sp = float(it.get('sale_price') or 0)
             if not sku or sid is None or sp <= 0:
                 continue
-            key = f"{sku}|{sid}"
+            # [2026-06-19] cid 있으면 그 키로(같은 소싱처 여러 URL 을 URL별 구분). 없으면 기존 키(하위호환).
+            key = it.get('cid') or f"{sku}|{sid}"
             try:
                 out[key] = compute_breakdown(s, sku=sku, source_id=int(sid),
                                              sale_price=sp, _cache=cache)
