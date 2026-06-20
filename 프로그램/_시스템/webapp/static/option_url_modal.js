@@ -1501,32 +1501,40 @@
       const vc = state.vcrawl;
       if (!vc) return '';
       const pct = vc.total ? Math.round(vc.done / vc.total * 100) : 0;
-      const card = 'display:flex;align-items:center;gap:10px;border-radius:10px;padding:8px 12px';
-      const bGh = 'background:#fff;color:#4E5968;border:1px solid #D1D6DB;border-radius:7px;padding:4px 9px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap';
-      const bStop = 'background:#fff;color:#DC2626;border:1px solid #F2C0C0;border-radius:7px;padding:4px 9px;font-size:12px;font-weight:700;cursor:pointer';
-      const bGo = 'background:#16A34A;color:#fff;border:0;border-radius:7px;padding:4px 9px;font-size:12px;font-weight:700;cursor:pointer';
-      const bP = 'background:#7C3AED;color:#fff;border:0;border-radius:7px;padding:4px 11px;font-size:12px;font-weight:700;cursor:pointer';
+      const card = 'display:flex;align-items:center;gap:10px;border-radius:10px;padding:8px 12px;overflow:hidden';
+      const ic = 'border-radius:7px;padding:5px 9px;font-size:13px;font-weight:800;cursor:pointer;flex:none;line-height:1';
+      const bGh = ic + ';background:#fff;color:#4E5968;border:1px solid #D1D6DB';
+      const bStop = ic + ';background:#fff;color:#DC2626;border:1px solid #F2C0C0';
+      const bGo = ic + ';background:#16A34A;color:#fff;border:0';
+      const bP = ic + ';background:#7C3AED;color:#fff;border:0;padding:5px 12px';
       if (vc.running && !vc.paused) {
         return '<div style="' + card + ';background:#F4F0FF;border:1px solid #E2D6FB">' + _vDonut(pct, '#1B64DA') +
-          '<div style="flex:1;min-width:0"><div style="font-size:13px;font-weight:800;color:#5B2BC4">검증 재크롤 ' + pct + '%</div><div style="font-size:12px;color:#8B95A1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + vc.done + '/' + vc.total + (vc.cur ? ' · ' + esc(String(vc.cur)) : '') + '</div></div>' +
-          '<button data-vc-pause style="' + bGh + '">⏸ 일시중지</button><button data-vc-stop style="' + bStop + '">■ 중지</button></div>';
+          '<div style="flex:1;min-width:0"><div style="font-size:14px;font-weight:800;color:#5B2BC4">검증 재크롤 ' + pct + '%</div><div style="font-size:12px;color:#8B95A1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + vc.done + '/' + vc.total + (vc.cur ? ' · ' + esc(String(vc.cur)) : '') + '</div></div>' +
+          '<button data-vc-pause title="일시중지" style="' + bGh + '">⏸</button><button data-vc-stop title="중지" style="' + bStop + '">■</button></div>';
       } else if (vc.running && vc.paused) {
         return '<div style="' + card + ';background:#FFFBF2;border:1px solid #F0DDB0">' + _vDonut(pct, '#C9A14A') +
-          '<div style="flex:1;min-width:0"><div style="font-size:13px;font-weight:800;color:#A66A00">일시정지됨 ' + pct + '%</div><div style="font-size:12px;color:#8B95A1">' + vc.done + '/' + vc.total + ' · 멈춤</div></div>' +
-          '<button data-vc-resume style="' + bGo + '">▶ 시작</button><button data-vc-stop style="' + bStop + '">■ 중지</button></div>';
+          '<div style="flex:1;min-width:0"><div style="font-size:14px;font-weight:800;color:#A66A00">일시정지됨 ' + pct + '%</div><div style="font-size:12px;color:#8B95A1">' + vc.done + '/' + vc.total + ' · 멈춤</div></div>' +
+          '<button data-vc-resume title="시작" style="' + bGo + '">▶</button><button data-vc-stop title="중지" style="' + bStop + '">■</button></div>';
       }
       const stopped = vc.stopped;
       return '<div style="' + card + ';background:' + (stopped ? '#FFF6F6;border:1px solid #F2C0C0' : '#F4FBF6;border:1px solid #BfE3C9') + '">' +
-        '<span style="font-size:20px;font-weight:900;color:' + (stopped ? '#DC2626' : '#16A34A') + '">' + (stopped ? '■' : '✓') + '</span>' +
-        '<div style="flex:1;min-width:0"><div style="font-size:13px;font-weight:800;color:' + (stopped ? '#B23B3B' : '#1A7F37') + '">' + (stopped ? '재크롤 중지됨' : '검증 재크롤 완료') + '</div>' +
-        '<div style="font-size:12px;color:#8B95A1">성공 ' + vc.ok + ' · 실패 ' + vc.fail + (vc.ext ? ' · 확장필요 ' + vc.ext : '') + '</div></div>' +
-        '<button data-vc-close style="' + bP + '">닫기</button></div>';
+        '<span style="font-size:20px;font-weight:900;color:' + (stopped ? '#DC2626' : '#16A34A') + ';flex:none">' + (stopped ? '■' : '✓') + '</span>' +
+        '<div style="flex:1;min-width:0"><div style="font-size:14px;font-weight:800;color:' + (stopped ? '#B23B3B' : '#1A7F37') + '">' + (stopped ? '재크롤 중지됨' : '검증 재크롤 완료') + '</div>' +
+        '<div style="font-size:12px;color:#8B95A1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">성공 ' + vc.ok + ' · 실패 ' + vc.fail + (vc.ext ? ' · 확장필요 ' + vc.ext : '') + '</div></div>' +
+        '<button data-vc-close title="닫기" style="' + bP + '">닫기</button></div>';
     }
     function renderVcrawlToast() {
       const el = document.getElementById('v-recrawl-card');
       if (!el) return;  // 검증 탭 카드 슬롯이 없으면(다른 탭) 갱신 생략 — 크롤은 계속
       el.style.display = state.vcrawl ? '' : 'none';
       el.innerHTML = _vcrawlCardHtml();
+      // 카드 폭 = 버튼 행 폭(왼쪽=선택재검증 좌측라인, 오른쪽=전체재검증 우측라인 정렬)
+      if (state.vcrawl) {
+        const row = el.nextElementSibling;  // 버튼 행
+        if (row) el.style.width = row.offsetWidth + 'px';
+      } else {
+        el.style.width = '';
+      }
     }
     async function startVerifyRecrawl(urls, label) {
       urls = (urls || []).filter(function (u) { return u && u.product_url; });
@@ -1616,6 +1624,7 @@
       if (state.rightTab === 'verify') {
         html += renderVerifyPanel();
         right.innerHTML = html;
+        if (state.vcrawl) renderVcrawlToast();  // 카드 폭=버튼 행 동기화
         if (!state.verifyData && !state.verifyLoading) loadVerifyData();
         return;
       }
