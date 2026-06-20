@@ -152,6 +152,9 @@ def _apply_lightweight_migrations() -> None:
         ("options", "offline_only", "BOOLEAN DEFAULT 0 NOT NULL"),
         # 2026-05-24: BundleSourceUrl 라벨 (URL 구분용 — "통합 모음전" / "단품 - 그레이")
         ("bundle_source_urls", "label", "VARCHAR(120)"),
+        # 2026-06-20: URL 유형 사전지정 (dan=단품 / mo=색상 모음전 / deal=모델 모음전).
+        #   검증이 추정(딜URL·색수) 대신 이 값을 우선 사용. NULL=미지정→추정 fallback.
+        ("bundle_source_urls", "url_type", "VARCHAR(8)"),
         # 2026-05-25: 판매가 정책 (색상 통일 / 옵션별 cheapest) — A2+D3 시안 적용
         ("price_templates", "pricing_policy", "VARCHAR(16) DEFAULT 'cheapest'"),
         # 2026-05-25: 매입가 산정 우선순위 (V5 시안 — 사입 카드 0원 차단)

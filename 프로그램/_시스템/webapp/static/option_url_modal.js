@@ -722,6 +722,7 @@
               dbId: u.id,
               label: u.label || '',
               url: u.url || '',
+              url_type: u.url_type || '',
               // [2026-06-05] 크롤 상태 — 실패 URL 빨강·재크롤 표시용 (신규 추가 URL은 undefined)
               crawled: u.crawled,
               lastStatus: u.last_status || null,
@@ -1294,9 +1295,10 @@
     // ─── [2026-06-19 P4] URL 크롤링 검증 탭 — 소싱처별 수집·최종매입가·매칭 ───
     // [2026-06-20 재설계] 트리(소싱처▸URL) + 상세(2단·4케이스) + 배너(스택바·전체분류) + 실패정산.
     function _vTypeBadge(t) {
-      var b = 'font-size:10px;font-weight:800;border-radius:5px;padding:1px 0;text-align:center;display:inline-block;width:46px';
-      if (t === 'deal') return '<span style="' + b + ';background:#FFE9EC;color:#D6334B">딜</span>';
-      if (t === 'mo') return '<span style="' + b + ';background:#EEE9FF;color:#6B3FD4">모음전</span>';
+      // [2026-06-20 명칭변경] 단품 / 색상 모음전(mo) / 모델 모음전(deal)
+      var b = 'font-size:10px;font-weight:800;border-radius:5px;padding:1px 4px;text-align:center;display:inline-block;width:72px;white-space:nowrap';
+      if (t === 'deal') return '<span style="' + b + ';background:#FFE9EC;color:#D6334B">모델 모음전</span>';
+      if (t === 'mo') return '<span style="' + b + ';background:#EEE9FF;color:#6B3FD4">색상 모음전</span>';
       return '<span style="' + b + ';background:#E3F1FF;color:#1B64DA">단품</span>';
     }
     function _vStatusMeta(st, stock_out) {
@@ -1354,13 +1356,33 @@
         // ── 실패 정산 (분류 그룹 2열) ──
         let failPanel = '';
         if (state.verifyFailOpen) {
-          const fu = fd.urls || [];
-          const _flink = function (x) {
-            return '<div style="display:flex;align-items:center;gap:8px;padding:8px 12px;border-bottom:1px solid #F2F4F6;font-size:12px">' +
-              '<a href="' + esc(x.product_url || '#') + '" target="_blank" rel="noopener" title="URL 직접 확인" style="font-weight:600;color:#191F28;text-decoration:none;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + esc(x.product_name || x.source_name || '(이름없음)') + (x.crawl_error ? ' <span style="color:#D6334B;font-weight:800">·크롤실패</span>' : '') + '</a>';
+          // [2026-06-20] 소싱처 배지(고정폭 정렬) + 숫자 클릭 시 해당 옵션 인라인 펼침
+          if (!state.verifyFailExpand) state.verifyFailExpand = {};
+          const _failCol = function (urls, key) {
+            const numColor = key === 'absent' ? '#94A3B8' : '#DC2626';
+            const rows = urls.map(function (u) {
+              const cnt = key === 'absent' ? u.absent : u.noprice;
+              if (!cnt) return '';
+              const ekey = (u.product_url || '') + '|' + key;
+              const expanded = !!state.verifyFailExpand[ekey];
+              let chips = '';
+              if (expanded) {
+                const opts = (u.options || []).filter(function (o) { return o.status === key; });
+                const shown = opts.slice(0, 80).map(function (o) {
+                  return '<span style="display:inline-block;font-size:11px;font-weight:700;background:#EEF1F5;color:#5B6573;border-radius:6px;padding:3px 9px;margin:2px">' + esc((o.color || '') + ' ' + (o.size == null ? '' : o.size)) + '</span>';
+                }).join('');
+                const more = opts.length > 80 ? '<span style="font-size:11px;color:#8B95A1;margin-left:4px">+' + (opts.length - 80) + '</span>' : '';
+                chips = '<div style="padding:2px 12px 10px;background:#FAFBFC">' + shown + more + '</div>';
+              }
+              return '<div style="display:grid;grid-template-columns:56px 1fr 44px;gap:8px;align-items:center;padding:9px 12px;border-bottom:1px solid #F2F4F6;font-size:12px">' +
+                '<span style="font-size:10px;font-weight:800;border-radius:5px;padding:2px 4px;text-align:center;background:#EAF1FB;color:#1B64DA;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + esc(u.source_name || '') + '">' + esc(u.source_name || '?') + '</span>' +
+                '<a href="' + esc(u.product_url || '#') + '" target="_blank" rel="noopener" title="URL 직접 확인" style="font-weight:600;color:#191F28;text-decoration:none;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:left">' + esc(u.product_name || '(이름없음)') + (u.crawl_error ? ' <span style="color:#D6334B;font-weight:800">·크롤실패</span>' : '') + '</a>' +
+                '<span data-fail-exp="' + esc(ekey) + '" style="text-align:right;font-weight:800;color:' + numColor + ';cursor:pointer;text-decoration:underline">' + cnt + (expanded ? ' ▾' : ' ▸') + '</span></div>' + chips;
+            }).join('');
+            return rows || '<div style="padding:10px 12px;color:#C0C6CE;font-size:12px">없음</div>';
           };
-          const absRows = fu.filter(function (x) { return x.absent; }).map(function (x) { return _flink(x) + '<span style="margin-left:auto;font-weight:800;color:#94A3B8">' + x.absent + '</span></div>'; }).join('') || '<div style="padding:10px 12px;color:#C0C6CE;font-size:12px">없음</div>';
-          const noRows = fu.filter(function (x) { return x.noprice; }).map(function (x) { return _flink(x) + '<span style="margin-left:auto;font-weight:800;color:#DC2626">' + x.noprice + '</span></div>'; }).join('') || '<div style="padding:10px 12px;color:#C0C6CE;font-size:12px">없음</div>';
+          const absRows = _failCol(allUrls.filter(function (u) { return u.absent; }).sort(function (a, b) { return b.absent - a.absent; }), 'absent');
+          const noRows = _failCol(allUrls.filter(function (u) { return u.noprice; }).sort(function (a, b) { return b.noprice - a.noprice; }), 'noprice');
           failPanel =
             '<div style="border:1px solid #F0D7D7;background:#FFFAFA;border-radius:12px;padding:14px 16px;margin-bottom:14px">' +
               '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">' +
@@ -1368,7 +1390,7 @@
                   '<div style="padding:9px 12px;font-weight:800;font-size:12px;background:#F4F6F8;display:flex;align-items:center;gap:7px;border-bottom:1px solid #EAEDF1"><span style="width:8px;height:8px;border-radius:50%;background:#94A3B8;display:inline-block"></span>옵션없음 or 매핑실패<span style="margin-left:auto;color:#94A3B8">' + (fd.absent_total || 0) + '</span></div>' + absRows + '</div>' +
                 '<div style="border:1px solid #EAEDF1;border-radius:10px;overflow:hidden">' +
                   '<div style="padding:9px 12px;font-weight:800;font-size:12px;background:#FFF4F4;color:#B23B3B;display:flex;align-items:center;gap:7px;border-bottom:1px solid #EAEDF1"><span style="width:8px;height:8px;border-radius:50%;background:#DC2626;display:inline-block"></span>가격없음<span style="margin-left:auto;color:#DC2626">' + (fd.noprice_total || 0) + '</span></div>' + noRows + '</div>' +
-              '</div><div style="margin-top:8px;font-size:11px;color:#16A34A;font-weight:700">✓ 옵션없음 ' + (fd.absent_total || 0) + ' + 가격없음 ' + (fd.noprice_total || 0) + ' = 검증결과 합계와 일치 · 상품명 클릭 = URL 직접 확인</div></div>';
+              '</div><div style="margin-top:8px;font-size:11px;color:#16A34A;font-weight:700">✓ 옵션없음 ' + (fd.absent_total || 0) + ' + 가격없음 ' + (fd.noprice_total || 0) + ' = 검증결과 합계와 일치 · 상품명 클릭 = URL 직접 확인 · 숫자 클릭 = 옵션 펼침</div></div>';
         }
 
         // ── 트리 ──
@@ -1380,7 +1402,7 @@
             const cntColor = (u.crawl_error || u.noprice) ? '#DC2626' : (u.absent ? '#94A3B8' : '#16A34A');
             const cntTxt = u.crawl_error ? '실패' : ('✓' + u.matched);
             const need = u.is_deal ? '<span style="font-size:10px;font-weight:800;border-radius:5px;padding:1px 6px;background:#FFF1D6;color:#A66A00">🧩 모델</span>' : '';
-            tree += '<div data-vurl="' + esc(u.product_url) + '" style="display:grid;grid-template-columns:18px 46px 1fr auto;align-items:center;gap:8px;padding:8px;border-radius:7px;cursor:pointer;' + (on ? 'background:#E8F1FF' : '') + '">' +
+            tree += '<div data-vurl="' + esc(u.product_url) + '" style="display:grid;grid-template-columns:18px 72px 1fr auto;align-items:center;gap:8px;padding:8px;border-radius:7px;cursor:pointer;' + (on ? 'background:#E8F1FF' : '') + '">' +
               '<input type="checkbox" data-vcheck="' + esc(u.product_url) + '" ' + (state.verifyChecks[u.product_url] ? 'checked' : '') + ' style="width:15px;height:15px;accent-color:#1B64DA">' +
               _vTypeBadge(u.type) +
               '<span style="font-size:16px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:left">' + esc(u.product_name || '(이름없음)') + '</span>' +
@@ -1393,7 +1415,7 @@
         if (!sel) {
           detail = '<div style="padding:34px;text-align:center;color:#8B95A1;font-size:14px">좌측에서 URL을 선택하세요</div>';
         } else {
-          const tyName = sel.type === 'mo' ? '모음전' : (sel.type === 'deal' ? '딜' : '단품');
+          const tyName = sel.type === 'mo' ? '색상 모음전' : (sel.type === 'deal' ? '모델 모음전' : '단품');
           const optRows = (sel.options || []).slice(0, 400).map(function (o) {
             const m = _vStatusMeta(o.status, o.stock_out);
             const blank = (o.status === 'absent');
@@ -1446,6 +1468,111 @@
       }
       state.verifyLoading = false;
       if (state.rightTab === 'verify') renderRight();
+    }
+
+    // ─── [2026-06-20] 재검증 = 실제 재크롤 + 미니 토스트(일시중지/중지/시작) ───
+    function _vUrlSourceKey(url) {
+      const u = (url || '').toLowerCase();
+      if (u.includes('smartstore.naver') || u.includes('naver.com')) return 'ss_lemouton';
+      if (u.includes('lemouton')) return 'lemouton';
+      if (u.includes('musinsa')) return 'musinsa';
+      if (u.includes('ssfshop')) return 'ssf';
+      if (u.includes('lotteon')) return 'lotteon';
+      if (u.includes('ssg.com')) return 'ssg';
+      return null;
+    }
+    function _vAllUrls() {
+      const d = state.verifyData;
+      if (!d || !d.sources) return [];
+      const out = [];
+      d.sources.forEach(function (ps) { (ps.urls || []).forEach(function (u) { out.push(u); }); });
+      return out;
+    }
+    function _vDonut(pct, color) {
+      return '<svg width="30" height="30" viewBox="0 0 36 36"><circle cx="18" cy="18" r="15" fill="none" stroke="#EEF1F5" stroke-width="5"/>' +
+        '<circle cx="18" cy="18" r="15" fill="none" stroke="' + color + '" stroke-width="5" pathLength="100" stroke-dasharray="' + pct + ' 100" stroke-linecap="round" transform="rotate(-90 18 18)"/></svg>';
+    }
+    function renderVcrawlToast() {
+      const vc = state.vcrawl;
+      let el = document.getElementById('v-recrawl-toast');
+      if (!vc) { if (el) el.remove(); return; }
+      if (!el) {
+        el = document.createElement('div');
+        el.id = 'v-recrawl-toast';
+        el.style.cssText = 'position:fixed;right:22px;bottom:22px;z-index:99999';
+        document.body.appendChild(el);
+      }
+      const pct = vc.total ? Math.round(vc.done / vc.total * 100) : 0;
+      const base = 'display:inline-flex;align-items:center;gap:10px;border-radius:99px;padding:8px 14px 8px 10px;box-shadow:0 6px 18px rgba(0,0,0,.16)';
+      const bGh = 'background:#fff;color:#4E5968;border:1px solid #D1D6DB;border-radius:8px;padding:4px 9px;font-size:12px;font-weight:700;cursor:pointer';
+      const bStop = 'background:#fff;color:#DC2626;border:1px solid #F2C0C0;border-radius:8px;padding:4px 9px;font-size:12px;font-weight:700;cursor:pointer';
+      const bGo = 'background:#16A34A;color:#fff;border:0;border-radius:8px;padding:4px 9px;font-size:12px;font-weight:700;cursor:pointer';
+      const bP = 'background:#7C3AED;color:#fff;border:0;border-radius:8px;padding:4px 10px;font-size:12px;font-weight:700;cursor:pointer';
+      let inner;
+      if (vc.running && !vc.paused) {
+        inner = '<div style="' + base + ';background:#fff;border:1px solid #E1E5EA">' + _vDonut(pct, '#1B64DA') +
+          '<div><div style="font-size:12px;font-weight:800">검증 재크롤 ' + pct + '%</div><div style="font-size:11px;color:#8B95A1">' + vc.done + '/' + vc.total + (vc.cur ? ' · ' + esc(String(vc.cur)).slice(0, 18) : '') + '</div></div>' +
+          '<button data-vc-pause style="' + bGh + '">⏸ 일시중지</button><button data-vc-stop style="' + bStop + '">■ 중지</button></div>';
+      } else if (vc.running && vc.paused) {
+        inner = '<div style="' + base + ';background:#FFFBF2;border:1px solid #F0DDB0">' + _vDonut(pct, '#C9A14A') +
+          '<div><div style="font-size:12px;font-weight:800;color:#A66A00">일시정지됨 ' + pct + '%</div><div style="font-size:11px;color:#8B95A1">' + vc.done + '/' + vc.total + ' · 멈춤</div></div>' +
+          '<button data-vc-resume style="' + bGo + '">▶ 시작</button><button data-vc-stop style="' + bStop + '">■ 중지</button></div>';
+      } else {
+        const stopped = vc.stopped;
+        inner = '<div style="' + base + ';background:' + (stopped ? '#FFF6F6;border:1px solid #F2C0C0' : '#F4FBF6;border:1px solid #BfE3C9') + '">' +
+          '<span style="font-size:18px;font-weight:900;color:' + (stopped ? '#DC2626' : '#16A34A') + '">' + (stopped ? '■' : '✓') + '</span>' +
+          '<div><div style="font-size:12px;font-weight:800;color:' + (stopped ? '#B23B3B' : '#1A7F37') + '">' + (stopped ? '재크롤 중지됨' : '검증 재크롤 완료') + '</div>' +
+          '<div style="font-size:11px;color:#8B95A1">성공 ' + vc.ok + ' · 실패 ' + vc.fail + (vc.ext ? ' · 확장필요 ' + vc.ext : '') + '</div></div>' +
+          '<button data-vc-close style="' + bP + '">닫기</button></div>';
+      }
+      el.innerHTML = inner;
+    }
+    async function startVerifyRecrawl(urls, label) {
+      urls = (urls || []).filter(function (u) { return u && u.product_url; });
+      if (!urls.length) { alert('재크롤할 URL이 없습니다.'); return; }
+      if (state.vcrawl && state.vcrawl.running) return;  // 이미 진행 중
+      state.vcrawl = { running: true, paused: false, stopped: false, total: urls.length, done: 0, ok: 0, fail: 0, ext: 0, label: label || '', cur: '' };
+      renderVcrawlToast();
+      const code = window.BUNDLE_CODE || window.currentBundleCode || '';
+      for (let i = 0; i < urls.length; i++) {
+        if (state.vcrawl.stopped) break;
+        while (state.vcrawl.paused && !state.vcrawl.stopped) { await new Promise(function (r) { setTimeout(r, 300); }); }
+        if (state.vcrawl.stopped) break;
+        const u = urls[i];
+        const sk = _vUrlSourceKey(u.product_url);
+        state.vcrawl.cur = u.product_name || u.source_name || '';
+        renderVcrawlToast();
+        if (!sk) { state.vcrawl.fail++; state.vcrawl.done++; renderVcrawlToast(); continue; }
+        try {
+          const r = await fetch('/api/bundles/' + encodeURIComponent(code) + '/recrawl-url',
+            { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ source_key: sk, url: u.product_url }) });
+          const j = await r.json();
+          if (j && j.status === 'need_extension') state.vcrawl.ext++;
+          else if (j && j.crawl_ok) state.vcrawl.ok++;
+          else state.vcrawl.fail++;
+        } catch (e) { state.vcrawl.fail++; }
+        state.vcrawl.done++;
+        renderVcrawlToast();
+      }
+      const wasStopped = state.vcrawl.stopped;
+      state.vcrawl.running = false;
+      renderVcrawlToast();
+      // 결과 반영 — 검증 데이터 재계산 (중지 시에도 부분 결과 갱신)
+      state.verifyData = null;
+      if (state.rightTab === 'verify') renderRight();
+      loadVerifyData();
+    }
+    // 토스트 제어(일시중지/시작/중지/닫기) — 1회 위임 바인딩
+    if (!window.__vcToastBound) {
+      window.__vcToastBound = true;
+      document.addEventListener('click', function (ev) {
+        const vc = state.vcrawl;
+        if (!vc) return;
+        if (ev.target.closest('[data-vc-pause]')) { vc.paused = true; renderVcrawlToast(); }
+        else if (ev.target.closest('[data-vc-resume]')) { vc.paused = false; renderVcrawlToast(); }
+        else if (ev.target.closest('[data-vc-stop]')) { vc.stopped = true; renderVcrawlToast(); }
+        else if (ev.target.closest('[data-vc-close]')) { state.vcrawl = null; renderVcrawlToast(); }
+      });
     }
 
     // ─── 우측 렌더 (시안 v3 C3 — 2탭 분기) ───
@@ -1678,6 +1805,13 @@
       const isFail = u.crawled === false && !isCovered;
       // [2026-06-19 P3] 딜(멀티모델) URL — 모델 배지로 우리 모델만 골라 수집
       const isDeal = (u.url || '').toLowerCase().includes('dealitemview');
+      // [2026-06-20] 유형 사전지정 — dan/mo/deal. 지정값 우선, 미지정이면 딜 URL 추정.
+      const _ut = u.url_type || '';
+      const showModel = _ut ? (_ut === 'deal') : isDeal;  // 모델 모음전일 때만 모델 선택 노출
+      const _segCss = 'border:0;background:#fff;padding:5px 8px;font-size:11px;font-weight:800;color:#8B95A1;cursor:pointer;border-right:1px solid #EEF1F5';
+      const _onCol = { dan: '#1B64DA', mo: '#6B3FD4', deal: '#D6334B' };
+      const _seg = (v, lbl) => `<button data-url-type="${v}" type="button" style="${_segCss}${_ut === v ? ';background:' + _onCol[v] + ';color:#fff' : ''}">${lbl}</button>`;
+      const tySeg = `<span class="oum-url-tyseg" title="유형: 단품 / 색상 모음전 / 모델 모음전 (지정 시 검증이 이 값 사용)" style="display:inline-flex;border:1px solid #DDE2E6;border-radius:8px;overflow:hidden;flex:none">${_seg('dan', '단품')}${_seg('mo', '색상')}${_seg('deal', '모델')}</span>`;
       const statusTxt = u.lastStatus === 'error' ? '응답 오류'
         : (u.lastStatus === 'not_crawled' ? '아직 크롤 안 됨' : (u.lastStatus || '실패'));
 
@@ -1689,13 +1823,14 @@
       //   복사 ⎘ 버튼은 유지 (시안 v8 선택 후 디자인 교체 예정)
       let html = `<div class="oum-url-card ${isOpen ? 'open' : ''}${isFail ? ' crawl-fail' : ''}${isCovered ? ' crawl-covered' : ''}" data-url-id="${u.tempId}" draggable="true">
         <div class="oum-url-ch">
+          ${tySeg}
           <span class="oum-url-drag" title="드래그해서 순서 변경" data-url-drag>⋮⋮</span>
           <span class="oum-url-num">${num}</span>
           <input class="oum-url-label" data-field="label" value="${esc(u.label)}" placeholder="라벨 (선택)">
           <input class="oum-url-input" data-field="url" value="${esc(u.url)}" placeholder="URL 입력">
           ${goBtn}
           <span class="oum-url-cnt ${isFail ? 'fail' : ''}" title="이 URL 에 매핑된 옵션 / 전체 활성 옵션">📌 <b>${mapped}</b>/${totalActive}</span>
-          ${isDeal ? `<button class="oum-url-model" data-url-model type="button" title="이 딜 URL은 여러 모델 묶음 — 우리 모델만 골라 수집" style="background:#ede9fe;color:#7c3aed;border:1px solid #ddd6fe;border-radius:8px;padding:5px 10px;font-size:12.5px;font-weight:700;cursor:pointer;white-space:nowrap">🧩 ${u.modelLabel ? '모델: ' + esc(u.modelLabel) : '모델 선택'} ▾</button>` : ''}
+          ${showModel ? `<button class="oum-url-model" data-url-model type="button" title="모델 모음전 — 우리 모델만 골라 수집" style="background:#ede9fe;color:#7c3aed;border:1px solid #ddd6fe;border-radius:8px;padding:5px 10px;font-size:12.5px;font-weight:700;cursor:pointer;white-space:nowrap">${u.modelLabel ? '모델: ' + esc(u.modelLabel) : '모델 선택'} ▾</button>` : ''}
           ${isFail ? `<button class="oum-url-recrawl" data-url-recrawl type="button" title="이 URL 다시 크롤">🔄 재크롤</button>` : ''}
           <button class="oum-url-tog" data-url-tog type="button">${isOpen ? '▾ 닫기' : '▸ 매핑'}</button>
           <button class="oum-url-copy" data-url-copy type="button" title="이 카드 그대로 복사">📋 복사</button>
@@ -2406,12 +2541,46 @@
       }
       const vFail = e.target.closest('[data-verify-fail]');
       if (vFail) { state.verifyFailOpen = !state.verifyFailOpen; renderRight(); return; }
-      // 재검증(전체/선택/개별) — 저장된 크롤 데이터로 재계산(verify-urls 재호출).
-      if (e.target.closest('[data-verify-refresh]') || e.target.closest('[data-verify-refresh-sel]') || e.target.closest('[data-verify-refresh-one]')) {
-        state.verifyData = null; renderRight(); loadVerifyData(); return;
+      const vFExp = e.target.closest('[data-fail-exp]');
+      if (vFExp) {
+        if (!state.verifyFailExpand) state.verifyFailExpand = {};
+        const fk = vFExp.dataset.failExp;
+        state.verifyFailExpand[fk] = !state.verifyFailExpand[fk];
+        renderRight();
+        return;
+      }
+      // 재검증(전체/선택/개별) — 실제 재크롤(recrawl-url 배치) + 미니 토스트.
+      const rOne = e.target.closest('[data-verify-refresh-one]');
+      const rSel = e.target.closest('[data-verify-refresh-sel]');
+      const rAll = e.target.closest('[data-verify-refresh]');
+      if (rOne || rSel || rAll) {
+        const all = _vAllUrls();
+        let targets;
+        let lbl = '전체';
+        if (rOne) { const pu = rOne.dataset.verifyRefreshOne; targets = all.filter(function (u) { return u.product_url === pu; }); lbl = '해당'; }
+        else if (rSel) {
+          targets = all.filter(function (u) { return state.verifyChecks && state.verifyChecks[u.product_url]; });
+          lbl = '선택';
+          if (!targets.length) { alert('선택된 URL이 없습니다. 좌측 체크박스로 URL을 선택하세요.'); return; }
+        } else { targets = all; }
+        startVerifyRecrawl(targets, lbl);
+        return;
       }
       const vUrl = e.target.closest('[data-vurl]');
       if (vUrl) { state.verifySelUrl = vUrl.dataset.vurl; renderRight(); return; }
+      // [2026-06-20] URL 유형 세그먼트(단품/색상/모델) — 사전 지정
+      const tyBtn = e.target.closest('[data-url-type]');
+      if (tyBtn) {
+        const card = tyBtn.closest('[data-url-id]');
+        const u = (state.urls[state.currentSrc] || []).find(x => String(x.tempId) === (card && card.dataset.urlId));
+        if (u) {
+          const v = tyBtn.dataset.urlType;
+          u.url_type = (u.url_type === v) ? '' : v;  // 같은 값 재클릭 = 해제(미지정)
+          if (u.url_type !== 'deal') state.urlModelPicker = null;  // 모델 아니면 모델피커 닫기
+          renderRight();
+        }
+        return;
+      }
       // [2026-06-19 P3] 딜 URL 모델 배지 — 열기/선택/닫기
       const mBtn = e.target.closest('[data-url-model]');
       if (mBtn) {
@@ -3171,12 +3340,12 @@
                   if (u.dbId) {
                     await fetch(`/api/bundles/${encodeURIComponent(bundleCode)}/source-urls/${u.dbId}`, {
                       method: 'PUT', headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({ url: u.url.trim(), label: u.label || null, option_ids, sort_order: i }),
+                      body: JSON.stringify({ url: u.url.trim(), label: u.label || null, url_type: u.url_type || '', option_ids, sort_order: i }),
                     });
                   } else {
                     const res = await fetch(`/api/bundles/${encodeURIComponent(bundleCode)}/source-urls`, {
                       method: 'POST', headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({ source_key: sk, url: u.url.trim(), label: u.label || null, option_ids }),
+                      body: JSON.stringify({ source_key: sk, url: u.url.trim(), label: u.label || null, url_type: u.url_type || '', option_ids }),
                     });
                     const rj = await res.json();
                     if (rj && rj.id) u.dbId = rj.id;

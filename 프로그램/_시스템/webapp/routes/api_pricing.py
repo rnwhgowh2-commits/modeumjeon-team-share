@@ -1231,6 +1231,18 @@ def verify_urls(code: str):
         except Exception:
             cache = None
 
+        # [2026-06-20] 사용자가 URL 매핑에서 사전 지정한 유형(dan/mo/deal) — 추정보다 우선.
+        url_type_map = {}
+        try:
+            from lemouton.sourcing.models import BundleSourceUrl as _BSU
+            from lemouton.sources.service import normalize_url as _nu
+            for _b in (s.query(_BSU.url, _BSU.url_type)
+                       .filter(_BSU.url_type.isnot(None)).all()):
+                if _b.url and _b.url_type:
+                    url_type_map[_nu(_b.url)] = _b.url_type
+        except Exception:
+            url_type_map = {}
+
         per_url = {}  # (sid, url) -> url dict
         for o in rows:
             for src in (o.get('sources') or []):
@@ -1303,7 +1315,12 @@ def verify_urls(code: str):
             u['matched'] = matched
             u['total'] = total
             u['success_rate'] = round(matched / total * 100) if total else 0
-            u['type'] = ('deal' if u['is_deal']
+            _stored_ty = None
+            try:
+                _stored_ty = url_type_map.get(_nu(url)) if url else None
+            except Exception:
+                _stored_ty = None
+            u['type'] = _stored_ty or ('deal' if u['is_deal']
                          else ('mo' if len([c for c in u['_colors'] if c]) >= 2 else 'dan'))
             u['crawl_error'] = bool(u['last_status'] == 'error'
                                     or (total > 0 and u['noprice'] == total and matched == 0))

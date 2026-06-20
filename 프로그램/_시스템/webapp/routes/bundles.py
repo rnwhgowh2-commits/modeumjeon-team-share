@@ -945,6 +945,7 @@ def api_list_source_urls(code):
                         'id': r.id,
                         'url': r.url,
                         'label': r.label or '',
+                        'url_type': r.url_type or '',
                         'sort_order': r.sort_order,
                         'option_ids': link_map.get(r.id, []),
                         'crawled': _ok,
@@ -1116,6 +1117,9 @@ def api_add_source_url(code):
     source_key = (body.get('source_key') or '').strip()
     url = (body.get('url') or '').strip()
     label = (body.get('label') or '').strip() or None
+    url_type = (body.get('url_type') or '').strip() or None
+    if url_type and url_type not in ('dan', 'mo', 'deal'):
+        return jsonify({'ok': False, 'error': 'invalid url_type'}), 400
     option_ids = body.get('option_ids')  # None | list[str]
     if option_ids is not None and not isinstance(option_ids, list):
         return jsonify({'ok': False, 'error': 'option_ids must be list'}), 400
@@ -1144,6 +1148,7 @@ def api_add_source_url(code):
             source_key=source_key,
             url=url,
             label=label,
+            url_type=url_type,
             sort_order=next_order,
         )
         s.add(row)
@@ -1156,6 +1161,7 @@ def api_add_source_url(code):
             'id': row.id,
             'url': row.url,
             'label': row.label or '',
+            'url_type': row.url_type or '',
             'sort_order': row.sort_order,
             'option_ids': option_ids or [],
         })
@@ -1184,6 +1190,13 @@ def api_update_source_url(code, url_id):
             lbl = (body.get('label') or '').strip()
             row.label = lbl or None
 
+        # [2026-06-20] url_type — dan/mo/deal, 빈값 = NULL(미지정)
+        if 'url_type' in body:
+            ut = (body.get('url_type') or '').strip() or None
+            if ut and ut not in ('dan', 'mo', 'deal'):
+                return jsonify({'ok': False, 'error': 'invalid url_type'}), 400
+            row.url_type = ut
+
         # option_ids — None 이면 손대지 않음, list 면 동기화
         option_ids = body.get('option_ids')
         if option_ids is not None and not isinstance(option_ids, list):
@@ -1209,6 +1222,7 @@ def api_update_source_url(code, url_id):
             'id': row.id,
             'url': row.url,
             'label': row.label or '',
+            'url_type': row.url_type or '',
             'option_ids': final_links,
         })
     finally:
