@@ -165,7 +165,7 @@
 <script src="{{ url_for('static', filename='ext_bridge.js') }}?v=20260614_bg_engine"></script><!-- 모음전 크롤러 확장 브리지 — window.MoumExt | v 갱신: 2단계 백그라운드 엔진 위임(확장0.5+)·백그라운드 로그 중계·재연결 -->
 <script src="{{ url_for('static', filename='crawl_log.js') }}?v=20260619_fxbig"></script><!-- 실시간 크롤 대시보드 (… + 완료요약 시안D(옵션 전체=활성+비활성 / 크롤 완료=성공+실패) + 소싱처카드 URL크롤·완료/실패 분해) -->
 <script src="{{ url_for('static', filename='toss_add_benefit.js') }}"></script><!-- v6 D2-A 혜택추가폼 인터랙션 -->
-<script src="{{ url_for('static', filename='option_url_modal.js') }}?v=20260620_v43_crawlsync"></script><!-- 2026-06-20 v43 — 재검증 크롤기능을 전체크롤과 동기화(무신사·롯데온=MoumExt 확장크롤+options 저장). ⚠️ option_url_modal.js 수정 시 이 버전 문자열 반드시 갱신 -->
+<script src="{{ url_for('static', filename='option_url_modal.js') }}?v=20260620_v44_crawlbundleall"></script><!-- 2026-06-20 v44 — 재검증 무신사·롯데온은 전체크롤과 동일한 crawlBundleAll(창 navExtract)로 크롤(send crawl 폐기). ⚠️ option_url_modal.js 수정 시 이 버전 문자열 반드시 갱신 -->
 
 {% block scripts %}{% endblock %}
 </body>

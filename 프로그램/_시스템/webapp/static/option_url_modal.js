@@ -1540,65 +1540,74 @@
       urls = (urls || []).filter(function (u) { return u && u.product_url; });
       if (!urls.length) { alert('재크롤할 URL이 없습니다.'); return; }
       if (state.vcrawl && state.vcrawl.running) return;  // 이미 진행 중
-      state.vcrawl = { running: true, paused: false, stopped: false, total: urls.length, done: 0, ok: 0, fail: 0, ext: 0, label: label || '', cur: '' };
-      renderVcrawlToast();
       const code = window.BUNDLE_CODE || window.currentBundleCode || '';
-      for (let i = 0; i < urls.length; i++) {
-        if (state.vcrawl.stopped) break;
-        while (state.vcrawl.paused && !state.vcrawl.stopped) { await new Promise(function (r) { setTimeout(r, 300); }); }
-        if (state.vcrawl.stopped) break;
-        const u = urls[i];
-        const sk = _vUrlSourceKey(u.product_url);
-        state.vcrawl.cur = u.product_name || u.source_name || '';
+      const extOk = !!(window.MoumExt && window.MoumExt.installed && window.MoumExt.installed());
+      // 무신사·롯데온 = 로그인 브라우저 '창 크롤'(navExtract) 필요 → 전체 크롤과 동일한 crawlBundleAll 사용.
+      const needWindow = urls.some(function (u) { const k = _vUrlSourceKey(u.product_url); return k === 'musinsa' || k === 'lotteon'; });
+
+      if (needWindow && extOk && window.MoumExt.crawlBundleAll) {
+        // === 전체 크롤과 100% 동일: crawlBundleAll (전 소싱처 창 크롤, 무신사=navExtract) ===
+        //   ⚠️ 무신사·롯데온은 확장 구조상 per-URL 불가 → 모음전 전체를 전체크롤과 동일하게 재크롤한다.
+        state.vcrawl = { running: true, paused: false, stopped: false, mode: 'full', total: 0, done: 0, ok: 0, fail: 0, ext: 0, label: label || '', cur: '전체 재크롤(무신사 포함)' };
         renderVcrawlToast();
-        if (!sk) { state.vcrawl.fail++; state.vcrawl.done++; renderVcrawlToast(); continue; }
+        const onLog = function (ev) {
+          const d = ev.detail || {}; const m = d.metrics;
+          if (m && typeof m.total === 'number') { state.vcrawl.total = m.total; state.vcrawl.done = (typeof m.done === 'number' ? m.done : state.vcrawl.done); }
+          if (d.source) state.vcrawl.cur = String(d.source);
+          renderVcrawlToast();
+        };
+        window.addEventListener('moum-crawl-log', onLog);
         try {
-          // 1) 서버사이드 크롤(HTTP 소싱처=르무통·SSF·SSG·스스 — 옵션째 저장됨)
-          let j = await fetch('/api/bundles/' + encodeURIComponent(code) + '/recrawl-url',
-            { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ source_key: sk, url: u.product_url }) })
-            .then(function (r) { return r.json(); }).catch(function (e) { return { ok: false, error: String(e) }; });
-          // 2) 서버에 브라우저 없음(무신사·롯데온) → 전체 크롤과 '동일하게' 확장(MoumExt)으로 크롤.
-          //    결과 options(색·사이즈별 재고)를 그대로 crawl-result 에 저장 → SourceOption 반영(전체크롤 parity).
-          if (j && j.status === 'need_extension') {
-            if (window.MoumExt && window.MoumExt.installed && window.MoumExt.installed()) {
-              const ext = await window.MoumExt.crawl({ model_code: code, sources: [{ source_key: sk, url: u.product_url }] }, 120000)
-                .catch(function (e) { return { ok: false, error: String(e) }; });
-              const one = ext && ext.results && ext.results[0];
-              if (one) {
-                await fetch('/api/sources/crawl-result', {
-                  method: 'POST', headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ items: [{ url: u.product_url, price: one.price, stock: one.stock, options: one.options, status: one.ok ? 'ok' : 'error', product_name: one.product_name, error: one.error }] })
-                }).catch(function () {});
-                j = { crawl_ok: !!one.ok };
-              } else { j = { crawl_ok: false, error: (ext && ext.error) || '확장 크롤 실패' }; }
-            } else {
-              j = { ext_missing: true };  // 확장 미설치 — 확장필요로 카운트
-            }
-          }
-          if (j && j.ext_missing) state.vcrawl.ext++;
-          else if (j && j.crawl_ok) state.vcrawl.ok++;
-          else state.vcrawl.fail++;
-        } catch (e) { state.vcrawl.fail++; }
-        state.vcrawl.done++;
+          const r = await window.MoumExt.crawlBundleAll(code).catch(function (e) { return { ok: false, error: String(e) }; });
+          state.vcrawl.ok = (r && r.ok_count) || 0;
+          state.vcrawl.fail = Math.max(0, ((r && r.crawled) || 0) - ((r && r.ok_count) || 0));
+          if (r && r.stopped) state.vcrawl.stopped = true;
+        } catch (e) { /* noop */ }
+        window.removeEventListener('moum-crawl-log', onLog);
+      } else {
+        // === HTTP 소싱처만(또는 확장 없음): per-URL 서버 크롤(빠름, 옵션째 저장) ===
+        state.vcrawl = { running: true, paused: false, stopped: false, mode: 'url', total: urls.length, done: 0, ok: 0, fail: 0, ext: 0, label: label || '', cur: '' };
         renderVcrawlToast();
+        for (let i = 0; i < urls.length; i++) {
+          if (state.vcrawl.stopped) break;
+          while (state.vcrawl.paused && !state.vcrawl.stopped) { await new Promise(function (r) { setTimeout(r, 300); }); }
+          if (state.vcrawl.stopped) break;
+          const u = urls[i];
+          const sk = _vUrlSourceKey(u.product_url);
+          state.vcrawl.cur = u.product_name || u.source_name || '';
+          renderVcrawlToast();
+          if (!sk) { state.vcrawl.fail++; state.vcrawl.done++; renderVcrawlToast(); continue; }
+          if (sk === 'musinsa' || sk === 'lotteon') { state.vcrawl.ext++; state.vcrawl.done++; renderVcrawlToast(); continue; }  // 확장 없음 → 스킵('확장필요')
+          try {
+            const j = await fetch('/api/bundles/' + encodeURIComponent(code) + '/recrawl-url',
+              { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ source_key: sk, url: u.product_url }) })
+              .then(function (r) { return r.json(); }).catch(function (e) { return { ok: false }; });
+            if (j && j.crawl_ok) state.vcrawl.ok++;
+            else if (j && j.status === 'need_extension') state.vcrawl.ext++;
+            else state.vcrawl.fail++;
+          } catch (e) { state.vcrawl.fail++; }
+          state.vcrawl.done++;
+          renderVcrawlToast();
+        }
       }
-      const wasStopped = state.vcrawl.stopped;
       state.vcrawl.running = false;
       renderVcrawlToast();
-      // 결과 반영 — 검증 데이터 재계산 (중지 시에도 부분 결과 갱신)
+      // 결과 반영 — 검증 데이터 재계산
       state.verifyData = null;
       if (state.rightTab === 'verify') renderRight();
       loadVerifyData();
     }
-    // 토스트 제어(일시중지/시작/중지/닫기) — 1회 위임 바인딩
+    // 토스트 제어(일시중지/시작/중지/닫기) — 1회 위임 바인딩. full 모드는 MoumExt 엔진 제어로 위임.
     if (!window.__vcToastBound) {
       window.__vcToastBound = true;
       document.addEventListener('click', function (ev) {
         const vc = state.vcrawl;
         if (!vc) return;
-        if (ev.target.closest('[data-vc-pause]')) { vc.paused = true; renderVcrawlToast(); }
-        else if (ev.target.closest('[data-vc-resume]')) { vc.paused = false; renderVcrawlToast(); }
-        else if (ev.target.closest('[data-vc-stop]')) { vc.stopped = true; renderVcrawlToast(); }
+        const full = vc.mode === 'full';
+        const M = window.MoumExt || {};
+        if (ev.target.closest('[data-vc-pause]')) { vc.paused = true; if (full && M.pauseCrawl) try { M.pauseCrawl(); } catch (e) {} renderVcrawlToast(); }
+        else if (ev.target.closest('[data-vc-resume]')) { vc.paused = false; if (full && M.resumeCrawl) try { M.resumeCrawl(); } catch (e) {} renderVcrawlToast(); }
+        else if (ev.target.closest('[data-vc-stop]')) { vc.stopped = true; if (full && M.stopCrawl) try { M.stopCrawl(); } catch (e) {} renderVcrawlToast(); }
         else if (ev.target.closest('[data-vc-close]')) { state.vcrawl = null; renderVcrawlToast(); }
       });
     }
