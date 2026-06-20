@@ -846,13 +846,15 @@ class SsgCrawler(AbstractCrawler):
     def fetch(self, product_url: str) -> CrawlResult:
         html = self._fetch_html(product_url)
 
-        # [2026-06-05] 딜 페이지(dealItemView) 대응 — uitemObj 인라인 JS 가 없으므로
-        #   딜에 묶인 대표 itemView(첫 상품)로 재크롤. (예: SSG_모음전 → 르무통 메이트)
+        # [2026-06-20 money-safe] 딜 페이지(dealItemView)는 자동 '대표상품' 크롤 금지.
+        #   사유: 딜 페이지 itemView 링크에 SSG 광고 캐러셀(data-advert) 상품이 섞여 있어
+        #   '첫 itemView'가 무관한 광고상품(예: 여성 와이드 바지)일 수 있음 → 엉뚱한 가격/재고
+        #   크롤(금전 위험). 딜은 반드시 모델 선택(resolve_deal_models)으로 단일 itemView URL을
+        #   지정해 크롤한다. 대표상품 자동선택(_resolve_deal_representative_url)은 폐기.
         if "uitemObjArr.push" not in html:
-            rep_url = _resolve_deal_representative_url(product_url, html)
-            if rep_url:
-                logger.info("[SSG] 딜 페이지 감지 → 대표 itemView 재크롤: %s", rep_url)
-                html = self._fetch_html(rep_url)
-                product_url = rep_url
+            logger.warning("[SSG] 딜 페이지(dealItemView) — 자동 대표상품 크롤 금지. "
+                           "모델 선택으로 단일 itemView URL 지정 필요: %s", product_url)
+            # 옵션 없는 빈 결과 반환(파서가 딜 HTML 에서 옵션을 못 찾음 = 정직한 '데이터 없음').
+            return self.parse_html(html, product_url)
 
         return self.parse_html(html, product_url)

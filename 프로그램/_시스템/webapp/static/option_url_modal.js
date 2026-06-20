@@ -1453,7 +1453,7 @@
 
         return '<div style="padding:2px 2px 16px">' + banner + failPanel +
           '<div style="display:grid;grid-template-columns:360px 1fr;border:1px solid #EAEDF1;border-radius:12px;overflow:hidden;min-height:480px">' +
-          '<div style="padding:10px;overflow:auto;max-height:600px;border-right:1px solid #EAEDF1">' + tree + '</div>' +
+          '<div id="v-tree" style="padding:10px;overflow:auto;max-height:600px;border-right:1px solid #EAEDF1">' + tree + '</div>' +
           '<div style="padding:14px 20px;overflow:auto;max-height:600px">' + detail + '</div></div></div>';
       } catch (e) {
         return '<div style="padding:22px;color:#dc2626">검증 패널 오류: ' + esc(String((e && e.message) || e)) + '</div>';
@@ -1542,10 +1542,13 @@
       if (state.vcrawl && state.vcrawl.running) return;  // 이미 진행 중
       const code = window.BUNDLE_CODE || window.currentBundleCode || '';
       const extOk = !!(window.MoumExt && window.MoumExt.installed && window.MoumExt.installed());
-      // 무신사·롯데온 = 로그인 브라우저 '창 크롤'(navExtract) 필요 → 전체 크롤과 동일한 crawlBundleAll 사용.
+      // 무신사·롯데온 = 로그인 브라우저 '창 크롤'(navExtract) 필요. 확장 구조상 per-URL 불가 →
+      //   '전체 재검증'일 때만 전체 크롤과 동일한 crawlBundleAll(모음전 전체) 사용.
+      //   해당/선택은 per-URL 서버 크롤로 한정(무신사·롯데온은 '확장필요'로 표기 → 전체 재검증 안내).
       const needWindow = urls.some(function (u) { const k = _vUrlSourceKey(u.product_url); return k === 'musinsa' || k === 'lotteon'; });
+      const useFull = (label === '전체') && needWindow && extOk && window.MoumExt.crawlBundleAll;
 
-      if (needWindow && extOk && window.MoumExt.crawlBundleAll) {
+      if (useFull) {
         // === 전체 크롤과 100% 동일: crawlBundleAll (전 소싱처 창 크롤, 무신사=navExtract) ===
         //   ⚠️ 무신사·롯데온은 확장 구조상 per-URL 불가 → 모음전 전체를 전체크롤과 동일하게 재크롤한다.
         state.vcrawl = { running: true, paused: false, stopped: false, mode: 'full', total: 0, done: 0, ok: 0, fail: 0, ext: 0, label: label || '', cur: '전체 재크롤(무신사 포함)' };
@@ -2605,7 +2608,16 @@
         return;
       }
       const vUrl = e.target.closest('[data-vurl]');
-      if (vUrl) { state.verifySelUrl = vUrl.dataset.vurl; renderRight(); return; }
+      if (vUrl) {
+        state.verifySelUrl = vUrl.dataset.vurl;
+        // [2026-06-20] URL 선택 시 트리 스크롤 위로 튀는 문제 — 위치 보존
+        const _tr0 = document.getElementById('v-tree');
+        const _st = _tr0 ? _tr0.scrollTop : 0;
+        renderRight();
+        const _tr1 = document.getElementById('v-tree');
+        if (_tr1) _tr1.scrollTop = _st;
+        return;
+      }
       // [2026-06-20] URL 유형 세그먼트(단품/색상/모델) — 사전 지정
       const tyBtn = e.target.closest('[data-url-type]');
       if (tyBtn) {

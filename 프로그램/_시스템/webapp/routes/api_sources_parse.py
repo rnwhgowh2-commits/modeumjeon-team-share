@@ -39,18 +39,13 @@ def parse_source_html():
     if crawler is None or not hasattr(crawler, "parse_html"):
         return jsonify(ok=False, error="no_parser"), 400
     try:
-        # [2026-06-19] SSG 딜페이지(dealItemView) — uitemObj 인라인 JS 가 없어 parse_html 직접 불가
-        #   → 라이브(확장→parse) 경로에선 그동안 '옵션 추출 실패'(크롤실패)였다. 확장이 보낸 딜 HTML 로
-        #   대표 itemView(딜에 묶인 첫 단품=다색 상품) URL 을 해석해, 서버사이드로 그 단품을 fetch+parse 한다.
-        #   대표가 다색 상품이면 전 색상 커버. (기존 fetch() 의 딜 처리 로직과 동일 — parse 경로에도 적용.)
-        if source_key == "ssg" and "uitemObjArr.push" not in html and hasattr(crawler, "_fetch_html"):
-            from lemouton.sourcing.crawlers.ssg import _resolve_deal_representative_url
-            rep_url = _resolve_deal_representative_url(url, html)
-            if rep_url:
-                rep_html = crawler._fetch_html(rep_url)
-                res = crawler.parse_html(rep_html, rep_url)
-            else:
-                res = crawler.parse_html(html, url)
+        # [2026-06-20 money-safe] SSG 딜페이지(dealItemView) — 자동 '대표상품' 크롤 금지.
+        #   딜 페이지 itemView 링크에 SSG 광고 캐러셀(data-advert) 상품이 섞여 '첫 itemView'가
+        #   무관한 광고상품(예: 여성 와이드 바지)일 수 있음 → 엉뚱한 가격/재고(금전 위험).
+        #   딜은 모델 선택(resolve_deal_models)으로 단일 itemView URL 을 지정해 크롤해야 한다.
+        if source_key == "ssg" and "uitemObjArr.push" not in html:
+            # 딜 HTML 직접 파싱(옵션 없음=정직한 '데이터 없음'). 대표상품 자동선택 폐기.
+            res = crawler.parse_html(html, url)
         elif source_key == "ss_lemouton" and sku_stock:
             # ss_lemouton 만 sku_stock 을 받아 옵션별 재고 교정. 타 파서는 (html,url) 시그니처.
             res = crawler.parse_html(html, url, sku_stock=sku_stock)
