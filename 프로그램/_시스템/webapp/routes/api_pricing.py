@@ -1175,11 +1175,15 @@ def get_option_matrix(code: str):
 
 @bp.post('/bundles/<code>/verify-urls')
 def verify_urls(code: str):
-    """[2026-06-19 P4] URL 크롤링 검증 — 소싱처별 수집·최종매입가·우리옵션 매칭 결과.
+    """[2026-06-20 재설계] URL 크롤링 검증 — URL 단위 결과 + 전체/소싱처 집계 + 실패 정산.
 
-    body: {source_ids?: [...]} (생략=전체). 현재 저장된 크롤 데이터 기준(재크롤은 recrawl-url 별도).
-    옵션별 status: ok(매칭·가격) / absent('옵션없음 혹은 매칭실패') / noprice(가격없음·크롤실패).
-    Returns: {sources:[{source_id,name,ok,absent,noprice,min_final,options:[...]}]}
+    body: {source_ids?: [...]} (생략=전체). 저장된 크롤 데이터 기준(재크롤은 recrawl-url 별도).
+    옵션×URL 셀 status(4케이스):
+      ok(매칭·재고·가격) / soldout(품절: 매칭·재고0·가격 → 성공 포함) /
+      absent('옵션없음 or 매핑실패') / noprice(가격없음·크롤실패).
+    성공률 = (ok+soldout) / 전체 셀(absent·noprice 분모 포함 = '해석 A').
+    최저매입가 = status=ok(재고있음)만 후보(품절 제외 = 월드컵 in-stock).
+    Returns: {global:{...}, sources:[{...urls:[{...options}]}], fail_detail:{...}}.
     """
     body = request.get_json(silent=True) or {}
     want = set(body.get('source_ids') or [])
@@ -1191,6 +1195,30 @@ def verify_urls(code: str):
     s = SessionLocal()
     try:
         from webapp.routes.api_benefits import compute_breakdown, _build_breakdown_cache
+        from lemouton.sources.models import SourceOption as _SO
+
+        # 크롤 상품명/실패사유(SourceProduct) + URL옵션(소싱처 자체 라벨, SourceOption) 인덱스
+        spids = set()
+        for o in rows:
+            for src in (o.get('sources') or []):
+                if src.get('source_product_id'):
+                    spids.add(src['source_product_id'])
+        sp_info = {}
+        so_index = {}
+        if spids:
+            _spl = list(spids)
+            for sp in s.query(SourceProduct).filter(SourceProduct.id.in_(_spl)).all():
+                sp_info[sp.id] = {'product_name': sp.product_name or '',
+                                  'last_status': sp.last_status,
+                                  'last_error': sp.last_error_msg}
+            try:
+                so_index = _build_so_index(
+                    s.query(_SO).filter(_SO.source_product_id.in_(_spl),
+                                        _SO.deleted_at.is_(None)).all())
+            except Exception:
+                so_index = {}
+
+        # 최종매입가 캐시 (ok/soldout 셀 한정)
         items = []
         for o in rows:
             for src in (o.get('sources') or []):
@@ -1202,41 +1230,140 @@ def verify_urls(code: str):
             cache = _build_breakdown_cache(s, items)
         except Exception:
             cache = None
-        per = {}
+
+        per_url = {}  # (sid, url) -> url dict
         for o in rows:
             for src in (o.get('sources') or []):
                 sid = src.get('source_id')
+                url = src.get('product_url')
                 if sid is None or (want and sid not in want):
                     continue
-                e = per.setdefault(sid, {'source_id': sid, 'name': sname.get(sid, '?'),
-                                         'ok': 0, 'absent': 0, 'noprice': 0,
-                                         'min_final': None, 'options': []})
+                spid = src.get('source_product_id')
+                key = (sid, url)
+                u = per_url.get(key)
+                if u is None:
+                    _spi = sp_info.get(spid, {})
+                    u = per_url[key] = {
+                        'source_id': sid, 'source_name': sname.get(sid, '?'),
+                        'product_url': url,
+                        'product_name': _spi.get('product_name') or '',
+                        'is_deal': bool(url and 'dealitemview' in url.lower()),
+                        'last_status': _spi.get('last_status'),
+                        'last_error': _spi.get('last_error'),
+                        'ok': 0, 'soldout': 0, 'absent': 0, 'noprice': 0,
+                        'min_final': None, '_colors': set(), 'options': [],
+                    }
+                # 4케이스 판정
                 if src.get('match_failed'):
                     status = 'absent'
-                elif not src.get('crawled_price') or src.get('last_status') == 'error':
+                elif (not src.get('crawled_price')) or src.get('last_status') == 'error':
                     status = 'noprice'
+                elif src.get('stock_out'):
+                    status = 'soldout'
                 else:
                     status = 'ok'
                 fin = None
-                if status == 'ok':
+                if status in ('ok', 'soldout') and src.get('crawled_price'):
                     try:
                         fin = (compute_breakdown(s, sku=o['sku'], source_id=int(sid),
                                                  sale_price=float(src['crawled_price']),
                                                  _cache=cache) or {}).get('final_price')
                     except Exception:
                         fin = None
-                    e['ok'] += 1
-                    if fin and (e['min_final'] is None or fin < e['min_final']):
-                        e['min_final'] = fin
-                else:
-                    e[status] += 1
-                e['options'].append({
+                u[status] += 1
+                if status == 'ok' and fin and (u['min_final'] is None or fin < u['min_final']):
+                    u['min_final'] = fin
+                if status != 'absent':
+                    u['_colors'].add(o.get('color_code'))
+                # URL옵션 (소싱처 자체 색/사이즈 라벨)
+                url_opt = None
+                if spid and so_index:
+                    try:
+                        _som = _match_option_so(so_index, spid,
+                                                o.get('color_code'), o.get('size_code'))
+                        if _som is not None:
+                            _ct = (getattr(_som, 'color_text', '') or '').strip()
+                            _st = (getattr(_som, 'size_text', '') or '').strip()
+                            url_opt = (_ct + (' / ' if _ct and _st else '') + _st) or None
+                    except Exception:
+                        url_opt = None
+                u['options'].append({
                     'color': o.get('color_display'), 'size': o.get('size_display'),
+                    'status': status,
                     'stock_label': src.get('stock_label'), 'stock_out': src.get('stock_out'),
-                    'surface': src.get('crawled_price'), 'final': fin, 'status': status,
-                    'product_url': src.get('product_url'),
+                    'surface': src.get('crawled_price'), 'final': fin,
+                    'url_product_name': u['product_name'], 'url_option': url_opt,
                 })
-        return _ok(sources=list(per.values()))
+
+        # URL 마무리 + 소싱처 집계
+        per_src = {}
+        for (sid, url), u in per_url.items():
+            total = len(u['options'])
+            matched = u['ok'] + u['soldout']
+            u['matched'] = matched
+            u['total'] = total
+            u['success_rate'] = round(matched / total * 100) if total else 0
+            u['type'] = ('deal' if u['is_deal']
+                         else ('mo' if len([c for c in u['_colors'] if c]) >= 2 else 'dan'))
+            u['crawl_error'] = bool(u['last_status'] == 'error'
+                                    or (total > 0 and u['noprice'] == total and matched == 0))
+            u.pop('_colors', None)
+            ps = per_src.setdefault(sid, {'source_id': sid, 'name': sname.get(sid, '?'),
+                                          'urls': [], 'ok': 0, 'soldout': 0,
+                                          'absent': 0, 'noprice': 0, 'total': 0,
+                                          'min_final': None})
+            ps['urls'].append(u)
+            for k in ('ok', 'soldout', 'absent', 'noprice', 'total'):
+                ps[k] += u[k]
+            if u['min_final'] is not None and (ps['min_final'] is None
+                                               or u['min_final'] < ps['min_final']):
+                ps['min_final'] = u['min_final']
+
+        sources = []
+        g_matched = g_absent = g_noprice = g_total = g_err = 0
+        g_min = None
+        g_min_src = None
+        for sid, ps in per_src.items():
+            ps['matched'] = ps['ok'] + ps['soldout']
+            ps['success_rate'] = round(ps['matched'] / ps['total'] * 100) if ps['total'] else 0
+            # 실패 많은 URL 위로
+            ps['urls'].sort(key=lambda x: -(x['absent'] + x['noprice']))
+            sources.append(ps)
+            g_matched += ps['matched']
+            g_absent += ps['absent']
+            g_noprice += ps['noprice']
+            g_total += ps['total']
+            g_err += sum(1 for x in ps['urls'] if x['crawl_error'])
+            if ps['min_final'] is not None and (g_min is None or ps['min_final'] < g_min):
+                g_min = ps['min_final']
+                g_min_src = ps['name']
+        sources.sort(key=lambda x: (x['min_final'] is None, x['min_final'] or 0))
+
+        # 실패 정산 — URL별 absent/noprice (합 = 전체 absent/noprice 와 일치)
+        fail_urls = []
+        for ps in sources:
+            for u in ps['urls']:
+                if u['absent'] or u['noprice']:
+                    fail_urls.append({
+                        'product_url': u['product_url'], 'product_name': u['product_name'],
+                        'source_name': u['source_name'], 'is_deal': u['is_deal'],
+                        'crawl_error': u['crawl_error'], 'last_error': u['last_error'],
+                        'absent': u['absent'], 'noprice': u['noprice'],
+                    })
+        fail_urls.sort(key=lambda x: -(x['absent'] + x['noprice']))
+
+        return _ok(
+            sources=sources,
+            fail_detail={'absent_total': g_absent, 'noprice_total': g_noprice,
+                         'urls': fail_urls},
+            **{'global': {
+                'min_final': g_min, 'min_final_source': g_min_src,
+                'matched': g_matched, 'absent': g_absent, 'noprice': g_noprice,
+                'total': g_total,
+                'success_rate': round(g_matched / g_total * 100) if g_total else 0,
+                'crawl_error_urls': g_err,
+            }},
+        )
     finally:
         s.close()
 

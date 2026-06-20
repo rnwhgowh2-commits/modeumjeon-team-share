@@ -1292,45 +1292,143 @@
     }
 
     // ─── [2026-06-19 P4] URL 크롤링 검증 탭 — 소싱처별 수집·최종매입가·매칭 ───
+    // [2026-06-20 재설계] 트리(소싱처▸URL) + 상세(2단·4케이스) + 배너(스택바·전체분류) + 실패정산.
+    function _vTypeBadge(t) {
+      var b = 'font-size:10px;font-weight:800;border-radius:5px;padding:1px 0;text-align:center;display:inline-block;width:46px';
+      if (t === 'deal') return '<span style="' + b + ';background:#FFE9EC;color:#D6334B">딜</span>';
+      if (t === 'mo') return '<span style="' + b + ';background:#EEE9FF;color:#6B3FD4">모음전</span>';
+      return '<span style="' + b + ';background:#E3F1FF;color:#1B64DA">단품</span>';
+    }
+    function _vStatusMeta(st, stock_out) {
+      if (st === 'ok') return { dot: '#16A34A', label: '매칭', cls: 'color:#16A34A;font-weight:800' };
+      if (st === 'soldout') return { dot: '#DC2626', label: '품절', cls: 'color:#DC2626;font-weight:800' };
+      if (st === 'absent') return { dot: '#94A3B8', label: '옵션없음 or 매핑실패', cls: 'color:#94A3B8;font-weight:800' };
+      return { dot: '#DC2626', label: '가격없음', cls: 'color:#DC2626;font-weight:800' };
+    }
     function renderVerifyPanel() {
       try {
-        if (state.verifyLoading) return '<div style="padding:34px;text-align:center;color:#8B95A1;font-size:15px">🔍 검증 중… (소싱처 수집 · 최종매입가 · 우리옵션 매칭 계산)</div>';
+        if (state.verifyLoading) return '<div style="padding:34px;text-align:center;color:#8B95A1;font-size:15px">🔍 검증 중… (URL별 수집 · 최종매입가 · 옵션 매칭 계산)</div>';
         const data = state.verifyData;
         if (!data) return '<div style="padding:34px;text-align:center;color:#8B95A1;font-size:15px">검증 데이터 로딩…</div>';
         if (data.error) return '<div style="padding:34px;text-align:center;color:#dc2626;font-size:15px">검증 실패: ' + esc(String(data.error)) + '</div>';
+        const g = data.global || {};
         const srcs = data.sources || [];
-        const rows = srcs.map(function (s) {
-          const exp = state.verifyExpand === s.source_id;
-          let detail = '';
-          if (exp) {
-            const opts = (s.options || []).slice(0, 300).map(function (o) {
-              const dot = o.status === 'ok' ? '#16a34a' : (o.status === 'absent' ? '#94A3B8' : '#dc2626');
-              const stat = o.status === 'ok' ? (o.stock_out ? '품절' : '매칭') : (o.status === 'absent' ? '옵션없음 혹은 매칭실패' : '가격없음');
-              return '<tr><td style="text-align:left;padding:5px 9px">' + esc((o.color || '') + ' ' + (o.size == null ? '' : o.size)) + '</td>' +
-                '<td style="text-align:center"><span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:' + dot + '"></span> ' + stat + '</td>' +
-                '<td style="text-align:center">' + (o.stock_label || '—') + '</td>' +
-                '<td style="text-align:center;color:#94A3B8;text-decoration:line-through;font-family:monospace">' + (o.surface ? o.surface.toLocaleString() : '—') + '</td>' +
-                '<td style="text-align:center;color:#1B64DA;font-weight:700;font-family:monospace">' + (o.final ? o.final.toLocaleString() : '—') + '</td></tr>';
-            }).join('');
-            detail = '<tr><td colspan="6" style="padding:0 12px 14px;background:#FAFBFF"><table style="width:100%;border-collapse:collapse;font-size:13px">' +
-              '<tr style="color:#8B95A1;font-size:12px"><td style="text-align:left;padding:6px 9px">옵션</td><td style="text-align:center">상태</td><td style="text-align:center">재고</td><td style="text-align:center">표면노출가</td><td style="text-align:center">최종매입가</td></tr>' +
-              opts + '</table></td></tr>';
-          }
-          return '<tr data-verify-src="' + s.source_id + '" style="cursor:pointer;border-bottom:1px solid #F2F4F6">' +
-            '<td style="padding:12px 12px;font-weight:700">' + esc(s.name) + '</td>' +
-            '<td style="text-align:center;color:#16a34a;font-weight:700">✓' + s.ok + '</td>' +
-            '<td style="text-align:center;color:#94A3B8;font-weight:700">⚠' + s.absent + '</td>' +
-            '<td style="text-align:center;color:#dc2626;font-weight:700">❌' + s.noprice + '</td>' +
-            '<td style="text-align:center;color:#1B64DA;font-weight:800;font-family:monospace">' + (s.min_final ? s.min_final.toLocaleString() + '원' : '—') + '</td>' +
-            '<td style="text-align:center;color:#7c3aed">' + (exp ? '▴' : '▾') + '</td></tr>' + detail;
-        }).join('');
-        return '<div style="padding:4px 2px 16px">' +
-          '<div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">' +
-          '<div style="font-size:14px;color:#6B7684">URL 수집(재고·표면노출가·혜택) → 최종매입가 → 우리옵션 매칭 (소싱처 클릭 = 옵션 상세)</div>' +
-          '<button data-verify-refresh type="button" style="margin-left:auto;background:#7c3aed;color:#fff;border:0;border-radius:9px;padding:9px 15px;font-weight:700;font-size:13px;cursor:pointer">🔍 전체 재검증</button></div>' +
-          '<table style="width:100%;border-collapse:collapse;font-size:14px">' +
-          '<tr style="color:#8B95A1;font-size:12px;border-bottom:2px solid #E5E8EB"><td style="text-align:left;padding:8px 12px">소싱처</td><td style="text-align:center">매칭 ✓</td><td style="text-align:center">옵션없음 ⚠</td><td style="text-align:center">가격없음 ❌</td><td style="text-align:center">최저 최종매입가</td><td></td></tr>' +
-          rows + '</table></div>';
+        const fd = data.fail_detail || {};
+        if (!state.verifyChecks) state.verifyChecks = {};
+        const allUrls = [];
+        srcs.forEach(function (ps) { (ps.urls || []).forEach(function (u) { allUrls.push(u); }); });
+        let selUrl = state.verifySelUrl;
+        if (!selUrl || !allUrls.some(function (u) { return u.product_url === selUrl; }))
+          selUrl = allUrls.length ? allUrls[0].product_url : null;
+        const sel = allUrls.find(function (u) { return u.product_url === selUrl; }) || null;
+        const selCount = Object.keys(state.verifyChecks).filter(function (k) { return state.verifyChecks[k]; }).length;
+
+        // ── 배너 (스택바 + 전체 URL 분류) ──
+        const totp = g.total || 0, mp = g.matched || 0, ap = g.absent || 0, np = g.noprice || 0;
+        const wM = totp ? (mp / totp * 100) : 0, wA = totp ? (ap / totp * 100) : 0, wN = totp ? (np / totp * 100) : 0;
+        const failTrig = (ap || np)
+          ? '<span data-verify-fail style="cursor:pointer;font-weight:800;color:' + (g.crawl_error_urls ? '#DC2626' : '#6B7684') + ';text-decoration:underline dotted">'
+            + (g.crawl_error_urls ? ('크롤에러 URL ' + g.crawl_error_urls) : '실패 상세') + ' ' + (state.verifyFailOpen ? '▴' : '▾') + '</span>'
+          : '';
+        const banner =
+          '<div style="display:flex;align-items:center;gap:20px;padding:14px 2px;border-top:1px solid #EAEDF1;border-bottom:1px solid #EAEDF1;margin-bottom:14px">' +
+            '<div style="display:flex;flex-direction:column"><div style="font-size:12px;font-weight:800;color:#16A34A">' + esc(g.min_final_source || '—') + '</div>' +
+            '<div style="font-size:11px;color:#8B95A1;font-weight:700">전체 최저 최종매입가</div>' +
+            '<div style="font-size:19px;font-weight:900;font-family:monospace;color:#1B64DA;line-height:1.25">' + (g.min_final ? g.min_final.toLocaleString() + '원' : '—') + '</div></div>' +
+            '<div style="width:1px;height:46px;background:#EAEDF1"></div>' +
+            '<div style="display:flex;flex-direction:column">' +
+              '<div style="font-size:11px;color:#8B95A1;font-weight:700">검증 결과 (전체 URL · <b style="color:#16A34A">성공 ' + (g.success_rate || 0) + '%</b>)</div>' +
+              '<div style="display:flex;height:11px;border-radius:999px;overflow:hidden;width:240px;margin:5px 0;background:#EEF1F5">' +
+                '<i style="display:block;height:100%;width:' + wM + '%;background:#16A34A"></i>' +
+                '<i style="display:block;height:100%;width:' + wA + '%;background:#94A3B8"></i>' +
+                '<i style="display:block;height:100%;width:' + wN + '%;background:#DC2626"></i></div>' +
+              '<div style="font-size:12px;display:flex;gap:12px;flex-wrap:wrap;align-items:center">' +
+                '<span style="color:#16A34A;font-weight:800">● 매칭 ' + mp + '</span>' +
+                '<span style="color:#94A3B8;font-weight:800">● 옵션없음 or 매핑실패 ' + ap + '</span>' +
+                '<span style="color:#DC2626;font-weight:800">● 가격없음 ' + np + '</span>' + failTrig + '</div></div>' +
+            '<div style="margin-left:auto;display:flex;gap:8px">' +
+              '<button data-verify-refresh-sel type="button" style="background:#fff;color:#4E5968;border:1px solid #D1D6DB;border-radius:8px;padding:8px 12px;font-weight:700;font-size:12px;cursor:pointer">↻ 선택 URL 재검증' + (selCount ? ' (' + selCount + ')' : '') + '</button>' +
+              '<button data-verify-refresh type="button" style="background:#7C3AED;color:#fff;border:0;border-radius:8px;padding:8px 13px;font-weight:700;font-size:12px;cursor:pointer">🔍 전체 재검증</button></div>' +
+          '</div>';
+
+        // ── 실패 정산 (분류 그룹 2열) ──
+        let failPanel = '';
+        if (state.verifyFailOpen) {
+          const fu = fd.urls || [];
+          const _flink = function (x) {
+            return '<div style="display:flex;align-items:center;gap:8px;padding:8px 12px;border-bottom:1px solid #F2F4F6;font-size:12px">' +
+              '<a href="' + esc(x.product_url || '#') + '" target="_blank" rel="noopener" title="URL 직접 확인" style="font-weight:600;color:#191F28;text-decoration:none;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + esc(x.product_name || x.source_name || '(이름없음)') + (x.crawl_error ? ' <span style="color:#D6334B;font-weight:800">·크롤실패</span>' : '') + '</a>';
+          };
+          const absRows = fu.filter(function (x) { return x.absent; }).map(function (x) { return _flink(x) + '<span style="margin-left:auto;font-weight:800;color:#94A3B8">' + x.absent + '</span></div>'; }).join('') || '<div style="padding:10px 12px;color:#C0C6CE;font-size:12px">없음</div>';
+          const noRows = fu.filter(function (x) { return x.noprice; }).map(function (x) { return _flink(x) + '<span style="margin-left:auto;font-weight:800;color:#DC2626">' + x.noprice + '</span></div>'; }).join('') || '<div style="padding:10px 12px;color:#C0C6CE;font-size:12px">없음</div>';
+          failPanel =
+            '<div style="border:1px solid #F0D7D7;background:#FFFAFA;border-radius:12px;padding:14px 16px;margin-bottom:14px">' +
+              '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">' +
+                '<div style="border:1px solid #EAEDF1;border-radius:10px;overflow:hidden">' +
+                  '<div style="padding:9px 12px;font-weight:800;font-size:12px;background:#F4F6F8;display:flex;align-items:center;gap:7px;border-bottom:1px solid #EAEDF1"><span style="width:8px;height:8px;border-radius:50%;background:#94A3B8;display:inline-block"></span>옵션없음 or 매핑실패<span style="margin-left:auto;color:#94A3B8">' + (fd.absent_total || 0) + '</span></div>' + absRows + '</div>' +
+                '<div style="border:1px solid #EAEDF1;border-radius:10px;overflow:hidden">' +
+                  '<div style="padding:9px 12px;font-weight:800;font-size:12px;background:#FFF4F4;color:#B23B3B;display:flex;align-items:center;gap:7px;border-bottom:1px solid #EAEDF1"><span style="width:8px;height:8px;border-radius:50%;background:#DC2626;display:inline-block"></span>가격없음<span style="margin-left:auto;color:#DC2626">' + (fd.noprice_total || 0) + '</span></div>' + noRows + '</div>' +
+              '</div><div style="margin-top:8px;font-size:11px;color:#16A34A;font-weight:700">✓ 옵션없음 ' + (fd.absent_total || 0) + ' + 가격없음 ' + (fd.noprice_total || 0) + ' = 검증결과 합계와 일치 · 상품명 클릭 = URL 직접 확인</div></div>';
+        }
+
+        // ── 트리 ──
+        let tree = '';
+        srcs.forEach(function (ps) {
+          tree += '<div style="font-size:11px;font-weight:800;color:#8B95A1;padding:14px 8px 4px;border-top:1px solid #F2F4F6">' + esc(ps.name) + ' — 최저 ' + (ps.min_final ? ps.min_final.toLocaleString() : '—') + ' · ' + (ps.success_rate || 0) + '%</div>';
+          (ps.urls || []).forEach(function (u) {
+            const on = u.product_url === selUrl;
+            const cntColor = (u.crawl_error || u.noprice) ? '#DC2626' : (u.absent ? '#94A3B8' : '#16A34A');
+            const cntTxt = u.crawl_error ? '실패' : ('✓' + u.matched);
+            const need = u.is_deal ? '<span style="font-size:10px;font-weight:800;border-radius:5px;padding:1px 6px;background:#FFF1D6;color:#A66A00">🧩 모델</span>' : '';
+            tree += '<div data-vurl="' + esc(u.product_url) + '" style="display:grid;grid-template-columns:18px 46px 1fr auto;align-items:center;gap:8px;padding:8px;border-radius:7px;cursor:pointer;' + (on ? 'background:#E8F1FF' : '') + '">' +
+              '<input type="checkbox" data-vcheck="' + esc(u.product_url) + '" ' + (state.verifyChecks[u.product_url] ? 'checked' : '') + ' style="width:15px;height:15px;accent-color:#1B64DA">' +
+              _vTypeBadge(u.type) +
+              '<span style="font-size:13px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:left">' + esc(u.product_name || '(이름없음)') + '</span>' +
+              '<span style="display:flex;align-items:center;gap:7px;justify-content:flex-end">' + need + '<span style="font-size:11px;font-weight:800;color:' + cntColor + '">' + cntTxt + '</span></span></div>';
+          });
+        });
+
+        // ── 상세 ──
+        let detail;
+        if (!sel) {
+          detail = '<div style="padding:34px;text-align:center;color:#8B95A1;font-size:14px">좌측에서 URL을 선택하세요</div>';
+        } else {
+          const tyName = sel.type === 'mo' ? '모음전' : (sel.type === 'deal' ? '딜' : '단품');
+          const optRows = (sel.options || []).slice(0, 400).map(function (o) {
+            const m = _vStatusMeta(o.status, o.stock_out);
+            const blank = (o.status === 'absent');
+            const fin = o.final ? o.final.toLocaleString() : (o.status === 'noprice' ? '— (혜택 미수집)' : '—');
+            return '<tr' + (o.status === 'absent' ? ' style="background:#FBFCFE"' : (o.status === 'noprice' ? ' style="background:#FFFCF6"' : '')) + '>' +
+              '<td style="padding:8px;border-bottom:1px solid #F2F4F6;font-weight:700">' + esc((o.color || '') + ' ' + (o.size == null ? '' : o.size)) + '</td>' +
+              '<td style="padding:8px;border-bottom:1px solid #F2F4F6"><span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:' + m.dot + ';margin-right:4px"></span><span style="' + m.cls + '">' + m.label + '</span></td>' +
+              '<td style="padding:8px;border-bottom:1px solid #F2F4F6;font-size:11px;color:' + (blank ? '#C0C6CE' : '#4E5968') + '">' + esc(blank ? '—' : (o.url_product_name || '—')) + '</td>' +
+              '<td style="padding:8px;border-bottom:1px solid #F2F4F6;font-family:monospace;font-size:11px;color:' + (blank ? '#C0C6CE' : '#4E5968') + '">' + esc(blank ? '—' : (o.url_option || '—')) + '</td>' +
+              '<td style="padding:8px;border-bottom:1px solid #F2F4F6;text-align:center">' + (blank ? '<span style="color:#C0C6CE">—</span>' : (o.stock_out ? '<span style="color:#DC2626;font-weight:700">' + esc(o.stock_label || '품절') + '</span>' : '<span style="color:#16A34A;font-weight:700">' + esc(o.stock_label || '재고있음') + '</span>')) + '</td>' +
+              '<td style="padding:8px;border-bottom:1px solid #F2F4F6;text-align:right;text-decoration:' + (blank ? 'none' : 'line-through') + ';color:#94A3B8;font-family:monospace">' + (o.surface ? o.surface.toLocaleString() : '—') + '</td>' +
+              '<td style="padding:8px;border-bottom:1px solid #F2F4F6;text-align:right;font-family:monospace;font-weight:800;color:' + (o.final ? '#1B64DA' : '#C0C6CE') + '">' + fin + '</td></tr>';
+          }).join('');
+          detail =
+            '<div style="display:flex;align-items:center;gap:10px">' + _vTypeBadge(sel.type) +
+              '<a href="' + esc(sel.product_url || '#') + '" target="_blank" rel="noopener" title="URL 직접 확인" style="font-size:15px;font-weight:800;color:#191F28;text-decoration:none">' + esc(sel.product_name || '(이름없음)') + ' 🔗</a>' +
+              '<button data-verify-refresh-one="' + esc(sel.product_url) + '" type="button" style="margin-left:auto;background:#fff;color:#4E5968;border:1px solid #D1D6DB;border-radius:8px;padding:5px 10px;font-weight:700;font-size:11px;cursor:pointer">🔍 해당 ' + tyName + '만 재검증</button></div>' +
+            '<div style="font-family:monospace;font-size:11px;color:#8B95A1;margin:4px 0 14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + esc(sel.product_url || '') + '</div>' +
+            '<div style="height:1px;background:#EAEDF1;margin:14px 0"></div>' +
+            '<div style="display:flex;align-items:stretch;margin-bottom:10px">' +
+              '<div style="flex:1"><div style="font-size:11px;font-weight:800;color:#8B95A1;margin-bottom:8px">검증 결과</div>' +
+                '<div style="display:flex;align-items:baseline;gap:10px;margin-bottom:8px"><span style="font-size:18px;font-weight:900;color:#16A34A">' + (sel.success_rate || 0) + '%</span><span style="font-size:11px;color:#8B95A1">옵션 크롤 성공률 (' + (sel.matched || 0) + ' / ' + (sel.total || 0) + ' · 품절 포함)</span></div>' +
+                '<div style="display:flex;gap:16px;font-size:13px;flex-wrap:wrap"><span style="color:#16A34A">● 매칭 ' + (sel.matched || 0) + '</span><span style="color:#94A3B8">● 옵션없음 or 매핑실패 ' + (sel.absent || 0) + '</span><span style="color:#DC2626">● 가격없음 ' + (sel.noprice || 0) + '</span></div></div>' +
+              '<div style="width:1px;background:#EAEDF1;margin:0 14px"></div>' +
+              '<div style="flex:1;display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center"><div style="font-size:11px;font-weight:800;color:#8B95A1">URL 최저 최종매입가</div><div style="font-size:22px;font-weight:900;font-family:monospace;color:#1B64DA;margin-top:3px">' + (sel.min_final ? sel.min_final.toLocaleString() + '원' : '—') + '</div></div></div>' +
+            '<div style="height:1px;background:#EAEDF1;margin:14px 0"></div>' +
+            '<table style="width:100%;border-collapse:collapse;font-size:12px">' +
+              '<thead><tr style="color:#8B95A1;font-size:11px;background:#FAFBFC"><td style="padding:7px 8px;border-bottom:1.5px solid #EAEDF1">옵션(우리 지정)</td><td style="padding:7px 8px;border-bottom:1.5px solid #EAEDF1">상태</td><td style="padding:7px 8px;border-bottom:1.5px solid #EAEDF1">URL 상품명</td><td style="padding:7px 8px;border-bottom:1.5px solid #EAEDF1">URL옵션</td><td style="padding:7px 8px;border-bottom:1.5px solid #EAEDF1;text-align:center">재고</td><td style="padding:7px 8px;border-bottom:1.5px solid #EAEDF1;text-align:right">표면노출가</td><td style="padding:7px 8px;border-bottom:1.5px solid #EAEDF1;text-align:right">최종매입가</td></tr></thead><tbody>' +
+              optRows + '</tbody></table>';
+        }
+
+        return '<div style="padding:2px 2px 16px">' + banner + failPanel +
+          '<div style="display:grid;grid-template-columns:360px 1fr;border:1px solid #EAEDF1;border-radius:12px;overflow:hidden;min-height:480px">' +
+          '<div style="padding:10px;overflow:auto;max-height:600px;border-right:1px solid #EAEDF1">' + tree + '</div>' +
+          '<div style="padding:14px 20px;overflow:auto;max-height:600px">' + detail + '</div></div></div>';
       } catch (e) {
         return '<div style="padding:22px;color:#dc2626">검증 패널 오류: ' + esc(String((e && e.message) || e)) + '</div>';
       }
@@ -2297,16 +2395,23 @@
         }
         return;
       }
-      // [2026-06-19 P4] 검증 탭 — 소싱처 펼침 / 전체 재검증
-      const vRef = e.target.closest('[data-verify-refresh]');
-      if (vRef) { state.verifyData = null; state.verifyExpand = null; renderRight(); loadVerifyData(); return; }
-      const vSrc = e.target.closest('[data-verify-src]');
-      if (vSrc) {
-        const vid = parseInt(vSrc.dataset.verifySrc, 10);
-        state.verifyExpand = (state.verifyExpand === vid) ? null : vid;
+      // [2026-06-20] 검증 탭 — 전체/선택/개별 재검증 · URL 트리 선택·체크 · 실패 정산 펼침
+      const vCheck = e.target.closest('[data-vcheck]');
+      if (vCheck) {
+        if (!state.verifyChecks) state.verifyChecks = {};
+        const k = vCheck.dataset.vcheck;
+        state.verifyChecks[k] = !state.verifyChecks[k];
         renderRight();
         return;
       }
+      const vFail = e.target.closest('[data-verify-fail]');
+      if (vFail) { state.verifyFailOpen = !state.verifyFailOpen; renderRight(); return; }
+      // 재검증(전체/선택/개별) — 저장된 크롤 데이터로 재계산(verify-urls 재호출).
+      if (e.target.closest('[data-verify-refresh]') || e.target.closest('[data-verify-refresh-sel]') || e.target.closest('[data-verify-refresh-one]')) {
+        state.verifyData = null; renderRight(); loadVerifyData(); return;
+      }
+      const vUrl = e.target.closest('[data-vurl]');
+      if (vUrl) { state.verifySelUrl = vUrl.dataset.vurl; renderRight(); return; }
       // [2026-06-19 P3] 딜 URL 모델 배지 — 열기/선택/닫기
       const mBtn = e.target.closest('[data-url-model]');
       if (mBtn) {
