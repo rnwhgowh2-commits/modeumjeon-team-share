@@ -1348,9 +1348,13 @@
                 '<span style="color:#16A34A;font-weight:800">● 매칭 ' + mp + '</span>' +
                 '<span style="color:#94A3B8;font-weight:800">● 옵션없음 or 매핑실패 ' + ap + '</span>' +
                 '<span style="color:#DC2626;font-weight:800">● 가격없음 ' + np + '</span>' + failTrig + '</div></div>' +
-            '<div style="margin-left:auto;display:flex;gap:8px">' +
-              '<button data-verify-refresh-sel type="button" style="background:#fff;color:#4E5968;border:1px solid #D1D6DB;border-radius:8px;padding:8px 12px;font-weight:700;font-size:12px;cursor:pointer">↻ 선택 URL 재검증' + (selCount ? ' (' + selCount + ')' : '') + '</button>' +
-              '<button data-verify-refresh type="button" style="background:#7C3AED;color:#fff;border:0;border-radius:8px;padding:8px 13px;font-weight:700;font-size:12px;cursor:pointer">🔍 전체 재검증</button></div>' +
+            '<div style="margin-left:auto;display:flex;flex-direction:column;align-items:stretch;gap:6px">' +
+              '<div id="v-recrawl-card" style="' + (state.vcrawl ? '' : 'display:none') + '">' + _vcrawlCardHtml() + '</div>' +
+              '<div style="display:flex;gap:8px;justify-content:flex-end">' +
+                '<button data-verify-refresh-sel type="button" style="background:#fff;color:#4E5968;border:1px solid #D1D6DB;border-radius:8px;padding:8px 12px;font-weight:700;font-size:13px;cursor:pointer">↻ 선택 URL 재검증' + (selCount ? ' (' + selCount + ')' : '') + '</button>' +
+                '<button data-verify-refresh type="button" style="background:#7C3AED;color:#fff;border:0;border-radius:8px;padding:8px 13px;font-weight:700;font-size:13px;cursor:pointer">🔍 전체 재검증</button>' +
+              '</div>' +
+            '</div>' +
           '</div>';
 
         // ── 실패 정산 (분류 그룹 2열) ──
@@ -1492,40 +1496,37 @@
       return '<svg width="30" height="30" viewBox="0 0 36 36"><circle cx="18" cy="18" r="15" fill="none" stroke="#EEF1F5" stroke-width="5"/>' +
         '<circle cx="18" cy="18" r="15" fill="none" stroke="' + color + '" stroke-width="5" pathLength="100" stroke-dasharray="' + pct + ' 100" stroke-linecap="round" transform="rotate(-90 18 18)"/></svg>';
     }
-    function renderVcrawlToast() {
+    // [2026-06-20 시안3] 크롤 현황 = 검증 버튼 '위' 카드(버튼 행과 같은 폭, 왼쪽 라인 정렬).
+    function _vcrawlCardHtml() {
       const vc = state.vcrawl;
-      let el = document.getElementById('v-recrawl-toast');
-      if (!vc) { if (el) el.remove(); return; }
-      if (!el) {
-        el = document.createElement('div');
-        el.id = 'v-recrawl-toast';
-        el.style.cssText = 'position:fixed;right:22px;bottom:22px;z-index:99999';
-        document.body.appendChild(el);
-      }
+      if (!vc) return '';
       const pct = vc.total ? Math.round(vc.done / vc.total * 100) : 0;
-      const base = 'display:inline-flex;align-items:center;gap:10px;border-radius:99px;padding:8px 14px 8px 10px;box-shadow:0 6px 18px rgba(0,0,0,.16)';
-      const bGh = 'background:#fff;color:#4E5968;border:1px solid #D1D6DB;border-radius:8px;padding:4px 9px;font-size:12px;font-weight:700;cursor:pointer';
-      const bStop = 'background:#fff;color:#DC2626;border:1px solid #F2C0C0;border-radius:8px;padding:4px 9px;font-size:12px;font-weight:700;cursor:pointer';
-      const bGo = 'background:#16A34A;color:#fff;border:0;border-radius:8px;padding:4px 9px;font-size:12px;font-weight:700;cursor:pointer';
-      const bP = 'background:#7C3AED;color:#fff;border:0;border-radius:8px;padding:4px 10px;font-size:12px;font-weight:700;cursor:pointer';
-      let inner;
+      const card = 'display:flex;align-items:center;gap:10px;border-radius:10px;padding:8px 12px';
+      const bGh = 'background:#fff;color:#4E5968;border:1px solid #D1D6DB;border-radius:7px;padding:4px 9px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap';
+      const bStop = 'background:#fff;color:#DC2626;border:1px solid #F2C0C0;border-radius:7px;padding:4px 9px;font-size:12px;font-weight:700;cursor:pointer';
+      const bGo = 'background:#16A34A;color:#fff;border:0;border-radius:7px;padding:4px 9px;font-size:12px;font-weight:700;cursor:pointer';
+      const bP = 'background:#7C3AED;color:#fff;border:0;border-radius:7px;padding:4px 11px;font-size:12px;font-weight:700;cursor:pointer';
       if (vc.running && !vc.paused) {
-        inner = '<div style="' + base + ';background:#fff;border:1px solid #E1E5EA">' + _vDonut(pct, '#1B64DA') +
-          '<div><div style="font-size:12px;font-weight:800">검증 재크롤 ' + pct + '%</div><div style="font-size:11px;color:#8B95A1">' + vc.done + '/' + vc.total + (vc.cur ? ' · ' + esc(String(vc.cur)).slice(0, 18) : '') + '</div></div>' +
+        return '<div style="' + card + ';background:#F4F0FF;border:1px solid #E2D6FB">' + _vDonut(pct, '#1B64DA') +
+          '<div style="flex:1;min-width:0"><div style="font-size:13px;font-weight:800;color:#5B2BC4">검증 재크롤 ' + pct + '%</div><div style="font-size:12px;color:#8B95A1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + vc.done + '/' + vc.total + (vc.cur ? ' · ' + esc(String(vc.cur)) : '') + '</div></div>' +
           '<button data-vc-pause style="' + bGh + '">⏸ 일시중지</button><button data-vc-stop style="' + bStop + '">■ 중지</button></div>';
       } else if (vc.running && vc.paused) {
-        inner = '<div style="' + base + ';background:#FFFBF2;border:1px solid #F0DDB0">' + _vDonut(pct, '#C9A14A') +
-          '<div><div style="font-size:12px;font-weight:800;color:#A66A00">일시정지됨 ' + pct + '%</div><div style="font-size:11px;color:#8B95A1">' + vc.done + '/' + vc.total + ' · 멈춤</div></div>' +
+        return '<div style="' + card + ';background:#FFFBF2;border:1px solid #F0DDB0">' + _vDonut(pct, '#C9A14A') +
+          '<div style="flex:1;min-width:0"><div style="font-size:13px;font-weight:800;color:#A66A00">일시정지됨 ' + pct + '%</div><div style="font-size:12px;color:#8B95A1">' + vc.done + '/' + vc.total + ' · 멈춤</div></div>' +
           '<button data-vc-resume style="' + bGo + '">▶ 시작</button><button data-vc-stop style="' + bStop + '">■ 중지</button></div>';
-      } else {
-        const stopped = vc.stopped;
-        inner = '<div style="' + base + ';background:' + (stopped ? '#FFF6F6;border:1px solid #F2C0C0' : '#F4FBF6;border:1px solid #BfE3C9') + '">' +
-          '<span style="font-size:18px;font-weight:900;color:' + (stopped ? '#DC2626' : '#16A34A') + '">' + (stopped ? '■' : '✓') + '</span>' +
-          '<div><div style="font-size:12px;font-weight:800;color:' + (stopped ? '#B23B3B' : '#1A7F37') + '">' + (stopped ? '재크롤 중지됨' : '검증 재크롤 완료') + '</div>' +
-          '<div style="font-size:11px;color:#8B95A1">성공 ' + vc.ok + ' · 실패 ' + vc.fail + (vc.ext ? ' · 확장필요 ' + vc.ext : '') + '</div></div>' +
-          '<button data-vc-close style="' + bP + '">닫기</button></div>';
       }
-      el.innerHTML = inner;
+      const stopped = vc.stopped;
+      return '<div style="' + card + ';background:' + (stopped ? '#FFF6F6;border:1px solid #F2C0C0' : '#F4FBF6;border:1px solid #BfE3C9') + '">' +
+        '<span style="font-size:20px;font-weight:900;color:' + (stopped ? '#DC2626' : '#16A34A') + '">' + (stopped ? '■' : '✓') + '</span>' +
+        '<div style="flex:1;min-width:0"><div style="font-size:13px;font-weight:800;color:' + (stopped ? '#B23B3B' : '#1A7F37') + '">' + (stopped ? '재크롤 중지됨' : '검증 재크롤 완료') + '</div>' +
+        '<div style="font-size:12px;color:#8B95A1">성공 ' + vc.ok + ' · 실패 ' + vc.fail + (vc.ext ? ' · 확장필요 ' + vc.ext : '') + '</div></div>' +
+        '<button data-vc-close style="' + bP + '">닫기</button></div>';
+    }
+    function renderVcrawlToast() {
+      const el = document.getElementById('v-recrawl-card');
+      if (!el) return;  // 검증 탭 카드 슬롯이 없으면(다른 탭) 갱신 생략 — 크롤은 계속
+      el.style.display = state.vcrawl ? '' : 'none';
+      el.innerHTML = _vcrawlCardHtml();
     }
     async function startVerifyRecrawl(urls, label) {
       urls = (urls || []).filter(function (u) { return u && u.product_url; });
