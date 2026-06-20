@@ -1553,10 +1553,29 @@
         renderVcrawlToast();
         if (!sk) { state.vcrawl.fail++; state.vcrawl.done++; renderVcrawlToast(); continue; }
         try {
-          const r = await fetch('/api/bundles/' + encodeURIComponent(code) + '/recrawl-url',
-            { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ source_key: sk, url: u.product_url }) });
-          const j = await r.json();
-          if (j && j.status === 'need_extension') state.vcrawl.ext++;
+          // 1) 서버사이드 크롤(HTTP 소싱처=르무통·SSF·SSG·스스 — 옵션째 저장됨)
+          let j = await fetch('/api/bundles/' + encodeURIComponent(code) + '/recrawl-url',
+            { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ source_key: sk, url: u.product_url }) })
+            .then(function (r) { return r.json(); }).catch(function (e) { return { ok: false, error: String(e) }; });
+          // 2) 서버에 브라우저 없음(무신사·롯데온) → 전체 크롤과 '동일하게' 확장(MoumExt)으로 크롤.
+          //    결과 options(색·사이즈별 재고)를 그대로 crawl-result 에 저장 → SourceOption 반영(전체크롤 parity).
+          if (j && j.status === 'need_extension') {
+            if (window.MoumExt && window.MoumExt.installed && window.MoumExt.installed()) {
+              const ext = await window.MoumExt.crawl({ model_code: code, sources: [{ source_key: sk, url: u.product_url }] }, 120000)
+                .catch(function (e) { return { ok: false, error: String(e) }; });
+              const one = ext && ext.results && ext.results[0];
+              if (one) {
+                await fetch('/api/sources/crawl-result', {
+                  method: 'POST', headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ items: [{ url: u.product_url, price: one.price, stock: one.stock, options: one.options, status: one.ok ? 'ok' : 'error', product_name: one.product_name, error: one.error }] })
+                }).catch(function () {});
+                j = { crawl_ok: !!one.ok };
+              } else { j = { crawl_ok: false, error: (ext && ext.error) || '확장 크롤 실패' }; }
+            } else {
+              j = { ext_missing: true };  // 확장 미설치 — 확장필요로 카운트
+            }
+          }
+          if (j && j.ext_missing) state.vcrawl.ext++;
           else if (j && j.crawl_ok) state.vcrawl.ok++;
           else state.vcrawl.fail++;
         } catch (e) { state.vcrawl.fail++; }
