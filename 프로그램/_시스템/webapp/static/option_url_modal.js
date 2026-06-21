@@ -93,7 +93,7 @@
       .oum-legend .leg-g { display:inline-block; width:38px; height:30px; background:#03A65A; border-radius:6px; }
       .oum-legend .leg-off { display:inline-block; width:38px; height:30px; background:#9CA3AF; border-radius:6px; }
 
-      .oum-split { display:grid; grid-template-columns:2fr 70px 5fr; gap:0; align-items:stretch; }
+      .oum-split { display:grid; grid-template-columns:1fr 70px 1fr; gap:0; align-items:stretch; }
 
       .oum-panel { border-radius:18px; padding:40.5px 30px; display:flex; flex-direction:column; }
       .oum-ph { font-size:25.5px; font-weight:700; margin-bottom:21px; display:flex; align-items:center; gap:13.5px; padding-bottom:15px; border-bottom:1px solid #e5e8eb; }
@@ -446,9 +446,7 @@
       .oum-dupwarn-item { background:#fff; border:1px solid #FCD34D; border-radius:999px; padding:4px 11px; font-size:11.5px; font-weight:700; color:#78350f; cursor:pointer; }
       .oum-dupwarn-item:hover { background:#FFFBEB; }
       .oum-dupwarn-item.cross { border-color:#fca5a5; color:#7f1d1d; }
-      .oum-dupwarn-item.covered { border-color:#bfdbfe; color:#1d4ed8; }
       .oum-dupwarn-item em { font-style:normal; color:#dc2626; font-weight:800; }
-      .oum-dupwarn-why { color:#9ca3af; font-weight:600; font-size:10.5px; margin-left:4px; }
       /* [2026-05-27] 카드 미니 액션 — 순서 변경 ↑↓ + 복사 ⎘ */
       .oum-url-actions { display:inline-flex; gap:2px; }
       .oum-url-mini { background:#fff; border:1px solid #d1d6db; border-radius:6px; width:33px; height:33px; display:inline-flex; align-items:center; justify-content:center; font-size:18px; color:#4e5968; cursor:pointer; padding:0; line-height:1; transition:all .12s; }
@@ -466,6 +464,11 @@
       .oum-url-card.drop-below { box-shadow:0 3px 0 0 #3B82F6 inset; }
       .oum-url-body { padding:22.5px 16.5px; background:#F0FDF4; }
       .oum-url-card:not(.open) .oum-url-body { display:none; }
+      /* [2026-06-21] URL 타입 선택 — 단품/색상모음전/모델모음전 */
+      .oum-url-type { display:inline-flex; gap:3px; background:#e5f3f0; border-radius:8px; padding:3px; flex-shrink:0; }
+      .oum-url-type-btn { border:none; border-radius:5px; padding:5px 12px; font:inherit; font-size:15px; font-weight:600; cursor:pointer; background:transparent; color:#15803d; transition:background .1s; white-space:nowrap; }
+      .oum-url-type-btn.on { background:#fff; color:#0d7656; box-shadow:0 1px 3px rgba(0,0,0,.10); }
+      .oum-url-type-btn:not(.on):hover { background:#d1fae5; }
       .oum-add-url { width:100%; background:#fff; border:1.5px dashed #bbf7d0; color:#10b981; padding:13.5px; border-radius:10.5px; font:inherit; font-size:18px; cursor:pointer; font-weight:700; margin-top:9px; }
       .oum-add-url:hover { background:#F0FDF4; border-color:#10b981; }
       .oum-add-url:disabled { opacity:.4; cursor:not-allowed; }
@@ -722,7 +725,7 @@
               dbId: u.id,
               label: u.label || '',
               url: u.url || '',
-              url_type: u.url_type || '',
+              url_type: u.url_type || '단품',
               // [2026-06-05] 크롤 상태 — 실패 URL 빨강·재크롤 표시용 (신규 추가 URL은 undefined)
               crawled: u.crawled,
               lastStatus: u.last_status || null,
@@ -1292,334 +1295,6 @@
       return groups;
     }
 
-    // ─── [2026-06-19 P4] URL 크롤링 검증 탭 — 소싱처별 수집·최종매입가·매칭 ───
-    // [2026-06-20 재설계] 트리(소싱처▸URL) + 상세(2단·4케이스) + 배너(스택바·전체분류) + 실패정산.
-    function _vTypeBadge(t) {
-      var b = 'font-size:10px;font-weight:800;border-radius:5px;padding:1px 4px;text-align:center;display:inline-block;width:72px;white-space:nowrap';
-      if (t === 'deal') return '<span style="' + b + ';background:#FFE9EC;color:#D6334B">모델 모음전</span>';
-      if (t === 'mo') return '<span style="' + b + ';background:#EDE9FE;color:#7C3AED">색상 모음전</span>';
-      return '<span style="' + b + ';background:#E3F1FF;color:#1B64DA">단품</span>';
-    }
-    function _vStatusMeta(st, stock_out) {
-      if (st === 'ok') return { dot: '#16A34A', label: '매칭', cls: 'color:#16A34A;font-weight:800' };
-      if (st === 'soldout') return { dot: '#DC2626', label: '품절', cls: 'color:#DC2626;font-weight:800' };
-      if (st === 'absent') return { dot: '#94A3B8', label: '옵션없음 or 매핑실패', cls: 'color:#94A3B8;font-weight:800' };
-      return { dot: '#DC2626', label: '가격없음', cls: 'color:#DC2626;font-weight:800' };
-    }
-    function renderVerifyPanel() {
-      try {
-        if (state.verifyLoading) return '<div style="padding:34px;text-align:center;color:#8B95A1;font-size:15px">🔍 검증 중… (URL별 수집 · 최종매입가 · 옵션 매칭 계산)</div>';
-        const data = state.verifyData;
-        if (!data) return '<div style="padding:34px;text-align:center;color:#8B95A1;font-size:15px">검증 데이터 로딩…</div>';
-        if (data.error) return '<div style="padding:34px;text-align:center;color:#dc2626;font-size:15px">검증 실패: ' + esc(String(data.error)) + '</div>';
-        const g = data.global || {};
-        const srcs = data.sources || [];
-        const fd = data.fail_detail || {};
-        if (!state.verifyChecks) state.verifyChecks = {};
-        const allUrls = [];
-        srcs.forEach(function (ps) { (ps.urls || []).forEach(function (u) { allUrls.push(u); }); });
-        let selUrl = state.verifySelUrl;
-        if (!selUrl || !allUrls.some(function (u) { return u.product_url === selUrl; }))
-          selUrl = allUrls.length ? allUrls[0].product_url : null;
-        const sel = allUrls.find(function (u) { return u.product_url === selUrl; }) || null;
-        const selCount = Object.keys(state.verifyChecks).filter(function (k) { return state.verifyChecks[k]; }).length;
-
-        // ── 배너 (스택바 + 전체 URL 분류) ──
-        const totp = g.total || 0, mp = g.matched || 0, ap = g.absent || 0, np = g.noprice || 0;
-        const wM = totp ? (mp / totp * 100) : 0, wA = totp ? (ap / totp * 100) : 0, wN = totp ? (np / totp * 100) : 0;
-        const failTrig = (ap || np)
-          ? '<span data-verify-fail style="cursor:pointer;font-weight:800;color:' + (g.crawl_error_urls ? '#DC2626' : '#6B7684') + ';text-decoration:underline dotted">'
-            + (g.crawl_error_urls ? ('크롤에러 URL ' + g.crawl_error_urls) : '실패 상세') + ' ' + (state.verifyFailOpen ? '▴' : '▾') + '</span>'
-          : '';
-        const banner =
-          '<div style="display:flex;align-items:center;gap:20px;padding:14px 2px;border-top:1px solid #EAEDF1;border-bottom:1px solid #EAEDF1;margin-bottom:14px">' +
-            '<div style="display:flex;flex-direction:column"><div style="font-size:14px;font-weight:800;color:#16A34A">' + esc(g.min_final_source || '—') + '</div>' +
-            '<div style="font-size:15px;color:#8B95A1;font-weight:700">전체 최저 최종매입가</div>' +
-            '<div style="font-size:23px;font-weight:900;font-family:monospace;color:#1B64DA;line-height:1.25">' + (g.min_final ? g.min_final.toLocaleString() + '원' : '—') + '</div></div>' +
-            '<div style="width:1px;height:46px;background:#EAEDF1"></div>' +
-            '<div style="display:flex;flex-direction:column">' +
-              '<div style="font-size:15px;color:#8B95A1;font-weight:700">검증 결과 (전체 URL · <b style="color:#16A34A">성공 ' + (g.success_rate || 0) + '%</b>)</div>' +
-              '<div style="display:flex;height:11px;border-radius:999px;overflow:hidden;width:240px;margin:5px 0;background:#EEF1F5">' +
-                '<i style="display:block;height:100%;width:' + wM + '%;background:#16A34A"></i>' +
-                '<i style="display:block;height:100%;width:' + wA + '%;background:#94A3B8"></i>' +
-                '<i style="display:block;height:100%;width:' + wN + '%;background:#DC2626"></i></div>' +
-              '<div style="font-size:16px;display:flex;gap:12px;flex-wrap:wrap;align-items:center">' +
-                '<span style="color:#16A34A;font-weight:800">● 매칭 ' + mp + '</span>' +
-                '<span style="color:#94A3B8;font-weight:800">● 옵션없음 or 매핑실패 ' + ap + '</span>' +
-                '<span style="color:#DC2626;font-weight:800">● 가격없음 ' + np + '</span>' + failTrig + '</div></div>' +
-            '<div style="margin-left:auto;display:flex;flex-direction:column;align-items:stretch;gap:6px">' +
-              '<div id="v-recrawl-card" style="' + (state.vcrawl ? '' : 'display:none') + '">' + _vcrawlCardHtml() + '</div>' +
-              '<div style="display:flex;gap:8px;justify-content:flex-end">' +
-                '<button data-verify-refresh-sel type="button" style="background:#fff;color:#4E5968;border:1px solid #D1D6DB;border-radius:8px;padding:8px 12px;font-weight:700;font-size:13px;cursor:pointer">↻ 선택 URL 재검증' + (selCount ? ' (' + selCount + ')' : '') + '</button>' +
-                '<button data-verify-refresh type="button" style="background:#7C3AED;color:#fff;border:0;border-radius:8px;padding:8px 13px;font-weight:700;font-size:13px;cursor:pointer">🔍 전체 재검증</button>' +
-              '</div>' +
-            '</div>' +
-          '</div>';
-
-        // ── 실패 정산 (분류 그룹 2열) ──
-        let failPanel = '';
-        if (state.verifyFailOpen) {
-          // [2026-06-20] 소싱처 배지(고정폭 정렬) + 숫자 클릭 시 해당 옵션 인라인 펼침
-          if (!state.verifyFailExpand) state.verifyFailExpand = {};
-          const _failCol = function (urls, key) {
-            const numColor = key === 'absent' ? '#94A3B8' : '#DC2626';
-            const rows = urls.map(function (u) {
-              const cnt = key === 'absent' ? u.absent : u.noprice;
-              if (!cnt) return '';
-              const ekey = (u.product_url || '') + '|' + key;
-              const expanded = !!state.verifyFailExpand[ekey];
-              let chips = '';
-              if (expanded) {
-                const opts = (u.options || []).filter(function (o) { return o.status === key; });
-                const shown = opts.slice(0, 80).map(function (o) {
-                  return '<span style="display:inline-block;font-size:13px;font-weight:700;background:#EEF1F5;color:#5B6573;border-radius:6px;padding:3px 9px;margin:2px">' + esc((o.color || '') + ' ' + (o.size == null ? '' : o.size)) + '</span>';
-                }).join('');
-                const more = opts.length > 80 ? '<span style="font-size:11px;color:#8B95A1;margin-left:4px">+' + (opts.length - 80) + '</span>' : '';
-                chips = '<div style="padding:2px 12px 10px;background:#FAFBFC">' + shown + more + '</div>';
-              }
-              return '<div style="display:grid;grid-template-columns:64px 1fr 50px;gap:8px;align-items:center;padding:9px 12px;border-bottom:1px solid #F2F4F6;font-size:14px">' +
-                '<span style="font-size:12px;font-weight:800;border-radius:5px;padding:2px 4px;text-align:center;background:#EAF1FB;color:#1B64DA;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + esc(u.source_name || '') + '">' + esc(u.source_name || '?') + '</span>' +
-                '<a href="' + esc(u.product_url || '#') + '" target="_blank" rel="noopener" title="URL 직접 확인" style="font-weight:600;color:#191F28;text-decoration:none;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:left">' + esc(u.product_name || '(이름없음)') + (u.crawl_error ? ' <span style="color:#D6334B;font-weight:800">·크롤실패</span>' : '') + '</a>' +
-                '<span data-fail-exp="' + esc(ekey) + '" style="text-align:right;font-weight:800;color:' + numColor + ';cursor:pointer;text-decoration:underline">' + cnt + (expanded ? ' ▾' : ' ▸') + '</span></div>' + chips;
-            }).join('');
-            return rows || '<div style="padding:10px 12px;color:#C0C6CE;font-size:12px">없음</div>';
-          };
-          const absRows = _failCol(allUrls.filter(function (u) { return u.absent; }).sort(function (a, b) { return b.absent - a.absent; }), 'absent');
-          const noRows = _failCol(allUrls.filter(function (u) { return u.noprice; }).sort(function (a, b) { return b.noprice - a.noprice; }), 'noprice');
-          failPanel =
-            '<div style="border:1px solid #F0D7D7;background:#FFFAFA;border-radius:12px;padding:14px 16px;margin-bottom:14px">' +
-              '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">' +
-                '<div style="border:1px solid #EAEDF1;border-radius:10px;overflow:hidden">' +
-                  '<div style="padding:9px 12px;font-weight:800;font-size:12px;background:#F4F6F8;display:flex;align-items:center;gap:7px;border-bottom:1px solid #EAEDF1"><span style="width:8px;height:8px;border-radius:50%;background:#94A3B8;display:inline-block"></span>옵션없음 or 매핑실패<span style="margin-left:auto;color:#94A3B8">' + (fd.absent_total || 0) + '</span></div>' + absRows + '</div>' +
-                '<div style="border:1px solid #EAEDF1;border-radius:10px;overflow:hidden">' +
-                  '<div style="padding:9px 12px;font-weight:800;font-size:12px;background:#FFF4F4;color:#B23B3B;display:flex;align-items:center;gap:7px;border-bottom:1px solid #EAEDF1"><span style="width:8px;height:8px;border-radius:50%;background:#DC2626;display:inline-block"></span>가격없음<span style="margin-left:auto;color:#DC2626">' + (fd.noprice_total || 0) + '</span></div>' + noRows + '</div>' +
-              '</div><div style="margin-top:8px;font-size:11px;color:#16A34A;font-weight:700">✓ 옵션없음 ' + (fd.absent_total || 0) + ' + 가격없음 ' + (fd.noprice_total || 0) + ' = 검증결과 합계와 일치 · 상품명 클릭 = URL 직접 확인 · 숫자 클릭 = 옵션 펼침</div></div>';
-        }
-
-        // ── 트리 ──
-        let tree = '';
-        srcs.forEach(function (ps) {
-          tree += '<div style="font-size:15px;font-weight:800;color:#8B95A1;padding:14px 8px 4px;border-top:1px solid #F2F4F6">' + esc(ps.name) + ' — 최저 ' + (ps.min_final ? ps.min_final.toLocaleString() : '—') + ' · ' + (ps.success_rate || 0) + '%</div>';
-          (ps.urls || []).forEach(function (u) {
-            const on = u.product_url === selUrl;
-            const cntColor = u.needs_model ? '#A66A00' : ((u.crawl_error || u.noprice) ? '#DC2626' : (u.absent ? '#94A3B8' : '#16A34A'));
-            const cntTxt = u.needs_model ? '모델선택 필요' : (u.crawl_error ? '실패' : ('✓' + u.matched));
-            const need = (u.type === 'deal') ? '<span style="font-size:10px;font-weight:800;border-radius:5px;padding:1px 6px;background:#FFF1D6;color:#A66A00">🧩 모델</span>' : '';
-            tree += '<div data-vurl="' + esc(u.product_url) + '" style="display:grid;grid-template-columns:18px 72px 1fr auto;align-items:center;gap:8px;padding:8px;border-radius:7px;cursor:pointer;' + (on ? 'background:#E8F1FF' : '') + '">' +
-              '<input type="checkbox" data-vcheck="' + esc(u.product_url) + '" ' + (state.verifyChecks[u.product_url] ? 'checked' : '') + ' style="width:15px;height:15px;accent-color:#1B64DA">' +
-              _vTypeBadge(u.type) +
-              '<span style="font-size:18px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:left">' + esc(u.product_name || '(이름없음)') + '</span>' +
-              '<span style="display:flex;align-items:center;gap:7px;justify-content:flex-end">' + need + '<span style="font-size:15px;font-weight:800;color:' + cntColor + '">' + cntTxt + '</span></span></div>';
-          });
-        });
-
-        // ── 상세 ──
-        let detail;
-        if (!sel) {
-          detail = '<div style="padding:34px;text-align:center;color:#8B95A1;font-size:14px">좌측에서 URL을 선택하세요</div>';
-        } else {
-          const tyName = sel.type === 'deal' ? '모델 모음전' : '단품';
-          const optRows = (sel.options || []).slice(0, 400).map(function (o) {
-            const m = _vStatusMeta(o.status, o.stock_out);
-            const blank = (o.status === 'absent');
-            const fin = o.final ? o.final.toLocaleString() : (o.status === 'noprice' ? '— (혜택 미수집)' : '—');
-            return '<tr' + (o.status === 'absent' ? ' style="background:#FBFCFE"' : (o.status === 'noprice' ? ' style="background:#FFFCF6"' : '')) + '>' +
-              '<td style="padding:8px;border-bottom:1px solid #F2F4F6;font-weight:700">' + esc((o.color || '') + ' ' + (o.size == null ? '' : o.size)) + '</td>' +
-              '<td style="padding:8px;border-bottom:1px solid #F2F4F6"><span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:' + m.dot + ';margin-right:4px"></span><span style="' + m.cls + '">' + m.label + '</span></td>' +
-              '<td style="padding:8px;border-bottom:1px solid #F2F4F6;font-size:13px;color:' + (blank ? '#C0C6CE' : '#4E5968') + '">' + esc(blank ? '—' : (o.url_product_name || '—')) + '</td>' +
-              '<td style="padding:8px;border-bottom:1px solid #F2F4F6;font-family:monospace;font-size:13px;color:' + (blank ? '#C0C6CE' : '#4E5968') + '">' + esc(blank ? '—' : (o.url_option || '—')) + '</td>' +
-              '<td style="padding:8px;border-bottom:1px solid #F2F4F6;text-align:center">' + (blank ? '<span style="color:#C0C6CE">—</span>' : (o.stock_out ? '<span style="color:#DC2626;font-weight:700">' + esc(o.stock_label || '품절') + '</span>' : '<span style="color:#16A34A;font-weight:700">' + esc(o.stock_label || '재고있음') + '</span>')) + '</td>' +
-              '<td style="padding:8px;border-bottom:1px solid #F2F4F6;text-align:right;text-decoration:' + (blank ? 'none' : 'line-through') + ';color:#94A3B8;font-family:monospace">' + (o.surface ? o.surface.toLocaleString() : '—') + '</td>' +
-              '<td style="padding:8px;border-bottom:1px solid #F2F4F6;text-align:right;font-family:monospace;font-weight:800;color:' + (o.final ? '#1B64DA' : '#C0C6CE') + '">' + fin + '</td></tr>';
-          }).join('');
-          detail =
-            '<div style="display:flex;align-items:center;gap:10px">' + _vTypeBadge(sel.type) +
-              '<a href="' + esc(sel.product_url || '#') + '" target="_blank" rel="noopener" title="URL 직접 확인" style="font-size:15px;font-weight:800;color:#191F28;text-decoration:none">' + esc(sel.product_name || '(이름없음)') + ' 🔗</a>' +
-              '<button data-verify-refresh-one="' + esc(sel.product_url) + '" type="button" style="margin-left:auto;background:#fff;color:#4E5968;border:1px solid #D1D6DB;border-radius:8px;padding:5px 10px;font-weight:700;font-size:11px;cursor:pointer">🔍 해당 ' + tyName + '만 재검증</button></div>' +
-            '<div style="font-family:monospace;font-size:11px;color:#8B95A1;margin:4px 0 14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + esc(sel.product_url || '') + '</div>' +
-            '<div style="height:1px;background:#EAEDF1;margin:14px 0"></div>' +
-            '<div style="display:flex;align-items:stretch;margin-bottom:10px">' +
-              '<div style="flex:1"><div style="font-size:13px;font-weight:800;color:#8B95A1;margin-bottom:8px">검증 결과</div>' +
-                '<div style="display:flex;align-items:baseline;gap:10px;margin-bottom:8px"><span style="font-size:21px;font-weight:900;color:#16A34A">' + (sel.success_rate || 0) + '%</span><span style="font-size:13px;color:#8B95A1">옵션 크롤 성공률 (' + (sel.matched || 0) + ' / ' + (sel.total || 0) + ' · 품절 포함)</span></div>' +
-                '<div style="display:flex;gap:16px;font-size:17px;flex-wrap:wrap"><span style="color:#16A34A">● 매칭 ' + (sel.matched || 0) + '</span><span style="color:#94A3B8">● 옵션없음 or 매핑실패 ' + (sel.absent || 0) + '</span><span style="color:#DC2626">● 가격없음 ' + (sel.noprice || 0) + '</span></div></div>' +
-              '<div style="width:1px;background:#EAEDF1;margin:0 14px"></div>' +
-              '<div style="flex:1;display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center"><div style="font-size:13px;font-weight:800;color:#8B95A1">URL 최저 최종매입가</div><div style="font-size:26px;font-weight:900;font-family:monospace;color:#1B64DA;margin-top:3px">' + (sel.min_final ? sel.min_final.toLocaleString() + '원' : '—') + '</div></div></div>' +
-            '<div style="height:1px;background:#EAEDF1;margin:14px 0"></div>' +
-            '<table style="width:100%;border-collapse:collapse;font-size:18px">' +
-              '<thead><tr style="color:#8B95A1;font-size:15px;background:#FAFBFC"><td style="padding:7px 8px;border-bottom:1.5px solid #EAEDF1">옵션(우리 지정)</td><td style="padding:7px 8px;border-bottom:1.5px solid #EAEDF1">상태</td><td style="padding:7px 8px;border-bottom:1.5px solid #EAEDF1">URL 상품명</td><td style="padding:7px 8px;border-bottom:1.5px solid #EAEDF1">URL옵션</td><td style="padding:7px 8px;border-bottom:1.5px solid #EAEDF1;text-align:center">재고</td><td style="padding:7px 8px;border-bottom:1.5px solid #EAEDF1;text-align:right">표면노출가</td><td style="padding:7px 8px;border-bottom:1.5px solid #EAEDF1;text-align:right">최종매입가</td></tr></thead><tbody>' +
-              optRows + '</tbody></table>';
-        }
-
-        return '<div style="padding:2px 2px 16px">' + banner + failPanel +
-          '<div style="display:grid;grid-template-columns:360px 1fr;border:1px solid #EAEDF1;border-radius:12px;overflow:hidden;min-height:480px">' +
-          '<div id="v-tree" style="padding:10px;overflow:auto;max-height:600px;border-right:1px solid #EAEDF1">' + tree + '</div>' +
-          '<div style="padding:14px 20px;overflow:auto;max-height:600px">' + detail + '</div></div></div>';
-      } catch (e) {
-        return '<div style="padding:22px;color:#dc2626">검증 패널 오류: ' + esc(String((e && e.message) || e)) + '</div>';
-      }
-    }
-    async function loadVerifyData() {
-      state.verifyLoading = true;
-      try {
-        const code = window.BUNDLE_CODE || window.currentBundleCode || '';
-        const r = await fetch('/api/bundles/' + encodeURIComponent(code) + '/verify-urls',
-          { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
-        const j = await r.json();
-        state.verifyData = j.ok ? j : { error: (j.error || ('HTTP ' + r.status)) };
-      } catch (e) {
-        state.verifyData = { error: String((e && e.message) || e) };
-      }
-      state.verifyLoading = false;
-      if (state.rightTab === 'verify') renderRight();
-    }
-
-    // ─── [2026-06-20] 재검증 = 실제 재크롤 + 미니 토스트(일시중지/중지/시작) ───
-    function _vUrlSourceKey(url) {
-      const u = (url || '').toLowerCase();
-      if (u.includes('smartstore.naver') || u.includes('naver.com')) return 'ss_lemouton';
-      if (u.includes('lemouton')) return 'lemouton';
-      if (u.includes('musinsa')) return 'musinsa';
-      if (u.includes('ssfshop')) return 'ssf';
-      if (u.includes('lotteon')) return 'lotteon';
-      if (u.includes('ssg.com')) return 'ssg';
-      return null;
-    }
-    function _vAllUrls() {
-      const d = state.verifyData;
-      if (!d || !d.sources) return [];
-      const out = [];
-      d.sources.forEach(function (ps) { (ps.urls || []).forEach(function (u) { out.push(u); }); });
-      return out;
-    }
-    function _vDonut(pct, color) {
-      return '<svg width="30" height="30" viewBox="0 0 36 36"><circle cx="18" cy="18" r="15" fill="none" stroke="#EEF1F5" stroke-width="5"/>' +
-        '<circle cx="18" cy="18" r="15" fill="none" stroke="' + color + '" stroke-width="5" pathLength="100" stroke-dasharray="' + pct + ' 100" stroke-linecap="round" transform="rotate(-90 18 18)"/></svg>';
-    }
-    // [2026-06-20 시안3] 크롤 현황 = 검증 버튼 '위' 카드(버튼 행과 같은 폭, 왼쪽 라인 정렬).
-    function _vcrawlCardHtml() {
-      const vc = state.vcrawl;
-      if (!vc) return '';
-      const pct = vc.total ? Math.round(vc.done / vc.total * 100) : 0;
-      const card = 'display:flex;align-items:center;gap:10px;border-radius:10px;padding:8px 12px;overflow:hidden';
-      const ic = 'border-radius:7px;padding:5px 9px;font-size:13px;font-weight:800;cursor:pointer;flex:none;line-height:1';
-      const bGh = ic + ';background:#fff;color:#4E5968;border:1px solid #D1D6DB';
-      const bStop = ic + ';background:#fff;color:#DC2626;border:1px solid #F2C0C0';
-      const bGo = ic + ';background:#16A34A;color:#fff;border:0';
-      const bP = ic + ';background:#7C3AED;color:#fff;border:0;padding:5px 12px';
-      if (vc.running && !vc.paused) {
-        return '<div style="' + card + ';background:#F4F0FF;border:1px solid #E2D6FB">' + _vDonut(pct, '#1B64DA') +
-          '<div style="flex:1;min-width:0"><div style="font-size:14px;font-weight:800;color:#5B2BC4">검증 재크롤 ' + pct + '%</div><div style="font-size:12px;color:#8B95A1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + vc.done + '/' + vc.total + (vc.cur ? ' · ' + esc(String(vc.cur)) : '') + '</div></div>' +
-          '<button data-vc-pause title="일시중지" style="' + bGh + '">⏸</button><button data-vc-stop title="중지" style="' + bStop + '">■</button></div>';
-      } else if (vc.running && vc.paused) {
-        return '<div style="' + card + ';background:#FFFBF2;border:1px solid #F0DDB0">' + _vDonut(pct, '#C9A14A') +
-          '<div style="flex:1;min-width:0"><div style="font-size:14px;font-weight:800;color:#A66A00">일시정지됨 ' + pct + '%</div><div style="font-size:12px;color:#8B95A1">' + vc.done + '/' + vc.total + ' · 멈춤</div></div>' +
-          '<button data-vc-resume title="시작" style="' + bGo + '">▶</button><button data-vc-stop title="중지" style="' + bStop + '">■</button></div>';
-      }
-      const stopped = vc.stopped;
-      return '<div style="' + card + ';background:' + (stopped ? '#FFF6F6;border:1px solid #F2C0C0' : '#F4FBF6;border:1px solid #BfE3C9') + '">' +
-        '<span style="font-size:20px;font-weight:900;color:' + (stopped ? '#DC2626' : '#16A34A') + ';flex:none">' + (stopped ? '■' : '✓') + '</span>' +
-        '<div style="flex:1;min-width:0"><div style="font-size:14px;font-weight:800;color:' + (stopped ? '#B23B3B' : '#1A7F37') + '">' + (stopped ? '재크롤 중지됨' : '검증 재크롤 완료') + '</div>' +
-        '<div style="font-size:12px;color:#8B95A1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">성공 ' + vc.ok + ' · 실패 ' + vc.fail + (vc.ext ? ' · 확장필요 ' + vc.ext : '') + '</div></div>' +
-        '<button data-vc-close title="닫기" style="' + bP + '">닫기</button></div>';
-    }
-    function renderVcrawlToast() {
-      const el = document.getElementById('v-recrawl-card');
-      if (!el) return;  // 검증 탭 카드 슬롯이 없으면(다른 탭) 갱신 생략 — 크롤은 계속
-      el.style.display = state.vcrawl ? '' : 'none';
-      el.innerHTML = _vcrawlCardHtml();
-      // 카드 폭 = 버튼 행 폭(왼쪽=선택재검증 좌측라인, 오른쪽=전체재검증 우측라인 정렬)
-      if (state.vcrawl) {
-        const row = el.nextElementSibling;  // 버튼 행
-        if (row) el.style.width = row.offsetWidth + 'px';
-      } else {
-        el.style.width = '';
-      }
-    }
-    async function startVerifyRecrawl(urls, label) {
-      urls = (urls || []).filter(function (u) { return u && u.product_url; });
-      if (!urls.length) { alert('재크롤할 URL이 없습니다.'); return; }
-      if (state.vcrawl && state.vcrawl.running) return;  // 이미 진행 중
-      const code = window.BUNDLE_CODE || window.currentBundleCode || '';
-      const extOk = !!(window.MoumExt && window.MoumExt.installed && window.MoumExt.installed());
-
-      if (extOk && window.MoumExt.crawlUrls) {
-        // === 로컬 PC 창 크롤(전체 크롤과 동일 추출, 창 뜸). 선택 URL만. HTTP·무신사·롯데온 전부 ===
-        state.vcrawl = { running: true, paused: false, stopped: false, mode: 'win', total: urls.length, done: 0, ok: 0, fail: 0, ext: 0, label: label || '', cur: '' };
-        renderVcrawlToast();
-        const urlList = urls.map(function (u) { return { source_key: _vUrlSourceKey(u.product_url), url: u.product_url }; })
-          .filter(function (x) { return x.source_key && x.url; });
-        const onLog = function (ev) {
-          const d = ev.detail || {}; const m = d.metrics;
-          if (m && typeof m.total === 'number') { state.vcrawl.total = m.total; state.vcrawl.done = (typeof m.done === 'number' ? m.done : state.vcrawl.done); }
-          if (d.source) state.vcrawl.cur = String(d.source);
-          renderVcrawlToast();
-        };
-        window.addEventListener('moum-crawl-log', onLog);
-        try {
-          const r = await window.MoumExt.crawlUrls(code, urlList, {
-            shouldStop: function () { return !!state.vcrawl.stopped; },
-            shouldPause: function () { return !!state.vcrawl.paused; },
-          }).catch(function (e) { return { ok: false, error: String(e) }; });
-          state.vcrawl.ok = (r && r.ok_count) || 0;
-          state.vcrawl.fail = Math.max(0, ((r && r.crawled) || 0) - ((r && r.ok_count) || 0));
-        } catch (e) { /* noop */ }
-        window.removeEventListener('moum-crawl-log', onLog);
-      } else {
-        // === 확장 없음 — 서버 per-URL 크롤(HTTP만, 무신사·롯데온은 '확장필요') ===
-        state.vcrawl = { running: true, paused: false, stopped: false, mode: 'url', total: urls.length, done: 0, ok: 0, fail: 0, ext: 0, label: label || '', cur: '' };
-        renderVcrawlToast();
-        for (let i = 0; i < urls.length; i++) {
-          if (state.vcrawl.stopped) break;
-          while (state.vcrawl.paused && !state.vcrawl.stopped) { await new Promise(function (r) { setTimeout(r, 300); }); }
-          if (state.vcrawl.stopped) break;
-          const u = urls[i];
-          const sk = _vUrlSourceKey(u.product_url);
-          state.vcrawl.cur = u.product_name || u.source_name || '';
-          renderVcrawlToast();
-          if (!sk) { state.vcrawl.fail++; state.vcrawl.done++; renderVcrawlToast(); continue; }
-          if (sk === 'musinsa' || sk === 'lotteon') { state.vcrawl.ext++; state.vcrawl.done++; renderVcrawlToast(); continue; }
-          try {
-            const _ctrl = new AbortController();
-            state.vcrawl._abort = _ctrl;
-            const j = await fetch('/api/bundles/' + encodeURIComponent(code) + '/recrawl-url',
-              { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ source_key: sk, url: u.product_url }), signal: _ctrl.signal })
-              .then(function (r) { return r.json(); }).catch(function (e) { return { ok: false, _aborted: (e && e.name === 'AbortError') }; });
-            if (j && j._aborted) { break; }
-            if (j && j.crawl_ok) state.vcrawl.ok++;
-            else if (j && j.status === 'need_extension') state.vcrawl.ext++;
-            else state.vcrawl.fail++;
-          } catch (e) { state.vcrawl.fail++; }
-          state.vcrawl.done++;
-          renderVcrawlToast();
-        }
-      }
-      state.vcrawl.running = false;
-      renderVcrawlToast();
-      // 결과 반영 — 검증 데이터 재계산
-      state.verifyData = null;
-      if (state.rightTab === 'verify') renderRight();
-      loadVerifyData();
-    }
-    // 토스트 제어(일시중지/시작/중지/닫기) — 1회 위임 바인딩. full 모드는 MoumExt 엔진 제어로 위임.
-    if (!window.__vcToastBound) {
-      window.__vcToastBound = true;
-      document.addEventListener('click', function (ev) {
-        const vc = state.vcrawl;
-        if (!vc) return;
-        const full = vc.mode === 'full';
-        const M = window.MoumExt || {};
-        if (ev.target.closest('[data-vc-pause]')) { vc.paused = true; if (full && M.pauseCrawl) try { M.pauseCrawl(); } catch (e) {} renderVcrawlToast(); }
-        else if (ev.target.closest('[data-vc-resume]')) { vc.paused = false; if (full && M.resumeCrawl) try { M.resumeCrawl(); } catch (e) {} renderVcrawlToast(); }
-        else if (ev.target.closest('[data-vc-stop]')) {
-          vc.stopped = true; vc.running = false;
-          if (full && M.stopCrawl) { try { M.stopCrawl(); } catch (e) {} }
-          if (vc._abort) { try { vc._abort.abort(); } catch (e) {} }  // 진행 중 per-URL 요청 즉시 중단
-          renderVcrawlToast();
-        }
-        else if (ev.target.closest('[data-vc-close]')) { state.vcrawl = null; renderVcrawlToast(); }
-      });
-    }
-
     // ─── 우측 렌더 (시안 v3 C3 — 2탭 분기) ───
     function renderRight() {
       const right = $('#oum-right');
@@ -1647,7 +1322,6 @@
       let html = `<div class="oum-rt-tabs">
         <button class="oum-rt-tab ${state.rightTab === 'url' ? 'on' : ''}" data-rt-tab="url" type="button">📍 소싱처 URL 매핑 <span class="cnt">${urlCount}</span></button>
         <button class="oum-rt-tab ${state.rightTab === 'inv' ? 'on' : ''}" data-rt-tab="inv" type="button">📋 재고관리 매핑 <span class="cnt">${invCount}</span></button>
-        <button class="oum-rt-tab ${state.rightTab === 'verify' ? 'on' : ''}" data-rt-tab="verify" type="button" style="${state.rightTab === 'verify' ? 'color:#7c3aed;border-bottom-color:#7c3aed' : ''}">🔍 크롤링 검증</button>
         ${invStatsHtml}
       </div>`;
 
@@ -1657,48 +1331,21 @@
         return;
       }
 
-      if (state.rightTab === 'verify') {
-        // [2026-06-20] 트리 스크롤 보존 — URL행/체크박스/실패펼침 등 모든 재렌더에서 위로 안 튀게.
-        const _trOld = document.getElementById('v-tree');
-        const _savedScroll = _trOld ? _trOld.scrollTop : null;
-        html += renderVerifyPanel();
-        right.innerHTML = html;
-        if (_savedScroll != null) { const _trNew = document.getElementById('v-tree'); if (_trNew) _trNew.scrollTop = _savedScroll; }
-        if (state.vcrawl) renderVcrawlToast();  // 카드 폭=버튼 행 동기화
-        if (!state.verifyData && !state.verifyLoading) loadVerifyData();
-        return;
-      }
-
-      // [2026-06-13] 등록 URL 수 ≠ 실제 크롤 수 경고 배너 (시안 A).
-      //   크롤 제외 사유 2가지: ① 같은 주소 중복(dedup, 1번만 크롤)
-      //   ② SSG 딜·기획전 URL(last_status='covered' — 색상별 단품이 가격·재고 커버, 크롤 제외).
-      //   실제 크롤 = 등록 - 중복분 - covered. 차이를 사유별로 표면화한다.
+      // [2026-06-13] URL 중복 경고 배너 (시안 A) — 등록 수 ≠ 실제 크롤 수일 때 표면화.
       const _dupGroups = findDuplicateUrls();
-      const _coveredUrls = [];
-      Object.keys(state.urls || {}).forEach(sk => {
-        (state.urls[sk] || []).forEach(u => {
-          const _isDeal = (u.lastStatus === 'covered') ||
-            (sk === 'ssg' && (u.url || '').toLowerCase().includes('dealitemview'));
-          if (_isDeal) _coveredUrls.push({ srcKey: sk, label: (u.label || '').trim() });
-        });
-      });
-      const _dupExtra = _dupGroups.reduce((n, g) => n + (g.entries.length - 1), 0);
-      const _reg = urlCount;
-      const _crawl = _reg - _dupExtra - _coveredUrls.length;
-      if (_dupExtra > 0 || _coveredUrls.length > 0) {
+      if (_dupGroups.length) {
+        const _reg = urlCount;
+        const _extra = _dupGroups.reduce((n, g) => n + (g.entries.length - 1), 0);
+        const _uniq = _reg - _extra;
         const _hasCross = _dupGroups.some(g => g.crossOption);
-        let _items = _dupGroups.map(g => {
+        const _items = _dupGroups.map(g => {
           const _lab = SRC_LABELS[g.srcKey] || g.srcKey;
           const _names = g.entries.map(en => esc(en.label || '(라벨 없음)')).join(' ＝ ');
           const _cr = g.crossOption ? ` <em>⚠ 다른 옵션끼리 — 오타 의심</em>` : '';
-          return `<button class="oum-dupwarn-item${g.crossOption ? ' cross' : ''}" data-dupjump="${esc(g.srcKey)}" type="button">🔗 [${esc(_lab)}] ${_names}${_cr} <span class="oum-dupwarn-why">같은 주소 — 1번만 크롤</span></button>`;
-        }).join('');
-        _items += _coveredUrls.map(d => {
-          const _lab = SRC_LABELS[d.srcKey] || d.srcKey;
-          return `<button class="oum-dupwarn-item covered" data-dupjump="${esc(d.srcKey)}" type="button">📌 [${esc(_lab)}] ${esc(d.label || '(라벨 없음)')} <span class="oum-dupwarn-why">딜·기획전 — 단품이 커버, 크롤 제외</span></button>`;
+          return `<button class="oum-dupwarn-item${g.crossOption ? ' cross' : ''}" data-dupjump="${esc(g.srcKey)}" type="button">[${esc(_lab)}] ${_names}${_cr}</button>`;
         }).join('');
         html += `<div class="oum-dupwarn${_hasCross ? ' cross' : ''}" data-dupwarn>
-          <div class="oum-dupwarn-h">⚠ 등록 <b>${_reg}개</b> ≠ 실제 크롤 <b>${_crawl}개</b> — 아래 <b>${_reg - _crawl}건</b>이 크롤에서 빠집니다 (클릭 시 해당 소싱처로 이동)</div>
+          <div class="oum-dupwarn-h">⚠ 등록 <b>${_reg}개</b> ≠ 실제 크롤 <b>${_uniq}개</b> — 같은 주소 <b>${_extra}건</b>이 중복이라 크롤은 1번만 가져옵니다 (아래 클릭 시 해당 소싱처로 이동)</div>
           <div class="oum-dupwarn-list">${_items}</div>
         </div>`;
       }
@@ -1810,50 +1457,6 @@
       return groups;
     }
 
-    // [2026-06-19 P3] 딜 URL 모델 선택 드롭다운 + 모델 목록 로드
-    function renderModelPicker(u) {
-      const md = (state.urlModelData || {})[u.tempId];
-      const box = function (inner) { return '<div style="margin:2px 0 9px;padding:11px 13px;background:#faf5ff;border:1.5px solid #ddd6fe;border-radius:10px">' + inner + '</div>'; };
-      if (!md || md.loading) return box('<div style="font-size:13px;color:#7c3aed">🧩 묶인 모델 불러오는 중… (상품들 확인, 최대 ~10초)</div>');
-      if (md.error) return box('<div style="font-size:13px;color:#dc2626">모델 해석 실패: ' + esc(String(md.error)) + '</div>');
-      if (md.is_multi === false) return box('<div style="font-size:13px;color:#6B7684">단일상품 URL — 모델 선택 불필요</div>');
-      const matchedId = md.matched ? md.matched.item_id : null;
-      const items = (md.models || []).map(function (m) {
-        const sel = (m.item_id === matchedId);
-        return '<div data-model-pick="' + esc(m.url) + '" data-model-name="' + esc(m.name) + '" style="display:flex;align-items:center;gap:8px;padding:8px 10px;border:1px solid ' + (sel ? '#7c3aed' : '#eceaf5') + ';border-radius:8px;margin:4px 0;cursor:pointer;font-size:12.5px;background:' + (sel ? '#f0e9ff' : '#fff') + '">' +
-          (sel ? '<b style="color:#7c3aed">✓ 추천</b> ' : '') + esc(m.name) + '</div>';
-      }).join('');
-      return box('<div style="font-size:12.5px;font-weight:700;color:#7c3aed;margin-bottom:6px">🧩 이 딜에 묶인 ' + (md.models || []).length + '개 모델 — 우리 모음전에 쓸 모델을 고르면 <b>그 모델만</b> 수집합니다</div>' + items +
-        '<div style="text-align:right;margin-top:6px"><button data-model-close type="button" style="background:#f2f4f6;border:0;border-radius:7px;padding:6px 12px;font-size:12px;cursor:pointer">닫기</button></div>');
-    }
-    async function loadUrlModels(u) {
-      state.urlModelData = state.urlModelData || {};
-      state.urlModelData[u.tempId] = { loading: true };
-      // [2026-06-21] 원래 딜 URL 기억 → 모델 선택 후(URL이 단일 itemView 로 바뀐 뒤)에도
-      //   같은 딜의 모델 목록을 다시 열어 다른 모델로 바꿀 수 있게.
-      if (/dealitemview/i.test(u.url || '')) u.dealUrl = u.url;
-      const _resolveUrl = u.dealUrl || u.url;
-      renderRight();
-      try {
-        const target = (window.BUNDLE_CODE || '').replace(/_/g, ' ');
-        // [2026-06-21] 딜 HTML 을 브라우저(한국 IP)로 직접 받아 함께 전송 — 서버 fetch(도쿄 IP)가
-        //   간헐적으로 단일상품 HTML 을 반환해 '모델 선택 불필요' 오판하던 문제 회피.
-        let _dealHtml = null;
-        try { _dealHtml = await fetch(_resolveUrl, { credentials: 'include' }).then(function (x) { return x.text(); }); } catch (e) { _dealHtml = null; }
-        const _payload = { url: _resolveUrl, target_model: target };
-        if (_dealHtml && _dealHtml.length > 1000) _payload.html = _dealHtml;
-        const r = await fetch('/api/sources/resolve-deal-models', {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(_payload)
-        });
-        const j = await r.json();
-        state.urlModelData[u.tempId] = j.ok ? j : { error: (j.error || ('HTTP ' + r.status)) };
-      } catch (e) {
-        state.urlModelData[u.tempId] = { error: String((e && e.message) || e) };
-      }
-      if (state.urlModelPicker === u.tempId) renderRight();
-    }
-
     function renderUrlCard(u, num) {
       const isOpen = state.openUrlId === u.tempId;
       const totalActive = state.selected.size;
@@ -1863,16 +1466,6 @@
       //   실패가 아니므로 빨강 카드/재크롤 대상에서 제외, 안내 배지만 표시.
       const isCovered = u.lastStatus === 'covered';
       const isFail = u.crawled === false && !isCovered;
-      // [2026-06-19 P3] 딜(멀티모델) URL — 모델 배지로 우리 모델만 골라 수집
-      const isDeal = (u.url || '').toLowerCase().includes('dealitemview');
-      // [2026-06-20] 유형 사전지정 — dan/mo/deal. 미지정 기본 = 단품. 단, dealItemView URL은
-      //   기본 '모델 모음전'(딜 감지는 100% 확실 + 모델 선택 버튼이 떠야 모델 지정 가능).
-      const _ut = u.url_type || (isDeal ? 'deal' : 'dan');
-      const showModel = (_ut === 'deal');
-      const _segCss = 'border:0;background:#fff;padding:5px 10px;font-size:11px;font-weight:800;color:#8B95A1;cursor:pointer;border-right:1px solid #EEF1F5;white-space:nowrap';
-      const _onCol = { dan: '#1B64DA', mo: '#7C3AED', deal: '#D6334B' };
-      const _seg = (v, lbl) => `<button data-url-type="${v}" type="button" style="${_segCss}${_ut === v ? ';background:' + _onCol[v] + ';color:#fff' : ''}">${lbl}</button>`;
-      const tySeg = `<span class="oum-url-tyseg" title="유형: 단품 / 색상 모음전 / 모델 모음전" style="display:inline-flex;border:1px solid #DDE2E6;border-radius:8px;overflow:hidden;flex:none">${_seg('dan', '단품')}${_seg('mo', '색상 모음전')}${_seg('deal', '모델 모음전')}</span>`;
       const statusTxt = u.lastStatus === 'error' ? '응답 오류'
         : (u.lastStatus === 'not_crawled' ? '아직 크롤 안 됨' : (u.lastStatus || '실패'));
 
@@ -1884,22 +1477,22 @@
       //   복사 ⎘ 버튼은 유지 (시안 v8 선택 후 디자인 교체 예정)
       let html = `<div class="oum-url-card ${isOpen ? 'open' : ''}${isFail ? ' crawl-fail' : ''}${isCovered ? ' crawl-covered' : ''}" data-url-id="${u.tempId}" draggable="true">
         <div class="oum-url-ch">
-          ${tySeg}
           <span class="oum-url-drag" title="드래그해서 순서 변경" data-url-drag>⋮⋮</span>
           <span class="oum-url-num">${num}</span>
           <input class="oum-url-label" data-field="label" value="${esc(u.label)}" placeholder="라벨 (선택)">
+          <div class="oum-url-type" title="URL 타입 — 크롤 로그에서 구분 표시">
+            ${['단품','색상모음전','모델모음전'].map(t => `<button class="oum-url-type-btn${(u.url_type||'단품')===t?' on':''}" data-url-type="${esc(t)}" type="button">${esc(t)}</button>`).join('')}
+          </div>
           <input class="oum-url-input" data-field="url" value="${esc(u.url)}" placeholder="URL 입력">
           ${goBtn}
           <span class="oum-url-cnt ${isFail ? 'fail' : ''}" title="이 URL 에 매핑된 옵션 / 전체 활성 옵션">📌 <b>${mapped}</b>/${totalActive}</span>
-          ${showModel ? `<button class="oum-url-model" data-url-model type="button" title="모델 모음전 — 우리 모델만 골라 수집" style="background:#ede9fe;color:#7c3aed;border:1px solid #ddd6fe;border-radius:8px;padding:5px 10px;font-size:12.5px;font-weight:700;cursor:pointer;white-space:nowrap">${u.modelLabel ? '모델: ' + esc(u.modelLabel) : '모델 선택'} ▾</button>` : ''}
           ${isFail ? `<button class="oum-url-recrawl" data-url-recrawl type="button" title="이 URL 다시 크롤">🔄 재크롤</button>` : ''}
           <button class="oum-url-tog" data-url-tog type="button">${isOpen ? '▾ 닫기' : '▸ 매핑'}</button>
           <button class="oum-url-copy" data-url-copy type="button" title="이 카드 그대로 복사">📋 복사</button>
           <button class="oum-url-del" data-url-del type="button">✕ 삭제</button>
         </div>
         ${isFail ? `<div class="oum-url-failmsg">❌ 크롤 실패 (${esc(statusTxt)}) — 이 URL 의 옵션 <b>${mapped}건</b>은 가격/재고를 못 받았어요. 🔄 재크롤하거나 URL 을 확인하세요.</div>` : ''}
-        ${isCovered ? `<div class="oum-url-covered">📦 딜·기획전 허브 — 색상별 단품 URL로 가격·재고가 커버됩니다. 이 URL은 따로 크롤하지 않아요 (정상).</div>` : ''}
-        ${(showModel && state.urlModelPicker === u.tempId) ? renderModelPicker(u) : ''}`;
+        ${isCovered ? `<div class="oum-url-covered">📦 딜·기획전 허브 — 색상별 단품 URL로 가격·재고가 커버됩니다. 이 URL은 따로 크롤하지 않아요 (정상).</div>` : ''}`;
 
       if (isOpen) {
         html += `<div class="oum-url-body">${renderUrlBody(u)}</div>`;
@@ -2591,136 +2184,17 @@
         }
         return;
       }
-      // [2026-06-20] 검증 탭 — 전체/선택/개별 재검증 · URL 트리 선택·체크 · 실패 정산 펼침
-      const vCheck = e.target.closest('[data-vcheck]');
-      if (vCheck) {
-        if (!state.verifyChecks) state.verifyChecks = {};
-        const k = vCheck.dataset.vcheck;
-        state.verifyChecks[k] = !state.verifyChecks[k];
-        renderRight();
-        return;
-      }
-      const vFail = e.target.closest('[data-verify-fail]');
-      if (vFail) { state.verifyFailOpen = !state.verifyFailOpen; renderRight(); return; }
-      const vFExp = e.target.closest('[data-fail-exp]');
-      if (vFExp) {
-        if (!state.verifyFailExpand) state.verifyFailExpand = {};
-        const fk = vFExp.dataset.failExp;
-        state.verifyFailExpand[fk] = !state.verifyFailExpand[fk];
-        renderRight();
-        return;
-      }
-      // 재검증(전체/선택/개별) — 실제 재크롤(recrawl-url 배치) + 미니 토스트.
-      const rOne = e.target.closest('[data-verify-refresh-one]');
-      const rSel = e.target.closest('[data-verify-refresh-sel]');
-      const rAll = e.target.closest('[data-verify-refresh]');
-      if (rOne || rSel || rAll) {
-        const all = _vAllUrls();
-        let targets;
-        let lbl = '전체';
-        if (rOne) { const pu = rOne.dataset.verifyRefreshOne; targets = all.filter(function (u) { return u.product_url === pu; }); lbl = '해당'; }
-        else if (rSel) {
-          targets = all.filter(function (u) { return state.verifyChecks && state.verifyChecks[u.product_url]; });
-          lbl = '선택';
-          if (!targets.length) { alert('선택된 URL이 없습니다. 좌측 체크박스로 URL을 선택하세요.'); return; }
-        } else { targets = all; }
-        startVerifyRecrawl(targets, lbl);
-        return;
-      }
-      const vUrl = e.target.closest('[data-vurl]');
-      if (vUrl) { state.verifySelUrl = vUrl.dataset.vurl; renderRight(); return; }  // 스크롤 보존은 renderRight 가 처리
-      // [2026-06-20] URL 유형 세그먼트(단품/색상/모델) — 사전 지정
-      const tyBtn = e.target.closest('[data-url-type]');
-      if (tyBtn) {
-        const card = tyBtn.closest('[data-url-id]');
-        const u = (state.urls[state.currentSrc] || []).find(x => String(x.tempId) === (card && card.dataset.urlId));
-        if (u) {
-          const v = tyBtn.dataset.urlType;
-          u.url_type = (u.url_type === v) ? '' : v;  // 같은 값 재클릭 = 해제(미지정)
-          if (u.url_type !== 'deal') state.urlModelPicker = null;  // 모델 아니면 모델피커 닫기
-          renderRight();
-        }
-        return;
-      }
-      // [2026-06-19 P3] 딜 URL 모델 배지 — 열기/선택/닫기
-      const mBtn = e.target.closest('[data-url-model]');
-      if (mBtn) {
-        const card = mBtn.closest('[data-url-id]');
-        const u = (state.urls[state.currentSrc] || []).find(x => String(x.tempId) === (card && card.dataset.urlId));
-        if (u) {
-          state.urlModelPicker = (state.urlModelPicker === u.tempId) ? null : u.tempId;
-          renderRight();
-          if (state.urlModelPicker === u.tempId && !(state.urlModelData || {})[u.tempId]) loadUrlModels(u);
-        }
-        return;
-      }
-      const mPick = e.target.closest('[data-model-pick]');
-      if (mPick) {
-        const card = mPick.closest('[data-url-id]');
-        const u = (state.urls[state.currentSrc] || []).find(x => String(x.tempId) === (card && card.dataset.urlId));
-        if (u) {
-          u.url = mPick.dataset.modelPick;
-          u.modelLabel = mPick.dataset.modelName;
-          state.urlModelPicker = null;
-          renderRight();
-          // [2026-06-21] 모델 선택 즉시 저장 — 딜 URL → 모델 단일 itemView 로 바뀐 걸 DB 에 반영해야
-          //   검증/크롤이 딜이 아닌 그 모델을 본다(저장 안 하면 검증이 옛 딜 URL 보고 '실패' 표시).
-          if (typeof autoSave === 'function') { try { autoSave(); } catch (e) {} }
-        }
-        return;
-      }
-      const mClose = e.target.closest('[data-model-close]');
-      if (mClose) { state.urlModelPicker = null; renderRight(); return; }
-      // [2026-06-13] 크롤 실패 URL 재크롤 — 실제로 서버사이드 크롤 호출 후 성공/실패 표시.
-      //   HTTP 소싱처(ssf·ssg·lemouton·smartstore)=서버 크롤. 무신사·롯데온=브라우저 필요라
-      //   서버가 status='need_extension' 반환 → 크롬 확장(MoumExt)으로 크롤 후 결과 저장.
+      // [2026-06-05] 크롤 실패 URL 재크롤 — 크롤은 로컬 크롤러에서 실행되므로
+      //   여기선 해당 URL 을 새 탭으로 열어 사용자가 페이지 점검·로컬 재수집하게 안내.
       const recrawlBtn = e.target.closest('[data-url-recrawl]');
       if (recrawlBtn) {
         const card = recrawlBtn.closest('[data-url-id]');
         const u = (state.urls[state.currentSrc] || []).find(x => String(x.tempId) === (card && card.dataset.urlId));
-        if (!u || !u.url) return;
-        const _src = state.currentSrc;
-        const _toast = (m, k) => { try { if (window.showToast) window.showToast(m, k); } catch (_) {} };
-        recrawlBtn.disabled = true;
-        recrawlBtn.textContent = '⏳ 크롤 중…';
-        try {
-          let res = await fetch(`/api/bundles/${encodeURIComponent(bundleCode)}/recrawl-url`, {
-            method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ source_key: _src, url: u.url }),
-          }).then(r => r.json()).catch(err => ({ ok: false, error: String(err) }));
-          // 서버에 브라우저 없음(무신사·롯데온) → 크롬 확장으로 크롤 시도
-          if (res && res.status === 'need_extension') {
-            if (window.MoumExt && window.MoumExt.installed && window.MoumExt.installed()) {
-              _toast('🧩 확장으로 크롤 중…', 'ok');
-              const ext = await window.MoumExt.crawl(
-                { model_code: bundleCode, sources: [{ source_key: _src, url: u.url }] }, 120000
-              ).catch(err => ({ ok: false, error: String(err) }));
-              const one = ext && ext.results && ext.results[0];
-              if (one) {
-                await fetch('/api/sources/crawl-result', {
-                  method: 'POST', headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ items: [{ url: u.url, price: one.price, stock: one.stock, status: one.ok ? 'ok' : 'error', product_name: one.product_name, error: one.error }] }),
-                }).catch(() => {});
-                res = { crawl_ok: !!one.ok, price: one.price, stock: one.stock, error: one.error };
-              } else {
-                res = { crawl_ok: false, error: (ext && ext.error) || '확장 크롤 실패' };
-              }
-            } else {
-              res = { crawl_ok: false, error: '이 소싱처는 크롬 확장(모음전 크롤러)이 필요합니다' };
-            }
+        if (u && u.url) {
+          if (confirm('이 URL 을 다시 크롤할까요?\n\n' + u.url + '\n\n※ 크롤은 로컬 크롤러에서 실행됩니다. [확인] 시 페이지를 새 탭으로 엽니다 — 정상 표시되면 로컬 크롤러로 재수집하세요.')) {
+            window.open(u.url, '_blank', 'noopener');
           }
-          if (res && res.crawl_ok) {
-            u.crawled = true; u.lastStatus = 'ok';
-            _toast(`✅ 크롤 성공 — ${u.label || _src}${res.price ? ` · ${Number(res.price).toLocaleString()}원` : ''}`, 'ok');
-          } else {
-            u.crawled = false; u.lastStatus = 'error';
-            _toast(`❌ 크롤 실패 — ${(res && res.error) || '알 수 없는 오류'}`, 'err');
-          }
-        } catch (err) {
-          u.crawled = false; u.lastStatus = 'error';
-          _toast(`❌ 크롤 실패 — ${err}`, 'err');
         }
-        renderRight();
         return;
       }
       // [B3-3] 재고 자동 매칭 버튼
@@ -2903,6 +2377,17 @@
         arr.splice(idx + 1, 0, dup);  // 바로 아래에 삽입
         state.openUrlId = dup.tempId;
         renderRight();
+        return;
+      }
+      // URL 타입 버튼 — 단품/색상모음전/모델모음전
+      const typeBtn = e.target.closest('[data-url-type]');
+      if (typeBtn) {
+        const card0 = typeBtn.closest('[data-url-id]');
+        if (card0) {
+          const tid0 = +card0.dataset.urlId;
+          const u0 = (state.urls[state.currentSrc] || []).find(u => u.tempId === tid0);
+          if (u0) { u0.url_type = typeBtn.dataset.urlType; renderRight(); }
+        }
         return;
       }
       // [2026-05-27] 순서 변경은 드래그앤드랍으로 대체 — ↑/↓ 버튼 제거됨
@@ -3404,12 +2889,12 @@
                   if (u.dbId) {
                     await fetch(`/api/bundles/${encodeURIComponent(bundleCode)}/source-urls/${u.dbId}`, {
                       method: 'PUT', headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({ url: u.url.trim(), label: u.label || null, url_type: u.url_type || '', option_ids, sort_order: i }),
+                      body: JSON.stringify({ url: u.url.trim(), label: u.label || null, url_type: u.url_type || '단품', option_ids, sort_order: i }),
                     });
                   } else {
                     const res = await fetch(`/api/bundles/${encodeURIComponent(bundleCode)}/source-urls`, {
                       method: 'POST', headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({ source_key: sk, url: u.url.trim(), label: u.label || null, url_type: u.url_type || '', option_ids }),
+                      body: JSON.stringify({ source_key: sk, url: u.url.trim(), label: u.label || null, url_type: u.url_type || '단품', option_ids }),
                     });
                     const rj = await res.json();
                     if (rj && rj.id) u.dbId = rj.id;

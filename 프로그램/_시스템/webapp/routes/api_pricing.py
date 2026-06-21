@@ -69,22 +69,17 @@ def _err(msg, code=400):
 #  정책(사용자 확정): 정확한 수량 있으면 표기, 없으면 '재고있음', 0=품절.
 # ════════════════════════════════════════════
 import re as _re
-from functools import lru_cache as _lru_cache
 
 # config.SOURCING_AUTH['stock_cap'] 와 동일 — 무신사는 '충분'을 이 값으로 저장(센티넬).
 _STOCK_CAP = 10
 
 
-@_lru_cache(maxsize=16384)
 def _stk_digits(x):
-    # [perf 2026-06-12] 순수 함수 — 매트릭스 매칭에서 동일 size/color 문자열에 수천 번
-    #   호출되므로 메모이즈. 입력은 옵션·SourceOption 의 size/color(유한 집합).
     return ''.join(c for c in str(x or '') if c.isdigit())
 
 
-@_lru_cache(maxsize=16384)
 def _stk_cnorm(x):
-    """색상 비교용 정규화 — 공백·괄호·구분자 제거 + 소문자. (순수 함수 메모이즈)"""
+    """색상 비교용 정규화 — 공백·괄호·구분자 제거 + 소문자."""
     return _re.sub(r'[\s()（）\[\]·,/\-_:：]', '', str(x or '')).lower()
 
 
@@ -115,7 +110,6 @@ def _match_option_so(so_index, sp_id, opt_color, opt_size):
         return None
     oc = _stk_cnorm(opt_color)
     size_only = None
-    subs = []                                     # 부분일치 후보(정확매칭 없을 때만)
     for so in cands:
         st = (so.size_text or '').strip()
         s_size = _stk_digits(st) or _stk_digits(so.color_text)
@@ -124,22 +118,11 @@ def _match_option_so(so_index, sp_id, opt_color, opt_size):
         has_color = bool(st) and bool((so.color_text or '').strip())
         if has_color:
             sc = _stk_cnorm(so.color_text)
-            if not (oc and sc):
-                continue
-            if oc == sc:
-                return so                         # ★ 정확 매칭 최우선 (즉시 확정)
-            if oc in sc or sc in oc:
-                subs.append(so)                   # 부분일치 — 일단 보류
+            if oc and sc and (oc == sc or oc in sc or sc in oc):
+                return so                         # 색+사이즈 정확 매칭
             continue                              # 색 불일치 → 계속 탐색
         if size_only is None:
             size_only = so                        # 단일색 URL — 사이즈만으로 매칭
-    # 정확 매칭이 없었던 경우: 부분일치는 '모호하지 않을 때만' 채택.
-    #   [H1 2026-06-12] 기존엔 첫 부분일치를 즉시 반환 → '그레이'가 '라이트그레이'에
-    #   붙는 비결정적 오매칭. 후보가 2개 이상이면 추측 금지(None)가 안전(금전 사고 방지).
-    if len(subs) == 1:
-        return subs[0]
-    if len(subs) > 1:
-        return None
     return size_only
 
 
@@ -154,20 +137,6 @@ def _match_option_price(so_index, sp_id, opt_color, opt_size):
        매트릭스 가격을 재고와 동일한 옵션단위로 맞추기 위함(상품단위 대표가 오염 방지)."""
     so = _match_option_so(so_index, sp_id, opt_color, opt_size)
     return so.current_price if so is not None else None
-
-
-def _resolve_sourcing_cost(cost_src):
-    """소싱 카드 원가 = 크롤 실제가만. 폴백(사입가·하드코딩 95000) 금지.
-
-    [#4 2026-06-13 — feedback_no_fallback_price_on_match_fail]
-      소싱 카드는 '크롤된 소싱처에서 산다'는 전제라 원가는 크롤 실제가여야 한다.
-      크롤 실패/누락 시 boxhero 사입가(다른 개념) 또는 95000 상수로 메우면 가짜
-      판매가가 화면에 떠 수동주문을 유발 → 손실. 없으면 None(소싱 카드 가격없음).
-
-    return: 크롤 원가 int | None
-    """
-    p = (cost_src or {}).get('crawled_price')
-    return p if (p and p > 0) else None
 
 
 def _resolve_stock(site, raw):
@@ -186,140 +155,6 @@ def _resolve_stock(site, raw):
     if (site or '') == 'musinsa' and raw >= _STOCK_CAP:
         return (None, '재고있음', False)
     return (int(raw), f'{int(raw)}개', False)
-
-
-def _opt_color_size(o):
-    """옵션 dict → (color, size). 확장(color/size)·서버 parse(color_text/size_text) 둘 다 수용."""
-    color = o.get('color') if o.get('color') is not None else o.get('color_text')
-    size = o.get('size') if o.get('size') is not None else o.get('size_text')
-    return color, size
-
-
-def _ingest_option_stocks(session, source_product_id, options, price=None):
-    """확장 options[{color,size,stock}] → SourceOption.current_stock 갱신 (색·사이즈 매칭).
-
-    [2026-06-21] price(상품 균일가) 주면 갱신·생성 옵션의 current_price 도 함께 설정.
-      사유: 기존엔 stock 만 설정 → 리셋/prune 후 새로 생긴 옵션은 가격 누락(상품가 bulk
-      update 가 autoflush 안 된 신규행을 놓침) → noprice 둔갑(SSF 비-블랙 8색 사고).
-      생성/갱신 시점에 가격을 직접 박아 타이밍 의존 제거.
-
-    무신사·롯데온(확장 크롤)은 상품 레벨 stock 하나만 보내던 것을, 사이즈별 실재고
-    (0=품절 / N=실수량 / 999=충분, 확장이 센티넬 적용 완료)로 옵션별 교정한다.
-
-    매칭:
-      - 단일색 상품(들어온 옵션 색이 전부 비었음): 그 사이즈의 SourceOption '전부' 갱신.
-        (단일색 4800825 처럼 옛 다색 행이 섞여 by_cs 매칭이 막히던 잔여 제거.)
-      - 다색 상품: 색+사이즈 정밀 매칭. 없으면 사이즈가 유일할 때만 사이즈 매칭.
-    Returns: 갱신된 옵션 수.
-    """
-    if not isinstance(options, list) or not options:
-        return 0
-    from lemouton.sources.models import SourceOption
-    rows = (session.query(SourceOption)
-            .filter_by(source_product_id=source_product_id, deleted_at=None).all())
-    by_cs, by_size = {}, {}
-    for so in rows:
-        sz = _stk_digits(so.size_text) or _stk_digits(so.color_text)
-        if not sz:
-            continue
-        by_cs[(_stk_cnorm(so.color_text), sz)] = so
-        by_size.setdefault(sz, []).append(so)
-    # 단일색 판단: 들어온 옵션 색이 전부 비어있으면 단일색 상품 → 사이즈로만 매칭.
-    in_colors = {_stk_cnorm(_opt_color_size(o)[0]) for o in options if isinstance(o, dict)}
-    single_color = (in_colors <= {''})
-    n = 0
-    for o in options:
-        if not isinstance(o, dict):
-            continue
-        st = o.get('stock')
-        _color, _size = _opt_color_size(o)
-        sz = _stk_digits(_size)
-        if st is None or not sz:
-            continue
-        if single_color:
-            targets = by_size.get(sz) or []     # 그 사이즈 전부(중복·옛 다색 행 포함) 교정
-        else:
-            # [2026-06-19 fix #4] 다색 상품: (색+사이즈) 정밀 매칭만 한다. 사이즈-단독 폴백 제거 —
-            #   허브(다색 1URL)에 색 구분 없는 행이 사이즈당 1개뿐이면, 9색이 그 한 행을 차례로
-            #   덮어써 색상별 재고가 통째로 뭉개지던(color-blind) 버그. 매칭 행 없으면 아래 else 의
-            #   upsert 가 (색,사이즈) 행을 새로 만들어 색상별로 보존한다.
-            t = by_cs.get((_stk_cnorm(_color), sz))
-            targets = [t] if t is not None else []
-        if targets:
-            for target in targets:
-                try:
-                    target.current_stock = int(st)
-                    if price is not None:
-                        target.current_price = int(price)
-                    n += 1
-                except (TypeError, ValueError):
-                    pass
-        else:
-            # [2026-06-14] 매칭 행 없음 → 생성(upsert). 롯데온·스스처럼 늘 상품레벨 stock
-            #   하나만 저장해 per-size SourceOption 이 아예 없던 소싱처도, 이제 사이즈별
-            #   재고 행을 만들어 매트릭스(Path B _match_option_so)가 옵션단위로 읽게 한다.
-            #   (update-only 였을 때는 갱신할 행이 없어 상품레벨 999 폴백 = 한정수량 둔갑.)
-            try:
-                _st_int = int(st)
-            except (TypeError, ValueError):
-                continue
-            from lemouton.sources.service import upsert_source_option
-            so = upsert_source_option(
-                session, source_product_id=source_product_id,
-                color_text=(_color or ''), size_text=(_size or sz),
-                current_stock=_st_int,
-                current_price=(int(price) if price is not None else None))
-            # 같은 크롤 내 동일 사이즈 재등장 대비 인덱스 갱신
-            by_cs[(_stk_cnorm(_color), sz)] = so
-            by_size.setdefault(sz, []).append(so)
-            n += 1
-    return n
-
-
-def _prune_stale_option_sizes(session, source_product_id, options):
-    """이번 크롤에 없는 (색,사이즈)의 SourceOption 을 soft-delete — 사라진/판매중지 옵션 정리.
-
-    [2026-06-19 색+사이즈 정밀화 + 부분실패 가드] 4번째 케이스(옵션 자체가 사라짐) 처리:
-      - 이번 크롤에 '그 색이 있었는데' (색,사이즈)가 없으면 → 사라진 옵션 → soft-delete
-        → 매트릭스가 '옵션없음 혹은 매칭실패'로 표시(폴백 금지).
-      - 이번 크롤에 '그 색 자체가 없으면'(부분실패·다른 색만 크롤) → 건드리지 않음(불확실 보존).
-    단일색 상품(색-빈값)은 색='' 로 묶여 기존 '사이즈 기준'과 동일하게 동작.
-    멀티색 1URL(딜 등)에서 특정 색의 사이즈만 사라진 갭을 이걸로 잡는다. 성공 크롤(옵션 ≥1)만.
-    Returns: prune 된 수.
-    """
-    if not isinstance(options, list) or not options:
-        return 0
-    from lemouton.sources.models import SourceOption
-    new_cs, new_colors = set(), set()
-    for o in options:
-        if not isinstance(o, dict):
-            continue
-        _c, _s = _opt_color_size(o)
-        d = _stk_digits(_s)
-        if d:
-            cc = _stk_cnorm(_c)
-            new_cs.add((cc, d))
-            new_colors.add(cc)
-    if not new_cs:
-        return 0
-    rows = (session.query(SourceOption)
-            .filter_by(source_product_id=source_product_id, deleted_at=None).all())
-    import datetime as _dt
-    now = _dt.datetime.now(_dt.timezone.utc)
-    n = 0
-    for so in rows:
-        st = (so.size_text or '').strip()
-        sz = _stk_digits(st) or _stk_digits(so.color_text)
-        if not sz:
-            continue
-        # 색 키: size_text·color_text 둘 다 있으면 진짜 색(다색), 아니면 단일색('')
-        cc = _stk_cnorm(so.color_text) if (st and (so.color_text or '').strip()) else ''
-        # 그 색이 이번 크롤에 있었는데 (색,사이즈)가 없으면 = 사라진 옵션 → prune.
-        # 그 색 자체가 이번 크롤에 없으면(부분실패) → 보존(불확실 — 옛값 유지보다 다음 크롤 대기).
-        if cc in new_colors and (cc, sz) not in new_cs:
-            so.deleted_at = now
-            n += 1
-    return n
 
 
 def _pick_cheapest_buyable(sources):
@@ -514,16 +349,14 @@ def _option_matrix_data(code: str):
         )
         sku_list = [o.canonical_sku for o in opts]
 
-        # 소싱처 사전 — [perf 2026-06-12] 소싱처 레지스트리는 관리자가 가끔만 바꾸는
-        #   설정 데이터(가격·재고 아님) → plain dict 를 60초 TTL 캐시(매 매트릭스 로드 쿼리 제거).
-        from shared.ref_cache import cached as _ref_cached
-
-        def _load_source_dict():
-            _rows = (s.query(SourceRegistry)
-                     .order_by(SourceRegistry.sort_order, SourceRegistry.id).all())
-            return {src.id: {'id': src.id, 'name': src.name,
-                             'main_url': src.main_url or ''} for src in _rows}
-        source_dict = _ref_cached('matrix:source_dict', 60.0, _load_source_dict)
+        # 소싱처 사전
+        sources = (
+            s.query(SourceRegistry)
+            .order_by(SourceRegistry.sort_order, SourceRegistry.id)
+            .all()
+        )
+        source_dict = {src.id: {'id': src.id, 'name': src.name,
+                                'main_url': src.main_url or ''} for src in sources}
 
         # 옵션 × 소싱처 매핑
         url_links = (
@@ -544,7 +377,10 @@ def _option_matrix_data(code: str):
         for sp in (s.query(SourceProduct)
                    .filter(SourceProduct.deleted_at.is_(None)).all()):
             if sp.url:
-                sp_by_norm[_norm_url(sp.url)] = sp
+                # [2026-06-21] setdefault(첫 행) 사용 — save_crawl_result 의 idx 와 동일 정책.
+                #   dict assignment(마지막 행) vs setdefault(첫 행) 불일치 → 중복 URL SP 에서
+                #   source_stats 가 last_price=None 인 다른 행을 읽어 url_done=0 이 되던 버그 수정.
+                sp_by_norm.setdefault(_norm_url(sp.url), sp)
 
         sku_to_sources = {}  # sku -> [{source_id, source_name, product_url, ...}]
         for link in url_links:
@@ -710,6 +546,7 @@ def _option_matrix_data(code: str):
                         'source_name': _labels.get(bsu.source_key, bsu.source_key),
                         'product_url': bsu.url,
                         'label': bsu.label or '',
+                        'url_type': bsu.url_type or '단품',
                         'price_cached': None,
                         'stock_cached': None,
                         'source_product_id': sp.id if sp else None,
@@ -838,24 +675,22 @@ def _option_matrix_data(code: str):
             rounding = (tpl.rounding_unit if tpl else 100) or 100
 
             # [2026-06-03 핵심 로직] 원가 = "재고 존재 + 크롤 성공" 소싱처 중 최저 크롤가.
-            #   (기존: 첫 번째 가격있는 소싱처 — 품절·크롤실패 stale 가격도 원가로 잡히던 버그.)
-            #   [#4 2026-06-13] 소싱 카드 원가는 '크롤 실제가'만. 크롤 실패/누락 시 boxhero
-            #   사입가·하드코딩 95000 폴백 '금지'(정책) → 가짜 판매가가 화면에 떠 수동주문
-            #   유발하는 손실 차단. 없으면 소싱 카드 가격없음(None).
+            #   (기존: 첫 번째 가격있는 소싱처 — 품절·크롤실패 stale 가격도 원가로 잡히던 버그.
+            #    또 source_id=='lemouton' 비교는 source_id 가 레지스트리 int 라 항상 미스 = dead code.)
+            #   사입처는 '재고 있고 가장 싼 곳'에서 산다 → 그 가격이 원가. 없으면 템플릿 매입가 → 95000.
             sources_for_opt = sku_to_sources.get(o.canonical_sku, [])
             _cost_src = _pick_cheapest_buyable(sources_for_opt)
-            purchase = _resolve_sourcing_cost(_cost_src)
+            purchase = ((_cost_src or {}).get('crawled_price')
+                        or (tpl.boxhero_purchase_price if tpl else None)
+                        or 95000)
 
             # [2026-06-02] 소싱 카드 가격 — 단일 진실 원천(compute_market_price)로 통일.
-            #   크롤 실제가 있을 때만 산출. 없으면 None(가격없음/크롤실패) — 폴백 조작 금지.
-            if purchase is not None:
-                _src_ss_res = compute_market_price(tpl, 'ss', 'sourcing', purchase)
-                _src_cp_res = compute_market_price(tpl, 'coupang', 'sourcing', purchase)
-                ss_price, ss_break = _src_ss_res.final_price, _src_ss_res.breakdown
-                cp_price, cp_break = _src_cp_res.final_price, _src_cp_res.breakdown
-            else:
-                ss_price = cp_price = None
-                ss_break = cp_break = None
+            #   모달 마켓별·소싱 정책(rate/amount/지정가)을 그대로 반영. 화면=업로드 보장.
+            #   기존 calc_auto_price(ss_margin_rate 를 쿠팡에도 쓰던 버그) 대체.
+            _src_ss_res = compute_market_price(tpl, 'ss', 'sourcing', purchase)
+            _src_cp_res = compute_market_price(tpl, 'coupang', 'sourcing', purchase)
+            ss_price, ss_break = _src_ss_res.final_price, _src_ss_res.breakdown
+            cp_price, cp_break = _src_cp_res.final_price, _src_cp_res.breakdown
 
             display_ss = (cfg.manual_ss_price if cfg and not auto and cfg.manual_ss_price
                           else ss_price)
@@ -962,8 +797,6 @@ def _option_matrix_data(code: str):
                 'size_display': o.size_display or o.size_code,
                 # 옵션 매트릭스 활성 여부 (혜택 '옵션 직접 선택' 팝업이 활성 옵션만 노출)
                 'is_active': bool(getattr(o, 'is_active', True)),
-                # [2026-06-13] 크롤 실패/유효가격 없음 자동 판매차단 (is_active 와 분리, 화면 OFF 표시용)
-                'crawl_blocked': bool(getattr(o, 'crawl_blocked', False)),
                 'auto_enabled': auto,
                 'margin_rate': margin,
                 'ss_fee_rate': ss_fee,
@@ -1087,22 +920,19 @@ def _option_matrix_data(code: str):
             _bsus = (s.query(_BSU)
                      .filter(_BSU.model_code.in_(model_codes)).all())
             _bids = [b.id for b in _bsus]
-            # [2026-06-19] 비활성(is_active=false) 옵션은 판매 대상이 아니므로 카드 집계(매핑 시도·성공)에서
-            #   제외한다. (셀은 '비활성' 표시. 기존엔 비활성 옵션의 URL 링크가 map_try 에 잡혀, 그 사이즈를
-            #   안 파는 소싱처에서 match_failed → '실패'로 둔갑. 예: 르무통 오렌지 260/270 수동 OFF.)
-            _inactive_skus = {r['sku'] for r in opt_rows if not r.get('is_active', True)}
             _lcnt = {}
             if _bids:
-                _q_lcnt = (s.query(_OSL.bundle_source_url_id, _func.count())
-                           .filter(_OSL.bundle_source_url_id.in_(_bids)))
-                if _inactive_skus:
-                    _q_lcnt = _q_lcnt.filter(~_OSL.option_canonical_sku.in_(_inactive_skus))
-                for _bid, _c in _q_lcnt.group_by(_OSL.bundle_source_url_id).all():
+                for _bid, _c in (s.query(_OSL.bundle_source_url_id, _func.count())
+                                 .filter(_OSL.bundle_source_url_id.in_(_bids))
+                                 .group_by(_OSL.bundle_source_url_id).all()):
                     _lcnt[_bid] = _c
-            # [2026-06-19] URL 통계(시도/성공/실패목록)는 URL 단위로 집계. 딜 URL 도 제외하지 않는다 —
-            #   딜페이지가 대표 itemView 재크롤로 풀려 이제 정상 크롤되므로 일반 URL 로 취급.
             for _b in _bsus:
                 _sk = _b.source_key
+                # [2026-06-12] SSG 딜(dealItemView) = 색상별 단품 URL 로 커버되는 허브.
+                #   파이프라인이 크롤을 skip → 크롤 대상이 아니므로 집계(try/done/fail)에서 제외.
+                #   (포함하면 영구 '실패'로 잡혀 거짓 실패율을 만든다. 가격·재고는 단품 URL 제공.)
+                if _sk == 'ssg' and 'dealitemview' in (_b.url or '').lower():
+                    continue
                 _rid = _k2reg.get(_sk)
                 _key = _rid if _rid is not None else 'key:' + str(_sk)
                 _st = source_stats.setdefault(str(_key), {
@@ -1119,33 +949,16 @@ def _option_matrix_data(code: str):
                 _ok_url = bool(_rec) and is_crawl_valid(_rec[0], _rec[1])
                 _links = _lcnt.get(_b.id, 0)
                 _st['url_try'] += 1
+                _st['map_try'] += _links
                 if _ok_url:
                     _st['url_done'] += 1
+                    _st['map_done'] += _links
                 else:
                     _st['fail_urls'].append({
                         'id': _b.id, 'label': _b.label or '', 'url': _b.url,
                         'affected': _links,
                         'status': (_rec[1] if _rec else 'not_crawled'),
                     })
-            # [2026-06-19] map(옵션) 집계 = per-option(셀과 동일): 옵션이 그 소싱처에 등록되고, 그중 한
-            #   URL이라도 usable(매칭성공+가격>0)이면 done. 같은 소싱처 여러 URL 중복제거 + 딜 URL 포함
-            #   (딜이 가격 주면 그 옵션 성공) + 비활성 제외. (예: SSG 단품 매칭실패라도 딜이 커버하면 성공.)
-            for _sku2, _entries in sku_to_sources.items():
-                if _sku2 in _inactive_skus:
-                    continue
-                _by_src = {}
-                for _e in _entries:
-                    _by_src.setdefault(_e.get('source_key'), []).append(_e)
-                for _ek, _elist in _by_src.items():
-                    _rid2 = _k2reg.get(_ek)
-                    _key2 = str(_rid2 if _rid2 is not None else 'key:' + str(_ek))
-                    _st2 = source_stats.get(_key2)
-                    if _st2 is None:
-                        continue
-                    _st2['map_try'] += 1
-                    if any((not _e2.get('match_failed')) and ((_e2.get('crawled_price') or 0) > 0)
-                           for _e2 in _elist):
-                        _st2['map_done'] += 1
         except Exception:
             source_stats = {}
 
@@ -1181,326 +994,6 @@ def get_option_matrix(code: str):
     return _ok(**{k: v for k, v in d.items() if k != 'ok'})
 
 
-@bp.post('/bundles/<code>/verify-urls')
-def verify_urls(code: str):
-    """[2026-06-20 재설계] URL 크롤링 검증 — URL 단위 결과 + 전체/소싱처 집계 + 실패 정산.
-
-    body: {source_ids?: [...]} (생략=전체). 저장된 크롤 데이터 기준(재크롤은 recrawl-url 별도).
-    옵션×URL 셀 status(4케이스):
-      ok(매칭·재고·가격) / soldout(품절: 매칭·재고0·가격 → 성공 포함) /
-      absent('옵션없음 or 매핑실패') / noprice(가격없음·크롤실패).
-    성공률 = (ok+soldout) / 전체 셀(absent·noprice 분모 포함 = '해석 A').
-    최저매입가 = status=ok(재고있음)만 후보(품절 제외 = 월드컵 in-stock).
-    Returns: {global:{...}, sources:[{...urls:[{...options}]}], fail_detail:{...}}.
-    """
-    body = request.get_json(silent=True) or {}
-    want = set(body.get('source_ids') or [])
-    d = _option_matrix_data(code)
-    if not d.get('ok'):
-        return _err(d.get('error', '데이터 없음'), d.get('status', 404))
-    rows = d.get('options') or []
-    sname = {x['id']: x['name'] for x in (d.get('sources') or [])}
-    s = SessionLocal()
-    try:
-        from webapp.routes.api_benefits import compute_breakdown, _build_breakdown_cache
-        from lemouton.sources.models import SourceOption as _SO
-
-        # 크롤 상품명/실패사유(SourceProduct) + URL옵션(소싱처 자체 라벨, SourceOption) 인덱스
-        spids = set()
-        for o in rows:
-            for src in (o.get('sources') or []):
-                if src.get('source_product_id'):
-                    spids.add(src['source_product_id'])
-        sp_info = {}
-        so_index = {}
-        if spids:
-            _spl = list(spids)
-            for sp in s.query(SourceProduct).filter(SourceProduct.id.in_(_spl)).all():
-                sp_info[sp.id] = {'product_name': sp.product_name or '',
-                                  'last_status': sp.last_status,
-                                  'last_error': sp.last_error_msg}
-            try:
-                so_index = _build_so_index(
-                    s.query(_SO).filter(_SO.source_product_id.in_(_spl),
-                                        _SO.deleted_at.is_(None)).all())
-            except Exception:
-                so_index = {}
-
-        # 최종매입가 캐시 (ok/soldout 셀 한정)
-        items = []
-        for o in rows:
-            if not o.get('is_active', True):
-                continue  # [2026-06-21] 비활성(안 파는) 옵션은 검증/가격계산 대상 아님
-            for src in (o.get('sources') or []):
-                if (src.get('crawled_price') and not src.get('match_failed')
-                        and src.get('source_id') is not None):
-                    items.append({'sku': o['sku'], 'source_id': src['source_id'],
-                                  'sale_price': src['crawled_price']})
-        try:
-            cache = _build_breakdown_cache(s, items)
-        except Exception:
-            cache = None
-
-        # [2026-06-20] 사용자가 URL 매핑에서 사전 지정한 유형(dan/mo/deal) — 추정보다 우선.
-        url_type_map = {}
-        try:
-            from lemouton.sourcing.models import BundleSourceUrl as _BSU
-            from lemouton.sources.service import normalize_url as _nu
-            for _b in (s.query(_BSU.url, _BSU.url_type)
-                       .filter(_BSU.url_type.isnot(None)).all()):
-                if _b.url and _b.url_type:
-                    url_type_map[_nu(_b.url)] = _b.url_type
-        except Exception:
-            url_type_map = {}
-
-        per_url = {}  # (sid, url) -> url dict
-        for o in rows:
-            # [2026-06-21] 비활성(안 파는) 옵션 제외 — 르무통 오렌지 260/270 처럼 OFF 된 옵션이
-            #   옛 매핑 잔여로 '옵션없음'에 잡혀 검증을 어지럽히던 문제(과거기록, 새 수집 아님).
-            if not o.get('is_active', True):
-                continue
-            for src in (o.get('sources') or []):
-                sid = src.get('source_id')
-                url = src.get('product_url')
-                if sid is None or (want and sid not in want):
-                    continue
-                spid = src.get('source_product_id')
-                key = (sid, url)
-                u = per_url.get(key)
-                if u is None:
-                    _spi = sp_info.get(spid, {})
-                    u = per_url[key] = {
-                        'source_id': sid, 'source_name': sname.get(sid, '?'),
-                        'product_url': url,
-                        'product_name': _spi.get('product_name') or '',
-                        'is_deal': bool(url and 'dealitemview' in url.lower()),
-                        'last_status': _spi.get('last_status'),
-                        'last_error': _spi.get('last_error'),
-                        'ok': 0, 'soldout': 0, 'absent': 0, 'noprice': 0,
-                        'min_final': None, '_colors': set(), 'options': [],
-                    }
-                # 4케이스 판정
-                if src.get('match_failed'):
-                    status = 'absent'
-                elif (not src.get('crawled_price')) or src.get('last_status') == 'error':
-                    status = 'noprice'
-                elif src.get('stock_out'):
-                    status = 'soldout'
-                else:
-                    status = 'ok'
-                fin = None
-                if status in ('ok', 'soldout') and src.get('crawled_price'):
-                    try:
-                        fin = (compute_breakdown(s, sku=o['sku'], source_id=int(sid),
-                                                 sale_price=float(src['crawled_price']),
-                                                 _cache=cache) or {}).get('final_price')
-                    except Exception:
-                        fin = None
-                u[status] += 1
-                if status == 'ok' and fin and (u['min_final'] is None or fin < u['min_final']):
-                    u['min_final'] = fin
-                if status != 'absent':
-                    u['_colors'].add(o.get('color_code'))
-                # URL옵션 (소싱처 자체 색/사이즈 라벨)
-                url_opt = None
-                if spid and so_index:
-                    try:
-                        _som = _match_option_so(so_index, spid,
-                                                o.get('color_code'), o.get('size_code'))
-                        if _som is not None:
-                            _ct = (getattr(_som, 'color_text', '') or '').strip()
-                            _st = (getattr(_som, 'size_text', '') or '').strip()
-                            url_opt = (_ct + (' / ' if _ct and _st else '') + _st) or None
-                    except Exception:
-                        url_opt = None
-                u['options'].append({
-                    'color': o.get('color_display'), 'size': o.get('size_display'),
-                    'status': status,
-                    'stock_label': src.get('stock_label'), 'stock_out': src.get('stock_out'),
-                    'surface': src.get('crawled_price'), 'final': fin,
-                    'url_product_name': u['product_name'], 'url_option': url_opt,
-                })
-
-        # URL 마무리 + 소싱처 집계
-        per_src = {}
-        for (sid, url), u in per_url.items():
-            total = len(u['options'])
-            matched = u['ok'] + u['soldout']
-            u['matched'] = matched
-            u['total'] = total
-            u['success_rate'] = round(matched / total * 100) if total else 0
-            _stored_ty = None
-            try:
-                _stored_ty = url_type_map.get(_nu(url)) if url else None
-            except Exception:
-                _stored_ty = None
-            # [2026-06-21] 유형 2개: 단품/모델 모음전. 색상(mo)→단품 통합. 딜은 모델 모음전.
-            if _stored_ty == 'mo':
-                _stored_ty = 'dan'
-            u['type'] = _stored_ty or ('deal' if u['is_deal'] else 'dan')
-            # [2026-06-21] 딜 모델 미선택 = '실패' 아닌 '모델 선택 필요'로 구분 표시.
-            u['needs_model'] = bool(u['last_status'] == 'deal_needs_model'
-                                    or (u['is_deal'] and matched == 0))
-            u['crawl_error'] = bool((u['last_status'] == 'error'
-                                     or (total > 0 and u['noprice'] == total and matched == 0))
-                                    and not u['needs_model'])
-            u.pop('_colors', None)
-            ps = per_src.setdefault(sid, {'source_id': sid, 'name': sname.get(sid, '?'),
-                                          'urls': [], 'ok': 0, 'soldout': 0,
-                                          'absent': 0, 'noprice': 0, 'total': 0,
-                                          'min_final': None})
-            ps['urls'].append(u)
-            for k in ('ok', 'soldout', 'absent', 'noprice', 'total'):
-                ps[k] += u[k]
-            if u['min_final'] is not None and (ps['min_final'] is None
-                                               or u['min_final'] < ps['min_final']):
-                ps['min_final'] = u['min_final']
-
-        sources = []
-        g_matched = g_absent = g_noprice = g_total = g_err = 0
-        g_min = None
-        g_min_src = None
-        for sid, ps in per_src.items():
-            ps['matched'] = ps['ok'] + ps['soldout']
-            ps['success_rate'] = round(ps['matched'] / ps['total'] * 100) if ps['total'] else 0
-            # 실패 많은 URL 위로
-            ps['urls'].sort(key=lambda x: -(x['absent'] + x['noprice']))
-            sources.append(ps)
-            g_matched += ps['matched']
-            g_absent += ps['absent']
-            g_noprice += ps['noprice']
-            g_total += ps['total']
-            g_err += sum(1 for x in ps['urls'] if x['crawl_error'])
-            if ps['min_final'] is not None and (g_min is None or ps['min_final'] < g_min):
-                g_min = ps['min_final']
-                g_min_src = ps['name']
-        sources.sort(key=lambda x: (x['min_final'] is None, x['min_final'] or 0))
-
-        # 실패 정산 — URL별 absent/noprice (합 = 전체 absent/noprice 와 일치)
-        fail_urls = []
-        for ps in sources:
-            for u in ps['urls']:
-                if u['absent'] or u['noprice']:
-                    fail_urls.append({
-                        'product_url': u['product_url'], 'product_name': u['product_name'],
-                        'source_name': u['source_name'], 'is_deal': u['is_deal'],
-                        'crawl_error': u['crawl_error'], 'last_error': u['last_error'],
-                        'absent': u['absent'], 'noprice': u['noprice'],
-                    })
-        fail_urls.sort(key=lambda x: -(x['absent'] + x['noprice']))
-
-        return _ok(
-            sources=sources,
-            fail_detail={'absent_total': g_absent, 'noprice_total': g_noprice,
-                         'urls': fail_urls},
-            **{'global': {
-                'min_final': g_min, 'min_final_source': g_min_src,
-                'matched': g_matched, 'absent': g_absent, 'noprice': g_noprice,
-                'total': g_total,
-                'success_rate': round(g_matched / g_total * 100) if g_total else 0,
-                'crawl_error_urls': g_err,
-            }},
-        )
-    finally:
-        s.close()
-
-
-# ════════════════════════════════════════════════════════════
-#  크롤 시작 하드 리셋 + 종료 후 판매차단(crawl_blocked) 재계산
-#  [2026-06-13] 옛 가격/재고가 재크롤에 안 덮이면 잘못된 값으로 판매 → 치명적 손실.
-#   · 크롤 시작 시: 그 모음전의 SourceProduct/SourceOption 가격·재고·혜택을 비우고(NULL,
-#     status='pending'), 옵션을 pessimistic 으로 crawl_blocked=True (유효가격 다시 잡히면 해제).
-#   · 크롤 종료 시: 옵션별 '유효 소싱가(is_crawl_valid)' 유무로 crawl_blocked 재계산.
-#   판매가능 = Option.is_active(사용자 수동) AND NOT Option.crawl_blocked(크롤 정상).
-#   매칭 로직 중복 없이 _option_matrix_data(단일 진실 원천) 재사용.
-# ════════════════════════════════════════════════════════════
-
-def _reset_bundle_crawl_state(s, code: str) -> dict:
-    """크롤 시작 직전 — 그 모음전의 소싱 가격/재고/혜택 비우고 옵션 pessimistic block."""
-    from lemouton.sources.models import SourceProduct, SourceOption
-    from lemouton.sourcing.models import Option
-    data = _option_matrix_data(code)
-    opts = data.get('options') or []
-    sp_ids = {src.get('source_product_id')
-              for o in opts for src in (o.get('sources') or [])
-              if src.get('source_product_id')}
-    if sp_ids:
-        (s.query(SourceProduct).filter(SourceProduct.id.in_(sp_ids))
-         .update({SourceProduct.last_price: None, SourceProduct.last_stock: None,
-                  SourceProduct.last_status: 'pending',
-                  SourceProduct.dynamic_benefits_json: None},
-                 synchronize_session=False))
-        (s.query(SourceOption).filter(SourceOption.source_product_id.in_(sp_ids))
-         .update({SourceOption.current_price: None, SourceOption.current_stock: None,
-                  SourceOption.dynamic_benefits_json: None},
-                 synchronize_session=False))
-    skus = [o['sku'] for o in opts if o.get('sku')]
-    if skus:
-        (s.query(Option).filter(Option.canonical_sku.in_(skus))
-         .update({Option.crawl_blocked: True}, synchronize_session=False))
-    s.commit()
-    return {'reset_products': len(sp_ids), 'blocked_options': len(skus)}
-
-
-def _sources_have_valid_price(sources) -> bool:
-    """옵션의 소싱 목록 중 '판매에 쓸 수 있는 유효 가격'이 하나라도 있나 — 단일 판정.
-
-    유효 = 매칭 실패(안 파는 조합) 아님 AND is_crawl_valid(가격>0, status!='error').
-    리셋 후 미커버(NULL/pending)·크롤실패(error)·매칭실패는 모두 무효 → 판매차단 대상.
-    """
-    from lemouton.pricing.unified import is_crawl_valid
-    return any(
-        (not src.get('match_failed'))
-        and is_crawl_valid(src.get('crawled_price'), src.get('last_status'))
-        for src in (sources or [])
-    )
-
-
-def _finalize_bundle_crawl_block(s, code: str) -> dict:
-    """크롤 종료 후 — 옵션별 유효 소싱가 유무로 crawl_blocked 재계산(성공=해제, 실패=차단)."""
-    from lemouton.sourcing.models import Option
-    data = _option_matrix_data(code)
-    opts = data.get('options') or []
-    blocked = sellable = 0
-    for o in opts:
-        sku = o.get('sku')
-        if not sku:
-            continue
-        opt = s.get(Option, sku)
-        if opt is None:
-            continue
-        # 오프라인 전용(소싱 URL 없이 사입만) 옵션은 크롤 차단 대상 아님
-        if getattr(opt, 'offline_only', False):
-            new_blocked = False
-        else:
-            new_blocked = not _sources_have_valid_price(o.get('sources') or [])
-        opt.crawl_blocked = new_blocked
-        blocked += int(new_blocked)
-        sellable += int(not new_blocked)
-    s.commit()
-    return {'blocked': blocked, 'sellable': sellable}
-
-
-@bp.post('/bundles/<code>/crawl-reset')
-def post_crawl_reset(code: str):
-    """크롤 시작 직전 호출(확장·서버 공통) — 가격/재고/혜택 하드 리셋 + 옵션 pessimistic block."""
-    s = SessionLocal()
-    try:
-        return _ok(**_reset_bundle_crawl_state(s, code))
-    finally:
-        s.close()
-
-
-@bp.post('/bundles/<code>/crawl-finalize')
-def post_crawl_finalize(code: str):
-    """크롤 종료 후 호출 — 유효 소싱가 없는 옵션을 crawl_blocked=True 로 판매차단."""
-    s = SessionLocal()
-    try:
-        return _ok(**_finalize_bundle_crawl_block(s, code))
-    finally:
-        s.close()
-
-
 # ════════════════════════════════════════════════════════════
 #  POST /api/sources/crawl-result — 크롬 확장(로그인 브라우저) 크롤 결과 저장
 #  [2026-06-06] '모음전 크롤러' 확장이 로컬 브라우저로 긁은 가격/재고를 SourceProduct
@@ -1508,25 +1001,6 @@ def post_crawl_finalize(code: str):
 #    SourceProduct.last_price/last_stock/last_status 를 읽으므로 여기 쓰면 UI·계산식에
 #    그대로 반영된다. 설계: docs/소싱처관리_아키텍처.md
 # ════════════════════════════════════════════════════════════
-def _build_crawl_snapshot(item: dict, *, now_iso: str) -> dict:
-    """확장 크롤 1건(item)에서 '이번 브라우저 기준' 혜택 스냅샷을 만든다.
-
-    benefit_lines/benefit_amounts 가 오면 benefits_ok=True. 없으면 빈 스냅샷
-    (benefits_ok=False) — 빈 배열을 '혜택 없음'으로 둔갑시키지 않는다(미수집).
-    """
-    lines = item.get('benefit_lines')
-    amounts = item.get('benefit_amounts')
-    has = isinstance(lines, list) and bool(item.get('benefits_ok'))
-    return {
-        'crawled_at': now_iso,
-        'is_logged_in': (None if item.get('is_logged_in') is None
-                         else bool(item.get('is_logged_in'))),
-        'benefits_ok': bool(has),
-        'lines': list(lines) if isinstance(lines, list) else [],
-        'amounts': dict(amounts) if isinstance(amounts, dict) else {},
-    }
-
-
 @bp.post('/sources/crawl-result')
 def save_crawl_result():
     """확장 크롤 결과 일괄 저장.
@@ -1545,20 +1019,14 @@ def save_crawl_result():
     s = SessionLocal()
     try:
         # 정규화 url → SourceProduct 인덱스 (1회 빌드)
-        #  ★ [2026-06-21] 같은 정규화 URL 에 SourceProduct 가 여러 개일 수 있음(트래킹 파라미터
-        #  다른 중복행). crawl-result(첫 행 갱신)와 verify/_option_matrix_data(마지막 행 읽기)가
-        #  서로 다른 행을 골라 가격이 화면에 안 뜨던 사고 → dup_ids 로 '모든 중복행' 옵션가를 갱신.
         idx = {}
-        dup_ids = {}
         for sp in (s.query(SourceProduct)
                    .filter(SourceProduct.deleted_at.is_(None)).all()):
             if sp.url:
-                _nu = normalize_url(sp.url)
-                idx.setdefault(_nu, sp)
-                dup_ids.setdefault(_nu, []).append(sp.id)
+                idx.setdefault(normalize_url(sp.url), sp)
 
         now = _dt.datetime.now(_dt.timezone.utc)
-        updated, not_found, item_errors = 0, [], []
+        updated, not_found = 0, []
         for it in items:
             url = (it or {}).get('url')
             if not url:
@@ -1567,41 +1035,10 @@ def save_crawl_result():
             if sp is None:
                 not_found.append(str(url)[:80])
                 continue
-            # [2026-06-21 money-safe] SSG 딜(dealItemView) — 모델 미선택이면 자동 대표상품
-            #   크롤 금지(광고상품 오긁음). 잔여(이전 '홈쇼핑 인기 상품'·'여성 와이드 바지' 등)
-            #   데이터 정리 + 'deal_needs_model' 표시. 모델 선택하면 URL 이 단일 itemView 가 됨.
-            if 'dealitemview' in str(url).lower():
-                for _sid in (dup_ids.get(normalize_url(url)) or [sp.id]):
-                    _sp2 = s.get(SourceProduct, _sid)
-                    if _sp2 is None:
-                        continue
-                    _sp2.product_name = None
-                    _sp2.last_price = None
-                    _sp2.last_stock = None
-                    _sp2.last_status = 'deal_needs_model'
-                    _sp2.last_error_msg = '딜 — 모델 선택 필요(모델 선택 ▾ 눌러 모델 지정)'
-                    _sp2.last_fetched_at = now
-                    s.query(SourceOption).filter(
-                        SourceOption.source_product_id == _sid,
-                        SourceOption.deleted_at.is_(None)
-                    ).update({SourceOption.deleted_at: now}, synchronize_session=False)
-                updated += 1
-                continue
             price = it.get('price')
             stock = it.get('stock')
-            # [2026-06-12 방어] 비정상 저가(<100원, 예: 1원) 거부 — 추출 오류값이
-            #   last_price/current_price 를 덮어써 잘못된 최저가가 잡히는 금전 사고 방지.
-            #   (전 소싱처 공통 안전망 — 확장 버전 무관)
-            rejected_low = False
-            try:
-                if price not in (None, '', 0) and int(price) < 100:
-                    rejected_low = True
-            except Exception:
-                pass
-            status = it.get('status') or ('ok' if (price and not rejected_low) else 'error')
-            if rejected_low:
-                status = 'error'
-            if price not in (None, '', 0) and not rejected_low:
+            status = it.get('status') or ('ok' if price else 'error')
+            if price not in (None, '', 0):
                 try:
                     sp.last_price = int(price)
                 except Exception:
@@ -1613,73 +1050,36 @@ def save_crawl_result():
                     pass
             sp.last_status = status
             sp.last_fetched_at = now
-            sp.last_error_msg = ('비정상 저가 거부(%s원)' % price) if rejected_low else (it.get('error') or None)
+            sp.last_error_msg = it.get('error') or None
             pn = it.get('product_name')
             if pn:
                 sp.product_name = str(pn)[:255]
-            # [2026-06-22] 중복 SP(같은 정규화URL) last_price/last_status 동기화 — source_stats 가
-            #   sp_by_norm(마지막 행)을 읽는데 save_crawl_result 는 idx(첫 행)만 갱신해서
-            #   source_stats url_done=0 이 되던 버그. dup_ids 의 나머지 행도 일괄 갱신.
-            _dup_others = [i for i in (dup_ids.get(normalize_url(url)) or []) if i != sp.id]
-            if _dup_others:
-                _sp_upd = {SourceProduct.last_status: status, SourceProduct.last_fetched_at: now}
-                if price not in (None, '', 0) and not rejected_low:
-                    try:
-                        _sp_upd[SourceProduct.last_price] = int(price)
-                    except Exception:
-                        pass
+            # [2026-06-06] 옵션단위 표시가 갱신 — 매트릭스는 SourceOption.current_price 를
+            #   우선 표시한다(상품 last_price 는 fallback). 무신사 회원가·롯데온 혜택가는
+            #   상품 내 균일하므로 이 상품의 모든 옵션 가격을 일괄 갱신 → 화면에 신규가 반영.
+            if price not in (None, '', 0):
                 try:
-                    s.query(SourceProduct).filter(
-                        SourceProduct.id.in_(_dup_others),
-                        SourceProduct.deleted_at.is_(None)
-                    ).update(_sp_upd, synchronize_session=False)
+                    s.query(SourceOption).filter_by(
+                        source_product_id=sp.id, deleted_at=None
+                    ).update({SourceOption.current_price: int(price)})
                 except Exception:
                     pass
-            # ★ 2026-06-14 — 사이즈별 재고 반영 (확장 options[{color,size,stock}] → current_stock).
-            #   기존 상품레벨 stock(=확장 anyStock?999:0)만 저장 → 전 사이즈 '재고있음'
-            #   둔갑(한정수량·품절 누락 = 오발주 손실) 교정. status=ok 인 성공 크롤만.
-            if status == 'ok':
-                _opts_in = it.get('options')
-                # [2026-06-18] 옵션 재고 반영을 savepoint 로 격리 — 한 건이 예외(예: ssf 특정
-                #   옵션 데이터로 internal_error) 나도 그 건만 롤백하고 배치 전체(다른 소싱처·이 건의
-                #   가격)는 보존·커밋되게. 기존엔 한 건 예외가 루프를 깨 commit 미도달 → 배치 전량
-                #   0건 저장 → 하드리셋만 남아 가격 소실되는 사고였음. 에러는 item_errors 로 표면화.
-                try:
-                    _price_int = (int(price) if (price not in (None, '', 0) and not rejected_low) else None)
-                    with s.begin_nested():
-                        # 먼저 이번에 없는 사이즈 prune(옛 다색·날조 행 제거) → 단일색 매칭 모호성 해소.
-                        _prune_stale_option_sizes(s, sp.id, _opts_in)
-                        # [2026-06-21] 가격도 함께 박음(생성·갱신 시점) → 신규 옵션 가격 누락 사고 방지.
-                        _ingest_option_stocks(s, sp.id, _opts_in, price=_price_int)
-                except Exception as _e:
-                    item_errors.append({'url': str(url)[:80], 'where': 'option_stock', 'error': str(_e)[:160]})
-            # [2026-06-06] 옵션단위 표시가 갱신 — 매트릭스는 SourceOption.current_price 우선(상품
-            #   last_price 는 fallback). 상품 내 가격 균일(무신사 회원가·SSF 등)하므로 전 옵션 일괄 반영.
-            #   ★ [2026-06-21] _ingest 가 생성·갱신 옵션에 가격을 박지만, 이번 옵션배열에 없던 기존
-            #   옵션까지 균일가로 맞추는 안전망. s.flush()로 신규 옵션을 먼저 DB 반영(autoflush off
-            #   환경에서도 bulk update 가 신규행을 놓치지 않게).
-            if price not in (None, '', 0) and not rejected_low:
-                try:
-                    s.flush()
-                    _all_ids = dup_ids.get(normalize_url(url)) or [sp.id]
-                    s.query(SourceOption).filter(
-                        SourceOption.source_product_id.in_(_all_ids),
-                        SourceOption.deleted_at.is_(None)
-                    ).update({SourceOption.current_price: int(price)},
-                             synchronize_session=False)
-                except Exception:
-                    pass
-            # ★ 2026-06-14 — '있는 그대로(현재 브라우저)' 혜택 스냅샷 저장.
-            #   확장이 현재 페이지에서 긁은 혜택 라인/금액을 dynamic_benefits_json['_crawl']에
-            #   타임스탬프·로그인상태와 함께 기록. 크롤 실패(status='error')면 스냅샷 미갱신
-            #   → 신선도 게이트(benefits_fresh)가 옛 값을 자동 배제. (폴백 금지)
-            if getattr(sp, 'site', None) == 'musinsa' and status != 'error':
+            # ★ 2026-06-13 — '있는 그대로' 적용: 비로그인 무신사 크롤은 계정 의존 혜택
+            #   (등급적립·무신사머니·등급할인·상품쿠폰)을 페이지에서 못 봤으므로 0 으로 비운다.
+            #   어제 로그인 크롤의 stale 값을 끌어다 쓰는 사고 차단(폴백·해석 금지).
+            #   표면가(salePrice=price)는 갱신, 후기적립(템플릿·계정무관)은 그대로 둠.
+            #   무신사머니 미적용 → money_active=False (현대카드 fallback 결제택1 일관).
+            #   로그인 크롤(is_logged_in=True)이면 잡힌 값 그대로 유지.
+            if getattr(sp, 'site', None) == 'musinsa' and it.get('is_logged_in') is False:
                 import json as _json
                 try:
                     _dyn = _json.loads(sp.dynamic_benefits_json) if sp.dynamic_benefits_json else {}
                 except (ValueError, TypeError):
                     _dyn = {}
-                _dyn['_crawl'] = _build_crawl_snapshot(it, now_iso=now.isoformat())
+                for _k in ('grade_reward_amount', 'money_reward_amount',
+                           'grade_discount_amount', 'coupon_amount'):
+                    _dyn[_k] = 0
+                _dyn['money_active'] = False
                 if price not in (None, '', 0):
                     try:
                         _dyn['surface_price'] = int(price)
@@ -1688,7 +1088,7 @@ def save_crawl_result():
                 sp.dynamic_benefits_json = _json.dumps(_dyn, ensure_ascii=False)
             updated += 1
         s.commit()
-        return _ok(updated=updated, not_found=not_found, item_errors=item_errors, total=len(items))
+        return _ok(updated=updated, not_found=not_found, total=len(items))
     finally:
         s.close()
 
@@ -2043,17 +1443,9 @@ def get_price_breakdown(sku: str):
             _src_purchase = (_lem or _any).crawled_price if (_lem or _any) else None
         except Exception:
             _src_purchase = None
-        # [2026-06-14 #1 폴백금지] 원가 = 크롤 실제가만. 사입가·하드코딩 95000 폴백 금지
-        #   (전 시스템 공통 정책 — 매트릭스/업로더와 동일). 크롤가 없으면 '가격없음'으로 표면화.
-        purchase = _src_purchase  # 크롤 실제가 int | None
-        if purchase is None:
-            return _ok(
-                sku=sku, color=opt.color_code, size=opt.size_code,
-                auto_enabled=cfg.auto_enabled if cfg else True,
-                ss=None, cp=None, ss_final=None, cp_final=None,
-                template_name=(tpl.name if tpl else None),
-                price_missing=True, reason='크롤 실제가 없음 (가격없음/크롤실패)',
-            )
+        purchase = (_src_purchase
+                    or (tpl.boxhero_purchase_price if tpl else None)
+                    or 95000)
         ss_price, ss_break = calc_auto_price(purchase, margin, ss_fee,
                                               ss_ship, rounding)
         cp_price, cp_break = calc_auto_price(purchase, margin, cp_fee,
@@ -2733,85 +2125,5 @@ def update_options_purchase_bulk():
             'ok': True, 'applied': applied,
             'skipped_bh0': skipped_bh0, 'total_selected': len(skus),
         })
-    finally:
-        s.close()
-
-
-# ════════════════════════════════════════════
-#  [2026-06-13] 가격/재고 무결성 전수 점검 — 읽기 전용 관리자 페이지
-#    라이브에서 URL 한 번으로 불변식 위반 건수 확인. 데이터 변경 0(SELECT만).
-#    /api/admin/price-integrity        → 사람이 읽는 HTML
-#    /api/admin/price-integrity?format=json → JSON
-#    점검 로직은 scripts/verify_integrity.run_checks (CLI 와 동일 단일 진실 원천).
-# ════════════════════════════════════════════
-@bp.get('/admin/price-integrity')
-def admin_price_integrity():
-    from scripts.verify_integrity import run_checks
-    import html as _html
-    s = SessionLocal()
-    try:
-        results = run_checks(s)
-        try:
-            dialect = s.bind.dialect.name
-        except Exception:
-            dialect = '?'
-        data = [c.to_dict() for c in results]
-        total = sum(c['count'] for c in data if c['count'] > 0)
-        errored = sum(1 for c in data if c['errored'])
-
-        if (request.args.get('format') or '').lower() == 'json':
-            return jsonify({'ok': errored == 0 and total == 0, 'db': dialect,
-                            'total_violations': total, 'errored': errored,
-                            'checks': data})
-
-        rows = []
-        for c in data:
-            if c['errored']:
-                icon, color = '⚠️', '#b8860b'
-            elif c['count'] == 0:
-                icon, color = '✅', '#1a7f37'
-            else:
-                icon, color = '❌', '#cf222e'
-            samples = ''
-            if c['count'] > 0:
-                lis = ''.join(f"<li>{_html.escape(str(x))}</li>" for x in c['samples'])
-                more = (f"<li>… 외 {c['count'] - len(c['samples'])}건</li>"
-                        if c['count'] > len(c['samples']) else '')
-                samples = (f"<div class='imp'>영향: {_html.escape(c['money_impact'])}</div>"
-                           f"<ul class='samp'>{lis}{more}</ul>")
-            cnt = '-' if c['errored'] else c['count']
-            rows.append(
-                f"<tr style='color:{color}'><td class='code'>{_html.escape(c['code'])}</td>"
-                f"<td class='ic'>{icon}</td><td class='num'>{cnt}</td>"
-                f"<td><b>{_html.escape(c['title'])}</b>{samples}</td></tr>")
-
-        if errored:
-            banner = (f"<div class='ban err'>⚠️ 점검 {errored}건 실행 실패 — "
-                      f"DB 연결/스키마 확인 필요(판정 불가)</div>")
-        elif total == 0:
-            banner = "<div class='ban ok'>✅ 모든 불변식 위반 0건 — 이 시점 전 데이터에서 성립</div>"
-        else:
-            banner = f"<div class='ban err'>❌ 총 위반 {total}건 — 아래 ❌ 항목 확인</div>"
-
-        page = f"""<!doctype html><html lang=ko><head><meta charset=utf-8>
-<meta name=viewport content='width=device-width,initial-scale=1'>
-<title>가격/재고 무결성 점검</title><style>
-body{{font-family:-apple-system,'Malgun Gothic',sans-serif;max-width:920px;margin:24px auto;padding:0 16px;color:#1f2328}}
-h1{{font-size:20px}} .sub{{color:#656d76;font-size:13px;margin-bottom:16px}}
-.ban{{padding:12px 16px;border-radius:8px;font-weight:600;margin:14px 0}}
-.ban.ok{{background:#e6f4ea;color:#1a7f37}} .ban.err{{background:#ffebe9;color:#cf222e}}
-table{{border-collapse:collapse;width:100%;font-size:14px}}
-td{{border-top:1px solid #d0d7de;padding:10px 8px;vertical-align:top}}
-.code{{font-family:monospace;white-space:nowrap;color:#656d76}} .ic{{text-align:center;width:28px}}
-.num{{text-align:right;font-variant-numeric:tabular-nums;font-weight:700;width:48px}}
-.imp{{color:#656d76;font-size:12px;margin:4px 0}} .samp{{margin:4px 0 0;padding-left:18px;font-size:12px;color:#57606a}}
-</style></head><body>
-<h1>가격/재고 무결성 전수 점검</h1>
-<div class=sub>DB={_html.escape(dialect)} · 읽기 전용(데이터 변경 없음) · 위반 0 = 그 시점 전 데이터에서 불변식 성립</div>
-{banner}
-<table><tbody>{''.join(rows)}</tbody></table>
-<p class=sub style='margin-top:18px'>※ 이 페이지는 SELECT 만 수행합니다. 중복행 정리 등 수정은 별도 관리자 액션에서 dry-run 확인 후 진행하세요.</p>
-</body></html>"""
-        return page, 200, {'Content-Type': 'text/html; charset=utf-8'}
     finally:
         s.close()

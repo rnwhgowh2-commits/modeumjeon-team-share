@@ -195,17 +195,6 @@
 .sgd .sg-kwchips .chip{display:inline-block;border-radius:999px;padding:3px 11px;font-size:11.5px;font-weight:700;margin:2px 4px 2px 0;}
 .sgd .sg-kwchips .chip.inc{background:#E3F2EA;color:#1A7F52;}.sgd .sg-kwchips .chip.exc{background:#FCE6E6;color:#C0392B;}
 .sgd .sg-kwchips .chip-empty{font-size:11px;color:#A0A8B0;}
-/* ② 재고 규칙 편집기 */
-.sgd .sg-srin{font-family:inherit;font-size:11.5px;border:1px solid #FDE68A;border-radius:6px;padding:5px 8px;width:100%;background:#fff;color:#3A4A5A;}
-.sgd .sg-srin:focus{outline:none;border-color:#F59E0B;}
-.sgd select.sg-srin{cursor:pointer;}
-/* ⑤ 검증 체크리스트 */
-.sgd .sg-ck-seg{display:inline-flex;border:1px solid #DCE0E5;border-radius:7px;overflow:hidden;flex:0 0 auto;}
-.sgd .sg-ck-b{border:none;background:#F4F5F7;color:#8B95A1;font-size:11px;font-weight:800;padding:5px 11px;cursor:pointer;font-family:inherit;border-left:1px solid #E5E8EB;}
-.sgd .sg-ck-b:first-child{border-left:none;}
-.sgd .sg-ck-b.on[data-st="pending"]{background:#EEF1F4;color:#4E5968;}
-.sgd .sg-ck-b.on[data-st="pass"]{background:#10B981;color:#fff;}
-.sgd .sg-ck-b.on[data-st="fail"]{background:#F04452;color:#fff;}
 </style>
 
 <div class="sgd sg-wrap" data-sid="{{ src.id }}">
@@ -261,26 +250,6 @@
             <td><span class="bdg s-{{ f.status }}">{{ slab[f.status] }}</span></td>
           </tr>
           <tr class="note-row"><td colspan="5"><div class="note-cell"><span class="tg">비고</span><input class="sg-note" value="{{ f.note }}" placeholder="메모 (예: 적립금을 가격으로 오독 주의)"></div></td></tr>
-          {% if key == 'option_stock' %}
-          {% set sr = f.stock_rules or {} %}
-          <tr class="stock-rules-row"><td colspan="5">
-            <div style="margin:2px 0 4px;padding:11px 13px;background:#FFFBEB;border:1px solid #FDE68A;border-radius:9px;">
-              <div style="font-size:11.5px;font-weight:800;color:#B45309;margin-bottom:9px;">📦 재고 3단계 캡처 규칙 <span style="font-weight:600;color:#92702A;">— 한정수량 표기를 빠짐없이 적어야 '재고있음' 둔갑을 막음</span></div>
-              <div style="display:grid;grid-template-columns:118px 1fr;gap:8px 10px;align-items:center;">
-                <label style="color:#7C5E1E;font-weight:700;font-size:11.5px;">① 품절 마커</label>
-                <input class="sg-srin sg-stock-soldout" value="{{ (sr.soldout_markers or [])|join(', ') }}" placeholder="품절, 재입고 알림, SLDOUT, disabled …">
-                <label style="color:#7C5E1E;font-weight:700;font-size:11.5px;">② 한정수량 표기</label>
-                <input class="sg-srin sg-stock-qty" value="{{ (sr.qty_patterns or [])|join(', ') }}" placeholder="잔여 N개, N개 남음, 마지막 N개, 품절임박 (N) …">
-                <label style="color:#7C5E1E;font-weight:700;font-size:11.5px;">③ 표식 없을 때</label>
-                <select class="sg-srin sg-stock-nomarker">
-                  <option value="in_stock"{% if sr.no_marker_means != 'unknown' %} selected{% endif %}>충분 (재고있음)</option>
-                  <option value="unknown"{% if sr.no_marker_means == 'unknown' %} selected{% endif %}>수량 미상 (수량 안 주는 사이트 — 롯데 등)</option>
-                </select>
-              </div>
-              <div style="font-size:10.5px;color:#92702A;margin-top:8px;line-height:1.5;">쉼표로 구분. ②는 그 사이트가 쓰는 표기를 <b>전부</b> 적기 (한 가지만 적고 빠뜨리면 한정재고가 '재고있음'으로 둔갑). 수량을 아예 안 주면 ③을 '수량 미상'으로.</div>
-            </div>
-          </td></tr>
-          {% endif %}
           {% endfor %}
         </tbody>
       </table>
@@ -354,64 +323,83 @@
         </div>
       </div>
 
-      <!-- ③-요약 — 가격 계산 로직 (시안 B5: 예시 영수증 + 규칙표, 단계 동그라미) -->
+      <!-- ③-요약 — 가격 계산 로직 한눈에 보기 (읽기 전용, 위 카드와 동일 benefits 소스) -->
       {% set SMAP = {'always':'상시','conditional':'조건부','optional':'선택','planned':'예정'} %}
-      {% set _exs = guide.verification.get('examples', []) %}
-      {% set _ex = _exs[0] if _exs else None %}
       <div class="sg3-logic" style="margin-top:18px;border:1px solid #E5E8EB;border-radius:12px;overflow:hidden">
-        <div style="padding:13px 16px;background:#F9FAFB;border-bottom:1px solid #E5E8EB;font-size:13.5px;font-weight:800;color:#191F28">💰 가격 계산 로직 — 한눈에 보기 <span style="font-weight:600;color:#8B95A1;font-size:12px">· 표면 노출가 → 최종 매입가 순 · {% if _ex %}예시 영수증 + {% endif %}규칙</span></div>
-        <div style="display:grid;grid-template-columns:{% if _ex %}minmax(220px,260px) 1fr{% else %}1fr{% endif %};gap:14px;padding:14px 16px;align-items:start">
-          {% if _ex %}
-          <div style="background:#fff;border:1px solid #E5E8EB;border-radius:10px;padding:12px 14px">
-            <div style="font-size:11.5px;font-weight:800;color:#8B95A1;margin-bottom:8px">📄 예시 영수증 · {{ _ex.name }}</div>
-            <div style="display:flex;justify-content:space-between;font-size:12px;padding:3px 0"><span style="color:#4E5968">표면 노출가</span><b>{{ "{:,}".format(_ex.surface_price) if _ex.surface_price is not none else '—' }}원</b></div>
-            {% for p in (_ex.pre or []) %}<div style="display:flex;justify-content:space-between;font-size:11.5px;padding:2px 0 2px 8px;color:#8B95A1"><span>└ {{ p.label }}</span><span style="color:#F04452">{{ "{:,}".format(p.amount) if p.amount is not none else '' }}</span></div>{% endfor %}
-            <div style="display:flex;justify-content:space-between;font-size:12px;padding:5px 8px;background:#F4F8FF;border-radius:6px;margin:3px 0"><span style="color:#1B64DA;font-weight:700">베이스금액①</span><b style="color:#1B64DA">{{ "{:,}".format(_ex.base1) if _ex.base1 is not none else '—' }}원</b></div>
-            {% for d in (_ex.deducts or []) %}<div style="display:flex;justify-content:space-between;font-size:11.5px;padding:2px 0 2px 8px;color:#8B95A1"><span>└ {{ d.label }}</span><span style="color:#F04452">{{ "{:,}".format(d.amount) if d.amount is not none else '' }}</span></div>{% endfor %}
-            <div style="display:flex;justify-content:space-between;font-size:12px;padding:5px 8px;background:#F4F8FF;border-radius:6px;margin:3px 0"><span style="color:#1B64DA;font-weight:700">베이스금액②</span><b style="color:#1B64DA">{{ "{:,}".format(_ex.base2) if _ex.base2 is not none else '—' }}원</b></div>
-            {% if _ex.pay %}<div style="display:flex;justify-content:space-between;font-size:11.5px;padding:2px 0 2px 8px;color:#8B95A1"><span>└ {{ _ex.pay.label }}</span><span style="color:#F04452">{{ "{:,}".format(_ex.pay.amount) if _ex.pay.amount is not none else '' }}</span></div>{% endif %}
-            <div style="height:1px;background:#E5E8EB;margin:7px 0"></div>
-            <div style="display:flex;justify-content:space-between;align-items:center"><span style="color:#3182F6;font-weight:800;font-size:13px">최종 매입가</span><b style="color:#3182F6;font-size:15px">{{ "{:,}".format(_ex.final_price) if _ex.final_price is not none else '—' }}원</b></div>
-          </div>
-          {% endif %}
-          <div style="overflow-x:auto;border:1px solid #E5E8EB;border-radius:10px">
-          <table style="width:100%;border-collapse:collapse;font-size:12.5px;min-width:400px">
-            <thead>
-              <tr style="background:#FBFCFD;color:#4E5968;font-weight:700;text-align:left">
-                <th style="padding:9px 12px;border-bottom:1px solid #E5E8EB">단계</th>
-                <th style="padding:9px 12px;border-bottom:1px solid #E5E8EB">혜택</th>
-                <th style="padding:9px 12px;border-bottom:1px solid #E5E8EB">방식</th>
-                <th style="padding:9px 12px;border-bottom:1px solid #E5E8EB">기준</th>
-                <th style="padding:9px 12px;border-bottom:1px solid #E5E8EB">조건</th>
-              </tr>
-            </thead>
-            <tbody>
-            {% set lg = namespace(rows=0) %}
-            {% for cname, applies, color in CATS %}
-              {% for b in guide.pricing.benefits if b.apply in applies %}
-              {% set lg.rows = lg.rows + 1 %}
-              {% set _method = b.method or ('정률' if '%' in (b.rule or '') else ('정액' if '원' in (b.rule or '') else '—')) %}
-              {% set _base = b.base or ('베이스금액②' if '베이스금액②' in (b.rule or '') else ('베이스금액①' if '베이스금액①' in (b.rule or '') else ('표면 노출가' if '표면' in (b.rule or '') else '—'))) %}
-              <tr style="border-bottom:1px solid #F2F4F6" title="{{ b.rule or '' }}">
-                <td style="padding:9px 12px;white-space:nowrap"><span style="display:inline-flex;align-items:center;gap:5px"><span style="width:8px;height:8px;border-radius:50%;background:{{ color }};display:inline-block;flex:0 0 auto"></span><span style="padding:2px 8px;border-radius:6px;background:{{ color }};color:#fff;font-weight:700;font-size:11px">{{ cname }}</span></span></td>
-                <td style="padding:9px 12px;font-weight:600;color:#191F28">{{ b.name }}</td>
-                <td style="padding:9px 12px;white-space:nowrap;color:#4E5968">{{ _method }}</td>
-                <td style="padding:9px 12px;white-space:nowrap;color:#4E5968">{{ _base }}</td>
-                <td style="padding:9px 12px;white-space:nowrap;color:#8B95A1">{{ SMAP.get(b.status, b.status or '—') }}</td>
-              </tr>
-              {% endfor %}
+        <div style="padding:13px 16px;background:#F9FAFB;border-bottom:1px solid #E5E8EB;font-size:13.5px;font-weight:800;color:#191F28">💰 가격 계산 로직 — 한눈에 보기 <span style="font-weight:600;color:#8B95A1;font-size:12px">· 위 설정값 요약 (읽기 전용) · 표면 노출가 → 최종 매입가 순</span></div>
+        <div style="overflow-x:auto">
+        <table style="width:100%;border-collapse:collapse;font-size:12.5px;min-width:560px">
+          <thead>
+            <tr style="background:#FBFCFD;color:#4E5968;font-weight:700;text-align:left">
+              <th style="padding:9px 12px;border-bottom:1px solid #E5E8EB">단계</th>
+              <th style="padding:9px 12px;border-bottom:1px solid #E5E8EB">혜택</th>
+              <th style="padding:9px 12px;border-bottom:1px solid #E5E8EB">방식</th>
+              <th style="padding:9px 12px;border-bottom:1px solid #E5E8EB">기준</th>
+              <th style="padding:9px 12px;border-bottom:1px solid #E5E8EB">값 · 규칙</th>
+              <th style="padding:9px 12px;border-bottom:1px solid #E5E8EB">조건</th>
+            </tr>
+          </thead>
+          <tbody>
+          {% set lg = namespace(rows=0) %}
+          {% for cname, applies, color in CATS %}
+            {% for b in guide.pricing.benefits if b.apply in applies %}
+            {% set lg.rows = lg.rows + 1 %}
+            {% set _method = b.method or ('정률' if '%' in (b.rule or '') else ('정액' if '원' in (b.rule or '') else '—')) %}
+            {% set _base = b.base or ('베이스금액②' if '베이스금액②' in (b.rule or '') else ('베이스금액①' if '베이스금액①' in (b.rule or '') else ('표면 노출가' if '표면' in (b.rule or '') else '—'))) %}
+            <tr style="border-bottom:1px solid #F2F4F6">
+              <td style="padding:9px 12px;white-space:nowrap"><span style="display:inline-block;padding:2px 8px;border-radius:6px;background:{{ color }};color:#fff;font-weight:700;font-size:11px">{{ cname }}</span></td>
+              <td style="padding:9px 12px;font-weight:600;color:#191F28">{{ b.name }}</td>
+              <td style="padding:9px 12px;white-space:nowrap;color:#4E5968">{{ _method }}</td>
+              <td style="padding:9px 12px;white-space:nowrap;color:#4E5968">{{ _base }}</td>
+              <td style="padding:9px 12px;color:#4E5968">{{ b.rule or '—' }}</td>
+              <td style="padding:9px 12px;white-space:nowrap;color:#8B95A1">{{ SMAP.get(b.status, b.status or '—') }}</td>
+            </tr>
             {% endfor %}
-            {% if lg.rows == 0 %}
-              <tr><td colspan="5" style="padding:16px;text-align:center;color:#B0B8C1">등록된 혜택이 없습니다.</td></tr>
-            {% endif %}
-            </tbody>
-          </table>
-          </div>
+          {% endfor %}
+          {% if lg.rows == 0 %}
+            <tr><td colspan="6" style="padding:16px;text-align:center;color:#B0B8C1">등록된 혜택이 없습니다.</td></tr>
+          {% endif %}
+          </tbody>
+        </table>
         </div>
       </div>
 
+      <!-- B1 — 모든 모음전에 따라쓰기 (2중 잠금). 스냅샷 모델: 기본값을 전 모음전에 덮어씀. -->
+      <div class="sg3-applyall" style="margin-top:16px;border:1.5px solid #F04452;background:#FFF0F1;border-radius:12px;padding:16px 18px">
+        <div style="display:flex;align-items:center;gap:8px;font-size:14px;font-weight:800;color:#191F28;margin-bottom:6px">🔒 모든 모음전에 따라쓰기</div>
+        <div style="font-size:12.5px;color:#4E5968;line-height:1.55;margin-bottom:13px">평소 모음전은 <b>생성 시점의 기본값을 복사</b>해 독립적으로 동작합니다. 이 버튼은 이 소싱처의 현재 기본값을 <b style="color:#F04452">기존 모음전 전부</b>에 덮어씁니다. 각 모음전에서 직접 수정한 값은 사라지며 <b>되돌릴 수 없습니다.</b></div>
+        <label style="display:flex;align-items:center;gap:9px;padding:10px 12px;background:#fff;border:1px solid #E5E8EB;border-radius:9px;margin-bottom:10px;font-size:12.5px;cursor:pointer">
+          <input type="checkbox" id="aa-confirm" style="width:17px;height:17px;cursor:pointer;flex:0 0 auto">
+          <span>네, <b>모든 모음전</b>이 이 소싱처 기본값으로 덮어써지는 것을 이해합니다.</span>
+        </label>
+        <button type="button" id="aa-btn" disabled style="width:100%;padding:10px;border:none;border-radius:9px;background:#F4C7CB;color:#fff;font-weight:800;font-size:13px;cursor:not-allowed;font-family:inherit">🔒 따라쓰기 (잠김)</button>
+        <div id="aa-toast" style="display:none;margin-top:10px;font-size:12.5px;font-weight:700;color:#0E7C3A"></div>
+      </div>
     </div>
   </div>
+  <script>
+  (function(){
+    var cb=document.getElementById('aa-confirm'), btn=document.getElementById('aa-btn'), toast=document.getElementById('aa-toast');
+    if(!cb||!btn) return;
+    var SID={{ src.id }};
+    cb.addEventListener('change',function(){
+      btn.disabled=!cb.checked;
+      btn.style.background=cb.checked?'#F04452':'#F4C7CB';
+      btn.style.cursor=cb.checked?'pointer':'not-allowed';
+      btn.textContent=cb.checked?'🔓 모든 모음전에 따라쓰기':'🔒 따라쓰기 (잠김)';
+    });
+    btn.addEventListener('click',function(){
+      if(btn.disabled) return;
+      btn.disabled=true; btn.textContent='적용 중...';
+      fetch('/api/source-benefits/templates/'+SID+'/apply-to-all',{
+        method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({confirm:true})
+      }).then(function(r){return r.json();}).then(function(j){
+        if(j.ok){ toast.style.display='block'; toast.textContent='✓ '+j.bundles+'개 모음전에 적용되었습니다.'; btn.textContent='✓ 적용 완료'; cb.checked=false; }
+        else { alert('따라쓰기 실패: '+(j.error||'오류')); btn.disabled=false; btn.textContent='🔓 모든 모음전에 따라쓰기'; }
+      }).catch(function(e){ alert('오류: '+e.message); btn.disabled=false; btn.textContent='🔓 모든 모음전에 따라쓰기'; });
+    });
+  })();
+  </script>
 
   <!-- ④ 가격 검증 -->
   <div class="sec">
@@ -531,33 +519,6 @@
           </div>
         </div>
       </div>
-    </div>
-  </div>
-
-  <!-- ⑤ 검증 체크리스트 (수집·가공·전송) -->
-  <div class="sec">
-    <div class="st"><span class="n">5</span><span class="tt">검증 체크리스트</span><span class="sub">수집 · 가공 · 전송 — 신규 추가 시 전부 통과해야 완료 (특히 재고 둔갑)</span></div>
-    <div class="card">
-      <div id="sg-checklist">
-        {% set phases = [('integrity','⚡ 동시·무결성 (integrity)','#E0392B'),('collect','🔍 수집 (collect)','#1B64DA'),('process','⚙️ 가공 (process)','#7C3AED'),('transmit','📡 전송 (transmit)','#10B981')] %}
-        {% set _cl = guide.verification.get('checklist', []) %}
-        {% for pkey, plab, pcolor in phases %}
-        <div style="margin-bottom:15px;">
-          <div style="font-size:12px;font-weight:800;color:{{ pcolor }};margin-bottom:8px;">{{ plab }}</div>
-          {% for c in _cl if c.phase == pkey %}
-          <div class="sg-ck-item" data-key="{{ c.key }}" style="display:grid;grid-template-columns:1fr auto;gap:10px;align-items:center;padding:8px 11px;border:1px solid #EEF0F3;border-radius:8px;margin-bottom:5px;">
-            <div style="font-size:12.5px;color:#191F28;">{{ c.label }}{% if c.required %}<span style="color:#E0392B;font-size:11px;" title="필수"> *</span>{% endif %}</div>
-            <div class="sg-ck-seg">
-              <button type="button" class="sg-ck-b{% if c.status not in ['pass','fail'] %} on{% endif %}" data-st="pending">대기</button>
-              <button type="button" class="sg-ck-b{% if c.status == 'pass' %} on{% endif %}" data-st="pass">통과</button>
-              <button type="button" class="sg-ck-b{% if c.status == 'fail' %} on{% endif %}" data-st="fail">실패</button>
-            </div>
-          </div>
-          {% endfor %}
-        </div>
-        {% endfor %}
-      </div>
-      <div style="font-size:11px;color:#8B95A1;margin-top:6px;">* = 필수 항목. 단일 진실원천 = <code style="font-family:ui-monospace,monospace;">crawl_guide.py</code>의 <code style="font-family:ui-monospace,monospace;">_CHECKLIST_TEMPLATE</code>. 상단 <b>저장</b>으로 상태 보존.</div>
     </div>
   </div>
 </div>

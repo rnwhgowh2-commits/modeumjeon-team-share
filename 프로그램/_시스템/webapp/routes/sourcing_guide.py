@@ -6,7 +6,7 @@ import os
 import zipfile
 from datetime import datetime, timezone
 
-from flask import Blueprint, jsonify, render_template, request, send_file, abort, redirect
+from flask import Blueprint, jsonify, render_template, request, send_file, abort
 
 from shared.db import SessionLocal
 from lemouton.sourcing.models_pricing import SourceRegistry
@@ -50,10 +50,7 @@ def overview():
     for src in _sources():
         guide = cg.loads(src.crawl_guide)
         rows.append({"id": src.id, "name": src.name, "guide": guide})
-    # 상세 로직 모달 STEP5 = 표준 검증 체크리스트(코드의 _CHECKLIST_TEMPLATE) 를 그대로 노출
-    return render_template("sourcing_guide/overview.html", rows=rows,
-                           checklist=cg.default_checklist(), active="sourcing_guide",
-                           ext_available=os.path.isdir(_EXT_DIR))
+    return render_template("sourcing_guide/overview.html", rows=rows, active="sourcing_guide")
 
 
 @bp.route("/how-to")
@@ -75,9 +72,9 @@ _EXT_DIR = os.path.normpath(
 
 @bp.route("/install")
 def install():
-    """크롤러 설치 = 더 이상 별도 페이지가 아니라 전체보기 위 가운데 팝업 모달.
-    옛 링크/북마크는 전체보기로 보내 모달을 자동으로 연다."""
-    return redirect("/sourcing-guide/?install=1", code=302)
+    """크롤러 설치 가이드 페이지 (시안 5 — 진행 체크리스트)."""
+    return render_template("sourcing_guide/install.html", active="sourcing_guide",
+                           ext_available=os.path.isdir(_EXT_DIR))
 
 
 @bp.route("/install/download")
@@ -130,6 +127,7 @@ def api_put(sid: int):
             return jsonify(ok=False, error="not_found"), 404
         try:
             incoming = request.get_json(force=True) or {}
+            apply_bundles = bool(incoming.get("apply_to_bundles"))
             if "verification" not in incoming:
                 incoming["verification"] = cg.loads(src.crawl_guide).get("verification")
             guide = cg.validate_guide(incoming)
@@ -137,13 +135,23 @@ def api_put(sid: int):
             return jsonify(ok=False, error="invalid", message=str(e)), 400
         guide["updated_at"] = _now_iso()
         src.crawl_guide = cg.dumps(guide)
-        # 혜택 '값' 입력칸 → 소싱처 기본셋팅(SourceBenefitTemplate) 반영 (2026-06-13).
-        #   라이브=템플릿 직결 모드라 이게 매입가에 직접 반영됨. update-only(이름 매칭되는
-        #   기존 템플릿만 갱신) → 새 차감행 생성 없음(언더프라이싱 방지). 스냅샷/apply-to-all 미사용.
-        from webapp.routes.api_benefits import sync_templates_from_crawl_guide
-        sync = sync_templates_from_crawl_guide(s, sid, guide, create_new=False)
+        # 혜택 '값' 입력칸 → 소싱처 기본셋팅(SourceBenefitTemplate) 연결 (2026-06-13).
+        #   템플릿 동기화는 항상(새 모음전부터 반영). apply_to_bundles 확인 시 기존 모음전까지 덮어씀(비가역).
+        from webapp.routes.api_benefits import (
+            sync_templates_from_crawl_guide, snapshot_bundle_from_templates,
+        )
+        benefits_synced = sync_templates_from_crawl_guide(s, sid, guide)
+        bundles_applied = 0
+        if apply_bundles and benefits_synced:
+            from lemouton.sourcing.models import Model
+            codes = [c[0] for c in s.query(Model.model_code).all() if c[0]]
+            for code in codes:
+                r = snapshot_bundle_from_templates(s, code, source_ids=[sid])
+                if r["options"]:
+                    bundles_applied += 1
         s.commit()
-        return jsonify(ok=True, guide=guide, sync=sync)
+        return jsonify(ok=True, guide=guide,
+                       benefits_synced=benefits_synced, bundles_applied=bundles_applied)
     finally:
         s.close()
 
@@ -350,14 +358,9 @@ def api_verify_status(sid: int, job_id: int):
                 cur = cg.loads(src.crawl_guide)
                 lnc = (cur.get("verification") or {}).get("last_new_check") or {}
                 if lnc.get("job_id") != job_id:   # 이미 병합된 잡이면 재기록 안 함
-                    result = {**job["result"], "job_id": job_id, "status": "done"}
-                    merged = cg.merge_verification(cur, "last_new_check", result)
-                    # [동시·무결성 8단계] 정답(lead_cache) 자동 대조 → 판정 가능한
-                    #   체크리스트 항목 status 자동 갱신(가격·옵션·최종가 일치 등).
-                    truth = (merged.get("verification") or {}).get("lead_cache")
-                    updates = cg.auto_checklist_updates(result, truth)
-                    if updates:
-                        merged = cg.apply_checklist_updates(merged, updates)
+                    merged = cg.merge_verification(cur, "last_new_check",
+                                                   {**job["result"], "job_id": job_id,
+                                                    "status": "done"})
                     src.crawl_guide = cg.dumps(merged)
                     s.commit()
         finally:

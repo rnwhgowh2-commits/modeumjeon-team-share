@@ -135,8 +135,7 @@ class BundleSourceUrl(Base):
     source_key = Column(String(32), nullable=False)  # lemouton/musinsa/ssf/lotteon/ss_lemouton
     url = Column(Text, nullable=False)
     label = Column(String(120))  # [2026-05-24] 선택 입력 — URL 구분용 라벨
-    # [2026-06-20] 유형 사전지정 — dan(단품)/mo(색상 모음전)/deal(모델 모음전). NULL=미지정.
-    url_type = Column(String(8))
+    url_type = Column(String(16), nullable=False, server_default='단품')  # [2026-06-21] 단품/색상모음전/모델모음전
     sort_order = Column(Integer, default=0, nullable=False)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
@@ -212,11 +211,6 @@ class Option(Base):
     # is_active=False 인 옵션은 모달에서 노란 빗금(mapped-off)으로 표시.
     # True (기본) = 활성. 셀 클릭으로 토글.
     is_active = Column(Boolean, default=True, nullable=False)
-
-    # [2026-06-13] 크롤 실패/유효가격 없음으로 자동 판매차단된 옵션. is_active(사용자 수동)와 분리.
-    #   판매가능 = is_active(수동 ON) AND NOT crawl_blocked(크롤 정상). 크롤 시작 시 리셋되고
-    #   유효가격이 다시 잡히면 자동 해제. 옛 가격/재고로 잘못 판매되는 사고 방지.
-    crawl_blocked = Column(Boolean, default=False, nullable=False)
 
     # 소싱처별 옵션 ID (NULL 가능)
     option_id_lemouton = Column(String(128))

@@ -152,9 +152,8 @@ def _apply_lightweight_migrations() -> None:
         ("options", "offline_only", "BOOLEAN DEFAULT 0 NOT NULL"),
         # 2026-05-24: BundleSourceUrl 라벨 (URL 구분용 — "통합 모음전" / "단품 - 그레이")
         ("bundle_source_urls", "label", "VARCHAR(120)"),
-        # 2026-06-20: URL 유형 사전지정 (dan=단품 / mo=색상 모음전 / deal=모델 모음전).
-        #   검증이 추정(딜URL·색수) 대신 이 값을 우선 사용. NULL=미지정→추정 fallback.
-        ("bundle_source_urls", "url_type", "VARCHAR(8)"),
+        # 2026-06-21: URL 타입 — 단품/색상모음전/모델모음전
+        ("bundle_source_urls", "url_type", "VARCHAR(16) DEFAULT '단품' NOT NULL"),
         # 2026-05-25: 판매가 정책 (색상 통일 / 옵션별 cheapest) — A2+D3 시안 적용
         ("price_templates", "pricing_policy", "VARCHAR(16) DEFAULT 'cheapest'"),
         # 2026-05-25: 매입가 산정 우선순위 (V5 시안 — 사입 카드 0원 차단)
@@ -178,8 +177,6 @@ def _apply_lightweight_migrations() -> None:
         ("brand_color_overrides", "letter", "VARCHAR(16)"),
         # [2026-05-27 D1] 사용자가 매트릭스에서 OFF 한 옵션 (URL 매핑 있어 데이터 보존). True=활성, False=비활성.
         ("options", "is_active", "BOOLEAN DEFAULT 1 NOT NULL"),
-        # [2026-06-13] 크롤 실패/유효가격 없음 자동 판매차단 (is_active 와 분리, 크롤 성공 시 자동 해제).
-        ("options", "crawl_blocked", "BOOLEAN DEFAULT 0 NOT NULL"),
         # 2026-06-05: 혜택 표시 카테고리 (정액/정률/결제/캐시백/기타) — 새 혜택 추가 모달에서 사용자 지정
         ("source_benefit_templates", "category", "VARCHAR(16)"),
         ("option_benefit_overrides", "category", "VARCHAR(16)"),

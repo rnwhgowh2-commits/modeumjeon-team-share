@@ -66,63 +66,6 @@ def _item_dict(it, kind='tpl'):
     }
 
 
-def sync_templates_from_crawl_guide(session, source_id: int, guide: dict,
-                                    create_new: bool = False) -> dict:
-    """크롤가이드 혜택 '값' 입력칸 → 소싱처 기본셋팅(SourceBenefitTemplate) 반영 (2026-06-13).
-
-    라이브는 '템플릿 직결' 모드(스냅샷 override 0건)라 이 템플릿이 매입가를 직접 굴린다.
-    안전 규칙(언더프라이싱·이중차감 방지):
-      - 값(value)이 입력된 혜택만 반영. 빈 값(=크롤 동적)·방식 '옵션(개월)'(무이자할부)은 제외.
-      - **update-only 기본**(create_new=False): 이름이 기존 템플릿과 매칭될 때만 값 갱신.
-        매칭 안 되면 건너뜀(skipped) → 크롤가이드에 새 이름 넣어도 차감행이 새로 안 생김.
-      - rate(정률/적립%)는 % → 소수 변환(15 → 0.15). amount(정액/고정액)는 그대로.
-      - 기존 행 update 시 category/pay_method/channel(운영센터 태그)은 보존.
-    반환: {'updated': n, 'created': n, 'skipped': [이름...]}.
-    """
-    benefits = ((guide.get('pricing') or {}).get('benefits')) or []
-    existing = {t.benefit_name: t for t in
-                session.query(SourceBenefitTemplate)
-                .filter_by(source_id=source_id).all()}
-    updated, created, skipped = 0, 0, []
-    for i, b in enumerate(benefits):
-        v = b.get('value')
-        if v is None:
-            continue
-        method = b.get('method') or ''
-        if '개월' in method:
-            continue
-        name = (b.get('name') or '').strip()
-        if not name:
-            continue
-        is_rate = ('%' in method)
-        btype = 'rate' if is_rate else 'amount'
-        try:
-            val = float(v) / 100.0 if is_rate else float(v)
-        except (TypeError, ValueError):
-            continue
-        apply_mode = b.get('apply')
-        enabled = (b.get('status') != 'planned')
-        t = existing.get(name)
-        if t is not None:
-            t.benefit_type = btype
-            t.value = val
-            if apply_mode:
-                t.apply_mode = apply_mode
-            t.enabled = enabled
-            t.sort_order = i
-            updated += 1
-        elif create_new:
-            session.add(SourceBenefitTemplate(
-                source_id=source_id, benefit_name=name,
-                benefit_type=btype, value=val,
-                apply_mode=apply_mode, enabled=enabled, sort_order=i,
-            ))
-            created += 1
-        else:
-            skipped.append(name)
-    return {'updated': updated, 'created': created, 'skipped': skipped}
-
-
 # ─────────── 템플릿 ───────────
 @bp.get('/templates')
 def list_all_templates():
@@ -454,114 +397,8 @@ def _build_breakdown_cache(session, items: list) -> dict:
     if sids:
         prefs = (session.query(CardDiscountUserPref)
                  .filter(CardDiscountUserPref.source_id.in_(sids)).all())
-    # [perf 2026-06-12] 동적혜택 fallback(option_source_links 경유)을 1회 배치로 묶음.
-    #   compute_breakdown 이 캐시가 있어도 item 당 raw SQL 1쿼리 하던 누수(legacy
-    #   option_source_urls 빈 번들은 거의 모든 item 이 이 경로 → 300건=300쿼리≈12.5s)를 제거.
-    #   동일 JOIN·필터를 sku 전체로 한 번에 → (sku, site) 별 dynamic_benefits_json 리스트.
-    dyn_by_sku_site = defaultdict(list)
-    if skus:
-        from sqlalchemy import text as _sqltext, bindparam as _bindparam
-        _dq = _sqltext(
-            "SELECT l.canonical_sku, sp.site, sp.dynamic_benefits_json "
-            "FROM option_source_links l "
-            "JOIN source_options so ON l.source_option_id = so.id "
-            "JOIN source_products sp ON so.source_product_id = sp.id "
-            "WHERE l.canonical_sku IN :skus "
-            "AND so.deleted_at IS NULL AND sp.deleted_at IS NULL "
-            "AND sp.dynamic_benefits_json IS NOT NULL"
-        ).bindparams(_bindparam('skus', expanding=True))
-        for _sku_v, _site_v, _dj in session.execute(_dq, {'skus': skus}).fetchall():
-            dyn_by_sku_site[(_sku_v, _site_v)].append(_dj)
     return {'link_by': link_by, 'sp_by_norm': sp_by_norm,
-            'tpl_by_src': tpl_by_src, 'ovr_by': ovr_by, 'prefs': prefs,
-            'dyn_by_sku_site': dyn_by_sku_site}
-
-
-def _musinsa_effective_from_crawl(guide_benefits, exclude_keywords, snap):
-    """무신사: 이번 크롤 스냅샷(snap)으로 effective 혜택 리스트를 만든다.
-
-    - snap 없음/None → None (미수집 신호; 호출부가 산출불가 처리).
-    - gate_benefits(가이드 키워드, snap.lines, excludes)로 on/off 판정.
-    - 금액 = 그 혜택에 매칭된 라인(matched_lines)에서 추출한 최대 원-금액(라인이 라벨+금액
-      을 함께 보유). 별도 amounts 딕트·키 계약 불필요(라인에서 직접 추출). 폴백 금지.
-    - base=표면가 모델: 전부 정액(원) 차감으로 환산(적립=현금성 차감). 표면가 base_override는 호출부가 설정.
-    """
-    if not isinstance(snap, dict):
-        return None
-    import re as _re
-    from lemouton.pricing.benefit_gate import gate_benefits
-    lines = snap.get('lines') or []
-    gated = gate_benefits(guide_benefits or [], lines, exclude_keywords or [])
-    by_name = {g['name']: g for g in gated}
-
-    def _amt_after_triggers(matched, triggers):
-        """혜택 금액 = '트리거 키워드 뒤'의 첫 원-금액(라인별), 라인 간 최대(택1 선택값 대응).
-
-        라인-전체 최대(_max_won)는 결합행에서 오추출한다: 예) '기본 적립등급 적립 3,420원
-        후기 적립 2,500원' 한 줄에서 후기적립=후기 적립'뒤'의 2,500 이어야 하는데 전체최대면
-        3,420(등급적립)을 잘못 집음. → 트리거 뒤 금액만 본다. '보유'(잔액) 라인은 제외.
-        triggers 가 비면(하위호환) 라인 전체 최대.
-        """
-        trgs = [t for t in (triggers or []) if t]
-        best = 0
-        for ln in (matched or []):
-            if not ln or '보유' in ln:
-                continue
-            if not trgs:
-                for m in _re.findall(r'([\d,]{2,})\s*원', ln):
-                    try:
-                        v = int(m.replace(',', ''))
-                    except ValueError:
-                        continue
-                    if v > best:
-                        best = v
-                continue
-            for trg in trgs:
-                start = 0
-                while True:
-                    idx = ln.find(trg, start)
-                    if idx < 0:
-                        break
-                    m = _re.search(r'([\d,]{2,})\s*원', ln[idx + len(trg):])
-                    if m:
-                        try:
-                            v = int(m.group(1).replace(',', ''))
-                            if v > best:
-                                best = v
-                        except ValueError:
-                            pass
-                    start = idx + len(trg)
-        return best
-
-    class _Inj:
-        def __init__(self, name, btype, value, enabled):
-            self.id = -1; self.benefit_name = name; self.benefit_type = btype
-            self.value = value; self.enabled = enabled
-            self.sort_order = 999; self.template_id = None
-
-    eff = []
-    payment_found = False   # 무신사머니 결제적립이 실제로 잡혔는가(현대카드 fallback 판정)
-    for b in (guide_benefits or []):
-        nm = b.get('name')
-        g = by_name.get(nm) or {}
-        applied = bool(g.get('applied'))
-        # 가이드에 고정값(value)이 있으면 그 값 사용(예: 후기적립 500원 — 사진후기 2,500은 제외).
-        #   없으면(value=None) 현재 크롤 라인에서 트리거 뒤 금액 추출.
-        fixed = b.get('value')
-        if fixed is not None:
-            val = float(fixed) if applied else 0.0
-        else:
-            val = float(_amt_after_triggers(g.get('matched_lines'), b.get('triggers'))) if applied else 0.0
-        en = applied and val > 0
-        if nm == '결제 적립' and en:
-            payment_found = True
-        eff.append(('crawl', _Inj(nm, 'amount', val, enabled=en)))
-    # ★ 결제수단 적립 fallback (사용자 정의 2026-06-14): 무신사머니 결제적립이 없으면 현대카드 2.73%
-    #   를 직전잔액(다른 혜택 차감 후 = 최종매입가 직전)에 적용. rate 라 정액 차감 뒤(마지막) 처리됨.
-    #   무신사머니 적립이 있으면 택1로 현대카드 미적용(중복 방지).
-    if not payment_found:
-        eff.append(('crawl', _Inj('현대카드 2.73% (결제 fallback)', 'rate', 0.0273, enabled=True)))
-    return eff
+            'tpl_by_src': tpl_by_src, 'ovr_by': ovr_by, 'prefs': prefs}
 
 
 def compute_breakdown(session, *, sku: str, source_id: int, sale_price: float,
@@ -598,10 +435,17 @@ def compute_breakdown(session, *, sku: str, source_id: int, sale_price: float,
             if _cache is not None:
                 sp = _cache['sp_by_norm'].get(target_norm)
             else:
-                sps = (session.query(SourceProduct)
-                       .filter(SourceProduct.deleted_at.is_(None))
-                       .all())
-                sp = next((s for s in sps if _nu(s.url) == target_norm), None)
+                # [perf 2026-06-12] 단일 호출(=FX 셀 클릭)도 전체 source_products 를
+                #   fetch+파이썬 normalize 하던 것을 경로 prefix 로 좁힌다. normalize_url 은
+                #   '?' 뒤 추적 파라미터만 제거하고 scheme://host/path 는 보존하므로, 물음표
+                #   앞 prefix 로 DB에서 거른 소수 후보만 normalize 비교하면 결과 byte-identical.
+                #   원격 Supabase 에서 전체 테이블 fetch(수백행×RTT) → 1~수 행으로 축소.
+                _base = (link.product_url or '').split('?', 1)[0]
+                _q = (session.query(SourceProduct)
+                      .filter(SourceProduct.deleted_at.is_(None)))
+                if _base:
+                    _q = _q.filter(SourceProduct.url.startswith(_base, autoescape=True))
+                sp = next((s for s in _q.all() if _nu(s.url) == target_norm), None)
             if sp:
                 import json as _json
                 if sp.auto_card_discount_json:
@@ -635,22 +479,16 @@ def compute_breakdown(session, *, sku: str, source_id: int, sale_price: float,
         _site_for = None
     if _site_for and not _dynamic_benefits:
         try:
+            from sqlalchemy import text as _sqltext
             import json as _json
-            # [perf 2026-06-12] 캐시가 있으면 배치 프리로드(dyn_by_sku_site)에서 읽어
-            #   item 당 raw SQL 1쿼리 제거. 없으면(단일 호출) 기존처럼 즉시 조회.
-            if _cache is not None:
-                _rows2 = [(_dj,) for _dj
-                          in _cache.get('dyn_by_sku_site', {}).get((sku, _site_for), [])]
-            else:
-                from sqlalchemy import text as _sqltext
-                _rows2 = session.execute(_sqltext(
-                    "SELECT sp.dynamic_benefits_json FROM option_source_links l "
-                    "JOIN source_options so ON l.source_option_id = so.id "
-                    "JOIN source_products sp ON so.source_product_id = sp.id "
-                    "WHERE l.canonical_sku = :sku AND sp.site = :site "
-                    "AND so.deleted_at IS NULL AND sp.deleted_at IS NULL "
-                    "AND sp.dynamic_benefits_json IS NOT NULL"
-                ), {'sku': sku, 'site': _site_for}).fetchall()
+            _rows2 = session.execute(_sqltext(
+                "SELECT sp.dynamic_benefits_json FROM option_source_links l "
+                "JOIN source_options so ON l.source_option_id = so.id "
+                "JOIN source_products sp ON so.source_product_id = sp.id "
+                "WHERE l.canonical_sku = :sku AND sp.site = :site "
+                "AND so.deleted_at IS NULL AND sp.deleted_at IS NULL "
+                "AND sp.dynamic_benefits_json IS NOT NULL"
+            ), {'sku': sku, 'site': _site_for}).fetchall()
             _best2 = None
             for (_dj,) in _rows2:
                 try:
@@ -659,20 +497,9 @@ def compute_breakdown(session, *, sku: str, source_id: int, sale_price: float,
                     continue
                 if not _d2:
                     continue
-                # 무신사: 한 SKU가 여러 무신사 SP에 매핑될 수 있다. ① 이번 브라우저 크롤
-                #   스냅샷(_crawl, benefits_ok)을 가진 SP 최우선(현재가 기준 — 신모델). ② 동률이면
-                #   기존 휴리스틱(표면가 있고 등급적립 최대=모음전 회원가). 그 외 사이트: 첫 non-empty.
+                # 무신사: 표면가 있고 등급적립 금액 최대(모음전 회원가) 채택. 그 외: 첫 non-empty.
                 if _site_for == 'musinsa':
-                    _cand_crawl = bool((_d2.get('_crawl') or {}).get('benefits_ok'))
-                    _best_crawl = bool((_best2.get('_crawl') or {}).get('benefits_ok')) if _best2 else False
-                    _take = False
-                    if _best2 is None:
-                        _take = bool(_d2.get('surface_price') or _cand_crawl)
-                    elif _cand_crawl and not _best_crawl:
-                        _take = True
-                    elif _cand_crawl == _best_crawl and _d2.get('surface_price') and (_d2.get('grade_reward_amount') or 0) > (_best2.get('grade_reward_amount') or 0):
-                        _take = True
-                    if _take:
+                    if _d2.get('surface_price') and (_best2 is None or (_d2.get('grade_reward_amount') or 0) > (_best2.get('grade_reward_amount') or 0)):
                         _best2 = _d2
                 elif _best2 is None:
                     _best2 = _d2
@@ -694,18 +521,18 @@ def compute_breakdown(session, *, sku: str, source_id: int, sale_price: float,
                      .filter_by(canonical_sku=sku, source_id=source_id)
                      .order_by(OptionBenefitOverride.sort_order, OptionBenefitOverride.id)
                      .all())
-    # 매칭: ovr 의 template_id 가 매핑된 tpl 은 ovr 로 대체
-    ovr_by_tpl = {ovr.template_id: ovr for ovr in ovr_items if ovr.template_id}
-    ovr_standalone = [ovr for ovr in ovr_items if not ovr.template_id]
-    # 적용 순서: tpl 순서 (ovr 대체) → ovr 단독 추가
+    # ★ 2026-06-11 스냅샷 모델 — 이 옵션에 override(자기 복사본)가 하나라도 있으면
+    #   '스냅샷됨' = 소싱처 템플릿을 무시하고 옵션 override 만 사용(독립). 소싱처 기본값이
+    #   바뀌어도 영향 0. override 0건이면 기존처럼 소싱처 템플릿 사용(미스냅샷·하위호환,
+    #   byte-identical). 게이트는 마이그레이션(전 모음전 스냅샷)과 원자적으로 적용해야 안전.
+    #   spec: docs/superpowers/specs/2026-06-11-혜택-스냅샷-모델-design.md
     effective = []
-    for tpl in tpl_items:
-        if tpl.id in ovr_by_tpl:
-            effective.append(('ovr', ovr_by_tpl[tpl.id]))
-        else:
+    if ovr_items:
+        for ovr in ovr_items:
+            effective.append(('ovr_new', ovr))
+    else:
+        for tpl in tpl_items:
             effective.append(('tpl', tpl))
-    for ovr in ovr_standalone:
-        effective.append(('ovr_new', ovr))
 
     # ★ 2026-05-15 — SourceProduct.dynamic_benefits_json 에서 동적 혜택 차감 항목 추가.
     #   옵션 dict 의 사이트 특화 동적 키들 (point_rate / ssg_money_rate / card_benefit_price
@@ -897,32 +724,20 @@ def compute_breakdown(session, *, sku: str, source_id: int, sale_price: float,
                 name=_label, btype='amount', value=float(_sjc),
                 enabled=False,  # 사용자 토글로 결정 (받기 조건)
             )))
-    # ★ 2026-06-14 — 무신사: 현재 브라우저 크롤 스냅샷(_crawl)만으로 계산.
-    #   신선도 게이트 통과 못 하면 산출불가(미수집). 옛 dynamic·템플릿 폴백 금지.
+    # ★ 2026-06-05 — 무신사 옵션 breakdown 금액 항목 주입 (시안 v3: 표면가 base + 등급적립·무신사머니).
+    #   _dynamic_benefits(SourceProduct, option_source_links 조회)의 금액을 항목으로 차감 → 매입가 정확.
     _base_override = None
-    _benefits_status = 'ok'
-    if str(source_id) == '3':
-        from lemouton.pricing.unified import benefits_fresh
-        from lemouton.sourcing.models_pricing import SourceRegistry as _SR
-        from lemouton.sourcing import crawl_guide as _cg
-        _snap = (_dynamic_benefits or {}).get('_crawl')
-        try:
-            _last_status = getattr(sp, 'last_status', None)
-        except NameError:
-            _last_status = None
-        if not benefits_fresh(_snap, _last_status):
-            _benefits_status = '미수집'
-        else:
-            _src = session.query(_SR).get(3)
-            _guide = _cg.loads(_src.crawl_guide) if _src else {}
-            _gb = (_guide.get('pricing') or {}).get('benefits') or []
-            _ex = _guide.get('exclude_keywords') or []
-            _crawl_eff = _musinsa_effective_from_crawl(_gb, _ex, _snap)
-            if _crawl_eff is None:
-                _benefits_status = '미수집'
-            else:
-                effective = _crawl_eff  # 템플릿/오버라이드 무시 — 크롤만 (폴백 금지)
-                _base_override = float((_dynamic_benefits or {}).get('surface_price') or sale_price)
+    if str(source_id) == '3' and _dynamic_benefits.get('surface_price'):
+        class _Inj:
+            def __init__(self, name, value, enabled=True):
+                self.id = -1; self.benefit_name = name; self.benefit_type = 'amount'
+                self.value = value; self.enabled = enabled
+                self.sort_order = 999; self.template_id = None
+        _base_override = float(_dynamic_benefits.get('surface_price') or 0)
+        effective.append(('dyn', _Inj('상품쿠폰', float(_dynamic_benefits.get('coupon_amount') or 0), enabled=bool(_dynamic_benefits.get('coupon_amount')))))
+        effective.append(('dyn', _Inj('등급할인', float(_dynamic_benefits.get('grade_discount_amount') or 0), enabled=bool(_dynamic_benefits.get('grade_discount_amount')))))
+        effective.append(('dyn', _Inj('등급적립', float(_dynamic_benefits.get('grade_reward_amount') or 0), enabled=bool(_dynamic_benefits.get('grade_reward_amount')))))
+        effective.append(('dyn', _Inj('무신사머니 결제 적립', float(_dynamic_benefits.get('money_reward_amount') or 0), enabled=bool(_dynamic_benefits.get('money_reward_amount')))))
 
     # ★ 2026-06-05 — '무신사머니 fallback' 이중 차감 차단 (사용자 정책).
     #   무신사 크롤 베이스(sale_price)는 '회원가' = 무신사머니 적립이 이미 반영된 값이다.
@@ -955,19 +770,11 @@ def compute_breakdown(session, *, sku: str, source_id: int, sale_price: float,
 
     # ★ 카테고리 정렬 + 결제 택1 + 누적 차감 → 순수 계산 함수로 위임 (M1 추출, 2026-06-08)
     from lemouton.pricing.final_price import compute_final_price
-    if _benefits_status == '미수집':
-        return {
-            'final_price': None, 'steps': [], 'items_used': [],
-            'benefits_status': '미수집',
-            'note': '현재 브라우저 크롤 혜택 없음 — 재크롤 필요(폴백 금지)',
-        }
-    out = compute_final_price(
+    return compute_final_price(
         sale_price, effective,
         card_enabled=_card_enabled, card_issuer=_card_issuer,
         base_override=_base_override,
     )
-    out['benefits_status'] = 'ok'
-    return out
 
 
 @bp.get('/breakdown/<sku>/<int:source_id>')
@@ -1003,8 +810,7 @@ def bulk_breakdowns():
             sp = float(it.get('sale_price') or 0)
             if not sku or sid is None or sp <= 0:
                 continue
-            # [2026-06-19] cid 있으면 그 키로(같은 소싱처 여러 URL 을 URL별 구분). 없으면 기존 키(하위호환).
-            key = it.get('cid') or f"{sku}|{sid}"
+            key = f"{sku}|{sid}"
             try:
                 out[key] = compute_breakdown(s, sku=sku, source_id=int(sid),
                                              sale_price=sp, _cache=cache)
@@ -1223,6 +1029,98 @@ def _bundle_skus(session, bundle_code: str) -> list:
     return [o['sku'] for o in _options_by_bundle_code(session, bundle_code)]
 
 
+def snapshot_bundle_from_templates(session, bundle_code: str, source_ids=None) -> dict:
+    """모음전 옵션들에 소싱처 기본셋팅(SourceBenefitTemplate)을 standalone override 로 복제.
+
+    스냅샷 모델의 단일 헬퍼 — 생성 훅 / 초기화(reset) / 따라쓰기(apply-to-all) 공용.
+    각 (옵션 sku, source) 의 기존 override 를 삭제 후, 그 source 템플릿을 그대로 복제
+    (value/type/enabled/category/apply_mode/pay_method/channel/sort_order, template_id=NULL).
+    → 엔진 게이트가 'override 있으면 템플릿 무시' 이므로, 복제 직후 그 옵션은 현재 기본값으로 고정.
+    idempotent (재실행 = 삭제 후 재복제). 커밋은 호출자 책임.
+    spec: docs/superpowers/specs/2026-06-11-혜택-스냅샷-모델-design.md
+    """
+    skus = _bundle_skus(session, bundle_code)
+    if not skus:
+        return {'options': 0, 'sources': 0, 'created': 0}
+    q = session.query(SourceBenefitTemplate)
+    if source_ids:
+        q = q.filter(SourceBenefitTemplate.source_id.in_(list(source_ids)))
+    tpls_by_src: dict = {}
+    for t in q.all():
+        tpls_by_src.setdefault(t.source_id, []).append(t)
+    created = 0
+    for src_id, tpls in tpls_by_src.items():
+        tpls_sorted = sorted(tpls, key=lambda x: ((x.sort_order or 0), x.id))
+        for sku in skus:
+            (session.query(OptionBenefitOverride)
+             .filter_by(canonical_sku=sku, source_id=src_id)
+             .delete(synchronize_session=False))
+            for i, t in enumerate(tpls_sorted):
+                session.add(OptionBenefitOverride(
+                    canonical_sku=sku, source_id=src_id, template_id=None,
+                    benefit_name=t.benefit_name, benefit_type=t.benefit_type,
+                    value=t.value, category=t.category, apply_mode=t.apply_mode,
+                    pay_method=t.pay_method, channel=t.channel,
+                    enabled=t.enabled, sort_order=i,
+                ))
+                created += 1
+    return {'options': len(skus), 'sources': len(tpls_by_src), 'created': created}
+
+
+def sync_templates_from_crawl_guide(session, source_id: int, guide: dict) -> int:
+    """크롤가이드 혜택 카드(값 입력된 것) → SourceBenefitTemplate upsert (기본셋팅 연결).
+
+    설계(2026-06-13): 크롤가이드 detail 페이지의 혜택 '값' 입력칸을 소싱처 기본셋팅으로
+    흘려보낸다. 안전 규칙:
+      - 값(value)이 입력된 혜택만 반영. 빈 값(=크롤로 매번 긁는 등급할인 등)은 건드리지 않음
+        → 0원/잘못된 고정값 덮어쓰기·이중차감 방지.
+      - 방식 '옵션(개월)'(무이자 할부)은 차감 혜택이 아니므로 제외.
+      - 이름(benefit_name) 기준 upsert. 크롤가이드에 없는 기존 템플릿은 삭제하지 않음(데이터 보존).
+      - rate(정률/적립%)는 사람이 넣은 % 를 소수로 변환(15 → 0.15). amount(정액/고정액)는 그대로.
+      - 기존 행 update 시 category/pay_method/channel 은 보존(운영센터에서 세팅한 태그 클로버 방지).
+    반환: 반영된 혜택 개수.
+    """
+    benefits = ((guide.get('pricing') or {}).get('benefits')) or []
+    existing = {t.benefit_name: t for t in
+                session.query(SourceBenefitTemplate)
+                .filter_by(source_id=source_id).all()}
+    n = 0
+    for i, b in enumerate(benefits):
+        v = b.get('value')
+        if v is None:
+            continue
+        method = b.get('method') or ''
+        if '개월' in method:
+            continue
+        name = (b.get('name') or '').strip()
+        if not name:
+            continue
+        is_rate = ('%' in method)
+        btype = 'rate' if is_rate else 'amount'
+        try:
+            val = float(v) / 100.0 if is_rate else float(v)
+        except (TypeError, ValueError):
+            continue
+        apply_mode = b.get('apply')
+        enabled = (b.get('status') != 'planned')
+        t = existing.get(name)
+        if t is not None:
+            t.benefit_type = btype
+            t.value = val
+            if apply_mode:
+                t.apply_mode = apply_mode
+            t.enabled = enabled
+            t.sort_order = i
+        else:
+            session.add(SourceBenefitTemplate(
+                source_id=source_id, benefit_name=name,
+                benefit_type=btype, value=val,
+                apply_mode=apply_mode, enabled=enabled, sort_order=i,
+            ))
+        n += 1
+    return n
+
+
 def _upsert_value_for_skus(s, source_id, skus, nm, bt, val):
     """주어진 sku 목록에 (source_id, benefit_name) override 값 upsert.
 
@@ -1382,49 +1280,104 @@ def set_value_bundle():
         target_skus = _bundle_skus(s, bundle_code)
         if not target_skus:
             return _err('대상 옵션 0건 (bundle_code 확인)')
+        # ★ 스냅샷 모델 — 이 (모음전, 소싱처)가 아직 스냅샷 안 됐으면(override 0건) 먼저
+        #   현재 기본값 전체를 복사(고정)한 뒤 이 수정을 얹는다. = '첫 수정 시 고정'.
+        already = (s.query(OptionBenefitOverride)
+                   .filter(OptionBenefitOverride.source_id == source_id,
+                           OptionBenefitOverride.canonical_sku.in_(target_skus))
+                   .first())
+        snapped = 0
+        if not already:
+            snapped = snapshot_bundle_from_templates(
+                s, bundle_code, source_ids=[source_id]).get('created', 0)
+            s.flush()
         affected = _upsert_value_for_skus(s, source_id, target_skus, nm, bt, val)
         s.commit()
-        return _ok(affected=affected, scope='bundle')
+        return _ok(affected=affected, scope='bundle', snapshotted=snapped)
     finally:
         s.close()
 
 
 @bp.post('/overrides/reset-bundle')
 def reset_bundle():
-    """모음전(bundle_code) 단위 혜택 초기화 — 이 모음전 옵션들의 해당 override 전부 삭제.
+    """모음전(bundle_code) 초기화 — 이 모음전을 '현재 소싱처 기본값'으로 다시 복사(A3-1).
 
-    payload: {source_id, bundle_code, benefit_name}
-    동작:
-      - delete-scoped 와 달리 '비활성 스텁'을 만들지 않는다.
-        대상 옵션들의 (source_id, benefit_name) override 행을 단순 삭제 →
-        엔진이 소싱처 공통 템플릿 + 크롤 동적값으로 재계산 = '원래 계산값' 복귀.
+    payload: {source_id, bundle_code}   (benefit_name 은 무시 — 소싱처 단위 전체 초기화)
+    스냅샷 모델: 그 (bundle, source) 의 기존 override 를 지우고 현재 SourceBenefitTemplate 을
+    standalone override 로 재복제 → 소싱처 기본값이 바뀌었어도 '현재 기본값'으로 통일.
     """
     data = request.get_json(silent=True) or {}
     try:
         source_id = int(data.get('source_id'))
     except (TypeError, ValueError):
         return _err('source_id 정수 필수')
-    nm = (data.get('benefit_name') or '').strip()
-    if not nm:
-        return _err('benefit_name 필수')
     bundle_code = (data.get('bundle_code') or '').strip() or None
     if not bundle_code:
         return _err('bundle_code 필수')
     s = SessionLocal()
     try:
-        target_skus = _bundle_skus(s, bundle_code)
-        if not target_skus:
+        if not _bundle_skus(s, bundle_code):
             return _err('대상 옵션 0건 (bundle_code 확인)')
-        rows = (s.query(OptionBenefitOverride)
-                .filter(OptionBenefitOverride.source_id == source_id,
-                        OptionBenefitOverride.benefit_name == nm,
-                        OptionBenefitOverride.canonical_sku.in_(target_skus))
-                .all())
-        deleted = len(rows)
-        for r in rows:
-            s.delete(r)
+        r = snapshot_bundle_from_templates(s, bundle_code, source_ids=[source_id])
         s.commit()
-        return _ok(deleted=deleted, scope='bundle')
+        return _ok(scope='bundle', **r)
+    finally:
+        s.close()
+
+
+@bp.get('/diff/<bundle_code>/<int:source_id>')
+def bundle_diff(bundle_code: str, source_id: int):
+    """이 모음전(bundle_code)이 현재 소싱처 기본값(SourceBenefitTemplate)과 다른지 판정 (A3-1 배너).
+
+    모음전 옵션의 override 값(스냅샷) ↔ 현재 템플릿 값을 이름으로 비교.
+    returns {differs: bool, count: int, items: [{name, current, default, type}]}
+    옵션마다 값이 같다고 가정(✎ 수정이 모음전 전체 적용) → 첫 옵션 기준 비교.
+    """
+    s = SessionLocal()
+    try:
+        skus = _bundle_skus(s, bundle_code)
+        if not skus:
+            return _ok(differs=False, count=0, items=[])
+        tpls = {t.benefit_name: t for t in (s.query(SourceBenefitTemplate)
+                .filter_by(source_id=source_id).all())}
+        ovrs = {o.benefit_name: o for o in (s.query(OptionBenefitOverride)
+                .filter_by(canonical_sku=skus[0], source_id=source_id).all())}
+        items = []
+        for nm, t in tpls.items():
+            o = ovrs.get(nm)
+            cur = float(o.value) if o is not None else float(t.value)
+            dft = float(t.value)
+            if abs(cur - dft) > 1e-9 or (o is not None and bool(o.enabled) != bool(t.enabled)):
+                items.append({'name': nm, 'current': cur, 'default': dft,
+                              'type': t.benefit_type})
+        return _ok(differs=bool(items), count=len(items), items=items)
+    finally:
+        s.close()
+
+
+@bp.post('/templates/<int:source_id>/apply-to-all')
+def apply_to_all_bundles(source_id: int):
+    """소싱처 기본값을 '모든 모음전'에 따라쓰기 (B1, 2중 잠금) — 전 모음전 덮어쓰기.
+
+    payload: {confirm: true}  (UI 2중 잠금 통과 표시)
+    전 모음전 옵션의 (이 source) override 를 현재 템플릿으로 재복제. 비가역.
+    """
+    data = request.get_json(silent=True) or {}
+    if not data.get('confirm'):
+        return _err('confirm=true 필수 (2중 잠금)')
+    s = SessionLocal()
+    try:
+        from lemouton.sourcing.models import Model
+        codes = [c[0] for c in s.query(Model.model_code).all() if c[0]]
+        bundles = 0
+        created = 0
+        for code in codes:
+            r = snapshot_bundle_from_templates(s, code, source_ids=[source_id])
+            if r['options']:
+                bundles += 1
+                created += r['created']
+        s.commit()
+        return _ok(scope='all', bundles=bundles, created=created)
     finally:
         s.close()
 
