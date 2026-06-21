@@ -722,7 +722,7 @@
               dbId: u.id,
               label: u.label || '',
               url: u.url || '',
-              url_type: u.url_type || '',
+              url_type: (u.url_type === 'mo' ? 'dan' : (u.url_type || '')),  // [2026-06-21] 색상(mo) 폐지 → 단품
               // [2026-06-05] 크롤 상태 — 실패 URL 빨강·재크롤 표시용 (신규 추가 URL은 undefined)
               crawled: u.crawled,
               lastStatus: u.last_status || null,
@@ -1295,10 +1295,9 @@
     // ─── [2026-06-19 P4] URL 크롤링 검증 탭 — 소싱처별 수집·최종매입가·매칭 ───
     // [2026-06-20 재설계] 트리(소싱처▸URL) + 상세(2단·4케이스) + 배너(스택바·전체분류) + 실패정산.
     function _vTypeBadge(t) {
-      // [2026-06-20 명칭변경] 단품 / 색상 모음전(mo) / 모델 모음전(deal)
+      // [2026-06-21] 유형 2개: 단품 / 모델 모음전(deal). 색상(mo)은 단품으로 통합.
       var b = 'font-size:10px;font-weight:800;border-radius:5px;padding:1px 4px;text-align:center;display:inline-block;width:72px;white-space:nowrap';
       if (t === 'deal') return '<span style="' + b + ';background:#FFE9EC;color:#D6334B">모델 모음전</span>';
-      if (t === 'mo') return '<span style="' + b + ';background:#EEE9FF;color:#6B3FD4">색상 모음전</span>';
       return '<span style="' + b + ';background:#E3F1FF;color:#1B64DA">단품</span>';
     }
     function _vStatusMeta(st, stock_out) {
@@ -1419,7 +1418,7 @@
         if (!sel) {
           detail = '<div style="padding:34px;text-align:center;color:#8B95A1;font-size:14px">좌측에서 URL을 선택하세요</div>';
         } else {
-          const tyName = sel.type === 'mo' ? '색상 모음전' : (sel.type === 'deal' ? '모델 모음전' : '단품');
+          const tyName = sel.type === 'deal' ? '모델 모음전' : '단품';
           const optRows = (sel.options || []).slice(0, 400).map(function (o) {
             const m = _vStatusMeta(o.status, o.stock_out);
             const blank = (o.status === 'absent');
@@ -1862,15 +1861,15 @@
       const isDeal = (u.url || '').toLowerCase().includes('dealitemview');
       // [2026-06-20] 유형 사전지정 — dan/mo/deal. 미지정 기본 = 단품. 단, dealItemView URL은
       //   기본 '모델 모음전'(딜 감지는 100% 확실 + 모델 선택 버튼이 떠야 모델 지정 가능).
-      const _ut = u.url_type || (isDeal ? 'deal' : 'dan');
-      // [2026-06-21] 모델 선택 버튼·드롭다운은 유형이 '모델 모음전'이면 항상 노출(버튼=드롭다운 일치).
-      //   모델 선택 후 URL 이 단일 itemView 로 바뀌어도, u.dealUrl(원래 딜 URL)을 기억해 다시 열어
-      //   다른 모델로 바꿀 수 있게 한다. (이미 선택했어도 '모델: 메이트 ▾'로 보임)
+      // [2026-06-21] 유형 2개로 단순화: 단품(dan) / 모델 모음전(deal). 색상(mo)은 크롤상 단품과
+      //   동일이라 폐지 → 기존 'mo' 는 단품으로 취급. dealItemView 는 기본 모델 모음전.
+      const _ut0 = u.url_type || (isDeal ? 'deal' : 'dan');
+      const _ut = (_ut0 === 'mo') ? 'dan' : _ut0;
       const showModel = (_ut === 'deal');
-      const _segCss = 'border:0;background:#fff;padding:5px 8px;font-size:11px;font-weight:800;color:#8B95A1;cursor:pointer;border-right:1px solid #EEF1F5';
-      const _onCol = { dan: '#1B64DA', mo: '#6B3FD4', deal: '#D6334B' };
+      const _segCss = 'border:0;background:#fff;padding:5px 10px;font-size:11px;font-weight:800;color:#8B95A1;cursor:pointer;border-right:1px solid #EEF1F5;white-space:nowrap';
+      const _onCol = { dan: '#1B64DA', deal: '#D6334B' };
       const _seg = (v, lbl) => `<button data-url-type="${v}" type="button" style="${_segCss}${_ut === v ? ';background:' + _onCol[v] + ';color:#fff' : ''}">${lbl}</button>`;
-      const tySeg = `<span class="oum-url-tyseg" title="유형: 단품 / 색상 모음전 / 모델 모음전 (지정 시 검증이 이 값 사용)" style="display:inline-flex;border:1px solid #DDE2E6;border-radius:8px;overflow:hidden;flex:none">${_seg('dan', '단품')}${_seg('mo', '색상')}${_seg('deal', '모델')}</span>`;
+      const tySeg = `<span class="oum-url-tyseg" title="유형: 단품 / 모델 모음전 (모델 모음전=딜 묶음 → 모델 선택 필요)" style="display:inline-flex;border:1px solid #DDE2E6;border-radius:8px;overflow:hidden;flex:none">${_seg('dan', '단품')}${_seg('deal', '모델 모음전')}</span>`;
       const statusTxt = u.lastStatus === 'error' ? '응답 오류'
         : (u.lastStatus === 'not_crawled' ? '아직 크롤 안 됨' : (u.lastStatus || '실패'));
 

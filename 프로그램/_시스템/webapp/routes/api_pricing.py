@@ -1328,7 +1328,9 @@ def verify_urls(code: str):
                 _stored_ty = url_type_map.get(_nu(url)) if url else None
             except Exception:
                 _stored_ty = None
-            # [2026-06-20] 미지정 기본 = 단품. 단 딜(dealItemView)은 '모델 모음전'(확실 감지).
+            # [2026-06-21] 유형 2개: 단품/모델 모음전. 색상(mo)→단품 통합. 딜은 모델 모음전.
+            if _stored_ty == 'mo':
+                _stored_ty = 'dan'
             u['type'] = _stored_ty or ('deal' if u['is_deal'] else 'dan')
             # [2026-06-21] 딜 모델 미선택 = '실패' 아닌 '모델 선택 필요'로 구분 표시.
             u['needs_model'] = bool(u['last_status'] == 'deal_needs_model'
