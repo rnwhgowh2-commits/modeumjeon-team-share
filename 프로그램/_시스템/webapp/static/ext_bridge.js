@@ -649,10 +649,74 @@
     }
   } catch (_) {}
 
+  // [2026-06-20] 특정 URL 목록만 '로컬 PC 창'에서 크롤(검증 재검증용).
+  //   전체 크롤(crawlBundleAll)과 동일한 _crawlItemInTab 사용 → HTTP=navGrab→서버parse,
+  //   무신사·롯데온=navExtract(로그인 브라우저). crawl-reset/finalize 없음(타 데이터 보존).
+  //   opts.shouldStop()/shouldPause() 콜백으로 외부(검증 카드 버튼)에서 중지/일시정지 제어.
+  async function crawlUrls(code, urlList, opts) {
+    opts = opts || {};
+    const shouldStop = opts.shouldStop || function () { return false; };
+    const shouldPause = opts.shouldPause || function () { return false; };
+    urlList = (urlList || []).filter(function (x) { return x && x.url && x.source_key; });
+    if (!urlList.length) return { ok: false, error: "대상 URL 없음", results: [] };
+    const emit = function (type, fields) { return _emitLog(type, Object.assign({ bundle: code }, fields || {})); };
+    const total = urlList.length;
+    emit("start", { level: "", msg: "선택 URL 로컬 창 크롤: " + total + "건", metrics: { total: total, done: 0 } });
+    const results = [];
+    let winId = null, tabId = null;
+    try {
+      const w = await send("openWin", {}, 30000);
+      if (!w || !w.ok || w.tabId == null) {
+        emit("finish", { level: "warn", msg: "창 생성 실패" });
+        return { ok: false, error: (w && w.error) || "창 생성 실패", results: [] };
+      }
+      winId = w.winId; tabId = w.tabId;
+      for (let i = 0; i < urlList.length; i++) {
+        if (shouldStop()) break;
+        while (shouldPause() && !shouldStop()) { await new Promise(function (r) { setTimeout(r, 300); }); }
+        if (shouldStop()) break;
+        let out;
+        try { out = await _crawlItemInTab(tabId, code, urlList[i]); }
+        catch (e) { out = { url: urlList[i].url, source_key: urlList[i].source_key, status: "error", error: String(e && e.message ? e.message : e) }; }
+        results.push(out);
+        emit("item-done", {
+          source: urlList[i].source_key, level: out.status === "ok" ? "" : "warn",
+          url: (out && out.url) || urlList[i].url,
+          msg: out.status === "ok" ? ("표면 " + (out.price != null ? out.price.toLocaleString() + "원" : "가격없음")) : ("실패: " + (out.error || "")),
+          metrics: { total: total, done: i + 1 },
+        });
+      }
+    } finally {
+      if (winId != null) { try { await send("closeWin", { winId: winId }, 10000); } catch (_) {} }
+    }
+    // 저장(options 포함) — 전체 크롤과 동일하게 SourceOption 반영
+    const items = results.map(function (x) {
+      return {
+        url: x.url, price: x.price, stock: x.stock, options: x.options,
+        status: x.status, product_name: x.product_name, error: x.error,
+        is_logged_in: (x.is_logged_in === undefined ? null : x.is_logged_in),
+        benefits_ok: (x.benefits_ok === undefined ? false : !!x.benefits_ok),
+        benefit_lines: x.benefit_lines || [], benefit_amounts: x.benefit_amounts || {},
+      };
+    });
+    let save = null;
+    if (items.length) {
+      save = await fetch("/api/sources/crawl-result", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ items: items }),
+      }).then(function (x) { return x.json(); }).catch(function (e) { return { ok: false, error: String(e) }; });
+    }
+    const okN = results.filter(function (x) { return x.status === "ok"; }).length;
+    emit("finish", { level: "", msg: okN + "/" + results.length + " 성공", metrics: { total: total, done: results.length } });
+    return { ok: true, crawled: results.length, ok_count: okN, save: save, results: results, stopped: shouldStop() };
+  }
+
   window.MoumExt = {
     installed,
     version,
     ping: () => send("ping", {}, 8000),
+    crawlUrls,
+    crawl: (payload, timeoutMs) => send("crawl", payload, timeoutMs),
     crawl: (payload, timeoutMs) => send("crawl", payload, timeoutMs),
     grabHtml: (url, timeoutMs) => send("grabHtml", { url }, timeoutMs || 60000),
     // 창 재사용 래퍼(v0.4.1) — 소싱처별 창 1개로 순차 크롤

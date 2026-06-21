@@ -1542,17 +1542,13 @@
       if (state.vcrawl && state.vcrawl.running) return;  // 이미 진행 중
       const code = window.BUNDLE_CODE || window.currentBundleCode || '';
       const extOk = !!(window.MoumExt && window.MoumExt.installed && window.MoumExt.installed());
-      // 무신사·롯데온 = 로그인 브라우저 '창 크롤'(navExtract) 필요. 확장 구조상 per-URL 불가 →
-      //   '전체 재검증'일 때만 전체 크롤과 동일한 crawlBundleAll(모음전 전체) 사용.
-      //   해당/선택은 per-URL 서버 크롤로 한정(무신사·롯데온은 '확장필요'로 표기 → 전체 재검증 안내).
-      const needWindow = urls.some(function (u) { const k = _vUrlSourceKey(u.product_url); return k === 'musinsa' || k === 'lotteon'; });
-      const useFull = (label === '전체') && needWindow && extOk && window.MoumExt.crawlBundleAll;
 
-      if (useFull) {
-        // === 전체 크롤과 100% 동일: crawlBundleAll (전 소싱처 창 크롤, 무신사=navExtract) ===
-        //   ⚠️ 무신사·롯데온은 확장 구조상 per-URL 불가 → 모음전 전체를 전체크롤과 동일하게 재크롤한다.
-        state.vcrawl = { running: true, paused: false, stopped: false, mode: 'full', total: 0, done: 0, ok: 0, fail: 0, ext: 0, label: label || '', cur: '전체 재크롤(무신사 포함)' };
+      if (extOk && window.MoumExt.crawlUrls) {
+        // === 로컬 PC 창 크롤(전체 크롤과 동일 추출, 창 뜸). 선택 URL만. HTTP·무신사·롯데온 전부 ===
+        state.vcrawl = { running: true, paused: false, stopped: false, mode: 'win', total: urls.length, done: 0, ok: 0, fail: 0, ext: 0, label: label || '', cur: '' };
         renderVcrawlToast();
+        const urlList = urls.map(function (u) { return { source_key: _vUrlSourceKey(u.product_url), url: u.product_url }; })
+          .filter(function (x) { return x.source_key && x.url; });
         const onLog = function (ev) {
           const d = ev.detail || {}; const m = d.metrics;
           if (m && typeof m.total === 'number') { state.vcrawl.total = m.total; state.vcrawl.done = (typeof m.done === 'number' ? m.done : state.vcrawl.done); }
@@ -1561,14 +1557,16 @@
         };
         window.addEventListener('moum-crawl-log', onLog);
         try {
-          const r = await window.MoumExt.crawlBundleAll(code).catch(function (e) { return { ok: false, error: String(e) }; });
+          const r = await window.MoumExt.crawlUrls(code, urlList, {
+            shouldStop: function () { return !!state.vcrawl.stopped; },
+            shouldPause: function () { return !!state.vcrawl.paused; },
+          }).catch(function (e) { return { ok: false, error: String(e) }; });
           state.vcrawl.ok = (r && r.ok_count) || 0;
           state.vcrawl.fail = Math.max(0, ((r && r.crawled) || 0) - ((r && r.ok_count) || 0));
-          if (r && r.stopped) state.vcrawl.stopped = true;
         } catch (e) { /* noop */ }
         window.removeEventListener('moum-crawl-log', onLog);
       } else {
-        // === HTTP 소싱처만(또는 확장 없음): per-URL 서버 크롤(빠름, 옵션째 저장) ===
+        // === 확장 없음 — 서버 per-URL 크롤(HTTP만, 무신사·롯데온은 '확장필요') ===
         state.vcrawl = { running: true, paused: false, stopped: false, mode: 'url', total: urls.length, done: 0, ok: 0, fail: 0, ext: 0, label: label || '', cur: '' };
         renderVcrawlToast();
         for (let i = 0; i < urls.length; i++) {
@@ -1580,10 +1578,10 @@
           state.vcrawl.cur = u.product_name || u.source_name || '';
           renderVcrawlToast();
           if (!sk) { state.vcrawl.fail++; state.vcrawl.done++; renderVcrawlToast(); continue; }
-          if (sk === 'musinsa' || sk === 'lotteon') { state.vcrawl.ext++; state.vcrawl.done++; renderVcrawlToast(); continue; }  // 확장 없음 → 스킵('확장필요')
+          if (sk === 'musinsa' || sk === 'lotteon') { state.vcrawl.ext++; state.vcrawl.done++; renderVcrawlToast(); continue; }
           try {
             const _ctrl = new AbortController();
-            state.vcrawl._abort = _ctrl;  // 정지 시 진행 중 요청 즉시 중단
+            state.vcrawl._abort = _ctrl;
             const j = await fetch('/api/bundles/' + encodeURIComponent(code) + '/recrawl-url',
               { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ source_key: sk, url: u.product_url }), signal: _ctrl.signal })
               .then(function (r) { return r.json(); }).catch(function (e) { return { ok: false, _aborted: (e && e.name === 'AbortError') }; });
