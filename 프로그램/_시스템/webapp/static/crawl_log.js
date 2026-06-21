@@ -889,11 +889,13 @@
         break;
       }
       case 'item-retried': {
-        // [2026-06-22] 재시도 성공 로그 — done/ok/fail 카운터는 건드리지 않음(이미 최초 시도에서 계산).
-        //   "item-done" 을 재사용하면 s.done++ 이중 증가(42/40 오버카운트 버그).
+        // [2026-06-22] 재시도 성공 로그 — s.done 은 증가 안 함(42/40 오버카운트 방지).
+        //   fail→ok 보정: 최초 시도에서 s.fail++ 됐으나 재시도 성공이면 s.fail-- / s.ok++ 로 수정.
         if (sk) {
           var s2r = getSource(b, sk);
-          var liner = { ts: ts, level: 'retried', msg: msg, url: d.url || null, lineId: d.lineId || null, name: d.name || null, surf: (d.surf != null ? d.surf : null), buy: null, steps: null, url_type: '' };
+          s2r.fail = Math.max(0, (s2r.fail || 0) - 1);
+          s2r.ok = (s2r.ok || 0) + 1;
+          var liner = { ts: ts, level: 'retried', msg: msg, url: d.url || null, lineId: d.lineId || null, name: d.name || null, surf: (d.surf != null ? d.surf : null), buy: null, steps: null, url_type: d.url_type || '' };
           s2r.logs.push(liner);
           if (s2r.logs.length > 200) s2r.logs.shift();
           if (d.lineId) b.lineIndex[d.lineId] = { sk: sk, line: liner };
