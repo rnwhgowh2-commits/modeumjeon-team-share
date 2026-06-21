@@ -377,7 +377,10 @@ def _option_matrix_data(code: str):
         for sp in (s.query(SourceProduct)
                    .filter(SourceProduct.deleted_at.is_(None)).all()):
             if sp.url:
-                sp_by_norm[_norm_url(sp.url)] = sp
+                # [2026-06-21] setdefault(첫 행) 사용 — save_crawl_result 의 idx 와 동일 정책.
+                #   dict assignment(마지막 행) vs setdefault(첫 행) 불일치 → 중복 URL SP 에서
+                #   source_stats 가 last_price=None 인 다른 행을 읽어 url_done=0 이 되던 버그 수정.
+                sp_by_norm.setdefault(_norm_url(sp.url), sp)
 
         sku_to_sources = {}  # sku -> [{source_id, source_name, product_url, ...}]
         for link in url_links:
