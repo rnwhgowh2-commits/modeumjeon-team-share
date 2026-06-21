@@ -505,8 +505,15 @@ def _option_matrix_data(code: str):
                 )
                 for lk, bsu in _link_rows:
                     existing = sku_to_sources.setdefault(lk.option_canonical_sku, [])
-                    if any(e.get('product_url') == bsu.url for e in existing):
-                        continue  # legacy 로 이미 추가된 동일 URL 중복 방지
+                    dup = next((e for e in existing if e.get('product_url') == bsu.url), None)
+                    if dup is not None:
+                        # [2026-06-22] 레거시 항목엔 source_key 없음 → background.js 크롤 누락.
+                        #   BundleSourceUrl 에서 source_key·url_type 을 주입해 크롤 대상 포함.
+                        if not dup.get('source_key') and bsu.source_key:
+                            dup['source_key'] = bsu.source_key
+                        if not dup.get('url_type') and bsu.url_type:
+                            dup['url_type'] = bsu.url_type
+                        continue  # 중복 URL 행 추가 방지
                     sp = _sp_by_norm2.get(_norm_url(bsu.url)) if bsu.url else None
                     _reg_id = _key_to_regid.get(bsu.source_key)  # 칼럼 매칭용 레지스트리 id
                     # 옵션별 실재고·실가격 — 색상+사이즈로 매칭된 동일 SourceOption 에서 파생.
