@@ -2666,6 +2666,9 @@
           u.modelLabel = mPick.dataset.modelName;
           state.urlModelPicker = null;
           renderRight();
+          // [2026-06-21] 모델 선택 즉시 저장 — 딜 URL → 모델 단일 itemView 로 바뀐 걸 DB 에 반영해야
+          //   검증/크롤이 딜이 아닌 그 모델을 본다(저장 안 하면 검증이 옛 딜 URL 보고 '실패' 표시).
+          if (typeof autoSave === 'function') { try { autoSave(); } catch (e) {} }
         }
         return;
       }
