@@ -1403,8 +1403,8 @@
           tree += '<div style="font-size:15px;font-weight:800;color:#8B95A1;padding:14px 8px 4px;border-top:1px solid #F2F4F6">' + esc(ps.name) + ' — 최저 ' + (ps.min_final ? ps.min_final.toLocaleString() : '—') + ' · ' + (ps.success_rate || 0) + '%</div>';
           (ps.urls || []).forEach(function (u) {
             const on = u.product_url === selUrl;
-            const cntColor = (u.crawl_error || u.noprice) ? '#DC2626' : (u.absent ? '#94A3B8' : '#16A34A');
-            const cntTxt = u.crawl_error ? '실패' : ('✓' + u.matched);
+            const cntColor = u.needs_model ? '#A66A00' : ((u.crawl_error || u.noprice) ? '#DC2626' : (u.absent ? '#94A3B8' : '#16A34A'));
+            const cntTxt = u.needs_model ? '모델선택 필요' : (u.crawl_error ? '실패' : ('✓' + u.matched));
             const need = (u.type === 'deal') ? '<span style="font-size:10px;font-weight:800;border-radius:5px;padding:1px 6px;background:#FFF1D6;color:#A66A00">🧩 모델</span>' : '';
             tree += '<div data-vurl="' + esc(u.product_url) + '" style="display:grid;grid-template-columns:18px 72px 1fr auto;align-items:center;gap:8px;padding:8px;border-radius:7px;cursor:pointer;' + (on ? 'background:#E8F1FF' : '') + '">' +
               '<input type="checkbox" data-vcheck="' + esc(u.product_url) + '" ' + (state.verifyChecks[u.product_url] ? 'checked' : '') + ' style="width:15px;height:15px;accent-color:#1B64DA">' +

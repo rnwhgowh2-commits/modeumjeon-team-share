@@ -1330,8 +1330,12 @@ def verify_urls(code: str):
                 _stored_ty = None
             # [2026-06-20] 미지정 기본 = 단품. 단 딜(dealItemView)은 '모델 모음전'(확실 감지).
             u['type'] = _stored_ty or ('deal' if u['is_deal'] else 'dan')
-            u['crawl_error'] = bool(u['last_status'] == 'error'
-                                    or (total > 0 and u['noprice'] == total and matched == 0))
+            # [2026-06-21] 딜 모델 미선택 = '실패' 아닌 '모델 선택 필요'로 구분 표시.
+            u['needs_model'] = bool(u['last_status'] == 'deal_needs_model'
+                                    or (u['is_deal'] and matched == 0))
+            u['crawl_error'] = bool((u['last_status'] == 'error'
+                                     or (total > 0 and u['noprice'] == total and matched == 0))
+                                    and not u['needs_model'])
             u.pop('_colors', None)
             ps = per_src.setdefault(sid, {'source_id': sid, 'name': sname.get(sid, '?'),
                                           'urls': [], 'ok': 0, 'soldout': 0,
@@ -1554,6 +1558,26 @@ def save_crawl_result():
             sp = idx.get(normalize_url(url))
             if sp is None:
                 not_found.append(str(url)[:80])
+                continue
+            # [2026-06-21 money-safe] SSG 딜(dealItemView) — 모델 미선택이면 자동 대표상품
+            #   크롤 금지(광고상품 오긁음). 잔여(이전 '홈쇼핑 인기 상품'·'여성 와이드 바지' 등)
+            #   데이터 정리 + 'deal_needs_model' 표시. 모델 선택하면 URL 이 단일 itemView 가 됨.
+            if 'dealitemview' in str(url).lower():
+                for _sid in (dup_ids.get(normalize_url(url)) or [sp.id]):
+                    _sp2 = s.get(SourceProduct, _sid)
+                    if _sp2 is None:
+                        continue
+                    _sp2.product_name = None
+                    _sp2.last_price = None
+                    _sp2.last_stock = None
+                    _sp2.last_status = 'deal_needs_model'
+                    _sp2.last_error_msg = '딜 — 모델 선택 필요(모델 선택 ▾ 눌러 모델 지정)'
+                    _sp2.last_fetched_at = now
+                    s.query(SourceOption).filter(
+                        SourceOption.source_product_id == _sid,
+                        SourceOption.deleted_at.is_(None)
+                    ).update({SourceOption.deleted_at: now}, synchronize_session=False)
+                updated += 1
                 continue
             price = it.get('price')
             stock = it.get('stock')
