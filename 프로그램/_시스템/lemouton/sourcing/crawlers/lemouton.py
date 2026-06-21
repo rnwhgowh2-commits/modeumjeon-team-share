@@ -131,6 +131,15 @@ def _parse_product_name(soup: BeautifulSoup, override_name: Optional[str]) -> st
     if override_name:
         return override_name
 
+    # [2026-06-21] og:title 우선 — 페이지 head 의 정식 상품명. 르무통 PC 페이지의 '첫 h2'가
+    #   '메인메뉴'(내비)라서 그게 상품명으로 잘못 잡히던 문제(상품명='메인메뉴' 사고). og:title 은
+    #   PC·모바일 모두 정확한 상품명("르무통 메이트 발 편한 메리노울 운동화")이라 최우선으로 쓴다.
+    og = soup.find("meta", attrs={"property": "og:title"})
+    if og and og.get("content"):
+        _ogt = og["content"].strip()
+        if _ogt and 2 < len(_ogt) < 150:
+            return _ogt
+
     # V7 원본 제외어 (background.js: '확대','Ambassador','Natural','Travel','리뷰')
     # + 모바일 페이지 전용 섹션·마케팅 헤더 (V7 PC 페이지엔 없던 h2 들 — 상품명이 아님).
     excluded_substrings = (
@@ -140,6 +149,8 @@ def _parse_product_name(soup: BeautifulSoup, override_name: Optional[str]) -> st
         "상품상세", "추가구성", "WITH ITEM",
         # 모바일 추가 — 마케팅 h2 (메리노울 모델 모음전 페이지 공통)
         "MerinoWool", "Performance", "Fiber", "LeMouton", "100%",
+        # [2026-06-21] PC 페이지 내비 헤더 (상품명 아님)
+        "메인메뉴",
     )
     for h2 in soup.find_all("h2"):
         t = h2.get_text(strip=True)
