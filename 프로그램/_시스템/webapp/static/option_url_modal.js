@@ -1859,7 +1859,10 @@
       // [2026-06-20] 유형 사전지정 — dan/mo/deal. 미지정 기본 = 단품. 단, dealItemView URL은
       //   기본 '모델 모음전'(딜 감지는 100% 확실 + 모델 선택 버튼이 떠야 모델 지정 가능).
       const _ut = u.url_type || (isDeal ? 'deal' : 'dan');
-      const showModel = (_ut === 'deal');  // 모델 모음전일 때만 모델 선택 노출
+      // [2026-06-21] 모델 선택 버튼·드롭다운은 '실제 딜(dealItemView) URL'일 때만 노출.
+      //   (모델 선택 후 URL 이 단일 itemView 로 바뀌면 isDeal=false → 버튼 사라짐 = 이미 선택 완료.
+      //   기존엔 버튼은 유형(_ut)으로, 드롭다운은 isDeal 로 떠 불일치 → '버튼 안 눌림' 버그.)
+      const showModel = (_ut === 'deal') && isDeal;
       const _segCss = 'border:0;background:#fff;padding:5px 8px;font-size:11px;font-weight:800;color:#8B95A1;cursor:pointer;border-right:1px solid #EEF1F5';
       const _onCol = { dan: '#1B64DA', mo: '#6B3FD4', deal: '#D6334B' };
       const _seg = (v, lbl) => `<button data-url-type="${v}" type="button" style="${_segCss}${_ut === v ? ';background:' + _onCol[v] + ';color:#fff' : ''}">${lbl}</button>`;
