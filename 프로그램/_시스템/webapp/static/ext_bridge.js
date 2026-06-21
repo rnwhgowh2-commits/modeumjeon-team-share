@@ -64,6 +64,7 @@
     const items = results.map((x) => ({
       url: x.url, price: x.price, stock: x.stock,
       status: x.ok ? "ok" : "error", product_name: x.product_name, error: x.error,
+      is_logged_in: (x.is_logged_in === undefined ? null : x.is_logged_in),
     }));
     const save = await fetch("/api/sources/crawl-result", {
       method: "POST", headers: { "Content-Type": "application/json" },
@@ -111,12 +112,29 @@
     }
   } catch (_) {}
 
+  // URL 1건만 크롤 → 저장. option_url_modal 재크롤 버튼에서 호출.
+  async function crawlSingleUrl(bundleCode, sourceKey, url, urlType) {
+    const list = [{ source_key: sourceKey, url: url, url_type: urlType || 'dan' }];
+    const res = await send("crawl", { model_code: bundleCode, sources: list }, 120000);
+    const results = (res && res.results) || [];
+    if (!results.length) return { ok: false, error: '결과 없음' };
+    const x = results[0];
+    await fetch("/api/sources/crawl-result", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ items: [{ url: x.url, price: x.price, stock: x.stock,
+        status: x.ok ? "ok" : "error", product_name: x.product_name, error: x.error,
+        is_logged_in: (x.is_logged_in === undefined ? null : x.is_logged_in) }] }),
+    }).catch(() => {});
+    return { ok: x.ok || false, price: x.price, error: x.error };
+  }
+
   window.MoumExt = {
     installed,
     version,
     ping: () => send("ping", {}, 8000),
     crawl: (payload, timeoutMs) => send("crawl", payload, timeoutMs),
     crawlBundle,
+    crawlSingleUrl,
     startSchedule,
     stopSchedule,
     scheduleStatus,
