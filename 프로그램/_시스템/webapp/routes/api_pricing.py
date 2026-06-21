@@ -1571,16 +1571,6 @@ def save_crawl_result():
             pn = it.get('product_name')
             if pn:
                 sp.product_name = str(pn)[:255]
-            # [2026-06-06] 옵션단위 표시가 갱신 — 매트릭스는 SourceOption.current_price 를
-            #   우선 표시한다(상품 last_price 는 fallback). 무신사 회원가·롯데온 혜택가는
-            #   상품 내 균일하므로 이 상품의 모든 옵션 가격을 일괄 갱신 → 화면에 신규가 반영.
-            if price not in (None, '', 0) and not rejected_low:
-                try:
-                    s.query(SourceOption).filter_by(
-                        source_product_id=sp.id, deleted_at=None
-                    ).update({SourceOption.current_price: int(price)})
-                except Exception:
-                    pass
             # ★ 2026-06-14 — 사이즈별 재고 반영 (확장 options[{color,size,stock}] → current_stock).
             #   기존 상품레벨 stock(=확장 anyStock?999:0)만 저장 → 전 사이즈 '재고있음'
             #   둔갑(한정수량·품절 누락 = 오발주 손실) 교정. status=ok 인 성공 크롤만.
@@ -1597,6 +1587,18 @@ def save_crawl_result():
                         _ingest_option_stocks(s, sp.id, _opts_in)
                 except Exception as _e:
                     item_errors.append({'url': str(url)[:80], 'where': 'option_stock', 'error': str(_e)[:160]})
+            # [2026-06-06] 옵션단위 표시가 갱신 — 매트릭스는 SourceOption.current_price 우선(상품
+            #   last_price 는 fallback). 상품 내 가격 균일(무신사 회원가·SSF 등)하므로 전 옵션 일괄 반영.
+            #   ★ [2026-06-21 FIX] 반드시 _ingest(신규 옵션 생성) '뒤'에 실행. 기존엔 _ingest 앞이라
+            #   리셋/prune 후 새로 생긴 옵션(price 없는 options 배열로 생성)이 가격을 못 받아 noprice
+            #   둔갑(예: SSF 비-블랙 8색 84옵션 가격없음). 순서를 뒤집어 신규 옵션도 상품가를 받게 한다.
+            if price not in (None, '', 0) and not rejected_low:
+                try:
+                    s.query(SourceOption).filter_by(
+                        source_product_id=sp.id, deleted_at=None
+                    ).update({SourceOption.current_price: int(price)})
+                except Exception:
+                    pass
             # ★ 2026-06-14 — '있는 그대로(현재 브라우저)' 혜택 스냅샷 저장.
             #   확장이 현재 페이지에서 긁은 혜택 라인/금액을 dynamic_benefits_json['_crawl']에
             #   타임스탬프·로그인상태와 함께 기록. 크롤 실패(status='error')면 스냅샷 미갱신
