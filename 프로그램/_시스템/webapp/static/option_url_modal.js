@@ -1830,12 +1830,16 @@
     async function loadUrlModels(u) {
       state.urlModelData = state.urlModelData || {};
       state.urlModelData[u.tempId] = { loading: true };
+      // [2026-06-21] 원래 딜 URL 기억 → 모델 선택 후(URL이 단일 itemView 로 바뀐 뒤)에도
+      //   같은 딜의 모델 목록을 다시 열어 다른 모델로 바꿀 수 있게.
+      if (/dealitemview/i.test(u.url || '')) u.dealUrl = u.url;
+      const _resolveUrl = u.dealUrl || u.url;
       renderRight();
       try {
         const target = (window.BUNDLE_CODE || '').replace(/_/g, ' ');
         const r = await fetch('/api/sources/resolve-deal-models', {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ url: u.url, target_model: target })
+          body: JSON.stringify({ url: _resolveUrl, target_model: target })
         });
         const j = await r.json();
         state.urlModelData[u.tempId] = j.ok ? j : { error: (j.error || ('HTTP ' + r.status)) };
@@ -1859,10 +1863,10 @@
       // [2026-06-20] 유형 사전지정 — dan/mo/deal. 미지정 기본 = 단품. 단, dealItemView URL은
       //   기본 '모델 모음전'(딜 감지는 100% 확실 + 모델 선택 버튼이 떠야 모델 지정 가능).
       const _ut = u.url_type || (isDeal ? 'deal' : 'dan');
-      // [2026-06-21] 모델 선택 버튼·드롭다운은 '실제 딜(dealItemView) URL'일 때만 노출.
-      //   (모델 선택 후 URL 이 단일 itemView 로 바뀌면 isDeal=false → 버튼 사라짐 = 이미 선택 완료.
-      //   기존엔 버튼은 유형(_ut)으로, 드롭다운은 isDeal 로 떠 불일치 → '버튼 안 눌림' 버그.)
-      const showModel = (_ut === 'deal') && isDeal;
+      // [2026-06-21] 모델 선택 버튼·드롭다운은 유형이 '모델 모음전'이면 항상 노출(버튼=드롭다운 일치).
+      //   모델 선택 후 URL 이 단일 itemView 로 바뀌어도, u.dealUrl(원래 딜 URL)을 기억해 다시 열어
+      //   다른 모델로 바꿀 수 있게 한다. (이미 선택했어도 '모델: 메이트 ▾'로 보임)
+      const showModel = (_ut === 'deal');
       const _segCss = 'border:0;background:#fff;padding:5px 8px;font-size:11px;font-weight:800;color:#8B95A1;cursor:pointer;border-right:1px solid #EEF1F5';
       const _onCol = { dan: '#1B64DA', mo: '#6B3FD4', deal: '#D6334B' };
       const _seg = (v, lbl) => `<button data-url-type="${v}" type="button" style="${_segCss}${_ut === v ? ';background:' + _onCol[v] + ';color:#fff' : ''}">${lbl}</button>`;
@@ -1893,7 +1897,7 @@
         </div>
         ${isFail ? `<div class="oum-url-failmsg">❌ 크롤 실패 (${esc(statusTxt)}) — 이 URL 의 옵션 <b>${mapped}건</b>은 가격/재고를 못 받았어요. 🔄 재크롤하거나 URL 을 확인하세요.</div>` : ''}
         ${isCovered ? `<div class="oum-url-covered">📦 딜·기획전 허브 — 색상별 단품 URL로 가격·재고가 커버됩니다. 이 URL은 따로 크롤하지 않아요 (정상).</div>` : ''}
-        ${(isDeal && state.urlModelPicker === u.tempId) ? renderModelPicker(u) : ''}`;
+        ${(showModel && state.urlModelPicker === u.tempId) ? renderModelPicker(u) : ''}`;
 
       if (isOpen) {
         html += `<div class="oum-url-body">${renderUrlBody(u)}</div>`;
