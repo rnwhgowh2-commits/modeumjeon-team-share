@@ -68,14 +68,6 @@
           .autosave-indicator[data-state="saved"]  { color:#15803d; background:#DCFCE7; opacity: 1; }
           .autosave-indicator[data-state="error"]  { color:#DC2626; background:#FEE2E2; opacity: 1; cursor: pointer; }
         </style>
-        {# [2026-06-03] 단일 실행 버튼 = 크롤링 → (완료 후) 업로드 한 번에 (phase=full).
-           기존 별도 '크롤링 실행' 버튼 제거. 업로드 단독은 마켓 탭에. #}
-        <button class="run-btn large" data-action="bundle-run-now" data-code="{{ bundle.model_code }}" data-phase="full" style="width:100%">
-          <span class="ic">▶</span> 크롤링 + 업로드 한번에 실행
-        </button>
-        <div class="run-sub-note" style="width:100%; text-align:center; font-size:12.5px; color:var(--n500); margin-top:6px;">
-          크롤링이 끝나면 이어서 업로드까지 자동으로 진행돼요.
-        </div>
       </div>
     </div>
   </div>
