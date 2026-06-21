@@ -128,6 +128,24 @@
     return { ok: x.ok || false, price: x.price, error: x.error };
   }
 
+  // 백그라운드 큐에 모음전 1건 추가 — toss.js bundle-run-now 핸들러에서 호출.
+  function enqueueCrawl(code) {
+    send("crawl.enqueue", { code: code }, 10000).catch(function() {});
+  }
+  // 큐 상태 조회 — 동기 호출용(toss.js가 await 없이 씀). 비동기 캐시 방식.
+  var _crawlStateCache = null;
+  function getCrawlState() {
+    send("crawl.getState", {}, 5000).then(function(s) {
+      if (s) _crawlStateCache = s;
+    }).catch(function() {});
+    return _crawlStateCache;
+  }
+  // 큐 일시중지 / 재개 / 중지 / 취소
+  function pauseCrawl()        { return send("crawl.pause",  {}, 5000); }
+  function resumeCrawl()       { return send("crawl.resume", {}, 5000); }
+  function stopCrawl()         { return send("crawl.stop",   {}, 5000); }
+  function cancelCrawl(code)   { return send("crawl.cancel", { code: code }, 5000); }
+
   window.MoumExt = {
     installed,
     version,
@@ -135,6 +153,12 @@
     crawl: (payload, timeoutMs) => send("crawl", payload, timeoutMs),
     crawlBundle,
     crawlSingleUrl,
+    enqueueCrawl,
+    getCrawlState,
+    pauseCrawl,
+    resumeCrawl,
+    stopCrawl,
+    cancelCrawl,
     startSchedule,
     stopSchedule,
     scheduleStatus,
