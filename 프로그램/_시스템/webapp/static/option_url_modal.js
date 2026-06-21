@@ -1836,9 +1836,15 @@
       renderRight();
       try {
         const target = (window.BUNDLE_CODE || '').replace(/_/g, ' ');
+        // [2026-06-21] 딜 HTML 을 브라우저(한국 IP)로 직접 받아 함께 전송 — 서버 fetch(도쿄 IP)가
+        //   간헐적으로 단일상품 HTML 을 반환해 '모델 선택 불필요' 오판하던 문제 회피.
+        let _dealHtml = null;
+        try { _dealHtml = await fetch(_resolveUrl, { credentials: 'include' }).then(function (x) { return x.text(); }); } catch (e) { _dealHtml = null; }
+        const _payload = { url: _resolveUrl, target_model: target };
+        if (_dealHtml && _dealHtml.length > 1000) _payload.html = _dealHtml;
         const r = await fetch('/api/sources/resolve-deal-models', {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ url: _resolveUrl, target_model: target })
+          body: JSON.stringify(_payload)
         });
         const j = await r.json();
         state.urlModelData[u.tempId] = j.ok ? j : { error: (j.error || ('HTTP ' + r.status)) };

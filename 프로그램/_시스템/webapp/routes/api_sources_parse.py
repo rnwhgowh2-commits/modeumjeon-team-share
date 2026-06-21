@@ -66,6 +66,7 @@ def resolve_deal_models_ep():
     body = request.get_json(silent=True) or {}
     url = body.get("url")
     target = (body.get("target_model") or "").strip()
+    html_in = body.get("html")  # [2026-06-21] 브라우저(한국 IP)가 받은 딜 HTML — 서버 fetch 불안정 회피
     if not isinstance(url, str) or not url.strip():
         return jsonify(ok=False, error="url 필요"), 400
     from lemouton.sourcing.crawlers import build_crawlers
@@ -73,17 +74,28 @@ def resolve_deal_models_ep():
     crawler = build_crawlers().get("ssg")
     if crawler is None or not hasattr(crawler, "_fetch_html"):
         return jsonify(ok=False, error="ssg 크롤러 없음"), 400
-    try:
-        html = crawler._fetch_html(url)
-    except Exception as e:
-        return jsonify(ok=False, error=f"딜 페이지 로드 실패: {str(e)[:120]}"), 200
-    # 딜(멀티모델)이 아니면 단일상품 — 매핑 불필요
-    if "uitemObjArr.push" in html:
+    # 딜 HTML — 브라우저가 보낸 게 있으면 그걸 우선(서버 도쿄 IP fetch 가 간헐적으로 단일상품
+    #   HTML 을 반환해 '모델 선택 불필요' 오판하던 문제 회피). 없으면 서버 fetch.
+    url_is_deal = 'dealitemview' in url.lower()
+    if isinstance(html_in, str) and len(html_in) > 1000:
+        html = html_in
+    else:
+        try:
+            html = crawler._fetch_html(url)
+        except Exception as e:
+            return jsonify(ok=False, error=f"딜 페이지 로드 실패: {str(e)[:120]}"), 200
+    # 단일상품(딜 URL 아님) + uitemObj 존재 → 모델 선택 불필요.
+    #   ★ 딜(dealItemView) URL 이면 uitemObj 유무와 무관하게 항상 모델 링크를 해석한다
+    #   (딜 페이지에 대표상품 uitemObj 가 끼어 있어도 단일상품으로 오판하지 않게).
+    if (not url_is_deal) and "uitemObjArr.push" in html:
         return jsonify(ok=True, is_multi=False, models=[], matched=None, ambiguous=False)
     try:
         models = resolve_deal_models(url, html, fetch_html=crawler._fetch_html,
                                      parse_html=crawler.parse_html)
     except Exception as e:
         return jsonify(ok=False, error=f"딜 모델 해석 실패: {str(e)[:120]}"), 200
+    if not models:
+        # 묶인 모델 링크를 못 찾음 = 단일상품으로 취급(매핑 불필요)
+        return jsonify(ok=True, is_multi=False, models=[], matched=None, ambiguous=False)
     matched, ambiguous = match_deal_model(models, target) if target else (None, False)
     return jsonify(ok=True, is_multi=True, models=models, matched=matched, ambiguous=ambiguous)
