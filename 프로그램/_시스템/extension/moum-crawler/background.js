@@ -766,6 +766,7 @@ function bgUpdateView(d) {
     case "start": v.status = "run"; v.finishMsg = ""; break;
     case "window-open": { const s = vSrc(v, d.source); s.status = "run"; s.done = 0; break; }
     case "item-done": { const s = vSrc(v, d.source); s.done = (s.done || 0) + 1; break; }
+    case "item-retried": break; // [2026-06-22] 재시도 성공 — s.done 증가 없음(42/40 오버카운트 방지)
     case "source-done": { const s = vSrc(v, d.source); s.status = "done"; break; }
     case "bundle-paused": v.status = "pause"; break;
     case "bundle-resumed": v.status = "run"; break;
