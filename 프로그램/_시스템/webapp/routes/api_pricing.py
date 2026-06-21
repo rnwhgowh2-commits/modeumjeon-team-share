@@ -1229,6 +1229,8 @@ def verify_urls(code: str):
         # 최종매입가 캐시 (ok/soldout 셀 한정)
         items = []
         for o in rows:
+            if not o.get('is_active', True):
+                continue  # [2026-06-21] 비활성(안 파는) 옵션은 검증/가격계산 대상 아님
             for src in (o.get('sources') or []):
                 if (src.get('crawled_price') and not src.get('match_failed')
                         and src.get('source_id') is not None):
@@ -1253,6 +1255,10 @@ def verify_urls(code: str):
 
         per_url = {}  # (sid, url) -> url dict
         for o in rows:
+            # [2026-06-21] 비활성(안 파는) 옵션 제외 — 르무통 오렌지 260/270 처럼 OFF 된 옵션이
+            #   옛 매핑 잔여로 '옵션없음'에 잡혀 검증을 어지럽히던 문제(과거기록, 새 수집 아님).
+            if not o.get('is_active', True):
+                continue
             for src in (o.get('sources') or []):
                 sid = src.get('source_id')
                 url = src.get('product_url')
