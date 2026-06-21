@@ -1533,11 +1533,17 @@ def save_crawl_result():
     s = SessionLocal()
     try:
         # 정규화 url → SourceProduct 인덱스 (1회 빌드)
+        #  ★ [2026-06-21] 같은 정규화 URL 에 SourceProduct 가 여러 개일 수 있음(트래킹 파라미터
+        #  다른 중복행). crawl-result(첫 행 갱신)와 verify/_option_matrix_data(마지막 행 읽기)가
+        #  서로 다른 행을 골라 가격이 화면에 안 뜨던 사고 → dup_ids 로 '모든 중복행' 옵션가를 갱신.
         idx = {}
+        dup_ids = {}
         for sp in (s.query(SourceProduct)
                    .filter(SourceProduct.deleted_at.is_(None)).all()):
             if sp.url:
-                idx.setdefault(normalize_url(sp.url), sp)
+                _nu = normalize_url(sp.url)
+                idx.setdefault(_nu, sp)
+                dup_ids.setdefault(_nu, []).append(sp.id)
 
         now = _dt.datetime.now(_dt.timezone.utc)
         updated, not_found, item_errors = 0, [], []
@@ -1605,9 +1611,12 @@ def save_crawl_result():
             if price not in (None, '', 0) and not rejected_low:
                 try:
                     s.flush()
-                    s.query(SourceOption).filter_by(
-                        source_product_id=sp.id, deleted_at=None
-                    ).update({SourceOption.current_price: int(price)})
+                    _all_ids = dup_ids.get(normalize_url(url)) or [sp.id]
+                    s.query(SourceOption).filter(
+                        SourceOption.source_product_id.in_(_all_ids),
+                        SourceOption.deleted_at.is_(None)
+                    ).update({SourceOption.current_price: int(price)},
+                             synchronize_session=False)
                 except Exception:
                     pass
             # ★ 2026-06-14 — '있는 그대로(현재 브라우저)' 혜택 스냅샷 저장.
