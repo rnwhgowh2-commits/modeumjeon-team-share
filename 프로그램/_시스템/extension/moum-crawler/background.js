@@ -1111,7 +1111,9 @@ async function crawlBundleAllBG(code) {
             if (_out2) {
               const _si = srcOuts.indexOf(_f); if (_si >= 0) srcOuts[_si] = _out2;
               const _ri = results.indexOf(_f); if (_ri >= 0) results[_ri] = _out2;
-              emit("item-done", { source: sk, level: "", url: _out2.url, name: _out2.product_name || null, surf: (_out2.price != null) ? _out2.price : null, lineId: sk + "|" + _out2.url, msg: sk + " 재시도 성공 — 표면 " + (_out2.price != null ? _out2.price.toLocaleString() + "원" : "가격없음"), metrics: { concurrency, cap, active, done, total } });
+              // [2026-06-22] "item-retried" 타입 사용 — "item-done" 은 bgUpdateView 에서 s.done++ 하므로
+              //   재시도 성공 시에도 "item-done" 을 쓰면 s.done 이 이중 증가(42/40 오버카운트 버그).
+              emit("item-retried", { source: sk, level: "", url: _out2.url, name: _out2.product_name || null, surf: (_out2.price != null) ? _out2.price : null, lineId: sk + "|" + _out2.url, msg: sk + " 재시도 성공 — 표면 " + (_out2.price != null ? _out2.price.toLocaleString() + "원" : "가격없음"), metrics: { concurrency, cap, active, done, total } });
             }
           }
         }

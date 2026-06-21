@@ -1617,6 +1617,24 @@ def save_crawl_result():
             pn = it.get('product_name')
             if pn:
                 sp.product_name = str(pn)[:255]
+            # [2026-06-22] 중복 SP(같은 정규화URL) last_price/last_status 동기화 — source_stats 가
+            #   sp_by_norm(마지막 행)을 읽는데 save_crawl_result 는 idx(첫 행)만 갱신해서
+            #   source_stats url_done=0 이 되던 버그. dup_ids 의 나머지 행도 일괄 갱신.
+            _dup_others = [i for i in (dup_ids.get(normalize_url(url)) or []) if i != sp.id]
+            if _dup_others:
+                _sp_upd = {SourceProduct.last_status: status, SourceProduct.last_fetched_at: now}
+                if price not in (None, '', 0) and not rejected_low:
+                    try:
+                        _sp_upd[SourceProduct.last_price] = int(price)
+                    except Exception:
+                        pass
+                try:
+                    s.query(SourceProduct).filter(
+                        SourceProduct.id.in_(_dup_others),
+                        SourceProduct.deleted_at.is_(None)
+                    ).update(_sp_upd, synchronize_session=False)
+                except Exception:
+                    pass
             # ★ 2026-06-14 — 사이즈별 재고 반영 (확장 options[{color,size,stock}] → current_stock).
             #   기존 상품레벨 stock(=확장 anyStock?999:0)만 저장 → 전 사이즈 '재고있음'
             #   둔갑(한정수량·품절 누락 = 오발주 손실) 교정. status=ok 인 성공 크롤만.
