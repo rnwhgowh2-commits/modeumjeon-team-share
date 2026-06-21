@@ -179,37 +179,50 @@ function naverSkuStockFetch() {
       raw = raw.replace(/(?<![\w"])undefined(?![\w"])/g, "null");
       let state;
       try { state = JSON.parse(raw); } catch (e) { return { err: "state-parse" }; }
+      // 공통 walker: 객체트리서 (stockQuantity + optionName1/optionName) 배열 찾아 색||사이즈→수량
+      function walkFor(root) {
+        const map = {}; let combos = 0;
+        (function walk(o, d) {
+          if (!o || d > 8) return;
+          if (Array.isArray(o)) {
+            for (const it of o) {
+              if (it && typeof it === "object" && "stockQuantity" in it &&
+                  (("optionName1" in it) || ("optionName" in it))) {
+                const c = (it.optionName1 || "").toString().trim();
+                const s = (it.optionName2 || it.optionName || "").toString().trim();
+                const q = it.stockQuantity;
+                const usable = it.usable !== false && it.sellable !== false && it.useYn !== "N";
+                if (typeof q === "number") { map[c + "||" + s] = usable ? q : 0; combos++; }
+              } else { walk(it, d + 1); }
+            }
+          } else if (typeof o === "object") { for (const k in o) walk(o[k], d + 1); }
+        })(root, 0);
+        return { map, combos };
+      }
+      // [2026-06-15 fix 스스] ① __PRELOADED_STATE__ 직접 훑기 — 드롭다운(품절임박/품절)을 그리는
+      //   소스가 state 안에 있다. API(빈응답 다발) 안 거치고 여기서 잡으면 가장 견고.
+      const st = walkFor(state);
+      if (st.combos) return { map: st.map, combos: st.combos, via: "state" };
+      // ② API 폴백 (state 에 옵션조합 없을 때)
       const A = (state.simpleProductForDetailPage && state.simpleProductForDetailPage.A) || {};
       const ch = A.channel || {};
       const cu = ch.channelUid;
-      const pno = A.productNo || A.id;
-      if (!cu || !pno) return { err: "no-ids" };
-      const resp = await fetch(`/n/v2/channels/${cu}/products/${pno}`, {
-        credentials: "include", headers: { accept: "application/json" },
-      });
+      // [2026-06-15 fix] A.productNo(예 5817455588)를 쓰면 /n/v2/.../products/{productNo} 가
+      //   HTTP 204(빈 응답) → resp.ok=true라 resp.json() throw → 조용히 999 폴백(silent fail).
+      //   channelProductNo(=A.id, URL의 상품번호 5844147017)를 써야 200 + per-SKU 재고가 온다.
+      const pno = A.channelProductNo || A.id;   // ⚠️ A.productNo 는 쓰지 말 것(204)
+      if (!cu || !pno) return { err: "no-ids:stCombos0" };
+      let resp, txt = "";
+      try {
+        resp = await fetch(`/n/v2/channels/${cu}/products/${pno}`, { credentials: "include", headers: { accept: "application/json" } });
+        txt = await resp.text();
+      } catch (e) { return { err: "fetch-exc:" + String(e).slice(0, 40) }; }
       if (!resp.ok) return { err: "http-" + resp.status };
-      const j = await resp.json();
-      const map = {};
-      let combos = 0;
-      (function walk(o, d) {
-        if (!o || d > 7) return;
-        if (Array.isArray(o)) {
-          for (const it of o) {
-            if (it && typeof it === "object" && "stockQuantity" in it &&
-                (("optionName1" in it) || ("optionName" in it))) {
-              const c = (it.optionName1 || "").toString().trim();
-              const s = (it.optionName2 || it.optionName || "").toString().trim();
-              const q = it.stockQuantity;
-              const usable = it.usable !== false && it.sellable !== false && it.useYn !== "N";
-              if (typeof q === "number") { map[c + "||" + s] = usable ? q : 0; combos++; }
-            } else { walk(it, d + 1); }
-          }
-        } else if (typeof o === "object") {
-          for (const k in o) walk(o[k], d + 1);
-        }
-      })(j, 0);
-      if (!combos) return { err: "no-combos", topKeys: Object.keys(j).slice(0, 14) };
-      return { map, combos };
+      if (!txt || txt.length < 2) return { err: "empty-body:" + (txt ? txt.length : 0) };
+      let j; try { j = JSON.parse(txt); } catch (e) { return { err: "api-parse:len" + txt.length }; }
+      const ap = walkFor(j);
+      if (!ap.combos) return { err: "no-combos", topKeys: Object.keys(j).slice(0, 14) };
+      return { map: ap.map, combos: ap.combos, via: "api" };
     } catch (e) { return { err: String(e).slice(0, 90) }; }
   })();
 }
@@ -235,37 +248,50 @@ function naverSkuStockFetch() {
       raw = raw.replace(/(?<![\w"])undefined(?![\w"])/g, "null");
       let state;
       try { state = JSON.parse(raw); } catch (e) { return { err: "state-parse" }; }
+      // 공통 walker: 객체트리서 (stockQuantity + optionName1/optionName) 배열 찾아 색||사이즈→수량
+      function walkFor(root) {
+        const map = {}; let combos = 0;
+        (function walk(o, d) {
+          if (!o || d > 8) return;
+          if (Array.isArray(o)) {
+            for (const it of o) {
+              if (it && typeof it === "object" && "stockQuantity" in it &&
+                  (("optionName1" in it) || ("optionName" in it))) {
+                const c = (it.optionName1 || "").toString().trim();
+                const s = (it.optionName2 || it.optionName || "").toString().trim();
+                const q = it.stockQuantity;
+                const usable = it.usable !== false && it.sellable !== false && it.useYn !== "N";
+                if (typeof q === "number") { map[c + "||" + s] = usable ? q : 0; combos++; }
+              } else { walk(it, d + 1); }
+            }
+          } else if (typeof o === "object") { for (const k in o) walk(o[k], d + 1); }
+        })(root, 0);
+        return { map, combos };
+      }
+      // [2026-06-15 fix 스스] ① __PRELOADED_STATE__ 직접 훑기 — 드롭다운(품절임박/품절)을 그리는
+      //   소스가 state 안에 있다. API(빈응답 다발) 안 거치고 여기서 잡으면 가장 견고.
+      const st = walkFor(state);
+      if (st.combos) return { map: st.map, combos: st.combos, via: "state" };
+      // ② API 폴백 (state 에 옵션조합 없을 때)
       const A = (state.simpleProductForDetailPage && state.simpleProductForDetailPage.A) || {};
       const ch = A.channel || {};
       const cu = ch.channelUid;
-      const pno = A.productNo || A.id;
-      if (!cu || !pno) return { err: "no-ids" };
-      const resp = await fetch(`/n/v2/channels/${cu}/products/${pno}`, {
-        credentials: "include", headers: { accept: "application/json" },
-      });
+      // [2026-06-15 fix] A.productNo(예 5817455588)를 쓰면 /n/v2/.../products/{productNo} 가
+      //   HTTP 204(빈 응답) → resp.ok=true라 resp.json() throw → 조용히 999 폴백(silent fail).
+      //   channelProductNo(=A.id, URL의 상품번호 5844147017)를 써야 200 + per-SKU 재고가 온다.
+      const pno = A.channelProductNo || A.id;   // ⚠️ A.productNo 는 쓰지 말 것(204)
+      if (!cu || !pno) return { err: "no-ids:stCombos0" };
+      let resp, txt = "";
+      try {
+        resp = await fetch(`/n/v2/channels/${cu}/products/${pno}`, { credentials: "include", headers: { accept: "application/json" } });
+        txt = await resp.text();
+      } catch (e) { return { err: "fetch-exc:" + String(e).slice(0, 40) }; }
       if (!resp.ok) return { err: "http-" + resp.status };
-      const j = await resp.json();
-      const map = {};
-      let combos = 0;
-      (function walk(o, d) {
-        if (!o || d > 7) return;
-        if (Array.isArray(o)) {
-          for (const it of o) {
-            if (it && typeof it === "object" && "stockQuantity" in it &&
-                (("optionName1" in it) || ("optionName" in it))) {
-              const c = (it.optionName1 || "").toString().trim();
-              const s = (it.optionName2 || it.optionName || "").toString().trim();
-              const q = it.stockQuantity;
-              const usable = it.usable !== false && it.sellable !== false && it.useYn !== "N";
-              if (typeof q === "number") { map[c + "||" + s] = usable ? q : 0; combos++; }
-            } else { walk(it, d + 1); }
-          }
-        } else if (typeof o === "object") {
-          for (const k in o) walk(o[k], d + 1);
-        }
-      })(j, 0);
-      if (!combos) return { err: "no-combos", topKeys: Object.keys(j).slice(0, 14) };
-      return { map, combos };
+      if (!txt || txt.length < 2) return { err: "empty-body:" + (txt ? txt.length : 0) };
+      let j; try { j = JSON.parse(txt); } catch (e) { return { err: "api-parse:len" + txt.length }; }
+      const ap = walkFor(j);
+      if (!ap.combos) return { err: "no-combos", topKeys: Object.keys(j).slice(0, 14) };
+      return { map: ap.map, combos: ap.combos, via: "api" };
     } catch (e) { return { err: String(e).slice(0, 90) }; }
   })();
 }
@@ -385,6 +411,21 @@ function waitTabComplete(tabId, timeoutMs) {
     function listener(id, info) { if (id === tabId && info.status === "complete") { clearTimeout(to); finish(); } }
     chrome.tabs.onUpdated.addListener(listener);
     chrome.tabs.get(tabId, (t) => { if (t && t.status === "complete") { clearTimeout(to); finish(); } });
+  });
+}
+
+// [2026-06-14 fix F] 유닛당 하드 타임아웃 — 한 소싱처 1건이 행(예: 네이버 봇차단 페이지가
+//   never-complete)해도 전체크롤이 영구 정지하지 않게. 정상 무신사 유닛(waitTabComplete 25s
+//   + 혜택 아코디언 ~8s)보다 넉넉히 큰 60s. 타임아웃 시 그 유닛만 error 로 표면화하고 진행.
+const UNIT_TIMEOUT_MS = 60000;
+function withTimeout(promise, ms) {
+  return new Promise((resolve) => {
+    let settled = false;
+    const to = setTimeout(() => { if (!settled) { settled = true; resolve({ __timeout: true }); } }, ms);
+    Promise.resolve(promise).then(
+      (v) => { if (!settled) { settled = true; clearTimeout(to); resolve(v); } },
+      (e) => { if (!settled) { settled = true; clearTimeout(to); resolve({ __error: String(e && e.message ? e.message : e) }); } }
+    );
   });
 }
 
@@ -582,21 +623,36 @@ async function lotteonExtractor() {
   }
   // 색상명: "[르무통]…운동화 블랙 : 롯데ON" → '블랙'
   const titleColor = (document.title.split(":")[0].trim().split(/\s+/).pop()) || "";
-  const seenSize = new Set();
-  const options = [];
-  for (const li of document.querySelectorAll("ul.selectLists > li")) {
-    const cap = li.querySelector(".caption");
-    if (!cap) continue;
-    const size = (cap.textContent || "").replace(/mm/i, "").trim();
-    if (!size || seenSize.has(size)) continue;
-    seenSize.add(size);
-    const stEl = li.querySelector(".stock");
-    // li 전체가 비활성/품절 처리된 경우도 0 (방어)
-    const liSold = /품절|sold|disable|soldout/i.test((li.className || "").toString())
-      || li.getAttribute("aria-disabled") === "true";
-    const stock = liSold ? 0 : lotteStock(stEl ? stEl.textContent.trim() : "");
-    options.push({ color: "", size, price: valid ? price : null, stock });
+  // [2026-06-15 fix 롯데온] .stock(남음/품절)이 li 보다 늦게 렌더 → 너무 일찍 읽으면 999 둔갑.
+  //   ① selectLists 렌더 + 재고마커(남음/품절) 출현 또는 settle 까지 재시도(최대 ~6s)
+  //   ② 같은 사이즈 PC/모바일 2벌 → '가장 정보있는'(낮은) 재고 채택(한정·품절 우선, 999는 후순위)
+  function scanSizes() {
+    const m = {};
+    for (const li of document.querySelectorAll("ul.selectLists > li")) {
+      const cap = li.querySelector(".caption");
+      if (!cap) continue;
+      const size = (cap.textContent || "").replace(/mm/i, "").trim();
+      if (!size) continue;
+      const stEl = li.querySelector(".stock");
+      const liSold = /품절|sold|disable|soldout/i.test((li.className || "").toString())
+        || li.getAttribute("aria-disabled") === "true";
+      const st = liSold ? 0 : lotteStock(stEl ? stEl.textContent.trim() : "");
+      if (!(size in m) || st < m[size]) m[size] = st;   // 낮은 값 우선(0<한정<999)
+    }
+    return m;
   }
+  let sizeStock = {};
+  for (let attempt = 0; attempt < 12; attempt++) {
+    sizeStock = scanSizes();
+    const sizes = Object.keys(sizeStock);
+    const anyMarker = sizes.some((s) => sizeStock[s] !== 999);   // 남음/품절 하나라도 잡힘
+    if (sizes.length && anyMarker) break;                        // 재고신호 확보 → 종료
+    if (sizes.length && attempt >= 6) break;                     // 신호 없어도 충분 대기(전부충분 케이스)
+    await sleep(500);
+  }
+  const options = Object.keys(sizeStock).map((size) => ({
+    color: "", size, price: valid ? price : null, stock: sizeStock[size],
+  }));
 
   return {
     ok: valid,
@@ -828,6 +884,10 @@ async function crawlItemInTabBG(tabId, code, item) {
       url: url, source_key: sk, price: x.price, stock: x.stock, options: x.options,
       status: x.ok ? "ok" : "error", product_name: x.product_name, error: x.error || null,
       is_logged_in: (x.is_logged_in === undefined ? null : x.is_logged_in),
+      // [2026-06-14 fix] '현재 브라우저 기준' 혜택 스냅샷 필드 — 추출기가 긁은 혜택을
+      //   서버(_build_crawl_snapshot)까지 전달. 이전엔 여기서 누락돼 무신사 미수집(폴백 게이트)됐음.
+      benefits_ok: x.benefits_ok, benefit_lines: x.benefit_lines, benefit_amounts: x.benefit_amounts,
+      surface_price: x.surface_price, member_price: x.member_price,
     };
   }
   const grab = await handleNavGrab({ tabId: tabId, url: url });
@@ -884,7 +944,7 @@ async function crawlBundleAllBG(code) {
       const key = s.source_key + "|" + s.product_url;
       if (seen.has(key)) return;
       seen.add(key);
-      (bySource[s.source_key] = bySource[s.source_key] || []).push({ source_key: s.source_key, url: s.product_url });
+      (bySource[s.source_key] = bySource[s.source_key] || []).push({ source_key: s.source_key, url: s.product_url, url_type: s.url_type || "단품" });
     })
   );
   const sourceKeys = Object.keys(bySource);
@@ -925,16 +985,28 @@ async function crawlBundleAllBG(code) {
         if (_mgr.paused) { sourceProgress[sk] = i; pausedMid = true; break; }
         const t0 = Date.now();
         let out;
-        try { out = await crawlItemInTabBG(tabId, code, list[i]); }
-        catch (e) { out = { url: list[i].url, source_key: sk, status: "error", error: String(e && e.message ? e.message : e) }; }
+        // [2026-06-14 fix F] 하드 타임아웃으로 감싸 행 방지. 타임아웃/예외도 error 유닛으로
+        //   표면화하고 다음 유닛 진행 → 한 건 행이 전체크롤을 마비시키지 않음 + 중지 반응성 회복.
+        const _r = await withTimeout(crawlItemInTabBG(tabId, code, list[i]), UNIT_TIMEOUT_MS);
+        if (_r && _r.__timeout) {
+          out = { url: list[i].url, source_key: sk, status: "error", error: "유닛 타임아웃 " + (UNIT_TIMEOUT_MS / 1000) + "s(행 추정·건너뜀)" };
+        } else if (_r && _r.__error) {
+          out = { url: list[i].url, source_key: sk, status: "error", error: _r.__error };
+        } else {
+          out = _r || { url: list[i].url, source_key: sk, status: "error", error: "결과 없음" };
+        }
         const sec = (Date.now() - t0) / 1000;
         latencies.push(sec); if (latencies.length > 12) latencies.shift();
         results.push(out); done++; sourceProgress[sk] = i + 1;
         if (cooldown > 0) cooldown--;
+        const _rawOpts = (out && out.options) || [];
+        const _urlType = (list[i] && list[i].url_type) || "단품";
         emit("item-done", {
           source: sk, level: out.status === "ok" ? "" : "warn",
           url: (out && out.url) || (list[i] && list[i].url) || null,
           lineId: out.status === "ok" ? (sk + "|" + ((out && out.url) || (list[i] && list[i].url) || "")) : null,
+          url_type: _urlType,
+          opts: (out.status === "ok" && _rawOpts.length) ? _rawOpts.slice(0, 25).map(function(o) { return { c: o.color || "", s: o.size || "", q: (typeof o.stock === "number" ? o.stock : null) }; }) : null,
           msg: out.status === "ok"
             ? (sk + " 표면 " + (out.price != null ? out.price.toLocaleString() + "원" : "가격없음") + " (" + sec.toFixed(1) + "s)")
             : (sk + " 실패: " + (out.error || "")),
@@ -1003,6 +1075,9 @@ async function crawlBundleAllBG(code) {
     url: x.url, price: x.price, stock: x.stock, options: x.options,
     status: x.status, product_name: x.product_name, error: x.error,
     is_logged_in: (x.is_logged_in === undefined ? null : x.is_logged_in),
+    // [2026-06-14 fix] 혜택 스냅샷 필드 서버 전달(누락 시 무신사 미수집).
+    benefits_ok: x.benefits_ok, benefit_lines: x.benefit_lines, benefit_amounts: x.benefit_amounts,
+    surface_price: x.surface_price, member_price: x.member_price,
   }));
   const save = await bgFetch("/api/sources/crawl-result", {
     method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ items }),

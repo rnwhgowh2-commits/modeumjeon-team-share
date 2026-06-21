@@ -18,6 +18,22 @@
     lotteon:     '롯데온',
   };
   var SOURCE_ORDER = ['lemouton', 'ssf', 'ssg', 'ss_lemouton', 'musinsa', 'lotteon'];
+  var SOURCE_DOMAINS = {
+    lemouton:    ['le-mouton.com', 'lemouton.com', 'lemouton.co.kr'],
+    ssf:         ['ssfshop.com'],
+    ssg:         ['ssg.com'],
+    ss_lemouton: ['smartstore.naver.com', 'brand.naver.com'],
+    musinsa:     ['musinsa.com'],
+    lotteon:     ['lotteon.com'],
+  };
+  function domainMatch(sk, url) {
+    if (!url || !SOURCE_DOMAINS[sk]) return true;
+    try {
+      var h = new URL(url).hostname.replace(/^www\./, '');
+      var exp = SOURCE_DOMAINS[sk];
+      return exp.some(function(d) { return h === d || h.endsWith('.' + d); });
+    } catch (_) { return true; }
+  }
 
   // ── 내부 상태 (모음전별) ─────────────────────────────────────────
   // bundles[code] = {
@@ -55,7 +71,7 @@
 
   function getSource(b, sk) {
     if (!b.sources[sk]) {
-      b.sources[sk] = { status: 'wait', done: 0, total: null, expanded: false, logs: [] };
+      b.sources[sk] = { status: 'wait', done: 0, total: null, expanded: false, logs: [], urlGroups: {}, urlGroupOrder: [], plainLogs: [] };
     }
     return b.sources[sk];
   }
@@ -187,6 +203,32 @@
       '#mcl-rail-min-num { font-size:13px; font-weight:800; color:#CBD5E1; }',
       '#mcl-rail-min-num b { color:#60A5FA; }',
       '#mcl-rail-min-exp { color:#8B95A1; font-size:11px; margin-top:5px; }',
+
+      /* URL 그룹 (아코디언) */
+      '.mcl-url-grp { border-bottom:1px solid #1e2a35; padding:4px 0 3px; }',
+      '.mcl-url-grp:last-child { border-bottom:none; }',
+      '.mcl-url-grp-hdr:hover .mcl-log-msg { color:#CBD5E1; }',
+      /* 타입 배지 — 시안 A 칩·파스텔 (다크 패널 버전) */
+      '.mcl-url-badge { font-size:10px; font-weight:700; padding:2px 7px; border-radius:6px; flex-shrink:0; white-space:nowrap; line-height:1.4; }',
+      '.mcl-url-badge.t-단품 { background:#1e2a44; color:#93C5FD; }',
+      '.mcl-url-badge.t-색상모음전 { background:#2a1e13; color:#FCD34D; }',
+      '.mcl-url-badge.t-모델모음전 { background:#1a2e1a; color:#6EE7B7; }',
+      '.mcl-url-badge.warn-badge { background:#3a2010; color:#FB923C; }',
+      /* 2줄 행 레이아웃 — 시안 B */
+      '.mcl-url-grp-hdr { flex-direction:column; align-items:flex-start; gap:3px; padding:5px 0 2px; }',
+      '.mcl-url-grp-hdr .mcl-row-top { display:flex; align-items:center; gap:6px; width:100%; }',
+      '.mcl-url-grp-hdr .mcl-row-bot { font-size:10px; color:#4E7FA8; padding-left:2px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:100%; }',
+      '.mcl-url-tog { font-size:10px; color:#4E7FA8; background:none; border:none; cursor:pointer; padding:0 3px; flex-shrink:0; margin-left:auto; }',
+      '.mcl-url-tog:hover { color:#93C5FD; }',
+      /* 칩 아코디언 — 시안 B */
+      '.mcl-url-opts { display:flex; flex-wrap:wrap; gap:4px; padding:4px 0 2px 2px; }',
+      '.mcl-url-opts.mcl-hidden { display:none; }',
+      '.mcl-url-chip { display:inline-flex; align-items:center; gap:3px; padding:2px 8px; border-radius:99px; font-size:10px; background:#1e2533; border:1px solid #2a3545; color:#8B9BAE; line-height:1.5; }',
+      '.mcl-url-chip .chip-q { font-weight:700; }',
+      '.mcl-url-chip.chip-ok .chip-q { color:#4ADE80; }',
+      '.mcl-url-chip.chip-lt .chip-q { color:#FBBF24; }',
+      '.mcl-url-chip.chip-no .chip-q { color:#F87171; }',
+      '.mcl-domain-warn { color:#FBBF24; font-size:10px; margin-left:2px; }',
     ].join('\n');
     document.head.appendChild(style);
   }
@@ -451,7 +493,8 @@
       var cntEl = document.createElement('span'); cntEl.className = 'mcl-card-cnt';
       cntEl.textContent = (s.total != null) ? (s.done + '/' + s.total) : (s.done > 0 ? ('' + s.done) : '');
       var toggleEl = document.createElement('button'); toggleEl.type = 'button'; toggleEl.className = 'mcl-card-toggle';
-      toggleEl.textContent = '로그 ' + s.logs.length + '건 ' + (s.expanded ? '▴' : '▾');
+      var _logCnt = (s.urlGroupOrder ? s.urlGroupOrder.length : 0) + (s.plainLogs ? s.plainLogs.length : 0) + (s.logs ? s.logs.length : 0);
+      toggleEl.textContent = '로그 ' + _logCnt + '건 ' + (s.expanded ? '▴' : '▾');
       toggleEl.addEventListener('click', function () { s.expanded = !s.expanded; renderDetail(); });
       header.appendChild(nameEl); header.appendChild(tagEl); header.appendChild(cntEl); header.appendChild(toggleEl);
 
@@ -462,17 +505,101 @@
       barWrap.appendChild(barFill);
 
       var logArea = document.createElement('div'); logArea.className = 'mcl-card-logs' + (s.expanded ? '' : ' mcl-hidden');
-      s.logs.forEach(function (lg) {
-        var row = document.createElement('div'); row.className = 'mcl-log-line' + (lg.level ? ' lvl-' + lg.level : '') + (lg.surf != null ? ' lvl-done' : '');
-        var ts = document.createElement('span'); ts.className = 'mcl-log-ts'; ts.textContent = fmtTime(lg.ts);
-        var ico = document.createElement('span'); ico.className = 'mcl-log-ico'; ico.textContent = icoForLevel(lg.surf != null ? 'done' : lg.level);
-        var msg = document.createElement('span'); msg.className = 'mcl-log-msg';
-        if (lg.surf != null && lg.buy != null) priceTokensInto(msg, SOURCE_LABELS[sk] || sk, lg.surf, lg.buy);
-        else msg.textContent = lg.msg;
-        row.appendChild(ts); row.appendChild(ico); row.appendChild(msg);
+
+      // ── URL 그룹 렌더 (아코디언) ──────────────────────────────────
+      (s.urlGroupOrder || []).forEach(function (lid) {
+        var ug = s.urlGroups[lid]; if (!ug) return;
+        var grp = document.createElement('div'); grp.className = 'mcl-url-grp';
+
+        // 헤더 — 2줄 레이아웃 (시안 B): 윗줄=시각+배지+메시지+토글, 아랫줄=URL
+        var hdr = document.createElement('div'); hdr.className = 'mcl-url-grp-hdr' + (ug.level ? ' lvl-' + ug.level : '');
+
+        // 윗줄
+        var topRow = document.createElement('div'); topRow.className = 'mcl-row-top';
+
+        var tsEl = document.createElement('span'); tsEl.className = 'mcl-log-ts'; tsEl.textContent = fmtTime(ug.ts);
+
+        // 타입 배지 — 시안 A 칩·파스텔 (단품/색상모음전/모델모음전)
+        var badge = document.createElement('span');
+        var utype = ug.url_type || '단품';
+        badge.className = 'mcl-url-badge t-' + utype;
+        badge.textContent = utype;
+
+        var msgEl = document.createElement('span'); msgEl.className = 'mcl-log-msg';
+        if (ug.surf != null && ug.buy != null) priceTokensInto(msgEl, SOURCE_LABELS[sk] || sk, ug.surf, ug.buy);
+        else msgEl.textContent = ug.msg;
+
+        topRow.appendChild(tsEl); topRow.appendChild(badge);
+        if (ug.url && !ug.domainOk) {
+          var dwarn = document.createElement('span'); dwarn.className = 'mcl-domain-warn'; dwarn.textContent = '⚠'; dwarn.title = 'URL 도메인이 소싱처와 다름: ' + ug.url; topRow.appendChild(dwarn);
+        }
+        topRow.appendChild(msgEl);
+
+        var opts = ug.opts;
+        if (opts && opts.length) {
+          var tog = document.createElement('button'); tog.type = 'button'; tog.className = 'mcl-url-tog';
+          tog.textContent = (ug.expanded ? '▴' : '▾') + ' ' + opts.length + '개';
+          tog.addEventListener('click', function () { ug.expanded = !ug.expanded; renderDetail(); });
+          topRow.appendChild(tog);
+        }
+        hdr.appendChild(topRow);
+
+        // 아랫줄 — URL (항상 표시, 가독성)
+        if (ug.url && /^https?:\/\//.test(ug.url)) {
+          var botRow = document.createElement('div'); botRow.className = 'mcl-row-bot';
+          var urlTxt = document.createElement('span'); urlTxt.textContent = ug.url;
+          var a = document.createElement('a'); a.className = 'mcl-log-url'; a.href = ug.url; a.target = '_blank';
+          a.rel = 'noopener noreferrer'; a.textContent = ' ↗'; a.title = ug.url;
+          botRow.appendChild(urlTxt); botRow.appendChild(a); hdr.appendChild(botRow);
+        }
+        grp.appendChild(hdr);
+
+        // 칩 아코디언 — 시안 B
+        if (opts && opts.length) {
+          var optList = document.createElement('div'); optList.className = 'mcl-url-opts' + (ug.expanded ? '' : ' mcl-hidden');
+          opts.forEach(function (o) {
+            var chip = document.createElement('span');
+            var qCls, qTxt;
+            if (o.q == null) { qCls = ''; qTxt = '-'; }
+            else if (o.q === 0) { qCls = 'chip-no'; qTxt = '품절'; }
+            else if (o.q < 999) { qCls = 'chip-lt'; qTxt = o.q + '개'; }
+            else { qCls = 'chip-ok'; qTxt = '충분'; }
+            chip.className = 'mcl-url-chip' + (qCls ? ' ' + qCls : '');
+            var lblTxt = [o.c, o.s].filter(Boolean).join('/') || '(옵션)';
+            chip.innerHTML = '<span>' + lblTxt + '</span><span class="chip-q"> ' + qTxt + '</span>';
+            optList.appendChild(chip);
+          });
+          grp.appendChild(optList);
+        }
+        logArea.appendChild(grp);
+      });
+
+      // ── plainLogs (실패 항목 등, lineId 없는 것) ──
+      (s.plainLogs || []).forEach(function (lg) {
+        var row = document.createElement('div'); row.className = 'mcl-log-line' + (lg.level ? ' lvl-' + lg.level : '');
+        var tsEl2 = document.createElement('span'); tsEl2.className = 'mcl-log-ts'; tsEl2.textContent = fmtTime(lg.ts);
+        var icoEl = document.createElement('span'); icoEl.className = 'mcl-log-ico'; icoEl.textContent = icoForLevel(lg.level);
+        var msgEl2 = document.createElement('span'); msgEl2.className = 'mcl-log-msg'; msgEl2.textContent = lg.msg;
+        row.appendChild(tsEl2); row.appendChild(icoEl); row.appendChild(msgEl2);
         if (lg.url && /^https?:\/\//.test(lg.url)) {
-          var a = document.createElement('a'); a.className = 'mcl-log-url'; a.href = lg.url; a.target = '_blank';
-          a.rel = 'noopener noreferrer'; a.textContent = '↗'; a.title = lg.url; row.appendChild(a);
+          var a2 = document.createElement('a'); a2.className = 'mcl-log-url'; a2.href = lg.url; a2.target = '_blank';
+          a2.rel = 'noopener noreferrer'; a2.textContent = '↗'; a2.title = lg.url; row.appendChild(a2);
+        }
+        logArea.appendChild(row);
+      });
+
+      // ── 레거시 s.logs 지원 (이전 데이터 / snapshot 복원) ──
+      (s.logs || []).forEach(function (lg) {
+        var row = document.createElement('div'); row.className = 'mcl-log-line' + (lg.level ? ' lvl-' + lg.level : '') + (lg.surf != null ? ' lvl-done' : '');
+        var tsEl3 = document.createElement('span'); tsEl3.className = 'mcl-log-ts'; tsEl3.textContent = fmtTime(lg.ts);
+        var icoEl3 = document.createElement('span'); icoEl3.className = 'mcl-log-ico'; icoEl3.textContent = icoForLevel(lg.surf != null ? 'done' : lg.level);
+        var msgEl3 = document.createElement('span'); msgEl3.className = 'mcl-log-msg';
+        if (lg.surf != null && lg.buy != null) priceTokensInto(msgEl3, SOURCE_LABELS[sk] || sk, lg.surf, lg.buy);
+        else msgEl3.textContent = lg.msg;
+        row.appendChild(tsEl3); row.appendChild(icoEl3); row.appendChild(msgEl3);
+        if (lg.url && /^https?:\/\//.test(lg.url)) {
+          var a3 = document.createElement('a'); a3.className = 'mcl-log-url'; a3.href = lg.url; a3.target = '_blank';
+          a3.rel = 'noopener noreferrer'; a3.textContent = '↗'; a3.title = lg.url; row.appendChild(a3);
         }
         logArea.appendChild(row);
       });
@@ -480,7 +607,7 @@
       card.appendChild(header); card.appendChild(barWrap); card.appendChild(logArea);
       wrap.appendChild(card);
 
-      if (s.expanded) logArea.scrollTop = logArea.scrollHeight;
+      if (s.expanded) { logArea.scrollTop = logArea.scrollHeight; }
     });
     if (!anyCard) wrap.innerHTML = '<div id="mcl-empty">' + (b.status === 'wait' ? '대기 중 — 차례가 되면 시작합니다.' : '준비 중…') + '</div>';
   }
@@ -664,10 +791,31 @@
       case 'item-done': {
         if (sk) {
           var s2 = getSource(b, sk); s2.done = (s2.done || 0) + 1;
-          var line = { ts: ts, level: level, msg: msg, url: d.url || null, lineId: d.lineId || null };
-          s2.logs.push(line);
-          if (s2.logs.length > 200) s2.logs.shift();
-          if (d.lineId) b.lineIndex[d.lineId] = { sk: sk, line: line };
+          var lid = d.lineId || null;
+          var durl = d.url || null;
+          if (lid) {
+            // URL 단위 그룹핑
+            if (!s2.urlGroups[lid]) {
+              s2.urlGroups[lid] = {
+                lineId: lid, url: durl, ts: ts, level: level, msg: msg,
+                url_type: d.url_type || '단품',
+                opts: d.opts || null,
+                surf: null, buy: null, expanded: false,
+                domainOk: domainMatch(sk, durl),
+              };
+              s2.urlGroupOrder.push(lid);
+            } else {
+              var ug0 = s2.urlGroups[lid];
+              ug0.msg = msg; ug0.level = level; ug0.ts = ts;
+              if (d.url_type) ug0.url_type = d.url_type;
+              if (d.opts) ug0.opts = d.opts;
+            }
+            b.lineIndex[lid] = { sk: sk };
+          } else {
+            // lineId 없음(실패 항목) → plainLogs
+            s2.plainLogs.push({ ts: ts, level: level, msg: msg, url: durl });
+            if (s2.plainLogs.length > 100) s2.plainLogs.shift();
+          }
         }
         mergeMetrics(b, m);
         if (code === selected) { renderDetail(); renderGauges(); }
@@ -678,10 +826,13 @@
         // 저장 후 '표면 → 매입' 제자리 갱신
         if (d.lineId != null && d.surf != null && d.buy != null) {
           var rec = b.lineIndex[d.lineId];
-          if (rec && rec.line) { rec.line.surf = d.surf; rec.line.buy = d.buy; rec.line.level = 'done'; }
-          else if (sk) { getSource(b, sk).logs.push({ ts: ts, level: 'done', msg: msg, surf: d.surf, buy: d.buy }); }
-        } else if (sk) {
-          getSource(b, sk).logs.push({ ts: ts, level: 'done', msg: msg });
+          if (rec) {
+            var sfSrc = b.sources[rec.sk];
+            if (sfSrc && sfSrc.urlGroups && sfSrc.urlGroups[d.lineId]) {
+              sfSrc.urlGroups[d.lineId].surf = d.surf;
+              sfSrc.urlGroups[d.lineId].buy = d.buy;
+            }
+          }
         }
         if (code === selected) renderDetail();
         break;
