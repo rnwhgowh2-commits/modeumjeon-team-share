@@ -7,14 +7,28 @@
   const _pending = {};
   let _seq = 0;
 
+  // 백그라운드 큐 상태 캐시 (getCrawlState 동기 응답용)
+  var _bgCache = { running: null, paused: false, queue: [] };
+
   window.addEventListener("message", (ev) => {
     if (ev.source !== window) return;
     const d = ev.data;
-    if (!d || d.__moum !== "ext" || !d.reqId) return;
-    const cb = _pending[d.reqId];
-    if (cb) {
-      delete _pending[d.reqId];
-      cb(d);
+    if (!d) return;
+    // (1) 확장 응답 — reqId 대기 Promise resolve/reject
+    if (d.__moum === "ext" && d.reqId) {
+      const cb = _pending[d.reqId];
+      if (cb) { delete _pending[d.reqId]; cb(d); }
+      return;
+    }
+    // (2) 백그라운드 크롤 로그 — 'moum-crawl-log' CustomEvent 로 변환 (crawl_log.js 가 수신)
+    if (d.__moum === "log" && d.detail) {
+      var det = d.detail;
+      if (det.type === "queue") {
+        _bgCache.running = det.running || null;
+        _bgCache.paused = !!det.paused;
+        _bgCache.queue = (det.queue || []).filter(function(q) { return q.status === "wait"; }).map(function(q) { return q.code; });
+      }
+      try { window.dispatchEvent(new CustomEvent("moum-crawl-log", { detail: det })); } catch (_) {}
     }
   });
 
@@ -132,13 +146,9 @@
   function enqueueCrawl(code) {
     send("crawl.enqueue", { code: code }, 10000).catch(function() {});
   }
-  // 큐 상태 조회 — 동기 호출용(toss.js가 await 없이 씀). 비동기 캐시 방식.
-  var _crawlStateCache = null;
+  // 큐 상태 조회 — 동기. 백그라운드 queue 이벤트로 캐시된 _bgCache 반환.
   function getCrawlState() {
-    send("crawl.getState", {}, 5000).then(function(s) {
-      if (s) _crawlStateCache = s;
-    }).catch(function() {});
-    return _crawlStateCache;
+    return _bgCache;
   }
   // 큐 일시중지 / 재개 / 중지 / 취소
   function pauseCrawl()        { return send("crawl.pause",  {}, 5000); }
