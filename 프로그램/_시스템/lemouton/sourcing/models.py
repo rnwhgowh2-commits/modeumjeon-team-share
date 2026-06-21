@@ -135,6 +135,7 @@ class BundleSourceUrl(Base):
     source_key = Column(String(32), nullable=False)  # lemouton/musinsa/ssf/lotteon/ss_lemouton
     url = Column(Text, nullable=False)
     label = Column(String(120))  # [2026-05-24] 선택 입력 — URL 구분용 라벨
+    url_type = Column(String(16), nullable=False, server_default='단품')  # [2026-06-21] 단품/색상모음전/모델모음전
     sort_order = Column(Integer, default=0, nullable=False)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 

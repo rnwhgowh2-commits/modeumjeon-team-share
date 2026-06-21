@@ -370,13 +370,13 @@ def _option_matrix_data(code: str):
         #   ``NaPm`` / ``nl-ts-pid`` 같은 광고 트래킹이 매칭 실패 원인이라 매트릭스
         #   가 빈칸으로 표시되던 문제 해결.
         from lemouton.sources.service import normalize_url as _norm_url
-        url_set = {link.product_url for link in url_links if link.product_url}
+        # [perf 2026-06-12] SourceProduct 전체 풀스캔을 1회로 통합.
+        #   기존: 여기(legacy URL 매칭) + 아래 신규 URL 모델 블록에서 각각 풀스캔 → 2회 왕복.
+        #   SourceProduct 는 소량(수십행)이라 항상 1회 조회해 sp_by_norm 으로 재사용.
         sp_by_norm = {}  # normalized URL → SourceProduct
-        if url_set:
-            sps = (s.query(SourceProduct)
-                   .filter(SourceProduct.deleted_at.is_(None))
-                   .all())
-            for sp in sps:
+        for sp in (s.query(SourceProduct)
+                   .filter(SourceProduct.deleted_at.is_(None)).all()):
+            if sp.url:
                 sp_by_norm[_norm_url(sp.url)] = sp
 
         sku_to_sources = {}  # sku -> [{source_id, source_name, product_url, ...}]
@@ -457,16 +457,9 @@ def _option_matrix_data(code: str):
             from lemouton.sourcing.source_registry import get_labels as _src_labels
             _labels = _src_labels()
             if sku_list:
-                # [2026-06-03] 크롤가 매칭 — legacy url_set 이 비어 sp_by_norm 이 미생성되는
-                #   경우(신규 URL 모델만 쓰는 번들)를 대비해 SourceProduct 전체로 보강 매핑.
-                _sp_by_norm2 = dict(sp_by_norm)
-                try:
-                    for _sp in (s.query(SourceProduct)
-                                .filter(SourceProduct.deleted_at.is_(None)).all()):
-                        if _sp.url:
-                            _sp_by_norm2.setdefault(_norm_url(_sp.url), _sp)
-                except Exception:
-                    pass
+                # [perf 2026-06-12] sp_by_norm 은 위에서 SourceProduct 전체를 이미 담았으므로
+                #   재조회 없이 그대로 재사용 (기존: 여기서 풀스캔 1회 더 = 중복 왕복).
+                _sp_by_norm2 = sp_by_norm
                 # [2026-06-03] source_key → SourceRegistry id 매핑 (main_url 도메인 매칭).
                 #   매트릭스 사이트 칼럼은 o.sources 를 source_id===site.id(레지스트리 id)로
                 #   매칭하므로, 등록 URL 의 source_id 를 레지스트리 id 로 줘야 칼럼에 가격/재고 노출.
@@ -519,6 +512,7 @@ def _option_matrix_data(code: str):
                     #   SSF 처럼 옵션가(119,900)≠상품대표가(122,376) 일 때 틀린 값 표시되던 버그.
                     _opt_stock = None
                     _opt_price = None
+                    _match_failed = False
                     if sp:
                         _so_m = _match_option_so(
                             _so_index, sp.id,
@@ -527,9 +521,20 @@ def _option_matrix_data(code: str):
                         if _so_m is not None:
                             _opt_stock = _so_m.current_stock
                             _opt_price = _so_m.current_price
-                    # 옵션 크롤가(>0) 우선, 없으면 상품 last_price fallback
-                    _disp_price = (_opt_price if (_opt_price and _opt_price > 0)
-                                   else (sp.last_price if sp else None))
+                        elif _so_index.get(sp.id):
+                            # [2026-06-13 폴백가 금지] 이 소싱처는 옵션(색·사이즈)을 크롤했는데
+                            #   이 색/사이즈가 그 목록에 없음 = 소싱처가 실제로 안 파는 조합.
+                            #   기존엔 상품 대표가(last_price)로 폴백 → '안 파는 사이즈에 가짜 가격'이
+                            #   떠서(예: 르무통 오렌지 260·270 이 255와 동일가) 잘못된 매입 판단 → 손실.
+                            #   폴백 금지하고 '매칭 실패'로 표면화한다(이상한 값 넣지 않음).
+                            _match_failed = True
+                    # 매칭 실패(안 파는 조합) = 폴백 금지(가격·재고 None). 그 외엔 옵션가(>0) 우선,
+                    #   옵션 단위 가격이 없을 때만(=옵션 크롤 안 한 소싱처) 상품가 fallback.
+                    if _match_failed:
+                        _disp_price = None
+                    else:
+                        _disp_price = (_opt_price if (_opt_price and _opt_price > 0)
+                                       else (sp.last_price if sp else None))
                     existing.append({
                         # 칼럼 매칭 = 레지스트리 id (없으면 SSG 등 — 칼럼 없음). refetch 도 동일.
                         'source_id': _reg_id,
@@ -538,16 +543,21 @@ def _option_matrix_data(code: str):
                         'source_name': _labels.get(bsu.source_key, bsu.source_key),
                         'product_url': bsu.url,
                         'label': bsu.label or '',
+                        'url_type': bsu.url_type or '단품',
                         'price_cached': None,
                         'stock_cached': None,
                         'source_product_id': sp.id if sp else None,
                         'crawled_price': _disp_price,
                         'crawled_price_raw': _disp_price,
-                        'crawled_stock': (_opt_stock if _opt_stock is not None
-                                          else (sp.last_stock if sp else None)),
+                        'crawled_stock': (None if _match_failed else
+                                          (_opt_stock if _opt_stock is not None
+                                           else (sp.last_stock if sp else None))),
                         'last_fetched_at': (sp.last_fetched_at.isoformat()
                                             if sp and sp.last_fetched_at else None),
                         'last_status': (sp.last_status if sp else None),
+                        # [2026-06-13] 매칭 실패(소싱처가 안 파는 색/사이즈) — 프론트가 '매칭 실패'
+                        #   로 표시하고 가격/재고 없는 것으로 처리(폴백가 금지).
+                        'match_failed': _match_failed,
                         'auto_card_discount': None,
                         'card_enabled': True,
                         'crawled': bool(sp),
@@ -587,6 +597,7 @@ def _option_matrix_data(code: str):
 
         # ④ 옵션 재고연결 — OptionProductLink 로 연결된 재고제품 (옵션 SKU 와 다를 수 있음)
         linked_product_dict: dict[str, dict] = {}
+        _opl_psku_map = None  # [perf] 아래 get_stock_batch 재사용용 (OPL 1회 조회분)
         try:
             from lemouton.inventory.models import (
                 InventoryProduct as _IP, OptionProductLink as _OPL,
@@ -595,6 +606,10 @@ def _option_matrix_data(code: str):
             links = (s.query(_OPL)
                      .filter(_OPL.option_canonical_sku.in_(sku_list))
                      .all() if sku_list else [])
+            # [perf 2026-06-12] 이 OPL 조회 결과를 옵션→재고제품 map 으로 만들어
+            #   아래 get_stock_batch 에 넘겨 OptionProductLink 중복 조회 제거.
+            _opl_psku_map = {lk.option_canonical_sku: lk.product_canonical_sku
+                             for lk in links}
             # 옵션 SKU 와 동일한 product 를 가리키는 self-link 는 표시 안 함
             #   (1:1 시딩 링크 = 기존 +재고관리 흐름과 동일 의미 → inv_product_id 로 충분)
             ext_links = {lk.option_canonical_sku: lk.product_canonical_sku
@@ -630,7 +645,8 @@ def _option_matrix_data(code: str):
         inv_stock_dict: dict[str, int] = {}
         try:
             from shared.inventory_stock import get_stock_batch
-            inv_stock_dict = get_stock_batch(s, [o.canonical_sku for o in opts])
+            inv_stock_dict = get_stock_batch(
+                s, [o.canonical_sku for o in opts], psku_map=_opl_psku_map)
         except Exception:
             inv_stock_dict = {}
 
@@ -894,11 +910,10 @@ def _option_matrix_data(code: str):
                         _k2reg[_k] = _rid
                         break
             # 크롤 성공 판정용 — url(정규화) → (last_price, last_status)
-            _crawl_idx = {}
-            for _sp in (s.query(SourceProduct)
-                        .filter(SourceProduct.deleted_at.is_(None)).all()):
-                if _sp.url:
-                    _crawl_idx[_norm_url(_sp.url)] = (_sp.last_price, _sp.last_status)
+            # [perf 2026-06-12] sp_by_norm 재사용 — 위에서 SourceProduct 전체를 이미 로드함.
+            #   (기존: 여기서 동일 풀스캔 1회 더 = 매트릭스 로드당 SourceProduct 3회 왕복.)
+            _crawl_idx = {_k: (_sp.last_price, _sp.last_status)
+                          for _k, _sp in sp_by_norm.items()}
             _bsus = (s.query(_BSU)
                      .filter(_BSU.model_code.in_(model_codes)).all())
             _bids = [b.id for b in _bsus]
@@ -1046,6 +1061,28 @@ def save_crawl_result():
                     ).update({SourceOption.current_price: int(price)})
                 except Exception:
                     pass
+            # ★ 2026-06-13 — '있는 그대로' 적용: 비로그인 무신사 크롤은 계정 의존 혜택
+            #   (등급적립·무신사머니·등급할인·상품쿠폰)을 페이지에서 못 봤으므로 0 으로 비운다.
+            #   어제 로그인 크롤의 stale 값을 끌어다 쓰는 사고 차단(폴백·해석 금지).
+            #   표면가(salePrice=price)는 갱신, 후기적립(템플릿·계정무관)은 그대로 둠.
+            #   무신사머니 미적용 → money_active=False (현대카드 fallback 결제택1 일관).
+            #   로그인 크롤(is_logged_in=True)이면 잡힌 값 그대로 유지.
+            if getattr(sp, 'site', None) == 'musinsa' and it.get('is_logged_in') is False:
+                import json as _json
+                try:
+                    _dyn = _json.loads(sp.dynamic_benefits_json) if sp.dynamic_benefits_json else {}
+                except (ValueError, TypeError):
+                    _dyn = {}
+                for _k in ('grade_reward_amount', 'money_reward_amount',
+                           'grade_discount_amount', 'coupon_amount'):
+                    _dyn[_k] = 0
+                _dyn['money_active'] = False
+                if price not in (None, '', 0):
+                    try:
+                        _dyn['surface_price'] = int(price)
+                    except Exception:
+                        pass
+                sp.dynamic_benefits_json = _json.dumps(_dyn, ensure_ascii=False)
             updated += 1
         s.commit()
         return _ok(updated=updated, not_found=not_found, total=len(items))

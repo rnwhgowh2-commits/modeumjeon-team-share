@@ -436,6 +436,17 @@
       /* 실패 카드 깜빡임 강조 (자동 스크롤 도착 시) */
       @keyframes oumFailFlash { 0%,100%{ box-shadow:0 0 0 0 rgba(228,0,43,0); } 30%{ box-shadow:0 0 0 4px rgba(228,0,43,.45); } 60%{ box-shadow:0 0 0 4px rgba(228,0,43,.20); } }
       .oum-url-card.oum-fail-flash { animation:oumFailFlash 1.6s ease-in-out 1; }
+      /* [2026-06-13] URL 중복 경고 배너 (시안 A) — 등록 수 ≠ 실제 크롤 수(중복 제거 후) */
+      .oum-dupwarn { margin:0 0 10px; padding:10px 12px; background:#FFFBEB; border:1px solid #FCD34D; border-left:4px solid #F59E0B; border-radius:9px; }
+      .oum-dupwarn.cross { background:#FEF2F2; border-color:#fca5a5; border-left-color:#EF4444; }
+      .oum-dupwarn-h { color:#92400E; font-size:13px; font-weight:800; line-height:1.55; }
+      .oum-dupwarn.cross .oum-dupwarn-h { color:#B91C1C; }
+      .oum-dupwarn-h b { font-weight:900; }
+      .oum-dupwarn-list { display:flex; flex-wrap:wrap; gap:6px; margin-top:8px; }
+      .oum-dupwarn-item { background:#fff; border:1px solid #FCD34D; border-radius:999px; padding:4px 11px; font-size:11.5px; font-weight:700; color:#78350f; cursor:pointer; }
+      .oum-dupwarn-item:hover { background:#FFFBEB; }
+      .oum-dupwarn-item.cross { border-color:#fca5a5; color:#7f1d1d; }
+      .oum-dupwarn-item em { font-style:normal; color:#dc2626; font-weight:800; }
       /* [2026-05-27] 카드 미니 액션 — 순서 변경 ↑↓ + 복사 ⎘ */
       .oum-url-actions { display:inline-flex; gap:2px; }
       .oum-url-mini { background:#fff; border:1px solid #d1d6db; border-radius:6px; width:33px; height:33px; display:inline-flex; align-items:center; justify-content:center; font-size:18px; color:#4e5968; cursor:pointer; padding:0; line-height:1; transition:all .12s; }
@@ -453,6 +464,11 @@
       .oum-url-card.drop-below { box-shadow:0 3px 0 0 #3B82F6 inset; }
       .oum-url-body { padding:22.5px 16.5px; background:#F0FDF4; }
       .oum-url-card:not(.open) .oum-url-body { display:none; }
+      /* [2026-06-21] URL 타입 선택 — 단품/색상모음전/모델모음전 */
+      .oum-url-type { display:inline-flex; gap:3px; background:#e5f3f0; border-radius:8px; padding:3px; flex-shrink:0; }
+      .oum-url-type-btn { border:none; border-radius:5px; padding:5px 12px; font:inherit; font-size:15px; font-weight:600; cursor:pointer; background:transparent; color:#15803d; transition:background .1s; white-space:nowrap; }
+      .oum-url-type-btn.on { background:#fff; color:#0d7656; box-shadow:0 1px 3px rgba(0,0,0,.10); }
+      .oum-url-type-btn:not(.on):hover { background:#d1fae5; }
       .oum-add-url { width:100%; background:#fff; border:1.5px dashed #bbf7d0; color:#10b981; padding:13.5px; border-radius:10.5px; font:inherit; font-size:18px; cursor:pointer; font-weight:700; margin-top:9px; }
       .oum-add-url:hover { background:#F0FDF4; border-color:#10b981; }
       .oum-add-url:disabled { opacity:.4; cursor:not-allowed; }
@@ -709,6 +725,7 @@
               dbId: u.id,
               label: u.label || '',
               url: u.url || '',
+              url_type: u.url_type || '단품',
               // [2026-06-05] 크롤 상태 — 실패 URL 빨강·재크롤 표시용 (신규 추가 URL은 undefined)
               crawled: u.crawled,
               lastStatus: u.last_status || null,
@@ -1314,6 +1331,25 @@
         return;
       }
 
+      // [2026-06-13] URL 중복 경고 배너 (시안 A) — 등록 수 ≠ 실제 크롤 수일 때 표면화.
+      const _dupGroups = findDuplicateUrls();
+      if (_dupGroups.length) {
+        const _reg = urlCount;
+        const _extra = _dupGroups.reduce((n, g) => n + (g.entries.length - 1), 0);
+        const _uniq = _reg - _extra;
+        const _hasCross = _dupGroups.some(g => g.crossOption);
+        const _items = _dupGroups.map(g => {
+          const _lab = SRC_LABELS[g.srcKey] || g.srcKey;
+          const _names = g.entries.map(en => esc(en.label || '(라벨 없음)')).join(' ＝ ');
+          const _cr = g.crossOption ? ` <em>⚠ 다른 옵션끼리 — 오타 의심</em>` : '';
+          return `<button class="oum-dupwarn-item${g.crossOption ? ' cross' : ''}" data-dupjump="${esc(g.srcKey)}" type="button">[${esc(_lab)}] ${_names}${_cr}</button>`;
+        }).join('');
+        html += `<div class="oum-dupwarn${_hasCross ? ' cross' : ''}" data-dupwarn>
+          <div class="oum-dupwarn-h">⚠ 등록 <b>${_reg}개</b> ≠ 실제 크롤 <b>${_uniq}개</b> — 같은 주소 <b>${_extra}건</b>이 중복이라 크롤은 1번만 가져옵니다 (아래 클릭 시 해당 소싱처로 이동)</div>
+          <div class="oum-dupwarn-list">${_items}</div>
+        </div>`;
+      }
+
       // URL 탭 — 기존 헤더 + 적용 가드
       html += `<div class="oum-ph">
         <span>📍</span><span>소싱처 URL 매핑</span>
@@ -1385,6 +1421,42 @@
       return n;
     }
 
+    // [2026-06-13] 등록 URL 중복 검사 — 같은 주소(정규화 후)를 2번 이상 등록한 그룹 반환.
+    //   크롤 경로(ext_bridge.crawlBundle)는 seen=Set 으로 같은 URL 1번만 크롤 →
+    //   같은 주소 N번 등록 시 '등록 수 > 실제 크롤 수'. 어떤 URL이 왜 다른지 표면화.
+    //   crossOption=두 중복이 '서로 다른 옵션 집합'에 매핑(겹침<50%) → 색상 오타 의심.
+    function findDuplicateUrls() {
+      const byUrl = {};
+      Object.keys(state.urls || {}).forEach(sk => {
+        (state.urls[sk] || []).forEach(u => {
+          const raw = (u.url || '').trim();
+          if (!raw) return;
+          const norm = raw.replace(/\/+$/, '').toLowerCase();
+          (byUrl[norm] = byUrl[norm] || []).push({
+            srcKey: sk, tempId: u.tempId, label: (u.label || '').trim(),
+            keys: new Set(u.option_keys || []),
+          });
+        });
+      });
+      const groups = [];
+      Object.keys(byUrl).forEach(norm => {
+        const arr = byUrl[norm];
+        if (arr.length < 2) return;
+        let cross = false;
+        for (let i = 0; i < arr.length; i++) {
+          for (let j = i + 1; j < arr.length; j++) {
+            const a = arr[i].keys, b = arr[j].keys;
+            if (a.size && b.size) {
+              let inter = 0; a.forEach(k => { if (b.has(k)) inter++; });
+              if (inter / Math.min(a.size, b.size) < 0.5) cross = true;
+            }
+          }
+        }
+        groups.push({ srcKey: arr[0].srcKey, entries: arr, crossOption: cross });
+      });
+      return groups;
+    }
+
     function renderUrlCard(u, num) {
       const isOpen = state.openUrlId === u.tempId;
       const totalActive = state.selected.size;
@@ -1408,6 +1480,9 @@
           <span class="oum-url-drag" title="드래그해서 순서 변경" data-url-drag>⋮⋮</span>
           <span class="oum-url-num">${num}</span>
           <input class="oum-url-label" data-field="label" value="${esc(u.label)}" placeholder="라벨 (선택)">
+          <div class="oum-url-type" title="URL 타입 — 크롤 로그에서 구분 표시">
+            ${['단품','색상모음전','모델모음전'].map(t => `<button class="oum-url-type-btn${(u.url_type||'단품')===t?' on':''}" data-url-type="${esc(t)}" type="button">${esc(t)}</button>`).join('')}
+          </div>
           <input class="oum-url-input" data-field="url" value="${esc(u.url)}" placeholder="URL 입력">
           ${goBtn}
           <span class="oum-url-cnt ${isFail ? 'fail' : ''}" title="이 URL 에 매핑된 옵션 / 전체 활성 옵션">📌 <b>${mapped}</b>/${totalActive}</span>
@@ -2236,6 +2311,19 @@
       // [2026-06-11] 실패 요약 배너 "↓ 실패 URL로 이동" — 첫 실패 카드로 스크롤·강조
       const failJump = e.target.closest('[data-failsum-jump]');
       if (failJump) { scrollToFirstFail(); return; }
+      // [2026-06-13] 중복 경고 배너 항목 클릭 → 해당 소싱처 탭으로 이동
+      const dupJump = e.target.closest('[data-dupjump]');
+      if (dupJump) {
+        const sk = dupJump.dataset.dupjump;
+        if (sk && sk !== state.currentSrc) {
+          autoSave();
+          state.currentSrc = sk;
+          state.openUrlId = null;
+          renderRight();
+          saveLastState(bundleCode, state.currentSrc, null);
+        }
+        return;
+      }
       const tab = e.target.closest('[data-src-tab]');
       if (tab) {
         if (tab.dataset.srcTab !== state.currentSrc) {
@@ -2291,6 +2379,17 @@
         renderRight();
         return;
       }
+      // URL 타입 버튼 — 단품/색상모음전/모델모음전
+      const typeBtn = e.target.closest('[data-url-type]');
+      if (typeBtn) {
+        const card0 = typeBtn.closest('[data-url-id]');
+        if (card0) {
+          const tid0 = +card0.dataset.urlId;
+          const u0 = (state.urls[state.currentSrc] || []).find(u => u.tempId === tid0);
+          if (u0) { u0.url_type = typeBtn.dataset.urlType; renderRight(); }
+        }
+        return;
+      }
       // [2026-05-27] 순서 변경은 드래그앤드랍으로 대체 — ↑/↓ 버튼 제거됨
       // URL 카드 토글 — 펼친 카드의 dbId 기록 (없으면 null)
       const card = e.target.closest('[data-url-id]');
@@ -2304,11 +2403,39 @@
         return;
       }
       // URL 삭제
+      //   [BUG-FIX 2026-06-13] 이전엔 화면(state)에서만 제거하고 서버 DELETE 를 호출하지
+      //   않아, 저장(autoSave)이 '남은 URL' 만 POST/PUT → 삭제된 행이 DB 에 영구 잔류 →
+      //   새로고침 시 부활하는 버그. dbId 있으면 서버에서도 삭제하고, 실패하면 화면도 유지
+      //   (조용한 실패 금지 — 화면과 DB 상태를 항상 일치시킴).
       const del = e.target.closest('[data-url-del]');
       if (del && card) {
         if (!confirm('이 URL 삭제?')) return;
         const tid = +card.dataset.urlId;
-        state.urls[state.currentSrc] = state.urls[state.currentSrc].filter(u => u.tempId !== tid);
+        const arr = state.urls[state.currentSrc] || [];
+        const target = arr.find(u => u.tempId === tid);
+        if (!target) return;
+        // 진행 중인 자동 저장이 끝난 뒤 삭제 — 신규 카드가 POST 로 dbId 를 받기 전에
+        // 화면에서 지워 DB 에 고아(orphan) 행이 남는 경우를 방지
+        if (_autoSaveInflight) { try { await _autoSaveInflight; } catch (_) {} }
+        // DB 에 이미 저장된 URL 이면 서버에서도 삭제 (dbId 없으면 화면만 제거)
+        if (target.dbId) {
+          del.disabled = true;
+          try {
+            const r = await fetch(`/api/bundles/${encodeURIComponent(bundleCode)}/source-urls/${target.dbId}`, { method: 'DELETE' });
+            const j = await r.json().catch(() => ({}));
+            if (!r.ok || !j.ok) {
+              alert('URL 삭제 실패 — 서버에서 삭제하지 못했습니다.\n새로고침 후 다시 시도해 주세요.');
+              del.disabled = false;
+              return;  // 화면에서도 제거하지 않음 → 실제(DB) 상태와 일치 유지
+            }
+          } catch (err) {
+            console.warn('[oum] URL delete fail:', err);
+            alert('URL 삭제 실패 — 네트워크 오류.\n잠시 후 다시 시도해 주세요.');
+            del.disabled = false;
+            return;
+          }
+        }
+        state.urls[state.currentSrc] = arr.filter(u => u.tempId !== tid);
         if (state.openUrlId === tid) state.openUrlId = null;
         renderRight();
         return;
@@ -2762,12 +2889,12 @@
                   if (u.dbId) {
                     await fetch(`/api/bundles/${encodeURIComponent(bundleCode)}/source-urls/${u.dbId}`, {
                       method: 'PUT', headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({ url: u.url.trim(), label: u.label || null, option_ids, sort_order: i }),
+                      body: JSON.stringify({ url: u.url.trim(), label: u.label || null, url_type: u.url_type || '단품', option_ids, sort_order: i }),
                     });
                   } else {
                     const res = await fetch(`/api/bundles/${encodeURIComponent(bundleCode)}/source-urls`, {
                       method: 'POST', headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({ source_key: sk, url: u.url.trim(), label: u.label || null, option_ids }),
+                      body: JSON.stringify({ source_key: sk, url: u.url.trim(), label: u.label || null, url_type: u.url_type || '단품', option_ids }),
                     });
                     const rj = await res.json();
                     if (rj && rj.id) u.dbId = rj.id;

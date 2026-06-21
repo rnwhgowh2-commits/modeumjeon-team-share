@@ -936,6 +936,7 @@ def api_list_source_urls(code):
                         'id': r.id,
                         'url': r.url,
                         'label': r.label or '',
+                        'url_type': r.url_type or '단품',
                         'sort_order': r.sort_order,
                         'option_ids': link_map.get(r.id, []),
                         'crawled': _ok,
@@ -1107,6 +1108,9 @@ def api_add_source_url(code):
     source_key = (body.get('source_key') or '').strip()
     url = (body.get('url') or '').strip()
     label = (body.get('label') or '').strip() or None
+    url_type = (body.get('url_type') or '단품').strip()
+    if url_type not in ('단품', '색상모음전', '모델모음전'):
+        url_type = '단품'
     option_ids = body.get('option_ids')  # None | list[str]
     if option_ids is not None and not isinstance(option_ids, list):
         return jsonify({'ok': False, 'error': 'option_ids must be list'}), 400
@@ -1135,6 +1139,7 @@ def api_add_source_url(code):
             source_key=source_key,
             url=url,
             label=label,
+            url_type=url_type,
             sort_order=next_order,
         )
         s.add(row)
@@ -1174,6 +1179,11 @@ def api_update_source_url(code, url_id):
         if 'label' in body:
             lbl = (body.get('label') or '').strip()
             row.label = lbl or None
+
+        # url_type
+        if 'url_type' in body:
+            ut = (body.get('url_type') or '단품').strip()
+            row.url_type = ut if ut in ('단품', '색상모음전', '모델모음전') else '단품'
 
         # option_ids — None 이면 손대지 않음, list 면 동기화
         option_ids = body.get('option_ids')
