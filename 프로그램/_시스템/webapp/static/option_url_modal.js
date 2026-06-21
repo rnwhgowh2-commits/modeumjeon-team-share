@@ -2184,15 +2184,35 @@
         }
         return;
       }
-      // [2026-06-05] 크롤 실패 URL 재크롤 — 크롤은 로컬 크롤러에서 실행되므로
-      //   여기선 해당 URL 을 새 탭으로 열어 사용자가 페이지 점검·로컬 재수집하게 안내.
+      // 크롤 실패 URL 재크롤 — 크롬 확장으로 단일 URL 크롤 후 저장
       const recrawlBtn = e.target.closest('[data-url-recrawl]');
       if (recrawlBtn) {
         const card = recrawlBtn.closest('[data-url-id]');
         const u = (state.urls[state.currentSrc] || []).find(x => String(x.tempId) === (card && card.dataset.urlId));
         if (u && u.url) {
-          if (confirm('이 URL 을 다시 크롤할까요?\n\n' + u.url + '\n\n※ 크롤은 로컬 크롤러에서 실행됩니다. [확인] 시 페이지를 새 탭으로 엽니다 — 정상 표시되면 로컬 크롤러로 재수집하세요.')) {
-            window.open(u.url, '_blank', 'noopener');
+          if (!window.MoumExt || !window.MoumExt.installed()) {
+            alert('크롬 확장(모음전 크롤러)이 필요합니다. 설치 후 다시 시도하세요.');
+            return;
+          }
+          if (!confirm('이 URL을 크롬 확장으로 재크롤할까요?\n\n' + u.url)) return;
+          recrawlBtn.disabled = true;
+          recrawlBtn.textContent = '크롤 중…';
+          try {
+            const utMap = { '모델모음전': 'deal', '색상모음전': 'bundle', '단품': 'dan' };
+            const urlType = utMap[u.url_type] || 'dan';
+            const r = await window.MoumExt.crawlSingleUrl(bundleCode, state.currentSrc, u.url, urlType);
+            if (r.ok) {
+              u.crawled = true; u.lastStatus = 'ok';
+              renderRight();
+              alert('재크롤 성공 ✓  표면가: ' + (r.price != null ? r.price.toLocaleString() + '원' : '없음'));
+            } else {
+              alert('재크롤 실패: ' + (r.error || '알 수 없는 오류') + '\n\n크롤 위젯 로그에서 상세 에러를 확인하세요.');
+            }
+          } catch (err) {
+            alert('크롤 오류: ' + err.message);
+          } finally {
+            recrawlBtn.disabled = false;
+            recrawlBtn.textContent = '🔄 재크롤';
           }
         }
         return;
