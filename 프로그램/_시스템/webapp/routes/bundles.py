@@ -1118,9 +1118,7 @@ def api_add_source_url(code):
     url = (body.get('url') or '').strip()
     label = (body.get('label') or '').strip() or None
     url_type = (body.get('url_type') or '').strip() or None
-    if url_type == 'mo':  # [2026-06-21] 색상(mo) 폐지 → 단품으로 통합
-        url_type = 'dan'
-    if url_type and url_type not in ('dan', 'deal'):
+    if url_type and url_type not in ('dan', 'mo', 'deal'):
         return jsonify({'ok': False, 'error': 'invalid url_type'}), 400
     option_ids = body.get('option_ids')  # None | list[str]
     if option_ids is not None and not isinstance(option_ids, list):
@@ -1192,12 +1190,9 @@ def api_update_source_url(code, url_id):
             lbl = (body.get('label') or '').strip()
             row.label = lbl or None
 
-        # [2026-06-21] url_type — dan(단품)/deal(모델 모음전), 빈값 = NULL. 색상(mo)→단품.
         if 'url_type' in body:
             ut = (body.get('url_type') or '').strip() or None
-            if ut == 'mo':
-                ut = 'dan'
-            if ut and ut not in ('dan', 'deal'):
+            if ut and ut not in ('dan', 'mo', 'deal'):
                 return jsonify({'ok': False, 'error': 'invalid url_type'}), 400
             row.url_type = ut
 
