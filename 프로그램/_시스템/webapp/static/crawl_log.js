@@ -644,31 +644,14 @@
   //   크롤 수치는 위젯 소싱처 상태에서 집계. 옵션 활성/비활성은 현재 매트릭스 페이지의
   //   window.DATA(option-matrix)에서 카운트(같은 모음전일 때만 — 없으면 옵션 섹션 생략).
   function buildFinishHTML(b) {
-    // [2026-06-19 P4] 단일 진실 — 이 모음전이 현재 매트릭스 페이지와 동일하면, 종료 후엔
-    //   카드(소싱처별 진행)와 같은 백엔드 source_stats(DB) 로 URL 성공/실패를 표기한다.
-    //   (이벤트 카운트는 이번 세션에 긁은 URL 만 세어 카드의 등록URL 기준과 단위가 달랐다.)
-    //   DB 미가용(다른 모음전·페이지 밖)이면 이벤트 카운트로 폴백.
-    var Y = 0, Y2 = 0, Y3 = 0, _fromDB = false;
-    try {
-      if (window.BUNDLE_CODE && b.code && window.BUNDLE_CODE === b.code
-          && window.DATA && window.DATA.source_stats) {
-        var ss = window.DATA.source_stats, uTry = 0, uDone = 0;
-        Object.keys(ss).forEach(function (k) {
-          var v = ss[k] || {}; uTry += (v.url_try || 0); uDone += (v.url_done || 0);
-        });
-        if (uTry > 0) { Y = uTry; Y2 = uDone; Y3 = uTry - uDone; _fromDB = true; }
-      }
-    } catch (_) {}
-    if (!_fromDB) {
-      SOURCE_ORDER.forEach(function (sk) {
-        var s = b.sources[sk]; if (!s) return;
-        var ok = s.ok || 0, fail = s.fail || 0;
-        Y2 += ok; Y3 += fail;
-        Y += (s.total != null ? s.total : (ok + fail));
-      });
-    }
+    // 카드의 s.ok 합 = 성공, s.fail 합 = 실패 → 상단 수치와 100% 동일.
+    var Y2 = 0, Y3 = 0;
+    SOURCE_ORDER.forEach(function (sk) {
+      var s = b.sources[sk]; if (!s) return;
+      Y2 += (s.ok || 0); Y3 += (s.fail || 0);
+    });
     var Y1 = Y2 + Y3;
-    if (Y < Y1) Y = Y1;
+    var Y = Math.max(Y1, b.total || 0);
     var X = null, X1 = null, X2 = null;
     try {
       var opts = (window.DATA && window.DATA.options) || null;
