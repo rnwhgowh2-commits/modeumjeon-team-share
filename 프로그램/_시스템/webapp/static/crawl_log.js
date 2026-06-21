@@ -184,9 +184,14 @@
       '.mcl-card-logs { border-top:1px solid #25303b; padding:6px 12px 8px; max-height:200px; overflow-y:auto; }',
       '.mcl-card-logs::-webkit-scrollbar { width:3px; } .mcl-card-logs::-webkit-scrollbar-thumb { background:#25303b; border-radius:3px; }',
       '.mcl-card-logs.mcl-hidden { display:none; }',
-      '.mcl-d8-head { display:grid; grid-template-columns:1fr 92px 108px; gap:8px; padding:3px 4px 5px; border-bottom:1px solid #2a3744; font-size:9.5px; color:#6B7A8C; font-weight:800; }',
-      '.mcl-d8-head span:nth-child(2), .mcl-d8-head span:nth-child(3) { text-align:right; }',
-      '.mcl-d8-row { display:grid; grid-template-columns:1fr 92px 108px; gap:8px; padding:6px 4px; border-bottom:1px solid #1c2630; font-size:11.5px; align-items:start; }',
+      '.mcl-d8-head { display:grid; grid-template-columns:60px 1fr 92px 108px; gap:8px; padding:3px 4px 5px; border-bottom:1px solid #2a3744; font-size:9.5px; color:#6B7A8C; font-weight:800; }',
+      '.mcl-d8-head span:nth-child(3), .mcl-d8-head span:nth-child(4) { text-align:right; }',
+      '.mcl-d8-row { display:grid; grid-template-columns:60px 1fr 92px 108px; gap:8px; padding:7px 4px; border-bottom:1px solid #1c2630; font-size:11.5px; align-items:start; line-height:1.45; }',
+      /* 타입 배지 — 시안 A 칩·파스텔 */
+      '.mcl-d8-badge { font-size:10px; font-weight:700; padding:2px 6px; border-radius:5px; white-space:nowrap; line-height:1.5; display:inline-block; }',
+      '.mcl-d8-badge.t-dan { background:#1e2a44; color:#93C5FD; }',
+      '.mcl-d8-badge.t-deal { background:#1a2e1a; color:#6EE7B7; }',
+      '.mcl-d8-badge.t-none { background:#252b35; color:#6B7A8C; }',
       // [2026-06-19 시안A] 상품명 전체표시(줄바꿈) + URL 링크(↗). 기존 말줄임(nowrap/ellipsis) 제거.
       '.mcl-d8-nm { color:#CBD5E1; font-weight:600; white-space:normal; line-height:1.34; min-width:0; }',
       '.mcl-d8-nm a { color:#7FB4FF; text-decoration:none; }',
@@ -590,10 +595,17 @@
       var urlLines = s.logs.filter(function (lg) { return lg.url; });
       if (urlLines.length) {
         var thead = document.createElement('div'); thead.className = 'mcl-d8-head';
-        thead.innerHTML = '<span>URL</span><span>표면노출가</span><span>최종매입가(fx)</span>';
+        thead.innerHTML = '<span>타입</span><span>URL</span><span>표면노출가</span><span>최종매입가(fx)</span>';
         logArea.appendChild(thead);
         urlLines.forEach(function (lg) {
           var r = document.createElement('div'); r.className = 'mcl-d8-row' + (lg.level === 'warn' ? ' fail' : '');
+          // 타입 배지 (단품/모델 모음전)
+          var bdg = document.createElement('span');
+          var ut = lg.url_type || '';
+          var bdgTxt = ut === 'deal' ? '모델\n모음전' : (ut === 'dan' ? '단품' : '');
+          bdg.className = 'mcl-d8-badge ' + (ut ? 't-' + ut : 't-none');
+          bdg.textContent = bdgTxt || (ut || '-');
+          r.appendChild(bdg);
           // [2026-06-19 시안A] 상품명 = 클릭 시 URL 열기 링크(↗) + 전체표시(CSS 줄바꿈).
           var nm = document.createElement('span'); nm.className = 'mcl-d8-nm';
           var nmA = document.createElement('a'); nmA.href = lg.url; nmA.target = '_blank'; nmA.rel = 'noopener'; nmA.title = lg.url;
@@ -866,7 +878,7 @@
           var s2 = getSource(b, sk); s2.done = (s2.done || 0) + 1;
           // [2026-06-18] URL별 성공/실패 카운트(시안D·소싱처카드 분해표기용). warn=실패, 그 외=성공.
           if (level === 'warn') s2.fail = (s2.fail || 0) + 1; else s2.ok = (s2.ok || 0) + 1;
-          var line = { ts: ts, level: level, msg: msg, url: d.url || null, lineId: d.lineId || null, name: d.name || null, surf: (d.surf != null ? d.surf : null), buy: null, steps: null };
+          var line = { ts: ts, level: level, msg: msg, url: d.url || null, lineId: d.lineId || null, name: d.name || null, surf: (d.surf != null ? d.surf : null), buy: null, steps: null, url_type: d.url_type || '' };
           s2.logs.push(line);
           if (s2.logs.length > 200) s2.logs.shift();
           if (d.lineId) b.lineIndex[d.lineId] = { sk: sk, line: line };

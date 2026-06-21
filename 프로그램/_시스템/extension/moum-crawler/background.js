@@ -1020,7 +1020,7 @@ async function crawlBundleAllBG(code) {
       const key = s.source_key + "|" + s.product_url;
       if (seen.has(key)) return;
       seen.add(key);
-      (bySource[s.source_key] = bySource[s.source_key] || []).push({ source_key: s.source_key, url: s.product_url });
+      (bySource[s.source_key] = bySource[s.source_key] || []).push({ source_key: s.source_key, url: s.product_url, url_type: s.url_type || "dan" });
     })
   );
   const sourceKeys = Object.keys(bySource);
@@ -1082,6 +1082,7 @@ async function crawlBundleAllBG(code) {
           // [2026-06-19 D8] URL별 상세표(상품명·표면노출가)용 — 위젯이 per-URL 행 렌더에 사용.
           name: (out && out.product_name) || null,
           surf: (out && out.price != null) ? out.price : null,
+          url_type: (list[i] && list[i].url_type) || "dan",
           lineId: out.status === "ok" ? (sk + "|" + ((out && out.url) || (list[i] && list[i].url) || "")) : null,
           msg: out.status === "ok"
             ? (sk + " 표면 " + (out.price != null ? out.price.toLocaleString() + "원" : "가격없음") + " (" + sec.toFixed(1) + "s)")
