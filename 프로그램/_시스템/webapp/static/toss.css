@@ -796,21 +796,31 @@
   .bh-model-chip { padding: 6px 12px; background: #fff; border: 1.5px solid var(--n200); border-radius: 7px; font-size: 14px; font-weight: 700; color: var(--n700); cursor: pointer; font-family: var(--font); transition: .12s; }
   .bh-model-chip:hover { border-color: var(--primary); color: var(--primary); }
   .bh-model-chip.on { background: var(--primary); color: #fff; border-color: var(--primary); }
-  /* F2 mini chart — v2 인터랙티브 (옵션선택+소싱처라인+재고) */
-  .bh-chart-mini { background: #F9FAFB; border: 1px solid var(--n200); border-radius: 10px; padding: 12px 14px; display: flex; flex-direction: column; gap: 0; min-height: 160px; }
-  .bcm-h { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 6px; }
+  /* F2 mini chart — v3 (1년치 + 슬라이더 기간선택 + 품절음영 + 선단절) */
+  .bh-chart-mini { background: #F9FAFB; border: 1px solid var(--n200); border-radius: 10px; padding: 12px 14px; display: flex; flex-direction: column; gap: 0; min-height: 180px; }
+  .bcm-h { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 5px; }
   .bcm-title { font-size: 13px; font-weight: 800; color: var(--n800); }
   .bcm-mode { font-size: 11px; color: var(--n500); font-weight: 600; }
+  /* 기간 슬라이더 */
+  .bcm-period-row { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; }
+  .bcm-period-edge { font-size: 10px; color: var(--n400); white-space: nowrap; }
+  .bcm-period-label { font-size: 11px; font-weight: 800; color: var(--primary); white-space: nowrap; min-width: 30px; text-align: right; }
+  .bcm-period-slider { -webkit-appearance: none; flex: 1; height: 3px; border-radius: 3px; outline: none; cursor: pointer; background: linear-gradient(to right, var(--primary) 0%, var(--primary) var(--bcm-pct, 23%), var(--n200) var(--bcm-pct, 23%), var(--n200) 100%); }
+  .bcm-period-slider::-webkit-slider-thumb { -webkit-appearance: none; width: 13px; height: 13px; border-radius: 50%; background: var(--primary); box-shadow: 0 0 0 2px #fff, 0 0 0 3px var(--primary); }
+  .bcm-period-slider::-moz-range-thumb { width: 13px; height: 13px; border-radius: 50%; background: var(--primary); border: 2px solid #fff; box-shadow: 0 0 0 2px var(--primary); }
   /* 옵션 chip 행 */
   .bcm-opt-row { display: flex; flex-wrap: wrap; gap: 4px; }
   .bcm-chip { padding: 2px 9px; border-radius: 20px; border: 1.5px solid var(--n200); background: #fff; font-size: 11px; font-weight: 600; color: var(--n600); cursor: pointer; transition: all .12s; line-height: 1.6; }
   .bcm-chip:hover { border-color: var(--primary); color: var(--primary); }
   .bcm-chip.on { background: var(--n800); color: #fff; border-color: var(--n800); }
+  /* 품절 구간 힌트 */
+  .bcm-shade-hint { display: flex; align-items: center; gap: 4px; font-size: 10px; color: var(--n400); margin: 4px 0 2px; }
+  .bcm-shade-box { display: inline-block; width: 12px; height: 8px; background: rgba(160,160,160,.18); border: 1px solid var(--n200); border-radius: 2px; flex-shrink: 0; }
   /* 차트 영역 */
-  .bcm-chart-wrap { position: relative; margin: 8px 0 4px; }
+  .bcm-chart-wrap { position: relative; margin: 2px 0 4px; }
   .bcm-chart-wrap svg { overflow: visible; }
   /* 범례 + 재고 */
-  .bcm-legend { display: flex; gap: 8px; font-size: 11px; color: var(--n600); font-weight: 600; margin-top: 4px; flex-wrap: wrap; align-items: center; }
+  .bcm-legend { display: flex; gap: 7px; font-size: 11px; color: var(--n600); font-weight: 600; margin-top: 4px; flex-wrap: wrap; align-items: center; }
   .bcm-legend-item { display: flex; align-items: center; gap: 3px; cursor: default; }
   .bcm-dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
   .bcm-price { color: var(--n800); }

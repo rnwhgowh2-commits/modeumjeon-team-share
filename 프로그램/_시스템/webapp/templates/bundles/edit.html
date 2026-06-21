@@ -32,12 +32,21 @@
       </div>
       <div class="bh-chart-mini" id="bh-chart-mini" data-code="{{ bundle.model_code }}">
         <div class="bcm-h">
-          <span class="bcm-title">📈 30일 가격 추이</span>
+          <span class="bcm-title">📈 가격 추이</span>
           <span class="bcm-mode" id="bcm-mode-label">—</span>
+        </div>
+        {# 기간 슬라이더 #}
+        <div class="bcm-period-row">
+          <span class="bcm-period-edge">7일</span>
+          <input type="range" id="bcm-period-slider" class="bcm-period-slider" min="7" max="365" value="90">
+          <span class="bcm-period-edge">1년</span>
+          <span class="bcm-period-label" id="bcm-period-label">90일</span>
         </div>
         {# 옵션 선택 #}
         <div class="bcm-opt-row" id="bcm-colors"></div>
         <div class="bcm-opt-row" id="bcm-sizes" style="margin-top:4px"></div>
+        {# 품절 구간 힌트 #}
+        <div class="bcm-shade-hint"><span class="bcm-shade-box"></span>품절 구간</div>
         {# SVG 차트 #}
         <div class="bcm-chart-wrap">
           <svg id="bcm-svg" viewBox="0 0 400 90" preserveAspectRatio="none" style="width:100%;height:90px;display:block"></svg>
@@ -1093,10 +1102,27 @@
   const elMode    = document.getElementById('bcm-mode-label');
   const elEmpty   = document.getElementById('bcm-empty');
   const elTooltip = document.getElementById('bcm-tooltip');
+  const elSlider  = document.getElementById('bcm-period-slider');
+  const elPeriodLabel = document.getElementById('bcm-period-label');
 
-  let ALL = [];          // API 전체 SKU 목록
+  let ALL = [];
   let selColor = null;
   let selSize  = null;
+  let selDays  = 90;
+
+  // 슬라이더 이벤트
+  if (elSlider) {
+    elSlider.addEventListener('input', () => {
+      selDays = +elSlider.value;
+      const pct = ((selDays - 7) / (365 - 7) * 100).toFixed(1);
+      elSlider.style.setProperty('--bcm-pct', pct + '%');
+      elPeriodLabel.textContent = selDays >= 365 ? '1년' : selDays >= 30 ? Math.round(selDays / 30) + '개월' : selDays + '일';
+      render();
+    });
+    // 초기 위치
+    const initPct = ((selDays - 7) / (365 - 7) * 100).toFixed(1);
+    elSlider.style.setProperty('--bcm-pct', initPct + '%');
+  }
 
   // ── 1. 데이터 로드 ──
   fetch(`/bundles/${code}/price-chart`)
@@ -1105,7 +1131,6 @@
       ALL = data.skus || [];
       buildColorChips(data.colors || []);
       buildSizeChips(data.sizes || []);
-      // 첫 번째 선택
       if (data.colors.length) selectColor(data.colors[0]);
     })
     .catch(() => { elEmpty.style.display = ''; });
@@ -1135,7 +1160,6 @@
   function selectColor(c) {
     selColor = c;
     elColors.querySelectorAll('.bcm-chip').forEach(b => b.classList.toggle('on', b.textContent === c));
-    // 해당 색상의 첫 사이즈 자동 선택
     const firstSku = ALL.find(s => s.color === c && s.is_active !== false);
     if (firstSku) {
       selSize = firstSku.size;
@@ -1162,26 +1186,36 @@
     }
     elEmpty.style.display = 'none';
 
-    const sources = skuObj.sources;
-    // 전체 날짜 축 (union of all dates)
-    const dateSet = new Set();
-    Object.values(sources).forEach(s => s.history.forEach(h => dateSet.add(h.date)));
-    const dates = Array.from(dateSet).sort();
+    // 기간 필터: 전체 날짜 정렬 후 최근 N일 슬라이스
+    const rawSources = skuObj.sources;
+    const allDatesSet = new Set();
+    Object.values(rawSources).forEach(s => s.history.forEach(h => allDatesSet.add(h.date)));
+    const allDates = Array.from(allDatesSet).sort();
+    const cutoffDates = allDates.slice(-selDays);
+    const cutoffSet = new Set(cutoffDates);
+
+    // 필터된 sources
+    const sources = {};
+    Object.entries(rawSources).forEach(([key, srcData]) => {
+      const filtered = srcData.history.filter(h => cutoffSet.has(h.date));
+      if (filtered.length) sources[key] = { ...srcData, history: filtered };
+    });
+
+    const dates = cutoffDates;
     if (!dates.length) { elSvg.innerHTML = ''; elLegend.innerHTML = ''; elEmpty.style.display = ''; return; }
 
-    // 가격 범위
+    // 가격 범위 (재고있는 날만)
     let minP = Infinity, maxP = -Infinity;
     Object.values(sources).forEach(s => s.history.forEach(h => {
-      if (h.price != null) { minP = Math.min(minP, h.price); maxP = Math.max(maxP, h.price); }
+      if (h.stock > 0 && h.price != null) { minP = Math.min(minP, h.price); maxP = Math.max(maxP, h.price); }
     }));
     if (minP === Infinity) { elSvg.innerHTML = ''; return; }
-    const padPct = 0.08;
     const range = maxP - minP || 1;
-    minP = minP - range * padPct;
-    maxP = maxP + range * padPct;
+    minP -= range * 0.1;
+    maxP += range * 0.1;
 
     const W = 400, H = 90;
-    const PAD = { t: 6, b: 16, l: 4, r: 4 };
+    const PAD = { t: 6, b: 16, l: 26, r: 4 };
     const chartW = W - PAD.l - PAD.r;
     const chartH = H - PAD.t - PAD.b;
 
@@ -1190,70 +1224,113 @@
 
     let svg = '';
 
+    // 품절 음영 (전 소싱처 합집합)
+    const outSet = new Set();
+    Object.values(sources).forEach(s => s.history.forEach((h, i) => {
+      const di = dates.indexOf(h.date);
+      if (h.stock === 0 && di >= 0) outSet.add(di);
+    }));
+    const colW = dates.length > 1 ? chartW / (dates.length - 1) : 0;
+    let shadeStart = null;
+    for (let i = 0; i <= dates.length; i++) {
+      if (i < dates.length && outSet.has(i)) {
+        if (shadeStart === null) shadeStart = i;
+      } else {
+        if (shadeStart !== null) {
+          const x1 = Math.max(PAD.l, xOf(shadeStart) - colW / 2);
+          const x2 = Math.min(W - PAD.r, xOf(i - 1) + colW / 2);
+          svg += `<rect x="${x1.toFixed(1)}" y="${PAD.t}" width="${(x2 - x1).toFixed(1)}" height="${chartH}" fill="rgba(160,160,160,.13)" rx="1"/>`;
+          shadeStart = null;
+        }
+      }
+    }
+
     // 그리드 — 수평 3줄
     [0.25, 0.5, 0.75].forEach(f => {
       const y = PAD.t + chartH * (1 - f);
       const p = Math.round(minP + (maxP - minP) * f);
       svg += `<line x1="${PAD.l}" y1="${y.toFixed(1)}" x2="${W - PAD.r}" y2="${y.toFixed(1)}" stroke="#E5E8EB" stroke-width="0.7"/>`;
-      svg += `<text x="${PAD.l}" y="${(y - 1.5).toFixed(1)}" font-size="7" fill="#B0B8C1">${(p/1000).toFixed(0)}k</text>`;
+      svg += `<text x="${(PAD.l - 3).toFixed(1)}" y="${(y + 2.5).toFixed(1)}" font-size="7" fill="#B0B8C1" text-anchor="end">${(p/1000).toFixed(0)}k</text>`;
     });
 
-    // X축 날짜 레이블 — 최대 6개
-    const step = Math.max(1, Math.floor(dates.length / 6));
+    // X축 날짜 레이블 (연/월 형식)
+    const step = Math.max(1, Math.floor(dates.length / 5));
     dates.forEach((d, i) => {
       if (i % step !== 0 && i !== dates.length - 1) return;
-      svg += `<text x="${xOf(i).toFixed(1)}" y="${H - 1}" font-size="7" fill="#B0B8C1" text-anchor="middle">${d}</text>`;
+      const lbl = dates.length > 60 ? d.substring(0, 7) : d.substring(5);
+      svg += `<text x="${xOf(i).toFixed(1)}" y="${H - 1}" font-size="7" fill="#B0B8C1" text-anchor="middle">${lbl}</text>`;
     });
 
-    // 소싱처 라인
+    // 소싱처 라인 (stock=0 구간 선 없음)
     const activeKeys = Object.keys(sources).filter(k => sources[k].history.length > 0);
     activeKeys.forEach(key => {
       const meta = SRC_META[key] || { label: key, color: '#8B95A1' };
-      const pts = [];
-      sources[key].history.forEach(h => {
-        const i = dates.indexOf(h.date);
-        if (i >= 0 && h.price != null) pts.push([xOf(i), yOf(h.price)]);
+      const histMap = {};
+      sources[key].history.forEach(h => { histMap[h.date] = h; });
+
+      let seg = [];
+      const flushSeg = () => {
+        if (seg.length >= 2) {
+          let d = `M${seg[0][0].toFixed(1)},${seg[0][1].toFixed(1)}`;
+          for (let i = 1; i < seg.length; i++) {
+            const cpx = ((seg[i-1][0] + seg[i][0]) / 2).toFixed(1);
+            d += ` C${cpx},${seg[i-1][1].toFixed(1)} ${cpx},${seg[i][1].toFixed(1)} ${seg[i][0].toFixed(1)},${seg[i][1].toFixed(1)}`;
+          }
+          svg += `<path d="${d}" fill="none" stroke="${meta.color}" stroke-width="1.8" stroke-linecap="round"/>`;
+        } else if (seg.length === 1) {
+          svg += `<circle cx="${seg[0][0].toFixed(1)}" cy="${seg[0][1].toFixed(1)}" r="1.8" fill="${meta.color}" opacity=".5"/>`;
+        }
+        seg = [];
+      };
+
+      dates.forEach((date, i) => {
+        const h = histMap[date];
+        if (h && h.stock > 0 && h.price != null) {
+          seg.push([xOf(i), yOf(h.price)]);
+        } else {
+          flushSeg();
+        }
       });
-      if (pts.length < 2) {
-        // 단일 점
-        if (pts.length === 1) svg += `<circle cx="${pts[0][0].toFixed(1)}" cy="${pts[0][1].toFixed(1)}" r="2.5" fill="${meta.color}"/>`;
-        return;
+      flushSeg();
+
+      // 마지막 재고있는 포인트 도트
+      const lastStockH = sources[key].history.slice().reverse().find(h => h.stock > 0);
+      if (lastStockH) {
+        const li = dates.indexOf(lastStockH.date);
+        if (li >= 0) {
+          const inStock = sources[key].current_stock > 0;
+          svg += `<circle cx="${xOf(li).toFixed(1)}" cy="${yOf(lastStockH.price).toFixed(1)}" r="2.5" fill="${inStock ? meta.color : '#C4C9D4'}" stroke="#fff" stroke-width="1.2"/>`;
+        }
       }
-      // 부드러운 경로 (cubic bezier 근사)
-      let d = `M${pts[0][0].toFixed(1)},${pts[0][1].toFixed(1)}`;
-      for (let i = 1; i < pts.length; i++) {
-        const cp1x = (pts[i - 1][0] + pts[i][0]) / 2;
-        d += ` C${cp1x.toFixed(1)},${pts[i-1][1].toFixed(1)} ${cp1x.toFixed(1)},${pts[i][1].toFixed(1)} ${pts[i][0].toFixed(1)},${pts[i][1].toFixed(1)}`;
-      }
-      svg += `<path d="${d}" fill="none" stroke="${meta.color}" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>`;
-      // 마지막 점 강조
-      const last = pts[pts.length - 1];
-      svg += `<circle cx="${last[0].toFixed(1)}" cy="${last[1].toFixed(1)}" r="2.5" fill="${meta.color}" stroke="#fff" stroke-width="1"/>`;
     });
 
-    // 인터랙션용 투명 오버레이
+    // 인터랙션용 투명 오버레이 (날짜 많을 때 간격 조절)
+    const hitStep = dates.length > 180 ? 3 : dates.length > 60 ? 2 : 1;
     dates.forEach((d, i) => {
-      const x = xOf(i);
-      svg += `<line x1="${x.toFixed(1)}" y1="${PAD.t}" x2="${x.toFixed(1)}" y2="${PAD.t + chartH}" stroke="transparent" stroke-width="12" class="bcm-hit" data-i="${i}" data-date="${d}"/>`;
+      if (i % hitStep !== 0) return;
+      svg += `<line x1="${xOf(i).toFixed(1)}" y1="${PAD.t}" x2="${xOf(i).toFixed(1)}" y2="${PAD.t + chartH}" stroke="transparent" stroke-width="${Math.max(4, 20 / dates.length * hitStep)}" class="bcm-hit" data-i="${i}" data-date="${d}"/>`;
     });
 
     elSvg.innerHTML = svg;
 
     // 호버 툴팁
     elSvg.querySelectorAll('.bcm-hit').forEach(el => {
-      el.addEventListener('mouseenter', e => {
+      el.addEventListener('mouseenter', () => {
         const i = +el.dataset.i;
         const date = el.dataset.date;
         let html = `<div class="tt-date">${date}</div>`;
         activeKeys.forEach(key => {
           const meta = SRC_META[key] || { label: key, color: '#8B95A1' };
-          const pt = sources[key].history.find(h => h.date === date);
-          if (!pt || pt.price == null) return;
-          const stk = stockLabel(pt.stock);
-          html += `<div class="tt-row"><div class="tt-dot" style="background:${meta.color}"></div><span>${meta.label}</span><b>${pt.price.toLocaleString()}</b><span>${stk.text}</span></div>`;
+          const h = sources[key].history.find(hh => hh.date === date);
+          if (!h) return;
+          if (h.stock === 0) {
+            html += `<div class="tt-row"><div class="tt-dot" style="background:#E5E7EB"></div><span style="color:#9CA3AF">${meta.label} 품절</span></div>`;
+          } else if (h.price != null) {
+            const stk = stockLabel(h.stock);
+            html += `<div class="tt-row"><div class="tt-dot" style="background:${meta.color}"></div><span>${meta.label}</span><b>${h.price.toLocaleString()}</b><span>${stk.text}</span></div>`;
+          }
         });
         elTooltip.innerHTML = html;
-        // 위치
         const svgRect = elSvg.getBoundingClientRect();
         const wrapRect = wrap.getBoundingClientRect();
         const tipX = xOf(i) / W * svgRect.width;
@@ -1266,14 +1343,15 @@
       el.addEventListener('mouseleave', () => { elTooltip.style.display = 'none'; });
     });
 
-    // ── 4. 범례 렌더 ──
+    // ── 4. 범례 ──
     let legend = '';
     activeKeys.forEach(key => {
       const meta = SRC_META[key] || { label: key, color: '#8B95A1' };
       const cur = sources[key];
+      const inStock = cur.current_stock > 0;
       const priceStr = cur.current_price != null ? cur.current_price.toLocaleString() : '—';
       const stk = stockLabel(cur.current_stock);
-      legend += `<span class="bcm-legend-item">
+      legend += `<span class="bcm-legend-item" style="${inStock ? '' : 'opacity:.55'}">
         <span class="bcm-dot" style="background:${meta.color}"></span>
         <span>${meta.label}</span>
         <span class="bcm-price">${priceStr}</span>
@@ -1284,11 +1362,11 @@
   }
 
   function stockLabel(stock) {
-    if (stock == null)     return { cls: 'na',  text: '—' };
-    if (stock === 0)       return { cls: 'out', text: '품절' };
-    if (stock >= 999)      return { cls: 'ok',  text: '✓' };
-    if (stock <= 5)        return { cls: 'low', text: `${stock}개` };
-    return                        { cls: 'ok',  text: '✓' };
+    if (stock == null)  return { cls: 'na',  text: '—' };
+    if (stock === 0)    return { cls: 'out', text: '품절' };
+    if (stock >= 999)   return { cls: 'ok',  text: '✓' };
+    if (stock <= 5)     return { cls: 'low', text: `${stock}개` };
+    return                     { cls: 'ok',  text: '✓' };
   }
 })();
 </script>

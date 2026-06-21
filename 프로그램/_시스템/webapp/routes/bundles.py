@@ -823,7 +823,7 @@ def bundle_edit(code: str):
 
 @bp.route('/bundles/<code>/price-chart')
 def bundle_price_chart(code: str):
-    """30일 가격·재고 시계열 — 옵션선택+소싱처라인 차트용.
+    """1년 가격·재고 시계열 — 옵션선택+소싱처라인 차트용.
 
     응답:
       {
@@ -837,7 +837,7 @@ def bundle_price_chart(code: str):
     from collections import defaultdict
     import json as _json
 
-    since = datetime.now(_tz.utc) - _td(days=30)
+    since = datetime.now(_tz.utc) - _td(days=365)
     s = SessionLocal()
     try:
         # 이 모음전의 전체 옵션
@@ -861,7 +861,7 @@ def bundle_price_chart(code: str):
         # group: sku → source → daily (date string → latest row that day)
         hist: dict[str, dict[str, dict]] = defaultdict(lambda: defaultdict(dict))
         for r in rows:
-            d = r.captured_at.strftime('%m/%d') if r.captured_at else '?'
+            d = r.captured_at.strftime('%Y.%m.%d') if r.captured_at else '?'
             key = (r.canonical_sku, r.source, d)
             existing = hist[r.canonical_sku][r.source].get(d)
             if existing is None or (r.price is not None):
