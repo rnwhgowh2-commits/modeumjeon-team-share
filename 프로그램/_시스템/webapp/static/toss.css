@@ -796,16 +796,38 @@
   .bh-model-chip { padding: 6px 12px; background: #fff; border: 1.5px solid var(--n200); border-radius: 7px; font-size: 14px; font-weight: 700; color: var(--n700); cursor: pointer; font-family: var(--font); transition: .12s; }
   .bh-model-chip:hover { border-color: var(--primary); color: var(--primary); }
   .bh-model-chip.on { background: var(--primary); color: #fff; border-color: var(--primary); }
-  /* F2 mini chart */
-  .bh-chart-mini { background: #F9FAFB; border: 1px solid var(--n200); border-radius: 10px; padding: 12px 14px; display: flex; flex-direction: column; min-height: 110px; }
+  /* F2 mini chart — v2 인터랙티브 (옵션선택+소싱처라인+재고) */
+  .bh-chart-mini { background: #F9FAFB; border: 1px solid var(--n200); border-radius: 10px; padding: 12px 14px; display: flex; flex-direction: column; gap: 0; min-height: 160px; }
   .bcm-h { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 6px; }
-  .bcm-title { font-size: 14px; font-weight: 800; color: var(--n800); }
-  .bcm-mode { font-size: 14px; color: var(--n500); font-weight: 600; }
-  .bcm-legend { display: flex; gap: 10px; font-size: 12px; color: var(--n600); font-weight: 600; margin-top: 6px; flex-wrap: wrap; }
-  .bcm-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 3px; vertical-align: middle; }
+  .bcm-title { font-size: 13px; font-weight: 800; color: var(--n800); }
+  .bcm-mode { font-size: 11px; color: var(--n500); font-weight: 600; }
+  /* 옵션 chip 행 */
+  .bcm-opt-row { display: flex; flex-wrap: wrap; gap: 4px; }
+  .bcm-chip { padding: 2px 9px; border-radius: 20px; border: 1.5px solid var(--n200); background: #fff; font-size: 11px; font-weight: 600; color: var(--n600); cursor: pointer; transition: all .12s; line-height: 1.6; }
+  .bcm-chip:hover { border-color: var(--primary); color: var(--primary); }
+  .bcm-chip.on { background: var(--n800); color: #fff; border-color: var(--n800); }
+  /* 차트 영역 */
+  .bcm-chart-wrap { position: relative; margin: 8px 0 4px; }
+  .bcm-chart-wrap svg { overflow: visible; }
+  /* 범례 + 재고 */
+  .bcm-legend { display: flex; gap: 8px; font-size: 11px; color: var(--n600); font-weight: 600; margin-top: 4px; flex-wrap: wrap; align-items: center; }
+  .bcm-legend-item { display: flex; align-items: center; gap: 3px; cursor: default; }
+  .bcm-dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+  .bcm-price { color: var(--n800); }
+  /* 재고 배지 */
+  .bcm-stock { font-size: 10px; font-weight: 700; padding: 1px 5px; border-radius: 4px; }
+  .bcm-stock.ok  { background: #DCFCE7; color: #15803D; }
+  .bcm-stock.low { background: #FEF9C3; color: #92400E; }
+  .bcm-stock.out { background: #FEE2E2; color: #DC2626; }
+  .bcm-stock.na  { background: var(--n100); color: var(--n400); }
+  /* 툴팁 */
+  .bcm-tooltip { position: absolute; background: rgba(25,31,40,.92); color: #fff; font-size: 11px; border-radius: 6px; padding: 6px 10px; pointer-events: none; z-index: 20; white-space: nowrap; box-shadow: 0 2px 8px rgba(0,0,0,.2); }
+  .bcm-tooltip .tt-date { font-size: 10px; color: #8B95A1; margin-bottom: 3px; }
+  .bcm-tooltip .tt-row { display: flex; align-items: center; gap: 5px; line-height: 1.6; }
+  .bcm-tooltip .tt-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
   @media (max-width: 1300px) {
     .bh-top { grid-template-columns: 100px 1fr 280px; }
-    .bh-chart-mini { grid-column: 1 / -1; min-height: 100px; }
+    .bh-chart-mini { grid-column: 1 / -1; }
   }
 
   /* 단계 dots + 라인 */
@@ -2999,7 +3021,12 @@
 }
 .cell-fx-ben .cf-grp:first-child { border-top: none; margin-top: 0; padding-top: 2px; }
 .cell-fx-ben .cf-grp.pay { color: #191F28; font-size: 12.5px; }
+.cell-fx-ben .cf-grp.pre { color: #1B64DA; }
 .cell-fx-ben .cf-grp .cf-grp-note { font-weight: 500; color: #8B95A1; font-size: 11px; }
+/* [2026-06-12] 방식 배지 (정액/정률) — 선반영/후반영 통일 */
+.cell-fx-ben .cf-way { display:inline-block; font-size:10px; font-weight:700; padding:1px 5px; border-radius:4px; margin-left:6px; vertical-align:middle; }
+.cell-fx-ben .cf-way.amt { color:#1B64DA; background:#EEF3FF; }
+.cell-fx-ben .cf-way.rt { color:#0B8A5B; background:#E8F8F1; }
 .cell-fx-ben .cell-fx-row.cf-soon,
 .cell-fx-ben .cell-fx-row.cf-pay-base { cursor: default; }
 /* [2026-06-05] v3 — 팝업 혜택 영역 왼쪽 정렬 (시안 일치, 가운데 정렬 상속 차단) */
@@ -3397,7 +3424,12 @@
 }
 .fxpop-v2 .cell-fx-ben .cf-grp:first-child { border-top: none; margin-top: 0; padding-top: 2px; }
 .fxpop-v2 .cell-fx-ben .cf-grp.pay { color: #191F28; font-size: 12.5px; }
+.fxpop-v2 .cell-fx-ben .cf-grp.pre { color: #1B64DA; }
 .fxpop-v2 .cell-fx-ben .cf-grp .cf-grp-note { font-weight: 500; color: #8B95A1; font-size: 11px; }
+/* [2026-06-12] 방식 배지 (정액/정률) */
+.fxpop-v2 .cell-fx-ben .cf-way { display:inline-block; font-size:10px; font-weight:700; padding:1px 5px; border-radius:4px; margin-left:6px; vertical-align:middle; }
+.fxpop-v2 .cell-fx-ben .cf-way.amt { color:#1B64DA; background:#EEF3FF; }
+.fxpop-v2 .cell-fx-ben .cf-way.rt { color:#0B8A5B; background:#E8F8F1; }
 /* 토글 행 — grid→flex, 줄긋기·들여쓰기 제거 */
 .fxpop-v2 .cell-fx-ben .cell-fx-row {
   display: flex; align-items: center; gap: 10px; padding: 10px 2px;

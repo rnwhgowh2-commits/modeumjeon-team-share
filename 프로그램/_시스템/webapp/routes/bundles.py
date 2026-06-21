@@ -821,6 +821,88 @@ def bundle_edit(code: str):
     )
 
 
+@bp.route('/bundles/<code>/price-chart')
+def bundle_price_chart(code: str):
+    """30일 가격·재고 시계열 — 옵션선택+소싱처라인 차트용.
+
+    응답:
+      {
+        skus: [{sku, color, size, sources: {source_key: {history:[{date,price,stock}], current_price, current_stock}}}],
+        colors: ['그레이', ...],
+        sizes: ['220', ...]
+      }
+    """
+    from datetime import timezone as _tz, timedelta as _td
+    from lemouton.templates.models import PriceTrackHistory
+    from collections import defaultdict
+    import json as _json
+
+    since = datetime.now(_tz.utc) - _td(days=30)
+    s = SessionLocal()
+    try:
+        # 이 모음전의 전체 옵션
+        opts = (s.query(Option)
+                .filter_by(model_code=code)
+                .order_by(Option.sort_order, Option.color_code, Option.size_code)
+                .all())
+        if not opts:
+            return jsonify(skus=[], colors=[], sizes=[])
+
+        skus = [o.canonical_sku for o in opts]
+        # 30일 이력 — 대량이므로 canonical_sku IN (…) 1회 조회
+        rows = (s.query(PriceTrackHistory)
+                .filter(PriceTrackHistory.canonical_sku.in_(skus),
+                        PriceTrackHistory.captured_at >= since)
+                .order_by(PriceTrackHistory.canonical_sku,
+                          PriceTrackHistory.source,
+                          PriceTrackHistory.captured_at)
+                .all())
+
+        # group: sku → source → daily (date string → latest row that day)
+        hist: dict[str, dict[str, dict]] = defaultdict(lambda: defaultdict(dict))
+        for r in rows:
+            d = r.captured_at.strftime('%m/%d') if r.captured_at else '?'
+            key = (r.canonical_sku, r.source, d)
+            existing = hist[r.canonical_sku][r.source].get(d)
+            if existing is None or (r.price is not None):
+                hist[r.canonical_sku][r.source][d] = {
+                    'date': d, 'price': r.price, 'stock': r.stock,
+                }
+
+        # 색상·사이즈 목록 (순서 유지)
+        seen_colors, seen_sizes = [], []
+        for o in opts:
+            c = o.color_display or o.color_code or ''
+            sz = o.size_display or o.size_code or ''
+            if c and c not in seen_colors:
+                seen_colors.append(c)
+            if sz and sz not in seen_sizes:
+                seen_sizes.append(sz)
+
+        result_skus = []
+        for o in opts:
+            src_data = {}
+            for src_key, day_map in hist.get(o.canonical_sku, {}).items():
+                days = sorted(day_map.values(), key=lambda x: x['date'])
+                cur = days[-1] if days else {}
+                src_data[src_key] = {
+                    'history': days,
+                    'current_price': cur.get('price'),
+                    'current_stock': cur.get('stock'),
+                }
+            result_skus.append({
+                'sku': o.canonical_sku,
+                'color': o.color_display or o.color_code or '',
+                'size': o.size_display or o.size_code or '',
+                'is_active': bool(o.is_active),
+                'sources': src_data,
+            })
+
+        return jsonify(skus=result_skus, colors=seen_colors, sizes=seen_sizes)
+    finally:
+        s.close()
+
+
 # ═══════ 다중 URL API (2026-05-09) ═══════
 # v6 P5.5 — builtin + DB SourcingSource 동적 검증 (사용자 추가 소싱처도 valid)
 VALID_SOURCE_KEYS = set(_src_keys())  # builtin (시작 시점). 검증은 _is_valid_source_key() 사용 권장.

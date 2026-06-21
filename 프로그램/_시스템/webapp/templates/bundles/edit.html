@@ -30,23 +30,22 @@
         </div>
         {% endif %}
       </div>
-      <div class="bh-chart-mini" id="bh-chart-mini">
+      <div class="bh-chart-mini" id="bh-chart-mini" data-code="{{ bundle.model_code }}">
         <div class="bcm-h">
           <span class="bcm-title">📈 30일 가격 추이</span>
-          <span class="bcm-mode">색상별 평균</span>
+          <span class="bcm-mode" id="bcm-mode-label">—</span>
         </div>
-        <svg viewBox="0 0 200 60" preserveAspectRatio="none" style="width:100%;flex:1;display:block">
-          <polyline points="0,30 30,28 60,32 90,25 120,22 150,20 180,18 200,15" fill="none" stroke="#3182F6" stroke-width="1.8"/>
-          <polyline points="0,40 30,38 60,40 90,35 120,32 150,30 180,28 200,26" fill="none" stroke="#191F28" stroke-width="1.8"/>
-          <polyline points="0,20 30,18 60,22 90,15 120,12 150,10 180,8 200,5" fill="none" stroke="#8B95A1" stroke-width="1.8"/>
-          <polyline points="0,35 30,33 60,35 90,30 120,28 150,25 180,22 200,20" fill="none" stroke="#B0B8C1" stroke-width="1.8"/>
-        </svg>
-        <div class="bcm-legend">
-          <span><span class="bcm-dot" style="background:#3182F6"></span>그레이</span>
-          <span><span class="bcm-dot" style="background:#191F28"></span>블랙</span>
-          <span><span class="bcm-dot" style="background:#8B95A1"></span>화이트</span>
-          <span><span class="bcm-dot" style="background:#B0B8C1"></span>크림</span>
+        {# 옵션 선택 #}
+        <div class="bcm-opt-row" id="bcm-colors"></div>
+        <div class="bcm-opt-row" id="bcm-sizes" style="margin-top:4px"></div>
+        {# SVG 차트 #}
+        <div class="bcm-chart-wrap">
+          <svg id="bcm-svg" viewBox="0 0 400 90" preserveAspectRatio="none" style="width:100%;height:90px;display:block"></svg>
+          <div id="bcm-tooltip" class="bcm-tooltip" style="display:none"></div>
         </div>
+        {# 소싱처 범례 + 현재가 + 재고 #}
+        <div class="bcm-legend" id="bcm-legend"></div>
+        <div id="bcm-empty" style="display:none;font-size:11px;color:var(--n400);text-align:center;padding:8px 0">데이터 없음 — 크롤 후 확인 가능</div>
       </div>
       <div class="bh-actions" style="flex-direction:column;align-items:stretch;gap:6px;min-width:260px">
         <div style="display:flex;gap:6px;justify-content:flex-end;align-items:center;flex-wrap:wrap">
@@ -1071,5 +1070,227 @@
   }
   </script>
 <script src="{{ url_for('static', filename='category_select.js') }}"></script>
+
+{# ── 30일 가격추이 차트 (A형: 옵션선택+소싱처라인+재고) ── #}
+<script>
+(function(){
+  const SRC_META = {
+    musinsa:  { label:'무신사',    color:'#3182F6' },
+    naver:    { label:'스마트스토어', color:'#03C75A' },
+    lotteon:  { label:'롯데온',    color:'#E53E3E' },
+    ssg:      { label:'SSG',      color:'#F97316' },
+    ssf:      { label:'SSF',      color:'#8B5CF6' },
+    lemouton: { label:'르무통',    color:'#F59E0B' },
+  };
+
+  const wrap  = document.getElementById('bh-chart-mini');
+  if (!wrap) return;
+  const code  = wrap.dataset.code;
+  const elColors  = document.getElementById('bcm-colors');
+  const elSizes   = document.getElementById('bcm-sizes');
+  const elSvg     = document.getElementById('bcm-svg');
+  const elLegend  = document.getElementById('bcm-legend');
+  const elMode    = document.getElementById('bcm-mode-label');
+  const elEmpty   = document.getElementById('bcm-empty');
+  const elTooltip = document.getElementById('bcm-tooltip');
+
+  let ALL = [];          // API 전체 SKU 목록
+  let selColor = null;
+  let selSize  = null;
+
+  // ── 1. 데이터 로드 ──
+  fetch(`/bundles/${code}/price-chart`)
+    .then(r => r.json())
+    .then(data => {
+      ALL = data.skus || [];
+      buildColorChips(data.colors || []);
+      buildSizeChips(data.sizes || []);
+      // 첫 번째 선택
+      if (data.colors.length) selectColor(data.colors[0]);
+    })
+    .catch(() => { elEmpty.style.display = ''; });
+
+  // ── 2. 칩 생성 ──
+  function buildColorChips(colors) {
+    elColors.innerHTML = '';
+    colors.forEach(c => {
+      const b = document.createElement('button');
+      b.className = 'bcm-chip';
+      b.textContent = c;
+      b.onclick = () => selectColor(c);
+      elColors.appendChild(b);
+    });
+  }
+  function buildSizeChips(sizes) {
+    elSizes.innerHTML = '';
+    sizes.forEach(sz => {
+      const b = document.createElement('button');
+      b.className = 'bcm-chip';
+      b.textContent = sz;
+      b.onclick = () => selectSize(sz);
+      elSizes.appendChild(b);
+    });
+  }
+
+  function selectColor(c) {
+    selColor = c;
+    elColors.querySelectorAll('.bcm-chip').forEach(b => b.classList.toggle('on', b.textContent === c));
+    // 해당 색상의 첫 사이즈 자동 선택
+    const firstSku = ALL.find(s => s.color === c && s.is_active !== false);
+    if (firstSku) {
+      selSize = firstSku.size;
+      elSizes.querySelectorAll('.bcm-chip').forEach(b => b.classList.toggle('on', b.textContent === selSize));
+    }
+    render();
+  }
+  function selectSize(sz) {
+    selSize = sz;
+    elSizes.querySelectorAll('.bcm-chip').forEach(b => b.classList.toggle('on', b.textContent === sz));
+    render();
+  }
+
+  // ── 3. 차트 렌더 ──
+  function render() {
+    const skuObj = ALL.find(s => s.color === selColor && s.size === selSize);
+    elMode.textContent = skuObj ? `${selColor} ${selSize}` : '—';
+
+    if (!skuObj || !Object.keys(skuObj.sources || {}).length) {
+      elSvg.innerHTML = '';
+      elLegend.innerHTML = '';
+      elEmpty.style.display = '';
+      return;
+    }
+    elEmpty.style.display = 'none';
+
+    const sources = skuObj.sources;
+    // 전체 날짜 축 (union of all dates)
+    const dateSet = new Set();
+    Object.values(sources).forEach(s => s.history.forEach(h => dateSet.add(h.date)));
+    const dates = Array.from(dateSet).sort();
+    if (!dates.length) { elSvg.innerHTML = ''; elLegend.innerHTML = ''; elEmpty.style.display = ''; return; }
+
+    // 가격 범위
+    let minP = Infinity, maxP = -Infinity;
+    Object.values(sources).forEach(s => s.history.forEach(h => {
+      if (h.price != null) { minP = Math.min(minP, h.price); maxP = Math.max(maxP, h.price); }
+    }));
+    if (minP === Infinity) { elSvg.innerHTML = ''; return; }
+    const padPct = 0.08;
+    const range = maxP - minP || 1;
+    minP = minP - range * padPct;
+    maxP = maxP + range * padPct;
+
+    const W = 400, H = 90;
+    const PAD = { t: 6, b: 16, l: 4, r: 4 };
+    const chartW = W - PAD.l - PAD.r;
+    const chartH = H - PAD.t - PAD.b;
+
+    function xOf(i) { return PAD.l + (dates.length > 1 ? (i / (dates.length - 1)) * chartW : chartW / 2); }
+    function yOf(p) { return PAD.t + chartH - ((p - minP) / (maxP - minP)) * chartH; }
+
+    let svg = '';
+
+    // 그리드 — 수평 3줄
+    [0.25, 0.5, 0.75].forEach(f => {
+      const y = PAD.t + chartH * (1 - f);
+      const p = Math.round(minP + (maxP - minP) * f);
+      svg += `<line x1="${PAD.l}" y1="${y.toFixed(1)}" x2="${W - PAD.r}" y2="${y.toFixed(1)}" stroke="#E5E8EB" stroke-width="0.7"/>`;
+      svg += `<text x="${PAD.l}" y="${(y - 1.5).toFixed(1)}" font-size="7" fill="#B0B8C1">${(p/1000).toFixed(0)}k</text>`;
+    });
+
+    // X축 날짜 레이블 — 최대 6개
+    const step = Math.max(1, Math.floor(dates.length / 6));
+    dates.forEach((d, i) => {
+      if (i % step !== 0 && i !== dates.length - 1) return;
+      svg += `<text x="${xOf(i).toFixed(1)}" y="${H - 1}" font-size="7" fill="#B0B8C1" text-anchor="middle">${d}</text>`;
+    });
+
+    // 소싱처 라인
+    const activeKeys = Object.keys(sources).filter(k => sources[k].history.length > 0);
+    activeKeys.forEach(key => {
+      const meta = SRC_META[key] || { label: key, color: '#8B95A1' };
+      const pts = [];
+      sources[key].history.forEach(h => {
+        const i = dates.indexOf(h.date);
+        if (i >= 0 && h.price != null) pts.push([xOf(i), yOf(h.price)]);
+      });
+      if (pts.length < 2) {
+        // 단일 점
+        if (pts.length === 1) svg += `<circle cx="${pts[0][0].toFixed(1)}" cy="${pts[0][1].toFixed(1)}" r="2.5" fill="${meta.color}"/>`;
+        return;
+      }
+      // 부드러운 경로 (cubic bezier 근사)
+      let d = `M${pts[0][0].toFixed(1)},${pts[0][1].toFixed(1)}`;
+      for (let i = 1; i < pts.length; i++) {
+        const cp1x = (pts[i - 1][0] + pts[i][0]) / 2;
+        d += ` C${cp1x.toFixed(1)},${pts[i-1][1].toFixed(1)} ${cp1x.toFixed(1)},${pts[i][1].toFixed(1)} ${pts[i][0].toFixed(1)},${pts[i][1].toFixed(1)}`;
+      }
+      svg += `<path d="${d}" fill="none" stroke="${meta.color}" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>`;
+      // 마지막 점 강조
+      const last = pts[pts.length - 1];
+      svg += `<circle cx="${last[0].toFixed(1)}" cy="${last[1].toFixed(1)}" r="2.5" fill="${meta.color}" stroke="#fff" stroke-width="1"/>`;
+    });
+
+    // 인터랙션용 투명 오버레이
+    dates.forEach((d, i) => {
+      const x = xOf(i);
+      svg += `<line x1="${x.toFixed(1)}" y1="${PAD.t}" x2="${x.toFixed(1)}" y2="${PAD.t + chartH}" stroke="transparent" stroke-width="12" class="bcm-hit" data-i="${i}" data-date="${d}"/>`;
+    });
+
+    elSvg.innerHTML = svg;
+
+    // 호버 툴팁
+    elSvg.querySelectorAll('.bcm-hit').forEach(el => {
+      el.addEventListener('mouseenter', e => {
+        const i = +el.dataset.i;
+        const date = el.dataset.date;
+        let html = `<div class="tt-date">${date}</div>`;
+        activeKeys.forEach(key => {
+          const meta = SRC_META[key] || { label: key, color: '#8B95A1' };
+          const pt = sources[key].history.find(h => h.date === date);
+          if (!pt || pt.price == null) return;
+          const stk = stockLabel(pt.stock);
+          html += `<div class="tt-row"><div class="tt-dot" style="background:${meta.color}"></div><span>${meta.label}</span><b>${pt.price.toLocaleString()}</b><span>${stk.text}</span></div>`;
+        });
+        elTooltip.innerHTML = html;
+        // 위치
+        const svgRect = elSvg.getBoundingClientRect();
+        const wrapRect = wrap.getBoundingClientRect();
+        const tipX = xOf(i) / W * svgRect.width;
+        let left = svgRect.left - wrapRect.left + tipX + 8;
+        if (left + 160 > wrapRect.width) left = svgRect.left - wrapRect.left + tipX - 168;
+        elTooltip.style.left = left + 'px';
+        elTooltip.style.top = '30px';
+        elTooltip.style.display = '';
+      });
+      el.addEventListener('mouseleave', () => { elTooltip.style.display = 'none'; });
+    });
+
+    // ── 4. 범례 렌더 ──
+    let legend = '';
+    activeKeys.forEach(key => {
+      const meta = SRC_META[key] || { label: key, color: '#8B95A1' };
+      const cur = sources[key];
+      const priceStr = cur.current_price != null ? cur.current_price.toLocaleString() : '—';
+      const stk = stockLabel(cur.current_stock);
+      legend += `<span class="bcm-legend-item">
+        <span class="bcm-dot" style="background:${meta.color}"></span>
+        <span>${meta.label}</span>
+        <span class="bcm-price">${priceStr}</span>
+        <span class="bcm-stock ${stk.cls}">${stk.text}</span>
+      </span>`;
+    });
+    elLegend.innerHTML = legend;
+  }
+
+  function stockLabel(stock) {
+    if (stock == null)     return { cls: 'na',  text: '—' };
+    if (stock === 0)       return { cls: 'out', text: '품절' };
+    if (stock >= 999)      return { cls: 'ok',  text: '✓' };
+    if (stock <= 5)        return { cls: 'low', text: `${stock}개` };
+    return                        { cls: 'ok',  text: '✓' };
+  }
+})();
+</script>
 </section>
 {% endblock %}
