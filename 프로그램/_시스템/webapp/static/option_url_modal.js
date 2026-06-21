@@ -1856,8 +1856,9 @@
       const isFail = u.crawled === false && !isCovered;
       // [2026-06-19 P3] 딜(멀티모델) URL — 모델 배지로 우리 모델만 골라 수집
       const isDeal = (u.url || '').toLowerCase().includes('dealitemview');
-      // [2026-06-20] 유형 사전지정 — dan/mo/deal. 미지정 기본값 = 단품(dan).
-      const _ut = u.url_type || 'dan';
+      // [2026-06-20] 유형 사전지정 — dan/mo/deal. 미지정 기본 = 단품. 단, dealItemView URL은
+      //   기본 '모델 모음전'(딜 감지는 100% 확실 + 모델 선택 버튼이 떠야 모델 지정 가능).
+      const _ut = u.url_type || (isDeal ? 'deal' : 'dan');
       const showModel = (_ut === 'deal');  // 모델 모음전일 때만 모델 선택 노출
       const _segCss = 'border:0;background:#fff;padding:5px 8px;font-size:11px;font-weight:800;color:#8B95A1;cursor:pointer;border-right:1px solid #EEF1F5';
       const _onCol = { dan: '#1B64DA', mo: '#6B3FD4', deal: '#D6334B' };

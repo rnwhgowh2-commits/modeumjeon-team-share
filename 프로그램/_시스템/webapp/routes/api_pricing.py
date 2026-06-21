@@ -1328,8 +1328,8 @@ def verify_urls(code: str):
                 _stored_ty = url_type_map.get(_nu(url)) if url else None
             except Exception:
                 _stored_ty = None
-            # [2026-06-20] 미지정 기본값 = 단품(dan). 색상/모델은 URL매핑에서 수동 지정.
-            u['type'] = _stored_ty or 'dan'
+            # [2026-06-20] 미지정 기본 = 단품. 단 딜(dealItemView)은 '모델 모음전'(확실 감지).
+            u['type'] = _stored_ty or ('deal' if u['is_deal'] else 'dan')
             u['crawl_error'] = bool(u['last_status'] == 'error'
                                     or (total > 0 and u['noprice'] == total and matched == 0))
             u.pop('_colors', None)
