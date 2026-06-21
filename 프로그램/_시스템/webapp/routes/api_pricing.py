@@ -195,8 +195,13 @@ def _opt_color_size(o):
     return color, size
 
 
-def _ingest_option_stocks(session, source_product_id, options):
+def _ingest_option_stocks(session, source_product_id, options, price=None):
     """확장 options[{color,size,stock}] → SourceOption.current_stock 갱신 (색·사이즈 매칭).
+
+    [2026-06-21] price(상품 균일가) 주면 갱신·생성 옵션의 current_price 도 함께 설정.
+      사유: 기존엔 stock 만 설정 → 리셋/prune 후 새로 생긴 옵션은 가격 누락(상품가 bulk
+      update 가 autoflush 안 된 신규행을 놓침) → noprice 둔갑(SSF 비-블랙 8색 사고).
+      생성/갱신 시점에 가격을 직접 박아 타이밍 의존 제거.
 
     무신사·롯데온(확장 크롤)은 상품 레벨 stock 하나만 보내던 것을, 사이즈별 실재고
     (0=품절 / N=실수량 / 999=충분, 확장이 센티넬 적용 완료)로 옵션별 교정한다.
@@ -244,6 +249,8 @@ def _ingest_option_stocks(session, source_product_id, options):
             for target in targets:
                 try:
                     target.current_stock = int(st)
+                    if price is not None:
+                        target.current_price = int(price)
                     n += 1
                 except (TypeError, ValueError):
                     pass
@@ -260,7 +267,8 @@ def _ingest_option_stocks(session, source_product_id, options):
             so = upsert_source_option(
                 session, source_product_id=source_product_id,
                 color_text=(_color or ''), size_text=(_size or sz),
-                current_stock=_st_int)
+                current_stock=_st_int,
+                current_price=(int(price) if price is not None else None))
             # 같은 크롤 내 동일 사이즈 재등장 대비 인덱스 갱신
             by_cs[(_stk_cnorm(_color), sz)] = so
             by_size.setdefault(sz, []).append(so)
@@ -1581,19 +1589,22 @@ def save_crawl_result():
                 #   가격)는 보존·커밋되게. 기존엔 한 건 예외가 루프를 깨 commit 미도달 → 배치 전량
                 #   0건 저장 → 하드리셋만 남아 가격 소실되는 사고였음. 에러는 item_errors 로 표면화.
                 try:
+                    _price_int = (int(price) if (price not in (None, '', 0) and not rejected_low) else None)
                     with s.begin_nested():
                         # 먼저 이번에 없는 사이즈 prune(옛 다색·날조 행 제거) → 단일색 매칭 모호성 해소.
                         _prune_stale_option_sizes(s, sp.id, _opts_in)
-                        _ingest_option_stocks(s, sp.id, _opts_in)
+                        # [2026-06-21] 가격도 함께 박음(생성·갱신 시점) → 신규 옵션 가격 누락 사고 방지.
+                        _ingest_option_stocks(s, sp.id, _opts_in, price=_price_int)
                 except Exception as _e:
                     item_errors.append({'url': str(url)[:80], 'where': 'option_stock', 'error': str(_e)[:160]})
             # [2026-06-06] 옵션단위 표시가 갱신 — 매트릭스는 SourceOption.current_price 우선(상품
             #   last_price 는 fallback). 상품 내 가격 균일(무신사 회원가·SSF 등)하므로 전 옵션 일괄 반영.
-            #   ★ [2026-06-21 FIX] 반드시 _ingest(신규 옵션 생성) '뒤'에 실행. 기존엔 _ingest 앞이라
-            #   리셋/prune 후 새로 생긴 옵션(price 없는 options 배열로 생성)이 가격을 못 받아 noprice
-            #   둔갑(예: SSF 비-블랙 8색 84옵션 가격없음). 순서를 뒤집어 신규 옵션도 상품가를 받게 한다.
+            #   ★ [2026-06-21] _ingest 가 생성·갱신 옵션에 가격을 박지만, 이번 옵션배열에 없던 기존
+            #   옵션까지 균일가로 맞추는 안전망. s.flush()로 신규 옵션을 먼저 DB 반영(autoflush off
+            #   환경에서도 bulk update 가 신규행을 놓치지 않게).
             if price not in (None, '', 0) and not rejected_low:
                 try:
+                    s.flush()
                     s.query(SourceOption).filter_by(
                         source_product_id=sp.id, deleted_at=None
                     ).update({SourceOption.current_price: int(price)})
