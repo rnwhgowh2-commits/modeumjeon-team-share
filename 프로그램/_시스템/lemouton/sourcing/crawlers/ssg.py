@@ -238,17 +238,29 @@ def resolve_deal_models(product_url: str, html: str, fetch_html=None, parse_html
     for m in DEAL_ITEMVIEW_LINK_RE.finditer(html):
         if m.group(1) not in ids:
             ids.append(m.group(1))
-    out = []
-    for iid in ids:
-        url = _item_view_url(product_url, iid)
-        name = None
-        if fetch_html and parse_html:
+    urls = {iid: _item_view_url(product_url, iid) for iid in ids}
+    names: dict[str, Optional[str]] = {}
+    # [2026-06-21] 각 itemView 상품명 fetch 를 '병렬'로 (기존 순차 9건 ~9초 → ~1-2초).
+    #   드롭다운이 너무 느려 '안 되는 것처럼' 보이던 문제 해결. fetch_html·parse_html 은
+    #   호출마다 독립(스레드 안전)이라 ThreadPool 로 동시 실행한다.
+    if fetch_html and parse_html and ids:
+        from concurrent.futures import ThreadPoolExecutor
+
+        def _name(iid):
             try:
-                res = parse_html(fetch_html(url), url)
-                name = getattr(res, "product_name_raw", None) or getattr(res, "product_name", None)
+                res = parse_html(fetch_html(urls[iid]), urls[iid])
+                return iid, (getattr(res, "product_name_raw", None)
+                             or getattr(res, "product_name", None))
             except Exception:
-                name = None
-        out.append({"item_id": iid, "name": (name or iid), "url": url})
+                return iid, None
+        try:
+            with ThreadPoolExecutor(max_workers=min(9, len(ids))) as ex:
+                for iid, name in ex.map(_name, ids):
+                    names[iid] = name
+        except Exception:
+            names = {}
+    out = [{"item_id": iid, "name": (names.get(iid) or iid), "url": urls[iid]}
+           for iid in ids]
     return out
 
 
