@@ -1917,6 +1917,27 @@ def recrawl_single_url(code: str):
     try:
         crawlers = build_crawlers()
         sp = upsert_source_product(s, site=source_key, url=url)
+        # [2026-06-20 money-safe] SSG 딜(dealItemView)은 자동 대표상품 크롤 금지(광고상품 오긁음).
+        #   잔여(이전 대표상품=무관 광고상품) 데이터 정리 + '모델 선택 필요' 표시.
+        if 'dealitemview' in (url or '').lower():
+            from lemouton.sources.models import SourceOption as _SO
+            from datetime import datetime as _dt, timezone as _tz
+            _now = _dt.now(_tz.utc)
+            sp.product_name = None
+            sp.last_price = None
+            sp.last_stock = None
+            sp.last_status = 'deal_needs_model'
+            sp.last_error_msg = '딜 페이지 — 모델 선택으로 단일 itemView URL 지정 필요(자동 대표상품 금지)'
+            sp.last_fetched_at = _now
+            _n = 0
+            for _so in s.query(_SO).filter(_SO.source_product_id == sp.id,
+                                           _SO.deleted_at.is_(None)).all():
+                _so.deleted_at = _now
+                _n += 1
+            s.commit()
+            return _ok(crawl_ok=False, status='deal_needs_model', options_count=0,
+                       product_name=None, cleared_options=_n,
+                       error='딜 페이지 — 모델 선택 필요(잔여 데이터 정리됨)')
         r = fetch_one_source(s, source_product_id=sp.id, crawlers=crawlers)
         st = r.get('status')
         if st == 'skipped_no_browser':

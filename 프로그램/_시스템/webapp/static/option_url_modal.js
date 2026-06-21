@@ -1582,9 +1582,12 @@
           if (!sk) { state.vcrawl.fail++; state.vcrawl.done++; renderVcrawlToast(); continue; }
           if (sk === 'musinsa' || sk === 'lotteon') { state.vcrawl.ext++; state.vcrawl.done++; renderVcrawlToast(); continue; }  // 확장 없음 → 스킵('확장필요')
           try {
+            const _ctrl = new AbortController();
+            state.vcrawl._abort = _ctrl;  // 정지 시 진행 중 요청 즉시 중단
             const j = await fetch('/api/bundles/' + encodeURIComponent(code) + '/recrawl-url',
-              { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ source_key: sk, url: u.product_url }) })
-              .then(function (r) { return r.json(); }).catch(function (e) { return { ok: false }; });
+              { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ source_key: sk, url: u.product_url }), signal: _ctrl.signal })
+              .then(function (r) { return r.json(); }).catch(function (e) { return { ok: false, _aborted: (e && e.name === 'AbortError') }; });
+            if (j && j._aborted) { break; }
             if (j && j.crawl_ok) state.vcrawl.ok++;
             else if (j && j.status === 'need_extension') state.vcrawl.ext++;
             else state.vcrawl.fail++;
@@ -1610,7 +1613,12 @@
         const M = window.MoumExt || {};
         if (ev.target.closest('[data-vc-pause]')) { vc.paused = true; if (full && M.pauseCrawl) try { M.pauseCrawl(); } catch (e) {} renderVcrawlToast(); }
         else if (ev.target.closest('[data-vc-resume]')) { vc.paused = false; if (full && M.resumeCrawl) try { M.resumeCrawl(); } catch (e) {} renderVcrawlToast(); }
-        else if (ev.target.closest('[data-vc-stop]')) { vc.stopped = true; if (full && M.stopCrawl) try { M.stopCrawl(); } catch (e) {} renderVcrawlToast(); }
+        else if (ev.target.closest('[data-vc-stop]')) {
+          vc.stopped = true; vc.running = false;
+          if (full && M.stopCrawl) { try { M.stopCrawl(); } catch (e) {} }
+          if (vc._abort) { try { vc._abort.abort(); } catch (e) {} }  // 진행 중 per-URL 요청 즉시 중단
+          renderVcrawlToast();
+        }
         else if (ev.target.closest('[data-vc-close]')) { state.vcrawl = null; renderVcrawlToast(); }
       });
     }
@@ -1653,8 +1661,12 @@
       }
 
       if (state.rightTab === 'verify') {
+        // [2026-06-20] 트리 스크롤 보존 — URL행/체크박스/실패펼침 등 모든 재렌더에서 위로 안 튀게.
+        const _trOld = document.getElementById('v-tree');
+        const _savedScroll = _trOld ? _trOld.scrollTop : null;
         html += renderVerifyPanel();
         right.innerHTML = html;
+        if (_savedScroll != null) { const _trNew = document.getElementById('v-tree'); if (_trNew) _trNew.scrollTop = _savedScroll; }
         if (state.vcrawl) renderVcrawlToast();  // 카드 폭=버튼 행 동기화
         if (!state.verifyData && !state.verifyLoading) loadVerifyData();
         return;
@@ -2608,16 +2620,7 @@
         return;
       }
       const vUrl = e.target.closest('[data-vurl]');
-      if (vUrl) {
-        state.verifySelUrl = vUrl.dataset.vurl;
-        // [2026-06-20] URL 선택 시 트리 스크롤 위로 튀는 문제 — 위치 보존
-        const _tr0 = document.getElementById('v-tree');
-        const _st = _tr0 ? _tr0.scrollTop : 0;
-        renderRight();
-        const _tr1 = document.getElementById('v-tree');
-        if (_tr1) _tr1.scrollTop = _st;
-        return;
-      }
+      if (vUrl) { state.verifySelUrl = vUrl.dataset.vurl; renderRight(); return; }  // 스크롤 보존은 renderRight 가 처리
       // [2026-06-20] URL 유형 세그먼트(단품/색상/모델) — 사전 지정
       const tyBtn = e.target.closest('[data-url-type]');
       if (tyBtn) {
