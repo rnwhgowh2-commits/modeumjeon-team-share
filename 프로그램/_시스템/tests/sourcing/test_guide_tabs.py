@@ -123,6 +123,13 @@ def test_tab8_js_wires_api():
     assert "CURB" in html   # 원본 보존 배열 (조건부 필드 미파괴)
 
 
+def test_detail_benefit_editor_removed():
+    html = (TPL / "detail.html").read_text(encoding="utf-8")
+    assert 'id="sg-inc"' not in html
+    assert 'id="aa-btn"' not in html
+    assert "소싱처별 혜택 설정" in html   # 새 탭 안내
+
+
 def test_map_route_passes_sources(monkeypatch):
     import webapp.routes.sourcing_guide as sg
     from flask import Flask
