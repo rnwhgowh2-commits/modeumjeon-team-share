@@ -351,6 +351,7 @@
     document.getElementById('mcl-stop-btn').addEventListener('click', onStopClick);
     var grip = document.getElementById('mcl-grip');
     if (grip) grip.addEventListener('mousedown', onGripDown);
+    p.addEventListener('wheel', onPanelWheel, { passive: false });   // 위젯 위 휠 = 폭 조절
 
     buildRailMinDOM();
     return p;
@@ -457,6 +458,22 @@
     }
     document.addEventListener('mousemove', mv);
     document.addEventListener('mouseup', up);
+  }
+
+  // 폭 클램프(붕괴 방지 하한 + 화면이탈 방지 상한, UX 제한은 없음)
+  function clampPanelW(w) {
+    var maxUnscaled = (window.innerWidth - 24) / DOCK_SCALE;
+    return Math.max(80, Math.min(w, maxUnscaled));
+  }
+  // [2026-06-22] 위젯 위에서 마우스 휠 = 폭 조절(위로 넓게/아래로 좁게). 페이지·내용 스크롤 대신 크기만 변경.
+  function onPanelWheel(e) {
+    var panel = document.getElementById(PANEL_ID);
+    if (!panel || panel.classList.contains('mcl-hidden')) return;
+    if (e.ctrlKey) return;                              // 브라우저 줌(ctrl+휠)은 건드리지 않음
+    e.preventDefault();                                 // 페이지/내용 스크롤 막고 크기만 변경
+    var step = (e.deltaY < 0 ? 1 : -1) * 40;            // 한 노치 = 40px(미변환) ≈ 60px(화면)
+    panel.style.width = clampPanelW(panel.offsetWidth + step) + 'px';
+    applyDock();
   }
 
   // ── 버튼 동작 ────────────────────────────────────────────────────
