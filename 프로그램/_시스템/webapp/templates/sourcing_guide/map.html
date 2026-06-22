@@ -1,104 +1,104 @@
 {% extends layout|default("base.html") %}
-{% block title %}데이터·코드 지도 — 크롤링 가이드{% endblock %}
+{% block title %}크롤링 작동 가이드{% endblock %}
 {% block content %}
 <style>
   .sgmap{--ink:#191F28;--sub:#6B7684;--blue:#1B64DA;--red:#DC2626;--line:#EEF1F4;--line2:#E5E8EB;
     --mono:ui-monospace,SFMono-Regular,Menlo,monospace;
     font-family:'Pretendard',-apple-system,'Apple SD Gothic Neo','Malgun Gothic',sans-serif;
     padding:34px 46px;max-width:1080px;line-height:1.75;color:var(--ink);}
-  .sgmap h2{font-size:24px;font-weight:800;letter-spacing:-.4px;margin:0 0 3px;}
-  .sgmap .klabel{display:inline-block;font-size:11px;font-weight:800;letter-spacing:.04em;
+  .sgmap h2{font-size:30px;font-weight:800;letter-spacing:-.4px;margin:0 0 3px;}
+  .sgmap .klabel{display:inline-block;font-size:13.5px;font-weight:800;letter-spacing:.04em;
     color:#fff;background:var(--ink);border-radius:6px;padding:2px 9px;margin-right:9px;vertical-align:middle;}
-  .sgmap .sum{font-size:14px;font-weight:800;color:var(--ink);}
+  .sgmap .sum{font-size:17.5px;font-weight:800;color:var(--ink);}
   .sgmap .card{background:#fff;border:1px solid var(--line2);border-radius:12px;padding:13px 17px;margin-bottom:9px;}
   .sgmap .card.row2{display:grid;grid-template-columns:120px 1fr;gap:14px;align-items:center;}
-  .sgmap .mono{font-family:var(--mono);font-size:11px;color:var(--blue);}
+  .sgmap .mono{font-family:var(--mono);font-size:13.5px;color:var(--blue);}
   .sgmap .ink{color:var(--ink);font-weight:700;}
-  .sgmap .warn{font-size:12px;color:var(--red);font-weight:700;line-height:1.6;}
+  .sgmap .warn{font-size:15px;color:var(--red);font-weight:700;line-height:1.6;}
   .sgmap .div{height:1px;background:var(--line2);margin:9px 0;}
-  .sgmap .elabel{font-size:9.5px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:#9AA4B0;margin-right:6px;}
-  .sgmap .erow{font-size:11.5px;line-height:1.7;color:var(--sub);}
-  .sgmap .sub{color:var(--sub);font-size:13px;margin:0 0 20px;}
+  .sgmap .elabel{font-size:12px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:#9AA4B0;margin-right:6px;}
+  .sgmap .erow{font-size:14.5px;line-height:1.7;color:var(--sub);}
+  .sgmap .sub{color:var(--sub);font-size:16px;margin:0 0 20px;}
   .sgmap .seg{display:inline-flex;background:#EEF1F5;border-radius:9px;padding:3px;margin-bottom:18px;}
-  .sgmap .seg b{padding:8px 18px;border-radius:7px;font-size:13px;font-weight:700;color:var(--sub);cursor:pointer;}
+  .sgmap .seg b{padding:8px 18px;border-radius:7px;font-size:16px;font-weight:700;color:var(--sub);cursor:pointer;}
   .sgmap .seg b.on{background:#fff;color:var(--ink);box-shadow:0 1px 3px rgba(0,0,0,.12);}
   .sgmap .mode{display:none;}.sgmap .mode.on{display:block;}
   .sgmap .gtabs{display:flex;gap:6px;flex-wrap:wrap;border-bottom:1px solid var(--line2);margin-bottom:22px;}
-  .sgmap .gtab{padding:9px 13px;font-size:13px;font-weight:700;color:var(--sub);border-bottom:2px solid transparent;cursor:pointer;margin-bottom:-1px;}
-  .sgmap .gtab .k{font-size:10.5px;color:#9CA3AF;margin-right:4px;}
+  .sgmap .gtab{padding:9px 13px;font-size:16px;font-weight:700;color:var(--sub);border-bottom:2px solid transparent;cursor:pointer;margin-bottom:-1px;}
+  .sgmap .gtab .k{font-size:13px;color:#9CA3AF;margin-right:4px;}
   .sgmap .gtab.on{color:var(--ink);border-bottom-color:var(--ink);}.sgmap .gtab.on .k{color:var(--ink);}
   .sgmap .sec{display:none;}.sgmap .sec.on{display:block;}
-  .sgmap table.dt{width:100%;border-collapse:collapse;background:#fff;border:1px solid var(--line2);border-radius:10px;overflow:hidden;font-size:12.3px;line-height:1.6;margin-bottom:6px;}
-  .sgmap table.dt th{background:#F2F4F6;text-align:left;padding:10px 12px;font-weight:800;color:#374151;border-bottom:1px solid var(--line2);}
+  .sgmap table.dt{width:100%;border-collapse:collapse;background:#fff;border:1px solid var(--line2);border-radius:10px;overflow:hidden;font-size:15.5px;line-height:1.6;margin-bottom:6px;}
+  .sgmap table.dt th{background:#F2F4F6;text-align:left;padding:10px 12px;font-weight:800;color:#374151;border-bottom:1px solid var(--line2);font-size:13px;}
   .sgmap table.dt td{padding:11px 12px;border-bottom:1px solid var(--line);vertical-align:top;}
   .sgmap table.dt tr:last-child td{border-bottom:none;}
   .sgmap table.dt td.el{font-weight:800;color:var(--ink);white-space:nowrap;}
   .sgmap .mdbar{display:flex;align-items:center;gap:8px;margin-bottom:9px;}
-  .sgmap .mdbar .fn{font-family:var(--mono);font-size:12px;color:var(--sub);}
-  .sgmap .mdbar a.open{margin-left:auto;font-size:12.5px;background:var(--ink);color:#fff;border-radius:7px;padding:6px 13px;font-weight:700;text-decoration:none;}
-  .sgmap .mdview{background:#0E1525;border-radius:12px;padding:18px 20px;font-family:var(--mono);font-size:12.2px;line-height:1.75;color:#cdd6e2;white-space:pre-wrap;overflow:auto;max-height:72vh;}
+  .sgmap .mdbar .fn{font-family:var(--mono);font-size:15px;color:var(--sub);}
+  .sgmap .mdbar a.open{margin-left:auto;font-size:15.5px;background:var(--ink);color:#fff;border-radius:7px;padding:6px 13px;font-weight:700;text-decoration:none;}
+  .sgmap .mdview{background:#0E1525;border-radius:12px;padding:18px 20px;font-family:var(--mono);font-size:15.5px;line-height:1.75;color:#cdd6e2;white-space:pre-wrap;overflow:auto;max-height:72vh;}
   .sgmap .lead{margin:0 0 14px;}
-  .sgmap .no{font-size:13px;font-weight:400;color:var(--ink);margin-right:9px;font-family:var(--mono);}
-  .sgmap .ti{font-size:14px;font-weight:800;color:var(--ink);}
-  .sgmap .detail{font-size:12.5px;color:var(--sub);line-height:1.6;}
+  .sgmap .no{font-size:16px;font-weight:400;color:var(--ink);margin-right:9px;font-family:var(--mono);}
+  .sgmap .ti{font-size:17.5px;font-weight:800;color:var(--ink);}
+  .sgmap .detail{font-size:15.5px;color:var(--sub);line-height:1.6;}
   .sgmap .detail .ink{color:var(--ink);font-weight:700;}
   .sgmap .glos{background:#fff;border:1px solid var(--line2);border-radius:11px;padding:13px 16px;margin-bottom:15px;}
-  .sgmap .glos .gt{font-size:12px;font-weight:800;margin-bottom:9px;}
+  .sgmap .glos .gt{font-size:15px;font-weight:800;margin-bottom:9px;}
   .sgmap .gg{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;}
   .sgmap .gi{background:#F9FAFB;border:1px solid var(--line);border-radius:9px;padding:10px 12px;}
-  .sgmap .gi .nm{font-size:12px;font-weight:800;margin-bottom:3px;}
+  .sgmap .gi .nm{font-size:15px;font-weight:800;margin-bottom:3px;}
   .sgmap .gi.api .nm{color:var(--blue);}
-  .sgmap .gi .ds{font-size:11px;color:var(--sub);line-height:1.55;}
+  .sgmap .gi .ds{font-size:13.5px;color:var(--sub);line-height:1.55;}
   .sgmap .scard{display:grid;grid-template-columns:76px 1fr;gap:14px;align-items:center;background:#fff;border:1px solid var(--line2);border-radius:12px;padding:13px 16px;margin-bottom:9px;}
-  .sgmap .scard .src{font-size:13.5px;font-weight:800;color:var(--ink);text-align:center;}
+  .sgmap .scard .src{font-size:17px;font-weight:800;color:var(--ink);text-align:center;}
   .sgmap .scard>div:last-child>*:last-child{margin-bottom:0;}
   .sgmap .axes{display:flex;gap:14px;flex-wrap:wrap;margin-bottom:7px;}
-  .sgmap .axis{font-size:11px;}
-  .sgmap .axis .ax{font-size:9.5px;font-weight:800;color:#9AA4B0;text-transform:uppercase;letter-spacing:.04em;margin-right:5px;}
-  .sgmap .pill{font-size:10.5px;font-weight:700;border-radius:5px;padding:2px 7px;background:#EEF1F4;color:var(--sub);}
+  .sgmap .axis{font-size:13.5px;}
+  .sgmap .axis .ax{font-size:12px;font-weight:800;color:#9AA4B0;text-transform:uppercase;letter-spacing:.04em;margin-right:5px;}
+  .sgmap .pill{font-size:13px;font-weight:700;border-radius:5px;padding:2px 7px;background:#EEF1F4;color:var(--sub);}
   .sgmap .pill.api{background:#E8F3FF;color:var(--blue);}
   .sgmap .dm{background:#F9FAFB;border:1px solid var(--line);border-radius:8px;padding:8px 11px;margin-bottom:7px;}
-  .sgmap .dm .ax{font-size:9.5px;font-weight:800;color:#9AA4B0;text-transform:uppercase;letter-spacing:.04em;display:block;margin-bottom:6px;}
+  .sgmap .dm .ax{font-size:12px;font-weight:800;color:#9AA4B0;text-transform:uppercase;letter-spacing:.04em;display:block;margin-bottom:6px;}
   .sgmap .dgrid{display:flex;gap:7px 14px;flex-wrap:wrap;}
-  .sgmap .dp{font-size:11px;color:var(--sub);white-space:nowrap;}
+  .sgmap .dp{font-size:13.5px;color:var(--sub);white-space:nowrap;}
   .sgmap .dp b{color:var(--ink);font-weight:700;margin-right:4px;}
   .sgmap .st3{width:100%;border-collapse:collapse;margin-bottom:7px;}
-  .sgmap .st3 td{padding:5px 8px;border-top:1px solid var(--line);font-size:11.5px;vertical-align:top;}
+  .sgmap .st3 td{padding:5px 8px;border-top:1px solid var(--line);font-size:14.5px;vertical-align:top;}
   .sgmap .st3 tr:first-child td{border-top:none;}
   .sgmap .st3 .sn{white-space:nowrap;font-weight:800;color:var(--ink);width:118px;}
-  .sgmap .st3 .sn .dot{font-size:8px;vertical-align:middle;margin-right:5px;}
+  .sgmap .st3 .sn .sgdot{display:inline-block;width:7px;height:7px;border-radius:50%;vertical-align:middle;margin-right:6px;}
   .sgmap .st3 .how{color:var(--sub);line-height:1.5;}
   .sgmap .st3 .how .ink{color:var(--ink);font-weight:700;}
   .sgmap .st3 .special td{border-top:1px dashed var(--line2);}
   .sgmap .st3 .special .sn{color:var(--red);}
-  .sgmap .meta{font-size:11px;color:var(--sub);line-height:1.5;margin-top:6px;}
-  .sgmap .psrc{font-size:14px;font-weight:800;color:var(--ink);margin-bottom:4px;}
+  .sgmap .meta{font-size:13.5px;color:var(--sub);line-height:1.5;margin-top:6px;}
+  .sgmap .psrc{font-size:17.5px;font-weight:800;color:var(--ink);margin-bottom:4px;}
   .sgmap .pm{display:flex;gap:16px;flex-wrap:wrap;margin:0 0 7px;}
-  .sgmap .pm .ax{font-size:9.5px;font-weight:800;color:#9AA4B0;text-transform:uppercase;letter-spacing:.04em;margin-right:5px;}
-  .sgmap .formula{font-size:11.5px;color:var(--sub);line-height:1.5;}
+  .sgmap .pm .ax{font-size:12px;font-weight:800;color:#9AA4B0;text-transform:uppercase;letter-spacing:.04em;margin-right:5px;}
+  .sgmap .formula{font-size:14.5px;color:var(--sub);line-height:1.5;}
   .sgmap .formula .ink{color:var(--ink);font-weight:700;}
-  .sgmap .why{background:#F9FAFB;border:1px solid var(--line);border-radius:9px;padding:11px 14px;margin-bottom:13px;font-size:11.5px;color:var(--sub);line-height:1.6;}
+  .sgmap .why{background:#F9FAFB;border:1px solid var(--line);border-radius:9px;padding:11px 14px;margin-bottom:13px;font-size:14.5px;color:var(--sub);line-height:1.6;}
   .sgmap .why b{color:var(--ink);}
-  .sgmap .cov{width:100%;border-collapse:collapse;font-size:11px;margin-top:8px;}
+  .sgmap .cov{width:100%;border-collapse:collapse;font-size:13.5px;margin-top:8px;}
   .sgmap .cov td{padding:5px 8px;border-top:1px solid var(--line);vertical-align:top;}
   .sgmap .cov td.ax{font-weight:800;color:var(--ink);white-space:nowrap;width:90px;}
   .sgmap .step{display:flex;gap:11px;margin-bottom:5px;}
-  .sgmap .sn{flex:none;width:24px;height:24px;border-radius:50%;background:var(--ink);color:#fff;font-weight:800;font-size:12px;line-height:24px;text-align:center;}
+  .sgmap .sn{flex:none;width:30px;height:30px;border-radius:50%;background:var(--ink);color:#fff;font-weight:800;font-size:15px;line-height:30px;text-align:center;}
   .sgmap .sn.u{background:var(--blue);}
   .sgmap .sc{flex:1;border:1px solid var(--line2);border-radius:10px;padding:9px 13px;background:#fff;}
-  .sgmap .sc .st{font-size:13px;font-weight:800;color:var(--ink);}
-  .sgmap .sc .st .tag{font-size:9px;font-weight:800;color:#fff;background:var(--blue);border-radius:4px;padding:1px 5px;margin-left:5px;vertical-align:middle;}
-  .sgmap .sc .st .who{font-size:9.5px;font-weight:700;padding:1px 6px;border-radius:20px;margin-left:5px;vertical-align:middle;}
+  .sgmap .sc .st{font-size:16px;font-weight:800;color:var(--ink);}
+  .sgmap .sc .st .tag{font-size:11px;font-weight:800;color:#fff;background:var(--blue);border-radius:4px;padding:1px 5px;margin-left:5px;vertical-align:middle;}
+  .sgmap .sc .st .who{font-size:12px;font-weight:700;padding:1px 6px;border-radius:20px;margin-left:5px;vertical-align:middle;}
   .sgmap .who.u{background:#E8F3FF;color:var(--blue);}
   .sgmap .who.c{background:#EEF1F4;color:var(--sub);}
-  .sgmap .sc .ref{font-size:11px;color:var(--blue);font-weight:700;margin-top:3px;}
-  .sgmap .sc .ref .lk{font-family:var(--mono);background:#E8F3FF;border-radius:4px;padding:1px 5px;font-size:10px;}
-  .sgmap .sc .d{font-size:11px;color:var(--sub);margin-top:2px;line-height:1.5;}
+  .sgmap .sc .ref{font-size:13.5px;color:var(--blue);font-weight:700;margin-top:3px;}
+  .sgmap .sc .ref .lk{font-family:var(--mono);background:#E8F3FF;border-radius:4px;padding:1px 5px;font-size:12.5px;}
+  .sgmap .sc .d{font-size:13.5px;color:var(--sub);margin-top:2px;line-height:1.5;}
   .sgmap .vl{width:2px;height:9px;background:#D1D6DB;margin-left:12px;}
 </style>
 
 <div class="sgmap">
-  <h2>크롤링 가이드 — 데이터·코드 지도</h2>
+  <h2>크롤링 작동 가이드 : 재고, 가격 정보 수집</h2>
   <div class="sub">소싱처에서 재고·가격을 <b>긁고 → 저장 → 계산 → 표시</b>하는 전 과정의 단일 진실 원천</div>
 
   <div class="seg"><b class="on" data-m="view">🖥️ 보기</b><b data-m="raw">📄 원문 (MD)</b></div>
@@ -167,9 +167,9 @@
         <div class="dm"><span class="ax">수집 방법 (데이터별)</span><div class="dgrid">
           <span class="dp"><b>상품명</b><span class="pill api">API</span></span><span class="dp"><b>대표이미지</b><span class="pill api">API</span></span><span class="dp"><b>추가이미지</b><span class="pill">HTML</span></span><span class="dp"><b>옵션</b><span class="pill api">API</span></span><span class="dp"><b>재고</b><span class="pill api">API</span></span><span class="dp"><b>표면노출가</b><span class="pill api">API</span></span><span class="dp"><b>혜택</b><span class="pill api">API</span></span></div></div>
         <table class="st3">
-          <tr><td class="sn"><span class="dot" style="color:#DC2626">●</span>품절(없음)</td><td class="how"><span class="pill api">API</span> <span class="ink">outOfStock=true</span> → 재고 0</td></tr>
-          <tr><td class="sn"><span class="dot" style="color:#E8830C">●</span>한정(N개)</td><td class="how"><span class="pill api">API</span> 재고 수치 또는 <span class="ink">"잔여·마지막 N개"</span> → 실수량 N</td></tr>
-          <tr><td class="sn"><span class="dot" style="color:#15803D">●</span>충분(표식없음)</td><td class="how"><span class="pill api">API</span> 신호 없음 → <span class="ink">999</span></td></tr>
+          <tr><td class="sn"><span class="sgdot" style="background:#DC2626"></span>품절(없음)</td><td class="how"><span class="pill api">API</span> <span class="ink">outOfStock=true</span> → 재고 0</td></tr>
+          <tr><td class="sn"><span class="sgdot" style="background:#E8830C"></span>한정(N개)</td><td class="how"><span class="pill api">API</span> 재고 수치 또는 <span class="ink">"잔여·마지막 N개"</span> → 실수량 N</td></tr>
+          <tr><td class="sn"><span class="sgdot" style="background:#15803D"></span>충분(표식없음)</td><td class="how"><span class="pill api">API</span> 신호 없음 → <span class="ink">999</span></td></tr>
           <tr class="special"><td class="sn">⚠ 특이사항</td><td class="how">옵션 매핑 실패·없음 → <span class="ink">옵션없음</span> / API 호출 실패 → <span class="ink">크롤실패</span></td></tr>
         </table>
         <div class="meta"><span class="elabel">엔드포인트</span><span class="mono">.../options/v2/prioritized-inventories</span> · <span class="elabel">코드</span><span class="mono">musinsa.py:492</span></div>
@@ -180,9 +180,9 @@
         <div class="dm"><span class="ax">수집 방법 (데이터별)</span><div class="dgrid">
           <span class="dp"><b>상품명</b><span class="pill">HTML</span></span><span class="dp"><b>대표이미지</b><span class="pill">HTML</span></span><span class="dp"><b>추가이미지</b><span class="pill">HTML</span></span><span class="dp"><b>옵션</b><span class="pill">HTML</span></span><span class="dp"><b>재고</b><span class="pill">HTML</span></span><span class="dp"><b>표면노출가</b><span class="pill">HTML</span></span><span class="dp"><b>혜택</b><span class="pill">HTML</span></span></div></div>
         <table class="st3">
-          <tr><td class="sn"><span class="dot" style="color:#DC2626">●</span>품절(없음)</td><td class="how"><span class="pill">HTML</span> 정규식 <span class="ink">usablInvQty=0</span></td></tr>
-          <tr><td class="sn"><span class="dot" style="color:#E8830C">●</span>한정(N개)</td><td class="how"><span class="pill">HTML</span> <span class="ink">usablInvQty=N</span> (실수량)</td></tr>
-          <tr><td class="sn"><span class="dot" style="color:#15803D">●</span>충분(표식없음)</td><td class="how"><span class="pill">HTML</span> usablInvQty 큰 값 → 충분</td></tr>
+          <tr><td class="sn"><span class="sgdot" style="background:#DC2626"></span>품절(없음)</td><td class="how"><span class="pill">HTML</span> 정규식 <span class="ink">usablInvQty=0</span></td></tr>
+          <tr><td class="sn"><span class="sgdot" style="background:#E8830C"></span>한정(N개)</td><td class="how"><span class="pill">HTML</span> <span class="ink">usablInvQty=N</span> (실수량)</td></tr>
+          <tr><td class="sn"><span class="sgdot" style="background:#15803D"></span>충분(표식없음)</td><td class="how"><span class="pill">HTML</span> usablInvQty 큰 값 → 충분</td></tr>
           <tr class="special"><td class="sn">⚠ 특이사항</td><td class="how">딜페이지(dealItemView.ss) 파싱 실패 → <span class="ink">크롤실패</span> / 단일색 사이즈 파싱버그 주의</td></tr>
         </table>
         <div class="meta"><span class="elabel">경로</span><span class="mono">navGrab → /api/sources/parse</span> · <span class="elabel">코드</span><span class="mono">ssg.py:608</span></div>
@@ -193,9 +193,9 @@
         <div class="dm"><span class="ax">수집 방법 (데이터별)</span><div class="dgrid">
           <span class="dp"><b>상품명</b><span class="pill">DOM</span></span><span class="dp"><b>대표이미지</b><span class="pill">DOM</span></span><span class="dp"><b>추가이미지</b><span class="pill">DOM</span></span><span class="dp"><b>옵션</b><span class="pill">DOM</span></span><span class="dp"><b>재고</b><span class="pill">DOM</span></span><span class="dp"><b>표면노출가</b><span class="pill">DOM</span></span><span class="dp"><b>혜택</b><span class="pill">DOM</span></span></div></div>
         <table class="st3">
-          <tr><td class="sn"><span class="dot" style="color:#DC2626">●</span>품절(없음)</td><td class="how"><span class="pill">DOM</span> <span class="ink">statcd=SLDOUT</span></td></tr>
-          <tr><td class="sn"><span class="dot" style="color:#E8830C">●</span>한정(N개)</td><td class="how"><span class="pill">DOM</span> <span class="ink">품절임박 ( N )</span> → N (괄호공백 주의)</td></tr>
-          <tr><td class="sn"><span class="dot" style="color:#15803D">●</span>충분(표식없음)</td><td class="how"><span class="pill">DOM</span> statcd 정상 → 충분</td></tr>
+          <tr><td class="sn"><span class="sgdot" style="background:#DC2626"></span>품절(없음)</td><td class="how"><span class="pill">DOM</span> <span class="ink">statcd=SLDOUT</span></td></tr>
+          <tr><td class="sn"><span class="sgdot" style="background:#E8830C"></span>한정(N개)</td><td class="how"><span class="pill">DOM</span> <span class="ink">품절임박 ( N )</span> → N (괄호공백 주의)</td></tr>
+          <tr><td class="sn"><span class="sgdot" style="background:#15803D"></span>충분(표식없음)</td><td class="how"><span class="pill">DOM</span> statcd 정상 → 충분</td></tr>
           <tr class="special"><td class="sn">⚠ 특이사항</td><td class="how">옵션 li 없음 → <span class="ink">옵션없음</span></td></tr>
         </table>
         <div class="meta"><span class="elabel">셀렉터</span><span class="mono">#optionDiv1 li a[optcd]@statcd</span> · <span class="elabel">코드</span><span class="mono">ssf.py</span></div>
@@ -206,9 +206,9 @@
         <div class="dm"><span class="ax">수집 방법 (데이터별)</span><div class="dgrid">
           <span class="dp"><b>상품명</b><span class="pill api">API</span></span><span class="dp"><b>대표이미지</b><span class="pill">DOM</span></span><span class="dp"><b>추가이미지</b><span class="pill">DOM</span></span><span class="dp"><b>옵션</b><span class="pill api">API</span></span><span class="dp"><b>재고</b><span class="pill api">API</span><span class="pill">+DOM</span></span><span class="dp"><b>표면노출가</b><span class="pill api">API</span></span><span class="dp"><b>혜택</b><span class="pill">DOM</span></span></div></div>
         <table class="st3">
-          <tr><td class="sn"><span class="dot" style="color:#DC2626">●</span>품절(없음)</td><td class="how"><span class="pill api">API</span> 매핑 품절 / <span class="pill">DOM</span> <span class="ink">li.soldout</span></td></tr>
-          <tr><td class="sn"><span class="dot" style="color:#E8830C">●</span>한정(N개)</td><td class="how"><span class="ink">수량을 구조적으로 안 줌</span> → 한정수량 못 잡음</td></tr>
-          <tr><td class="sn"><span class="dot" style="color:#15803D">●</span>충분(표식없음)</td><td class="how">표식 없음 → <span class="ink">unknown(수량 미상)</span> · 가짜 충분 금지</td></tr>
+          <tr><td class="sn"><span class="sgdot" style="background:#DC2626"></span>품절(없음)</td><td class="how"><span class="pill api">API</span> 매핑 품절 / <span class="pill">DOM</span> <span class="ink">li.soldout</span></td></tr>
+          <tr><td class="sn"><span class="sgdot" style="background:#E8830C"></span>한정(N개)</td><td class="how"><span class="ink">수량을 구조적으로 안 줌</span> → 한정수량 못 잡음</td></tr>
+          <tr><td class="sn"><span class="sgdot" style="background:#15803D"></span>충분(표식없음)</td><td class="how">표식 없음 → <span class="ink">unknown(수량 미상)</span> · 가짜 충분 금지</td></tr>
           <tr class="special"><td class="sn">⚠ 특이사항</td><td class="how">매핑 API + DOM 둘 다 실패 → <span class="ink">크롤실패</span></td></tr>
         </table>
         <div class="meta"><span class="elabel">엔드포인트</span><span class="mono">pbf.../option/mapping/{spd}/{sitm}</span> · <span class="elabel">코드</span><span class="mono">lotteon.py:1293</span></div>
@@ -219,9 +219,9 @@
         <div class="dm"><span class="ax">수집 방법 (데이터별)</span><div class="dgrid">
           <span class="dp"><b>상품명</b><span class="pill api">API</span></span><span class="dp"><b>대표이미지</b><span class="pill api">API</span></span><span class="dp"><b>추가이미지</b><span class="pill api">API</span></span><span class="dp"><b>옵션</b><span class="pill api">API</span></span><span class="dp"><b>재고</b><span class="pill api">API</span></span><span class="dp"><b>표면노출가</b><span class="pill api">API</span></span><span class="dp"><b>혜택</b><span class="pill api">API</span></span></div></div>
         <table class="st3">
-          <tr><td class="sn"><span class="dot" style="color:#DC2626">●</span>품절(없음)</td><td class="how"><span class="pill api">API</span> SKU <span class="ink">stockQuantity=0</span></td></tr>
-          <tr><td class="sn"><span class="dot" style="color:#E8830C">●</span>한정(N개)</td><td class="how"><span class="pill api">API</span> <span class="ink">stockQuantity=N</span> → 실수량</td></tr>
-          <tr><td class="sn"><span class="dot" style="color:#15803D">●</span>충분(표식없음)</td><td class="how"><span class="pill api">API</span> stockQuantity 큼 → 충분</td></tr>
+          <tr><td class="sn"><span class="sgdot" style="background:#DC2626"></span>품절(없음)</td><td class="how"><span class="pill api">API</span> SKU <span class="ink">stockQuantity=0</span></td></tr>
+          <tr><td class="sn"><span class="sgdot" style="background:#E8830C"></span>한정(N개)</td><td class="how"><span class="pill api">API</span> <span class="ink">stockQuantity=N</span> → 실수량</td></tr>
+          <tr><td class="sn"><span class="sgdot" style="background:#15803D"></span>충분(표식없음)</td><td class="how"><span class="pill api">API</span> stockQuantity 큼 → 충분</td></tr>
           <tr class="special"><td class="sn">⚠ 특이사항</td><td class="how"><span class="ink">per-SKU 저장 누락 시 전부 999 둔갑</span>(_persist_option_stocks 필수) / WAF 차단 → 크롤실패</td></tr>
         </table>
         <div class="meta"><span class="elabel">엔드포인트</span><span class="mono">/n/v2/channels/{cu}/products/{A.id}</span> · <span class="elabel">코드</span><span class="mono">ss_lemouton.py</span></div>
@@ -232,9 +232,9 @@
         <div class="dm"><span class="ax">수집 방법 (데이터별)</span><div class="dgrid">
           <span class="dp"><b>상품명</b><span class="pill">HTML</span></span><span class="dp"><b>대표이미지</b><span class="pill">HTML</span></span><span class="dp"><b>추가이미지</b><span class="pill">HTML</span></span><span class="dp"><b>옵션</b><span class="pill">HTML</span></span><span class="dp"><b>재고</b><span class="pill">HTML</span></span><span class="dp"><b>표면노출가</b><span class="pill">HTML</span></span><span class="dp"><b>혜택</b><span class="pill">템플릿</span></span></div></div>
         <table class="st3">
-          <tr><td class="sn"><span class="dot" style="color:#DC2626">●</span>품절(없음)</td><td class="how"><span class="pill">HTML</span> option_stock_data <span class="ink">재고 0 / is_selling=F</span></td></tr>
-          <tr><td class="sn"><span class="dot" style="color:#E8830C">●</span>한정(N개)</td><td class="how"><span class="pill">HTML</span> option_stock_data <span class="ink">수량 N</span> → 실수량</td></tr>
-          <tr><td class="sn"><span class="dot" style="color:#15803D">●</span>충분(표식없음)</td><td class="how"><span class="pill">HTML</span> 수량 충분 → 충분</td></tr>
+          <tr><td class="sn"><span class="sgdot" style="background:#DC2626"></span>품절(없음)</td><td class="how"><span class="pill">HTML</span> option_stock_data <span class="ink">재고 0 / is_selling=F</span></td></tr>
+          <tr><td class="sn"><span class="sgdot" style="background:#E8830C"></span>한정(N개)</td><td class="how"><span class="pill">HTML</span> option_stock_data <span class="ink">수량 N</span> → 실수량</td></tr>
+          <tr><td class="sn"><span class="sgdot" style="background:#15803D"></span>충분(표식없음)</td><td class="how"><span class="pill">HTML</span> 수량 충분 → 충분</td></tr>
           <tr class="special"><td class="sn">⚠ 특이사항</td><td class="how">실제 조합만 수집(미판매 사이즈 과다수집 방지) → 날조 옵션 없음</td></tr>
         </table>
         <div class="meta"><span class="elabel">코드</span><span class="mono">lemouton.py</span></div>
