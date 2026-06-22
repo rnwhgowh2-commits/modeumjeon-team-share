@@ -90,12 +90,39 @@ def _debug_ssg():
     markers = {k: (k in h) for k in
                ["SSG MONEY", "구매혜택", "cdtl_benefit", "cdtl_ly_dc", "적립", "즉시할인",
                 "쓱페이", "SSG PAY", "쿠폰"]}
-    return jsonify(ok=True, html_len=len(h), url=_LAST_SSG.get("url"),
-                   options0=_LAST_SSG.get("options0"),
-                   markers=markers,
-                   snip_money=snip("SSG MONEY"),
-                   snip_benefit=snip("구매혜택"),
-                   snip_accum=snip("적립"))
+    # 저장 매칭 진단
+    save_dbg = {}
+    try:
+        from lemouton.sources.service import normalize_url
+        from lemouton.sources.models import SourceProduct
+        from shared.db import SessionLocal
+        import json as _json
+        s = SessionLocal()
+        try:
+            target = normalize_url(_LAST_SSG.get("url") or "")
+            allp = [p for p in s.query(SourceProduct)
+                    .filter(SourceProduct.deleted_at.is_(None)).all()]
+            url_cands = [{"id": p.id, "site": getattr(p, "site", None)}
+                         for p in allp if p.url and normalize_url(p.url) == target]
+            ssg_prods = [p for p in allp if getattr(p, "site", None) == "ssg"]
+            with_money = 0
+            for p in ssg_prods:
+                try:
+                    dj = _json.loads(p.dynamic_benefits_json) if p.dynamic_benefits_json else {}
+                except Exception:
+                    dj = {}
+                if dj.get("ssg_money_rate"):
+                    with_money += 1
+            save_dbg = {"target_url_match_cands": url_cands,
+                        "n_ssg_products": len(ssg_prods),
+                        "ssg_products_with_money": with_money}
+        finally:
+            s.close()
+    except Exception as _e:
+        save_dbg = {"err": str(_e)[:120]}
+    return jsonify(ok=True, html_len=len(h),
+                   options0_money=(_LAST_SSG.get("options0") or {}).get("ssg_money_rate"),
+                   markers=markers, save_dbg=save_dbg)
 
 
 def _save_navgrab_dynamic_benefits(source_key: str, url: str, options: list) -> None:
