@@ -35,3 +35,9 @@ def test_map_design_tokens():
     assert "#191F28" in css and "#6B7684" in css and "#1B64DA" in css and "#DC2626" in css
     assert "klabel" in css            # "핵심" 라벨 클래스
     assert "align-items:center" in css  # 카드 세로 중앙정렬
+
+
+def test_map_has_seventh_tab():
+    html = (TPL / "map.html").read_text(encoding="utf-8")
+    assert 'data-s="s7"' in html
+    assert "신규추가" in html

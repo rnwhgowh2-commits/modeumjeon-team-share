@@ -70,6 +70,7 @@
       <div class="gtab" data-s="s4"><span class="k">4</span>📊 매트릭스 로그</div>
       <div class="gtab" data-s="s5"><span class="k">5</span>🛡️ 원칙</div>
       <div class="gtab" data-s="s6"><span class="k">6</span>🔁 재발</div>
+      <div class="gtab" data-s="s7"><span class="k">7</span>➕ 신규추가</div>
     </div>
 
     <!-- 1 전체흐름 -->
@@ -176,6 +177,9 @@
         <div class="k">dev 값 이상</div><div class="v">dev DB stale → 라이브 대조 필수</div>
       </div>
     </div>
+
+    <!-- 7 신규추가 -->
+    <div class="sec" id="s7"><!-- Task 8: 신규추가 순서도 --></div>
   </div>
 
   <!-- ===== 원문(MD) ===== -->
@@ -208,7 +212,7 @@
     if(e.target.tagName==='INPUT'||e.target.tagName==='TEXTAREA') return;
     var order=[].map.call(tabs,function(t){return t.dataset.s;});
     var cur=root.querySelector('.gtab.on').dataset.s, i=order.indexOf(cur);
-    if(/^[1-6]$/.test(e.key)&&order[+e.key-1]) show(order[+e.key-1]);
+    if(/^[1-7]$/.test(e.key)&&order[+e.key-1]) show(order[+e.key-1]);
     else if(e.key==='ArrowRight'&&i<order.length-1) show(order[i+1]);
     else if(e.key==='ArrowLeft'&&i>0) show(order[i-1]);
   });
