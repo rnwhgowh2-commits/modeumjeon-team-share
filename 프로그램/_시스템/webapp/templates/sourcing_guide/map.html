@@ -88,6 +88,11 @@
   .sgmap .st3 .special td{border-top:1px dashed var(--line2);}
   .sgmap .st3 .special .sn{color:var(--red);}
   .sgmap .meta{font-size:11px;color:var(--sub);line-height:1.5;margin-top:6px;}
+  .sgmap .psrc{font-size:14px;font-weight:800;color:var(--ink);margin-bottom:4px;}
+  .sgmap .pm{display:flex;gap:16px;flex-wrap:wrap;margin:0 0 7px;}
+  .sgmap .pm .ax{font-size:9.5px;font-weight:800;color:#9AA4B0;text-transform:uppercase;letter-spacing:.04em;margin-right:5px;}
+  .sgmap .formula{font-size:11.5px;color:var(--sub);line-height:1.5;}
+  .sgmap .formula .ink{color:var(--ink);font-weight:700;}
 </style>
 
 <div class="sgmap">
@@ -236,14 +241,31 @@
 
     <!-- 3 가격 -->
     <div class="sec" id="s3">
-      <div class="easy">🟢 <b>표면 노출가 − 혜택 = 최종 매입가</b>. %혜택은 항상 베이스금액 기준. 4종: 선반영·후반영(차감/적립)·결제(택1)·캐시백.</div>
-      <div class="spec">
-        <div class="k first">SSG</div><div class="v first">최적가 → −SSG MONEY적립(①무조건/②충전 3%↑) −카드혜택가 −상품쿠폰 / 현대카드 2.73% · <span class="mono">api_benefits.py:570</span></div>
-        <div class="k">무신사</div><div class="v">회원가 → −등급할인 −등급적립 −무신사머니 −쿠폰 +후기500 / 무신사머니3% vs 현대카드 택1 · <span class="mono">:727</span></div>
-        <div class="k">롯데온</div><div class="v">나의혜택가 → −롯데오너스 −스토어찜 −L.POINT −OK캐시백1.1% / L.PAY·네이버페이 · <span class="mono">:703</span></div>
-        <div class="k">기타</div><div class="v">SSF 판매가→−기프트10%−멤버십P / 롯데아이몰 최대할인가→−L.POINT / 스마트·르무통=템플릿 · <span class="mono">:554·675</span></div>
-        <div class="k">SSG MONEY</div><div class="v"><span class="mono">_is_charge=('충전' in _smt); _ssgm_enabled=(not _is_charge) or (_rate&gt;=0.03)</span> — ①항상 / ②3%↑만 · <span class="mono">:581</span></div>
-        <div class="k">저장 배선</div><div class="v">Python크롤=혜택 <span class="ink">✅저장</span>(service.py:429) vs 라이브 확장크롤=<span class="red">❌미저장</span>(save_crawl_result, price/stock만)</div>
+      <div class="lead"><span class="klabel">핵심</span><span class="sum">표면 노출가 − 혜택 = 최종 매입가 · %혜택은 항상 베이스금액 기준 (편집·전파는 가격 편집형에서).</span></div>
+
+      <div class="card"><div class="psrc">무신사</div>
+        <div class="pm"><span><span class="ax">표면노출가</span><span class="pill api">API</span> goodsPrice.salePrice</span><span><span class="ax">혜택</span><span class="pill api">API</span></span></div>
+        <div class="formula">회원가 − <span class="ink">등급할인·등급적립·무신사머니·쿠폰 +후기500</span> / 머니3% vs 현대카드 택1 · <span class="mono">api_benefits.py:727</span></div>
+      </div>
+      <div class="card"><div class="psrc">SSG</div>
+        <div class="pm"><span><span class="ax">표면노출가</span><span class="pill">HTML</span></span><span><span class="ax">혜택</span><span class="pill">HTML</span></span></div>
+        <div class="formula">최적가 − <span class="ink">SSG MONEY적립·카드혜택가·상품쿠폰</span> / 현대카드 2.73% · <span class="mono">api_benefits.py:570</span></div>
+      </div>
+      <div class="card"><div class="psrc">SSF</div>
+        <div class="pm"><span><span class="ax">표면노출가</span><span class="pill">DOM</span></span><span><span class="ax">혜택</span><span class="pill">DOM</span></span></div>
+        <div class="formula">판매가 − <span class="ink">기프트포인트 10%·멤버십포인트</span> · <span class="mono">api_benefits.py:554</span></div>
+      </div>
+      <div class="card"><div class="psrc">롯데온</div>
+        <div class="pm"><span><span class="ax">표면노출가</span><span class="pill api">API</span></span><span><span class="ax">혜택</span><span class="pill">DOM</span></span></div>
+        <div class="formula">나의혜택가 − <span class="ink">롯데오너스·스토어찜·L.POINT·OK캐시백</span> / L.PAY·네이버페이 · <span class="mono">api_benefits.py:703</span></div>
+      </div>
+      <div class="card"><div class="psrc">스마트스토어</div>
+        <div class="pm"><span><span class="ax">표면노출가</span><span class="pill api">API</span></span><span><span class="ax">혜택</span><span class="pill api">API</span> / 템플릿</span></div>
+        <div class="formula">판매가 − <span class="ink">템플릿 혜택(소싱처 공통)</span> · <span class="mono">api_benefits.py:675</span></div>
+      </div>
+      <div class="card"><div class="psrc">르무통 공홈</div>
+        <div class="pm"><span><span class="ax">표면노출가</span><span class="pill">HTML</span></span><span><span class="ax">혜택</span><span class="pill">템플릿(크롤 아님)</span></span></div>
+        <div class="formula">판매가 − <span class="ink">템플릿 혜택</span> · <span class="mono">api_benefits.py:675</span></div>
       </div>
     </div>
 

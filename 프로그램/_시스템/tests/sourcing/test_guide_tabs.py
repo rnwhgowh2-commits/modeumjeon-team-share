@@ -60,3 +60,13 @@ def test_tab2_stock_states_and_glossary():
     for src in ["무신사", "SSG", "SSF", "롯데온", "스마트", "르무통"]:
         assert src in s2, src
     assert "outOfStock" in s2 and "품절임박" in s2 and "usablInvQty" in s2
+
+
+def test_tab3_price_methods():
+    html = (TPL / "map.html").read_text(encoding="utf-8")
+    s3 = html.split('id="s3"')[1].split('id="s4"')[0]
+    assert "표면노출가" in s3 and "혜택" in s3
+    assert "표면 노출가 − 혜택" in s3 or "표면노출가 − 혜택" in s3
+    for src in ["무신사", "SSG", "롯데온"]:
+        assert src in s3, src
+    assert "api_benefits.py" in s3
