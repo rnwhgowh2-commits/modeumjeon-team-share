@@ -2,87 +2,47 @@
 {% block title %}데이터·코드 지도 — 크롤링 가이드{% endblock %}
 {% block content %}
 <style>
-  .sgmap{--ink:#191F28;--sub:#6B7684;--sub2:#8B95A1;--line:#EEF1F4;--line2:#E5E8EB;
-    --acc:#3182F6;--acc-d:#1B64DA;--green:#15803D;--green-bg:#E7F7EE;--green-line:#BBF7D0;
-    --bluebg:#EFF6FF;--amber-bg:#FEF7E6;--code-bg:#0E1525;
-    padding:36px 48px;max-width:1080px;line-height:1.7;color:var(--ink);}
-  .sgmap h2{font-size:25px;font-weight:800;letter-spacing:-.4px;margin:0 0 3px;}
-  .sgmap .sub{color:var(--sub2);font-size:14px;margin:0 0 22px;}
-  /* 상위 서브탭 (기존 가이드와 동일 패턴) */
-  .sgmap .subtabs{display:flex;gap:26px;border-bottom:1.5px solid var(--line2);margin-bottom:22px;}
-  .sgmap .subtab{padding:10px 2px;font-size:15px;color:var(--sub2);font-weight:600;text-decoration:none;position:relative;}
+  .sgmap{--ink:#191F28;--sub:#6B7684;--sub2:#9AA4B0;--line:#EEF1F4;--line2:#E5E8EB;
+    --acc:#3182F6;--acc-d:#1B64DA;--green:#15803D;--red:#DC2626;--bg:#F9FAFB;
+    --mono:ui-monospace,SFMono-Regular,Menlo,monospace;
+    padding:34px 46px;max-width:1080px;line-height:1.75;color:var(--ink);}
+  .sgmap h2{font-size:24px;font-weight:800;letter-spacing:-.4px;margin:0 0 3px;}
+  .sgmap .sub{color:var(--sub);font-size:13px;margin:0 0 20px;}
+  .sgmap .subtabs{display:flex;gap:24px;border-bottom:1.5px solid var(--line2);margin-bottom:18px;}
+  .sgmap .subtab{padding:10px 2px;font-size:14.5px;color:var(--sub);font-weight:600;text-decoration:none;position:relative;}
   .sgmap .subtab.on{color:var(--ink);font-weight:800;}
   .sgmap .subtab.on::after{content:'';position:absolute;left:0;right:0;bottom:-1.5px;height:2.5px;background:var(--ink);border-radius:2px;}
   .sgmap .subtab .nw{font-size:10px;font-weight:800;color:#fff;background:var(--acc);border-radius:4px;padding:0 5px;margin-left:4px;vertical-align:middle;}
-  /* 보기/원문 토글 */
   .sgmap .seg{display:inline-flex;background:#EEF1F5;border-radius:9px;padding:3px;margin-bottom:18px;}
   .sgmap .seg b{padding:8px 18px;border-radius:7px;font-size:13px;font-weight:700;color:var(--sub);cursor:pointer;}
   .sgmap .seg b.on{background:#fff;color:var(--ink);box-shadow:0 1px 3px rgba(0,0,0,.12);}
   .sgmap .mode{display:none;}.sgmap .mode.on{display:block;}
-  /* 대분류 탭 */
-  .sgmap .maintabs{display:flex;gap:7px;margin-bottom:20px;flex-wrap:wrap;}
-  .sgmap .mtab{display:flex;align-items:center;gap:7px;border:1px solid var(--line2);background:#fff;border-radius:9px;padding:9px 14px;font-size:13px;font-weight:700;color:#4B5563;cursor:pointer;}
-  .sgmap .mtab .k{font-size:11px;color:#9CA3AF;border:1px solid var(--line2);border-radius:5px;padding:0 6px;}
-  .sgmap .mtab.on{background:var(--ink);color:#fff;border-color:var(--ink);}
-  .sgmap .mtab.on .k{color:#fff;border-color:#3a434f;}
+  .sgmap .gtabs{display:flex;gap:6px;flex-wrap:wrap;border-bottom:1px solid var(--line2);margin-bottom:22px;}
+  .sgmap .gtab{padding:9px 13px;font-size:13px;font-weight:700;color:var(--sub);border-bottom:2px solid transparent;cursor:pointer;margin-bottom:-1px;}
+  .sgmap .gtab .k{font-size:10.5px;color:#9CA3AF;margin-right:4px;}
+  .sgmap .gtab.on{color:var(--ink);border-bottom-color:var(--ink);}.sgmap .gtab.on .k{color:var(--ink);}
   .sgmap .sec{display:none;}.sgmap .sec.on{display:block;}
-  .sgmap .lead{color:var(--sub);font-size:13.5px;margin:0 0 14px;}
-  .sgmap .lead b{color:var(--ink);}
-  .sgmap .mono{font-family:ui-monospace,monospace;font-size:11.5px;color:var(--acc-d);}
-  .sgmap .path{font-family:ui-monospace,monospace;font-size:11.5px;background:#EEF1F5;color:var(--acc-d);padding:1px 6px;border-radius:5px;}
-  .sgmap .b{font-weight:700;color:var(--ink);}
-  .sgmap .chip{display:inline-block;font-size:11px;font-weight:700;border-radius:999px;padding:2px 9px;}
-  .sgmap .c-html{background:#EEF2FF;color:#3730A3;}.sgmap .c-api{background:#ECFEFF;color:#0E7490;}
-  .sgmap .c-js{background:#FEF3C7;color:#92400E;}.sgmap .c-login{background:#FCE7F3;color:#9D174D;}
-  .sgmap table.dt{width:100%;border-collapse:collapse;background:#fff;border-radius:10px;overflow:hidden;border:1px solid var(--line2);font-size:12.5px;line-height:1.6;margin-bottom:14px;}
-  .sgmap table.dt th{background:#F2F4F6;text-align:left;padding:11px 13px;font-weight:800;color:#374151;border-bottom:1px solid var(--line2);}
-  .sgmap table.dt td{padding:11px 13px;border-bottom:1px solid var(--line);vertical-align:top;}
+  .sgmap .easy{color:var(--sub);font-size:13px;margin:0 0 18px;}.sgmap .easy b{color:var(--ink);}
+  .sgmap .h{font-size:13.5px;font-weight:800;margin:22px 0 10px;}.sgmap .h:first-child{margin-top:0;}
+  .sgmap .mono{font-family:var(--mono);font-size:11px;color:var(--acc-d);}
+  .sgmap .ep{font-family:var(--mono);font-size:10.5px;color:#0E7490;}
+  .sgmap .b{font-weight:700;color:var(--ink);}.sgmap .dim{color:var(--sub);}
+  .sgmap .red{color:var(--red);font-weight:700;}.sgmap .grn{color:var(--green);font-weight:700;}
+  .sgmap .spec{display:grid;grid-template-columns:132px 1fr;}
+  .sgmap .spec>.k{padding:12px 16px 12px 0;border-top:1px solid var(--line);color:var(--sub);font-size:11px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;}
+  .sgmap .spec>.v{padding:12px 0;border-top:1px solid var(--line);font-size:13px;color:#3d4754;}
+  .sgmap .spec>.k.first,.sgmap .spec>.v.first{border-top:none;}
+  .sgmap .spec .v b{color:var(--ink);}
+  .sgmap table.dt{width:100%;border-collapse:collapse;background:#fff;border:1px solid var(--line2);border-radius:10px;overflow:hidden;font-size:12.3px;line-height:1.6;margin-bottom:6px;}
+  .sgmap table.dt th{background:#F2F4F6;text-align:left;padding:10px 12px;font-weight:800;color:#374151;border-bottom:1px solid var(--line2);}
+  .sgmap table.dt td{padding:11px 12px;border-bottom:1px solid var(--line);vertical-align:top;}
   .sgmap table.dt tr:last-child td{border-bottom:none;}
-  .sgmap .lay{border-radius:12px;padding:14px 16px;margin-bottom:11px;}
-  .sgmap .lay .lh{font-weight:800;font-size:13px;margin-bottom:6px;}
-  .sgmap .lay.easy{background:var(--green-bg);border:1px solid var(--green-line);}.sgmap .lay.easy .lh{color:var(--green);}
-  .sgmap .lay.deep{background:var(--bluebg);border:1px solid #BFDBFE;}.sgmap .lay.deep .lh{color:var(--acc-d);}
-  .sgmap .lay p{margin:5px 0;font-size:13px;color:#334155;}
-  .sgmap .codeblk{background:var(--code-bg);color:#D7E0F4;border-radius:11px;padding:13px 15px;font-family:ui-monospace,monospace;font-size:12px;line-height:1.7;overflow:auto;margin-bottom:8px;}
-  .sgmap .codeblk .cm{color:#7c8aa5;}.sgmap .codeblk .kw{color:#7dd3fc;}.sgmap .codeblk .fp{color:#86efac;}.sgmap .codeblk .st{color:#fcd34d;}
-  .sgmap .formula{background:#fff;border:1.5px dashed #CBD5E1;border-radius:12px;padding:14px 18px;font-size:15px;font-weight:800;text-align:center;margin-bottom:14px;}
-  .sgmap .formula .m{color:#DC2626;}.sgmap .formula .e{color:var(--acc-d);}
-  .sgmap .pgrid{display:grid;grid-template-columns:1fr 1fr;gap:13px;}
-  .sgmap .pcard{background:#fff;border:1px solid var(--line2);border-radius:12px;padding:14px 16px;}
-  .sgmap .pcard h4{margin:0 0 6px;font-size:14px;}
-  .sgmap .pcard p{margin:0;font-size:13px;color:#475569;}
-  .sgmap .pcard .n{display:inline-flex;width:22px;height:22px;border-radius:7px;background:var(--ink);color:#fff;align-items:center;justify-content:center;font-size:12px;font-weight:800;margin-right:6px;}
-  .sgmap .warn{background:var(--amber-bg);border:1px solid #FDE2B3;border-radius:10px;padding:12px 15px;font-size:13px;color:#7c4a07;margin-top:13px;}
-  .sgmap .note{font-size:12px;color:var(--sub2);margin-top:9px;}
-  .sgmap .flow{display:flex;flex-direction:column;max-width:560px;margin-bottom:8px;}
-  .sgmap .fnode{background:#fff;border:1px solid var(--line2);border-radius:12px;padding:13px 16px;}
-  .sgmap .fnode .ft{font-weight:800;font-size:13.5px;}.sgmap .fnode .fd{font-size:12px;color:var(--sub);margin-top:2px;}
-  .sgmap .fnode .fp{font-family:ui-monospace,monospace;font-size:11px;color:var(--acc-d);margin-top:5px;}
-  .sgmap .farrow{margin:6px 0 6px 26px;color:#9CA3AF;font-size:12.5px;}.sgmap .farrow b{color:var(--ink);}
-  .sgmap .srccalc{background:#fff;border:1px solid var(--line2);border-radius:11px;padding:13px 15px;margin-bottom:9px;}
-  .sgmap .srccalc .sh{display:flex;align-items:center;gap:8px;font-size:13.5px;font-weight:800;margin-bottom:7px;}
-  .sgmap .srccalc .sh .path{margin-left:auto;font-weight:400;}
-  .sgmap .srccalc .steps{font-size:13px;color:#374151;line-height:1.8;}
-  .sgmap .srccalc .base{display:inline-block;background:var(--bluebg);color:var(--acc-d);border-radius:6px;padding:1px 8px;font-weight:700;}
-  .sgmap .srccalc .ded{color:#B91C1C;font-weight:700;}
-  .sgmap .srccalc .pay{display:block;margin-top:5px;color:var(--sub);font-size:12px;}
-  /* C1 미니멀 레이어 (4번 탭) */
-  .sgmap .rail{position:relative;padding-left:26px;max-width:760px;}
-  .sgmap .rail:before{content:"";position:absolute;left:5px;top:8px;bottom:8px;width:1px;background:var(--line2);}
-  .sgmap .rstep{position:relative;padding:14px 0;}
-  .sgmap .rstep:before{content:"";position:absolute;left:-24px;top:20px;width:9px;height:9px;border-radius:50%;background:#fff;border:1.5px solid var(--ink);}
-  .sgmap .rstep .ln{font-weight:800;font-size:13.5px;}
-  .sgmap .rstep .lb{font-size:13px;color:#3d4754;}
-  .sgmap .rstep .lb b{color:var(--ink);}
-  .sgmap .rstep .rmini{font-size:11px;color:var(--sub2);margin-top:2px;}
-  .sgmap .share-tag{font-size:11px;font-weight:700;color:var(--acc);}
-  .sgmap .ftnote{margin-top:18px;padding-top:14px;border-top:1px solid var(--line);font-size:12.5px;color:var(--sub);}
-  .sgmap .ftnote b{color:var(--ink);}
-  /* 원문 */
+  .sgmap table.dt td.el{font-weight:800;color:var(--ink);white-space:nowrap;}
+  .sgmap .note{font-size:11.5px;color:var(--sub2);margin-top:8px;}
   .sgmap .mdbar{display:flex;align-items:center;gap:8px;margin-bottom:9px;}
-  .sgmap .mdbar .fn{font-family:ui-monospace,monospace;font-size:12px;color:var(--sub);}
+  .sgmap .mdbar .fn{font-family:var(--mono);font-size:12px;color:var(--sub);}
   .sgmap .mdbar a.open{margin-left:auto;font-size:12.5px;background:var(--ink);color:#fff;border-radius:7px;padding:6px 13px;font-weight:700;text-decoration:none;}
-  .sgmap .mdview{background:#0E1525;border-radius:12px;padding:18px 20px;font-family:ui-monospace,monospace;font-size:12.2px;line-height:1.75;color:#cdd6e2;white-space:pre-wrap;overflow:auto;max-height:72vh;}
+  .sgmap .mdview{background:#0E1525;border-radius:12px;padding:18px 20px;font-family:var(--mono);font-size:12.2px;line-height:1.75;color:#cdd6e2;white-space:pre-wrap;overflow:auto;max-height:72vh;}
 </style>
 
 <div class="sgmap">
@@ -98,112 +58,116 @@
 
   <div class="seg"><b class="on" data-m="view">🖥️ 보기</b><b data-m="raw">📄 원문 (MD)</b></div>
 
-  <!-- ===== 보기 모드 ===== -->
+  <!-- ===== 보기 ===== -->
   <div class="mode on" id="m-view">
-    <div class="maintabs">
-      <div class="mtab on" data-s="s1"><span class="k">1</span>🗺️ 전체 흐름</div>
-      <div class="mtab" data-s="s2"><span class="k">2</span>📦 재고</div>
-      <div class="mtab" data-s="s3"><span class="k">3</span>💰 가격</div>
-      <div class="mtab" data-s="slog"><span class="k">4</span>📊 매트릭스 로그</div>
-      <div class="mtab" data-s="s4"><span class="k">5</span>🛡️ 무결성 원칙</div>
-      <div class="mtab" data-s="s5"><span class="k">6</span>🔁 자주 재발</div>
+    <div class="gtabs">
+      <div class="gtab on" data-s="s1"><span class="k">1</span>🗺️ 전체흐름</div>
+      <div class="gtab" data-s="s2"><span class="k">2</span>📦 재고</div>
+      <div class="gtab" data-s="s3"><span class="k">3</span>💰 가격</div>
+      <div class="gtab" data-s="s4"><span class="k">4</span>📊 매트릭스 로그</div>
+      <div class="gtab" data-s="s5"><span class="k">5</span>🛡️ 원칙</div>
+      <div class="gtab" data-s="s6"><span class="k">6</span>🔁 재발</div>
     </div>
 
     <!-- 1 전체흐름 -->
     <div class="sec on" id="s1">
-      <p class="lead">🟢 재고·가격이 화면에 뜨기까지 <b>4단계</b>. 각 단계가 어느 파일에 사는지까지.</p>
-      <div class="flow">
-        <div class="fnode"><div class="ft">① 크롤러 (파싱)</div><div class="fd">페이지 → 재고·표면노출가·혜택 추출</div><div class="fp">lemouton/sourcing/crawlers/&lt;소싱처&gt;.py</div></div>
-        <div class="farrow">▼ 옵션 dict</div>
-        <div class="fnode"><div class="ft">② 저장 (영속)</div><div class="fd">DB 컬럼 + dynamic_benefits_json</div><div class="fp">lemouton/sources/service.py:429 · 519</div></div>
-        <div class="farrow">▼ <b>표면노출가 − 혜택</b></div>
-        <div class="fnode"><div class="ft">③ 계산 (최종매입가)</div><div class="fd">혜택 누적 차감</div><div class="fp">api_benefits.py:404 · pricing/unified.py:75</div></div>
-        <div class="farrow">▼</div>
-        <div class="fnode"><div class="ft">④ 표시</div><div class="fd">셀 · 계산식 영수증 · 크롤 로그</div><div class="fp">api_pricing.py:309 · _matrix_v3.html</div></div>
+      <div class="easy">🟢 재고·가격이 화면에 뜨기까지 <b>4단계</b>. 각 단계가 어느 파일에 사는지까지.</div>
+      <div class="spec">
+        <div class="k first">① 크롤러</div><div class="v first">페이지 → 재고·표면노출가·혜택 추출 · <span class="mono">crawlers/&lt;소싱처&gt;.py</span></div>
+        <div class="k">② 저장</div><div class="v">DB 컬럼 + dynamic_benefits_json · <span class="mono">service.py:429·519</span></div>
+        <div class="k">③ 계산</div><div class="v">표면노출가 − 혜택 누적차감 = 최종매입가 · <span class="mono">api_benefits.py:404 · unified.py:75</span></div>
+        <div class="k">④ 표시</div><div class="v">셀 · 매트릭스 보기 · 크롤 로그 · <span class="mono">api_pricing.py:309 · _matrix_v3.html · crawl_log.js</span></div>
+        <div class="k">라이브 경로</div><div class="v">확장 BG_JS(무신사·롯데온=직추출) / BG_PARSE(르무통·SSF·SSG·스스→navGrab→<span class="mono">/api/sources/parse</span>→save_crawl_result). <span class="red">BG_PARSE는 price·stock만 저장(혜택 미저장)</span></div>
       </div>
-      <div class="warn">⚠️ <b>라이브 크롤은 크롬 확장(navGrab) 경로</b> — background.js → /api/sources/parse → /api/sources/crawl-result. 이 경로가 ②의 혜택 저장을 우회 → "자주 재발" 탭.</div>
     </div>
 
     <!-- 2 재고 -->
     <div class="sec" id="s2">
-      <p class="lead">🟢 소싱처마다 재고 알아내는 법이 다릅니다. 화면 표기는 <b>충분 · 소량(3개↓) · 품절 · 크롤실패 · 미크롤</b>.</p>
-      <table class="dt">
-        <tr><th>소싱처</th><th>수집 방식</th><th>재고 판정 규칙 (실코드)</th><th>데이터 위치</th><th>파일</th></tr>
-        <tr><td><b>무신사</b></td><td><span class="chip c-api">API</span></td><td><span class="b">outOfStock=true</span>→0 / 표시없음→999 / "N개 남음"→실수량</td><td>last_stock</td><td><span class="path">crawlers/musinsa.py:489</span></td></tr>
-        <tr><td><b>SSG</b></td><td><span class="chip c-js">JS</span></td><td><span class="b">usablInvQty</span> '0'→품절, else 실수량</td><td>last_stock</td><td><span class="path">crawlers/ssg.py:608</span></td></tr>
-        <tr><td><b>SSF</b></td><td><span class="chip c-html">HTML</span></td><td><span class="b">statcd=SLDOUT</span>→품절 / 품절임박 (N)→실수량</td><td>current_stock</td><td><span class="path">crawlers/ssf.py</span></td></tr>
-        <tr><td><b>롯데온</b></td><td><span class="chip c-api">API</span><span class="chip c-login">로그인</span></td><td>API 옵션매핑=실수량 / DOM <span class="b">li.soldout</span>→0·else 999</td><td>last_stock</td><td><span class="path">crawlers/lotteon.py:1293</span></td></tr>
-        <tr><td><b>스마트스토어</b></td><td><span class="chip c-api">API</span></td><td>productStatusType≠'SALE' or stockQuantity=0→품절</td><td>current_stock</td><td><span class="path">crawlers/ss_lemouton.py:126</span></td></tr>
-        <tr><td><b>르무통 공홈</b></td><td><span class="chip c-html">HTML</span></td><td>Cafe24 <span class="b">option_stock_data</span> → 실조합·실재고만</td><td>current_stock</td><td><span class="path">crawlers/lemouton.py</span></td></tr>
-      </table>
-      <p class="note">↓ 공통 종착지 <span class="path">api_pricing.py:142 _resolve_stock</span> → stock_label · stock_qty · stock_out (센티넬 0=품절 · 999=수량미상 · 무신사 STOCK_CAP=충분).</p>
-      <div class="warn">⚠️ <b>함정</b> — 무신사 "마지막 N개" 정규식 빠지면 한정재고 '재고있음' 둔갑 / SSF 괄호공백 품절임박 ( N ) / 네이버는 A.id(channelProductNo) / 크롤 실패 시 옛 재고 금지·"크롤 실패" 표기.</div>
+      <div class="easy">🟢 소싱처마다 재고 수집법이 다름. 표기 <b>충분·소량(3개↓)·품절·크롤실패·미크롤</b>. 종착지 <span class="mono">_resolve_stock(api_pricing.py:142)</span>.</div>
+      <div class="spec">
+        <div class="k first">무신사</div><div class="v first">API <span class="ep">POST .../options/v2/prioritized-inventories</span> · outOfStock→0/"N개"→실수량/없음→999 · <span class="mono">musinsa.py:492</span></div>
+        <div class="k">SSG</div><div class="v">정규식 <span class="ep">usablInvQty</span> · 0→품절/else 실수량 · <span class="mono">ssg.py:608</span></div>
+        <div class="k">SSF</div><div class="v"><span class="ep">#optionDiv1 li a[optcd]@statcd</span> · SLDOUT→품절/품절임박(N) · <span class="mono">ssf.py</span></div>
+        <div class="k">롯데온</div><div class="v">API <span class="ep">pbf.../option/mapping/{spd}/{sitm}</span> 우선→DOM <span class="ep">li.soldout</span> 폴백 · <span class="mono">lotteon.py:1293</span></div>
+        <div class="k">스마트스토어</div><div class="v">확장 per-SKU <span class="ep">/n/v2/channels/{cu}/products/{channelProductNo}</span>(A.id) → <span class="mono">_persist_option_stocks</span> 영속 · <span class="mono">ss_lemouton.py</span></div>
+        <div class="k">르무통 공홈</div><div class="v">Cafe24 <span class="ep">option_stock_data</span> · 실조합·실재고 · <span class="mono">lemouton.py</span></div>
+      </div>
+      <div class="note">⚠️ 함정 — 무신사 "마지막 N개" 정규식 빠지면 둔갑 / SSF 괄호공백 품절임박 ( N ) / 네이버 A.id 써야(productNo→204→999) / <b>확장이 per-SKU 긁어도 current_stock 저장 안 하면 매트릭스 전부 999</b>.</div>
     </div>
 
     <!-- 3 가격 -->
     <div class="sec" id="s3">
-      <div class="formula">표면 노출가 <span class="m">− 혜택</span>(적립·할인·쿠폰·카드) <span class="e">= 최종 매입가</span></div>
-      <div class="lay easy"><div class="lh">🟢 쉬운 설명</div>
-        <p>페이지에 크게 적힌 값이 <span class="b">표면 노출가</span>, 혜택을 순서대로 빼면 <span class="b">최종 매입가</span>. %혜택은 <span class="b">항상 베이스금액 기준</span>.</p>
-        <p>혜택 4종: <span class="b">선반영</span>(표시만) · <span class="b">후반영</span>(차감/적립) · <span class="b">결제</span>(택1) · <span class="b">캐시백</span>.</p></div>
-      <div class="srccalc"><div class="sh">SSG <span class="chip c-js">JS</span><span class="path">api_benefits.py:570~674·764</span></div>
-        <div class="steps"><span class="base">최적가(bestAmt, 즉시할인 선반영)</span> → <span class="ded">− SSG MONEY 적립</span>(①무조건=항상 / ②충전결제=rate≥3%만) → <span class="ded">− 카드혜택가</span> → <span class="ded">− 상품쿠폰</span>
-        <span class="pay">결제: 현대카드 2.73% 청구할인 fallback (네이버페이 제외)</span></div></div>
-      <div class="srccalc"><div class="sh">무신사 <span class="chip c-api">API</span><span class="path">api_benefits.py:727~752</span></div>
-        <div class="steps"><span class="base">회원가(surface_price)</span> → <span class="ded">− 등급할인</span> → <span class="ded">− 등급적립</span> → <span class="ded">− 무신사머니 적립</span> → <span class="ded">− 상품쿠폰</span> + 후기적립(500원)
-        <span class="pay">결제 택1: 무신사머니 3% vs 현대카드 2.73% (큰 쪽)</span></div></div>
-      <div class="srccalc"><div class="sh">롯데온 <span class="chip c-api">API</span><span class="chip c-login">로그인</span><span class="path">api_benefits.py:703~726·764</span></div>
-        <div class="steps"><span class="base">나의 혜택가(즉시·카드할인 선반영)</span> → <span class="ded">− 롯데오너스 할인</span> → <span class="ded">− 스토어찜 쿠폰</span> → <span class="ded">− L.POINT</span> → <span class="ded">− OK캐시백 1.1%</span>
-        <span class="pay">결제 택1: L.PAY / 네이버페이 + 현대카드 fallback</span></div></div>
-      <div class="srccalc"><div class="sh">SSF <span class="chip c-html">HTML</span><span class="path">api_benefits.py:554~568</span></div>
-        <div class="steps"><span class="base">판매가(시즌 할인 선반영)</span> → <span class="ded">− 기프트포인트 10%</span>(멤버십) → <span class="ded">− 멤버십포인트 적립</span>(0.5~5%)
-        <span class="pay">결제 택1: 토스페이 5% / 페이코 / 네이버페이</span></div></div>
-      <div class="srccalc"><div class="sh">롯데아이몰 <span class="chip c-html">SSR</span><span class="path">api_benefits.py:675~702</span></div>
-        <div class="steps"><span class="base">최대할인가(할인+카드 청구할인 선반영)</span> → <span class="ded">− L.POINT 적립</span> <span class="pay">무이자 할부(최대 10개월)</span></div></div>
-      <div class="srccalc"><div class="sh">스마트스토어 · 르무통 공홈 <span class="chip c-api">API</span>/<span class="chip c-html">HTML</span><span class="path">SourceBenefitTemplate</span></div>
-        <div class="steps"><span class="base">표면 노출가</span> → 별도 동적혜택 적음 → 템플릿값 차감</div></div>
-      <div class="codeblk" style="margin-top:14px;"><span class="cm"># 핵심 — SSG MONEY 적립 2분기 (api_benefits.py:581)</span><br>_is_charge = (<span class="st">'충전'</span> <span class="kw">in</span> _smt)<br>_ssgm_enabled = (<span class="kw">not</span> _is_charge) <span class="kw">or</span> (_rate &gt;= <span class="fp">0.03</span>)  <span class="cm"># ①항상 / ②3%↑만</span></div>
+      <div class="easy">🟢 <b>표면 노출가 − 혜택 = 최종 매입가</b>. %혜택은 항상 베이스금액 기준. 4종: 선반영·후반영(차감/적립)·결제(택1)·캐시백.</div>
+      <div class="spec">
+        <div class="k first">SSG</div><div class="v first">최적가 → −SSG MONEY적립(①무조건/②충전 3%↑) −카드혜택가 −상품쿠폰 / 현대카드 2.73% · <span class="mono">api_benefits.py:570</span></div>
+        <div class="k">무신사</div><div class="v">회원가 → −등급할인 −등급적립 −무신사머니 −쿠폰 +후기500 / 무신사머니3% vs 현대카드 택1 · <span class="mono">:727</span></div>
+        <div class="k">롯데온</div><div class="v">나의혜택가 → −롯데오너스 −스토어찜 −L.POINT −OK캐시백1.1% / L.PAY·네이버페이 · <span class="mono">:703</span></div>
+        <div class="k">기타</div><div class="v">SSF 판매가→−기프트10%−멤버십P / 롯데아이몰 최대할인가→−L.POINT / 스마트·르무통=템플릿 · <span class="mono">:554·675</span></div>
+        <div class="k">SSG MONEY</div><div class="v"><span class="mono">_is_charge=('충전' in _smt); _ssgm_enabled=(not _is_charge) or (_rate&gt;=0.03)</span> — ①항상 / ②3%↑만 · <span class="mono">:581</span></div>
+        <div class="k">저장 배선</div><div class="v">Python크롤=혜택 <span class="grn">✅저장</span>(service.py:429) vs 라이브 확장크롤=<span class="red">❌미저장</span>(save_crawl_result, price/stock만)</div>
+      </div>
     </div>
 
-    <!-- 4 매트릭스 로그 (C1 미니멀 레이어) -->
-    <div class="sec" id="slog">
-      <p class="lead">🟢 모음전 상세 &gt; 셀 / 매트릭스 보기 / 크롤 로그 — 데이터가 어디 있고, 어떻게 공유되고, fx(최종매입가)가 어떻게 계산되는지.</p>
-      <div class="rail">
-        <div class="rstep"><span class="ln">원천 · DB</span><div class="lb">표면노출가 <span class="mono">last_price</span> · 재고 <span class="mono">current_stock</span> · 혜택 <span class="mono">dynamic_benefits_json</span></div></div>
-        <div class="rstep"><span class="ln">계산 · fx</span><div class="lb"><b>표면노출가 − 혜택</b> 누적차감 = <b>final_price</b></div><div class="rmini mono">api_benefits.py:404 · pricing/unified.py:75</div></div>
-        <div class="rstep"><span class="ln">공유 캐시 <span class="share-tag">· 셀·매트릭스 공유</span></span><div class="lb"><b>window.DATA</b>(옵션×소싱처) + <b>SM_BREAKDOWNS</b>(fx) — <span class="mono">/option-matrix</span> 1회 fetch</div></div>
-        <div class="rstep"><span class="ln">표시</span><div class="lb">셀 · 매트릭스 보기 &nbsp;|&nbsp; <span style="color:var(--sub);">크롤 로그(별도 실시간 surf/buy)</span></div><div class="rmini mono">_matrix_v3.html · crawl_log.js</div></div>
+    <!-- 4 매트릭스 로그 (한눈 + 셀/매트릭스/로그 표) -->
+    <div class="sec" id="s4">
+      <div class="easy">🟢 데이터가 <b>어디 있고·어떻게 공유되고·fx가 어떻게 계산</b>되는지 + 셀·매트릭스·로그 <b>위치/형태/호출</b>. (한 화면)</div>
+      <div class="h">📐 한눈 — 데이터 4층</div>
+      <div class="spec">
+        <div class="k first">원천·DB</div><div class="v first">표면가 <span class="mono">last_price</span> · 재고 <span class="mono">current_stock</span> · 혜택 <span class="mono">dynamic_benefits_json</span></div>
+        <div class="k">계산·fx</div><div class="v">표면 − 혜택 = <b>final_price</b> · <span class="mono">api_benefits.py:404</span></div>
+        <div class="k">공유 캐시</div><div class="v"><b>window.DATA</b> + <b>SM_BREAKDOWNS</b>(fx) — <span class="mono">/option-matrix</span> 1회 fetch <span class="dim">(셀·매트릭스 공유)</span></div>
+        <div class="k">표시</div><div class="v">셀 · 매트릭스 보기 | 크롤 로그 <span class="dim">(별도 실시간)</span></div>
       </div>
-      <div class="ftnote"><b>fx</b> 표면 − 혜택 = final_price → 캐시 → 셀 fx뱃지·영수증·로그 buy 가 공유. &nbsp; <b>공유</b> 셀+매트릭스 = window.DATA 한 벌(1회 fetch) / 로그 = 별도 스트림(background.js surf → ext_bridge.js → crawl_log.js).</div>
+      <div class="h">🧩 셀 · 매트릭스 보기 · 로그 — 위치 / 형태 / 호출</div>
+      <table class="dt">
+        <tr><th style="width:118px;">요소</th><th>① 위치 (파일·DOM)</th><th>② 형태</th><th>③ 호출처</th></tr>
+        <tr>
+          <td class="el">📍 셀</td>
+          <td><span class="mono">_matrix_v3.html ~5734</span><br>옵션 탭 매트릭스의 소싱처 컬럼</td>
+          <td>소싱처별 <b>표면노출가</b>+<b>재고</b>+<b>fx뱃지</b>+★최저 / 왼쪽 소싱참고·사입 박스</td>
+          <td><span class="mono">loadMatrix</span>→<span class="mono">/option-matrix</span> 1회 fetch→<b>window.DATA</b> 렌더<br>fx=<span class="mono">SM_BREAKDOWNS["{sku}|{srcId}"]</span></td>
+        </tr>
+        <tr>
+          <td class="el">🔲 매트릭스 보기<br><span class="dim" style="font-weight:400;">(팝업)</span></td>
+          <td><span class="mono">_matrix_v3.html render() 1269~1374</span><br>'매트릭스 보기' 버튼</td>
+          <td>행=옵션 × 열=소싱처 격자 + <b>상태점</b>(🟢충분·🟠소량3개↓·🔴품절·⚪크롤실패/미크롤)</td>
+          <td>버튼→render()가 <b>같은 window.DATA</b><br><span class="dim">(셀과 공유, 추가 API 호출 없음)</span></td>
+        </tr>
+        <tr>
+          <td class="el">📊 로그<br><span class="dim" style="font-weight:400;">(위젯)</span></td>
+          <td><span class="mono">crawl_log.js 7~31</span> + <span class="mono">ext_bridge.js 23~31</span><br>우측 플로팅</td>
+          <td>진행바 + 소싱처 카드 + 상세표(타입·URL·<b>표면노출가 취소선(surf)</b>·<b>최종매입가 fx(buy)</b>)</td>
+          <td><b>별도 실시간</b> · <span class="mono">background.js</span>(surf)→postMessage→<span class="mono">ext_bridge</span> <b>moum-crawl-log</b>→<span class="mono">crawl_log.js</span></td>
+        </tr>
+      </table>
+      <div class="note">셀·매트릭스 보기 = 같은 <b>window.DATA</b> 한 벌 공유(1회 fetch). 로그만 별도 실시간(surf=표면 / buy=최종매입가 fx).</div>
     </div>
 
     <!-- 5 원칙 -->
-    <div class="sec" id="s4">
-      <p class="lead">🟢 방향을 잃었을 때 <b>이 4개로 복귀</b>. 데이터 정확성 = 금전 손실 직결.</p>
-      <div class="pgrid">
-        <div class="pcard"><h4><span class="n">1</span>폴백가 금지</h4><p>실패 시 평균·최저 대표가로 채우지 않는다. "가격없음 + 크롤실패" 표면화.</p></div>
-        <div class="pcard"><h4><span class="n">2</span>크롤 실패 = 표기</h4><p>옛 가격/재고 끌어쓰지 않고 "크롤 실패". (하드리셋 NULL→finalize)</p></div>
-        <div class="pcard"><h4><span class="n">3</span>단일 진실 원천</h4><p>표면가=last_price, 매입가=compute_market_price 한 곳에서만.</p></div>
-        <div class="pcard"><h4><span class="n">4</span>누락에 경고</h4><p>후보가 조용히 탈락(None)하면 안 됨. 화면·로그에 드러나야.</p></div>
+    <div class="sec" id="s5">
+      <div class="easy">🟢 방향을 잃으면 <b>이 4개로 복귀</b>. 데이터 정확성 = 금전 손실 직결.</div>
+      <div class="spec">
+        <div class="k first">1 폴백가 금지</div><div class="v first">실패 시 평균·최저 대표가로 채우지 않음 → "가격없음+크롤실패" 표면화</div>
+        <div class="k">2 크롤실패=표기</div><div class="v">옛 가격/재고 끌어쓰지 않고 "크롤 실패" (하드리셋 NULL→finalize)</div>
+        <div class="k">3 단일 진실원천</div><div class="v">표면가=last_price, 매입가=compute_market_price 한 곳에서만</div>
+        <div class="k">4 누락에 경고</div><div class="v">후보 조용히 탈락(None) 금지 → 화면·로그에 드러나야</div>
       </div>
     </div>
 
     <!-- 6 재발 -->
-    <div class="sec" id="s5">
-      <p class="lead">🟢 "고쳤던 문제가 또 터진다"를 막는 곳. 증상이 보이면 여기부터.</p>
-      <table class="dt">
-        <tr><th>증상</th><th>첫 확인 위치</th></tr>
-        <tr><td>혜택(적립/할인)이 계산식에 안 뜸</td><td><span class="b">dynamic_benefits_json</span>에 키 있나 → 없으면 라이브크롤 미배선</td></tr>
-        <tr><td>가짜 '재고있음'(품절인데 있음)</td><td>999 둔갑? 정규식 미스? <span class="path">_resolve_stock</span></td></tr>
-        <tr><td>표면가 ≠ 매입가 혼동</td><td>셀=표면 / 영수증=매입 (매트릭스 로그 탭)</td></tr>
-        <tr><td>크롤 후 매트릭스 갱신 안 됨</td><td>window.loadMatrix 노출 / SM_BREAKDOWNS 캐시</td></tr>
-        <tr><td>dev에서 값 이상</td><td>dev DB stale → 라이브 대조 필수</td></tr>
-      </table>
-      <div class="warn">🔴 <b>알려진 구조적 결함</b> — SSG/SSF 혜택이 라이브 확장크롤로 갱신 안 됨(save_crawl_result가 price/stock만 저장). + refetch도 ssg.com→'ssf' 오분류. 상세=원문 §5.</div>
+    <div class="sec" id="s6">
+      <div class="easy">🟢 "고쳤던 문제가 또 터진다"를 막는 곳. 증상 보이면 여기부터.</div>
+      <div class="spec">
+        <div class="k first">혜택 안 뜸</div><div class="v first">dynamic_benefits_json에 키 있나 → 없으면 라이브크롤 미배선(§가격 저장배선)</div>
+        <div class="k">가짜 재고있음</div><div class="v">999 둔갑? 정규식 미스? <span class="mono">_resolve_stock</span></div>
+        <div class="k">표면≠매입 혼동</div><div class="v">셀=표면 / 영수증=매입 (매트릭스 로그 탭)</div>
+        <div class="k">매트릭스 stale</div><div class="v">크롤 후 갱신 안 됨 → window.loadMatrix 노출 / SM_BREAKDOWNS 캐시</div>
+        <div class="k">dev 값 이상</div><div class="v">dev DB stale → 라이브 대조 필수</div>
+      </div>
     </div>
   </div>
 
-  <!-- ===== 원문(MD) 모드 ===== -->
+  <!-- ===== 원문(MD) ===== -->
   <div class="mode" id="m-raw">
     <div class="mdbar"><span class="fn">docs/크롤링-가이드.md</span>
       <a class="open" href="/sourcing-guide/map.md" target="_blank" rel="noopener">↗ 원문 새 탭으로 열기</a></div>
@@ -214,21 +178,17 @@
 <script>
 (function(){
   var root=document.querySelector('.sgmap');
-  // 보기/원문 토글
-  var segs=root.querySelectorAll('.seg b'), modes=root.querySelectorAll('.mode');
-  var rawLoaded=false;
+  var segs=root.querySelectorAll('.seg b'), modes=root.querySelectorAll('.mode'), rawLoaded=false;
   segs.forEach(function(s){ s.addEventListener('click',function(){
     segs.forEach(function(x){x.classList.toggle('on',x===s);});
     modes.forEach(function(m){m.classList.toggle('on',m.id==='m-'+s.dataset.m);});
-    if(s.dataset.m==='raw' && !rawLoaded){
-      rawLoaded=true;
+    if(s.dataset.m==='raw' && !rawLoaded){ rawLoaded=true;
       fetch('/sourcing-guide/map.md').then(function(r){return r.text();})
         .then(function(t){ root.querySelector('#mdraw').textContent=t; })
         .catch(function(){ root.querySelector('#mdraw').textContent='원문을 불러오지 못했습니다.'; });
     }
   });});
-  // 대분류 탭
-  var tabs=root.querySelectorAll('.mtab'), secs=root.querySelectorAll('.sec');
+  var tabs=root.querySelectorAll('.gtab'), secs=root.querySelectorAll('.sec');
   function show(sid){ tabs.forEach(function(t){t.classList.toggle('on',t.dataset.s===sid);});
     secs.forEach(function(x){x.classList.toggle('on',x.id===sid);}); }
   tabs.forEach(function(t){ t.addEventListener('click',function(){show(t.dataset.s);}); });
@@ -236,7 +196,7 @@
     if(!root.querySelector('#m-view').classList.contains('on')) return;
     if(e.target.tagName==='INPUT'||e.target.tagName==='TEXTAREA') return;
     var order=[].map.call(tabs,function(t){return t.dataset.s;});
-    var cur=root.querySelector('.mtab.on').dataset.s, i=order.indexOf(cur);
+    var cur=root.querySelector('.gtab.on').dataset.s, i=order.indexOf(cur);
     if(/^[1-6]$/.test(e.key)&&order[+e.key-1]) show(order[+e.key-1]);
     else if(e.key==='ArrowRight'&&i<order.length-1) show(order[i+1]);
     else if(e.key==='ArrowLeft'&&i>0) show(order[i-1]);
