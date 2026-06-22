@@ -94,3 +94,13 @@ def test_tab7_newsource_flow():
     assert "상시" in s7 and "조건부" in s7
     for k in ["혜택 변형", "재고 3상태", "옵션 구조"]:
         assert k in s7, k
+
+
+def test_docs_synced():
+    app_root = pathlib.Path(sg.__file__).parents[2]   # 프로그램/_시스템  (routes→webapp→_시스템)
+    repo_root = pathlib.Path(sg.__file__).parents[4]  # worktree root     (_시스템→프로그램→root)
+    txt = (app_root / "docs" / "크롤링-가이드.md").read_text(encoding="utf-8")
+    assert "옵션없음" in txt and "크롤실패" in txt           # 재고 특이사항 동기화
+    sop = (repo_root / "docs" / "신규-소싱처-추가-가이드.md").read_text(encoding="utf-8")
+    assert "혜택 종합" in sop                               # 4단계 신설 반영
+    assert "URL 세트" in sop or "여러" in sop               # 멀티 URL
