@@ -1,23 +1,34 @@
-/* matrix_hscroll.js — 매트릭스 가로 스크롤 떠있는 바 (2026-06-22)
+/* matrix_hscroll.js — 매트릭스 가로 스크롤 떠있는 바 (2026-06-22, v3 안정/성능판)
  *
  * 문제: 옵션 매트릭스(#price-matrix-table)는 소싱처 컬럼이 많아 가로로 넓고,
- *       래퍼(overflow-x:auto)에 가로 스크롤바가 있으나 테이블이 길어 화면 한참 아래라
- *       사용자가 도달 못 함 → 크롤 위젯에 가린 우측 컬럼을 못 본다.
- * 해결: 화면 하단에 항상 닿는 '떠있는 가로 스크롤바'를 만들어 래퍼와 양방향 동기화.
- *       래퍼의 네이티브 가로 스크롤바가 이미 화면에 보이면(짧은 테이블) 숨긴다(중복 방지).
+ *       래퍼(overflow-x:auto)의 가로 스크롤바가 테이블이 길어 화면 한참 아래라 도달 못 함
+ *       → 크롤 위젯에 가린 우측 컬럼을 못 본다.
+ * 해결: 화면 하단 고정 '떠있는 가로 스크롤바'를 만들어 래퍼와 동기화.
  *
- * 매트릭스가 없는 페이지에서는 아무것도 안 함(null-safe).
+ * v3 성능/안정 개선(사용자 피드백: 천천히 스크롤 시 가끔 안 됨/끊김):
+ *   · 스크롤 동기화(scrollLeft)와 위치 갱신(표시/left/width/스페이서)을 분리.
+ *     - 스크롤 핸들러는 scrollLeft 한 줄만(레이아웃 계산 없음) → 가볍고 즉각.
+ *     - 위치 갱신은 페이지 스크롤·리사이즈·주기(1.2s)에만(가로 스크롤 중엔 안 건드림).
+ *   · syncing 락으로 바↔래퍼 피드백 루프 차단.
+ *   · 스페이서 폭은 바뀔 때만 다시 설정(매 프레임 재설정이 스크롤 위치를 리셋하던 문제 제거).
+ *   · 가로 스크롤(래퍼/바)에는 capture 리스너 안 검 → 불필요한 재계산 제거.
+ *
+ * 매트릭스 없는 페이지 null-safe.
  */
 (function () {
   'use strict';
   var TABLE_ID = 'price-matrix-table';
   var BAR_ID = 'mtx-hscroll-bar';
   var SP_ID = 'mtx-hscroll-sp';
+  var syncing = false;     // 바↔래퍼 동기화 중(피드백 루프 차단)
+  var lastSpW = -1;        // 마지막으로 설정한 스페이서 폭(바뀔 때만 갱신)
 
   function getWrap() {
     var t = document.getElementById(TABLE_ID);
     return t ? t.parentElement : null;   // overflow-x:auto 래퍼
   }
+
+  function unlock() { requestAnimationFrame(function () { syncing = false; }); }
 
   function ensureBar() {
     var bar = document.getElementById(BAR_ID);
@@ -35,68 +46,79 @@
     sp.style.cssText = 'height:1px;width:1px;';
     bar.appendChild(sp);
     document.body.appendChild(bar);
-    // 바 → 래퍼 동기화
+    // 바 → 래퍼 (스크롤 위치만, 레이아웃 계산 없음)
     bar.addEventListener('scroll', function () {
+      if (syncing) return;
       var wrap = getWrap();
-      if (wrap && Math.abs(wrap.scrollLeft - bar.scrollLeft) > 1) wrap.scrollLeft = bar.scrollLeft;
+      if (!wrap) return;
+      syncing = true;
+      wrap.scrollLeft = bar.scrollLeft;
+      unlock();
     });
     return bar;
   }
 
-  function bindWrap() {
-    var wrap = getWrap();
+  function bindWrap(wrap) {
     if (!wrap || wrap.__hsBound) return;
     wrap.__hsBound = true;
-    // 래퍼 → 바 동기화
+    // 래퍼 → 바 (스크롤 위치만)
     wrap.addEventListener('scroll', function () {
+      if (syncing) return;
       var bar = document.getElementById(BAR_ID);
-      if (bar && bar.style.display !== 'none' && Math.abs(bar.scrollLeft - wrap.scrollLeft) > 1) {
-        bar.scrollLeft = wrap.scrollLeft;
-      }
+      if (!bar || bar.style.display === 'none') return;
+      syncing = true;
+      bar.scrollLeft = wrap.scrollLeft;
+      unlock();
     });
   }
 
-  function update() {
+  // 표시 여부 + 위치 + 스페이서 폭만 갱신(스크롤 위치는 가능한 한 건드리지 않음)
+  function reposition() {
     var wrap = getWrap();
     var bar = document.getElementById(BAR_ID);
     if (!wrap) { if (bar) bar.style.display = 'none'; return; }
     bar = ensureBar();
+    bindWrap(wrap);
 
     var overflows = wrap.scrollWidth > wrap.clientWidth + 2;
     var r = wrap.getBoundingClientRect();
     var vh = window.innerHeight, vw = window.innerWidth;
-    var inView = r.top < vh - 40 && r.bottom > 100;          // 매트릭스가 화면에 보이는가
-    var nativeReachable = r.bottom <= vh - 2;                 // 래퍼 하단(=네이티브 스크롤바)이 화면 안인가
+    var inView = r.top < vh - 40 && r.bottom > 100;       // 매트릭스가 화면에 보이는가
+    var nativeReachable = r.bottom <= vh - 2;             // 래퍼 네이티브 스크롤바가 화면 안인가
 
-    if (overflows && inView && !nativeReachable) {
-      var left = Math.max(0, Math.round(r.left));
-      var width = Math.min(Math.round(r.width), vw - left);
-      bar.style.left = left + 'px';
-      bar.style.width = width + 'px';
+    if (!(overflows && inView && !nativeReachable)) {
+      if (bar.style.display !== 'none') bar.style.display = 'none';
+      lastSpW = -1;                                       // 다음 표시 때 스페이서 재설정 강제
+      return;
+    }
+
+    var left = Math.max(0, Math.round(r.left));
+    var width = Math.min(Math.round(r.width), vw - left);
+    if (bar.style.left !== left + 'px') bar.style.left = left + 'px';
+    if (bar.style.width !== width + 'px') bar.style.width = width + 'px';
+    if (lastSpW !== wrap.scrollWidth) {                   // 폭 바뀔 때만(스크롤 리셋 방지)
+      lastSpW = wrap.scrollWidth;
       document.getElementById(SP_ID).style.width = wrap.scrollWidth + 'px';
-      bar.style.display = 'block';
-      if (Math.abs(bar.scrollLeft - wrap.scrollLeft) > 1) bar.scrollLeft = wrap.scrollLeft;
-    } else {
-      bar.style.display = 'none';
+    }
+    if (bar.style.display !== 'block') bar.style.display = 'block';
+    // 표시/리사이즈 직후 1회 위치 맞춤(동기화 중이 아닐 때만 — 활성 드래그와 안 싸우게)
+    if (!syncing && bar.scrollLeft !== wrap.scrollLeft) {
+      syncing = true; bar.scrollLeft = wrap.scrollLeft; unlock();
     }
   }
 
-  function tick() { bindWrap(); update(); }
-
-  // rAF 스로틀 — scroll 등 고빈도 이벤트에서 update 가 프레임당 1회만 돌게(레이아웃 thrash 방지)
-  var _raf = 0;
+  var rafLock = 0;
   function schedule() {
-    if (_raf) return;
-    _raf = requestAnimationFrame(function () { _raf = 0; tick(); });
+    if (rafLock) return;
+    rafLock = requestAnimationFrame(function () { rafLock = 0; reposition(); });
   }
 
   function init() {
-    window.addEventListener('scroll', schedule, true);   // 캡처: 래퍼/페이지 스크롤 모두 포착(rAF 스로틀)
+    // 페이지 세로 스크롤·리사이즈 시에만 위치 재계산(가로 스크롤 동기화는 위 핸들러가 처리)
+    window.addEventListener('scroll', schedule);   // 비-capture: 페이지 스크롤만
     window.addEventListener('resize', schedule);
-    // ⚠️ body 전체 MutationObserver 는 크롤 중 로그 스트림으로 폭주 → 메인스레드 부하.
-    //   대신 가벼운 주기 점검으로 비동기 렌더·행 펼침·위젯 도킹 폭 변화를 보정(1.2s).
-    setInterval(tick, 1200);
-    tick();
+    setInterval(reposition, 1200);                 // 비동기 렌더·행 펼침·위젯 도킹 폭변화 보정(가벼움)
+    reposition();
   }
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);

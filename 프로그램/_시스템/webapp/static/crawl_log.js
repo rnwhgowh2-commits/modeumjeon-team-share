@@ -106,6 +106,12 @@
       /* 도킹 시 본문(.main)이 부드럽게 좁아지도록 */
       '.main { transition:max-width .2s ease; }',
 
+      /* [2026-06-22] 위젯 폭 축소 시 내용 잘림 방지 — 내용 최소폭 + 위젯 자체 가로 스크롤. */
+      /*   핸들(#mcl-grip)은 스크롤 안 되는 패널 셸에 두고, 내용만 #mcl-scroll 로 스크롤. */
+      '#mcl-scroll { flex:1; display:flex; flex-direction:column; min-height:0; overflow-x:auto; overflow-y:hidden; }',
+      '#mcl-scroll::-webkit-scrollbar { height:9px; } #mcl-scroll::-webkit-scrollbar-thumb { background:#3A455C; border-radius:5px; } #mcl-scroll::-webkit-scrollbar-track { background:#1a222c; }',
+      '#mcl-header, #mcl-split { min-width:470px; }',
+
       '#mcl-header { padding:14px 16px 12px; border-bottom:1px solid #25303b; flex-shrink:0; }',
       '#mcl-header-top { display:flex; align-items:center; gap:7px; margin-bottom:10px; }',
       '#mcl-title { font-size:15px; font-weight:800; color:#F2F4F6; flex:1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }',
@@ -301,6 +307,7 @@
     p.classList.add('mcl-hidden');
     p.innerHTML = [
       '<div id="mcl-grip" title="드래그하여 폭 조절"></div>',
+      '<div id="mcl-scroll">',
       '<div id="mcl-header">',
       '  <div id="mcl-header-top">',
       '    <span id="mcl-title">크롤 진행 중</span>',
@@ -328,6 +335,7 @@
       '    </div>',
       '    <div id="mcl-cards-wrap"></div>',
       '  </div>',
+      '</div>',
       '</div>',
     ].join('');
     document.body.appendChild(p);

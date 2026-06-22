@@ -163,8 +163,8 @@
 
 <script src="{{ url_for('static', filename='toss.js') }}?v=20260614_queue_pausestop"></script><!-- ⚠️ toss.js 수정 시 이 버전 문자열 반드시 갱신 (정적 캐시 max-age=1일 우회) | v 갱신: bundle-run-now → enqueueCrawl 멀티 큐 -->
 <script src="{{ url_for('static', filename='ext_bridge.js') }}?v=20260620_crawlurls"></script><!-- 모음전 크롤러 확장 브리지 — window.MoumExt | v 갱신: crawlUrls(선택 URL만 로컬창 크롤) 추가 -->
-<script src="{{ url_for('static', filename='crawl_log.js') }}?v=20260622_dock2"></script><!-- 실시간 크롤 대시보드 (… + 완료요약 시안D + 소싱처카드 URL크롤·완료/실패 분해 + 새 크롤 시작 시 카운트·진행률 초기화 + 도킹/폭드래그 시안B) -->
-<script src="{{ url_for('static', filename='matrix_hscroll.js') }}?v=20260622_hscroll2"></script><!-- 매트릭스 가로 스크롤 떠있는 바 — 긴 테이블에서도 닿는 위치에 가로 스크롤(위젯에 가린 소싱처 컬럼 보기) -->
+<script src="{{ url_for('static', filename='crawl_log.js') }}?v=20260622_wscroll"></script><!-- 실시간 크롤 대시보드 (… + 도킹/폭드래그 시안B + 폭 축소 시 위젯 가로 스크롤) -->
+<script src="{{ url_for('static', filename='matrix_hscroll.js') }}?v=20260622_hscroll3"></script><!-- 매트릭스 가로 스크롤 떠있는 바 — 긴 테이블에서도 닿는 위치에 가로 스크롤(위젯에 가린 소싱처 컬럼 보기) -->
 <script src="{{ url_for('static', filename='toss_add_benefit.js') }}"></script><!-- v6 D2-A 혜택추가폼 인터랙션 -->
 <script src="{{ url_for('static', filename='option_url_modal.js') }}?v=20260621_v54_modelautosave"></script><!-- 2026-06-21 v54 — 모델 선택 시 즉시 저장(딜 URL→모델 단일URL DB 반영, 미저장 딜이 검증 실패로 뜨던 문제). ⚠️ option_url_modal.js 수정 시 이 버전 문자열 반드시 갱신 -->
 
