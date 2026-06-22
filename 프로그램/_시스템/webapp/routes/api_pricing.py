@@ -139,6 +139,44 @@ def _match_option_price(so_index, sp_id, opt_color, opt_size):
     return so.current_price if so is not None else None
 
 
+def _persist_option_stocks(session, source_product_id, options):
+    """확장 크롤 결과 options[{color,size,stock}] 의 실재고를 매칭 SourceOption.current_stock
+    에 영속한다(스마트스토어 등 '확장 전용' 소싱처 999 둔갑 수정).
+
+    매트릭스가 읽는 바로 그 SO 를 _match_option_so 동일 매칭으로 찾아 기록 → 화면 정합 보장.
+    무결성 원칙:
+      - 품절(0)은 반드시 영속 / 999=수량미상은 그대로(센티넬 보존)
+      - stock 이 숫자(int)가 아니면(None·문자열·bool) 건너뜀 → 크롤 시작 하드리셋의 NULL 보존
+        (옛값 덮어쓰기·폴백 금지). 호출자가 성공 크롤(status==ok)일 때만 부른다.
+      - 한 SO 에는 1회만(중복 매칭 방지).
+    Returns: 갱신된 옵션 수.
+    """
+    from lemouton.sources.models import SourceOption
+    if not isinstance(options, list) or not options:
+        return 0
+    so_rows = (session.query(SourceOption)
+               .filter_by(source_product_id=source_product_id, deleted_at=None).all())
+    if not so_rows:
+        return 0
+    so_idx = _build_so_index(so_rows)
+    seen_ids = set()
+    updated = 0
+    for o in options:
+        if not isinstance(o, dict):
+            continue
+        st = o.get('stock')
+        # bool 은 int 의 하위형 → 명시 배제. None·문자열도 배제(하드리셋 NULL 보존).
+        if isinstance(st, bool) or not isinstance(st, int):
+            continue
+        so = _match_option_so(so_idx, source_product_id, o.get('color'), o.get('size'))
+        if so is None or so.id in seen_ids:
+            continue
+        seen_ids.add(so.id)
+        so.current_stock = st
+        updated += 1
+    return updated
+
+
 def _resolve_stock(site, raw):
     """site + raw → (qty:int|None, label:str, is_out:bool). 화면 표시 단일 진실 원천.
 
@@ -1069,6 +1107,22 @@ def save_crawl_result():
                     s.query(SourceOption).filter_by(
                         source_product_id=sp.id, deleted_at=None
                     ).update({SourceOption.current_price: int(price)})
+                except Exception:
+                    pass
+            # ★ 2026-06-22 — 옵션단위 실재고(color·size별) 영속 — 스마트스토어 등 '확장 전용'
+            #   소싱처 재고가 전부 999('재고있음')로 둔갑하던 버그 수정.
+            #   배경: 확장이 색·사이즈별 재고를 긁고(parse 가 품절 0 까지 교정해) options[] 로
+            #         보내는데, 여기서 current_stock 에 쓰지 않아 매트릭스가 옛 999 를 노출했다.
+            #         옵션단위 current_stock 은 서버사이드 크롤(_ingest)만 채워 왔고, 네이버
+            #         WAF 로 '확장으로만' 긁히는 스마트스토어는 영원히 stale → 품절 사이즈가
+            #         '있음'으로 둔갑(주문 손실 위험). 동일 함정이 SSF·SSG 등 확장 전용 분에도 있음.
+            #   원칙(무결성): 매트릭스가 읽는 바로 그 SO 에 _match_option_so 동일 매칭으로 기록.
+            #         품절(0)은 반드시 영속 / 999=수량미상은 그대로 / stock 이 숫자 아니면(None)
+            #         건너뜀(크롤시작 하드리셋의 NULL 보존, 옛값 덮어쓰기·폴백 금지) /
+            #         실패 크롤(status!=ok)은 기록 안 함(실패 시 가짜 재고 금지). 로직=_persist_option_stocks.
+            if status == 'ok':
+                try:
+                    _persist_option_stocks(s, sp.id, it.get('options'))
                 except Exception:
                     pass
             # ★ 2026-06-22 — 무신사 회원 혜택 금액을 크롤 라인(benefit_lines)에서 추출·저장.
