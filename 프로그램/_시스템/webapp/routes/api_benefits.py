@@ -374,8 +374,10 @@ def _build_breakdown_cache(session, items: list) -> dict:
                           OptionSourceUrl.source_id.in_(sids)).all()):
             link_by[(l.canonical_sku, l.source_id)] = l
     sp_by_norm = {}
+    sp_by_id = {}  # [2026-06-22] source_product_id 직읽기용 (연결분열 우회)
     for sp in (session.query(SourceProduct)
                .filter(SourceProduct.deleted_at.is_(None)).all()):
+        sp_by_id[sp.id] = sp
         if sp.url:
             sp_by_norm[_nu(sp.url)] = sp
     tpl_by_src = defaultdict(list)
@@ -397,14 +399,18 @@ def _build_breakdown_cache(session, items: list) -> dict:
     if sids:
         prefs = (session.query(CardDiscountUserPref)
                  .filter(CardDiscountUserPref.source_id.in_(sids)).all())
-    return {'link_by': link_by, 'sp_by_norm': sp_by_norm,
+    return {'link_by': link_by, 'sp_by_norm': sp_by_norm, 'sp_by_id': sp_by_id,
             'tpl_by_src': tpl_by_src, 'ovr_by': ovr_by, 'prefs': prefs}
 
 
 def compute_breakdown(session, *, sku: str, source_id: int, sale_price: float,
-                       bundle_code: str = None, _cache: dict = None):
+                       bundle_code: str = None, _cache: dict = None,
+                       source_product_id: int = None):
     """_cache: bulk 호출 시 N+1 제거용 사전 로드 인덱스(_build_breakdown_cache).
-    None 이면(단일 호출) 기존처럼 매번 쿼리."""
+    None 이면(단일 호출) 기존처럼 매번 쿼리.
+    source_product_id: 매트릭스가 아는 옵션-소싱처의 SourceProduct id. 주어지면 동적혜택을
+      그 상품에서 '직읽기'(연결분열 우회). OptionSourceUrl·option_source_links 가 비어도
+      (예: SSG 단일상품) 정확한 dynamic_benefits 를 읽는다."""
     """누적 차감 계산.
 
     1. SourceBenefitTemplate (사이트 default) 조회
@@ -507,6 +513,40 @@ def compute_breakdown(session, *, sku: str, source_id: int, sale_price: float,
                 _dynamic_benefits = _best2
         except Exception:
             pass
+
+    # ★ 2026-06-22 — source_product_id 직읽기 (연결분열 우회, 마지막 폴백).
+    #   위 OptionSourceUrl·option_source_links 가 모두 비어 동적혜택을 못 찾은 경우
+    #   (예: SSG 단일상품 — 옵션별 option_source_links 미생성), 매트릭스가 아는 정확한
+    #   SourceProduct id 로 직접 읽는다(저장은 됐는데 못 읽던 SSG MONEY 사고 수정).
+    #   기존 경로가 채운 소싱처(무신사·SSF 등)는 not _dynamic_benefits 가드로 안 탐 → 무회귀.
+    #   site 검증으로 오상품(같은 URL 다른 site) 방지.
+    if source_product_id and not _dynamic_benefits:
+        try:
+            from lemouton.sources.models import SourceProduct as _SP
+            import json as _json
+            _sp = (_cache.get('sp_by_id') or {}).get(int(source_product_id)) if _cache is not None else None
+            if _sp is None:
+                _sp = session.get(_SP, int(source_product_id))
+            if (_sp is not None and getattr(_sp, 'deleted_at', None) is None
+                    and (_site_for is None or getattr(_sp, 'site', None) == _site_for)):
+                if _sp.dynamic_benefits_json:
+                    try:
+                        _dynamic_benefits = _json.loads(_sp.dynamic_benefits_json) or {}
+                    except (ValueError, TypeError):
+                        _dynamic_benefits = {}
+                if not _card_issuer and _sp.auto_card_discount_json:
+                    try:
+                        _card_issuer = (_json.loads(_sp.auto_card_discount_json) or {}).get('issuer')
+                        if _card_issuer:
+                            _card_enabled = resolve_card_enabled(
+                                session, canonical_sku=sku, source_id=source_id,
+                                bundle_code=bundle_code,
+                                _prefs=(_cache['prefs'] if _cache is not None else None))
+                    except (ValueError, TypeError):
+                        pass
+        except Exception:
+            pass
+
     if _cache is not None:
         tpl_items = _cache['tpl_by_src'].get(source_id, [])
     else:
@@ -787,9 +827,14 @@ def get_breakdown(sku: str, source_id: int):
         sale_price = float(request.args.get('sale_price', 0))
     except ValueError:
         return _err('sale_price 숫자 형식 오류')
+    try:
+        _spid = int(request.args.get('source_product_id')) if request.args.get('source_product_id') else None
+    except (ValueError, TypeError):
+        _spid = None
     s = SessionLocal()
     try:
-        out = compute_breakdown(s, sku=sku, source_id=source_id, sale_price=sale_price)
+        out = compute_breakdown(s, sku=sku, source_id=source_id, sale_price=sale_price,
+                                source_product_id=_spid)
         return _ok(**out)
     finally:
         s.close()
@@ -820,7 +865,8 @@ def bulk_breakdowns():
             key = it.get('key') or f"{sku}|{sid}"
             try:
                 out[key] = compute_breakdown(s, sku=sku, source_id=int(sid),
-                                             sale_price=sp, _cache=cache)
+                                             sale_price=sp, _cache=cache,
+                                             source_product_id=it.get('source_product_id'))
             except Exception as e:
                 out[key] = {'error': str(e)}
         return _ok(results=out)
