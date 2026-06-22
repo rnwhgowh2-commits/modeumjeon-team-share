@@ -60,6 +60,26 @@
     return b.sources[sk];
   }
 
+  // [2026-06-22] URL 타입(단품/색상모음전/모델모음전) 조회 — 크롤 엔진(확장)이 이벤트에
+  //   url_type 을 안 실어보내 전부 '-' 로 떴다. 페이지의 window.DATA(매트릭스 옵션)에는
+  //   product_url 별 url_type 이 있으므로 URL 로 직접 조회해 배지를 채운다(확장 수정 불필요).
+  var _utMap = null, _utKey = '';
+  function urlTypeOf(url) {
+    if (!url) return '';
+    try {
+      var D = window.DATA;
+      if (!D || !Array.isArray(D.options) || !D.options.length) return '';
+      var key = D.options.length + '|' + ((D.options[0] && D.options[0].sku) || '');
+      if (_utMap === null || _utKey !== key) {
+        _utMap = {}; _utKey = key;
+        D.options.forEach(function (o) { (o.sources || []).forEach(function (s) { if (s.product_url && s.url_type && !_utMap[s.product_url]) _utMap[s.product_url] = s.url_type; }); });
+      }
+      return _utMap[url] || '';
+    } catch (_) { return ''; }
+  }
+  // 코드/한글 모두 → {라벨, CSS클래스} 정규화 (단품·색상모음전·모델모음전)
+  var _TYPE_MAP = { 'dan': ['단품', 't-dan'], '단품': ['단품', 't-dan'], 'mo': ['색상모음전', 't-mo'], '색상모음전': ['색상모음전', 't-mo'], 'deal': ['모델모음전', 't-deal'], '모델모음전': ['모델모음전', 't-deal'] };
+
   // ── CSS 주입 (1회) ───────────────────────────────────────────────
   var CSS_ID = 'moum-crawl-log-css';
   function injectCSS() {
@@ -188,9 +208,10 @@
       '.mcl-d8-head span:nth-child(3), .mcl-d8-head span:nth-child(4) { text-align:right; }',
       '.mcl-d8-row { display:grid; grid-template-columns:60px 1fr 92px 108px; gap:8px; padding:7px 4px; border-bottom:1px solid #1c2630; font-size:11.5px; align-items:start; line-height:1.45; }',
       /* 타입 배지 — 시안 A 칩·파스텔 */
-      '.mcl-d8-badge { font-size:10px; font-weight:700; padding:2px 6px; border-radius:5px; white-space:nowrap; line-height:1.5; display:inline-block; }',
-      '.mcl-d8-badge.t-dan { background:#1e2a44; color:#93C5FD; }',
-      '.mcl-d8-badge.t-deal { background:#1a2e1a; color:#6EE7B7; }',
+      '.mcl-d8-badge { font-size:10.5px; font-weight:700; padding:3px 9px; border-radius:20px; white-space:nowrap; line-height:1.4; display:inline-block; }',
+      '.mcl-d8-badge.t-dan { background:#2a313c; color:#aeb6c0; }',
+      '.mcl-d8-badge.t-mo { background:#16335c; color:#7db0f5; }',
+      '.mcl-d8-badge.t-deal { background:#2e2150; color:#bba6f5; }',
       '.mcl-d8-badge.t-none { background:#252b35; color:#6B7A8C; }',
       // [2026-06-19 시안A] 상품명 전체표시(줄바꿈) + URL 링크(↗). 기존 말줄임(nowrap/ellipsis) 제거.
       '.mcl-d8-nm { color:#CBD5E1; font-weight:600; white-space:normal; line-height:1.34; min-width:0; }',
@@ -601,10 +622,10 @@
           var r = document.createElement('div'); r.className = 'mcl-d8-row' + (lg.level === 'warn' ? ' fail' : '');
           // 타입 배지 (단품/모델 모음전)
           var bdg = document.createElement('span');
-          var ut = lg.url_type || '';
-          var bdgTxt = ut === 'deal' ? '모델\n모음전' : (ut === 'dan' ? '단품' : '');
-          bdg.className = 'mcl-d8-badge ' + (ut ? 't-' + ut : 't-none');
-          bdg.textContent = bdgTxt || (ut || '-');
+          var utRaw = (lg.url_type || urlTypeOf(lg.url) || '').toString().trim();
+          var _ti = _TYPE_MAP[utRaw];
+          bdg.className = 'mcl-d8-badge ' + (_ti ? _ti[1] : 't-none');
+          bdg.textContent = _ti ? _ti[0] : '-';
           r.appendChild(bdg);
           // [2026-06-19 시안A] 상품명 = 클릭 시 URL 열기 링크(↗) + 전체표시(CSS 줄바꿈).
           var nm = document.createElement('span'); nm.className = 'mcl-d8-nm';
