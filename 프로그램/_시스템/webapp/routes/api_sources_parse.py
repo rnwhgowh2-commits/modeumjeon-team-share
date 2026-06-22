@@ -12,6 +12,10 @@ bp = Blueprint("api_sources_parse", __name__, url_prefix="/api")
 
 _PARSE_SOURCES = {"lemouton", "ssf", "ssg", "ss_lemouton"}
 
+# [임시 진단 2026-06-22] navGrab 이 실제 긁은 SSG HTML 을 캡처해 mou-m.com 으로 확인.
+#   ssg.com 이 분석도구에서 차단돼 직접 못 보므로, 혜택영역 포함 여부/구조를 서버서 본다.
+_LAST_SSG = {"html": None, "url": None, "options0": None}
+
 
 @bp.before_request
 def _admin_only():
@@ -62,7 +66,36 @@ def parse_source_html():
         _save_navgrab_dynamic_benefits(source_key, url, payload.get("options") or [])
     except Exception:
         pass  # 저장 실패해도 파싱 결과 반환은 유지(가격/재고는 crawl-result 가 별도 저장)
+    if source_key == "ssg":  # [임시 진단] navGrab SSG HTML 캡처
+        try:
+            _opts = payload.get("options") or []
+            _LAST_SSG["html"] = html
+            _LAST_SSG["url"] = url
+            _LAST_SSG["options0"] = _opts[0] if _opts else None
+        except Exception:
+            pass
     return jsonify(ok=True, **payload)
+
+
+@bp.get("/sources/_debug_ssg")
+def _debug_ssg():
+    """[임시 진단] 마지막 SSG navGrab HTML 분석 — 혜택영역 포함여부·스니펫."""
+    import re as _re
+    h = _LAST_SSG.get("html") or ""
+    if not h:
+        return jsonify(ok=False, msg="아직 SSG parse 안 들어옴")
+    def snip(kw, span=140):
+        i = h.find(kw)
+        return h[max(0, i - 40): i + span] if i >= 0 else None
+    markers = {k: (k in h) for k in
+               ["SSG MONEY", "구매혜택", "cdtl_benefit", "cdtl_ly_dc", "적립", "즉시할인",
+                "쓱페이", "SSG PAY", "쿠폰"]}
+    return jsonify(ok=True, html_len=len(h), url=_LAST_SSG.get("url"),
+                   options0=_LAST_SSG.get("options0"),
+                   markers=markers,
+                   snip_money=snip("SSG MONEY"),
+                   snip_benefit=snip("구매혜택"),
+                   snip_accum=snip("적립"))
 
 
 def _save_navgrab_dynamic_benefits(source_key: str, url: str, options: list) -> None:
