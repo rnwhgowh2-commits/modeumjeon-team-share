@@ -137,6 +137,7 @@
       '#mcl-fd .fd-det { color:#9FC3FF; text-decoration:underline; text-underline-offset:2px; font-size:10px; cursor:pointer; margin-left:5px; }',
       '#mcl-fd .fd-stop { color:#fca5a5; font-size:11px; font-weight:700; margin-top:5px; }',
       '#mcl-fd .gn{color:#34D399} #mcl-fd .rd{color:#F87171} #mcl-fd .gy{color:#9aa6b2} #mcl-fd .bl{color:#7FB6FF}',
+      '#mcl-fd .fd-recov { display:inline-block; margin-left:7px; font-size:10.5px; font-weight:800; color:#7dd3fc; background:#0c3a52; border:1px solid #1e6a8c; border-radius:999px; padding:1px 7px; vertical-align:1px; }',
 
       /* 분할: 좌측 레일 + 우측 상세 */
       '#mcl-split { flex:1; display:flex; overflow:hidden; min-height:0; }',
@@ -677,10 +678,10 @@
   //   window.DATA(option-matrix)에서 카운트(같은 모음전일 때만 — 없으면 옵션 섹션 생략).
   function buildFinishHTML(b) {
     // 카드의 s.ok 합 = 성공, s.fail 합 = 실패 → 상단 수치와 100% 동일.
-    var Y2 = 0, Y3 = 0;
+    var Y2 = 0, Y3 = 0, Yr = 0;
     SOURCE_ORDER.forEach(function (sk) {
       var s = b.sources[sk]; if (!s) return;
-      Y2 += (s.ok || 0); Y3 += (s.fail || 0);
+      Y2 += (s.ok || 0); Y3 += (s.fail || 0); Yr += (s.recovered || 0);  // [2026-06-22 ②] Yr=재시도 복구 건수
     });
     var Y1 = Y2 + Y3;
     var Y = Math.max(Y1, b.total || 0);
@@ -695,7 +696,9 @@
     h += '<div class="fd-col">'
       + '<div class="fd-row top"><span class="k">총 URL · 진행률</span><span class="v bl">' + Y1 + ' / ' + Y + '</span></div>'
       + '<div class="fd-row sub"><span class="k">완료</span><span class="v">' + Y1 + '</span></div>'
-      + '<div class="fd-row sub"><span class="k">성공</span><span class="v gn">' + Y2 + '</span></div>'
+      + '<div class="fd-row sub"><span class="k">성공</span><span class="v gn">' + Y2
+        + (Yr > 0 ? ' <span class="fd-recov" title="첫 시도 실패 → 자동 재시도로 복구된 건">↻ ' + Yr + ' 복구</span>' : '')
+        + '</span></div>'
       + '<div class="fd-row sub"><span class="k">실패</span><span class="v rd">' + Y3 + '</span></div>'
       + (b.status === 'stop' ? '<div class="fd-stop">■ 중지됨</div>' : '')
       + '</div>';
@@ -947,6 +950,7 @@
           var s2r = getSource(b, sk);
           s2r.fail = Math.max(0, (s2r.fail || 0) - 1);
           s2r.ok = (s2r.ok || 0) + 1;
+          s2r.recovered = (s2r.recovered || 0) + 1;  // [2026-06-22 ②] ↻복구 칩 카운트
           var liner = { ts: ts, level: 'retried', msg: msg, url: d.url || null, lineId: d.lineId || null, name: d.name || null, surf: (d.surf != null ? d.surf : null), buy: null, steps: null, url_type: d.url_type || '' };
           s2r.logs.push(liner);
           if (s2r.logs.length > 200) s2r.logs.shift();
