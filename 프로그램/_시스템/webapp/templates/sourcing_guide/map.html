@@ -19,11 +19,6 @@
   .sgmap .elabel{font-size:9.5px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:#9AA4B0;margin-right:6px;}
   .sgmap .erow{font-size:11.5px;line-height:1.7;color:var(--sub);}
   .sgmap .sub{color:var(--sub);font-size:13px;margin:0 0 20px;}
-  .sgmap .subtabs{display:flex;gap:24px;border-bottom:1.5px solid var(--line2);margin-bottom:18px;}
-  .sgmap .subtab{padding:10px 2px;font-size:14.5px;color:var(--sub);font-weight:600;text-decoration:none;position:relative;}
-  .sgmap .subtab.on{color:var(--ink);font-weight:800;}
-  .sgmap .subtab.on::after{content:'';position:absolute;left:0;right:0;bottom:-1.5px;height:2.5px;background:var(--ink);border-radius:2px;}
-  .sgmap .subtab .nw{font-size:10px;font-weight:800;color:#fff;background:var(--blue);border-radius:4px;padding:0 5px;margin-left:4px;vertical-align:middle;}
   .sgmap .seg{display:inline-flex;background:#EEF1F5;border-radius:9px;padding:3px;margin-bottom:18px;}
   .sgmap .seg b{padding:8px 18px;border-radius:7px;font-size:13px;font-weight:700;color:var(--sub);cursor:pointer;}
   .sgmap .seg b.on{background:#fff;color:var(--ink);box-shadow:0 1px 3px rgba(0,0,0,.12);}
@@ -326,7 +321,7 @@
         </table></div>
       <div class="step"><div class="sn u">1</div><div class="sc"><div class="st">샘플 URL 세트 받기<span class="who u">사용자</span></div><div class="d">대표 1개 + 3축 변형 2~5개. 적을수록 카탈로그 누락 위험.</div></div></div><div class="vl"></div>
       <div class="step"><div class="sn">2</div><div class="sc"><div class="st">수집 방식 4분면 분류<span class="who c">CLAUDE</span></div><div class="ref">→ <span class="lk">1 전체흐름</span> · API/HTML × 인증·비인증</div></div></div><div class="vl"></div>
-      <div class="step"><div class="sn">3</div><div class="sc"><div class="st">7항목 위치 추출 (재고 3단계 규칙 포함)<span class="who c">CLAUDE</span></div><div class="ref">→ <span class="lk">2 재고</span> + <span class="lk">3 가격</span></div></div></div><div class="vl"></div>
+      <div class="step"><div class="sn">3</div><div class="sc"><div class="st">항목별 위치 추출 (재고 3단계 규칙 포함)<span class="who c">CLAUDE</span></div><div class="ref">→ <span class="lk">2 재고</span> + <span class="lk">3 가격</span></div></div></div><div class="vl"></div>
       <div class="step"><div class="sn">4</div><div class="sc"><div class="st">혜택 종합 — 여러 URL 교차분석<span class="tag">신설</span><span class="who c">CLAUDE</span></div><div class="ref">→ <span class="lk">3 가격</span> · 모든 URL=상시 / 일부=조건부 + 트리거</div></div></div><div class="vl"></div>
       <div class="step"><div class="sn">5</div><div class="sc"><div class="st">매입가 순차차감 로직<span class="who c">CLAUDE</span></div><div class="ref">→ <span class="lk">3 가격</span> · 표면 − Σ혜택 (직전 잔액 기준)</div></div></div><div class="vl"></div>
       <div class="step"><div class="sn">6</div><div class="sc"><div class="st">검증 크롤·대조 → 정답 카드 저장<span class="who c">CLAUDE</span></div><div class="ref">→ <span class="lk">5 원칙</span> · <span class="lk">6 재발</span> + 18항목 체크리스트 · crawl_guide</div></div></div>
