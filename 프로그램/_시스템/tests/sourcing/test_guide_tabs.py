@@ -25,5 +25,5 @@ def test_how_to_template_deleted():
 
 
 def test_no_how_to_links_in_templates():
-    for f in TPL.glob("*.html"):
+    for f in TPL.rglob("*.html"):
         assert "/sourcing-guide/how-to" not in f.read_text(encoding="utf-8"), f.name
