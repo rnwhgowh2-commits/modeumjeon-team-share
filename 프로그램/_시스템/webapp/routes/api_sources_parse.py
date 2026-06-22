@@ -53,7 +53,39 @@ def parse_source_html():
             res = crawler.parse_html(html, url)
     except Exception as e:
         return jsonify(ok=False, error="parse_failed", message=str(e)[:200]), 200
-    return jsonify(ok=True, **asdict(res))
+    payload = asdict(res)
+    # ★ 2026-06-22 — navGrab(SSF·SSG·르무통·스스) 동적 혜택 서버측 저장.
+    #   서버 크롤러가 옵션에 채운 동적 키(멤버십포인트·기프트포인트·SSG MONEY·상품쿠폰 등)를
+    #   여기서 SourceProduct.dynamic_benefits_json 에 직접 저장한다(확장이 그 키를 드롭해
+    #   라이브에서 비어 있던 사고 수정). 무신사·롯데온은 직읽기 경로(별도)라 여기 안 옴.
+    try:
+        _save_navgrab_dynamic_benefits(url, payload.get("options") or [])
+    except Exception:
+        pass  # 저장 실패해도 파싱 결과 반환은 유지(가격/재고는 crawl-result 가 별도 저장)
+    return jsonify(ok=True, **payload)
+
+
+def _save_navgrab_dynamic_benefits(url: str, options: list) -> None:
+    """parse 결과 options 의 동적 혜택을 url 매칭 SourceProduct 에 저장(있으면만)."""
+    from lemouton.pricing.benefit_parse import extract_dynamic_benefits_from_options
+    from lemouton.sources.service import normalize_url
+    from lemouton.sources.models import SourceProduct
+    from shared.db import SessionLocal
+    import json as _json
+    dyn = extract_dynamic_benefits_from_options(options)
+    s = SessionLocal()
+    try:
+        target = normalize_url(url)
+        sp = next((p for p in s.query(SourceProduct)
+                   .filter(SourceProduct.deleted_at.is_(None)).all()
+                   if p.url and normalize_url(p.url) == target), None)
+        if sp is None:
+            return  # 등록 안 된 URL — 생성하지 않음
+        # 신선 크롤 결과로 교체(폴백·stale 금지). 없으면 None.
+        sp.dynamic_benefits_json = _json.dumps(dyn, ensure_ascii=False) if dyn else None
+        s.commit()
+    finally:
+        s.close()
 
 
 @bp.post("/sources/resolve-deal-models")

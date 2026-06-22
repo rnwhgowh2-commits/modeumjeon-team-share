@@ -2,7 +2,37 @@
 """benefit_parse — 라이브 무신사 실데이터(2026-06-22 mou-m.com/products/4046672) 기반."""
 from lemouton.pricing.benefit_parse import (
     parse_musinsa_benefit_amounts, has_musinsa_member_signal,
+    extract_dynamic_benefits_from_options,
 )
+
+
+def test_extract_ssf_dynamic():
+    # SSF parse 결과 옵션 dict (멤버십포인트·기프트포인트)
+    opts = [{"color_text": "블랙", "size_text": "250", "price": 111050, "stock": 5,
+             "point_rate": 0.005, "point_amount": 555, "gift_point_amount": 11000}]
+    dyn = extract_dynamic_benefits_from_options(opts)
+    assert dyn["point_rate"] == 0.005
+    assert dyn["gift_point_amount"] == 11000
+
+
+def test_extract_ssg_dynamic():
+    opts = [{"price": 119900, "ssg_money_rate": 0.05, "ssg_money_text": "5% 적립"}]
+    dyn = extract_dynamic_benefits_from_options(opts)
+    assert dyn["ssg_money_rate"] == 0.05
+    assert dyn["ssg_money_text"] == "5% 적립"
+
+
+def test_extract_skips_zero_and_empty():
+    opts = [{"price": 1000, "point_rate": 0, "gift_point_amount": None},
+            {"price": 2000, "point_rate": 0.01}]
+    dyn = extract_dynamic_benefits_from_options(opts)
+    # 첫 옵션은 전부 0/None → 스킵, 둘째 옵션 채택
+    assert dyn == {"point_rate": 0.01}
+
+
+def test_extract_empty_when_none():
+    assert extract_dynamic_benefits_from_options([{"price": 1000}]) == {}
+    assert extract_dynamic_benefits_from_options([]) == {}
 
 # 라이브 무신사 페이지에서 확장과 동일하게 수집한 실제 라인 (표면가 116,900)
 LIVE_LINES = [

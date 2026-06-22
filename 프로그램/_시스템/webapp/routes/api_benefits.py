@@ -521,17 +521,21 @@ def compute_breakdown(session, *, sku: str, source_id: int, sale_price: float,
                      .filter_by(canonical_sku=sku, source_id=source_id)
                      .order_by(OptionBenefitOverride.sort_order, OptionBenefitOverride.id)
                      .all())
-    # ★ 2026-06-11 스냅샷 모델 — 이 옵션에 override(자기 복사본)가 하나라도 있으면
-    #   '스냅샷됨' = 소싱처 템플릿을 무시하고 옵션 override 만 사용(독립). 소싱처 기본값이
-    #   바뀌어도 영향 0. override 0건이면 기존처럼 소싱처 템플릿 사용(미스냅샷·하위호환,
-    #   byte-identical). 게이트는 마이그레이션(전 모음전 스냅샷)과 원자적으로 적용해야 안전.
-    #   spec: docs/superpowers/specs/2026-06-11-혜택-스냅샷-모델-design.md
+    # ★ 2026-06-11 스냅샷 모델 — 옵션 override(자기 복사본) 우선.
+    # ★ 2026-06-22 부분 스냅샷 버그 수정 — 기존엔 'override 1건이라도 있으면 템플릿 전체 무시'
+    #   였다. 그래서 매트릭스에서 혜택 1개만 수정(=override 1행 생성)하면 소싱처 템플릿의
+    #   나머지 혜택(리뷰적립·현대카드 등)이 통째로 드롭돼 라이브에서 '소싱처별 혜택 누락'이
+    #   발생했다(르무통 SKU-HU61O8ZW 실증). → '이름 기준 병합'으로 변경: override 가 같은
+    #   이름의 템플릿을 덮고, override 가 안 덮은 템플릿 혜택은 그대로 유지(혜택 묵음 손실 방지).
+    #   완전 스냅샷(전 항목 override)·미스냅샷(override 0건)은 동작 동일(byte-identical).
+    #   독립성보다 데이터 무결성(혜택 누락=금전손실) 우선 — 사용자 정책.
     effective = []
-    if ovr_items:
-        for ovr in ovr_items:
-            effective.append(('ovr_new', ovr))
-    else:
-        for tpl in tpl_items:
+    _ovr_names = set()
+    for ovr in ovr_items:
+        effective.append(('ovr_new', ovr))
+        _ovr_names.add((ovr.benefit_name or '').strip())
+    for tpl in tpl_items:
+        if (tpl.benefit_name or '').strip() not in _ovr_names:
             effective.append(('tpl', tpl))
 
     # ★ 2026-05-15 — SourceProduct.dynamic_benefits_json 에서 동적 혜택 차감 항목 추가.

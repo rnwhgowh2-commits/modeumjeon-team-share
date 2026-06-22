@@ -89,6 +89,50 @@ def parse_musinsa_benefit_amounts(lines, surface_price=None) -> dict:
     return out
 
 
+# ─────────────────────────────────────────────────────────────────────────────
+# navGrab(SSF·SSG·르무통·스스) — 서버 parse 결과 옵션 dict 에서 동적 혜택 키 추출.
+#   배경: 확장이 /api/sources/parse 로 HTML 을 보내면 서버 크롤러(ssf/ssg.py)가 옵션마다
+#   동적 혜택 키(point_rate·gift_point·ssg_money_rate 등)를 채운다. 그런데 확장의
+#   crawlItemInTabBG 가 그 키를 드롭하고 crawl-result 로는 가격/재고만 저장 → 라이브에서
+#   SSF 멤버십포인트·SSG MONEY 등이 비어 있었다. parse 엔드포인트가 이 함수로 키를 뽑아
+#   SourceProduct.dynamic_benefits_json 에 직접 저장(서버측, 확장 변경 불필요).
+#   키 목록은 service.py PRODUCT_DYNAMIC_KEYS 와 동일(단일 진실 원천).
+# ─────────────────────────────────────────────────────────────────────────────
+_PRODUCT_DYNAMIC_KEYS = (
+    'point_rate', 'point_amount',
+    'gift_point_amount',
+    'ssg_money_rate', 'ssg_money_amount',
+    'ssg_money_already_applied', 'ssg_money_text',
+    'card_benefit_price', 'card_benefit_condition',
+    'product_coupon_rate', 'product_coupon_amount',
+    'product_coupon_min_order', 'product_coupon_max_discount',
+    'product_coupon_label',
+    'point_rewards',
+    'review_point_max',
+    'lotte_member_discount_rate', 'lotte_member_discount_label',
+    'store_jjim_coupon_amount', 'store_jjim_coupon_label',
+)
+
+
+def extract_dynamic_benefits_from_options(options) -> dict:
+    """parse 결과 options(list[dict]) → 동적 혜택 dict.
+
+    상품 단위 동일 값 가정 → 첫 non-empty 옵션의 동적 키들만 추출(service.py 와 동일 정책).
+    0/None/''/False 는 미수집으로 보고 제외(폴백 금지). 비면 {} 반환(저장 측이 None 처리).
+    """
+    out = {}
+    for o in (options or []):
+        if not isinstance(o, dict):
+            continue
+        cur = {}
+        for k in _PRODUCT_DYNAMIC_KEYS:
+            if k in o and o[k] not in (None, 0, '', False):
+                cur[k] = o[k]
+        if cur:
+            return cur
+    return out
+
+
 def has_musinsa_member_signal(lines) -> bool:
     """라인에 무신사 회원 적립 신호(등급적립/무신사머니/최대적립 + 금액)가 있는가.
 
