@@ -58,15 +58,19 @@ def parse_source_html():
     #   서버 크롤러가 옵션에 채운 동적 키(멤버십포인트·기프트포인트·SSG MONEY·상품쿠폰 등)를
     #   여기서 SourceProduct.dynamic_benefits_json 에 직접 저장한다(확장이 그 키를 드롭해
     #   라이브에서 비어 있던 사고 수정). 무신사·롯데온은 직읽기 경로(별도)라 여기 안 옴.
+    _dbg = None
     try:
-        _save_navgrab_dynamic_benefits(url, payload.get("options") or [])
-    except Exception:
-        pass  # 저장 실패해도 파싱 결과 반환은 유지(가격/재고는 crawl-result 가 별도 저장)
-    return jsonify(ok=True, **payload)
+        _dbg = _save_navgrab_dynamic_benefits(url, payload.get("options") or [])
+    except Exception as _e:
+        _dbg = {"error": str(_e)[:160]}  # 저장 실패해도 파싱 결과 반환은 유지
+    return jsonify(ok=True, _dyn_debug=_dbg, **payload)
 
 
-def _save_navgrab_dynamic_benefits(url: str, options: list) -> None:
-    """parse 결과 options 의 동적 혜택을 url 매칭 SourceProduct 에 저장(있으면만)."""
+def _save_navgrab_dynamic_benefits(url: str, options: list) -> dict:
+    """parse 결과 options 의 동적 혜택을 url 매칭 SourceProduct 에 저장(있으면만).
+
+    반환: 디버그 정보(찾은 sp id·매칭여부·저장 키). 임시(진단용).
+    """
     from lemouton.pricing.benefit_parse import extract_dynamic_benefits_from_options
     from lemouton.sources.service import normalize_url
     from lemouton.sources.models import SourceProduct
@@ -76,14 +80,20 @@ def _save_navgrab_dynamic_benefits(url: str, options: list) -> None:
     s = SessionLocal()
     try:
         target = normalize_url(url)
-        sp = next((p for p in s.query(SourceProduct)
-                   .filter(SourceProduct.deleted_at.is_(None)).all()
-                   if p.url and normalize_url(p.url) == target), None)
+        cands = [p for p in s.query(SourceProduct)
+                 .filter(SourceProduct.deleted_at.is_(None)).all() if p.url]
+        sp = next((p for p in cands if normalize_url(p.url) == target), None)
+        dbg = {"target": target[:80], "n_cands": len(cands), "dyn_keys": list(dyn.keys())}
         if sp is None:
-            return  # 등록 안 된 URL — 생성하지 않음
-        # 신선 크롤 결과로 교체(폴백·stale 금지). 없으면 None.
+            dbg["matched"] = False
+            return dbg
+        dbg["matched"] = True
+        dbg["sp_id"] = sp.id
+        dbg["sp_site"] = getattr(sp, "site", None)
         sp.dynamic_benefits_json = _json.dumps(dyn, ensure_ascii=False) if dyn else None
         s.commit()
+        dbg["committed"] = True
+        return dbg
     finally:
         s.close()
 
