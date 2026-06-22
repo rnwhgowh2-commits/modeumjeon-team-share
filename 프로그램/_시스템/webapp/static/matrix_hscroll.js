@@ -20,7 +20,6 @@
   var TABLE_ID = 'price-matrix-table';
   var BAR_ID = 'mtx-hscroll-bar';
   var SP_ID = 'mtx-hscroll-sp';
-  var syncing = false;     // 바↔래퍼 동기화 중(피드백 루프 차단)
   var lastSpW = -1;        // 마지막으로 설정한 스페이서 폭(바뀔 때만 갱신)
 
   function getWrap() {
@@ -28,7 +27,12 @@
     return t ? t.parentElement : null;   // overflow-x:auto 래퍼
   }
 
-  function unlock() { requestAnimationFrame(function () { syncing = false; }); }
+  // 피드백 루프는 '값이 이미 같으면 scroll 이벤트가 안 뜬다'는 성질로 자연 종료시킨다.
+  //   (rAF 락 방식은 백그라운드 탭에서 rAF 가 멈춰 락이 안 풀리는 버그 → 천천히 스크롤 시 끊김)
+  //   라운딩 비교로 소수점 튕김도 방지.
+  function syncTo(target, value) {
+    if (Math.round(target.scrollLeft) !== Math.round(value)) target.scrollLeft = value;
+  }
 
   function ensureBar() {
     var bar = document.getElementById(BAR_ID);
@@ -48,12 +52,8 @@
     document.body.appendChild(bar);
     // 바 → 래퍼 (스크롤 위치만, 레이아웃 계산 없음)
     bar.addEventListener('scroll', function () {
-      if (syncing) return;
       var wrap = getWrap();
-      if (!wrap) return;
-      syncing = true;
-      wrap.scrollLeft = bar.scrollLeft;
-      unlock();
+      if (wrap) syncTo(wrap, bar.scrollLeft);
     });
     return bar;
   }
@@ -63,12 +63,9 @@
     wrap.__hsBound = true;
     // 래퍼 → 바 (스크롤 위치만)
     wrap.addEventListener('scroll', function () {
-      if (syncing) return;
       var bar = document.getElementById(BAR_ID);
       if (!bar || bar.style.display === 'none') return;
-      syncing = true;
-      bar.scrollLeft = wrap.scrollLeft;
-      unlock();
+      syncTo(bar, wrap.scrollLeft);
     });
   }
 
@@ -101,10 +98,7 @@
       document.getElementById(SP_ID).style.width = wrap.scrollWidth + 'px';
     }
     if (bar.style.display !== 'block') bar.style.display = 'block';
-    // 표시/리사이즈 직후 1회 위치 맞춤(동기화 중이 아닐 때만 — 활성 드래그와 안 싸우게)
-    if (!syncing && bar.scrollLeft !== wrap.scrollLeft) {
-      syncing = true; bar.scrollLeft = wrap.scrollLeft; unlock();
-    }
+    syncTo(bar, wrap.scrollLeft);   // 표시/리사이즈 직후 위치 맞춤(값 같으면 no-op)
   }
 
   var rafLock = 0;
