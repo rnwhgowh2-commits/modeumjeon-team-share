@@ -398,4 +398,70 @@
   });
 })();
 </script>
+<script>
+(function(){
+  var sel=document.getElementById('bs-source'); if(!sel) return;
+  var list=document.getElementById('bs-list'), status=document.getElementById('bs-status');
+  var saveBtn=document.getElementById('bs-save'), addBtn=document.getElementById('bs-add');
+  var applyCk=document.getElementById('bs-apply-ck'), applyBtn=document.getElementById('bs-apply');
+  var curGuide=null;   // 불러온 전체 guide (benefits만 교체 후 PUT)
+  var CURB=[];         // 현재 소싱처 benefits 원본 (조건부 필드 보존용)
+  var TYPES=['정률(%)','정액(원)','적립(%→원)','고정액'];
+
+  function cardHTML(b,idx){
+    b=b||{};
+    var method=b.method||'정률(%)';
+    var opts=TYPES.map(function(t){return '<option'+(t===method?' selected':'')+'>'+t+'</option>';}).join('');
+    var unit=(method.indexOf('%')>=0)?'%':'원';
+    return '<div class="bcard" data-idx="'+(idx==null?'':idx)+'">'
+      +'<input class="bn" value="'+(b.name||'').replace(/"/g,'&quot;')+'" placeholder="혜택명">'
+      +'<input class="bval" inputmode="decimal" value="'+(b.value==null?'':b.value)+'" title="'+unit+'">'
+      +'<select class="btype">'+opts+'</select>'
+      +'<button type="button" class="bdel">×</button></div>';
+  }
+  function renderBenefits(benefits){
+    CURB=benefits||[];
+    list.innerHTML=CURB.map(function(b,i){return cardHTML(b,i);}).join('') || '<div class="bs-status">혜택 없음 — [+ 혜택 추가]</div>';
+  }
+  function collectBenefits(){
+    return [].map.call(list.querySelectorAll('.bcard'), function(c){
+      var name=c.querySelector('.bn').value.trim();
+      var v=c.querySelector('.bval').value.trim();
+      var method=c.querySelector('.btype').value;
+      var idx=c.dataset.idx;
+      var orig=(idx!=='' && idx!=null)?(CURB[+idx]||{}):{};
+      return Object.assign({}, orig, {name:name, value:(v===''?null:parseFloat(v)), method:method,
+              apply:orig.apply||'deduct', status:orig.status||'always'});
+    }).filter(function(b){return b.name;});
+  }
+  function load(sid){ status.textContent='불러오는 중…';
+    fetch('/sourcing-guide/api/'+sid).then(function(r){return r.json();}).then(function(j){
+      if(!j.ok){status.textContent='불러오기 실패';return;}
+      curGuide=j.guide; renderBenefits((j.guide.pricing||{}).benefits); status.textContent='';
+    }).catch(function(){status.textContent='불러오기 오류';});
+  }
+  function save(applyBundles){
+    if(!curGuide){return;}
+    var g=JSON.parse(JSON.stringify(curGuide));
+    g.pricing=g.pricing||{}; g.pricing.benefits=collectBenefits();
+    var payload=Object.assign({},g); if(applyBundles) payload.apply_to_bundles=true;
+    status.textContent='저장 중…'; saveBtn.disabled=true;
+    fetch('/sourcing-guide/api/'+sel.value,{method:'PUT',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify(payload)}).then(function(r){return r.json();}).then(function(j){
+      saveBtn.disabled=false;
+      if(!j.ok){status.textContent='저장 실패: '+(j.message||j.error||'');return;}
+      curGuide=j.guide; renderBenefits((j.guide.pricing||{}).benefits);
+      status.textContent='저장됨'+(applyBundles?' · 따라쓰기 '+(j.bundles_applied||0)+'개':' (동기화 '+(j.benefits_synced||0)+')');
+    }).catch(function(){saveBtn.disabled=false;status.textContent='저장 오류';});
+  }
+  sel.addEventListener('change',function(){load(sel.value);});
+  addBtn.addEventListener('click',function(){ list.insertAdjacentHTML('beforeend',cardHTML(null)); });
+  list.addEventListener('click',function(e){ if(e.target.classList.contains('bdel')) e.target.closest('.bcard').remove(); });
+  list.addEventListener('change',function(e){ if(e.target.classList.contains('btype')){ var c=e.target.closest('.bcard'); c.querySelector('.bval').title=(e.target.value.indexOf('%')>=0?'%':'원'); }});
+  saveBtn.addEventListener('click',function(){ save(false); });
+  applyCk.addEventListener('change',function(){ applyBtn.disabled=!applyCk.checked; });
+  applyBtn.addEventListener('click',function(){ if(applyCk.checked && confirm('모든 모음전이 이 소싱처 기본값으로 덮어써집니다. 진행할까요?')) save(true); });
+  if(sel.options.length) load(sel.value);
+})();
+</script>
 {% endblock %}

@@ -115,6 +115,14 @@ def test_tab8_benefit_settings():
     assert 'id="bs-apply"' in html
 
 
+def test_tab8_js_wires_api():
+    html = (TPL / "map.html").read_text(encoding="utf-8")
+    assert "/sourcing-guide/api/" in html
+    assert "apply_to_bundles" in html
+    assert "bs-list" in html and "renderBenefits" in html
+    assert "CURB" in html   # 원본 보존 배열 (조건부 필드 미파괴)
+
+
 def test_map_route_passes_sources(monkeypatch):
     import webapp.routes.sourcing_guide as sg
     from flask import Flask
