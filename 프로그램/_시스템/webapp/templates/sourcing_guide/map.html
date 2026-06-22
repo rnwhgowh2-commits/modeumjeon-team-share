@@ -2,17 +2,28 @@
 {% block title %}데이터·코드 지도 — 크롤링 가이드{% endblock %}
 {% block content %}
 <style>
-  .sgmap{--ink:#191F28;--sub:#6B7684;--sub2:#9AA4B0;--line:#EEF1F4;--line2:#E5E8EB;
-    --acc:#3182F6;--acc-d:#1B64DA;--green:#15803D;--red:#DC2626;--bg:#F9FAFB;
+  .sgmap{--ink:#191F28;--sub:#6B7684;--blue:#1B64DA;--red:#DC2626;--line:#EEF1F4;--line2:#E5E8EB;
     --mono:ui-monospace,SFMono-Regular,Menlo,monospace;
+    font-family:'Pretendard',-apple-system,'Apple SD Gothic Neo','Malgun Gothic',sans-serif;
     padding:34px 46px;max-width:1080px;line-height:1.75;color:var(--ink);}
   .sgmap h2{font-size:24px;font-weight:800;letter-spacing:-.4px;margin:0 0 3px;}
+  .sgmap .klabel{display:inline-block;font-size:11px;font-weight:800;letter-spacing:.04em;
+    color:#fff;background:var(--ink);border-radius:6px;padding:2px 9px;margin-right:9px;vertical-align:middle;}
+  .sgmap .sum{font-size:14px;font-weight:800;color:var(--ink);}
+  .sgmap .card{background:#fff;border:1px solid var(--line2);border-radius:12px;padding:13px 17px;margin-bottom:9px;}
+  .sgmap .card.row2{display:grid;grid-template-columns:120px 1fr;gap:14px;align-items:center;}
+  .sgmap .mono{font-family:var(--mono);font-size:11px;color:var(--blue);}
+  .sgmap .ink{color:var(--ink);font-weight:700;}
+  .sgmap .warn{font-size:12px;color:var(--red);font-weight:700;line-height:1.6;}
+  .sgmap .div{height:1px;background:var(--line2);margin:9px 0;}
+  .sgmap .elabel{font-size:9.5px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:#9AA4B0;margin-right:6px;}
+  .sgmap .erow{font-size:11.5px;line-height:1.7;color:var(--sub);}
   .sgmap .sub{color:var(--sub);font-size:13px;margin:0 0 20px;}
   .sgmap .subtabs{display:flex;gap:24px;border-bottom:1.5px solid var(--line2);margin-bottom:18px;}
   .sgmap .subtab{padding:10px 2px;font-size:14.5px;color:var(--sub);font-weight:600;text-decoration:none;position:relative;}
   .sgmap .subtab.on{color:var(--ink);font-weight:800;}
   .sgmap .subtab.on::after{content:'';position:absolute;left:0;right:0;bottom:-1.5px;height:2.5px;background:var(--ink);border-radius:2px;}
-  .sgmap .subtab .nw{font-size:10px;font-weight:800;color:#fff;background:var(--acc);border-radius:4px;padding:0 5px;margin-left:4px;vertical-align:middle;}
+  .sgmap .subtab .nw{font-size:10px;font-weight:800;color:#fff;background:var(--blue);border-radius:4px;padding:0 5px;margin-left:4px;vertical-align:middle;}
   .sgmap .seg{display:inline-flex;background:#EEF1F5;border-radius:9px;padding:3px;margin-bottom:18px;}
   .sgmap .seg b{padding:8px 18px;border-radius:7px;font-size:13px;font-weight:700;color:var(--sub);cursor:pointer;}
   .sgmap .seg b.on{background:#fff;color:var(--ink);box-shadow:0 1px 3px rgba(0,0,0,.12);}
@@ -24,10 +35,9 @@
   .sgmap .sec{display:none;}.sgmap .sec.on{display:block;}
   .sgmap .easy{color:var(--sub);font-size:13px;margin:0 0 18px;}.sgmap .easy b{color:var(--ink);}
   .sgmap .h{font-size:13.5px;font-weight:800;margin:22px 0 10px;}.sgmap .h:first-child{margin-top:0;}
-  .sgmap .mono{font-family:var(--mono);font-size:11px;color:var(--acc-d);}
-  .sgmap .ep{font-family:var(--mono);font-size:10.5px;color:#0E7490;}
+  .sgmap .ep{font-family:var(--mono);font-size:10.5px;color:var(--blue);}
   .sgmap .b{font-weight:700;color:var(--ink);}.sgmap .dim{color:var(--sub);}
-  .sgmap .red{color:var(--red);font-weight:700;}.sgmap .grn{color:var(--green);font-weight:700;}
+  .sgmap .red{color:var(--red);font-weight:700;}.sgmap .grn{color:var(--ink);font-weight:700;}
   .sgmap .spec{display:grid;grid-template-columns:132px 1fr;}
   .sgmap .spec>.k{padding:12px 16px 12px 0;border-top:1px solid var(--line);color:var(--sub);font-size:11px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;}
   .sgmap .spec>.v{padding:12px 0;border-top:1px solid var(--line);font-size:13px;color:#3d4754;}
@@ -38,7 +48,7 @@
   .sgmap table.dt td{padding:11px 12px;border-bottom:1px solid var(--line);vertical-align:top;}
   .sgmap table.dt tr:last-child td{border-bottom:none;}
   .sgmap table.dt td.el{font-weight:800;color:var(--ink);white-space:nowrap;}
-  .sgmap .note{font-size:11.5px;color:var(--sub2);margin-top:8px;}
+  .sgmap .note{font-size:11.5px;color:var(--sub);margin-top:8px;}
   .sgmap .mdbar{display:flex;align-items:center;gap:8px;margin-bottom:9px;}
   .sgmap .mdbar .fn{font-family:var(--mono);font-size:12px;color:var(--sub);}
   .sgmap .mdbar a.open{margin-left:auto;font-size:12.5px;background:var(--ink);color:#fff;border-radius:7px;padding:6px 13px;font-weight:700;text-decoration:none;}

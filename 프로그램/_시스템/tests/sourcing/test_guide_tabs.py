@@ -27,3 +27,11 @@ def test_how_to_template_deleted():
 def test_no_how_to_links_in_templates():
     for f in TPL.rglob("*.html"):
         assert "/sourcing-guide/how-to" not in f.read_text(encoding="utf-8"), f.name
+
+
+def test_map_design_tokens():
+    css = (TPL / "map.html").read_text(encoding="utf-8")
+    assert "Pretendard" in css
+    assert "#191F28" in css and "#6B7684" in css and "#1B64DA" in css and "#DC2626" in css
+    assert "klabel" in css            # "핵심" 라벨 클래스
+    assert "align-items:center" in css  # 카드 세로 중앙정렬
