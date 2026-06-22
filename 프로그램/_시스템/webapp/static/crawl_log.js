@@ -206,9 +206,10 @@
       '.mcl-card-logs.mcl-hidden { display:none; }',
       '.mcl-d8-head { display:grid; grid-template-columns:60px 1fr 92px 108px; gap:8px; padding:3px 4px 5px; border-bottom:1px solid #2a3744; font-size:9.5px; color:#6B7A8C; font-weight:800; }',
       '.mcl-d8-head span:nth-child(3), .mcl-d8-head span:nth-child(4) { text-align:right; }',
+      '.mcl-d8-head span:nth-child(1) { text-align:center; }',
       '.mcl-d8-row { display:grid; grid-template-columns:60px 1fr 92px 108px; gap:8px; padding:7px 4px; border-bottom:1px solid #1c2630; font-size:11.5px; align-items:start; line-height:1.45; }',
       /* 타입 배지 — 시안 A 칩·파스텔 */
-      '.mcl-d8-badge { font-size:10.5px; font-weight:700; padding:3px 9px; border-radius:20px; white-space:nowrap; line-height:1.4; display:inline-block; }',
+      '.mcl-d8-badge { font-size:10.5px; font-weight:700; padding:3px 9px; border-radius:20px; white-space:nowrap; line-height:1.4; display:inline-block; justify-self:center; }',
       '.mcl-d8-badge.t-dan { background:#2a313c; color:#aeb6c0; }',
       '.mcl-d8-badge.t-mo { background:#16335c; color:#7db0f5; }',
       '.mcl-d8-badge.t-deal { background:#2e2150; color:#bba6f5; }',
