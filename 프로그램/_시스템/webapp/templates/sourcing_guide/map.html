@@ -49,13 +49,6 @@
   <h2>크롤링 가이드 — 데이터·코드 지도</h2>
   <div class="sub">소싱처에서 재고·가격을 <b>긁고 → 저장 → 계산 → 표시</b>하는 전 과정의 단일 진실 원천</div>
 
-  <div class="subtabs">
-    <a class="subtab" href="/sourcing-guide/">전체보기</a>
-    <a class="subtab on" href="/sourcing-guide/map">📖 데이터·코드 지도 <span class="nw">NEW</span></a>
-    <a class="subtab" href="/sourcing-guide/how-to">➕ 신규 소싱처 추가</a>
-    <a class="subtab" href="/sourcing-guide/install">🧩 크롤러 설치</a>
-  </div>
-
   <div class="seg"><b class="on" data-m="view">🖥️ 보기</b><b data-m="raw">📄 원문 (MD)</b></div>
 
   <!-- ===== 보기 ===== -->
@@ -123,9 +116,9 @@
         <tr><th style="width:118px;">요소</th><th>① 위치 (파일·DOM)</th><th>② 형태</th><th>③ 호출처</th></tr>
         <tr>
           <td class="el">📍 셀</td>
-          <td><span class="mono">_matrix_v3.html ~5734</span><br>옵션 탭 매트릭스의 소싱처 컬럼</td>
-          <td>소싱처별 <b>표면노출가</b>+<b>재고</b>+<b>fx뱃지</b>+★최저 / 왼쪽 소싱참고·사입 박스</td>
-          <td><span class="mono">loadMatrix</span>→<span class="mono">/option-matrix</span> 1회 fetch→<b>window.DATA</b> 렌더<br>fx=<span class="mono">SM_BREAKDOWNS["{sku}|{srcId}"]</span></td>
+          <td><span class="mono">_matrix_v3.html ~5691</span>(renderSiteCell)<br>옵션 탭 매트릭스의 소싱처 컬럼</td>
+          <td><b>큰 숫자 = 최종매입가</b>(px-main), 작게 "판매가"=표면노출가, +<b>재고</b>+<b>fx뱃지</b>+★최저 / 왼쪽 소싱참고·사입 박스</td>
+          <td><span class="mono">loadMatrix</span>→<span class="mono">/option-matrix</span>→<b>window.DATA</b><br>fx=후보별 키 <span class="mono">SM_BREAKDOWNS["{sku}|{srcId}|{price}"]</span> (bulk)</td>
         </tr>
         <tr>
           <td class="el">🔲 매트릭스 보기<br><span class="dim" style="font-weight:400;">(팝업)</span></td>
@@ -141,6 +134,14 @@
         </tr>
       </table>
       <div class="note">셀·매트릭스 보기 = 같은 <b>window.DATA</b> 한 벌 공유(1회 fetch). 로그만 별도 실시간(surf=표면 / buy=최종매입가 fx).</div>
+
+      <div class="h">⭐ 완전한 B — 한 소싱처에 URL 여러 개일 때 (절대 간과 금지)</div>
+      <div class="easy" style="margin-bottom:10px;">🟢 같은 소싱처(예: SSG)에 URL이 2개 이상이면 <b>셀은 그중 최종매입가가 가장 낮은 URL(후보)을 골라 표시</b>. 표면가가 같아도 한 URL만 SSG MONEY 같은 혜택이 잡혀 더 쌀 수 있음(예 110,796).</div>
+      <div class="spec">
+        <div class="k first">철칙</div><div class="v first"><b>셀과 계산식은 반드시 같은 후보를 써야 함.</b> 셀은 bulk <span class="mono">/breakdowns</span>에 후보별 <span class="mono">source_product_id</span> 전달(최저 선택). 계산식(fx 팝업)은 단건 <span class="mono">/breakdown/{sku}/{src}</span>에 <b><span class="mono">&source_product_id=&lt;셀 best spid&gt;</span></b> 첨부 필수.</div>
+        <div class="k">안 하면</div><div class="v"><span class="red">셀(110,796) ≠ 계산식(116,627)</span> — 백엔드가 등록 URL로 폴백. <b>§4 단일 진실 원천 위반.</b> 코드: 셀 <span class="mono">data-cell-spid</span>(5691) → fx <span class="mono">~3393·4017</span> → 백엔드 <span class="mono">compute_breakdown</span> 경로3(:523)</div>
+        <div class="k">유령가 가드</div><div class="v">최저 후보가 stale면 실제보다 싼 값 표시 → 폴백가 금지. best 후보는 <span class="mono">last_status≠error</span>·재고있음만. 의심 시 재크롤.</div>
+      </div>
     </div>
 
     <!-- 5 원칙 -->

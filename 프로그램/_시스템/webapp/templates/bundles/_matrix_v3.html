@@ -3378,6 +3378,9 @@
     const sku = td.dataset.cellSku;
     const srcId = parseInt(td.dataset.cellSrc, 10);
     const price = parseFloat(td.dataset.cellPrice || '0');
+    // 완전한 B: 셀이 고른 best 후보(다중 URL 중 최저 매입가)의 source_product_id 를 같이 넘겨
+    //   계산식이 셀과 같은 후보(예: SSG MONEY 포함 spid)를 쓰게 한다. 없으면 백엔드가 등록 URL 폴백.
+    const spid = td.dataset.cellSpid || '';
     const wasOpen = td.classList.contains('fx-open');
     smCloseAllFx();
     if (wasOpen) return;
@@ -3390,7 +3393,7 @@
     // Phase 7 — popover viewport overflow 시 좌측 자동 전환
     adjustFxPopPosition(pop);
     try {
-      const r = await fetch(`/api/source-benefits/breakdown/${encodeURIComponent(sku)}/${srcId}?sale_price=${price}`);
+      const r = await fetch(`/api/source-benefits/breakdown/${encodeURIComponent(sku)}/${srcId}?sale_price=${price}${spid ? '&source_product_id=' + encodeURIComponent(spid) : ''}`);
       const j = await r.json();
       if (!j.ok) { pop.innerHTML = `<h6>계산식 로드 실패<button class="close" onclick="this.closest('.cell-fx-pop').remove()">✕</button></h6><div style="padding:8px;color:var(--red)">${j.error || '오류'}</div>`; return; }
       // 시안 10 v5-A 차콜 — 4-카드 stack 렌더 (smRefreshFxInPlace 와 공유 함수)
@@ -4013,8 +4016,12 @@ table.ompk-tab th.corner{color:#b0b8c1;cursor:default}
     const opt0 = (DATA.options || []).find(o => o.sku === sku);
     const src0 = opt0 ? (opt0.sources || []).find(s => s.source_id === srcId) : null;
     const newPrice = (src0 && src0.crawled_price) ? src0.crawled_price : 0;
+    // 완전한 B: 셀이 고른 best 후보 spid 를 같이 넘겨 계산식이 셀과 같은 후보를 쓰게 한다.
+    const _td0 = [...document.querySelectorAll('td[data-cell-sku][data-cell-src]')]
+      .find(t => t.dataset.cellSku === sku && parseInt(t.dataset.cellSrc, 10) === srcId);
+    const _spid = _td0 ? (_td0.dataset.cellSpid || '') : '';
     try {
-      const r2 = await fetch(`/api/source-benefits/breakdown/${encodeURIComponent(sku)}/${srcId}?sale_price=${newPrice}`);
+      const r2 = await fetch(`/api/source-benefits/breakdown/${encodeURIComponent(sku)}/${srcId}?sale_price=${newPrice}${_spid ? '&source_product_id=' + encodeURIComponent(_spid) : ''}`);
       const bd = await r2.json();
       if (bd.ok) {
         smRenderFxPopBody(pop, bd, sku, srcId);
@@ -5688,7 +5695,7 @@ table.ompk-tab th.corner{color:#b0b8c1;cursor:default}
     const _go = `<a class="sc-go" href="${escapeHtml(src.product_url)}" target="_blank" rel="noopener" title="${escapeHtml((src.source_name||'소싱처')+' 페이지 열기')}" onclick="event.stopPropagation()">↗</a>`;
     const _fx = `<button type="button" class="cell-fx sc-fx" title="혜택 계산식 클릭">fx</button>`;
     const _lowTag = isLowest ? `<span class="sc-lowtag">최저</span>` : '';
-    return `<td class="td-site-col cd${loCls} has-c1-tip" data-cell-sku="${escapeHtml(o.sku)}" data-cell-src="${s.id}" data-cell-price="${src.crawled_price}" style="position:relative;${_isOut ? 'opacity:.55;' : ''}"><div class="sc-mc${isLowest?' low':''}">${_lowTag}<span class="px-main">${finalPrice.toLocaleString('ko-KR')}${_won}</span>${_go}<span class="${stkCls}">${stkTxt}</span>${_fx}${tipHtml}</div></td>`;
+    return `<td class="td-site-col cd${loCls} has-c1-tip" data-cell-sku="${escapeHtml(o.sku)}" data-cell-src="${s.id}" data-cell-price="${src.crawled_price}" data-cell-spid="${src.source_product_id || ''}" style="position:relative;${_isOut ? 'opacity:.55;' : ''}"><div class="sc-mc${isLowest?' low':''}">${_lowTag}<span class="px-main">${finalPrice.toLocaleString('ko-KR')}${_won}</span>${_go}<span class="${stkCls}">${stkTxt}</span>${_fx}${tipHtml}</div></td>`;
   }
 
   // Phase 6 — 최저가/절감 캐시 (renderSourceMatrix 가 채움)
