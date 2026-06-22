@@ -41,3 +41,11 @@ def test_map_has_seventh_tab():
     html = (TPL / "map.html").read_text(encoding="utf-8")
     assert 'data-s="s7"' in html
     assert "신규추가" in html
+
+
+def test_tab1_flow_cards():
+    html = (TPL / "map.html").read_text(encoding="utf-8")
+    s1 = html.split('id="s1"')[1].split('id="s2"')[0]
+    assert "크롤러" in s1 and "저장" in s1 and "계산" in s1 and "표시" in s1
+    assert "compute_market_price" in s1
+    assert "BG_PARSE" in s1

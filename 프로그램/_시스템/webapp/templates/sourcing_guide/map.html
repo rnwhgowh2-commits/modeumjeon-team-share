@@ -53,6 +53,11 @@
   .sgmap .mdbar .fn{font-family:var(--mono);font-size:12px;color:var(--sub);}
   .sgmap .mdbar a.open{margin-left:auto;font-size:12.5px;background:var(--ink);color:#fff;border-radius:7px;padding:6px 13px;font-weight:700;text-decoration:none;}
   .sgmap .mdview{background:#0E1525;border-radius:12px;padding:18px 20px;font-family:var(--mono);font-size:12.2px;line-height:1.75;color:#cdd6e2;white-space:pre-wrap;overflow:auto;max-height:72vh;}
+  .sgmap .lead{margin:0 0 14px;}
+  .sgmap .no{font-size:13px;font-weight:400;color:var(--ink);margin-right:9px;font-family:var(--mono);}
+  .sgmap .ti{font-size:14px;font-weight:800;color:var(--ink);}
+  .sgmap .detail{font-size:12.5px;color:var(--sub);line-height:1.6;}
+  .sgmap .detail .ink{color:var(--ink);font-weight:700;}
 </style>
 
 <div class="sgmap">
@@ -75,14 +80,37 @@
 
     <!-- 1 전체흐름 -->
     <div class="sec on" id="s1">
-      <div class="easy">🟢 재고·가격이 화면에 뜨기까지 <b>4단계</b>. 각 단계가 어느 파일에 사는지까지.</div>
-      <div class="spec">
-        <div class="k first">① 크롤러</div><div class="v first">페이지 → 재고·표면노출가·혜택 추출 · <span class="mono">crawlers/&lt;소싱처&gt;.py</span></div>
-        <div class="k">② 저장</div><div class="v">DB 컬럼 + dynamic_benefits_json · <span class="mono">service.py:429·519</span></div>
-        <div class="k">③ 계산</div><div class="v">표면노출가 − 혜택 누적차감 = 최종매입가 · <span class="mono">api_benefits.py:404 · unified.py:75</span></div>
-        <div class="k">④ 표시</div><div class="v">셀 · 매트릭스 보기 · 크롤 로그 · <span class="mono">api_pricing.py:309 · _matrix_v3.html · crawl_log.js</span></div>
-        <div class="k">라이브 경로</div><div class="v">확장 BG_JS(무신사·롯데온=직추출) / BG_PARSE(르무통·SSF·SSG·스스→navGrab→<span class="mono">/api/sources/parse</span>→save_crawl_result). <span class="red">BG_PARSE는 price·stock만 저장(혜택 미저장)</span></div>
+      <div class="lead"><span class="klabel">핵심</span><span class="sum">재고·가격이 화면에 뜨기까지 4단계 — 크롤 → 저장 → 계산 → 표시.</span></div>
+      <div class="card">
+        <div><span class="no">01</span><span class="ti">크롤러</span></div>
+        <div class="detail">페이지에서 <span class="ink">재고·표면노출가·혜택</span>을 추출한다.</div>
+        <div class="div"></div>
+        <div class="erow"><span class="elabel">코드</span><span class="mono">crawlers/&lt;소싱처&gt;.py</span>
+          <span class="elabel">뜻</span><span class="ink">크롬 확장</span>이 실행해 긁고 서버로 전송(추출만).</div>
       </div>
+      <div class="card">
+        <div><span class="no">02</span><span class="ti">저장</span></div>
+        <div class="detail">추출값을 <span class="ink">DB 컬럼 + dynamic_benefits_json</span>에 기록한다.</div>
+        <div class="div"></div>
+        <div class="erow"><span class="elabel">코드</span><span class="mono">service.py:429</span>
+          <span class="elabel">위치</span><span class="mono">last_price·current_stock·dynamic_benefits_json</span> (<span class="ink">Supabase</span>/AWS)
+          <span class="elabel">뜻</span>긁은 값을 DB에 영속.</div>
+      </div>
+      <div class="card">
+        <div><span class="no">03</span><span class="ti">계산</span></div>
+        <div class="detail">표면노출가 − 혜택 누적차감 = <span class="ink">최종매입가</span>.</div>
+        <div class="div"></div>
+        <div class="erow"><span class="elabel">코드</span><span class="mono">api_benefits.py:404</span> (<span class="ink">compute_market_price</span>)
+          <span class="elabel">뜻</span>표면가에서 혜택을 순서대로 빼는 계산 엔진.</div>
+      </div>
+      <div class="card">
+        <div><span class="no">04</span><span class="ti">표시</span></div>
+        <div class="detail">셀 · 매트릭스 보기 · 크롤 로그에 보여준다.</div>
+        <div class="div"></div>
+        <div class="erow"><span class="elabel">코드</span><span class="mono">api_pricing.py:309</span>
+          <span class="elabel">뜻</span>매트릭스 렌더. 셀·매트릭스가 <span class="ink">window.DATA</span> 한 벌 공유.</div>
+      </div>
+      <div class="warn">⚠️ BG_PARSE(르무통·SSF·SSG·스스)는 price·stock만 저장 — 혜택 미저장.</div>
     </div>
 
     <!-- 2 재고 -->
