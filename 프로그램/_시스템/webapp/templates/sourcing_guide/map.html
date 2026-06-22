@@ -93,6 +93,24 @@
   .sgmap .pm .ax{font-size:9.5px;font-weight:800;color:#9AA4B0;text-transform:uppercase;letter-spacing:.04em;margin-right:5px;}
   .sgmap .formula{font-size:11.5px;color:var(--sub);line-height:1.5;}
   .sgmap .formula .ink{color:var(--ink);font-weight:700;}
+  .sgmap .why{background:#F9FAFB;border:1px solid var(--line);border-radius:9px;padding:11px 14px;margin-bottom:13px;font-size:11.5px;color:var(--sub);line-height:1.6;}
+  .sgmap .why b{color:var(--ink);}
+  .sgmap .cov{width:100%;border-collapse:collapse;font-size:11px;margin-top:8px;}
+  .sgmap .cov td{padding:5px 8px;border-top:1px solid var(--line);vertical-align:top;}
+  .sgmap .cov td.ax{font-weight:800;color:var(--ink);white-space:nowrap;width:90px;}
+  .sgmap .step{display:flex;gap:11px;margin-bottom:5px;}
+  .sgmap .sn{flex:none;width:24px;height:24px;border-radius:50%;background:var(--ink);color:#fff;font-weight:800;font-size:12px;line-height:24px;text-align:center;}
+  .sgmap .sn.u{background:var(--blue);}
+  .sgmap .sc{flex:1;border:1px solid var(--line2);border-radius:10px;padding:9px 13px;background:#fff;}
+  .sgmap .sc .st{font-size:13px;font-weight:800;color:var(--ink);}
+  .sgmap .sc .st .tag{font-size:9px;font-weight:800;color:#fff;background:var(--blue);border-radius:4px;padding:1px 5px;margin-left:5px;vertical-align:middle;}
+  .sgmap .sc .st .who{font-size:9.5px;font-weight:700;padding:1px 6px;border-radius:20px;margin-left:5px;vertical-align:middle;}
+  .sgmap .who.u{background:#E8F3FF;color:var(--blue);}
+  .sgmap .who.c{background:#EEF1F4;color:var(--sub);}
+  .sgmap .sc .ref{font-size:11px;color:var(--blue);font-weight:700;margin-top:3px;}
+  .sgmap .sc .ref .lk{font-family:var(--mono);background:#E8F3FF;border-radius:4px;padding:1px 5px;font-size:10px;}
+  .sgmap .sc .d{font-size:11px;color:var(--sub);margin-top:2px;line-height:1.5;}
+  .sgmap .vl{width:2px;height:9px;background:#D1D6DB;margin-left:12px;}
 </style>
 
 <div class="sgmap">
@@ -309,7 +327,21 @@
     </div>
 
     <!-- 7 신규추가 -->
-    <div class="sec" id="s7"><!-- Task 8: 신규추가 순서도 --></div>
+    <div class="sec" id="s7">
+      <div class="lead"><span class="klabel">핵심</span><span class="sum">샘플 URL 여러 개로 변형을 덮고, 혜택을 종합해 정답 카드를 만든다 — CLAUDE는 이 순서도만 읽으면 됨.</span></div>
+      <div class="why"><b>왜 URL 여러 개?</b> 한 상품엔 그 상품 혜택·재고상태만 보임 → 변형을 덮는 3~6개를 받아 종합해야 전체 혜택 카탈로그 + 재고 3상태가 완성됨.
+        <table class="cov">
+          <tr><td class="ax">혜택 변형</td><td>세일/쿠폰/후기적립은 상품마다 켜짐꺼짐 → <b>상시 vs 조건부</b> + 트리거 키워드</td></tr>
+          <tr><td class="ax">재고 3상태</td><td>품절·한정·충분 각 1개 → 한정수량 '재고있음' 둔갑 차단</td></tr>
+          <tr><td class="ax">옵션 구조</td><td>단일색·멀티색·딜 → 단일색 파싱·딜 매핑 버그 차단</td></tr>
+        </table></div>
+      <div class="step"><div class="sn u">1</div><div class="sc"><div class="st">샘플 URL 세트 받기<span class="who u">사용자</span></div><div class="d">대표 1개 + 3축 변형 2~5개. 적을수록 카탈로그 누락 위험.</div></div></div><div class="vl"></div>
+      <div class="step"><div class="sn">2</div><div class="sc"><div class="st">수집 방식 4분면 분류<span class="who c">CLAUDE</span></div><div class="ref">→ <span class="lk">1 전체흐름</span> · API/HTML × 인증·비인증</div></div></div><div class="vl"></div>
+      <div class="step"><div class="sn">3</div><div class="sc"><div class="st">7항목 위치 추출 (재고 3단계 규칙 포함)<span class="who c">CLAUDE</span></div><div class="ref">→ <span class="lk">2 재고</span> + <span class="lk">3 가격</span></div></div></div><div class="vl"></div>
+      <div class="step"><div class="sn">4</div><div class="sc"><div class="st">혜택 종합 — 여러 URL 교차분석<span class="tag">신설</span><span class="who c">CLAUDE</span></div><div class="ref">→ <span class="lk">3 가격</span> · 모든 URL=상시 / 일부=조건부 + 트리거</div></div></div><div class="vl"></div>
+      <div class="step"><div class="sn">5</div><div class="sc"><div class="st">매입가 순차차감 로직<span class="who c">CLAUDE</span></div><div class="ref">→ <span class="lk">3 가격</span> · 표면 − Σ혜택 (직전 잔액 기준)</div></div></div><div class="vl"></div>
+      <div class="step"><div class="sn">6</div><div class="sc"><div class="st">검증 크롤·대조 → 정답 카드 저장<span class="who c">CLAUDE</span></div><div class="ref">→ <span class="lk">5 원칙</span> · <span class="lk">6 재발</span> + 18항목 체크리스트 · crawl_guide</div></div></div>
+    </div>
   </div>
 
   <!-- ===== 원문(MD) ===== -->

@@ -84,3 +84,13 @@ def test_tabs_4_5_6():
     s6 = html.split('id="s6"')[1].split('id="s7"')[0]
     assert "_resolve_stock" in s6 and "stale" in s6
     assert "card row2" in s6
+
+
+def test_tab7_newsource_flow():
+    html = (TPL / "map.html").read_text(encoding="utf-8")
+    s7 = html.split('id="s7"')[1].split('id="m-raw"')[0]
+    assert "URL 세트" in s7 or "여러" in s7
+    assert "혜택 종합" in s7
+    assert "상시" in s7 and "조건부" in s7
+    for k in ["혜택 변형", "재고 3상태", "옵션 구조"]:
+        assert k in s7, k
