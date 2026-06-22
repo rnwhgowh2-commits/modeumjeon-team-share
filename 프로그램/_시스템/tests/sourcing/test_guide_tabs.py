@@ -104,3 +104,20 @@ def test_docs_synced():
     sop = (repo_root / "docs" / "신규-소싱처-추가-가이드.md").read_text(encoding="utf-8")
     assert "혜택 종합" in sop                               # 4단계 신설 반영
     assert "URL 세트" in sop or "여러" in sop               # 멀티 URL
+
+
+def test_map_route_passes_sources(monkeypatch):
+    import webapp.routes.sourcing_guide as sg
+    from flask import Flask
+    monkeypatch.setenv("ENVIRONMENT", "test")
+    class _S:
+        def __init__(s, i, n): s.id=i; s.name=n
+    monkeypatch.setattr(sg, "_sources", lambda: [_S(3,"무신사"), _S(5,"SSG")])
+    captured = {}
+    def fake(tpl, **ctx): captured['tpl']=tpl; captured['ctx']=ctx; return "x"
+    monkeypatch.setattr(sg, "render_template", fake)
+    app = Flask(__name__); app.register_blueprint(sg.bp)
+    app.test_client().get("/sourcing-guide/map")
+    assert captured['tpl'].endswith("map.html")
+    assert [s["id"] for s in captured['ctx']["sources"]] == [3,5]
+    assert [s["name"] for s in captured['ctx']["sources"]] == ["무신사","SSG"]
