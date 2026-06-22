@@ -80,16 +80,10 @@ def parse_source_html():
 @bp.get("/sources/_debug_ssg")
 def _debug_ssg():
     """[임시 진단] 마지막 SSG navGrab HTML 분석 — 혜택영역 포함여부·스니펫."""
-    import re as _re
     h = _LAST_SSG.get("html") or ""
-    if not h:
-        return jsonify(ok=False, msg="아직 SSG parse 안 들어옴")
-    def snip(kw, span=140):
-        i = h.find(kw)
-        return h[max(0, i - 40): i + span] if i >= 0 else None
     markers = {k: (k in h) for k in
                ["SSG MONEY", "구매혜택", "cdtl_benefit", "cdtl_ly_dc", "적립", "즉시할인",
-                "쓱페이", "SSG PAY", "쿠폰"]}
+                "쓱페이", "SSG PAY", "쿠폰"]} if h else {}
     # 저장 매칭 진단
     save_dbg = {}
     try:
@@ -120,9 +114,43 @@ def _debug_ssg():
             s.close()
     except Exception as _e:
         save_dbg = {"err": str(_e)[:120]}
-    return jsonify(ok=True, html_len=len(h),
-                   options0_money=(_LAST_SSG.get("options0") or {}).get("ssg_money_rate"),
-                   markers=markers, save_dbg=save_dbg)
+    # options0 의 ssg_money 전체 필드(모드 판정용)
+    _o0 = _LAST_SSG.get("options0") or {}
+    o0_money = {k: _o0.get(k) for k in
+                ("ssg_money_rate", "ssg_money_amount", "ssg_money_already_applied", "ssg_money_text")}
+    # 특정 sku 의 breakdown READ 경로 추적 (?sku=...)
+    read_dbg = {}
+    sku = request.args.get("sku")
+    if sku:
+        try:
+            from sqlalchemy import text as _t
+            from shared.db import SessionLocal
+            import json as _json
+            s = SessionLocal()
+            try:
+                rows = s.execute(_t(
+                    "SELECT sp.id, sp.site, sp.dynamic_benefits_json FROM option_source_links l "
+                    "JOIN source_options so ON l.source_option_id=so.id "
+                    "JOIN source_products sp ON so.source_product_id=sp.id "
+                    "WHERE l.canonical_sku=:sku AND sp.site='ssg' AND so.deleted_at IS NULL "
+                    "AND sp.deleted_at IS NULL"), {"sku": sku}).fetchall()
+                linked = []
+                for (pid, site, dj) in rows:
+                    try:
+                        d = _json.loads(dj) if dj else {}
+                    except Exception:
+                        d = {}
+                    linked.append({"id": pid, "site": site,
+                                   "ssg_money_rate": d.get("ssg_money_rate"),
+                                   "already_applied": d.get("ssg_money_already_applied"),
+                                   "has_dyn": bool(d)})
+                read_dbg = {"sku": sku, "linked_ssg_products": linked}
+            finally:
+                s.close()
+        except Exception as _e:
+            read_dbg = {"err": str(_e)[:120]}
+    return jsonify(ok=True, html_len=len(h), o0_money=o0_money,
+                   markers=markers, save_dbg=save_dbg, read_dbg=read_dbg)
 
 
 def _save_navgrab_dynamic_benefits(source_key: str, url: str, options: list) -> None:
