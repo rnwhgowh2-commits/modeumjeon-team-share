@@ -106,6 +106,15 @@ def test_docs_synced():
     assert "URL 세트" in sop or "여러" in sop               # 멀티 URL
 
 
+def test_tab8_benefit_settings():
+    html = (TPL / "map.html").read_text(encoding="utf-8")
+    assert 'data-s="s8"' in html and "소싱처별 혜택 설정" in html
+    assert 'id="bs-source"' in html
+    assert 'id="bs-list"' in html
+    assert 'id="bs-save"' in html
+    assert 'id="bs-apply"' in html
+
+
 def test_map_route_passes_sources(monkeypatch):
     import webapp.routes.sourcing_guide as sg
     from flask import Flask

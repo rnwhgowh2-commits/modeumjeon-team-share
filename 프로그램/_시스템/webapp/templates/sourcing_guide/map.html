@@ -95,6 +95,19 @@
   .sgmap .sc .ref{font-size:13.5px;color:var(--blue);font-weight:700;margin-top:3px;}
   .sgmap .sc .ref .lk{font-family:var(--mono);background:#E8F3FF;border-radius:4px;padding:1px 5px;font-size:12.5px;}
   .sgmap .sc .d{font-size:13.5px;color:var(--sub);margin-top:2px;line-height:1.5;}
+  .sgmap .bs-bar{display:flex;align-items:center;gap:10px;margin-bottom:12px;}
+  .sgmap #bs-source{font-size:14px;font-weight:700;border:1px solid var(--line2);border-radius:8px;padding:6px 10px;color:var(--ink);background:#fff;}
+  .sgmap .bs-btn{font-size:13px;font-weight:700;border:1px solid var(--line2);background:#fff;color:var(--ink);border-radius:8px;padding:7px 13px;cursor:pointer;}
+  .sgmap .bs-btn.primary{background:var(--ink);color:#fff;border-color:var(--ink);}
+  .sgmap .bs-btn:disabled{opacity:.5;cursor:not-allowed;}
+  .sgmap .bs-status{font-size:12.5px;color:var(--sub);}
+  .sgmap .bcard{background:#fff;border:1px solid var(--line2);border-radius:11px;padding:12px 14px;margin-bottom:8px;display:grid;grid-template-columns:1fr 110px 120px 32px;gap:10px;align-items:center;}
+  .sgmap .bcard .bn{font-size:14px;font-weight:700;border:1px solid var(--line2);border-radius:8px;padding:7px 10px;color:var(--ink);background:#fff;font-family:inherit;}
+  .sgmap .bcard .bval{font-size:14px;font-family:var(--mono);text-align:right;border:1.5px solid var(--blue);border-radius:8px;padding:7px 10px;color:var(--ink);}
+  .sgmap .bcard .btype{font-size:12.5px;font-weight:700;color:var(--sub);background:#F2F4F6;border:1px solid var(--line2);border-radius:8px;padding:7px;}
+  .sgmap .bcard .bdel{border:none;background:#F2F4F6;color:var(--sub);width:30px;height:30px;border-radius:7px;cursor:pointer;font-size:15px;}
+  .sgmap .bs-foot{display:flex;align-items:center;gap:12px;margin-top:14px;}
+  .sgmap .bs-apply-lab{font-size:12.5px;color:var(--sub);}
 </style>
 
 <div class="sgmap">
@@ -113,6 +126,7 @@
       <div class="gtab" data-s="s5"><span class="k">5</span>🛡️ 원칙</div>
       <div class="gtab" data-s="s6"><span class="k">6</span>🔁 재발</div>
       <div class="gtab" data-s="s7"><span class="k">7</span>➕ 신규추가</div>
+      <div class="gtab" data-s="s8"><span class="k">8</span>⚙️ 소싱처별 혜택 설정</div>
     </div>
 
     <!-- 1 전체흐름 -->
@@ -326,6 +340,26 @@
       <div class="step"><div class="stepn">5</div><div class="sc"><div class="st">매입가 순차차감 로직<span class="who c">CLAUDE</span></div><div class="ref">→ <span class="lk">3 가격</span> · 표면 − Σ혜택 (직전 잔액 기준)</div></div></div>
       <div class="step"><div class="stepn">6</div><div class="sc"><div class="st">검증 크롤·대조 → 정답 카드 저장<span class="who c">CLAUDE</span></div><div class="ref">→ <span class="lk">5 원칙</span> · <span class="lk">6 재발</span> + 18항목 체크리스트 · crawl_guide</div></div></div>
     </div>
+
+    <!-- 8 소싱처별 혜택 설정 -->
+    <div class="sec" id="s8">
+      <div class="lead"><span class="klabel">핵심</span><span class="sum">소싱처별 혜택 베이스를 정한다 — 모음전 상품 생성 시 이 값을 따름. 상품별 수정·초기화는 모음전 영수증 카드에서.</span></div>
+      <div class="warn">⚠️ 크롤로 자동 잡히는 혜택을 여기 또 넣으면 이중 차감 — 베이스엔 크롤이 못 잡는 고정 혜택(현대카드·멤버십 등)만 권장.</div>
+      <div class="bs-bar">
+        <label class="elabel" for="bs-source">소싱처</label>
+        <select id="bs-source">
+          {% for s in sources %}<option value="{{ s.id }}">{{ s.name }}</option>{% endfor %}
+        </select>
+        <button type="button" id="bs-add" class="bs-btn">+ 혜택 추가</button>
+        <span id="bs-status" class="bs-status"></span>
+      </div>
+      <div id="bs-list"><!-- JS 렌더 --></div>
+      <div class="bs-foot">
+        <button type="button" id="bs-save" class="bs-btn primary">저장</button>
+        <label class="bs-apply-lab"><input type="checkbox" id="bs-apply-ck"> 모든 모음전에 따라쓰기(기존 상품 덮어씀)</label>
+        <button type="button" id="bs-apply" class="bs-btn" disabled>따라쓰기</button>
+      </div>
+    </div>
   </div>
 
   <!-- ===== 원문(MD) ===== -->
@@ -358,7 +392,7 @@
     if(e.target.tagName==='INPUT'||e.target.tagName==='TEXTAREA') return;
     var order=[].map.call(tabs,function(t){return t.dataset.s;});
     var cur=root.querySelector('.gtab.on').dataset.s, i=order.indexOf(cur);
-    if(/^[1-7]$/.test(e.key)&&order[+e.key-1]) show(order[+e.key-1]);
+    if(/^[1-8]$/.test(e.key)&&order[+e.key-1]) show(order[+e.key-1]);
     else if(e.key==='ArrowRight'&&i<order.length-1) show(order[i+1]);
     else if(e.key==='ArrowLeft'&&i>0) show(order[i-1]);
   });
