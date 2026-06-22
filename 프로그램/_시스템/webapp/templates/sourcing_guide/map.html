@@ -83,9 +83,9 @@
   .sgmap .cov td{padding:5px 8px;border-top:1px solid var(--line);vertical-align:top;}
   .sgmap .cov td.ax{font-weight:800;color:var(--ink);white-space:nowrap;width:90px;}
   .sgmap .step{display:flex;gap:11px;margin-bottom:5px;position:relative;align-items:flex-start;}
-  .sgmap .step:not(:last-child)::before{content:'';position:absolute;left:14px;top:30px;bottom:-5px;width:2px;background:#D1D6DB;}
-  .sgmap .sn{flex:none;width:30px;height:30px;border-radius:50%;background:var(--ink);color:#fff;font-weight:800;font-size:15px;line-height:30px;text-align:center;}
-  .sgmap .sn.u{background:var(--blue);}
+  .sgmap .step:not(:last-child)::before{content:'';position:absolute;left:14px;top:28px;bottom:-7px;width:2px;background:#D1D6DB;}
+  .sgmap .stepn{flex:none;width:30px;height:30px;border-radius:50%;background:var(--ink);color:#fff;font-weight:800;font-size:15px;line-height:30px;text-align:center;}
+  .sgmap .stepn.u{background:var(--blue);}
   .sgmap .sc{flex:1;border:1px solid var(--line2);border-radius:10px;padding:9px 13px;background:#fff;}
   .sgmap .sc .st{font-size:16px;font-weight:800;color:var(--ink);}
   .sgmap .sc .st .tag{font-size:11px;font-weight:800;color:#fff;background:var(--blue);border-radius:4px;padding:1px 5px;margin-left:5px;vertical-align:middle;}
@@ -319,12 +319,12 @@
           <tr><td class="ax">재고 3상태</td><td>품절·한정·충분 각 1개 → 한정수량 '재고있음' 둔갑 차단</td></tr>
           <tr><td class="ax">옵션 구조</td><td>단일색·멀티색·딜 → 단일색 파싱·딜 매핑 버그 차단</td></tr>
         </table></div>
-      <div class="step"><div class="sn u">1</div><div class="sc"><div class="st">샘플 URL 세트 받기<span class="who u">사용자</span></div><div class="d">대표 1개 + 3축 변형 2~5개. 적을수록 카탈로그 누락 위험.</div></div></div>
-      <div class="step"><div class="sn">2</div><div class="sc"><div class="st">수집 방식 4분면 분류<span class="who c">CLAUDE</span></div><div class="ref">→ <span class="lk">1 전체흐름</span> · API/HTML × 인증·비인증</div></div></div>
-      <div class="step"><div class="sn">3</div><div class="sc"><div class="st">항목별 위치 추출 (재고 3단계 규칙 포함)<span class="who c">CLAUDE</span></div><div class="ref">→ <span class="lk">2 재고</span> + <span class="lk">3 가격</span></div></div></div>
-      <div class="step"><div class="sn">4</div><div class="sc"><div class="st">혜택 종합 — 여러 URL 교차분석<span class="tag">신설</span><span class="who c">CLAUDE</span></div><div class="ref">→ <span class="lk">3 가격</span> · 모든 URL=상시 / 일부=조건부 + 트리거</div></div></div>
-      <div class="step"><div class="sn">5</div><div class="sc"><div class="st">매입가 순차차감 로직<span class="who c">CLAUDE</span></div><div class="ref">→ <span class="lk">3 가격</span> · 표면 − Σ혜택 (직전 잔액 기준)</div></div></div>
-      <div class="step"><div class="sn">6</div><div class="sc"><div class="st">검증 크롤·대조 → 정답 카드 저장<span class="who c">CLAUDE</span></div><div class="ref">→ <span class="lk">5 원칙</span> · <span class="lk">6 재발</span> + 18항목 체크리스트 · crawl_guide</div></div></div>
+      <div class="step"><div class="stepn u">1</div><div class="sc"><div class="st">샘플 URL 세트 받기<span class="who u">사용자</span></div><div class="d">대표 1개 + 3축 변형 2~5개. 적을수록 카탈로그 누락 위험.</div></div></div>
+      <div class="step"><div class="stepn">2</div><div class="sc"><div class="st">수집 방식 4분면 분류<span class="who c">CLAUDE</span></div><div class="ref">→ <span class="lk">1 전체흐름</span> · API/HTML × 인증·비인증</div></div></div>
+      <div class="step"><div class="stepn">3</div><div class="sc"><div class="st">항목별 위치 추출 (재고 3단계 규칙 포함)<span class="who c">CLAUDE</span></div><div class="ref">→ <span class="lk">2 재고</span> + <span class="lk">3 가격</span></div></div></div>
+      <div class="step"><div class="stepn">4</div><div class="sc"><div class="st">혜택 종합 — 여러 URL 교차분석<span class="tag">신설</span><span class="who c">CLAUDE</span></div><div class="ref">→ <span class="lk">3 가격</span> · 모든 URL=상시 / 일부=조건부 + 트리거</div></div></div>
+      <div class="step"><div class="stepn">5</div><div class="sc"><div class="st">매입가 순차차감 로직<span class="who c">CLAUDE</span></div><div class="ref">→ <span class="lk">3 가격</span> · 표면 − Σ혜택 (직전 잔액 기준)</div></div></div>
+      <div class="step"><div class="stepn">6</div><div class="sc"><div class="st">검증 크롤·대조 → 정답 카드 저장<span class="who c">CLAUDE</span></div><div class="ref">→ <span class="lk">5 원칙</span> · <span class="lk">6 재발</span> + 18항목 체크리스트 · crawl_guide</div></div></div>
     </div>
   </div>
 
