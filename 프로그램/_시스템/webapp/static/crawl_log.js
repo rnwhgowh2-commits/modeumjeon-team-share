@@ -832,8 +832,13 @@
     switch (type) {
       case 'start': {
         ensurePanel();
+        // ★ [2026-06-22] 새 크롤 시작 — 이전 실행 누적 상태 초기화.
+        //   미초기화 시: ✓/✗(s.ok/s.fail)가 실행마다 누적(2회→2배)되고, 진행률(doneCount)이
+        //   직전 실행값(예 70~80%)에서 시작했다가 소싱처 창 열리며 줄었다 오르는 버그.
+        //   sources/lineIndex/doneCount/total 을 비워 매 크롤을 0 부터 깨끗이 집계.
+        b.sources = {}; b.lineIndex = {}; b.doneCount = 0;
+        b.total = (m && m.total != null) ? m.total : 0;
         b.status = 'run'; b.startTs = ts; b.finishMsg = ''; b.stopped = false;
-        if (m && m.total != null) b.total = m.total;
         selected = code;          // 새 모음전 시작 → 자동 포커스
         renderAll();
         break;
