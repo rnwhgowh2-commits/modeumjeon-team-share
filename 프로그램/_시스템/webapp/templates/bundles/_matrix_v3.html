@@ -1111,8 +1111,204 @@
       <div class="matrix-inner-toolbar">
         <button type="button" id="expand-all-btn" class="mit-btn">▼ 모두 펼치기</button>
         <button type="button" id="collapse-all-btn" class="mit-btn">▲ 모두 접기</button>
+        {# 소싱처×옵션 압축 매트릭스 팝업 — 카드 스크롤 없이 가격/재고 한눈에 #}
+        <button type="button" id="compact-mtx-btn" class="mit-btn mit-btn-cmtx" title="소싱처×옵션 전체를 한 표로 보기"><svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><rect x="1" y="1" width="14" height="14" rx="2.5"/><line x1="6" y1="1" x2="6" y2="15"/><line x1="11" y1="1" x2="11" y2="15"/><line x1="1" y1="8" x2="15" y2="8"/></svg>매트릭스 보기</button>
         <span class="mit-spacer"></span>
       </div>
+      {# ════ 소싱처 × 옵션 압축 매트릭스 팝업 (좌측 점 재고신호등) ════ #}
+      <div id="cmtx-overlay" class="cmtx-overlay" hidden>
+        <div class="cmtx-modal" role="dialog" aria-modal="true" aria-label="소싱처별 가격 재고 매트릭스">
+          <div class="cmtx-head">
+            <div class="cmtx-title">📐 소싱처 × 옵션 — 가격 / 재고</div>
+            <div class="cmtx-sub" id="cmtx-sub"></div>
+            <div class="cmtx-legend">
+              <span><i style="background:#10b981"></i>충분</span>
+              <span><i style="background:#f59e0b"></i>소량(3개↓)</span>
+              <span><i style="background:#dc2626"></i>품절</span>
+              <span><i style="background:#9aa3af"></i>크롤실패</span>
+              <span><i style="background:#d1d6db"></i>미크롤</span>
+            </div>
+            <button type="button" class="cmtx-x" id="cmtx-close">×</button>
+          </div>
+          <div class="cmtx-wrap" id="cmtx-wrap"><!-- JS 가 표 렌더 --></div>
+        </div>
+      </div>
+      <style>
+        /* 우리 프로그램 기본색(--primary #3182F6 / strong #1B64DA) = btn-primary 와 동일 톤 */
+        .mit-btn-cmtx { background:var(--primary,#3182F6); border-color:var(--primary,#3182F6); color:#fff; display:inline-flex; align-items:center; gap:6px; }
+        .mit-btn-cmtx svg { display:block; }
+        .mit-btn-cmtx:hover { background:var(--primary-strong,#1B64DA); border-color:var(--primary-strong,#1B64DA); color:#fff; }
+        .cmtx-overlay { position:fixed; inset:0; z-index:9000; background:rgba(15,20,30,.45); display:flex; align-items:center; justify-content:center; padding:24px; }
+        .cmtx-overlay[hidden] { display:none; }
+        .cmtx-modal { background:#fff; border-radius:14px; box-shadow:0 24px 64px rgba(0,0,0,.32); width:min(1380px,96vw); max-height:92vh; display:flex; flex-direction:column; overflow:hidden; }
+        .cmtx-head { display:flex; align-items:center; gap:12px; padding:14px 18px; border-bottom:1px solid #f2f4f6; flex-wrap:wrap; }
+        .cmtx-title { font-size:16px; font-weight:800; color:#191F28; }
+        .cmtx-sub { font-size:12.5px; color:#6b7684; }
+        .cmtx-legend { margin-left:auto; display:flex; gap:13px; font-size:11.5px; color:#6b7684; align-items:center; }
+        .cmtx-legend i { display:inline-block; width:10px; height:10px; border-radius:50%; margin-right:5px; vertical-align:-1px; }
+        .cmtx-x { width:30px; height:30px; border-radius:8px; border:none; background:#f2f4f6; color:#6b7684; font-size:18px; line-height:1; cursor:pointer; }
+        .cmtx-x:hover { background:#e5e8eb; color:#191F28; }
+        .cmtx-wrap { overflow:auto; }
+        table.cmtx-tbl { border-collapse:separate; border-spacing:0; width:100%; font-size:12px; }
+        table.cmtx-tbl th, table.cmtx-tbl td { border-bottom:1px solid #f2f4f6; border-right:1px solid #f2f4f6; white-space:nowrap; }
+        table.cmtx-tbl thead th { position:sticky; top:0; z-index:5; background:#f9fafb; padding:9px 8px; text-align:center; font-weight:700; color:#4e5968; }
+        table.cmtx-tbl thead th .cdot { display:inline-block; width:9px; height:9px; border-radius:3px; margin-right:5px; vertical-align:0; }
+        table.cmtx-tbl th.cmtx-optcol, table.cmtx-tbl td.cmtx-optcol { position:sticky; left:0; z-index:4; background:#fff; text-align:left; padding:7px 14px; font-weight:700; color:#333d4b; min-width:104px; box-shadow:1px 0 0 #e5e8eb; }
+        table.cmtx-tbl thead th.cmtx-optcol { z-index:6; background:#f9fafb; }
+        tr.cmtx-grp td { position:sticky; left:0; background:linear-gradient(90deg,#eef2f7,#f7f9fc); font-weight:800; color:#333d4b; padding:7px 14px; font-size:11.5px; box-shadow:inset 0 -1px 0 #e5e8eb; }
+        tr.cmtx-grp td .csw { display:inline-block; width:11px; height:11px; border-radius:3px; margin-right:7px; vertical-align:-1px; }
+        td.cmtx-cell { padding:6px 9px; text-align:right; font-variant-numeric:tabular-nums; }
+        td.cmtx-cell .cmtx-line { display:inline-flex; align-items:center; gap:6px; justify-content:flex-end; }
+        td.cmtx-cell .cmtx-pdot { width:9px; height:9px; border-radius:50%; flex-shrink:0; }
+        td.cmtx-cell .cmtx-p { font-family:ui-monospace,monospace; font-weight:700; color:#191F28; }
+        td.cmtx-cell .cmtx-p.oos { color:#dc2626; }
+        td.cmtx-cell .cmtx-p.miss { color:#c5cbd3; font-weight:600; }
+        td.cmtx-cell .cmtx-sk { display:block; text-align:right; font-size:9.5px; color:#8b95a1; margin-top:1px; }
+        td.cmtx-cell.clickable { cursor:pointer; }
+        td.cmtx-cell.clickable:hover { background:#f0f7ff; }
+        td.cmtx-cell.cmtx-empty { background:#fcfcfd; }
+        tr.cmtx-optrow:hover td.cmtx-cell { background:#f5f9ff; }
+        tr.cmtx-optrow:hover td.cmtx-optcol { background:#f5f9ff; }
+      </style>
+      <script>
+      (function(){
+        const overlay = document.getElementById('cmtx-overlay');
+        const btn = document.getElementById('compact-mtx-btn');
+        const closeBtn = document.getElementById('cmtx-close');
+        const wrap = document.getElementById('cmtx-wrap');
+        const subEl = document.getElementById('cmtx-sub');
+        if (!overlay || !btn) return;
+
+        const won = n => (n == null ? '—' : Number(n).toLocaleString('ko-KR'));
+        const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+        // 색상 점 (소싱처 헤더용) — 기존 매트릭스의 사이트 식별색과 동일 계열
+        function siteColor(name){
+          const n = (name||'').toLowerCase();
+          if (n.includes('스마트')||n.includes('스토어')||n.includes('naver')) return '#2db400';
+          if (n.includes('무신사')||n.includes('musinsa')) return '#000000';
+          if (n.includes('ssf')) return '#191F28';
+          if (n.includes('롯데아이몰')||n.includes('아이몰')) return '#da291c';
+          if (n.includes('롯데')||n.includes('lotte')) return '#e60012';
+          if (n.includes('ssg')) return '#cd163f';
+          if (n.includes('쿠팡')||n.includes('coupang')) return '#ff5a5f';
+          return '#5b8def'; // 르무통 등 기본
+        }
+
+        // 색상 그룹 헤더 스와치 — 색상명에서 대표 hex 추정 (DB 에 color_hex 없음)
+        function colorSwatch(name){
+          const n = (name||'').toLowerCase();
+          if (n.includes('블랙')||n.includes('black')) return '#191F28';
+          if (n.includes('다크네이비')||n.includes('네이비')||n.includes('navy')) return '#26324d';
+          if (n.includes('올리브')||n.includes('olive')) return '#5a6638';
+          if (n.includes('그레이')||n.includes('회색')||n.includes('gray')||n.includes('grey')) return '#9aa3af';
+          if (n.includes('아이보리')||n.includes('ivory')) return '#ece6d6';
+          if (n.includes('오렌지')||n.includes('orange')) return '#f57c00';
+          if (n.includes('크림')||n.includes('cream')) return '#f6d9d2';
+          if (n.includes('라이트블루')||n.includes('스카이')||n.includes('블루')||n.includes('blue')) return '#79b6e8';
+          if (n.includes('화이트')||n.includes('white')) return '#e5e8eb';
+          if (n.includes('베이지')||n.includes('beige')) return '#d8c4a0';
+          if (n.includes('브라운')||n.includes('brown')) return '#7a5230';
+          if (n.includes('레드')||n.includes('red')) return '#dc2626';
+          if (n.includes('그린')||n.includes('green')) return '#10b981';
+          return '#d1d6db';
+        }
+
+        // 재고 상태 판정 (확정값 stock_out / stock_qty 사용) — 소량 기준 3개 이하
+        const COLOR = { full:'#10b981', low:'#f59e0b', oos:'#dc2626', miss:'#d1d6db', fail:'#9aa3af' };
+        // 매트릭스 셀과 동일한 소싱처 선택 로직(_pickBestSrc 복제) — 같은 칸 = 같은 값 보장
+        function pickBest(list){
+          if (!list || !list.length) return null;
+          const cheapest = arr => arr.reduce((a, b) => ((b.crawled_price || 9e15) < (a.crawled_price || 9e15) ? b : a));
+          const good = list.filter(s => s.product_url && s.last_status !== 'error' && !s.stock_out && s.crawled_price > 0);
+          if (good.length) return cheapest(good);
+          const priced = list.filter(s => s.product_url && s.crawled_price > 0);
+          if (priced.length) return cheapest(priced);
+          const withUrl = list.filter(s => s.product_url);
+          return withUrl[0] || list[0];
+        }
+        // 표시가 = 매트릭스 셀과 동일(혜택 적용 매입가 우선, 없으면 크롤가). window 헬퍼(메인 스크립트)가 SM_BREAKDOWNS 제공.
+        function cellPrice(sku, srcId, fallback){
+          return (typeof window.__cmtxCellPrice === 'function')
+            ? window.__cmtxCellPrice(sku, srcId, fallback) : fallback;
+        }
+        // 재고 상태 판정 — renderSiteCell 과 동일 규칙. 소량 = 3개 이하.
+        function cellState(src){
+          if (!src || !src.product_url) return { kind:'miss' };                         // 크롤링 미실시(URL 미매핑 포함)
+          if (src.last_status === 'error') return { kind:'fail' };                       // 크롤 실패(가격 stale → 숨김)
+          if (src.crawled_price == null || src.crawled_price <= 0) return { kind:'miss' }; // 크롤 대기/미실시
+          if (src.stock_out || src.crawled_stock === 0) return { kind:'oos' };           // 품절
+          const q = src.stock_qty != null ? src.stock_qty : null;
+          return { kind: (q != null && q <= 3) ? 'low' : 'full', q };                    // 소량(3개↓) / 충분
+        }
+
+        function render(){
+          const DATA = window.DATA;
+          if (!DATA || !Array.isArray(DATA.options) || !DATA.options.length || !Array.isArray(DATA.sources) || !DATA.sources.length){
+            wrap.innerHTML = '<div style="padding:40px;text-align:center;color:#8b95a1;font-size:13px">옵션 / 소싱처 데이터가 아직 없어요. 매트릭스를 먼저 불러와 주세요.</div>';
+            subEl.textContent = '';
+            return;
+          }
+          const sources = DATA.sources;       // 가로축 (소싱처 칼럼)
+          const options = DATA.options;       // 세로축 (옵션 전부)
+
+          // 헤더
+          let head = '<tr><th class="cmtx-optcol">옵션 \\ 소싱처</th>';
+          sources.forEach(col => {
+            head += `<th><span class="cdot" style="background:${siteColor(col.name)}"></span>${esc(col.name)}</th>`;
+          });
+          head += '</tr>';
+
+          // 본문 — 색상 그룹 헤더 + 옵션 행
+          let body = '';
+          let curColor = null;
+          options.forEach(o => {
+            const color = o.color_display || o.color_code || '';
+            if (color !== curColor){
+              curColor = color;
+              body += `<tr class="cmtx-grp"><td colspan="${sources.length + 1}"><span class="csw" style="background:${colorSwatch(color)}"></span>${esc(color)}</td></tr>`;
+            }
+            let cells = '';
+            sources.forEach(col => {
+              const src = pickBest((o.sources || []).filter(x => x.source_id === col.id));
+              const st = cellState(src);
+              if (st.kind === 'miss'){
+                cells += '<td class="cmtx-cell"><span class="cmtx-line"><i class="cmtx-pdot" style="background:#d1d6db"></i><span class="cmtx-p miss">미크롤</span></span></td>';
+                return;
+              }
+              if (st.kind === 'fail'){
+                cells += '<td class="cmtx-cell"><span class="cmtx-line"><i class="cmtx-pdot" style="background:#9aa3af"></i><span class="cmtx-p" style="color:#dc2626;font-weight:700">크롤실패</span></span></td>';
+                return;
+              }
+              const dot = COLOR[st.kind];
+              const sk = st.kind === 'oos' ? '품절' : (st.q != null ? st.q + '개' : '있음');
+              const pCls = st.kind === 'oos' ? 'cmtx-p oos' : 'cmtx-p';
+              const price = cellPrice(o.sku, src.source_id, src.crawled_price);
+              const url = src.product_url ? esc(src.product_url) : '';
+              cells += '<td class="cmtx-cell' + (url ? ' clickable' : '') + '"' + (url ? ' data-url="' + url + '"' : '') + (st.kind === 'oos' ? ' style="opacity:.62"' : '') +
+                       '><span class="cmtx-line"><i class="cmtx-pdot" style="background:' + dot + '"></i><span class="' + pCls + '">' + won(price) + '</span></span><span class="cmtx-sk">' + sk + '</span></td>';
+            });
+            body += `<tr class="cmtx-optrow"><td class="cmtx-optcol">${esc(color)} ${esc(o.size_display || o.size_code || '')}</td>${cells}</tr>`;
+          });
+
+          wrap.innerHTML = `<table class="cmtx-tbl"><thead>${head}</thead><tbody>${body}</tbody></table>`;
+          subEl.textContent = `옵션 ${options.length}개 × 소싱처 ${sources.length}곳`;
+
+          // 칸 클릭 → 그 소싱처 상품 페이지 열기 (기존 매트릭스 동작과 동일)
+          wrap.querySelectorAll('td.cmtx-cell.clickable').forEach(td => {
+            td.addEventListener('click', () => { const u = td.getAttribute('data-url'); if (u) window.open(u, '_blank', 'noopener'); });
+          });
+        }
+
+        function open(){ render(); overlay.hidden = false; document.body.style.overflow = 'hidden'; }
+        function close(){ overlay.hidden = true; document.body.style.overflow = ''; }
+
+        btn.addEventListener('click', open);
+        closeBtn.addEventListener('click', close);
+        overlay.addEventListener('click', e => { if (e.target === overlay) close(); });
+        document.addEventListener('keydown', e => { if (e.key === 'Escape' && !overlay.hidden) close(); });
+      })();
+      </script>
       <style>
         .matrix-inner-toolbar { display:flex; align-items:center; gap:8px; padding:10px 14px; background:#fafbfc; border-bottom:1px solid #e5e8eb; }
         .mit-btn { background:#fff; border:1.5px solid #e5e8eb; border-radius:7px; padding:8px 14px; font-size:14.5px; font-weight:700; color:#4E5968; cursor:pointer; font-family:var(--font); transition:.12s; }
@@ -2764,6 +2960,13 @@
 
   // breakdown 캐시 — { 'sku|src_id': {final_price, steps, ...} }
   let SM_BREAKDOWNS = {};
+  // [압축 매트릭스 팝업] 셀 표시가를 매트릭스와 동일하게 — 혜택 적용 매입가(SM_BREAKDOWNS) 우선.
+  //   SM_BREAKDOWNS 는 비동기로 let 재할당되므로 클로저로 현재값을 항상 읽는다.
+  window.__cmtxCellPrice = function(sku, srcId, fallback){
+    const bk = SM_BREAKDOWNS[`${sku}|${srcId}`];
+    return (bk && typeof bk.final_price === 'number') ? bk.final_price : fallback;
+  };
+
 
   async function smFetchBreakdowns() {
     const opts = DATA.options || [];
