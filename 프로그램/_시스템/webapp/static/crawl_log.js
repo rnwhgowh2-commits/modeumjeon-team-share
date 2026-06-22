@@ -103,8 +103,8 @@
       '#mcl-grip { position:absolute; left:0; top:0; bottom:0; width:11px; cursor:ew-resize; z-index:20; display:flex; align-items:center; justify-content:center; }',
       '#mcl-grip::before { content:""; width:4px; height:48px; border-radius:4px; background:#3A455C; transition:background .12s, height .12s; }',
       '#mcl-grip:hover::before, #mcl-grip.drag::before { background:#3182F6; height:84px; }',
-      /* 도킹 시 본문(.main)이 부드럽게 밀려나도록 */
-      '.main { transition:margin-right .2s ease; }',
+      /* 도킹 시 본문(.main)이 부드럽게 좁아지도록 */
+      '.main { transition:max-width .2s ease; }',
 
       '#mcl-header { padding:14px 16px 12px; border-bottom:1px solid #25303b; flex-shrink:0; }',
       '#mcl-header-top { display:flex; align-items:center; gap:7px; margin-bottom:10px; }',
@@ -391,22 +391,35 @@
   }
 
   // ── 도킹(밀어내기) + 폭 드래그 (시안 B, 2026-06-22) ───────────────
-  //   패널이 보일 때 본문 .main 을 위젯 실제 폭만큼 우측 밀어냄 → 겹침 0.
-  //   위젯은 transform:scale(1.5) 라 실제 폭 = offsetWidth × 1.5.
-  var DOCK_SCALE = 1.5;
+  //   패널이 보일 때 본문 .main 을 위젯 왼쪽 끝까지로 좁혀 겹침 0 으로 만든다.
+  //   ⚠️ 이 페이지 레이아웃 특성(라이브 실검증으로 확정):
+  //    · .main 은 flex 자식이고 어딘가 max-width 를 고정 → 일반 inline max-width/margin 무시됨.
+  //      → setProperty(...,'important') 로 강제해야 실제로 좁아진다.
+  //    · 매트릭스 테이블(#price-matrix-table)은 래퍼 overflow-x 가 visible 이라 본문 밖으로 넘쳐
+  //      위젯 밑을 침범 → 래퍼에 overflow-x:auto 를 줘서 내부 가로 스크롤로 가둔다.
+  var DOCK_SCALE = 1.5;   // #mcl-panel transform:scale(1.5) — 드래그 좌표(뷰포트) → 미변환 폭 변환용
   function getMainEl() { return document.querySelector('main.main') || document.querySelector('.main'); }
+  function getMatrixWrap() {
+    var tbl = document.getElementById('price-matrix-table');
+    return tbl ? tbl.parentElement : null;   // overflow-x 컨테이너 (없는 페이지면 null)
+  }
   function applyDock() {
     var main = getMainEl();
     if (!main) return;
     var panel = document.getElementById(PANEL_ID);
     var shown = panel && !panel.classList.contains('mcl-hidden');
+    var wrap = getMatrixWrap();
     if (shown) {
-      var vw = panel.getBoundingClientRect().width;   // scale 반영된 실제 화면 폭
-      main.style.marginRight = Math.round(vw) + 'px';
-      main.style.minWidth = '0';                       // flex 기본 min-width:auto 가 축소 막음 → 0 으로 풀어야 본문이 실제로 좁아짐
+      // 본문이 차지할 폭 = 위젯 왼쪽 끝 − 본문 왼쪽 끝 (사이드바·스케일 자동 반영)
+      var target = Math.round(panel.getBoundingClientRect().left - main.getBoundingClientRect().left);
+      if (target < 120) target = 120;                  // 붕괴 방지 하한
+      main.style.setProperty('max-width', target + 'px', 'important');
+      main.style.setProperty('min-width', '0', 'important');
+      if (wrap) { wrap.style.setProperty('overflow-x', 'auto', 'important'); wrap.style.minWidth = '0'; }
     } else {
-      main.style.marginRight = '';                     // 숨김/최소화 시 본문 풀폭 복원
-      main.style.minWidth = '';
+      main.style.removeProperty('max-width');           // 숨김/최소화 시 본문 풀폭 복원
+      main.style.removeProperty('min-width');
+      if (wrap) { wrap.style.removeProperty('overflow-x'); wrap.style.minWidth = ''; }
     }
   }
   function onGripDown(e) {
