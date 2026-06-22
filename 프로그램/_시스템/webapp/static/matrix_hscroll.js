@@ -83,15 +83,19 @@
 
   function tick() { bindWrap(); update(); }
 
+  // rAF 스로틀 — scroll 등 고빈도 이벤트에서 update 가 프레임당 1회만 돌게(레이아웃 thrash 방지)
+  var _raf = 0;
+  function schedule() {
+    if (_raf) return;
+    _raf = requestAnimationFrame(function () { _raf = 0; tick(); });
+  }
+
   function init() {
-    window.addEventListener('scroll', update, true);   // 캡처: 래퍼/페이지 스크롤 모두 포착
-    window.addEventListener('resize', update);
-    // 매트릭스는 비동기 렌더 + 행 펼침/접힘으로 높이·폭 변함 → 관찰 + 주기 점검
-    try {
-      var mo = new MutationObserver(function () { tick(); });
-      mo.observe(document.body, { childList: true, subtree: true });
-    } catch (_) {}
-    setInterval(tick, 1000);   // 위젯 도킹으로 래퍼 폭이 바뀌는 경우 등 보정
+    window.addEventListener('scroll', schedule, true);   // 캡처: 래퍼/페이지 스크롤 모두 포착(rAF 스로틀)
+    window.addEventListener('resize', schedule);
+    // ⚠️ body 전체 MutationObserver 는 크롤 중 로그 스트림으로 폭주 → 메인스레드 부하.
+    //   대신 가벼운 주기 점검으로 비동기 렌더·행 펼침·위젯 도킹 폭 변화를 보정(1.2s).
+    setInterval(tick, 1200);
     tick();
   }
 
