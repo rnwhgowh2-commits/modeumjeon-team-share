@@ -79,6 +79,9 @@
       url: x.url, price: x.price, stock: x.stock,
       status: x.ok ? "ok" : "error", product_name: x.product_name, error: x.error,
       is_logged_in: (x.is_logged_in === undefined ? null : x.is_logged_in),
+      // [2026-06-22] 회원 혜택 금액 추출용 — 서버 save_crawl_result 가 benefit_lines 에서
+      //   등급적립·무신사머니 금액을 뽑는다. 누락 시 라이브 혜택 0 사고 → 반드시 전달.
+      benefit_lines: x.benefit_lines || [], benefits_ok: x.benefits_ok,
     }));
     const save = await fetch("/api/sources/crawl-result", {
       method: "POST", headers: { "Content-Type": "application/json" },
@@ -137,7 +140,8 @@
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ items: [{ url: x.url, price: x.price, stock: x.stock,
         status: x.ok ? "ok" : "error", product_name: x.product_name, error: x.error,
-        is_logged_in: (x.is_logged_in === undefined ? null : x.is_logged_in) }] }),
+        is_logged_in: (x.is_logged_in === undefined ? null : x.is_logged_in),
+        benefit_lines: x.benefit_lines || [], benefits_ok: x.benefits_ok }] }),
     }).catch(() => {});
     return { ok: x.ok || false, price: x.price, error: x.error };
   }

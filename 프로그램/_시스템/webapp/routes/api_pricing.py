@@ -1071,27 +1071,40 @@ def save_crawl_result():
                     ).update({SourceOption.current_price: int(price)})
                 except Exception:
                     pass
-            # ★ 2026-06-13 — '있는 그대로' 적용: 비로그인 무신사 크롤은 계정 의존 혜택
-            #   (등급적립·무신사머니·등급할인·상품쿠폰)을 페이지에서 못 봤으므로 0 으로 비운다.
-            #   어제 로그인 크롤의 stale 값을 끌어다 쓰는 사고 차단(폴백·해석 금지).
-            #   표면가(salePrice=price)는 갱신, 후기적립(템플릿·계정무관)은 그대로 둠.
-            #   무신사머니 미적용 → money_active=False (현대카드 fallback 결제택1 일관).
-            #   로그인 크롤(is_logged_in=True)이면 잡힌 값 그대로 유지.
-            if getattr(sp, 'site', None) == 'musinsa' and it.get('is_logged_in') is False:
+            # ★ 2026-06-22 — 무신사 회원 혜택 금액을 크롤 라인(benefit_lines)에서 추출·저장.
+            #   배경: 기존은 is_logged_in 플래그(확장 '나의 할인가' 정규식이 비동기 렌더 전에
+            #         실행돼 비신뢰 — 로그인인데 False)로 비로그인이면 혜택을 0 처리 → 라이브에서
+            #         등급적립·무신사머니가 전부 0/OFF 였다(소싱처별 혜택 누락의 최대 원인).
+            #   변경: 라인 콘텐츠 기반 판정(has_musinsa_member_signal) — 회원 적립 신호(등급적립/
+            #         무신사머니 + 금액)가 실제로 있으면 그 금액을 채택(폴백·추정 금지, surface 40%
+            #         가드 통과분만). 신호 없으면 0 비움(옛 stale 값 차단). 후기적립=템플릿(계정무관) 보존.
+            if getattr(sp, 'site', None) == 'musinsa':
                 import json as _json
+                from lemouton.pricing.benefit_parse import (
+                    parse_musinsa_benefit_amounts, has_musinsa_member_signal,
+                )
                 try:
                     _dyn = _json.loads(sp.dynamic_benefits_json) if sp.dynamic_benefits_json else {}
                 except (ValueError, TypeError):
                     _dyn = {}
-                for _k in ('grade_reward_amount', 'money_reward_amount',
-                           'grade_discount_amount', 'coupon_amount'):
-                    _dyn[_k] = 0
-                _dyn['money_active'] = False
+                _lines = it.get('benefit_lines') or []
+                _surface = None
                 if price not in (None, '', 0):
                     try:
-                        _dyn['surface_price'] = int(price)
+                        _surface = int(price)
                     except Exception:
-                        pass
+                        _surface = None
+                if has_musinsa_member_signal(_lines):
+                    # 회원 혜택 영역 실수집 → 라인에서 금액 추출(가드 통과분만)
+                    _dyn.update(parse_musinsa_benefit_amounts(_lines, surface_price=_surface))
+                else:
+                    # 회원 신호 없음(비로그인 or 미수집) → 0 비움(옛값 stale 차단·폴백 금지)
+                    for _k in ('grade_reward_amount', 'money_reward_amount',
+                               'grade_discount_amount', 'coupon_amount'):
+                        _dyn[_k] = 0
+                    _dyn['money_active'] = False
+                if _surface is not None:
+                    _dyn['surface_price'] = _surface
                 sp.dynamic_benefits_json = _json.dumps(_dyn, ensure_ascii=False)
             updated += 1
         s.commit()
