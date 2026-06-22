@@ -268,6 +268,14 @@
       '#mcl-rail-min-num b { color:#60A5FA; }',
       '#mcl-rail-min .rm-bar { height:6px; background:#202a34; border-radius:5px; overflow:hidden; margin-top:7px; }',
       '#mcl-rail-min .rm-bar > i { display:block; height:100%; background:linear-gradient(90deg,#3182F6,#60A5FA); width:0%; transition:width .3s; }',
+      // [2026-06-22 시안C] 완료/중지 상태 — 도넛→펄스 체크 + 결과요약줄.
+      '#mcl-rail-min .rm-spin.done { width:18px; height:18px; border:none; animation:mcl-pulse 1.8s ease-out infinite; background:#16a34a; color:#fff; display:flex; align-items:center; justify-content:center; font-size:11px; font-weight:900; }',
+      '#mcl-rail-min .rm-spin.stopped { width:18px; height:18px; border:none; animation:none; background:#b91c1c; color:#fff; display:flex; align-items:center; justify-content:center; font-size:11px; font-weight:900; }',
+      '@keyframes mcl-pulse { 0% { box-shadow:0 0 0 0 rgba(52,211,153,.55); } 70% { box-shadow:0 0 0 10px rgba(52,211,153,0); } 100% { box-shadow:0 0 0 0 rgba(52,211,153,0); } }',
+      '#mcl-rail-min-num .rm-src { font-size:12px; color:#6B7684; font-weight:700; }',
+      '#mcl-rail-min .rm-summary { display:none; gap:6px; font-size:11px; font-weight:700; margin-top:8px; }',
+      '#mcl-rail-min .rm-summary .ok { color:#34D399; } #mcl-rail-min .rm-summary .blk { color:#F87171; } #mcl-rail-min .rm-summary .dot { color:#3a4654; }',
+      '#mcl-rail-min .rm-hint { display:none; margin-top:7px; font-size:11px; color:#6B7684; }',
     ].join('\n');
     document.head.appendChild(style);
   }
@@ -335,9 +343,11 @@
     rail.id = RAIL_MIN_ID;
     rail.title = '펼치기';
     rail.innerHTML = [
-      '<div class="rm-top"><span class="rm-spin"></span><span class="rm-name" id="mcl-rail-min-name">크롤 진행 중</span><span class="rm-exp" title="펼치기">‹</span></div>',
+      '<div class="rm-top"><span class="rm-spin" id="mcl-rail-min-spin"></span><span class="rm-name" id="mcl-rail-min-name">크롤 진행 중</span><span class="rm-exp" title="펼치기">‹</span></div>',
       '<div id="mcl-rail-min-num">0 / 0</div>',
       '<div class="rm-bar"><i id="mcl-rail-min-bar"></i></div>',
+      '<div class="rm-summary" id="mcl-rail-min-summary"></div>',
+      '<div class="rm-hint" id="mcl-rail-min-hint">클릭하면 상세</div>',
     ].join('');
     document.body.appendChild(rail);
     rail.addEventListener('click', restorePanel);
@@ -750,12 +760,44 @@
     var rb = runningBundle();
     var b = rb || bundles[selected];
     var prog = b ? bundleProgress(b) : { done: 0, total: 0, pct: 0 };
+    // [2026-06-22 시안C] 완료/중지면 도넛 멈추고 펄스 체크 + 결과요약. (진행 중인 모음전 없을 때만)
+    var isDone = !rb && !!(b && (b.status === 'done' || b.status === 'stop'));
+    var stopped = !!(b && b.status === 'stop');
+    var src = (b && (b.label || b.code)) || '';
+
+    var spin = document.getElementById('mcl-rail-min-spin');
+    if (spin) {
+      spin.className = 'rm-spin' + (isDone ? (stopped ? ' stopped' : ' done') : '');
+      spin.textContent = isDone ? (stopped ? '■' : '✓') : '';
+    }
     var nameEl = document.getElementById('mcl-rail-min-name');
-    if (nameEl && b) nameEl.textContent = b.label || b.code || '크롤 진행 중';
+    if (nameEl && b) {
+      nameEl.textContent = isDone ? (stopped ? '크롤 중지됨' : '크롤 완료') : src || '크롤 진행 중';
+      nameEl.style.color = isDone ? (stopped ? '#FCA5A5' : '#86EFAC') : '#E5EAF0';
+    }
     var numEl = document.getElementById('mcl-rail-min-num');
-    if (numEl) numEl.innerHTML = '<b>' + prog.done + '</b> / ' + (prog.total || prog.done);
+    if (numEl) {
+      numEl.innerHTML = '<b style="color:' + (isDone && !stopped ? '#34D399' : '#60A5FA') + '">' + prog.done + '</b> / '
+        + (prog.total || prog.done) + (isDone && src ? ' <span class="rm-src">\xb7 ' + src + '</span>' : '');
+    }
     var bar = document.getElementById('mcl-rail-min-bar');
-    if (bar) bar.style.width = prog.pct + '%';
+    if (bar) { bar.style.width = (isDone ? 100 : prog.pct) + '%'; bar.style.background = isDone ? (stopped ? '#F87171' : '#34D399') : ''; }
+
+    var sumEl = document.getElementById('mcl-rail-min-summary');
+    var hintEl = document.getElementById('mcl-rail-min-hint');
+    if (isDone && b) {
+      var ok = 0, fail = 0;
+      SOURCE_ORDER.forEach(function (sk) { var s = b.sources[sk]; if (s) { ok += (s.ok || 0); fail += (s.fail || 0); } });
+      if (sumEl) {
+        sumEl.style.display = 'flex';
+        sumEl.innerHTML = '<span class="ok">✓ 성공 ' + ok + '</span>'
+          + (fail > 0 ? '<span class="dot">\xb7</span><span class="blk">⛔ 차단 ' + fail + '</span>' : '');
+      }
+      if (hintEl) hintEl.style.display = 'block';
+    } else {
+      if (sumEl) sumEl.style.display = 'none';
+      if (hintEl) hintEl.style.display = 'none';
+    }
   }
 
   function renderAll() { renderRail(); renderDetail(); renderHeader(); }
