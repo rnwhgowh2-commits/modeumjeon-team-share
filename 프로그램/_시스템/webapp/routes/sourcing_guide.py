@@ -98,6 +98,33 @@ def install_download():
                      download_name="모음전-크롤러.zip")
 
 
+# ════════════════════════════════════════════════════════════
+#  데이터·코드 지도 — 크롤링/재고/가격/매트릭스 표시의 단일 진실 원천(SSOT).
+#  정본 = 프로그램/_시스템/docs/크롤링-가이드.md (배포 포함). 사용자=HTML 렌더, Claude=원문 .md.
+# ════════════════════════════════════════════════════════════
+_GUIDE_MD = os.path.normpath(
+    os.path.join(os.path.dirname(__file__), "..", "..", "docs", "크롤링-가이드.md")
+)
+
+
+@bp.route("/map")
+def data_code_map():
+    """데이터·코드 지도 (HTML 렌더 — 6탭 + 보기/원문 토글)."""
+    return render_template("sourcing_guide/map.html", active="sourcing_guide")
+
+
+@bp.route("/map.md")
+def data_code_map_raw():
+    """정본 마크다운 원문 그대로 (MD 바로열기). Claude가 그대로 읽고 복귀."""
+    try:
+        with open(_GUIDE_MD, encoding="utf-8") as f:
+            text = f.read()
+    except OSError:
+        abort(404, description="정본 문서를 찾을 수 없습니다.")
+    from flask import Response
+    return Response(text, mimetype="text/markdown; charset=utf-8")
+
+
 @bp.route("/<int:sid>")
 def detail(sid: int):
     src = _source(sid)
