@@ -70,3 +70,17 @@ def test_tab3_price_methods():
     for src in ["무신사", "SSG", "롯데온"]:
         assert src in s3, src
     assert "api_benefits.py" in s3
+
+
+def test_tabs_4_5_6():
+    html = (TPL / "map.html").read_text(encoding="utf-8")
+    s4 = html.split('id="s4"')[1].split('id="s5"')[0]
+    assert "window.DATA" in s4 and "완전한 B" in s4 and "source_product_id" in s4
+    assert "klabel" in s4
+    s5 = html.split('id="s5"')[1].split('id="s6"')[0]
+    for k in ["폴백가 금지", "크롤실패", "단일 진실원천", "누락"]:
+        assert k in s5, k
+    assert "card row2" in s5
+    s6 = html.split('id="s6"')[1].split('id="s7"')[0]
+    assert "_resolve_stock" in s6 and "stale" in s6
+    assert "card row2" in s6
