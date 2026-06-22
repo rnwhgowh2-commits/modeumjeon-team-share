@@ -49,3 +49,14 @@ def test_tab1_flow_cards():
     assert "크롤러" in s1 and "저장" in s1 and "계산" in s1 and "표시" in s1
     assert "compute_market_price" in s1
     assert "BG_PARSE" in s1
+
+
+def test_tab2_stock_states_and_glossary():
+    html = (TPL / "map.html").read_text(encoding="utf-8")
+    s2 = html.split('id="s2"')[1].split('id="s3"')[0]
+    assert "API 호출" in s2 and "HTML 파싱" in s2 and "DOM 읽기" in s2
+    for k in ["품절", "한정", "충분", "특이사항", "옵션없음", "크롤실패"]:
+        assert k in s2, k
+    for src in ["무신사", "SSG", "SSF", "롯데온", "스마트", "르무통"]:
+        assert src in s2, src
+    assert "outOfStock" in s2 and "품절임박" in s2 and "usablInvQty" in s2

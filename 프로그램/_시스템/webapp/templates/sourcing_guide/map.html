@@ -58,6 +58,36 @@
   .sgmap .ti{font-size:14px;font-weight:800;color:var(--ink);}
   .sgmap .detail{font-size:12.5px;color:var(--sub);line-height:1.6;}
   .sgmap .detail .ink{color:var(--ink);font-weight:700;}
+  .sgmap .glos{background:#fff;border:1px solid var(--line2);border-radius:11px;padding:13px 16px;margin-bottom:15px;}
+  .sgmap .glos .gt{font-size:12px;font-weight:800;margin-bottom:9px;}
+  .sgmap .gg{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;}
+  .sgmap .gi{background:#F9FAFB;border:1px solid var(--line);border-radius:9px;padding:10px 12px;}
+  .sgmap .gi .nm{font-size:12px;font-weight:800;margin-bottom:3px;}
+  .sgmap .gi.api .nm{color:var(--blue);}
+  .sgmap .gi .ds{font-size:11px;color:var(--sub);line-height:1.55;}
+  .sgmap .scard{display:grid;grid-template-columns:76px 1fr;gap:14px;align-items:center;background:#fff;border:1px solid var(--line2);border-radius:12px;padding:13px 16px;margin-bottom:9px;}
+  .sgmap .scard .src{font-size:13.5px;font-weight:800;color:var(--ink);text-align:center;}
+  .sgmap .scard>div:last-child>*:last-child{margin-bottom:0;}
+  .sgmap .axes{display:flex;gap:14px;flex-wrap:wrap;margin-bottom:7px;}
+  .sgmap .axis{font-size:11px;}
+  .sgmap .axis .ax{font-size:9.5px;font-weight:800;color:#9AA4B0;text-transform:uppercase;letter-spacing:.04em;margin-right:5px;}
+  .sgmap .pill{font-size:10.5px;font-weight:700;border-radius:5px;padding:2px 7px;background:#EEF1F4;color:var(--sub);}
+  .sgmap .pill.api{background:#E8F3FF;color:var(--blue);}
+  .sgmap .dm{background:#F9FAFB;border:1px solid var(--line);border-radius:8px;padding:8px 11px;margin-bottom:7px;}
+  .sgmap .dm .ax{font-size:9.5px;font-weight:800;color:#9AA4B0;text-transform:uppercase;letter-spacing:.04em;display:block;margin-bottom:6px;}
+  .sgmap .dgrid{display:flex;gap:7px 14px;flex-wrap:wrap;}
+  .sgmap .dp{font-size:11px;color:var(--sub);white-space:nowrap;}
+  .sgmap .dp b{color:var(--ink);font-weight:700;margin-right:4px;}
+  .sgmap .st3{width:100%;border-collapse:collapse;margin-bottom:7px;}
+  .sgmap .st3 td{padding:5px 8px;border-top:1px solid var(--line);font-size:11.5px;vertical-align:top;}
+  .sgmap .st3 tr:first-child td{border-top:none;}
+  .sgmap .st3 .sn{white-space:nowrap;font-weight:800;color:var(--ink);width:118px;}
+  .sgmap .st3 .sn .dot{font-size:8px;vertical-align:middle;margin-right:5px;}
+  .sgmap .st3 .how{color:var(--sub);line-height:1.5;}
+  .sgmap .st3 .how .ink{color:var(--ink);font-weight:700;}
+  .sgmap .st3 .special td{border-top:1px dashed var(--line2);}
+  .sgmap .st3 .special .sn{color:var(--red);}
+  .sgmap .meta{font-size:11px;color:var(--sub);line-height:1.5;margin-top:6px;}
 </style>
 
 <div class="sgmap">
@@ -115,16 +145,93 @@
 
     <!-- 2 재고 -->
     <div class="sec" id="s2">
-      <div class="easy">🟢 소싱처마다 재고 수집법이 다름. 표기 <b>충분·소량(3개↓)·품절·크롤실패·미크롤</b>. 종착지 <span class="mono">_resolve_stock(api_pricing.py:142)</span>.</div>
-      <div class="spec">
-        <div class="k first">무신사</div><div class="v first">API <span class="ep">POST .../options/v2/prioritized-inventories</span> · outOfStock→0/"N개"→실수량/없음→999 · <span class="mono">musinsa.py:492</span></div>
-        <div class="k">SSG</div><div class="v">정규식 <span class="ep">usablInvQty</span> · 0→품절/else 실수량 · <span class="mono">ssg.py:608</span></div>
-        <div class="k">SSF</div><div class="v"><span class="ep">#optionDiv1 li a[optcd]@statcd</span> · SLDOUT→품절/품절임박(N) · <span class="mono">ssf.py</span></div>
-        <div class="k">롯데온</div><div class="v">API <span class="ep">pbf.../option/mapping/{spd}/{sitm}</span> 우선→DOM <span class="ep">li.soldout</span> 폴백 · <span class="mono">lotteon.py:1293</span></div>
-        <div class="k">스마트스토어</div><div class="v">확장 per-SKU <span class="ep">/n/v2/channels/{cu}/products/{channelProductNo}</span>(A.id) → <span class="mono">_persist_option_stocks</span> 영속 · <span class="mono">ss_lemouton.py</span></div>
-        <div class="k">르무통 공홈</div><div class="v">Cafe24 <span class="ep">option_stock_data</span> · 실조합·실재고 · <span class="mono">lemouton.py</span></div>
+      <div class="glos">
+        <div class="gt">📖 용어 사전 — 데이터를 읽는 3가지 방법</div>
+        <div class="gg">
+          <div class="gi api"><div class="nm">API 호출</div><div class="ds">사이트가 데이터를 나르는 <b>내부 요청</b>을 그대로 부름. 값(JSON)을 통째로 정확히 받음. <b>가장 빠르고 안정적 → 선호.</b></div></div>
+          <div class="gi"><div class="nm">HTML 파싱</div><div class="ds">서버가 처음 보내준 <b>화면 원본 문서</b>(HTML)에서 값을 찾아 뽑음. 화면 구조가 바뀌면 깨질 수 있음.</div></div>
+          <div class="gi"><div class="nm">DOM 읽기</div><div class="ds">브라우저가 HTML을 그려 만든 <b>살아있는 화면</b>(DOM)에서 읽음. JS로 나중에 채워지는 값까지 잡음. (HTML의 브라우저판)</div></div>
+        </div>
       </div>
-      <div class="note">⚠️ 함정 — 무신사 "마지막 N개" 정규식 빠지면 둔갑 / SSF 괄호공백 품절임박 ( N ) / 네이버 A.id 써야(productNo→204→999) / <b>확장이 per-SKU 긁어도 current_stock 저장 안 하면 매트릭스 전부 999</b>.</div>
+      <div class="lead"><span class="klabel">핵심</span><span class="sum">소싱처마다 재고·가격을 읽는 방법이 다르다 — API일수록 정확. 종착지 _resolve_stock.</span></div>
+
+      <div class="scard"><div class="src">무신사</div><div>
+        <div class="axes"><span class="axis"><span class="ax">로그인</span><span class="pill">필요</span></span><span class="axis"><span class="ax">크롤 위치</span><span class="pill">크롬 확장</span></span></div>
+        <div class="dm"><span class="ax">수집 방법 (데이터별)</span><div class="dgrid">
+          <span class="dp"><b>상품명</b><span class="pill api">API</span></span><span class="dp"><b>대표이미지</b><span class="pill api">API</span></span><span class="dp"><b>추가이미지</b><span class="pill">HTML</span></span><span class="dp"><b>옵션</b><span class="pill api">API</span></span><span class="dp"><b>재고</b><span class="pill api">API</span></span><span class="dp"><b>표면노출가</b><span class="pill api">API</span></span><span class="dp"><b>혜택</b><span class="pill api">API</span></span></div></div>
+        <table class="st3">
+          <tr><td class="sn"><span class="dot" style="color:#DC2626">●</span>품절(없음)</td><td class="how"><span class="pill api">API</span> <span class="ink">outOfStock=true</span> → 재고 0</td></tr>
+          <tr><td class="sn"><span class="dot" style="color:#E8830C">●</span>한정(N개)</td><td class="how"><span class="pill api">API</span> 재고 수치 또는 <span class="ink">"잔여·마지막 N개"</span> → 실수량 N</td></tr>
+          <tr><td class="sn"><span class="dot" style="color:#15803D">●</span>충분(표식없음)</td><td class="how"><span class="pill api">API</span> 신호 없음 → <span class="ink">999</span></td></tr>
+          <tr class="special"><td class="sn">⚠ 특이사항</td><td class="how">옵션 매핑 실패·없음 → <span class="ink">옵션없음</span> / API 호출 실패 → <span class="ink">크롤실패</span></td></tr>
+        </table>
+        <div class="meta"><span class="elabel">엔드포인트</span><span class="mono">.../options/v2/prioritized-inventories</span> · <span class="elabel">코드</span><span class="mono">musinsa.py:492</span></div>
+      </div></div>
+
+      <div class="scard"><div class="src">SSG</div><div>
+        <div class="axes"><span class="axis"><span class="ax">로그인</span><span class="pill">필요</span></span><span class="axis"><span class="ax">크롤 위치</span><span class="pill">크롬 확장</span></span></div>
+        <div class="dm"><span class="ax">수집 방법 (데이터별)</span><div class="dgrid">
+          <span class="dp"><b>상품명</b><span class="pill">HTML</span></span><span class="dp"><b>대표이미지</b><span class="pill">HTML</span></span><span class="dp"><b>추가이미지</b><span class="pill">HTML</span></span><span class="dp"><b>옵션</b><span class="pill">HTML</span></span><span class="dp"><b>재고</b><span class="pill">HTML</span></span><span class="dp"><b>표면노출가</b><span class="pill">HTML</span></span><span class="dp"><b>혜택</b><span class="pill">HTML</span></span></div></div>
+        <table class="st3">
+          <tr><td class="sn"><span class="dot" style="color:#DC2626">●</span>품절(없음)</td><td class="how"><span class="pill">HTML</span> 정규식 <span class="ink">usablInvQty=0</span></td></tr>
+          <tr><td class="sn"><span class="dot" style="color:#E8830C">●</span>한정(N개)</td><td class="how"><span class="pill">HTML</span> <span class="ink">usablInvQty=N</span> (실수량)</td></tr>
+          <tr><td class="sn"><span class="dot" style="color:#15803D">●</span>충분(표식없음)</td><td class="how"><span class="pill">HTML</span> usablInvQty 큰 값 → 충분</td></tr>
+          <tr class="special"><td class="sn">⚠ 특이사항</td><td class="how">딜페이지(dealItemView.ss) 파싱 실패 → <span class="ink">크롤실패</span> / 단일색 사이즈 파싱버그 주의</td></tr>
+        </table>
+        <div class="meta"><span class="elabel">경로</span><span class="mono">navGrab → /api/sources/parse</span> · <span class="elabel">코드</span><span class="mono">ssg.py:608</span></div>
+      </div></div>
+
+      <div class="scard"><div class="src">SSF</div><div>
+        <div class="axes"><span class="axis"><span class="ax">로그인</span><span class="pill">필요</span></span><span class="axis"><span class="ax">크롤 위치</span><span class="pill">크롬 확장</span></span></div>
+        <div class="dm"><span class="ax">수집 방법 (데이터별)</span><div class="dgrid">
+          <span class="dp"><b>상품명</b><span class="pill">DOM</span></span><span class="dp"><b>대표이미지</b><span class="pill">DOM</span></span><span class="dp"><b>추가이미지</b><span class="pill">DOM</span></span><span class="dp"><b>옵션</b><span class="pill">DOM</span></span><span class="dp"><b>재고</b><span class="pill">DOM</span></span><span class="dp"><b>표면노출가</b><span class="pill">DOM</span></span><span class="dp"><b>혜택</b><span class="pill">DOM</span></span></div></div>
+        <table class="st3">
+          <tr><td class="sn"><span class="dot" style="color:#DC2626">●</span>품절(없음)</td><td class="how"><span class="pill">DOM</span> <span class="ink">statcd=SLDOUT</span></td></tr>
+          <tr><td class="sn"><span class="dot" style="color:#E8830C">●</span>한정(N개)</td><td class="how"><span class="pill">DOM</span> <span class="ink">품절임박 ( N )</span> → N (괄호공백 주의)</td></tr>
+          <tr><td class="sn"><span class="dot" style="color:#15803D">●</span>충분(표식없음)</td><td class="how"><span class="pill">DOM</span> statcd 정상 → 충분</td></tr>
+          <tr class="special"><td class="sn">⚠ 특이사항</td><td class="how">옵션 li 없음 → <span class="ink">옵션없음</span></td></tr>
+        </table>
+        <div class="meta"><span class="elabel">셀렉터</span><span class="mono">#optionDiv1 li a[optcd]@statcd</span> · <span class="elabel">코드</span><span class="mono">ssf.py</span></div>
+      </div></div>
+
+      <div class="scard"><div class="src">롯데온</div><div>
+        <div class="axes"><span class="axis"><span class="ax">로그인</span><span class="pill">필요</span></span><span class="axis"><span class="ax">크롤 위치</span><span class="pill">크롬 확장</span></span></div>
+        <div class="dm"><span class="ax">수집 방법 (데이터별)</span><div class="dgrid">
+          <span class="dp"><b>상품명</b><span class="pill api">API</span></span><span class="dp"><b>대표이미지</b><span class="pill">DOM</span></span><span class="dp"><b>추가이미지</b><span class="pill">DOM</span></span><span class="dp"><b>옵션</b><span class="pill api">API</span></span><span class="dp"><b>재고</b><span class="pill api">API</span><span class="pill">+DOM</span></span><span class="dp"><b>표면노출가</b><span class="pill api">API</span></span><span class="dp"><b>혜택</b><span class="pill">DOM</span></span></div></div>
+        <table class="st3">
+          <tr><td class="sn"><span class="dot" style="color:#DC2626">●</span>품절(없음)</td><td class="how"><span class="pill api">API</span> 매핑 품절 / <span class="pill">DOM</span> <span class="ink">li.soldout</span></td></tr>
+          <tr><td class="sn"><span class="dot" style="color:#E8830C">●</span>한정(N개)</td><td class="how"><span class="ink">수량을 구조적으로 안 줌</span> → 한정수량 못 잡음</td></tr>
+          <tr><td class="sn"><span class="dot" style="color:#15803D">●</span>충분(표식없음)</td><td class="how">표식 없음 → <span class="ink">unknown(수량 미상)</span> · 가짜 충분 금지</td></tr>
+          <tr class="special"><td class="sn">⚠ 특이사항</td><td class="how">매핑 API + DOM 둘 다 실패 → <span class="ink">크롤실패</span></td></tr>
+        </table>
+        <div class="meta"><span class="elabel">엔드포인트</span><span class="mono">pbf.../option/mapping/{spd}/{sitm}</span> · <span class="elabel">코드</span><span class="mono">lotteon.py:1293</span></div>
+      </div></div>
+
+      <div class="scard"><div class="src">스마트<br>스토어</div><div>
+        <div class="axes"><span class="axis"><span class="ax">로그인</span><span class="pill">필요</span></span><span class="axis"><span class="ax">크롤 위치</span><span class="pill">크롬 확장</span></span></div>
+        <div class="dm"><span class="ax">수집 방법 (데이터별)</span><div class="dgrid">
+          <span class="dp"><b>상품명</b><span class="pill api">API</span></span><span class="dp"><b>대표이미지</b><span class="pill api">API</span></span><span class="dp"><b>추가이미지</b><span class="pill api">API</span></span><span class="dp"><b>옵션</b><span class="pill api">API</span></span><span class="dp"><b>재고</b><span class="pill api">API</span></span><span class="dp"><b>표면노출가</b><span class="pill api">API</span></span><span class="dp"><b>혜택</b><span class="pill api">API</span></span></div></div>
+        <table class="st3">
+          <tr><td class="sn"><span class="dot" style="color:#DC2626">●</span>품절(없음)</td><td class="how"><span class="pill api">API</span> SKU <span class="ink">stockQuantity=0</span></td></tr>
+          <tr><td class="sn"><span class="dot" style="color:#E8830C">●</span>한정(N개)</td><td class="how"><span class="pill api">API</span> <span class="ink">stockQuantity=N</span> → 실수량</td></tr>
+          <tr><td class="sn"><span class="dot" style="color:#15803D">●</span>충분(표식없음)</td><td class="how"><span class="pill api">API</span> stockQuantity 큼 → 충분</td></tr>
+          <tr class="special"><td class="sn">⚠ 특이사항</td><td class="how"><span class="ink">per-SKU 저장 누락 시 전부 999 둔갑</span>(_persist_option_stocks 필수) / WAF 차단 → 크롤실패</td></tr>
+        </table>
+        <div class="meta"><span class="elabel">엔드포인트</span><span class="mono">/n/v2/channels/{cu}/products/{A.id}</span> · <span class="elabel">코드</span><span class="mono">ss_lemouton.py</span></div>
+      </div></div>
+
+      <div class="scard"><div class="src">르무통<br>공홈</div><div>
+        <div class="axes"><span class="axis"><span class="ax">로그인</span><span class="pill">불필요</span></span><span class="axis"><span class="ax">크롤 위치</span><span class="pill">서버</span></span></div>
+        <div class="dm"><span class="ax">수집 방법 (데이터별)</span><div class="dgrid">
+          <span class="dp"><b>상품명</b><span class="pill">HTML</span></span><span class="dp"><b>대표이미지</b><span class="pill">HTML</span></span><span class="dp"><b>추가이미지</b><span class="pill">HTML</span></span><span class="dp"><b>옵션</b><span class="pill">HTML</span></span><span class="dp"><b>재고</b><span class="pill">HTML</span></span><span class="dp"><b>표면노출가</b><span class="pill">HTML</span></span><span class="dp"><b>혜택</b><span class="pill">템플릿</span></span></div></div>
+        <table class="st3">
+          <tr><td class="sn"><span class="dot" style="color:#DC2626">●</span>품절(없음)</td><td class="how"><span class="pill">HTML</span> option_stock_data <span class="ink">재고 0 / is_selling=F</span></td></tr>
+          <tr><td class="sn"><span class="dot" style="color:#E8830C">●</span>한정(N개)</td><td class="how"><span class="pill">HTML</span> option_stock_data <span class="ink">수량 N</span> → 실수량</td></tr>
+          <tr><td class="sn"><span class="dot" style="color:#15803D">●</span>충분(표식없음)</td><td class="how"><span class="pill">HTML</span> 수량 충분 → 충분</td></tr>
+          <tr class="special"><td class="sn">⚠ 특이사항</td><td class="how">실제 조합만 수집(미판매 사이즈 과다수집 방지) → 날조 옵션 없음</td></tr>
+        </table>
+        <div class="meta"><span class="elabel">코드</span><span class="mono">lemouton.py</span></div>
+      </div></div>
     </div>
 
     <!-- 3 가격 -->
