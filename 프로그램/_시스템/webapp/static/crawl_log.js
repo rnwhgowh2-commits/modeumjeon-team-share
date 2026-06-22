@@ -99,6 +99,13 @@
       '}',
       '#mcl-panel.mcl-hidden { transform:scale(1.5) translateX(100%); pointer-events:none; }',
 
+      /* [2026-06-22] 도킹 리사이즈 핸들 — 위젯 왼쪽 모서리를 끌어 폭 조절(시안 B) */
+      '#mcl-grip { position:absolute; left:0; top:0; bottom:0; width:11px; cursor:ew-resize; z-index:20; display:flex; align-items:center; justify-content:center; }',
+      '#mcl-grip::before { content:""; width:4px; height:48px; border-radius:4px; background:#3A455C; transition:background .12s, height .12s; }',
+      '#mcl-grip:hover::before, #mcl-grip.drag::before { background:#3182F6; height:84px; }',
+      /* 도킹 시 본문(.main)이 부드럽게 밀려나도록 */
+      '.main { transition:margin-right .2s ease; }',
+
       '#mcl-header { padding:14px 16px 12px; border-bottom:1px solid #25303b; flex-shrink:0; }',
       '#mcl-header-top { display:flex; align-items:center; gap:7px; margin-bottom:10px; }',
       '#mcl-title { font-size:15px; font-weight:800; color:#F2F4F6; flex:1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }',
@@ -293,6 +300,7 @@
     p.id = PANEL_ID;
     p.classList.add('mcl-hidden');
     p.innerHTML = [
+      '<div id="mcl-grip" title="드래그하여 폭 조절"></div>',
       '<div id="mcl-header">',
       '  <div id="mcl-header-top">',
       '    <span id="mcl-title">크롤 진행 중</span>',
@@ -328,10 +336,13 @@
       var panel = document.getElementById(PANEL_ID);
       if (panel) panel.classList.add('mcl-hidden');
       hideRailMin();
+      applyDock();
     });
     document.getElementById('mcl-min-btn').addEventListener('click', minimizePanel);
     document.getElementById('mcl-pause-btn').addEventListener('click', onPauseClick);
     document.getElementById('mcl-stop-btn').addEventListener('click', onStopClick);
+    var grip = document.getElementById('mcl-grip');
+    if (grip) grip.addEventListener('mousedown', onGripDown);
 
     buildRailMinDOM();
     return p;
@@ -361,11 +372,13 @@
     renderRailMin();
     var rail = document.getElementById(RAIL_MIN_ID);
     if (rail) rail.style.display = 'block';
+    applyDock();
   }
   function restorePanel() {
     var panel = document.getElementById(PANEL_ID);
     if (panel) panel.classList.remove('mcl-hidden');
     hideRailMin();
+    applyDock();
   }
   function hideRailMin() {
     var rail = document.getElementById(RAIL_MIN_ID);
@@ -374,6 +387,55 @@
   function showPanel() {
     var p = document.getElementById(PANEL_ID);
     if (p) p.classList.remove('mcl-hidden');
+    applyDock();
+  }
+
+  // ── 도킹(밀어내기) + 폭 드래그 (시안 B, 2026-06-22) ───────────────
+  //   패널이 보일 때 본문 .main 을 위젯 실제 폭만큼 우측 밀어냄 → 겹침 0.
+  //   위젯은 transform:scale(1.5) 라 실제 폭 = offsetWidth × 1.5.
+  var DOCK_SCALE = 1.5;
+  function getMainEl() { return document.querySelector('main.main') || document.querySelector('.main'); }
+  function applyDock() {
+    var main = getMainEl();
+    if (!main) return;
+    var panel = document.getElementById(PANEL_ID);
+    var shown = panel && !panel.classList.contains('mcl-hidden');
+    if (shown) {
+      var vw = panel.getBoundingClientRect().width;   // scale 반영된 실제 화면 폭
+      main.style.marginRight = Math.round(vw) + 'px';
+      main.style.minWidth = '0';                       // flex 기본 min-width:auto 가 축소 막음 → 0 으로 풀어야 본문이 실제로 좁아짐
+    } else {
+      main.style.marginRight = '';                     // 숨김/최소화 시 본문 풀폭 복원
+      main.style.minWidth = '';
+    }
+  }
+  function onGripDown(e) {
+    e.preventDefault();
+    var panel = document.getElementById(PANEL_ID);
+    if (!panel) return;
+    var grip = document.getElementById('mcl-grip');
+    if (grip) grip.classList.add('drag');
+    document.body.style.userSelect = 'none';
+    panel.style.transition = 'none';                   // 드래그 중 떨림 방지
+    var startX = e.clientX;
+    var startW = panel.offsetWidth;                     // 미변환 레이아웃 폭(기본 520)
+    function mv(ev) {
+      var dx = (startX - ev.clientX) / DOCK_SCALE;      // 왼쪽으로 끌면 넓어짐
+      var w = startW + dx;
+      var maxUnscaled = (window.innerWidth - 24) / DOCK_SCALE;  // 화면 밖으로 못 나가게(안전선)
+      w = Math.max(80, Math.min(w, maxUnscaled));       // 상한 UX제한 없음·붕괴 방지 하한만
+      panel.style.width = w + 'px';
+      applyDock();
+    }
+    function up() {
+      document.removeEventListener('mousemove', mv);
+      document.removeEventListener('mouseup', up);
+      if (grip) grip.classList.remove('drag');
+      document.body.style.userSelect = '';
+      panel.style.transition = '';
+    }
+    document.addEventListener('mousemove', mv);
+    document.addEventListener('mouseup', up);
   }
 
   // ── 버튼 동작 ────────────────────────────────────────────────────
@@ -1032,6 +1094,7 @@
     document.addEventListener('visibilitychange', onVisibilityChange);
     window.addEventListener('pagehide', ensureMinimizedWhileActive);
     window.addEventListener('blur', function () { if (document.hidden) ensureMinimizedWhileActive(); });
+    window.addEventListener('resize', applyDock);   // 창 크기 변경 시 도킹 폭 보정
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', register);
   else register();
