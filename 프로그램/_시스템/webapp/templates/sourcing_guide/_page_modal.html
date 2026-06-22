@@ -1,0 +1,34 @@
+{# 가이드 페이지를 화면 가운데 팝업(iframe)으로 띄움 — 크롤러 설치 모달과 동일한 형태.
+   트리거 = 카드/버튼에 data-guide-modal="<URL>" 부여 (예: /sourcing-guide/map?bare=1). #}
+<style>
+  .gpm-dim{position:fixed;inset:0;background:rgba(15,20,28,.5);z-index:9200;}
+  .gpm-dim[hidden]{display:none;}
+  .gpm{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);width:1040px;max-width:95vw;height:88vh;
+    background:#fff;border-radius:20px;box-shadow:0 26px 80px rgba(0,0,0,.4);z-index:9300;overflow:hidden;}
+  .gpm[hidden]{display:none;}
+  .gpm-x{position:absolute;top:14px;right:16px;z-index:2;border:none;background:#F2F4F6;border-radius:11px;
+    width:42px;height:42px;font-size:19px;color:#888;cursor:pointer;}
+  .gpm-x:hover{background:#E5E8EB;}
+  .gpm iframe{width:100%;height:100%;border:0;display:block;}
+</style>
+
+<div id="gpmDim" class="gpm-dim" hidden></div>
+<div id="gpmModal" class="gpm" hidden>
+  <button type="button" class="gpm-x" id="gpmClose" aria-label="닫기">✕</button>
+  <iframe id="gpmFrame" title="가이드" src="about:blank"></iframe>
+</div>
+
+<script>
+(function(){
+  var modal=document.getElementById('gpmModal'), dim=document.getElementById('gpmDim'), frame=document.getElementById('gpmFrame');
+  if(!modal) return;
+  function open(src){ if(frame.getAttribute('src')!==src) frame.setAttribute('src', src); modal.hidden=false; dim.hidden=false; }
+  function close(){ modal.hidden=true; dim.hidden=true; }
+  document.querySelectorAll('[data-guide-modal]').forEach(function(b){
+    b.addEventListener('click', function(e){ e.preventDefault(); e.stopPropagation(); open(b.getAttribute('data-guide-modal')); });
+  });
+  dim.addEventListener('click', close);
+  document.getElementById('gpmClose').addEventListener('click', close);
+  document.addEventListener('keydown', function(e){ if(e.key==='Escape' && !modal.hidden) close(); });
+})();
+</script>

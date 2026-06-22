@@ -109,8 +109,12 @@ _GUIDE_MD = os.path.normpath(
 
 @bp.route("/map")
 def data_code_map():
-    """데이터·코드 지도 (HTML 렌더 — 6탭 + 보기/원문 토글)."""
-    return render_template("sourcing_guide/map.html", active="sourcing_guide")
+    """데이터·코드 지도 (HTML 렌더 — 6탭 + 보기/원문 토글).
+
+    ?bare=1 → 사이드바 없는 최소 레이아웃(_bare.html). 전체보기의 팝업 모달이 iframe 으로 띄움.
+    """
+    layout = "_bare.html" if request.args.get("bare") else "base.html"
+    return render_template("sourcing_guide/map.html", active="sourcing_guide", layout=layout)
 
 
 @bp.route("/map.md")

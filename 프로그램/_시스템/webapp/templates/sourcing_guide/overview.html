@@ -166,10 +166,10 @@
       <div class="lc-ic">📊</div><div class="lc-t">전체보기</div>
       <div class="lc-d">소싱처별 크롤링 정보가 한눈에 — 구조·매입가 로직·혜택 방식</div>
       <span class="lc-tag b">👥 모두 · 조회</span></a>
-    <a class="lc c-blue" href="/sourcing-guide/map">
+    <button type="button" class="lc c-blue" data-guide-modal="/sourcing-guide/map?bare=1">
       <div class="lc-ic">📖</div><div class="lc-t">데이터·코드 지도 <span style="font-size:10px;font-weight:800;color:#fff;background:#3182F6;border-radius:4px;padding:0 5px;vertical-align:middle;">NEW</span></div>
       <div class="lc-d">재고·가격(표면−혜택=매입)·매트릭스 표시의 데이터 위치·코드 위치 단일 진실 원천</div>
-      <span class="lc-tag b">👥 모두 · 조회</span></a>
+      <span class="lc-tag b">👥 모두 · 조회</span></button>
     <button type="button" id="instOpenBtn" class="lc c-green">
       <div class="lc-ic">🧩</div><div class="lc-t">크롤러 설치</div>
       <div class="lc-d">로컬 PC에서 크롤하기 위한 필수 프로그램(크롬 확장) 설치법</div>
@@ -338,10 +338,11 @@
   function openDetail(){ buildDetail(); closePop(); dim.hidden = false; detail.hidden = false; }
   function closeDetail(){ dim.hidden = true; detail.hidden = true; }
 
-  openBtn.addEventListener('click', function(e){ e.stopPropagation(); pop.hidden ? openPop() : closePop(); });
+  /* 카드 클릭 → 곧바로 상세 모달(크롤러 설치 팝업과 동일 형태). 중간 팝오버 생략. */
+  openBtn.addEventListener('click', function(e){ e.stopPropagation(); openDetail(); });
   popDim.addEventListener('click', closePop);
-  /* 다른 페이지(크롤러 설치)의 '신규 소싱처 추가 가이드' 카드 → /?guide=1 로 와서 자동 오픈 */
-  try{ if(new URLSearchParams(location.search).has('guide')) openPop(); }catch(e){}
+  /* 다른 페이지의 '신규 소싱처 추가 가이드' 카드 → /?guide=1 로 와서 자동 오픈 */
+  try{ if(new URLSearchParams(location.search).has('guide')) openDetail(); }catch(e){}
   document.addEventListener('click', function(e){
     if(!pop.hidden && !pop.contains(e.target) && e.target !== openBtn) closePop();
   });
@@ -606,4 +607,7 @@
 
 {# 크롤러 설치 — 가운데 팝업 모달 (instOpenBtn 카드 / ?install=1 로 열림) #}
 {% include "sourcing_guide/_install_modal.html" %}
+
+{# 데이터·코드 지도 — 가운데 팝업(iframe) 모달 (data-guide-modal 카드로 열림) #}
+{% include "sourcing_guide/_page_modal.html" %}
 {% endblock %}
