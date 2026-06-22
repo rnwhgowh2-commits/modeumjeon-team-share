@@ -174,10 +174,6 @@
       <div class="lc-ic">🧩</div><div class="lc-t">크롤러 설치</div>
       <div class="lc-d">로컬 PC에서 크롤하기 위한 필수 프로그램(크롬 확장) 설치법</div>
       <span class="lc-tag g">🛠 팀원 · 셋업</span></button>
-    <button type="button" id="nsgOpenBtn" class="lc c-purple">
-      <div class="lc-ic">📖</div><div class="lc-t">신규 소싱처 추가 가이드</div>
-      <div class="lc-d">Claude Code가 읽고 소싱처 개발환경을 참고하는 단계별 가이드</div>
-      <span class="lc-tag p">🤖 개발 · 가이드</span></button>
   </div>
   <div class="sg-card" style="padding:0;overflow:hidden;">
     <table class="sg-atbl">
@@ -332,6 +328,7 @@
   var detail = document.getElementById('nsgDetail');
   var popDim = document.getElementById('nsgPopDim');
   var built = false;
+  if(!openBtn) return;   /* 신규소싱처 추가 카드 제거됨 → nsg 팝오버 비활성 (다른 카드 영향 없음) */
 
   function openPop(){ buildDetail(); pop.hidden = false; popDim.hidden = false; }
   function closePop(){ pop.hidden = true; popDim.hidden = true; }
