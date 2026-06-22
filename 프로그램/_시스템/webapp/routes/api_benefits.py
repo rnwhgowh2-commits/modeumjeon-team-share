@@ -814,7 +814,10 @@ def bulk_breakdowns():
             sp = float(it.get('sale_price') or 0)
             if not sku or sid is None or sp <= 0:
                 continue
-            key = f"{sku}|{sid}"
+            # [2026-06-22] 후보별 키 — 같은 (sku, source_id)에 URL 여러개(단품/모음전 등)면
+            #   sale_price 가 달라 final_price 도 다르다. 클라가 보낸 key(예: sku|sid|salePrice)로
+            #   결과를 키잉해 덮어쓰기를 막는다(없으면 구방식 sku|sid 하위호환). 완전한 '최종매입가 최저' 선택용.
+            key = it.get('key') or f"{sku}|{sid}"
             try:
                 out[key] = compute_breakdown(s, sku=sku, source_id=int(sid),
                                              sale_price=sp, _cache=cache)
