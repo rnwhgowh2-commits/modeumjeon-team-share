@@ -60,6 +60,174 @@
     return b.sources[sk];
   }
 
+  // [2026-06-23 Task 4] (소싱처 × URL) 카드 분리 ─────────────────────
+  //   item-done 이벤트에는 d.url 이 항상 존재 → 카드 키 = sk + '|' + url.
+  //   URL 없는 이벤트(window-open, source-done)는 기존 sk 키를 쓰며, source-done 은
+  //   sk 로 시작하는 모든 키(URL 분리 카드)를 함께 마감한다(allCardsForSk).
+  //
+  //   라벨 파생: window.deriveSourceColumns(window.DATA) → URL → col.name 매핑.
+  //   단일 URL 소싱처는 SOURCE_LABELS[sk] (suffix 없음).
+  //   다중 URL이지만 DATA 미로드 시 fallback: SOURCE_LABELS[sk]+'(N)'.
+
+  // URL 카드 복합 키
+  function urlCardKey(sk, url) {
+    return sk + '|' + url;
+  }
+
+  // URL → 카드 라벨 캐시
+  var _urlLabelCache = null, _urlLabelCacheKey = '';
+  function _buildUrlLabelMap() {
+    try {
+      var D = window.DATA;
+      if (!D || !Array.isArray(D.options) || !D.options.length) return null;
+      var cacheKey = D.options.length + '|' + ((D.options[0] && D.options[0].sku) || '');
+      if (_urlLabelCache && _urlLabelCacheKey === cacheKey) return _urlLabelCache;
+      if (typeof window.deriveSourceColumns !== 'function') return null;
+      var cols = window.deriveSourceColumns(D);
+      var map = {};  // url → { name, sk, idx, total }
+      cols.forEach(function (col) {
+        // col.colKey = 'b{bsu_id}' or 'u{product_url}'.
+        // URL は product_url で引く。bsu_id 系は options から逆引き。
+        var url = null;
+        if (col.colKey && col.colKey.charAt(0) === 'u') {
+          url = col.colKey.slice(1);
+        } else if (col.colKey && col.colKey.charAt(0) === 'b') {
+          // bsu_id 系 — options[].sources で product_url を逆引き
+          var bsuId = col.bsu_id != null ? col.bsu_id : null;
+          if (bsuId != null) {
+            (D.options || []).some(function (o) {
+              return (o.sources || []).some(function (s) {
+                if (s.bundle_source_url_id === bsuId && s.product_url) { url = s.product_url; return true; }
+                return false;
+              });
+            });
+          }
+        }
+        if (url) map[url] = { name: col.name, sk: col.source_name, idx: col.idx, total: col.total };
+      });
+      _urlLabelCache = map; _urlLabelCacheKey = cacheKey;
+      return map;
+    } catch (_) { return null; }
+  }
+
+  // URL カード ラベル。DATA なければ fallback (SOURCE_LABELS[sk] + '(N)').
+  // seenUrlsForSk: 이 소싱처에서 이미 등장한 URL 순서 배열(누적, b.urlOrder[sk]).
+  function labelForUrl(sk, url, b) {
+    // (A) window.DATA 매핑
+    var map = _buildUrlLabelMap();
+    if (map && map[url]) return map[map[url].name != null ? url : url].name;
+    // (B) fallback: SOURCE_LABELS[sk] + url 순서 번호
+    if (!b.urlOrder) b.urlOrder = {};
+    if (!b.urlOrder[sk]) b.urlOrder[sk] = [];
+    var arr = b.urlOrder[sk];
+    if (arr.indexOf(url) < 0) arr.push(url);
+    var idx = arr.indexOf(url) + 1;
+    var total = arr.length;
+    return (total <= 1)
+      ? (SOURCE_LABELS[sk] || sk)
+      : ((SOURCE_LABELS[sk] || sk) + '(' + idx + ')');
+  }
+
+  // sk에 속하는 모든 카드 키 (sk 자체 + sk|url 형태 전부)
+  function allCardsForSk(b, sk) {
+    var out = [];
+    Object.keys(b.sources).forEach(function (k) {
+      if (k === sk || k.indexOf(sk + '|') === 0) out.push(k);
+    });
+    return out;
+  }
+
+  // [2026-06-23 Task 4] URL 카드 이터레이터:
+  //   renderDetail / bundleProgress 용 — SOURCE_ORDER 순서로 sk별 카드 묶음.
+  //   반환: [{sk, cardKey, s, label}] — sk 없는 카드는 생략(순수 URL 카드만).
+  function orderedUrlCards(b) {
+    var result = [];
+    // 먼저 sk 단독 카드(window-open / source-done 전용) 는 URL 분리 카드와 중복 가능.
+    // URL 분리 카드(sk|url)가 있으면 sk 단독 카드를 숨기고, 없으면 sk 단독 카드만 표시.
+    SOURCE_ORDER.forEach(function (sk) {
+      var urlCards = [];
+      Object.keys(b.sources).forEach(function (k) {
+        if (k !== sk && k.indexOf(sk + '|') === 0) {
+          var url = k.slice(sk.length + 1);
+          urlCards.push({ sk: sk, cardKey: k, url: url, s: b.sources[k] });
+        }
+      });
+      if (urlCards.length) {
+        // URL 분리 카드 있음 — 라벨 파생 후 추가(URL 등장 순서로 정렬)
+        urlCards.sort(function (a, ai) {
+          // window.DATA 기준 idx 우선, 없으면 등장 순서
+          var ma = _buildUrlLabelMap(), ia = 0, ib2 = 0;
+          if (ma) { if (ma[a.url]) ia = ma[a.url].idx || 0; if (ma[ai.url]) ib2 = ma[ai.url].idx || 0; }
+          return ia - ib2;
+        });
+        urlCards.forEach(function (uc) {
+          uc.label = labelForUrl(sk, uc.url, b);
+          result.push(uc);
+        });
+      } else if (b.sources[sk]) {
+        // URL 분리 카드 없음 — sk 단독 카드만 표시(window-open 또는 source-done 만 발생한 경우)
+        result.push({ sk: sk, cardKey: sk, url: null, s: b.sources[sk], label: SOURCE_LABELS[sk] || sk });
+      }
+    });
+    return result;
+  }
+
+  // [2026-06-23 Task 4] URL 카드 URL → 카드 키 변환 (getSource 와 별도)
+  function getUrlSource(b, sk, url) {
+    var key = url ? urlCardKey(sk, url) : sk;
+    if (!b.sources[key]) {
+      b.sources[key] = { sk: sk, status: 'wait', done: 0, ok: 0, fail: 0, total: null, expanded: false, logs: [] };
+    }
+    return b.sources[key];
+  }
+
+  // [2026-06-23 Task 4] URL 카드 라벨 캐시 초기화 (start 이벤트에서 호출)
+  function resetUrlState(b) {
+    b.urlOrder = {};
+    _urlLabelCache = null; _urlLabelCacheKey = '';
+  }
+
+  // [2026-06-23 Task 4] URL 라벨 단일 소싱처 판정(DATA 기준 → 1개면 suffix 없음)
+  function isSingleUrlSource(sk) {
+    try {
+      var map = _buildUrlLabelMap();
+      if (!map) return true;  // DATA 없으면 단일 취급(나중에 fallback)
+      var count = 0;
+      var D = window.DATA;
+      if (!D || !Array.isArray(D.options)) return true;
+      if (typeof window.deriveSourceColumns !== 'function') return true;
+      var cols = window.deriveSourceColumns(D);
+      cols.forEach(function (col) { if (col.source_name === SOURCE_LABELS[sk] || col.colKey) count++; });
+      // source_id 기준: cols 에서 같은 source 이름이 1개면 단일
+      var srcCols = cols.filter(function (col) {
+        var D2 = window.DATA;
+        var src = (D2 && D2.sources || []).find(function (s) { return s.id === col.source_id; });
+        if (!src) return false;
+        // source_key 와 SOURCE_LABELS 매핑으로 sk 일치 판정
+        return (SOURCE_LABELS[sk] && src.name && src.name === SOURCE_LABELS[sk]) ||
+               (src.source_key === sk) || (src.name === sk);
+      });
+      return srcCols.length <= 1;
+    } catch (_) { return true; }
+  }
+
+  // [2026-06-23 Task 4] URL 카드 라벨 캐시 초기화 (start 이벤트에서 호출)
+
+  // [2026-06-23 Task 4] URL 카드 진행 합계 (bundleProgress 보조)
+  function urlCardsProgress(b) {
+    var done = 0;
+    Object.keys(b.sources).forEach(function (k) {
+      // sk|url 형태만 카운트 (sk 단독은 window-open 이벤트용 부산물이라 제외)
+      if (k.indexOf('|') >= 0) done += (b.sources[k].done || 0);
+    });
+    // URL 카드 없으면 sk 단독으로 폴백
+    var hasUrlCards = Object.keys(b.sources).some(function (k) { return k.indexOf('|') >= 0; });
+    if (!hasUrlCards) {
+      SOURCE_ORDER.forEach(function (sk) { var s = b.sources[sk]; if (s) done += (s.done || 0); });
+    }
+    return done;
+  }
+
   // [2026-06-22] URL 타입(단품/색상모음전/모델모음전) 조회 — 크롤 엔진(확장)이 이벤트에
   //   url_type 을 안 실어보내 전부 '-' 로 떴다. 페이지의 window.DATA(매트릭스 옵션)에는
   //   product_url 별 url_type 이 있으므로 URL 로 직접 조회해 배지를 채운다(확장 수정 불필요).
@@ -537,8 +705,9 @@
 
   // ── 모음전 진행 합계 ───────────────────────────────────────────
   function bundleProgress(b) {
-    var sourceSum = 0, total = b.total || 0;
-    SOURCE_ORDER.forEach(function (sk) { var s = b.sources[sk]; if (s) sourceSum += (s.done || 0); });
+    // [2026-06-23 Task 4] URL 분리 카드가 있으면 그 합, 없으면 sk 단독 카드 합.
+    var sourceSum = urlCardsProgress(b);
+    var total = b.total || 0;
     // 소싱처 합 vs 전역 done(metrics) 중 큰 값(완료 모음전은 소싱처 이벤트 없이 finish 만 올 수 있음)
     var done = Math.max(sourceSum, b.doneCount || 0);
     return { done: done, total: total, pct: total > 0 ? Math.min(100, Math.round(done / total * 100)) : 0 };
@@ -686,15 +855,16 @@
     var b = bundles[selected];
     if (!b) { wrap.innerHTML = '<div id="mcl-empty">진행 중인 크롤이 없습니다.</div>'; return; }
 
-    var anyCard = false;
-    SOURCE_ORDER.forEach(function (sk) {
-      var s = b.sources[sk];
-      if (!s) return;
-      anyCard = true;
+    // [2026-06-23 Task 4] orderedUrlCards 로 (소싱처 × URL) 카드 목록 생성.
+    //   단일 URL 소싱처 → 카드 1장·라벨 그대로. 다중 URL → 분리 카드·라벨 번호 suffix.
+    var cards = orderedUrlCards(b);
+    var anyCard = cards.length > 0;
+    cards.forEach(function (uc) {
+      var sk = uc.sk, s = uc.s, cardLabel = uc.label;
 
       var card = document.createElement('div'); card.className = 'mcl-card';
       var header = document.createElement('div'); header.className = 'mcl-card-header';
-      var nameEl = document.createElement('span'); nameEl.className = 'mcl-card-name'; nameEl.textContent = SOURCE_LABELS[sk] || sk;
+      var nameEl = document.createElement('span'); nameEl.className = 'mcl-card-name'; nameEl.textContent = cardLabel;
       // [2026-06-18 H2] 완료딱지는 성공 완료(실패 0)일 때만. 실패 있으면 딱지 제거.
       var _ok = s.ok || 0, _fail = s.fail || 0;
       var _hideTag = (s.status === 'done' && _fail > 0);
@@ -713,7 +883,7 @@
       if (_noEl) _noEl.addEventListener('click', function (e) { e.stopPropagation(); openMatrixForFail(selected); });
       var toggleEl = document.createElement('button'); toggleEl.type = 'button'; toggleEl.className = 'mcl-card-toggle';
       toggleEl.textContent = '로그 ' + s.logs.length + '건 ' + (s.expanded ? '▴' : '▾');
-      toggleEl.addEventListener('click', function () { s.expanded = !s.expanded; renderDetail(); });
+      (function (srcObj) { toggleEl.addEventListener('click', function () { srcObj.expanded = !srcObj.expanded; renderDetail(); }); })(s);
       header.appendChild(nameEl); header.appendChild(tagEl); header.appendChild(cntEl); header.appendChild(toggleEl);
 
       var barWrap = document.createElement('div'); barWrap.className = 'mcl-card-bar-wrap';
@@ -749,7 +919,7 @@
           if (lg.level === 'warn') { by.classList.add('fail'); by.textContent = '크롤실패'; }
           else if (lg.buy != null) {
             by.classList.add('clk'); by.textContent = won(lg.buy); by.title = '클릭 → fx 영수증';
-            (function (line) { by.addEventListener('click', function () { openReceipt(line, SOURCE_LABELS[sk] || sk); }); })(lg);
+            (function (line, lbl) { by.addEventListener('click', function () { openReceipt(line, lbl); }); })(lg, cardLabel);
           } else { by.textContent = '계산중…'; by.classList.add('calc'); }
           r.appendChild(nm); r.appendChild(sf); r.appendChild(by);
           logArea.appendChild(r);
@@ -757,9 +927,9 @@
       } else {
         s.logs.forEach(function (lg) {
           var row = document.createElement('div'); row.className = 'mcl-log-line' + (lg.level ? ' lvl-' + lg.level : '');
-          var ts = document.createElement('span'); ts.className = 'mcl-log-ts'; ts.textContent = fmtTime(lg.ts);
-          var msg = document.createElement('span'); msg.className = 'mcl-log-msg'; msg.textContent = lg.msg;
-          row.appendChild(ts); row.appendChild(msg); logArea.appendChild(row);
+          var ts2 = document.createElement('span'); ts2.className = 'mcl-log-ts'; ts2.textContent = fmtTime(lg.ts);
+          var msg2 = document.createElement('span'); msg2.className = 'mcl-log-msg'; msg2.textContent = lg.msg;
+          row.appendChild(ts2); row.appendChild(msg2); logArea.appendChild(row);
         });
       }
 
@@ -776,11 +946,10 @@
   //   크롤 수치는 위젯 소싱처 상태에서 집계. 옵션 활성/비활성은 현재 매트릭스 페이지의
   //   window.DATA(option-matrix)에서 카운트(같은 모음전일 때만 — 없으면 옵션 섹션 생략).
   function buildFinishHTML(b) {
-    // 카드의 s.ok 합 = 성공, s.fail 합 = 실패 → 상단 수치와 100% 동일.
+    // [2026-06-23 Task 4] 카드의 s.ok 합 = 성공, s.fail 합 = 실패 → URL 분리 카드 포함 합산.
     var Y2 = 0, Y3 = 0;
-    SOURCE_ORDER.forEach(function (sk) {
-      var s = b.sources[sk]; if (!s) return;
-      Y2 += (s.ok || 0); Y3 += (s.fail || 0);
+    orderedUrlCards(b).forEach(function (uc) {
+      Y2 += (uc.s.ok || 0); Y3 += (uc.s.fail || 0);
     });
     var Y1 = Y2 + Y3;
     var Y = Math.max(Y1, b.total || 0);
@@ -888,7 +1057,8 @@
     var hintEl = document.getElementById('mcl-rail-min-hint');
     if (isDone && b) {
       var ok = 0, fail = 0;
-      SOURCE_ORDER.forEach(function (sk) { var s = b.sources[sk]; if (s) { ok += (s.ok || 0); fail += (s.fail || 0); } });
+      // [2026-06-23 Task 4] URL 분리 카드 포함 합산
+      orderedUrlCards(b).forEach(function (uc) { ok += (uc.s.ok || 0); fail += (uc.s.fail || 0); });
       if (sumEl) {
         sumEl.style.display = 'flex';
         sumEl.innerHTML = '<span class="ok">✓ 성공 ' + ok + '</span>'
@@ -1001,6 +1171,7 @@
         //   직전 실행값(예 70~80%)에서 시작했다가 소싱처 창 열리며 줄었다 오르는 버그.
         //   sources/lineIndex/doneCount/total 을 비워 매 크롤을 0 부터 깨끗이 집계.
         b.sources = {}; b.lineIndex = {}; b.doneCount = 0;
+        resetUrlState(b);  // [2026-06-23 Task 4] URL 카드 라벨 캐시 초기화
         b.total = (m && m.total != null) ? m.total : 0;
         b.status = 'run'; b.startTs = ts; b.finishMsg = ''; b.stopped = false;
         selected = code;          // 새 모음전 시작 → 자동 포커스
@@ -1027,10 +1198,15 @@
       }
       case 'item-done': {
         if (sk) {
-          var s2 = getSource(b, sk); s2.done = (s2.done || 0) + 1;
+          // [2026-06-23 Task 4] URL 있으면 (sk|url) 복합 카드 키, 없으면 sk 단독 폴백.
+          var _url2 = d.url || null;
+          var s2 = getUrlSource(b, sk, _url2); s2.done = (s2.done || 0) + 1;
           // [2026-06-18] URL별 성공/실패 카운트(시안D·소싱처카드 분해표기용). warn=실패, 그 외=성공.
           if (level === 'warn') s2.fail = (s2.fail || 0) + 1; else s2.ok = (s2.ok || 0) + 1;
-          var line = { ts: ts, level: level, msg: msg, url: d.url || null, lineId: d.lineId || null, name: d.name || null, surf: (d.surf != null ? d.surf : null), buy: null, steps: null, url_type: d.url_type || '' };
+          s2.status = 'run';
+          // [2026-06-23 Task 4] fallback labelForUrl 의 urlOrder 갱신(DATA 없을 때 N번호용)
+          if (_url2) { if (!b.urlOrder) b.urlOrder = {}; if (!b.urlOrder[sk]) b.urlOrder[sk] = []; if (b.urlOrder[sk].indexOf(_url2) < 0) b.urlOrder[sk].push(_url2); }
+          var line = { ts: ts, level: level, msg: msg, url: _url2, lineId: d.lineId || null, name: d.name || null, surf: (d.surf != null ? d.surf : null), buy: null, steps: null, url_type: d.url_type || '' };
           s2.logs.push(line);
           if (s2.logs.length > 200) s2.logs.shift();
           if (d.lineId) b.lineIndex[d.lineId] = { sk: sk, line: line };
@@ -1044,7 +1220,9 @@
         // [2026-06-22] 재시도 성공 로그 — s.done 은 증가 안 함(42/40 오버카운트 방지).
         //   fail→ok 보정: 최초 시도에서 s.fail++ 됐으나 재시도 성공이면 s.fail-- / s.ok++ 로 수정.
         if (sk) {
-          var s2r = getSource(b, sk);
+          // [2026-06-23 Task 4] URL 기반 카드 키로 보정
+          var _urlR = d.url || null;
+          var s2r = getUrlSource(b, sk, _urlR);
           s2r.fail = Math.max(0, (s2r.fail || 0) - 1);
           s2r.ok = (s2r.ok || 0) + 1;
           var liner = { ts: ts, level: 'retried', msg: msg, url: d.url || null, lineId: d.lineId || null, name: d.name || null, surf: (d.surf != null ? d.surf : null), buy: null, steps: null, url_type: d.url_type || '' };
@@ -1071,10 +1249,24 @@
       }
       case 'source-done': {
         if (sk) {
-          var s3 = getSource(b, sk);
-          if (s3.total != null) s3.done = s3.total;
-          s3.status = 'done'; s3.expanded = false;
-          s3.logs.push({ ts: ts, level: level, msg: msg });
+          // [2026-06-23 Task 4] sk 에 속하는 모든 URL 카드를 함께 마감.
+          var allSk = allCardsForSk(b, sk);
+          if (allSk.length) {
+            allSk.forEach(function (k) {
+              var sv = b.sources[k];
+              if (!sv) return;
+              if (sv.total != null) sv.done = sv.total;
+              sv.status = 'done'; sv.expanded = false;
+            });
+          } else {
+            // URL 카드 없는 경우 sk 단독 생성 후 마감
+            var s3 = getSource(b, sk);
+            if (s3.total != null) s3.done = s3.total;
+            s3.status = 'done'; s3.expanded = false;
+          }
+          // 완료 로그는 sk 단독 카드에 추가(없으면 첫 URL 카드)
+          var _s3log = b.sources[sk] || (allSk.length && b.sources[allSk[0]]);
+          if (_s3log) _s3log.logs.push({ ts: ts, level: level, msg: msg });
         }
         mergeMetrics(b, m);
         if (code === selected) renderDetail();
@@ -1087,8 +1279,8 @@
       case 'finish': {
         b.status = d.stopped ? 'stop' : 'done';
         b.finishMsg = msg;
-        // 진행중이던 소싱처 카드 마감
-        SOURCE_ORDER.forEach(function (k) { if (b.sources[k] && b.sources[k].status === 'run') b.sources[k].status = 'done'; });
+        // [2026-06-23 Task 4] 진행중이던 소싱처 카드 마감(sk 단독 + sk|url 형태 모두)
+        Object.keys(b.sources).forEach(function (k) { if (b.sources[k].status === 'run') b.sources[k].status = 'done'; });
         mergeMetrics(b, m);
         // 더 이상 도는 모음전 없으면 타이머 정지
         if (!runningBundle()) { stopElapsedTimer(); }
