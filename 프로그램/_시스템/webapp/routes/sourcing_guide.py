@@ -107,17 +107,14 @@ def data_code_map():
 
     ?bare=1 → 사이드바 없는 최소 레이아웃(_bare.html). 전체보기의 팝업 모달이 iframe 으로 띄움.
     """
-    sources = [{"id": x.id, "name": x.name} for x in _sources()]
     if request.args.get("bare"):
         # 전체보기의 same-origin iframe 팝업으로 띄움 → 전역 X-Frame-Options: DENY 예외.
         #   (setdefault 라 라우트에서 먼저 박으면 after_request 가 안 덮음)
         resp = make_response(render_template(
-            "sourcing_guide/map.html", active="sourcing_guide", layout="_bare.html",
-            sources=sources))
+            "sourcing_guide/map.html", active="sourcing_guide", layout="_bare.html"))
         resp.headers["X-Frame-Options"] = "SAMEORIGIN"
         return resp
-    return render_template("sourcing_guide/map.html", active="sourcing_guide", layout="base.html",
-                           sources=sources)
+    return render_template("sourcing_guide/map.html", active="sourcing_guide", layout="base.html")
 
 
 @bp.route("/map.md")

@@ -106,42 +106,8 @@ def test_docs_synced():
     assert "URL 세트" in sop or "여러" in sop               # 멀티 URL
 
 
-def test_tab8_benefit_settings():
+def test_no_eighth_tab():
     html = (TPL / "map.html").read_text(encoding="utf-8")
-    assert 'data-s="s8"' in html and "소싱처별 혜택 설정" in html
-    assert 'id="bs-source"' in html
-    assert 'id="bs-list"' in html
-    assert 'id="bs-save"' in html
-    assert 'id="bs-apply"' in html
-
-
-def test_tab8_js_wires_api():
-    html = (TPL / "map.html").read_text(encoding="utf-8")
-    assert "/sourcing-guide/api/" in html
-    assert "apply_to_bundles" in html
-    assert "bs-list" in html and "renderBenefits" in html
-    assert "CURB" in html   # 원본 보존 배열 (조건부 필드 미파괴)
-
-
-def test_detail_benefit_editor_removed():
-    html = (TPL / "detail.html").read_text(encoding="utf-8")
-    assert 'id="sg-inc"' not in html
-    assert 'id="aa-btn"' not in html
-    assert "소싱처별 혜택 설정" in html   # 새 탭 안내
-
-
-def test_map_route_passes_sources(monkeypatch):
-    import webapp.routes.sourcing_guide as sg
-    from flask import Flask
-    monkeypatch.setenv("ENVIRONMENT", "test")
-    class _S:
-        def __init__(s, i, n): s.id=i; s.name=n
-    monkeypatch.setattr(sg, "_sources", lambda: [_S(3,"무신사"), _S(5,"SSG")])
-    captured = {}
-    def fake(tpl, **ctx): captured['tpl']=tpl; captured['ctx']=ctx; return "x"
-    monkeypatch.setattr(sg, "render_template", fake)
-    app = Flask(__name__); app.register_blueprint(sg.bp)
-    app.test_client().get("/sourcing-guide/map")
-    assert captured['tpl'].endswith("map.html")
-    assert [s["id"] for s in captured['ctx']["sources"]] == [3,5]
-    assert [s["name"] for s in captured['ctx']["sources"]] == ["무신사","SSG"]
+    assert 'data-s="s8"' not in html
+    assert "소싱처별 혜택 설정" not in html
+    assert 'id="bs-source"' not in html
