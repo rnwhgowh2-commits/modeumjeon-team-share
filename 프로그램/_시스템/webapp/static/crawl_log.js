@@ -60,21 +60,45 @@
     return b.sources[sk];
   }
 
-  // [2026-06-23 Task 4] (소싱처 × URL) 카드 분리 ─────────────────────
-  //   item-done 이벤트에는 d.url 이 항상 존재 → 카드 키 = sk + '|' + url.
+  // ── (소싱처 × url_type) 카드 분리 ───────────────────────────────────
+  //   url_type 기반으로 그룹: 같은 소싱처의 모든 단품 URL → 단품 카드 1장.
+  //   카드 키 = sk + '|' + url_type ('단품' / '색상모음전' / '모델모음전').
   //   URL 없는 이벤트(window-open, source-done)는 기존 sk 키를 쓰며, source-done 은
-  //   sk 로 시작하는 모든 키(URL 분리 카드)를 함께 마감한다(allCardsForSk).
+  //   sk 로 시작하는 모든 키(url_type 카드)를 함께 마감한다(allCardsForSk).
   //
-  //   라벨 파생: window.deriveSourceColumns(window.DATA) → URL → col.name 매핑.
-  //   단일 URL 소싱처는 SOURCE_LABELS[sk] (suffix 없음).
-  //   다중 URL이지만 DATA 미로드 시 fallback: SOURCE_LABELS[sk]+'(N)'.
+  //   라벨 파생: window.deriveSourceColumns(window.DATA) → source_id+url_type → col.name.
+  //   단일 url_type 소싱처 → SOURCE_LABELS[sk] (suffix 없음).
+  //   DATA 미로드 시 fallback: SOURCE_LABELS[sk] + '(' + url_type + ')'.
 
-  // URL 카드 복합 키
+  // url_type 카드 복합 키
   function urlCardKey(sk, url) {
+    // 인터페이스 호환 유지: url 파라미터는 이 함수では url_type 로 사용됨
     return sk + '|' + url;
   }
 
-  // URL → 카드 라벨 캐시
+  // url → url_type 캐시 (window.DATA.options[].sources[].product_url → url_type)
+  var _utypeMap = null, _utypeMapKey = '';
+  function _buildUtypeMap() {
+    try {
+      var D = window.DATA;
+      if (!D || !Array.isArray(D.options) || !D.options.length) return null;
+      var cacheKey = D.options.length + '|' + ((D.options[0] && D.options[0].sku) || '');
+      if (_utypeMap && _utypeMapKey === cacheKey) return _utypeMap;
+      var map = {};  // product_url → url_type
+      (D.options || []).forEach(function (o) {
+        (o.sources || []).forEach(function (s) {
+          if (s.product_url && !map[s.product_url]) {
+            map[s.product_url] = s.url_type || '단품';
+          }
+        });
+      });
+      _utypeMap = map; _utypeMapKey = cacheKey;
+      return map;
+    } catch (_) { return null; }
+  }
+
+  // url_type 라벨 캐시 — (source_key, url_type) → col.name
+  // 소싱처 source_name 을 source_key(SOURCE_LABELS 의 키)와 매핑하기 위해 source_name 검색
   var _urlLabelCache = null, _urlLabelCacheKey = '';
   function _buildUrlLabelMap() {
     try {
@@ -84,51 +108,47 @@
       if (_urlLabelCache && _urlLabelCacheKey === cacheKey) return _urlLabelCache;
       if (typeof window.deriveSourceColumns !== 'function') return null;
       var cols = window.deriveSourceColumns(D);
-      var map = {};  // url → { name, sk, idx, total }
+      // col.colKey = 't:{url_type}'. sk 는 SOURCE_LABELS 키.
+      // sources[] 에서 source_key 필드가 없으면 source_name 으로 역추적.
+      // map 키 = sk + '|' + url_type → col.name
+      var skMap = {};  // source_name → sk (SOURCE_LABELS 역매핑)
+      Object.keys(SOURCE_LABELS).forEach(function (sk) { skMap[SOURCE_LABELS[sk]] = sk; });
+      var map = {};
       cols.forEach(function (col) {
-        // col.colKey = 'b{bsu_id}' or 'u{product_url}'.
-        // URL は product_url で引く。bsu_id 系は options から逆引き。
-        var url = null;
-        if (col.colKey && col.colKey.charAt(0) === 'u') {
-          url = col.colKey.slice(1);
-        } else if (col.colKey && col.colKey.charAt(0) === 'b') {
-          // bsu_id 系 — options[].sources で product_url を逆引き
-          var bsuId = col.bsu_id != null ? col.bsu_id : null;
-          if (bsuId != null) {
-            (D.options || []).some(function (o) {
-              return (o.sources || []).some(function (s) {
-                if (s.bundle_source_url_id === bsuId && s.product_url) { url = s.product_url; return true; }
-                return false;
-              });
-            });
-          }
+        var urlType = col.colKey && col.colKey.indexOf('t:') === 0 ? col.colKey.slice(2) : (col.url_label || '단품');
+        // source_name → sk 역추적
+        var sk = skMap[col.source_name] || null;
+        if (!sk) {
+          // source_name 이 SOURCE_LABELS 값과 다를 수 있음 → 포함 검색
+          Object.keys(SOURCE_LABELS).forEach(function (k) {
+            if (!sk && col.source_name && col.source_name.indexOf(SOURCE_LABELS[k]) >= 0) sk = k;
+          });
         }
-        if (url) map[url] = { name: col.name, sk: col.source_name, idx: col.idx, total: col.total };
+        if (sk) map[sk + '|' + urlType] = { name: col.name, idx: col.idx, total: col.total };
       });
       _urlLabelCache = map; _urlLabelCacheKey = cacheKey;
       return map;
     } catch (_) { return null; }
   }
 
-  // URL カード ラベル。DATA なければ fallback (SOURCE_LABELS[sk] + '(N)').
-  // seenUrlsForSk: 이 소싱처에서 이미 등장한 URL 순서 배열(누적, b.urlOrder[sk]).
-  function labelForUrl(sk, url, b) {
-    // (A) window.DATA 매핑
+  // url_type 카드 라벨. DATA 없으면 fallback (SOURCE_LABELS[sk] + url_type).
+  function labelForUrl(sk, urlType, b) {
+    // (A) window.DATA deriveSourceColumns 기반 매핑
     var map = _buildUrlLabelMap();
-    if (map && map[url]) return map[url].name;
-    // (B) fallback: SOURCE_LABELS[sk] + url 순서 번호
+    var mapKey = sk + '|' + urlType;
+    if (map && map[mapKey]) return map[mapKey].name;
+    // (B) fallback: url_type 등장 순서 카운트
     if (!b.urlOrder) b.urlOrder = {};
     if (!b.urlOrder[sk]) b.urlOrder[sk] = [];
     var arr = b.urlOrder[sk];
-    if (arr.indexOf(url) < 0) arr.push(url);
-    var idx = arr.indexOf(url) + 1;
+    if (arr.indexOf(urlType) < 0) arr.push(urlType);
     var total = arr.length;
     return (total <= 1)
       ? (SOURCE_LABELS[sk] || sk)
-      : ((SOURCE_LABELS[sk] || sk) + '(' + idx + ')');
+      : ((SOURCE_LABELS[sk] || sk) + '(' + (arr.indexOf(urlType) + 1) + ') ' + urlType);
   }
 
-  // sk에 속하는 모든 카드 키 (sk 자체 + sk|url 형태 전부)
+  // sk에 속하는 모든 카드 키 (sk 자체 + sk|* 형태 전부)
   function allCardsForSk(b, sk) {
     var out = [];
     Object.keys(b.sources).forEach(function (k) {
@@ -137,66 +157,71 @@
     return out;
   }
 
-  // [2026-06-23 Task 4] URL 카드 이터레이터:
+  // url_type 카드 이터레이터:
   //   renderDetail / bundleProgress 용 — SOURCE_ORDER 순서로 sk별 카드 묶음.
-  //   반환: [{sk, cardKey, s, label}] — sk 없는 카드는 생략(순수 URL 카드만).
+  //   반환: [{sk, cardKey, s, label}]
+  var _URL_TYPE_SORT_LOG = {'단품':0,'색상모음전':1,'모델모음전':2};
   function orderedUrlCards(b) {
     var result = [];
-    // 먼저 sk 단독 카드(window-open / source-done 전용) 는 URL 분리 카드와 중복 가능.
-    // URL 분리 카드(sk|url)가 있으면 sk 단독 카드를 숨기고, 없으면 sk 단독 카드만 표시.
     SOURCE_ORDER.forEach(function (sk) {
-      var urlCards = [];
+      var typeCards = [];
       Object.keys(b.sources).forEach(function (k) {
         if (k !== sk && k.indexOf(sk + '|') === 0) {
-          var url = k.slice(sk.length + 1);
-          urlCards.push({ sk: sk, cardKey: k, url: url, s: b.sources[k] });
+          var urlType = k.slice(sk.length + 1);
+          typeCards.push({ sk: sk, cardKey: k, urlType: urlType, s: b.sources[k] });
         }
       });
-      if (urlCards.length) {
-        // URL 분리 카드 있음 — 라벨 파생 후 추가(URL 등장 순서로 정렬)
-        urlCards.sort(function (a, ai) {
-          // window.DATA 기준 idx 우선, 없으면 등장 순서
-          var ma = _buildUrlLabelMap(), ia = 0, ib2 = 0;
-          if (ma) { if (ma[a.url]) ia = ma[a.url].idx || 0; if (ma[ai.url]) ib2 = ma[ai.url].idx || 0; }
-          return ia - ib2;
+      if (typeCards.length) {
+        // url_type 카드 있음 — url_type 순서로 정렬(단품→색상→모델)
+        typeCards.sort(function (a, b2) {
+          var oa = _URL_TYPE_SORT_LOG[a.urlType] != null ? _URL_TYPE_SORT_LOG[a.urlType] : 9;
+          var ob = _URL_TYPE_SORT_LOG[b2.urlType] != null ? _URL_TYPE_SORT_LOG[b2.urlType] : 9;
+          return oa - ob;
         });
-        urlCards.forEach(function (uc) {
-          uc.label = labelForUrl(sk, uc.url, b);
+        typeCards.forEach(function (uc) {
+          uc.label = labelForUrl(sk, uc.urlType, b);
           result.push(uc);
         });
       } else if (b.sources[sk]) {
-        // URL 분리 카드 없음 — sk 단독 카드만 표시(window-open 또는 source-done 만 발생한 경우)
-        result.push({ sk: sk, cardKey: sk, url: null, s: b.sources[sk], label: SOURCE_LABELS[sk] || sk });
+        // url_type 카드 없음 — sk 단독 카드만 표시(window-open 또는 source-done 만 발생)
+        result.push({ sk: sk, cardKey: sk, urlType: null, s: b.sources[sk], label: SOURCE_LABELS[sk] || sk });
       }
     });
     return result;
   }
 
-  // [2026-06-23 Task 4] URL 카드 URL → 카드 키 변환 (getSource 와 별도)
+  // url_type 카드 → 카드 키 변환 (getSource 와 별도)
+  // url 파라미터(product_url)를 받아 url_type 으로 변환한 뒤 복합 키 생성.
   function getUrlSource(b, sk, url) {
-    var key = url ? urlCardKey(sk, url) : sk;
+    var urlType = null;
+    if (url) {
+      // (A) window.DATA 에서 url_type 조회
+      var utmap = _buildUtypeMap();
+      if (utmap && utmap[url]) urlType = utmap[url];
+      else urlType = '단품';  // fallback
+    }
+    var key = urlType ? (sk + '|' + urlType) : sk;
     if (!b.sources[key]) {
       b.sources[key] = { sk: sk, status: 'wait', done: 0, ok: 0, fail: 0, total: null, expanded: false, logs: [] };
     }
     return b.sources[key];
   }
 
-  // [2026-06-23 Task 4] URL 카드 라벨 캐시 초기화 (start 이벤트에서 호출)
+  // url_type 카드 상태 초기화 (start 이벤트에서 호출)
   function resetUrlState(b) {
     b.urlOrder = {};
     _urlLabelCache = null; _urlLabelCacheKey = '';
+    _utypeMap = null; _utypeMapKey = '';
   }
 
-  // [2026-06-23 Task 4] URL 카드 라벨 캐시 초기화 (start 이벤트에서 호출)
-
-  // [2026-06-23 Task 4] URL 카드 진행 합계 (bundleProgress 보조)
+  // url_type 카드 진행 합계 (bundleProgress 보조)
   function urlCardsProgress(b) {
     var done = 0;
     Object.keys(b.sources).forEach(function (k) {
-      // sk|url 형태만 카운트 (sk 단독은 window-open 이벤트용 부산물이라 제외)
+      // sk|urlType 형태만 카운트 (sk 단독은 window-open 이벤트용 부산물이라 제외)
       if (k.indexOf('|') >= 0) done += (b.sources[k].done || 0);
     });
-    // URL 카드 없으면 sk 단독으로 폴백
+    // url_type 카드 없으면 sk 단독으로 폴백
     var hasUrlCards = Object.keys(b.sources).some(function (k) { return k.indexOf('|') >= 0; });
     if (!hasUrlCards) {
       SOURCE_ORDER.forEach(function (sk) { var s = b.sources[sk]; if (s) done += (s.done || 0); });
@@ -1174,14 +1199,19 @@
       }
       case 'item-done': {
         if (sk) {
-          // [2026-06-23 Task 4] URL 있으면 (sk|url) 복합 카드 키, 없으면 sk 단독 폴백.
+          // url_type 기반 카드 키: getUrlSource 가 product_url → url_type 변환.
           var _url2 = d.url || null;
           var s2 = getUrlSource(b, sk, _url2); s2.done = (s2.done || 0) + 1;
-          // [2026-06-18] URL별 성공/실패 카운트(시안D·소싱처카드 분해표기용). warn=실패, 그 외=성공.
           if (level === 'warn') s2.fail = (s2.fail || 0) + 1; else s2.ok = (s2.ok || 0) + 1;
           s2.status = 'run';
-          // [2026-06-23 Task 4] fallback labelForUrl 의 urlOrder 갱신(DATA 없을 때 N번호용)
-          if (_url2) { if (!b.urlOrder) b.urlOrder = {}; if (!b.urlOrder[sk]) b.urlOrder[sk] = []; if (b.urlOrder[sk].indexOf(_url2) < 0) b.urlOrder[sk].push(_url2); }
+          // fallback labelForUrl 의 urlOrder 갱신(DATA 없을 때 url_type 순서 번호용)
+          if (_url2) {
+            var _utmap2 = _buildUtypeMap();
+            var _ut2 = (_utmap2 && _utmap2[_url2]) ? _utmap2[_url2] : (d.url_type || '단품');
+            if (!b.urlOrder) b.urlOrder = {};
+            if (!b.urlOrder[sk]) b.urlOrder[sk] = [];
+            if (b.urlOrder[sk].indexOf(_ut2) < 0) b.urlOrder[sk].push(_ut2);
+          }
           var line = { ts: ts, level: level, msg: msg, url: _url2, lineId: d.lineId || null, name: d.name || null, surf: (d.surf != null ? d.surf : null), buy: null, steps: null, url_type: d.url_type || '' };
           s2.logs.push(line);
           if (s2.logs.length > 200) s2.logs.shift();

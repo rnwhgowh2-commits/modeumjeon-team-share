@@ -62,10 +62,12 @@ def test_render_site_cell_uses_col_source_id():
 # ── Fix A-E 마커 검증 ──────────────────────────────────────────────
 
 def test_col_key_of_helper_defined():
-    """Fix helper: _colKeyOf 함수 선언 + window 노출"""
+    """_colKeyOf 함수 선언 + window 노출 + url_type 기반 키('t:' prefix)"""
     src = _src()
     assert "function _colKeyOf" in src, "_colKeyOf 함수 선언 없음"
     assert "window._colKeyOf" in src, "window._colKeyOf 노출 없음"
+    # url_type 기반 키: 't:' + url_type (단품/색상모음전/모델모음전)
+    assert "'t:'" in src, "_colKeyOf 가 url_type 기반 't:' prefix 키를 반환하지 않음"
 
 
 def test_data_cell_col_key_on_tds():
@@ -83,11 +85,16 @@ def test_breakdown_key_includes_col_key():
         "breakdown 키에 colKey 가 없음 (Fix C 미적용)"
 
 
-def test_lowest_uses_col_key():
-    """Fix D: lowestSrcPerOpt 가 source_id 대신 _colKeyOf(lowest) 를 저장"""
+def test_lowest_uses_composite_key():
+    """★ lowest: lowestSrcPerOpt 가 source_id|colKey 복합 키를 저장하고 isLowest 도 복합 키로 비교.
+    colKey='t:단품' 은 소싱처 간 공유되므로 source_id 와의 복합 키가 필수."""
     src = _src()
-    assert "_colKeyOf(lowest)" in src, \
-        "lowestSrcPerOpt 가 _colKeyOf(lowest) 를 저장하지 않음 (Fix D 미적용)"
+    # 저장: lowest.source_id + '|' + _colKeyOf(lowest)
+    assert "lowest.source_id + '|' + _colKeyOf(lowest)" in src, \
+        "lowestSrcPerOpt 가 source_id|colKey 복합 키를 저장하지 않음 (★ lowest 복합키 미적용)"
+    # 소비: (col.source_id + '|' + col.colKey) === _LOWEST_SRC_PER_OPT[o.sku]
+    assert "(col.source_id + '|' + col.colKey) === _LOWEST_SRC_PER_OPT[o.sku]" in src, \
+        "isLowest 가 source_id|colKey 복합 키로 비교하지 않음 (★ lowest 복합키 소비 미적용)"
 
 
 def test_sm_refresh_fx_reads_col_key_from_td():

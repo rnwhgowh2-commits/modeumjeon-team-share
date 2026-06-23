@@ -28,9 +28,19 @@ def test_url_card_key_function_defined():
 
 
 def test_card_key_uses_pipe_separator():
-    """sk + '|' + url 패턴으로 키 생성 (소싱처|URL 구분)."""
+    """sk + '|' + url_type 패턴으로 키 생성 (소싱처|url_type 구분)."""
     src = _src()
     assert "sk + '|' + url" in src, "sk+'|'+url 복합 키 패턴 없음"
+
+
+def test_groups_by_url_type_not_per_url():
+    """단품 URL 여러 개가 하나의 url_type 카드로 합쳐짐 — url_type 기반 그룹핑 확인."""
+    src = _src()
+    # getUrlSource 가 product_url → url_type 변환 후 sk|url_type 키 사용
+    assert "_buildUtypeMap" in src, "_buildUtypeMap (url→url_type 매핑) 함수 없음"
+    assert "urlType" in src, "url_type 변환 로직(urlType 변수) 없음"
+    # url_type 카드 정렬: 단품→색상모음전→모델모음전
+    assert "_URL_TYPE_SORT_LOG" in src, "_URL_TYPE_SORT_LOG (url_type 정렬 맵) 없음"
 
 
 def test_get_url_source_function_defined():

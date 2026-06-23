@@ -1767,7 +1767,10 @@
   window.loadMatrix   = loadMatrix;   // docs/memory 에서 이 이름을 참조
 
   // ── [Task 2] deriveSourceColumns / _srcEntriesForCol ─────────────
-  // 소싱처 컬럼 = (source_id × URL) 파생. 0URL 소싱처 제외(F1), 다중URL 분리(F2).
+  // 소싱처 컬럼 = (source_id × url_type) 파생. 같은 url_type 의 여러 URL 은 한 컬럼으로 합침.
+  //   단품 URLs(색상별 개별 상품) → 단품 컬럼 1개. 각 url_type 은 별도 컬럼.
+  //   예) 무신사 단품 URL 3개 + 색상모음전 URL 1개 = 무신사 컬럼 2개(단품, 색상모음전).
+  var _URL_TYPE_SORT = {'단품':0,'색상모음전':1,'모델모음전':2};
   function deriveSourceColumns(DATA){
     const opts = (DATA && DATA.options) || [];
     const reg = (DATA && DATA.sources) || [];
@@ -1775,14 +1778,15 @@
     const seen = new Map();
     opts.forEach(o => (o.sources||[]).forEach(s => {
       if (s.source_id == null) return;
-      const colKey = (s.bundle_source_url_id != null) ? ('b'+s.bundle_source_url_id) : ('u'+(s.product_url||''));
+      const urlType = (s.url_type) || '단품';   // 레거시(url_type 없음) → '단품'
+      const colKey = 't:' + urlType;             // url_type 기반 컬럼 키
       const k = s.source_id + '|' + colKey;
       if (!seen.has(k)) seen.set(k, {
         source_id: s.source_id, colKey,
         source_name: s.source_name || s.name || '',
-        bsu_id: (s.bundle_source_url_id!=null? s.bundle_source_url_id : null),
-        url_label: s.label || s.url_type || '',
-        url_sort: (s.sort_order!=null? s.sort_order : (s.bundle_source_url_id!=null? s.bundle_source_url_id : 0)),
+        bsu_id: (s.bundle_source_url_id!=null? s.bundle_source_url_id : null), // 첫 등장 entry 의 bsu_id
+        url_label: urlType,
+        url_sort: (_URL_TYPE_SORT[urlType] != null ? _URL_TYPE_SORT[urlType] : 9),
       });
     }));
     const bySrc = {};
@@ -1796,7 +1800,7 @@
         arr.forEach((c,i)=>{
           c.idx = i+1; c.total = total;
           c.name = (total<=1) ? c.source_name
-                              : (c.source_name + '(' + (i+1) + ')' + (c.url_label? ' '+c.url_label : ''));
+                              : (c.source_name + '(' + (i+1) + ') ' + c.url_label);
           cols.push(c);
         });
       });
@@ -1804,17 +1808,20 @@
   }
   window.deriveSourceColumns = deriveSourceColumns;
 
-  // 한 컬럼(소싱처×URL)에 해당하는 옵션 소싱처 항목 필터
+  // 한 컬럼(소싱처×url_type)에 해당하는 옵션 소싱처 항목 필터
+  //   url_type 이 같은 모든 URL 항목을 반환 → _pickBestSrc 가 색상 매칭으로 최적 선정.
   function _srcEntriesForCol(o, col){
     return (o.sources||[]).filter(x =>
       x.source_id === col.source_id &&
-      (((x.bundle_source_url_id!=null)?('b'+x.bundle_source_url_id):('u'+(x.product_url||''))) === col.colKey)
+      _colKeyOf(x) === col.colKey
     );
   }
   window._srcEntriesForCol = _srcEntriesForCol;
 
   // 소싱처 항목(entry) → 컬럼 고유키 (deriveSourceColumns 의 colKey 와 동일 계산식)
-  function _colKeyOf(s){ return (s && s.bundle_source_url_id!=null) ? ('b'+s.bundle_source_url_id) : ('u'+((s&&s.product_url)||'')); }
+  //   url_type 기반: 't:단품' / 't:색상모음전' / 't:모델모음전'
+  //   레거시(url_type 없음) → 't:단품' (단품으로 폴백)
+  function _colKeyOf(s){ return 't:' + ((s && s.url_type) ? s.url_type : '단품'); }
   window._colKeyOf = _colKeyOf;
 
   // ── B: 크롤 완료 시 매트릭스 자동 갱신 ─────────────────────────
@@ -3143,12 +3150,12 @@
     }
 
     // ─── 옵션별 최저가 산출 (breakdown 적용 후 매입가 기준) ───
-    const lowestSrcPerOpt = {};   // sku -> colKey  [Fix D: source_id → colKey]
+    const lowestSrcPerOpt = {};   // sku -> "source_id|colKey" 복합 키 (url_type 기반 colKey)
     const savingsPerOpt   = {};   // sku -> savings (vs 차순)
     // [2026-06-03 핵심 로직] 옵션마다 같은 소싱처에 URL 여러개·여러 소싱처 가능.
     //   최저가 winner = "재고 존재 + 크롤 성공 + 가격 있음" 후보 중 최저가.
     //   → 품절·크롤실패(stale) 소싱처는 최저가로 뽑히지 않음(오발주·금전손실 방지).
-    //   [Fix D] winner 저장 = colKey (URL 단위 고유 식별) → 분리 컬럼 중 진짜 최저만 ★
+    //   ★ colKey 는 url_type 기반('t:단품' 등)이라 source 간 공유됨 → source_id|colKey 복합 키 필수.
     opts.forEach(o => {
       const srcs = o.sources || [];
       const priced = srcs
@@ -3160,7 +3167,8 @@
       if (!priced.length) return;
       const sorted = [...priced].sort((a,b) => a._finalPrice - b._finalPrice);
       const lowest = sorted[0];
-      lowestSrcPerOpt[o.sku] = _colKeyOf(lowest);  // [Fix D] colKey 저장 (구: lowest.source_id)
+      // ★ source_id|colKey 복합 키 저장 — colKey='t:단품' 은 소싱처 간 공유되므로 source_id 필수
+      lowestSrcPerOpt[o.sku] = lowest.source_id + '|' + _colKeyOf(lowest);
       if (sorted.length >= 2) {
         savingsPerOpt[o.sku] = sorted[1]._finalPrice - lowest._finalPrice;
       } else {
@@ -3169,16 +3177,17 @@
     });
 
     // ─── 사이트별 1위 카운트 ───
-    // [Fix D] lowestSrcPerOpt 값이 colKey 로 바뀌었으므로 카운트는 source_id 로 역매핑
+    // lowestSrcPerOpt 값 = "source_id|colKey" 복합 키 → source_id 를 직접 파싱해 카운트
     const lowestCntBySrc = {};
     sources.forEach(s => { lowestCntBySrc[s.id] = 0; });
-    Object.values(lowestSrcPerOpt).forEach(colKey => {
-      // colKey = 'b{bsu_id}' or 'u{url}' — source_id 를 역추적해 카운트
-      const opts2 = DATA.options || [];
-      for (const o of opts2) {
-        const entry = (o.sources||[]).find(s => _colKeyOf(s) === colKey);
-        if (entry && lowestCntBySrc[entry.source_id] != null) { lowestCntBySrc[entry.source_id]++; break; }
-      }
+    Object.values(lowestSrcPerOpt).forEach(composite => {
+      // composite = '{source_id}|{colKey}' — source_id 는 파이프 이전 부분
+      const sepIdx = composite.indexOf('|');
+      if (sepIdx < 0) return;
+      const srcId = composite.slice(0, sepIdx);
+      const numId = Number(srcId);
+      if (lowestCntBySrc[numId] != null) lowestCntBySrc[numId]++;
+      else if (lowestCntBySrc[srcId] != null) lowestCntBySrc[srcId]++;
     });
 
     // ─── [2026-06-05] 사이트별 진행 — 백엔드 source_stats(단일 진실) 사용 ───
@@ -5806,8 +5815,9 @@ table.ompk-tab th.corner{color:#b0b8c1;cursor:default}
             || SM_BREAKDOWNS[`${o.sku}|${src.source_id}|${col.colKey}`];
     const finalPrice = (bk && typeof bk.final_price === 'number') ? bk.final_price : src.crawled_price;
     const hasBenefits = bk && bk.steps && bk.steps.length > 0;
-    // [Fix D] 최저가 여부 — _LOWEST_SRC_PER_OPT 는 colKey 단위로 저장됨 (source_id → colKey 로 교체)
-    const isLowest = col.colKey === _LOWEST_SRC_PER_OPT[o.sku];
+    // ★ 최저가 여부 — _LOWEST_SRC_PER_OPT 는 "source_id|colKey" 복합 키로 저장됨
+    //   colKey 가 url_type 기반('t:단품' 등)으로 소싱처 간 공유되므로 source_id 도 함께 비교 필수.
+    const isLowest = (col.source_id + '|' + col.colKey) === _LOWEST_SRC_PER_OPT[o.sku];
     const loCls = isLowest ? ' lo' : '';
     // C1 — hover tooltip (판매가 + 혜택 N + 절감액)
     const tipParts = [];
