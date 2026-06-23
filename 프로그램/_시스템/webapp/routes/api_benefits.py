@@ -812,6 +812,56 @@ def compute_breakdown(session, *, sku: str, source_id: int, sale_price: float,
             enabled=True,
         )))
 
+    # ★ 2026-06-23 — 무신사 조건부 혜택 키워드 게이트 (Task 1b-3).
+    #   status='conditional' 가이드 혜택만 대상. always·하드코딩 항목은 절대 불변.
+    #   benefit_lines 가 없으면 완전 no-op → 배포 안전.
+    if _site_for == 'musinsa':
+        _lines = (_dynamic_benefits or {}).get('_benefit_lines') or []
+        if _lines:
+            import logging as _logging
+            _gate_logger = _logging.getLogger(__name__)
+            try:
+                from lemouton.sourcing.models_pricing import SourceRegistry as _SR
+                from lemouton.sourcing import crawl_guide as _cg
+                from lemouton.pricing.benefit_gate import gated_off_names as _gated_off
+
+                # ── 가이드 로드 (캐시 우선, 단일 호출 시 매 번 쿼리) ──
+                _cg_key = f'__cg_{source_id}'
+                if _cache is not None and _cg_key in _cache:
+                    _guide_parsed = _cache[_cg_key]
+                else:
+                    _src_reg = session.query(_SR).filter_by(id=source_id).first()
+                    _guide_parsed = _cg.loads(_src_reg.crawl_guide if _src_reg else None)
+                    if _cache is not None:
+                        _cache[_cg_key] = _guide_parsed
+
+                _guide_benefits = (_guide_parsed.get('pricing') or {}).get('benefits') or []
+                _excl_kws = _guide_parsed.get('exclude_keywords') or []
+
+                # ── 게이트 실행 ──
+                _off = _gated_off(_guide_benefits, _lines, _excl_kws)
+
+                # ── effective 항목 비활성화 (catalog 이름 매칭) ──
+                _gated_names = {(b.get('name') or '') for b in _guide_benefits
+                                if (b.get('status') or '') == 'conditional'}
+                for _k2, _it2 in effective:
+                    _bname = (_it2.benefit_name or '')
+                    if _bname in _off:
+                        _it2.enabled = False
+                # 이름이 effective 에 없는 conditional 혜택 → 조용한 실패 방지 경고
+                _eff_names = {(_it2.benefit_name or '') for _k2, _it2 in effective}
+                for _cname in _gated_names:
+                    if _cname not in _eff_names:
+                        _gate_logger.warning(
+                            '[benefit-gate] conditional 혜택 "%s" 이(가) effective 목록에 없음 '
+                            '(source_id=%s, sku=%s) — 가이드·템플릿 이름 불일치 의심',
+                            _cname, source_id, sku,
+                        )
+            except Exception as _ge:
+                import logging as _log2
+                _log2.getLogger(__name__).warning(
+                    '[benefit-gate] 무신사 키워드 게이트 오류 (non-fatal, 가격 변경 없음): %s', _ge)
+
     # ★ 카테고리 정렬 + 결제 택1 + 누적 차감 → 순수 계산 함수로 위임 (M1 추출, 2026-06-08)
     from lemouton.pricing.final_price import compute_final_price
     return compute_final_price(
