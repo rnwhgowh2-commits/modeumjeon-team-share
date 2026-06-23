@@ -39,6 +39,13 @@
 - `empty_skeleton` benefit 기본에도 동일 키(빈 리스트/"any").
 - 기존 `triggers`/`match` 유지. 공통 `exclude_keywords`(소싱처 레벨)는 보존하되 UI에선 숨김(하위호환; 게이트는 둘 다 적용).
 
+### 1a-4. ⭐ 기존 혜택 보존 = 상시 적용 (사용자 안전 요구 2026-06-23)
+사용자가 이미 URL 조사로 정리해둔 **기존 혜택들은 전부 "상시 적용(status='always', 조건없음)"으로 보존**한다. 마이그레이션/저장 시:
+- 기존 benefit 데이터(name/value/method/triggers 등) **무파괴 유지**(collectBenefits 원본 merge 패턴 — C·D에서 검증됨).
+- status가 'conditional'이 아닌(또는 비어있는) 기존 혜택은 **'always'로 간주** → 게이트 대상 아님.
+- 조건부는 **사용자가 명시적으로 토글 ON + 키워드를 넣은 혜택만**.
+- UI: 카드 로드 시 status='conditional' & (triggers 또는 excludes 있음)일 때만 조건부 토글 ON으로 펼침. 그 외 전부 OFF(상시).
+
 **1a는 가격로직 무변경** — 조건 정의·저장까지. 단독 배포 가능.
 
 ---
@@ -66,13 +73,15 @@ if _site_for == 'musinsa':
     lines = _dynamic_benefits.get('_benefit_lines') or []
     if lines:
         guide = _load_guide_benefits(source_id)   # SourceRegistry.crawl_guide 1회(캐시)
-        gated = gate_benefits(guide['benefits'], lines, guide['exclude_keywords'])
-        off = {g['name'] for g in gated if not g['applied']}   # status=conditional 인데 미적용
+        # ⭐ 오직 status=='conditional' 혜택만 게이트 대상. 상시 혜택은 절대 제외 안 함.
+        cond = [b for b in guide['benefits'] if b.get('status')=='conditional']
+        gated = gate_benefits(cond, lines, guide['exclude_keywords'])
+        off = {g['name'] for g in gated if not g['applied']}
         for (kind, item) in effective:
             if getattr(item,'benefit_name','') in off:
-                item.enabled = False   # 게이트 OFF → 차감 제외
+                item.enabled = False   # 조건부인데 키워드 미매칭 → 차감 제외
 ```
-**적용 범위 = 가이드에 정의된 conditional 혜택(template/override, 이름 매칭)만.** status=always(조건없음) 혜택·하드코딩 동적조건은 불변(가산적). 이름 매칭 = `benefit_name`(유일 키; sync_templates가 가이드 name으로 template 생성하므로 일치).
+**적용 범위 = 가이드에 status='conditional'로 명시된 혜택(이름 매칭)만.** ⭐ **상시(always) 혜택·하드코딩 동적조건은 절대 불변**(라인이 없거나 매칭 실패해도 상시 혜택은 무조건 유지 — 사용자가 정리해둔 기존 혜택 보호). 이름 매칭 = `benefit_name`(유일 키; sync_templates가 가이드 name으로 template 생성하므로 일치).
 - `_load_guide_benefits`: `SourceRegistry`에서 crawl_guide 로드, `pricing.benefits`(status='conditional'인 것의 triggers/excludes/match) + `exclude_keywords` 반환. `_cache`에 소싱처별 캐싱.
 - **무신사 외 소싱처는 게이트 미적용**(현행 유지) — Phase 2.
 
