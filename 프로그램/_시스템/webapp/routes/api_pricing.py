@@ -551,6 +551,10 @@ def _option_matrix_data(code: str):
                             dup['source_key'] = bsu.source_key
                         if not dup.get('url_type') and bsu.url_type:
                             dup['url_type'] = bsu.url_type
+                        # [2026-06-23] 레거시 항목에 bundle_source_url_id 주입 —
+                        #   프론트가 (소싱처 × URL) 컬럼 분리에 사용.
+                        if not dup.get('bundle_source_url_id'):
+                            dup['bundle_source_url_id'] = bsu.id
                         continue  # 중복 URL 행 추가 방지
                     sp = _sp_by_norm2.get(_norm_url(bsu.url)) if bsu.url else None
                     _reg_id = _key_to_regid.get(bsu.source_key)  # 칼럼 매칭용 레지스트리 id
@@ -592,6 +596,9 @@ def _option_matrix_data(code: str):
                         'product_url': bsu.url,
                         'label': bsu.label or '',
                         'url_type': bsu.url_type or '단품',
+                        # [2026-06-23] BundleSourceUrl.id — 프론트가 (소싱처 × URL) 컬럼 분리에 사용.
+                        #   같은 source_key 로 URL 이 여러 개일 때 각 항목을 구별할 수 있는 유일키.
+                        'bundle_source_url_id': bsu.id,
                         'price_cached': None,
                         'stock_cached': None,
                         'source_product_id': sp.id if sp else None,
