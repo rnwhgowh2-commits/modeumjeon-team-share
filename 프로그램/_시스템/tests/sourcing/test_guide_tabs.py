@@ -169,3 +169,40 @@ def test_detail_js_fixed_always_enforced():
     assert "always" in js, "고정값→always 강제 로직 없음"
     # vseg 전환 핸들러가 fixed 분기를 처리해야 함
     assert "fixed" in js, "fixed 값출처 분기 없음"
+
+
+# ── 자동갱신 A+B+E ────────────────────────────────────────────────────────
+
+MATRIX_TPL = TPL.parent / "bundles" / "_matrix_v3.html"
+
+
+def test_matrix_exposes_window_reload_matrix():
+    """A — window.reloadMatrix = loadMatrix 가 IIFE 안에 있어야 함."""
+    html = MATRIX_TPL.read_text(encoding="utf-8")
+    assert "window.reloadMatrix = loadMatrix" in html, \
+        "window.reloadMatrix 노출 코드가 없음 (A)"
+    assert "window.loadMatrix   = loadMatrix" in html, \
+        "window.loadMatrix 별칭 없음 (A)"
+
+
+def test_matrix_crawl_finish_listener():
+    """B — 'moum-crawl-log' finish 리스너가 IIFE 안에서 loadMatrix() 를 호출."""
+    html = MATRIX_TPL.read_text(encoding="utf-8")
+    assert "moum-crawl-log" in html, "'moum-crawl-log' 리스너 없음 (B)"
+    assert "d.type !== 'finish'" in html, "finish 타입 체크 없음 (B)"
+    # 리스너 안에서 loadMatrix 호출
+    assert "loadMatrix();" in html, "리스너 내 loadMatrix() 호출 없음 (B)"
+
+
+def test_matrix_storage_listener():
+    """E — 'storage' 이벤트 리스너가 moum_matrix_stale 키를 감지."""
+    html = MATRIX_TPL.read_text(encoding="utf-8")
+    assert "storage" in html, "storage 이벤트 리스너 없음 (E)"
+    assert "moum_matrix_stale" in html, "moum_matrix_stale 키 없음 (E)"
+
+
+def test_detail_js_stale_signal_on_save():
+    """E — detail.js PUT 성공 후 moum_matrix_stale 신호 기록."""
+    js = (TPL / "detail.js").read_text(encoding="utf-8")
+    assert js.count("moum_matrix_stale") >= 2, \
+        "detail.js 에 moum_matrix_stale 가 최소 2곳(따라쓰기+저장) 이상 없음 (E)"

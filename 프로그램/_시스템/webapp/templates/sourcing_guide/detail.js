@@ -249,6 +249,8 @@
       const j=await res.json();
       if(!j.ok){ if(toast){toast.textContent='따라쓰기 실패: '+(j.message||j.error);toast.style.display='block';} return; }
       if(toast){toast.textContent='따라쓰기 완료';toast.style.color='#0E7C3A';toast.style.display='block';}
+      // E: 다른 탭에 열린 매트릭스 자동 갱신 신호
+      try{ localStorage.setItem('moum_matrix_stale', String(Date.now())); }catch(e){}
     });
   }
 
@@ -261,6 +263,8 @@
     let msg='저장됨';
     if(j.benefits_synced) msg+=' · 기본셋팅 '+j.benefits_synced+'개 반영';
     if(j.bundles_applied) msg+=' · 모음전 '+j.bundles_applied+'개 덮어씀';
+    // E: 다른 탭에 열린 매트릭스 자동 갱신 신호
+    try{ localStorage.setItem('moum_matrix_stale', String(Date.now())); }catch(e){}
     alert(msg);
   });
 

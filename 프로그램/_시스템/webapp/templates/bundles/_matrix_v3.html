@@ -1749,6 +1749,33 @@
     }
   }
 
+  // ── A: window.reloadMatrix / window.loadMatrix 노출 ──────────────
+  //   loadMatrix 가 IIFE 클로저 안에 있어 외부에서 호출 불가였음.
+  //   smBundleReset/smCellDel/smCellEdit/smCellReset 4곳 + toss_add_benefit.js
+  //   에서 window.reloadMatrix 를 참조하지만 할당이 없어 no-op 이었음.
+  window.reloadMatrix = loadMatrix;
+  window.loadMatrix   = loadMatrix;   // docs/memory 에서 이 이름을 참조
+
+  // ── B: 크롤 완료 시 매트릭스 자동 갱신 ─────────────────────────
+  //   ext_bridge.js / crawl_log.js 가 'moum-crawl-log' 이벤트를 window 에 방출.
+  //   finish 이벤트: { type:'finish', bundle:<code>, stopped:<bool>, ... }
+  //   bundle 코드가 이 페이지와 일치할 때만 갱신 (불일치면 다른 모음전 크롤이므로 무시).
+  window.addEventListener('moum-crawl-log', function(ev) {
+    try {
+      var d = ev && ev.detail; if (!d) return;
+      if (d.type !== 'finish') return;                          // finish 만
+      if (d.bundle && BUNDLE_CODE && d.bundle !== BUNDLE_CODE) return;  // 다른 모음전 무시
+      loadMatrix();
+    } catch(e) {}
+  });
+
+  // ── E: 다른 탭(소싱처 가이드 편집)에서 혜택 저장 → 이 탭 자동 갱신 ─
+  //   localStorage 'moum_matrix_stale' 가 변경되면 이 탭에서 storage 이벤트 발화.
+  //   (storage 이벤트는 같은 탭에서는 발화 안 됨 — 정확히 크로스-탭 케이스만 갱신.)
+  window.addEventListener('storage', function(e) {
+    if (e && e.key === 'moum_matrix_stale') { try { loadMatrix(); } catch(_) {} }
+  });
+
   // ════════════════════════════════════════════════════════════
   //  v5 시안 ① 소싱처×옵션 매트릭스 (4색 + 최저가 박스 + 통계)
   // ════════════════════════════════════════════════════════════
