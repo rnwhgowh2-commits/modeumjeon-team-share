@@ -1159,6 +1159,12 @@ def save_crawl_result():
                     _dyn['money_active'] = False
                 if _surface is not None:
                     _dyn['surface_price'] = _surface
+                # ★ Task 1b-2 — 혜택 게이트용 원문 라인 영속
+                #   parse 에서 쓰는 금액 키와 구별하기 위해 _benefit_lines(언더스코어 메타키).
+                #   빈 라인은 제거, 비어 있으면 키 자체를 안 씀(불필요한 noise 방지).
+                _clean = [str(x) for x in _lines if str(x).strip()]
+                if _clean:
+                    _dyn['_benefit_lines'] = _clean
                 sp.dynamic_benefits_json = _json.dumps(_dyn, ensure_ascii=False)
             updated += 1
         s.commit()
