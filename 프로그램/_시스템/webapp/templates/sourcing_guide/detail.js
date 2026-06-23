@@ -7,44 +7,16 @@
     document.getElementById('sub-new').classList.toggle('on', b.dataset.sub==='new');
   }));
 
-  // ③ 제외 키워드 — 추가·삭제·키워드 칩 (혜택 편집은 /sourcing-guide/map#s8 에서)
-  function kchip(w,kind){
-    const cls=kind==='with'?'dn':kind==='except'?'nx':'inc';
-    const s=document.createElement('span'); s.className='kc '+cls;
-    s.appendChild(document.createTextNode(w));
-    const i=document.createElement('i'); i.textContent='×'; s.appendChild(i);
-    return s;
-  }
-  function newEx(){
-    const d=document.createElement('div'); d.className='exrule';
-    d.innerHTML=`<div class="exrh"><input class="exw" placeholder="제외 단어"><button type="button" class="exdel" title="삭제">×</button></div>`+
-      `<div class="exl">함께 <em>이 단어와 같이 있으면 제외</em></div><div class="bkw" data-kind="with"><input class="kin" data-kind="with" placeholder="단어 추가"></div>`+
-      `<div class="exl">예외 <em>이 단어와 같이 있으면 포함</em></div><div class="bkw" data-kind="except"><input class="kin" data-kind="except" placeholder="단어 추가"></div>`;
-    return d;
-  }
-  const exlist=document.getElementById('sg-exlist');
-  const addexBtn=document.querySelector('.addex');
-  if(addexBtn&&exlist){
-    addexBtn.addEventListener('click',()=>exlist.appendChild(newEx()));
-    exlist.addEventListener('click',e=>{ if(e.target.classList.contains('exdel')) e.target.closest('.exrule').remove(); });
-  }
-  // 키워드 칩: Enter 추가 / × 삭제
-  document.addEventListener('keydown',e=>{
-    if(e.target.classList&&e.target.classList.contains('kin')&&e.key==='Enter'){
-      e.preventDefault(); const v=e.target.value.trim(); if(!v) return;
-      const box=e.target.closest('.bkw'); box.insertBefore(kchip(v,e.target.dataset.kind), e.target); e.target.value='';
-    }
-  });
-  document.addEventListener('click',e=>{
-    if(e.target.tagName==='I'&&e.target.parentElement&&e.target.parentElement.classList.contains('kc')) e.target.parentElement.remove();
-  });
-
-  // 저장 버튼 — 혜택 편집은 /sourcing-guide/map#s8 에서 진행. 이 페이지 저장은 ①URL·②필드만.
-  document.getElementById('sg-save').addEventListener('click', async ()=>{
+  // ── collect() — ①URL + ②fields + ③benefits (새 2축 모델) ──────────────────
+  function collect(){
     const base = (window.__guideInit ? JSON.parse(JSON.stringify(window.__guideInit)) : {version:2, pricing:{}});
     base.version = 2;
+
+    // ① 기준 샘플 URL
     base.sample_urls = [...document.querySelectorAll('#sg-urls .sg-urlrow')].map(r=>(
       {url:r.dataset.url, is_lead:!!r.querySelector('.tagk')}));
+
+    // ② 크롤 구조 분석 필드
     const fields={};
     document.querySelectorAll('#sg-fields tr[data-field]').forEach(tr=>{
       const noteEl = tr.nextElementSibling && tr.nextElementSibling.classList.contains('note-row')
@@ -59,23 +31,240 @@
       };
     });
     base.fields = fields;
-    // 제외 키워드 저장
-    const kchipsVal=(el,kind)=>[...el.querySelectorAll('.bkw[data-kind="'+kind+'"] .kc')].map(k=>(k.firstChild?k.firstChild.textContent:'').trim()).filter(Boolean);
-    const excludes=[];
-    document.querySelectorAll('#sg-exlist .exrule').forEach(r=>{
-      const word=r.querySelector('.exw').value.trim();
-      if(!word) return;
-      excludes.push({word, 'with':kchipsVal(r,'with'), 'except':kchipsVal(r,'except')});
+
+    // ③ 혜택 — 2축 모델 (value_source / status / triggers / excludes)
+    base.pricing = base.pricing || {base_label:'표면 노출가', benefit_collection:'per_product', benefits:[], note:''};
+    const origBenefits = (window.__guideInit && window.__guideInit.pricing && window.__guideInit.pricing.benefits) || [];
+    const benefits = [];
+    document.querySelectorAll('#sg-inc .bcard').forEach((c, idx)=>{
+      const name = c.querySelector('.bn').value.trim();
+      if(!name) return;
+      const vs = c.dataset.vs || 'fixed';   // fixed | crawl
+      const valEl = c.querySelector('.bval');
+      const valRaw = valEl ? valEl.value.replace(/,/g,'').trim() : '';
+      const value = (vs === 'fixed' && valRaw !== '') ? (parseFloat(valRaw) || null) : null;
+      // 적용 상태: 고정값→always 강제, 크롤값→조건부 토글에서 읽기
+      const status = (vs === 'fixed') ? 'always'
+        : (c.querySelector('.ctg.on') ? 'conditional' : 'always');
+      // 조건부일 때 triggers/excludes/match 수집
+      const isConditional = (status === 'conditional');
+      const chipTexts = (el, cls) => [...(el ? el.querySelectorAll('.chip'+cls) : [])].map(ch=>{
+        // chip 내부 i 태그 제외하고 텍스트만
+        return [...ch.childNodes].filter(n=>n.nodeType===3).map(n=>n.textContent.trim()).join('').trim();
+      }).filter(Boolean);
+      const trigChips = chipTexts(c.querySelector('.trig-chips'), '.i');
+      const exclChips = chipTexts(c.querySelector('.excl-chips'), '.e');
+      const tmEl = c.querySelector('.tm.on');
+      const emEl = c.querySelector('.em.on');
+      // 기존 benefit 원본 merge (미편집 필드 보존: base, freq, method, rule 등)
+      const orig = origBenefits[idx] || {};
+      benefits.push({
+        ...orig,          // base/freq/rule/apply 등 미편집 필드 보존
+        name,
+        value_source: vs,
+        value: value,
+        method: c.querySelector('.b-ty') ? c.querySelector('.b-ty').value : (orig.method || '정률(%)'),
+        status,
+        triggers: isConditional ? trigChips : (orig.triggers || []),
+        match: (isConditional && tmEl) ? tmEl.dataset.m : (orig.match || 'any'),
+        excludes: isConditional ? exclChips : (orig.excludes || []),
+        exclude_match: (isConditional && emEl) ? emEl.dataset.m : (orig.exclude_match || 'any'),
+      });
     });
-    base.exclude_keywords = excludes;
-    // 혜택(pricing.benefits)은 이 페이지에서 편집 불가 — 기존값 그대로 보존
+    base.pricing.benefits = benefits;
+    // exclude_keywords(소싱처 공통제외) — 이 페이지에서 UI 없음, 원본 보존
+    base.exclude_keywords = (window.__guideInit && window.__guideInit.exclude_keywords) || [];
+    return base;
+  }
+
+  // ── 시안2 v3 카드 상호작용 ─────────────────────────────────────────────────
+  const incEl = document.getElementById('sg-inc');
+
+  // 값출처 세그 클릭 — 고정↔크롤 전환
+  function setVs(card, vs){
+    card.dataset.vs = vs;
+    card.querySelectorAll('.vseg b').forEach(b=>{
+      const isCrawl = b.dataset.v === 'crawl';
+      b.classList.toggle('on', b.dataset.v === vs);
+      if(isCrawl) b.classList.toggle('crawl', vs === 'crawl');
+    });
+    const valInput = card.querySelector('.bval');
+    const crawlBadge = card.querySelector('.bcrawl');
+    const alwaysBadge = card.querySelector('.always');
+    const ctgToggle = card.querySelector('.ctg');
+    if(vs === 'fixed'){
+      // 고정값: 값 입력칸 노출, 크롤값 badge 숨김
+      if(valInput) valInput.style.display = '';
+      if(crawlBadge) crawlBadge.style.display = 'none';
+      // 적용: 상시 배지 노출, 조건부 토글 숨김 + status → always 강제
+      if(alwaysBadge) alwaysBadge.style.display = '';
+      if(ctgToggle){ ctgToggle.style.display = 'none'; ctgToggle.classList.remove('on'); }
+      card.dataset.status = 'always';
+      // 조건 패널 닫기
+      const condEl = card.querySelector('.cond');
+      if(condEl) condEl.style.display = 'none';
+    } else {
+      // 크롤값: 크롤값 badge 노출, 값 입력칸 숨김
+      if(valInput) valInput.style.display = 'none';
+      if(crawlBadge) crawlBadge.style.display = '';
+      // 적용: 상시 배지 숨김, 조건부 토글 노출
+      if(alwaysBadge) alwaysBadge.style.display = 'none';
+      if(ctgToggle) ctgToggle.style.display = '';
+    }
+  }
+
+  // 조건부 토글 클릭
+  function toggleCtg(card){
+    const ctg = card.querySelector('.ctg');
+    if(!ctg) return;
+    const on = !ctg.classList.contains('on');
+    ctg.classList.toggle('on', on);
+    card.dataset.status = on ? 'conditional' : 'always';
+    const condEl = card.querySelector('.cond');
+    if(condEl) condEl.style.display = on ? 'grid' : 'none';
+    updateCsum(card);
+  }
+
+  // 조건 요약 줄 갱신
+  function updateCsum(card){
+    const csumEl = card.querySelector('.csum');
+    if(!csumEl) return;
+    const trigs = [...card.querySelectorAll('.trig-chips .chip.i')].map(ch=>[...ch.childNodes].filter(n=>n.nodeType===3).map(n=>n.textContent.trim()).join('').trim()).filter(Boolean);
+    const excls = [...card.querySelectorAll('.excl-chips .chip.e')].map(ch=>[...ch.childNodes].filter(n=>n.nodeType===3).map(n=>n.textContent.trim()).join('').trim()).filter(Boolean);
+    const tm = (card.querySelector('.tm.on')||{}).dataset||{m:'any'};
+    const em = (card.querySelector('.em.on')||{}).dataset||{m:'any'};
+    let s = '';
+    if(trigs.length) s += `적용: "${trigs.join('", "')}" ${tm.m==='all'?'모두':'하나라도'} 포함`;
+    if(excls.length) s += (s?'  /  ':'') + `제외: "${excls.join('", "')}" ${em.m==='all'?'모두':'하나라도'} 포함`;
+    csumEl.textContent = s || '';
+  }
+
+  // 칩 생성
+  function makeChip(text, cls){
+    const sp = document.createElement('span');
+    sp.className = 'chip ' + cls;
+    sp.appendChild(document.createTextNode(text));
+    const i = document.createElement('i');
+    i.textContent = '×'; i.dataset.role = 'del';
+    sp.appendChild(i);
+    return sp;
+  }
+
+  // 새 카드 생성 (+ 혜택 추가 버튼용)
+  let _ridx = 50000;
+  function newCard(){
+    const card = document.createElement('div');
+    card.className = 'bcard GR';
+    card.dataset.vs = 'fixed';
+    card.dataset.status = 'always';
+    card.innerHTML =
+      `<input class="bn" placeholder="혜택명">` +
+      `<div class="vseg"><b class="vs-fixed on" data-v="fixed">고정값</b><b class="vs-crawl" data-v="crawl">크롤값</b></div>` +
+      `<div class="val-cell"><input class="bval" type="number" step="any" placeholder="0"><div class="bcrawl" style="display:none">크롤값 ⟳</div></div>` +
+      `<select class="b-ty"><option>정률(%)</option><option>정액(원)</option><option>정액·정률</option><option>적립(%→원)</option><option>고정액</option><option>옵션(개월)</option></select>` +
+      `<div class="apply-cell"><div class="always">✓ 상시</div><div class="ctg" style="display:none"><span class="sw"><i></i></span>조건부</div></div>` +
+      `<button type="button" class="bdel" title="삭제">×</button>` +
+      `<div class="cond" style="display:none;grid-column:1/-1">` +
+        `<div><div class="clab i">적용 키워드 <span class="modeg"><b class="tm on" data-m="any">하나라도</b><b class="tm" data-m="all">모두</b></span></div>` +
+        `<div class="chips trig-chips"><input class="cin trig-in" placeholder="키워드 추가…"></div></div>` +
+        `<div><div class="clab e">제외 키워드 <span class="modeg"><b class="em on" data-m="any">하나라도</b><b class="em" data-m="all">모두</b></span></div>` +
+        `<div class="chips excl-chips"><input class="cin excl-in" placeholder="제외 키워드 추가…"></div></div>` +
+        `<div class="csum"></div>` +
+      `</div>`;
+    return card;
+  }
+
+  if(incEl){
+    // 이벤트 위임 — 클릭
+    incEl.addEventListener('click', e=>{
+      const card = e.target.closest('.bcard');
+      if(!card) return;
+      // 삭제
+      if(e.target.classList.contains('bdel')){ card.remove(); return; }
+      // 값출처 세그
+      if(e.target.closest('.vseg') && e.target.dataset.v){ setVs(card, e.target.dataset.v); return; }
+      // 조건부 토글
+      if(e.target.closest('.ctg')){ toggleCtg(card); return; }
+      // 하나라도/모두 토글 (적용 키워드)
+      if(e.target.classList.contains('tm')){
+        card.querySelectorAll('.tm').forEach(b=>b.classList.toggle('on', b===e.target));
+        updateCsum(card); return;
+      }
+      // 하나라도/모두 토글 (제외 키워드)
+      if(e.target.classList.contains('em')){
+        card.querySelectorAll('.em').forEach(b=>b.classList.toggle('on', b===e.target));
+        updateCsum(card); return;
+      }
+      // 칩 삭제
+      if(e.target.dataset.role === 'del' && e.target.parentElement.classList.contains('chip')){
+        e.target.parentElement.remove();
+        updateCsum(card); return;
+      }
+    });
+
+    // 칩 Enter 추가
+    incEl.addEventListener('keydown', e=>{
+      if(e.key !== 'Enter') return;
+      const t = e.target;
+      const card = t.closest('.bcard');
+      if(!card) return;
+      e.preventDefault();
+      const v = t.value.trim(); if(!v) return;
+      if(t.classList.contains('trig-in')){
+        const chips = card.querySelector('.trig-chips');
+        chips.insertBefore(makeChip(v, 'i'), t); t.value = ''; updateCsum(card);
+      } else if(t.classList.contains('excl-in')){
+        const chips = card.querySelector('.excl-chips');
+        chips.insertBefore(makeChip(v, 'e'), t); t.value = ''; updateCsum(card);
+      }
+    });
+  }
+
+  // + 혜택 추가 버튼
+  const addBtn = document.querySelector('.inc-add');
+  if(addBtn){ addBtn.addEventListener('click', ()=>{ incEl.appendChild(newCard()); }); }
+
+  // ── 저장 버튼 ──────────────────────────────────────────────────────────────
+  var cb=document.getElementById('aa-confirm'), btn=document.getElementById('aa-btn'), toast=document.getElementById('aa-toast');
+  if(cb&&btn){
+    cb.addEventListener('change',()=>{
+      btn.disabled=!cb.checked;
+      btn.style.background=cb.checked?'#E0392B':'#F4C7CB';
+      btn.style.cursor=cb.checked?'pointer':'not-allowed';
+      btn.textContent=cb.checked?'🔓 따라쓰기 실행':'🔒 따라쓰기 (잠김)';
+    });
+    btn.addEventListener('click',async ()=>{
+      if(!cb.checked) return;
+      const payload=collect();
+      const valued=((payload.pricing&&payload.pricing.benefits)||[]).filter(b=>
+        b.value!=null && !(String(b.method||'').indexOf('개월')>=0));
+      if(valued.length){
+        const names=valued.map(b=>b.name).join(', ');
+        const ok=confirm('저장하면 이 소싱처 혜택 기본값('+valued.length+'개: '+names+')이\n'+
+          '전(全) 모음전에 덮어써집니다. 모음전별로 따로 수정한 값은 사라지며 되돌릴 수 없습니다.\n\n계속할까요?');
+        payload.apply_to_bundles = ok;
+      }
+      const res=await fetch(`/api/source-benefits/templates/${sid}/apply-to-all`,
+        {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+      const j=await res.json();
+      if(!j.ok){ if(toast){toast.textContent='따라쓰기 실패: '+(j.message||j.error);toast.style.display='block';} return; }
+      if(toast){toast.textContent='따라쓰기 완료';toast.style.color='#0E7C3A';toast.style.display='block';}
+    });
+  }
+
+  document.getElementById('sg-save').addEventListener('click', async ()=>{
+    const payload=collect();
     const res=await fetch(`/sourcing-guide/api/${sid}`,{method:'PUT',
-      headers:{'Content-Type':'application/json'}, body:JSON.stringify(base)});
+      headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload)});
     const j=await res.json();
     if(!j.ok){ alert('저장 실패: '+(j.message||j.error)); return; }
-    alert('저장됨');
+    let msg='저장됨';
+    if(j.benefits_synced) msg+=' · 기본셋팅 '+j.benefits_synced+'개 반영';
+    if(j.bundles_applied) msg+=' · 모음전 '+j.bundles_applied+'개 덮어씀';
+    alert(msg);
   });
 
+  // ── ④ 가격 검증 ────────────────────────────────────────────────────────────
   const stEl=document.getElementById('sg-verify-status');
   const msgEl=document.getElementById('sg-verify-msg');
   const resEl=document.getElementById('sg-verify-result');
@@ -113,10 +302,9 @@
     poll(j.job_id); pollTimer=setInterval(()=>poll(j.job_id), 2500);
   });
 
-  // 🔑 키워드 게이트 검증 — 크롤된 혜택 라인 + ③ 저장된 포함/제외 키워드 → 영수증
+  // 🔑 키워드 게이트 검증
   const kwBtn=document.getElementById('sg-kw-btn');
   const kwRes=document.getElementById('sg-kw-result');
-  // 크롤 금액(없으면 매입가 계산 생략). 실제 크롤 dynamic_benefits 값이 들어갈 자리.
   const KW_AMOUNTS={
     "등급 할인":{type:"amount",value:0}, "상품 쿠폰":{type:"amount",value:5000},
     "구매적립":{type:"rate",value:0.10}, "후기 적립":{type:"rate",value:0.01},
@@ -153,22 +341,37 @@
         const r=await fetch(`/sourcing-guide/api/${sid}/gate-preview`,{method:'POST',
           headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)});
         const j=await r.json();
-        window.__lastGate = j.ok ? j : null;   // 저장에 사용
+        window.__lastGate = j.ok ? j : null;
         kwRes.innerHTML = j.ok ? kwReceipt(j) : `<div class="muted">검증 실패: ${j.message||j.error||''}</div>`;
       }catch(err){ kwRes.innerHTML=`<div class="muted">오류: ${err}</div>`; }
     });
   }
 
-  // 🟢🔴 시안 2 — ③ 키워드 실시간 하이라이트 미리보기 (포함=초록 / 제외=빨강취소선)
+  // 🟢🔴 시안 2 — 키워드 실시간 하이라이트
   const kwHl=document.getElementById('sg-kw-hl');
   const kwLinesEl=document.getElementById('sg-kw-lines');
   function _esc(s){return String(s).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));}
   function _kwSets(){
-    const init=window.__guideInit||{};
-    const benefits=(init.pricing&&init.pricing.benefits)||[];
-    const inc=[...new Set(benefits.flatMap(b=>b.triggers||[]).filter(Boolean))];
-    const exc=((init.exclude_keywords)||[]).map(e=>e&&e.word).filter(Boolean);
-    return {inc, exc};
+    // 현재 카드에서 실시간으로 triggers/excludes 읽기
+    const triggers=[], excludes=[];
+    document.querySelectorAll('#sg-inc .bcard').forEach(card=>{
+      [...card.querySelectorAll('.trig-chips .chip.i')].forEach(ch=>{
+        const t=[...ch.childNodes].filter(n=>n.nodeType===3).map(n=>n.textContent.trim()).join('').trim();
+        if(t && !triggers.includes(t)) triggers.push(t);
+      });
+      [...card.querySelectorAll('.excl-chips .chip.e')].forEach(ch=>{
+        const t=[...ch.childNodes].filter(n=>n.nodeType===3).map(n=>n.textContent.trim()).join('').trim();
+        if(t && !excludes.includes(t)) excludes.push(t);
+      });
+    });
+    // fallback to __guideInit
+    if(!triggers.length && !excludes.length){
+      const init=window.__guideInit||{};
+      const benefits=(init.pricing&&init.pricing.benefits)||[];
+      benefits.forEach(b=>{ (b.triggers||[]).forEach(t=>{if(t&&!triggers.includes(t)) triggers.push(t);}); });
+      benefits.forEach(b=>{ (b.excludes||[]).forEach(t=>{if(t&&!excludes.includes(t)) excludes.push(t);}); });
+    }
+    return {inc:triggers, exc:excludes};
   }
   function renderHl(){
     if(!kwHl||!kwLinesEl) return;
@@ -177,18 +380,17 @@
     if(!lines.length){ kwHl.innerHTML='<span class="muted" style="font-size:11.5px;">위에 문구를 붙여넣으면 ③ 키워드가 어디에 걸리는지 색으로 표시됩니다.</span>'; return; }
     kwHl.innerHTML=lines.map(line=>{
       const exHit=exc.find(k=>k&&line.includes(k));
-      if(exHit) return `<div class="ln"><span class="hit-exc">${_esc(line)}</span><span class="why exc">← 제외 ‘${_esc(exHit)}’</span></div>`;
+      if(exHit) return `<div class="ln"><span class="hit-exc">${_esc(line)}</span><span class="why exc">← 제외 '${_esc(exHit)}'</span></div>`;
       let h=_esc(line), incHit=null;
       inc.forEach(k=>{ if(k&&line.includes(k)){ if(!incHit) incHit=k; h=h.split(_esc(k)).join(`<span class="hit-inc">${_esc(k)}</span>`); }});
-      return `<div class="ln">${h}${incHit?` <span class="why inc">← 포함 ‘${_esc(incHit)}’</span>`:''}</div>`;
+      return `<div class="ln">${h}${incHit?` <span class="why inc">← 포함 '${_esc(incHit)}'</span>`:''}</div>`;
     }).join('');
   }
   if(kwLinesEl){ kwLinesEl.addEventListener('input', renderHl); renderHl(); }
   document.querySelector('.sg-go3')?.addEventListener('click', e=>{ e.preventDefault();
-    // 혜택 편집은 소싱처별 혜택 설정 탭(/sourcing-guide/map#s8)에서 — 해당 탭으로 이동
-    window.location.href='/sourcing-guide/map#s8'; });
+    const el=document.getElementById('sg-inc'); if(el) el.scrollIntoView({behavior:'smooth',block:'start'}); });
 
-  // ✓ 저장 — 검증 결과를 '저장된 검증' 리스트(우측)에 누적 + ① 동시 등록 (시안 2-C)
+  // ✓ 저장 — 검증 결과를 '저장된 검증' 리스트에 누적
   function nameFromUrl(u){ const m=(u||'').match(/\/products\/(\d+)/); return m? ('상품 '+m[1]) : (u||'검증'); }
   document.addEventListener('click', async e=>{
     if(!e.target || e.target.id!=='sg-kw-save') return;
@@ -206,14 +408,12 @@
         body:JSON.stringify({url, name:nameFromUrl(url), final_price:(g.final_price!=null?g.final_price:null), summary})});
       const j=await res.json();
       if(j.ok){
-        // 우측 '저장된 검증' 리스트 맨 위에 추가
         const list=document.getElementById('sg-saved-list');
         const empty=document.querySelector('.sg-saved-empty'); if(empty) empty.style.display='none';
         if(list){
           const item=document.createElement('div'); item.className='sg-saved-item'; item.dataset.url=url||'';
           const price=(g.final_price!=null)? `<b>${g.final_price.toLocaleString()}원</b> · ` : '';
           item.innerHTML=`<div class="nm">${nameFromUrl(url)}</div><div class="meta">${price}${summary} · 방금</div>`;
-          // 같은 URL 기존 항목 제거 후 prepend
           [...list.querySelectorAll('.sg-saved-item')].forEach(it=>{ if(url && it.dataset.url===url) it.remove(); });
           list.insertBefore(item, list.firstChild);
         }
@@ -223,7 +423,7 @@
     }catch(err){ btn.disabled=false; if(msg) msg.textContent='오류: '+err; }
   });
 
-  // ④ 예제 기준 스크린샷 — 드래그앤드랍 업로드 (리사이즈 → data URL → 저장)
+  // ④ 예제 기준 스크린샷 — 드래그앤드랍 업로드
   function resizeImg(file,maxW,q){return new Promise((res,rej)=>{const r=new FileReader();r.onerror=rej;r.onload=()=>{const im=new Image();im.onload=()=>{const sc=Math.min(1,maxW/im.width);const c=document.createElement('canvas');c.width=Math.round(im.width*sc);c.height=Math.round(im.height*sc);c.getContext('2d').drawImage(im,0,0,c.width,c.height);res(c.toDataURL('image/jpeg',q));};im.onerror=rej;im.src=r.result;};r.readAsDataURL(file);});}
   document.querySelectorAll('.exshot').forEach(zone=>{
     zone.addEventListener('dragover',e=>{e.preventDefault();zone.classList.add('drag');});
@@ -245,7 +445,7 @@
     });
   });
 
-  // ④ 예제 기준 스크린샷 — 서버 자동 캡처 (Playwright → R2)
+  // ④ 예제 기준 스크린샷 — 서버 자동 캡처
   document.querySelectorAll('.shot-auto').forEach(btn=>{
     btn.addEventListener('click',async e=>{
       e.preventDefault();e.stopPropagation();

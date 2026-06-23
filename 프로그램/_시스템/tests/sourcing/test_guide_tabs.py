@@ -111,3 +111,61 @@ def test_no_eighth_tab():
     assert 'data-s="s8"' not in html
     assert "소싱처별 혜택 설정" not in html
     assert 'id="bs-source"' not in html
+
+
+# ── Task 1a-3: 혜택 편집기 복원 + 2축·시안2 키워드 UI ──
+
+def test_detail_benefit_editor_restored():
+    """sg-inc 컨테이너 재존재, sg-edit-moved 안내 부재."""
+    html = (TPL / "detail.html").read_text(encoding="utf-8")
+    assert 'id="sg-inc"' in html, "혜택 카드 컨테이너 #sg-inc 없음"
+    assert "sg-edit-moved" not in html, "sg-edit-moved 안내가 남아 있음 (제거되어야 함)"
+
+
+def test_detail_vseg_value_source_axis():
+    """값출처 세그먼트(vseg) — 고정값/크롤값 축 존재."""
+    html = (TPL / "detail.html").read_text(encoding="utf-8")
+    assert "vseg" in html, "값출처 세그먼트(.vseg) 없음"
+    assert "고정값" in html and "크롤값" in html, "값출처 레이블(고정값/크롤값) 없음"
+
+
+def test_detail_ctg_conditional_toggle():
+    """조건부 토글(.ctg) 존재."""
+    html = (TPL / "detail.html").read_text(encoding="utf-8")
+    assert "ctg" in html, "조건부 토글(.ctg) 없음"
+
+
+def test_detail_cond_panel_and_chips():
+    """조건 펼침 패널(.cond) + 적용/제외 칩 영역 존재."""
+    html = (TPL / "detail.html").read_text(encoding="utf-8")
+    assert "cond" in html, ".cond 패널 없음"
+    assert "적용" in html and "제외" in html, "적용/제외 레이블 없음"
+
+
+def test_detail_no_sg3_side_common_exclude():
+    """소싱처 공통제외 패널(#sg-exlist/sg3-side) 제거 확인."""
+    html = (TPL / "detail.html").read_text(encoding="utf-8")
+    assert 'id="sg-exlist"' not in html, "#sg-exlist 공통제외 패널이 남아 있음"
+
+
+def test_detail_aa_btn_restored():
+    """따라쓰기 버튼(aa-btn) 복원."""
+    html = (TPL / "detail.html").read_text(encoding="utf-8")
+    assert 'id="aa-btn"' in html, "따라쓰기 버튼 #aa-btn 없음"
+
+
+def test_detail_js_collect_new_model():
+    """detail.js — collect()가 value_source/status/triggers/excludes를 수집."""
+    js = (TPL / "detail.js").read_text(encoding="utf-8")
+    assert "value_source" in js, "collect()에 value_source 없음"
+    assert "status" in js, "collect()에 status 없음"
+    assert "triggers" in js, "collect()에 triggers 없음"
+    assert "excludes" in js, "collect()에 excludes(per-benefit) 없음"
+
+
+def test_detail_js_fixed_always_enforced():
+    """detail.js — 고정값 선택 시 status='always' 강제 로직 존재."""
+    js = (TPL / "detail.js").read_text(encoding="utf-8")
+    assert "always" in js, "고정값→always 강제 로직 없음"
+    # vseg 전환 핸들러가 fixed 분기를 처리해야 함
+    assert "fixed" in js, "fixed 값출처 분기 없음"

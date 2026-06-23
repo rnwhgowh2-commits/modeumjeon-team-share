@@ -57,67 +57,40 @@
 .sgd .note-cell .tg{font-size:9.5px;font-weight:700;color:#B0B8C1;background:#F2F4F6;padding:1px 6px;border-radius:5px;flex:0 0 auto;}
 .sgd .sg-note{border:none;border-bottom:1px dashed #DDE1E6;font-size:11px;color:#6B7684;padding:2px 0;width:100%;background:transparent;}
 
-/* ③ 최종 매입가 로직 — 포함(혜택별)/제외(공통) */
+/* ③ 최종 매입가 로직 — 혜택 편집기 (시안2 v3) */
 .sgd .sg3card{padding:18px 20px;}
-.sgd .sg3{display:grid;grid-template-columns:1fr;gap:22px;align-items:start;}
-.sgd .sg3-side{position:sticky;top:14px;background:#fff;border:1px solid #E5E8EB;border-radius:12px;padding:14px;}
-.sgd .zhead{font-size:14.5px;font-weight:800;margin-bottom:13px;}
-.sgd .zhead span{font-size:12px;font-weight:600;color:#5E6670;}
-.sgd .cat{margin-bottom:16px;}
-.sgd .cathead{display:flex;align-items:center;gap:8px;margin-bottom:10px;}
-.sgd .cbadge{color:#fff;font-size:11.5px;font-weight:800;border-radius:7px;padding:3px 11px;}
-.sgd .cnt{font-size:11.5px;color:#5E6670;font-weight:700;}
-.sgd .cardlist{display:flex;flex-direction:column;gap:10px;}
-.sgd .bcard{background:#fff;border:1px solid #E1E5EA;border-radius:11px;padding:13px 14px;box-shadow:0 1px 4px rgba(0,0,0,.05);}
-.sgd .bcard .bch{display:flex;align-items:center;gap:6px;margin-bottom:7px;}
-.sgd .bcard .bn{font-size:14px;font-weight:600;flex:1;border:1px solid transparent;border-radius:8px;padding:6px 10px;color:#4E5968;min-width:0;font-family:inherit;background:#F1F3F5;}
-.sgd .bcard .bn:focus{outline:none;background:#fff;border-color:#3182F6;color:#191F28;}
-.sgd .bcard .bn::placeholder{color:#9aa3ab;font-weight:500;}
-.sgd .bcard .bdel,.sgd .exdel{border:none;background:#F2F4F6;color:#7a838c;width:22px;height:22px;border-radius:6px;font-size:14px;cursor:pointer;flex:0 0 22px;line-height:1;}
-.sgd .bcard .bdel:hover,.sgd .exdel:hover{background:#FFE9EC;color:#E0392B;}
-.sgd .brule{width:100%;font-size:12px;color:#46505B;font-weight:600;border:none;padding:3px 0;margin-bottom:11px;font-family:inherit;background:none;}
-.sgd .brule:focus{outline:none;color:#191F28;}
-/* 혜택 '값' 입력칸 + 단위 토글 (시안 B) */
-.sgd .bvalrow{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:7px;}
-.sgd .bval-wrap{display:inline-flex;align-items:center;border:1.5px solid #DCE0E5;border-radius:10px;overflow:hidden;background:#fff;}
-.sgd .bval-wrap:focus-within{border-color:#3182F6;}
-.sgd .bval{border:none;outline:none;font-size:18px;font-weight:800;color:#191F28;font-family:inherit;width:94px;text-align:right;padding:7px 4px 7px 13px;background:none;}
-.sgd .bval::placeholder{color:#C2C8CF;}
-.sgd .bunit{font-size:15px;font-weight:800;color:#8B95A1;padding:0 13px 0 6px;}
-.sgd .btgl-seg{display:inline-flex;border:1px solid #DCE0E5;border-radius:9px;overflow:hidden;}
-.sgd .btgl{border:none;background:#F1F3F5;color:#6B7684;font-size:12px;font-weight:800;padding:8px 14px;cursor:pointer;font-family:inherit;}
-.sgd .btgl.on{background:#3182F6;color:#fff;}
-.sgd .bprev{font-size:11.5px;color:#0E7C3A;font-weight:700;margin-bottom:11px;min-height:13px;}
-.sgd .battrs{display:flex;flex-wrap:wrap;gap:7px;margin-bottom:15px;}
-.sgd .pill{display:inline-flex;align-items:center;border:1px solid #DCE0E5;border-radius:999px;overflow:hidden;font-size:12px;}
-.sgd .pill em{font-style:normal;background:#F1F3F5;color:#46505B;font-weight:700;font-size:11px;padding:5px 9px;}
-.sgd .pill select{border:none;background:none;font-size:12px;font-weight:800;color:#191F28;font-family:inherit;cursor:pointer;padding:5px 11px 5px 8px;}
-.sgd .pill select:focus{outline:none;}
-.sgd .bkwl{font-size:11px;color:#3a424b;font-weight:800;margin-bottom:6px;}
-.sgd .bkw{display:flex;flex-wrap:wrap;align-items:center;gap:6px;border:1px solid #E1E5EA;border-radius:9px;padding:7px 9px;background:#fff;}
-.sgd .kc{display:inline-flex;align-items:center;gap:6px;border-radius:7px;padding:3px 5px 3px 10px;font-size:12px;font-weight:700;}
-.sgd .kc.inc{background:#EAF1FB;color:#1B5FC4;} .sgd .kc.dn{background:#FBEEE9;color:#B45427;} .sgd .kc.nx{background:#E8F4EE;color:#1B8A5A;}
-.sgd .kc i{font-style:normal;cursor:pointer;opacity:.6;font-size:12px;} .sgd .kc i:hover{opacity:1;}
-.sgd .kin{border:none;background:none;font-size:12px;flex:1;min-width:70px;padding:2px;font-family:inherit;color:#191F28;font-weight:600;} .sgd .kin:focus{outline:none;} .sgd .kin::placeholder{color:#9aa3ab;font-weight:500;}
-.sgd .bcrit{margin-top:15px;padding-top:13px;border-top:1px solid #F0F1F3;}
-.sgd .bcrit .cl{font-style:normal;font-weight:800;color:#3a424b;font-size:11.5px;display:block;margin-bottom:8px;}
-.sgd .bcrit .copts{display:flex;gap:16px;flex-wrap:wrap;}
-.sgd .bcrit label{display:inline-flex;align-items:center;gap:6px;cursor:pointer;font-size:12px;color:#3a424b;font-weight:600;}
-.sgd .bcrit input{accent-color:#3182F6;width:15px;height:15px;}
-.sgd .bcrit input:checked+span{color:#191F28;font-weight:800;}
-.sgd .empty{font-size:11.5px;color:#9aa3ab;padding:13px;border:1px dashed #D7DDE3;border-radius:10px;text-align:center;font-weight:600;}
-.sgd .addb{margin-top:10px;border:1px dashed;background:#fff;border-radius:9px;padding:8px 14px;font-size:12px;font-weight:800;cursor:pointer;font-family:inherit;}
-.sgd .exhint{font-size:11px;color:#5E6670;margin-bottom:12px;font-weight:600;}
-.sgd .exrule{background:#fff;border:1px solid #E1E5EA;border-radius:11px;padding:12px 13px;margin-bottom:10px;box-shadow:0 1px 4px rgba(0,0,0,.04);}
-.sgd .exrh{display:flex;align-items:center;gap:6px;margin-bottom:10px;}
-.sgd .exw{font-size:13.5px;font-weight:600;flex:1;border:1px solid transparent;border-radius:8px;padding:6px 10px;color:#4E5968;min-width:0;font-family:inherit;background:#F1F3F5;}
-.sgd .exw:focus{outline:none;background:#fff;border-color:#3182F6;color:#191F28;}
-.sgd .exw::placeholder{color:#9aa3ab;font-weight:500;}
-.sgd .exl{font-size:11px;font-weight:800;color:#3a424b;margin:0 0 6px;}
-.sgd .exl em{font-style:normal;font-weight:600;color:#5E6670;font-size:10.5px;margin-left:5px;}
-.sgd .exl + .bkw{margin-bottom:10px;}
-.sgd .addex{width:100%;border:1px dashed #E0392B;color:#E0392B;background:#fff;border-radius:9px;padding:8px 14px;font-size:12px;font-weight:800;cursor:pointer;font-family:inherit;}
-@media(max-width:760px){.sgd .sg3{grid-template-columns:1fr;} .sgd .sg3-side{position:static;}}
+.sgd .bcard .bn{font-size:13.5px;font-weight:700;border:1px solid #E5E8EB;border-radius:8px;padding:8px 10px;width:100%;font-family:inherit;box-sizing:border-box;}
+.sgd .bcard .bn:focus{outline:none;border-color:#1B64DA;}
+.sgd .bcard .bn::placeholder{color:#9AA4B0;font-weight:500;}
+.sgd .bcard .bdel{border:none;background:#F2F4F6;color:#6B7684;width:28px;height:28px;border-radius:7px;cursor:pointer;font-size:14px;line-height:1;}
+.sgd .bcard .bdel:hover{background:#FFE9EC;color:#DC2626;}
+/* 시안2 v3 그리드 */
+.GR{display:grid;grid-template-columns:1fr 94px 88px 96px 104px 28px;gap:10px;align-items:center;}
+.ghead{padding:0 14px 7px;} .ghead .gh{font-size:10.5px;font-weight:800;color:#9AA4B0;text-transform:uppercase;} .ghead .gh.c{text-align:center;}
+.bcard{background:#fff;border:1px solid #E5E8EB;border-radius:12px;padding:13px 14px;margin-bottom:10px;}
+.vseg{display:inline-flex;background:#EEF1F5;border-radius:8px;padding:2px;width:100%;} .vseg b{flex:1;text-align:center;font-size:10.5px;font-weight:700;padding:5px 0;border-radius:6px;color:#6B7684;cursor:pointer;} .vseg b.on{background:#fff;color:#191F28;box-shadow:0 1px 2px rgba(0,0,0,.1);} .vseg b.on.crawl{color:#1B64DA;}
+.bval,.bcrawl{width:100%;height:34px;border-radius:8px;font-size:13px;box-sizing:border-box;}
+.bval{font-family:inherit;font-weight:600;text-align:right;border:1.5px solid #1B64DA;padding:0 9px;}
+.bval:focus{outline:none;}
+.bcrawl{font-weight:700;color:#1B64DA;background:#E8F3FF;border:1px dashed #9DC3F0;display:flex;align-items:center;justify-content:center;font-size:11.5px;}
+.b-ty{width:100%;height:34px;font-size:11.5px;font-weight:700;color:#6B7684;background:#F2F4F6;border:1px solid #E5E8EB;border-radius:8px;font-family:inherit;}
+.always{width:100%;height:34px;font-size:11.5px;font-weight:700;color:#15803D;background:#E6F6EC;border-radius:8px;display:flex;align-items:center;justify-content:center;}
+.ctg{display:flex;align-items:center;justify-content:center;gap:6px;font-size:11.5px;font-weight:700;color:#6B7684;cursor:pointer;height:34px;} .ctg .sw{width:30px;height:18px;border-radius:20px;background:#D1D6DB;position:relative;flex:none;} .ctg.on .sw{background:#1B64DA;} .ctg.on{color:#191F28;} .ctg .sw i{position:absolute;top:2px;left:2px;width:14px;height:14px;border-radius:50%;background:#fff;font-style:normal;} .ctg.on .sw i{left:14px;}
+.cond{margin-top:11px;border-top:1px solid #EEF1F4;padding-top:11px;display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+.cond .clab{font-size:11px;font-weight:800;margin-bottom:5px;display:flex;align-items:center;gap:6px;} .clab.i{color:#15803D;} .clab.e{color:#DC2626;}
+.chips{display:flex;flex-wrap:wrap;gap:5px;border:1px solid #E5E8EB;border-radius:8px;padding:5px 7px;min-height:32px;}
+.chip{font-size:11.5px;font-weight:600;border-radius:6px;padding:2px 7px;display:inline-flex;gap:4px;align-items:center;} .chip.i{background:#E6F6EC;color:#15803D;} .chip.e{background:#FBE9E9;color:#DC2626;} .chip i{cursor:pointer;font-style:normal;opacity:.6;}
+.cin{border:none;outline:none;font-size:11.5px;min-width:50px;flex:1;background:transparent;font-family:inherit;}
+.modeg{display:inline-flex;gap:3px;} .modeg b{font-size:10px;font-weight:700;padding:3px 6px;border-radius:5px;border:1px solid #E5E8EB;color:#6B7684;cursor:pointer;background:#fff;} .modeg b.on{background:#191F28;color:#fff;border-color:#191F28;}
+.csum{grid-column:1/3;font-size:11px;color:#9AA4B0;}
+.sgd .inc-add{margin-top:10px;border:1px dashed #1B64DA;color:#1B64DA;background:#fff;border-radius:9px;padding:8px 14px;font-size:12px;font-weight:800;cursor:pointer;font-family:inherit;width:100%;}
+.sgd .empty-b{font-size:11.5px;color:#9aa3ab;padding:13px;border:1px dashed #D7DDE3;border-radius:10px;text-align:center;font-weight:600;margin-bottom:10px;}
+/* 따라쓰기 */
+.sgd .aa-wrap{margin-top:16px;border-top:1px solid #EEF0F3;padding-top:13px;}
+/* exrule — 제외 키워드(per-benefit) */
+.sgd .kc{display:inline-flex;align-items:center;gap:4px;border-radius:6px;padding:2px 7px;font-size:11.5px;font-weight:600;} .sgd .kc.inc{background:#E6F6EC;color:#15803D;} .sgd .kc.e{background:#FBE9E9;color:#DC2626;}
+.sgd .kc i{font-style:normal;cursor:pointer;opacity:.6;} .sgd .kc i:hover{opacity:1;}
+.sgd .kin{border:none;background:none;font-size:11.5px;flex:1;min-width:50px;padding:2px;font-family:inherit;color:#191F28;font-weight:600;} .sgd .kin:focus{outline:none;}
 
 /* ④ 가격 검증 — 서브탭 */
 .sgd .sg-sub{display:flex;gap:20px;border-bottom:1px solid #E5E8EB;margin-bottom:16px;}
@@ -258,38 +231,106 @@
 
   <!-- ③ 최종 매입가 로직 -->
   <div class="sec">
-    <div class="st"><span class="n">3</span><span class="tt">최종 매입가 로직</span><span class="sub">{{ src.name }} · 확정</span></div>
+    <div class="st"><span class="n">3</span><span class="tt">최종 매입가 로직</span><span class="sub">{{ src.name }} · 혜택 편집</span></div>
     <div class="card sg3card">
-      {% set CATS = [('선반영',['preapplied'],'#3182F6'),('후반영',['deduct','accrue'],'#10B981'),('결제',['payment'],'#8B5CF6'),('캐시백',['cashback'],'#F59E0B')] %}
       {% set M_OPTS = ['정률(%)','정액(원)','정액·정률','적립(%→원)','고정액','옵션(개월)'] %}
-      {% set B_OPTS = ['표면 노출가','베이스금액①','베이스금액②','—'] %}
-      {% set F_OPTS = ['무제한','정기','1회성'] %}
-      {% set S_OPTS = [('always','상시'),('conditional','조건부'),('optional','선택'),('planned','예정')] %}
       {% set ns = namespace(i=0) %}
-      <div class="sg-edit-moved" style="background:#F4F8FF;border:1px solid #cfe0fb;border-radius:10px;padding:12px 15px;font-size:13.5px;color:#1B64DA;margin-bottom:14px;">
-        ✏️ 혜택 편집은 <a href="/sourcing-guide/map#s8" style="font-weight:800;color:#1B64DA;">[소싱처별 혜택 설정]</a> 탭에서 합니다. (편집은 그곳 + 모음전 영수증 카드 2곳)
-      </div>
-      <div class="sg3">
-        <div class="sg3-side">
-          <div class="zhead">제외 키워드 <span>· 공통</span></div>
-          <div class="exhint">함께 = 같이 있으면 제외 / 예외 = 같이 있으면 포함(제외 취소)</div>
-          <div id="sg-exlist">
-            {% for ex in guide.exclude_keywords %}
-            <div class="exrule">
-              <div class="exrh"><input class="exw" value="{{ ex.word }}" placeholder="제외 단어"><button type="button" class="exdel" title="삭제">×</button></div>
-              <div class="exl">함께 <em>이 단어와 같이 있으면 제외</em></div>
-              <div class="bkw" data-kind="with">{% for w in ex['with'] %}<span class="kc dn">{{ w }}<i>×</i></span>{% endfor %}<input class="kin" data-kind="with" placeholder="단어 추가"></div>
-              <div class="exl">예외 <em>이 단어와 같이 있으면 포함</em></div>
-              <div class="bkw" data-kind="except">{% for w in ex['except'] %}<span class="kc nx">{{ w }}<i>×</i></span>{% endfor %}<input class="kin" data-kind="except" placeholder="단어 추가"></div>
-            </div>
-            {% endfor %}
-          </div>
-          <button type="button" class="addex">＋ 제외 단어 추가</button>
-        </div>
+
+      <!-- 헤더 행 -->
+      <div class="GR ghead">
+        <span class="gh">혜택명</span>
+        <span class="gh c">값출처</span>
+        <span class="gh c">값</span>
+        <span class="gh c">유형</span>
+        <span class="gh c">적용</span>
+        <span class="gh"></span>
       </div>
 
-      <!-- ③-요약 — 가격 계산 로직 한눈에 보기 (읽기 전용, 위 카드와 동일 benefits 소스) -->
+      <!-- 혜택 카드 목록 -->
+      <div id="sg-inc">
+        {% if guide.pricing.benefits %}
+          {% for b in guide.pricing.benefits %}
+          {% set ns.i = ns.i + 1 %}
+          {% set _vs = b.get('value_source','fixed') if b is mapping else 'fixed' %}
+          {% set _st = b.get('status','always') if b is mapping else 'always' %}
+          {% set _trigs = b.get('triggers',[]) if b is mapping else [] %}
+          {% set _excl = b.get('excludes',[]) if b is mapping else [] %}
+          {% set _em = b.get('exclude_match','any') if b is mapping else 'any' %}
+          {% set _tm = b.get('match','any') if b is mapping else 'any' %}
+          {% set _val = b.get('value') if b is mapping else none %}
+          <div class="bcard GR" data-idx="{{ loop.index0 }}" data-vs="{{ _vs }}" data-status="{{ _st }}">
+            <input class="bn" value="{{ b.name }}" placeholder="혜택명">
+            <!-- 값출처 세그 -->
+            <div class="vseg">
+              <b class="vs-fixed{% if _vs != 'crawl' %} on{% endif %}" data-v="fixed">고정값</b>
+              <b class="vs-crawl{% if _vs == 'crawl' %} on crawl{% endif %}" data-v="crawl">크롤값</b>
+            </div>
+            <!-- 값 칸 (고정=number input / 크롤=badge) -->
+            <div class="val-cell">
+              <input class="bval" type="number" step="any" placeholder="0" value="{{ _val if _val is not none else '' }}" {% if _vs == 'crawl' %}style="display:none"{% endif %}>
+              <div class="bcrawl" {% if _vs != 'crawl' %}style="display:none"{% endif %}>크롤값 ⟳</div>
+            </div>
+            <!-- 유형 -->
+            <select class="b-ty">
+              {% for opt in M_OPTS %}<option{% if b.get('method') == opt %} selected{% endif %}>{{ opt }}</option>{% endfor %}
+            </select>
+            <!-- 적용 (고정값=상시 배지 / 크롤값=조건부 토글) -->
+            <div class="apply-cell">
+              <div class="always" {% if _vs == 'crawl' %}style="display:none"{% endif %}>✓ 상시</div>
+              <div class="ctg{% if _st == 'conditional' %} on{% endif %}" {% if _vs != 'crawl' %}style="display:none"{% endif %}>
+                <span class="sw"><i></i></span>조건부
+              </div>
+            </div>
+            <button type="button" class="bdel" title="삭제">×</button>
+            <!-- 조건 펼침 패널 (.cond) — 크롤값+조건부 ON일 때만 표시 -->
+            <div class="cond" style="grid-column:1/-1;{% if not (_vs == 'crawl' and _st == 'conditional') %}display:none;{% endif %}">
+              <div>
+                <div class="clab i">적용 키워드
+                  <span class="modeg">
+                    <b class="tm{% if _tm != 'all' %} on{% endif %}" data-m="any">하나라도</b>
+                    <b class="tm{% if _tm == 'all' %} on{% endif %}" data-m="all">모두</b>
+                  </span>
+                </div>
+                <div class="chips trig-chips">
+                  {% for t in _trigs %}<span class="chip i">{{ t }}<i data-role="del">×</i></span>{% endfor %}
+                  <input class="cin trig-in" placeholder="키워드 추가…">
+                </div>
+              </div>
+              <div>
+                <div class="clab e">제외 키워드
+                  <span class="modeg">
+                    <b class="em{% if _em != 'all' %} on{% endif %}" data-m="any">하나라도</b>
+                    <b class="em{% if _em == 'all' %} on{% endif %}" data-m="all">모두</b>
+                  </span>
+                </div>
+                <div class="chips excl-chips">
+                  {% for t in _excl %}<span class="chip e">{{ t }}<i data-role="del">×</i></span>{% endfor %}
+                  <input class="cin excl-in" placeholder="제외 키워드 추가…">
+                </div>
+              </div>
+              <div class="csum"></div>
+            </div>
+          </div>
+          {% endfor %}
+        {% else %}
+          <div class="empty-b">아직 혜택이 없습니다.</div>
+        {% endif %}
+      </div>
+      <button type="button" class="inc-add">＋ 혜택 추가</button>
+
+      <!-- 따라쓰기 -->
+      <div class="aa-wrap">
+        <label style="display:flex;align-items:center;gap:8px;font-size:12.5px;color:#4E5968;font-weight:600;cursor:pointer;">
+          <input type="checkbox" id="aa-confirm" style="accent-color:#3182F6;width:15px;height:15px;">
+          <span>이 소싱처 혜택 기본값을 전 모음전에 덮어씁니다 (주의)</span>
+        </label>
+        <div id="aa-toast" style="display:none;margin-top:6px;font-size:11.5px;color:#E0392B;font-weight:700;"></div>
+        <button type="button" id="aa-btn" disabled style="margin-top:8px;width:100%;padding:10px;border:none;border-radius:9px;background:#F4C7CB;color:#fff;font-weight:800;font-size:13px;cursor:not-allowed;font-family:inherit">🔒 따라쓰기 (잠김)</button>
+      </div>
+
+      <!-- ③-요약 — 가격 계산 로직 한눈에 보기 (읽기 전용) -->
       {% set SMAP = {'always':'상시','conditional':'조건부','optional':'선택','planned':'예정'} %}
+      {% set CATS = [('선반영',['preapplied'],'#3182F6'),('후반영',['deduct','accrue'],'#10B981'),('결제',['payment'],'#8B5CF6'),('캐시백',['cashback'],'#F59E0B')] %}
       <div class="sg3-logic" style="margin-top:18px;border:1px solid #E5E8EB;border-radius:12px;overflow:hidden">
         <div style="padding:13px 16px;background:#F9FAFB;border-bottom:1px solid #E5E8EB;font-size:13.5px;font-weight:800;color:#191F28">💰 가격 계산 로직 — 한눈에 보기 <span style="font-weight:600;color:#8B95A1;font-size:12px">· 위 설정값 요약 (읽기 전용) · 표면 노출가 → 최종 매입가 순</span></div>
         <div style="overflow-x:auto">
@@ -429,13 +470,14 @@
           <!-- 우측: ③ 키워드 칩(시안 2) + 저장된 검증(2-C) -->
           <div class="sg-saved">
             <div class="sg-kwchips">
-              <div class="sg-kwchips-h">적용할 ③ 키워드 <a href="#" class="sg-go3">③에서 수정 ↗</a></div>
-              {% set kwns = namespace(inc=[]) %}
-              {% for b in guide.pricing.benefits %}{% for t in b.triggers %}{% if t not in kwns.inc %}{% set kwns.inc = kwns.inc + [t] %}{% endif %}{% endfor %}{% endfor %}
+              <div class="sg-kwchips-h">적용할 ③ 키워드 <a href="#sg-inc" class="sg-go3">③에서 수정 ↗</a></div>
+              {% set kwns = namespace(inc=[], exc=[]) %}
+              {% for b in guide.pricing.benefits %}{% for t in b.get('triggers',[]) %}{% if t not in kwns.inc %}{% set kwns.inc = kwns.inc + [t] %}{% endif %}{% endfor %}{% endfor %}
+              {% for b in guide.pricing.benefits %}{% for t in b.get('excludes',[]) %}{% if t not in kwns.exc %}{% set kwns.exc = kwns.exc + [t] %}{% endif %}{% endfor %}{% endfor %}
               <div class="g inc">포함</div>
               {% if kwns.inc %}{% for t in kwns.inc %}<span class="chip inc">{{ t }}</span>{% endfor %}{% else %}<span class="chip-empty">— 없음 (③에서 추가)</span>{% endif %}
               <div class="g exc">제외</div>
-              {% if guide.exclude_keywords %}{% for e in guide.exclude_keywords %}<span class="chip exc">{{ e.word }}</span>{% endfor %}{% else %}<span class="chip-empty">— 없음</span>{% endif %}
+              {% if kwns.exc %}{% for t in kwns.exc %}<span class="chip exc">{{ t }}</span>{% endfor %}{% else %}<span class="chip-empty">— 없음</span>{% endif %}
             </div>
             <div class="sg-saved-h" style="margin-top:16px;">📑 저장된 검증</div>
             <div id="sg-saved-list">
