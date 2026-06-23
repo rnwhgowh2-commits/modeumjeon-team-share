@@ -1803,6 +1803,10 @@
   }
   window._srcEntriesForCol = _srcEntriesForCol;
 
+  // 소싱처 항목(entry) → 컬럼 고유키 (deriveSourceColumns 의 colKey 와 동일 계산식)
+  function _colKeyOf(s){ return (s && s.bundle_source_url_id!=null) ? ('b'+s.bundle_source_url_id) : ('u'+((s&&s.product_url)||'')); }
+  window._colKeyOf = _colKeyOf;
+
   // ── B: 크롤 완료 시 매트릭스 자동 갱신 ─────────────────────────
   //   ext_bridge.js / crawl_log.js 가 'moum-crawl-log' 이벤트를 window 에 방출.
   //   finish 이벤트: { type:'finish', bundle:<code>, stopped:<bool>, ... }
@@ -3040,6 +3044,7 @@
   //   SM_BREAKDOWNS 는 비동기로 let 재할당되므로 클로저로 현재값을 항상 읽는다.
   window.__cmtxCellPrice = function(sku, srcId, salePrice){
     // [2026-06-22 완전B] 후보별 키(sku|sid|salePrice). salePrice=그 후보 표면가=폴백값.
+    // [Fix C] colKey 포함 키를 우선 조회, 없으면 구키(colKey 없는 형태) 폴백 — 하위호환 유지
     const bk = SM_BREAKDOWNS[`${sku}|${srcId}|${salePrice}`] || SM_BREAKDOWNS[`${sku}|${srcId}`];
     return (bk && typeof bk.final_price === 'number') ? bk.final_price : salePrice;
   };
@@ -3050,13 +3055,14 @@
     const items = [];
     // [2026-06-22 완전B] 같은 소싱처(source_id)에 URL 여러개(단품/모음전 등)면 각 후보의
     //   최종매입가를 다 계산해 최저를 골라야 한다(사용자 룰=재고 O + 최종매입가 최저).
-    //   결과 키는 후보별 'sku|sid|salePrice' (final_price 는 (sku,sid,salePrice) 함수라 충분).
-    //   이전엔 키충돌 회피로 src_id 당 표면-최저 1개만 보냈음 → 단품이 혜택커서 더 싼 경우 누락.
+    //   [Fix C] 키에 colKey 포함 → 같은 source_id 다른 URL 간 키충돌 방지.
+    //   결과 키는 후보별 'sku|sid|colKey|salePrice'.
     const _seen = new Set();
     opts.forEach(o => {
       (o.sources || []).forEach(src => {
         if (!(src.crawled_price && src.crawled_price > 0)) return;
-        const key = `${o.sku}|${src.source_id}|${src.crawled_price}`;
+        const colKey = _colKeyOf(src);
+        const key = `${o.sku}|${src.source_id}|${colKey}|${src.crawled_price}`;
         if (_seen.has(key)) return;
         _seen.add(key);
         items.push({sku: o.sku, source_id: src.source_id, sale_price: src.crawled_price, key,
@@ -3113,19 +3119,22 @@
     // ─── 셀별 실제 매입가 (breakdown final_price) 함수 ───
     // breakdown 있으면 그 값, 없으면 crawled_price 그대로
     function getCellPrice(sku, src) {
-      // [2026-06-22 완전B] 후보별 키(sku|sid|salePrice) 우선 → 구키(sku|sid) 폴백 → 표면가.
-      const bk = SM_BREAKDOWNS[`${sku}|${src.source_id}|${src.crawled_price}`]
+      // [Fix C] colKey 포함 키 우선 → 구키 폴백 → 표면가.
+      const colKey = _colKeyOf(src);
+      const bk = SM_BREAKDOWNS[`${sku}|${src.source_id}|${colKey}|${src.crawled_price}`]
+              || SM_BREAKDOWNS[`${sku}|${src.source_id}|${src.crawled_price}`]
               || SM_BREAKDOWNS[`${sku}|${src.source_id}`];
       if (bk && typeof bk.final_price === 'number') return bk.final_price;
       return src.crawled_price;
     }
 
     // ─── 옵션별 최저가 산출 (breakdown 적용 후 매입가 기준) ───
-    const lowestSrcPerOpt = {};   // sku -> source_id
+    const lowestSrcPerOpt = {};   // sku -> colKey  [Fix D: source_id → colKey]
     const savingsPerOpt   = {};   // sku -> savings (vs 차순)
     // [2026-06-03 핵심 로직] 옵션마다 같은 소싱처에 URL 여러개·여러 소싱처 가능.
     //   최저가 winner = "재고 존재 + 크롤 성공 + 가격 있음" 후보 중 최저가.
     //   → 품절·크롤실패(stale) 소싱처는 최저가로 뽑히지 않음(오발주·금전손실 방지).
+    //   [Fix D] winner 저장 = colKey (URL 단위 고유 식별) → 분리 컬럼 중 진짜 최저만 ★
     opts.forEach(o => {
       const srcs = o.sources || [];
       const priced = srcs
@@ -3137,7 +3146,7 @@
       if (!priced.length) return;
       const sorted = [...priced].sort((a,b) => a._finalPrice - b._finalPrice);
       const lowest = sorted[0];
-      lowestSrcPerOpt[o.sku] = lowest.source_id;
+      lowestSrcPerOpt[o.sku] = _colKeyOf(lowest);  // [Fix D] colKey 저장 (구: lowest.source_id)
       if (sorted.length >= 2) {
         savingsPerOpt[o.sku] = sorted[1]._finalPrice - lowest._finalPrice;
       } else {
@@ -3146,10 +3155,16 @@
     });
 
     // ─── 사이트별 1위 카운트 ───
+    // [Fix D] lowestSrcPerOpt 값이 colKey 로 바뀌었으므로 카운트는 source_id 로 역매핑
     const lowestCntBySrc = {};
     sources.forEach(s => { lowestCntBySrc[s.id] = 0; });
-    Object.values(lowestSrcPerOpt).forEach(sid => {
-      if (lowestCntBySrc[sid] != null) lowestCntBySrc[sid]++;
+    Object.values(lowestSrcPerOpt).forEach(colKey => {
+      // colKey = 'b{bsu_id}' or 'u{url}' — source_id 를 역추적해 카운트
+      const opts2 = DATA.options || [];
+      for (const o of opts2) {
+        const entry = (o.sources||[]).find(s => _colKeyOf(s) === colKey);
+        if (entry && lowestCntBySrc[entry.source_id] != null) { lowestCntBySrc[entry.source_id]++; break; }
+      }
     });
 
     // ─── [2026-06-05] 사이트별 진행 — 백엔드 source_stats(단일 진실) 사용 ───
@@ -4081,26 +4096,38 @@ table.ompk-tab th.corner{color:#b0b8c1;cursor:default}
 
   // ★ 2026-05-13 — 매트릭스 데이터 + 팝업 내용 in-place 갱신 (팝업 DOM 노드 유지!).
   //   사용자가 X 버튼 / 외부 클릭 시에만 팝업 종료. 설정 변경 후엔 그 자리 그대로.
+  //   [Fix B] pop 은 항상 해당 td 의 자식 → pop.closest('td').dataset.cellColKey 로 colKey 자동 취득.
+  //   colKey 가 있으면 그 split 컬럼 셀만 업데이트, 없으면 source_id 만으로 폴백(하위호환).
   async function smRefreshFxInPlace(sku, srcId) {
     const pop = document.querySelector('.cell-fx-pop');
     if (!pop) return;  // 팝업 이미 닫힘 — 갱신 불필요
+    // [Fix B] pop 의 부모 td 에서 colKey 를 읽음 (Fix A 에서 data-cell-col-key 를 모든 td 에 추가)
+    const _popTd = pop.closest('td[data-cell-col-key]');
+    const colKey = _popTd ? _popTd.dataset.cellColKey : null;
     // [2026-06-06 perf] 혜택 토글은 크롤가가 안 바뀜 → 무거운 전체 option-matrix refetch 를
     //   '먼저' 기다리지 않는다. (1) 현재 DATA 가격으로 breakdown 즉시 재렌더(빠름),
     //   (2) 전체 매트릭스는 백그라운드 동기화. → 토글 반응이 즉각적.
     const opt0 = (DATA.options || []).find(o => o.sku === sku);
-    const src0 = opt0 ? (opt0.sources || []).find(s => s.source_id === srcId) : null;
+    // [Fix B] src0 도 colKey 로 좁혀서 올바른 URL 항목을 고름
+    const src0 = opt0 ? (opt0.sources || []).find(s =>
+      s.source_id === srcId && (!colKey || _colKeyOf(s) === colKey)
+    ) : null;
     const newPrice = (src0 && src0.crawled_price) ? src0.crawled_price : 0;
     // 완전한 B: 셀이 고른 best 후보 spid 를 같이 넘겨 계산식이 셀과 같은 후보를 쓰게 한다.
+    // [Fix B] _td0 도 colKey 로 좁혀서 올바른 분리 컬럼 셀을 고름
     const _td0 = [...document.querySelectorAll('td[data-cell-sku][data-cell-src]')]
-      .find(t => t.dataset.cellSku === sku && parseInt(t.dataset.cellSrc, 10) === srcId);
+      .find(t => t.dataset.cellSku === sku && parseInt(t.dataset.cellSrc, 10) === srcId
+                 && (!colKey || t.dataset.cellColKey === colKey));
     const _spid = _td0 ? (_td0.dataset.cellSpid || '') : '';
     try {
       const r2 = await fetch(`/api/source-benefits/breakdown/${encodeURIComponent(sku)}/${srcId}?sale_price=${newPrice}${_spid ? '&source_product_id=' + encodeURIComponent(_spid) : ''}`);
       const bd = await r2.json();
       if (bd.ok) {
         smRenderFxPopBody(pop, bd, sku, srcId);
+        // [Fix B] px-main 도 colKey 로 좁혀서 올바른 분리 컬럼 셀의 가격만 갱신
         const td = [...document.querySelectorAll('td[data-cell-sku][data-cell-src]')]
-          .find(t => t.dataset.cellSku === sku && parseInt(t.dataset.cellSrc, 10) === srcId);
+          .find(t => t.dataset.cellSku === sku && parseInt(t.dataset.cellSrc, 10) === srcId
+                     && (!colKey || t.dataset.cellColKey === colKey));
         const pxMain = td && td.querySelector('.px-main');
         if (pxMain) pxMain.textContent = bd.final_price.toLocaleString('ko-KR');
         adjustFxPopPosition(pop);
@@ -4113,9 +4140,14 @@ table.ompk-tab th.corner{color:#b0b8c1;cursor:default}
         if (!j.ok) return;
         _normalizeSourceNames(j.sources);
         DATA = j; window.DATA = j;
+        // [Fix B] cellPrice 패치도 colKey 로 좁혀서 각 분리 컬럼이 자기 URL 가격만 업데이트
         document.querySelectorAll('td[data-cell-sku][data-cell-src]').forEach(td => {
           const _opt = (j.options || []).find(o => o.sku === td.dataset.cellSku);
-          const _src = _opt ? (_opt.sources || []).find(s => s.source_id === parseInt(td.dataset.cellSrc, 10)) : null;
+          const _tdColKey = td.dataset.cellColKey || null;
+          const _src = _opt ? (_opt.sources || []).find(s =>
+            s.source_id === parseInt(td.dataset.cellSrc, 10)
+            && (!_tdColKey || _colKeyOf(s) === _tdColKey)
+          ) : null;
           if (_src && _src.crawled_price != null) td.dataset.cellPrice = _src.crawled_price;
         });
       })
@@ -5728,30 +5760,34 @@ table.ompk-tab th.corner{color:#b0b8c1;cursor:default}
     // [2026-05-24] URL 미매핑 — 옵션 조합 생성 모달에서 매핑하므로 여기서는 "—" 표시만
     if (!src || !src.product_url) {
       // [2026-05-25] URL 미매핑 — "크롤링 미실시" 회색 글씨 (CSS ::before 의 ⚠ 는 위에서 제거됨)
-      return `<td class="td-site-col cn" data-cell-sku="${escapeHtml(o.sku)}" data-cell-src="${col.source_id}" style="text-align:center; padding:10px 4px; font-size:13px; color:#94A3B8; font-weight:500; white-space:nowrap;">크롤링 미실시</td>`;
+      // [Fix A] data-cell-col-key 추가 — 분리 컬럼 고유 식별
+      return `<td class="td-site-col cn" data-cell-sku="${escapeHtml(o.sku)}" data-cell-src="${col.source_id}" data-cell-col-key="${escapeHtml(col.colKey)}" style="text-align:center; padding:10px 4px; font-size:13px; color:#94A3B8; font-weight:500; white-space:nowrap;">크롤링 미실시</td>`;
     }
     // [2026-06-03 시안D] 소싱처 URL 열기 — 셀 우상단 ↗ (등록 URL 있으면 항상). 클릭=새 탭.
     const _corner = `<a class="src-corner" href="${escapeHtml(src.product_url)}" target="_blank" rel="noopener" title="${escapeHtml((src.source_name||'소싱처')+' 페이지 열기')}" onclick="event.stopPropagation()" style="position:absolute;top:1px;right:3px;font-size:12px;line-height:1;color:#3182F6;font-weight:800;text-decoration:none;z-index:3;padding:1px 3px;border-radius:3px;background:rgba(239,246,255,.9)">↗</a>`;
     // 크롤 실패 — [2026-06-03] 2행: 1행 '크롤 실패' / 2행 🔄 재크롤 버튼 (다른 셀과 동일 2단)
     if (src.last_status === 'error') {
-      return `<td class="td-site-col cf" data-cell-sku="${escapeHtml(o.sku)}" data-cell-src="${col.source_id}" style="position:relative;text-align:center;line-height:1.4">${_corner}<div style="color:#dc2626;font-size:12px;font-weight:600">크롤 실패</div><button type="button" class="btn-ico" data-refetch-sku="${escapeHtml(o.sku)}" data-refetch-src="${col.source_id}" title="다시 크롤" style="margin-top:4px;font-size:10.5px;font-weight:700;color:#dc2626;background:#FEF2F2;border:1px solid #fecaca;border-radius:6px;padding:2px 8px;cursor:pointer">🔄 재크롤</button></td>`;
+      // [Fix A] data-cell-col-key; [Fix E] data-refetch-bsu-id 추가 — 분리 컬럼 재크롤 정확화
+      return `<td class="td-site-col cf" data-cell-sku="${escapeHtml(o.sku)}" data-cell-src="${col.source_id}" data-cell-col-key="${escapeHtml(col.colKey)}" style="position:relative;text-align:center;line-height:1.4">${_corner}<div style="color:#dc2626;font-size:12px;font-weight:600">크롤 실패</div><button type="button" class="btn-ico" data-refetch-sku="${escapeHtml(o.sku)}" data-refetch-src="${col.source_id}" data-refetch-bsu-id="${src.bundle_source_url_id != null ? src.bundle_source_url_id : ''}" title="다시 크롤" style="margin-top:4px;font-size:10.5px;font-weight:700;color:#dc2626;background:#FEF2F2;border:1px solid #fecaca;border-radius:6px;padding:2px 8px;cursor:pointer">🔄 재크롤</button></td>`;
     }
     // 크롤 안됨 (대기 / 진행 중)
     if (!src.crawled_price || src.crawled_price <= 0) {
       if (src.last_status === 'running') {
-        return `<td class="td-site-col cr" data-cell-sku="${escapeHtml(o.sku)}" data-cell-src="${col.source_id}"><span class="sm-spin"></span></td>`;
+        // [Fix A] data-cell-col-key 추가
+        return `<td class="td-site-col cr" data-cell-sku="${escapeHtml(o.sku)}" data-cell-src="${col.source_id}" data-cell-col-key="${escapeHtml(col.colKey)}"><span class="sm-spin"></span></td>`;
       }
       // [2026-05-25] 크롤 미실행 — 회색 글씨로 명시 ("크롤링 미실시") + 시안D ↗ URL 열기
-      return `<td class="td-site-col cw" data-cell-sku="${escapeHtml(o.sku)}" data-cell-src="${col.source_id}" style="position:relative; text-align:center; padding:10px 4px; font-size:13px; color:#94A3B8; font-weight:500; white-space:nowrap;">${_corner}크롤링 미실시</td>`;
+      // [Fix A] data-cell-col-key 추가
+      return `<td class="td-site-col cw" data-cell-sku="${escapeHtml(o.sku)}" data-cell-src="${col.source_id}" data-cell-col-key="${escapeHtml(col.colKey)}" style="position:relative; text-align:center; padding:10px 4px; font-size:13px; color:#94A3B8; font-weight:500; white-space:nowrap;">${_corner}크롤링 미실시</td>`;
     }
     // 가격 있음 — breakdown 적용된 매입가 사용 ([2026-06-22 완전B] 채택된 src 의 후보별 키)
-    const bk = SM_BREAKDOWNS[`${o.sku}|${src.source_id}|${src.crawled_price}`]
-            || SM_BREAKDOWNS[`${o.sku}|${col.source_id}`];
+    // [Fix C] breakdown 키에 colKey 포함 → 같은 source_id 다른 URL 간 키충돌 방지
+    const bk = SM_BREAKDOWNS[`${o.sku}|${src.source_id}|${col.colKey}|${src.crawled_price}`]
+            || SM_BREAKDOWNS[`${o.sku}|${src.source_id}|${col.colKey}`];
     const finalPrice = (bk && typeof bk.final_price === 'number') ? bk.final_price : src.crawled_price;
     const hasBenefits = bk && bk.steps && bk.steps.length > 0;
-    // 최저가 여부 — _LOWEST_SRC_PER_OPT 는 source_id 단위로 저장됨
-    const lowestSrcId = _LOWEST_SRC_PER_OPT[o.sku];
-    const isLowest = col.source_id === lowestSrcId;
+    // [Fix D] 최저가 여부 — _LOWEST_SRC_PER_OPT 는 colKey 단위로 저장됨 (source_id → colKey 로 교체)
+    const isLowest = col.colKey === _LOWEST_SRC_PER_OPT[o.sku];
     const loCls = isLowest ? ' lo' : '';
     // C1 — hover tooltip (판매가 + 혜택 N + 절감액)
     const tipParts = [];
@@ -5774,7 +5810,8 @@ table.ompk-tab th.corner{color:#b0b8c1;cursor:default}
     const _go = `<a class="sc-go" href="${escapeHtml(src.product_url)}" target="_blank" rel="noopener" title="${escapeHtml((src.source_name||'소싱처')+' 페이지 열기')}" onclick="event.stopPropagation()">↗</a>`;
     const _fx = `<button type="button" class="cell-fx sc-fx" title="혜택 계산식 클릭">fx</button>`;
     const _lowTag = isLowest ? `<span class="sc-lowtag">최저</span>` : '';
-    return `<td class="td-site-col cd${loCls} has-c1-tip" data-cell-sku="${escapeHtml(o.sku)}" data-cell-src="${col.source_id}" data-cell-price="${src.crawled_price}" data-cell-spid="${src.source_product_id || ''}" style="position:relative;${_isOut ? 'opacity:.55;' : ''}"><div class="sc-mc${isLowest?' low':''}">${_lowTag}<span class="px-main">${finalPrice.toLocaleString('ko-KR')}${_won}</span>${_go}<span class="${stkCls}">${stkTxt}</span>${_fx}${tipHtml}</div></td>`;
+    // [Fix A] data-cell-col-key 추가; [Fix E] data-refetch-bsu-id 추가
+    return `<td class="td-site-col cd${loCls} has-c1-tip" data-cell-sku="${escapeHtml(o.sku)}" data-cell-src="${col.source_id}" data-cell-col-key="${escapeHtml(col.colKey)}" data-cell-price="${src.crawled_price}" data-cell-spid="${src.source_product_id || ''}" data-refetch-bsu-id="${src.bundle_source_url_id != null ? src.bundle_source_url_id : ''}" style="position:relative;${_isOut ? 'opacity:.55;' : ''}"><div class="sc-mc${isLowest?' low':''}">${_lowTag}<span class="px-main">${finalPrice.toLocaleString('ko-KR')}${_won}</span>${_go}<span class="${stkCls}">${stkTxt}</span>${_fx}${tipHtml}</div></td>`;
   }
 
   // Phase 6 — 최저가/절감 캐시 (renderSourceMatrix 가 채움)
@@ -6412,10 +6449,13 @@ table.ompk-tab th.corner{color:#b0b8c1;cursor:default}
         if (!btn || btn.disabled) return;
         const sku = btn.dataset.refetchSku;
         const srcId = btn.dataset.refetchSrc;
+        // [Fix E] data-refetch-bsu-id 가 있으면 bsu_id 쿼리파라미터로 전달 — 분리 컬럼의 정확한 URL 크롤
+        const bsuId = btn.dataset.refetchBsuId || '';
         btn.textContent = '⏳';
         btn.disabled = true;
         try {
-          const r = await fetch(`/api/options/${encodeURIComponent(sku)}/sources/${srcId}/refetch`, {
+          const _qs = bsuId ? `?bsu_id=${encodeURIComponent(bsuId)}` : '';
+          const r = await fetch(`/api/options/${encodeURIComponent(sku)}/sources/${srcId}/refetch${_qs}`, {
             method: 'POST',
           });
           const j = await r.json();

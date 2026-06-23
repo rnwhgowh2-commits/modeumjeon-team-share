@@ -1691,6 +1691,9 @@ def refetch_option_source(sku: str, src_id: int):
     """옵션의 특정 소싱처 URL 을 즉시 크롤 (SourceProduct 자동 등록 포함).
 
     대표 크롤 계정이 지정되면 → 해당 계정 프로필로 로그인 상태 크롤 (회원가).
+
+    [Fix E] 쿼리 파라미터 bsu_id(BundleSourceUrl.id)가 있으면 그 URL 만 크롤.
+            같은 소싱처에 URL 이 여러 개(분리 컬럼)일 때 올바른 URL 을 타겟팅한다.
     """
     from lemouton.sources.service import upsert_source_product, fetch_one_source
     from lemouton.sourcing.crawlers.lemouton import LemoutonCrawler
@@ -1699,11 +1702,30 @@ def refetch_option_source(sku: str, src_id: int):
     from lemouton.sourcing.crawlers.lotteon import LotteCrawler
     from lemouton.sourcing.crawlers.ss_lemouton import SsLemoutonCrawler
 
+    from flask import request as _req
+    bsu_id_raw = _req.args.get('bsu_id', '').strip()
+    bsu_id = int(bsu_id_raw) if bsu_id_raw.isdigit() else None
+
     s = SessionLocal()
     try:
-        link = (s.query(OptionSourceUrl)
-                .filter_by(canonical_sku=sku, source_id=src_id)
-                .first())
+        # [Fix E] bsu_id 있으면 BundleSourceUrl.url 로 특정 URL 을 찾아 OptionSourceUrl 에서 매칭.
+        #         없으면 기존 동작(.first()) 유지 — 하위호환.
+        if bsu_id is not None:
+            from lemouton.sourcing.models import BundleSourceUrl
+            bsu = s.get(BundleSourceUrl, bsu_id)
+            target_url = bsu.url if bsu else None
+            if target_url:
+                link = (s.query(OptionSourceUrl)
+                        .filter_by(canonical_sku=sku, source_id=src_id, product_url=target_url)
+                        .first())
+            else:
+                link = (s.query(OptionSourceUrl)
+                        .filter_by(canonical_sku=sku, source_id=src_id)
+                        .first())
+        else:
+            link = (s.query(OptionSourceUrl)
+                    .filter_by(canonical_sku=sku, source_id=src_id)
+                    .first())
         if not link or not link.product_url:
             return _err('소싱처 URL 매핑을 찾을 수 없어요.', 404)
         site = _detect_site_from_url(link.product_url)
