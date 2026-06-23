@@ -1221,7 +1221,7 @@
           if (!list || !list.length) return null;
           // [2026-06-22 완전B] 표면가가 아니라 최종매입가(__cmtxCellPrice) 기준으로 대표 선택.
           // [Task 3] colKey 전달 — _srcEntriesForCol 로 이미 단일 URL 필터된 리스트라 colKey 안전.
-          const _fin = s => (typeof window.__cmtxCellPrice === 'function') ? window.__cmtxCellPrice(sku, s.source_id, s.crawled_price, _colKeyOf(s)) : (s.crawled_price || 9e15);
+          const _fin = s => (typeof window.__cmtxCellPrice === 'function') ? window.__cmtxCellPrice(sku, s.source_id, s.crawled_price, window._colKeyOf(s)) : (s.crawled_price || 9e15);
           const cheapest = arr => arr.reduce((a, b) => (_fin(b) < _fin(a) ? b : a));
           const good = list.filter(s => s.product_url && s.last_status !== 'error' && !s.stock_out && s.crawled_price > 0);
           if (good.length) return cheapest(good);
@@ -5753,7 +5753,13 @@ table.ompk-tab th.corner{color:#b0b8c1;cursor:default}
     //   같은 소싱처에 단품/모음전 처럼 후보가 여럿이고 '표면은 비싼데 혜택커서 매입가는 더 싼'
     //   경우에도 룰(재고 O + 최종매입가 최저)대로 고른다. breakdown 없으면 표면가로 폴백.
     const _fin = s => {
-      const bk = sku ? (SM_BREAKDOWNS[`${sku}|${s.source_id}|${s.crawled_price}`] || SM_BREAKDOWNS[`${sku}|${s.source_id}`]) : null;
+      const _ck = (typeof window._colKeyOf === 'function') ? window._colKeyOf(s) : null;
+      const bk = sku ? (
+        (_ck && SM_BREAKDOWNS[`${sku}|${s.source_id}|${_ck}|${s.crawled_price}`])
+        || (_ck && SM_BREAKDOWNS[`${sku}|${s.source_id}|${_ck}`])
+        || SM_BREAKDOWNS[`${sku}|${s.source_id}|${s.crawled_price}`]
+        || SM_BREAKDOWNS[`${sku}|${s.source_id}`]
+      ) : null;
       return (bk && typeof bk.final_price === 'number') ? bk.final_price : (s.crawled_price || 9e15);
     };
     const _cheapest = arr => arr.reduce((a, b) => (_fin(b) < _fin(a) ? b : a));

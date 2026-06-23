@@ -115,7 +115,7 @@
   function labelForUrl(sk, url, b) {
     // (A) window.DATA 매핑
     var map = _buildUrlLabelMap();
-    if (map && map[url]) return map[map[url].name != null ? url : url].name;
+    if (map && map[url]) return map[url].name;
     // (B) fallback: SOURCE_LABELS[sk] + url 순서 번호
     if (!b.urlOrder) b.urlOrder = {};
     if (!b.urlOrder[sk]) b.urlOrder[sk] = [];
@@ -185,30 +185,6 @@
   function resetUrlState(b) {
     b.urlOrder = {};
     _urlLabelCache = null; _urlLabelCacheKey = '';
-  }
-
-  // [2026-06-23 Task 4] URL 라벨 단일 소싱처 판정(DATA 기준 → 1개면 suffix 없음)
-  function isSingleUrlSource(sk) {
-    try {
-      var map = _buildUrlLabelMap();
-      if (!map) return true;  // DATA 없으면 단일 취급(나중에 fallback)
-      var count = 0;
-      var D = window.DATA;
-      if (!D || !Array.isArray(D.options)) return true;
-      if (typeof window.deriveSourceColumns !== 'function') return true;
-      var cols = window.deriveSourceColumns(D);
-      cols.forEach(function (col) { if (col.source_name === SOURCE_LABELS[sk] || col.colKey) count++; });
-      // source_id 기준: cols 에서 같은 source 이름이 1개면 단일
-      var srcCols = cols.filter(function (col) {
-        var D2 = window.DATA;
-        var src = (D2 && D2.sources || []).find(function (s) { return s.id === col.source_id; });
-        if (!src) return false;
-        // source_key 와 SOURCE_LABELS 매핑으로 sk 일치 판정
-        return (SOURCE_LABELS[sk] && src.name && src.name === SOURCE_LABELS[sk]) ||
-               (src.source_key === sk) || (src.name === sk);
-      });
-      return srcCols.length <= 1;
-    } catch (_) { return true; }
   }
 
   // [2026-06-23 Task 4] URL 카드 라벨 캐시 초기화 (start 이벤트에서 호출)
