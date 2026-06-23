@@ -226,3 +226,26 @@ def test_apply_checklist_updates_safe():
     assert by["collect_price"] == "pass"
     assert by["stock_qty"] == "pending"     # 잘못된 status 무시
     assert "UNKNOWN" not in by              # 모르는 key 무시
+
+
+# ─────────────────────────────────────────────────────────────
+# Task 1a-2: 혜택 value_source(fixed/crawl) + 혜택별 excludes/exclude_match
+# ─────────────────────────────────────────────────────────────
+def test_benefit_value_source_and_excludes():
+    from lemouton.sourcing import crawl_guide as cg
+    g = cg.validate_guide({"version": 3, "pricing": {"benefits": [
+        {"name": "등급적립", "apply": "accrue", "status": "conditional", "value_source": "crawl",
+         "excludes": ["불가", " "], "exclude_match": "all", "triggers": ["적립"], "match": "any"},
+        {"name": "현대카드", "apply": "deduct", "status": "conditional", "value_source": "fixed", "value": 2.73},
+        {"name": "레거시", "apply": "deduct", "status": "always"},   # value_source 키 없음 → fixed 기본
+    ]}})
+    b = {x["name"]: x for x in g["pricing"]["benefits"]}
+    # 크롤값+조건부 보존
+    assert b["등급적립"]["value_source"] == "crawl"
+    assert b["등급적립"]["excludes"] == ["불가"] and b["등급적립"]["exclude_match"] == "all"
+    assert b["등급적립"]["status"] == "conditional"
+    # 고정값 → status 강제 always (조건부 불가)
+    assert b["현대카드"]["value_source"] == "fixed" and b["현대카드"]["status"] == "always"
+    # 레거시(키 없음) → fixed + 빈 excludes + exclude_match any
+    assert b["레거시"]["value_source"] == "fixed"
+    assert b["레거시"]["excludes"] == [] and b["레거시"]["exclude_match"] == "any"

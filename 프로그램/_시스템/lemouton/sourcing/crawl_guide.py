@@ -22,6 +22,8 @@ FIELD_AUTH = {"open", "auth"}
 BENEFIT_APPLY = {"preapplied", "deduct", "accrue", "payment", "cashback"}
 BENEFIT_STATUSES = {"always", "conditional", "optional", "planned"}
 BENEFIT_COLLECTION = {"per_product", "uniform"}
+# 혜택 값 출처: fixed=사용자 직접 입력(고정) / crawl=상품별 크롤 수집(동적)
+BENEFIT_VALUE_SOURCE = {"fixed", "crawl"}
 
 # 혜택 모아보기 속성 (드롭다운) — 값은 표시 문자열 그대로 저장(화이트리스트)
 BENEFIT_METHODS = {"정률(%)", "정액(원)", "정액·정률", "적립(%→원)", "고정액", "옵션(개월)", "-"}
@@ -300,10 +302,23 @@ def validate_guide(data: dict) -> dict:
         # 혜택 '값' — 화면의 숫자 입력칸(시안 B). 단위는 method 가 결정(정률→%, 정액→원).
         #   인간 입력값 그대로 보존(15 = 15%, 5000 = 5,000원). None=미입력.
         value = _num_or_none(b.get("value"))
+        # ── 2축 값 출처 + 제외 키워드 (Task 1a-2) ──────────────────────────────
+        # value_source: 혜택 값이 어디서 오는가.
+        #   "crawl" = 상품마다 크롤로 수집(동적·조건부 가능)
+        #   "fixed" = 사용자가 직접 입력한 고정값 → 조건부 판단 불가 → status 강제 always
+        value_source = "crawl" if b.get("value_source") == "crawl" else "fixed"
+        # excludes: 혜택 제외 키워드(포함 triggers 와 대칭). 공백 전용 문자열 자동 제거.
+        excludes = _strlist(b.get("excludes"))
+        # exclude_match: any=하나라도 매칭 시 제외 / all=모두 매칭 시 제외
+        exclude_match = "all" if b.get("exclude_match") == "all" else "any"
+        # 고정값 혜택은 조건부 판단 불가 → status 를 always 로 강제
+        if value_source == "fixed":
+            status = "always"
         clean_benefits.append({
             "name": name, "apply": apply, "rule": rule, "status": status,
             "method": method, "base": base, "freq": freq, "triggers": triggers,
             "match": match, "value": value,
+            "value_source": value_source, "excludes": excludes, "exclude_match": exclude_match,
         })
     out["pricing"] = {
         "base_label": str(pricing.get("base_label", "표면 노출가")),
