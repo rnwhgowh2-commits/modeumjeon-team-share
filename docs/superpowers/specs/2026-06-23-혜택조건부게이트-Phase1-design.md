@@ -32,12 +32,21 @@
 
 저장 = 기존 `PUT /sourcing-guide/api/<sid>`(detail.js) 재사용. 읽기전용 요약표·URL·검증은 유지. "모든 모음전 따라쓰기"(aa-btn)도 복원.
 
-### 1a-3. 스키마 — 혜택별 제외 추가
+### 1a-2b. ⭐ 2축 모델 (값 출처 + 적용) — 최종 디자인 v3 확정
+혜택 카드 = **표 방식 6컬럼 정렬**(`혜택명 · 값 출처 · 값 · 유형 · 적용 · 삭제`, 헤더행). 두 축:
+- **값 출처(`value_source`)**: `fixed`(고정값=내가 입력) / `crawl`(크롤값=상품마다 크롤로). 고정값=숫자 입력칸 / 크롤값="크롤값 ⟳" 박스(동일 너비·높이, 폰트 Pretendard 통일).
+- **적용(`status`)**: `고정값 → 상시(always) 고정`(조건부 토글 없음, "✓ 상시" 표기) / `크롤값 → 상시 또는 조건부`(조건부 토글 등장).
+- 조건부 ON → 시안2(적용 초록·제외 빨강 2열, 하나라도/모두) 펼침.
+- 3조합: ①고정값(상시) ②크롤값+상시 ③크롤값+조건부.
+
+### 1a-3. 스키마 — value_source + 혜택별 제외 추가
 `lemouton/sourcing/crawl_guide.py`:
-- `BENEFIT_MATCH = {"any","all"}` 재사용.
-- `validate_guide`의 `clean_benefits.append`(:303)에 추가: `"excludes": _strlist(b.get("excludes")), "exclude_match": ("all" if b.get("exclude_match")=="all" else "any")`.
-- `empty_skeleton` benefit 기본에도 동일 키(빈 리스트/"any").
-- 기존 `triggers`/`match` 유지. 공통 `exclude_keywords`(소싱처 레벨)는 보존하되 UI에선 숨김(하위호환; 게이트는 둘 다 적용).
+- 신규 `BENEFIT_VALUE_SOURCE = {"fixed","crawl"}`. `BENEFIT_MATCH = {"any","all"}` 재사용.
+- `validate_guide`의 `clean_benefits.append`(:303)에 추가:
+  - `"value_source": ("crawl" if b.get("value_source")=="crawl" else "fixed")` — **기존 혜택 기본 'fixed'**(입력값 보존).
+  - `"excludes": _strlist(b.get("excludes")), "exclude_match": ("all" if b.get("exclude_match")=="all" else "any")`.
+- 강제 규칙(정합): `value_source=='fixed'`이면 `status` 강제 `'always'`(고정값은 조건부 불가). `value_source=='crawl'`만 conditional 허용.
+- `empty_skeleton` benefit 기본에 동일 키. 기존 `triggers`/`match` 유지. 공통 `exclude_keywords`(소싱처 레벨)는 보존·UI 숨김(게이트는 둘 다 적용).
 
 ### 1a-4. ⭐ 기존 혜택 보존 = 상시 적용 (사용자 안전 요구 2026-06-23)
 사용자가 이미 URL 조사로 정리해둔 **기존 혜택들은 전부 "상시 적용(status='always', 조건없음)"으로 보존**한다. 마이그레이션/저장 시:
@@ -85,9 +94,19 @@ if _site_for == 'musinsa':
 - `_load_guide_benefits`: `SourceRegistry`에서 crawl_guide 로드, `pricing.benefits`(status='conditional'인 것의 triggers/excludes/match) + `exclude_keywords` 반환. `_cache`에 소싱처별 캐싱.
 - **무신사 외 소싱처는 게이트 미적용**(현행 유지) — Phase 2.
 
-### 1b-4. ⚠️ 금전 검증 (필수)
-- 유닛: gate(혜택별 excludes) 통과/veto 케이스.
-- 라이브: 무신사 한 혜택에 조건부(적용 "후기" / 제외 "불가") 설정 → "후기" 있는 상품엔 적용·"불가" 있는 상품엔 미적용 → **최종매입가가 조건대로 달라지는지** 영수증 단계 실대조. status=always 혜택은 영향 0 확인. 폴백가 안 뜸.
+### 1b-3b. ⭐ 크롤값 배선 — "값=크롤" 혜택이 실제 크롤값을 끌어씀 (무신사)
+`value_source=='crawl'` 혜택은 편집기의 고정값 대신 **상품마다 크롤된 동적값**(`dynamic_benefits_json`)을 써야 한다. `compute_breakdown`에서:
+- 카탈로그 혜택명 → 무신사 동적 키 매핑(예: "회원 등급 적립"→`grade_reward_amount`, "무신사 머니"→`money_reward_amount`, "등급 할인"→`grade_discount_amount`, "쿠폰"→`coupon_amount`). 매핑표는 코드 상수(무신사 한정, Phase 2서 소싱처별 확장).
+- 매핑된 동적값이 있으면 그 값으로 차감, 없으면 미적용(폴백가 금지 — 고정값으로 대체 안 함).
+- ⚠️ 기존 하드코딩 무신사 동적주입(api_benefits.py:774~796)과 **중복 차감 방지** — 카탈로그 크롤값 혜택이 하드코딩과 같은 항목이면 하나만(카탈로그 우선 또는 하드코딩 우선) 정책 명시. 검증서 실측 대조 필수.
+- 이름 매칭 실패 시 로그/경고(조용한 실패 금지).
+
+### 1b-4. ⚠️ 금전 검증 + 동적 크롤 시연 (필수 — 사용자 요구)
+- **유닛**: gate(혜택별 excludes) 통과/veto, value_source=='fixed'→status 강제 always.
+- **라이브 시연 ①(동적 크롤값)**: 무신사 한 혜택을 "크롤값"으로 설정 → 서로 다른 두 상품의 영수증에서 **그 혜택 값이 상품마다 다른(크롤된) 값으로** 차감되는지 실대조. 고정값 혜택은 입력값 그대로.
+- **라이브 시연 ②(조건부 게이트)**: 무신사 한 크롤값 혜택에 조건부(적용 "후기"/제외 "불가") → "후기" 있는 상품엔 적용·"불가" 있는 상품엔 미적용 → **최종매입가가 조건대로 달라지는지** 영수증 단계 실대조.
+- **불변 확인**: status=always(고정값 포함) 혜택은 영향 0. 폴백가 안 뜸. 이중 차감 없음.
+- dev DB 불신 → 라이브(무신사 실상품) 대조.
 
 ---
 
