@@ -72,6 +72,26 @@ def line_excluded(line: str, exclude_rules: list[dict]) -> Optional[dict]:
 
 
 # ────────────────────────────────────────────────────────────────────────────
+# 혜택별 제외 (per-benefit excludes / exclude_match)
+# ────────────────────────────────────────────────────────────────────────────
+
+def line_excluded_by_benefit(line: str, excludes: list[str], exclude_match: str) -> bool:
+    """한 라인이 혜택 자체의 excludes 키워드 목록에 걸리는가.
+
+    - excludes 가 비면: 제외 안 함 → False.
+    - exclude_match == 'all': 모든 키워드가 라인에 있어야 제외.
+    - 그 외('any' 또는 기타): 키워드 중 1개 이상이 라인에 있으면 제외.
+    """
+    line = line or ""
+    kws = [k for k in (excludes or []) if k]
+    if not kws:
+        return False
+    if exclude_match == "all":
+        return all(k in line for k in kws)
+    return any(k in line for k in kws)
+
+
+# ────────────────────────────────────────────────────────────────────────────
 # 게이트 — 혜택별 적용 판정
 # ────────────────────────────────────────────────────────────────────────────
 
@@ -86,6 +106,8 @@ def gate_benefit(benefit: dict, benefit_lines: list[str],
     name = benefit.get("name", "")
     triggers = benefit.get("triggers") or []
     match = benefit.get("match") or "any"
+    b_excludes = benefit.get("excludes") or []
+    b_exmatch = benefit.get("exclude_match") or "any"
 
     matched, excluded = [], []
     for line in (benefit_lines or []):
@@ -94,6 +116,8 @@ def gate_benefit(benefit: dict, benefit_lines: list[str],
         hit = line_excluded(line, exclude_rules)
         if hit is not None:
             excluded.append({"line": line, "rule_word": hit.get("word")})
+        elif line_excluded_by_benefit(line, b_excludes, b_exmatch):
+            excluded.append({"line": line, "rule_word": f"[benefit] {b_excludes}"})
         else:
             matched.append(line)
 
