@@ -1756,6 +1756,53 @@
   window.reloadMatrix = loadMatrix;
   window.loadMatrix   = loadMatrix;   // docs/memory 에서 이 이름을 참조
 
+  // ── [Task 2] deriveSourceColumns / _srcEntriesForCol ─────────────
+  // 소싱처 컬럼 = (source_id × URL) 파생. 0URL 소싱처 제외(F1), 다중URL 분리(F2).
+  function deriveSourceColumns(DATA){
+    const opts = (DATA && DATA.options) || [];
+    const reg = (DATA && DATA.sources) || [];
+    const orderOf = {}; reg.forEach((s,i)=>{ orderOf[s.id] = (s.sort_order!=null?s.sort_order:i); });
+    const seen = new Map();
+    opts.forEach(o => (o.sources||[]).forEach(s => {
+      if (s.source_id == null) return;
+      const colKey = (s.bundle_source_url_id != null) ? ('b'+s.bundle_source_url_id) : ('u'+(s.product_url||''));
+      const k = s.source_id + '|' + colKey;
+      if (!seen.has(k)) seen.set(k, {
+        source_id: s.source_id, colKey,
+        source_name: s.source_name || s.name || '',
+        bsu_id: (s.bundle_source_url_id!=null? s.bundle_source_url_id : null),
+        url_label: s.label || s.url_type || '',
+        url_sort: (s.sort_order!=null? s.sort_order : (s.bundle_source_url_id!=null? s.bundle_source_url_id : 0)),
+      });
+    }));
+    const bySrc = {};
+    seen.forEach(c => { (bySrc[c.source_id] = bySrc[c.source_id]||[]).push(c); });
+    const cols = [];
+    Object.keys(bySrc)
+      .sort((a,b)=> ((orderOf[a]==null?999:orderOf[a])-(orderOf[b]==null?999:orderOf[b])) || (a-b))
+      .forEach(sid => {
+        const arr = bySrc[sid].sort((x,y)=> (x.url_sort-y.url_sort) || String(x.colKey).localeCompare(String(y.colKey)));
+        const total = arr.length;
+        arr.forEach((c,i)=>{
+          c.idx = i+1; c.total = total;
+          c.name = (total<=1) ? c.source_name
+                              : (c.source_name + '(' + (i+1) + ')' + (c.url_label? ' '+c.url_label : ''));
+          cols.push(c);
+        });
+      });
+    return cols;
+  }
+  window.deriveSourceColumns = deriveSourceColumns;
+
+  // 한 컬럼(소싱처×URL)에 해당하는 옵션 소싱처 항목 필터
+  function _srcEntriesForCol(o, col){
+    return (o.sources||[]).filter(x =>
+      x.source_id === col.source_id &&
+      (((x.bundle_source_url_id!=null)?('b'+x.bundle_source_url_id):('u'+(x.product_url||''))) === col.colKey)
+    );
+  }
+  window._srcEntriesForCol = _srcEntriesForCol;
+
   // ── B: 크롤 완료 시 매트릭스 자동 갱신 ─────────────────────────
   //   ext_bridge.js / crawl_log.js 가 'moum-crawl-log' 이벤트를 window 에 방출.
   //   finish 이벤트: { type:'finish', bundle:<code>, stopped:<bool>, ... }
@@ -5585,37 +5632,39 @@ table.ompk-tab th.corner{color:#b0b8c1;cursor:default}
   }
 
   // Phase 6 — 사이트 칼럼 thead 동적 갱신 (mini ring + 사이트명 + 분수)
-  function renderSiteColsInThead(sources) {
+  // [Task 2] 인수를 cols (deriveSourceColumns 결과) 로 변경 — 소싱처×URL 단위 칼럼
+  function renderSiteColsInThead(cols) {
     const headRow = document.getElementById('price-matrix-thead-row');
     if (!headRow) return;
     // 이미 추가된 사이트 th 제거
     headRow.querySelectorAll('th.th-site-col').forEach(th => th.remove());
-    if (!sources.length) return;
+    if (!cols.length) return;
     const opts = DATA.options || [];
-    // 사이트별 진행 (URL 등록 / 크롤 완료)
-    sources.forEach(s => {
+    // 컬럼별 진행 (URL 등록 / 크롤 완료) — 해당 colKey 의 소싱처 항목만 집계
+    cols.forEach(col => {
       let urls = 0, done = 0, running = 0;
       opts.forEach(o => {
-        const src = (o.sources || []).find(x => x.source_id === s.id);
-        if (!src) return;
-        if (src.product_url) urls++;
-        if (src.crawled_price && src.crawled_price > 0) done++;
-        else if (src.last_status === 'running') running++;
+        const entries = _srcEntriesForCol(o, col);
+        entries.forEach(src => {
+          if (src.product_url) urls++;
+          if (src.crawled_price && src.crawled_price > 0) done++;
+          else if (src.last_status === 'running') running++;
+        });
       });
       const totalOpts = opts.length;
       const isPartial = urls < totalOpts;
       const isDone = urls > 0 && done === urls;
       const pct = urls ? Math.round((done / urls) * 100) : 0;
-      const bp = brandPrefixForSource(s.name);
       const stateCls = isDone ? 'done' : 'run';
       const urlwCls = isPartial ? ' urlw' : '';
       const running_flag = (!isDone && running > 0) ? ' ⏳' : '';
       const th = document.createElement('th');
       th.className = `th-site-col ${stateCls}${urlwCls}`;
-      th.dataset.siteId = s.id;
+      th.dataset.siteId = col.source_id;
+      th.dataset.colKey = col.colKey;
       // [2026-05-24] 소싱처 헤더 정리 — 로고(두글자+색) + 이름만 가운데, URL 정보·진행 ring 제거
       // 약식 로고: 한글 앞 2자 / 영문 앞 2자 소문자
-      const sName = s.name || '?';
+      const sName = col.name || '?';
       const isAscii = sName.charAt(0).match(/[a-zA-Z]/);
       const abbr = isAscii
         ? sName.replace(/[^a-zA-Z0-9]/g, '').slice(0, 2).toLowerCase()
@@ -5631,7 +5680,7 @@ table.ompk-tab th.corner{color:#b0b8c1;cursor:default}
       const _logoBrandKey = brandClass(sName).replace(/^brand-/, '');
       th.innerHTML = `
         <div class="hsrc-top" style="display:flex; flex-direction:column; align-items:center; gap:6px; padding:8px 4px;">
-          <span class="site-logo ${_logoBrandKey}" title="${escapeHtml(sName)} (클릭해서 색·글자 변경)" data-src-logo-id="${s.id}"
+          <span class="site-logo ${_logoBrandKey}" title="${escapeHtml(sName)} (클릭해서 색·글자 변경)" data-src-logo-id="${col.source_id}"
                 style="width:36px; height:36px; border-radius:8px; background:${logoColor}; color:#fff; display:inline-flex; align-items:center; justify-content:center; font-weight:800; font-size:13px; letter-spacing:.3px; cursor:pointer;">${escapeHtml(abbr)}</span>
           <span class="hsrc-nm" style="font-size:13px; font-weight:700; text-align:center;">${escapeHtml(sName)}</span>
         </div>
@@ -5671,35 +5720,38 @@ table.ompk-tab th.corner{color:#b0b8c1;cursor:default}
   }
 
   // Phase 6 — 한 옵션 × 한 사이트 셀 (4색 상태 + ★최저 + fx + breakdown)
-  function renderSiteCell(o, s) {
-    const src = _pickBestSrc((o.sources || []).filter(x => x.source_id === s.id), o.sku);
+  // [Task 2] 인수 s → col (deriveSourceColumns 컬럼 객체).
+  //   col.source_id = 소싱처 ID (구 s.id), col.name = 표시명, col.colKey = URL 구분키.
+  //   data-cell-src / data-refetch-src 는 여전히 source_id(숫자) — fx 핸들러·refetch API 호환 유지.
+  function renderSiteCell(o, col) {
+    const src = _pickBestSrc(_srcEntriesForCol(o, col), o.sku);
     // [2026-05-24] URL 미매핑 — 옵션 조합 생성 모달에서 매핑하므로 여기서는 "—" 표시만
     if (!src || !src.product_url) {
       // [2026-05-25] URL 미매핑 — "크롤링 미실시" 회색 글씨 (CSS ::before 의 ⚠ 는 위에서 제거됨)
-      return `<td class="td-site-col cn" data-cell-sku="${escapeHtml(o.sku)}" data-cell-src="${s.id}" style="text-align:center; padding:10px 4px; font-size:13px; color:#94A3B8; font-weight:500; white-space:nowrap;">크롤링 미실시</td>`;
+      return `<td class="td-site-col cn" data-cell-sku="${escapeHtml(o.sku)}" data-cell-src="${col.source_id}" style="text-align:center; padding:10px 4px; font-size:13px; color:#94A3B8; font-weight:500; white-space:nowrap;">크롤링 미실시</td>`;
     }
     // [2026-06-03 시안D] 소싱처 URL 열기 — 셀 우상단 ↗ (등록 URL 있으면 항상). 클릭=새 탭.
     const _corner = `<a class="src-corner" href="${escapeHtml(src.product_url)}" target="_blank" rel="noopener" title="${escapeHtml((src.source_name||'소싱처')+' 페이지 열기')}" onclick="event.stopPropagation()" style="position:absolute;top:1px;right:3px;font-size:12px;line-height:1;color:#3182F6;font-weight:800;text-decoration:none;z-index:3;padding:1px 3px;border-radius:3px;background:rgba(239,246,255,.9)">↗</a>`;
     // 크롤 실패 — [2026-06-03] 2행: 1행 '크롤 실패' / 2행 🔄 재크롤 버튼 (다른 셀과 동일 2단)
     if (src.last_status === 'error') {
-      return `<td class="td-site-col cf" data-cell-sku="${escapeHtml(o.sku)}" data-cell-src="${s.id}" style="position:relative;text-align:center;line-height:1.4">${_corner}<div style="color:#dc2626;font-size:12px;font-weight:600">크롤 실패</div><button type="button" class="btn-ico" data-refetch-sku="${escapeHtml(o.sku)}" data-refetch-src="${s.id}" title="다시 크롤" style="margin-top:4px;font-size:10.5px;font-weight:700;color:#dc2626;background:#FEF2F2;border:1px solid #fecaca;border-radius:6px;padding:2px 8px;cursor:pointer">🔄 재크롤</button></td>`;
+      return `<td class="td-site-col cf" data-cell-sku="${escapeHtml(o.sku)}" data-cell-src="${col.source_id}" style="position:relative;text-align:center;line-height:1.4">${_corner}<div style="color:#dc2626;font-size:12px;font-weight:600">크롤 실패</div><button type="button" class="btn-ico" data-refetch-sku="${escapeHtml(o.sku)}" data-refetch-src="${col.source_id}" title="다시 크롤" style="margin-top:4px;font-size:10.5px;font-weight:700;color:#dc2626;background:#FEF2F2;border:1px solid #fecaca;border-radius:6px;padding:2px 8px;cursor:pointer">🔄 재크롤</button></td>`;
     }
     // 크롤 안됨 (대기 / 진행 중)
     if (!src.crawled_price || src.crawled_price <= 0) {
       if (src.last_status === 'running') {
-        return `<td class="td-site-col cr" data-cell-sku="${escapeHtml(o.sku)}" data-cell-src="${s.id}"><span class="sm-spin"></span></td>`;
+        return `<td class="td-site-col cr" data-cell-sku="${escapeHtml(o.sku)}" data-cell-src="${col.source_id}"><span class="sm-spin"></span></td>`;
       }
       // [2026-05-25] 크롤 미실행 — 회색 글씨로 명시 ("크롤링 미실시") + 시안D ↗ URL 열기
-      return `<td class="td-site-col cw" data-cell-sku="${escapeHtml(o.sku)}" data-cell-src="${s.id}" style="position:relative; text-align:center; padding:10px 4px; font-size:13px; color:#94A3B8; font-weight:500; white-space:nowrap;">${_corner}크롤링 미실시</td>`;
+      return `<td class="td-site-col cw" data-cell-sku="${escapeHtml(o.sku)}" data-cell-src="${col.source_id}" style="position:relative; text-align:center; padding:10px 4px; font-size:13px; color:#94A3B8; font-weight:500; white-space:nowrap;">${_corner}크롤링 미실시</td>`;
     }
     // 가격 있음 — breakdown 적용된 매입가 사용 ([2026-06-22 완전B] 채택된 src 의 후보별 키)
     const bk = SM_BREAKDOWNS[`${o.sku}|${src.source_id}|${src.crawled_price}`]
-            || SM_BREAKDOWNS[`${o.sku}|${s.id}`];
+            || SM_BREAKDOWNS[`${o.sku}|${col.source_id}`];
     const finalPrice = (bk && typeof bk.final_price === 'number') ? bk.final_price : src.crawled_price;
     const hasBenefits = bk && bk.steps && bk.steps.length > 0;
-    // 최저가 여부
+    // 최저가 여부 — _LOWEST_SRC_PER_OPT 는 source_id 단위로 저장됨
     const lowestSrcId = _LOWEST_SRC_PER_OPT[o.sku];
-    const isLowest = s.id === lowestSrcId;
+    const isLowest = col.source_id === lowestSrcId;
     const loCls = isLowest ? ' lo' : '';
     // C1 — hover tooltip (판매가 + 혜택 N + 절감액)
     const tipParts = [];
@@ -5722,7 +5774,7 @@ table.ompk-tab th.corner{color:#b0b8c1;cursor:default}
     const _go = `<a class="sc-go" href="${escapeHtml(src.product_url)}" target="_blank" rel="noopener" title="${escapeHtml((src.source_name||'소싱처')+' 페이지 열기')}" onclick="event.stopPropagation()">↗</a>`;
     const _fx = `<button type="button" class="cell-fx sc-fx" title="혜택 계산식 클릭">fx</button>`;
     const _lowTag = isLowest ? `<span class="sc-lowtag">최저</span>` : '';
-    return `<td class="td-site-col cd${loCls} has-c1-tip" data-cell-sku="${escapeHtml(o.sku)}" data-cell-src="${s.id}" data-cell-price="${src.crawled_price}" data-cell-spid="${src.source_product_id || ''}" style="position:relative;${_isOut ? 'opacity:.55;' : ''}"><div class="sc-mc${isLowest?' low':''}">${_lowTag}<span class="px-main">${finalPrice.toLocaleString('ko-KR')}${_won}</span>${_go}<span class="${stkCls}">${stkTxt}</span>${_fx}${tipHtml}</div></td>`;
+    return `<td class="td-site-col cd${loCls} has-c1-tip" data-cell-sku="${escapeHtml(o.sku)}" data-cell-src="${col.source_id}" data-cell-price="${src.crawled_price}" data-cell-spid="${src.source_product_id || ''}" style="position:relative;${_isOut ? 'opacity:.55;' : ''}"><div class="sc-mc${isLowest?' low':''}">${_lowTag}<span class="px-main">${finalPrice.toLocaleString('ko-KR')}${_won}</span>${_go}<span class="${stkCls}">${stkTxt}</span>${_fx}${tipHtml}</div></td>`;
   }
 
   // Phase 6 — 최저가/절감 캐시 (renderSourceMatrix 가 채움)
@@ -5732,11 +5784,12 @@ table.ompk-tab th.corner{color:#b0b8c1;cursor:default}
   function renderPriceMatrix() {
     const body = document.getElementById('price-matrix-body');
     // Phase 6 — 통합 매트릭스 사이트 칼럼 동적 생성
-    const sources = (DATA && DATA.sources) || [];
+    // [Task 2] DATA.sources(전체 등록) → deriveSourceColumns(실제 등장 소싱처×URL 단위)
+    const cols = deriveSourceColumns(DATA);
     const baseColCount = 5; // v23 — 체크 + 옵션 + 자동 + 판매가 + 재고 (모델 열 삭제)
-    const totalCols = baseColCount + sources.length;
-    // 1) thead 사이트 칼럼 (DATA.sources 기반)
-    renderSiteColsInThead(sources);
+    const totalCols = baseColCount + cols.length;
+    // 1) thead 사이트 칼럼 (소싱처×URL 단위 cols 기반)
+    renderSiteColsInThead(cols);
     if (!DATA.options.length) { body.innerHTML = `<tr><td colspan="${totalCols}" style="padding:24px;text-align:center;color:var(--n500)">옵션이 없어요.</td></tr>`; return; }
     let html = '';
     let lastColor = null;
@@ -5757,8 +5810,8 @@ table.ompk-tab th.corner{color:#b0b8c1;cursor:default}
       const fxBtn = o.auto_enabled
         ? `<button class="btn-formula" data-expand="${o.sku}" title="자동계산 산출과정 (fx)" style="padding:3px 8px;font-size: 12px;background:#F3E8FF;color:#7C3AED;border:none;border-radius:4px;cursor:pointer;font-weight:700;margin-left:4px">fx</button>`
         : '';
-      // Phase 6 — 사이트별 셀 (renderSourcesCell 대신 직접 td 생성)
-      const siteCells = sources.map(s => renderSiteCell(o, s)).join('');
+      // Phase 6 — 사이트별 셀 (소싱처×URL 단위 cols 기반)
+      const siteCells = cols.map(col => renderSiteCell(o, col)).join('');
       html += `<tr data-price-row="${o.sku}" data-sku="${o.sku}" data-model="${o.model_code || ''}" data-color-row-key="${o.color_code}" ${checked ? 'class="selected"':''}>
         <td><input type="checkbox" data-price-check="${o.sku}" ${checked ? 'checked':''}></td>
         <td class="mono opt-cell">${optLabelHtml(o)}</td>
