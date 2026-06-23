@@ -1220,7 +1220,8 @@
         function pickBest(list, sku){
           if (!list || !list.length) return null;
           // [2026-06-22 완전B] 표면가가 아니라 최종매입가(__cmtxCellPrice) 기준으로 대표 선택.
-          const _fin = s => (typeof window.__cmtxCellPrice === 'function') ? window.__cmtxCellPrice(sku, s.source_id, s.crawled_price) : (s.crawled_price || 9e15);
+          // [Task 3] colKey 전달 — _srcEntriesForCol 로 이미 단일 URL 필터된 리스트라 colKey 안전.
+          const _fin = s => (typeof window.__cmtxCellPrice === 'function') ? window.__cmtxCellPrice(sku, s.source_id, s.crawled_price, _colKeyOf(s)) : (s.crawled_price || 9e15);
           const cheapest = arr => arr.reduce((a, b) => (_fin(b) < _fin(a) ? b : a));
           const good = list.filter(s => s.product_url && s.last_status !== 'error' && !s.stock_out && s.crawled_price > 0);
           if (good.length) return cheapest(good);
@@ -1230,9 +1231,10 @@
           return withUrl[0] || list[0];
         }
         // 표시가 = 매트릭스 셀과 동일(혜택 적용 매입가 우선, 없으면 크롤가). window 헬퍼(메인 스크립트)가 SM_BREAKDOWNS 제공.
-        function cellPrice(sku, srcId, fallback){
+        // [Task 3] colKey 인수 추가 — 같은 source_id 다른 URL 간 breakdown 키충돌 방지.
+        function cellPrice(sku, srcId, fallback, colKey){
           return (typeof window.__cmtxCellPrice === 'function')
-            ? window.__cmtxCellPrice(sku, srcId, fallback) : fallback;
+            ? window.__cmtxCellPrice(sku, srcId, fallback, colKey) : fallback;
         }
         // 재고 상태 판정 — renderSiteCell 과 동일 규칙. 소량 = 3개 이하.
         function cellState(src){
@@ -1251,12 +1253,15 @@
             subEl.textContent = '';
             return;
           }
-          const sources = DATA.sources;       // 가로축 (소싱처 칼럼)
+          // [Task 3] DATA.sources(전체 등록) → deriveSourceColumns(실 등장 소싱처×URL 단위)
+          //   — 0URL 소싱처 숨김(F1), 다중URL 분리(F2), 라벨 포함 col.name → 메인 매트릭스와 동일 컬럼.
+          const cols = (typeof window.deriveSourceColumns === 'function')
+            ? window.deriveSourceColumns(DATA) : DATA.sources.map(s => ({ source_id: s.id, colKey: 'u', name: s.name, source_name: s.name }));
           const options = DATA.options;       // 세로축 (옵션 전부)
 
           // 헤더
           let head = '<tr><th class="cmtx-optcol">옵션 \\ 소싱처</th>';
-          sources.forEach(col => {
+          cols.forEach(col => {
             head += `<th><span class="cdot" style="background:${siteColor(col.name)}"></span>${esc(col.name)}</th>`;
           });
           head += '</tr>';
@@ -1268,11 +1273,15 @@
             const color = o.color_display || o.color_code || '';
             if (color !== curColor){
               curColor = color;
-              body += `<tr class="cmtx-grp"><td colspan="${sources.length + 1}"><span class="csw" style="background:${colorSwatch(color)}"></span>${esc(color)}</td></tr>`;
+              body += `<tr class="cmtx-grp"><td colspan="${cols.length + 1}"><span class="csw" style="background:${colorSwatch(color)}"></span>${esc(color)}</td></tr>`;
             }
             let cells = '';
-            sources.forEach(col => {
-              const src = pickBest((o.sources || []).filter(x => x.source_id === col.id), o.sku);
+            cols.forEach(col => {
+              // [Task 3] _srcEntriesForCol 로 단일 URL 필터 → pickBest 에 넘김
+              const entries = (typeof window._srcEntriesForCol === 'function')
+                ? window._srcEntriesForCol(o, col)
+                : (o.sources || []).filter(x => x.source_id === col.source_id);
+              const src = pickBest(entries, o.sku);
               const st = cellState(src);
               if (st.kind === 'miss'){
                 cells += '<td class="cmtx-cell"><span class="cmtx-line"><i class="cmtx-pdot" style="background:#d1d6db"></i><span class="cmtx-p miss">미크롤</span></span></td>';
@@ -1285,7 +1294,8 @@
               const dot = COLOR[st.kind];
               const sk = st.kind === 'oos' ? '품절' : (st.q != null ? st.q + '개' : '있음');
               const pCls = st.kind === 'oos' ? 'cmtx-p oos' : 'cmtx-p';
-              const price = cellPrice(o.sku, src.source_id, src.crawled_price);
+              // [Task 3] colKey 전달 → breakdown 키충돌 방지 (같은 source_id 다른 URL)
+              const price = cellPrice(o.sku, col.source_id, src.crawled_price, col.colKey);
               const url = src.product_url ? esc(src.product_url) : '';
               cells += '<td class="cmtx-cell' + (url ? ' clickable' : '') + '"' + (url ? ' data-url="' + url + '"' : '') + (st.kind === 'oos' ? ' style="opacity:.62"' : '') +
                        '><span class="cmtx-line"><i class="cmtx-pdot" style="background:' + dot + '"></i><span class="' + pCls + '">' + won(price) + '</span></span><span class="cmtx-sk">' + sk + '</span></td>';
@@ -1294,7 +1304,7 @@
           });
 
           wrap.innerHTML = `<table class="cmtx-tbl"><thead>${head}</thead><tbody>${body}</tbody></table>`;
-          subEl.textContent = `옵션 ${options.length}개 × 소싱처 ${sources.length}곳`;
+          subEl.textContent = `옵션 ${options.length}개 × 소싱처 ${cols.length}곳`;
 
           // 칸 클릭 → 그 소싱처 상품 페이지 열기 (기존 매트릭스 동작과 동일)
           wrap.querySelectorAll('td.cmtx-cell.clickable').forEach(td => {
@@ -3042,10 +3052,14 @@
   let SM_BREAKDOWNS = {};
   // [압축 매트릭스 팝업] 셀 표시가를 매트릭스와 동일하게 — 혜택 적용 매입가(SM_BREAKDOWNS) 우선.
   //   SM_BREAKDOWNS 는 비동기로 let 재할당되므로 클로저로 현재값을 항상 읽는다.
-  window.__cmtxCellPrice = function(sku, srcId, salePrice){
+  window.__cmtxCellPrice = function(sku, srcId, salePrice, colKey){
     // [2026-06-22 완전B] 후보별 키(sku|sid|salePrice). salePrice=그 후보 표면가=폴백값.
-    // [Fix C] colKey 포함 키를 우선 조회, 없으면 구키(colKey 없는 형태) 폴백 — 하위호환 유지
-    const bk = SM_BREAKDOWNS[`${sku}|${srcId}|${salePrice}`] || SM_BREAKDOWNS[`${sku}|${srcId}`];
+    // [Task 3] colKey 4번째 인수 추가 — 같은 source_id 다른 URL 간 breakdown 키충돌 방지.
+    //   colKey 포함 키 우선 → 구키(colKey 없는 형태) 폴백 — 하위호환 유지.
+    const bk = (colKey != null && SM_BREAKDOWNS[`${sku}|${srcId}|${colKey}|${salePrice}`])
+            || (colKey != null && SM_BREAKDOWNS[`${sku}|${srcId}|${colKey}`])
+            || SM_BREAKDOWNS[`${sku}|${srcId}|${salePrice}`]   // 하위호환
+            || SM_BREAKDOWNS[`${sku}|${srcId}`];
     return (bk && typeof bk.final_price === 'number') ? bk.final_price : salePrice;
   };
 

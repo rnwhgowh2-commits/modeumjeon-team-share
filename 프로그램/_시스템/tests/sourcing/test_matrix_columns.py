@@ -111,3 +111,45 @@ def test_refetch_handler_passes_bsu_id():
         "refetch 핸들러가 bsu_id 를 읽지 않음 (Fix E 미적용)"
     assert "bsu_id=" in src, \
         "refetch 핸들러가 bsu_id 를 API 에 전달하지 않음 (Fix E 미적용)"
+
+
+# ── Task 3: 매트릭스보기 팝업 컬럼 마이그레이션 ───────────────────────
+
+def test_popup_uses_derive_source_columns():
+    """Task 3: 압축 팝업 render() 가 deriveSourceColumns 를 호출"""
+    src = _src()
+    assert "window.deriveSourceColumns(DATA)" in src, \
+        "팝업 render() 가 deriveSourceColumns(DATA) 를 호출하지 않음 (Task 3 미적용)"
+
+
+def test_popup_uses_src_entries_for_col():
+    """Task 3: 팝업 셀 루프가 _srcEntriesForCol 로 단일 URL 필터"""
+    src = _src()
+    assert "window._srcEntriesForCol" in src, \
+        "팝업 셀 루프가 _srcEntriesForCol 을 사용하지 않음 (Task 3 미적용)"
+
+
+def test_popup_cell_passes_col_key_to_cell_price():
+    """Task 3: 팝업 셀이 cellPrice 에 col.colKey 를 전달"""
+    src = _src()
+    assert "col.colKey" in src, \
+        "팝업 셀이 cellPrice 에 col.colKey 를 전달하지 않음 (Task 3 미적용)"
+
+
+def test_cmtx_cell_price_accepts_col_key():
+    """Task 3: window.__cmtxCellPrice 가 4번째 colKey 인수를 수락"""
+    src = _src()
+    # 함수 시그니처에 colKey 파라미터 포함
+    assert "function(sku, srcId, salePrice, colKey)" in src, \
+        "__cmtxCellPrice 시그니처에 colKey 파라미터 없음 (Task 3 미적용)"
+    # colKey 포함 breakdown 키 조회
+    assert "${sku}|${srcId}|${colKey}|${salePrice}" in src, \
+        "__cmtxCellPrice 가 colKey 포함 키를 조회하지 않음 (Task 3 미적용)"
+
+
+def test_popup_no_longer_keys_by_col_id():
+    """Task 3: 팝업 셀 루프가 더 이상 col.id 로 필터하지 않음 (source_id 사용)"""
+    src = _src()
+    # 구 패턴: filter(x => x.source_id === col.id)  → 사라져야 함
+    assert "source_id === col.id" not in src, \
+        "팝업이 아직 col.id 로 필터함 — col.source_id 로 교체되지 않음 (Task 3 미적용)"
