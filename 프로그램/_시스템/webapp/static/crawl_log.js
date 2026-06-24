@@ -521,7 +521,7 @@
     document.getElementById('mcl-stop-btn').addEventListener('click', onStopClick);
     var grip = document.getElementById('mcl-grip');
     if (grip) grip.addEventListener('mousedown', onGripDown);
-    p.addEventListener('wheel', onPanelWheel, { passive: false });   // 위젯 위 휠 = 폭 조절
+    p.addEventListener('wheel', onPanelWheel, { passive: false });   // Ctrl+휠=위젯 줌(그냥 휠은 통과→내부 스크롤)
 
     buildRailMinDOM();
     return p;
@@ -630,20 +630,31 @@
     document.addEventListener('mouseup', up);
   }
 
-  // 폭 클램프(붕괴 방지 하한 + 화면이탈 방지 상한, UX 제한은 없음)
-  function clampPanelW(w) {
-    var maxUnscaled = (window.innerWidth - 24) / DOCK_SCALE;
-    return Math.max(80, Math.min(w, maxUnscaled));
+  // [2026-06-24] 위젯 줌 — Ctrl+휠로만 위젯 자체를 1.0×~2.0×, 0.25 단계로 확대/축소.
+  //   --mcl-scale 만 바꾸면 transform·height(=100vh/scale) 가 함께 따라가 화면 세로를 항상 꽉 채운다.
+  //   panelScale 은 드래그 좌표 변환·도킹 계산에도 쓰이므로 같이 갱신한다. applyDock 으로 본문 밀어내기 폭 재계산.
+  var ZOOM_MIN = 1.0, ZOOM_MAX = 2.0, ZOOM_STEP = 0.25;
+  function applyZoom(next) {
+    next = Math.round(next / ZOOM_STEP) * ZOOM_STEP;          // 0.25 격자 스냅
+    next = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, next));      // 범위 클램프
+    if (Math.abs(next - panelScale) < 1e-9) return;           // 변화 없음
+    panelScale = next;
+    var panel = document.getElementById(PANEL_ID);
+    if (panel) panel.style.setProperty('--mcl-scale', String(next));
+    applyDock();                                              // 화면상 폭 변동 → 본문 max-width 재계산
   }
-  // [2026-06-22] 위젯 위에서 마우스 휠 = 폭 조절(위로 넓게/아래로 좁게). 페이지·내용 스크롤 대신 크기만 변경.
+  // [2026-06-24] 휠 입력 분기:
+  //   · Ctrl(또는 ⌘)+휠 → 위젯 줌(브라우저 페이지 줌 차단). 위로 +0.25 / 아래로 −0.25.
+  //   · 그냥 휠       → 아무것도 안 함(preventDefault 제거) → #mcl-rail·#mcl-cards-wrap·.mcl-card-logs
+  //                     의 네이티브 세로 스크롤이 마우스 위치에 따라 살아난다(폭 조절은 드래그 전용으로 이관).
   function onPanelWheel(e) {
     var panel = document.getElementById(PANEL_ID);
     if (!panel || panel.classList.contains('mcl-hidden')) return;
-    if (e.ctrlKey) return;                              // 브라우저 줌(ctrl+휠)은 건드리지 않음
-    e.preventDefault();                                 // 페이지/내용 스크롤 막고 크기만 변경
-    var step = (e.deltaY < 0 ? 1 : -1) * 40;            // 한 노치 = 40px(미변환) ≈ 60px(화면)
-    panel.style.width = clampPanelW(panel.offsetWidth + step) + 'px';
-    applyDock();
+    if (e.ctrlKey || e.metaKey) {
+      e.preventDefault();                                     // 브라우저 페이지 줌 차단
+      applyZoom(panelScale + (e.deltaY < 0 ? ZOOM_STEP : -ZOOM_STEP));
+    }
+    // else: 그냥 휠 — 막지 않고 통과시켜 내부 스크롤 영역이 세로 스크롤되게 둔다.
   }
 
   // ── 버튼 동작 ────────────────────────────────────────────────────
