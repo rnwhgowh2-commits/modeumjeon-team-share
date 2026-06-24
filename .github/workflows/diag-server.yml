@@ -1,10 +1,6 @@
-# 서버 진단 전용 (배포 안 함) — workflow_dispatch 로만 실행.
-# LIGHTSAIL_HOST 에 SSH 해서 실제 실행 중인 컨테이너·포트·코드버전을 덤프.
 name: 서버 진단 (no deploy)
-
 on:
   workflow_dispatch:
-
 jobs:
   diag:
     runs-on: ubuntu-latest
@@ -15,45 +11,15 @@ jobs:
           printf '%s\n' "${{ secrets.LIGHTSAIL_SSH_KEY }}" > ~/.ssh/ls_key
           chmod 600 ~/.ssh/ls_key
           ssh-keyscan -H "${{ secrets.LIGHTSAIL_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null || true
-
-      - name: 서버 상태 덤프
+      - name: 마커 추적 + DB/env
         run: |
-          echo "### LIGHTSAIL_HOST(시크릿)의 공인 IP 비교용 ###"
-          ssh -i ~/.ssh/ls_key -o StrictHostKeyChecking=accept-new \
-            ubuntu@"${{ secrets.LIGHTSAIL_HOST }}" '
-              echo "=== 이 서버 공인 IP ==="; curl -s -m 6 ifconfig.me 2>/dev/null; echo
-              echo "=== docker ps -a (이름|이미지|포트|상태) ==="
-              sudo docker ps -a --format "{{.Names}} | {{.Image}} | {{.Ports}} | {{.CreatedAt}} | {{.Status}}"
-              echo "=== 포트 80/443 LISTEN 프로세스 ==="
-              sudo ss -tlnp 2>/dev/null | grep -E ":80 |:443 " || sudo netstat -tlnp 2>/dev/null | grep -E ":80 |:443 " || echo "(ss/netstat 없음)"
-              echo "=== modeumjeon 컨테이너 빈색 fix 마커(has_color and oc) ==="
-              sudo docker exec modeumjeon sh -c "grep -c \"has_color and oc\" /app/webapp/routes/api_pricing.py" 2>/dev/null || echo "(modeumjeon exec 실패)"
-              echo "=== modeumjeon 이미지 생성시각 ==="
-              sudo docker inspect -f "{{.Image}} created={{.Created}}" modeumjeon 2>/dev/null || echo "(inspect 실패)"
-              echo "=== localhost:80/health (이 서버 직접) ==="; curl -s -m 6 localhost/health 2>/dev/null; echo
-              echo "=== 역방향 프록시(nginx/caddy/traefik) 컨테이너/호스트 ==="
-              sudo docker ps --format "{{.Names}}|{{.Image}}|{{.Ports}}" | grep -iE "nginx|caddy|traefik|proxy" || echo "(프록시 컨테이너 없음)"
-              command -v nginx caddy 2>/dev/null || echo "(호스트 프록시 바이너리 없음)"
-              echo "=== cloudflared(터널) 있나 ==="
-              sudo docker ps --format "{{.Names}}|{{.Image}}" | grep -i cloudflared || (command -v cloudflared && cloudflared --version) 2>/dev/null || echo "(cloudflared 없음)"
-              echo "=== 다른 8080/5000 등 앱 포트 컨테이너 ==="
-              sudo docker ps --format "{{.Names}}|{{.Ports}}" | grep -E "8080|5000|3000" || echo "(없음)"
-              echo "=== margin-tunnel(cloudflared) 실행 인자 ==="
-              sudo docker inspect margin-tunnel --format "{{.Path}} {{range .Args}}{{.}} {{end}}" 2>/dev/null || echo "(inspect 실패)"
-              echo "=== cloudflared config 파일에서 mou-m.com 라우팅 검색 ==="
-              sudo grep -rl "mou-m.com" /etc/cloudflared /home/ubuntu /root 2>/dev/null | head -5 | while read f; do echo "### $f ###"; sudo cat "$f" 2>/dev/null | head -60; done
-              echo "=== mou-m.com Host 로 로컬 라우팅 테스트(80/8080) ==="
-              echo "[:80]"; curl -s -m 5 -H "Host: mou-m.com" http://localhost:80/health 2>/dev/null; echo
-              echo "[:8080]"; curl -s -m 5 -H "Host: mou-m.com" http://localhost:8080/health 2>/dev/null; echo
-              echo "=== margin-calc(:8080) /health 정체 ==="; curl -s -m 5 http://localhost:8080/health 2>/dev/null; echo
-              echo "=== modeumjeon DATABASE_URL/DB 정체 ==="
-              sudo docker exec modeumjeon sh -c "echo DBURL=\${DATABASE_URL:-（없음·SQLite폴백）}; ls -la /app/data/*.db 2>/dev/null; echo rows=; python -c \"import sqlite3,glob;import os;f=[x for x in glob.glob('/app/data/*.db')];print(f);[print(x, sqlite3.connect(x).execute('select count(*) from options').fetchone()) for x in f] if f else print('no db')\" 2>/dev/null || echo (count실패)"
-              echo "=== modeumjeon 볼륨 마운트 ==="
-              sudo docker inspect modeumjeon --format "{{range .Mounts}}{{.Type}}:{{.Source}}->{{.Destination}} {{end}}" 2>/dev/null || echo (없음)
-              echo "=== 모든 modeumjeon 관련 이미지/중지컨테이너 ==="
-              sudo docker images | grep -iE "modeum|lemouton" || echo (없음)
-              echo "=== host app.env DATABASE_URL 존재? (값숨김) ==="
-              sudo sh -c "grep -q DATABASE_URL /home/ubuntu/app.env && echo app.env에_DATABASE_URL_있음 || echo app.env에_DATABASE_URL_없음"
-              echo "=== 호스트 직접 LISTEN(docker 밖 앱 포트) ==="
-              sudo ss -tlnp 2>/dev/null | grep -E ":5053|:5000|:8000|:3000|:5052" || echo "(docker 밖 앱 포트 없음)"
-            '
+          M=ZZDIAG1782305160513
+          ssh -i ~/.ssh/ls_key -o StrictHostKeyChecking=accept-new ubuntu@"${{ secrets.LIGHTSAIL_HOST }}" "
+            echo '=== modeumjeon 로그에 마커?'; sudo docker logs modeumjeon 2>&1 | grep -c \$M || echo 0
+            echo '=== margin-calc 로그에 마커?'; sudo docker logs margin-calc 2>&1 | grep -c \$M || echo 0
+            echo '=== margin-tunnel 로그에 마커?'; sudo docker logs margin-tunnel 2>&1 | grep -c \$M || echo 0
+            echo '=== modeumjeon 최근 access 로그 10줄 ==='; sudo docker logs --tail 10 modeumjeon 2>&1
+            echo '=== modeumjeon DATABASE_URL(값숨김) ==='; sudo docker exec modeumjeon sh -c 'test -n \"\$DATABASE_URL\" && echo HAS_DBURL || echo NO_DBURL_sqlite'
+            echo '=== modeumjeon DB 파일/크기 ==='; sudo docker exec modeumjeon sh -c 'ls -la /app/data/*.db 2>/dev/null || echo no_db'
+            echo '=== modeumjeon options 행수 ==='; sudo docker exec modeumjeon sh -c 'python -c \"import sqlite3,glob; f=glob.glob(chr(47)+chr(97)+chr(112)+chr(112)+chr(47)+chr(100)+chr(97)+chr(116)+chr(97)+chr(47)+chr(42)+chr(46)+chr(100)+chr(98)); print(f)\"' 2>&1 | head -3
+          "
