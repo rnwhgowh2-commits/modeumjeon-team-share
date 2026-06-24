@@ -474,6 +474,95 @@ def crawl_bundle_registered_urls(
     return out
 
 
+# ─────────────────────────────────────────────────────────────────────────────
+# 단품 색상 스코프 — 무신사 단품 SP 형제색 병합 폴루션 차단
+# ─────────────────────────────────────────────────────────────────────────────
+
+import re as _re_color
+
+
+def _cnorm_color(x) -> str:
+    """색상 비교용 정규화 — 공백·괄호·구분자 제거 + 소문자.
+
+    api_pricing._stk_cnorm 과 동일 로직; 외부 import 부담 없이 service 내 자체 정의.
+    """
+    return _re_color.sub(r'[\s()（）\[\]·,/\-_:：]', '', str(x or '')).lower()
+
+
+def _resolve_reg_color(session: Session, source_product: SourceProduct) -> str | None:
+    """단품 SourceProduct 의 등록 색상명 반환.
+
+    BundleSourceUrl 에서 같은 URL + url_type='단품' 인 행을 찾아 label 에서 색상을 추출.
+    label 형식: '{source_key}_{색상}' (예: 'musinsa_오렌지') 또는 색상만('오렌지').
+
+    반환:
+      str  — 등록 색상(예: '오렌지')
+      None — BundleSourceUrl 없거나 단품이 아닌 경우 (보수적: 필터 안 함)
+    """
+    try:
+        from lemouton.sourcing.models import BundleSourceUrl
+    except ImportError:
+        return None
+
+    try:
+        sp_url_norm = normalize_url(source_product.url or '')
+        # 같은 URL 을 사용하는 BundleSourceUrl 전부 탐색 (normalize_url 양쪽 비교)
+        bsu_rows = (session.query(BundleSourceUrl)
+                    .filter(BundleSourceUrl.url.isnot(None))
+                    .all())
+        matching = [b for b in bsu_rows
+                    if normalize_url(b.url or '') == sp_url_norm
+                    and (b.url_type or '단품') == '단품'
+                    and b.label]
+        if not matching:
+            return None
+        # 첫 번째 매칭 BundleSourceUrl 사용
+        bsu = matching[0]
+        label = (bsu.label or '').strip()
+        if not label:
+            return None
+        # 'musinsa_오렌지' → '오렌지'; '오렌지' → '오렌지'
+        if '_' in label:
+            color = label.split('_', 1)[1].strip()
+        else:
+            color = label
+        return color if color else None
+    except Exception:
+        return None  # 보수적: 예외 시 필터 안 함
+
+
+def _scope_options_to_color(options: list[dict], reg_color: str | None) -> list[dict]:
+    """단품 SP 색상 필터 — 등록색 일치(또는 빈 색) 옵션만 반환하고 color_text 를 정규화.
+
+    Args:
+      options:   크롤러가 반환한 옵션 dict 리스트 (원본 수정 안 함)
+      reg_color: _resolve_reg_color 가 반환한 등록 색상; None/'' 이면 no-op
+
+    Returns:
+      필터·정규화된 새 리스트. 원본 리스트·dict 는 변형하지 않음.
+
+    정책:
+      - reg_color 가 없으면 → 전부 반환(모음전·매핑없음 경로와 동일)
+      - 통과 조건: _cnorm_color(color_text) == _cnorm_color(reg_color)
+                   OR color_text 가 빈 값
+      - 통과된 옵션의 color_text 를 reg_color 로 정규화(표기 통일)
+      - 탈락 옵션은 조용히 제거 (no log — prune 이 soft-delete 함)
+    """
+    if not reg_color:
+        return list(options)
+    rc_norm = _cnorm_color(reg_color)
+    result = []
+    for o in options:
+        ct = o.get('color_text') or ''
+        oc_norm = _cnorm_color(ct)
+        # 빈 색(단일색 URL 에서 색 미포함) 또는 등록색과 일치
+        if not oc_norm or oc_norm == rc_norm or rc_norm in oc_norm or oc_norm in rc_norm:
+            new_o = dict(o)
+            new_o['color_text'] = reg_color  # 등록색으로 정규화
+            result.append(new_o)
+    return result
+
+
 def save_crawl_result(
     session: Session,
     *,
@@ -614,8 +703,16 @@ def save_crawl_result(
         # ★ Phase 8.8.3 (2026-05-17) — 무신사 회원가 / 로그인 마커 (옵션 단위)
         'member_price', 'is_member_price', 'login_marker_present',
     )
+    # ★ [2026-06-24] 단품 색상 스코프 — 무신사 단품 SP 형제색 병합 폴루션 차단.
+    #   _discover_color_variants 가 모든 색 변형(오렌지+블랙+아이보리...)을 합쳐 반환하면
+    #   필터 없이 upsert 할 때 오렌지 SP 에 블랙·아이보리 행이 섞인다(pollution).
+    #   BundleSourceUrl.url_type='단품' 인 경우에만 등록색 외 옵션을 차단한다.
+    #   모음전(색상모음전/모델모음전) SP 와 BundleSourceUrl 미등록 SP 는 동작 변경 없음.
+    _reg_color = _resolve_reg_color(session, source_product)
+    _scoped_options = _scope_options_to_color(crawl_result.options or [], _reg_color)
+
     counts = {'options_inserted': 0, 'options_updated': 0}
-    for opt_data in crawl_result.options:
+    for opt_data in _scoped_options:
         existed = (session.query(SourceOption)
                    .filter_by(source_product_id=source_product.id,
                               color_text=opt_data.get('color_text'),
@@ -644,17 +741,18 @@ def save_crawl_result(
     #   기존엔 upsert 만 해서, 한 번 긁힌 (색·사이즈) 조합이 다음 크롤에서 사라져도
     #   옛 가격·재고가 그대로 남아 그 값으로 판매되는 오발주(치명적 손실)가 가능했다.
     #   성공 크롤(옵션 ≥1)에서만 prune — 빈 결과(크롤 실패 추정)면 옛 데이터 보존.
+    #   prune 기준도 scoped_options — 단품 SP 에서 형제색 기존 행을 soft-delete.
     #   (crawl_guide 체크리스트 integrity_recrawl_reset 의 코드 구현.)
     counts['options_pruned'] = 0
-    if crawl_result.options:
-        new_keys = {(o.get('color_text'), o.get('size_text'))
-                    for o in crawl_result.options}
+    if _scoped_options:
+        new_keys = {(_norm_color(o.get('color_text')), _norm_size(o.get('size_text')))
+                    for o in _scoped_options}
         stale_opts = (session.query(SourceOption)
                       .filter_by(source_product_id=source_product.id,
                                  deleted_at=None)
                       .all())
         for so in stale_opts:
-            if (so.color_text, so.size_text) not in new_keys:
+            if (_norm_color(so.color_text), _norm_size(so.size_text)) not in new_keys:
                 so.deleted_at = _utcnow()
                 counts['options_pruned'] += 1
     return counts
