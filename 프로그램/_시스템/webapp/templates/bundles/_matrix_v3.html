@@ -1328,7 +1328,15 @@
           });
         }
 
-        function open(){ render(); overlay.hidden = false; document.body.style.overflow = 'hidden'; }
+        function open(){
+          render(); overlay.hidden = false; document.body.style.overflow = 'hidden';
+          // [강건화 2026-06-24] 혜택 캐시(SM_BREAKDOWNS)가 비어 있으면 1회 로드 후 재렌더.
+          //   목적: 혜택 로드 타이밍과 무관하게 '표면→최종' 2단이 항상 제대로 뜨도록.
+          //   (캐시 비었을 때 cellPrice 가 표면가로 폴백 → 최종=표면 → 2단이 한 줄로 둔갑하는 사고 방지)
+          if (typeof window.__cmtxEnsureBreakdowns === 'function'){
+            window.__cmtxEnsureBreakdowns().then(s => { if (s === 'fetched' && !overlay.hidden) render(); });
+          }
+        }
         function close(){ overlay.hidden = true; document.body.style.overflow = ''; }
 
         btn.addEventListener('click', open);
@@ -3116,6 +3124,16 @@
       SM_BREAKDOWNS = (j.ok && j.results) ? j.results : {};
     } catch(e) { SM_BREAKDOWNS = {}; }
   }
+
+  // [강건화 2026-06-24] 압축 매트릭스 팝업('매트릭스 보기')이 열릴 때 호출.
+  //   혜택 캐시가 비어 있으면 1회 로드 → '표면→최종' 2단 표기가 혜택 로드 타이밍과
+  //   무관하게 항상 뜨도록 보장(없으면 표면가 폴백→한 줄로 둔갑하던 사고 방지).
+  //   반환: 'cached'=이미 있음 / 'fetched'=방금 채움(재렌더 필요) / 'empty'=대상 없음.
+  window.__cmtxEnsureBreakdowns = async function(){
+    if (Object.keys(SM_BREAKDOWNS).length) return 'cached';
+    try { await smFetchBreakdowns(); } catch(_) {}
+    return Object.keys(SM_BREAKDOWNS).length ? 'fetched' : 'empty';
+  };
 
   async function renderSourceMatrix(_bdReady) {
     // Phase 6 — sm-section 제거, 가로 stats (sm-side-h) 만 렌더 + breakdown 캐시 갱신
