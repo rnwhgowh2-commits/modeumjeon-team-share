@@ -46,6 +46,14 @@ jobs:
               echo "[:80]"; curl -s -m 5 -H "Host: mou-m.com" http://localhost:80/health 2>/dev/null; echo
               echo "[:8080]"; curl -s -m 5 -H "Host: mou-m.com" http://localhost:8080/health 2>/dev/null; echo
               echo "=== margin-calc(:8080) /health 정체 ==="; curl -s -m 5 http://localhost:8080/health 2>/dev/null; echo
+              echo "=== modeumjeon DATABASE_URL/DB 정체 ==="
+              sudo docker exec modeumjeon sh -c "echo DBURL=\${DATABASE_URL:-（없음·SQLite폴백）}; ls -la /app/data/*.db 2>/dev/null; echo rows=; python -c \"import sqlite3,glob;import os;f=[x for x in glob.glob('/app/data/*.db')];print(f);[print(x, sqlite3.connect(x).execute('select count(*) from options').fetchone()) for x in f] if f else print('no db')\" 2>/dev/null || echo (count실패)"
+              echo "=== modeumjeon 볼륨 마운트 ==="
+              sudo docker inspect modeumjeon --format "{{range .Mounts}}{{.Type}}:{{.Source}}->{{.Destination}} {{end}}" 2>/dev/null || echo (없음)
+              echo "=== 모든 modeumjeon 관련 이미지/중지컨테이너 ==="
+              sudo docker images | grep -iE "modeum|lemouton" || echo (없음)
+              echo "=== host app.env DATABASE_URL 존재? (값숨김) ==="
+              sudo sh -c "grep -q DATABASE_URL /home/ubuntu/app.env && echo app.env에_DATABASE_URL_있음 || echo app.env에_DATABASE_URL_없음"
               echo "=== 호스트 직접 LISTEN(docker 밖 앱 포트) ==="
               sudo ss -tlnp 2>/dev/null | grep -E ":5053|:5000|:8000|:3000|:5052" || echo "(docker 밖 앱 포트 없음)"
             '
