@@ -1163,6 +1163,14 @@
         td.cmtx-cell .cmtx-p { font-family:ui-monospace,monospace; font-weight:700; color:#191F28; }
         td.cmtx-cell .cmtx-p.oos { color:#dc2626; }
         td.cmtx-cell .cmtx-p.miss { color:#c5cbd3; font-weight:600; }
+        /* [복원 2026-06-24] 표면노출가(취소선) + 최종매입가(강조) 2단 표기 — 원본 81d8d22e */
+        td.cmtx-cell .cmtx-2tier { display:inline-flex; flex-direction:column; align-items:flex-end; gap:2px; }
+        td.cmtx-cell .cmtx-2tier .cmtx-r { display:inline-flex; align-items:center; gap:5px; }
+        td.cmtx-cell .cmtx-lab { font-size:9px; font-weight:700; color:#b0b8c1; min-width:24px; text-align:right; }
+        td.cmtx-cell .cmtx-lab.f { color:#5b8def; }
+        td.cmtx-cell .cmtx-surf { font-family:ui-monospace,monospace; font-size:10.5px; color:#aab2bd; text-decoration:line-through; text-decoration-color:#d3d8de; }
+        td.cmtx-cell .cmtx-final { font-family:ui-monospace,monospace; font-weight:800; color:#1b64da; }
+        td.cmtx-cell .cmtx-final.oos { color:#dc2626; }
         td.cmtx-cell .cmtx-sk { display:block; text-align:right; font-size:9.5px; color:#8b95a1; margin-top:1px; }
         td.cmtx-cell.clickable { cursor:pointer; }
         td.cmtx-cell.clickable:hover { background:#f0f7ff; }
@@ -1293,12 +1301,20 @@
               }
               const dot = COLOR[st.kind];
               const sk = st.kind === 'oos' ? '품절' : (st.q != null ? st.q + '개' : '있음');
-              const pCls = st.kind === 'oos' ? 'cmtx-p oos' : 'cmtx-p';
               // [Task 3] colKey 전달 → breakdown 키충돌 방지 (같은 source_id 다른 URL)
-              const price = cellPrice(o.sku, col.source_id, src.crawled_price, col.colKey);
+              const surf = src.crawled_price;                                       // 표면노출가(크롤 원가)
+              const price = cellPrice(o.sku, col.source_id, src.crawled_price, col.colKey);  // 최종매입가(혜택 적용)
+              const finCls = st.kind === 'oos' ? 'cmtx-final oos' : 'cmtx-final';
+              // [복원 2026-06-24] 표면 ≠ 최종(혜택으로 낮아짐)일 때만 2단 표기. 같으면(혜택 없음) 최종만(중복·모순 방지). 원본 81d8d22e
+              const inner = (surf != null && surf > 0 && price != null && price < surf)
+                ? '<span class="cmtx-2tier">'
+                    + '<span class="cmtx-r"><span class="cmtx-lab">표면</span><span class="cmtx-surf">' + won(surf) + '</span></span>'
+                    + '<span class="cmtx-r"><span class="cmtx-lab f">최종</span><span class="' + finCls + '">' + won(price) + '</span><i class="cmtx-pdot" style="background:' + dot + '"></i></span>'
+                  + '</span>'
+                : '<span class="cmtx-line"><i class="cmtx-pdot" style="background:' + dot + '"></i><span class="' + finCls + '">' + won(price) + '</span></span>';
               const url = src.product_url ? esc(src.product_url) : '';
               cells += '<td class="cmtx-cell' + (url ? ' clickable' : '') + '"' + (url ? ' data-url="' + url + '"' : '') + (st.kind === 'oos' ? ' style="opacity:.62"' : '') +
-                       '><span class="cmtx-line"><i class="cmtx-pdot" style="background:' + dot + '"></i><span class="' + pCls + '">' + won(price) + '</span></span><span class="cmtx-sk">' + sk + '</span></td>';
+                       '>' + inner + '<span class="cmtx-sk">' + sk + '</span></td>';
             });
             body += `<tr class="cmtx-optrow"><td class="cmtx-optcol">${esc(color)} ${esc(o.size_display || o.size_code || '')}</td>${cells}</tr>`;
           });
