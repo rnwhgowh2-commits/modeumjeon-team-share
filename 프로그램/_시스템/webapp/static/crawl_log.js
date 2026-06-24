@@ -260,13 +260,13 @@
       // [2026-06-19] 폰트·크기 전체 1.5× + 좌측 확장. transform scale(우상단 기준)로 우측 고정·좌측 확장.
       //   (zoom은 좌상단 기준이라 right:0 패널이 화면 밖으로 밀림 → transform 사용.)
       //   height calc(100vh/1.5) × scale 1.5 = 화면상 100vh.
-      '  position:fixed; top:0; right:0; width:520px; height:calc(100vh / 1.5);',
-      '  transform:scale(1.5); transform-origin:top right;',
+      '  position:fixed; top:0; right:0; width:520px; height:calc(100vh / var(--mcl-scale, 1.5));',
+      '  transform:scale(var(--mcl-scale, 1.5)); transform-origin:top right;',
       '  background:#141B22; color:#CBD5E1; z-index:9000;',
       '  display:flex; flex-direction:column; font-family:"Pretendard",sans-serif;',
       '  box-shadow:-8px 0 32px rgba(0,0,0,.45); transition:transform .25s ease;',
       '}',
-      '#mcl-panel.mcl-hidden { transform:scale(1.5) translateX(100%); pointer-events:none; }',
+      '#mcl-panel.mcl-hidden { transform:scale(var(--mcl-scale, 1.5)) translateX(100%); pointer-events:none; }',
 
       /* [2026-06-22] 도킹 리사이즈 핸들 — 위젯 왼쪽 모서리를 끌어 폭 조절(시안 B) */
       '#mcl-grip { position:absolute; left:0; top:0; bottom:0; width:11px; cursor:ew-resize; z-index:20; display:flex; align-items:center; justify-content:center; }',
@@ -474,6 +474,7 @@
     var p = document.createElement('div');
     p.id = PANEL_ID;
     p.classList.add('mcl-hidden');
+    p.style.setProperty('--mcl-scale', String(panelScale));   // 현재 줌 배율(기본 1.5×) — Ctrl+휠로 변경
     p.innerHTML = [
       '<div id="mcl-grip" title="드래그하여 폭 조절"></div>',
       '<div id="mcl-scroll">',
@@ -575,7 +576,7 @@
   //      → setProperty(...,'important') 로 강제해야 실제로 좁아진다.
   //    · 매트릭스 테이블(#price-matrix-table)은 래퍼 overflow-x 가 visible 이라 본문 밖으로 넘쳐
   //      위젯 밑을 침범 → 래퍼에 overflow-x:auto 를 줘서 내부 가로 스크롤로 가둔다.
-  var DOCK_SCALE = 1.5;   // #mcl-panel transform:scale(1.5) — 드래그 좌표(뷰포트) → 미변환 폭 변환용
+  var panelScale = 1.5;   // 현재 위젯 줌 배율(--mcl-scale 와 동기). 드래그 좌표(뷰포트)→미변환 폭 변환·줌에 공용. Ctrl+휠로 applyZoom 이 변경.
   function getMainEl() { return document.querySelector('main.main') || document.querySelector('.main'); }
   function getMatrixWrap() {
     var tbl = document.getElementById('price-matrix-table');
@@ -611,9 +612,9 @@
     var startX = e.clientX;
     var startW = panel.offsetWidth;                     // 미변환 레이아웃 폭(기본 520)
     function mv(ev) {
-      var dx = (startX - ev.clientX) / DOCK_SCALE;      // 왼쪽으로 끌면 넓어짐
+      var dx = (startX - ev.clientX) / panelScale;      // 왼쪽으로 끌면 넓어짐(현재 줌 반영)
       var w = startW + dx;
-      var maxUnscaled = (window.innerWidth - 24) / DOCK_SCALE;  // 화면 밖으로 못 나가게(안전선)
+      var maxUnscaled = (window.innerWidth - 24) / panelScale;  // 화면 밖으로 못 나가게(안전선)
       w = Math.max(80, Math.min(w, maxUnscaled));       // 상한 UX제한 없음·붕괴 방지 하한만
       panel.style.width = w + 'px';
       applyDock();
