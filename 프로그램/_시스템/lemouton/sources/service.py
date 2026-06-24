@@ -498,7 +498,13 @@ def _resolve_reg_color(session: Session, source_product: SourceProduct) -> str |
     반환:
       str  — 등록 색상(예: '오렌지')
       None — BundleSourceUrl 없거나 단품이 아닌 경우 (보수적: 필터 안 함)
+
+    범위: 무신사 단품만. 타 소싱처(롯데온/SSF/SSG/르무통)는 색스코프 미적용(보수적)
+      — 동일 URL이 다른 소싱처에 단품 등록돼도 무신사 외엔 None 반환해 데이터 보존.
     """
+    # [2026-06-24 Finding A] 무신사 단품에만 색스코프 적용 — 타소싱처 부분손실 방지
+    if (getattr(source_product, 'site', None) or '') != 'musinsa':
+        return None
     try:
         from lemouton.sourcing.models import BundleSourceUrl
     except ImportError:
