@@ -522,6 +522,10 @@
     var grip = document.getElementById('mcl-grip');
     if (grip) grip.addEventListener('mousedown', onGripDown);
     p.addEventListener('wheel', onPanelWheel, { passive: false });   // Ctrl+휠=위젯 줌(그냥 휠은 통과→내부 스크롤)
+    // [2026-06-24] 줌/슬라이드(transform) 트랜지션이 끝난 뒤 실제 위치로 도킹 폭 재계산.
+    //   (applyZoom 직후엔 transform 이 .25s ease 중이라 getBoundingClientRect 가 과거 위치를 반환 →
+    //    본문 max-width 가 옛 폭으로 굳는 문제. 트랜지션 종료 시 한 번 더 보정.)
+    p.addEventListener('transitionend', function (ev) { if (ev.propertyName === 'transform') applyDock(); });
 
     buildRailMinDOM();
     return p;
