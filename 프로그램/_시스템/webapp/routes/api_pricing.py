@@ -140,7 +140,7 @@ def _match_option_price(so_index, sp_id, opt_color, opt_size):
     return so.current_price if so is not None else None
 
 
-def _persist_option_stocks(session, source_product_id, options):
+def _persist_option_stocks(session, source_product_id, options, reg_color=None):
     """확장 크롤 결과 options[{color,size,stock}] 의 실재고를 매칭 SourceOption.current_stock
     에 영속한다(스마트스토어 등 '확장 전용' 소싱처 999 둔갑 수정).
 
@@ -150,6 +150,12 @@ def _persist_option_stocks(session, source_product_id, options):
       - stock 이 숫자(int)가 아니면(None·문자열·bool) 건너뜀 → 크롤 시작 하드리셋의 NULL 보존
         (옛값 덮어쓰기·폴백 금지). 호출자가 성공 크롤(status==ok)일 때만 부른다.
       - 한 SO 에는 1회만(중복 매칭 방지).
+
+    Args:
+      reg_color: 단품 SP 의 등록색(호출자가 _resolve_reg_color 로 취득). 설정 시 빈
+                 color(단품 URL = 색 미포함) 를 등록색으로 채워 매칭 → 오염 행이 공존해도
+                 항상 등록색 행 갱신. None 이면 기존 동작(size_only fallback) 유지.
+
     Returns: 갱신된 옵션 수.
     """
     from lemouton.sources.models import SourceOption
@@ -169,7 +175,11 @@ def _persist_option_stocks(session, source_product_id, options):
         # bool 은 int 의 하위형 → 명시 배제. None·문자열도 배제(하드리셋 NULL 보존).
         if isinstance(st, bool) or not isinstance(st, int):
             continue
-        so = _match_option_so(so_idx, source_product_id, o.get('color'), o.get('size'))
+        # 단품 방어: 빈 color + 등록색 있으면 등록색으로 채워 매칭 → 오염 행 불일치 차단.
+        opt_color = o.get('color')
+        if reg_color and not opt_color:
+            opt_color = reg_color
+        so = _match_option_so(so_idx, source_product_id, opt_color, o.get('size'))
         if so is None or so.id in seen_ids:
             continue
         seen_ids.add(so.id)
@@ -1130,7 +1140,14 @@ def save_crawl_result():
             #         실패 크롤(status!=ok)은 기록 안 함(실패 시 가짜 재고 금지). 로직=_persist_option_stocks.
             if status == 'ok':
                 try:
-                    _persist_option_stocks(s, sp.id, it.get('options'))
+                    # [Task 3 방어] 단품 SP 의 등록색을 취득해 빈 color 를 채움 → 오염 행 불일치 차단.
+                    # 실패(None) 시 기존 size_only fallback 유지 — non-fatal.
+                    try:
+                        from lemouton.sources.service import _resolve_reg_color
+                        _reg_color = _resolve_reg_color(s, sp)
+                    except Exception:
+                        _reg_color = None
+                    _persist_option_stocks(s, sp.id, it.get('options'), reg_color=_reg_color)
                 except Exception:
                     pass
             # ★ 2026-06-22 — 무신사 회원 혜택 금액을 크롤 라인(benefit_lines)에서 추출·저장.
