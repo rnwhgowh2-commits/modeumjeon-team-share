@@ -38,4 +38,14 @@ jobs:
               sudo docker ps --format "{{.Names}}|{{.Image}}" | grep -i cloudflared || (command -v cloudflared && cloudflared --version) 2>/dev/null || echo "(cloudflared 없음)"
               echo "=== 다른 8080/5000 등 앱 포트 컨테이너 ==="
               sudo docker ps --format "{{.Names}}|{{.Ports}}" | grep -E "8080|5000|3000" || echo "(없음)"
+              echo "=== margin-tunnel(cloudflared) 실행 인자 ==="
+              sudo docker inspect margin-tunnel --format "{{.Path}} {{range .Args}}{{.}} {{end}}" 2>/dev/null || echo "(inspect 실패)"
+              echo "=== cloudflared config 파일에서 mou-m.com 라우팅 검색 ==="
+              sudo grep -rl "mou-m.com" /etc/cloudflared /home/ubuntu /root 2>/dev/null | head -5 | while read f; do echo "### $f ###"; sudo cat "$f" 2>/dev/null | head -60; done
+              echo "=== mou-m.com Host 로 로컬 라우팅 테스트(80/8080) ==="
+              echo "[:80]"; curl -s -m 5 -H "Host: mou-m.com" http://localhost:80/health 2>/dev/null; echo
+              echo "[:8080]"; curl -s -m 5 -H "Host: mou-m.com" http://localhost:8080/health 2>/dev/null; echo
+              echo "=== margin-calc(:8080) /health 정체 ==="; curl -s -m 5 http://localhost:8080/health 2>/dev/null; echo
+              echo "=== 호스트 직접 LISTEN(docker 밖 앱 포트) ==="
+              sudo ss -tlnp 2>/dev/null | grep -E ":5053|:5000|:8000|:3000|:5052" || echo "(docker 밖 앱 포트 없음)"
             '
