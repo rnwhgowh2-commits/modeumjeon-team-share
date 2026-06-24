@@ -1,0 +1,41 @@
+# 서버 진단 전용 (배포 안 함) — workflow_dispatch 로만 실행.
+# LIGHTSAIL_HOST 에 SSH 해서 실제 실행 중인 컨테이너·포트·코드버전을 덤프.
+name: 서버 진단 (no deploy)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  diag:
+    runs-on: ubuntu-latest
+    steps:
+      - name: SSH 키 준비
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "${{ secrets.LIGHTSAIL_SSH_KEY }}" > ~/.ssh/ls_key
+          chmod 600 ~/.ssh/ls_key
+          ssh-keyscan -H "${{ secrets.LIGHTSAIL_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null || true
+
+      - name: 서버 상태 덤프
+        run: |
+          echo "### LIGHTSAIL_HOST(시크릿)의 공인 IP 비교용 ###"
+          ssh -i ~/.ssh/ls_key -o StrictHostKeyChecking=accept-new \
+            ubuntu@"${{ secrets.LIGHTSAIL_HOST }}" '
+              echo "=== 이 서버 공인 IP ==="; curl -s -m 6 ifconfig.me 2>/dev/null; echo
+              echo "=== docker ps -a (이름|이미지|포트|상태) ==="
+              sudo docker ps -a --format "{{.Names}} | {{.Image}} | {{.Ports}} | {{.CreatedAt}} | {{.Status}}"
+              echo "=== 포트 80/443 LISTEN 프로세스 ==="
+              sudo ss -tlnp 2>/dev/null | grep -E ":80 |:443 " || sudo netstat -tlnp 2>/dev/null | grep -E ":80 |:443 " || echo "(ss/netstat 없음)"
+              echo "=== modeumjeon 컨테이너 빈색 fix 마커(has_color and oc) ==="
+              sudo docker exec modeumjeon sh -c "grep -c \"has_color and oc\" /app/webapp/routes/api_pricing.py" 2>/dev/null || echo "(modeumjeon exec 실패)"
+              echo "=== modeumjeon 이미지 생성시각 ==="
+              sudo docker inspect -f "{{.Image}} created={{.Created}}" modeumjeon 2>/dev/null || echo "(inspect 실패)"
+              echo "=== localhost:80/health (이 서버 직접) ==="; curl -s -m 6 localhost/health 2>/dev/null; echo
+              echo "=== 역방향 프록시(nginx/caddy/traefik) 컨테이너/호스트 ==="
+              sudo docker ps --format "{{.Names}}|{{.Image}}|{{.Ports}}" | grep -iE "nginx|caddy|traefik|proxy" || echo "(프록시 컨테이너 없음)"
+              command -v nginx caddy 2>/dev/null || echo "(호스트 프록시 바이너리 없음)"
+              echo "=== cloudflared(터널) 있나 ==="
+              sudo docker ps --format "{{.Names}}|{{.Image}}" | grep -i cloudflared || (command -v cloudflared && cloudflared --version) 2>/dev/null || echo "(cloudflared 없음)"
+              echo "=== 다른 8080/5000 등 앱 포트 컨테이너 ==="
+              sudo docker ps --format "{{.Names}}|{{.Ports}}" | grep -E "8080|5000|3000" || echo "(없음)"
+            '
