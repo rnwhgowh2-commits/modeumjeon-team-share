@@ -29,6 +29,30 @@ from .models import (
 import re as _re
 from urllib.parse import urlparse, urlunparse, parse_qsl, urlencode
 
+
+# ─────────────────────────────────────────────────────────────────────────────
+# SourceOption color/size 정규화 — 표기 차이 중복행 방지
+# ─────────────────────────────────────────────────────────────────────────────
+import re as _re_norm
+
+
+def _norm_size(s) -> str:
+    """size_text 정규화: 숫자+mm 통일, 대소문자·공백 제거.
+
+    '220MM' → '220mm', '220' → '220mm', ' 235 mm ' → '235mm'
+    빈 문자열·None → ''
+    """
+    s = str(s or '').strip()
+    if not s:
+        return ''
+    d = ''.join(c for c in s if c.isdigit())
+    return (d + 'mm') if d else s.lower()
+
+
+def _norm_color(s) -> str:
+    """color_text 정규화: 앞뒤 공백 제거. None → ''"""
+    return str(s or '').strip()
+
 # 제거 대상 트래킹 파라미터 (네이버 / 일반 광고·검색 트래킹).
 _TRACKING_PARAM_PATTERNS = [
     _re.compile(r'^nl[-_]ts'),       # NAVER 광고 추적 (nl-ts-pid, nl-ts-id 등)
@@ -144,6 +168,10 @@ def upsert_source_option(
     dynamic_benefits_json: str | None = None,
 ) -> SourceOption:
     """SourceProduct + (color, size) 조합으로 SourceOption upsert."""
+    # [2026-06-24 fix] 대소문자·공백·단위 표기 차이로 유니크 제약을 우회하는 중복행 방지.
+    #   '220MM' vs '220mm', ' 235 mm ' vs '235mm' 등을 하나로 수렴.
+    color_text = _norm_color(color_text) or None
+    size_text = _norm_size(size_text) or None
     # [2026-06-19 fix] deleted_at 필터 제거 — 유니크 제약
     #   uq_source_option_product_color_size 는 (source_product_id, color_text, size_text)
     #   만 보고 deleted_at 을 무시한다. prune 으로 soft-delete 된 (색,사이즈) 행이 남아 있는데
