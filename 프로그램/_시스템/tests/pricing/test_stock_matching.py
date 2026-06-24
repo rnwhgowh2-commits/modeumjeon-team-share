@@ -52,6 +52,14 @@ class TestResolveStock:
         assert label == '⚠️확인필요'
         assert label != '품절'
 
+    def test_lotteon_999_is_unknown_not_instock(self):
+        # 롯데온 999 = 대체상품 센티넬 → ⚠️확인필요(out). 다른 소싱처 999는 '재고있음' 유지.
+        assert _resolve_stock('lotteon', 999) == (0, '⚠️확인필요', True)
+        assert _resolve_stock('lotte', 6993) == (None, '재고있음', False)  # 상품합계 더미는 충분 유지
+        assert _resolve_stock('ssf', 999) == (None, '재고있음', False)      # 타 소싱처 불변
+        assert _resolve_stock('lotteon', 41) == (41, '41개', False)         # 실수량 불변
+        assert _resolve_stock('lotteon', 0) == (0, '품절', True)            # 품절 불변
+
     def test_unknown_distinct_from_none_and_zero(self):
         # None(미크롤)·0(품절)·-1(불명) 셋이 각각 다른 라벨
         assert _resolve_stock('lotteon', None)[1] == '재고있음'
@@ -239,6 +247,6 @@ class TestStockState:
         assert _stock_state('lotteon', -1) == 'unknown'
         assert _stock_state('lotteon', 0) == 'soldout'
         assert _stock_state('lotteon', 5) == 'limited'
-        assert _stock_state('lotteon', 999) == 'ample'
+        assert _stock_state('lotteon', 999) == 'unknown'
         assert _stock_state('lotteon', None) == 'uncrawled'
         assert _stock_state('musinsa', 10) == 'ample'

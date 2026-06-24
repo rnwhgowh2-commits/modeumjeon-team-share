@@ -207,6 +207,12 @@ def _resolve_stock(site, raw):
         return (0, '⚠️확인필요', True)
     if raw == 0:
         return (0, '품절', True)
+    # [2026-06-25] 롯데온 옵션 재고 정확히 999 = 품절 사이즈에 꽂히는 '대체상품' 센티넬(실재고 아님).
+    #   롯데온 옵션 실재고는 작은 수(4·10·30·41·5)·0 뿐이고, 999×N 상품합계 더미는 >1000 이라 구분됨.
+    #   → 옵션 999면 불명(⚠️확인필요·수량0). 다른 소싱처 999/롯데온 상품합계(6993 등)는 '충분' 유지.
+    #   효과: 같은 색에 URL 여러 개일 때 완전한 B가 999(둔갑)를 빼고 정확한 품절 URL 을 픽.
+    if (site or '') in ('lotteon', 'lotte') and raw == 999:
+        return (0, '⚠️확인필요', True)
     if raw is None or raw >= 900:
         return (None, '재고있음', False)
     if (site or '') == 'musinsa' and raw >= _STOCK_CAP:
@@ -223,6 +229,8 @@ def _stock_state(site, raw):
         return 'unknown'
     if raw == 0:
         return 'soldout'
+    if (site or '') in ('lotteon', 'lotte') and raw == 999:
+        return 'unknown'   # 롯데온 옵션 999 = 대체상품 센티넬 → 불명 (상품합계 더미 999×N 은 제외)
     if raw >= 900:
         return 'ample'
     if (site or '') == 'musinsa' and raw >= _STOCK_CAP:
