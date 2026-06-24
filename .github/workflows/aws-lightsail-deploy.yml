@@ -42,8 +42,7 @@ jobs:
               rm -rf ~/app && mkdir -p ~/app && tar xzf ~/app.tar.gz -C ~/app
               cd ~/app
               sudo docker build --build-arg CACHEBUST=${{ github.sha }} -t modeumjeon . >/tmp/build.log 2>&1 || { tail -30 /tmp/build.log; exit 1; }
-              sudo docker stop modeumjeon 2>/dev/null || true
-              sudo docker rm   modeumjeon 2>/dev/null || true
+              sudo docker rm -f modeumjeon 2>/dev/null || true
               DBURL="${{ secrets.DATABASE_URL }}"
               EXTRA=""
               case "$DBURL" in
@@ -51,7 +50,15 @@ jobs:
                 *) echo "[deploy] DATABASE_URL 미설정/형식불일치 → app.env(도쿄) 유지" ;;
               esac
               sudo docker run -d --name modeumjeon --restart unless-stopped \
-                -p 80:8080 --env-file ~/app.env $EXTRA modeumjeon
+                -p 80:8080 --env-file ~/app.env $EXTRA modeumjeon \
+                || { echo "[deploy] ❌ docker run 실패 — 컨테이너 미교체"; exit 1; }
+              sleep 3
+              echo "[deploy] 실행 이미지: $(sudo docker inspect -f "{{.Image}}" modeumjeon 2>/dev/null)"
+              echo "[deploy] 실행 컨테이너 코드 검증 (api_pricing 빈색 매칭 fix 마커):"
+              if [ "$(sudo docker exec modeumjeon sh -c "grep -c \"has_color and oc\" /app/webapp/routes/api_pricing.py 2>/dev/null || echo 0")" = "0" ]; then
+                echo "[deploy] ❌ 실행 컨테이너에 fix 마커 없음 — 옛 코드가 돌고 있음 (빌드/캐시/교체 실패)"; exit 1
+              fi
+              echo "[deploy] ✅ 실행 컨테이너에 최신 코드 확인"
               sudo docker image prune -f || true
             '
 
