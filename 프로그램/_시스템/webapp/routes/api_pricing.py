@@ -73,6 +73,11 @@ import re as _re
 # config.SOURCING_AUTH['stock_cap'] 와 동일 — 무신사는 '충분'을 이 값으로 저장(센티넬).
 _STOCK_CAP = 10
 
+# 불명(unknown) — 크롤은 됐으나 신뢰할 재고 신호를 못 읽음(API 키 불일치·파싱 실패·
+#   호출 실패 등). "있음(999)"으로 둔갑 금지: 화면 ⚠️확인필요 + 수량0 취급(판매 제외).
+#   None(미크롤=이번 런 안 긁음)과 구분되는 별개 상태.
+_STOCK_UNKNOWN = -1
+
 
 def _stk_digits(x):
     return ''.join(c for c in str(x or '') if c.isdigit())
@@ -195,8 +200,11 @@ def _resolve_stock(site, raw):
       raw is None       → 재고있음 (크롤됐으나 수량 미상)
       raw >= 900        → 재고있음 (999 센티넬 · 상품합계 더미)
       무신사 raw >= CAP → 재고있음 (stock_cap=10 이 '충분' 센티넬)
+      raw == -1         → ⚠️확인필요 (불명: 크롤됐으나 신호 못 읽음 · 수량0 취급)
       그 외 1~899       → 실수량 'N개'
     """
+    if raw == _STOCK_UNKNOWN:
+        return (0, '⚠️확인필요', True)
     if raw == 0:
         return (0, '품절', True)
     if raw is None or raw >= 900:

@@ -42,6 +42,22 @@ class TestResolveStock:
         assert _resolve_stock('lemouton', 0) == (0, '품절', True)
         assert _resolve_stock('ssg', 0) == (0, '품절', True)
 
+    def test_unknown_sentinel_is_warning_and_out(self):
+        # -1 = 불명(크롤됐으나 신호 못 읽음): 수량0·판매제외·라벨은 품절과 구분
+        from webapp.routes.api_pricing import _STOCK_UNKNOWN
+        assert _STOCK_UNKNOWN == -1
+        qty, label, out = _resolve_stock('musinsa', -1)
+        assert qty == 0
+        assert out is True
+        assert label == '⚠️확인필요'
+        assert label != '품절'
+
+    def test_unknown_distinct_from_none_and_zero(self):
+        # None(미크롤)·0(품절)·-1(불명) 셋이 각각 다른 라벨
+        assert _resolve_stock('lotteon', None)[1] == '재고있음'
+        assert _resolve_stock('lotteon', 0)[1] == '품절'
+        assert _resolve_stock('lotteon', -1)[1] == '⚠️확인필요'
+
     def test_none_is_instock_unknown(self):
         # 크롤은 됐으나 수량 미상 → '재고있음' (가짜 숫자 금지)
         assert _resolve_stock('lemouton', None) == (None, '재고있음', False)
