@@ -90,7 +90,8 @@ def dedup_dan_sp(
         by_norm_size[ns].append(o)
 
     # 분류 결과
-    winners: list[tuple[SourceOption, str]] = []   # (winner_so, norm_size)
+    winners: list[tuple[SourceOption, str, bool]] = []   # (winner_so, norm_size, is_canonical)
+    winner_best_stocks: dict[int, int] = {}              # winner.id → best stock (canonical 전용)
     to_delete: list[SourceOption] = []
     skipped: list[SourceOption] = []
 
@@ -110,20 +111,42 @@ def dedup_dan_sp(
             skipped.extend(others)
             continue
 
-        # 후보 중 canonical pick:
-        # (non-None stock, stock 값, -id) 기준 — id 작은 것 우선(안정)
-        def _pick_key(o: SourceOption):
-            has_stock = 0 if o.current_stock is None else 1
-            stock_val = o.current_stock if o.current_stock is not None else -1
-            return (has_stock, stock_val, -o.id)
+        # ── canonical-first winner selection ─────────────────────────────────
+        # 이미 canonical 인 행: color_text 가 정확히 reg_color 이고
+        # size_text 가 정확히 norm_size(ns) 인 행 (유니크 제약상 최대 1개)
+        already_canonical = [
+            o for o in candidates
+            if o.color_text == reg_color and _norm_size(o.size_text) == ns
+        ]
 
-        candidates_sorted = sorted(candidates, key=_pick_key, reverse=True)
-        winner = candidates_sorted[0]
-        dup_candidates = candidates_sorted[1:]
+        if already_canonical:
+            # Rule 1: 이미 canonical → rename 불필요, 충돌 원천 방지
+            winner = already_canonical[0]
+            others_in_candidates = [o for o in candidates if o is not winner]
+            # best stock 중 최대값으로 winner.current_stock 갱신 (재고 보존)
+            all_stocks = [
+                o.current_stock for o in candidates
+                if o.current_stock is not None
+            ]
+            if all_stocks:
+                best_stock = max(all_stocks)
+                winner_best_stocks[winner.id] = best_stock
+            to_delete.extend(others_in_candidates)
+            to_delete.extend(others)
+            winners.append((winner, ns, True))   # True = already canonical
+        else:
+            # Rule 2: canonical 행 없음 → 기존 pick_key 로 winner 선택 후 rename
+            def _pick_key(o: SourceOption):
+                has_stock = 0 if o.current_stock is None else 1
+                stock_val = o.current_stock if o.current_stock is not None else -1
+                return (has_stock, stock_val, -o.id)
 
-        winners.append((winner, ns))
-        to_delete.extend(dup_candidates)
-        to_delete.extend(others)
+            candidates_sorted = sorted(candidates, key=_pick_key, reverse=True)
+            winner = candidates_sorted[0]
+            dup_candidates = candidates_sorted[1:]
+            to_delete.extend(dup_candidates)
+            to_delete.extend(others)
+            winners.append((winner, ns, False))  # False = needs rename
 
     # ── 2단계: DB 반영 (not dry_run 일 때만) ────────────────────────────────
     if not dry_run:
@@ -134,14 +157,23 @@ def dedup_dan_sp(
         # session.flush 로 delete 먼저 DB 에 반영
         session.flush()
 
-        # 그 다음 winner 정규화 (deleted 행들이 이미 제거됐으므로 unique 충돌 없음)
-        for winner, ns in winners:
-            winner.color_text = reg_color
-            if ns and winner.size_text != ns:
-                winner.size_text = ns
+        # 그 다음 winner 정규화
+        for winner, ns, is_canonical in winners:
+            if is_canonical:
+                # 이미 canonical → rename 불필요; stock 만 갱신
+                target_stock = winner_best_stocks.get(winner.id)
+                if target_stock is not None:
+                    winner.current_stock = target_stock
+            else:
+                # rename 이 필요한 케이스 — deleted 행들 flush 이미 됐으므로 충돌 없음
+                winner.color_text = reg_color
+                if ns and winner.size_text != ns:
+                    winner.size_text = ns
+        # winner 변경사항 DB 에 반영 (caller commit 전 flush)
+        session.flush()
 
     # ── 결과 dict 구성 ───────────────────────────────────────────────────────
-    for winner, ns in winners:
+    for winner, ns, is_canonical in winners:
         result["keep"].append({
             "id": winner.id,
             "color": reg_color,

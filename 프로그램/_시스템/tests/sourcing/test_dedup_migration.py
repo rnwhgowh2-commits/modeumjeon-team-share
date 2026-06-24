@@ -298,3 +298,68 @@ class TestDedupDanSpZeroRowGuard:
         db.refresh(so_black_235)
         assert so_black_235.deleted_at is None, \
             "등록색 없는 사이즈 행이 soft-delete 됨 — 0행 방지 위반"
+
+
+# ─── Bug regression: already-canonical row 유니크 충돌 ───────────────────────
+#
+# 재현 시나리오 (SP 66, reg_color='라이트블루'):
+#   사이즈 230mm 에 두 후보:
+#     A) color='라이트블루', size='230mm', stock=5   ← 이미 canonical
+#     B) color='메이트 라이트블루', size='230mm', stock=999 ← stock 더 많음
+#
+#   기존 로직: B(stock=999)를 winner 로 선택 → soft-delete 로 A(deleted) →
+#   B.color_text = '라이트블루' 로 rename → UniqueViolation (A 가 이미 키 점유)
+#
+#   올바른 동작: A 가 이미 canonical → A 를 winner, B 를 soft-delete.
+#               A.current_stock 을 max(5, 999)=999 로 갱신.
+
+class TestDedupCanonicalFirst:
+    """이미 canonical 인 행이 있으면 그것을 winner 로 — rename 없이 충돌 회피."""
+
+    def _setup(self, db):
+        """SP 66 유사: 라이트블루, 230mm 에 이미-canonical + 더높은-stock 후보."""
+        sp = SourceProduct(site="musinsa", url="https://www.musinsa.com/products/66")
+        db.add(sp)
+        db.flush()
+        # A: 이미 canonical — (reg_color, norm_size) 그대로
+        so_canonical = _add_option(db, sp, "라이트블루", "230mm", stock=5)
+        # B: reg_color 포함 but 더 긴 색명, stock 더 높음
+        so_mate = _add_option(db, sp, "메이트 라이트블루", "230mm", stock=999)
+        return sp, so_canonical, so_mate
+
+    def test_no_unique_violation(self, db):
+        """dry_run=False 에서 UniqueViolation 이 발생하면 안 된다."""
+        sp, so_canonical, so_mate = self._setup(db)
+        # 예외 없이 완료돼야 함
+        dedup_dan_sp(db, sp, reg_color="라이트블루", dry_run=False)
+
+    def test_canonical_row_is_winner(self, db):
+        """실행 후 활성 행 = 이미-canonical 행 (라이트블루/230mm) 단 1개."""
+        sp, so_canonical, so_mate = self._setup(db)
+        dedup_dan_sp(db, sp, reg_color="라이트블루", dry_run=False)
+        active = db.query(SourceOption).filter_by(
+            source_product_id=sp.id, deleted_at=None
+        ).all()
+        assert len(active) == 1, \
+            f"활성 행 1개 예상, got {len(active)}: {[(o.color_text, o.size_text) for o in active]}"
+        winner = active[0]
+        assert winner.color_text == "라이트블루", \
+            f"winner color_text 가 '라이트블루' 가 아님: {winner.color_text!r}"
+        assert winner.size_text == "230mm", \
+            f"winner size_text 가 '230mm' 가 아님: {winner.size_text!r}"
+
+    def test_mate_row_soft_deleted(self, db):
+        """'메이트 라이트블루' 행은 soft-delete 되어야 함."""
+        sp, so_canonical, so_mate = self._setup(db)
+        dedup_dan_sp(db, sp, reg_color="라이트블루", dry_run=False)
+        db.refresh(so_mate)
+        assert so_mate.deleted_at is not None, \
+            "'메이트 라이트블루' 행이 soft-delete 되지 않음"
+
+    def test_canonical_stock_updated_to_best(self, db):
+        """canonical winner 의 current_stock = max(5, 999) = 999 (최고 재고 보존)."""
+        sp, so_canonical, so_mate = self._setup(db)
+        dedup_dan_sp(db, sp, reg_color="라이트블루", dry_run=False)
+        db.refresh(so_canonical)
+        assert so_canonical.current_stock == 999, \
+            f"canonical 행 current_stock 이 999 로 갱신되지 않음: {so_canonical.current_stock}"
