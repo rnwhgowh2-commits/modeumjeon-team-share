@@ -1,0 +1,12 @@
+name: 코드반영 검증 (no deploy)
+on: {workflow_dispatch: {}}
+jobs:
+  v:
+    runs-on: ubuntu-latest
+    steps:
+      - name: SSH
+        run: |
+          mkdir -p ~/.ssh; printf '%s\n' "${{ secrets.LIGHTSAIL_SSH_KEY }}" > ~/.ssh/ls_key; chmod 600 ~/.ssh/ls_key
+          ssh-keyscan -H "${{ secrets.LIGHTSAIL_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null || true
+      - name: 로드코드 검증
+        run: ssh -i ~/.ssh/ls_key -o StrictHostKeyChecking=accept-new ubuntu@"${{ secrets.LIGHTSAIL_HOST }}" 'sudo docker exec modeumjeon sh -c "echo aW1wb3J0IGluc3BlY3QKZnJvbSBsZW1vdXRvbi5zb3VyY2VzIGltcG9ydCBzZXJ2aWNlIGFzIFMKcmM9aW5zcGVjdC5nZXRzb3VyY2UoUy5fcmVzb2x2ZV9yZWdfY29sb3IpCnNjPWluc3BlY3QuZ2V0c291cmNlKFMuc2F2ZV9jcmF3bF9yZXN1bHQpCnBzPSIiCnRyeToKICAgIGZyb20gd2ViYXBwLnJvdXRlcyBpbXBvcnQgYXBpX3ByaWNpbmcgYXMgQVAKICAgIHBzPWluc3BlY3QuZ2V0c291cmNlKEFQLl9wZXJzaXN0X29wdGlvbl9zdG9ja3MpCmV4Y2VwdCBFeGNlcHRpb24gYXMgZToKICAgIHBzPSJFUlI6IitzdHIoZSkKcHJpbnQoIlJDX+yXsOqysOyYteyFmF/roZzrk5w6IiwgKCJPcHRpb25Tb3VyY2VVcmxMaW5rIiBpbiByYykgYW5kICgiY29sb3JfY29kZSIgaW4gcmMpKQpwcmludCgiUkNf652867Ko7Y+067CxX+ycoOyngDoiLCAibGFiZWwiIGluIHJjKQpwcmludCgiU0FWRV/qsIBfUkPtmLjstpwo7Iqk7L2U7ZSE67Cw7ISgKToiLCAiX3Jlc29sdmVfcmVnX2NvbG9yIiBpbiBzYyBhbmQgIl9zY29wZV9vcHRpb25zX3RvX2NvbG9yIiBpbiBzYykKcHJpbnQoIlBFUlNJU1Rf7IOJ7LGE7JuAX3JlZ19jb2xvcjoiLCAicmVnX2NvbG9yIiBpbiBwcykK | base64 -d | python" 2>&1'
