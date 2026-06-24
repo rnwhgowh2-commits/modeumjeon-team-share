@@ -1475,6 +1475,11 @@
     .integrated-mtx th.th-site-col .hsrc-badge.zero { background: #F2F4F6; color: #8B95A1; }
     .integrated-mtx th.th-site-col .hsrc-badge.ok { background: #E7F8EF; color: #03A65A; }
 
+    /* 불명(unknown) 셀: 품절(빨강)과 구분되는 경고색(앰버) */
+    [data-stock-state="unknown"] { color: #b7791f !important; }
+    .sc-stk.unknown { color: #b7791f !important; font-weight: 600; }
+    .d2-src-stock.unknown { color: #b7791f !important; font-weight: 600; }
+
     /* 문제4 (4-4) — 빈 소싱처 셀: ⚠ 제거 + URL 등록 버튼 */
     .integrated-mtx td.td-site-col.cn.cn-add::before { content: none; }
     .integrated-mtx td.td-site-col.cn.cn-add { text-align: center; }
@@ -5486,7 +5491,7 @@ table.ompk-tab th.corner{color:#b0b8c1;cursor:default}
       let body;
       if (hasPrice) {
         const stockTxt = src.stock_label
-          ? `<span class="d2-src-stock ${src.stock_out ? 'zero' : ''}">${src.stock_label === '품절' ? '품절 ⛔' : (src.stock_qty != null ? '재고 ' + src.stock_qty.toLocaleString('ko-KR') + '개' : '재고있음')}</span>`
+          ? `<span class="d2-src-stock ${src.stock_state === 'unknown' ? 'unknown' : (src.stock_out ? 'zero' : '')}">${src.stock_state === 'unknown' || src.stock_label === '⚠️확인필요' ? '⚠️확인필요' : (src.stock_label === '품절' ? '품절 ⛔' : (src.stock_qty != null ? '재고 ' + src.stock_qty.toLocaleString('ko-KR') + '개' : '재고있음'))}</span>`
           : '<span class="d2-src-stock">재고 —</span>';
         const dateTxt = `<span class="d2-src-date">${fmtRelDate(src.last_fetched_at)}</span>`;
         body = `<div class="d2-src-price">${src.crawled_price.toLocaleString('ko-KR')}원</div>
@@ -5666,7 +5671,7 @@ table.ompk-tab th.corner{color:#b0b8c1;cursor:default}
         let body;
         if (hasPrice) {
           const stockTxt = src.stock_label
-            ? `<span class="d2-src-stock ${src.stock_out ? 'zero' : ''}">${src.stock_label === '품절' ? '품절 ⛔' : (src.stock_qty != null ? '재고 ' + src.stock_qty.toLocaleString('ko-KR') + '개' : '재고있음')}</span>`
+            ? `<span class="d2-src-stock ${src.stock_state === 'unknown' ? 'unknown' : (src.stock_out ? 'zero' : '')}">${src.stock_state === 'unknown' || src.stock_label === '⚠️확인필요' ? '⚠️확인필요' : (src.stock_label === '품절' ? '품절 ⛔' : (src.stock_qty != null ? '재고 ' + src.stock_qty.toLocaleString('ko-KR') + '개' : '재고있음'))}</span>`
             : '<span class="d2-src-stock">재고 —</span>';
           body = `<div class="d2-src-price">${src.crawled_price.toLocaleString('ko-KR')}원</div>
             <div class="d2-src-meta">${stockTxt}<span class="d2-src-date">${fmtRelDate(src.last_fetched_at)}</span></div>`;
@@ -5866,7 +5871,10 @@ table.ompk-tab th.corner{color:#b0b8c1;cursor:default}
     //   정책: 정확한 수량 있으면 'N개', 없으면 '재고있음', 0이면 '품절'. (가짜 '재고 10' 제거)
     //   백엔드가 site별 센티넬(999·무신사 cap·상품합계 더미)을 이미 해석함.
     let _isOut = false, stkTxt, stkCls = 'sc-stk';
-    if (src.stock_out || src.crawled_stock === 0) { _isOut = true; stkTxt = '품절'; stkCls += ' out'; }
+    // [2026-06-24] 불명(unknown): 품절과 별개로 ⚠️확인필요 텍스트 + 앰버. opacity 로 흐리게
+    //   처리하지 않음 — 사람이 확인하도록 눈에 띄게(판매 제외는 백엔드 stock_out 이 담당).
+    if (src.stock_state === 'unknown') { stkTxt = '⚠️확인필요'; stkCls += ' unknown'; }
+    else if (src.stock_out || src.crawled_stock === 0) { _isOut = true; stkTxt = '품절'; stkCls += ' out'; }
     else if (src.stock_qty != null) { stkTxt = '재고 ' + src.stock_qty.toLocaleString('ko-KR') + '개'; }
     else { stkTxt = '재고있음'; }
     // [2026-06-03 v12] 2행 그리드 — 가격↔↗ / 재고↔fx. ↗·fx 동일 크기 라운드 박스. 최저=테두리+우상단 딱지. '원' 한 줄.
@@ -5874,8 +5882,8 @@ table.ompk-tab th.corner{color:#b0b8c1;cursor:default}
     const _go = `<a class="sc-go" href="${escapeHtml(src.product_url)}" target="_blank" rel="noopener" title="${escapeHtml((src.source_name||'소싱처')+' 페이지 열기')}" onclick="event.stopPropagation()">↗</a>`;
     const _fx = `<button type="button" class="cell-fx sc-fx" title="혜택 계산식 클릭">fx</button>`;
     const _lowTag = isLowest ? `<span class="sc-lowtag">최저</span>` : '';
-    // [Fix A] data-cell-col-key 추가; [Fix E] data-refetch-bsu-id 추가
-    return `<td class="td-site-col cd${loCls} has-c1-tip" data-cell-sku="${escapeHtml(o.sku)}" data-cell-src="${col.source_id}" data-cell-col-key="${escapeHtml(col.colKey)}" data-cell-price="${src.crawled_price}" data-cell-spid="${src.source_product_id || ''}" data-refetch-bsu-id="${src.bundle_source_url_id != null ? src.bundle_source_url_id : ''}" style="position:relative;${_isOut ? 'opacity:.55;' : ''}"><div class="sc-mc${isLowest?' low':''}">${_lowTag}<span class="px-main">${finalPrice.toLocaleString('ko-KR')}${_won}</span>${_go}<span class="${stkCls}">${stkTxt}</span>${_fx}${tipHtml}</div></td>`;
+    // [Fix A] data-cell-col-key 추가; [Fix E] data-refetch-bsu-id 추가; [stock_state] ⚠️확인필요 앰버 스타일
+    return `<td class="td-site-col cd${loCls} has-c1-tip" data-cell-sku="${escapeHtml(o.sku)}" data-cell-src="${col.source_id}" data-cell-col-key="${escapeHtml(col.colKey)}" data-cell-price="${src.crawled_price}" data-cell-spid="${src.source_product_id || ''}" data-refetch-bsu-id="${src.bundle_source_url_id != null ? src.bundle_source_url_id : ''}" data-stock-state="${src.stock_state || ''}" style="position:relative;${_isOut ? 'opacity:.55;' : ''}"><div class="sc-mc${isLowest?' low':''}">${_lowTag}<span class="px-main">${finalPrice.toLocaleString('ko-KR')}${_won}</span>${_go}<span class="${stkCls}">${stkTxt}</span>${_fx}${tipHtml}</div></td>`;
   }
 
   // Phase 6 — 최저가/절감 캐시 (renderSourceMatrix 가 채움)

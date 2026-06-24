@@ -214,6 +214,22 @@ def _resolve_stock(site, raw):
     return (int(raw), f'{int(raw)}개', False)
 
 
+def _stock_state(site, raw):
+    """재고 원시값 → 상태 문자열(프론트 스타일/툴팁용). _resolve_stock 과 동일 의미.
+       soldout / unknown / limited / ample / uncrawled."""
+    if raw is None:
+        return 'uncrawled'
+    if raw == _STOCK_UNKNOWN:
+        return 'unknown'
+    if raw == 0:
+        return 'soldout'
+    if raw >= 900:
+        return 'ample'
+    if (site or '') == 'musinsa' and raw >= _STOCK_CAP:
+        return 'ample'
+    return 'limited'
+
+
 def _pick_cheapest_buyable(sources):
     """옵션의 소싱처들 중 "재고존재(품절X) + 크롤성공(error X) + 가격>0" 최저가.
        없으면 크롤성공+가격있는 것 중 최저(품절은 허용 — 실가격은 유효).
@@ -663,6 +679,7 @@ def _option_matrix_data(code: str):
                 _d['stock_qty'] = _q
                 _d['stock_label'] = _lbl
                 _d['stock_out'] = _out
+                _d['stock_state'] = _stock_state(_d.get('site'), _d.get('crawled_stock'))
 
         # 가격 설정
         configs = (

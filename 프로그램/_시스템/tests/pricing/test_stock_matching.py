@@ -228,3 +228,17 @@ class TestPickCheapestBuyable:
 
     def test_empty_returns_none(self):
         assert _pick_cheapest_buyable([]) is None
+
+
+# ─────────────────────────────────────────────────────────────
+# _stock_state — 재고 원시값 → 상태 문자열 (프론트 스타일/툴팁용)
+# ─────────────────────────────────────────────────────────────
+class TestStockState:
+    def test_states(self):
+        from webapp.routes.api_pricing import _stock_state
+        assert _stock_state('lotteon', -1) == 'unknown'
+        assert _stock_state('lotteon', 0) == 'soldout'
+        assert _stock_state('lotteon', 5) == 'limited'
+        assert _stock_state('lotteon', 999) == 'ample'
+        assert _stock_state('lotteon', None) == 'uncrawled'
+        assert _stock_state('musinsa', 10) == 'ample'
