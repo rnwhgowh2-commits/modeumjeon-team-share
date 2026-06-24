@@ -33,7 +33,7 @@ for _m in (
         pass
 
 from lemouton.sources.models import SourceProduct, SourceOption
-from lemouton.sourcing.models import BundleSourceUrl
+from lemouton.sourcing.models import BundleSourceUrl, OptionSourceUrlLink, Option
 from lemouton.sources.service import (
     upsert_source_product,
     save_crawl_result,
@@ -192,6 +192,167 @@ class TestResolveRegColor:
         db.flush()
         color = _resolve_reg_color(db, sp)
         assert color == "오렌지"
+
+    # ── 연결옵션 우선 경로 (linked-option-first) ──────────────────────────────
+
+    def _add_model_and_options(self, db, color_code, sizes=("220mm", "230mm")):
+        """테스트용 Model + Option 행 추가. SQLite FK-off 환경에서 FK 만족."""
+        from lemouton.sourcing.models import Model as SModel
+        # merge 는 PK 기준 upsert — 이미 존재해도 안전
+        db.merge(SModel(model_code="MATE001", model_name_raw="메이트"))
+        db.flush()
+        skus = []
+        for sz in sizes:
+            sku = f"MATE001-{color_code}-{sz}"
+            db.merge(Option(
+                canonical_sku=sku,
+                model_code="MATE001",
+                color_code=color_code,
+                size_code=sz,
+            ))
+            skus.append(sku)
+        db.flush()
+        return skus
+
+    def test_linked_option_color_no_label(self, db):
+        """label=None(또는 '단품') 이어도 연결옵션에서 단일 색상 → 그 색 반환 (신규 경로)."""
+        sp = SourceProduct(site="musinsa", url=_MUSINSA_URL)
+        db.add(sp)
+        db.flush()
+
+        bsu = BundleSourceUrl(
+            model_code="MATE001",
+            source_key="musinsa",
+            url=_MUSINSA_URL,
+            label=None,          # 라벨 없음 — 기존 경로는 None 반환
+            url_type="단품",
+        )
+        db.add(bsu)
+        db.flush()
+
+        skus = self._add_model_and_options(db, color_code="오렌지")
+        for sku in skus:
+            db.add(OptionSourceUrlLink(
+                option_canonical_sku=sku,
+                bundle_source_url_id=bsu.id,
+            ))
+        db.flush()
+
+        color = _resolve_reg_color(db, sp)
+        assert color == "오렌지", f"연결옵션 경로 실패: got {color!r}"
+
+    def test_linked_option_label_단품_no_color(self, db):
+        """label='단품' (색정보 없음) + 연결옵션 단일색 → 연결옵션 색 반환."""
+        sp = SourceProduct(site="musinsa", url=_MUSINSA_URL)
+        db.add(sp)
+        db.flush()
+
+        bsu = BundleSourceUrl(
+            model_code="MATE001",
+            source_key="musinsa",
+            url=_MUSINSA_URL,
+            label="단품",        # 색정보 없는 라벨
+            url_type="단품",
+        )
+        db.add(bsu)
+        db.flush()
+
+        skus = self._add_model_and_options(db, color_code="오렌지")
+        for sku in skus:
+            db.add(OptionSourceUrlLink(
+                option_canonical_sku=sku,
+                bundle_source_url_id=bsu.id,
+            ))
+        db.flush()
+
+        color = _resolve_reg_color(db, sp)
+        assert color == "오렌지", f"단품 라벨+연결옵션 경로 실패: got {color!r}"
+
+    def test_linked_option_mixed_colors_falls_back_to_label(self, db):
+        """연결옵션에 2가지 색 → 모호(ambiguous) → 라벨로 폴백 → 라벨에 색 있으면 사용."""
+        sp = SourceProduct(site="musinsa", url=_MUSINSA_URL)
+        db.add(sp)
+        db.flush()
+
+        bsu = BundleSourceUrl(
+            model_code="MATE001",
+            source_key="musinsa",
+            url=_MUSINSA_URL,
+            label="musinsa_오렌지",  # 라벨에 색 있음
+            url_type="단품",
+        )
+        db.add(bsu)
+        db.flush()
+
+        # 연결옵션이 오렌지 + 블랙 (혼재 → 모호)
+        skus_orange = self._add_model_and_options(db, color_code="오렌지", sizes=("220mm",))
+        skus_black = self._add_model_and_options(db, color_code="블랙", sizes=("220mm",))
+        for sku in skus_orange + skus_black:
+            db.add(OptionSourceUrlLink(
+                option_canonical_sku=sku,
+                bundle_source_url_id=bsu.id,
+            ))
+        db.flush()
+
+        # 연결옵션 모호 → 라벨 폴백 → '오렌지'
+        color = _resolve_reg_color(db, sp)
+        assert color == "오렌지", f"혼재+라벨폴백 실패: got {color!r}"
+
+    def test_linked_option_mixed_colors_no_label_returns_none(self, db):
+        """연결옵션 2가지 색 + 라벨도 None → 보수적으로 None 반환 (스코프 안 함)."""
+        sp = SourceProduct(site="musinsa", url=_MUSINSA_URL)
+        db.add(sp)
+        db.flush()
+
+        bsu = BundleSourceUrl(
+            model_code="MATE001",
+            source_key="musinsa",
+            url=_MUSINSA_URL,
+            label=None,          # 라벨 없음
+            url_type="단품",
+        )
+        db.add(bsu)
+        db.flush()
+
+        skus_orange = self._add_model_and_options(db, color_code="오렌지", sizes=("220mm",))
+        skus_black = self._add_model_and_options(db, color_code="블랙", sizes=("230mm",))
+        for sku in skus_orange + skus_black:
+            db.add(OptionSourceUrlLink(
+                option_canonical_sku=sku,
+                bundle_source_url_id=bsu.id,
+            ))
+        db.flush()
+
+        color = _resolve_reg_color(db, sp)
+        assert color is None, f"혼재+라벨없음은 None이어야 함: got {color!r}"
+
+    def test_linked_option_no_links_falls_back_to_label(self, db):
+        """연결옵션 없음 + 라벨 있음 → 라벨 경로 (기존 동작 유지)."""
+        sp = SourceProduct(site="musinsa", url=_MUSINSA_URL)
+        db.add(sp)
+        db.flush()
+
+        bsu = BundleSourceUrl(
+            model_code="MATE001",
+            source_key="musinsa",
+            url=_MUSINSA_URL,
+            label="musinsa_오렌지",
+            url_type="단품",
+        )
+        db.add(bsu)
+        db.flush()
+        # OptionSourceUrlLink 없음 → 연결옵션 경로 zero → 라벨 폴백
+
+        color = _resolve_reg_color(db, sp)
+        assert color == "오렌지", f"연결없음+라벨 폴백 실패: got {color!r}"
+
+    def test_non_musinsa_always_none(self, db):
+        """site != 'musinsa' → 항상 None (site 게이트 불변)."""
+        sp = SourceProduct(site="ssf", url=_MUSINSA_URL)
+        db.add(sp)
+        db.flush()
+        color = _resolve_reg_color(db, sp)
+        assert color is None
 
 
 # ─── integration: save_crawl_result 색상 스코프 ──────────────────────────────

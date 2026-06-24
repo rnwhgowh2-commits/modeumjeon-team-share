@@ -492,21 +492,25 @@ def _cnorm_color(x) -> str:
 def _resolve_reg_color(session: Session, source_product: SourceProduct) -> str | None:
     """단품 SourceProduct 의 등록 색상명 반환.
 
-    BundleSourceUrl 에서 같은 URL + url_type='단품' 인 행을 찾아 label 에서 색상을 추출.
-    label 형식: '{source_key}_{색상}' (예: 'musinsa_오렌지') 또는 색상만('오렌지').
+    우선순위:
+      1. OptionSourceUrlLink → Option.color_code (연결옵션 — 권위 있는 원천)
+         단일 색상이면 그대로 반환. 0개 또는 2+개(혼재) 면 단계 2로.
+      2. BundleSourceUrl.label 파싱 (기존 경로 — 폴백)
+         label 형식: '{source_key}_{색상}' (예: 'musinsa_오렌지') 또는 색상만('오렌지').
+         라벨이 없거나 파싱 결과가 비어있으면 None 반환.
 
     반환:
       str  — 등록 색상(예: '오렌지')
-      None — BundleSourceUrl 없거나 단품이 아닌 경우 (보수적: 필터 안 함)
+      None — 색상을 자신있게 판별할 수 없는 경우 (보수적: 필터 안 함)
 
     범위: 무신사 단품만. 타 소싱처(롯데온/SSF/SSG/르무통)는 색스코프 미적용(보수적)
       — 동일 URL이 다른 소싱처에 단품 등록돼도 무신사 외엔 None 반환해 데이터 보존.
     """
-    # [2026-06-24 Finding A] 무신사 단품에만 색스코프 적용 — 타소싱처 부분손실 방지
+    # 무신사 단품에만 색스코프 적용 — 타소싱처 부분손실 방지
     if (getattr(source_product, 'site', None) or '') != 'musinsa':
         return None
     try:
-        from lemouton.sourcing.models import BundleSourceUrl
+        from lemouton.sourcing.models import BundleSourceUrl, OptionSourceUrlLink, Option as SOption
     except ImportError:
         return None
 
@@ -516,14 +520,39 @@ def _resolve_reg_color(session: Session, source_product: SourceProduct) -> str |
         bsu_rows = (session.query(BundleSourceUrl)
                     .filter(BundleSourceUrl.url.isnot(None))
                     .all())
+        # url_type='단품' 인 것만 (label 존재 여부 무관)
         matching = [b for b in bsu_rows
                     if normalize_url(b.url or '') == sp_url_norm
-                    and (b.url_type or '단품') == '단품'
-                    and b.label]
+                    and (b.url_type or '단품') == '단품']
         if not matching:
             return None
         # 첫 번째 매칭 BundleSourceUrl 사용
         bsu = matching[0]
+    except Exception:
+        return None  # 보수적: 예외 시 필터 안 함
+
+    # ── 경로 1: 연결옵션(OptionSourceUrlLink → Option.color_code) ──────────────
+    # 라벨 없어도 연결옵션에서 색 판별 가능 — 권위 있는 단일 진실 원천
+    try:
+        links = (session.query(OptionSourceUrlLink)
+                 .filter(OptionSourceUrlLink.bundle_source_url_id == bsu.id)
+                 .all())
+        if links:
+            linked_skus = [lnk.option_canonical_sku for lnk in links]
+            opt_rows = (session.query(SOption)
+                        .filter(SOption.canonical_sku.in_(linked_skus))
+                        .all())
+            colors = {(o.color_code or '').strip() for o in opt_rows
+                      if (o.color_code or '').strip()}
+            if len(colors) == 1:
+                # 단일 색상 — 권위 있음
+                return colors.pop()
+            # 0개(매핑된 옵션에 color_code 없음) 또는 2+개(혼재) → 폴백
+    except Exception:
+        pass  # 연결옵션 조회 실패 → 라벨 경로로 폴백
+
+    # ── 경로 2: label 파싱 (기존 경로 — 폴백) ──────────────────────────────────
+    try:
         label = (bsu.label or '').strip()
         if not label:
             return None
