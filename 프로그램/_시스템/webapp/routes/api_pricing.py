@@ -116,11 +116,12 @@ def _match_option_so(so_index, sp_id, opt_color, opt_size):
         if not s_size or s_size != osz:
             continue
         has_color = bool(st) and bool((so.color_text or '').strip())
-        if has_color:
+        if has_color and oc:                      # 크롤이 색을 줬을 때만 색 일치 요구
             sc = _stk_cnorm(so.color_text)
-            if oc and sc and (oc == sc or oc in sc or sc in oc):
+            if sc and (oc == sc or oc in sc or sc in oc):
                 return so                         # 색+사이즈 정확 매칭
             continue                              # 색 불일치 → 계속 탐색
+        # 크롤 색이 빈 값(단품=단일색 소싱처) 또는 SO 무색 → 사이즈만으로 매칭(안전)
         if size_only is None:
             size_only = so                        # 단일색 URL — 사이즈만으로 매칭
     return size_only
