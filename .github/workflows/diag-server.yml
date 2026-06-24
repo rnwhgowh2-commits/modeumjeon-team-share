@@ -11,15 +11,13 @@ jobs:
           printf '%s\n' "${{ secrets.LIGHTSAIL_SSH_KEY }}" > ~/.ssh/ls_key
           chmod 600 ~/.ssh/ls_key
           ssh-keyscan -H "${{ secrets.LIGHTSAIL_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null || true
-      - name: 마커 추적 + DB/env
+      - name: 로드된 코드 fix 여부
         run: |
-          M=ZZDIAG1782305160513
-          ssh -i ~/.ssh/ls_key -o StrictHostKeyChecking=accept-new ubuntu@"${{ secrets.LIGHTSAIL_HOST }}" "
-            echo '=== modeumjeon 로그에 마커?'; sudo docker logs modeumjeon 2>&1 | grep -c \$M || echo 0
-            echo '=== margin-calc 로그에 마커?'; sudo docker logs margin-calc 2>&1 | grep -c \$M || echo 0
-            echo '=== margin-tunnel 로그에 마커?'; sudo docker logs margin-tunnel 2>&1 | grep -c \$M || echo 0
-            echo '=== modeumjeon 최근 access 로그 10줄 ==='; sudo docker logs --tail 10 modeumjeon 2>&1
-            echo '=== modeumjeon DATABASE_URL(값숨김) ==='; sudo docker exec modeumjeon sh -c 'test -n \"\$DATABASE_URL\" && echo HAS_DBURL || echo NO_DBURL_sqlite'
-            echo '=== modeumjeon DB 파일/크기 ==='; sudo docker exec modeumjeon sh -c 'ls -la /app/data/*.db 2>/dev/null || echo no_db'
-            echo '=== modeumjeon options 행수 ==='; sudo docker exec modeumjeon sh -c 'python -c \"import sqlite3,glob; f=glob.glob(chr(47)+chr(97)+chr(112)+chr(112)+chr(47)+chr(100)+chr(97)+chr(116)+chr(97)+chr(47)+chr(42)+chr(46)+chr(100)+chr(98)); print(f)\"' 2>&1 | head -3
-          "
+          ssh -i ~/.ssh/ls_key -o StrictHostKeyChecking=accept-new ubuntu@"${{ secrets.LIGHTSAIL_HOST }}" '
+            echo "=== 로드된(import) _match_option_so 에 fix 있나 ==="
+            sudo docker exec modeumjeon sh -c "echo aW1wb3J0IGluc3BlY3QKdHJ5OgogICAgZnJvbSB3ZWJhcHAucm91dGVzLmFwaV9wcmljaW5nIGltcG9ydCBfbWF0Y2hfb3B0aW9uX3NvIGFzIGYKICAgIHNyYz1pbnNwZWN0LmdldHNvdXJjZShmKQogICAgcHJpbnQoIkxPQURFRF9GSVhfUFJFU0VOVDoiLCAoImFuZCBvYzoiIGluIHNyYykgb3IgKCJoYXNfY29sb3IgYW5kIG9jIiBpbiBzcmMpKQogICAgcHJpbnQoIkZJTEVfRklSU1QxMjA6Iiwgc3JjWzoxMjBdLnJlcGxhY2UoY2hyKDEwKSwiIHwgIikpCmV4Y2VwdCBFeGNlcHRpb24gYXMgZToKICAgIHByaW50KCJFUlIiLCBlKQo= | base64 -d | python" 2>&1
+            echo "=== 컨테이너 시작시각 vs 파일 수정시각 ==="
+            sudo docker exec modeumjeon sh -c "stat -c %y /app/webapp/routes/api_pricing.py; ps -o lstart= -p 1 2>/dev/null | head -1"
+            echo "=== __pycache__ pyc 존재? ==="
+            sudo docker exec modeumjeon sh -c "ls -la /app/webapp/routes/__pycache__/ 2>/dev/null | grep -i api_pricing || echo no_pyc"
+          '
