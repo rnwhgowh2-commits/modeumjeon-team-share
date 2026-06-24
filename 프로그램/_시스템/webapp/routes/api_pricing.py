@@ -227,6 +227,20 @@ def _pick_cheapest_buyable(sources):
     return min(priced, key=lambda x: x.get('crawled_price') or 9e15)
 
 
+def _resolve_sourcing_cost(cost_src):
+    """소싱 카드 원가 = 크롤 실제가만. 폴백(사입가·하드코딩 95000) 금지.
+
+    [#4 2026-06-13 — feedback_no_fallback_price_on_match_fail]
+      소싱 카드는 '크롤된 소싱처에서 산다'는 전제라 원가는 크롤 실제가여야 한다.
+      크롤 실패/누락 시 boxhero 사입가(다른 개념) 또는 95000 상수로 메우면 가짜
+      판매가가 화면에 떠 수동주문을 유발 → 손실. 없으면 None(소싱 카드 가격없음).
+
+    return: 크롤 원가 int | None
+    """
+    p = (cost_src or {}).get('crawled_price')
+    return p if (p and p > 0) else None
+
+
 # ════════════════════════════════════════════
 #  v27 시안 ③ — 전역 progress widget API
 # ════════════════════════════════════════════
