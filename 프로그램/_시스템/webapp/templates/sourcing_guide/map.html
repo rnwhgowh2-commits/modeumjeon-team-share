@@ -206,31 +206,31 @@
       </div></div>
 
       <div class="scard"><div class="src">롯데온</div><div>
-        <div class="axes"><span class="axis"><span class="ax">재고·표면가</span><span class="pill">무로그인 · 서버</span></span><span class="axis"><span class="ax">혜택</span><span class="pill">회원할인만 로그인</span></span><span class="axis"><span class="pill" style="background:#FFF4E5;color:#B45309">개선예정</span></span></div>
+        <div class="axes"><span class="axis"><span class="ax">재고·표면가</span><span class="pill">무로그인 · 서버</span></span><span class="axis"><span class="ax">혜택</span><span class="pill">회원할인만 로그인</span></span></div>
         <div class="dm"><span class="ax">수집 방법 (데이터별)</span><div class="dgrid">
           <span class="dp"><b>상품명</b><span class="pill api">API</span></span><span class="dp"><b>대표이미지</b><span class="pill">DOM</span></span><span class="dp"><b>추가이미지</b><span class="pill">DOM</span></span><span class="dp"><b>옵션</b><span class="pill api">API</span></span><span class="dp"><b>재고</b><span class="pill api">API</span><span class="pill">+DOM</span></span><span class="dp"><b>표면노출가</b><span class="pill api">API</span></span><span class="dp"><b>혜택</b><span class="pill">DOM</span></span></div></div>
         <table class="st3">
           <tr><td class="sn"><span class="sgdot" style="background:#DC2626"></span>품절(없음)</td><td class="how"><span class="pill api">API</span> 매핑 품절 / <span class="pill">DOM</span> <span class="ink">li.soldout</span></td></tr>
-          <tr><td class="sn"><span class="sgdot" style="background:#E8830C"></span>한정(N개)</td><td class="how"><span class="ink">수량을 구조적으로 안 줌</span> → 한정수량 못 잡음</td></tr>
-          <tr><td class="sn"><span class="sgdot" style="background:#15803D"></span>충분(표식없음)</td><td class="how">표식 없음 → <span class="ink">unknown(수량 미상)</span> · 가짜 충분 금지</td></tr>
+          <tr><td class="sn"><span class="sgdot" style="background:#E8830C"></span>한정(N개)</td><td class="how"><span class="pill api">API</span> 옵션 매핑 <span class="ink">stkQty</span> → 실수량 N <span style="color:#9AA4B0">(라이브 검증 220=5·10개)</span></td></tr>
+          <tr><td class="sn"><span class="sgdot" style="background:#15803D"></span>충분(표식없음)</td><td class="how">stkQty 큼 → 충분 / 품절 사이즈에 끼는 <span class="ink">대체상품(999)</span>만 ⚠️확인필요(불명)</td></tr>
           <tr class="special"><td class="sn">⚠ 특이사항</td><td class="how">매핑 API + DOM 둘 다 실패 → <span class="ink">크롤실패</span></td></tr>
         </table>
         <div class="meta"><span class="elabel">엔드포인트</span><span class="mono">pbf.../option/mapping/{spd}/{sitm}</span> · <span class="elabel">코드</span><span class="mono">lotteon.py:1293</span></div>
-        <div class="why" style="margin-top:8px;margin-bottom:0;"><b>왜 한정수량 못 잡나?</b> 옵션 API(<span class="mono" style="color:inherit">option/mapping</span>)가 품절여부(<span class="mono" style="color:inherit">disabled</span>)만 주고 수량은 비공개 → 재고있음 전부 999, 그 999는 대체상품 가드로 ⚠️확인필요 처리. 실수량(stkQty) 수집은 <b>개선예정(미머지)</b>.</div>
+        <div class="why" style="margin-top:8px;margin-bottom:0;"><b>왜 API?</b> 라이브 확장이 옵션 API(<span class="mono" style="color:inherit">option/mapping</span>)의 <span class="mono" style="color:inherit">stkQty</span>로 실수량을 잡음(라이브 124셀 실수량 확인). 품절 사이즈에 끼는 대체상품(999)만 대체상품 가드로 ⚠️확인필요 처리. <span style="color:#9AA4B0">(저장소 서버 크롤러 폴백은 0/999만 — 라이브는 확장 경로)</span></div>
       </div></div>
 
       <div class="scard"><div class="src">스마트<br>스토어</div><div>
-        <div class="axes"><span class="axis"><span class="ax">재고·표면가</span><span class="pill">무로그인 · 서버</span></span><span class="axis"><span class="ax">per-SKU 재고</span><span class="pill">로그인 · 확장</span></span><span class="axis"><span class="pill" style="background:#FFF4E5;color:#B45309">개선예정</span></span></div>
+        <div class="axes"><span class="axis"><span class="ax">표면가·리뷰적립</span><span class="pill">무로그인 · 서버</span></span><span class="axis"><span class="ax">per-SKU 재고</span><span class="pill">로그인 · 확장</span></span></div>
         <div class="dm"><span class="ax">수집 방법 (데이터별)</span><div class="dgrid">
           <span class="dp"><b>상품명</b><span class="pill api">API</span></span><span class="dp"><b>대표이미지</b><span class="pill api">API</span></span><span class="dp"><b>추가이미지</b><span class="pill api">API</span></span><span class="dp"><b>옵션</b><span class="pill api">API</span></span><span class="dp"><b>재고</b><span class="pill api">API</span></span><span class="dp"><b>표면노출가</b><span class="pill api">API</span></span><span class="dp"><b>혜택</b><span class="pill api">API</span></span></div></div>
         <table class="st3">
           <tr><td class="sn"><span class="sgdot" style="background:#DC2626"></span>품절(없음)</td><td class="how"><span class="pill api">API</span> SKU <span class="ink">stockQuantity=0</span></td></tr>
           <tr><td class="sn"><span class="sgdot" style="background:#E8830C"></span>한정(N개)</td><td class="how"><span class="pill api">API</span> <span class="ink">stockQuantity=N</span> → 실수량</td></tr>
           <tr><td class="sn"><span class="sgdot" style="background:#15803D"></span>충분(표식없음)</td><td class="how"><span class="pill api">API</span> stockQuantity 큼 → 충분</td></tr>
-          <tr class="special"><td class="sn">⚠ 특이사항</td><td class="how"><span class="ink">per-SKU 저장 누락 시 전부 999 둔갑</span>(_persist_option_stocks 필수) / WAF 차단 → 크롤실패</td></tr>
+          <tr class="special"><td class="sn">⚠ 특이사항</td><td class="how">per-SKU 재고는 <span class="ink">_persist_option_stocks</span>로 영속(2026-06-22 수정) · <span class="mono">A.id</span> 사용(productNo 쓰면 999 둔갑) / WAF 차단 → 크롤실패</td></tr>
         </table>
         <div class="meta"><span class="elabel">엔드포인트</span><span class="mono">/n/v2/channels/{cu}/products/{A.id}</span> · <span class="elabel">코드</span><span class="mono">ss_lemouton.py</span></div>
-        <div class="why" style="margin-top:8px;margin-bottom:0;"><b>왜 999 둔갑?</b> 상품 inline JSON엔 SKU 단위 재고가 없음. per-SKU 실수량은 로그인 확장 API(WAF)로만 가능한데 <b>main 미구현</b> → 현재 전 옵션 999(수량미상). 표면가·리뷰적립은 무로그인 inline.</div>
+        <div class="why" style="margin-top:8px;margin-bottom:0;"><b>왜 로그인 확장?</b> 상품 inline JSON엔 SKU 단위 재고가 없고, 네이버 WAF가 서버 직접호출을 막음 → per-SKU 실수량은 <b>로그인 확장 API</b>로만 가능. 수집값은 <span class="mono" style="color:inherit">_persist_option_stocks</span>로 영속(라이브 98셀 실수량 확인). 표면가·리뷰적립은 무로그인 inline.</div>
       </div></div>
 
       <div class="scard"><div class="src">르무통<br>공홈</div><div>
