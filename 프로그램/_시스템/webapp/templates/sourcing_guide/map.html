@@ -127,11 +127,11 @@
       </div>
       <div class="card">
         <div><span class="no">02</span><span class="ti">저장</span></div>
-        <div class="detail">추출값을 <span class="ink">DB 컬럼 + dynamic_benefits_json</span>에 기록한다.</div>
+        <div class="detail">추출값을 <span class="ink">DB 컬럼 + dynamic_benefits_json</span>에 기록한다. 옵션 재고는 <span class="ink">(색·사이즈)당 SourceOption 1행</span>에 영속.</div>
         <div class="div"></div>
         <div class="erow"><span class="elabel">코드</span><span class="mono">service.py:429</span>
           <span class="elabel">위치</span><span class="mono">last_price·current_stock·dynamic_benefits_json</span> (<span class="ink">Supabase</span>/AWS)
-          <span class="elabel">뜻</span>긁은 값을 DB에 영속.</div>
+          <span class="elabel">뜻</span>긁은 값을 DB에 영속. <span style="color:#9AA4B0">매트릭스 읽기(<span class="mono" style="color:inherit">_match_option_so</span>)·크롤 쓰기(<span class="mono" style="color:inherit">_persist</span>)가 같은 행을 봐야 함 — 중복행이면 stale 둔갑(→6 재발).</span></div>
       </div>
       <div class="card">
         <div><span class="no">03</span><span class="ti">계산</span></div>
@@ -212,11 +212,11 @@
         <table class="st3">
           <tr><td class="sn"><span class="sgdot" style="background:#DC2626"></span>품절(없음)</td><td class="how"><span class="pill api">API</span> 매핑 품절 / <span class="pill">DOM</span> <span class="ink">li.soldout</span></td></tr>
           <tr><td class="sn"><span class="sgdot" style="background:#E8830C"></span>한정(N개)</td><td class="how"><span class="pill api">API</span> 옵션 매핑 <span class="ink">stkQty</span> → 실수량 N <span style="color:#9AA4B0">(라이브 검증 220=5·10개)</span></td></tr>
-          <tr><td class="sn"><span class="sgdot" style="background:#15803D"></span>충분(표식없음)</td><td class="how">stkQty 큼 → 충분 / 품절 사이즈에 끼는 <span class="ink">대체상품(999)</span>만 ⚠️확인필요(불명)</td></tr>
+          <tr><td class="sn"><span class="sgdot" style="background:#15803D"></span>충분(표식없음)</td><td class="how"><span class="pill api">API</span> stkQty <span class="ink">실수량(20·30·41)</span> → 충분 <span style="color:#9AA4B0">(999 아님)</span></td></tr>
           <tr class="special"><td class="sn">⚠ 특이사항</td><td class="how">매핑 API + DOM 둘 다 실패 → <span class="ink">크롤실패</span></td></tr>
         </table>
         <div class="meta"><span class="elabel">엔드포인트</span><span class="mono">pbf.../option/mapping/{spd}/{sitm}</span> · <span class="elabel">코드</span><span class="mono">lotteon.py:1293</span></div>
-        <div class="why" style="margin-top:8px;margin-bottom:0;"><b>왜 API?</b> 라이브 확장이 옵션 API(<span class="mono" style="color:inherit">option/mapping</span>)의 <span class="mono" style="color:inherit">stkQty</span>로 실수량을 잡음(라이브 124셀 실수량 확인). 품절 사이즈에 끼는 대체상품(999)만 대체상품 가드로 ⚠️확인필요 처리. <span style="color:#9AA4B0">(저장소 서버 크롤러 폴백은 0/999만 — 라이브는 확장 경로)</span></div>
+        <div class="why" style="margin-top:8px;margin-bottom:0;"><b>왜 API?</b> 라이브 확장이 옵션 API(<span class="mono" style="color:inherit">option/mapping</span>)의 <span class="mono" style="color:inherit">stkQty</span>로 실수량을 잡음 — <b>충분도 20·30·41 실수량</b>(999가 아님, 라이브 124셀 검증). <span style="color:#9AA4B0">화면 999/품절 둔갑이 보이면 = 저장 중복행 stale 폴백(→6 재발). 대체상품 999(품절 슬롯에 끼는 다른 상품)는 별개·드문 케이스(확장 spdNo 가드).</span></div>
       </div></div>
 
       <div class="scard"><div class="src">스마트<br>스토어</div><div>
