@@ -282,27 +282,27 @@
 
       <div class="card"><div class="psrc">무신사</div>
         <div class="pm"><span><span class="ax">표면노출가</span><span class="pill api">API</span> goodsPrice.salePrice</span><span><span class="ax">혜택</span><span class="pill api">API</span></span></div>
-        <div class="formula">회원가 − <span class="ink">등급할인·등급적립·무신사머니·쿠폰 +후기500</span> / 머니3% vs 현대카드 택1 · <span class="mono">api_benefits.py:727</span></div>
+        <div class="formula">회원가 − <span class="ink">등급할인·등급적립·무신사머니·쿠폰 +후기500</span> / 머니3% vs 현대카드 택1 · <span class="mono">api_benefits.py:727</span><div style="font-size:13px;color:#9AA4B0;margin-top:4px">표면가=무로그인 API / 혜택=로그인 확장 DOM</div></div>
       </div>
       <div class="card"><div class="psrc">SSG</div>
         <div class="pm"><span><span class="ax">표면노출가</span><span class="pill">HTML</span></span><span><span class="ax">혜택</span><span class="pill">HTML</span></span></div>
-        <div class="formula">최적가 − <span class="ink">SSG MONEY적립·카드혜택가·상품쿠폰</span> / 현대카드 2.73% · <span class="mono">api_benefits.py:570</span></div>
+        <div class="formula">최적가 − <span class="ink">SSG MONEY적립·카드혜택가·상품쿠폰</span> / 현대카드 2.73% · <span class="mono">api_benefits.py:570</span><div style="font-size:13px;color:#9AA4B0;margin-top:4px">표면가·혜택 모두 무로그인 서버(HTML 정규식). 라이브 확장크롤은 혜택 미저장 → 갱신 안 됨</div></div>
       </div>
       <div class="card"><div class="psrc">SSF</div>
         <div class="pm"><span><span class="ax">표면노출가</span><span class="pill">DOM</span></span><span><span class="ax">혜택</span><span class="pill">DOM</span></span></div>
-        <div class="formula">판매가 − <span class="ink">기프트포인트 10%·멤버십포인트</span> · <span class="mono">api_benefits.py:554</span></div>
+        <div class="formula">판매가 − <span class="ink">기프트포인트 10%·멤버십포인트</span> · <span class="mono">api_benefits.py:554</span><div style="font-size:13px;color:#9AA4B0;margin-top:4px">표면가·혜택 모두 무로그인 서버(정규식)</div></div>
       </div>
       <div class="card"><div class="psrc">롯데온</div>
         <div class="pm"><span><span class="ax">표면노출가</span><span class="pill api">API</span></span><span><span class="ax">혜택</span><span class="pill">DOM</span></span></div>
-        <div class="formula">나의혜택가 − <span class="ink">롯데오너스·스토어찜·L.POINT·OK캐시백</span> / L.PAY·네이버페이 · <span class="mono">api_benefits.py:703</span></div>
+        <div class="formula">나의혜택가 − <span class="ink">롯데오너스·스토어찜·L.POINT·OK캐시백</span> / L.PAY·네이버페이 · <span class="mono">api_benefits.py:703</span><div style="font-size:13px;color:#9AA4B0;margin-top:4px">표면가=무로그인 API / 회원할인·L.POINT=로그인</div></div>
       </div>
       <div class="card"><div class="psrc">스마트스토어</div>
         <div class="pm"><span><span class="ax">표면노출가</span><span class="pill api">API</span></span><span><span class="ax">혜택</span><span class="pill api">API</span> / 템플릿</span></div>
-        <div class="formula">판매가 − <span class="ink">템플릿 혜택(소싱처 공통)</span> · <span class="mono">api_benefits.py:675</span></div>
+        <div class="formula">판매가 − <span class="ink">템플릿 혜택(소싱처 공통)</span> · <span class="mono">api_benefits.py:675</span><div style="font-size:13px;color:#9AA4B0;margin-top:4px">표면가=무로그인 inline / per-SKU 혜택=로그인 확장</div></div>
       </div>
       <div class="card"><div class="psrc">르무통 공홈</div>
         <div class="pm"><span><span class="ax">표면노출가</span><span class="pill">HTML</span></span><span><span class="ax">혜택</span><span class="pill">템플릿(크롤 아님)</span></span></div>
-        <div class="formula">판매가 − <span class="ink">템플릿 혜택</span> · <span class="mono">api_benefits.py:675</span></div>
+        <div class="formula">판매가 − <span class="ink">템플릿 혜택</span> · <span class="mono">api_benefits.py:675</span><div style="font-size:13px;color:#9AA4B0;margin-top:4px">표면가=무로그인 HTML / 혜택=템플릿(크롤 아님)</div></div>
       </div>
     </div>
 
