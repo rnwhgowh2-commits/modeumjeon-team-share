@@ -345,12 +345,13 @@
 
     <!-- 6 재발 -->
     <div class="sec" id="s6">
-      <div class="lead"><span class="klabel">핵심</span><span class="sum">증상 → 점검 지점. 자주 재발하는 5가지.</span></div>
+      <div class="lead"><span class="klabel">핵심</span><span class="sum">증상 → 점검 지점. 자주 재발하는 6가지.</span></div>
       <div class="card row2"><div class="ti">혜택 안 뜸</div><div class="detail"><span class="mono">dynamic_benefits_json</span>에 키 있나 → 없으면 <span class="ink">라이브크롤 미배선</span>(3 가격 저장배선).</div></div>
       <div class="card row2"><div class="ti">가짜 재고있음</div><div class="detail">999 둔갑? 정규식 미스? <span class="mono">_resolve_stock</span> 확인.</div></div>
       <div class="card row2"><div class="ti">표면≠매입 혼동</div><div class="detail">셀=<span class="ink">표면(판매가)</span> / 영수증=<span class="ink">최종매입가</span> (4 매트릭스 탭).</div></div>
       <div class="card row2"><div class="ti">매트릭스 stale</div><div class="detail">크롤 후 갱신 안 됨 → <span class="mono">window.loadMatrix</span> 노출 / <span class="mono">SM_BREAKDOWNS</span> 캐시.</div></div>
       <div class="card row2"><div class="ti">dev 값 이상</div><div class="detail">dev DB stale → <span class="ink">라이브 대조 필수</span>.</div></div>
+      <div class="card row2"><div class="ti">충분인데 품절·999 둔갑</div><div class="detail">롯데온 단품 <span class="ink">일부 색만</span>(타색 정상) → <span class="mono">SourceOption</span> <span class="ink">행 중복</span>(같은 옵션이 색 포맷 3종으로 INSERT: 사이즈-in-색·상품명·정상색). 매트릭스가 null 중복행 읽고 상품 <span class="mono">last_stock</span>=999 폴백. → <span class="ink">색 호환 그룹만 dedup</span>(멀티색 skip). 롯데온 충분 재고는 mapping API가 <span class="ink">실수량(20·30·41)</span>으로 줌 — 999가 아님.</div></div>
     </div>
 
     <!-- 7 신규추가 -->
