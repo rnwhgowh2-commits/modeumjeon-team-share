@@ -2301,3 +2301,41 @@ def update_options_purchase_bulk():
         })
     finally:
         s.close()
+
+
+@bp.route('/_diag/source-options')
+def _diag_source_options():
+    """[임시 진단·읽기전용] 주어진 source_product_id 들의 SourceOption 행 전체 덤프.
+    롯데온 단품 999 둔갑(아이보리·스카이블루) 근본원인 — 중복/오염/stale 행 확인용.
+    원인 확정 후 제거한다. admin 게이트(bp.before_request)."""
+    from lemouton.sources.models import SourceOption, SourceProduct
+    raw = request.args.get('spids', '')
+    try:
+        spids = [int(x) for x in raw.split(',') if x.strip()]
+    except Exception:
+        return jsonify(ok=False, error='spids 파싱 실패'), 400
+    if not spids:
+        return jsonify(ok=False, error='spids(쉼표구분) 필요'), 400
+    s = SessionLocal()
+    try:
+        out = {}
+        for spid in spids:
+            sp = s.query(SourceProduct).get(spid)
+            rows = (s.query(SourceOption)
+                    .filter(SourceOption.source_product_id == spid)
+                    .order_by(SourceOption.id).all())
+            out[spid] = {
+                'sp_site': getattr(sp, 'site', None) if sp else None,
+                'sp_last_stock': getattr(sp, 'last_stock', None) if sp else None,
+                'n_rows': len(rows),
+                'rows': [{
+                    'id': r.id, 'color_text': r.color_text, 'size_text': r.size_text,
+                    'stock': r.current_stock, 'price': r.current_price,
+                    'ext_opt_id': r.external_option_id,
+                    'deleted': r.deleted_at is not None,
+                    'updated': r.updated_at.isoformat() if r.updated_at else None,
+                } for r in rows],
+            }
+        return jsonify(ok=True, data=out)
+    finally:
+        s.close()
