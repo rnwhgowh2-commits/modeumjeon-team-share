@@ -355,7 +355,17 @@
           <tr><td class="ax">옵션 구조</td><td>단일색·멀티색·딜 → 단일색 파싱·딜 매핑 버그 차단</td></tr>
         </table></div>
       <div class="step"><div class="stepn u">1</div><div class="sc"><div class="st">샘플 URL 세트 받기<span class="who u">사용자</span></div><div class="d">대표 1개 + 3축 변형 2~5개. 적을수록 카탈로그 누락 위험.</div></div></div>
-      <div class="step"><div class="stepn">2</div><div class="sc"><div class="st">수집 방식 4분면 분류<span class="who c">CLAUDE</span></div><div class="ref">→ <span class="lk">1 전체흐름</span> · API/HTML × 인증·비인증</div></div></div>
+      <div class="step"><div class="stepn">2</div><div class="sc"><div class="st">수집 방식 판정 래더 (성능 우선순위)<span class="who c">CLAUDE</span></div>
+        <div class="d" style="margin-bottom:7px">URL을 받으면 <b>위 순위부터 적용 가능 여부를 따져 가능한 가장 높은 순위를 채택</b>한다(빠르고 정확한 순).</div>
+        <table class="dt" style="margin-bottom:7px">
+          <tr><th style="width:42px">순위</th><th>방식</th><th>적용 가능 판단</th><th>레퍼런스(어느 형)</th></tr>
+          <tr><td class="el">1</td><td><b>전용 API 직접 호출</b></td><td>상세에서 호출되는 내부 JSON 엔드포인트 존재 + 직접 호출 가능</td><td>무신사·롯데온형</td></tr>
+          <tr><td class="el">2</td><td><b>내장 구조 JSON 파싱</b></td><td>페이지에 <span class="mono">__NEXT_DATA__·option_stock_data·uitemObj·itemInvQtyInfo</span> 통째로 존재(API 준함)</td><td>현대H몰·르무통·SSG·롯데아이몰형</td></tr>
+          <tr><td class="el">3</td><td><b>SSR HTML 정규식/셀렉터</b></td><td>구조 JSON은 없지만 raw HTML/JS문자열에 값 존재</td><td>SSF형</td></tr>
+          <tr><td class="el">4</td><td><b>렌더 DOM (확장 navGrab)</b></td><td>위 셋 불가·JS 렌더 후에만 생김 (최후)</td><td>롯데온 혜택가형</td></tr>
+        </table>
+        <div class="d"><b>가로 게이트(어느 순위든 적용):</b> 방화벽·게이트웨이(현대H몰 API 차단)·CORS → 한 단계 내림 / WAF·봇차단 → curl_cffi 위장 또는 확장 navGrab 강제(롯데아이몰) / 로그인은 <b>혜택만</b> → 혜택만 확장 / 정량 비공개(무신사 정상재고·SSF 일반재고) → <b>999가 정답</b>(가짜 숫자 금지).</div>
+      </div></div>
       <div class="step"><div class="stepn">3</div><div class="sc"><div class="st">항목별 위치 추출 (재고 3단계 규칙 포함)<span class="who c">CLAUDE</span></div><div class="ref">→ <span class="lk">2 재고</span> + <span class="lk">3 가격</span></div></div></div>
       <div class="step"><div class="stepn">4</div><div class="sc"><div class="st">혜택 종합 — 여러 URL 교차분석<span class="tag">신설</span><span class="who c">CLAUDE</span></div><div class="ref">→ <span class="lk">3 가격</span> · 모든 URL=상시 / 일부=조건부 + 트리거</div></div></div>
       <div class="step"><div class="stepn">5</div><div class="sc"><div class="st">매입가 순차차감 로직<span class="who c">CLAUDE</span></div><div class="ref">→ <span class="lk">3 가격</span> · 표면 − Σ혜택 (직전 잔액 기준)</div></div></div>
