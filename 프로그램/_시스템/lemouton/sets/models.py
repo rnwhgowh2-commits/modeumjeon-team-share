@@ -80,7 +80,9 @@ class SetChannel(Base):
     set_id = Column(Integer, ForeignKey("product_sets.id"),
                     nullable=False, index=True)
     market = Column(String(20), nullable=False)
-    account_key = Column(String(64))
+    # nullable=False + 'default' 센티넬 — NULL 이면 유니크 제약이 무력화(NULL≠NULL)되어
+    # '기본 계정' 중복 채널이 막히지 않으므로. (models_v2 SourcingAccount 관례 동일)
+    account_key = Column(String(64), nullable=False, default="default")
     market_product_id = Column(String(64))
     api_fields = Column(JSON, default=dict)
     status = Column(String(16), default="pending", nullable=False)

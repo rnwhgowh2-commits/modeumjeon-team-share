@@ -78,3 +78,18 @@ def test_channel_unique_set_market_account(db):
     with pytest.raises(IntegrityError):
         db.commit()
     db.rollback()
+
+
+def test_channel_unique_default_account(db):
+    # account_key 미지정 → 'default' 센티넬. 같은 (set, market) 기본계정 중복 차단.
+    from sqlalchemy.exc import IntegrityError
+    ps = ProductSet(model_code="AF", name="단품")
+    db.add(ps); db.flush()
+    c1 = SetChannel(set_id=ps.id, market="smartstore")
+    db.add(c1)
+    db.commit()
+    assert c1.account_key == "default"
+    db.add(SetChannel(set_id=ps.id, market="smartstore"))
+    with pytest.raises(IntegrityError):
+        db.commit()
+    db.rollback()
