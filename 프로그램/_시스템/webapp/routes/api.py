@@ -574,6 +574,32 @@ def register_to_market(code: str, market: str):
     return jsonify({'ok': result.get('ok', False), **result})
 
 
+@bp.post('/bundles/<code>/link/<market>')
+def link_to_market(code: str, market: str):
+    """기존 마켓 상품을 모음전 옵션에 연결 (쓰기 없음, 매핑만 저장).
+
+    Body: {"market_product_id": "12345678"}
+    """
+    if market not in ('smartstore', 'coupang'):
+        return _err('market은 smartstore/coupang 중 하나여야 해요.', 400)
+    payload = request.get_json(silent=True) or {}
+    product_id = str(payload.get('market_product_id') or '').strip()
+    if not product_id:
+        return _err('market_product_id 가 필요해요.', 400)
+
+    from lemouton.uploader.link_service import link_bundle_market
+    s = SessionLocal()
+    try:
+        result = link_bundle_market(
+            s, model_code=code, market=market, market_product_id=product_id)
+    finally:
+        s.close()
+
+    if not result.get('ok'):
+        return _err(result.get('error') or '연결 실패', 502)
+    return jsonify(result)
+
+
 @bp.post('/bundles/migrate-from-ss')
 def bundle_migrate_from_ss():
     """[v2 Case 3] 스스 originProductNo 1개로 모음전 자동 생성 + 옵션 매트릭스 + 매칭 시작.

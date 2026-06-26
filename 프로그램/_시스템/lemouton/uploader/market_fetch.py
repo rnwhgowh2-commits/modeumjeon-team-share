@@ -27,4 +27,17 @@ def fetch_market_options(market: str, product_id: str) -> FetchResult:
 
 
 def _fetch_smartstore(product_id: str) -> FetchResult:
-    return FetchResult(False, None, [], "smartstore fetch 미구현 (Task 3)")
+    from shared.platforms.smartstore.get_options import fetch_product_options
+    try:
+        pid = int(product_id)
+    except (TypeError, ValueError):
+        return FetchResult(False, None, [], f"상품번호가 숫자가 아니에요: {product_id!r}")
+    r = fetch_product_options(pid)
+    if not r.success:
+        return FetchResult(False, None, [], r.error or "옵션 조회 실패")
+    opts = [
+        MarketOption(option_id=str(o.option_id), color=o.name1, size=o.name2,
+                     stock=o.stock, price=o.add_price)
+        for o in r.options
+    ]
+    return FetchResult(True, r.product_name, opts)

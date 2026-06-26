@@ -68,6 +68,39 @@ def test_link_persists_matched_only(db):
     assert regs["AF-블루-270"].market_option_id == "22"
 
 
+def test_fetch_smartstore_maps_options(monkeypatch):
+    # 실제 _fetch_smartstore 본체를 검증: 소스 모듈의 fetch_product_options 를
+    # 가짜로 교체하면 _fetch_smartstore 의 지역 import 가 가짜를 집어든다.
+    from shared.platforms.smartstore import get_options as go
+    from lemouton.uploader import market_fetch
+    from lemouton.uploader.linker import MarketOption
+
+    def fake_fetch(origin_product_no, client=None):
+        return go.FetchOptionsResult(
+            success=True, origin_product_no=origin_product_no,
+            product_name="에어포스 1", sale_price=115900,
+            options=[
+                go.OptionRow(option_id=111, name1="블랙", name2="260", stock=4, add_price=0),
+                go.OptionRow(option_id=222, name1="블루", name2="270", stock=0, add_price=0),
+            ])
+
+    monkeypatch.setattr(go, "fetch_product_options", fake_fetch)
+
+    fr = market_fetch.fetch_market_options("smartstore", "999")
+    assert fr.success is True
+    assert fr.product_name == "에어포스 1"
+    assert len(fr.options) == 2
+    assert fr.options[0] == MarketOption(option_id="111", color="블랙", size="260", stock=4, price=0)
+    assert fr.options[1].option_id == "222"
+
+
+def test_fetch_smartstore_bad_product_id():
+    from lemouton.uploader import market_fetch
+    fr = market_fetch.fetch_market_options("smartstore", "abc")
+    assert fr.success is False
+    assert "abc" in (fr.error or "")
+
+
 def test_link_fetch_failure_returns_error(db):
     def _bad(market, product_id):
         from lemouton.uploader.market_fetch import FetchResult
