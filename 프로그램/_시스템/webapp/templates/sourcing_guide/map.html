@@ -93,6 +93,9 @@
   .sgmap .who.u{background:#E8F3FF;color:var(--blue);}
   .sgmap .who.c{background:#EEF1F4;color:var(--sub);}
   .sgmap .who.m{background:#F2F4F6;color:#8b95a1;}
+  .sgmap .syncbar{background:#FFF4F4;border:1px solid #F3C2C2;border-radius:10px;padding:11px 14px;margin-bottom:16px;font-size:14px;line-height:1.6;color:#8a2a2a;}
+  .sgmap .syncbar b{color:#c0392b;}
+  .sgmap .syncbar .it{display:inline-block;margin-right:10px;}
   .sgmap .sc .ref{font-size:13.5px;color:var(--blue);font-weight:700;margin-top:3px;}
   .sgmap .sc .ref .lk{font-family:var(--mono);background:#E8F3FF;border-radius:4px;padding:1px 5px;font-size:12.5px;}
   .sgmap .sc .d{font-size:13.5px;color:var(--sub);margin-top:2px;line-height:1.5;}
@@ -102,6 +105,18 @@
   <h2>크롤링 작동 가이드 : 재고, 가격 정보 수집</h2>
   <div class="sub">소싱처에서 재고·가격을 <b>긁고 → 저장 → 계산 → 표시</b>하는 전 과정의 단일 진실 원천</div>
 
+  <script>window.__GUIDE_EXT_BASELINE = "{{ drift.ext_baseline if drift else '' }}";</script>
+  {% if drift and (drift.missing_sources or drift.missing_symbols) %}
+  <div class="syncbar" id="syncbar">
+    <b>⚠️ 가이드 ↔ 코드 동기화 필요</b><br>
+    {% for s in drift.missing_sources %}
+      <span class="it">소싱처 <b>{{ s.label }}</b> 누락 (원문 {{ '✓' if s.in_md else '✗' }} / 보기 {{ '✓' if s.in_html else '✗' }})</span>
+    {% endfor %}
+    {% for sym in drift.missing_symbols %}
+      <span class="it">심볼 <b>{{ sym.symbol }}</b> 사라짐 ({{ sym.file }})</span>
+    {% endfor %}
+  </div>
+  {% endif %}
   <div class="seg"><b class="on" data-m="view">🖥️ 보기</b><b data-m="raw">📄 원문 (MD)</b></div>
 
   <!-- ===== 보기 ===== -->
