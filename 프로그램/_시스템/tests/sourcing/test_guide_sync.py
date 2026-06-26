@@ -1,5 +1,9 @@
 """크롤가이드 ↔ 코드 동기화 검사 (guide_sync). 2026-06-26."""
-from webapp.routes.guide_sync import missing_sources
+import os
+
+from webapp.routes.guide_sync import missing_sources, missing_symbols, SYMBOL_MANIFEST
+
+APP_ROOT = os.path.normpath(os.path.join(os.path.dirname(__file__), "..", ".."))
 
 
 def test_flags_source_absent_in_html():
@@ -23,3 +27,15 @@ def test_empty_when_all_present_by_key_or_label():
         {"key": "ssf", "label": "SSF샵"},
     ]
     assert missing_sources(md, html, sources) == []
+
+
+def test_missing_symbols_real_repo_is_clean():
+    assert missing_symbols(APP_ROOT) == []
+
+
+def test_missing_symbols_flags_renamed(tmp_path):
+    f = tmp_path / "a.py"
+    f.write_text("def other(): pass", encoding="utf-8")
+    manifest = [("build_crawlers", "a.py")]
+    out = missing_symbols(str(tmp_path), manifest=manifest)
+    assert out == [{"symbol": "build_crawlers", "file": "a.py"}]
