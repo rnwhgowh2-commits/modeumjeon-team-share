@@ -91,8 +91,32 @@ class SetChannel(Base):
                         onupdate=lambda: datetime.now(timezone.utc))
 
     product_set = relationship("ProductSet", back_populates="channels")
+    link_results = relationship("SetChannelOption", back_populates="channel",
+                                cascade="all, delete-orphan")
 
     __table_args__ = (
         UniqueConstraint("set_id", "market", "account_key",
                          name="uq_set_channels_set_market_account"),
+    )
+
+
+class SetChannelOption(Base):
+    """채널 × 옵션 연동 결과 — 옵션이 어느 마켓 옵션ID에 매칭됐는지."""
+    __tablename__ = "set_channel_options"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    channel_id = Column(Integer, ForeignKey("set_channels.id"),
+                        nullable=False, index=True)
+    canonical_sku = Column(String(128), nullable=False)
+    market_option_id = Column(String(128))            # matched 만 채움
+    status = Column(String(16), nullable=False)        # matched|unmatched|ambiguous|duplicate
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc),
+                        onupdate=lambda: datetime.now(timezone.utc))
+
+    channel = relationship("SetChannel", back_populates="link_results")
+
+    __table_args__ = (
+        UniqueConstraint("channel_id", "canonical_sku",
+                         name="uq_set_channel_options_channel_sku"),
     )

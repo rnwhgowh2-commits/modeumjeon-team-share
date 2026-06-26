@@ -93,3 +93,37 @@ def test_channel_unique_default_account(db):
     with pytest.raises(IntegrityError):
         db.commit()
     db.rollback()
+
+
+def test_channel_option_link_result_and_cascade(db):
+    from lemouton.sets.models import SetChannelOption
+    ps = ProductSet(model_code="AF", name="단품")
+    db.add(ps); db.flush()
+    cha = SetChannel(set_id=ps.id, market="smartstore")
+    db.add(cha); db.flush()
+    db.add(SetChannelOption(channel_id=cha.id, canonical_sku="AF-블랙-260",
+                            market_option_id="111", status="matched"))
+    db.commit()
+    got = db.get(SetChannel, cha.id)
+    assert got.link_results[0].canonical_sku == "AF-블랙-260"
+    assert got.link_results[0].market_option_id == "111"
+    db.delete(got)
+    db.commit()
+    assert db.query(SetChannelOption).count() == 0
+
+
+def test_channel_option_unique_channel_sku(db):
+    from sqlalchemy.exc import IntegrityError
+    from lemouton.sets.models import SetChannelOption
+    ps = ProductSet(model_code="AF", name="단품")
+    db.add(ps); db.flush()
+    cha = SetChannel(set_id=ps.id, market="smartstore")
+    db.add(cha); db.flush()
+    db.add(SetChannelOption(channel_id=cha.id, canonical_sku="AF-블랙-260",
+                            market_option_id="111", status="matched"))
+    db.commit()
+    db.add(SetChannelOption(channel_id=cha.id, canonical_sku="AF-블랙-260",
+                            market_option_id="222", status="matched"))
+    with pytest.raises(IntegrityError):
+        db.commit()
+    db.rollback()
