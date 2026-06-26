@@ -1,6 +1,32 @@
+import pytest
 from lemouton.sourcing.crawl_queue import enqueue_verify, get_job
 from lemouton.sourcing.models import CrawlJob
-from shared.db import SessionLocal
+from shared.db import SessionLocal, Base, engine
+
+# [포팅 2026-06-26] 'no such table: crawl_jobs' 픽스처 문제.
+# SessionLocal 은 실제 SQLite DB(data/lemouton.db) 를 가리킨다.
+# 테스트 실행 환경에서는 app.py init_db() 가 먼저 호출되지 않아 crawl_jobs 테이블이
+# 없을 수 있다. 모든 모델을 등록하고 Base.metadata.create_all 로 테이블을 생성한다.
+for _m in (
+    "lemouton.sourcing.models", "lemouton.sourcing.models_pricing",
+    "lemouton.sourcing.models_v2", "lemouton.pricing.settings",
+    "lemouton.uploader.models", "lemouton.templates.models",
+    "lemouton.inventory.models", "lemouton.sources.models",
+    "lemouton.multitenancy.models", "lemouton.audit.models",
+    "lemouton.mapping.models",
+):
+    try:
+        __import__(_m)
+    except ImportError:
+        pass
+
+
+@pytest.fixture(scope="module", autouse=True)
+def ensure_crawl_jobs_table():
+    """SessionLocal 이 가리키는 엔진에 crawl_jobs 테이블이 없으면 생성."""
+    Base.metadata.create_all(engine)
+    yield
+
 
 FAKE_URL = "https://example.test/__pytest_verify__/4112020"
 
