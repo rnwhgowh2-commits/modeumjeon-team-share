@@ -12,6 +12,7 @@ from shared.db import SessionLocal
 from lemouton.sourcing.models_pricing import SourceRegistry
 from lemouton.sourcing import crawl_guide as cg
 from lemouton.sourcing.crawl_queue import enqueue_verify, get_job
+from webapp.routes.guide_sync import compute_guide_drift
 
 bp = Blueprint("sourcing_guide", __name__, url_prefix="/sourcing-guide")
 
@@ -99,6 +100,8 @@ def install_download():
 _GUIDE_MD = os.path.normpath(
     os.path.join(os.path.dirname(__file__), "..", "..", "docs", "크롤링-가이드.md")
 )
+# 앱 루트(_시스템) = 이 파일 기준 ../.. (guide_sync 검사용)
+_APP_ROOT = os.path.normpath(os.path.join(os.path.dirname(__file__), "..", ".."))
 
 
 @bp.route("/map")
@@ -107,14 +110,15 @@ def data_code_map():
 
     ?bare=1 → 사이드바 없는 최소 레이아웃(_bare.html). 전체보기의 팝업 모달이 iframe 으로 띄움.
     """
+    drift = compute_guide_drift(_APP_ROOT)
     if request.args.get("bare"):
         # 전체보기의 same-origin iframe 팝업으로 띄움 → 전역 X-Frame-Options: DENY 예외.
         #   (setdefault 라 라우트에서 먼저 박으면 after_request 가 안 덮음)
         resp = make_response(render_template(
-            "sourcing_guide/map.html", active="sourcing_guide", layout="_bare.html"))
+            "sourcing_guide/map.html", active="sourcing_guide", layout="_bare.html", drift=drift))
         resp.headers["X-Frame-Options"] = "SAMEORIGIN"
         return resp
-    return render_template("sourcing_guide/map.html", active="sourcing_guide", layout="base.html")
+    return render_template("sourcing_guide/map.html", active="sourcing_guide", layout="base.html", drift=drift)
 
 
 @bp.route("/map.md")
