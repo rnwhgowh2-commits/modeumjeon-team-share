@@ -3538,6 +3538,75 @@ def api_sources_add():
         s.close()
 
 
+@bp.get('/sources/catalog')
+def api_sources_catalog():
+    """[소싱처 추가] 크롤링 가이드 기반 소싱처 카탈로그 + 추가 여부.
+
+    옵션 모달 '신규 소싱처 추가' 탭(시안 D)이 검색·표시.
+    added=이미 사용 가능(builtin 또는 SourcingSource 등록됨).
+    """
+    from lemouton.sourcing.source_registry import (
+        get_catalog, is_builtin_key, get_all_keys,
+    )
+    existing = set(get_all_keys())
+    items = []
+    for c in get_catalog():
+        c['builtin'] = is_builtin_key(c['key'])
+        c['added'] = c['key'] in existing  # builtin 도 existing 에 포함됨
+        items.append(c)
+    return _ok(items=items)
+
+
+@bp.post('/sources/catalog/add')
+def api_sources_catalog_add():
+    """[소싱처 추가] 카탈로그 항목을 SourcingSource 로 전역 등록.
+
+    Body: {key}. builtin/이미등록 은 거부(중복 차단 — 데이터 무결성).
+    has_adapter=False(예: 롯데아이몰)는 '크롤 미지원'으로 추가 허용(URL 저장 가능,
+    어댑터 작성 후 자동 활성화).
+    """
+    from lemouton.sourcing.models import SourcingSource
+    from lemouton.sourcing.source_registry import (
+        get_catalog_entry, is_builtin_key, get_all_keys,
+    )
+    data = request.get_json(silent=True) or {}
+    key = (data.get('key') or '').strip()
+    entry = get_catalog_entry(key)
+    if not entry:
+        return _err('카탈로그에 없는 소싱처에요.')
+    if is_builtin_key(key):
+        return _err('기본 제공 소싱처라 이미 사용 중이에요.')
+    if key in set(get_all_keys()):
+        return _err(f"'{entry['label']}' 은 이미 추가된 소싱처에요.")
+    s = SessionLocal()
+    try:
+        if s.query(SourcingSource).filter_by(source_key=key).first():
+            return _err(f"'{entry['label']}' 은 이미 추가된 소싱처에요.")
+        row = SourcingSource(
+            source_key=key, label=entry['label'],
+            domain=(entry.get('domain') or key),
+            logo_color=(entry.get('logo_color') or '#3182F6'),
+            logo_letter=((entry.get('glyph') or entry['label'][:1]).upper()[:4]),
+            needs_login=bool(entry.get('needs_login')),
+            has_adapter=bool(entry.get('has_adapter')),
+            is_active=True,
+            sort_order=100 + s.query(SourcingSource).count(),
+        )
+        s.add(row)
+        s.commit()
+        return _ok(source={
+            'key': key, 'label': entry['label'],
+            'color': entry.get('logo_color') or '#3182F6',
+            'glyph': entry.get('glyph') or '',
+            'crawler': bool(entry.get('has_adapter')),
+        })
+    except Exception as e:
+        s.rollback()
+        return _err(str(e), 500)
+    finally:
+        s.close()
+
+
 # ════════════════════════════════════════════════════════════
 #  제품 공유 v1 — 제품 마스터 ② 복사·일괄생성 / ③ 삭제 경고 / ⑤ 역참조
 # ════════════════════════════════════════════════════════════

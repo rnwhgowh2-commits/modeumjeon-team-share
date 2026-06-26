@@ -93,3 +93,62 @@ def get_all_sources(session=None):
 def get_all_keys(session=None):
     """builtin + DB 합친 모든 source_key 리스트."""
     return [s['key'] for s in get_all_sources(session)]
+
+
+# ════════════════════════════════════════════════════════════
+#  소싱처 카탈로그 (2026-06-26) — docs/크롤링-가이드.md §1·§2 에 정리된 소싱처 목록.
+#  모달 '신규 소싱처 추가' 탭이 이 카탈로그를 검색·추가한다(시안 D).
+#  단일 진실 원천: builtin 6 은 SOURCES 와 key 일치. 신규(롯데아이몰 등)는 여기 한 줄
+#  추가 → 추가 시 SourcingSource 로 전역 등록되어 UI/API/매트릭스 자동 노출.
+#  crawl_method/stock_rule/benefit/has_adapter = 가이드 표 그대로(상세 미리보기용).
+# ════════════════════════════════════════════════════════════
+SOURCE_CATALOG = [
+    {'key': 'lemouton', 'label': '르무통 공홈', 'glyph': '르', 'logo_color': '#a78bfa',
+     'domain': 'lemouton.co.kr', 'crawl_method': 'HTML(Cafe24)',
+     'stock_rule': 'option_stock_data 파싱 → 실조합·실재고', 'benefit': '-',
+     'has_adapter': True, 'needs_login': False},
+    {'key': 'musinsa', 'label': '무신사', 'glyph': 'M', 'logo_color': '#191F28',
+     'domain': 'musinsa.com', 'crawl_method': 'API(POST)',
+     'stock_rule': 'outOfStock→0 / 잔여 N개→실수량 / 표시없음→999',
+     'benefit': 'member_price·등급적립·무신사머니', 'has_adapter': True, 'needs_login': True},
+    {'key': 'ssf', 'label': 'SSF샵', 'glyph': 'SS', 'logo_color': '#14b8a6',
+     'domain': 'ssfshop.com', 'crawl_method': 'HTML(curl_cffi)',
+     'stock_rule': 'statCd=SLDOUT→품절 / 품절임박(N)→실수량',
+     'benefit': 'point_rate(멤버십)·gift_point(기프트)', 'has_adapter': True, 'needs_login': False},
+    {'key': 'ssg', 'label': 'SSG', 'glyph': 'sg', 'logo_color': '#F47216',
+     'domain': 'ssg.com', 'crawl_method': 'SSR <script> JS',
+     'stock_rule': 'usablInvQty 정규식 (0→품절, else 실수량)',
+     'benefit': 'ssg_money·card_benefit·product_coupon', 'has_adapter': True, 'needs_login': False},
+    {'key': 'lotteon', 'label': '롯데온', 'glyph': '롯', 'logo_color': '#ef4444',
+     'domain': 'lotteon.com', 'crawl_method': 'API 우선 → DOM 폴백',
+     'stock_rule': '옵션매핑 실수량 / soldout→0 / else 999',
+     'benefit': 'lotte_member_discount·store_jjim_coupon', 'has_adapter': True, 'needs_login': False},
+    {'key': 'ss_lemouton', 'label': '스마트스토어 르무통', 'glyph': 'N', 'logo_color': '#22c55e',
+     'domain': 'smartstore.naver.com', 'crawl_method': '확장 n/v2 per-SKU(로그인)',
+     'stock_rule': 'sku_stock (0=품절·N=실수량) → current_stock 영속',
+     'benefit': '-', 'has_adapter': True, 'needs_login': True},
+    {'key': 'lotteimall', 'label': '롯데아이몰', 'glyph': '롯i', 'logo_color': '#ED1C24',
+     'domain': 'lotteimall.com', 'crawl_method': 'API→DOM (어댑터 준비중)',
+     'stock_rule': 'itemInvQtyInfo.inv_qty (준비중)',
+     'benefit': 'point_rewards(L.POINT)', 'has_adapter': False, 'needs_login': False},
+]
+
+_BUILTIN_KEYS = {s['key'] for s in SOURCES}
+
+
+def get_catalog():
+    """소싱처 카탈로그(크롤링 가이드 기준) 복사본 반환."""
+    return [dict(c) for c in SOURCE_CATALOG]
+
+
+def is_builtin_key(key):
+    """builtin 6개 소싱처 key 여부."""
+    return key in _BUILTIN_KEYS
+
+
+def get_catalog_entry(key):
+    """카탈로그 단건 조회 (없으면 None)."""
+    for c in SOURCE_CATALOG:
+        if c['key'] == key:
+            return dict(c)
+    return None

@@ -1142,12 +1142,25 @@ def api_list_source_urls(code):
                 # 사용자가 prune 저장 안 하면 안전. prune 저장 시 keep_skus 에
                 # build_sku(model_code, None) 이 없어 삭제될 수 있음 — 별도 보호 필요
 
+        # [2026-06-26] 소싱처 메타 — 모달이 custom 소싱처 탭 라벨·색·약자 렌더용.
+        #   builtin 은 모달 하드코딩(SRC_LABELS/SRC_COLORS) 우선이라 시각 변화 없음.
+        try:
+            from lemouton.sourcing.source_registry import get_all_sources as _gas
+            source_meta = {sm['key']: {
+                'label': sm.get('label') or sm['key'],
+                'color': sm.get('logo_color') or '#3B82F6',
+                'glyph': sm.get('glyph') or '',
+            } for sm in _gas(session=s)}
+        except Exception:
+            source_meta = {}
+
         return jsonify({
             'ok': True,
             'urls': urls,
             'options': options_payload,
             'axis_steps': axis_steps_payload,
             'sources': sorted(all_keys),
+            'source_meta': source_meta,
         })
     finally:
         s.close()

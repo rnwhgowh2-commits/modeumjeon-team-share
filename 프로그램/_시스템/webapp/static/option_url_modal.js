@@ -521,6 +521,40 @@
       .oum-url-go { background:#fff; border:1px solid #bbf7d0; border-radius:7.5px; width:36px; height:36px; display:inline-flex; align-items:center; justify-content:center; cursor:pointer; color:#3B82F6; font-size:18px; font-weight:700; line-height:1; padding:0; transition:all .12s; flex-shrink:0; text-decoration:none; box-sizing:border-box; }
       .oum-url-go:hover { background:#EFF6FF; border-color:#bfdbfe; }
       .oum-url-go:active { transform:scale(.95); }
+
+      /* [2026-06-26] 신규 소싱처 추가 탭 — 크롤링 가이드 카탈로그 2단(시안 D) */
+      .oum-addsrc-tab .lg { font-size:24px; font-weight:800; background:#0ea5e9; }
+      .oum-addsrc-wrap { display:grid; grid-template-columns:480px 1fr; gap:21px; }
+      .oum-addsrc-left { display:flex; flex-direction:column; }
+      .oum-cat-search-wrap { display:flex; align-items:center; gap:12px; background:#fff; border:1.5px solid #bbf7d0; border-radius:13px; padding:16.5px 19.5px; margin-bottom:12px; }
+      .oum-cat-search-wrap span { font-size:24px; }
+      .oum-cat-search { border:0; outline:0; font:inherit; font-size:24px; flex:1; background:transparent; color:#15803d; }
+      .oum-cat-hint { font-size:18px; color:#8b95a1; margin:0 6px 12px; }
+      .oum-cat-list { display:flex; flex-direction:column; gap:9px; max-height:840px; overflow-y:auto; padding-right:4px; }
+      .oum-cat-row { display:flex; align-items:center; gap:16.5px; padding:18px 19.5px; border:1.5px solid #e5e8eb; border-radius:13px; cursor:pointer; background:#fff; }
+      .oum-cat-row:hover { border-color:#bbf7d0; background:#F0FDF4; }
+      .oum-cat-row.sel { border-color:#10b981; background:#F0FDF4; box-shadow:0 3px 10px rgba(16,185,129,.14); }
+      .oum-cat-row.added { opacity:.55; }
+      .oum-cat-lg { width:45px; height:45px; border-radius:12px; color:#fff; display:inline-flex; align-items:center; justify-content:center; font-size:20.25px; font-weight:800; flex-shrink:0; letter-spacing:.3px; }
+      .oum-cat-lg.lg-lg { width:63px; height:63px; border-radius:16.5px; font-size:27px; }
+      .oum-cat-nm { flex:1; font-size:24px; font-weight:700; color:#191F28; }
+      .oum-cat-added { font-size:18px; font-weight:700; color:#9CA3AF; }
+      .oum-cat-go { font-size:30px; color:#10b981; font-weight:800; }
+      .oum-addsrc-right { background:#fff; border:1.5px solid #bbf7d0; border-radius:18px; padding:33px 36px; }
+      .oum-cat-dh { display:flex; align-items:center; gap:19.5px; margin-bottom:24px; }
+      .oum-cat-dtitle { font-size:31.5px; font-weight:800; color:#191F28; }
+      .oum-cat-dsub { font-size:19.5px; color:#8b95a1; margin-top:6px; display:flex; align-items:center; gap:10.5px; flex-wrap:wrap; }
+      .oum-cat-badge { font-size:16.5px; font-weight:800; border-radius:8px; padding:3px 12px; }
+      .oum-cat-badge.ok { background:#F0FDF4; color:#15803d; }
+      .oum-cat-badge.warn { background:#FFF7ED; color:#92400E; }
+      .oum-cat-tbl { width:100%; border-collapse:collapse; font-size:22.5px; }
+      .oum-cat-tbl td { border:1px solid #eef1f4; padding:18px 21px; vertical-align:top; line-height:1.5; }
+      .oum-cat-tbl td:first-child { width:180px; font-weight:700; color:#4e5968; background:#FAFBFC; white-space:nowrap; }
+      .oum-cat-empty { padding:75px 24px; text-align:center; color:#9ca3af; font-size:22.5px; }
+      .oum-cat-dfoot { display:flex; justify-content:flex-end; margin-top:27px; }
+      .oum-cat-addbtn { background:#10b981; color:#fff; border:0; border-radius:13.5px; padding:21px 42px; font:inherit; font-size:24px; font-weight:800; cursor:pointer; }
+      .oum-cat-addbtn:hover { background:#15803d; }
+      .oum-cat-addbtn.done, .oum-cat-addbtn:disabled { background:#F2F4F6; color:#9CA3AF; cursor:default; }
     `;
     document.head.appendChild(s);
   }
@@ -704,6 +738,8 @@
       const j = await r.json();
       if (j && j.ok) {
         state.sources = (j.sources || []).map(k => ({ key: k, label: k }));
+        // [2026-06-26] 소싱처 메타(custom 탭 라벨·색·약자) — builtin 은 아래 하드코딩 우선
+        state.srcMeta = j.source_meta || {};
         // [2026-05-25] 옵션 canonical_sku ↔ axis values key 매핑 — 매핑 복원·자동저장 공용
         //   재진입 시 option_ids 를 option_keys 로 복원해야 매트릭스 매핑이 살아 있음
         keyBySku = {};
@@ -815,6 +851,8 @@
     };
     // 약식 오버라이드 — abbr(label) 이 SSF/SSG 둘 다 'ss' 로 만들어 혼동되는 케이스 구분
     const SRC_ABBR = { ssg: 'sg' };
+    // [2026-06-26] '신규 소싱처 추가' 가상 탭 sentinel
+    const ADD_SRC_KEY = '__addsrc__';
 
     // 활성 소싱처 (기본 6개 보장)
     const builtinKeys = ['lemouton', 'musinsa', 'ssf', 'ssg', 'lotteon', 'ss_lemouton'];
@@ -1395,15 +1433,30 @@
       state.sources.forEach(src => {
         const cnt = (state.urls[src.key] || []).length;
         const isOn = src.key === state.currentSrc;
-        const label = SRC_LABELS[src.key] || src.label;
-        const color = SRC_COLORS[src.key] || '#3B82F6';
+        const meta = (state.srcMeta || {})[src.key] || {};
+        // builtin 은 하드코딩 우선(시각 불변) → custom 은 서버 메타 → 폴백
+        const label = SRC_LABELS[src.key] || meta.label || src.label;
+        const color = SRC_COLORS[src.key] || meta.color || '#3B82F6';
+        const glyph = SRC_ABBR[src.key] || meta.glyph || abbr(label);
         html += `<button class="oum-src-tab ${isOn ? 'on' : ''}" data-src-tab="${esc(src.key)}" type="button">
-          <span class="lg" style="background:${color};">${SRC_ABBR[src.key] || abbr(label)}</span>
+          <span class="lg" style="background:${color};">${esc(glyph)}</span>
           <span class="full">${esc(label)}</span>
           <span class="cnt">${cnt}</span>
         </button>`;
       });
+      // [2026-06-26] 신규 소싱처 추가 탭 (시안 D — 크롤링 가이드 카탈로그 검색·추가)
+      html += `<button class="oum-src-tab oum-addsrc-tab ${state.currentSrc === ADD_SRC_KEY ? 'on' : ''}" data-src-tab="${ADD_SRC_KEY}" type="button">
+          <span class="lg">＋</span>
+          <span class="full">신규 소싱처 추가</span>
+        </button>`;
       html += `</div>`;
+
+      // [2026-06-26] 추가 탭 활성 시 — 2단 카탈로그 패널로 교체 (URL 카드 영역 대신)
+      if (state.currentSrc === ADD_SRC_KEY) {
+        right.innerHTML = html + renderAddSourcePanel();
+        ensureCatalogLoaded();
+        return;
+      }
 
       // 현재 탭 URL 카드 리스트
       const srcLabel = SRC_LABELS[state.currentSrc] || state.currentSrc;
@@ -1443,6 +1496,83 @@
       let n = 0;
       Object.values(state.urls).forEach(arr => { n += arr.length; });
       return n;
+    }
+
+    // ─── [2026-06-26] 신규 소싱처 추가 — 카탈로그 lazy load + 2단 패널(시안 D) ───
+    let _catalogFetching = false;
+    async function ensureCatalogLoaded() {
+      if (state.catalog || _catalogFetching) return;
+      _catalogFetching = true;
+      try {
+        const r = await fetch('/api/sources/catalog');
+        const j = await r.json();
+        state.catalog = (j && j.ok) ? (j.items || []) : [];
+        // 기본 선택 = 첫 미추가 항목 (없으면 첫 항목)
+        const firstAddable = state.catalog.find(c => !c.added);
+        state.catalogSel = firstAddable ? firstAddable.key
+          : (state.catalog[0] ? state.catalog[0].key : null);
+      } catch (e) {
+        state.catalog = [];
+      } finally {
+        _catalogFetching = false;
+        if (state.currentSrc === ADD_SRC_KEY) renderRight();
+      }
+    }
+
+    function renderAddSourcePanel() {
+      const cat = state.catalog;
+      if (!cat) {
+        return `<div class="oum-cat-empty">소싱처 목록 불러오는 중…</div>`;
+      }
+      const sel = state.catalogSel;
+      const rows = cat.map(c => {
+        const added = !!c.added;
+        const isSel = c.key === sel;
+        return `<div class="oum-cat-row ${isSel ? 'sel' : ''} ${added ? 'added' : ''}" data-cat-row="${esc(c.key)}" data-cat-label="${esc(c.label)}">
+            <span class="oum-cat-lg" style="background:${esc(c.logo_color || '#3B82F6')};">${esc(c.glyph || abbr(c.label))}</span>
+            <span class="oum-cat-nm">${esc(c.label)}</span>
+            ${added ? `<span class="oum-cat-added">추가됨 ✓</span>` : `<span class="oum-cat-go">›</span>`}
+          </div>`;
+      }).join('');
+
+      const entry = cat.find(c => c.key === sel);
+      let detail;
+      if (!entry) {
+        detail = `<div class="oum-cat-empty">왼쪽에서 소싱처를 선택하세요</div>`;
+      } else {
+        const added = !!entry.added;
+        const crawlerBadge = entry.has_adapter
+          ? `<span class="oum-cat-badge ok">✓ 자동크롤 지원</span>`
+          : `<span class="oum-cat-badge warn">⚠ 크롤 미지원 (URL만 저장 가능)</span>`;
+        detail = `
+          <div class="oum-cat-dh">
+            <span class="oum-cat-lg lg-lg" style="background:${esc(entry.logo_color || '#3B82F6')};">${esc(entry.glyph || abbr(entry.label))}</span>
+            <div>
+              <div class="oum-cat-dtitle">${esc(entry.label)}</div>
+              <div class="oum-cat-dsub">크롤링 가이드 등록 소싱처 ${crawlerBadge}</div>
+            </div>
+          </div>
+          <table class="oum-cat-tbl">
+            <tr><td>수집 방식</td><td>${esc(entry.crawl_method || '-')}</td></tr>
+            <tr><td>재고 판정</td><td>${esc(entry.stock_rule || '-')}</td></tr>
+            <tr><td>혜택</td><td>${esc(entry.benefit || '-')}</td></tr>
+            <tr><td>도메인</td><td>${esc(entry.domain || '-')}</td></tr>
+          </table>
+          <div class="oum-cat-dfoot">
+            ${added
+              ? `<button class="oum-cat-addbtn done" type="button" disabled>이미 추가된 소싱처</button>`
+              : `<button class="oum-cat-addbtn" data-cat-add="${esc(entry.key)}" type="button">이 소싱처 추가하기</button>`}
+          </div>`;
+      }
+
+      return `<div class="oum-addsrc-wrap">
+          <div class="oum-addsrc-left">
+            <div class="oum-cat-search-wrap"><span>🔍</span><input class="oum-cat-search" data-cat-search type="text" placeholder="소싱처 이름 검색…" autocomplete="off"></div>
+            <div class="oum-cat-hint">크롤링 가이드 등록 ${cat.length}곳 — 이미 추가된 곳은 회색</div>
+            <div class="oum-cat-list" data-cat-list>${rows}</div>
+          </div>
+          <div class="oum-addsrc-right">${detail}</div>
+        </div>`;
     }
 
     // [2026-06-13] 등록 URL 중복 검사 — 같은 주소(정규화 후)를 2번 이상 등록한 그룹 반환.
@@ -2368,6 +2498,15 @@
         }
         return;
       }
+      // [2026-06-26] 신규 소싱처 추가 탭 — 카탈로그 패널 진입 (last-state 저장 안 함)
+      const addTab = e.target.closest(`[data-src-tab="${ADD_SRC_KEY}"]`);
+      if (addTab) {
+        if (state.currentSrc !== ADD_SRC_KEY) autoSave();
+        state.currentSrc = ADD_SRC_KEY;
+        state.openUrlId = null;
+        renderRight();
+        return;
+      }
       const tab = e.target.closest('[data-src-tab]');
       if (tab) {
         if (tab.dataset.srcTab !== state.currentSrc) {
@@ -2377,6 +2516,62 @@
         state.openUrlId = null;
         renderRight();
         saveLastState(bundleCode, state.currentSrc, null);
+        return;
+      }
+      // [2026-06-26] 카탈로그 행 선택 → 우측 상세 갱신
+      const catRow = e.target.closest('[data-cat-row]');
+      if (catRow) {
+        state.catalogSel = catRow.dataset.catRow;
+        renderRight();
+        return;
+      }
+      // [2026-06-26] 소싱처 추가 실행 → SourcingSource 전역 등록 후 새 탭으로 이동
+      const catAdd = e.target.closest('[data-cat-add]');
+      if (catAdd) {
+        const key = catAdd.dataset.catAdd;
+        catAdd.disabled = true;
+        catAdd.textContent = '추가 중…';
+        try {
+          const r = await fetch('/api/sources/catalog/add', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ key }),
+          });
+          const j = await r.json();
+          if (!j || !j.ok) {
+            alert((j && j.error) || '추가에 실패했어요.');
+            catAdd.disabled = false;
+            catAdd.textContent = '이 소싱처 추가하기';
+            return;
+          }
+          const sd = j.source || {};
+          if (!state.sources.find(x => x.key === key)) {
+            state.sources.push({ key, label: sd.label || key });
+          }
+          state.srcMeta = state.srcMeta || {};
+          state.srcMeta[key] = { label: sd.label || key, color: sd.color || '#3B82F6', glyph: sd.glyph || '' };
+          if (state.catalog) {
+            const c = state.catalog.find(x => x.key === key);
+            if (c) c.added = true;
+          }
+          if (!state.urls[key]) state.urls[key] = [];
+          // 새 소싱처 탭으로 이동 + 첫 URL 입력칸 자동 열기 (③-(2))
+          state.currentSrc = key;
+          const newU = { tempId: state.tempIdSeq++, label: '', url: '', option_keys: [] };
+          state.urls[key].push(newU);
+          state.openUrlId = newU.tempId;
+          renderRight();
+          saveLastState(bundleCode, state.currentSrc, null);
+          setTimeout(() => {
+            const card = modal.querySelector(`[data-url-id="${newU.tempId}"]`);
+            const inp = card && card.querySelector('.oum-url-input');
+            if (inp) inp.focus();
+          }, 0);
+        } catch (err) {
+          alert('추가 중 오류: ' + err);
+          catAdd.disabled = false;
+          catAdd.textContent = '이 소싱처 추가하기';
+        }
         return;
       }
       // 매트릭스 헤더 (col/row/corner/group) — 활성 옵션 한정 일괄 토글
@@ -2726,6 +2921,19 @@
       }
     });
     $('#oum-right').addEventListener('input', e => {
+      // [2026-06-26] 소싱처 카탈로그 검색 — 행 필터(포커스 유지 위해 re-render 안 함)
+      if (e.target.closest('[data-cat-search]')) {
+        const q = (e.target.value || '').trim().toLowerCase();
+        const wrap = e.target.closest('.oum-addsrc-left');
+        const list = wrap && wrap.querySelector('[data-cat-list]');
+        if (list) {
+          list.querySelectorAll('[data-cat-row]').forEach(row => {
+            const lbl = (row.dataset.catLabel || '').toLowerCase();
+            row.style.display = (!q || lbl.indexOf(q) >= 0) ? '' : 'none';
+          });
+        }
+        return;
+      }
       // [v20.1] 브랜드 input 자동완성
       if (e.target.id === 'oum-br-in') {
         filterDdItems(e.target, '.oum-br-dd', '.oum-br-it', it => {
