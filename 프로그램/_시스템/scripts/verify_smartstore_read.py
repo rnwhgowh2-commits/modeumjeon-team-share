@@ -9,7 +9,11 @@
   python -m scripts.verify_smartstore_read 12345678     # 특정 상품번호 지정
   python -m scripts.verify_smartstore_read 12345678 AF  # 상품번호 + 모음전 model_code
 """
+import io
 import sys
+
+# Windows cp949 콘솔에서도 이모지·em-dash 출력이 깨지지 않게 (코드베이스 관용구)
+sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
 
 from shared.db import SessionLocal
 from lemouton.sourcing.models import Option
