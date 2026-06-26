@@ -1538,14 +1538,22 @@ def api_save_inventory_mapping(code):
         # 새 매핑 추가 — 유효한 본 모음전 sku + 존재하는 inventory sku 만
         all_skus = {row[0] for row in s.query(Option.canonical_sku).all()}
         added = 0
+        submitted = 0   # 제출된 (b_sku, inv_sku) 쌍 수
+        rejected = 0    # 검증 탈락(존재X·타모델·타입오류)으로 조용히 버려진 쌍 수
+        rejected_skus = []  # [2026-06-26] 거부된 inventory sku — 프론트 표면화용
         for b_sku, inv_list in mappings.items():
-            if b_sku not in bundle_sku_set:
-                continue
             if not isinstance(inv_list, list):
+                continue
+            if b_sku not in bundle_sku_set:
+                # 본 모음전 옵션이 아닌 키 — 제출분 전체를 거부로 집계
+                submitted += len(inv_list)
+                rejected += len(inv_list)
                 continue
             seen = set()
             for inv_sku in inv_list:
+                submitted += 1
                 if not isinstance(inv_sku, str):
+                    rejected += 1
                     continue
                 # [2026-06-02 BUG FIX] 자기 자신 매핑 허용.
                 #   르무통·잔스포츠·빔즈 등 모음전 옵션 = 재고관리 옵션이 같은 row(model_code 공유)
@@ -1553,9 +1561,12 @@ def api_save_inventory_mapping(code):
                 #   자동매칭 102건 중 self 매핑 94건이 조용히 버려지고 8건만 저장되는 버그였음.
                 #   GET(api_get_inventory_mapping, line ~1271) 은 이미 self 후보를 의도적으로
                 #   포함 → 저장도 일치시켜 허용. (UNIQUE(bundle,inventory) 로 중복은 차단됨.)
-                if inv_sku in seen:            # 같은 매핑 중복 방지
+                if inv_sku in seen:            # 같은 매핑 중복 방지 (제출 중복 — 거부 아님)
+                    submitted -= 1
                     continue
-                if inv_sku not in all_skus:    # 존재하지 않는 sku 차단
+                if inv_sku not in all_skus:    # 존재하지 않는 sku 차단 → 조용한 누락 방지 위해 집계
+                    rejected += 1
+                    rejected_skus.append(inv_sku)
                     continue
                 seen.add(inv_sku)
                 s.add(OptionInventoryLink(
@@ -1564,7 +1575,14 @@ def api_save_inventory_mapping(code):
                 ))
                 added += 1
         s.commit()
-        return jsonify({'ok': True, 'mapped': added})
+        # [2026-06-26] 제출 대비 저장/거부 건수 반환 — 프론트가 부분 저장을 표면화(조용한 누락 차단).
+        return jsonify({
+            'ok': True,
+            'mapped': added,
+            'submitted': submitted,
+            'rejected': rejected,
+            'rejected_skus': rejected_skus[:20],
+        })
     except Exception as e:
         s.rollback()
         return jsonify({'ok': False, 'error': str(e)}), 500

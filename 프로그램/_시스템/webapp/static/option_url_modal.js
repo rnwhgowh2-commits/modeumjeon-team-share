@@ -576,6 +576,9 @@
       // [B3-3] 재고관리 매핑 표 — {bundleSku: {invSku, color, size, model, isManual, isUnused}}
       //   (셀 자동매칭 결과 + 사용자 수정값. 적용 클릭 시 서버에 mappings 로 push)
       invRows: {},
+      // [2026-06-26] 재고 매핑 배경 로드 완료 여부 — autoSave 가 로딩 전(빈 invRows)에
+      //   서버 전체교체(POST inventory-mapping)를 호출해 기존 매핑을 날리는 사고 방지.
+      invLoaded: false,
       // candidates 백업 (서버 alias 매칭 결과)
       invCandidates: {},
       // 재고 옵션 풀 (검색·드롭다운용)
@@ -656,6 +659,8 @@
     //   변경: 옵션·URL UI 는 즉시 렌더, 재고 매핑은 도착하면 셀 초록색·재고탭만 갱신.
     function applyInvData(ij) {
       if (!ij || !ij.ok) return;
+      // [2026-06-26] 로드 성공 시에만 true — autoSave 의 재고 매핑 저장 가드.
+      state.invLoaded = true;
       state.invOptions = ij.inventory_options || [];
       state.invCandidates = ij.candidates || {};
       // [v20] 브랜드 → 모델 검색 메타
@@ -1063,17 +1068,23 @@
     }
 
     // [B3-3] 매핑 서버 저장 (POST /api/bundles/<code>/inventory-mapping)
-    async function invApplyMapping(bundleCode) {
-      const skuByKey = state.skuByKey || {};
+    //   [2026-06-26] opts.silent — autoSave 에서 호출 시 alert 없이 결과만 반환.
+    //   반환: { ok, mapped, submitted, error }.  서버는 전체교체(replace) 방식이므로
+    //   로딩 완료(state.invLoaded) 전에는 호출하지 말 것 — 빈 mappings 가 기존 매핑을 지움.
+    //   [2026-06-26 데이터손실 가드] payload 는 state.invRows 전체(= 기존 로드분 + 사용자 수정)
+    //   에서 구성. state.selected(활성 옵션)만 보내면, OFF 했지만 매핑 보존된 옵션
+    //   (state.mappedOff)의 매핑이 전체교체로 삭제됨. invRows 키는 canonical_sku(=bundle_sku)라
+    //   그대로 사용 가능. 백엔드가 본 모음전 소속 아닌 sku 는 거부(rejected)하므로 안전.
+    async function invApplyMapping(bundleCode, opts = {}) {
+      const silent = !!opts.silent;
       const mappings = {};
-      [...state.selected].forEach(k => {
-        const bSku = skuByKey[k];
-        if (!bSku) return;
+      Object.keys(state.invRows || {}).forEach(bSku => {
         const row = state.invRows[bSku];
         if (row && row.invSku && row.invSku.trim()) {
           mappings[bSku] = [row.invSku.trim()];
         }
       });
+      const submitted = Object.keys(mappings).length;
       try {
         const r = await fetch(`/api/bundles/${encodeURIComponent(bundleCode)}/inventory-mapping`, {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -1081,12 +1092,25 @@
         });
         const j = await r.json();
         if (j && j.ok) {
-          alert('✅ 재고 매핑 저장 완료 — ' + (j.mapped || 0) + '건');
-        } else {
-          alert('❌ 저장 실패: ' + (j.error || '알 수 없음'));
+          const rejected = j.rejected || 0;
+          if (rejected > 0) {
+            // 부분 저장 — 일부 SKU 가 존재하지 않아 거부됨. 조용히 넘기지 않고 표면화.
+            const detail = (j.rejected_skus && j.rejected_skus.length)
+              ? ' (' + j.rejected_skus.slice(0, 5).join(', ') + (j.rejected_skus.length > 5 ? ' 외' : '') + ')'
+              : '';
+            const msg = `재고 매핑 ${j.mapped || 0}건 저장, ${rejected}건은 존재하지 않는 SKU 라 거부됨${detail}`;
+            if (!silent) alert('⚠️ ' + msg);
+            return { ok: false, mapped: j.mapped || 0, submitted, rejected, error: msg };
+          }
+          if (!silent) alert('✅ 재고 매핑 저장 완료 — ' + (j.mapped || 0) + '건');
+          return { ok: true, mapped: j.mapped || 0, submitted };
         }
+        const err = (j && j.error) || '알 수 없음';
+        if (!silent) alert('❌ 저장 실패: ' + err);
+        return { ok: false, submitted, error: err };
       } catch (err) {
-        alert('❌ 요청 실패: ' + err.message);
+        if (!silent) alert('❌ 요청 실패: ' + err.message);
+        return { ok: false, submitted, error: err.message };
       }
     }
 
@@ -2853,31 +2877,40 @@
     }
 
     // ─── 자동 저장 ───────────────────────────────────────────────
-    //   가로 탭 전환·모달 닫기 직전 호출 — 옵션·URL·매핑 모두 저장
-    //   실패는 console.warn 만 — 사용자 알림 X (사용자 결정)
+    //   가로 탭 전환·모달 닫기 직전 호출 — 옵션·URL·재고매핑 모두 저장
+    //   [2026-06-26] 실패를 { ok, errors[] } 로 반환 → [저장] 버튼이 정직하게 표면화
+    //   (이전엔 console.warn 만 하고 항상 "저장 완료" 표시 = 거짓 성공).
     //   - 새 URL 카드 (dbId 없음) → POST → 응답 id 를 dbId 로 설정
     //   - 기존 URL (dbId 있음) → PUT
     //   - 옵션 매트릭스 매핑(option_keys) → axis_values → canonical_sku 변환 → option_ids
+    //   - 재고관리 매핑(state.invRows) → POST inventory-mapping (invLoaded 가드)
     // [2026-05-27] inflight 중 새 호출 오면 pending 표시 → 첫 호출 끝나면 한 번 더 실행
     //   탭 빠르게 전환해도 마지막 상태가 반드시 저장됨
     let _autoSaveInflight = null;
     let _autoSavePending = false;
+    // [2026-06-26] 마지막 저장 결과 — { ok, errors[] }. 저장 버튼이 정직하게 표면화.
+    let _lastSaveResult = { ok: true, errors: [] };
     async function autoSave() {
-      if (!state.selected.size || !state.applied) return;
+      if (!state.selected.size || !state.applied) return _lastSaveResult;
       // 중복 호출 — pending 표시만 하고 첫 promise 만 기다림 (실제 저장은 첫 promise 의 do-while 가 처리)
-      if (_autoSaveInflight) { _autoSavePending = true; try { await _autoSaveInflight; } catch (e) {} return; }
+      if (_autoSaveInflight) { _autoSavePending = true; try { await _autoSaveInflight; } catch (e) {} return _lastSaveResult; }
       _autoSaveInflight = (async () => {
         // do-while 로 pending 플래그 처리 — 도중에 들어온 변경도 한 번 더 저장
         do {
           _autoSavePending = false;
+        // [2026-06-26] catch 에서도 보이도록 try 바깥(do 안)에서 선언
+        let errors = [];
         try {
           // 1. 옵션 콤보 (prune=true) — selected 와 동기화
           const validList = validAxes();
           const selectedArr = [...state.selected].map(getAxisValuesArray);
-          await fetch(`/api/bundles/${encodeURIComponent(bundleCode)}/options/combo`, {
+          const comboRes = await fetch(`/api/bundles/${encodeURIComponent(bundleCode)}/options/combo`, {
             method: 'POST', headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ steps: validList, selected: selectedArr, prune: true }),
           });
+          // [2026-06-26] 콤보 저장 실패를 더는 무시하지 않음 — 실패 시 skuByKey 가 stale 해져
+          //   아래 desync 가드로 URL 매핑 보존됨(빈 list wipe 방지).
+          if (!comboRes.ok) errors.push(`옵션 구성 저장 실패 (HTTP ${comboRes.status})`);
 
           // 2. 옵션 axis_values → canonical_sku 매핑 재로딩
           const r = await fetch(`/api/bundles/${encodeURIComponent(bundleCode)}/source-urls`);
@@ -2890,36 +2923,48 @@
               }
             });
           }
+          // 최신 매핑을 state 에도 반영 — 재고 매핑 저장(4단계)이 같은 기준 사용.
+          state.skuByKey = skuByKey;
 
           // 3. 각 URL 카드 저장 — POST(new) / PUT(existing) + option_ids + sort_order (배열 인덱스)
           //   [v27 2026-06-02] 병렬화 — for-await 순차 처리에서 Promise.all 로 변경.
-          //   기존: 41개 URL × ~50ms = 2초+ 직렬. 변경 후: 41개 동시 = ~200ms.
-          //   PUT/POST 페이로드·endpoint·DB 동작 100% 그대로. 처리 순서만 병렬.
           const urlSavePromises = [];
           for (const sk of Object.keys(state.urls)) {
             const arr = state.urls[sk] || [];
             for (let i = 0; i < arr.length; i++) {
               const u = arr[i];
               if (!u.url || !u.url.trim()) continue;
-              const option_ids = (u.option_keys || [])
-                .map(k => skuByKey[k])
-                .filter(Boolean);
+              const optionKeys = u.option_keys || [];
+              const option_ids = optionKeys.map(k => skuByKey[k]).filter(Boolean);
+              // [2026-06-26] desync 가드 — 매핑 키는 있는데 전부 해소 실패하면(콤보 실패·prune
+              //   직후 stale) 빈 list 가 백엔드에서 기존 URL↔옵션 매핑을 전부 삭제함.
+              //   이때는 option_ids 를 아예 omit 해서 기존 매핑을 보존(백엔드: None=무변경).
+              const omitIds = optionKeys.length > 0 && option_ids.length === 0;
+              if (omitIds) errors.push(`URL "${u.label || u.url}" 옵션 매핑 동기화 실패 — 기존 매핑 보존(재시도 권장)`);
+              const label = u.label ? `"${u.label}"` : u.url;
               const task = (async () => {
                 try {
                   if (u.dbId) {
-                    await fetch(`/api/bundles/${encodeURIComponent(bundleCode)}/source-urls/${u.dbId}`, {
+                    const body = { url: u.url.trim(), label: u.label || null, url_type: u.url_type || '단품', sort_order: i };
+                    if (!omitIds) body.option_ids = option_ids;
+                    const res = await fetch(`/api/bundles/${encodeURIComponent(bundleCode)}/source-urls/${u.dbId}`, {
                       method: 'PUT', headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({ url: u.url.trim(), label: u.label || null, url_type: u.url_type || '단품', option_ids, sort_order: i }),
+                      body: JSON.stringify(body),
                     });
+                    if (!res.ok) errors.push(`URL 저장 실패: ${label} (HTTP ${res.status})`);
                   } else {
+                    const body = { source_key: sk, url: u.url.trim(), label: u.label || null, url_type: u.url_type || '단품' };
+                    if (!omitIds) body.option_ids = option_ids;
                     const res = await fetch(`/api/bundles/${encodeURIComponent(bundleCode)}/source-urls`, {
                       method: 'POST', headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({ source_key: sk, url: u.url.trim(), label: u.label || null, url_type: u.url_type || '단품', option_ids }),
+                      body: JSON.stringify(body),
                     });
+                    if (!res.ok) { errors.push(`URL 저장 실패: ${label} (HTTP ${res.status})`); return; }
                     const rj = await res.json();
                     if (rj && rj.id) u.dbId = rj.id;
                   }
                 } catch (e) {
+                  errors.push(`URL 저장 오류: ${label}`);
                   console.warn('[oum] auto-save URL fail:', e);
                 }
               })();
@@ -2927,12 +2972,23 @@
             }
           }
           await Promise.all(urlSavePromises);
+
+          // 4. [2026-06-26] 재고관리 매핑 저장 — 로딩 완료(invLoaded) 된 경우에만.
+          //   서버가 전체교체(replace) 방식이라, 로딩 전 빈 payload 를 보내면 기존 매핑이 지워짐.
+          if (state.invLoaded) {
+            const invRes = await invApplyMapping(bundleCode, { silent: true });
+            if (!invRes.ok) errors.push(`재고 매핑 저장 실패: ${invRes.error || '알 수 없음'}`);
+          }
+
+          _lastSaveResult = { ok: errors.length === 0, errors };
         } catch (e) {
           console.warn('[oum] auto-save fail:', e);
+          _lastSaveResult = { ok: false, errors: [...errors, `저장 중 오류: ${e.message || e}`] };
         }
         } while (_autoSavePending);  // pending 있으면 한 번 더
       })();
       try { await _autoSaveInflight; } finally { _autoSaveInflight = null; _autoSavePending = false; }
+      return _lastSaveResult;
     }
 
     // 모달 닫기 / 저장 — X·취소 클릭 시 자동 저장 fire-and-forget + 마지막 상태 기록
@@ -2953,7 +3009,13 @@
 
       try {
         snapshotLastState();
-        await autoSave();
+        const result = await autoSave();
+        // [2026-06-26] 정직성 — 실패를 "저장 완료" 로 위장하지 않음. 실패 시 모달 유지·재시도 가능.
+        if (result && result.ok === false) {
+          alert('⚠️ 일부 항목이 저장되지 않았습니다:\n\n' + (result.errors || []).join('\n') + '\n\n다시 [저장]을 눌러 재시도하세요.');
+          save.disabled = false; save.textContent = '옵션 + URL 저장';
+          return;
+        }
         if (typeof flash === 'function') flash('저장 완료');
         bg.remove();
         // [v27 2026-06-02] reload 대기 700 → 200ms — 체감 즉시 갱신
