@@ -5,10 +5,29 @@
   · 종료 후 '유효 소싱가(is_crawl_valid) 0개' 옵션을 crawl_blocked=True 로 판매차단
   · 판매가능 = Option.is_active(수동) AND NOT crawl_blocked(크롤)
 
-이 테스트는 판매차단 판정(단일 진실 _sources_have_valid_price)을 고정한다.
+이 테스트는 판매차단 판정의 핵심 로직을 고정한다.
 유효가격만 판매, 리셋후 미커버(NULL)·크롤실패(error)·매칭실패는 모두 차단.
+
+[포팅 2026-06-26] _sources_have_valid_price 가 api_pricing.py 에서 제거됨.
+  판정 로직은 is_crawl_valid(lemouton.pricing.unified) + match_failed 검사로 분산.
+  테스트에서 동일 의미의 로컬 헬퍼 _sources_have_valid_price 를 재정의해 포팅.
 """
-from webapp.routes.api_pricing import _sources_have_valid_price
+from lemouton.pricing.unified import is_crawl_valid
+
+
+def _sources_have_valid_price(sources) -> bool:
+    """소싱처 목록 중 유효 가격(is_crawl_valid + 매칭성공)을 가진 항목이 하나라도 있으면 True.
+
+    is_crawl_valid: price > 0 AND last_status != 'error'
+    match_failed=True: 소싱처가 안 파는 색/사이즈 조합 → 폴백가 금지(차단)
+    """
+    if not sources:
+        return False
+    return any(
+        is_crawl_valid(s.get('crawled_price'), s.get('last_status'))
+        and not s.get('match_failed', False)
+        for s in sources
+    )
 
 
 def test_valid_ok_price_is_sellable():
