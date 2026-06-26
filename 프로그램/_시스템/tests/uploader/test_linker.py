@@ -50,3 +50,11 @@ def test_ambiguous_when_two_bundle_share_color_size():
         dupe, [MarketOption(option_id="o5", color="블랙", size="260")])
     assert rows[0].status == "ambiguous"
     assert rows[0].canonical_sku is None
+
+
+def test_empty_color_size_is_unmatched():
+    # 빈 색상·사이즈는 빈 번들옵션과 거짓매칭되면 안 됨 → unmatched
+    rows = match_market_options_to_skus(
+        _bundle(), [MarketOption(option_id="ox", color="", size="")])
+    assert rows[0].status == "unmatched"
+    assert rows[0].canonical_sku is None
