@@ -166,7 +166,7 @@
 <script src="{{ url_for('static', filename='crawl_log.js') }}?v=20260624_zoomscroll"></script><!-- 실시간 크롤 대시보드 (… + 도킹/폭드래그 시안B + 폭=드래그전용 · Ctrl+휠=위젯 줌1.0~2.0× · 그냥 휠=내부 세로 스크롤) -->
 <script src="{{ url_for('static', filename='matrix_hscroll.js') }}?v=20260622_hscroll4"></script><!-- 매트릭스 가로 스크롤 떠있는 바 — 긴 테이블에서도 닿는 위치에 가로 스크롤(위젯에 가린 소싱처 컬럼 보기) -->
 <script src="{{ url_for('static', filename='toss_add_benefit.js') }}"></script><!-- v6 D2-A 혜택추가폼 인터랙션 -->
-<script src="{{ url_for('static', filename='option_url_modal.js') }}?v=20260626_v56_urlconc"></script><!-- 2026-06-26 v56 — v55(재고매핑 배선+정직성+desync가드) + URL 저장 동시성제한(5)+일시500 재시도(풀초과 조용한 유실 해결). ⚠️ option_url_modal.js 수정 시 이 버전 문자열 반드시 갱신 -->
+<script src="{{ url_for('static', filename='option_url_modal.js') }}?v=20260626_v57_saveguards"></script><!-- 2026-06-26 v57 — v56 + 저장 견고화: 콤보/source-urls 실패 시 stale 저장 중단(D1·D2) + X·취소 닫기 실패 표면화(S1). ⚠️ option_url_modal.js 수정 시 이 버전 문자열 반드시 갱신 -->
 
 {% block scripts %}{% endblock %}
 </body>

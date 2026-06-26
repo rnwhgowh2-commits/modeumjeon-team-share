@@ -3116,21 +3116,32 @@
             method: 'POST', headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ steps: validList, selected: selectedArr, prune: true }),
           });
-          // [2026-06-26] 콤보 저장 실패를 더는 무시하지 않음 — 실패 시 skuByKey 가 stale 해져
-          //   아래 desync 가드로 URL 매핑 보존됨(빈 list wipe 방지).
-          if (!comboRes.ok) errors.push(`옵션 구성 저장 실패 (HTTP ${comboRes.status})`);
+          // [2026-06-26 D2] 콤보 저장 실패 시 즉시 중단 — stale skuByKey 로 URL/재고를 저장하면
+          //   신규 매핑 유실·기존 매핑 손상. 옵션 구성(step1)은 이미 반영됐으므로 재시도로 정합 회복.
+          if (!comboRes.ok) {
+            errors.push(`옵션 구성 저장 실패 (HTTP ${comboRes.status}) — URL·재고는 저장 안 함(다시 [저장] 눌러 재시도)`);
+            _lastSaveResult = { ok: false, errors };
+            return;
+          }
 
           // 2. 옵션 axis_values → canonical_sku 매핑 재로딩
           const r = await fetch(`/api/bundles/${encodeURIComponent(bundleCode)}/source-urls`);
-          const j = await r.json();
-          const skuByKey = {};
-          if (j && Array.isArray(j.options)) {
-            j.options.forEach(o => {
-              if (Array.isArray(o.axis_values)) {
-                skuByKey[JSON.stringify(o.axis_values.map(v => String(v)))] = o.canonical_sku;
-              }
-            });
+          // [2026-06-26 D1] 빈 body(게이트웨이 502/504·세션만료 HTML)면 r.json() 이 throw 해
+          //   URL·재고 단계가 통째로 무산되고 'Unexpected end of JSON input' 로만 떴음.
+          //   가드해서 명확한 메시지로 중단(콤보는 반영됨 → 재시도 시 정합 회복).
+          let j = null;
+          try { j = await r.json(); } catch (e) {}
+          if (!r.ok || !j || !Array.isArray(j.options)) {
+            errors.push('옵션 정보 재로딩 실패(서버 일시 응답 없음) — URL·재고는 저장 안 함(다시 [저장] 눌러 재시도)');
+            _lastSaveResult = { ok: false, errors };
+            return;
           }
+          const skuByKey = {};
+          j.options.forEach(o => {
+            if (Array.isArray(o.axis_values)) {
+              skuByKey[JSON.stringify(o.axis_values.map(v => String(v)))] = o.canonical_sku;
+            }
+          });
           // 최신 매핑을 state 에도 반영 — 재고 매핑 저장(4단계)이 같은 기준 사용.
           state.skuByKey = skuByKey;
 
@@ -3227,8 +3238,22 @@
       const openedU = state.openUrlId ? (state.urls[state.currentSrc] || []).find(u => u.tempId === state.openUrlId) : null;
       saveLastState(bundleCode, state.currentSrc, openedU ? openedU.dbId : null);
     }
-    $('.oum-mh .close').addEventListener('click', () => { snapshotLastState(); hideSharedTip(); autoSave(); bg.remove(); });
-    $('#oum-cancel').addEventListener('click', () => { snapshotLastState(); hideSharedTip(); autoSave(); bg.remove(); });
+    // [2026-06-26 S1] X·취소·배경 닫기 — 닫기는 즉시(UX), 저장은 배경에서 계속(전역 fetch라 모달 제거와
+    //   무관하게 완료). 단 실패를 더는 무음 처리하지 않고 닫힌 뒤 알림으로 표면화(재오픈 후 [저장] 유도).
+    function _closeWithSave() {
+      snapshotLastState(); hideSharedTip();
+      const p = autoSave();
+      bg.remove();
+      Promise.resolve(p).then(result => {
+        if (result && result.ok === false) {
+          alert('⚠️ 변경사항이 저장되지 않았습니다:\n\n' + (result.errors || []).join('\n') + '\n\n모달을 다시 열어 [저장]을 눌러 주세요.');
+        }
+      }).catch(e => {
+        alert('⚠️ 저장 실패: ' + (e && e.message || e) + '\n모달을 다시 열어 [저장]해 주세요.');
+      });
+    }
+    $('.oum-mh .close').addEventListener('click', _closeWithSave);
+    $('#oum-cancel').addEventListener('click', _closeWithSave);
 
     // [2026-05-26 BUG-FIX] [저장] 버튼은 이전에 dbId 검사 없이 무조건 POST 했음 → 누를 때마다
     //   같은 URL 카드가 새로 생성되어 누적되는 심각한 버그. autoSave() 로 통일 — dbId 있으면 PUT,
