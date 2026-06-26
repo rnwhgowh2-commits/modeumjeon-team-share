@@ -20,6 +20,7 @@ class MarketOption:
     size: Optional[str]
     stock: int = 0
     price: int = 0
+    usable: bool = True
 
 
 @dataclass

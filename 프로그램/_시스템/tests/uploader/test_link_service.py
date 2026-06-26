@@ -81,7 +81,7 @@ def test_fetch_smartstore_maps_options(monkeypatch):
             product_name="에어포스 1", sale_price=115900,
             options=[
                 go.OptionRow(option_id=111, name1="블랙", name2="260", stock=4, add_price=0),
-                go.OptionRow(option_id=222, name1="블루", name2="270", stock=0, add_price=0),
+                go.OptionRow(option_id=222, name1="블루", name2="270", stock=0, add_price=0, usable=False),
             ])
 
     monkeypatch.setattr(go, "fetch_product_options", fake_fetch)
@@ -92,6 +92,8 @@ def test_fetch_smartstore_maps_options(monkeypatch):
     assert len(fr.options) == 2
     assert fr.options[0] == MarketOption(option_id="111", color="블랙", size="260", stock=4, price=0)
     assert fr.options[1].option_id == "222"
+    assert fr.options[0].usable is True
+    assert fr.options[1].usable is False
 
 
 def test_fetch_smartstore_bad_product_id():
@@ -112,3 +114,26 @@ def test_link_fetch_failure_returns_error(db):
     assert result["ok"] is False
     assert result["linked"] == 0
     assert db.query(MarketRegistration).count() == 0
+
+
+def test_link_duplicate_canonical_sku_writes_none(db):
+    # 두 마켓옵션이 같은 SKU(블랙/260)로 정규화 → 어느 쪽이 옳은 바인딩인지 알 수 없음
+    # → 둘 다 쓰지 않고 duplicate 로 표면화. linked 는 정직하게 0.
+    def _dup_fetch(market, product_id):
+        from lemouton.uploader.market_fetch import FetchResult
+        from lemouton.uploader.linker import MarketOption
+        return FetchResult(
+            success=True, product_name="에어포스 상품", error=None,
+            options=[
+                MarketOption(option_id="AA", color="블랙", size="260", stock=1),
+                MarketOption(option_id="BB", color="black", size="260mm", stock=2),
+            ])
+    result = link_bundle_market(
+        db, model_code="AF", market="smartstore",
+        market_product_id="777", fetcher=_dup_fetch)
+    assert result["ok"] is True
+    assert result["linked"] == 0
+    assert result["duplicate"] == 2
+    # 충돌 SKU 는 한 행도 쓰이지 않아야 함
+    from lemouton.uploader.models import MarketRegistration
+    assert db.query(MarketRegistration).filter_by(canonical_sku="AF-블랙-260").count() == 0

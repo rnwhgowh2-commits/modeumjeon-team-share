@@ -1,6 +1,7 @@
 """[연결] 모음전 옵션 추출 → 마켓 옵션 매칭 → MarketRegistration upsert."""
 from __future__ import annotations
 
+from collections import Counter
 from sqlalchemy.orm import Session
 
 from lemouton.sourcing.models import Option
@@ -37,13 +38,20 @@ def link_bundle_market(
     fr = fetcher(market, market_product_id)
     if not fr.success:
         return {"ok": False, "error": fr.error, "product_name": None,
-                "linked": 0, "unmatched": 0, "ambiguous": 0, "rows": []}
+                "linked": 0, "unmatched": 0, "ambiguous": 0, "duplicate": 0, "rows": []}
 
     rows = match_market_options_to_skus(bundle_options, fr.options)
 
-    linked = unmatched = ambiguous = 0
+    # 같은 canonical_sku 에 matched 가 2개 이상 → 어느 쪽이 올바른 바인딩인지
+    # 판단 불가 → 둘 다 저장하지 않고 duplicate 로 표면화 (폴백 금지 원칙).
+    _matched_skus = Counter(r.canonical_sku for r in rows if r.status == "matched")
+    _dup_skus = {sku for sku, n in _matched_skus.items() if n > 1}
+
+    linked = unmatched = ambiguous = duplicate = 0
     for r in rows:
-        if r.status == "matched":
+        if r.status == "matched" and r.canonical_sku in _dup_skus:
+            duplicate += 1
+        elif r.status == "matched":
             upsert_registration(
                 session,
                 canonical_sku=r.canonical_sku, market=market,
@@ -61,5 +69,5 @@ def link_bundle_market(
     return {
         "ok": True, "error": None, "product_name": fr.product_name,
         "linked": linked, "unmatched": unmatched, "ambiguous": ambiguous,
-        "rows": [r.__dict__ for r in rows],
+        "duplicate": duplicate, "rows": [r.__dict__ for r in rows],
     }

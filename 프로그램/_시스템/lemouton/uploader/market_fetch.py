@@ -37,7 +37,7 @@ def _fetch_smartstore(product_id: str) -> FetchResult:
         return FetchResult(False, None, [], r.error or "옵션 조회 실패")
     opts = [
         MarketOption(option_id=str(o.option_id), color=o.name1, size=o.name2,
-                     stock=o.stock, price=o.add_price)
+                     stock=o.stock, price=o.add_price, usable=o.usable)
         for o in r.options
     ]
     return FetchResult(True, r.product_name, opts)
