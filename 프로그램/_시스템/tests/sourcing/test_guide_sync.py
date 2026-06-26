@@ -1,7 +1,13 @@
 """크롤가이드 ↔ 코드 동기화 검사 (guide_sync). 2026-06-26."""
 import os
 
-from webapp.routes.guide_sync import missing_sources, missing_symbols, SYMBOL_MANIFEST
+from webapp.routes.guide_sync import (
+    missing_sources,
+    missing_symbols,
+    SYMBOL_MANIFEST,
+    compute_guide_drift,
+    GUIDE_EXT_BASELINE,
+)
 
 APP_ROOT = os.path.normpath(os.path.join(os.path.dirname(__file__), "..", ".."))
 
@@ -39,3 +45,11 @@ def test_missing_symbols_flags_renamed(tmp_path):
     manifest = [("build_crawlers", "a.py")]
     out = missing_symbols(str(tmp_path), manifest=manifest)
     assert out == [{"symbol": "build_crawlers", "file": "a.py"}]
+
+
+def test_compute_guide_drift_real_repo_clean():
+    d = compute_guide_drift(APP_ROOT)
+    assert d["missing_sources"] == []
+    assert d["missing_symbols"] == []
+    assert d["ext_baseline"] == GUIDE_EXT_BASELINE
+    assert isinstance(GUIDE_EXT_BASELINE, str) and GUIDE_EXT_BASELINE
