@@ -3135,8 +3135,13 @@
           state.skuByKey = skuByKey;
 
           // 3. 각 URL 카드 저장 — POST(new) / PUT(existing) + option_ids + sort_order (배열 인덱스)
-          //   [v27 2026-06-02] 병렬화 — for-await 순차 처리에서 Promise.all 로 변경.
-          const urlSavePromises = [];
+          //   [2026-06-26] 동시성 제한 + 일시 5xx 재시도.
+          //   기존 Promise.all(48개 동시)는 Supabase 풀(15) 초과로 매 저장마다 임의 ~7건이
+          //   HTTP 500 → 그 URL 의 option_ids 가 조용히 유실됐음(라이브 실측: 매 저장 실패 셋이 바뀜).
+          //   동시 5개로 제한 + 일시 실패(5xx·네트워크) 시 PUT(멱등)만 최대 3회 재시도(백오프).
+          //   POST(신규)는 중복 생성 위험 있어 재시도 안 함(실패 보고).
+          const POOL = 5, MAX_TRY = 3;
+          const urlTasks = [];
           for (const sk of Object.keys(state.urls)) {
             const arr = state.urls[sk] || [];
             for (let i = 0; i < arr.length; i++) {
@@ -3150,36 +3155,54 @@
               const omitIds = optionKeys.length > 0 && option_ids.length === 0;
               if (omitIds) errors.push(`URL "${u.label || u.url}" 옵션 매핑 동기화 실패 — 기존 매핑 보존(재시도 권장)`);
               const label = u.label ? `"${u.label}"` : u.url;
-              const task = (async () => {
-                try {
-                  if (u.dbId) {
-                    const body = { url: u.url.trim(), label: u.label || null, url_type: u.url_type || '단품', sort_order: i };
-                    if (!omitIds) body.option_ids = option_ids;
-                    const res = await fetch(`/api/bundles/${encodeURIComponent(bundleCode)}/source-urls/${u.dbId}`, {
-                      method: 'PUT', headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify(body),
-                    });
-                    if (!res.ok) errors.push(`URL 저장 실패: ${label} (HTTP ${res.status})`);
-                  } else {
-                    const body = { source_key: sk, url: u.url.trim(), label: u.label || null, url_type: u.url_type || '단품' };
-                    if (!omitIds) body.option_ids = option_ids;
-                    const res = await fetch(`/api/bundles/${encodeURIComponent(bundleCode)}/source-urls`, {
-                      method: 'POST', headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify(body),
-                    });
-                    if (!res.ok) { errors.push(`URL 저장 실패: ${label} (HTTP ${res.status})`); return; }
-                    const rj = await res.json();
-                    if (rj && rj.id) u.dbId = rj.id;
+              const sortIdx = i, srcKey = sk;
+              const canRetry = !!u.dbId;  // PUT 만 멱등 → 재시도 허용
+              urlTasks.push(async () => {
+                for (let attempt = 1; attempt <= MAX_TRY; attempt++) {
+                  try {
+                    let res;
+                    if (u.dbId) {
+                      const body = { url: u.url.trim(), label: u.label || null, url_type: u.url_type || '단품', sort_order: sortIdx };
+                      if (!omitIds) body.option_ids = option_ids;
+                      res = await fetch(`/api/bundles/${encodeURIComponent(bundleCode)}/source-urls/${u.dbId}`, {
+                        method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+                      });
+                    } else {
+                      const body = { source_key: srcKey, url: u.url.trim(), label: u.label || null, url_type: u.url_type || '단품' };
+                      if (!omitIds) body.option_ids = option_ids;
+                      res = await fetch(`/api/bundles/${encodeURIComponent(bundleCode)}/source-urls`, {
+                        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+                      });
+                    }
+                    if (res.ok) {
+                      if (!u.dbId) { try { const rj = await res.json(); if (rj && rj.id) u.dbId = rj.id; } catch (e) {} }
+                      return; // 성공
+                    }
+                    // 4xx(영구) 또는 마지막 시도 또는 재시도불가(POST) → 보고 후 종료
+                    if (res.status < 500 || attempt === MAX_TRY || !canRetry) {
+                      errors.push(`URL 저장 실패: ${label} (HTTP ${res.status})`);
+                      return;
+                    }
+                  } catch (e) {
+                    if (attempt === MAX_TRY || !canRetry) {
+                      errors.push(`URL 저장 오류: ${label}`);
+                      console.warn('[oum] auto-save URL fail:', e);
+                      return;
+                    }
                   }
-                } catch (e) {
-                  errors.push(`URL 저장 오류: ${label}`);
-                  console.warn('[oum] auto-save URL fail:', e);
+                  await new Promise(r => setTimeout(r, 250 * attempt)); // 백오프 후 재시도
                 }
-              })();
-              urlSavePromises.push(task);
+              });
             }
           }
-          await Promise.all(urlSavePromises);
+          // 동시성 제한 실행 — 워커 POOL 개가 큐를 나눠 처리(풀 초과 500 방지)
+          {
+            let _i = 0;
+            const workers = Array.from({ length: Math.min(POOL, urlTasks.length) }, async () => {
+              while (_i < urlTasks.length) { const fn = urlTasks[_i++]; await fn(); }
+            });
+            await Promise.all(workers);
+          }
 
           // 4. [2026-06-26] 재고관리 매핑 저장 — 로딩 완료(invLoaded) 된 경우에만.
           //   서버가 전체교체(replace) 방식이라, 로딩 전 빈 payload 를 보내면 기존 매핑이 지워짐.
