@@ -412,12 +412,13 @@
           <tr><td class="el">B9</td><td>재고 센티넬 분기(필요 시)</td><td class="mono">api_pricing.py:196 _resolve_stock</td><td>특수 상한값이 '재고있음' 둔갑</td></tr>
         </table>
         <div class="d" style="margin-bottom:4px"><b>확장 4지점</b> <span style="color:var(--sub)">(심볼 기준 · 확장 v0.7.x churn 잦음)</span></div>
+        <div class="d" style="margin-bottom:4px;color:#c0392b"><b>⚠️ 실제 확장 = 데스크톱 로드본(v0.7.6)</b> · repo extension/(v0.4.3) 구버전 — 심볼 기준 인용</div>
         <table class="dt" style="margin-bottom:9px">
           <tr><th style="width:40px">#</th><th>무엇</th><th>파일:심볼</th><th>비고</th></tr>
           <tr><td class="el">E1</td><td>도메인 권한</td><td class="mono">manifest.json:7 host_permissions</td><td>두 경로 모두 필수(없으면 접근 차단)</td></tr>
           <tr><td class="el">E2</td><td>추출기 등록</td><td class="mono">background.js:76 EXTRACTORS</td><td>경로 B만 · 없으면 crawlOne(:92) 건너뜀</td></tr>
           <tr><td class="el">E3</td><td>추출 함수 작성</td><td class="mono">background.js (무신사·롯데온 모방)</td><td>반환 price·stock·options·product_name(+benefit_lines)</td></tr>
-          <tr><td class="el">E4</td><td>크롤 대상 목록+혜택 페이로드</td><td class="mono">ext_bridge.js:60 crawlBundle</td><td>전체크롤 대상 포함 + benefit_lines 전달(라이브 혜택)</td></tr>
+          <tr><td class="el">E4</td><td>크롤 진입점</td><td class="mono">ext_bridge.js enqueueCrawl → crawl.enqueue(확장 큐러너)</td><td>crawlBundle은 구버전 · 새 소싱처는 등록URL 포함시 자동순회</td></tr>
         </table>
         <div class="d" style="margin-bottom:4px"><b>표시 배선 2지점</b> <span style="color:var(--sub)">(크롤·계산은 돼도 화면에 안 보이는 누락 차단)</span></div>
         <table class="dt" style="margin-bottom:9px">
