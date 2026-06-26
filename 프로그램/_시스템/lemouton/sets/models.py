@@ -1,0 +1,96 @@
+"""[구성 레이어] V1 경량 구성(세트) 모델 — 모음전 1 : 구성 N : 판매처 상품 N.
+
+V1 Model/Option(canonical_sku) 위에 얹는 경량 레이어(전면 V2 전환 회피).
+V2 BundleSet 의 검증된 모양(set→product→option)을 차용하되 V1 옵션을 참조한다.
+"""
+from __future__ import annotations
+
+from datetime import datetime, timezone
+
+from sqlalchemy import (
+    Column, String, Integer, Boolean, ForeignKey, Text, DateTime, JSON,
+    UniqueConstraint,
+)
+from sqlalchemy.orm import relationship
+
+from shared.db import Base
+
+
+class ProductSet(Base):
+    """구성(세트) — 한 모음전에서 나눈 1 판매 단위."""
+    __tablename__ = "product_sets"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    model_code = Column(String(64), ForeignKey("models.model_code"),
+                        nullable=False, index=True)
+    name = Column(String(255), nullable=False)
+    note = Column(Text)
+    is_active = Column(Boolean, default=True, nullable=False)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc),
+                        onupdate=lambda: datetime.now(timezone.utc))
+
+    products = relationship("SetProduct", back_populates="product_set",
+                            cascade="all, delete-orphan")
+    channels = relationship("SetChannel", back_populates="product_set",
+                            cascade="all, delete-orphan")
+
+
+class SetProduct(Base):
+    """구성 내 상품 — 다품이면 N개, 수량(quantity) 보유."""
+    __tablename__ = "set_products"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    set_id = Column(Integer, ForeignKey("product_sets.id"),
+                    nullable=False, index=True)
+    model_code = Column(String(64), ForeignKey("models.model_code"),
+                        nullable=False)
+    quantity = Column(Integer, default=1, nullable=False)
+    sort_order = Column(Integer, default=0)
+
+    product_set = relationship("ProductSet", back_populates="products")
+    options = relationship("SetOption", back_populates="set_product",
+                           cascade="all, delete-orphan")
+
+
+class SetOption(Base):
+    """구성 상품의 선택 옵션(부분집합) — 행 존재 = 포함."""
+    __tablename__ = "set_options"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    set_product_id = Column(Integer, ForeignKey("set_products.id"),
+                            nullable=False, index=True)
+    canonical_sku = Column(String(128), ForeignKey("options.canonical_sku"),
+                           nullable=False)
+    sort_order = Column(Integer, default=0)
+
+    set_product = relationship("SetProduct", back_populates="options")
+
+    __table_args__ = (
+        UniqueConstraint("set_product_id", "canonical_sku",
+                         name="uq_set_options_product_sku"),
+    )
+
+
+class SetChannel(Base):
+    """구성 × 판매처 연동 — 마켓 상품번호·전송필드·상태."""
+    __tablename__ = "set_channels"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    set_id = Column(Integer, ForeignKey("product_sets.id"),
+                    nullable=False, index=True)
+    market = Column(String(20), nullable=False)
+    account_key = Column(String(64))
+    market_product_id = Column(String(64))
+    api_fields = Column(JSON, default=dict)
+    status = Column(String(16), default="pending", nullable=False)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc),
+                        onupdate=lambda: datetime.now(timezone.utc))
+
+    product_set = relationship("ProductSet", back_populates="channels")
+
+    __table_args__ = (
+        UniqueConstraint("set_id", "market", "account_key",
+                         name="uq_set_channels_set_market_account"),
+    )
