@@ -149,6 +149,10 @@
         <div class="erow"><span class="elabel">코드</span><span class="mono">service.py:429</span>
           <span class="elabel">위치</span><span class="mono">last_price·current_stock·dynamic_benefits_json</span> (<span class="ink">Supabase</span>/AWS)
           <span class="elabel">뜻</span>긁은 값을 DB에 영속. <span style="color:#9AA4B0">매트릭스 읽기(<span class="mono" style="color:inherit">_match_option_so</span>)·크롤 쓰기(<span class="mono" style="color:inherit">_persist</span>)가 같은 행을 봐야 함 — 중복행이면 stale 둔갑(→6 재발).</span></div>
+        <div class="erow" style="background:#FFF7ED;border-radius:8px;padding:8px 10px;margin-top:6px">
+          <span class="elabel" style="color:#C2410C">⚠ 옵션행 생성 vs 갱신</span>
+          <span class="ink">사이즈별 SourceOption은 ①서버 <span class="mono" style="color:inherit">_ingest</span> ②navGrab <span class="mono" style="color:inherit">parse</span>(<span class="mono" style="color:inherit">_persist_navgrab_option_stocks</span> — <b>생성</b>)에서만 만들어진다.</span>
+          <span style="color:#9AA4B0">확장 <span class="mono" style="color:inherit">crawl-result</span>(<span class="mono" style="color:inherit">_persist_option_stocks</span>)는 <b>기존 행 갱신만</b>·<span class="mono" style="color:inherit">ext_bridge</span>는 <span class="mono" style="color:inherit">options[]</span> 미전송. → 옵션행이 없으면(신규 URL) 매트릭스가 상품 <span class="mono" style="color:inherit">last_stock</span>(전 사이즈 <b>합계</b>)을 <b>균일 폴백</b> = 르무통 올리브 전 사이즈 53·품절 265도 '있음' 둔갑(2026-06-26 ②parse 생성으로 수정 — 르무통·SSF·SSG·스스). 무신사는 client추출이라 별도 배선 필요, 롯데온은 per-size 자체 미수집(999/0).</span></div>
       </div>
       <div class="card">
         <div><span class="no">03</span><span class="ti">계산</span></div>

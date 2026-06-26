@@ -8,6 +8,8 @@ import os
 from dataclasses import asdict
 from flask import Blueprint, jsonify, request
 
+from shared.db import SessionLocal  # 모듈 레벨 — 옵션 영속 헬퍼가 사용(테스트 패치 지점)
+
 bp = Blueprint("api_sources_parse", __name__, url_prefix="/api")
 
 _PARSE_SOURCES = {"lemouton", "ssf", "ssg", "ss_lemouton"}
@@ -62,7 +64,63 @@ def parse_source_html():
         _save_navgrab_dynamic_benefits(source_key, url, payload.get("options") or [])
     except Exception:
         pass  # 저장 실패해도 파싱 결과 반환은 유지(가격/재고는 crawl-result 가 별도 저장)
+    # ★ 2026-06-26 — 색·사이즈별 SourceOption 을 서버측에서 '생성' 영속.
+    #   배경: 확장 저장경로(ext_bridge→crawl-result)는 options[] 를 전송하지 않고,
+    #   백엔드 _persist_option_stocks 도 '기존' SO 만 갱신(생성 안 함) → 신규 등록 URL 은
+    #   옵션행이 0개라 매트릭스가 상품 last_stock(전 사이즈 합계)으로 균일 폴백
+    #   (예: 르무통 올리브그린 전 사이즈 53개, 실제 품절인 265 도 '53·있음' 둔갑).
+    #   여기 parse 가 실 per-사이즈 재고를 이미 손에 쥐고 있으므로(option_stock_data),
+    #   서버사이드 _ingest 와 동일하게 옵션행을 생성(upsert)+단품 색스코프+stale prune.
+    try:
+        _persist_navgrab_option_stocks(source_key, url, payload.get("options") or [])
+    except Exception:
+        pass  # best-effort — 실패해도 파싱 결과 반환·crawl-result 저장은 유지
     return jsonify(ok=True, **payload)
+
+
+def _persist_navgrab_option_stocks(source_key: str, url: str, options: list) -> None:
+    """parse 결과 options 의 색·사이즈별 실재고/실가격을 SourceOption 에 영속(생성 포함).
+
+    서버사이드 _ingest(service.py)와 동일 규칙:
+      - upsert_source_option 으로 (색,사이즈) 행 생성·갱신(없으면 INSERT)
+      - 단품(url_type='단품') SP 는 등록색 스코프(형제색 오염 차단)
+      - 이번 크롤에 없는 옛 (색,사이즈) 조합은 soft-delete(stale prune) — 재크롤 무결성
+      - 재고/가격 폴백 금지: 파서가 준 값(품절 0 포함) 그대로. 폴백·추정 없음.
+    """
+    if not isinstance(options, list) or not options:
+        return
+    from datetime import datetime, timezone
+    from lemouton.sources.service import (
+        upsert_source_product, upsert_source_option,
+        _resolve_reg_color, _scope_options_to_color, _norm_color, _norm_size)
+    from lemouton.sources.models import SourceOption
+    s = SessionLocal()
+    try:
+        sp = upsert_source_product(s, site=source_key, url=url)
+        s.flush()
+        scoped = _scope_options_to_color(options, _resolve_reg_color(s, sp))
+        if not scoped:
+            return
+        for o in scoped:
+            if not isinstance(o, dict):
+                continue
+            upsert_source_option(
+                s, source_product_id=sp.id,
+                color_text=o.get("color_text"), size_text=o.get("size_text"),
+                external_option_id=o.get("option_id"),
+                current_price=(o.get("sale_price") or o.get("price")),
+                current_stock=o.get("stock"))
+        # stale prune — 이번 크롤에 없는 (색,사이즈) 조합은 soft-delete(옛 가격·재고 잔존 차단).
+        new_keys = {(_norm_color(o.get("color_text")), _norm_size(o.get("size_text")))
+                    for o in scoped}
+        now = datetime.now(timezone.utc)
+        for so in (s.query(SourceOption)
+                   .filter_by(source_product_id=sp.id, deleted_at=None).all()):
+            if (_norm_color(so.color_text), _norm_size(so.size_text)) not in new_keys:
+                so.deleted_at = now
+        s.commit()
+    finally:
+        s.close()
 
 
 def _save_navgrab_dynamic_benefits(source_key: str, url: str, options: list) -> None:
