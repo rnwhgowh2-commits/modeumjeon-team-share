@@ -1212,14 +1212,14 @@ def save_crawl_result():
             #         실패 크롤(status!=ok)은 기록 안 함(실패 시 가짜 재고 금지). 로직=_persist_option_stocks.
             if status == 'ok':
                 try:
-                    # [Task 3 방어] 단품 SP 의 등록색을 취득해 빈 color 를 채움 → 오염 행 불일치 차단.
-                    # 실패(None) 시 기존 size_only fallback 유지 — non-fatal.
-                    try:
-                        from lemouton.sources.service import _resolve_reg_color
-                        _reg_color = _resolve_reg_color(s, sp)
-                    except Exception:
-                        _reg_color = None
-                    _persist_option_stocks(s, sp.id, it.get('options'), reg_color=_reg_color)
+                    # [2026-06-26] 옵션행 '생성+갱신' — persist_crawled_options(단일 영속 루틴).
+                    #   배경: 기존 _persist_option_stocks 는 '기존' SO 만 갱신(생성 안 함) → 신규
+                    #   등록 URL(옵션행 0개)은 사이즈별 재고가 영속 안 돼 매트릭스가 상품 last_stock
+                    #   (전 사이즈 합계)을 균일 폴백(품절 사이즈도 '있음' 둔갑). 무신사 등 확장추출
+                    #   경로(options[] 가 crawl-result 로 옴)도 이 경로로 색·사이즈별 SO 를 생성한다.
+                    #   서버사이드 _ingest·navGrab parse 와 같은 루틴(단품 색스코프+stale prune).
+                    from lemouton.sources.service import persist_crawled_options
+                    persist_crawled_options(s, source_product=sp, options=it.get('options'))
                 except Exception:
                     pass
             # ★ 2026-06-22 — 무신사 회원 혜택 금액을 크롤 라인(benefit_lines)에서 추출·저장.

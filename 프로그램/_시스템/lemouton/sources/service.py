@@ -598,6 +598,61 @@ def _scope_options_to_color(options: list[dict], reg_color: str | None) -> list[
     return result
 
 
+def persist_crawled_options(session: Session, *, source_product, options) -> dict:
+    """크롤 옵션(색·사이즈·재고·가격) → SourceOption upsert(생성+갱신) + 단품 색스코프 + stale prune.
+
+    ★ parse(navGrab)·crawl-result(확장추출) 양쪽이 공유하는 **단일 옵션 영속 루틴**.
+      매트릭스가 읽는 바로 그 SourceOption 을 만든다(_match_option_so 와 같은 행).
+      옵션행이 없으면 매트릭스가 상품 last_stock(전 사이즈 합계)을 균일 폴백 → 품절 둔갑.
+      서버사이드 _ingest 와 동일 규칙으로 통일.
+
+    옵션 dict 키는 두 표기를 모두 허용:
+      - parse 파서 출력: color_text / size_text / option_id / price·sale_price / stock
+      - 확장 추출(무신사 등): color / size / stock / price (size 는 'mm' 제거됨)
+
+    무결성: 폴백·추정 금지 — 파서가 준 값(품절 0 포함)만 영속. stock=None 이면
+      upsert 가 current_stock 을 건드리지 않음(하드리셋 NULL 보존).
+    커밋은 호출자 책임(트랜잭션 일관성).
+
+    Returns: {'upserted': N, 'pruned': M}
+    """
+    if not isinstance(options, list) or not options:
+        return {'upserted': 0, 'pruned': 0}
+    # 키 정규화 — color_text|color, size_text|size, price|sale_price
+    norm = []
+    for o in options:
+        if not isinstance(o, dict):
+            continue
+        norm.append({
+            'color_text': o.get('color_text') or o.get('color'),
+            'size_text': o.get('size_text') or o.get('size'),
+            'option_id': o.get('option_id') or o.get('external_option_id'),
+            'price': o.get('sale_price') or o.get('price'),
+            'stock': o.get('stock'),
+        })
+    scoped = _scope_options_to_color(norm, _resolve_reg_color(session, source_product))
+    if not scoped:
+        return {'upserted': 0, 'pruned': 0}
+    upserted = 0
+    for o in scoped:
+        upsert_source_option(
+            session, source_product_id=source_product.id,
+            color_text=o.get('color_text'), size_text=o.get('size_text'),
+            external_option_id=o.get('option_id'),
+            current_price=o.get('price'), current_stock=o.get('stock'))
+        upserted += 1
+    # stale prune — 이번 크롤에 없는 (색,사이즈) 조합 soft-delete (옛 가격·재고 잔존 차단).
+    new_keys = {(_norm_color(o.get('color_text')), _norm_size(o.get('size_text')))
+                for o in scoped}
+    pruned = 0
+    for so in (session.query(SourceOption)
+               .filter_by(source_product_id=source_product.id, deleted_at=None).all()):
+        if (_norm_color(so.color_text), _norm_size(so.size_text)) not in new_keys:
+            so.deleted_at = _utcnow()
+            pruned += 1
+    return {'upserted': upserted, 'pruned': pruned}
+
+
 def save_crawl_result(
     session: Session,
     *,

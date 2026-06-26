@@ -82,6 +82,9 @@
       // [2026-06-22] 회원 혜택 금액 추출용 — 서버 save_crawl_result 가 benefit_lines 에서
       //   등급적립·무신사머니 금액을 뽑는다. 누락 시 라이브 혜택 0 사고 → 반드시 전달.
       benefit_lines: x.benefit_lines || [], benefits_ok: x.benefits_ok,
+      // [2026-06-26] 색·사이즈별 옵션 배열 전달 — 서버가 SourceOption 을 생성·영속
+      //   (무신사 등 확장추출 경로의 사이즈별 재고). 누락 시 매트릭스가 상품 합계로 균일 둔갑.
+      options: x.options || [],
     }));
     const save = await fetch("/api/sources/crawl-result", {
       method: "POST", headers: { "Content-Type": "application/json" },
@@ -141,7 +144,8 @@
       body: JSON.stringify({ items: [{ url: x.url, price: x.price, stock: x.stock,
         status: x.ok ? "ok" : "error", product_name: x.product_name, error: x.error,
         is_logged_in: (x.is_logged_in === undefined ? null : x.is_logged_in),
-        benefit_lines: x.benefit_lines || [], benefits_ok: x.benefits_ok }] }),
+        benefit_lines: x.benefit_lines || [], benefits_ok: x.benefits_ok,
+        options: x.options || [] }] }),
     }).catch(() => {});
     return { ok: x.ok || false, price: x.price, error: x.error };
   }

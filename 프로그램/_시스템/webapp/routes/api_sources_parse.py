@@ -89,35 +89,13 @@ def _persist_navgrab_option_stocks(source_key: str, url: str, options: list) -> 
     """
     if not isinstance(options, list) or not options:
         return
-    from datetime import datetime, timezone
     from lemouton.sources.service import (
-        upsert_source_product, upsert_source_option,
-        _resolve_reg_color, _scope_options_to_color, _norm_color, _norm_size)
-    from lemouton.sources.models import SourceOption
+        upsert_source_product, persist_crawled_options)
     s = SessionLocal()
     try:
         sp = upsert_source_product(s, site=source_key, url=url)
         s.flush()
-        scoped = _scope_options_to_color(options, _resolve_reg_color(s, sp))
-        if not scoped:
-            return
-        for o in scoped:
-            if not isinstance(o, dict):
-                continue
-            upsert_source_option(
-                s, source_product_id=sp.id,
-                color_text=o.get("color_text"), size_text=o.get("size_text"),
-                external_option_id=o.get("option_id"),
-                current_price=(o.get("sale_price") or o.get("price")),
-                current_stock=o.get("stock"))
-        # stale prune — 이번 크롤에 없는 (색,사이즈) 조합은 soft-delete(옛 가격·재고 잔존 차단).
-        new_keys = {(_norm_color(o.get("color_text")), _norm_size(o.get("size_text")))
-                    for o in scoped}
-        now = datetime.now(timezone.utc)
-        for so in (s.query(SourceOption)
-                   .filter_by(source_product_id=sp.id, deleted_at=None).all()):
-            if (_norm_color(so.color_text), _norm_size(so.size_text)) not in new_keys:
-                so.deleted_at = now
+        persist_crawled_options(s, source_product=sp, options=options)
         s.commit()
     finally:
         s.close()
