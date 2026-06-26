@@ -1,0 +1,78 @@
+# docs/markets/_schema.yaml — 판매처(마켓) API 프로파일 스키마 (단일 진실 원천)
+#
+# external-site-integration 스킬이 이 스키마를 따라 docs/markets/{market}.yaml 을 작성·갱신한다.
+# 근거는 모두 코드(shared/platforms/*, lemouton/registration/*, lemouton/auth/*)에서 추출(추측 금지).
+#
+# 용도: 구성(set)→판매처 연동 4단계 흐름의 "단계④ 마켓별 API 전송 필드" 정의 +
+#       조회/등록/수정 엔드포인트·인증·옵션구조·응답·안전장치.
+
+schema_version: 1
+
+# ─────────────────────────────────────────────
+# 각 마켓 파일이 가져야 할 섹션
+# ─────────────────────────────────────────────
+sections:
+  meta:
+    market: "마켓 키 (smartstore|coupang|...)"
+    display_name: "표시명"
+    last_analyzed: "YYYY-MM-DD"
+    evidence: "근거 (코드 파일:라인 / API 문서 / Network 캡처)"
+    base_url: "API 베이스 URL"
+
+  auth:
+    method: "OAuth2 | HMAC-SHA256 | ..."
+    token_endpoint: "토큰 발급 경로 (OAuth)"
+    env_keys: "필요한 환경변수 키 목록 (값은 .env, DB 저장 금지)"
+    header_format: "Authorization 헤더 형식"
+    token_cache: "토큰 캐시 경로·만료마진 (OAuth)"
+    signature: "서명 알고리즘 (HMAC)"
+
+  endpoints:
+    # 작업별 {method, path}. path 의 {param} 는 치환 변수.
+    fetch_options: "옵션 조회"
+    get_detail: "상품 상세 조회"
+    register: "상품 등록"
+    update_price: "가격 수정"
+    update_stock: "재고 수정"
+    change_status: "판매상태 변경"
+    search: "상품 검색"
+
+  option_structure:
+    option_id_field: "옵션 식별자 (마켓 옵션 ID)"
+    color_field: "색상 식별 경로"
+    size_field: "사이즈 식별 경로"
+    note: "조합 구조 설명"
+
+  fields:
+    # 단계④ 폼의 핵심. 3 그룹으로 분리.
+    connect: "기존 상품 연결에 필요한 최소 필드 (보통 마켓 상품번호 1개)"
+    update: "가격·재고 수정 호출 인자"
+    register: "신규 상품 등록 전송 필드 전체 (name·type·required·default·source)"
+
+  step4_form:
+    # 4단계 흐름의 단계④에서 사용자가 실제 입력/확인하는 필드 (파생 결과).
+    connect_mode: "기존 상품 연결 시 입력 필드 (현재 우선 경로)"
+    update_mode: "가격·재고 수정 시 입력 필드"
+    register_mode: "신규 등록 시 입력 필드 (대부분 기본값/모음전 데이터에서 — 나중)"
+
+  response:
+    success: "성공 코드·반환 키"
+    errors: "주요 실패 코드 매트릭스"
+    rate_limit: "rate limit·429 처리"
+    retry: "재시도 정책"
+
+  safety:
+    # 업로드 안전장치 (4-3 검증 5단계 + 마켓 고유 가드)
+    draft_on_register: "등록 직후 검토상태(draft) 전환 여부"
+    price_change_guard: "가격 변경비율 제한"
+    notes: "기타 안전 메모"
+
+  code_map:
+    # 이 마켓 API의 핵심 구현 파일 경로
+    auth: ""
+    client: ""
+    fetch: ""
+    register: ""
+    update_price: ""
+    update_stock: ""
+    registration_wrapper: ""

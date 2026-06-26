@@ -1,0 +1,139 @@
+# docs/markets/coupang.yaml — 쿠팡(Coupang WING Seller API) 프로파일
+# 근거: 코드 추출 (shared/platforms/coupang/*, lemouton/registration/coupang.py,
+#       lemouton/auth/api_coupang.py, shared/platforms/__init__.py). 추측 없음.
+# ⚠️ 현재 API 키 미설정(.env 에 COUPANG_* 0개) — 라이브 미연결. P1에서 키 발급·입력 필요.
+
+meta:
+  market: coupang
+  display_name: 쿠팡
+  last_analyzed: "2026-06-26"
+  base_url: https://api-gateway.coupang.com
+  evidence: >
+    shared/platforms/coupang/{auth,client,products,prices,inventory,categories}.py +
+    lemouton/registration/coupang.py. 라이브 미검증(키 없음) — 코드 근거만.
+
+auth:
+  method: HMAC-SHA256 (CEA algorithm)
+  token_endpoint: null   # 토큰 없음, 요청마다 서명
+  env_keys:
+    - COUPANG_ACCESS_KEY
+    - COUPANG_SECRET_KEY
+    - COUPANG_VENDOR_ID
+  header_format: >
+    Authorization: CEA algorithm=HmacSHA256, access-key={ak}, signed-date={datetime}, signature={sig}
+  signature: >
+    datetime="YYMMDDTHHMMSSZ"(UTC); message=datetime+METHOD+path+query;
+    signature=HMAC-SHA256(secret_key, message).hexdigest(). (auth.py:57-95)
+
+endpoints:
+  register:       { method: POST, path: /v2/providers/seller_api/apis/api/v1/marketplace/seller-products }
+  get_detail:     { method: GET,  path: /v2/providers/seller_api/apis/api/v1/marketplace/seller-products/{sellerProductId} }   # items[].vendorItemId 수집
+  update_price:   { method: PUT,  path: /v2/providers/seller_api/apis/api/v1/marketplace/vendor-items/{vendorItemId}/prices/{price} }
+  update_stock:   { method: PUT,  path: /v2/providers/seller_api/apis/api/v1/marketplace/vendor-items/{vendorItemId}/quantities/{quantity} }
+  inflow_status:  { method: GET,  path: /v2/providers/seller_api/apis/api/v1/marketplace/seller-products/inflow-status }
+  # fetch_options 별도 없음 → get_detail 응답의 items[] 에서 추출(extract_vendor_items)
+
+option_structure:
+  option_id_field: "data.items[].marketplaceItemData.vendorItemId (int) = market_option_id"
+  color_field: "items[].attributes[] 중 attributeTypeName=='색상' → attributeValueName"
+  size_field: "items[].attributes[] 중 attributeTypeName=='사이즈' → attributeValueName"
+  extra: "sellerProductItemId, priceData.salePrice, maximumBuyCount"
+  note: >
+    옵션 = items[] 배열. 옵션ID = vendorItemId(등록 후 GET으로 수집). 색/사이즈는 attributes 배열에서 파싱.
+    smartstore 와 달리 등록 응답에는 vendorItemId 없음 → 등록 후 get_detail 1회 더 필요.
+
+fields:
+  # ── 연결(기존 상품 → 구성) : 현재 우선 경로 ──
+  connect:
+    - { name: sellerProductId, type: int, required: true, source: 사용자입력(상품번호),
+        note: "get_detail 호출 → items[] vendorItemId·색/사이즈 추출 → 옵션 자동매칭. = SetChannel.market_product_id" }
+  # ── 가격·재고 수정 ──
+  update:
+    update_price:
+      - { name: vendor_item_id, type: int, required: true, note: 쿠팡 옵션ID }
+      - { name: price, type: int, required: true, note: "판매가(10원 단위)" }
+      - { name: force, type: bool, required: false, default: false, note: forceSalePriceUpdate }
+    update_stock:
+      - { name: vendor_item_id, type: int, required: true }
+      - { name: quantity, type: int, required: true, note: "0=품절" }
+  # ── 신규 등록 (CoupangRegistrationInputs._build_payload) : 나중 ──
+  register:
+    top_required:
+      - { name: displayCategoryCode, type: int, note: 쿠팡 카테고리 코드 *핵심 }
+      - { name: sellerProductName, type: str }
+      - { name: displayProductName, type: str }
+      - { name: brand, type: str, default: 르무통 }
+      - { name: generalProductName, type: str }
+      - { name: productGroup, type: str, note: "예: model_code" }
+      - { name: manufacture, type: str, default: 르무통 }
+      - { name: companyContactNumber, type: str, note: AS 전화 }
+      - { name: items, type: list, note: 옵션별 item }
+    top_defaulted:   # 필수지만 기본값 보유(배송·반품·판매기간)
+      saleStartedAt: "2026-01-01T00:00:00"
+      saleEndedAt: "2099-12-31T23:59:59"
+      deliveryMethod: SEQUENCIAL
+      deliveryCompanyCode: CJGLS
+      deliveryChargeType: FREE
+      deliveryCharge: 3500
+      freeShipOverAmount: 0
+      remoteAreaDeliverable: "N"
+      unionDeliveryType: UNION_DELIVERY
+      requested: false   # false = 임시(검토) 등록
+    item_required:   # items[] 하위
+      - { name: itemName, type: str }
+      - { name: originalPrice, type: int }
+      - { name: salePrice, type: int }
+      - { name: externalVendorSku, type: str, note: canonical_sku }
+      - { name: modelNo, type: str, note: model_code }
+      - { name: searchTags, type: list }
+      - { name: contents, type: list, note: "상세설명(contentsType:TEXT)" }
+      - { name: offerCondition, type: str, default: NEW }
+    item_defaulted:
+      maximumBuyCount: "0"
+      unitCount: "1"
+      adultOnly: EVERYONE
+      taxType: TAX
+      parallelImported: NOT_PARALLEL_IMPORTED
+      overseasPurchased: NOT_OVERSEAS_PURCHASED
+      outboundShippingTimeDay: "1"
+
+step4_form:
+  connect_mode:   # 단계④ 현재 우선
+    user_inputs:
+      - sellerProductId (마켓 상품번호) *필수
+    auto_or_display:
+      - 옵션/가격 = get_detail 로 읽어 표시(vendorItemId 매칭)
+  update_mode:
+    user_inputs:
+      - 옵션별 재고(quantity) / (선택) 판매가(price, 10원단위)
+  register_mode:  # 신규 등록(나중)
+    user_inputs:
+      - displayCategoryCode(카테고리) *필수
+      - (배송·반품·AS 기본값은 계정 단위로 1회 설정 권장 → 사용자 입력 최소화)
+    from_data: [sellerProductName, items(옵션별 가격), externalVendorSku, modelNo]
+
+response:
+  success:
+    register: "{code:'SUCCESS', data: sellerProductId}"
+    get_detail: "data.items[] (vendorItemId 추출)"
+  errors:
+    - "ProductCreationError(message, payload)"
+    - "{code, message, data, errorItems}"
+    - "400 + '변경비율' → manual_review_required (가격)"
+  rate_limit:
+    policy: "5 req/s 토큰버킷, 429 Retry-After 존중"
+  retry: "max_retries=3, backoff=2s exponential"
+
+safety:
+  draft_on_register: "requested=false 로 임시(검토) 등록 — 즉시 판매 아님"
+  price_change_guard: "변경비율 -50%~+100% 초과 시 400 → manual_review_required=True (prices.py:33-62)"
+  notes: "등록 응답에 vendorItemId 없음 → get_detail 후속 호출 필수. 현재 키 미설정=라이브 불가(P1)"
+
+code_map:
+  auth: lemouton/auth/api_coupang.py, shared/platforms/coupang/auth.py
+  client: shared/platforms/coupang/client.py
+  fetch: shared/platforms/coupang/products.py (get_product + extract_vendor_items)
+  register: shared/platforms/coupang/products.py
+  update_price: shared/platforms/coupang/prices.py
+  update_stock: shared/platforms/coupang/inventory.py
+  registration_wrapper: lemouton/registration/coupang.py
