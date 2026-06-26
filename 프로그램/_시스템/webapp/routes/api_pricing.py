@@ -1135,6 +1135,21 @@ def save_crawl_result():
             if sp.url:
                 idx.setdefault(normalize_url(sp.url), sp)
 
+        # [2026-06-26] 신규 등록 URL → source_key 인덱스 (1회 빌드).
+        #   배경: URL 등록(api_add_source_url)은 BundleSourceUrl 만 만들고 SourceProduct
+        #   는 안 만든다. 서버사이드 전체크롤은 upsert 후 긁지만, 이 확장 저장 경로는
+        #   '기존' SourceProduct 만 갱신해 신규 URL 결과를 not_found 로 조용히 버렸다
+        #   → 매트릭스 '크롤링 미실시'(무결성 §4 누락에 경고 위반). 등록된 URL 이면
+        #   여기서 SourceProduct 를 만들어 확장 경로를 서버사이드와 대칭으로 맞춘다.
+        _bsu_by_norm = {}
+        try:
+            from lemouton.sourcing.models import BundleSourceUrl as _BSU
+            for _b in s.query(_BSU.url, _BSU.source_key).all():
+                if _b.url and _b.source_key:
+                    _bsu_by_norm.setdefault(normalize_url(_b.url), _b.source_key)
+        except Exception:
+            pass
+
         now = _dt.datetime.now(_dt.timezone.utc)
         updated, not_found = 0, []
         for it in items:
@@ -1143,8 +1158,18 @@ def save_crawl_result():
                 continue
             sp = idx.get(normalize_url(url))
             if sp is None:
-                not_found.append(str(url)[:80])
-                continue
+                # [2026-06-26] 등록된 신규 URL 이면 SourceProduct 를 생성해 연결.
+                #   (폴백 데이터가 아니라 '실제 크롤 결과'를 저장할 행을 만드는 것.)
+                #   등록 안 된(BundleSourceUrl 없는) URL 은 그대로 not_found — 쓰레기 행 금지.
+                _skey = _bsu_by_norm.get(normalize_url(url))
+                if _skey:
+                    from lemouton.sources.service import upsert_source_product
+                    sp = upsert_source_product(s, site=_skey, url=url)
+                    s.flush()
+                    idx[normalize_url(url)] = sp
+                else:
+                    not_found.append(str(url)[:80])
+                    continue
             price = it.get('price')
             stock = it.get('stock')
             status = it.get('status') or ('ok' if price else 'error')
