@@ -441,11 +441,11 @@
       <div class="step"><div class="stepn">1</div><div class="sc"><div class="st">크롤 코드 변경<span class="who c">CLAUDE</span></div><div class="d">크롤러·배선(B/D)·확장 방식</div></div></div>
       <div class="step"><div class="stepn">2</div><div class="sc"><div class="st">가이드 원문+보기 둘 다 갱신<span class="who c">CLAUDE</span></div><div class="d">같은 작업에서 §1·§2·§6·§7 을 .md + map.html 양쪽</div></div></div>
       <div class="step"><div class="stepn">3</div><div class="sc"><div class="st">origin/main 배포<span class="who c">CLAUDE</span></div></div></div>
-      <div class="step"><div class="stepn">4</div><div class="sc"><div class="st">자동 검사 → 배너<span class="tag">예정</span><span class="who m">MOU-M</span></div><div class="d">데이터지도 열릴 때 소싱처 누락·확장버전·심볼 검사 → 어긋나면 상단 배너 / 0이면 조용함</div></div></div>
+      <div class="step"><div class="stepn">4</div><div class="sc"><div class="st">자동 검사 → 배너<span class="tag">적용 완료</span><span class="who m">MOU-M</span></div><div class="d">데이터지도 열릴 때 소싱처 누락·확장버전·심볼 검사 → 어긋나면 상단 배너 / 0이면 조용함</div></div></div>
       <div class="step"><div class="stepn">5</div><div class="sc"><div class="st">배너 0 확인<span class="who c">CLAUDE</span></div><div class="d">배포 직후 스스로 확인 — 빨강이면 2로 복귀</div></div></div>
       <div class="step"><div class="stepn u">6</div><div class="sc"><div class="st">육안 확인(장기 안전망)<span class="who u">사용자</span></div><div class="d">평소 데이터지도 보다 배너 뜨면 인지</div></div></div>
       <div class="d" style="margin-top:8px"><b>자동 vs 절차:</b> 소싱처 누락·확장버전·심볼변경 = <b>자동 감지(예정)</b> / 순수 로직만 조용히 바뀜(버전·심볼 그대로) = <b>절차</b>(코드 고칠 때 가이드도 같이).</div>
-      <div class="why" style="margin-top:8px"><b>⚠️ 현재 상태:</b> 4·5의 자동 배너는 <b>구현 예정</b>(스펙 2026-06-26-크롤가이드-자동동기화-정합성가드). 지금은 절차로 운영 — Claude가 코드 고칠 때 원문+보기 같이 갱신.</div>
+      <div class="why" style="margin-top:8px">✅ <b>현재 상태</b>: 4·5의 자동 배너 <b>적용 완료</b> — 데이터지도 상단에 소싱처 누락(P1)·심볼 사라짐(C2)·확장 버전 불일치(C1) 자동 표시. 순수 로직 변경은 여전히 절차로.</div>
     </div>
 
   </div>
@@ -475,6 +475,27 @@
   function show(sid){ tabs.forEach(function(t){t.classList.toggle('on',t.dataset.s===sid);});
     secs.forEach(function(x){x.classList.toggle('on',x.id===sid);}); }
   tabs.forEach(function(t){ t.addEventListener('click',function(){show(t.dataset.s);}); });
+  // C1 — 확장 버전 정합성: 로드된 확장 vs 가이드 기준버전
+  (function(){
+    var base = window.__GUIDE_EXT_BASELINE || "";
+    if (!base || !(window.MoumExt && window.MoumExt.ping)) return;  // 확장 없으면 skip
+    Promise.resolve(window.MoumExt.ping()).then(function(p){
+      var v = (p && p.version) || "";
+      if (!v || v === base) return;
+      var bar = root.querySelector('#syncbar');
+      if (!bar) {
+        bar = document.createElement('div');
+        bar.className = 'syncbar'; bar.id = 'syncbar';
+        bar.innerHTML = '<b>⚠️ 가이드 ↔ 코드 동기화 필요</b><br>';
+        var seg = root.querySelector('.seg');
+        if (seg && seg.parentNode) seg.parentNode.insertBefore(bar, seg);
+      }
+      var span = document.createElement('span');
+      span.className = 'it';
+      span.innerHTML = '전체크롤 확장 <b>v' + v + '</b> 로드됨 — 가이드 기준 v' + base + ', §7 전체크롤 설명 재검토';
+      bar.appendChild(span);
+    }).catch(function(){});
+  })();
   document.addEventListener('keydown',function(e){
     if(!root.querySelector('#m-view').classList.contains('on')) return;
     if(e.target.tagName==='INPUT'||e.target.tagName==='TEXTAREA') return;
