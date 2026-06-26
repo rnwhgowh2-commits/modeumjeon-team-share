@@ -106,9 +106,12 @@ def test_docs_synced():
     assert "URL 세트" in sop or "여러" in sop               # 멀티 URL
 
 
-def test_no_eighth_tab():
+def test_eighth_tab_is_sync():
+    """§8 동기화 탭은 의도된 추가. 과거 되돌린 '소싱처별 혜택 설정'(bs-source) 탭과는 다름."""
     html = (TPL / "map.html").read_text(encoding="utf-8")
-    assert 'data-s="s8"' not in html
+    assert 'data-s="s8"' in html          # §8 동기화 탭 (의도됨)
+    assert "동기화" in html               # 탭 라벨
+    # 과거 되돌린 8번째 탭(소싱처별 혜택 설정 / bs-source)은 여전히 없어야 함
     assert "소싱처별 혜택 설정" not in html
     assert 'id="bs-source"' not in html
 
