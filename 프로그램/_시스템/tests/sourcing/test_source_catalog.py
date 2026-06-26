@@ -12,7 +12,8 @@ from lemouton.sourcing import source_registry as SR
 
 # 크롤링 가이드 §1·§2 에 등재된 소싱처 (단일 진실 원천 대조)
 GUIDE_KEYS = {
-    'lemouton', 'musinsa', 'ssf', 'ssg', 'lotteon', 'ss_lemouton', 'lotteimall',
+    'lemouton', 'musinsa', 'ssf', 'ssg', 'lotteon', 'ss_lemouton',
+    'lotteimall', 'hmall',
 }
 
 

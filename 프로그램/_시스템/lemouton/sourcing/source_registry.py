@@ -96,7 +96,7 @@ def get_all_keys(session=None):
 
 
 # ════════════════════════════════════════════════════════════
-#  소싱처 카탈로그 (2026-06-26) — docs/크롤링-가이드.md §1·§2 에 정리된 소싱처 목록.
+#  소싱처 카탈로그 (2026-06-26) — 프로그램/_시스템/docs/크롤링-가이드.md §1·§2 의 소싱처 목록.
 #  모달 '신규 소싱처 추가' 탭이 이 카탈로그를 검색·추가한다(시안 D).
 #  단일 진실 원천: builtin 6 은 SOURCES 와 key 일치. 신규(롯데아이몰 등)는 여기 한 줄
 #  추가 → 추가 시 SourcingSource 로 전역 등록되어 UI/API/매트릭스 자동 노출.
@@ -131,6 +131,10 @@ SOURCE_CATALOG = [
      'domain': 'lotteimall.com', 'crawl_method': 'API→DOM (어댑터 준비중)',
      'stock_rule': 'itemInvQtyInfo.inv_qty (준비중)',
      'benefit': 'point_rewards(L.POINT)', 'has_adapter': False, 'needs_login': False},
+    {'key': 'hmall', 'label': '현대H몰', 'glyph': 'H', 'logo_color': '#00A05B',
+     'domain': 'hmall.com', 'crawl_method': '내장 __NEXT_DATA__ (어댑터 준비중)',
+     'stock_rule': 'itemPtc.stockList[].stockCount (0=품절·N=실수량)',
+     'benefit': 'H.Point 적립·카드 즉시할인', 'has_adapter': False, 'needs_login': False},
 ]
 
 _BUILTIN_KEYS = {s['key'] for s in SOURCES}
