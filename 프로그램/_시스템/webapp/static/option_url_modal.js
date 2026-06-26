@@ -386,7 +386,20 @@
       .oum-apply-btn.applied { background:#10b981; }
 
       /* 우측 USL */
-      .oum-src-tabs { display:flex; gap:2px; border-bottom:1.5px solid #bbf7d0; padding:9px 6px 0; margin-bottom:12px; flex-wrap:wrap; }
+      /* [2026-06-26 B1] 소싱처 탭 = 한 줄 가로 스크롤 (◂▸ + 휠) */
+      .oum-srcscroll { display:flex; align-items:stretch; gap:6px; border-bottom:1.5px solid #bbf7d0; margin-bottom:12px; }
+      .oum-srcscroll-vp { overflow-x:auto; flex:1; scrollbar-width:thin; scrollbar-color:#bbf7d0 transparent; }
+      .oum-srcscroll-vp::-webkit-scrollbar { height:8px; }
+      .oum-srcscroll-vp::-webkit-scrollbar-thumb { background:#bbf7d0; border-radius:4px; }
+      .oum-srcscroll-vp::-webkit-scrollbar-thumb:hover { background:#10b981; }
+      .oum-srcscroll-arr { flex-shrink:0; width:36px; min-height:48px; align-self:center; border:1px solid #bbf7d0; background:#fff; color:#10b981; font-size:27px; font-weight:900; line-height:1; cursor:pointer; border-radius:9px; padding:0; }
+      .oum-srcscroll-arr:hover { background:#F0FDF4; }
+      .oum-src-tabs { display:flex; gap:2px; padding:9px 6px 0; flex-wrap:nowrap; width:max-content; }
+      /* [2026-06-26 A10] '신규 소싱처 추가' = 탭줄 밖, 헤더 우측 플로팅 버튼 (위상 구분) */
+      .oum-addsrc-btn { margin-left:14px; flex-shrink:0; background:#10b981; color:#fff; border:0; border-radius:12px; padding:13.5px 22.5px; font:inherit; font-size:21px; font-weight:800; cursor:pointer; display:inline-flex; align-items:center; gap:9px; white-space:nowrap; box-shadow:0 3px 8px rgba(16,185,129,.28); }
+      .oum-addsrc-btn:hover { background:#15803d; }
+      .oum-addsrc-btn.on { background:#0d7656; box-shadow:0 0 0 4px rgba(16,185,129,.28); }
+      .oum-addsrc-btn .ic { font-size:24px; font-weight:800; line-height:1; }
       .oum-src-tab { background:none; border:0; padding:13.5px 15px; font:inherit; font-size:17.25px; font-weight:700; color:#8b95a1; cursor:pointer; display:flex; align-items:center; gap:7.5px; border-bottom:2px solid transparent; margin-bottom:-1.5px; }
       .oum-src-tab.on { color:#10b981; border-bottom-color:#10b981; }
       .oum-src-tab .lg { width:30px; height:30px; border-radius:7.5px; color:#fff; display:inline-flex; align-items:center; justify-content:center; font-size:14.25px; font-weight:800; letter-spacing:.3px; flex-shrink:0; }
@@ -1412,11 +1425,12 @@
         </div>`;
       }
 
-      // URL 탭 — 기존 헤더 + 적용 가드
+      // URL 탭 — 기존 헤더 + 적용 가드 + [A10] 우측 플로팅 '신규 소싱처 추가' 버튼
       html += `<div class="oum-ph">
         <span>📍</span><span>소싱처 URL 매핑</span>
         <span class="badge">${urlCount} URL</span>
         <span class="right">${state.applied ? `활성 옵션 ${totalActive}개에 매핑` : '먼저 좌측에서 [적용 →] 클릭'}</span>
+        ${state.applied ? `<button class="oum-addsrc-btn ${state.currentSrc === ADD_SRC_KEY ? 'on' : ''}" data-src-tab="${ADD_SRC_KEY}" type="button"><span class="ic">＋</span> 신규 소싱처 추가</button>` : ''}
       </div>`;
 
       if (!state.applied) {
@@ -1428,8 +1442,10 @@
         return;
       }
 
-      // 소싱처 탭
-      html += `<div class="oum-src-tabs">`;
+      // 소싱처 탭 — [B1] 한 줄 가로 스크롤(◂▸ + 휠). 추가 버튼은 헤더로 분리(A10).
+      html += `<div class="oum-srcscroll">
+        <button class="oum-srcscroll-arr" data-srcscroll="-1" type="button" aria-label="이전">‹</button>
+        <div class="oum-srcscroll-vp"><div class="oum-src-tabs">`;
       state.sources.forEach(src => {
         const cnt = (state.urls[src.key] || []).length;
         const isOn = src.key === state.currentSrc;
@@ -1444,12 +1460,9 @@
           <span class="cnt">${cnt}</span>
         </button>`;
       });
-      // [2026-06-26] 신규 소싱처 추가 탭 (시안 D — 크롤링 가이드 카탈로그 검색·추가)
-      html += `<button class="oum-src-tab oum-addsrc-tab ${state.currentSrc === ADD_SRC_KEY ? 'on' : ''}" data-src-tab="${ADD_SRC_KEY}" type="button">
-          <span class="lg">＋</span>
-          <span class="full">신규 소싱처 추가</span>
-        </button>`;
-      html += `</div>`;
+      html += `</div></div>
+        <button class="oum-srcscroll-arr" data-srcscroll="1" type="button" aria-label="다음">›</button>
+      </div>`;
 
       // [2026-06-26] 추가 탭 활성 시 — 2단 카탈로그 패널로 교체 (URL 카드 영역 대신)
       if (state.currentSrc === ADD_SRC_KEY) {
@@ -2496,6 +2509,13 @@
           renderRight();
           saveLastState(bundleCode, state.currentSrc, null);
         }
+        return;
+      }
+      // [2026-06-26 B1] 소싱처 탭 가로 스크롤 ◂▸
+      const scrollBtn = e.target.closest('[data-srcscroll]');
+      if (scrollBtn) {
+        const vp = scrollBtn.parentElement.querySelector('.oum-srcscroll-vp');
+        if (vp) vp.scrollBy({ left: (+scrollBtn.dataset.srcscroll) * 260, behavior: 'smooth' });
         return;
       }
       // [2026-06-26] 신규 소싱처 추가 탭 — 카탈로그 패널 진입 (last-state 저장 안 함)
