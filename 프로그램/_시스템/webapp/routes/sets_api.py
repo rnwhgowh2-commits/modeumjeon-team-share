@@ -3,7 +3,7 @@
 기존 검증된 서비스(set_service·channel_service·set_link_service) 위 얇은 라우트.
 패턴은 webapp/routes/api.py 와 동일(SessionLocal→서비스→commit→jsonify).
 """
-from flask import Blueprint, jsonify, request
+from flask import Blueprint, jsonify, request, render_template
 
 from shared.db import SessionLocal
 from lemouton.sourcing.models import Model, Option
@@ -41,6 +41,35 @@ def search_bundles():
                 "option_count": cnt,
             })
         return jsonify({"ok": True, "results": out})
+    finally:
+        s.close()
+
+
+@bp.get("/sets/flow")
+def sets_flow_page():
+    """[Phase 3b] 검색우선 4단계 연동 흐름 페이지(standalone)."""
+    return render_template("sets/flow.html")
+
+
+@bp.get("/sets/bundle/<code>/options")
+def bundle_options(code):
+    """단계② 조합 매트릭스용 — 모음전의 옵션을 색/사이즈로."""
+    s = SessionLocal()
+    try:
+        opts = (s.query(Option).filter_by(model_code=code)
+                .order_by(Option.color_code, Option.size_code).all())
+        colors, sizes, items = [], [], []
+        for o in opts:
+            color = o.color_display or o.color_code
+            size = o.size_display or o.size_code
+            if color not in colors:
+                colors.append(color)
+            if size not in sizes:
+                sizes.append(size)
+            items.append({"canonical_sku": o.canonical_sku,
+                          "color": color, "size": size})
+        return jsonify({"ok": True, "colors": colors, "sizes": sizes,
+                        "options": items})
     finally:
         s.close()
 
