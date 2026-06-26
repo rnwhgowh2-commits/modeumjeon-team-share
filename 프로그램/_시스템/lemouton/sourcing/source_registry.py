@@ -128,13 +128,13 @@ SOURCE_CATALOG = [
      'stock_rule': 'sku_stock (0=품절·N=실수량) → current_stock 영속',
      'benefit': '-', 'has_adapter': True, 'needs_login': True},
     {'key': 'lotteimall', 'label': '롯데아이몰', 'glyph': '롯i', 'logo_color': '#ED1C24',
-     'domain': 'lotteimall.com', 'crawl_method': 'API→DOM (어댑터 준비중)',
-     'stock_rule': 'itemInvQtyInfo.inv_qty (준비중)',
-     'benefit': 'point_rewards(L.POINT)', 'has_adapter': False, 'needs_login': False},
+     'domain': 'lotteimall.com', 'crawl_method': 'SSR HTML→파싱 (확장 navGrab·WAF 우회)',
+     'stock_rule': 'itemInvQtyInfo.inv_qty (0=품절·N=실수량)',
+     'benefit': 'point_rewards(L.POINT)', 'has_adapter': True, 'needs_login': False},
     {'key': 'hmall', 'label': '현대H몰', 'glyph': 'H', 'logo_color': '#00A05B',
-     'domain': 'hmall.com', 'crawl_method': '내장 __NEXT_DATA__ (어댑터 준비중)',
+     'domain': 'hmall.com', 'crawl_method': '내장 __NEXT_DATA__ (혜택은 확장 navGrab)',
      'stock_rule': 'itemPtc.stockList[].stockCount (0=품절·N=실수량)',
-     'benefit': 'H.Point 적립·카드 즉시할인', 'has_adapter': False, 'needs_login': False},
+     'benefit': 'H.Point 적립·카드 즉시할인', 'has_adapter': True, 'needs_login': False},
 ]
 
 _BUILTIN_KEYS = {s['key'] for s in SOURCES}

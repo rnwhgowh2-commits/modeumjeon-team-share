@@ -12,7 +12,7 @@ from shared.db import SessionLocal  # 모듈 레벨 — 옵션 영속 헬퍼가 
 
 bp = Blueprint("api_sources_parse", __name__, url_prefix="/api")
 
-_PARSE_SOURCES = {"lemouton", "ssf", "ssg", "ss_lemouton"}
+_PARSE_SOURCES = {"lemouton", "ssf", "ssg", "ss_lemouton", "hmall", "lotteimall"}
 
 
 @bp.before_request

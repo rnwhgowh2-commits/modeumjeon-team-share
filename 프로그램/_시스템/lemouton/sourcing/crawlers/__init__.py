@@ -18,11 +18,14 @@ def build_crawlers() -> dict:
     from .lotteon import LotteCrawler
     from .ss_lemouton import SsLemoutonCrawler
     from .ssg import SsgCrawler
+    from .hmall import HmallCrawler
     return {
         'lemouton': LemoutonCrawler(),
         'musinsa': MusinsaCrawler(),
         'ssf': SsfCrawler(),
         'lotteon': LotteCrawler(),
+        'lotteimall': LotteCrawler(),   # 롯데아이몰(SSR) — LotteCrawler 가 도메인 라우팅으로 처리
         'ss_lemouton': SsLemoutonCrawler(),
         'ssg': SsgCrawler(),
+        'hmall': HmallCrawler(),
     }

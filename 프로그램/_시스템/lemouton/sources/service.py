@@ -694,6 +694,8 @@ def save_crawl_result(
         'product_coupon_min_order', 'product_coupon_max_discount',
         'product_coupon_label',
         'point_rewards',                              # 롯데홈쇼핑 L.POINT
+        'hmall_point_amount',                         # 현대H몰 H.Point 적립(정액)
+        'hmall_card_label', 'hmall_card_discount',       # 현대H몰 카드 즉시할인(조건부)
         'review_point_max',                           # 스스 르무통 리뷰 적립
         # ★ 2026-05-15 — 롯데온 (lotteon.com) 사용자 스크린샷 명세 동적 혜택
         'lotte_member_discount_rate',                 # 롯데오너스 X% 회원할인 (자동 활성)
@@ -785,6 +787,8 @@ def save_crawl_result(
         'product_coupon_min_order', 'product_coupon_max_discount',
         'product_coupon_label',
         'point_rewards',                        # 롯데홈쇼핑 L.POINT
+        'hmall_point_amount',                   # 현대H몰 H.Point 적립(정액)
+        'hmall_card_label', 'hmall_card_discount', # 현대H몰 카드 즉시할인(조건부)
         'lotteon_coupons',                      # 롯데온 쿠폰 리스트
         'review_point_max',                     # 스스 르무통 리뷰 적립
         # ★ 2026-05-15 — 롯데온 (lotteon.com) 사용자 스크린샷 명세 동적 혜택

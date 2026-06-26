@@ -277,8 +277,10 @@ def _resolve_sourcing_cost(cost_src):
 #  v27 시안 ③ — 전역 progress widget API
 # ════════════════════════════════════════════
 _SEED_SRC_LABELS = {'lemouton': '르무통 공홈', 'ss_lemouton': '스마트스토어',
-                    'musinsa': '무신사', 'ssf': 'SSF', 'lotteon': '롯데온', 'ssg': 'SSG'}
-_SEED_ORDER = ['lemouton', 'ss_lemouton', 'musinsa', 'ssf', 'lotteon', 'ssg']
+                    'musinsa': '무신사', 'ssf': 'SSF', 'lotteon': '롯데온', 'ssg': 'SSG',
+                    'lotteimall': '롯데아이몰', 'hmall': '현대H몰'}
+_SEED_ORDER = ['lemouton', 'ss_lemouton', 'musinsa', 'ssf', 'lotteon', 'ssg',
+               'lotteimall', 'hmall']
 
 
 def _build_last_seed_from_db():
@@ -1332,12 +1334,15 @@ def _auto_crawl_after_url_save(session, sku: str, src_id: int) -> dict:
             except (ImportError, TypeError):
                 crawler_for_site = LemoutonCrawler()
 
+        from lemouton.sourcing.crawlers.hmall import HmallCrawler
         crawlers = {
             'lemouton': crawler_for_site if site == 'lemouton' and crawler_for_site else LemoutonCrawler(),
             'musinsa': crawler_for_site if site == 'musinsa' and crawler_for_site else MusinsaCrawler(),
             'ssf': SsfCrawler(),
             'lotteon': LotteCrawler(),
+            'lotteimall': LotteCrawler(),  # 롯데아이몰(SSR) — 도메인 라우팅 공용
             'ss_lemouton': SsLemoutonCrawler(),
+            'hmall': HmallCrawler(),   # 현대H몰(SSR __NEXT_DATA__)
         }
 
         from lemouton.sources.service import upsert_source_product, fetch_one_source
@@ -1649,7 +1654,9 @@ def _detect_site_from_url(url: str) -> str | None:
     if 'lemouton.co.kr' in u: return 'lemouton'
     if 'musinsa.com' in u: return 'musinsa'
     if 'ssfshop.com' in u or 'ssg.com' in u: return 'ssf'
-    if 'lotteon.com' in u or 'lotteimall.com' in u: return 'lotteon'
+    if 'lotteon.com' in u: return 'lotteon'
+    if 'lotteimall.com' in u: return 'lotteimall'
+    if 'hmall.com' in u: return 'hmall'
     if 'smartstore.naver.com' in u or 'shopping.naver.com' in u or 'brand.naver.com' in u: return 'ss_lemouton'
     return None
 
@@ -1847,12 +1854,15 @@ def refetch_option_source(sku: str, src_id: int):
                 crawler_for_site = LemoutonCrawler()
 
         # 폴백: 기본 (requests 기반) 크롤러
+        from lemouton.sourcing.crawlers.hmall import HmallCrawler
         crawlers = {
             'lemouton': crawler_for_site if site == 'lemouton' and crawler_for_site else LemoutonCrawler(),
             'musinsa': crawler_for_site if site == 'musinsa' and crawler_for_site else MusinsaCrawler(),
             'ssf': SsfCrawler(),       # Phase C: Playwright 변종 추후
             'lotteon': LotteCrawler(),  # Phase C: Playwright 변종 추후
+            'lotteimall': LotteCrawler(),  # 롯데아이몰(SSR) — 도메인 라우팅 공용
             'ss_lemouton': SsLemoutonCrawler(),  # Phase C
+            'hmall': HmallCrawler(),   # 현대H몰(SSR __NEXT_DATA__)
         }
 
         sp = upsert_source_product(s, site=site, url=link.product_url)

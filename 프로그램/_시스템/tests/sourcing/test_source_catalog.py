@@ -34,12 +34,14 @@ def test_catalog_builtin_six_match_registry():
     assert builtins == set(SR.get_keys()), "builtin 6 이 SOURCES 와 불일치"
 
 
-def test_lotteimall_is_addable_but_no_adapter():
-    e = SR.get_catalog_entry('lotteimall')
-    assert e is not None
-    assert SR.is_builtin_key('lotteimall') is False      # builtin 아님 → 추가 대상
-    assert e['has_adapter'] is False                     # 메인 어댑터 미보유 → '크롤 미지원'
-    assert e['label'] == '롯데아이몰'
+def test_lotteimall_hmall_addable_with_adapter():
+    """롯데아이몰·현대H몰 = builtin 아님(추가 대상) + 어댑터 연결됨(has_adapter=True)."""
+    for key, label in (('lotteimall', '롯데아이몰'), ('hmall', '현대H몰')):
+        e = SR.get_catalog_entry(key)
+        assert e is not None
+        assert SR.is_builtin_key(key) is False    # builtin 아님 → 카탈로그 '추가' 대상
+        assert e['has_adapter'] is True           # 크롤러 어댑터 연결됨
+        assert e['label'] == label
 
 
 def test_catalog_entries_have_required_fields():

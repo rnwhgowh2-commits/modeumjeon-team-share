@@ -768,6 +768,25 @@ def compute_breakdown(session, *, sku: str, source_id: int, sale_price: float,
                 name=_label, btype='amount', value=float(_sjc),
                 enabled=False,  # 사용자 토글로 결정 (받기 조건)
             )))
+        # ─────────────────────────────────────────────────────────────
+        # ★ 2026-06-25 — 현대H몰 (hmall.com) 동적 혜택
+        # ─────────────────────────────────────────────────────────────
+        #   ⚠️ 혜택은 hmall 클라이언트 렌더 → 확장 navGrab(post-JS DOM)에서만 채워짐.
+        #   - H.Point 적립(정액) → accrue(상시, 적립=매입가 차감으로 반영)
+        #   - 카드 즉시할인(정액) → 조건부(특정 카드) 기본 비활성, 사용자 토글
+        _hp = _dynamic_benefits.get('hmall_point_amount')
+        if _hp and isinstance(_hp, (int, float)) and _hp > 0:
+            effective.append(('dyn', _DynBenefit(
+                name='H.Point 적립', btype='amount', value=float(_hp),
+                enabled=True,
+            )))
+        _hcd = _dynamic_benefits.get('hmall_card_discount')
+        if _hcd and isinstance(_hcd, (int, float)) and _hcd > 0:
+            _hc_label = _dynamic_benefits.get('hmall_card_label') or '카드'
+            effective.append(('dyn', _DynBenefit(
+                name=f'{_hc_label} 즉시할인', btype='amount', value=float(_hcd),
+                enabled=False,  # 조건부(특정 카드) — 사용자 토글
+            )))
     # ★ 2026-06-05 — 무신사 옵션 breakdown 금액 항목 주입 (시안 v3: 표면가 base + 등급적립·무신사머니).
     #   _dynamic_benefits(SourceProduct, option_source_links 조회)의 금액을 항목으로 차감 → 매입가 정확.
     _base_override = None

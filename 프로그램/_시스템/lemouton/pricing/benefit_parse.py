@@ -108,6 +108,8 @@ _PRODUCT_DYNAMIC_KEYS = (
     'product_coupon_min_order', 'product_coupon_max_discount',
     'product_coupon_label',
     'point_rewards',
+    'hmall_point_amount',
+    'hmall_card_label', 'hmall_card_discount',
     'review_point_max',
     'lotte_member_discount_rate', 'lotte_member_discount_label',
     'store_jjim_coupon_amount', 'store_jjim_coupon_label',
