@@ -104,9 +104,10 @@ def test_single_color_size_only_match(db):
 
 
 @pytest.mark.skip(
-    reason="_persist_option_stocks (리네임된 _ingest_option_stocks) 는 color_text/size_text 키를 "
-           "지원하지 않음. 현재 함수는 color/size 키만 읽음. 서버 parse_html 경로 지원이 "
-           "리팩터에서 제거됨.")
+    reason="[2026-06-26 확인] 커버리지 구멍 아님. _persist_option_stocks(확장 재고교정 경로)는 "
+           "color/size 키만 읽도록 설계됨. color_text/size_text 원시 키 수용은 서버 ingest 경로 "
+           "(lemouton.sources.service.upsert_source_option)로 이동했고 test_so_normalize.py 가 커버. "
+           "이 테스트는 옛 _ingest_option_stocks 의 키 포맷을 검증하던 것으로 현재 함수엔 무의미.")
 def test_parse_html_key_format(db):
     """서버 parse_html 포맷(color_text/size_text) 도 수용 (전체크롤 비무신사 경로)."""
     sp = upsert_source_product(db, site="ssf",
@@ -127,9 +128,10 @@ def test_parse_html_key_format(db):
 
 
 @pytest.mark.skip(
-    reason="_persist_option_stocks 는 단일색(color='') 시 첫 번째 size-only 매칭 행 1개만 "
-           "갱신함(n==1). 옛 _ingest_option_stocks 의 '동일 사이즈 전부 갱신(n==2)' 동작이 "
-           "제거됨. reg_color 로 등록색 스코프를 쓰는 방향으로 설계가 변경됨.")
+    reason="[2026-06-26 확인] 의도적 폐기(구멍 아님). '동일 사이즈 전부 갱신(n==2)'은 "
+           "dedup 재설계로 무의미해짐 — 이제 같은 (색,사이즈) 중복행이 애초에 생기지 않음"
+           "(test_dedup_migration.py·test_so_normalize.py 커버). 단일색은 reg_color 등록색 스코프로 "
+           "갱신(test_dan_color_scope.py 커버). 옛 다색오염 복구 동작은 더 이상 필요 없음.")
 def test_single_color_updates_all_by_size(db):
     """단일색 상품(color='')인데 옛 다색 행이 섞여도 사이즈로 전부 갱신 (#65 4800825 잔여)."""
     sp = upsert_source_product(db, site="musinsa",
@@ -149,9 +151,10 @@ def test_single_color_updates_all_by_size(db):
 
 
 @pytest.mark.skip(
-    reason="_prune_stale_option_sizes 함수가 api_pricing.py 에서 제거됨. "
-           "prune 로직은 lemouton.sources.service._ingest_source_options 내부에 인라인으로 "
-           "흡수되어 독립 호출 불가.")
+    reason="[2026-06-26 확인] 커버리지 구멍 아님. _prune_stale_option_sizes 는 제거됐고 prune 로직은 "
+           "lemouton.sources.service 의 ingest(save_crawl_result 경로)에 인라인 흡수됨. "
+           "prune 동작은 test_recrawl_reset.py 가 전수 커버(options_pruned 단언 4건: disappeared→1, "
+           "empty→0, concurrent 격리, all-present→0). 독립 호출 불가라 이 단위테스트만 무의미.")
 def test_prune_removes_stale_sizes(db):
     """이번 크롤에 없는 사이즈는 soft-delete (SSF 235=6993 잔존 제거)."""
     sp = upsert_source_product(db, site="ssf",
@@ -170,10 +173,10 @@ def test_prune_removes_stale_sizes(db):
 
 
 @pytest.mark.skip(
-    reason="_persist_option_stocks (리네임된 _ingest_option_stocks) 는 UPDATE-ONLY 함수임. "
-           "기존 SourceOption 행이 없으면 즉시 0을 반환하고 신규 행을 생성하지 않음 "
-           "(lines 171-172: 'if not so_rows: return 0'). 옛 _ingest 의 upsert 생성 동작이 "
-           "제거됨. 현재 설계에서는 크롤러가 먼저 SO 행을 생성한 뒤 _persist 로 갱신함.")
+    reason="[2026-06-26 확인] 커버리지 구멍 아님. _persist_option_stocks 는 의도적 UPDATE-ONLY"
+           "(확장 재고교정 경로 — 서버 ingest 가 먼저 행 생성한 뒤 갱신). 신규 행 생성은 "
+           "upsert_source_option 으로 이동했고 test_so_normalize.py·test_dan_color_scope.py 가 커버. "
+           "이 테스트는 옛 _ingest 의 생성 동작을 검증하던 것으로 현재 _persist 엔 무의미.")
 def test_creates_when_no_existing_options(db):
     """[2026-06-14] per-size SourceOption 이 없던 소싱처(롯데온)는 upsert 로 생성.
 
