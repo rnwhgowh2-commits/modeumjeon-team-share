@@ -53,3 +53,15 @@ def test_compute_guide_drift_real_repo_clean():
     assert d["missing_symbols"] == []
     assert d["ext_baseline"] == GUIDE_EXT_BASELINE
     assert isinstance(GUIDE_EXT_BASELINE, str) and GUIDE_EXT_BASELINE
+
+
+def test_missing_sources_handles_none_sources():
+    assert missing_sources("x", "x", None) == []
+
+
+def test_compute_guide_drift_never_raises_on_bad_root(tmp_path):
+    d = compute_guide_drift(str(tmp_path / "nonexistent"))
+    assert set(d.keys()) == {"missing_sources", "missing_symbols", "ext_baseline"}
+    assert isinstance(d["missing_sources"], list)
+    assert isinstance(d["missing_symbols"], list)
+    assert d["ext_baseline"] == GUIDE_EXT_BASELINE

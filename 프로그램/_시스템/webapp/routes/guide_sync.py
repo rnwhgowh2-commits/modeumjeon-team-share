@@ -11,15 +11,21 @@ def missing_sources(md_text, html_text, sources):
 
     sources: [{'key':..,'label':..}, ...]
     반환: [{'key','label','in_md','in_html'}, ...] (둘 중 하나라도 빠진 것만)
+
+    매칭 계약: 대소문자 구분 부분문자열(case-sensitive substring) 검사.
+    소싱처는 key 또는 label 중 하나라도 텍스트에 있으면 "존재"로 판정.
+    key 가 정식 토큰(예: 'ssf'는 'crawlers/ssf.py' 에 매칭)이므로 한국어 label 이
+    없어도 key 만으로 "존재" 처리될 수 있음.
     """
     out = []
     for s in sources or []:
         key = (s.get("key") or "").strip()
         label = (s.get("label") or key).strip()
 
-        def _present(text):
+        # default-arg 바인딩으로 루프 변수 클로저 캡처 문제 해소 (Fix 1)
+        def _present(text, k=key, lbl=label):
             text = text or ""
-            return bool((key and key in text) or (label and label in text))
+            return bool((k and k in text) or (lbl and lbl in text))
 
         in_md = _present(md_text)
         in_html = _present(html_text)
@@ -39,7 +45,7 @@ SYMBOL_MANIFEST = [
     ("PRODUCT_DYNAMIC_KEYS",  "lemouton/sources/service.py"),
     ("SOURCES",               "lemouton/sourcing/source_registry.py"),
     ("SOURCE_ORDER",          "webapp/static/crawl_log.js"),
-    ("EXTRACTORS",            "extension/moum-crawler/background.js"),
+    ("EXTRACTORS",            "extension/moum-crawler/background.js"),  # 리포 사본(stale v0.4.3)만 검사; 라이브 크롤은 사용자 데스크톱 로드 확장에서 실행되므로 여기 "이상 없음"이 라이브 확장과 동기화됨을 보장하지 않음. 리포 측 리네임은 잡아줌.
 ]
 
 
@@ -70,6 +76,7 @@ _HTML_REL = ("webapp", "templates", "sourcing_guide", "map.html")
 
 
 def _read(path):
+    # 파일 없음 → "" 반환 (보수적 degrade: 하위 검사가 drift 로 플래그함)
     try:
         with open(path, encoding="utf-8") as f:
             return f.read()
