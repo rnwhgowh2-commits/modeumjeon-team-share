@@ -137,3 +137,38 @@ def test_link_duplicate_canonical_sku_writes_none(db):
     # 충돌 SKU 는 한 행도 쓰이지 않아야 함
     from lemouton.uploader.models import MarketRegistration
     assert db.query(MarketRegistration).filter_by(canonical_sku="AF-블랙-260").count() == 0
+
+
+def test_fetch_coupang_maps_options(monkeypatch):
+    # 실제 _fetch_coupang 본체 검증: 소스 모듈의 get_product 를 가짜로 교체.
+    from shared.platforms.coupang import products as cp
+    from lemouton.uploader import market_fetch
+    from lemouton.uploader.linker import MarketOption
+
+    fake_detail = {
+        "sellerProductName": "에어포스 쿠팡",
+        "items": [
+            {"itemName": "블랙/260",
+             "marketplaceItemData": {"vendorItemId": 111, "priceData": {"salePrice": 128900}},
+             "attributes": [{"attributeTypeName": "색상", "attributeValueName": "블랙"},
+                            {"attributeTypeName": "사이즈", "attributeValueName": "260"}]},
+            {"itemName": "블루/270",
+             "marketplaceItemData": {"vendorItemId": 222, "priceData": {"salePrice": 129900}},
+             "attributes": [{"attributeTypeName": "색상", "attributeValueName": "블루"},
+                            {"attributeTypeName": "사이즈", "attributeValueName": "270"}]},
+        ],
+    }
+    monkeypatch.setattr(cp, "get_product", lambda spid, client=None: fake_detail)
+    fr = market_fetch.fetch_market_options("coupang", "999")
+    assert fr.success is True
+    assert fr.product_name == "에어포스 쿠팡"
+    assert len(fr.options) == 2
+    assert fr.options[0] == MarketOption(option_id="111", color="블랙", size="260", stock=0, price=128900)
+    assert fr.options[1].option_id == "222"
+
+
+def test_fetch_coupang_bad_product_id():
+    from lemouton.uploader import market_fetch
+    fr = market_fetch.fetch_market_options("coupang", "abc")
+    assert fr.success is False
+    assert "abc" in (fr.error or "")

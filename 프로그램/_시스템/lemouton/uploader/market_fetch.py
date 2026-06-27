@@ -23,6 +23,8 @@ def fetch_market_options(market: str, product_id: str) -> FetchResult:
     """마켓 상품번호로 옵션 목록 조회. (smartstore 본체는 Task 3)"""
     if market == "smartstore":
         return _fetch_smartstore(product_id)
+    if market == "coupang":
+        return _fetch_coupang(product_id)
     return FetchResult(False, None, [], f"아직 지원하지 않는 마켓: {market}")
 
 
@@ -41,3 +43,23 @@ def _fetch_smartstore(product_id: str) -> FetchResult:
         for o in r.options
     ]
     return FetchResult(True, r.product_name, opts)
+
+
+def _fetch_coupang(product_id: str) -> FetchResult:
+    from shared.platforms.coupang.products import get_product, extract_vendor_items
+    try:
+        spid = int(product_id)
+    except (TypeError, ValueError):
+        return FetchResult(False, None, [], f"상품번호가 숫자가 아니에요: {product_id!r}")
+    try:
+        detail = get_product(spid)
+    except Exception as e:  # noqa: BLE001 — 조회 실패는 명시 표면화(폴백 금지)
+        return FetchResult(False, None, [], f"옵션 조회 실패: {e}")
+    items = extract_vendor_items(detail)
+    opts = [
+        MarketOption(option_id=str(it["vendor_item_id"]), color=it.get("color"),
+                     size=it.get("size"), stock=0, price=it.get("sale_price") or 0)
+        for it in items
+    ]
+    name = detail.get("sellerProductName") or detail.get("displayProductName")
+    return FetchResult(True, name, opts)
