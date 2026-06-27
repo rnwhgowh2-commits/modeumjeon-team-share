@@ -64,6 +64,7 @@ def create_app() -> Flask:
     import lemouton.uploader.models  # noqa: F401
     import lemouton.templates.models  # noqa: F401
     import lemouton.inventory.models  # noqa: F401  # ★ STEP 7 Sprint 1A — 재고관리 13 테이블
+    import lemouton.sets.models  # noqa: F401  # 구성(세트) 레이어 V1 경량
 
     # 팀공유 모드 — fresh DB (Supabase) 에서 create_all 시 모든 FK 타겟 테이블 필요
     # 기존 SQLite 는 이미 모든 테이블 존재 → 영향 없음.

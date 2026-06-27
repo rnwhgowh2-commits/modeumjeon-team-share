@@ -84,6 +84,7 @@ def register_routes(app: Flask) -> None:
     from webapp.routes.mapping import bp as mapping_bp  # 맵핑 — 모음전 상품 ↔ 재고관리 SKU
     from webapp.routes.roadmap import bp as roadmap_bp  # 로드맵 · 추가예정 기능
     from webapp.routes.sourcing_guide import bp as sourcing_guide_bp  # 소싱처 크롤링 가이드
+    from webapp.routes.sets_api import bp as sets_api_bp  # 구성(세트) 4단계 흐름 API
     from webapp.routes.api_sources_parse import bp as api_sources_parse_bp  # Task 6 — 창 HTML→파서 구조화
     from webapp.routes.admin_dedup import bp as admin_dedup_bp  # Task 4 — 단품 dedup 마이그레이션
     from scheduler.webhook import bp as webhook_bp
@@ -109,6 +110,7 @@ def register_routes(app: Flask) -> None:
     app.register_blueprint(mapping_bp)  # 맵핑 — 모음전 상품 ↔ 재고관리 SKU
     app.register_blueprint(roadmap_bp)  # 로드맵 · 추가예정 기능
     app.register_blueprint(sourcing_guide_bp)  # 소싱처 크롤링 가이드
+    app.register_blueprint(sets_api_bp)  # 구성(세트) 4단계 흐름 API
     app.register_blueprint(api_sources_parse_bp)  # Task 6 — 창 HTML→파서 구조화
     app.register_blueprint(admin_dedup_bp)  # Task 4 — 단품 dedup 마이그레이션
     app.register_blueprint(webhook_bp)
