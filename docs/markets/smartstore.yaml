@@ -1,0 +1,121 @@
+# docs/markets/smartstore.yaml — 스마트스토어(네이버 커머스) API 프로파일
+# 근거: 코드 추출 (shared/platforms/smartstore/*, lemouton/registration/smartstore.py,
+#       lemouton/auth/oauth_smartstore.py, shared/platforms/__init__.py). 추측 없음.
+
+meta:
+  market: smartstore
+  display_name: 스마트스토어
+  last_analyzed: "2026-06-26"
+  base_url: https://api.commerce.naver.com
+  evidence: >
+    shared/platforms/smartstore/{auth,token_store,client,create_product,edit_product,
+    get_options,change_status,get_channel_no}.py + lemouton/registration/smartstore.py.
+    라이브 읽기 실증: scripts/verify_smartstore_read.py → 상품 13153051689 옵션 36개 수신.
+
+auth:
+  method: OAuth2 (client_credentials + bcrypt 서명)
+  token_endpoint: /external/v1/oauth2/token
+  env_keys:
+    - SMARTSTORE_MAIN_CLIENT_ID
+    - SMARTSTORE_MAIN_CLIENT_SECRET
+  header_format: "Authorization: Bearer {access_token}"
+  token_cache:
+    path: data/platform_cache/smartstore_token.json
+    refresh_margin_sec: 600
+    lock_path: data/platform_cache/smartstore_token.lock
+  signature: >
+    password = "{client_id}_{timestamp_ms}"; hashed = bcrypt.hashpw(password, client_secret);
+    client_secret_sign = base64(hashed). (auth.py:48-70)
+
+endpoints:
+  fetch_options:  { method: GET,    path: /external/v2/products/origin-products/{originProductNo} }   # get_options.py:75
+  get_detail:     { method: GET,    path: /external/v2/products/origin-products/{originProductNo} }
+  register:       { method: POST,   path: /external/v2/products }                                     # __init__.py:111
+  update:         { method: PUT,    path: /external/v2/products/origin-products/{originProductNo} }    # edit_product.py:124 (가격·재고·옵션 한 PUT)
+  change_status:  { method: PUT,    path: /external/v1/products/origin-products/{originProductNo}/change-status }
+  search:         { method: POST,   path: /external/v1/products/search }
+  delete:         { method: DELETE, path: /external/v2/products/origin-products/{originProductNo} }
+
+option_structure:
+  option_id_field: "originProduct.detailAttribute.optionInfo.optionCombinations[].id (int)"
+  color_field: "optionCombinations[].optionName1 (보통 색상)"
+  size_field: "optionCombinations[].optionName2 (보통 사이즈)"
+  extra: "stockQuantity, price(옵션 delta), sellerManagerCode, usable(판매중지 플래그)"
+  note: >
+    옵션 = 색상×사이즈 2축 조합. 옵션ID = optionCombinations[].id (= market_option_id).
+    usable=false 는 판매중지 옵션 → P2 push 시 제외 정책 필요(코드리뷰 지적).
+
+fields:
+  # ── 연결(기존 상품 → 구성) : 현재 우선 경로 ──
+  connect:
+    - { name: originProductNo, type: int, required: true, source: 사용자입력(상품번호 붙여넣기 또는 검색),
+        note: "이 값으로 fetch_options 호출 → 옵션 자동매칭. = SetChannel.market_product_id" }
+  # ── 가격·재고 수정 (edit_product.edit_options) ──
+  update:
+    - { name: origin_product_no, type: int, required: true, note: 원상품번호 }
+    - { name: sale_price, type: int, required: false, note: "base salePrice(None이면 현재 유지)" }
+    - { name: option_updates, type: "dict{option_id:{stockQuantity:int, price:int}}", required: false,
+        note: "price 는 base 대비 delta. 재고=stockQuantity" }
+    - { name: immediate_discount, type: "dict{value:int, unitType:WON|PERCENT}", required: false }
+  # ── 신규 등록 (ProductRegistration) : 나중 ──
+  register:
+    required:
+      - { name: leaf_category_id, type: str, note: "네이버 카테고리 ID" }
+      - { name: name, type: str, note: 상품명 }
+      - { name: sale_price, type: int, note: 기본 판매가(원) }
+      - { name: stock_quantity, type: int, note: 등록시 표시 재고(실재고는 update가 동기화) }
+      - { name: image_url, type: str, note: "Naver CDN URL만(shop-phinf.pstatic.net)" }
+      - { name: detail_content_html, type: str, note: 상세 HTML }
+      - { name: shoes_notice, type: ShoesNotice, note: "신발 카테고리 상품정보제공고시(아래 7필드)" }
+    shoes_notice_fields:  # 필수 7
+      [material, color, size, manufacturer, caution, warranty_policy, after_service_director]
+    optional:
+      - { name: origin_area_code, type: str, default: "0200037" }
+      - { name: importer, type: str, default: "" }
+      - { name: minor_purchasable, type: bool, default: true }
+      - { name: after_service_phone, type: str, default: "" }
+      - { name: after_service_guide, type: str, default: "" }
+
+step4_form:
+  connect_mode:   # 단계④ 현재 우선 — 기존 상품 연결
+    user_inputs:
+      - originProductNo (마켓 상품번호) *필수
+    auto_or_display:
+      - 판매가/옵션재고 = fetch_options 로 읽어 표시만(덮어쓰기는 update_mode에서 명시적)
+  update_mode:    # 가격·재고 수정 켤 때
+    user_inputs:
+      - 옵션별 재고(stockQuantity) / (선택) 판매가(sale_price)
+  register_mode:  # 신규 등록(나중) — 대부분 모음전 데이터·기본값에서
+    user_inputs:
+      - leaf_category_id(카테고리) *필수
+      - shoes_notice 7필드 *필수(카테고리=신발)
+    from_data: [name, sale_price, image_url, detail_content_html(모음전), stock_quantity]
+
+response:
+  success:
+    register: "CreateResult{success, origin_product_no, channel_product_no}"
+    fetch: "FetchOptionsResult{success, product_name, sale_price, options[]}"
+  errors:
+    - "SmartStoreAPIError(status_code, code, message)"
+    - "SmartStoreRateLimitError(retry_after_sec) — 429"
+    - "401 GW.AUTHN → 토큰 무효화 후 1회 재시도"
+    - "400/403/404/422 = 재시도 불가"
+  rate_limit:
+    header: GNCP-GW-RateLimit-Replenish-Rate (동적 조정)
+    on_429: "초당limit→halve / GW.QUOTA_LIMIT→대기(rate조정 X)"
+  retry: "max_retries=3, backoff=2s exponential (5xx/network)"
+
+safety:
+  draft_on_register: "auto_suspend=True → 등록 직후 change_status(SUSPENSION)=검토 draft (create_product.py:118-159)"
+  price_change_guard: "코드상 마켓측 제한 명시 없음(쿠팡과 달리). 업로드 전 sanity check는 오케스트레이터 책임"
+  notes: "statusType=SUSPENSION 으로 보내도 서버는 무시→항상 SALE 등록되므로 auto_suspend 필수"
+
+code_map:
+  auth: lemouton/auth/oauth_smartstore.py, shared/platforms/smartstore/auth.py
+  client: shared/platforms/smartstore/client.py
+  token: shared/platforms/smartstore/token_store.py
+  fetch: shared/platforms/smartstore/get_options.py
+  register: shared/platforms/smartstore/create_product.py
+  update: shared/platforms/smartstore/edit_product.py
+  change_status: shared/platforms/smartstore/change_status.py
+  registration_wrapper: lemouton/registration/smartstore.py
