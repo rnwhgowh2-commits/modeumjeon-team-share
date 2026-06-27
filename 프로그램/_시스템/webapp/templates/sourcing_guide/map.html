@@ -165,10 +165,9 @@
       <div class="gtab" data-s="s2"><span class="k">2</span>📦 재고</div>
       <div class="gtab" data-s="s3"><span class="k">3</span>💰 가격</div>
       <div class="gtab" data-s="s4"><span class="k">4</span>📊 매트릭스 로그</div>
-      <div class="gtab" data-s="s5"><span class="k">5</span>🛡️ 원칙</div>
-      <div class="gtab" data-s="s6"><span class="k">6</span>⚠️ 에러이력</div>
-      <div class="gtab" data-s="s7"><span class="k">7</span>➕ 신규추가</div>
-      <div class="gtab" data-s="s8"><span class="k">8</span>🔄 동기화</div>
+      <div class="gtab" data-s="s6"><span class="k">5</span>🛡️ 원칙·에러이력</div>
+      <div class="gtab" data-s="s7"><span class="k">6</span>➕ 신규추가</div>
+      <div class="gtab" data-s="s8"><span class="k">7</span>🔄 동기화</div>
     </div>
 
     <!-- 1 전체흐름 -->
@@ -187,7 +186,7 @@
         <div class="div"></div>
         <div class="erow"><span class="elabel">코드</span><span class="mono">service.py:429</span>
           <span class="elabel">위치</span><span class="mono">last_price·current_stock·dynamic_benefits_json</span> (<span class="ink">Supabase</span>/AWS)
-          <span class="elabel">뜻</span>긁은 값을 DB에 영속. <span style="color:#9AA4B0">매트릭스 읽기(<span class="mono" style="color:inherit">_match_option_so</span>)·크롤 쓰기(<span class="mono" style="color:inherit">_persist</span>)가 같은 행을 봐야 함 — 중복행이면 stale 둔갑(→6 에러이력 S3).</span></div>
+          <span class="elabel">뜻</span>긁은 값을 DB에 영속. <span style="color:#9AA4B0">매트릭스 읽기(<span class="mono" style="color:inherit">_match_option_so</span>)·크롤 쓰기(<span class="mono" style="color:inherit">_persist</span>)가 같은 행을 봐야 함 — 중복행이면 stale 둔갑(→5 에러이력 S3).</span></div>
         <div class="erow" style="background:#FFF7ED;border-radius:8px;padding:8px 10px;margin-top:6px">
           <span class="elabel" style="color:#C2410C">⚠ 옵션행 생성 vs 갱신</span>
           <span class="ink">사이즈별 SourceOption은 ①서버 <span class="mono" style="color:inherit">_ingest</span> ②navGrab <span class="mono" style="color:inherit">parse</span>(<span class="mono" style="color:inherit">_persist_navgrab_option_stocks</span> — <b>생성</b>)에서만 만들어진다.</span>
@@ -276,7 +275,7 @@
           <tr class="special"><td class="sn">⚠ 특이사항</td><td class="how">매핑 API + DOM 둘 다 실패 → <span class="ink">크롤실패</span></td></tr>
         </table>
         <div class="meta"><span class="elabel">엔드포인트</span><span class="mono">pbf.../option/mapping/{spd}/{sitm}</span> · <span class="elabel">코드</span><span class="mono">lotteon.py:1293</span></div>
-        <div class="why" style="margin-top:8px;margin-bottom:0;"><b>왜 API?</b> 라이브 확장이 옵션 API(<span class="mono" style="color:inherit">option/mapping</span>)의 <span class="mono" style="color:inherit">stkQty</span>로 실수량을 잡음 — <b>충분도 20·30·41 실수량</b>(999가 아님, 라이브 124셀 검증). <span style="color:#9AA4B0">화면 999/품절 둔갑이 보이면 = 저장 중복행 stale 폴백(→6 에러이력 S3). 대체상품 999(품절 슬롯에 끼는 다른 상품)는 별개·드문 케이스(확장 spdNo 가드).</span></div>
+        <div class="why" style="margin-top:8px;margin-bottom:0;"><b>왜 API?</b> 라이브 확장이 옵션 API(<span class="mono" style="color:inherit">option/mapping</span>)의 <span class="mono" style="color:inherit">stkQty</span>로 실수량을 잡음 — <b>충분도 20·30·41 실수량</b>(999가 아님, 라이브 124셀 검증). <span style="color:#9AA4B0">화면 999/품절 둔갑이 보이면 = 저장 중복행 stale 폴백(→5 에러이력 S3). 대체상품 999(품절 슬롯에 끼는 다른 상품)는 별개·드문 케이스(확장 spdNo 가드).</span></div>
       </div></div>
 
       <div class="scard"><div class="src">스마트<br>스토어</div><div>
@@ -394,22 +393,18 @@
       <div class="warn">⚠️ 최저 후보가 stale면 실제보다 싼 값 표시 → 폴백가 금지, best는 last_status≠error·재고있음만.</div>
     </div>
 
-    <!-- 5 원칙 -->
-    <div class="sec" id="s5">
-      <div class="lead"><span class="klabel">핵심</span><span class="sum">실패는 감추지 말고 드러낸다 — 폴백가 금지·크롤실패 표기·단일 진실원천·누락 경고.</span></div>
+    <!-- 5 원칙·에러이력 (구 5 원칙 + 6 에러이력 통합) -->
+    <div class="sec" id="s6">
+      <div class="lead"><span class="klabel">핵심</span><span class="sum">실패에서 나온 원칙으로 방향 잡고 — 신규 추가·수정 전 과거 에러 카탈로그부터 확인.</span></div>
+      <div style="font-size:17px;font-weight:800;color:var(--ink);margin:16px 0 10px;">🛡️ 무결성 4원칙 <span style="font-size:13px;font-weight:700;color:var(--sub)">— 방향 복귀 기준 · 실패는 감추지 말고 드러낸다</span></div>
       <div class="card row2"><div class="ti"><span class="no">1</span>폴백가 금지</div><div class="detail">실패 시 평균·최저 대표가로 채우지 않음 → <span class="ink">"가격없음 + 크롤실패"</span>로 표면화. (폴백가 주문 = 손실)</div></div>
       <div class="card row2"><div class="ti"><span class="no">2</span>크롤실패=표기</div><div class="detail">옛 가격/재고 끌어쓰지 않고 <span class="ink">"크롤 실패"</span> (하드리셋 NULL → finalize).</div></div>
       <div class="card row2"><div class="ti"><span class="no">3</span>단일 진실원천</div><div class="detail">표면가=<span class="mono">last_price</span>, 매입가=<span class="mono">compute_market_price</span> 한 곳에서만.</div></div>
       <div class="card row2"><div class="ti"><span class="no">4</span>누락에 경고</div><div class="detail">후보가 조용히 탈락(None) 금지 → <span class="ink">화면·로그에 드러나야</span>.</div></div>
-      <div class="detail" style="margin-top:11px;font-size:14px;color:var(--sub);line-height:1.6;">↳ 이 4원칙은 모두 <b style="color:var(--ink)">실제 에러에서</b> 나온 교훈이다 — 각 원칙이 <b style="color:var(--ink)">어떤 에러</b>에서 나왔는지는 <b style="color:var(--ink)">6 에러이력</b> 상단 '원칙 ← 출처 에러' 참고.</div>
-    </div>
-
-    <!-- 6 에러이력 -->
-    <div class="sec" id="s6">
-      <div class="lead"><span class="klabel">핵심</span><span class="sum">과거 발생한 재고·가격·저장 에러 카탈로그 — 신규 추가·수정 전 먼저 확인.</span></div>
+      <div style="font-size:17px;font-weight:800;color:var(--ink);margin:24px 0 10px;border-top:1px solid var(--line2);padding-top:18px;">⚠️ 에러 카탈로그 <span style="font-size:13px;font-weight:700;color:var(--sub)">— 위 원칙이 나온 실제 사고 55건</span></div>
       <div class="e3">🛑 <b>신규 소싱처 추가·크롤/저장 코드 수정 전, 이 카탈로그부터 확인.</b> 같은 원인이 다른 소싱처에서 재발한다. · 분류 2축 = 증상유형(📦재고·💰가격·🛠️기타) × 원인계층(<span style="color:#7C3AED;font-weight:800">백엔드</span>·<span style="color:#E8830C;font-weight:800">프론트</span>(확장 포함)·기타) · 상태 ✅수정 / ⏳미수정.<br>🛡️ <b>조용한 실패 3원칙</b> — (a) 저장 실패는 항상 표면화 · (b) 삭제형 저장은 빈 페이로드 가드 · (c) 대량 저장은 동시성 제한 + 멱등 재시도.</div>
       <div class="porig">
-        <div class="pt">🛡️ <b>5 원칙</b>은 모두 <b>실제 에러에서</b> 나왔다 — 원칙을 어기면 그 에러가 재발한다 (원칙 ← 출처 에러).</div>
+        <div class="pt">🛡️ <b>위 무결성 4원칙</b>은 모두 <b>실제 에러에서</b> 나왔다 — 원칙을 어기면 그 에러가 재발한다 (원칙 ← 출처 에러).</div>
         <div class="pr"><span class="pl">폴백가 금지</span>← <span class="pe">P23</span> 가짜 95000 · <span class="pe">S1·S2·S8</span> 상품합계 재고 폴백 둔갑</div>
         <div class="pr"><span class="pl">크롤실패=표기</span>← <span class="pe">S14</span> 하드리셋·판매차단(현재 inert) · <span class="pe">P7</span> 일시실패 stale 정체 · <span class="pe">P6</span> 신규URL 드롭</div>
         <div class="pr"><span class="pl">단일 진실원천</span>← <span class="pe">P4</span> 셀≠계산식 · <span class="pe">O1</span> last_price 평균vs최저 · <span class="pe">P19·P21</span> cross-source 오저장·중복 product</div>
@@ -443,7 +438,7 @@
       <div class="step"><div class="stepn">3</div><div class="sc"><div class="st">항목별 위치 추출 (재고 3단계 규칙 포함)<span class="who c">CLAUDE</span></div><div class="ref">→ <span class="lk">2 재고</span> + <span class="lk">3 가격</span></div></div></div>
       <div class="step"><div class="stepn">4</div><div class="sc"><div class="st">혜택 종합 — 여러 URL 교차분석<span class="tag">신설</span><span class="who c">CLAUDE</span></div><div class="ref">→ <span class="lk">3 가격</span> · 모든 URL=상시 / 일부=조건부 + 트리거</div></div></div>
       <div class="step"><div class="stepn">5</div><div class="sc"><div class="st">매입가 순차차감 로직<span class="who c">CLAUDE</span></div><div class="ref">→ <span class="lk">3 가격</span> · 표면 − Σ혜택 (직전 잔액 기준)</div></div></div>
-      <div class="step"><div class="stepn">6</div><div class="sc"><div class="st">검증 크롤·대조 → 정답 카드 저장<span class="who c">CLAUDE</span></div><div class="ref">→ <span class="lk">5 원칙</span> · <span class="lk">6 에러이력</span> + 18항목 체크리스트 · crawl_guide</div></div></div>
+      <div class="step"><div class="stepn">6</div><div class="sc"><div class="st">검증 크롤·대조 → 정답 카드 저장<span class="who c">CLAUDE</span></div><div class="ref">→ <span class="lk">5 원칙·에러이력</span> + 18항목 체크리스트 · crawl_guide</div></div></div>
       <div class="step"><div class="stepn">7</div><div class="sc"><div class="st">파이프라인 배선 — 등록 안 하면 화면에 아무것도 안 뜸<span class="tag">신설</span><span class="who c">CLAUDE</span></div>
         <div class="d" style="margin-bottom:7px"><b>0단계 경로 정하기:</b> 비로그인 HTML·내장 JSON으로 충분 → <b>경로 A 서버파싱(navGrab)</b> / 로그인 회원가·SKU재고·렌더 후 값 → <b>경로 B 확장추출(navExtract)</b>. 경로 B는 <span class="mono">EXTRACTORS</span> 등록 필수(없으면 <span class="mono">crawlOne</span>이 "레시피 없음"으로 건너뜀).</div>
         <div class="d" style="margin-bottom:4px"><b>백엔드 9지점</b> <span style="color:var(--sub)">(origin/main 기준 라인 · 표류 시 심볼로 대조)</span></div>
@@ -550,7 +545,7 @@
     if(e.target.tagName==='INPUT'||e.target.tagName==='TEXTAREA') return;
     var order=[].map.call(tabs,function(t){return t.dataset.s;});
     var cur=root.querySelector('.gtab.on').dataset.s, i=order.indexOf(cur);
-    if(/^[1-8]$/.test(e.key)&&order[+e.key-1]) show(order[+e.key-1]);
+    if(/^[1-7]$/.test(e.key)&&order[+e.key-1]) show(order[+e.key-1]);
     else if(e.key==='ArrowRight'&&i<order.length-1) show(order[i+1]);
     else if(e.key==='ArrowLeft'&&i>0) show(order[i-1]);
   });
