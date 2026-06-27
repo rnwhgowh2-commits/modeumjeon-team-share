@@ -99,6 +99,38 @@
   .sgmap .sc .ref{font-size:13.5px;color:var(--blue);font-weight:700;margin-top:3px;}
   .sgmap .sc .ref .lk{font-family:var(--mono);background:#E8F3FF;border-radius:4px;padding:1px 5px;font-size:12.5px;}
   .sgmap .sc .d{font-size:13.5px;color:var(--sub);margin-top:2px;line-height:1.5;}
+  /* ── §6 에러이력 카탈로그 ── */
+  .sgmap .e3{background:#FFF7F0;border:1px solid #F4D9BE;border-radius:10px;padding:11px 15px;margin-bottom:16px;font-size:14px;line-height:1.65;color:#7c4a16;}
+  .sgmap .e3 b{color:#9a3412;}
+  .sgmap .ehead{font-size:15.5px;font-weight:800;display:flex;align-items:center;gap:8px;margin:20px 0 9px;}
+  .sgmap .ehead .ecnt{font-size:12.5px;font-weight:700;color:var(--sub);}
+  .sgmap .ehead .enote{font-size:12px;font-weight:600;color:#9AA4B0;}
+  .sgmap .ecards{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+  .sgmap .ecard{display:grid;grid-template-columns:6px 1fr;background:#fff;border:1px solid var(--line2);border-radius:11px;overflow:hidden;}
+  .sgmap .ecard.todo{background:#FFFCF5;border-color:#F1DFB0;}
+  .sgmap .ecard .ebar{width:6px;}
+  .sgmap .ecard.g재고 .ebar{background:var(--blue);}
+  .sgmap .ecard.g가격 .ebar{background:#15803D;}
+  .sgmap .ecard.g기타 .ebar{background:#9AA4B0;}
+  .sgmap .ecard .eb{padding:11px 14px;}
+  .sgmap .ecard .etop{display:flex;align-items:center;gap:5px;margin-bottom:5px;flex-wrap:wrap;}
+  .sgmap .ecard .esrc{font-size:11px;font-weight:800;color:#9AA4B0;margin-left:auto;}
+  .sgmap .ecard .esy{font-size:14.5px;font-weight:800;color:var(--ink);line-height:1.4;margin-bottom:5px;}
+  .sgmap .ecard .eln{font-size:12.5px;color:var(--sub);line-height:1.5;margin-bottom:2px;}
+  .sgmap .ecard .eln .el{font-weight:800;color:#9AA4B0;font-size:10.5px;margin-right:5px;}
+  .sgmap .ecard .eln.epv{color:#15803D;}
+  .sgmap .ecard .eln .mono{font-family:var(--mono);font-size:11px;color:var(--blue);}
+  .sgmap .gbadge{font-size:11px;font-weight:800;border-radius:5px;padding:1.5px 7px;}
+  .sgmap .gbadge.재고{background:#E8F0FE;color:var(--blue);}
+  .sgmap .gbadge.가격{background:#E7F6EC;color:#15803D;}
+  .sgmap .gbadge.기타{background:#EEF1F4;color:var(--sub);}
+  .sgmap .lbadge{font-size:10.5px;font-weight:800;border-radius:20px;padding:1.5px 8px;}
+  .sgmap .lbadge.be{background:#F3E8FF;color:#7C3AED;}
+  .sgmap .lbadge.fe{background:#FFF1E2;color:#E8830C;}
+  .sgmap .lbadge.etc{background:#EEF1F4;color:var(--sub);}
+  .sgmap .sbadge{font-size:10.5px;font-weight:800;border-radius:5px;padding:1.5px 7px;}
+  .sgmap .sbadge.ok{background:#E7F6EC;color:#15803D;}
+  .sgmap .sbadge.todo{background:#FEF3C7;color:#B45309;}
 </style>
 
 <div class="sgmap">
@@ -127,7 +159,7 @@
       <div class="gtab" data-s="s3"><span class="k">3</span>💰 가격</div>
       <div class="gtab" data-s="s4"><span class="k">4</span>📊 매트릭스 로그</div>
       <div class="gtab" data-s="s5"><span class="k">5</span>🛡️ 원칙</div>
-      <div class="gtab" data-s="s6"><span class="k">6</span>🔁 재발</div>
+      <div class="gtab" data-s="s6"><span class="k">6</span>⚠️ 에러이력</div>
       <div class="gtab" data-s="s7"><span class="k">7</span>➕ 신규추가</div>
       <div class="gtab" data-s="s8"><span class="k">8</span>🔄 동기화</div>
     </div>
@@ -148,7 +180,7 @@
         <div class="div"></div>
         <div class="erow"><span class="elabel">코드</span><span class="mono">service.py:429</span>
           <span class="elabel">위치</span><span class="mono">last_price·current_stock·dynamic_benefits_json</span> (<span class="ink">Supabase</span>/AWS)
-          <span class="elabel">뜻</span>긁은 값을 DB에 영속. <span style="color:#9AA4B0">매트릭스 읽기(<span class="mono" style="color:inherit">_match_option_so</span>)·크롤 쓰기(<span class="mono" style="color:inherit">_persist</span>)가 같은 행을 봐야 함 — 중복행이면 stale 둔갑(→6 재발).</span></div>
+          <span class="elabel">뜻</span>긁은 값을 DB에 영속. <span style="color:#9AA4B0">매트릭스 읽기(<span class="mono" style="color:inherit">_match_option_so</span>)·크롤 쓰기(<span class="mono" style="color:inherit">_persist</span>)가 같은 행을 봐야 함 — 중복행이면 stale 둔갑(→6 에러이력 S3).</span></div>
         <div class="erow" style="background:#FFF7ED;border-radius:8px;padding:8px 10px;margin-top:6px">
           <span class="elabel" style="color:#C2410C">⚠ 옵션행 생성 vs 갱신</span>
           <span class="ink">사이즈별 SourceOption은 ①서버 <span class="mono" style="color:inherit">_ingest</span> ②navGrab <span class="mono" style="color:inherit">parse</span>(<span class="mono" style="color:inherit">_persist_navgrab_option_stocks</span> — <b>생성</b>)에서만 만들어진다.</span>
@@ -237,7 +269,7 @@
           <tr class="special"><td class="sn">⚠ 특이사항</td><td class="how">매핑 API + DOM 둘 다 실패 → <span class="ink">크롤실패</span></td></tr>
         </table>
         <div class="meta"><span class="elabel">엔드포인트</span><span class="mono">pbf.../option/mapping/{spd}/{sitm}</span> · <span class="elabel">코드</span><span class="mono">lotteon.py:1293</span></div>
-        <div class="why" style="margin-top:8px;margin-bottom:0;"><b>왜 API?</b> 라이브 확장이 옵션 API(<span class="mono" style="color:inherit">option/mapping</span>)의 <span class="mono" style="color:inherit">stkQty</span>로 실수량을 잡음 — <b>충분도 20·30·41 실수량</b>(999가 아님, 라이브 124셀 검증). <span style="color:#9AA4B0">화면 999/품절 둔갑이 보이면 = 저장 중복행 stale 폴백(→6 재발). 대체상품 999(품절 슬롯에 끼는 다른 상품)는 별개·드문 케이스(확장 spdNo 가드).</span></div>
+        <div class="why" style="margin-top:8px;margin-bottom:0;"><b>왜 API?</b> 라이브 확장이 옵션 API(<span class="mono" style="color:inherit">option/mapping</span>)의 <span class="mono" style="color:inherit">stkQty</span>로 실수량을 잡음 — <b>충분도 20·30·41 실수량</b>(999가 아님, 라이브 124셀 검증). <span style="color:#9AA4B0">화면 999/품절 둔갑이 보이면 = 저장 중복행 stale 폴백(→6 에러이력 S3). 대체상품 999(품절 슬롯에 끼는 다른 상품)는 별개·드문 케이스(확장 spdNo 가드).</span></div>
       </div></div>
 
       <div class="scard"><div class="src">스마트<br>스토어</div><div>
@@ -364,15 +396,11 @@
       <div class="card row2"><div class="ti"><span class="no">4</span>누락에 경고</div><div class="detail">후보가 조용히 탈락(None) 금지 → <span class="ink">화면·로그에 드러나야</span>.</div></div>
     </div>
 
-    <!-- 6 재발 -->
+    <!-- 6 에러이력 -->
     <div class="sec" id="s6">
-      <div class="lead"><span class="klabel">핵심</span><span class="sum">증상 → 점검 지점. 자주 재발하는 6가지.</span></div>
-      <div class="card row2"><div class="ti">혜택 안 뜸</div><div class="detail"><span class="mono">dynamic_benefits_json</span>에 키 있나 → 없으면 <span class="ink">라이브크롤 미배선</span>(3 가격 저장배선).</div></div>
-      <div class="card row2"><div class="ti">가짜 재고있음</div><div class="detail">999 둔갑? 정규식 미스? <span class="mono">_resolve_stock</span> 확인.</div></div>
-      <div class="card row2"><div class="ti">표면≠매입 혼동</div><div class="detail">셀=<span class="ink">표면(판매가)</span> / 영수증=<span class="ink">최종매입가</span> (4 매트릭스 탭).</div></div>
-      <div class="card row2"><div class="ti">매트릭스 stale</div><div class="detail">크롤 후 갱신 안 됨 → <span class="mono">window.loadMatrix</span> 노출 / <span class="mono">SM_BREAKDOWNS</span> 캐시.</div></div>
-      <div class="card row2"><div class="ti">dev 값 이상</div><div class="detail">dev DB stale → <span class="ink">라이브 대조 필수</span>.</div></div>
-      <div class="card row2"><div class="ti">충분인데 품절·999 둔갑</div><div class="detail">롯데온 단품 <span class="ink">일부 색만</span>(타색 정상) → <span class="mono">SourceOption</span> <span class="ink">행 중복</span>(같은 옵션이 색 포맷 3종으로 INSERT: 사이즈-in-색·상품명·정상색). 매트릭스가 null 중복행 읽고 상품 <span class="mono">last_stock</span>=999 폴백. → <span class="ink">색 호환 그룹만 dedup</span>(멀티색 skip). 롯데온 충분 재고는 mapping API가 <span class="ink">실수량(20·30·41)</span>으로 줌 — 999가 아님.</div></div>
+      <div class="lead"><span class="klabel">핵심</span><span class="sum">과거 발생한 재고·가격·저장 에러 카탈로그 — 신규 추가·수정 전 먼저 확인.</span></div>
+      <div class="e3">🛑 <b>신규 소싱처 추가·크롤/저장 코드 수정 전, 이 카탈로그부터 확인.</b> 같은 원인이 다른 소싱처에서 재발한다. · 분류 2축 = 증상유형(📦재고·💰가격·🛠️기타) × 원인계층(<span style="color:#7C3AED;font-weight:800">백엔드</span>·<span style="color:#E8830C;font-weight:800">프론트</span>(확장 포함)·기타) · 상태 ✅수정 / ⏳미수정.<br>🛡️ <b>조용한 실패 3원칙</b> — (a) 저장 실패는 항상 표면화 · (b) 삭제형 저장은 빈 페이로드 가드 · (c) 대량 저장은 동시성 제한 + 멱등 재시도.</div>
+      <div id="errcards"></div>
     </div>
 
     <!-- 7 신규추가 -->
@@ -399,7 +427,7 @@
       <div class="step"><div class="stepn">3</div><div class="sc"><div class="st">항목별 위치 추출 (재고 3단계 규칙 포함)<span class="who c">CLAUDE</span></div><div class="ref">→ <span class="lk">2 재고</span> + <span class="lk">3 가격</span></div></div></div>
       <div class="step"><div class="stepn">4</div><div class="sc"><div class="st">혜택 종합 — 여러 URL 교차분석<span class="tag">신설</span><span class="who c">CLAUDE</span></div><div class="ref">→ <span class="lk">3 가격</span> · 모든 URL=상시 / 일부=조건부 + 트리거</div></div></div>
       <div class="step"><div class="stepn">5</div><div class="sc"><div class="st">매입가 순차차감 로직<span class="who c">CLAUDE</span></div><div class="ref">→ <span class="lk">3 가격</span> · 표면 − Σ혜택 (직전 잔액 기준)</div></div></div>
-      <div class="step"><div class="stepn">6</div><div class="sc"><div class="st">검증 크롤·대조 → 정답 카드 저장<span class="who c">CLAUDE</span></div><div class="ref">→ <span class="lk">5 원칙</span> · <span class="lk">6 재발</span> + 18항목 체크리스트 · crawl_guide</div></div></div>
+      <div class="step"><div class="stepn">6</div><div class="sc"><div class="st">검증 크롤·대조 → 정답 카드 저장<span class="who c">CLAUDE</span></div><div class="ref">→ <span class="lk">5 원칙</span> · <span class="lk">6 에러이력</span> + 18항목 체크리스트 · crawl_guide</div></div></div>
       <div class="step"><div class="stepn">7</div><div class="sc"><div class="st">파이프라인 배선 — 등록 안 하면 화면에 아무것도 안 뜸<span class="tag">신설</span><span class="who c">CLAUDE</span></div>
         <div class="d" style="margin-bottom:7px"><b>0단계 경로 정하기:</b> 비로그인 HTML·내장 JSON으로 충분 → <b>경로 A 서버파싱(navGrab)</b> / 로그인 회원가·SKU재고·렌더 후 값 → <b>경로 B 확장추출(navExtract)</b>. 경로 B는 <span class="mono">EXTRACTORS</span> 등록 필수(없으면 <span class="mono">crawlOne</span>이 "레시피 없음"으로 건너뜀).</div>
         <div class="d" style="margin-bottom:4px"><b>백엔드 9지점</b> <span style="color:var(--sub)">(origin/main 기준 라인 · 표류 시 심볼로 대조)</span></div>
@@ -506,10 +534,80 @@
     if(e.target.tagName==='INPUT'||e.target.tagName==='TEXTAREA') return;
     var order=[].map.call(tabs,function(t){return t.dataset.s;});
     var cur=root.querySelector('.gtab.on').dataset.s, i=order.indexOf(cur);
-    if(/^[1-7]$/.test(e.key)&&order[+e.key-1]) show(order[+e.key-1]);
+    if(/^[1-8]$/.test(e.key)&&order[+e.key-1]) show(order[+e.key-1]);
     else if(e.key==='ArrowRight'&&i<order.length-1) show(order[i+1]);
     else if(e.key==='ArrowLeft'&&i>0) show(order[i-1]);
   });
+})();
+</script>
+<script>
+// ── §6 에러이력 카탈로그 (재고12·가격15·기타10 = 37건) — 정본 .md §5 와 대칭 ──
+(function(){
+  var EC=[
+   // 📦 재고
+   {g:'재고',l:'be',l2:'fe',src:'르무통',st:'ok',cm:'d1fbe8fb 2d63a9e1',sy:'사이즈별 재고가 상품합계로 균일 둔갑(전사이즈 53, 품절 265도 \'있음\')',cz:'ⓐ _persist_option_stocks가 기존행만 갱신·생성 안 함→신규 URL 옵션행 0 ⓑ ext_bridge가 crawl-result에 options[] 미전송→상품 last_stock(합계) 균일 폴백',pv:'옵션 영속 단일 루틴(persist_crawled_options) 생성+갱신, parse·save 양쪽 호출 + ext_bridge options[] 전송'},
+   {g:'재고',l:'be',src:'스마트스토어',st:'ok',sy:'전부 999 \'있음\' 둔갑(품절 SKU도)',cz:'save_crawl_result가 옵션 current_stock 미영속, 서버크롤만 채워 확장전용 경로 영원히 stale',pv:'_persist_option_stocks 영속(확장 경로도)'},
+   {g:'재고',l:'be',src:'롯데온',st:'ok',sy:'충분 재고가 999⚠️품절(특정 색만)',cz:'SourceOption 중복행(색 포맷 3종 INSERT)→매트릭스가 null 중복행 읽고 last_stock=999 폴백',pv:'색 호환 그룹만 dedup(멀티색 skip)'},
+   {g:'재고',l:'fe',src:'롯데온',st:'ok',sy:'품절 사이즈가 \'4개·있음\' 둔갑',cz:'대체상품 가드 _realSpd 정규식이 LO접두 하드코딩→숫자형 URL서 무력화',pv:'범용 패턴 + 숫자만 비교'},
+   {g:'재고',l:'be',src:'SSG',st:'ok',sy:'단일색 상품 재고 uniform 둔갑',cz:'파서가 사이즈를 color_text에 박고 size_text 비움→_ingest 조용히 skip→SO 미생성→상품레벨 폴백',pv:'size-only 축 처리'},
+   {g:'재고',l:'be',src:'무신사',st:'ok',sy:'단품 거짓 품절',cz:'_match_option_so가 빈색(color=\'\')일 때 size-only 매칭 안 함',pv:'빈색 옵션 매칭 규칙'},
+   {g:'재고',l:'be',l2:'fe',src:'르무통',st:'ok',sy:'비활성(OFF) 사이즈에 가격 누출',cz:'크롤러 미판매 사이즈 과다수집(데카르트곱 999) + 매트릭스가 is_active 무시',pv:'실조합만 수집 + is_active 존중'},
+   {g:'재고',l:'be',l2:'fe',src:'무신사',st:'ok',cm:'2d63a9e1',sy:'한정수량·품절 사이즈가 \'재고있음\' 균일',cz:'S1 동계열 — 확장 client추출 경로서 사이즈별 옵션행 미생성',pv:'persist_crawled_options + ext_bridge options[]'},
+   {g:'재고',l:'fe',src:'스마트스토어',st:'ok',sy:'재고 999 silent 둔갑',cz:'productNo 먼저 써 204 빈응답→999. channelProductNo(A.id) 써야 정확',pv:'A.id 사용'},
+   {g:'재고',l:'be',src:'SSF',st:'ok',sy:'품절임박 N개 미식별',cz:'정규식이 \'품절임박 ( N )\' 괄호 안 공백 미처리',pv:'괄호 공백 허용 정규식'},
+   {g:'재고',l:'be',src:'전 소싱처',st:'ok',sy:'수량0·전부있음(boolean만)',cz:'실수량 안 긁고 in/out boolean만 출력→거짓 \'재고있음\'',pv:'실수량 캡처(3상태)'},
+   {g:'재고',l:'fe',src:'옵션조합 모달',st:'ok',cm:'c948d4ec',sy:'재고관리 매핑 저장해도 새로고침하면 사라짐',cz:'autoSave()가 재고매핑 저장단계 미호출(invApplyMapping이 삭제된 버튼에만 묶여 고아화)',pv:'새 저장단계는 autoSave에 배선 + 로딩완료(invLoaded) 가드'},
+   // 💰 가격
+   {g:'가격',l:'fe',src:'무신사',st:'ok',sy:'표면가에 회원가 오긁음',cz:'회원가 잘못 읽어 표면가 오염',pv:'API goodsPrice.salePrice 직읽기 + 검증게이트(폴백금지)'},
+   {g:'가격',l:'be',src:'무신사',st:'ok',sy:'자동크롤이 혜택 누락',cz:'백그라운드 엔진이 benefit 필드 전송 누락(+스마트행 1개가 전체 정지)',pv:'자동크롤도 혜택 전송 + per-unit 타임아웃'},
+   {g:'가격',l:'be',src:'SSG·SSF',st:'todo',sy:'SSG MONEY 적립이 라이브크롤로 영원히 안 채워짐',cz:'toItemBG·save_crawl_result 둘 다 혜택필드 누락(price/stock만)',pv:'확장크롤 혜택 저장 배선'},
+   {g:'가격',l:'fe',src:'SSG·다중URL',st:'ok',sy:'셀 가격 ≠ 계산식(fx 팝업)',cz:'fx 단건 breakdown에 source_product_id 미전달→등록 URL 폴백→SSOT 위반',pv:'셀 best 후보 spid를 fx 단건에 첨부'},
+   {g:'가격',l:'be',src:'SSF',st:'ok',sy:'저장 전체 실패(priced 0)',cz:'soft-delete 행 못 찾고 INSERT→UniqueViolation→그 옵션 저장 전체 롤백',pv:'deleted_at 필터 제거 + revive'},
+   {g:'가격',l:'be',src:'신규 등록 URL',st:'ok',cm:'21dc3ded',sy:'위젯 \'완료\'인데 매트릭스 \'크롤링 미실시\'',cz:'save_crawl_result가 SourceProduct 없으면 not_found로 조용히 드롭(등록은 BundleSourceUrl만 생성)',pv:'등록 URL이면 upsert_source_product로 행 생성 후 저장'},
+   {g:'가격',l:'etc',src:'무신사 등',st:'ok',sy:'일시 실패→소싱처 0% 정체',cz:'고부하 타임아웃/빈그랩 + 하드리셋 price=null이면 last_price 안 덮어 stale에 status=error 정체',pv:'재시도 + 동시창 축소(폴백 유지)'},
+   {g:'가격',l:'be',src:'롯데온·SSG',st:'ok',sy:'카드 청구할인 미반영',cz:'청구할인 없을 때 현대카드 2.73% fallback 미주입',pv:'결제 택1 pick-best 주입'},
+   {g:'가격',l:'be',src:'무신사 등',st:'todo',sy:'혜택 금액 0으로 저장',cz:'크롤이 회원혜택(등급적립·머니) OFF 금액0 저장 + 부분 스냅샷이 템플릿 가림',pv:'혜택 금액0 의심·게이트'},
+   {g:'가격',l:'etc',l2:'fe',src:'URL 저장',st:'ok',cm:'77127de8',sy:'URL 저장 시 매번 임의 ~7건이 HTTP 500으로 조용히 누락',cz:'48개를 Promise.all 동시 저장→Supabase 풀(15) 초과',pv:'대량 저장 동시성 제한(5) + PUT 일시 500 재시도'},
+   {g:'가격',l:'fe',l2:'be',src:'URL↔옵션 매핑',st:'ok',cm:'c5406e92',sy:'멀쩡한 URL↔옵션 매핑이 통째 삭제될 수 있음',cz:'옵션키 canonical_sku 해소 실패 시 빈 목록 전송, 백엔드는 빈 목록=전체삭제',pv:'delete형 저장은 빈 페이로드 가드(빈 목록 omit)'},
+   {g:'가격',l:'fe',src:'옵션조합 모달',st:'todo',sy:'축 값 이름변경(240→245) 시 매핑이 조용히 유실',cz:'rename 시 매핑 키 마이그레이션 없음',pv:'rename 시 매핑 키 마이그레이션'},
+   {g:'가격',l:'be',src:'URL 저장',st:'todo',sy:'무효 SKU를 거부 건수 보고 없이 조용히 skip',cz:'_sync_option_links가 rejected 무보고(재고매핑은 보고)',pv:'URL 저장도 rejected 건수 보고'},
+   {g:'가격',l:'fe',src:'매트릭스',st:'todo',sy:'\'재계산▶\' 버튼이 저장 0인 stub',cz:'버튼이 실제 재계산·저장 안 함',pv:'재계산 실제 구현 또는 버튼 숨김'},
+   {g:'가격',l:'be',src:'가격설정 일괄저장',st:'todo',sy:'허용목록 밖 필드를 조용히 무시',cz:'api_pricing price-config/bulk 허용목록 밖 무음 skip',pv:'거부 필드 보고'},
+   // 🛠️ 기타
+   {g:'기타',l:'etc',src:'구조(원칙)',st:'todo',sy:'조용한 실패 버그 클래스',cz:'무결성 제약 부재(A) + SSOT 분열(last_price 평균 vs 최저)(B) + 누락 무경고(None 탈락)(C)',pv:'DB 제약 + SSOT 통일 + None 후보 경고 (상단 3원칙)'},
+   {g:'기타',l:'etc',src:'배포',st:'ok',sy:'배포 success인데 옛 코드 영속',cz:'docker run이 기존 컨테이너 미교체로 백엔드 옛 코드로 계속 돎',pv:'docker rm -f + 교체 검증 (success ≠ 코드 라이브)'},
+   {g:'기타',l:'etc',src:'확장',st:'todo',sy:'수정해도 라이브 미반영 (주의)',cz:'확장 버전 분열 + 로드된 확장 = 데스크톱 사본(dev 사본 고쳐도 무효)',pv:'로드 확장 경로 확인 후 reload'},
+   {g:'기타',l:'etc',src:'DB',st:'todo',sy:'dev 값이 라이브와 다름 (주의)',cz:'dev DB는 라이브보다 수십~수백 커밋 stale',pv:'라이브 대조 필수(dev 신뢰 금지)'},
+   {g:'기타',l:'fe',src:'크롤 위젯',st:'todo',sy:'가격 없어도 \'성공 ✓\' 표기',cz:'위젯이 price=null을 성공으로 표기(honesty 버그)',pv:'유효가격 없으면 실패 표면화'},
+   {g:'기타',l:'etc',src:'롯데온 per-size',st:'todo',sy:'롯데온은 사이즈별 수량 아닌 상품단위 999/0만',cz:'확장 lotteonExtractor가 per-option 재고 미수집(상품 DOM만) — 수집 자체 미구현',pv:'per-size 수집 extractor 구현(별도 작업)'},
+   {g:'기타',l:'fe',src:'옵션조합 모달',st:'ok',cm:'c948d4ec',sy:'저장 실패해도 "저장 완료"로 표시',cz:'에러를 console.warn으로 삼킴',pv:'저장 함수는 {ok,errors[]} 반환·버튼이 실패 표면화'},
+   {g:'기타',l:'fe',src:'옵션조합 모달',st:'ok',cm:'c5406e92',sy:'저장 직전 재로딩 빈응답이면 r.json() 터져 저장 전체 무산',cz:'외부 응답 파싱 전 검증 없음',pv:'res.ok + 본문 검증 후 명확 메시지로 중단'},
+   {g:'기타',l:'fe',src:'옵션조합 모달',st:'ok',cm:'c5406e92',sy:'옵션 구성 저장 실패해도 계속 진행→stale 매핑 유실',cz:'실패 무시하고 진행',pv:'실패 시 즉시 중단(재시도 유도)'},
+   {g:'기타',l:'fe',src:'옵션조합 모달',st:'ok',cm:'c5406e92',sy:'X·취소·배경 클릭으로 닫으면 저장 실패가 무음',cz:'닫기 경로 실패 미표면화',pv:'닫혀도 실패를 알림으로 표면화'}
+  ];
+  var GORD=['재고','가격','기타'],GIC={재고:'📦',가격:'💰',기타:'🛠️'},GNOTE={기타:'O7~O10 = 저장(save) 단계'};
+  var LTXT={be:'백엔드',fe:'프론트',etc:'기타'},LCLS={be:'be',fe:'fe',etc:'etc'};
+  function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+  function lbg(l){return '<span class="lbadge '+LCLS[l]+'">'+LTXT[l]+'</span>';}
+  var host=document.getElementById('errcards');if(!host)return;var H='';
+  GORD.forEach(function(g){
+    var rows=EC.filter(function(e){return e.g===g;});
+    H+='<div class="ehead">'+GIC[g]+' <span class="gbadge '+g+'">'+g+'</span> <span class="ecnt">'+rows.length+'건</span>'+
+       (GNOTE[g]?' <span class="enote">· '+GNOTE[g]+'</span>':'')+'</div><div class="ecards">';
+    rows.forEach(function(e){
+      H+='<div class="ecard g'+e.g+(e.st==='todo'?' todo':'')+'"><div class="ebar"></div><div class="eb">'+
+        '<div class="etop"><span class="gbadge '+e.g+'">'+e.g+'</span>'+lbg(e.l)+(e.l2?lbg(e.l2):'')+
+        '<span class="sbadge '+(e.st==='ok'?'ok':'todo')+'">'+(e.st==='ok'?'✅수정':'⏳미수정')+'</span>'+
+        '<span class="esrc">'+esc(e.src)+'</span></div>'+
+        '<div class="esy">'+esc(e.sy)+'</div>'+
+        '<div class="eln"><span class="el">원인</span>'+esc(e.cz)+'</div>'+
+        '<div class="eln epv"><span class="el">재발방지</span>'+esc(e.pv)+'</div>'+
+        (e.cm?'<div class="eln"><span class="el">커밋</span><span class="mono">'+esc(e.cm)+'</span></div>':'')+
+        '</div></div>';
+    });
+    H+='</div>';
+  });
+  host.innerHTML=H;
 })();
 </script>
 {% endblock %}
