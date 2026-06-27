@@ -102,6 +102,13 @@
   /* ── §6 에러이력 카탈로그 ── */
   .sgmap .e3{background:#FFF7F0;border:1px solid #F4D9BE;border-radius:10px;padding:11px 15px;margin-bottom:16px;font-size:14px;line-height:1.65;color:#7c4a16;}
   .sgmap .e3 b{color:#9a3412;}
+  .sgmap .porig{background:#fff;border:1px solid var(--line2);border-radius:11px;padding:13px 16px;margin-bottom:18px;}
+  .sgmap .porig .pt{font-size:14.5px;font-weight:800;color:var(--ink);margin-bottom:8px;line-height:1.5;}
+  .sgmap .porig .pt b{color:var(--red);}
+  .sgmap .porig .pr{font-size:13px;color:var(--sub);line-height:1.6;padding:5px 0;border-top:1px solid var(--line);}
+  .sgmap .porig .pr:first-of-type{border-top:none;}
+  .sgmap .porig .pl{display:inline-block;min-width:104px;font-weight:800;color:var(--ink);}
+  .sgmap .porig .pe{font-weight:800;color:var(--blue);font-family:var(--mono);font-size:12px;}
   .sgmap .ehead{font-size:15.5px;font-weight:800;display:flex;align-items:center;gap:8px;margin:20px 0 9px;}
   .sgmap .ehead .ecnt{font-size:12.5px;font-weight:700;color:var(--sub);}
   .sgmap .ehead .enote{font-size:12px;font-weight:600;color:#9AA4B0;}
@@ -394,12 +401,21 @@
       <div class="card row2"><div class="ti"><span class="no">2</span>크롤실패=표기</div><div class="detail">옛 가격/재고 끌어쓰지 않고 <span class="ink">"크롤 실패"</span> (하드리셋 NULL → finalize).</div></div>
       <div class="card row2"><div class="ti"><span class="no">3</span>단일 진실원천</div><div class="detail">표면가=<span class="mono">last_price</span>, 매입가=<span class="mono">compute_market_price</span> 한 곳에서만.</div></div>
       <div class="card row2"><div class="ti"><span class="no">4</span>누락에 경고</div><div class="detail">후보가 조용히 탈락(None) 금지 → <span class="ink">화면·로그에 드러나야</span>.</div></div>
+      <div class="detail" style="margin-top:11px;font-size:14px;color:var(--sub);line-height:1.6;">↳ 이 4원칙은 모두 <b style="color:var(--ink)">실제 에러에서</b> 나온 교훈이다 — 각 원칙이 <b style="color:var(--ink)">어떤 에러</b>에서 나왔는지는 <b style="color:var(--ink)">6 에러이력</b> 상단 '원칙 ← 출처 에러' 참고.</div>
     </div>
 
     <!-- 6 에러이력 -->
     <div class="sec" id="s6">
       <div class="lead"><span class="klabel">핵심</span><span class="sum">과거 발생한 재고·가격·저장 에러 카탈로그 — 신규 추가·수정 전 먼저 확인.</span></div>
       <div class="e3">🛑 <b>신규 소싱처 추가·크롤/저장 코드 수정 전, 이 카탈로그부터 확인.</b> 같은 원인이 다른 소싱처에서 재발한다. · 분류 2축 = 증상유형(📦재고·💰가격·🛠️기타) × 원인계층(<span style="color:#7C3AED;font-weight:800">백엔드</span>·<span style="color:#E8830C;font-weight:800">프론트</span>(확장 포함)·기타) · 상태 ✅수정 / ⏳미수정.<br>🛡️ <b>조용한 실패 3원칙</b> — (a) 저장 실패는 항상 표면화 · (b) 삭제형 저장은 빈 페이로드 가드 · (c) 대량 저장은 동시성 제한 + 멱등 재시도.</div>
+      <div class="porig">
+        <div class="pt">🛡️ <b>5 원칙</b>은 모두 <b>실제 에러에서</b> 나왔다 — 원칙을 어기면 그 에러가 재발한다 (원칙 ← 출처 에러).</div>
+        <div class="pr"><span class="pl">폴백가 금지</span>← <span class="pe">P23</span> 가짜 95000 · <span class="pe">S1·S2·S8</span> 상품합계 재고 폴백 둔갑</div>
+        <div class="pr"><span class="pl">크롤실패=표기</span>← <span class="pe">S14</span> 하드리셋·판매차단(현재 inert) · <span class="pe">P7</span> 일시실패 stale 정체 · <span class="pe">P6</span> 신규URL 드롭</div>
+        <div class="pr"><span class="pl">단일 진실원천</span>← <span class="pe">P4</span> 셀≠계산식 · <span class="pe">O1</span> last_price 평균vs최저 · <span class="pe">P19·P21</span> cross-source 오저장·중복 product</div>
+        <div class="pr"><span class="pl">누락에 경고</span>← <span class="pe">P6</span> not_found 드롭 · <span class="pe">P13·P15</span> 무보고 skip · <span class="pe">O7·P10</span> 저장실패 위장·HTTP500 누락</div>
+        <div class="pr"><span class="pl">조용한실패 3원칙</span>← (a)표면화 <span class="pe">O7·O9·O10·O5</span> · (b)빈 페이로드 가드 <span class="pe">P11</span> · (c)동시성 제한 <span class="pe">P10</span></div>
+      </div>
       <div id="errcards"></div>
     </div>
 
