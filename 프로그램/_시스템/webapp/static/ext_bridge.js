@@ -56,12 +56,23 @@
     });
   }
 
+  // [2026-06-28] 비-JSON(HTML 에러페이지·502/504·로그인 리다이렉트) 응답이면 x.json() 이
+  //   SyntaxError 로 조용히 터지는 대신 명확한 에러를 던진다(res.ok·content-type 검증).
+  //   조용한 실패 3원칙 (a) — 실패는 항상 표면화.
+  async function fetchJson(url, opts) {
+    const r = await fetch(url, opts);
+    const ct = r.headers.get("content-type") || "";
+    if (!r.ok || ct.indexOf("application/json") < 0) {
+      throw new Error("서버 응답 오류 " + r.status + " (" + (ct || "no content-type") + ") — " + url);
+    }
+    return r.json();
+  }
+
   // 모음전 1건을 확장으로 크롤 → 저장. 기본 대상 = 서버가 못 긁는 무신사·롯데온.
   async function crawlBundle(code, opts) {
     opts = opts || {};
     const sourceKeys = opts.sources || ["musinsa", "lotteon"];
-    const r = await fetch("/api/bundles/" + encodeURIComponent(code) + "/option-matrix")
-      .then((x) => x.json());
+    const r = await fetchJson("/api/bundles/" + encodeURIComponent(code) + "/option-matrix");
     const seen = new Set();
     const list = [];
     (r.options || []).forEach((o) =>
@@ -100,7 +111,7 @@
   async function _schedTick() {
     if (!installed()) return;
     try {
-      const r = await fetch("/api/bundles/codes").then((x) => x.json());
+      const r = await fetchJson("/api/bundles/codes");
       const codes = (r && r.codes) || [];
       for (let i = 0; i < codes.length; i++) {
         try { await crawlBundle(codes[i]); } catch (_) {}
