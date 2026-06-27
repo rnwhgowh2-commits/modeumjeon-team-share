@@ -177,6 +177,9 @@ def _apply_lightweight_migrations() -> None:
         ("brand_color_overrides", "letter", "VARCHAR(16)"),
         # [2026-05-27 D1] 사용자가 매트릭스에서 OFF 한 옵션 (URL 매핑 있어 데이터 보존). True=활성, False=비활성.
         ("options", "is_active", "BOOLEAN DEFAULT 1 NOT NULL"),
+        # [2026-06-13 / 복원 2026-06-28] 크롤 차단 게이트 — 유효 소싱가 없는 옵션 판매차단.
+        #   2026-06-22 stale 머지(94466889)에서 컬럼 유실 → 복원. (S14 가짜 '재고있음'·게이트 inert 원인)
+        ("options", "crawl_blocked", "BOOLEAN DEFAULT 0 NOT NULL"),
         # 2026-06-05: 혜택 표시 카테고리 (정액/정률/결제/캐시백/기타) — 새 혜택 추가 모달에서 사용자 지정
         ("source_benefit_templates", "category", "VARCHAR(16)"),
         ("option_benefit_overrides", "category", "VARCHAR(16)"),

@@ -212,6 +212,12 @@ class Option(Base):
     # True (기본) = 활성. 셀 클릭으로 토글.
     is_active = Column(Boolean, default=True, nullable=False)
 
+    # [2026-06-13 / 복원 2026-06-28] 크롤 차단 — 크롤 시작 시 pessimistic True, 종료 후
+    #   '유효 소싱가(is_crawl_valid)' 있는 옵션만 False 로 해제. 옛/잘못된 값 판매 사고 방지.
+    #   판매가능 = is_active(사용자 수동 ON) AND NOT crawl_blocked(크롤 정상).
+    #   ⚠️ 2026-06-22 stale 브랜치 머지(94466889)에서 컬럼·함수 동반 유실 → preview 게이트 inert.
+    crawl_blocked = Column(Boolean, default=False, nullable=False)
+
     # 소싱처별 옵션 ID (NULL 가능)
     option_id_lemouton = Column(String(128))
     option_id_musinsa = Column(String(128))

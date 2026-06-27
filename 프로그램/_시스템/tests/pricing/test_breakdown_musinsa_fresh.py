@@ -1,5 +1,20 @@
-from webapp.routes.api_benefits import _musinsa_effective_from_crawl
-from lemouton.pricing.final_price import compute_final_price
+import pytest
+
+# [2026-06-28 보류] 이 테스트가 검증하던 _musinsa_effective_from_crawl(크롤 스냅샷 gate 방식)은
+#   2026-06-22 compute_breakdown 이 dynamic_benefits_json(surface_price·grade_reward_amount +
+#   동적 dummy 주입, api_benefits.py:608) 방식으로 교체하면서 폐기됨. 같은 시기 stale 브랜치
+#   머지(94466889)에서 함수 자체도 유실 → import 에러로 전체 collection 실패하던 것을 막는다.
+#   옛 방식 대상 단위테스트라 '복원'은 죽은 코드 부활이라 부적절. 아래 GUIDE/ACC* 수치는
+#   사용자 정의 무신사 혜택 가이드(2026-06-14) 참고용으로 보존. 라이브 무신사 최종매입가 검증은
+#   compute_breakdown 경로 + '혜택 라이브 리프레시' 워크스트림에서 별도로 다룬다.
+pytest.skip(
+    "superseded: musinsa fresh-snapshot helper 폐기(→ compute_breakdown dynamic_benefits_json). "
+    "혜택-리프레시 워크스트림에서 compute_breakdown 경로로 재작성 예정.",
+    allow_module_level=True,
+)
+
+from webapp.routes.api_benefits import _musinsa_effective_from_crawl  # noqa: E402
+from lemouton.pricing.final_price import compute_final_price  # noqa: E402
 
 # 가이드(사용자 정의 2026-06-14):
 #   후기적립 = 고정 500원(텍스트후기만, 사진후기 2,500 제외).

@@ -1107,12 +1107,133 @@ def get_option_matrix(code: str):
 
 
 # ════════════════════════════════════════════════════════════
+#  크롤 시작 하드 리셋 + 종료 후 판매차단(crawl_blocked) 재계산
+#  [2026-06-13 / 복원 2026-06-28] 옛 가격/재고가 재크롤에 안 덮이면 잘못된 값으로 판매
+#    → 치명적 손실. 그래서:
+#   · 크롤 시작 시: 그 모음전의 SourceProduct/SourceOption 가격·재고·혜택을 비우고(NULL,
+#     status='pending'), 옵션을 pessimistic 으로 crawl_blocked=True (유효가격 다시 잡히면 해제).
+#   · 크롤 종료 시: 옵션별 '유효 소싱가(is_crawl_valid)' 유무로 crawl_blocked 재계산.
+#   판매가능 = Option.is_active(사용자 수동) AND NOT Option.crawl_blocked(크롤 정상).
+#   매칭 로직 중복 없이 _option_matrix_data(단일 진실 원천) 재사용.
+#  ⚠️ 2026-06-22 stale 브랜치 머지(94466889)에서 본 함수들이 유실되어 service.py 의
+#     try/except:pass 가 ImportError 를 조용히 삼킴 → 하드리셋·판매차단이 inert 였음(S14).
+#     2026-06-28 복원. lemouton/sources/service.py::crawl_bundle_registered_urls 가 호출.
+# ════════════════════════════════════════════════════════════
+
+def _reset_bundle_crawl_state(s, code: str) -> dict:
+    """크롤 시작 직전 — 그 모음전의 소싱 가격/재고/혜택 비우고 옵션 pessimistic block."""
+    from lemouton.sources.models import SourceProduct, SourceOption
+    from lemouton.sourcing.models import Option
+    data = _option_matrix_data(code)
+    opts = data.get('options') or []
+    sp_ids = {src.get('source_product_id')
+              for o in opts for src in (o.get('sources') or [])
+              if src.get('source_product_id')}
+    if sp_ids:
+        (s.query(SourceProduct).filter(SourceProduct.id.in_(sp_ids))
+         .update({SourceProduct.last_price: None, SourceProduct.last_stock: None,
+                  SourceProduct.last_status: 'pending',
+                  SourceProduct.dynamic_benefits_json: None},
+                 synchronize_session=False))
+        (s.query(SourceOption).filter(SourceOption.source_product_id.in_(sp_ids))
+         .update({SourceOption.current_price: None, SourceOption.current_stock: None,
+                  SourceOption.dynamic_benefits_json: None},
+                 synchronize_session=False))
+    skus = [o['sku'] for o in opts if o.get('sku')]
+    if skus:
+        (s.query(Option).filter(Option.canonical_sku.in_(skus))
+         .update({Option.crawl_blocked: True}, synchronize_session=False))
+    s.commit()
+    return {'reset_products': len(sp_ids), 'blocked_options': len(skus)}
+
+
+def _sources_have_valid_price(sources) -> bool:
+    """옵션의 소싱 목록 중 '판매에 쓸 수 있는 유효 가격'이 하나라도 있나 — 단일 판정.
+
+    유효 = 매칭 실패(안 파는 조합) 아님 AND is_crawl_valid(가격>0, status!='error').
+    리셋 후 미커버(NULL/pending)·크롤실패(error)·매칭실패는 모두 무효 → 판매차단 대상.
+    """
+    return any(
+        (not src.get('match_failed'))
+        and is_crawl_valid(src.get('crawled_price'), src.get('last_status'))
+        for src in (sources or [])
+    )
+
+
+def _finalize_bundle_crawl_block(s, code: str) -> dict:
+    """크롤 종료 후 — 옵션별 유효 소싱가 유무로 crawl_blocked 재계산(성공=해제, 실패=차단)."""
+    from lemouton.sourcing.models import Option
+    data = _option_matrix_data(code)
+    opts = data.get('options') or []
+    blocked = sellable = 0
+    for o in opts:
+        sku = o.get('sku')
+        if not sku:
+            continue
+        opt = s.get(Option, sku)
+        if opt is None:
+            continue
+        # 오프라인 전용(소싱 URL 없이 사입만) 옵션은 크롤 차단 대상 아님
+        if getattr(opt, 'offline_only', False):
+            new_blocked = False
+        else:
+            new_blocked = not _sources_have_valid_price(o.get('sources') or [])
+        opt.crawl_blocked = new_blocked
+        blocked += int(new_blocked)
+        sellable += int(not new_blocked)
+    s.commit()
+    return {'blocked': blocked, 'sellable': sellable}
+
+
+@bp.post('/bundles/<code>/crawl-reset')
+def post_crawl_reset(code: str):
+    """크롤 시작 직전 호출(확장·서버 공통) — 가격/재고/혜택 하드 리셋 + 옵션 pessimistic block."""
+    s = SessionLocal()
+    try:
+        return _ok(**_reset_bundle_crawl_state(s, code))
+    finally:
+        s.close()
+
+
+@bp.post('/bundles/<code>/crawl-finalize')
+def post_crawl_finalize(code: str):
+    """크롤 종료 후 호출 — 유효 소싱가 없는 옵션을 crawl_blocked=True 로 판매차단."""
+    s = SessionLocal()
+    try:
+        return _ok(**_finalize_bundle_crawl_block(s, code))
+    finally:
+        s.close()
+
+
+# ════════════════════════════════════════════════════════════
 #  POST /api/sources/crawl-result — 크롬 확장(로그인 브라우저) 크롤 결과 저장
 #  [2026-06-06] '모음전 크롤러' 확장이 로컬 브라우저로 긁은 가격/재고를 SourceProduct
 #    에 반영(서버가 직접 못 긁는 무신사 회원가·롯데온 SPA 등). 매트릭스·fx 가
 #    SourceProduct.last_price/last_stock/last_status 를 읽으므로 여기 쓰면 UI·계산식에
 #    그대로 반영된다. 설계: docs/소싱처관리_아키텍처.md
 # ════════════════════════════════════════════════════════════
+def _build_crawl_snapshot(item: dict, *, now_iso: str) -> dict:
+    """확장 크롤 1건(item)에서 '이번 브라우저 기준' 혜택 스냅샷을 만든다.
+
+    benefit_lines/benefit_amounts 가 오면 benefits_ok=True. 없으면 빈 스냅샷
+    (benefits_ok=False) — 빈 배열을 '혜택 없음'으로 둔갑시키지 않는다(미수집).
+
+    ⚠️ 2026-06-22 stale 머지에서 유실 → 2026-06-28 복원(순수 헬퍼). 현재 save_crawl_result
+       는 호출하지 않음(혜택 영속은 별개 워크스트림). 회귀 테스트·향후 배선용으로 보존.
+    """
+    lines = item.get('benefit_lines')
+    amounts = item.get('benefit_amounts')
+    has = isinstance(lines, list) and bool(item.get('benefits_ok'))
+    return {
+        'crawled_at': now_iso,
+        'is_logged_in': (None if item.get('is_logged_in') is None
+                         else bool(item.get('is_logged_in'))),
+        'benefits_ok': bool(has),
+        'lines': list(lines) if isinstance(lines, list) else [],
+        'amounts': dict(amounts) if isinstance(amounts, dict) else {},
+    }
+
+
 @bp.post('/sources/crawl-result')
 def save_crawl_result():
     """확장 크롤 결과 일괄 저장.
