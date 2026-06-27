@@ -130,7 +130,8 @@ SOURCE_CATALOG = [
     {'key': 'lotteimall', 'label': '롯데아이몰', 'glyph': '롯i', 'logo_color': '#ED1C24',
      'domain': 'lotteimall.com', 'crawl_method': 'SSR HTML→파싱 (확장 navGrab·WAF 우회)',
      'stock_rule': 'itemInvQtyInfo.inv_qty (0=품절·N=실수량)',
-     'benefit': 'point_rewards(L.POINT)', 'has_adapter': True, 'needs_login': False},
+     # 어댑터 코드는 연결됐으나 라이브 URL 검증 전 → '크롤 미지원'으로 유지(검증 후 True).
+     'benefit': 'point_rewards(L.POINT)', 'has_adapter': False, 'needs_login': False},
     {'key': 'hmall', 'label': '현대H몰', 'glyph': 'H', 'logo_color': '#00A05B',
      'domain': 'hmall.com', 'crawl_method': '내장 __NEXT_DATA__ (혜택은 확장 navGrab)',
      'stock_rule': 'itemPtc.stockList[].stockCount (0=품절·N=실수량)',
