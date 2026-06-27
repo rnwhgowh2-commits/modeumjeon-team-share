@@ -74,6 +74,29 @@ def bundle_options(code):
         s.close()
 
 
+@bp.get("/sets/upload-accounts")
+def upload_accounts():
+    """단계③ 판매처 선택용 — 등록된 업로드 계정 + 키 보유 여부."""
+    from lemouton.sourcing.models_v2 import UploadAccount
+    from lemouton.auth import secrets as _secrets
+    s = SessionLocal()
+    try:
+        accts = (s.query(UploadAccount).filter_by(is_active=True)
+                 .order_by(UploadAccount.market, UploadAccount.id).all())
+        out = []
+        for a in accts:
+            try:
+                _secrets.load_credentials(market=a.market, env_prefix=a.env_prefix)
+                has_key = True
+            except Exception:
+                has_key = False
+            out.append({"account_key": a.account_key, "display_name": a.display_name,
+                        "market": a.market, "has_key": has_key})
+        return jsonify({"ok": True, "accounts": out})
+    finally:
+        s.close()
+
+
 @bp.post("/sets")
 def create_set():
     p = request.get_json(silent=True) or {}
