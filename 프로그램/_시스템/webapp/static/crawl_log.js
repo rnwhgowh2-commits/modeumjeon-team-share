@@ -1218,7 +1218,9 @@
           // url_type 기반 카드 키: getUrlSource 가 product_url → url_type 변환.
           var _url2 = d.url || null;
           var s2 = getUrlSource(b, sk, _url2); s2.done = (s2.done || 0) + 1;
-          if (level === 'warn') s2.fail = (s2.fail || 0) + 1; else s2.ok = (s2.ok || 0) + 1;
+          // [2026-06-28 O5] honesty — 가격(표면노출가)을 못 긁었으면 성공으로 세지 않음.
+          //   item-done 시점엔 buy(매입가)는 항상 null(fx 이후 채워짐)이라 surf 로 판정.
+          if (level === 'warn' || d.surf == null) s2.fail = (s2.fail || 0) + 1; else s2.ok = (s2.ok || 0) + 1;
           s2.status = 'run';
           // fallback labelForUrl 의 urlOrder 갱신(DATA 없을 때 url_type 순서 번호용)
           if (_url2) {

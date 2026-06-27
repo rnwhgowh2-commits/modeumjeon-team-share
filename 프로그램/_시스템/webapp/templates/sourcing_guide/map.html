@@ -566,19 +566,19 @@
    {g:'가격',l:'be',src:'신규 등록 URL',st:'ok',cm:'21dc3ded',sy:'위젯 \'완료\'인데 매트릭스 \'크롤링 미실시\'',cz:'save_crawl_result가 SourceProduct 없으면 not_found로 조용히 드롭(등록은 BundleSourceUrl만 생성)',pv:'등록 URL이면 upsert_source_product로 행 생성 후 저장'},
    {g:'가격',l:'etc',src:'무신사 등',st:'ok',sy:'일시 실패→소싱처 0% 정체',cz:'고부하 타임아웃/빈그랩 + 하드리셋 price=null이면 last_price 안 덮어 stale에 status=error 정체',pv:'재시도 + 동시창 축소(폴백 유지)'},
    {g:'가격',l:'be',src:'롯데온·SSG',st:'ok',sy:'카드 청구할인 미반영',cz:'청구할인 없을 때 현대카드 2.73% fallback 미주입',pv:'결제 택1 pick-best 주입'},
-   {g:'가격',l:'be',src:'무신사 등',st:'todo',sy:'혜택 금액 0으로 저장',cz:'크롤이 회원혜택(등급적립·머니) OFF 금액0 저장 + 부분 스냅샷이 템플릿 가림',pv:'혜택 금액0 의심·게이트'},
+   {g:'가격',l:'be',src:'무신사 등',st:'ok',cm:'2026-06-22',sy:'혜택 금액 0으로 저장(부분 스냅샷이 템플릿 가림)',cz:'override가 템플릿 전체 가림→이름 기준 병합으로 해소(P20 동일). 무신사 비로그인 금액0 clear는 의도(폴백 금지)',pv:'이름 기준 병합(api_benefits.py:572)'},
    {g:'가격',l:'etc',l2:'fe',src:'URL 저장',st:'ok',cm:'77127de8',sy:'URL 저장 시 매번 임의 ~7건이 HTTP 500으로 조용히 누락',cz:'48개를 Promise.all 동시 저장→Supabase 풀(15) 초과',pv:'대량 저장 동시성 제한(5) + PUT 일시 500 재시도'},
    {g:'가격',l:'fe',l2:'be',src:'URL↔옵션 매핑',st:'ok',cm:'c5406e92',sy:'멀쩡한 URL↔옵션 매핑이 통째 삭제될 수 있음',cz:'옵션키 canonical_sku 해소 실패 시 빈 목록 전송, 백엔드는 빈 목록=전체삭제',pv:'delete형 저장은 빈 페이로드 가드(빈 목록 omit)'},
    {g:'가격',l:'fe',src:'옵션조합 모달',st:'todo',sy:'축 값 이름변경(240→245) 시 매핑이 조용히 유실',cz:'rename 시 매핑 키 마이그레이션 없음',pv:'rename 시 매핑 키 마이그레이션'},
-   {g:'가격',l:'be',src:'URL 저장',st:'todo',sy:'무효 SKU를 거부 건수 보고 없이 조용히 skip',cz:'_sync_option_links가 rejected 무보고(재고매핑은 보고)',pv:'URL 저장도 rejected 건수 보고'},
-   {g:'가격',l:'fe',src:'매트릭스',st:'todo',sy:'\'재계산▶\' 버튼이 저장 0인 stub',cz:'버튼이 실제 재계산·저장 안 함',pv:'재계산 실제 구현 또는 버튼 숨김'},
-   {g:'가격',l:'be',src:'가격설정 일괄저장',st:'todo',sy:'허용목록 밖 필드를 조용히 무시',cz:'api_pricing price-config/bulk 허용목록 밖 무음 skip',pv:'거부 필드 보고'},
+   {g:'가격',l:'be',src:'URL 저장',st:'ok',cm:'2026-06-28',sy:'무효 SKU를 거부 건수 보고 없이 조용히 skip',cz:'_sync_option_links가 rejected 무보고(재고매핑은 보고)',pv:'_sync_option_links가 rejected 반환→응답 rejected_skus(재고매핑 거울)'},
+   {g:'가격',l:'fe',src:'매트릭스',st:'todo',sy:'\'재계산▶\' 버튼이 저장 0인 stub',cz:'버튼이 실제 재계산·저장 안 함(누르면 loadMatrix 새로고침만)',pv:'실제 재계산 미구현 잔존 — 라벨 \'재계산(준비중)\'으로 오인 차단(2026-06-28)'},
+   {g:'가격',l:'be',src:'가격설정 일괄저장',st:'ok',cm:'2026-06-28',sy:'허용목록 밖 필드를 조용히 무시',cz:'bulk_set_price_config가 허용목록 밖 필드를 무보고 skip',pv:'응답에 ignored_fields 추가(저장 불변, 보고만)'},
    // 🛠️ 기타
    {g:'기타',l:'etc',src:'구조(원칙)',st:'todo',sy:'조용한 실패 버그 클래스',cz:'무결성 제약 부재(A) + SSOT 분열(last_price 평균 vs 최저)(B) + 누락 무경고(None 탈락)(C)',pv:'DB 제약 + SSOT 통일 + None 후보 경고 (상단 3원칙)'},
    {g:'기타',l:'etc',src:'배포',st:'ok',sy:'배포 success인데 옛 코드 영속',cz:'docker run이 기존 컨테이너 미교체로 백엔드 옛 코드로 계속 돎',pv:'docker rm -f + 교체 검증 (success ≠ 코드 라이브)'},
    {g:'기타',l:'etc',src:'확장',st:'todo',sy:'수정해도 라이브 미반영 (주의)',cz:'확장 버전 분열 + 로드된 확장 = 데스크톱 사본(dev 사본 고쳐도 무효)',pv:'로드 확장 경로 확인 후 reload'},
    {g:'기타',l:'etc',src:'DB',st:'todo',sy:'dev 값이 라이브와 다름 (주의)',cz:'dev DB는 라이브보다 수십~수백 커밋 stale',pv:'라이브 대조 필수(dev 신뢰 금지)'},
-   {g:'기타',l:'fe',src:'크롤 위젯',st:'todo',sy:'가격 없어도 \'성공 ✓\' 표기',cz:'위젯이 price=null을 성공으로 표기(honesty 버그)',pv:'유효가격 없으면 실패 표면화'},
+   {g:'기타',l:'fe',src:'크롤 위젯',st:'ok',cm:'2026-06-28',sy:'가격 없어도 \'성공 ✓\' 표기',cz:'위젯이 level!==warn이면 표면가 없어도 성공 카운트',pv:'item-done 시 surf(표면가) 없으면 실패 집계(매입가는 fx 이후라 surf로 판정)'},
    {g:'기타',l:'etc',src:'롯데온 per-size',st:'todo',sy:'롯데온은 사이즈별 수량 아닌 상품단위 999/0만',cz:'확장 lotteonExtractor가 per-option 재고 미수집(상품 DOM만) — 수집 자체 미구현',pv:'per-size 수집 extractor 구현(별도 작업)'},
    {g:'기타',l:'fe',src:'옵션조합 모달',st:'ok',cm:'c948d4ec',sy:'저장 실패해도 "저장 완료"로 표시',cz:'에러를 console.warn으로 삼킴',pv:'저장 함수는 {ok,errors[]} 반환·버튼이 실패 표면화'},
    {g:'기타',l:'fe',src:'옵션조합 모달',st:'ok',cm:'c5406e92',sy:'저장 직전 재로딩 빈응답이면 r.json() 터져 저장 전체 무산',cz:'외부 응답 파싱 전 검증 없음',pv:'res.ok + 본문 검증 후 명확 메시지로 중단'},
@@ -596,13 +596,13 @@
    {g:'가격',l:'be',src:'르무통 등',st:'ok',sy:'혜택 12개 중 1개만 남고 템플릿 전부 드롭→언더프라이싱',cz:'compute_breakdown 게이트가 override 1건이라도 있으면 템플릿 전체 무시(매트릭스서 혜택 1개만 건드리면 발생)',pv:'이름 기준 병합(override+템플릿)'},
    {g:'가격',l:'be',src:'SSF 등',st:'ok',sy:'재크롤해도 영영 안 갱신(pending 고정)',cz:'정규화 도입 전 raw URL 행을 upsert_source_product가 못 찾아 매번 중복 SourceProduct 생성→매트릭스가 중복 중 pending행을 비결정적으로 픽',pv:'양쪽 정규화 비교 + dedupe 마이그레이션'},
    {g:'가격',l:'be',src:'전 소싱처',st:'ok',sy:'/breakdowns가 ~110초→새로고침 시 크롤현황 카드 사라짐',cz:'루프(876건)마다 compute_breakdown 내부 5쿼리 + SourceProduct 전체 .all() × Supabase RTT (N+1)',pv:'_build_breakdown_cache 1회 prefetch(110초→0.3초)'},
-   {g:'가격',l:'be',src:'단일옵션',st:'todo',sy:'레거시 단일옵션 price-calc가 크롤가 없으면 95000 가짜 매입가 표시',cz:'get_price_breakdown(api_pricing.py:1630)에 or 95000 폴백 잔존 — 메인 경로만 고쳐 단일 진실 원천 분열(폴백가 금지 위반)',pv:'이 엔드포인트도 폴백 제거·compute_market_price 통일'},
+   {g:'가격',l:'be',src:'단일옵션',st:'ok',cm:'2026-06-28',sy:'레거시 단일옵션 price-calc가 크롤가 없으면 95000 가짜 매입가 표시',cz:'get_price_breakdown에 or 95000 폴백 잔존(메인만 고침). 호출 프론트 없음(dead 레거시)',pv:'or 95000 제거→없으면 price_unavailable+crawl_failed 표면화(§4)'},
    {g:'기타',l:'fe',src:'전체크롤 위젯',st:'ok',sy:'목표 0/진행 0에서 영구멈춤(중지도 무력)',cz:'SW의 bgFetch가 사용자가 열어둔 탭에 주입하는데 크롬이 그 탭을 discard/bfcache→영구 대기(타임아웃 없음)→엔진 wedge',pv:'withTimeout + 전용 백그라운드탭 매 크롤 생성·핀'},
    {g:'기타',l:'fe',src:'전체크롤 위젯',st:'ok',sy:'새로고침·탭이동하면 크롤 멈춤(자동재개 없음)',cz:'큐·진행·결과(_mgr)가 in-memory만이라 MV3가 유휴 서비스워커 재우면 소실(chrome.storage 미사용)',pv:'chrome.storage.session 영속 + 기동 시 bootResume 자동재개'},
    {g:'기타',l:'etc',src:'서버 parse',st:'todo',sy:'전체크롤 일부 건 SyntaxError(<!DOCTYPE 응답)',cz:'/api/sources/parse가 JSON 대신 HTML 에러페이지를 간헐 반환→클라 r.json() throw',pv:'응답 content-type·본문 검증 후 명확 처리'},
    {g:'기타',l:'fe',src:'전 소싱처',st:'todo',sy:'일부 등록 URL이 전체크롤 후에도 pending(단건 recrawl로는 정상)',cz:'확장 전체크롤 오케스트레이션이 일부 URL을 enqueue에서 누락(coverage gap, 미확정)',pv:'enqueue 커버리지 점검·전 URL 포함 보장'},
    {g:'기타',l:'fe',src:'검증탭',st:'ok',sy:'재검증이 무신사·롯데온을 실제로 안 긁고 옛 stale를 크롤실패 표시',cz:'재검증이 서버 recrawl-url만 호출(브라우저 없어 need_extension) + 확장 메시지 경로 불일치(crawl vs crawlBundleAll)',pv:'crawlBundleAll로 전체크롤과 동일화'},
-   {g:'기타',l:'be',src:'서버 refetch',st:'todo',sy:'단건 재크롤(refetch)이 SSG를 SSF 크롤러로 보내 오파싱/실패',cz:'_detect_site_from_url(api_pricing.py:1656)이 ssg.com in u → ssf로 묶음(build_crawlers에 ssg 키는 실재→URL 매퍼만 고치면 됨)',pv:'ssg.com → ssg로 분기'}
+   {g:'기타',l:'be',src:'서버 refetch',st:'ok',cm:'2026-06-28',sy:'단건 재크롤(refetch)이 SSG를 SSF 크롤러로 보내 오파싱/실패',cz:'_detect_site_from_url(api_pricing.py:1656)이 ssg.com in u → ssf로 묶음(build_crawlers에 ssg 키는 실재)',pv:'ssfshop.com→ssf / ssg.com→ssg 분리(부분문자열 충돌 없음)'}
   ];
   var GORD=['재고','가격','기타'],GIC={재고:'📦',가격:'💰',기타:'🛠️'},GNOTE={기타:'O7~O10 = 저장(save) 단계'};
   var LTXT={be:'백엔드',fe:'프론트',etc:'기타'},LCLS={be:'be',fe:'fe',etc:'etc'};

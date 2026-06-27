@@ -1172,15 +1172,18 @@ def _sync_option_links(session, code, url_id, option_ids):
     option_ids = None 이면 매핑 변경 없음.
     빈 list = 매핑 전부 해제.
     각 sku 가 그 model_code 의 옵션인지 검증 (보안 — 타 모델 옵션 매핑 차단).
+
+    반환: 거부된(타 모델·존재X) SKU 목록 (2026-06-28 P13 — 조용한 누락 방지,
+    재고매핑 save_inventory_mapping 의 rejected 패턴 거울).
     """
     if option_ids is None:
-        return
+        return []
     # 기존 매핑 모두 삭제
     (session.query(OptionSourceUrlLink)
      .filter_by(bundle_source_url_id=url_id)
      .delete(synchronize_session=False))
     if not option_ids:
-        return
+        return []
     # 유효성 검증 — 같은 model_code 의 옵션만 허용
     valid_skus = {
         r[0] for r in
@@ -1188,13 +1191,16 @@ def _sync_option_links(session, code, url_id, option_ids):
         .filter(Option.model_code == code, Option.canonical_sku.in_(option_ids))
         .all()
     }
+    rejected = []
     for sku in option_ids:
         if sku not in valid_skus:
-            continue  # 다른 모델 옵션·존재 X — 조용히 skip
+            rejected.append(sku)  # 다른 모델 옵션·존재 X — 버리되 보고
+            continue
         session.add(OptionSourceUrlLink(
             option_canonical_sku=sku,
             bundle_source_url_id=url_id,
         ))
+    return rejected
 
 
 @bp.route('/api/bundles/<code>/source-urls', methods=['POST'])
@@ -1240,7 +1246,7 @@ def api_add_source_url(code):
         s.add(row)
         s.flush()
         _sync_legacy_url_column(s, code, source_key)
-        _sync_option_links(s, code, row.id, option_ids)
+        rejected = _sync_option_links(s, code, row.id, option_ids)
         s.commit()
         return jsonify({
             'ok': True,
@@ -1249,6 +1255,7 @@ def api_add_source_url(code):
             'label': row.label or '',
             'sort_order': row.sort_order,
             'option_ids': option_ids or [],
+            'rejected_skus': rejected[:20],
         })
     finally:
         s.close()
@@ -1284,7 +1291,7 @@ def api_update_source_url(code, url_id):
         option_ids = body.get('option_ids')
         if option_ids is not None and not isinstance(option_ids, list):
             return jsonify({'ok': False, 'error': 'option_ids must be list'}), 400
-        _sync_option_links(s, code, row.id, option_ids)
+        rejected = _sync_option_links(s, code, row.id, option_ids)
 
         # [2026-05-27] sort_order — 카드 순서 변경 지원
         if 'sort_order' in body:
@@ -1306,6 +1313,7 @@ def api_update_source_url(code, url_id):
             'url': row.url,
             'label': row.label or '',
             'option_ids': final_links,
+            'rejected_skus': rejected[:20],
         })
     finally:
         s.close()

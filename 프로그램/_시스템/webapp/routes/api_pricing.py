@@ -1570,6 +1570,8 @@ def bulk_set_price_config():
     skus = data.get('skus') or []
     if not skus:
         return _err('skus 비었어요.')
+    _ALLOWED = ('auto_enabled', 'margin_rate', 'ss_fee_rate', 'cp_fee_rate',
+                'manual_ss_price', 'manual_cp_price', 'manual_stock')
     s = SessionLocal()
     try:
         updated = 0
@@ -1578,13 +1580,14 @@ def bulk_set_price_config():
             if not cfg:
                 cfg = OptionPriceConfig(canonical_sku=sku)
                 s.add(cfg)
-            for f in ('auto_enabled', 'margin_rate', 'ss_fee_rate', 'cp_fee_rate',
-                      'manual_ss_price', 'manual_cp_price', 'manual_stock'):
+            for f in _ALLOWED:
                 if f in data:
                     setattr(cfg, f, data[f])
             updated += 1
         s.commit()
-        return _ok(updated=updated)
+        # 허용목록 밖 필드는 조용히 무시하지 않고 보고 (2026-06-28 P15 fix — 조용한 실패 금지)
+        ignored = [k for k in data if k not in _ALLOWED and k != 'skus']
+        return _ok(updated=updated, ignored_fields=ignored)
     finally:
         s.close()
 
@@ -1626,8 +1629,16 @@ def get_price_breakdown(sku: str):
         except Exception:
             _src_purchase = None
         purchase = (_src_purchase
-                    or (tpl.boxhero_purchase_price if tpl else None)
-                    or 95000)
+                    or (tpl.boxhero_purchase_price if tpl else None))
+        if not purchase:
+            # §4 폴백가 금지 — 가짜 95000 상수 대신 '가격없음+크롤실패' 표면화 (2026-06-28 P23 fix)
+            return _ok(
+                sku=sku, color=opt.color_code, size=opt.size_code,
+                auto_enabled=cfg.auto_enabled if cfg else True,
+                ss=None, cp=None, ss_final=None, cp_final=None,
+                template_name=(tpl.name if tpl else None),
+                price_unavailable=True, crawl_failed=True,
+            )
         ss_price, ss_break = calc_auto_price(purchase, margin, ss_fee,
                                               ss_ship, rounding)
         cp_price, cp_break = calc_auto_price(purchase, margin, cp_fee,
@@ -1653,7 +1664,8 @@ def _detect_site_from_url(url: str) -> str | None:
     u = url.lower()
     if 'lemouton.co.kr' in u: return 'lemouton'
     if 'musinsa.com' in u: return 'musinsa'
-    if 'ssfshop.com' in u or 'ssg.com' in u: return 'ssf'
+    if 'ssfshop.com' in u: return 'ssf'
+    if 'ssg.com' in u: return 'ssg'   # ssg.com 은 ssf 아님 — build_crawlers 에 'ssg' 키 실재 (2026-06-28 O16 fix)
     if 'lotteon.com' in u: return 'lotteon'
     if 'lotteimall.com' in u: return 'lotteimall'
     if 'hmall.com' in u: return 'hmall'
