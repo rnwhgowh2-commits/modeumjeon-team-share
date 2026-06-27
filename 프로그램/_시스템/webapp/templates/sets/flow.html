@@ -174,11 +174,21 @@ async function showSets(m){
   const sets=(d&&d.sets)||[];
   const box=$('#setslist');
   if(!sets.length){ box.innerHTML='<p class="hint">아직 만든 구성이 없어요. 아래 "새 구성 만들기"로 시작하세요.</p>'; }
-  else { box.innerHTML=sets.map(s=>'<div class="row" style="cursor:default"><span class="nm">'+s.name+'</span><button class="btn ghost" style="padding:5px 12px;font-size:12px" onclick="deleteSetRow('+s.id+')">삭제</button></div>').join(''); }
+  else { box.innerHTML=sets.map(s=>'<div class="row" style="cursor:default"><span class="nm">'+s.name+'</span><button class="btn ghost" style="padding:5px 12px;font-size:12px;margin-left:auto" onclick="editSet('+s.id+')">편집</button><button class="btn ghost" style="padding:5px 12px;font-size:12px;margin-left:8px" onclick="deleteSetRow('+s.id+')">삭제</button></div>').join(''); }
   document.getElementById('card1').classList.add('hidden');
   document.getElementById('card-sets').classList.remove('hidden');
 }
-function startNewSet(){ document.getElementById('card-sets').classList.add('hidden'); renderMatrix(); updateCount(); goStep(2); }
+function startNewSet(){ S.editSetId=null; S.selected=new Set(); document.getElementById('setname').value=''; document.getElementById('setqty').value=1; document.getElementById('card-sets').classList.add('hidden'); renderMatrix(); updateCount(); goStep(2); }
+async function editSet(id){
+  const d=await api('GET','/api/sets/'+id);
+  if(!d.ok){ alert(d.error||'불러오기 실패'); return; }
+  const set=d.set; const p=(set.products||[])[0]||{};
+  S.editSetId=id; S.editProductId=p.id; S.selected=new Set(p.options||[]);
+  document.getElementById('setname').value=set.name||'';
+  document.getElementById('setqty').value=p.quantity||1;
+  document.getElementById('card-sets').classList.add('hidden');
+  renderMatrix(); updateCount(); goStep(2);
+}
 async function deleteSetRow(id){ if(!confirm('이 구성을 삭제할까요?')) return; const r=await api('DELETE','/api/sets/'+id); if(r.ok) showSets(S.bundle); else alert(r.error||'삭제 실패'); }
 
 // ── 단계 2 매트릭스 ──
@@ -214,13 +224,13 @@ async function saveSet(){
   if(!name){ alert('구성명을 입력해 주세요.'); return; }
   if(!S.selected.size){ alert('옵션을 1개 이상 선택해 주세요.'); return; }
   $('#saveSet').disabled=true;
-  const c=await api('POST','/api/sets',{model_code:S.bundle.code, name, quantity:qty});
+  const c=S.editSetId?{ok:true,set_id:S.editSetId,product_id:S.editProductId}:await api('POST','/api/sets',{model_code:S.bundle.code, name, quantity:qty});
   if(!c.ok){ alert(c.error||'저장 실패'); $('#saveSet').disabled=false; return; }
   S.setId=c.set_id; S.productId=c.product_id;
   const o=await api('POST','/api/sets/'+S.setId+'/options',{set_product_id:S.productId, canonical_skus:[...S.selected]});
   $('#saveSet').disabled=false;
   if(!o.ok){ alert(o.error||'옵션 저장 실패'); return; }
-  goStep(3); loadAccounts();
+  S.editSetId=null; goStep(3); loadAccounts();
 }
 
 // ── 단계 3 판매처 ──
