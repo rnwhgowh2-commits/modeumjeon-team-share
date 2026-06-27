@@ -78,6 +78,16 @@
     <div id="results"></div>
   </div>
 
+  <!-- 구성 목록 (모음전 선택 후) -->
+  <div class="card hidden" id="card-sets">
+    <h2>구성 목록 — <span id="bsname" style="color:var(--blue2)"></span></h2>
+    <div id="setslist"></div>
+    <div class="bar">
+      <button class="btn ghost" onclick="goStep(1)">← 다른 모음전</button>
+      <button class="btn" onclick="startNewSet()">+ 새 구성 만들기</button>
+    </div>
+  </div>
+
   <!-- 단계 2 -->
   <div class="card hidden" id="card2">
     <h2>② 옵션 구성 — <span id="b2name" style="color:var(--blue2)"></span></h2>
@@ -129,6 +139,7 @@ async function api(method, url, body){
   return r.json();
 }
 function goStep(n){
+  const _cs=document.getElementById('card-sets'); if(_cs) _cs.classList.add('hidden');
   for(let i=1;i<=4;i++) $('#card'+i).classList.toggle('hidden', i!==n);
   document.querySelectorAll('#stepbar .step').forEach(el=>{
     const s=+el.dataset.s; el.classList.toggle('on', s===n); el.classList.toggle('done', s<n);
@@ -152,12 +163,23 @@ $('#q').addEventListener('input', e=>{
 });
 
 async function pickBundle(m){
-  S.bundle=m; $('#b2name').textContent=m.name||m.code;
+  S.bundle=m; $('#b2name').textContent=m.name||m.code; const _bs=document.getElementById('bsname'); if(_bs) _bs.textContent=m.name||m.code;
   const d=await api('GET','/api/sets/bundle/'+encodeURIComponent(m.code)+'/options');
   S.options=d; S.selected=new Set(); S.comboMap={};
   (d.options||[]).forEach(o=>{ S.comboMap[o.color+' '+o.size]=o.canonical_sku; });
-  checkDropped(d); renderMatrix(); updateCount(); goStep(2);
+  checkDropped(d); renderMatrix(); updateCount(); await showSets(m);
 }
+async function showSets(m){
+  const d=await api('GET','/api/sets?model_code='+encodeURIComponent(m.code));
+  const sets=(d&&d.sets)||[];
+  const box=$('#setslist');
+  if(!sets.length){ box.innerHTML='<p class="hint">아직 만든 구성이 없어요. 아래 "새 구성 만들기"로 시작하세요.</p>'; }
+  else { box.innerHTML=sets.map(s=>'<div class="row" style="cursor:default"><span class="nm">'+s.name+'</span><button class="btn ghost" style="padding:5px 12px;font-size:12px" onclick="deleteSetRow('+s.id+')">삭제</button></div>').join(''); }
+  document.getElementById('card1').classList.add('hidden');
+  document.getElementById('card-sets').classList.remove('hidden');
+}
+function startNewSet(){ document.getElementById('card-sets').classList.add('hidden'); renderMatrix(); updateCount(); goStep(2); }
+async function deleteSetRow(id){ if(!confirm('이 구성을 삭제할까요?')) return; const r=await api('DELETE','/api/sets/'+id); if(r.ok) showSets(S.bundle); else alert(r.error||'삭제 실패'); }
 
 // ── 단계 2 매트릭스 ──
 function checkDropped(d){
