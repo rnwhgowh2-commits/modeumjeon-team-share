@@ -1532,6 +1532,37 @@
      "txt": "커스텀 소싱처 매트릭스 미표시(source_id=null) 수정",
      "src": "매트릭스/위젯",
      "cm": "9db59f6f"
+    },
+    {
+     "d": "2026-06-28",
+     "a": "fix",
+     "txt": "위젯 카운트/카드도 수정(orderedUrlCards 커스텀 베이스 순회)",
+     "src": "매트릭스/위젯",
+     "cm": "5ecf8c46"
+    }
+   ]
+  },
+  {
+   "id": "O19",
+   "g": "기타",
+   "l": "be",
+   "src": "매트릭스",
+   "st": "ok",
+   "cm": "ded0aace",
+   "sy": "롯데아이몰 소싱처 카드가 두 개(100%·9/9 / —·0/0 크롤전)로 떠 빈 카드가 미크롤 오인",
+   "cz": "O18 key: 합성과 별개로 SourceRegistry 동명 행(롯데아이몰)이 셀·통계 미연결 빈 카드로 같이 노출. 카드 그리드(_matrix_v3.html)가 DATA.sources 직접 순회→빈 트윈 렌더(hmall은 레지스트리행 없어 1개)",
+   "pv": "_option_matrix_data가 DATA.sources 조립 시 셀/통계 붙은 컬럼을 진짜로 보고 같은 이름의 데이터 없는 빈 트윈만 제거(고유 빈 소싱처 유지)",
+   "code": { "file": "webapp/routes/api_pricing.py", "func": "_option_matrix_data", "desc": "동명 빈 트윈 컬럼 dedup" },
+   "crawl": "ok",
+   "doc": "sync",
+   "view": "sync",
+   "rev": [
+    {
+     "d": "2026-06-28",
+     "a": "add",
+     "txt": "롯데아이몰 소싱처 카드 중복(빈 크롤전 트윈) 제거",
+     "src": "매트릭스",
+     "cm": "ded0aace"
     }
    ]
   }
