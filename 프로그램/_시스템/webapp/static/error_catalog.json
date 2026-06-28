@@ -525,7 +525,7 @@
       "sy": "배포 success인데 옛 코드 영속",
       "cz": "docker run이 기존 컨테이너 미교체로 백엔드 옛 코드로 계속 돎",
       "pv": "docker rm -f + 교체 검증 (success ≠ 코드 라이브)",
-      "crawl": "no", "doc": "sync", "view": "sync",
+      "crawl": "ok", "doc": "sync", "view": "sync",
       "rev": [
         {"d": "2026-06-27", "a": "add", "txt": "배포 success 옛 코드 영속", "src": "배포"}
       ]
@@ -536,7 +536,7 @@
       "sy": "수정해도 라이브 미반영 (상시 주의)",
       "cz": "확장 버전 분열 + 로드된 확장 = 데스크톱 사본(dev 사본 고쳐도 무효)",
       "pv": "버그 아님 — 작업 주의: 로드 확장(v0.6.7) 경로 확인 후 reload",
-      "crawl": "no", "doc": "sync", "view": "sync",
+      "crawl": "ok", "doc": "sync", "view": "sync",
       "rev": [
         {"d": "2026-06-27", "a": "add", "txt": "확장 수정 라이브 미반영 상시 주의", "src": "확장"}
       ]
@@ -547,7 +547,7 @@
       "sy": "dev 값이 라이브와 다름 (상시 주의)",
       "cz": "dev DB는 라이브보다 수십~수백 커밋 stale",
       "pv": "버그 아님 — 작업 주의: 라이브 대조 필수(dev 신뢰 금지)",
-      "crawl": "no", "doc": "sync", "view": "sync",
+      "crawl": "ok", "doc": "sync", "view": "sync",
       "rev": [
         {"d": "2026-06-27", "a": "add", "txt": "dev DB stale 라이브 대조 필수", "src": "DB"}
       ]
