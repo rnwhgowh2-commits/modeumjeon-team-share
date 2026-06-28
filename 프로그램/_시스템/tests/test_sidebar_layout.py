@@ -63,3 +63,37 @@ def test_template_layout_no_duplicate_crawl_guide_and_has_roadmap(monkeypatch, t
     keys = _active_keys(out)
     assert keys.count('sourcing_guide') == 1          # 이미 포함 → 재주입 없음
     assert any(it['active_key'] == 'roadmap' for it in out['standalone'])
+
+
+def test_template_layout_injects_sets_dashboard(monkeypatch, tmp_path):
+    """판매처 연동 탭이 '모음전 상품관리'(s_bundles)에 한 번 주입된다."""
+    monkeypatch.setattr(api_sidebar, 'LAYOUT_PATH', tmp_path / 'sidebar_layout.json')
+    monkeypatch.setitem(api_sidebar._layout_cache, 'data', None)
+    monkeypatch.setitem(api_sidebar._layout_cache, 'mtime', 0.0)
+    out = api_sidebar.get_layout_for_template()
+    keys = _active_keys(out)
+    assert keys.count('sets_dashboard') == 1
+    bundles = next(st for st in out['stages'] if st['id'] == 's_bundles')
+    assert any(it['active_key'] == 'sets_dashboard' for it in bundles['items'])
+
+
+def test_template_layout_respects_user_moved_sets_dashboard(monkeypatch, tmp_path):
+    """사용자가 판매처 연동을 다른 묶음(s_sell)으로 옮겼으면 그 위치 존중·재주입 없음."""
+    import json
+    custom = api_sidebar._default_layout()
+    sell = next(st for st in custom['stages'] if st['id'] == 's_sell')
+    sell['items'].append({'id': 'i_sets_dash', 'emoji': '🏬', 'name': '판매처 연동',
+                          'url': '/api/sets/dashboard', 'active_key': 'sets_dashboard',
+                          'badge_key': None})
+    p = tmp_path / 'sidebar_layout.json'
+    p.write_text(json.dumps(custom), encoding='utf-8')
+    monkeypatch.setattr(api_sidebar, 'LAYOUT_PATH', p)
+    monkeypatch.setitem(api_sidebar._layout_cache, 'data', None)
+    monkeypatch.setitem(api_sidebar._layout_cache, 'mtime', 0.0)
+    out = api_sidebar.get_layout_for_template()
+    keys = _active_keys(out)
+    assert keys.count('sets_dashboard') == 1          # 중복 주입 없음
+    bundles = next(st for st in out['stages'] if st['id'] == 's_bundles')
+    assert not any(it['active_key'] == 'sets_dashboard' for it in bundles['items'])
+    sell2 = next(st for st in out['stages'] if st['id'] == 's_sell')
+    assert any(it['active_key'] == 'sets_dashboard' for it in sell2['items'])

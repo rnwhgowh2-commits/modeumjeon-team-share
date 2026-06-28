@@ -51,6 +51,70 @@ def sets_flow_page():
     return render_template("sets/flow.html")
 
 
+@bp.get("/sets/dashboard")
+def sets_dashboard_page():
+    """[연동 현황] 판매처에 연동된 구성 목록·검색 대시보드 (사이드바 진입점)."""
+    return render_template("sets/dashboard.html", active="sets_dashboard")
+
+
+@bp.get("/sets/linked")
+def list_linked():
+    """대시보드 데이터 — 연동된 구성 목록(검색어 q 로 구성명·상품명·상품번호 필터)."""
+    q = (request.args.get("q") or "").strip()
+    s = SessionLocal()
+    try:
+        rows = svc.list_linked_sets(s, q=q or None)
+        return jsonify({"ok": True, "sets": rows})
+    finally:
+        s.close()
+
+
+@bp.get("/sets/<int:set_id>/detail-matrix")
+def set_detail_matrix(set_id):
+    """[상세 1b·1c] 구성 옵션별 출처(사입/소싱)·재고·매입가·소싱처 후보·fx 영수증
+    + 채널 매칭 상태. 매트릭스 단일 진실 원천(_option_matrix_data)을 그대로 재사용해
+    구성의 옵션(canonical_sku)만 필터링한다. 새 가격/재고 계산 없음(중복·모순 방지).
+    """
+    from webapp.routes.api_pricing import _option_matrix_data
+    from lemouton.sets.models import SetChannel, SetChannelOption
+    s = SessionLocal()
+    try:
+        detail = svc.get_set_detail(s, set_id)
+        if not detail:
+            return _err("구성을 찾을 수 없어요.", 404)
+        skus = set()
+        for p in detail["products"]:
+            skus.update(p["options"])
+        # 채널별 옵션 매칭 맵: {canonical_sku: {market: {status, market_option_id}}}
+        match_map: dict = {}
+        chans = []
+        for c in (s.query(SetChannel).filter_by(set_id=set_id)
+                  .order_by(SetChannel.id).all()):
+            chans.append({"market": c.market,
+                          "market_product_id": c.market_product_id,
+                          "account_key": c.account_key, "status": c.status})
+            for sco in s.query(SetChannelOption).filter_by(channel_id=c.id).all():
+                match_map.setdefault(sco.canonical_sku, {})[c.market] = {
+                    "status": sco.status, "market_option_id": sco.market_option_id}
+        model_codes = {p["model_code"] for p in detail["products"]}
+        set_meta = {"id": detail["id"], "name": detail["name"]}
+    finally:
+        s.close()
+    # 모델별 매트릭스(각자 세션) 호출 후 구성 옵션만 추려 채널 매칭 병합
+    opts_out = []
+    for mc in model_codes:
+        data = _option_matrix_data(mc)
+        if not data.get("ok"):
+            continue
+        for o in data.get("options", []):
+            if o.get("sku") in skus:
+                o["channels"] = match_map.get(o["sku"], {})
+                opts_out.append(o)
+    opts_out.sort(key=lambda o: (o.get("color_code") or "", o.get("size_code") or ""))
+    return jsonify({"ok": True, "set": set_meta,
+                    "channels": chans, "options": opts_out})
+
+
 @bp.get("/sets/bundle/<code>/options")
 def bundle_options(code):
     """단계② 조합 매트릭스용 — 모음전의 옵션을 색/사이즈로."""

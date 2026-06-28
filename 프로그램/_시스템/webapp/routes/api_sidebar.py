@@ -164,6 +164,12 @@ _ROADMAP_ITEM = {'id': 'i_roadmap', 'emoji': '🗺', 'name': '로드맵',
 _CRAWL_GUIDE_ITEM = {'id': 'i_crawl_guide', 'emoji': '🗒', 'name': '크롤링 가이드',
                      'url': '/sourcing-guide/', 'active_key': 'sourcing_guide', 'badge_key': None}
 
+# 판매처 연동 탭 — 연동 현황 대시보드 진입점. 저장 레이아웃에 없으면 렌더 시
+#   '모음전 상품관리'(s_bundles) 스테이지 끝에 주입(저장 안 함). 사용자가 옮기면 그 위치 존중.
+_SETS_DASH_ITEM = {'id': 'i_sets_dash', 'emoji': '🏬', 'name': '판매처 연동',
+                   'url': '/api/sets/dashboard', 'active_key': 'sets_dashboard',
+                   'badge_key': None}
+
 
 def _has_item_id(layout: dict, item_id: str) -> bool:
     def _has(items):
@@ -193,6 +199,16 @@ def get_layout_for_template() -> dict:
             if st.get('id') == 's_crawl':
                 st = dict(st)
                 st['items'] = list(st.get('items', [])) + [dict(_CRAWL_GUIDE_ITEM)]
+            new_stages.append(st)
+        out['stages'] = new_stages
+
+    # 판매처 연동 — 모음전 상품관리 스테이지(s_bundles) 끝에 주입(없을 때만)
+    if not _has_item_id(layout, 'i_sets_dash'):
+        new_stages = []
+        for st in out.get('stages', []):
+            if st.get('id') == 's_bundles':
+                st = dict(st)
+                st['items'] = list(st.get('items', [])) + [dict(_SETS_DASH_ITEM)]
             new_stages.append(st)
         out['stages'] = new_stages
 
