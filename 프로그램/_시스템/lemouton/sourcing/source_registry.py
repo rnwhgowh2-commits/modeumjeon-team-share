@@ -28,8 +28,18 @@ def get_keys():
 
 
 def get_labels():
-    """Builtin label map."""
-    return {s['key']: s['label'] for s in SOURCES}
+    """소싱처 label map — builtin + DB 커스텀(hmall·롯데아이몰 등)까지.
+
+    [2026-06-28] builtin 만 반환하면 매트릭스 컬럼/셀이 커스텀 소싱처를 'hmall' 같은
+    영문 key 로 표기 → get_all_sources(builtin+SourcingSource) 라벨까지 합쳐 한글 표기.
+    """
+    out = {s['key']: s['label'] for s in SOURCES}
+    try:
+        for s in get_all_sources():
+            out[s['key']] = s.get('label') or s['key']
+    except Exception:
+        pass
+    return out
 
 
 def is_legacy(key):

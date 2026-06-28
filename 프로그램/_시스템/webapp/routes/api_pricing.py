@@ -640,6 +640,13 @@ def _option_matrix_data(code: str):
                         continue  # 중복 URL 행 추가 방지
                     sp = _sp_by_norm2.get(_norm_url(bsu.url)) if bsu.url else None
                     _reg_id = _key_to_regid.get(bsu.source_key)  # 칼럼 매칭용 레지스트리 id
+                    if _reg_id is None and bsu.source_key:
+                        # [2026-06-28] 커스텀 소싱처(hmall·롯데아이몰 등 — 레지스트리 미등록)는
+                        #   source_id 가 null 이라 deriveSourceColumns 가 컬럼을 건너뛰어(매트릭스
+                        #   미표시) 가격·재고가 안 떴음. source_stats·DATA.sources 와 동일한 'key:'
+                        #   합성 id 로 통일해 컬럼·셀이 붙게 한다(bulk_breakdowns 는 int 변환 실패를
+                        #   try/except 로 흡수 → 셀은 크롤가(표면가)로 폴백).
+                        _reg_id = 'key:' + bsu.source_key
                     # 옵션별 실재고·실가격 — 색상+사이즈로 매칭된 동일 SourceOption 에서 파생.
                     #   실패 시에만 상품단위(last_stock/last_price)로 fallback.
                     #   [2026-06-03] 가격도 옵션단위 우선 — 기존엔 가격만 상품 last_price 라
@@ -1097,9 +1104,23 @@ def _option_matrix_data(code: str):
         except Exception:
             source_stats = {}
 
+        # [2026-06-28] DATA.sources(매트릭스 컬럼)에 커스텀 소싱처 추가 — 셀에 'key:' 합성 id 로
+        #   들어간 소싱처(레지스트리 미등록 hmall·롯데아이몰 등)를 컬럼으로 노출. 없으면 컬럼이
+        #   아예 없어 deriveSourceColumns 가 못 그림(가격·재고 미표시 버그의 컬럼 측 원인).
+        _all_source_cols = list(source_dict.values())
+        _custom_cols = {}
+        for _srcs in sku_to_sources.values():
+            for _d in _srcs:
+                _sid = _d.get('source_id')
+                if isinstance(_sid, str) and _sid.startswith('key:') and _sid not in _custom_cols:
+                    _custom_cols[_sid] = {
+                        'id': _sid,
+                        'name': _d.get('source_name') or _sid[4:],
+                        'main_url': '', 'sort_order': 900 + len(_custom_cols)}
+        _all_source_cols += list(_custom_cols.values())
         return dict(
             ok=True,
-            sources=list(source_dict.values()),
+            sources=_all_source_cols,
             source_stats=source_stats,
             tree=tree,
             options=opt_rows,
