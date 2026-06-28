@@ -520,7 +520,7 @@
         <div class="d" style="margin-bottom:4px"><b>표시 배선 2지점</b> <span style="color:var(--sub)">(크롤·계산은 돼도 화면에 안 보이는 누락 차단)</span></div>
         <table class="dt" style="margin-bottom:9px">
           <tr><th style="width:40px">#</th><th>무엇</th><th>파일:심볼</th><th>안 하면 생기는 증상</th></tr>
-          <tr><td class="el">D1</td><td>전체크롤 위젯 라벨·순서</td><td class="mono">crawl_log.js:12 SOURCE_LABELS · :20 SOURCE_ORDER</td><td><b>전체크롤 위젯에 진행카드 안 뜸</b>(bundleProgress가 SOURCE_ORDER로만 그림)</td></tr>
+          <tr><td class="el">D1</td><td>전체크롤 위젯 라벨·순서</td><td class="mono">crawl_log.js orderedUrlCards · SOURCE_LABELS</td><td>✅(2026-06-28) 커스텀 소싱처(현대H몰·롯데아이몰) 진행카드·완료/성공/실패 합 누락 수정 — orderedUrlCards가 b.sources 의 커스텀 베이스도 순회 + SOURCE_LABELS에 한글 추가(확장 재로드 불필요, 페이지측 JS)</td></tr>
           <tr><td class="el">D2</td><td>매트릭스 소싱처 색상</td><td class="mono">_matrix_v3.html:1198~ 색상맵</td><td>새 소싱처 기본 파랑(#5b8def) 표시(폴백 있어 경미)</td></tr>
         </table>
         <div class="d"><b>✅ 라이브 자가검증 6종</b> (하나 빠지면 역추적): ①소싱처 드롭다운 뜨나→<b>B3</b> / ②URL 붙이면 자동크롤 도나→<b>B4·B5</b>(+E1·E2) / ③셀에 표면가→크롤러·영속(B1)/E2 / ④계산식에 혜택→<b>B6→B7→B8</b>(DB엔 저장됐는데 안 뜨면 B7)·라이브갱신은 E4 / ⑤재고 3상태→크롤러 정규식·B9 / ⑥전체크롤 위젯에 진행카드 뜨나→<b>D1</b>·색 기본파랑이면 D2. <span class="ink">dev DB는 stale 주의 → 라이브 대조 필수.</span></div>

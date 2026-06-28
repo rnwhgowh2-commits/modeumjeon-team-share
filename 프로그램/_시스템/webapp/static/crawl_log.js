@@ -16,6 +16,9 @@
     ss_lemouton: '스마트스토어',
     musinsa:     '무신사',
     lotteon:     '롯데온',
+    // [2026-06-28] 카탈로그 커스텀 소싱처 — 위젯 라벨/역매핑용(현대H몰·롯데아이몰)
+    hmall:       '현대H몰',
+    lotteimall:  '롯데아이몰',
   };
   var SOURCE_ORDER = ['lemouton', 'ssf', 'ssg', 'ss_lemouton', 'musinsa', 'lotteon'];
 
@@ -163,7 +166,14 @@
   var _URL_TYPE_SORT_LOG = {'단품':0,'색상모음전':1,'모델모음전':2};
   function orderedUrlCards(b) {
     var result = [];
-    SOURCE_ORDER.forEach(function (sk) {
+    // [2026-06-28] 베이스 소싱처 키 = builtin(SOURCE_ORDER) 먼저 + b.sources 에 등장한 커스텀(카탈로그) 베이스.
+    //   기존엔 SOURCE_ORDER 만 순회해 커스텀(현대H몰·롯데아이몰) 카드·성공/실패 합이 통째 누락됐다.
+    var bases = SOURCE_ORDER.slice();
+    Object.keys(b.sources).forEach(function (k) {
+      var base = k.indexOf('|') >= 0 ? k.slice(0, k.indexOf('|')) : k;
+      if (bases.indexOf(base) < 0) bases.push(base);
+    });
+    bases.forEach(function (sk) {
       var typeCards = [];
       Object.keys(b.sources).forEach(function (k) {
         if (k !== sk && k.indexOf(sk + '|') === 0) {
@@ -224,7 +234,8 @@
     // url_type 카드 없으면 sk 단독으로 폴백
     var hasUrlCards = Object.keys(b.sources).some(function (k) { return k.indexOf('|') >= 0; });
     if (!hasUrlCards) {
-      SOURCE_ORDER.forEach(function (sk) { var s = b.sources[sk]; if (s) done += (s.done || 0); });
+      // [2026-06-28] 커스텀 소싱처 포함 — bare 키 전부 합산(SOURCE_ORDER 한정 제거).
+      Object.keys(b.sources).forEach(function (sk) { if (sk.indexOf('|') < 0 && b.sources[sk]) done += (b.sources[sk].done || 0); });
     }
     return done;
   }
