@@ -2203,6 +2203,10 @@
       Object.keys(state.urls || {}).forEach(sk => {
         (state.urls[sk] || []).forEach(u => {
           if (u.option_keys && u.option_keys.length) {
+            // [2026-06-28 P12] 축 값 rename 등으로 사라진 키를 '조용히' 버리지 않고 경고(silent 차단).
+            //   ⚠️ 완전 수정(old→new 키 마이그레이션)은 rename 흐름에서 별도 — 여기선 유실 표면화만.
+            const _orphan = u.option_keys.filter(k => !curKeys.has(k));
+            if (_orphan.length) console.warn('[옵션매핑] 축 변경으로 매핑 키 ' + _orphan.length + '개 유실 — rename 시 매핑 재확인 필요:', sk, _orphan);
             u.option_keys = u.option_keys.filter(k => curKeys.has(k));
           }
         });

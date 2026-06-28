@@ -23,6 +23,17 @@ def _admin_only():
     return enforce_admin()
 
 
+@bp.errorhandler(Exception)
+def _always_json_error(e):
+    """[2026-06-28 O13] 이 blueprint(/api/sources/*) 는 확장이 r.json() 으로 받으므로
+    예외가 HTML 에러페이지로 새면 클라가 SyntaxError 로 조용히 터진다(전체크롤 일부 건 실패).
+    → 미처리 예외도 항상 JSON 으로 표면화. app 전역 핸들러 아님(이 blueprint 한정, 부작용 없음).
+    (인프라 502/504 프록시 HTML 은 Flask 밖이라 못 잡음 — 클라 ext_bridge fetchJson 가드가 보완.)"""
+    from werkzeug.exceptions import HTTPException
+    code = e.code if isinstance(e, HTTPException) else 500
+    return jsonify(ok=False, error="server_error", detail=str(e)[:200]), code
+
+
 @bp.post("/sources/parse")
 def parse_source_html():
     body = request.get_json(silent=True) or {}
