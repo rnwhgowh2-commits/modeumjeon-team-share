@@ -11,9 +11,10 @@
   .sd-search{display:flex;align-items:center;gap:8px;border:1px solid #e5e8eb;border-radius:10px;padding:9px 13px;background:#fff;margin-bottom:14px;}
   .sd-search input{border:0;outline:0;flex:1;font-size:14px;font-family:inherit;color:#191F28;background:transparent;}
   .sd-card{background:#fff;border:1px solid #e5e8eb;border-radius:12px;padding:14px 16px;margin-bottom:10px;}
-  .sd-card-top{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;}
+  .sd-card-top{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;cursor:pointer;}
   .sd-name{font-size:15px;font-weight:700;color:#191F28;}
   .sd-bundle{font-size:11px;font-weight:700;background:#e8f1ff;color:#1d4ed8;border-radius:5px;padding:2px 7px;margin-right:6px;}
+  .sd-chev{color:#b0b8c1;font-size:13px;margin-left:8px;}
   .sd-mk{display:inline-block;font-size:11.5px;font-weight:700;border-radius:5px;padding:3px 8px;margin-left:6px;}
   .sd-mk.coupang{background:#FAEEDA;color:#854F0B;}
   .sd-mk.smartstore{background:#E1F5EE;color:#0F6E56;}
@@ -25,6 +26,32 @@
   .sd-empty{text-align:center;padding:54px 20px;color:#8b95a1;font-size:14px;line-height:1.7;}
   .sd-match-ok{color:#047857;font-weight:700;}
   .sd-match-part{color:#b45309;font-weight:700;}
+  /* 상세 */
+  .sd-detail{margin-top:12px;border-top:1px solid #e5e8eb;padding-top:12px;}
+  .det-bar{display:flex;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap;}
+  .det-tabs{display:inline-flex;border:1px solid #e5e8eb;border-radius:7px;overflow:hidden;}
+  .det-tab{font-size:12px;padding:5px 12px;color:#4e5968;cursor:pointer;background:#fff;}
+  .det-tab.on{background:#e8f1ff;color:#1d4ed8;font-weight:700;}
+  .det-legend{font-size:11.5px;color:#8b95a1;}
+  .b-buy{font-size:10.5px;padding:1px 6px;border-radius:4px;background:#FAEEDA;color:#854F0B;}
+  .b-src{font-size:10.5px;padding:1px 6px;border-radius:4px;background:#E6F1FB;color:#185FA5;}
+  table.det-tbl{width:100%;border-collapse:collapse;font-size:12px;}
+  table.det-tbl th{font-weight:600;color:#8b95a1;text-align:left;padding:6px 6px;border-bottom:1px solid #e5e8eb;}
+  table.det-tbl td{padding:6px 6px;border-bottom:1px solid #f1f3f5;color:#4e5968;}
+  table.det-tbl tr.opt-row{cursor:pointer;}
+  table.det-tbl tr.opt-row:hover{background:#f7faff;}
+  .ta-r{text-align:right;}
+  .rcp{background:#f9fafb;border:1px solid #eef1f4;border-radius:8px;padding:9px 12px;margin:2px 0 6px;}
+  .rcp .rl{display:flex;justify-content:space-between;font-size:12px;padding:3px 0;color:#4e5968;}
+  .rcp .rl.ded span:last-child{color:#dc2626;}
+  .rcp .rl.ded span:first-child{padding-left:10px;}
+  .rcp .rl.base{font-size:10.5px;color:#8b95a1;justify-content:flex-end;}
+  .rcp .rl.total{border-top:1px solid #d7dbe0;margin-top:4px;padding-top:5px;}
+  .rcp .rl.total b{color:#1d4ed8;font-size:14px;}
+  table.mx-tbl{border-collapse:collapse;font-size:11.5px;text-align:center;}
+  table.mx-tbl th,table.mx-tbl td{border:1px solid #e5e8eb;padding:5px 7px;}
+  table.mx-tbl th{background:#f9fafb;color:#8b95a1;font-weight:700;}
+  .mx-na{color:#c4cad2;}
 </style>
 {% endblock %}
 {% block content %}
@@ -49,8 +76,10 @@
   var listEl=document.getElementById('sd-list');
   var qEl=document.getElementById('sd-q');
   var timer=null;
-  function esc(s){ return (s||'').replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];}); }
+  function esc(s){ return (s==null?'':String(s)).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];}); }
+  function fmt(n){ return (n==null||isNaN(n))?'-':Number(n).toLocaleString(); }
   function rel(iso){ if(!iso) return null; var d=new Date(iso); var s=(Date.now()-d.getTime())/1000; if(isNaN(s)) return null; if(s<0)s=0; if(s<3600)return Math.floor(s/60)+'분 전'; if(s<86400)return Math.floor(s/3600)+'시간 전'; return Math.floor(s/86400)+'일 전'; }
+
   function mkBadge(c){
     var cls=c.market==='coupang'?'coupang':(c.market==='smartstore'?'smartstore':'other');
     var nm=c.market==='coupang'?'쿠팡':(c.market==='smartstore'?'스마트스토어':esc(c.market));
@@ -67,12 +96,13 @@
       var multi=r.products.length>1;
       var chans=r.channels.map(mkBadge).join('');
       var coll=rel(r.last_collected_at); var sent=r.last_sent_at?rel(r.last_sent_at):null;
-      h+='<div class="sd-card">';
-      h+=' <div class="sd-card-top"><div>'+(multi?('<span class="sd-bundle">'+r.products.length+'개 묶음</span>'):'')+'<span class="sd-name">'+esc(r.name)+'</span></div><div>'+(chans||'<span class=sd-cnt>판매처 없음</span>')+'</div></div>';
+      h+='<div class="sd-card" data-sid="'+r.set_id+'">';
+      h+=' <div class="sd-card-top" data-act="toggle"><div>'+(multi?('<span class="sd-bundle">'+r.products.length+'개 묶음</span>'):'')+'<span class="sd-name">'+esc(r.name)+'</span></div><div>'+(chans||'<span class=sd-cnt>판매처 없음</span>')+'<span class="sd-chev">▾</span></div></div>';
       h+=' <div class="sd-meta">수집 '+(coll||'수집 안 됨')+' · 전송 '+(sent||'이력 없음')+'</div>';
       h+=' <div class="sd-prods">';
       r.products.forEach(function(p){ h+='<div class="sd-prod">└ <span>'+esc(p.model_name)+'</span> <span class="sd-cnt">'+p.option_count+'옵션 · 수량 '+p.quantity+'</span></div>'; });
       h+=' </div>';
+      h+=' <div class="sd-detail" data-det style="display:none"></div>';
       h+='</div>';
     });
     listEl.innerHTML=h;
@@ -84,6 +114,123 @@
       .then(function(d){ if(d&&d.ok) render(d.sets||[]); else listEl.innerHTML='<div class="sd-empty">목록을 불러오지 못했어요.</div>'; })
       .catch(function(){ listEl.innerHTML='<div class="sd-empty">목록을 불러오지 못했어요.</div>'; });
   }
+
+  // ── 상세(1b·1c) ──────────────────────────────────────────────
+  function srcKind(o){ return o.purchase_priority_resolved==='purchase'?'사입':'소싱'; }
+  function stockOf(o){
+    if(o.purchase_priority_resolved==='purchase') return o.purchase_stock!=null?(o.purchase_stock+'개'):'-';
+    return o.src_stock_label||(o.src_stock!=null?(o.src_stock+'개'):'-');
+  }
+  function costOf(o){
+    var v=o.purchase_priority_resolved==='purchase'?o.purchase_avg_cost:o.src_cost;
+    return fmt(v);
+  }
+  function collOf(o){
+    var ts=null; (o.sources||[]).forEach(function(sc){ if(sc.last_fetched_at){ var t=new Date(sc.last_fetched_at).getTime(); if(!isNaN(t)&&(ts==null||t>ts))ts=t; } });
+    return ts?rel(new Date(ts).toISOString()):'-';
+  }
+  function matchCell(o){
+    var ch=o.channels||{}; var out=[];
+    ['smartstore','coupang'].forEach(function(mk){
+      if(ch[mk]){ var st=ch[mk].status; var nm=mk==='smartstore'?'스스':'쿠팡';
+        var col=st==='matched'?'#047857':'#b45309'; var tx=st==='matched'?'✓':'✗';
+        out.push('<span style="color:'+col+'">'+nm+' '+tx+'</span>'); }
+    });
+    return out.length?out.join(' '):'<span class=sd-cnt>-</span>';
+  }
+  function receipt(bd){
+    if(!bd||!bd.steps||!bd.steps.length) return '<div class="sd-cnt" style="padding:6px 0">소싱 혜택 영수증 정보가 없어요(사입 옵션이거나 수집 전).</div>';
+    var h='<div class="rcp"><div class="rl"><span>표면 노출가</span><b>'+fmt(bd.sale_price)+'</b></div>';
+    bd.steps.forEach(function(st,i){
+      h+='<div class="rl ded"><span>└ '+esc(st.name)+'</span><span>-'+fmt(st.deduct)+'</span></div>';
+      if(i<bd.steps.length-1) h+='<div class="rl base">베이스금액 '+fmt(st.base_after)+'</div>';
+    });
+    h+='<div class="rl total"><span>최종 매입가</span><b>'+fmt(bd.final_price)+'</b></div></div>';
+    return h;
+  }
+  function renderTable(opts){
+    if(!opts.length) return '<div class="sd-cnt" style="padding:8px 0">옵션이 없어요.</div>';
+    var h='<table class="det-tbl"><thead><tr><th>옵션</th><th>출처</th><th class="ta-r">재고</th><th class="ta-r">최종 매입가</th><th class="ta-r">마켓 매칭</th><th class="ta-r">수집</th><th class="ta-r">전송</th></tr></thead><tbody>';
+    opts.forEach(function(o,i){
+      var k=srcKind(o); var bcls=k==='사입'?'b-buy':'b-src';
+      h+='<tr class="opt-row" data-oi="'+i+'">';
+      h+='<td>'+esc((o.color_display||o.color_code||'')+' · '+(o.size_display||o.size_code||''))+'</td>';
+      h+='<td><span class="'+bcls+'">'+k+'</span></td>';
+      h+='<td class="ta-r">'+esc(stockOf(o))+'</td>';
+      h+='<td class="ta-r">'+costOf(o)+'</td>';
+      h+='<td class="ta-r">'+matchCell(o)+'</td>';
+      h+='<td class="ta-r sd-cnt">'+collOf(o)+'</td>';
+      h+='<td class="ta-r sd-cnt">미전송</td>';
+      h+='</tr>';
+      h+='<tr data-rcp="'+i+'" style="display:none"><td colspan="7">'+receipt(o.ss_breakdown||o.cp_breakdown)+'</td></tr>';
+    });
+    h+='</tbody></table><div class="sd-cnt" style="margin-top:6px">행을 누르면 가격 영수증(표면노출가→혜택→최종매입가)이 펼쳐져요. 전송일자는 실제 전송 기능(다음 단계) 도입 후 표기됩니다.</div>';
+    return h;
+  }
+  function renderMatrix(opts){
+    var colors=[],sizes=[],cell={};
+    opts.forEach(function(o){
+      var c=o.color_display||o.color_code||''; var z=o.size_display||o.size_code||'';
+      if(colors.indexOf(c)<0)colors.push(c); if(sizes.indexOf(z)<0)sizes.push(z);
+      cell[c+'|'+z]=o;
+    });
+    var h='<table class="mx-tbl"><thead><tr><th></th>';
+    sizes.forEach(function(z){ h+='<th>'+esc(z)+'</th>'; });
+    h+='</tr></thead><tbody>';
+    colors.forEach(function(c){
+      h+='<tr><th>'+esc(c)+'</th>';
+      sizes.forEach(function(z){
+        var o=cell[c+'|'+z];
+        if(!o){ h+='<td class="mx-na">·</td>'; return; }
+        var k=srcKind(o);
+        h+='<td><div style="font-weight:700;color:#191F28">'+esc(stockOf(o))+'</div><div class="sd-cnt">'+costOf(o)+'</div><div style="font-size:10px;color:'+(k==='사입'?'#854F0B':'#185FA5')+'">'+k+'</div></td>';
+      });
+      h+='</tr>';
+    });
+    h+='</tbody></table>';
+    return h;
+  }
+  var detailCache={};   // sid → options
+  function renderDetail(box, sid, data){
+    detailCache[sid]=data.options||[];
+    var legend='<span class="det-legend"><span class="b-buy">사입</span> 직접매입 우선 · <span class="b-src">소싱</span> 소싱처 크롤 — 옵션마다 모음전 판매조건을 그대로 따름</span>';
+    box.innerHTML='<div class="det-bar"><div class="det-tabs"><span class="det-tab on" data-view="cell">셀 보기</span><span class="det-tab" data-view="matrix">매트릭스 보기</span></div>'+legend+'</div><div data-detbody>'+renderTable(detailCache[sid])+'</div>';
+  }
+  function loadDetail(box, sid){
+    box.innerHTML='<div class="sd-cnt" style="padding:8px 0">상세 불러오는 중…</div>';
+    fetch('/api/sets/'+sid+'/detail-matrix',{headers:{'Accept':'application/json'}})
+      .then(function(r){return r.json();})
+      .then(function(d){ if(d&&d.ok) renderDetail(box,sid,d); else box.innerHTML='<div class="sd-cnt" style="padding:8px 0">상세를 불러오지 못했어요.</div>'; })
+      .catch(function(){ box.innerHTML='<div class="sd-cnt" style="padding:8px 0">상세를 불러오지 못했어요.</div>'; });
+  }
+
+  // ── 이벤트 위임 ──────────────────────────────────────────────
+  listEl.addEventListener('click', function(e){
+    var tabEl=e.target.closest('.det-tab');
+    if(tabEl){
+      var card=tabEl.closest('.sd-card'); var sid=card.getAttribute('data-sid');
+      card.querySelectorAll('.det-tab').forEach(function(t){ t.classList.toggle('on', t===tabEl); });
+      var body=card.querySelector('[data-detbody]');
+      var opts=detailCache[sid]||[];
+      body.innerHTML = tabEl.getAttribute('data-view')==='matrix' ? renderMatrix(opts) : renderTable(opts);
+      return;
+    }
+    var optRow=e.target.closest('tr.opt-row');
+    if(optRow){
+      var rcp=optRow.nextElementSibling;
+      if(rcp&&rcp.hasAttribute('data-rcp')) rcp.style.display = rcp.style.display==='none'?'':'none';
+      return;
+    }
+    var top=e.target.closest('.sd-card-top');
+    if(top){
+      var card2=top.closest('.sd-card'); var det=card2.querySelector('[data-det]');
+      var chev=top.querySelector('.sd-chev');
+      if(det.style.display==='none'){ det.style.display=''; if(chev)chev.textContent='▴'; loadDetail(det, card2.getAttribute('data-sid')); }
+      else { det.style.display='none'; if(chev)chev.textContent='▾'; }
+      return;
+    }
+  });
+
   qEl.addEventListener('input',function(){ clearTimeout(timer); timer=setTimeout(load,250); });
   load();
 })();

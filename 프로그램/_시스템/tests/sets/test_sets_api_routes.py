@@ -16,6 +16,7 @@ def test_blueprint_registers_expected_routes():
         "/api/sets/flow",
         "/api/sets/dashboard",
         "/api/sets/linked",
+        "/api/sets/<int:set_id>/detail-matrix",
         "/api/sets/bundle/<code>/options",
         "/api/sets/upload-accounts",
         "/api/sets/search-bundles",
