@@ -1,719 +1,1539 @@
 {
-  "version": 1,
-  "items": [
+ "version": 1,
+ "items": [
+  {
+   "id": null,
+   "rule": true,
+   "g": "재고가격",
+   "src": "방향 복귀 기준",
+   "sy": "폴백가 금지",
+   "cz": "실패 시 평균·최저 대표가로 채우지 않음 → '가격없음 + 크롤실패'로 표면화 (폴백가 주문 = 손실)",
+   "pv": "어기면 재발 → P23 가짜 95000 · S1·S2·S8 상품합계 재고 폴백 둔갑"
+  },
+  {
+   "id": null,
+   "rule": true,
+   "g": "재고가격",
+   "src": "방향 복귀 기준",
+   "sy": "크롤실패 = 표기",
+   "cz": "옛 가격/재고 끌어쓰지 않고 '크롤 실패'로 표기 (하드리셋 NULL → finalize)",
+   "pv": "어기면 재발 → S14 판매차단 inert · P7 stale 정체 · P6 신규URL 드롭"
+  },
+  {
+   "id": null,
+   "rule": true,
+   "g": "가격",
+   "src": "방향 복귀 기준",
+   "sy": "단일 진실원천",
+   "cz": "표면가=last_price · 매입가=compute_market_price, 한 곳에서만",
+   "pv": "어기면 재발 → P4 셀≠계산식 · O1 last_price 평균vs최저 · P19·P21 오저장·중복"
+  },
+  {
+   "id": null,
+   "rule": true,
+   "g": "기타",
+   "src": "방향 복귀 기준",
+   "sy": "누락에 경고",
+   "cz": "후보가 조용히 탈락(None) 금지 → 화면·로그에 드러나야",
+   "pv": "어기면 재발 → P6 드롭 · P13·P15 무보고 skip · O7·P10 위장·누락"
+  },
+  {
+   "id": "S1",
+   "g": "재고",
+   "l": "be",
+   "l2": "fe",
+   "src": "르무통",
+   "st": "ok",
+   "cm": "d1fbe8fb 2d63a9e1",
+   "sy": "사이즈별 재고가 상품합계로 균일 둔갑(전사이즈 53, 품절 265도 '있음')",
+   "cz": "ⓐ _persist_option_stocks가 기존행만 갱신·생성 안 함→신규 URL 옵션행 0 ⓑ ext_bridge가 options[] 미전송→상품 last_stock(합계) 균일 폴백",
+   "pv": "옵션 영속 단일 루틴(persist_crawled_options) 생성+갱신, parse·save 양쪽 호출 + ext_bridge options[] 전송",
+   "code": {
+    "file": "lemouton/sources/service.py",
+    "func": "persist_crawled_options",
+    "desc": "옵션 영속 단일 루틴(생성+갱신)"
+   },
+   "crawl": "ok",
+   "doc": "sync",
+   "view": "sync",
+   "rev": [
     {
-      "id": null, "rule": true, "g": "재고가격",
-      "src": "방향 복귀 기준",
-      "sy": "폴백가 금지",
-      "cz": "실패 시 평균·최저 대표가로 채우지 않음 → '가격없음 + 크롤실패'로 표면화 (폴백가 주문 = 손실)",
-      "pv": "어기면 재발 → P23 가짜 95000 · S1·S2·S8 상품합계 재고 폴백 둔갑"
-    },
-    {
-      "id": null, "rule": true, "g": "재고가격",
-      "src": "방향 복귀 기준",
-      "sy": "크롤실패 = 표기",
-      "cz": "옛 가격/재고 끌어쓰지 않고 '크롤 실패'로 표기 (하드리셋 NULL → finalize)",
-      "pv": "어기면 재발 → S14 판매차단 inert · P7 stale 정체 · P6 신규URL 드롭"
-    },
-    {
-      "id": null, "rule": true, "g": "가격",
-      "src": "방향 복귀 기준",
-      "sy": "단일 진실원천",
-      "cz": "표면가=last_price · 매입가=compute_market_price, 한 곳에서만",
-      "pv": "어기면 재발 → P4 셀≠계산식 · O1 last_price 평균vs최저 · P19·P21 오저장·중복"
-    },
-    {
-      "id": null, "rule": true, "g": "기타",
-      "src": "방향 복귀 기준",
-      "sy": "누락에 경고",
-      "cz": "후보가 조용히 탈락(None) 금지 → 화면·로그에 드러나야",
-      "pv": "어기면 재발 → P6 드롭 · P13·P15 무보고 skip · O7·P10 위장·누락"
-    },
-    {
-      "id": "S1", "g": "재고", "l": "be", "l2": "fe", "src": "르무통",
-      "st": "ok", "cm": "d1fbe8fb 2d63a9e1",
-      "sy": "사이즈별 재고가 상품합계로 균일 둔갑(전사이즈 53, 품절 265도 '있음')",
-      "cz": "ⓐ _persist_option_stocks가 기존행만 갱신·생성 안 함→신규 URL 옵션행 0 ⓑ ext_bridge가 options[] 미전송→상품 last_stock(합계) 균일 폴백",
-      "pv": "옵션 영속 단일 루틴(persist_crawled_options) 생성+갱신, parse·save 양쪽 호출 + ext_bridge options[] 전송",
-      "code": { "file": "lemouton/sources/service.py", "func": "persist_crawled_options", "desc": "옵션 영속 단일 루틴(생성+갱신)" },
-      "crawl": "ok", "doc": "sync", "view": "sync",
-      "rev": [
-        {"d": "2026-06-27", "a": "add", "txt": "사이즈별 재고 합계 둔갑 최초 기재", "src": "르무통", "cm": "d1fbe8fb"}
-      ]
-    },
-    {
-      "id": "S2", "g": "재고", "l": "be", "src": "스마트스토어",
-      "st": "ok",
-      "sy": "전부 999 '있음' 둔갑(품절 SKU도)",
-      "cz": "save_crawl_result가 옵션 current_stock 미영속, 서버크롤만 채워 확장전용 경로 영원히 stale",
-      "pv": "_persist_option_stocks 영속(확장 경로도)",
-      "code": { "file": "webapp/routes/api_pricing.py", "func": "_persist_option_stocks", "desc": "확장 경로도 current_stock 영속" },
-      "crawl": "ok", "doc": "sync", "view": "sync",
-      "rev": [
-        {"d": "2026-06-27", "a": "add", "txt": "스마트스토어 999 둔갑 영속 누락", "src": "스마트스토어"}
-      ]
-    },
-    {
-      "id": "S3", "g": "재고", "l": "be", "src": "롯데온",
-      "st": "ok",
-      "sy": "충분 재고가 999⚠️품절(특정 색만)",
-      "cz": "SourceOption 중복행(색 포맷 3종 INSERT)→매트릭스가 null 중복행 읽고 last_stock=999 폴백",
-      "pv": "색 호환 그룹만 dedup(멀티색 skip)",
-      "code": { "file": "webapp/routes/api_pricing.py", "func": "_match_option_so", "desc": "dedup 후 중복행 읽기 방지" },
-      "crawl": "ok", "doc": "sync", "view": "sync",
-      "rev": [
-        {"d": "2026-06-27", "a": "add", "txt": "롯데온 중복행 → 999 폴백", "src": "롯데온"}
-      ]
-    },
-    {
-      "id": "S4", "g": "재고", "l": "fe", "src": "롯데온",
-      "st": "ok",
-      "sy": "품절 사이즈가 '4개·있음' 둔갑",
-      "cz": "대체상품 가드 _realSpd 정규식이 LO접두 하드코딩→숫자형 URL서 무력화",
-      "pv": "범용 패턴 + 숫자만 비교",
-      "crawl": "warn", "doc": "sync", "view": "sync",
-      "rev": [
-        {"d": "2026-06-27", "a": "add", "txt": "롯데온 대체상품 가드 숫자형URL 무력화", "src": "롯데온"}
-      ]
-    },
-    {
-      "id": "S5", "g": "재고", "l": "be", "src": "SSG",
-      "st": "ok",
-      "sy": "단일색 상품 재고 uniform 둔갑",
-      "cz": "파서가 사이즈를 color_text에 박고 size_text 비움→_ingest 조용히 skip→SO 미생성→상품레벨 폴백",
-      "pv": "size-only 축 처리",
-      "code": { "file": "lemouton/sourcing/crawlers/ssg.py", "func": "_parse_uitem_options", "desc": "size-only 축 처리" },
-      "crawl": "ok", "doc": "sync", "view": "sync",
-      "rev": [
-        {"d": "2026-06-27", "a": "add", "txt": "SSG 단일색 사이즈 파싱 버그", "src": "SSG"}
-      ]
-    },
-    {
-      "id": "S6", "g": "재고", "l": "be", "src": "무신사",
-      "st": "ok",
-      "sy": "단품 거짓 품절",
-      "cz": "_match_option_so가 빈색(color='')일 때 size-only 매칭 안 함",
-      "pv": "빈색 옵션 매칭 규칙",
-      "code": { "file": "webapp/routes/api_pricing.py", "func": "_match_option_so", "desc": "빈색 size-only 매칭 규칙 추가" },
-      "crawl": "ok", "doc": "sync", "view": "sync",
-      "rev": [
-        {"d": "2026-06-27", "a": "add", "txt": "무신사 단품 빈색 거짓 품절", "src": "무신사"}
-      ]
-    },
-    {
-      "id": "S7", "g": "재고", "l": "be", "l2": "fe", "src": "르무통",
-      "st": "ok",
-      "sy": "비활성(OFF) 사이즈에 가격 누출",
-      "cz": "크롤러 미판매 사이즈 과다수집(데카르트곱 999) + 매트릭스가 is_active 무시",
-      "pv": "실조합만 수집 + is_active 존중",
-      "code": { "file": "lemouton/sourcing/crawlers/lemouton.py", "func": "fetch", "desc": "실조합만 수집" },
-      "crawl": "ok", "doc": "sync", "view": "sync",
-      "rev": [
-        {"d": "2026-06-27", "a": "add", "txt": "르무통 비활성 사이즈 가격 누출", "src": "르무통"}
-      ]
-    },
-    {
-      "id": "S8", "g": "재고", "l": "be", "l2": "fe", "src": "무신사",
-      "st": "ok", "cm": "2d63a9e1",
-      "sy": "한정수량·품절 사이즈가 '재고있음' 균일",
-      "cz": "S1 동계열 — 확장 client추출 경로서 사이즈별 옵션행 미생성",
-      "pv": "persist_crawled_options + ext_bridge options[]",
-      "code": { "file": "lemouton/sources/service.py", "func": "persist_crawled_options", "desc": "확장 경로도 옵션행 생성+갱신" },
-      "crawl": "ok", "doc": "sync", "view": "sync",
-      "rev": [
-        {"d": "2026-06-27", "a": "add", "txt": "무신사 확장경로 옵션행 미생성 균일둔갑", "src": "무신사", "cm": "2d63a9e1"}
-      ]
-    },
-    {
-      "id": "S9", "g": "재고", "l": "fe", "src": "스마트스토어",
-      "st": "ok",
-      "sy": "재고 999 silent 둔갑",
-      "cz": "productNo 먼저 써 204 빈응답→999. channelProductNo(A.id) 써야 정확",
-      "pv": "A.id 사용",
-      "crawl": "warn", "doc": "sync", "view": "sync",
-      "rev": [
-        {"d": "2026-06-27", "a": "add", "txt": "스마트스토어 productNo→204→999 둔갑", "src": "스마트스토어"}
-      ]
-    },
-    {
-      "id": "S10", "g": "재고", "l": "be", "src": "SSF",
-      "st": "ok",
-      "sy": "품절임박 N개 미식별",
-      "cz": "정규식이 '품절임박 ( N )' 괄호 안 공백 미처리",
-      "pv": "괄호 공백 허용 정규식",
-      "code": { "file": "lemouton/sourcing/crawlers/ssf.py", "func": "fetch", "desc": "괄호 공백 허용 정규식" },
-      "crawl": "ok", "doc": "sync", "view": "sync",
-      "rev": [
-        {"d": "2026-06-27", "a": "add", "txt": "SSF 품절임박 N개 정규식 괄호 공백", "src": "SSF"}
-      ]
-    },
-    {
-      "id": "S11", "g": "재고", "l": "be", "src": "전 소싱처",
-      "st": "ok",
-      "sy": "수량0·전부있음(boolean만)",
-      "cz": "실수량 안 긁고 in/out boolean만 출력→거짓 '재고있음'",
-      "pv": "실수량 캡처(3상태)",
-      "crawl": "warn", "doc": "sync", "view": "sync",
-      "rev": [
-        {"d": "2026-06-27", "a": "add", "txt": "전 소싱처 boolean 재고→거짓 있음", "src": "전 소싱처"}
-      ]
-    },
-    {
-      "id": "S12", "g": "재고", "l": "fe", "src": "옵션조합 모달",
-      "st": "ok", "cm": "c948d4ec",
-      "sy": "재고관리 매핑 저장해도 새로고침하면 사라짐",
-      "cz": "autoSave()가 재고매핑 저장단계 미호출(invApplyMapping이 삭제된 버튼에만 묶여 고아화)",
-      "pv": "새 저장단계는 autoSave에 배선 + 로딩완료(invLoaded) 가드",
-      "code": { "file": "webapp/static/option_url_modal.js", "func": "invApplyMapping", "desc": "autoSave 배선 + invLoaded 가드" },
-      "crawl": "ok", "doc": "sync", "view": "sync",
-      "rev": [
-        {"d": "2026-06-27", "a": "add", "txt": "재고 매핑 저장 고아화", "src": "옵션조합 모달", "cm": "c948d4ec"}
-      ]
-    },
-    {
-      "id": "S13", "g": "재고", "l": "be", "src": "SSG",
-      "st": "ok",
-      "sy": "딜페이지(여러 단품 묶음) 전부 status=error·재고 누락",
-      "cz": "딜페이지엔 uitemObjArr 인라인JS가 없어 _parse_uitem_options 빈값→RuntimeError",
-      "pv": "대표상품 itemView로 재크롤(_resolve_deal_representative_url). ⚠️재발·모델매핑 미배선 잔존",
-      "code": { "file": "lemouton/sourcing/crawlers/ssg.py", "func": "_resolve_deal_representative_url", "desc": "딜페이지 대표상품 itemView 재크롤" },
-      "crawl": "ok", "doc": "sync", "view": "sync",
-      "rev": [
-        {"d": "2026-06-27", "a": "add", "txt": "SSG 딜페이지 파싱 RuntimeError", "src": "SSG"}
-      ]
-    },
-    {
-      "id": "S14", "g": "재고", "l": "etc", "src": "전 소싱처",
-      "st": "ok", "cm": "8cc2faa4",
-      "sy": "전체크롤 미완료 시 가짜 재고있음 + 판매차단 안 됨 (ⓐ·ⓑ 둘 다 복원완료)",
-      "cz": "ⓐ _resolve_stock이 raw=None→재고있음(None=미크롤과 상충) ⓑ 판매차단 게이트 inert — 하드리셋·finalize 함수+crawl_blocked 컬럼이 stale 머지에서 동반 유실, try/except:pass가 ImportError 삼켜 no-op",
-      "pv": "ⓑ 복원(8cc2faa4): crawl_blocked+3함수 복원·하드리셋/finalize 재가동. ⓐ: _resolve_stock(site,raw,last_status)이 None을 상태로 구분",
-      "code": { "file": "webapp/routes/api_pricing.py", "func": "_resolve_stock", "desc": "None을 상태로 구분(error→크롤실패/ok→재고있음/그외→미크롤)" },
-      "crawl": "ok", "doc": "sync", "view": "sync",
-      "rev": [
-        {"d": "2026-06-28", "a": "add", "txt": "판매차단 inert+가짜재고있음 복원", "src": "전 소싱처", "cm": "8cc2faa4"}
-      ]
-    },
-    {
-      "id": "S15", "g": "재고", "l": "be", "src": "무신사",
-      "st": "ok",
-      "sy": "단품 SP에 121행 누적→빈색 크롤이 엉뚱한 색 행에 써 재고 영구 불일치",
-      "cz": "_discover_color_variants가 형제색을 색필터 없이 한 단품 SP에 병합 + size 정규화 부재 + dedup 없음",
-      "pv": "upsert 정규화 + 등록색 스코프 + dedup",
-      "code": { "file": "lemouton/sourcing/crawlers/musinsa.py", "func": "_discover_color_variants", "desc": "등록색 스코프 + dedup" },
-      "crawl": "ok", "doc": "sync", "view": "sync",
-      "rev": [
-        {"d": "2026-06-27", "a": "add", "txt": "무신사 단품 SP 121행 누적 불일치", "src": "무신사"}
-      ]
-    },
-    {
-      "id": "S16", "g": "재고", "l": "fe", "src": "무신사",
-      "st": "ok", "cm": "v0.6.7",
-      "sy": "인벤토리 API 호출 통째 실패 시 전 옵션 999 재고있음 둔갑",
-      "cz": "옛 추출기가 invMap 빈 상태에서 remainQuantity==null ? 999 (호출실패와 미매칭 미구분)",
-      "pv": "라이브 확장 v0.6.7에 구현 — invOk 플래그(arr.length>0)로 API 실패 시 stock=null(불명), 999 둔갑 차단",
-      "crawl": "warn", "doc": "sync", "view": "sync",
-      "rev": [
-        {"d": "2026-06-28", "a": "add", "txt": "무신사 invMap 빈 상태 999 둔갑", "src": "무신사", "cm": "v0.6.7"}
-      ]
-    },
-    {
-      "id": "S17", "g": "재고", "l": "be", "src": "전 소싱처",
-      "st": "ok", "cm": "8cc2faa4",
-      "sy": "옵션 색이 다른 색에 부분일치로 오매칭→엉뚱한 재고/가격(예: '그레이'→'라이트그레이')",
-      "cz": "_match_option_so가 단일 패스 부분일치로 첫 일치 반환(정확매칭 우선 없음). stale 머지(94466889)가 2단계 매칭을 되돌려 재발",
-      "pv": "2단계 매칭 복원 — 정확 매칭 최우선 + 부분일치 후보 둘 이상이면 None(추측 금지)",
-      "code": { "file": "webapp/routes/api_pricing.py", "func": "_match_option_so", "desc": "2단계 매칭(정확우선+부분일치 중복 None)" },
-      "crawl": "ok", "doc": "sync", "view": "sync",
-      "rev": [
-        {"d": "2026-06-28", "a": "add", "txt": "색 부분일치 오매칭 2단계 복원", "src": "전 소싱처", "cm": "8cc2faa4"}
-      ]
-    },
-    {
-      "id": "S18", "g": "재고", "l": "be", "src": "업로드 변동감지",
-      "st": "ok",
-      "sy": "한정 1개 재고를 '사실상 품절'로 분류(확인=설계 의도)",
-      "cz": "change_detection STOCK_AVAILABLE_THRESHOLD=2 → stock<2를 사실상 품절 그룹으로 분류",
-      "pv": "버그 아님(확인 완료) — 임계치는 push 변동감지 그룹 한정, 마켓 노출은 raw_stock 그대로",
-      "code": { "file": "lemouton/uploader/change_detection.py", "func": "STOCK_AVAILABLE_THRESHOLD", "desc": "변동감지 그룹 한정 임계치(설계 의도)" },
-      "crawl": "ok", "doc": "sync", "view": "sync",
-      "rev": [
-        {"d": "2026-06-28", "a": "add", "txt": "변동감지 임계치 설계의도 확인", "src": "업로드 변동감지"}
-      ]
-    },
-    {
-      "id": "P1", "g": "가격", "l": "fe", "src": "무신사",
-      "st": "ok",
-      "sy": "표면가에 회원가 오긁음",
-      "cz": "회원가 잘못 읽어 표면가 오염",
-      "pv": "API goodsPrice.salePrice 직읽기 + 검증게이트(폴백금지)",
-      "crawl": "warn", "doc": "sync", "view": "sync",
-      "rev": [
-        {"d": "2026-06-27", "a": "add", "txt": "무신사 회원가 표면가 오염", "src": "무신사"}
-      ]
-    },
-    {
-      "id": "P2", "g": "가격", "l": "be", "src": "무신사",
-      "st": "ok",
-      "sy": "자동크롤이 혜택 누락",
-      "cz": "백그라운드 엔진이 benefit 필드 전송 누락(+스마트행 1개가 전체 정지)",
-      "pv": "자동크롤도 혜택 전송 + per-unit 타임아웃",
-      "crawl": "warn", "doc": "sync", "view": "sync",
-      "rev": [
-        {"d": "2026-06-27", "a": "add", "txt": "무신사 자동크롤 혜택 필드 누락", "src": "무신사"}
-      ]
-    },
-    {
-      "id": "P3", "g": "가격", "l": "be", "src": "SSG·SSF",
-      "st": "ok", "cm": "2026-06-22",
-      "sy": "SSG MONEY 적립이 라이브크롤로 영원히 안 채워짐",
-      "cz": "옛 가정: save_crawl_result만 봄(price/stock만 저장). 실제론 navGrab→/api/sources/parse 경로가 혜택 저장",
-      "pv": "해소 확인(2026-06-22) — _save_navgrab_dynamic_benefits가 ssg_money 등을 dynamic_benefits_json에 저장",
-      "code": { "file": "webapp/routes/api_sources_parse.py", "func": "persist_crawled_options", "desc": "navGrab 경로 혜택 저장 확인" },
-      "crawl": "ok", "doc": "sync", "view": "sync",
-      "rev": [
-        {"d": "2026-06-22", "a": "add", "txt": "SSG MONEY 라이브크롤 미갱신", "src": "SSG·SSF", "cm": "2026-06-22"}
-      ]
-    },
-    {
-      "id": "P4", "g": "가격", "l": "fe", "src": "SSG·다중URL",
-      "st": "ok",
-      "sy": "셀 가격 ≠ 계산식(fx 팝업)",
-      "cz": "fx 단건 breakdown에 source_product_id 미전달→등록 URL 폴백→SSOT 위반",
-      "pv": "셀 best 후보 spid를 fx 단건에 첨부",
-      "crawl": "warn", "doc": "sync", "view": "sync",
-      "rev": [
-        {"d": "2026-06-27", "a": "add", "txt": "SSG 다중URL 셀≠계산식 SSOT 위반", "src": "SSG·다중URL"}
-      ]
-    },
-    {
-      "id": "P5", "g": "가격", "l": "be", "src": "SSF",
-      "st": "ok",
-      "sy": "저장 전체 실패(priced 0)",
-      "cz": "soft-delete 행 못 찾고 INSERT→UniqueViolation→그 옵션 저장 전체 롤백",
-      "pv": "deleted_at 필터 제거 + revive",
-      "code": { "file": "lemouton/sources/service.py", "func": "upsert_source_product", "desc": "deleted_at 필터 제거 + revive" },
-      "crawl": "ok", "doc": "sync", "view": "sync",
-      "rev": [
-        {"d": "2026-06-27", "a": "add", "txt": "SSF UniqueViolation 저장 전체 실패", "src": "SSF"}
-      ]
-    },
-    {
-      "id": "P6", "g": "가격", "l": "be", "src": "신규 등록 URL",
-      "st": "ok", "cm": "21dc3ded",
-      "sy": "위젯 '완료'인데 매트릭스 '크롤링 미실시'",
-      "cz": "save_crawl_result가 SourceProduct 없으면 not_found로 조용히 드롭(등록은 BundleSourceUrl만 생성)",
-      "pv": "등록 URL이면 upsert_source_product로 행 생성 후 저장",
-      "code": { "file": "webapp/routes/api_pricing.py", "func": "save_crawl_result", "desc": "신규 URL upsert_source_product 후 저장" },
-      "crawl": "ok", "doc": "sync", "view": "sync",
-      "rev": [
-        {"d": "2026-06-27", "a": "add", "txt": "신규 등록 URL 조용히 드롭", "src": "신규 등록 URL", "cm": "21dc3ded"}
-      ]
-    },
-    {
-      "id": "P7", "g": "가격", "l": "etc", "src": "무신사 등",
-      "st": "ok",
-      "sy": "일시 실패→소싱처 0% 정체",
-      "cz": "고부하 타임아웃/빈그랩 + 하드리셋 price=null이면 last_price 안 덮어 stale에 status=error 정체",
-      "pv": "재시도 + 동시창 축소(폴백 유지)",
-      "crawl": "warn", "doc": "sync", "view": "sync",
-      "rev": [
-        {"d": "2026-06-27", "a": "add", "txt": "일시실패→stale 가격+error 정체", "src": "무신사 등"}
-      ]
-    },
-    {
-      "id": "P8", "g": "가격", "l": "be", "src": "롯데온·SSG",
-      "st": "ok",
-      "sy": "카드 청구할인 미반영",
-      "cz": "청구할인 없을 때 현대카드 2.73% fallback 미주입",
-      "pv": "결제 택1 pick-best 주입",
-      "code": { "file": "webapp/routes/api_benefits.py", "func": "compute_breakdown", "desc": "현대카드 fallback pick-best 주입" },
-      "crawl": "ok", "doc": "sync", "view": "sync",
-      "rev": [
-        {"d": "2026-06-27", "a": "add", "txt": "카드 청구할인 fallback 미반영", "src": "롯데온·SSG"}
-      ]
-    },
-    {
-      "id": "P9", "g": "가격", "l": "be", "src": "무신사 등",
-      "st": "ok", "cm": "2026-06-22",
-      "sy": "혜택 금액 0으로 저장(부분 스냅샷이 템플릿 가림)",
-      "cz": "override가 템플릿 전체 가림→이름 기준 병합으로 해소. 무신사 비로그인 금액0 clear는 의도",
-      "pv": "이름 기준 병합(api_benefits.py:572)",
-      "code": { "file": "webapp/routes/api_benefits.py", "func": "compute_breakdown", "desc": "이름 기준 override+템플릿 병합" },
-      "crawl": "ok", "doc": "sync", "view": "sync",
-      "rev": [
-        {"d": "2026-06-22", "a": "add", "txt": "혜택 0 저장 부분스냅샷 템플릿 가림", "src": "무신사 등", "cm": "2026-06-22"}
-      ]
-    },
-    {
-      "id": "P10", "g": "가격", "l": "etc", "l2": "fe", "src": "URL 저장",
-      "st": "ok", "cm": "77127de8",
-      "sy": "URL 저장 시 매번 임의 ~7건이 HTTP 500으로 조용히 누락",
-      "cz": "48개를 Promise.all 동시 저장→Supabase 풀(15) 초과",
-      "pv": "대량 저장 동시성 제한(5) + PUT 일시 500 재시도",
-      "crawl": "warn", "doc": "sync", "view": "sync",
-      "rev": [
-        {"d": "2026-06-27", "a": "add", "txt": "URL 저장 Promise.all 풀 초과 누락", "src": "URL 저장", "cm": "77127de8"}
-      ]
-    },
-    {
-      "id": "P11", "g": "가격", "l": "fe", "l2": "be", "src": "URL↔옵션 매핑",
-      "st": "ok", "cm": "c5406e92",
-      "sy": "멀쩡한 URL↔옵션 매핑이 통째 삭제될 수 있음",
-      "cz": "옵션키 canonical_sku 해소 실패 시 빈 목록 전송, 백엔드는 빈 목록=전체삭제",
-      "pv": "delete형 저장은 빈 페이로드 가드(빈 목록 omit)",
-      "code": { "file": "webapp/routes/bundles.py", "func": "_sync_option_links", "desc": "빈 페이로드 가드" },
-      "crawl": "ok", "doc": "sync", "view": "sync",
-      "rev": [
-        {"d": "2026-06-27", "a": "add", "txt": "빈 목록 전송→매핑 통째 삭제", "src": "URL↔옵션 매핑", "cm": "c5406e92"}
-      ]
-    },
-    {
-      "id": "P12", "g": "가격", "l": "fe", "src": "옵션조합 모달",
-      "st": "todo",
-      "sy": "축 값 이름변경(240→245) 시 매핑이 조용히 유실",
-      "cz": "rename 시 매핑 키 마이그레이션 없음(keyOf=표시값)",
-      "pv": "부분완화(console.warn로 유실 표면화). 완전수정=키 마이그레이션은 fragile 모달 rename 흐름 변경이라 별도",
-      "crawl": "no", "doc": "sync", "view": "sync",
-      "rev": [
-        {"d": "2026-06-27", "a": "add", "txt": "축 값 rename→매핑 키 유실", "src": "옵션조합 모달"}
-      ]
-    },
-    {
-      "id": "P13", "g": "가격", "l": "be", "src": "URL 저장",
-      "st": "ok", "cm": "2026-06-28",
-      "sy": "무효 SKU를 거부 건수 보고 없이 조용히 skip",
-      "cz": "_sync_option_links가 rejected 무보고(재고매핑은 보고)",
-      "pv": "_sync_option_links가 rejected 반환→응답 rejected_skus(재고매핑 거울)",
-      "code": { "file": "webapp/routes/bundles.py", "func": "_sync_option_links", "desc": "rejected 반환 + rejected_skus 응답" },
-      "crawl": "ok", "doc": "sync", "view": "sync",
-      "rev": [
-        {"d": "2026-06-28", "a": "add", "txt": "무효 SKU 조용히 skip 미보고", "src": "URL 저장", "cm": "2026-06-28"}
-      ]
-    },
-    {
-      "id": "P14", "g": "가격", "l": "fe", "src": "매트릭스",
-      "st": "todo",
-      "sy": "'재계산▶' 버튼이 저장 0인 stub",
-      "cz": "버튼이 실제 재계산·저장 안 함(누르면 loadMatrix 새로고침만)",
-      "pv": "실제 재계산 미구현 잔존 — 라벨 '재계산(준비중)'으로 오인 차단(2026-06-28)",
-      "crawl": "no", "doc": "sync", "view": "sync",
-      "rev": [
-        {"d": "2026-06-27", "a": "add", "txt": "재계산 버튼 stub 저장0", "src": "매트릭스"}
-      ]
-    },
-    {
-      "id": "P15", "g": "가격", "l": "be", "src": "가격설정 일괄저장",
-      "st": "ok", "cm": "2026-06-28",
-      "sy": "허용목록 밖 필드를 조용히 무시",
-      "cz": "bulk_set_price_config가 허용목록 밖 필드를 무보고 skip",
-      "pv": "응답에 ignored_fields 추가(저장 불변, 보고만)",
-      "code": { "file": "webapp/routes/api_pricing.py", "func": "bulk_set_price_config", "desc": "ignored_fields 응답 추가" },
-      "crawl": "ok", "doc": "sync", "view": "sync",
-      "rev": [
-        {"d": "2026-06-28", "a": "add", "txt": "허용목록밖 필드 무보고 skip", "src": "가격설정 일괄저장", "cm": "2026-06-28"}
-      ]
-    },
-    {
-      "id": "P16", "g": "가격", "l": "fe", "src": "무신사",
-      "st": "ok",
-      "sy": "매트릭스 fx stale(셀≠계산식, 동적혜택 소싱처만)",
-      "cz": "확장 백그라운드 크롤 종료 후 페이지가 loadMatrix 미호출→SM_BREAKDOWNS 캐시 stale",
-      "pv": "전역 finish 리스너→디바운스 loadMatrix",
-      "crawl": "warn", "doc": "sync", "view": "sync",
-      "rev": [
-        {"d": "2026-06-27", "a": "add", "txt": "크롤 완료 후 매트릭스 캐시 stale", "src": "무신사"}
-      ]
-    },
-    {
-      "id": "P17", "g": "가격", "l": "fe", "src": "롯데온",
-      "st": "ok",
-      "sy": "상품가가 '1원'으로 저장",
-      "cz": "보조정규식이 라벨 뒤 첫 숫자를 잡는데 '1회 최대 20개'의 1 + 가격 하한 없음 + SPA 렌더 전",
-      "pv": "숫자+원 인접·자릿수≥4·1000원 하한·렌더 폴링 + 서버 price<100 거부",
-      "crawl": "warn", "doc": "sync", "view": "sync",
-      "rev": [
-        {"d": "2026-06-27", "a": "add", "txt": "롯데온 1원 저장 정규식 버그", "src": "롯데온"}
-      ]
-    },
-    {
-      "id": "P18", "g": "가격", "l": "be", "src": "전 소싱처",
-      "st": "ok",
-      "sy": "39/40 성공인데 저장 0건(수집가 전량 소실→전 옵션 판매차단)",
-      "cz": "crawl-result for루프가 한 item 예외 시 commit 전 깨져 배치 전량 롤백(1건이 40건 죽임)",
-      "pv": "item별 begin_nested savepoint 격리 + item_errors 표면화",
-      "code": { "file": "webapp/routes/api_pricing.py", "func": "save_crawl_result", "desc": "item별 begin_nested savepoint 격리" },
-      "crawl": "ok", "doc": "sync", "view": "sync",
-      "rev": [
-        {"d": "2026-06-27", "a": "add", "txt": "1건 예외→배치 전량 롤백", "src": "전 소싱처"}
-      ]
-    },
-    {
-      "id": "P19", "g": "가격", "l": "be", "src": "SSF",
-      "st": "ok",
-      "sy": "멤버십포인트 혜택이 계산식에 안 뜸",
-      "cz": "같은 URL이 lemouton·ssf 2상품에 걸려 url만으로 매칭하면 site=lemouton 상품에 저장→breakdown(site=ssf)이 못 읽음",
-      "pv": "source_key==site 매칭",
-      "code": { "file": "webapp/routes/api_benefits.py", "func": "compute_breakdown", "desc": "source_key==site 매칭" },
-      "crawl": "ok", "doc": "sync", "view": "sync",
-      "rev": [
-        {"d": "2026-06-27", "a": "add", "txt": "SSF 멤버십포인트 cross-source 오저장", "src": "SSF"}
-      ]
-    },
-    {
-      "id": "P20", "g": "가격", "l": "be", "src": "르무통 등",
-      "st": "ok",
-      "sy": "혜택 12개 중 1개만 남고 템플릿 전부 드롭→언더프라이싱",
-      "cz": "compute_breakdown 게이트가 override 1건이라도 있으면 템플릿 전체 무시",
-      "pv": "이름 기준 병합(override+템플릿)",
-      "code": { "file": "webapp/routes/api_benefits.py", "func": "compute_breakdown", "desc": "이름 기준 override+템플릿 병합" },
-      "crawl": "ok", "doc": "sync", "view": "sync",
-      "rev": [
-        {"d": "2026-06-27", "a": "add", "txt": "override 1건→템플릿 전체 드롭", "src": "르무통 등"}
-      ]
-    },
-    {
-      "id": "P21", "g": "가격", "l": "be", "src": "SSF 등",
-      "st": "ok",
-      "sy": "재크롤해도 영영 안 갱신(pending 고정)",
-      "cz": "정규화 도입 전 raw URL 행을 upsert_source_product가 못 찾아 매번 중복 SourceProduct 생성→비결정적 픽",
-      "pv": "양쪽 정규화 비교 + dedupe 마이그레이션",
-      "code": { "file": "lemouton/sources/service.py", "func": "upsert_source_product", "desc": "양쪽 정규화 비교 + dedupe" },
-      "crawl": "ok", "doc": "sync", "view": "sync",
-      "rev": [
-        {"d": "2026-06-27", "a": "add", "txt": "SSF 중복 SourceProduct pending 고정", "src": "SSF 등"}
-      ]
-    },
-    {
-      "id": "P22", "g": "가격", "l": "be", "src": "전 소싱처",
-      "st": "ok",
-      "sy": "/breakdowns가 ~110초→새로고침 시 크롤현황 카드 사라짐",
-      "cz": "루프(876건)마다 compute_breakdown 내부 5쿼리 + SourceProduct 전체 .all() × Supabase RTT (N+1)",
-      "pv": "_build_breakdown_cache 1회 prefetch(110초→0.3초)",
-      "code": { "file": "webapp/routes/api_benefits.py", "func": "_build_breakdown_cache", "desc": "N+1 제거용 1회 prefetch" },
-      "crawl": "ok", "doc": "sync", "view": "sync",
-      "rev": [
-        {"d": "2026-06-27", "a": "add", "txt": "/breakdowns N+1 110초", "src": "전 소싱처"}
-      ]
-    },
-    {
-      "id": "P23", "g": "가격", "l": "be", "src": "단일옵션",
-      "st": "ok", "cm": "2026-06-28",
-      "sy": "레거시 단일옵션 price-calc가 크롤가 없으면 95000 가짜 매입가 표시",
-      "cz": "get_price_breakdown에 or 95000 폴백 잔존(메인만 고침). 호출 프론트 없음(dead 레거시)",
-      "pv": "or 95000 제거→없으면 price_unavailable+crawl_failed 표면화(§4)",
-      "code": { "file": "webapp/routes/api_pricing.py", "func": "get_price_breakdown", "desc": "or 95000 폴백 제거" },
-      "crawl": "ok", "doc": "sync", "view": "sync",
-      "rev": [
-        {"d": "2026-06-28", "a": "add", "txt": "95000 가짜 매입가 폴백 제거", "src": "단일옵션", "cm": "2026-06-28"}
-      ]
-    },
-    {
-      "id": "O1", "g": "기타", "l": "etc", "src": "구조",
-      "st": "ok",
-      "sy": "조용한 실패 버그 클래스 (상시 주의)",
-      "cz": "무결성 제약 부재(A) + SSOT 분열(last_price 평균 vs 최저)(B) + 누락 무경고(None 탈락)(C)",
-      "pv": "버그 단건 아님 — §4 무결성 4철칙(상단)으로 상시 적용: DB 제약 + SSOT 통일 + None 후보 경고",
-      "crawl": "no", "doc": "sync", "view": "sync",
-      "rev": [
-        {"d": "2026-06-27", "a": "add", "txt": "조용한 실패 버그 클래스 상시 주의", "src": "구조"}
-      ]
-    },
-    {
-      "id": "O2", "g": "기타", "l": "etc", "src": "배포",
-      "st": "ok",
-      "sy": "배포 success인데 옛 코드 영속",
-      "cz": "docker run이 기존 컨테이너 미교체로 백엔드 옛 코드로 계속 돎",
-      "pv": "docker rm -f + 교체 검증 (success ≠ 코드 라이브)",
-      "crawl": "ok", "doc": "sync", "view": "sync",
-      "rev": [
-        {"d": "2026-06-27", "a": "add", "txt": "배포 success 옛 코드 영속", "src": "배포"}
-      ]
-    },
-    {
-      "id": "O3", "g": "기타", "l": "etc", "src": "확장",
-      "st": "ok",
-      "sy": "수정해도 라이브 미반영 (상시 주의)",
-      "cz": "확장 버전 분열 + 로드된 확장 = 데스크톱 사본(dev 사본 고쳐도 무효)",
-      "pv": "버그 아님 — 작업 주의: 로드 확장(v0.6.7) 경로 확인 후 reload",
-      "crawl": "ok", "doc": "sync", "view": "sync",
-      "rev": [
-        {"d": "2026-06-27", "a": "add", "txt": "확장 수정 라이브 미반영 상시 주의", "src": "확장"}
-      ]
-    },
-    {
-      "id": "O4", "g": "기타", "l": "etc", "src": "DB",
-      "st": "ok",
-      "sy": "dev 값이 라이브와 다름 (상시 주의)",
-      "cz": "dev DB는 라이브보다 수십~수백 커밋 stale",
-      "pv": "버그 아님 — 작업 주의: 라이브 대조 필수(dev 신뢰 금지)",
-      "crawl": "ok", "doc": "sync", "view": "sync",
-      "rev": [
-        {"d": "2026-06-27", "a": "add", "txt": "dev DB stale 라이브 대조 필수", "src": "DB"}
-      ]
-    },
-    {
-      "id": "O5", "g": "기타", "l": "fe", "src": "크롤 위젯",
-      "st": "ok", "cm": "2026-06-28",
-      "sy": "가격 없어도 '성공 ✓' 표기",
-      "cz": "위젯이 level!==warn이면 표면가 없어도 성공 카운트",
-      "pv": "item-done 시 surf(표면가) 없으면 실패 집계(매입가는 fx 이후라 surf로 판정)",
-      "code": { "file": "webapp/static/crawl_log.js", "func": "SOURCE_ORDER", "desc": "item-done surf 없으면 실패 집계" },
-      "crawl": "warn", "doc": "sync", "view": "sync",
-      "rev": [
-        {"d": "2026-06-28", "a": "add", "txt": "크롤 위젯 가격없어도 성공 표기", "src": "크롤 위젯", "cm": "2026-06-28"}
-      ]
-    },
-    {
-      "id": "O6", "g": "기타", "l": "etc", "src": "롯데온 per-size",
-      "st": "ok", "cm": "v0.6.7",
-      "sy": "롯데온 사이즈별 수량 미수집(옛 상품단위 999/0만)",
-      "cz": "옛 lotteonExtractor가 per-option 재고 미수집(상품 DOM만)",
-      "pv": "라이브 확장 v0.6.7에 구현 — 옵션매핑 API(pbf.../option/mapping)로 색×사이즈 실수량(stkQty) 수집",
-      "crawl": "warn", "doc": "sync", "view": "sync",
-      "rev": [
-        {"d": "2026-06-28", "a": "add", "txt": "롯데온 per-size 수량 미수집", "src": "롯데온 per-size", "cm": "v0.6.7"}
-      ]
-    },
-    {
-      "id": "O7", "g": "기타", "l": "fe", "src": "옵션조합 모달",
-      "st": "ok", "cm": "c948d4ec",
-      "sy": "저장 실패해도 '저장 완료'로 표시",
-      "cz": "에러를 console.warn으로 삼킴",
-      "pv": "저장 함수는 {ok,errors[]} 반환·버튼이 실패 표면화",
-      "code": { "file": "webapp/static/option_url_modal.js", "func": "invApplyMapping", "desc": "{ok,errors[]} 반환·실패 표면화" },
-      "crawl": "ok", "doc": "sync", "view": "sync",
-      "rev": [
-        {"d": "2026-06-27", "a": "add", "txt": "저장실패→저장완료 위장", "src": "옵션조합 모달", "cm": "c948d4ec"}
-      ]
-    },
-    {
-      "id": "O8", "g": "기타", "l": "fe", "src": "옵션조합 모달",
-      "st": "ok", "cm": "c5406e92",
-      "sy": "저장 직전 재로딩 빈응답이면 r.json() 터져 저장 전체 무산",
-      "cz": "외부 응답 파싱 전 검증 없음",
-      "pv": "res.ok + 본문 검증 후 명확 메시지로 중단",
-      "code": { "file": "webapp/static/option_url_modal.js", "func": "invApplyMapping", "desc": "res.ok + 본문 검증" },
-      "crawl": "ok", "doc": "sync", "view": "sync",
-      "rev": [
-        {"d": "2026-06-27", "a": "add", "txt": "저장 직전 빈응답 r.json() 오류", "src": "옵션조합 모달", "cm": "c5406e92"}
-      ]
-    },
-    {
-      "id": "O9", "g": "기타", "l": "fe", "src": "옵션조합 모달",
-      "st": "ok", "cm": "c5406e92",
-      "sy": "옵션 구성 저장 실패해도 계속 진행→stale 매핑 유실",
-      "cz": "실패 무시하고 진행",
-      "pv": "실패 시 즉시 중단(재시도 유도)",
-      "code": { "file": "webapp/static/option_url_modal.js", "func": "invApplyMapping", "desc": "실패 시 즉시 중단" },
-      "crawl": "ok", "doc": "sync", "view": "sync",
-      "rev": [
-        {"d": "2026-06-27", "a": "add", "txt": "저장실패 무시하고 진행", "src": "옵션조합 모달", "cm": "c5406e92"}
-      ]
-    },
-    {
-      "id": "O10", "g": "기타", "l": "fe", "src": "옵션조합 모달",
-      "st": "ok", "cm": "c5406e92",
-      "sy": "X·취소·배경 클릭으로 닫으면 저장 실패가 무음",
-      "cz": "닫기 경로 실패 미표면화",
-      "pv": "닫혀도 실패를 알림으로 표면화",
-      "code": { "file": "webapp/static/option_url_modal.js", "func": "invApplyMapping", "desc": "닫기 경로 실패 알림 표면화" },
-      "crawl": "ok", "doc": "sync", "view": "sync",
-      "rev": [
-        {"d": "2026-06-27", "a": "add", "txt": "닫기 경로 저장실패 무음", "src": "옵션조합 모달", "cm": "c5406e92"}
-      ]
-    },
-    {
-      "id": "O11", "g": "기타", "l": "fe", "src": "전체크롤 위젯",
-      "st": "ok",
-      "sy": "목표 0/진행 0에서 영구멈춤(중지도 무력)",
-      "cz": "SW의 bgFetch가 사용자가 열어둔 탭에 주입하는데 크롬이 그 탭을 discard/bfcache→영구 대기",
-      "pv": "withTimeout + 전용 백그라운드탭 매 크롤 생성·핀",
-      "crawl": "warn", "doc": "sync", "view": "sync",
-      "rev": [
-        {"d": "2026-06-27", "a": "add", "txt": "전체크롤 위젯 영구멈춤", "src": "전체크롤 위젯"}
-      ]
-    },
-    {
-      "id": "O12", "g": "기타", "l": "fe", "src": "전체크롤 위젯",
-      "st": "ok",
-      "sy": "새로고침·탭이동하면 크롤 멈춤(자동재개 없음)",
-      "cz": "큐·진행·결과(_mgr)가 in-memory만이라 MV3가 유휴 서비스워커 재우면 소실",
-      "pv": "chrome.storage.session 영속 + 기동 시 bootResume 자동재개",
-      "crawl": "warn", "doc": "sync", "view": "sync",
-      "rev": [
-        {"d": "2026-06-27", "a": "add", "txt": "탭이동→크롤 멈춤 자동재개 없음", "src": "전체크롤 위젯"}
-      ]
-    },
-    {
-      "id": "O13", "g": "기타", "l": "etc", "src": "서버 parse",
-      "st": "ok", "cm": "2026-06-28",
-      "sy": "전체크롤 일부 건 SyntaxError(<!DOCTYPE 응답)",
-      "cz": "/api/sources/parse가 JSON 대신 HTML 에러페이지를 간헐 반환→클라 r.json() throw",
-      "pv": "클라 fetchJson 가드 + 서버 blueprint 전용 errorhandler(미처리 예외도 항상 JSON)",
-      "code": { "file": "webapp/static/ext_bridge.js", "func": "fetchJson", "desc": "비-JSON 응답 시 명확 에러 가드" },
-      "crawl": "ok", "doc": "sync", "view": "sync",
-      "rev": [
-        {"d": "2026-06-28", "a": "add", "txt": "parse HTML 에러페이지→SyntaxError", "src": "서버 parse", "cm": "2026-06-28"}
-      ]
-    },
-    {
-      "id": "O14", "g": "기타", "l": "fe", "src": "전 소싱처",
-      "st": "ok", "cm": "v0.6.7",
-      "sy": "일부 등록 URL이 전체크롤 후 pending(옛 의심)",
-      "cz": "옛 의심: 확장 enqueue 커버리지 갭(미확정)",
-      "pv": "해소 확인(v0.6.7) — runQueueBG가 option-matrix 전 source 중복제거 enqueue, 갭 없음",
-      "crawl": "warn", "doc": "sync", "view": "sync",
-      "rev": [
-        {"d": "2026-06-28", "a": "add", "txt": "enqueue 커버리지 갭 의심→해소확인", "src": "전 소싱처", "cm": "v0.6.7"}
-      ]
-    },
-    {
-      "id": "O15", "g": "기타", "l": "fe", "src": "검증탭",
-      "st": "ok",
-      "sy": "재검증이 무신사·롯데온을 실제로 안 긁고 옛 stale를 '크롤실패' 표시",
-      "cz": "재검증이 서버 recrawl-url만 호출(브라우저 없어 need_extension) + 확장 메시지 경로 불일치",
-      "pv": "crawlBundleAll로 전체크롤과 동일화",
-      "crawl": "warn", "doc": "sync", "view": "sync",
-      "rev": [
-        {"d": "2026-06-27", "a": "add", "txt": "재검증 실제 크롤 안 함→stale 크롤실패", "src": "검증탭"}
-      ]
-    },
-    {
-      "id": "O16", "g": "기타", "l": "be", "src": "서버 refetch",
-      "st": "ok", "cm": "2026-06-28",
-      "sy": "단건 재크롤(refetch)이 SSG를 SSF 크롤러로 보내 오파싱/실패",
-      "cz": "_detect_site_from_url(api_pricing.py:1656)이 'ssg.com' in u → 'ssf'로 묶음",
-      "pv": "ssfshop.com→'ssf' / ssg.com→'ssg' 분리(부분문자열 충돌 없음)",
-      "code": { "file": "webapp/routes/api_pricing.py", "func": "_detect_site_from_url", "desc": "ssg.com→ssg / ssfshop.com→ssf 분리" },
-      "crawl": "ok", "doc": "sync", "view": "sync",
-      "rev": [
-        {"d": "2026-06-28", "a": "add", "txt": "SSG refetch SSF 크롤러로 오라우팅", "src": "서버 refetch", "cm": "2026-06-28"}
-      ]
-    },
-    {
-      "id": "O17", "g": "기타", "l": "be", "src": "SSF 스크린샷",
-      "st": "ok",
-      "sy": "SSF 기준 스크린샷 멤버십포인트 적립 행 잘림",
-      "cz": "screenshot.py SSF 고정 box(500,250)→250px 아래 '포인트 적립(멤버십포인트)' 섹션 잘림",
-      "pv": "bottom_anchors=gods-benefit로 캡처영역 동적 확장(표시 전용·가격 무영향)",
-      "code": { "file": "lemouton/sourcing/screenshot.py", "func": "capture_screenshot", "desc": "bottom_anchors 동적 확장" },
-      "crawl": "ok", "doc": "sync", "view": "sync",
-      "rev": [
-        {"d": "2026-06-27", "a": "add", "txt": "SSF 스크린샷 멤버십포인트 잘림", "src": "SSF 스크린샷"}
-      ]
-    },
-    {
-      "id": "O18", "g": "기타", "l": "be", "l2": "fe", "src": "매트릭스/위젯",
-      "st": "ok", "cm": "9db59f6f",
-      "sy": "커스텀 소싱처(hmall·롯데아이몰)가 정상 크롤됐는데 셀·매트릭스보기·위젯에 안 뜸",
-      "cz": "매트릭스가 소싱처를 source_id(레지스트리 id)로 컬럼·셀 매칭→커스텀은 _key_domain(builtin 6 하드코딩) 밖이라 셀 source_id=null→deriveSourceColumns가 null 컬럼 skip. 위젯 카운트도 builtin 기준",
-      "pv": "셀·매트릭스보기 ✅: option-matrix 셀 source_id=key:+source_key 합성 + DATA.sources 커스텀 컬럼 추가 + get_labels SourcingSource 한글 라벨. ⏳위젯 완료 카운트는 확장측 별도",
-      "code": { "file": "webapp/routes/api_pricing.py", "func": "_option_matrix_data", "desc": "커스텀 소싱처 source_id=key:+key 합성 + DATA.sources 추가" },
-      "crawl": "ok", "doc": "sync", "view": "sync",
-      "rev": [
-        {"d": "2026-06-28", "a": "add", "txt": "커스텀 소싱처 매트릭스 미표시(source_id=null) 수정", "src": "매트릭스/위젯", "cm": "9db59f6f"}
-      ]
+     "d": "2026-06-27",
+     "a": "add",
+     "txt": "사이즈별 재고 합계 둔갑 최초 기재",
+     "src": "르무통",
+     "cm": "d1fbe8fb"
     }
-  ]
+   ]
+  },
+  {
+   "id": "S2",
+   "g": "재고",
+   "l": "be",
+   "src": "스마트스토어",
+   "st": "ok",
+   "sy": "전부 999 '있음' 둔갑(품절 SKU도)",
+   "cz": "save_crawl_result가 옵션 current_stock 미영속, 서버크롤만 채워 확장전용 경로 영원히 stale",
+   "pv": "_persist_option_stocks 영속(확장 경로도)",
+   "code": {
+    "file": "webapp/routes/api_pricing.py",
+    "func": "_persist_option_stocks",
+    "desc": "확장 경로도 current_stock 영속"
+   },
+   "crawl": "ok",
+   "doc": "sync",
+   "view": "sync",
+   "rev": [
+    {
+     "d": "2026-06-27",
+     "a": "add",
+     "txt": "스마트스토어 999 둔갑 영속 누락",
+     "src": "스마트스토어"
+    }
+   ]
+  },
+  {
+   "id": "S3",
+   "g": "재고",
+   "l": "be",
+   "src": "롯데온",
+   "st": "ok",
+   "sy": "충분 재고가 999⚠️품절(특정 색만)",
+   "cz": "SourceOption 중복행(색 포맷 3종 INSERT)→매트릭스가 null 중복행 읽고 last_stock=999 폴백",
+   "pv": "색 호환 그룹만 dedup(멀티색 skip)",
+   "code": {
+    "file": "webapp/routes/api_pricing.py",
+    "func": "_match_option_so",
+    "desc": "dedup 후 중복행 읽기 방지"
+   },
+   "crawl": "ok",
+   "doc": "sync",
+   "view": "sync",
+   "rev": [
+    {
+     "d": "2026-06-27",
+     "a": "add",
+     "txt": "롯데온 중복행 → 999 폴백",
+     "src": "롯데온"
+    }
+   ]
+  },
+  {
+   "id": "S4",
+   "g": "재고",
+   "l": "fe",
+   "src": "롯데온",
+   "st": "ok",
+   "sy": "품절 사이즈가 '4개·있음' 둔갑",
+   "cz": "대체상품 가드 _realSpd 정규식이 LO접두 하드코딩→숫자형 URL서 무력화",
+   "pv": "범용 패턴 + 숫자만 비교",
+   "crawl": "warn",
+   "doc": "sync",
+   "view": "sync",
+   "rev": [
+    {
+     "d": "2026-06-27",
+     "a": "add",
+     "txt": "롯데온 대체상품 가드 숫자형URL 무력화",
+     "src": "롯데온"
+    }
+   ],
+   "reason": "ext"
+  },
+  {
+   "id": "S5",
+   "g": "재고",
+   "l": "be",
+   "src": "SSG",
+   "st": "ok",
+   "sy": "단일색 상품 재고 uniform 둔갑",
+   "cz": "파서가 사이즈를 color_text에 박고 size_text 비움→_ingest 조용히 skip→SO 미생성→상품레벨 폴백",
+   "pv": "size-only 축 처리",
+   "code": {
+    "file": "lemouton/sourcing/crawlers/ssg.py",
+    "func": "_parse_uitem_options",
+    "desc": "size-only 축 처리"
+   },
+   "crawl": "ok",
+   "doc": "sync",
+   "view": "sync",
+   "rev": [
+    {
+     "d": "2026-06-27",
+     "a": "add",
+     "txt": "SSG 단일색 사이즈 파싱 버그",
+     "src": "SSG"
+    }
+   ]
+  },
+  {
+   "id": "S6",
+   "g": "재고",
+   "l": "be",
+   "src": "무신사",
+   "st": "ok",
+   "sy": "단품 거짓 품절",
+   "cz": "_match_option_so가 빈색(color='')일 때 size-only 매칭 안 함",
+   "pv": "빈색 옵션 매칭 규칙",
+   "code": {
+    "file": "webapp/routes/api_pricing.py",
+    "func": "_match_option_so",
+    "desc": "빈색 size-only 매칭 규칙 추가"
+   },
+   "crawl": "ok",
+   "doc": "sync",
+   "view": "sync",
+   "rev": [
+    {
+     "d": "2026-06-27",
+     "a": "add",
+     "txt": "무신사 단품 빈색 거짓 품절",
+     "src": "무신사"
+    }
+   ]
+  },
+  {
+   "id": "S7",
+   "g": "재고",
+   "l": "be",
+   "l2": "fe",
+   "src": "르무통",
+   "st": "ok",
+   "sy": "비활성(OFF) 사이즈에 가격 누출",
+   "cz": "크롤러 미판매 사이즈 과다수집(데카르트곱 999) + 매트릭스가 is_active 무시",
+   "pv": "실조합만 수집 + is_active 존중",
+   "code": {
+    "file": "lemouton/sourcing/crawlers/lemouton.py",
+    "func": "fetch",
+    "desc": "실조합만 수집"
+   },
+   "crawl": "ok",
+   "doc": "sync",
+   "view": "sync",
+   "rev": [
+    {
+     "d": "2026-06-27",
+     "a": "add",
+     "txt": "르무통 비활성 사이즈 가격 누출",
+     "src": "르무통"
+    }
+   ]
+  },
+  {
+   "id": "S8",
+   "g": "재고",
+   "l": "be",
+   "l2": "fe",
+   "src": "무신사",
+   "st": "ok",
+   "cm": "2d63a9e1",
+   "sy": "한정수량·품절 사이즈가 '재고있음' 균일",
+   "cz": "S1 동계열 — 확장 client추출 경로서 사이즈별 옵션행 미생성",
+   "pv": "persist_crawled_options + ext_bridge options[]",
+   "code": {
+    "file": "lemouton/sources/service.py",
+    "func": "persist_crawled_options",
+    "desc": "확장 경로도 옵션행 생성+갱신"
+   },
+   "crawl": "ok",
+   "doc": "sync",
+   "view": "sync",
+   "rev": [
+    {
+     "d": "2026-06-27",
+     "a": "add",
+     "txt": "무신사 확장경로 옵션행 미생성 균일둔갑",
+     "src": "무신사",
+     "cm": "2d63a9e1"
+    }
+   ]
+  },
+  {
+   "id": "S9",
+   "g": "재고",
+   "l": "fe",
+   "src": "스마트스토어",
+   "st": "ok",
+   "sy": "재고 999 silent 둔갑",
+   "cz": "productNo 먼저 써 204 빈응답→999. channelProductNo(A.id) 써야 정확",
+   "pv": "A.id 사용",
+   "crawl": "warn",
+   "doc": "sync",
+   "view": "sync",
+   "rev": [
+    {
+     "d": "2026-06-27",
+     "a": "add",
+     "txt": "스마트스토어 productNo→204→999 둔갑",
+     "src": "스마트스토어"
+    }
+   ],
+   "reason": "ext"
+  },
+  {
+   "id": "S10",
+   "g": "재고",
+   "l": "be",
+   "src": "SSF",
+   "st": "ok",
+   "sy": "품절임박 N개 미식별",
+   "cz": "정규식이 '품절임박 ( N )' 괄호 안 공백 미처리",
+   "pv": "괄호 공백 허용 정규식",
+   "code": {
+    "file": "lemouton/sourcing/crawlers/ssf.py",
+    "func": "fetch",
+    "desc": "괄호 공백 허용 정규식"
+   },
+   "crawl": "ok",
+   "doc": "sync",
+   "view": "sync",
+   "rev": [
+    {
+     "d": "2026-06-27",
+     "a": "add",
+     "txt": "SSF 품절임박 N개 정규식 괄호 공백",
+     "src": "SSF"
+    }
+   ]
+  },
+  {
+   "id": "S11",
+   "g": "재고",
+   "l": "be",
+   "src": "전 소싱처",
+   "st": "ok",
+   "sy": "수량0·전부있음(boolean만)",
+   "cz": "실수량 안 긁고 in/out boolean만 출력→거짓 '재고있음'",
+   "pv": "실수량 캡처(3상태)",
+   "crawl": "warn",
+   "doc": "sync",
+   "view": "sync",
+   "rev": [
+    {
+     "d": "2026-06-27",
+     "a": "add",
+     "txt": "전 소싱처 boolean 재고→거짓 있음",
+     "src": "전 소싱처"
+    }
+   ],
+   "reason": "infra"
+  },
+  {
+   "id": "S12",
+   "g": "재고",
+   "l": "fe",
+   "src": "옵션조합 모달",
+   "st": "ok",
+   "cm": "c948d4ec",
+   "sy": "재고관리 매핑 저장해도 새로고침하면 사라짐",
+   "cz": "autoSave()가 재고매핑 저장단계 미호출(invApplyMapping이 삭제된 버튼에만 묶여 고아화)",
+   "pv": "새 저장단계는 autoSave에 배선 + 로딩완료(invLoaded) 가드",
+   "code": {
+    "file": "webapp/static/option_url_modal.js",
+    "func": "invApplyMapping",
+    "desc": "autoSave 배선 + invLoaded 가드"
+   },
+   "crawl": "ok",
+   "doc": "sync",
+   "view": "sync",
+   "rev": [
+    {
+     "d": "2026-06-27",
+     "a": "add",
+     "txt": "재고 매핑 저장 고아화",
+     "src": "옵션조합 모달",
+     "cm": "c948d4ec"
+    }
+   ]
+  },
+  {
+   "id": "S13",
+   "g": "재고",
+   "l": "be",
+   "src": "SSG",
+   "st": "ok",
+   "sy": "딜페이지(여러 단품 묶음) 전부 status=error·재고 누락",
+   "cz": "딜페이지엔 uitemObjArr 인라인JS가 없어 _parse_uitem_options 빈값→RuntimeError",
+   "pv": "대표상품 itemView로 재크롤(_resolve_deal_representative_url). ⚠️재발·모델매핑 미배선 잔존",
+   "code": {
+    "file": "lemouton/sourcing/crawlers/ssg.py",
+    "func": "_resolve_deal_representative_url",
+    "desc": "딜페이지 대표상품 itemView 재크롤"
+   },
+   "crawl": "ok",
+   "doc": "sync",
+   "view": "sync",
+   "rev": [
+    {
+     "d": "2026-06-27",
+     "a": "add",
+     "txt": "SSG 딜페이지 파싱 RuntimeError",
+     "src": "SSG"
+    }
+   ]
+  },
+  {
+   "id": "S14",
+   "g": "재고",
+   "l": "etc",
+   "src": "전 소싱처",
+   "st": "ok",
+   "cm": "8cc2faa4",
+   "sy": "전체크롤 미완료 시 가짜 재고있음 + 판매차단 안 됨 (ⓐ·ⓑ 둘 다 복원완료)",
+   "cz": "ⓐ _resolve_stock이 raw=None→재고있음(None=미크롤과 상충) ⓑ 판매차단 게이트 inert — 하드리셋·finalize 함수+crawl_blocked 컬럼이 stale 머지에서 동반 유실, try/except:pass가 ImportError 삼켜 no-op",
+   "pv": "ⓑ 복원(8cc2faa4): crawl_blocked+3함수 복원·하드리셋/finalize 재가동. ⓐ: _resolve_stock(site,raw,last_status)이 None을 상태로 구분",
+   "code": {
+    "file": "webapp/routes/api_pricing.py",
+    "func": "_resolve_stock",
+    "desc": "None을 상태로 구분(error→크롤실패/ok→재고있음/그외→미크롤)"
+   },
+   "crawl": "ok",
+   "doc": "sync",
+   "view": "sync",
+   "rev": [
+    {
+     "d": "2026-06-28",
+     "a": "add",
+     "txt": "판매차단 inert+가짜재고있음 복원",
+     "src": "전 소싱처",
+     "cm": "8cc2faa4"
+    }
+   ]
+  },
+  {
+   "id": "S15",
+   "g": "재고",
+   "l": "be",
+   "src": "무신사",
+   "st": "ok",
+   "sy": "단품 SP에 121행 누적→빈색 크롤이 엉뚱한 색 행에 써 재고 영구 불일치",
+   "cz": "_discover_color_variants가 형제색을 색필터 없이 한 단품 SP에 병합 + size 정규화 부재 + dedup 없음",
+   "pv": "upsert 정규화 + 등록색 스코프 + dedup",
+   "code": {
+    "file": "lemouton/sourcing/crawlers/musinsa.py",
+    "func": "_discover_color_variants",
+    "desc": "등록색 스코프 + dedup"
+   },
+   "crawl": "ok",
+   "doc": "sync",
+   "view": "sync",
+   "rev": [
+    {
+     "d": "2026-06-27",
+     "a": "add",
+     "txt": "무신사 단품 SP 121행 누적 불일치",
+     "src": "무신사"
+    }
+   ]
+  },
+  {
+   "id": "S16",
+   "g": "재고",
+   "l": "fe",
+   "src": "무신사",
+   "st": "ok",
+   "cm": "v0.6.7",
+   "sy": "인벤토리 API 호출 통째 실패 시 전 옵션 999 재고있음 둔갑",
+   "cz": "옛 추출기가 invMap 빈 상태에서 remainQuantity==null ? 999 (호출실패와 미매칭 미구분)",
+   "pv": "라이브 확장 v0.6.7에 구현 — invOk 플래그(arr.length>0)로 API 실패 시 stock=null(불명), 999 둔갑 차단",
+   "crawl": "warn",
+   "doc": "sync",
+   "view": "sync",
+   "rev": [
+    {
+     "d": "2026-06-28",
+     "a": "add",
+     "txt": "무신사 invMap 빈 상태 999 둔갑",
+     "src": "무신사",
+     "cm": "v0.6.7"
+    }
+   ],
+   "reason": "ext"
+  },
+  {
+   "id": "S17",
+   "g": "재고",
+   "l": "be",
+   "src": "전 소싱처",
+   "st": "ok",
+   "cm": "8cc2faa4",
+   "sy": "옵션 색이 다른 색에 부분일치로 오매칭→엉뚱한 재고/가격(예: '그레이'→'라이트그레이')",
+   "cz": "_match_option_so가 단일 패스 부분일치로 첫 일치 반환(정확매칭 우선 없음). stale 머지(94466889)가 2단계 매칭을 되돌려 재발",
+   "pv": "2단계 매칭 복원 — 정확 매칭 최우선 + 부분일치 후보 둘 이상이면 None(추측 금지)",
+   "code": {
+    "file": "webapp/routes/api_pricing.py",
+    "func": "_match_option_so",
+    "desc": "2단계 매칭(정확우선+부분일치 중복 None)"
+   },
+   "crawl": "ok",
+   "doc": "sync",
+   "view": "sync",
+   "rev": [
+    {
+     "d": "2026-06-28",
+     "a": "add",
+     "txt": "색 부분일치 오매칭 2단계 복원",
+     "src": "전 소싱처",
+     "cm": "8cc2faa4"
+    }
+   ]
+  },
+  {
+   "id": "S18",
+   "g": "재고",
+   "l": "be",
+   "src": "업로드 변동감지",
+   "st": "ok",
+   "sy": "한정 1개 재고를 '사실상 품절'로 분류(확인=설계 의도)",
+   "cz": "change_detection STOCK_AVAILABLE_THRESHOLD=2 → stock<2를 사실상 품절 그룹으로 분류",
+   "pv": "버그 아님(확인 완료) — 임계치는 push 변동감지 그룹 한정, 마켓 노출은 raw_stock 그대로",
+   "code": {
+    "file": "lemouton/uploader/change_detection.py",
+    "func": "STOCK_AVAILABLE_THRESHOLD",
+    "desc": "변동감지 그룹 한정 임계치(설계 의도)"
+   },
+   "crawl": "ok",
+   "doc": "sync",
+   "view": "sync",
+   "rev": [
+    {
+     "d": "2026-06-28",
+     "a": "add",
+     "txt": "변동감지 임계치 설계의도 확인",
+     "src": "업로드 변동감지"
+    }
+   ]
+  },
+  {
+   "id": "P1",
+   "g": "가격",
+   "l": "fe",
+   "src": "무신사",
+   "st": "ok",
+   "sy": "표면가에 회원가 오긁음",
+   "cz": "회원가 잘못 읽어 표면가 오염",
+   "pv": "API goodsPrice.salePrice 직읽기 + 검증게이트(폴백금지)",
+   "crawl": "warn",
+   "doc": "sync",
+   "view": "sync",
+   "rev": [
+    {
+     "d": "2026-06-27",
+     "a": "add",
+     "txt": "무신사 회원가 표면가 오염",
+     "src": "무신사"
+    }
+   ],
+   "reason": "ext"
+  },
+  {
+   "id": "P2",
+   "g": "가격",
+   "l": "be",
+   "src": "무신사",
+   "st": "ok",
+   "sy": "자동크롤이 혜택 누락",
+   "cz": "백그라운드 엔진이 benefit 필드 전송 누락(+스마트행 1개가 전체 정지)",
+   "pv": "자동크롤도 혜택 전송 + per-unit 타임아웃",
+   "crawl": "warn",
+   "doc": "sync",
+   "view": "sync",
+   "rev": [
+    {
+     "d": "2026-06-27",
+     "a": "add",
+     "txt": "무신사 자동크롤 혜택 필드 누락",
+     "src": "무신사"
+    }
+   ],
+   "reason": "ext"
+  },
+  {
+   "id": "P3",
+   "g": "가격",
+   "l": "be",
+   "src": "SSG·SSF",
+   "st": "ok",
+   "cm": "2026-06-22",
+   "sy": "SSG MONEY 적립이 라이브크롤로 영원히 안 채워짐",
+   "cz": "옛 가정: save_crawl_result만 봄(price/stock만 저장). 실제론 navGrab→/api/sources/parse 경로가 혜택 저장",
+   "pv": "해소 확인(2026-06-22) — _save_navgrab_dynamic_benefits가 ssg_money 등을 dynamic_benefits_json에 저장",
+   "code": {
+    "file": "webapp/routes/api_sources_parse.py",
+    "func": "persist_crawled_options",
+    "desc": "navGrab 경로 혜택 저장 확인"
+   },
+   "crawl": "ok",
+   "doc": "sync",
+   "view": "sync",
+   "rev": [
+    {
+     "d": "2026-06-22",
+     "a": "add",
+     "txt": "SSG MONEY 라이브크롤 미갱신",
+     "src": "SSG·SSF",
+     "cm": "2026-06-22"
+    }
+   ]
+  },
+  {
+   "id": "P4",
+   "g": "가격",
+   "l": "fe",
+   "src": "SSG·다중URL",
+   "st": "ok",
+   "sy": "셀 가격 ≠ 계산식(fx 팝업)",
+   "cz": "fx 단건 breakdown에 source_product_id 미전달→등록 URL 폴백→SSOT 위반",
+   "pv": "셀 best 후보 spid를 fx 단건에 첨부",
+   "crawl": "warn",
+   "doc": "sync",
+   "view": "sync",
+   "rev": [
+    {
+     "d": "2026-06-27",
+     "a": "add",
+     "txt": "SSG 다중URL 셀≠계산식 SSOT 위반",
+     "src": "SSG·다중URL"
+    }
+   ],
+   "reason": "fe-js"
+  },
+  {
+   "id": "P5",
+   "g": "가격",
+   "l": "be",
+   "src": "SSF",
+   "st": "ok",
+   "sy": "저장 전체 실패(priced 0)",
+   "cz": "soft-delete 행 못 찾고 INSERT→UniqueViolation→그 옵션 저장 전체 롤백",
+   "pv": "deleted_at 필터 제거 + revive",
+   "code": {
+    "file": "lemouton/sources/service.py",
+    "func": "upsert_source_product",
+    "desc": "deleted_at 필터 제거 + revive"
+   },
+   "crawl": "ok",
+   "doc": "sync",
+   "view": "sync",
+   "rev": [
+    {
+     "d": "2026-06-27",
+     "a": "add",
+     "txt": "SSF UniqueViolation 저장 전체 실패",
+     "src": "SSF"
+    }
+   ]
+  },
+  {
+   "id": "P6",
+   "g": "가격",
+   "l": "be",
+   "src": "신규 등록 URL",
+   "st": "ok",
+   "cm": "21dc3ded",
+   "sy": "위젯 '완료'인데 매트릭스 '크롤링 미실시'",
+   "cz": "save_crawl_result가 SourceProduct 없으면 not_found로 조용히 드롭(등록은 BundleSourceUrl만 생성)",
+   "pv": "등록 URL이면 upsert_source_product로 행 생성 후 저장",
+   "code": {
+    "file": "webapp/routes/api_pricing.py",
+    "func": "save_crawl_result",
+    "desc": "신규 URL upsert_source_product 후 저장"
+   },
+   "crawl": "ok",
+   "doc": "sync",
+   "view": "sync",
+   "rev": [
+    {
+     "d": "2026-06-27",
+     "a": "add",
+     "txt": "신규 등록 URL 조용히 드롭",
+     "src": "신규 등록 URL",
+     "cm": "21dc3ded"
+    }
+   ]
+  },
+  {
+   "id": "P7",
+   "g": "가격",
+   "l": "etc",
+   "src": "무신사 등",
+   "st": "ok",
+   "sy": "일시 실패→소싱처 0% 정체",
+   "cz": "고부하 타임아웃/빈그랩 + 하드리셋 price=null이면 last_price 안 덮어 stale에 status=error 정체",
+   "pv": "재시도 + 동시창 축소(폴백 유지)",
+   "crawl": "warn",
+   "doc": "sync",
+   "view": "sync",
+   "rev": [
+    {
+     "d": "2026-06-27",
+     "a": "add",
+     "txt": "일시실패→stale 가격+error 정체",
+     "src": "무신사 등"
+    }
+   ],
+   "reason": "infra"
+  },
+  {
+   "id": "P8",
+   "g": "가격",
+   "l": "be",
+   "src": "롯데온·SSG",
+   "st": "ok",
+   "sy": "카드 청구할인 미반영",
+   "cz": "청구할인 없을 때 현대카드 2.73% fallback 미주입",
+   "pv": "결제 택1 pick-best 주입",
+   "code": {
+    "file": "webapp/routes/api_benefits.py",
+    "func": "compute_breakdown",
+    "desc": "현대카드 fallback pick-best 주입"
+   },
+   "crawl": "ok",
+   "doc": "sync",
+   "view": "sync",
+   "rev": [
+    {
+     "d": "2026-06-27",
+     "a": "add",
+     "txt": "카드 청구할인 fallback 미반영",
+     "src": "롯데온·SSG"
+    }
+   ]
+  },
+  {
+   "id": "P9",
+   "g": "가격",
+   "l": "be",
+   "src": "무신사 등",
+   "st": "ok",
+   "cm": "2026-06-22",
+   "sy": "혜택 금액 0으로 저장(부분 스냅샷이 템플릿 가림)",
+   "cz": "override가 템플릿 전체 가림→이름 기준 병합으로 해소. 무신사 비로그인 금액0 clear는 의도",
+   "pv": "이름 기준 병합(api_benefits.py:572)",
+   "code": {
+    "file": "webapp/routes/api_benefits.py",
+    "func": "compute_breakdown",
+    "desc": "이름 기준 override+템플릿 병합"
+   },
+   "crawl": "ok",
+   "doc": "sync",
+   "view": "sync",
+   "rev": [
+    {
+     "d": "2026-06-22",
+     "a": "add",
+     "txt": "혜택 0 저장 부분스냅샷 템플릿 가림",
+     "src": "무신사 등",
+     "cm": "2026-06-22"
+    }
+   ]
+  },
+  {
+   "id": "P10",
+   "g": "가격",
+   "l": "etc",
+   "l2": "fe",
+   "src": "URL 저장",
+   "st": "ok",
+   "cm": "77127de8",
+   "sy": "URL 저장 시 매번 임의 ~7건이 HTTP 500으로 조용히 누락",
+   "cz": "48개를 Promise.all 동시 저장→Supabase 풀(15) 초과",
+   "pv": "대량 저장 동시성 제한(5) + PUT 일시 500 재시도",
+   "crawl": "warn",
+   "doc": "sync",
+   "view": "sync",
+   "rev": [
+    {
+     "d": "2026-06-27",
+     "a": "add",
+     "txt": "URL 저장 Promise.all 풀 초과 누락",
+     "src": "URL 저장",
+     "cm": "77127de8"
+    }
+   ],
+   "reason": "fe-js"
+  },
+  {
+   "id": "P11",
+   "g": "가격",
+   "l": "fe",
+   "l2": "be",
+   "src": "URL↔옵션 매핑",
+   "st": "ok",
+   "cm": "c5406e92",
+   "sy": "멀쩡한 URL↔옵션 매핑이 통째 삭제될 수 있음",
+   "cz": "옵션키 canonical_sku 해소 실패 시 빈 목록 전송, 백엔드는 빈 목록=전체삭제",
+   "pv": "delete형 저장은 빈 페이로드 가드(빈 목록 omit)",
+   "code": {
+    "file": "webapp/routes/bundles.py",
+    "func": "_sync_option_links",
+    "desc": "빈 페이로드 가드"
+   },
+   "crawl": "ok",
+   "doc": "sync",
+   "view": "sync",
+   "rev": [
+    {
+     "d": "2026-06-27",
+     "a": "add",
+     "txt": "빈 목록 전송→매핑 통째 삭제",
+     "src": "URL↔옵션 매핑",
+     "cm": "c5406e92"
+    }
+   ]
+  },
+  {
+   "id": "P12",
+   "g": "가격",
+   "l": "fe",
+   "src": "옵션조합 모달",
+   "st": "todo",
+   "sy": "축 값 이름변경(240→245) 시 매핑이 조용히 유실",
+   "cz": "rename 시 매핑 키 마이그레이션 없음(keyOf=표시값)",
+   "pv": "부분완화(console.warn로 유실 표면화). 완전수정=키 마이그레이션은 fragile 모달 rename 흐름 변경이라 별도",
+   "crawl": "no",
+   "doc": "sync",
+   "view": "sync",
+   "rev": [
+    {
+     "d": "2026-06-27",
+     "a": "add",
+     "txt": "축 값 rename→매핑 키 유실",
+     "src": "옵션조합 모달"
+    }
+   ],
+   "reason": "mitigated"
+  },
+  {
+   "id": "P13",
+   "g": "가격",
+   "l": "be",
+   "src": "URL 저장",
+   "st": "ok",
+   "cm": "2026-06-28",
+   "sy": "무효 SKU를 거부 건수 보고 없이 조용히 skip",
+   "cz": "_sync_option_links가 rejected 무보고(재고매핑은 보고)",
+   "pv": "_sync_option_links가 rejected 반환→응답 rejected_skus(재고매핑 거울)",
+   "code": {
+    "file": "webapp/routes/bundles.py",
+    "func": "_sync_option_links",
+    "desc": "rejected 반환 + rejected_skus 응답"
+   },
+   "crawl": "ok",
+   "doc": "sync",
+   "view": "sync",
+   "rev": [
+    {
+     "d": "2026-06-28",
+     "a": "add",
+     "txt": "무효 SKU 조용히 skip 미보고",
+     "src": "URL 저장",
+     "cm": "2026-06-28"
+    }
+   ]
+  },
+  {
+   "id": "P14",
+   "g": "가격",
+   "l": "fe",
+   "src": "매트릭스",
+   "st": "todo",
+   "sy": "'재계산▶' 버튼이 저장 0인 stub",
+   "cz": "버튼이 실제 재계산·저장 안 함(누르면 loadMatrix 새로고침만)",
+   "pv": "실제 재계산 미구현 잔존 — 라벨 '재계산(준비중)'으로 오인 차단(2026-06-28)",
+   "crawl": "no",
+   "doc": "sync",
+   "view": "sync",
+   "rev": [
+    {
+     "d": "2026-06-27",
+     "a": "add",
+     "txt": "재계산 버튼 stub 저장0",
+     "src": "매트릭스"
+    }
+   ],
+   "reason": "intentional"
+  },
+  {
+   "id": "P15",
+   "g": "가격",
+   "l": "be",
+   "src": "가격설정 일괄저장",
+   "st": "ok",
+   "cm": "2026-06-28",
+   "sy": "허용목록 밖 필드를 조용히 무시",
+   "cz": "bulk_set_price_config가 허용목록 밖 필드를 무보고 skip",
+   "pv": "응답에 ignored_fields 추가(저장 불변, 보고만)",
+   "code": {
+    "file": "webapp/routes/api_pricing.py",
+    "func": "bulk_set_price_config",
+    "desc": "ignored_fields 응답 추가"
+   },
+   "crawl": "ok",
+   "doc": "sync",
+   "view": "sync",
+   "rev": [
+    {
+     "d": "2026-06-28",
+     "a": "add",
+     "txt": "허용목록밖 필드 무보고 skip",
+     "src": "가격설정 일괄저장",
+     "cm": "2026-06-28"
+    }
+   ]
+  },
+  {
+   "id": "P16",
+   "g": "가격",
+   "l": "fe",
+   "src": "무신사",
+   "st": "ok",
+   "sy": "매트릭스 fx stale(셀≠계산식, 동적혜택 소싱처만)",
+   "cz": "확장 백그라운드 크롤 종료 후 페이지가 loadMatrix 미호출→SM_BREAKDOWNS 캐시 stale",
+   "pv": "전역 finish 리스너→디바운스 loadMatrix",
+   "crawl": "warn",
+   "doc": "sync",
+   "view": "sync",
+   "rev": [
+    {
+     "d": "2026-06-27",
+     "a": "add",
+     "txt": "크롤 완료 후 매트릭스 캐시 stale",
+     "src": "무신사"
+    }
+   ],
+   "reason": "ext"
+  },
+  {
+   "id": "P17",
+   "g": "가격",
+   "l": "fe",
+   "src": "롯데온",
+   "st": "ok",
+   "sy": "상품가가 '1원'으로 저장",
+   "cz": "보조정규식이 라벨 뒤 첫 숫자를 잡는데 '1회 최대 20개'의 1 + 가격 하한 없음 + SPA 렌더 전",
+   "pv": "숫자+원 인접·자릿수≥4·1000원 하한·렌더 폴링 + 서버 price<100 거부",
+   "crawl": "warn",
+   "doc": "sync",
+   "view": "sync",
+   "rev": [
+    {
+     "d": "2026-06-27",
+     "a": "add",
+     "txt": "롯데온 1원 저장 정규식 버그",
+     "src": "롯데온"
+    }
+   ],
+   "reason": "ext"
+  },
+  {
+   "id": "P18",
+   "g": "가격",
+   "l": "be",
+   "src": "전 소싱처",
+   "st": "ok",
+   "sy": "39/40 성공인데 저장 0건(수집가 전량 소실→전 옵션 판매차단)",
+   "cz": "crawl-result for루프가 한 item 예외 시 commit 전 깨져 배치 전량 롤백(1건이 40건 죽임)",
+   "pv": "item별 begin_nested savepoint 격리 + item_errors 표면화",
+   "code": {
+    "file": "webapp/routes/api_pricing.py",
+    "func": "save_crawl_result",
+    "desc": "item별 begin_nested savepoint 격리"
+   },
+   "crawl": "ok",
+   "doc": "sync",
+   "view": "sync",
+   "rev": [
+    {
+     "d": "2026-06-27",
+     "a": "add",
+     "txt": "1건 예외→배치 전량 롤백",
+     "src": "전 소싱처"
+    }
+   ]
+  },
+  {
+   "id": "P19",
+   "g": "가격",
+   "l": "be",
+   "src": "SSF",
+   "st": "ok",
+   "sy": "멤버십포인트 혜택이 계산식에 안 뜸",
+   "cz": "같은 URL이 lemouton·ssf 2상품에 걸려 url만으로 매칭하면 site=lemouton 상품에 저장→breakdown(site=ssf)이 못 읽음",
+   "pv": "source_key==site 매칭",
+   "code": {
+    "file": "webapp/routes/api_benefits.py",
+    "func": "compute_breakdown",
+    "desc": "source_key==site 매칭"
+   },
+   "crawl": "ok",
+   "doc": "sync",
+   "view": "sync",
+   "rev": [
+    {
+     "d": "2026-06-27",
+     "a": "add",
+     "txt": "SSF 멤버십포인트 cross-source 오저장",
+     "src": "SSF"
+    }
+   ]
+  },
+  {
+   "id": "P20",
+   "g": "가격",
+   "l": "be",
+   "src": "르무통 등",
+   "st": "ok",
+   "sy": "혜택 12개 중 1개만 남고 템플릿 전부 드롭→언더프라이싱",
+   "cz": "compute_breakdown 게이트가 override 1건이라도 있으면 템플릿 전체 무시",
+   "pv": "이름 기준 병합(override+템플릿)",
+   "code": {
+    "file": "webapp/routes/api_benefits.py",
+    "func": "compute_breakdown",
+    "desc": "이름 기준 override+템플릿 병합"
+   },
+   "crawl": "ok",
+   "doc": "sync",
+   "view": "sync",
+   "rev": [
+    {
+     "d": "2026-06-27",
+     "a": "add",
+     "txt": "override 1건→템플릿 전체 드롭",
+     "src": "르무통 등"
+    }
+   ]
+  },
+  {
+   "id": "P21",
+   "g": "가격",
+   "l": "be",
+   "src": "SSF 등",
+   "st": "ok",
+   "sy": "재크롤해도 영영 안 갱신(pending 고정)",
+   "cz": "정규화 도입 전 raw URL 행을 upsert_source_product가 못 찾아 매번 중복 SourceProduct 생성→비결정적 픽",
+   "pv": "양쪽 정규화 비교 + dedupe 마이그레이션",
+   "code": {
+    "file": "lemouton/sources/service.py",
+    "func": "upsert_source_product",
+    "desc": "양쪽 정규화 비교 + dedupe"
+   },
+   "crawl": "ok",
+   "doc": "sync",
+   "view": "sync",
+   "rev": [
+    {
+     "d": "2026-06-27",
+     "a": "add",
+     "txt": "SSF 중복 SourceProduct pending 고정",
+     "src": "SSF 등"
+    }
+   ]
+  },
+  {
+   "id": "P22",
+   "g": "가격",
+   "l": "be",
+   "src": "전 소싱처",
+   "st": "ok",
+   "sy": "/breakdowns가 ~110초→새로고침 시 크롤현황 카드 사라짐",
+   "cz": "루프(876건)마다 compute_breakdown 내부 5쿼리 + SourceProduct 전체 .all() × Supabase RTT (N+1)",
+   "pv": "_build_breakdown_cache 1회 prefetch(110초→0.3초)",
+   "code": {
+    "file": "webapp/routes/api_benefits.py",
+    "func": "_build_breakdown_cache",
+    "desc": "N+1 제거용 1회 prefetch"
+   },
+   "crawl": "ok",
+   "doc": "sync",
+   "view": "sync",
+   "rev": [
+    {
+     "d": "2026-06-27",
+     "a": "add",
+     "txt": "/breakdowns N+1 110초",
+     "src": "전 소싱처"
+    }
+   ]
+  },
+  {
+   "id": "P23",
+   "g": "가격",
+   "l": "be",
+   "src": "단일옵션",
+   "st": "ok",
+   "cm": "2026-06-28",
+   "sy": "레거시 단일옵션 price-calc가 크롤가 없으면 95000 가짜 매입가 표시",
+   "cz": "get_price_breakdown에 or 95000 폴백 잔존(메인만 고침). 호출 프론트 없음(dead 레거시)",
+   "pv": "or 95000 제거→없으면 price_unavailable+crawl_failed 표면화(§4)",
+   "code": {
+    "file": "webapp/routes/api_pricing.py",
+    "func": "get_price_breakdown",
+    "desc": "or 95000 폴백 제거"
+   },
+   "crawl": "ok",
+   "doc": "sync",
+   "view": "sync",
+   "rev": [
+    {
+     "d": "2026-06-28",
+     "a": "add",
+     "txt": "95000 가짜 매입가 폴백 제거",
+     "src": "단일옵션",
+     "cm": "2026-06-28"
+    }
+   ]
+  },
+  {
+   "id": "O1",
+   "g": "기타",
+   "l": "etc",
+   "src": "구조",
+   "st": "ok",
+   "sy": "조용한 실패 버그 클래스 (상시 주의)",
+   "cz": "무결성 제약 부재(A) + SSOT 분열(last_price 평균 vs 최저)(B) + 누락 무경고(None 탈락)(C)",
+   "pv": "버그 단건 아님 — §4 무결성 4철칙(상단)으로 상시 적용: DB 제약 + SSOT 통일 + None 후보 경고",
+   "crawl": "no",
+   "doc": "sync",
+   "view": "sync",
+   "rev": [
+    {
+     "d": "2026-06-27",
+     "a": "add",
+     "txt": "조용한 실패 버그 클래스 상시 주의",
+     "src": "구조"
+    }
+   ],
+   "reason": "structural"
+  },
+  {
+   "id": "O2",
+   "g": "기타",
+   "l": "etc",
+   "src": "배포",
+   "st": "ok",
+   "sy": "배포 success인데 옛 코드 영속",
+   "cz": "docker run이 기존 컨테이너 미교체로 백엔드 옛 코드로 계속 돎",
+   "pv": "docker rm -f + 교체 검증 (success ≠ 코드 라이브)",
+   "crawl": "ok",
+   "doc": "sync",
+   "view": "sync",
+   "rev": [
+    {
+     "d": "2026-06-27",
+     "a": "add",
+     "txt": "배포 success 옛 코드 영속",
+     "src": "배포"
+    }
+   ]
+  },
+  {
+   "id": "O3",
+   "g": "기타",
+   "l": "etc",
+   "src": "확장",
+   "st": "ok",
+   "sy": "수정해도 라이브 미반영 (상시 주의)",
+   "cz": "확장 버전 분열 + 로드된 확장 = 데스크톱 사본(dev 사본 고쳐도 무효)",
+   "pv": "버그 아님 — 작업 주의: 로드 확장(v0.6.7) 경로 확인 후 reload",
+   "crawl": "ok",
+   "doc": "sync",
+   "view": "sync",
+   "rev": [
+    {
+     "d": "2026-06-27",
+     "a": "add",
+     "txt": "확장 수정 라이브 미반영 상시 주의",
+     "src": "확장"
+    }
+   ]
+  },
+  {
+   "id": "O4",
+   "g": "기타",
+   "l": "etc",
+   "src": "DB",
+   "st": "ok",
+   "sy": "dev 값이 라이브와 다름 (상시 주의)",
+   "cz": "dev DB는 라이브보다 수십~수백 커밋 stale",
+   "pv": "버그 아님 — 작업 주의: 라이브 대조 필수(dev 신뢰 금지)",
+   "crawl": "ok",
+   "doc": "sync",
+   "view": "sync",
+   "rev": [
+    {
+     "d": "2026-06-27",
+     "a": "add",
+     "txt": "dev DB stale 라이브 대조 필수",
+     "src": "DB"
+    }
+   ]
+  },
+  {
+   "id": "O5",
+   "g": "기타",
+   "l": "fe",
+   "src": "크롤 위젯",
+   "st": "ok",
+   "cm": "2026-06-28",
+   "sy": "가격 없어도 '성공 ✓' 표기",
+   "cz": "위젯이 level!==warn이면 표면가 없어도 성공 카운트",
+   "pv": "item-done 시 surf(표면가) 없으면 실패 집계(매입가는 fx 이후라 surf로 판정)",
+   "code": {
+    "file": "webapp/static/crawl_log.js",
+    "func": "SOURCE_ORDER",
+    "desc": "item-done surf 없으면 실패 집계"
+   },
+   "crawl": "warn",
+   "doc": "sync",
+   "view": "sync",
+   "rev": [
+    {
+     "d": "2026-06-28",
+     "a": "add",
+     "txt": "크롤 위젯 가격없어도 성공 표기",
+     "src": "크롤 위젯",
+     "cm": "2026-06-28"
+    }
+   ],
+   "reason": "fe-js"
+  },
+  {
+   "id": "O6",
+   "g": "기타",
+   "l": "etc",
+   "src": "롯데온 per-size",
+   "st": "ok",
+   "cm": "v0.6.7",
+   "sy": "롯데온 사이즈별 수량 미수집(옛 상품단위 999/0만)",
+   "cz": "옛 lotteonExtractor가 per-option 재고 미수집(상품 DOM만)",
+   "pv": "라이브 확장 v0.6.7에 구현 — 옵션매핑 API(pbf.../option/mapping)로 색×사이즈 실수량(stkQty) 수집",
+   "crawl": "warn",
+   "doc": "sync",
+   "view": "sync",
+   "rev": [
+    {
+     "d": "2026-06-28",
+     "a": "add",
+     "txt": "롯데온 per-size 수량 미수집",
+     "src": "롯데온 per-size",
+     "cm": "v0.6.7"
+    }
+   ],
+   "reason": "ext"
+  },
+  {
+   "id": "O7",
+   "g": "기타",
+   "l": "fe",
+   "src": "옵션조합 모달",
+   "st": "ok",
+   "cm": "c948d4ec",
+   "sy": "저장 실패해도 '저장 완료'로 표시",
+   "cz": "에러를 console.warn으로 삼킴",
+   "pv": "저장 함수는 {ok,errors[]} 반환·버튼이 실패 표면화",
+   "code": {
+    "file": "webapp/static/option_url_modal.js",
+    "func": "invApplyMapping",
+    "desc": "{ok,errors[]} 반환·실패 표면화"
+   },
+   "crawl": "ok",
+   "doc": "sync",
+   "view": "sync",
+   "rev": [
+    {
+     "d": "2026-06-27",
+     "a": "add",
+     "txt": "저장실패→저장완료 위장",
+     "src": "옵션조합 모달",
+     "cm": "c948d4ec"
+    }
+   ]
+  },
+  {
+   "id": "O8",
+   "g": "기타",
+   "l": "fe",
+   "src": "옵션조합 모달",
+   "st": "ok",
+   "cm": "c5406e92",
+   "sy": "저장 직전 재로딩 빈응답이면 r.json() 터져 저장 전체 무산",
+   "cz": "외부 응답 파싱 전 검증 없음",
+   "pv": "res.ok + 본문 검증 후 명확 메시지로 중단",
+   "code": {
+    "file": "webapp/static/option_url_modal.js",
+    "func": "invApplyMapping",
+    "desc": "res.ok + 본문 검증"
+   },
+   "crawl": "ok",
+   "doc": "sync",
+   "view": "sync",
+   "rev": [
+    {
+     "d": "2026-06-27",
+     "a": "add",
+     "txt": "저장 직전 빈응답 r.json() 오류",
+     "src": "옵션조합 모달",
+     "cm": "c5406e92"
+    }
+   ]
+  },
+  {
+   "id": "O9",
+   "g": "기타",
+   "l": "fe",
+   "src": "옵션조합 모달",
+   "st": "ok",
+   "cm": "c5406e92",
+   "sy": "옵션 구성 저장 실패해도 계속 진행→stale 매핑 유실",
+   "cz": "실패 무시하고 진행",
+   "pv": "실패 시 즉시 중단(재시도 유도)",
+   "code": {
+    "file": "webapp/static/option_url_modal.js",
+    "func": "invApplyMapping",
+    "desc": "실패 시 즉시 중단"
+   },
+   "crawl": "ok",
+   "doc": "sync",
+   "view": "sync",
+   "rev": [
+    {
+     "d": "2026-06-27",
+     "a": "add",
+     "txt": "저장실패 무시하고 진행",
+     "src": "옵션조합 모달",
+     "cm": "c5406e92"
+    }
+   ]
+  },
+  {
+   "id": "O10",
+   "g": "기타",
+   "l": "fe",
+   "src": "옵션조합 모달",
+   "st": "ok",
+   "cm": "c5406e92",
+   "sy": "X·취소·배경 클릭으로 닫으면 저장 실패가 무음",
+   "cz": "닫기 경로 실패 미표면화",
+   "pv": "닫혀도 실패를 알림으로 표면화",
+   "code": {
+    "file": "webapp/static/option_url_modal.js",
+    "func": "invApplyMapping",
+    "desc": "닫기 경로 실패 알림 표면화"
+   },
+   "crawl": "ok",
+   "doc": "sync",
+   "view": "sync",
+   "rev": [
+    {
+     "d": "2026-06-27",
+     "a": "add",
+     "txt": "닫기 경로 저장실패 무음",
+     "src": "옵션조합 모달",
+     "cm": "c5406e92"
+    }
+   ]
+  },
+  {
+   "id": "O11",
+   "g": "기타",
+   "l": "fe",
+   "src": "전체크롤 위젯",
+   "st": "ok",
+   "sy": "목표 0/진행 0에서 영구멈춤(중지도 무력)",
+   "cz": "SW의 bgFetch가 사용자가 열어둔 탭에 주입하는데 크롬이 그 탭을 discard/bfcache→영구 대기",
+   "pv": "withTimeout + 전용 백그라운드탭 매 크롤 생성·핀",
+   "crawl": "warn",
+   "doc": "sync",
+   "view": "sync",
+   "rev": [
+    {
+     "d": "2026-06-27",
+     "a": "add",
+     "txt": "전체크롤 위젯 영구멈춤",
+     "src": "전체크롤 위젯"
+    }
+   ],
+   "reason": "ext"
+  },
+  {
+   "id": "O12",
+   "g": "기타",
+   "l": "fe",
+   "src": "전체크롤 위젯",
+   "st": "ok",
+   "sy": "새로고침·탭이동하면 크롤 멈춤(자동재개 없음)",
+   "cz": "큐·진행·결과(_mgr)가 in-memory만이라 MV3가 유휴 서비스워커 재우면 소실",
+   "pv": "chrome.storage.session 영속 + 기동 시 bootResume 자동재개",
+   "crawl": "warn",
+   "doc": "sync",
+   "view": "sync",
+   "rev": [
+    {
+     "d": "2026-06-27",
+     "a": "add",
+     "txt": "탭이동→크롤 멈춤 자동재개 없음",
+     "src": "전체크롤 위젯"
+    }
+   ],
+   "reason": "ext"
+  },
+  {
+   "id": "O13",
+   "g": "기타",
+   "l": "etc",
+   "src": "서버 parse",
+   "st": "ok",
+   "cm": "2026-06-28",
+   "sy": "전체크롤 일부 건 SyntaxError(<!DOCTYPE 응답)",
+   "cz": "/api/sources/parse가 JSON 대신 HTML 에러페이지를 간헐 반환→클라 r.json() throw",
+   "pv": "클라 fetchJson 가드 + 서버 blueprint 전용 errorhandler(미처리 예외도 항상 JSON)",
+   "code": {
+    "file": "webapp/static/ext_bridge.js",
+    "func": "fetchJson",
+    "desc": "비-JSON 응답 시 명확 에러 가드"
+   },
+   "crawl": "ok",
+   "doc": "sync",
+   "view": "sync",
+   "rev": [
+    {
+     "d": "2026-06-28",
+     "a": "add",
+     "txt": "parse HTML 에러페이지→SyntaxError",
+     "src": "서버 parse",
+     "cm": "2026-06-28"
+    }
+   ]
+  },
+  {
+   "id": "O14",
+   "g": "기타",
+   "l": "fe",
+   "src": "전 소싱처",
+   "st": "ok",
+   "cm": "v0.6.7",
+   "sy": "일부 등록 URL이 전체크롤 후 pending(옛 의심)",
+   "cz": "옛 의심: 확장 enqueue 커버리지 갭(미확정)",
+   "pv": "해소 확인(v0.6.7) — runQueueBG가 option-matrix 전 source 중복제거 enqueue, 갭 없음",
+   "crawl": "warn",
+   "doc": "sync",
+   "view": "sync",
+   "rev": [
+    {
+     "d": "2026-06-28",
+     "a": "add",
+     "txt": "enqueue 커버리지 갭 의심→해소확인",
+     "src": "전 소싱처",
+     "cm": "v0.6.7"
+    }
+   ],
+   "reason": "ext"
+  },
+  {
+   "id": "O15",
+   "g": "기타",
+   "l": "fe",
+   "src": "검증탭",
+   "st": "ok",
+   "sy": "재검증이 무신사·롯데온을 실제로 안 긁고 옛 stale를 '크롤실패' 표시",
+   "cz": "재검증이 서버 recrawl-url만 호출(브라우저 없어 need_extension) + 확장 메시지 경로 불일치",
+   "pv": "crawlBundleAll로 전체크롤과 동일화",
+   "crawl": "warn",
+   "doc": "sync",
+   "view": "sync",
+   "rev": [
+    {
+     "d": "2026-06-27",
+     "a": "add",
+     "txt": "재검증 실제 크롤 안 함→stale 크롤실패",
+     "src": "검증탭"
+    }
+   ],
+   "reason": "ext"
+  },
+  {
+   "id": "O16",
+   "g": "기타",
+   "l": "be",
+   "src": "서버 refetch",
+   "st": "ok",
+   "cm": "2026-06-28",
+   "sy": "단건 재크롤(refetch)이 SSG를 SSF 크롤러로 보내 오파싱/실패",
+   "cz": "_detect_site_from_url(api_pricing.py:1656)이 'ssg.com' in u → 'ssf'로 묶음",
+   "pv": "ssfshop.com→'ssf' / ssg.com→'ssg' 분리(부분문자열 충돌 없음)",
+   "code": {
+    "file": "webapp/routes/api_pricing.py",
+    "func": "_detect_site_from_url",
+    "desc": "ssg.com→ssg / ssfshop.com→ssf 분리"
+   },
+   "crawl": "ok",
+   "doc": "sync",
+   "view": "sync",
+   "rev": [
+    {
+     "d": "2026-06-28",
+     "a": "add",
+     "txt": "SSG refetch SSF 크롤러로 오라우팅",
+     "src": "서버 refetch",
+     "cm": "2026-06-28"
+    }
+   ]
+  },
+  {
+   "id": "O17",
+   "g": "기타",
+   "l": "be",
+   "src": "SSF 스크린샷",
+   "st": "ok",
+   "sy": "SSF 기준 스크린샷 멤버십포인트 적립 행 잘림",
+   "cz": "screenshot.py SSF 고정 box(500,250)→250px 아래 '포인트 적립(멤버십포인트)' 섹션 잘림",
+   "pv": "bottom_anchors=gods-benefit로 캡처영역 동적 확장(표시 전용·가격 무영향)",
+   "code": {
+    "file": "lemouton/sourcing/screenshot.py",
+    "func": "capture_screenshot",
+    "desc": "bottom_anchors 동적 확장"
+   },
+   "crawl": "ok",
+   "doc": "sync",
+   "view": "sync",
+   "rev": [
+    {
+     "d": "2026-06-27",
+     "a": "add",
+     "txt": "SSF 스크린샷 멤버십포인트 잘림",
+     "src": "SSF 스크린샷"
+    }
+   ]
+  },
+  {
+   "id": "O18",
+   "g": "기타",
+   "l": "be",
+   "l2": "fe",
+   "src": "매트릭스/위젯",
+   "st": "ok",
+   "cm": "9db59f6f",
+   "sy": "커스텀 소싱처(hmall·롯데아이몰)가 정상 크롤됐는데 셀·매트릭스보기·위젯에 안 뜸",
+   "cz": "매트릭스가 소싱처를 source_id(레지스트리 id)로 컬럼·셀 매칭→커스텀은 _key_domain(builtin 6 하드코딩) 밖이라 셀 source_id=null→deriveSourceColumns가 null 컬럼 skip. 위젯 카운트도 builtin 기준",
+   "pv": "셀·매트릭스보기 ✅: option-matrix 셀 source_id=key:+source_key 합성 + DATA.sources 커스텀 컬럼 추가 + get_labels SourcingSource 한글 라벨. ⏳위젯 완료 카운트는 확장측 별도",
+   "code": {
+    "file": "webapp/routes/api_pricing.py",
+    "func": "_option_matrix_data",
+    "desc": "커스텀 소싱처 source_id=key:+key 합성 + DATA.sources 추가"
+   },
+   "crawl": "ok",
+   "doc": "sync",
+   "view": "sync",
+   "rev": [
+    {
+     "d": "2026-06-28",
+     "a": "add",
+     "txt": "커스텀 소싱처 매트릭스 미표시(source_id=null) 수정",
+     "src": "매트릭스/위젯",
+     "cm": "9db59f6f"
+    }
+   ]
+  }
+ ]
 }

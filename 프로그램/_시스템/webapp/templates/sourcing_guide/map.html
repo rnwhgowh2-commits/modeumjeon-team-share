@@ -160,9 +160,12 @@
   .sgmap #syncdash .sum .bad .n{color:#E5484D;}
   .sgmap #syncdash .sech{display:flex;align-items:center;gap:9px;font-size:13.5px;font-weight:700;margin:22px 0 2px;}
   .sgmap #syncdash .sech .d{width:7px;height:7px;border-radius:50%;}
-  .sgmap #syncdash .sech.bad .d{background:#E5484D;}
+  .sgmap #syncdash .sech.bad .d,.sgmap #syncdash .sech.no .d{background:#E5484D;}
   .sgmap #syncdash .sech.warn .d{background:#D08700;}
+  .sgmap #syncdash .sech.lag .d{background:#3182F6;}
   .sgmap #syncdash .sech.ok .d{background:#1A9E54;}
+  .sgmap #syncdash .sum .lag .n{color:#3182F6;}
+  .sgmap #syncdash .rsn{display:inline-block;font-size:10.5px;font-weight:700;color:#5B6573;background:#EEF1F4;border-radius:5px;padding:1px 7px;margin-left:6px;white-space:nowrap;}
   .sgmap #syncdash .sech .c{font-size:12px;color:#9AA3AD;font-weight:500;}
   .sgmap #syncdash .sech .hint{font-size:12px;color:#9AA3AD;font-weight:400;}
   .sgmap #syncdash table{width:100%;border-collapse:collapse;font-size:12.5px;margin-bottom:4px;}
@@ -612,10 +615,13 @@
   function esc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
   function hasCode(e){return !!(e.code&&e.code.file&&e.code.func);}
   function bucket(e){
-    if(e.crawl!=='ok')return 'bad';          // no(코드미반영) + warn(검증필요)
-    if(e.doc==='lag'||e.view==='lag')return 'warn'; // 문서 뒤처짐
-    return 'ok';
+    if(e.crawl==='no')return 'no';                 // 코드 미반영(진짜 손볼 곳)
+    if(e.crawl==='warn')return 'warn';             // 검증 필요(라이브 확인 대상)
+    if(e.doc==='lag'||e.view==='lag')return 'lag'; // 문서 뒤처짐
+    return 'ok';                                   // 완전 동기화
   }
+  var REASON={ext:['🧩','확장 소관'],'fe-js':['🖥️','프론트 JS'],infra:['⚙️','기타·인프라'],
+              structural:['🏗️','구조'],intentional:['🚧','의도적 미구현'],mitigated:['⚠️','완화·잔존']};
   function stat(n,t,c){return '<div class="s '+(c||'')+'"><span class="n">'+n+'</span><span class="t">'+t+'</span></div>';}
   function buildShared(errs){
     var g={};
@@ -644,6 +650,7 @@
     var autoCls=e.crawl==='ok'?'ok':(e.crawl==='no'?'no':'warn');
     var autoTxt=e.crawl==='ok'?'⚙ 심볼 확인':(e.crawl==='no'?'⚙ 심볼 미발견':'⚙ 검증필요');
     var crawlCell=gl(e.crawl);
+    var rsn=e.reason&&REASON[e.reason]?'<span class="rsn">'+REASON[e.reason][0]+' '+REASON[e.reason][1]+'</span>':'';
     var codeLine=hasC?('<div class="sym"><span class="auto '+autoCls+'">'+autoTxt+'</span>'
         +esc(symTxt)+(sh?' <span class="shtag">🔗 공유 · '+esc(sh.join('·'))+'</span>':'')+'</div>'):'';
     var revH=(e.rev||[]).map(function(r){
@@ -654,7 +661,7 @@
     }).join('');
     return '<tr class="r"><td class="area">'+area+'</td><td class="layer">'+esc(lay)+'</td>'
       +'<td class="src">'+esc(e.src)+'</td>'
-      +'<td>'+esc(e.sy)+codeLine+'</td>'
+      +'<td>'+esc(e.sy)+rsn+codeLine+'</td>'
       +'<td class="ct">'+crawlCell+'</td><td class="ct">'+gl(e.doc)+'</td><td class="ct">'+gl(e.view)+'</td>'
       +'<td class="ar">▸</td></tr>'
       +'<tr class="det"><td colspan="8"><div class="inner">'
@@ -681,16 +688,18 @@
     var host=document.getElementById('syncdash');if(!host)return;
     var errs=items.filter(function(e){return !e.rule;});
     var shared=buildShared(errs);
-    var groups={bad:[],warn:[],ok:[]};
+    var groups={no:[],warn:[],lag:[],ok:[]};
     errs.forEach(function(e){groups[bucket(e)].push(e);});
-    var meta={bad:{t:'코드 미반영·검증필요',h:'전체크롤 ✕/⚠ — 진짜 손볼 곳'},
-              warn:{t:'문서 뒤처짐',h:'코드는 ✓, 가이드만 갱신하면 끝'},
+    var meta={no:{t:'코드 미반영',h:'진짜 손볼 곳 — 코드에 재발방지 없음'},
+              warn:{t:'검증 필요',h:'라이브엔 반영됐을 것 — 재크롤로 ✓ 승격'},
+              lag:{t:'문서 뒤처짐',h:'코드는 ✓, 가이드만 갱신하면 끝'},
               ok:{t:'완전 동기화',h:''}};
     var H='<div class="sum">'
       +stat(errs.length,'총 에러','')+stat(groups.ok.length,'완전 동기화','ok')
-      +stat(groups.warn.length,'문서 뒤처짐','warn')+stat(groups.bad.length,'코드 미반영','bad')+'</div>';
+      +stat(groups.lag.length,'문서 뒤처짐','lag')+stat(groups.warn.length,'검증 필요','warn')
+      +stat(groups.no.length,'코드 미반영','bad')+'</div>';
     H+=renderRules(items);
-    ['bad','warn','ok'].forEach(function(k){
+    ['no','warn','lag','ok'].forEach(function(k){
       if(!groups[k].length)return;
       H+='<div class="sech '+k+'"><span class="d"></span>'+meta[k].t
          +' <span class="c">'+groups[k].length+'건</span>'
