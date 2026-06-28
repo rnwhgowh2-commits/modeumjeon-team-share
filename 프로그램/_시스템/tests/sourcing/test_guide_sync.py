@@ -61,7 +61,16 @@ def test_missing_sources_handles_none_sources():
 
 def test_compute_guide_drift_never_raises_on_bad_root(tmp_path):
     d = compute_guide_drift(str(tmp_path / "nonexistent"))
-    assert set(d.keys()) == {"missing_sources", "missing_symbols", "ext_baseline"}
+    # 기존 키 보존
     assert isinstance(d["missing_sources"], list)
     assert isinstance(d["missing_symbols"], list)
     assert d["ext_baseline"] == GUIDE_EXT_BASELINE
+    # 신규 카탈로그 키 추가 확인
+    assert "catalog_symbol_drift" in d
+    assert "catalog_duplicate_ids" in d
+    assert "catalog_doc_drift" in d
+    assert "catalog_shared_code" in d
+    assert isinstance(d["catalog_symbol_drift"], list)
+    assert isinstance(d["catalog_duplicate_ids"], list)
+    assert isinstance(d["catalog_doc_drift"], list)
+    assert isinstance(d["catalog_shared_code"], dict)

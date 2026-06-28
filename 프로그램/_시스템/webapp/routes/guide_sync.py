@@ -3,6 +3,7 @@
 best-effort: 어떤 검사도 예외를 던지지 않고 빈 결과로 degrade.
 """
 from __future__ import annotations
+import json
 import os
 
 
@@ -106,5 +107,106 @@ def compute_guide_drift(app_root):
         msym = missing_symbols(app_root)
     except Exception:
         msym = []
+    try:
+        cat = load_catalog(app_root)
+    except Exception:
+        cat = []
+    try:
+        cat_sym = catalog_symbol_drift(app_root, cat)
+    except Exception:
+        cat_sym = []
+    try:
+        cat_dup = duplicate_ids(cat)
+    except Exception:
+        cat_dup = []
+    try:
+        cat_doc = catalog_doc_drift(md, cat)
+    except Exception:
+        cat_doc = []
+    try:
+        cat_shared = shared_code_map(cat)
+    except Exception:
+        cat_shared = {}
     return {"missing_sources": ms, "missing_symbols": msym,
-            "ext_baseline": GUIDE_EXT_BASELINE}
+            "ext_baseline": GUIDE_EXT_BASELINE,
+            "catalog_symbol_drift": cat_sym, "catalog_duplicate_ids": cat_dup,
+            "catalog_doc_drift": cat_doc, "catalog_shared_code": cat_shared}
+
+
+_CATALOG_REL = ("webapp", "static", "error_catalog.json")
+
+
+def load_catalog(app_root):
+    """error_catalog.json 의 items 리스트. 파일 없음/깨짐 → []. 절대 예외 안 던짐."""
+    path = os.path.join(app_root, *_CATALOG_REL)
+    try:
+        with open(path, encoding="utf-8") as f:
+            data = json.load(f)
+    except (OSError, ValueError):
+        return []
+    items = data.get("items") if isinstance(data, dict) else None
+    return items if isinstance(items, list) else []
+
+
+def catalog_symbol_drift(app_root, catalog=None):
+    """crawl=='ok' 인데 code.func 가 code.file 에 없는 항목(거짓 ok). rule 항목·code 없음은 skip."""
+    items = catalog if catalog is not None else load_catalog(app_root)
+    out = []
+    for it in items:
+        if it.get("rule"):
+            continue
+        code = it.get("code") or {}
+        func, rel = code.get("func"), code.get("file")
+        if not func or not rel:
+            continue
+        if it.get("crawl") != "ok":
+            continue
+        path = os.path.join(app_root, *rel.split("/"))
+        try:
+            with open(path, encoding="utf-8") as f:
+                present = func in f.read()
+        except OSError:
+            present = False
+        if not present:
+            out.append({"id": it.get("id"), "func": func, "file": rel, "crawl": "ok"})
+    return out
+
+
+def shared_code_map(items):
+    """code.file::func 별 소싱처 집합. 2+ 서로 다른 소싱처가 쓰는 심볼만 반환."""
+    groups = {}
+    for it in items or []:
+        code = it.get("code") or {}
+        func, rel = code.get("func"), code.get("file")
+        if not func or not rel:
+            continue
+        key = rel + "::" + func
+        src = it.get("src")
+        bucket = groups.setdefault(key, [])
+        if src and src not in bucket:
+            bucket.append(src)
+    return {k: v for k, v in groups.items() if len(v) >= 2}
+
+
+def duplicate_ids(items):
+    """중복된 id 목록(정렬, 유일)."""
+    seen, dups = set(), set()
+    for it in items or []:
+        i = it.get("id")
+        if not i:
+            continue
+        (dups if i in seen else seen).add(i)
+    return sorted(dups)
+
+
+def catalog_doc_drift(md_text, items):
+    """사건 id 가 원문(.md)에 안 보이는 것. rule/ id없음 skip."""
+    md = md_text or ""
+    out = []
+    for it in items or []:
+        if it.get("rule"):
+            continue
+        i = it.get("id")
+        if i and i not in md:
+            out.append(i)
+    return out
