@@ -148,14 +148,12 @@ def test_fetch_coupang_maps_options(monkeypatch):
     fake_detail = {
         "sellerProductName": "에어포스 쿠팡",
         "items": [
-            {"itemName": "블랙/260",
-             "marketplaceItemData": {"vendorItemId": 111, "priceData": {"salePrice": 128900}},
-             "attributes": [{"attributeTypeName": "색상", "attributeValueName": "블랙"},
-                            {"attributeTypeName": "사이즈", "attributeValueName": "260"}]},
-            {"itemName": "블루/270",
-             "marketplaceItemData": {"vendorItemId": 222, "priceData": {"salePrice": 129900}},
+            {"itemName": "블랙 260", "vendorItemId": 111, "salePrice": 128900,
+             "attributes": [{"attributeTypeName": "색상", "attributeValueName": "블랙", "exposed": "EXPOSED"},
+                            {"attributeTypeName": "신발사이즈", "attributeValueName": "260", "exposed": "EXPOSED"}]},
+            {"itemName": "블루 270", "vendorItemId": 222, "salePrice": 129900,
              "attributes": [{"attributeTypeName": "색상", "attributeValueName": "블루"},
-                            {"attributeTypeName": "사이즈", "attributeValueName": "270"}]},
+                            {"attributeTypeName": "신발사이즈", "attributeValueName": "270"}]},
         ],
     }
     monkeypatch.setattr(cp, "get_product", lambda spid, client=None: fake_detail)

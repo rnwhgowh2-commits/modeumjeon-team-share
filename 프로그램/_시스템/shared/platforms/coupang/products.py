@@ -86,9 +86,14 @@ def extract_vendor_items(detail: dict) -> list[dict]:
     result = []
     for item in detail.get("items") or []:
         mp = item.get("marketplaceItemData") or {}
-        if not mp.get("vendorItemId"):
+        # 실 GET 응답은 vendorItemId/salePrice 가 item 최상위. 구버전(mp 중첩) 폴백.
+        vid = item.get("vendorItemId") or mp.get("vendorItemId")
+        if not vid:
             continue
         price_data = mp.get("priceData") or {}
+        sale = item.get("salePrice")
+        if sale is None:
+            sale = price_data.get("salePrice")
 
         # attributes 에서 색상·사이즈 추출
         color, size = "", ""
@@ -104,10 +109,10 @@ def extract_vendor_items(detail: dict) -> list[dict]:
 
         result.append({
             "item_name": item.get("itemName"),
-            "vendor_item_id": mp["vendorItemId"],
-            "seller_product_item_id": mp.get("sellerProductItemId"),
-            "sale_price":    price_data.get("salePrice"),
-            "max_buy_count": mp.get("maximumBuyCount"),
+            "vendor_item_id": vid,
+            "seller_product_item_id": item.get("sellerProductItemId") or mp.get("sellerProductItemId"),
+            "sale_price": sale,
+            "max_buy_count": item.get("maximumBuyCount") or mp.get("maximumBuyCount"),
             "color": color,
             "size":  size,
         })
