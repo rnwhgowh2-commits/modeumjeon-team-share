@@ -52,6 +52,12 @@
   table.mx-tbl th,table.mx-tbl td{border:1px solid #e5e8eb;padding:5px 7px;}
   table.mx-tbl th{background:#f9fafb;color:#8b95a1;font-weight:700;}
   .mx-na{color:#c4cad2;}
+  .pv-bar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:6px 0 4px;}
+  .pv-btn{font-size:12px;font-weight:700;border:1px solid #bfdbfe;background:#eff6ff;color:#1d4ed8;border-radius:7px;padding:6px 12px;cursor:pointer;}
+  .pv-btn:hover{background:#dbeafe;}
+  .pv-box{margin-top:10px;border:1px solid #e5e8eb;border-radius:10px;padding:11px 13px;background:#fafbfc;}
+  .pv-head{font-size:12.5px;font-weight:700;color:#191F28;margin-bottom:8px;}
+  .pv-warn{font-size:12px;color:#b45309;background:#fffbeb;border:1px solid #fde68a;border-radius:7px;padding:7px 10px;margin-bottom:8px;}
 </style>
 {% endblock %}
 {% block content %}
@@ -210,7 +216,43 @@
   function renderDetail(box, sid, data){
     detailCache[sid]=data.options||[];
     var legend='<span class="det-legend"><span class="b-buy">사입</span> 직접매입 우선 · <span class="b-src">소싱</span> 소싱처 크롤 — 옵션마다 모음전 판매조건을 그대로 따름</span>';
-    box.innerHTML='<div class="det-bar"><div class="det-tabs"><span class="det-tab on" data-view="cell">셀 보기</span><span class="det-tab" data-view="matrix">매트릭스 보기</span></div>'+legend+'</div><div data-detbody>'+renderTable(detailCache[sid])+'</div>';
+    var pvBtns=(data.channels||[]).filter(function(c){return c.status==='linked';}).map(function(c){
+      var nm=c.market==='coupang'?'쿠팡':(c.market==='smartstore'?'스마트스토어':esc(c.market));
+      return '<button class="pv-btn" data-cid="'+c.id+'" data-mk="'+esc(c.market)+'">📋 '+nm+' 전송 미리보기</button>';
+    }).join('');
+    box.innerHTML='<div class="det-bar"><div class="det-tabs"><span class="det-tab on" data-view="cell">셀 보기</span><span class="det-tab" data-view="matrix">매트릭스 보기</span></div>'+legend+'</div>'
+      +(pvBtns?'<div class="pv-bar">'+pvBtns+'<span class="sd-cnt">전송 전 \'마켓 현재값 → 보낼 값\' 대조(마켓에 쓰지 않음)</span></div>':'')
+      +'<div data-detbody>'+renderTable(detailCache[sid])+'</div>'
+      +'<div data-pvbox></div>';
+  }
+  function renderPreview(d, mk){
+    var nm=mk==='coupang'?'쿠팡':(mk==='smartstore'?'스마트스토어':mk);
+    var s=d.summary||{};
+    var warn = s.hold ? '<div class="pv-warn">⚠️ 평균 가격변동 '+s.avg_price_change_pct+'% — 큰 변동이에요. 실제 전송 시 한 번 더 확인하세요.</div>' : '';
+    var h='<div class="pv-head">'+nm+' 전송 미리보기 · 변동 '+s.changed+'/'+s.total+'건 · 평균 가격변동 '+s.avg_price_change_pct+'%</div>'+warn;
+    if(d.note){ h+='<div class="sd-cnt" style="padding:6px 0">'+esc(d.note)+'</div>'; }
+    if((d.rows||[]).length){
+      h+='<table class="det-tbl"><thead><tr><th>옵션</th><th class="ta-r">현재 재고</th><th class="ta-r">→ 보낼 재고</th><th class="ta-r">현재 가격</th><th class="ta-r">→ 보낼 가격</th></tr></thead><tbody>';
+      d.rows.forEach(function(r){
+        var sc=r.stock_changed?' style="color:#1d4ed8;font-weight:700"':'';
+        var pc=r.price_changed?' style="color:#1d4ed8;font-weight:700"':'';
+        h+='<tr><td>'+esc((r.color||'')+' · '+(r.size||''))+'</td>'
+          +'<td class="ta-r">'+(r.cur_stock==null?'<span class="sd-cnt">미상</span>':r.cur_stock)+'</td>'
+          +'<td class="ta-r"'+sc+'>'+(r.new_stock==null?'-':r.new_stock)+'</td>'
+          +'<td class="ta-r">'+fmt(r.cur_price)+'</td>'
+          +'<td class="ta-r"'+pc+'>'+fmt(r.new_price)+'</td></tr>';
+      });
+      h+='</tbody></table>';
+    }
+    h+='<div class="sd-cnt" style="margin-top:6px">파란 값 = 전송하면 바뀔 값. <b>아직 마켓에 쓰지 않았어요</b>(현재값 읽어 대조만). 실제 전송 버튼은 다음 단계에서 추가됩니다.'+(mk==='coupang'?' 쿠팡은 현재 재고를 응답에 주지 않아 \'미상\'으로 표시돼요.':'')+'</div>';
+    return h;
+  }
+  function loadPreview(cid, mk, box){
+    box.innerHTML='<div class="sd-cnt" style="padding:10px 0">미리보기 불러오는 중… (마켓 현재값 읽기, 잠시 걸려요)</div>';
+    fetch('/api/sets/channel/'+cid+'/preview',{headers:{'Accept':'application/json'}})
+      .then(function(r){return r.json();})
+      .then(function(d){ if(d&&d.ok) box.innerHTML='<div class="pv-box">'+renderPreview(d,mk)+'</div>'; else box.innerHTML='<div class="sd-cnt" style="padding:8px 0">미리보기 실패: '+esc(d&&d.error||'')+'</div>'; })
+      .catch(function(){ box.innerHTML='<div class="sd-cnt" style="padding:8px 0">미리보기를 불러오지 못했어요.</div>'; });
   }
   function loadDetail(box, sid){
     box.innerHTML='<div class="sd-cnt" style="padding:8px 0">상세 불러오는 중…</div>';
@@ -222,6 +264,12 @@
 
   // ── 이벤트 위임 ──────────────────────────────────────────────
   listEl.addEventListener('click', function(e){
+    var pvBtn=e.target.closest('.pv-btn');
+    if(pvBtn){
+      var pcard=pvBtn.closest('.sd-card');
+      loadPreview(pvBtn.getAttribute('data-cid'), pvBtn.getAttribute('data-mk'), pcard.querySelector('[data-pvbox]'));
+      return;
+    }
     var tabEl=e.target.closest('.det-tab');
     if(tabEl){
       var card=tabEl.closest('.sd-card'); var sid=card.getAttribute('data-sid');

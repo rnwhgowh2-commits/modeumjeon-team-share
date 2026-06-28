@@ -90,7 +90,7 @@ def set_detail_matrix(set_id):
         chans = []
         for c in (s.query(SetChannel).filter_by(set_id=set_id)
                   .order_by(SetChannel.id).all()):
-            chans.append({"market": c.market,
+            chans.append({"id": c.id, "market": c.market,
                           "market_product_id": c.market_product_id,
                           "account_key": c.account_key, "status": c.status})
             for sco in s.query(SetChannelOption).filter_by(channel_id=c.id).all():
@@ -113,6 +113,108 @@ def set_detail_matrix(set_id):
     opts_out.sort(key=lambda o: (o.get("color_code") or "", o.get("size_code") or ""))
     return jsonify({"ok": True, "set": set_meta,
                     "channels": chans, "options": opts_out})
+
+
+def _new_values_for_options(model_codes, skus, market):
+    """구성 옵션의 '보낼 재고/가격'(출처 기반) 맵: {canonical_sku: {...}}.
+    매트릭스 단일 진실 원천(_option_matrix_data) 그대로 — 출처(사입/소싱)에 따라
+    재고/가격 선택. 새 계산 없음(표시값=전송값 parity)."""
+    from webapp.routes.api_pricing import _option_matrix_data
+    out = {}
+    for mc in model_codes:
+        data = _option_matrix_data(mc)
+        if not data.get("ok"):
+            continue
+        for o in data.get("options", []):
+            if o.get("sku") not in skus:
+                continue
+            is_pur = o.get("purchase_priority_resolved") == "purchase"
+            out[o["sku"]] = {
+                "stock": o.get("purchase_stock") if is_pur else o.get("src_stock"),
+                "price": o.get("ss_price") if market == "smartstore" else o.get("cp_price"),
+                "color": o.get("color_display") or o.get("color_code"),
+                "size": o.get("size_display") or o.get("size_code"),
+                "source": "purchase" if is_pur else "source",
+                "is_active": o.get("is_active"),
+            }
+    return out
+
+
+@bp.get("/sets/channel/<int:channel_id>/preview")
+def channel_preview(channel_id):
+    """[2단계 미리보기] 채널의 마켓 현재 재고/가격(읽기)을 가져와 '보낼 값'과 대조.
+    마켓에 쓰지 않음(GET만). matched 옵션만. 변동·평균 가격변동률 요약으로 위험 표면화.
+    """
+    from lemouton.uploader.market_fetch import fetch_market_options
+    from lemouton.sets.models import SetChannel, SetChannelOption, SetProduct, SetOption
+    from lemouton.sets.set_link_service import _resolve_env_prefix
+    s = SessionLocal()
+    try:
+        ch = s.get(SetChannel, channel_id)
+        if ch is None:
+            return _err("채널을 찾을 수 없어요.", 404)
+        if not ch.market_product_id:
+            return _err("상품번호가 입력되지 않았어요.")
+        rows = (s.query(SetOption.canonical_sku, SetProduct.model_code)
+                .join(SetProduct, SetOption.set_product_id == SetProduct.id)
+                .filter(SetProduct.set_id == ch.set_id).all())
+        skus = {r[0] for r in rows}
+        model_codes = {r[1] for r in rows}
+        matched = {sco.canonical_sku: sco.market_option_id for sco in
+                   s.query(SetChannelOption)
+                   .filter_by(channel_id=channel_id, status="matched").all()}
+        env_prefix = _resolve_env_prefix(s, ch.market, ch.account_key)
+        market = ch.market
+        product_id = ch.market_product_id
+    finally:
+        s.close()
+    if not matched:
+        return jsonify({"ok": True, "market": market, "rows": [],
+                        "summary": {"total": 0, "changed": 0, "avg_price_change_pct": 0},
+                        "note": "매칭된 옵션이 없어요(먼저 연동 실행 필요)."})
+    newv = _new_values_for_options(model_codes, skus, market)
+    fr = fetch_market_options(market, product_id, env_prefix=env_prefix)
+    if not fr.success:
+        return jsonify({"ok": False, "error": fr.error or "마켓 현재값 조회 실패"})
+    cur = {mo.option_id: mo for mo in fr.options}
+    out_rows = []
+    changed = 0
+    pcts = []
+    for sku, moid in matched.items():
+        nv = newv.get(sku)
+        cm = cur.get(str(moid))
+        # 쿠팡은 현재 재고를 응답에서 안 주므로(미상) None 처리, 가격만 대조
+        cur_stock = (cm.stock if (cm and market != "coupang") else None)
+        cur_price = cm.price if cm else None
+        new_stock = nv.get("stock") if nv else None
+        new_price = nv.get("price") if nv else None
+        stock_changed = (new_stock is not None and cur_stock is not None
+                         and new_stock != cur_stock)
+        price_changed = (new_price is not None and cur_price is not None
+                         and new_price != cur_price)
+        if stock_changed or price_changed:
+            changed += 1
+        if cur_price and new_price:
+            pcts.append(abs(new_price - cur_price) / cur_price * 100)
+        out_rows.append({
+            "sku": sku, "market_option_id": moid,
+            "color": nv.get("color") if nv else None,
+            "size": nv.get("size") if nv else None,
+            "source": nv.get("source") if nv else None,
+            "is_active": nv.get("is_active") if nv else None,
+            "cur_stock": cur_stock, "new_stock": new_stock,
+            "cur_price": cur_price, "new_price": new_price,
+            "stock_changed": stock_changed, "price_changed": price_changed,
+            "usable": cm.usable if cm else None,
+        })
+    out_rows.sort(key=lambda r: ((r["color"] or ""), (r["size"] or "")))
+    avg_pct = round(sum(pcts) / len(pcts), 1) if pcts else 0.0
+    # 표시용 위험 경고(전송 게이트는 2b). 임계: 평균 가격변동 30%↑ 또는 변동 다수
+    hold = avg_pct >= 30.0
+    return jsonify({"ok": True, "market": market, "product_name": fr.product_name,
+                    "rows": out_rows,
+                    "summary": {"total": len(out_rows), "changed": changed,
+                                "avg_price_change_pct": avg_pct, "hold": hold}})
 
 
 @bp.get("/sets/bundle/<code>/options")
