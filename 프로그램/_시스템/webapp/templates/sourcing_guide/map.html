@@ -119,6 +119,7 @@
   .sgmap .ecard.g재고 .ebar{background:var(--blue);}
   .sgmap .ecard.g가격 .ebar{background:#15803D;}
   .sgmap .ecard.g기타 .ebar{background:#9AA4B0;}
+  .sgmap .ecard.g무결성 .ebar{background:#191F28;}
   .sgmap .ecard .eb{padding:11px 14px;}
   .sgmap .ecard .etop{display:flex;align-items:center;gap:5px;margin-bottom:5px;flex-wrap:wrap;}
   .sgmap .ecard .esrc{font-size:11px;font-weight:800;color:#9AA4B0;margin-left:auto;}
@@ -131,6 +132,7 @@
   .sgmap .gbadge.재고{background:#E8F0FE;color:var(--blue);}
   .sgmap .gbadge.가격{background:#E7F6EC;color:#15803D;}
   .sgmap .gbadge.기타{background:#EEF1F4;color:var(--sub);}
+  .sgmap .gbadge.무결성{background:#191F28;color:#fff;}
   .sgmap .lbadge{font-size:10.5px;font-weight:800;border-radius:20px;padding:1.5px 8px;}
   .sgmap .lbadge.be{background:#F3E8FF;color:#7C3AED;}
   .sgmap .lbadge.fe{background:#FFF1E2;color:#E8830C;}
@@ -138,6 +140,7 @@
   .sgmap .sbadge{font-size:10.5px;font-weight:800;border-radius:5px;padding:1.5px 7px;}
   .sgmap .sbadge.ok{background:#E7F6EC;color:#15803D;}
   .sgmap .sbadge.todo{background:#FEF3C7;color:#B45309;}
+  .sgmap .sbadge.rule{background:#FDF4E3;color:#92400E;}
 </style>
 
 <div class="sgmap">
@@ -165,7 +168,7 @@
       <div class="gtab" data-s="s2"><span class="k">2</span>📦 재고</div>
       <div class="gtab" data-s="s3"><span class="k">3</span>💰 가격</div>
       <div class="gtab" data-s="s4"><span class="k">4</span>📊 매트릭스 로그</div>
-      <div class="gtab" data-s="s6"><span class="k">5</span>🛡️ 원칙·에러이력</div>
+      <div class="gtab" data-s="s6"><span class="k">5</span>⚠️ 에러이력</div>
       <div class="gtab" data-s="s7"><span class="k">6</span>➕ 신규추가</div>
       <div class="gtab" data-s="s8"><span class="k">7</span>🔄 동기화</div>
     </div>
@@ -393,24 +396,10 @@
       <div class="warn">⚠️ 최저 후보가 stale면 실제보다 싼 값 표시 → 폴백가 금지, best는 last_status≠error·재고있음만.</div>
     </div>
 
-    <!-- 5 원칙·에러이력 (구 5 원칙 + 6 에러이력 통합) -->
+    <!-- 5 에러이력 (무결성 4철칙 카드 + 에러 카탈로그, 동일 카드 템플릿) -->
     <div class="sec" id="s6">
-      <div class="lead"><span class="klabel">핵심</span><span class="sum">실패에서 나온 원칙으로 방향 잡고 — 신규 추가·수정 전 과거 에러 카탈로그부터 확인.</span></div>
-      <div style="font-size:17px;font-weight:800;color:var(--ink);margin:16px 0 10px;">🛡️ 무결성 4원칙 <span style="font-size:13px;font-weight:700;color:var(--sub)">— 방향 복귀 기준 · 실패는 감추지 말고 드러낸다</span></div>
-      <div class="card row2"><div class="ti"><span class="no">1</span>폴백가 금지</div><div class="detail">실패 시 평균·최저 대표가로 채우지 않음 → <span class="ink">"가격없음 + 크롤실패"</span>로 표면화. (폴백가 주문 = 손실)</div></div>
-      <div class="card row2"><div class="ti"><span class="no">2</span>크롤실패=표기</div><div class="detail">옛 가격/재고 끌어쓰지 않고 <span class="ink">"크롤 실패"</span> (하드리셋 NULL → finalize).</div></div>
-      <div class="card row2"><div class="ti"><span class="no">3</span>단일 진실원천</div><div class="detail">표면가=<span class="mono">last_price</span>, 매입가=<span class="mono">compute_market_price</span> 한 곳에서만.</div></div>
-      <div class="card row2"><div class="ti"><span class="no">4</span>누락에 경고</div><div class="detail">후보가 조용히 탈락(None) 금지 → <span class="ink">화면·로그에 드러나야</span>.</div></div>
-      <div style="font-size:17px;font-weight:800;color:var(--ink);margin:24px 0 10px;border-top:1px solid var(--line2);padding-top:18px;">⚠️ 에러 카탈로그 <span style="font-size:13px;font-weight:700;color:var(--sub)">— 위 원칙이 나온 실제 사고 55건</span></div>
-      <div class="e3">🛑 <b>신규 소싱처 추가·크롤/저장 코드 수정 전, 이 카탈로그부터 확인.</b> 같은 원인이 다른 소싱처에서 재발한다. · 분류 2축 = 증상유형(📦재고·💰가격·🛠️기타) × 원인계층(<span style="color:#7C3AED;font-weight:800">백엔드</span>·<span style="color:#E8830C;font-weight:800">프론트</span>(확장 포함)·기타) · 상태 ✅수정 / ⏳미수정.<br>🛡️ <b>조용한 실패 3원칙</b> — (a) 저장 실패는 항상 표면화 · (b) 삭제형 저장은 빈 페이로드 가드 · (c) 대량 저장은 동시성 제한 + 멱등 재시도.</div>
-      <div class="porig">
-        <div class="pt">🛡️ <b>위 무결성 4원칙</b>은 모두 <b>실제 에러에서</b> 나왔다 — 원칙을 어기면 그 에러가 재발한다 (원칙 ← 출처 에러).</div>
-        <div class="pr"><span class="pl">폴백가 금지</span>← <span class="pe">P23</span> 가짜 95000 · <span class="pe">S1·S2·S8</span> 상품합계 재고 폴백 둔갑</div>
-        <div class="pr"><span class="pl">크롤실패=표기</span>← <span class="pe">S14</span> 하드리셋·판매차단(현재 inert) · <span class="pe">P7</span> 일시실패 stale 정체 · <span class="pe">P6</span> 신규URL 드롭</div>
-        <div class="pr"><span class="pl">단일 진실원천</span>← <span class="pe">P4</span> 셀≠계산식 · <span class="pe">O1</span> last_price 평균vs최저 · <span class="pe">P19·P21</span> cross-source 오저장·중복 product</div>
-        <div class="pr"><span class="pl">누락에 경고</span>← <span class="pe">P6</span> not_found 드롭 · <span class="pe">P13·P15</span> 무보고 skip · <span class="pe">O7·P10</span> 저장실패 위장·HTTP500 누락</div>
-        <div class="pr"><span class="pl">조용한실패 3원칙</span>← (a)표면화 <span class="pe">O7·O9·O10·O5</span> · (b)빈 페이로드 가드 <span class="pe">P11</span> · (c)동시성 제한 <span class="pe">P10</span></div>
-      </div>
+      <div class="lead"><span class="klabel">핵심</span><span class="sum">방향 복귀 기준 4가지 + 과거 발생 에러 — 신규 추가·수정 전 먼저 확인.</span></div>
+      <div class="e3">🛑 <b>신규 소싱처 추가·크롤/저장 코드 수정 전, 이 카탈로그부터 확인.</b> 같은 원인이 다른 소싱처에서 재발한다. · 분류 2축 = 증상유형(📦재고·💰가격·🛠️기타) × 원인계층(<span style="color:#7C3AED;font-weight:800">백엔드</span>·<span style="color:#E8830C;font-weight:800">프론트</span>(확장 포함)·기타) · 상태 ✅수정 / ⏳미수정 · <span style="font-weight:800">🛡️철칙</span>=방향 복귀 기준(어기면 그 에러 재발).<br>🛡️ <b>조용한 실패 방지 3가지</b> — (a) 저장 실패는 항상 표면화 · (b) 삭제형 저장은 빈 페이로드 가드 · (c) 대량 저장은 동시성 제한 + 멱등 재시도.</div>
       <div id="errcards"></div>
     </div>
 
@@ -438,7 +427,7 @@
       <div class="step"><div class="stepn">3</div><div class="sc"><div class="st">항목별 위치 추출 (재고 3단계 규칙 포함)<span class="who c">CLAUDE</span></div><div class="ref">→ <span class="lk">2 재고</span> + <span class="lk">3 가격</span></div></div></div>
       <div class="step"><div class="stepn">4</div><div class="sc"><div class="st">혜택 종합 — 여러 URL 교차분석<span class="tag">신설</span><span class="who c">CLAUDE</span></div><div class="ref">→ <span class="lk">3 가격</span> · 모든 URL=상시 / 일부=조건부 + 트리거</div></div></div>
       <div class="step"><div class="stepn">5</div><div class="sc"><div class="st">매입가 순차차감 로직<span class="who c">CLAUDE</span></div><div class="ref">→ <span class="lk">3 가격</span> · 표면 − Σ혜택 (직전 잔액 기준)</div></div></div>
-      <div class="step"><div class="stepn">6</div><div class="sc"><div class="st">검증 크롤·대조 → 정답 카드 저장<span class="who c">CLAUDE</span></div><div class="ref">→ <span class="lk">5 원칙·에러이력</span> + 18항목 체크리스트 · crawl_guide</div></div></div>
+      <div class="step"><div class="stepn">6</div><div class="sc"><div class="st">검증 크롤·대조 → 정답 카드 저장<span class="who c">CLAUDE</span></div><div class="ref">→ <span class="lk">5 에러이력</span> + 18항목 체크리스트 · crawl_guide</div></div></div>
       <div class="step"><div class="stepn">7</div><div class="sc"><div class="st">파이프라인 배선 — 등록 안 하면 화면에 아무것도 안 뜸<span class="tag">신설</span><span class="who c">CLAUDE</span></div>
         <div class="d" style="margin-bottom:7px"><b>0단계 경로 정하기:</b> 비로그인 HTML·내장 JSON으로 충분 → <b>경로 A 서버파싱(navGrab)</b> / 로그인 회원가·SKU재고·렌더 후 값 → <b>경로 B 확장추출(navExtract)</b>. 경로 B는 <span class="mono">EXTRACTORS</span> 등록 필수(없으면 <span class="mono">crawlOne</span>이 "레시피 없음"으로 건너뜀).</div>
         <div class="d" style="margin-bottom:4px"><b>백엔드 9지점</b> <span style="color:var(--sub)">(origin/main 기준 라인 · 표류 시 심볼로 대조)</span></div>
@@ -552,9 +541,14 @@
 })();
 </script>
 <script>
-// ── §6 에러이력 카탈로그 (재고12·가격15·기타10 = 37건) — 정본 .md §5 와 대칭 ──
+// ── 에러이력 카탈로그 (무결성 4철칙 + 재고16·가격23·기타16) — 정본 .md §4 원칙·§5 에러이력 ──
 (function(){
   var EC=[
+   // 🛡️ 무결성 4철칙 (방향 복귀 기준 — 어기면 그 에러 재발) = .md §4
+   {g:'무결성',src:'방향 복귀 기준',sy:'① 폴백가 금지',cz:'실패 시 평균·최저 대표가로 채우지 않음 → "가격없음 + 크롤실패"로 표면화 (폴백가 주문 = 손실)',pv:'어기면 재발 → P23 가짜 95000 · S1·S2·S8 상품합계 재고 폴백 둔갑'},
+   {g:'무결성',src:'방향 복귀 기준',sy:'② 크롤실패 = 표기',cz:'옛 가격/재고 끌어쓰지 않고 "크롤 실패"로 표기 (하드리셋 NULL → finalize)',pv:'어기면 재발 → S14 판매차단 inert · P7 stale 정체 · P6 신규URL 드롭'},
+   {g:'무결성',src:'방향 복귀 기준',sy:'③ 단일 진실원천',cz:'표면가=last_price · 매입가=compute_market_price, 한 곳에서만',pv:'어기면 재발 → P4 셀≠계산식 · O1 last_price 평균vs최저 · P19·P21 오저장·중복'},
+   {g:'무결성',src:'방향 복귀 기준',sy:'④ 누락에 경고',cz:'후보가 조용히 탈락(None) 금지 → 화면·로그에 드러나야',pv:'어기면 재발 → P6 드롭 · P13·P15 무보고 skip · O7·P10 위장·누락'},
    // 📦 재고
    {g:'재고',l:'be',l2:'fe',src:'르무통',st:'ok',cm:'d1fbe8fb 2d63a9e1',sy:'사이즈별 재고가 상품합계로 균일 둔갑(전사이즈 53, 품절 265도 \'있음\')',cz:'ⓐ _persist_option_stocks가 기존행만 갱신·생성 안 함→신규 URL 옵션행 0 ⓑ ext_bridge가 crawl-result에 options[] 미전송→상품 last_stock(합계) 균일 폴백',pv:'옵션 영속 단일 루틴(persist_crawled_options) 생성+갱신, parse·save 양쪽 호출 + ext_bridge options[] 전송'},
    {g:'재고',l:'be',src:'스마트스토어',st:'ok',sy:'전부 999 \'있음\' 둔갑(품절 SKU도)',cz:'save_crawl_result가 옵션 current_stock 미영속, 서버크롤만 채워 확장전용 경로 영원히 stale',pv:'_persist_option_stocks 영속(확장 경로도)'},
@@ -585,7 +579,7 @@
    {g:'가격',l:'fe',src:'매트릭스',st:'todo',sy:'\'재계산▶\' 버튼이 저장 0인 stub',cz:'버튼이 실제 재계산·저장 안 함(누르면 loadMatrix 새로고침만)',pv:'실제 재계산 미구현 잔존 — 라벨 \'재계산(준비중)\'으로 오인 차단(2026-06-28)'},
    {g:'가격',l:'be',src:'가격설정 일괄저장',st:'ok',cm:'2026-06-28',sy:'허용목록 밖 필드를 조용히 무시',cz:'bulk_set_price_config가 허용목록 밖 필드를 무보고 skip',pv:'응답에 ignored_fields 추가(저장 불변, 보고만)'},
    // 🛠️ 기타
-   {g:'기타',l:'etc',src:'구조(원칙)',st:'todo',sy:'조용한 실패 버그 클래스',cz:'무결성 제약 부재(A) + SSOT 분열(last_price 평균 vs 최저)(B) + 누락 무경고(None 탈락)(C)',pv:'DB 제약 + SSOT 통일 + None 후보 경고 (상단 3원칙)'},
+   {g:'기타',l:'etc',src:'구조',st:'todo',sy:'조용한 실패 버그 클래스',cz:'무결성 제약 부재(A) + SSOT 분열(last_price 평균 vs 최저)(B) + 누락 무경고(None 탈락)(C)',pv:'DB 제약 + SSOT 통일 + None 후보 경고 (상단 조용한 실패 방지 3가지)'},
    {g:'기타',l:'etc',src:'배포',st:'ok',sy:'배포 success인데 옛 코드 영속',cz:'docker run이 기존 컨테이너 미교체로 백엔드 옛 코드로 계속 돎',pv:'docker rm -f + 교체 검증 (success ≠ 코드 라이브)'},
    {g:'기타',l:'etc',src:'확장',st:'todo',sy:'수정해도 라이브 미반영 (주의)',cz:'확장 버전 분열 + 로드된 확장 = 데스크톱 사본(dev 사본 고쳐도 무효)',pv:'로드 확장 경로 확인 후 reload'},
    {g:'기타',l:'etc',src:'DB',st:'todo',sy:'dev 값이 라이브와 다름 (주의)',cz:'dev DB는 라이브보다 수십~수백 커밋 stale',pv:'라이브 대조 필수(dev 신뢰 금지)'},
@@ -615,16 +609,26 @@
    {g:'기타',l:'fe',src:'검증탭',st:'ok',sy:'재검증이 무신사·롯데온을 실제로 안 긁고 옛 stale를 크롤실패 표시',cz:'재검증이 서버 recrawl-url만 호출(브라우저 없어 need_extension) + 확장 메시지 경로 불일치(crawl vs crawlBundleAll)',pv:'crawlBundleAll로 전체크롤과 동일화'},
    {g:'기타',l:'be',src:'서버 refetch',st:'ok',cm:'2026-06-28',sy:'단건 재크롤(refetch)이 SSG를 SSF 크롤러로 보내 오파싱/실패',cz:'_detect_site_from_url(api_pricing.py:1656)이 ssg.com in u → ssf로 묶음(build_crawlers에 ssg 키는 실재)',pv:'ssfshop.com→ssf / ssg.com→ssg 분리(부분문자열 충돌 없음)'}
   ];
-  var GORD=['재고','가격','기타'],GIC={재고:'📦',가격:'💰',기타:'🛠️'},GNOTE={기타:'O7~O10 = 저장(save) 단계'};
+  var GORD=['무결성','재고','가격','기타'],GIC={무결성:'🛡️',재고:'📦',가격:'💰',기타:'🛠️'},GNOTE={무결성:'방향 복귀 기준 · 어기면 그 에러 재발',기타:'O7~O10 = 저장(save) 단계'};
   var LTXT={be:'백엔드',fe:'프론트',etc:'기타'},LCLS={be:'be',fe:'fe',etc:'etc'};
   function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
   function lbg(l){return '<span class="lbadge '+LCLS[l]+'">'+LTXT[l]+'</span>';}
   var host=document.getElementById('errcards');if(!host)return;var H='';
   GORD.forEach(function(g){
     var rows=EC.filter(function(e){return e.g===g;});
-    H+='<div class="ehead">'+GIC[g]+' <span class="gbadge '+g+'">'+g+'</span> <span class="ecnt">'+rows.length+'건</span>'+
+    H+='<div class="ehead">'+GIC[g]+' <span class="gbadge '+g+'">'+g+'</span> <span class="ecnt">'+rows.length+(g==='무결성'?'가지':'건')+'</span>'+
        (GNOTE[g]?' <span class="enote">· '+GNOTE[g]+'</span>':'')+'</div><div class="ecards">';
     rows.forEach(function(e){
+      if(e.g==='무결성'){
+        H+='<div class="ecard g무결성"><div class="ebar"></div><div class="eb">'+
+          '<div class="etop"><span class="gbadge 무결성">무결성</span><span class="sbadge rule">🛡️ 철칙</span>'+
+          '<span class="esrc">'+esc(e.src)+'</span></div>'+
+          '<div class="esy">'+esc(e.sy)+'</div>'+
+          '<div class="eln"><span class="el">내용</span>'+esc(e.cz)+'</div>'+
+          '<div class="eln epv"><span class="el">어기면</span>'+esc(e.pv)+'</div>'+
+          '</div></div>';
+        return;
+      }
       H+='<div class="ecard g'+e.g+(e.st==='todo'?' todo':'')+'"><div class="ebar"></div><div class="eb">'+
         '<div class="etop"><span class="gbadge '+e.g+'">'+e.g+'</span>'+lbg(e.l)+(e.l2?lbg(e.l2):'')+
         '<span class="sbadge '+(e.st==='ok'?'ok':'todo')+'">'+(e.st==='ok'?'✅수정':'⏳미수정')+'</span>'+
