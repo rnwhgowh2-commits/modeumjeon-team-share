@@ -113,6 +113,16 @@
     <label class="mk"><input type="checkbox" class="mkchk" value="smartstore"><span class="nm">스마트스토어</span><span class="badge b-ok">키 있음</span></label>
     <label class="mk"><input type="checkbox" class="mkchk" value="coupang"><span class="nm">쿠팡</span><span class="badge b-warn">키 필요</span></label>
     </div>
+    <div class="mk-add" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:10px;padding:11px 12px;border:1px dashed var(--blue);border-radius:8px;background:#f0f7ff;">
+      <span style="font-size:12px;font-weight:700;color:var(--blue2);white-space:nowrap">＋ 빠른 추가</span>
+      <input type="text" id="qaAlias" placeholder="별칭 (예: 브랜드샵2)" autocomplete="off" style="flex:1;min-width:130px;">
+      <select id="qaMarket" style="width:auto;min-width:120px;font-family:inherit;font-size:14px;border:1px solid var(--bd);border-radius:8px;padding:9px 12px;color:var(--t1);background:#fff;">
+        <option value="">마켓 선택…</option>
+        <option value="coupang">쿠팡</option>
+        <option value="smartstore">스마트스토어</option>
+      </select>
+      <button class="btn" type="button" onclick="quickAddMarket(this)">추가</button>
+    </div>
     <div class="bar">
       <button class="btn ghost" onclick="goStep(2)">← 뒤로</button>
       <button class="btn" id="saveChan" onclick="saveChannels()">판매처 추가 후 다음 →</button>
@@ -246,6 +256,20 @@ async function loadAccounts(){
     return '<label class="mk"><input type="checkbox" class="mkchk" value="'+a.market+'" data-account="'+a.account_key+'"><span class="nm">'+nm+'</span>'+badge+'</label>';
   }).join('');
 }
+// [흐름 ③ 빠른 추가] 별칭 → 마켓 선택만으로 판매처 계정 등록 후 목록 갱신. 키는 추후 🔑(판매처 계정 관리).
+async function quickAddMarket(btn){
+  const alias=($('#qaAlias').value||'').trim();
+  const market=$('#qaMarket').value;
+  if(!alias){ alert('별칭을 입력해 주세요.'); return; }
+  if(!market){ alert('마켓을 선택해 주세요.'); return; }
+  btn.disabled=true;
+  const env_prefix=market.toUpperCase()+'_'+Date.now();
+  const r=await api('POST','/accounts/api/upload/accounts',{account_key:alias+'_'+market, display_name:alias, market, env_prefix});
+  btn.disabled=false;
+  if(r.ok){ $('#qaAlias').value=''; $('#qaMarket').value=''; await loadAccounts(); }
+  else alert('추가 실패: '+(r.error||''));
+}
+
 async function saveChannels(){
   const picks=[...document.querySelectorAll('.mkchk:checked')].map(c=>({market:c.value, account_key:c.dataset.account||null}));
   if(!picks.length){ alert('판매처를 1개 이상 선택해 주세요.'); return; }
