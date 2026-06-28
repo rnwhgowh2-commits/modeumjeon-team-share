@@ -702,6 +702,18 @@
       "rev": [
         {"d": "2026-06-27", "a": "add", "txt": "SSF 스크린샷 멤버십포인트 잘림", "src": "SSF 스크린샷"}
       ]
+    },
+    {
+      "id": "O18", "g": "기타", "l": "be", "l2": "fe", "src": "매트릭스/위젯",
+      "st": "ok", "cm": "9db59f6f",
+      "sy": "커스텀 소싱처(hmall·롯데아이몰)가 정상 크롤됐는데 셀·매트릭스보기·위젯에 안 뜸",
+      "cz": "매트릭스가 소싱처를 source_id(레지스트리 id)로 컬럼·셀 매칭→커스텀은 _key_domain(builtin 6 하드코딩) 밖이라 셀 source_id=null→deriveSourceColumns가 null 컬럼 skip. 위젯 카운트도 builtin 기준",
+      "pv": "셀·매트릭스보기 ✅: option-matrix 셀 source_id=key:+source_key 합성 + DATA.sources 커스텀 컬럼 추가 + get_labels SourcingSource 한글 라벨. ⏳위젯 완료 카운트는 확장측 별도",
+      "code": { "file": "webapp/routes/api_pricing.py", "func": "_option_matrix_data", "desc": "커스텀 소싱처 source_id=key:+key 합성 + DATA.sources 추가" },
+      "crawl": "ok", "doc": "sync", "view": "sync",
+      "rev": [
+        {"d": "2026-06-28", "a": "add", "txt": "커스텀 소싱처 매트릭스 미표시(source_id=null) 수정", "src": "매트릭스/위젯", "cm": "9db59f6f"}
+      ]
     }
   ]
 }
