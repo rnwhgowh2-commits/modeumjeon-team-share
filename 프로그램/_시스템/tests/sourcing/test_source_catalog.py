@@ -43,10 +43,10 @@ def test_lotteimall_hmall_addable():
         assert e['label'] == label
 
 
-def test_hmall_verified_lotteimall_pending():
-    """현대H몰=라이브 검증 완료(has_adapter True) / 롯데아이몰=URL 검증 전(False)."""
+def test_hmall_lotteimall_verified():
+    """현대H몰·롯데아이몰 둘 다 라이브 검증 완료 → has_adapter True(크롤 지원)."""
     assert SR.get_catalog_entry('hmall')['has_adapter'] is True
-    assert SR.get_catalog_entry('lotteimall')['has_adapter'] is False
+    assert SR.get_catalog_entry('lotteimall')['has_adapter'] is True
 
 
 def test_catalog_entries_have_required_fields():

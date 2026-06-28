@@ -70,3 +70,26 @@ def test_lotteimall_no_inv_qty_returns_empty():
     soup = BeautifulSoup('<div class="inp_option inpOptList"><li id="1_1">'
                          '<p class="txt_option">240mm</p></li></div>', "lxml")
     assert _build_inv_qty_by_size(soup, "<html>no inv</html>") == {}
+
+
+def test_lotteimall_2axis_color_size_inv_qty():
+    """롯데아이몰 색상모음전(2축): (색,사이즈) 조합별 실재고 — opt_val_cd_0=색·opt_val_cd_1=사이즈."""
+    from lemouton.sourcing.crawlers.lotteon import _build_inv_qty_by_color_size
+    html = """
+    <script>
+      var a = { opt_cd_0:'99', opt_val_cd_0:'1', opt_cd_1:'99', opt_val_cd_1:'1', item_no:'A', inv_qty:20, master_yn:'Y' };
+      var b = { opt_cd_0:'99', opt_val_cd_0:'1', opt_cd_1:'99', opt_val_cd_1:'2', item_no:'B', inv_qty:0 };
+      var c = { opt_cd_0:'99', opt_val_cd_0:'2', opt_cd_1:'99', opt_val_cd_1:'1', item_no:'C', inv_qty:5 };
+    </script>
+    <div class="inp_option inpOptList">
+      <li id="10_1"><p class="txt_option">블랙</p></li>
+      <li id="10_2"><p class="txt_option">아이보리</p></li>
+    </div>
+    <div class="inp_option inpOptList">
+      <li id="20_1"><p class="txt_option">230mm</p></li>
+      <li id="20_2"><p class="txt_option">240mm (품절)</p></li>
+    </div>
+    """
+    soup = BeautifulSoup(html, "lxml")
+    out = _build_inv_qty_by_color_size(soup, html)
+    assert out == {("블랙", "230mm"): 20, ("블랙", "240mm"): 0, ("아이보리", "230mm"): 5}

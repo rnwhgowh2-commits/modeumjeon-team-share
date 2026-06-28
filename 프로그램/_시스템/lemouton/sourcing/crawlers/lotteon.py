@@ -533,6 +533,64 @@ def _build_inv_qty_by_size(soup: BeautifulSoup, html: str) -> dict[str, int]:
     return out
 
 
+# ★ 2026-06-28 — 롯데아이몰 2축(색상×사이즈) 실재고 3상태.
+#   색상모음전 페이지의 itemInvQtyInfo 객체는 opt_val_cd_0(색 코드)·opt_val_cd_1(사이즈 코드)
+#   ·inv_qty 를 함께 담는다(라이브 검증: 9색×13사이즈=97조합 정확 수량). 단축 경로는 색이
+#   하나라 size 만으로 매핑 가능했지만, 2축은 (색,사이즈) 조합으로 매핑해야 정확.
+_ITEM_INV_OBJ_PATTERN = re.compile(r"\{[^{}]*?inv_qty[^{}]*?\}")
+_OVC0_PATTERN = re.compile(r"opt_val_cd_0\s*:\s*'?(\d+)'?")
+_OVC1_PATTERN = re.compile(r"opt_val_cd_1\s*:\s*'?(\d+)'?")
+_INVQ_PATTERN = re.compile(r"inv_qty\s*:\s*(\d+)")
+
+
+def _extract_item_inv_qty2(html: str) -> dict[tuple[str, str], int]:
+    """``itemInvQtyInfo`` → {(opt_val_cd_0, opt_val_cd_1): inv_qty}. 2축용. 없으면 {}."""
+    out: dict[tuple[str, str], int] = {}
+    for obj in _ITEM_INV_OBJ_PATTERN.findall(html or ""):
+        c0 = _OVC0_PATTERN.search(obj)
+        c1 = _OVC1_PATTERN.search(obj)
+        q = _INVQ_PATTERN.search(obj)
+        if c0 and c1 and q:
+            out[(c0.group(1), c1.group(1))] = int(q.group(1))
+    return out
+
+
+def _opt_code_label_map(ul) -> dict[str, str]:
+    """하나의 옵션 리스트(ul) → {opt_val_cd(li id 의 N): label}. 헤더('색상 선택')는 제외."""
+    out: dict[str, str] = {}
+    if ul is None:
+        return out
+    for li in ul.select("li[id]"):
+        m = _OPT_LI_ID_PATTERN.match(li.get("id", "") or "")
+        if not m:
+            continue
+        p = li.select_one("p.txt_option")
+        raw = (p.get_text(strip=True) if p else li.get_text(strip=True)) or ""
+        label = _SIZE_PAREN_PATTERN.sub("", raw).strip()
+        if label and not OPT_HEADER_PATTERN.match(label):
+            out[m.group(1)] = label
+    return out
+
+
+def _build_inv_qty_by_color_size(soup: BeautifulSoup, html: str) -> dict[tuple[str, str], int]:
+    """2축: (색상 label, 사이즈 label) → inv_qty. 리스트[0]=색상·[1]=사이즈 가정."""
+    inv = _extract_item_inv_qty2(html)
+    if not inv:
+        return {}
+    lists = soup.select(".inp_option.inpOptList")
+    if len(lists) < 2:
+        return {}
+    color_map = _opt_code_label_map(lists[0])   # opt_val_cd_0 → 색 label
+    size_map = _opt_code_label_map(lists[1])     # opt_val_cd_1 → 사이즈 label
+    out: dict[tuple[str, str], int] = {}
+    for (c0, c1), q in inv.items():
+        cl = color_map.get(c0)
+        sl = size_map.get(c1)
+        if cl and sl:
+            out[(cl, sl)] = q
+    return out
+
+
 # ─────────────────────────────────────────────────────────────
 # 롯데ON (lotteon.com) — Playwright + pbf.lotteon.com API
 # ─────────────────────────────────────────────────────────────
@@ -1337,9 +1395,11 @@ class LotteCrawler(AbstractCrawler):
         # ★ 2026-06-25 — 실재고 3상태: 단일축(색 또는 사이즈 한 축)이면 itemInvQtyInfo
         #   (inv_qty)로 실수량 매핑. 단일색 상품은 inpOptList 1개라 사이즈가 color_text 에
         #   담기므로(기존 크롤러 특성), 옵션 라벨로 매핑한다.
-        #   진짜 2축(색×사이즈)은 라벨이 조합마다 중복돼 모호 → 기존 soldout 2상태 유지.
+        #   ★ 2026-06-28 — 2축(색×사이즈)도 itemInvQtyInfo(opt_val_cd_0·opt_val_cd_1)로
+        #     조합별 실수량 매핑(라이브 검증: 롯데아이몰 색상모음전 97조합). 단축은 기존 size 매핑.
         _single_axis = not (color_names and size_names)
         size_qty_map = _build_inv_qty_by_size(soup, html) if _single_axis else {}
+        cs_qty_map = {} if _single_axis else _build_inv_qty_by_color_size(soup, html)
 
         options: list[dict] = []
         for color in colors:
@@ -1349,11 +1409,15 @@ class LotteCrawler(AbstractCrawler):
                 color_text = color["name"] if color["name"] else product_name
                 size_text = size["name"]
                 # 사용자 정책 (2026-05-06): 품절=0 / 충분 재고=999 (표시 없음)
-                #   ★ 단일축 + inv_qty 매핑 있으면 실수량(3상태) 사용. 라벨=size 우선, 없으면 color.
+                #   ★ inv_qty 매핑 있으면 실수량(3상태). 2축=(색,사이즈) 조합 우선, 단축=size 라벨.
                 _label = size_text if size_text else (color["name"] or "")
                 _lbl_key = _SIZE_PAREN_PATTERN.sub("", _label).strip()
-                if _lbl_key in size_qty_map:
-                    stock_int = size_qty_map[_lbl_key]   # 실재고(0=품절·N=실수량·큰값=충분)
+                _csk = (_SIZE_PAREN_PATTERN.sub("", (color["name"] or "")).strip(),
+                        _SIZE_PAREN_PATTERN.sub("", (size_text or "")).strip())
+                if cs_qty_map and _csk in cs_qty_map:
+                    stock_int = cs_qty_map[_csk]         # 2축 조합별 실재고(0=품절·N=실수량)
+                elif _lbl_key in size_qty_map:
+                    stock_int = size_qty_map[_lbl_key]   # 단축 실재고(0=품절·N=실수량·큰값=충분)
                 else:
                     stock_int = 0 if is_sold_out else 999
                 # CrawlResult.price: V7 는 maxPrice 사용 (옵션 표시 가격)
