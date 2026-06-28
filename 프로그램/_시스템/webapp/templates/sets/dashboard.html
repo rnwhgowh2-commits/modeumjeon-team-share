@@ -1,0 +1,91 @@
+{% extends "base.html" %}
+{% block title %}판매처 연동{% endblock %}
+{% block head %}
+<style>
+  .sd-wrap{max-width:1100px;margin:0 auto;padding:10px 6px;font-family:Pretendard,system-ui,sans-serif;}
+  .sd-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:16px;flex-wrap:wrap;}
+  .sd-title{font-size:20px;font-weight:700;color:#191F28;}
+  .sd-sub{font-size:13px;color:#6b7684;margin-top:2px;}
+  .sd-new{font-size:14px;font-weight:700;border:1px solid #3182f6;background:#3182f6;color:#fff;border-radius:8px;padding:9px 16px;text-decoration:none;white-space:nowrap;}
+  .sd-new:hover{background:#1b64da;}
+  .sd-search{display:flex;align-items:center;gap:8px;border:1px solid #e5e8eb;border-radius:10px;padding:9px 13px;background:#fff;margin-bottom:14px;}
+  .sd-search input{border:0;outline:0;flex:1;font-size:14px;font-family:inherit;color:#191F28;background:transparent;}
+  .sd-card{background:#fff;border:1px solid #e5e8eb;border-radius:12px;padding:14px 16px;margin-bottom:10px;}
+  .sd-card-top{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;}
+  .sd-name{font-size:15px;font-weight:700;color:#191F28;}
+  .sd-bundle{font-size:11px;font-weight:700;background:#e8f1ff;color:#1d4ed8;border-radius:5px;padding:2px 7px;margin-right:6px;}
+  .sd-mk{display:inline-block;font-size:11.5px;font-weight:700;border-radius:5px;padding:3px 8px;margin-left:6px;}
+  .sd-mk.coupang{background:#FAEEDA;color:#854F0B;}
+  .sd-mk.smartstore{background:#E1F5EE;color:#0F6E56;}
+  .sd-mk.other{background:#f1f3f5;color:#4e5968;}
+  .sd-meta{font-size:11.5px;color:#8b95a1;margin-top:7px;}
+  .sd-prods{margin-top:10px;border-top:1px solid #e5e8eb;padding-top:4px;}
+  .sd-prod{display:flex;align-items:center;gap:8px;padding:5px 0;font-size:13px;color:#4e5968;}
+  .sd-cnt{font-size:11px;color:#8b95a1;}
+  .sd-empty{text-align:center;padding:54px 20px;color:#8b95a1;font-size:14px;line-height:1.7;}
+  .sd-match-ok{color:#047857;font-weight:700;}
+  .sd-match-part{color:#b45309;font-weight:700;}
+</style>
+{% endblock %}
+{% block content %}
+<div class="sd-wrap">
+  <div class="sd-head">
+    <div>
+      <div class="sd-title">🏬 판매처 연동</div>
+      <div class="sd-sub">판매처에 연동된 모음전 상품 · 마켓 매칭 · 최신 재고/가격 수집 현황</div>
+    </div>
+    <a class="sd-new" href="/api/sets/flow">＋ 새 연동 만들기</a>
+  </div>
+  <div class="sd-search">
+    <span style="color:#8b95a1">🔍</span>
+    <input id="sd-q" type="text" placeholder="상품명·코드·마켓 상품번호 검색…" autocomplete="off">
+  </div>
+  <div id="sd-list"><div class="sd-empty">불러오는 중…</div></div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+(function(){
+  var listEl=document.getElementById('sd-list');
+  var qEl=document.getElementById('sd-q');
+  var timer=null;
+  function esc(s){ return (s||'').replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];}); }
+  function rel(iso){ if(!iso) return null; var d=new Date(iso); var s=(Date.now()-d.getTime())/1000; if(isNaN(s)) return null; if(s<0)s=0; if(s<3600)return Math.floor(s/60)+'분 전'; if(s<86400)return Math.floor(s/3600)+'시간 전'; return Math.floor(s/86400)+'일 전'; }
+  function mkBadge(c){
+    var cls=c.market==='coupang'?'coupang':(c.market==='smartstore'?'smartstore':'other');
+    var nm=c.market==='coupang'?'쿠팡':(c.market==='smartstore'?'스마트스토어':esc(c.market));
+    var num=c.market_product_id?(' '+esc(c.market_product_id)):' (번호없음)';
+    var m;
+    if(c.total>0){ m=' · 매칭 '+(c.matched===c.total?('<span class=sd-match-ok>'+c.matched+'</span>'):('<span class=sd-match-part>'+c.matched+'/'+c.total+'</span>')); }
+    else { m=' · 미연동'; }
+    return '<span class="sd-mk '+cls+'">'+nm+num+'</span>'+'<span class="sd-cnt">'+m+'</span>';
+  }
+  function render(sets){
+    if(!sets.length){ listEl.innerHTML='<div class="sd-empty">아직 연동된 구성이 없어요.<br>오른쪽 위 <b>＋ 새 연동 만들기</b> 로 시작하세요.</div>'; return; }
+    var h='';
+    sets.forEach(function(r){
+      var multi=r.products.length>1;
+      var chans=r.channels.map(mkBadge).join('');
+      var coll=rel(r.last_collected_at); var sent=r.last_sent_at?rel(r.last_sent_at):null;
+      h+='<div class="sd-card">';
+      h+=' <div class="sd-card-top"><div>'+(multi?('<span class="sd-bundle">'+r.products.length+'개 묶음</span>'):'')+'<span class="sd-name">'+esc(r.name)+'</span></div><div>'+(chans||'<span class=sd-cnt>판매처 없음</span>')+'</div></div>';
+      h+=' <div class="sd-meta">수집 '+(coll||'수집 안 됨')+' · 전송 '+(sent||'이력 없음')+'</div>';
+      h+=' <div class="sd-prods">';
+      r.products.forEach(function(p){ h+='<div class="sd-prod">└ <span>'+esc(p.model_name)+'</span> <span class="sd-cnt">'+p.option_count+'옵션 · 수량 '+p.quantity+'</span></div>'; });
+      h+=' </div>';
+      h+='</div>';
+    });
+    listEl.innerHTML=h;
+  }
+  function load(){
+    var q=qEl.value.trim();
+    fetch('/api/sets/linked'+(q?('?q='+encodeURIComponent(q)):''),{headers:{'Accept':'application/json'}})
+      .then(function(r){return r.json();})
+      .then(function(d){ if(d&&d.ok) render(d.sets||[]); else listEl.innerHTML='<div class="sd-empty">목록을 불러오지 못했어요.</div>'; })
+      .catch(function(){ listEl.innerHTML='<div class="sd-empty">목록을 불러오지 못했어요.</div>'; });
+  }
+  qEl.addEventListener('input',function(){ clearTimeout(timer); timer=setTimeout(load,250); });
+  load();
+})();
+</script>
+{% endblock %}

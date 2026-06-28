@@ -51,6 +51,24 @@ def sets_flow_page():
     return render_template("sets/flow.html")
 
 
+@bp.get("/sets/dashboard")
+def sets_dashboard_page():
+    """[연동 현황] 판매처에 연동된 구성 목록·검색 대시보드 (사이드바 진입점)."""
+    return render_template("sets/dashboard.html", active="sets_dashboard")
+
+
+@bp.get("/sets/linked")
+def list_linked():
+    """대시보드 데이터 — 연동된 구성 목록(검색어 q 로 구성명·상품명·상품번호 필터)."""
+    q = (request.args.get("q") or "").strip()
+    s = SessionLocal()
+    try:
+        rows = svc.list_linked_sets(s, q=q or None)
+        return jsonify({"ok": True, "sets": rows})
+    finally:
+        s.close()
+
+
 @bp.get("/sets/bundle/<code>/options")
 def bundle_options(code):
     """단계② 조합 매트릭스용 — 모음전의 옵션을 색/사이즈로."""
