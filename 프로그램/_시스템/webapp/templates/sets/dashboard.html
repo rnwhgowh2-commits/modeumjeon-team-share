@@ -139,7 +139,7 @@
     return out.length?out.join(' '):'<span class=sd-cnt>-</span>';
   }
   function receipt(bd){
-    if(!bd||!bd.steps||!bd.steps.length) return '<div class="sd-cnt" style="padding:6px 0">소싱 혜택 영수증 정보가 없어요(사입 옵션이거나 수집 전).</div>';
+    if(!bd||!bd.steps||!bd.steps.length) return '<div class="rcp"><div class="rl total"><span>표면 노출가 = 최종 매입가</span><b>'+fmt(bd&&bd.final_price)+'</b></div></div><div class="sd-cnt" style="padding:4px 0">차감할 소싱 혜택이 없어요.</div>';
     var h='<div class="rcp"><div class="rl"><span>표면 노출가</span><b>'+fmt(bd.sale_price)+'</b></div>';
     bd.steps.forEach(function(st,i){
       h+='<div class="rl ded"><span>└ '+esc(st.name)+'</span><span>-'+fmt(st.deduct)+'</span></div>';
@@ -147,6 +147,22 @@
     });
     h+='<div class="rl total"><span>최종 매입가</span><b>'+fmt(bd.final_price)+'</b></div></div>';
     return h;
+  }
+  function loadReceipt(o, td){
+    if(!o){ td.innerHTML='<div class="sd-cnt">옵션 정보를 찾지 못했어요.</div>'; return; }
+    if(o.purchase_priority_resolved==='purchase'){
+      td.innerHTML='<div class="rcp"><div class="rl total"><span>사입 매입가(이동평균)</span><b>'+fmt(o.purchase_avg_cost)+'</b></div></div><div class="sd-cnt" style="padding:4px 0">사입 옵션은 직접 매입가를 사용해요(소싱 혜택 영수증 없음).</div>';
+      return;
+    }
+    var cand=(o.sources||[]).filter(function(s){ return s.source_id!=null && s.crawled_price!=null; });
+    if(!cand.length){ td.innerHTML='<div class="sd-cnt" style="padding:6px 0">소싱처 가격 정보가 없어요(수집 전).</div>'; return; }
+    cand.sort(function(a,b){ return a.crawled_price-b.crawled_price; });
+    var s=cand[0];
+    var url='/api/source-benefits/breakdown/'+encodeURIComponent(o.sku)+'/'+s.source_id+'?sale_price='+s.crawled_price+(s.source_product_id?('&source_product_id='+encodeURIComponent(s.source_product_id)):'');
+    td.innerHTML='<div class="sd-cnt" style="padding:6px 0">영수증 불러오는 중…</div>';
+    fetch(url,{headers:{'Accept':'application/json'}}).then(function(r){return r.json();})
+      .then(function(bd){ td.innerHTML='<div style="font-size:11px;color:#185FA5;margin-bottom:4px">'+esc(s.source_name)+' 기준 (최저가 소싱처)</div>'+receipt(bd); })
+      .catch(function(){ td.innerHTML='<div class="sd-cnt" style="padding:6px 0">영수증을 불러오지 못했어요.</div>'; });
   }
   function renderTable(opts){
     if(!opts.length) return '<div class="sd-cnt" style="padding:8px 0">옵션이 없어요.</div>';
@@ -162,7 +178,7 @@
       h+='<td class="ta-r sd-cnt">'+collOf(o)+'</td>';
       h+='<td class="ta-r sd-cnt">미전송</td>';
       h+='</tr>';
-      h+='<tr data-rcp="'+i+'" style="display:none"><td colspan="7">'+receipt(o.ss_breakdown||o.cp_breakdown)+'</td></tr>';
+      h+='<tr data-rcp="'+i+'" style="display:none"><td colspan="7" data-rcp-body><div class="sd-cnt">행을 누르면 영수증을 불러옵니다.</div></td></tr>';
     });
     h+='</tbody></table><div class="sd-cnt" style="margin-top:6px">행을 누르면 가격 영수증(표면노출가→혜택→최종매입가)이 펼쳐져요. 전송일자는 실제 전송 기능(다음 단계) 도입 후 표기됩니다.</div>';
     return h;
@@ -218,7 +234,16 @@
     var optRow=e.target.closest('tr.opt-row');
     if(optRow){
       var rcp=optRow.nextElementSibling;
-      if(rcp&&rcp.hasAttribute('data-rcp')) rcp.style.display = rcp.style.display==='none'?'':'none';
+      if(rcp&&rcp.hasAttribute('data-rcp')){
+        var show = rcp.style.display==='none';
+        rcp.style.display = show?'':'none';
+        if(show && !rcp.__loaded){
+          rcp.__loaded=true;
+          var card=optRow.closest('.sd-card'); var sid=card.getAttribute('data-sid');
+          var oi=parseInt(optRow.getAttribute('data-oi'),10);
+          loadReceipt((detailCache[sid]||[])[oi], rcp.querySelector('[data-rcp-body]'));
+        }
+      }
       return;
     }
     var top=e.target.closest('.sd-card-top');
