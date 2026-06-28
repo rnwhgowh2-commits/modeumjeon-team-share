@@ -207,7 +207,7 @@ function renderMatrix(){
   sizes.forEach((z,zi)=>{
     h+=`<tr><th onclick="toggleRow(${zi})">${z}</th>`;
     colors.forEach((c)=>{
-      const sku=S.comboMap[c+' '+z];
+      const sku=S.comboMap[c+' '+z];
       if(!sku){ h+='<td><span class="cell na">·</span></td>'; }
       else{ const act=S.activeMap[sku]!==false; if(!act){ h+='<td><span class="cell lock" title="모음전에서 비활성된 옵션이라 선택할 수 없어요">잠금</span></td>'; } else { const on=S.selected.has(sku); h+=`<td><span class="cell ${on?'on':'off'}" data-sku="${sku}" onclick="toggleCell('${sku}')">${on?'ON':'OFF'}</span></td>`; } }
     });
