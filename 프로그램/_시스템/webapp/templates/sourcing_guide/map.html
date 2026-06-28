@@ -147,6 +147,10 @@
   /* ── §5 동기화 대시보드 (sd-) ── */
   .sgmap .syncbanner{background:#FFF4F4;border:1px solid #F3C2C2;border-radius:10px;padding:10px 14px;margin-bottom:10px;font-size:13.5px;line-height:1.6;color:#8a2a2a;}
   .sgmap .syncbanner.warn{background:#FFFBEB;border-color:#F1DFB0;color:#78350F;}
+  .sgmap #syncdash .sech.rule .d{background:#7C3AED;}
+  .sgmap #syncdash .rtbl{margin-bottom:6px;}
+  .sgmap #syncdash .rtbl .rl-n{font-weight:700;white-space:nowrap;color:#4E5968;}
+  .sgmap #syncdash .rtbl .rl-w{color:#9AA3AD;}
   .sgmap #syncdash .sum{display:flex;gap:20px;align-items:baseline;padding-bottom:14px;border-bottom:1px solid #ECEFF2;margin-bottom:4px;}
   .sgmap #syncdash .sum .s{display:flex;gap:6px;align-items:baseline;}
   .sgmap #syncdash .sum .n{font-size:19px;font-weight:700;letter-spacing:-.01em;}
@@ -462,7 +466,6 @@
       <div class="lead"><span class="klabel">핵심</span><span class="sum">방향 복귀 기준 4가지 + 과거 발생 에러 — 신규 추가·수정 전 먼저 확인.</span></div>
       <div class="e3">🛑 <b>신규 소싱처 추가·크롤/저장 코드 수정 전, 이 카탈로그부터 확인.</b> 같은 원인이 다른 소싱처에서 재발한다. · 분류 2축 = 증상유형(📦재고·💰가격·🛠️기타) × 원인계층(<span style="color:#7C3AED;font-weight:800">백엔드</span>·<span style="color:#E8830C;font-weight:800">프론트</span>(확장 포함)·기타) · 상태 ✅수정 / ⏳미수정 · <span style="font-weight:800">🛡️철칙</span>=방향 복귀 기준(어기면 그 에러 재발).<br>🛡️ <b>조용한 실패 방지 3가지</b> — (a) 저장 실패는 항상 표면화 · (b) 삭제형 저장은 빈 페이로드 가드 · (c) 대량 저장은 동시성 제한 + 멱등 재시도.</div>
       <div id="syncdash"></div>
-      <div id="errcards"></div>
     </div>
 
     <!-- 7 신규추가 -->
@@ -605,45 +608,6 @@
 <script>
 // ── 에러이력 카탈로그 — error_catalog.json fetch + §5 동기화 대시보드 ──
 (function(){
-  var GORD=['재고가격','재고','가격','기타'],GIC={재고가격:'🛡️',재고:'📦',가격:'💰',기타:'🛠️'},GLABEL={재고가격:'재고×가격'},GNOTE={재고가격:'재고·가격 양쪽에 적용되는 공통 철칙',기타:'O7~O10 = 저장(save) 단계'};
-  function glabel(g){return GLABEL[g]||g;}
-  var LTXT={be:'백엔드',fe:'프론트',etc:'기타'},LCLS={be:'be',fe:'fe',etc:'etc'};
-  function escLegacy(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
-  function lbg(l){return '<span class="lbadge '+LCLS[l]+'">'+LTXT[l]+'</span>';}
-
-  function renderErrCards(EC){
-    var host=document.getElementById('errcards');if(!host)return;var H='';
-    GORD.forEach(function(g){
-      var rows=EC.filter(function(e){return e.g===g;});
-      var _err=rows.filter(function(e){return !e.rule;}).length;
-      H+='<div class="ehead">'+GIC[g]+' <span class="gbadge '+g+'">'+glabel(g)+'</span> <span class="ecnt">'+(_err>0?_err+'건':rows.length+'철칙')+'</span>'+
-         (GNOTE[g]?' <span class="enote">· '+GNOTE[g]+'</span>':'')+'</div><div class="ecards">';
-      rows.forEach(function(e){
-        if(e.rule){
-          H+='<div class="ecard g'+e.g+'"><div class="ebar"></div><div class="eb">'+
-            '<div class="etop"><span class="gbadge '+e.g+'">'+glabel(e.g)+'</span><span class="sbadge rule">🛡️ 철칙</span>'+
-            '<span class="esrc">'+escLegacy(e.src)+'</span></div>'+
-            '<div class="esy">'+escLegacy(e.sy)+'</div>'+
-            '<div class="eln"><span class="el">내용</span>'+escLegacy(e.cz)+'</div>'+
-            '<div class="eln epv"><span class="el">어기면</span>'+escLegacy(e.pv)+'</div>'+
-            '</div></div>';
-          return;
-        }
-        H+='<div class="ecard g'+e.g+(e.st==='todo'?' todo':'')+'"><div class="ebar"></div><div class="eb">'+
-          '<div class="etop"><span class="gbadge '+e.g+'">'+glabel(e.g)+'</span>'+lbg(e.l)+(e.l2?lbg(e.l2):'')+
-          '<span class="sbadge '+(e.st==='ok'?'ok':e.st==='note'?'note':'todo')+'">'+(e.st==='ok'?'✅수정':e.st==='note'?'📌주의':'⏳미수정')+'</span>'+
-          '<span class="esrc">'+escLegacy(e.src)+'</span></div>'+
-          '<div class="esy">'+escLegacy(e.sy)+'</div>'+
-          '<div class="eln"><span class="el">원인</span>'+escLegacy(e.cz)+'</div>'+
-          '<div class="eln epv"><span class="el">재발방지</span>'+escLegacy(e.pv)+'</div>'+
-          (e.cm?'<div class="eln"><span class="el">커밋</span><span class="mono">'+escLegacy(e.cm)+'</span></div>':'')+
-          '</div></div>';
-      });
-      H+='</div>';
-    });
-    host.innerHTML=H;
-  }
-
   // ── 동기화 대시보드 helper functions ──
   function esc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
   function hasCode(e){return !!(e.code&&e.code.file&&e.code.func);}
@@ -700,6 +664,19 @@
       +'<div class="rev"><div class="rev-t">rev</div>'+revH+'</div>'
       +'</div></td></tr>';
   }
+  function renderRules(items){
+    var rules=items.filter(function(e){return e.rule;});
+    if(!rules.length)return '';
+    var rows=rules.map(function(e){
+      return '<tr><td class="rl-n">🛡️ '+esc(e.sy)+'</td>'
+        +'<td>'+esc(e.cz)+'</td>'
+        +'<td class="rl-w">'+esc(e.pv)+'</td></tr>';
+    }).join('');
+    return '<div class="sech rule"><span class="d"></span>철칙 · 방향 복귀 기준 '
+      +'<span class="c">'+rules.length+'</span><span class="hint">— 어기면 그 에러가 재발</span></div>'
+      +'<table class="rtbl"><thead><tr><th style="width:140px">원칙</th><th>내용</th>'
+      +'<th style="width:34%">어기면 재발</th></tr></thead><tbody>'+rows+'</tbody></table>';
+  }
   function renderSyncDash(items){
     var host=document.getElementById('syncdash');if(!host)return;
     var errs=items.filter(function(e){return !e.rule;});
@@ -712,6 +689,7 @@
     var H='<div class="sum">'
       +stat(errs.length,'총 에러','')+stat(groups.ok.length,'완전 동기화','ok')
       +stat(groups.warn.length,'문서 뒤처짐','warn')+stat(groups.bad.length,'코드 미반영','bad')+'</div>';
+    H+=renderRules(items);
     ['bad','warn','ok'].forEach(function(k){
       if(!groups[k].length)return;
       H+='<div class="sech '+k+'"><span class="d"></span>'+meta[k].t
@@ -728,10 +706,9 @@
     });
   }
 
-  // ── Fetch JSON → render both #errcards (legacy) and #syncdash ──
+  // ── Fetch JSON → render #syncdash 동기화 대시보드 ──
   fetch('/static/error_catalog.json').then(function(r){return r.json();}).then(function(data){
     var EC=data.items||[];
-    renderErrCards(EC);
     renderSyncDash(EC);
   }).catch(function(){/* silent empty */});
 
