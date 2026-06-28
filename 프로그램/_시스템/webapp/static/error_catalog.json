@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "items": [
+    {
+      "id": "S1",
+      "g": "재고가격", "l": "be", "l2": "fe", "src": "르무통",
+      "st": "ok", "cm": "d1fbe8fb 2d63a9e1",
+      "sy": "사이즈별 재고가 상품합계로 균일 둔갑(전사이즈 53, 품절 265도 '있음')",
+      "cz": "ⓐ _persist_option_stocks가 기존행만 갱신 ⓑ ext_bridge가 options[] 미전송→상품 합계 균일 폴백",
+      "pv": "옵션 영속 단일 루틴 생성+갱신, parse·save 양쪽 호출 + ext_bridge options[] 전송",
+      "code": { "file": "lemouton/sourcing/crawlers/ss_lemouton.py", "func": "persist_crawled_options", "desc": "옵션 영속 단일 루틴(생성+갱신)" },
+      "crawl": "ok", "doc": "sync", "view": "sync",
+      "rev": [
+        {"d":"2026-06-26","a":"add","txt":"사이즈별 재고 합계 둔갑 최초 기재","src":"르무통","cm":"d1fbe8fb"},
+        {"d":"2026-06-28","a":"mod","txt":"ext options[] 전송분 보강","src":"르무통","cm":"2d63a9e1"}
+      ]
+    }
+  ]
+}
