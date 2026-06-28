@@ -116,10 +116,27 @@ def _match_option_so(so_index, sp_id, opt_color, opt_size):
     oc = _stk_cnorm(opt_color)
     size_only = None
     subs = []                                     # 부분일치 후보 — 정확 매칭 없을 때만 사용
+    color_only = None                             # 색상 전용(색만·사이즈 없음) 정확 색일치 후보
+    color_only_subs = []                          # 색상 전용 부분 색일치 후보
     for so in cands:
         st = (so.size_text or '').strip()
         s_size = _stk_digits(st) or _stk_digits(so.color_text)
-        if not s_size or s_size != osz:
+        if not s_size:
+            # [2026-06-28] 색상 전용 데이터(현대H몰·롯데 색상모음전/모델모음전 = 색만 주고
+            #   사이즈별 미제공: size_text 비고 color_text 에 숫자 없음) → 색 단위로 매칭.
+            #   사이즈 정확 매칭이 전혀 없을 때만 폴백(가격·색단위 재고 표시, 미크롤 방지).
+            #   ⚠️ 색 단위 재고이므로 같은 색 모든 사이즈에 색 합계가 표시됨(색상모음전 컬럼 한정).
+            #   per-size 정확 재고는 단품 컬럼이 제공. 색 매칭도 정확>부분(모호 둘이상=None).
+            if oc:
+                sc = _stk_cnorm(so.color_text)
+                if sc:
+                    if oc == sc:
+                        if color_only is None:
+                            color_only = so
+                    elif oc in sc or sc in oc:
+                        color_only_subs.append(so)
+            continue
+        if s_size != osz:
             continue
         has_color = bool(st) and bool((so.color_text or '').strip())
         if has_color and oc:                      # 크롤이 색을 줬을 때만 색 일치 요구
@@ -140,7 +157,14 @@ def _match_option_so(so_index, sp_id, opt_color, opt_size):
         return subs[0]
     if len(subs) > 1:
         return None
-    return size_only
+    if size_only is not None:
+        return size_only
+    # 사이즈 매칭이 전혀 없을 때만 색상 전용 폴백(정확 색 > 부분 색, 모호하면 None)
+    if color_only is not None:
+        return color_only
+    if len(color_only_subs) == 1:
+        return color_only_subs[0]
+    return None
 
 
 def _match_option_stock(so_index, sp_id, opt_color, opt_size):

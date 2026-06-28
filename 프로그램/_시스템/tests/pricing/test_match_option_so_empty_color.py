@@ -120,3 +120,54 @@ class TestColorMatchPreserved:
         )
         so_empty = _match_option_so(idx, 22, opt_color='', opt_size='240')
         assert so_empty is not None   # size-only fallback; 어느 색이든 매칭
+
+
+# ─────────────────────────────────────────────────────────────
+# 색상 전용(색상모음전·모델모음전) — 사이즈 없는 색 단위 데이터 매칭 (2026-06-28)
+# ─────────────────────────────────────────────────────────────
+
+class TestColorOnlyAggregation:
+    """현대H몰/롯데 색상모음전·모델모음전: 색만 주고 사이즈별 미제공(size_text='').
+    사이즈 정확 매칭이 없을 때 색 단위로 폴백 → 가격·색단위 재고 표시(미크롤 방지)."""
+
+    def test_color_only_matches_by_color(self):
+        """색상모음전 SO(블랙, size 없음) → 옵션(블랙, 230) 색 단위 매칭."""
+        idx = _idx(
+            _so_obj(33, '', '블랙', 122),
+            _so_obj(33, '', '다크네이비', 186),
+            _so_obj(33, '', '그레이', 95),
+        )
+        so = _match_option_so(idx, 33, opt_color='블랙', opt_size='230')
+        assert so is not None, "색상모음전(색만) 데이터가 미크롤로 빠지는 버그 재현"
+        assert so.current_stock == 122
+
+    def test_color_only_all_sizes_same_color_get_color_stock(self):
+        """같은 색의 모든 사이즈가 색 단위 재고를 받음(색상모음전 컬럼 한정)."""
+        idx = _idx(_so_obj(33, '', '다크네이비', 186))
+        for sz in ('220', '230', '245', '280'):
+            so = _match_option_so(idx, 33, '다크네이비', sz)
+            assert so is not None and so.current_stock == 186
+
+    def test_color_only_wrong_color_none(self):
+        """색이 다르면 None — 엉뚱한 색 재고 표시 방지."""
+        idx = _idx(_so_obj(33, '', '블랙', 122))
+        assert _match_option_so(idx, 33, opt_color='오렌지', opt_size='230') is None
+
+    def test_color_only_ambiguous_partial_none(self):
+        """부분 색일치가 둘 이상이면 모호 → None(추측 금지)."""
+        idx = _idx(
+            _so_obj(33, '', '그레이', 95),
+            _so_obj(33, '', '라이트그레이', 30),
+        )
+        # opt '그레이' 는 '라이트그레이' 에도 부분포함 → 정확('그레이')이 있으면 그걸 채택
+        so = _match_option_so(idx, 33, opt_color='그레이', opt_size='230')
+        assert so is not None and so.current_stock == 95  # 정확 색 우선
+
+    def test_size_level_preferred_over_color_only(self):
+        """사이즈 정확 매칭이 있으면 색 단위 폴백을 쓰지 않음."""
+        idx = _idx(
+            _so_obj(33, '230mm', '블랙', 5),   # 사이즈별(단품류)
+            _so_obj(33, '', '블랙', 122),       # 색 단위(색상모음전류)
+        )
+        so = _match_option_so(idx, 33, opt_color='블랙', opt_size='230')
+        assert so is not None and so.current_stock == 5  # 사이즈 정확 우선
