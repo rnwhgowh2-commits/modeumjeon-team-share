@@ -648,9 +648,8 @@
   function esc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
   function hasCode(e){return !!(e.code&&e.code.file&&e.code.func);}
   function bucket(e){
-    if(!hasCode(e))return 'ok';
-    if(e.crawl!=='ok')return 'bad';
-    if(e.doc==='lag'||e.view==='lag')return 'warn';
+    if(e.crawl!=='ok')return 'bad';          // no(코드미반영) + warn(검증필요)
+    if(e.doc==='lag'||e.view==='lag')return 'warn'; // 문서 뒤처짐
     return 'ok';
   }
   function stat(n,t,c){return '<div class="s '+(c||'')+'"><span class="n">'+n+'</span><span class="t">'+t+'</span></div>';}
@@ -680,7 +679,7 @@
     var lay=layer[e.l]||e.l||'';if(e.l2)lay+=' · '+(layer[e.l2]||e.l2);
     var autoCls=e.crawl==='ok'?'ok':(e.crawl==='no'?'no':'warn');
     var autoTxt=e.crawl==='ok'?'⚙ 심볼 확인':(e.crawl==='no'?'⚙ 심볼 미발견':'⚙ 검증필요');
-    var crawlCell=hasC?gl(e.crawl):'<span class="gl">—</span>';
+    var crawlCell=gl(e.crawl);
     var codeLine=hasC?('<div class="sym"><span class="auto '+autoCls+'">'+autoTxt+'</span>'
         +esc(symTxt)+(sh?' <span class="shtag">🔗 공유 · '+esc(sh.join('·'))+'</span>':'')+'</div>'):'';
     var revH=(e.rev||[]).map(function(r){
