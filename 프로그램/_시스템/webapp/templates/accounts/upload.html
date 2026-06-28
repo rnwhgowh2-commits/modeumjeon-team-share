@@ -182,6 +182,21 @@
           </td>
         </tr>
         {% endfor %}
+        <tr class="up-addrow">
+          <td colspan="4" style="background:#f7faff;">
+            <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:4px 2px">
+              <span style="font-size:13px;font-weight:700;color:#1d4ed8;white-space:nowrap">＋ 빠른 추가</span>
+              <input id="qa-alias" type="text" placeholder="별칭 (예: 브랜드샵2)" autocomplete="off"
+                     style="flex:1;min-width:150px;padding:7px 10px;border:1px solid #d1d6db;border-radius:7px;font-size:13px">
+              <select id="qa-market" style="padding:7px 10px;border:1px solid #d1d6db;border-radius:7px;font-size:13px">
+                <option value="">마켓 선택…</option>
+                {% for m in market_nav %}{% if m.ready %}<option value="{{ m.key }}">{{ m.label }}</option>{% endif %}{% endfor %}
+              </select>
+              <button class="btn btn-sm btn-primary" onclick="quickAddAccount()">추가</button>
+              <small class="text-muted" style="white-space:nowrap">키는 추가 후 🔑 키로 등록</small>
+            </div>
+          </td>
+        </tr>
       </tbody>
     </table>
     <p class="up-empty-result" id="up-empty-result" style="display:none">선택한 마켓에 등록된 계정이 없습니다.</p>
@@ -1121,6 +1136,25 @@ async function submitV2() {
     btn.disabled = false;
     document.getElementById('v2-submit-text').textContent = _v2Mode === 'keys' ? '키 저장 + 즉시 적용' : '등록 + API 연동';
   }
+}
+
+// [빠른 추가] 별칭 → 마켓 선택만으로 판매처 계정 등록 (키는 추후 🔑). env_prefix 는 타임스탬프로 고유화.
+async function quickAddAccount() {
+  var alias = (document.getElementById('qa-alias').value || '').trim();
+  var market = document.getElementById('qa-market').value;
+  if (!alias) { showToast('별칭을 입력하세요', 'error'); return; }
+  if (!market) { showToast('마켓을 선택하세요', 'error'); return; }
+  var env_prefix = market.toUpperCase() + '_' + Date.now();
+  var account_key = alias + '_' + market;
+  try {
+    var r = await fetch('/accounts/api/upload/accounts', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ account_key: account_key, display_name: alias, market: market, env_prefix: env_prefix })
+    });
+    var d = await r.json();
+    if (d.ok) { showToast(alias + ' 추가됨 — 🔑 키로 API 키를 등록하세요.', 'success'); setTimeout(function(){ location.reload(); }, 700); }
+    else { showToast('추가 실패: ' + (d.error || ''), 'error'); }
+  } catch (e) { showToast('추가 실패: ' + e, 'error'); }
 }
 
 async function generateUniqueEnvPrefix(base) {
