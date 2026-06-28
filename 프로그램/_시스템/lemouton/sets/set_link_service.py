@@ -38,6 +38,17 @@ def _gather_set_options(session: Session, set_id: int) -> list[dict]:
     ]
 
 
+def _resolve_env_prefix(session: Session, market: str, account_key: str):
+    """채널의 (market, account_key) → UploadAccount.env_prefix. 없으면 None(전역 기본)."""
+    try:
+        from lemouton.sourcing.models_v2 import UploadAccount
+        a = (session.query(UploadAccount)
+             .filter_by(market=market, account_key=account_key).first())
+        return a.env_prefix if a else None
+    except Exception:  # noqa: BLE001 — 계정 미존재/모델 미로드 시 전역 폴백
+        return None
+
+
 def link_set_channel(session: Session, channel_id: int, *,
                      fetcher=fetch_market_options) -> dict:
     """채널의 마켓 상품과 구성 옵션을 매칭해 SetChannelOption 저장.
@@ -54,7 +65,8 @@ def link_set_channel(session: Session, channel_id: int, *,
         return {**empty, "error": "상품번호 미입력"}
 
     bundle_options = _gather_set_options(session, ch.set_id)
-    fr = fetcher(ch.market, ch.market_product_id)
+    env_prefix = _resolve_env_prefix(session, ch.market, ch.account_key)
+    fr = fetcher(ch.market, ch.market_product_id, env_prefix=env_prefix)
     if not fr.success:
         return {**empty, "error": fr.error or "옵션 조회 실패"}
 
