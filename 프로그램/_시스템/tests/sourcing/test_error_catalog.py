@@ -1,5 +1,5 @@
 import os
-from webapp.routes.guide_sync import load_catalog, catalog_symbol_drift, shared_code_map, duplicate_ids
+from webapp.routes.guide_sync import load_catalog, catalog_symbol_drift, shared_code_map, duplicate_ids, catalog_doc_drift
 
 APP_ROOT = os.path.normpath(os.path.join(os.path.dirname(__file__), "..", ".."))
 
@@ -48,3 +48,13 @@ def test_shared_code_map_groups_by_symbol():
 def test_duplicate_ids():
     items = [{"id":"S1"},{"id":"S1"},{"id":"P3"}]
     assert duplicate_ids(items) == ["S1"]
+
+
+def test_doc_drift_flags_id_absent_in_md():
+    md = "표: S1 르무통 ... P3 SSG ..."
+    items = [{"id":"S1","rule":False},{"id":"S2","rule":False},{"id":"P3"}]
+    assert catalog_doc_drift(md, items) == ["S2"]
+
+def test_doc_drift_skips_rule_rows():
+    items = [{"id":None,"rule":True,"sy":"폴백가 금지"}]
+    assert catalog_doc_drift("아무 내용", items) == []
