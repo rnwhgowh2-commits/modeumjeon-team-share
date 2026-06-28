@@ -97,6 +97,41 @@ def upload_accounts():
         s.close()
 
 
+@bp.get("/sets/_diag/coupang/<product_id>")
+def _diag_coupang(product_id):
+    """[임시 진단] 쿠팡 get_product 실응답 구조 덤프 (시크릿 제외). 확인 후 제거."""
+    from shared.platforms.coupang.products import get_product
+    from lemouton.uploader.market_fetch import _coupang_client
+    account_key = (request.args.get("account") or "").strip() or None
+    env_prefix = None
+    if account_key:
+        from lemouton.sourcing.models_v2 import UploadAccount
+        s = SessionLocal()
+        try:
+            a = (s.query(UploadAccount)
+                 .filter_by(market="coupang", account_key=account_key).first())
+            env_prefix = a.env_prefix if a else None
+        finally:
+            s.close()
+    try:
+        client = _coupang_client(env_prefix)
+        detail = get_product(int(product_id), client=client)
+    except Exception as e:  # noqa: BLE001
+        return _err(f"diag fail: {e}", 502)
+    items = detail.get("items") or []
+    first = items[0] if items else {}
+    return jsonify({
+        "ok": True,
+        "top_keys": list(detail.keys()),
+        "items_count": len(items),
+        "item0_keys": list(first.keys()),
+        "item0_marketplaceItemData_keys": list((first.get("marketplaceItemData") or {}).keys()),
+        "item0_sample": {k: first.get(k) for k in
+                         ("itemName", "vendorItemId", "sellerProductItemId", "salePrice")},
+        "item0_attributes": first.get("attributes"),
+    })
+
+
 @bp.post("/sets")
 def create_set():
     p = request.get_json(silent=True) or {}
