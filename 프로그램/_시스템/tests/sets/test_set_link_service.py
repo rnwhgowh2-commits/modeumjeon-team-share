@@ -51,7 +51,7 @@ def _set_with_channel(db, product_id="555"):
     return c
 
 
-def _fetcher_ok(market, product_id):
+def _fetcher_ok(market, product_id, env_prefix=None):
     from lemouton.uploader.market_fetch import FetchResult
     from lemouton.uploader.linker import MarketOption
     return FetchResult(success=True, product_name="에어포스", error=None, options=[
@@ -88,7 +88,7 @@ def test_link_set_channel_rerun_replaces(db):
 
 def test_link_set_channel_duplicate_sku_writes_one_duplicate(db):
     c = _set_with_channel(db)
-    def _dup(market, product_id):
+    def _dup(market, product_id, env_prefix=None):
         from lemouton.uploader.market_fetch import FetchResult
         from lemouton.uploader.linker import MarketOption
         return FetchResult(success=True, product_name="x", error=None, options=[
@@ -115,7 +115,7 @@ def test_link_set_channel_missing_product_id(db):
 
 def test_link_set_channel_fetch_failure(db):
     c = _set_with_channel(db)
-    def _bad(market, product_id):
+    def _bad(market, product_id, env_prefix=None):
         from lemouton.uploader.market_fetch import FetchResult
         return FetchResult(success=False, product_name=None, options=[], error="없음")
     result = link.link_set_channel(db, c.id, fetcher=_bad)
