@@ -47,8 +47,8 @@ def search_bundles():
 
 @bp.get("/sets/flow")
 def sets_flow_page():
-    """[Phase 3b] 검색우선 4단계 연동 흐름 페이지(standalone)."""
-    return render_template("sets/flow.html")
+    """[Phase 3b] 검색우선 4단계 연동 흐름 페이지(base 레이아웃 — 사이드바 유지)."""
+    return render_template("sets/flow.html", active="sets_dashboard")
 
 
 @bp.get("/sets/dashboard")
