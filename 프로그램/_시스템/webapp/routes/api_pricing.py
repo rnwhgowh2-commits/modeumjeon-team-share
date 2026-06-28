@@ -1118,6 +1118,41 @@ def _option_matrix_data(code: str):
                         'name': _d.get('source_name') or _sid[4:],
                         'main_url': '', 'sort_order': 900 + len(_custom_cols)}
         _all_source_cols += list(_custom_cols.values())
+
+        # [2026-06-28] 같은 소싱처가 두 컬럼으로 중복 노출되는 것 제거.
+        #   증상: 롯데아이몰이 ① SourceRegistry 행(셀·통계 미연결 → '크롤 전' 0/0 빈 카드)
+        #        ② 'key:lotteimall' 합성 컬럼(실제 크롤 9/9·매핑 181/181) 둘로 떴다.
+        #        (hmall 은 레지스트리 행이 없어 ② 하나만 → 정상)
+        #   근본: 커스텀 소싱처 BundleSourceUrl 은 source_key 로만 셀에 붙는데(_key_domain 이
+        #        builtin 6 도메인만 매핑) 레지스트리에 동명 행이 있으면 빈 트윈이 같이 노출됨.
+        #   규칙: 셀/통계가 붙은 컬럼을 진짜로 보고, 같은 이름의 '데이터 없는 빈 트윈'만 제거.
+        #        (동명 트윈이 없는 고유 빈 소싱처는 그대로 유지 → 미등록 소싱처 오숨김 방지)
+        _used_src_ids = set()
+        for _srcs in sku_to_sources.values():
+            for _d in _srcs:
+                _sid2 = _d.get('source_id')
+                if _sid2 is not None:
+                    _used_src_ids.add(_sid2)
+
+        def _col_has_data(_c):
+            _cid = _c.get('id')
+            if _cid in _used_src_ids:
+                return True
+            _ss = source_stats.get(str(_cid))
+            return bool(_ss) and (_ss.get('url_try', 0) > 0)
+
+        _names_with_data = set()
+        for _c in _all_source_cols:
+            if _col_has_data(_c):
+                _names_with_data.add((_c.get('name') or '').strip())
+        _deduped_cols = []
+        for _c in _all_source_cols:
+            _nm = (_c.get('name') or '').strip()
+            if (not _col_has_data(_c)) and _nm and _nm in _names_with_data:
+                continue  # 같은 이름의 데이터 보유 컬럼이 있는 빈 트윈 → 제거
+            _deduped_cols.append(_c)
+        _all_source_cols = _deduped_cols
+
         return dict(
             ok=True,
             sources=_all_source_cols,
