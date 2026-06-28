@@ -233,7 +233,8 @@ def bundle_options(code):
             if size not in sizes:
                 sizes.append(size)
             items.append({"canonical_sku": o.canonical_sku,
-                          "color": color, "size": size})
+                          "color": color, "size": size,
+                          "is_active": bool(o.is_active)})
         return jsonify({"ok": True, "colors": colors, "sizes": sizes,
                         "options": items})
     finally:

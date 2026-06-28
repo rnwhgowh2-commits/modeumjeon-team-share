@@ -38,6 +38,7 @@
   table.mx th.corner{background:#eef2f7;}
   table.mx th:hover{background:#e6f0ff;color:var(--blue2);}
   .cell{display:block;padding:6px 2px;cursor:pointer;font-weight:700;}
+  .cell.lock{ background:#f1f3f5; color:#b0b8c1; cursor:not-allowed; font-weight:400; font-size:10px; }
   .cell.on{background:#e6f0ff;color:var(--blue2);}
   .cell.off{color:#c0c4cc;}
   .cell.na{color:#dde1e6;cursor:default;}
@@ -110,6 +111,7 @@
   <!-- 단계 3 -->
   <div class="card hidden" id="card3">
     <h2>③ 판매처 선택</h2>
+    <p class="hint" style="margin:0 0 12px">연동할 판매처를 고르세요. 목록에 없으면 <a href="/accounts/upload" target="_blank" rel="noopener" style="color:var(--blue);font-weight:700;text-decoration:underline">＋ 판매처 계정 관리</a>에서 추가할 수 있어요.</p>
     <div id="mklist">
     <label class="mk"><input type="checkbox" class="mkchk" value="smartstore"><span class="nm">스마트스토어</span><span class="badge b-ok">키 있음</span></label>
     <label class="mk"><input type="checkbox" class="mkchk" value="coupang"><span class="nm">쿠팡</span><span class="badge b-warn">키 필요</span></label>
@@ -165,8 +167,8 @@ $('#q').addEventListener('input', e=>{
 async function pickBundle(m){
   S.bundle=m; $('#b2name').textContent=m.name||m.code; const _bs=document.getElementById('bsname'); if(_bs) _bs.textContent=m.name||m.code;
   const d=await api('GET','/api/sets/bundle/'+encodeURIComponent(m.code)+'/options');
-  S.options=d; S.selected=new Set(); S.comboMap={};
-  (d.options||[]).forEach(o=>{ S.comboMap[o.color+' '+o.size]=o.canonical_sku; });
+  S.options=d; S.selected=new Set(); S.comboMap={}; S.activeMap={};
+  (d.options||[]).forEach(o=>{ S.comboMap[o.color+' '+o.size]=o.canonical_sku; S.activeMap[o.canonical_sku]=o.is_active!==false; });
   checkDropped(d); renderMatrix(); updateCount(); await showSets(m);
 }
 async function showSets(m){
@@ -207,17 +209,17 @@ function renderMatrix(){
     colors.forEach((c)=>{
       const sku=S.comboMap[c+' '+z];
       if(!sku){ h+='<td><span class="cell na">·</span></td>'; }
-      else{ const on=S.selected.has(sku); h+=`<td><span class="cell ${on?'on':'off'}" data-sku="${sku}" onclick="toggleCell('${sku}')">${on?'ON':'OFF'}</span></td>`; }
+      else{ const act=S.activeMap[sku]!==false; if(!act){ h+='<td><span class="cell lock" title="모음전에서 비활성된 옵션이라 선택할 수 없어요">잠금</span></td>'; } else { const on=S.selected.has(sku); h+=`<td><span class="cell ${on?'on':'off'}" data-sku="${sku}" onclick="toggleCell('${sku}')">${on?'ON':'OFF'}</span></td>`; } }
     });
     h+='</tr>';
   });
   h+='</tbody></table>'; $('#matrix').innerHTML=h;
 }
-function toggleCell(sku){ S.selected.has(sku)?S.selected.delete(sku):S.selected.add(sku); renderMatrix(); updateCount(); }
-function toggleCol(ci){ const c=S.options.colors[ci]; const skus=S.options.sizes.map(z=>S.comboMap[c+' '+z]).filter(Boolean); const allOn=skus.every(s=>S.selected.has(s)); skus.forEach(s=> allOn?S.selected.delete(s):S.selected.add(s)); renderMatrix(); updateCount(); }
-function toggleRow(zi){ const z=S.options.sizes[zi]; const skus=S.options.colors.map(c=>S.comboMap[c+' '+z]).filter(Boolean); const allOn=skus.every(s=>S.selected.has(s)); skus.forEach(s=> allOn?S.selected.delete(s):S.selected.add(s)); renderMatrix(); updateCount(); }
-function toggleAll(){ const all=Object.values(S.comboMap); const allOn=all.every(s=>S.selected.has(s)); all.forEach(s=> allOn?S.selected.delete(s):S.selected.add(s)); renderMatrix(); updateCount(); }
-function updateCount(){ $('#selcount').textContent='선택 '+S.selected.size+' / '+Object.keys(S.comboMap).length; }
+function toggleCell(sku){ if(S.activeMap&&S.activeMap[sku]===false) return; S.selected.has(sku)?S.selected.delete(sku):S.selected.add(sku); renderMatrix(); updateCount(); }
+function toggleCol(ci){ const c=S.options.colors[ci]; const skus=S.options.sizes.map(z=>S.comboMap[c+' '+z]).filter(s=>s && S.activeMap[s]!==false); const allOn=skus.every(s=>S.selected.has(s)); skus.forEach(s=> allOn?S.selected.delete(s):S.selected.add(s)); renderMatrix(); updateCount(); }
+function toggleRow(zi){ const z=S.options.sizes[zi]; const skus=S.options.colors.map(c=>S.comboMap[c+' '+z]).filter(s=>s && S.activeMap[s]!==false); const allOn=skus.every(s=>S.selected.has(s)); skus.forEach(s=> allOn?S.selected.delete(s):S.selected.add(s)); renderMatrix(); updateCount(); }
+function toggleAll(){ const all=Object.values(S.comboMap).filter(s=>S.activeMap[s]!==false); const allOn=all.every(s=>S.selected.has(s)); all.forEach(s=> allOn?S.selected.delete(s):S.selected.add(s)); renderMatrix(); updateCount(); }
+function updateCount(){ const total=Object.values(S.comboMap).filter(s=>S.activeMap[s]!==false).length; $('#selcount').textContent='선택 '+S.selected.size+' / '+total; }
 
 async function saveSet(){
   const name=$('#setname').value.trim(); const qty=parseInt($('#setqty').value)||1;
