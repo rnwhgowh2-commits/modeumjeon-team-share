@@ -165,6 +165,9 @@
   .sgmap #syncdash .sech.lag .d{background:#3182F6;}
   .sgmap #syncdash .sech.ok .d{background:#1A9E54;}
   .sgmap #syncdash .sum .lag .n{color:#3182F6;}
+  .sgmap #syncdash .sum .note .n{color:#7C3AED;}
+  .sgmap #syncdash .sech.note .d{background:#7C3AED;}
+  .sgmap #syncdash .gl.note{color:#7C3AED;font-weight:700;}
   .sgmap #syncdash .rsn{display:inline-block;font-size:10.5px;font-weight:700;color:#5B6573;background:#EEF1F4;border-radius:5px;padding:1px 7px;margin-left:6px;white-space:nowrap;}
   .sgmap #syncdash .sech .c{font-size:12px;color:#9AA3AD;font-weight:500;}
   .sgmap #syncdash .sech .hint{font-size:12px;color:#9AA3AD;font-weight:400;}
@@ -467,7 +470,7 @@
     <!-- 5 에러이력 (각 그룹 맨 위 🛡️철칙 카드 + 에러, 동일 카드 템플릿) -->
     <div class="sec" id="s6">
       <div class="lead"><span class="klabel">핵심</span><span class="sum">방향 복귀 기준 4가지 + 과거 발생 에러 — 신규 추가·수정 전 먼저 확인.</span></div>
-      <div class="e3">🛑 <b>신규 소싱처 추가·크롤/저장 코드 수정 전, 이 카탈로그부터 확인.</b> 같은 원인이 다른 소싱처에서 재발한다. · 분류 2축 = 증상유형(📦재고·💰가격·🛠️기타) × 원인계층(<span style="color:#7C3AED;font-weight:800">백엔드</span>·<span style="color:#E8830C;font-weight:800">프론트</span>(확장 포함)·기타) · 상태 ✅수정 / ⏳미수정 · <span style="font-weight:800">🛡️철칙</span>=방향 복귀 기준(어기면 그 에러 재발).<br>🛡️ <b>조용한 실패 방지 3가지</b> — (a) 저장 실패는 항상 표면화 · (b) 삭제형 저장은 빈 페이로드 가드 · (c) 대량 저장은 동시성 제한 + 멱등 재시도.</div>
+      <div class="e3">🛑 <b>신규 소싱처 추가·크롤/저장 수정 전, 이 카탈로그부터 확인</b> — 같은 원인이 다른 소싱처에서 재발합니다. (자세한 분류·원칙·거버넌스는 아래 표와 <b>원문(MD)</b> 참고)</div>
       <div id="syncdash"></div>
     </div>
 
@@ -617,6 +620,7 @@
   function bucket(e){
     if(e.crawl==='no')return 'no';                 // 코드 미반영(진짜 손볼 곳)
     if(e.crawl==='warn')return 'warn';             // 검증 필요(라이브 확인 대상)
+    if(e.crawl==='note')return 'note';             // 주의(코드 수정 대상 아님)
     if(e.doc==='lag'||e.view==='lag')return 'lag'; // 문서 뒤처짐
     return 'ok';                                   // 완전 동기화
   }
@@ -635,7 +639,7 @@
     return o;
   }
   function gl(s){
-    var m={ok:['ok','✓'],no:['no','✕'],warn:['warn','⚠'],sync:['ok','✓'],lag:['lag','△']};
+    var m={ok:['ok','✓'],no:['no','✕'],warn:['warn','⚠'],note:['note','📌'],sync:['ok','✓'],lag:['lag','△']};
     var v=m[s]||['','—'];
     return '<span class="gl '+v[0]+'">'+v[1]+'</span>';
   }
@@ -688,18 +692,19 @@
     var host=document.getElementById('syncdash');if(!host)return;
     var errs=items.filter(function(e){return !e.rule;});
     var shared=buildShared(errs);
-    var groups={no:[],warn:[],lag:[],ok:[]};
+    var groups={no:[],warn:[],note:[],lag:[],ok:[]};
     errs.forEach(function(e){groups[bucket(e)].push(e);});
     var meta={no:{t:'코드 미반영',h:'진짜 손볼 곳 — 코드에 재발방지 없음'},
               warn:{t:'검증 필요',h:'라이브엔 반영됐을 것 — 재크롤로 ✓ 승격'},
+              note:{t:'📌 주의 · 코드 수정 대상 아님',h:'원칙 차원 완료 · 의도적 미구현 · 드문 엣지(완화됨)'},
               lag:{t:'문서 뒤처짐',h:'코드는 ✓, 가이드만 갱신하면 끝'},
               ok:{t:'완전 동기화',h:''}};
     var H='<div class="sum">'
       +stat(errs.length,'총 에러','')+stat(groups.ok.length,'완전 동기화','ok')
-      +stat(groups.lag.length,'문서 뒤처짐','lag')+stat(groups.warn.length,'검증 필요','warn')
-      +stat(groups.no.length,'코드 미반영','bad')+'</div>';
+      +stat(groups.warn.length,'검증 필요','warn')+stat(groups.no.length,'코드 미반영','bad')
+      +stat(groups.note.length,'주의','note')+'</div>';
     H+=renderRules(items);
-    ['no','warn','lag','ok'].forEach(function(k){
+    ['no','warn','note','lag','ok'].forEach(function(k){
       if(!groups[k].length)return;
       H+='<div class="sech '+k+'"><span class="d"></span>'+meta[k].t
          +' <span class="c">'+groups[k].length+'건</span>'
