@@ -142,6 +142,7 @@
   .sgmap .sbadge{font-size:10.5px;font-weight:800;border-radius:5px;padding:1.5px 7px;}
   .sgmap .sbadge.ok{background:#E7F6EC;color:#15803D;}
   .sgmap .sbadge.todo{background:#FEF3C7;color:#B45309;}
+  .sgmap .sbadge.note{background:#EEF1F4;color:#475569;}
   .sgmap .sbadge.rule{background:#FDF4E3;color:#92400E;}
 </style>
 
@@ -566,7 +567,7 @@
    {g:'가격',rule:true,src:'방향 복귀 기준',sy:'단일 진실원천',cz:'표면가=last_price · 매입가=compute_market_price, 한 곳에서만',pv:'어기면 재발 → P4 셀≠계산식 · O1 last_price 평균vs최저 · P19·P21 오저장·중복'},
    {g:'가격',l:'fe',src:'무신사',st:'ok',sy:'표면가에 회원가 오긁음',cz:'회원가 잘못 읽어 표면가 오염',pv:'API goodsPrice.salePrice 직읽기 + 검증게이트(폴백금지)'},
    {g:'가격',l:'be',src:'무신사',st:'ok',sy:'자동크롤이 혜택 누락',cz:'백그라운드 엔진이 benefit 필드 전송 누락(+스마트행 1개가 전체 정지)',pv:'자동크롤도 혜택 전송 + per-unit 타임아웃'},
-   {g:'가격',l:'be',src:'SSG·SSF',st:'todo',sy:'SSG MONEY 적립이 라이브크롤로 영원히 안 채워짐',cz:'toItemBG·save_crawl_result 둘 다 혜택필드 누락(price/stock만)',pv:'확장크롤 혜택 저장 배선'},
+   {g:'가격',l:'be',src:'SSG·SSF',st:'ok',cm:'2026-06-22',sy:'SSG MONEY 적립이 라이브크롤로 영원히 안 채워짐',cz:'옛 가정: save_crawl_result만 봄(price/stock만 저장)',pv:'해소 확인 — SSG·SSF는 navGrab→/api/sources/parse 경로, 거기 _save_navgrab_dynamic_benefits가 ssg_money 등을 dynamic_benefits_json에 저장(2026-06-22). 카탈로그 ⏳는 stale였음'},
    {g:'가격',l:'fe',src:'SSG·다중URL',st:'ok',sy:'셀 가격 ≠ 계산식(fx 팝업)',cz:'fx 단건 breakdown에 source_product_id 미전달→등록 URL 폴백→SSOT 위반',pv:'셀 best 후보 spid를 fx 단건에 첨부'},
    {g:'가격',l:'be',src:'SSF',st:'ok',sy:'저장 전체 실패(priced 0)',cz:'soft-delete 행 못 찾고 INSERT→UniqueViolation→그 옵션 저장 전체 롤백',pv:'deleted_at 필터 제거 + revive'},
    {g:'가격',l:'be',src:'신규 등록 URL',st:'ok',cm:'21dc3ded',sy:'위젯 \'완료\'인데 매트릭스 \'크롤링 미실시\'',cz:'save_crawl_result가 SourceProduct 없으면 not_found로 조용히 드롭(등록은 BundleSourceUrl만 생성)',pv:'등록 URL이면 upsert_source_product로 행 생성 후 저장'},
@@ -581,10 +582,10 @@
    {g:'가격',l:'be',src:'가격설정 일괄저장',st:'ok',cm:'2026-06-28',sy:'허용목록 밖 필드를 조용히 무시',cz:'bulk_set_price_config가 허용목록 밖 필드를 무보고 skip',pv:'응답에 ignored_fields 추가(저장 불변, 보고만)'},
    // 🛠️ 기타 (맨 위 🛡️철칙 + 에러)
    {g:'기타',rule:true,src:'방향 복귀 기준',sy:'누락에 경고',cz:'후보가 조용히 탈락(None) 금지 → 화면·로그에 드러나야',pv:'어기면 재발 → P6 드롭 · P13·P15 무보고 skip · O7·P10 위장·누락'},
-   {g:'기타',l:'etc',src:'구조',st:'todo',sy:'조용한 실패 버그 클래스',cz:'무결성 제약 부재(A) + SSOT 분열(last_price 평균 vs 최저)(B) + 누락 무경고(None 탈락)(C)',pv:'DB 제약 + SSOT 통일 + None 후보 경고 (상단 조용한 실패 방지 3가지)'},
+   {g:'기타',l:'etc',src:'구조',st:'note',sy:'조용한 실패 버그 클래스 (상시 주의)',cz:'무결성 제약 부재(A) + SSOT 분열(last_price 평균 vs 최저)(B) + 누락 무경고(None 탈락)(C)',pv:'버그 단건 아님 — §4 무결성 4철칙(상단)으로 상시 적용: DB 제약 + SSOT 통일 + None 후보 경고'},
    {g:'기타',l:'etc',src:'배포',st:'ok',sy:'배포 success인데 옛 코드 영속',cz:'docker run이 기존 컨테이너 미교체로 백엔드 옛 코드로 계속 돎',pv:'docker rm -f + 교체 검증 (success ≠ 코드 라이브)'},
-   {g:'기타',l:'etc',src:'확장',st:'todo',sy:'수정해도 라이브 미반영 (주의)',cz:'확장 버전 분열 + 로드된 확장 = 데스크톱 사본(dev 사본 고쳐도 무효)',pv:'로드 확장 경로 확인 후 reload'},
-   {g:'기타',l:'etc',src:'DB',st:'todo',sy:'dev 값이 라이브와 다름 (주의)',cz:'dev DB는 라이브보다 수십~수백 커밋 stale',pv:'라이브 대조 필수(dev 신뢰 금지)'},
+   {g:'기타',l:'etc',src:'확장',st:'note',sy:'수정해도 라이브 미반영 (상시 주의)',cz:'확장 버전 분열 + 로드된 확장 = 데스크톱 사본(dev 사본 고쳐도 무효)',pv:'버그 아님 — 작업 주의: 로드 확장(v0.6.7) 경로 확인 후 reload'},
+   {g:'기타',l:'etc',src:'DB',st:'note',sy:'dev 값이 라이브와 다름 (상시 주의)',cz:'dev DB는 라이브보다 수십~수백 커밋 stale',pv:'버그 아님 — 작업 주의: 라이브 대조 필수(dev 신뢰 금지)'},
    {g:'기타',l:'fe',src:'크롤 위젯',st:'ok',cm:'2026-06-28',sy:'가격 없어도 \'성공 ✓\' 표기',cz:'위젯이 level!==warn이면 표면가 없어도 성공 카운트',pv:'item-done 시 surf(표면가) 없으면 실패 집계(매입가는 fx 이후라 surf로 판정)'},
    {g:'기타',l:'etc',src:'롯데온 per-size',st:'ok',sy:'롯데온 사이즈별 수량 미수집(옛 상품단위 999/0만)',cz:'옛 lotteonExtractor가 per-option 재고 미수집(상품 DOM만)',pv:'라이브 확장 v0.6.7에 구현됨 — 옵션매핑 API(pbf.../option/mapping)로 색×사이즈 실수량(stkQty) 수집. 카탈로그가 stale repo(v0.4.3) 기준이라 ⏳였음(2026-06-28 v0.6.7 감사로 확인)'},
    {g:'기타',l:'fe',src:'옵션조합 모달',st:'ok',cm:'c948d4ec',sy:'저장 실패해도 "저장 완료"로 표시',cz:'에러를 console.warn으로 삼킴',pv:'저장 함수는 {ok,errors[]} 반환·버튼이 실패 표면화'},
@@ -608,11 +609,11 @@
    {g:'기타',l:'fe',src:'전체크롤 위젯',st:'ok',sy:'목표 0/진행 0에서 영구멈춤(중지도 무력)',cz:'SW의 bgFetch가 사용자가 열어둔 탭에 주입하는데 크롬이 그 탭을 discard/bfcache→영구 대기(타임아웃 없음)→엔진 wedge',pv:'withTimeout + 전용 백그라운드탭 매 크롤 생성·핀'},
    {g:'기타',l:'fe',src:'전체크롤 위젯',st:'ok',sy:'새로고침·탭이동하면 크롤 멈춤(자동재개 없음)',cz:'큐·진행·결과(_mgr)가 in-memory만이라 MV3가 유휴 서비스워커 재우면 소실(chrome.storage 미사용)',pv:'chrome.storage.session 영속 + 기동 시 bootResume 자동재개'},
    {g:'기타',l:'etc',src:'서버 parse',st:'ok',cm:'2026-06-28',sy:'전체크롤 일부 건 SyntaxError(<!DOCTYPE 응답)',cz:'/api/sources/parse가 JSON 대신 HTML 에러페이지를 간헐 반환→클라 r.json() throw',pv:'클라 fetchJson 가드 + 서버 blueprint 전용 errorhandler(미처리 예외도 항상 JSON, app전역 아님). 프록시 502 HTML은 클라 가드 보완'},
-   {g:'기타',l:'fe',src:'전 소싱처',st:'todo',sy:'일부 등록 URL이 전체크롤 후에도 pending(단건 recrawl로는 정상)',cz:'확장 전체크롤 오케스트레이션이 일부 URL을 enqueue에서 누락(coverage gap, 미확정)',pv:'enqueue 커버리지 점검·전 URL 포함 보장'},
+   {g:'기타',l:'fe',src:'전 소싱처',st:'ok',cm:'v0.6.7',sy:'일부 등록 URL이 전체크롤 후 pending(옛 의심)',cz:'옛 의심: 확장 enqueue 커버리지 갭(미확정)',pv:'해소 확인 — v0.6.7 runQueueBG가 option-matrix 전 source(ALL=8소싱처) product_url을 중복제거 enqueue, 갭 없음. 옛 SSF pending건은 별도 데이터 이슈로 추정'},
    {g:'기타',l:'fe',src:'검증탭',st:'ok',sy:'재검증이 무신사·롯데온을 실제로 안 긁고 옛 stale를 크롤실패 표시',cz:'재검증이 서버 recrawl-url만 호출(브라우저 없어 need_extension) + 확장 메시지 경로 불일치(crawl vs crawlBundleAll)',pv:'crawlBundleAll로 전체크롤과 동일화'},
    {g:'기타',l:'be',src:'서버 refetch',st:'ok',cm:'2026-06-28',sy:'단건 재크롤(refetch)이 SSG를 SSF 크롤러로 보내 오파싱/실패',cz:'_detect_site_from_url(api_pricing.py:1656)이 ssg.com in u → ssf로 묶음(build_crawlers에 ssg 키는 실재)',pv:'ssfshop.com→ssf / ssg.com→ssg 분리(부분문자열 충돌 없음)'},
    // ── 2026-06-28 경계 후보 2건 추가 ──
-   {g:'재고',l:'be',src:'업로드 변동감지',st:'todo',sy:'한정 1개 재고를 사실상 품절로 분류 가능',cz:'change_detection.py STOCK_AVAILABLE_THRESHOLD=2 → stock==1을 사실상 품절 그룹으로 → PUT skip 판단서 한정1개 restock/soldout 전이 못 잡는 경계(주석은 raw_stock 그대로 전송이라 방어주장)',pv:'임계치 재검토 또는 raw_stock 기준 전이감지(⚠️설계의도일 수 있어 확인필요)'},
+   {g:'재고',l:'be',src:'업로드 변동감지',st:'note',sy:'한정 1개 재고를 사실상 품절로 분류(확인=설계의도)',cz:'change_detection STOCK_AVAILABLE_THRESHOLD=2 → stock<2를 사실상 품절 그룹',pv:'버그 아님(확인 완료) — 임계치는 push 변동감지 그룹 한정, 마켓 노출은 raw_stock 그대로(1개=1개), 5→1 전이도 감지됨. 의도된 설계'},
    {g:'기타',l:'be',src:'SSF 스크린샷',st:'ok',sy:'SSF 기준 스크린샷 멤버십포인트 적립 행 잘림',cz:'screenshot.py SSF 고정 box(500,250)→250px 아래 포인트적립(멤버십포인트) 섹션 잘림',pv:'bottom_anchors=gods-benefit로 캡처영역 동적 확장(표시 전용·가격 무영향)'}
   ];
   var GORD=['재고가격','재고','가격','기타'],GIC={재고가격:'🛡️',재고:'📦',가격:'💰',기타:'🛠️'},GLABEL={재고가격:'재고×가격'},GNOTE={재고가격:'재고·가격 양쪽에 적용되는 공통 철칙',기타:'O7~O10 = 저장(save) 단계'};
@@ -639,7 +640,7 @@
       }
       H+='<div class="ecard g'+e.g+(e.st==='todo'?' todo':'')+'"><div class="ebar"></div><div class="eb">'+
         '<div class="etop"><span class="gbadge '+e.g+'">'+glabel(e.g)+'</span>'+lbg(e.l)+(e.l2?lbg(e.l2):'')+
-        '<span class="sbadge '+(e.st==='ok'?'ok':'todo')+'">'+(e.st==='ok'?'✅수정':'⏳미수정')+'</span>'+
+        '<span class="sbadge '+(e.st==='ok'?'ok':e.st==='note'?'note':'todo')+'">'+(e.st==='ok'?'✅수정':e.st==='note'?'📌주의':'⏳미수정')+'</span>'+
         '<span class="esrc">'+esc(e.src)+'</span></div>'+
         '<div class="esy">'+esc(e.sy)+'</div>'+
         '<div class="eln"><span class="el">원인</span>'+esc(e.cz)+'</div>'+
