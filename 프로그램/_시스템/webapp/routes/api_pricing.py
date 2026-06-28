@@ -115,6 +115,7 @@ def _match_option_so(so_index, sp_id, opt_color, opt_size):
         return None
     oc = _stk_cnorm(opt_color)
     size_only = None
+    subs = []                                     # 부분일치 후보 — 정확 매칭 없을 때만 사용
     for so in cands:
         st = (so.size_text or '').strip()
         s_size = _stk_digits(st) or _stk_digits(so.color_text)
@@ -123,12 +124,22 @@ def _match_option_so(so_index, sp_id, opt_color, opt_size):
         has_color = bool(st) and bool((so.color_text or '').strip())
         if has_color and oc:                      # 크롤이 색을 줬을 때만 색 일치 요구
             sc = _stk_cnorm(so.color_text)
-            if sc and (oc == sc or oc in sc or sc in oc):
-                return so                         # 색+사이즈 정확 매칭
+            if not sc:
+                continue
+            if oc == sc:
+                return so                         # ★ 정확 매칭 최우선 — 즉시 확정
+            if oc in sc or sc in oc:
+                subs.append(so)                   # 부분일치 — 보류(정확 매칭 우선)
             continue                              # 색 불일치 → 계속 탐색
         # 크롤 색이 빈 값(단품=단일색 소싱처) 또는 SO 무색 → 사이즈만으로 매칭(안전)
         if size_only is None:
             size_only = so                        # 단일색 URL — 사이즈만으로 매칭
+    # 정확 매칭이 없었던 경우: 부분일치가 '딱 하나'면 채택(블랙↔블랙(아웃솔)),
+    #   둘 이상이면 모호 → 추측 금지(그레이 vs 라이트그레이 오매칭 = 금전 사고).
+    if len(subs) == 1:
+        return subs[0]
+    if len(subs) > 1:
+        return None
     return size_only
 
 
@@ -2467,5 +2478,85 @@ def update_options_purchase_bulk():
             'ok': True, 'applied': applied,
             'skipped_bh0': skipped_bh0, 'total_selected': len(skus),
         })
+    finally:
+        s.close()
+
+
+# ════════════════════════════════════════════
+#  [2026-06-13] 가격/재고 무결성 전수 점검 — 읽기 전용 관리자 페이지
+#    라이브에서 URL 한 번으로 불변식 위반 건수 확인. 데이터 변경 0(SELECT만).
+#    /api/admin/price-integrity        → 사람이 읽는 HTML
+#    /api/admin/price-integrity?format=json → JSON
+#    점검 로직은 scripts/verify_integrity.run_checks (CLI 와 동일 단일 진실 원천).
+# ════════════════════════════════════════════
+@bp.get('/admin/price-integrity')
+def admin_price_integrity():
+    from scripts.verify_integrity import run_checks
+    import html as _html
+    s = SessionLocal()
+    try:
+        results = run_checks(s)
+        try:
+            dialect = s.bind.dialect.name
+        except Exception:
+            dialect = '?'
+        data = [c.to_dict() for c in results]
+        total = sum(c['count'] for c in data if c['count'] > 0)
+        errored = sum(1 for c in data if c['errored'])
+
+        if (request.args.get('format') or '').lower() == 'json':
+            return jsonify({'ok': errored == 0 and total == 0, 'db': dialect,
+                            'total_violations': total, 'errored': errored,
+                            'checks': data})
+
+        rows = []
+        for c in data:
+            if c['errored']:
+                icon, color = '⚠️', '#b8860b'
+            elif c['count'] == 0:
+                icon, color = '✅', '#1a7f37'
+            else:
+                icon, color = '❌', '#cf222e'
+            samples = ''
+            if c['count'] > 0:
+                lis = ''.join(f"<li>{_html.escape(str(x))}</li>" for x in c['samples'])
+                more = (f"<li>… 외 {c['count'] - len(c['samples'])}건</li>"
+                        if c['count'] > len(c['samples']) else '')
+                samples = (f"<div class='imp'>영향: {_html.escape(c['money_impact'])}</div>"
+                           f"<ul class='samp'>{lis}{more}</ul>")
+            cnt = '-' if c['errored'] else c['count']
+            rows.append(
+                f"<tr style='color:{color}'><td class='code'>{_html.escape(c['code'])}</td>"
+                f"<td class='ic'>{icon}</td><td class='num'>{cnt}</td>"
+                f"<td><b>{_html.escape(c['title'])}</b>{samples}</td></tr>")
+
+        if errored:
+            banner = (f"<div class='ban err'>⚠️ 점검 {errored}건 실행 실패 — "
+                      f"DB 연결/스키마 확인 필요(판정 불가)</div>")
+        elif total == 0:
+            banner = "<div class='ban ok'>✅ 모든 불변식 위반 0건 — 이 시점 전 데이터에서 성립</div>"
+        else:
+            banner = f"<div class='ban err'>❌ 총 위반 {total}건 — 아래 ❌ 항목 확인</div>"
+
+        page = f"""<!doctype html><html lang=ko><head><meta charset=utf-8>
+<meta name=viewport content='width=device-width,initial-scale=1'>
+<title>가격/재고 무결성 점검</title><style>
+body{{font-family:-apple-system,'Malgun Gothic',sans-serif;max-width:920px;margin:24px auto;padding:0 16px;color:#1f2328}}
+h1{{font-size:20px}} .sub{{color:#656d76;font-size:13px;margin-bottom:16px}}
+.ban{{padding:12px 16px;border-radius:8px;font-weight:600;margin:14px 0}}
+.ban.ok{{background:#e6f4ea;color:#1a7f37}} .ban.err{{background:#ffebe9;color:#cf222e}}
+table{{border-collapse:collapse;width:100%;font-size:14px}}
+td{{border-top:1px solid #d0d7de;padding:10px 8px;vertical-align:top}}
+.code{{font-family:monospace;white-space:nowrap;color:#656d76}} .ic{{text-align:center;width:28px}}
+.num{{text-align:right;font-variant-numeric:tabular-nums;font-weight:700;width:48px}}
+.imp{{color:#656d76;font-size:12px;margin:4px 0}} .samp{{margin:4px 0 0;padding-left:18px;font-size:12px;color:#57606a}}
+</style></head><body>
+<h1>가격/재고 무결성 전수 점검</h1>
+<div class=sub>DB={_html.escape(dialect)} · 읽기 전용(데이터 변경 없음) · 위반 0 = 그 시점 전 데이터에서 불변식 성립</div>
+{banner}
+<table><tbody>{''.join(rows)}</tbody></table>
+<p class=sub style='margin-top:18px'>※ 이 페이지는 SELECT 만 수행합니다. 중복행 정리 등 수정은 별도 관리자 액션에서 dry-run 확인 후 진행하세요.</p>
+</body></html>"""
+        return page, 200, {'Content-Type': 'text/html; charset=utf-8'}
     finally:
         s.close()

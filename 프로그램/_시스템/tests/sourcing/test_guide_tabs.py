@@ -74,16 +74,16 @@ def test_tab3_price_methods():
 
 def test_tabs_4_5_6():
     html = (TPL / "map.html").read_text(encoding="utf-8")
-    s4 = html.split('id="s4"')[1].split('id="s5"')[0]
+    # [2026-06-27~28] 보기 탭 8→7 통합: 옛 s5(무결성·폴백금지)가 s4로 병합(s5 제거),
+    #   s6='⚠️에러이력 카탈로그'(errcards). '재고 읽는 법'(_resolve_stock·stale)은 s2로 이동.
+    s4 = html.split('id="s4"')[1].split('id="s6"')[0]   # s5 제거됨 → 다음 탭은 s6
     assert "window.DATA" in s4 and "완전한 B" in s4 and "source_product_id" in s4
     assert "klabel" in s4
-    s5 = html.split('id="s5"')[1].split('id="s6"')[0]
-    for k in ["폴백가 금지", "크롤실패", "단일 진실원천", "누락"]:
-        assert k in s5, k
-    assert "card row2" in s5
+    assert "폴백가 금지" in s4 and "단일 진실원천" in s4   # 옛 s5 무결성 내용도 s4로 병합
     s6 = html.split('id="s6"')[1].split('id="s7"')[0]
-    assert "_resolve_stock" in s6 and "stale" in s6
-    assert "card row2" in s6
+    assert "errcards" in s6                       # 에러 이력 카탈로그 카드 컨테이너
+    s2 = html.split('id="s2"')[1].split('id="s3"')[0]
+    assert "_resolve_stock" in s2 and "stale" in s2
 
 
 def test_tab7_newsource_flow():
