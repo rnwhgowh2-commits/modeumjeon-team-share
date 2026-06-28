@@ -204,11 +204,12 @@ def _persist_option_stocks(session, source_product_id, options, reg_color=None):
     return updated
 
 
-def _resolve_stock(site, raw):
-    """site + raw → (qty:int|None, label:str, is_out:bool). 화면 표시 단일 진실 원천.
+def _resolve_stock(site, raw, status=None):
+    """site + raw(+last_status) → (qty:int|None, label:str, is_out:bool). 화면 표시 단일 진실 원천.
 
       raw == 0          → 품절
-      raw is None       → 재고있음 (크롤됐으나 수량 미상)
+      raw is None       → 상태로 구분(가짜 '재고있음' 금지, 2026-06-28):
+                            error → '크롤실패' / ok → '재고있음'(수량미상) / 그 외 → '미크롤'(시도조차 안함)
       raw >= 900        → 재고있음 (999 센티넬 · 상품합계 더미)
       무신사 raw >= CAP → 재고있음 (stock_cap=10 이 '충분' 센티넬)
       raw == -1         → ⚠️확인필요 (불명: 크롤됐으나 신호 못 읽음 · 수량0 취급)
@@ -224,17 +225,28 @@ def _resolve_stock(site, raw):
     #   효과: 같은 색에 URL 여러 개일 때 완전한 B가 999(둔갑)를 빼고 정확한 품절 URL 을 픽.
     if (site or '') in ('lotteon', 'lotte') and raw == 999:
         return (0, '⚠️확인필요', True)
-    if raw is None or raw >= 900:
+    if raw is None:
+        # [2026-06-28] None = 재고값 없음 → 상태로 구분 (크롤 실패/미시도를 '재고있음'으로 둔갑 금지)
+        if status == 'error':
+            return (None, '크롤실패', False)
+        if status == 'ok':
+            return (None, '재고있음', False)   # 크롤 성공·수량미상 (드묾 — 본래 999여야 함)
+        return (None, '미크롤', False)          # pending·None·no_crawler = 시도조차 안 함
+    if raw >= 900:
         return (None, '재고있음', False)
     if (site or '') == 'musinsa' and raw >= _STOCK_CAP:
         return (None, '재고있음', False)
     return (int(raw), f'{int(raw)}개', False)
 
 
-def _stock_state(site, raw):
-    """재고 원시값 → 상태 문자열(프론트 스타일/툴팁용). _resolve_stock 과 동일 의미.
-       soldout / unknown / limited / ample / uncrawled."""
+def _stock_state(site, raw, status=None):
+    """재고 원시값(+last_status) → 상태 문자열(프론트 스타일/툴팁용). _resolve_stock 과 동일 의미.
+       soldout / unknown / limited / ample / uncrawled / crawlfail."""
     if raw is None:
+        if status == 'error':
+            return 'crawlfail'
+        if status == 'ok':
+            return 'ample'
         return 'uncrawled'
     if raw == _STOCK_UNKNOWN:
         return 'unknown'
@@ -696,11 +708,11 @@ def _option_matrix_data(code: str):
         #   프론트는 이 값만 렌더(가짜 '재고 10' 제거). 정책: 수량 있으면 표기, 없으면 '재고있음'.
         for _srcs in sku_to_sources.values():
             for _d in _srcs:
-                _q, _lbl, _out = _resolve_stock(_d.get('site'), _d.get('crawled_stock'))
+                _q, _lbl, _out = _resolve_stock(_d.get('site'), _d.get('crawled_stock'), _d.get('last_status'))
                 _d['stock_qty'] = _q
                 _d['stock_label'] = _lbl
                 _d['stock_out'] = _out
-                _d['stock_state'] = _stock_state(_d.get('site'), _d.get('crawled_stock'))
+                _d['stock_state'] = _stock_state(_d.get('site'), _d.get('crawled_stock'), _d.get('last_status'))
 
         # 가격 설정
         configs = (

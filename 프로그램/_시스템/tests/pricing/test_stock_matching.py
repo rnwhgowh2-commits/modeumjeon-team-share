@@ -62,13 +62,19 @@ class TestResolveStock:
 
     def test_unknown_distinct_from_none_and_zero(self):
         # None(미크롤)·0(품절)·-1(불명) 셋이 각각 다른 라벨
-        assert _resolve_stock('lotteon', None)[1] == '재고있음'
+        assert _resolve_stock('lotteon', None)[1] == '미크롤'
         assert _resolve_stock('lotteon', 0)[1] == '품절'
         assert _resolve_stock('lotteon', -1)[1] == '⚠️확인필요'
 
-    def test_none_is_instock_unknown(self):
-        # 크롤은 됐으나 수량 미상 → '재고있음' (가짜 숫자 금지)
-        assert _resolve_stock('lemouton', None) == (None, '재고있음', False)
+    def test_none_by_last_status(self):
+        # [2026-06-28] raw None = 재고값 없음 → last_status 로 구분 (가짜 '재고있음' 금지).
+        #   시도조차 안 함(pending·None·no_crawler) → '미크롤' / 시도+실패(error) → '크롤실패'
+        #   / 성공·수량미상(ok) → '재고있음'(드묾, 본래 999여야)
+        assert _resolve_stock('lemouton', None) == (None, '미크롤', False)
+        assert _resolve_stock('lemouton', None, 'pending') == (None, '미크롤', False)
+        assert _resolve_stock('lemouton', None, 'no_crawler') == (None, '미크롤', False)
+        assert _resolve_stock('lemouton', None, 'error') == (None, '크롤실패', False)
+        assert _resolve_stock('lemouton', None, 'ok') == (None, '재고있음', False)
 
     def test_999_sentinel_is_instock(self):
         # 르무통/롯데온/SSF '충분' 센티넬

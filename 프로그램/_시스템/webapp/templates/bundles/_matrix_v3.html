@@ -1478,6 +1478,7 @@
     /* 불명(unknown) 셀: 품절(빨강)과 구분되는 경고색(앰버) */
     [data-stock-state="unknown"] { color: #b7791f !important; }
     .sc-stk.unknown { color: #b7791f !important; font-weight: 600; }
+    .sc-stk.miss { color: #9aa3af !important; font-weight: 600; }   /* 미크롤/크롤실패 = 회색(가짜 '재고있음' 금지) */
     .d2-src-stock.unknown { color: #b7791f !important; font-weight: 600; }
 
     /* 문제4 (4-4) — 빈 소싱처 셀: ⚠ 제거 + URL 등록 버튼 */
@@ -5491,7 +5492,7 @@ table.ompk-tab th.corner{color:#b0b8c1;cursor:default}
       let body;
       if (hasPrice) {
         const stockTxt = src.stock_label
-          ? `<span class="d2-src-stock ${src.stock_state === 'unknown' ? 'unknown' : (src.stock_out ? 'zero' : '')}">${src.stock_state === 'unknown' || src.stock_label === '⚠️확인필요' ? '⚠️확인필요' : (src.stock_label === '품절' ? '품절 ⛔' : (src.stock_qty != null ? '재고 ' + src.stock_qty.toLocaleString('ko-KR') + '개' : '재고있음'))}</span>`
+          ? `<span class="d2-src-stock ${src.stock_state === 'unknown' ? 'unknown' : (src.stock_out ? 'zero' : '')}">${src.stock_state === 'unknown' || src.stock_label === '⚠️확인필요' ? '⚠️확인필요' : (src.stock_label === '품절' ? '품절 ⛔' : (src.stock_qty != null ? '재고 ' + src.stock_qty.toLocaleString('ko-KR') + '개' : src.stock_label))}</span>`
           : '<span class="d2-src-stock">재고 —</span>';
         const dateTxt = `<span class="d2-src-date">${fmtRelDate(src.last_fetched_at)}</span>`;
         body = `<div class="d2-src-price">${src.crawled_price.toLocaleString('ko-KR')}원</div>
@@ -5671,7 +5672,7 @@ table.ompk-tab th.corner{color:#b0b8c1;cursor:default}
         let body;
         if (hasPrice) {
           const stockTxt = src.stock_label
-            ? `<span class="d2-src-stock ${src.stock_state === 'unknown' ? 'unknown' : (src.stock_out ? 'zero' : '')}">${src.stock_state === 'unknown' || src.stock_label === '⚠️확인필요' ? '⚠️확인필요' : (src.stock_label === '품절' ? '품절 ⛔' : (src.stock_qty != null ? '재고 ' + src.stock_qty.toLocaleString('ko-KR') + '개' : '재고있음'))}</span>`
+            ? `<span class="d2-src-stock ${src.stock_state === 'unknown' ? 'unknown' : (src.stock_out ? 'zero' : '')}">${src.stock_state === 'unknown' || src.stock_label === '⚠️확인필요' ? '⚠️확인필요' : (src.stock_label === '품절' ? '품절 ⛔' : (src.stock_qty != null ? '재고 ' + src.stock_qty.toLocaleString('ko-KR') + '개' : src.stock_label))}</span>`
             : '<span class="d2-src-stock">재고 —</span>';
           body = `<div class="d2-src-price">${src.crawled_price.toLocaleString('ko-KR')}원</div>
             <div class="d2-src-meta">${stockTxt}<span class="d2-src-date">${fmtRelDate(src.last_fetched_at)}</span></div>`;
@@ -5876,7 +5877,7 @@ table.ompk-tab th.corner{color:#b0b8c1;cursor:default}
     if (src.stock_state === 'unknown') { stkTxt = '⚠️확인필요'; stkCls += ' unknown'; }
     else if (src.stock_out || src.crawled_stock === 0) { _isOut = true; stkTxt = '품절'; stkCls += ' out'; }
     else if (src.stock_qty != null) { stkTxt = '재고 ' + src.stock_qty.toLocaleString('ko-KR') + '개'; }
-    else { stkTxt = '재고있음'; }
+    else { stkTxt = src.stock_label || '재고있음'; if (src.stock_state === 'uncrawled' || src.stock_state === 'crawlfail') stkCls += ' miss'; }
     // [2026-06-03 v12] 2행 그리드 — 가격↔↗ / 재고↔fx. ↗·fx 동일 크기 라운드 박스. 최저=테두리+우상단 딱지. '원' 한 줄.
     const _won = `<span class="sc-won">원</span>`;
     const _go = `<a class="sc-go" href="${escapeHtml(src.product_url)}" target="_blank" rel="noopener" title="${escapeHtml((src.source_name||'소싱처')+' 페이지 열기')}" onclick="event.stopPropagation()">↗</a>`;
