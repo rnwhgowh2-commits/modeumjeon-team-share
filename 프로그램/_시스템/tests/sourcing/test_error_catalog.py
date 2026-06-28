@@ -1,5 +1,5 @@
 import os
-from webapp.routes.guide_sync import load_catalog, catalog_symbol_drift
+from webapp.routes.guide_sync import load_catalog, catalog_symbol_drift, shared_code_map, duplicate_ids
 
 APP_ROOT = os.path.normpath(os.path.join(os.path.dirname(__file__), "..", ".."))
 
@@ -34,3 +34,17 @@ def test_symbol_drift_clean_when_present(tmp_path):
     (tmp_path / "webapp" / "static" / "error_catalog.json").write_text(
         json.dumps(cat), encoding="utf-8")
     assert catalog_symbol_drift(str(tmp_path)) == []
+
+
+def test_shared_code_map_groups_by_symbol():
+    items = [
+        {"id":"S1","src":"르무통","code":{"file":"a.py","func":"persist"}},
+        {"id":"S2","src":"스마트스토어","code":{"file":"a.py","func":"persist"}},
+        {"id":"S9","src":"롯데온","code":{"file":"b.py","func":"only"}},
+    ]
+    out = shared_code_map(items)
+    assert out == {"a.py::persist": ["르무통", "스마트스토어"]}
+
+def test_duplicate_ids():
+    items = [{"id":"S1"},{"id":"S1"},{"id":"P3"}]
+    assert duplicate_ids(items) == ["S1"]
