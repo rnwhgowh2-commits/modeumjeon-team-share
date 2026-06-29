@@ -229,3 +229,24 @@ def test_add_page_renders(client):
     assert "소싱처 추가" in body
     assert "신규 소싱처 추가" in body
     assert "기존 소싱처 크롤 업데이트" in body
+
+
+# ─────────────────────────────────────────────────────────────────
+#  Task 6 — 전체보기 4번째 카드 + 분석 대기 배지
+# ─────────────────────────────────────────────────────────────────
+
+def test_overview_has_add_card(client):
+    resp = client.get("/sourcing-guide/")
+    assert resp.status_code == 200
+    body = resp.get_data(as_text=True)
+    assert "/sourcing-guide/add" in body
+    assert "소싱처 추가·업데이트" in body
+
+
+def test_overview_shows_pending_badge(client):
+    _cleanup("테스트배지")
+    _make_source("테스트배지", ["https://a.com/1"])   # 빈 카드 + URL = 분석 대기
+    resp = client.get("/sourcing-guide/")
+    body = resp.get_data(as_text=True)
+    assert "분석 대기" in body
+    _cleanup("테스트배지")

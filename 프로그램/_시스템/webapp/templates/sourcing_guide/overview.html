@@ -143,7 +143,7 @@
   @media (max-width:900px){ .nsg-tplgrid{grid-template-columns:1fr;} }
 
   /* ════ 가이드 네비 = 3카드 런처 (시안 3) ════ */
-  .sg-launch{display:grid;grid-template-columns:repeat(3,1fr);gap:18px;margin-bottom:36px;}
+  .sg-launch{display:grid;grid-template-columns:repeat(4,1fr);gap:18px;margin-bottom:36px;}
   .sg-launch .lc{display:block;text-align:left;text-decoration:none;border:2px solid #E5E8EB;background:#fff;border-radius:18px;padding:24px 26px;cursor:pointer;transition:.15s;font-family:inherit;width:100%;}
   .sg-launch .lc:hover{border-color:#C9D2DC;box-shadow:0 8px 20px rgba(0,0,0,.07);transform:translateY(-2px);}
   .sg-launch .lc .lc-ic{font-size:34px;line-height:1;}
@@ -174,6 +174,10 @@
       <div class="lc-ic">🧩</div><div class="lc-t">크롤러 설치</div>
       <div class="lc-d">로컬 PC에서 크롤하기 위한 필수 프로그램(크롬 확장) 설치법</div>
       <span class="lc-tag g">🛠 팀원 · 셋업</span></button>
+    <a class="lc c-purple" href="/sourcing-guide/add">
+      <div class="lc-ic">➕</div><div class="lc-t">소싱처 추가·업데이트</div>
+      <div class="lc-d">신규 소싱처 추가 · 기존 소싱처 크롤 업데이트 — 이름·URL만 넣으면 Claude가 가이드대로 구현</div>
+      <span class="lc-tag p">🛠 팀원 · 등록</span></a>
   </div>
   <div class="sg-card" style="padding:0;overflow:hidden;">
     <table class="sg-atbl">
@@ -182,7 +186,7 @@
         {% for r in rows %}
         {% set g = r.guide %}
         <tr onclick="location.href='/sourcing-guide/{{ r.id }}'">
-          <td class="sg-name">{{ r.name }}</td>
+          <td class="sg-name">{{ r.name }}{% if r.pending %} <span class="sg-chip" style="background:#FFF3BF;color:#B5870A;">분석 대기</span>{% endif %}</td>
           {% set nurl = g.sample_urls|length %}
           <td {% if nurl == 0 %}class="u"{% endif %}>{{ nurl }}개</td>
           {% set okf = g.fields.values()|selectattr('status','equalto','ok')|list|length %}

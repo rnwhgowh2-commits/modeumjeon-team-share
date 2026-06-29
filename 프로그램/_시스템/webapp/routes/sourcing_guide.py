@@ -165,7 +165,9 @@ def overview():
     rows = []
     for src in _sources():
         guide = cg.loads(src.crawl_guide)
-        rows.append({"id": src.id, "name": src.name, "guide": guide})
+        pending = bool(guide.get("update_requested")) or \
+            (len(guide.get("sample_urls", [])) > 0 and _guide_is_blank(guide))
+        rows.append({"id": src.id, "name": src.name, "guide": guide, "pending": pending})
     return render_template("sourcing_guide/overview.html", rows=rows, active="sourcing_guide")
 
 
