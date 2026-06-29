@@ -291,7 +291,7 @@ function renderChannels(){
     h+=`<div class="chl" data-id="${ch.id}"><div class="h">${labels[ch.market]||ch.market}</div>
       <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
         <span style="font-size:12px;color:var(--t3);min-width:160px">${idLabel[ch.market]||'상품번호'}</span>
-        <input type="text" class="pid" placeholder="상품번호 붙여넣기" style="flex:1;min-width:160px">
+        <input type="text" class="pid" value="${ch.pid||''}" placeholder="상품번호 붙여넣기" style="flex:1;min-width:160px">
         <button class="btn" onclick="runLink(${ch.id}, this)">연동 실행</button>
       </div>
       <div class="res hidden"></div></div>`;
@@ -311,5 +311,19 @@ async function runLink(channelId, btn){
   if(!r.ok){ resEl.classList.add('err'); resEl.textContent=r.error||'연동 실패'; return; }
   resEl.textContent=`✓ 연동 완료 — 매칭 ${r.linked} · 미매칭 ${r.unmatched} · 모호 ${r.ambiguous} · 중복 ${r.duplicate}`;
 }
+async function openEdit(setId){
+  const d=await api('GET','/api/sets/'+setId);
+  if(!d.ok){ alert(d.error||'불러오기 실패'); return; }
+  const set=d.set; const p=(set.products||[])[0]||{}; const code=set.model_code;
+  S.bundle={code:code, name:set.name||code};
+  const od=await api('GET','/api/sets/bundle/'+encodeURIComponent(code)+'/options');
+  S.options=od; S.comboMap={}; S.activeMap={};
+  (od.options||[]).forEach(o=>{ S.comboMap[o.color+' '+o.size]=o.canonical_sku; S.activeMap[o.canonical_sku]=o.is_active!==false; });
+  S.editSetId=setId; S.editProductId=p.id; S.setId=setId; S.selected=new Set(p.options||[]);
+  S.channels=(set.channels||[]).map(c=>({id:c.id, market:c.market, pid:c.market_product_id}));
+  const _b2=document.getElementById('b2name'); if(_b2) _b2.textContent=set.name||code;
+  renderMatrix(); updateCount(); renderChannels(); goStep(4);
+}
+(function(){ const ed=new URLSearchParams(location.search).get('edit'); if(ed) openEdit(+ed); })();
 </script>
 {% endblock %}
