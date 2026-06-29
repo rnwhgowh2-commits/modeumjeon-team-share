@@ -70,3 +70,14 @@ def test_list_and_remove_channel(db):
 def test_set_channel_product_missing_returns_none(db):
     assert ch.set_channel_product(db, channel_id=9999,
                                   market_product_id="1") is None
+
+
+def test_add_channel_is_idempotent(db):
+    # get-or-create: 같은 (set, market, account_key) 중복 추가 금지 — 같은 채널 반환
+    ps = svc.create_set(db, model_code="AF", name="단품")
+    c1 = ch.add_channel(db, set_id=ps.id, market="coupang")
+    db.commit()
+    c2 = ch.add_channel(db, set_id=ps.id, market="coupang")
+    db.commit()
+    assert c1.id == c2.id
+    assert len(ch.list_channels(db, ps.id)) == 1
