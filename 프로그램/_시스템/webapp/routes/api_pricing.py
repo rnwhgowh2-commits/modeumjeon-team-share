@@ -1435,6 +1435,39 @@ def save_crawl_result():
                     ).update({SourceOption.current_price: int(price)})
                 except Exception:
                     pass
+            # [2026-06-29] 현대H몰 모음전: item-stockcount 는 재고만 주고 가격=0(sellPrc=0).
+            #   확장이 보낸 per-size 옵션은 가격이 없어 status=error→persist 스킵→사이즈별
+            #   재고가 영영 999 였다. 같은 크롤의 parse 가 만든 color-레벨 SO 에 색별 가격
+            #   (예 126,900)이 있으므로, per-size 옵션에 그 색 가격을 입히고 재고 옵션이 있으면
+            #   ok 로 승격해 사이즈별 SO 를 영속한다(없으면 anyP 폴백). [[reference_hmall_stockcount_api]]
+            try:
+                _hopts = it.get('options')
+                if (getattr(sp, 'site', None) == 'hmall'
+                        and isinstance(_hopts, list) and _hopts):
+                    _has_price = lambda o: isinstance(o, dict) and isinstance(
+                        o.get('price'), (int, float)) and o.get('price') > 0
+                    if any(not _has_price(o) for o in _hopts if isinstance(o, dict)):
+                        _cprice, _anyp = {}, None
+                        for _so in (s.query(SourceOption)
+                                    .filter_by(source_product_id=sp.id, deleted_at=None).all()):
+                            if _so.current_price and _so.current_price > 0:
+                                _kc = (_so.color_text or '').strip()
+                                if _kc:
+                                    _cprice[_kc] = _so.current_price
+                                if _anyp is None:
+                                    _anyp = _so.current_price
+                        if _cprice or _anyp:
+                            for _o in _hopts:
+                                if isinstance(_o, dict) and not _has_price(_o):
+                                    _o['price'] = _cprice.get((_o.get('color') or '').strip(), _anyp)
+                            if status != 'ok' and any(
+                                    isinstance(_o, dict) and isinstance(_o.get('stock'), int)
+                                    for _o in _hopts):
+                                status = 'ok'
+                                sp.last_status = 'ok'
+                                sp.last_error_msg = None
+            except Exception:
+                pass
             # ★ 2026-06-22 — 옵션단위 실재고(color·size별) 영속 — 스마트스토어 등 '확장 전용'
             #   소싱처 재고가 전부 999('재고있음')로 둔갑하던 버그 수정.
             #   배경: 확장이 색·사이즈별 재고를 긁고(parse 가 품절 0 까지 교정해) options[] 로
