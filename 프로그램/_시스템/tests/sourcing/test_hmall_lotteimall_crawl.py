@@ -8,7 +8,10 @@ import json
 
 from bs4 import BeautifulSoup
 
-from lemouton.sourcing.crawlers.hmall import HmallCrawler
+from lemouton.sourcing.crawlers.hmall import (
+    HmallCrawler,
+    build_combo_persize_options,
+)
 from lemouton.sourcing.crawlers.lotteon import _build_inv_qty_by_size
 
 
@@ -44,6 +47,50 @@ def test_hmall_no_data_is_honest_empty():
     html = ('<script id="__NEXT_DATA__">' + json.dumps(nd) + '</script>')
     res = HmallCrawler().parse_html(html, "https://www.hmall.com/p/pdp/x")
     assert res.options == []
+
+
+# ─── 현대H몰 모음전(2축): item-stockcount 프로브 → per-(색,사이즈,재고) ───
+#   라이브 역공학으로 드러난 2버그를 고정: (1) uitmSeq 비순차(색 위치 아님) → 중간 seq 는
+#   MIX(여러색×한사이즈) 쓰레기 / (2) 품절판정 = sellGbcd(stockCount=1 은 품절 센티넬).
+
+def _row(color, size, gbcd="00", cnt=10):
+    return {"uitm1AttrNm": color, "uitm2AttrNm": size, "sellGbcd": gbcd, "stockCount": cnt}
+
+
+def test_combo_persize_basic_3state_by_sellgbcd():
+    """판매중(00)=실수량 / 품절(11)=0(stockCount=1 센티넬 무시)."""
+    responses = {
+        1: [_row("블랙", "220mm", "00", 3), _row("블랙", "260mm", "11", 1)],  # 260=품절
+    }
+    opts = build_combo_persize_options("100", responses, {"블랙": 126900})
+    by = {o["size_text"]: o["stock"] for o in opts}
+    assert by == {"220mm": 3, "260mm": 0}            # 품절은 0 (1 둔갑 없음)
+    assert all(o["price"] == 126900 for o in opts)
+
+
+def test_combo_persize_rejects_mix_and_keeps_nonsequential():
+    """MIX(여러색 섞인 seq) 는 버리고, 비순차 uitmSeq 의 단일색 응답만 채택."""
+    responses = {
+        1: [_row("블랙", "230mm")],                              # 단일색 ✓
+        7: [_row("그레이", "230mm"), _row("크림핑크", "230mm")],   # MIX(여러색) ✗ → 버림
+        18: [_row("크림핑크", "240mm", "00", 1),                  # 비순차(18) 단일색 ✓
+             _row("크림핑크", "260mm", "11", 1)],                 #   240=재고1·260=품절0
+    }
+    opts = build_combo_persize_options("100", responses, {})
+    colors = {o["color_text"] for o in opts}
+    assert colors == {"블랙", "크림핑크"}                          # 그레이(MIX발) 미포함
+    cream = {o["size_text"]: o["stock"] for o in opts if o["color_text"] == "크림핑크"}
+    assert cream == {"240mm": 1, "260mm": 0}
+
+
+def test_combo_persize_dedup_color_first_win():
+    """같은 색이 여러 seq 에 나와도 한 번만(첫 채택)."""
+    responses = {
+        1: [_row("블랙", "220mm", "00", 5)],
+        9: [_row("블랙", "220mm", "00", 99)],   # 중복 색 → 무시
+    }
+    opts = build_combo_persize_options("100", responses, {})
+    assert [o["stock"] for o in opts] == [5]
 
 
 # ─── 롯데아이몰: itemInvQtyInfo.inv_qty → {size: 실재고} ───

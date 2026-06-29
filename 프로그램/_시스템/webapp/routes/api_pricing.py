@@ -1409,6 +1409,27 @@ def save_crawl_result():
             price = it.get('price')
             stock = it.get('stock')
             status = it.get('status') or ('ok' if price else 'error')
+            # [2026-06-29] 현대H몰 모음전(2축) per-size 서버사이드 보강(확장 재로드 불필요).
+            #   확장의 색-인덱스 1..15 순회는 (a)색 uitmSeq 가 비순차(크림핑크18·아이보리21·
+            #   스카이블루22)라 7번째+ 색을 통째로 놓치고 (b)중간 seq 는 MIX(여러색×한사이즈)
+            #   쓰레기를 섞었다. item-stockcount 는 공개 API(로그인 불필요)라 서버가 직접 호출해
+            #   '단일색 응답만 채택 + sellGbcd 품절판정' 프로브로 9색 사이즈별 3상태를 정확히
+            #   만들어 교체한다. 실패(WAF·네트워크) 시 확장 옵션 유지(데이터 파괴 금지).
+            #   [[reference_hmall_stockcount_api]]
+            if getattr(sp, 'site', None) == 'hmall':
+                try:
+                    from lemouton.sourcing.crawlers.hmall import fetch_combo_persize_options
+                    _srv = fetch_combo_persize_options(url)
+                    if _srv:
+                        it['options'] = _srv
+                        if status != 'ok':
+                            status = 'ok'
+                        if not price:
+                            _pp = [o['price'] for o in _srv if o.get('price')]
+                            if _pp:
+                                price = min(_pp)
+                except Exception:
+                    pass
             if price not in (None, '', 0):
                 try:
                     sp.last_price = int(price)
@@ -1543,6 +1564,54 @@ def save_crawl_result():
             updated += 1
         s.commit()
         return _ok(updated=updated, not_found=not_found, total=len(items))
+    finally:
+        s.close()
+
+
+@bp.post('/sources/hmall-persize-refresh')
+def hmall_persize_refresh():
+    """현대H몰 모음전(2축) 사이즈별 3상태 재수집(서버사이드 item-stockcount, 공개 API).
+
+    확장 재로드·재크롤 없이 기존 hmall 모음전 SourceProduct 를 정확한 per-(색,사이즈,재고)
+    로 교정한다. body(옵션): {sp_id} 또는 {url} 지정 시 해당 1건만, 없으면 전체 hmall.
+    단품/비콤보(uitmCombYn!=Y)나 수집 실패는 건너뜀(데이터 파괴 금지).
+    """
+    from lemouton.sourcing.crawlers.hmall import fetch_combo_persize_options
+    from lemouton.sources.service import persist_crawled_options, normalize_url
+    import datetime as _dt
+    body = request.get_json(silent=True) or {}
+    s = SessionLocal()
+    try:
+        sps = (s.query(SourceProduct)
+               .filter(SourceProduct.deleted_at.is_(None),
+                       SourceProduct.site == 'hmall').all())
+        if body.get('sp_id'):
+            sps = [sp for sp in sps if sp.id == int(body['sp_id'])]
+        elif body.get('url'):
+            nu = normalize_url(body['url'])
+            sps = [sp for sp in sps if normalize_url(sp.url or '') == nu]
+        now = _dt.datetime.now(_dt.timezone.utc)
+        results = []
+        for sp in sps:
+            if not sp.url or 'slitmCd=' not in (sp.url or ''):
+                continue
+            try:
+                opts = fetch_combo_persize_options(sp.url)
+            except Exception as e:
+                results.append({'id': sp.id, 'ok': False, 'err': str(e)[:80]})
+                continue
+            if not opts:
+                results.append({'id': sp.id, 'ok': False, 'err': 'no-combo/fetch-fail'})
+                continue
+            pres = persist_crawled_options(s, source_product=sp, options=opts)
+            sp.last_status = 'ok'
+            sp.last_fetched_at = now
+            sp.last_error_msg = None
+            results.append({'id': sp.id, 'ok': True, 'options': len(opts),
+                            'colors': len({o['color_text'] for o in opts}), 'persist': pres})
+        s.commit()
+        return _ok(refreshed=len([r for r in results if r.get('ok')]),
+                   total=len(sps), results=results)
     finally:
         s.close()
 

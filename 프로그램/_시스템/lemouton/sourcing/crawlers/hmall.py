@@ -35,6 +35,9 @@ USER_AGENT = (
 )
 DEFAULT_TIMEOUT = 20
 
+# 현대H몰 사이즈별 실재고 API(공개 — 로그인 불필요, www 호스트). 모음전(2축) 전용.
+HMALL_STOCKCOUNT_URL = "https://www.hmall.com/api/hf/dp/v1/item-ptc/item-stockcount"
+
 
 def _to_int(v: Any) -> int:
     """문자열/숫자 → 정수(콤마 제거). 실패 시 0."""
@@ -246,3 +249,147 @@ class HmallCrawler(AbstractCrawler):
             brand=brand,
             discount_info=(f"깜짝할인 {discount_rate}%" if discount_rate else ""),
         )
+
+
+# ── 현대H몰 모음전(2축 색×사이즈) 사이즈별 실재고 — item-stockcount API ──────────────
+#   배경(2026-06-29 라이브 역공학, [[reference_hmall_stockcount_api]]):
+#     · 모음전(uitmCombYn="Y")은 페이지 __NEXT_DATA__ 에 1축(색)만 옴 → 색별 합계뿐.
+#       사이즈별 실재고는 색을 고를 때 item-stockcount(uitmAttrTypeSeq=2) 로만 온다.
+#     · ⚠️ uitmSeq 는 '색 위치'가 아니라 비순차 내부 ID(예: 블랙1·…·올리브6·크림핑크18·
+#       아이보리21·스카이블루22). 페이지·색목록 어디에도 진짜 uitmSeq 가 안 나온다(전부 0)
+#       → 1..N 순회는 7번째+ 색을 놓치고, 중간 seq 는 MIX(여러색×한사이즈) 쓰레기를 준다.
+#       해법 = 프로브: uitmSeq 를 훑되 '단일 색 + 전부 사이즈' 응답만 채택(색으로 dedup).
+#     · ⚠️ 품절판정 = sellGbcd("00"=판매중 / 그 외 "11"=품절). 품절 사이즈도 stockCount=1
+#       센티넬을 주므로 stockCount 만 보면 '1개 있음' 둔갑(거짓 재고=금전손실). sellGbcd 우선.
+#     · API 는 공개(로그인 불필요·credentials 없이 200) → 서버사이드 호출 가능(확장 불요).
+
+
+def _stockcount_params(slitm_cd: str, attr_type: int, uitm_seq: int) -> dict:
+    """item-stockcount 쿼리 파라미터(검증된 보일러플레이트)."""
+    return {
+        "slitmCd": slitm_cd, "setItemYn": "N", "uitmCombYn": "Y",
+        "uitmAttrTypeSeq": str(attr_type), "selectBoxIdx": "1",
+        "uitmSeq": str(uitm_seq), "rishpNotfExpsYn": "Y",
+        "befUitmSeq1": "0", "befUitmSeq2": "0", "befUitmSeq3": "0",
+        "setSlitmCd": slitm_cd, "setSlitmYn": "N",
+    }
+
+
+def _size_stock_from_row(row: dict) -> int:
+    """stockList 한 행 → 사이즈 실재고(3상태). sellGbcd!='00' 이면 품절(0).
+
+    sellGbcd 없을 때만 stockCount 폴백(거짓 품절 방지). 품절(=00 아님)일 때 stockCount(=1
+    센티넬)는 무시하고 0.
+    """
+    gb = str(row.get("sellGbcd") or "").strip()
+    if gb and gb != "00":
+        return 0
+    return _to_int(row.get("stockCount"))
+
+
+def build_combo_persize_options(
+    slitm_cd: str,
+    size_responses: dict[int, list],
+    color_price: dict[str, int],
+    fallback_price: int = 0,
+) -> list[dict]:
+    """순수 변환(네트워크 없음 — 단위테스트 대상).
+
+    size_responses: {uitmSeq: stockList(uitmAttrTypeSeq=2 응답)}.
+    '단일 색 + 모든 행에 사이즈(uitm2AttrNm)' 인 응답만 채택(MIX cross-color 버림),
+    색 이름으로 dedup, 사이즈별 stock 은 sellGbcd 로 3상태. 색→가격은 color_price.
+    """
+    found: dict[str, list] = {}
+    for seq in sorted(size_responses):
+        rows = size_responses.get(seq) or []
+        if not rows:
+            continue
+        colset = {(r.get("uitm1AttrNm") or "").strip() for r in rows if isinstance(r, dict)}
+        if len(colset) != 1:
+            continue                                   # MIX(여러 색) → 쓰레기, 버림
+        if not all((r.get("uitm2AttrNm") or "").strip() for r in rows):
+            continue                                   # 사이즈 축 아님(색목록 등) → 버림
+        color = next(iter(colset))
+        if not color or color in found:
+            continue
+        sizes = []
+        for r in rows:
+            size = (r.get("uitm2AttrNm") or "").strip()
+            if size:
+                sizes.append((size, _size_stock_from_row(r)))
+        if sizes:
+            found[color] = sizes
+    options: list[dict] = []
+    for color, sizes in found.items():
+        price = color_price.get(color) or fallback_price
+        for size, stock in sizes:
+            options.append({
+                "option_id": f"{slitm_cd}|{color}|{size}|",
+                "color_text": color,
+                "size_text": size,
+                "price": price,
+                "sale_price": price,
+                "stock": stock,
+            })
+    return options
+
+
+def fetch_combo_persize_options(
+    product_url: str, timeout: int = DEFAULT_TIMEOUT, max_seq: int = 30,
+) -> Optional[list[dict]]:
+    """현대H몰 모음전(2축) 사이즈별 3상태 옵션을 서버사이드로 수집.
+
+    단품/비콤보(uitmCombYn != "Y")거나 수집 실패면 None → 호출부는 기존 옵션 유지
+    (데이터 파괴 금지). 성공 시 per-(색,사이즈,재고,가격) 옵션 리스트.
+    """
+    slitm_cd = _extract_slitm_cd(product_url)
+    if not slitm_cd:
+        return None
+    sess = requests.Session()
+    ua = {"User-Agent": USER_AGENT, "Accept-Language": "ko-KR,ko;q=0.9"}
+    # 1) 페이지 → uitmCombYn·색별 가격·색 개수·표면가
+    try:
+        page = sess.get(product_url, headers=ua, timeout=timeout)
+        page.raise_for_status()
+        data = _extract_next_data(page.text)
+        it = data["props"]["pageProps"]["respData"]["itemPtc"]
+    except Exception:
+        return None
+    if not isinstance(it, dict) or str(it.get("uitmCombYn") or "") != "Y":
+        return None                                    # 단품/비콤보 → 페이지 파싱 옵션 사용
+    surface = _to_int(it.get("bbprc")) or _to_int(it.get("sellPrc"))
+    color_rows = it.get("stockList") or []
+    color_price: dict[str, int] = {}
+    for cr in color_rows:
+        if not isinstance(cr, dict):
+            continue
+        c = (cr.get("uitm1AttrNm") or cr.get("uitmAttrNm") or "").strip()
+        if c:
+            color_price[c] = _to_int(cr.get("bbprc")) or _to_int(cr.get("sellPrc")) or surface
+    expected = len(color_price) or len(color_rows)
+    # 2) 프로브: uitmSeq 1..max_seq, 단일색 응답이 expected 개 모이면 종료
+    api_headers = dict(ua, **{"Accept": "application/json", "Referer": product_url})
+    responses: dict[int, list] = {}
+    found_colors: set[str] = set()
+    empties = 0
+    for seq in range(1, max_seq + 1):
+        try:
+            r = sess.get(HMALL_STOCKCOUNT_URL, params=_stockcount_params(slitm_cd, 2, seq),
+                         headers=api_headers, timeout=timeout)
+            sl = ((r.json() or {}).get("respData") or {}).get("stockList") or []
+        except Exception:
+            sl = []
+        responses[seq] = sl
+        if not sl:
+            empties += 1
+        else:
+            empties = 0
+            cset = {(x.get("uitm1AttrNm") or "").strip() for x in sl if isinstance(x, dict)}
+            if len(cset) == 1 and all((x.get("uitm2AttrNm") or "").strip() for x in sl):
+                found_colors.add(next(iter(cset)))
+        if expected and len(found_colors) >= expected:
+            break
+        if empties >= 8:
+            break
+    opts = build_combo_persize_options(slitm_cd, responses, color_price, surface)
+    return opts or None
