@@ -186,6 +186,69 @@ def _derive_freq(name: str) -> str:
 FLAG_VALUES = {"ok", "warn"}
 VERIFY_STATUSES = {"pending", "claimed", "running", "done", "failed"}
 
+# ─────────────────────────────────────────────────────────────
+# 단계 진행 카탈로그 (stage_progress) — CLAUDE 가 add-source 작업을 단계로 나눠
+#   진행하며 각 체크포인트를 카드에 찍는다(CLAUDE→프로그램 소통). 가이드가 커서
+#   한 번에 못 삼키므로 단계마다 해당 §만 정독·자기검증·체크포인트.
+#   스펙: docs/superpowers/specs/2026-06-29-소싱처추가-업데이트-카드-design.md
+#   JSON 키라 DB 마이그레이션 불필요. (key, label) — label 은 본 카탈로그가 단일 진실원천.
+# ─────────────────────────────────────────────────────────────
+STAGE_CATALOG = {
+    "new": [
+        ("S1", "수집 방식 파악"),      # §2 소싱처별 수집 · §6 형분류
+        ("S2", "재고 3상태"),          # §3 재고편 · §5 재고에러
+        ("S3", "가격·혜택"),           # §3 가격편 · §5 가격에러
+        ("S4", "멀티URL·옵션 매칭"),   # §4 멀티URL·매칭
+        ("S5", "라이브 100% 대조"),    # 실 브라우저 — 사용자 게이트
+        ("S6", "에러이력 기재"),       # §5 + error_catalog.json (선순환)
+    ],
+    "update": [
+        ("U1", "변경분 파악"),         # 가이드 해당 § 정독
+        ("U2", "진단"),                # 과거이력 대조
+        ("U3", "교정·검증"),
+        ("U4", "에러이력 기재"),       # 선순환
+    ],
+}
+
+
+def stage_kind_keys(kind: str) -> list[str]:
+    """단계 종류(new/update)의 유효 단계 키 리스트(순서 보존)."""
+    return [k for k, _ in STAGE_CATALOG.get(kind, [])]
+
+
+def _stage_label(kind: str, key: str) -> str:
+    for k, label in STAGE_CATALOG.get(kind, []):
+        if k == key:
+            return label
+    return ""
+
+
+def _clean_stage_progress(d: Any) -> dict | None:
+    """단계 진행상태 정제. {kind, stage, label, done[], note, updated_at} 또는 None.
+
+    kind=new(S1~S6)/update(U1~U4). stage=현재 단계 키, done=완료 단계 키들.
+    카탈로그 밖 키는 폐기, 진행 없음(stage·done 모두 빔)이면 None.
+    """
+    if not isinstance(d, dict):
+        return None
+    kind = "update" if d.get("kind") == "update" else "new"
+    valid = stage_kind_keys(kind)
+    valid_set = set(valid)
+    stage = d.get("stage") if d.get("stage") in valid_set else None
+    done_in = d.get("done") if isinstance(d.get("done"), list) else []
+    done_set = {str(x) for x in done_in if str(x) in valid_set}
+    done = [k for k in valid if k in done_set]   # 카탈로그 순서로 정규화
+    if not stage and not done:
+        return None
+    return {
+        "kind": kind,
+        "stage": stage,
+        "label": _stage_label(kind, stage) if stage else "",
+        "done": done,
+        "note": str(d.get("note", ""))[:200],
+        "updated_at": str(d.get("updated_at", "")).strip() or None,
+    }
+
 
 def empty_skeleton() -> dict:
     """미작성 카드의 빈 스켈레톤(v3)."""
@@ -208,6 +271,7 @@ def empty_skeleton() -> dict:
         "verification": {"lead_cache": None, "last_new_check": None, "examples": [],
                          "saved_checks": [], "checklist": default_checklist()},
         "update_requested": None,
+        "stage_progress": None,
         "updated_at": None,
     }
 
@@ -349,6 +413,9 @@ def validate_guide(data: dict) -> dict:
     else:
         out["update_requested"] = None
 
+    # CLAUDE 단계 진행상태(카드 표시용) — 없으면 None.
+    out["stage_progress"] = _clean_stage_progress(data.get("stage_progress"))
+
     out["updated_at"] = data.get("updated_at")
     return out
 
@@ -441,6 +508,25 @@ def _clean_saved_checks(arr: Any) -> list:
             "summary": str(c.get("summary", ""))[:200],
             "saved_at": c.get("saved_at"),
         })
+    return out
+
+
+def advance_stage(guide: dict, kind: str, stage: str | None,
+                  note: str = "", updated_at: str | None = None,
+                  complete: bool = False) -> dict:
+    """단계 진행 갱신(누적). stage=현재 도달 단계 → 그 앞 단계들은 자동 done.
+    complete=True 면 전 단계 done·현재 없음(작업 완료). 정제본 반환.
+    """
+    out = validate_guide(guide)
+    valid = stage_kind_keys(kind)
+    if complete:
+        sp = {"kind": kind, "stage": None, "done": valid}
+    else:
+        idx = valid.index(stage) if stage in valid else -1
+        sp = {"kind": kind, "stage": stage, "done": valid[:idx] if idx > 0 else []}
+    sp["note"] = note
+    sp["updated_at"] = updated_at
+    out["stage_progress"] = _clean_stage_progress(sp)
     return out
 
 

@@ -249,3 +249,64 @@ def test_benefit_value_source_and_excludes():
     # 레거시(키 없음) → fixed + 빈 excludes + exclude_match any
     assert b["레거시"]["value_source"] == "fixed"
     assert b["레거시"]["excludes"] == [] and b["레거시"]["exclude_match"] == "any"
+
+
+# ─────────────────────────────────────────────────────────────
+# stage_progress — CLAUDE 단계 진행상태(카드 표시·옵션1)
+# ─────────────────────────────────────────────────────────────
+def test_stage_progress_default_none():
+    from lemouton.sourcing import crawl_guide as cg
+    assert cg.empty_skeleton()["stage_progress"] is None
+    assert cg.validate_guide({"version": 3})["stage_progress"] is None
+
+
+def test_stage_progress_clean_and_accumulate():
+    from lemouton.sourcing import crawl_guide as cg
+    # S3 도달 → S1·S2 자동 done, 현재 S3
+    g = cg.advance_stage(cg.empty_skeleton(), "new", "S3", note="가격 작업중", updated_at="t")
+    sp = g["stage_progress"]
+    assert sp["kind"] == "new" and sp["stage"] == "S3"
+    assert sp["done"] == ["S1", "S2"] and sp["label"] == "가격·혜택"
+    assert sp["note"] == "가격 작업중" and sp["updated_at"] == "t"
+
+
+def test_stage_progress_complete():
+    from lemouton.sourcing import crawl_guide as cg
+    g = cg.advance_stage(cg.empty_skeleton(), "new", None, complete=True)
+    sp = g["stage_progress"]
+    assert sp["stage"] is None and sp["done"] == ["S1", "S2", "S3", "S4", "S5", "S6"]
+
+
+def test_stage_progress_rejects_unknown_keys():
+    from lemouton.sourcing import crawl_guide as cg
+    g = cg.validate_guide({"version": 3, "stage_progress":
+                           {"kind": "new", "stage": "ZZ", "done": ["S1", "BAD"]}})
+    # ZZ 폐기→stage None, BAD 폐기, S1만 done → 진행 있음이라 dict 유지
+    assert g["stage_progress"]["stage"] is None
+    assert g["stage_progress"]["done"] == ["S1"]
+
+
+def test_stage_progress_update_kind():
+    from lemouton.sourcing import crawl_guide as cg
+    g = cg.advance_stage(cg.empty_skeleton(), "update", "U2")
+    sp = g["stage_progress"]
+    assert sp["kind"] == "update" and sp["done"] == ["U1"] and sp["label"] == "진단"
+
+
+# ─────────────────────────────────────────────────────────────
+# 도메인 존재검사 (source_registry) — 중복 소싱처 차단의 기반
+# ─────────────────────────────────────────────────────────────
+def test_domain_of_strips_www_port_path():
+    from lemouton.sourcing import source_registry as sr
+    assert sr.domain_of("https://www.hmall.com/md/pda/itemPtc?slitmCd=1") == "hmall.com"
+    assert sr.domain_of("http://smartstore.naver.com/x/y") == "smartstore.naver.com"
+    assert sr.domain_of("hmall.com/a") == "hmall.com"
+    assert sr.domain_of("") == ""
+
+
+def test_catalog_by_domain_matches_builtin_and_subdomain():
+    from lemouton.sourcing import source_registry as sr
+    assert sr.catalog_by_domain("https://www.hmall.com/x")["key"] == "hmall"
+    assert sr.catalog_by_domain("https://m.hmall.com/x")["key"] == "hmall"   # 서브도메인
+    assert sr.catalog_by_domain("https://www.musinsa.com/products/1")["key"] == "musinsa"
+    assert sr.catalog_by_domain("https://example.com/x") is None

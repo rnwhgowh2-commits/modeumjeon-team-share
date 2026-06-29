@@ -144,7 +144,7 @@ SOURCE_CATALOG = [
      'benefit': 'point_rewards(L.POINT)', 'has_adapter': True, 'needs_login': False},
     {'key': 'hmall', 'label': '현대H몰', 'glyph': 'H', 'logo_color': '#00A05B',
      'domain': 'hmall.com', 'crawl_method': '내장 __NEXT_DATA__ (혜택은 확장 navGrab)',
-     'stock_rule': 'itemPtc.stockList[].stockCount (0=품절·N=실수량)',
+     'stock_rule': 'itemPtc.stockList[] sellGbcd 품절판정+stockCount 실수량 (단품·모음전 공통, S21)',
      'benefit': 'H.Point 적립·카드 즉시할인', 'has_adapter': True, 'needs_login': False},
 ]
 
@@ -165,5 +165,40 @@ def get_catalog_entry(key):
     """카탈로그 단건 조회 (없으면 None)."""
     for c in SOURCE_CATALOG:
         if c['key'] == key:
+            return dict(c)
+    return None
+
+
+def domain_of(url):
+    """URL → 등록가능 도메인(www·포트·경로 제거, 소문자). 빈 입력 → ''.
+
+    예: 'https://www.hmall.com/md/pda/itemPtc?...' → 'hmall.com'
+        'http://smartstore.naver.com/x' → 'smartstore.naver.com'
+    서브도메인은 보존(smartstore.naver.com ≠ naver.com)하되 흔한 'www.'만 제거.
+    """
+    if not isinstance(url, str) or not url.strip():
+        return ''
+    from urllib.parse import urlparse
+    host = urlparse(url.strip()).netloc.lower()
+    if not host:                       # 스킴 없는 'hmall.com/x' 형태 폴백
+        host = url.strip().lower().split('/')[0]
+    host = host.split('@')[-1].split(':')[0]      # 인증정보·포트 제거
+    if host.startswith('www.'):
+        host = host[4:]
+    return host
+
+
+def catalog_by_domain(url):
+    """URL 의 도메인이 카탈로그(빌트인 크롤 지원) 소싱처와 일치하면 그 엔트리, 없으면 None.
+
+    도메인 suffix 매칭(상품 도메인이 카탈로그 도메인으로 끝나면 일치) — 서브도메인
+    상품 URL(예: m.hmall.com)도 같은 소싱처로 잡는다.
+    """
+    d = domain_of(url)
+    if not d:
+        return None
+    for c in SOURCE_CATALOG:
+        cd = (c.get('domain') or '').lower()
+        if cd and (d == cd or d.endswith('.' + cd)):
             return dict(c)
     return None

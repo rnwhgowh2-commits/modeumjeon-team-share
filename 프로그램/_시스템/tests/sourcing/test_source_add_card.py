@@ -250,3 +250,110 @@ def test_overview_shows_pending_badge(client):
     body = resp.get_data(as_text=True)
     assert "분석 대기" in body
     _cleanup("테스트배지")
+
+
+# ─────────────────────────────────────────────────────────────────
+#  존재검사 게이트 — 도메인 기준 중복 차단 (hmall 중복 교훈)
+# ─────────────────────────────────────────────────────────────────
+
+def test_add_source_blocks_builtin_domain(client):
+    """빌트인 크롤지원 소싱처(hmall.com)를 신규로 넣으면 409 exists=builtin."""
+    resp = client.post("/sourcing-guide/api/add-source", json={
+        "name": "현대몰중복테스트",
+        "urls": ["https://www.hmall.com/md/pda/itemPtc?slitmCd=1"],
+    })
+    assert resp.status_code == 409
+    d = resp.get_json()
+    assert d["ok"] is False and d["exists"] is True
+    assert d["existing"]["kind"] == "builtin" and d["existing"]["key"] == "hmall"
+    # 생성 안 됐어야 함
+    s = SessionLocal()
+    try:
+        assert s.query(SourceRegistry).filter_by(name="현대몰중복테스트").first() is None
+    finally:
+        s.close()
+
+
+def test_add_source_blocks_registered_domain(client):
+    """이미 등록된 소싱처와 같은 도메인 URL 이면 409 exists=registered."""
+    _cleanup("도메인원본")
+    _cleanup("도메인중복")
+    client.post("/sourcing-guide/api/add-source", json={
+        "name": "도메인원본", "urls": ["https://shop-xyz.example/p/1"]})
+    resp = client.post("/sourcing-guide/api/add-source", json={
+        "name": "도메인중복", "urls": ["https://shop-xyz.example/p/2"]})
+    assert resp.status_code == 409
+    d = resp.get_json()
+    assert d["exists"] is True and d["existing"]["kind"] == "registered"
+    assert d["existing"]["name"] == "도메인원본"
+    _cleanup("도메인원본")
+    _cleanup("도메인중복")
+
+
+def test_add_source_force_bypasses_gate(client):
+    """force=True 면 게이트 무시하고 강행 생성."""
+    _cleanup("강제추가테스트")
+    resp = client.post("/sourcing-guide/api/add-source", json={
+        "name": "강제추가테스트",
+        "urls": ["https://www.hmall.com/md/pda/itemPtc?slitmCd=2"], "force": True})
+    assert resp.status_code == 200 and resp.get_json()["ok"] is True
+    _cleanup("강제추가테스트")
+
+
+# ─────────────────────────────────────────────────────────────────
+#  중복 정리 — merge-into (빈 카드만 안전 병합·삭제)
+# ─────────────────────────────────────────────────────────────────
+
+def test_merge_into_moves_urls_and_deletes_blank(client):
+    _cleanup("병합타겟"); _cleanup("병합중복")
+    client.post("/sourcing-guide/api/add-source", json={
+        "name": "병합타겟", "urls": ["https://m-xyz.example/a"], "force": True})
+    client.post("/sourcing-guide/api/add-source", json={
+        "name": "병합중복", "urls": ["https://m-xyz.example/b"], "force": True})
+    s = SessionLocal()
+    try:
+        tgt = s.query(SourceRegistry).filter_by(name="병합타겟").first()
+        dup = s.query(SourceRegistry).filter_by(name="병합중복").first()
+        tid, did = tgt.id, dup.id
+    finally:
+        s.close()
+    resp = client.post(f"/sourcing-guide/api/{did}/merge-into/{tid}")
+    assert resp.status_code == 200 and resp.get_json()["ok"] is True
+    s = SessionLocal()
+    try:
+        assert s.query(SourceRegistry).get(did) is None          # 중복 삭제됨
+        guide = cg.loads(s.query(SourceRegistry).get(tid).crawl_guide)
+        urls = {u["url"] for u in guide["sample_urls"]}
+        assert urls == {"https://m-xyz.example/a", "https://m-xyz.example/b"}
+    finally:
+        s.close()
+    _cleanup("병합타겟")
+
+
+def test_merge_into_refuses_nonblank_source(client):
+    """크롤 정의가 있는 소싱처는 안전상 병합 거부."""
+    _cleanup("병합타겟2"); _cleanup("정의있음")
+    client.post("/sourcing-guide/api/add-source", json={
+        "name": "병합타겟2", "urls": ["https://t2.example/a"], "force": True})
+    client.post("/sourcing-guide/api/add-source", json={
+        "name": "정의있음", "urls": ["https://t2.example/b"], "force": True})
+    s = SessionLocal()
+    try:
+        tgt = s.query(SourceRegistry).filter_by(name="병합타겟2").first()
+        nb = s.query(SourceRegistry).filter_by(name="정의있음").first()
+        # 정의있음 카드를 non-blank 로 만듦(thumbnail status=ok)
+        g = cg.loads(nb.crawl_guide)
+        g["fields"]["thumbnail"]["status"] = "ok"
+        nb.crawl_guide = cg.dumps(g)
+        s.commit()
+        tid, nid = tgt.id, nb.id
+    finally:
+        s.close()
+    resp = client.post(f"/sourcing-guide/api/{nid}/merge-into/{tid}")
+    assert resp.status_code == 400
+    s = SessionLocal()
+    try:
+        assert s.query(SourceRegistry).get(nid) is not None       # 삭제 안 됨
+    finally:
+        s.close()
+    _cleanup("병합타겟2"); _cleanup("정의있음")

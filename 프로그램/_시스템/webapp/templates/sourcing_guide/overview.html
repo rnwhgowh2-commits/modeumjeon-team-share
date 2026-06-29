@@ -186,7 +186,7 @@
         {% for r in rows %}
         {% set g = r.guide %}
         <tr onclick="location.href='/sourcing-guide/{{ r.id }}'">
-          <td class="sg-name">{{ r.name }}{% if r.pending %} <span class="sg-chip" style="background:#FFF3BF;color:#B5870A;">분석 대기</span>{% endif %}</td>
+          <td class="sg-name">{{ r.name }}{% if g.stage_progress %}{% set sp = g.stage_progress %}{% set total = 6 if sp.kind == 'new' else 4 %}{% if sp.stage %} <span class="sg-chip" style="background:#E7F0FF;color:#1B64DA;">진행중 {{ sp.done|length }}/{{ total }} · {{ sp.stage }} {{ sp.label }}</span>{% else %} <span class="sg-chip ok">분석 완료 {{ sp.done|length }}/{{ total }}</span>{% endif %}{% elif r.pending %} <span class="sg-chip" style="background:#FFF3BF;color:#B5870A;">분석 대기</span>{% endif %}</td>
           {% set nurl = g.sample_urls|length %}
           <td {% if nurl == 0 %}class="u"{% endif %}>{{ nurl }}개</td>
           {% set okf = g.fields.values()|selectattr('status','equalto','ok')|list|length %}

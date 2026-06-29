@@ -117,8 +117,10 @@ function copyPrm(textId){
   var t=document.getElementById(textId).textContent;
   navigator.clipboard.writeText(t).then(function(){},function(){});
 }
-function buildPrompt(head, name, rows, tail){
-  var lines=['크롤링 가이드 > 소싱처 추가·업데이트 작업.', head+': '+name, 'URL:'];
+function buildPrompt(head, name, rows, tail, sid, kind){
+  var lines=['크롤링 가이드 > 소싱처 추가·업데이트 작업.', head+': '+name];
+  if(sid){ lines.push('소싱처ID: '+sid+' · 종류: '+(kind||'new')+' (진행상태 찍기용)'); }
+  lines.push('URL:');
   rows.forEach(function(r){lines.push('- ['+r.kind+'] '+r.url);});
   lines.push(tail);
   return lines.join('\n');
@@ -134,8 +136,21 @@ async function submitNew(){
   var res=await postJSON('/sourcing-guide/api/add-source',{name:name,urls:rows.map(function(r){return r.url;})});
   if(res.ok&&res.data.ok){
     toast('newToast','✓ "'+name+'" 추가됨 — 전체보기에 등장. 아래 프롬프트를 Claude Code에 붙여넣으세요.',true);
-    showPrm('newPrm','newPrmText', buildPrompt('신규 소싱처', name, rows, '→ add-source 스킬대로 분석·검증·구현해줘.'));
+    showPrm('newPrm','newPrmText', buildPrompt('신규 소싱처', name, rows, '→ add-source 스킬대로 분석·검증·구현해줘.', res.data.id, 'new'));
+  } else if(res.data.exists){
+    // 존재검사 게이트 — 이미 있는 소싱처 → 기존 업데이트 탭으로 유도(중복 방지)
+    toast('newToast', res.data.error||'이미 등록된 소싱처예요.', false);
+    switchToUpd((res.data.existing||{}).id);
   } else { toast('newToast', res.data.error||'실패', false); }
+}
+function switchToUpd(existingId){
+  var tab=document.querySelector('.sa .tab[data-pane="upd"]');
+  if(tab){ tab.click(); }
+  if(existingId){
+    var sel=document.getElementById('updSel');
+    if(sel){ sel.value=String(existingId); if(typeof loadUpd==='function'){ loadUpd(); } }
+  }
+  toast('updToast','이미 있는 소싱처예요 — 여기 기존 업데이트로 진행하세요.', false);
 }
 async function loadUpd(){
   var box=document.getElementById('updUrls'); box.innerHTML=''; document.getElementById('updPrm').style.display='none';
@@ -157,7 +172,7 @@ async function submitUpd(){
   if(res.ok&&res.data.ok){
     toast('updToast','✓ 저장+업데이트 요청됨. 아래 프롬프트를 Claude Code에 붙여넣으세요.',true);
     var tail=note? ('증상/사유: '+note+'\n→ add-source 스킬대로 진단·교정·검증해줘.') : '→ add-source 스킬대로 진단·교정·검증해줘.';
-    showPrm('updPrm','updPrmText', buildPrompt('기존 소싱처 크롤 업데이트', name, rows, tail));
+    showPrm('updPrm','updPrmText', buildPrompt('기존 소싱처 크롤 업데이트', name, rows, tail, sid, 'update'));
   } else { toast('updToast','업데이트 요청 실패',false); }
 }
 // 탭 전환 + 초기화

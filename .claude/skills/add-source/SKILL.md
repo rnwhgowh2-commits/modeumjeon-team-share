@@ -41,7 +41,8 @@ URL:
    - `g`(재고/가격) = 이번에 긁을 데이터 종류와 일치
    - `code.func` = 새 크롤러가 호출할 공유코드(`persist_crawled_options`·`_match_option_so`·`compute_breakdown` 등)와 일치 → **최우선 위험**
    - 다른 소싱처 에러라도 같은 메커니즘이면 반드시 포함 (예: S17 부분일치 오매칭, S1 재고합계 둔갑, S3 다중URL 중복행).
-4. **진행 시각화**: `workflow-progress-widget`로 아래 스테이지 체크리스트를 띄워 사용자와 방향을 맞춘다.
+4. **이미 지원되는 소싱처인가 (재구현 금지 — hmall 교훈)**: URL 도메인이 `source_registry.SOURCE_CATALOG`(빌트인 크롤지원) 또는 기존 크롤러(`crawlers/<key>.py`)에 이미 있으면 **신규가 아니라 업데이트**다. 같은 함수를 다시 만들지 말고 기존 코드 재사용·교정(U1~U4). 웹 추가 화면도 도메인 존재검사로 이런 경우를 '기존 업데이트'로 보내지만, 프롬프트가 '신규'로 와도 직접 확인. (현대H몰을 '신규'로 다시 만들려다 중복 카드가 생긴 사례.)
+5. **진행 시각화**: `workflow-progress-widget`로 아래 스테이지 체크리스트를 띄워 사용자와 방향을 맞춘다.
 
 ## 단계적 실행 — 한 번에 다 하지 말 것
 
@@ -68,6 +69,22 @@ URL:
 | U2 diff | 해당 소싱처 §1·§2 + 실크롤 | 무엇이 달라졌나(셀렉터·API·정책) |
 | U3 교정 | 바뀐 부분 | 소싱처 전용 우선 / 공유코드면 교차 회귀 |
 | U4 재검증·갱신 | §4·§5.1 | 라이브 100% 일치 + 기존 행·카드 갱신 + 에러 이력 rev |
+
+## 진행상태 카드에 찍기 (CLAUDE → 프로그램 소통, 선택)
+
+붙여넣은 프롬프트에 `소싱처ID: N` 이 있으면, **각 스테이지 시작 때** 진행을 카드에 찍어 사용자가 채팅을 안 봐도 카드만으로 어디까지 왔는지 알게 한다(옵션1). 베스트-에포트 — 실패해도 작업은 계속.
+
+```bash
+# 단계 진입 시(예: S3 시작). 토큰은 환경변수 MOUM_STAGE_TOKEN.
+curl -s -X POST https://mou-m.com/webhook/source-stage \
+  -H "X-Webhook-Secret: $MOUM_STAGE_TOKEN" -H "Content-Type: application/json" \
+  -d '{"source_id": N, "kind": "new", "stage": "S3", "note": "가격·혜택 작업중"}'
+# 완료 시:
+#   -d '{"source_id": N, "kind": "new", "complete": true}'
+```
+
+- `MOUM_STAGE_TOKEN` 이 없거나 503 이면 **조용히 건너뛴다**(기능 미설정 = 정상). 카드 진행만 안 보일 뿐 나머지는 영향 없음.
+- `kind` = `new`(S1~S6) / `update`(U1~U4). `stage` 도달 시 그 앞 단계는 자동 완료 처리.
 
 ## 완료 게이트 + 에러 이력 선순환 (강제)
 

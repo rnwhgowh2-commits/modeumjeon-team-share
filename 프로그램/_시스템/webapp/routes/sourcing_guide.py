@@ -11,6 +11,7 @@ from flask import Blueprint, jsonify, render_template, request, send_file, abort
 from shared.db import SessionLocal
 from lemouton.sourcing.models_pricing import SourceRegistry
 from lemouton.sourcing import crawl_guide as cg
+from lemouton.sourcing import source_registry as sr
 from lemouton.sourcing.crawl_queue import enqueue_verify, get_job
 from webapp.routes.guide_sync import compute_guide_drift
 
@@ -72,21 +73,64 @@ def _queue_items():
     return out
 
 
+def _find_existing_by_domain(s, urls):
+    """입력 URL 의 도메인이 (a)이미 등록된 소싱처의 URL 또는 (b)빌트인 크롤지원
+    소싱처(카탈로그)와 겹치면 그 소싱처 정보를 반환 → 중복 신규 생성 차단.
+
+    hmall 중복 교훈: 진짜 hmall 레지스트리 행은 sample_urls 가 비어 도메인 매칭이
+    안 잡힐 수 있으므로 (b)카탈로그 도메인 매칭이 필수. 첫 매칭 반환, 없으면 None.
+    """
+    domains = {sr.domain_of(u) for u in urls}
+    domains.discard("")
+    if not domains:
+        return None
+    # (a) 이미 등록된 소싱처의 sample_urls 도메인과 겹치나
+    for src in _sources():
+        guide = cg.loads(src.crawl_guide)
+        su = {sr.domain_of(x.get("url", "")) for x in guide.get("sample_urls", [])}
+        su.discard("")
+        if domains & su:
+            return {"kind": "registered", "id": src.id, "name": src.name}
+    # (b) 빌트인 크롤지원 소싱처(카탈로그)와 도메인 겹치나
+    for u in urls:
+        c = sr.catalog_by_domain(u)
+        if c:
+            return {"kind": "builtin", "name": c["label"], "key": c["key"]}
+    return None
+
+
 @bp.post("/api/add-source")
 def api_add_source():
     """신규 소싱처: 이름 + URL 다중 → SourceRegistry 생성 + sample_urls 저장.
-    저장 즉시 전체보기에 '미정의'로 등장하고 '분석 대기' 큐에 잡힌다."""
+    저장 즉시 전체보기에 '미정의'로 등장하고 '분석 대기' 큐에 잡힌다.
+
+    존재검사 게이트: 같은 이름/도메인이 이미 있으면 exists=True 로 막고 '기존
+    업데이트'로 유도(중복 방지). force=True 면 무시하고 강행(사용자 명시 확인 후).
+    """
     data = request.get_json(silent=True) or {}
     name = (data.get("name") or "").strip()
     urls = [u.strip() for u in (data.get("urls") or []) if str(u).strip()]
+    force = bool(data.get("force"))
     if not name:
         return jsonify(ok=False, error="소싱처 이름을 입력하세요."), 400
     if len(name) > 64:
         return jsonify(ok=False, error="이름은 64자 이내."), 400
     s = SessionLocal()
     try:
-        if s.query(SourceRegistry).filter_by(name=name).first():
-            return jsonify(ok=False, error=f"'{name}' 은 이미 등록된 소싱처에요."), 400
+        dup = s.query(SourceRegistry).filter_by(name=name).first()
+        if dup and not force:
+            return jsonify(ok=False, exists=True,
+                           existing={"kind": "registered", "id": dup.id, "name": dup.name},
+                           error=f"'{name}' 은 이미 등록된 소싱처에요. 기존 업데이트로 진행하세요."), 409
+        if not force:
+            hit = _find_existing_by_domain(s, urls)
+            if hit:
+                label = hit.get("name", "")
+                msg = (f"이 사이트는 이미 크롤 지원되는 소싱처({label})예요. "
+                       if hit["kind"] == "builtin" else
+                       f"같은 사이트가 이미 '{label}' 으로 등록돼 있어요. ")
+                return jsonify(ok=False, exists=True, existing=hit,
+                               error=msg + "기존 업데이트 탭에서 진행하세요."), 409
         src = SourceRegistry(name=name, sort_order=s.query(SourceRegistry).count())
         s.add(src)
         s.flush()
@@ -143,6 +187,50 @@ def api_request_update(sid: int):
         guide["update_requested"] = {"at": _now_iso(), "note": note}
         _save_guide(s, src, guide)
         return jsonify(ok=True)
+    finally:
+        s.close()
+
+
+@bp.post("/api/<int:sid>/merge-into/<int:target_sid>")
+def api_merge_into(sid: int, target_sid: int):
+    """중복 소싱처 정리 — sid(빈 중복 카드)의 URL 을 target 으로 옮기고 sid 제거.
+
+    안전장치: sid 는 반드시 '빈 카드'(크롤 정의 없음)여야 한다 — 실제 크롤 설정이
+    있는 소싱처는 실수 삭제 금지(데이터 무결성). hmall 중복(②HMALL 분석대기 →
+    ①현대홈쇼핑) 정리에 사용."""
+    if sid == target_sid:
+        return jsonify(ok=False, error="자기 자신과 병합할 수 없어요."), 400
+    s = SessionLocal()
+    try:
+        src = s.query(SourceRegistry).get(sid)
+        tgt = s.query(SourceRegistry).get(target_sid)
+        if not src or not tgt:
+            return jsonify(ok=False, error="소싱처를 찾을 수 없어요."), 404
+        src_guide = cg.loads(src.crawl_guide)
+        if not _guide_is_blank(src_guide):
+            return jsonify(ok=False,
+                           error=f"'{src.name}' 은 크롤 정의가 있어 안전상 병합 불가. 빈 중복 카드만 정리합니다."), 400
+        # URL 합치기(중복 제거, target 대표 유지)
+        tgt_guide = cg.loads(tgt.crawl_guide)
+        seen, merged = set(), []
+        for x in tgt_guide.get("sample_urls", []) + src_guide.get("sample_urls", []):
+            u = (x.get("url") or "").strip()
+            if u and u not in seen:
+                seen.add(u)
+                merged.append({"url": u, "is_lead": (len(merged) == 0)})
+        tgt_guide["sample_urls"] = merged
+        tgt_guide["updated_at"] = _now_iso()
+        try:
+            _save_guide(s, tgt, tgt_guide)
+        except ValueError as e:
+            s.rollback()
+            return jsonify(ok=False, error=f"URL 형식 오류: {e}"), 400
+        s.delete(src)
+        s.commit()
+        return jsonify(ok=True, target=tgt.name, url_count=len(merged))
+    except Exception as e:
+        s.rollback()
+        return jsonify(ok=False, error=f"병합 실패(참조 제약 가능): {str(e)[:120]}"), 400
     finally:
         s.close()
 
