@@ -207,6 +207,7 @@ def empty_skeleton() -> dict:
         "exclude_keywords": [],
         "verification": {"lead_cache": None, "last_new_check": None, "examples": [],
                          "saved_checks": [], "checklist": default_checklist()},
+        "update_requested": None,
         "updated_at": None,
     }
 
@@ -337,6 +338,15 @@ def validate_guide(data: dict) -> dict:
         "saved_checks": _clean_saved_checks(ver.get("saved_checks")),
         "checklist": _clean_checklist(ver.get("checklist")),
     }
+
+    ur = data.get("update_requested")
+    if isinstance(ur, dict):
+        out["update_requested"] = {
+            "at": str(ur.get("at", "")) or None,
+            "note": str(ur.get("note", ""))[:200],
+        }
+    else:
+        out["update_requested"] = None
 
     out["updated_at"] = data.get("updated_at")
     return out
