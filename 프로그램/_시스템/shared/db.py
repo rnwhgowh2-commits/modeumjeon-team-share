@@ -57,6 +57,8 @@ SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False, futu
 def init_db() -> None:
     """후속 모듈이 등록한 모든 모델 테이블을 생성한다 (멱등)."""
     Base.metadata.create_all(engine)
+    from lemouton.sets.schema_patch import ensure_market_columns
+    ensure_market_columns(engine)
     _apply_lightweight_migrations()
 
 
