@@ -603,6 +603,34 @@
    ]
   },
   {
+   "id": "S21",
+   "g": "재고",
+   "l": "be",
+   "src": "현대H몰",
+   "st": "ok",
+   "cm": "",
+   "sy": "단품(색 1개) 상품의 사이즈별 품절(다크네이비 260·275mm)이 매트릭스 '재고있음(1개)'으로 둔갑 — 색상모음전 같은 상품은 정상 품절",
+   "cz": "단품은 fetch_combo_persize_options 가 uitmCombYn!='Y' 라 None 리턴 → 확장 navGrab→parse_html 의 SSR stockList 경로를 탐. 그 루프가 stock=stockCount 만 사용(line 218) → 품절 사이즈도 stockCount=1 센티넬로 와서 '1개' 둔갑. 품절 신호 sellGbcd('11') 미사용. S19(확장)·S20(서버 모음전)과 동일 메커니즘의 단품 경로 누락",
+   "pv": "parse_html stockList 루프가 이미 있는 _size_stock_from_row(row)(sellGbcd 3상태) 재사용 — sellGbcd!='00'이면 0(품절). 회귀테스트 test_hmall_parse_dan_soldout_by_sellgbcd(255=2·260/265/275=0). 라이브: 다크네이비 단품 260·275=품절 확인 대기",
+   "code": {
+    "file": "lemouton/sourcing/crawlers/hmall.py",
+    "func": "parse_html",
+    "desc": "단품 SSR stockList 도 sellGbcd 품절판정(_size_stock_from_row 재사용)"
+   },
+   "crawl": "ok",
+   "doc": "sync",
+   "view": "sync",
+   "rev": [
+    {
+     "d": "2026-06-29",
+     "a": "add",
+     "txt": "S19/S20 후속 — 단품(uitmCombYn!=Y)은 서버 persize 프로브를 안 타고 parse_html SSR 경로라 sellGbcd 미적용으로 품절 둔갑 잔존. _size_stock_from_row 재사용으로 통일",
+     "src": "현대H몰",
+     "cm": ""
+    }
+   ]
+  },
+  {
    "id": "P1",
    "g": "가격",
    "l": "fe",

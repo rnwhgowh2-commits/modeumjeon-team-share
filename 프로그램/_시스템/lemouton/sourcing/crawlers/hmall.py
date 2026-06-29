@@ -215,7 +215,10 @@ class HmallCrawler(AbstractCrawler):
                 color_text = fallback_color
             opt_prc = _to_int(row.get("sellPrc"))
             price = opt_prc if opt_prc > 0 else surface_price
-            stock = _to_int(row.get("stockCount"))
+            # [2026-06-29 S21] 품절판정 = sellGbcd("00"=판매중/그 외 품절). 품절 사이즈도
+            #   stockCount=1 센티넬을 주므로 stockCount 만 보면 '1개 있음' 둔갑(거짓 재고
+            #   =금전손실). 단품(1축 SSR stockList)도 모음전과 동일하게 sellGbcd 우선.
+            stock = _size_stock_from_row(row)
             uitm_cd = str(row.get("uitmCd") or "")
             options.append({
                 "option_id": f"{slitm_cd}|{color_text}|{size_text}|{uitm_cd}",
@@ -223,7 +226,7 @@ class HmallCrawler(AbstractCrawler):
                 "size_text": size_text,
                 "price": price,
                 "sale_price": price,
-                "stock": stock,             # stockCount 실수량(0=품절). 999 둔갑 없음.
+                "stock": stock,             # sellGbcd 3상태(품절=0). 999 둔갑 없음.
                 **benefits,                 # 동적 혜택(있을 때만) — 옵션마다 동일 값
             })
 

@@ -41,6 +41,20 @@ def test_hmall_parse_stock_3state():
     assert all(o["price"] == 90000 for o in res.options)   # bbprc(표면가) 우선
 
 
+def test_hmall_parse_dan_soldout_by_sellgbcd():
+    """[S21] 단품(1축 SSR stockList)도 품절판정=sellGbcd. 품절 사이즈는 stockCount=1
+    센티넬을 주므로 stockCount 만 보면 '1개 있음' 둔갑(거짓 재고=금전손실)."""
+    html = _hmall_html([
+        {"uitm1AttrNm": "255", "sellPrc": 126900, "sellGbcd": "00", "stockCount": 2, "uitmCd": "A"},
+        {"uitm1AttrNm": "260", "sellPrc": 126900, "sellGbcd": "11", "stockCount": 1, "uitmCd": "B"},  # 품절(센티넬1)
+        {"uitm1AttrNm": "265", "sellPrc": 126900, "sellGbcd": "11", "stockCount": 1, "uitmCd": "C"},  # 품절
+        {"uitm1AttrNm": "275", "sellPrc": 126900, "sellGbcd": "11", "stockCount": 1, "uitmCd": "D"},  # 품절
+    ])
+    res = HmallCrawler().parse_html(html, "https://www.hmall.com/p/pdp/x?slitmCd=100")
+    by_size = {o["size_text"]: o["stock"] for o in res.options}
+    assert by_size == {"255": 2, "260": 0, "265": 0, "275": 0}   # 품절은 0 (1 둔갑 없음)
+
+
 def test_hmall_no_data_is_honest_empty():
     """itemPtc 없으면 옛값 금지 — 빈 옵션 + 실패 표기."""
     nd = {"props": {"pageProps": {"respData": {}}}}
