@@ -81,8 +81,8 @@
     <h2>구성 목록 — <span id="bsname" style="color:var(--blue2)"></span></h2>
     <div id="setslist"></div>
     <div class="bar">
-      <button class="btn ghost" onclick="goStep(1)">← 다른 모음전</button>
-      <button class="btn" onclick="startNewSet()">+ 새 구성 만들기</button>
+      <a class="btn ghost" href="/api/sets/dashboard">⤺ 전체보기</a>
+      <span style="display:flex;gap:8px"><button class="btn ghost" onclick="goStep(1)">← 다른 모음전</button><button class="btn" onclick="startNewSet()">+ 새 구성 만들기</button></span>
     </div>
   </div>
 
@@ -100,8 +100,8 @@
     <div id="matrix"></div>
     <p class="hint">열 머리(색상)·행 머리(사이즈)·왼쪽 위 모서리(전체)를 눌러 한 번에 켜고 끌 수 있어요.</p>
     <div class="bar">
-      <button class="btn ghost" onclick="goStep(1)">← 뒤로</button>
-      <button class="btn" id="saveSet" onclick="saveSet()">구성 저장 후 다음 →</button>
+      <a class="btn ghost" href="/api/sets/dashboard">⤺ 전체보기</a>
+      <span style="display:flex;gap:8px"><button class="btn ghost" onclick="goStep(1)">← 뒤로</button><button class="btn" id="saveSet" onclick="saveSet()">다음 →</button></span>
     </div>
   </div>
 
@@ -124,8 +124,8 @@
       <button class="btn" type="button" onclick="quickAddMarket(this)">추가</button>
     </div>
     <div class="bar">
-      <button class="btn ghost" onclick="goStep(2)">← 뒤로</button>
-      <button class="btn" id="saveChan" onclick="saveChannels()">판매처 추가 후 다음 →</button>
+      <a class="btn ghost" href="/api/sets/dashboard">⤺ 전체보기</a>
+      <span style="display:flex;gap:8px"><button class="btn ghost" onclick="goStep(2)">← 뒤로</button><button class="btn" id="saveChan" onclick="saveChannels()">다음 →</button></span>
     </div>
   </div>
 
@@ -134,8 +134,8 @@
     <h2>④ 마켓별 정보 입력 + 연동 실행</h2>
     <div id="channels"></div>
     <div class="bar">
-      <button class="btn ghost" onclick="goStep(3)">← 뒤로</button>
-      <a class="btn" href="/api/sets/dashboard" style="text-decoration:none">완료 · 목록으로 →</a>
+      <a class="btn ghost" href="/api/sets/dashboard">⤺ 전체보기</a>
+      <span style="display:flex;gap:8px"><button class="btn ghost" onclick="goStep(3)">← 뒤로</button><a class="btn" href="/api/sets/dashboard" style="text-decoration:none">완료 ✓</a></span>
     </div>
   </div>
 </div>
