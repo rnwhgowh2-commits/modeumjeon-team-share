@@ -339,10 +339,11 @@ def validate_guide(data: dict) -> dict:
         "checklist": _clean_checklist(ver.get("checklist")),
     }
 
+    # 사용자가 건 '크롤 업데이트 필요' 플래그 — 타임스탬프(at)+사유(note). 없으면 None.
     ur = data.get("update_requested")
     if isinstance(ur, dict):
         out["update_requested"] = {
-            "at": str(ur.get("at", "")) or None,
+            "at": str(ur.get("at", "")).strip() or None,
             "note": str(ur.get("note", ""))[:200],
         }
     else:
