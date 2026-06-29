@@ -290,8 +290,14 @@ def list_sets():
     s = SessionLocal()
     try:
         rows = svc.list_sets(s, model_code)
-        return jsonify({"ok": True, "sets": [
-            {"id": r.id, "name": r.name} for r in rows]})
+        out = []
+        for r in rows:
+            opt_count = sum(len(p.options) for p in r.products)
+            chans = [{"market": c.market, "linked": bool(c.market_product_id)}
+                     for c in r.channels]
+            out.append({"id": r.id, "name": r.name,
+                        "option_count": opt_count, "channels": chans})
+        return jsonify({"ok": True, "sets": out})
     finally:
         s.close()
 

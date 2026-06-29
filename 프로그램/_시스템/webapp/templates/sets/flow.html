@@ -185,7 +185,7 @@ async function showSets(m){
   const sets=(d&&d.sets)||[];
   const box=$('#setslist');
   if(!sets.length){ box.innerHTML='<p class="hint">아직 만든 구성이 없어요. 아래 "새 구성 만들기"로 시작하세요.</p>'; }
-  else { box.innerHTML=sets.map(s=>'<div class="row" style="cursor:default"><span class="nm">'+s.name+'</span><button class="btn ghost" style="padding:5px 12px;font-size:12px;margin-left:auto" onclick="editSet('+s.id+')">편집</button><button class="btn ghost" style="padding:5px 12px;font-size:12px;margin-left:8px" onclick="deleteSetRow('+s.id+')">삭제</button></div>').join(''); }
+  else { box.innerHTML=sets.map(function(s){var oc=(s.option_count!=null?s.option_count+'옵션':'');var ch=s.channels||[];var lk=ch.filter(function(c){return c.linked;}).length;var cs=ch.length?(lk+'/'+ch.length+' 연동'+(lk===0?' (미연동)':'')):'판매처 없음';var meta='<span style="margin-left:8px;color:#8b95a1;font-size:12px">'+oc+((oc&&cs)?' · ':'')+cs+'</span>';return '<div class="row" style="cursor:default"><span class="nm">'+s.name+'</span>'+meta+'<button class="btn ghost" style="padding:5px 12px;font-size:12px;margin-left:auto" onclick="editSet('+s.id+')">편집</button><button class="btn ghost" style="padding:5px 12px;font-size:12px;margin-left:8px" onclick="deleteSetRow('+s.id+')">삭제</button></div>';}).join(''); }
   document.getElementById('card1').classList.add('hidden');
   document.getElementById('card-sets').classList.remove('hidden');
 }
