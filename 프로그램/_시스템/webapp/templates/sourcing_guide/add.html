@@ -18,11 +18,6 @@
   .sa .btn.add{border:1.5px dashed #adb5bd;color:#495057;font-weight:600;max-width:760px;width:100%;}
   .sa .btn.primary{background:#191F28;color:#fff;border:none;padding:12px 24px;font-weight:700;font-size:15px;margin-top:18px;}
   .sa .lead{font-size:11px;background:#FFE8CC;color:#D9480F;border-radius:6px;padding:3px 7px;font-weight:700;}
-  .sa .hist{margin-top:30px;border:1px solid #ffe3b0;background:#FFFBF2;border-radius:12px;padding:16px 18px;}
-  .sa .hist h3{font-size:14px;font-weight:800;margin-bottom:4px;}
-  .sa .hist .hd{font-size:12px;color:#8B95A1;margin-bottom:10px;}
-  .sa .ec{border:1px solid #E5E8EB;border-radius:8px;padding:10px;background:#fff;margin-bottom:8px;font-size:12.5px;line-height:1.6;}
-  .sa .ec b{font-weight:800;}
   .sa .toast{margin-top:14px;font-size:13px;font-weight:700;display:none;}
 </style>
 <div class="sa">
@@ -43,7 +38,6 @@
     <button class="btn add" type="button" onclick="addUrlRow('newUrls')">+ URL 추가</button>
     <br><button class="btn primary" type="button" onclick="submitNew()">📥 추가 + 분석 요청 담기</button>
     <div class="toast" id="newToast"></div>
-    <div class="hist" id="histNew"></div>
   </div>
 
   <!-- 기존 -->
@@ -60,12 +54,10 @@
     <input type="text" id="updNote" placeholder="예: 가격이 0으로 나옴 / 재고가 다 '있음'으로 둔갑">
     <br><button class="btn primary" type="button" onclick="submitUpd()">🔄 URL 저장 + 크롤 업데이트 요청</button>
     <div class="toast" id="updToast"></div>
-    <div class="hist" id="histUpd"></div>
   </div>
 </div>
 
 <script>
-function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
 function addUrlRow(boxId, val){
   var box=document.getElementById(boxId);
   var n=box.querySelectorAll('.urlrow').length;
@@ -122,18 +114,6 @@ async function submitUpd(){
   if(res.ok&&res.data.ok){ toast('updToast','✓ 저장+업데이트 요청됨. 이제 Claude Code에 "이 소싱처 크롤 업데이트해줘".',true); }
   else { toast('updToast','업데이트 요청 실패',false); }
 }
-// 과거이력 읽기전용 패널 — 4철칙(rule) 항상 + 재고/가격 대표 재발 패턴
-async function renderHistory(){
-  var items=await fetch('/static/error_catalog.json').then(function(r){return r.json();}).then(function(j){return j.items||[];}).catch(function(){return [];});
-  var rules=items.filter(function(it){return it.rule;});
-  var top=items.filter(function(it){return it.id && it.st==='ok';}).slice(0,4);
-  var html='<h3>⚠️ 과거 이력 참고 (읽기 전용 · 🤖 Claude가 자동 판정)</h3>'
-    +'<div class="hd">소싱처 이름과 무관하게 같은 수집방식·공유코드면 Claude가 자동 참고합니다. 아래는 미리보기.</div>';
-  rules.forEach(function(r){html+='<div class="ec"><b>철칙 · '+esc(r.sy)+'</b><br>'+esc(r.cz)+'</div>';});
-  top.forEach(function(t){html+='<div class="ec"><b>'+esc(t.id)+' · '+esc(t.g)+' · '+esc(t.src)+'</b> ✅<br>'+esc(t.sy)+'<br><span style="color:#11A36B">✔ '+esc(t.pv)+'</span></div>';});
-  document.getElementById('histNew').innerHTML=html;
-  document.getElementById('histUpd').innerHTML=html;
-}
 // 탭 전환 + 초기화
 document.querySelectorAll('.sa .tab').forEach(function(t){
   t.addEventListener('click',function(){
@@ -143,6 +123,6 @@ document.querySelectorAll('.sa .tab').forEach(function(t){
     document.getElementById('pane-'+t.dataset.pane).classList.add('on');
   });
 });
-addUrlRow('newUrls'); renderHistory();
+addUrlRow('newUrls');
 </script>
 {% endblock %}
