@@ -454,7 +454,7 @@
    "sy": "인벤토리 API 호출 통째 실패 시 전 옵션 999 재고있음 둔갑",
    "cz": "옛 추출기가 invMap 빈 상태에서 remainQuantity==null ? 999 (호출실패와 미매칭 미구분)",
    "pv": "라이브 확장 v0.6.7에 구현 — invOk 플래그(arr.length>0)로 API 실패 시 stock=null(불명), 999 둔갑 차단",
-   "crawl": "warn",
+   "crawl": "ok",
    "doc": "sync",
    "view": "sync",
    "rev": [
@@ -476,9 +476,21 @@
      "a": "mod",
      "txt": "검증불가 유지: repo 확장 background.js:296 아직 remainQuantity==null?999(stale) — 수정은 라이브 확장 v0.7.x에만. 라이브 확장 배포 시 ✅",
      "src": "무신사"
+    },
+    {
+     "d": "2026-06-29",
+     "a": "mod",
+     "txt": "repo 확장 가드 구현(background.js invOk: API 전체실패 시 999 금지→-1 불명, happy-path 불변)→⚠✅",
+     "src": "무신사",
+     "cm": ""
     }
    ],
-   "reason": "ext"
+   "reason": "ext",
+   "code": {
+    "file": "extension/moum-crawler/background.js",
+    "func": "invOk",
+    "desc": "재고 API 전체 실패 시 999(재고있음) 금지→-1(불명)"
+   }
   },
   {
    "id": "S17",
@@ -853,11 +865,11 @@
    "g": "가격",
    "l": "fe",
    "src": "옵션조합 모달",
-   "st": "todo",
+   "st": "ok",
    "sy": "축 값 이름변경(240→245) 시 매핑이 조용히 유실",
    "cz": "rename 시 매핑 키 마이그레이션 없음(keyOf=표시값)",
    "pv": "부분완화(console.warn로 유실 표면화). 완전수정=키 마이그레이션은 fragile 모달 rename 흐름 변경이라 별도",
-   "crawl": "note",
+   "crawl": "ok",
    "doc": "sync",
    "view": "sync",
    "rev": [
@@ -878,9 +890,20 @@
      "a": "mod",
      "txt": "검증: option_url_modal.js:2139 축값 편집이 매핑키 미마이그레이션 — 실제 엣지 버그 맞음(드문·완화). 민감모달이라 보존",
      "src": "옵션조합 모달"
+    },
+    {
+     "d": "2026-06-29",
+     "a": "mod",
+     "txt": "키 마이그레이션 구현(recalcMatrix prune 전 _migrateRenamedKeys, 인메모리 5저장소)→📌주의→✅. 인메모리만·크롤 무관",
+     "src": "옵션조합 모달",
+     "cm": ""
     }
    ],
-   "reason": "mitigated"
+   "code": {
+    "file": "webapp/static/option_url_modal.js",
+    "func": "_migrateRenamedKeys",
+    "desc": "축값 rename 시 매핑키(selected·seen·invMapped·mappedOff·urls) old→new 마이그레이션"
+   }
   },
   {
    "id": "P13",

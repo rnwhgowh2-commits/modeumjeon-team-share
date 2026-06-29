@@ -2190,7 +2190,45 @@
       }, 250);
     }
 
+    // [2026-06-29 P12] 축 값 rename(예: 240→245) 시 매핑 키 마이그레이션(prune 전).
+    //   recalcMatrix 가 debounce 라 직전 커밋값(_valSnap) vs 현재값 1회 비교로 충분.
+    //   순수 1-토큰 rename 만 감지 → 콤보 키의 해당 축 위치값을 old→new 로 치환.
+    //   대상 키 저장소 5곳(selected·seen·invMappedKeys·mappedOff·urls.option_keys). 인메모리만(백엔드·크롤 무관).
+    function _migrateRenamedKeys() {
+      const snap = state._valSnap;
+      if (!snap || snap.length !== state.axes.length) return;
+      const renames = {}; // axisIndex -> { o:oldTok, n:newTok }
+      for (let ai = 0; ai < state.axes.length; ai++) {
+        const ov = parseValues(snap[ai] || ''), nv = parseValues(state.axes[ai].values || '');
+        if (ov.length !== nv.length) continue;
+        const diff = [];
+        for (let j = 0; j < ov.length; j++) if (ov[j] !== nv[j]) diff.push(j);
+        if (diff.length === 1) { const o = ov[diff[0]], n = nv[diff[0]]; if (o && n) renames[ai] = { o, n }; }
+      }
+      const ais = Object.keys(renames);
+      if (!ais.length) return;
+      const remapKey = (k) => {
+        let arr; try { arr = JSON.parse(k); } catch (e) { return k; }
+        if (!Array.isArray(arr)) return k;
+        let changed = false;
+        ais.forEach(ai => { if (arr[ai] === renames[ai].o) { arr[ai] = renames[ai].n; changed = true; } });
+        return changed ? JSON.stringify(arr) : k;
+      };
+      const remapSet = (set) => {
+        if (!set) return;
+        const next = new Set();
+        set.forEach(k => next.add(remapKey(k)));
+        set.clear(); next.forEach(k => set.add(k));
+      };
+      remapSet(state.selected); remapSet(state.seen); remapSet(state.invMappedKeys); remapSet(state.mappedOff);
+      Object.keys(state.urls || {}).forEach(sk => {
+        (state.urls[sk] || []).forEach(u => { if (u.option_keys && u.option_keys.length) u.option_keys = u.option_keys.map(remapKey); });
+      });
+    }
+
     function recalcMatrix() {
+      _migrateRenamedKeys();                                     // P12: rename 키 마이그레이션 (prune 전)
+      state._valSnap = state.axes.map(a => a.values);            // 다음 비교용 커밋 스냅샷
       const valid = validAxes();
       if (!valid.length) { state.selected.clear(); state.seen.clear(); return; }
       const combos = cartesian(valid.map(a => a.values));

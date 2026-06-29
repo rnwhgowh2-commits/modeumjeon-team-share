@@ -254,14 +254,17 @@ async function musinsaExtractor() {
   const valueNos = [];
   basic.forEach((g) => (g.optionValues || g.values || []).forEach((v) => { if (v.no != null) valueNos.push(v.no); }));
   const invMap = {};
+  let invOk = false;
   try {
     const ij = await fetch(base + "/options/v2/prioritized-inventories", {
       method: "POST", credentials: "include",
       headers: { "Content-Type": "application/json", Accept: "application/json" },
       body: JSON.stringify({ optionValueNos: valueNos }),
     }).then((r) => r.json());
-    (ij.data || []).forEach((x) => { invMap[x.productVariantId] = x; });
-  } catch (e) { /* 재고 실패해도 가격은 진행 */ }
+    const invArr = (ij && ij.data) || [];
+    invArr.forEach((x) => { invMap[x.productVariantId] = x; });
+    invOk = invArr.length > 0; // 재고 API 성공+데이터 → true. 전체 실패/빈 응답이면 false.
+  } catch (e) { /* invOk=false 유지 → 전체 실패 시 999(재고있음) 금지, 아래서 -1(불명) */ }
 
   // ★ 2026-06-13 — 표면노출가 = 무신사 구조화 API(goodsPrice.salePrice) 직읽기.
   //   기존: document.body.innerText 정규식으로 '나의 할인가'(회원가)를 price 로 오긁어
@@ -292,8 +295,12 @@ async function musinsaExtractor() {
     let color = "", size = "";
     if (code.includes("^")) { const p = code.split("^"); color = (p[0] || "").trim(); size = (p[1] || "").trim(); }
     else { size = code.trim(); }
-    const inv = invMap[it.no] || {};
-    const stock = inv.outOfStock ? 0 : (inv.remainQuantity == null ? 999 : Math.max(0, inv.remainQuantity));
+    // S16: 재고 API 전체 실패(invOk=false)인데 이 옵션이 맵에 없으면 999(재고있음) 금지 → -1(불명).
+    //   API 성공(invOk=true) happy-path는 기존대로(맵에 있으면 그 값, 없으면 999).
+    const inv = invMap[it.no];
+    let stock;
+    if (inv) stock = inv.outOfStock ? 0 : (inv.remainQuantity == null ? 999 : Math.max(0, inv.remainQuantity));
+    else stock = invOk ? 999 : -1;
     return { color, size: size.replace("mm", "").trim(), price, stock };
   });
   const anyStock = options.some((o) => o.stock > 0) || (price != null);
