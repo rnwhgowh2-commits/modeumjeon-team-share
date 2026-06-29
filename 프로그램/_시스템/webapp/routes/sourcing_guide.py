@@ -152,6 +152,14 @@ def api_queue():
     return jsonify(ok=True, items=_queue_items())
 
 
+@bp.route("/add")
+def add_page():
+    """소싱처 추가·업데이트 카드 — 2탭(신규/기존) 페이지."""
+    sources = [{"id": x.id, "name": x.name} for x in _sources()]
+    return render_template("sourcing_guide/add.html",
+                           active="sourcing_guide", sources=sources)
+
+
 @bp.route("/")
 def overview():
     rows = []

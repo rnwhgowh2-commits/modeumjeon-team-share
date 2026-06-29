@@ -1,10 +1,16 @@
 import json
+import os
 
 import pytest
 
 from lemouton.sourcing import crawl_guide as cg
 from shared.db import SessionLocal
 from lemouton.sourcing.models_pricing import SourceRegistry
+
+# webapp/templates 절대 경로 — tests/sourcing/ 에서 ../../webapp/templates
+_TMPL_DIR = os.path.normpath(
+    os.path.join(os.path.dirname(__file__), "..", "..", "webapp", "templates")
+)
 
 
 # ─────────────────────────────────────────────────────────────────
@@ -35,9 +41,19 @@ def client(monkeypatch):
 
     from flask import Flask
     from webapp.routes import sourcing_guide as sg
-    app = Flask(__name__)
+    app = Flask(__name__, template_folder=_TMPL_DIR)
     app.register_blueprint(sg.bp)
     app.config.update(TESTING=True)
+    # base.html / sidebar.html 에서 필요한 컨텍스트 변수 — 테스트 앱에는 context_processor 없으므로
+    # 모든 sidebar 변수를 안전한 더미값으로 globals 주입.
+    _dummy_mode_icons = {'bundles': {'emoji': '📦', 'color': ''}, 'inventory': {'emoji': '🏷', 'color': ''}}
+    app.jinja_env.globals.update(
+        sidebar_layout={},
+        sidebar_badge_values={'unmapped': 0, 'failed': 0},
+        sidebar_mode_icons=_dummy_mode_icons,
+        sidebar_unmapped_count=0,
+        sidebar_failed_count=0,
+    )
     return app.test_client()
 
 
@@ -200,3 +216,16 @@ def test_queue_lists_pending(client):
     hit = [it for it in items if it["id"] == sid]
     assert hit and hit[0]["kind"] == "new"
     _cleanup("테스트큐")
+
+
+# ─────────────────────────────────────────────────────────────────
+#  Task 5 — /add 페이지 렌더 스모크 테스트
+# ─────────────────────────────────────────────────────────────────
+
+def test_add_page_renders(client):
+    resp = client.get("/sourcing-guide/add")
+    assert resp.status_code == 200
+    body = resp.get_data(as_text=True)
+    assert "소싱처 추가" in body
+    assert "신규 소싱처 추가" in body
+    assert "기존 소싱처 크롤 업데이트" in body
