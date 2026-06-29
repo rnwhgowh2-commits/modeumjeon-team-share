@@ -9,7 +9,7 @@ from datetime import datetime, timezone
 
 from sqlalchemy import (
     Column, String, Integer, Boolean, ForeignKey, Text, DateTime, JSON,
-    UniqueConstraint,
+    UniqueConstraint, Index,
 )
 from sqlalchemy.orm import relationship
 
@@ -110,6 +110,9 @@ class SetChannelOption(Base):
     canonical_sku = Column(String(128), nullable=False)
     market_option_id = Column(String(128))            # matched 만 채움
     status = Column(String(16), nullable=False)        # matched|unmatched|ambiguous|duplicate
+    mkt_stock = Column(Integer)
+    mkt_price = Column(Integer)
+    mkt_fetched_at = Column(DateTime)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc),
                         onupdate=lambda: datetime.now(timezone.utc))
@@ -119,4 +122,23 @@ class SetChannelOption(Base):
     __table_args__ = (
         UniqueConstraint("channel_id", "canonical_sku",
                          name="uq_set_channel_options_channel_sku"),
+    )
+
+
+class ChannelChangeEvent(Base):
+    """판매처 채널 옵션 변동이력 — stock/price 변동 시 1행 삽입."""
+    __tablename__ = "channel_change_events"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    set_id = Column(Integer, ForeignKey("product_sets.id"), nullable=False, index=True)
+    market = Column(String(20), nullable=False)
+    canonical_sku = Column(String(128), nullable=False)
+    field = Column(String(8), nullable=False)       # stock | price
+    source = Column(String(8), nullable=False)      # source | market
+    prev_value = Column(Integer)
+    next_value = Column(Integer)
+    at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
+
+    __table_args__ = (
+        Index("ix_cce_lookup", "set_id", "market", "canonical_sku", "field", "at"),
     )
