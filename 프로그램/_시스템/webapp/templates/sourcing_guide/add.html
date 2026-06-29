@@ -65,15 +65,17 @@
 </div>
 
 <script>
+function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
 function addUrlRow(boxId, val){
   var box=document.getElementById(boxId);
   var n=box.querySelectorAll('.urlrow').length;
   var row=document.createElement('div'); row.className='urlrow';
   row.innerHTML =
     (n===0?'<span class="lead">대표</span>':'<span style="width:34px"></span>')
-    + '<input type="text" placeholder="https://..." value="'+(val||'')+'">'
+    + '<input type="text" placeholder="https://...">'
     + '<button class="btn" type="button" onclick="openUrl(this)">↗ 바로가기</button>'
     + '<button class="btn del" type="button" onclick="this.closest(\'.urlrow\').remove()">🗑</button>';
+  row.querySelector('input').value = val || '';   // 속성 주입(value=) → 따옴표/태그 탈출 차단
   box.appendChild(row);
 }
 function openUrl(btn){
@@ -114,10 +116,11 @@ async function submitUpd(){
   if(!sid){toast('updToast','소싱처를 선택하세요.',false);return;}
   var urls=collectUrls('updUrls');
   var note=document.getElementById('updNote').value.trim();
-  await postJSON('/sourcing-guide/api/'+sid+'/save-urls',{urls:urls});
+  var r1=await postJSON('/sourcing-guide/api/'+sid+'/save-urls',{urls:urls});
+  if(!r1.ok||!r1.data.ok){ toast('updToast','URL 저장 실패: '+((r1.data&&r1.data.error)||'오류'),false); return; }
   var res=await postJSON('/sourcing-guide/api/'+sid+'/request-update',{note:note});
   if(res.ok&&res.data.ok){ toast('updToast','✓ 저장+업데이트 요청됨. 이제 Claude Code에 "이 소싱처 크롤 업데이트해줘".',true); }
-  else { toast('updToast','실패',false); }
+  else { toast('updToast','업데이트 요청 실패',false); }
 }
 // 과거이력 읽기전용 패널 — 4철칙(rule) 항상 + 재고/가격 대표 재발 패턴
 async function renderHistory(){
@@ -126,8 +129,8 @@ async function renderHistory(){
   var top=items.filter(function(it){return it.id && it.st==='ok';}).slice(0,4);
   var html='<h3>⚠️ 과거 이력 참고 (읽기 전용 · 🤖 Claude가 자동 판정)</h3>'
     +'<div class="hd">소싱처 이름과 무관하게 같은 수집방식·공유코드면 Claude가 자동 참고합니다. 아래는 미리보기.</div>';
-  rules.forEach(function(r){html+='<div class="ec"><b>철칙 · '+r.sy+'</b><br>'+(r.cz||'')+'</div>';});
-  top.forEach(function(t){html+='<div class="ec"><b>'+t.id+' · '+t.g+' · '+(t.src||'')+'</b> ✅<br>'+(t.sy||'')+'<br><span style="color:#11A36B">✔ '+(t.pv||'')+'</span></div>';});
+  rules.forEach(function(r){html+='<div class="ec"><b>철칙 · '+esc(r.sy)+'</b><br>'+esc(r.cz)+'</div>';});
+  top.forEach(function(t){html+='<div class="ec"><b>'+esc(t.id)+' · '+esc(t.g)+' · '+esc(t.src)+'</b> ✅<br>'+esc(t.sy)+'<br><span style="color:#11A36B">✔ '+esc(t.pv)+'</span></div>';});
   document.getElementById('histNew').innerHTML=html;
   document.getElementById('histUpd').innerHTML=html;
 }
