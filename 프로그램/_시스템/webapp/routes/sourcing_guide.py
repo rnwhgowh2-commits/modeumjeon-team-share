@@ -45,6 +45,42 @@ def _source(sid: int):
         s.close()
 
 
+def _save_guide(s, src, guide: dict) -> None:
+    """검증 후 SourceRegistry.crawl_guide 에 직렬화 저장."""
+    src.crawl_guide = cg.dumps(guide)
+    s.commit()
+
+
+@bp.post("/api/add-source")
+def api_add_source():
+    """신규 소싱처: 이름 + URL 다중 → SourceRegistry 생성 + sample_urls 저장.
+    저장 즉시 전체보기에 '미정의'로 등장하고 '분석 대기' 큐에 잡힌다."""
+    data = request.get_json(silent=True) or {}
+    name = (data.get("name") or "").strip()
+    urls = [u.strip() for u in (data.get("urls") or []) if str(u).strip()]
+    if not name:
+        return jsonify(ok=False, error="소싱처 이름을 입력하세요."), 400
+    if len(name) > 64:
+        return jsonify(ok=False, error="이름은 64자 이내."), 400
+    s = SessionLocal()
+    try:
+        if s.query(SourceRegistry).filter_by(name=name).first():
+            return jsonify(ok=False, error=f"'{name}' 은 이미 등록된 소싱처에요."), 400
+        src = SourceRegistry(name=name, sort_order=s.query(SourceRegistry).count())
+        s.add(src)
+        s.flush()
+        guide = cg.empty_skeleton()
+        guide["sample_urls"] = [
+            {"url": u, "is_lead": (i == 0)} for i, u in enumerate(urls)
+        ]
+        guide["updated_at"] = _now_iso()
+        _save_guide(s, src, guide)
+        return jsonify(ok=True, id=src.id, name=src.name,
+                       url_count=len(guide["sample_urls"]))
+    finally:
+        s.close()
+
+
 @bp.route("/")
 def overview():
     rows = []
