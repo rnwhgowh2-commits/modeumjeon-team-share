@@ -686,6 +686,16 @@ def _option_matrix_data(code: str):
                         if _so_m is not None:
                             _opt_stock = _so_m.current_stock
                             _opt_price = _so_m.current_price
+                            # [2026-06-28] 색상 전용 매칭(색상모음전·모델모음전 = SO 에 사이즈 없이
+                            #   색만 → current_stock 은 색 '총재고') 일 때, 그 색 합계를 모든 사이즈에
+                            #   동일 표기하면 '합산 재고 둔갑'(전 사이즈 122 = 금전 위험)이 된다.
+                            #   가격은 색 단위로 정확하니 유지하고, 재고만 정직하게:
+                            #   품절(0)→0, 있음→999(수량미상·있음). per-size 정확 재고는 단품 컬럼 제공.
+                            _so_size = (_so_m.size_text or '').strip()
+                            _opt_size_v = _stk_digits(_sku_size.get(lk.option_canonical_sku))
+                            if (_opt_size_v and not _so_size
+                                    and not _stk_digits(_so_m.color_text)):
+                                _opt_stock = 0 if _opt_stock == 0 else 999
                         elif _so_index.get(sp.id):
                             # [2026-06-13 폴백가 금지] 이 소싱처는 옵션(색·사이즈)을 크롤했는데
                             #   이 색/사이즈가 그 목록에 없음 = 소싱처가 실제로 안 파는 조합.
