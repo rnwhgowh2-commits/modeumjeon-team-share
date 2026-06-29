@@ -127,9 +127,10 @@
     if(o.purchase_priority_resolved==='purchase') return o.purchase_stock!=null?(o.purchase_stock+'개'):'-';
     return o.src_stock_label||(o.src_stock!=null?(o.src_stock+'개'):'-');
   }
-  function costOf(o){
-    var v=o.purchase_priority_resolved==='purchase'?o.purchase_avg_cost:o.src_cost;
-    return fmt(v);
+  function costOf(o, bd){
+    if(o.purchase_priority_resolved==='purchase') return fmt(o.purchase_avg_cost);
+    if(bd && bd.final_price!=null) return fmt(bd.final_price);   // 매트릭스·영수증과 동일(단일 진실 원천)
+    return fmt(o.src_cost);   // breakdown 없을 때만 폴백(소싱처 미수집 등)
   }
   function collOf(o){
     var ts=null; (o.sources||[]).forEach(function(sc){ if(sc.last_fetched_at){ var t=new Date(sc.last_fetched_at).getTime(); if(!isNaN(t)&&(ts==null||t>ts))ts=t; } });
@@ -154,7 +155,7 @@
     h+='<div class="rl total"><span>최종 매입가</span><b>'+fmt(bd.final_price)+'</b></div></div>';
     return h;
   }
-  function loadReceipt(o, td){
+  function loadReceipt(o, td, bd){
     if(!o){ td.innerHTML='<div class="sd-cnt">옵션 정보를 찾지 못했어요.</div>'; return; }
     if(o.purchase_priority_resolved==='purchase'){
       td.innerHTML='<div class="rcp"><div class="rl total"><span>사입 매입가(이동평균)</span><b>'+fmt(o.purchase_avg_cost)+'</b></div></div><div class="sd-cnt" style="padding:4px 0">사입 옵션은 직접 매입가를 사용해요(소싱 혜택 영수증 없음).</div>';
@@ -164,13 +165,14 @@
     if(!cand.length){ td.innerHTML='<div class="sd-cnt" style="padding:6px 0">소싱처 가격 정보가 없어요(수집 전).</div>'; return; }
     cand.sort(function(a,b){ return a.crawled_price-b.crawled_price; });
     var s=cand[0];
+    if(bd){ td.innerHTML='<div style="font-size:11px;color:#185FA5;margin-bottom:4px">'+esc(s.source_name)+' 기준 (최저가 소싱처)</div>'+receipt(bd); return; }
     var url='/api/source-benefits/breakdown/'+encodeURIComponent(o.sku)+'/'+s.source_id+'?sale_price='+s.crawled_price+(s.source_product_id?('&source_product_id='+encodeURIComponent(s.source_product_id)):'');
     td.innerHTML='<div class="sd-cnt" style="padding:6px 0">영수증 불러오는 중…</div>';
     fetch(url,{headers:{'Accept':'application/json'}}).then(function(r){return r.json();})
       .then(function(bd){ td.innerHTML='<div style="font-size:11px;color:#185FA5;margin-bottom:4px">'+esc(s.source_name)+' 기준 (최저가 소싱처)</div>'+receipt(bd); })
       .catch(function(){ td.innerHTML='<div class="sd-cnt" style="padding:6px 0">영수증을 불러오지 못했어요.</div>'; });
   }
-  function renderTable(opts){
+  function renderTable(opts, bd){
     if(!opts.length) return '<div class="sd-cnt" style="padding:8px 0">옵션이 없어요.</div>';
     var h='<table class="det-tbl"><thead><tr><th>옵션</th><th>출처</th><th class="ta-r">재고</th><th class="ta-r">최종 매입가</th><th class="ta-r">마켓 매칭</th><th class="ta-r">수집</th><th class="ta-r">전송</th></tr></thead><tbody>';
     opts.forEach(function(o,i){
@@ -179,7 +181,7 @@
       h+='<td>'+esc((o.color_display||o.color_code||'')+' · '+(o.size_display||o.size_code||''))+'</td>';
       h+='<td><span class="'+bcls+'">'+k+'</span></td>';
       h+='<td class="ta-r">'+esc(stockOf(o))+'</td>';
-      h+='<td class="ta-r">'+costOf(o)+'</td>';
+      h+='<td class="ta-r">'+costOf(o, bd&&bd[o.sku])+'</td>';
       h+='<td class="ta-r">'+matchCell(o)+'</td>';
       h+='<td class="ta-r sd-cnt">'+collOf(o)+'</td>';
       h+='<td class="ta-r sd-cnt">미전송</td>';
@@ -189,7 +191,7 @@
     h+='</tbody></table><div class="sd-cnt" style="margin-top:6px">행을 누르면 가격 영수증(표면노출가→혜택→최종매입가)이 펼쳐져요. 전송일자는 실제 전송 기능(다음 단계) 도입 후 표기됩니다.</div>';
     return h;
   }
-  function renderMatrix(opts){
+  function renderMatrix(opts, bd){
     var colors=[],sizes=[],cell={};
     opts.forEach(function(o){
       var c=o.color_display||o.color_code||''; var z=o.size_display||o.size_code||'';
@@ -205,7 +207,7 @@
         var o=cell[c+'|'+z];
         if(!o){ h+='<td class="mx-na">·</td>'; return; }
         var k=srcKind(o);
-        h+='<td><div style="font-weight:700;color:#191F28">'+esc(stockOf(o))+'</div><div class="sd-cnt">'+costOf(o)+'</div><div style="font-size:10px;color:'+(k==='사입'?'#854F0B':'#185FA5')+'">'+k+'</div></td>';
+        h+='<td><div style="font-weight:700;color:#191F28">'+esc(stockOf(o))+'</div><div class="sd-cnt">'+costOf(o, bd&&bd[o.sku])+'</div><div style="font-size:10px;color:'+(k==='사입'?'#854F0B':'#185FA5')+'">'+k+'</div></td>';
       });
       h+='</tr>';
     });
@@ -213,6 +215,13 @@
     return h;
   }
   var detailCache={};   // sid → options
+  var bdCache={};       // sid → {sku: breakdown}  (최종 매입가·영수증 단일 소스)
+  function pickSrc(o){  // 옵션의 대표 소싱처(최저 표면가, id 유효)
+    var cand=(o.sources||[]).filter(function(s){ return s.source_id!=null && s.crawled_price!=null; });
+    if(!cand.length) return null;
+    cand.sort(function(a,b){ return a.crawled_price-b.crawled_price; });
+    return cand[0];
+  }
   function renderDetail(box, sid, data){
     detailCache[sid]=data.options||[];
     var legend='<span class="det-legend"><span class="b-buy">사입</span> 직접매입 우선 · <span class="b-src">소싱</span> 소싱처 크롤 — 옵션마다 모음전 판매조건을 그대로 따름</span>';
@@ -222,7 +231,7 @@
     }).join('');
     box.innerHTML='<div class="det-bar"><div class="det-tabs"><span class="det-tab on" data-view="cell">셀 보기</span><span class="det-tab" data-view="matrix">매트릭스 보기</span></div>'+legend+'</div>'
       +(pvBtns?'<div class="pv-bar">'+pvBtns+'<span class="sd-cnt">전송 전 \'마켓 현재값 → 보낼 값\' 대조(마켓에 쓰지 않음)</span></div>':'')
-      +'<div data-detbody>'+renderTable(detailCache[sid])+'</div>'
+      +'<div data-detbody>'+renderTable(detailCache[sid], bdCache[sid])+'</div>'
       +'<div data-pvbox></div>';
   }
   function renderPreview(d, mk){
@@ -258,7 +267,19 @@
     box.innerHTML='<div class="sd-cnt" style="padding:8px 0">상세 불러오는 중…</div>';
     fetch('/api/sets/'+sid+'/detail-matrix',{headers:{'Accept':'application/json'}})
       .then(function(r){return r.json();})
-      .then(function(d){ if(d&&d.ok) renderDetail(box,sid,d); else box.innerHTML='<div class="sd-cnt" style="padding:8px 0">상세를 불러오지 못했어요.</div>'; })
+      .then(function(d){
+        if(!(d&&d.ok)){ box.innerHTML='<div class="sd-cnt" style="padding:8px 0">상세를 불러오지 못했어요.</div>'; return; }
+        var items=[];
+        (d.options||[]).forEach(function(o){
+          if(o.purchase_priority_resolved==='purchase') return;
+          var s=pickSrc(o); if(s) items.push({sku:o.sku, source_id:s.source_id, sale_price:s.crawled_price, source_product_id:s.source_product_id});
+        });
+        if(!items.length){ bdCache[sid]={}; renderDetail(box,sid,d); return; }
+        fetch('/api/source-benefits/breakdowns',{method:'POST',headers:{'Content-Type':'application/json','Accept':'application/json'},body:JSON.stringify({items:items})})
+          .then(function(r){return r.json();})
+          .then(function(bd){ var m={}; var res=(bd&&bd.results)||{}; items.forEach(function(it){ var b=res[it.sku+'|'+it.source_id]; if(b) m[it.sku]=b; }); bdCache[sid]=m; renderDetail(box,sid,d); })
+          .catch(function(){ bdCache[sid]={}; renderDetail(box,sid,d); });
+      })
       .catch(function(){ box.innerHTML='<div class="sd-cnt" style="padding:8px 0">상세를 불러오지 못했어요.</div>'; });
   }
 
@@ -276,7 +297,7 @@
       card.querySelectorAll('.det-tab').forEach(function(t){ t.classList.toggle('on', t===tabEl); });
       var body=card.querySelector('[data-detbody]');
       var opts=detailCache[sid]||[];
-      body.innerHTML = tabEl.getAttribute('data-view')==='matrix' ? renderMatrix(opts) : renderTable(opts);
+      body.innerHTML = tabEl.getAttribute('data-view')==='matrix' ? renderMatrix(opts, bdCache[sid]) : renderTable(opts, bdCache[sid]);
       return;
     }
     var optRow=e.target.closest('tr.opt-row');
@@ -289,7 +310,7 @@
           rcp.__loaded=true;
           var card=optRow.closest('.sd-card'); var sid=card.getAttribute('data-sid');
           var oi=parseInt(optRow.getAttribute('data-oi'),10);
-          loadReceipt((detailCache[sid]||[])[oi], rcp.querySelector('[data-rcp-body]'));
+          var _o=(detailCache[sid]||[])[oi]; loadReceipt(_o, rcp.querySelector('[data-rcp-body]'), _o&&(bdCache[sid]||{})[_o.sku]);
         }
       }
       return;
