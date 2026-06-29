@@ -85,6 +85,47 @@ def api_add_source():
         s.close()
 
 
+@bp.post("/api/<int:sid>/save-urls")
+def api_save_urls(sid: int):
+    """기존 소싱처 sample_urls 전체 교체(추가/수정/삭제 결과 리스트). 첫 URL=대표."""
+    data = request.get_json(silent=True) or {}
+    urls = [u.strip() for u in (data.get("urls") or []) if str(u).strip()]
+    s = SessionLocal()
+    try:
+        src = s.query(SourceRegistry).get(sid)
+        if not src:
+            return jsonify(ok=False, error="소싱처를 찾을 수 없어요."), 404
+        guide = cg.loads(src.crawl_guide)
+        guide["sample_urls"] = [{"url": u, "is_lead": (i == 0)} for i, u in enumerate(urls)]
+        guide["updated_at"] = _now_iso()
+        try:
+            _save_guide(s, src, guide)
+        except ValueError as e:
+            s.rollback()
+            return jsonify(ok=False, error=f"URL 형식이 올바르지 않습니다: {e}"), 400
+        return jsonify(ok=True, url_count=len(urls))
+    finally:
+        s.close()
+
+
+@bp.post("/api/<int:sid>/request-update")
+def api_request_update(sid: int):
+    """기존 소싱처 크롤 업데이트 요청 — update_requested 플래그 설정(=업데이트 대기 큐)."""
+    data = request.get_json(silent=True) or {}
+    note = (data.get("note") or "").strip()
+    s = SessionLocal()
+    try:
+        src = s.query(SourceRegistry).get(sid)
+        if not src:
+            return jsonify(ok=False, error="소싱처를 찾을 수 없어요."), 404
+        guide = cg.loads(src.crawl_guide)
+        guide["update_requested"] = {"at": _now_iso(), "note": note}
+        _save_guide(s, src, guide)
+        return jsonify(ok=True)
+    finally:
+        s.close()
+
+
 @bp.route("/")
 def overview():
     rows = []

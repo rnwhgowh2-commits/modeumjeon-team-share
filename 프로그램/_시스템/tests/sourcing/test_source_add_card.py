@@ -138,3 +138,50 @@ def test_add_source_empty_urls_ok(client):
     assert resp.status_code == 200
     assert resp.get_json()["url_count"] == 0
     _cleanup("테스트빈URL")
+
+
+# ─────────────────────────────────────────────────────────────────
+#  Task 3 — URL 편집 + 기존 업데이트 요청 API
+# ─────────────────────────────────────────────────────────────────
+
+def _make_source(name, urls):
+    s = SessionLocal()
+    try:
+        src = SourceRegistry(name=name, sort_order=999)
+        s.add(src); s.flush()
+        g = cg.empty_skeleton()
+        g["sample_urls"] = [{"url": u, "is_lead": i == 0} for i, u in enumerate(urls)]
+        src.crawl_guide = cg.dumps(g)
+        s.commit()
+        return src.id
+    finally:
+        s.close()
+
+
+def test_save_urls_replaces_list(client):
+    _cleanup("테스트URL")
+    sid = _make_source("테스트URL", ["https://a.com/1"])
+    resp = client.post(f"/sourcing-guide/api/{sid}/save-urls", json={
+        "urls": ["https://a.com/2", "https://a.com/3"]})
+    assert resp.status_code == 200
+    s = SessionLocal()
+    try:
+        g = json.loads(s.query(SourceRegistry).get(sid).crawl_guide)
+        assert [u["url"] for u in g["sample_urls"]] == ["https://a.com/2", "https://a.com/3"]
+    finally:
+        s.close()
+    _cleanup("테스트URL")
+
+
+def test_request_update_sets_flag(client):
+    _cleanup("테스트UPD")
+    sid = _make_source("테스트UPD", ["https://a.com/1"])
+    resp = client.post(f"/sourcing-guide/api/{sid}/request-update", json={"note": "재고 둔갑"})
+    assert resp.status_code == 200
+    s = SessionLocal()
+    try:
+        g = json.loads(s.query(SourceRegistry).get(sid).crawl_guide)
+        assert g["update_requested"]["note"] == "재고 둔갑"
+    finally:
+        s.close()
+    _cleanup("테스트UPD")
