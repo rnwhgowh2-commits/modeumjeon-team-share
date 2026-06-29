@@ -1455,9 +1455,17 @@ def save_crawl_result():
                     #   경로(options[] 가 crawl-result 로 옴)도 이 경로로 색·사이즈별 SO 를 생성한다.
                     #   서버사이드 _ingest·navGrab parse 와 같은 루틴(단품 색스코프+stale prune).
                     from lemouton.sources.service import persist_crawled_options
-                    persist_crawled_options(s, source_product=sp, options=it.get('options'))
-                except Exception:
-                    pass
+                    _pres = persist_crawled_options(s, source_product=sp, options=it.get('options'))
+                    # [2026-06-29] 조용한 실패 금지 — 옵션 저장 실패를 last_error_msg 로 표면화.
+                    if _pres and _pres.get('failed'):
+                        sp.last_error_msg = (
+                            'opt저장 ' + str(_pres.get('upserted')) + '성공/'
+                            + str(_pres.get('failed')) + '실패: ' + str(_pres.get('err') or ''))[:255]
+                except Exception as _pe:
+                    try:
+                        sp.last_error_msg = ('persist예외: ' + str(_pe))[:255]
+                    except Exception:
+                        pass
             # ★ 2026-06-22 — 무신사 회원 혜택 금액을 크롤 라인(benefit_lines)에서 추출·저장.
             #   배경: 기존은 is_logged_in 플래그(확장 '나의 할인가' 정규식이 비동기 렌더 전에
             #         실행돼 비신뢰 — 로그인인데 False)로 비로그인이면 혜택을 0 처리 → 라이브에서

@@ -634,13 +634,26 @@ def persist_crawled_options(session: Session, *, source_product, options) -> dic
     if not scoped:
         return {'upserted': 0, 'pruned': 0}
     upserted = 0
+    failed = 0
+    err_sample = None
     for o in scoped:
-        upsert_source_option(
-            session, source_product_id=source_product.id,
-            color_text=o.get('color_text'), size_text=o.get('size_text'),
-            external_option_id=o.get('option_id'),
-            current_price=o.get('price'), current_stock=o.get('stock'))
-        upserted += 1
+        # [2026-06-29] 옵션별 savepoint 격리 — 한 옵션이 throw(데이터 이상·제약 등)해도
+        #   savepoint 만 롤백하고 나머지를 살린다. 기존엔 한 옵션 예외가 세션을 abort 시켜
+        #   persist 전체가 죽고(호출부 except:pass 가 삼킴) 확장이 보낸 152개가 통째 유실됐다
+        #   (현대H몰 색상모음전 사이즈별 미저장). begin_nested = SAVEPOINT(이전 upsert 보존).
+        try:
+            with session.begin_nested():
+                upsert_source_option(
+                    session, source_product_id=source_product.id,
+                    color_text=o.get('color_text'), size_text=o.get('size_text'),
+                    external_option_id=o.get('option_id'),
+                    current_price=o.get('price'), current_stock=o.get('stock'))
+            upserted += 1
+        except Exception as _e:
+            failed += 1
+            if err_sample is None:
+                err_sample = (str(_e)[:90] + ' | opt=' +
+                              repr({'c': o.get('color_text'), 's': o.get('size_text')})[:60])
     # stale prune — 이번 크롤에 없는 (색,사이즈) 조합 soft-delete (옛 가격·재고 잔존 차단).
     new_keys = {(_norm_color(o.get('color_text')), _norm_size(o.get('size_text')))
                 for o in scoped}
@@ -650,7 +663,7 @@ def persist_crawled_options(session: Session, *, source_product, options) -> dic
         if (_norm_color(so.color_text), _norm_size(so.size_text)) not in new_keys:
             so.deleted_at = _utcnow()
             pruned += 1
-    return {'upserted': upserted, 'pruned': pruned}
+    return {'upserted': upserted, 'pruned': pruned, 'failed': failed, 'err': err_sample}
 
 
 def save_crawl_result(
