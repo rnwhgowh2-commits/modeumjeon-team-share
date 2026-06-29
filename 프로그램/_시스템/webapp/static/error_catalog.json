@@ -555,7 +555,7 @@
    "cm": "",
    "sy": "색×사이즈 상품 사이즈별 품절(다크네이비 260·265·275mm)이 '재고있음(1)'으로 둔갑",
    "cz": "확장 hmallPerSizeOptions(색별 item-stockcount 드릴다운, b4c180f4)이 stock=it.stockCount 만 사용 → 품절 사이즈도 stockCount=1 로 와서 재고있음. 품절 신호 sellGbcd(\"11\") 미사용",
-   "pv": "stock 산정에 sellGbcd 적용 — sellGbcd!=\"00\"이면 0(품절). 라이브 검증: 다크네이비 260/265/275mm=0. ⚠️확장 변경이라 데스크톱 확장 재로드 필요",
+   "pv": "stock 산정에 sellGbcd 적용 — sellGbcd!=\"00\"이면 0(품절). 라이브 검증: 다크네이비 260/265/275mm=0. → S20에서 서버사이드 이전·확장 재로드 불필요화",
    "code": {
     "file": "extension/moum-crawler/background.js",
     "func": "hmallPerSizeOptions",
@@ -571,6 +571,34 @@
      "txt": "b4c180f4 색별 드릴다운이 sellGbcd 누락 → 품절 사이즈(stockCount=1) 둔갑. sellGbcd 품절판정 추가(ext v0.7.3). 라이브 다크네이비 260/265/275=0 확인",
      "src": "현대H몰",
      "cm": ""
+    }
+   ]
+  },
+  {
+   "id": "S20",
+   "g": "재고",
+   "l": "be",
+   "src": "현대H몰",
+   "st": "ok",
+   "cm": "17e5d9cb",
+   "sy": "색×사이즈 모음전에서 7번째+ 색(크림핑크·아이보리·스카이블루)이 통째로 미수집 — 사이즈별 재고가 영영 안 뜸",
+   "cz": "색 인덱스 uitmSeq가 '색 위치'가 아니라 비순차 내부 ID(블랙1·…·올리브6·크림핑크18·아이보리21·스카이블루22). 페이지·색목록 모두 uitmSeq=0만 줌 → 확장 1..15 순회가 7번째+ 색을 놓치고 중간 seq는 MIX(여러색×한사이즈) 쓰레기 반환",
+   "pv": "item-stockcount가 공개 API(무로그인)임을 확인 → 서버사이드 이전. fetch_combo_persize_options 프로브(단일색 응답만 채택+색 dedup, sellGbcd 3상태)로 9색 전부 수집. crawl-result가 hmall이면 서버가 직접 교체(실패 시 확장값 유지), /api/sources/hmall-persize-refresh로 재크롤 없이 교정. 확장 재로드 영구 불필요. 라이브: 9색 106옵션(uitmCnt=106 일치)·크림핑크 260=품절·245=10",
+   "code": {
+    "file": "lemouton/sourcing/crawlers/hmall.py",
+    "func": "fetch_combo_persize_options",
+    "desc": "모음전 색×사이즈 3상태 — item-stockcount 프로브(비순차 uitmSeq)+sellGbcd, 서버사이드"
+   },
+   "crawl": "ok",
+   "doc": "sync",
+   "view": "sync",
+   "rev": [
+    {
+     "d": "2026-06-29",
+     "a": "add",
+     "txt": "S19(sellGbcd) 후속 — uitmSeq 비순차로 3색 통째 누락 규명. 공개 API 확인→서버사이드 프로브 이전(확장 재로드 불요). 라이브 9색 106옵션 검증",
+     "src": "현대H몰",
+     "cm": "17e5d9cb"
     }
    ]
   },
