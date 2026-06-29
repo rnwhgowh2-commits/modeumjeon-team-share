@@ -1572,11 +1572,15 @@ def save_crawl_result():
 def hmall_persize_refresh():
     """현대H몰 모음전(2축) 사이즈별 3상태 재수집(서버사이드 item-stockcount, 공개 API).
 
-    확장 재로드·재크롤 없이 기존 hmall 모음전 SourceProduct 를 정확한 per-(색,사이즈,재고)
-    로 교정한다. body(옵션): {sp_id} 또는 {url} 지정 시 해당 1건만, 없으면 전체 hmall.
-    단품/비콤보(uitmCombYn!=Y)나 수집 실패는 건너뜀(데이터 파괴 금지).
+    확장 재로드·재크롤 없이 기존 hmall SourceProduct 를 서버사이드로 교정한다.
+    body(옵션): {sp_id} 또는 {url} 지정 시 해당 1건만, 없으면 전체 hmall.
+    - 모음전(uitmCombYn=Y): item-stockcount 프로브로 per-(색,사이즈,재고) 항상 갱신.
+    - 단품: 크롤 실패(last_status!='ok')인 건만 HmallCrawler.fetch 로 서버 재크롤
+      (성공 단품은 안 건드림 — 확장이 수집한 회원혜택 보존). 수집 실패는 건너뜀(파괴 금지).
     """
-    from lemouton.sourcing.crawlers.hmall import fetch_combo_persize_options
+    from lemouton.sourcing.crawlers.hmall import (
+        fetch_combo_persize_options, HmallCrawler,
+    )
     from lemouton.sources.service import persist_crawled_options, normalize_url
     import datetime as _dt
     body = request.get_json(silent=True) or {}
@@ -1595,20 +1599,37 @@ def hmall_persize_refresh():
         for sp in sps:
             if not sp.url or 'slitmCd=' not in (sp.url or ''):
                 continue
+            opts, mode = None, ''
+            # 1) 모음전(2축) — item-stockcount 프로브
             try:
                 opts = fetch_combo_persize_options(sp.url)
+                if opts:
+                    mode = 'combo'
             except Exception as e:
-                results.append({'id': sp.id, 'ok': False, 'err': str(e)[:80]})
+                results.append({'id': sp.id, 'ok': False, 'err': 'combo:' + str(e)[:60]})
                 continue
+            # 2) 단품 + 실패건만 — 서버사이드 재크롤(성공 단품은 보존)
             if not opts:
-                results.append({'id': sp.id, 'ok': False, 'err': 'no-combo/fetch-fail'})
+                if (sp.last_status or '') == 'ok':
+                    results.append({'id': sp.id, 'ok': False, 'err': 'skip(단품 정상)'})
+                    continue
+                try:
+                    cr = HmallCrawler().fetch(sp.url)
+                    opts = [o for o in (cr.options or [])
+                            if isinstance(o, dict) and o.get('price')]
+                    mode = 'dan'
+                except Exception as e:
+                    results.append({'id': sp.id, 'ok': False, 'err': 'dan:' + str(e)[:60]})
+                    continue
+            if not opts:
+                results.append({'id': sp.id, 'ok': False, 'err': 'no-options'})
                 continue
             pres = persist_crawled_options(s, source_product=sp, options=opts)
             sp.last_status = 'ok'
             sp.last_fetched_at = now
             sp.last_error_msg = None
-            results.append({'id': sp.id, 'ok': True, 'options': len(opts),
-                            'colors': len({o['color_text'] for o in opts}), 'persist': pres})
+            results.append({'id': sp.id, 'ok': True, 'mode': mode, 'options': len(opts),
+                            'colors': len({o.get('color_text') for o in opts}), 'persist': pres})
         s.commit()
         return _ok(refreshed=len([r for r in results if r.get('ok')]),
                    total=len(sps), results=results)
