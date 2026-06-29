@@ -47,7 +47,7 @@
           <div class="instm-rt">📥 확장 파일 다운로드</div>
           <div class="instm-rd">「모음전 크롤러」 압축파일(zip)을 받습니다.</div>
           {% if ext_available %}
-          <a class="instm-dl" href="/sourcing-guide/install/download">📥 모음전 크롤러 다운로드 <span class="sz">(.zip)</span></a>
+          <a class="instm-dl" href="/sourcing-guide/install/download">📥 모음전 크롤러 다운로드 <span class="sz">(.zip{% if ext_version %} · 항상 최신 v{{ ext_version }}{% endif %})</span></a>
           {% else %}
           <div class="instm-dloff">⚠️ 지금은 다운로드를 준비할 수 없어요. 관리자에게 알려주세요.</div>
           {% endif %}

@@ -92,7 +92,7 @@
         <div class="st-d">아래 버튼으로 「모음전 크롤러」 압축파일(zip)을 받습니다.</div>
         {% if ext_available %}
         <a class="dl-btn" href="/sourcing-guide/install/download" onclick="event.stopPropagation()">
-          <span class="ico">📥</span> 모음전 크롤러 다운로드 <span class="sz">(.zip)</span>
+          <span class="ico">📥</span> 모음전 크롤러 다운로드 <span class="sz">(.zip{% if ext_version %} · 항상 최신 v{{ ext_version }}{% endif %})</span>
         </a>
         {% else %}
         <div class="dl-off">⚠️ 지금은 다운로드를 준비할 수 없어요. 관리자에게 알려주세요.</div>

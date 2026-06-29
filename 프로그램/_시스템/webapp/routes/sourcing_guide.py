@@ -168,7 +168,8 @@ def overview():
         pending = bool(guide.get("update_requested")) or \
             (len(guide.get("sample_urls", [])) > 0 and _guide_is_blank(guide))
         rows.append({"id": src.id, "name": src.name, "guide": guide, "pending": pending})
-    return render_template("sourcing_guide/overview.html", rows=rows, active="sourcing_guide")
+    return render_template("sourcing_guide/overview.html", rows=rows,
+                           active="sourcing_guide", **_ext_ctx())
 
 
 # ════════════════════════════════════════════════════════════
@@ -182,11 +183,27 @@ _EXT_DIR = os.path.normpath(
 )
 
 
+def _ext_version() -> str:
+    """확장 manifest.json 의 현재 버전 — 다운로드/표시가 항상 최신본을 가리키도록."""
+    import json as _json
+    try:
+        with open(os.path.join(_EXT_DIR, "manifest.json"), encoding="utf-8") as f:
+            return str((_json.load(f) or {}).get("version") or "")
+    except (OSError, ValueError):
+        return ""
+
+
+def _ext_ctx() -> dict:
+    """설치 페이지/모달 공통 컨텍스트 — 가용 여부 + 최신 버전(항상 manifest 기준).
+    설치 모달(_install_modal.html)을 include 하는 라우트는 이걸 넘겨야 다운로드가 켜진다."""
+    return {"ext_available": os.path.isdir(_EXT_DIR), "ext_version": _ext_version()}
+
+
 @bp.route("/install")
 def install():
     """크롤러 설치 가이드 페이지 (시안 5 — 진행 체크리스트)."""
     return render_template("sourcing_guide/install.html", active="sourcing_guide",
-                           ext_available=os.path.isdir(_EXT_DIR))
+                           **_ext_ctx())
 
 
 @bp.route("/install/download")
@@ -206,8 +223,10 @@ def install_download():
                 rel = os.path.relpath(full, _EXT_DIR)
                 zf.write(full, os.path.join("moum-crawler", rel))
     buf.seek(0)
+    _ver = _ext_version()
+    _name = f"모음전-크롤러-v{_ver}.zip" if _ver else "모음전-크롤러.zip"
     return send_file(buf, mimetype="application/zip", as_attachment=True,
-                     download_name="모음전-크롤러.zip")
+                     download_name=_name)
 
 
 # ════════════════════════════════════════════════════════════
