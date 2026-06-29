@@ -393,3 +393,93 @@ def link_channel(channel_id):
         return jsonify(result)
     finally:
         s.close()
+
+
+@bp.post("/sets/channel/<int:channel_id>/send")
+def channel_send(channel_id):
+    """[2단계 전송] 매칭 옵션 재고를 마켓에 전송. dry_run 기본(시뮬 — 마켓 쓰기 0).
+    1차 = 쿠팡 재고만(update_quantity). usable=false(판매중지) 옵션 제외. 보낼값은
+    미리보기와 동일(_new_values, 표시값=전송값 parity). 가격 전송·스마트스토어는 후속.
+    실제 마켓 쓰기는 dry_run=false 명시 + 사용자 감독 하에서만.
+    """
+    from lemouton.uploader.market_fetch import fetch_market_options
+    from lemouton.sets.models import (SetChannel, SetChannelOption,
+                                       SetProduct, SetOption)
+    from lemouton.sets.set_link_service import _resolve_env_prefix
+    p = request.get_json(silent=True) or {}
+    dry_run = bool(p.get("dry_run", True))
+    s = SessionLocal()
+    try:
+        ch = s.get(SetChannel, channel_id)
+        if ch is None:
+            return _err("채널을 찾을 수 없어요.", 404)
+        if not ch.market_product_id:
+            return _err("상품번호가 입력되지 않았어요.")
+        market = ch.market
+        product_id = ch.market_product_id
+        env_prefix = _resolve_env_prefix(s, ch.market, ch.account_key)
+        rows = (s.query(SetOption.canonical_sku, SetProduct.model_code)
+                .join(SetProduct, SetOption.set_product_id == SetProduct.id)
+                .filter(SetProduct.set_id == ch.set_id).all())
+        skus = {r[0] for r in rows}
+        model_codes = {r[1] for r in rows}
+        matched = {sco.canonical_sku: sco.market_option_id for sco in
+                   s.query(SetChannelOption)
+                   .filter_by(channel_id=channel_id, status="matched").all()}
+    finally:
+        s.close()
+    if market != "coupang":
+        return jsonify({"ok": False,
+                        "error": "현재 실제 전송은 쿠팡 재고만 지원해요(스마트스토어·가격은 준비 중)."})
+    if not matched:
+        return jsonify({"ok": True, "dry_run": dry_run, "market": market, "results": [],
+                        "summary": {"sent": 0, "failed": 0, "skipped": 0, "total": 0},
+                        "note": "매칭된 옵션이 없어요(먼저 연동 실행)."})
+    newv = _new_values_for_options(model_codes, skus, market)
+    fr = fetch_market_options(market, product_id, env_prefix=env_prefix)
+    cur = {mo.option_id: mo for mo in fr.options} if fr.success else {}
+    client = None
+    if not dry_run:
+        from lemouton.uploader.market_fetch import _coupang_client
+        client = _coupang_client(env_prefix)
+    from shared.platforms.coupang.inventory import update_quantity
+    results = []
+    sent = failed = skipped = 0
+    for sku, moid in matched.items():
+        nv = newv.get(sku)
+        cm = cur.get(str(moid))
+        new_stock = nv.get("stock") if nv else None
+        label = ((nv.get("color") if nv else None) or "") + " · " + ((nv.get("size") if nv else None) or "")
+        if cm is not None and getattr(cm, "usable", True) is False:
+            results.append({"sku": sku, "label": label, "skipped": True,
+                            "reason": "판매중지 옵션(usable=false)"})
+            skipped += 1
+            continue
+        if new_stock is None:
+            results.append({"sku": sku, "label": label, "skipped": True,
+                            "reason": "보낼 재고 없음"})
+            skipped += 1
+            continue
+        if dry_run:
+            results.append({"sku": sku, "label": label, "new_stock": new_stock,
+                            "ok": True, "dry": True})
+            continue
+        try:
+            ok = update_quantity(vendor_item_id=int(moid),
+                                 quantity=int(new_stock), client=client)
+            if ok:
+                results.append({"sku": sku, "label": label,
+                                "new_stock": new_stock, "ok": True})
+                sent += 1
+            else:
+                results.append({"sku": sku, "label": label, "ok": False,
+                                "error": "재고 전송 실패(마켓 거부)"})
+                failed += 1
+        except Exception as e:  # noqa: BLE001 — 전송 실패 표면화(폴백 금지)
+            results.append({"sku": sku, "label": label, "ok": False,
+                            "error": f"{type(e).__name__}: {e}"})
+            failed += 1
+    return jsonify({"ok": True, "dry_run": dry_run, "market": market,
+                    "summary": {"sent": sent, "failed": failed,
+                                "skipped": skipped, "total": len(results)},
+                    "results": results})

@@ -18,6 +18,7 @@ def test_blueprint_registers_expected_routes():
         "/api/sets/linked",
         "/api/sets/<int:set_id>/detail-matrix",
         "/api/sets/channel/<int:channel_id>/preview",
+        "/api/sets/channel/<int:channel_id>/send",
         "/api/sets/bundle/<code>/options",
         "/api/sets/upload-accounts",
         "/api/sets/search-bundles",
