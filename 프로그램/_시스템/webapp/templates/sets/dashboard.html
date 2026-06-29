@@ -234,7 +234,7 @@
       +'<div data-detbody>'+renderTable(detailCache[sid], bdCache[sid])+'</div>'
       +'<div data-pvbox></div>';
   }
-  function renderPreview(d, mk){
+  function renderPreview(d, mk, cid){
     var nm=mk==='coupang'?'쿠팡':(mk==='smartstore'?'스마트스토어':mk);
     var s=d.summary||{};
     var warn = s.hold ? '<div class="pv-warn">⚠️ 평균 가격변동 '+s.avg_price_change_pct+'% — 큰 변동이에요. 실제 전송 시 한 번 더 확인하세요.</div>' : '';
@@ -253,14 +253,44 @@
       });
       h+='</tbody></table>';
     }
-    h+='<div class="sd-cnt" style="margin-top:6px">파란 값 = 전송하면 바뀔 값. <b>아직 마켓에 쓰지 않았어요</b>(현재값 읽어 대조만). 실제 전송 버튼은 다음 단계에서 추가됩니다.'+(mk==='coupang'?' 쿠팡은 현재 재고를 응답에 주지 않아 \'미상\'으로 표시돼요.':'')+'</div>';
+    h+='<div class="sd-cnt" style="margin-top:6px">파란 값 = 전송하면 바뀔 값. 시뮬(🧪)은 마켓에 쓰지 않고 계산만, 실제 전송(⚠️)은 쿠팡 재고만 보냅니다(가격·스마트스토어는 준비 중).'+(mk==='coupang'?' 쿠팡은 현재 재고를 응답에 주지 않아 \'미상\'으로 표시돼요.':'')+'</div>';
+    h+='<div style="display:flex;gap:8px;margin-top:10px;justify-content:flex-end">'
+      +'<button class="pv-btn" data-send="dry" data-cid="'+cid+'">🧪 재고 전송 시뮬</button>'
+      +(mk==='coupang'?'<button class="pv-btn" style="border-color:#dc2626;background:#fee2e2;color:#991b1b" data-send="real" data-cid="'+cid+'">⚠️ 실제 재고 전송</button>':'<span class="sd-cnt" style="align-self:center">실제 전송은 쿠팡만 지원(준비 중)</span>')
+      +'</div><div data-sendres></div>';
     return h;
+  }
+  function renderSendResult(d){
+    var s=d.summary||{};
+    var head=d.dry_run?'🧪 시뮬 결과 (마켓에 쓰지 않음)':'✅ 실제 전송 결과';
+    var h='<div class="pv-head" style="margin-top:10px">'+head+' · 전송 '+(s.sent||0)+' · 실패 '+(s.failed||0)+' · 제외 '+(s.skipped||0)+' / '+(s.total||0)+'</div>';
+    if(d.note){ h+='<div class="sd-cnt" style="padding:4px 0">'+esc(d.note)+'</div>'; }
+    if((d.results||[]).length){
+      h+='<table class="det-tbl"><thead><tr><th>옵션</th><th class="ta-r">보낼 재고</th><th class="ta-r">결과</th></tr></thead><tbody>';
+      d.results.forEach(function(r){
+        var st = r.skipped ? ('<span class="sd-cnt">제외: '+esc(r.reason||'')+'</span>')
+          : (r.ok ? ('<span style="color:#047857;font-weight:700">'+(r.dry?'시뮬 OK':'✓ 성공')+'</span>')
+          : ('<span style="color:#b45309;font-weight:700">✗ '+esc(r.error||'실패')+'</span>'));
+        h+='<tr><td>'+esc(r.label||r.sku)+'</td><td class="ta-r">'+(r.new_stock==null?'-':r.new_stock)+'</td><td class="ta-r">'+st+'</td></tr>';
+      });
+      h+='</tbody></table>';
+    }
+    return h;
+  }
+  function sendStock(cid, dryRun, box){
+    if(!dryRun && !confirm('실제로 쿠팡에 재고를 전송합니다(가격은 전송 안 함). 진행할까요?')) return;
+    var rb=box.querySelector('[data-sendres]'); if(!rb){ rb=document.createElement('div'); rb.setAttribute('data-sendres',''); box.appendChild(rb); }
+    rb.innerHTML='<div class="sd-cnt" style="padding:8px 0">'+(dryRun?'시뮬 계산 중…':'전송 중… (마켓에 쓰는 중, 잠시만요)')+'</div>';
+    fetch('/api/sets/channel/'+cid+'/send',{method:'POST',headers:{'Content-Type':'application/json','Accept':'application/json'},body:JSON.stringify({dry_run:dryRun})})
+      .then(function(r){return r.json();})
+      .then(function(d){ if(d&&d.ok) rb.innerHTML=renderSendResult(d); else rb.innerHTML='<div class="sd-cnt" style="padding:8px 0">전송 실패: '+esc(d&&d.error||'')+'</div>'; })
+      .catch(function(){ rb.innerHTML='<div class="sd-cnt" style="padding:8px 0">전송 호출에 실패했어요.</div>'; });
   }
   function loadPreview(cid, mk, box){
     box.innerHTML='<div class="sd-cnt" style="padding:10px 0">미리보기 불러오는 중… (마켓 현재값 읽기, 잠시 걸려요)</div>';
     fetch('/api/sets/channel/'+cid+'/preview',{headers:{'Accept':'application/json'}})
       .then(function(r){return r.json();})
-      .then(function(d){ if(d&&d.ok) box.innerHTML='<div class="pv-box">'+renderPreview(d,mk)+'</div>'; else box.innerHTML='<div class="sd-cnt" style="padding:8px 0">미리보기 실패: '+esc(d&&d.error||'')+'</div>'; })
+      .then(function(d){ if(d&&d.ok) box.innerHTML='<div class="pv-box">'+renderPreview(d,mk,cid)+'</div>'; else box.innerHTML='<div class="sd-cnt" style="padding:8px 0">미리보기 실패: '+esc(d&&d.error||'')+'</div>'; })
       .catch(function(){ box.innerHTML='<div class="sd-cnt" style="padding:8px 0">미리보기를 불러오지 못했어요.</div>'; });
   }
   function loadDetail(box, sid){
@@ -287,8 +317,9 @@
   listEl.addEventListener('click', function(e){
     var pvBtn=e.target.closest('.pv-btn');
     if(pvBtn){
-      var pcard=pvBtn.closest('.sd-card');
-      loadPreview(pvBtn.getAttribute('data-cid'), pvBtn.getAttribute('data-mk'), pcard.querySelector('[data-pvbox]'));
+      var pcard=pvBtn.closest('.sd-card'); var pvbox=pcard.querySelector('[data-pvbox]');
+      if(pvBtn.hasAttribute('data-send')){ sendStock(pvBtn.getAttribute('data-cid'), pvBtn.getAttribute('data-send')==='dry', pvbox); }
+      else { loadPreview(pvBtn.getAttribute('data-cid'), pvBtn.getAttribute('data-mk'), pvbox); }
       return;
     }
     var tabEl=e.target.closest('.det-tab');
