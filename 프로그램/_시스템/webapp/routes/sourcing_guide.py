@@ -51,6 +51,27 @@ def _save_guide(s, src, guide: dict) -> None:
     s.commit()
 
 
+def _guide_is_blank(guide: dict) -> bool:
+    """카드가 미작성인가 — 6항목 중 status=ok 가 하나도 없으면 미작성."""
+    return not any(f.get("status") == "ok" for f in guide.get("fields", {}).values())
+
+
+def _queue_items():
+    """분석/업데이트 대기 목록. 신규(빈 카드+URL) + 업데이트(update_requested)."""
+    out = []
+    for src in _sources():
+        guide = cg.loads(src.crawl_guide)
+        has_url = len(guide.get("sample_urls", [])) > 0
+        if guide.get("update_requested"):
+            out.append({"id": src.id, "name": src.name, "kind": "update",
+                        "note": guide["update_requested"].get("note", ""),
+                        "url_count": len(guide.get("sample_urls", []))})
+        elif has_url and _guide_is_blank(guide):
+            out.append({"id": src.id, "name": src.name, "kind": "new",
+                        "note": "", "url_count": len(guide["sample_urls"])})
+    return out
+
+
 @bp.post("/api/add-source")
 def api_add_source():
     """신규 소싱처: 이름 + URL 다중 → SourceRegistry 생성 + sample_urls 저장.
@@ -124,6 +145,11 @@ def api_request_update(sid: int):
         return jsonify(ok=True)
     finally:
         s.close()
+
+
+@bp.get("/api/queue")
+def api_queue():
+    return jsonify(ok=True, items=_queue_items())
 
 
 @bp.route("/")

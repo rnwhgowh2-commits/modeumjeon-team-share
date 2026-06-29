@@ -185,3 +185,18 @@ def test_request_update_sets_flag(client):
     finally:
         s.close()
     _cleanup("테스트UPD")
+
+
+# ─────────────────────────────────────────────────────────────────
+#  Task 4 — 분석 대기 큐 식별 헬퍼 + API  /sourcing-guide/api/queue
+# ─────────────────────────────────────────────────────────────────
+
+def test_queue_lists_pending(client):
+    _cleanup("테스트큐")
+    sid = _make_source("테스트큐", ["https://a.com/1"])   # 카드 빈 + URL 있음 = 신규 대기
+    resp = client.get("/sourcing-guide/api/queue")
+    assert resp.status_code == 200
+    items = resp.get_json()["items"]
+    hit = [it for it in items if it["id"] == sid]
+    assert hit and hit[0]["kind"] == "new"
+    _cleanup("테스트큐")
