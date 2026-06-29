@@ -81,7 +81,7 @@ def test_tabs_4_5_6():
     assert "klabel" in s4
     assert "폴백가 금지" in s4 and "단일 진실원천" in s4   # 옛 s5 무결성 내용도 s4로 병합
     s6 = html.split('id="s6"')[1].split('id="s7"')[0]
-    assert "errcards" in s6                       # 에러 이력 카탈로그 카드 컨테이너
+    assert "syncdash" in s6                       # 에러 이력 동기화 대시보드 컨테이너
     s2 = html.split('id="s2"')[1].split('id="s3"')[0]
     assert "_resolve_stock" in s2 and "stale" in s2
 
@@ -98,12 +98,9 @@ def test_tab7_newsource_flow():
 
 def test_docs_synced():
     app_root = pathlib.Path(sg.__file__).parents[2]   # 프로그램/_시스템  (routes→webapp→_시스템)
-    repo_root = pathlib.Path(sg.__file__).parents[4]  # worktree root     (_시스템→프로그램→root)
     txt = (app_root / "docs" / "크롤링-가이드.md").read_text(encoding="utf-8")
     assert "옵션없음" in txt and "크롤실패" in txt           # 재고 특이사항 동기화
-    sop = (repo_root / "docs" / "신규-소싱처-추가-가이드.md").read_text(encoding="utf-8")
-    assert "혜택 종합" in sop                               # 4단계 신설 반영
-    assert "URL 세트" in sop or "여러" in sop               # 멀티 URL
+    # [2026-06-29] docs/신규-소싱처-추가-가이드.md 삭제됨 — 정식 절차는 라이브 /sourcing-guide/map 으로 통합
 
 
 def test_eighth_tab_is_sync():
