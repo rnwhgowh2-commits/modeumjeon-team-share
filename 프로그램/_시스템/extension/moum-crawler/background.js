@@ -1086,7 +1086,12 @@ async function hmallPerSizeOptions(tabId, url) {
               const c = it.uitm1AttrNm || "", s = it.uitm2AttrNm || "";
               if (c && s) out.push({
                 color_text: c, size_text: s,
-                stock: (typeof it.stockCount === "number" ? it.stockCount : null),
+                // [2026-06-29 S19] 품절 판정 = sellGbcd("00"=판매 / 그 외 예:"11"=품절).
+                //   stockCount 아님 — 품절 사이즈도 stockCount=1 로 옴(다크네이비 260/265/275mm).
+                //   sellGbcd 없으면 stockCount 폴백(거짓 품절 방지).
+                stock: (it.sellGbcd && String(it.sellGbcd) !== "00")
+                  ? 0
+                  : (typeof it.stockCount === "number" ? it.stockCount : null),
                 price: (typeof it.sellPrc === "number" ? it.sellPrc : null),
               });
             });

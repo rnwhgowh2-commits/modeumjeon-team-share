@@ -547,6 +547,34 @@
    ]
   },
   {
+   "id": "S19",
+   "g": "재고",
+   "l": "fe",
+   "src": "현대H몰",
+   "st": "ok",
+   "cm": "",
+   "sy": "색×사이즈 상품 사이즈별 품절(다크네이비 260·265·275mm)이 '재고있음(1)'으로 둔갑",
+   "cz": "확장 hmallPerSizeOptions(색별 item-stockcount 드릴다운, b4c180f4)이 stock=it.stockCount 만 사용 → 품절 사이즈도 stockCount=1 로 와서 재고있음. 품절 신호 sellGbcd(\"11\") 미사용",
+   "pv": "stock 산정에 sellGbcd 적용 — sellGbcd!=\"00\"이면 0(품절). 라이브 검증: 다크네이비 260/265/275mm=0. ⚠️확장 변경이라 데스크톱 확장 재로드 필요",
+   "code": {
+    "file": "extension/moum-crawler/background.js",
+    "func": "hmallPerSizeOptions",
+    "desc": "색별 사이즈 재고 — sellGbcd 품절판정(stockCount 아님)"
+   },
+   "crawl": "ok",
+   "doc": "sync",
+   "view": "sync",
+   "rev": [
+    {
+     "d": "2026-06-29",
+     "a": "add",
+     "txt": "b4c180f4 색별 드릴다운이 sellGbcd 누락 → 품절 사이즈(stockCount=1) 둔갑. sellGbcd 품절판정 추가(ext v0.7.3). 라이브 다크네이비 260/265/275=0 확인",
+     "src": "현대H몰",
+     "cm": ""
+    }
+   ]
+  },
+  {
    "id": "P1",
    "g": "가격",
    "l": "fe",
