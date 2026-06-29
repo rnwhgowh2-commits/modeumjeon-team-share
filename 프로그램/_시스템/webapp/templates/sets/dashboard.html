@@ -6,7 +6,9 @@
   .sd-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:16px;flex-wrap:wrap;}
   .sd-title{font-size:20px;font-weight:700;color:#191F28;}
   .sd-sub{font-size:13px;color:#6b7684;margin-top:2px;}
-  .sd-new{font-size:14px;font-weight:700;border:1px solid #3182f6;background:#3182f6;color:#fff;border-radius:8px;padding:9px 16px;text-decoration:none;white-space:nowrap;}
+  .sd-new{display:inline-flex;align-items:center;justify-content:center;gap:6px;font-size:14px;font-weight:700;border:1px solid #3182f6;background:#3182f6;color:#fff;border-radius:8px;padding:9px 16px;text-decoration:none;white-space:nowrap;}
+  .sd-edit{font-size:12px;font-weight:600;color:#3182f6;text-decoration:none;border:1px solid #c7d7f0;border-radius:6px;padding:3px 9px;margin-left:8px;white-space:nowrap;}
+  .sd-edit:hover{background:#eef4ff;}
   .sd-new:hover{background:#1b64da;}
   .sd-search{display:flex;align-items:center;gap:8px;border:1px solid #e5e8eb;border-radius:10px;padding:9px 13px;background:#fff;margin-bottom:14px;}
   .sd-search input{border:0;outline:0;flex:1;font-size:14px;font-family:inherit;color:#191F28;background:transparent;}
@@ -67,7 +69,7 @@
       <div class="sd-title">🏬 판매처 연동</div>
       <div class="sd-sub">판매처에 연동된 모음전 상품 · 마켓 매칭 · 최신 재고/가격 수집 현황</div>
     </div>
-    <a class="sd-new" href="/api/sets/flow">＋ 새 연동 만들기</a>
+    <a class="sd-new" href="/api/sets/flow"><span style="font-size:17px;line-height:1">+</span>새 연동 만들기</a>
   </div>
   <div class="sd-search">
     <span style="color:#8b95a1">🔍</span>
@@ -103,7 +105,7 @@
       var chans=r.channels.map(mkBadge).join('');
       var coll=rel(r.last_collected_at); var sent=r.last_sent_at?rel(r.last_sent_at):null;
       h+='<div class="sd-card" data-sid="'+r.set_id+'">';
-      h+=' <div class="sd-card-top" data-act="toggle"><div>'+(multi?('<span class="sd-bundle">'+r.products.length+'개 묶음</span>'):'')+'<span class="sd-name">'+esc(r.name)+'</span></div><div>'+(chans||'<span class=sd-cnt>판매처 없음</span>')+'<span class="sd-chev">▾</span></div></div>';
+      h+=' <div class="sd-card-top" data-act="toggle"><div>'+(multi?('<span class="sd-bundle">'+r.products.length+'개 묶음</span>'):'')+'<span class="sd-name">'+esc(r.name)+'</span></div><div>'+(chans||'<span class=sd-cnt>판매처 없음</span>')+'<a class="sd-edit" href="/api/sets/flow?edit='+r.set_id+'">✎ 편집</a><span class="sd-chev">▾</span></div></div>';
       h+=' <div class="sd-meta">수집 '+(coll||'수집 안 됨')+' · 전송 '+(sent||'이력 없음')+'</div>';
       h+=' <div class="sd-prods">';
       r.products.forEach(function(p){ h+='<div class="sd-prod">└ <span>'+esc(p.model_name)+'</span> <span class="sd-cnt">'+p.option_count+'옵션 · 수량 '+p.quantity+'</span></div>'; });
@@ -315,6 +317,7 @@
 
   // ── 이벤트 위임 ──────────────────────────────────────────────
   listEl.addEventListener('click', function(e){
+    if(e.target.closest('.sd-edit')) return;
     var pvBtn=e.target.closest('.pv-btn');
     if(pvBtn){
       var pcard=pvBtn.closest('.sd-card'); var pvbox=pcard.querySelector('[data-pvbox]');
