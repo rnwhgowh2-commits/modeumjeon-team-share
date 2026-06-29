@@ -11,18 +11,30 @@
   .sa .pane{display:none;} .sa .pane.on{display:block;}
   .sa label{display:block;font-size:13px;font-weight:700;margin:16px 0 6px;}
   .sa input[type=text],.sa select{border:1px solid #d1d6db;border-radius:8px;padding:10px 12px;font-size:14px;width:100%;max-width:420px;}
-  .sa .urlrow{display:flex;gap:6px;align-items:center;margin-bottom:8px;max-width:760px;}
+  .sa .urlrow{display:flex;gap:6px;align-items:center;margin-bottom:8px;max-width:860px;}
   .sa .urlrow input{flex:1;max-width:none;}
-  .sa .btn{border:1px solid #d1d6db;background:#fff;border-radius:7px;padding:9px 12px;font-size:13px;cursor:pointer;}
+  .sa .btn{border:1px solid #d1d6db;background:#fff;border-radius:7px;padding:9px 12px;font-size:13px;cursor:pointer;white-space:nowrap;}
   .sa .btn.del{border-color:#ffc9c9;color:#e03131;}
-  .sa .btn.add{border:1.5px dashed #adb5bd;color:#495057;font-weight:600;max-width:760px;width:100%;}
+  .sa .btn.add{border:1.5px dashed #adb5bd;color:#495057;font-weight:600;max-width:860px;width:100%;}
   .sa .btn.primary{background:#191F28;color:#fff;border:none;padding:12px 24px;font-weight:700;font-size:15px;margin-top:18px;}
-  .sa .lead{font-size:11px;background:#FFE8CC;color:#D9480F;border-radius:6px;padding:3px 7px;font-weight:700;}
+  /* 유형 세그먼트 토글 (시안 2) */
+  .sa .seg{display:inline-flex;border:1px solid #d1d6db;border-radius:8px;overflow:hidden;flex-shrink:0;}
+  .sa .seg button{border:none;background:#fff;padding:8px 11px;font-size:12.5px;cursor:pointer;color:#6b7684;border-right:1px solid #eee;}
+  .sa .seg button:last-child{border-right:none;}
+  .sa .seg button.on{color:#fff;font-weight:700;}
+  .sa .seg button[data-kind="단품"].on{background:#2b80ff;}
+  .sa .seg button[data-kind="색상모음전"].on{background:#e8590c;}
+  .sa .seg button[data-kind="모델모음전"].on{background:#7C3AED;}
   .sa .toast{margin-top:14px;font-size:13px;font-weight:700;display:none;}
+  /* 프롬프트 박스 */
+  .sa .prm{margin-top:20px;max-width:860px;background:#0d1117;color:#c9d1d9;border-radius:10px;padding:16px 18px 18px;display:none;position:relative;}
+  .sa .prm .cap{font-size:12px;color:#8B95A1;margin-bottom:8px;font-weight:700;}
+  .sa .prm pre{white-space:pre-wrap;font-family:ui-monospace,monospace;font-size:12.5px;line-height:1.7;color:#c9d1d9;margin:0;}
+  .sa .prm .cp{position:absolute;top:12px;right:12px;background:#21262d;color:#c9d1d9;border:1px solid #30363d;border-radius:6px;padding:5px 12px;font-size:11.5px;cursor:pointer;}
 </style>
 <div class="sa">
   <h2>➕ 소싱처 추가·업데이트</h2>
-  <div class="sub">소싱처명과 URL만 넣고 저장하면 전체보기에 바로 등장합니다. 이후 Claude Code에 "○○ 추가/업데이트해줘"라고 하면 됩니다.</div>
+  <div class="sub">소싱처명·URL(유형 선택)을 넣고 <b>프롬프트 생성</b> → 그 프롬프트를 Claude Code에 붙여넣으면 가이드대로 추가/업데이트됩니다.</div>
 
   <div class="tabs">
     <button class="tab on" data-pane="new">신규 소싱처 추가</button>
@@ -33,11 +45,12 @@
   <div class="pane on" id="pane-new">
     <label>소싱처명</label>
     <input type="text" id="newName" placeholder="예: 29CM">
-    <label>샘플 URL <span style="color:#8B95A1;font-weight:500;">(여러 개 · 첫 줄 = 대표)</span></label>
+    <label>샘플 URL <span style="color:#8B95A1;font-weight:500;">(URL마다 유형: 단품·색상모음전·모델모음전 · 첫 줄 = 대표)</span></label>
     <div id="newUrls"></div>
     <button class="btn add" type="button" onclick="addUrlRow('newUrls')">+ URL 추가</button>
-    <br><button class="btn primary" type="button" onclick="submitNew()">📥 추가 + 분석 요청 담기</button>
+    <br><button class="btn primary" type="button" onclick="submitNew()">📋 추가 + Claude Code 프롬프트 생성</button>
     <div class="toast" id="newToast"></div>
+    <div class="prm" id="newPrm"><div class="cap">⬇ 이 프롬프트를 복사해 Claude Code에 붙여넣으세요</div><button class="cp" type="button" onclick="copyPrm('newPrmText')">복사</button><pre id="newPrmText"></pre></div>
   </div>
 
   <!-- 기존 -->
@@ -47,40 +60,68 @@
       <option value="">— 선택 —</option>
       {% for s in sources %}<option value="{{ s.id }}">{{ s.name }}</option>{% endfor %}
     </select>
-    <label>샘플 URL <span style="color:#8B95A1;font-weight:500;">(추가/수정/삭제)</span></label>
+    <label>샘플 URL <span style="color:#8B95A1;font-weight:500;">(추가/수정/삭제 · 유형 선택)</span></label>
     <div id="updUrls"></div>
     <button class="btn add" type="button" onclick="addUrlRow('updUrls')">+ URL 추가</button>
     <label>업데이트 사유(선택)</label>
     <input type="text" id="updNote" placeholder="예: 가격이 0으로 나옴 / 재고가 다 '있음'으로 둔갑">
-    <br><button class="btn primary" type="button" onclick="submitUpd()">🔄 URL 저장 + 크롤 업데이트 요청</button>
+    <br><button class="btn primary" type="button" onclick="submitUpd()">📋 저장 + Claude Code 프롬프트 생성</button>
     <div class="toast" id="updToast"></div>
+    <div class="prm" id="updPrm"><div class="cap">⬇ 이 프롬프트를 복사해 Claude Code에 붙여넣으세요</div><button class="cp" type="button" onclick="copyPrm('updPrmText')">복사</button><pre id="updPrmText"></pre></div>
   </div>
 </div>
 
 <script>
-function addUrlRow(boxId, val){
+var KINDS=['단품','색상모음전','모델모음전'];
+function addUrlRow(boxId, val, kind){
   var box=document.getElementById(boxId);
   var n=box.querySelectorAll('.urlrow').length;
+  kind=kind||'단품';
   var row=document.createElement('div'); row.className='urlrow';
+  var segHtml='<span class="seg">'+KINDS.map(function(k){
+    return '<button type="button" data-kind="'+k+'"'+(k===kind?' class="on"':'')+' onclick="pickKind(this)">'+k+'</button>';
+  }).join('')+'</span>';
   row.innerHTML =
-    (n===0?'<span class="lead">대표</span>':'<span style="width:34px"></span>')
+    (n===0?'<span class="lead" style="font-size:11px;background:#FFE8CC;color:#D9480F;border-radius:6px;padding:3px 7px;font-weight:700;">대표</span>':'<span style="width:30px"></span>')
+    + segHtml
     + '<input type="text" placeholder="https://...">'
-    + '<button class="btn" type="button" onclick="openUrl(this)">↗ 바로가기</button>'
+    + '<button class="btn" type="button" onclick="openUrl(this)">↗</button>'
     + '<button class="btn del" type="button" onclick="this.closest(\'.urlrow\').remove()">🗑</button>';
   row.querySelector('input').value = val || '';   // 속성 주입(value=) → 따옴표/태그 탈출 차단
   box.appendChild(row);
+}
+function pickKind(btn){
+  var seg=btn.closest('.seg');
+  seg.querySelectorAll('button').forEach(function(b){b.classList.remove('on');});
+  btn.classList.add('on');
 }
 function openUrl(btn){
   var v=btn.closest('.urlrow').querySelector('input').value.trim();
   if(v) window.open(v,'_blank','noopener');
 }
-function collectUrls(boxId){
-  return Array.from(document.querySelectorAll('#'+boxId+' input'))
-    .map(function(i){return i.value.trim();}).filter(Boolean);
+function collectRows(boxId){
+  return Array.from(document.querySelectorAll('#'+boxId+' .urlrow')).map(function(row){
+    var on=row.querySelector('.seg button.on');
+    return {url:row.querySelector('input').value.trim(), kind:on?on.dataset.kind:'단품'};
+  }).filter(function(r){return r.url;});
 }
 function toast(id,msg,ok){
   var t=document.getElementById(id); t.style.display='block';
   t.style.color = ok?'#0F9D58':'#e03131'; t.textContent=msg;
+}
+function showPrm(boxId,textId,text){
+  document.getElementById(textId).textContent=text;   // textContent → 주입 차단
+  document.getElementById(boxId).style.display='block';
+}
+function copyPrm(textId){
+  var t=document.getElementById(textId).textContent;
+  navigator.clipboard.writeText(t).then(function(){},function(){});
+}
+function buildPrompt(head, name, rows, tail){
+  var lines=['크롤링 가이드 > 소싱처 추가·업데이트 작업.', head+': '+name, 'URL:'];
+  rows.forEach(function(r){lines.push('- ['+r.kind+'] '+r.url);});
+  lines.push(tail);
+  return lines.join('\n');
 }
 async function postJSON(url,body){
   var r=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
@@ -88,31 +129,36 @@ async function postJSON(url,body){
 }
 async function submitNew(){
   var name=document.getElementById('newName').value.trim();
-  var urls=collectUrls('newUrls');
+  var rows=collectRows('newUrls');
   if(!name){toast('newToast','소싱처명을 입력하세요.',false);return;}
-  var res=await postJSON('/sourcing-guide/api/add-source',{name:name,urls:urls});
+  var res=await postJSON('/sourcing-guide/api/add-source',{name:name,urls:rows.map(function(r){return r.url;})});
   if(res.ok&&res.data.ok){
-    toast('newToast','✓ "'+name+'" 추가됨 — 전체보기에 등장. 이제 Claude Code에 "'+name+' 추가해줘".',true);
-    document.getElementById('newName').value=''; document.getElementById('newUrls').innerHTML=''; addUrlRow('newUrls');
+    toast('newToast','✓ "'+name+'" 추가됨 — 전체보기에 등장. 아래 프롬프트를 Claude Code에 붙여넣으세요.',true);
+    showPrm('newPrm','newPrmText', buildPrompt('신규 소싱처', name, rows, '→ add-source 스킬대로 분석·검증·구현해줘.'));
   } else { toast('newToast', res.data.error||'실패', false); }
 }
 async function loadUpd(){
-  var box=document.getElementById('updUrls'); box.innerHTML='';
+  var box=document.getElementById('updUrls'); box.innerHTML=''; document.getElementById('updPrm').style.display='none';
   var sid=document.getElementById('updSel').value; if(!sid){return;}
   var r=await fetch('/sourcing-guide/api/'+sid).then(function(x){return x.json();}).catch(function(){return null;});
   var urls=(r&&r.guide&&r.guide.sample_urls)||[];
-  if(!urls.length){ addUrlRow('updUrls'); } else { urls.forEach(function(u){addUrlRow('updUrls',u.url);}); }
+  if(!urls.length){ addUrlRow('updUrls'); } else { urls.forEach(function(u){addUrlRow('updUrls',u.url,u.kind);}); }
 }
 async function submitUpd(){
   var sid=document.getElementById('updSel').value;
   if(!sid){toast('updToast','소싱처를 선택하세요.',false);return;}
-  var urls=collectUrls('updUrls');
+  var sel=document.getElementById('updSel');
+  var name=sel.options[sel.selectedIndex].text;
+  var rows=collectRows('updUrls');
   var note=document.getElementById('updNote').value.trim();
-  var r1=await postJSON('/sourcing-guide/api/'+sid+'/save-urls',{urls:urls});
+  var r1=await postJSON('/sourcing-guide/api/'+sid+'/save-urls',{urls:rows.map(function(r){return r.url;})});
   if(!r1.ok||!r1.data.ok){ toast('updToast','URL 저장 실패: '+((r1.data&&r1.data.error)||'오류'),false); return; }
   var res=await postJSON('/sourcing-guide/api/'+sid+'/request-update',{note:note});
-  if(res.ok&&res.data.ok){ toast('updToast','✓ 저장+업데이트 요청됨. 이제 Claude Code에 "이 소싱처 크롤 업데이트해줘".',true); }
-  else { toast('updToast','업데이트 요청 실패',false); }
+  if(res.ok&&res.data.ok){
+    toast('updToast','✓ 저장+업데이트 요청됨. 아래 프롬프트를 Claude Code에 붙여넣으세요.',true);
+    var tail=note? ('증상/사유: '+note+'\n→ add-source 스킬대로 진단·교정·검증해줘.') : '→ add-source 스킬대로 진단·교정·검증해줘.';
+    showPrm('updPrm','updPrmText', buildPrompt('기존 소싱처 크롤 업데이트', name, rows, tail));
+  } else { toast('updToast','업데이트 요청 실패',false); }
 }
 // 탭 전환 + 초기화
 document.querySelectorAll('.sa .tab').forEach(function(t){

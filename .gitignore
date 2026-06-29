@@ -99,7 +99,8 @@ desktop.ini
 tmp_*.py
 *.tmp
 .cache/
-.claude/
+.claude/*
+!.claude/skills/
 
 .superpowers/
 .worktrees/
