@@ -74,7 +74,11 @@ def api_add_source():
             {"url": u, "is_lead": (i == 0)} for i, u in enumerate(urls)
         ]
         guide["updated_at"] = _now_iso()
-        _save_guide(s, src, guide)
+        try:
+            _save_guide(s, src, guide)
+        except ValueError as e:
+            s.rollback()
+            return jsonify(ok=False, error=f"URL 형식이 올바르지 않습니다: {e}"), 400
         return jsonify(ok=True, id=src.id, name=src.name,
                        url_count=len(guide["sample_urls"]))
     finally:

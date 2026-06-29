@@ -115,3 +115,26 @@ def test_validate_update_requested_missing_at_becomes_none():
     out = cg.validate_guide(g)
     assert out["update_requested"]["at"] is None
     assert out["update_requested"]["note"] == "사유만 있음"
+
+
+def test_add_source_invalid_url_returns_400(client):
+    _cleanup("테스트나쁜URL")
+    resp = client.post("/sourcing-guide/api/add-source", json={
+        "name": "테스트나쁜URL", "urls": ["not-a-real-url"]})
+    assert resp.status_code == 400
+    # 잘못된 URL 이면 행이 커밋되지 않아야 함(롤백)
+    s = SessionLocal()
+    try:
+        assert s.query(SourceRegistry).filter_by(name="테스트나쁜URL").first() is None
+    finally:
+        s.close()
+    _cleanup("테스트나쁜URL")
+
+
+def test_add_source_empty_urls_ok(client):
+    _cleanup("테스트빈URL")
+    resp = client.post("/sourcing-guide/api/add-source", json={
+        "name": "테스트빈URL", "urls": []})
+    assert resp.status_code == 200
+    assert resp.get_json()["url_count"] == 0
+    _cleanup("테스트빈URL")
