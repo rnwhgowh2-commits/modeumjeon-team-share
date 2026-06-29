@@ -67,7 +67,12 @@ def _fetch_smartstore(product_id: str, env_prefix: Optional[str] = None) -> Fetc
         return FetchResult(False, None, [], f"상품번호가 숫자가 아니에요: {product_id!r}")
     try:
         client = _smartstore_client(env_prefix)
-        r = fetch_product_options(pid, client=client)
+        # input may be a channelProductNo(상품번호) not originProductNo;
+        # resolve_product_ids recognizes either and returns the true origin.
+        from shared.platforms.smartstore.get_channel_no import resolve_product_ids
+        resolved = resolve_product_ids(pid, client=client)
+        origin_pid = resolved["origin_product_no"] if resolved else pid
+        r = fetch_product_options(origin_pid, client=client)
     except Exception as e:  # noqa: BLE001 — 인증/조회 실패 명시 표면화(폴백 금지)
         return FetchResult(False, None, [], f"옵션 조회 실패: {e}")
     if not r.success:
