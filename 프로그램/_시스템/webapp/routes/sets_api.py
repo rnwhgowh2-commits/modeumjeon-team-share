@@ -519,6 +519,7 @@ def snapshot_sources_route(set_id):
     """[H2] 소싱 현재값 스냅샷 — 변동만 source 이벤트로 즉시 기록(크롤 안 함).
     로컬 확장 크롤(소싱처 업데이트) 완료 직후 호출 → 변동이력 소싱열 즉시 점등."""
     from webapp.routes.api_pricing import _option_matrix_data
+    from webapp.routes.api_benefits import _build_breakdown_cache, compute_breakdown
     from lemouton.sets.change_service import snapshot_source_values
     s = SessionLocal()
     try:
@@ -528,18 +529,51 @@ def snapshot_sources_route(set_id):
         skus = set()
         for p in detail["products"]:
             skus.update(p["options"])
-        vmap = {}
+        opts = []
         for mc in {p["model_code"] for p in detail["products"]}:
             data = _option_matrix_data(mc)
             if not data.get("ok"):
                 continue
             for o in data.get("options", []):
                 if o.get("sku") in skus:
-                    is_pur = o.get("purchase_priority_resolved") == "purchase"
-                    vmap[o["sku"]] = {
-                        "stock": o.get("purchase_stock") if is_pur else o.get("src_stock"),
-                        "price": o.get("src_cost"),
-                    }
+                    opts.append(o)
+        # 소싱 가격 = 최종매입가(혜택 차감 후, 화면 셀·영수증과 동일 단일 진실 원천).
+        #   사입 아닌 옵션의 대표 소싱처(최저 크롤가)로 breakdown 일괄 계산(_cache 로 N+1 제거).
+        #   실패 시 src_cost 폴백. (src_cost = 혜택 전 소싱 원가)
+        items = []
+        for o in opts:
+            if o.get("purchase_priority_resolved") == "purchase":
+                continue
+            cands = [sc for sc in (o.get("sources") or [])
+                     if sc.get("source_id") is not None and sc.get("crawled_price") is not None]
+            if not cands:
+                continue
+            best = min(cands, key=lambda sc: sc["crawled_price"])
+            items.append({"sku": o["sku"], "source_id": best["source_id"],
+                          "sale_price": best["crawled_price"],
+                          "source_product_id": best.get("source_product_id")})
+        finals = {}
+        try:
+            cache = _build_breakdown_cache(s, items)
+            for it in items:
+                try:
+                    bd = compute_breakdown(s, sku=it["sku"], source_id=int(it["source_id"]),
+                                           sale_price=float(it["sale_price"]), _cache=cache,
+                                           source_product_id=it.get("source_product_id"))
+                    if bd and bd.get("final_price") is not None:
+                        finals[it["sku"]] = bd["final_price"]
+                except Exception:
+                    pass
+        except Exception:
+            pass
+        vmap = {}
+        for o in opts:
+            is_pur = o.get("purchase_priority_resolved") == "purchase"
+            vmap[o["sku"]] = {
+                "stock": o.get("purchase_stock") if is_pur else o.get("src_stock"),
+                "price": (o.get("purchase_avg_cost") if is_pur
+                          else finals.get(o["sku"], o.get("src_cost"))),
+            }
         n = snapshot_source_values(s, set_id=set_id, value_map=vmap)
         s.commit()
         return jsonify({"ok": True, "recorded": n})
