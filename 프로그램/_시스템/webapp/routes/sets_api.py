@@ -401,6 +401,34 @@ def link_channel(channel_id):
         s.close()
 
 
+@bp.post("/sets/channel/<int:channel_id>/collect")
+def collect_channel_route(channel_id):
+    """[P2] 채널 현재값 수동 새로고침 — 마켓 API 읽어 mkt_* 갱신 + 변동기록."""
+    from lemouton.sets.collect_service import collect_channel
+    s = SessionLocal()
+    try:
+        r = collect_channel(s, channel_id)
+        if not r.get("ok"):
+            return _err(r.get("error") or "수집 실패")
+        s.commit()
+        return jsonify(r)
+    finally:
+        s.close()
+
+
+@bp.post("/sets/<int:set_id>/collect")
+def collect_set_route(set_id):
+    """[P2] 구성 단위 일괄 현재값 새로고침."""
+    from lemouton.sets.collect_service import collect_set
+    s = SessionLocal()
+    try:
+        r = collect_set(s, set_id)
+        s.commit()
+        return jsonify(r)
+    finally:
+        s.close()
+
+
 @bp.post("/sets/channel/<int:channel_id>/send")
 def channel_send(channel_id):
     """[2단계 전송] 매칭 옵션 재고를 마켓에 전송. dry_run 기본(시뮬 — 마켓 쓰기 0).
