@@ -25,6 +25,26 @@ def _signals(market_alerts, *, has_send):
     return {"stock": stock, "price": price, "send": send}
 
 
+def _src_summary(src_provider, model_codes, skus):
+    """카드 「재고 소」용 소싱처 요약 — {src_stock_total, source_name}.
+
+    소싱 재고/소싱처명은 무거운 매트릭스 경로(_option_matrix_data)라, 서비스는
+    순수하게 두고 라우트가 주입(src_provider)한다. 미주입 시 None(지연 표시).
+    src_provider(model_codes, skus) -> {sku: {"stock": int|None, "source_name": str|None}}.
+    """
+    empty = {"src_stock_total": None, "source_name": None}
+    if src_provider is None or not skus:
+        return empty
+    smap = src_provider(model_codes, skus) or {}
+    stocks = [v.get("stock") for v in smap.values() if v.get("stock") is not None]
+    names = [v.get("source_name") for v in smap.values() if v.get("source_name")]
+    name = None
+    if names:
+        # 대표 소싱처 = 최다 등장
+        name = max(set(names), key=names.count)
+    return {"src_stock_total": sum(stocks) if stocks else None, "source_name": name}
+
+
 def create_set(session: Session, *, model_code: str, name: str) -> ProductSet:
     s = ProductSet(model_code=model_code, name=name)
     session.add(s)
@@ -81,7 +101,8 @@ def get_set_detail(session: Session, set_id: int) -> dict:
     }
 
 
-def list_linked_sets(session: Session, q: str | None = None) -> list[dict]:
+def list_linked_sets(session: Session, q: str | None = None,
+                     src_provider=None) -> list[dict]:
     """판매처에 연동(채널 1개 이상)된 구성 목록 — 연동 현황 대시보드용.
 
     각 구성: 엮인 상품명들·옵션수(다품 가능), 채널(마켓·상품번호·상태·매칭수),
@@ -102,20 +123,24 @@ def list_linked_sets(session: Session, q: str | None = None) -> list[dict]:
     for ps in sets:
         products = []
         last_collected = None
+        model_codes: set[str] = set()
+        skus: set[str] = set()
         for sp in ps.products:
             m = session.get(Model, sp.model_code)
             name = (m.model_name_display or m.model_name_raw) if m else sp.model_code
-            opt_count = (
-                session.query(SetOption).filter_by(set_product_id=sp.id).count()
-            )
+            sp_opts = session.query(SetOption).filter_by(set_product_id=sp.id).all()
+            model_codes.add(sp.model_code)
+            for o in sp_opts:
+                skus.add(o.canonical_sku)
             products.append({
                 "model_code": sp.model_code, "model_name": name,
-                "quantity": sp.quantity, "option_count": opt_count,
+                "quantity": sp.quantity, "option_count": len(sp_opts),
                 "brand": getattr(m, "brand", None) if m else None,
             })
             crawled = getattr(m, "last_crawled_at", None) if m else None
             if crawled is not None and (last_collected is None or crawled > last_collected):
                 last_collected = crawled
+        src_summary = _src_summary(src_provider, model_codes, skus)
         alerts = _alerts_for_set(session, ps.id)
         last_sent = None   # 전송 기능(2단계) 도입 시 채워짐 — 현재 항상 미전송
         channels = []
@@ -140,6 +165,7 @@ def list_linked_sets(session: Session, q: str | None = None) -> list[dict]:
         out.append({
             "set_id": ps.id, "name": ps.name, "model_code": ps.model_code,
             "products": products, "channels": channels,
+            "src_summary": src_summary,
             "last_collected_at": last_collected.isoformat() if last_collected else None,
             "last_sent_at": last_sent,
             "alerts": alerts,

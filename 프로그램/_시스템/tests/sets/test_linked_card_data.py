@@ -19,7 +19,7 @@ for _m in (
     except ImportError:
         pass
 from lemouton.sets.models import (
-    ProductSet, SetProduct, SetChannel, SetChannelOption,
+    ProductSet, SetProduct, SetOption, SetChannel, SetChannelOption,
 )
 from lemouton.sets import set_service as svc
 
@@ -37,7 +37,10 @@ def _seed(db, market, mkt_stock):
     ps = ProductSet(model_code="M1", name="르무통 메이트 모음전")
     db.add(ps)
     db.flush()
-    db.add(SetProduct(set_id=ps.id, model_code="M1", quantity=1))
+    sp = SetProduct(set_id=ps.id, model_code="M1", quantity=1)
+    db.add(sp)
+    db.flush()
+    db.add(SetOption(set_product_id=sp.id, canonical_sku="SKU1", sort_order=0))
     ch = SetChannel(set_id=ps.id, market=market, account_key="default",
                     market_product_id="999", status="linked")
     db.add(ch)
@@ -68,3 +71,21 @@ def test_market_soldout_makes_stock_sev(db):
     ch = svc.list_linked_sets(db)[0]["channels"][0]
     assert ch["mkt_stock_total"] == 0
     assert ch["signals"]["stock"] == "sev"   # mkt_stock 0 → market_soldout → 심각
+
+
+def test_src_summary_from_injected_provider(db):
+    _seed(db, "smartstore", 50)
+
+    def provider(model_codes, skus):
+        assert "M1" in model_codes and "SKU1" in skus
+        return {"SKU1": {"stock": 53, "source_name": "르무통"}}
+
+    row = svc.list_linked_sets(db, src_provider=provider)[0]
+    assert row["src_summary"]["src_stock_total"] == 53
+    assert row["src_summary"]["source_name"] == "르무통"
+
+
+def test_src_summary_none_without_provider(db):
+    _seed(db, "smartstore", 50)
+    row = svc.list_linked_sets(db)[0]
+    assert row["src_summary"]["src_stock_total"] is None
