@@ -429,6 +429,20 @@ def collect_set_route(set_id):
         s.close()
 
 
+@bp.get("/sets/<int:set_id>/history")
+def set_history_route(set_id):
+    """[H2] M3 셀 클릭 — 변동이력 시계열(market·field 선택 필터)."""
+    from lemouton.sets import change_service as cs
+    market = (request.args.get("market") or "").strip() or None
+    field = (request.args.get("field") or "").strip() or None
+    s = SessionLocal()
+    try:
+        rows = cs.list_changes(s, set_id=set_id, market=market, field=field)
+        return jsonify({"ok": True, "events": rows})
+    finally:
+        s.close()
+
+
 @bp.post("/sets/<int:set_id>/recrawl-sources")
 def recrawl_sources_route(set_id):
     """[작업3] 구성에 연동된 옵션들의 소싱처 URL을 모델 단위로 재크롤.
