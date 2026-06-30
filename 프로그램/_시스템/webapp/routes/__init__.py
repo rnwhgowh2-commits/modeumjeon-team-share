@@ -38,7 +38,7 @@ def _sidebar_mode_icons() -> dict:
 # [perf 2026-05-29] 사이드바 뱃지 카운트 — 매 페이지 2 count 쿼리였음.
 #   20초 TTL 캐시 (뱃지 숫자는 실시간일 필요 없음). 워커별 캐시.
 import time as _time
-_counts_cache = {'ts': 0.0, 'unmapped': 0, 'failed': 0}
+_counts_cache = {'ts': 0.0, 'unmapped': 0, 'failed': 0, 'sets_alerts': 0}
 _COUNTS_TTL = 20.0
 
 
@@ -55,6 +55,14 @@ def get_cached_badge_counts() -> tuple[int, int]:
         try:
             _counts_cache['unmapped'] = s.query(DiscoveryQueueItem).filter_by(status='pending').count()
             _counts_cache['failed'] = s.query(MarketRegistration).filter_by(status='failed').count()
+            # [판매처 연동] 전 구성 알림 합(사이드바 글로벌 배지). 싼 쿼리(sets 테이블만, _option_matrix_data 미사용).
+            try:
+                from lemouton.sets.models import SetChannel
+                from lemouton.sets.alert_service import alerts_for_set
+                _ids = [r[0] for r in s.query(SetChannel.set_id).distinct().all()]
+                _counts_cache['sets_alerts'] = sum(len(alerts_for_set(s, _sid)) for _sid in _ids)
+            except Exception:
+                _counts_cache['sets_alerts'] = 0
             _counts_cache['ts'] = now
         finally:
             s.close()
@@ -123,7 +131,8 @@ def register_routes(app: Flask) -> None:
             'sidebar_unmapped_count': unmapped,
             'sidebar_failed_count': failed,
             'sidebar_layout': get_layout_for_template(),
-            'sidebar_badge_values': {'unmapped': unmapped, 'failed': failed},
+            'sidebar_badge_values': {'unmapped': unmapped, 'failed': failed,
+                                     'sets_alerts': _counts_cache.get('sets_alerts', 0)},
             'sidebar_mode_icons': _sidebar_mode_icons(),
         }
 

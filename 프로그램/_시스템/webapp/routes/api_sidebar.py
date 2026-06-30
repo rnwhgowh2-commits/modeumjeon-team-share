@@ -166,7 +166,7 @@ _CRAWL_GUIDE_ITEM = {'id': 'i_crawl_guide', 'emoji': '🗒', 'name': '소싱처 
 #   '모음전 상품관리'(s_bundles) 스테이지 끝에 주입(저장 안 함). 사용자가 옮기면 그 위치 존중.
 _SETS_DASH_ITEM = {'id': 'i_sets_dash', 'emoji': '🏬', 'name': '판매처 연동',
                    'url': '/api/sets/dashboard', 'active_key': 'sets_dashboard',
-                   'badge_key': None}
+                   'badge_key': 'sets_alerts'}
 
 
 def _has_item_id(layout: dict, item_id: str) -> bool:
