@@ -41,3 +41,28 @@ def record_change(
     )
     session.add(event)
     return True
+
+
+def list_changes(session, *, set_id, market=None, field=None, limit=200):
+    """구성의 변동 이벤트를 최신순(at desc)으로 반환. market/field 선택 필터.
+
+    source 필드로 소싱처('source')·판매처('market') 변동을 구분해 호출자가 2열 표시.
+    """
+    q = session.query(ChannelChangeEvent).filter(ChannelChangeEvent.set_id == set_id)
+    if market:
+        q = q.filter(ChannelChangeEvent.market == market)
+    if field:
+        q = q.filter(ChannelChangeEvent.field == field)
+    q = q.order_by(ChannelChangeEvent.at.desc(), ChannelChangeEvent.id.desc()).limit(limit)
+    out = []
+    for e in q.all():
+        out.append({
+            "at": e.at.isoformat() if e.at else None,
+            "source": e.source,
+            "market": e.market,
+            "canonical_sku": e.canonical_sku,
+            "field": e.field,
+            "prev_value": e.prev_value,
+            "next_value": e.next_value,
+        })
+    return out
