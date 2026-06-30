@@ -401,6 +401,18 @@ def link_channel(channel_id):
         s.close()
 
 
+@bp.get("/sets/<int:set_id>/alerts")
+def set_alerts_route(set_id):
+    """[P3] 구성 알림 목록(판매재고0·가격급변) — 저장 안 함, 파생."""
+    from lemouton.sets.alert_service import alerts_for_set
+    s = SessionLocal()
+    try:
+        alerts = alerts_for_set(s, set_id)
+        return jsonify({"ok": True, "alerts": alerts, "count": len(alerts)})
+    finally:
+        s.close()
+
+
 @bp.post("/sets/channel/<int:channel_id>/send")
 def channel_send(channel_id):
     """[2단계 전송] 매칭 옵션 재고를 마켓에 전송. dry_run 기본(시뮬 — 마켓 쓰기 0).
