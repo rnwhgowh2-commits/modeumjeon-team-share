@@ -514,6 +514,39 @@ def recrawl_sources_route(set_id):
         s.close()
 
 
+@bp.post("/sets/<int:set_id>/snapshot-sources")
+def snapshot_sources_route(set_id):
+    """[H2] 소싱 현재값 스냅샷 — 변동만 source 이벤트로 즉시 기록(크롤 안 함).
+    로컬 확장 크롤(소싱처 업데이트) 완료 직후 호출 → 변동이력 소싱열 즉시 점등."""
+    from webapp.routes.api_pricing import _option_matrix_data
+    from lemouton.sets.change_service import snapshot_source_values
+    s = SessionLocal()
+    try:
+        detail = svc.get_set_detail(s, set_id)
+        if not detail:
+            return _err("구성을 찾을 수 없어요.", 404)
+        skus = set()
+        for p in detail["products"]:
+            skus.update(p["options"])
+        vmap = {}
+        for mc in {p["model_code"] for p in detail["products"]}:
+            data = _option_matrix_data(mc)
+            if not data.get("ok"):
+                continue
+            for o in data.get("options", []):
+                if o.get("sku") in skus:
+                    is_pur = o.get("purchase_priority_resolved") == "purchase"
+                    vmap[o["sku"]] = {
+                        "stock": o.get("purchase_stock") if is_pur else o.get("src_stock"),
+                        "price": o.get("src_cost"),
+                    }
+        n = snapshot_source_values(s, set_id=set_id, value_map=vmap)
+        s.commit()
+        return jsonify({"ok": True, "recorded": n})
+    finally:
+        s.close()
+
+
 @bp.post("/sets/channel/<int:channel_id>/send")
 def channel_send(channel_id):
     """[2단계 전송] 매칭 옵션 재고를 마켓에 전송. dry_run 기본(시뮬 — 마켓 쓰기 0).

@@ -304,6 +304,7 @@
   // 소싱처 업데이트 = 로컬 확장 크롤(전 소싱처 로컬 PC). 구성의 모음전들을 기존 크롤 큐에 넣어
   //   우상단 크롤 위젯이 진행·결과 표시, 완료 시 목록 자동 갱신. 서버 크롤 호출 안 함.
   function recrawlSources(btn){
+    var sid=btn.getAttribute('data-sid');
     var codes=(btn.getAttribute('data-codes')||'').split(',').filter(Boolean);
     if(!codes.length){ alert('이 구성에 연결된 모음전이 없어요.'); return; }
     if(!(window.MoumExt && window.MoumExt.installed && window.MoumExt.installed())){
@@ -313,7 +314,9 @@
     function go(){
       codes.forEach(function(c){
         try{ window.MoumExt.enqueueCrawl(c); }catch(_){}
-        var onFin=function(ev){ var d=ev.detail; if(!d||d.type!=='finish'||d.bundle!==c) return; window.removeEventListener('moum-crawl-log', onFin); try{ load(); }catch(_){} };
+        var onFin=function(ev){ var d=ev.detail; if(!d||d.type!=='finish'||d.bundle!==c) return; window.removeEventListener('moum-crawl-log', onFin);
+          // 크롤 완료 직후 소싱 변동 스냅샷(H2 변동이력 소싱열 즉시 점등) → 그 뒤 목록 갱신
+          fetch('/api/sets/'+sid+'/snapshot-sources',{method:'POST',headers:{'Accept':'application/json'}}).catch(function(){}).then(function(){ try{ load(); }catch(_){} }); };
         window.addEventListener('moum-crawl-log', onFin);
       });
       alert(codes.length+'개 모음전 소싱처 로컬 크롤을 시작했어요.\n우상단 크롤 위젯에서 진행·결과를 확인하세요. 완료되면 목록이 자동 갱신됩니다.');
