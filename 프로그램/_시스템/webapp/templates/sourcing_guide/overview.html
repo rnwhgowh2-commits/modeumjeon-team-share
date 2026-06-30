@@ -181,12 +181,14 @@
   </div>
   <div class="sg-card" style="padding:0;overflow:hidden;">
     <table class="sg-atbl">
-      <thead><tr><th>소싱처</th><th>샘플 URL</th><th>구조</th><th>매입가 로직</th><th>가격 검증</th><th>혜택 방식</th></tr></thead>
+      <thead><tr><th>소싱처</th><th>샘플 URL</th><th>구조</th><th>매입가 로직</th><th>가격 검증</th><th>혜택 방식</th><th>관리</th></tr></thead>
       <tbody>
         {% for r in rows %}
         {% set g = r.guide %}
-        <tr onclick="location.href='/sourcing-guide/{{ r.id }}'">
-          <td class="sg-name">{{ r.name }}{% if g.stage_progress %}{% set sp = g.stage_progress %}{% set total = 6 if sp.kind == 'new' else 4 %}{% if sp.stage %} <span class="sg-chip" style="background:#E7F0FF;color:#1B64DA;">진행중 {{ sp.done|length }}/{{ total }} · {{ sp.stage }} {{ sp.label }}</span>{% else %} <span class="sg-chip ok">분석 완료 {{ sp.done|length }}/{{ total }}</span>{% endif %}{% elif r.pending %} <span class="sg-chip" style="background:#FFF3BF;color:#B5870A;">분석 대기</span>{% endif %}</td>
+        <tr class="sg-row" data-key="{{ r.key }}" data-name="{{ r.name }}" data-domain="{{ r.domain }}" data-active="{{ 1 if r.is_active else 0 }}"
+            onclick="location.href='/sourcing-guide/{{ r.id }}'" {% if not r.is_active %}style="opacity:.5"{% endif %}>
+          <td class="sg-name">
+            {% if r.favicon_url %}<img src="{{ r.favicon_url }}" alt="" style="width:22px;height:22px;border-radius:5px;vertical-align:-5px;margin-right:8px;object-fit:cover" onerror="this.style.display='none'">{% endif %}{{ r.name }}{% if r.is_builtin %} <span class="sg-chip" style="background:#E7F0FF;color:#1B64DA;">기본</span>{% endif %}{% if not r.is_active %} <span class="sg-chip idle">숨김</span>{% endif %}{% if g.stage_progress %}{% set sp = g.stage_progress %}{% set total = 6 if sp.kind == 'new' else 4 %}{% if sp.stage %} <span class="sg-chip" style="background:#E7F0FF;color:#1B64DA;">진행중 {{ sp.done|length }}/{{ total }} · {{ sp.stage }} {{ sp.label }}</span>{% else %} <span class="sg-chip ok">분석 완료 {{ sp.done|length }}/{{ total }}</span>{% endif %}{% elif r.pending %} <span class="sg-chip" style="background:#FFF3BF;color:#B5870A;">분석 대기</span>{% endif %}</td>
           {% set nurl = g.sample_urls|length %}
           <td {% if nurl == 0 %}class="u"{% endif %}>{{ nurl }}개</td>
           {% set okf = g.fields.values()|selectattr('status','equalto','ok')|list|length %}
@@ -197,13 +199,59 @@
           </td>
           <td {% if not g.verification.last_new_check %}class="u"{% endif %}>{% if g.verification.last_new_check %}검증함{% else %}—{% endif %}</td>
           <td>{{ '상품별 크롤' if g.pricing.benefit_collection=='per_product' else '일괄' }}</td>
+          <td class="sg-mng-cell" onclick="event.stopPropagation()" style="white-space:nowrap">
+            <button type="button" class="sg-mng" data-act="rename" title="이름 변경">✎</button>
+            <button type="button" class="sg-mng" data-act="logo" title="로고(URL)">🖼</button>
+            <button type="button" class="sg-mng" data-act="hide" title="{{ '숨기기' if r.is_active else '표시' }}">{{ '🙈' if r.is_active else '👁' }}</button>
+            {% if not r.is_builtin %}<button type="button" class="sg-mng" data-act="delete" title="삭제" style="color:#e0455e">🗑</button>{% endif %}
+          </td>
         </tr>
         {% endfor %}
       </tbody>
     </table>
   </div>
-  <div class="sg-hint">행 클릭 → 상세 4단계.</div>
+  <div class="sg-hint">행 클릭 → 상세 4단계 · 관리(✎이름·🖼로고·👁숨김·🗑삭제)는 행 끝에서. 추가는 위 ‘소싱처 추가·업데이트’ 카드.</div>
 </div>
+
+<style>
+  .sg-mng{border:1px solid #E5E8EB;background:#fff;border-radius:8px;width:34px;height:34px;font-size:16px;cursor:pointer;color:#4E5968;margin-left:3px;line-height:1;}
+  .sg-mng:hover{background:#F1F3F5;border-color:#B0B8C1;}
+</style>
+<script>
+/* [2026-06-30 사전 통합] 소싱처 행 인라인 관리 — 이름·로고·숨김·삭제. 로그인 누구나. */
+(function(){
+  var tbl = document.querySelector('.sg-atbl');
+  if(!tbl) return;
+  async function api(method, url, body){
+    try{
+      var r = await fetch(url, {method:method, headers:{'Content-Type':'application/json'}, body: body?JSON.stringify(body):undefined});
+      return await r.json();
+    }catch(e){ return {ok:false, error:'요청 실패'}; }
+  }
+  tbl.addEventListener('click', async function(e){
+    var btn = e.target.closest('.sg-mng');
+    if(!btn) return;
+    e.stopPropagation(); e.preventDefault();
+    var row = btn.closest('tr.sg-row'); if(!row) return;
+    var key = row.dataset.key, name = row.dataset.name || '', domain = row.dataset.domain || '', active = row.dataset.active === '1';
+    var act = btn.dataset.act, base = '/sourcing-guide/api/source/' + encodeURIComponent(key), j;
+    if(act === 'rename'){
+      var nn = prompt('새 이름:', name); if(!nn || nn.trim() === name) return;
+      j = await api('PUT', base, {name: nn.trim()});
+    } else if(act === 'logo'){
+      var u = prompt('로고를 가져올 소싱처 URL:', domain ? ('https://'+domain) : 'https://'); if(!u) return;
+      j = await api('PUT', base, {logo_url: u.trim()});
+    } else if(act === 'hide'){
+      j = await api('PUT', base, {is_active: !active});
+    } else if(act === 'delete'){
+      if(!confirm("'" + name + "' 삭제할까요?")) return;
+      j = await api('DELETE', base);
+    } else return;
+    if(j && j.ok) location.reload();
+    else alert((j && j.error) || '실패');
+  });
+})();
+</script>
 
 <!-- 신규 소싱처 추가 — 팝오버(우측 서랍) -->
 <div id="nsgPopDim" class="nsg-popdim" hidden></div>

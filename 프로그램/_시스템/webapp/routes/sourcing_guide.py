@@ -267,6 +267,54 @@ def api_queue():
     return jsonify(ok=True, items=_queue_items())
 
 
+# ── [2026-06-30] 소싱처 명부 관리 — 사전 통합. 전체보기 행 인라인 편집이 호출. ──
+#   사전(/source-registry) 제거 후 관리 API 를 여기로 이동. 로그인 게이트만(admin 강제 X).
+@bp.put("/api/source/<key>")
+def api_source_update(key):
+    """이름변경(name) / 로고(logo_url→favicon) / 숨김(is_active)."""
+    data = request.get_json(silent=True) or {}
+    try:
+        if "name" in data:
+            roster.rename(key, data["name"])
+        if "logo_url" in data:
+            dom = sr.domain_of((data.get("logo_url") or "").strip())
+            roster.set_logo(key, domain=(dom or None),
+                            favicon_url=(f"https://{dom}/favicon.ico" if dom else None))
+        if "is_active" in data:
+            roster.set_active(key, bool(data["is_active"]))
+    except ValueError as e:
+        return jsonify(ok=False, error=str(e)), 400
+    return jsonify(ok=True, key=key)
+
+
+@bp.delete("/api/source/<key>")
+def api_source_delete(key):
+    """커스텀 + 참조 0 일 때만 삭제. 빌트인은 차단(roster.delete 가드)."""
+    try:
+        roster.delete(key)
+    except ValueError as e:
+        return jsonify(ok=False, error=str(e)), 400
+    return jsonify(ok=True, deleted=key)
+
+
+@bp.post("/api/sources/reorder")
+def api_sources_reorder():
+    data = request.get_json(silent=True) or {}
+    keys = data.get("keys") or []
+    if not isinstance(keys, list):
+        return jsonify(ok=False, error="keys must be a list"), 400
+    s = SessionLocal()
+    try:
+        rows = {r.source_key: r for r in s.query(SourcingSource).all()}
+        for order, k in enumerate(keys):
+            if k in rows:
+                rows[k].sort_order = order
+        s.commit()
+        return jsonify(ok=True, reordered=len(keys))
+    finally:
+        s.close()
+
+
 @bp.route("/add")
 def add_page():
     """소싱처 추가·업데이트 카드 — 2탭(신규/기존) 페이지."""
@@ -278,11 +326,22 @@ def add_page():
 @bp.route("/")
 def overview():
     rows = []
+    usage = roster.usage_by_key()           # source_key → 참조 수(삭제 가드 표시)
     for src in _sources():
         guide = cg.loads(src.crawl_guide)
         pending = bool(guide.get("update_requested")) or \
             (len(guide.get("sample_urls", [])) > 0 and _guide_is_blank(guide))
-        rows.append({"id": src.id, "name": src.label, "guide": guide, "pending": pending})
+        rows.append({
+            "id": src.id, "key": src.source_key, "name": src.label, "guide": guide,
+            "pending": pending,
+            # [2026-06-30 사전 통합] 행 인라인 관리(로고·이름·숨김·삭제)용 메타
+            "domain": src.domain or "",
+            "main_url": (("https://" + src.domain) if src.domain else ""),
+            "favicon_url": src.favicon_url or "",
+            "is_builtin": bool(src.is_builtin),
+            "is_active": bool(src.is_active),
+            "usage": usage.get(src.source_key, 0),
+        })
     return render_template("sourcing_guide/overview.html", rows=rows,
                            active="sourcing_guide", **_ext_ctx())
 

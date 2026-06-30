@@ -51,8 +51,7 @@ def _default_layout() -> dict:
              'collapsed': False, 'items': [
                 {'id': 'i_crawl_guide', 'emoji': '🗒', 'name': '크롤링 가이드',
                  'url': '/sourcing-guide/', 'active_key': 'sourcing_guide', 'badge_key': None},
-                {'id': 'i_src_dict', 'emoji': '📖', 'name': '소싱처 사전',
-                 'url': '/source-registry', 'active_key': 'source_registry', 'badge_key': None},
+                # [2026-06-30] 소싱처 사전 제거 — 크롤링 가이드 전체보기로 통합(행 인라인 관리)
                 {'id': 'i_dlq', 'emoji': '⚠️', 'name': '업로드 실패함',
                  'url': '/dlq', 'active_key': 'dlq', 'badge_key': 'failed'},
                 {'id': 'i_mk_acct', 'emoji': '🏪', 'name': '판매처 계정',
@@ -190,7 +189,7 @@ def get_layout_for_template() -> dict:
 
     # [2026-06-30] 사이드바 정리 — 운영센터(i_sources)·미맵핑큐(i_queue)·맵핑(i_mapping)
     #   렌더 시 숨김(코드·라우트는 보존, 가역). 필터 후 빈 스테이지(예: 매핑 현황)는 통째 제거.
-    _hidden_ids = {'i_sources', 'i_queue', 'i_mapping'}
+    _hidden_ids = {'i_sources', 'i_queue', 'i_mapping', 'i_src_dict'}
     _stages = []
     for st in out.get('stages', []):
         items = [it for it in st.get('items', []) if it.get('id') not in _hidden_ids]

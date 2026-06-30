@@ -97,12 +97,13 @@ def test_api_source_label_reflects_rename(roster_db):
     assert _source_label("musinsa") == "무신사RENAMED"
 
 
-def test_sidebar_hides_sources_opcenter():
-    """[2026-06-30] 운영센터(i_sources) 사이드바 숨김. 소싱처 사전은 유지."""
+def test_sidebar_hides_opcenter_and_dict():
+    """[2026-06-30] 운영센터·소싱처 사전 둘 다 사이드바에서 제거(가이드로 통합)."""
     from webapp.routes.api_sidebar import _default_layout, _has_item_id
     layout = _default_layout()
-    assert _has_item_id(layout, "i_sources") is False     # 운영센터 숨김
-    assert _has_item_id(layout, "i_src_dict") is True      # 소싱처 사전 유지
+    assert _has_item_id(layout, "i_sources") is False      # 운영센터 제거
+    assert _has_item_id(layout, "i_src_dict") is False     # 소싱처 사전 제거(통합)
+    assert _has_item_id(layout, "i_crawl_guide") is True   # 크롤링 가이드 유지
 
 
 # ─────────────────────────────────────────────────────────────
@@ -154,45 +155,56 @@ def test_roster_guide_roundtrip(roster_db):
 
 
 # ─────────────────────────────────────────────────────────────
-# 사전 라우트 (Phase 2 T7) — 명부 기준 CRUD (key)
+# 가이드 인라인 관리 엔드포인트 (사전 통합) — /sourcing-guide/api/source/<key>
 # ─────────────────────────────────────────────────────────────
 
 @pytest.fixture
-def sr_client(roster_db):
+def sg_client(roster_db):
     from flask import Flask
-    from webapp.routes import source_registry as srr
+    from webapp.routes import sourcing_guide as sg
     app = Flask(__name__)
-    app.register_blueprint(srr.bp)
+    app.register_blueprint(sg.bp)
     app.config.update(TESTING=True)
     return app.test_client()
 
 
-def test_dict_create_derives_key_and_favicon(sr_client):
+def test_guide_rename_reflects_in_labels(sg_client):
     from lemouton.sourcing import roster
-    r = sr_client.post('/api/source-registry', json={'name': '29CM', 'main_url': 'https://www.29cm.co.kr/p/1'})
-    assert r.status_code == 200 and r.get_json()['ok'] is True
-    g = roster.get('29cm')
-    assert g and g['label'] == '29CM'
-    assert '29cm.co.kr/favicon.ico' in (g.get('favicon_url') or '')
-
-
-def test_dict_create_blocks_dup_domain(sr_client):
-    sr_client.post('/api/source-registry', json={'name': 'A몰', 'main_url': 'https://dup.example/x'})
-    r = sr_client.post('/api/source-registry', json={'name': 'B몰', 'main_url': 'https://dup.example/y'})
-    assert r.status_code == 400 and '이미' in r.get_json()['error']
-
-
-def test_dict_rename_reflects_in_labels(sr_client):
     from lemouton.sourcing.source_registry import get_labels
-    sr_client.post('/api/source-registry', json={'name': '쇼핑몰', 'main_url': 'https://shopx.example/x'})
-    r = sr_client.put('/api/source-registry/shopx', json={'name': '쇼핑몰RENAMED'})
+    roster.add('shopx', '쇼핑몰', 'shopx.example')
+    r = sg_client.put('/sourcing-guide/api/source/shopx', json={'name': '쇼핑몰RENAMED'})
     assert r.get_json()['ok'] is True
     assert get_labels().get('shopx') == '쇼핑몰RENAMED'
 
 
-def test_dict_builtin_delete_blocked_via_api(sr_client):
-    r = sr_client.delete('/api/source-registry/lemouton')
+def test_guide_builtin_delete_blocked(sg_client):
+    r = sg_client.delete('/sourcing-guide/api/source/lemouton')
     assert r.status_code == 400 and r.get_json()['ok'] is False
+
+
+def test_guide_hide_toggle(sg_client):
+    from lemouton.sourcing import roster
+    roster.add('hidesrc', '숨길소싱처', 'hide.example')
+    r = sg_client.put('/sourcing-guide/api/source/hidesrc', json={'is_active': False})
+    assert r.get_json()['ok'] is True
+    assert roster.get('hidesrc') is None        # 비활성→활성 목록에서 빠짐
+
+
+def test_guide_custom_delete(sg_client):
+    from lemouton.sourcing import roster
+    roster.add('tmpsrc', '임시', 'tmp.example')
+    r = sg_client.delete('/sourcing-guide/api/source/tmpsrc')
+    assert r.get_json()['ok'] is True
+    assert roster.get('tmpsrc') is None
+
+
+def test_guide_logo_from_url(sg_client):
+    from lemouton.sourcing import roster
+    roster.add('logosrc', '로고소싱처', 'old.example')
+    r = sg_client.put('/sourcing-guide/api/source/logosrc', json={'logo_url': 'https://www.new.example/p/1'})
+    assert r.get_json()['ok'] is True
+    g = roster.get('logosrc')
+    assert 'new.example/favicon.ico' in (g.get('favicon_url') or '')
 
 
 # ─────────────────────────────────────────────────────────────

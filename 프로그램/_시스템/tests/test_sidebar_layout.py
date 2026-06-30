@@ -41,7 +41,8 @@ def test_default_contains_all_visible_items():
         'bundles_new', 'bundles', 'bundles_migrate',
         # 'sources'(소싱처 운영센터)는 2026-06-30 단일명부 통합으로 사이드바 숨김(라우트 보존).
         'queue', 'mapping',
-        'sourcing_guide', 'source_registry', 'dlq', 'accounts_upload',
+        # 'source_registry'(소싱처 사전)는 2026-06-30 가이드 통합으로 default 에서 제거.
+        'sourcing_guide', 'dlq', 'accounts_upload',
         'track',
         'templates', 'orders_list', 'orders_sales', 'orders_margin',
         'trash', 'alerts',
@@ -119,5 +120,5 @@ def test_get_layout_strips_sources_even_if_saved(monkeypatch, tmp_path):
     assert 'sources' not in keys                  # 렌더 결과엔 운영센터 없음
     assert 'queue' not in keys and 'mapping' not in keys      # 미맵핑큐·맵핑도 숨김
     assert not any(st.get('id') == 's_mapping' for st in out['stages'])  # 빈 매핑섹션 제거
-    assert 'source_registry' in keys              # 소싱처 사전은 유지
+    assert 'source_registry' not in keys          # 소싱처 사전도 제거(가이드 통합)
     assert 'sourcing_guide' in keys               # 크롤링 가이드 유지

@@ -75,7 +75,7 @@ def register_routes(app: Flask) -> None:
     from webapp.routes.api_benefits_crud import bp as api_benefits_crud_bp  # [v6 D2-A] 혜택 추가 폼 (4 scope)
     from webapp.routes.api_inventory_link import bp as api_inv_link_bp  # [v17] 재고관리 연동
     from webapp.routes.sources import bp as sources_bp  # [v2] 소싱처 운영센터
-    from webapp.routes.source_registry import bp as source_registry_bp  # [v3] 사전
+    # [2026-06-30] 소싱처 사전 블루프린트 제거 — 크롤링 가이드 전체보기로 통합(중복 화면 제거)
     from webapp.routes.trash import bp as trash_bp  # [v2] 휴지통 + 변경 이력
     from webapp.routes.orders import bp as orders_bp  # [v2] 주문관리
     from webapp.routes.market_upload import bp as market_upload_bp  # [v6] Phase 4 — 마켓 업로드 설정 M2
@@ -101,7 +101,6 @@ def register_routes(app: Flask) -> None:
     app.register_blueprint(api_benefits_crud_bp)  # [v6 D2-A] 혜택 추가 폼 (4 scope)
     app.register_blueprint(api_inv_link_bp)  # [v17] 재고관리 연동
     app.register_blueprint(sources_bp)  # [v2]
-    app.register_blueprint(source_registry_bp)  # [v3]
     app.register_blueprint(trash_bp)  # [v2]
     app.register_blueprint(orders_bp)  # [v2]
     app.register_blueprint(market_upload_bp)  # [v6] Phase 4
