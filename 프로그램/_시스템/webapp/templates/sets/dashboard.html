@@ -392,7 +392,7 @@
     var snTx=(s.send==='ok')?'최신 반영됨':'소싱 변동이 판매처에 아직 반영 안 됨 · 마지막 전송 없음';
     var canSend=(c.market==='coupang' && c.status==='linked');
     var sendRow='<div class="det-row"><span class="det-ty '+snTy+'">전송</span><span class="det-cmp">'+snTx+'</span>'
-      +(s.send!=='ok'?(canSend?'<button class="det-act" data-act="send" data-mk="'+esc(c.market)+'">지금 전송 →</button>':'<span class="sd-cnt" style="margin-left:auto">실제 전송은 쿠팡만 지원</span>'):'')+'</div>';
+      +(s.send!=='ok'?(canSend?'<button class="det-act" data-act="send" data-mk="'+esc(c.market)+'" data-cid="'+c.id+'">지금 전송 →</button>':'<span class="sd-cnt" style="margin-left:auto">실제 전송은 쿠팡만 지원</span>'):'')+'</div>';
     return '<div class="expand"><h4>'+mkName(c.market)+' — 상태 상세</h4>'+stockRow+priceRow+sendRow+'</div>';
   }
   function mkTile(market){ var m=m3mk(market); return '<span class="mk-tile" style="background:'+m.c+'">'+m.sh+'</span>'; }
@@ -409,7 +409,7 @@
         +'<div class="ctr">'+cSignals(c)+'</div>'
         +'<div class="rgt"><span class="rowacts">'
           +'<button class="mini-btn accent" data-act="hist" data-mk="'+esc(c.market)+'" data-fld="price">📈 이력</button>'
-          +'<button class="mini-btn" data-act="pv" data-mk="'+esc(c.market)+'"'+(canPv?'':' disabled')+'>👁 미리보기</button>'
+          +'<button class="mini-btn" data-act="pv" data-mk="'+esc(c.market)+'" data-cid="'+c.id+'"'+(canPv?'':' disabled')+'>👁 미리보기</button>'
         +'</span></div>'
         +'</div>'
         +cExpand(r,c)
@@ -760,9 +760,9 @@
     // 변동 이력 (행 액션 📈 이력 / 상세 안 📈 변동 이력)
     var histBtn=e.target.closest('[data-act="hist"]');
     if(histBtn){ e.stopPropagation(); var card0=histBtn.closest('.sd-card'); openHistModal(card0.getAttribute('data-sid'), histBtn.getAttribute('data-mk'), histBtn.getAttribute('data-fld')||'price'); return; }
-    // 미리보기 / 지금 전송 → 전송 미리보기 모달 (채널 id 지연 해석)
+    // 미리보기 / 지금 전송 → 전송 미리보기 모달 (채널 id 는 응답에 포함 — data-cid 직접 사용, 없을 때만 지연 해석)
     var pvAct=e.target.closest('[data-act="pv"]')||e.target.closest('[data-act="send"]');
-    if(pvAct){ e.stopPropagation(); if(pvAct.hasAttribute('disabled')) return; var card1=pvAct.closest('.sd-card'); var sid1=card1.getAttribute('data-sid'); var mk1=pvAct.getAttribute('data-mk'); withChannelId(sid1, mk1, function(cid){ openPvModal(cid, mk1); }); return; }
+    if(pvAct){ e.stopPropagation(); if(pvAct.hasAttribute('disabled')) return; var card1=pvAct.closest('.sd-card'); var sid1=card1.getAttribute('data-sid'); var mk1=pvAct.getAttribute('data-mk'); var cid1=pvAct.getAttribute('data-cid'); if(cid1){ openPvModal(cid1, mk1); } else { withChannelId(sid1, mk1, function(cid){ openPvModal(cid, mk1); }); } return; }
     var tabEl=e.target.closest('.det-tab');
     if(tabEl){
       var card=tabEl.closest('.sd-card'); var sid=card.getAttribute('data-sid');

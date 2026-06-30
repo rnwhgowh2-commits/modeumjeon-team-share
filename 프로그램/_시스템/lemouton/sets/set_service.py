@@ -140,7 +140,6 @@ def list_linked_sets(session: Session, q: str | None = None,
             crawled = getattr(m, "last_crawled_at", None) if m else None
             if crawled is not None and (last_collected is None or crawled > last_collected):
                 last_collected = crawled
-        src_summary = _src_summary(src_provider, model_codes, skus)
         alerts = _alerts_for_set(session, ps.id)
         last_sent = None   # 전송 기능(2단계) 도입 시 채워짐 — 현재 항상 미전송
         channels = []
@@ -166,7 +165,8 @@ def list_linked_sets(session: Session, q: str | None = None,
         out.append({
             "set_id": ps.id, "name": ps.name, "model_code": ps.model_code,
             "products": products, "channels": channels,
-            "src_summary": src_summary,
+            "src_summary": {"src_stock_total": None, "source_name": None},
+            "_mcs": model_codes, "_skus": skus,
             "last_collected_at": last_collected.isoformat() if last_collected else None,
             "last_sent_at": last_sent,
             "alerts": alerts,
@@ -186,6 +186,9 @@ def list_linked_sets(session: Session, q: str | None = None,
             return False
 
         out = [r for r in out if _match(r)]
+    # src_summary(무거운 provider)는 q 필터 통과 세트에만 — 검색 핫패스 부하 방지
+    for r in out:
+        r["src_summary"] = _src_summary(src_provider, r.pop("_mcs"), r.pop("_skus"))
     return out
 
 
