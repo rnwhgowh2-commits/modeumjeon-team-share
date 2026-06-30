@@ -8,6 +8,7 @@ from lemouton.sets.models import (
     ProductSet, SetProduct, SetOption, SetChannel, SetChannelOption,
 )
 from lemouton.sourcing.models import Model
+from lemouton.sets.alert_service import alerts_for_set as _alerts_for_set
 
 
 def create_set(session: Session, *, model_code: str, name: str) -> ProductSet:
@@ -96,6 +97,7 @@ def list_linked_sets(session: Session, q: str | None = None) -> list[dict]:
             products.append({
                 "model_code": sp.model_code, "model_name": name,
                 "quantity": sp.quantity, "option_count": opt_count,
+                "brand": getattr(m, "brand", None) if m else None,
             })
             crawled = getattr(m, "last_crawled_at", None) if m else None
             if crawled is not None and (last_collected is None or crawled > last_collected):
@@ -119,6 +121,7 @@ def list_linked_sets(session: Session, q: str | None = None) -> list[dict]:
             "products": products, "channels": channels,
             "last_collected_at": last_collected.isoformat() if last_collected else None,
             "last_sent_at": None,
+            "alerts": _alerts_for_set(session, ps.id),
         })
     if q:
         ql = q.strip().lower()
