@@ -88,3 +88,23 @@ def test_list_changes_filters_and_orders(db):
     allc = cs.list_changes(db, set_id=7, market="coupang")
     assert len(allc) == 3
     assert len(cs.list_changes(db, set_id=7)) == 4
+
+
+def test_snapshot_source_values_records_and_idempotent(db):
+    from lemouton.sets import change_service as cs
+    from lemouton.sets.models import SetChannel, SetChannelOption
+    ch = SetChannel(set_id=5, market="smartstore", account_key="a", market_product_id="9", status="linked")
+    db.add(ch); db.flush()
+    db.add(SetChannelOption(channel_id=ch.id, canonical_sku="K", market_option_id="1", status="matched"))
+    db.commit()
+    n1 = cs.snapshot_source_values(db, set_id=5, value_map={"K": {"stock": 7, "price": 50000}}); db.commit()
+    assert n1 == 2
+    evs = db.query(ChannelChangeEvent).filter_by(source="source").all()
+    assert {(e.field, e.next_value) for e in evs} == {("stock", 7), ("price", 50000)}
+    n2 = cs.snapshot_source_values(db, set_id=5, value_map={"K": {"stock": 7, "price": 50000}}); db.commit()
+    assert n2 == 0
+    n3 = cs.snapshot_source_values(db, set_id=5, value_map={"K": {"stock": 0, "price": 50000}}); db.commit()
+    assert n3 == 1
+    last = (db.query(ChannelChangeEvent).filter_by(source="source", field="stock")
+            .order_by(ChannelChangeEvent.at.desc()).first())
+    assert last.prev_value == 7 and last.next_value == 0
