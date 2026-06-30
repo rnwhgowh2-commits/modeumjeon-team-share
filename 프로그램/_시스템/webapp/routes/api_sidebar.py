@@ -49,11 +49,11 @@ def _default_layout() -> dict:
             ]},
             {'id': 's_crawl', 'emoji': '🛒', 'name': '마켓 관리', 'color': '#03C75A',
              'collapsed': False, 'items': [
-                {'id': 'i_crawl_guide', 'emoji': '🗒', 'name': '크롤링 가이드',
+                {'id': 'i_crawl_guide', 'emoji': '🗒', 'name': '소싱처 관리',
                  'url': '/sourcing-guide/', 'active_key': 'sourcing_guide', 'badge_key': None},
                 # [2026-06-30] 소싱처 사전 제거(가이드 통합) + 업로드 실패함 제거(사용자 요청).
-                #   둘 다 라우트는 보존 — 직접 URL(/dlq) 접근 가능. 그룹명 크롤링&업로드→마켓 관리.
-                {'id': 'i_mk_acct', 'emoji': '🏪', 'name': '판매처 계정',
+                #   탭명: 크롤링 가이드→소싱처 관리 / 판매처 계정→판매처 관리. 라우트는 보존.
+                {'id': 'i_mk_acct', 'emoji': '🏪', 'name': '판매처 관리',
                  'url': '/accounts/upload', 'active_key': 'accounts_upload', 'badge_key': None},
             ]},
             {'id': 's_buy', 'emoji': '🛍', 'name': '구매', 'color': '#EF4444',
@@ -159,7 +159,7 @@ _ROADMAP_ITEM = {'id': 'i_roadmap', 'emoji': '🗺', 'name': '로드맵',
 
 # 크롤링 가이드 탭 — s_crawl 기본 레이아웃에 이미 포함됨.
 # 이 상수는 구형 커스텀 레이아웃(i_crawl_guide 없는 저장분)에 대한 폴백 주입용.
-_CRAWL_GUIDE_ITEM = {'id': 'i_crawl_guide', 'emoji': '🗒', 'name': '크롤링 가이드',
+_CRAWL_GUIDE_ITEM = {'id': 'i_crawl_guide', 'emoji': '🗒', 'name': '소싱처 관리',
                      'url': '/sourcing-guide/', 'active_key': 'sourcing_guide', 'badge_key': None}
 
 # 판매처 연동 탭 — 연동 현황 대시보드 진입점. 저장 레이아웃에 없으면 렌더 시
