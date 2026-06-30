@@ -60,10 +60,12 @@ def init_db() -> None:
     from lemouton.sets.schema_patch import ensure_market_columns
     ensure_market_columns(engine)
     _apply_lightweight_migrations()
-    # [2026-06-30 단일명부] 빌트인 6개를 SourcingSource 에 멱등 seed (컬럼 보강 이후)
+    # [2026-06-30 단일명부] 빌트인 6개 seed + 기존 가이드 이관 (멱등, 컬럼 보강 이후)
     try:
         from lemouton.sourcing.source_registry import seed_builtins
         seed_builtins()
+        from lemouton.sourcing.roster import migrate_guides_from_registry
+        migrate_guides_from_registry()
     except Exception:
         pass
 

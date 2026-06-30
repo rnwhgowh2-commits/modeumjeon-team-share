@@ -9,9 +9,12 @@ from datetime import datetime, timezone
 from flask import Blueprint, jsonify, render_template, request, send_file, abort, make_response
 
 from shared.db import SessionLocal
-from lemouton.sourcing.models_pricing import SourceRegistry
+# [2026-06-30 단일명부] 가이드도 단일 명부(SourcingSource)를 읽는다(이전 SourceRegistry).
+#   식별자는 SourcingSource.id(정수) — 엔드포인트 시그니처 유지. name→label.
+from lemouton.sourcing.models import SourcingSource
 from lemouton.sourcing import crawl_guide as cg
 from lemouton.sourcing import source_registry as sr
+from lemouton.sourcing import roster
 from lemouton.sourcing.crawl_queue import enqueue_verify, get_job
 from webapp.routes.guide_sync import compute_guide_drift
 
@@ -31,9 +34,14 @@ def _now_iso() -> str:
 
 
 def _sources():
+    """단일 명부(SourcingSource) 활성 소싱처 — 빌트인 seed·가이드 이관 보장 후."""
+    roster.seed_if_needed()
     s = SessionLocal()
     try:
-        return s.query(SourceRegistry).order_by(SourceRegistry.sort_order, SourceRegistry.id).all()
+        return (s.query(SourcingSource)
+                  .filter(SourcingSource.is_active.is_(True))
+                  .order_by(SourcingSource.is_builtin.desc(),
+                            SourcingSource.sort_order, SourcingSource.id).all())
     finally:
         s.close()
 
@@ -41,13 +49,13 @@ def _sources():
 def _source(sid: int):
     s = SessionLocal()
     try:
-        return s.query(SourceRegistry).get(sid)
+        return s.query(SourcingSource).get(sid)
     finally:
         s.close()
 
 
 def _save_guide(s, src, guide: dict) -> None:
-    """검증 후 SourceRegistry.crawl_guide 에 직렬화 저장."""
+    """검증 후 명부(SourcingSource).crawl_guide 에 직렬화 저장."""
     src.crawl_guide = cg.dumps(guide)
     s.commit()
 
@@ -64,11 +72,11 @@ def _queue_items():
         guide = cg.loads(src.crawl_guide)
         has_url = len(guide.get("sample_urls", [])) > 0
         if guide.get("update_requested"):
-            out.append({"id": src.id, "name": src.name, "kind": "update",
+            out.append({"id": src.id, "name": src.label, "kind": "update",
                         "note": guide["update_requested"].get("note", ""),
                         "url_count": len(guide.get("sample_urls", []))})
         elif has_url and _guide_is_blank(guide):
-            out.append({"id": src.id, "name": src.name, "kind": "new",
+            out.append({"id": src.id, "name": src.label, "kind": "new",
                         "note": "", "url_count": len(guide["sample_urls"])})
     return out
 
@@ -90,7 +98,7 @@ def _find_existing_by_domain(s, urls):
         su = {sr.domain_of(x.get("url", "")) for x in guide.get("sample_urls", [])}
         su.discard("")
         if domains & su:
-            return {"kind": "registered", "id": src.id, "name": src.name}
+            return {"kind": "registered", "id": src.id, "name": src.label}
     # (b) 빌트인 크롤지원 소싱처(카탈로그)와 도메인 겹치나
     for u in urls:
         c = sr.catalog_by_domain(u)
@@ -117,10 +125,10 @@ def api_add_source():
         return jsonify(ok=False, error="이름은 64자 이내."), 400
     s = SessionLocal()
     try:
-        dup = s.query(SourceRegistry).filter_by(name=name).first()
+        dup = s.query(SourcingSource).filter_by(label=name).first()
         if dup and not force:
             return jsonify(ok=False, exists=True,
-                           existing={"kind": "registered", "id": dup.id, "name": dup.name},
+                           existing={"kind": "registered", "id": dup.id, "name": dup.label},
                            error=f"'{name}' 은 이미 등록된 소싱처에요. 기존 업데이트로 진행하세요."), 409
         if not force:
             hit = _find_existing_by_domain(s, urls)
@@ -131,7 +139,24 @@ def api_add_source():
                        f"같은 사이트가 이미 '{label}' 으로 등록돼 있어요. ")
                 return jsonify(ok=False, exists=True, existing=hit,
                                error=msg + "기존 업데이트 탭에서 진행하세요."), 409
-        src = SourceRegistry(name=name, sort_order=s.query(SourceRegistry).count())
+        # 단일 명부(SourcingSource) 행 생성 — source_key 는 첫 URL 도메인에서 도출(불변).
+        import re as _re
+        dom = ""
+        for u in urls:
+            dom = sr.domain_of(u)
+            if dom:
+                break
+        base = _re.sub(r"[^a-z0-9]", "",
+                       (dom.split(".")[0].lower() if dom else _re.sub(r"[^a-z0-9]", "", name.lower()))) or "src"
+        existing_keys = {r[0] for r in s.query(SourcingSource.source_key).all()}
+        key, n = base, 2
+        while key in existing_keys:
+            key, n = f"{base}{n}", n + 1
+        src = SourcingSource(
+            source_key=key, label=name, domain=(dom or (key + ".com")),
+            favicon_url=(f"https://{dom}/favicon.ico" if dom else None),
+            is_active=True, is_builtin=False, has_adapter=False, sort_order=100,
+        )
         s.add(src)
         s.flush()
         guide = cg.empty_skeleton()
@@ -144,7 +169,7 @@ def api_add_source():
         except ValueError as e:
             s.rollback()
             return jsonify(ok=False, error=f"URL 형식이 올바르지 않습니다: {e}"), 400
-        return jsonify(ok=True, id=src.id, name=src.name,
+        return jsonify(ok=True, id=src.id, name=src.label,
                        url_count=len(guide["sample_urls"]))
     finally:
         s.close()
@@ -157,7 +182,7 @@ def api_save_urls(sid: int):
     urls = [u.strip() for u in (data.get("urls") or []) if str(u).strip()]
     s = SessionLocal()
     try:
-        src = s.query(SourceRegistry).get(sid)
+        src = s.query(SourcingSource).get(sid)
         if not src:
             return jsonify(ok=False, error="소싱처를 찾을 수 없어요."), 404
         guide = cg.loads(src.crawl_guide)
@@ -180,7 +205,7 @@ def api_request_update(sid: int):
     note = (data.get("note") or "").strip()
     s = SessionLocal()
     try:
-        src = s.query(SourceRegistry).get(sid)
+        src = s.query(SourcingSource).get(sid)
         if not src:
             return jsonify(ok=False, error="소싱처를 찾을 수 없어요."), 404
         guide = cg.loads(src.crawl_guide)
@@ -202,14 +227,16 @@ def api_merge_into(sid: int, target_sid: int):
         return jsonify(ok=False, error="자기 자신과 병합할 수 없어요."), 400
     s = SessionLocal()
     try:
-        src = s.query(SourceRegistry).get(sid)
-        tgt = s.query(SourceRegistry).get(target_sid)
+        src = s.query(SourcingSource).get(sid)
+        tgt = s.query(SourcingSource).get(target_sid)
         if not src or not tgt:
             return jsonify(ok=False, error="소싱처를 찾을 수 없어요."), 404
+        if src.is_builtin:
+            return jsonify(ok=False, error="빌트인 소싱처는 병합·삭제할 수 없어요."), 400
         src_guide = cg.loads(src.crawl_guide)
         if not _guide_is_blank(src_guide):
             return jsonify(ok=False,
-                           error=f"'{src.name}' 은 크롤 정의가 있어 안전상 병합 불가. 빈 중복 카드만 정리합니다."), 400
+                           error=f"'{src.label}' 은 크롤 정의가 있어 안전상 병합 불가. 빈 중복 카드만 정리합니다."), 400
         # URL 합치기(중복 제거, target 대표 유지)
         tgt_guide = cg.loads(tgt.crawl_guide)
         seen, merged = set(), []
@@ -227,7 +254,7 @@ def api_merge_into(sid: int, target_sid: int):
             return jsonify(ok=False, error=f"URL 형식 오류: {e}"), 400
         s.delete(src)
         s.commit()
-        return jsonify(ok=True, target=tgt.name, url_count=len(merged))
+        return jsonify(ok=True, target=tgt.label, url_count=len(merged))
     except Exception as e:
         s.rollback()
         return jsonify(ok=False, error=f"병합 실패(참조 제약 가능): {str(e)[:120]}"), 400
@@ -243,7 +270,7 @@ def api_queue():
 @bp.route("/add")
 def add_page():
     """소싱처 추가·업데이트 카드 — 2탭(신규/기존) 페이지."""
-    sources = [{"id": x.id, "name": x.name} for x in _sources()]
+    sources = [{"id": x.id, "name": x.label} for x in _sources()]
     return render_template("sourcing_guide/add.html",
                            active="sourcing_guide", sources=sources)
 
@@ -255,7 +282,7 @@ def overview():
         guide = cg.loads(src.crawl_guide)
         pending = bool(guide.get("update_requested")) or \
             (len(guide.get("sample_urls", [])) > 0 and _guide_is_blank(guide))
-        rows.append({"id": src.id, "name": src.name, "guide": guide, "pending": pending})
+        rows.append({"id": src.id, "name": src.label, "guide": guide, "pending": pending})
     return render_template("sourcing_guide/overview.html", rows=rows,
                            active="sourcing_guide", **_ext_ctx())
 
@@ -363,9 +390,9 @@ def detail(sid: int):
     if src is None:
         return "not found", 404
     guide = cg.loads(src.crawl_guide)
-    sources = [{"id": x.id, "name": x.name} for x in _sources()]
+    sources = [{"id": x.id, "name": x.label} for x in _sources()]
     return render_template("sourcing_guide/detail.html",
-                           src={"id": src.id, "name": src.name},
+                           src={"id": src.id, "name": src.label},
                            guide=guide, sources=sources, active="sourcing_guide")
 
 
@@ -381,7 +408,7 @@ def api_get(sid: int):
 def api_put(sid: int):
     s = SessionLocal()
     try:
-        src = s.query(SourceRegistry).get(sid)
+        src = s.query(SourcingSource).get(sid)
         if src is None:
             return jsonify(ok=False, error="not_found"), 404
         try:
@@ -485,7 +512,7 @@ def api_save_check(sid: int):
     """
     s = SessionLocal()
     try:
-        src = s.query(SourceRegistry).get(sid)
+        src = s.query(SourcingSource).get(sid)
         if src is None:
             return jsonify(ok=False, error="not_found"), 404
         body = request.get_json(force=True) or {}
@@ -528,7 +555,7 @@ def api_example_shot(sid: int):
     """④ 예제 기준 스크린샷 — 드래그앤드랍 업로드. 이미지는 data URL 로 guide JSON 에 저장(재배포 영속)."""
     s = SessionLocal()
     try:
-        src = s.query(SourceRegistry).get(sid)
+        src = s.query(SourcingSource).get(sid)
         if src is None:
             return jsonify(ok=False, error="not_found"), 404
         body = request.get_json(force=True) or {}
@@ -560,7 +587,7 @@ def api_example_shot_auto(sid: int):
     """
     s = SessionLocal()
     try:
-        src = s.query(SourceRegistry).get(sid)
+        src = s.query(SourcingSource).get(sid)
         if src is None:
             return jsonify(ok=False, error="not_found"), 404
         body = request.get_json(force=True) or {}
@@ -576,7 +603,7 @@ def api_example_shot_auto(sid: int):
             return jsonify(ok=False, error="no_url", message="예제에 URL이 없습니다"), 400
         from lemouton.sourcing import screenshot as shot
         try:
-            data = shot.capture_screenshot(url, source_name=src.name)
+            data = shot.capture_screenshot(url, source_name=src.label)
             public = shot.store_guide_screenshot(sid, idx, data)
         except RuntimeError as e:
             return jsonify(ok=False, error="capture_failed", message=str(e)), 502
@@ -597,7 +624,7 @@ def api_verify(sid: int):
         return jsonify(ok=False, error="not_found"), 404
     url = (request.get_json(force=True) or {}).get("url", "")
     try:
-        job = enqueue_verify(url, required_login=(src.name or "").lower(),
+        job = enqueue_verify(url, required_login=(src.label or "").lower(),
                              triggered_by="guide_verify")
     except ValueError as e:
         return jsonify(ok=False, error="invalid_url", message=str(e)), 400
@@ -612,7 +639,7 @@ def api_verify_status(sid: int, job_id: int):
     if job["status"] == "done" and job.get("result") and job.get("phase") == "verify":
         s = SessionLocal()
         try:
-            src = s.query(SourceRegistry).get(sid)
+            src = s.query(SourcingSource).get(sid)
             if src is not None:
                 cur = cg.loads(src.crawl_guide)
                 lnc = (cur.get("verification") or {}).get("last_new_check") or {}

@@ -193,3 +193,32 @@ def test_dict_rename_reflects_in_labels(sr_client):
 def test_dict_builtin_delete_blocked_via_api(sr_client):
     r = sr_client.delete('/api/source-registry/lemouton')
     assert r.status_code == 400 and r.get_json()['ok'] is False
+
+
+# ─────────────────────────────────────────────────────────────
+# 가이드 이관 (Phase 4 T9) — SourceRegistry.crawl_guide → SourcingSource
+# ─────────────────────────────────────────────────────────────
+
+def test_migrate_guides_from_registry(roster_db):
+    from lemouton.sourcing import roster
+    from lemouton.sourcing.models_pricing import SourceRegistry
+    from lemouton.sourcing.models import SourcingSource
+    from shared.db import SessionLocal
+    import lemouton.sourcing.crawl_guide as cg
+    roster.seed_if_needed()
+    # 도메인 매칭용 SourceRegistry 행(르무통) — 비어있지 않은 가이드
+    g = cg.empty_skeleton()
+    g["fields"]["title"]["status"] = "ok"
+    s = SessionLocal()
+    try:
+        s.query(SourceRegistry).filter(SourceRegistry.main_url.like("%lemouton%")).delete(synchronize_session=False)
+        s.add(SourceRegistry(name="르무통 공홈", main_url="https://lemouton.co.kr", crawl_guide=cg.dumps(g)))
+        s.commit()
+    finally:
+        s.close()
+    n = roster.migrate_guides_from_registry()
+    assert n >= 1
+    back = roster.get_guide("lemouton")
+    assert back["fields"]["title"]["status"] == "ok"
+    # 멱등: 2회차는 target 이미 있어 복사 0
+    assert roster.migrate_guides_from_registry() == 0

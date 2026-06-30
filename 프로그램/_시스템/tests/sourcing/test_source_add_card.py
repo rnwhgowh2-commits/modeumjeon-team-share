@@ -6,6 +6,7 @@ import pytest
 from lemouton.sourcing import crawl_guide as cg
 from shared.db import SessionLocal
 from lemouton.sourcing.models_pricing import SourceRegistry
+from lemouton.sourcing.models import SourcingSource
 
 # webapp/templates 절대 경로 — tests/sourcing/ 에서 ../../webapp/templates
 _TMPL_DIR = os.path.normpath(
@@ -36,8 +37,9 @@ def client(monkeypatch):
             __import__(_m)
         except ImportError:
             pass
-    from shared.db import Base, engine
+    from shared.db import Base, engine, _apply_lightweight_migrations
     Base.metadata.create_all(engine)
+    _apply_lightweight_migrations()      # [2026-06-30] SourcingSource is_builtin·crawl_guide 보강
 
     from flask import Flask
     from webapp.routes import sourcing_guide as sg
@@ -58,11 +60,25 @@ def client(monkeypatch):
 
 
 def _cleanup(name):
+    # [2026-06-30 단일명부] 소싱처는 이제 SourcingSource(label) — 양쪽 정리(하위호환).
+    from lemouton.sourcing.models import SourcingSource
     s = SessionLocal()
     try:
-        for r in s.query(SourceRegistry).filter_by(name=name).all():
+        for r in s.query(SourcingSource).filter_by(label=name).all():
+            s.delete(r)
+        for r in s.query(SourcingSource).filter_by(label=name).all():
             s.delete(r)
         s.commit()
+    finally:
+        s.close()
+
+
+def _find_src(label):
+    """label 로 SourcingSource 1건(테스트 헬퍼)."""
+    from lemouton.sourcing.models import SourcingSource
+    s = SessionLocal()
+    try:
+        return s.query(SourcingSource).filter_by(label=label).first()
     finally:
         s.close()
 
@@ -78,7 +94,7 @@ def test_add_source_creates_registry_and_urls(client):
     assert data["ok"] is True
     s = SessionLocal()
     try:
-        row = s.query(SourceRegistry).filter_by(name="테스트29").first()
+        row = s.query(SourcingSource).filter_by(label="테스트29").first()
         assert row is not None
         guide = json.loads(row.crawl_guide)
         assert [u["url"] for u in guide["sample_urls"]] == \
@@ -141,7 +157,7 @@ def test_add_source_invalid_url_returns_400(client):
     # 잘못된 URL 이면 행이 커밋되지 않아야 함(롤백)
     s = SessionLocal()
     try:
-        assert s.query(SourceRegistry).filter_by(name="테스트나쁜URL").first() is None
+        assert s.query(SourcingSource).filter_by(label="테스트나쁜URL").first() is None
     finally:
         s.close()
     _cleanup("테스트나쁜URL")
@@ -161,9 +177,17 @@ def test_add_source_empty_urls_ok(client):
 # ─────────────────────────────────────────────────────────────────
 
 def _make_source(name, urls):
+    # [2026-06-30 단일명부] SourcingSource(label) 로 생성. source_key 자동 고유화.
+    from lemouton.sourcing.models import SourcingSource
+    import re as _re
+    key = _re.sub(r'[^a-z0-9]', '', name.lower()) or 'tsrc'
     s = SessionLocal()
     try:
-        src = SourceRegistry(name=name, sort_order=999)
+        base, n = key, 2
+        while s.query(SourcingSource).filter_by(source_key=key).first():
+            key, n = f"{base}{n}", n + 1
+        src = SourcingSource(source_key=key, label=name, domain=key + '.example',
+                             is_active=True, is_builtin=False, sort_order=999)
         s.add(src); s.flush()
         g = cg.empty_skeleton()
         g["sample_urls"] = [{"url": u, "is_lead": i == 0} for i, u in enumerate(urls)]
@@ -182,7 +206,7 @@ def test_save_urls_replaces_list(client):
     assert resp.status_code == 200
     s = SessionLocal()
     try:
-        g = json.loads(s.query(SourceRegistry).get(sid).crawl_guide)
+        g = json.loads(s.query(SourcingSource).get(sid).crawl_guide)
         assert [u["url"] for u in g["sample_urls"]] == ["https://a.com/2", "https://a.com/3"]
     finally:
         s.close()
@@ -196,7 +220,7 @@ def test_request_update_sets_flag(client):
     assert resp.status_code == 200
     s = SessionLocal()
     try:
-        g = json.loads(s.query(SourceRegistry).get(sid).crawl_guide)
+        g = json.loads(s.query(SourcingSource).get(sid).crawl_guide)
         assert g["update_requested"]["note"] == "재고 둔갑"
     finally:
         s.close()
@@ -269,7 +293,7 @@ def test_add_source_blocks_builtin_domain(client):
     # 생성 안 됐어야 함
     s = SessionLocal()
     try:
-        assert s.query(SourceRegistry).filter_by(name="현대몰중복테스트").first() is None
+        assert s.query(SourcingSource).filter_by(label="현대몰중복테스트").first() is None
     finally:
         s.close()
 
@@ -312,8 +336,8 @@ def test_merge_into_moves_urls_and_deletes_blank(client):
         "name": "병합중복", "urls": ["https://m-xyz.example/b"], "force": True})
     s = SessionLocal()
     try:
-        tgt = s.query(SourceRegistry).filter_by(name="병합타겟").first()
-        dup = s.query(SourceRegistry).filter_by(name="병합중복").first()
+        tgt = s.query(SourcingSource).filter_by(label="병합타겟").first()
+        dup = s.query(SourcingSource).filter_by(label="병합중복").first()
         tid, did = tgt.id, dup.id
     finally:
         s.close()
@@ -321,8 +345,8 @@ def test_merge_into_moves_urls_and_deletes_blank(client):
     assert resp.status_code == 200 and resp.get_json()["ok"] is True
     s = SessionLocal()
     try:
-        assert s.query(SourceRegistry).get(did) is None          # 중복 삭제됨
-        guide = cg.loads(s.query(SourceRegistry).get(tid).crawl_guide)
+        assert s.query(SourcingSource).get(did) is None          # 중복 삭제됨
+        guide = cg.loads(s.query(SourcingSource).get(tid).crawl_guide)
         urls = {u["url"] for u in guide["sample_urls"]}
         assert urls == {"https://m-xyz.example/a", "https://m-xyz.example/b"}
     finally:
@@ -339,8 +363,8 @@ def test_merge_into_refuses_nonblank_source(client):
         "name": "정의있음", "urls": ["https://t2.example/b"], "force": True})
     s = SessionLocal()
     try:
-        tgt = s.query(SourceRegistry).filter_by(name="병합타겟2").first()
-        nb = s.query(SourceRegistry).filter_by(name="정의있음").first()
+        tgt = s.query(SourcingSource).filter_by(label="병합타겟2").first()
+        nb = s.query(SourcingSource).filter_by(label="정의있음").first()
         # 정의있음 카드를 non-blank 로 만듦(thumbnail status=ok)
         g = cg.loads(nb.crawl_guide)
         g["fields"]["thumbnail"]["status"] = "ok"
@@ -353,7 +377,7 @@ def test_merge_into_refuses_nonblank_source(client):
     assert resp.status_code == 400
     s = SessionLocal()
     try:
-        assert s.query(SourceRegistry).get(nid) is not None       # 삭제 안 됨
+        assert s.query(SourcingSource).get(nid) is not None       # 삭제 안 됨
     finally:
         s.close()
     _cleanup("병합타겟2"); _cleanup("정의있음")

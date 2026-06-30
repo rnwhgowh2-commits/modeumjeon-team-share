@@ -56,11 +56,11 @@ def source_stage_webhook():
 
     from datetime import datetime, timezone
     from shared.db import SessionLocal
-    from lemouton.sourcing.models_pricing import SourceRegistry
+    from lemouton.sourcing.models import SourcingSource
     from lemouton.sourcing import crawl_guide as cg
     s = SessionLocal()
     try:
-        src = s.query(SourceRegistry).get(sid)
+        src = s.query(SourcingSource).get(sid)
         if not src:
             return jsonify({'ok': False, 'error': 'source not found'}), 404
         guide = cg.loads(src.crawl_guide)

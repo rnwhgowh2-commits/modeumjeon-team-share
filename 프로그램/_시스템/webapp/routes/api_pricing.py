@@ -501,6 +501,17 @@ def _option_matrix_data(code: str):
         )
         source_dict = {src.id: {'id': src.id, 'name': src.name,
                                 'main_url': src.main_url or ''} for src in sources}
+        # [2026-06-30 단일명부] 셀·매트릭스 라벨도 명부(get_labels)로 통일 — 레거시
+        #   SourceRegistry.name 대신 source_key(도메인 매칭) 기준 명부 라벨. 이름 변경 반영.
+        try:
+            from lemouton.sourcing.source_registry import get_labels as _rl, catalog_by_domain as _cbd
+            _rlabels = _rl()
+            for _rv in source_dict.values():
+                _c = _cbd(_rv.get('main_url') or '')
+                if _c and _rlabels.get(_c['key']):
+                    _rv['name'] = _rlabels[_c['key']]
+        except Exception:
+            pass
 
         # 옵션 × 소싱처 매핑
         url_links = (

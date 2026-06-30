@@ -150,6 +150,50 @@ def delete(key: str) -> None:
         s.close()
 
 
+def migrate_guides_from_registry() -> int:
+    """[멱등] 기존 SourceRegistry.crawl_guide → SourcingSource.crawl_guide.
+
+    매칭: main_url 도메인 → source_key(catalog), 실패 시 이름(label==name). target 이
+    비어있을 때만 복사(이미 있으면 skip) → 사용자 수정분·재실행 안전. 원본 보존.
+    Returns: 복사한 건수.
+    """
+    seed_if_needed()
+    try:
+        from lemouton.sourcing.models_pricing import SourceRegistry
+    except Exception:
+        return 0
+    copied = 0
+    s = SessionLocal()
+    try:
+        srcs = {r.source_key: r for r in s.query(SourcingSource).all()}
+        label_to_key = {(r.label or "").strip(): k for k, r in srcs.items() if r.label}
+        for reg in s.query(SourceRegistry).all():
+            if not reg.crawl_guide:
+                continue
+            key = None
+            c = sr.catalog_by_domain(reg.main_url or "")
+            if c:
+                key = c["key"]
+            if not key and reg.name:
+                key = label_to_key.get(reg.name.strip())
+            if not key:
+                continue
+            tgt = srcs.get(key)
+            if not tgt or tgt.crawl_guide:          # 멱등: target 이미 있으면 skip
+                continue
+            tgt.crawl_guide = reg.crawl_guide        # 원본 문자열 그대로(검증은 read 시)
+            copied += 1
+        s.commit()
+    except Exception:
+        try:
+            s.rollback()
+        except Exception:
+            pass
+    finally:
+        s.close()
+    return copied
+
+
 def get_guide(key: str) -> dict:
     s = SessionLocal()
     try:
