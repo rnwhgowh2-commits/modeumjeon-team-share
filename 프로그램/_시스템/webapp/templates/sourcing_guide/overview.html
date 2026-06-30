@@ -162,23 +162,27 @@
   <div class="page-head" style="display:flex;align-items:center;gap:12px;margin-bottom:30px;">
     <h2>소싱처별 크롤링 가이드</h2>
   </div>
-  <div class="sg-launch">
-    <a class="lc on c-blue" href="/sourcing-guide/">
-      <div class="lc-ic">📊</div><div class="lc-t">전체보기</div>
-      <div class="lc-d">소싱처별 크롤링 정보가 한눈에 — 구조·매입가 로직·혜택 방식</div>
-      <span class="lc-tag b">👥 모두 · 조회</span></a>
-    <a class="lc c-purple" href="/sourcing-guide/add">
-      <div class="lc-ic">➕</div><div class="lc-t">소싱처 추가·업데이트</div>
-      <div class="lc-d">신규 소싱처 추가 · 기존 소싱처 크롤 업데이트 — 이름·URL만 넣으면 Claude가 가이드대로 구현</div>
-      <span class="lc-tag p">🛠 팀원 · 등록</span></a>
-    <button type="button" class="lc c-blue" data-guide-modal="/sourcing-guide/map?bare=1">
-      <div class="lc-ic">📖</div><div class="lc-t">데이터·코드 지도 <span style="font-size:10px;font-weight:800;color:#fff;background:#3182F6;border-radius:4px;padding:0 5px;vertical-align:middle;">NEW</span></div>
-      <div class="lc-d">재고·가격(표면−혜택=매입)·매트릭스 표시의 데이터 위치·코드 위치 단일 진실 원천</div>
-      <span class="lc-tag b">👥 모두 · 조회</span></button>
-    <button type="button" id="instOpenBtn" class="lc c-green">
-      <div class="lc-ic">🧩</div><div class="lc-t">크롤러 설치</div>
-      <div class="lc-d">로컬 PC에서 크롤하기 위한 필수 프로그램(크롬 확장) 설치법</div>
-      <span class="lc-tag g">🛠 팀원 · 셋업</span></button>
+  {# [2026-06-30] 시안 E — 메인(전체보기) + 상단 유틸 버튼바(추가·지도·설치). 위상 차등. #}
+  <style>
+    .sg-topE{display:flex;align-items:center;gap:18px;margin-bottom:30px;flex-wrap:wrap;}
+    .sg-topE .main{display:flex;align-items:center;gap:14px;background:#F4F8FF;border:2px solid #1B64DA;border-radius:18px;padding:18px 26px;}
+    .sg-topE .main .ic{font-size:32px;line-height:1;}
+    .sg-topE .main .t{font-size:24px;font-weight:800;color:#1B64DA;}
+    .sg-topE .main .tag{font-size:13px;font-weight:800;background:#E8F1FF;color:#1B64DA;border-radius:8px;padding:5px 12px;}
+    .sg-topE .utils{display:flex;gap:10px;margin-left:auto;flex-wrap:wrap;}
+    .sg-topE .su{display:inline-flex;align-items:center;gap:8px;background:#fff;border:1.5px solid #E5E8EB;border-radius:12px;padding:12px 18px;font-size:15px;font-weight:700;color:#4E5968;cursor:pointer;text-decoration:none;font-family:inherit;transition:.15s;}
+    .sg-topE .su:hover{border-color:#C9D2DC;background:#F7F9FB;}
+    .sg-topE .su .ic{font-size:19px;}
+    .sg-topE .su .newb{font-size:10px;font-weight:800;color:#fff;background:#3182F6;border-radius:4px;padding:0 5px;}
+    @media(max-width:900px){ .sg-topE .utils{margin-left:0;width:100%;} }
+  </style>
+  <div class="sg-topE">
+    <div class="main"><span class="ic">📊</span><span class="t">전체보기</span><span class="tag">👥 모두·조회</span></div>
+    <div class="utils">
+      <a class="su" href="/sourcing-guide/add"><span class="ic">➕</span>소싱처 추가·업데이트</a>
+      <button type="button" class="su" data-guide-modal="/sourcing-guide/map?bare=1"><span class="ic">📖</span>데이터·코드 지도 <span class="newb">NEW</span></button>
+      <button type="button" id="instOpenBtn" class="su"><span class="ic">🧩</span>크롤러 설치</button>
+    </div>
   </div>
   <div class="sg-card" style="padding:0;overflow:hidden;">
     <table class="sg-atbl">
