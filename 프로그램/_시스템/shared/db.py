@@ -60,6 +60,12 @@ def init_db() -> None:
     from lemouton.sets.schema_patch import ensure_market_columns
     ensure_market_columns(engine)
     _apply_lightweight_migrations()
+    # [2026-06-30 단일명부] 빌트인 6개를 SourcingSource 에 멱등 seed (컬럼 보강 이후)
+    try:
+        from lemouton.sourcing.source_registry import seed_builtins
+        seed_builtins()
+    except Exception:
+        pass
 
 
 def _apply_lightweight_migrations() -> None:
@@ -188,6 +194,9 @@ def _apply_lightweight_migrations() -> None:
         # 2026-06-06: 소싱처 크롤링 가이드 JSON (crawl_guide) + 크롤 작업 검증 URL
         ("source_registry", "crawl_guide", "TEXT"),
         ("crawl_jobs", "verify_url", "VARCHAR(512)"),
+        # 2026-06-30: 소싱처 단일 명부 통합 — SourcingSource 가 전 소싱처(빌트인+커스텀) 명부
+        ("sourcing_sources", "is_builtin", "BOOLEAN DEFAULT 0 NOT NULL"),
+        ("sourcing_sources", "crawl_guide", "TEXT"),
         # 2026-06-08: 혜택 태그 (최종 매입가 계산 엔진)
         ("source_benefit_templates", "apply_mode", "VARCHAR(16)"),
         ("source_benefit_templates", "pay_method", "VARCHAR(16)"),

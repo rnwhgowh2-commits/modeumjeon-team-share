@@ -40,8 +40,8 @@ def _default_layout() -> dict:
             ]},
             {'id': 's_mapping', 'emoji': '🔗', 'name': '매핑 현황', 'color': '#FF9500',
              'collapsed': False, 'items': [
-                {'id': 'i_sources', 'emoji': '🏠', 'name': '소싱처 운영센터',
-                 'url': '/sources', 'active_key': 'sources', 'badge_key': None},
+                # [2026-06-30 단일명부 통합] 소싱처 운영센터 사이드바 숨김(코드·라우트 보존, 가역).
+                #   명부=소싱처 사전으로 통일. 직접 /sources 접근은 유지.
                 {'id': 'i_queue', 'emoji': '🔍', 'name': '미맵핑 큐',
                  'url': '/queue', 'active_key': 'queue', 'badge_key': 'unmapped'},
                 {'id': 'i_mapping', 'emoji': '🔗', 'name': '맵핑',

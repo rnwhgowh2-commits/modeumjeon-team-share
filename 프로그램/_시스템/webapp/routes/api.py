@@ -66,26 +66,15 @@ _custom_source_labels: dict[str, str] = {}  # 사용자 추가 소싱처 캐시 
 
 
 def _source_label(key) -> str:
-    """소싱처 key → 사람이 읽는 라벨. 내장 5개 + 사용자 추가분(SourcingSource) 캐시."""
+    """소싱처 key → 사람이 읽는 라벨. [2026-06-30 단일명부] get_labels(명부) 단일원천.
+    이름(껍데기) 수정이 즉시 반영. DB 실패 시 하드코딩 폴백(안전)."""
     if not key:
         return ''
-    if key in _BUILTIN_SOURCE_LABELS:
-        return _BUILTIN_SOURCE_LABELS[key]
-    if key in _custom_source_labels:
-        return _custom_source_labels[key]
-    # 미지의 key — SourcingSource 테이블 1회 로드 후 캐시 (이후엔 메모리 hit)
     try:
-        from lemouton.sourcing.models import SourcingSource
-        from shared.db import SessionLocal as _SL
-        _s = _SL()
-        try:
-            for r in _s.query(SourcingSource).all():
-                _custom_source_labels[r.source_key] = r.label
-        finally:
-            _s.close()
+        from lemouton.sourcing.source_registry import get_labels
+        return get_labels().get(key) or _BUILTIN_SOURCE_LABELS.get(key) or str(key).upper()
     except Exception:
-        pass
-    return _custom_source_labels.get(key, str(key).upper())
+        return _BUILTIN_SOURCE_LABELS.get(key, str(key).upper())
 
 
 def _propagate_bundle_urls_to_options(session, model_code, payload):

@@ -433,6 +433,9 @@ class SourcingSource(Base):
     needs_login = Column(Boolean, nullable=False, default=False)
     has_adapter = Column(Boolean, nullable=False, default=False)  # 어댑터 작성 후 True
     is_active = Column(Boolean, nullable=False, default=True)
+    # [2026-06-30 단일명부 통합] 빌트인(기본 6) 여부 + 가이드 카드 JSON(기존 SourceRegistry.crawl_guide 이관)
+    is_builtin = Column(Boolean, nullable=False, default=False)
+    crawl_guide = Column(Text)
     sort_order = Column(Integer, default=100)  # 기본 5개는 1~5, 추가분은 100+
     created_by = Column(String(120))  # 추가한 사용자 email
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))

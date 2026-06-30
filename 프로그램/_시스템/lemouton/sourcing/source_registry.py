@@ -50,42 +50,83 @@ def is_legacy(key):
     return False
 
 
-def get_all_sources(session=None):
-    """builtin 5 + DB SourcingSource(is_active=True) 합쳐 dict list 반환.
+def seed_builtins():
+    """[2026-06-30 단일명부] 빌트인 6개를 SourcingSource 에 멱등 seed.
 
-    Note: 항상 자체 격리된 session 으로 조회 — 외부 session 트랜잭션과 격리해
-    SourcingSource 조회 실패 시 외부 트랜잭션이 abort 되지 않게 함.
-    (session 인자는 backward-compat 용이지만 무시됨 — 항상 새 session 생성)
+    이미 source_key 가 있으면 skip → 라벨·로고 사용자 수정분 보존. 빌트인을 DB 에
+    두어야 이름(껍데기) 수정이 가능해진다. 도메인/favicon 은 SOURCE_CATALOG 기준.
     """
-    out = list(SOURCES)
     try:
         from shared.db import SessionLocal
         from lemouton.sourcing.models import SourcingSource
     except Exception:
-        return out
+        return
+    cat = {c['key']: c for c in SOURCE_CATALOG}
+    s = SessionLocal()
+    try:
+        existing = {r[0] for r in s.query(SourcingSource.source_key).all()}
+        for i, src in enumerate(SOURCES):
+            k = src['key']
+            if k in existing:
+                continue
+            c = cat.get(k, {})
+            dom = c.get('domain') or (k + '.com')
+            s.add(SourcingSource(
+                source_key=k, label=src['label'], domain=dom,
+                logo_color=src.get('logo_color'), logo_letter=src.get('glyph'),
+                favicon_url=(f"https://{dom}/favicon.ico" if dom else None),
+                needs_login=bool(c.get('needs_login', False)),
+                has_adapter=bool(src.get('crawler', True)),
+                is_active=True, is_builtin=True, sort_order=i + 1,
+            ))
+        s.commit()
+    except Exception:
+        try:
+            s.rollback()
+        except Exception:
+            pass
+    finally:
+        s.close()
+
+
+def get_all_sources(session=None):
+    """전 소싱처 명부 — 하드코딩 SOURCES(기본값) 위에 DB SourcingSource 오버레이.
+
+    [2026-06-30 단일명부] 빌트인을 DB 에 seed 하면 DB 라벨/로고가 하드코딩을 덮어써
+    이름(껍데기) 수정이 전 표면에 반영된다. 빌트인이 아직 DB 에 없으면 SOURCES 폴백.
+    key 로 머지 → 빌트인 중복 없음. DB 실패 시 SOURCES 만(안전).
+    (session 인자는 backward-compat — 무시, 항상 새 session.)
+    """
+    by_key = {}
+    for s in SOURCES:                                   # 기본값(폴백)
+        by_key[s['key']] = dict(s)
     s2 = None
     try:
+        from shared.db import SessionLocal
+        from lemouton.sourcing.models import SourcingSource
         s2 = SessionLocal()
-        custom = (s2.query(SourcingSource)
-                    .filter(SourcingSource.is_active.is_(True))
-                    .order_by(SourcingSource.sort_order, SourcingSource.id)
-                    .all())
-        for c in custom:
-            out.append({
+        rows = (s2.query(SourcingSource)
+                  .filter(SourcingSource.is_active.is_(True))
+                  .order_by(SourcingSource.sort_order, SourcingSource.id)
+                  .all())
+        for c in rows:
+            base = by_key.get(c.source_key, {})
+            merged = dict(base)
+            merged.update({
                 'key': c.source_key,
-                'label': c.label,
-                'brand': 'custom-' + c.source_key,
-                'glyph': c.logo_letter or (c.label[:1].upper() if c.label else 'X'),
-                'crawler': c.has_adapter,
-                'legacy': False,  # builtin 아님 — BundleSourceUrl 만 사용
-                'logo_color': c.logo_color or '#3182F6',
+                'label': c.label or base.get('label') or c.source_key,
+                'brand': base.get('brand', 'custom-' + c.source_key),
+                'glyph': c.logo_letter or base.get('glyph') or (c.label[:1].upper() if c.label else 'X'),
+                'crawler': base.get('crawler', True) if c.is_builtin else bool(c.has_adapter),
+                'legacy': base.get('legacy', False),
+                'logo_color': c.logo_color or base.get('logo_color') or '#3182F6',
                 'favicon_url': c.favicon_url,
                 'domain': c.domain,
-                'needs_login': c.needs_login,
-                'builtin': False,
+                'needs_login': bool(c.needs_login),
+                'builtin': bool(c.is_builtin) or base.get('builtin', False),
             })
+            by_key[c.source_key] = merged
     except Exception:
-        # 테이블 미존재 / 컬럼 차이 등 — builtin 만 반환 (안전 fallback)
         try:
             if s2 is not None:
                 s2.rollback()
@@ -97,7 +138,7 @@ def get_all_sources(session=None):
                 s2.close()
             except Exception:
                 pass
-    return out
+    return list(by_key.values())
 
 
 def get_all_keys(session=None):
