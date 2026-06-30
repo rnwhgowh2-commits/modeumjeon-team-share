@@ -211,6 +211,33 @@
   .c-foot .more{color:var(--blue);cursor:pointer;}
   /* 푸터에서 펼치는 기존 상세(날짜·매트릭스) */
   .sd-card .sd-detail{margin:0 24px 16px;border-top:1px solid #e5e8eb;padding-top:12px;}
+
+  /* === 2단 레이아웃: 왼쪽 필터 패널 + 오른쪽 카드 목록 === */
+  .sd-cols{display:grid;grid-template-columns:240px 1fr;gap:18px;align-items:start;}
+  .sd-main{min-width:0;}
+  /* 왼쪽 필터 패널 (밝은 카드 스타일 — 다크 사이드바 아님) */
+  .sd-panel{background:var(--surface,#fff);border:1px solid var(--line);border-radius:12px;padding:16px 16px 14px;position:sticky;top:14px;}
+  .sd-panel-h{display:flex;align-items:baseline;justify-content:space-between;gap:8px;margin-bottom:12px;}
+  .sd-panel-t{font-size:14px;font-weight:800;color:var(--ink);letter-spacing:-.3px;}
+  .sd-panel-n{font-size:11.5px;color:var(--sub);font-weight:700;font-variant-numeric:tabular-nums;}
+  .sd-panel .sd-search{margin-bottom:12px;padding:8px 11px;}
+  .sd-panel .sd-search input{font-size:13px;}
+  .fp-acts{display:flex;gap:6px;margin-bottom:14px;}
+  .fp-act{flex:1;font-size:11.5px;font-weight:700;border:1px solid var(--line);background:#fff;color:#4e5968;border-radius:7px;padding:6px 0;cursor:pointer;font-family:inherit;}
+  .fp-act:hover{background:#f4f6f8;}
+  .fp-grp-t{font-size:11px;color:#8b95a1;font-weight:800;letter-spacing:.2px;margin:0 0 7px;}
+  .fp-list{display:flex;flex-direction:column;gap:1px;margin-bottom:4px;}
+  .fp-row{display:flex;align-items:center;gap:8px;font-size:13px;color:#4e5968;padding:5px 4px;border-radius:6px;cursor:pointer;}
+  .fp-row:hover{background:#f7faff;}
+  .fp-row input{width:15px;height:15px;flex:none;cursor:pointer;accent-color:var(--blue);}
+  .fp-row .fp-nm{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .fp-row .fp-cnt{font-size:11px;color:#b0b8c1;font-weight:700;font-variant-numeric:tabular-nums;flex:none;}
+  .fp-div{height:1px;background:var(--line2);margin:12px 0;}
+  .fp-empty{font-size:11.5px;color:#b0b8c1;padding:4px;}
+  @media(max-width:860px){
+    .sd-cols{grid-template-columns:1fr;}
+    .sd-panel{position:static;}
+  }
 </style>
 {% endblock %}
 {% block content %}
@@ -222,13 +249,27 @@
     </div>
     <a class="sd-new" href="/api/sets/flow"><span style="font-size:17px;line-height:1;color:#fff">+</span>새 연동 만들기</a>
   </div>
-  <div class="sd-search">
-    <span style="color:#8b95a1">🔍</span>
-    <input id="sd-q" type="text" placeholder="상품명·코드·마켓 상품번호 검색…" autocomplete="off">
+  <div class="sd-cols">
+    <aside class="sd-panel">
+      <div class="sd-panel-h">
+        <span class="sd-panel-t">필터</span>
+        <span class="sd-panel-n" id="sd-result-n">결과 -건</span>
+      </div>
+      <div class="sd-search">
+        <span style="color:#8b95a1">🔍</span>
+        <input id="sd-q" type="text" placeholder="상품명·코드·번호 검색…" autocomplete="off">
+      </div>
+      <div class="fp-acts">
+        <button type="button" class="fp-act" id="fp-all">전체 선택</button>
+        <button type="button" class="fp-act" id="fp-none">전체 해제</button>
+      </div>
+      <div class="sd-filter" id="sd-filter"></div>
+    </aside>
+    <div class="sd-main">
+      <div id="sd-summary"></div>
+      <div id="sd-list"><div class="sd-empty">불러오는 중…</div></div>
+    </div>
   </div>
-  <div class="sd-filter" id="sd-filter"></div>
-  <div id="sd-summary"></div>
-  <div id="sd-list"><div class="sd-empty">불러오는 중…</div></div>
 </div>
 <div class="dm-back" id="delModal">
   <div class="dm">
@@ -428,13 +469,24 @@
   var selBrands={}, selMarkets={};
   function brandsOf(r){ var s={}; (r.products||[]).forEach(function(p){ if(p.brand) s[p.brand]=1; }); return Object.keys(s); }
   function marketsOf(r){ var s={}; (r.channels||[]).forEach(function(c){ if(c.market) s[c.market]=1; }); return Object.keys(s); }
+  // 브랜드/마켓별 구성 개수 (count = 그 값을 가진 set 수)
+  function countBrand(b){ var n=0; allSets.forEach(function(r){ if(brandsOf(r).indexOf(b)>=0) n++; }); return n; }
+  function countMarket(m){ var n=0; allSets.forEach(function(r){ if(marketsOf(r).indexOf(m)>=0) n++; }); return n; }
   function buildFilter(sets){
     var bset={}, mset={};
     sets.forEach(function(r){ brandsOf(r).forEach(function(b){bset[b]=1;}); marketsOf(r).forEach(function(m){mset[m]=1;}); });
     var brands=Object.keys(bset).sort(), markets=Object.keys(mset).sort();
-    var h='';
-    if(brands.length){ h+='<span class="sd-fl-label">브랜드</span>'+brands.map(function(b){ return '<span class="sd-chip'+(selBrands[b]?' on':'')+'" data-fb="'+esc(b)+'">'+esc(b)+'</span>'; }).join(''); }
-    if(markets.length){ h+='<span class="sd-fl-label">마켓</span>'+markets.map(function(m){ return '<span class="sd-chip'+(selMarkets[m]?' on':'')+'" data-fm="'+esc(m)+'">'+esc(m3mk(m).nm)+'</span>'; }).join(''); }
+    function row(kind, key, label, cnt){
+      return '<label class="fp-row"><input type="checkbox" data-'+kind+'="'+esc(key)+'"'+(((kind==='fb'?selBrands:selMarkets)[key])?' checked':'')+'>'
+        +'<span class="fp-nm">'+esc(label)+'</span><span class="fp-cnt">'+cnt+'</span></label>';
+    }
+    var h='<div class="fp-grp-t">브랜드</div><div class="fp-list">';
+    h+= brands.length ? brands.map(function(b){ return row('fb', b, b, countBrand(b)); }).join('')
+                      : '<div class="fp-empty">브랜드 없음</div>';
+    h+='</div><div class="fp-div"></div><div class="fp-grp-t">마켓</div><div class="fp-list">';
+    h+= markets.length ? markets.map(function(m){ return row('fm', m, m3mk(m).nm, countMarket(m)); }).join('')
+                       : '<div class="fp-empty">마켓 없음</div>';
+    h+='</div>';
     document.getElementById('sd-filter').innerHTML=h;
   }
   function applyFilter(sets){
@@ -446,7 +498,7 @@
       return bOk && mOk;
     });
   }
-  function renderFiltered(){ render(applyFilter(allSets)); }
+  function renderFiltered(){ var f=applyFilter(allSets); var n=document.getElementById('sd-result-n'); if(n) n.textContent='결과 '+f.length+'건'; render(f); }
   function refreshSet(btn){
     var sid=btn.getAttribute('data-sid'); var orig=btn.textContent;
     btn.disabled=true; btn.textContent='수집 중…';
@@ -788,8 +840,24 @@
   }
   function closeHistModal(){ document.getElementById('histModal').classList.remove('on'); }
   (function(){ var m=document.getElementById('histModal'); if(!m) return; document.getElementById('histClose').addEventListener('click',closeHistModal); m.addEventListener('click',function(e){ if(e.target.id==='histModal') closeHistModal(); }); })();
-  // F10 필터 칩 토글
-  (function(){ var f=document.getElementById('sd-filter'); if(!f) return; f.addEventListener('click',function(e){ var b=e.target.closest('[data-fb]'); if(b){ var k=b.getAttribute('data-fb'); selBrands[k]=!selBrands[k]; b.classList.toggle('on'); renderFiltered(); return; } var m=e.target.closest('[data-fm]'); if(m){ var k2=m.getAttribute('data-fm'); selMarkets[k2]=!selMarkets[k2]; m.classList.toggle('on'); renderFiltered(); return; } }); })();
+  // 필터 체크박스 토글 (브랜드 OR · 마켓 OR · 그룹간 AND · 미선택=전체)
+  (function(){
+    var f=document.getElementById('sd-filter'); if(!f) return;
+    f.addEventListener('change',function(e){
+      var cb=e.target; if(!cb||cb.tagName!=='INPUT') return;
+      var b=cb.getAttribute('data-fb'); if(b!=null){ selBrands[b]=cb.checked; renderFiltered(); return; }
+      var m=cb.getAttribute('data-fm'); if(m!=null){ selMarkets[m]=cb.checked; renderFiltered(); return; }
+    });
+    // 전체 선택 = 모든 브랜드+마켓 체크 / 전체 해제 = 모두 해제
+    function setAll(on){
+      f.querySelectorAll('input[data-fb]').forEach(function(cb){ var k=cb.getAttribute('data-fb'); selBrands[k]=on; cb.checked=on; });
+      f.querySelectorAll('input[data-fm]').forEach(function(cb){ var k=cb.getAttribute('data-fm'); selMarkets[k]=on; cb.checked=on; });
+      renderFiltered();
+    }
+    var allBtn=document.getElementById('fp-all'), noneBtn=document.getElementById('fp-none');
+    if(allBtn) allBtn.addEventListener('click',function(){ setAll(true); });
+    if(noneBtn) noneBtn.addEventListener('click',function(){ setAll(false); });
+  })();
   load();
 })();
 </script>
