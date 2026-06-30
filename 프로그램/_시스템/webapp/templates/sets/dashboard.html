@@ -34,6 +34,14 @@
   .sd-new:hover{background:#1b64da;}
   .sd-search{display:flex;align-items:center;gap:8px;border:1px solid #e5e8eb;border-radius:10px;padding:9px 13px;background:#fff;margin-bottom:14px;}
   .sd-search input{border:0;outline:0;flex:1;font-size:14px;font-family:inherit;color:#191F28;background:transparent;}
+  /* F10 필터 + 알림 노출 */
+  .sd-filter{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-bottom:12px;}
+  .sd-fl-label{font-size:11.5px;color:#8b95a1;font-weight:700;margin:0 2px 0 6px;}
+  .sd-chip{font-size:12px;border:1px solid #e5e8eb;background:#fff;color:#4e5968;border-radius:14px;padding:4px 12px;cursor:pointer;}
+  .sd-chip.on{background:#3182f6;border-color:#3182f6;color:#fff;font-weight:700;}
+  .sd-summary{font-size:12.5px;color:#B45309;background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:7px 12px;margin-bottom:10px;font-weight:700;}
+  .sd-alert{display:inline-block;font-size:11px;font-weight:800;color:#fff;border-radius:10px;padding:1px 8px;margin-right:8px;vertical-align:middle;}
+  .mx-alert{font-weight:800;cursor:help;}
   .sd-card{background:#fff;border:1px solid #e5e8eb;border-radius:12px;padding:14px 16px;margin-bottom:10px;}
   .sd-card-top{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;cursor:pointer;}
   .sd-name{font-size:15px;font-weight:700;color:#191F28;}
@@ -141,6 +149,8 @@
     <span style="color:#8b95a1">🔍</span>
     <input id="sd-q" type="text" placeholder="상품명·코드·마켓 상품번호 검색…" autocomplete="off">
   </div>
+  <div class="sd-filter" id="sd-filter"></div>
+  <div id="sd-summary"></div>
   <div id="sd-list"><div class="sd-empty">불러오는 중…</div></div>
 </div>
 <div class="dm-back" id="delModal">
@@ -180,6 +190,12 @@
   function esc(s){ return (s==null?'':String(s)).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];}); }
   function fmt(n){ return (n==null||isNaN(n))?'-':Number(n).toLocaleString(); }
   function rel(iso){ if(!iso) return null; var d=new Date(iso); var s=(Date.now()-d.getTime())/1000; if(isNaN(s)) return null; if(s<0)s=0; if(s<3600)return Math.floor(s/60)+'분 전'; if(s<86400)return Math.floor(s/3600)+'시간 전'; return Math.floor(s/86400)+'일 전'; }
+  // 알림 노출 헬퍼 (severity: critical>danger>warning>info)
+  var AL_SEV={critical:4,danger:3,warning:2,info:1};
+  var AL_COLOR={critical:'#b91c1c',danger:'#e03a3e',warning:'#B45309',info:'#185FA5'};
+  function alTop(alerts){ var best=null; (alerts||[]).forEach(function(a){ if(!best||(AL_SEV[a.severity]||0)>(AL_SEV[best]||0)) best=a.severity; }); return best; }
+  function alBadge(alerts){ if(!alerts||!alerts.length) return ''; var sev=alTop(alerts); return '<span class="sd-alert" style="background:'+(AL_COLOR[sev]||'#888')+'" title="주의가 필요한 항목 '+alerts.length+'건">⚠ '+alerts.length+'</span>'; }
+  function alForMarket(alerts, mk){ return (alerts||[]).filter(function(a){return a.market===mk;}); }
 
   function mkBadge(c){
     var cls=c.market==='coupang'?'coupang':(c.market==='smartstore'?'smartstore':'other');
@@ -204,11 +220,13 @@
       var stock=linked?('있음'+m3dual(r.last_collected_at,c.mkt_fetched_at)):'<span class="mx-na">-</span>';
       var price=linked?('최신'+m3dual(r.last_collected_at,c.mkt_fetched_at)):'<span class="mx-na">-</span>';
       var send=r.last_sent_at?rel(r.last_sent_at):'<span class="mx-na">미전송</span>';
+      var ma=alForMarket(r.alerts, c.market);
+      var maIcon=ma.length?(' <span class="mx-alert" style="color:'+(AL_COLOR[alTop(ma)]||'#888')+'" title="'+esc(ma.map(function(a){return a.message;}).join(' · '))+'">⚠</span>'):'';
       return '<tr><td class="mx-mk">'+m3logo(c.market)+'<span>'+mk.nm+'</span></td>'
         +'<td class="ta-c">'+m3match(c)+'</td>'
         +'<td class="ta-c mx-cell" data-sid="'+r.set_id+'" data-mk="'+esc(c.market)+'" data-fld="stock">'+stock+'</td>'
         +'<td class="ta-c mx-cell" data-sid="'+r.set_id+'" data-mk="'+esc(c.market)+'" data-fld="price">'+price+'</td>'
-        +'<td class="ta-c">'+send+'</td></tr>';
+        +'<td class="ta-c">'+send+maIcon+'</td></tr>';
     }).join('');
     return legend+'<table class="mx3"><colgroup><col style="width:25%"><col style="width:13%"><col style="width:23%"><col style="width:23%"><col style="width:16%"></colgroup><thead><tr><th class="ta-l">마켓</th><th>매칭</th><th>재고 (소/판)</th><th>가격 (소/판)</th><th>전송</th></tr></thead><tbody>'+rows+'</tbody></table>';
   }
@@ -220,7 +238,7 @@
       var chans=r.channels.map(mkBadge).join('');
       var coll=rel(r.last_collected_at); var sent=r.last_sent_at?rel(r.last_sent_at):null;
       h+='<div class="sd-card" data-sid="'+r.set_id+'">';
-      h+=' <div class="sd-card-top" data-act="toggle"><div>'+(multi?('<span class="sd-bundle">'+r.products.length+'개 묶음</span>'):'')+'<span class="sd-name">'+esc(r.name)+'</span></div><div>'+'<a class="sd-edit" href="/api/sets/flow?edit='+r.set_id+'">✎ 편집</a><button class="sd-del" data-sid="'+r.set_id+'" data-name="'+esc(r.name)+'">🗑 삭제</button><span class="sd-chev">▾</span></div></div>';
+      h+=' <div class="sd-card-top" data-act="toggle"><div>'+(multi?('<span class="sd-bundle">'+r.products.length+'개 묶음</span>'):'')+'<span class="sd-name">'+esc(r.name)+'</span></div><div>'+alBadge(r.alerts)+'<a class="sd-edit" href="/api/sets/flow?edit='+r.set_id+'">✎ 편집</a><button class="sd-del" data-sid="'+r.set_id+'" data-name="'+esc(r.name)+'">🗑 삭제</button><span class="sd-chev">▾</span></div></div>';
       h+=' <div class="sd-tools"><button class="sd-upd-mkt" data-sid="'+r.set_id+'">🛒 판매처 업데이트</button><button class="sd-upd-src" data-sid="'+r.set_id+'">📦 소싱처 업데이트</button></div>';
       h+=' '+m3Table(r);
       h+=' <div class="sd-meta">수집 '+(coll||'수집 안 됨')+' · 전송 '+(sent||'이력 없음')+'</div>';
@@ -231,7 +249,34 @@
       h+='</div>';
     });
     listEl.innerHTML=h;
+    var tot=sets.reduce(function(a,r){return a+((r.alerts&&r.alerts.length)||0);},0);
+    var sumEl=document.getElementById('sd-summary');
+    if(sumEl){ sumEl.className=tot?'sd-summary':''; sumEl.innerHTML=tot?('⚠ 주의가 필요한 항목 '+tot+'건 — 카드·표의 ⚠ 표시를 확인하세요.'):''; }
   }
+  // F10 필터 (브랜드 OR + 마켓 OR, 그룹간 AND, 미선택=전체)
+  var allSets=[];
+  var selBrands={}, selMarkets={};
+  function brandsOf(r){ var s={}; (r.products||[]).forEach(function(p){ if(p.brand) s[p.brand]=1; }); return Object.keys(s); }
+  function marketsOf(r){ var s={}; (r.channels||[]).forEach(function(c){ if(c.market) s[c.market]=1; }); return Object.keys(s); }
+  function buildFilter(sets){
+    var bset={}, mset={};
+    sets.forEach(function(r){ brandsOf(r).forEach(function(b){bset[b]=1;}); marketsOf(r).forEach(function(m){mset[m]=1;}); });
+    var brands=Object.keys(bset).sort(), markets=Object.keys(mset).sort();
+    var h='';
+    if(brands.length){ h+='<span class="sd-fl-label">브랜드</span>'+brands.map(function(b){ return '<span class="sd-chip'+(selBrands[b]?' on':'')+'" data-fb="'+esc(b)+'">'+esc(b)+'</span>'; }).join(''); }
+    if(markets.length){ h+='<span class="sd-fl-label">마켓</span>'+markets.map(function(m){ return '<span class="sd-chip'+(selMarkets[m]?' on':'')+'" data-fm="'+esc(m)+'">'+esc(m3mk(m).nm)+'</span>'; }).join(''); }
+    document.getElementById('sd-filter').innerHTML=h;
+  }
+  function applyFilter(sets){
+    var bsel=Object.keys(selBrands).filter(function(k){return selBrands[k];});
+    var msel=Object.keys(selMarkets).filter(function(k){return selMarkets[k];});
+    return sets.filter(function(r){
+      var bOk = !bsel.length || brandsOf(r).some(function(b){return selBrands[b];});
+      var mOk = !msel.length || marketsOf(r).some(function(m){return selMarkets[m];});
+      return bOk && mOk;
+    });
+  }
+  function renderFiltered(){ render(applyFilter(allSets)); }
   function refreshSet(btn){
     var sid=btn.getAttribute('data-sid'); var orig=btn.textContent;
     btn.disabled=true; btn.textContent='수집 중…';
@@ -260,7 +305,7 @@
     var q=qEl.value.trim();
     fetch('/api/sets/linked'+(q?('?q='+encodeURIComponent(q)):''),{headers:{'Accept':'application/json'}})
       .then(function(r){return r.json();})
-      .then(function(d){ if(d&&d.ok) render(d.sets||[]); else listEl.innerHTML='<div class="sd-empty">목록을 불러오지 못했어요.</div>'; })
+      .then(function(d){ if(d&&d.ok){ allSets=d.sets||[]; buildFilter(allSets); renderFiltered(); } else listEl.innerHTML='<div class="sd-empty">목록을 불러오지 못했어요.</div>'; })
       .catch(function(){ listEl.innerHTML='<div class="sd-empty">목록을 불러오지 못했어요.</div>'; });
   }
 
@@ -551,6 +596,8 @@
   }
   function closeHistModal(){ document.getElementById('histModal').classList.remove('on'); }
   (function(){ var m=document.getElementById('histModal'); if(!m) return; document.getElementById('histClose').addEventListener('click',closeHistModal); m.addEventListener('click',function(e){ if(e.target.id==='histModal') closeHistModal(); }); })();
+  // F10 필터 칩 토글
+  (function(){ var f=document.getElementById('sd-filter'); if(!f) return; f.addEventListener('click',function(e){ var b=e.target.closest('[data-fb]'); if(b){ var k=b.getAttribute('data-fb'); selBrands[k]=!selBrands[k]; b.classList.toggle('on'); renderFiltered(); return; } var m=e.target.closest('[data-fm]'); if(m){ var k2=m.getAttribute('data-fm'); selMarkets[k2]=!selMarkets[k2]; m.classList.toggle('on'); renderFiltered(); return; } }); })();
   load();
 })();
 </script>
