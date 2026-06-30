@@ -1,6 +1,7 @@
 """[구성 레이어] 구성(세트) CRUD 서비스."""
 from __future__ import annotations
 
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from lemouton.sets.models import (
@@ -106,9 +107,12 @@ def list_linked_sets(session: Session, q: str | None = None) -> list[dict]:
                 session.query(SetChannelOption)
                 .filter_by(channel_id=c.id, status="matched").count()
             )
+            mkt_fetched = (session.query(func.max(SetChannelOption.mkt_fetched_at))
+                           .filter_by(channel_id=c.id).scalar())
             channels.append({
                 "market": c.market, "market_product_id": c.market_product_id,
                 "status": c.status, "matched": matched, "total": total,
+                "mkt_fetched_at": mkt_fetched.isoformat() if mkt_fetched else None,
             })
         out.append({
             "set_id": ps.id, "name": ps.name, "model_code": ps.model_code,
