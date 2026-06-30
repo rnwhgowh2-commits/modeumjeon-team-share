@@ -13,7 +13,7 @@ def _active_keys(layout) -> list[str]:
 def test_default_has_six_groups_in_order():
     layout = api_sidebar._default_layout()
     names = [st['name'] for st in layout['stages']]
-    assert names == ['모음전 상품관리', '매핑 현황', '크롤링&업로드', '구매', '판매', '기타']
+    assert names == ['모음전 상품관리', '매핑 현황', '마켓 관리', '구매', '판매', '기타']
 
 
 def test_default_stage_ids_match_contract():
@@ -41,8 +41,8 @@ def test_default_contains_all_visible_items():
         'bundles_new', 'bundles', 'bundles_migrate',
         # 'sources'(소싱처 운영센터)는 2026-06-30 단일명부 통합으로 사이드바 숨김(라우트 보존).
         'queue', 'mapping',
-        # 'source_registry'(소싱처 사전)는 2026-06-30 가이드 통합으로 default 에서 제거.
-        'sourcing_guide', 'dlq', 'accounts_upload',
+        # 'source_registry'(사전)·'dlq'(업로드 실패함)는 2026-06-30 default 에서 제거(통합·요청).
+        'sourcing_guide', 'accounts_upload',
         'track',
         'templates', 'orders_list', 'orders_sales', 'orders_margin',
         'trash', 'alerts',

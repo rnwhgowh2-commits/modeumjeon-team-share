@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from 'partials/brand_macros.html' import brand_icon %}
 {% block title %}소싱처별 크롤링 가이드{% endblock %}
 {% block content %}
 <style>
@@ -187,8 +188,12 @@
         {% set g = r.guide %}
         <tr class="sg-row" data-key="{{ r.key }}" data-name="{{ r.name }}" data-domain="{{ r.domain }}" data-active="{{ 1 if r.is_active else 0 }}"
             onclick="location.href='/sourcing-guide/{{ r.id }}'" {% if not r.is_active %}style="opacity:.5"{% endif %}>
-          <td class="sg-name">
-            {% if r.favicon_url %}<img src="{{ r.favicon_url }}" alt="" style="width:22px;height:22px;border-radius:5px;vertical-align:-5px;margin-right:8px;object-fit:cover" onerror="this.style.display='none'">{% endif %}{{ r.name }}{% if r.is_builtin %} <span class="sg-chip" style="background:#E7F0FF;color:#1B64DA;">기본</span>{% endif %}{% if not r.is_active %} <span class="sg-chip idle">숨김</span>{% endif %}{% if g.stage_progress %}{% set sp = g.stage_progress %}{% set total = 6 if sp.kind == 'new' else 4 %}{% if sp.stage %} <span class="sg-chip" style="background:#E7F0FF;color:#1B64DA;">진행중 {{ sp.done|length }}/{{ total }} · {{ sp.stage }} {{ sp.label }}</span>{% else %} <span class="sg-chip ok">분석 완료 {{ sp.done|length }}/{{ total }}</span>{% endif %}{% elif r.pending %} <span class="sg-chip" style="background:#FFF3BF;color:#B5870A;">분석 대기</span>{% endif %}</td>
+          <td class="sg-name" style="text-align:left;">
+            <span style="display:inline-flex;align-items:center;gap:11px;text-align:left;">
+              <span style="flex:0 0 auto;">{{ brand_icon(r.name, r.main_url, 'sm') }}</span>
+              <span>{{ r.name }}{% if r.is_builtin %} <span class="sg-chip" style="background:#E7F0FF;color:#1B64DA;">기본</span>{% endif %}{% if not r.is_active %} <span class="sg-chip idle">숨김</span>{% endif %}{% if g.stage_progress %}{% set sp = g.stage_progress %}{% set total = 6 if sp.kind == 'new' else 4 %}{% if sp.stage %} <span class="sg-chip" style="background:#E7F0FF;color:#1B64DA;">진행중 {{ sp.done|length }}/{{ total }} · {{ sp.stage }} {{ sp.label }}</span>{% else %} <span class="sg-chip ok">분석 완료 {{ sp.done|length }}/{{ total }}</span>{% endif %}{% elif r.pending %} <span class="sg-chip" style="background:#FFF3BF;color:#B5870A;">분석 대기</span>{% endif %}</span>
+            </span>
+          </td>
           {% set nurl = g.sample_urls|length %}
           <td {% if nurl == 0 %}class="u"{% endif %}>{{ nurl }}개</td>
           {% set okf = g.fields.values()|selectattr('status','equalto','ok')|list|length %}
