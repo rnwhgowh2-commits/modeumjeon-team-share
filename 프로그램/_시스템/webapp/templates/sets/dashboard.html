@@ -250,7 +250,8 @@
       var coll=rel(r.last_collected_at); var sent=r.last_sent_at?rel(r.last_sent_at):null;
       h+='<div class="sd-card" data-sid="'+r.set_id+'">';
       h+=' <div class="sd-card-top" data-act="toggle"><div>'+(multi?('<span class="sd-bundle">'+r.products.length+'개 묶음</span>'):'')+'<span class="sd-name">'+esc(r.name)+'</span></div><div>'+alBadge(r.alerts)+'<a class="sd-edit" href="/api/sets/flow?edit='+r.set_id+'">✎ 편집</a><button class="sd-del" data-sid="'+r.set_id+'" data-name="'+esc(r.name)+'">🗑 삭제</button><span class="sd-chev">▾</span></div></div>';
-      h+=' <div class="sd-tools"><button class="sd-upd-mkt" data-sid="'+r.set_id+'">🛒 판매처 업데이트</button><button class="sd-upd-src" data-sid="'+r.set_id+'">📦 소싱처 업데이트</button></div>';
+      var srcCodes=[]; r.products.forEach(function(p){ if(p.model_code && srcCodes.indexOf(p.model_code)<0) srcCodes.push(p.model_code); });
+      h+=' <div class="sd-tools"><button class="sd-upd-mkt" data-sid="'+r.set_id+'">🛒 판매처 업데이트</button><button class="sd-upd-src" data-sid="'+r.set_id+'" data-codes="'+esc(srcCodes.join(','))+'">📦 소싱처 업데이트</button></div>';
       h+=' '+m3Table(r);
       h+=' <div class="sd-meta">수집 '+(coll||'수집 안 됨')+' · 전송 '+(sent||'이력 없음')+'</div>';
       h+=' <div class="sd-prods">';
@@ -296,21 +297,31 @@
       .then(function(d){ if(d&&d.ok){ load(); } else { alert('수집 실패: '+(d&&d.error||'')); btn.disabled=false; btn.textContent=orig; } })
       .catch(function(){ alert('수집 호출 실패'); btn.disabled=false; btn.textContent=orig; });
   }
+  // 버전 비교 (v0.4.0+ = 전부-로컬 크롤 지원)
+  function verGte(v,min){ var a=String(v||'0').split('.').map(function(n){return parseInt(n,10)||0;}); var b=String(min).split('.').map(function(n){return parseInt(n,10)||0;}); for(var i=0;i<Math.max(a.length,b.length);i++){ if((a[i]||0)!==(b[i]||0)) return (a[i]||0)>(b[i]||0); } return true; }
+  // 소싱처 업데이트 = 로컬 확장 크롤(전 소싱처 로컬 PC). 구성의 모음전들을 기존 크롤 큐에 넣어
+  //   우상단 크롤 위젯이 진행·결과 표시, 완료 시 목록 자동 갱신. 서버 크롤 호출 안 함.
   function recrawlSources(btn){
-    var sid=btn.getAttribute('data-sid'); var orig=btn.textContent;
-    btn.disabled=true; btn.textContent='크롤 중…';
-    fetch('/api/sets/'+sid+'/recrawl-sources',{method:'POST',headers:{'Accept':'application/json'}})
-      .then(function(r){return r.json();})
-      .then(function(d){
-        btn.disabled=false; btn.textContent=orig;
-        if(!(d&&d.ok)){ alert('소싱처 업데이트 실패: '+(d&&d.error||'')); return; }
-        var t=d.totals||{};
-        var msg='소싱처 재크롤 완료 · 성공 '+(t.ok||0)+' / 실패 '+(t.error||0)+' / 총 '+(t.total||0);
-        if(d.need_extension){ msg+='\n\n무신사·롯데온 등 일부 소싱처는 로그인 브라우저(크롬 확장)로 크롤해야 합니다. 확장에서 전체 크롤을 한 번 실행해 주세요.'; }
-        alert(msg);
-        load();
-      })
-      .catch(function(){ btn.disabled=false; btn.textContent=orig; alert('소싱처 업데이트 호출 실패'); });
+    var codes=(btn.getAttribute('data-codes')||'').split(',').filter(Boolean);
+    if(!codes.length){ alert('이 구성에 연결된 모음전이 없어요.'); return; }
+    if(!(window.MoumExt && window.MoumExt.installed && window.MoumExt.installed())){
+      alert('소싱처 크롤은 크롬 확장(모음전 크롤러)으로 합니다.\n확장을 설치·활성화한 뒤 다시 눌러 주세요.');
+      return;
+    }
+    function go(){
+      codes.forEach(function(c){
+        try{ window.MoumExt.enqueueCrawl(c); }catch(_){}
+        var onFin=function(ev){ var d=ev.detail; if(!d||d.type!=='finish'||d.bundle!==c) return; window.removeEventListener('moum-crawl-log', onFin); try{ load(); }catch(_){} };
+        window.addEventListener('moum-crawl-log', onFin);
+      });
+      alert(codes.length+'개 모음전 소싱처 로컬 크롤을 시작했어요.\n우상단 크롤 위젯에서 진행·결과를 확인하세요. 완료되면 목록이 자동 갱신됩니다.');
+    }
+    if(window.MoumExt.ping){
+      window.MoumExt.ping().then(function(p){
+        if(!verGte((p&&p.version)||'0','0.4.0')){ alert('크롤러 확장 버전이 낮습니다(v0.4.0+ 필요).\n확장을 업데이트해 주세요.'); return; }
+        go();
+      }).catch(go);
+    } else { go(); }
   }
   function load(){
     var q=qEl.value.trim();
