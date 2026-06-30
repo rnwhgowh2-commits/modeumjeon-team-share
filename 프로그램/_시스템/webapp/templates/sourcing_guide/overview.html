@@ -187,7 +187,7 @@
           <td class="sg-name" style="text-align:left;">
             <span style="display:inline-flex;align-items:center;gap:11px;text-align:left;">
               <span style="flex:0 0 auto;">{{ brand_icon(r.name, r.main_url, 'sm') }}</span>
-              <span>{{ r.name }}{% if r.is_builtin %} <span class="sg-chip" style="background:#E7F0FF;color:#1B64DA;">기본</span>{% endif %}{% if not r.is_active %} <span class="sg-chip idle">숨김</span>{% endif %}{% if g.stage_progress %}{% set sp = g.stage_progress %}{% set total = 6 if sp.kind == 'new' else 4 %}{% if sp.stage %} <span class="sg-chip" style="background:#E7F0FF;color:#1B64DA;">진행중 {{ sp.done|length }}/{{ total }} · {{ sp.stage }} {{ sp.label }}</span>{% else %} <span class="sg-chip ok">분석 완료 {{ sp.done|length }}/{{ total }}</span>{% endif %}{% elif r.pending %} <span class="sg-chip" style="background:#FFF3BF;color:#B5870A;">분석 대기</span>{% endif %}</span>
+              <span>{{ r.name }}{% if not r.is_active %} <span class="sg-chip idle">숨김</span>{% endif %}{% if g.stage_progress %}{% set sp = g.stage_progress %}{% set total = 6 if sp.kind == 'new' else 4 %}{% if sp.stage %} <span class="sg-chip" style="background:#E7F0FF;color:#1B64DA;">진행중 {{ sp.done|length }}/{{ total }} · {{ sp.stage }} {{ sp.label }}</span>{% else %} <span class="sg-chip ok">분석 완료 {{ sp.done|length }}/{{ total }}</span>{% endif %}{% elif r.pending %} <span class="sg-chip" style="background:#FFF3BF;color:#B5870A;">분석 대기</span>{% endif %}</span>
             </span>
           </td>
           {% set nurl = g.sample_urls|length %}
@@ -215,7 +215,7 @@
 </div>
 
 <style>
-  .sg-mng{border:1px solid #E5E8EB;background:#fff;border-radius:8px;width:34px;height:34px;font-size:16px;cursor:pointer;color:#4E5968;margin-left:3px;line-height:1;}
+  .sg-mng{border:1.5px solid #E5E8EB;background:#fff;border-radius:11px;width:56px;height:56px;font-size:28px;cursor:pointer;color:#4E5968;margin-left:6px;line-height:1;}
   .sg-mng:hover{background:#F1F3F5;border-color:#B0B8C1;}
 </style>
 <script>
