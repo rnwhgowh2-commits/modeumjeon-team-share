@@ -188,12 +188,16 @@ def get_layout_for_template() -> dict:
     layout = _load()
     out = dict(layout)
 
-    # [2026-06-30 단일명부] 운영센터(i_sources) 숨김 — 저장된 커스텀 레이아웃에 남아 있어도
-    #   렌더 시 제거(코드·라우트는 보존, 가역). 단일 명부=소싱처 사전으로 통일.
-    out['stages'] = [
-        {**st, 'items': [it for it in st.get('items', []) if it.get('id') != 'i_sources']}
-        for st in out.get('stages', [])
-    ]
+    # [2026-06-30] 사이드바 정리 — 운영센터(i_sources)·미맵핑큐(i_queue)·맵핑(i_mapping)
+    #   렌더 시 숨김(코드·라우트는 보존, 가역). 필터 후 빈 스테이지(예: 매핑 현황)는 통째 제거.
+    _hidden_ids = {'i_sources', 'i_queue', 'i_mapping'}
+    _stages = []
+    for st in out.get('stages', []):
+        items = [it for it in st.get('items', []) if it.get('id') not in _hidden_ids]
+        if not items:
+            continue                                 # 항목이 모두 숨겨진 빈 스테이지 제거
+        _stages.append({**st, 'items': items})
+    out['stages'] = _stages
 
     # 로드맵 — standalone 끝에 주입
     if not _has_roadmap(layout):

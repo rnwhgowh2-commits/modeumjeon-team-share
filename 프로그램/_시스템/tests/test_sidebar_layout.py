@@ -117,4 +117,7 @@ def test_get_layout_strips_sources_even_if_saved(monkeypatch, tmp_path):
     out = api_sidebar.get_layout_for_template()
     keys = _active_keys(out)
     assert 'sources' not in keys                  # 렌더 결과엔 운영센터 없음
+    assert 'queue' not in keys and 'mapping' not in keys      # 미맵핑큐·맵핑도 숨김
+    assert not any(st.get('id') == 's_mapping' for st in out['stages'])  # 빈 매핑섹션 제거
     assert 'source_registry' in keys              # 소싱처 사전은 유지
+    assert 'sourcing_guide' in keys               # 크롤링 가이드 유지
