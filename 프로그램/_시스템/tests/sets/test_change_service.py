@@ -68,3 +68,23 @@ def test_record_change_same_value_no_event(db):
     assert result is False
     events = db.query(ChannelChangeEvent).all()
     assert len(events) == 0
+
+
+def test_list_changes_filters_and_orders(db):
+    from datetime import datetime, timezone
+    from lemouton.sets import change_service as cs
+    def ev(i, market, field, source, p, n):
+        db.add(ChannelChangeEvent(set_id=7, market=market, canonical_sku="S"+str(i),
+               field=field, source=source, prev_value=p, next_value=n,
+               at=datetime(2026, 6, 30, 1, i, 0, tzinfo=timezone.utc)))
+    ev(1, "coupang", "stock", "market", 8, 0)
+    ev(2, "coupang", "price", "market", 100, 90)
+    ev(3, "smartstore", "stock", "market", 5, 3)
+    ev(4, "coupang", "stock", "source", 10, 12)
+    db.commit()
+    rows = cs.list_changes(db, set_id=7, market="coupang", field="stock")
+    assert [r["canonical_sku"] for r in rows] == ["S4", "S1"]
+    assert rows[0]["source"] == "source" and rows[0]["next_value"] == 12
+    allc = cs.list_changes(db, set_id=7, market="coupang")
+    assert len(allc) == 3
+    assert len(cs.list_changes(db, set_id=7)) == 4
