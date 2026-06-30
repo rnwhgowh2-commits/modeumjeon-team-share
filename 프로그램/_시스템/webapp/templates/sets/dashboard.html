@@ -9,6 +9,8 @@
   .sd-new{display:inline-flex;align-items:center;justify-content:center;gap:6px;font-size:14px;font-weight:700;border:1px solid #3182f6;background:#3182f6;color:#fff !important;border-radius:8px;padding:9px 16px;text-decoration:none;white-space:nowrap;}
   .sd-edit{font-size:12px;font-weight:600;color:#3182f6;text-decoration:none;border:1px solid #c7d7f0;border-radius:6px;padding:3px 9px;margin-left:8px;white-space:nowrap;}
   .sd-edit:hover{background:#eef4ff;}
+  .sd-refresh{font-size:12px;font-weight:600;color:#0F8A4D;background:#eaf7ef;border:1px solid #b6e3c8;border-radius:6px;padding:3px 9px;margin-left:6px;cursor:pointer;white-space:nowrap;}
+  .sd-refresh:hover{background:#d6f0e0;} .sd-refresh[disabled]{opacity:.5;cursor:wait;}
   .sd-del{font-size:12px;font-weight:600;color:#dc2626;background:#fff5f5;border:1px solid #f3c2c2;border-radius:6px;padding:3px 9px;margin-left:6px;cursor:pointer;white-space:nowrap;}
   .sd-del:hover{background:#fee2e2;}
   .dm-back{position:fixed;inset:0;background:rgba(0,0,0,.4);display:none;align-items:center;justify-content:center;z-index:1000;}
@@ -175,7 +177,7 @@
       var chans=r.channels.map(mkBadge).join('');
       var coll=rel(r.last_collected_at); var sent=r.last_sent_at?rel(r.last_sent_at):null;
       h+='<div class="sd-card" data-sid="'+r.set_id+'">';
-      h+=' <div class="sd-card-top" data-act="toggle"><div>'+(multi?('<span class="sd-bundle">'+r.products.length+'개 묶음</span>'):'')+'<span class="sd-name">'+esc(r.name)+'</span></div><div>'+'<a class="sd-edit" href="/api/sets/flow?edit='+r.set_id+'">✎ 편집</a><button class="sd-del" data-sid="'+r.set_id+'" data-name="'+esc(r.name)+'">🗑 삭제</button><span class="sd-chev">▾</span></div></div>';
+      h+=' <div class="sd-card-top" data-act="toggle"><div>'+(multi?('<span class="sd-bundle">'+r.products.length+'개 묶음</span>'):'')+'<span class="sd-name">'+esc(r.name)+'</span></div><div>'+'<button class="sd-refresh" data-sid="'+r.set_id+'">🔄 새로고침</button><a class="sd-edit" href="/api/sets/flow?edit='+r.set_id+'">✎ 편집</a><button class="sd-del" data-sid="'+r.set_id+'" data-name="'+esc(r.name)+'">🗑 삭제</button><span class="sd-chev">▾</span></div></div>';
       h+=' '+m3Table(r);
       h+=' <div class="sd-meta">수집 '+(coll||'수집 안 됨')+' · 전송 '+(sent||'이력 없음')+'</div>';
       h+=' <div class="sd-prods">';
@@ -185,6 +187,14 @@
       h+='</div>';
     });
     listEl.innerHTML=h;
+  }
+  function refreshSet(btn){
+    var sid=btn.getAttribute('data-sid'); var orig=btn.textContent;
+    btn.disabled=true; btn.textContent='수집 중…';
+    fetch('/api/sets/'+sid+'/collect',{method:'POST',headers:{'Accept':'application/json'}})
+      .then(function(r){return r.json();})
+      .then(function(d){ if(d&&d.ok){ load(); } else { alert('수집 실패: '+(d&&d.error||'')); btn.disabled=false; btn.textContent=orig; } })
+      .catch(function(){ alert('수집 호출 실패'); btn.disabled=false; btn.textContent=orig; });
   }
   function load(){
     var q=qEl.value.trim();
@@ -389,6 +399,8 @@
   // ── 이벤트 위임 ──────────────────────────────────────────────
   listEl.addEventListener('click', function(e){
     if(e.target.closest('.sd-edit')) return;
+    var rfBtn=e.target.closest('.sd-refresh');
+    if(rfBtn){ e.stopPropagation(); refreshSet(rfBtn); return; }
     var delBtn=e.target.closest('.sd-del');
     if(delBtn){ e.stopPropagation(); openDelModal(delBtn.getAttribute('data-sid'), delBtn.getAttribute('data-name')); return; }
     var pvBtn=e.target.closest('.pv-btn');
