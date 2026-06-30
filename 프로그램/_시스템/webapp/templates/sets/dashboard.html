@@ -2,22 +2,14 @@
 {% block title %}판매처 연동{% endblock %}
 {% block head %}
 <style>
-  .sd-wrap{max-width:740px;margin:0 auto;padding:10px 6px;font-family:Pretendard,system-ui,sans-serif;zoom:1.5;}
+  /* === 최종 통합본 카드 디자인 변수/베이스 === */
+  :root{--ink:#191F28;--sub:#6B7684;--line:#E5E8EB;--line2:#EFF1F4;--blue:#3182F6;--blueDk:#185FA5;--brown:#854F0B;--green:#0F8A4D;--amber:#B45309;--red:#E03A3E;--coupang:#E03A3E;--smart:#03C75A;--gmarket:#00A862;}
+  .sd-wrap{max-width:1180px;margin:0 auto;padding:14px 14px 60px;font-family:Pretendard,system-ui,sans-serif;color:var(--ink);}
   .sd-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:16px;flex-wrap:wrap;}
-  .sd-title{font-size:20px;font-weight:700;color:#191F28;}
+  .sd-title{font-size:20px;font-weight:800;color:#191F28;letter-spacing:-.4px;}
   .sd-sub{font-size:13px;color:#6b7684;margin-top:2px;}
   .sd-new{display:inline-flex;align-items:center;justify-content:center;gap:6px;font-size:14px;font-weight:700;border:1px solid #3182f6;background:#3182f6;color:#fff !important;border-radius:8px;padding:9px 16px;text-decoration:none;white-space:nowrap;}
-  .sd-edit{font-size:12px;font-weight:600;color:#3182f6;text-decoration:none;border:1px solid #c7d7f0;border-radius:6px;padding:3px 9px;margin-left:8px;white-space:nowrap;}
-  .sd-edit:hover{background:#eef4ff;}
-  .sd-refresh{font-size:12px;font-weight:600;color:#0F8A4D;background:#eaf7ef;border:1px solid #b6e3c8;border-radius:6px;padding:3px 9px;margin-left:6px;cursor:pointer;white-space:nowrap;}
-  .sd-tools{display:flex;gap:8px;margin:10px 0 2px;}
-  .sd-upd-mkt,.sd-upd-src{display:inline-flex;align-items:center;justify-content:center;gap:4px;height:32px;min-width:138px;padding:0 14px;border-radius:8px;font-size:12.5px;font-weight:700;color:#fff;cursor:pointer;border:0;white-space:nowrap;}
-  .sd-upd-mkt{background:#3182f6;} .sd-upd-mkt:hover{background:#1b64da;}
-  .sd-upd-src{background:#0F8A4D;} .sd-upd-src:hover{background:#0b6e3d;}
-  .sd-upd-mkt[disabled],.sd-upd-src[disabled]{opacity:.5;cursor:wait;}
-  .sd-edit,.sd-del{min-width:62px;height:28px;display:inline-flex;align-items:center;justify-content:center;}
-  .sd-del{font-size:12px;font-weight:600;color:#dc2626;background:#fff5f5;border:1px solid #f3c2c2;border-radius:6px;padding:3px 9px;margin-left:6px;cursor:pointer;white-space:nowrap;}
-  .sd-del:hover{background:#fee2e2;}
+  .sd-new:hover{background:#1b64da;}
   .dm-back{position:fixed;inset:0;background:rgba(0,0,0,.4);display:none;align-items:center;justify-content:center;z-index:1000;}
   .dm-back.on{display:flex;}
   .dm{width:100%;max-width:440px;background:#fff;border-radius:14px;box-shadow:0 12px 40px rgba(0,0,0,.25);overflow:hidden;zoom:1.7;}
@@ -145,6 +137,107 @@
   .mx-legend i{font-style:normal;font-weight:800;padding:1px 5px;line-height:1.5;text-align:center;border-radius:3px;font-size:9px;color:#fff;margin-right:3px;display:inline-block;}
   .mx-hint{margin-left:auto;color:#1d4ed8;font-weight:700;}
   .st-done{color:#0F8A4D;} .st-part{color:#B45309;} .st-none{color:#98A2B3;}
+
+  /* ============================================================
+     최종 통합본 카드 (header·신호등 E2·소판 스택·행 펼침 D3)
+     ============================================================ */
+  .sd-card{background:#fff;border:1px solid var(--line);border-radius:16px;box-shadow:0 1px 3px rgba(0,0,0,.04);padding:0;margin-bottom:18px;}
+  /* 헤더: 제목 + ↻업데이트▾ 드롭다운(박스) + 편집(파랑 글자) + 삭제(빨강 글자) */
+  .c-head{display:flex;align-items:center;gap:10px;padding:16px 24px 14px;}
+  .c-title{font-size:17px;font-weight:800;letter-spacing:-.4px;color:#191F28;}
+  .c-bundle{font-size:11px;font-weight:700;background:#e8f1ff;color:#1d4ed8;border-radius:5px;padding:2px 7px;margin-right:8px;vertical-align:middle;}
+  .c-sp{flex:1;}
+  .updwrap{position:relative;}
+  .b-up{height:32px;padding:0 12px;border:1px solid var(--line);border-radius:8px;background:#fff;font-size:12.5px;font-weight:700;color:#4E5968;display:inline-flex;align-items:center;gap:5px;cursor:pointer;white-space:nowrap;}
+  .b-up:hover{background:#F4F6F8;}
+  .b-up[disabled]{opacity:.5;cursor:wait;}
+  .updmenu{display:none;position:absolute;top:36px;right:0;z-index:30;background:#fff;border:1px solid var(--line);border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.14);padding:5px;min-width:178px;}
+  .updwrap.open .updmenu{display:block;}
+  .updmenu button{display:flex;align-items:center;gap:7px;width:100%;border:0;background:transparent;text-align:left;font-size:12.5px;font-weight:600;color:#4E5968;padding:8px 10px;border-radius:7px;cursor:pointer;font-family:inherit;white-space:nowrap;}
+  .updmenu button:hover{background:#F4F6F8;}
+  .b-txt{height:32px;padding:0 8px;border:none;background:transparent;font-size:12.5px;font-weight:700;display:inline-flex;align-items:center;gap:4px;border-radius:7px;cursor:pointer;text-decoration:none;font-family:inherit;}
+  .b-txt.edit{color:var(--blue);} .b-txt.del{color:var(--red);} .b-txt:hover{background:#F4F6F8;}
+  .head-div{height:1px;background:var(--line);margin:0 24px;}
+  /* 표: 마켓 | 매칭 | 재고(소/판) | 가격(소/판) | 상태 — 내용폭 컬럼 균등분배 */
+  .row6{display:grid;grid-template-columns:150px 64px 168px 168px 132px 150px;justify-content:space-between;align-items:center;padding:13px 24px;gap:8px;}
+  .hrow6{padding:11px 24px 9px;border-bottom:1px solid var(--line);}
+  .hrow6>div{font-size:11px;color:var(--sub);font-weight:700;}
+  .ctr{text-align:center;}.rgt{text-align:right;}
+  .mrow{border-top:1px solid var(--line2);}
+  .mrow:first-of-type{border-top:none;}
+  .mk{display:flex;align-items:center;gap:9px;min-width:0;}
+  .mk-tile{width:26px;height:26px;border-radius:7px;display:inline-flex;align-items:center;justify-content:center;color:#fff;font-size:11px;font-weight:800;flex:none;}
+  .mk-n{font-size:13.5px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .match{color:var(--green);font-weight:800;font-size:14px;font-variant-numeric:tabular-nums;}
+  .match.part{color:var(--amber);}
+  .match.none{color:#98A2B3;font-weight:700;}
+  .dual{display:grid;grid-template-columns:16px auto auto;column-gap:7px;row-gap:4px;align-items:center;width:max-content;}
+  .ps{background:#E7F0FB;color:var(--blueDk);font-weight:800;font-size:9.5px;padding:1px 0;border-radius:4px;text-align:center;}
+  .pp{background:#F3EBDD;color:var(--brown);font-weight:800;font-size:9.5px;padding:1px 0;border-radius:4px;text-align:center;}
+  .dn{font-size:11.5px;color:#4E5968;font-weight:600;white-space:nowrap;}
+  .dv{font-size:13px;font-weight:800;text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap;}
+  .dv small{font-size:10px;color:var(--sub);font-weight:600;margin-left:2px;}
+  .dv.bad{color:var(--amber);}.dv.sev{color:var(--red);}
+  .dv.muted{color:#98A2B3;font-weight:700;cursor:pointer;}
+  /* 상태 신호등(E2) */
+  .stcell{display:inline-flex;align-items:center;gap:8px;cursor:pointer;padding:5px 8px;border-radius:8px;}
+  .stcell:hover{background:#F0F6FF;}
+  .signals{display:inline-flex;gap:9px;}
+  .sig{display:inline-flex;flex-direction:column;align-items:center;gap:3px;}
+  .dot{width:11px;height:11px;border-radius:50%;}
+  .dot.g{background:#2bb673;}.dot.a{background:#E3A93B;}.dot.r{background:#E24B4A;}
+  .siglab{font-size:9px;color:var(--sub);font-weight:700;}
+  .e-caret{font-size:10px;color:#98A2B3;transition:transform .15s;}
+  .mrow.open .e-caret{transform:rotate(180deg);}
+  /* 행 액션(이력·미리보기) */
+  .rowacts{display:inline-flex;gap:6px;justify-content:flex-end;}
+  .mini-btn{height:28px;padding:0 10px;border-radius:7px;border:1px solid var(--line);background:#fff;font-size:11.5px;font-weight:700;color:#4E5968;display:inline-flex;align-items:center;gap:4px;white-space:nowrap;cursor:pointer;font-family:inherit;}
+  .mini-btn:hover{background:#F4F6F8;}
+  .mini-btn.accent{border-color:#BBD3F5;color:var(--blue);}
+  .mini-btn[disabled]{opacity:.4;cursor:default;}
+  /* 행 펼침 상세(D3) */
+  .expand{display:none;background:#F8FAFB;border-top:1px dashed var(--line);padding:12px 24px 14px 30px;}
+  .mrow.open .expand{display:block;}
+  .expand h4{margin:0 0 7px;font-size:12px;font-weight:800;color:#4E5968;}
+  .det-row{display:flex;align-items:center;gap:9px;font-size:12px;padding:6px 0;border-bottom:1px solid var(--line2);}
+  .det-row:last-child{border-bottom:none;}
+  .det-ty{font-size:9.5px;font-weight:800;padding:2px 8px;border-radius:5px;flex:none;}
+  .ty-a{background:#FEF4E6;color:var(--amber);}.ty-g{background:#EAF7EF;color:var(--green);}.ty-r{background:#FDECEC;color:var(--red);}
+  .det-cmp{color:#4E5968;font-weight:600;font-variant-numeric:tabular-nums;}
+  .det-act{height:26px;padding:0 10px;border-radius:6px;border:1px solid #BBD3F5;background:#fff;color:var(--blue);font-size:11.5px;font-weight:800;margin-left:auto;cursor:pointer;flex:none;font-family:inherit;}
+  .det-act.sev{border-color:#F3B0B0;color:var(--red);}
+  /* 푸터 */
+  .c-foot{font-size:11.5px;color:#98A2B3;padding:8px 24px 16px;display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;}
+  .c-foot .more{color:var(--blue);cursor:pointer;}
+  /* 푸터에서 펼치는 기존 상세(날짜·매트릭스) */
+  .sd-card .sd-detail{margin:0 24px 16px;border-top:1px solid #e5e8eb;padding-top:12px;}
+
+  /* === 2단 레이아웃: 왼쪽 필터 패널 + 오른쪽 카드 목록 === */
+  .sd-cols{display:grid;grid-template-columns:240px 1fr;gap:18px;align-items:start;}
+  .sd-main{min-width:0;}
+  /* 왼쪽 필터 패널 (밝은 카드 스타일 — 다크 사이드바 아님) */
+  .sd-panel{background:var(--surface,#fff);border:1px solid var(--line);border-radius:12px;padding:16px 16px 14px;position:sticky;top:14px;}
+  .sd-panel-h{display:flex;align-items:baseline;justify-content:space-between;gap:8px;margin-bottom:12px;}
+  .sd-panel-t{font-size:14px;font-weight:800;color:var(--ink);letter-spacing:-.3px;}
+  .sd-panel-n{font-size:11.5px;color:var(--sub);font-weight:700;font-variant-numeric:tabular-nums;}
+  .sd-panel .sd-search{margin-bottom:12px;padding:8px 11px;}
+  .sd-panel .sd-search input{font-size:13px;}
+  .fp-acts{display:flex;gap:6px;margin-bottom:14px;}
+  .fp-act{flex:1;font-size:11.5px;font-weight:700;border:1px solid var(--line);background:#fff;color:#4e5968;border-radius:7px;padding:6px 0;cursor:pointer;font-family:inherit;}
+  .fp-act:hover{background:#f4f6f8;}
+  .fp-grp-t{font-size:11px;color:#8b95a1;font-weight:800;letter-spacing:.2px;margin:0 0 7px;}
+  .fp-list{display:flex;flex-direction:column;gap:1px;margin-bottom:4px;}
+  .fp-row{display:flex;align-items:center;gap:8px;font-size:13px;color:#4e5968;padding:5px 4px;border-radius:6px;cursor:pointer;}
+  .fp-row:hover{background:#f7faff;}
+  .fp-row input{width:15px;height:15px;flex:none;cursor:pointer;accent-color:var(--blue);}
+  .fp-row .fp-nm{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .fp-row .fp-cnt{font-size:11px;color:#b0b8c1;font-weight:700;font-variant-numeric:tabular-nums;flex:none;}
+  .fp-div{height:1px;background:var(--line2);margin:12px 0;}
+  .fp-empty{font-size:11.5px;color:#b0b8c1;padding:4px;}
+  @media(max-width:860px){
+    .sd-cols{grid-template-columns:1fr;}
+    .sd-panel{position:static;}
+  }
 </style>
 {% endblock %}
 {% block content %}
@@ -156,13 +249,27 @@
     </div>
     <a class="sd-new" href="/api/sets/flow"><span style="font-size:17px;line-height:1;color:#fff">+</span>새 연동 만들기</a>
   </div>
-  <div class="sd-search">
-    <span style="color:#8b95a1">🔍</span>
-    <input id="sd-q" type="text" placeholder="상품명·코드·마켓 상품번호 검색…" autocomplete="off">
+  <div class="sd-cols">
+    <aside class="sd-panel">
+      <div class="sd-panel-h">
+        <span class="sd-panel-t">필터</span>
+        <span class="sd-panel-n" id="sd-result-n">결과 -건</span>
+      </div>
+      <div class="sd-search">
+        <span style="color:#8b95a1">🔍</span>
+        <input id="sd-q" type="text" placeholder="상품명·코드·번호 검색…" autocomplete="off">
+      </div>
+      <div class="fp-acts">
+        <button type="button" class="fp-act" id="fp-all">전체 선택</button>
+        <button type="button" class="fp-act" id="fp-none">전체 해제</button>
+      </div>
+      <div class="sd-filter" id="sd-filter"></div>
+    </aside>
+    <div class="sd-main">
+      <div id="sd-summary"></div>
+      <div id="sd-list"><div class="sd-empty">불러오는 중…</div></div>
+    </div>
   </div>
-  <div class="sd-filter" id="sd-filter"></div>
-  <div id="sd-summary"></div>
-  <div id="sd-list"><div class="sd-empty">불러오는 중…</div></div>
 </div>
 <div class="dm-back" id="delModal">
   <div class="dm">
@@ -225,60 +332,161 @@
   function m3date(iso){ if(!iso) return '<span class="mx-na">-</span>'; var d=_pdate(iso); if(isNaN(d.getTime())) return '<span class="mx-na">-</span>'; var p=function(n){return (n<10?'0':'')+n;}; var ymd=String(d.getFullYear()).slice(2)+'.'+p(d.getMonth()+1)+'.'+p(d.getDate()); return ymd+'<span class="mx-ts">'+p(d.getHours())+':'+p(d.getMinutes())+'</span>'; }
   function m3dual(srcIso, mktIso){ return '<div class="mx-dual"><span class="mx-dl"><i class="dl-src">소싱처</i>'+m3date(srcIso)+'</span><span class="mx-dl"><i class="dl-mkt">판매처</i>'+m3date(mktIso)+'</span></div>'; }
   function m3match(c){ if(!c.total) return '<span class="st-none">-</span>'; var cls=(c.matched===c.total)?'st-done':'st-part'; return '<span class="'+cls+'" style="font-weight:700">'+c.matched+'/'+c.total+'</span>'; }
-  function m3Table(r){
-    if(!r.channels||!r.channels.length) return '<div class="sd-cnt" style="padding:6px 2px">판매처 없음</div>';
-    var legend='<div class="mx-legend"><span><i class="dl-src">소싱처</i> 크롤 일자</span><span><i class="dl-mkt">판매처</i> API 일자</span><span class="mx-hint">셀 클릭 - 변동이력</span></div>';
-    var rows=r.channels.map(function(c){
-      var mk=m3mk(c.market); var linked=c.total>0&&c.matched>0;
-      var stock=linked?('있음'+m3dual(r.last_collected_at,c.mkt_fetched_at)):'<span class="mx-na">-</span>';
-      var price=linked?('최신'+m3dual(r.last_collected_at,c.mkt_fetched_at)):'<span class="mx-na">-</span>';
-      var send=r.last_sent_at?rel(r.last_sent_at):'<span class="mx-na">미전송</span>';
-      var ma=alForMarket(r.alerts, c.market);
-      var maIcon=ma.length?(' <span class="mx-alert" style="color:'+(AL_COLOR[alTop(ma)]||'#888')+'" title="'+esc(ma.map(function(a){return a.message;}).join(' · '))+'">⚠</span>'):'';
-      return '<tr><td class="mx-mk">'+m3logo(c.market)+'<span>'+mk.nm+'</span></td>'
-        +'<td class="ta-c">'+m3match(c)+'</td>'
-        +'<td class="ta-c mx-cell" data-sid="'+r.set_id+'" data-mk="'+esc(c.market)+'" data-fld="stock">'+stock+'</td>'
-        +'<td class="ta-c mx-cell" data-sid="'+r.set_id+'" data-mk="'+esc(c.market)+'" data-fld="price">'+price+'</td>'
-        +'<td class="ta-c">'+send+maIcon+'</td></tr>';
+  // ── 최종 통합본 카드 빌더 ──────────────────────────────────────
+  var MK_NAME={coupang:'쿠팡',smartstore:'스마트스토어',gmarket:'G마켓',st11:'11번가',toss:'토스',musinsa:'무신사'};
+  function mkName(m){ return MK_NAME[m]||esc(m||'?'); }
+  // 신호등 → 점 클래스
+  function sigDot(v){ return v==='sev'?'r':(v==='warn'?'a':'g'); }
+  // 'N개' 우측정렬(숫자+단위 small)
+  function numUnit(n, unit){ if(n==null||isNaN(n)) return '<span style="color:#98A2B3">미상</span>'; return Number(n).toLocaleString()+'<small>'+unit+'</small>'; }
+  // 매칭 셀
+  function cMatch(c){
+    if(!c.total) return '<span class="match none">미연동</span>';
+    var cls=(c.matched===c.total)?'match':'match part';
+    return '<span class="'+cls+'">'+c.matched+'/'+c.total+'</span>';
+  }
+  // 재고(소/판) 스택
+  function cStock(r, c){
+    var srcName=esc((r.src_summary&&r.src_summary.source_name)||'소싱');
+    var srcN=(r.src_summary&&r.src_summary.src_stock_total!=null)?numUnit(r.src_summary.src_stock_total,'개'):'<span style="color:#98A2B3">미상</span>';
+    var mkS=c.signals&&c.signals.stock;
+    var mkCls='dv'+(mkS==='sev'?' sev':(mkS==='warn'?' bad':''));
+    var mkN=(c.mkt_stock_total!=null)?numUnit(c.mkt_stock_total,'개'):'<span style="color:#98A2B3">미상</span>';
+    return '<div class="dual">'
+      +'<span class="ps">소</span><span class="dn">'+srcName+'</span><span class="dv">'+srcN+'</span>'
+      +'<span class="pp">판</span><span class="dn">설정</span><span class="'+mkCls+'">'+mkN+'</span></div>';
+  }
+  // 가격(소/판) 스택 — 소=상세에서(지연), 판=판매가
+  function cPrice(r, c){
+    var mkN=(c.mkt_price!=null)?numUnit(c.mkt_price,'원'):'<span style="color:#98A2B3">미상</span>';
+    return '<div class="dual">'
+      +'<span class="ps">소</span><span class="dn">최종매입</span><span class="dv muted" title="펼치면 영수증·최종매입가를 보여줘요">상세 ▾</span>'
+      +'<span class="pp">판</span><span class="dn">판매가</span><span class="dv">'+mkN+'</span></div>';
+  }
+  // 상태 신호등 셀
+  function cSignals(c){
+    var s=c.signals||{stock:'ok',price:'ok',send:'ok'};
+    function sig(lab,v){ return '<span class="sig"><span class="dot '+sigDot(v)+'"></span><span class="siglab">'+lab+'</span></span>'; }
+    return '<span class="stcell" data-act="erow"><span class="signals">'+sig('재고',s.stock)+sig('가격',s.price)+sig('전송',s.send)+'</span><span class="e-caret">▾</span></span>';
+  }
+  // 행 펼침 상세(D3)
+  function cExpand(r, c){
+    var s=c.signals||{};
+    var srcTot=(r.src_summary&&r.src_summary.src_stock_total);
+    var mkTot=c.mkt_stock_total;
+    // 재고
+    var stTy, stTx;
+    if(s.stock==='sev'){ stTy='ty-r'; stTx='판매 설정 '+(mkTot==null?'미상':mkTot+'개')+' (품절 위험)'+(srcTot!=null?(' · 소싱은 '+srcTot+'개 있음'):''); }
+    else if(srcTot!=null && mkTot!=null && srcTot!==mkTot){ stTy='ty-a'; stTx='소싱 '+srcTot+'개 → 판매 설정 '+mkTot+'개 (안 맞음)'; }
+    else if(srcTot!=null && mkTot!=null){ stTy='ty-g'; stTx='소싱 '+srcTot+'개 = 판매 설정 '+mkTot+'개 · 일치'; }
+    else { stTy='ty-g'; stTx='소싱 '+(srcTot==null?'미상':srcTot+'개')+' / 판매 설정 '+(mkTot==null?'미상':mkTot+'개'); }
+    var stockRow='<div class="det-row"><span class="det-ty '+stTy+'">재고</span><span class="det-cmp">'+stTx+'</span>'
+      +(s.stock==='sev'?'<button class="det-act sev" data-act="hist" data-mk="'+esc(c.market)+'" data-fld="stock">📈 변동 이력</button>':'')+'</div>';
+    // 가격 — 최종매입(소)은 지연이라 숫자 날조 금지: 판 판매가 + 변동이력
+    var pcCls=(s.price==='sev')?'ty-r':(s.price==='warn'?'ty-a':'ty-g');
+    var pcTx='판매가 '+(c.mkt_price!=null?Number(c.mkt_price).toLocaleString()+'원':'미상')+' · 최종매입가는 아래 ‘자세히’에서 확인';
+    var priceRow='<div class="det-row"><span class="det-ty '+pcCls+'">가격</span><span class="det-cmp">'+pcTx+'</span>'
+      +'<button class="det-act" data-act="hist" data-mk="'+esc(c.market)+'" data-fld="price">📈 변동 이력</button></div>';
+    // 전송
+    var snTy=(s.send==='sev')?'ty-r':(s.send==='warn'?'ty-a':'ty-g');
+    var snTx=(s.send==='ok')?'최신 반영됨':'소싱 변동이 판매처에 아직 반영 안 됨 · 마지막 전송 없음';
+    var canSend=(c.market==='coupang' && c.status==='linked');
+    var sendRow='<div class="det-row"><span class="det-ty '+snTy+'">전송</span><span class="det-cmp">'+snTx+'</span>'
+      +(s.send!=='ok'?(canSend?'<button class="det-act" data-act="send" data-mk="'+esc(c.market)+'" data-cid="'+c.id+'">지금 전송 →</button>':'<span class="sd-cnt" style="margin-left:auto">실제 전송은 쿠팡만 지원</span>'):'')+'</div>';
+    return '<div class="expand"><h4>'+mkName(c.market)+' — 상태 상세</h4>'+stockRow+priceRow+sendRow+'</div>';
+  }
+  function mkTile(market){ var m=m3mk(market); return '<span class="mk-tile" style="background:'+m.c+'">'+m.sh+'</span>'; }
+  function cardRows(r){
+    if(!r.channels||!r.channels.length) return '<div class="sd-cnt" style="padding:10px 24px">연동된 판매처가 없어요.</div>';
+    return r.channels.map(function(c){
+      var canPv=(c.status==='linked');
+      return '<div class="mrow" data-mk="'+esc(c.market)+'">'
+        +'<div class="row6">'
+        +'<div class="mk">'+mkTile(c.market)+'<span class="mk-n">'+mkName(c.market)+'</span></div>'
+        +'<div class="ctr">'+cMatch(c)+'</div>'
+        +'<div>'+cStock(r,c)+'</div>'
+        +'<div>'+cPrice(r,c)+'</div>'
+        +'<div class="ctr">'+cSignals(c)+'</div>'
+        +'<div class="rgt"><span class="rowacts">'
+          +'<button class="mini-btn accent" data-act="hist" data-mk="'+esc(c.market)+'" data-fld="price">📈 이력</button>'
+          +'<button class="mini-btn" data-act="pv" data-mk="'+esc(c.market)+'" data-cid="'+c.id+'"'+(canPv?'':' disabled')+'>👁 미리보기</button>'
+        +'</span></div>'
+        +'</div>'
+        +cExpand(r,c)
+        +'</div>';
     }).join('');
-    return legend+'<table class="mx3"><colgroup><col style="width:25%"><col style="width:13%"><col style="width:23%"><col style="width:23%"><col style="width:16%"></colgroup><thead><tr><th class="ta-l">마켓</th><th>매칭</th><th>재고 (소/판)</th><th>가격 (소/판)</th><th>전송</th></tr></thead><tbody>'+rows+'</tbody></table>';
   }
   function render(sets){
     if(!sets.length){ listEl.innerHTML='<div class="sd-empty">아직 연동된 구성이 없어요.<br>오른쪽 위 <b>＋ 새 연동 만들기</b> 로 시작하세요.</div>'; return; }
     var h='';
     sets.forEach(function(r){
       var multi=r.products.length>1;
-      var chans=r.channels.map(mkBadge).join('');
       var coll=rel(r.last_collected_at); var sent=r.last_sent_at?rel(r.last_sent_at):null;
-      h+='<div class="sd-card" data-sid="'+r.set_id+'">';
-      h+=' <div class="sd-card-top" data-act="toggle"><div>'+(multi?('<span class="sd-bundle">'+r.products.length+'개 묶음</span>'):'')+'<span class="sd-name">'+esc(r.name)+'</span></div><div>'+alBadge(r.alerts)+'<a class="sd-edit" href="/api/sets/flow?edit='+r.set_id+'">✎ 편집</a><button class="sd-del" data-sid="'+r.set_id+'" data-name="'+esc(r.name)+'">🗑 삭제</button><span class="sd-chev">▾</span></div></div>';
       var srcCodes=[]; r.products.forEach(function(p){ if(p.model_code && srcCodes.indexOf(p.model_code)<0) srcCodes.push(p.model_code); });
-      h+=' <div class="sd-tools"><button class="sd-upd-mkt" data-sid="'+r.set_id+'">🛒 판매처 업데이트</button><button class="sd-upd-src" data-sid="'+r.set_id+'" data-codes="'+esc(srcCodes.join(','))+'">📦 소싱처 업데이트</button></div>';
-      h+=' '+m3Table(r);
-      h+=' <div class="sd-meta">수집 '+(coll||'수집 안 됨')+' · 전송 '+(sent||'이력 없음')+'</div>';
-      h+=' <div class="sd-prods">';
-      r.products.forEach(function(p){ h+='<div class="sd-prod">└ <span>'+esc(p.model_name)+'</span> <span class="sd-cnt">'+p.option_count+'옵션 · 수량 '+p.quantity+'</span></div>'; });
-      h+=' </div>';
+      h+='<div class="sd-card" data-sid="'+r.set_id+'">';
+      // 헤더: 제목 + ↻업데이트▾ + 편집(파랑) + 삭제(빨강)
+      h+=' <div class="c-head">'
+        +'<span class="c-title">'+(multi?('<span class="c-bundle">'+r.products.length+'개 묶음</span>'):'')+esc(r.name)+'</span>'
+        +'<span class="c-sp"></span>'
+        +'<span class="updwrap">'
+          +'<button class="b-up" data-act="updtoggle">↻ 업데이트 ▾</button>'
+          +'<span class="updmenu">'
+            +'<button class="sd-upd-mkt" data-sid="'+r.set_id+'">🛒 판매처 업데이트</button>'
+            +'<button class="sd-upd-src" data-sid="'+r.set_id+'" data-codes="'+esc(srcCodes.join(','))+'">📦 소싱처 업데이트</button>'
+          +'</span>'
+        +'</span>'
+        +'<a class="b-txt edit" href="/api/sets/flow?edit='+r.set_id+'">✎ 편집</a>'
+        +'<button class="b-txt del" data-sid="'+r.set_id+'" data-name="'+esc(r.name)+'">🗑 삭제</button>'
+      +'</div>';
+      h+=' <div class="head-div"></div>';
+      h+=' <div class="row6 hrow6"><div>마켓</div><div class="ctr">매칭</div><div>재고 (소/판)</div><div>가격 (소/판)</div><div class="ctr">상태</div><div></div></div>';
+      h+=' '+cardRows(r);
+      // 푸터
+      h+=' <div class="c-foot"><span>수집 '+(coll||'수집 안 됨')+' · 전송 '+(sent||'이력 없음')+'</span>'
+        +'<span class="more" data-act="toggle">자세히 (날짜·매트릭스·옵션) ▾</span></div>';
       h+=' <div class="sd-detail" data-det style="display:none"></div>';
       h+='</div>';
     });
     listEl.innerHTML=h;
-    var tot=sets.reduce(function(a,r){return a+((r.alerts&&r.alerts.length)||0);},0);
     var sumEl=document.getElementById('sd-summary');
-    if(sumEl){ sumEl.className=tot?'sd-summary':''; sumEl.innerHTML=tot?('⚠ 주의가 필요한 항목 '+tot+'건 — 카드·표의 ⚠ 표시를 확인하세요.'):''; }
+    if(sumEl){ sumEl.className=''; sumEl.innerHTML=''; }
+  }
+  // set_id → {market: channel_id} 캐시 (전송 미리보기용 — linked 엔드포인트엔 채널 id 없음)
+  var chanIdCache={};
+  function withChannelId(sid, market, cb){
+    if(chanIdCache[sid] && chanIdCache[sid][market]!=null){ cb(chanIdCache[sid][market]); return; }
+    fetch('/api/sets/'+sid+'/detail-matrix',{headers:{'Accept':'application/json'}})
+      .then(function(r){return r.json();})
+      .then(function(d){
+        var map={}; ((d&&d.channels)||[]).forEach(function(c){ map[c.market]=c.id; });
+        chanIdCache[sid]=map;
+        if(map[market]!=null) cb(map[market]); else alert('이 마켓의 채널 정보를 찾지 못했어요.');
+      })
+      .catch(function(){ alert('채널 정보를 불러오지 못했어요.'); });
   }
   // F10 필터 (브랜드 OR + 마켓 OR, 그룹간 AND, 미선택=전체)
   var allSets=[];
   var selBrands={}, selMarkets={};
   function brandsOf(r){ var s={}; (r.products||[]).forEach(function(p){ if(p.brand) s[p.brand]=1; }); return Object.keys(s); }
   function marketsOf(r){ var s={}; (r.channels||[]).forEach(function(c){ if(c.market) s[c.market]=1; }); return Object.keys(s); }
+  // 브랜드/마켓별 구성 개수 (count = 그 값을 가진 set 수)
+  function countBrand(b){ var n=0; allSets.forEach(function(r){ if(brandsOf(r).indexOf(b)>=0) n++; }); return n; }
+  function countMarket(m){ var n=0; allSets.forEach(function(r){ if(marketsOf(r).indexOf(m)>=0) n++; }); return n; }
   function buildFilter(sets){
     var bset={}, mset={};
     sets.forEach(function(r){ brandsOf(r).forEach(function(b){bset[b]=1;}); marketsOf(r).forEach(function(m){mset[m]=1;}); });
     var brands=Object.keys(bset).sort(), markets=Object.keys(mset).sort();
-    var h='';
-    if(brands.length){ h+='<span class="sd-fl-label">브랜드</span>'+brands.map(function(b){ return '<span class="sd-chip'+(selBrands[b]?' on':'')+'" data-fb="'+esc(b)+'">'+esc(b)+'</span>'; }).join(''); }
-    if(markets.length){ h+='<span class="sd-fl-label">마켓</span>'+markets.map(function(m){ return '<span class="sd-chip'+(selMarkets[m]?' on':'')+'" data-fm="'+esc(m)+'">'+esc(m3mk(m).nm)+'</span>'; }).join(''); }
+    function row(kind, key, label, cnt){
+      return '<label class="fp-row"><input type="checkbox" data-'+kind+'="'+esc(key)+'"'+(((kind==='fb'?selBrands:selMarkets)[key])?' checked':'')+'>'
+        +'<span class="fp-nm">'+esc(label)+'</span><span class="fp-cnt">'+cnt+'</span></label>';
+    }
+    var h='<div class="fp-grp-t">브랜드</div><div class="fp-list">';
+    h+= brands.length ? brands.map(function(b){ return row('fb', b, b, countBrand(b)); }).join('')
+                      : '<div class="fp-empty">브랜드 없음</div>';
+    h+='</div><div class="fp-div"></div><div class="fp-grp-t">마켓</div><div class="fp-list">';
+    h+= markets.length ? markets.map(function(m){ return row('fm', m, m3mk(m).nm, countMarket(m)); }).join('')
+                       : '<div class="fp-empty">마켓 없음</div>';
+    h+='</div>';
     document.getElementById('sd-filter').innerHTML=h;
   }
   function applyFilter(sets){
@@ -290,7 +498,7 @@
       return bOk && mOk;
     });
   }
-  function renderFiltered(){ render(applyFilter(allSets)); }
+  function renderFiltered(){ var f=applyFilter(allSets); var n=document.getElementById('sd-result-n'); if(n) n.textContent='결과 '+f.length+'건'; render(f); }
   function refreshSet(btn){
     var sid=btn.getAttribute('data-sid'); var orig=btn.textContent;
     btn.disabled=true; btn.textContent='수집 중…';
@@ -533,21 +741,28 @@
   }
 
   // ── 이벤트 위임 ──────────────────────────────────────────────
+  function closeAllUpdMenus(except){ listEl.querySelectorAll('.updwrap.open').forEach(function(w){ if(w!==except) w.classList.remove('open'); }); }
+  document.addEventListener('click', function(e){ if(!e.target.closest('.updwrap')) closeAllUpdMenus(null); });
   listEl.addEventListener('click', function(e){
-    if(e.target.closest('.sd-edit')) return;
+    if(e.target.closest('.b-txt.edit')) return;   // 편집 링크는 기본 이동
+    // 업데이트 드롭다운 토글
+    var updT=e.target.closest('[data-act="updtoggle"]');
+    if(updT){ e.stopPropagation(); var w=updT.closest('.updwrap'); var willOpen=!w.classList.contains('open'); closeAllUpdMenus(w); w.classList.toggle('open', willOpen); return; }
     var upMkt=e.target.closest('.sd-upd-mkt');
-    if(upMkt){ e.stopPropagation(); refreshSet(upMkt); return; }
+    if(upMkt){ e.stopPropagation(); closeAllUpdMenus(null); refreshSet(upMkt); return; }
     var upSrc=e.target.closest('.sd-upd-src');
-    if(upSrc){ e.stopPropagation(); recrawlSources(upSrc); return; }
+    if(upSrc){ e.stopPropagation(); closeAllUpdMenus(null); recrawlSources(upSrc); return; }
     var delBtn=e.target.closest('.sd-del');
     if(delBtn){ e.stopPropagation(); openDelModal(delBtn.getAttribute('data-sid'), delBtn.getAttribute('data-name')); return; }
-    var mxCell=e.target.closest('.mx-cell');
-    if(mxCell){ e.stopPropagation(); openHistModal(mxCell.getAttribute('data-sid'), mxCell.getAttribute('data-mk'), mxCell.getAttribute('data-fld')); return; }
-    var pvBtn=e.target.closest('.pv-btn');
-    if(pvBtn && !pvBtn.hasAttribute('data-send')){
-      openPvModal(pvBtn.getAttribute('data-cid'), pvBtn.getAttribute('data-mk'));
-      return;
-    }
+    // 행 펼침(상태 신호등) — 가격 셀의 '상세 ▾' 도 같은 행 펼침
+    var erow=e.target.closest('[data-act="erow"]')||e.target.closest('.dv.muted');
+    if(erow){ e.stopPropagation(); var mr=erow.closest('.mrow'); if(mr) mr.classList.toggle('open'); return; }
+    // 변동 이력 (행 액션 📈 이력 / 상세 안 📈 변동 이력)
+    var histBtn=e.target.closest('[data-act="hist"]');
+    if(histBtn){ e.stopPropagation(); var card0=histBtn.closest('.sd-card'); openHistModal(card0.getAttribute('data-sid'), histBtn.getAttribute('data-mk'), histBtn.getAttribute('data-fld')||'price'); return; }
+    // 미리보기 / 지금 전송 → 전송 미리보기 모달 (채널 id 는 응답에 포함 — data-cid 직접 사용, 없을 때만 지연 해석)
+    var pvAct=e.target.closest('[data-act="pv"]')||e.target.closest('[data-act="send"]');
+    if(pvAct){ e.stopPropagation(); if(pvAct.hasAttribute('disabled')) return; var card1=pvAct.closest('.sd-card'); var sid1=card1.getAttribute('data-sid'); var mk1=pvAct.getAttribute('data-mk'); var cid1=pvAct.getAttribute('data-cid'); if(cid1){ openPvModal(cid1, mk1); } else { withChannelId(sid1, mk1, function(cid){ openPvModal(cid, mk1); }); } return; }
     var tabEl=e.target.closest('.det-tab');
     if(tabEl){
       var card=tabEl.closest('.sd-card'); var sid=card.getAttribute('data-sid');
@@ -572,12 +787,11 @@
       }
       return;
     }
-    var top=e.target.closest('.sd-card-top');
+    var top=e.target.closest('[data-act="toggle"]');
     if(top){
       var card2=top.closest('.sd-card'); var det=card2.querySelector('[data-det]');
-      var chev=top.querySelector('.sd-chev');
-      if(det.style.display==='none'){ det.style.display=''; if(chev)chev.textContent='▴'; loadDetail(det, card2.getAttribute('data-sid')); }
-      else { det.style.display='none'; if(chev)chev.textContent='▾'; }
+      if(det.style.display==='none'){ det.style.display=''; top.innerHTML='자세히 (날짜·매트릭스·옵션) ▴'; if(!det.__loaded){ det.__loaded=true; loadDetail(det, card2.getAttribute('data-sid')); } }
+      else { det.style.display='none'; top.innerHTML='자세히 (날짜·매트릭스·옵션) ▾'; }
       return;
     }
   });
@@ -626,8 +840,24 @@
   }
   function closeHistModal(){ document.getElementById('histModal').classList.remove('on'); }
   (function(){ var m=document.getElementById('histModal'); if(!m) return; document.getElementById('histClose').addEventListener('click',closeHistModal); m.addEventListener('click',function(e){ if(e.target.id==='histModal') closeHistModal(); }); })();
-  // F10 필터 칩 토글
-  (function(){ var f=document.getElementById('sd-filter'); if(!f) return; f.addEventListener('click',function(e){ var b=e.target.closest('[data-fb]'); if(b){ var k=b.getAttribute('data-fb'); selBrands[k]=!selBrands[k]; b.classList.toggle('on'); renderFiltered(); return; } var m=e.target.closest('[data-fm]'); if(m){ var k2=m.getAttribute('data-fm'); selMarkets[k2]=!selMarkets[k2]; m.classList.toggle('on'); renderFiltered(); return; } }); })();
+  // 필터 체크박스 토글 (브랜드 OR · 마켓 OR · 그룹간 AND · 미선택=전체)
+  (function(){
+    var f=document.getElementById('sd-filter'); if(!f) return;
+    f.addEventListener('change',function(e){
+      var cb=e.target; if(!cb||cb.tagName!=='INPUT') return;
+      var b=cb.getAttribute('data-fb'); if(b!=null){ selBrands[b]=cb.checked; renderFiltered(); return; }
+      var m=cb.getAttribute('data-fm'); if(m!=null){ selMarkets[m]=cb.checked; renderFiltered(); return; }
+    });
+    // 전체 선택 = 모든 브랜드+마켓 체크 / 전체 해제 = 모두 해제
+    function setAll(on){
+      f.querySelectorAll('input[data-fb]').forEach(function(cb){ var k=cb.getAttribute('data-fb'); selBrands[k]=on; cb.checked=on; });
+      f.querySelectorAll('input[data-fm]').forEach(function(cb){ var k=cb.getAttribute('data-fm'); selMarkets[k]=on; cb.checked=on; });
+      renderFiltered();
+    }
+    var allBtn=document.getElementById('fp-all'), noneBtn=document.getElementById('fp-none');
+    if(allBtn) allBtn.addEventListener('click',function(){ setAll(true); });
+    if(noneBtn) noneBtn.addEventListener('click',function(){ setAll(false); });
+  })();
   load();
 })();
 </script>

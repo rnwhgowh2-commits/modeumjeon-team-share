@@ -57,13 +57,40 @@ def sets_dashboard_page():
     return render_template("sets/dashboard.html", active="sets_dashboard")
 
 
+def _card_src_provider(model_codes, skus):
+    """카드 「재고 소」용 소싱 요약 provider — 매트릭스 단일 진실 원천 재사용.
+    {sku: {"stock": 소싱 재고, "source_name": 대표(최저가) 소싱처명}}. 사입은 '사입'."""
+    from webapp.routes.api_pricing import _option_matrix_data
+    out = {}
+    for mc in model_codes:
+        data = _option_matrix_data(mc)
+        if not data.get("ok"):
+            continue
+        for o in data.get("options", []):
+            if o.get("sku") not in skus:
+                continue
+            is_pur = o.get("purchase_priority_resolved") == "purchase"
+            stock = o.get("purchase_stock") if is_pur else o.get("src_stock")
+            if is_pur:
+                sname = "사입"
+            else:
+                cand = [x for x in (o.get("sources") or [])
+                        if x.get("crawled_price") is not None]
+                cand.sort(key=lambda x: x["crawled_price"])
+                srcs = o.get("sources") or []
+                sname = (cand[0].get("source_name") if cand
+                         else (srcs[0].get("source_name") if srcs else None))
+            out[o["sku"]] = {"stock": stock, "source_name": sname}
+    return out
+
+
 @bp.get("/sets/linked")
 def list_linked():
     """대시보드 데이터 — 연동된 구성 목록(검색어 q 로 구성명·상품명·상품번호 필터)."""
     q = (request.args.get("q") or "").strip()
     s = SessionLocal()
     try:
-        rows = svc.list_linked_sets(s, q=q or None)
+        rows = svc.list_linked_sets(s, q=q or None, src_provider=_card_src_provider)
         return jsonify({"ok": True, "sets": rows})
     finally:
         s.close()
