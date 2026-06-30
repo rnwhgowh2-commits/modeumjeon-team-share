@@ -20,6 +20,8 @@
     hmall:       '현대H몰',
     lotteimall:  '롯데아이몰',
   };
+  // [2026-06-30 단일명부] 명부(get_labels) 라벨로 덮어씀 — 사전에서 이름 바꾸면 위젯도 반영.
+  try { Object.assign(SOURCE_LABELS, window.MOUM_SOURCE_LABELS || {}); } catch (e) {}
   var SOURCE_ORDER = ['lemouton', 'ssf', 'ssg', 'ss_lemouton', 'musinsa', 'lotteon'];
 
   // ── 내부 상태 (모음전별) ─────────────────────────────────────────

@@ -853,11 +853,12 @@
       }
     } catch (e) { console.warn('sources load fail', e); }
 
-    // 소싱처 라벨 매핑 (사용자 친화)
+    // 소싱처 라벨 매핑 (사용자 친화) — [2026-06-30 단일명부] 명부 라벨로 덮어씀
     const SRC_LABELS = {
       lemouton: '르무통 공홈', musinsa: '무신사', ssf: 'SSF샵', ssg: 'SSG',
       lotteon: '롯데온', ss_lemouton: '스마트스토어 르무통',
     };
+    try { Object.assign(SRC_LABELS, window.MOUM_SOURCE_LABELS || {}); } catch (e) {}
     const SRC_COLORS = {
       lemouton: '#a78bfa', musinsa: '#191F28', ssf: '#14b8a6', ssg: '#F47216',
       lotteon: '#ef4444', ss_lemouton: '#22c55e',

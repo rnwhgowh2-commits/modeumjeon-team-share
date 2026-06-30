@@ -127,3 +127,12 @@ def register_routes(app: Flask) -> None:
             'sidebar_badge_values': {'unmapped': unmapped, 'failed': failed},
             'sidebar_mode_icons': _sidebar_mode_icons(),
         }
+
+    @app.context_processor
+    def inject_source_labels():
+        """[2026-06-30 단일명부] JS 표면(크롤위젯·옵션모달)이 명부 라벨을 쓰도록 주입."""
+        try:
+            from lemouton.sourcing.source_registry import get_labels
+            return {'source_labels': get_labels()}
+        except Exception:
+            return {'source_labels': {}}
