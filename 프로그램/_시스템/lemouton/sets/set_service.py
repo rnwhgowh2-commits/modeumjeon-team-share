@@ -11,6 +11,20 @@ from lemouton.sourcing.models import Model
 from lemouton.sets.alert_service import alerts_for_set as _alerts_for_set
 
 
+def _signals(market_alerts, *, has_send):
+    """카드 상태 신호등(재고·가격·전송) — 기존 알림(P3) + 전송상태에서 파생.
+
+    ok | warn(주의 주황) | sev(심각 빨강). 알림 재사용(중복 판정 금지).
+    소≠판 재고 안 맞음(warn)은 소싱 재고수 배선(P4-1b) 후 보강.
+    """
+    types = {a.get("type") for a in (market_alerts or [])}
+    stock = "sev" if (types & {"market_soldout", "both_zero"}) else "ok"
+    price = "warn" if "price_spike" in types else "ok"
+    needs_sync = (not has_send) or bool(types & {"not_synced", "source_changed"})
+    send = "warn" if needs_sync else "ok"
+    return {"stock": stock, "price": price, "send": send}
+
+
 def create_set(session: Session, *, model_code: str, name: str) -> ProductSet:
     s = ProductSet(model_code=model_code, name=name)
     session.add(s)
@@ -102,26 +116,33 @@ def list_linked_sets(session: Session, q: str | None = None) -> list[dict]:
             crawled = getattr(m, "last_crawled_at", None) if m else None
             if crawled is not None and (last_collected is None or crawled > last_collected):
                 last_collected = crawled
+        alerts = _alerts_for_set(session, ps.id)
+        last_sent = None   # 전송 기능(2단계) 도입 시 채워짐 — 현재 항상 미전송
         channels = []
         for c in ps.channels:
+            scos = (session.query(SetChannelOption)
+                    .filter_by(channel_id=c.id, status="matched").all())
             total = session.query(SetChannelOption).filter_by(channel_id=c.id).count()
-            matched = (
-                session.query(SetChannelOption)
-                .filter_by(channel_id=c.id, status="matched").count()
-            )
+            matched = len(scos)
             mkt_fetched = (session.query(func.max(SetChannelOption.mkt_fetched_at))
                            .filter_by(channel_id=c.id).scalar())
+            stocks = [s.mkt_stock for s in scos if s.mkt_stock is not None]
+            prices = [s.mkt_price for s in scos if s.mkt_price is not None]
+            mk_alerts = [a for a in alerts if a.get("market") == c.market]
             channels.append({
                 "market": c.market, "market_product_id": c.market_product_id,
                 "status": c.status, "matched": matched, "total": total,
                 "mkt_fetched_at": mkt_fetched.isoformat() if mkt_fetched else None,
+                "mkt_stock_total": sum(stocks) if stocks else None,
+                "mkt_price": min(prices) if prices else None,
+                "signals": _signals(mk_alerts, has_send=last_sent is not None),
             })
         out.append({
             "set_id": ps.id, "name": ps.name, "model_code": ps.model_code,
             "products": products, "channels": channels,
             "last_collected_at": last_collected.isoformat() if last_collected else None,
-            "last_sent_at": None,
-            "alerts": _alerts_for_set(session, ps.id),
+            "last_sent_at": last_sent,
+            "alerts": alerts,
         })
     if q:
         ql = q.strip().lower()
