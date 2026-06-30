@@ -151,3 +151,45 @@ def test_roster_guide_roundtrip(roster_db):
     roster.set_guide("gsrc", g)
     back = roster.get_guide("gsrc")
     assert back["sample_urls"][0]["url"] == "https://g.example/p/1"
+
+
+# ─────────────────────────────────────────────────────────────
+# 사전 라우트 (Phase 2 T7) — 명부 기준 CRUD (key)
+# ─────────────────────────────────────────────────────────────
+
+@pytest.fixture
+def sr_client(roster_db):
+    from flask import Flask
+    from webapp.routes import source_registry as srr
+    app = Flask(__name__)
+    app.register_blueprint(srr.bp)
+    app.config.update(TESTING=True)
+    return app.test_client()
+
+
+def test_dict_create_derives_key_and_favicon(sr_client):
+    from lemouton.sourcing import roster
+    r = sr_client.post('/api/source-registry', json={'name': '29CM', 'main_url': 'https://www.29cm.co.kr/p/1'})
+    assert r.status_code == 200 and r.get_json()['ok'] is True
+    g = roster.get('29cm')
+    assert g and g['label'] == '29CM'
+    assert '29cm.co.kr/favicon.ico' in (g.get('favicon_url') or '')
+
+
+def test_dict_create_blocks_dup_domain(sr_client):
+    sr_client.post('/api/source-registry', json={'name': 'A몰', 'main_url': 'https://dup.example/x'})
+    r = sr_client.post('/api/source-registry', json={'name': 'B몰', 'main_url': 'https://dup.example/y'})
+    assert r.status_code == 400 and '이미' in r.get_json()['error']
+
+
+def test_dict_rename_reflects_in_labels(sr_client):
+    from lemouton.sourcing.source_registry import get_labels
+    sr_client.post('/api/source-registry', json={'name': '쇼핑몰', 'main_url': 'https://shopx.example/x'})
+    r = sr_client.put('/api/source-registry/shopx', json={'name': '쇼핑몰RENAMED'})
+    assert r.get_json()['ok'] is True
+    assert get_labels().get('shopx') == '쇼핑몰RENAMED'
+
+
+def test_dict_builtin_delete_blocked_via_api(sr_client):
+    r = sr_client.delete('/api/source-registry/lemouton')
+    assert r.status_code == 400 and r.get_json()['ok'] is False

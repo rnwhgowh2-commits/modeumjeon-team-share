@@ -39,7 +39,8 @@ def test_default_contains_all_visible_items():
     expected = {
         'home',
         'bundles_new', 'bundles', 'bundles_migrate',
-        'sources', 'queue', 'mapping',
+        # 'sources'(소싱처 운영센터)는 2026-06-30 단일명부 통합으로 사이드바 숨김(라우트 보존).
+        'queue', 'mapping',
         'sourcing_guide', 'source_registry', 'dlq', 'accounts_upload',
         'track',
         'templates', 'orders_list', 'orders_sales', 'orders_margin',

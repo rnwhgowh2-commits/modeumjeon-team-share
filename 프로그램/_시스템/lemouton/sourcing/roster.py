@@ -31,6 +31,37 @@ def get(key: str) -> dict | None:
     return None
 
 
+def list_all() -> list:
+    """사전 관리용 — 숨김(is_active=False) 포함 전 명부 행. 빌트인 seed 후 직접 조회."""
+    seed_if_needed()
+    s = SessionLocal()
+    try:
+        rows = (s.query(SourcingSource)
+                  .order_by(SourcingSource.is_builtin.desc(),
+                            SourcingSource.sort_order, SourcingSource.id)
+                  .all())
+        return [{
+            "key": r.source_key, "label": r.label, "domain": r.domain or "",
+            "favicon_url": r.favicon_url or "", "logo_color": r.logo_color or "",
+            "logo_letter": r.logo_letter or "", "is_builtin": bool(r.is_builtin),
+            "is_active": bool(r.is_active), "has_adapter": bool(r.has_adapter),
+        } for r in rows]
+    finally:
+        s.close()
+
+
+def usage_by_key() -> dict:
+    """source_key → BundleSourceUrl 참조 수(삭제 가드·표시용)."""
+    from sqlalchemy import func
+    s = SessionLocal()
+    try:
+        rows = (s.query(BundleSourceUrl.source_key, func.count(BundleSourceUrl.id))
+                  .group_by(BundleSourceUrl.source_key).all())
+        return {k: c for k, c in rows}
+    finally:
+        s.close()
+
+
 def _row(s, key: str):
     return s.query(SourcingSource).filter_by(source_key=key).first()
 
