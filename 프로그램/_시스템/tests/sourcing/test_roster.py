@@ -103,3 +103,51 @@ def test_sidebar_hides_sources_opcenter():
     layout = _default_layout()
     assert _has_item_id(layout, "i_sources") is False     # 운영센터 숨김
     assert _has_item_id(layout, "i_src_dict") is True      # 소싱처 사전 유지
+
+
+# ─────────────────────────────────────────────────────────────
+# roster 서비스 (Phase 2) — 이름 껍데기·로고·삭제 가드·가이드
+# ─────────────────────────────────────────────────────────────
+
+def test_roster_rename_keeps_key(roster_db):
+    from lemouton.sourcing import roster
+    roster.seed_if_needed()
+    roster.rename("hmall_x", "현대백화점") if False else None
+    roster.add("hmall_x", "현대H몰", "hmall.com")
+    roster.rename("hmall_x", "현대백화점")
+    g = roster.get("hmall_x")
+    assert g["label"] == "현대백화점" and g["key"] == "hmall_x"   # 키 불변
+
+
+def test_roster_builtin_delete_blocked(roster_db):
+    from lemouton.sourcing import roster
+    import pytest as _pt
+    roster.seed_if_needed()
+    with _pt.raises(ValueError):
+        roster.delete("lemouton")                                 # 빌트인 삭제 차단
+
+
+def test_roster_custom_delete_ok_when_unused(roster_db):
+    from lemouton.sourcing import roster
+    roster.add("tmpsrc", "임시", "tmp.example")
+    roster.delete("tmpsrc")                                       # 참조 0 → 삭제 OK
+    assert roster.get("tmpsrc") is None
+
+
+def test_roster_set_active_hide(roster_db):
+    from lemouton.sourcing import roster
+    roster.add("hidesrc", "숨길소싱처", "hide.example")
+    roster.set_active("hidesrc", False)
+    # is_active=False 면 get_all_sources(활성만) 에서 빠짐
+    assert roster.get("hidesrc") is None
+
+
+def test_roster_guide_roundtrip(roster_db):
+    from lemouton.sourcing import roster
+    import lemouton.sourcing.crawl_guide as cg
+    roster.add("gsrc", "가이드소싱처", "g.example")
+    g = cg.empty_skeleton()
+    g["sample_urls"] = [{"url": "https://g.example/p/1", "is_lead": True}]
+    roster.set_guide("gsrc", g)
+    back = roster.get_guide("gsrc")
+    assert back["sample_urls"][0]["url"] == "https://g.example/p/1"
