@@ -224,6 +224,22 @@
       .then(function(d){ if(d&&d.ok){ load(); } else { alert('수집 실패: '+(d&&d.error||'')); btn.disabled=false; btn.textContent=orig; } })
       .catch(function(){ alert('수집 호출 실패'); btn.disabled=false; btn.textContent=orig; });
   }
+  function recrawlSources(btn){
+    var sid=btn.getAttribute('data-sid'); var orig=btn.textContent;
+    btn.disabled=true; btn.textContent='크롤 중…';
+    fetch('/api/sets/'+sid+'/recrawl-sources',{method:'POST',headers:{'Accept':'application/json'}})
+      .then(function(r){return r.json();})
+      .then(function(d){
+        btn.disabled=false; btn.textContent=orig;
+        if(!(d&&d.ok)){ alert('소싱처 업데이트 실패: '+(d&&d.error||'')); return; }
+        var t=d.totals||{};
+        var msg='소싱처 재크롤 완료 · 성공 '+(t.ok||0)+' / 실패 '+(t.error||0)+' / 총 '+(t.total||0);
+        if(d.need_extension){ msg+='\n\n무신사·롯데온 등 일부 소싱처는 로그인 브라우저(크롬 확장)로 크롤해야 합니다. 확장에서 전체 크롤을 한 번 실행해 주세요.'; }
+        alert(msg);
+        load();
+      })
+      .catch(function(){ btn.disabled=false; btn.textContent=orig; alert('소싱처 업데이트 호출 실패'); });
+  }
   function load(){
     var q=qEl.value.trim();
     fetch('/api/sets/linked'+(q?('?q='+encodeURIComponent(q)):''),{headers:{'Accept':'application/json'}})
@@ -431,7 +447,7 @@
     var upMkt=e.target.closest('.sd-upd-mkt');
     if(upMkt){ e.stopPropagation(); refreshSet(upMkt); return; }
     var upSrc=e.target.closest('.sd-upd-src');
-    if(upSrc){ e.stopPropagation(); alert('소싱처 업데이트는 곧 추가됩니다 (연동된 옵션만 재크롤).'); return; }
+    if(upSrc){ e.stopPropagation(); recrawlSources(upSrc); return; }
     var delBtn=e.target.closest('.sd-del');
     if(delBtn){ e.stopPropagation(); openDelModal(delBtn.getAttribute('data-sid'), delBtn.getAttribute('data-name')); return; }
     var pvBtn=e.target.closest('.pv-btn');

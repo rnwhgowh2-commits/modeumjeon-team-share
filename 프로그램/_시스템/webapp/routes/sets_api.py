@@ -429,6 +429,22 @@ def collect_set_route(set_id):
         s.close()
 
 
+@bp.post("/sets/<int:set_id>/recrawl-sources")
+def recrawl_sources_route(set_id):
+    """[작업3] 구성에 연동된 옵션들의 소싱처 URL을 모델 단위로 재크롤.
+    HTTP 소싱처는 서버 즉시 크롤, 무신사·롯데온은 need_extension(확장 크롤 안내)."""
+    from lemouton.sets import source_update_service as srv
+    s = SessionLocal()
+    try:
+        r = srv.update_set_sources(s, set_id=set_id)
+        if not r.get("ok"):
+            return _err(r.get("error") or "소싱처 업데이트 실패", 404)
+        s.commit()
+        return jsonify(r)
+    finally:
+        s.close()
+
+
 @bp.post("/sets/channel/<int:channel_id>/send")
 def channel_send(channel_id):
     """[2단계 전송] 매칭 옵션 재고를 마켓에 전송. dry_run 기본(시뮬 — 마켓 쓰기 0).
