@@ -222,3 +222,13 @@ def test_migrate_guides_from_registry(roster_db):
     assert back["fields"]["title"]["status"] == "ok"
     # 멱등: 2회차는 target 이미 있어 복사 0
     assert roster.migrate_guides_from_registry() == 0
+
+
+def test_seed_includes_catalog_adapter_sources(roster_db):
+    """[2026-06-30 fix] hmall·lotteimall(카탈로그 크롤지원)도 명부에 seed — 사전 누락 방지."""
+    from lemouton.sourcing.source_registry import seed_builtins, get_labels
+    from lemouton.sourcing import roster
+    seed_builtins()
+    keys = {x["key"] for x in roster.list_all()}
+    assert "hmall" in keys and "lotteimall" in keys     # 카탈로그 크롤지원 포함
+    assert get_labels().get("hmall") == "현대H몰"

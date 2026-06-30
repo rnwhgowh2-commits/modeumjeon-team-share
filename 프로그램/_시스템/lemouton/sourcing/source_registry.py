@@ -62,12 +62,14 @@ def seed_builtins():
     except Exception:
         return
     cat = {c['key']: c for c in SOURCE_CATALOG}
+    builtin_keys = {x['key'] for x in SOURCES}
     s = SessionLocal()
     try:
-        existing = {r[0] for r in s.query(SourcingSource.source_key).all()}
+        seen = {r[0] for r in s.query(SourcingSource.source_key).all()}
+        # 1) 빌트인 6 (is_builtin=True)
         for i, src in enumerate(SOURCES):
             k = src['key']
-            if k in existing:
+            if k in seen:
                 continue
             c = cat.get(k, {})
             dom = c.get('domain') or (k + '.com')
@@ -79,6 +81,22 @@ def seed_builtins():
                 has_adapter=bool(src.get('crawler', True)),
                 is_active=True, is_builtin=True, sort_order=i + 1,
             ))
+            seen.add(k)
+        # 2) 카탈로그의 크롤지원 비-빌트인 소싱처(hmall·lotteimall 등) — 크롤 데이터는
+        #    있는데 SourcingSource 행이 없어 사전에서 누락되는 것 방지(현대H몰 사례).
+        for c in SOURCE_CATALOG:
+            k = c['key']
+            if k in builtin_keys or k in seen or not c.get('has_adapter'):
+                continue
+            dom = c.get('domain') or (k + '.com')
+            s.add(SourcingSource(
+                source_key=k, label=c.get('label') or k, domain=dom,
+                logo_color=c.get('logo_color'), logo_letter=c.get('glyph'),
+                favicon_url=(f"https://{dom}/favicon.ico" if dom else None),
+                needs_login=bool(c.get('needs_login', False)),
+                has_adapter=True, is_active=True, is_builtin=False, sort_order=100,
+            ))
+            seen.add(k)
         s.commit()
     except Exception:
         try:
