@@ -123,3 +123,19 @@ def test_list_linked_sets_search(db):
     assert len(svc.list_linked_sets(db, q="에어")) == 1        # 상품명 매칭
     assert len(svc.list_linked_sets(db, q="1617686")) == 1     # 상품번호 매칭
     assert len(svc.list_linked_sets(db, q="없는단어")) == 0
+
+
+def test_list_linked_sets_has_brand_and_alerts(db):
+    """F10 필터·배지용: 각 상품에 brand, 각 구성에 alerts(list)."""
+    from lemouton.sets import channel_service as ch
+    from lemouton.sets.models import SetChannelOption
+    a = svc.create_set(db, model_code="AF", name="에어포스 단품")
+    pa = svc.add_product(db, set_id=a.id, model_code="AF", quantity=1)
+    svc.set_options(db, set_product_id=pa.id, canonical_skus=["AF-블랙-260"])
+    c = ch.add_channel(db, set_id=a.id, market="smartstore")
+    db.add(SetChannelOption(channel_id=c.id, canonical_sku="AF-블랙-260",
+                            market_option_id="opt1", status="matched"))
+    db.commit()
+    r = svc.list_linked_sets(db)[0]
+    assert "brand" in r["products"][0]
+    assert isinstance(r["alerts"], list)
