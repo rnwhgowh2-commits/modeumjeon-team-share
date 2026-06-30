@@ -66,3 +66,37 @@ def list_changes(session, *, set_id, market=None, field=None, limit=200):
             "next_value": e.next_value,
         })
     return out
+
+
+def snapshot_source_values(session, *, set_id, value_map):
+    """구성 옵션의 현재 소싱 값(value_map={sku:{stock,price}})을 직전 source 이벤트와
+    비교해 변동만 ChannelChangeEvent(source='source')로 기록. 기록 건수 반환(호출자 commit).
+
+    소싱 변동을 머니-크리티컬 글로벌 크롤 핫패스 대신 세트 단위에서 스냅샷으로 포착.
+    H2 변동이력 소싱열·source_changed 알림이 이 기록으로 점등된다.
+    """
+    from lemouton.sets.models import SetChannel, SetChannelOption
+    n = 0
+    chans = session.query(SetChannel).filter_by(set_id=set_id).all()
+    for ch in chans:
+        scos = (session.query(SetChannelOption)
+                .filter_by(channel_id=ch.id, status="matched").all())
+        for sco in scos:
+            vals = value_map.get(sco.canonical_sku)
+            if not vals:
+                continue
+            for field in ("stock", "price"):
+                new = vals.get(field)
+                if new is None:
+                    continue
+                last = (session.query(ChannelChangeEvent)
+                        .filter_by(set_id=set_id, market=ch.market,
+                                   canonical_sku=sco.canonical_sku, field=field,
+                                   source="source")
+                        .order_by(ChannelChangeEvent.at.desc()).first())
+                prev = last.next_value if last else None
+                if record_change(session, set_id=set_id, market=ch.market,
+                                 canonical_sku=sco.canonical_sku, field=field,
+                                 source="source", prev_value=prev, next_value=new):
+                    n += 1
+    return n

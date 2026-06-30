@@ -19,6 +19,7 @@ from typing import Optional
 from apscheduler.schedulers.background import BackgroundScheduler
 
 from scheduler.jobs import full_cycle
+from scheduler.sets_collect import collect_and_snapshot_all
 
 logger = logging.getLogger(__name__)
 
@@ -88,6 +89,24 @@ def start_scheduler() -> BackgroundScheduler:
         )
         sched.start()
         logger.info('scheduler started — interval mode (every %dh)', interval_hours)
+
+    # 연동 구성 주기 수집(판매처 현재값 + 소싱 변동 스냅샷). env 가드(0=비활성, 기본 12h).
+    # collect 는 마켓 read-only(쓰기 0). 운영 부하는 LEMOUTON_SETS_COLLECT_HOURS 로 통제.
+    try:
+        sets_hours = int(os.environ.get('LEMOUTON_SETS_COLLECT_HOURS', '12'))
+    except ValueError:
+        sets_hours = 12
+    if sets_hours > 0 and sched.get_job('sets_collect') is None:
+        sched.add_job(
+            collect_and_snapshot_all,
+            'interval',
+            hours=sets_hours,
+            id='sets_collect',
+            max_instances=1,
+            coalesce=True,
+            misfire_grace_time=60 * 30,
+        )
+        logger.info('scheduler: sets_collect job every %dh', sets_hours)
     return sched
 
 

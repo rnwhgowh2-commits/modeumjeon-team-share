@@ -484,6 +484,31 @@ def recrawl_sources_route(set_id):
         if not r.get("ok"):
             return _err(r.get("error") or "소싱처 업데이트 실패", 404)
         s.commit()
+        # 재크롤 직후 소싱 변동 스냅샷(H2 소싱열·source_changed 알림 점등). 실패해도 본응답 영향X.
+        try:
+            from webapp.routes.api_pricing import _option_matrix_data
+            from lemouton.sets.change_service import snapshot_source_values
+            detail = svc.get_set_detail(s, set_id)
+            if detail:
+                skus = set()
+                for p in detail["products"]:
+                    skus.update(p["options"])
+                vmap = {}
+                for mc in {p["model_code"] for p in detail["products"]}:
+                    data = _option_matrix_data(mc)
+                    if not data.get("ok"):
+                        continue
+                    for o in data.get("options", []):
+                        if o.get("sku") in skus:
+                            is_pur = o.get("purchase_priority_resolved") == "purchase"
+                            vmap[o["sku"]] = {
+                                "stock": o.get("purchase_stock") if is_pur else o.get("src_stock"),
+                                "price": o.get("src_cost"),
+                            }
+                snapshot_source_values(s, set_id=set_id, value_map=vmap)
+                s.commit()
+        except Exception:
+            s.rollback()
         return jsonify(r)
     finally:
         s.close()

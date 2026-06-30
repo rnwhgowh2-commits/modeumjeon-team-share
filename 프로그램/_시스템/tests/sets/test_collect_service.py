@@ -68,3 +68,18 @@ def test_collect_set_iterates_channels(db):
     fetcher = lambda market, pid, env_prefix=None: _FR([_MO("11", 3, 133900)])
     r = col.collect_set(db, 1, fetcher=fetcher); db.commit()
     assert r["ok"] and len(r["channels"]) == 1 and r["channels"][0]["market"] == "smartstore"
+
+
+def test_collect_all_linked_sets(db):
+    from lemouton.sets.models import SetChannel, SetChannelOption
+    for sid in (10, 11):
+        ch = SetChannel(set_id=sid, market="smartstore", account_key="a",
+                        market_product_id="9", status="linked")
+        db.add(ch); db.flush()
+        db.add(SetChannelOption(channel_id=ch.id, canonical_sku="S",
+                                market_option_id="11", status="matched",
+                                mkt_stock=5, mkt_price=100))
+    db.commit()
+    fetcher = lambda market, pid, env_prefix=None: _FR([_MO("11", 3, 100)])
+    r = col.collect_all_linked_sets(db, fetcher=fetcher); db.commit()
+    assert r["ok"] and r["sets"] == 2
