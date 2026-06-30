@@ -52,3 +52,39 @@ def test_price_spike(db):
         at=datetime(2026, 6, 30, tzinfo=timezone.utc)))
     db.commit()
     assert any(a["type"] == "price_spike" for a in al.alerts_for_set(db, 1))
+
+
+def _chan_fa(db, market, stock, fetched=None):
+    ch = SetChannel(set_id=2, market=market, account_key="a", market_product_id="9", status="linked")
+    db.add(ch); db.flush()
+    db.add(SetChannelOption(channel_id=ch.id, canonical_sku="K", market_option_id="1",
+        status="matched", mkt_stock=stock, mkt_price=1000, mkt_fetched_at=fetched))
+    db.commit(); return ch
+
+
+def test_both_zero_when_src_zero(db):
+    _chan_fa(db, "smartstore", 0, datetime(2026, 6, 30, tzinfo=timezone.utc))
+    al_list = al.alerts_for_set(db, 2, {"K": 0})
+    assert any(a["type"] == "both_zero" and a["severity"] == "critical" for a in al_list)
+    assert not any(a["type"] == "market_soldout" for a in al_list)
+
+
+def test_market_soldout_when_src_nonzero(db):
+    _chan_fa(db, "smartstore", 0, datetime(2026, 6, 30, tzinfo=timezone.utc))
+    al_list = al.alerts_for_set(db, 2, {"K": 5})
+    assert any(a["type"] == "market_soldout" for a in al_list)
+    assert not any(a["type"] == "both_zero" for a in al_list)
+
+
+def test_not_synced_when_never_fetched(db):
+    _chan_fa(db, "smartstore", 3, None)
+    assert any(a["type"] == "not_synced" and a["severity"] == "info" for a in al.alerts_for_set(db, 2))
+
+
+def test_source_changed_after_last_fetch(db):
+    _chan_fa(db, "smartstore", 3, datetime(2026, 6, 30, 1, 0, tzinfo=timezone.utc))
+    db.add(ChannelChangeEvent(set_id=2, market="smartstore", canonical_sku="K",
+        field="stock", source="source", prev_value=10, next_value=8,
+        at=datetime(2026, 6, 30, 2, 0, tzinfo=timezone.utc)))
+    db.commit()
+    assert any(a["type"] == "source_changed" and a["severity"] == "warning" for a in al.alerts_for_set(db, 2))
