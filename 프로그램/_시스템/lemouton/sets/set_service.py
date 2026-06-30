@@ -155,6 +155,7 @@ def list_linked_sets(session: Session, q: str | None = None,
             prices = [s.mkt_price for s in scos if s.mkt_price is not None]
             mk_alerts = [a for a in alerts if a.get("market") == c.market]
             channels.append({
+                "id": c.id,
                 "market": c.market, "market_product_id": c.market_product_id,
                 "status": c.status, "matched": matched, "total": total,
                 "mkt_fetched_at": mkt_fetched.isoformat() if mkt_fetched else None,
