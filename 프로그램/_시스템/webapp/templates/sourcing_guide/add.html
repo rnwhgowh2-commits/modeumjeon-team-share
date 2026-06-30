@@ -1,4 +1,4 @@
-{% extends "base.html" %}
+{% extends layout|default("base.html") %}{# ?bare=1 → _bare.html (사이드바 없는 팝업 iframe용) #}
 {% block title %}소싱처 추가·업데이트{% endblock %}
 {% block content %}
 <style>

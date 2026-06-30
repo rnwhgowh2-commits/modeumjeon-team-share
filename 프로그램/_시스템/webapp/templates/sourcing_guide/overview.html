@@ -162,27 +162,19 @@
   <div class="page-head" style="display:flex;align-items:center;gap:12px;margin-bottom:30px;">
     <h2>소싱처별 크롤링 가이드</h2>
   </div>
-  {# [2026-06-30] 시안 E — 메인(전체보기) + 상단 유틸 버튼바(추가·지도·설치). 위상 차등. #}
+  {# [2026-06-30] 시안 E(미니멀) — 전체보기 카드 없음(아래 표가 곧 전체보기). 우상단 3액션 버튼만, 모두 팝업. #}
   <style>
-    .sg-topE{display:flex;align-items:center;gap:18px;margin-bottom:30px;flex-wrap:wrap;}
-    .sg-topE .main{display:flex;align-items:center;gap:14px;background:#F4F8FF;border:2px solid #1B64DA;border-radius:18px;padding:18px 26px;}
-    .sg-topE .main .ic{font-size:32px;line-height:1;}
-    .sg-topE .main .t{font-size:24px;font-weight:800;color:#1B64DA;}
-    .sg-topE .main .tag{font-size:13px;font-weight:800;background:#E8F1FF;color:#1B64DA;border-radius:8px;padding:5px 12px;}
-    .sg-topE .utils{display:flex;gap:10px;margin-left:auto;flex-wrap:wrap;}
-    .sg-topE .su{display:inline-flex;align-items:center;gap:8px;background:#fff;border:1.5px solid #E5E8EB;border-radius:12px;padding:12px 18px;font-size:15px;font-weight:700;color:#4E5968;cursor:pointer;text-decoration:none;font-family:inherit;transition:.15s;}
-    .sg-topE .su:hover{border-color:#C9D2DC;background:#F7F9FB;}
-    .sg-topE .su .ic{font-size:19px;}
-    .sg-topE .su .newb{font-size:10px;font-weight:800;color:#fff;background:#3182F6;border-radius:4px;padding:0 5px;}
-    @media(max-width:900px){ .sg-topE .utils{margin-left:0;width:100%;} }
+    .sg-utilbar{display:flex;justify-content:flex-end;gap:10px;flex-wrap:wrap;margin-bottom:18px;}
+    .sg-utilbar .su{display:inline-flex;align-items:center;gap:8px;background:#fff;border:1.5px solid #E5E8EB;border-radius:12px;padding:11px 18px;font-size:15px;font-weight:700;color:#4E5968;cursor:pointer;text-decoration:none;font-family:inherit;transition:.15s;}
+    .sg-utilbar .su:hover{border-color:#C9D2DC;background:#F7F9FB;}
+    .sg-utilbar .su .ic{font-size:19px;}
+    .sg-utilbar .su .newb{font-size:10px;font-weight:800;color:#fff;background:#3182F6;border-radius:4px;padding:0 5px;}
+    @media(max-width:900px){ .sg-utilbar{justify-content:flex-start;} }
   </style>
-  <div class="sg-topE">
-    <div class="main"><span class="ic">📊</span><span class="t">전체보기</span><span class="tag">👥 모두·조회</span></div>
-    <div class="utils">
-      <a class="su" href="/sourcing-guide/add"><span class="ic">➕</span>소싱처 추가·업데이트</a>
-      <button type="button" class="su" data-guide-modal="/sourcing-guide/map?bare=1"><span class="ic">📖</span>데이터·코드 지도 <span class="newb">NEW</span></button>
-      <button type="button" id="instOpenBtn" class="su"><span class="ic">🧩</span>크롤러 설치</button>
-    </div>
+  <div class="sg-utilbar">
+    <button type="button" class="su" data-guide-modal="/sourcing-guide/add?bare=1"><span class="ic">➕</span>소싱처 추가·업데이트</button>
+    <button type="button" class="su" data-guide-modal="/sourcing-guide/map?bare=1"><span class="ic">📖</span>데이터·코드 지도 <span class="newb">NEW</span></button>
+    <button type="button" id="instOpenBtn" class="su"><span class="ic">🧩</span>크롤러 설치</button>
   </div>
   <div class="sg-card" style="padding:0;overflow:hidden;">
     <table class="sg-atbl">

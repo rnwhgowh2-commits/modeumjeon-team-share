@@ -317,10 +317,11 @@ def api_sources_reorder():
 
 @bp.route("/add")
 def add_page():
-    """소싱처 추가·업데이트 카드 — 2탭(신규/기존) 페이지."""
+    """소싱처 추가·업데이트 카드 — 2탭(신규/기존). ?bare=1 → 사이드바 없는 팝업 iframe용."""
     sources = [{"id": x.id, "name": x.label} for x in _sources()]
+    layout = "_bare.html" if request.args.get("bare") else "base.html"
     return render_template("sourcing_guide/add.html",
-                           active="sourcing_guide", sources=sources)
+                           active="sourcing_guide", sources=sources, layout=layout)
 
 
 @bp.route("/")
