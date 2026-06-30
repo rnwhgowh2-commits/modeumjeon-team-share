@@ -1764,6 +1764,34 @@
      "cm": "ded0aace"
     }
    ]
+  },
+  {
+   "id": "O20",
+   "g": "기타",
+   "l": "fe",
+   "src": "크롤 위젯",
+   "st": "ok",
+   "cm": "",
+   "sy": "전체크롤 눌러도 우상단 진행 위젯이 안 뜸(크롤 자체는 돌아 카드는 갱신). 프론트만 누락",
+   "cz": "크롤이 페이지→확장 백그라운드(SW)로 이전되며 진행로그가 background.js bgEmit→chrome.tabs.sendMessage({__moumPush:'log'})로 옴. 그런데 content_mou.js(콘텐츠 스크립트)가 페이지→확장 요청/응답(__moum:page/ext)만 중계하고 chrome.runtime.onMessage 리스너가 없어 __moumPush:log 를 페이지로 안 보냄→ext_bridge의 __moum:log 변환(68a5f026)이 입력을 못 받음→crawl_log.js moum-crawl-log 미수신→ensurePanel/showPanel 미호출. content_mou.js가 0.4.3에 멈춰있던 빈틈",
+   "pv": "content_mou.js에 chrome.runtime.onMessage 리스너 추가: {__moumPush:'log',detail}→window.postMessage({__moum:'log',detail}). 확장 0.7.4 재다운로드 필요(설치된 콘텐츠 스크립트라 repo수정만으론 라이브 미반영). 웹측(ext_bridge·crawl_log)은 정상이었음",
+   "code": {
+    "file": "extension/moum-crawler/content_mou.js",
+    "func": "(content script)",
+    "desc": "백그라운드 크롤 로그 __moumPush:log→__moum:log 페이지 중계"
+   },
+   "crawl": "note",
+   "doc": "sync",
+   "view": "sync",
+   "rev": [
+    {
+     "d": "2026-06-30",
+     "a": "add",
+     "txt": "전체크롤 위젯 안 뜸 — content_mou.js 백그라운드 로그 중계 누락(onMessage 없음). 중계 추가+확장 0.7.4",
+     "src": "크롤 위젯",
+     "cm": ""
+    }
+   ]
   }
  ]
 }

@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "모음전 크롤러",
-  "version": "0.7.3",
+  "version": "0.7.4",
   "description": "모음전 자동화 — 로그인된 이 브라우저로 소싱처(무신사·롯데온·SSF·SSG·르무통·스마트스토어) 가격·혜택을 수집해 mou-m.com 에 전달합니다. (백그라운드 엔진=탭 닫아도 지속·새로고침해도 자동재개 + 현재 브라우저 기준 혜택 수집)",
   "permissions": ["storage", "tabs", "scripting", "system.cpu", "system.memory", "alarms"],
   "host_permissions": [
