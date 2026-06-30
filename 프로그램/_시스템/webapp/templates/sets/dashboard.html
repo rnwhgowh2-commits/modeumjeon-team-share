@@ -103,6 +103,17 @@
   .pv-new{font-weight:700;color:#4e5968;}
   .pv-new.chg{color:#1d4ed8;}
   .pv-na{color:#b0b8c1;}
+  /* 정렬 규율(design-mockup 원칙4): 숫자 우측+자릿수 / 상태 가운데 / 비교셀 3칸 grid */
+  .ta-c{text-align:center;}
+  table.det-tbl th.ta-c,table.det-tbl td.ta-c{text-align:center;}
+  table.det-tbl th.ta-r,table.det-tbl td.ta-r{font-variant-numeric:tabular-nums;}
+  .det-unit{font-size:10px;color:#8b95a1;margin-left:1px;font-weight:400;}
+  .pv-cmp{display:grid;grid-template-columns:1fr auto 1fr;align-items:baseline;column-gap:5px;font-variant-numeric:tabular-nums;}
+  .pv-cmp .pv-cur{text-align:right;}
+  .pv-cmp .pv-new{text-align:left;}
+  .pv-cmp .pv-arr{margin:0;text-align:center;}
+  .pv-h-title{text-align:center;font-weight:500;}
+  .pv-h-sub{font-size:10px;color:#b0b8c1;font-weight:400;margin-top:1px;}
   .pv-actions{display:flex;gap:8px;margin-top:12px;justify-content:flex-end;align-items:center;}
   .pv-btn-danger{border-color:#dc2626;background:#fee2e2;color:#991b1b;}
   /* H2 변동이력 모달 */
@@ -315,6 +326,8 @@
     if(o.purchase_priority_resolved==='purchase') return o.purchase_stock!=null?(o.purchase_stock+'개'):'-';
     return o.src_stock_label||(o.src_stock!=null?(o.src_stock+'개'):'-');
   }
+  // 'N개' 형태면 숫자 우측+단위 분리(자릿수 정렬), 라벨/'-'는 그대로
+  function stkCell(s){ var m=/^(\d[\d,]*)개$/.exec(s); return m ? (m[1]+'<span class="det-unit">개</span>') : esc(s); }
   function costOf(o, bd){
     if(o.purchase_priority_resolved==='purchase') return fmt(o.purchase_avg_cost);
     if(bd && bd.final_price!=null) return fmt(bd.final_price);   // 매트릭스·영수증과 동일(단일 진실 원천)
@@ -362,17 +375,17 @@
   }
   function renderTable(opts, bd){
     if(!opts.length) return '<div class="sd-cnt" style="padding:8px 0">옵션이 없어요.</div>';
-    var h='<table class="det-tbl"><thead><tr><th>옵션</th><th>출처</th><th class="ta-r">재고</th><th class="ta-r">최종 매입가</th><th class="ta-r">마켓 매칭</th><th class="ta-r">수집</th><th class="ta-r">전송</th></tr></thead><tbody>';
+    var h='<table class="det-tbl"><thead><tr><th>옵션</th><th class="ta-c">출처</th><th class="ta-r">재고</th><th class="ta-r">최종 매입가</th><th class="ta-c">마켓 매칭</th><th class="ta-c">수집</th><th class="ta-c">전송</th></tr></thead><tbody>';
     opts.forEach(function(o,i){
       var k=srcKind(o); var bcls=k==='사입'?'b-buy':'b-src';
       h+='<tr class="opt-row" data-oi="'+i+'">';
       h+='<td>'+esc((o.color_display||o.color_code||'')+' · '+(o.size_display||o.size_code||''))+'</td>';
-      h+='<td><span class="'+bcls+'">'+k+'</span></td>';
-      h+='<td class="ta-r">'+esc(stockOf(o))+'</td>';
+      h+='<td class="ta-c"><span class="'+bcls+'">'+k+'</span></td>';
+      h+='<td class="ta-r">'+stkCell(stockOf(o))+'</td>';
       h+='<td class="ta-r">'+costOf(o, bd&&bd[o.sku])+'</td>';
-      h+='<td class="ta-r">'+matchCell(o)+'</td>';
-      h+='<td class="ta-r sd-cnt">'+collOf(o)+'</td>';
-      h+='<td class="ta-r sd-cnt">미전송</td>';
+      h+='<td class="ta-c">'+matchCell(o)+'</td>';
+      h+='<td class="ta-c sd-cnt">'+collOf(o)+'</td>';
+      h+='<td class="ta-c sd-cnt">미전송</td>';
       h+='</tr>';
       h+='<tr data-rcp="'+i+'" style="display:none"><td colspan="7" data-rcp-body><div class="sd-cnt">행을 누르면 영수증을 불러옵니다.</div></td></tr>';
     });
@@ -430,15 +443,16 @@
     h+='<div class="pv-summary">변동 <b>'+s.changed+'</b>/'+s.total+'건 · 평균 가격변동 '+s.avg_price_change_pct+'%</div>'+warn;
     if(d.note){ h+='<div class="sd-cnt" style="padding:2px 0 6px">'+esc(d.note)+'</div>'; }
     if((d.rows||[]).length){
-      h+='<table class="det-tbl pv-tbl"><thead><tr><th>옵션</th><th class="ta-r">재고 <span class="pv-sub">마켓 → 보낼</span></th><th class="ta-r">가격 <span class="pv-sub">마켓 → 보낼</span></th></tr></thead><tbody>';
+      var pvHead=function(t){ return '<div class="pv-h-title">'+t+'</div><div class="pv-cmp pv-h-sub"><span style="text-align:right">마켓</span><span></span><span style="text-align:left">보낼</span></div>'; };
+      h+='<table class="det-tbl pv-tbl"><thead><tr><th>옵션</th><th>'+pvHead('재고')+'</th><th>'+pvHead('가격')+'</th></tr></thead><tbody>';
       d.rows.forEach(function(r){
         var sCur=r.cur_stock==null?'<span class="pv-na">미상</span>':r.cur_stock;
         var sNew=r.new_stock==null?'-':r.new_stock;
         var sCls=r.stock_changed?' chg':'';
         var pCls=r.price_changed?' chg':'';
         h+='<tr><td>'+esc((r.color||'')+' · '+(r.size||''))+'</td>'
-          +'<td class="ta-r"><span class="pv-cur">'+sCur+'</span><span class="pv-arr">→</span><span class="pv-new'+sCls+'">'+sNew+'</span></td>'
-          +'<td class="ta-r"><span class="pv-cur">'+fmt(r.cur_price)+'</span><span class="pv-arr">→</span><span class="pv-new'+pCls+'">'+fmt(r.new_price)+'</span></td></tr>';
+          +'<td><div class="pv-cmp"><span class="pv-cur">'+sCur+'</span><span class="pv-arr">→</span><span class="pv-new'+sCls+'">'+sNew+'</span></div></td>'
+          +'<td><div class="pv-cmp"><span class="pv-cur">'+fmt(r.cur_price)+'</span><span class="pv-arr">→</span><span class="pv-new'+pCls+'">'+fmt(r.new_price)+'</span></div></td></tr>';
       });
       h+='</tbody></table>';
     }
