@@ -200,7 +200,9 @@
   var timer=null;
   function esc(s){ return (s==null?'':String(s)).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];}); }
   function fmt(n){ return (n==null||isNaN(n))?'-':Number(n).toLocaleString(); }
-  function rel(iso){ if(!iso) return null; var d=new Date(iso); var s=(Date.now()-d.getTime())/1000; if(isNaN(s)) return null; if(s<0)s=0; if(s<3600)return Math.floor(s/60)+'분 전'; if(s<86400)return Math.floor(s/3600)+'시간 전'; return Math.floor(s/86400)+'일 전'; }
+  // 서버 시각은 UTC(naive, Z 없음) — Z 없으면 붙여 UTC로 파싱(브라우저 로컬 오해 방지)
+  function _pdate(iso){ var s=String(iso||''); if(s && !/[zZ]|[+\-]\d\d:?\d\d$/.test(s)) s+='Z'; return new Date(s); }
+  function rel(iso){ if(!iso) return null; var d=_pdate(iso); var s=(Date.now()-d.getTime())/1000; if(isNaN(s)) return null; if(s<0)s=0; if(s<3600)return Math.floor(s/60)+'분 전'; if(s<86400)return Math.floor(s/3600)+'시간 전'; return Math.floor(s/86400)+'일 전'; }
   // 알림 노출 헬퍼 (severity: critical>danger>warning>info)
   var AL_SEV={critical:4,danger:3,warning:2,info:1};
   var AL_COLOR={critical:'#b91c1c',danger:'#e03a3e',warning:'#B45309',info:'#185FA5'};
@@ -220,7 +222,7 @@
   var MK={coupang:{nm:'쿠팡',sh:'쿠',c:'#E03A3E'},smartstore:{nm:'스마트스토어',sh:'스',c:'#03C75A'},gmarket:{nm:'G마켓',sh:'G',c:'#00A862'},st11:{nm:'11번가',sh:'11',c:'#FF0038'},toss:{nm:'토스',sh:'토',c:'#3182F6'},musinsa:{nm:'무신사',sh:'무',c:'#1a1a1a'}};
   function m3mk(market){ return MK[market]||{nm:esc(market),sh:(market||'?').slice(0,2),c:'#94a3b8'}; }
   function m3logo(market){ var m=m3mk(market); return '<span class="mk-logo" style="width:22px;height:22px;font-size:10px;background:'+m.c+'">'+m.sh+'</span>'; }
-  function m3date(iso){ if(!iso) return '<span class="mx-na">-</span>'; var d=new Date(iso); if(isNaN(d.getTime())) return '<span class="mx-na">-</span>'; var p=function(n){return (n<10?'0':'')+n;}; var ymd=String(d.getFullYear()).slice(2)+'.'+p(d.getMonth()+1)+'.'+p(d.getDate()); return ymd+'<span class="mx-ts">'+p(d.getHours())+':'+p(d.getMinutes())+'</span>'; }
+  function m3date(iso){ if(!iso) return '<span class="mx-na">-</span>'; var d=_pdate(iso); if(isNaN(d.getTime())) return '<span class="mx-na">-</span>'; var p=function(n){return (n<10?'0':'')+n;}; var ymd=String(d.getFullYear()).slice(2)+'.'+p(d.getMonth()+1)+'.'+p(d.getDate()); return ymd+'<span class="mx-ts">'+p(d.getHours())+':'+p(d.getMinutes())+'</span>'; }
   function m3dual(srcIso, mktIso){ return '<div class="mx-dual"><span class="mx-dl"><i class="dl-src">소싱처</i>'+m3date(srcIso)+'</span><span class="mx-dl"><i class="dl-mkt">판매처</i>'+m3date(mktIso)+'</span></div>'; }
   function m3match(c){ if(!c.total) return '<span class="st-none">-</span>'; var cls=(c.matched===c.total)?'st-done':'st-part'; return '<span class="'+cls+'" style="font-weight:700">'+c.matched+'/'+c.total+'</span>'; }
   function m3Table(r){
@@ -345,7 +347,7 @@
     return fmt(o.src_cost);   // breakdown 없을 때만 폴백(소싱처 미수집 등)
   }
   function collOf(o){
-    var ts=null; (o.sources||[]).forEach(function(sc){ if(sc.last_fetched_at){ var t=new Date(sc.last_fetched_at).getTime(); if(!isNaN(t)&&(ts==null||t>ts))ts=t; } });
+    var ts=null; (o.sources||[]).forEach(function(sc){ if(sc.last_fetched_at){ var t=_pdate(sc.last_fetched_at).getTime(); if(!isNaN(t)&&(ts==null||t>ts))ts=t; } });
     return ts?rel(new Date(ts).toISOString()):'-';
   }
   function matchCell(o){
@@ -597,7 +599,7 @@
     function col(list){
       if(!list.length) return '<div class="hist-empty">변동 없음</div>';
       return list.map(function(e){
-        var d=new Date(e.at); var p=function(n){return(n<10?'0':'')+n;};
+        var d=_pdate(e.at); var p=function(n){return(n<10?'0':'')+n;};
         var t=isNaN(d.getTime())?'':(String(d.getFullYear()).slice(2)+'.'+p(d.getMonth()+1)+'.'+p(d.getDate())+' '+p(d.getHours())+':'+p(d.getMinutes()));
         var pv=(e.prev_value==null?'-':fmt(e.prev_value)), nv=(e.next_value==null?'-':fmt(e.next_value));
         return '<div class="hist-ev"><span class="hist-t">'+t+' · '+esc(e.canonical_sku)+'</span>'
