@@ -401,14 +401,30 @@ def link_channel(channel_id):
         s.close()
 
 
-@bp.get("/sets/<int:set_id>/alerts")
-def set_alerts_route(set_id):
-    """[P3] 구성 알림 목록(판매재고0·가격급변) — 저장 안 함, 파생."""
-    from lemouton.sets.alert_service import alerts_for_set
+@bp.post("/sets/channel/<int:channel_id>/collect")
+def collect_channel_route(channel_id):
+    """[P2] 채널 현재값 수동 새로고침 — 마켓 API 읽어 mkt_* 갱신 + 변동기록."""
+    from lemouton.sets.collect_service import collect_channel
     s = SessionLocal()
     try:
-        alerts = alerts_for_set(s, set_id)
-        return jsonify({"ok": True, "alerts": alerts, "count": len(alerts)})
+        r = collect_channel(s, channel_id)
+        if not r.get("ok"):
+            return _err(r.get("error") or "수집 실패")
+        s.commit()
+        return jsonify(r)
+    finally:
+        s.close()
+
+
+@bp.post("/sets/<int:set_id>/collect")
+def collect_set_route(set_id):
+    """[P2] 구성 단위 일괄 현재값 새로고침."""
+    from lemouton.sets.collect_service import collect_set
+    s = SessionLocal()
+    try:
+        r = collect_set(s, set_id)
+        s.commit()
+        return jsonify(r)
     finally:
         s.close()
 
