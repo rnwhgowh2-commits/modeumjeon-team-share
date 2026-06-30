@@ -443,6 +443,36 @@ def set_history_route(set_id):
         s.close()
 
 
+@bp.get("/sets/<int:set_id>/alerts")
+def set_alerts_route(set_id):
+    """[알림] 구성 알림 — 소싱(_option_matrix_data src_stock) 대조 포함(both_zero 정밀)."""
+    from webapp.routes.api_pricing import _option_matrix_data
+    from lemouton.sets import alert_service as al
+    s = SessionLocal()
+    try:
+        detail = svc.get_set_detail(s, set_id)
+        if not detail:
+            return _err("구성을 찾을 수 없어요.", 404)
+        skus = set()
+        for p in detail["products"]:
+            skus.update(p["options"])
+        model_codes = {p["model_code"] for p in detail["products"]}
+        src_stock_map = {}
+        for mc in model_codes:
+            data = _option_matrix_data(mc)
+            if not data.get("ok"):
+                continue
+            for o in data.get("options", []):
+                if o.get("sku") in skus:
+                    is_pur = o.get("purchase_priority_resolved") == "purchase"
+                    src_stock_map[o["sku"]] = (o.get("purchase_stock") if is_pur
+                                               else o.get("src_stock"))
+        alerts = al.alerts_for_set(s, set_id, src_stock_map)
+        return jsonify({"ok": True, "alerts": alerts})
+    finally:
+        s.close()
+
+
 @bp.post("/sets/<int:set_id>/recrawl-sources")
 def recrawl_sources_route(set_id):
     """[작업3] 구성에 연동된 옵션들의 소싱처 URL을 모델 단위로 재크롤.
