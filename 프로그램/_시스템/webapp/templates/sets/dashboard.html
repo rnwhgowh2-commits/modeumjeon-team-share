@@ -84,6 +84,19 @@
   .pv-box{margin-top:10px;border:1px solid #e5e8eb;border-radius:10px;padding:11px 13px;background:#fafbfc;}
   .pv-head{font-size:12.5px;font-weight:700;color:#191F28;margin-bottom:8px;}
   .pv-warn{font-size:12px;color:#b45309;background:#fffbeb;border:1px solid #fde68a;border-radius:7px;padding:7px 10px;margin-bottom:8px;}
+  /* 전송 미리보기 모달 + 아이디어3(현재→보낼 인라인) */
+  .dm.dm-wide{max-width:600px;zoom:1.4;}
+  .pv-modal-body{padding:10px 20px 14px;max-height:62vh;overflow:auto;}
+  .pv-legend{font-size:11.5px;color:#6b7684;background:#f7faff;border:1px solid #e8f1ff;border-radius:7px;padding:7px 10px;margin-bottom:8px;line-height:1.6;}
+  .pv-summary{font-size:12.5px;font-weight:700;color:#191F28;margin-bottom:8px;}
+  .pv-sub{display:block;font-weight:500;color:#b0b8c1;font-size:10px;margin-top:1px;}
+  .pv-cur{color:#8b95a1;}
+  .pv-arr{color:#c4cad2;margin:0 5px;}
+  .pv-new{font-weight:700;color:#4e5968;}
+  .pv-new.chg{color:#1d4ed8;}
+  .pv-na{color:#b0b8c1;}
+  .pv-actions{display:flex;gap:8px;margin-top:12px;justify-content:flex-end;align-items:center;}
+  .pv-btn-danger{border-color:#dc2626;background:#fee2e2;color:#991b1b;}
   .mk-logo{display:inline-flex;align-items:center;justify-content:center;font-weight:800;color:#fff;border-radius:6px;}
   table.mx3{width:100%;table-layout:fixed;border-collapse:collapse;font-size:12px;margin-top:11px;}
   table.mx3 th{color:#98a2b3;font-weight:700;font-size:11px;padding:6px 8px;text-align:center;border-bottom:1px solid #eef1f4;}
@@ -132,6 +145,13 @@
       <input class="dm-ipt" id="delInput" placeholder="삭제" autocomplete="off">
     </div>
     <div class="dm-f"><button class="dm-cancel" id="delCancel">취소</button><button class="dm-del" id="delConfirm" disabled>삭제</button></div>
+  </div>
+</div>
+<div class="dm-back" id="pvModal">
+  <div class="dm dm-wide">
+    <div class="dm-h" id="pvTitle">전송 미리보기</div>
+    <div class="pv-modal-body" id="pvBody"></div>
+    <div class="dm-f"><button class="dm-cancel" id="pvClose">닫기</button></div>
   </div>
 </div>
 {% endblock %}
@@ -329,25 +349,26 @@
     var nm=mk==='coupang'?'쿠팡':(mk==='smartstore'?'스마트스토어':mk);
     var s=d.summary||{};
     var warn = s.hold ? '<div class="pv-warn">⚠️ 평균 가격변동 '+s.avg_price_change_pct+'% — 큰 변동이에요. 실제 전송 시 한 번 더 확인하세요.</div>' : '';
-    var h='<div class="pv-head">'+nm+' 전송 미리보기 · 변동 '+s.changed+'/'+s.total+'건 · 평균 가격변동 '+s.avg_price_change_pct+'%</div>'+warn;
-    if(d.note){ h+='<div class="sd-cnt" style="padding:6px 0">'+esc(d.note)+'</div>'; }
+    var h='<div class="pv-legend">‘현재’ = 판매처(마켓)가 지금 가진 값 · ‘보낼’ = 우리(소싱·사입)가 보낼 값. <b>마켓에 쓰지 않고 대조만</b> 합니다.</div>';
+    h+='<div class="pv-summary">변동 <b>'+s.changed+'</b>/'+s.total+'건 · 평균 가격변동 '+s.avg_price_change_pct+'%</div>'+warn;
+    if(d.note){ h+='<div class="sd-cnt" style="padding:2px 0 6px">'+esc(d.note)+'</div>'; }
     if((d.rows||[]).length){
-      h+='<table class="det-tbl"><thead><tr><th>옵션</th><th class="ta-r">현재 재고</th><th class="ta-r">→ 보낼 재고</th><th class="ta-r">현재 가격</th><th class="ta-r">→ 보낼 가격</th></tr></thead><tbody>';
+      h+='<table class="det-tbl pv-tbl"><thead><tr><th>옵션</th><th class="ta-r">재고 <span class="pv-sub">마켓 → 보낼</span></th><th class="ta-r">가격 <span class="pv-sub">마켓 → 보낼</span></th></tr></thead><tbody>';
       d.rows.forEach(function(r){
-        var sc=r.stock_changed?' style="color:#1d4ed8;font-weight:700"':'';
-        var pc=r.price_changed?' style="color:#1d4ed8;font-weight:700"':'';
+        var sCur=r.cur_stock==null?'<span class="pv-na">미상</span>':r.cur_stock;
+        var sNew=r.new_stock==null?'-':r.new_stock;
+        var sCls=r.stock_changed?' chg':'';
+        var pCls=r.price_changed?' chg':'';
         h+='<tr><td>'+esc((r.color||'')+' · '+(r.size||''))+'</td>'
-          +'<td class="ta-r">'+(r.cur_stock==null?'<span class="sd-cnt">미상</span>':r.cur_stock)+'</td>'
-          +'<td class="ta-r"'+sc+'>'+(r.new_stock==null?'-':r.new_stock)+'</td>'
-          +'<td class="ta-r">'+fmt(r.cur_price)+'</td>'
-          +'<td class="ta-r"'+pc+'>'+fmt(r.new_price)+'</td></tr>';
+          +'<td class="ta-r"><span class="pv-cur">'+sCur+'</span><span class="pv-arr">→</span><span class="pv-new'+sCls+'">'+sNew+'</span></td>'
+          +'<td class="ta-r"><span class="pv-cur">'+fmt(r.cur_price)+'</span><span class="pv-arr">→</span><span class="pv-new'+pCls+'">'+fmt(r.new_price)+'</span></td></tr>';
       });
       h+='</tbody></table>';
     }
-    h+='<div class="sd-cnt" style="margin-top:6px">파란 값 = 전송하면 바뀔 값. 시뮬(🧪)은 마켓에 쓰지 않고 계산만, 실제 전송(⚠️)은 쿠팡 재고만 보냅니다(가격·스마트스토어는 준비 중).'+(mk==='coupang'?' 쿠팡은 현재 재고를 응답에 주지 않아 \'미상\'으로 표시돼요.':'')+'</div>';
-    h+='<div style="display:flex;gap:8px;margin-top:10px;justify-content:flex-end">'
+    h+='<div class="sd-cnt" style="margin-top:8px">파란 값 = 전송하면 바뀔 값. 시뮬(🧪)은 마켓에 쓰지 않고 계산만, 실제 전송(⚠️)은 쿠팡 재고만 보냅니다(가격·스마트스토어는 준비 중).'+(mk==='coupang'?' 쿠팡은 현재 재고를 응답에 주지 않아 ‘미상’으로 표시돼요.':'')+'</div>';
+    h+='<div class="pv-actions">'
       +'<button class="pv-btn" data-send="dry" data-cid="'+cid+'">🧪 재고 전송 시뮬</button>'
-      +(mk==='coupang'?'<button class="pv-btn" style="border-color:#dc2626;background:#fee2e2;color:#991b1b" data-send="real" data-cid="'+cid+'">⚠️ 실제 재고 전송</button>':'<span class="sd-cnt" style="align-self:center">실제 전송은 쿠팡만 지원(준비 중)</span>')
+      +(mk==='coupang'?'<button class="pv-btn pv-btn-danger" data-send="real" data-cid="'+cid+'">⚠️ 실제 재고 전송</button>':'<span class="sd-cnt" style="align-self:center">실제 전송은 쿠팡만 지원(준비 중)</span>')
       +'</div><div data-sendres></div>';
     return h;
   }
@@ -381,7 +402,7 @@
     box.innerHTML='<div class="sd-cnt" style="padding:10px 0">미리보기 불러오는 중… (마켓 현재값 읽기, 잠시 걸려요)</div>';
     fetch('/api/sets/channel/'+cid+'/preview',{headers:{'Accept':'application/json'}})
       .then(function(r){return r.json();})
-      .then(function(d){ if(d&&d.ok) box.innerHTML='<div class="pv-box">'+renderPreview(d,mk,cid)+'</div>'; else box.innerHTML='<div class="sd-cnt" style="padding:8px 0">미리보기 실패: '+esc(d&&d.error||'')+'</div>'; })
+      .then(function(d){ if(d&&d.ok) box.innerHTML=renderPreview(d,mk,cid); else box.innerHTML='<div class="sd-cnt" style="padding:8px 0">미리보기 실패: '+esc(d&&d.error||'')+'</div>'; })
       .catch(function(){ box.innerHTML='<div class="sd-cnt" style="padding:8px 0">미리보기를 불러오지 못했어요.</div>'; });
   }
   function loadDetail(box, sid){
@@ -414,10 +435,8 @@
     var delBtn=e.target.closest('.sd-del');
     if(delBtn){ e.stopPropagation(); openDelModal(delBtn.getAttribute('data-sid'), delBtn.getAttribute('data-name')); return; }
     var pvBtn=e.target.closest('.pv-btn');
-    if(pvBtn){
-      var pcard=pvBtn.closest('.sd-card'); var pvbox=pcard.querySelector('[data-pvbox]');
-      if(pvBtn.hasAttribute('data-send')){ sendStock(pvBtn.getAttribute('data-cid'), pvBtn.getAttribute('data-send')==='dry', pvbox); }
-      else { loadPreview(pvBtn.getAttribute('data-cid'), pvBtn.getAttribute('data-mk'), pvbox); }
+    if(pvBtn && !pvBtn.hasAttribute('data-send')){
+      openPvModal(pvBtn.getAttribute('data-cid'), pvBtn.getAttribute('data-mk'));
       return;
     }
     var tabEl=e.target.closest('.det-tab');
@@ -461,6 +480,10 @@
   function closeDel(){ document.getElementById('delModal').classList.remove('on'); delSid=null; }
   function openDelModal(sid,name){ delSid=sid; document.getElementById('delImpact').innerHTML='<b>'+esc(name)+'</b> 구성을 삭제합니다. 연결된 <b>마켓 매칭·연동 정보가 모두 사라집니다.</b> (쿠팡/스마트스토어 상품 자체는 영향 없음)'; document.getElementById('delChk1').checked=false; document.getElementById('delChk2').checked=false; document.getElementById('delInput').value=''; refreshDel(); document.getElementById('delModal').classList.add('on'); }
   (function(){ var m=document.getElementById('delModal'); if(!m) return; m.addEventListener('input',refreshDel); m.addEventListener('change',refreshDel); m.addEventListener('click',function(e){ if(e.target.id==='delModal') closeDel(); }); document.getElementById('delCancel').addEventListener('click',closeDel); document.getElementById('delConfirm').addEventListener('click',function(){ if(!delSid)return; var b=this; b.disabled=true; b.textContent='삭제 중…'; fetch('/api/sets/'+delSid,{method:'DELETE',headers:{'Accept':'application/json'}}).then(function(r){return r.json();}).then(function(d){ if(d&&d.ok){ closeDel(); load(); } else { alert('삭제 실패: '+(d&&d.error||'')); b.disabled=false; b.textContent='삭제'; } }).catch(function(){ alert('삭제 호출 실패'); b.disabled=false; b.textContent='삭제'; }); }); })();
+  // 전송 미리보기 모달
+  function openPvModal(cid,mk){ var nm=mk==='coupang'?'쿠팡':(mk==='smartstore'?'스마트스토어':mk); document.getElementById('pvTitle').textContent='📋 '+nm+' 전송 미리보기'; document.getElementById('pvModal').classList.add('on'); loadPreview(cid,mk,document.getElementById('pvBody')); }
+  function closePvModal(){ document.getElementById('pvModal').classList.remove('on'); }
+  (function(){ var m=document.getElementById('pvModal'); if(!m) return; document.getElementById('pvClose').addEventListener('click',closePvModal); m.addEventListener('click',function(e){ if(e.target.id==='pvModal'){ closePvModal(); return; } var sb=e.target.closest('.pv-btn'); if(sb&&sb.hasAttribute('data-send')){ sendStock(sb.getAttribute('data-cid'), sb.getAttribute('data-send')==='dry', document.getElementById('pvBody')); } }); })();
   load();
 })();
 </script>
