@@ -61,3 +61,17 @@ def collect_set(session, set_id, fetcher=fetch_market_options):
         r = collect_channel(session, ch.id, fetcher=fetcher)
         out.append({"channel_id": ch.id, "market": ch.market, **r})
     return {"ok": True, "channels": out}
+
+
+def collect_all_linked_sets(session, fetcher=fetch_market_options):
+    """연동된 모든 구성의 판매처 현재값 일괄 수집(주기 작업용). 마켓 쓰기 0(읽기+로컬)."""
+    from lemouton.sets.models import SetChannel
+    set_ids = [r[0] for r in session.query(SetChannel.set_id).distinct().all()]
+    done = 0
+    for sid in set_ids:
+        try:
+            collect_set(session, sid, fetcher=fetcher)
+            done += 1
+        except Exception:
+            session.rollback()
+    return {"ok": True, "sets": done}
