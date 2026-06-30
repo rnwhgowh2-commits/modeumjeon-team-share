@@ -97,6 +97,15 @@
   .pv-na{color:#b0b8c1;}
   .pv-actions{display:flex;gap:8px;margin-top:12px;justify-content:flex-end;align-items:center;}
   .pv-btn-danger{border-color:#dc2626;background:#fee2e2;color:#991b1b;}
+  /* H2 변동이력 모달 */
+  .hist-cols{display:flex;gap:12px;}
+  .hist-col{flex:1;min-width:0;}
+  .hist-h{font-size:12px;font-weight:800;margin-bottom:6px;padding:4px 8px;border-radius:6px;text-align:center;}
+  .hist-h.src{background:#E6F1FB;color:#185FA5;} .hist-h.mkt{background:#FAEEDA;color:#854F0B;}
+  .hist-ev{font-size:11.5px;border-bottom:1px solid #f1f3f5;padding:5px 4px;display:flex;flex-direction:column;gap:1px;}
+  .hist-t{color:#8b95a1;font-size:10px;}
+  .hist-v .dn{color:#1d4ed8;font-weight:700;} .hist-v .up{color:#dc2626;font-weight:700;}
+  .hist-empty{font-size:11.5px;color:#b0b8c1;text-align:center;padding:14px 0;}
   .mk-logo{display:inline-flex;align-items:center;justify-content:center;font-weight:800;color:#fff;border-radius:6px;}
   table.mx3{width:100%;table-layout:fixed;border-collapse:collapse;font-size:12px;margin-top:11px;}
   table.mx3 th{color:#98a2b3;font-weight:700;font-size:11px;padding:6px 8px;text-align:center;border-bottom:1px solid #eef1f4;}
@@ -152,6 +161,13 @@
     <div class="dm-h" id="pvTitle">전송 미리보기</div>
     <div class="pv-modal-body" id="pvBody"></div>
     <div class="dm-f"><button class="dm-cancel" id="pvClose">닫기</button></div>
+  </div>
+</div>
+<div class="dm-back" id="histModal">
+  <div class="dm dm-wide">
+    <div class="dm-h" id="histTitle">변동 이력</div>
+    <div class="pv-modal-body" id="histBody"></div>
+    <div class="dm-f"><button class="dm-cancel" id="histClose">닫기</button></div>
   </div>
 </div>
 {% endblock %}
@@ -450,6 +466,8 @@
     if(upSrc){ e.stopPropagation(); recrawlSources(upSrc); return; }
     var delBtn=e.target.closest('.sd-del');
     if(delBtn){ e.stopPropagation(); openDelModal(delBtn.getAttribute('data-sid'), delBtn.getAttribute('data-name')); return; }
+    var mxCell=e.target.closest('.mx-cell');
+    if(mxCell){ e.stopPropagation(); openHistModal(mxCell.getAttribute('data-sid'), mxCell.getAttribute('data-mk'), mxCell.getAttribute('data-fld')); return; }
     var pvBtn=e.target.closest('.pv-btn');
     if(pvBtn && !pvBtn.hasAttribute('data-send')){
       openPvModal(pvBtn.getAttribute('data-cid'), pvBtn.getAttribute('data-mk'));
@@ -500,6 +518,39 @@
   function openPvModal(cid,mk){ var nm=mk==='coupang'?'쿠팡':(mk==='smartstore'?'스마트스토어':mk); document.getElementById('pvTitle').textContent='📋 '+nm+' 전송 미리보기'; document.getElementById('pvModal').classList.add('on'); loadPreview(cid,mk,document.getElementById('pvBody')); }
   function closePvModal(){ document.getElementById('pvModal').classList.remove('on'); }
   (function(){ var m=document.getElementById('pvModal'); if(!m) return; document.getElementById('pvClose').addEventListener('click',closePvModal); m.addEventListener('click',function(e){ if(e.target.id==='pvModal'){ closePvModal(); return; } var sb=e.target.closest('.pv-btn'); if(sb&&sb.hasAttribute('data-send')){ sendStock(sb.getAttribute('data-cid'), sb.getAttribute('data-send')==='dry', document.getElementById('pvBody')); } }); })();
+  // H2 변동이력 모달 (하락=파랑▼ 상승=빨강▲, 한국증시)
+  function histDir(p, n){ if(p==null||n==null||p===n) return ''; return n<p?' class="dn"':' class="up"'; }
+  function histArrow(p, n){ if(p==null||n==null||p===n) return ''; return n<p?' ▼':' ▲'; }
+  function renderHist(events){
+    var src=events.filter(function(e){return e.source==='source';});
+    var mkt=events.filter(function(e){return e.source==='market';});
+    function col(list){
+      if(!list.length) return '<div class="hist-empty">변동 없음</div>';
+      return list.map(function(e){
+        var d=new Date(e.at); var p=function(n){return(n<10?'0':'')+n;};
+        var t=isNaN(d.getTime())?'':(String(d.getFullYear()).slice(2)+'.'+p(d.getMonth()+1)+'.'+p(d.getDate())+' '+p(d.getHours())+':'+p(d.getMinutes()));
+        var pv=(e.prev_value==null?'-':fmt(e.prev_value)), nv=(e.next_value==null?'-':fmt(e.next_value));
+        return '<div class="hist-ev"><span class="hist-t">'+t+' · '+esc(e.canonical_sku)+'</span>'
+          +'<span class="hist-v">'+pv+' → <span'+histDir(e.prev_value,e.next_value)+'>'+nv+histArrow(e.prev_value,e.next_value)+'</span></span></div>';
+      }).join('');
+    }
+    return '<div class="sd-cnt" style="margin-bottom:8px">하락 <span style="color:#1d4ed8;font-weight:700">▼ 파랑</span> · 상승 <span style="color:#dc2626;font-weight:700">▲ 빨강</span> (한국 증시 표기)</div>'
+      +'<div class="hist-cols"><div class="hist-col"><div class="hist-h src">소싱처</div>'+col(src)+'</div>'
+      +'<div class="hist-col"><div class="hist-h mkt">판매처</div>'+col(mkt)+'</div></div>';
+  }
+  function openHistModal(sid, mk, fld){
+    var nm=mk==='coupang'?'쿠팡':(mk==='smartstore'?'스마트스토어':mk);
+    var fn=fld==='price'?'가격':'재고';
+    document.getElementById('histTitle').textContent='📈 '+nm+' '+fn+' 변동 이력';
+    var body=document.getElementById('histBody'); body.innerHTML='<div class="sd-cnt" style="padding:10px 0">불러오는 중…</div>';
+    document.getElementById('histModal').classList.add('on');
+    fetch('/api/sets/'+sid+'/history?market='+encodeURIComponent(mk)+'&field='+encodeURIComponent(fld),{headers:{'Accept':'application/json'}})
+      .then(function(r){return r.json();})
+      .then(function(d){ body.innerHTML=(d&&d.ok)?renderHist(d.events||[]):'<div class="hist-empty">불러오지 못했어요.</div>'; })
+      .catch(function(){ body.innerHTML='<div class="hist-empty">불러오지 못했어요.</div>'; });
+  }
+  function closeHistModal(){ document.getElementById('histModal').classList.remove('on'); }
+  (function(){ var m=document.getElementById('histModal'); if(!m) return; document.getElementById('histClose').addEventListener('click',closeHistModal); m.addEventListener('click',function(e){ if(e.target.id==='histModal') closeHistModal(); }); })();
   load();
 })();
 </script>
