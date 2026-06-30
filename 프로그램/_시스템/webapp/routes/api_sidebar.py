@@ -188,6 +188,13 @@ def get_layout_for_template() -> dict:
     layout = _load()
     out = dict(layout)
 
+    # [2026-06-30 단일명부] 운영센터(i_sources) 숨김 — 저장된 커스텀 레이아웃에 남아 있어도
+    #   렌더 시 제거(코드·라우트는 보존, 가역). 단일 명부=소싱처 사전으로 통일.
+    out['stages'] = [
+        {**st, 'items': [it for it in st.get('items', []) if it.get('id') != 'i_sources']}
+        for st in out.get('stages', [])
+    ]
+
     # 로드맵 — standalone 끝에 주입
     if not _has_roadmap(layout):
         out['standalone'] = list(layout.get('standalone', [])) + [dict(_ROADMAP_ITEM)]

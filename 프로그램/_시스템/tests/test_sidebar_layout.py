@@ -98,3 +98,23 @@ def test_template_layout_respects_user_moved_sets_dashboard(monkeypatch, tmp_pat
     assert not any(it['active_key'] == 'sets_dashboard' for it in bundles['items'])
     sell2 = next(st for st in out['stages'] if st['id'] == 's_sell')
     assert any(it['active_key'] == 'sets_dashboard' for it in sell2['items'])
+
+
+def test_get_layout_strips_sources_even_if_saved(monkeypatch, tmp_path):
+    """[2026-06-30] 저장된 커스텀 레이아웃에 i_sources 가 남아 있어도 렌더 시 제거."""
+    import json as _j
+    saved = api_sidebar._default_layout()
+    # 저장 레이아웃에 운영센터를 인위적으로 추가
+    for st in saved['stages']:
+        if st['id'] == 's_mapping':
+            st['items'].insert(0, {'id': 'i_sources', 'emoji': '🏠', 'name': '소싱처 운영센터',
+                                   'url': '/sources', 'active_key': 'sources', 'badge_key': None})
+    p = tmp_path / 'sidebar_layout.json'
+    p.write_text(_j.dumps(saved, ensure_ascii=False), encoding='utf-8')
+    monkeypatch.setattr(api_sidebar, 'LAYOUT_PATH', p)
+    monkeypatch.setitem(api_sidebar._layout_cache, 'data', None)
+    monkeypatch.setitem(api_sidebar._layout_cache, 'mtime', 0.0)
+    out = api_sidebar.get_layout_for_template()
+    keys = _active_keys(out)
+    assert 'sources' not in keys                  # 렌더 결과엔 운영센터 없음
+    assert 'source_registry' in keys              # 소싱처 사전은 유지
