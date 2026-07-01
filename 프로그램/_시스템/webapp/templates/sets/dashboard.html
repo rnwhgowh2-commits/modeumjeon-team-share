@@ -117,6 +117,21 @@
   .hist-t{color:#8b95a1;font-size:10px;}
   .hist-v .dn{color:#1d4ed8;font-weight:700;} .hist-v .up{color:#dc2626;font-weight:700;}
   .hist-empty{font-size:11.5px;color:#b0b8c1;text-align:center;padding:14px 0;}
+  /* 가격 3단계(소싱표면가·최종매입가·판매예정가) 이력 테이블 */
+  .htbl{width:100%;border-collapse:collapse;font-size:12.5px;}
+  .htbl th{font-size:10.5px;color:var(--sub);font-weight:700;padding:9px 12px;text-align:right;border-bottom:1px solid var(--line);background:#fff;white-space:nowrap;}
+  .htbl th.l{text-align:left;}
+  .htbl td{padding:9px 12px;border-bottom:1px solid var(--line2);text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap;}
+  .htbl td.l{text-align:left;color:var(--sub);font-size:11.5px;}
+  .htbl tr:last-child td{border-bottom:none;}
+  .htbl .v{font-weight:800;color:var(--ink);}
+  .htbl .na{color:#b0b8c1;font-weight:600;}
+  .stg{display:inline-block;font-size:9.5px;font-weight:800;padding:1px 6px;border-radius:4px;}
+  .stg-s{background:#E7F0FB;color:var(--blueDk);}
+  .stg-c{background:#EAF7EF;color:var(--green);}
+  .stg-p{background:#F3EBDD;color:var(--brown);}
+  .htbl td .d{font-size:10px;margin-left:4px;font-weight:800;}
+  .htbl td .d.dl{color:#1d4ed8;} .htbl td .d.up{color:#dc2626;}
   .mk-logo{display:inline-flex;align-items:center;justify-content:center;font-weight:800;color:#fff;border-radius:6px;}
   table.mx3{width:100%;table-layout:fixed;border-collapse:collapse;font-size:12px;margin-top:11px;}
   table.mx3 th{color:#98a2b3;font-weight:700;font-size:11px;padding:6px 8px;text-align:center;border-bottom:1px solid #eef1f4;}
@@ -816,14 +831,23 @@
   // H2 변동이력 모달 (하락=파랑▼ 상승=빨강▲, 한국증시)
   function histDir(p, n){ if(p==null||n==null||p===n) return ''; return n<p?' class="dn"':' class="up"'; }
   function histArrow(p, n){ if(p==null||n==null||p===n) return ''; return n<p?' ▼':' ▲'; }
-  function renderHist(events){
+  // 시각 → 'YY.MM.DD HH:mm'
+  function histTs(iso){ var d=_pdate(iso); if(isNaN(d.getTime())) return ''; var p=function(n){return(n<10?'0':'')+n;};
+    return String(d.getFullYear()).slice(2)+'.'+p(d.getMonth()+1)+'.'+p(d.getDate())+' '+p(d.getHours())+':'+p(d.getMinutes()); }
+  // 값 셀(값 + ▼/▲ 델타). 값 없으면 '–'(날조 금지)
+  function histValCell(prev, next){
+    if(next==null) return '<span class="na">–</span>';
+    var arrow=''; if(prev!=null && next<prev) arrow=' <span class="d dl">▼</span>'; else if(prev!=null && next>prev) arrow=' <span class="d up">▲</span>';
+    return '<span class="v">'+fmt(next)+'</span>'+arrow;
+  }
+  // 재고 이력(기존 소싱/판매 2단)
+  function renderHistStock(events){
     var src=events.filter(function(e){return e.source==='source';});
     var mkt=events.filter(function(e){return e.source==='market';});
     function col(list){
       if(!list.length) return '<div class="hist-empty">변동 없음</div>';
       return list.map(function(e){
-        var d=_pdate(e.at); var p=function(n){return(n<10?'0':'')+n;};
-        var t=isNaN(d.getTime())?'':(String(d.getFullYear()).slice(2)+'.'+p(d.getMonth()+1)+'.'+p(d.getDate())+' '+p(d.getHours())+':'+p(d.getMinutes()));
+        var t=histTs(e.at);
         var pv=(e.prev_value==null?'-':fmt(e.prev_value)), nv=(e.next_value==null?'-':fmt(e.next_value));
         return '<div class="hist-ev"><span class="hist-t">'+t+' · '+esc(e.canonical_sku)+'</span>'
           +'<span class="hist-v">'+pv+' → <span'+histDir(e.prev_value,e.next_value)+'>'+nv+histArrow(e.prev_value,e.next_value)+'</span></span></div>';
@@ -833,6 +857,44 @@
       +'<div class="hist-cols"><div class="hist-col"><div class="hist-h src">소싱처</div>'+col(src)+'</div>'
       +'<div class="hist-col"><div class="hist-h mkt">판매처</div>'+col(mkt)+'</div></div>';
   }
+  // 가격 이력 3단계(소싱표면가 surface / 최종매입가 cost / 판매예정가 planned) — 시점별 한 줄
+  function renderHistPrice(events){
+    var STAGES=['surface','cost','planned'];
+    // 시점(at) → {surface:{prev,next}, cost:{...}, planned:{...}}
+    var byTs={}, order=[];
+    (events||[]).forEach(function(e){
+      var f=(e.field==='price')?'surface':e.field;   // 레거시 'price'는 소싱표면가로
+      if(STAGES.indexOf(f)<0) return;
+      var key=String(e.at||'');
+      if(!(key in byTs)){ byTs[key]={}; order.push(key); }
+      // 같은 시점·같은 단계에 여러 이벤트면 마지막 값을 채택하되 prev는 최초 prev 유지
+      if(byTs[key][f]){ byTs[key][f].next=e.next_value; }
+      else { byTs[key][f]={prev:e.prev_value, next:e.next_value}; }
+    });
+    if(!order.length) return '<div class="hist-empty">가격 변동 이력이 없어요.</div>';
+    // 최신 → 과거 (at 문자열 내림차순)
+    order.sort(function(a,b){ return a<b?1:(a>b?-1:0); });
+    var legend='<div class="sd-cnt" style="margin-bottom:8px">한 줄 = 한 시점 · 소싱 표면가 → 최종매입가 → 판매예정가 3단계. '
+      +'하락 <span style="color:#1d4ed8;font-weight:700">▼ 파랑</span> · 상승 <span style="color:#dc2626;font-weight:700">▲ 빨강</span> (한국 증시 표기). 값 없는 단계는 –.</div>';
+    var h='<table class="htbl"><thead><tr><th class="l">일시</th>'
+      +'<th><span class="stg stg-s">소싱 표면가</span></th>'
+      +'<th><span class="stg stg-c">최종매입가</span></th>'
+      +'<th><span class="stg stg-p">판매예정가</span></th></tr></thead><tbody>';
+    order.forEach(function(key){
+      var row=byTs[key];
+      h+='<tr><td class="l">'+esc(histTs(key))+'</td>';
+      STAGES.forEach(function(f){
+        var cell=row[f];
+        h+='<td>'+(cell?histValCell(cell.prev, cell.next):'<span class="na">–</span>')+'</td>';
+      });
+      h+='</tr>';
+    });
+    h+='</tbody></table>';
+    return legend+h;
+  }
+  function renderHist(events, fld){
+    return (fld==='price') ? renderHistPrice(events) : renderHistStock(events);
+  }
   function openHistModal(sid, mk, fld){
     var nm=mk==='coupang'?'쿠팡':(mk==='smartstore'?'스마트스토어':mk);
     var fn=fld==='price'?'가격':'재고';
@@ -841,7 +903,7 @@
     document.getElementById('histModal').classList.add('on');
     fetch('/api/sets/'+sid+'/history?market='+encodeURIComponent(mk)+'&field='+encodeURIComponent(fld),{headers:{'Accept':'application/json'}})
       .then(function(r){return r.json();})
-      .then(function(d){ body.innerHTML=(d&&d.ok)?renderHist(d.events||[]):'<div class="hist-empty">불러오지 못했어요.</div>'; })
+      .then(function(d){ body.innerHTML=(d&&d.ok)?renderHist(d.events||[], fld):'<div class="hist-empty">불러오지 못했어요.</div>'; })
       .catch(function(){ body.innerHTML='<div class="hist-empty">불러오지 못했어요.</div>'; });
   }
   function closeHistModal(){ document.getElementById('histModal').classList.remove('on'); }
