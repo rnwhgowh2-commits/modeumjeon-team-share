@@ -85,10 +85,15 @@ def snapshot_source_values(session, *, set_id, value_map):
             vals = value_map.get(sco.canonical_sku)
             if not vals:
                 continue
-            for field in ("stock", "price"):
-                new = vals.get(field)
-                if new is None:
-                    continue
+            # 기록 필드: 재고 + 기존 price + 가격 3단계(surface 소싱표면가 / cost 최종매입가)
+            fields = {f: vals[f] for f in ("stock", "price", "surface", "cost")
+                      if vals.get(f) is not None}
+            # planned 판매예정가 = 마켓별(스스=ss / 쿠팡=cp)
+            pk = ("ss_price" if ch.market == "smartstore"
+                  else "cp_price" if ch.market == "coupang" else None)
+            if pk and vals.get(pk) is not None:
+                fields["planned"] = vals[pk]
+            for field, new in fields.items():
                 last = (session.query(ChannelChangeEvent)
                         .filter_by(set_id=set_id, market=ch.market,
                                    canonical_sku=sco.canonical_sku, field=field,
