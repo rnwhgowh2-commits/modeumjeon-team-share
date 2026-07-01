@@ -3,7 +3,7 @@
 {% block head %}
 <style>
   /* === 최종 통합본 카드 디자인 변수/베이스 === */
-  :root{--ink:#191F28;--sub:#6B7684;--line:#E5E8EB;--line2:#EFF1F4;--blue:#3182F6;--blueDk:#185FA5;--brown:#854F0B;--green:#0F8A4D;--amber:#B45309;--red:#E03A3E;--coupang:#E03A3E;--smart:#03C75A;--gmarket:#00A862;}
+  :root{--ink:#191F28;--sub:#6B7684;--line:#E5E8EB;--line2:#EFF1F4;--blue:#3182F6;--blueDk:#185FA5;--brown:#854F0B;--green:#0F8A4D;--amber:#B45309;--red:#E03A3E;--coupang:#E03A3E;--smart:#03C75A;--gmarket:#00A862;--cur:#98A2B3;}
   .sd-wrap{max-width:1180px;margin:0 auto;padding:14px 14px 60px;font-family:Pretendard,system-ui,sans-serif;color:var(--ink);}
   .sd-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:16px;flex-wrap:wrap;}
   .sd-title{font-size:20px;font-weight:800;color:#191F28;letter-spacing:-.4px;}
@@ -174,11 +174,17 @@
   .dual{display:grid;grid-template-columns:16px auto auto;column-gap:7px;row-gap:4px;align-items:center;width:max-content;}
   .ps{background:#E7F0FB;color:var(--blueDk);font-weight:800;font-size:9.5px;padding:1px 0;border-radius:4px;text-align:center;}
   .pp{background:#F3EBDD;color:var(--brown);font-weight:800;font-size:9.5px;padding:1px 0;border-radius:4px;text-align:center;}
+  /* 현(판매처에 지금 걸린 값) 배지 — 연한 회색 */
+  .pcur{background:#EDEFF2;color:var(--cur);font-weight:800;font-size:9.5px;padding:1px 0;border-radius:4px;text-align:center;}
   .dn{font-size:11.5px;color:#4E5968;font-weight:600;white-space:nowrap;}
+  .dn.cur{color:var(--cur);}
   .dv{font-size:13px;font-weight:800;text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap;}
   .dv small{font-size:10px;color:var(--sub);font-weight:600;margin-left:2px;}
   .dv.bad{color:var(--amber);}.dv.sev{color:var(--red);}
   .dv.muted{color:#98A2B3;font-weight:700;cursor:pointer;}
+  /* 현재(판매처 실제 걸린) 값 = 강조 안 함, 연한 회색 */
+  .dv.cur{color:var(--cur);font-weight:600;}
+  .dv.cur small{color:var(--cur);}
   /* 상태 신호등(E2) */
   .stcell{display:inline-flex;align-items:center;gap:8px;cursor:pointer;padding:5px 8px;border-radius:8px;}
   .stcell:hover{background:#F0F6FF;}
@@ -345,23 +351,23 @@
     var cls=(c.matched===c.total)?'match':'match part';
     return '<span class="'+cls+'">'+c.matched+'/'+c.total+'</span>';
   }
-  // 재고(소/판) 스택
+  // 재고(소/판·현재) 스택 — 소=진하게 / 판(현재 판매처 설정)=연한 회색(경고는 신호등이 담당)
   function cStock(r, c){
     var srcName=esc((r.src_summary&&r.src_summary.source_name)||'소싱');
     var srcN=(r.src_summary&&r.src_summary.src_stock_total!=null)?numUnit(r.src_summary.src_stock_total,'개'):'<span style="color:#98A2B3">미상</span>';
-    var mkS=c.signals&&c.signals.stock;
-    var mkCls='dv'+(mkS==='sev'?' sev':(mkS==='warn'?' bad':''));
     var mkN=(c.mkt_stock_total!=null)?numUnit(c.mkt_stock_total,'개'):'<span style="color:#98A2B3">미상</span>';
     return '<div class="dual">'
       +'<span class="ps">소</span><span class="dn">'+srcName+'</span><span class="dv">'+srcN+'</span>'
-      +'<span class="pp">판</span><span class="dn">설정</span><span class="'+mkCls+'">'+mkN+'</span></div>';
+      +'<span class="pcur">현</span><span class="dn cur">설정</span><span class="dv cur">'+mkN+'</span></div>';
   }
-  // 가격(소/판) 스택 — 소=상세에서(지연), 판=판매가
+  // 가격(매입/예정/현재) 스택 — 소 매입=상세에서(지연·숫자 날조 금지) / 판 예정=판매예정가(진하게) / 현 현재=지금 걸린 판매가(연한 회색)
   function cPrice(r, c){
-    var mkN=(c.mkt_price!=null)?numUnit(c.mkt_price,'원'):'<span style="color:#98A2B3">미상</span>';
+    var planN=(c.planned_price!=null)?numUnit(c.planned_price,'원'):'<span style="color:#98A2B3">미상</span>';
+    var curN=(c.mkt_price!=null)?numUnit(c.mkt_price,'원'):'<span style="color:#98A2B3">미상</span>';
     return '<div class="dual">'
-      +'<span class="ps">소</span><span class="dn">최종매입</span><span class="dv muted" title="펼치면 영수증·최종매입가를 보여줘요">상세 ▾</span>'
-      +'<span class="pp">판</span><span class="dn">판매가</span><span class="dv">'+mkN+'</span></div>';
+      +'<span class="ps">소</span><span class="dn">매입</span><span class="dv muted" title="펼치면 영수증·최종매입가를 보여줘요">상세 ▾</span>'
+      +'<span class="pp">판</span><span class="dn">예정</span><span class="dv">'+planN+'</span>'
+      +'<span class="pcur">현</span><span class="dn cur">현재</span><span class="dv cur">'+curN+'</span></div>';
   }
   // 상태 신호등 셀
   function cSignals(c){
@@ -439,7 +445,7 @@
         +'<button class="b-txt del" data-sid="'+r.set_id+'" data-name="'+esc(r.name)+'">🗑 삭제</button>'
       +'</div>';
       h+=' <div class="head-div"></div>';
-      h+=' <div class="row6 hrow6"><div>마켓</div><div class="ctr">매칭</div><div>재고 (소/판)</div><div>가격 (소/판)</div><div class="ctr">상태</div><div></div></div>';
+      h+=' <div class="row6 hrow6"><div>마켓</div><div class="ctr">매칭</div><div>재고 (소/현재)</div><div>가격 (매입/예정/현재)</div><div class="ctr">상태</div><div></div></div>';
       h+=' '+cardRows(r);
       // 푸터
       h+=' <div class="c-foot"><span>수집 '+(coll||'수집 안 됨')+' · 전송 '+(sent||'이력 없음')+'</span>'

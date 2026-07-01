@@ -45,6 +45,37 @@ def _src_summary(src_provider, model_codes, skus):
     return {"src_stock_total": sum(stocks) if stocks else None, "source_name": name}
 
 
+def _enrich_from_provider(row, src_provider):
+    """q 필터 통과 세트에 소싱 요약(재고·소싱처명) + 채널별 판매예정가를 채운다.
+
+    provider 한 번 호출(무거운 _option_matrix_data 재사용)로 둘 다 파생 — 추가 부하 없음.
+    provider(mcs, skus) -> {sku: {stock, source_name, ss_price(스스), cp_price(쿠팡)}}.
+    판매예정가 = 매칭 옵션들의 마켓별 값 중 대표(최저). 최종매입가(혜택 차감 원가)는
+    무거운 breakdown 이라 별도(카드 상세) — 여기 안 넣음(정확성·부하).
+    """
+    mcs = row.pop("_mcs", set())
+    skus = row.pop("_skus", set())
+    row["src_summary"] = {"src_stock_total": None, "source_name": None}
+    smap = {}
+    if src_provider is not None and skus:
+        smap = src_provider(mcs, skus) or {}
+        stocks = [v.get("stock") for v in smap.values() if v.get("stock") is not None]
+        names = [v.get("source_name") for v in smap.values() if v.get("source_name")]
+        name = max(set(names), key=names.count) if names else None
+        row["src_summary"] = {"src_stock_total": sum(stocks) if stocks else None,
+                              "source_name": name}
+    for ch in row["channels"]:
+        ch_skus = ch.pop("_skus", [])
+        pk = ("ss_price" if ch["market"] == "smartstore"
+              else "cp_price" if ch["market"] == "coupang" else None)
+        pp = None
+        if pk and smap:
+            vals = [smap[s].get(pk) for s in ch_skus
+                    if s in smap and smap[s].get(pk) is not None]
+            pp = min(vals) if vals else None
+        ch["planned_price"] = pp
+
+
 def create_set(session: Session, *, model_code: str, name: str) -> ProductSet:
     s = ProductSet(model_code=model_code, name=name)
     session.add(s)
@@ -160,7 +191,9 @@ def list_linked_sets(session: Session, q: str | None = None,
                 "mkt_fetched_at": mkt_fetched.isoformat() if mkt_fetched else None,
                 "mkt_stock_total": sum(stocks) if stocks else None,
                 "mkt_price": min(prices) if prices else None,
+                "planned_price": None,   # 마켓별 판매예정가 — provider 파생(아래)
                 "signals": _signals(mk_alerts, has_send=last_sent is not None),
+                "_skus": [s.canonical_sku for s in scos],
             })
         out.append({
             "set_id": ps.id, "name": ps.name, "model_code": ps.model_code,
@@ -186,9 +219,9 @@ def list_linked_sets(session: Session, q: str | None = None,
             return False
 
         out = [r for r in out if _match(r)]
-    # src_summary(무거운 provider)는 q 필터 통과 세트에만 — 검색 핫패스 부하 방지
+    # 무거운 provider(소싱 요약 + 채널별 판매예정가)는 q 필터 통과 세트에만 — 검색 핫패스 부하 방지
     for r in out:
-        r["src_summary"] = _src_summary(src_provider, r.pop("_mcs"), r.pop("_skus"))
+        _enrich_from_provider(r, src_provider)
     return out
 
 

@@ -89,3 +89,26 @@ def test_src_summary_none_without_provider(db):
     _seed(db, "smartstore", 50)
     row = svc.list_linked_sets(db)[0]
     assert row["src_summary"]["src_stock_total"] is None
+
+
+def _prov(model_codes, skus):
+    return {"SKU1": {"stock": 53, "source_name": "르무통",
+                     "ss_price": 125000, "cp_price": 129000}}
+
+
+def test_channel_planned_price_smartstore(db):
+    _seed(db, "smartstore", 50)
+    ch = svc.list_linked_sets(db, src_provider=_prov)[0]["channels"][0]
+    assert ch["planned_price"] == 125000   # 스마트스토어 → ss_price
+
+
+def test_channel_planned_price_coupang(db):
+    _seed(db, "coupang", 50)
+    ch = svc.list_linked_sets(db, src_provider=_prov)[0]["channels"][0]
+    assert ch["planned_price"] == 129000   # 쿠팡 → cp_price
+
+
+def test_planned_price_none_without_provider(db):
+    _seed(db, "smartstore", 50)
+    ch = svc.list_linked_sets(db)[0]["channels"][0]
+    assert ch["planned_price"] is None
