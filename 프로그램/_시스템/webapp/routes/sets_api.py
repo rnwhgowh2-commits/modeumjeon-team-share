@@ -597,10 +597,12 @@ def snapshot_sources_route(set_id):
             items.append({"sku": o["sku"], "source_id": best["source_id"],
                           "sale_price": best["crawled_price"],
                           "source_product_id": best.get("source_product_id")})
-        finals = {}
+        finals = {}     # sku → 최종매입가(혜택 차감)
+        surfaces = {}   # sku → 표면 노출가(대표 크롤가)
         try:
             cache = _build_breakdown_cache(s, items)
             for it in items:
+                surfaces[it["sku"]] = it["sale_price"]
                 try:
                     bd = compute_breakdown(s, sku=it["sku"], source_id=int(it["source_id"]),
                                            sale_price=float(it["sale_price"]), _cache=cache,
@@ -611,13 +613,18 @@ def snapshot_sources_route(set_id):
                     pass
         except Exception:
             pass
+        # 3단계를 명시 필드로 기록(표면 노출가 surface / 최종매입가 cost / 판매예정가 planned).
+        #   화면 셀·영수증·매트릭스와 동일 단일 진실 원천. (옛 'price' 통합 필드는 폐지)
         vmap = {}
         for o in opts:
             is_pur = o.get("purchase_priority_resolved") == "purchase"
-            vmap[o["sku"]] = {
+            sku = o["sku"]
+            vmap[sku] = {
                 "stock": o.get("purchase_stock") if is_pur else o.get("src_stock"),
-                "price": (o.get("purchase_avg_cost") if is_pur
-                          else finals.get(o["sku"], o.get("src_cost"))),
+                "surface": (None if is_pur else surfaces.get(sku, o.get("src_cost"))),
+                "cost": (o.get("purchase_avg_cost") if is_pur else finals.get(sku)),
+                "ss_price": o.get("ss_price"),
+                "cp_price": o.get("cp_price"),
             }
         n = snapshot_source_values(s, set_id=set_id, value_map=vmap)
         s.commit()
