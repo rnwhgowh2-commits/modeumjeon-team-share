@@ -527,7 +527,6 @@
     return '<div class="au-set" data-auset data-sid="'+r.set_id+'" style="display:none">'
       +'<div class="au-strip">이 구성만 자동</div>'
       +'<div class="au-inner">'
-      +'<div class="au-row"><span class="au-rl">자동 전송</span>'+seg3(m)+'</div>'
       +'<div class="au-manual" data-manual style="display:'+(m==='manual'?'':'none')+'">'
         +freqBlock('crawl','s','🔎 소싱처 크롤 주기',CRAWL_PRE,r.manual_crawl_hours||0,r.manual_crawl_minutes||0)
         +freqBlock('upload','p','📤 판매처 업로드 주기',UPLOAD_PRE,r.manual_upload_hours||0,r.manual_upload_minutes||0)
@@ -551,7 +550,7 @@
   function setAutoSeg(segEl,mode){ [].forEach.call(segEl.querySelectorAll('.s3'),function(x){ var m=x.getAttribute('data-mode'); x.className='s3'+(m===mode?' on':''); }); }
   function updateAutoChip(panel,auto){ if(!auto)return; var m=auto.auto_mode||'on'; var card=panel.closest('.sd-card'); renderAuto3(card&&card.querySelector('.b-auto3'), m); var man=panel.querySelector('[data-manual]'); if(man) man.style.display=(m==='manual'?'':'none'); var ft=panel.querySelector('[data-aufoot]'); if(ft) ft.textContent=_autoFoot(m); var seg=panel.querySelector('.seg3'); if(seg) setAutoSeg(seg,m); }
   // V3 헤더 컨트롤 클릭 → 저장(자동 전송 auto_mode). 실패시 폴백표시 안 함(조용한 성공위장 금지)
-  function applyAuto3(wrap,sid,mode){ if(!wrap)return; renderAuto3(wrap,mode); var card=wrap.closest('.sd-card'); var pnl=card&&card.querySelector('[data-auset]'); fetch('/api/sets/'+sid+'/automation',{method:'POST',headers:{'Content-Type':'application/json','Accept':'application/json'},body:JSON.stringify({auto_mode:mode})}).then(function(r){return r.json();}).then(function(d){ if(d&&d.ok&&pnl) updateAutoChip(pnl,d.automation); }).catch(function(){}); }
+  function applyAuto3(wrap,sid,mode){ if(!wrap)return; renderAuto3(wrap,mode); var card=wrap.closest('.sd-card'); var pnl=card&&card.querySelector('[data-auset]'); if(pnl) pnl.style.display=(mode==='manual')?'':'none'; fetch('/api/sets/'+sid+'/automation',{method:'POST',headers:{'Content-Type':'application/json','Accept':'application/json'},body:JSON.stringify({auto_mode:mode})}).then(function(r){return r.json();}).then(function(d){ if(d&&d.ok&&pnl) updateAutoChip(pnl,d.automation); }).catch(function(){}); }
   function render(sets){
     if(!sets.length){ listEl.innerHTML='<div class="sd-empty">아직 연동된 구성이 없어요.<br>오른쪽 위 <b>＋ 새 연동 만들기</b> 로 시작하세요.</div>'; return; }
     var h='';
