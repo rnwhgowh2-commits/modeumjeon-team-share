@@ -37,34 +37,30 @@
   .sd-card{background:#fff;border:1px solid #e5e8eb;border-radius:12px;padding:14px 16px;margin-bottom:10px;}
   .sd-card-top{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;cursor:pointer;}
   .sd-name{font-size:15px;font-weight:700;color:#191F28;}
-  /* 구성별 자동 전송 예외 */
-  .b-auto{font-size:12px;font-weight:600;border-radius:7px;padding:4px 10px;cursor:pointer;white-space:nowrap;background:#f2f4f6;color:#6b7684;border:1px solid #e5e8eb;}
-  .b-auto.exc{background:#FAEEDA;color:#854F0B;border-color:#f0d9a8;}
-  .au-set{margin:8px 0 2px;border:1px solid #f0d9a8;background:#fffdf7;border-radius:11px;padding:12px 15px;}
-  .au-ph{font-size:12.5px;font-weight:700;color:#854F0B;}
-  .au-phd{font-size:11.5px;color:#8b95a1;margin:2px 0 10px;}
-  .au-row{display:flex;align-items:center;gap:12px;padding:9px 0;border-top:1px solid #f1ead9;}
-  .au-row:first-of-type{border-top:0;}
-  .au-rl{flex:1;font-size:13px;font-weight:600;color:#191F28;}
-  .seg3{display:inline-flex;background:#f1f3f5;border-radius:8px;padding:2px;}
-  .s3{font-size:11.5px;font-weight:600;padding:5px 11px;border-radius:6px;color:#8b95a1;cursor:pointer;}
-  .s3.on{background:#fff;color:#191F28;box-shadow:0 1px 2px rgba(0,0,0,.1);}
-  .s3.on.g{color:#0F6E56;} .s3.on.r{color:#c0392b;}
-  /* 수동설정 주기 패널 (E-주기-4) */
-  .au-manual{margin-top:6px;border-top:1px solid #f1ead9;padding-top:8px;}
+  /* 구성별 자동 (미니멀 M-10 · 회색 + 포인트 1색) */
+  .b-auto{font-size:12px;font-weight:600;border-radius:7px;padding:4px 10px;cursor:pointer;white-space:nowrap;background:#f4f5f7;color:#6b7684;border:1px solid #e9ebef;}
+  .b-auto.exc{background:#eef4ff;color:#1b64da;border-color:#d8e6ff;}
+  .au-set{margin:8px 0 2px;border:1px solid #ececef;background:#fff;border-radius:11px;overflow:hidden;}
+  .au-strip{background:#f4f5f7;color:#333d4b;font-size:11.5px;font-weight:700;padding:8px 14px;border-bottom:1px solid #ececef;}
+  .au-inner{padding:12px 14px;}
+  .au-row{display:flex;align-items:center;gap:12px;min-height:34px;padding:6px 0;}
+  .au-rl{flex:1;font-size:13px;font-weight:600;color:#191F28;line-height:1;}
+  .seg3{display:inline-flex;background:#f4f5f7;border-radius:7px;padding:2px;}
+  .s3{font-size:11.5px;font-weight:600;padding:5px 11px;border-radius:5px;color:#9aa3af;cursor:pointer;line-height:1;}
+  .s3.on{background:#3182f6;color:#fff;}
+  /* 수동설정 주기 패널 (E-주기-4) — 무채색 + 아이콘 구분 */
+  .au-manual{margin-top:4px;border-top:1px solid #f2f3f5;padding-top:8px;}
   .au-mrow{padding:8px 0;}
-  .au-mlbl{display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:800;border-radius:6px;padding:3px 8px;margin-bottom:8px;}
-  .au-mlbl.s{background:#eaf3fb;color:#185FA5;} .au-mlbl.p{background:#faf1e4;color:#854F0B;}
+  .au-mlbl{display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:700;color:#4e5968;border-radius:6px;padding:3px 8px;background:#f4f5f7;margin-bottom:8px;}
   .au-fx{display:flex;align-items:center;gap:6px;flex-wrap:wrap;}
-  .pchip{font-size:11.5px;font-weight:600;border:1px solid #d1d6db;background:#fff;color:#4e5968;border-radius:8px;padding:5px 10px;cursor:pointer;}
-  .pchip.on-s{background:#eaf3fb;border-color:#185FA5;color:#185FA5;}
-  .pchip.on-p{background:#faf1e4;border-color:#854F0B;color:#854F0B;}
-  .mhm{display:inline-flex;align-items:center;border:1px solid #d1d6db;border-radius:8px;overflow:hidden;background:#fff;}
+  .pchip{font-size:11.5px;font-weight:600;border:1px solid #e5e8eb;background:#fff;color:#6b7684;border-radius:8px;padding:5px 10px;cursor:pointer;}
+  .pchip.on-s,.pchip.on-p{background:#eef4ff;border-color:#3182f6;color:#1b64da;}
+  .mhm{display:inline-flex;align-items:center;border:1px solid #e5e8eb;border-radius:8px;overflow:hidden;background:#fff;}
   .mhm input{width:34px;height:30px;border:0;text-align:center;font-size:13px;font-weight:700;font-variant-numeric:tabular-nums;font-family:inherit;color:#191F28;-moz-appearance:textfield;}
   .mhm input::-webkit-outer-spin-button,.mhm input::-webkit-inner-spin-button{-webkit-appearance:none;margin:0;}
-  .mhm .colon{font-size:13px;font-weight:800;color:#8b95a1;}
-  .mhm .u{font-size:10.5px;color:#8b95a1;padding:0 7px 0 2px;}
-  .au-foot{font-size:11px;color:#8b95a1;margin-top:9px;}
+  .mhm .colon{font-size:13px;font-weight:800;color:#9aa3af;}
+  .mhm .u{font-size:10.5px;color:#9aa3af;padding:0 7px 0 2px;}
+  .au-foot{font-size:11px;color:#9aa3af;margin-top:8px;line-height:1.5;}
   .sd-bundle{font-size:11px;font-weight:700;background:#e8f1ff;color:#1d4ed8;border-radius:5px;padding:2px 7px;margin-right:6px;}
   .sd-chev{color:#b0b8c1;font-size:13px;margin-left:8px;}
   .sd-mk{display:inline-block;font-size:11.5px;font-weight:700;border-radius:5px;padding:3px 8px;margin-left:6px;}
@@ -483,8 +479,11 @@
   }
   function seg3(val){
     var opts=[['on','켜기'],['off','끄기'],['manual','수동설정']];
-    return '<span class="seg3" data-field="auto_mode">'+opts.map(function(o){ var on=(o[0]===val); var extra=on?(o[0]==='on'?' g':(o[0]==='off'?' r':'')):''; return '<span class="s3'+(on?' on':'')+extra+'" data-mode="'+o[0]+'">'+o[1]+'</span>'; }).join('')+'</span>';
+    return '<span class="seg3" data-field="auto_mode">'+opts.map(function(o){ var on=(o[0]===val); return '<span class="s3'+(on?' on':'')+'" data-mode="'+o[0]+'">'+o[1]+'</span>'; }).join('')+'</span>';
   }
+  function _autoFoot(m){ return (m==='off')?'지금 「끄기」 — 이 판매처는 자동에서 빠집니다.'
+    :(m==='manual')?'지금 「수동설정」 — 아래 이 판매처만의 주기를 씁니다.'
+    :'지금 「켜기」 — 전체 「⚙️ 자동화 설정」 주기를 그대로 씁니다.'; }
   var CRAWL_PRE=[[0,30,'30분'],[1,0,'1시간'],[3,0,'3시간'],[6,0,'6시간']];
   var UPLOAD_PRE=[[1,0,'1시간'],[3,0,'3시간'],[6,0,'6시간'],[24,0,'하루']];
   function freqBlock(kind,cls,lbl,pre,hh,mm){
@@ -500,13 +499,15 @@
   function autoPanel(r){
     var m=r.auto_mode||'on';
     return '<div class="au-set" data-auset data-sid="'+r.set_id+'" style="display:none">'
-      +'<div class="au-ph">이 구성만 자동</div><div class="au-phd">전체 설정과 다르게, 이 판매처만 따로 정합니다. 특수 케이스일 때만 쓰세요.</div>'
+      +'<div class="au-strip">이 구성만 자동</div>'
+      +'<div class="au-inner">'
       +'<div class="au-row"><span class="au-rl">자동 전송</span>'+seg3(m)+'</div>'
       +'<div class="au-manual" data-manual style="display:'+(m==='manual'?'':'none')+'">'
         +freqBlock('crawl','s','🔎 소싱처 크롤 주기',CRAWL_PRE,r.manual_crawl_hours||0,r.manual_crawl_minutes||0)
         +freqBlock('upload','p','📤 판매처 업로드 주기',UPLOAD_PRE,r.manual_upload_hours||0,r.manual_upload_minutes||0)
       +'</div>'
-      +'<div class="au-foot">「켜기」는 「⚙️ 자동화 설정」 주기를 그대로, 「수동설정」은 이 판매처만의 주기를 씁니다. 「끄기」면 자동에서 빠집니다.</div></div>';
+      +'<div class="au-foot" data-aufoot>'+_autoFoot(m)+'</div>'
+      +'</div></div>';
   }
   function paintFreqChips(mrow,hh,mm){
     var cls=mrow.querySelector('.au-mlbl').classList.contains('s')?'s':'p'; var matched=false;
@@ -521,8 +522,8 @@
     var patch={}; patch[kind==='crawl'?'manual_crawl_hours':'manual_upload_hours']=hh; patch[kind==='crawl'?'manual_crawl_minutes':'manual_upload_minutes']=mm;
     fetch('/api/sets/'+sid+'/automation',{method:'POST',headers:{'Content-Type':'application/json','Accept':'application/json'},body:JSON.stringify(patch)}).catch(function(){});
   }
-  function setAutoSeg(segEl,mode){ [].forEach.call(segEl.querySelectorAll('.s3'),function(x){ var m=x.getAttribute('data-mode'); x.className='s3'+(m===mode?(' on'+(m==='on'?' g':(m==='off'?' r':''))):''); }); }
-  function updateAutoChip(panel,auto){ if(!auto)return; var m=auto.auto_mode||'on'; var card=panel.closest('.sd-card'); var chip=card&&card.querySelector('.b-auto'); if(chip){ chip.className='b-auto'+(m!=='on'?' exc':''); chip.textContent='🤖 자동 · '+_autoTxt(m)+' ▾'; } var man=panel.querySelector('[data-manual]'); if(man) man.style.display=(m==='manual'?'':'none'); }
+  function setAutoSeg(segEl,mode){ [].forEach.call(segEl.querySelectorAll('.s3'),function(x){ var m=x.getAttribute('data-mode'); x.className='s3'+(m===mode?' on':''); }); }
+  function updateAutoChip(panel,auto){ if(!auto)return; var m=auto.auto_mode||'on'; var card=panel.closest('.sd-card'); var chip=card&&card.querySelector('.b-auto'); if(chip){ chip.className='b-auto'+(m!=='on'?' exc':''); chip.textContent='🤖 자동 · '+_autoTxt(m)+' ▾'; } var man=panel.querySelector('[data-manual]'); if(man) man.style.display=(m==='manual'?'':'none'); var ft=panel.querySelector('[data-aufoot]'); if(ft) ft.textContent=_autoFoot(m); }
   function render(sets){
     if(!sets.length){ listEl.innerHTML='<div class="sd-empty">아직 연동된 구성이 없어요.<br>오른쪽 위 <b>＋ 새 연동 만들기</b> 로 시작하세요.</div>'; return; }
     var h='';
