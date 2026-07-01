@@ -108,3 +108,50 @@ def test_snapshot_source_values_records_and_idempotent(db):
     last = (db.query(ChannelChangeEvent).filter_by(source="source", field="stock")
             .order_by(ChannelChangeEvent.at.desc()).first())
     assert last.prev_value == 7 and last.next_value == 0
+
+
+def _seed_ch(db, set_id, market):
+    from lemouton.sets.models import SetChannel, SetChannelOption
+    ch = SetChannel(set_id=set_id, market=market, account_key="a",
+                    market_product_id="9", status="linked")
+    db.add(ch); db.flush()
+    db.add(SetChannelOption(channel_id=ch.id, canonical_sku="K",
+                            market_option_id="1", status="matched"))
+    db.commit()
+
+
+def test_snapshot_records_3_price_stages(db):
+    from lemouton.sets import change_service as cs
+    _seed_ch(db, 6, "smartstore")
+    n = cs.snapshot_source_values(db, set_id=6, value_map={
+        "K": {"surface": 145000, "cost": 89000,
+              "ss_price": 125000, "cp_price": 129000}}); db.commit()
+    evs = {(e.field, e.next_value) for e in
+           db.query(ChannelChangeEvent).filter_by(source="source").all()}
+    assert ("surface", 145000) in evs
+    assert ("cost", 89000) in evs
+    assert ("planned", 125000) in evs   # 스마트스토어 → ss_price
+    assert n == 3
+
+
+def test_snapshot_planned_coupang_uses_cp(db):
+    from lemouton.sets import change_service as cs
+    _seed_ch(db, 7, "coupang")
+    cs.snapshot_source_values(db, set_id=7, value_map={
+        "K": {"ss_price": 125000, "cp_price": 129000}}); db.commit()
+    planned = (db.query(ChannelChangeEvent)
+               .filter_by(source="source", field="planned").first())
+    assert planned.next_value == 129000   # 쿠팡 → cp_price
+
+
+def test_list_changes_price_returns_3_stages(db):
+    from datetime import datetime, timezone
+    from lemouton.sets import change_service as cs
+    for f, v in [("surface", 145000), ("cost", 89000),
+                 ("planned", 125000), ("stock", 5)]:
+        db.add(ChannelChangeEvent(set_id=9, market="smartstore", canonical_sku="K",
+               field=f, source="source", prev_value=None, next_value=v,
+               at=datetime(2026, 6, 30, tzinfo=timezone.utc)))
+    db.commit()
+    rows = cs.list_changes(db, set_id=9, field="price")
+    assert {r["field"] for r in rows} == {"surface", "cost", "planned"}  # stock 제외

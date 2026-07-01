@@ -26,6 +26,10 @@ def collect_and_snapshot_all() -> dict:
             from webapp.routes.api_pricing import _option_matrix_data
         except Exception:
             _option_matrix_data = None
+        try:
+            from webapp.routes.api_benefits import compute_breakdown
+        except Exception:
+            compute_breakdown = None
         if _option_matrix_data is not None:
             for row in list_linked_sets(s):
                 sid = row["set_id"]
@@ -42,12 +46,32 @@ def collect_and_snapshot_all() -> dict:
                         if not data.get("ok"):
                             continue
                         for o in data.get("options", []):
-                            if o.get("sku") in skus:
-                                is_pur = o.get("purchase_priority_resolved") == "purchase"
-                                vmap[o["sku"]] = {
-                                    "stock": o.get("purchase_stock") if is_pur else o.get("src_stock"),
-                                    "price": o.get("src_cost"),
-                                }
+                            if o.get("sku") not in skus:
+                                continue
+                            is_pur = o.get("purchase_priority_resolved") == "purchase"
+                            # 대표 소싱처(최저 표면가) — 최종매입가 breakdown 기준
+                            _srcs = [x for x in (o.get("sources") or [])
+                                     if x.get("crawled_price") is not None]
+                            _srcs.sort(key=lambda x: x["crawled_price"])
+                            _rep = _srcs[0] if _srcs else None
+                            _surface = _rep["crawled_price"] if _rep else o.get("src_cost")
+                            _cost = None
+                            if _rep and not is_pur and compute_breakdown is not None:
+                                try:
+                                    _bd = compute_breakdown(
+                                        s, sku=o["sku"], source_id=_rep["source_id"],
+                                        sale_price=_rep["crawled_price"],
+                                        source_product_id=_rep.get("source_product_id"))
+                                    _cost = (_bd or {}).get("final_price")
+                                except Exception:
+                                    _cost = None   # breakdown 실패는 미기록(폴백 금지)
+                            vmap[o["sku"]] = {
+                                "stock": o.get("purchase_stock") if is_pur else o.get("src_stock"),
+                                "surface": _surface,            # 소싱 표면가(crawled_price)
+                                "cost": _cost,                  # 최종매입가(혜택 차감)
+                                "ss_price": o.get("ss_price"),  # 판매예정가(스마트스토어)
+                                "cp_price": o.get("cp_price"),  # 판매예정가(쿠팡)
+                            }
                     snapped += snapshot_source_values(s, set_id=sid, value_map=vmap)
                     s.commit()
                 except Exception:
