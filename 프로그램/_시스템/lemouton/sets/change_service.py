@@ -51,7 +51,11 @@ def list_changes(session, *, set_id, market=None, field=None, limit=200):
     q = session.query(ChannelChangeEvent).filter(ChannelChangeEvent.set_id == set_id)
     if market:
         q = q.filter(ChannelChangeEvent.market == market)
-    if field:
+    if field == "price":
+        # 가격 이력 = 3단계(소싱표면가 surface·최종매입가 cost·판매예정가 planned) + 레거시 price
+        q = q.filter(ChannelChangeEvent.field.in_(
+            ["surface", "cost", "planned", "price"]))
+    elif field:
         q = q.filter(ChannelChangeEvent.field == field)
     q = q.order_by(ChannelChangeEvent.at.desc(), ChannelChangeEvent.id.desc()).limit(limit)
     out = []

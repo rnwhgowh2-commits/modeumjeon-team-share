@@ -142,3 +142,16 @@ def test_snapshot_planned_coupang_uses_cp(db):
     planned = (db.query(ChannelChangeEvent)
                .filter_by(source="source", field="planned").first())
     assert planned.next_value == 129000   # 쿠팡 → cp_price
+
+
+def test_list_changes_price_returns_3_stages(db):
+    from datetime import datetime, timezone
+    from lemouton.sets import change_service as cs
+    for f, v in [("surface", 145000), ("cost", 89000),
+                 ("planned", 125000), ("stock", 5)]:
+        db.add(ChannelChangeEvent(set_id=9, market="smartstore", canonical_sku="K",
+               field=f, source="source", prev_value=None, next_value=v,
+               at=datetime(2026, 6, 30, tzinfo=timezone.utc)))
+    db.commit()
+    rows = cs.list_changes(db, set_id=9, field="price")
+    assert {r["field"] for r in rows} == {"surface", "cost", "planned"}  # stock 제외
