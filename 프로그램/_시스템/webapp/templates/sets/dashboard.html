@@ -933,52 +933,77 @@
     var arrow=''; if(prev!=null && next<prev) arrow=' <span class="d dl">▼</span>'; else if(prev!=null && next>prev) arrow=' <span class="d up">▲</span>';
     return '<span class="v">'+fmt(next)+'</span>'+arrow;
   }
-  // 재고 이력(기존 소싱/판매 2단)
+  // 재고 이력(소싱/판매 2단) — 「하루 1줄(일자 기준)」. 그날 최신 값 · 전날 대비 ▼/▲.
   function renderHistStock(events){
     var src=events.filter(function(e){return e.source==='source';});
     var mkt=events.filter(function(e){return e.source==='market';});
+    var p2=function(n){return(n<10?'0':'')+n;};
     function col(list){
-      if(!list.length) return '<div class="hist-empty">변동 없음</div>';
-      return list.map(function(e){
-        var t=histTs(e.at);
-        var pv=(e.prev_value==null?'-':fmt(e.prev_value)), nv=(e.next_value==null?'-':fmt(e.next_value));
-        return '<div class="hist-ev"><span class="hist-t">'+t+' · '+esc(e.canonical_sku)+'</span>'
-          +'<span class="hist-v">'+pv+' → <span'+histDir(e.prev_value,e.next_value)+'>'+nv+histArrow(e.prev_value,e.next_value)+'</span></span></div>';
+      // 일자별 그날 마지막 값(at 최댓값)
+      var byDay={}, days=[];
+      (list||[]).forEach(function(e){
+        var d=_pdate(e.at); if(isNaN(d.getTime())) return;
+        var day=String(d.getFullYear()).slice(2)+'.'+p2(d.getMonth()+1)+'.'+p2(d.getDate());
+        var atk=String(e.at||'');
+        if(!(day in byDay)){ byDay[day]={atk:'', val:null}; days.push(day); }
+        if(atk>=byDay[day].atk){ byDay[day].atk=atk; byDay[day].val=e.next_value; }
+      });
+      if(!days.length) return '<div class="hist-empty">변동 없음</div>';
+      days.sort();   // 과거 → 최신
+      var prev=null, rows=[];
+      days.forEach(function(day){ rows.push({day:day, prev:prev, next:byDay[day].val}); prev=byDay[day].val; });
+      rows.reverse();
+      return rows.map(function(r){
+        return '<div class="hist-ev"><span class="hist-t">'+r.day+'</span>'
+          +'<span class="hist-v">'+histValCell(r.prev, r.next)+'</span></div>';
       }).join('');
     }
-    return '<div class="sd-cnt" style="margin-bottom:8px">하락 <span style="color:#1d4ed8;font-weight:700">▼ 파랑</span> · 상승 <span style="color:#dc2626;font-weight:700">▲ 빨강</span> (한국 증시 표기)</div>'
+    return '<div class="sd-cnt" style="margin-bottom:8px">하루 1줄(일자 기준) · 그날 최신 값 · 전날 대비 하락 <span style="color:#1d4ed8;font-weight:700">▼ 파랑</span> · 상승 <span style="color:#dc2626;font-weight:700">▲ 빨강</span></div>'
       +'<div class="hist-cols"><div class="hist-col"><div class="hist-h src">소싱처</div>'+col(src)+'</div>'
       +'<div class="hist-col"><div class="hist-h mkt">판매처</div>'+col(mkt)+'</div></div>';
   }
-  // 가격 이력 3단계(소싱표면가 surface / 최종매입가 cost / 판매예정가 planned) — 시점별 한 줄
+  // 가격 이력 3단계 — 「하루 1줄(일자 기준)」. 그날 마지막 값 · 전날 대비 변하면 ▼/▲.
+  //   (하루에 크롤·수집이 여러 번 들어와도 그날 1줄로 묶음. 변동 없는 단계는 – )
   function renderHistPrice(events){
     var STAGES=['surface','cost','planned'];
-    // 시점(at) → {surface:{prev,next}, cost:{...}, planned:{...}}
-    var byTs={}, order=[];
+    var p2=function(n){return(n<10?'0':'')+n;};
+    // 1) 일자별·단계별 '그날 마지막 값'(at 최댓값)
+    var byDay={}, days=[];
     (events||[]).forEach(function(e){
       var f=(e.field==='price')?'surface':e.field;   // 레거시 'price'는 소싱표면가로
       if(STAGES.indexOf(f)<0) return;
-      var key=String(e.at||'');
-      if(!(key in byTs)){ byTs[key]={}; order.push(key); }
-      // 같은 시점·같은 단계에 여러 이벤트면 마지막 값을 채택하되 prev는 최초 prev 유지
-      if(byTs[key][f]){ byTs[key][f].next=e.next_value; }
-      else { byTs[key][f]={prev:e.prev_value, next:e.next_value}; }
+      var d=_pdate(e.at); if(isNaN(d.getTime())) return;
+      var day=String(d.getFullYear()).slice(2)+'.'+p2(d.getMonth()+1)+'.'+p2(d.getDate());
+      var atk=String(e.at||'');
+      if(!(day in byDay)){ byDay[day]={val:{}, atk:{}}; days.push(day); }
+      if(byDay[day].atk[f]==null || atk>=byDay[day].atk[f]){ byDay[day].val[f]=e.next_value; byDay[day].atk[f]=atk; }
     });
-    if(!order.length) return '<div class="hist-empty">가격 변동 이력이 없어요.</div>';
-    // 최신 → 과거 (at 문자열 내림차순)
-    order.sort(function(a,b){ return a<b?1:(a>b?-1:0); });
-    var legend='<div class="sd-cnt" style="margin-bottom:8px">한 줄 = 한 시점 · 소싱 표면가 → 최종매입가 → 판매예정가 3단계. '
-      +'하락 <span style="color:#1d4ed8;font-weight:700">▼ 파랑</span> · 상승 <span style="color:#dc2626;font-weight:700">▲ 빨강</span> (한국 증시 표기). 값 없는 단계는 –.</div>';
-    var h='<table class="htbl"><thead><tr><th class="l">일시</th>'
+    if(!days.length) return '<div class="hist-empty">가격 변동 이력이 없어요.</div>';
+    days.sort();   // 과거 → 최신 (전일 대비 델타 계산 위해)
+    // 2) 전일 대비 델타 — 단계별 직전(더 과거 날) 값 추적
+    var prevVal={};
+    var rows=days.map(function(day){
+      var cells={};
+      STAGES.forEach(function(f){
+        if(f in byDay[day].val){
+          cells[f]={prev:(f in prevVal ? prevVal[f] : null), next:byDay[day].val[f]};
+          prevVal[f]=byDay[day].val[f];
+        } else cells[f]=null;   // 그날 그 단계 변동 없음
+      });
+      return {day:day, cells:cells};
+    });
+    rows.reverse();   // 최신 → 과거
+    var legend='<div class="sd-cnt" style="margin-bottom:8px">하루 1줄(일자 기준) · 소싱 표면가 → 최종매입가 → 판매예정가. '
+      +'전날 대비 하락 <span style="color:#1d4ed8;font-weight:700">▼ 파랑</span> · 상승 <span style="color:#dc2626;font-weight:700">▲ 빨강</span>. 변동 없는 단계는 –.</div>';
+    var h='<table class="htbl"><thead><tr><th class="l">날짜</th>'
       +'<th><span class="stg stg-s">소싱 표면가</span></th>'
       +'<th><span class="stg stg-c">최종매입가</span></th>'
       +'<th><span class="stg stg-p">판매예정가</span></th></tr></thead><tbody>';
-    order.forEach(function(key){
-      var row=byTs[key];
-      h+='<tr><td class="l">'+esc(histTs(key))+'</td>';
+    rows.forEach(function(r){
+      h+='<tr><td class="l">'+esc(r.day)+'</td>';
       STAGES.forEach(function(f){
-        var cell=row[f];
-        h+='<td>'+(cell?histValCell(cell.prev, cell.next):'<span class="na">–</span>')+'</td>';
+        var c=r.cells[f];
+        h+='<td>'+(c?histValCell(c.prev, c.next):'<span class="na">–</span>')+'</td>';
       });
       h+='</tr>';
     });
