@@ -58,8 +58,9 @@ def sets_dashboard_page():
 
 
 def _card_src_provider(model_codes, skus):
-    """카드 「재고 소」용 소싱 요약 provider — 매트릭스 단일 진실 원천 재사용.
-    {sku: {"stock": 소싱 재고, "source_name": 대표(최저가) 소싱처명}}. 사입은 '사입'."""
+    """카드용 소싱 요약 provider — 매트릭스 단일 진실 원천(_option_matrix_data) 재사용.
+    {sku: {stock, source_name, ss_price(스스 판매예정가), cp_price(쿠팡 판매예정가)}}.
+    판매예정가 = 매트릭스가 쓰는 값 그대로(compute_market_price). 사입은 '사입'."""
     from webapp.routes.api_pricing import _option_matrix_data
     out = {}
     for mc in model_codes:
@@ -80,7 +81,9 @@ def _card_src_provider(model_codes, skus):
                 srcs = o.get("sources") or []
                 sname = (cand[0].get("source_name") if cand
                          else (srcs[0].get("source_name") if srcs else None))
-            out[o["sku"]] = {"stock": stock, "source_name": sname}
+            out[o["sku"]] = {"stock": stock, "source_name": sname,
+                             "ss_price": o.get("ss_price"),
+                             "cp_price": o.get("cp_price")}
     return out
 
 
