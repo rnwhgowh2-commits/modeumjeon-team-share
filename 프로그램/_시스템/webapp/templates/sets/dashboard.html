@@ -37,6 +37,20 @@
   .sd-card{background:#fff;border:1px solid #e5e8eb;border-radius:12px;padding:14px 16px;margin-bottom:10px;}
   .sd-card-top{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;cursor:pointer;}
   .sd-name{font-size:15px;font-weight:700;color:#191F28;}
+  /* 구성별 자동 전송 예외 */
+  .b-auto{font-size:12px;font-weight:600;border-radius:7px;padding:4px 10px;cursor:pointer;white-space:nowrap;background:#f2f4f6;color:#6b7684;border:1px solid #e5e8eb;}
+  .b-auto.exc{background:#FAEEDA;color:#854F0B;border-color:#f0d9a8;}
+  .au-set{margin:8px 0 2px;border:1px solid #f0d9a8;background:#fffdf7;border-radius:11px;padding:12px 15px;}
+  .au-ph{font-size:12.5px;font-weight:700;color:#854F0B;}
+  .au-phd{font-size:11.5px;color:#8b95a1;margin:2px 0 10px;}
+  .au-row{display:flex;align-items:center;gap:12px;padding:9px 0;border-top:1px solid #f1ead9;}
+  .au-row:first-of-type{border-top:0;}
+  .au-rl{flex:1;font-size:13px;font-weight:600;color:#191F28;}
+  .seg3{display:inline-flex;background:#f1f3f5;border-radius:8px;padding:2px;}
+  .s3{font-size:11.5px;font-weight:600;padding:5px 11px;border-radius:6px;color:#8b95a1;cursor:pointer;}
+  .s3.on{background:#fff;color:#191F28;box-shadow:0 1px 2px rgba(0,0,0,.1);}
+  .s3.on.g{color:#0F6E56;} .s3.on.r{color:#c0392b;}
+  .au-foot{font-size:11px;color:#8b95a1;margin-top:9px;}
   .sd-bundle{font-size:11px;font-weight:700;background:#e8f1ff;color:#1d4ed8;border-radius:5px;padding:2px 7px;margin-right:6px;}
   .sd-chev{color:#b0b8c1;font-size:13px;margin-left:8px;}
   .sd-mk{display:inline-block;font-size:11.5px;font-weight:700;border-radius:5px;padding:3px 8px;margin-left:6px;}
@@ -422,6 +436,24 @@
         +'</div>';
     }).join('');
   }
+  // ── 구성별 자동 전송 예외 (전체 따름 / 켜기 / 끄기) ──
+  function autoChip(r){
+    var exc=((r.auto_stock_mode||'follow')!=='follow')||((r.auto_price_mode||'follow')!=='follow');
+    return '<button class="b-auto'+(exc?' exc':'')+'" data-sid="'+r.set_id+'" data-act="autotoggle">🤖 자동 · '+(exc?'일부 예외':'전체 따름')+' ▾</button>';
+  }
+  function seg3(field,val){
+    var opts=[['follow','전체 따름'],['on','켜기'],['off','끄기']];
+    return '<span class="seg3" data-field="'+field+'">'+opts.map(function(o){ var on=(o[0]===val); var extra=on?(o[0]==='on'?' g':(o[0]==='off'?' r':'')):''; return '<span class="s3'+(on?' on':'')+extra+'" data-mode="'+o[0]+'">'+o[1]+'</span>'; }).join('')+'</span>';
+  }
+  function autoPanel(r){
+    return '<div class="au-set" data-auset data-sid="'+r.set_id+'" style="display:none">'
+      +'<div class="au-ph">이 구성만 자동 전송</div><div class="au-phd">전체 설정을 이 구성에만 예외로 바꿉니다. 특수 케이스일 때만 쓰세요.</div>'
+      +'<div class="au-row"><span class="au-rl">재고 자동 전송</span>'+seg3('auto_stock_mode',r.auto_stock_mode||'follow')+'</div>'
+      +'<div class="au-row"><span class="au-rl">가격 자동 전송</span>'+seg3('auto_price_mode',r.auto_price_mode||'follow')+'</div>'
+      +'<div class="au-foot">전체 기본값은 「⚙️ 자동화 설정」에서. 여기 「전체 따름」이면 그 값을 그대로 씁니다.</div></div>';
+  }
+  function setAutoSeg(segEl,mode){ [].forEach.call(segEl.querySelectorAll('.s3'),function(x){ var m=x.getAttribute('data-mode'); x.className='s3'+(m===mode?(' on'+(m==='on'?' g':(m==='off'?' r':''))):''); }); }
+  function updateAutoChip(panel,auto){ if(!auto)return; var card=panel.closest('.sd-card'); var chip=card&&card.querySelector('.b-auto'); if(!chip)return; var exc=(auto.auto_stock_mode!=='follow'||auto.auto_price_mode!=='follow'); chip.className='b-auto'+(exc?' exc':''); chip.textContent='🤖 자동 · '+(exc?'일부 예외':'전체 따름')+' ▾'; }
   function render(sets){
     if(!sets.length){ listEl.innerHTML='<div class="sd-empty">아직 연동된 구성이 없어요.<br>오른쪽 위 <b>＋ 새 연동 만들기</b> 로 시작하세요.</div>'; return; }
     var h='';
@@ -443,7 +475,9 @@
         +'</span>'
         +'<a class="b-txt edit" href="/api/sets/flow?edit='+r.set_id+'">✎ 편집</a>'
         +'<button class="b-txt del" data-sid="'+r.set_id+'" data-name="'+esc(r.name)+'">🗑 삭제</button>'
+        +autoChip(r)
       +'</div>';
+      h+=' '+autoPanel(r);
       h+=' <div class="head-div"></div>';
       h+=' <div class="row6 hrow6"><div>마켓</div><div class="ctr">매칭</div><div>재고 (소/현재)</div><div>가격 (매입/예정/현재)</div><div class="ctr">상태</div><div></div></div>';
       h+=' '+cardRows(r);
@@ -760,6 +794,12 @@
     if(upSrc){ e.stopPropagation(); closeAllUpdMenus(null); recrawlSources(upSrc); return; }
     var delBtn=e.target.closest('.sd-del');
     if(delBtn){ e.stopPropagation(); openDelModal(delBtn.getAttribute('data-sid'), delBtn.getAttribute('data-name')); return; }
+    // 구성별 자동 전송 예외 — 칩 토글
+    var atg=e.target.closest('[data-act="autotoggle"]');
+    if(atg){ e.stopPropagation(); var pcard=atg.closest('.sd-card'); var pnl=pcard&&pcard.querySelector('[data-auset]'); if(pnl){ pnl.style.display=(pnl.style.display==='none'?'':'none'); } return; }
+    // 3단 선택(전체 따름/켜기/끄기) → 저장
+    var s3=e.target.closest('.s3');
+    if(s3){ e.stopPropagation(); var segEl=s3.closest('.seg3'); var pnl2=s3.closest('[data-auset]'); if(!segEl||!pnl2) return; var field=segEl.getAttribute('data-field'); var mode=s3.getAttribute('data-mode'); var sid=pnl2.getAttribute('data-sid'); var patch={}; patch[field]=mode; setAutoSeg(segEl,mode); fetch('/api/sets/'+sid+'/automation',{method:'POST',headers:{'Content-Type':'application/json','Accept':'application/json'},body:JSON.stringify(patch)}).then(function(r){return r.json();}).then(function(d){ if(d&&d.ok) updateAutoChip(pnl2,d.automation); }).catch(function(){}); return; }
     // 행 펼침(상태 신호등) — 가격 셀의 '상세 ▾' 도 같은 행 펼침
     var erow=e.target.closest('[data-act="erow"]')||e.target.closest('.dv.muted');
     if(erow){ e.stopPropagation(); var mr=erow.closest('.mrow'); if(mr) mr.classList.toggle('open'); return; }

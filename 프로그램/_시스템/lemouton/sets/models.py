@@ -26,6 +26,9 @@ class ProductSet(Base):
     name = Column(String(255), nullable=False)
     note = Column(Text)
     is_active = Column(Boolean, default=True, nullable=False)
+    # [자동화] 이 구성만 예외 — follow(전체 설정 따름) | on(켜기) | off(끄기)
+    auto_stock_mode = Column(String(8), default="follow", nullable=False)
+    auto_price_mode = Column(String(8), default="follow", nullable=False)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc),
                         onupdate=lambda: datetime.now(timezone.utc))

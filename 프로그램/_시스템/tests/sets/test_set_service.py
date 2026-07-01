@@ -139,3 +139,20 @@ def test_list_linked_sets_has_brand_and_alerts(db):
     r = svc.list_linked_sets(db)[0]
     assert "brand" in r["products"][0]
     assert isinstance(r["alerts"], list)
+
+
+def test_save_set_automation(db):
+    from lemouton.sets import set_service as svc
+    a = svc.create_set(db, model_code="AF", name="예외구성"); db.commit()
+    # 기본 follow
+    r0 = svc.list_linked_sets  # noqa
+    assert a.auto_stock_mode == "follow" and a.auto_price_mode == "follow"
+    # 저장·검증
+    r = svc.save_set_automation(db, a.id, {"auto_stock_mode": "on", "auto_price_mode": "off"}); db.commit()
+    assert r == {"auto_stock_mode": "on", "auto_price_mode": "off"}
+    assert db.get(type(a), a.id).auto_price_mode == "off"
+    # 이상값 무시(화이트리스트)
+    svc.save_set_automation(db, a.id, {"auto_stock_mode": "bogus"}); db.commit()
+    assert db.get(type(a), a.id).auto_stock_mode == "on"
+    # 없는 구성
+    assert svc.save_set_automation(db, 99999, {"auto_stock_mode": "on"}) is None
