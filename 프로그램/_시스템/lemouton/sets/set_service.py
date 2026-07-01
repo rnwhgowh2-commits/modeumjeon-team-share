@@ -203,6 +203,8 @@ def list_linked_sets(session: Session, q: str | None = None,
             "last_collected_at": last_collected.isoformat() if last_collected else None,
             "last_sent_at": last_sent,
             "alerts": alerts,
+            "auto_stock_mode": getattr(ps, "auto_stock_mode", "follow"),
+            "auto_price_mode": getattr(ps, "auto_price_mode", "follow"),
         })
     if q:
         ql = q.strip().lower()
@@ -231,3 +233,20 @@ def delete_set(session: Session, set_id: int) -> bool:
         return False
     session.delete(s)   # cascade: products → options, channels
     return True
+
+
+_AUTO_MODES = ("follow", "on", "off")
+
+
+def save_set_automation(session: Session, set_id: int, data: dict) -> dict | None:
+    """구성별 자동 전송 예외 저장 — auto_stock_mode / auto_price_mode (follow|on|off).
+    전달된 항목만 갱신·화이트리스트 검증. 호출자가 commit."""
+    s = session.get(ProductSet, set_id)
+    if s is None:
+        return None
+    if "auto_stock_mode" in data and data["auto_stock_mode"] in _AUTO_MODES:
+        s.auto_stock_mode = data["auto_stock_mode"]
+    if "auto_price_mode" in data and data["auto_price_mode"] in _AUTO_MODES:
+        s.auto_price_mode = data["auto_price_mode"]
+    session.flush()
+    return {"auto_stock_mode": s.auto_stock_mode, "auto_price_mode": s.auto_price_mode}

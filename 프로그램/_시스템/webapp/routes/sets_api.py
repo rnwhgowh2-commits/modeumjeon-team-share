@@ -544,6 +544,21 @@ def recrawl_sources_route(set_id):
         s.close()
 
 
+@bp.post("/sets/<int:set_id>/automation")
+def set_automation_route(set_id):
+    """[구성별 자동 전송 예외] auto_stock_mode / auto_price_mode (follow|on|off) 저장."""
+    data = request.get_json(silent=True) or {}
+    s = SessionLocal()
+    try:
+        r = svc.save_set_automation(s, set_id, data)
+        if r is None:
+            return _err("구성을 찾을 수 없어요.", 404)
+        s.commit()
+        return jsonify({"ok": True, "automation": r})
+    finally:
+        s.close()
+
+
 @bp.post("/sets/<int:set_id>/snapshot-sources")
 def snapshot_sources_route(set_id):
     """[H2] 소싱 현재값 스냅샷 — 변동만 source 이벤트로 즉시 기록(크롤 안 함).
