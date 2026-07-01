@@ -271,17 +271,26 @@
   .sd-panel-n{font-size:11.5px;color:var(--sub);font-weight:700;font-variant-numeric:tabular-nums;}
   .sd-panel .sd-search{margin-bottom:12px;padding:8px 11px;}
   .sd-panel .sd-search input{font-size:13px;}
-  .fp-acts{display:flex;gap:6px;margin-bottom:14px;}
-  .fp-act{flex:1;font-size:11.5px;font-weight:700;border:1px solid var(--line);background:#fff;color:#4e5968;border-radius:7px;padding:6px 0;cursor:pointer;font-family:inherit;}
-  .fp-act:hover{background:#f4f6f8;}
-  .fp-grp-t{font-size:11px;color:#8b95a1;font-weight:800;letter-spacing:.2px;margin:0 0 7px;}
+  /* [B] 맨 위 「전체」 마스터 체크 (구 전체선택/해제 버튼 2개 통합) */
+  .fp-master{display:flex;align-items:center;gap:8px;padding:7px 4px;margin-bottom:10px;border-bottom:1px solid var(--line2);cursor:pointer;user-select:none;}
+  .fp-master input{width:15px;height:15px;flex:none;cursor:pointer;accent-color:var(--blue);}
+  .fp-master-nm{flex:1;font-size:13px;font-weight:700;color:#4e5968;}
+  .fp-master-cnt{font-size:11px;color:#8b95a1;font-weight:700;font-variant-numeric:tabular-nums;flex:none;}
+  /* [B] 접기 그룹(아코디언) — 브랜드 / 마켓 */
+  .fp-acc + .fp-acc{margin-top:6px;border-top:1px solid var(--line2);padding-top:4px;}
+  .fp-acc-h{width:100%;display:flex;align-items:center;gap:8px;background:none;border:0;padding:6px 4px;cursor:pointer;font-family:inherit;border-radius:6px;}
+  .fp-acc-h:hover{background:#f7faff;}
+  .fp-acc-nm{font-size:11px;color:#8b95a1;font-weight:800;letter-spacing:.2px;}
+  .fp-acc-ct{font-size:10.5px;font-weight:800;color:#8b95a1;background:#f2f4f6;border-radius:10px;padding:1px 7px;font-variant-numeric:tabular-nums;}
+  .fp-acc-arw{margin-left:auto;font-size:10px;color:#b0b8c1;transition:transform .15s;}
+  .fp-acc[data-open="0"] .fp-acc-arw{transform:rotate(-90deg);}
+  .fp-acc[data-open="0"] .fp-acc-b{display:none;}
   .fp-list{display:flex;flex-direction:column;gap:1px;margin-bottom:4px;}
   .fp-row{display:flex;align-items:center;gap:8px;font-size:13px;color:#4e5968;padding:5px 4px;border-radius:6px;cursor:pointer;}
   .fp-row:hover{background:#f7faff;}
   .fp-row input{width:15px;height:15px;flex:none;cursor:pointer;accent-color:var(--blue);}
   .fp-row .fp-nm{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
   .fp-row .fp-cnt{font-size:11px;color:#b0b8c1;font-weight:700;font-variant-numeric:tabular-nums;flex:none;}
-  .fp-div{height:1px;background:var(--line2);margin:12px 0;}
   .fp-empty{font-size:11.5px;color:#b0b8c1;padding:4px;}
   @media(max-width:860px){
     .sd-cols{grid-template-columns:1fr;}
@@ -308,10 +317,11 @@
         <span style="color:#8b95a1">🔍</span>
         <input id="sd-q" type="text" placeholder="상품명·코드·번호 검색…" autocomplete="off">
       </div>
-      <div class="fp-acts">
-        <button type="button" class="fp-act" id="fp-all">전체 선택</button>
-        <button type="button" class="fp-act" id="fp-none">전체 해제</button>
-      </div>
+      <label class="fp-master">
+        <input type="checkbox" id="fp-master-cb">
+        <span class="fp-master-nm">전체</span>
+        <span class="fp-master-cnt" id="fp-master-cnt">전체</span>
+      </label>
       <div class="sd-filter" id="sd-filter"></div>
     </aside>
     <div class="sd-main">
@@ -565,7 +575,7 @@
   }
   // F10 필터 (브랜드 OR + 마켓 OR, 그룹간 AND, 미선택=전체)
   var allSets=[];
-  var selBrands={}, selMarkets={};
+  var selBrands={}, selMarkets={}, _facetTotal=0;
   function brandsOf(r){ var s={}; (r.products||[]).forEach(function(p){ if(p.brand) s[p.brand]=1; }); return Object.keys(s); }
   function marketsOf(r){ var s={}; (r.channels||[]).forEach(function(c){ if(c.market) s[c.market]=1; }); return Object.keys(s); }
   // 브랜드/마켓별 구성 개수 (count = 그 값을 가진 set 수)
@@ -575,18 +585,36 @@
     var bset={}, mset={};
     sets.forEach(function(r){ brandsOf(r).forEach(function(b){bset[b]=1;}); marketsOf(r).forEach(function(m){mset[m]=1;}); });
     var brands=Object.keys(bset).sort(), markets=Object.keys(mset).sort();
+    _facetTotal = brands.length + markets.length;
     function row(kind, key, label, cnt){
       return '<label class="fp-row"><input type="checkbox" data-'+kind+'="'+esc(key)+'"'+(((kind==='fb'?selBrands:selMarkets)[key])?' checked':'')+'>'
         +'<span class="fp-nm">'+esc(label)+'</span><span class="fp-cnt">'+cnt+'</span></label>';
     }
-    var h='<div class="fp-grp-t">브랜드</div><div class="fp-list">';
-    h+= brands.length ? brands.map(function(b){ return row('fb', b, b, countBrand(b)); }).join('')
-                      : '<div class="fp-empty">브랜드 없음</div>';
-    h+='</div><div class="fp-div"></div><div class="fp-grp-t">마켓</div><div class="fp-list">';
-    h+= markets.length ? markets.map(function(m){ return row('fm', m, m3mk(m).nm, countMarket(m)); }).join('')
-                       : '<div class="fp-empty">마켓 없음</div>';
-    h+='</div>';
-    document.getElementById('sd-filter').innerHTML=h;
+    // [B] 접기 그룹 — 제목(개수 알약·화살표) + 접히는 본문. 기본 펼침.
+    function acc(title, total, inner){
+      return '<div class="fp-acc" data-open="1">'
+        +'<button type="button" class="fp-acc-h"><span class="fp-acc-nm">'+title+'</span>'
+        +'<span class="fp-acc-ct">'+total+'</span><span class="fp-acc-arw">▾</span></button>'
+        +'<div class="fp-acc-b"><div class="fp-list">'+inner+'</div></div></div>';
+    }
+    var bInner = brands.length ? brands.map(function(b){ return row('fb', b, b, countBrand(b)); }).join('')
+                               : '<div class="fp-empty">브랜드 없음</div>';
+    var mInner = markets.length ? markets.map(function(m){ return row('fm', m, m3mk(m).nm, countMarket(m)); }).join('')
+                                : '<div class="fp-empty">마켓 없음</div>';
+    document.getElementById('sd-filter').innerHTML = acc('브랜드', brands.length, bInner) + acc('마켓', markets.length, mInner);
+    updateMaster();
+  }
+  // [B] 마스터 「전체」 체크 상태·개수 갱신 (선택 0 = 전체 노출 규칙 유지)
+  function updateMaster(){
+    var cb=document.getElementById('fp-master-cb'), cnt=document.getElementById('fp-master-cnt');
+    if(!cb) return;
+    var sel=0;
+    Object.keys(selBrands).forEach(function(k){ if(selBrands[k]) sel++; });
+    Object.keys(selMarkets).forEach(function(k){ if(selMarkets[k]) sel++; });
+    var total=_facetTotal||0;
+    cb.checked = total>0 && sel===total;
+    cb.indeterminate = sel>0 && sel<total;
+    if(cnt) cnt.textContent = sel>0 ? (sel+' / '+total+' 선택') : '전체';
   }
   function applyFilter(sets){
     var bsel=Object.keys(selBrands).filter(function(k){return selBrands[k];});
@@ -1031,18 +1059,22 @@
     var f=document.getElementById('sd-filter'); if(!f) return;
     f.addEventListener('change',function(e){
       var cb=e.target; if(!cb||cb.tagName!=='INPUT') return;
-      var b=cb.getAttribute('data-fb'); if(b!=null){ selBrands[b]=cb.checked; renderFiltered(); return; }
-      var m=cb.getAttribute('data-fm'); if(m!=null){ selMarkets[m]=cb.checked; renderFiltered(); return; }
+      var b=cb.getAttribute('data-fb'); if(b!=null){ selBrands[b]=cb.checked; updateMaster(); renderFiltered(); return; }
+      var m=cb.getAttribute('data-fm'); if(m!=null){ selMarkets[m]=cb.checked; updateMaster(); renderFiltered(); return; }
     });
-    // 전체 선택 = 모든 브랜드+마켓 체크 / 전체 해제 = 모두 해제
+    // [B] 접기 그룹 헤더 클릭 → 펼침/접힘 토글
+    f.addEventListener('click',function(e){
+      var h=e.target.closest('.fp-acc-h'); if(!h) return;
+      var acc=h.parentElement; acc.setAttribute('data-open', acc.getAttribute('data-open')==='1'?'0':'1');
+    });
+    // [B] 마스터 「전체」 = 모든 브랜드+마켓 체크 / 다시 누르면 모두 해제
     function setAll(on){
       f.querySelectorAll('input[data-fb]').forEach(function(cb){ var k=cb.getAttribute('data-fb'); selBrands[k]=on; cb.checked=on; });
       f.querySelectorAll('input[data-fm]').forEach(function(cb){ var k=cb.getAttribute('data-fm'); selMarkets[k]=on; cb.checked=on; });
-      renderFiltered();
+      updateMaster(); renderFiltered();
     }
-    var allBtn=document.getElementById('fp-all'), noneBtn=document.getElementById('fp-none');
-    if(allBtn) allBtn.addEventListener('click',function(){ setAll(true); });
-    if(noneBtn) noneBtn.addEventListener('click',function(){ setAll(false); });
+    var mcb=document.getElementById('fp-master-cb');
+    if(mcb) mcb.addEventListener('change',function(){ setAll(mcb.checked); });
   })();
   load();
 })();
