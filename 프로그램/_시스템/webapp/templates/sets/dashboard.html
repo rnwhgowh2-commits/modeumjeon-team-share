@@ -880,20 +880,32 @@
     var arrow=''; if(prev!=null && next<prev) arrow=' <span class="d dl">▼</span>'; else if(prev!=null && next>prev) arrow=' <span class="d up">▲</span>';
     return '<span class="v">'+fmt(next)+'</span>'+arrow;
   }
-  // 재고 이력(기존 소싱/판매 2단)
+  // 재고 이력(소싱/판매 2단) — 「하루 1줄(일자 기준)」. 그날 최신 값 · 전날 대비 ▼/▲.
   function renderHistStock(events){
     var src=events.filter(function(e){return e.source==='source';});
     var mkt=events.filter(function(e){return e.source==='market';});
+    var p2=function(n){return(n<10?'0':'')+n;};
     function col(list){
-      if(!list.length) return '<div class="hist-empty">변동 없음</div>';
-      return list.map(function(e){
-        var t=histTs(e.at);
-        var pv=(e.prev_value==null?'-':fmt(e.prev_value)), nv=(e.next_value==null?'-':fmt(e.next_value));
-        return '<div class="hist-ev"><span class="hist-t">'+t+' · '+esc(e.canonical_sku)+'</span>'
-          +'<span class="hist-v">'+pv+' → <span'+histDir(e.prev_value,e.next_value)+'>'+nv+histArrow(e.prev_value,e.next_value)+'</span></span></div>';
+      // 일자별 그날 마지막 값(at 최댓값)
+      var byDay={}, days=[];
+      (list||[]).forEach(function(e){
+        var d=_pdate(e.at); if(isNaN(d.getTime())) return;
+        var day=String(d.getFullYear()).slice(2)+'.'+p2(d.getMonth()+1)+'.'+p2(d.getDate());
+        var atk=String(e.at||'');
+        if(!(day in byDay)){ byDay[day]={atk:'', val:null}; days.push(day); }
+        if(atk>=byDay[day].atk){ byDay[day].atk=atk; byDay[day].val=e.next_value; }
+      });
+      if(!days.length) return '<div class="hist-empty">변동 없음</div>';
+      days.sort();   // 과거 → 최신
+      var prev=null, rows=[];
+      days.forEach(function(day){ rows.push({day:day, prev:prev, next:byDay[day].val}); prev=byDay[day].val; });
+      rows.reverse();
+      return rows.map(function(r){
+        return '<div class="hist-ev"><span class="hist-t">'+r.day+'</span>'
+          +'<span class="hist-v">'+histValCell(r.prev, r.next)+'</span></div>';
       }).join('');
     }
-    return '<div class="sd-cnt" style="margin-bottom:8px">하락 <span style="color:#1d4ed8;font-weight:700">▼ 파랑</span> · 상승 <span style="color:#dc2626;font-weight:700">▲ 빨강</span> (한국 증시 표기)</div>'
+    return '<div class="sd-cnt" style="margin-bottom:8px">하루 1줄(일자 기준) · 그날 최신 값 · 전날 대비 하락 <span style="color:#1d4ed8;font-weight:700">▼ 파랑</span> · 상승 <span style="color:#dc2626;font-weight:700">▲ 빨강</span></div>'
       +'<div class="hist-cols"><div class="hist-col"><div class="hist-h src">소싱처</div>'+col(src)+'</div>'
       +'<div class="hist-col"><div class="hist-h mkt">판매처</div>'+col(mkt)+'</div></div>';
   }
