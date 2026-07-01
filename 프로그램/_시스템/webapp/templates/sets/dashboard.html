@@ -40,6 +40,21 @@
   /* 구성별 자동 (미니멀 M-10 · 회색 + 포인트 1색) */
   .b-auto{font-size:12px;font-weight:600;border-radius:7px;padding:4px 10px;cursor:pointer;white-space:nowrap;background:#f4f5f7;color:#6b7684;border:1px solid #e9ebef;}
   .b-auto.exc{background:#eef4ff;color:#1b64da;border-color:#d8e6ff;}
+  /* V3 자동 컨트롤 — 마스터 토글(켜짐/끄기) + 자동/수동 세그먼트 */
+  .b-auto3{display:inline-flex;align-items:center;gap:8px;white-space:nowrap;vertical-align:middle;}
+  .v3-mtog{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:700;border-radius:20px;padding:4px 11px 4px 7px;cursor:pointer;border:1px solid #cfd4da;background:#f4f5f7;color:#8b95a1;}
+  .v3-mtog.on{border-color:#cfe9dc;background:#F0FBF6;color:#0F8A4D;}
+  .v3-knob{width:26px;height:15px;border-radius:10px;background:#c2c8cf;position:relative;transition:background .15s;}
+  .v3-mtog.on .v3-knob{background:#0F8A4D;}
+  .v3-knob::after{content:'';position:absolute;top:2px;left:2px;width:11px;height:11px;border-radius:50%;background:#fff;transition:left .15s;}
+  .v3-mtog.on .v3-knob::after{left:13px;}
+  .v3-seg{display:inline-flex;background:#f1f3f5;border-radius:9px;padding:2px;transition:opacity .15s;}
+  .v3-seg.dim{opacity:.4;pointer-events:none;}
+  .v3-rb{font-size:12px;font-weight:600;color:#8b95a1;padding:4px 12px;border-radius:7px;cursor:pointer;}
+  .v3-rb.on{background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.12);}
+  .v3-rb.on.g{color:#0F8A4D;}
+  .v3-rb.on.a{color:#854F0B;}
+  .v3-cv{color:#b0b8c1;font-size:12px;cursor:pointer;padding:2px 3px;}
   .au-set{margin:8px 0 2px;border:1px solid #ececef;background:#fff;border-radius:11px;overflow:hidden;}
   .au-strip{background:#f4f5f7;color:#333d4b;font-size:11.5px;font-weight:700;padding:8px 14px;border-bottom:1px solid #ececef;}
   .au-inner{padding:12px 14px;}
@@ -473,10 +488,21 @@
   }
   // ── 구성별 자동 (켜기 / 끄기 / 수동설정) ──
   function _autoTxt(m){ return (m==='off')?'끄기':(m==='manual')?'수동설정':'전체 따름'; }
-  function autoChip(r){
-    var m=r.auto_mode||'on'; var exc=(m!=='on');
-    return '<button class="b-auto'+(exc?' exc':'')+'" data-sid="'+r.set_id+'" data-act="autotoggle">🤖 자동 · '+_autoTxt(m)+' ▾</button>';
+  // V3: 마스터 토글(켜짐/끄기) + 자동/수동 세그먼트 + ▾(상세 패널). 기능매핑 자동=on·수동=manual·끄기=off
+  function _auto3Inner(m){
+    var isOff=(m==='off'), isMan=(m==='manual');
+    return '<span class="v3-mtog'+(isOff?'':' on')+'" data-act="automaster" title="자동 전송 켜기/끄기"><span class="v3-knob"></span><span class="v3-tt">'+(isOff?'끄기':'켜짐')+'</span></span>'
+      +'<span class="v3-seg'+(isOff?' dim':'')+'">'
+        +'<span class="v3-rb'+((!isOff&&!isMan)?' on g':'')+'" data-act="autoseg" data-mode="on">자동</span>'
+        +'<span class="v3-rb'+((!isOff&&isMan)?' on a':'')+'" data-act="autoseg" data-mode="manual">수동</span>'
+      +'</span>'
+      +'<span class="v3-cv" data-act="autotoggle" title="상세 · 주기 설정">▾</span>';
   }
+  function autoChip(r){
+    var m=r.auto_mode||'on';
+    return '<span class="b-auto3'+(m==='off'?' off':'')+'" data-sid="'+r.set_id+'">'+_auto3Inner(m)+'</span>';
+  }
+  function renderAuto3(ctl,m){ if(!ctl)return; ctl.classList.toggle('off', m==='off'); ctl.innerHTML=_auto3Inner(m); }
   function seg3(val){
     var opts=[['on','켜기'],['off','끄기'],['manual','수동설정']];
     return '<span class="seg3" data-field="auto_mode">'+opts.map(function(o){ var on=(o[0]===val); return '<span class="s3'+(on?' on':'')+'" data-mode="'+o[0]+'">'+o[1]+'</span>'; }).join('')+'</span>';
@@ -523,7 +549,9 @@
     fetch('/api/sets/'+sid+'/automation',{method:'POST',headers:{'Content-Type':'application/json','Accept':'application/json'},body:JSON.stringify(patch)}).catch(function(){});
   }
   function setAutoSeg(segEl,mode){ [].forEach.call(segEl.querySelectorAll('.s3'),function(x){ var m=x.getAttribute('data-mode'); x.className='s3'+(m===mode?' on':''); }); }
-  function updateAutoChip(panel,auto){ if(!auto)return; var m=auto.auto_mode||'on'; var card=panel.closest('.sd-card'); var chip=card&&card.querySelector('.b-auto'); if(chip){ chip.className='b-auto'+(m!=='on'?' exc':''); chip.textContent='🤖 자동 · '+_autoTxt(m)+' ▾'; } var man=panel.querySelector('[data-manual]'); if(man) man.style.display=(m==='manual'?'':'none'); var ft=panel.querySelector('[data-aufoot]'); if(ft) ft.textContent=_autoFoot(m); }
+  function updateAutoChip(panel,auto){ if(!auto)return; var m=auto.auto_mode||'on'; var card=panel.closest('.sd-card'); renderAuto3(card&&card.querySelector('.b-auto3'), m); var man=panel.querySelector('[data-manual]'); if(man) man.style.display=(m==='manual'?'':'none'); var ft=panel.querySelector('[data-aufoot]'); if(ft) ft.textContent=_autoFoot(m); var seg=panel.querySelector('.seg3'); if(seg) setAutoSeg(seg,m); }
+  // V3 헤더 컨트롤 클릭 → 저장(자동 전송 auto_mode). 실패시 폴백표시 안 함(조용한 성공위장 금지)
+  function applyAuto3(wrap,sid,mode){ if(!wrap)return; renderAuto3(wrap,mode); var card=wrap.closest('.sd-card'); var pnl=card&&card.querySelector('[data-auset]'); fetch('/api/sets/'+sid+'/automation',{method:'POST',headers:{'Content-Type':'application/json','Accept':'application/json'},body:JSON.stringify({auto_mode:mode})}).then(function(r){return r.json();}).then(function(d){ if(d&&d.ok&&pnl) updateAutoChip(pnl,d.automation); }).catch(function(){}); }
   function render(sets){
     if(!sets.length){ listEl.innerHTML='<div class="sd-empty">아직 연동된 구성이 없어요.<br>오른쪽 위 <b>＋ 새 연동 만들기</b> 로 시작하세요.</div>'; return; }
     var h='';
@@ -885,6 +913,12 @@
     // 구성별 자동 전송 예외 — 칩 토글
     var atg=e.target.closest('[data-act="autotoggle"]');
     if(atg){ e.stopPropagation(); var pcard=atg.closest('.sd-card'); var pnl=pcard&&pcard.querySelector('[data-auset]'); if(pnl){ pnl.style.display=(pnl.style.display==='none'?'':'none'); } return; }
+    // V3 마스터 토글(켜짐↔끄기)
+    var amst=e.target.closest('[data-act="automaster"]');
+    if(amst){ e.stopPropagation(); var w=amst.closest('.b-auto3'); if(!w) return; applyAuto3(w, w.getAttribute('data-sid'), w.classList.contains('off')?'on':'off'); return; }
+    // V3 자동/수동 세그먼트
+    var asg=e.target.closest('[data-act="autoseg"]');
+    if(asg){ e.stopPropagation(); var w2=asg.closest('.b-auto3'); if(!w2) return; applyAuto3(w2, w2.getAttribute('data-sid'), asg.getAttribute('data-mode')); return; }
     // 3단 선택(전체 따름/켜기/끄기) → 저장
     var s3=e.target.closest('.s3');
     if(s3){ e.stopPropagation(); var segEl=s3.closest('.seg3'); var pnl2=s3.closest('[data-auset]'); if(!segEl||!pnl2) return; var field=segEl.getAttribute('data-field'); var mode=s3.getAttribute('data-mode'); var sid=pnl2.getAttribute('data-sid'); var patch={}; patch[field]=mode; setAutoSeg(segEl,mode); fetch('/api/sets/'+sid+'/automation',{method:'POST',headers:{'Content-Type':'application/json','Accept':'application/json'},body:JSON.stringify(patch)}).then(function(r){return r.json();}).then(function(d){ if(d&&d.ok) updateAutoChip(pnl2,d.automation); }).catch(function(){}); return; }
