@@ -970,7 +970,7 @@
     // 1) 일자별·단계별 '그날 마지막 값'(at 최댓값)
     var byDay={}, days=[];
     (events||[]).forEach(function(e){
-      var f=(e.field==='price')?'surface':e.field;   // 레거시 'price'는 소싱표면가로
+      var f=(e.field==='price')?'cost':e.field;   // 레거시 'price'(=최종매입가)는 최종매입가 칸으로
       if(STAGES.indexOf(f)<0) return;
       var d=_pdate(e.at); if(isNaN(d.getTime())) return;
       var day=String(d.getFullYear()).slice(2)+'.'+p2(d.getMonth()+1)+'.'+p2(d.getDate());
@@ -993,10 +993,10 @@
       return {day:day, cells:cells};
     });
     rows.reverse();   // 최신 → 과거
-    var legend='<div class="sd-cnt" style="margin-bottom:8px">하루 1줄(일자 기준) · 소싱 표면가 → 최종매입가 → 판매예정가. '
+    var legend='<div class="sd-cnt" style="margin-bottom:8px">하루 1줄(일자 기준) · 표면 노출가 → 최종매입가(표면−혜택fx) → 판매예정가. '
       +'전날 대비 하락 <span style="color:#1d4ed8;font-weight:700">▼ 파랑</span> · 상승 <span style="color:#dc2626;font-weight:700">▲ 빨강</span>. 변동 없는 단계는 –.</div>';
     var h='<table class="htbl"><thead><tr><th class="l">날짜</th>'
-      +'<th><span class="stg stg-s">소싱 표면가</span></th>'
+      +'<th><span class="stg stg-s">표면 노출가</span></th>'
       +'<th><span class="stg stg-c">최종매입가</span></th>'
       +'<th><span class="stg stg-p">판매예정가</span></th></tr></thead><tbody>';
     rows.forEach(function(r){
