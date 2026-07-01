@@ -213,7 +213,7 @@
   .b-txt.edit{color:var(--blue);} .b-txt.del{color:var(--red);} .b-txt:hover{background:#F4F6F8;}
   .head-div{height:1px;background:var(--line);margin:0 24px;}
   /* 표: 마켓 | 매칭 | 재고(소/판) | 가격(소/판) | 상태 — 내용폭 컬럼 균등분배 */
-  .row6{display:grid;grid-template-columns:150px 64px 168px 168px 132px 150px;justify-content:space-between;align-items:center;padding:13px 24px;gap:8px;}
+  .row6{display:grid;grid-template-columns:148px 56px 146px 154px 118px 172px;justify-content:space-between;align-items:center;padding:13px 20px;gap:8px;}
   .hrow6{padding:11px 24px 9px;border-bottom:1px solid var(--line);}
   .hrow6>div{font-size:11px;color:var(--sub);font-weight:700;}
   .ctr{text-align:center;}.rgt{text-align:right;}
@@ -273,7 +273,7 @@
   .sd-card .sd-detail{margin:0 24px 16px;border-top:1px solid #e5e8eb;padding-top:12px;}
 
   /* === 2단 레이아웃: 왼쪽 필터 패널 + 오른쪽 카드 목록 === */
-  .sd-cols{display:grid;grid-template-columns:240px 1fr;gap:18px;align-items:start;}
+  .sd-cols{display:grid;grid-template-columns:220px minmax(0,1fr);gap:18px;align-items:start;}
   .sd-main{min-width:0;}
   /* 왼쪽 필터 패널 (밝은 카드 스타일 — 다크 사이드바 아님) */
   .sd-panel{background:var(--surface,#fff);border:1px solid var(--line);border-radius:12px;padding:16px 16px 14px;position:sticky;top:14px;}
