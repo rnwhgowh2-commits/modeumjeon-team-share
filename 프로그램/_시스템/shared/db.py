@@ -214,9 +214,15 @@ def _apply_lightweight_migrations() -> None:
         ("global_settings", "autosend_on_stock", "BOOLEAN DEFAULT 1 NOT NULL"),
         ("global_settings", "autosend_stock_threshold", "INTEGER DEFAULT 4 NOT NULL"),
         ("global_settings", "autosend_on_price", "BOOLEAN DEFAULT 1 NOT NULL"),
-        # 2026-07-01: 구성별 자동 전송 예외 (follow|on|off)
+        # 2026-07-01: 구성별 자동 전송 예외 (follow|on|off) — (구) 하위호환
         ("product_sets", "auto_stock_mode", "VARCHAR(8) DEFAULT 'follow' NOT NULL"),
         ("product_sets", "auto_price_mode", "VARCHAR(8) DEFAULT 'follow' NOT NULL"),
+        # 2026-07-01: 구성별 자동 모드(on|off|manual) + 수동설정 주기(시:분)
+        ("product_sets", "auto_mode", "VARCHAR(8) DEFAULT 'on' NOT NULL"),
+        ("product_sets", "manual_crawl_hours", "INTEGER DEFAULT 1 NOT NULL"),
+        ("product_sets", "manual_crawl_minutes", "INTEGER DEFAULT 0 NOT NULL"),
+        ("product_sets", "manual_upload_hours", "INTEGER DEFAULT 3 NOT NULL"),
+        ("product_sets", "manual_upload_minutes", "INTEGER DEFAULT 0 NOT NULL"),
     ]
     inspector = inspect(engine)
     existing_tables = set(inspector.get_table_names())

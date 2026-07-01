@@ -144,15 +144,24 @@ def test_list_linked_sets_has_brand_and_alerts(db):
 def test_save_set_automation(db):
     from lemouton.sets import set_service as svc
     a = svc.create_set(db, model_code="AF", name="예외구성"); db.commit()
-    # 기본 follow
-    r0 = svc.list_linked_sets  # noqa
-    assert a.auto_stock_mode == "follow" and a.auto_price_mode == "follow"
-    # 저장·검증
-    r = svc.save_set_automation(db, a.id, {"auto_stock_mode": "on", "auto_price_mode": "off"}); db.commit()
-    assert r == {"auto_stock_mode": "on", "auto_price_mode": "off"}
-    assert db.get(type(a), a.id).auto_price_mode == "off"
-    # 이상값 무시(화이트리스트)
-    svc.save_set_automation(db, a.id, {"auto_stock_mode": "bogus"}); db.commit()
-    assert db.get(type(a), a.id).auto_stock_mode == "on"
+    # 기본 on(전체 따름)
+    assert a.auto_mode == "on"
+    # 모드 저장·검증
+    r = svc.save_set_automation(db, a.id, {"auto_mode": "manual"}); db.commit()
+    assert r["auto_mode"] == "manual"
+    assert db.get(type(a), a.id).auto_mode == "manual"
+    # 수동설정 주기(시:분) 저장 + 분 0~59 클램프
+    r = svc.save_set_automation(db, a.id, {
+        "manual_crawl_hours": 2, "manual_crawl_minutes": 90,
+        "manual_upload_hours": 6, "manual_upload_minutes": 15,
+    }); db.commit()
+    assert r["manual_crawl_hours"] == 2 and r["manual_crawl_minutes"] == 59  # 90→59
+    assert r["manual_upload_hours"] == 6 and r["manual_upload_minutes"] == 15
+    # 음수 방지
+    svc.save_set_automation(db, a.id, {"manual_crawl_hours": -3}); db.commit()
+    assert db.get(type(a), a.id).manual_crawl_hours == 0
+    # 이상 모드 무시(화이트리스트)
+    svc.save_set_automation(db, a.id, {"auto_mode": "bogus"}); db.commit()
+    assert db.get(type(a), a.id).auto_mode == "manual"
     # 없는 구성
-    assert svc.save_set_automation(db, 99999, {"auto_stock_mode": "on"}) is None
+    assert svc.save_set_automation(db, 99999, {"auto_mode": "on"}) is None

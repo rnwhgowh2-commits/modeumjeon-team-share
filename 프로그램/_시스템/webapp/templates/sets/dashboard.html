@@ -50,6 +50,20 @@
   .s3{font-size:11.5px;font-weight:600;padding:5px 11px;border-radius:6px;color:#8b95a1;cursor:pointer;}
   .s3.on{background:#fff;color:#191F28;box-shadow:0 1px 2px rgba(0,0,0,.1);}
   .s3.on.g{color:#0F6E56;} .s3.on.r{color:#c0392b;}
+  /* 수동설정 주기 패널 (E-주기-4) */
+  .au-manual{margin-top:6px;border-top:1px solid #f1ead9;padding-top:8px;}
+  .au-mrow{padding:8px 0;}
+  .au-mlbl{display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:800;border-radius:6px;padding:3px 8px;margin-bottom:8px;}
+  .au-mlbl.s{background:#eaf3fb;color:#185FA5;} .au-mlbl.p{background:#faf1e4;color:#854F0B;}
+  .au-fx{display:flex;align-items:center;gap:6px;flex-wrap:wrap;}
+  .pchip{font-size:11.5px;font-weight:600;border:1px solid #d1d6db;background:#fff;color:#4e5968;border-radius:8px;padding:5px 10px;cursor:pointer;}
+  .pchip.on-s{background:#eaf3fb;border-color:#185FA5;color:#185FA5;}
+  .pchip.on-p{background:#faf1e4;border-color:#854F0B;color:#854F0B;}
+  .mhm{display:inline-flex;align-items:center;border:1px solid #d1d6db;border-radius:8px;overflow:hidden;background:#fff;}
+  .mhm input{width:34px;height:30px;border:0;text-align:center;font-size:13px;font-weight:700;font-variant-numeric:tabular-nums;font-family:inherit;color:#191F28;-moz-appearance:textfield;}
+  .mhm input::-webkit-outer-spin-button,.mhm input::-webkit-inner-spin-button{-webkit-appearance:none;margin:0;}
+  .mhm .colon{font-size:13px;font-weight:800;color:#8b95a1;}
+  .mhm .u{font-size:10.5px;color:#8b95a1;padding:0 7px 0 2px;}
   .au-foot{font-size:11px;color:#8b95a1;margin-top:9px;}
   .sd-bundle{font-size:11px;font-weight:700;background:#e8f1ff;color:#1d4ed8;border-radius:5px;padding:2px 7px;margin-right:6px;}
   .sd-chev{color:#b0b8c1;font-size:13px;margin-left:8px;}
@@ -451,24 +465,54 @@
         +'</div>';
     }).join('');
   }
-  // ── 구성별 자동 전송 예외 (전체 따름 / 켜기 / 끄기) ──
+  // ── 구성별 자동 (켜기 / 끄기 / 수동설정) ──
+  function _autoTxt(m){ return (m==='off')?'끄기':(m==='manual')?'수동설정':'전체 따름'; }
   function autoChip(r){
-    var exc=((r.auto_stock_mode||'follow')!=='follow')||((r.auto_price_mode||'follow')!=='follow');
-    return '<button class="b-auto'+(exc?' exc':'')+'" data-sid="'+r.set_id+'" data-act="autotoggle">🤖 자동 · '+(exc?'일부 예외':'전체 따름')+' ▾</button>';
+    var m=r.auto_mode||'on'; var exc=(m!=='on');
+    return '<button class="b-auto'+(exc?' exc':'')+'" data-sid="'+r.set_id+'" data-act="autotoggle">🤖 자동 · '+_autoTxt(m)+' ▾</button>';
   }
-  function seg3(field,val){
-    var opts=[['follow','전체 따름'],['on','켜기'],['off','끄기']];
-    return '<span class="seg3" data-field="'+field+'">'+opts.map(function(o){ var on=(o[0]===val); var extra=on?(o[0]==='on'?' g':(o[0]==='off'?' r':'')):''; return '<span class="s3'+(on?' on':'')+extra+'" data-mode="'+o[0]+'">'+o[1]+'</span>'; }).join('')+'</span>';
+  function seg3(val){
+    var opts=[['on','켜기'],['off','끄기'],['manual','수동설정']];
+    return '<span class="seg3" data-field="auto_mode">'+opts.map(function(o){ var on=(o[0]===val); var extra=on?(o[0]==='on'?' g':(o[0]==='off'?' r':'')):''; return '<span class="s3'+(on?' on':'')+extra+'" data-mode="'+o[0]+'">'+o[1]+'</span>'; }).join('')+'</span>';
+  }
+  var CRAWL_PRE=[[0,30,'30분'],[1,0,'1시간'],[3,0,'3시간'],[6,0,'6시간']];
+  var UPLOAD_PRE=[[1,0,'1시간'],[3,0,'3시간'],[6,0,'6시간'],[24,0,'하루']];
+  function freqBlock(kind,cls,lbl,pre,hh,mm){
+    var matched=false;
+    var chips=pre.map(function(p){ var on=(p[0]===hh&&p[1]===mm); if(on)matched=true; return '<span class="pchip'+(on?' on-'+cls:'')+'" data-h="'+p[0]+'" data-m="'+p[1]+'">'+p[2]+'</span>'; }).join('');
+    return '<div class="au-mrow" data-freq="'+kind+'">'
+      +'<span class="au-mlbl '+cls+'">'+lbl+'</span>'
+      +'<div class="au-fx">'+chips
+        +'<span class="pchip'+(!matched?' on-'+cls:'')+'" data-custom>직접</span>'
+        +'<span class="mhm"><input class="mh" type="number" min="0" value="'+hh+'"><span class="colon">:</span><input class="mm" type="number" min="0" max="59" value="'+mm+'"><span class="u">시:분</span></span>'
+      +'</div></div>';
   }
   function autoPanel(r){
+    var m=r.auto_mode||'on';
     return '<div class="au-set" data-auset data-sid="'+r.set_id+'" style="display:none">'
-      +'<div class="au-ph">이 구성만 자동 전송</div><div class="au-phd">전체 설정을 이 구성에만 예외로 바꿉니다. 특수 케이스일 때만 쓰세요.</div>'
-      +'<div class="au-row"><span class="au-rl">재고 자동 전송</span>'+seg3('auto_stock_mode',r.auto_stock_mode||'follow')+'</div>'
-      +'<div class="au-row"><span class="au-rl">가격 자동 전송</span>'+seg3('auto_price_mode',r.auto_price_mode||'follow')+'</div>'
-      +'<div class="au-foot">전체 기본값은 「⚙️ 자동화 설정」에서. 여기 「전체 따름」이면 그 값을 그대로 씁니다.</div></div>';
+      +'<div class="au-ph">이 구성만 자동</div><div class="au-phd">전체 설정과 다르게, 이 판매처만 따로 정합니다. 특수 케이스일 때만 쓰세요.</div>'
+      +'<div class="au-row"><span class="au-rl">자동 전송</span>'+seg3(m)+'</div>'
+      +'<div class="au-manual" data-manual style="display:'+(m==='manual'?'':'none')+'">'
+        +freqBlock('crawl','s','🔎 소싱처 크롤 주기',CRAWL_PRE,r.manual_crawl_hours||0,r.manual_crawl_minutes||0)
+        +freqBlock('upload','p','📤 판매처 업로드 주기',UPLOAD_PRE,r.manual_upload_hours||0,r.manual_upload_minutes||0)
+      +'</div>'
+      +'<div class="au-foot">「켜기」는 「⚙️ 자동화 설정」 주기를 그대로, 「수동설정」은 이 판매처만의 주기를 씁니다. 「끄기」면 자동에서 빠집니다.</div></div>';
+  }
+  function paintFreqChips(mrow,hh,mm){
+    var cls=mrow.querySelector('.au-mlbl').classList.contains('s')?'s':'p'; var matched=false;
+    [].forEach.call(mrow.querySelectorAll('.pchip[data-h]'),function(c){ var on=(parseInt(c.getAttribute('data-h'),10)===hh&&parseInt(c.getAttribute('data-m'),10)===mm); c.className='pchip'+(on?' on-'+cls:''); if(on)matched=true; });
+    var cust=mrow.querySelector('.pchip[data-custom]'); if(cust) cust.className='pchip'+(!matched?' on-'+cls:'');
+  }
+  function saveManual(mrow,pnl){
+    var kind=mrow.getAttribute('data-freq'); var sid=pnl.getAttribute('data-sid');
+    var hh=Math.max(0,parseInt(mrow.querySelector('.mh').value,10)||0);
+    var mm=Math.max(0,Math.min(59,parseInt(mrow.querySelector('.mm').value,10)||0));
+    mrow.querySelector('.mm').value=mm; paintFreqChips(mrow,hh,mm);
+    var patch={}; patch[kind==='crawl'?'manual_crawl_hours':'manual_upload_hours']=hh; patch[kind==='crawl'?'manual_crawl_minutes':'manual_upload_minutes']=mm;
+    fetch('/api/sets/'+sid+'/automation',{method:'POST',headers:{'Content-Type':'application/json','Accept':'application/json'},body:JSON.stringify(patch)}).catch(function(){});
   }
   function setAutoSeg(segEl,mode){ [].forEach.call(segEl.querySelectorAll('.s3'),function(x){ var m=x.getAttribute('data-mode'); x.className='s3'+(m===mode?(' on'+(m==='on'?' g':(m==='off'?' r':''))):''); }); }
-  function updateAutoChip(panel,auto){ if(!auto)return; var card=panel.closest('.sd-card'); var chip=card&&card.querySelector('.b-auto'); if(!chip)return; var exc=(auto.auto_stock_mode!=='follow'||auto.auto_price_mode!=='follow'); chip.className='b-auto'+(exc?' exc':''); chip.textContent='🤖 자동 · '+(exc?'일부 예외':'전체 따름')+' ▾'; }
+  function updateAutoChip(panel,auto){ if(!auto)return; var m=auto.auto_mode||'on'; var card=panel.closest('.sd-card'); var chip=card&&card.querySelector('.b-auto'); if(chip){ chip.className='b-auto'+(m!=='on'?' exc':''); chip.textContent='🤖 자동 · '+_autoTxt(m)+' ▾'; } var man=panel.querySelector('[data-manual]'); if(man) man.style.display=(m==='manual'?'':'none'); }
   function render(sets){
     if(!sets.length){ listEl.innerHTML='<div class="sd-empty">아직 연동된 구성이 없어요.<br>오른쪽 위 <b>＋ 새 연동 만들기</b> 로 시작하세요.</div>'; return; }
     var h='';
@@ -815,6 +859,9 @@
     // 3단 선택(전체 따름/켜기/끄기) → 저장
     var s3=e.target.closest('.s3');
     if(s3){ e.stopPropagation(); var segEl=s3.closest('.seg3'); var pnl2=s3.closest('[data-auset]'); if(!segEl||!pnl2) return; var field=segEl.getAttribute('data-field'); var mode=s3.getAttribute('data-mode'); var sid=pnl2.getAttribute('data-sid'); var patch={}; patch[field]=mode; setAutoSeg(segEl,mode); fetch('/api/sets/'+sid+'/automation',{method:'POST',headers:{'Content-Type':'application/json','Accept':'application/json'},body:JSON.stringify(patch)}).then(function(r){return r.json();}).then(function(d){ if(d&&d.ok) updateAutoChip(pnl2,d.automation); }).catch(function(){}); return; }
+    // 수동설정 주기 프리셋 칩
+    var pch=e.target.closest('.pchip');
+    if(pch){ e.stopPropagation(); var mrow=pch.closest('[data-freq]'); var pnl3=pch.closest('[data-auset]'); if(!mrow||!pnl3) return; if(pch.hasAttribute('data-custom')){ var inp=mrow.querySelector('.mh'); if(inp) inp.focus(); return; } var ph=parseInt(pch.getAttribute('data-h'),10), pm=parseInt(pch.getAttribute('data-m'),10); mrow.querySelector('.mh').value=ph; mrow.querySelector('.mm').value=pm; saveManual(mrow,pnl3); return; }
     // 행 펼침(상태 신호등) — 가격 셀의 '상세 ▾' 도 같은 행 펼침
     var erow=e.target.closest('[data-act="erow"]')||e.target.closest('.dv.muted');
     if(erow){ e.stopPropagation(); var mr=erow.closest('.mrow'); if(mr) mr.classList.toggle('open'); return; }
@@ -855,6 +902,12 @@
       else { det.style.display='none'; top.innerHTML='자세히 (날짜·매트릭스·옵션) ▾'; }
       return;
     }
+  });
+  // 수동설정 주기 직접 입력(시:분) 변경 → 저장
+  listEl.addEventListener('change',function(e){
+    var inp=e.target; if(!inp.classList||(!inp.classList.contains('mh')&&!inp.classList.contains('mm'))) return;
+    var mrow=inp.closest('[data-freq]'); var pnl=inp.closest('[data-auset]'); if(!mrow||!pnl) return;
+    saveManual(mrow,pnl);
   });
 
   qEl.addEventListener('input',function(){ clearTimeout(timer); timer=setTimeout(load,250); });
