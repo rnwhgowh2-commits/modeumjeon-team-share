@@ -203,8 +203,11 @@ def list_linked_sets(session: Session, q: str | None = None,
             "last_collected_at": last_collected.isoformat() if last_collected else None,
             "last_sent_at": last_sent,
             "alerts": alerts,
-            "auto_stock_mode": getattr(ps, "auto_stock_mode", "follow"),
-            "auto_price_mode": getattr(ps, "auto_price_mode", "follow"),
+            "auto_mode": getattr(ps, "auto_mode", "on"),
+            "manual_crawl_hours": getattr(ps, "manual_crawl_hours", 1),
+            "manual_crawl_minutes": getattr(ps, "manual_crawl_minutes", 0),
+            "manual_upload_hours": getattr(ps, "manual_upload_hours", 3),
+            "manual_upload_minutes": getattr(ps, "manual_upload_minutes", 0),
         })
     if q:
         ql = q.strip().lower()
@@ -235,18 +238,36 @@ def delete_set(session: Session, set_id: int) -> bool:
     return True
 
 
-_AUTO_MODES = ("follow", "on", "off")
+_AUTO_MODES = ("on", "off", "manual")
+
+
+def _auto_dict(s: ProductSet) -> dict:
+    return {
+        "auto_mode": getattr(s, "auto_mode", "on"),
+        "manual_crawl_hours": getattr(s, "manual_crawl_hours", 1),
+        "manual_crawl_minutes": getattr(s, "manual_crawl_minutes", 0),
+        "manual_upload_hours": getattr(s, "manual_upload_hours", 3),
+        "manual_upload_minutes": getattr(s, "manual_upload_minutes", 0),
+    }
 
 
 def save_set_automation(session: Session, set_id: int, data: dict) -> dict | None:
-    """구성별 자동 전송 예외 저장 — auto_stock_mode / auto_price_mode (follow|on|off).
-    전달된 항목만 갱신·화이트리스트 검증. 호출자가 commit."""
+    """구성별 자동 저장 — auto_mode(on|off|manual) + 수동설정 주기(시:분).
+    전달된 항목만 갱신·검증(모드 화이트리스트·분 0~59·음수 방지). 호출자가 commit."""
     s = session.get(ProductSet, set_id)
     if s is None:
         return None
-    if "auto_stock_mode" in data and data["auto_stock_mode"] in _AUTO_MODES:
-        s.auto_stock_mode = data["auto_stock_mode"]
-    if "auto_price_mode" in data and data["auto_price_mode"] in _AUTO_MODES:
-        s.auto_price_mode = data["auto_price_mode"]
+    if "auto_mode" in data and data["auto_mode"] in _AUTO_MODES:
+        s.auto_mode = data["auto_mode"]
+    for k, cap in (("manual_crawl_hours", None), ("manual_crawl_minutes", 59),
+                   ("manual_upload_hours", None), ("manual_upload_minutes", 59)):
+        if k in data:
+            try:
+                v = max(0, int(data[k]))
+            except (TypeError, ValueError):
+                continue
+            if cap is not None:
+                v = min(cap, v)
+            setattr(s, k, v)
     session.flush()
-    return {"auto_stock_mode": s.auto_stock_mode, "auto_price_mode": s.auto_price_mode}
+    return _auto_dict(s)
