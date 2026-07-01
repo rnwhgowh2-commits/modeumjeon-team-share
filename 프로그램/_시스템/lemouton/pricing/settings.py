@@ -1,5 +1,5 @@
 """[B] 글로벌 설정 — 단일 row 테이블."""
-from sqlalchemy import Column, Integer, Float, String, DateTime
+from sqlalchemy import Column, Integer, Float, String, Boolean, DateTime
 from datetime import datetime, timezone
 
 from shared.db import Base
@@ -26,6 +26,14 @@ _DEFAULTS = {
     "crawl_interval_hours": 6,
     "dryrun_warnings_threshold": 5,
     "dryrun_avg_price_change_pct": 30.0,
+    # [자동화 설정] 크롤 자동 주기 + 판매처 자동 전송
+    "crawl_auto_enabled": False,
+    "crawl_interval_minutes": 0,
+    "autosend_mode": "preview",          # preview | real
+    "autosend_on_purchase": True,
+    "autosend_on_stock": True,
+    "autosend_stock_threshold": 4,
+    "autosend_on_price": True,
 }
 
 
@@ -54,6 +62,14 @@ class GlobalSettings(Base):
     crawl_interval_hours = Column(Integer, default=6, nullable=False)
     dryrun_warnings_threshold = Column(Integer, default=5, nullable=False)
     dryrun_avg_price_change_pct = Column(Float, default=30.0, nullable=False)
+    # [자동화 설정]
+    crawl_auto_enabled = Column(Boolean, default=False, nullable=False)
+    crawl_interval_minutes = Column(Integer, default=0, nullable=False)
+    autosend_mode = Column(String(8), default="preview", nullable=False)
+    autosend_on_purchase = Column(Boolean, default=True, nullable=False)
+    autosend_on_stock = Column(Boolean, default=True, nullable=False)
+    autosend_stock_threshold = Column(Integer, default=4, nullable=False)
+    autosend_on_price = Column(Boolean, default=True, nullable=False)
 
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc),
                         onupdate=lambda: datetime.now(timezone.utc))
@@ -80,3 +96,40 @@ def get_settings(session) -> GlobalSettings | None:
 def save_settings(session) -> None:
     """이미 변경된 객체를 flush. session.commit은 호출자가."""
     session.flush()
+
+
+# ── 자동화 설정 (크롤 자동 주기 + 판매처 자동 전송) ──────────────────────────
+_AUTOMATION_KEYS = (
+    "crawl_auto_enabled", "crawl_interval_hours", "crawl_interval_minutes",
+    "autosend_mode", "autosend_on_purchase", "autosend_on_stock",
+    "autosend_stock_threshold", "autosend_on_price",
+)
+
+
+def get_automation(session) -> dict:
+    """자동화 설정 값 dict (팀 공유 단일 설정)."""
+    s = get_or_init(session)
+    return {k: getattr(s, k) for k in _AUTOMATION_KEYS}
+
+
+def save_automation(session, data: dict) -> dict:
+    """전달된 항목만 갱신·검증(분 0~59·음수 방지·mode 화이트리스트). 호출자가 commit."""
+    s = get_or_init(session)
+    if "crawl_auto_enabled" in data:
+        s.crawl_auto_enabled = bool(data["crawl_auto_enabled"])
+    if "crawl_interval_hours" in data:
+        s.crawl_interval_hours = max(0, int(data["crawl_interval_hours"]))
+    if "crawl_interval_minutes" in data:
+        s.crawl_interval_minutes = max(0, min(59, int(data["crawl_interval_minutes"])))
+    if "autosend_mode" in data:
+        s.autosend_mode = "real" if data["autosend_mode"] == "real" else "preview"
+    if "autosend_on_purchase" in data:
+        s.autosend_on_purchase = bool(data["autosend_on_purchase"])
+    if "autosend_on_stock" in data:
+        s.autosend_on_stock = bool(data["autosend_on_stock"])
+    if "autosend_stock_threshold" in data:
+        s.autosend_stock_threshold = max(0, int(data["autosend_stock_threshold"]))
+    if "autosend_on_price" in data:
+        s.autosend_on_price = bool(data["autosend_on_price"])
+    session.flush()
+    return get_automation(session)

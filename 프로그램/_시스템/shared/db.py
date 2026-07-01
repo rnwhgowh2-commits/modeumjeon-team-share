@@ -206,6 +206,14 @@ def _apply_lightweight_migrations() -> None:
         ("option_benefit_overrides", "apply_mode", "VARCHAR(16)"),
         ("option_benefit_overrides", "pay_method", "VARCHAR(16)"),
         ("option_benefit_overrides", "channel", "VARCHAR(16)"),
+        # 2026-07-01: 자동화 설정 (크롤 자동 주기 + 판매처 자동 전송)
+        ("global_settings", "crawl_auto_enabled", "BOOLEAN DEFAULT 0 NOT NULL"),
+        ("global_settings", "crawl_interval_minutes", "INTEGER DEFAULT 0 NOT NULL"),
+        ("global_settings", "autosend_mode", "VARCHAR(8) DEFAULT 'preview' NOT NULL"),
+        ("global_settings", "autosend_on_purchase", "BOOLEAN DEFAULT 1 NOT NULL"),
+        ("global_settings", "autosend_on_stock", "BOOLEAN DEFAULT 1 NOT NULL"),
+        ("global_settings", "autosend_stock_threshold", "INTEGER DEFAULT 4 NOT NULL"),
+        ("global_settings", "autosend_on_price", "BOOLEAN DEFAULT 1 NOT NULL"),
     ]
     inspector = inspect(engine)
     existing_tables = set(inspector.get_table_names())
