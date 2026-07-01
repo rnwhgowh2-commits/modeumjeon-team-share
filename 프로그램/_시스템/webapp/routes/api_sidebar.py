@@ -168,6 +168,10 @@ _SETS_DASH_ITEM = {'id': 'i_sets_dash', 'emoji': '🏬', 'name': '판매처 연�
                    'url': '/api/sets/dashboard', 'active_key': 'sets_dashboard',
                    'badge_key': 'sets_alerts'}
 
+_AUTOMATION_ITEM = {'id': 'i_automation', 'emoji': '⚙️', 'name': '자동화 설정',
+                    'url': '/automation', 'active_key': 'automation',
+                    'badge_key': None}
+
 
 def _has_item_id(layout: dict, item_id: str) -> bool:
     def _has(items):
@@ -218,6 +222,15 @@ def get_layout_for_template() -> dict:
             if st.get('id') == 's_bundles':
                 st = dict(st)
                 st['items'] = list(st.get('items', [])) + [dict(_SETS_DASH_ITEM)]
+            new_stages.append(st)
+        out['stages'] = new_stages
+
+    if not _has_item_id(layout, 'i_automation'):
+        new_stages = []
+        for st in out.get('stages', []):
+            if st.get('id') == 's_bundles':
+                st = dict(st)
+                st['items'] = list(st.get('items', [])) + [dict(_AUTOMATION_ITEM)]
             new_stages.append(st)
         out['stages'] = new_stages
 

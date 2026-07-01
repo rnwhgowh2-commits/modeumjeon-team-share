@@ -1,12 +1,39 @@
 """[E] 설정 페이지 — 박스히어로 / 알림 채널."""
 import os
 
-from flask import Blueprint, render_template
+from flask import Blueprint, render_template, request, jsonify
 
 from shared.db import SessionLocal
 from lemouton.sourcing.models import Option
 
 bp = Blueprint('settings', __name__)
+
+
+@bp.route('/automation')
+def automation_view():
+    """[자동화 설정] 크롤 자동 주기 + 판매처 자동 전송 (팀 공유 단일 설정)."""
+    from lemouton.pricing.settings import get_automation
+    s = SessionLocal()
+    try:
+        a = get_automation(s)
+        s.commit()
+    finally:
+        s.close()
+    return render_template('automation/index.html', active='automation', a=a)
+
+
+@bp.post('/api/automation/save')
+def automation_save():
+    """자동화 설정 저장(토글 즉시 반영). 전달된 항목만 갱신."""
+    from lemouton.pricing.settings import save_automation
+    data = request.get_json(silent=True) or {}
+    s = SessionLocal()
+    try:
+        a = save_automation(s, data)
+        s.commit()
+        return jsonify({'ok': True, 'automation': a})
+    finally:
+        s.close()
 
 
 # ─── 팀공유 모드: admin 전용 (시스템 설정 영역). 기존 모드 통과. ───

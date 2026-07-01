@@ -1,0 +1,161 @@
+{% extends 'base.html' %}
+{% block title %}자동화 설정 — 모음전 자동화{% endblock %}
+{% block head %}
+<style>
+  .au-wrap{max-width:900px;padding:6px 4px;font-family:Pretendard,system-ui,sans-serif;zoom:1.3;}
+  .au-h{font-size:20px;font-weight:700;color:#191F28;margin-bottom:3px;}
+  .au-sub{font-size:13px;color:#6b7684;margin-bottom:20px;}
+  .au-pair{display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:stretch;}
+  .au-card{background:#fff;border:1px solid #e5e8eb;border-radius:14px;overflow:hidden;display:flex;flex-direction:column;}
+  .au-band{color:#fff;font-size:12.5px;font-weight:700;padding:8px 16px;}
+  .au-band.src{background:#185FA5;} .au-band.mkt{background:#854F0B;}
+  .au-body{padding:16px 18px;display:flex;flex-direction:column;flex:1;}
+  .au-ct{display:flex;align-items:center;justify-content:space-between;gap:10px;}
+  .au-title{font-size:14.5px;font-weight:700;color:#191F28;}
+  .au-d{font-size:12px;color:#8b95a1;margin:5px 0 13px;}
+  .tog{width:44px;height:25px;border-radius:99px;background:#d1d6db;position:relative;flex-shrink:0;cursor:pointer;transition:.15s;}
+  .tog::after{content:'';position:absolute;top:3px;left:3px;width:19px;height:19px;border-radius:50%;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.25);transition:.15s;}
+  .tog.on{background:#3182f6;}.tog.on::after{left:22px;}
+  .au-q{font-size:12.5px;font-weight:600;margin-bottom:8px;}
+  .au-freq{display:flex;align-items:center;gap:7px;flex-wrap:wrap;}
+  .chip{font-size:12.5px;font-weight:600;border:1px solid #d1d6db;background:#fff;color:#4e5968;border-radius:9px;padding:7px 14px;cursor:pointer;}
+  .chip.on{background:#e8f1ff;border-color:#3182f6;color:#1b64da;}
+  .hm{display:inline-flex;align-items:center;gap:5px;margin-left:2px;}
+  .hm input{width:56px;height:36px;border:1px solid #d1d6db;border-radius:9px;text-align:right;font-size:15px;font-weight:600;font-variant-numeric:tabular-nums;padding:0 10px;font-family:inherit;}
+  .hm .u{font-size:12px;color:#6b7684;}
+  .au-next{font-size:12px;color:#8b95a1;margin-top:auto;padding-top:14px;}
+  .au-next b{color:#4e5968;}
+  .seg{display:flex;background:#f1f3f5;border-radius:9px;padding:3px;margin:2px 0 12px;}
+  .sg{flex:1;text-align:center;font-size:12.5px;font-weight:700;padding:8px 0;border-radius:7px;color:#6b7684;cursor:pointer;}
+  .sg.on{background:#fff;color:#0F6E56;box-shadow:0 1px 2px rgba(0,0,0,.12);}
+  .sg.on.real{color:#c0392b;}
+  .au-warn{background:#fff5f5;border:1px solid #f3c2c2;border-radius:9px;padding:9px 12px;font-size:11.5px;color:#c0392b;line-height:1.55;margin-bottom:10px;display:none;}
+  .au-warn.on{display:block;}
+  .sec{font-size:11.5px;font-weight:700;color:#8b95a1;margin:6px 0 1px;}
+  .cond{display:flex;align-items:center;gap:10px;padding:11px 0;border-top:1px solid #f1f3f5;}
+  .cl{flex:1;font-size:13px;font-weight:600;}
+  .cl small{display:block;font-size:11px;font-weight:400;color:#8b95a1;margin-top:2px;}
+  .thr{display:inline-flex;align-items:center;gap:4px;background:#f1f3f5;border-radius:7px;padding:2px 7px;}
+  .thr input{width:44px;height:30px;border:1px solid #d1d6db;border-radius:6px;text-align:right;font-size:14px;font-weight:700;font-variant-numeric:tabular-nums;padding:0 7px;font-family:inherit;}
+  .thr .u{font-size:11.5px;color:#6b7684;}
+  .au-saved{font-size:12px;color:#0F6E56;margin-top:auto;padding-top:14px;display:flex;align-items:center;gap:5px;opacity:0;transition:opacity .2s;}
+  .au-saved.on{opacity:1;}
+</style>
+{% endblock %}
+{% block content %}
+<section class="screen active" id="screen-automation">
+<div class="au-wrap" id="au-root"
+     data-crawl-on="{{ 1 if a.crawl_auto_enabled else 0 }}"
+     data-hh="{{ a.crawl_interval_hours }}" data-mm="{{ a.crawl_interval_minutes }}"
+     data-mode="{{ a.autosend_mode }}"
+     data-pur="{{ 1 if a.autosend_on_purchase else 0 }}"
+     data-stk="{{ 1 if a.autosend_on_stock else 0 }}"
+     data-thr="{{ a.autosend_stock_threshold }}"
+     data-prc="{{ 1 if a.autosend_on_price else 0 }}">
+  <div class="au-h">⚙️ 자동화 설정</div>
+  <div class="au-sub">정해둔 주기로 자동으로 긁고, 값이 바뀌면 자동으로 판매처에 보냅니다. (팀 공유 · 켜고 끄면 바로 저장돼요)</div>
+
+  <div class="au-pair">
+    <!-- 소싱처 (좌) -->
+    <div class="au-card">
+      <div class="au-band src">소싱처 · 자동으로 긁기</div>
+      <div class="au-body">
+        <div class="au-ct"><div class="au-title">🕷 크롤 자동 주기</div><div class="tog" id="t-crawl"></div></div>
+        <div class="au-d">정해둔 주기마다 소싱처를 자동으로 한 번씩 긁어요.</div>
+        <div class="au-q">얼마나 자주 긁을까요?</div>
+        <div class="au-freq" id="freq">
+          <span class="chip" data-h="0" data-m="30">30분</span>
+          <span class="chip" data-h="1" data-m="0">1시간</span>
+          <span class="chip" data-h="3" data-m="0">3시간</span>
+          <span class="chip" data-h="6" data-m="0">6시간</span>
+          <span class="chip" id="chip-custom">직접</span>
+          <span class="hm"><input id="in-h" type="number" min="0" value="1"><span class="u">시간</span><input id="in-m" type="number" min="0" max="59" value="0"><span class="u">분</span></span>
+        </div>
+        <div class="au-next" id="next-run">다음 실행 예정 · <b>—</b></div>
+      </div>
+    </div>
+
+    <!-- 판매처 (우) -->
+    <div class="au-card">
+      <div class="au-band mkt">판매처 · 자동으로 보내기</div>
+      <div class="au-body">
+        <div class="au-ct"><div class="au-title">📤 자동 전송</div></div>
+        <div class="au-d">값이 바뀌면 자동으로 판매처에 보내요. 기본은 안전하게 「미리보기만」이에요.</div>
+        <div class="seg" id="seg"><span class="sg" data-mode="preview">미리보기만</span><span class="sg real" data-mode="real">실제 전송</span></div>
+        <div class="au-warn" id="warn">⚠️ 「실제 전송」은 쿠팡·스마트스토어에 바로 반영됩니다. 처음 한 번은 확인을 거쳐요.</div>
+
+        <div class="sec">어떤 변동이면 보낼까요?</div>
+        <div class="cond"><div class="cl">사입(직접 매입) 재고·가격 변동</div><div class="tog" id="t-pur"></div></div>
+        <div class="cond"><div class="cl">소싱처 재고 변동<small>재고가 <span class="thr"><input id="in-thr" type="number" min="0" value="4"><span class="u">개 이하</span></span>로 바뀐 것만 보냄</small></div><div class="tog" id="t-stk"></div></div>
+        <div class="cond"><div class="cl">소싱처 가격 변동</div><div class="tog" id="t-prc"></div></div>
+        <div class="au-saved" id="saved">✓ 자동 저장됨</div>
+      </div>
+    </div>
+  </div>
+</div>
+</section>
+{% endblock %}
+{% block scripts %}
+<script>
+(function(){
+  var R=document.getElementById('au-root');
+  var st={
+    crawl_auto_enabled: R.dataset.crawlOn==='1',
+    crawl_interval_hours: parseInt(R.dataset.hh,10)||0,
+    crawl_interval_minutes: parseInt(R.dataset.mm,10)||0,
+    autosend_mode: R.dataset.mode||'preview',
+    autosend_on_purchase: R.dataset.pur==='1',
+    autosend_on_stock: R.dataset.stk==='1',
+    autosend_stock_threshold: parseInt(R.dataset.thr,10)||0,
+    autosend_on_price: R.dataset.prc==='1'
+  };
+  var savedEl=document.getElementById('saved'), _st;
+  function toast(){ savedEl.classList.add('on'); clearTimeout(_st); _st=setTimeout(function(){ savedEl.classList.remove('on'); },1400); }
+  function save(patch){ fetch('/api/automation/save',{method:'POST',headers:{'Content-Type':'application/json','Accept':'application/json'},body:JSON.stringify(patch)}).then(function(r){return r.json();}).then(function(d){ if(d&&d.ok) toast(); }).catch(function(){}); }
+
+  function tog(el,on){ el.classList.toggle('on',!!on); }
+  function fmtNext(){
+    var el=document.querySelector('#next-run b');
+    if(!st.crawl_auto_enabled){ el.textContent='꺼짐'; return; }
+    var mins=st.crawl_interval_hours*60+st.crawl_interval_minutes;
+    if(mins<=0){ el.textContent='주기 설정 필요'; return; }
+    var d=new Date(Date.now()+mins*60000); var p=function(n){return(n<10?'0':'')+n;};
+    el.textContent=p(d.getHours())+':'+p(d.getMinutes())+' (약 '+(st.crawl_interval_hours?st.crawl_interval_hours+'시간 ':'')+(st.crawl_interval_minutes?st.crawl_interval_minutes+'분':'')+' 뒤)';
+  }
+  function paintFreq(){
+    var chips=document.querySelectorAll('#freq .chip[data-h]');
+    var matched=false;
+    chips.forEach(function(c){ var on=(parseInt(c.dataset.h,10)===st.crawl_interval_hours && parseInt(c.dataset.m,10)===st.crawl_interval_minutes); c.classList.toggle('on',on); if(on)matched=true; });
+    document.getElementById('chip-custom').classList.toggle('on',!matched);
+    document.getElementById('in-h').value=st.crawl_interval_hours;
+    document.getElementById('in-m').value=st.crawl_interval_minutes;
+    fmtNext();
+  }
+  function paintMode(){
+    document.querySelectorAll('#seg .sg').forEach(function(s){ s.classList.toggle('on',s.dataset.mode===st.autosend_mode); });
+    document.getElementById('warn').classList.toggle('on',st.autosend_mode==='real');
+  }
+
+  // 초기 렌더
+  tog(document.getElementById('t-crawl'),st.crawl_auto_enabled);
+  tog(document.getElementById('t-pur'),st.autosend_on_purchase);
+  tog(document.getElementById('t-stk'),st.autosend_on_stock);
+  tog(document.getElementById('t-prc'),st.autosend_on_price);
+  document.getElementById('in-thr').value=st.autosend_stock_threshold;
+  paintFreq(); paintMode();
+
+  // 이벤트
+  document.getElementById('t-crawl').addEventListener('click',function(){ st.crawl_auto_enabled=!st.crawl_auto_enabled; tog(this,st.crawl_auto_enabled); fmtNext(); save({crawl_auto_enabled:st.crawl_auto_enabled}); });
+  document.querySelectorAll('#freq .chip[data-h]').forEach(function(c){ c.addEventListener('click',function(){ st.crawl_interval_hours=parseInt(c.dataset.h,10); st.crawl_interval_minutes=parseInt(c.dataset.m,10); paintFreq(); save({crawl_interval_hours:st.crawl_interval_hours,crawl_interval_minutes:st.crawl_interval_minutes}); }); });
+  function customTime(){ st.crawl_interval_hours=Math.max(0,parseInt(document.getElementById('in-h').value,10)||0); st.crawl_interval_minutes=Math.max(0,Math.min(59,parseInt(document.getElementById('in-m').value,10)||0)); paintFreq(); save({crawl_interval_hours:st.crawl_interval_hours,crawl_interval_minutes:st.crawl_interval_minutes}); }
+  document.getElementById('in-h').addEventListener('change',customTime);
+  document.getElementById('in-m').addEventListener('change',customTime);
+
+  document.querySelectorAll('#seg .sg').forEach(function(s){ s.addEventListener('click',function(){ st.autosend_mode=s.dataset.mode; paintMode(); save({autosend_mode:st.autosend_mode}); }); });
+  document.getElementById('t-pur').addEventListener('click',function(){ st.autosend_on_purchase=!st.autosend_on_purchase; tog(this,st.autosend_on_purchase); save({autosend_on_purchase:st.autosend_on_purchase}); });
+  document.getElementById('t-stk').addEventListener('click',function(){ st.autosend_on_stock=!st.autosend_on_stock; tog(this,st.autosend_on_stock); save({autosend_on_stock:st.autosend_on_stock}); });
+  document.getElementById('t-prc').addEventListener('click',function(){ st.autosend_on_price=!st.autosend_on_price; tog(this,st.autosend_on_price); save({autosend_on_price:st.autosend_on_price}); });
+  document.getElementById('in-thr').addEventListener('change',function(){ st.autosend_stock_threshold=Math.max(0,parseInt(this.value,10)||0); this.value=st.autosend_stock_threshold; save({autosend_stock_threshold:st.autosend_stock_threshold}); });
+})();
+</script>
+{% endblock %}
