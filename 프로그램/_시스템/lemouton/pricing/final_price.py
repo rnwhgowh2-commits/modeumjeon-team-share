@@ -230,18 +230,27 @@ def _compute_tagged(sale_price, effective, *, card_enabled, card_issuer, base_ov
 # 공개 API
 # ────────────────────────────────────────────────────────────────────────────
 
+_FINAL_FLOOR_UNIT = 100  # [2026-07-02] 최종매입가 백원 단위 버림 (사용자 규칙)
+
+
 def compute_final_price(sale_price, effective, *, card_enabled=True,
                         card_issuer=None, base_override=None) -> dict:
     """effective(조립된 혜택 리스트) → 순차 누적 차감 결과.
 
     태그 없음(legacy): 기존 동작 100% 보존 + path=None 추가.
     태그 있음(tagged): 세트 제약(결제택1·네이버경유↔캐시백) 경로 열거 → 최저가 반환.
+
+    [2026-07-02] 최종매입가는 백원 단위까지만, 그 이하 버림(floor). 경로 선택(min)은
+    버림 전 정확값으로 하고, 헤드라인 final_price 만 최종적으로 floor (경로 승자 불변).
     """
     effective = list(effective)  # 반복 소비 방지 (generator 대응)
     if _is_tagged(effective):
-        return _compute_tagged(sale_price, effective,
-                               card_enabled=card_enabled, card_issuer=card_issuer,
-                               base_override=base_override)
-    return _compute_legacy(sale_price, effective,
-                           card_enabled=card_enabled, card_issuer=card_issuer,
-                           base_override=base_override)
+        res = _compute_tagged(sale_price, effective,
+                              card_enabled=card_enabled, card_issuer=card_issuer,
+                              base_override=base_override)
+    else:
+        res = _compute_legacy(sale_price, effective,
+                              card_enabled=card_enabled, card_issuer=card_issuer,
+                              base_override=base_override)
+    res['final_price'] = (int(res['final_price']) // _FINAL_FLOOR_UNIT) * _FINAL_FLOOR_UNIT
+    return res

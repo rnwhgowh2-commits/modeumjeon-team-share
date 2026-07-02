@@ -15,15 +15,15 @@ from lemouton.pricing.unified import (
 # ============ 기본 곱셈형 계산 ============
 
 def test_basic_multiplicative():
-    # 95,000 × 1.10 × 1.1155 = 116,569.75 → 116,570 → 100원단위 → 116,600
+    # 95,000 × 1.10 × 1.1155 = 116,569.75 → 116,570 → 100원단위 버림 → 116,500
     r = compute_sale_price_unified(95_000, 0.10, 0.1155, shipping_fee=0)
-    assert r.final_price == 116_600
+    assert r.final_price == 116_500
 
 
 def test_with_shipping():
-    # 95,000 × 1.10 × 1.1155 + 3,000 = 119,569.75 → 119,600
+    # 95,000 × 1.10 × 1.1155 + 3,000 = 119,569.75 → 119,570 → 버림 → 119,500
     r = compute_sale_price_unified(95_000, 0.10, 0.1155, shipping_fee=3_000)
-    assert r.final_price == 119_600
+    assert r.final_price == 119_500
 
 
 def test_round_numbers():
@@ -43,12 +43,12 @@ def test_none_purchase():
     assert r.final_price == 0
 
 
-# ============ 라운딩 (round-half-up, 전 경로 통일) ============
+# ============ 라운딩 (floor/버림, 전 경로 통일 — 2026-07-02) ============
 
-def test_rounding_half_up():
-    # 100,000 + 배송 50 = 100,050 → 100원단위 round-half-up → 100,100
+def test_rounding_floor():
+    # [2026-07-02] 백원단위 버림 — 100,000 + 배송 50 = 100,050 → 버림 → 100,000
     r = compute_sale_price_unified(100_000, 0.0, 0.0, shipping_fee=50)
-    assert r.final_price == 100_100
+    assert r.final_price == 100_000
 
 
 def test_rounding_down():
@@ -58,10 +58,10 @@ def test_rounding_down():
 
 
 def test_rounding_unit_custom():
-    # 1,000원 단위 — 100,600 → 101,000
+    # 1,000원 단위 버림 — 100,600 → 100,000
     r = compute_sale_price_unified(100_000, 0.0, 0.0, shipping_fee=600,
                                    rounding_unit=1_000)
-    assert r.final_price == 101_000
+    assert r.final_price == 100_000
 
 
 # ============ 가드레일 ============
@@ -86,9 +86,9 @@ def test_guardrail_below():
 
 
 def test_guardrail_above():
-    # final 116,600 >= 상한 116,600 (상한 포함 = above)
+    # final 116,500 >= 상한 116,500 (상한 포함 = above)
     r = compute_sale_price_unified(95_000, 0.10, 0.1155,
-                                   guardrail=(100_000, 116_600))
+                                   guardrail=(100_000, 116_500))
     assert r.guardrail_status == 'above'
 
 
@@ -101,7 +101,7 @@ def test_breakdown_values():
     assert b['margin_amount'] == 9_500             # 95,000 × 0.10
     assert b['subtotal_after_margin'] == 104_500
     assert b['fee_amount'] == 12_070               # round(104,500 × 0.1155)
-    assert b['final_price'] == 116_600
+    assert b['final_price'] == 116_500             # 116,569.75 → 버림 → 116,500
 
 
 def test_result_type():
@@ -112,12 +112,12 @@ def test_result_type():
 # ============ [2026-06-02] mode='amount' (마진금액 = 수수료 뒤 실수령) ============
 
 def test_amount_mode_basic():
-    # (100,000 + 5,000) / (1 - 0.0945) = 115,958.03 → 115,958 → 100단위 → 116,000
+    # (100,000 + 5,000) / (1 - 0.0945) = 115,958.03 → 115,958 → 100단위 버림 → 115,900
     r = compute_sale_price_unified(
         100_000, 0.0, 0.0945, shipping_fee=0,
         mode='amount', margin_amount=5_000)
     assert r.breakdown['mode'] == 'amount'
-    assert r.final_price == 116_000
+    assert r.final_price == 115_900
 
 
 def test_amount_mode_net_received_equals_amount():
@@ -131,11 +131,11 @@ def test_amount_mode_net_received_equals_amount():
 
 
 def test_amount_mode_with_shipping():
-    # base + 배송비 3,000
+    # base + 배송비 3,000 = 118,958.03 → 버림 → 118,900
     r = compute_sale_price_unified(
         100_000, 0.0, 0.0945, shipping_fee=3_000,
         mode='amount', margin_amount=5_000)
-    assert r.final_price == 119_000
+    assert r.final_price == 118_900
 
 
 def test_amount_mode_zero_purchase():
@@ -164,7 +164,7 @@ def test_fixed_mode_fallback_to_rate_when_zero():
     r = compute_sale_price_unified(
         95_000, 0.10, 0.1155, mode='fixed', fixed_price=0)
     assert r.breakdown['mode'] == 'rate'
-    assert r.final_price == 116_600  # rate 모드 기존값
+    assert r.final_price == 116_500  # rate 모드 값(버림)
 
 
 def test_fixed_mode_guardrail():
@@ -177,9 +177,9 @@ def test_fixed_mode_guardrail():
 # ============ rate 모드 회귀 — 기존 동작 불변 ============
 
 def test_rate_mode_unchanged_default():
-    # mode 기본값 'rate' — 기존 곱셈형 그대로
+    # mode 기본값 'rate' — 곱셈형 (버림 적용 116,500)
     r = compute_sale_price_unified(95_000, 0.10, 0.1155, shipping_fee=0)
-    assert r.final_price == 116_600
+    assert r.final_price == 116_500
     assert r.breakdown['mode'] == 'rate'
 
 
@@ -241,4 +241,4 @@ def test_compute_market_price_ss_sourcing_amount():
     tpl = _tpl(ss_mode_sourcing='amount', ss_amount_sourcing=5_000,
                ss_fee_rate=0.0945, ss_delivery_fee=0)
     r = compute_market_price(tpl, 'ss', 'sourcing', 100_000)
-    assert r.final_price == 116_000
+    assert r.final_price == 115_900
