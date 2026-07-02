@@ -246,6 +246,14 @@
 
     <!-- 1 전체흐름 -->
     <div class="sec on" id="s1">
+      <div class="pin-integrity" style="border:1.5px solid #191F28;border-radius:12px;padding:14px 16px;margin:0 0 16px;background:#FBFAF7;">
+        <div style="font-weight:800;color:#191F28;font-size:15px;margin-bottom:8px;">🔒 정합성 기준점 3원칙 <span style="font-weight:600;color:#8B95A1;font-size:12.5px;">· 절대 규칙 · "무엇이 진실인가"의 기준점 (§4 무결성) · 위반=금전 손실</span></div>
+        <ol style="margin:0;padding-left:20px;font-size:13.5px;line-height:1.75;color:#374151;">
+          <li><b>재고 기준 = 소싱처 실제 상품 브라우저 URL의 재고.</b> 추정·폴백·평균 금지 — 그 URL 실데이터로만 확인, 못 하면 <b>"확인 불가"</b> 표기(있다고 단정 금지). <span style="color:#9AA4B0;">💻 <span class="mono" style="color:inherit">_persist_option_stocks</span>·<span class="mono" style="color:inherit">_resolve_stock</span>·<span class="mono" style="color:inherit">stock_unknown</span></span></li>
+          <li><b>가격 기준 = 동일하게 실브라우저 소싱처 상품 URL.</b> 표면노출가·최종매입가 모두 그 URL 실값. 실패 시 대표가 <b>폴백 금지</b> → "가격 없음 + 크롤 실패". <span style="color:#9AA4B0;">💻 <span class="mono" style="color:inherit">is_crawl_valid</span>·<span class="mono" style="color:inherit">_match_failed</span>·<span class="mono" style="color:inherit">_pick_cheapest_buyable</span></span></li>
+          <li><b>크롤은 서버가 아닌 로컬 PC로 한다.</b> 크롤=로컬(확장/Playwright)·업로드=서버. "서버 크롤 실패"는 설계상 정상(버그 아님). <span style="color:#9AA4B0;">💻 <span class="mono" style="color:inherit">EXTRACTORS</span>·<span class="mono" style="color:inherit">ext_bridge</span></span></li>
+        </ol>
+      </div>
       <div class="lead"><span class="klabel">핵심</span><span class="sum">재고·가격이 화면에 뜨기까지 4단계 — 크롤 → 저장 → 계산 → 표시.</span></div>
       <div class="card">
         <div><span class="no">01</span><span class="ti">크롤러</span></div>
