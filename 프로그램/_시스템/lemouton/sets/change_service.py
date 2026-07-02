@@ -72,6 +72,82 @@ def list_changes(session, *, set_id, market=None, field=None, limit=200):
     return out
 
 
+def list_automation_log(session, *, limit=30):
+    """전체 구성의 자동 감지 변동을 최신순 집계 → 자동화 내역 로그 행.
+
+    현재 실데이터 = source 변동('값 변동 감지'). '자동 크롤'·'판매처 전송' 줄은
+    자동 실행 엔진(5단계)이 생기면 같은 형식으로 추가된다.
+    """
+    from lemouton.sets.models import ProductSet, SetProduct
+    from lemouton.sourcing.models import Model, Option
+
+    events = (session.query(ChannelChangeEvent)
+              .order_by(ChannelChangeEvent.at.desc(), ChannelChangeEvent.id.desc())
+              .limit(limit).all())
+    set_cache: dict = {}
+    opt_cache: dict = {}
+
+    def _brand(set_id):
+        if set_id in set_cache:
+            return set_cache[set_id]
+        ps = session.get(ProductSet, set_id)
+        brand = None
+        if ps is not None:
+            sp = (session.query(SetProduct).filter_by(set_id=set_id)
+                  .order_by(SetProduct.sort_order).first())
+            if sp is not None:
+                m = session.get(Model, sp.model_code)
+                brand = getattr(m, "brand", None) if m else None
+            brand = brand or ps.name
+        info = brand or "—"
+        set_cache[set_id] = info
+        return info
+
+    def _opt(sku):
+        if sku in opt_cache:
+            return opt_cache[sku]
+        o = session.get(Option, sku)
+        if o is not None:
+            c = o.color_display or o.color_code or ""
+            s = o.size_display or o.size_code or ""
+            lbl = ("%s %s" % (c, s)).strip() or sku
+        else:
+            lbl = sku
+        opt_cache[sku] = lbl
+        return lbl
+
+    mk = {"coupang": "쿠팡", "smartstore": "스마트스토어"}
+    fk = {"stock": "재고", "price": "가격", "surface": "소싱가",
+          "cost": "매입가", "planned": "판매예정가"}
+
+    def _fmt(v, field):
+        if v is None:
+            return "—"
+        unit = "개" if field == "stock" else "원"
+        try:
+            return format(int(v), ",") + unit
+        except (TypeError, ValueError):
+            return str(v)
+
+    rows = []
+    for e in events:
+        fko = fk.get(e.field, e.field)
+        target = "%s · %s %s→%s" % (
+            _opt(e.canonical_sku), fko,
+            _fmt(e.prev_value, e.field), _fmt(e.next_value, e.field))
+        rows.append({
+            "at": e.at.isoformat() if e.at else None,
+            "brand": _brand(e.set_id),
+            "market": mk.get(e.market, e.market or "—"),
+            "market_key": e.market if e.market in ("coupang", "smartstore") else "",
+            "action": "값 변동 감지",
+            "target": target,
+            "result": "chg",
+            "result_label": "변동",
+        })
+    return rows
+
+
 def snapshot_source_values(session, *, set_id, value_map):
     """구성 옵션의 현재 소싱 값(value_map={sku:{stock,price}})을 직전 source 이벤트와
     비교해 변동만 ChannelChangeEvent(source='source')로 기록. 기록 건수 반환(호출자 commit).
