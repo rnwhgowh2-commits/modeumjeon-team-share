@@ -656,15 +656,37 @@ async function lotteonExtractor() {
     if (m) { const v = parseInt(m[2].replace(/,/g, ""), 10); if (v >= MIN) return v; }
     return null;
   }
-  let benefit = null, sale = null;
+  // 표면 노출가(판매가) — innerText "판매가\n119,910원"(할인률·즉시할인 이미 반영).
+  //   나의 혜택가(회원할인 반영)와 달리 로그인 무관하게 동일 → 롯데오너스 차감의 base 로 안전.
+  function pickSurface(t) {
+    const m = t.match(/판매가\s*([\d,]{4,})\s*원/);
+    if (m) { const v = parseInt(m[1].replace(/,/g, ""), 10); if (v >= MIN) return v; }
+    return null;
+  }
+  // 롯데오너스 회원할인율 — '추가혜택'에 공개 표기("롯데오너스 추가 1% 할인" / "롯데오너스 할인 1%").
+  //   '적립' % 가 아니라 '할인' 에 붙은 % 만 채택(어순 양쪽 허용). 없으면 null.
+  function pickOwnersRate(t) {
+    for (const s of (t.match(/롯데오너스[^\n]{0,40}/g) || [])) {
+      const mm = s.match(/할인\s*(\d+(?:\.\d+)?)\s*%/) || s.match(/(\d+(?:\.\d+)?)\s*%\s*할인/);
+      if (mm) { const r = parseFloat(mm[1]) / 100; if (r > 0 && r < 0.9) return r; }
+    }
+    return null;
+  }
+  let benefit = null, sale = null, surface = null, ownersRate = null;
   for (let i = 0; i < 16; i++) {
     const t = document.body.innerText;
     if (benefit == null) benefit = pickBenefit(t);
     if (sale == null) sale = pickSale(t);
+    if (surface == null) surface = pickSurface(t);
+    if (ownersRate == null) ownersRate = pickOwnersRate(t);
     if (benefit != null) break;   // MIN 통과한 유효 혜택가만 종료 조건
     await sleep(500);
   }
-  const price = (benefit != null) ? benefit : sale;
+  // 표면가-혜택 모델: 롯데오너스 할인을 '항목'으로 빼려면 base=표면가(판매가) 여야 이중차감이 없다.
+  //   base 를 나의혜택가(=회원할인 반영값)로 두고 rate 를 또 빼면 이중차감 → 매입가 과소 → 손실.
+  //   표면가+할인율 둘 다 확보됐을 때만 이 모델로 전환, 아니면 기존 동작(나의혜택가) 유지(회귀 방지).
+  const itemizeOwners = (surface != null && ownersRate != null);
+  const price = itemizeOwners ? surface : ((benefit != null) ? benefit : sale);
   const valid = (price != null && price >= MIN);   // 하한 재확인(방어)
   const soldOut = /품절|일시품절/.test(document.body.innerText) && !valid;
 
@@ -780,6 +802,11 @@ async function lotteonExtractor() {
     stock: valid && !soldOut ? 999 : 0,
     product_name: document.title.split(":")[0].trim().slice(0, 120),
     benefit_price: benefit, sale_price: sale,
+    // [b번, 2026-07-02] 롯데오너스 회원할인 항목화(표면가 base + 할인율). 서버 compute_breakdown 이
+    //   lotte_member_discount_rate 를 표면가에서 차감 → 나의 혜택가 재현(로그인 무관, 공개 % 사용).
+    surface_price: itemizeOwners ? surface : null,
+    lotte_member_discount_rate: itemizeOwners ? ownersRate : null,
+    lotte_member_discount_label: itemizeOwners ? ("롯데오너스 할인 " + (ownersRate * 100) + "%") : null,
     option_count: options.length, options,
     error: valid ? null : (soldOut ? "품절" : "가격 추출 실패(렌더 미완/하한 미달)"),
   };
@@ -1154,6 +1181,8 @@ async function crawlItemInTabBG(tabId, code, item) {
       //   서버(_build_crawl_snapshot)까지 전달. 이전엔 여기서 누락돼 무신사 미수집(폴백 게이트)됐음.
       benefits_ok: x.benefits_ok, benefit_lines: x.benefit_lines, benefit_amounts: x.benefit_amounts,
       surface_price: x.surface_price, member_price: x.member_price,
+      lotte_member_discount_rate: x.lotte_member_discount_rate,
+      lotte_member_discount_label: x.lotte_member_discount_label,
     };
   }
   const grab = await handleNavGrab({ tabId: tabId, url: url });
@@ -1220,6 +1249,8 @@ function toItemBG(x) {
     is_logged_in: (x.is_logged_in === undefined ? null : x.is_logged_in),
     benefits_ok: x.benefits_ok, benefit_lines: x.benefit_lines, benefit_amounts: x.benefit_amounts,
     surface_price: x.surface_price, member_price: x.member_price,
+    lotte_member_discount_rate: x.lotte_member_discount_rate,
+    lotte_member_discount_label: x.lotte_member_discount_label,
   };
 }
 async function saveItemsBG(items) {
