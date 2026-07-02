@@ -33,12 +33,21 @@
   .ltm{font-variant-numeric:tabular-nums;color:#9aa3af;}
   .lgbody{display:none;background:#fbfcfd;border-top:1px solid #f2f3f5;}
   .lgrp.open .lgbody{display:block;}
-  .lorow{display:flex;align-items:baseline;gap:10px;padding:8px 16px 8px 37px;border-top:1px solid #eef1f4;}
+  /* 옵션 줄 — 배지 스타일(소/판 배지 + 라벨 + 오른쪽 값), 재고 별도 */
+  .lorow{padding:15px 22px 17px;border-top:1px solid #eef1f4;}
   .lorow:first-child{border-top:0;}
-  .loname{font-size:12.5px;font-weight:600;color:#191F28;min-width:96px;flex:none;}
-  .loparts{font-size:12px;color:#6b7684;display:flex;flex-wrap:wrap;gap:2px 14px;}
-  .lopart .k{color:#9aa3af;} .lopart .k.s{color:#c0392b;} .lopart .k.p{color:#0F6E56;}
-  .lopart .v{font-variant-numeric:tabular-nums;color:#333d4b;font-weight:600;}
+  .loname{font-size:18px;font-weight:700;color:#191F28;margin-bottom:10px;}
+  .prow{display:grid;grid-template-columns:24px 56px 1fr;align-items:center;column-gap:9px;padding:5px 0;font-size:16px;}
+  .bdg{width:24px;height:24px;border-radius:6px;color:#fff;font-size:13px;font-weight:800;display:flex;align-items:center;justify-content:center;}
+  .bdg.src{background:#185FA5;} .bdg.sell{background:#854F0B;} .bdg.stock{background:#B4530B;}
+  .plab{color:#4e5968;font-weight:600;}
+  .pval{justify-self:end;text-align:right;font-variant-numeric:tabular-nums;font-weight:700;white-space:nowrap;color:#191F28;}
+  .pempty{color:#c0c6cf;font-weight:600;font-size:13.5px;}
+  /* 위상: 최종 매입가=강조(진하게 큼) / 표면 노출가=회색 약하게 */
+  .prow.cost .plab,.prow.cost .pval{color:#111827;font-weight:800;} .prow.cost .pval{font-size:18px;}
+  .prow.surface .plab,.prow.surface .pval{color:#9aa3af;font-weight:500;}
+  .prices{margin-top:10px;padding-top:10px;border-top:1px dashed #eef1f4;}
+  .grp-lbl{font-size:12.5px;font-weight:700;color:#9aa3af;margin:0 0 5px 2px;}
   .log-empty{padding:26px;text-align:center;color:#9aa3af;font-size:12.5px;line-height:1.6;}
   .lgrp mark{background:#fff2ac;border-radius:2px;padding:0 1px;}
 </style>
@@ -82,10 +91,20 @@
   function mkk(g){ return g.market_key==='coupang'?'coupang':(g.market_key==='smartstore'?'smart':''); }
   function tOf(iso){ var s=String(iso||''); if(s&&!/[zZ]|[+\-]\d\d:?\d\d$/.test(s)) s+='Z'; var d=new Date(s); if(isNaN(d.getTime())) return '—'; var p=function(n){return(n<10?'0':'')+n;}; return p(d.getMonth()+1)+'/'+p(d.getDate())+' '+p(d.getHours())+':'+p(d.getMinutes()); }
   function optText(g){ return (g.options||[]).map(function(o){ return o.name+' '+(o.parts||[]).map(function(p){return p.label+' '+p.value;}).join(' '); }).join(' '); }
+  function pval(p){ if(p.empty){ var v=String(p.value).replace(/^→\s*/,''); return '<span class="pempty">빈데이터</span> → '+hl(v); } return hl(p.value); }
+  function prow(p){
+    var bcls=p.side==='소'?'src':(p.side==='판'?'sell':'stock');
+    return '<div class="prow '+(p.field||'')+'"><span class="bdg '+bcls+'">'+hl(p.side)+'</span>'
+      +'<span class="plab">'+hl(p.label)+'</span><span class="pval">'+pval(p)+'</span></div>';
+  }
   function optHTML(o){
-    return '<div class="lorow"><span class="loname">'+hl(o.name)+'</span><span class="loparts">'
-      +(o.parts||[]).map(function(p){ return '<span class="lopart"><span class="k '+esc(p.kind)+'">'+hl(p.label)+'</span> <span class="v">'+hl(p.value)+'</span></span>'; }).join('')
-      +'</span></div>';
+    var ps=o.parts||[];
+    var stock=ps.filter(function(p){return p.field==='stock';});
+    var prices=ps.filter(function(p){return p.field!=='stock';});
+    var h='<div class="lorow"><div class="loname">'+hl(o.name)+'</div>';
+    h+=stock.map(prow).join('');
+    if(prices.length) h+='<div class="prices"><div class="grp-lbl">가격</div>'+prices.map(prow).join('')+'</div>';
+    return h+'</div>';
   }
   function grpHTML(g,open){
     var sum='<span>재고 바뀐 옵션 <span class="lcnt s">'+g.stock_count+'</span> · 가격 <span class="lcnt p">'+g.price_count+'</span></span><span class="ltm">'+tOf(g.latest_at)+'</span>';
