@@ -89,6 +89,45 @@ def test_src_summary_none_without_provider(db):
     _seed(db, "smartstore", 50)
     row = svc.list_linked_sets(db)[0]
     assert row["src_summary"]["src_stock_total"] is None
+    assert row["src_summary"]["source_url"] is None
+
+
+def test_src_summary_source_url_from_provider(db):
+    """[A] 대표 소싱처 상품 URL이 src_summary.source_url 로 카드까지 실린다(바로가기 ↗)."""
+    _seed(db, "smartstore", 50)
+
+    def provider(model_codes, skus):
+        return {"SKU1": {"stock": 53, "source_name": "르무통",
+                         "source_url": "https://lemouton.com/p/1"}}
+
+    row = svc.list_linked_sets(db, src_provider=provider)[0]
+    assert row["src_summary"]["source_name"] == "르무통"
+    assert row["src_summary"]["source_url"] == "https://lemouton.com/p/1"
+
+
+def test_src_summary_source_url_none_for_purchase(db):
+    """[A] 사입(대표 소싱처 URL 없음)은 source_url None — 바로가기 링크 안 검."""
+    _seed(db, "smartstore", 50)
+
+    def provider(model_codes, skus):
+        return {"SKU1": {"stock": 60, "source_name": "사입", "source_url": None}}
+
+    row = svc.list_linked_sets(db, src_provider=provider)[0]
+    assert row["src_summary"]["source_name"] == "사입"
+    assert row["src_summary"]["source_url"] is None
+
+
+def test_rep_source_url_matches_representative_name(db):
+    """[A] _rep_source_url = 대표(최다 등장) 소싱처명에 해당하는 URL만 취한다."""
+    from lemouton.sets.set_service import _rep_source_url
+    smap = {
+        "A": {"source_name": "르무통", "source_url": "https://lemouton.com/a"},
+        "B": {"source_name": "르무통", "source_url": "https://lemouton.com/b"},
+        "C": {"source_name": "SSF", "source_url": "https://ssf.com/c"},
+    }
+    assert _rep_source_url(smap, "르무통") == "https://lemouton.com/a"
+    assert _rep_source_url(smap, None) is None
+    assert _rep_source_url({}, "르무통") is None
 
 
 def _prov(model_codes, skus):

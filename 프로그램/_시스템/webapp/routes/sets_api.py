@@ -59,8 +59,9 @@ def sets_dashboard_page():
 
 def _card_src_provider(model_codes, skus):
     """카드용 소싱 요약 provider — 매트릭스 단일 진실 원천(_option_matrix_data) 재사용.
-    {sku: {stock, source_name, ss_price(스스 판매예정가), cp_price(쿠팡 판매예정가)}}.
-    판매예정가 = 매트릭스가 쓰는 값 그대로(compute_market_price). 사입은 '사입'."""
+    {sku: {stock, source_name, source_url, ss_price(스스 판매예정가), cp_price(쿠팡 판매예정가)}}.
+    판매예정가 = 매트릭스가 쓰는 값 그대로(compute_market_price). 사입은 '사입'(URL 없음).
+    source_url = 대표(최저 표면가) 소싱처의 상품 URL — 카드 「소」 줄 바로가기(↗)용."""
     from webapp.routes.api_pricing import _option_matrix_data
     out = {}
     for mc in model_codes:
@@ -74,14 +75,18 @@ def _card_src_provider(model_codes, skus):
             stock = o.get("purchase_stock") if is_pur else o.get("src_stock")
             if is_pur:
                 sname = "사입"
+                surl = None
             else:
                 cand = [x for x in (o.get("sources") or [])
                         if x.get("crawled_price") is not None]
                 cand.sort(key=lambda x: x["crawled_price"])
                 srcs = o.get("sources") or []
-                sname = (cand[0].get("source_name") if cand
-                         else (srcs[0].get("source_name") if srcs else None))
+                # 대표 소싱처 = 최저 표면가(없으면 첫 소싱처). URL·이름 동일 승자에서 취함.
+                win = cand[0] if cand else (srcs[0] if srcs else None)
+                sname = win.get("source_name") if win else None
+                surl = win.get("product_url") if win else None
             out[o["sku"]] = {"stock": stock, "source_name": sname,
+                             "source_url": surl,
                              "ss_price": o.get("ss_price"),
                              "cp_price": o.get("cp_price")}
     return out
@@ -459,16 +464,94 @@ def collect_set_route(set_id):
         s.close()
 
 
+def _current_source_value_map(s, set_id):
+    """구성 옵션의 '현재' 소싱 값 맵 {sku: {stock, surface, cost, ss_price, cp_price}}.
+
+    매트릭스 단일 진실 원천(_option_matrix_data) + 혜택 breakdown 으로 계산 — 카드 셀·영수증과
+    동일 값. detail 없으면 None. snapshot-sources·이력 첫줄 시드가 공유(단일 진실 원천).
+      · surface = 표면 노출가(대표 크롤가) / cost = 최종매입가(혜택 차감) / planned = 판매예정가.
+    """
+    from webapp.routes.api_pricing import _option_matrix_data
+    from webapp.routes.api_benefits import _build_breakdown_cache, compute_breakdown
+    detail = svc.get_set_detail(s, set_id)
+    if not detail:
+        return None
+    skus = set()
+    for p in detail["products"]:
+        skus.update(p["options"])
+    opts = []
+    for mc in {p["model_code"] for p in detail["products"]}:
+        data = _option_matrix_data(mc)
+        if not data.get("ok"):
+            continue
+        for o in data.get("options", []):
+            if o.get("sku") in skus:
+                opts.append(o)
+    # 사입 아닌 옵션의 대표 소싱처(최저 크롤가)로 breakdown 일괄 계산(_cache 로 N+1 제거).
+    items = []
+    for o in opts:
+        if o.get("purchase_priority_resolved") == "purchase":
+            continue
+        cands = [sc for sc in (o.get("sources") or [])
+                 if sc.get("source_id") is not None and sc.get("crawled_price") is not None]
+        if not cands:
+            continue
+        best = min(cands, key=lambda sc: sc["crawled_price"])
+        items.append({"sku": o["sku"], "source_id": best["source_id"],
+                      "sale_price": best["crawled_price"],
+                      "source_product_id": best.get("source_product_id")})
+    finals = {}     # sku → 최종매입가(혜택 차감)
+    surfaces = {}   # sku → 표면 노출가(대표 크롤가)
+    try:
+        cache = _build_breakdown_cache(s, items)
+        for it in items:
+            surfaces[it["sku"]] = it["sale_price"]
+            try:
+                bd = compute_breakdown(s, sku=it["sku"], source_id=int(it["source_id"]),
+                                       sale_price=float(it["sale_price"]), _cache=cache,
+                                       source_product_id=it.get("source_product_id"))
+                if bd and bd.get("final_price") is not None:
+                    finals[it["sku"]] = bd["final_price"]
+            except Exception:
+                pass
+    except Exception:
+        pass
+    vmap = {}
+    for o in opts:
+        is_pur = o.get("purchase_priority_resolved") == "purchase"
+        sku = o["sku"]
+        vmap[sku] = {
+            "stock": o.get("purchase_stock") if is_pur else o.get("src_stock"),
+            "surface": (None if is_pur else surfaces.get(sku, o.get("src_cost"))),
+            "cost": (o.get("purchase_avg_cost") if is_pur else finals.get(sku)),
+            "ss_price": o.get("ss_price"),
+            "cp_price": o.get("cp_price"),
+        }
+    return vmap
+
+
 @bp.get("/sets/<int:set_id>/history")
 def set_history_route(set_id):
-    """[H2] M3 셀 클릭 — 변동이력 시계열(market·field 선택 필터)."""
+    """[H2] M3 셀 클릭 — 변동이력 시계열(market·field 선택 필터).
+
+    구성에 이력이 전혀 없으면(첫 조회) 현재값(카드·상세 공유 크롤 데이터)을 '오늘' 기준선 1줄로
+    심어 상세와 즉시 일치시킨다. 소싱 side·값 있는 필드만(날조 금지). 이후 크롤은 그 위로 이어 기록."""
     from lemouton.sets import change_service as cs
     market = (request.args.get("market") or "").strip() or None
     field = (request.args.get("field") or "").strip() or None
     s = SessionLocal()
     try:
         rows = cs.list_changes(s, set_id=set_id, market=market, field=field)
-        return jsonify({"ok": True, "events": rows})
+        seeded = False
+        # 이력 전무(어떤 market·field 도 없음)일 때만 현재값으로 첫 기준선 심기.
+        if not rows and not cs.list_changes(s, set_id=set_id, limit=1):
+            from lemouton.sets.change_service import snapshot_source_values
+            vmap = _current_source_value_map(s, set_id)
+            if vmap and snapshot_source_values(s, set_id=set_id, value_map=vmap):
+                s.commit()
+                seeded = True
+                rows = cs.list_changes(s, set_id=set_id, market=market, field=field)
+        return jsonify({"ok": True, "events": rows, "seeded": seeded})
     finally:
         s.close()
 
@@ -562,70 +645,14 @@ def set_automation_route(set_id):
 @bp.post("/sets/<int:set_id>/snapshot-sources")
 def snapshot_sources_route(set_id):
     """[H2] 소싱 현재값 스냅샷 — 변동만 source 이벤트로 즉시 기록(크롤 안 함).
-    로컬 확장 크롤(소싱처 업데이트) 완료 직후 호출 → 변동이력 소싱열 즉시 점등."""
-    from webapp.routes.api_pricing import _option_matrix_data
-    from webapp.routes.api_benefits import _build_breakdown_cache, compute_breakdown
+    로컬 확장 크롤(소싱처 업데이트) 완료 직후 호출 → 변동이력 소싱열 즉시 점등.
+    현재값 계산은 _current_source_value_map 공유(이력 첫줄 시드와 동일 단일 진실 원천)."""
     from lemouton.sets.change_service import snapshot_source_values
     s = SessionLocal()
     try:
-        detail = svc.get_set_detail(s, set_id)
-        if not detail:
+        vmap = _current_source_value_map(s, set_id)
+        if vmap is None:
             return _err("구성을 찾을 수 없어요.", 404)
-        skus = set()
-        for p in detail["products"]:
-            skus.update(p["options"])
-        opts = []
-        for mc in {p["model_code"] for p in detail["products"]}:
-            data = _option_matrix_data(mc)
-            if not data.get("ok"):
-                continue
-            for o in data.get("options", []):
-                if o.get("sku") in skus:
-                    opts.append(o)
-        # 소싱 가격 = 최종매입가(혜택 차감 후, 화면 셀·영수증과 동일 단일 진실 원천).
-        #   사입 아닌 옵션의 대표 소싱처(최저 크롤가)로 breakdown 일괄 계산(_cache 로 N+1 제거).
-        #   실패 시 src_cost 폴백. (src_cost = 혜택 전 소싱 원가)
-        items = []
-        for o in opts:
-            if o.get("purchase_priority_resolved") == "purchase":
-                continue
-            cands = [sc for sc in (o.get("sources") or [])
-                     if sc.get("source_id") is not None and sc.get("crawled_price") is not None]
-            if not cands:
-                continue
-            best = min(cands, key=lambda sc: sc["crawled_price"])
-            items.append({"sku": o["sku"], "source_id": best["source_id"],
-                          "sale_price": best["crawled_price"],
-                          "source_product_id": best.get("source_product_id")})
-        finals = {}     # sku → 최종매입가(혜택 차감)
-        surfaces = {}   # sku → 표면 노출가(대표 크롤가)
-        try:
-            cache = _build_breakdown_cache(s, items)
-            for it in items:
-                surfaces[it["sku"]] = it["sale_price"]
-                try:
-                    bd = compute_breakdown(s, sku=it["sku"], source_id=int(it["source_id"]),
-                                           sale_price=float(it["sale_price"]), _cache=cache,
-                                           source_product_id=it.get("source_product_id"))
-                    if bd and bd.get("final_price") is not None:
-                        finals[it["sku"]] = bd["final_price"]
-                except Exception:
-                    pass
-        except Exception:
-            pass
-        # 3단계를 명시 필드로 기록(표면 노출가 surface / 최종매입가 cost / 판매예정가 planned).
-        #   화면 셀·영수증·매트릭스와 동일 단일 진실 원천. (옛 'price' 통합 필드는 폐지)
-        vmap = {}
-        for o in opts:
-            is_pur = o.get("purchase_priority_resolved") == "purchase"
-            sku = o["sku"]
-            vmap[sku] = {
-                "stock": o.get("purchase_stock") if is_pur else o.get("src_stock"),
-                "surface": (None if is_pur else surfaces.get(sku, o.get("src_cost"))),
-                "cost": (o.get("purchase_avg_cost") if is_pur else finals.get(sku)),
-                "ss_price": o.get("ss_price"),
-                "cp_price": o.get("cp_price"),
-            }
         n = snapshot_source_values(s, set_id=set_id, value_map=vmap)
         s.commit()
         return jsonify({"ok": True, "recorded": n})

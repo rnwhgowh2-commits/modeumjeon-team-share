@@ -25,14 +25,29 @@ def _signals(market_alerts, *, has_send):
     return {"stock": stock, "price": price, "send": send}
 
 
+def _rep_source_url(smap, name):
+    """대표 소싱처명(name)에 대응하는 상품 URL — 그 이름을 가진 옵션 중 URL 있는 첫 항목.
+
+    카드 「소」 줄 바로가기(↗)가 가리킬 곳. 사입(URL 없음)·미매칭은 None.
+    """
+    if not name:
+        return None
+    for v in smap.values():
+        if v.get("source_name") == name and v.get("source_url"):
+            return v.get("source_url")
+    return None
+
+
 def _src_summary(src_provider, model_codes, skus):
-    """카드 「재고 소」용 소싱처 요약 — {src_stock_total, source_name}.
+    """카드 「재고 소」용 소싱처 요약 — {src_stock_total, source_name, source_url}.
 
     소싱 재고/소싱처명은 무거운 매트릭스 경로(_option_matrix_data)라, 서비스는
     순수하게 두고 라우트가 주입(src_provider)한다. 미주입 시 None(지연 표시).
-    src_provider(model_codes, skus) -> {sku: {"stock": int|None, "source_name": str|None}}.
+    src_provider(model_codes, skus) ->
+        {sku: {"stock": int|None, "source_name": str|None, "source_url": str|None}}.
+    source_url = 대표 소싱처 바로가기(↗)용 상품 URL.
     """
-    empty = {"src_stock_total": None, "source_name": None}
+    empty = {"src_stock_total": None, "source_name": None, "source_url": None}
     if src_provider is None or not skus:
         return empty
     smap = src_provider(model_codes, skus) or {}
@@ -42,7 +57,8 @@ def _src_summary(src_provider, model_codes, skus):
     if names:
         # 대표 소싱처 = 최다 등장
         name = max(set(names), key=names.count)
-    return {"src_stock_total": sum(stocks) if stocks else None, "source_name": name}
+    return {"src_stock_total": sum(stocks) if stocks else None,
+            "source_name": name, "source_url": _rep_source_url(smap, name)}
 
 
 def _enrich_from_provider(row, src_provider):
@@ -55,7 +71,8 @@ def _enrich_from_provider(row, src_provider):
     """
     mcs = row.pop("_mcs", set())
     skus = row.pop("_skus", set())
-    row["src_summary"] = {"src_stock_total": None, "source_name": None}
+    row["src_summary"] = {"src_stock_total": None, "source_name": None,
+                          "source_url": None}
     smap = {}
     if src_provider is not None and skus:
         smap = src_provider(mcs, skus) or {}
@@ -63,7 +80,8 @@ def _enrich_from_provider(row, src_provider):
         names = [v.get("source_name") for v in smap.values() if v.get("source_name")]
         name = max(set(names), key=names.count) if names else None
         row["src_summary"] = {"src_stock_total": sum(stocks) if stocks else None,
-                              "source_name": name}
+                              "source_name": name,
+                              "source_url": _rep_source_url(smap, name)}
     for ch in row["channels"]:
         ch_skus = ch.pop("_skus", [])
         pk = ("ss_price" if ch["market"] == "smartstore"
