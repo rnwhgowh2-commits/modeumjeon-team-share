@@ -232,6 +232,9 @@
   .pcur{background:#EDEFF2;color:var(--cur);font-weight:800;font-size:9.5px;padding:1px 0;border-radius:4px;text-align:center;}
   .dn{font-size:11.5px;color:#4E5968;font-weight:600;white-space:nowrap;}
   .dn.cur{color:var(--cur);}
+  /* 소싱처 바로가기 ↗ 칩 (「소」 줄 이름 옆) — 이름은 그대로, 작은 버튼만 링크 */
+  a.src-chip{display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;margin-left:5px;border:1px solid #BBD3F5;border-radius:5px;background:#fff;color:var(--blue);font-size:9px;font-weight:800;text-decoration:none;vertical-align:middle;line-height:1;}
+  a.src-chip:hover{background:#EFF6FF;}
   .dv{font-size:13px;font-weight:800;text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap;}
   .dv small{font-size:10px;color:var(--sub);font-weight:600;margin-left:2px;}
   .dv.bad{color:var(--amber);}.dv.sev{color:var(--red);}
@@ -417,11 +420,17 @@
   }
   // 재고(소/판·현재) 스택 — 소=진하게 / 판(현재 판매처 설정)=연한 회색(경고는 신호등이 담당)
   function cStock(r, c){
-    var srcName=esc((r.src_summary&&r.src_summary.source_name)||'소싱');
-    var srcN=(r.src_summary&&r.src_summary.src_stock_total!=null)?numUnit(r.src_summary.src_stock_total,'개'):'<span style="color:#98A2B3">미상</span>';
+    var ss=r.src_summary||{};
+    var srcName=esc(ss.source_name||'소싱');
+    // 소싱처 바로가기(↗ 칩) — 대표 소싱처 상품 URL 있을 때만(사입·미매칭은 글자만)
+    var srcUrl=ss.source_url;
+    var nameHtml=srcUrl
+      ? srcName+'<a class="src-chip" href="'+esc(srcUrl)+'" target="_blank" rel="noopener" title="소싱처 상품 페이지 열기">↗</a>'
+      : srcName;
+    var srcN=(ss.src_stock_total!=null)?numUnit(ss.src_stock_total,'개'):'<span style="color:#98A2B3">미상</span>';
     var mkN=(c.mkt_stock_total!=null)?numUnit(c.mkt_stock_total,'개'):'<span style="color:#98A2B3">미상</span>';
     return '<div class="dual">'
-      +'<span class="ps">소</span><span class="dn">'+srcName+'</span><span class="dv">'+srcN+'</span>'
+      +'<span class="ps">소</span><span class="dn">'+nameHtml+'</span><span class="dv">'+srcN+'</span>'
       +'<span class="pcur">현</span><span class="dn cur">설정</span><span class="dv cur">'+mkN+'</span></div>';
   }
   // 가격(매입/예정/현재) 스택 — 소 매입=상세에서(지연·숫자 날조 금지) / 판 예정=판매예정가(진하게) / 현 현재=지금 걸린 판매가(연한 회색)
@@ -1083,7 +1092,12 @@
     document.getElementById('histModal').classList.add('on');
     fetch('/api/sets/'+sid+'/history?market='+encodeURIComponent(mk)+'&field='+encodeURIComponent(fld),{headers:{'Accept':'application/json'}})
       .then(function(r){return r.json();})
-      .then(function(d){ body.innerHTML=(d&&d.ok)?renderHist(d.events||[], fld):'<div class="hist-empty">불러오지 못했어요.</div>'; })
+      .then(function(d){
+        if(d&&d.ok){
+          var note=d.seeded?'<div class="sd-cnt" style="margin-bottom:6px;color:#8b95a1">아직 변동 기록이 없어 지금 현재값을 오늘 기준으로 보여드려요. 다음 소싱처 업데이트부터 이어서 쌓입니다.</div>':'';
+          body.innerHTML=note+renderHist(d.events||[], fld);
+        } else body.innerHTML='<div class="hist-empty">불러오지 못했어요.</div>';
+      })
       .catch(function(){ body.innerHTML='<div class="hist-empty">불러오지 못했어요.</div>'; });
   }
   function closeHistModal(){ document.getElementById('histModal').classList.remove('on'); }
