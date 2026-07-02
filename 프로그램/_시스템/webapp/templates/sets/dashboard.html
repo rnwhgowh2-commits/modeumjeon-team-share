@@ -239,6 +239,12 @@
   .dv small{font-size:10px;color:var(--sub);font-weight:600;margin-left:2px;}
   .dv.bad{color:var(--amber);}.dv.sev{color:var(--red);}
   .dv.muted{color:#98A2B3;font-weight:700;cursor:pointer;}
+  /* 「소」 2값: 표면노출가=보조(작은 회색) / 최종매입가=강조(진하게) */
+  .dv.surf{font-size:11px;color:#98A2B3;font-weight:600;}
+  .dv.surf small{color:#98A2B3;}
+  .dv.finalb{color:#191F28;font-weight:800;}
+  /* 9번: 소(표면·매입) 묶음 아래 얇은 구분선 — 판/현과 시각 분리 */
+  .dual .hairline{grid-column:1/-1;height:1px;background:var(--line2);margin:1px 0;}
   /* 현재(판매처 실제 걸린) 값 = 강조 안 함, 연한 회색 */
   .dv.cur{color:var(--cur);font-weight:600;}
   .dv.cur small{color:var(--cur);}
@@ -433,12 +439,26 @@
       +'<span class="ps">소</span><span class="dn">'+nameHtml+'</span><span class="dv">'+srcN+'</span>'
       +'<span class="pcur">현</span><span class="dn cur">설정</span><span class="dv cur">'+mkN+'</span></div>';
   }
-  // 가격(매입/예정/현재) 스택 — 소 매입=상세에서(지연·숫자 날조 금지) / 판 예정=판매예정가(진하게) / 현 현재=지금 걸린 판매가(연한 회색)
+  // 가격(표면/매입/예정/현재) 스택 — 소 표면=표면노출가(보조 회색)·소 매입=최종매입가(강조) +
+  //   구분선으로 소 묶음 분리 / 판 예정=판매예정가(진하게) / 현 현재=지금 걸린 판매가(연한 회색).
+  //   최종매입가 계산 실패·미매칭이면 '상세 ▾' 폴백(숫자 날조 금지).
   function cPrice(r, c){
+    var ss=r.src_summary||{};
     var planN=(c.planned_price!=null)?numUnit(c.planned_price,'원'):'<span style="color:#98A2B3">미상</span>';
     var curN=(c.mkt_price!=null)?numUnit(c.mkt_price,'원'):'<span style="color:#98A2B3">미상</span>';
+    var so='';
+    // 표면 노출가(값 있을 때만 — 사입·미크롤은 생략)
+    if(ss.surface!=null){
+      so+='<span class="ps">소</span><span class="dn">표면</span><span class="dv surf">'+numUnit(ss.surface,'원')+'</span>';
+    }
+    // 최종 매입가(강조). 없으면 상세 폴백.
+    var finCell=(ss.final!=null)
+      ? '<span class="dv finalb">'+numUnit(ss.final,'원')+'</span>'
+      : '<span class="dv muted" title="펼치면 영수증·최종매입가를 보여줘요">상세 ▾</span>';
+    so+='<span class="ps">소</span><span class="dn">매입</span>'+finCell;
+    so+='<span class="hairline"></span>';   // 9번: 소 묶음과 판/현 시각 분리
     return '<div class="dual">'
-      +'<span class="ps">소</span><span class="dn">매입</span><span class="dv muted" title="펼치면 영수증·최종매입가를 보여줘요">상세 ▾</span>'
+      + so
       +'<span class="pp">판</span><span class="dn">예정</span><span class="dv">'+planN+'</span>'
       +'<span class="pcur">현</span><span class="dn cur">현재</span><span class="dv cur">'+curN+'</span></div>';
   }
@@ -585,7 +605,7 @@
       +'</div>';
       h+=' '+autoPanel(r);
       h+=' <div class="head-div"></div>';
-      h+=' <div class="row6 hrow6"><div>마켓</div><div class="ctr">매칭</div><div>재고 (소/현재)</div><div>가격 (매입/예정/현재)</div><div class="ctr">상태</div><div></div></div>';
+      h+=' <div class="row6 hrow6"><div>마켓</div><div class="ctr">매칭</div><div>재고 (소/현재)</div><div>가격 (표면/매입/예정/현재)</div><div class="ctr">상태</div><div></div></div>';
       h+=' '+cardRows(r);
       // 푸터
       h+=' <div class="c-foot"><span>수집 '+(coll||'수집 안 됨')+' · 전송 '+(sent||'이력 없음')+'</span>'

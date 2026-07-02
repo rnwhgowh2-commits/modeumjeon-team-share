@@ -130,6 +130,46 @@ def test_rep_source_url_matches_representative_name(db):
     assert _rep_source_url({}, "르무통") is None
 
 
+def test_src_summary_price_2values_from_provider(db):
+    """[가격 2값] 표면노출가·최종매입가가 src_summary.surface/final 로 카드까지 실린다."""
+    _seed(db, "smartstore", 50)
+
+    def provider(model_codes, skus):
+        return {"SKU1": {"stock": 53, "source_name": "르무통",
+                         "surface": 133900, "final": 126380}}
+
+    ss = svc.list_linked_sets(db, src_provider=provider)[0]["src_summary"]
+    assert ss["surface"] == 133900
+    assert ss["final"] == 126380
+
+
+def test_src_summary_price_none_without_provider(db):
+    """[가격 2값] provider 없으면 표면·최종 None(지연 — '상세 ▾' 폴백)."""
+    _seed(db, "smartstore", 50)
+    ss = svc.list_linked_sets(db)[0]["src_summary"]
+    assert ss["surface"] is None and ss["final"] is None
+
+
+def test_rep_price_picks_min_surface_coherent(db):
+    """[가격 2값] _rep_price = 표면 최저 옵션의 (표면, 최종) 코히런트 쌍."""
+    from lemouton.sets.set_service import _rep_price
+    smap = {
+        "A": {"surface": 140000, "final": 132000},
+        "B": {"surface": 133900, "final": 126380},   # 표면 최저 → 이 쌍
+        "C": {"surface": 150000, "final": 141000},
+    }
+    assert _rep_price(smap) == (133900, 126380)
+
+
+def test_rep_price_purchase_only_no_surface(db):
+    """[가격 2값] 표면 없는 사입-only 세트 = (None, 최저 최종매입가)."""
+    from lemouton.sets.set_service import _rep_price
+    smap = {"A": {"surface": None, "final": 90000},
+            "B": {"surface": None, "final": 85000}}
+    assert _rep_price(smap) == (None, 85000)
+    assert _rep_price({}) == (None, None)
+
+
 def _prov(model_codes, skus):
     return {"SKU1": {"stock": 53, "source_name": "르무통",
                      "ss_price": 125000, "cp_price": 129000}}
