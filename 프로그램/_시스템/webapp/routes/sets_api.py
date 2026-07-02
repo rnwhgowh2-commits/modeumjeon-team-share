@@ -144,6 +144,75 @@ def _card_src_provider(model_codes, skus, session=None):
     return out
 
 
+@bp.get("/sets/debug-receipt")
+def debug_receipt_route():
+    """[임시 진단] 최종매입가(compute_breakdown) 빈값 원인 추적 — 읽기전용. 확인 후 제거."""
+    import traceback
+    from lemouton.sets.models import ProductSet
+    from webapp.routes.api_pricing import _option_matrix_data
+    from webapp.routes.api_benefits import _build_breakdown_cache, compute_breakdown
+    s = SessionLocal()
+    out = []
+    try:
+        for ps in s.query(ProductSet).filter_by(is_active=True).all():
+            detail = svc.get_set_detail(s, ps.id)
+            if not detail:
+                continue
+            skus = set()
+            for p in detail["products"]:
+                skus.update(p["options"])
+            for mc in {p["model_code"] for p in detail["products"]}:
+                data = _option_matrix_data(mc)
+                if not data.get("ok"):
+                    out.append({"set": ps.name, "mc": mc, "matrix_ok": False})
+                    continue
+                for o in data.get("options", []):
+                    if o.get("sku") not in skus or o.get("purchase_priority_resolved") == "purchase":
+                        continue
+                    srcs = o.get("sources") or []
+                    cand = sorted([x for x in srcs if x.get("crawled_price") is not None],
+                                  key=lambda x: x["crawled_price"])
+                    win = cand[0] if cand else (srcs[0] if srcs else None)
+                    info = {
+                        "set": ps.name, "sku": o.get("sku"),
+                        "src_cost": o.get("src_cost"),
+                        "n_sources": len(srcs), "n_with_crawled": len(cand),
+                        "win_name": (win or {}).get("source_name"),
+                        "win_source_id": (win or {}).get("source_id"),
+                        "win_crawled_price": (win or {}).get("crawled_price"),
+                        "win_spid": (win or {}).get("source_product_id"),
+                        "item_built_current_rule": bool(
+                            win and win.get("source_id") is not None
+                            and win.get("crawled_price") is not None),
+                    }
+                    if win and win.get("source_id") is not None:
+                        sale = win.get("crawled_price") or o.get("src_cost")
+                        try:
+                            it = [{"sku": o["sku"], "source_id": win["source_id"],
+                                   "sale_price": sale,
+                                   "source_product_id": win.get("source_product_id")}]
+                            cache = _build_breakdown_cache(s, it)
+                            bd = compute_breakdown(
+                                s, sku=o["sku"], source_id=int(win["source_id"]),
+                                sale_price=float(sale or 0), _cache=cache,
+                                source_product_id=win.get("source_product_id"))
+                            info["bd_sale"] = (bd or {}).get("sale_price")
+                            info["bd_final"] = (bd or {}).get("final_price")
+                            info["bd_steps"] = len((bd or {}).get("steps") or [])
+                        except Exception as e:
+                            info["bd_error"] = repr(e)
+                            info["bd_tb"] = traceback.format_exc()[-700:]
+                    else:
+                        info["bd_skipped"] = "no source_id"
+                    out.append(info)
+        return jsonify({"ok": True, "rows": out})
+    except Exception as e:
+        return jsonify({"ok": False, "error": repr(e),
+                        "tb": traceback.format_exc()[-1500:]})
+    finally:
+        s.close()
+
+
 @bp.get("/sets/linked")
 def list_linked():
     """대시보드 데이터 — 연동된 구성 목록(검색어 q 로 구성명·상품명·상품번호 필터)."""
