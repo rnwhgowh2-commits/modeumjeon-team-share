@@ -171,16 +171,18 @@ def list_automation_log(session, *, limit=200):
             "kind": kind, "label": fk.get(e.field, e.field),
             "value": _change(e.prev_value, e.next_value, e.field),
         })
-        if kind == "s":
-            g["stock_count"] += 1
-        else:
-            g["price_count"] += 1
 
     out = []
     for key in order:
         g = groups[key]
         g.pop("_oi", None)
         g.pop("_seen", None)
+        # 요약 = '옵션 수'(한 옵션은 한 번만): 재고 바뀐 옵션 수 · 가격 바뀐 옵션 수
+        g["stock_count"] = sum(
+            1 for o in g["options"] if any(p["kind"] == "s" for p in o["parts"]))
+        g["price_count"] = sum(
+            1 for o in g["options"] if any(p["kind"] == "p" for p in o["parts"]))
+        g["option_count"] = len(g["options"])
         out.append(g)
     return out
 
