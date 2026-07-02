@@ -177,7 +177,10 @@ def test_list_automation_log_groups(db):
     assert len(g["options"]) == 1                 # 같은 옵션 = 1줄
     o = g["options"][0]
     assert len(o["parts"]) == 2
-    sp = [p for p in o["parts"] if p["kind"] == "s"][0]
-    assert sp["value"] == "2→26개" and sp["label"] == "재고"
-    pp = [p for p in o["parts"] if p["kind"] == "p"][0]
-    assert pp["value"] == "→126,200원" and pp["label"] == "판매예정가"
+    assert o["parts"][0]["field"] == "stock"      # 재고가 항상 먼저(별도)
+    sp = [p for p in o["parts"] if p["field"] == "stock"][0]
+    assert sp["value"] == "2→26개" and sp["label"] == "재고" and sp["side"] == "재"
+    assert sp["empty"] is False                    # prev 있음
+    pp = [p for p in o["parts"] if p["field"] == "planned"][0]
+    assert pp["value"] == "→126,200원" and pp["label"] == "예정" and pp["side"] == "판"
+    assert pp["empty"] is True                      # prev 없음 → 빈데이터

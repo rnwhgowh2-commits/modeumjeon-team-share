@@ -121,8 +121,12 @@ def list_automation_log(session, *, limit=200):
         return lbl
 
     mk = {"coupang": "쿠팡", "smartstore": "스마트스토어"}
-    fk = {"stock": "재고", "price": "가격", "surface": "소싱가",
-          "cost": "매입가", "planned": "판매예정가"}
+    # 배지 스타일: 소=소싱(표면·매입) / 판=판매(예정) / 재=재고(별도). label=짧은 라벨
+    side_map = {"surface": "소", "cost": "소", "planned": "판",
+                "price": "판", "stock": "재"}
+    short_map = {"surface": "표면", "cost": "매입", "planned": "예정",
+                 "price": "가격", "stock": "재고"}
+    order_map = {"surface": 0, "cost": 1, "planned": 2, "price": 3}
 
     def _num(v):
         if v is None:
@@ -166,10 +170,12 @@ def list_automation_log(session, *, limit=200):
             oi = len(g["options"])
             g["_oi"][e.canonical_sku] = oi
             g["options"].append({"name": _opt(e.canonical_sku), "parts": []})
-        kind = "s" if e.field == "stock" else "p"
         g["options"][oi]["parts"].append({
-            "kind": kind, "label": fk.get(e.field, e.field),
+            "field": e.field,
+            "side": side_map.get(e.field, "판"),
+            "label": short_map.get(e.field, e.field),
             "value": _change(e.prev_value, e.next_value, e.field),
+            "empty": e.prev_value is None,          # 이전값 없음 → '빈데이터 → 값'
         })
 
     out = []
@@ -177,11 +183,14 @@ def list_automation_log(session, *, limit=200):
         g = groups[key]
         g.pop("_oi", None)
         g.pop("_seen", None)
+        for o in g["options"]:
+            o["parts"].sort(key=lambda p: (0 if p["field"] == "stock" else 1,
+                                           order_map.get(p["field"], 9)))
         # 요약 = '옵션 수'(한 옵션은 한 번만): 재고 바뀐 옵션 수 · 가격 바뀐 옵션 수
         g["stock_count"] = sum(
-            1 for o in g["options"] if any(p["kind"] == "s" for p in o["parts"]))
+            1 for o in g["options"] if any(p["field"] == "stock" for p in o["parts"]))
         g["price_count"] = sum(
-            1 for o in g["options"] if any(p["kind"] == "p" for p in o["parts"]))
+            1 for o in g["options"] if any(p["field"] != "stock" for p in o["parts"]))
         g["option_count"] = len(g["options"])
         out.append(g)
     return out
