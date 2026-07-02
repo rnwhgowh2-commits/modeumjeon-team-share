@@ -39,17 +39,21 @@ def _rep_source_url(smap, name):
 
 
 def _rep_price(smap):
-    """카드 「소」 대표 가격 — (표면노출가, 최종매입가) 코히런트 쌍.
+    """카드 「소」 대표 가격 — (표면노출가, 최종매입가, 영수증) 코히런트 3값.
 
-    표면이 있는 옵션 중 최저 표면가의 (표면, 최종)을 취한다(같은 옵션이라 최종=표면−혜택 일관).
-    표면 없는 사입-only 세트는 (None, 최저 최종매입가). 값 없으면 (None, None).
+    표면이 있는 옵션 중 최저 표면가의 (표면, 최종, receipt)을 취한다(같은 옵션이라 일관).
+    표면 없는 사입-only 세트는 (None, 최저 최종매입가 옵션의 final·receipt). 값 없으면 (None,None,None).
+    receipt = 그 대표 옵션의 상세 영수증(표면→혜택 항목별 차감→최종)·provider 가 계산.
     """
     with_surf = [v for v in smap.values() if v.get("surface") is not None]
     if with_surf:
         rep = min(with_surf, key=lambda v: v["surface"])
-        return rep.get("surface"), rep.get("final")
-    finals = [v.get("final") for v in smap.values() if v.get("final") is not None]
-    return None, (min(finals) if finals else None)
+        return rep.get("surface"), rep.get("final"), rep.get("receipt")
+    finals = [v for v in smap.values() if v.get("final") is not None]
+    if finals:
+        rep = min(finals, key=lambda v: v["final"])
+        return None, rep.get("final"), rep.get("receipt")
+    return None, None, None
 
 
 def _src_summary(src_provider, model_codes, skus):
@@ -62,7 +66,7 @@ def _src_summary(src_provider, model_codes, skus):
     source_url = 대표 소싱처 바로가기(↗)용 상품 URL. surface/final = 대표 「소」 가격 2값.
     """
     empty = {"src_stock_total": None, "source_name": None, "source_url": None,
-             "surface": None, "final": None}
+             "surface": None, "final": None, "receipt": None}
     if src_provider is None or not skus:
         return empty
     smap = src_provider(model_codes, skus) or {}
@@ -72,10 +76,10 @@ def _src_summary(src_provider, model_codes, skus):
     if names:
         # 대표 소싱처 = 최다 등장
         name = max(set(names), key=names.count)
-    surface, final = _rep_price(smap)
+    surface, final, receipt = _rep_price(smap)
     return {"src_stock_total": sum(stocks) if stocks else None,
             "source_name": name, "source_url": _rep_source_url(smap, name),
-            "surface": surface, "final": final}
+            "surface": surface, "final": final, "receipt": receipt}
 
 
 def _enrich_from_provider(row, src_provider):
@@ -88,18 +92,20 @@ def _enrich_from_provider(row, src_provider):
     mcs = row.pop("_mcs", set())
     skus = row.pop("_skus", set())
     row["src_summary"] = {"src_stock_total": None, "source_name": None,
-                          "source_url": None, "surface": None, "final": None}
+                          "source_url": None, "surface": None, "final": None,
+                          "receipt": None}
     smap = {}
     if src_provider is not None and skus:
         smap = src_provider(mcs, skus) or {}
         stocks = [v.get("stock") for v in smap.values() if v.get("stock") is not None]
         names = [v.get("source_name") for v in smap.values() if v.get("source_name")]
         name = max(set(names), key=names.count) if names else None
-        surface, final = _rep_price(smap)
+        surface, final, receipt = _rep_price(smap)
         row["src_summary"] = {"src_stock_total": sum(stocks) if stocks else None,
                               "source_name": name,
                               "source_url": _rep_source_url(smap, name),
-                              "surface": surface, "final": final}
+                              "surface": surface, "final": final,
+                              "receipt": receipt}
     for ch in row["channels"]:
         ch_skus = ch.pop("_skus", [])
         pk = ("ss_price" if ch["market"] == "smartstore"
