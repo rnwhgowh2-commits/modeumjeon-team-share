@@ -102,9 +102,11 @@ def _fetch_coupang(product_id: str, env_prefix: Optional[str] = None) -> FetchRe
     except Exception as e:  # noqa: BLE001 — 조회 실패는 명시 표면화(폴백 금지)
         return FetchResult(False, None, [], f"옵션 조회 실패: {e}")
     items = extract_vendor_items(detail)
+    # 쿠팡: 옵션별 재고 미제공 → stock=None(0 하드코딩 금지, 품절 둔갑 방지).
+    #       판매가 없으면 None(0 으로 붕괴 금지 — 미상으로 표면화).
     opts = [
         MarketOption(option_id=str(it["vendor_item_id"]), color=it.get("color"),
-                     size=it.get("size"), stock=0, price=it.get("sale_price") or 0)
+                     size=it.get("size"), stock=None, price=it.get("sale_price"))
         for it in items
     ]
     name = detail.get("sellerProductName") or detail.get("displayProductName")

@@ -18,8 +18,18 @@ def _signals(market_alerts, *, has_send):
     소≠판 재고 안 맞음(warn)은 소싱 재고수 배선(P4-1b) 후 보강.
     """
     types = {a.get("type") for a in (market_alerts or [])}
-    stock = "sev" if (types & {"market_soldout", "both_zero"}) else "ok"
-    price = "warn" if "price_spike" in types else "ok"
+    if types & {"market_soldout", "both_zero"}:
+        stock = "sev"
+    elif "stock_unknown" in types:      # 재고 미상(수집 불가) → 초록 위장 금지
+        stock = "warn"
+    else:
+        stock = "ok"
+    if "price_zero" in types:           # 현재가 0원(수집 실패) → 심각
+        price = "sev"
+    elif "price_spike" in types:
+        price = "warn"
+    else:
+        price = "ok"
     needs_sync = (not has_send) or bool(types & {"not_synced", "source_changed"})
     send = "warn" if needs_sync else "ok"
     return {"stock": stock, "price": price, "send": send}
@@ -48,12 +58,24 @@ def _rep_price(smap):
     with_surf = [v for v in smap.values() if v.get("surface") is not None]
     if with_surf:
         rep = min(with_surf, key=lambda v: v["surface"])
-        return rep.get("surface"), rep.get("final"), rep.get("receipt")
+        return rep.get("surface"), rep.get("final"), rep.get("receipt"), rep
     finals = [v for v in smap.values() if v.get("final") is not None]
     if finals:
         rep = min(finals, key=lambda v: v["final"])
-        return None, rep.get("final"), rep.get("receipt")
-    return None, None, None
+        return None, rep.get("final"), rep.get("receipt"), rep
+    return None, None, None, None
+
+
+def _rep_name_url(smap, rep, names):
+    """헤더 소싱처명·↗URL — 대표(rep) 옵션과 코히런트하게(같은 소싱처).
+
+    rep(대표가 옵션)이 있으면 그 소싱처명/URL 을 그대로 쓴다(surface/final/이름/URL 단일 소싱처).
+    rep 없으면(가격 미확정) 최다등장 소싱처명 + 그 이름의 URL 로 폴백.
+    """
+    if rep and rep.get("source_name"):
+        return rep.get("source_name"), rep.get("source_url")
+    name = max(set(names), key=names.count) if names else None
+    return name, _rep_source_url(smap, name)
 
 
 def _src_summary(src_provider, model_codes, skus):
@@ -72,13 +94,10 @@ def _src_summary(src_provider, model_codes, skus):
     smap = src_provider(model_codes, skus) or {}
     stocks = [v.get("stock") for v in smap.values() if v.get("stock") is not None]
     names = [v.get("source_name") for v in smap.values() if v.get("source_name")]
-    name = None
-    if names:
-        # 대표 소싱처 = 최다 등장
-        name = max(set(names), key=names.count)
-    surface, final, receipt = _rep_price(smap)
+    surface, final, receipt, rep = _rep_price(smap)
+    name, url = _rep_name_url(smap, rep, names)   # 대표가 옵션과 코히런트한 이름/URL
     return {"src_stock_total": sum(stocks) if stocks else None,
-            "source_name": name, "source_url": _rep_source_url(smap, name),
+            "source_name": name, "source_url": url,
             "surface": surface, "final": final, "receipt": receipt}
 
 
@@ -99,11 +118,11 @@ def _enrich_from_provider(row, src_provider):
         smap = src_provider(mcs, skus) or {}
         stocks = [v.get("stock") for v in smap.values() if v.get("stock") is not None]
         names = [v.get("source_name") for v in smap.values() if v.get("source_name")]
-        name = max(set(names), key=names.count) if names else None
-        surface, final, receipt = _rep_price(smap)
+        surface, final, receipt, rep = _rep_price(smap)
+        name, url = _rep_name_url(smap, rep, names)   # 대표가 옵션과 코히런트한 이름/URL
         row["src_summary"] = {"src_stock_total": sum(stocks) if stocks else None,
                               "source_name": name,
-                              "source_url": _rep_source_url(smap, name),
+                              "source_url": url,
                               "surface": surface, "final": final,
                               "receipt": receipt}
     for ch in row["channels"]:
@@ -224,7 +243,9 @@ def list_linked_sets(session: Session, q: str | None = None,
             mkt_fetched = (session.query(func.max(SetChannelOption.mkt_fetched_at))
                            .filter_by(channel_id=c.id).scalar())
             stocks = [s.mkt_stock for s in scos if s.mkt_stock is not None]
-            prices = [s.mkt_price for s in scos if s.mkt_price is not None]
+            # 대표 현재가는 0 제외(0원=수집실패/비정상 → 대표가로 세우면 금전위험).
+            # 전량 0이면 prices=[] → mkt_price=None → 카드 '미상'(정직). 0원 자체는 신호등(price_zero)이 잡음.
+            prices = [s.mkt_price for s in scos if s.mkt_price]
             mk_alerts = [a for a in alerts if a.get("market") == c.market]
             channels.append({
                 "id": c.id,

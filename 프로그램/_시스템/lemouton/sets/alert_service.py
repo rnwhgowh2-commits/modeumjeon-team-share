@@ -31,6 +31,19 @@ def alerts_for_set(session, set_id, src_stock_map=None):
                 out.append({"type": "not_synced", "severity": "info",
                             "market": ch.market, "canonical_sku": None,
                             "message": "마켓 현재값 미수집(미동기화)"})
+        # 수집됐는데 값이 깨진 경우 표면화(조용한 초록 금지)
+        fetched_any = any(s.mkt_fetched_at is not None for s in scos)
+        if scos and fetched_any:
+            # 현재가 0원 = 수집 실패/비정상 → danger(그대로 업로드 시 0원 판매 위험)
+            if any(s.mkt_price == 0 for s in scos):
+                out.append({"type": "price_zero", "severity": "danger",
+                            "market": ch.market, "canonical_sku": None,
+                            "message": "현재가 0원(수집 실패·확인 필요)"})
+            # 재고 전량 미상(None) = 수집 불가/실패 → warning(초록으로 정상 위장 금지)
+            if all(s.mkt_stock is None for s in scos):
+                out.append({"type": "stock_unknown", "severity": "warning",
+                            "market": ch.market, "canonical_sku": None,
+                            "message": "판매처 재고 미상(수집 불가)"})
         # 재고 0 — 소싱도 0이면 심각(both_zero), 아니면 판매재고0(market_soldout)
         for sco in scos:
             if ch.market == "coupang" or sco.mkt_stock != 0:

@@ -150,6 +150,45 @@ def test_src_summary_price_none_without_provider(db):
     assert ss["surface"] is None and ss["final"] is None
 
 
+def test_src_summary_name_url_coherent_with_representative_price(db):
+    """[M1] 헤더 소싱처명·↗URL 은 대표(표시되는 surface/final) 옵션과 같은 소싱처여야 한다.
+
+    최다등장(롯데 2회)이 아니라 대표가(최저 표면가) 옵션의 소싱처를 따라가야
+    바로가기·영수증이 실제 대표가의 상품을 가리킨다(엉뚱한 사이트로 유도 방지).
+    """
+    ps = ProductSet(model_code="M1", name="다중소싱")
+    db.add(ps); db.flush()
+    sp = SetProduct(set_id=ps.id, model_code="M1", quantity=1)
+    db.add(sp); db.flush()
+    for i, sku in enumerate(("A", "B", "C")):
+        db.add(SetOption(set_product_id=sp.id, canonical_sku=sku, sort_order=i))
+    ch = SetChannel(set_id=ps.id, market="smartstore", account_key="d",
+                    market_product_id="9", status="linked")
+    db.add(ch); db.flush()
+    for sku in ("A", "B", "C"):
+        db.add(SetChannelOption(channel_id=ch.id, canonical_sku=sku,
+                                market_option_id=sku, status="matched",
+                                mkt_stock=5, mkt_price=1000,
+                                mkt_fetched_at=_dt.datetime(2026, 6, 30, 8, 50)))
+    db.commit()
+
+    def provider(mcs, skus):
+        return {
+            "A": {"stock": 1, "source_name": "롯데아이몰", "source_url": "https://lotte/a",
+                  "surface": 120000, "final": 119000},
+            "B": {"stock": 1, "source_name": "롯데아이몰", "source_url": "https://lotte/b",
+                  "surface": 121000, "final": 120000},
+            "C": {"stock": 1, "source_name": "르무통", "source_url": "https://lemouton/c",
+                  "surface": 110000, "final": 109000},
+        }
+
+    ss = svc.list_linked_sets(db, src_provider=provider)[0]["src_summary"]
+    # 대표 = 최저 표면가 110000 = 르무통/C. 이름·URL·표면·최종 모두 C 와 코히런트.
+    assert ss["surface"] == 110000 and ss["final"] == 109000
+    assert ss["source_name"] == "르무통"
+    assert ss["source_url"] == "https://lemouton/c"
+
+
 def test_rep_price_picks_min_surface_coherent(db):
     """[가격 2값] _rep_price = 표면 최저 옵션의 (표면, 최종, 영수증) 코히런트 3값."""
     from lemouton.sets.set_service import _rep_price
@@ -159,7 +198,9 @@ def test_rep_price_picks_min_surface_coherent(db):
         "B": {"surface": 133900, "final": 126380, "receipt": rcB},   # 표면 최저 → 이 쌍
         "C": {"surface": 150000, "final": 141000, "receipt": {"final": 141000}},
     }
-    assert _rep_price(smap) == (133900, 126380, rcB)
+    # [:3] = (표면, 최종, 영수증). 4번째는 대표 옵션 dict(이름/URL 코히런시용).
+    assert _rep_price(smap)[:3] == (133900, 126380, rcB)
+    assert _rep_price(smap)[3] is smap["B"]
 
 
 def test_rep_price_purchase_only_no_surface(db):
@@ -167,8 +208,8 @@ def test_rep_price_purchase_only_no_surface(db):
     from lemouton.sets.set_service import _rep_price
     smap = {"A": {"surface": None, "final": 90000, "receipt": None},
             "B": {"surface": None, "final": 85000, "receipt": {"final": 85000}}}
-    assert _rep_price(smap) == (None, 85000, {"final": 85000})
-    assert _rep_price({}) == (None, None, None)
+    assert _rep_price(smap)[:3] == (None, 85000, {"final": 85000})
+    assert _rep_price({})[:3] == (None, None, None)
 
 
 def test_sid_key_coerces_int_keeps_string():

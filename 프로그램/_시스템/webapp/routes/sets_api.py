@@ -67,6 +67,23 @@ def sets_dashboard_page():
     return render_template("sets/dashboard.html", active="sets_dashboard")
 
 
+def _pick_card_source(sources):
+    """카드 「소」 대표 소싱처 = 매트릭스와 동일 게이트 최저가.
+
+    is_crawl_valid(가격>0·error아님) + 매칭성공 + (가능하면)품절X 인 소싱처 중 최저 크롤가.
+    stale(error 옛가격)·품절·매칭실패가 대표 매입가로 새는 것 방지(폴백가 금지).
+    유효 후보 없으면 None → 카드가 '상세 ▾'/미상 으로 정직 표면화(하드코딩·사입가 폴백 금지)."""
+    from lemouton.pricing.unified import is_crawl_valid
+    valid = [x for x in (sources or [])
+             if is_crawl_valid(x.get("crawled_price"), x.get("last_status"))
+             and not x.get("match_failed")]
+    buyable = [x for x in valid if not x.get("stock_out")]
+    cand = buyable or valid
+    if not cand:
+        return None
+    return min(cand, key=lambda x: x.get("crawled_price") or 9e15)
+
+
 def _card_src_provider(model_codes, skus, session=None):
     """카드용 소싱 요약 provider — 매트릭스 단일 진실 원천(_option_matrix_data) 재사용.
     {sku: {stock, source_name, source_url, surface(표면노출가), final(최종매입가),
@@ -90,7 +107,9 @@ def _card_src_provider(model_codes, skus, session=None):
             if o.get("sku") not in skus:
                 continue
             is_pur = o.get("purchase_priority_resolved") == "purchase"
-            stock = o.get("purchase_stock") if is_pur else o.get("src_stock")
+            # 소싱 재고 = 실수량(src_stock_qty). 999/6993 등 센티넬(src_stock)은 합산 금지
+            #   (수량미상은 None → 카드 '미상'. 옛 버그: 센티넬 합산으로 971 같은 가짜 총합).
+            stock = o.get("purchase_stock") if is_pur else o.get("src_stock_qty")
             if is_pur:
                 sname = "사입"
                 surl = None
@@ -99,15 +118,11 @@ def _card_src_provider(model_codes, skus, session=None):
                 #   실제 해석 원가(purchase_resolved_avg)를 매입가로 표시(엔진과 동일값).
                 final = o.get("purchase_resolved_avg")
             else:
-                cand = [x for x in (o.get("sources") or [])
-                        if x.get("crawled_price") is not None]
-                cand.sort(key=lambda x: x["crawled_price"])
-                srcs = o.get("sources") or []
-                # 대표 소싱처 = 최저 표면가(없으면 첫 소싱처). URL·이름·표면가 동일 승자에서 취함.
-                win = cand[0] if cand else (srcs[0] if srcs else None)
+                # 대표 소싱처 = 게이트 통과 최저가(stale/품절/매칭실패 배제). URL·이름·표면가 동일 승자에서.
+                win = _pick_card_source(o.get("sources") or [])
                 sname = win.get("source_name") if win else None
                 surl = win.get("product_url") if win else None
-                surface = (win.get("crawled_price") if win else None) or o.get("src_cost")
+                surface = win.get("crawled_price") if win else None   # src_cost 폴백 제거(하드코딩·사입가 금지)
                 final = None   # 아래 breakdown 일괄 계산(실패 시 None → 카드 '상세 ▾' 폴백)
                 if (win and win.get("source_id") is not None
                         and win.get("crawled_price") is not None):

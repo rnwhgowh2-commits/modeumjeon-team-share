@@ -165,3 +165,21 @@ def test_save_set_automation(db):
     assert db.get(type(a), a.id).auto_mode == "manual"
     # 없는 구성
     assert svc.save_set_automation(db, 99999, {"auto_mode": "on"}) is None
+
+
+def test_signals_price_zero_is_severe():
+    from lemouton.sets.set_service import _signals
+    s = _signals([{"type": "price_zero"}], has_send=False)
+    assert s["price"] == "sev"
+
+
+def test_signals_stock_unknown_is_warn():
+    from lemouton.sets.set_service import _signals
+    s = _signals([{"type": "stock_unknown"}], has_send=False)
+    assert s["stock"] == "warn"
+
+
+def test_signals_soldout_still_severe_over_unknown():
+    from lemouton.sets.set_service import _signals
+    s = _signals([{"type": "market_soldout"}, {"type": "stock_unknown"}], has_send=False)
+    assert s["stock"] == "sev"

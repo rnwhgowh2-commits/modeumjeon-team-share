@@ -90,8 +90,10 @@ def test_fetch_smartstore_maps_options(monkeypatch):
     assert fr.success is True
     assert fr.product_name == "에어포스 1"
     assert len(fr.options) == 2
-    assert fr.options[0] == MarketOption(option_id="111", color="블랙", size="260", stock=4, price=0)
+    # 현재가 = 실판매가(115900) + 옵션추가금(0). 옛 버그(add_price만)면 0.
+    assert fr.options[0] == MarketOption(option_id="111", color="블랙", size="260", stock=4, price=115900)
     assert fr.options[1].option_id == "222"
+    assert fr.options[1].price == 115900
     assert fr.options[0].usable is True
     assert fr.options[1].usable is False
 
@@ -161,7 +163,8 @@ def test_fetch_coupang_maps_options(monkeypatch):
     assert fr.success is True
     assert fr.product_name == "에어포스 쿠팡"
     assert len(fr.options) == 2
-    assert fr.options[0] == MarketOption(option_id="111", color="블랙", size="260", stock=0, price=128900)
+    # 쿠팡 재고는 미제공 → stock=None(0 하드코딩 금지). 가격은 salePrice 그대로.
+    assert fr.options[0] == MarketOption(option_id="111", color="블랙", size="260", stock=None, price=128900)
     assert fr.options[1].option_id == "222"
 
 

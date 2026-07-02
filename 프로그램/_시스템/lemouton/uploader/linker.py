@@ -18,8 +18,8 @@ class MarketOption:
     option_id: str
     color: Optional[str]
     size: Optional[str]
-    stock: int = 0
-    price: int = 0
+    stock: Optional[int] = None   # None = 미수집/미제공(쿠팡). 0 = 실제 품절.
+    price: Optional[int] = None   # None = 미수집. 0 붕괴 금지.
     usable: bool = True
 
 

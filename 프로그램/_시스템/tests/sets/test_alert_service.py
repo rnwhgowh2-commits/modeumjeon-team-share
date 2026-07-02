@@ -81,6 +81,28 @@ def test_not_synced_when_never_fetched(db):
     assert any(a["type"] == "not_synced" and a["severity"] == "info" for a in al.alerts_for_set(db, 2))
 
 
+def test_price_zero_alert_when_collected_price_is_zero(db):
+    # 수집됐는데 현재가 0원 = 수집실패/비정상 → danger 로 표면화(조용한 초록 금지)
+    ch = _chan_fa(db, "smartstore", 5, datetime(2026, 6, 30, tzinfo=timezone.utc))
+    sco = db.query(SetChannelOption).filter_by(channel_id=ch.id).first()
+    sco.mkt_price = 0
+    db.commit()
+    al_list = al.alerts_for_set(db, 2)
+    assert any(a["type"] == "price_zero" and a["severity"] == "danger" for a in al_list)
+
+
+def test_stock_unknown_alert_when_all_none_but_fetched(db):
+    # 수집은 됐는데(쿠팡) 재고 전량 None(미상) → warning 으로 표면화(초록 금지)
+    ch = _chan_fa(db, "coupang", None, datetime(2026, 6, 30, tzinfo=timezone.utc))
+    al_list = al.alerts_for_set(db, 2)
+    assert any(a["type"] == "stock_unknown" and a["severity"] == "warning" for a in al_list)
+
+
+def test_no_stock_unknown_when_stock_present(db):
+    ch = _chan_fa(db, "smartstore", 3, datetime(2026, 6, 30, tzinfo=timezone.utc))
+    assert not any(a["type"] == "stock_unknown" for a in al.alerts_for_set(db, 2))
+
+
 def test_source_changed_after_last_fetch(db):
     _chan_fa(db, "smartstore", 3, datetime(2026, 6, 30, 1, 0, tzinfo=timezone.utc))
     db.add(ChannelChangeEvent(set_id=2, market="smartstore", canonical_sku="K",
