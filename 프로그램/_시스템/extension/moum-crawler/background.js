@@ -1053,6 +1053,39 @@ async function runQueueBG() {
 //   SW 컨텍스트 fetch 는 빈 응답(WAF 봇판정/컨텍스트 추정) → navGrab 한 그 탭의 '페이지
 //   컨텍스트(MAIN world)'에서 same-origin 상대경로 fetch 로 호출(=SPA 와 동일, 확실). 색
 //   번호(uitmSeq) 1..15 순회, 빈 응답이면 색 소진. 2축(uitm2AttrNm) 없으면 단품 → null.
+
+// [2026-07-02] 색상모음전 per-size 옵션 색별 가격 이식. item-stockcount 는 재고만 주고
+//   가격=0(sellPrc=0) 이라, 그대로 두면 확장이 'price>0 옵션 0개' → price=null →
+//   status=error("옵션 가격 없음") → 크롤 위젯에 거짓 '크롤실패'가 뜬다(서버
+//   save_crawl_result 는 fetch_combo_persize_options 로 이미 정상 저장 → 데이터는 옳고
+//   위젯만 거짓). 색-레벨 parse 옵션(각 색 표면가 보유)에서 색별 가격을 per-size 에
+//   옮겨 붙여 확장 판정을 정직하게 만든다. 서버 build_combo_persize_options 의 color_price
+//   병합과 대칭. ⚠️ 이식할 가격이 전무하면 원본 유지(폴백가 날조 금지). 회귀:
+//   scripts/test_hmall_combo_price_graft.js
+function graftComboColorPrices(parseOptions, perSizeOptions) {
+  if (!Array.isArray(perSizeOptions) || !perSizeOptions.length) return perSizeOptions;
+  const hasPrice = (o) => o && typeof o.price === "number" && o.price > 0;
+  if (perSizeOptions.every(hasPrice)) return perSizeOptions;
+  const colorPrice = {};
+  let anyPrice = null;
+  for (const o of (parseOptions || [])) {
+    if (hasPrice(o)) {
+      const c = (o.color_text || "").trim();
+      if (c && !(c in colorPrice)) colorPrice[c] = o.price;
+      if (anyPrice == null) anyPrice = o.price;
+    }
+  }
+  if (anyPrice == null) return perSizeOptions;
+  for (const o of perSizeOptions) {
+    if (!hasPrice(o)) {
+      const c = (o.color_text || "").trim();
+      const pr = (c && colorPrice[c] != null) ? colorPrice[c] : anyPrice;
+      o.price = pr; o.sale_price = pr;
+    }
+  }
+  return perSizeOptions;
+}
+
 async function hmallPerSizeOptions(tabId, url) {
   try {
     const um = String(url || "").match(/slitmCd=(\d+)/);
@@ -1147,7 +1180,9 @@ async function crawlItemInTabBG(tabId, code, item) {
     try {
       const ps = await hmallPerSizeOptions(tabId, url);
       try { console.log("[moum hmall 사이즈API]", url, ps && ps.why); } catch (_) {}
-      if (ps && ps.options && ps.options.length) opts2 = ps.options;
+      // per-size 옵션(item-stockcount)은 가격 0 → 색-레벨 parse 옵션에서 색별 가격 이식
+      //   (안 하면 거짓 '크롤실패'가 위젯에 뜬다. [2026-07-02])
+      if (ps && ps.options && ps.options.length) opts2 = graftComboColorPrices(p.options, ps.options);
     } catch (e) { try { console.log("[moum hmall 사이즈API ERR]", e); } catch (_) {} }
   }
   const priced = opts2.filter((o) => o && typeof o.price === "number" && o.price > 0);
