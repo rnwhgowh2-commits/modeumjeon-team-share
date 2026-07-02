@@ -77,9 +77,14 @@ def _fetch_smartstore(product_id: str, env_prefix: Optional[str] = None) -> Fetc
         return FetchResult(False, None, [], f"옵션 조회 실패: {e}")
     if not r.success:
         return FetchResult(False, None, [], r.error or "옵션 조회 실패")
+    # 현재가 = 기본 판매가(salePrice) + 옵션 추가금(add_price, delta).
+    #   과거엔 price=o.add_price(델타만) 이라 추가금 0원 옵션이 '현재가 0원'으로 둔갑.
+    #   쿠팡(_fetch_coupang)은 sale_price 를 그대로 쓰므로 두 마켓 의미를 일치시킨다.
+    _base = r.sale_price or 0
     opts = [
         MarketOption(option_id=str(o.option_id), color=o.name1, size=o.name2,
-                     stock=o.stock, price=o.add_price, usable=o.usable)
+                     stock=o.stock, price=_base + int(o.add_price or 0),
+                     usable=o.usable)
         for o in r.options
     ]
     return FetchResult(True, r.product_name, opts)

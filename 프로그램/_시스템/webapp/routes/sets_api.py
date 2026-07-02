@@ -74,7 +74,7 @@ def _card_src_provider(model_codes, skus, session=None):
     판매예정가 = 매트릭스가 쓰는 값 그대로(compute_market_price). 사입은 '사입'(URL·표면 없음).
     source_url = 대표(최저 표면가) 소싱처의 상품 URL — 카드 「소」 줄 바로가기(↗)용.
     surface = 대표 소싱처 크롤 노출가 / final = 표면−혜택(compute_breakdown, 화면 셀·영수증과 동일).
-    사입 final = 평균 매입가(purchase_avg_cost).
+    사입 final = 해석된 매입 원가(purchase_resolved_avg — 엔진이 쓰는 단일 진실 원천).
 
     session: 라우트가 자기 세션을 넘겨주면 그걸로 breakdown 계산(중첩 세션 회피 —
       list_linked_sets 이터레이션 도중 새 커넥션을 열지 않는다). 없으면 임시 세션.
@@ -95,7 +95,9 @@ def _card_src_provider(model_codes, skus, session=None):
                 sname = "사입"
                 surl = None
                 surface = None
-                final = o.get("purchase_avg_cost")
+                # 매입 이력 없어 원시평균(purchase_avg_cost)이 0이어도, 템플릿 폴백된
+                #   실제 해석 원가(purchase_resolved_avg)를 매입가로 표시(엔진과 동일값).
+                final = o.get("purchase_resolved_avg")
             else:
                 cand = [x for x in (o.get("sources") or [])
                         if x.get("crawled_price") is not None]
@@ -588,7 +590,8 @@ def _current_source_value_map(s, set_id):
         vmap[sku] = {
             "stock": o.get("purchase_stock") if is_pur else o.get("src_stock"),
             "surface": (None if is_pur else surfaces.get(sku, o.get("src_cost"))),
-            "cost": (o.get("purchase_avg_cost") if is_pur else finals.get(sku)),
+            # 사입 원가 = 해석된 매입가(purchase_resolved_avg). 원시평균(avg_cost)은 이력無면 0.
+            "cost": (o.get("purchase_resolved_avg") if is_pur else finals.get(sku)),
             "ss_price": o.get("ss_price"),
             "cp_price": o.get("cp_price"),
         }
