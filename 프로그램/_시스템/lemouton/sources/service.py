@@ -598,6 +598,35 @@ def _scope_options_to_color(options: list[dict], reg_color: str | None) -> list[
     return result
 
 
+# ── 동적 혜택 키 화이트리스트 (단일 진실 원천) ──────────────────────────────
+#   서버사이드 _ingest(save_crawl_result)·확장 경로(persist_crawled_options) 공용.
+#   compute_breakdown 이 dynamic_benefits_json 에서 이 키들을 lookup 해 매입가 산식에 반영.
+#   OPTION = 옵션 레벨(auto_card_discount·lotteon_coupons 포함) / PRODUCT = 상품 레벨.
+OPTION_DYNAMIC_KEYS = (
+    'point_rate', 'point_amount',           # SSF 멤버십포인트 (변동)
+    'gift_point_amount',                    # SSF 기프트포인트 (변동)
+    'auto_card_discount',                   # 르무통/롯데/SSF 사이트 자동 카드
+    'ssg_money_rate', 'ssg_money_amount',   # SSG MONEY
+    'ssg_money_already_applied', 'ssg_money_text',
+    'card_benefit_price', 'card_benefit_condition',  # SSG 카드혜택가
+    'product_coupon_rate', 'product_coupon_amount',  # SSG 상품쿠폰
+    'product_coupon_min_order', 'product_coupon_max_discount',
+    'product_coupon_label',
+    'point_rewards',                        # 롯데홈쇼핑 L.POINT
+    'hmall_point_amount',                   # 현대H몰 H.Point 적립(정액)
+    'hmall_card_label', 'hmall_card_discount',  # 현대H몰 카드 즉시할인(조건부)
+    'lotteon_coupons',                      # 롯데온 쿠폰 리스트
+    'review_point_max',                     # 스스 르무통 리뷰 적립
+    'lotte_member_discount_rate', 'lotte_member_discount_label',  # 롯데온 회원할인
+    'store_jjim_coupon_amount', 'store_jjim_coupon_label',
+    'member_price', 'is_member_price', 'login_marker_present',    # 무신사 회원가
+)
+# 상품 레벨은 옵션 전용(auto_card_discount·lotteon_coupons) 두 키만 제외.
+PRODUCT_DYNAMIC_KEYS = tuple(
+    k for k in OPTION_DYNAMIC_KEYS if k not in ('auto_card_discount', 'lotteon_coupons')
+)
+
+
 def persist_crawled_options(session: Session, *, source_product, options) -> dict:
     """크롤 옵션(색·사이즈·재고·가격) → SourceOption upsert(생성+갱신) + 단품 색스코프 + stale prune.
 
@@ -623,12 +652,16 @@ def persist_crawled_options(session: Session, *, source_product, options) -> dic
     for o in options:
         if not isinstance(o, dict):
             continue
+        # 동적 혜택 키(ssg_money_rate 등) 추출 — 서버사이드 _ingest 와 동일 화이트리스트.
+        #   확장이 옵션 dict 에 실어 보내면 여기서 SourceOption.dynamic_benefits_json 으로 영속.
+        _dyn = {k: o[k] for k in OPTION_DYNAMIC_KEYS if k in o}
         norm.append({
             'color_text': o.get('color_text') or o.get('color'),
             'size_text': o.get('size_text') or o.get('size'),
             'option_id': o.get('option_id') or o.get('external_option_id'),
             'price': o.get('sale_price') or o.get('price'),
             'stock': o.get('stock'),
+            '_dynamic': _dyn or None,
         })
     scoped = _scope_options_to_color(norm, _resolve_reg_color(session, source_product))
     if not scoped:
@@ -642,12 +675,17 @@ def persist_crawled_options(session: Session, *, source_product, options) -> dic
         #   persist 전체가 죽고(호출부 except:pass 가 삼킴) 확장이 보낸 152개가 통째 유실됐다
         #   (현대H몰 색상모음전 사이즈별 미저장). begin_nested = SAVEPOINT(이전 upsert 보존).
         try:
+            _dj = None
+            if o.get('_dynamic'):
+                import json as _json
+                _dj = _json.dumps(o['_dynamic'], ensure_ascii=False)
             with session.begin_nested():
                 upsert_source_option(
                     session, source_product_id=source_product.id,
                     color_text=o.get('color_text'), size_text=o.get('size_text'),
                     external_option_id=o.get('option_id'),
-                    current_price=o.get('price'), current_stock=o.get('stock'))
+                    current_price=o.get('price'), current_stock=o.get('stock'),
+                    dynamic_benefits_json=_dj)
             upserted += 1
         except Exception as _e:
             failed += 1
@@ -696,30 +734,7 @@ def save_crawl_result(
     # ★ 2026-05-15 — 옵션 dict 의 동적 혜택 키를 SourceProduct.dynamic_benefits_json 에 저장.
     #   compute_breakdown 이 lookup 해서 매트릭스 매입가 산식에 추가 차감으로 자동 반영.
     #   상품 단위로 동일 값 가정 → 첫 옵션의 동적 키들만 추출.
-    PRODUCT_DYNAMIC_KEYS = (
-        'point_rate', 'point_amount',                 # SSF 멤버십포인트
-        'gift_point_amount',                          # SSF 기프트포인트 (변동)
-        'ssg_money_rate', 'ssg_money_amount',         # SSG MONEY
-        'ssg_money_already_applied', 'ssg_money_text',
-        'card_benefit_price', 'card_benefit_condition',  # SSG 카드혜택가
-        # SSG 상품쿠폰 (2026-05-15 — X% 또는 정액 + 최소 구매금액 조건)
-        'product_coupon_rate', 'product_coupon_amount',
-        'product_coupon_min_order', 'product_coupon_max_discount',
-        'product_coupon_label',
-        'point_rewards',                              # 롯데홈쇼핑 L.POINT
-        'hmall_point_amount',                         # 현대H몰 H.Point 적립(정액)
-        'hmall_card_label', 'hmall_card_discount',       # 현대H몰 카드 즉시할인(조건부)
-        'review_point_max',                           # 스스 르무통 리뷰 적립
-        # ★ 2026-05-15 — 롯데온 (lotteon.com) 사용자 스크린샷 명세 동적 혜택
-        'lotte_member_discount_rate',                 # 롯데오너스 X% 회원할인 (자동 활성)
-        'lotte_member_discount_label',
-        'store_jjim_coupon_amount',                   # 스토어찜 쿠폰 정액 (비활성 기본)
-        'store_jjim_coupon_label',
-        # ★ Phase 8.8.3 (2026-05-17) — 무신사 회원가 추출 (사고 방지 핵심)
-        'member_price',                               # 무신사 "나의 할인가" 회원가
-        'is_member_price',                            # 회원가 추출 성공 여부 (False = 비회원가 사고)
-        'login_marker_present',                       # 로그인 페이지 마커 노출 여부 (Gate 1)
-    )
+    # PRODUCT_DYNAMIC_KEYS 는 모듈 상수(단일 진실 원천) 사용 — persist_crawled_options 와 공유.
     _dyn = {}
     for _o in (crawl_result.options or []):
         for _k in PRODUCT_DYNAMIC_KEYS:
@@ -788,28 +803,7 @@ def save_crawl_result(
     #   auto_card_discount / ssg_money_* / card_benefit_* / lotteon_coupons 등)
     #   을 SourceOption.dynamic_benefits_json 에 저장. compute_breakdown 이 lookup.
     import json as _json
-    DYNAMIC_KEYS = (
-        'point_rate', 'point_amount',           # SSF 멤버십포인트 (변동)
-        'gift_point_amount',                    # SSF 기프트포인트 (변동)
-        'auto_card_discount',                   # 르무통/롯데/SSF 사이트 자동 카드
-        'ssg_money_rate', 'ssg_money_amount',   # SSG MONEY
-        'ssg_money_already_applied', 'ssg_money_text',
-        'card_benefit_price', 'card_benefit_condition',  # SSG 카드혜택가
-        # SSG 상품쿠폰 (2026-05-15 — X% 또는 정액 + 최소 구매금액 조건)
-        'product_coupon_rate', 'product_coupon_amount',
-        'product_coupon_min_order', 'product_coupon_max_discount',
-        'product_coupon_label',
-        'point_rewards',                        # 롯데홈쇼핑 L.POINT
-        'hmall_point_amount',                   # 현대H몰 H.Point 적립(정액)
-        'hmall_card_label', 'hmall_card_discount', # 현대H몰 카드 즉시할인(조건부)
-        'lotteon_coupons',                      # 롯데온 쿠폰 리스트
-        'review_point_max',                     # 스스 르무통 리뷰 적립
-        # ★ 2026-05-15 — 롯데온 (lotteon.com) 사용자 스크린샷 명세 동적 혜택
-        'lotte_member_discount_rate', 'lotte_member_discount_label',
-        'store_jjim_coupon_amount', 'store_jjim_coupon_label',
-        # ★ Phase 8.8.3 (2026-05-17) — 무신사 회원가 / 로그인 마커 (옵션 단위)
-        'member_price', 'is_member_price', 'login_marker_present',
-    )
+    DYNAMIC_KEYS = OPTION_DYNAMIC_KEYS  # 모듈 상수(단일 진실 원천) — persist_crawled_options 와 공유.
     # ★ [2026-06-24] 단품 색상 스코프 — 무신사 단품 SP 형제색 병합 폴루션 차단.
     #   _discover_color_variants 가 모든 색 변형(오렌지+블랙+아이보리...)을 합쳐 반환하면
     #   필터 없이 upsert 할 때 오렌지 SP 에 블랙·아이보리 행이 섞인다(pollution).

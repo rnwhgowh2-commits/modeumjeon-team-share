@@ -1572,6 +1572,30 @@ def save_crawl_result():
                 if _clean:
                     _dyn['_benefit_lines'] = _clean
                 sp.dynamic_benefits_json = _json.dumps(_dyn, ensure_ascii=False)
+            # [b번, 2026-07-02] 무신사 외 소싱처(SSG·SSF·롯데온 등)도 확장이 실어 보낸
+            #   동적 혜택 키(ssg_money_rate 등)를 상품 레벨 dynamic_benefits_json 에 저장.
+            #   서버사이드 _ingest 와 대칭 — compute_breakdown 이 계산식에 반영.
+            #   무결성: 폴백 금지 — payload 에 실제 키가 있을 때만 기록(없으면 하드리셋 NULL 보존).
+            elif getattr(sp, 'site', None) != 'musinsa':
+                import json as _json2
+                from lemouton.sources.service import PRODUCT_DYNAMIC_KEYS
+                _pdyn = {}
+                for _src in [it] + list(it.get('options') or []):
+                    if not isinstance(_src, dict):
+                        continue
+                    _hit = {k: _src[k] for k in PRODUCT_DYNAMIC_KEYS
+                            if k in _src and _src[k] not in (None, 0, '', False)}
+                    if _hit:
+                        _pdyn.update(_hit)
+                        break
+                if _pdyn:
+                    try:
+                        _cur = (_json2.loads(sp.dynamic_benefits_json)
+                                if sp.dynamic_benefits_json else {})
+                    except (ValueError, TypeError):
+                        _cur = {}
+                    _cur.update(_pdyn)
+                    sp.dynamic_benefits_json = _json2.dumps(_cur, ensure_ascii=False)
             updated += 1
         s.commit()
         return _ok(updated=updated, not_found=not_found, total=len(items))

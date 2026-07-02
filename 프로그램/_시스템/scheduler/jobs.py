@@ -149,22 +149,16 @@ def full_cycle(*, dry_run: bool = False) -> dict:
         else:
             from shared.db import SessionLocal as _SL2
             from lemouton.uploader.orchestrator import run_uploader
-            from lemouton.uploader.adapters.base import MarketAdapter, UploadResult
-            class _DryRunAdapter(MarketAdapter):
-                def __init__(self, mkt): self.market_name = mkt
-                def update_price_and_stock(self, *, canonical_sku, market_product_id,
-                                           market_option_id, new_price, new_stock):
-                    return UploadResult(market=self.market_name,
-                                        canonical_sku=canonical_sku,
-                                        success=True, http_status=200,
-                                        error='dry-run (외부 호출 없음)')
+            from lemouton.uploader.runtime import (
+                select_adapters, build_sku_by_option, live_upload_enabled,
+            )
             s = _SL2()
             try:
-                # 운영 어댑터 미설치 시 항상 dry-run 어댑터 사용 — 외부 호출 없이 시뮬레이션
-                ss_ad = _DryRunAdapter('smartstore')
-                cp_ad = _DryRunAdapter('coupang')
-                # canonical_sku → 마켓 sku 매핑 (옵션 단위) — 미매핑 시 빈 dict
-                sku_by_option = {sku: {} for sku in (a_output or {})}
+                # 실전송 게이트 — LEMOUTON_LIVE_UPLOAD 가 참일 때만 실제 어댑터.
+                # 기본 OFF → DryRunAdapter (외부 호출 없음).
+                ss_ad, cp_ad = select_adapters()
+                # (market, 마켓옵션ID) → canonical_sku (matched 채널옵션만)
+                sku_by_option = build_sku_by_option(s)
                 import os
                 dlq_path = os.path.join(os.path.dirname(__file__), '..', 'data', 'uploader_dlq.jsonl')
                 r = run_uploader(s, c_output,
@@ -172,9 +166,12 @@ def full_cycle(*, dry_run: bool = False) -> dict:
                                  ss_adapter=ss_ad, cp_adapter=cp_ad,
                                  dlq_path=dlq_path,
                                  force=False)
+                _mode = 'live' if live_upload_enabled() else 'dryrun'
                 result['phases']['D_uploader'] = {
                     'ok': True,
-                    'detail': f"actionable {len(r.get('actionable', []))} / skipped {r.get('skipped', 0)}"
+                    'detail': (f"mode={_mode} · uploaded {r.get('uploaded', 0)} / "
+                               f"skipped {r.get('skipped', 0)} / failed {r.get('failed', 0)}"
+                               + (f" / HELD({r.get('hold_reason')})" if r.get('held') else "")),
                 }
             finally:
                 s.close()
