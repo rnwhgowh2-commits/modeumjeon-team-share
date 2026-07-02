@@ -18,6 +18,16 @@ def _err(msg, code=400):
     return jsonify({"ok": False, "error": msg}), code
 
 
+def _sid_key(v):
+    """소싱처 id 정규화 — 정수면 정수(breakdown 캐시 키 = DB int id 와 일치),
+    카탈로그 소싱처의 문자열 키('key:lotteimall' 등)는 원본 유지(int() 크래시 방지).
+    문자열 키는 정수 템플릿/오버라이드가 없어 자연히 매칭 0(동적 혜택은 source_product_id 로)."""
+    try:
+        return int(v)
+    except (TypeError, ValueError):
+        return v
+
+
 @bp.get("/sets/search-bundles")
 def search_bundles():
     q = (request.args.get("q") or "").strip()
@@ -119,7 +129,7 @@ def _card_src_provider(model_codes, skus, session=None):
             cache = _build_breakdown_cache(s, items)
             for it in items:
                 try:
-                    bd = compute_breakdown(s, sku=it["sku"], source_id=int(it["source_id"]),
+                    bd = compute_breakdown(s, sku=it["sku"], source_id=_sid_key(it["source_id"]),
                                            sale_price=float(it["sale_price"]), _cache=cache,
                                            source_product_id=it.get("source_product_id"))
                     if bd and bd.get("final_price") is not None and it["sku"] in out:
@@ -142,75 +152,6 @@ def _card_src_provider(model_codes, skus, session=None):
             if own:
                 s.close()
     return out
-
-
-@bp.get("/sets/debug-receipt")
-def debug_receipt_route():
-    """[임시 진단] 최종매입가(compute_breakdown) 빈값 원인 추적 — 읽기전용. 확인 후 제거."""
-    import traceback
-    from lemouton.sets.models import ProductSet
-    from webapp.routes.api_pricing import _option_matrix_data
-    from webapp.routes.api_benefits import _build_breakdown_cache, compute_breakdown
-    s = SessionLocal()
-    out = []
-    try:
-        for ps in s.query(ProductSet).filter_by(is_active=True).all():
-            detail = svc.get_set_detail(s, ps.id)
-            if not detail:
-                continue
-            skus = set()
-            for p in detail["products"]:
-                skus.update(p["options"])
-            for mc in {p["model_code"] for p in detail["products"]}:
-                data = _option_matrix_data(mc)
-                if not data.get("ok"):
-                    out.append({"set": ps.name, "mc": mc, "matrix_ok": False})
-                    continue
-                for o in data.get("options", []):
-                    if o.get("sku") not in skus or o.get("purchase_priority_resolved") == "purchase":
-                        continue
-                    srcs = o.get("sources") or []
-                    cand = sorted([x for x in srcs if x.get("crawled_price") is not None],
-                                  key=lambda x: x["crawled_price"])
-                    win = cand[0] if cand else (srcs[0] if srcs else None)
-                    info = {
-                        "set": ps.name, "sku": o.get("sku"),
-                        "src_cost": o.get("src_cost"),
-                        "n_sources": len(srcs), "n_with_crawled": len(cand),
-                        "win_name": (win or {}).get("source_name"),
-                        "win_source_id": (win or {}).get("source_id"),
-                        "win_crawled_price": (win or {}).get("crawled_price"),
-                        "win_spid": (win or {}).get("source_product_id"),
-                        "item_built_current_rule": bool(
-                            win and win.get("source_id") is not None
-                            and win.get("crawled_price") is not None),
-                    }
-                    if win and win.get("source_id") is not None:
-                        sale = win.get("crawled_price") or o.get("src_cost")
-                        try:
-                            it = [{"sku": o["sku"], "source_id": win["source_id"],
-                                   "sale_price": sale,
-                                   "source_product_id": win.get("source_product_id")}]
-                            cache = _build_breakdown_cache(s, it)
-                            bd = compute_breakdown(
-                                s, sku=o["sku"], source_id=int(win["source_id"]),
-                                sale_price=float(sale or 0), _cache=cache,
-                                source_product_id=win.get("source_product_id"))
-                            info["bd_sale"] = (bd or {}).get("sale_price")
-                            info["bd_final"] = (bd or {}).get("final_price")
-                            info["bd_steps"] = len((bd or {}).get("steps") or [])
-                        except Exception as e:
-                            info["bd_error"] = repr(e)
-                            info["bd_tb"] = traceback.format_exc()[-700:]
-                    else:
-                        info["bd_skipped"] = "no source_id"
-                    out.append(info)
-        return jsonify({"ok": True, "rows": out})
-    except Exception as e:
-        return jsonify({"ok": False, "error": repr(e),
-                        "tb": traceback.format_exc()[-1500:]})
-    finally:
-        s.close()
 
 
 @bp.get("/sets/linked")
@@ -631,7 +572,7 @@ def _current_source_value_map(s, set_id):
         for it in items:
             surfaces[it["sku"]] = it["sale_price"]
             try:
-                bd = compute_breakdown(s, sku=it["sku"], source_id=int(it["source_id"]),
+                bd = compute_breakdown(s, sku=it["sku"], source_id=_sid_key(it["source_id"]),
                                        sale_price=float(it["sale_price"]), _cache=cache,
                                        source_product_id=it.get("source_product_id"))
                 if bd and bd.get("final_price") is not None:

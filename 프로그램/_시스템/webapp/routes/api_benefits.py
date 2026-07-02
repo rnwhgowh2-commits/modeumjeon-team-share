@@ -365,8 +365,19 @@ def _build_breakdown_cache(session, items: list) -> dict:
     from lemouton.sourcing.models_pricing import OptionSourceUrl
     from lemouton.sources.service import normalize_url as _nu
     skus = list({it.get('sku') for it in items if it.get('sku')})
-    sids = list({int(it.get('source_id')) for it in items
-                 if it.get('source_id') is not None})
+    # source_id 는 보통 정수(DB SourcingSource.id)지만, 카탈로그 소싱처(예: 롯데아이몰)는
+    #   문자열 키('key:lotteimall') — 정수 템플릿/오버라이드가 없다. int() 로 터지지 않게
+    #   정수 변환 가능한 것만 IN 조회 대상에 넣는다(문자열 키는 어차피 DB 매칭 없음).
+    sids = set()
+    for it in items:
+        sid = it.get('source_id')
+        if sid is None:
+            continue
+        try:
+            sids.add(int(sid))
+        except (TypeError, ValueError):
+            pass
+    sids = list(sids)
     link_by = {}
     if skus and sids:
         for l in (session.query(OptionSourceUrl)

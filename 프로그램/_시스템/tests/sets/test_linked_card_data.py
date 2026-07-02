@@ -171,6 +171,26 @@ def test_rep_price_purchase_only_no_surface(db):
     assert _rep_price({}) == (None, None, None)
 
 
+def test_sid_key_coerces_int_keeps_string():
+    """[회귀] 소싱처 id 정규화 — 숫자는 int, 카탈로그 문자열 키는 원본."""
+    from webapp.routes.sets_api import _sid_key
+    assert _sid_key(1) == 1
+    assert _sid_key("2") == 2
+    assert _sid_key("key:lotteimall") == "key:lotteimall"
+    assert _sid_key(None) is None
+
+
+def test_build_breakdown_cache_tolerates_string_source_id(db):
+    """[회귀] 카탈로그 소싱처 문자열 id('key:lotteimall')로 캐시 빌드 — int() 크래시 금지.
+    라이브 '목록 최종매입가=상세▾' 근본원인(ValueError: invalid literal for int()) 재발 방지."""
+    from webapp.routes.api_benefits import _build_breakdown_cache
+    items = [{"sku": "S", "source_id": "key:lotteimall", "sale_price": 111510,
+              "source_product_id": 130},
+             {"sku": "T", "source_id": 1, "sale_price": 116900}]
+    cache = _build_breakdown_cache(db, items)   # ValueError 나면 테스트 실패
+    assert isinstance(cache, dict) and "tpl_by_src" in cache
+
+
 def test_src_summary_receipt_from_provider(db):
     """[상세 영수증] 대표 옵션의 영수증이 src_summary.receipt 로 카드까지 실린다."""
     _seed(db, "smartstore", 50)
