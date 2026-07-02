@@ -67,8 +67,15 @@ def run_uploader(
     warnings_threshold: int = 5,
     avg_price_change_pct: float = 30.0,
     force: bool = False,
+    persist: bool = False,
 ) -> dict:
-    """메인 진입점. force=True면 보류 무시하고 진행."""
+    """메인 진입점. force=True면 보류 무시하고 진행.
+
+    persist=True 면 종료 시 session.commit() 으로 MarketRegistration(변동감지 기준선)을
+    영속한다. 이게 없으면 SessionLocal(autocommit=False)에서 등록이 롤백돼 detect_change 가
+    매번 '이전 없음'=변동으로 판정 → 라이브에서 안 바뀐 옵션도 매 사이클 재전송(#12).
+    dry-run(persist=False)은 커밋하지 않아 '미전송분'이 '전송됨' 기준선으로 오염되지 않는다.
+    """
     uploads = _extract_uploads(c_output, sku_by_option)
 
     # 변동 감지
@@ -155,6 +162,8 @@ def run_uploader(
             })
             failed += 1
 
+    if persist:
+        session.commit()   # #12 — 변동감지 기준선(MarketRegistration) 영속
     return {
         "uploaded": uploaded, "skipped": skipped, "failed": failed,
         "held": False, "hold_reason": "",
