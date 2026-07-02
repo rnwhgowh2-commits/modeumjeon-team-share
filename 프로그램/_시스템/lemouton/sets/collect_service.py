@@ -4,9 +4,12 @@
 """
 from __future__ import annotations
 
+import logging
 from datetime import datetime, timezone
 
 from lemouton.sets.models import SetChannel, SetChannelOption
+
+logger = logging.getLogger(__name__)
 from lemouton.sets.change_service import record_change
 from lemouton.sets.set_link_service import _resolve_env_prefix
 from lemouton.uploader.market_fetch import fetch_market_options
@@ -68,10 +71,17 @@ def collect_all_linked_sets(session, fetcher=fetch_market_options):
     from lemouton.sets.models import SetChannel
     set_ids = [r[0] for r in session.query(SetChannel.set_id).distinct().all()]
     done = 0
+    failed_ids: list = []
     for sid in set_ids:
         try:
             collect_set(session, sid, fetcher=fetcher)
             done += 1
         except Exception:
+            # 조용한 실패 금지 — 삼키지 말고 로그+카운트로 표면화(부분 성공 유지)
             session.rollback()
-    return {"ok": True, "sets": done}
+            failed_ids.append(sid)
+            logger.exception("collect_all_linked_sets: set_id=%s 수집 실패", sid)
+    if failed_ids:
+        logger.error("collect_all_linked_sets: %d/%d 세트 수집 실패 — ids=%s",
+                     len(failed_ids), len(set_ids), failed_ids)
+    return {"ok": True, "sets": done, "failed": len(failed_ids), "failed_ids": failed_ids}
