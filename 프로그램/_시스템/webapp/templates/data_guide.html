@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block title %}데이터 가이드{% endblock %}
+{% block content %}
+<style>
+  .dg-wrap{ padding:28px 30px 60px; max-width:1000px; }
+  .dg-wrap .page-head h2{ font-size:28px; font-weight:800; letter-spacing:-.4px; margin:0 0 6px; }
+  .dg-hint{ color:#8B95A1; font-size:13px; margin:0 0 16px; }
+  /* 승인된 참고 문서를 그대로 임베드 — 프로그램 CSS 와 격리 (same-origin, 자동 높이) */
+  #dgFrame{ width:100%; border:1px solid #E5E8EB; border-radius:16px; background:#fff; display:block; min-height:600px; }
+</style>
+
+<div class="dg-wrap">
+  <div class="page-head"><h2>📖 데이터 가이드</h2></div>
+  <p class="dg-hint">데이터가 어떻게 수집·가공·전송되는지, 그리고 각 탭의 데이터가 어디에 쓰이는지 정리한 참고 문서입니다. (내부 교육자료)</p>
+  <iframe id="dgFrame" src="/data-guide/doc" title="데이터 가이드" scrolling="no"></iframe>
+</div>
+
+<script>
+  // same-origin iframe 자동 높이 — 내부 문서가 스크롤 없이 펼쳐지도록
+  (function(){
+    var f = document.getElementById('dgFrame');
+    function fit(){
+      try {
+        var doc = f.contentWindow.document;
+        f.style.height = (Math.max(doc.body.scrollHeight, doc.documentElement.scrollHeight) + 24) + 'px';
+      } catch(e) {}
+    }
+    f.addEventListener('load', function(){ fit(); setTimeout(fit, 200); setTimeout(fit, 800); });
+    window.addEventListener('resize', fit);
+  })();
+</script>
+{% endblock %}
