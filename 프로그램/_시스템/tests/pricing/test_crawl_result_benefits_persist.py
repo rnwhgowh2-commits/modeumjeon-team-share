@@ -118,3 +118,46 @@ def test_no_benefit_keys_leaves_options_clean(env):
         assert not so.dynamic_benefits_json, "혜택 키 없는데 JSON 이 생김(잡음)"
     finally:
         q.close()
+
+
+LOTTE_URL = "https://www.lotteon.com/p/product/LO2158462485?sitmNo=LO2158462485_2158462495"
+
+
+@pytest.fixture
+def env_lotteon():
+    eng = create_engine("sqlite://")
+    Base.metadata.create_all(eng)
+    seed = Session(eng)
+    seed.add(M.Model(model_code="LT", model_name_raw="롯데온테스트"))
+    seed.commit()
+    upsert_source_product(seed, site="lotteon", url=LOTTE_URL)
+    seed.commit()
+    seed.close()
+
+    import webapp.routes.api_pricing as _mod
+    app = Flask(__name__)
+    app.register_blueprint(_mod.bp)
+    app.config.update(TESTING=True)
+    with patch.object(_mod, "SessionLocal", side_effect=lambda: Session(eng)):
+        yield app.test_client(), eng
+
+
+def test_lotteon_member_discount_rate_persisted(env_lotteon):
+    """[b번-롯데온] 확장이 표면가+롯데오너스 할인율을 보내면 상품 레벨에 저장 → 계산식 항목화."""
+    client, eng = env_lotteon
+    r = client.post("/api/sources/crawl-result", json={"items": [{
+        "url": LOTTE_URL, "price": 119910, "stock": 999, "status": "ok",
+        "product_name": "르무통 메이트",
+        "lotte_member_discount_rate": 0.01,
+        "lotte_member_discount_label": "롯데오너스 할인 1%",
+    }]})
+    assert r.status_code == 200, r.get_data(as_text=True)
+    q = Session(eng)
+    try:
+        sp = q.query(SourceProduct).filter_by(site="lotteon").first()
+        assert sp is not None and sp.dynamic_benefits_json
+        dyn = json.loads(sp.dynamic_benefits_json)
+        assert dyn.get("lotte_member_discount_rate") == 0.01
+        assert dyn.get("lotte_member_discount_label") == "롯데오너스 할인 1%"
+    finally:
+        q.close()
