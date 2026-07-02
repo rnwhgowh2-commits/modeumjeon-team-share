@@ -59,11 +59,16 @@ def sets_dashboard_page():
 
 def _card_src_provider(model_codes, skus):
     """카드용 소싱 요약 provider — 매트릭스 단일 진실 원천(_option_matrix_data) 재사용.
-    {sku: {stock, source_name, source_url, ss_price(스스 판매예정가), cp_price(쿠팡 판매예정가)}}.
-    판매예정가 = 매트릭스가 쓰는 값 그대로(compute_market_price). 사입은 '사입'(URL 없음).
-    source_url = 대표(최저 표면가) 소싱처의 상품 URL — 카드 「소」 줄 바로가기(↗)용."""
+    {sku: {stock, source_name, source_url, surface(표면노출가), final(최종매입가),
+           ss_price(스스 판매예정가), cp_price(쿠팡 판매예정가)}}.
+    판매예정가 = 매트릭스가 쓰는 값 그대로(compute_market_price). 사입은 '사입'(URL·표면 없음).
+    source_url = 대표(최저 표면가) 소싱처의 상품 URL — 카드 「소」 줄 바로가기(↗)용.
+    surface = 대표 소싱처 크롤 노출가 / final = 표면−혜택(compute_breakdown, 화면 셀·영수증과 동일).
+    사입 final = 평균 매입가(purchase_avg_cost)."""
     from webapp.routes.api_pricing import _option_matrix_data
+    from webapp.routes.api_benefits import _build_breakdown_cache, compute_breakdown
     out = {}
+    items = []   # 최종매입가 breakdown 대상(사입 아닌 대표 소싱처)
     for mc in model_codes:
         data = _option_matrix_data(mc)
         if not data.get("ok"):
@@ -76,19 +81,45 @@ def _card_src_provider(model_codes, skus):
             if is_pur:
                 sname = "사입"
                 surl = None
+                surface = None
+                final = o.get("purchase_avg_cost")
             else:
                 cand = [x for x in (o.get("sources") or [])
                         if x.get("crawled_price") is not None]
                 cand.sort(key=lambda x: x["crawled_price"])
                 srcs = o.get("sources") or []
-                # 대표 소싱처 = 최저 표면가(없으면 첫 소싱처). URL·이름 동일 승자에서 취함.
+                # 대표 소싱처 = 최저 표면가(없으면 첫 소싱처). URL·이름·표면가 동일 승자에서 취함.
                 win = cand[0] if cand else (srcs[0] if srcs else None)
                 sname = win.get("source_name") if win else None
                 surl = win.get("product_url") if win else None
+                surface = (win.get("crawled_price") if win else None) or o.get("src_cost")
+                final = None   # 아래 breakdown 일괄 계산(실패 시 None → 카드 '상세 ▾' 폴백)
+                if (win and win.get("source_id") is not None
+                        and win.get("crawled_price") is not None):
+                    items.append({"sku": o["sku"], "source_id": win["source_id"],
+                                  "sale_price": win["crawled_price"],
+                                  "source_product_id": win.get("source_product_id")})
             out[o["sku"]] = {"stock": stock, "source_name": sname,
                              "source_url": surl,
+                             "surface": surface, "final": final,
                              "ss_price": o.get("ss_price"),
                              "cp_price": o.get("cp_price")}
+    # 최종매입가(표면−혜택) 일괄 계산 — _cache 로 N+1 제거. 실패는 None 유지(날조 금지).
+    if items:
+        s = SessionLocal()
+        try:
+            cache = _build_breakdown_cache(s, items)
+            for it in items:
+                try:
+                    bd = compute_breakdown(s, sku=it["sku"], source_id=int(it["source_id"]),
+                                           sale_price=float(it["sale_price"]), _cache=cache,
+                                           source_product_id=it.get("source_product_id"))
+                    if bd and bd.get("final_price") is not None and it["sku"] in out:
+                        out[it["sku"]]["final"] = bd["final_price"]
+                except Exception:
+                    pass
+        finally:
+            s.close()
     return out
 
 
