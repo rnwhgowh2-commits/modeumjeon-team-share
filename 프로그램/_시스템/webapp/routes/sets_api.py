@@ -57,16 +57,19 @@ def sets_dashboard_page():
     return render_template("sets/dashboard.html", active="sets_dashboard")
 
 
-def _card_src_provider(model_codes, skus):
+def _card_src_provider(model_codes, skus, session=None):
     """카드용 소싱 요약 provider — 매트릭스 단일 진실 원천(_option_matrix_data) 재사용.
     {sku: {stock, source_name, source_url, surface(표면노출가), final(최종매입가),
            ss_price(스스 판매예정가), cp_price(쿠팡 판매예정가)}}.
     판매예정가 = 매트릭스가 쓰는 값 그대로(compute_market_price). 사입은 '사입'(URL·표면 없음).
     source_url = 대표(최저 표면가) 소싱처의 상품 URL — 카드 「소」 줄 바로가기(↗)용.
     surface = 대표 소싱처 크롤 노출가 / final = 표면−혜택(compute_breakdown, 화면 셀·영수증과 동일).
-    사입 final = 평균 매입가(purchase_avg_cost)."""
+    사입 final = 평균 매입가(purchase_avg_cost).
+
+    session: 라우트가 자기 세션을 넘겨주면 그걸로 breakdown 계산(중첩 세션 회피 —
+      list_linked_sets 이터레이션 도중 새 커넥션을 열지 않는다). 없으면 임시 세션.
+    최종매입가 계산은 전체를 try 로 감싸 실패해도 목록을 절대 깨지 않음(final=None → '상세 ▾')."""
     from webapp.routes.api_pricing import _option_matrix_data
-    from webapp.routes.api_benefits import _build_breakdown_cache, compute_breakdown
     out = {}
     items = []   # 최종매입가 breakdown 대상(사입 아닌 대표 소싱처)
     for mc in model_codes:
@@ -104,9 +107,13 @@ def _card_src_provider(model_codes, skus):
                              "surface": surface, "final": final,
                              "ss_price": o.get("ss_price"),
                              "cp_price": o.get("cp_price")}
-    # 최종매입가(표면−혜택) 일괄 계산 — _cache 로 N+1 제거. 실패는 None 유지(날조 금지).
+    # 최종매입가(표면−혜택) 일괄 계산 — _cache 로 N+1 제거.
+    #   전체를 try 로 감싼다: breakdown 이 어떤 이유로 터져도 목록은 절대 안 깨지고
+    #   final=None 으로 남아 카드가 '상세 ▾' 로 안전 폴백(날조 금지·무중단).
     if items:
-        s = SessionLocal()
+        from webapp.routes.api_benefits import _build_breakdown_cache, compute_breakdown
+        own = session is None
+        s = session or SessionLocal()
         try:
             cache = _build_breakdown_cache(s, items)
             for it in items:
@@ -118,8 +125,11 @@ def _card_src_provider(model_codes, skus):
                         out[it["sku"]]["final"] = bd["final_price"]
                 except Exception:
                     pass
+        except Exception:
+            pass   # _build_breakdown_cache 실패 등 — 목록 보호(최종매입가만 지연)
         finally:
-            s.close()
+            if own:
+                s.close()
     return out
 
 
@@ -129,7 +139,10 @@ def list_linked():
     q = (request.args.get("q") or "").strip()
     s = SessionLocal()
     try:
-        rows = svc.list_linked_sets(s, q=q or None, src_provider=_card_src_provider)
+        # 라우트 세션을 provider 에 넘겨 breakdown 이 중첩 세션을 안 열게 한다(무중단·안전).
+        rows = svc.list_linked_sets(
+            s, q=q or None,
+            src_provider=lambda mcs, sk: _card_src_provider(mcs, sk, session=s))
         return jsonify({"ok": True, "sets": rows})
     finally:
         s.close()
