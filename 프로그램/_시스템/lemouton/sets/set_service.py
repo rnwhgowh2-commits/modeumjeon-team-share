@@ -38,16 +38,31 @@ def _rep_source_url(smap, name):
     return None
 
 
+def _rep_price(smap):
+    """카드 「소」 대표 가격 — (표면노출가, 최종매입가) 코히런트 쌍.
+
+    표면이 있는 옵션 중 최저 표면가의 (표면, 최종)을 취한다(같은 옵션이라 최종=표면−혜택 일관).
+    표면 없는 사입-only 세트는 (None, 최저 최종매입가). 값 없으면 (None, None).
+    """
+    with_surf = [v for v in smap.values() if v.get("surface") is not None]
+    if with_surf:
+        rep = min(with_surf, key=lambda v: v["surface"])
+        return rep.get("surface"), rep.get("final")
+    finals = [v.get("final") for v in smap.values() if v.get("final") is not None]
+    return None, (min(finals) if finals else None)
+
+
 def _src_summary(src_provider, model_codes, skus):
-    """카드 「재고 소」용 소싱처 요약 — {src_stock_total, source_name, source_url}.
+    """카드 「재고 소」용 소싱처 요약 — {src_stock_total, source_name, source_url, surface, final}.
 
     소싱 재고/소싱처명은 무거운 매트릭스 경로(_option_matrix_data)라, 서비스는
     순수하게 두고 라우트가 주입(src_provider)한다. 미주입 시 None(지연 표시).
-    src_provider(model_codes, skus) ->
-        {sku: {"stock": int|None, "source_name": str|None, "source_url": str|None}}.
-    source_url = 대표 소싱처 바로가기(↗)용 상품 URL.
+    src_provider(model_codes, skus) -> {sku: {"stock", "source_name", "source_url",
+        "surface"(표면노출가), "final"(최종매입가)}}.
+    source_url = 대표 소싱처 바로가기(↗)용 상품 URL. surface/final = 대표 「소」 가격 2값.
     """
-    empty = {"src_stock_total": None, "source_name": None, "source_url": None}
+    empty = {"src_stock_total": None, "source_name": None, "source_url": None,
+             "surface": None, "final": None}
     if src_provider is None or not skus:
         return empty
     smap = src_provider(model_codes, skus) or {}
@@ -57,31 +72,34 @@ def _src_summary(src_provider, model_codes, skus):
     if names:
         # 대표 소싱처 = 최다 등장
         name = max(set(names), key=names.count)
+    surface, final = _rep_price(smap)
     return {"src_stock_total": sum(stocks) if stocks else None,
-            "source_name": name, "source_url": _rep_source_url(smap, name)}
+            "source_name": name, "source_url": _rep_source_url(smap, name),
+            "surface": surface, "final": final}
 
 
 def _enrich_from_provider(row, src_provider):
     """q 필터 통과 세트에 소싱 요약(재고·소싱처명) + 채널별 판매예정가를 채운다.
 
-    provider 한 번 호출(무거운 _option_matrix_data 재사용)로 둘 다 파생 — 추가 부하 없음.
-    provider(mcs, skus) -> {sku: {stock, source_name, ss_price(스스), cp_price(쿠팡)}}.
-    판매예정가 = 매칭 옵션들의 마켓별 값 중 대표(최저). 최종매입가(혜택 차감 원가)는
-    무거운 breakdown 이라 별도(카드 상세) — 여기 안 넣음(정확성·부하).
+    provider 한 번 호출(무거운 _option_matrix_data 재사용)로 소싱 요약·판매예정가·
+    「소」 2값(표면노출가·최종매입가)을 모두 파생. 판매예정가 = 매칭 옵션들의 마켓별
+    값 중 대표(최저). 표면·최종은 대표(최저 표면가) 옵션의 코히런트 쌍(_rep_price).
     """
     mcs = row.pop("_mcs", set())
     skus = row.pop("_skus", set())
     row["src_summary"] = {"src_stock_total": None, "source_name": None,
-                          "source_url": None}
+                          "source_url": None, "surface": None, "final": None}
     smap = {}
     if src_provider is not None and skus:
         smap = src_provider(mcs, skus) or {}
         stocks = [v.get("stock") for v in smap.values() if v.get("stock") is not None]
         names = [v.get("source_name") for v in smap.values() if v.get("source_name")]
         name = max(set(names), key=names.count) if names else None
+        surface, final = _rep_price(smap)
         row["src_summary"] = {"src_stock_total": sum(stocks) if stocks else None,
                               "source_name": name,
-                              "source_url": _rep_source_url(smap, name)}
+                              "source_url": _rep_source_url(smap, name),
+                              "surface": surface, "final": final}
     for ch in row["channels"]:
         ch_skus = ch.pop("_skus", [])
         pk = ("ss_price" if ch["market"] == "smartstore"
