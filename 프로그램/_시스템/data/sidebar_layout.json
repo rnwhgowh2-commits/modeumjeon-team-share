@@ -15,7 +15,7 @@
     {
       "id": "s_bundles",
       "emoji": "📦",
-      "name": "모음전 상품관리",
+      "name": "모음전 구성",
       "color": "#3182F6",
       "collapsed": false,
       "items": [
@@ -30,7 +30,7 @@
         {
           "id": "i_bundles",
           "emoji": "📋",
-          "name": "모음전 상품관리",
+          "name": "모음전 구성",
           "url": "/bundles",
           "active_key": "bundles",
           "badge_key": null

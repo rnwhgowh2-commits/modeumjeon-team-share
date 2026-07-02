@@ -18,7 +18,7 @@ def automation_view():
     try:
         a = get_automation(s)
         try:
-            logrows = cs.list_automation_log(s, limit=30)
+            logrows = cs.list_automation_log(s, limit=200)
         except Exception:
             logrows = []
         s.commit()

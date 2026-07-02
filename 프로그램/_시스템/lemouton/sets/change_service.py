@@ -72,11 +72,12 @@ def list_changes(session, *, set_id, market=None, field=None, limit=200):
     return out
 
 
-def list_automation_log(session, *, limit=30):
-    """전체 구성의 자동 감지 변동을 최신순 집계 → 자동화 내역 로그 행.
+def list_automation_log(session, *, limit=200):
+    """전체 구성의 자동 감지 변동을 상품단위(모음전 × 마켓)로 묶어 반환.
 
-    현재 실데이터 = source 변동('값 변동 감지'). '자동 크롤'·'판매처 전송' 줄은
-    자동 실행 엔진(5단계)이 생기면 같은 형식으로 추가된다.
+    각 그룹 = {set_name, brand, market, latest_at, stock_count, price_count, options[]}.
+    options[] = {name, parts[{kind:'s'|'p', label, value}]} — 옵션 한 줄에 필드 합침.
+    현재 실데이터 = source 변동. '자동 크롤'·'판매처 전송'은 5단계 엔진이 추가.
     """
     from lemouton.sets.models import ProductSet, SetProduct
     from lemouton.sourcing.models import Model, Option
@@ -84,24 +85,27 @@ def list_automation_log(session, *, limit=30):
     events = (session.query(ChannelChangeEvent)
               .order_by(ChannelChangeEvent.at.desc(), ChannelChangeEvent.id.desc())
               .limit(limit).all())
-    set_cache: dict = {}
+    brand_cache: dict = {}
+    name_cache: dict = {}
     opt_cache: dict = {}
 
-    def _brand(set_id):
-        if set_id in set_cache:
-            return set_cache[set_id]
+    def _set_info(set_id):
+        if set_id in brand_cache:
+            return brand_cache[set_id], name_cache[set_id]
         ps = session.get(ProductSet, set_id)
-        brand = None
+        brand, name = None, None
         if ps is not None:
+            name = ps.name
             sp = (session.query(SetProduct).filter_by(set_id=set_id)
                   .order_by(SetProduct.sort_order).first())
             if sp is not None:
                 m = session.get(Model, sp.model_code)
                 brand = getattr(m, "brand", None) if m else None
-            brand = brand or ps.name
-        info = brand or "—"
-        set_cache[set_id] = info
-        return info
+        brand = brand or name or "—"
+        name = name or "—"
+        brand_cache[set_id] = brand
+        name_cache[set_id] = name
+        return brand, name
 
     def _opt(sku):
         if sku in opt_cache:
@@ -120,32 +124,65 @@ def list_automation_log(session, *, limit=30):
     fk = {"stock": "재고", "price": "가격", "surface": "소싱가",
           "cost": "매입가", "planned": "판매예정가"}
 
-    def _fmt(v, field):
+    def _num(v):
         if v is None:
-            return "—"
-        unit = "개" if field == "stock" else "원"
+            return None
         try:
-            return format(int(v), ",") + unit
+            return format(int(v), ",")
         except (TypeError, ValueError):
             return str(v)
 
-    rows = []
+    def _change(prev, nxt, field):
+        # 단위(개·원)는 끝에 한 번만: '2→26개' · '→126,200원' · '111,510→113,630원'
+        unit = "개" if field == "stock" else "원"
+        p, n = _num(prev), _num(nxt)
+        n = n if n is not None else "—"
+        body = ("→%s" % n) if p is None else ("%s→%s" % (p, n))
+        return body + (unit if n != "—" else "")
+
+    groups: dict = {}
+    order: list = []
     for e in events:
-        fko = fk.get(e.field, e.field)
-        target = "%s · %s %s→%s" % (
-            _opt(e.canonical_sku), fko,
-            _fmt(e.prev_value, e.field), _fmt(e.next_value, e.field))
-        rows.append({
-            "at": e.at.isoformat() if e.at else None,
-            "brand": _brand(e.set_id),
-            "market": mk.get(e.market, e.market or "—"),
-            "market_key": e.market if e.market in ("coupang", "smartstore") else "",
-            "action": "값 변동 감지",
-            "target": target,
-            "result": "chg",
-            "result_label": "변동",
+        key = (e.set_id, e.market)
+        g = groups.get(key)
+        if g is None:
+            brand, name = _set_info(e.set_id)
+            g = {
+                "set_id": e.set_id, "set_name": name, "brand": brand,
+                "market": mk.get(e.market, e.market or "—"),
+                "market_key": e.market if e.market in ("coupang", "smartstore") else "",
+                "latest_at": e.at.isoformat() if e.at else None,
+                "stock_count": 0, "price_count": 0,
+                "options": [], "_oi": {}, "_seen": set(),
+            }
+            groups[key] = g
+            order.append(key)
+        sig = (e.canonical_sku, e.field)   # 같은 옵션·필드는 최신 1건만 (desc → 첫 등장 유지)
+        if sig in g["_seen"]:
+            continue
+        g["_seen"].add(sig)
+        oi = g["_oi"].get(e.canonical_sku)
+        if oi is None:
+            oi = len(g["options"])
+            g["_oi"][e.canonical_sku] = oi
+            g["options"].append({"name": _opt(e.canonical_sku), "parts": []})
+        kind = "s" if e.field == "stock" else "p"
+        g["options"][oi]["parts"].append({
+            "kind": kind, "label": fk.get(e.field, e.field),
+            "value": _change(e.prev_value, e.next_value, e.field),
         })
-    return rows
+        if kind == "s":
+            g["stock_count"] += 1
+        else:
+            g["price_count"] += 1
+
+    out = []
+    for key in order:
+        g = groups[key]
+        g.pop("_oi", None)
+        g.pop("_seen", None)
+        out.append(g)
+    return out
 
 
 def snapshot_source_values(session, *, set_id, value_map):

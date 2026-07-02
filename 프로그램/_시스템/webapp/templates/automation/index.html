@@ -58,19 +58,30 @@
   .flab{font-size:11.5px;font-weight:700;color:#9aa3af;width:44px;flex:none;}
   .fch{font-size:11.5px;font-weight:600;border:1px solid #e9ebef;background:#fff;color:#6b7684;border-radius:20px;padding:4px 11px;cursor:pointer;}
   .fch.on{background:#191F28;color:#fff;border-color:#191F28;}
-  .log-tbl{width:100%;border-collapse:collapse;}
-  .log-tbl th{font-size:11px;color:#9aa3af;font-weight:600;padding:8px 13px;border-bottom:1px solid #e9ebef;}
-  .log-tbl td{padding:9px 13px;border-bottom:1px solid #f2f3f5;font-size:12.5px;}
-  .log-tbl .l{text-align:left;} .log-tbl .c{text-align:center;width:1%;white-space:nowrap;}
-  .lrb{font-size:11px;font-weight:700;border-radius:20px;padding:2px 9px;white-space:nowrap;background:#eef1f4;color:#5f6b7a;}
-  .lact{font-size:11.5px;font-weight:600;color:#4e5968;background:#f4f5f7;border-radius:6px;padding:3px 8px;white-space:nowrap;}
-  .lbrd{font-size:11.5px;font-weight:700;color:#333d4b;background:#f4f5f7;border-radius:6px;padding:3px 9px;white-space:nowrap;}
-  .lmkt{display:inline-flex;align-items:center;gap:5px;font-size:11.5px;font-weight:600;color:#4e5968;border:1px solid #e9ebef;border-radius:6px;padding:3px 9px;white-space:nowrap;background:#fff;}
+  /* 상품단위(모음전×마켓) 그룹 아코디언 */
+  .lgrp{border-bottom:1px solid #f2f3f5;}
+  .lghead{display:flex;align-items:center;gap:9px;padding:12px 16px;cursor:pointer;user-select:none;}
+  .lghead:hover{background:#fbfcfd;}
+  .lcaret{color:#b0b8c1;font-size:12px;width:12px;flex:none;transition:transform .15s;display:inline-block;}
+  .lgrp.open .lcaret{transform:rotate(90deg);}
+  .lgname{font-size:13.5px;font-weight:700;color:#191F28;}
+  .lbrd{font-size:11.5px;font-weight:700;color:#333d4b;background:#f4f5f7;border-radius:6px;padding:2px 8px;white-space:nowrap;}
+  .lmkt{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:600;color:#4e5968;border:1px solid #e9ebef;border-radius:6px;padding:2px 8px;white-space:nowrap;background:#fff;}
   .lmkt .dot{width:7px;height:7px;border-radius:50%;flex:none;background:#c5ccd4;}
   .lmkt.coupang .dot{background:#854F0B;} .lmkt.smart .dot{background:#0a8f43;}
-  .ltm{font-variant-numeric:tabular-nums;color:#6b7684;}
+  .lgsum{margin-left:auto;display:flex;align-items:center;gap:10px;font-size:12px;color:#6b7684;}
+  .lcnt{font-variant-numeric:tabular-nums;font-weight:700;} .lcnt.s{color:#c0392b;} .lcnt.p{color:#0F6E56;}
+  .ltm{font-variant-numeric:tabular-nums;color:#9aa3af;}
+  .lgbody{display:none;background:#fbfcfd;border-top:1px solid #f2f3f5;}
+  .lgrp.open .lgbody{display:block;}
+  .lorow{display:flex;align-items:baseline;gap:10px;padding:8px 16px 8px 37px;border-top:1px solid #eef1f4;}
+  .lorow:first-child{border-top:0;}
+  .loname{font-size:12.5px;font-weight:600;color:#191F28;min-width:96px;flex:none;}
+  .loparts{font-size:12px;color:#6b7684;display:flex;flex-wrap:wrap;gap:2px 14px;}
+  .lopart .k{color:#9aa3af;} .lopart .k.s{color:#c0392b;} .lopart .k.p{color:#0F6E56;}
+  .lopart .v{font-variant-numeric:tabular-nums;color:#333d4b;font-weight:600;}
   .log-empty{padding:26px;text-align:center;color:#9aa3af;font-size:12.5px;line-height:1.6;}
-  .log-tbl mark{background:#fff2ac;border-radius:2px;padding:0 1px;}
+  .lgrp mark{background:#fff2ac;border-radius:2px;padding:0 1px;}
 </style>
 {% endblock %}
 {% block content %}
@@ -133,13 +144,13 @@
     <div class="log-tools">
       <div class="log-search" id="sbox">
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#9aa3af" stroke-width="2.2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
-        <input id="q" placeholder="브랜드·마켓·동작·대상에서 찾기 (예: 그레이, 쿠팡)">
+        <input id="q" placeholder="모음전·마켓·옵션에서 찾기 (예: 크림핑크, 쿠팡)">
         <span class="clr" id="clr">✕</span>
       </div>
       <div class="frow"><span class="flab">브랜드</span><span id="fbchips"></span></div>
       <div class="frow"><span class="flab">마켓</span><span id="fmchips"></span></div>
     </div>
-    <table class="log-tbl"><thead><tr><th class="l">시각</th><th class="c">브랜드</th><th class="c">마켓</th><th class="c">동작</th><th class="l">대상</th><th class="c">결과</th></tr></thead><tbody id="log-body"></tbody></table>
+    <div id="log-body"></div>
   </div>
   <script id="logdata" type="application/json">{{ logrows|tojson }}</script>
 </div>
@@ -208,38 +219,48 @@
   document.getElementById('in-thr').addEventListener('change',function(){ st.autosend_stock_threshold=Math.max(0,parseInt(this.value,10)||0); this.value=st.autosend_stock_threshold; save({autosend_stock_threshold:st.autosend_stock_threshold}); });
 })();
 
-// 자동화 내역 로그 — 필터 + 검색
+// 자동화 내역 로그 — 상품단위(모음전×마켓) 접기 + 필터 + 검색
 (function(){
   var el=document.getElementById('logdata'); if(!el) return;
-  var LOG; try{ LOG=JSON.parse(el.textContent)||[]; }catch(e){ LOG=[]; }
-  var brs=['전체'].concat(LOG.map(function(d){return d.brand;}).filter(function(v,i,a){return v&&a.indexOf(v)===i;}));
-  var mks=['전체'].concat(LOG.map(function(d){return d.market;}).filter(function(v,i,a){return v&&a.indexOf(v)===i;}));
+  var GROUPS; try{ GROUPS=JSON.parse(el.textContent)||[]; }catch(e){ GROUPS=[]; }
+  var brs=['전체'].concat(GROUPS.map(function(g){return g.brand;}).filter(function(v,i,a){return v&&a.indexOf(v)===i;}));
+  var mks=['전체'].concat(GROUPS.map(function(g){return g.market;}).filter(function(v,i,a){return v&&a.indexOf(v)===i;}));
   document.getElementById('fbchips').innerHTML=brs.map(function(b,i){return '<span class="fch'+(i===0?' on':'')+'" data-fb="'+b+'">'+b+'</span>';}).join('');
   document.getElementById('fmchips').innerHTML=mks.map(function(m,i){return '<span class="fch'+(i===0?' on':'')+'" data-fm="'+m+'">'+m+'</span>';}).join('');
   var fbSel='전체',fmSel='전체',qStr='';
   function esc(s){return String(s).replace(/[&<>]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;'}[c];});}
   function hl(t){ t=String(t); if(!qStr) return esc(t); var i=t.toLowerCase().indexOf(qStr.toLowerCase()); if(i<0) return esc(t); return esc(t.slice(0,i))+'<mark>'+esc(t.slice(i,i+qStr.length))+'</mark>'+esc(t.slice(i+qStr.length)); }
-  function mkk(d){ return d.market_key==='coupang'?'coupang':(d.market_key==='smartstore'?'smart':''); }
+  function mkk(g){ return g.market_key==='coupang'?'coupang':(g.market_key==='smartstore'?'smart':''); }
   function tOf(iso){ var s=String(iso||''); if(s&&!/[zZ]|[+\-]\d\d:?\d\d$/.test(s)) s+='Z'; var d=new Date(s); if(isNaN(d.getTime())) return '—'; var p=function(n){return(n<10?'0':'')+n;}; return p(d.getMonth()+1)+'/'+p(d.getDate())+' '+p(d.getHours())+':'+p(d.getMinutes()); }
+  function optText(g){ return (g.options||[]).map(function(o){ return o.name+' '+(o.parts||[]).map(function(p){return p.label+' '+p.value;}).join(' '); }).join(' '); }
+  function optHTML(o){
+    return '<div class="lorow"><span class="loname">'+hl(o.name)+'</span><span class="loparts">'
+      +(o.parts||[]).map(function(p){ return '<span class="lopart"><span class="k '+esc(p.kind)+'">'+hl(p.label)+'</span> <span class="v">'+hl(p.value)+'</span></span>'; }).join('')
+      +'</span></div>';
+  }
+  function grpHTML(g,open){
+    var sum='<span>재고 <span class="lcnt s">'+g.stock_count+'</span> · 가격 <span class="lcnt p">'+g.price_count+'</span></span><span class="ltm">'+tOf(g.latest_at)+'</span>';
+    return '<div class="lgrp'+(open?' open':'')+'"><div class="lghead"><span class="lcaret">▸</span>'
+      +'<span class="lgname">'+hl(g.set_name)+'</span>'
+      +'<span class="lmkt '+mkk(g)+'"><span class="dot"></span>'+hl(g.market)+'</span>'
+      +'<span class="lgsum">'+sum+'</span></div>'
+      +'<div class="lgbody">'+(g.options||[]).map(optHTML).join('')+'</div></div>';
+  }
   function draw(){
     var body=document.getElementById('log-body');
-    if(!LOG.length){ body.innerHTML='<tr><td colspan="6" class="log-empty">아직 자동으로 감지된 변동이 없어요.<br>자동 실행이 돌면 여기에 쌓입니다.</td></tr>'; document.getElementById('log-count').textContent='0건'; return; }
-    var list=LOG.filter(function(d){
-      if(fbSel!=='전체'&&d.brand!==fbSel) return false;
-      if(fmSel!=='전체'&&d.market!==fmSel) return false;
-      if(qStr){ var hay=(d.brand+' '+d.market+' '+d.action+' '+d.target).toLowerCase(); if(hay.indexOf(qStr.toLowerCase())<0) return false; }
+    if(!GROUPS.length){ body.innerHTML='<div class="log-empty">아직 자동으로 감지된 변동이 없어요.<br>자동 실행이 돌면 여기에 쌓입니다.</div>'; document.getElementById('log-count').textContent='0개 상품'; return; }
+    var list=GROUPS.filter(function(g){
+      if(fbSel!=='전체'&&g.brand!==fbSel) return false;
+      if(fmSel!=='전체'&&g.market!==fmSel) return false;
+      if(qStr){ var hay=(g.set_name+' '+g.brand+' '+g.market+' '+optText(g)).toLowerCase(); if(hay.indexOf(qStr.toLowerCase())<0) return false; }
       return true;
     });
-    if(!list.length){ body.innerHTML='<tr><td colspan="6" class="log-empty">조건에 맞는 내역이 없어요.</td></tr>'; }
-    else body.innerHTML=list.map(function(d){
-      return '<tr><td class="l"><span class="ltm">'+tOf(d.at)+'</span></td>'
-        +'<td class="c"><span class="lbrd">'+hl(d.brand)+'</span></td>'
-        +'<td class="c"><span class="lmkt '+mkk(d)+'"><span class="dot"></span>'+hl(d.market)+'</span></td>'
-        +'<td class="c"><span class="lact">'+hl(d.action)+'</span></td>'
-        +'<td class="l">'+hl(d.target)+'</td>'
-        +'<td class="c"><span class="lrb">'+esc(d.result_label)+'</span></td></tr>';
-    }).join('');
-    document.getElementById('log-count').textContent=list.length+'건'+((qStr||fbSel!=='전체'||fmSel!=='전체')?' (걸러짐)':'');
+    var filtered=(qStr||fbSel!=='전체'||fmSel!=='전체');
+    if(!list.length){ body.innerHTML='<div class="log-empty">조건에 맞는 내역이 없어요.</div>'; }
+    else body.innerHTML=list.map(function(g,i){ return grpHTML(g, qStr?true:(i===0)); }).join('');
+    body.querySelectorAll('.lghead').forEach(function(h){ h.addEventListener('click',function(){ h.parentNode.classList.toggle('open'); }); });
+    var totChg=list.reduce(function(a,g){return a+g.stock_count+g.price_count;},0);
+    document.getElementById('log-count').textContent='상품 '+list.length+'개 · 변동 '+totChg+'건'+(filtered?' (걸러짐)':'');
   }
   document.querySelectorAll('[data-fb]').forEach(function(c){ c.addEventListener('click',function(){ document.querySelectorAll('[data-fb]').forEach(function(x){x.classList.remove('on');}); c.classList.add('on'); fbSel=c.getAttribute('data-fb'); draw(); }); });
   document.querySelectorAll('[data-fm]').forEach(function(c){ c.addEventListener('click',function(){ document.querySelectorAll('[data-fm]').forEach(function(x){x.classList.remove('on');}); c.classList.add('on'); fmSel=c.getAttribute('data-fm'); draw(); }); });
