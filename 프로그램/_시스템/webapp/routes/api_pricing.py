@@ -864,20 +864,25 @@ def _option_matrix_data(code: str):
             # [2026-06-03 핵심 로직] 원가 = "재고 존재 + 크롤 성공" 소싱처 중 최저 크롤가.
             #   (기존: 첫 번째 가격있는 소싱처 — 품절·크롤실패 stale 가격도 원가로 잡히던 버그.
             #    또 source_id=='lemouton' 비교는 source_id 가 레지스트리 int 라 항상 미스 = dead code.)
-            #   사입처는 '재고 있고 가장 싼 곳'에서 산다 → 그 가격이 원가. 없으면 템플릿 매입가 → 95000.
+            # [2026-07-02 A2 fix] §4 폴백가 금지 — 크롤 실패/누락 시 boxhero 사입가·95000 상수로
+            #   메우면 가짜 판매가가 화면에 떠 수동주문 유발 → 손실. _resolve_sourcing_cost 로
+            #   '크롤 실제가만, 없으면 None(소싱 카드 가격없음)' 통일 (형제 경로 :2010 과 동일 원칙).
             sources_for_opt = sku_to_sources.get(o.canonical_sku, [])
             _cost_src = _pick_cheapest_buyable(sources_for_opt)
-            purchase = ((_cost_src or {}).get('crawled_price')
-                        or (tpl.boxhero_purchase_price if tpl else None)
-                        or 95000)
+            purchase = _resolve_sourcing_cost(_cost_src)
 
             # [2026-06-02] 소싱 카드 가격 — 단일 진실 원천(compute_market_price)로 통일.
             #   모달 마켓별·소싱 정책(rate/amount/지정가)을 그대로 반영. 화면=업로드 보장.
             #   기존 calc_auto_price(ss_margin_rate 를 쿠팡에도 쓰던 버그) 대체.
-            _src_ss_res = compute_market_price(tpl, 'ss', 'sourcing', purchase)
-            _src_cp_res = compute_market_price(tpl, 'coupang', 'sourcing', purchase)
-            ss_price, ss_break = _src_ss_res.final_price, _src_ss_res.breakdown
-            cp_price, cp_break = _src_cp_res.final_price, _src_cp_res.breakdown
+            if purchase:
+                _src_ss_res = compute_market_price(tpl, 'ss', 'sourcing', purchase)
+                _src_cp_res = compute_market_price(tpl, 'coupang', 'sourcing', purchase)
+                ss_price, ss_break = _src_ss_res.final_price, _src_ss_res.breakdown
+                cp_price, cp_break = _src_cp_res.final_price, _src_cp_res.breakdown
+            else:
+                # 크롤 실제가 없음 → 소싱 카드 가격없음 (폴백가 금지)
+                ss_price, ss_break = None, None
+                cp_price, cp_break = None, None
 
             display_ss = (cfg.manual_ss_price if cfg and not auto and cfg.manual_ss_price
                           else ss_price)
@@ -1711,10 +1716,12 @@ def _auto_crawl_after_url_save(session, sku: str, src_id: int) -> dict:
                 crawler_for_site = LemoutonCrawler()
 
         from lemouton.sourcing.crawlers.hmall import HmallCrawler
+        from lemouton.sourcing.crawlers.ssg import SsgCrawler
         crawlers = {
             'lemouton': crawler_for_site if site == 'lemouton' and crawler_for_site else LemoutonCrawler(),
             'musinsa': crawler_for_site if site == 'musinsa' and crawler_for_site else MusinsaCrawler(),
             'ssf': SsfCrawler(),
+            'ssg': SsgCrawler(),   # [2026-07-02 A4 fix] 'ssg' 키 부재 → SSG 단건 재크롤 no_crawler 였음
             'lotteon': LotteCrawler(),
             'lotteimall': LotteCrawler(),  # 롯데아이몰(SSR) — 도메인 라우팅 공용
             'ss_lemouton': SsLemoutonCrawler(),
@@ -2243,10 +2250,12 @@ def refetch_option_source(sku: str, src_id: int):
 
         # 폴백: 기본 (requests 기반) 크롤러
         from lemouton.sourcing.crawlers.hmall import HmallCrawler
+        from lemouton.sourcing.crawlers.ssg import SsgCrawler
         crawlers = {
             'lemouton': crawler_for_site if site == 'lemouton' and crawler_for_site else LemoutonCrawler(),
             'musinsa': crawler_for_site if site == 'musinsa' and crawler_for_site else MusinsaCrawler(),
             'ssf': SsfCrawler(),       # Phase C: Playwright 변종 추후
+            'ssg': SsgCrawler(),       # [2026-07-02 A4 fix] 'ssg' 키 부재 → SSG refetch no_crawler 였음
             'lotteon': LotteCrawler(),  # Phase C: Playwright 변종 추후
             'lotteimall': LotteCrawler(),  # 롯데아이몰(SSR) — 도메인 라우팅 공용
             'ss_lemouton': SsLemoutonCrawler(),  # Phase C

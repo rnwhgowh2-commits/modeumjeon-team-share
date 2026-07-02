@@ -687,7 +687,11 @@ def _parse_uitem_options(
 
         sellprc = _to_int(sellprc_m.group(1)) if sellprc_m else 0
         best_amt = _to_int(bestamt_m.group(1)) if bestamt_m else 0
-        stock = _to_int(inv_m.group(1)) if inv_m else 0
+        # [2026-07-02 A1 fix] usablInvQty 필드가 present 이면 그 값('0'=진짜 품절),
+        #   ABSENT(정규식 미스=필드명/포맷 변경 등 파싱 실패) 이면 0(품절 둔갑) 금지 →
+        #   타 크롤러(무신사·SSF·롯데)와 동일하게 999(수량미상='재고있음')로 매핑.
+        #   §1 재고 센티넬 일관성: 파싱 실패를 진짜 품절과 구분(품절 둔갑=금전손실).
+        stock = _to_int(inv_m.group(1)) if inv_m else 999
 
         # sale_price 단일 진실 원천: bestAmt 우선, 없으면 sellprc
         sale_price = best_amt if best_amt > 0 else sellprc
