@@ -239,7 +239,7 @@
       +'</span></div>';
   }
   function grpHTML(g,open){
-    var sum='<span>재고 <span class="lcnt s">'+g.stock_count+'</span> · 가격 <span class="lcnt p">'+g.price_count+'</span></span><span class="ltm">'+tOf(g.latest_at)+'</span>';
+    var sum='<span>재고 바뀐 옵션 <span class="lcnt s">'+g.stock_count+'</span> · 가격 <span class="lcnt p">'+g.price_count+'</span></span><span class="ltm">'+tOf(g.latest_at)+'</span>';
     return '<div class="lgrp'+(open?' open':'')+'"><div class="lghead"><span class="lcaret">▸</span>'
       +'<span class="lgname">'+hl(g.set_name)+'</span>'
       +'<span class="lmkt '+mkk(g)+'"><span class="dot"></span>'+hl(g.market)+'</span>'
@@ -259,8 +259,8 @@
     if(!list.length){ body.innerHTML='<div class="log-empty">조건에 맞는 내역이 없어요.</div>'; }
     else body.innerHTML=list.map(function(g,i){ return grpHTML(g, qStr?true:(i===0)); }).join('');
     body.querySelectorAll('.lghead').forEach(function(h){ h.addEventListener('click',function(){ h.parentNode.classList.toggle('open'); }); });
-    var totChg=list.reduce(function(a,g){return a+g.stock_count+g.price_count;},0);
-    document.getElementById('log-count').textContent='상품 '+list.length+'개 · 변동 '+totChg+'건'+(filtered?' (걸러짐)':'');
+    var totOpt=list.reduce(function(a,g){return a+((g.options&&g.options.length)||0);},0);
+    document.getElementById('log-count').textContent='상품 '+list.length+'개 · 옵션 '+totOpt+'개'+(filtered?' (걸러짐)':'');
   }
   document.querySelectorAll('[data-fb]').forEach(function(c){ c.addEventListener('click',function(){ document.querySelectorAll('[data-fb]').forEach(function(x){x.classList.remove('on');}); c.classList.add('on'); fbSel=c.getAttribute('data-fb'); draw(); }); });
   document.querySelectorAll('[data-fm]').forEach(function(c){ c.addEventListener('click',function(){ document.querySelectorAll('[data-fm]').forEach(function(x){x.classList.remove('on');}); c.classList.add('on'); fmSel=c.getAttribute('data-fm'); draw(); }); });
