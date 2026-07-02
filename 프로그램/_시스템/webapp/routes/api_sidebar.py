@@ -172,6 +172,10 @@ _AUTOMATION_ITEM = {'id': 'i_automation', 'emoji': '⚙️', 'name': '자동화 
                     'url': '/automation', 'active_key': 'automation',
                     'badge_key': None}
 
+_AUTOMATION_LOG_ITEM = {'id': 'i_automation_log', 'emoji': '📜', 'name': '자동화 로그기록',
+                        'url': '/automation/log', 'active_key': 'automation_log',
+                        'badge_key': None}
+
 
 def _has_item_id(layout: dict, item_id: str) -> bool:
     def _has(items):
@@ -231,6 +235,16 @@ def get_layout_for_template() -> dict:
             if st.get('id') == 's_bundles':
                 st = dict(st)
                 st['items'] = list(st.get('items', [])) + [dict(_AUTOMATION_ITEM)]
+            new_stages.append(st)
+        out['stages'] = new_stages
+
+    # 자동화 로그기록 — 자동화 설정 바로 뒤(s_bundles 끝)에 주입(없을 때만)
+    if not _has_item_id(layout, 'i_automation_log'):
+        new_stages = []
+        for st in out.get('stages', []):
+            if st.get('id') == 's_bundles':
+                st = dict(st)
+                st['items'] = list(st.get('items', [])) + [dict(_AUTOMATION_LOG_ITEM)]
             new_stages.append(st)
         out['stages'] = new_stages
 

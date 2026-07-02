@@ -13,10 +13,21 @@ bp = Blueprint('settings', __name__)
 def automation_view():
     """[자동화 설정] 크롤 자동 주기 + 판매처 자동 전송 (팀 공유 단일 설정)."""
     from lemouton.pricing.settings import get_automation
-    from lemouton.sets import change_service as cs
     s = SessionLocal()
     try:
         a = get_automation(s)
+        s.commit()
+    finally:
+        s.close()
+    return render_template('automation/index.html', active='automation', a=a)
+
+
+@bp.route('/automation/log')
+def automation_log_view():
+    """[자동화 로그기록] 상품단위(모음전×마켓) 자동 감지·실행 내역."""
+    from lemouton.sets import change_service as cs
+    s = SessionLocal()
+    try:
         try:
             logrows = cs.list_automation_log(s, limit=200)
         except Exception:
@@ -24,8 +35,8 @@ def automation_view():
         s.commit()
     finally:
         s.close()
-    return render_template('automation/index.html', active='automation',
-                           a=a, logrows=logrows)
+    return render_template('automation/log.html', active='automation_log',
+                           logrows=logrows)
 
 
 @bp.post('/api/automation/save')
