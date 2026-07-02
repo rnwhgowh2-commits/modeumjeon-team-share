@@ -247,7 +247,9 @@ def _new_values_for_options(model_codes, skus, market):
                 continue
             is_pur = o.get("purchase_priority_resolved") == "purchase"
             out[o["sku"]] = {
-                "stock": o.get("purchase_stock") if is_pur else o.get("src_stock"),
+                # 소싱 재고는 실수량(src_stock_qty). 999/6993 센티넬(src_stock)이
+                #   전송/미리보기 '보낼 값'으로 새면 실전송 시 999개 push (#10). 미상→None.
+                "stock": o.get("purchase_stock") if is_pur else o.get("src_stock_qty"),
                 "price": o.get("ss_price") if market == "smartstore" else o.get("cp_price"),
                 "color": o.get("color_display") or o.get("color_code"),
                 "size": o.get("size_display") or o.get("size_code"),
