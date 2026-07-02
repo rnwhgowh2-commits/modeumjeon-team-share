@@ -13,13 +13,19 @@ bp = Blueprint('settings', __name__)
 def automation_view():
     """[자동화 설정] 크롤 자동 주기 + 판매처 자동 전송 (팀 공유 단일 설정)."""
     from lemouton.pricing.settings import get_automation
+    from lemouton.sets import change_service as cs
     s = SessionLocal()
     try:
         a = get_automation(s)
+        try:
+            logrows = cs.list_automation_log(s, limit=30)
+        except Exception:
+            logrows = []
         s.commit()
     finally:
         s.close()
-    return render_template('automation/index.html', active='automation', a=a)
+    return render_template('automation/index.html', active='automation',
+                           a=a, logrows=logrows)
 
 
 @bp.post('/api/automation/save')

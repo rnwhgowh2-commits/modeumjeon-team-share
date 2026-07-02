@@ -155,3 +155,20 @@ def test_list_changes_price_returns_3_stages(db):
     db.commit()
     rows = cs.list_changes(db, set_id=9, field="price")
     assert {r["field"] for r in rows} == {"surface", "cost", "planned"}  # stock 제외
+
+
+def test_list_automation_log(db):
+    from lemouton.sets.models import ProductSet
+    from lemouton.sets import change_service as cs
+    ps = ProductSet(model_code="AF", name="르무통 메이트")
+    db.add(ps); db.flush()
+    cs.record_change(db, set_id=ps.id, market="coupang", canonical_sku="AF-GRAY-220",
+                     field="stock", source="source", prev_value=12, next_value=4)
+    db.commit()
+    rows = cs.list_automation_log(db, limit=30)
+    assert len(rows) == 1
+    r = rows[0]
+    assert r["action"] == "값 변동 감지" and r["result"] == "chg"
+    assert r["market"] == "쿠팡" and r["market_key"] == "coupang"
+    assert "재고" in r["target"] and "12" in r["target"] and "4" in r["target"]
+    assert r["brand"] == "르무통 메이트"
