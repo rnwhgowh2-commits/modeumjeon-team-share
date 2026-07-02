@@ -18,10 +18,12 @@ def collect_and_snapshot_all() -> dict:
     from lemouton.sets.change_service import snapshot_source_values
     s = SessionLocal()
     collected = snapped = 0
+    collect_failed = snap_failed = 0
     try:
         r = collect_all_linked_sets(s)
         s.commit()
         collected = r.get("sets", 0)
+        collect_failed = r.get("failed", 0)
         try:
             from webapp.routes.api_pricing import _option_matrix_data
         except Exception:
@@ -75,9 +77,16 @@ def collect_and_snapshot_all() -> dict:
                     snapped += snapshot_source_values(s, set_id=sid, value_map=vmap)
                     s.commit()
                 except Exception:
+                    # 조용한 실패 금지 — 세트별 스냅샷 실패도 로그+카운트로 표면화
                     s.rollback()
+                    snap_failed += 1
+                    logger.exception("sets_collect: set_id=%s 스냅샷 실패", sid)
+        if collect_failed or snap_failed:
+            logger.warning("sets_collect: 수집실패 %d세트 · 스냅샷실패 %d세트",
+                           collect_failed, snap_failed)
         logger.info("sets_collect: collected %d, source changes %d", collected, snapped)
-        return {"ok": True, "collected": collected, "snapped": snapped}
+        return {"ok": True, "collected": collected, "snapped": snapped,
+                "collect_failed": collect_failed, "snap_failed": snap_failed}
     except Exception:
         s.rollback()
         logger.exception("sets collect job failed")
