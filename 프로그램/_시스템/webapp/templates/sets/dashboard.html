@@ -275,6 +275,21 @@
   .det-cmp{color:#4E5968;font-weight:600;font-variant-numeric:tabular-nums;}
   .det-act{height:26px;padding:0 10px;border-radius:6px;border:1px solid #BBD3F5;background:#fff;color:var(--blue);font-size:11.5px;font-weight:800;margin-left:auto;cursor:pointer;flex:none;font-family:inherit;}
   .det-act.sev{border-color:#F3B0B0;color:var(--red);}
+  /* 상세 영수증(표면 노출가 → 혜택 항목별 차감 → 최종 매입가) — 대표(최저가 옵션) 기준 */
+  .rcpt-row{align-items:flex-start;}
+  .rcpt{flex:1;min-width:0;max-width:330px;}
+  .rcpt-src{font-size:11px;color:var(--blue);font-weight:700;margin-bottom:6px;}
+  .rl{display:flex;justify-content:space-between;align-items:baseline;gap:16px;padding:2.5px 0;font-size:12px;}
+  .rl-n{color:#4E5968;font-weight:600;}
+  .rl.sub .rl-n{color:#8b95a1;}
+  .rl-a{font-variant-numeric:tabular-nums;font-weight:700;color:#191F28;white-space:nowrap;text-align:right;}
+  .rl-a small{font-size:10px;color:var(--sub);font-weight:600;margin-left:1px;}
+  .rl-a.neg{color:var(--red);}
+  .rl-base{font-size:10.5px;color:#b0b8c1;padding:0 0 2px 14px;font-variant-numeric:tabular-nums;}
+  .rl-hr{height:1px;background:var(--line);margin:5px 0;}
+  .rl.final .rl-n{font-weight:800;color:#191F28;}
+  .rl.final .rl-a{font-weight:800;font-size:14px;}
+  .rl.final .rl-a small{color:#191F28;}
   /* 푸터 */
   .c-foot{font-size:11.5px;color:#98A2B3;padding:8px 24px 16px;display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;}
   .c-foot .more{color:var(--blue);cursor:pointer;}
@@ -481,11 +496,29 @@
     else { stTy='ty-g'; stTx='소싱 '+(srcTot==null?'미상':srcTot+'개')+' / 판매 설정 '+(mkTot==null?'미상':mkTot+'개'); }
     var stockRow='<div class="det-row"><span class="det-ty '+stTy+'">재고</span><span class="det-cmp">'+stTx+'</span>'
       +(s.stock==='sev'?'<button class="det-act sev" data-act="hist" data-mk="'+esc(c.market)+'" data-fld="stock">📈 변동 이력</button>':'')+'</div>';
-    // 가격 — 최종매입(소)은 지연이라 숫자 날조 금지: 판 판매가 + 변동이력
-    var pcCls=(s.price==='sev')?'ty-r':(s.price==='warn'?'ty-a':'ty-g');
-    var pcTx='판매가 '+(c.mkt_price!=null?Number(c.mkt_price).toLocaleString()+'원':'미상')+' · 최종매입가는 아래 ‘자세히’에서 확인';
-    var priceRow='<div class="det-row"><span class="det-ty '+pcCls+'">가격</span><span class="det-cmp">'+pcTx+'</span>'
-      +'<button class="det-act" data-act="hist" data-mk="'+esc(c.market)+'" data-fld="price">📈 변동 이력</button></div>';
+    // 가격 — 상세 영수증(표면 노출가 → 혜택 항목별 차감[빨강] → 최종 매입가). 대표(최저가 옵션) 기준.
+    //   src_summary.receipt 는 목록 계산 시 provider 가 담아줌(셀·영수증 단일 진실 원천).
+    //   없으면(계산 지연·실패) 기존 안내문 폴백(숫자 날조 금지).
+    var rc=(r.src_summary&&r.src_summary.receipt);
+    var histBtn='<button class="det-act" data-act="hist" data-mk="'+esc(c.market)+'" data-fld="price">📈 변동 이력</button>';
+    var priceRow;
+    if(rc){
+      var won=function(n){ return Number(n||0).toLocaleString('ko-KR')+'<small>원</small>'; };
+      var rl='<div class="rl"><span class="rl-n">표면 노출가</span><span class="rl-a">'+won(rc.surface)+'</span></div>';
+      var steps=rc.steps||[];
+      steps.forEach(function(st, i){
+        rl+='<div class="rl sub"><span class="rl-n">└ '+esc(st.name||'혜택')+'</span><span class="rl-a neg">-'+Number(st.deduct||0).toLocaleString('ko-KR')+'<small>원</small></span></div>';
+        if(i<steps.length-1 && st.base_after!=null){ rl+='<div class="rl-base">베이스금액 '+Number(st.base_after).toLocaleString('ko-KR')+'원</div>'; }
+      });
+      rl+='<div class="rl-hr"></div><div class="rl final"><span class="rl-n">최종 매입가</span><span class="rl-a">'+won(rc.final)+'</span></div>';
+      var srcHead=rc.source_name?(esc(rc.source_name)+' 기준 (최저가 소싱처)'):'최저가 소싱처 기준';
+      priceRow='<div class="det-row rcpt-row"><span class="det-ty ty-g">가격</span>'
+        +'<div class="rcpt"><div class="rcpt-src">'+srcHead+'</div>'+rl+'</div>'+histBtn+'</div>';
+    } else {
+      var pcCls=(s.price==='sev')?'ty-r':(s.price==='warn'?'ty-a':'ty-g');
+      var pcTx='판매가 '+(c.mkt_price!=null?Number(c.mkt_price).toLocaleString()+'원':'미상')+' · 최종매입가는 아래 ‘자세히’에서 확인';
+      priceRow='<div class="det-row"><span class="det-ty '+pcCls+'">가격</span><span class="det-cmp">'+pcTx+'</span>'+histBtn+'</div>';
+    }
     // 전송
     var snTy=(s.send==='sev')?'ty-r':(s.send==='warn'?'ty-a':'ty-g');
     var snTx=(s.send==='ok')?'최신 반영됨':'소싱 변동이 판매처에 아직 반영 안 됨 · 마지막 전송 없음';

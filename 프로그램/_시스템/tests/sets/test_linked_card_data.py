@@ -151,23 +151,40 @@ def test_src_summary_price_none_without_provider(db):
 
 
 def test_rep_price_picks_min_surface_coherent(db):
-    """[가격 2값] _rep_price = 표면 최저 옵션의 (표면, 최종) 코히런트 쌍."""
+    """[가격 2값] _rep_price = 표면 최저 옵션의 (표면, 최종, 영수증) 코히런트 3값."""
     from lemouton.sets.set_service import _rep_price
+    rcB = {"surface": 133900, "final": 126380, "steps": []}
     smap = {
-        "A": {"surface": 140000, "final": 132000},
-        "B": {"surface": 133900, "final": 126380},   # 표면 최저 → 이 쌍
-        "C": {"surface": 150000, "final": 141000},
+        "A": {"surface": 140000, "final": 132000, "receipt": {"final": 132000}},
+        "B": {"surface": 133900, "final": 126380, "receipt": rcB},   # 표면 최저 → 이 쌍
+        "C": {"surface": 150000, "final": 141000, "receipt": {"final": 141000}},
     }
-    assert _rep_price(smap) == (133900, 126380)
+    assert _rep_price(smap) == (133900, 126380, rcB)
 
 
 def test_rep_price_purchase_only_no_surface(db):
-    """[가격 2값] 표면 없는 사입-only 세트 = (None, 최저 최종매입가)."""
+    """[가격 2값] 표면 없는 사입-only 세트 = (None, 최저 최종매입가, 그 영수증)."""
     from lemouton.sets.set_service import _rep_price
-    smap = {"A": {"surface": None, "final": 90000},
-            "B": {"surface": None, "final": 85000}}
-    assert _rep_price(smap) == (None, 85000)
-    assert _rep_price({}) == (None, None)
+    smap = {"A": {"surface": None, "final": 90000, "receipt": None},
+            "B": {"surface": None, "final": 85000, "receipt": {"final": 85000}}}
+    assert _rep_price(smap) == (None, 85000, {"final": 85000})
+    assert _rep_price({}) == (None, None, None)
+
+
+def test_src_summary_receipt_from_provider(db):
+    """[상세 영수증] 대표 옵션의 영수증이 src_summary.receipt 로 카드까지 실린다."""
+    _seed(db, "smartstore", 50)
+    rc = {"source_name": "롯데아이몰", "surface": 138000, "final": 126380,
+          "steps": [{"name": "신용카드 청구할인", "deduct": 6900, "base_after": 131100},
+                    {"name": "적립 혜택", "deduct": 4720, "base_after": 126380}]}
+
+    def provider(model_codes, skus):
+        return {"SKU1": {"stock": 53, "source_name": "롯데아이몰",
+                         "surface": 138000, "final": 126380, "receipt": rc}}
+
+    ss = svc.list_linked_sets(db, src_provider=provider)[0]["src_summary"]
+    assert ss["receipt"] == rc
+    assert ss["receipt"]["steps"][0]["deduct"] == 6900
 
 
 def _prov(model_codes, skus):

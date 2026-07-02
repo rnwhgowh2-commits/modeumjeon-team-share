@@ -105,6 +105,7 @@ def _card_src_provider(model_codes, skus, session=None):
             out[o["sku"]] = {"stock": stock, "source_name": sname,
                              "source_url": surl,
                              "surface": surface, "final": final,
+                             "receipt": None,   # 아래 breakdown 에서 채움(상세 영수증)
                              "ss_price": o.get("ss_price"),
                              "cp_price": o.get("cp_price")}
     # 최종매입가(표면−혜택) 일괄 계산 — _cache 로 N+1 제거.
@@ -123,6 +124,16 @@ def _card_src_provider(model_codes, skus, session=None):
                                            source_product_id=it.get("source_product_id"))
                     if bd and bd.get("final_price") is not None and it["sku"] in out:
                         out[it["sku"]]["final"] = bd["final_price"]
+                        # 상세 영수증(표면 노출가 → 혜택 항목별 차감 → 최종 매입가).
+                        #   steps = 실제 적용(enabled)된 차감만. 셀·영수증 단일 진실 원천.
+                        out[it["sku"]]["receipt"] = {
+                            "source_name": out[it["sku"]].get("source_name"),
+                            "surface": bd.get("sale_price"),
+                            "final": bd["final_price"],
+                            "steps": [{"name": st.get("name"), "deduct": st.get("deduct"),
+                                       "base_after": st.get("base_after")}
+                                      for st in (bd.get("steps") or [])],
+                        }
                 except Exception:
                     pass
         except Exception:
