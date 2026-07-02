@@ -13,7 +13,7 @@ def _active_keys(layout) -> list[str]:
 def test_default_has_six_groups_in_order():
     layout = api_sidebar._default_layout()
     names = [st['name'] for st in layout['stages']]
-    assert names == ['모음전 상품관리', '매핑 현황', '마켓 관리', '구매', '판매', '기타']
+    assert names == ['모음전 구성', '매핑 현황', '마켓 관리', '구매', '판매', '기타']
 
 
 def test_default_stage_ids_match_contract():

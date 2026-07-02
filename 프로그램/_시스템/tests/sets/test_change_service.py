@@ -157,18 +157,27 @@ def test_list_changes_price_returns_3_stages(db):
     assert {r["field"] for r in rows} == {"surface", "cost", "planned"}  # stock 제외
 
 
-def test_list_automation_log(db):
+def test_list_automation_log_groups(db):
     from lemouton.sets.models import ProductSet
     from lemouton.sets import change_service as cs
-    ps = ProductSet(model_code="AF", name="르무통 메이트")
+    ps = ProductSet(model_code="AF", name="르무통 메이트 모음전")
     db.add(ps); db.flush()
-    cs.record_change(db, set_id=ps.id, market="coupang", canonical_sku="AF-GRAY-220",
-                     field="stock", source="source", prev_value=12, next_value=4)
+    # 같은 옵션에 재고 + 판매예정가 2필드 → 그룹1·옵션1·part2, 재고1·가격1
+    cs.record_change(db, set_id=ps.id, market="smartstore", canonical_sku="AF-CRPINK-240",
+                     field="stock", source="source", prev_value=2, next_value=26)
+    cs.record_change(db, set_id=ps.id, market="smartstore", canonical_sku="AF-CRPINK-240",
+                     field="planned", source="source", prev_value=None, next_value=126200)
     db.commit()
-    rows = cs.list_automation_log(db, limit=30)
-    assert len(rows) == 1
-    r = rows[0]
-    assert r["action"] == "값 변동 감지" and r["result"] == "chg"
-    assert r["market"] == "쿠팡" and r["market_key"] == "coupang"
-    assert "재고" in r["target"] and "12" in r["target"] and "4" in r["target"]
-    assert r["brand"] == "르무통 메이트"
+    groups = cs.list_automation_log(db, limit=200)
+    assert len(groups) == 1                       # 모음전 × 마켓 = 1그룹
+    g = groups[0]
+    assert g["market"] == "스마트스토어" and g["market_key"] == "smartstore"
+    assert g["brand"] == "르무통 메이트 모음전"
+    assert g["stock_count"] == 1 and g["price_count"] == 1
+    assert len(g["options"]) == 1                 # 같은 옵션 = 1줄
+    o = g["options"][0]
+    assert len(o["parts"]) == 2
+    sp = [p for p in o["parts"] if p["kind"] == "s"][0]
+    assert sp["value"] == "2→26개" and sp["label"] == "재고"
+    pp = [p for p in o["parts"] if p["kind"] == "p"][0]
+    assert pp["value"] == "→126,200원" and pp["label"] == "판매예정가"
