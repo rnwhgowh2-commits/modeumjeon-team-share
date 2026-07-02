@@ -144,8 +144,8 @@ def test_legacy_no_tags_path_is_none():
     ]
     result = compute_final_price(10000, items)
     assert result['path'] is None
-    # 10000 → 9000 → 8550
-    assert result['final_price'] == 8550
+    # 10000 → 9000 → 8550 → 백원 버림 → 8500
+    assert result['final_price'] == 8500
 
 
 # ── Test 9: preapplied skip ────────────────────────────────────────────────────
@@ -208,6 +208,6 @@ def test_no_payment_path_included():
     items = [('tpl', pay), ('tpl', discount)]
     result = compute_final_price(10000, items)
     # 무결제(None): 일반할인만 → 9500
-    # affiliate_card: 결제10% + 일반할인5% → 10000*0.9*0.95 = 8550
-    assert result['final_price'] == 8550
+    # affiliate_card: 결제10% + 일반할인5% → 10000*0.9*0.95 = 8550 → 백원 버림 → 8500
+    assert result['final_price'] == 8500
     assert result['path']['pay_method'] == 'affiliate_card'

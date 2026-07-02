@@ -54,7 +54,8 @@ def _manual_price(gated):
     bal = float(BASE_PRICE)
     for nm, bt, v in sorted(applied, key=lambda x: 0 if x[1] == "amount" else 1):
         bal = max(bal - (v if bt == "amount" else int(bal * v)), 0)
-    return int(bal)
+    # [2026-07-02] 엔진과 동일하게 최종 백원 단위 버림
+    return (int(bal) // 100) * 100
 
 
 def _report(title, gated, price):
