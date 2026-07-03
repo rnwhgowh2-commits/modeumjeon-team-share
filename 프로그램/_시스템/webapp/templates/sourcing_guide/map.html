@@ -411,7 +411,7 @@
         <table class="st3">
           <tr><td class="sn"><span class="sgdot" style="background:#DC2626"></span>품절(없음)</td><td class="how"><span class="pill">내장</span> itemInvQtyInfo <span class="ink">inv_qty=0</span></td></tr>
           <tr><td class="sn"><span class="sgdot" style="background:#E8830C"></span>한정(N개)</td><td class="how"><span class="pill">내장</span> <span class="ink">inv_qty=N</span> → 실수량(라이브 검증)</td></tr>
-          <tr><td class="sn"><span class="sgdot" style="background:#15803D"></span>충분(표식없음)</td><td class="how"><span class="pill">내장</span> inv_qty 큼 → 충분</td></tr>
+          <tr><td class="sn"><span class="sgdot" style="background:#15803D"></span>충분(표식없음)</td><td class="how"><span class="pill">내장</span> inv_qty <b>30 상한</b>(=충분/30개+) → <span class="ink">50 으로 표기</span> (실수량 30 과 혼동 방지, <span class="mono">_lotteimall_disp_qty</span>)</td></tr>
           <tr class="special"><td class="sn">⚠ 특이사항</td><td class="how">WAF 403 → 서버 <span class="ink">curl_cffi 위장</span> 또는 확장 navGrab / 혜택 L.POINT는 로그인</td></tr>
         </table>
         <div class="meta"><span class="elabel">위치</span><span class="mono">itemInvQtyInfo[].inv_qty · dataBenefit</span> · <span class="elabel">코드</span><span class="mono">lotteon.py(도메인 라우팅)</span></div>

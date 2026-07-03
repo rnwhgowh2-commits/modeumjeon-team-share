@@ -499,6 +499,18 @@ _ITEM_INV_QTY_PATTERN = re.compile(
 _OPT_LI_ID_PATTERN = re.compile(r"\d+_(\d+)$")
 _SIZE_PAREN_PATTERN = re.compile(r"\s*\(.*?\)\s*")
 
+# ★ 2026-07-04 — 롯데아이몰 '충분' 표기값.
+#   롯데아이몰 itemInvQtyInfo.inv_qty 는 재고가 많으면 30 으로 상한(cap)한다
+#   (라이브 확인 2026-07-03: 97조합 inv_qty 최댓값=30, 30 초과 없음). 30 은 실수량 30 과
+#   헷갈리므로, 충분(inv_qty>=30)은 50 으로 표기한다(실수량<30·품절0은 그대로).
+_LOTTEIMALL_SUFFICIENT_CAP = 30
+_LOTTEIMALL_SUFFICIENT_DISP = 50
+
+
+def _lotteimall_disp_qty(inv_qty: int) -> int:
+    """롯데아이몰 재고 표기값: 충분(inv_qty>=30 상한)→50, 그 외(실수량<30·품절0)는 그대로."""
+    return _LOTTEIMALL_SUFFICIENT_DISP if inv_qty >= _LOTTEIMALL_SUFFICIENT_CAP else inv_qty
+
 
 def _extract_item_inv_qty(html: str) -> dict[str, int]:
     """``itemInvQtyInfo`` → {opt_val_cd_0(str): inv_qty(int)}. 없으면 {}."""
@@ -1415,9 +1427,11 @@ class LotteCrawler(AbstractCrawler):
                 _csk = (_SIZE_PAREN_PATTERN.sub("", (color["name"] or "")).strip(),
                         _SIZE_PAREN_PATTERN.sub("", (size_text or "")).strip())
                 if cs_qty_map and _csk in cs_qty_map:
-                    stock_int = cs_qty_map[_csk]         # 2축 조합별 실재고(0=품절·N=실수량)
+                    # 2축 조합별 실재고(0=품절·N=실수량). 충분(inv_qty>=30 상한)→50 표기.
+                    stock_int = _lotteimall_disp_qty(cs_qty_map[_csk])
                 elif _lbl_key in size_qty_map:
-                    stock_int = size_qty_map[_lbl_key]   # 단축 실재고(0=품절·N=실수량·큰값=충분)
+                    # 단축 실재고(0=품절·N=실수량·충분). 충분(inv_qty>=30 상한)→50 표기.
+                    stock_int = _lotteimall_disp_qty(size_qty_map[_lbl_key])
                 else:
                     stock_int = 0 if is_sold_out else 999
                 # CrawlResult.price: V7 는 maxPrice 사용 (옵션 표시 가격)

@@ -154,3 +154,14 @@ def test_lotteimall_2axis_color_size_inv_qty():
     soup = BeautifulSoup(html, "lxml")
     out = _build_inv_qty_by_color_size(soup, html)
     assert out == {("블랙", "230mm"): 20, ("블랙", "240mm"): 0, ("아이보리", "230mm"): 5}
+
+
+def test_lotteimall_sufficient_cap_shows_50():
+    """롯데아이몰 '충분'(inv_qty=30 상한)은 50으로 표기 — 실수량 30과 헷갈림 방지.
+    실수량(<30)·품절(0)은 그대로. 라이브 확인(2026-07-03): inv_qty 최댓값=30(97조합), 30 초과 없음=상한."""
+    from lemouton.sourcing.crawlers.lotteon import _lotteimall_disp_qty
+    assert _lotteimall_disp_qty(30) == 50    # 충분 → 50
+    assert _lotteimall_disp_qty(100) == 50   # 방어: 상한 이상도 50
+    assert _lotteimall_disp_qty(29) == 29    # 실수량 그대로
+    assert _lotteimall_disp_qty(5) == 5
+    assert _lotteimall_disp_qty(0) == 0      # 품절 그대로
