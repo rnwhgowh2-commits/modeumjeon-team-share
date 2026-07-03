@@ -180,6 +180,28 @@ class TestMatchOptionStock:
         ])
         assert _match_option_stock(idx2, 5, '그레이', '240') == 999
 
+    def test_stale_dup_none_does_not_beat_stocked_row(self):
+        # [2026-07-04] SSG 단품: size_text 표기차('220' vs '220mm')로 정규화-동일 중복행이
+        #   생김(옛 stale=current_stock None + 신규=실재고). 매칭이 stale None 을 먼저 고르면
+        #   '확인 불가' 둔갑. 같은 (색,사이즈) 후보 중 재고 있는 행을 골라야 한다.
+        idx = _build_so_index([
+            _so(76, '220', '블랙', None),     # 옛 중복(stale, 재고 None)
+            _so(76, '220mm', '블랙', 10),     # 신규(실재고)
+        ])
+        assert _match_option_stock(idx, 76, '블랙', '220') == 10
+        # 순서 반대여도 동일
+        idx2 = _build_so_index([
+            _so(76, '220mm', '블랙', 10),
+            _so(76, '220', '블랙', None),
+        ])
+        assert _match_option_stock(idx2, 76, '블랙', '220') == 10
+        # 단일색(size-only) 형태의 중복도 동일 — 재고행 우선
+        idx3 = _build_so_index([
+            _so(88, '', '220', None),         # size-only stale
+            _so(88, '220mm', '', 7),          # size-only 실재고
+        ])
+        assert _match_option_stock(idx3, 88, '블랙', '220') == 7
+
     def test_ambiguous_substring_returns_none(self):
         # 정확매칭 없고 부분매칭 후보가 2개 이상이면 추측 금지 → None.
         #   (엉뚱한 색을 비결정적으로 찍느니 미매칭이 안전 — 금전 사고 방지)

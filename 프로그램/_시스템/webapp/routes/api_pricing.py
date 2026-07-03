@@ -114,6 +114,7 @@ def _match_option_so(so_index, sp_id, opt_color, opt_size):
     if not osz:
         return None
     oc = _stk_cnorm(opt_color)
+    exact = []                                    # 정확 색+사이즈 일치 후보(중복 시 재고행 우선)
     size_only = None
     subs = []                                     # 부분일치 후보 — 정확 매칭 없을 때만 사용
     color_only = None                             # 색상 전용(색만·사이즈 없음) 정확 색일치 후보
@@ -144,13 +145,20 @@ def _match_option_so(so_index, sp_id, opt_color, opt_size):
             if not sc:
                 continue
             if oc == sc:
-                return so                         # ★ 정확 매칭 최우선 — 즉시 확정
+                exact.append(so)                  # ★ 정확 매칭 — 수집(중복 시 재고행 우선 픽)
+                continue
             if oc in sc or sc in oc:
                 subs.append(so)                   # 부분일치 — 보류(정확 매칭 우선)
             continue                              # 색 불일치 → 계속 탐색
         # 크롤 색이 빈 값(단품=단일색 소싱처) 또는 SO 무색 → 사이즈만으로 매칭(안전)
-        if size_only is None:
+        # [2026-07-04] 중복(옛 '220' + 신규 '220mm' 등)이면 재고 있는 행 우선 — stale None 금지.
+        if size_only is None or (
+                size_only.current_stock is None and so.current_stock is not None):
             size_only = so                        # 단일색 URL — 사이즈만으로 매칭
+    # [2026-07-04] 정확 매칭 다수(size_text 표기차 중복 등)면 재고 데이터 있는 행 우선.
+    #   옛 stale 중복(current_stock=None)이 신규 실재고 행을 이겨 '확인 불가' 둔갑하던 것 차단.
+    if exact:
+        return next((s for s in exact if s.current_stock is not None), exact[0])
     # 정확 매칭이 없었던 경우: 부분일치가 '딱 하나'면 채택(블랙↔블랙(아웃솔)),
     #   둘 이상이면 모호 → 추측 금지(그레이 vs 라이트그레이 오매칭 = 금전 사고).
     if len(subs) == 1:
