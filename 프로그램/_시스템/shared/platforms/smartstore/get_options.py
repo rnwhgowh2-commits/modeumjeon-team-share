@@ -52,6 +52,13 @@ class FetchOptionsResult:
     raw: Optional[dict] = None
     error: Optional[str] = None
     error_code: Optional[str] = None
+    combinations_total: int = 0   # 응답에 있던 옵션 조합 수
+    parse_failed: int = 0         # 파싱 실패한 옵션 수 (조용한 실패 표면화 #12)
+
+    @property
+    def partial_failure(self) -> bool:
+        """일부/전부 옵션 파싱 실패 — success=True 여도 부분수집임을 알림."""
+        return self.parse_failed > 0
 
 
 def fetch_product_options(
@@ -99,6 +106,7 @@ def fetch_product_options(
     combinations = opt_info.get('optionCombinations') or []
 
     options = []
+    parse_failed = 0
     for c in combinations:
         try:
             options.append(OptionRow(
@@ -111,7 +119,14 @@ def fetch_product_options(
                 usable=bool(c.get('usable', True)),
             ))
         except Exception as e:
+            parse_failed += 1
             logger.warning(f'option parse failed: {e} {c}')
+
+    if parse_failed:
+        # 조용한 실패 금지 — 파싱 실패를 warning 로만 삼키지 않고 결과에 표면화
+        logger.error(
+            'fetch_product_options(%s): 옵션 %d/%d 파싱 실패 — 부분수집',
+            origin_product_no, parse_failed, len(combinations))
 
     return FetchOptionsResult(
         success=True,
@@ -120,4 +135,6 @@ def fetch_product_options(
         sale_price=origin.get('salePrice'),
         options=options,
         raw=payload,
+        combinations_total=len(combinations),
+        parse_failed=parse_failed,
     )

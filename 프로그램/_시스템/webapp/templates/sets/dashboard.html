@@ -469,7 +469,9 @@
     // 최종 매입가(강조). 없으면 상세 폴백.
     var finCell=(ss.final!=null)
       ? '<span class="dv finalb">'+numUnit(ss.final,'원')+'</span>'
-      : '<span class="dv muted" title="펼치면 영수증·최종매입가를 보여줘요">상세 ▾</span>';
+      : (ss.final_error
+          ? '<span class="dv muted" title="최종매입가 계산에 실패했어요 — 펼쳐서 확인·재시도">상세 ⚠</span>'
+          : '<span class="dv muted" title="펼치면 영수증·최종매입가를 보여줘요">상세 ▾</span>');
     so+='<span class="ps">소</span><span class="dn">매입</span>'+finCell;
     so+='<span class="hairline"></span>';   // 9번: 소 묶음과 판/현 시각 분리
     return '<div class="dual">'

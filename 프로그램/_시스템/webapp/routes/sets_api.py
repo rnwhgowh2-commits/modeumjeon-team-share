@@ -14,6 +14,10 @@ from lemouton.sets import set_link_service as link
 bp = Blueprint("sets_api", __name__, url_prefix="/api")
 
 
+import logging as _logging
+logger = _logging.getLogger(__name__)
+
+
 def _err(msg, code=400):
     return jsonify({"ok": False, "error": msg}), code
 
@@ -133,6 +137,7 @@ def _card_src_provider(model_codes, skus, session=None):
                              "source_url": surl,
                              "surface": surface, "final": final,
                              "receipt": None,   # 아래 breakdown 에서 채움(상세 영수증)
+                             "final_error": False,  # 계산 '실패'와 '정상 미확정(None)' 구분 (#14)
                              "ss_price": o.get("ss_price"),
                              "cp_price": o.get("cp_price")}
     # 최종매입가(표면−혜택) 일괄 계산 — _cache 로 N+1 제거.
@@ -162,9 +167,16 @@ def _card_src_provider(model_codes, skus, session=None):
                                       for st in (bd.get("steps") or [])],
                         }
                 except Exception:
-                    pass
+                    # 조용한 실패 금지 — 계산 실패를 '정상 미확정'과 구분(#14). 목록은 무중단.
+                    if it["sku"] in out:
+                        out[it["sku"]]["final_error"] = True
+                    logger.exception("최종매입가 계산 실패 sku=%s", it.get("sku"))
         except Exception:
-            pass   # _build_breakdown_cache 실패 등 — 목록 보호(최종매입가만 지연)
+            # _build_breakdown_cache 실패 등 — 목록 보호(무중단)하되 전 항목 실패 표면화
+            for it in items:
+                if it["sku"] in out:
+                    out[it["sku"]]["final_error"] = True
+            logger.exception("최종매입가 breakdown 캐시 실패 — %d건 계산 지연", len(items))
         finally:
             if own:
                 s.close()
@@ -247,7 +259,9 @@ def _new_values_for_options(model_codes, skus, market):
                 continue
             is_pur = o.get("purchase_priority_resolved") == "purchase"
             out[o["sku"]] = {
-                "stock": o.get("purchase_stock") if is_pur else o.get("src_stock"),
+                # 소싱 재고는 실수량(src_stock_qty). 999/6993 센티넬(src_stock)이
+                #   전송/미리보기 '보낼 값'으로 새면 실전송 시 999개 push (#10). 미상→None.
+                "stock": o.get("purchase_stock") if is_pur else o.get("src_stock_qty"),
                 "price": o.get("ss_price") if market == "smartstore" else o.get("cp_price"),
                 "color": o.get("color_display") or o.get("color_code"),
                 "size": o.get("size_display") or o.get("size_code"),

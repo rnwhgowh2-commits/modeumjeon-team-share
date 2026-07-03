@@ -83,3 +83,29 @@ def test_collect_all_linked_sets(db):
     fetcher = lambda market, pid, env_prefix=None: _FR([_MO("11", 3, 100)])
     r = col.collect_all_linked_sets(db, fetcher=fetcher); db.commit()
     assert r["ok"] and r["sets"] == 2
+    assert r["failed"] == 0 and r["failed_ids"] == []
+
+
+def test_collect_all_linked_sets_surfaces_failures(db, caplog):
+    """세트별 수집 실패가 조용히 삼켜지지 않고 failed 카운트·id·로그로 표면화되는지."""
+    import logging
+    from lemouton.sets.models import SetChannel, SetChannelOption
+    for sid in (20, 21):
+        ch = SetChannel(set_id=sid, market="smartstore", account_key="a",
+                        market_product_id="9", status="linked")
+        db.add(ch); db.flush()
+        db.add(SetChannelOption(channel_id=ch.id, canonical_sku="S",
+                                market_option_id="11", status="matched",
+                                mkt_stock=5, mkt_price=100))
+    db.commit()
+
+    def boom(market, pid, env_prefix=None):
+        raise RuntimeError("boom")
+
+    with caplog.at_level(logging.ERROR):
+        r = col.collect_all_linked_sets(db, fetcher=boom)
+    assert r["sets"] == 0
+    assert r["failed"] == 2
+    assert set(r["failed_ids"]) == {20, 21}
+    assert any("boom" in rec.getMessage() or "수집 실패" in rec.getMessage()
+               for rec in caplog.records)
