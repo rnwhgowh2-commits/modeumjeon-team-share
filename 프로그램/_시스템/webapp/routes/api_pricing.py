@@ -689,12 +689,14 @@ def _option_matrix_data(code: str):
                     _opt_stock = None
                     _opt_price = None
                     _match_failed = False
+                    _so_matched = False  # 색·사이즈 SourceOption 행이 실제로 매칭됐는가
                     if sp:
                         _so_m = _match_option_so(
                             _so_index, sp.id,
                             _sku_color.get(lk.option_canonical_sku),
                             _sku_size.get(lk.option_canonical_sku))
                         if _so_m is not None:
+                            _so_matched = True
                             _opt_stock = _so_m.current_stock
                             _opt_price = _so_m.current_price
                             # [2026-06-28] 색상 전용 매칭(색상모음전·모델모음전 = SO 에 사이즈 없이
@@ -738,8 +740,13 @@ def _option_matrix_data(code: str):
                         'source_product_id': sp.id if sp else None,
                         'crawled_price': _disp_price,
                         'crawled_price_raw': _disp_price,
+                        # [2026-07-03 합계폴백 금지] 옵션(색·사이즈)이 매칭됐으면(_so_matched)
+                        #   current_stock 이 None(=그 사이즈 크롤 실패/미수집)이어도 상품 last_stock
+                        #   (=전 사이즈 합계)로 폴백하지 않는다 — 그러면 SSG 단품처럼 일부 사이즈만
+                        #   합계(예 380)로 둔갑해 '없는 재고'가 뜬다(금전 위험). None → '미상/크롤실패'로
+                        #   정직하게 표면화. last_stock 폴백은 옵션 행 자체가 없는 상품레벨 소싱처에만.
                         'crawled_stock': (None if _match_failed else
-                                          (_opt_stock if _opt_stock is not None
+                                          (_opt_stock if _so_matched
                                            else (sp.last_stock if sp else None))),
                         'last_fetched_at': (sp.last_fetched_at.isoformat()
                                             if sp and sp.last_fetched_at else None),

@@ -208,3 +208,62 @@ def test_legacy_dedup_injects_bsu_id():
         f"dedup 경로가 bsu.id({bsu.id}) 주입 안 함. "
         f"실제 bundle_source_url_id={entry.get('bundle_source_url_id')}"
     )
+
+
+# ---------------------------------------------------------------------------
+# Test: ★합계 폴백 금지 (2026-07-03) — 매칭된 SO + current_stock=None
+# ---------------------------------------------------------------------------
+
+def test_matched_so_null_stock_no_aggregate_fallback():
+    """★버그방지: 색·사이즈 SourceOption 이 매칭됐는데 current_stock=None(그 사이즈 미수집)이면,
+    상품 SourceProduct.last_stock(=전 사이즈 합계)로 폴백하면 안 된다.
+
+    실사례: SSG 단품 블랙 — 13사이즈 중 일부 current_stock 이 NULL → 매트릭스가 last_stock(380,
+    전 사이즈 합계)로 그 칸만 둔갑 → '없는 재고'가 떠 금전 위험. 매칭됐으면 None(미상/크롤실패)로
+    정직하게 표면화해야 한다(가격 폴백금지와 동일 원칙).
+    """
+    s = _make_db()
+    _seed_base(s)  # 블랙 260 옵션
+
+    URL = "https://www.ssg.com/item/itemView.ssg?itemId=1000526347285"
+    bsu = M.BundleSourceUrl(model_code="LT", source_key="ssg",
+                            url=URL, sort_order=0, url_type="단품")
+    s.add(bsu)
+    s.flush()
+    s.add(M.OptionSourceUrlLink(option_canonical_sku="LT-블랙-260",
+                                bundle_source_url_id=bsu.id))
+
+    from lemouton.sources.models import SourceProduct, SourceOption
+    sp = SourceProduct(site="ssg", url=URL, last_stock=380, last_status="ok")
+    s.add(sp)
+    s.flush()
+    # 색·사이즈 SO 행은 존재(=매칭됨) 하지만 그 사이즈 재고 미수집 → current_stock=None
+    s.add(SourceOption(source_product_id=sp.id, color_text="블랙",
+                       size_text="260", current_stock=None, current_price=119900))
+    s.commit()
+
+    from webapp.routes.api_pricing import _option_matrix_data
+    import webapp.routes.api_pricing as _mod
+    from unittest.mock import patch
+
+    with patch.object(_mod, "SessionLocal", return_value=s):
+        result = _option_matrix_data("LT")
+
+    assert result.get("ok"), f"API failed: {result}"
+    opt_entry = _get_opt_entry(result, "LT-블랙-260")
+    assert opt_entry is not None
+
+    ssg_entries = [e for e in opt_entry.get("sources", [])
+                   if e.get("source_key") == "ssg"]
+    assert ssg_entries, f"ssg 소싱처 항목 없음. sources: {opt_entry.get('sources')}"
+    entry = ssg_entries[0]
+
+    # 매칭 자체는 성공(안 파는 조합 아님) — match_failed 는 False 여야 이 케이스가 성립
+    assert entry.get("match_failed") is False, (
+        f"이 테스트는 '매칭됨' 케이스여야 함. match_failed={entry.get('match_failed')}"
+    )
+    # ★핵심: 합계(380)로 폴백하지 않고 None(미상)
+    assert entry.get("crawled_stock") is None, (
+        f"매칭된 SO 의 current_stock=None → crawled_stock 은 None(미상)이어야 하는데 "
+        f"{entry.get('crawled_stock')} (=last_stock 합계 380 폴백 = 버그)"
+    )
