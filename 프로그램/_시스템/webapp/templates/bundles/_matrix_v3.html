@@ -6199,7 +6199,10 @@ table.ompk-tab th.corner{color:#b0b8c1;cursor:default}
 
   function renderAutoExpand(o) {
     const ssBr = o.ss_breakdown, cpBr = o.cp_breakdown;
-    return `
+    // [2026-07-04] 비활성(안 파는 사이즈) 옵션은 breakdown 이 null → 산출식 대신 안내.
+    //   가드 없이 null.purchase_price 읽으면 renderPriceMatrix 전체가 죽어 셀이 '로딩 중'에서 멈춤.
+    const _formula = (!ssBr || !cpBr) ? `
+      <div class="price-formula" style="color:var(--n500)">비활성 옵션(판매 안 함) — 자동 산출가 없음</div>` : `
       <div class="price-formula">
         <strong>스마트스토어 산출:</strong>
         원가 <span class="step">${fmtKRW(ssBr.purchase_price)}</span>
@@ -6215,7 +6218,8 @@ table.ompk-tab th.corner{color:#b0b8c1;cursor:default}
         × (1 + 쿠팡수수료 ${fmtPct(cpBr.fee_rate)})
         + 배송비 <span class="step">${fmtKRW(cpBr.shipping_fee)}</span>
         = <strong>${fmtKRW(cpBr.final_price)}</strong>
-      </div>
+      </div>`;
+    return `${_formula}
       <div class="field-row"><label>마진율</label><div><input class="field-input mono" data-cfg="${o.sku}" data-field="margin_rate" value="${(o.margin_rate*100).toFixed(2)}" style="width:90px"> %</div></div>
       <div class="field-row"><label>스마트스토어 수수료율</label><div><input class="field-input mono" data-cfg="${o.sku}" data-field="ss_fee_rate" value="${(o.ss_fee_rate*100).toFixed(2)}" style="width:90px"> %</div></div>
       <div class="field-row"><label>쿠팡 수수료율</label><div><input class="field-input mono" data-cfg="${o.sku}" data-field="cp_fee_rate" value="${(o.cp_fee_rate*100).toFixed(2)}" style="width:90px"> %</div></div>
