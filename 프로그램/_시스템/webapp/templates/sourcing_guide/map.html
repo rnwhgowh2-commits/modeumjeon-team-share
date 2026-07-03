@@ -328,6 +328,7 @@
           <tr><td class="sn"><span class="sgdot" style="background:#E8830C"></span>한정(N개)</td><td class="how"><span class="pill">HTML</span> <span class="ink">usablInvQty=N</span> (실수량)</td></tr>
           <tr><td class="sn"><span class="sgdot" style="background:#15803D"></span>충분(표식없음)</td><td class="how"><span class="pill">HTML</span> usablInvQty 큰 값 → 충분</td></tr>
           <tr class="special"><td class="sn">⚠ 특이사항</td><td class="how">딜페이지(dealItemView.ss) 파싱 실패 → <span class="ink">크롤실패</span> / 단일색 사이즈 파싱버그 주의</td></tr>
+          <tr class="special"><td class="sn" style="color:#15803D">✅ 해결(07-04)</td><td class="how">단품 미수집 36칸 = <b>중복 SourceOption</b>(size_text '220' vs '220mm')에서 매칭이 <b>stale None 행을 먼저 골라</b> 실재고 무시 → <span class="mono">_match_option_so</span> 가 <span class="ink">재고 있는 행 우선</span>. 라이브 미수집 0·값 실측 일치.</td></tr>
         </table>
         <div class="meta"><span class="elabel">경로</span><span class="mono">navGrab → /api/sources/parse</span> · <span class="elabel">코드</span><span class="mono">ssg.py:608</span></div>
         <div class="why" style="margin-top:8px;margin-bottom:0;"><b>왜 HTML?</b> 재고·가격·혜택이 SSR HTML JS블록(<span class="mono" style="color:inherit">uitemObj</span>의 <span class="mono" style="color:inherit">usablInvQty·bestAmt</span>)에 통째로 박혀 옴 → 2순위 내장 JSON(정규식). 익명 curl_cffi 서버, 로그인 불필요.</div>
@@ -358,7 +359,7 @@
           <tr class="special"><td class="sn">⚠ 특이사항</td><td class="how">매핑 API + DOM 둘 다 실패 → <span class="ink">크롤실패</span></td></tr>
         </table>
         <div class="meta"><span class="elabel">엔드포인트</span><span class="mono">pbf.../option/mapping/{spd}/{sitm}</span> · <span class="elabel">코드</span><span class="mono">lotteon.py:1293</span></div>
-        <div class="why" style="margin-top:8px;margin-bottom:0;"><b>왜 API?</b> 라이브 확장이 옵션 API(<span class="mono" style="color:inherit">option/mapping</span>)의 <span class="mono" style="color:inherit">stkQty</span>로 실수량을 잡음 — <b>충분도 20·30·41 실수량</b>(999가 아님, 라이브 124셀 검증). <span style="color:#9AA4B0">화면 999/품절 둔갑이 보이면 = 저장 중복행 stale 폴백(→5 에러이력 S3). 대체상품 999(품절 슬롯에 끼는 다른 상품)는 별개·드문 케이스(확장 spdNo 가드).</span></div>
+        <div class="why" style="margin-top:8px;margin-bottom:0;"><b>왜 API?</b> 라이브 확장이 옵션 API(<span class="mono" style="color:inherit">option/mapping</span>)의 <span class="mono" style="color:inherit">stkQty</span>로 실수량을 잡음 — <b>충분도 20·30·41 실수량</b>(999가 아님, 라이브 124셀 검증). <span style="color:#9AA4B0">화면 999/품절 둔갑이 보이면 = 저장 중복행 stale 폴백(→5 에러이력 S3). 대체상품 999(품절 슬롯에 끼는 다른 상품)는 별개·드문 케이스(확장 spdNo 가드).</span> <span style="color:#15803D;display:block;margin-top:4px">✅ <b>해결(07-04)</b>: 모음전 미수집 47칸 = 중복행에서 매칭이 stale None 을 먼저 고르던 것 → <span class="mono" style="color:inherit">_match_option_so</span> 가 재고 있는 행 우선. 라이브 미수집 0·올리브 230=품절·다크235=49 실측 일치.</span></div>
       </div></div>
 
       <div class="scard"><div class="src">스마트<br>스토어</div><div>
