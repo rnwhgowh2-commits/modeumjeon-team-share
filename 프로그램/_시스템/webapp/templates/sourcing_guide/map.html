@@ -394,12 +394,13 @@
         <div class="dm"><span class="ax">수집 방법 (데이터별)</span><div class="dgrid">
           <span class="dp"><b>재고</b><span class="pill">내장 JSON</span></span><span class="dp"><b>표면노출가</b><span class="pill">내장 JSON</span></span><span class="dp"><b>혜택</b><span class="pill">DOM</span></span></div></div>
         <table class="st3">
-          <tr><td class="sn"><span class="sgdot" style="background:#DC2626"></span>품절(없음)</td><td class="how"><span class="pill">내장</span> stockList[].<span class="ink">stockCount=0</span></td></tr>
-          <tr><td class="sn"><span class="sgdot" style="background:#E8830C"></span>한정(N개)</td><td class="how"><span class="pill">내장</span> <span class="ink">stockCount=N</span> → 실수량</td></tr>
-          <tr><td class="sn"><span class="sgdot" style="background:#15803D"></span>충분(표식없음)</td><td class="how"><span class="pill">내장</span> stockCount 큼 → 충분</td></tr>
-          <tr class="special"><td class="sn">⚠ 특이사항</td><td class="how">API 직접호출은 방화벽 차단 → <span class="ink">__NEXT_DATA__</span> 내장 사용 / 혜택은 로그인 DOM</td></tr>
+          <tr><td class="sn"><span class="sgdot" style="background:#DC2626"></span>품절(없음)</td><td class="how"><span class="pill">내장</span> <span class="ink">sellGbcd="11"</span> → 품절 (⚠ 품절도 stockCount=1 센티넬로 옴)</td></tr>
+          <tr><td class="sn"><span class="sgdot" style="background:#E8830C"></span>한정(N개)</td><td class="how"><span class="pill">내장</span> sellGbcd="00" + <span class="ink">stockCount=N</span> → 실수량</td></tr>
+          <tr><td class="sn"><span class="sgdot" style="background:#15803D"></span>충분(표식없음)</td><td class="how"><span class="pill">내장</span> sellGbcd="00" + stockCount 큼 → 충분</td></tr>
+          <tr class="special"><td class="sn">★ 품절판정</td><td class="how"><b>반드시 <span class="ink">sellGbcd</span> 우선</b> — stockCount 단독 판정 금지(품절도 stockCount=1 = 거짓 '1개 있음' 금전손실). 라이브 실증 2026-07-03(올리브 230·240·250·260 = sellGbcd 11 품절인데 stockCount 1)</td></tr>
+          <tr class="special"><td class="sn">⚠ 특이사항</td><td class="how">단품=<span class="ink">__NEXT_DATA__ stockList[]</span> / 모음전(색×사이즈)=<span class="ink">item-stockcount API</span> 색별 프로브. API 직접호출 방화벽 차단 → navGrab. 혜택은 로그인 DOM</td></tr>
         </table>
-        <div class="meta"><span class="elabel">위치</span><span class="mono">__NEXT_DATA__.props.pageProps.respData.itemPtc</span> · <span class="elabel">코드</span><span class="mono">hmall.py (feature)</span></div>
+        <div class="meta"><span class="elabel">위치</span><span class="mono">__NEXT_DATA__.itemPtc.stockList / api/hf/dp/v1/item-ptc/item-stockcount</span> · <span class="elabel">코드</span><span class="mono">hmall.py fetch_combo_persize_options·_size_stock_from_row</span></div>
         <div class="why" style="margin-top:8px;margin-bottom:0;"><b>왜 내장 JSON?</b> Next.js SSR이 재고·가격을 <span class="mono" style="color:inherit">__NEXT_DATA__</span>에 통째로 줌(2순위). 전용 API는 방화벽 차단이라 못 씀. 혜택은 클라이언트 JS 렌더라 로그인 확장 DOM에서만.</div>
       </div></div>
 
