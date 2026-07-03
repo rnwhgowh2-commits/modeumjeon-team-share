@@ -76,6 +76,14 @@ class TestResolveStock:
         assert _resolve_stock('lemouton', None, 'error') == (None, '크롤실패', False)
         assert _resolve_stock('lemouton', None, 'ok') == (None, '재고있음', False)
 
+    def test_uncollected_cell_is_confirm_unavailable_not_instock(self):
+        # [2026-07-04] 매칭됐으나 그 셀 per-size 재고 미수집(uncollected) → '재고있음' 둔갑 금지.
+        #   상품 크롤은 ok지만 이 사이즈 값이 안 긁힘 = '확인 불가'(품절둔갑=금전위험 방지).
+        assert _resolve_stock('lotteon', None, 'uncollected') == (None, '확인 불가', False)
+        assert _resolve_stock('ssg', None, 'uncollected') == (None, '확인 불가', False)
+        # 대조: 진짜 수량미상(ok)은 '재고있음' 유지 (기존 동작 불변)
+        assert _resolve_stock('musinsa', None, 'ok') == (None, '재고있음', False)
+
     def test_999_sentinel_is_instock(self):
         # 르무통/롯데온/SSF '충분' 센티넬
         assert _resolve_stock('ssf', 999) == (None, '재고있음', False)

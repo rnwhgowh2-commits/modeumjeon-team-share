@@ -251,6 +251,11 @@ def _resolve_stock(site, raw, status=None):
         return (0, '⚠️확인필요', True)
     if raw is None:
         # [2026-06-28] None = 재고값 없음 → 상태로 구분 (크롤 실패/미시도를 '재고있음'으로 둔갑 금지)
+        # [2026-07-04] uncollected = 상품 크롤은 됐으나 '이 셀(색·사이즈) per-size 재고를 못
+        #   긁음' → 예전엔 상품 last_stock(합계)·'재고있음'으로 둔갑(품절인데 있음=금전위험).
+        #   폴백 금지·누락 표면화 원칙: '확인 불가'로 정직하게 드러낸다.
+        if status == 'uncollected':
+            return (None, '확인 불가', False)
         if status == 'error':
             return (None, '크롤실패', False)
         if status == 'ok':
@@ -267,6 +272,8 @@ def _stock_state(site, raw, status=None):
     """재고 원시값(+last_status) → 상태 문자열(프론트 스타일/툴팁용). _resolve_stock 과 동일 의미.
        soldout / unknown / limited / ample / uncrawled / crawlfail."""
     if raw is None:
+        if status == 'uncollected':
+            return 'uncollected'   # 매칭됐으나 이 셀 재고 미수집 → '확인 불가'
         if status == 'error':
             return 'crawlfail'
         if status == 'ok':
@@ -754,6 +761,9 @@ def _option_matrix_data(code: str):
                         # [2026-06-13] 매칭 실패(소싱처가 안 파는 색/사이즈) — 프론트가 '매칭 실패'
                         #   로 표시하고 가격/재고 없는 것으로 처리(폴백가 금지).
                         'match_failed': _match_failed,
+                        # [2026-07-04] 매칭됐으나 이 셀 per-size 재고 미수집(current_stock=None)
+                        #   → '재고있음' 둔갑 금지, '확인 불가'로 표면화(품절둔갑=금전위험 차단).
+                        'stock_uncollected': bool(_so_matched and _opt_stock is None),
                         'auto_card_discount': None,
                         'card_enabled': True,
                         'crawled': bool(sp),
@@ -767,11 +777,15 @@ def _option_matrix_data(code: str):
         #   프론트는 이 값만 렌더(가짜 '재고 10' 제거). 정책: 수량 있으면 표기, 없으면 '재고있음'.
         for _srcs in sku_to_sources.values():
             for _d in _srcs:
-                _q, _lbl, _out = _resolve_stock(_d.get('site'), _d.get('crawled_stock'), _d.get('last_status'))
+                # [2026-07-04] 매칭-미수집 셀은 상품 last_status(ok)로 '재고있음' 둔갑하지 않게
+                #   per-셀 status='uncollected' 로 넘겨 '확인 불가'로 확정.
+                _eff_status = ('uncollected' if _d.get('stock_uncollected')
+                               else _d.get('last_status'))
+                _q, _lbl, _out = _resolve_stock(_d.get('site'), _d.get('crawled_stock'), _eff_status)
                 _d['stock_qty'] = _q
                 _d['stock_label'] = _lbl
                 _d['stock_out'] = _out
-                _d['stock_state'] = _stock_state(_d.get('site'), _d.get('crawled_stock'), _d.get('last_status'))
+                _d['stock_state'] = _stock_state(_d.get('site'), _d.get('crawled_stock'), _eff_status)
 
         # 가격 설정
         configs = (

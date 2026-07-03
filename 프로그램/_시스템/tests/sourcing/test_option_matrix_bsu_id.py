@@ -267,3 +267,10 @@ def test_matched_so_null_stock_no_aggregate_fallback():
         f"매칭된 SO 의 current_stock=None → crawled_stock 은 None(미상)이어야 하는데 "
         f"{entry.get('crawled_stock')} (=last_stock 합계 380 폴백 = 버그)"
     )
+    # ★[2026-07-04] 화면 라벨도 '재고있음' 둔갑 금지 → '확인 불가'(품절둔갑=금전위험 차단)
+    assert entry.get("stock_uncollected") is True, "매칭-미수집 셀 플래그 누락"
+    assert entry.get("stock_label") == "확인 불가", (
+        f"매칭-미수집 셀은 '확인 불가'여야 하는데 '{entry.get('stock_label')}' "
+        f"(last_status=ok 라 '재고있음'으로 둔갑되면 품절둔갑)"
+    )
+    assert entry.get("stock_out") is not True
