@@ -108,3 +108,27 @@ def test_soft_deleted_excluded(db):
     db.flush()
     ids = [p.id for p in due_products(db, base_interval_seconds=base, now=NOW)]
     assert sp.id not in ids
+
+
+from lemouton.sources.crawl_schedule import (
+    base_crawl_interval_seconds, select_due_products,
+)
+from lemouton.pricing.settings import get_or_init
+
+
+def test_base_interval_from_settings(db):
+    s = get_or_init(db)
+    s.crawl_interval_hours = 6
+    s.crawl_interval_minutes = 30
+    db.flush()
+    assert base_crawl_interval_seconds(db) == 6 * 3600 + 30 * 60
+
+
+def test_select_due_products_uses_settings(db):
+    s = get_or_init(db)
+    s.crawl_interval_hours = 6
+    s.crawl_interval_minutes = 0
+    db.flush()
+    _sp(db, "u/x", last=None)  # 미크롤 → 반드시 뽑힘
+    out = select_due_products(db, now=NOW)
+    assert any(p.url == "u/x" for p in out)

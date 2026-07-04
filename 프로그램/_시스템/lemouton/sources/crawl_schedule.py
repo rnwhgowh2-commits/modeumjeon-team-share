@@ -65,3 +65,16 @@ def due_products(session, *, base_interval_seconds: float, now: datetime) -> lis
             scored.append((od, p))
     scored.sort(key=lambda t: t[0], reverse=True)   # 연체 큰 순
     return [p for _, p in scored]
+
+
+def base_crawl_interval_seconds(session) -> float:
+    """자동화 설정의 기준 주기(시·분)를 초로. 0이면 '항상 마감'(연속)."""
+    from lemouton.pricing.settings import get_or_init
+    s = get_or_init(session)
+    return (s.crawl_interval_hours or 0) * 3600 + (s.crawl_interval_minutes or 0) * 60
+
+
+def select_due_products(session, *, now: datetime) -> list:
+    """설정 주기를 읽어 due URL을 연체 순으로 반환 (P3 워커 진입점)."""
+    base = base_crawl_interval_seconds(session)
+    return due_products(session, base_interval_seconds=base, now=now)
