@@ -628,6 +628,45 @@ PRODUCT_DYNAMIC_KEYS = tuple(
 )
 
 
+def _record_crawl_delta(session, source_product, old_snapshot, scoped):
+    """직전 크롤(old_snapshot) 대비 이번 저장될 값 비교 → CrawlDelta 1행 + no_change_streak 갱신.
+
+    ★ 핵심: 비교 대상은 '들어온 raw 값'이 아니라 '실제로 DB에 저장되는 값'이어야 한다.
+      upsert_source_option 은 price·stock 둘 다 들어온 값이 None 이면 그 필드를
+      **덮어쓰지 않고 기존값을 보존**한다(§upsert_source_option:191-194). 따라서 크롤이
+      stock=None(확인 불가)을 반환해도 DB 는 안 바뀌므로 '변동'이 아니다 — new_snapshot 에서
+      None 필드를 old 값으로 대체해 저장 상태를 그대로 반영한다(streak 오리셋 방지).
+      단, 기존 키가 없는 신규 옵션은 old 값이 없으니 None 그대로 → 신규 등장은
+      기존 로직대로 변동으로 잡힌다(정상).
+    """
+    old_map = {(o['color_text'], o['size_text']): o for o in old_snapshot}
+    new_snapshot = []
+    for o in scoped:
+        _c = _norm_color(o.get('color_text'))
+        _s = _norm_size(o.get('size_text'))
+        _prev = old_map.get((_c, _s))
+        _price = o.get('price')
+        _stock = o.get('stock')
+        # None 가드 있는 필드(price·stock): 들어온 값 None → 저장은 기존값 보존 → old 값으로 비교.
+        if _price is None and _prev is not None:
+            _price = _prev.get('price')
+        if _stock is None and _prev is not None:
+            _stock = _prev.get('stock')
+        new_snapshot.append({'color_text': _c, 'size_text': _s,
+                             'price': _price, 'stock': _stock})
+    _chg = detect_changes(old_snapshot, new_snapshot)
+    session.add(CrawlDelta(
+        source_product_id=source_product.id,
+        stock_changed=_chg['stock_changed'],
+        price_changed=_chg['price_changed'],
+        detail=(_chg['detail'][:1000] if _chg['detail'] else None),
+    ))
+    if _chg['stock_changed'] or _chg['price_changed']:
+        source_product.no_change_streak = 0
+    else:
+        source_product.no_change_streak = (source_product.no_change_streak or 0) + 1
+
+
 def persist_crawled_options(session: Session, *, source_product, options) -> dict:
     """크롤 옵션(색·사이즈·재고·가격) → SourceOption upsert(생성+갱신) + 단품 색스코프 + stale prune.
 
@@ -671,6 +710,9 @@ def persist_crawled_options(session: Session, *, source_product, options) -> dic
     #   detect_changes 가 이 old_snapshot vs 새 옵션(new_snapshot) 을 비교해
     #   CrawlDelta 1행 기록 + no_change_streak(무변동 연속) 갱신.
     #   키((color,size))는 저장 시 정규화(_norm_*)와 동일하게 맞춰 표기차 오탐 방지.
+    #   ⚠️ 즉시(eager) 스칼라 복사로 리스트를 만든다 — 아래 upsert 루프가 같은
+    #   identity-map SourceOption 행을 in-place mutate 하므로, 제너레이터·lazy
+    #   참조로 바꾸면 비교 시점엔 이미 새 값으로 오염돼 old 스냅샷이 무의미해진다.
     old_snapshot = [
         {'color_text': _norm_color(so.color_text), 'size_text': _norm_size(so.size_text),
          'price': so.current_price, 'stock': so.current_stock}
@@ -712,23 +754,8 @@ def persist_crawled_options(session: Session, *, source_product, options) -> dic
         if (_norm_color(so.color_text), _norm_size(so.size_text)) not in new_keys:
             so.deleted_at = _utcnow()
             pruned += 1
-    # ★ 2026-07-04 변동 기록 — 새 옵션 스냅샷 vs old_snapshot 비교 후 CrawlDelta 1행.
-    new_snapshot = [
-        {'color_text': _norm_color(o.get('color_text')), 'size_text': _norm_size(o.get('size_text')),
-         'price': o.get('price'), 'stock': o.get('stock')}
-        for o in scoped
-    ]
-    _chg = detect_changes(old_snapshot, new_snapshot)
-    session.add(CrawlDelta(
-        source_product_id=source_product.id,
-        stock_changed=_chg['stock_changed'],
-        price_changed=_chg['price_changed'],
-        detail=(_chg['detail'][:1000] if _chg['detail'] else None),
-    ))
-    if _chg['stock_changed'] or _chg['price_changed']:
-        source_product.no_change_streak = 0
-    else:
-        source_product.no_change_streak = (source_product.no_change_streak or 0) + 1
+    # ★ 2026-07-04 변동 기록 — old_snapshot vs 저장될 값 비교 후 CrawlDelta 1행 + streak 갱신.
+    _record_crawl_delta(session, source_product, old_snapshot, scoped)
     return {'upserted': upserted, 'pruned': pruned, 'failed': failed, 'err': err_sample}
 
 
