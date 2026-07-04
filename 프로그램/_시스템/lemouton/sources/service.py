@@ -667,6 +667,27 @@ def _record_crawl_delta(session, source_product, old_snapshot, scoped):
         source_product.no_change_streak = (source_product.no_change_streak or 0) + 1
 
 
+def changed_product_ids_since(session, *, only_latest: bool = True) -> set[int]:
+    """변동(재고 또는 가격)이 있는 source_product_id 집합.
+
+    only_latest=True 면 각 URL의 '가장 최근 CrawlDelta' 만 보고 판단
+    (업로드 게이트용 — 지금 보낼지 말지). False 면 하나라도 변동이면 포함.
+    """
+    rows = (session.query(CrawlDelta)
+            .order_by(CrawlDelta.source_product_id, CrawlDelta.id.desc())
+            .all())
+    result: set[int] = set()
+    seen: set[int] = set()
+    for r in rows:
+        if only_latest:
+            if r.source_product_id in seen:
+                continue
+            seen.add(r.source_product_id)
+        if r.stock_changed or r.price_changed:
+            result.add(r.source_product_id)
+    return result
+
+
 def persist_crawled_options(session: Session, *, source_product, options) -> dict:
     """크롤 옵션(색·사이즈·재고·가격) → SourceOption upsert(생성+갱신) + 단품 색스코프 + stale prune.
 

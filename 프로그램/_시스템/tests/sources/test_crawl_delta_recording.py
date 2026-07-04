@@ -85,3 +85,33 @@ def test_incoming_none_price_is_not_a_change(db):
     from lemouton.sources.models import SourceOption
     row = db.query(SourceOption).filter_by(source_product_id=sp.id, deleted_at=None).first()
     assert row.current_price == 50000
+
+
+from lemouton.sources.service import changed_product_ids_since
+
+
+def test_changed_product_ids(db):
+    sp1 = _mk_product(db)
+    sp2 = SourceProduct(site="ssf", url="https://y/1"); db.add(sp2); db.flush()
+    a = [{"color_text": "블랙", "size_text": "220", "price": 50000, "stock": 3}]
+    b = [{"color_text": "블랙", "size_text": "220", "price": 50000, "stock": 0}]
+    # sp1: 마지막 크롤이 변동 / sp2: 첫 크롤(변동으로 간주)
+    persist_crawled_options(db, source_product=sp1, options=a); db.flush()
+    persist_crawled_options(db, source_product=sp1, options=a); db.flush()  # 무변동
+    persist_crawled_options(db, source_product=sp1, options=b); db.flush()  # 변동
+    persist_crawled_options(db, source_product=sp2, options=a); db.flush()
+    ids = changed_product_ids_since(db, only_latest=True)
+    assert sp1.id in ids   # 마지막 크롤이 변동
+    assert sp2.id in ids   # 첫 크롤 = 변동
+
+
+def test_changed_product_ids_only_latest_excludes_now_stable(db):
+    # 변동 후 안정되면 only_latest=True 에서는 빠져야 함
+    sp = _mk_product(db)
+    a = [{"color_text": "블랙", "size_text": "220", "price": 50000, "stock": 3}]
+    b = [{"color_text": "블랙", "size_text": "220", "price": 50000, "stock": 0}]
+    persist_crawled_options(db, source_product=sp, options=a); db.flush()  # 첫크롤=변동
+    persist_crawled_options(db, source_product=sp, options=b); db.flush()  # 변동
+    persist_crawled_options(db, source_product=sp, options=b); db.flush()  # 무변동(최신)
+    ids = changed_product_ids_since(db, only_latest=True)
+    assert sp.id not in ids   # 최신 크롤은 무변동
