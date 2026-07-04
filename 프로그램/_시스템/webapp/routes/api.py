@@ -25,6 +25,24 @@ def _err(msg, code=400):
     return jsonify({'ok': False, 'error': msg}), code
 
 
+# ---------- Crawl queue (읽기 전용) ----------
+
+@bp.route('/crawl/queue')
+def crawl_queue():
+    """[읽기전용] 로컬 크롤러(확장)가 폴링하는 '지금 긁을 URL' 목록 + 실행/정지.
+
+    서버는 목록만 알려줄 뿐 소싱처에 접속하지 않는다(크롤=로컬 원칙).
+    """
+    from datetime import datetime, timezone
+    from lemouton.sources.crawl_schedule import due_crawl_payload
+    s = SessionLocal()
+    try:
+        now = datetime.now(timezone.utc).replace(tzinfo=None)  # naive UTC
+        return jsonify(due_crawl_payload(s, now=now))
+    finally:
+        s.close()
+
+
 # ---------- Bundles ----------
 
 _BUNDLE_FIELDS = ('model_name_display', 'category',
