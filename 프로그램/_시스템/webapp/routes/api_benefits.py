@@ -808,7 +808,27 @@ def compute_breakdown(session, *, sku: str, source_id: int, sale_price: float,
                 self.value = value; self.enabled = enabled
                 self.sort_order = 999; self.template_id = None
         _base_override = float(_dynamic_benefits.get('surface_price') or 0)
-        effective.append(('dyn', _Inj('상품쿠폰', float(_dynamic_benefits.get('coupon_amount') or 0), enabled=bool(_dynamic_benefits.get('coupon_amount')))))
+        # 상품쿠폰 — product_coupon_list 있으면 쿠폰별 키워드 필터+최고 선택, 없으면 기존 단일값(하위호환)
+        _pcl = _dynamic_benefits.get('product_coupon_list')
+        _coupon_val = float(_dynamic_benefits.get('coupon_amount') or 0)
+        _coupon_pick = None
+        if _pcl:
+            from lemouton.pricing.benefit_gate import pick_best_coupon as _pbc
+            from lemouton.sourcing.models_pricing import SourceRegistry as _SR0
+            from lemouton.sourcing import crawl_guide as _cg0
+            _cg0_key = f'__cg_{source_id}'
+            if _cache is not None and _cg0_key in _cache:
+                _g0 = _cache[_cg0_key]
+            else:
+                _sr0 = session.query(_SR0).filter_by(id=source_id).first()
+                _g0 = _cg0.loads(_sr0.crawl_guide if _sr0 else None)
+                if _cache is not None:
+                    _cache[_cg0_key] = _g0
+            _cb0 = next((b for b in ((_g0.get('pricing') or {}).get('benefits') or [])
+                         if (b.get('name') or '').replace(' ', '') == '상품쿠폰'), {})
+            _coupon_pick = _pbc(_pcl, _cb0, _g0.get('exclude_keywords') or [])
+            _coupon_val = float(_coupon_pick['amount']) if _coupon_pick else 0.0
+        effective.append(('dyn', _Inj('상품쿠폰', _coupon_val, enabled=bool(_coupon_val))))
         effective.append(('dyn', _Inj('등급할인', float(_dynamic_benefits.get('grade_discount_amount') or 0), enabled=bool(_dynamic_benefits.get('grade_discount_amount')))))
         effective.append(('dyn', _Inj('등급적립', float(_dynamic_benefits.get('grade_reward_amount') or 0), enabled=bool(_dynamic_benefits.get('grade_reward_amount')))))
         effective.append(('dyn', _Inj('무신사머니 결제 적립', float(_dynamic_benefits.get('money_reward_amount') or 0), enabled=bool(_dynamic_benefits.get('money_reward_amount')))))
