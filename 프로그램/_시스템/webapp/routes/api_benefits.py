@@ -436,6 +436,9 @@ def compute_breakdown(session, *, sku: str, source_id: int, sale_price: float,
     _card_enabled = True
     _card_issuer = None
     _dynamic_benefits = {}
+    # ★ 2026-07-04 — 무신사 상품쿠폰 선택 결과(영수증 투명성용). 무신사 블록 밖(함수 끝)에서
+    #   참조하므로 여기서 top-level 초기화 → NameError 방지. 무신사 외 소싱처는 항상 None 유지.
+    _coupon_pick = None
     try:
         from lemouton.sources.models import SourceProduct
         from lemouton.sourcing.models_pricing import OptionSourceUrl
@@ -811,7 +814,7 @@ def compute_breakdown(session, *, sku: str, source_id: int, sale_price: float,
         # 상품쿠폰 — product_coupon_list 있으면 쿠폰별 키워드 필터+최고 선택, 없으면 기존 단일값(하위호환)
         _pcl = _dynamic_benefits.get('product_coupon_list')
         _coupon_val = float(_dynamic_benefits.get('coupon_amount') or 0)
-        _coupon_pick = None
+        # _coupon_pick 은 함수 top-level 에서 이미 None 초기화됨(NameError 방지) — 여기선 값만 대입.
         if _pcl:
             from lemouton.pricing.benefit_gate import pick_best_coupon as _pbc
             from lemouton.sourcing.models_pricing import SourceRegistry as _SR0
@@ -914,11 +917,20 @@ def compute_breakdown(session, *, sku: str, source_id: int, sale_price: float,
 
     # ★ 카테고리 정렬 + 결제 택1 + 누적 차감 → 순수 계산 함수로 위임 (M1 추출, 2026-06-08)
     from lemouton.pricing.final_price import compute_final_price
-    return compute_final_price(
+    _result = compute_final_price(
         sale_price, effective,
         card_enabled=_card_enabled, card_issuer=_card_issuer,
         base_override=_base_override,
     )
+    # ★ 2026-07-04 — 계산식 영수증 투명성: 무신사 상품쿠폰 적용/제외 내역 노출.
+    if isinstance(_result, dict) and _coupon_pick:
+        _result['coupon_decision'] = {
+            'used': _coupon_pick.get('name'),
+            'used_amount': _coupon_pick.get('amount'),
+            'excluded': [{'name': e.get('name'), 'amount': e.get('amount'), 'reason': e.get('reason')}
+                         for e in (_coupon_pick.get('excluded') or [])],
+        }
+    return _result
 
 
 @bp.get('/breakdown/<sku>/<int:source_id>')
