@@ -80,6 +80,36 @@ def select_due_products(session, *, now: datetime) -> list:
     return due_products(session, base_interval_seconds=base, now=now)
 
 
+def due_bundle_codes(session, *, now) -> list:
+    """마감난 URL이 걸린 모음전(번들) 코드 목록(중복 제거). 확장이 이걸 크롤한다.
+
+    실행/정지(crawl_auto_enabled)가 꺼져 있으면 빈 목록.
+
+    [조용한 누락 방지] due SourceProduct.url 과 BundleSourceUrl.url 을 **둘 다**
+    파이프라인과 동일한 normalize_url 로 정규화해 비교한다. BundleSourceUrl.url 은
+    등록 원본(트래킹 파라미터 포함 가능)이라 raw 비교하면 due URL이 어떤 번들에도
+    안 걸려 영원히 안 긁히고 에러도 없다(이 프로젝트 조용한실패 클래스).
+    SourceProduct.url 은 이미 정규화 저장이라 normalize_url 재적용은 멱등이다.
+    """
+    from lemouton.pricing.settings import get_or_init
+    from lemouton.sourcing.models import BundleSourceUrl
+    from lemouton.sources.service import normalize_url as _norm_url
+    if not bool(get_or_init(session).crawl_auto_enabled):
+        return []
+    base = base_crawl_interval_seconds(session)
+    due = due_products(session, base_interval_seconds=base, now=now)
+    due_urls = {_norm_url(p.url) for p in due}
+    if not due_urls:
+        return []
+    codes = []
+    seen = set()
+    for bsu in session.query(BundleSourceUrl).all():
+        if _norm_url(bsu.url) in due_urls and bsu.model_code not in seen:
+            seen.add(bsu.model_code)
+            codes.append(bsu.model_code)
+    return codes
+
+
 def due_crawl_payload(session, *, now) -> dict:
     """로컬 크롤러(확장)가 폴링할 페이로드. 서버는 목록만 알려줄 뿐 크롤 안 함.
 
