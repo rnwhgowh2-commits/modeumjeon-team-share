@@ -1788,6 +1788,10 @@ def boxhero_sync():
 @bp.post('/scheduler/run-now')
 def scheduler_run_now():
     """홈 '지금 바로 실행' — 백그라운드로 full_cycle 트리거."""
+    # [크롤=로컬 원칙] 서버 직접 크롤은 기본 OFF — full_cycle Phase A(서버 크롤) 차단.
+    from lemouton.sourcing.server_crawl_gate import server_crawl_enabled, DISABLED_MESSAGE
+    if not server_crawl_enabled():
+        return _ok(triggered=False, server_crawl_disabled=True, message=DISABLED_MESSAGE)
     try:
         from scheduler.main import get_scheduler
         from scheduler.jobs import full_cycle
@@ -2923,7 +2927,10 @@ def bundle_run_now(code: str):
         status = 'ok'
         crawl_ok = True  # [2026-06-03 안정화] 크롤 성공 여부 — full 실행 시 실패면 업로드 스킵
         try:
-            if phase in ('crawl', 'full'):
+            # [크롤=로컬 원칙] 서버 직접 크롤은 기본 OFF — 로컬 확장이 담당(프론트에서 트리거).
+            #   서버 크롤 스킵 시 crawl_ok=True 유지 → 'full' 은 업로드(드라이런)로 진행.
+            from lemouton.sourcing.server_crawl_gate import server_crawl_enabled
+            if phase in ('crawl', 'full') and server_crawl_enabled():
                 progress_set('crawl', total=0,
                              label=f'{code} 전체 크롤링', current='소싱처 URL 집계 중...')
                 sources_result: dict = {}
@@ -3124,6 +3131,11 @@ def cycle_crawl_all():
       → 우측 실행 로그 패널에서 "한 모음전 = 1행" 으로 동시에 표시
     - 동시 실행 워커 수 제한: max_workers=4 (사이트 부하 방지)
     """
+    # [크롤=로컬 원칙] 서버 직접 크롤은 기본 OFF — 로컬 확장이 담당.
+    from lemouton.sourcing.server_crawl_gate import server_crawl_enabled, DISABLED_MESSAGE
+    if not server_crawl_enabled():
+        return _ok(triggered=False, server_crawl_disabled=True, message=DISABLED_MESSAGE)
+
     from lemouton.sourcing.run_history import (
         record_start, record_end, summarize_status, SOURCE_KEYS,
     )
