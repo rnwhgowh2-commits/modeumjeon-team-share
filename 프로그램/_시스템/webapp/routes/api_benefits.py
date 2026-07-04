@@ -829,6 +829,12 @@ def compute_breakdown(session, *, sku: str, source_id: int, sale_price: float,
                     _cache[_cg0_key] = _g0
             _cb0 = next((b for b in ((_g0.get('pricing') or {}).get('benefits') or [])
                          if (b.get('name') or '').replace(' ', '') == '상품쿠폰'), {})
+            if not _cb0:
+                import logging as _lg0
+                _lg0.getLogger(__name__).warning(
+                    "[coupon-gate] 무신사 product_coupon_list 있으나 '상품 쿠폰' 혜택 미발견 "
+                    "(source_id=%s, sku=%s) — 제외 키워드 미적용, 등급쿠폰이 반영될 수 있음(설정 확인)",
+                    source_id, sku)
             _coupon_pick = _pbc(_pcl, _cb0, _g0.get('exclude_keywords') or [])
             _coupon_val = float(_coupon_pick['amount']) if _coupon_pick else 0.0
         effective.append(('dyn', _Inj('상품쿠폰', _coupon_val, enabled=bool(_coupon_val))))
@@ -902,9 +908,9 @@ def compute_breakdown(session, *, sku: str, source_id: int, sale_price: float,
                     if _bname in _off:
                         _it2.enabled = False
                 # 이름이 effective 에 없는 conditional 혜택 → 조용한 실패 방지 경고
-                _eff_names = {(_it2.benefit_name or '') for _k2, _it2 in effective}
+                _eff_names = {(_it2.benefit_name or '').replace(' ', '') for _k2, _it2 in effective}
                 for _cname in _gated_names:
-                    if _cname not in _eff_names:
+                    if _cname.replace(' ', '') not in _eff_names:
                         _gate_logger.warning(
                             '[benefit-gate] conditional 혜택 "%s" 이(가) effective 목록에 없음 '
                             '(source_id=%s, sku=%s) — 가이드·템플릿 이름 불일치 의심',
