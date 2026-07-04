@@ -1,0 +1,55 @@
+{% extends layout|default("base.html") %}
+{% block title %}데이터 코드 지도{% endblock %}
+{% block content %}
+<style>
+  .mm{font-family:'Pretendard','Malgun Gothic',sans-serif;color:#191F28;padding:26px 30px;max-width:1000px;}
+  .mm h2{font-size:22px;font-weight:800;margin:0 0 6px;}
+  .mm .sub{font-size:13px;color:#8B95A1;margin-bottom:20px;}
+  .mm .flow{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:14px 0;}
+  .mm .node{background:#F6F8FA;border:1px solid #E9ECEF;border-radius:10px;padding:11px 14px;font-weight:700;text-align:center;font-size:13px;}
+  .mm .node small{display:block;color:#8B95A1;font-weight:400;font-size:11px;margin-top:2px;}
+  .mm .ar{color:#8B95A1;font-weight:800;}
+  .mm .branch{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin:14px 0;}
+  .mm .b{border:1px solid #E9ECEF;border-radius:12px;padding:16px 18px;}
+  .mm .b h4{margin:0 0 6px;font-size:14.5px;font-weight:800;}
+  .mm .b p{margin:0;font-size:12.5px;color:#4E5968;line-height:1.6;}
+  .mm h3{font-size:16px;font-weight:800;margin:26px 0 10px;padding-left:11px;border-left:4px solid #0A2540;}
+  .mm .cm{display:grid;grid-template-columns:1fr auto;gap:8px;padding:8px 0;border-bottom:1px solid #F1F3F5;font-size:13px;}
+  .mm .cm .f{font-family:ui-monospace,monospace;font-size:11.5px;color:#4E5968;}
+  .mm .risk{margin-top:14px;background:#FFF4E6;border:1px solid #FFD8A8;border-radius:11px;padding:13px 16px;font-size:12.5px;color:#4E5968;line-height:1.75;}
+  .mm .risk b{color:#E8590C;}
+  .mm .risk code{background:#F1F3F5;border-radius:5px;padding:1px 6px;font-family:ui-monospace,monospace;font-size:11.5px;}
+  .mm .sop{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0;}
+  .mm .sop .s{background:#EDF1F5;border:1px solid #E9ECEF;border-radius:8px;padding:7px 12px;font-size:12.5px;font-weight:600;}
+</style>
+<div class="mm">
+  <h2>📖 데이터 코드 지도 — 판매처</h2>
+  <div class="sub">프로그램 가격·재고가 마켓까지 가는 길 + 마켓별 정밀 세팅 절차 + 코드 위치.</div>
+
+  <h3>1 · 업로드 흐름</h3>
+  <div class="flow">
+    <div class="node">프로그램<small>가격·재고</small></div><span class="ar">→</span>
+    <div class="node">전송 대기<small>스냅샷</small></div><span class="ar">→</span>
+    <div class="node">판매처 API<small>스스 OAuth · 쿠팡 HMAC</small></div><span class="ar">→</span>
+    <div class="node">마켓 반영<small>상품·재고 갱신</small></div>
+  </div>
+  <div class="branch">
+    <div class="b"><h4>갈래 A · 신규 상품 마켓 등록</h4><p>모음전 상품을 마켓에 처음 올림 → 상품·옵션 생성 API. 이후 가격·재고 반복 동기화.</p></div>
+    <div class="b"><h4>갈래 B · 기존 등록 상품 연동</h4><p>이미 마켓에 등록돼 있는 상품과 매칭·연동 → 가격·재고만 반복 동기화.</p></div>
+  </div>
+
+  <h3>2 · 마켓별 정밀 세팅 SOP (Claude Code 실행)</h3>
+  <div class="sop">
+    <span class="s">① 인증 방식 분류</span><span class="s">② 엔드포인트 확정</span>
+    <span class="s">③ 필드 매핑</span><span class="s">④ 실계정 검증 100% 일치</span>
+  </div>
+
+  <h3>3 · 코드 위치</h3>
+  <div class="cm"><div>업로드 실행·전송 플래그</div><div class="f">uploader/runtime.py</div></div>
+  <div class="cm"><div>스마트스토어 인증·호출</div><div class="f">platforms/smartstore/client.py</div></div>
+  <div class="cm"><div>쿠팡 HMAC 서명·테스트</div><div class="f">accounts.py · _test_coupang</div></div>
+  <div class="cm"><div>마켓 정의·키 스키마</div><div class="f">accounts.py · MARKET_METADATA</div></div>
+
+  <div class="risk"><b>⚠️ 정직성</b> — 실전송 기본 OFF(<code>LEMOUTON_LIVE_UPLOAD</code>) · 0원·재고없음 전송 금지 · 크롤 실패 값 폴백 금지("없음" 표기).</div>
+</div>
+{% endblock %}
