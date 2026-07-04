@@ -659,14 +659,15 @@ async function musinsaExtractor() {
       const resp = await fetch(url, { credentials: "include", headers: { Accept: "application/json" } }).then((r) => r.json());
       try { console.log("[moum][coupon-api] raw", JSON.stringify(resp).slice(0, 1500)); } catch (_) {}
 
-      // 배열을 방어적으로 탐색: resp 자체 → resp.data → resp.data.{coupons|list|couponList} → data 첫 배열 프로퍼티.
+      // 배열 탐색 — ★ 확정 스키마(라이브 실증 goodsNo 3728480): resp.data.list 우선(쿠폰 6건).
+      //   그 뒤 방어적 폴백: resp 자체 → resp.data → data.{coupons|couponList} → data 첫 배열 프로퍼티.
       let arr = null;
-      if (Array.isArray(resp)) arr = resp;
+      if (resp && resp.data && Array.isArray(resp.data.list)) arr = resp.data.list;
+      else if (Array.isArray(resp)) arr = resp;
       else if (resp && Array.isArray(resp.data)) arr = resp.data;
       else if (resp && resp.data && typeof resp.data === "object") {
         const d = resp.data;
         if (Array.isArray(d.coupons)) arr = d.coupons;
-        else if (Array.isArray(d.list)) arr = d.list;
         else if (Array.isArray(d.couponList)) arr = d.couponList;
         else {
           for (const k of Object.keys(d)) { if (Array.isArray(d[k])) { arr = d[k]; break; } }
@@ -681,7 +682,10 @@ async function musinsaExtractor() {
         return Number.isFinite(n) ? n : NaN;
       };
       const NAME_KEYS = ["couponName", "name", "title", "couponTitle", "benefitName"];
-      const AMT_KEYS = ["discountAmount", "discountPrice", "saleAmount", "benefitAmount", "couponSalePrice", "amount", "discount"];
+      // ★ 확정: 원화 할인액 = salePrice(실증 salePrice=6390 == DOM "6,390원 할인"). 최우선.
+      //   couponValue("5")+couponAmountKind("P"=%)는 '율'이지 원화 아님 → amount 로 쓰지 않음.
+      //   maxLimitAmount(할인 상한)도 무시. 나머지는 방어적 폴백.
+      const AMT_KEYS = ["salePrice", "discountAmount", "discountPrice", "saleAmount", "benefitAmount", "couponSalePrice", "amount", "discount"];
       const out = [];
       arr.forEach((c) => {
         if (!c || typeof c !== "object") return;
