@@ -1,0 +1,140 @@
+{% extends layout|default("base.html") %}
+{% block title %}크롤링 검사{% endblock %}
+{% block content %}
+<style>
+  .ccpage{--ink:#191F28;--sub:#6B7684;--blue:#1B64DA;--red:#DC2626;--line:#EEF1F4;--line2:#E5E8EB;
+    --mono:ui-monospace,SFMono-Regular,Menlo,monospace;
+    font-family:'Pretendard',-apple-system,'Apple SD Gothic Neo','Malgun Gothic',sans-serif;
+    padding:32px 44px;max-width:960px;line-height:1.7;color:var(--ink);}
+  .ccpage h2{font-size:28px;font-weight:800;letter-spacing:-.4px;margin:0 0 4px;}
+  .ccpage .sub{color:var(--sub);font-size:15.5px;margin:0 0 22px;}
+  /* 위쪽 가로 밑줄 탭 */
+  .ccpage .cctabs{display:flex;gap:8px;border-bottom:1px solid var(--line2);margin-bottom:24px;}
+  .ccpage .cctab{padding:10px 4px;font-size:16.5px;font-weight:700;color:var(--sub);
+    border-bottom:2px solid transparent;cursor:pointer;margin-bottom:-1px;background:none;border-top:0;border-left:0;border-right:0;
+    display:inline-flex;align-items:center;gap:7px;}
+  .ccpage .cctab.on{color:var(--ink);border-bottom-color:var(--ink);}
+  .ccpage .cctab .soon{font-size:11.5px;font-weight:700;color:#fff;background:#B0B8C1;border-radius:999px;padding:1px 8px;}
+  .ccpage .ccpanel{display:none;}.ccpage .ccpanel.on{display:block;}
+  /* 사용법 3줄 */
+  .ccpage .howto{list-style:none;padding:0;margin:0 0 18px;display:grid;gap:9px;}
+  .ccpage .howto li{display:flex;align-items:flex-start;gap:10px;font-size:15px;color:var(--ink);}
+  .ccpage .howto .n{flex:none;width:22px;height:22px;border-radius:50%;background:var(--ink);color:#fff;
+    font-size:12.5px;font-weight:800;display:inline-flex;align-items:center;justify-content:center;margin-top:1px;}
+  /* 어두운 코드 상자 + 우상단 전체 복사 */
+  .ccpage .codewrap{position:relative;border-radius:12px;overflow:hidden;border:1px solid #2A3038;}
+  .ccpage .copybtn{position:absolute;top:12px;right:12px;z-index:2;
+    background:#2E3742;color:#E5E8EB;border:1px solid #3E4854;border-radius:8px;
+    font-size:13px;font-weight:700;padding:7px 12px;cursor:pointer;font-family:inherit;}
+  .ccpage .copybtn:hover{background:#3A4450;}
+  .ccpage .copybtn.done{background:#1E7C4A;border-color:#1E7C4A;color:#fff;}
+  .ccpage .codebox{background:#191F28;color:#DCE2EA;margin:0;padding:22px 20px 20px;
+    font-family:var(--mono);font-size:13px;line-height:1.72;white-space:pre-wrap;word-break:break-word;
+    max-height:520px;overflow:auto;border:0;width:100%;resize:none;box-sizing:border-box;}
+  /* 준비 중 placeholder */
+  .ccpage .soonbox{border:1px dashed var(--line2);border-radius:12px;padding:44px 20px;text-align:center;
+    color:var(--sub);font-size:15.5px;background:#FAFBFC;}
+  .ccpage .soonbox .big{font-size:19px;font-weight:800;color:var(--ink);margin-bottom:6px;}
+</style>
+
+<div class="ccpage">
+  <h2>🔎 크롤링 검사</h2>
+  <p class="sub">소싱처 크롤 결과가 실제 상품 페이지와 일치하는지 검사하는 프롬프트를 복사해 Claude Code 에 붙여넣으세요.</p>
+
+  <div class="cctabs">
+    <button type="button" class="cctab on" data-cctab="stock">재고 정합성 검사</button>
+    <button type="button" class="cctab" data-cctab="price">가격 정합성 검사 <span class="soon">준비 중</span></button>
+  </div>
+
+  <!-- ─── 재고 패널 ─── -->
+  <div class="ccpanel on" data-ccpanel="stock">
+    <ol class="howto">
+      <li><span class="n">1</span><span>아래 프롬프트에서 <b>대상 소싱처·URL</b> 부분을 확인·수정합니다.</span></li>
+      <li><span class="n">2</span><span>우측 상단 <b>「📋 전체 복사」</b> 를 누릅니다.</span></li>
+      <li><span class="n">3</span><span><b>Claude Code 채팅창</b>에 붙여넣기 하면 검사가 시작됩니다.</span></li>
+    </ol>
+
+    <div class="codewrap">
+      <button type="button" class="copybtn" id="ccCopyBtn">📋 전체 복사</button>
+      <textarea class="codebox" id="ccPrompt" readonly spellcheck="false">재고 정합성 조사를 시작한다. 아래 프로토콜을 순서대로 실행하라.
+
+■ 대상
+- 소싱처: (소싱처명 입력, 예: 롯데온)
+- URL: 해당 소싱처의 매트릭스 등록 URL 전체
+
+■ 절대 원칙 (CLAUDE.md 데이터 무결성 3대)
+- 재고 기준 = 실브라우저 상품 URL의 실제 데이터. 추정·폴백·평균 금지.
+- 확인 못 하면 '있음'이 아니라 '확인 불가'로 표기.
+- 크롤 = 로컬(크롬 확장/Playwright). 서버 크롤 실패는 정상.
+
+■ 5단계
+1) 크롤: 대상 소싱처 매트릭스 등록 URL 전체를 로컬 크롤 → 최신 재고를 프로그램 DB에 반영.
+2) 실브라우저 엑셀 조사: 각 URL을 실브라우저로 직접 열어 색×사이즈별 실제 재고
+   (상태 + 가능하면 수량)를 읽어 엑셀로 정리.
+3) 대조: 크롤 결과값(매트릭스 보기 저장 데이터)과 2의 엑셀을 색×사이즈 셀 단위로 1:1 대조.
+4) OK/NG 판정 + 이중 태그:
+   · OK = 상태 일치 (수량 긁는 소싱처는 수량도 일치)
+   · NG = 불일치. 두 태그를 모두 부착:
+     [귀책] 그 URL을 실브라우저로 직접 열어 매트릭스의 그 색·사이즈와 같은 상품인지 확인
+        U = URL측 문제(대체상품·다른상품·404·만료) → 사용자가 URL 정정
+        P = 프로그램측 문제(URL은 맞는데 저장값 틀림) → 코드 수정
+     [증상] A 품절둔갑(실=품절, 프로그램=있음) ★최고위험
+            B 거짓품절(실=있음, 프로그램=품절/차단)
+            C 999·센티넬둔갑(프로그램=센티넬, 실=실수량 존재 = 저장누락)
+            D 미수집·확인불가 둔갑(크롤 매칭실패인데 '있음' 표기)
+            E 수량불일치(상태는 맞으나 수량 상이)
+5) 집계·출력:
+   · 소싱처별 집계표: OK-1/OK-2, NG(귀책 U)/NG(귀책 P), 증상 A~E별 개수
+   · 조치 리스트 2분리:
+     - URL 정정 리스트(귀책 U): URL·색·사이즈·실값·프로그램값·왜 URL 문제인지
+     - 코드 수정 리스트(귀책 P): 셀·증상·의심 코드 파일:라인
+   · 색×사이즈 전수 대조 엑셀 산출
+
+■ 진행 방식
+- 크롤은 실시간 감시(사후 추측 금지). 로드된 확장 버전 먼저 확인.
+- 작업 전 origin/main 최신 대조(stale 워크트리 오진 방지).</textarea>
+    </div>
+  </div>
+
+  <!-- ─── 가격 패널 (준비 중) ─── -->
+  <div class="ccpanel" data-ccpanel="price">
+    <div class="soonbox">
+      <div class="big">🧮 가격 정합성 검사 — 준비 중</div>
+      <div>다음 업데이트에서 제공됩니다.</div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+  var tabs = document.querySelectorAll('.ccpage .cctab');
+  var panels = document.querySelectorAll('.ccpage .ccpanel');
+  tabs.forEach(function(t){
+    t.addEventListener('click', function(){
+      var key = t.getAttribute('data-cctab');
+      tabs.forEach(function(x){ x.classList.toggle('on', x === t); });
+      panels.forEach(function(p){ p.classList.toggle('on', p.getAttribute('data-ccpanel') === key); });
+    });
+  });
+  var btn = document.getElementById('ccCopyBtn');
+  var box = document.getElementById('ccPrompt');
+  if (btn && box) {
+    btn.addEventListener('click', function(){
+      var text = box.value;
+      var done = function(){
+        btn.classList.add('done');
+        btn.textContent = '✓ 복사됨';
+        setTimeout(function(){ btn.classList.remove('done'); btn.textContent = '📋 전체 복사'; }, 1400);
+      };
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(done).catch(function(){
+          box.select(); document.execCommand('copy'); done();
+        });
+      } else {
+        box.select(); document.execCommand('copy'); done();
+      }
+    });
+  }
+})();
+</script>
+{% endblock %}
