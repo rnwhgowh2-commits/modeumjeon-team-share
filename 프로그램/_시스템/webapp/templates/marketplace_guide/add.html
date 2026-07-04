@@ -1,5 +1,132 @@
 {% extends layout|default("base.html") %}
 {% block title %}판매처 추가·업데이트{% endblock %}
 {% block content %}
-<div class="ma"><h2>➕ 판매처 추가·업데이트</h2></div>
+<style>
+  /* 시안 #4(좌측 세로 레일) — 미니멀 팔레트: 먹색+회색+네이비 포인트 */
+  .ma{font-family:'Pretendard','Malgun Gothic',sans-serif;color:#191F28;padding:26px 28px;max-width:720px;}
+  .ma h2{font-size:20px;font-weight:800;margin:0;}
+  .ma .lead{font-size:12.5px;color:#8B95A1;margin-top:5px;line-height:1.55;}
+  .ma .tabs{display:flex;border-bottom:2px solid #E9ECEF;margin:16px 0 0;}
+  .ma .tab{padding:11px 18px;font-size:14.5px;font-weight:700;color:#8B95A1;background:none;border:none;cursor:pointer;}
+  .ma .tab.on{color:#191F28;border-bottom:3px solid #191F28;margin-bottom:-2px;}
+  .ma .pane{display:none;} .ma .pane.on{display:block;}
+  .ma-rail-wrap{display:grid;grid-template-columns:150px 1fr;gap:22px;margin-top:16px;}
+  .ma-rail .r{display:flex;gap:10px;align-items:center;padding:8px 0;font-size:13px;color:#8B95A1;font-weight:600;}
+  .ma-rail .r .n{width:22px;height:22px;border-radius:50%;background:#F6F8FA;border:1px solid #E9ECEF;font-size:11px;font-weight:800;text-align:center;line-height:22px;}
+  .ma-rail .r.on{color:#191F28;} .ma-rail .r.on .n{background:#0A2540;color:#fff;border-color:#0A2540;}
+  .ma-rail .r.done .n{background:#191F28;color:#fff;}
+  .ma label{display:block;font-size:12.5px;font-weight:700;color:#4E5968;margin:15px 0 7px;}
+  .ma input,.ma select{width:100%;border:1px solid #E9ECEF;border-radius:9px;padding:11px 13px;font-size:14px;color:#191F28;}
+  .ma .seg{display:inline-flex;border:1px solid #E9ECEF;border-radius:8px;overflow:hidden;}
+  .ma .seg button{border:none;background:#fff;padding:7px 13px;font-size:12.5px;cursor:pointer;color:#4E5968;border-right:1px solid #E9ECEF;}
+  .ma .seg button:last-child{border-right:none;}
+  .ma .seg button.on{background:#0A2540;color:#fff;font-weight:700;}
+  .ma .chk{display:inline-flex;align-items:center;gap:8px;font-size:13.5px;font-weight:600;margin-right:18px;}
+  .ma .genbtn{margin-top:18px;background:#0A2540;color:#fff;border:none;border-radius:10px;padding:12px 20px;font-size:14px;font-weight:800;cursor:pointer;}
+  .ma .prm{margin-top:16px;background:#0F172A;border-radius:12px;padding:16px 18px;position:relative;display:none;}
+  .ma .prm.on{display:block;}
+  .ma .prm pre{margin:0;color:#E6EDF6;font-family:ui-monospace,monospace;font-size:12.5px;white-space:pre-wrap;line-height:1.7;}
+  .ma .prm .cp{position:absolute;top:14px;right:14px;background:#1E293B;color:#CBD5E1;border:none;border-radius:8px;padding:6px 12px;font-size:12px;font-weight:700;cursor:pointer;}
+</style>
+<div class="ma">
+  <h2>➕ 판매처 추가·업데이트</h2>
+  <div class="lead">마켓명·인증방식·셀러 API 정보를 넣고 <b>프롬프트 생성</b> → Claude Code에 붙여넣으면 업로드 연동이 추가/수정됩니다.</div>
+  <div class="tabs">
+    <button class="tab on" data-pane="new">신규 판매처 추가</button>
+    <button class="tab" data-pane="upd">기존 마켓 연동 업데이트</button>
+  </div>
+
+  <!-- 신규 -->
+  <div class="pane on" id="pane-new">
+    <div class="ma-rail-wrap">
+      <div class="ma-rail">
+        <div class="r on" data-step="1"><span class="n">1</span>마켓</div>
+        <div class="r" data-step="2"><span class="n">2</span>인증·계정</div>
+        <div class="r" data-step="3"><span class="n">3</span>지원 동작</div>
+        <div class="r" data-step="4"><span class="n">4</span>프롬프트</div>
+      </div>
+      <div>
+        <label>마켓(판매처)명</label>
+        <input list="mk-list" id="mkName" placeholder="예: 롯데온, 11번가 — 목록에서 고르거나 직접 입력">
+        <datalist id="mk-list">
+          {% for m in coming %}<option value="{{ m.label }}">{{ m.api_type }}</option>{% endfor %}
+        </datalist>
+        <label>인증 · API 방식</label>
+        <span class="seg" id="mkAuth">
+          <button type="button" class="on" data-k="OAuth">OAuth</button>
+          <button type="button" data-k="HMAC">HMAC</button>
+          <button type="button" data-k="셀러센터API">셀러센터API</button>
+          <button type="button" data-k="기타">기타</button>
+        </span>
+        <label>셀러 API 문서 URL <span style="color:#b6bcc4;font-weight:500">(키발급·상품등록·재고가격)</span></label>
+        <input id="mkDocs" placeholder="예: https://seller.lotteon.com/ , /api/products , /api/stock-price">
+        <label>필요 키 <span style="color:#b6bcc4;font-weight:500">(아는 경우)</span></label>
+        <input id="mkKeys" placeholder="예: CLIENT_ID, CLIENT_SECRET">
+        <label>지원 동작</label>
+        <div>
+          <label class="chk"><input type="checkbox" class="mkAct" value="신규 상품 등록" checked> 신규 상품 등록</label>
+          <label class="chk"><input type="checkbox" class="mkAct" value="기존 상품 연동" checked> 기존 상품 연동</label>
+          <label class="chk"><input type="checkbox" class="mkAct" value="가격·재고 업데이트" checked> 가격·재고 업데이트</label>
+        </div>
+        <button class="genbtn" type="button" onclick="genPrompt()">📋 추가 + Claude Code 프롬프트 생성</button>
+        <div class="prm" id="mkPrm"><button class="cp" type="button" onclick="copyPrm('mkPrmText')">복사</button><pre id="mkPrmText"></pre></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 기존 -->
+  <div class="pane" id="pane-upd">
+    <label>연동된 마켓</label>
+    <select id="updMk">{% for m in ready %}<option>{{ m.label }}</option>{% endfor %}</select>
+    <label>증상 · 요청</label>
+    <input id="updNote" placeholder="예: 재고가 0으로 안 올라감 / 옵션 매칭 틀림">
+    <button class="genbtn" type="button" onclick="genUpd()">📋 저장 + Claude Code 프롬프트 생성</button>
+    <div class="prm" id="updPrm"><button class="cp" type="button" onclick="copyPrm('updPrmText')">복사</button><pre id="updPrmText"></pre></div>
+  </div>
+</div>
+
+<script>
+document.querySelectorAll('.ma .tab').forEach(function(t){
+  t.addEventListener('click', function(){
+    document.querySelectorAll('.ma .tab').forEach(x=>x.classList.remove('on'));
+    document.querySelectorAll('.ma .pane').forEach(x=>x.classList.remove('on'));
+    t.classList.add('on');
+    document.getElementById('pane-'+t.dataset.pane).classList.add('on');
+  });
+});
+document.querySelectorAll('#mkAuth button').forEach(function(b){
+  b.addEventListener('click', function(){
+    document.querySelectorAll('#mkAuth button').forEach(x=>x.classList.remove('on'));
+    b.classList.add('on');
+  });
+});
+function genPrompt(){
+  var name=(document.getElementById('mkName').value||'').trim();
+  if(!name){ alert('마켓명을 입력하세요.'); return; }
+  var onBtn=document.querySelector('#mkAuth button.on');
+  var auth=onBtn?onBtn.dataset.k:'OAuth';
+  var docs=(document.getElementById('mkDocs').value||'').trim() || '(문서 링크 미입력 — 조사 필요)';
+  var keys=(document.getElementById('mkKeys').value||'').trim() || '(조사 필요)';
+  var acts=[].slice.call(document.querySelectorAll('.mkAct:checked')).map(function(c){return c.value;}).join(' · ');
+  var t='판매처 추가 가이드 참고해서 "'+name+'" 업로드 연동 추가해줘.\n'
+    +'· 인증/API : '+auth+'\n'
+    +'· 문서 : '+docs+'\n'
+    +'· 필요 키 : '+keys+'\n'
+    +'· 지원 동작 : '+acts+'\n'
+    +'※ 실계정 100% 검증 전 "완료" 선언 금지 (가격·재고 오류 = 금전 손실).';
+  document.getElementById('mkPrmText').textContent=t;
+  document.getElementById('mkPrm').classList.add('on');
+}
+function genUpd(){
+  var mk=document.getElementById('updMk').value;
+  var note=(document.getElementById('updNote').value||'').trim();
+  var t='판매처 업로드 로직 점검해줘 — 마켓: "'+mk+'".\n· 증상/요청 : '+(note||'(미입력)')+'\n※ 실계정 100% 검증 전 "완료" 선언 금지.';
+  document.getElementById('updPrmText').textContent=t;
+  document.getElementById('updPrm').classList.add('on');
+}
+function copyPrm(id){
+  var el=document.getElementById(id||'mkPrmText');
+  if(navigator.clipboard){ navigator.clipboard.writeText(el.textContent); }
+}
+</script>
 {% endblock %}
