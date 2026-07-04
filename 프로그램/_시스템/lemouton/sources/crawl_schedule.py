@@ -46,3 +46,22 @@ def is_due(now, last_fetched_at, base_interval_seconds,
            crawl_weight, no_change_streak) -> bool:
     return overdue_seconds(now, last_fetched_at, base_interval_seconds,
                            crawl_weight, no_change_streak) >= 0
+
+
+def due_products(session, *, base_interval_seconds: float, now: datetime) -> list:
+    """지금 크롤할 때가 된 활성 SourceProduct 를 '가장 오래 밀린 순'으로 반환.
+
+    실제 크롤 실행(P3 워커)이 이 순서대로 소비한다.
+    """
+    from lemouton.sources.models import SourceProduct
+    products = (session.query(SourceProduct)
+                .filter(SourceProduct.deleted_at.is_(None))
+                .all())
+    scored = []
+    for p in products:
+        od = overdue_seconds(now, p.last_fetched_at, base_interval_seconds,
+                             p.crawl_weight, p.no_change_streak)
+        if od >= 0:
+            scored.append((od, p))
+    scored.sort(key=lambda t: t[0], reverse=True)   # 연체 큰 순
+    return [p for _, p in scored]

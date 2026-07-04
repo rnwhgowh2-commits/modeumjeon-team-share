@@ -55,3 +55,56 @@ def test_aware_and_naive_mixed_do_not_crash():
     lf_aware = datetime(2026, 7, 4, 5, 0, 0, tzinfo=timezone.utc)  # 7시간 전
     # 섞여도 정규화되어 비교됨 (7h > 6h → due)
     assert is_due(now_naive, lf_aware, BASE, 1, 0) is True
+
+
+from lemouton.sources.crawl_schedule import due_products
+from lemouton.sources.models import SourceProduct
+
+NOW = datetime(2026, 7, 4, 12, 0, 0)
+
+
+def _sp(db, url, *, last, weight=1, streak=0):
+    sp = SourceProduct(site="musinsa", url=url, crawl_weight=weight,
+                       no_change_streak=streak, last_fetched_at=last)
+    db.add(sp); db.flush()
+    return sp
+
+
+def test_due_products_orders_most_overdue_first(db):
+    base = 6 * 3600
+    a = _sp(db, "u/a", last=NOW - timedelta(hours=7))    # 1h 연체
+    b = _sp(db, "u/b", last=NOW - timedelta(hours=20))   # 크게 연체
+    c = _sp(db, "u/c", last=NOW - timedelta(hours=1))    # 아직 아님(6h 미만)
+    never = _sp(db, "u/n", last=None)                    # 최우선
+    out = due_products(db, base_interval_seconds=base, now=NOW)
+    ids = [p.id for p in out]
+    assert c.id not in ids               # 아직 마감 안 됨
+    assert ids[0] == never.id            # 미크롤 최우선
+    assert ids.index(b.id) < ids.index(a.id)   # 더 오래 밀린 b가 앞
+
+
+def test_weight_makes_due_sooner(db):
+    base = 6 * 3600
+    # 3시간 전 크롤, 계수 2 → 유효간격 3h → 딱 due
+    w2 = _sp(db, "u/w2", last=NOW - timedelta(hours=3), weight=2)
+    # 3시간 전 크롤, 계수 1 → 유효간격 6h → 아직 아님
+    w1 = _sp(db, "u/w1", last=NOW - timedelta(hours=3), weight=1)
+    ids = [p.id for p in due_products(db, base_interval_seconds=base, now=NOW)]
+    assert w2.id in ids and w1.id not in ids
+
+
+def test_streak_relaxation_delays_due(db):
+    base = 6 * 3600
+    # 7시간 전 크롤. 계수1·무변동2회 → 유효간격 12h → 아직 아님
+    relaxed = _sp(db, "u/r", last=NOW - timedelta(hours=7), weight=1, streak=2)
+    ids = [p.id for p in due_products(db, base_interval_seconds=base, now=NOW)]
+    assert relaxed.id not in ids
+
+
+def test_soft_deleted_excluded(db):
+    base = 6 * 3600
+    sp = _sp(db, "u/del", last=None)
+    sp.deleted_at = NOW
+    db.flush()
+    ids = [p.id for p in due_products(db, base_interval_seconds=base, now=NOW)]
+    assert sp.id not in ids
