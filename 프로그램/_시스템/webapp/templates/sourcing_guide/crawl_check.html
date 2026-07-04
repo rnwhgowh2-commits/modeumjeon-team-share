@@ -126,12 +126,15 @@
         btn.textContent = '✓ 복사됨';
         setTimeout(function(){ btn.classList.remove('done'); btn.textContent = '📋 전체 복사'; }, 1400);
       };
+      var fallback = function(){
+        box.select();
+        var ok = document.execCommand('copy');
+        if (ok) done();
+      };
       if (navigator.clipboard && navigator.clipboard.writeText) {
-        navigator.clipboard.writeText(text).then(done).catch(function(){
-          box.select(); document.execCommand('copy'); done();
-        });
+        navigator.clipboard.writeText(text).then(done).catch(fallback);
       } else {
-        box.select(); document.execCommand('copy'); done();
+        fallback();
       }
     });
   }

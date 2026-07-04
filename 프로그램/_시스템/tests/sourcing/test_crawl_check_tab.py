@@ -56,7 +56,7 @@ def test_crawl_check_full_page_200(client):
     assert "재고 정합성 검사" in body
     assert "가격 정합성 검사" in body
     assert "품절둔갑" in body
-    assert "999" in body
+    assert "999·센티넬" in body
     assert "귀책" in body
 
 
