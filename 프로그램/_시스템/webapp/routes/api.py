@@ -43,6 +43,26 @@ def crawl_queue():
         s.close()
 
 
+@bp.route('/crawl/due-bundles')
+def crawl_due_bundles():
+    """[읽기전용] 로컬 크롤러가 폴링 → 지금 크롤할 모음전 코드 목록.
+
+    서버는 목록만 알려줄 뿐 크롤하지 않는다(크롤=로컬 원칙). 확장이 이 코드를
+    기존 `mgrEnqueue({codes})` 큐로 넘겨 검증된 크롤 흐름을 재사용한다.
+    """
+    from datetime import datetime, timezone
+    from lemouton.sources.crawl_schedule import due_bundle_codes
+    from lemouton.pricing.settings import get_or_init
+    s = SessionLocal()
+    try:
+        now = datetime.now(timezone.utc).replace(tzinfo=None)
+        enabled = bool(get_or_init(s).crawl_auto_enabled)
+        codes = due_bundle_codes(s, now=now)
+        return jsonify({"enabled": enabled, "count": len(codes), "codes": codes})
+    finally:
+        s.close()
+
+
 # ---------- Bundles ----------
 
 _BUNDLE_FIELDS = ('model_name_display', 'category',
