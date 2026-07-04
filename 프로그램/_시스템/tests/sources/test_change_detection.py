@@ -45,3 +45,11 @@ def test_detail_is_human_readable():
     new = [_opt("블랙", "220", 48000, 0)]
     r = detect_changes(old, new)
     assert "220" in r["detail"]
+
+
+def test_none_stock_differs_from_zero():
+    # None(확인 불가) → 0(실제 품절) 은 반드시 변동으로 잡혀야 함 (합쳐지면 품절둔갑)
+    old = [_opt("블랙", "220", 50000, None)]
+    new = [_opt("블랙", "220", 50000, 0)]
+    r = detect_changes(old, new)
+    assert r["stock_changed"] is True
