@@ -10,7 +10,7 @@
 //  결과 저장은 mou-m.com /api/sources/crawl-result (ext_bridge.crawlBundleAll 이 호출).
 //  grabHtml/crawl(URL마다 창 생성·즉시 닫기) 핸들러는 하위호환 위해 유지.
 
-const MOUM_EXT_VERSION = "0.7.4";  // 0.7.4 = content_mou.js 백그라운드 로그 페이지 중계(전체크롤 위젯 안 뜨던 버그 수정). 0.7.3 = 현대H몰 sellGbcd 품절판정(S19). 0.6.x: 백그라운드 크롤 상태 영속+SW 자동재개
+const MOUM_EXT_VERSION = "0.7.6";  // 0.7.6 = 무신사 상품쿠폰(product_coupon_list) 전량수집 API우선+DOM폴백. 0.7.5 = manifest 버전동기화. 0.7.4 = content_mou.js 백그라운드 로그 페이지 중계(전체크롤 위젯 안 뜨던 버그 수정). 0.7.3 = 현대H몰 sellGbcd 품절판정(S19). 0.6.x: 백그라운드 크롤 상태 영속+SW 자동재개
 
 // cascade 위치 시퀀서 — 창이 여러 개 열려도 서로 어긋나 보임
 let _winSeq = 0;
@@ -614,6 +614,110 @@ async function musinsaExtractor() {
   }
   const _benLines = await collectBenefitLines();
 
+  // ★ 2026-07-04 — 무신사 "상품 쿠폰"(등급쿠폰 포함) 전량 수집. 서버가 쿠폰별로
+  //   제외키워드 필터+최고금액 선택 판정(쿠폰별 게이트) — 여기선 원본 그대로 다 담아 보낸다.
+  //   API 우선(getUsableCouponsByGoodsNo) → 실패/빈값이면 DOM 폴백(적용 중인 쿠폰 1건만이라도).
+  //   스키마 미확정(라이브서 응답 바디 확인 못 함) → 필드명 방어적으로 여러 후보 탐색 +
+  //   1회 원본 로그(개발자도구 콘솔서 실크롤 시 [moum][coupon-api] raw 로 스키마 확정용).
+  async function collectProductCoupons(goodsNo, salePrice) {
+    try {
+      if (!goodsNo) return null;
+      let comId = "", brand = "", specialtyCodes = "";
+      try {
+        const nd = document.getElementById("__NEXT_DATA__");
+        if (nd && nd.textContent) {
+          const dig = (obj, keys, depth) => {
+            if (!obj || typeof obj !== "object" || depth > 6) return undefined;
+            for (const k of Object.keys(obj)) {
+              if (keys.indexOf(k) >= 0 && obj[k] != null) return obj[k];
+            }
+            for (const k of Object.keys(obj)) {
+              const v = obj[k];
+              if (v && typeof v === "object") {
+                const found = dig(v, keys, depth + 1);
+                if (found !== undefined) return found;
+              }
+            }
+            return undefined;
+          };
+          const j = JSON.parse(nd.textContent);
+          comId = dig(j, ["comId"], 0) || "";
+          specialtyCodes = dig(j, ["specialtyCodes"], 0) || "";
+        }
+      } catch (e) { /* __NEXT_DATA__ 파싱 실패 — 빈 값으로 진행(API 가 브랜드 없이도 응답할 수 있음) */ }
+      brand = comId || "";
+      if (Array.isArray(specialtyCodes)) specialtyCodes = specialtyCodes.join(",");
+
+      const qs = new URLSearchParams();
+      qs.set("goodsNo", String(goodsNo));
+      if (brand) qs.set("brand", brand);
+      if (comId) qs.set("comId", comId);
+      if (salePrice != null) qs.set("salePrice", String(salePrice));
+      if (specialtyCodes) qs.set("specialtyCodes", specialtyCodes);
+      const url = "https://api.musinsa.com/api2/coupon/coupons/getUsableCouponsByGoodsNo?" + qs.toString();
+
+      const resp = await fetch(url, { credentials: "include", headers: { Accept: "application/json" } }).then((r) => r.json());
+      try { console.log("[moum][coupon-api] raw", JSON.stringify(resp).slice(0, 1500)); } catch (_) {}
+
+      // 배열을 방어적으로 탐색: resp 자체 → resp.data → resp.data.{coupons|list|couponList} → data 첫 배열 프로퍼티.
+      let arr = null;
+      if (Array.isArray(resp)) arr = resp;
+      else if (resp && Array.isArray(resp.data)) arr = resp.data;
+      else if (resp && resp.data && typeof resp.data === "object") {
+        const d = resp.data;
+        if (Array.isArray(d.coupons)) arr = d.coupons;
+        else if (Array.isArray(d.list)) arr = d.list;
+        else if (Array.isArray(d.couponList)) arr = d.couponList;
+        else {
+          for (const k of Object.keys(d)) { if (Array.isArray(d[k])) { arr = d[k]; break; } }
+        }
+      }
+      if (!Array.isArray(arr)) return null;
+
+      const toAmount = (v) => {
+        if (v == null) return NaN;
+        if (typeof v === "number") return v;
+        const n = parseInt(String(v).replace(/[^\d\-]/g, ""), 10);
+        return Number.isFinite(n) ? n : NaN;
+      };
+      const NAME_KEYS = ["couponName", "name", "title", "couponTitle", "benefitName"];
+      const AMT_KEYS = ["discountAmount", "discountPrice", "saleAmount", "benefitAmount", "couponSalePrice", "amount", "discount"];
+      const out = [];
+      arr.forEach((c) => {
+        if (!c || typeof c !== "object") return;
+        let name = "";
+        for (const k of NAME_KEYS) { if (c[k]) { name = String(c[k]); break; } }
+        let amount = NaN;
+        for (const k of AMT_KEYS) {
+          if (c[k] != null) { const a = toAmount(c[k]); if (Number.isFinite(a) && a > 0) { amount = a; break; } }
+        }
+        if (name && Number.isFinite(amount) && amount > 0) out.push({ name: name, amount: amount });
+      });
+      return out;
+    } catch (e) {
+      return null; // API 실패 — 호출부가 DOM 폴백으로 전환
+    }
+  }
+
+  // DOM 폴백: PDP 상 '상품 쿠폰{명}쿠폰변경-{금액}원' 적용 라인만이라도 최소 확보(non-interactive).
+  function collectProductCouponsFromDom() {
+    try {
+      const t = (document.body.textContent || "").replace(/\s+/g, " ");
+      const m = t.match(/상품\s*쿠폰(.*?)쿠폰변경\s*-\s*([\d,]+)\s*원/);
+      if (!m) return [];
+      const name = (m[1] || "").trim();
+      const amount = parseInt((m[2] || "").replace(/,/g, ""), 10);
+      if (!name || !Number.isFinite(amount) || amount <= 0) return [];
+      return [{ name: name, amount: amount }];
+    } catch (e) {
+      return [];
+    }
+  }
+
+  const _apiCoupons = await collectProductCoupons(id, surface);
+  const product_coupon_list = (Array.isArray(_apiCoupons) && _apiCoupons.length ? _apiCoupons : null)
+    || collectProductCouponsFromDom() || [];
+
   return {
     ok: !!price,
     price: price,                       // 표면노출가(salePrice) — 검증 통과 시만, 아니면 null
@@ -625,6 +729,7 @@ async function musinsaExtractor() {
     benefits_ok: Array.isArray(_benLines) && _benLines.length > 0,
     benefit_lines: Array.isArray(_benLines) ? _benLines : [],
     benefit_amounts: {},
+    product_coupon_list: product_coupon_list,   // ★ 2026-07-04 — 상품쿠폰 전량(서버가 쿠폰별 게이트 판정)
     option_count: options.length, options,
     error: price ? null : "표면가 검증 실패(salePrice 없음/0/정가 초과) — 크롤실패(폴백 금지)",
   };
@@ -1154,6 +1259,7 @@ async function crawlItemInTabBG(tabId, code, item) {
       //   서버(_build_crawl_snapshot)까지 전달. 이전엔 여기서 누락돼 무신사 미수집(폴백 게이트)됐음.
       benefits_ok: x.benefits_ok, benefit_lines: x.benefit_lines, benefit_amounts: x.benefit_amounts,
       surface_price: x.surface_price, member_price: x.member_price,
+      product_coupon_list: x.product_coupon_list || [],   // ★ 2026-07-04 무신사 상품쿠폰 전량(서버 쿠폰별 게이트)
     };
   }
   const grab = await handleNavGrab({ tabId: tabId, url: url });
@@ -1220,6 +1326,7 @@ function toItemBG(x) {
     is_logged_in: (x.is_logged_in === undefined ? null : x.is_logged_in),
     benefits_ok: x.benefits_ok, benefit_lines: x.benefit_lines, benefit_amounts: x.benefit_amounts,
     surface_price: x.surface_price, member_price: x.member_price,
+    product_coupon_list: x.product_coupon_list || [],   // ★ 2026-07-04 무신사 상품쿠폰 전량(서버 쿠폰별 게이트)
   };
 }
 async function saveItemsBG(items) {
