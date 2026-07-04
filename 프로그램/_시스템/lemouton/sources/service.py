@@ -612,6 +612,7 @@ OPTION_DYNAMIC_KEYS = (
     'product_coupon_rate', 'product_coupon_amount',  # SSG 상품쿠폰
     'product_coupon_min_order', 'product_coupon_max_discount',
     'product_coupon_label',
+    'product_coupon_list',                  # 무신사 상품쿠폰 전량(키워드 필터용 원본 리스트)
     'point_rewards',                        # 롯데홈쇼핑 L.POINT
     'hmall_point_amount',                   # 현대H몰 H.Point 적립(정액)
     'hmall_card_label', 'hmall_card_discount',  # 현대H몰 카드 즉시할인(조건부)
@@ -762,6 +763,11 @@ def save_crawl_result(
                 _dyn['grade_discount_amount'] = int(_bd.get('grade_discount') or 0)
                 _dyn['coupon_amount'] = int(_bd.get('coupon') or 0)
                 _dyn['review_amount'] = 500 if _bd.get('review_reward_active') else 0
+                # ★ 무신사 상품쿠폰 전량(product_coupon_list) — 개별 키워드 필터링용 원본 보존.
+                #   coupon_amount(합계)는 기존 경로 그대로 유지, 리스트는 별도 키에 추가 저장.
+                _pcl = _o.get('product_coupon_list')
+                if isinstance(_pcl, list) and _pcl:
+                    _dyn['product_coupon_list'] = _pcl
         if _dyn:
             break  # 첫 non-empty 옵션만 (상품 단위 가정)
     source_product.dynamic_benefits_json = _json.dumps(_dyn, ensure_ascii=False) if _dyn else None
