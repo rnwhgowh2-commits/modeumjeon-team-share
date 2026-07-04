@@ -10,7 +10,7 @@
 //  결과 저장은 mou-m.com /api/sources/crawl-result (ext_bridge.crawlBundleAll 이 호출).
 //  grabHtml/crawl(URL마다 창 생성·즉시 닫기) 핸들러는 하위호환 위해 유지.
 
-const MOUM_EXT_VERSION = "0.7.4";  // 0.7.4 = content_mou.js 백그라운드 로그 페이지 중계(전체크롤 위젯 안 뜨던 버그 수정). 0.7.3 = 현대H몰 sellGbcd 품절판정(S19). 0.6.x: 백그라운드 크롤 상태 영속+SW 자동재개
+const MOUM_EXT_VERSION = "0.7.6";  // 0.7.6 = 자동화 워커(서버 due-bundles 폴링→기존 크롤 큐 위임). 0.7.4 = content_mou.js 백그라운드 로그 페이지 중계(전체크롤 위젯 안 뜨던 버그 수정). 0.7.3 = 현대H몰 sellGbcd 품절판정(S19). 0.6.x: 백그라운드 크롤 상태 영속+SW 자동재개
 
 // cascade 위치 시퀀서 — 창이 여러 개 열려도 서로 어긋나 보임
 let _winSeq = 0;
@@ -85,6 +85,16 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   if (type === "crawl.stop")   { sendResponse(mgrStop());   return false; }
   if (type === "crawl.cancel") { sendResponse(mgrCancel((msg.payload || {}).code)); return false; }
   if (type === "crawl.getState") { sendResponse(mgrSnapshot()); return false; }
+  // ── [2026-07-04] 자동화: 서버 due-bundles 폴링 시작/중지 (실행/정지 토글에서 발동) ──
+  if (type === "moum.auto-poll.start") {
+    if (!_mgr.base && sender && sender.tab && sender.tab.url) {
+      try { _mgr.base = new URL(sender.tab.url).origin; } catch (_) {}
+    }
+    moumAutoPollStart();
+    sendResponse({ ok: true });
+    return false;
+  }
+  if (type === "moum.auto-poll.stop") { moumAutoPollStop(); sendResponse({ ok: true }); return false; }
   sendResponse({ error: "unknown type: " + type });
   return false;
 });
@@ -1041,6 +1051,28 @@ async function runQueueBG() {
     try { bgClearPersist(); } catch (_) {}   // 크롤 종료 — 체크포인트 제거(불필요 재가동 방지)
     await closeServiceTabIfOwned();   // SW 가 띄운 백그라운드 mou-m 탭 정리
   }
+}
+
+// ── [2026-07-04] 자동화 워커: 서버 /api/crawl/due-bundles 폴링 → 기존 크롤 큐로 위임 ──
+//   검증된 크롤 로직(crawlBundleAllBG·동시성·재시도·로그인세션)을 그대로 재사용한다.
+//   서버 enabled 게이트가 이중 안전 — 실행/정지 끄면 빈 목록이 와서 아무것도 안 함.
+const MOUM_POLL_MS = 60000;   // 1분마다 폴링
+let _moumPollTimer = null;
+async function moumAutoPollOnce() {
+  try {
+    const r = await bgFetch("/api/crawl/due-bundles").then((x) => x.json());
+    if (r && r.enabled && Array.isArray(r.codes) && r.codes.length) {
+      mgrEnqueue({ codes: r.codes, base: _mgr.base });   // 기존 큐/동시성/재시도 재사용
+    }
+  } catch (e) { console.warn("[moum-auto-poll]", e && e.message ? e.message : e); }
+}
+function moumAutoPollStart() {
+  if (_moumPollTimer) return;
+  moumAutoPollOnce();
+  _moumPollTimer = setInterval(moumAutoPollOnce, MOUM_POLL_MS);
+}
+function moumAutoPollStop() {
+  if (_moumPollTimer) { clearInterval(_moumPollTimer); _moumPollTimer = null; }
 }
 
 // ── [2026-06-29] 현대H몰 색상/모델모음전 사이즈별 실수량 보강 ──
