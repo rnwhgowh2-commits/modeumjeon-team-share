@@ -165,9 +165,9 @@
       `<div class="apply-cell"><div class="always">✓ 상시</div><div class="ctg" style="display:none"><span class="sw"><i></i></span>조건부</div></div>` +
       `<button type="button" class="bdel" title="삭제">×</button>` +
       `<div class="cond" style="display:none;grid-column:1/-1">` +
-        `<div><div class="clab i">적용 키워드 <span class="modeg"><b class="tm on" data-m="any">하나라도</b><b class="tm" data-m="all">모두</b></span></div>` +
+        `<div><div class="clab i">적용 키워드 <span class="modeg"><b class="tm on" data-m="any">하나라도 있으면</b><b class="tm" data-m="all">모두 있어야</b></span></div>` +
         `<div class="chips trig-chips"><input class="cin trig-in" placeholder="키워드 추가…"></div></div>` +
-        `<div><div class="clab e">제외 키워드 <span class="modeg"><b class="em on" data-m="any">하나라도</b><b class="em" data-m="all">모두</b></span></div>` +
+        `<div><div class="clab e">제외 키워드 <span class="modeg"><b class="em on" data-m="any">하나라도 있으면</b><b class="em" data-m="all">모두 있어야</b></span></div>` +
         `<div class="chips excl-chips"><input class="cin excl-in" placeholder="제외 키워드 추가…"></div>` +
         `<div class="kw-hint">여러 개는 쉼표로 한 번에</div></div>` +
         `<div class="csum"></div>` +
