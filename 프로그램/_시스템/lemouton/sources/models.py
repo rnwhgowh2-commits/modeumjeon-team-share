@@ -7,7 +7,7 @@
 """
 from datetime import datetime, timezone
 from sqlalchemy import (
-    Column, Integer, String, Text, DateTime, ForeignKey,
+    Column, Integer, String, Text, DateTime, ForeignKey, Boolean,
     UniqueConstraint, Index,
 )
 
@@ -44,6 +44,10 @@ class SourceProduct(Base):
     #   card_benefit_price / lotteon_coupons / money_active 등 사이트 특화 동적 키들.
     # compute_breakdown 이 lookup 해서 매트릭스 매입가 산식에 추가 차감으로 자동 반영.
     dynamic_benefits_json = Column(Text)
+
+    # 2026-07-04: 자동화 연속 배수 큐
+    crawl_weight = Column(Integer, default=1, nullable=False)      # 계수 1~5
+    no_change_streak = Column(Integer, default=0, nullable=False)  # 무변동 연속 횟수
 
     created_at = Column(DateTime, default=_utcnow, nullable=False)
     updated_at = Column(DateTime, default=_utcnow, onupdate=_utcnow, nullable=False)
@@ -152,3 +156,20 @@ class OptionSourceLink(Base):
         Index('ix_option_source_links_sku', 'canonical_sku'),
         Index('ix_option_source_links_source', 'source_option_id'),
     )
+
+
+class CrawlDelta(Base):
+    """URL(소싱처 상품) 1건을 크롤할 때마다 직전 대비 변동 여부 1행 기록.
+
+    판매처 쪽 ChannelChangeEvent(전송 시점)과 다른 층 — 이건 크롤 시점.
+    """
+    __tablename__ = "crawl_deltas"
+
+    id = Column(Integer, primary_key=True)
+    source_product_id = Column(Integer, ForeignKey("source_products.id"),
+                               nullable=False, index=True)
+    crawled_at = Column(DateTime, default=lambda: datetime.now(timezone.utc),
+                        nullable=False)
+    stock_changed = Column(Boolean, default=False, nullable=False)
+    price_changed = Column(Boolean, default=False, nullable=False)
+    detail = Column(Text)  # 무엇이 얼마→얼마로 (사람이 읽는 요약)
