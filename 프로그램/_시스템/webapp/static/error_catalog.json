@@ -1792,6 +1792,137 @@
      "cm": ""
     }
    ]
+  },
+  {
+   "id": "O21",
+   "g": "기타",
+   "l": "be",
+   "src": "판매처 일괄수집",
+   "st": "ok",
+   "sy": "일괄수집 중 일부 판매처 실패가 성공(success)으로 묻힘",
+   "cz": "collect_all_linked_sets 가 개별 fetch 예외를 삼켜 실패 건수 없이 종료 → 부분 실패가 '전부 성공'처럼 보임(누락 무경고)",
+   "pv": "실패 건수·사유를 결과에 표면화(로그+카운트), 스케줄러가 부분실패 리포트",
+   "code": {
+    "file": "lemouton/sets/collect_service.py",
+    "func": "collect_all_linked_sets",
+    "desc": "실패 건수 표면화"
+   },
+   "crawl": "ok",
+   "doc": "sync",
+   "view": "sync",
+   "rev": [
+    {
+     "d": "2026-07-04",
+     "a": "add",
+     "txt": "판매처 일괄수집 조용한 실패 표면화 (#11, PR#83)",
+     "src": "판매처 일괄수집"
+    }
+   ]
+  },
+  {
+   "id": "O22",
+   "g": "기타",
+   "l": "be",
+   "src": "스마트스토어",
+   "st": "ok",
+   "sy": "옵션 파싱 일부 실패가 success=True 로 위장(부분수집을 전량성공으로)",
+   "cz": "fetch_product_options 가 파싱 실패 옵션을 조용히 건너뛰고 success 반환 → 누락이 무경고로 묻힘",
+   "pv": "parse_failed 카운트·partial_failure 플래그로 표면화(성공분은 쓰되 실패 건수 노출)",
+   "code": {
+    "file": "shared/platforms/smartstore/get_options.py",
+    "func": "fetch_product_options",
+    "desc": "parse_failed 표면화"
+   },
+   "crawl": "ok",
+   "doc": "sync",
+   "view": "sync",
+   "rev": [
+    {
+     "d": "2026-07-04",
+     "a": "add",
+     "txt": "스마트스토어 옵션 파싱실패 success 위장 표면화 (#12, PR#83)",
+     "src": "스마트스토어"
+    }
+   ]
+  },
+  {
+   "id": "S22",
+   "g": "재고",
+   "l": "be",
+   "src": "판매처 전송",
+   "st": "ok",
+   "sy": "센티넬 재고(999=수량미상)가 실수량인 양 판매처로 전송될 뻔",
+   "cz": "_new_values_for_options 가 999 센티넬을 그대로 전송값에 포함 → 미상 재고가 실재고로 업로드될 위험(금전)",
+   "pv": "전송경로에서 999 센티넬 제외(미상 재고는 전송 대상에서 배제)",
+   "code": {
+    "file": "webapp/routes/sets_api.py",
+    "func": "_new_values_for_options",
+    "desc": "999 센티넬 전송 제외"
+   },
+   "crawl": "ok",
+   "doc": "sync",
+   "view": "sync",
+   "rev": [
+    {
+     "d": "2026-07-04",
+     "a": "add",
+     "txt": "센티넬 재고(999) 전송경로 차단 (#10, PR#83)",
+     "src": "판매처 전송"
+    }
+   ]
+  },
+  {
+   "id": "P24",
+   "g": "가격",
+   "l": "be",
+   "l2": "fe",
+   "src": "판매처 카드",
+   "st": "ok",
+   "sy": "최종매입가 계산 실패가 '정상 미확정(값 없음)'과 구분 안 됨",
+   "cz": "_card_src_provider 가 계산식(breakdown) 예외를 조용히 값없음 처리 → 진짜 실패와 정상 미확정이 동일하게 보임",
+   "pv": "계산 실패 시 final_error 로 명시 구분(실패=표면화, 미확정=정상값없음)",
+   "code": {
+    "file": "webapp/routes/sets_api.py",
+    "func": "_card_src_provider",
+    "desc": "final_error 구분"
+   },
+   "crawl": "ok",
+   "doc": "sync",
+   "view": "sync",
+   "rev": [
+    {
+     "d": "2026-07-04",
+     "a": "add",
+     "txt": "최종매입가 계산 실패를 정상 미확정과 구분 (#14, PR#83)",
+     "src": "판매처 카드"
+    }
+   ]
+  },
+  {
+   "id": "O23",
+   "g": "기타",
+   "l": "be",
+   "src": "업로더",
+   "st": "ok",
+   "sy": "라이브 전송 후 변동감지 기준선이 커밋 안 돼 매 사이클 전체 재전송",
+   "cz": "run_uploader 가 전송 성공분의 기준선(스냅샷)을 persist 안 함 → 다음 사이클이 변동으로 오인해 안 바뀐 옵션까지 재전송(금전·레이트리밋 위험)",
+   "pv": "라이브 전송 시 기준선 커밋(persist=True), dry-run 은 무변경 유지",
+   "code": {
+    "file": "lemouton/uploader/orchestrator.py",
+    "func": "run_uploader",
+    "desc": "기준선 커밋(persist)"
+   },
+   "crawl": "ok",
+   "doc": "sync",
+   "view": "sync",
+   "rev": [
+    {
+     "d": "2026-07-04",
+     "a": "add",
+     "txt": "라이브 전송 시 변동감지 기준선 커밋 (PR#81)",
+     "src": "업로더"
+    }
+   ]
   }
  ]
 }
