@@ -161,12 +161,15 @@ def full_cycle(*, dry_run: bool = False) -> dict:
                 sku_by_option = build_sku_by_option(s)
                 import os
                 dlq_path = os.path.join(os.path.dirname(__file__), '..', 'data', 'uploader_dlq.jsonl')
+                # persist=live: 실제 전송했을 때만 기준선 커밋(#12). dry-run 은 커밋 안 함
+                #   → 현행 동작 보존 + 미전송분이 '전송됨' 기준선으로 오염되지 않음.
+                _live = live_upload_enabled()
                 r = run_uploader(s, c_output,
                                  sku_by_option=sku_by_option,
                                  ss_adapter=ss_ad, cp_adapter=cp_ad,
                                  dlq_path=dlq_path,
-                                 force=False)
-                _mode = 'live' if live_upload_enabled() else 'dryrun'
+                                 force=False, persist=_live)
+                _mode = 'live' if _live else 'dryrun'
                 result['phases']['D_uploader'] = {
                     'ok': True,
                     'detail': (f"mode={_mode} · uploaded {r.get('uploaded', 0)} / "

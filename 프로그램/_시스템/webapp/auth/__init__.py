@@ -70,6 +70,27 @@ def init_auth(app: Flask) -> None:
         if request.method == "OPTIONS":
             return
 
+        # [DEV] DISABLE_AUTH=1 — 로그인 벽 우회 (솔로 개발용).
+        #   코드 삭제 없이 환경변수 플래그로만 on/off → 되돌리기: DISABLE_AUTH 제거.
+        #   '그냥 통과'가 아니라 기본 관리자로 자동 로그인 → current_user 를 읽는
+        #   라우트(accounts.created_by, base.html 등)가 깨지지 않게 한다.
+        if os.environ.get("DISABLE_AUTH") == "1":
+            from flask_login import current_user, login_user
+            if not current_user.is_authenticated:
+                try:
+                    with SessionLocal() as s:
+                        u = (s.query(User)
+                               .filter(User.role == "admin", User.is_active.is_(True))
+                               .order_by(User.id).first()
+                             or s.query(User)
+                               .filter(User.is_active.is_(True))
+                               .order_by(User.id).first())
+                        if u is not None:
+                            login_user(u)
+                except Exception:
+                    app.logger.exception("[DISABLE_AUTH] 자동 로그인 실패")
+            return
+
         # 화이트리스트 endpoint
         if request.endpoint in _PUBLIC_ENDPOINTS:
             return
