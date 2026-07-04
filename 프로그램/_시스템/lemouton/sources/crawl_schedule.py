@@ -78,3 +78,27 @@ def select_due_products(session, *, now: datetime) -> list:
     """설정 주기를 읽어 due URL을 연체 순으로 반환 (P3 워커 진입점)."""
     base = base_crawl_interval_seconds(session)
     return due_products(session, base_interval_seconds=base, now=now)
+
+
+def due_crawl_payload(session, *, now) -> dict:
+    """로컬 크롤러(확장)가 폴링할 페이로드. 서버는 목록만 알려줄 뿐 크롤 안 함.
+
+    실행/정지(crawl_auto_enabled)가 꺼져 있으면 빈 목록 + enabled=False.
+    """
+    from lemouton.pricing.settings import get_or_init
+    s = get_or_init(session)
+    base = base_crawl_interval_seconds(session)
+    if not bool(s.crawl_auto_enabled):
+        return {"enabled": False, "base_interval_seconds": base,
+                "count": 0, "items": []}
+    products = due_products(session, base_interval_seconds=base, now=now)
+    items = [{
+        "source_product_id": p.id,
+        "site": p.site,
+        "url": p.url,
+        "crawl_weight": p.crawl_weight,
+        "no_change_streak": p.no_change_streak,
+        "last_fetched_at": p.last_fetched_at.isoformat() if p.last_fetched_at else None,
+    } for p in products]
+    return {"enabled": True, "base_interval_seconds": base,
+            "count": len(items), "items": items}
