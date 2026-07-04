@@ -98,6 +98,51 @@ def save_settings(session) -> None:
     session.flush()
 
 
+# ── 마켓별 업로드 속도 정책 (P4) ────────────────────────────────────────────
+_MARKET_DEFAULTS = {
+    "coupang": {"per_minute": 10, "enabled": True},
+    "smartstore": {"per_minute": 10, "enabled": True},
+}
+
+
+class MarketUploadPolicy(Base):
+    """마켓별 업로드 속도 정책. market = 마켓 키(coupang/smartstore …)."""
+    __tablename__ = "market_upload_policies"
+
+    market = Column(String(32), primary_key=True)
+    per_minute = Column(Integer, default=10, nullable=False)  # 분당 상한
+    enabled = Column(Boolean, default=True, nullable=False)
+
+
+def get_market_policies(session) -> dict:
+    """마켓별 정책 dict. 알려진 마켓(coupang/smartstore)은 없으면 기본값 시드."""
+    for mk, d in _MARKET_DEFAULTS.items():
+        row = session.get(MarketUploadPolicy, mk)
+        if row is None:
+            session.add(MarketUploadPolicy(market=mk, per_minute=d["per_minute"],
+                                           enabled=d["enabled"]))
+    session.flush()
+    rows = session.query(MarketUploadPolicy).all()
+    return {r.market: {"per_minute": r.per_minute, "enabled": r.enabled} for r in rows}
+
+
+def set_market_policy(session, market: str, *, per_minute: int | None = None,
+                      enabled: bool | None = None) -> dict:
+    """전달된 항목만 갱신. per_minute 음수 → 0. 호출자가 commit."""
+    row = session.get(MarketUploadPolicy, market)
+    if row is None:
+        d = _MARKET_DEFAULTS.get(market, {"per_minute": 10, "enabled": True})
+        row = MarketUploadPolicy(market=market, per_minute=d["per_minute"],
+                                 enabled=d["enabled"])
+        session.add(row)
+    if per_minute is not None:
+        row.per_minute = max(0, int(per_minute))
+    if enabled is not None:
+        row.enabled = bool(enabled)
+    session.flush()
+    return {"per_minute": row.per_minute, "enabled": row.enabled}
+
+
 # ── 자동화 설정 (크롤 자동 주기 + 판매처 자동 전송) ──────────────────────────
 _AUTOMATION_KEYS = (
     "crawl_auto_enabled", "crawl_interval_hours", "crawl_interval_minutes",

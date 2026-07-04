@@ -226,6 +226,7 @@ def _apply_lightweight_migrations() -> None:
         # 2026-07-04: 자동화 연속 배수 큐 — 계수·무변동 연속
         ("source_products", "crawl_weight", "INTEGER DEFAULT 1 NOT NULL"),
         ("source_products", "no_change_streak", "INTEGER DEFAULT 0 NOT NULL"),
+        # 2026-07-04: market_upload_policies 는 신규 테이블 → create_all 이 생성(컬럼 튜플 불필요)
     ]
     inspector = inspect(engine)
     existing_tables = set(inspector.get_table_names())
