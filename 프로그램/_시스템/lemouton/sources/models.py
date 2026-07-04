@@ -165,11 +165,10 @@ class CrawlDelta(Base):
     """
     __tablename__ = "crawl_deltas"
 
-    id = Column(Integer, primary_key=True)
+    id = Column(Integer, primary_key=True, autoincrement=True)
     source_product_id = Column(Integer, ForeignKey("source_products.id"),
                                nullable=False, index=True)
-    crawled_at = Column(DateTime, default=lambda: datetime.now(timezone.utc),
-                        nullable=False)
+    crawled_at = Column(DateTime, default=_utcnow, nullable=False)
     stock_changed = Column(Boolean, default=False, nullable=False)
     price_changed = Column(Boolean, default=False, nullable=False)
     detail = Column(Text)  # 무엇이 얼마→얼마로 (사람이 읽는 요약)

@@ -1,22 +1,5 @@
-import pytest
-from sqlalchemy import create_engine
-from sqlalchemy.orm import Session
-
-from shared.db import Base
-from lemouton.sources import models
-# FK 대상 테이블(models·options·price_templates) 등록 — create_all 이 참조를 찾게.
-import lemouton.sourcing.models  # noqa: F401
-import lemouton.templates.models  # noqa: F401
 from lemouton.sources.models import SourceProduct, CrawlDelta
-
-
-@pytest.fixture
-def db():
-    eng = create_engine("sqlite://")
-    Base.metadata.create_all(eng)
-    s = Session(eng)
-    yield s
-    s.close()
+from lemouton.sources.service import persist_crawled_options
 
 
 def test_new_columns_and_delta_table_exist(db):
@@ -30,3 +13,40 @@ def test_new_columns_and_delta_table_exist(db):
     db.add(d)
     db.flush()
     assert d.id is not None
+
+
+def _mk_product(db):
+    sp = SourceProduct(site="musinsa", url="https://x/9")
+    db.add(sp); db.flush()
+    return sp
+
+
+def test_first_crawl_records_delta_and_streak(db):
+    sp = _mk_product(db)
+    opts = [{"color_text": "블랙", "size_text": "220", "price": 50000, "stock": 3}]
+    persist_crawled_options(db, source_product=sp, options=opts)
+    db.flush()
+    deltas = db.query(CrawlDelta).filter_by(source_product_id=sp.id).all()
+    assert len(deltas) == 1
+    assert sp.no_change_streak == 0   # 첫 크롤(옵션 생김)=변동
+
+
+def test_second_crawl_no_change_increments_streak(db):
+    sp = _mk_product(db)
+    opts = [{"color_text": "블랙", "size_text": "220", "price": 50000, "stock": 3}]
+    persist_crawled_options(db, source_product=sp, options=opts); db.flush()
+    persist_crawled_options(db, source_product=sp, options=opts); db.flush()
+    last = (db.query(CrawlDelta).filter_by(source_product_id=sp.id)
+            .order_by(CrawlDelta.id.desc()).first())
+    assert last.stock_changed is False and last.price_changed is False
+    assert sp.no_change_streak == 1
+
+
+def test_change_resets_streak(db):
+    sp = _mk_product(db)
+    a = [{"color_text": "블랙", "size_text": "220", "price": 50000, "stock": 3}]
+    b = [{"color_text": "블랙", "size_text": "220", "price": 50000, "stock": 0}]
+    persist_crawled_options(db, source_product=sp, options=a); db.flush()
+    persist_crawled_options(db, source_product=sp, options=a); db.flush()  # streak=1
+    persist_crawled_options(db, source_product=sp, options=b); db.flush()  # 재고변동
+    assert sp.no_change_streak == 0

@@ -19,8 +19,9 @@ _log = logging.getLogger(__name__)
 from sqlalchemy.orm import Session
 
 from .models import (
-    SourceProduct, SourceOption, ModelSourceLink, OptionSourceLink,
+    SourceProduct, SourceOption, ModelSourceLink, OptionSourceLink, CrawlDelta,
 )
+from .change_detection import detect_changes
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -666,6 +667,16 @@ def persist_crawled_options(session: Session, *, source_product, options) -> dic
     scoped = _scope_options_to_color(norm, _resolve_reg_color(session, source_product))
     if not scoped:
         return {'upserted': 0, 'pruned': 0}
+    # ★ 2026-07-04 변동 감지 — upsert 전 기존 옵션값 스냅샷(직전 크롤 결과).
+    #   detect_changes 가 이 old_snapshot vs 새 옵션(new_snapshot) 을 비교해
+    #   CrawlDelta 1행 기록 + no_change_streak(무변동 연속) 갱신.
+    #   키((color,size))는 저장 시 정규화(_norm_*)와 동일하게 맞춰 표기차 오탐 방지.
+    old_snapshot = [
+        {'color_text': _norm_color(so.color_text), 'size_text': _norm_size(so.size_text),
+         'price': so.current_price, 'stock': so.current_stock}
+        for so in (session.query(SourceOption)
+                   .filter_by(source_product_id=source_product.id, deleted_at=None).all())
+    ]
     upserted = 0
     failed = 0
     err_sample = None
@@ -701,6 +712,23 @@ def persist_crawled_options(session: Session, *, source_product, options) -> dic
         if (_norm_color(so.color_text), _norm_size(so.size_text)) not in new_keys:
             so.deleted_at = _utcnow()
             pruned += 1
+    # ★ 2026-07-04 변동 기록 — 새 옵션 스냅샷 vs old_snapshot 비교 후 CrawlDelta 1행.
+    new_snapshot = [
+        {'color_text': _norm_color(o.get('color_text')), 'size_text': _norm_size(o.get('size_text')),
+         'price': o.get('price'), 'stock': o.get('stock')}
+        for o in scoped
+    ]
+    _chg = detect_changes(old_snapshot, new_snapshot)
+    session.add(CrawlDelta(
+        source_product_id=source_product.id,
+        stock_changed=_chg['stock_changed'],
+        price_changed=_chg['price_changed'],
+        detail=(_chg['detail'][:1000] if _chg['detail'] else None),
+    ))
+    if _chg['stock_changed'] or _chg['price_changed']:
+        source_product.no_change_streak = 0
+    else:
+        source_product.no_change_streak = (source_product.no_change_streak or 0) + 1
     return {'upserted': upserted, 'pruned': pruned, 'failed': failed, 'err': err_sample}
 
 
