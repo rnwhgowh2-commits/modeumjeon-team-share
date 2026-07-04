@@ -176,3 +176,48 @@ def gated_off_names(
 
     # ③ 미적용(applied=False)된 항목 이름만 반환 → compute_breakdown 에서 enabled=False
     return {r['name'] for r in results if not r.get('applied')}
+
+
+# ────────────────────────────────────────────────────────────────────────────
+# 상품쿠폰 선택 — 크롤된 쿠폰 목록 중 키워드 살아남은 최고 금액 1개
+# ────────────────────────────────────────────────────────────────────────────
+
+def pick_best_coupon(coupons, benefit, exclude_rules=None):
+    """상품쿠폰 목록에서 포함/제외 키워드에 살아남은 '최고 금액' 쿠폰 1개.
+
+    coupons: [{'name': str, 'amount': int|float}, ...]  (크롤 원본 전량)
+    benefit: 가이드의 상품쿠폰 혜택 dict (triggers / match / excludes / exclude_match)
+    exclude_rules: 소싱처 공통 제외 규칙(crawl_guide['exclude_keywords']), 선택.
+    반환: {'name','amount','candidates':[...],'excluded':[{'name','amount','reason'}]}
+          또는 후보 없음 시 None.
+    """
+    triggers = benefit.get('triggers') or []
+    match = benefit.get('match') or 'any'
+    b_excludes = benefit.get('excludes') or []
+    b_exmatch = benefit.get('exclude_match') or 'any'
+    exclude_rules = exclude_rules or []
+
+    survivors, excluded = [], []
+    for c in (coupons or []):
+        name = (c.get('name') or '')
+        amount = float(c.get('amount') or 0)
+        if amount <= 0:
+            continue
+        if not line_matches_triggers(name, triggers, match):
+            excluded.append({'name': name, 'amount': amount, 'reason': '포함 키워드 미매칭'})
+            continue
+        hit = line_excluded(name, exclude_rules)
+        if hit is not None:
+            excluded.append({'name': name, 'amount': amount,
+                             'reason': f"공통제외 '{hit.get('word')}'"})
+            continue
+        if line_excluded_by_benefit(name, b_excludes, b_exmatch):
+            excluded.append({'name': name, 'amount': amount, 'reason': '제외 키워드'})
+            continue
+        survivors.append({'name': name, 'amount': amount})
+
+    if not survivors:
+        return None
+    best = max(survivors, key=lambda x: x['amount'])
+    return {'name': best['name'], 'amount': best['amount'],
+            'candidates': survivors, 'excluded': excluded}
