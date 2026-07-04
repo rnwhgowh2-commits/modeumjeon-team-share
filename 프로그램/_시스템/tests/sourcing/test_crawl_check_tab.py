@@ -64,3 +64,11 @@ def test_crawl_check_bare_sets_sameorigin(client):
     r = client.get("/sourcing-guide/crawl-check?bare=1")
     assert r.status_code == 200
     assert r.headers.get("X-Frame-Options") == "SAMEORIGIN"
+
+
+def test_overview_has_crawl_check_card(client):
+    r = client.get("/sourcing-guide/")
+    assert r.status_code == 200
+    body = r.data.decode("utf-8")
+    assert 'data-guide-modal="/sourcing-guide/crawl-check?bare=1"' in body
+    assert "크롤링 검사" in body
