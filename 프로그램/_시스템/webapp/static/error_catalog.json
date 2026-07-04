@@ -1792,6 +1792,34 @@
      "cm": ""
     }
    ]
+  },
+  {
+   "id": "O21",
+   "g": "기타",
+   "l": "fe",
+   "src": "매트릭스",
+   "st": "ok",
+   "cm": "fcb7984f",
+   "sy": "옵션 매트릭스 셀 전체가 '로딩 중'에서 안 뜸(특정 모음전) — 크롤·값은 정상, 프론트 렌더만 죽음",
+   "cz": "renderAutoExpand가 auto_enabled=true·비활성(is_active=false·pur_price=null·tpl=95000) 옵션의 null ss_breakdown/cp_breakdown을 가드 없이 .purchase_price 읽어 TypeError → renderPriceMatrix 루프 전체 중단 → 셀 전체 미렌더('로딩 중' 고정)",
+   "pv": "renderAutoExpand 진입부 null 가드 — ss/cp breakdown 없으면 '비활성 옵션(판매 안 함)' 대체 렌더 후 return. 라이브 재검증: 셀 1426개 정상·renderAutoExpand TypeError 0",
+   "code": {
+    "file": "webapp/templates/bundles/_matrix_v3.html",
+    "func": "renderAutoExpand",
+    "desc": "비활성 옵션 null breakdown 가드(로딩중 멈춤 방지)"
+   },
+   "crawl": "note",
+   "doc": "sync",
+   "view": "sync",
+   "rev": [
+    {
+     "d": "2026-07-04",
+     "a": "add",
+     "txt": "비활성 옵션 null breakdown → 매트릭스 셀 로딩중 멈춤. renderAutoExpand null 가드",
+     "src": "매트릭스",
+     "cm": "fcb7984f"
+    }
+   ]
   }
  ]
 }
