@@ -138,15 +138,21 @@
 <span class="h">■ 대상</span>
 <span class="tgt" id="ccTargetStock">- 소싱처 : (소싱처명 입력, 예: 롯데온)
 - URL    : 해당 소싱처의 매트릭스 등록 URL 전체</span>
+- 프로그램 저장값·등록 URL 읽는 곳 = GET https://mou-m.com/api/bundles/{모음전코드}/option-matrix
+  (로그인 불필요) → options[].sources[] 의 product_url·stock_state·stock_label·
+  stock_qty·last_status. 이 값이 3)에서 실측과 맞대는 '크롤 결과값'이다.
 
 <span class="h">■ 절대 원칙 (데이터 무결성 3대)</span>
 - 재고 기준 = 실브라우저 상품 URL의 실제 데이터 (추정·폴백·평균 금지)
 - 확인 못 하면 '있음'이 아니라 '확인 불가'로 표기
-- 크롤 = 로컬(크롬 확장/Playwright). 서버 크롤 실패는 정상
+- 크롤 = 로컬 PC(크롬 확장/Playwright). 서버 크롤 실패는 정상
 
 <span class="h">■ 먼저 읽을 정본</span> (계속 갱신됨 — 정본 최신본 우선)
-- 크롤링 가이드 docs/크롤링-가이드.md (인앱: /sourcing-guide/map)
+- <span class="star">★ 먼저 origin/main 최신에서 작업</span> : git fetch origin main → 현재 브랜치가
+    뒤처졌으면 origin/main 기준 워크트리/체크아웃(그래야 정본·라우트·코드 파일:라인이 맞다)
+- 크롤링 가이드 프로그램/_시스템/docs/크롤링-가이드.md (인앱: /sourcing-guide/map)
     §1 재고편 = 센티넬(0=품절/999=수량미상'있음'/-1=불명/None=미크롤/'확인 불가')
+      + 소싱처별 수집 방식(= 소싱처별 실브라우저 확인법의 근거)
     §5 재고 에러 카탈로그(S1~S21…) = NG 증상별 사례·근본원인·의심 코드
       → 귀책=P(코드 수정) 제안 전 반드시 대조(교차회귀 방지)
     §7 배선·자가검증 = 귀책=P일 때 어디를 고치나(_match_option_so 등)
@@ -154,16 +160,23 @@
     ※ 검사 대상 = 소싱처 크롤 재고(매트릭스 셀), 실물 재고관리(InventoryTx) 아님
 
 <span class="h">■ 5단계</span>
-1) 크롤 → 2) 실브라우저 색×사이즈 재고 엑셀 → 3) 매트릭스 대조
+1) 크롤(로컬 PC) — 크롤은 사용자 로컬 PC의 크롬 확장이 한다(서버·CLI 크롤 없음).
+   너(Claude Code)가 사용자의 로그인된 크롬에 붙어(Claude-in-Chrome) mou-m.com
+   매트릭스에서 대상 소싱처 크롤을 직접 돌리고 완료를 실시간 감시한다. 브라우저에
+   못 붙으면 사용자에게 "이 모음전 크롤을 돌려달라" 요청→완료 신호를 받은 뒤 진행.
+   <span class="star">★ 크롤 최신화 전 다음 단계 금지</span> — 오래된 저장값·dev DB 로 대조하면 품절둔갑 유발(무결성 위반)
+2) 실브라우저 색×사이즈 재고 엑셀 (소싱처별 확인법 = §1 근거)
+3) 매트릭스 대조 (1의 저장값 vs 2의 실측, 색×사이즈 셀 단위)
 4) OK/NG 이중 태그
    [귀책] U=URL측(대체상품·404·만료→사용자 URL 정정) / P=프로그램측(→코드 수정)
    [증상] <span class="star">A 품절둔갑</span>★ / B 거짓품절 / C 999·센티넬둔갑 /
           D 미수집·확인불가 / E 수량불일치
 5) 소싱처별 집계 + 조치 U/P 분리 + 색×사이즈 전수 엑셀
+   (엑셀 = 소싱처별 탭 + 요약 탭[OK/NG·귀책·증상 개수] + 조치 리스트)
 
 <span class="h">■ 진행 방식</span>
-- 크롤은 실시간 감시(사후 추측 금지). 로드된 확장 버전 먼저 확인
-- 작업 전 origin/main 최신 대조(stale 워크트리 오진 방지)</div>
+- 크롤은 실시간 감시(사후 추측 금지). 로드된 확장 버전 먼저 확인(manifest 동기화)
+- 못 하는 소싱처(로그인 전용 등)는 추측·폴백 말고 '확인 불가'로 정직하게 표기</div>
 
       <div class="codebox hide" id="ccBoxPrice"><span class="h">가격 정합성 조사를 시작한다.</span>
 아래 프로토콜을 순서대로 실행하라.
@@ -171,14 +184,18 @@
 <span class="h">■ 대상</span>
 <span class="tgt" id="ccTargetPrice">- 소싱처 : (소싱처명 입력, 예: SSG)
 - URL    : 해당 소싱처의 매트릭스 등록 URL 전체</span>
+- 프로그램 저장값·등록 URL 읽는 곳 = GET https://mou-m.com/api/bundles/{모음전코드}/option-matrix
+  (로그인 불필요) → options[].sources[] 의 product_url·crawled_price·crawled_price_raw·
+  card_enabled·auto_card_discount + options[].purchase_final_price(최종매입가). 이게 대조 대상.
 
 <span class="h">■ 절대 원칙 (데이터 무결성 3대)</span>
 - 가격 기준 = 실브라우저 상품 URL의 실제 값 (표면가·혜택·최종매입가 모두 · 폴백 금지)
 - 매칭·크롤 실패 시 대표가(평균·최저·95000) 폴백 금지 → '가격 없음 + 크롤 실패' 표기
-- 크롤 = 로컬(크롬 확장/Playwright). 서버 크롤 실패는 정상
+- 크롤 = 로컬 PC(크롬 확장/Playwright). 서버 크롤 실패는 정상
 
 <span class="h">■ 먼저 읽을 정본</span> (계속 갱신됨 — 정본 최신본 우선)
-- 크롤링 가이드 docs/크롤링-가이드.md (인앱: /sourcing-guide/map)
+- <span class="star">★ 먼저 origin/main 최신에서 작업</span> : git fetch origin main → 뒤처졌으면 origin/main 기준으로
+- 크롤링 가이드 프로그램/_시스템/docs/크롤링-가이드.md (인앱: /sourcing-guide/map)
     §2 가격편 = 혜택 4분류(선반영/후반영/결제택1/캐시백)·소싱처별 계산·저장 배선
     §3 매트릭스 표기 = 셀(표면가+최종매입가)·계산식 영수증·완전한 B(다중 URL 최저)
     §5 가격 에러(P1~P23)+기타(O) = NG 증상별 사례·의심 코드
@@ -188,7 +205,11 @@
 ① 표면노출가  ② 혜택(선반영·후반영·결제택1·캐시백 · %는 베이스금액 기준)  ③ 최종매입가
 
 <span class="h">■ 5단계</span>
-1) 크롤 → 2) 실브라우저 3층 엑셀 → 3) 매트릭스(셀=표면가+최종매입가·계산식=혜택) 대조
+1) 크롤(로컬 PC) — 크롤은 사용자 로컬 PC의 크롬 확장이 한다. 너(Claude Code)가
+   사용자의 로그인된 크롬에 붙어(Claude-in-Chrome) mou-m.com 매트릭스에서 대상 소싱처
+   크롤을 직접 돌리고 완료를 실시간 감시. 못 붙으면 사용자에게 크롤 요청→완료 뒤 진행.
+   <span class="star">★ 최신화 전 다음 단계 금지</span>(오래된 값·폴백가 대조 = 언더프라이싱 오판)
+2) 실브라우저 3층 엑셀 → 3) 매트릭스(셀=표면가+최종매입가·계산식=혜택) 대조
 4) OK/NG 이중 태그
    [귀책] U/P (재고와 동일)
    [증상] A 표면가오류 / <span class="star">B 언더프라이싱</span>★ / <span class="star">C 폴백가둔갑</span>★ /
@@ -207,19 +228,25 @@
 <span class="h">■ 대상</span>
 <span class="tgt" id="ccTargetBoth">- 소싱처 : (소싱처명 입력, 예: 롯데온)
 - URL    : 해당 소싱처의 매트릭스 등록 URL 전체</span>
+- 프로그램 저장값·등록 URL 읽는 곳 = GET https://mou-m.com/api/bundles/{모음전코드}/option-matrix
+  (로그인 불필요) → options[].sources[](재고·가격 필드)·purchase_final_price. 이게 대조 대상.
 
 <span class="h">■ 절대 원칙 (데이터 무결성 3대)</span>
 - 재고·가격 기준 = 실브라우저 상품 URL의 실제 값 (추정·폴백·평균 금지)
 - 확인 못 하면 '있음'/가격 단정 말고 '확인 불가'·'크롤 실패'로 표기
-- 크롤 = 로컬(크롬 확장/Playwright). 서버 크롤 실패는 정상
+- 크롤 = 로컬 PC(크롬 확장/Playwright). 서버 크롤 실패는 정상
 
 <span class="h">■ 먼저 읽을 정본</span> (계속 갱신됨 — 정본 최신본 우선)
-- 크롤링 가이드 docs/크롤링-가이드.md : §1 재고 · §2 가격 · §3 매트릭스 · §5 에러(S/P/O) · §7 배선
+- <span class="star">★ 먼저 origin/main 최신에서 작업</span> : git fetch origin main → 뒤처졌으면 origin/main 기준으로
+- 크롤링 가이드 프로그램/_시스템/docs/크롤링-가이드.md : §1 재고 · §2 가격 · §3 매트릭스 · §5 에러(S/P/O) · §7 배선
 - 데이터 가이드 /data-guide = 저장 위치·단일 진실 원천
     ※ 재고 검사 대상 = 소싱처 크롤 재고(매트릭스 셀), 실물 재고관리(InventoryTx) 아님
+- 크롤 실행 = 각 단계 시작 시, 너(Claude Code)가 사용자의 로그인된 크롬에 붙어
+  (Claude-in-Chrome) mou-m.com 매트릭스에서 대상 소싱처 크롤을 직접 돌리고 완료 감시.
+  못 붙으면 사용자에게 요청→완료 뒤 진행. 최신화 전 대조 금지.
 
 <span class="h">━━━ [1단계] 재고 정합성 조사 (먼저, 끝까지) ━━━</span>
-1) 크롤 → 2) 실브라우저 색×사이즈 재고 엑셀 → 3) 매트릭스 대조
+1) 크롤(로컬 PC) → 2) 실브라우저 색×사이즈 재고 엑셀 → 3) 매트릭스 대조
 4) OK/NG 이중 태그 [귀책 U/P] [증상 <span class="star">A 품절둔갑</span>★/B 거짓품절/C 999둔갑/D 미수집/E 수량불일치]
 5) 소싱처별 집계 + 조치 U/P 분리 + 전수 엑셀
    ↳ 여기(재고 엑셀)까지 완료한 뒤에만 [2단계]로.

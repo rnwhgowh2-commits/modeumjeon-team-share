@@ -72,6 +72,26 @@ def test_crawl_check_kinds_and_prompts(client):
     assert "셀≠계산식" in body
 
 
+def test_crawl_check_stock_prompt_self_sufficient(client):
+    """재고 프롬프트 자기충분성 보강 — 클린 세션이 프롬프트만으로 끝낼 수 있게:
+    ① 프로그램 저장값·URL 을 어디서 읽는지(매트릭스 API) ② 크롤을 Claude 가 로컬 PC
+    브라우저로 직접 돌린다 ③ 정본 가이드 경로 정확 ④ 먼저 origin/main 최신에서."""
+    r = client.get("/sourcing-guide/crawl-check")
+    assert r.status_code == 200
+    body = r.data.decode("utf-8")
+    # ① 대상 불러오기 — 매트릭스 API (로그인 불필요) 를 명시
+    assert "option-matrix" in body
+    # ② 크롤 = 사용자 로컬 PC 브라우저를 Claude 가 직접 구동 (서버/CLI 크롤 아님)
+    assert "로컬 PC" in body
+    assert "Claude-in-Chrome" in body or "로그인된 크롬" in body
+    # 최신화 전 다음 단계 금지 (오래된 값 대조 = 품절둔갑) — 무결성 가드
+    assert "최신화 전" in body or "완료 신호" in body
+    # ③ 정본 가이드 경로 정확 (stale orphan docs/ 가 아닌 캐노니컬 경로)
+    assert "프로그램/_시스템/docs/크롤링-가이드.md" in body
+    # ④ 먼저 origin/main 최신에서 작업
+    assert "git fetch origin main" in body
+
+
 def test_crawl_check_scope_selector_present(client):
     """검사 범위 선택(모음전+소싱처 + 전체 선택) UI + 대상 주입 지점."""
     r = client.get("/sourcing-guide/crawl-check")
