@@ -123,6 +123,7 @@
         <option value="">마켓 선택…</option>
         <option value="coupang">쿠팡</option>
         <option value="smartstore">스마트스토어</option>
+        <option value="lotteon">롯데온</option>
       </select>
       <button class="btn" type="button" onclick="quickAddMarket(this)">추가</button>
     </div>
@@ -252,7 +253,7 @@ async function loadAccounts(){
   const d=await api('GET','/api/sets/upload-accounts');
   const list=(d&&d.accounts)||[];
   if(!list.length) return;  // 계정 없으면 하드코딩 폴백 유지
-  const labels={smartstore:'스마트스토어', coupang:'쿠팡'};
+  const labels={smartstore:'스마트스토어', coupang:'쿠팡', lotteon:'롯데온'};
   $('#mklist').innerHTML=list.map(a=>{
     const badge=a.has_key?'<span class="badge b-ok">키 있음</span>':'<span class="badge b-warn">키 필요</span>';
     const nm=a.display_name||((labels[a.market]||a.market)+' · '+a.account_key);
@@ -287,8 +288,8 @@ async function saveChannels(){
 
 // ── 단계 4 마켓별 입력 + 연동 ──
 function renderChannels(){
-  const labels={smartstore:'스마트스토어', coupang:'쿠팡'};
-  const idLabel={smartstore:'originProductNo (상품번호)', coupang:'sellerProductId (상품번호)'};
+  const labels={smartstore:'스마트스토어', coupang:'쿠팡', lotteon:'롯데온'};
+  const idLabel={smartstore:'originProductNo (상품번호)', coupang:'sellerProductId (상품번호)', lotteon:'spdNo (판매자상품번호)'};
   let h='';
   S.channels.forEach(ch=>{
     h+=`<div class="chl" data-id="${ch.id}"><div class="h">${labels[ch.market]||ch.market}</div>

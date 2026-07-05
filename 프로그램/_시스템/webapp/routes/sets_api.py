@@ -476,8 +476,8 @@ def delete_set(set_id):
 def add_channel(set_id):
     p = request.get_json(silent=True) or {}
     market = (p.get("market") or "").strip()
-    if market not in ("smartstore", "coupang"):
-        return _err("market 은 smartstore/coupang 중 하나여야 해요.")
+    if market not in ("smartstore", "coupang", "lotteon"):
+        return _err("market 은 smartstore/coupang/lotteon 중 하나여야 해요.")
     s = SessionLocal()
     try:
         c = ch.add_channel(s, set_id=set_id, market=market,
