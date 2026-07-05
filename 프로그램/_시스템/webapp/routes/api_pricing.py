@@ -1605,6 +1605,14 @@ def save_crawl_result():
                 _clean = [str(x) for x in _lines if str(x).strip()]
                 if _clean:
                     _dyn['_benefit_lines'] = _clean
+                # ★ 2026-07-04 — 상품쿠폰 전량(product_coupon_list) 영속. 확장이 benefit_lines 와
+                #   동일하게 item 레벨로 실어 보냄. compute_breakdown 이 쿠폰별 키워드 필터에 사용.
+                #   빈 수집(미로그인/실패)이면 키 제거(옛 stale 쿠폰 차단·폴백 금지).
+                _pcl = it.get('product_coupon_list')
+                if isinstance(_pcl, list) and _pcl:
+                    _dyn['product_coupon_list'] = _pcl
+                else:
+                    _dyn.pop('product_coupon_list', None)
                 sp.dynamic_benefits_json = _json.dumps(_dyn, ensure_ascii=False)
             # [b번, 2026-07-02] 무신사 외 소싱처(SSG·SSF·롯데온 등)도 확장이 실어 보낸
             #   동적 혜택 키(ssg_money_rate 등)를 상품 레벨 dynamic_benefits_json 에 저장.
