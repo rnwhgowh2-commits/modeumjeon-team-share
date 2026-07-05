@@ -3950,6 +3950,15 @@ table.ompk-tab th.corner{color:#b0b8c1;cursor:default}
           <span class="lbl">└ ${escapeHtml(st.name)}${_pct}</span>
           <span class="num">-${(st.deduct || 0).toLocaleString('ko-KR')}원</span>
         </div>`;
+      // ★ 2026-07-04 — 무신사 상품쿠폰: 적용된 쿠폰/제외된 쿠폰 투명 표기 (coupon_decision).
+      if (st.name === '상품쿠폰' && j.coupon_decision) {
+        const _cd = j.coupon_decision;
+        const _exNames = (_cd.excluded || []).map(e => `${e.name || ''}(${e.reason || '제외'})`).join(', ');
+        _rcLines += `
+        <div class="cf-rc-ln cf-rc-note">
+          적용 쿠폰: ${escapeHtml(_cd.used || '-')}${_exNames ? ` · 제외됨: ${escapeHtml(_exNames)}` : ''}
+        </div>`;
+      }
       if (!_isLast) {
         _baseNo += 1;
         const _nx = _steps[i + 1];

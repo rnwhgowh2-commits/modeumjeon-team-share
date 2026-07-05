@@ -57,39 +57,43 @@
 .sgd .note-cell .tg{font-size:9.5px;font-weight:700;color:#B0B8C1;background:#F2F4F6;padding:1px 6px;border-radius:5px;flex:0 0 auto;}
 .sgd .sg-note{border:none;border-bottom:1px dashed #DDE1E6;font-size:11px;color:#6B7684;padding:2px 0;width:100%;background:transparent;}
 
-/* ③ 최종 매입가 로직 — 혜택 편집기 (시안2 v3) */
+/* ③ 최종 매입가 로직 — 혜택 편집기 (변형10 · 미니멀 라인) */
 .sgd .sg3card{padding:18px 20px;}
-.sgd .bcard .bn{font-size:13.5px;font-weight:700;border:1px solid #E5E8EB;border-radius:8px;padding:8px 10px;width:100%;font-family:inherit;box-sizing:border-box;}
-.sgd .bcard .bn:focus{outline:none;border-color:#1B64DA;}
+.sgd .bcard .bn{font-size:13.5px;font-weight:700;border:none;border-bottom:1px solid transparent;border-radius:0;padding:8px 2px;width:100%;font-family:inherit;box-sizing:border-box;background:transparent;}
+.sgd .bcard .bn:focus{outline:none;border-bottom-color:#1B64DA;}
 .sgd .bcard .bn::placeholder{color:#9AA4B0;font-weight:500;}
-.sgd .bcard .bdel{border:none;background:#F2F4F6;color:#6B7684;width:28px;height:28px;border-radius:7px;cursor:pointer;font-size:14px;line-height:1;}
+.sgd .bcard .bdel{border:none;background:none;color:#B0B8C1;width:24px;height:24px;border-radius:6px;cursor:pointer;font-size:14px;line-height:1;}
 .sgd .bcard .bdel:hover{background:#FFE9EC;color:#DC2626;}
-/* 시안2 v3 그리드 */
+/* 미니멀 라인 그리드 — 박스 대신 구분선 */
 .GR{display:grid;grid-template-columns:1fr 94px 88px 96px 104px 28px;gap:10px;align-items:center;}
-.ghead{padding:0 14px 7px;} .ghead .gh{font-size:10.5px;font-weight:800;color:#9AA4B0;text-transform:uppercase;} .ghead .gh.c{text-align:center;}
-.bcard{background:#fff;border:1px solid #E5E8EB;border-radius:12px;padding:13px 14px;margin-bottom:10px;}
-.vseg{display:inline-flex;background:#EEF1F5;border-radius:8px;padding:2px;width:100%;} .vseg b{flex:1;text-align:center;font-size:10.5px;font-weight:700;padding:5px 0;border-radius:6px;color:#6B7684;cursor:pointer;} .vseg b.on{background:#fff;color:#191F28;box-shadow:0 1px 2px rgba(0,0,0,.1);} .vseg b.on.crawl{color:#1B64DA;}
-.bval,.bcrawl{width:100%;height:34px;border-radius:8px;font-size:13px;box-sizing:border-box;}
-.bval{font-family:inherit;font-weight:600;text-align:right;border:1.5px solid #1B64DA;padding:0 9px;}
+.ghead{padding:0 2px 9px;border-bottom:1px solid #E5E8EB;margin-bottom:2px;} .ghead .gh{font-size:10.5px;font-weight:800;color:#9AA4B0;text-transform:uppercase;} .ghead .gh.c{text-align:center;}
+.bcard{background:transparent;border:none;border-bottom:1px solid #EEF0F3;border-radius:0;padding:14px 2px;margin-bottom:0;}
+.bcard:last-of-type{border-bottom:none;}
+.vseg{display:inline-flex;background:none;border-radius:0;padding:0;width:100%;gap:2px;} .vseg b{flex:1;text-align:center;font-size:10.5px;font-weight:700;padding:5px 0;border-radius:6px;color:#B0B8C1;cursor:pointer;} .vseg b.on{background:#F4F5F7;color:#191F28;} .vseg b.on.crawl{color:#1B64DA;background:#EAF2FF;}
+.bval,.bcrawl{width:100%;height:32px;border-radius:6px;font-size:13px;box-sizing:border-box;font-variant-numeric:tabular-nums;}
+.bval{font-family:inherit;font-weight:600;text-align:right;border:none;border-bottom:1.5px solid #1B64DA;padding:0 2px;background:transparent;}
 .bval:focus{outline:none;}
-.bcrawl{font-weight:700;color:#1B64DA;background:#E8F3FF;border:1px dashed #9DC3F0;display:flex;align-items:center;justify-content:center;font-size:11.5px;}
-.b-ty{width:100%;height:34px;font-size:11.5px;font-weight:700;color:#6B7684;background:#F2F4F6;border:1px solid #E5E8EB;border-radius:8px;font-family:inherit;}
-.always{width:100%;height:34px;font-size:11.5px;font-weight:700;color:#15803D;background:#E6F6EC;border-radius:8px;display:flex;align-items:center;justify-content:center;}
-.ctg{display:flex;align-items:center;justify-content:center;gap:6px;font-size:11.5px;font-weight:700;color:#6B7684;cursor:pointer;height:34px;} .ctg .sw{width:30px;height:18px;border-radius:20px;background:#D1D6DB;position:relative;flex:none;} .ctg.on .sw{background:#1B64DA;} .ctg.on{color:#191F28;} .ctg .sw i{position:absolute;top:2px;left:2px;width:14px;height:14px;border-radius:50%;background:#fff;font-style:normal;} .ctg.on .sw i{left:14px;}
-.cond{margin-top:11px;border-top:1px solid #EEF1F4;padding-top:11px;display:grid;grid-template-columns:1fr 1fr;gap:12px;}
-.cond .clab{font-size:11px;font-weight:800;margin-bottom:5px;display:flex;align-items:center;gap:6px;} .clab.i{color:#15803D;} .clab.e{color:#DC2626;}
-.chips{display:flex;flex-wrap:wrap;gap:5px;border:1px solid #E5E8EB;border-radius:8px;padding:5px 7px;min-height:32px;}
-.chip{font-size:11.5px;font-weight:600;border-radius:6px;padding:2px 7px;display:inline-flex;gap:4px;align-items:center;} .chip.i{background:#E6F6EC;color:#15803D;} .chip.e{background:#FBE9E9;color:#DC2626;} .chip i{cursor:pointer;font-style:normal;opacity:.6;}
-.cin{border:none;outline:none;font-size:11.5px;min-width:50px;flex:1;background:transparent;font-family:inherit;}
-.modeg{display:inline-flex;gap:3px;} .modeg b{font-size:10px;font-weight:700;padding:3px 6px;border-radius:5px;border:1px solid #E5E8EB;color:#6B7684;cursor:pointer;background:#fff;} .modeg b.on{background:#191F28;color:#fff;border-color:#191F28;}
-.csum{grid-column:1/3;font-size:11px;color:#9AA4B0;}
-.sgd .inc-add{margin-top:10px;border:1px dashed #1B64DA;color:#1B64DA;background:#fff;border-radius:9px;padding:8px 14px;font-size:12px;font-weight:800;cursor:pointer;font-family:inherit;width:100%;}
-.sgd .empty-b{font-size:11.5px;color:#9aa3ab;padding:13px;border:1px dashed #D7DDE3;border-radius:10px;text-align:center;font-weight:600;margin-bottom:10px;}
+.bcrawl{font-weight:700;color:#1B64DA;background:none;border:1px dashed #9DC3F0;display:flex;align-items:center;justify-content:center;font-size:11.5px;}
+.b-ty{width:100%;height:32px;font-size:11.5px;font-weight:700;color:#6B7684;background:none;border:none;border-bottom:1px solid #E5E8EB;border-radius:0;font-family:inherit;text-align:center;text-align-last:center;}
+.always{width:100%;height:32px;font-size:11.5px;font-weight:700;color:#15803D;background:none;border-radius:6px;display:flex;align-items:center;justify-content:center;}
+.ctg{display:flex;align-items:center;justify-content:center;gap:6px;font-size:11.5px;font-weight:700;color:#B0B8C1;cursor:pointer;height:32px;} .ctg .sw{width:28px;height:16px;border-radius:20px;background:#E5E8EB;position:relative;flex:none;} .ctg.on .sw{background:#1B64DA;} .ctg.on{color:#191F28;} .ctg .sw i{position:absolute;top:2px;left:2px;width:12px;height:12px;border-radius:50%;background:#fff;font-style:normal;} .ctg.on .sw i{left:14px;}
+.cond{margin-top:12px;border-top:none;padding-top:0;display:grid;grid-template-columns:1fr 1fr;gap:20px;}
+.cond .clab{font-size:11px;font-weight:800;margin-bottom:7px;display:flex;align-items:center;gap:6px;} .clab.i{color:#15803D;} .clab.e{color:#DC2626;}
+.chips{display:flex;flex-wrap:wrap;gap:6px;border:none;border-bottom:1px solid #E5E8EB;border-radius:0;padding:2px 0 7px;min-height:28px;}
+.chip{font-size:11.5px;font-weight:600;border-radius:20px;padding:3px 9px;display:inline-flex;gap:5px;align-items:center;} .chip.i{background:#E6F6EC;color:#15803D;} .chip.e{background:#FBE9E9;color:#DC2626;} .chip i{cursor:pointer;font-style:normal;opacity:.55;} .chip i:hover{opacity:1;}
+.cin{border:none;outline:none;font-size:11.5px;min-width:60px;flex:1;background:transparent;font-family:inherit;padding:3px 0;}
+.modeg{display:inline-flex;gap:3px;} .modeg b{font-size:10px;font-weight:700;padding:3px 7px;border-radius:20px;border:1px solid #E5E8EB;color:#8B95A1;cursor:pointer;background:none;} .modeg b.on{background:#191F28;color:#fff;border-color:#191F28;}
+.csum{grid-column:1/3;font-size:11px;color:#9AA4B0;margin-top:2px;}
+.sgd .inc-add{margin-top:14px;border:none;color:#1B64DA;background:none;border-radius:0;padding:8px 2px;font-size:12.5px;font-weight:700;cursor:pointer;font-family:inherit;width:100%;text-align:left;}
+.sgd .inc-add:hover{color:#1546a0;}
+.sgd .empty-b{font-size:11.5px;color:#9aa3ab;padding:16px 2px;border:none;border-bottom:1px solid #EEF0F3;border-radius:0;text-align:left;font-weight:500;margin-bottom:0;}
+/* 키워드 입력 힌트 */
+.sgd .kw-hint{font-size:10.5px;color:#9AA4B0;margin-top:6px;}
 /* 따라쓰기 */
 .sgd .aa-wrap{margin-top:16px;border-top:1px solid #EEF0F3;padding-top:13px;}
 /* exrule — 제외 키워드(per-benefit) */
-.sgd .kc{display:inline-flex;align-items:center;gap:4px;border-radius:6px;padding:2px 7px;font-size:11.5px;font-weight:600;} .sgd .kc.inc{background:#E6F6EC;color:#15803D;} .sgd .kc.e{background:#FBE9E9;color:#DC2626;}
-.sgd .kc i{font-style:normal;cursor:pointer;opacity:.6;} .sgd .kc i:hover{opacity:1;}
+.sgd .kc{display:inline-flex;align-items:center;gap:4px;border-radius:20px;padding:3px 9px;font-size:11.5px;font-weight:600;} .sgd .kc.inc{background:#E6F6EC;color:#15803D;} .sgd .kc.e{background:#FBE9E9;color:#DC2626;}
+.sgd .kc i{font-style:normal;cursor:pointer;opacity:.55;} .sgd .kc i:hover{opacity:1;}
 .sgd .kin{border:none;background:none;font-size:11.5px;flex:1;min-width:50px;padding:2px;font-family:inherit;color:#191F28;font-weight:600;} .sgd .kin:focus{outline:none;}
 
 /* ④ 가격 검증 — 서브탭 */
@@ -287,8 +291,8 @@
               <div>
                 <div class="clab i">적용 키워드
                   <span class="modeg">
-                    <b class="tm{% if _tm != 'all' %} on{% endif %}" data-m="any">하나라도</b>
-                    <b class="tm{% if _tm == 'all' %} on{% endif %}" data-m="all">모두</b>
+                    <b class="tm{% if _tm != 'all' %} on{% endif %}" data-m="any">하나라도 있으면</b>
+                    <b class="tm{% if _tm == 'all' %} on{% endif %}" data-m="all">모두 있어야</b>
                   </span>
                 </div>
                 <div class="chips trig-chips">
@@ -299,14 +303,15 @@
               <div>
                 <div class="clab e">제외 키워드
                   <span class="modeg">
-                    <b class="em{% if _em != 'all' %} on{% endif %}" data-m="any">하나라도</b>
-                    <b class="em{% if _em == 'all' %} on{% endif %}" data-m="all">모두</b>
+                    <b class="em{% if _em != 'all' %} on{% endif %}" data-m="any">하나라도 있으면</b>
+                    <b class="em{% if _em == 'all' %} on{% endif %}" data-m="all">모두 있어야</b>
                   </span>
                 </div>
                 <div class="chips excl-chips">
                   {% for t in _excl %}<span class="chip e">{{ t }}<i data-role="del">×</i></span>{% endfor %}
                   <input class="cin excl-in" placeholder="제외 키워드 추가…">
                 </div>
+                <div class="kw-hint">여러 개는 쉼표로 한 번에</div>
               </div>
               <div class="csum"></div>
             </div>
