@@ -935,11 +935,6 @@ def compute_breakdown(session, *, sku: str, source_id: int, sale_price: float,
             'excluded': [{'name': e.get('name'), 'amount': e.get('amount'), 'reason': e.get('reason')}
                          for e in (_coupon_pick.get('excluded') or [])],
         }
-    # [임시 디버그 2026-07-05 — 무신사 PCL 저장 확인용. 확인 후 제거] 저장된 쿠폰목록 개수·레거시금액.
-    if isinstance(_result, dict) and _site_for == 'musinsa':
-        _dbg = _dynamic_benefits or {}
-        _result['_dbg_pcl_n'] = len(_dbg.get('product_coupon_list') or [])
-        _result['_dbg_coupon_amount'] = _dbg.get('coupon_amount')
     return _result
 
 

@@ -14,10 +14,14 @@ def test_excludes_grade_keeps_next_best():
     assert out['amount'] == 5000
     assert out['name'] == '무탠다드 상품쿠폰'
 
-def test_all_excluded_returns_none():
+def test_all_excluded_returns_zero_with_excluded_list():
+    # ★ 2026-07-05 — 전부 제외되면 name=None·amount=0 + 제외내역(영수증 투명성). (빈 목록만 None)
     coupons = [{'name': '다이아몬드 쿠폰', 'amount': 12000},
                {'name': '골드 쿠폰', 'amount': 8000}]
-    assert pick_best_coupon(coupons, GRADE) is None
+    out = pick_best_coupon(coupons, GRADE)
+    assert out is not None
+    assert out['name'] is None and out['amount'] == 0
+    assert len(out['excluded']) == 2
 
 def test_no_excludes_picks_highest():
     b = {'name': '상품 쿠폰', 'triggers': [], 'excludes': []}
