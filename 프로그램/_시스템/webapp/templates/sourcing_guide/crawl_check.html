@@ -2,112 +2,146 @@
 {% block title %}크롤링 검사{% endblock %}
 {% block content %}
 <style>
-  .ccpage{--ink:#191F28;--sub:#6B7684;--blue:#1B64DA;--red:#DC2626;--line:#EEF1F4;--line2:#E5E8EB;
-    --mono:ui-monospace,SFMono-Regular,Menlo,monospace;
+  .ccpage{--ink:#191F28;--sub:#6B7684;--blue:#3182F6;--blue-d:#1B64DA;--line:#E5E8EB;--line2:#EEF1F4;
+    --seg-bg:#F2F4F6;--lime:#A9E34B;--mono:ui-monospace,'D2Coding',SFMono-Regular,Menlo,monospace;
     font-family:'Pretendard',-apple-system,'Apple SD Gothic Neo','Malgun Gothic',sans-serif;
-    padding:32px 44px;max-width:960px;line-height:1.7;color:var(--ink);}
-  .ccpage h2{font-size:28px;font-weight:800;letter-spacing:-.4px;margin:0 0 4px;}
-  .ccpage .sub{color:var(--sub);font-size:15.5px;margin:0 0 22px;}
-  /* 위쪽 가로 밑줄 탭 */
-  .ccpage .cctabs{display:flex;gap:8px;border-bottom:1px solid var(--line2);margin-bottom:24px;}
-  .ccpage .cctab{padding:10px 4px;font-size:16.5px;font-weight:700;color:var(--sub);
-    border-bottom:2px solid transparent;cursor:pointer;margin-bottom:-1px;background:none;border-top:0;border-left:0;border-right:0;
-    display:inline-flex;align-items:center;gap:7px;}
-  .ccpage .cctab.on{color:var(--ink);border-bottom-color:var(--ink);}
-  .ccpage .cctab .soon{font-size:11.5px;font-weight:700;color:#fff;background:#B0B8C1;border-radius:999px;padding:1px 8px;}
-  .ccpage .ccpanel{display:none;}.ccpage .ccpanel.on{display:block;}
+    color:var(--ink);min-height:100vh;display:flex;flex-direction:column;
+    padding:30px 40px 34px;box-sizing:border-box;line-height:1.6;}
+  .ccpage *{box-sizing:border-box;}
+  .ccpage h2{font-size:30px;font-weight:800;letter-spacing:-.5px;margin:0 0 8px;}
+  .ccpage .sub{color:var(--sub);font-size:18px;margin:0 0 4px;line-height:1.55;}
+
+  /* ① 알약형 세그먼트 토글 */
+  .ccpage .ccseg{display:inline-flex;background:var(--seg-bg);border-radius:14px;padding:6px;gap:4px;margin:22px 0 20px;}
+  .ccpage .ccs{border:none;background:none;cursor:pointer;font-family:inherit;
+    font-size:20px;font-weight:800;color:var(--sub);padding:14px 30px;border-radius:10px;
+    display:inline-flex;align-items:center;gap:9px;transition:.15s;}
+  .ccpage .ccs.on{background:#fff;color:var(--ink);box-shadow:0 2px 6px rgba(0,0,0,.10);}
+  .ccpage .ccs .soon{font-size:13px;font-weight:800;color:#fff;background:#B0B8C1;border-radius:999px;padding:2px 10px;}
+
+  .ccpage .ccpanel{display:none;flex:1;min-height:0;flex-direction:column;}
+  .ccpage .ccpanel.on{display:flex;}
+
   /* 사용법 3줄 */
-  .ccpage .howto{list-style:none;padding:0;margin:0 0 18px;display:grid;gap:9px;}
-  .ccpage .howto li{display:flex;align-items:flex-start;gap:10px;font-size:15px;color:var(--ink);}
-  .ccpage .howto .n{flex:none;width:22px;height:22px;border-radius:50%;background:var(--ink);color:#fff;
-    font-size:12.5px;font-weight:800;display:inline-flex;align-items:center;justify-content:center;margin-top:1px;}
-  /* 어두운 코드 상자 + 우상단 전체 복사 */
-  .ccpage .codewrap{position:relative;border-radius:12px;overflow:hidden;border:1px solid #2A3038;}
-  .ccpage .copybtn{position:absolute;top:12px;right:12px;z-index:2;
-    background:#2E3742;color:#E5E8EB;border:1px solid #3E4854;border-radius:8px;
-    font-size:13px;font-weight:700;padding:7px 12px;cursor:pointer;font-family:inherit;}
-  .ccpage .copybtn:hover{background:#3A4450;}
-  .ccpage .copybtn.done{background:#1E7C4A;border-color:#1E7C4A;color:#fff;}
-  .ccpage .codebox{background:#191F28;color:#DCE2EA;margin:0;padding:22px 20px 20px;
-    font-family:var(--mono);font-size:13px;line-height:1.72;white-space:pre-wrap;word-break:break-word;
-    max-height:520px;overflow:auto;border:0;width:100%;resize:none;box-sizing:border-box;}
+  .ccpage .howto{list-style:none;padding:0;margin:0 0 16px;display:flex;gap:10px;}
+  .ccpage .howto li{flex:1;display:flex;align-items:center;gap:11px;font-size:17px;color:var(--ink);
+    background:#F7F9FB;border-radius:12px;padding:14px 16px;line-height:1.4;}
+  .ccpage .howto .n{flex:none;width:28px;height:28px;border-radius:50%;background:var(--ink);color:#fff;
+    font-size:15px;font-weight:800;display:inline-flex;align-items:center;justify-content:center;}
+
+  /* ② 프롬프트 박스 — 팝업 높이 꽉 채움 + 라벨 */
+  .ccpage .promptwrap{flex:1;display:flex;flex-direction:column;min-height:0;
+    border:1px solid #2A3038;border-radius:14px;overflow:hidden;}
+  .ccpage .plabel{background:#0F141A;color:#DCE2EA;font-size:16px;font-weight:800;
+    padding:13px 18px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid #2A3038;}
+  .ccpage .plabel .l{display:flex;align-items:center;gap:9px;}
+  .ccpage .plabel .l .tag{font-size:13px;font-weight:700;color:#9AA4B0;}
+  .ccpage .copybtn-top{background:#2E3742;color:#E5E8EB;border:1px solid #3E4854;border-radius:8px;
+    font-size:15px;font-weight:800;padding:8px 15px;cursor:pointer;font-family:inherit;}
+  .ccpage .copybtn-top:hover{background:#3A4450;}
+  .ccpage .codebox{background:#191F28;color:#E4E9F0;margin:0;padding:26px 24px;flex:1;overflow:auto;
+    font-family:var(--mono);font-size:19px;line-height:2.05;white-space:pre-wrap;word-break:break-word;border:0;}
+  .ccpage .codebox .h{color:var(--lime);font-weight:800;}
+  .ccpage .codebox .star{color:#FF7A7A;font-weight:800;}
+
+  /* ③ 하단 풀폭 복사 버튼 */
+  .ccpage .copybtn-big{margin-top:14px;width:100%;border:none;border-radius:13px;flex:none;
+    background:var(--blue);color:#fff;font-size:20px;font-weight:800;padding:18px;cursor:pointer;font-family:inherit;
+    display:inline-flex;align-items:center;justify-content:center;gap:10px;transition:.15s;}
+  .ccpage .copybtn-big:hover{background:var(--blue-d);}
+  .ccpage .copybtn-big.done{background:#1E7C4A;}
+
   /* 준비 중 placeholder */
-  .ccpage .soonbox{border:1px dashed var(--line2);border-radius:12px;padding:44px 20px;text-align:center;
-    color:var(--sub);font-size:15.5px;background:#FAFBFC;}
-  .ccpage .soonbox .big{font-size:19px;font-weight:800;color:var(--ink);margin-bottom:6px;}
+  .ccpage .soonbox{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;
+    border:1px dashed var(--line);border-radius:14px;color:var(--sub);font-size:18px;background:#FAFBFC;gap:8px;}
+  .ccpage .soonbox .big{font-size:23px;font-weight:800;color:var(--ink);}
 </style>
 
 <div class="ccpage">
   <h2>🔎 크롤링 검사</h2>
   <p class="sub">소싱처 크롤 결과가 실제 상품 페이지와 일치하는지 검사하는 프롬프트를 복사해 Claude Code 에 붙여넣으세요.</p>
 
-  <div class="cctabs">
-    <button type="button" class="cctab on" data-cctab="stock">재고 정합성 검사</button>
-    <button type="button" class="cctab" data-cctab="price">가격 정합성 검사 <span class="soon">준비 중</span></button>
+  <div class="ccseg">
+    <button type="button" class="ccs on" data-ccseg="stock">📦 재고 정합성 검사</button>
+    <button type="button" class="ccs" data-ccseg="price">💰 가격 정합성 검사 <span class="soon">준비 중</span></button>
   </div>
 
   <!-- ─── 재고 패널 ─── -->
   <div class="ccpanel on" data-ccpanel="stock">
     <ol class="howto">
-      <li><span class="n">1</span><span>아래 프롬프트에서 <b>대상 소싱처·URL</b> 부분을 확인·수정합니다.</span></li>
-      <li><span class="n">2</span><span>우측 상단 <b>「📋 전체 복사」</b> 를 누릅니다.</span></li>
-      <li><span class="n">3</span><span><b>Claude Code 채팅창</b>에 붙여넣기 하면 검사가 시작됩니다.</span></li>
+      <li><span class="n">1</span><span>프롬프트에서 <b>대상 소싱처·URL</b> 확인·수정</span></li>
+      <li><span class="n">2</span><span><b>「전체 복사」</b> 누르기</span></li>
+      <li><span class="n">3</span><span><b>Claude Code</b>에 붙여넣기 → 검사 시작</span></li>
     </ol>
 
-    <div class="codewrap">
-      <button type="button" class="copybtn" id="ccCopyBtn">📋 전체 복사</button>
-      <textarea class="codebox" id="ccPrompt" readonly spellcheck="false">재고 정합성 조사를 시작한다. 아래 프로토콜을 순서대로 실행하라.
+    <div class="promptwrap">
+      <div class="plabel">
+        <span class="l">📋 복사할 프롬프트 <span class="tag">· 재고 정합성 조사</span></span>
+        <button type="button" class="copybtn-top" id="ccCopyTop">전체 복사</button>
+      </div>
+      <div class="codebox" id="ccPrompt"><span class="h">재고 정합성 조사를 시작한다.</span>
+아래 프로토콜을 순서대로 실행하라.
 
-■ 대상
-- 소싱처: (소싱처명 입력, 예: 롯데온)
-- URL: 해당 소싱처의 매트릭스 등록 URL 전체
+<span class="h">■ 대상</span>
+- 소싱처 : (소싱처명 입력, 예: 롯데온)
+- URL    : 해당 소싱처의 매트릭스 등록 URL 전체
 
-■ 절대 원칙 (CLAUDE.md 데이터 무결성 3대)
-- 재고 기준 = 실브라우저 상품 URL의 실제 데이터. 추정·폴백·평균 금지.
-- 확인 못 하면 '있음'이 아니라 '확인 불가'로 표기.
-- 크롤 = 로컬(크롬 확장/Playwright). 서버 크롤 실패는 정상.
+<span class="h">■ 절대 원칙 (데이터 무결성 3대)</span>
+- 재고 기준 = 실브라우저 상품 URL의 실제 데이터
+  (추정·폴백·평균 금지)
+- 확인 못 하면 '있음'이 아니라 '확인 불가'로 표기
+- 크롤 = 로컬(크롬 확장/Playwright). 서버 크롤 실패는 정상
 
-■ 먼저 읽을 정본 (기준·유형·의심코드의 단일 진실 원천 — 계속 갱신됨)
-- 조사 전, 크롤링 가이드를 읽고 기준을 잡는다: docs/크롤링-가이드.md (인앱: /sourcing-guide/map)
-  · §1 재고편 = 재고 센티넬(0=품절 / 999=수량미상'있음'(명시 in-stock 확인 때만) / -1=불명 / None=미크롤 / '확인 불가')·소싱처별 수집 방식
+<span class="h">■ 먼저 읽을 정본</span> (기준·유형·의심코드의 단일 진실 원천 — 계속 갱신됨)
+- 조사 전, 크롤링 가이드를 읽고 기준을 잡는다
+  docs/크롤링-가이드.md  (인앱: /sourcing-guide/map)
+  · §1 재고편 = 재고 센티넬(0=품절 / 999=수량미상'있음' /
+    -1=불명 / None=미크롤 / '확인 불가')·소싱처별 수집 방식
   · §5 재고 에러 카탈로그(S1~S21…) = NG 증상별 실제 사례·근본원인·의심 코드
-    → 귀책=P(코드 수정) 제안 전 반드시 대조(교차회귀·중복 기재 방지)
-  · §7 배선·자가검증 = 귀책=P일 때 어디를 고치나(_match_option_so·_persist_option_stocks·_resolve_stock 등)
-- 이 정본은 계속 확장된다. 프롬프트에 박힌 값보다 항상 정본 최신본을 우선한다.
+    → 귀책=P(코드 수정) 제안 전 반드시 대조(교차회귀 방지)
+  · §7 배선·자가검증 = 귀책=P일 때 어디를 고치나
+    (_match_option_so·_persist_option_stocks·_resolve_stock 등)
+- 정본은 계속 확장된다. 프롬프트에 박힌 값보다 정본 최신본을 우선한다
 
-■ 5단계
-1) 크롤: 대상 소싱처 매트릭스 등록 URL 전체를 로컬 크롤 → 최신 재고를 프로그램 DB에 반영.
-2) 실브라우저 엑셀 조사: 각 URL을 실브라우저로 직접 열어 색×사이즈별 실제 재고
-   (상태 + 가능하면 수량)를 읽어 엑셀로 정리.
-3) 대조: 크롤 결과값(매트릭스 보기 저장 데이터)과 2의 엑셀을 색×사이즈 셀 단위로 1:1 대조.
-4) OK/NG 판정 + 이중 태그:
+<span class="h">■ 5단계</span>
+1) 크롤     — 등록 URL 전체 로컬 크롤 → 최신 재고 DB 반영
+2) 실브라우저 — 각 URL 직접 열어 색×사이즈별 실제 재고
+              (상태 + 가능하면 수량) 엑셀로 정리
+3) 대조     — 크롤 결과값(매트릭스 저장)과 2의 엑셀을
+              색×사이즈 셀 단위로 1:1 대조
+4) OK/NG 판정 + 이중 태그
    · OK = 상태 일치 (수량 긁는 소싱처는 수량도 일치)
-   · NG = 불일치. 두 태그를 모두 부착:
-     [귀책] 그 URL을 실브라우저로 직접 열어 매트릭스의 그 색·사이즈와 같은 상품인지 확인
-        U = URL측 문제(대체상품·다른상품·404·만료) → 사용자가 URL 정정
-        P = 프로그램측 문제(URL은 맞는데 저장값 틀림) → 코드 수정
-     [증상] A 품절둔갑(실=품절, 프로그램=있음) ★최고위험
-            B 거짓품절(실=있음, 프로그램=품절/차단)
-            C 999·센티넬둔갑(프로그램=센티넬, 실=실수량 존재 = 저장누락)
-            D 미수집·확인불가 둔갑(크롤 매칭실패인데 '있음' 표기)
-            E 수량불일치(상태는 맞으나 수량 상이)
-5) 집계·출력:
-   · 소싱처별 집계표: OK-1/OK-2, NG(귀책 U)/NG(귀책 P), 증상 A~E별 개수
-   · 조치 리스트 2분리:
-     - URL 정정 리스트(귀책 U): URL·색·사이즈·실값·프로그램값·왜 URL 문제인지
-     - 코드 수정 리스트(귀책 P): 셀·증상·의심 코드 파일:라인
+   · NG = 불일치 → 두 태그 부착:
+     [귀책]  그 URL 실브라우저로 열어 같은 상품인지 확인
+        U = URL측 문제(대체상품·다른상품·404·만료)
+            → 사용자가 URL 정정
+        P = 프로그램측 문제(URL은 맞는데 저장값 틀림)
+            → 코드 수정
+     [증상]  <span class="star">A 품절둔갑</span>(실=품절, 프로그램=있음) ★최고위험
+             B 거짓품절(실=있음, 프로그램=품절/차단)
+             C 999·센티넬둔갑(프로그램=센티넬, 실=실수량 존재)
+             D 미수집·확인불가 둔갑(매칭실패인데 '있음' 표기)
+             E 수량불일치(상태는 맞으나 수량 상이)
+5) 집계·출력
+   · 소싱처별 집계표 : OK-1/OK-2, NG(귀책 U)/NG(귀책 P),
+     증상 A~E별 개수
+   · 조치 리스트 2분리
+     - URL 정정(귀책 U) : URL·색·사이즈·실값·프로그램값·이유
+     - 코드 수정(귀책 P) : 셀·증상·의심 코드 파일:라인
    · 색×사이즈 전수 대조 엑셀 산출
 
-■ 진행 방식
-- 크롤은 실시간 감시(사후 추측 금지). 로드된 확장 버전 먼저 확인.
-- 작업 전 origin/main 최신 대조(stale 워크트리 오진 방지).</textarea>
+<span class="h">■ 진행 방식</span>
+- 크롤은 실시간 감시(사후 추측 금지). 로드된 확장 버전 먼저 확인
+- 작업 전 origin/main 최신 대조(stale 워크트리 오진 방지)</div>
     </div>
+
+    <button type="button" class="copybtn-big" id="ccCopyBig">📋 프롬프트 전체 복사</button>
   </div>
 
   <!-- ─── 가격 패널 (준비 중) ─── -->
   <div class="ccpanel" data-ccpanel="price">
     <div class="soonbox">
-      <div class="big">🧮 가격 정합성 검사 — 준비 중</div>
+      <div class="big">💰 가격 정합성 검사 — 준비 중</div>
       <div>다음 업데이트에서 제공됩니다.</div>
     </div>
   </div>
@@ -115,37 +149,38 @@
 
 <script>
 (function(){
-  var tabs = document.querySelectorAll('.ccpage .cctab');
+  var segs = document.querySelectorAll('.ccpage .ccs');
   var panels = document.querySelectorAll('.ccpage .ccpanel');
-  tabs.forEach(function(t){
-    t.addEventListener('click', function(){
-      var key = t.getAttribute('data-cctab');
-      tabs.forEach(function(x){ x.classList.toggle('on', x === t); });
+  segs.forEach(function(s){
+    s.addEventListener('click', function(){
+      var key = s.getAttribute('data-ccseg');
+      segs.forEach(function(x){ x.classList.toggle('on', x === s); });
       panels.forEach(function(p){ p.classList.toggle('on', p.getAttribute('data-ccpanel') === key); });
     });
   });
-  var btn = document.getElementById('ccCopyBtn');
+
   var box = document.getElementById('ccPrompt');
-  if (btn && box) {
-    btn.addEventListener('click', function(){
-      var text = box.value;
-      var done = function(){
-        btn.classList.add('done');
-        btn.textContent = '✓ 복사됨';
-        setTimeout(function(){ btn.classList.remove('done'); btn.textContent = '📋 전체 복사'; }, 1400);
-      };
-      var fallback = function(){
-        box.select();
-        var ok = document.execCommand('copy');
-        if (ok) done();
-      };
-      if (navigator.clipboard && navigator.clipboard.writeText) {
-        navigator.clipboard.writeText(text).then(done).catch(fallback);
-      } else {
-        fallback();
-      }
-    });
+  function feedback(btn, label){
+    btn.classList.add('done'); btn.textContent = '✓ 복사됨';
+    setTimeout(function(){ btn.classList.remove('done'); btn.textContent = label; }, 1400);
   }
+  function copyText(text, btn, label){
+    var ok = function(){ feedback(btn, label); };
+    var fallback = function(){
+      var ta = document.createElement('textarea');
+      ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
+      document.body.appendChild(ta); ta.select();
+      var done = document.execCommand('copy'); document.body.removeChild(ta);
+      if (done) ok();
+    };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(ok).catch(fallback);
+    } else { fallback(); }
+  }
+  var top = document.getElementById('ccCopyTop');
+  var big = document.getElementById('ccCopyBig');
+  if (top) top.addEventListener('click', function(){ copyText(box.innerText, top, '전체 복사'); });
+  if (big) big.addEventListener('click', function(){ copyText(box.innerText, big, '📋 프롬프트 전체 복사'); });
 })();
 </script>
 {% endblock %}
