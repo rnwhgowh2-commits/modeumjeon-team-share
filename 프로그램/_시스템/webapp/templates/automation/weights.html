@@ -1,0 +1,240 @@
+{% extends 'base.html' %}
+{% block title %}크롤 계수 — 모음전 자동화{% endblock %}
+{% block head %}
+<style>
+  .cw-wrap{max-width:1280px;margin:0 auto;padding:20px 18px 70px;font-family:'Pretendard','Malgun Gothic',system-ui,sans-serif;color:#191F28}
+  .cw-wrap h1{font-size:20px;font-weight:700;margin:0 0 6px}
+  .cw-sub{color:#6b7684;font-size:13px;line-height:1.6;margin:0 0 14px}
+  .cw-back{font-size:12.5px;color:#3182F6;text-decoration:none}
+  .cw-seg{display:inline-flex;background:#fff;border:1px solid #e5e8eb;border-radius:11px;padding:4px;gap:3px;margin-bottom:12px;align-items:center}
+  .cw-seg button{border:0;background:transparent;padding:9px 18px;font-size:13.5px;font-weight:700;color:#6b7684;border-radius:8px;cursor:pointer;font-family:inherit}
+  .cw-seg button.on{background:#191F28;color:#fff}
+  .cw-hint{font-size:11px;color:#8b95a1;margin-left:8px;font-weight:400}
+  .cw-legend{display:flex;gap:14px;flex-wrap:wrap;font-size:12px;color:#6b7684;background:#fff;border:1px solid #e5e8eb;border-radius:10px;padding:8px 12px;margin-bottom:12px}
+  .cw-dir{font-size:10px;color:#8a5a0b;background:#FEF3E2;border-radius:9px;padding:1px 7px;font-weight:700}
+  .cw-inh{font-size:10px;color:#6b7684;background:#f2f4f6;border-radius:9px;padding:1px 7px}
+  .cw-path{font-size:12px;color:#6b7684;background:#fff;border:1px solid #e5e8eb;border-radius:9px;padding:7px 12px;margin-bottom:12px;min-height:16px}
+  .cw-path b{color:#191F28}.cw-path .sep{color:#c2c9d2;margin:0 5px}
+  .cw-reset{font-size:10.5px;color:#3182F6;cursor:pointer;text-decoration:underline;text-underline-offset:2px}
+  .cw-ic{width:20px;height:20px;border-radius:6px;font-size:11px;font-weight:700;display:inline-flex;align-items:center;justify-content:center;color:#fff;flex:none}
+  .ic-src{background:#191F28}.ic-brd{background:#7F77DD}.ic-mdl{background:#1D9E75}.ic-opt{background:#D85A30}.ic-url{background:#5F5E5A}
+  .cw-url{font-size:11px;font-family:ui-monospace,monospace;color:#6b7684;word-break:break-all}
+  .cw-step{display:inline-flex;align-items:center;border:1px solid #e5e8eb;border-radius:7px;overflow:hidden;background:#fff}
+  .cw-step button{width:24px;height:24px;border:0;background:#fff;font-size:14px;color:#6b7684;cursor:pointer}
+  .cw-step button:disabled{opacity:.35;cursor:default}
+  .cw-step .v{min-width:30px;text-align:center;font-size:12.5px;font-weight:700;font-variant-numeric:tabular-nums;color:#1B64DA}
+  .cw-finder{display:grid;gap:8px}
+  .cw-finder.c5{grid-template-columns:repeat(5,1fr)}
+  .cw-finder.c4{grid-template-columns:repeat(4,1fr);max-width:1010px}
+  .cw-finder.c3{grid-template-columns:repeat(3,1fr);max-width:760px}
+  .cw-col{border:1px solid #e5e8eb;border-radius:10px;overflow:hidden;background:#fff;display:flex;flex-direction:column;min-height:300px}
+  .cw-colh{background:#F7F9FB;font-size:11px;font-weight:700;color:#6b7684;padding:6px 10px;border-bottom:1px solid #e5e8eb;display:flex;align-items:center;gap:5px}
+  .cw-colh .n{margin-left:auto;font-weight:600;color:#aab2bd}
+  .cw-colh .cw-ic{width:16px;height:16px;font-size:9px}
+  .cw-collist{flex:1;overflow:auto}
+  .cw-i{padding:7px 9px;font-size:12px;display:flex;align-items:center;gap:6px;cursor:pointer;border-bottom:1px solid #f4f6f8}
+  .cw-i:hover{background:#FAFBFC}
+  .cw-i.sel{background:#EAF2FE}
+  .cw-i .sp{flex:1}
+  .cw-set{padding:9px 10px;border-top:1px solid #e5e8eb;background:#FAFBFC}
+  .cw-set .lab{font-size:10.5px;color:#6b7684;margin-bottom:5px}
+  .cw-set .row{display:flex;align-items:center;gap:7px;flex-wrap:wrap}
+  .cw-osz{font-size:9.5px;color:#993C1D;background:#FAECE7;border-radius:8px;padding:1px 6px;font-variant-numeric:tabular-nums}
+  .cw-brdtag{font-size:9.5px;color:#534AB7}
+  .cw-empty{padding:24px;text-align:center;color:#aab2bd;font-size:12px}
+</style>
+{% endblock %}
+{% block content %}
+<section class="screen active">
+<div class="cw-wrap">
+  <a class="cw-back" href="/automation">← 자동화 설정</a>
+  <h1 style="margin-top:6px">🌲 크롤 계수 드릴다운</h1>
+  <p class="cw-sub">얼마나 자주 긁을지(×배수)를 <b>소싱처 › 브랜드 › 모음전 › URL</b> 계층으로 설정해요. 위에 걸면 그 아래 전체에 적용되고, 아래에 직접 걸면 그게 우선(가장 세부 우선). 계수는 결국 <b>URL</b>에 걸립니다(옵션은 찾아가는 길).</p>
+
+  <div class="cw-seg" id="cw-seg">
+    <button class="on" data-m="src">소싱처 기준</button>
+    <button data-m="brd">브랜드 기준</button>
+    <button data-m="mdl">모음전 기준</button>
+    <span class="cw-hint" id="cw-hint"></span>
+  </div>
+  <div class="cw-legend">
+    <span><span class="cw-dir">직접 ×3</span> = 직접 설정(우선)</span>
+    <span><span class="cw-inh">상속 ×2</span> = 위 단계 값 그대로</span>
+    <span>기본값 = ×1</span>
+  </div>
+  <div class="cw-path" id="cw-path"></div>
+  <div class="cw-finder" id="cw-finder"></div>
+</div>
+</section>
+
+<script>
+(function(){
+  const seg = document.getElementById('cw-seg');
+  const finderEl = document.getElementById('cw-finder');
+  const pathEl = document.getElementById('cw-path');
+  const hintEl = document.getElementById('cw-hint');
+
+  const COLS = {
+    src:[{ic:'src',t:'소싱처'},{ic:'brd',t:'브랜드'},{ic:'mdl',t:'모음전'},{ic:'opt',t:'옵션'},{ic:'url',t:'URL'}],
+    brd:[{ic:'brd',t:'브랜드'},{ic:'mdl',t:'모음전'},{ic:'opt',t:'옵션'},{ic:'url',t:'URL(소싱처별)'}],
+    mdl:[{ic:'mdl',t:'모음전'},{ic:'opt',t:'옵션'},{ic:'url',t:'URL(소싱처별)'}],
+  };
+  const HINTS = { src:'소싱처 › 브랜드 › 모음전 › 옵션 › URL', brd:'브랜드 › 모음전 › 옵션 › URL(소싱처별)', mdl:'모음전 › 옵션 › URL(소싱처별)' };
+
+  let TREE = {default_weight:1, src:[], brd:[], mdl:[]};
+  let mode = 'src';
+  let path = [];   // 선택된 노드 배열(각 열의 선택)
+
+  function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+  function icChar(t){ return (t||'?').charAt(0); }
+  function badge(n){
+    return n.direct
+      ? '<span class="cw-dir">×'+n.weight+'</span>'
+      : '<span class="cw-inh">×'+n.weight+'</span>';
+  }
+
+  async function load(){
+    try{ const r=await fetch('/api/crawl/weight-tree'); TREE=await r.json(); }
+    catch(e){ TREE={default_weight:1,src:[],brd:[],mdl:[]}; }
+  }
+
+  function roots(){ return TREE[mode]||[]; }
+
+  // path 를 scope_key 로 최대한 복원(리로드 후 유지)
+  function restorePath(keys){
+    path=[]; let level=roots();
+    for(const k of keys){
+      const n=level.find(x=>x.scope_key===k);
+      if(!n) break;
+      path.push(n); level=n.children||[];
+    }
+  }
+
+  function itemLabel(n){
+    let s='';
+    if(n.scope_type==='source') s='<span class="cw-ic ic-src">'+esc(icChar(n.label))+'</span> ';
+    else if(n.scope_type==='brand') s='<span class="cw-ic ic-brd">'+esc(icChar(n.label))+'</span> ';
+    s+=esc(n.label);
+    if(n.scope_type==='option' && n.size) s+=' <span class="cw-osz">'+esc(n.size)+'</span>';
+    if(n.scope_type==='model' && n.brand && mode==='mdl') s+=' <span class="cw-brdtag">'+esc(n.brand)+'</span>';
+    if(n.scope_type==='url'){
+      s='';
+      if(n.site_label && (mode==='brd'||mode==='mdl')) s+='<span class="cw-ic ic-src" style="width:15px;height:15px;font-size:8px">'+esc(icChar(n.site_label))+'</span> ';
+      s+='<span class="cw-url">'+esc(n.label)+'</span>';
+    }
+    return s;
+  }
+
+  function editorHtml(n){
+    if(!n) return '';
+    if(!n.editable){
+      // 옵션 = 찾아가는 길(에디터 없음)
+      return '<div class="lab" style="color:#8b95a1">'+esc(n.label)+(n.size?(' / '+esc(n.size)):'')+' → URL ▶</div>';
+    }
+    const labMap = {source:esc(n.label)+' 전체 계수', brand:esc(n.label)+' 계수', model:esc(n.label)+' 계수', url:'이 URL 계수 (실제 걸리는 곳)'};
+    let tail;
+    if(n.direct){
+      tail = '<span class="cw-dir">직접</span> <span class="cw-reset" data-reset="1">기본으로</span>';
+    } else if(n.scope_type==='url'){
+      tail = '<span class="cw-inh">상속</span> <span class="cw-reset" data-setdirect="1">직접 지정</span>';
+    } else {
+      tail = '<span class="cw-inh">상속</span>';
+    }
+    return '<div class="lab">'+labMap[n.scope_type]+'</div><div class="row">'
+      + '<span class="cw-step"><button data-step="-1"'+(n.weight<=1?' disabled':'')+'>−</button>'
+      + '<span class="v">×'+n.weight+'</span>'
+      + '<button data-step="1"'+(n.weight>=5?' disabled':'')+'>+</button></span> '
+      + tail + '</div>';
+  }
+
+  function render(){
+    hintEl.textContent = HINTS[mode];
+    finderEl.className = 'cw-finder c'+COLS[mode].length;
+    // path 갱신(현재 유효성)
+    let level = roots();
+    const validPath=[];
+    for(const sel of path){
+      const n=level.find(x=>x.scope_key===sel.scope_key);
+      if(!n) break;
+      validPath.push(n); level=n.children||[];
+    }
+    path=validPath;
+
+    // 경로 표시
+    pathEl.innerHTML = path.length
+      ? '지금 위치: '+path.map(n=>'<b>'+esc(n.label)+(n.size?(' / '+esc(n.size)):'')+'</b>').join('<span class="sep">›</span>')
+      : '<span style="color:#aab2bd">항목을 눌러 계층을 따라가며 계수를 설정하세요.</span>';
+
+    // 컬럼들
+    const cols = COLS[mode];
+    let html='';
+    for(let ci=0; ci<cols.length; ci++){
+      const meta=cols[ci];
+      const items = ci===0 ? roots() : ((path[ci-1] && path[ci-1].children) || []);
+      const selNode = path[ci] || null;
+      let list='';
+      if(items.length){
+        list = items.map(n=>{
+          const sel = selNode && selNode.scope_key===n.scope_key ? ' sel' : '';
+          return '<div class="cw-i'+sel+'" data-col="'+ci+'" data-key="'+esc(n.scope_key)+'">'
+            + itemLabel(n)+'<div class="sp"></div>'+badge(n)+'</div>';
+        }).join('');
+      } else {
+        list = '<div class="cw-empty">'+(ci===0?'항목 없음':'← 왼쪽에서 선택')+'</div>';
+      }
+      html += '<div class="cw-col"><div class="cw-colh"><span class="cw-ic ic-'+meta.ic+'">'+esc(meta.t.charAt(0))+'</span> '+esc(meta.t)+' <span class="n">'+items.length+'</span></div>'
+        + '<div class="cw-collist">'+list+'</div>'
+        + '<div class="cw-set" data-setcol="'+ci+'">'+editorHtml(selNode)+'</div></div>';
+    }
+    finderEl.innerHTML = html;
+  }
+
+  async function postRule(scope_type, scope_key, weight){
+    const body = {scope_type:scope_type, scope_key:scope_key};
+    if(weight!==null && weight!==undefined) body.weight=weight;
+    try{
+      const r=await fetch('/api/crawl/weight-rule',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+      const j=await r.json();
+      if(!j.ok){ alert('저장 실패: '+(j.error||'')); return; }
+    }catch(e){ alert('저장 실패 — 네트워크'); return; }
+    const keys = path.map(n=>n.scope_key);
+    await load(); restorePath(keys); render();
+  }
+
+  // 이벤트
+  seg.addEventListener('click', e=>{
+    const b=e.target.closest('button'); if(!b) return;
+    [...seg.querySelectorAll('button')].forEach(x=>x.classList.toggle('on',x===b));
+    mode=b.dataset.m; path=[]; render();
+  });
+  finderEl.addEventListener('click', e=>{
+    const item=e.target.closest('.cw-i');
+    if(item){
+      const ci=+item.dataset.col;
+      const items = ci===0 ? roots() : ((path[ci-1] && path[ci-1].children)||[]);
+      const n=items.find(x=>x.scope_key===item.dataset.key);
+      if(!n) return;
+      path = path.slice(0,ci); path[ci]=n;
+      render(); return;
+    }
+    const setBox=e.target.closest('[data-setcol]');
+    if(!setBox) return;
+    const ci=+setBox.dataset.setcol;
+    const n=path[ci]; if(!n||!n.editable) return;
+    const step=e.target.closest('[data-step]');
+    const reset=e.target.closest('[data-reset]');
+    const setdirect=e.target.closest('[data-setdirect]');
+    if(step){
+      const nw=Math.max(1,Math.min(5, n.weight + (+step.dataset.step)));
+      if(nw!==n.weight || !n.direct) postRule(n.scope_type, n.scope_key, nw);
+    } else if(reset){
+      postRule(n.scope_type, n.scope_key, null);
+    } else if(setdirect){
+      postRule(n.scope_type, n.scope_key, n.weight);
+    }
+  });
+
+  (async function(){ await load(); render(); })();
+})();
+</script>
+{% endblock %}

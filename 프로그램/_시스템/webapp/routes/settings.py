@@ -22,6 +22,12 @@ def automation_view():
     return render_template('automation/index.html', active='automation', a=a)
 
 
+@bp.route('/automation/weights')
+def automation_weights_view():
+    """[크롤 계수] 소싱처>브랜드>모음전>URL 드릴다운 파인더 — 계수(주기 배수) 설정."""
+    return render_template('automation/weights.html', active='automation')
+
+
 @bp.route('/automation/log')
 def automation_log_view():
     """[자동화 로그기록] 상품단위(모음전×마켓) 자동 감지·실행 내역."""
