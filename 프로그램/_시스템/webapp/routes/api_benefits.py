@@ -838,9 +838,10 @@ def compute_breakdown(session, *, sku: str, source_id: int, sale_price: float,
             _coupon_pick = _pbc(_pcl, _cb0, _g0.get('exclude_keywords') or [])
             _coupon_val = float(_coupon_pick['amount']) if _coupon_pick else 0.0
         effective.append(('dyn', _Inj('상품쿠폰', _coupon_val, enabled=bool(_coupon_val))))
-        # ★ 2026-07-05 — 등급할인(선할인) 차감 제거. 무신사 등급혜택은 '할인 vs 적립' 택1 →
-        #   정책상 '무조건 구매적립'(사용자 확정). 선할인은 표면노출가(salePrice)에 이미 미반영이라
-        #   여기서 또 차감하면 이중혜택 = 언더프라이싱(가격 오염). 구매적립(등급적립)만 반영한다.
+        # ★ 등급할인(등급별 상시 할인, 예: LV.9 4%=−4,910) — 유지. '적립금 선할인'(구매적립/선할인
+        #   토글의 4,380)과는 별개 항목이다. 선할인 토글은 '구매적립'을 택1하므로 등급적립으로 반영되고,
+        #   등급할인은 표면가에 이미 미반영이라 여기서 차감하는 게 맞다(제거하면 과대 매입가). 2026-07-05
+        effective.append(('dyn', _Inj('등급할인', float(_dynamic_benefits.get('grade_discount_amount') or 0), enabled=bool(_dynamic_benefits.get('grade_discount_amount')))))
         effective.append(('dyn', _Inj('등급적립', float(_dynamic_benefits.get('grade_reward_amount') or 0), enabled=bool(_dynamic_benefits.get('grade_reward_amount')))))
         effective.append(('dyn', _Inj('무신사머니 결제 적립', float(_dynamic_benefits.get('money_reward_amount') or 0), enabled=bool(_dynamic_benefits.get('money_reward_amount')))))
 
