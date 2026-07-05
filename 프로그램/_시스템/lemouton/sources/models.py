@@ -172,3 +172,17 @@ class CrawlDelta(Base):
     stock_changed = Column(Boolean, default=False, nullable=False)
     price_changed = Column(Boolean, default=False, nullable=False)
     detail = Column(Text)  # 무엇이 얼마→얼마로 (사람이 읽는 요약)
+
+
+class CrawlWeightRule(Base):
+    """계수 규칙 — 소싱처/브랜드/모음전/URL 범위별. 없으면 상속·기본 ×1."""
+    __tablename__ = "crawl_weight_rules"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    scope_type = Column(String(8), nullable=False)   # source|brand|model|url
+    scope_key = Column(String(512), nullable=False)  # site / brand / model_code / 정규화 url
+    weight = Column(Integer, nullable=False)          # 1~5
+
+    __table_args__ = (
+        UniqueConstraint("scope_type", "scope_key", name="uq_crawl_weight_rule"),
+    )

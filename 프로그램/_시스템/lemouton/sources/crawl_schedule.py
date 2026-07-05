@@ -78,6 +78,30 @@ def set_crawl_weight(session, source_product_id: int, weight) -> int:
     return sp.crawl_weight
 
 
+_SCOPE_TYPES = ("source", "brand", "model", "url")
+
+
+def set_crawl_weight_rule(session, scope_type: str, scope_key: str, weight):
+    """범위 계수 규칙 설정. weight None = 해제(삭제→상속). 1~5 클램프. 호출자 commit."""
+    from lemouton.sources.models import CrawlWeightRule
+    if scope_type not in _SCOPE_TYPES:
+        raise ValueError(f"scope_type: {scope_type}")
+    r = (session.query(CrawlWeightRule)
+         .filter_by(scope_type=scope_type, scope_key=scope_key).first())
+    if weight is None:
+        if r is not None:
+            session.delete(r)
+        session.flush()
+        return None
+    w = max(1, min(5, int(weight)))
+    if r is not None:
+        r.weight = w
+    else:
+        session.add(CrawlWeightRule(scope_type=scope_type, scope_key=scope_key, weight=w))
+    session.flush()
+    return w
+
+
 def base_crawl_interval_seconds(session) -> float:
     """자동화 설정의 기준 주기(시·분)를 초로. 0이면 '항상 마감'(연속)."""
     from lemouton.pricing.settings import get_or_init
