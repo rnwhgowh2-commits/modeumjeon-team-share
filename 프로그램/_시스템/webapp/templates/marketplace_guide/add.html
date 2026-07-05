@@ -171,13 +171,13 @@ function genPrompt(){
   var keys=(document.getElementById('mkKeys').value||'').trim() || '(조사 필요)';
   var acts=curActs().join(' · ');
   var t='판매처(마켓) 연동 추가해줘 — "'+name+'".\n'
-    +'[참고 정본] docs/markets/_schema.yaml 스키마 따라 새 프로파일 docs/markets/<영문슬러그>.yaml 작성.\n'
-    +'  완성본 참고: docs/markets/coupang.yaml(HMAC) · smartstore.yaml(OAuth).\n'
-    +'  근거는 코드에서 추출(추측 금지): shared/platforms/* · lemouton/registration/* · lemouton/auth/* · accounts.py(MARKET_METADATA·MARKET_KEY_SUFFIXES) · uploader/runtime.py.\n'
+    +'⚠️ 먼저 docs/markets/_새-마켓-추가-가이드.md 를 그대로 읽고 그 체크리스트대로 진행. yaml만 쓰면 안 됨 — 코드 배선(어댑터·secrets·accounts·orchestrator 등)까지 해야 작동.\n'
+    +'[산출물] docs/markets/<가이드가 지정한 슬러그>.yaml (스키마 docs/markets/_schema.yaml, 완성본 coupang.yaml·smartstore.yaml 참고, 근거는 코드 추출·추측 금지) + 가이드의 코드 지점 전부 배선.\n'
     +'· 인증/API : '+curAuth()+'\n'
     +'· 문서 : '+docs+'\n'
     +'· 필요 키 : '+keys+'\n'
     +'· 지원 동작 : '+acts+'\n'
+    +'※ 문서·키가 없으면 지어내지 말고 나에게 요청(추측 금지). 키 없으면 어댑터+Mock 단위테스트까지만 → yaml에 \'라이브 미검증\' 표기 + LEMOUTON_LIVE_UPLOAD OFF 유지 + 중단·보고.\n'
     +'※ 실계정 100% 검증 전 "완료" 선언 금지 (가격·재고 오류 = 금전 손실).';
   document.getElementById('mkPrmText').textContent=t;
   document.getElementById('mkPrm').classList.add('on');
