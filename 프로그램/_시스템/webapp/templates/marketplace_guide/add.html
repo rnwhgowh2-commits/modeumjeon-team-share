@@ -12,22 +12,31 @@
   .ma .tab.on{color:#191F28;border-bottom:3px solid #191F28;margin-bottom:-2px;}
   .ma .pane{display:none;} .ma .pane.on{display:block;}
   .ma-rail-wrap{display:grid;grid-template-columns:150px 1fr;gap:16px;margin-top:16px;}
-  .ma-rail .r{display:flex;gap:10px;align-items:center;padding:13px 0;font-size:13px;color:#8B95A1;font-weight:600;}
+  .ma-rail .r{display:flex;gap:10px;align-items:center;padding:13px 0;font-size:13px;color:#8B95A1;font-weight:600;cursor:pointer;}
+  .ma-rail .r:hover{color:#191F28;}
   .ma-rail .r .n{width:22px;height:22px;border-radius:50%;background:#F6F8FA;border:1px solid #E9ECEF;font-size:11px;font-weight:800;text-align:center;line-height:22px;}
   .ma-rail .r.on{color:#191F28;} .ma-rail .r.on .n{background:#0A2540;color:#fff;border-color:#0A2540;}
   .ma-rail .r.done .n{background:#191F28;color:#fff;}
-  /* 폰트 위계 + 줄여백 4단계(시원) — 항목 사이 간격 넉넉히 */
+  /* 단계 전환: 한 단계씩만 보임 */
+  .ma .step{display:none;} .ma .step.on{display:block;}
   .ma label{display:block;font-size:13.5px;font-weight:700;color:#191F28;margin:26px 0 8px;line-height:1.35;}
-  .ma-rail-wrap > div > label:first-child{margin-top:0;}   /* 첫 라벨은 위 여백 제거 */
+  .ma .step > label:first-child{margin-top:0;}   /* 각 단계 첫 라벨은 위 여백 제거 */
+  .ma .opt{color:#b6bcc4;font-weight:500;font-size:12px;}
+  .ma .hint{font-size:12.5px;color:#8B95A1;margin-top:11px;line-height:1.6;}
   .ma input,.ma select{width:100%;border:1px solid #E9ECEF;border-radius:9px;padding:11px 13px;font-size:14px;color:#191F28;}
   .ma .seg{display:inline-flex;border:1px solid #E9ECEF;border-radius:8px;overflow:hidden;}
   .ma .seg button{border:none;background:#fff;padding:7px 13px;font-size:12.5px;cursor:pointer;color:#4E5968;border-right:1px solid #E9ECEF;}
   .ma .seg button:last-child{border-right:none;}
   .ma .seg button.on{background:#0A2540;color:#fff;font-weight:700;}
-  /* 줄바꿈 방지: 각 체크 항목은 한 줄 유지(nowrap), 항목끼리는 자연 줄바꿈 */
   .ma .acts{display:flex;flex-wrap:wrap;gap:16px 22px;margin-top:4px;}
   .ma .chk{display:inline-flex;align-items:center;gap:8px;font-size:13.5px;font-weight:600;color:#191F28;white-space:nowrap;}
-  .ma .genbtn{margin-top:30px;background:#0A2540;color:#fff;border:none;border-radius:10px;padding:14px 22px;font-size:14px;font-weight:800;cursor:pointer;}
+  /* 단계 하단 이전/다음 */
+  .ma .navrow{display:flex;justify-content:space-between;align-items:center;margin-top:30px;}
+  .ma .nx{background:#0A2540;color:#fff;border:none;border-radius:10px;padding:12px 22px;font-size:14px;font-weight:800;cursor:pointer;}
+  .ma .pv{background:#fff;color:#4E5968;border:1px solid #E9ECEF;border-radius:10px;padding:12px 20px;font-size:14px;font-weight:700;cursor:pointer;}
+  .ma .sumline{font-size:13px;color:#4E5968;line-height:1.85;background:#F6F8FA;border-radius:10px;padding:14px 16px;}
+  .ma .sumline b{color:#191F28;}
+  .ma .genbtn{margin-top:16px;background:#0A2540;color:#fff;border:none;border-radius:10px;padding:14px 22px;font-size:14px;font-weight:800;cursor:pointer;}
   .ma .prm{margin-top:16px;background:#0F172A;border-radius:12px;padding:16px 18px;position:relative;display:none;}
   .ma .prm.on{display:block;}
   .ma .prm pre{margin:0;color:#E6EDF6;font-family:ui-monospace,monospace;font-size:12.5px;white-space:pre-wrap;line-height:1.7;}
@@ -50,31 +59,55 @@
         <div class="r" data-step="3"><span class="n">3</span>지원 동작</div>
         <div class="r" data-step="4"><span class="n">4</span>프롬프트</div>
       </div>
-      <div>
-        <label>마켓(판매처)명</label>
-        <input list="mk-list" id="mkName" placeholder="예: 롯데온, 11번가 — 목록에서 고르거나 직접 입력">
-        <datalist id="mk-list">
-          {% for m in coming %}<option value="{{ m.label }}">{{ m.api_type }}</option>{% endfor %}
-        </datalist>
-        <label>인증 · API 방식</label>
-        <span class="seg" id="mkAuth">
-          <button type="button" class="on" data-k="OAuth">OAuth</button>
-          <button type="button" data-k="HMAC">HMAC</button>
-          <button type="button" data-k="셀러센터API">셀러센터API</button>
-          <button type="button" data-k="기타">기타</button>
-        </span>
-        <label>셀러 API 문서 URL <span style="color:#b6bcc4;font-weight:500">(키발급·상품등록·재고가격)</span></label>
-        <input id="mkDocs" placeholder="예: https://seller.lotteon.com/ , /api/products , /api/stock-price">
-        <label>필요 키 <span style="color:#b6bcc4;font-weight:500">(아는 경우)</span></label>
-        <input id="mkKeys" placeholder="예: CLIENT_ID, CLIENT_SECRET">
-        <label>지원 동작</label>
-        <div class="acts">
-          <label class="chk"><input type="checkbox" class="mkAct" value="신규 상품 등록" checked> 신규 상품 등록</label>
-          <label class="chk"><input type="checkbox" class="mkAct" value="기존 상품 연동" checked> 기존 상품 연동</label>
-          <label class="chk"><input type="checkbox" class="mkAct" value="가격·재고 업데이트" checked> 가격·재고 업데이트</label>
+      <div class="steps">
+
+        <!-- STEP 1 · 마켓 -->
+        <div class="step on" data-step="1">
+          <label>마켓(판매처)명</label>
+          <input list="mk-list" id="mkName" placeholder="예: 롯데온, 11번가 — 목록에서 고르거나 직접 입력">
+          <datalist id="mk-list">
+            {% for m in coming %}<option value="{{ m.label }}">{{ m.api_type }}</option>{% endfor %}
+          </datalist>
+          <div class="hint">✅ <b>이 한 칸만</b> 넣으면 됩니다. 나머지 단계는 아는 만큼만 채우고, 몰라도 그냥 넘어가세요.</div>
+          <div class="navrow"><span></span><button class="nx" type="button" onclick="goStep(2)">다음 →</button></div>
         </div>
-        <button class="genbtn" type="button" onclick="genPrompt()">📋 추가 + Claude Code 프롬프트 생성</button>
-        <div class="prm" id="mkPrm"><button class="cp" type="button" onclick="copyPrm('mkPrmText')">복사</button><pre id="mkPrmText"></pre></div>
+
+        <!-- STEP 2 · 인증·계정 -->
+        <div class="step" data-step="2">
+          <label>인증 · API 방식 <span class="opt">(아는 경우 · 몰라도 됨)</span></label>
+          <span class="seg" id="mkAuth">
+            <button type="button" class="on" data-k="OAuth">OAuth</button>
+            <button type="button" data-k="HMAC">HMAC</button>
+            <button type="button" data-k="셀러센터API">셀러센터API</button>
+            <button type="button" data-k="기타">기타</button>
+          </span>
+          <label>셀러 API 문서 URL <span class="opt">(키발급·상품등록·재고가격 · 몰라도 됨)</span></label>
+          <input id="mkDocs" placeholder="예: https://seller.lotteon.com/ , /api/products , /api/stock-price">
+          <label>필요 키 <span class="opt">(아는 경우)</span></label>
+          <input id="mkKeys" placeholder="예: CLIENT_ID, CLIENT_SECRET">
+          <div class="navrow"><button class="pv" type="button" onclick="goStep(1)">← 이전</button><button class="nx" type="button" onclick="goStep(3)">다음 →</button></div>
+        </div>
+
+        <!-- STEP 3 · 지원 동작 -->
+        <div class="step" data-step="3">
+          <label>지원 동작 <span class="opt">(이 마켓에서 프로그램이 할 일)</span></label>
+          <div class="acts">
+            <label class="chk"><input type="checkbox" class="mkAct" value="신규 상품 등록" checked> 신규 상품 등록</label>
+            <label class="chk"><input type="checkbox" class="mkAct" value="기존 상품 연동" checked> 기존 상품 연동</label>
+            <label class="chk"><input type="checkbox" class="mkAct" value="가격·재고 업데이트" checked> 가격·재고 업데이트</label>
+          </div>
+          <div class="navrow"><button class="pv" type="button" onclick="goStep(2)">← 이전</button><button class="nx" type="button" onclick="goStep(4)">다음 →</button></div>
+        </div>
+
+        <!-- STEP 4 · 프롬프트 -->
+        <div class="step" data-step="4">
+          <label>입력 요약</label>
+          <div class="sumline" id="mkSummary">—</div>
+          <button class="genbtn" type="button" onclick="genPrompt()">📋 추가 + Claude Code 프롬프트 생성</button>
+          <div class="prm" id="mkPrm"><button class="cp" type="button" onclick="copyPrm('mkPrmText')">복사</button><pre id="mkPrmText"></pre></div>
+          <div class="navrow"><button class="pv" type="button" onclick="goStep(3)">← 이전</button><span></span></div>
+        </div>
+
       </div>
     </div>
   </div>
@@ -91,6 +124,7 @@
 </div>
 
 <script>
+/* 탭 전환 (신규/기존) */
 document.querySelectorAll('.ma .tab').forEach(function(t){
   t.addEventListener('click', function(){
     document.querySelectorAll('.ma .tab').forEach(x=>x.classList.remove('on'));
@@ -99,22 +133,45 @@ document.querySelectorAll('.ma .tab').forEach(function(t){
     document.getElementById('pane-'+t.dataset.pane).classList.add('on');
   });
 });
+
+/* 단계 이동 — 클릭/다음/이전 자유 이동(검증 강제 없음) */
+function goStep(n){
+  document.querySelectorAll('#pane-new .step').forEach(function(s){ s.classList.toggle('on', +s.dataset.step===n); });
+  document.querySelectorAll('#pane-new .ma-rail .r').forEach(function(r){
+    var d=+r.dataset.step; r.classList.toggle('on', d===n); r.classList.toggle('done', d<n);
+  });
+  if(n===4) updateSummary();
+}
+document.querySelectorAll('#pane-new .ma-rail .r').forEach(function(r){
+  r.addEventListener('click', function(){ goStep(+r.dataset.step); });
+});
+
+/* 인증 방식 세그먼트 */
 document.querySelectorAll('#mkAuth button').forEach(function(b){
   b.addEventListener('click', function(){
     document.querySelectorAll('#mkAuth button').forEach(x=>x.classList.remove('on'));
     b.classList.add('on');
   });
 });
+
+function curAuth(){ var b=document.querySelector('#mkAuth button.on'); return b?b.dataset.k:'OAuth'; }
+function curActs(){ return [].slice.call(document.querySelectorAll('.mkAct:checked')).map(function(c){return c.value;}); }
+
+function updateSummary(){
+  var name=(document.getElementById('mkName').value||'').trim()||'<span style="color:#c0392b">(마켓명 미입력)</span>';
+  var acts=curActs().join(' · ')||'(없음)';
+  document.getElementById('mkSummary').innerHTML =
+    '마켓 <b>'+name+'</b><br>인증 <b>'+curAuth()+'</b> · 지원 동작 '+acts;
+}
+
 function genPrompt(){
   var name=(document.getElementById('mkName').value||'').trim();
-  if(!name){ alert('마켓명을 입력하세요.'); return; }
-  var onBtn=document.querySelector('#mkAuth button.on');
-  var auth=onBtn?onBtn.dataset.k:'OAuth';
+  if(!name){ alert('1단계에서 마켓명을 먼저 입력하세요.'); goStep(1); return; }
   var docs=(document.getElementById('mkDocs').value||'').trim() || '(문서 링크 미입력 — 조사 필요)';
   var keys=(document.getElementById('mkKeys').value||'').trim() || '(조사 필요)';
-  var acts=[].slice.call(document.querySelectorAll('.mkAct:checked')).map(function(c){return c.value;}).join(' · ');
+  var acts=curActs().join(' · ');
   var t='판매처 추가 가이드 참고해서 "'+name+'" 업로드 연동 추가해줘.\n'
-    +'· 인증/API : '+auth+'\n'
+    +'· 인증/API : '+curAuth()+'\n'
     +'· 문서 : '+docs+'\n'
     +'· 필요 키 : '+keys+'\n'
     +'· 지원 동작 : '+acts+'\n'
