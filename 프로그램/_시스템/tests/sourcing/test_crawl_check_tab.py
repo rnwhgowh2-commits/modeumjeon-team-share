@@ -58,6 +58,9 @@ def test_crawl_check_full_page_200(client):
     assert "품절둔갑" in body
     assert "999·센티넬" in body
     assert "귀책" in body
+    # 재고 정본 참조에 데이터 가이드 + 소싱크롤재고 vs 실물재고관리 구분
+    assert "/data-guide" in body
+    assert "InventoryTx" in body
 
 
 def test_crawl_check_bare_sets_sameorigin(client):
