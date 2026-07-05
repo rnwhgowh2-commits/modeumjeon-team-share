@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""주문 내역 탭 — 5번 레이아웃(요약+표) · 안전 OFF(연결됨·검증대기) 검증."""
+"""주문·정산·문의반품·신규등록 탭 — 5번 레이아웃(요약+표) · 안전 OFF(연결됨·검증대기)."""
 import pathlib
 
 import pytest
@@ -12,49 +12,60 @@ from lemouton.markets import capabilities as cap
 TPL = pathlib.Path(om.__file__).parents[1] / "templates"
 
 
-def _render(tab, **ctx):
+def _render(tab, live_enabled=False):
     env = Environment(loader=ChoiceLoader([
         DictLoader({"base.html": "{% block content %}{% endblock %}"}),
         FileSystemLoader(str(TPL)),
     ]))
-    base = dict(tab=tab, subtabs=om.SUBTABS, active="orders_" + tab)
-    base.update(ctx)
-    return env.get_template("orders/index.html").render(**base)
-
-
-def test_sample_has_both_markets():
-    mks = {o["mk"] for o in om._SAMPLE_ORDERS}
-    assert "쿠팡" in mks and "스마트스토어" in mks
+    cfg = om.TAB_CONFIG.get(tab)
+    rows = [] if (live_enabled or not cfg) else cfg["rows"]
+    return env.get_template("orders/index.html").render(
+        tab=tab, subtabs=om.SUBTABS, active="orders_" + tab,
+        cfg=cfg, live_enabled=live_enabled, rows=rows)
 
 
 def test_extra_gate_default_off(monkeypatch):
     monkeypatch.delenv("LEMOUTON_MARKET_EXTRA", raising=False)
-    assert cap.market_extra_enabled() is False       # 안전 OFF 기본
+    assert cap.market_extra_enabled() is False
 
 
-def test_list_tab_layout():
-    html = _render("list", live_enabled=False, orders=om._SAMPLE_ORDERS,
-                   st_label=om._ST_LABEL, kpi_new=2, kpi_wait=1, kpi_done=2, kpi_sum=774000)
-    for s in ["신규주문", "발송대기", "발송완료", "주문 합계",   # KPI 요약
-              "안전 OFF", "LEMOUTON_MARKET_EXTRA",              # 안전 OFF 배너
-              "송장입력", "쿠팡", "스마트스토어", "774,000"]:      # 표·마켓·금액 포맷
-        assert s in html, s
+def test_four_dashboard_tabs_configured():
+    for t in ["list", "sales", "cs", "register"]:
+        c = om.TAB_CONFIG[t]
+        assert c["kpis"] and c["cols"] and c["rows"]
 
 
-def test_list_send_button_disabled():
-    html = _render("list", live_enabled=False, orders=om._SAMPLE_ORDERS,
-                   st_label=om._ST_LABEL, kpi_new=0, kpi_wait=0, kpi_done=0, kpi_sum=0)
-    assert "disabled" in html                          # 발송 버튼 비활성
+@pytest.mark.parametrize("tab,kpi,col", [
+    ("list", "신규주문", "주문번호"),
+    ("sales", "정산 예정", "정산 예정액"),
+    ("cs", "미답변 문의", "내용"),
+    ("register", "등록 대기", "카테고리"),
+])
+def test_tab_renders_layout(tab, kpi, col):
+    html = _render(tab)
+    assert kpi in html, kpi
+    assert col in html, col
+    assert "안전 OFF" in html                  # 게이트 OFF 배너
+    assert "쿠팡" in html and "스마트스토어" in html
 
 
-def test_list_empty_state_when_live_no_orders():
-    html = _render("list", live_enabled=True, orders=[], st_label=om._ST_LABEL,
-                   kpi_new=0, kpi_wait=0, kpi_done=0, kpi_sum=0)
-    assert "아직 표시할 실주문이 없어요" in html
-    assert "안전 OFF" not in html                       # live=on → 배너 숨김
+def test_action_button_disabled_when_off():
+    html = _render("list")
+    assert "disabled" in html                   # 송장입력 비활성
 
 
-def test_route_registered():
+def test_live_on_shows_empty_state():
+    html = _render("list", live_enabled=True)
+    assert "아직 표시할 실데이터가 없어요" in html
+    assert "안전 OFF" not in html                # live=on → 배너 숨김
+
+
+def test_margin_still_placeholder():
+    html = _render("margin")
+    assert "후속 구현 예정" in html
+
+
+def test_routes_registered():
     app = Flask(__name__, template_folder="webapp/templates",
                 root_path=pathlib.Path(om.__file__).parents[2].as_posix())
     app.register_blueprint(om.bp)
