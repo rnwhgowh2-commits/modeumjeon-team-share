@@ -300,6 +300,20 @@ def _stock_state(site, raw, status=None):
     return 'limited'
 
 
+def _effective_stock_status(d):
+    """셀(소싱처 dict) → 재고 해석용 유효 status. crawled_stock=None 을 무엇으로 풀지 결정.
+
+    [2026-07-05] 두 '재고 없음' 케이스를 상품 last_status='ok'(→'재고있음' ample)로
+      둔갑시키지 않고 'uncollected'(→'확인 불가')로 확정:
+        · stock_uncollected = 매칭됐으나 이 셀 per-size 재고 미수집
+        · match_failed       = 소싱처가 안 파는 색×사이즈 조합(르무통 오렌지 260/270 유령재고)
+      둘 다 실재고 근거 없음 → '재고있음' 금지(품절둔갑=금전위험). 그 외엔 상품 last_status.
+    """
+    if d.get('stock_uncollected') or d.get('match_failed'):
+        return 'uncollected'
+    return d.get('last_status')
+
+
 def _pick_cheapest_buyable(sources):
     """옵션의 소싱처들 중 "재고존재(품절X) + 크롤성공(error X) + 가격>0" 최저가.
        없으면 크롤성공+가격있는 것 중 최저(품절은 허용 — 실가격은 유효).
@@ -787,10 +801,9 @@ def _option_matrix_data(code: str):
         #   프론트는 이 값만 렌더(가짜 '재고 10' 제거). 정책: 수량 있으면 표기, 없으면 '재고있음'.
         for _srcs in sku_to_sources.values():
             for _d in _srcs:
-                # [2026-07-04] 매칭-미수집 셀은 상품 last_status(ok)로 '재고있음' 둔갑하지 않게
-                #   per-셀 status='uncollected' 로 넘겨 '확인 불가'로 확정.
-                _eff_status = ('uncollected' if _d.get('stock_uncollected')
-                               else _d.get('last_status'))
+                # [2026-07-04·07-05] 재고 근거 없는 셀(미수집 또는 소싱처 미판매=match_failed)을
+                #   상품 last_status(ok)로 '재고있음' 둔갑하지 않게 'uncollected'→'확인 불가'로 확정.
+                _eff_status = _effective_stock_status(_d)
                 _q, _lbl, _out = _resolve_stock(_d.get('site'), _d.get('crawled_stock'), _eff_status)
                 _d['stock_qty'] = _q
                 _d['stock_label'] = _lbl
