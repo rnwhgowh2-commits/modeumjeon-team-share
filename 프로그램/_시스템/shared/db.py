@@ -227,6 +227,7 @@ def _apply_lightweight_migrations() -> None:
         ("source_products", "crawl_weight", "INTEGER DEFAULT 1 NOT NULL"),
         ("source_products", "no_change_streak", "INTEGER DEFAULT 0 NOT NULL"),
         # 2026-07-04: market_upload_policies 는 신규 테이블 → create_all 이 생성(컬럼 튜플 불필요)
+        # 2026-07-04: account_upload_policies 신규 테이블 → create_all 생성
     ]
     inspector = inspect(engine)
     existing_tables = set(inspector.get_table_names())

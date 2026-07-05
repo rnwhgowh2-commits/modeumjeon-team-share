@@ -1,5 +1,5 @@
 """[B] 글로벌 설정 — 단일 row 테이블."""
-from sqlalchemy import Column, Integer, Float, String, Boolean, DateTime
+from sqlalchemy import Column, Integer, Float, String, Boolean, DateTime, ForeignKey
 from datetime import datetime, timezone
 
 from shared.db import Base
@@ -141,6 +141,62 @@ def set_market_policy(session, market: str, *, per_minute: int | None = None,
         row.enabled = bool(enabled)
     session.flush()
     return {"per_minute": row.per_minute, "enabled": row.enabled}
+
+
+# ── 계정(API)별 업로드 속도 (P4b) ────────────────────────────────────────────
+_ACCOUNT_DEFAULT_SECONDS = 6   # 1개당 6초 = 시간당 600개
+
+
+class AccountUploadPolicy(Base):
+    """판매 계정(API)별 업로드 속도. account_id = market_accounts.id."""
+    __tablename__ = "account_upload_policies"
+
+    account_id = Column(Integer, ForeignKey("market_accounts.id"), primary_key=True)
+    seconds_per_item = Column(Integer, default=_ACCOUNT_DEFAULT_SECONDS, nullable=False)
+    enabled = Column(Boolean, default=True, nullable=False)
+
+
+def _active_accounts(session):
+    from lemouton.multitenancy.models import MarketAccount
+    return (session.query(MarketAccount)
+            .filter(MarketAccount.is_active.is_(True))
+            .filter(MarketAccount.deleted_at.is_(None))
+            .all())
+
+
+def get_account_policies(session) -> list:
+    """활성 계정별 속도 정책. 없으면 기본 시드. per_hour 파생 포함."""
+    for acc in _active_accounts(session):
+        if session.get(AccountUploadPolicy, acc.id) is None:
+            session.add(AccountUploadPolicy(account_id=acc.id,
+                        seconds_per_item=_ACCOUNT_DEFAULT_SECONDS, enabled=True))
+    session.flush()
+    out = []
+    for acc in _active_accounts(session):
+        p = session.get(AccountUploadPolicy, acc.id)
+        sec = max(1, int(p.seconds_per_item))
+        out.append({"account_id": acc.id, "market": acc.market,
+                    "account_name": acc.account_name,
+                    "seconds_per_item": sec, "enabled": p.enabled,
+                    "per_hour": 3600 // sec})
+    return out
+
+
+def set_account_policy(session, account_id: int, *, seconds_per_item=None,
+                       enabled=None) -> dict:
+    """전달된 항목만 갱신. seconds ≥ 1 클램프. 호출자가 commit."""
+    p = session.get(AccountUploadPolicy, account_id)
+    if p is None:
+        p = AccountUploadPolicy(account_id=account_id,
+                                seconds_per_item=_ACCOUNT_DEFAULT_SECONDS, enabled=True)
+        session.add(p)
+    if seconds_per_item is not None:
+        p.seconds_per_item = max(1, int(seconds_per_item))
+    if enabled is not None:
+        p.enabled = bool(enabled)
+    session.flush()
+    sec = max(1, int(p.seconds_per_item))
+    return {"seconds_per_item": sec, "enabled": p.enabled, "per_hour": 3600 // sec}
 
 
 # ── 자동화 설정 (크롤 자동 주기 + 판매처 자동 전송) ──────────────────────────
