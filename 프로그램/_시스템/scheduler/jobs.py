@@ -152,6 +152,7 @@ def full_cycle(*, dry_run: bool = False) -> dict:
             from lemouton.uploader.runtime import (
                 select_adapters, build_sku_by_option, live_upload_enabled,
             )
+            from lemouton.uploader.throttle import build_market_pacer
             s = _SL2()
             try:
                 # 실전송 게이트 — LEMOUTON_LIVE_UPLOAD 가 참일 때만 실제 어댑터.
@@ -159,6 +160,10 @@ def full_cycle(*, dry_run: bool = False) -> dict:
                 ss_ad, cp_ad = select_adapters()
                 # (market, 마켓옵션ID) → canonical_sku (matched 채널옵션만)
                 sku_by_option = build_sku_by_option(s)
+                # 업로드 속도 정본 = 계정(API) 단위. 마켓별 '1개당 최소 초 간격'을
+                # 계정 정책에서 파생해 전송 사이에 강제(dry-run·live 공통). 계정 미설정
+                # 이면 간격 0 → 무대기.
+                pacer = build_market_pacer(s)
                 import os
                 dlq_path = os.path.join(os.path.dirname(__file__), '..', 'data', 'uploader_dlq.jsonl')
                 # persist=live: 실제 전송했을 때만 기준선 커밋(#12). dry-run 은 커밋 안 함
@@ -168,7 +173,7 @@ def full_cycle(*, dry_run: bool = False) -> dict:
                                  sku_by_option=sku_by_option,
                                  ss_adapter=ss_ad, cp_adapter=cp_ad,
                                  dlq_path=dlq_path,
-                                 force=False, persist=_live)
+                                 force=False, persist=_live, pacer=pacer)
                 _mode = 'live' if _live else 'dryrun'
                 result['phases']['D_uploader'] = {
                     'ok': True,

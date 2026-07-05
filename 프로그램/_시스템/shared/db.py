@@ -226,7 +226,9 @@ def _apply_lightweight_migrations() -> None:
         # 2026-07-04: 자동화 연속 배수 큐 — 계수·무변동 연속
         ("source_products", "crawl_weight", "INTEGER DEFAULT 1 NOT NULL"),
         ("source_products", "no_change_streak", "INTEGER DEFAULT 0 NOT NULL"),
-        # 2026-07-04: market_upload_policies 는 신규 테이블 → create_all 이 생성(컬럼 튜플 불필요)
+        # 2026-07-05: (폐기) market_upload_policies — P4 마켓 per_minute 정책 제거,
+        #             계정 단위(account_upload_policies)로 흡수. 기존 DB의 잔여 테이블은
+        #             참조 안 함(무해). 업로드 속도 정본 = 계정.
         # 2026-07-04: account_upload_policies 신규 테이블 → create_all 생성
     ]
     inspector = inspect(engine)

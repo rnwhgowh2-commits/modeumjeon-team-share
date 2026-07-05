@@ -68,6 +68,7 @@ def run_uploader(
     avg_price_change_pct: float = 30.0,
     force: bool = False,
     persist: bool = False,
+    pacer=None,
 ) -> dict:
     """메인 진입점. force=True면 보류 무시하고 진행.
 
@@ -75,6 +76,10 @@ def run_uploader(
     영속한다. 이게 없으면 SessionLocal(autocommit=False)에서 등록이 롤백돼 detect_change 가
     매번 '이전 없음'=변동으로 판정 → 라이브에서 안 바뀐 옵션도 매 사이클 재전송(#12).
     dry-run(persist=False)은 커밋하지 않아 '미전송분'이 '전송됨' 기준선으로 오염되지 않는다.
+
+    pacer 를 주면(:class:`lemouton.uploader.throttle.IntervalPacer`) 전송 직전마다
+    ``pacer.wait(market)`` 로 계정 정본에서 파생한 '1개당 최소 초 간격'을 강제한다 —
+    업로드 속도 정본은 계정(API) 단위 하나다. None 이면 페이싱 없이 현행대로 동작.
     """
     uploads = _extract_uploads(c_output, sku_by_option)
 
@@ -115,6 +120,8 @@ def run_uploader(
     failed = 0
     now = datetime.now(timezone.utc)
     for u in actionable:
+        if pacer is not None:
+            pacer.wait(u["market"])   # 계정 정본 파생 '1개당 최소 초 간격'
         adapter = ss_adapter if u["market"] == "smartstore" else cp_adapter
         result = adapter.update_price_and_stock(
             canonical_sku=u["canonical_sku"],
