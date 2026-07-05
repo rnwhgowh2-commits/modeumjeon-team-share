@@ -75,6 +75,18 @@ def test_crawl_check_scope_selector_present(client):
     assert 'id="ccTargetPrice"' in body                  # 대상 주입 지점(가격)
 
 
+def test_crawl_check_both_tab_sequential(client):
+    """재고+가격 한번에 탭 = 순차 지시(재고 먼저 → 가격)."""
+    r = client.get("/sourcing-guide/crawl-check")
+    assert r.status_code == 200
+    body = r.data.decode("utf-8")
+    assert "재고+가격 한번에" in body                     # 4번째 세그먼트
+    assert 'id="ccTargetBoth"' in body                    # 통합 대상 주입 지점
+    assert "반드시 순서대로" in body                       # 순차 지시
+    assert "[1단계] 재고" in body and "[2단계] 가격" in body
+    assert "동시 진행 금지" in body
+
+
 def test_crawl_check_bare_sets_sameorigin(client):
     r = client.get("/sourcing-guide/crawl-check?bare=1")
     assert r.status_code == 200

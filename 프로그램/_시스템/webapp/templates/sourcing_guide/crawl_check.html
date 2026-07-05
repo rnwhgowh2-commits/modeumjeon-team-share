@@ -92,6 +92,7 @@
     <button type="button" class="ccs on" data-ccseg="scope">🎯 검사 범위 선택</button>
     <button type="button" class="ccs" data-ccseg="stock">📦 재고 정합성 검사</button>
     <button type="button" class="ccs" data-ccseg="price">💰 가격 정합성 검사</button>
+    <button type="button" class="ccs" data-ccseg="both">🔄 재고+가격 한번에</button>
   </div>
 
   <!-- ─── 검사 범위 선택 패널 ─── -->
@@ -262,6 +263,65 @@
 
     <button type="button" class="copybtn-big">📋 프롬프트 전체 복사</button>
   </div>
+
+  <!-- ─── 재고+가격 한번에 패널 (순차 지시) ─── -->
+  <div class="ccpanel" data-ccpanel="both">
+    <ol class="howto">
+      <li><span class="n">1</span><span><b>「검사 범위 선택」</b>에서 고르거나 아래 대상을 직접 확인</span></li>
+      <li><span class="n">2</span><span><b>「전체 복사」</b> 누르기</span></li>
+      <li><span class="n">3</span><span><b>Claude Code</b>에 붙여넣기 → 재고 먼저, 그다음 가격</span></li>
+    </ol>
+
+    <div class="promptwrap">
+      <div class="plabel">
+        <span class="l">📋 복사할 프롬프트 <span class="tag">· 재고+가격 순차 조사</span></span>
+        <button type="button" class="copybtn-top">전체 복사</button>
+      </div>
+      <div class="codebox"><span class="h">재고·가격 정합성 조사를 순차로 진행한다.</span>
+<span class="star">★ 반드시 순서대로</span> — [1단계] 재고를 완전히 끝낸 뒤에 [2단계] 가격을 시작한다.
+  동시 진행 금지(혼선·오판·에러 위험). 재고 집계·엑셀을 마친 뒤에만 가격으로.
+
+<span class="h">■ 대상</span>
+<span class="tgt" id="ccTargetBoth">- 소싱처 : (소싱처명 입력, 예: 롯데온)
+- URL    : 해당 소싱처의 매트릭스 등록 URL 전체</span>
+
+<span class="h">■ 절대 원칙 (데이터 무결성 3대)</span>
+- 재고·가격 기준 = 실브라우저 상품 URL의 실제 값 (추정·폴백·평균 금지)
+- 확인 못 하면 '있음'/가격 단정 말고 '확인 불가'·'크롤 실패'로 표기
+- 크롤 = 로컬(크롬 확장/Playwright). 서버 크롤 실패는 정상
+
+<span class="h">■ 먼저 읽을 정본</span> (계속 갱신됨 — 정본 최신본 우선)
+- 크롤링 가이드 docs/크롤링-가이드.md (인앱: /sourcing-guide/map)
+    §1 재고편 · §2 가격편 · §3 매트릭스 표기 · §5 에러 카탈로그(S/P/O) · §7 배선
+- 데이터 가이드 /data-guide = 저장 위치·단일 진실 원천
+    ※ 재고 검사 대상 = 소싱처 크롤 재고(매트릭스 셀), 실물 재고관리(InventoryTx) 아님
+
+<span class="h">━━━ [1단계] 재고 정합성 조사 (먼저, 끝까지) ━━━</span>
+1) 크롤 → 2) 실브라우저 색×사이즈 재고 엑셀 → 3) 매트릭스 대조
+4) OK/NG 이중 태그
+   [귀책] U=URL측(대체상품·404·만료→사용자 URL 정정) / P=프로그램측(→코드 수정)
+   [증상] <span class="star">A 품절둔갑</span>★ / B 거짓품절 / C 999·센티넬둔갑 /
+          D 미수집·확인불가 / E 수량불일치
+5) 소싱처별 집계 + 조치 U/P 분리 + 색×사이즈 전수 엑셀
+   ↳ 여기(재고 엑셀)까지 완료한 뒤에만 [2단계]로 넘어간다.
+
+<span class="h">━━━ [2단계] 가격 정합성 조사 (재고 완료 후) ━━━</span>
+3층 = 표면노출가 − 혜택(선반영/후반영/결제택1/캐시백) = 최종매입가
+1) 크롤 → 2) 실브라우저 3층 엑셀 → 3) 매트릭스(셀=표면가+최종매입가·계산식=혜택) 대조
+4) OK/NG 이중 태그
+   [귀책] U/P (재고와 동일)
+   [증상] A 표면가오류 / <span class="star">B 언더프라이싱</span>★ / <span class="star">C 폴백가둔갑</span>★ /
+          D 혜택누락 / E 셀≠계산식
+5) 소싱처별 집계 + 조치 U/P 분리 + 전수 엑셀
+   ※ 완전한 B(다중URL 최저후보 stale=유령가)·라이브확장크롤 혜택미저장(_SITE_BY_SRC) 확인
+
+<span class="h">■ 진행 방식</span>
+- 크롤은 실시간 감시(사후 추측 금지). 로드된 확장 버전 먼저 확인
+- 작업 전 origin/main 최신 대조. <span class="star">1단계(재고) 완료 전 2단계(가격) 착수 금지.</span></div>
+    </div>
+
+    <button type="button" class="copybtn-big">📋 프롬프트 전체 복사</button>
+  </div>
 </div>
 
 <script>
@@ -389,7 +449,7 @@
               codes.map(function(c){ return '    · ' + c + ' → ' + Array.from(SEL[c]).join(', '); }).join('\n') + '\n' +
               '- URL : 위 각 모음전·소싱처의 매트릭스 등록 URL 전체';
     }
-    ['ccTargetStock','ccTargetPrice'].forEach(function(id){
+    ['ccTargetStock','ccTargetPrice','ccTargetBoth'].forEach(function(id){
       var el = document.getElementById(id); if (el) el.textContent = lines;
     });
   }
