@@ -276,6 +276,11 @@ class Option(Base):
     # 르무통 공홈 한정 사이즈
     lemouton_only = Column(Boolean, default=False, nullable=False)
 
+    # [2026-07-05] 옵션별 브랜드 — 한 모음전에 여러 브랜드가 섞일 때.
+    #   NULL/빈값 = 미지정 → Model.brand 상속(effective_option_brand).
+    #   "르무통 자동 채움" 금지 — 미지정은 미지정으로 둔다.
+    brand = Column(String(100))
+
     # [B] 옵션 단위 오버라이드
     option_ss_price_override = Column(Integer)
     option_coupang_price_override = Column(Integer)

@@ -156,6 +156,77 @@ def crawl_failures():
         s.close()
 
 
+# ---------- 옵션별 브랜드 ----------
+
+@bp.get('/options/brands')
+def option_brands_list():
+    """[읽기] 등록된 브랜드 목록(검색 팔레트 — 없으면 「+새 브랜드」)."""
+    from lemouton.sourcing.option_brand import list_brands
+    s = SessionLocal()
+    try:
+        return jsonify({"brands": list_brands(s)})
+    finally:
+        s.close()
+
+
+@bp.post('/options/brand')
+def set_option_brand_route():
+    """옵션 1개 브랜드 저장. body {canonical_sku, brand}. 빈값=미지정(상속)."""
+    from lemouton.sourcing.option_brand import set_option_brand
+    data = request.get_json(silent=True) or {}
+    s = SessionLocal()
+    try:
+        brand = set_option_brand(s, data.get('canonical_sku'), data.get('brand'))
+        s.commit()
+        return jsonify({"ok": True, "brand": brand})
+    except ValueError as e:
+        return jsonify({"ok": False, "error": str(e)}), 404
+    finally:
+        s.close()
+
+
+@bp.get('/bundles/<path:model_code>/brands')
+def bundle_option_brands(model_code):
+    """[읽기] 모음전 옵션별 브랜드 + 요약(스마트바 "미지정 N개")."""
+    from lemouton.sourcing.models import Option
+    from lemouton.sourcing.option_brand import effective_option_brand, brand_summary
+    s = SessionLocal()
+    try:
+        opts = (s.query(Option)
+                .filter(Option.model_code == model_code)
+                .order_by(Option.sort_order, Option.canonical_sku).all())
+        return jsonify({
+            "summary": brand_summary(s, model_code),
+            "options": [{
+                "canonical_sku": o.canonical_sku,
+                "color_display": o.color_display or o.color_code,
+                "size_display": o.size_display or o.size_code,
+                "brand": o.brand,                            # 자체(미지정=None)
+                "effective_brand": effective_option_brand(o),  # 상속 반영
+            } for o in opts],
+        })
+    finally:
+        s.close()
+
+
+@bp.post('/bundles/<path:model_code>/brands/bulk')
+def bundle_option_brands_bulk(model_code):
+    """옵션 브랜드 일괄 적용. body {brand, mode(all|empty|selected), skus?}."""
+    from lemouton.sourcing.option_brand import bulk_apply_brand
+    data = request.get_json(silent=True) or {}
+    mode = data.get('mode') or 'all'
+    if mode not in ('all', 'empty', 'selected'):
+        return jsonify({"ok": False, "error": f"mode: {mode}"}), 400
+    s = SessionLocal()
+    try:
+        n = bulk_apply_brand(s, model_code, data.get('brand'),
+                             mode=mode, skus=data.get('skus'))
+        s.commit()
+        return jsonify({"ok": True, "applied": n})
+    finally:
+        s.close()
+
+
 # ---------- Bundles ----------
 
 _BUNDLE_FIELDS = ('model_name_display', 'category',
