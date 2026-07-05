@@ -63,6 +63,22 @@ def crawl_due_bundles():
         s.close()
 
 
+@bp.post('/sources/crawl-weight')
+def set_source_crawl_weight():
+    """URL 계수(1~5) 저장. body: {source_product_id, weight}."""
+    from lemouton.sources.crawl_schedule import set_crawl_weight
+    data = request.get_json(silent=True) or {}
+    s = SessionLocal()
+    try:
+        w = set_crawl_weight(s, int(data.get('source_product_id')), data.get('weight'))
+        s.commit()
+        return jsonify({"ok": True, "weight": w})
+    except ValueError as e:
+        return jsonify({"ok": False, "error": str(e)}), 404
+    finally:
+        s.close()
+
+
 # ---------- Bundles ----------
 
 _BUNDLE_FIELDS = ('model_name_display', 'category',
