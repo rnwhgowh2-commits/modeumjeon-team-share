@@ -228,6 +228,8 @@
   tog(document.getElementById('t-stk'),st.autosend_on_stock);
   tog(document.getElementById('t-prc'),st.autosend_on_price);
   document.getElementById('in-thr').value=st.autosend_stock_threshold;
+  // [연속 전용] 시간칸 제거 — 기본 주기를 0(항상 마감=연속)으로 맞춤. 0 아니면 1회 저장(사용자 세션).
+  if(st.crawl_interval_hours!==0 || st.crawl_interval_minutes!==0){ st.crawl_interval_hours=0; st.crawl_interval_minutes=0; save({crawl_interval_hours:0,crawl_interval_minutes:0}); }
   paintSeg(); paintMode();
 
   // 이벤트
