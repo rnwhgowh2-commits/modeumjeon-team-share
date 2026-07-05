@@ -1507,6 +1507,13 @@ def save_crawl_result():
                     pass
             sp.last_status = status
             sp.last_fetched_at = now
+            # [2026-07-06] 가중 라운드로빈 랩: 1회 크롤 완료 = 이번 랩 served +1.
+            #   연속모드 큐가 계수만큼 채우고 랩을 진행하는 유일한 신호.
+            try:
+                from lemouton.sources.crawl_schedule import record_crawl_served
+                record_crawl_served(sp)
+            except Exception:
+                pass
             sp.last_error_msg = it.get('error') or None
             pn = it.get('product_name')
             if pn:
@@ -1724,6 +1731,11 @@ def hmall_persize_refresh():
             pres = persist_crawled_options(s, source_product=sp, options=opts)
             sp.last_status = 'ok'
             sp.last_fetched_at = now
+            try:
+                from lemouton.sources.crawl_schedule import record_crawl_served
+                record_crawl_served(sp)   # 가중 랩 served +1 (연속모드 진행 신호)
+            except Exception:
+                pass
             sp.last_error_msg = None
             results.append({'id': sp.id, 'ok': True, 'mode': mode, 'options': len(opts),
                             'colors': len({o.get('color_text') for o in opts}), 'persist': pres})

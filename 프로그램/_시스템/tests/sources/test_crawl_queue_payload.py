@@ -51,3 +51,20 @@ def test_last_fetched_at_serialized_iso(db):
     _sp(db, "u/old", last=NOW - timedelta(hours=20))  # 크게 연체 → due
     out = due_crawl_payload(db, now=NOW)
     assert isinstance(out["items"][0]["last_fetched_at"], str)  # iso 문자열
+
+
+def test_payload_includes_lap_progress(db):
+    """링('이번 한 바퀴')이 읽는 가중 랩 진행률 — 항상 포함(정지 상태여도)."""
+    from lemouton.sources.crawl_schedule import (
+        set_crawl_weight_rule, record_crawl_served,
+    )
+    _enable(db, on=True)
+    a = _sp(db, "u/a")                       # 계수1
+    b = _sp(db, "u/b")                        # 계수2(규칙)
+    set_crawl_weight_rule(db, "url", "u/b", 2); db.flush()
+    prog = due_crawl_payload(db, now=NOW)["lap_progress"]
+    assert prog["total"] == 3 and prog["served"] == 0 and prog["pct"] == 0
+    # A 1회 크롤 = served 1/3
+    record_crawl_served(a); db.flush()
+    prog2 = due_crawl_payload(db, now=NOW)["lap_progress"]
+    assert prog2["served"] == 1 and prog2["pct"] == 33

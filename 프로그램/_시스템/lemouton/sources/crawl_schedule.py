@@ -52,7 +52,12 @@ def due_products(session, *, base_interval_seconds: float, now: datetime) -> lis
     """지금 크롤할 때가 된 활성 SourceProduct 를 '가장 오래 밀린 순'으로 반환.
 
     실제 크롤 실행(P3 워커)이 이 순서대로 소비한다.
+
+    기준주기 0 이하 = 연속 모드 → 벽시계 간격이 아닌 '가중 라운드로빈 랩'으로 위임
+    (각 URL을 계수만큼/랩, 절대 안 쉼). 기준주기>0 = 기존 벽시계 간격 로직.
     """
+    if (base_interval_seconds or 0) <= 0:
+        return next_lap_products(session)
     from lemouton.sources.models import SourceProduct
     products = (session.query(SourceProduct)
                 .filter(SourceProduct.deleted_at.is_(None))
@@ -149,6 +154,96 @@ def resolve_crawl_weight(session, source_product) -> int:
     return 1
 
 
+# ════════════════════════════════════════════════════════════════════
+#  가중 라운드로빈 랩 (연속 모드 = 기준주기 0)
+#  ─ 시간 기준 없이 최대한 자주 크롤하되, 계수만큼 빈도 배수.
+#    한 랩 = 각 URL을 유효계수만큼 크롤(×1=1번, ×2=2번, ×3=3번).
+#    벽시계 간격은 랩 시간이 유동적이라 배수를 못 만든다 → 카운터 기반.
+#  ─ crawl_lap_count = 이번 랩에 이 URL을 크롤한 횟수. save_crawl_result 가 URL 저장
+#    시마다 record_crawl_served 로 +1. quota(=계수) 채우면 이번 랩 소진.
+#  ─ 전부 채우면 랩 완료 → start_new_lap 로 리셋(다음 랩 즉시 시작 = 절대 안 쉼).
+# ════════════════════════════════════════════════════════════════════
+
+def lap_quota(session, source_product) -> int:
+    """이번 랩에 이 URL을 몇 번 크롤해야 하나 = 유효계수(1~5)."""
+    return max(1, min(5, resolve_crawl_weight(session, source_product)))
+
+
+def record_crawl_served(source_product) -> int:
+    """URL 1회 크롤 완료 = 이번 랩 served +1. 호출자가 commit."""
+    source_product.crawl_lap_count = int(source_product.crawl_lap_count or 0) + 1
+    return source_product.crawl_lap_count
+
+
+def _active_products(session) -> list:
+    from lemouton.sources.models import SourceProduct
+    return (session.query(SourceProduct)
+            .filter(SourceProduct.deleted_at.is_(None))
+            .all())
+
+
+def weighted_due_products(session) -> list:
+    """이번 가중 랩에 아직 덜 채운(계수 미달) URL을 '적게 채운 순'으로 반환.
+
+    정렬 = 채움비(served/quota) 오름차순 → 계수 큰 URL이 랩 뒷부분까지 남아 더 자주 나옴.
+    동률은 오래된(last_fetched) 순 → id 순. 랩 다 채웠으면 [] (호출자가 리셋 판단).
+    """
+    from datetime import datetime as _dt
+    _MIN = _dt.min
+    remaining = []
+    for p in _active_products(session):
+        quota = lap_quota(session, p)
+        served = int(p.crawl_lap_count or 0)
+        if served < quota:
+            remaining.append((served / quota, _as_naive_utc(p.last_fetched_at) or _MIN, p.id, p))
+    remaining.sort(key=lambda t: (t[0], t[1], t[2]))
+    return [t[3] for t in remaining]
+
+
+def start_new_lap(session) -> int:
+    """이번 랩 카운터 전부 0으로 리셋(다음 가중 랩 시작). 호출자가 commit. 리셋 개수 반환."""
+    n = 0
+    for p in _active_products(session):
+        if int(p.crawl_lap_count or 0) != 0:
+            p.crawl_lap_count = 0
+        n += 1
+    session.flush()
+    return n
+
+
+def next_lap_products(session) -> list:
+    """연속모드 진입점 — 절대 안 쉼: 남은 게 있으면 그걸, 랩 다 채웠으면 리셋 후 새 랩 전부.
+
+    활성 URL이 하나도 없으면 [] (크롤할 게 없는 정상 상태).
+    """
+    due = weighted_due_products(session)
+    if due:
+        return due
+    if not _active_products(session):
+        return []
+    start_new_lap(session)
+    # 랩 리셋은 반드시 영속 — 이 함수는 읽기 라우트(/crawl/queue·due-bundles)에서
+    #   호출되는데 그 라우트들은 commit 하지 않는다. flush 만 하면 close()에서 롤백돼
+    #   served 가 quota 에 붙박이고 매 폴링이 전체 랩 = 계수 배수가 무력화된다.
+    try:
+        session.commit()
+    except Exception:
+        session.rollback()
+    return weighted_due_products(session)
+
+
+def lap_progress(session) -> dict:
+    """링 표시용 — 이번 가중 랩 진행률. served/total(가중 합) + pct(0~100)."""
+    served_sum = 0
+    total = 0
+    for p in _active_products(session):
+        quota = lap_quota(session, p)
+        total += quota
+        served_sum += min(int(p.crawl_lap_count or 0), quota)
+    pct = round(served_sum / total * 100) if total else 0
+    return {"served": served_sum, "total": total, "pct": pct}
+
+
 def base_crawl_interval_seconds(session) -> float:
     """자동화 설정의 기준 주기(시·분)를 초로. 0이면 '항상 마감'(연속)."""
     from lemouton.pricing.settings import get_or_init
@@ -200,9 +295,10 @@ def due_crawl_payload(session, *, now) -> dict:
     from lemouton.pricing.settings import get_or_init
     s = get_or_init(session)
     base = base_crawl_interval_seconds(session)
+    prog = lap_progress(session)   # 링('이번 한 바퀴')용 — 정지 상태여도 항상 노출
     if not bool(s.crawl_auto_enabled):
         return {"enabled": False, "base_interval_seconds": base,
-                "count": 0, "items": []}
+                "count": 0, "items": [], "lap_progress": prog}
     products = due_products(session, base_interval_seconds=base, now=now)
     items = [{
         "source_product_id": p.id,
@@ -213,4 +309,4 @@ def due_crawl_payload(session, *, now) -> dict:
         "last_fetched_at": p.last_fetched_at.isoformat() if p.last_fetched_at else None,
     } for p in products]
     return {"enabled": True, "base_interval_seconds": base,
-            "count": len(items), "items": items}
+            "count": len(items), "items": items, "lap_progress": prog}

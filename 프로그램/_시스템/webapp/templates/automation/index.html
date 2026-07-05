@@ -292,8 +292,20 @@
     }).catch(function(){});
   }
 
-  // ── 실행중 링 + 실시간 로그 (카드 안, 확장 크롤 상태) ──
+  // ── 링('이번 한 바퀴') + 실시간 로그 ──
+  //   링 채움 % = 서버의 '가중 한 바퀴' 진행률(각 URL을 계수만큼 크롤 = 한 바퀴).
+  //     확장이 잠깐 쉬어도 랩 진행률은 서버에 남아 이어짐(배치 done/total 아님).
+  //   회전(spin) = 지금 실제로 긁는 중인지(확장 상태). 로그 = 지금 긁는 소싱처.
   var _feedRest='<div>대기 중… 「실행」을 켜면 지금 긁는 소싱처가 여기 흘러요</div>';
+  var _lapPct=0;
+  function pollLap(){
+    fetch('/api/crawl/queue').then(function(r){return r.json();}).then(function(d){
+      var lp=(d&&d.lap_progress)||{}; _lapPct=lp.pct||0;
+      var ring=document.getElementById('cz-ring'), pct=document.getElementById('cz-pct');
+      if(ring) ring.style.setProperty('--p',_lapPct+'%');
+      if(pct) pct.textContent=st.crawl_auto_enabled?(_lapPct+'%'):'0%';
+    }).catch(function(){});
+  }
   function paintRun(){
     var s=(window.MoumExt&&MoumExt.getCrawlState&&MoumExt.getCrawlState())||{};
     var running=!!(s&&s.running);
@@ -301,13 +313,10 @@
     var ring=document.getElementById('cz-ring'), pct=document.getElementById('cz-pct'), feed=document.getElementById('cz-feed');
     if(!ring) return;
     if(running){
-      var v=s.view||{}; var done=v.done||0, total=v.total||0; var p=total?Math.round(done/total*100):0;
-      ring.style.setProperty('--p',p+'%'); pct.textContent=p+'%';
       feed.innerHTML='<div><span class="r">↻</span> '+(s.running||'')+' 긁는 중…</div>';
       ring.classList.add('spin');
     } else {
-      ring.style.setProperty('--p','0%');
-      pct.textContent=st.crawl_auto_enabled?'대기':'0%';
+      pct.textContent=st.crawl_auto_enabled?(_lapPct+'%'):'0%';
       feed.innerHTML=_feedRest;
       ring.classList.remove('spin');
     }
@@ -335,12 +344,13 @@
       });
     }).catch(function(){});
   }
-  renderSpeed(); renderFailures(); renderKmini(); paintRun();
+  renderSpeed(); renderFailures(); renderKmini(); pollLap(); paintRun();
   // 로드 시 실행 상태면 확장 폴링 재개(서비스워커 재시작·페이지 재방문 대비).
   //   토글 클릭 때만 시작하면, 실행 ON인 채 새로고침하면 폴링이 안 살아나던 갭 보완.
   //   확장 미설치면 send()가 reject → 조용히 무시.
   try{ if(st.crawl_auto_enabled && window.MoumExt && MoumExt.autoPollStart){ var _ap=MoumExt.autoPollStart(); if(_ap&&_ap.catch)_ap.catch(function(){}); } }catch(_){}
   setInterval(paintRun,3000);
+  setInterval(pollLap,3000);
   setInterval(renderFailures,15000);
 })();
 </script>

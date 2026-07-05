@@ -226,6 +226,7 @@ def _apply_lightweight_migrations() -> None:
         # 2026-07-04: 자동화 연속 배수 큐 — 계수·무변동 연속
         ("source_products", "crawl_weight", "INTEGER DEFAULT 1 NOT NULL"),
         ("source_products", "no_change_streak", "INTEGER DEFAULT 0 NOT NULL"),
+        ("source_products", "crawl_lap_count", "INTEGER DEFAULT 0 NOT NULL"),
         # 2026-07-05: 옵션별 브랜드 (한 모음전에 여러 브랜드 섞임) — NULL=미지정(Model.brand 상속)
         ("options", "brand", "VARCHAR(100)"),
         # 2026-07-05: 롯데온 자동전송 formatter 용 — 마스터의 롯데온 상품/옵션 ID.

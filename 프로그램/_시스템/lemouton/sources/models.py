@@ -48,6 +48,8 @@ class SourceProduct(Base):
     # 2026-07-04: 자동화 연속 배수 큐
     crawl_weight = Column(Integer, default=1, nullable=False)      # 계수 1~5
     no_change_streak = Column(Integer, default=0, nullable=False)  # 무변동 연속 횟수
+    # 2026-07-06: 가중 라운드로빈 랩 — 이번 랩에 이 URL을 몇 번 크롤했나(계수만큼 채우면 소진).
+    crawl_lap_count = Column(Integer, default=0, nullable=False)
 
     created_at = Column(DateTime, default=_utcnow, nullable=False)
     updated_at = Column(DateTime, default=_utcnow, onupdate=_utcnow, nullable=False)
