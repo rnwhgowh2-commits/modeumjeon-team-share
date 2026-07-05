@@ -79,6 +79,21 @@ def set_source_crawl_weight():
         s.close()
 
 
+@bp.get('/upload/account-speed')
+def list_account_upload_speed():
+    """[읽기] 계정별 업로드 속도 + 마켓 총 스토어 업로드수(화면 ③ 표). 커밋 없음(읽기)."""
+    from lemouton.pricing.settings import get_account_policies
+    from lemouton.uploader.throttle import market_hourly_total
+    s = SessionLocal()
+    try:
+        pols = get_account_policies(s)
+        markets = sorted({p["market"] for p in pols})
+        totals = {m: market_hourly_total(s, m) for m in markets}
+        return jsonify({"accounts": pols, "market_totals": totals})
+    finally:
+        s.close()
+
+
 @bp.post('/upload/account-speed')
 def set_account_upload_speed():
     """계정(API) 업로드 속도 저장. body: {account_id, seconds_per_item?, enabled?}."""

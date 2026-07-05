@@ -51,6 +51,16 @@ def _seed_account():
         s.close()
 
 
+def test_list_returns_accounts_and_totals(client):
+    _seed_account()
+    r = client.get("/api/upload/account-speed")
+    assert r.status_code == 200
+    d = r.get_json()
+    assert any(a["account_name"] == "속도테스트계정" for a in d["accounts"])
+    assert "smartstore" in d["market_totals"]
+    assert d["market_totals"]["smartstore"] >= 600   # 기본 6초 = 600/시간
+
+
 def test_set_seconds_returns_per_hour(client):
     acc_id = _seed_account()
     r = client.post("/api/upload/account-speed",
