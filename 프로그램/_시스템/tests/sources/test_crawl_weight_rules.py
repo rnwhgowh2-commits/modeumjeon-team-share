@@ -88,3 +88,21 @@ def test_normalized_match(db):
     sp = _sp(db, "musinsa", clean)
     set_crawl_weight_rule(db, "model", "N", 4); db.flush()
     assert resolve_crawl_weight(db, sp) == 4
+
+
+from datetime import datetime, timedelta
+from lemouton.sources.crawl_schedule import due_products
+
+NOW = datetime(2026, 7, 5, 12, 0, 0)
+
+
+def test_due_products_reflects_source_rule(db):
+    base = 6 * 3600
+    # 3시간 전 크롤. 소싱처 계수 규칙 ×2 → 유효간격 3h → 딱 due
+    sp = SourceProduct(site="musinsa", url="https://m/due",
+                       last_fetched_at=NOW - timedelta(hours=3), no_change_streak=0)
+    db.add(sp); db.flush()
+    # 규칙 없으면(계수1) 6h 미달이라 아직 아님
+    assert sp.id not in [p.id for p in due_products(db, base_interval_seconds=base, now=NOW)]
+    set_crawl_weight_rule(db, "source", "musinsa", 2); db.flush()
+    assert sp.id in [p.id for p in due_products(db, base_interval_seconds=base, now=NOW)]

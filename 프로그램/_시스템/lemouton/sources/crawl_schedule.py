@@ -60,7 +60,7 @@ def due_products(session, *, base_interval_seconds: float, now: datetime) -> lis
     scored = []
     for p in products:
         od = overdue_seconds(now, p.last_fetched_at, base_interval_seconds,
-                             p.crawl_weight, p.no_change_streak)
+                             resolve_crawl_weight(session, p), p.no_change_streak)
         if od >= 0:
             scored.append((od, p))
     scored.sort(key=lambda t: t[0], reverse=True)   # 연체 큰 순

@@ -84,11 +84,17 @@ def test_due_products_orders_most_overdue_first(db):
 
 
 def test_weight_makes_due_sooner(db):
+    # [2026-07-05] 큐 계수는 이제 crawl_weight 컬럼이 아닌 계층 규칙(resolve_crawl_weight)이
+    # 결정. 소싱처 규칙 ×2 를 건 사이트가 유효간격 3h → 딱 due, 규칙 없는 사이트는 6h → 아직.
+    from lemouton.sources.crawl_schedule import set_crawl_weight_rule
     base = 6 * 3600
-    # 3시간 전 크롤, 계수 2 → 유효간격 3h → 딱 due
-    w2 = _sp(db, "u/w2", last=NOW - timedelta(hours=3), weight=2)
-    # 3시간 전 크롤, 계수 1 → 유효간격 6h → 아직 아님
-    w1 = _sp(db, "u/w1", last=NOW - timedelta(hours=3), weight=1)
+    # 3시간 전 크롤, 소싱처 규칙 ×2 → 유효간격 3h → 딱 due
+    w2 = _sp(db, "u/w2", last=NOW - timedelta(hours=3))
+    # 3시간 전 크롤, 규칙 없음(계수1) → 유효간격 6h → 아직 아님
+    w1 = SourceProduct(site="ssf", url="u/w1", no_change_streak=0,
+                       last_fetched_at=NOW - timedelta(hours=3))
+    db.add(w1); db.flush()
+    set_crawl_weight_rule(db, "source", "musinsa", 2); db.flush()
     ids = [p.id for p in due_products(db, base_interval_seconds=base, now=NOW)]
     assert w2.id in ids and w1.id not in ids
 
