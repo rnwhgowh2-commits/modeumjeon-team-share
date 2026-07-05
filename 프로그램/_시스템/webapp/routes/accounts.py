@@ -860,6 +860,88 @@ def test_upload_account_api(account_id: int):
         return jsonify({"ok": False, "error": f"{market} 테스트 미구현"}), 400
 
 
+@bp.route("/api/upload/accounts/<int:account_id>/write-test", methods=["POST"])
+def write_test_upload_account_api(account_id: int):
+    """롯데온 무변화 쓰기 왕복 테스트 — 한 옵션의 **현재 재고를 그대로 재전송**.
+
+    쓰기 API(재고 변경)가 실계정에서 성공하는지 확인한다. 보내는 값 = 지금 값 →
+    실제 재고는 바뀌지 않는다(idempotent). 재고 관리(stkMgtYn=Y) 옵션이 없으면
+    아무 것도 전송하지 않고 중단(안전).
+
+    body: ``{"spd_no": "LO..."}``
+    """
+    from lemouton.auth import secrets as S
+
+    body = request.get_json(silent=True) or {}
+    spd_no = str(body.get("spd_no") or "").strip()
+    if not spd_no:
+        return jsonify({"ok": False, "error": "spd_no(판매자상품번호)가 필요해요."}), 400
+
+    s = SessionLocal()
+    try:
+        acc = s.query(UploadAccount).get(account_id)
+        if not acc:
+            return jsonify({"ok": False, "error": "계정 없음"}), 404
+        market, env_prefix, display_name = acc.market, acc.env_prefix, acc.display_name
+    finally:
+        s.close()
+
+    if market != "lotteon":
+        return jsonify({"ok": False, "error": f"{market} 무변화 테스트 미지원(현재 롯데온 전용)"}), 400
+
+    try:
+        creds = S.load_credentials(market=market, env_prefix=env_prefix)
+    except S.SecretsMissingError as e:
+        return jsonify({"ok": False, "error": f"키 누락 — {', '.join(e.missing_keys)}"}), 400
+
+    from shared.platforms import LOTTEON
+    from shared.platforms.lotteon.client import LotteonClient
+    from shared.platforms.lotteon.products import get_product_detail, extract_items
+    from shared.platforms.lotteon.inventory import update_stock
+
+    client = LotteonClient(config={**LOTTEON, "api_key": creds.api_key, "tr_no": creds.tr_no})
+
+    # 1) 현재 상세 읽기
+    try:
+        detail = get_product_detail(spd_no, client=client, tr_no=creds.tr_no)
+    except Exception as e:  # noqa: BLE001
+        return jsonify({"ok": False, "error": f"상세조회 실패: {e}"}), 502
+    items = extract_items(detail)
+    if not items:
+        return jsonify({"ok": False, "error": "옵션(단품)이 없어요."}), 400
+
+    # 2) 재고 관리 + 실수량 있는 옵션 1개 (무변화 안전 대상)
+    target = next((it for it in items
+                   if it.get("stock_managed") and it.get("stock") is not None), None)
+    if not target:
+        return jsonify({
+            "ok": False,
+            "error": "재고 관리(stkMgtYn=Y) 옵션이 없어 무변화 재고 테스트를 못 해요"
+                     "(모든 옵션이 재고 미관리). 다른 상품번호로 시도하거나 가격 테스트를 원하시면 알려주세요.",
+            "options_read": len(items),
+        }), 200
+
+    sitm_no = target["sitm_no"]
+    cur_stock = int(target["stock"])
+
+    # 3) 같은 값 재전송 — 실제 변화 없음
+    try:
+        ok = update_stock(spd_no, sitm_no, cur_stock, client=client, tr_no=creds.tr_no)
+    except Exception as e:  # noqa: BLE001
+        return jsonify({"ok": False, "error": f"재고 전송 실패: {e}"}), 502
+
+    return jsonify({
+        "ok": bool(ok),
+        "message": (f"✅ {display_name} 쓰기 왕복 성공 — 옵션 {sitm_no}의 재고 {cur_stock}개를 "
+                    f"'그대로' 재전송(값 변화 없음). 쓰기 API 정상."
+                    if ok else f"쓰기 실패 — 옵션 {sitm_no}"),
+        "sitm_no": sitm_no,
+        "stock_resent": cur_stock,
+        "options_read": len(items),
+        "note": "값을 바꾸지 않는 무변화 테스트입니다.",
+    })
+
+
 def _test_coupang(creds, display_name: str, env_prefix: str):
     """쿠팡 Wing OPEN API ping — 셀러 상품 1건만 조회."""
     import time as _time
