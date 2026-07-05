@@ -335,6 +335,10 @@
     }).catch(function(){});
   }
   renderSpeed(); renderFailures(); renderKmini(); paintRun();
+  // 로드 시 실행 상태면 확장 폴링 재개(서비스워커 재시작·페이지 재방문 대비).
+  //   토글 클릭 때만 시작하면, 실행 ON인 채 새로고침하면 폴링이 안 살아나던 갭 보완.
+  //   확장 미설치면 send()가 reject → 조용히 무시.
+  try{ if(st.crawl_auto_enabled && window.MoumExt && MoumExt.autoPollStart){ var _ap=MoumExt.autoPollStart(); if(_ap&&_ap.catch)_ap.catch(function(){}); } }catch(_){}
   setInterval(paintRun,3000);
   setInterval(renderFailures,15000);
 })();
