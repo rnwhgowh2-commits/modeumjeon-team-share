@@ -1167,8 +1167,10 @@ async function runQueueBG() {
 // ── [2026-07-04] 자동화 워커: 서버 /api/crawl/due-bundles 폴링 → 기존 크롤 큐로 위임 ──
 //   검증된 크롤 로직(crawlBundleAllBG·동시성·재시도·로그인세션)을 그대로 재사용한다.
 //   서버 enabled 게이트가 이중 안전 — 실행/정지 끄면 빈 목록이 와서 아무것도 안 함.
-const MOUM_POLL_MS = 60000;   // 1분마다 폴링
-let _moumPollTimer = null;
+// [2026-07-05 v0.7.15] MV3 서비스워커는 ~30초 유휴 시 언로드돼 setInterval 이 죽는다
+//   → 자동 폴링이 한 번 돌고 멈추던 근본원인(라이브 실증). chrome.alarms 로 전환(잠들어도
+//   Chrome 이 SW 를 깨워 폴). moum-keepalive 와 동일한 검증된 방식. (알람 최소주기 1분)
+const MOUM_POLL_ALARM = "moum-auto-poll";
 async function moumAutoPollOnce() {
   try {
     const r = await bgFetch("/api/crawl/due-bundles").then((x) => x.json());
@@ -1178,13 +1180,16 @@ async function moumAutoPollOnce() {
   } catch (e) { console.warn("[moum-auto-poll]", e && e.message ? e.message : e); }
 }
 function moumAutoPollStart() {
-  if (_moumPollTimer) return;
-  moumAutoPollOnce();
-  _moumPollTimer = setInterval(moumAutoPollOnce, MOUM_POLL_MS);
+  moumAutoPollOnce();   // 즉시 1회
+  try { chrome.alarms.create(MOUM_POLL_ALARM, { periodInMinutes: 1 }); } catch (_) {}
 }
 function moumAutoPollStop() {
-  if (_moumPollTimer) { clearInterval(_moumPollTimer); _moumPollTimer = null; }
+  try { chrome.alarms.clear(MOUM_POLL_ALARM); } catch (_) {}
 }
+// 알람 발화 → 폴 1회 (SW 가 잠들었다 깨어난 경우에도 실행)
+try {
+  chrome.alarms.onAlarm.addListener((a) => { if (a && a.name === MOUM_POLL_ALARM) moumAutoPollOnce(); });
+} catch (_) {}
 
 // ── [2026-06-29] 현대H몰 색상/모델모음전 사이즈별 실수량 보강 ──
 //   2축(색×사이즈) 모음전 상품은 페이지 HTML(__NEXT_DATA__)에 1축(색)만 옴 → 색별 합계만.
