@@ -90,6 +90,17 @@ def crawl_weight_rules():
         s.close()
 
 
+@bp.get('/crawl/weight-tree')
+def crawl_weight_tree():
+    """[읽기] 계수 드릴다운 트리(소싱처/브랜드/모음전 3기준). 노드별 weight·direct 정본."""
+    from lemouton.sources.crawl_weight_tree import build_weight_tree
+    s = SessionLocal()
+    try:
+        return jsonify(build_weight_tree(s))
+    finally:
+        s.close()
+
+
 @bp.post('/crawl/weight-rule')
 def set_crawl_weight_rule_route():
     """계수 규칙 설정/해제. body {scope_type, scope_key, weight?(없으면 해제)}."""
