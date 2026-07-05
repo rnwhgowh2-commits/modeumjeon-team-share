@@ -79,6 +79,29 @@ def set_source_crawl_weight():
         s.close()
 
 
+@bp.post('/upload/account-speed')
+def set_account_upload_speed():
+    """계정(API) 업로드 속도 저장. body: {account_id, seconds_per_item?, enabled?}."""
+    from lemouton.pricing.settings import set_account_policy
+    from lemouton.multitenancy.models import MarketAccount
+    data = request.get_json(silent=True) or {}
+    try:
+        acc_id = int(data.get('account_id'))
+    except (TypeError, ValueError):
+        return jsonify({"ok": False, "error": "account_id 필수(정수)"}), 400
+    s = SessionLocal()
+    try:
+        if s.get(MarketAccount, acc_id) is None:
+            return jsonify({"ok": False, "error": "계정 없음"}), 404
+        r = set_account_policy(s, acc_id,
+                               seconds_per_item=data.get('seconds_per_item'),
+                               enabled=data.get('enabled'))
+        s.commit()
+        return jsonify({"ok": True, **r})
+    finally:
+        s.close()
+
+
 # ---------- Bundles ----------
 
 _BUNDLE_FIELDS = ('model_name_display', 'category',
