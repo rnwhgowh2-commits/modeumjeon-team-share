@@ -67,6 +67,17 @@ def due_products(session, *, base_interval_seconds: float, now: datetime) -> lis
     return [p for _, p in scored]
 
 
+def set_crawl_weight(session, source_product_id: int, weight) -> int:
+    """URL(SourceProduct)의 계수(1~5) 저장. 1~5로 클램프. 호출자가 commit."""
+    from lemouton.sources.models import SourceProduct
+    sp = session.get(SourceProduct, source_product_id)
+    if sp is None:
+        raise ValueError(f"source_product {source_product_id} 없음")
+    sp.crawl_weight = max(1, min(5, int(weight)))
+    session.flush()
+    return sp.crawl_weight
+
+
 def base_crawl_interval_seconds(session) -> float:
     """자동화 설정의 기준 주기(시·분)를 초로. 0이면 '항상 마감'(연속)."""
     from lemouton.pricing.settings import get_or_init
