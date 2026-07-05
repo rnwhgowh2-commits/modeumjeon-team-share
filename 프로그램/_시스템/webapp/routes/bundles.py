@@ -117,7 +117,9 @@ def bundle_new():
     if request.method == 'POST':
         code = (request.form.get('model_code') or '').strip()
         name = (request.form.get('model_name_raw') or '').strip()
-        brand = (request.form.get('brand') or '르무통').strip()
+        # [2026-07-05] 신규 등록 브랜드 필수화 — '르무통' 자동 채움 제거.
+        #   빈 값이면 아래 검증(if not brand)에서 거부. 기존 데이터는 안 건드림.
+        brand = (request.form.get('brand') or '').strip()
         category = (request.form.get('category') or '신발').strip()
         if not code or not name:
             return render_template('bundles/new.html', active='bundles',

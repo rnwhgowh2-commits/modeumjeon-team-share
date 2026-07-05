@@ -21,8 +21,9 @@
         <div class="field-hint">등록 후에도 「코드 변경」으로 수정 가능.</div>
       </div>
       <div class="field">
-        <label class="field-label">브랜드</label>
-        <input id="brand" class="field-input" value="르무통" placeholder="예: 르무통, 잔스포츠, 나이키" />
+        <label class="field-label">브랜드 <span style="color:#e11d48">*</span></label>
+        <input id="brand" class="field-input" placeholder="예: 르무통, 잔스포츠, 나이키" />
+        <div class="field-hint">필수 — 모음전에 여러 브랜드가 섞이면 옵션별로 따로 지정할 수 있어요.</div>
       </div>
       <div class="field">
         <label class="field-label">모델명 (마켓 노출용)</label>
@@ -392,12 +393,14 @@
     var payload={
       model_code:$('#model_code').value.trim(),
       model_name_raw:$('#model_name_raw').value.trim(),
-      brand:$('#brand').value.trim()||'르무통',
+      brand:$('#brand').value.trim(),
       category:$('#category').value,
       product_skus:addedOptions.map(function(o){ return o.product_sku; }),
     };
     if(!payload.model_code||!payload.model_name_raw){
       err.textContent='모음전 코드와 모델명을 입력하세요.'; err.style.display='block'; switchTab('basic'); return; }
+    if(!payload.brand){
+      err.textContent='브랜드를 입력하세요.'; err.style.display='block'; switchTab('basic'); return; }
     btn.disabled=true; btn.textContent='생성 중…';
     fetch('/api/inventory/compose-bundle',{
       method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload),
