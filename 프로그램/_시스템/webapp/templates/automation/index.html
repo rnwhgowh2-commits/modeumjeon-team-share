@@ -154,7 +154,7 @@
   paintFreq(); paintMode();
 
   // 이벤트
-  document.getElementById('t-crawl').addEventListener('click',function(){ st.crawl_auto_enabled=!st.crawl_auto_enabled; tog(this,st.crawl_auto_enabled); fmtNext(); save({crawl_auto_enabled:st.crawl_auto_enabled}); });
+  document.getElementById('t-crawl').addEventListener('click',function(){ st.crawl_auto_enabled=!st.crawl_auto_enabled; tog(this,st.crawl_auto_enabled); fmtNext(); save({crawl_auto_enabled:st.crawl_auto_enabled}); try{ if(window.MoumExt){ st.crawl_auto_enabled ? MoumExt.autoPollStart() : MoumExt.autoPollStop(); } }catch(_){} });
   document.querySelectorAll('#freq .chip[data-h]').forEach(function(c){ c.addEventListener('click',function(){ st.crawl_interval_hours=parseInt(c.dataset.h,10); st.crawl_interval_minutes=parseInt(c.dataset.m,10); paintFreq(); save({crawl_interval_hours:st.crawl_interval_hours,crawl_interval_minutes:st.crawl_interval_minutes}); }); });
   function customTime(){ st.crawl_interval_hours=Math.max(0,parseInt(document.getElementById('in-h').value,10)||0); st.crawl_interval_minutes=Math.max(0,Math.min(59,parseInt(document.getElementById('in-m').value,10)||0)); paintFreq(); save({crawl_interval_hours:st.crawl_interval_hours,crawl_interval_minutes:st.crawl_interval_minutes}); }
   document.getElementById('in-h').addEventListener('change',customTime);

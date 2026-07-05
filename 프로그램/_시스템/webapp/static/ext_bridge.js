@@ -175,6 +175,11 @@
   function stopCrawl()         { return send("crawl.stop",   {}, 5000); }
   function cancelCrawl(code)   { return send("crawl.cancel", { code: code }, 5000); }
 
+  // 자동화: 서버 due-bundles 폴링 시작/정지 (실행/정지 토글에서 호출).
+  //   서버 crawl_auto_enabled 게이트가 이중 안전 — 폴링이 켜져도 정지면 빈 목록.
+  function autoPollStart()     { return send("moum.auto-poll.start", {}, 5000); }
+  function autoPollStop()      { return send("moum.auto-poll.stop",  {}, 5000); }
+
   window.MoumExt = {
     installed,
     version,
@@ -188,6 +193,8 @@
     resumeCrawl,
     stopCrawl,
     cancelCrawl,
+    autoPollStart,
+    autoPollStop,
     startSchedule,
     stopSchedule,
     scheduleStatus,
