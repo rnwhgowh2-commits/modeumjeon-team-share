@@ -528,6 +528,11 @@ def save_secrets(env_prefix: str):
             "error": "env_prefix 형식 오류 (영숫자 + 언더스코어만)",
         }), 400
 
+    # 멀티 워커 일관성 — 다른 워커가 저장한 기존값을 이 워커도 보게 해서
+    # '빈 칸이지만 기존값 있음' 판정이 워커 간 일관되도록(필수 필드 오거부 방지).
+    from lemouton.auth import secrets as _S
+    _S.refresh_env()
+
     # 입력 검증 — 빈 칸 + 기존값 있으면 기존 유지(확인만 하고 저장 시 안 깨짐)
     expected_suffixes = MARKET_KEY_SUFFIXES[market]
     env_keys = {}
@@ -1126,6 +1131,10 @@ def secrets_schema(env_prefix: str):
     market = request.args.get("market", "").lower()
     if market not in MARKET_KEY_SUFFIXES:
         return jsonify({"ok": False, "error": "market 미지원"}), 400
+
+    # 멀티 워커 일관성 — 다른 워커가 저장한 키도 반영해 '미등록' 오표시 방지.
+    from lemouton.auth import secrets as _S
+    _S.refresh_env()
 
     fields = []
     for sfx in MARKET_KEY_SUFFIXES[market]:

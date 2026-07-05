@@ -19,11 +19,35 @@ from __future__ import annotations
 
 import logging
 import os
+from pathlib import Path
 from typing import Type
 
 from pydantic import BaseModel, ConfigDict, Field
 
 logger = logging.getLogger(__name__)
+
+# UI(env_writer)가 쓰는 프로젝트 .env 경로 (secrets.py = lemouton/auth/, parents[2] = 프로젝트 루트)
+_ENV_PATH = Path(__file__).resolve().parents[2] / ".env"
+
+try:
+    from dotenv import load_dotenv as _load_dotenv
+except ImportError:  # dotenv 미설치 환경(테스트 등)
+    _load_dotenv = None
+
+
+def refresh_env() -> None:
+    """멀티 워커(gunicorn --workers N) 간 UI 저장 시크릿 불일치 해소.
+
+    UI 키 저장은 컨테이너 ``.env`` 파일 + **저장을 처리한 워커 1개**의 ``os.environ`` 만
+    갱신한다. 나머지 워커는 그 키를 못 봐서 "미등록"·"키 누락"·"필수 필드 누락"이 요청마다
+    오락가락한다. 자격증명·상태를 읽기 직전 **공유 .env 파일을 다시 로드**해 모든 워커를
+    같은 최신 상태로 맞춘다.
+
+    안전: 컨테이너 ``.env`` 에는 UI 로 저장한 키만 있고(이미지엔 .env 미포함, .dockerignore),
+    쿠팡·스마트스토어 키는 ``~/app.env``(os.environ, 파일 아님)에서 오므로 override 대상 아님.
+    """
+    if _load_dotenv is not None and _ENV_PATH.exists():
+        _load_dotenv(_ENV_PATH, override=True)
 
 
 # ──────────────────────────────────────────────────────────
@@ -173,6 +197,9 @@ def load_credentials(
     schema = MARKET_SCHEMAS.get(market)
     if schema is None:
         raise SecretsUnknownMarketError(market, supported_markets())
+
+    # 멀티 워커 일관성 — UI 로 방금 저장된 키를 이 워커도 보도록 공유 .env 재로드.
+    refresh_env()
 
     norm = _normalize_prefix(env_prefix)
     field_names = list(schema.model_fields.keys())
