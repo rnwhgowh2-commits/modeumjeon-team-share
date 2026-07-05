@@ -170,7 +170,10 @@ function genPrompt(){
   var docs=(document.getElementById('mkDocs').value||'').trim() || '(문서 링크 미입력 — 조사 필요)';
   var keys=(document.getElementById('mkKeys').value||'').trim() || '(조사 필요)';
   var acts=curActs().join(' · ');
-  var t='판매처 추가 가이드 참고해서 "'+name+'" 업로드 연동 추가해줘.\n'
+  var t='판매처(마켓) 연동 추가해줘 — "'+name+'".\n'
+    +'[참고 정본] docs/markets/_schema.yaml 스키마 따라 새 프로파일 docs/markets/<영문슬러그>.yaml 작성.\n'
+    +'  완성본 참고: docs/markets/coupang.yaml(HMAC) · smartstore.yaml(OAuth).\n'
+    +'  근거는 코드에서 추출(추측 금지): shared/platforms/* · lemouton/registration/* · lemouton/auth/* · accounts.py(MARKET_METADATA·MARKET_KEY_SUFFIXES) · uploader/runtime.py.\n'
     +'· 인증/API : '+curAuth()+'\n'
     +'· 문서 : '+docs+'\n'
     +'· 필요 키 : '+keys+'\n'
