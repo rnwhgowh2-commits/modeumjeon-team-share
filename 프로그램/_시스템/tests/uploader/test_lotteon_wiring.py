@@ -287,6 +287,35 @@ def _cout_lotteon():
     }
 
 
+class TestBuildLotteonPayload:
+    def _dec(self, opt_id, displayed, price):
+        return {"canonical_sku": "SKU-L", "color_display": "블랙", "size_display": "260",
+                "lotteon_option_id": opt_id, "lotteon": {"displayed": displayed, "price": price}}
+
+    def test_none_when_product_unmapped(self):
+        # lotteon_product_id 없으면 None → 자동전송 대상 아님(배선만 상태의 안전).
+        from lemouton.formatter.lotteon import build_lotteon_payload
+        model = {"model_name_display": "M", "lotteon_product_id": None}
+        assert build_lotteon_payload([self._dec("LO_1", True, 1000)], model, {}) is None
+
+    def test_payload_when_mapped(self):
+        from lemouton.formatter.lotteon import build_lotteon_payload
+        model = {"model_name_display": "M", "lotteon_product_id": "LO100"}
+        p = build_lotteon_payload([self._dec("LO100_1", True, 119000)], model, {"SKU-L": 5})
+        assert p["market"] == "lotteon"
+        assert p["product_id"] == "LO100"
+        assert p["options"][0]["option_id"] == "LO100_1"
+        assert p["options"][0]["price"] == 119000
+        assert p["options"][0]["stock"] == 5
+
+    def test_skips_option_without_id(self):
+        from lemouton.formatter.lotteon import build_lotteon_payload
+        model = {"model_name_display": "M", "lotteon_product_id": "LO100"}
+        d = self._dec(None, True, 1000)
+        p = build_lotteon_payload([d], model, {})
+        assert p["options"] == []
+
+
 class TestOrchestratorRouting:
     def test_lotteon_row_goes_to_lotteon_adapter_not_coupang(self, db, tmp_path):
         # 함정 방지: lotteon 행이 쿠팡 어댑터로 새어나가면 금전 손실.

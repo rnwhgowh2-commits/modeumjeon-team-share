@@ -275,6 +275,42 @@ class TestPickCheapestBuyable:
 
 
 # ─────────────────────────────────────────────────────────────
+# _effective_stock_status — 셀 status 확정 (match_failed·uncollected → '확인 불가')
+#   [2026-07-05] 르무통 오렌지 260/270 유령재고 회귀:
+#     소싱처가 안 파는 색×사이즈(match_failed)인데 crawled_stock=None + 상품 last_status='ok'
+#     → _resolve_stock 이 '재고있음'(ample) 으로 둔갑(품절둔갑=금전위험). match_failed 도
+#     uncollected 와 동일하게 '확인 불가'로 확정해야 한다(가격은 이미 폴백 금지됐으나 재고 누락).
+# ─────────────────────────────────────────────────────────────
+class TestEffectiveStockStatus:
+    def test_match_failed_is_uncollected_not_source_ok(self):
+        from webapp.routes.api_pricing import _effective_stock_status
+        # 소싱처가 안 파는 조합(match_failed): 상품 크롤은 ok 여도 이 셀은 '확인 불가'
+        assert _effective_stock_status(
+            {'match_failed': True, 'last_status': 'ok'}) == 'uncollected'
+
+    def test_uncollected_still_uncollected(self):
+        from webapp.routes.api_pricing import _effective_stock_status
+        assert _effective_stock_status(
+            {'stock_uncollected': True, 'last_status': 'ok'}) == 'uncollected'
+
+    def test_normal_passes_through_last_status(self):
+        from webapp.routes.api_pricing import _effective_stock_status
+        assert _effective_stock_status({'last_status': 'ok'}) == 'ok'
+        assert _effective_stock_status({'last_status': 'error'}) == 'error'
+
+    def test_match_failed_resolves_to_confirm_unavailable_not_ample(self):
+        # 통합: match_failed 셀은 '확인 불가'/'uncollected' 로 풀려야 한다 (ample 아님).
+        from webapp.routes.api_pricing import (
+            _effective_stock_status, _resolve_stock, _stock_state)
+        d = {'match_failed': True, 'last_status': 'ok',
+             'site': 'lemouton', 'crawled_stock': None}
+        eff = _effective_stock_status(d)
+        assert _resolve_stock(d['site'], d['crawled_stock'], eff) == (None, '확인 불가', False)
+        assert _stock_state(d['site'], d['crawled_stock'], eff) == 'uncollected'
+        assert _stock_state(d['site'], d['crawled_stock'], eff) != 'ample'
+
+
+# ─────────────────────────────────────────────────────────────
 # _stock_state — 재고 원시값 → 상태 문자열 (프론트 스타일/툴팁용)
 # ─────────────────────────────────────────────────────────────
 class TestStockState:

@@ -9,6 +9,12 @@ PROJECT_ROOT = Path(__file__).resolve().parent
 
 load_dotenv(PROJECT_ROOT / ".env", override=True)
 
+# UI 저장 시크릿의 영속 경로(배포 시 호스트 볼륨 마운트). gunicorn --preload 로
+# 마스터에서 1회 로드 → fork 된 모든 워커가 시작 시 키를 공유(배포 후 재입력 불필요).
+_secrets_env = os.environ.get("LEMOUTON_SECRETS_ENV")
+if _secrets_env and Path(_secrets_env).exists():
+    load_dotenv(_secrets_env, override=True)
+
 
 class Config:
     HOST = os.environ.get("FLASK_HOST", "127.0.0.1")
