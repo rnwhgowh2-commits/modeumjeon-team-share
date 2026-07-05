@@ -838,7 +838,9 @@ def compute_breakdown(session, *, sku: str, source_id: int, sale_price: float,
             _coupon_pick = _pbc(_pcl, _cb0, _g0.get('exclude_keywords') or [])
             _coupon_val = float(_coupon_pick['amount']) if _coupon_pick else 0.0
         effective.append(('dyn', _Inj('상품쿠폰', _coupon_val, enabled=bool(_coupon_val))))
-        effective.append(('dyn', _Inj('등급할인', float(_dynamic_benefits.get('grade_discount_amount') or 0), enabled=bool(_dynamic_benefits.get('grade_discount_amount')))))
+        # ★ 2026-07-05 — 등급할인(선할인) 차감 제거. 무신사 등급혜택은 '할인 vs 적립' 택1 →
+        #   정책상 '무조건 구매적립'(사용자 확정). 선할인은 표면노출가(salePrice)에 이미 미반영이라
+        #   여기서 또 차감하면 이중혜택 = 언더프라이싱(가격 오염). 구매적립(등급적립)만 반영한다.
         effective.append(('dyn', _Inj('등급적립', float(_dynamic_benefits.get('grade_reward_amount') or 0), enabled=bool(_dynamic_benefits.get('grade_reward_amount')))))
         effective.append(('dyn', _Inj('무신사머니 결제 적립', float(_dynamic_benefits.get('money_reward_amount') or 0), enabled=bool(_dynamic_benefits.get('money_reward_amount')))))
 
@@ -869,6 +871,17 @@ def compute_breakdown(session, *, sku: str, source_id: int, sale_price: float,
             name='현대카드 2.73% (청구할인 fallback)',
             btype='rate', value=0.0273,
             enabled=True,
+        )))
+    # ★ 2026-07-05 — 무신사 결제 택1: 무신사머니 적립이 잡히면(활성) 그걸로, 없으면 현대카드 2.73%.
+    #   정본 설계(musinsa_playwright.py:833·838): '무신사머니 활성=크롤러 차감 / 비활성=현대카드 fallback'.
+    #   무신사머니 결제 적립 금액이 있으면 그게 결제 혜택(프로모션 포함이라 등급 기본%보다 클 수 있음) →
+    #   현대카드 비활성. 안 잡히면(적용 불가 계정 등) 현대카드 2.73% 로 결제 계산. (사용자 확정 2026-07-05)
+    if _site_for == 'musinsa':
+        _money_amt = float((_dynamic_benefits or {}).get('money_reward_amount') or 0)
+        effective.append(('dyn', _DynBenefit(
+            name='현대카드 2.73% (무신사머니 미적용 시)',
+            btype='rate', value=0.0273,
+            enabled=(_money_amt <= 0),
         )))
 
     # ★ 2026-06-23 — 무신사 조건부 혜택 키워드 게이트 (Task 1b-3).

@@ -79,6 +79,20 @@ def test_total_matches_max_accrual():
     assert out['grade_reward_amount'] + out['money_reward_amount'] == 8200  # +후기2500=10700
 
 
+def test_money_reward_excludes_samsung_holdings_firstpay():
+    # ★ 2026-07-05 — 결제적립은 '무신사머니 결제 시 X%' 클린 라인만.
+    #   삼성카드 무신사머니 포인트 / 보유적립금 / 첫결제 추가적립은 max 로도 안 잡혀야 한다.
+    lines = [
+        "무신사머니 결제 시 4% 적립4,400원",
+        "무신사 삼성카드 결제 시 무신사머니 포인트 10% 적립9,499원",
+        "보유 적립금 사용 (현재 1,055,728원 보유)-8,600원",
+        "무신사머니 첫 결제 시 10% 추가 적립6,000원",
+    ]
+    out = parse_musinsa_benefit_amounts(lines, surface_price=122900)
+    assert out['money_reward_amount'] == 4400  # 삼성/보유/첫결제 제외, 결제 라인만
+    assert out['money_active'] is True
+
+
 def test_member_signal_true():
     assert has_musinsa_member_signal(LIVE_LINES) is True
 
