@@ -41,7 +41,7 @@
 
 <div class="dm2">
   <h2>📖 데이터 코드 지도 — 판매처</h2>
-  <div class="sub">각 마켓의 <b>개발환경</b> + 프로그램과 주고받는 <b>API 전부</b>를 영역별로. 색은 <b>상태</b>에만(됨·연결됨·미정의), 방향은 <b>보내기/받기</b> 위치로. 별(☆)로 담으면 「주요 데이터」에서 마켓끼리 비교.</div>
+  <div class="sub">각 마켓의 <b>개발환경</b> + 프로그램과 주고받는 API를 <b>그 마켓 공식 문서의 카테고리 그대로</b> 왼쪽에 나열(네이버 9·롯데온 13). 색은 <b>상태</b>에만, 방향은 <b>보내기/받기</b> 위치로. 별(☆)로 담으면 「주요 데이터」에서 마켓끼리 비교.</div>
 
   <div class="flow">
     <span class="nd">프로그램<small> · 가격·재고</small></span><span class="ar">→</span>
@@ -75,75 +75,138 @@ const DM_MARKETS=[
   {id:'smartstore',nm:'스마트스토어',status:'ok',env:{인증:'OAuth2 + bcrypt',API:'REST · 네이버 커머스',문서:'apicenter.commerce.naver.com',키:'CLIENT_ID·CLIENT_SECRET'}},
   {id:'lotteon',nm:'롯데온',status:'todo',env:{인증:'정적 인증키(Bearer) + IP 등록',API:'REST · 롯데온 Open API',문서:'store.lotteon.com',키:'API_KEY·TR_NO (LOTTEON_MAIN)'}},
 ];
-const DM_GROUPS=[
-  {g:'상품·옵션 등록·관리',items:[
-    {nm:'상품 등록(상품명·브랜드)',dir:'send',s:{coupang:'code',smartstore:'code',lotteon:'todo'},code:'products/create_product'},
-    {nm:'이미지',dir:'send',s:{coupang:'code',smartstore:'code',lotteon:'todo'},code:'등록 페이로드'},
-    {nm:'상세페이지',dir:'send',s:{coupang:'code',smartstore:'code',lotteon:'todo'},code:'contents/detail_html'},
-    {nm:'옵션 생성(색·사이즈)',dir:'send',s:{coupang:'code',smartstore:'code',lotteon:'todo'},code:'optionCombinations'},
-    {nm:'상품 삭제',dir:'send',s:{coupang:'todo',smartstore:'code',lotteon:'todo'},code:'delete_origin_product'},
-    {nm:'카테고리 추천',dir:'recv',s:{coupang:'code',smartstore:'todo',lotteon:'todo'},code:'categories.predict'},
-    {nm:'카테고리 메타·고시',dir:'recv',s:{coupang:'code',smartstore:'todo',lotteon:'todo'},code:'categories.get_meta'},
-    {nm:'출고지·반품지·택배사',dir:'recv',s:{coupang:'code',smartstore:'todo',lotteon:'todo'},code:'shipping'},
-  ]},
-  {g:'가격·재고·판매상태',items:[
-    {nm:'가격',dir:'send',s:{coupang:'ok',smartstore:'ok',lotteon:'code'},code:'prices.update_price'},
-    {nm:'재고',dir:'send',s:{coupang:'ok',smartstore:'ok',lotteon:'code'},code:'inventory.update_stock'},
-    {nm:'판매상태(품절·중지·재개)',dir:'send',s:{coupang:'ok',smartstore:'ok',lotteon:'todo'},code:'requested/change_status'},
-  ]},
-  {g:'조회·연동(기존상품)',items:[
-    {nm:'판매가·옵션 현재값 조회',dir:'recv',s:{coupang:'ok',smartstore:'ok',lotteon:'code'},code:'get_product(_detail)/fetch_options'},
-    {nm:'상품 검색',dir:'recv',s:{coupang:'todo',smartstore:'code',lotteon:'todo'},code:'products/search'},
-    {nm:'채널상품번호 조회',dir:'recv',s:{coupang:'todo',smartstore:'code',lotteon:'todo'},code:'get_channel_no'},
-  ]},
-  {g:'주문·배송',items:[
-    {nm:'주문 목록·상세 조회',dir:'recv',s:{coupang:'code',smartstore:'code',lotteon:'todo'},code:'orders.fetch_orders'},
-    {nm:'송장·발송처리',dir:'send',s:{coupang:'code',smartstore:'code',lotteon:'todo'},code:'orders.send_tracking'},
-  ]},
-  {g:'정산',items:[
-    {nm:'건별 정산내역(정산금액)',dir:'recv',s:{coupang:'code',smartstore:'off',lotteon:'off'},code:'coupang revenue-history · ss /pay-settle 건별정산 · lotteon 상품별 주문내역'},
-    {nm:'수수료 상세·내역',dir:'recv',s:{coupang:'todo',smartstore:'off',lotteon:'off'},code:'ss 수수료 상세 · lotteon 상품별 수수료내역'},
-    {nm:'일별 정산내역',dir:'recv',s:{coupang:'todo',smartstore:'off',lotteon:'todo'},code:'ss /pay-settle 일별정산'},
-    {nm:'건별 부가세 내역',dir:'recv',s:{coupang:'todo',smartstore:'off',lotteon:'todo'},code:'ss /v1/pay-settle/vat/case'},
-    {nm:'일별 부가세 내역',dir:'recv',s:{coupang:'todo',smartstore:'off',lotteon:'todo'},code:'ss /pay-settle/vat 일별'},
-    {nm:'상품별 할인내역',dir:'recv',s:{coupang:'todo',smartstore:'todo',lotteon:'off'},code:'lotteon 정산>할인내역'},
-    {nm:'상품별 배송비내역',dir:'recv',s:{coupang:'todo',smartstore:'todo',lotteon:'off'},code:'lotteon 정산>배송비내역'},
-    {nm:'상품별 차감내역',dir:'recv',s:{coupang:'todo',smartstore:'todo',lotteon:'off'},code:'lotteon 정산>차감내역'},
-    {nm:'중개셀러 통합정보',dir:'recv',s:{coupang:'todo',smartstore:'todo',lotteon:'off'},code:'lotteon 정산>중개셀러통합정보'},
-  ]},
-  {g:'고객응대(CS)',items:[
-    {nm:'고객문의 조회',dir:'recv',s:{coupang:'code',smartstore:'code',lotteon:'todo'},code:'inquiries.fetch'},
-    {nm:'문의 답변',dir:'send',s:{coupang:'code',smartstore:'code',lotteon:'todo'},code:'inquiries.reply'},
-    {nm:'반품·취소·교환 조회',dir:'recv',s:{coupang:'code',smartstore:'code',lotteon:'todo'},code:'claims'},
-    {nm:'반품·교환 승인',dir:'send',s:{coupang:'code',smartstore:'code',lotteon:'todo'},code:'claims.approve'},
-  ]},
-];
+// 마켓별 = 그 마켓 공식 문서의 카테고리 그대로. items 는 확인된 것만(정산+우리 코드),
+// 나머지 카테고리는 빈 목록 → "공식 문서에서 가져오는 중" 자리표시. st: ok/code/off/todo.
+const MKT_CATS={
+  coupang:[
+    {g:'상품·옵션 등록·관리',items:[
+      {nm:'상품 등록',dir:'send',st:'code',code:'products.create_product'},
+      {nm:'이미지·상세페이지',dir:'send',st:'code',code:'등록 페이로드'},
+      {nm:'옵션 생성(색·사이즈)',dir:'send',st:'code',code:'items[]'},
+      {nm:'카테고리 추천',dir:'recv',st:'code',code:'categories.predict'},
+      {nm:'카테고리 메타·고시',dir:'recv',st:'code',code:'categories.get_meta'},
+      {nm:'출고지·반품지·택배사',dir:'recv',st:'code',code:'shipping'},
+    ]},
+    {g:'가격·재고·판매상태',items:[
+      {nm:'가격',dir:'send',st:'ok',code:'prices.update_price'},
+      {nm:'재고',dir:'send',st:'ok',code:'inventory.update_quantity'},
+      {nm:'판매상태',dir:'send',st:'ok',code:'requested/inflow-status'},
+    ]},
+    {g:'조회·연동(기존상품)',items:[
+      {nm:'판매가·옵션 조회',dir:'recv',st:'ok',code:'products.get_product'},
+    ]},
+    {g:'주문·배송',items:[
+      {nm:'주문 목록·상세 조회',dir:'recv',st:'code',code:'orders.fetch_orders'},
+      {nm:'송장·발송처리',dir:'send',st:'code',code:'orders.send_tracking'},
+    ]},
+    {g:'정산',items:[
+      {nm:'건별 정산내역(정산금액)',dir:'recv',st:'code',code:'settlements revenue-history'},
+      {nm:'수수료 상세',dir:'recv',st:'todo',code:'문서 확인 필요'},
+    ]},
+    {g:'고객응대(CS)',items:[
+      {nm:'고객문의 조회',dir:'recv',st:'code',code:'inquiries.fetch'},
+      {nm:'문의 답변',dir:'send',st:'code',code:'inquiries.reply'},
+      {nm:'반품·취소·교환 조회',dir:'recv',st:'code',code:'claims.list'},
+      {nm:'반품·교환 승인',dir:'send',st:'code',code:'claims.approve'},
+    ]},
+  ],
+  smartstore:[
+    {g:'인증',items:[]},
+    {g:'API데이터솔루션(통계)',items:[]},
+    {g:'N배송',items:[
+      {nm:'송장·발송처리',dir:'send',st:'code',code:'orders.send_tracking'},
+    ]},
+    {g:'문의',items:[
+      {nm:'고객문의 조회',dir:'recv',st:'code',code:'orders.fetch_inquiries'},
+      {nm:'문의 답변',dir:'send',st:'code',code:'orders.reply_inquiry'},
+    ]},
+    {g:'상품',items:[
+      {nm:'상품 등록',dir:'send',st:'code',code:'create_product'},
+      {nm:'상품 삭제',dir:'send',st:'code',code:'delete_origin_product'},
+      {nm:'옵션 생성(색·사이즈)',dir:'send',st:'code',code:'optionCombinations'},
+      {nm:'이미지·상세페이지',dir:'send',st:'code',code:'create_product'},
+      {nm:'상품 검색',dir:'recv',st:'code',code:'products/search'},
+      {nm:'판매가·옵션 조회',dir:'recv',st:'ok',code:'get_options'},
+      {nm:'채널상품번호 조회',dir:'recv',st:'code',code:'get_channel_no'},
+      {nm:'가격',dir:'send',st:'ok',code:'edit_options'},
+      {nm:'재고',dir:'send',st:'ok',code:'edit_options'},
+      {nm:'판매상태',dir:'send',st:'ok',code:'change_status'},
+    ]},
+    {g:'정산',items:[
+      {nm:'건별 정산내역(정산금액)',dir:'recv',st:'off',code:'/pay-settle 건별정산'},
+      {nm:'수수료 상세',dir:'recv',st:'off',code:'/pay-settle 수수료상세'},
+      {nm:'일별 정산내역',dir:'recv',st:'off',code:'/pay-settle 일별정산'},
+      {nm:'건별 부가세 내역',dir:'recv',st:'off',code:'/v1/pay-settle/vat/case'},
+      {nm:'일별 부가세 내역',dir:'recv',st:'off',code:'/pay-settle/vat 일별'},
+    ]},
+    {g:'주문',items:[
+      {nm:'주문 목록·상세 조회',dir:'recv',st:'code',code:'orders.fetch_orders'},
+      {nm:'반품·취소·교환 처리',dir:'send',st:'code',code:'orders.handle_claim'},
+    ]},
+    {g:'커머스솔루션',items:[]},
+    {g:'판매자정보',items:[]},
+  ],
+  lotteon:[
+    {g:'시작하기',items:[]},
+    {g:'거래처',items:[]},
+    {g:'상품속성',items:[]},
+    {g:'상품',items:[
+      {nm:'판매가·옵션 조회',dir:'recv',st:'code',code:'products.get_product_detail'},
+      {nm:'가격',dir:'send',st:'code',code:'prices.update_price'},
+      {nm:'재고',dir:'send',st:'code',code:'inventory.update_stock'},
+    ]},
+    {g:'판촉',items:[]},
+    {g:'주문',items:[]},
+    {g:'클레임',items:[]},
+    {g:'고객센터',items:[]},
+    {g:'배송',items:[]},
+    {g:'정산',items:[
+      {nm:'상품별 주문내역(정산)',dir:'recv',st:'off',code:'정산>주문내역'},
+      {nm:'상품별 수수료내역',dir:'recv',st:'off',code:'정산>수수료내역'},
+      {nm:'상품별 할인내역',dir:'recv',st:'off',code:'정산>할인내역'},
+      {nm:'상품별 배송비내역',dir:'recv',st:'off',code:'정산>배송비내역'},
+      {nm:'상품별 차감내역',dir:'recv',st:'off',code:'정산>차감내역'},
+      {nm:'중개셀러 통합정보',dir:'recv',st:'off',code:'정산>중개셀러통합정보'},
+    ]},
+    {g:'공통',items:[]},
+    {g:'전시',items:[]},
+    {g:'스마트픽',items:[]},
+  ],
+};
 const DM_LBL={ok:'됨',code:'연결됨',off:'공식제공',todo:'미정의'};
 const DM_KEY='moum_datamap_starred';
 let dmStar=new Set(); try{dmStar=new Set(JSON.parse(localStorage.getItem(DM_KEY)||'[]'));}catch(e){}
 let DM_MK='coupang', DM_VIEW='map', DM_SUBG=0;
 const dmSt=s=>`<span class="st ${s}">${DM_LBL[s]}</span>`; const dmN=()=>dmStar.size;
 function dmSave(){try{localStorage.setItem(DM_KEY,JSON.stringify([...dmStar]));}catch(e){}}
-function dmRow(it,mid){const on=dmStar.has(it.nm)?' on':'';return `<div class="item"><span class="star${on}" data-k="${it.nm}" title="주요 데이터로 담기">${dmStar.has(it.nm)?'★':'☆'}</span><span class="nm">${it.nm}<span class="code">${it.code}</span></span>${dmSt(it.s[mid])}</div>`;}
-function dmSec(t,ar,sub,items,mid){if(!items.length)return '<div class="sub" style="color:var(--faint)">— 없음</div>';let h=`<div class="dsec"><div class="dh"><span class="ar">${ar}</span>${t} <span class="sub2">${sub}</span></div>`;items.forEach(it=>h+=dmRow(it,mid));return h+`</div>`;}
+function dmFind(mk,name){for(const c of MKT_CATS[mk]){for(const it of c.items){if(it.nm===name)return it;}}return null;}
+function dmRow(it){const on=dmStar.has(it.nm)?' on':'';return `<div class="item"><span class="star${on}" data-k="${it.nm}" title="주요 데이터로 담기">${dmStar.has(it.nm)?'★':'☆'}</span><span class="nm">${it.nm}<span class="code">${it.code}</span></span>${dmSt(it.st)}</div>`;}
+function dmSec(t,ar,sub,items){if(!items.length)return '';let h=`<div class="dsec"><div class="dh"><span class="ar">${ar}</span>${t} <span class="sub2">${sub}</span></div>`;items.forEach(it=>h+=dmRow(it));return h+`</div>`;}
 function dmRender(){
   let mt=DM_MARKETS.map(m=>`<button class="mktab${m.id===DM_MK&&DM_VIEW==='map'?' on':''}" data-m="${m.id}">${m.nm}<span class="mini">${m.status==='ok'?'연동완료':'준비중'}</span></button>`).join('');
   mt+=`<button class="favtab${DM_VIEW==='fav'?' on':''}" data-fav="1"><span class="fc">⭐</span> 주요 데이터 <span class="cnt">${dmN()}</span></button>`;
   document.getElementById('dm-mktabs').innerHTML=mt;
   const body=document.getElementById('dm-body');
   if(DM_VIEW==='fav'){
-    let h=`<div class="favhead"><span class="ft">⭐ 주요 데이터</span><span class="fs">프로그램 ↔ 판매처 데이터 — 담은 항목을 마켓끼리 비교</span></div>`;
+    let h=`<div class="favhead"><span class="ft">⭐ 주요 데이터</span><span class="fs">담은 항목을 마켓끼리 비교(마켓에 없으면 —)</span></div>`;
     if(dmN()===0){h+=`<div class="empty"><div class="big">⭐</div>담긴 항목이 없어요.<br>마켓별 데이터에서 별(☆)을 눌러 "주요 데이터"로 담으면 여기서 마켓끼리 나란히 비교됩니다.</div>`;}
-    else{const rows=[];DM_GROUPS.forEach(gr=>gr.items.forEach(it=>{if(dmStar.has(it.nm))rows.push(Object.assign({},it,{g:gr.g}));}));
+    else{
       h+=`<table class="cmp"><tr><th>주요 데이터</th><th class="mk">방향</th>`+DM_MARKETS.map(m=>`<th class="mk">${m.nm}</th>`).join('')+`</tr>`;
-      rows.forEach(r=>{h+=`<tr><td class="el">${r.nm}<span class="gc">${r.g}</span></td><td class="dc">${r.dir==='send'?'보내기':'받기'}</td>`+DM_MARKETS.map(m=>`<td class="stc">${dmSt(r.s[m.id])}</td>`).join('')+`</tr>`;});
+      [...dmStar].forEach(name=>{
+        let dir=null; const cells=DM_MARKETS.map(m=>{const it=dmFind(m.id,name); if(it&&!dir)dir=it.dir; return it?dmSt(it.st):'<span style="color:var(--faint)">—</span>';});
+        h+=`<tr><td class="el">${name}</td><td class="dc">${dir==='send'?'보내기':dir==='recv'?'받기':'—'}</td>`+cells.map(c=>`<td class="stc">${c}</td>`).join('')+`</tr>`;
+      });
       h+=`</table>`;}
     body.innerHTML=h;
   }else{
-    const m=DM_MARKETS.filter(x=>x.id===DM_MK)[0];
+    const m=DM_MARKETS.filter(x=>x.id===DM_MK)[0]; const cats=MKT_CATS[DM_MK]||[];
+    if(DM_SUBG>=cats.length) DM_SUBG=0;
     let h=`<div class="env"><span class="k">인증</span><span class="v">${m.env.인증}</span><span class="k">API</span><span class="v">${m.env.API}</span><span class="k">문서</span><span class="v"><a href="#" onclick="return false">${m.env.문서}</a></span><span class="k">키</span><span class="v"><span class="mono">${m.env.키}</span></span></div>`;
-    {const gr=DM_GROUPS[DM_SUBG],send=gr.items.filter(i=>i.dir==='send'),recv=gr.items.filter(i=>i.dir==='recv');
-      h+=`<div class="md"><div class="ml">`+DM_GROUPS.map((g,i)=>`<button class="${i===DM_SUBG?'on':''}" data-g="${i}">${g.g}<span class="n">${g.items.length}</span></button>`).join('')+`</div><div class="mr"><div class="two"><div>${dmSec('보내기','↑','프로그램 → 마켓',send,m.id)}</div><div>${dmSec('받기','↓','마켓 → 프로그램',recv,m.id)}</div></div></div></div>`;}
+    const gr=cats[DM_SUBG]; const send=gr.items.filter(i=>i.dir==='send'),recv=gr.items.filter(i=>i.dir==='recv');
+    let right;
+    if(!gr.items.length){ right=`<div class="empty" style="padding:30px 20px;"><div style="font-size:24px">📄</div><b>${gr.g}</b> 카테고리의 API 항목은<br>공식 문서에서 가져오는 중이에요.<br><span style="font-size:11px;color:var(--faint)">이 카테고리 문서 화면을 주시면 채웁니다.</span></div>`; }
+    else { right=`<div class="two"><div>${dmSec('보내기','↑','프로그램 → 마켓',send)||'<div class="sub" style="color:var(--faint)">— 없음</div>'}</div><div>${dmSec('받기','↓','마켓 → 프로그램',recv)||'<div class="sub" style="color:var(--faint)">— 없음</div>'}</div></div>`; }
+    h+=`<div class="md"><div class="ml">`+cats.map((g,i)=>`<button class="${i===DM_SUBG?'on':''}" data-g="${i}">${g.g}<span class="n">${g.items.length||'…'}</span></button>`).join('')+`</div><div class="mr">${right}</div></div>`;
     body.innerHTML=h;
   }
   document.querySelectorAll('.dm2 .mktab').forEach(t=>t.onclick=()=>{DM_MK=t.dataset.m;DM_VIEW='map';DM_SUBG=0;dmRender();});
