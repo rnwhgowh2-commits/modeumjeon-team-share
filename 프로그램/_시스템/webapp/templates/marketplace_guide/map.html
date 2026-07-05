@@ -6,7 +6,7 @@
   /* 판매처 데이터·코드 지도 — 마켓 가로탭 + 「주요 데이터」(별표로 담아 마켓 비교) + 좌 영역탭 + 보내기/받기 2열.
      데이터는 실제 코드 근거(shared/platforms/*·lemouton/uploader/*·registration/*)로 작성. 2026-07-05 기준. */
   .dm2{--ink:#191F28;--sub:#8B95A1;--faint:#B0B8C1;--line:#F1F3F5;--line2:#E5E8EB;--bg:#F8FAFB;
-    --ok:#15803D;--okb:#E7F6EC;--code:#B45309;--codeb:#FAF0DE;--todo:#98A2B3;--todob:#EEF1F4;--star:#F59E0B;--mono:ui-monospace,Menlo,monospace;
+    --ok:#15803D;--okb:#E7F6EC;--code:#B45309;--codeb:#FAF0DE;--off:#1B64DA;--offb:#E8F0FE;--todo:#98A2B3;--todob:#EEF1F4;--star:#F59E0B;--mono:ui-monospace,Menlo,monospace;
     font-family:'Pretendard','Malgun Gothic',sans-serif;color:#191F28;max-width:1000px;margin:0 auto;padding:22px 22px 40px;}
   .dm2 *{box-sizing:border-box;}
   .dm2 h2{font-size:22px;font-weight:800;margin:0 0 5px;}
@@ -22,9 +22,9 @@
   .dm2 .favtab{margin-left:auto;color:var(--sub);border:none;background:none;font-size:13.5px;font-weight:800;cursor:pointer;padding:9px 14px;border-bottom:3px solid transparent;margin-bottom:-2px;display:flex;align-items:center;gap:6px;}
   .dm2 .favtab::before{content:'';border-left:1px solid var(--line2);height:20px;margin-right:8px;}
   .dm2 .favtab.on{color:var(--ink);border-bottom-color:var(--star);} .dm2 .favtab .fc{color:var(--star);} .dm2 .favtab .cnt{background:var(--star);color:#fff;border-radius:20px;font-size:10px;padding:0 6px;min-width:16px;text-align:center;}
-  .dm2 .legend{font-size:11px;color:var(--sub);display:flex;gap:13px;align-items:center;margin-bottom:12px;flex-wrap:wrap;} .dm2 .lg{display:inline-flex;align-items:center;gap:5px;} .dm2 .dt{width:8px;height:8px;border-radius:50%;} .dm2 .dt.ok{background:var(--ok);}.dm2 .dt.code{background:var(--code);}.dm2 .dt.todo{background:var(--todo);}
+  .dm2 .legend{font-size:11px;color:var(--sub);display:flex;gap:13px;align-items:center;margin-bottom:12px;flex-wrap:wrap;} .dm2 .lg{display:inline-flex;align-items:center;gap:5px;} .dm2 .dt{width:8px;height:8px;border-radius:50%;} .dm2 .dt.ok{background:var(--ok);}.dm2 .dt.code{background:var(--code);}.dm2 .dt.off{background:var(--off);}.dm2 .dt.todo{background:var(--todo);}
   .dm2 .env{display:grid;grid-template-columns:auto 1fr auto 1fr;gap:3px 12px;font-size:11.5px;background:var(--bg);border:1px solid var(--line);border-radius:9px;padding:10px 13px;margin-bottom:15px;} .dm2 .env .k{color:var(--faint);font-weight:700;white-space:nowrap;} .dm2 .env .v{color:var(--ink);} .dm2 .env .v a{color:var(--sub);text-decoration:underline;text-underline-offset:2px;} .dm2 .env .v .mono{font-family:var(--mono);font-size:10.5px;color:var(--sub);}
-  .dm2 .st{font-size:10.5px;font-weight:800;border-radius:5px;padding:2px 8px;white-space:nowrap;} .dm2 .st.ok{background:var(--okb);color:var(--ok);} .dm2 .st.code{background:var(--codeb);color:var(--code);} .dm2 .st.todo{background:var(--todob);color:var(--todo);}
+  .dm2 .st{font-size:10.5px;font-weight:800;border-radius:5px;padding:2px 8px;white-space:nowrap;} .dm2 .st.ok{background:var(--okb);color:var(--ok);} .dm2 .st.code{background:var(--codeb);color:var(--code);} .dm2 .st.off{background:var(--offb);color:var(--off);} .dm2 .st.todo{background:var(--todob);color:var(--todo);}
   .dm2 .md{display:grid;grid-template-columns:172px 1fr;gap:16px;}
   .dm2 .ml{display:flex;flex-direction:column;gap:3px;} .dm2 .ml button{text-align:left;font-size:12.5px;font-weight:700;color:var(--sub);background:none;border:none;border-radius:8px;padding:9px 11px;cursor:pointer;display:flex;justify-content:space-between;align-items:center;gap:6px;} .dm2 .ml button .n{font-size:10px;color:var(--faint);} .dm2 .ml button:hover{background:#F5F7F9;} .dm2 .ml button.on{background:var(--ink);color:#fff;} .dm2 .ml button.on .n{color:#B9C2CC;}
   .dm2 .two{display:grid;grid-template-columns:1fr 1fr;gap:18px;}
@@ -52,7 +52,7 @@
   <div class="branches">갈래 A · <b>신규 상품 등록</b>(모음전 상품을 마켓에 처음 올림) &nbsp;·&nbsp; 갈래 B · <b>기존 상품 연동</b>(이미 올라간 상품과 매칭 → 가격·재고만 동기화, 현재 우선 경로)</div>
 
   <div class="mktabs" id="dm-mktabs"></div>
-  <div class="legend"><span class="lg"><span class="dt ok"></span>됨(실제 사용)</span><span class="lg"><span class="dt code"></span>연결됨(검증대기·안전 OFF)</span><span class="lg"><span class="dt todo"></span>미정의</span></div>
+  <div class="legend"><span class="lg"><span class="dt ok"></span>됨(실제 사용)</span><span class="lg"><span class="dt code"></span>연결됨(검증대기)</span><span class="lg"><span class="dt off"></span>공식제공(미구현)</span><span class="lg"><span class="dt todo"></span>미정의(확인 안 됨)</span></div>
   <div id="dm-body"></div>
 
   <div class="foot">
@@ -64,7 +64,8 @@
     <div class="cm"><div>마켓 프로파일(정본)</div><div class="f">docs/markets/_schema.yaml · coupang.yaml · smartstore.yaml</div></div>
     <div class="cm"><div>확장 기능 커넥터·마스터 게이트</div><div class="f">markets/capabilities.py · LEMOUTON_MARKET_EXTRA</div></div>
     <div class="cm"><div>새 마켓 추가 가이드</div><div class="f">docs/markets/_새-마켓-추가-가이드.md</div></div>
-    <div class="risk">⚠️ <b>정직성</b> — 실전송 기본 OFF(<code>LEMOUTON_LIVE_UPLOAD</code>) · 0원·재고없음 전송 금지 · 크롤/조회 실패 값 폴백 금지("없음"·"미정의" 표기). <b>연결됨(검증대기)</b> = 부품은 커넥터(<code>markets/capabilities.py</code>)로 닿지만 <code>LEMOUTON_MARKET_EXTRA</code> 게이트 뒤 <b>안전 OFF</b> — 실계정 검증 후에만 "됨"으로 켠다. 상태는 실제 코드 기준이며, 마켓 전체 API 중 <b>우리가 코딩해둔 것</b>만 표시. 이 외 11번가·옥션·G마켓·위메프·인터파크는 준비중(카드 미표시).</div>
+    <div class="risk">⚠️ <b>정직성</b> — 실전송 기본 OFF(<code>LEMOUTON_LIVE_UPLOAD</code>) · 0원·재고없음 전송 금지 · 폴백 금지. 상태 4단계: <b>됨</b>(실사용) / <b>연결됨</b>(우리 코드 있음·검증대기·게이트 OFF) / <b>공식제공</b>(마켓 공식 문서엔 있으나 우리 코드 없음) / <b>미정의</b>(제공 여부 확인 안 됨).</div>
+    <div class="risk" style="background:#EEF4FF;border-color:#C7DBFF;color:#0C447C;">📚 <b>공식 API 카탈로그 채워가는 중</b> — 각 마켓 공식 문서(로그인 SPA라 자동 판독 불가)에서 <b>확인된 그룹부터</b> 넣는다. 현재 <b>정산</b> 그룹 반영 완료(네이버·롯데온). 남은 그룹은 문서 화면을 주시면 추가: <b>네이버</b> = 상품·주문/교환·문의·N배송·통계 · <b>롯데온</b> = 거래처·상품속성·상품·판촉·주문·클레임·고객센터·배송·전시·스마트픽·공통.</div>
   </div>
 </div>
 
@@ -99,7 +100,17 @@ const DM_GROUPS=[
     {nm:'주문 목록·상세 조회',dir:'recv',s:{coupang:'code',smartstore:'code',lotteon:'todo'},code:'orders.fetch_orders'},
     {nm:'송장·발송처리',dir:'send',s:{coupang:'code',smartstore:'code',lotteon:'todo'},code:'orders.send_tracking'},
   ]},
-  {g:'정산',items:[{nm:'정산 예정금액(매출내역)',dir:'recv',s:{coupang:'code',smartstore:'todo',lotteon:'todo'},code:'settlements'}]},
+  {g:'정산',items:[
+    {nm:'건별 정산내역(정산금액)',dir:'recv',s:{coupang:'code',smartstore:'off',lotteon:'off'},code:'coupang revenue-history · ss /pay-settle 건별정산 · lotteon 상품별 주문내역'},
+    {nm:'수수료 상세·내역',dir:'recv',s:{coupang:'todo',smartstore:'off',lotteon:'off'},code:'ss 수수료 상세 · lotteon 상품별 수수료내역'},
+    {nm:'일별 정산내역',dir:'recv',s:{coupang:'todo',smartstore:'off',lotteon:'todo'},code:'ss /pay-settle 일별정산'},
+    {nm:'건별 부가세 내역',dir:'recv',s:{coupang:'todo',smartstore:'off',lotteon:'todo'},code:'ss /v1/pay-settle/vat/case'},
+    {nm:'일별 부가세 내역',dir:'recv',s:{coupang:'todo',smartstore:'off',lotteon:'todo'},code:'ss /pay-settle/vat 일별'},
+    {nm:'상품별 할인내역',dir:'recv',s:{coupang:'todo',smartstore:'todo',lotteon:'off'},code:'lotteon 정산>할인내역'},
+    {nm:'상품별 배송비내역',dir:'recv',s:{coupang:'todo',smartstore:'todo',lotteon:'off'},code:'lotteon 정산>배송비내역'},
+    {nm:'상품별 차감내역',dir:'recv',s:{coupang:'todo',smartstore:'todo',lotteon:'off'},code:'lotteon 정산>차감내역'},
+    {nm:'중개셀러 통합정보',dir:'recv',s:{coupang:'todo',smartstore:'todo',lotteon:'off'},code:'lotteon 정산>중개셀러통합정보'},
+  ]},
   {g:'고객응대(CS)',items:[
     {nm:'고객문의 조회',dir:'recv',s:{coupang:'code',smartstore:'code',lotteon:'todo'},code:'inquiries.fetch'},
     {nm:'문의 답변',dir:'send',s:{coupang:'code',smartstore:'code',lotteon:'todo'},code:'inquiries.reply'},
@@ -107,7 +118,7 @@ const DM_GROUPS=[
     {nm:'반품·교환 승인',dir:'send',s:{coupang:'code',smartstore:'code',lotteon:'todo'},code:'claims.approve'},
   ]},
 ];
-const DM_LBL={ok:'됨',code:'연결됨',todo:'미정의'};
+const DM_LBL={ok:'됨',code:'연결됨',off:'공식제공',todo:'미정의'};
 const DM_KEY='moum_datamap_starred';
 let dmStar=new Set(); try{dmStar=new Set(JSON.parse(localStorage.getItem(DM_KEY)||'[]'));}catch(e){}
 let DM_MK='coupang', DM_VIEW='map', DM_SUBG=0;

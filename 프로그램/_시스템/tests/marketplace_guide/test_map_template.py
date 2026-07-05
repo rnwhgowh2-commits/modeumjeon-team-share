@@ -60,9 +60,17 @@ def test_six_domains_present():
         assert g in html
 
 
-def test_status_three_states():
+def test_status_four_states():
     html = _map()
-    for s in ["됨", "연결됨", "미정의"]:   # 코드만 → 연결됨(검증대기·안전 OFF)
+    # 됨 / 연결됨(우리코드) / 공식제공(마켓문서엔 있으나 미구현) / 미정의(확인 안 됨)
+    for s in ["됨", "연결됨", "공식제공", "미정의"]:
+        assert s in html
+
+
+def test_settlement_official_apis_catalogued():
+    html = _map()
+    # 정산 그룹에 마켓 공식 정산 엔드포인트 반영(마진 계산용 정산금액·수수료)
+    for s in ["건별 정산내역", "수수료 상세", "부가세", "상품별 차감내역", "중개셀러 통합정보"]:
         assert s in html
 
 
