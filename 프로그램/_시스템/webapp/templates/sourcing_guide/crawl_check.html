@@ -138,12 +138,86 @@
     <button type="button" class="copybtn-big" id="ccCopyBig">📋 프롬프트 전체 복사</button>
   </div>
 
-  <!-- ─── 가격 패널 (준비 중) ─── -->
+  <!-- ─── 가격 패널 ─── -->
   <div class="ccpanel" data-ccpanel="price">
-    <div class="soonbox">
-      <div class="big">💰 가격 정합성 검사 — 준비 중</div>
-      <div>다음 업데이트에서 제공됩니다.</div>
+    <ol class="howto">
+      <li><span class="n">1</span><span>프롬프트에서 <b>대상 소싱처·URL</b> 확인·수정</span></li>
+      <li><span class="n">2</span><span><b>「전체 복사」</b> 누르기</span></li>
+      <li><span class="n">3</span><span><b>Claude Code</b>에 붙여넣기 → 검사 시작</span></li>
+    </ol>
+
+    <div class="promptwrap">
+      <div class="plabel">
+        <span class="l">📋 복사할 프롬프트 <span class="tag">· 가격 정합성 조사</span></span>
+        <button type="button" class="copybtn-top">전체 복사</button>
+      </div>
+      <div class="codebox"><span class="h">가격 정합성 조사를 시작한다.</span>
+아래 프로토콜을 순서대로 실행하라.
+
+<span class="h">■ 대상</span>
+- 소싱처 : (소싱처명 입력, 예: SSG)
+- URL    : 해당 소싱처의 매트릭스 등록 URL 전체
+
+<span class="h">■ 절대 원칙 (데이터 무결성 3대)</span>
+- 가격 기준 = 실브라우저 상품 URL의 실제 값
+  (표면가·혜택·최종매입가 모두 · 추정·폴백·평균 금지)
+- 매칭·크롤 실패 시 대표가(평균·최저·95000) 폴백 금지
+  → '가격 없음 + 크롤 실패'로 표기
+- 크롤 = 로컬(크롬 확장/Playwright). 서버 크롤 실패는 정상
+
+<span class="h">■ 먼저 읽을 정본</span> (기준·유형·의심코드의 단일 진실 원천 — 계속 갱신됨)
+- 조사 전, 정본을 읽고 기준을 잡는다
+  · 크롤링 가이드 docs/크롤링-가이드.md (인앱: /sourcing-guide/map)
+    §2 가격편 = 혜택 4분류(선반영/후반영/결제택1/캐시백)·소싱처별 계산·저장 배선
+    §3 매트릭스 표기 = 셀(표면가+최종매입가)·계산식 영수증·완전한 B(다중 URL 최저)
+    §5 가격 에러(P1~P23)+기타(O) = NG 증상별 실제 사례·의심 코드
+  · 데이터 가이드 /data-guide = 핵심 공식·단일 진실 원천(표면가/최종매입가 단일 출처)
+- 정본은 계속 확장된다. 프롬프트에 박힌 값보다 정본 최신본을 우선한다
+
+<span class="h">■ 3층 (표면노출가 − 혜택 = 최종매입가)</span>
+① 표면노출가 : 소싱처에 적힌 노출가 (셀 작은 글씨)
+② 혜택       : 선반영·후반영·결제택1·캐시백 (%는 베이스금액 기준)
+③ 최종매입가 : ① − ② = 실제 사는 값 (셀 큰 숫자·계산식 영수증)
+
+<span class="h">■ 5단계</span>
+1) 크롤     — 등록 URL 전체 로컬 크롤 → 최신 가격·혜택 DB 반영
+2) 실브라우저 — 각 URL 직접 열어 3층(표면가·혜택 항목/금액·최종매입가)
+              읽어 엑셀로 정리
+3) 대조     — 크롤 결과값(셀=표면가+최종매입가, 계산식=혜택 내역)과
+              2의 엑셀을 셀 단위로 1:1 대조
+4) OK/NG 판정 + 이중 태그
+   · OK = 3층 모두 일치 (혜택 미정의 소싱처=표면가=최종가면 표면가만)
+   · NG = 불일치 → 두 태그 부착:
+     [귀책]  그 URL 실브라우저로 열어 같은 상품인지 확인
+        U = URL측 문제(대체상품·다른상품·404·만료)
+            → 사용자가 URL 정정
+        P = 프로그램측 문제(URL은 맞는데 저장가·혜택·계산 틀림)
+            → 코드 수정
+     [증상]  A 표면가 오류(실 표면가 ≠ 프로그램, 오긁음·1원둔갑·stale)
+             <span class="star">B 언더프라이싱</span>(프로그램 최종가 < 실제, 없는/과다 혜택) ★최고위험
+             <span class="star">C 폴백가 둔갑</span>(크롤 실패인데 대표가·95000 표시) ★최고위험
+             D 혜택 누락(실제 받는 혜택이 프로그램에 안 뜸 → 매입가 과대표시)
+             E 셀≠계산식(표면·혜택 맞는데 셀 큰숫자 ≠ 계산식 영수증)
+5) 집계·출력
+   · 소싱처별 집계표 : OK-1/OK-2, NG(귀책 U)/NG(귀책 P),
+     증상 A~E별 개수
+   · 조치 리스트 2분리
+     - URL 정정(귀책 U) : URL·색·사이즈·실값·프로그램값·이유
+     - 코드 수정(귀책 P) : 셀·층·증상·의심 코드 파일:라인
+   · 색×사이즈 전수 대조 엑셀 산출
+
+<span class="h">■ 가격 특유 함정 (꼭 확인)</span>
+- 완전한 B : 한 소싱처 URL 여러 개면 셀은 최저 최종매입가 후보 선택.
+  stale 후보면 유령가=언더프라이싱(B). 셀·계산식은 같은 후보 써야(E)
+- 라이브 확장크롤(save_crawl_result)은 혜택 미저장(price/stock만)
+  → 무신사·롯데온 혜택 안 뜨면 여기(D). 혜택 배선 _SITE_BY_SRC 확인
+
+<span class="h">■ 진행 방식</span>
+- 크롤은 실시간 감시(사후 추측 금지). 로드된 확장 버전 먼저 확인
+- 작업 전 origin/main 최신 대조(stale 워크트리 오진 방지)</div>
     </div>
+
+    <button type="button" class="copybtn-big">📋 프롬프트 전체 복사</button>
   </div>
 </div>
 
@@ -159,7 +233,6 @@
     });
   });
 
-  var box = document.getElementById('ccPrompt');
   function feedback(btn, label){
     btn.classList.add('done'); btn.textContent = '✓ 복사됨';
     setTimeout(function(){ btn.classList.remove('done'); btn.textContent = label; }, 1400);
@@ -177,10 +250,15 @@
       navigator.clipboard.writeText(text).then(ok).catch(fallback);
     } else { fallback(); }
   }
-  var top = document.getElementById('ccCopyTop');
-  var big = document.getElementById('ccCopyBig');
-  if (top) top.addEventListener('click', function(){ copyText(box.innerText, top, '전체 복사'); });
-  if (big) big.addEventListener('click', function(){ copyText(box.innerText, big, '📋 프롬프트 전체 복사'); });
+  // 각 패널(재고·가격)의 복사 버튼을 그 패널의 프롬프트 박스에 배선
+  panels.forEach(function(panel){
+    var box = panel.querySelector('.codebox');
+    if (!box) return;
+    panel.querySelectorAll('.copybtn-top, .copybtn-big').forEach(function(btn){
+      var label = btn.textContent;
+      btn.addEventListener('click', function(){ copyText(box.innerText, btn, label); });
+    });
+  });
 })();
 </script>
 {% endblock %}

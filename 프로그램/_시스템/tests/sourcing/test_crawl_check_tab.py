@@ -66,6 +66,19 @@ def test_crawl_check_bare_sets_sameorigin(client):
     assert r.headers.get("X-Frame-Options") == "SAMEORIGIN"
 
 
+def test_crawl_check_price_panel_present(client):
+    """가격 정합성 검사 탭 = 3층 대조 + 5증상 프롬프트가 채워졌는지."""
+    r = client.get("/sourcing-guide/crawl-check")
+    assert r.status_code == 200
+    body = r.data.decode("utf-8")
+    assert "가격 정합성 조사를 시작한다" in body   # 가격 프롬프트 본문
+    assert "표면노출가" in body                    # 3층
+    assert "언더프라이싱" in body                  # 증상 B
+    assert "혜택 누락" in body                      # 증상 D
+    assert "셀≠계산식" in body                     # 증상 E
+    assert "/data-guide" in body                   # 정본 읽기(데이터 가이드)
+
+
 def test_overview_has_crawl_check_card(client):
     r = client.get("/sourcing-guide/")
     assert r.status_code == 200
