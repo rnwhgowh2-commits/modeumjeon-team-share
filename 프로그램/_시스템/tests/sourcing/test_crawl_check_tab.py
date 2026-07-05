@@ -92,6 +92,32 @@ def test_crawl_check_stock_prompt_self_sufficient(client):
     assert "git fetch origin main" in body
 
 
+def test_crawl_check_price_prompt_self_sufficient(client):
+    """가격 프롬프트 보강 — 클린 세션이 프롬프트만으로:
+    ① 최종매입가·계산식은 매트릭스가 아니라 별도 브레이크다운 API 라는 것 ② purchase_final_price
+    는 옵션 템플릿값(대조 금지) ③ 혜택 층 없는 소싱처 존재 를 알 수 있게."""
+    r = client.get("/sourcing-guide/crawl-check")
+    assert r.status_code == 200
+    body = r.data.decode("utf-8")
+    # 최종매입가·계산식 = 별도 브레이크다운 API (매트릭스 아님)
+    assert "/api/source-benefits/breakdown/" in body
+    # purchase_final_price 는 템플릿값이지 소싱처 최종매입가 아님 (혼동 금지)
+    assert "purchase_final_price" in body and "템플릿" in body
+    # 혜택 층 없는 소싱처 경고
+    assert "혜택 층 없는 소싱처" in body
+
+
+def test_crawl_check_both_prompt_chunked_execution(client):
+    """재고+가격 = 한 프롬프트지만 '나눠서 실행'(소싱처 1개씩·단계 1개씩) 지시."""
+    r = client.get("/sourcing-guide/crawl-check")
+    assert r.status_code == 200
+    body = r.data.decode("utf-8")
+    assert "반드시 나눠서" in body
+    assert "소싱처 1개씩" in body
+    # 재고+가격도 최종매입가는 별도 breakdown API 로
+    assert body.count("/api/source-benefits/breakdown/") >= 2
+
+
 def test_crawl_check_scope_selector_present(client):
     """검사 범위 선택(모음전+소싱처 + 전체 선택) UI + 대상 주입 지점."""
     r = client.get("/sourcing-guide/crawl-check")

@@ -184,9 +184,14 @@
 <span class="h">■ 대상</span>
 <span class="tgt" id="ccTargetPrice">- 소싱처 : (소싱처명 입력, 예: SSG)
 - URL    : 해당 소싱처의 매트릭스 등록 URL 전체</span>
-- 프로그램 저장값·등록 URL 읽는 곳 = GET https://mou-m.com/api/bundles/&lt;위 '모음전' 값&gt;/option-matrix
-  (로그인 불필요) → options[].sources[] 의 product_url·crawled_price·crawled_price_raw·
-  card_enabled·auto_card_discount + options[].purchase_final_price(최종매입가). 이게 대조 대상.
+- <span class="star">① 표면노출가·URL</span> = GET https://mou-m.com/api/bundles/&lt;위 '모음전' 값&gt;/option-matrix (로그인 불필요)
+    → options[].sku · options[].sources[].{product_url, source_id, crawled_price(=표면가), crawled_price_raw}
+- <span class="star">② 최종매입가·계산식(혜택 내역)은 매트릭스에 없음</span> → 별도 브레이크다운 API(로그인 불필요):
+    GET /api/source-benefits/breakdown/&lt;sku&gt;/&lt;int:source_id&gt;?sale_price=&lt;표면가&gt;&amp;source_product_id=&lt;셀 spid&gt;
+    (일괄 = POST /api/source-benefits/breakdowns  {items:[{sku,source_id,sale_price}]})
+    → final_price(=셀 fx뱃지 최종매입가) + steps(=혜택 단계별 계산식). ★source_product_id=셀이 고른 후보 spid 꼭 실어야 완전한B 일치(§3)
+    ※ options[].purchase_final_price 는 옵션 템플릿/매입값(예 95000)이지 소싱처 최종매입가 아님 — 대조에 쓰지 말 것
+- ※ 혜택 층 없는 소싱처(현대H몰·롯데아이몰 = source_id 비정수 키드 카탈로그) = 최종매입가=표면가, 혜택 대조 대상 아님
 
 <span class="h">■ 절대 원칙 (데이터 무결성 3대)</span>
 - 가격 기준 = 실브라우저 상품 URL의 실제 값 (표면가·혜택·최종매입가 모두 · 폴백 금지)
@@ -218,6 +223,7 @@
    ※ 완전한 B(다중URL 최저후보 stale=유령가)·라이브확장크롤 혜택미저장(_SITE_BY_SRC) 확인
 
 <span class="h">■ 진행 방식</span>
+- <span class="star">소싱처 많으면 한 번에 다 하지 말고 하나씩</span>(크롤→실측→3층 대조→판정→짧게 보고)→다음 (길면 놓침)
 - 크롤은 실시간 감시(사후 추측 금지). 로드된 확장 버전 먼저 확인
 - 작업 전 origin/main 최신 대조(stale 워크트리 오진 방지)</div>
 
@@ -225,11 +231,19 @@
 <span class="star">★ 반드시 순서대로</span> — [1단계] 재고를 완전히 끝낸 뒤에 [2단계] 가격을 시작한다.
   동시 진행 금지(혼선·오판·에러 위험). 재고 집계·엑셀을 마친 뒤에만 가격으로.
 
+<span class="h">■ 실행 규칙 (반드시 나눠서 — 한 번에 다 하지 말 것)</span>
+- 프롬프트가 길어도 한꺼번에 처리하면 놓친다. <span class="star">잘게 쪼개 하나씩 완료·짧게 보고 → 다음</span>:
+    · [1단계 재고] 안에서 <span class="star">소싱처 1개씩</span>(크롤→실측→대조→판정→그 소싱처만 보고)→다음 소싱처
+    · 8소싱처 재고 다 끝 + 재고 엑셀까지 마친 뒤에만 [2단계 가격] 착수 (가격도 소싱처 1개씩)
+- 여러 소싱처·여러 단계 동시 처리 금지. 한 청크 끝낼 때마다 중간 보고.
+
 <span class="h">■ 대상</span>
 <span class="tgt" id="ccTargetBoth">- 소싱처 : (소싱처명 입력, 예: 롯데온)
 - URL    : 해당 소싱처의 매트릭스 등록 URL 전체</span>
-- 프로그램 저장값·등록 URL 읽는 곳 = GET https://mou-m.com/api/bundles/&lt;위 '모음전' 값&gt;/option-matrix
-  (로그인 불필요) → options[].sources[](재고·가격 필드)·purchase_final_price. 이게 대조 대상.
+- 재고·표면가·URL = GET https://mou-m.com/api/bundles/&lt;위 '모음전' 값&gt;/option-matrix (로그인 불필요)
+    → 재고=sources[].{stock_state,stock_label,stock_qty} · 표면가=sources[].crawled_price · sku=options[].sku
+- 가격 최종매입가·계산식 = 별도 API GET /api/source-benefits/breakdown/&lt;sku&gt;/&lt;int:source_id&gt;?sale_price=&lt;표면가&gt;
+    → final_price + steps(혜택). ※ purchase_final_price 는 옵션 템플릿값이지 소싱처 최종매입가 아님
 
 <span class="h">■ 절대 원칙 (데이터 무결성 3대)</span>
 - 재고·가격 기준 = 실브라우저 상품 URL의 실제 값 (추정·폴백·평균 금지)
