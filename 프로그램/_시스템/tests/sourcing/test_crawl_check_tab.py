@@ -88,8 +88,10 @@ def test_crawl_check_stock_prompt_self_sufficient(client):
     assert "최신화 전" in body or "완료 신호" in body
     # ③ 정본 가이드 경로 정확 (stale orphan docs/ 가 아닌 캐노니컬 경로)
     assert "프로그램/_시스템/docs/크롤링-가이드.md" in body
-    # ④ 먼저 origin/main 최신에서 작업
+    # ④ 먼저 origin/main 최신에서 작업 — 파일 읽기 전 반드시 전환(단순 조회여도), stale orphan 경고
     assert "git fetch origin main" in body
+    assert "파일 읽기 전 반드시" in body
+    assert "stale orphan" in body
 
 
 def test_crawl_check_price_prompt_self_sufficient(client):
@@ -116,6 +118,9 @@ def test_crawl_check_both_prompt_chunked_execution(client):
     assert "소싱처 1개씩" in body
     # 재고+가격도 최종매입가는 별도 breakdown API 로
     assert body.count("/api/source-benefits/breakdown/") >= 2
+    # 게이트 = 엑셀 파일 형식이 아니라 '재고 판정·집계 완료' (하드 .xlsx 게이트 완화)
+    assert "재고 판정·집계 완료" in body
+    assert "재고 엑셀까지 마친" not in body
 
 
 def test_crawl_check_scope_selector_present(client):
