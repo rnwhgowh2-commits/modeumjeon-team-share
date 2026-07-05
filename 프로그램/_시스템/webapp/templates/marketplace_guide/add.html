@@ -11,18 +11,21 @@
   .ma .tab{padding:11px 18px;font-size:14.5px;font-weight:700;color:#8B95A1;background:none;border:none;cursor:pointer;}
   .ma .tab.on{color:#191F28;border-bottom:3px solid #191F28;margin-bottom:-2px;}
   .ma .pane{display:none;} .ma .pane.on{display:block;}
-  .ma-rail-wrap{display:grid;grid-template-columns:150px 1fr;gap:22px;margin-top:16px;}
+  .ma-rail-wrap{display:grid;grid-template-columns:150px 1fr;gap:16px;margin-top:16px;}
   .ma-rail .r{display:flex;gap:10px;align-items:center;padding:8px 0;font-size:13px;color:#8B95A1;font-weight:600;}
   .ma-rail .r .n{width:22px;height:22px;border-radius:50%;background:#F6F8FA;border:1px solid #E9ECEF;font-size:11px;font-weight:800;text-align:center;line-height:22px;}
   .ma-rail .r.on{color:#191F28;} .ma-rail .r.on .n{background:#0A2540;color:#fff;border-color:#0A2540;}
   .ma-rail .r.done .n{background:#191F28;color:#fff;}
-  .ma label{display:block;font-size:12.5px;font-weight:700;color:#4E5968;margin:15px 0 7px;}
+  /* 폰트 위계: 라벨은 진하게·조금 크게(입력·안내문과 구분) · 줄여백은 조여 허전함 제거 */
+  .ma label{display:block;font-size:13.5px;font-weight:700;color:#191F28;margin:12px 0 6px;line-height:1.35;}
   .ma input,.ma select{width:100%;border:1px solid #E9ECEF;border-radius:9px;padding:11px 13px;font-size:14px;color:#191F28;}
   .ma .seg{display:inline-flex;border:1px solid #E9ECEF;border-radius:8px;overflow:hidden;}
   .ma .seg button{border:none;background:#fff;padding:7px 13px;font-size:12.5px;cursor:pointer;color:#4E5968;border-right:1px solid #E9ECEF;}
   .ma .seg button:last-child{border-right:none;}
   .ma .seg button.on{background:#0A2540;color:#fff;font-weight:700;}
-  .ma .chk{display:inline-flex;align-items:center;gap:8px;font-size:13.5px;font-weight:600;margin-right:18px;}
+  /* 줄바꿈 방지: 각 체크 항목은 한 줄 유지(nowrap), 항목끼리는 자연 줄바꿈 */
+  .ma .acts{display:flex;flex-wrap:wrap;gap:9px 20px;margin-top:2px;}
+  .ma .chk{display:inline-flex;align-items:center;gap:8px;font-size:13.5px;font-weight:600;color:#191F28;white-space:nowrap;}
   .ma .genbtn{margin-top:18px;background:#0A2540;color:#fff;border:none;border-radius:10px;padding:12px 20px;font-size:14px;font-weight:800;cursor:pointer;}
   .ma .prm{margin-top:16px;background:#0F172A;border-radius:12px;padding:16px 18px;position:relative;display:none;}
   .ma .prm.on{display:block;}
@@ -64,7 +67,7 @@
         <label>필요 키 <span style="color:#b6bcc4;font-weight:500">(아는 경우)</span></label>
         <input id="mkKeys" placeholder="예: CLIENT_ID, CLIENT_SECRET">
         <label>지원 동작</label>
-        <div>
+        <div class="acts">
           <label class="chk"><input type="checkbox" class="mkAct" value="신규 상품 등록" checked> 신규 상품 등록</label>
           <label class="chk"><input type="checkbox" class="mkAct" value="기존 상품 연동" checked> 기존 상품 연동</label>
           <label class="chk"><input type="checkbox" class="mkAct" value="가격·재고 업데이트" checked> 가격·재고 업데이트</label>
