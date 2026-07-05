@@ -138,7 +138,7 @@
 <span class="h">■ 대상</span>
 <span class="tgt" id="ccTargetStock">- 소싱처 : (소싱처명 입력, 예: 롯데온)
 - URL    : 해당 소싱처의 매트릭스 등록 URL 전체</span>
-- 프로그램 저장값·등록 URL 읽는 곳 = GET https://mou-m.com/api/bundles/{모음전코드}/option-matrix
+- 프로그램 저장값·등록 URL 읽는 곳 = GET https://mou-m.com/api/bundles/&lt;위 '모음전' 값&gt;/option-matrix
   (로그인 불필요) → options[].sources[] 의 product_url·stock_state·stock_label·
   stock_qty·last_status. 이 값이 3)에서 실측과 맞대는 '크롤 결과값'이다.
 
@@ -184,7 +184,7 @@
 <span class="h">■ 대상</span>
 <span class="tgt" id="ccTargetPrice">- 소싱처 : (소싱처명 입력, 예: SSG)
 - URL    : 해당 소싱처의 매트릭스 등록 URL 전체</span>
-- 프로그램 저장값·등록 URL 읽는 곳 = GET https://mou-m.com/api/bundles/{모음전코드}/option-matrix
+- 프로그램 저장값·등록 URL 읽는 곳 = GET https://mou-m.com/api/bundles/&lt;위 '모음전' 값&gt;/option-matrix
   (로그인 불필요) → options[].sources[] 의 product_url·crawled_price·crawled_price_raw·
   card_enabled·auto_card_discount + options[].purchase_final_price(최종매입가). 이게 대조 대상.
 
@@ -228,7 +228,7 @@
 <span class="h">■ 대상</span>
 <span class="tgt" id="ccTargetBoth">- 소싱처 : (소싱처명 입력, 예: 롯데온)
 - URL    : 해당 소싱처의 매트릭스 등록 URL 전체</span>
-- 프로그램 저장값·등록 URL 읽는 곳 = GET https://mou-m.com/api/bundles/{모음전코드}/option-matrix
+- 프로그램 저장값·등록 URL 읽는 곳 = GET https://mou-m.com/api/bundles/&lt;위 '모음전' 값&gt;/option-matrix
   (로그인 불필요) → options[].sources[](재고·가격 필드)·purchase_final_price. 이게 대조 대상.
 
 <span class="h">■ 절대 원칙 (데이터 무결성 3대)</span>
