@@ -79,6 +79,34 @@ def set_source_crawl_weight():
         s.close()
 
 
+@bp.get('/crawl/weight-rules')
+def crawl_weight_rules():
+    """[읽기] 범위별 계수 규칙(화면 트리)."""
+    from lemouton.sources.crawl_schedule import list_weight_rules
+    s = SessionLocal()
+    try:
+        return jsonify(list_weight_rules(s))
+    finally:
+        s.close()
+
+
+@bp.post('/crawl/weight-rule')
+def set_crawl_weight_rule_route():
+    """계수 규칙 설정/해제. body {scope_type, scope_key, weight?(없으면 해제)}."""
+    from lemouton.sources.crawl_schedule import set_crawl_weight_rule
+    data = request.get_json(silent=True) or {}
+    s = SessionLocal()
+    try:
+        w = set_crawl_weight_rule(s, data.get('scope_type'), data.get('scope_key'),
+                                  data.get('weight'))
+        s.commit()
+        return jsonify({"ok": True, "weight": w})
+    except ValueError as e:
+        return jsonify({"ok": False, "error": str(e)}), 400
+    finally:
+        s.close()
+
+
 @bp.get('/upload/account-speed')
 def list_account_upload_speed():
     """[읽기] 계정별 업로드 속도 + 마켓 총 스토어 업로드수(화면 ③ 표). 커밋 없음(읽기)."""

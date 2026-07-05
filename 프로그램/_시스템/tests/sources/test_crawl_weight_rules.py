@@ -106,3 +106,13 @@ def test_due_products_reflects_source_rule(db):
     assert sp.id not in [p.id for p in due_products(db, base_interval_seconds=base, now=NOW)]
     set_crawl_weight_rule(db, "source", "musinsa", 2); db.flush()
     assert sp.id in [p.id for p in due_products(db, base_interval_seconds=base, now=NOW)]
+
+
+from lemouton.sources.crawl_schedule import list_weight_rules
+
+
+def test_list_rules_grouped(db):
+    set_crawl_weight_rule(db, "source", "musinsa", 2)
+    set_crawl_weight_rule(db, "brand", "나이키", 3); db.flush()
+    d = list_weight_rules(db)
+    assert d["source"]["musinsa"] == 2 and d["brand"]["나이키"] == 3

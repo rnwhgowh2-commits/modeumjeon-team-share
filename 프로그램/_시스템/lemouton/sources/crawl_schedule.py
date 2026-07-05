@@ -102,6 +102,15 @@ def set_crawl_weight_rule(session, scope_type: str, scope_key: str, weight):
     return w
 
 
+def list_weight_rules(session) -> dict:
+    """범위종류별 {scope_key: weight} (화면 트리가 유효계수 표시에 사용)."""
+    from lemouton.sources.models import CrawlWeightRule
+    out = {t: {} for t in _SCOPE_TYPES}
+    for r in session.query(CrawlWeightRule).all():
+        out.setdefault(r.scope_type, {})[r.scope_key] = r.weight
+    return out
+
+
 def resolve_crawl_weight(session, source_product) -> int:
     """URL의 최종 계수: URL→모음전(최고)→브랜드(최고)→소싱처→기본1."""
     from lemouton.sources.models import CrawlWeightRule
