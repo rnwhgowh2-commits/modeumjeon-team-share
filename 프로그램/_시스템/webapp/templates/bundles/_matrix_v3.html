@@ -3971,6 +3971,20 @@ table.ompk-tab th.corner{color:#b0b8c1;cursor:default}
         </div>`;
       }
     });
+    // ★ 2026-07-05 — 상품쿠폰이 전부 제외돼 '상품쿠폰' 단계가 없을 때도 제외 내역 표시(투명성).
+    //   (위 루프는 상품쿠폰 단계가 있을 때만 표기 → 0원이면 안 떠서 왜 0인지 안 보이던 문제 보완)
+    if (j.coupon_decision && !_steps.some(st => st.name === '상품쿠폰')) {
+      const _cd = j.coupon_decision;
+      const _exNames = (_cd.excluded || []).map(e => `${e.name || ''}(${e.reason || '제외'})`).join(', ');
+      if (_exNames) {
+        _rcLines += `
+        <div class="cf-rc-ln sub">
+          <span class="lbl">└ 상품쿠폰</span>
+          <span class="num">0원</span>
+        </div>
+        <div class="cf-rc-ln cf-rc-note">제외됨: ${escapeHtml(_exNames)}</div>`;
+      }
+    }
     const saleHtml = `
       <div class="cf-receipt">
         ${_rcLines}
