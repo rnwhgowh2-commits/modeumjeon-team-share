@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 from lemouton.sourcing.master import get_model, get_option_by_canonical
 from .smartstore import build_smartstore_payload
 from .coupang import build_coupang_payload
+from .lotteon import build_lotteon_payload
 
 
 def run_formatter(
@@ -51,14 +52,17 @@ def run_formatter(
             "lemouton_only": bool(opt.lemouton_only),
             "naver_option_id": opt.naver_option_id,
             "coupang_option_id": opt.coupang_option_id,
+            "lotteon_option_id": opt.lotteon_option_id,
             "ss": decision.get("ss", {}),
             "coupang": decision.get("coupang", {}),
+            "lotteon": decision.get("lotteon", {}),
         }
         decisions_by_model[opt.model_code].append(merged)
         boxhero_by_sku[sku] = opt_data.get("boxhero_stock", 0)
 
     smartstore_payloads: dict[str, dict] = {}
     coupang_payloads: dict[str, dict] = {}
+    lotteon_payloads: dict[str, dict] = {}
 
     for model_code, model_decisions in decisions_by_model.items():
         m = get_model(session, model_code)
@@ -75,6 +79,7 @@ def run_formatter(
             "model_name_display": m.model_name_display,
             "naver_product_id": m.naver_product_id,
             "coupang_product_id": m.coupang_product_id,
+            "lotteon_product_id": m.lotteon_product_id,
             "naver_product_name_override": m.naver_product_name_override,
             "coupang_product_name_override": m.coupang_product_name_override,
         }
@@ -101,8 +106,14 @@ def run_formatter(
                 "message": "쿠팡 신상품 미등록",
             })
 
+        # 롯데온 — lotteon_product_id 매핑된 모델만(미매핑이면 None → 방출 안 함, 자동전송 0).
+        lo_payload = build_lotteon_payload(model_decisions, model_dict, boxhero_by_sku)
+        if lo_payload is not None:
+            lotteon_payloads[model_code] = lo_payload
+
     return {
         "smartstore": smartstore_payloads,
         "coupang": coupang_payloads,
+        "lotteon": lotteon_payloads,
         "alerts": alerts,
     }

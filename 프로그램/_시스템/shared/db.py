@@ -228,6 +228,10 @@ def _apply_lightweight_migrations() -> None:
         ("source_products", "no_change_streak", "INTEGER DEFAULT 0 NOT NULL"),
         # 2026-07-05: 옵션별 브랜드 (한 모음전에 여러 브랜드 섞임) — NULL=미지정(Model.brand 상속)
         ("options", "brand", "VARCHAR(100)"),
+        # 2026-07-05: 롯데온 자동전송 formatter 용 — 마스터의 롯데온 상품/옵션 ID.
+        #             NULL=미매핑 → build_lotteon_payload 가 None → 자동전송 0(안전).
+        ("models", "lotteon_product_id", "VARCHAR(64)"),
+        ("options", "lotteon_option_id", "VARCHAR(128)"),
         # 2026-07-05: (폐기) market_upload_policies — P4 마켓 per_minute 정책 제거,
         #             계정 단위(account_upload_policies)로 흡수. 기존 DB의 잔여 테이블은
         #             참조 안 함(무해). 업로드 속도 정본 = 계정.
