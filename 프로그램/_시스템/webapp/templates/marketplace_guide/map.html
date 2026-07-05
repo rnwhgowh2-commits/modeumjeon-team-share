@@ -1,60 +1,146 @@
 {% extends layout|default("base.html") %}
-{% block title %}데이터 코드 지도{% endblock %}
+{% block title %}데이터 코드 지도 — 판매처{% endblock %}
 {% block content %}
+{% raw %}
 <style>
-  /* 160% 확대(가독성) — zoom 으로 전체 비례 확대. max-width 640×1.6≈1024 로 1040px 팝업창에 맞춤(가로 스크롤 방지). */
-  .mm{font-family:'Pretendard','Malgun Gothic',sans-serif;color:#191F28;padding:26px 30px;max-width:640px;zoom:1.6;}
-  .mm h2{font-size:22px;font-weight:800;margin:0 0 6px;}
-  .mm .sub{font-size:13px;color:#8B95A1;margin-bottom:20px;}
-  .mm .flow{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:14px 0;}
-  .mm .node{background:#F6F8FA;border:1px solid #E9ECEF;border-radius:10px;padding:11px 14px;font-weight:700;text-align:center;font-size:13px;}
-  .mm .node small{display:block;color:#8B95A1;font-weight:400;font-size:11px;margin-top:2px;}
-  .mm .ar{color:#8B95A1;font-weight:800;}
-  .mm .branch{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin:14px 0;}
-  .mm .b{border:1px solid #E9ECEF;border-radius:12px;padding:16px 18px;}
-  .mm .b h4{margin:0 0 6px;font-size:14.5px;font-weight:800;}
-  .mm .b p{margin:0;font-size:12.5px;color:#4E5968;line-height:1.6;}
-  .mm h3{font-size:16px;font-weight:800;margin:26px 0 10px;padding-left:11px;border-left:4px solid #0A2540;}
-  .mm .cm{display:grid;grid-template-columns:1fr auto;gap:8px;padding:8px 0;border-bottom:1px solid #F1F3F5;font-size:13px;}
-  .mm .cm .f{font-family:ui-monospace,monospace;font-size:11.5px;color:#4E5968;}
-  .mm .risk{margin-top:14px;background:#FFF4E6;border:1px solid #FFD8A8;border-radius:11px;padding:13px 16px;font-size:12.5px;color:#4E5968;line-height:1.75;}
-  .mm .risk b{color:#E8590C;}
-  .mm .risk code{background:#F1F3F5;border-radius:5px;padding:1px 6px;font-family:ui-monospace,monospace;font-size:11.5px;}
-  .mm .sop{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0;}
-  .mm .sop .s{background:#EDF1F5;border:1px solid #E9ECEF;border-radius:8px;padding:7px 12px;font-size:12.5px;font-weight:600;}
+  /* 판매처 데이터·코드 지도 — 마켓 가로탭 + 「주요 데이터」(별표로 담아 마켓 비교) + 좌 영역탭 + 보내기/받기 2열.
+     데이터는 실제 코드 근거(shared/platforms/*·lemouton/uploader/*·registration/*)로 작성. 2026-07-05 기준. */
+  .dm2{--ink:#191F28;--sub:#8B95A1;--faint:#B0B8C1;--line:#F1F3F5;--line2:#E5E8EB;--bg:#F8FAFB;
+    --ok:#15803D;--okb:#E7F6EC;--code:#B45309;--codeb:#FAF0DE;--todo:#98A2B3;--todob:#EEF1F4;--star:#F59E0B;--mono:ui-monospace,Menlo,monospace;
+    font-family:'Pretendard','Malgun Gothic',sans-serif;color:#191F28;max-width:1000px;margin:0 auto;padding:22px 22px 40px;}
+  .dm2 *{box-sizing:border-box;}
+  .dm2 h2{font-size:22px;font-weight:800;margin:0 0 5px;}
+  .dm2 .sub{font-size:13px;color:var(--sub);margin-bottom:16px;line-height:1.55;}
+  .dm2 .flow{display:flex;align-items:center;gap:8px;flex-wrap:wrap;background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:10px 13px;margin-bottom:8px;font-size:12px;}
+  .dm2 .flow .nd{font-weight:700;} .dm2 .flow .nd small{color:var(--sub);font-weight:400;}
+  .dm2 .flow .ar{color:var(--faint);font-weight:800;}
+  .dm2 .branches{font-size:11.5px;color:var(--sub);margin-bottom:18px;line-height:1.6;}
+  .dm2 .branches b{color:var(--ink);}
+  .dm2 .mktabs{display:flex;gap:4px;border-bottom:2px solid var(--line2);margin-bottom:14px;align-items:flex-end;flex-wrap:wrap;}
+  .dm2 .mktab{padding:9px 15px;font-size:14px;font-weight:800;color:var(--sub);border:none;background:none;cursor:pointer;border-bottom:3px solid transparent;margin-bottom:-2px;display:flex;align-items:center;gap:7px;}
+  .dm2 .mktab.on{color:var(--ink);border-bottom-color:var(--ink);} .dm2 .mktab .mini{font-size:9.5px;font-weight:700;color:var(--faint);} .dm2 .mktab.on .mini{color:var(--sub);}
+  .dm2 .favtab{margin-left:auto;color:var(--sub);border:none;background:none;font-size:13.5px;font-weight:800;cursor:pointer;padding:9px 14px;border-bottom:3px solid transparent;margin-bottom:-2px;display:flex;align-items:center;gap:6px;}
+  .dm2 .favtab::before{content:'';border-left:1px solid var(--line2);height:20px;margin-right:8px;}
+  .dm2 .favtab.on{color:var(--ink);border-bottom-color:var(--star);} .dm2 .favtab .fc{color:var(--star);} .dm2 .favtab .cnt{background:var(--star);color:#fff;border-radius:20px;font-size:10px;padding:0 6px;min-width:16px;text-align:center;}
+  .dm2 .legend{font-size:11px;color:var(--sub);display:flex;gap:13px;align-items:center;margin-bottom:12px;flex-wrap:wrap;} .dm2 .lg{display:inline-flex;align-items:center;gap:5px;} .dm2 .dt{width:8px;height:8px;border-radius:50%;} .dm2 .dt.ok{background:var(--ok);}.dm2 .dt.code{background:var(--code);}.dm2 .dt.todo{background:var(--todo);}
+  .dm2 .env{display:grid;grid-template-columns:auto 1fr auto 1fr;gap:3px 12px;font-size:11.5px;background:var(--bg);border:1px solid var(--line);border-radius:9px;padding:10px 13px;margin-bottom:15px;} .dm2 .env .k{color:var(--faint);font-weight:700;white-space:nowrap;} .dm2 .env .v{color:var(--ink);} .dm2 .env .v a{color:var(--sub);text-decoration:underline;text-underline-offset:2px;} .dm2 .env .v .mono{font-family:var(--mono);font-size:10.5px;color:var(--sub);}
+  .dm2 .st{font-size:10.5px;font-weight:800;border-radius:5px;padding:2px 8px;white-space:nowrap;} .dm2 .st.ok{background:var(--okb);color:var(--ok);} .dm2 .st.code{background:var(--codeb);color:var(--code);} .dm2 .st.todo{background:var(--todob);color:var(--todo);}
+  .dm2 .md{display:grid;grid-template-columns:172px 1fr;gap:16px;}
+  .dm2 .ml{display:flex;flex-direction:column;gap:3px;} .dm2 .ml button{text-align:left;font-size:12.5px;font-weight:700;color:var(--sub);background:none;border:none;border-radius:8px;padding:9px 11px;cursor:pointer;display:flex;justify-content:space-between;align-items:center;gap:6px;} .dm2 .ml button .n{font-size:10px;color:var(--faint);} .dm2 .ml button:hover{background:#F5F7F9;} .dm2 .ml button.on{background:var(--ink);color:#fff;} .dm2 .ml button.on .n{color:#B9C2CC;}
+  .dm2 .two{display:grid;grid-template-columns:1fr 1fr;gap:18px;}
+  .dm2 .dsec .dh{font-size:12px;font-weight:800;padding-bottom:6px;margin-bottom:2px;border-bottom:1px solid var(--line2);display:flex;align-items:center;gap:7px;} .dm2 .dsec .dh .ar{color:var(--faint);font-size:13px;} .dm2 .dsec .dh .sub2{font-size:10.5px;color:var(--faint);font-weight:600;}
+  .dm2 .item{display:grid;grid-template-columns:20px 1fr auto;gap:10px;align-items:center;padding:7px 0;border-bottom:1px solid var(--line);font-size:12.5px;} .dm2 .item:last-child{border-bottom:none;} .dm2 .star{cursor:pointer;font-size:14px;color:#D5DBE2;text-align:center;} .dm2 .star.on{color:var(--star);} .dm2 .item .nm{font-weight:700;} .dm2 .item .nm .code{display:block;font-size:9.5px;color:var(--faint);font-family:var(--mono);font-weight:400;margin-top:1px;}
+  .dm2 .favhead{display:flex;align-items:baseline;gap:10px;margin-bottom:12px;} .dm2 .favhead .ft{font-size:16px;font-weight:800;} .dm2 .favhead .fs{font-size:11.5px;color:var(--sub);}
+  .dm2 .cmp{width:100%;border-collapse:collapse;background:#fff;border:1px solid var(--line2);border-radius:10px;overflow:hidden;font-size:12.5px;} .dm2 .cmp th,.dm2 .cmp td{padding:9px 11px;border-bottom:1px solid var(--line);} .dm2 .cmp th{background:#F7F9FB;font-weight:800;font-size:11.5px;color:var(--sub);} .dm2 .cmp th.mk,.dm2 .cmp td.stc,.dm2 .cmp td.dc{text-align:center;} .dm2 .cmp td.el{font-weight:700;} .dm2 .cmp td.el .gc{display:block;font-size:10px;color:var(--faint);}
+  .dm2 .empty{padding:34px;text-align:center;color:var(--sub);font-size:13px;line-height:1.7;} .dm2 .empty .big{font-size:26px;color:var(--star);}
+  .dm2 .foot{margin-top:22px;border-top:1px solid var(--line2);padding-top:14px;}
+  .dm2 .foot h3{font-size:13px;font-weight:800;margin:0 0 8px;}
+  .dm2 .cm{display:grid;grid-template-columns:1fr auto;gap:6px;padding:5px 0;border-bottom:1px solid var(--line);font-size:12px;} .dm2 .cm .f{font-family:var(--mono);font-size:11px;color:var(--sub);}
+  .dm2 .risk{margin-top:12px;background:#FFF7ED;border:1px solid #FCD9A8;border-radius:10px;padding:11px 14px;font-size:11.5px;color:#7C4A03;line-height:1.7;} .dm2 .risk code{background:#FBEBD3;border-radius:4px;padding:1px 5px;font-family:var(--mono);}
 </style>
-<div class="mm">
+
+<div class="dm2">
   <h2>📖 데이터 코드 지도 — 판매처</h2>
-  <div class="sub">프로그램 가격·재고가 마켓까지 가는 길 + 마켓별 정밀 세팅 절차 + 코드 위치.</div>
+  <div class="sub">각 마켓의 <b>개발환경</b> + 프로그램과 주고받는 <b>API 전부</b>를 영역별로. 색은 <b>상태</b>에만(됨·코드만·미정의), 방향은 <b>보내기/받기</b> 위치로. 별(☆)로 담으면 「주요 데이터」에서 마켓끼리 비교.</div>
 
-  <h3>1 · 업로드 흐름</h3>
   <div class="flow">
-    <div class="node">프로그램<small>가격·재고</small></div><span class="ar">→</span>
-    <div class="node">전송 대기<small>스냅샷</small></div><span class="ar">→</span>
-    <div class="node">판매처 API<small>스스 OAuth · 쿠팡 HMAC · 롯데온 Bearer</small></div><span class="ar">→</span>
-    <div class="node">마켓 반영<small>상품·재고 갱신</small></div>
+    <span class="nd">프로그램<small> · 가격·재고</small></span><span class="ar">→</span>
+    <span class="nd">전송 대기<small> · 스냅샷</small></span><span class="ar">→</span>
+    <span class="nd">판매처 API<small> · 스스 OAuth·쿠팡 HMAC</small></span><span class="ar">→</span>
+    <span class="nd">마켓 반영<small> · 상품·재고 갱신</small></span>
   </div>
-  <div class="branch">
-    <div class="b"><h4>갈래 A · 신규 상품 마켓 등록</h4><p>모음전 상품을 마켓에 처음 올림 → 상품·옵션 생성 API. 이후 가격·재고 반복 동기화.</p></div>
-    <div class="b"><h4>갈래 B · 기존 등록 상품 연동</h4><p>이미 마켓에 등록돼 있는 상품과 매칭·연동 → 가격·재고만 반복 동기화.</p></div>
+  <div class="branches">갈래 A · <b>신규 상품 등록</b>(모음전 상품을 마켓에 처음 올림) &nbsp;·&nbsp; 갈래 B · <b>기존 상품 연동</b>(이미 올라간 상품과 매칭 → 가격·재고만 동기화, 현재 우선 경로)</div>
+
+  <div class="mktabs" id="dm-mktabs"></div>
+  <div class="legend"><span class="lg"><span class="dt ok"></span>됨(실제 사용)</span><span class="lg"><span class="dt code"></span>코드만(있으나 미사용)</span><span class="lg"><span class="dt todo"></span>미정의</span></div>
+  <div id="dm-body"></div>
+
+  <div class="foot">
+    <h3>코드 위치</h3>
+    <div class="cm"><div>업로드 실행·전송 플래그</div><div class="f">uploader/runtime.py</div></div>
+    <div class="cm"><div>마켓 정의·키 스키마</div><div class="f">accounts.py · MARKET_METADATA</div></div>
+    <div class="cm"><div>스마트스토어 인증·호출</div><div class="f">shared/platforms/smartstore/*</div></div>
+    <div class="cm"><div>쿠팡 인증·호출</div><div class="f">shared/platforms/coupang/*</div></div>
+    <div class="cm"><div>마켓 프로파일(정본)</div><div class="f">docs/markets/_schema.yaml · coupang.yaml · smartstore.yaml</div></div>
+    <div class="cm"><div>새 마켓 추가 가이드</div><div class="f">docs/markets/_새-마켓-추가-가이드.md</div></div>
+    <div class="risk">⚠️ <b>정직성</b> — 실전송 기본 OFF(<code>LEMOUTON_LIVE_UPLOAD</code>) · 0원·재고없음 전송 금지 · 크롤/조회 실패 값 폴백 금지("없음"·"미정의" 표기). 상태는 실제 코드 기준이며, 마켓이 제공하는 전체 API 가운데 <b>우리가 코딩해둔 것</b>만 표시한다.</div>
   </div>
-
-  <h3>2 · 마켓별 정밀 세팅 SOP (Claude Code 실행)</h3>
-  <div class="sop">
-    <span class="s">① 인증 방식 분류</span><span class="s">② 엔드포인트 확정</span>
-    <span class="s">③ 필드 매핑</span><span class="s">④ 실계정 검증 100% 일치</span>
-  </div>
-
-  <h3>3 · 코드 위치</h3>
-  <div class="cm"><div>업로드 실행·전송 플래그</div><div class="f">uploader/runtime.py</div></div>
-  <div class="cm"><div>스마트스토어 인증·호출</div><div class="f">platforms/smartstore/client.py</div></div>
-  <div class="cm"><div>쿠팡 HMAC 서명·테스트</div><div class="f">accounts.py · _test_coupang</div></div>
-  <div class="cm"><div>롯데온 Bearer 인증·호출</div><div class="f">platforms/lotteon/client.py · auth.py</div></div>
-  <div class="cm"><div>롯데온 가격·재고·상세조회</div><div class="f">platforms/lotteon/{prices,inventory,products}.py</div></div>
-  <div class="cm"><div>마켓 정의·키 스키마</div><div class="f">accounts.py · MARKET_METADATA</div></div>
-  <div class="cm"><div>마켓 프로파일 스키마(정본)</div><div class="f">docs/markets/_schema.yaml</div></div>
-  <div class="cm"><div>완성 프로파일(참고)</div><div class="f">docs/markets/coupang.yaml · smartstore.yaml · lotteon.yaml<small>(롯데온=라이브 미검증)</small></div></div>
-
-  <div class="risk"><b>⚠️ 정직성</b> — 실전송 기본 OFF(<code>LEMOUTON_LIVE_UPLOAD</code>) · 0원·재고없음 전송 금지 · 크롤 실패 값 폴백 금지("없음" 표기).</div>
 </div>
+
+<script>
+const DM_MARKETS=[
+  {id:'coupang',nm:'쿠팡',status:'ok',env:{인증:'HMAC-SHA256',API:'REST · WING Open API',문서:'wing.coupang.com',키:'ACCESS_KEY·SECRET_KEY·VENDOR_ID'}},
+  {id:'smartstore',nm:'스마트스토어',status:'ok',env:{인증:'OAuth2 + bcrypt',API:'REST · 네이버 커머스',문서:'apicenter.commerce.naver.com',키:'CLIENT_ID·CLIENT_SECRET'}},
+  {id:'lotteon',nm:'롯데온',status:'todo',env:{인증:'미정의',API:'미정의',문서:'seller.lotteon.com',키:'미정의 (LOTTEON_MAIN)'}},
+];
+const DM_GROUPS=[
+  {g:'상품·옵션 등록·관리',items:[
+    {nm:'상품 등록(상품명·브랜드)',dir:'send',s:{coupang:'code',smartstore:'code',lotteon:'todo'},code:'products/create_product'},
+    {nm:'이미지',dir:'send',s:{coupang:'code',smartstore:'code',lotteon:'todo'},code:'등록 페이로드'},
+    {nm:'상세페이지',dir:'send',s:{coupang:'code',smartstore:'code',lotteon:'todo'},code:'contents/detail_html'},
+    {nm:'옵션 생성(색·사이즈)',dir:'send',s:{coupang:'code',smartstore:'code',lotteon:'todo'},code:'optionCombinations'},
+    {nm:'상품 삭제',dir:'send',s:{coupang:'todo',smartstore:'code',lotteon:'todo'},code:'delete_origin_product'},
+    {nm:'카테고리 추천',dir:'recv',s:{coupang:'code',smartstore:'todo',lotteon:'todo'},code:'categories.predict'},
+    {nm:'카테고리 메타·고시',dir:'recv',s:{coupang:'code',smartstore:'todo',lotteon:'todo'},code:'categories.get_meta'},
+    {nm:'출고지·반품지·택배사',dir:'recv',s:{coupang:'code',smartstore:'todo',lotteon:'todo'},code:'shipping'},
+  ]},
+  {g:'가격·재고·판매상태',items:[
+    {nm:'가격',dir:'send',s:{coupang:'ok',smartstore:'ok',lotteon:'todo'},code:'prices/edit_options'},
+    {nm:'재고',dir:'send',s:{coupang:'ok',smartstore:'ok',lotteon:'todo'},code:'inventory/edit_options'},
+    {nm:'판매상태(품절·중지·재개)',dir:'send',s:{coupang:'ok',smartstore:'ok',lotteon:'todo'},code:'requested/change_status'},
+  ]},
+  {g:'조회·연동(기존상품)',items:[
+    {nm:'판매가·옵션 현재값 조회',dir:'recv',s:{coupang:'ok',smartstore:'ok',lotteon:'todo'},code:'get_product/fetch_options'},
+    {nm:'상품 검색',dir:'recv',s:{coupang:'todo',smartstore:'code',lotteon:'todo'},code:'products/search'},
+    {nm:'채널상품번호 조회',dir:'recv',s:{coupang:'todo',smartstore:'code',lotteon:'todo'},code:'get_channel_no'},
+  ]},
+  {g:'주문·배송',items:[
+    {nm:'주문 목록·상세 조회',dir:'recv',s:{coupang:'code',smartstore:'code',lotteon:'todo'},code:'orders.fetch_orders'},
+    {nm:'송장·발송처리',dir:'send',s:{coupang:'code',smartstore:'code',lotteon:'todo'},code:'orders.send_tracking'},
+  ]},
+  {g:'정산',items:[{nm:'정산 예정금액(매출내역)',dir:'recv',s:{coupang:'code',smartstore:'todo',lotteon:'todo'},code:'settlements'}]},
+  {g:'고객응대(CS)',items:[
+    {nm:'고객문의 조회',dir:'recv',s:{coupang:'code',smartstore:'code',lotteon:'todo'},code:'inquiries.fetch'},
+    {nm:'문의 답변',dir:'send',s:{coupang:'code',smartstore:'code',lotteon:'todo'},code:'inquiries.reply'},
+    {nm:'반품·취소·교환 조회',dir:'recv',s:{coupang:'code',smartstore:'code',lotteon:'todo'},code:'claims'},
+    {nm:'반품·교환 승인',dir:'send',s:{coupang:'code',smartstore:'code',lotteon:'todo'},code:'claims.approve'},
+  ]},
+];
+const DM_LBL={ok:'됨',code:'코드만',todo:'미정의'};
+const DM_KEY='moum_datamap_starred';
+let dmStar=new Set(); try{dmStar=new Set(JSON.parse(localStorage.getItem(DM_KEY)||'[]'));}catch(e){}
+let DM_MK='coupang', DM_VIEW='map', DM_SUBG=0;
+const dmSt=s=>`<span class="st ${s}">${DM_LBL[s]}</span>`; const dmN=()=>dmStar.size;
+function dmSave(){try{localStorage.setItem(DM_KEY,JSON.stringify([...dmStar]));}catch(e){}}
+function dmRow(it,mid){const on=dmStar.has(it.nm)?' on':'';return `<div class="item"><span class="star${on}" data-k="${it.nm}" title="주요 데이터로 담기">${dmStar.has(it.nm)?'★':'☆'}</span><span class="nm">${it.nm}<span class="code">${it.code}</span></span>${dmSt(it.s[mid])}</div>`;}
+function dmSec(t,ar,sub,items,mid){if(!items.length)return '<div class="sub" style="color:var(--faint)">— 없음</div>';let h=`<div class="dsec"><div class="dh"><span class="ar">${ar}</span>${t} <span class="sub2">${sub}</span></div>`;items.forEach(it=>h+=dmRow(it,mid));return h+`</div>`;}
+function dmRender(){
+  let mt=DM_MARKETS.map(m=>`<button class="mktab${m.id===DM_MK&&DM_VIEW==='map'?' on':''}" data-m="${m.id}">${m.nm}<span class="mini">${m.status==='ok'?'연동완료':'준비중'}</span></button>`).join('');
+  mt+=`<button class="favtab${DM_VIEW==='fav'?' on':''}" data-fav="1"><span class="fc">⭐</span> 주요 데이터 <span class="cnt">${dmN()}</span></button>`;
+  document.getElementById('dm-mktabs').innerHTML=mt;
+  const body=document.getElementById('dm-body');
+  if(DM_VIEW==='fav'){
+    let h=`<div class="favhead"><span class="ft">⭐ 주요 데이터</span><span class="fs">프로그램 ↔ 판매처 데이터 — 담은 항목을 마켓끼리 비교</span></div>`;
+    if(dmN()===0){h+=`<div class="empty"><div class="big">⭐</div>담긴 항목이 없어요.<br>마켓별 데이터에서 별(☆)을 눌러 "주요 데이터"로 담으면 여기서 마켓끼리 나란히 비교됩니다.</div>`;}
+    else{const rows=[];DM_GROUPS.forEach(gr=>gr.items.forEach(it=>{if(dmStar.has(it.nm))rows.push(Object.assign({},it,{g:gr.g}));}));
+      h+=`<table class="cmp"><tr><th>주요 데이터</th><th class="mk">방향</th>`+DM_MARKETS.map(m=>`<th class="mk">${m.nm}</th>`).join('')+`</tr>`;
+      rows.forEach(r=>{h+=`<tr><td class="el">${r.nm}<span class="gc">${r.g}</span></td><td class="dc">${r.dir==='send'?'보내기':'받기'}</td>`+DM_MARKETS.map(m=>`<td class="stc">${dmSt(r.s[m.id])}</td>`).join('')+`</tr>`;});
+      h+=`</table>`;}
+    body.innerHTML=h;
+  }else{
+    const m=DM_MARKETS.filter(x=>x.id===DM_MK)[0];
+    let h=`<div class="env"><span class="k">인증</span><span class="v">${m.env.인증}</span><span class="k">API</span><span class="v">${m.env.API}</span><span class="k">문서</span><span class="v"><a href="#" onclick="return false">${m.env.문서}</a></span><span class="k">키</span><span class="v"><span class="mono">${m.env.키}</span></span></div>`;
+    if(m.status==='todo'){h+=`<div class="sub" style="margin:0;">보내기·받기 전체 <b>미정의</b> — 문서·키 확보 후 「판매처 추가」 프롬프트로 코드 배선. (11번가·옥션·G마켓·위메프·인터파크도 준비중)</div>`;}
+    else{const gr=DM_GROUPS[DM_SUBG],send=gr.items.filter(i=>i.dir==='send'),recv=gr.items.filter(i=>i.dir==='recv');
+      h+=`<div class="md"><div class="ml">`+DM_GROUPS.map((g,i)=>`<button class="${i===DM_SUBG?'on':''}" data-g="${i}">${g.g}<span class="n">${g.items.length}</span></button>`).join('')+`</div><div class="mr"><div class="two"><div>${dmSec('보내기','↑','프로그램 → 마켓',send,m.id)}</div><div>${dmSec('받기','↓','마켓 → 프로그램',recv,m.id)}</div></div></div></div>`;}
+    body.innerHTML=h;
+  }
+  document.querySelectorAll('.dm2 .mktab').forEach(t=>t.onclick=()=>{DM_MK=t.dataset.m;DM_VIEW='map';DM_SUBG=0;dmRender();});
+  document.querySelectorAll('.dm2 .favtab').forEach(t=>t.onclick=()=>{DM_VIEW='fav';dmRender();});
+  document.querySelectorAll('.dm2 .ml button').forEach(b=>b.onclick=()=>{DM_SUBG=+b.dataset.g;dmRender();});
+  document.querySelectorAll('.dm2 .star').forEach(s=>s.onclick=()=>{const k=s.dataset.k;dmStar.has(k)?dmStar.delete(k):dmStar.add(k);dmSave();dmRender();});
+}
+dmRender();
+</script>
+{% endraw %}
 {% endblock %}

@@ -38,3 +38,39 @@ def test_risk_integrity():
 def test_design_tokens():
     html = _map()
     assert "Pretendard" in html and "#191F28" in html
+
+
+# ── 판매처별 데이터 코드 지도(마켓 가로탭 + 주요 데이터) ──
+
+def test_market_tabs_present():
+    html = _map()
+    for mk in ["쿠팡", "스마트스토어", "롯데온"]:
+        assert mk in html
+
+
+def test_key_data_tab():
+    html = _map()
+    assert "주요 데이터" in html          # ⭐ 탭 이름(구 '모아보기')
+
+
+def test_six_domains_present():
+    html = _map()
+    for g in ["상품·옵션 등록·관리", "가격·재고·판매상태",
+              "조회·연동", "주문·배송", "정산", "고객응대(CS)"]:
+        assert g in html
+
+
+def test_status_three_states():
+    html = _map()
+    for s in ["됨", "코드만", "미정의"]:
+        assert s in html
+
+
+def test_send_receive_directions():
+    html = _map()
+    assert "보내기" in html and "받기" in html
+
+
+def test_new_market_guide_referenced():
+    html = _map()
+    assert "_새-마켓-추가-가이드.md" in html
