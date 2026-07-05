@@ -41,7 +41,7 @@
 
 <div class="dm2">
   <h2>📖 데이터 코드 지도 — 판매처</h2>
-  <div class="sub">각 마켓의 <b>개발환경</b> + 프로그램과 주고받는 <b>API 전부</b>를 영역별로. 색은 <b>상태</b>에만(됨·코드만·미정의), 방향은 <b>보내기/받기</b> 위치로. 별(☆)로 담으면 「주요 데이터」에서 마켓끼리 비교.</div>
+  <div class="sub">각 마켓의 <b>개발환경</b> + 프로그램과 주고받는 <b>API 전부</b>를 영역별로. 색은 <b>상태</b>에만(됨·연결됨·미정의), 방향은 <b>보내기/받기</b> 위치로. 별(☆)로 담으면 「주요 데이터」에서 마켓끼리 비교.</div>
 
   <div class="flow">
     <span class="nd">프로그램<small> · 가격·재고</small></span><span class="ar">→</span>
@@ -52,7 +52,7 @@
   <div class="branches">갈래 A · <b>신규 상품 등록</b>(모음전 상품을 마켓에 처음 올림) &nbsp;·&nbsp; 갈래 B · <b>기존 상품 연동</b>(이미 올라간 상품과 매칭 → 가격·재고만 동기화, 현재 우선 경로)</div>
 
   <div class="mktabs" id="dm-mktabs"></div>
-  <div class="legend"><span class="lg"><span class="dt ok"></span>됨(실제 사용)</span><span class="lg"><span class="dt code"></span>코드만(있으나 미사용)</span><span class="lg"><span class="dt todo"></span>미정의</span></div>
+  <div class="legend"><span class="lg"><span class="dt ok"></span>됨(실제 사용)</span><span class="lg"><span class="dt code"></span>연결됨(검증대기·안전 OFF)</span><span class="lg"><span class="dt todo"></span>미정의</span></div>
   <div id="dm-body"></div>
 
   <div class="foot">
@@ -62,8 +62,9 @@
     <div class="cm"><div>스마트스토어 인증·호출</div><div class="f">shared/platforms/smartstore/*</div></div>
     <div class="cm"><div>쿠팡 인증·호출</div><div class="f">shared/platforms/coupang/*</div></div>
     <div class="cm"><div>마켓 프로파일(정본)</div><div class="f">docs/markets/_schema.yaml · coupang.yaml · smartstore.yaml</div></div>
+    <div class="cm"><div>확장 기능 커넥터·마스터 게이트</div><div class="f">markets/capabilities.py · LEMOUTON_MARKET_EXTRA</div></div>
     <div class="cm"><div>새 마켓 추가 가이드</div><div class="f">docs/markets/_새-마켓-추가-가이드.md</div></div>
-    <div class="risk">⚠️ <b>정직성</b> — 실전송 기본 OFF(<code>LEMOUTON_LIVE_UPLOAD</code>) · 0원·재고없음 전송 금지 · 크롤/조회 실패 값 폴백 금지("없음"·"미정의" 표기). 상태는 실제 코드 기준이며, 마켓이 제공하는 전체 API 가운데 <b>우리가 코딩해둔 것</b>만 표시한다.</div>
+    <div class="risk">⚠️ <b>정직성</b> — 실전송 기본 OFF(<code>LEMOUTON_LIVE_UPLOAD</code>) · 0원·재고없음 전송 금지 · 크롤/조회 실패 값 폴백 금지("없음"·"미정의" 표기). <b>연결됨(검증대기)</b> = 부품은 커넥터(<code>markets/capabilities.py</code>)로 닿지만 <code>LEMOUTON_MARKET_EXTRA</code> 게이트 뒤 <b>안전 OFF</b> — 실계정 검증 후에만 "됨"으로 켠다. 상태는 실제 코드 기준이며, 마켓 전체 API 중 <b>우리가 코딩해둔 것</b>만 표시. 이 외 11번가·옥션·G마켓·위메프·인터파크는 준비중(카드 미표시).</div>
   </div>
 </div>
 
@@ -71,7 +72,7 @@
 const DM_MARKETS=[
   {id:'coupang',nm:'쿠팡',status:'ok',env:{인증:'HMAC-SHA256',API:'REST · WING Open API',문서:'wing.coupang.com',키:'ACCESS_KEY·SECRET_KEY·VENDOR_ID'}},
   {id:'smartstore',nm:'스마트스토어',status:'ok',env:{인증:'OAuth2 + bcrypt',API:'REST · 네이버 커머스',문서:'apicenter.commerce.naver.com',키:'CLIENT_ID·CLIENT_SECRET'}},
-  {id:'lotteon',nm:'롯데온',status:'todo',env:{인증:'미정의',API:'미정의',문서:'seller.lotteon.com',키:'미정의 (LOTTEON_MAIN)'}},
+  {id:'lotteon',nm:'롯데온',status:'todo',env:{인증:'정적 인증키(Bearer) + IP 등록',API:'REST · 롯데온 Open API',문서:'store.lotteon.com',키:'API_KEY·TR_NO (LOTTEON_MAIN)'}},
 ];
 const DM_GROUPS=[
   {g:'상품·옵션 등록·관리',items:[
@@ -85,12 +86,12 @@ const DM_GROUPS=[
     {nm:'출고지·반품지·택배사',dir:'recv',s:{coupang:'code',smartstore:'todo',lotteon:'todo'},code:'shipping'},
   ]},
   {g:'가격·재고·판매상태',items:[
-    {nm:'가격',dir:'send',s:{coupang:'ok',smartstore:'ok',lotteon:'todo'},code:'prices/edit_options'},
-    {nm:'재고',dir:'send',s:{coupang:'ok',smartstore:'ok',lotteon:'todo'},code:'inventory/edit_options'},
+    {nm:'가격',dir:'send',s:{coupang:'ok',smartstore:'ok',lotteon:'code'},code:'prices.update_price'},
+    {nm:'재고',dir:'send',s:{coupang:'ok',smartstore:'ok',lotteon:'code'},code:'inventory.update_stock'},
     {nm:'판매상태(품절·중지·재개)',dir:'send',s:{coupang:'ok',smartstore:'ok',lotteon:'todo'},code:'requested/change_status'},
   ]},
   {g:'조회·연동(기존상품)',items:[
-    {nm:'판매가·옵션 현재값 조회',dir:'recv',s:{coupang:'ok',smartstore:'ok',lotteon:'todo'},code:'get_product/fetch_options'},
+    {nm:'판매가·옵션 현재값 조회',dir:'recv',s:{coupang:'ok',smartstore:'ok',lotteon:'code'},code:'get_product(_detail)/fetch_options'},
     {nm:'상품 검색',dir:'recv',s:{coupang:'todo',smartstore:'code',lotteon:'todo'},code:'products/search'},
     {nm:'채널상품번호 조회',dir:'recv',s:{coupang:'todo',smartstore:'code',lotteon:'todo'},code:'get_channel_no'},
   ]},
@@ -106,7 +107,7 @@ const DM_GROUPS=[
     {nm:'반품·교환 승인',dir:'send',s:{coupang:'code',smartstore:'code',lotteon:'todo'},code:'claims.approve'},
   ]},
 ];
-const DM_LBL={ok:'됨',code:'코드만',todo:'미정의'};
+const DM_LBL={ok:'됨',code:'연결됨',todo:'미정의'};
 const DM_KEY='moum_datamap_starred';
 let dmStar=new Set(); try{dmStar=new Set(JSON.parse(localStorage.getItem(DM_KEY)||'[]'));}catch(e){}
 let DM_MK='coupang', DM_VIEW='map', DM_SUBG=0;
@@ -130,8 +131,7 @@ function dmRender(){
   }else{
     const m=DM_MARKETS.filter(x=>x.id===DM_MK)[0];
     let h=`<div class="env"><span class="k">인증</span><span class="v">${m.env.인증}</span><span class="k">API</span><span class="v">${m.env.API}</span><span class="k">문서</span><span class="v"><a href="#" onclick="return false">${m.env.문서}</a></span><span class="k">키</span><span class="v"><span class="mono">${m.env.키}</span></span></div>`;
-    if(m.status==='todo'){h+=`<div class="sub" style="margin:0;">보내기·받기 전체 <b>미정의</b> — 문서·키 확보 후 「판매처 추가」 프롬프트로 코드 배선. (11번가·옥션·G마켓·위메프·인터파크도 준비중)</div>`;}
-    else{const gr=DM_GROUPS[DM_SUBG],send=gr.items.filter(i=>i.dir==='send'),recv=gr.items.filter(i=>i.dir==='recv');
+    {const gr=DM_GROUPS[DM_SUBG],send=gr.items.filter(i=>i.dir==='send'),recv=gr.items.filter(i=>i.dir==='recv');
       h+=`<div class="md"><div class="ml">`+DM_GROUPS.map((g,i)=>`<button class="${i===DM_SUBG?'on':''}" data-g="${i}">${g.g}<span class="n">${g.items.length}</span></button>`).join('')+`</div><div class="mr"><div class="two"><div>${dmSec('보내기','↑','프로그램 → 마켓',send,m.id)}</div><div>${dmSec('받기','↓','마켓 → 프로그램',recv,m.id)}</div></div></div></div>`;}
     body.innerHTML=h;
   }

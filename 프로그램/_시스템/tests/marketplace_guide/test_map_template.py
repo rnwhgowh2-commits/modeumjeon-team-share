@@ -62,8 +62,14 @@ def test_six_domains_present():
 
 def test_status_three_states():
     html = _map()
-    for s in ["됨", "코드만", "미정의"]:
+    for s in ["됨", "연결됨", "미정의"]:   # 코드만 → 연결됨(검증대기·안전 OFF)
         assert s in html
+
+
+def test_capabilities_gate_referenced():
+    html = _map()
+    assert "LEMOUTON_MARKET_EXTRA" in html
+    assert "capabilities.py" in html
 
 
 def test_send_receive_directions():
