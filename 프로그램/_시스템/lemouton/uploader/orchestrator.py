@@ -53,6 +53,25 @@ def _extract_uploads(c_output: dict, sku_by_option: dict) -> list[dict]:
                 "new_price": opt.get("price", 0),
                 "new_stock": opt.get("stock", 0),
             })
+
+    # 롯데온 — formatter 가 "lotteon" 페이로드를 방출하면 자동으로 포함된다.
+    #   (현재 formatter 는 미방출 — 신규등록/모델매핑 배선 시 활성. 배선 순서 무관하게
+    #    여기서 먼저 읽도록 두어, 페이로드가 생기는 순간 라우팅 누락이 없게 한다.)
+    for model_code, payload in c_output.get("lotteon", {}).items():
+        product_id = payload["product_id"]
+        for opt in payload.get("options", []):
+            option_id = opt["option_id"]
+            sku = sku_by_option.get(("lotteon", option_id))
+            if not sku:
+                continue
+            uploads.append({
+                "market": "lotteon",
+                "canonical_sku": sku,
+                "market_product_id": product_id,
+                "market_option_id": option_id,
+                "new_price": opt.get("price", 0),
+                "new_stock": opt.get("stock", 0),
+            })
     return uploads
 
 
@@ -61,8 +80,7 @@ def run_uploader(
     c_output: dict,
     *,
     sku_by_option: dict,
-    ss_adapter: MarketAdapter,
-    cp_adapter: MarketAdapter,
+    adapters: dict[str, MarketAdapter],
     dlq_path: str,
     warnings_threshold: int = 5,
     avg_price_change_pct: float = 30.0,
@@ -122,7 +140,36 @@ def run_uploader(
     for u in actionable:
         if pacer is not None:
             pacer.wait(u["market"])   # 계정 정본 파생 '1개당 최소 초 간격'
-        adapter = ss_adapter if u["market"] == "smartstore" else cp_adapter
+        # 마켓별 어댑터 dict 조회. 이진 else 금지 —
+        #   등록 안 된 마켓 행을 임의의 어댑터로 보내면 그 마켓 API 로 가격·재고가 나가
+        #   금전 손실이 된다(예: lotteon 행이 쿠팡 API 로). 없으면 실패로 표면화.
+        adapter = adapters.get(u["market"])
+        if adapter is None:
+            failed += 1
+            upsert_registration(
+                session,
+                canonical_sku=u["canonical_sku"], market=u["market"],
+                market_product_id=u["market_product_id"],
+                market_option_id=u["market_option_id"],
+                status="failed",
+                last_attempt_at=now,
+                sync_error=f"어댑터 미등록 마켓: {u['market']} (select_adapters 확인)",
+                sync_attempts=1,
+            )
+            enqueue_dlq(dlq_path, {
+                "market": u["market"],
+                "canonical_sku": u["canonical_sku"],
+                "request_payload": {
+                    "market_product_id": u["market_product_id"],
+                    "market_option_id": u["market_option_id"],
+                    "new_price": u["new_price"],
+                    "new_stock": u["new_stock"],
+                },
+                "error": f"no adapter for market {u['market']}",
+                "http_status": None,
+                "attempts": 1,
+            })
+            continue
         result = adapter.update_price_and_stock(
             canonical_sku=u["canonical_sku"],
             market_product_id=u["market_product_id"],

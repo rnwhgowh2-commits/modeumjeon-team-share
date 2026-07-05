@@ -117,10 +117,23 @@ class CoupangCredentials(_MaskedReprMixin):
     vendor_id: str = Field(min_length=1)
 
 
+class LotteonCredentials(_MaskedReprMixin):
+    """롯데온 Open API(셀러센터) 자격증명.
+
+    ``.env`` 키: ``{env_prefix}_API_KEY``, ``{env_prefix}_TR_NO``
+    · api_key = 판매자 센터 발급 정적 Bearer 인증키
+    · tr_no   = 거래처번호 (모든 상품/가격/재고 호출 필수 파라미터)
+    """
+
+    api_key: str = Field(min_length=1)
+    tr_no: str = Field(min_length=1)
+
+
 # 마켓 → 스키마 라우팅 (Phase 2-B/C 에서 11번가·OAuth 등 확장 가능)
 MARKET_SCHEMAS: dict[str, Type[_MaskedReprMixin]] = {
     "smartstore": SmartstoreCredentials,
     "coupang": CoupangCredentials,
+    "lotteon": LotteonCredentials,
 }
 
 

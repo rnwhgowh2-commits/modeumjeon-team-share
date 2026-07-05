@@ -392,6 +392,7 @@ def sourcing_accounts_view():
 MARKET_KEY_SUFFIXES = {
     "smartstore": ["CLIENT_ID", "CLIENT_SECRET"],
     "coupang": ["ACCESS_KEY", "SECRET_KEY", "VENDOR_ID"],
+    "lotteon": ["API_KEY", "TR_NO"],
 }
 
 # UI 노출용 라벨 — sensitive 여부도 표시
@@ -401,6 +402,8 @@ KEY_LABELS = {
     "ACCESS_KEY": ("Access Key", False),
     "SECRET_KEY": ("Secret Key", True),
     "VENDOR_ID": ("Vendor ID (셀러 코드)", False),
+    "API_KEY": ("API 인증키 (Bearer)", True),
+    "TR_NO": ("거래처번호 (판매자 센터)", False),
 }
 
 # 마켓 메타데이터 — UI 사이드바에서 사용 (라벨·아이콘·도움말·상태)
@@ -429,11 +432,13 @@ MARKET_METADATA = {
     "lotteon": {
         "label": "롯데온",
         "icon": "🔴",
-        "api_type": "셀러센터 API",
-        "guide_url": "https://seller.lotteon.com/",
-        "guide_text": "롯데온 셀러센터 API",
+        "api_type": "OpenAPI (Bearer 인증키)",
+        "guide_url": "https://store.lotteon.com/",
+        "guide_text": ("롯데온 판매자 센터 > 판매자정보 > OpenAPI관리 에서 "
+                       "① 서버 IP 등록(54.116.196.90) ② 인증키 발급. 거래처번호(trNo)도 여기서 확인."),
         "default_prefix": "LOTTEON_MAIN",
-        "status": "coming_soon",
+        # UI 온보딩(계정·키 등록·연결 테스트) 개방. 실제 전송은 LEMOUTON_LIVE_UPLOAD(OFF)가 별도 게이트.
+        "status": "ready",
         "sort_order": 3,
     },
     "eleven11": {

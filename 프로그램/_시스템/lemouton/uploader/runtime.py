@@ -37,20 +37,32 @@ def live_upload_enabled() -> bool:
     return (os.environ.get("LEMOUTON_LIVE_UPLOAD", "") or "").strip().lower() in _TRUTHY
 
 
-def select_adapters(*, live: bool | None = None):
-    """``(smartstore, coupang)`` 어댑터 선택.
+def select_adapters(*, live: bool | None = None) -> dict[str, MarketAdapter]:
+    """``{market: adapter}`` 레지스트리 반환.
 
     live=None → 환경변수로 판단. live=False 명시 → 무조건 드라이런.
     실전송이 켜져 있을 때만 실제 어댑터를 만들고, 그 외엔 :class:`DryRunAdapter`.
+
+    dict 레지스트리인 이유: 마켓을 추가할 때 튜플 언패킹 지점을 매번 고칠 필요 없이
+    ``adapters[market]`` 조회 한 곳으로 통일된다(orchestrator 의 마켓별 라우팅도 동일).
     """
     if live is None:
         live = live_upload_enabled()
     if not live:
-        return DryRunAdapter("smartstore"), DryRunAdapter("coupang")
+        return {
+            "smartstore": DryRunAdapter("smartstore"),
+            "coupang": DryRunAdapter("coupang"),
+            "lotteon": DryRunAdapter("lotteon"),
+        }
     from .adapters.coupang import CoupangAdapter
     from .adapters.smartstore import SmartStoreAdapter
+    from .adapters.lotteon import LotteonAdapter
     logger.warning("[uploader] LIVE 업로드 활성 — 실제 마켓 전송이 발생합니다")
-    return SmartStoreAdapter(), CoupangAdapter()
+    return {
+        "smartstore": SmartStoreAdapter(),
+        "coupang": CoupangAdapter(),
+        "lotteon": LotteonAdapter(),
+    }
 
 
 def build_sku_by_option(session: Session) -> dict:

@@ -1,0 +1,131 @@
+# docs/markets/lotteon.yaml — 롯데온(LOTTE ON Open API, 셀러센터) 프로파일
+# 근거: 롯데ON API 센터 공개 개발가이드 실측(로그인 없이 렌더, 2026-07-05 브라우저 판독).
+#   https://api.lotteon.com/apiService/?apiNm=GetStarted (인증) 및 각 API 상세 페이지.
+#   STEP 0(슬러그·접두)= webapp/routes/accounts.py:429 MARKET_METADATA["lotteon"].
+# ⚠️ 라이브 미검증(키 없음) — 코드·문서 근거만. LEMOUTON_LIVE_UPLOAD OFF, status=coming_soon 유지.
+# ⚠️ 추측·폴백 금지(CLAUDE.md 3대 원칙).
+
+meta:
+  market: lotteon
+  display_name: 롯데온
+  last_analyzed: "2026-07-05"
+  base_url: https://openapi.lotteon.com
+  evidence: >
+    롯데ON API 센터 공개 개발가이드 실측(2026-07-05):
+    GetStarted(인증·헤더·rate limit), 상품 상세조회(apiNo=94), 가격 API(apiNo=91), 재고 API(apiNo=86).
+    STEP 0 코드 근거: accounts.py:429, default_prefix=LOTTEON_MAIN. 라이브 미검증(키 없음).
+
+auth:
+  method: Static Bearer API Key (OAuth 토큰교환·HMAC 서명 아님)
+  token_endpoint: null   # 토큰 발급 단계 없음. 판매자 센터에서 발급한 정적 인증키를 그대로 Bearer 로 사용.
+  env_keys:
+    - LOTTEON_MAIN_API_KEY   # Bearer 인증키 (판매자 센터 > 판매자정보 > OpenAPI관리 에서 발급, 상위거래처 기준 최대 3개)
+    - LOTTEON_MAIN_TR_NO     # 거래처번호(trNo) — 모든 상품/가격/재고 호출의 필수 파라미터
+  header_format: >
+    Authorization: Bearer {LOTTEON_MAIN_API_KEY}
+    Accept: application/json
+    Accept-Language: ko
+    X-Timezone: GMT+09:00
+    Content-Type: application/json   # POST 필수
+  signature: null   # 서명 없음
+  ip_allowlist: >
+    인증키에 등록된 출발지 IP 만 통과(미등록 시 403). 업로드 서버(AWS 54.116.196.90 등)를
+    판매자 센터에서 인증키에 등록해야 함. [[project_market_api_server_side]]
+  rate_limit_policy: "인증키별 분당 10,000회 → 초과 시 401은 키오류, 403 IP거부, 429 접속량초과"
+
+# 모든 엔드포인트 POST, JSON. 도메인 = meta.base_url. trGrpCd 일반셀러 상수 = "SR".
+endpoints:
+  fetch_options: { method: POST, path: /v1/openapi/product/v1/product/detail }   # 상품 상세조회 = 옵션(단품)까지 조회
+  get_detail:    { method: POST, path: /v1/openapi/product/v1/product/detail }
+  update_price:  { method: POST, path: /v1/openapi/product/v1/item/price/change }
+  update_stock:  { method: POST, path: /v1/openapi/product/v1/item/stock/change }
+  register:      { method: POST, path: /v1/openapi/product/v1/product/regist }   # 상품 등록(apiNo=87) — 나중, 상세 미착수
+  change_status: { method: POST, path: "TODO(조사필요 — 상품 판매상태 변경 apiNo=92, 나중)" }
+  identity:      { method: GET,  path: /v1/openapi/common/v1/identity }          # 인증 헬스체크(키·IP 검증용)
+
+option_structure:
+  option_id_field: "data.itmLst[].sitmNo (판매자단품번호, 예: 'LO13640xx_1364003') = market_option_id"
+  color_field: "data.itmLst[].itmOptLst[] 중 optNm=='색상' → optVal"
+  size_field: "data.itmLst[].itmOptLst[] 중 optNm=='사이즈' → optVal"
+  stock_field: "data.itmLst[].stkQty (재고관리여부 stkMgtYn=N 이면 999,999,999 = 재고무관)"
+  price_field: "data.itmLst[].slPrc"
+  status_field: "data.itmLst[].slStatCd (SALE 판매중 / SOUT 품절)"
+  note: >
+    상품(spdNo) 하위에 단품(sitmNo) 배열 = 옵션. 색/사이즈는 itmOptLst[] 속성배열의 optNm 으로 구분(쿠팡 attributes 와 동형).
+    sitmYn=Y 면 단품속성 있음. stkMgtYn=N(재고 999,999,999)은 '무한재고'로 취급하되 실재고 판정은 CLAUDE.md 원칙 준수.
+
+fields:
+  # ── 연결(기존 상품 → 구성) : 현재 우선 경로 ──
+  connect:
+    - { name: spdNo, type: string, required: true, source: 사용자입력(판매자상품번호),
+        note: "detail 호출(trGrpCd=SR, trNo, spdNo) → itmLst[] sitmNo·색/사이즈·재고·가격 추출 → 옵션 자동매칭. = SetChannel.market_product_id" }
+  # ── 가격·재고 수정 (배치 array 지원) ──
+  update:
+    update_price:   # itmPrcLst[] 각 원소
+      - { name: trGrpCd, type: string, required: true, default: "SR", note: 거래처그룹코드(일반셀러) }
+      - { name: trNo, type: string, required: true, note: 거래처번호(env LOTTEON_MAIN_TR_NO) }
+      - { name: lrtrNo, type: string, required: false, default: "", note: 하위거래처번호(미사용 시 빈값) }
+      - { name: spdNo, type: string, required: true, note: 판매자상품번호 }
+      - { name: sitmNo, type: string, required: true, note: 판매자단품번호(옵션ID) }
+      - { name: slPrc, type: number, required: true, note: 판매가 }
+      - { name: itmDcTypCd, type: string, required: false, default: "GNRL", note: "GNRL 일반가 / DC 세일가" }
+      - { name: hstStrtDttm, type: string, required: true, note: "가격시작일시 YYYYMMDDHH24MISS" }
+      - { name: hstEndDttm, type: string, required: true, note: "가격종료일시 (예: 99990826235959 무기한)" }
+    update_stock:   # itmStkLst[] 각 원소
+      - { name: trGrpCd, type: string, required: true, default: "SR" }
+      - { name: trNo, type: string, required: true }
+      - { name: lrtrNo, type: string, required: false, default: "" }
+      - { name: spdNo, type: string, required: true }
+      - { name: sitmNo, type: string, required: true }
+      - { name: stkQty, type: number, required: true, note: "단품재고(0=품절)" }
+  # ── 신규 등록 : 나중(상품 등록 apiNo=87 — 표준카테고리·상품품목고시·배송/반품 등 필드 방대) ──
+  register: "TODO(조사필요, 나중) — 상품 상세조회 응답 스키마가 등록 페이로드의 상한. spdNo/sitmNo 는 등록 후 부여됨."
+
+step4_form:
+  connect_mode:   # 단계④ 현재 우선
+    user_inputs:
+      - spdNo (판매자상품번호) *필수
+    auto_or_display:
+      - 옵션/가격/재고 = detail 로 읽어 표시(sitmNo 매칭, optNm 색/사이즈)
+  update_mode:
+    user_inputs:
+      - 옵션별 재고(stkQty) / (선택) 판매가(slPrc)
+  register_mode: "TODO(나중)"
+
+response:
+  success:
+    common: "HTTP 200 + body.returnCode == '0000'(정상). 배치는 data[] 각 원소 resultCode=='0000'."
+    detail: "data(object): itmLst[] 에서 sitmNo·optVal·stkQty·slPrc·slStatCd 추출"
+    price_stock: "data[](array): 원소별 {spdNo, sitmNo, lrtrNo, resultCode, resultMessage}"
+  errors:
+    http:
+      - "401 등록되지 않은 OpenAPI Key (키 확인)"
+      - "403 접근 거부 (출발지 IP 미등록)"
+      - "404 비정상 Request/페이지 없음"
+      - "429 호출 횟수 초과(분당 10,000)"
+      - "500 시스템 오류"
+    body:
+      - "returnCode 9999 = SYSTEM ERROR"
+      - "resultCode 1001 필수입력 / 1002 DATA형식 오류 / 1003 공통코드 오류 / 2001 업무규칙 위반"
+  rate_limit:
+    policy: "분당 10,000회/키. 429 시 대기 후 재시도."
+  retry: "권장 max_retries=3, 지수백오프. (쿠팡 어댑터 선례 준용)"
+
+safety:
+  draft_on_register: "TODO — 등록(apiNo=87) 착수 시 확인. 현재 등록 미구현."
+  price_change_guard: >
+    쿠팡 선례처럼 업로드 전 sanity(확정매입가×1.05 미만 차단·마진 하한·재고≤소싱재고) 적용.
+    가격/재고는 실브라우저 소싱처 URL 실값 기준(CLAUDE.md). 폴백 금지.
+  notes: >
+    라이브 미검증(키없음). 실계정 100% 검증 전 '완료' 선언 금지.
+    orchestrator.py 이진 else 함정 — lotteon 행이 쿠팡 어댑터로 나가면 금전 손실 → {market:adapter} dict 로 배선.
+
+code_map:
+  auth: shared/platforms/lotteon/auth.py
+  client: shared/platforms/lotteon/client.py
+  fetch: shared/platforms/lotteon/products.py  # get_product_detail + extract_items(옵션 추출)
+  register: shared/platforms/lotteon/products.py  # 나중
+  update_price: shared/platforms/lotteon/prices.py
+  update_stock: shared/platforms/lotteon/inventory.py
+  registration_wrapper: lemouton/registration/lotteon.py  # 나중
+  adapter: lemouton/uploader/adapters/lotteon.py  # LotteonAdapter + MockLotteonAdapter

@@ -65,7 +65,8 @@ def _run(eng, dlq, persist):
     s = Session(eng)
     try:
         return run_uploader(s, _cout(), sku_by_option=SKU,
-                            ss_adapter=MockSmartStoreAdapter(), cp_adapter=_NoopCoupang(),
+                            adapters={"smartstore": MockSmartStoreAdapter(),
+                                      "coupang": _NoopCoupang()},
                             dlq_path=dlq, persist=persist)
     finally:
         s.close()

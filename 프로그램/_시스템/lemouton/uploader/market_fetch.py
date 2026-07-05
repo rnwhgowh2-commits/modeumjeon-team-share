@@ -29,6 +29,8 @@ def fetch_market_options(market: str, product_id: str, *,
         return _fetch_smartstore(product_id, env_prefix)
     if market == "coupang":
         return _fetch_coupang(product_id, env_prefix)
+    if market == "lotteon":
+        return _fetch_lotteon(product_id, env_prefix)
     return FetchResult(False, None, [], f"아직 지원하지 않는 마켓: {market}")
 
 
@@ -88,6 +90,41 @@ def _fetch_smartstore(product_id: str, env_prefix: Optional[str] = None) -> Fetc
         for o in r.options
     ]
     return FetchResult(True, r.product_name, opts)
+
+
+def _lotteon_client(env_prefix: Optional[str]):
+    """env_prefix 계정 키로 LotteonClient 생성. 없으면 None(=전역 기본)."""
+    if not env_prefix:
+        return None
+    from lemouton.auth import secrets as S
+    from shared.platforms import LOTTEON
+    from shared.platforms.lotteon.client import LotteonClient
+    c = S.load_credentials(market="lotteon", env_prefix=env_prefix)
+    return LotteonClient(config={**LOTTEON,
+                                 "api_key": c.api_key,
+                                 "tr_no": c.tr_no})
+
+
+def _fetch_lotteon(product_id: str, env_prefix: Optional[str] = None) -> FetchResult:
+    from shared.platforms.lotteon.products import get_product_detail, extract_items
+    if not str(product_id).strip():
+        return FetchResult(False, None, [], "상품번호(spdNo)가 비어있어요")
+    try:
+        client = _lotteon_client(env_prefix)
+        detail = get_product_detail(str(product_id), client=client)
+    except Exception as e:  # noqa: BLE001 — 조회 실패는 명시 표면화(폴백 금지)
+        return FetchResult(False, None, [], f"옵션 조회 실패: {e}")
+    items = extract_items(detail)
+    # 롯데온: 단품(sitmNo)=옵션. 재고 미관리(stkMgtYn=N)면 stock=None(센티넬 노출 금지).
+    #         판매가 없으면 None(0 붕괴 금지 — 미상 표면화).
+    opts = [
+        MarketOption(option_id=str(it["sitm_no"]), color=it.get("color"),
+                     size=it.get("size"), stock=it.get("stock"),
+                     price=it.get("sale_price"))
+        for it in items
+    ]
+    name = detail.get("spdNm") or detail.get("pdNm")
+    return FetchResult(True, name, opts)
 
 
 def _fetch_coupang(product_id: str, env_prefix: Optional[str] = None) -> FetchResult:
