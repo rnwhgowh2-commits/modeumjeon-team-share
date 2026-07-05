@@ -63,6 +63,18 @@ def test_crawl_check_full_page_200(client):
     assert "InventoryTx" in body
 
 
+def test_crawl_check_scope_selector_present(client):
+    """검사 범위 선택(모음전+소싱처 칩 추가형) UI 가 있는지."""
+    r = client.get("/sourcing-guide/crawl-check")
+    assert r.status_code == 200
+    body = r.data.decode("utf-8")
+    assert "검사 범위 선택" in body
+    assert "/api/bundles/with-sources" in body          # 모음전+소싱처 목록 로드
+    assert "이 범위로 프롬프트 만들기" in body
+    assert 'id="ccTargetStock"' in body                  # 대상 주입 지점(재고)
+    assert 'id="ccTargetPrice"' in body                  # 대상 주입 지점(가격)
+
+
 def test_crawl_check_bare_sets_sameorigin(client):
     r = client.get("/sourcing-guide/crawl-check?bare=1")
     assert r.status_code == 200

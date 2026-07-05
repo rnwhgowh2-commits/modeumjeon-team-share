@@ -3,7 +3,7 @@
 {% block content %}
 <style>
   .ccpage{--ink:#191F28;--sub:#6B7684;--blue:#3182F6;--blue-d:#1B64DA;--line:#E5E8EB;--line2:#EEF1F4;
-    --seg-bg:#F2F4F6;--lime:#A9E34B;--mono:ui-monospace,'D2Coding',SFMono-Regular,Menlo,monospace;
+    --seg-bg:#F2F4F6;--soft:#F6F8FA;--lime:#A9E34B;--mono:ui-monospace,'D2Coding',SFMono-Regular,Menlo,monospace;
     font-family:'Pretendard',-apple-system,'Apple SD Gothic Neo','Malgun Gothic',sans-serif;
     color:var(--ink);min-height:100vh;display:flex;flex-direction:column;
     padding:30px 40px 34px;box-sizing:border-box;line-height:1.6;}
@@ -11,25 +11,57 @@
   .ccpage h2{font-size:30px;font-weight:800;letter-spacing:-.5px;margin:0 0 8px;}
   .ccpage .sub{color:var(--sub);font-size:18px;margin:0 0 4px;line-height:1.55;}
 
-  /* ① 알약형 세그먼트 토글 */
   .ccpage .ccseg{display:inline-flex;background:var(--seg-bg);border-radius:14px;padding:6px;gap:4px;margin:22px 0 20px;}
   .ccpage .ccs{border:none;background:none;cursor:pointer;font-family:inherit;
-    font-size:20px;font-weight:800;color:var(--sub);padding:14px 30px;border-radius:10px;
+    font-size:19px;font-weight:800;color:var(--sub);padding:13px 26px;border-radius:10px;
     display:inline-flex;align-items:center;gap:9px;transition:.15s;}
   .ccpage .ccs.on{background:#fff;color:var(--ink);box-shadow:0 2px 6px rgba(0,0,0,.10);}
-  .ccpage .ccs .soon{font-size:13px;font-weight:800;color:#fff;background:#B0B8C1;border-radius:999px;padding:2px 10px;}
+  .ccpage .ccs .pill{font-size:12px;font-weight:800;color:#fff;background:var(--blue);border-radius:999px;padding:1px 8px;}
 
   .ccpage .ccpanel{display:none;flex:1;min-height:0;flex-direction:column;}
   .ccpage .ccpanel.on{display:flex;}
 
-  /* 사용법 3줄 */
+  /* 검사 범위 선택 (시안 2 칩 추가형 + 소싱처 트리) */
+  .ccpage .scopehint{font-size:15.5px;color:var(--sub);margin:0 0 12px;}
+  .ccpage .chips{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px;min-height:34px;}
+  .ccpage .chip{display:inline-flex;align-items:center;gap:8px;background:#E8F1FE;color:var(--blue-d);
+    border-radius:999px;padding:8px 14px;font-size:15px;font-weight:700;}
+  .ccpage .chip .cx{cursor:pointer;opacity:.6;font-weight:800;}
+  .ccpage .chip .cs{font-size:12.5px;color:#4E79B8;font-weight:600;}
+  .ccpage .chip.empty{background:none;color:var(--sub);font-weight:600;font-size:14.5px;padding:8px 2px;}
+  .ccpage .srch{display:flex;align-items:center;gap:9px;border:1px solid var(--line);border-radius:11px;
+    padding:12px 15px;margin-bottom:12px;}
+  .ccpage .srch input{border:0;outline:0;flex:1;font-size:16px;font-family:inherit;color:var(--ink);background:none;}
+  .ccpage .list{flex:1;min-height:120px;border:1px solid var(--line2);border-radius:12px;overflow:auto;background:#fff;}
+  .ccpage .mrow{border-bottom:1px solid var(--line2);}
+  .ccpage .mrow:last-child{border-bottom:0;}
+  .ccpage .mhd{display:flex;align-items:center;gap:12px;padding:13px 16px;cursor:pointer;}
+  .ccpage .cb{width:21px;height:21px;border:2px solid #C9D2DC;border-radius:6px;flex:none;
+    display:inline-flex;align-items:center;justify-content:center;color:#fff;font-size:13px;background:#fff;}
+  .ccpage .cb.on{background:var(--blue);border-color:var(--blue);}
+  .ccpage .cb.sm{width:18px;height:18px;font-size:11px;border-radius:5px;}
+  .ccpage .mnm{font-weight:700;flex:1;font-size:16px;}
+  .ccpage .mmeta{font-size:13px;color:var(--sub);font-variant-numeric:tabular-nums;}
+  .ccpage .chev{color:#94A0AD;font-size:12px;transition:transform .15s;}
+  .ccpage .chev.open{transform:rotate(90deg);}
+  .ccpage .srcpanel{display:none;padding:2px 16px 14px 49px;background:var(--soft);}
+  .ccpage .srcpanel.open{display:flex;flex-wrap:wrap;gap:8px;}
+  .ccpage .srcchip{display:inline-flex;align-items:center;gap:7px;padding:7px 12px;border-radius:9px;
+    border:1px solid var(--line);background:#fff;font-size:14px;font-weight:700;cursor:pointer;color:#8B95A1;}
+  .ccpage .srcchip.on{border-color:var(--blue);background:#EAF2FE;color:var(--blue-d);}
+  .ccpage .scopefoot{display:flex;align-items:center;justify-content:space-between;margin-top:14px;padding-top:14px;border-top:1px solid var(--line2);}
+  .ccpage .scnt{font-size:16px;font-weight:700;}.ccpage .scnt b{color:var(--blue);}
+  .ccpage .makebtn{background:var(--blue);color:#fff;border:none;border-radius:12px;padding:14px 26px;
+    font-size:17px;font-weight:800;cursor:pointer;font-family:inherit;}
+  .ccpage .makebtn:disabled{background:#C9D2DC;cursor:not-allowed;}
+  .ccpage .loading{padding:30px;text-align:center;color:var(--sub);font-size:15px;}
+
   .ccpage .howto{list-style:none;padding:0;margin:0 0 16px;display:flex;gap:10px;}
   .ccpage .howto li{flex:1;display:flex;align-items:center;gap:11px;font-size:17px;color:var(--ink);
     background:#F7F9FB;border-radius:12px;padding:14px 16px;line-height:1.4;}
   .ccpage .howto .n{flex:none;width:28px;height:28px;border-radius:50%;background:var(--ink);color:#fff;
     font-size:15px;font-weight:800;display:inline-flex;align-items:center;justify-content:center;}
 
-  /* ② 프롬프트 박스 — 팝업 높이 꽉 채움 + 라벨 */
   .ccpage .promptwrap{flex:1;display:flex;flex-direction:column;min-height:0;
     border:1px solid #2A3038;border-radius:14px;overflow:hidden;}
   .ccpage .plabel{background:#0F141A;color:#DCE2EA;font-size:16px;font-weight:800;
@@ -43,33 +75,41 @@
     font-family:var(--mono);font-size:19px;line-height:2.05;white-space:pre-wrap;word-break:break-word;border:0;}
   .ccpage .codebox .h{color:var(--lime);font-weight:800;}
   .ccpage .codebox .star{color:#FF7A7A;font-weight:800;}
+  .ccpage .codebox .tgt{color:#7DD3FC;}
 
-  /* ③ 하단 풀폭 복사 버튼 */
   .ccpage .copybtn-big{margin-top:14px;width:100%;border:none;border-radius:13px;flex:none;
     background:var(--blue);color:#fff;font-size:20px;font-weight:800;padding:18px;cursor:pointer;font-family:inherit;
     display:inline-flex;align-items:center;justify-content:center;gap:10px;transition:.15s;}
   .ccpage .copybtn-big:hover{background:var(--blue-d);}
   .ccpage .copybtn-big.done{background:#1E7C4A;}
-
-  /* 준비 중 placeholder */
-  .ccpage .soonbox{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;
-    border:1px dashed var(--line);border-radius:14px;color:var(--sub);font-size:18px;background:#FAFBFC;gap:8px;}
-  .ccpage .soonbox .big{font-size:23px;font-weight:800;color:var(--ink);}
 </style>
 
 <div class="ccpage">
   <h2>🔎 크롤링 검사</h2>
-  <p class="sub">소싱처 크롤 결과가 실제 상품 페이지와 일치하는지 검사하는 프롬프트를 복사해 Claude Code 에 붙여넣으세요.</p>
+  <p class="sub">검사할 모음전·소싱처를 고르면, 그 범위만 담은 정합성 프롬프트를 만들어 Claude Code 에 붙여넣습니다.</p>
 
   <div class="ccseg">
-    <button type="button" class="ccs on" data-ccseg="stock">📦 재고 정합성 검사</button>
+    <button type="button" class="ccs on" data-ccseg="scope">🎯 검사 범위 선택</button>
+    <button type="button" class="ccs" data-ccseg="stock">📦 재고 정합성 검사</button>
     <button type="button" class="ccs" data-ccseg="price">💰 가격 정합성 검사</button>
   </div>
 
+  <!-- ─── 검사 범위 선택 패널 ─── -->
+  <div class="ccpanel on" data-ccpanel="scope">
+    <p class="scopehint">검사할 <b>모음전</b>을 골라 담고, 행을 펼쳐 그 모음전의 <b>소싱처</b>를 켜고 끄세요(기본 전부 켜짐). 안 고르면 아래 프롬프트를 직접 채워도 됩니다.</p>
+    <div class="chips" id="ccChips"></div>
+    <div class="srch">🔍 <input type="text" id="ccSearch" placeholder="모음전 이름 검색 (예: 르무통, 나이키)" autocomplete="off"></div>
+    <div class="list" id="ccList"><div class="loading">모음전 목록 불러오는 중…</div></div>
+    <div class="scopefoot">
+      <span class="scnt" id="ccScnt">모음전 <b>0개</b> · 소싱처 합계 <b>0개</b></span>
+      <button type="button" class="makebtn" id="ccMake" disabled>이 범위로 프롬프트 만들기 →</button>
+    </div>
+  </div>
+
   <!-- ─── 재고 패널 ─── -->
-  <div class="ccpanel on" data-ccpanel="stock">
+  <div class="ccpanel" data-ccpanel="stock">
     <ol class="howto">
-      <li><span class="n">1</span><span>프롬프트에서 <b>대상 소싱처·URL</b> 확인·수정</span></li>
+      <li><span class="n">1</span><span><b>「검사 범위 선택」</b>에서 고르거나 아래 대상을 직접 확인</span></li>
       <li><span class="n">2</span><span><b>「전체 복사」</b> 누르기</span></li>
       <li><span class="n">3</span><span><b>Claude Code</b>에 붙여넣기 → 검사 시작</span></li>
     </ol>
@@ -83,8 +123,8 @@
 아래 프로토콜을 순서대로 실행하라.
 
 <span class="h">■ 대상</span>
-- 소싱처 : (소싱처명 입력, 예: 롯데온)
-- URL    : 해당 소싱처의 매트릭스 등록 URL 전체
+<span class="tgt" id="ccTargetStock">- 소싱처 : (소싱처명 입력, 예: 롯데온)
+- URL    : 해당 소싱처의 매트릭스 등록 URL 전체</span>
 
 <span class="h">■ 절대 원칙 (데이터 무결성 3대)</span>
 - 재고 기준 = 실브라우저 상품 URL의 실제 데이터
@@ -144,7 +184,7 @@
   <!-- ─── 가격 패널 ─── -->
   <div class="ccpanel" data-ccpanel="price">
     <ol class="howto">
-      <li><span class="n">1</span><span>프롬프트에서 <b>대상 소싱처·URL</b> 확인·수정</span></li>
+      <li><span class="n">1</span><span><b>「검사 범위 선택」</b>에서 고르거나 아래 대상을 직접 확인</span></li>
       <li><span class="n">2</span><span><b>「전체 복사」</b> 누르기</span></li>
       <li><span class="n">3</span><span><b>Claude Code</b>에 붙여넣기 → 검사 시작</span></li>
     </ol>
@@ -158,8 +198,8 @@
 아래 프로토콜을 순서대로 실행하라.
 
 <span class="h">■ 대상</span>
-- 소싱처 : (소싱처명 입력, 예: SSG)
-- URL    : 해당 소싱처의 매트릭스 등록 URL 전체
+<span class="tgt" id="ccTargetPrice">- 소싱처 : (소싱처명 입력, 예: SSG)
+- URL    : 해당 소싱처의 매트릭스 등록 URL 전체</span>
 
 <span class="h">■ 절대 원칙 (데이터 무결성 3대)</span>
 - 가격 기준 = 실브라우저 상품 URL의 실제 값
@@ -228,14 +268,13 @@
 (function(){
   var segs = document.querySelectorAll('.ccpage .ccs');
   var panels = document.querySelectorAll('.ccpage .ccpanel');
-  segs.forEach(function(s){
-    s.addEventListener('click', function(){
-      var key = s.getAttribute('data-ccseg');
-      segs.forEach(function(x){ x.classList.toggle('on', x === s); });
-      panels.forEach(function(p){ p.classList.toggle('on', p.getAttribute('data-ccpanel') === key); });
-    });
-  });
+  function showSeg(key){
+    segs.forEach(function(x){ x.classList.toggle('on', x.getAttribute('data-ccseg') === key); });
+    panels.forEach(function(p){ p.classList.toggle('on', p.getAttribute('data-ccpanel') === key); });
+  }
+  segs.forEach(function(s){ s.addEventListener('click', function(){ showSeg(s.getAttribute('data-ccseg')); }); });
 
+  /* ── 복사 ── */
   function feedback(btn, label){
     btn.classList.add('done'); btn.textContent = '✓ 복사됨';
     setTimeout(function(){ btn.classList.remove('done'); btn.textContent = label; }, 1400);
@@ -253,7 +292,6 @@
       navigator.clipboard.writeText(text).then(ok).catch(fallback);
     } else { fallback(); }
   }
-  // 각 패널(재고·가격)의 복사 버튼을 그 패널의 프롬프트 박스에 배선
   panels.forEach(function(panel){
     var box = panel.querySelector('.codebox');
     if (!box) return;
@@ -262,6 +300,112 @@
       btn.addEventListener('click', function(){ copyText(box.innerText, btn, label); });
     });
   });
+
+  /* ── 검사 범위 선택 (칩 추가형 + 소싱처 트리) ── */
+  var BUNDLES = [];          // [{code, sources:[name...]}]
+  var SEL = {};              // code -> Set(sources) (기본 전부)
+  var EXP = {};              // code -> bool (펼침)
+  var listEl = document.getElementById('ccList');
+  var chipsEl = document.getElementById('ccChips');
+  var searchEl = document.getElementById('ccSearch');
+  var scntEl = document.getElementById('ccScnt');
+  var makeEl = document.getElementById('ccMake');
+  var byCode = {};
+
+  function selCodes(){ return Object.keys(SEL); }
+  function totalSrc(){ return selCodes().reduce(function(a,c){ return a + SEL[c].size; }, 0); }
+
+  function renderChips(){
+    var codes = selCodes();
+    if (!codes.length){ chipsEl.innerHTML = '<span class="chip empty">아직 고른 모음전이 없습니다 — 아래 목록에서 선택</span>'; return; }
+    chipsEl.innerHTML = codes.map(function(c){
+      return '<span class="chip">'+c+' <span class="cs">·'+SEL[c].size+'소싱처</span> <span class="cx" data-uncheck="'+c+'">✕</span></span>';
+    }).join('');
+  }
+  function renderFoot(){
+    scntEl.innerHTML = '모음전 <b>'+selCodes().length+'개</b> · 소싱처 합계 <b>'+totalSrc()+'개</b>';
+    makeEl.disabled = selCodes().length === 0;
+  }
+  function renderList(){
+    var q = (searchEl.value || '').trim().toLowerCase();
+    var rows = BUNDLES.filter(function(b){ return !q || b.code.toLowerCase().indexOf(q) >= 0; });
+    if (!rows.length){ listEl.innerHTML = '<div class="loading">검색 결과 없음</div>'; return; }
+    listEl.innerHTML = rows.map(function(b){
+      var on = !!SEL[b.code], nsel = on ? SEL[b.code].size : 0;
+      var srcs = b.sources.map(function(s){
+        var so = on && SEL[b.code].has(s);
+        return '<span class="srcchip'+(so?' on':'')+'" data-src="'+b.code+'|'+s+'"><span class="cb sm'+(so?' on':'')+'">'+(so?'✓':'')+'</span>'+s+'</span>';
+      }).join('');
+      return '<div class="mrow">'+
+        '<div class="mhd" data-exp="'+b.code+'">'+
+          '<span class="cb'+(on?' on':'')+'" data-check="'+b.code+'">'+(on?'✓':'')+'</span>'+
+          '<span class="mnm">'+b.code+'</span>'+
+          '<span class="mmeta">소싱처 '+(on?nsel+'/'+b.sources.length:b.sources.length)+'</span>'+
+          '<span class="chev'+(EXP[b.code]?' open':'')+'">▶</span>'+
+        '</div>'+
+        '<div class="srcpanel'+(EXP[b.code]?' open':'')+'">'+srcs+'</div>'+
+      '</div>';
+    }).join('');
+  }
+  function renderAll(){ renderChips(); renderList(); renderFoot(); }
+
+  function toggleCheck(code){
+    if (SEL[code]) delete SEL[code];
+    else SEL[code] = new Set((byCode[code]||{}).sources || []);
+    renderAll();
+  }
+  function toggleSrc(code, s){
+    if (!SEL[code]) return;
+    if (SEL[code].has(s)) SEL[code].delete(s); else SEL[code].add(s);
+    if (SEL[code].size === 0) delete SEL[code];
+    renderAll();
+  }
+  function toggleExp(code){ EXP[code] = !EXP[code]; renderList(); }
+
+  listEl.addEventListener('click', function(e){
+    var t = e.target;
+    var chk = t.closest('[data-check]'); var sc = t.closest('[data-src]'); var ex = t.closest('[data-exp]');
+    if (sc){ e.stopPropagation(); var p = sc.getAttribute('data-src').split('|'); toggleSrc(p[0], p[1]); return; }
+    if (chk){ e.stopPropagation(); toggleCheck(chk.getAttribute('data-check')); return; }
+    if (ex){ toggleExp(ex.getAttribute('data-exp')); }
+  });
+  chipsEl.addEventListener('click', function(e){
+    var x = e.target.closest('[data-uncheck]');
+    if (x){ toggleCheck(x.getAttribute('data-uncheck')); }
+  });
+  searchEl.addEventListener('input', renderList);
+
+  /* 선택 → 대상 텍스트 주입 + 재고 탭으로 */
+  function injectTargets(){
+    var codes = selCodes();
+    var lines;
+    if (codes.length === 1){
+      var c = codes[0];
+      lines = '- 모음전 : ' + c + '\n' +
+              '- 소싱처 : ' + Array.from(SEL[c]).join(', ') + '\n' +
+              '- URL    : 위 모음전·소싱처의 매트릭스 등록 URL 전체';
+    } else {
+      lines = '- 대상 (모음전 → 소싱처) :\n' +
+              codes.map(function(c){ return '    · ' + c + ' → ' + Array.from(SEL[c]).join(', '); }).join('\n') + '\n' +
+              '- URL : 위 각 모음전·소싱처의 매트릭스 등록 URL 전체';
+    }
+    ['ccTargetStock','ccTargetPrice'].forEach(function(id){
+      var el = document.getElementById(id); if (el) el.textContent = lines;
+    });
+  }
+  makeEl.addEventListener('click', function(){
+    if (!selCodes().length) return;
+    injectTargets();
+    showSeg('stock');
+  });
+
+  /* 목록 로드 */
+  fetch('/api/bundles/with-sources').then(function(r){ return r.json(); }).then(function(d){
+    if (!d || !d.ok || !Array.isArray(d.bundles)){ listEl.innerHTML = '<div class="loading">목록을 불러오지 못했습니다</div>'; return; }
+    BUNDLES = d.bundles;
+    BUNDLES.forEach(function(b){ byCode[b.code] = b; });
+    renderAll();
+  }).catch(function(){ listEl.innerHTML = '<div class="loading">목록을 불러오지 못했습니다</div>'; });
 })();
 </script>
 {% endblock %}

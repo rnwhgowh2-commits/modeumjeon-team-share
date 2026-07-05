@@ -1725,6 +1725,35 @@ def list_bundle_codes():
         s.close()
 
 
+@bp.get('/bundles/with-sources')
+def list_bundles_with_sources():
+    """모음전별 등록 소싱처(한글명) 경량 목록 — 「크롤링 검사」 범위 선택 UI 용.
+
+    무거운 option-matrix(1.2MB/건) 없이, BundleSourceUrl 을 model_code 별로 묶어
+    그 모음전에 등록된 소싱처 key 를 한글 라벨로 변환해 돌려준다. 순수 읽기.
+    Returns: {ok, bundles:[{code, sources:[한글명...]}]}  (code 오름차순)
+    """
+    from collections import defaultdict
+    from lemouton.sourcing.models import BundleSourceUrl
+    from lemouton.sourcing.source_registry import get_labels
+    s = SessionLocal()
+    try:
+        labels = get_labels()
+        by_code = defaultdict(set)
+        for code, sk in (s.query(BundleSourceUrl.model_code, BundleSourceUrl.source_key)
+                         .distinct().all()):
+            if code and sk:
+                by_code[code].add(sk)
+        bundles = [
+            {'code': code, 'sources': sorted(labels.get(sk, sk) for sk in sks)}
+            for code, sks in by_code.items()
+        ]
+        bundles.sort(key=lambda b: b['code'])
+        return _ok(bundles=bundles)
+    finally:
+        s.close()
+
+
 # ════════════════════════════════════════════
 #  POST /api/options/sources/bulk
 # ════════════════════════════════════════════
