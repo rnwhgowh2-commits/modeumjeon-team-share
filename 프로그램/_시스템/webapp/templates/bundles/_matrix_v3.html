@@ -1114,6 +1114,8 @@
         <span class="mit-spacer"></span>
         {# [2026-06-22] 소싱처×옵션 압축 매트릭스 팝업 — 툴바 오른쪽 정렬(스페이서 뒤로 이동) #}
         <button type="button" id="compact-mtx-btn" class="mit-btn mit-btn-cmtx" title="소싱처×옵션 전체를 한 표로 보기"><svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><rect x="1" y="1" width="14" height="14" rx="2.5"/><line x1="6" y1="1" x2="6" y2="15"/><line x1="11" y1="1" x2="11" y2="15"/><line x1="1" y1="8" x2="15" y2="8"/></svg>매트릭스 보기</button>
+        {# [2026-07-05] 옵션별 브랜드 지정 — 한 모음전에 여러 브랜드 섞임 #}
+        <button type="button" id="ba-open-btn" class="mit-btn" title="옵션마다 브랜드가 다르면 여기서 지정">🏷 브랜드 지정</button>
       </div>
       {# ════ 소싱처 × 옵션 압축 매트릭스 팝업 (좌측 점 재고신호등) ════ #}
       <div id="cmtx-overlay" class="cmtx-overlay" hidden>
@@ -7761,6 +7763,247 @@ table.ompk-tab th.corner{color:#b0b8c1;cursor:default}
         inp.value = original;
       }
     });
+  });
+})();
+</script>
+
+{# ═══════ [2026-07-05] 옵션별 브랜드 지정 — 자체 완결 모달 (시안: 옵션별 브랜드지정 v1 + 일괄적용 체크조합 v2 스마트바) ═══════ #}
+<style>
+  .ba-ov{position:fixed;inset:0;background:rgba(15,20,30,.55);display:none;align-items:center;justify-content:center;z-index:70;padding:24px}
+  .ba-ov.on{display:flex}
+  .ba-modal{background:#F2F4F6;border-radius:18px;max-width:640px;width:100%;max-height:92vh;overflow:auto;box-shadow:0 24px 60px rgba(0,0,0,.35);font-family:'Pretendard','Malgun Gothic',-apple-system,sans-serif;color:#191F28}
+  .ba-head{position:sticky;top:0;background:#fff;border-bottom:1px solid #e5e8eb;padding:14px 18px;display:flex;align-items:center;gap:12px;z-index:2}
+  .ba-title{font-size:15px;font-weight:700}
+  .ba-toggle{display:inline-flex;border:1px solid #e5e8eb;border-radius:9px;overflow:hidden}
+  .ba-toggle button{border:0;background:#fff;padding:7px 14px;font-size:12px;font-weight:600;color:#6b7684;cursor:pointer;font-family:inherit}
+  .ba-toggle button.on{background:#3182F6;color:#fff}
+  .ba-x{margin-left:auto;border:0;background:#f2f4f6;width:32px;height:32px;border-radius:8px;font-size:16px;cursor:pointer;color:#6b7684}
+  .ba-smartbar{padding:12px 18px 0}
+  .ba-bar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;background:#fff;border:1px solid #e5e8eb;border-radius:9px;padding:9px 11px}
+  .ba-bar.sel{background:#EAF2FE;border-color:#b5d4f4}
+  .ba-cnt{font-size:12px;font-weight:700;color:#1B64DA}
+  .ba-input{border:1px solid #e5e8eb;border-radius:7px;padding:6px 9px;font-size:12px;font-family:inherit;background:#fff;min-width:130px}
+  .ba-btn{border:1px solid #e5e8eb;background:#fff;border-radius:7px;padding:6px 11px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;color:#191F28}
+  .ba-btn.p{background:#191F28;color:#fff;border-color:#191F28}
+  .ba-btn:disabled{opacity:.45;cursor:default}
+  .ba-dot{color:#c2c9d2}
+  .ba-empty-c{color:#F04452;font-weight:700}
+  .ba-body{padding:14px 18px 20px}
+  table.ba-opt{width:100%;border-collapse:collapse;font-size:12.5px}
+  table.ba-opt th{font-size:10.5px;color:#6b7684;font-weight:600;text-align:left;padding:6px 9px}
+  table.ba-opt td{padding:7px 9px;border-bottom:1px solid #f0f2f5;text-align:left}
+  .ba-osz{font-size:9.5px;color:#993C1D;background:#FAECE7;border-radius:8px;padding:1px 6px;font-variant-numeric:tabular-nums;margin-left:5px}
+  .ba-badge{font-size:11px;font-weight:700;padding:3px 10px;border-radius:16px;cursor:pointer;display:inline-block;white-space:nowrap}
+  .ba-badge.ba-none{background:#FDECEC;color:#F04452}
+  .ba-inh{font-size:9px;font-weight:600;opacity:.7;margin-left:3px}
+  .ba-chk{width:16px;height:16px;accent-color:#3182F6;vertical-align:middle}
+  .ba-grph{background:#F7F9FB;font-weight:700;font-size:11.5px;padding:6px 9px}
+  .ba-pop{position:fixed;border:1px solid #e5e8eb;border-radius:9px;padding:9px;background:#fff;box-shadow:0 6px 20px rgba(0,0,0,.16);width:230px;z-index:80;display:none}
+  .ba-pop.on{display:block}
+  .ba-pop input{width:100%;border:1px solid #e5e8eb;border-radius:7px;padding:7px 9px;font-size:12px;font-family:inherit;margin-bottom:6px}
+  .ba-pop .ba-optb{display:block;width:100%;text-align:left;border:0;background:transparent;padding:6px 8px;font-size:12px;cursor:pointer;border-radius:6px;color:#191F28;font-family:inherit}
+  .ba-pop .ba-optb:hover{background:#f2f4f6}
+  .ba-pop .ba-optb.new{color:#3182F6;font-weight:600}
+  .ba-pop .ba-optb.clear{color:#F04452}
+  .ba-poplist{max-height:180px;overflow:auto}
+</style>
+
+<div class="ba-ov" id="ba-overlay">
+  <div class="ba-modal" role="dialog" aria-modal="true" aria-label="옵션별 브랜드 지정">
+    <div class="ba-head">
+      <div class="ba-title">🏷 브랜드 지정</div>
+      <div class="ba-toggle" id="ba-mode-toggle">
+        <button type="button" data-m="single">단일 브랜드</button>
+        <button type="button" data-m="each" class="on">옵션별</button>
+      </div>
+      <button type="button" class="ba-x" id="ba-close" aria-label="닫기">✕</button>
+    </div>
+    <div class="ba-smartbar" id="ba-smartbar"></div>
+    <div class="ba-body" id="ba-body"></div>
+  </div>
+</div>
+<div class="ba-pop" id="ba-pop"></div>
+
+<script>
+(function(){
+  const ov = document.getElementById('ba-overlay');
+  const bodyEl = document.getElementById('ba-body');
+  const barEl = document.getElementById('ba-smartbar');
+  const popEl = document.getElementById('ba-pop');
+  const toggleEl = document.getElementById('ba-mode-toggle');
+  if(!ov) return;
+
+  let brands = [];              // 등록된 브랜드 목록 (검색 팔레트)
+  let selected = new Set();     // 일괄용 체크된 sku
+  let modeSingle = false;       // 상단 토글: 단일 브랜드 ↔ 옵션별
+  let popSku = null;            // 팝오버가 열린 옵션
+
+  function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+  function opts(){ return (window.DATA && window.DATA.options) || []; }
+  const PALETTE=[{bg:'#EEEDFE',fg:'#534AB7'},{bg:'#E1F5EE',fg:'#0F6E56'},{bg:'#FEF3E2',fg:'#8a5a0b'},{bg:'#EAF2FE',fg:'#1B64DA'},{bg:'#FDE8F3',fg:'#B83280'},{bg:'#E7F1FD',fg:'#1f6feb'}];
+  function brandColor(b){ let h=0; for(const c of String(b)) h=(h*31+c.charCodeAt(0))>>>0; return PALETTE[h%PALETTE.length]; }
+  function unassignedCount(){ return opts().filter(o=>!o.effective_brand).length; }
+
+  function badgeHtml(o){
+    const eff = o.effective_brand;
+    const attrs = 'data-sku="'+esc(o.sku)+'" role="button" tabindex="0" title="클릭해서 브랜드 지정"';
+    if(!eff) return '<span class="ba-badge ba-none" '+attrs+'>미지정</span>';
+    const col = brandColor(eff);
+    const inh = !o.brand ? '<span class="ba-inh">·상속</span>' : '';
+    return '<span class="ba-badge" '+attrs+' style="background:'+col.bg+';color:'+col.fg+'">'+esc(eff)+inh+'</span>';
+  }
+  function optName(o){ return esc(o.color_display||o.color_code||'')+' <span class="ba-osz">'+esc(o.size_display||o.size_code||'')+'</span>'; }
+
+  function renderBar(){
+    const n = selected.size;
+    const empty = unassignedCount();
+    const dl = '<input class="ba-input" id="ba-bar-input" list="ba-brands-dl" placeholder="브랜드 입력·검색">'
+             + '<datalist id="ba-brands-dl">'+brands.map(b=>'<option value="'+esc(b)+'">').join('')+'</datalist>';
+    if(modeSingle){
+      barEl.innerHTML = '<div class="ba-bar">'+dl
+        + '<button class="ba-btn p" data-bulk="all">전체 이 브랜드로 통일</button>'
+        + '<span style="font-size:11.5px;color:#6b7684">단일 브랜드 — 모든 옵션 같은 브랜드</span></div>';
+      return;
+    }
+    if(n>0){
+      barEl.innerHTML = '<div class="ba-bar sel"><span class="ba-cnt">'+n+'개 선택됨</span>'+dl
+        + '<button class="ba-btn p" data-bulk="selected">'+n+'개에 적용</button>'
+        + '<span class="ba-dot">·</span>'
+        + '<button class="ba-btn" data-bulk="all">전체</button>'
+        + '<button class="ba-btn" data-bulk="empty">빈 것만 <span class="ba-empty-c">('+empty+')</span></button></div>';
+    } else {
+      barEl.innerHTML = '<div class="ba-bar">'+dl
+        + '<button class="ba-btn p" data-bulk="all">전체 적용</button>'
+        + '<button class="ba-btn" data-bulk="empty">빈 것만 적용 <span class="ba-empty-c">(미지정 '+empty+'개)</span></button>'
+        + '<span style="font-size:11.5px;color:#6b7684;margin-left:auto">옵션을 체크하면 「선택 적용」</span></div>';
+    }
+  }
+
+  function renderTable(){
+    const html = opts().map(o=>{
+      const ck = modeSingle ? '' : '<td style="width:22px"><input type="checkbox" class="ba-chk" data-cksku="'+esc(o.sku)+'"'+(selected.has(o.sku)?' checked':'')+'></td>';
+      return '<tr>'+ck+'<td>'+optName(o)+'</td><td>'+badgeHtml(o)+'</td></tr>';
+    }).join('');
+    const head = (modeSingle?'':'<th style="width:22px"></th>')+'<th>옵션</th><th>브랜드</th>';
+    bodyEl.innerHTML = opts().length
+      ? '<table class="ba-opt"><thead><tr>'+head+'</tr></thead><tbody>'+html+'</tbody></table>'
+      : '<div style="padding:24px;text-align:center;color:#6b7684;font-size:13px">옵션이 없습니다.</div>';
+  }
+
+  function render(){ renderBar(); renderTable(); }
+
+  async function loadBrands(){
+    try{ const r=await fetch('/api/options/brands'); const j=await r.json(); brands=(j&&j.brands)||[]; }
+    catch(e){ brands=[]; }
+  }
+
+  async function refresh(){
+    if(typeof window.reloadMatrix==='function'){ await window.reloadMatrix(); }
+    await loadBrands();
+    render();
+  }
+
+  function toast(m){ try{ if(typeof showToast==='function') showToast(m); }catch(e){} }
+
+  // 옵션 1개 브랜드 저장 (팝오버 선택)
+  async function setOne(sku, brand){
+    try{
+      const r=await fetch('/api/options/brand',{method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({canonical_sku:sku, brand:brand})});
+      const j=await r.json();
+      if(!j.ok){ toast('저장 실패: '+(j.error||'')); return; }
+      toast(brand?('✓ '+brand):'✓ 미지정으로');
+      await refresh();
+    }catch(e){ toast('저장 실패 — 네트워크'); }
+  }
+
+  // 일괄 적용
+  async function bulk(mode){
+    const brand = (document.getElementById('ba-bar-input')||{}).value || '';
+    const payload = {brand:brand.trim(), mode:mode};
+    if(mode==='selected') payload.skus=[...selected];
+    // "빈 것만" = 화면의 빨강 「미지정」(effective 브랜드 없음)만 대상 — 상속표시 옵션은 안 건드림.
+    //   (배지·카운트가 effective 기준이므로 일괄도 effective 기준으로 일치시킴)
+    if(mode==='empty'){ payload.mode='selected'; payload.skus=opts().filter(o=>!o.effective_brand).map(o=>o.sku); }
+    try{
+      const r=await fetch('/api/bundles/'+encodeURIComponent(window.BUNDLE_CODE)+'/brands/bulk',
+        {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+      const j=await r.json();
+      if(!j.ok){ toast('적용 실패: '+(j.error||'')); return; }
+      toast('✓ '+j.applied+'개 적용'+(brand.trim()?(' → '+brand.trim()):' → 미지정'));
+      selected.clear();
+      await refresh();
+    }catch(e){ toast('적용 실패 — 네트워크'); }
+  }
+
+  // 배지 클릭 → 검색 팝오버
+  function openPop(sku, anchor){
+    popSku = sku;
+    const cur = (opts().find(o=>o.sku===sku)||{}).brand || '';
+    function list(filter){
+      const f=(filter||'').trim().toLowerCase();
+      const matched = brands.filter(b=>!f || b.toLowerCase().includes(f));
+      let h = matched.map(b=>'<button type="button" class="ba-optb" data-pick="'+esc(b)+'">'+esc(b)+(b===cur?' ✓':'')+'</button>').join('');
+      if(f && !brands.some(b=>b.toLowerCase()===f)){
+        h += '<button type="button" class="ba-optb new" data-pick="'+esc(filter.trim())+'">+ 새 브랜드: “'+esc(filter.trim())+'”</button>';
+      }
+      h += '<button type="button" class="ba-optb clear" data-clear="1">✕ 미지정으로</button>';
+      return h;
+    }
+    popEl.innerHTML = '<input id="ba-pop-input" placeholder="🔍 브랜드 검색"><div class="ba-poplist" id="ba-poplist">'+list('')+'</div>';
+    const r = anchor.getBoundingClientRect();
+    popEl.style.left = Math.min(r.left, window.innerWidth-244)+'px';
+    popEl.style.top  = (r.bottom+6)+'px';
+    popEl.classList.add('on');
+    const inp = document.getElementById('ba-pop-input'); inp.focus();
+    inp.oninput = ()=>{ document.getElementById('ba-poplist').innerHTML = list(inp.value); };
+  }
+  function closePop(){ popEl.classList.remove('on'); popSku=null; }
+
+  // ── 이벤트 배선 ──
+  document.getElementById('ba-open-btn') && document.getElementById('ba-open-btn').addEventListener('click', async ()=>{
+    await loadBrands(); selected.clear(); render(); ov.classList.add('on');
+  });
+  document.getElementById('ba-close').addEventListener('click', ()=>{ ov.classList.remove('on'); closePop(); });
+  ov.addEventListener('click', e=>{ if(e.target===ov){ ov.classList.remove('on'); closePop(); } });
+
+  toggleEl.addEventListener('click', e=>{
+    const b=e.target.closest('button'); if(!b) return;
+    modeSingle = b.dataset.m==='single';
+    [...toggleEl.querySelectorAll('button')].forEach(x=>x.classList.toggle('on', x===b));
+    selected.clear(); render();
+  });
+
+  barEl.addEventListener('click', e=>{
+    const b=e.target.closest('[data-bulk]'); if(!b) return;
+    bulk(b.dataset.bulk);
+  });
+
+  bodyEl.addEventListener('change', e=>{
+    const ck=e.target.closest('[data-cksku]'); if(!ck) return;
+    if(ck.checked) selected.add(ck.dataset.cksku); else selected.delete(ck.dataset.cksku);
+    renderBar();
+  });
+  bodyEl.addEventListener('click', e=>{
+    const badge=e.target.closest('.ba-badge'); if(!badge) return;
+    if(popSku===badge.dataset.sku){ closePop(); return; }
+    openPop(badge.dataset.sku, badge);
+  });
+  bodyEl.addEventListener('keydown', e=>{
+    const badge=e.target.closest('.ba-badge'); if(!badge) return;
+    if(e.key==='Enter'||e.key===' '){ e.preventDefault(); openPop(badge.dataset.sku, badge); }
+  });
+  popEl.addEventListener('click', e=>{
+    const pick=e.target.closest('[data-pick]');
+    const clr=e.target.closest('[data-clear]');
+    if(pick){ const sku=popSku; closePop(); setOne(sku, pick.dataset.pick); }
+    else if(clr){ const sku=popSku; closePop(); setOne(sku, ''); }
+  });
+  document.addEventListener('click', e=>{
+    if(popEl.classList.contains('on') && !e.target.closest('#ba-pop') && !e.target.closest('.ba-badge')) closePop();
+  });
+  document.addEventListener('keydown', e=>{
+    if(e.key==='Escape'){ if(popEl.classList.contains('on')) closePop(); else if(ov.classList.contains('on')){ ov.classList.remove('on'); } }
   });
 })();
 </script>
