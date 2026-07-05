@@ -20,7 +20,7 @@
 <header class="page-header" style="display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap;">
   <div>
     <h1>판매처 계정</h1>
-    <p class="subtitle">스마트스토어 / 쿠팡 등 마켓 셀러 계정 — 시크릿은 <code>.env</code> 단일 출처</p>
+    <p class="subtitle">스마트스토어 / 쿠팡 등 마켓 셀러 계정</p>
   </div>
   {# ━━━━━━━━━━ 판매처 매뉴얼 진입 (레이아웃2 · 제목줄 우측 · 흰 카드 통일) ━━━━━━━━━━ #}
   <div class="mkg-cards" style="display:flex;gap:10px;flex-shrink:0;">
@@ -113,9 +113,8 @@
                       title="계정명·메모 수정" aria-label="수정">✎</button>
             </div>
             {% if acc.note %}
-              <small class="text-muted">📝 {{ acc.note }}</small><br>
+              <small class="text-muted">📝 {{ acc.note }}</small>
             {% endif %}
-            <small class="text-muted" title="env_prefix: {{ acc.env_prefix }}&#10;account_key: {{ acc.account_key }}" style="cursor:help">ⓘ 식별자</small>
           </td>
           <td>
             <div class="status-stack">
