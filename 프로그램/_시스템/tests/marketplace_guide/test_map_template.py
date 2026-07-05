@@ -74,6 +74,19 @@ def test_settlement_official_apis_catalogued():
         assert s in html
 
 
+def test_official_categories_per_market():
+    html = _map()
+    for c in ["N배송", "문의", "커머스솔루션", "판매자정보"]:      # 네이버 커머스 공식 카테고리
+        assert c in html
+    for c in ["거래처", "상품속성", "판촉", "클레임", "고객센터", "전시", "스마트픽"]:  # 롯데온 공식 카테고리
+        assert c in html
+
+
+def test_empty_category_placeholder():
+    html = _map()
+    assert "가져오는 중" in html   # 항목 미수집 카테고리 자리표시(문서 주면 채움)
+
+
 def test_capabilities_gate_referenced():
     html = _map()
     assert "LEMOUTON_MARKET_EXTRA" in html
