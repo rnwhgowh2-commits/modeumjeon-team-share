@@ -790,9 +790,14 @@ def channel_send(channel_id):
                    .filter_by(channel_id=channel_id, status="matched").all()}
     finally:
         s.close()
-    if market != "coupang":
+    if market not in ("coupang", "lotteon"):
         return jsonify({"ok": False,
-                        "error": "현재 실제 전송은 쿠팡 재고만 지원해요(스마트스토어·가격은 준비 중)."})
+                        "error": "현재 전송은 쿠팡·롯데온만 지원해요(스마트스토어·가격은 준비 중)."})
+    # 롯데온: 미리보기(dry-run)만 허용. 실제 전송(dry_run=false)은 잠금 — 사장님 승인 후 활성.
+    #   → 전송 0 보장. (쿠팡은 기존대로 실제 전송 가능.)
+    if market == "lotteon" and not dry_run:
+        return jsonify({"ok": False,
+                        "error": "롯데온 실제 전송은 아직 잠겨 있어요(안전). 미리보기만 됩니다 — 실제 전송은 승인 후 활성해 드려요."})
     if not matched:
         return jsonify({"ok": True, "dry_run": dry_run, "market": market, "results": [],
                         "summary": {"sent": 0, "failed": 0, "skipped": 0, "total": 0},
