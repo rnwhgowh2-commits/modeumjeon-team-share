@@ -102,6 +102,44 @@ def set_crawl_weight_rule(session, scope_type: str, scope_key: str, weight):
     return w
 
 
+def resolve_crawl_weight(session, source_product) -> int:
+    """URL의 최종 계수: URL→모음전(최고)→브랜드(최고)→소싱처→기본1."""
+    from lemouton.sources.models import CrawlWeightRule
+    from lemouton.sources.service import normalize_url
+    from lemouton.sourcing.models import BundleSourceUrl, Model
+
+    def _rule(stype, skey):
+        return (session.query(CrawlWeightRule)
+                .filter_by(scope_type=stype, scope_key=skey).first())
+
+    nurl = normalize_url(source_product.url)
+    r = _rule("url", nurl)
+    if r:
+        return r.weight
+
+    model_codes = {b.model_code for b in session.query(BundleSourceUrl).all()
+                   if normalize_url(b.url) == nurl}
+    if model_codes:
+        mr = (session.query(CrawlWeightRule)
+              .filter(CrawlWeightRule.scope_type == "model",
+                      CrawlWeightRule.scope_key.in_(model_codes)).all())
+        if mr:
+            return max(x.weight for x in mr)
+        brands = {m.brand for m in session.query(Model)
+                  .filter(Model.model_code.in_(model_codes)).all() if m.brand}
+        if brands:
+            br = (session.query(CrawlWeightRule)
+                  .filter(CrawlWeightRule.scope_type == "brand",
+                          CrawlWeightRule.scope_key.in_(brands)).all())
+            if br:
+                return max(x.weight for x in br)
+
+    sr = _rule("source", source_product.site)
+    if sr:
+        return sr.weight
+    return 1
+
+
 def base_crawl_interval_seconds(session) -> float:
     """자동화 설정의 기준 주기(시·분)를 초로. 0이면 '항상 마감'(연속)."""
     from lemouton.pricing.settings import get_or_init
