@@ -94,6 +94,9 @@
   .cz-feed{height:52px;overflow:hidden;font-size:11px;line-height:1.8;-webkit-mask:linear-gradient(#000 60%,transparent);mask:linear-gradient(#000 60%,transparent);}
   .cz-feed div{white-space:nowrap;color:#4e5968;} .cz-feed .k{color:#12B76A;font-weight:700;} .cz-feed .r{color:#3182f6;font-weight:700;}
   .cz-paused{position:absolute;inset:0;background:rgba(247,249,251,.92);display:flex;align-items:center;justify-content:center;font-size:12px;color:#8b95a1;font-weight:600;}
+  .cz-ring.spin{animation:cz-spin 2.4s linear infinite;}
+  @keyframes cz-spin{to{transform:rotate(360deg);}}
+  .au-cont{font-size:10.5px;font-weight:700;border-radius:20px;padding:2px 10px;background:#E7F7EF;color:#0e8f54;margin-left:8px;}
   .base-freq{font-size:11.5px;color:#8b95a1;display:flex;align-items:center;gap:6px;flex-wrap:wrap;}
   .base-freq .mini{width:40px;height:28px;border:1px solid #d1d6db;border-radius:6px;text-align:center;font-size:13px;font-weight:700;font-variant-numeric:tabular-nums;font-family:inherit;color:#191F28;}
   .km-lab{font-size:11.5px;font-weight:700;color:#1D9E75;margin:14px 0 6px;}
@@ -127,13 +130,13 @@
     <div class="au-card src-run" id="crawl-card">
       <div class="au-band src">소싱처 · 자동으로 긁기</div>
       <div class="au-body">
-        <div class="au-ct"><div class="au-title">🐘 크롤 · 자동으로 긁기</div>
+        <div class="au-ct"><div class="au-title">🐘 크롤 · 자동으로 긁기<span class="au-cont">연속</span></div>
           <div class="rsc" id="crawl-seg">
             <button type="button" class="run" data-run="1"><span class="ic"></span>실행</button>
             <button type="button" class="stop" data-run="0"><span class="ic"></span>정지</button>
           </div>
         </div>
-        <div class="au-d">「실행」하면 오래된 것부터 자동으로 한 바퀴씩 돌며 긁어요. (연속 — 정해진 다음 실행 시각은 없어요)</div>
+        <div class="au-d">쉬지 않고 오래된 것부터 계속 긁어요 — 시간표 없이 항상 돕니다.</div>
         <div class="cz" id="cz">
           <div class="cz-row">
             <div class="cz-ringwrap"><div class="cz-ring" id="cz-ring"></div><div class="cz-rtxt"><b id="cz-pct">0%</b><small>이번 한 바퀴</small></div></div>
@@ -141,7 +144,6 @@
           </div>
           <div class="cz-paused" id="cz-paused">⏸ 정지됨 — 「실행」을 켜면 시작해요</div>
         </div>
-        <div class="base-freq">기본 주기 · <input class="mini" id="in-h" type="number" min="0" value="6">시간 <input class="mini" id="in-m" type="number" min="0" max="59" value="0">분 <small>(계수 ×1 기준)</small></div>
         <div class="km-lab">🌲 소싱처별 계수 (자주 긁을수록 ×N)</div>
         <table class="km"><tbody id="km-body"><tr><td class="km-empty" style="font-size:11.5px;color:#8b95a1;padding:8px 2px">불러오는 중…</td></tr></tbody></table>
         <a class="km-more" href="/automation/weights">브랜드·모음전별까지 자세히 설정 →</a>
@@ -215,8 +217,6 @@
     seg.querySelector('.stop').classList.toggle('on',!run);
     document.getElementById('crawl-card').classList.toggle('is-running',run);
     document.getElementById('cz-paused').style.display=run?'none':'flex';
-    document.getElementById('in-h').value=st.crawl_interval_hours;
-    document.getElementById('in-m').value=st.crawl_interval_minutes;
   }
   function paintMode(){
     document.querySelectorAll('#seg .rd').forEach(function(s){ s.classList.toggle('on',s.dataset.mode===st.autosend_mode); });
@@ -232,9 +232,6 @@
 
   // 이벤트
   document.querySelectorAll('#crawl-seg button').forEach(function(b){ b.addEventListener('click',function(){ var run=this.dataset.run==='1'; if(run===st.crawl_auto_enabled) return; st.crawl_auto_enabled=run; paintSeg(); paintRun(); save({crawl_auto_enabled:run}); try{ if(window.MoumExt){ run ? MoumExt.autoPollStart() : MoumExt.autoPollStop(); } }catch(_){} }); });
-  function customTime(){ st.crawl_interval_hours=Math.max(0,parseInt(document.getElementById('in-h').value,10)||0); st.crawl_interval_minutes=Math.max(0,Math.min(59,parseInt(document.getElementById('in-m').value,10)||0)); document.getElementById('in-m').value=st.crawl_interval_minutes; save({crawl_interval_hours:st.crawl_interval_hours,crawl_interval_minutes:st.crawl_interval_minutes}); }
-  document.getElementById('in-h').addEventListener('change',customTime);
-  document.getElementById('in-m').addEventListener('change',customTime);
 
   document.querySelectorAll('#seg .rd').forEach(function(s){ s.addEventListener('click',function(){ st.autosend_mode=s.dataset.mode; paintMode(); save({autosend_mode:st.autosend_mode}); }); });
   document.getElementById('t-pur').addEventListener('click',function(){ st.autosend_on_purchase=!st.autosend_on_purchase; tog(this,st.autosend_on_purchase); save({autosend_on_purchase:st.autosend_on_purchase}); });
@@ -305,10 +302,12 @@
       var v=s.view||{}; var done=v.done||0, total=v.total||0; var p=total?Math.round(done/total*100):0;
       ring.style.setProperty('--p',p+'%'); pct.textContent=p+'%';
       feed.innerHTML='<div><span class="r">↻</span> '+(s.running||'')+' 긁는 중…</div>';
+      ring.classList.add('spin');
     } else {
       ring.style.setProperty('--p','0%');
       pct.textContent=st.crawl_auto_enabled?'대기':'0%';
       feed.innerHTML=_feedRest;
+      ring.classList.remove('spin');
     }
   }
   // ── 계수 미니표 (소싱처별 ×N, 스텝퍼로 바로 조절) ──
