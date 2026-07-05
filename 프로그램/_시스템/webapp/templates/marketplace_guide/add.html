@@ -5,28 +5,29 @@
   /* 시안 #4(좌측 세로 레일) — 미니멀 팔레트: 먹색+회색+네이비 포인트 */
   /* 160% 확대(가독성) — zoom 으로 글자·여백·입력칸 전체 비례 확대. max-width 640×1.6≈1024 로 1040px 팝업창에 맞춤(가로 스크롤 방지). */
   .ma{font-family:'Pretendard','Malgun Gothic',sans-serif;color:#191F28;padding:26px 28px;max-width:640px;zoom:1.6;}
-  .ma h2{font-size:20px;font-weight:800;margin:0;}
-  .ma .lead{font-size:12.5px;color:#8B95A1;margin-top:5px;line-height:1.55;}
+  .ma h2{font-size:22px;font-weight:800;margin:0;}          /* 데이터코드 지도(.mm h2 22)와 크기 통일 */
+  .ma .lead{font-size:13px;color:#8B95A1;margin-top:5px;line-height:1.55;}
   .ma .tabs{display:flex;border-bottom:2px solid #E9ECEF;margin:16px 0 0;}
   .ma .tab{padding:11px 18px;font-size:14.5px;font-weight:700;color:#8B95A1;background:none;border:none;cursor:pointer;}
   .ma .tab.on{color:#191F28;border-bottom:3px solid #191F28;margin-bottom:-2px;}
   .ma .pane{display:none;} .ma .pane.on{display:block;}
   .ma-rail-wrap{display:grid;grid-template-columns:150px 1fr;gap:16px;margin-top:16px;}
-  .ma-rail .r{display:flex;gap:10px;align-items:center;padding:8px 0;font-size:13px;color:#8B95A1;font-weight:600;}
+  .ma-rail .r{display:flex;gap:10px;align-items:center;padding:13px 0;font-size:13px;color:#8B95A1;font-weight:600;}
   .ma-rail .r .n{width:22px;height:22px;border-radius:50%;background:#F6F8FA;border:1px solid #E9ECEF;font-size:11px;font-weight:800;text-align:center;line-height:22px;}
   .ma-rail .r.on{color:#191F28;} .ma-rail .r.on .n{background:#0A2540;color:#fff;border-color:#0A2540;}
   .ma-rail .r.done .n{background:#191F28;color:#fff;}
-  /* 폰트 위계: 라벨은 진하게·조금 크게(입력·안내문과 구분) · 줄여백은 조여 허전함 제거 */
-  .ma label{display:block;font-size:13.5px;font-weight:700;color:#191F28;margin:12px 0 6px;line-height:1.35;}
+  /* 폰트 위계 + 줄여백 4단계(시원) — 항목 사이 간격 넉넉히 */
+  .ma label{display:block;font-size:13.5px;font-weight:700;color:#191F28;margin:26px 0 8px;line-height:1.35;}
+  .ma-rail-wrap > div > label:first-child{margin-top:0;}   /* 첫 라벨은 위 여백 제거 */
   .ma input,.ma select{width:100%;border:1px solid #E9ECEF;border-radius:9px;padding:11px 13px;font-size:14px;color:#191F28;}
   .ma .seg{display:inline-flex;border:1px solid #E9ECEF;border-radius:8px;overflow:hidden;}
   .ma .seg button{border:none;background:#fff;padding:7px 13px;font-size:12.5px;cursor:pointer;color:#4E5968;border-right:1px solid #E9ECEF;}
   .ma .seg button:last-child{border-right:none;}
   .ma .seg button.on{background:#0A2540;color:#fff;font-weight:700;}
   /* 줄바꿈 방지: 각 체크 항목은 한 줄 유지(nowrap), 항목끼리는 자연 줄바꿈 */
-  .ma .acts{display:flex;flex-wrap:wrap;gap:9px 20px;margin-top:2px;}
+  .ma .acts{display:flex;flex-wrap:wrap;gap:16px 22px;margin-top:4px;}
   .ma .chk{display:inline-flex;align-items:center;gap:8px;font-size:13.5px;font-weight:600;color:#191F28;white-space:nowrap;}
-  .ma .genbtn{margin-top:18px;background:#0A2540;color:#fff;border:none;border-radius:10px;padding:12px 20px;font-size:14px;font-weight:800;cursor:pointer;}
+  .ma .genbtn{margin-top:30px;background:#0A2540;color:#fff;border:none;border-radius:10px;padding:14px 22px;font-size:14px;font-weight:800;cursor:pointer;}
   .ma .prm{margin-top:16px;background:#0F172A;border-radius:12px;padding:16px 18px;position:relative;display:none;}
   .ma .prm.on{display:block;}
   .ma .prm pre{margin:0;color:#E6EDF6;font-family:ui-monospace,monospace;font-size:12.5px;white-space:pre-wrap;line-height:1.7;}
