@@ -9,29 +9,30 @@
     padding:30px 40px 34px;box-sizing:border-box;line-height:1.6;}
   .ccpage *{box-sizing:border-box;}
   .ccpage h2{font-size:30px;font-weight:800;letter-spacing:-.5px;margin:0 0 8px;}
-  .ccpage .sub{color:var(--sub);font-size:18px;margin:0 0 4px;line-height:1.55;}
+  .ccpage .sub{color:var(--sub);font-size:17px;margin:0 0 4px;line-height:1.55;}
+  .ccpage .ccview{display:none;flex:1;min-height:0;flex-direction:column;}
+  .ccpage .ccview.on{display:flex;}
 
-  .ccpage .ccseg{display:inline-flex;background:var(--seg-bg);border-radius:14px;padding:6px;gap:4px;margin:22px 0 20px;}
+  /* 검사 종류 세그먼트 (맨 위) */
+  .ccpage .kindlabel{font-size:14px;font-weight:800;color:var(--sub);margin:20px 0 8px;}
+  .ccpage .ccseg{display:inline-flex;background:var(--seg-bg);border-radius:14px;padding:6px;gap:4px;margin:0 0 18px;}
   .ccpage .ccs{border:none;background:none;cursor:pointer;font-family:inherit;
     font-size:19px;font-weight:800;color:var(--sub);padding:13px 26px;border-radius:10px;
     display:inline-flex;align-items:center;gap:9px;transition:.15s;}
   .ccpage .ccs.on{background:#fff;color:var(--ink);box-shadow:0 2px 6px rgba(0,0,0,.10);}
-  .ccpage .ccs .pill{font-size:12px;font-weight:800;color:#fff;background:var(--blue);border-radius:999px;padding:1px 8px;}
 
-  .ccpage .ccpanel{display:none;flex:1;min-height:0;flex-direction:column;}
-  .ccpage .ccpanel.on{display:flex;}
-
-  /* 검사 범위 선택 (시안 2 칩 추가형 + 소싱처 트리) */
-  .ccpage .scopehint{font-size:15.5px;color:var(--sub);margin:0 0 12px;}
+  /* 범위 선택 */
+  .ccpage .scopehint{font-size:15px;color:var(--sub);margin:0 0 12px;}
   .ccpage .chips{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px;min-height:34px;}
   .ccpage .chip{display:inline-flex;align-items:center;gap:8px;background:#E8F1FE;color:var(--blue-d);
     border-radius:999px;padding:8px 14px;font-size:15px;font-weight:700;}
   .ccpage .chip .cx{cursor:pointer;opacity:.6;font-weight:800;}
   .ccpage .chip .cs{font-size:12.5px;color:#4E79B8;font-weight:600;}
   .ccpage .chip.empty{background:none;color:var(--sub);font-weight:600;font-size:14.5px;padding:8px 2px;}
-  .ccpage .srch{display:flex;align-items:center;gap:9px;border:1px solid var(--line);border-radius:11px;
-    padding:12px 15px;margin-bottom:12px;}
+  .ccpage .srch{display:flex;align-items:center;gap:9px;border:1px solid var(--line);border-radius:11px;padding:12px 15px;margin-bottom:10px;}
   .ccpage .srch input{border:0;outline:0;flex:1;font-size:16px;font-family:inherit;color:var(--ink);background:none;}
+  .ccpage .allrow{display:flex;align-items:center;gap:11px;padding:11px 15px;background:var(--soft);border-radius:10px;
+    margin-bottom:10px;font-size:15px;font-weight:800;cursor:pointer;}
   .ccpage .list{flex:1;min-height:120px;border:1px solid var(--line2);border-radius:12px;overflow:auto;background:#fff;}
   .ccpage .mrow{border-bottom:1px solid var(--line2);}
   .ccpage .mrow:last-child{border-bottom:0;}
@@ -56,16 +57,13 @@
   .ccpage .makebtn:disabled{background:#C9D2DC;cursor:not-allowed;}
   .ccpage .loading{padding:30px;text-align:center;color:var(--sub);font-size:15px;}
 
-  .ccpage .howto{list-style:none;padding:0;margin:0 0 16px;display:flex;gap:10px;}
-  .ccpage .howto li{flex:1;display:flex;align-items:center;gap:11px;font-size:17px;color:var(--ink);
-    background:#F7F9FB;border-radius:12px;padding:14px 16px;line-height:1.4;}
-  .ccpage .howto .n{flex:none;width:28px;height:28px;border-radius:50%;background:var(--ink);color:#fff;
-    font-size:15px;font-weight:800;display:inline-flex;align-items:center;justify-content:center;}
-
-  .ccpage .promptwrap{flex:1;display:flex;flex-direction:column;min-height:0;
-    border:1px solid #2A3038;border-radius:14px;overflow:hidden;}
-  .ccpage .plabel{background:#0F141A;color:#DCE2EA;font-size:16px;font-weight:800;
-    padding:13px 18px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid #2A3038;}
+  /* 결과 (프롬프트) */
+  .ccpage .backbtn{align-self:flex-start;background:#F2F4F6;color:#4E5968;border:none;border-radius:10px;
+    padding:10px 18px;font-size:15px;font-weight:700;cursor:pointer;font-family:inherit;margin-bottom:14px;}
+  .ccpage .backbtn:hover{background:#E8EBEE;}
+  .ccpage .promptwrap{flex:1;display:flex;flex-direction:column;min-height:0;border:1px solid #2A3038;border-radius:14px;overflow:hidden;}
+  .ccpage .plabel{background:#0F141A;color:#DCE2EA;font-size:16px;font-weight:800;padding:13px 18px;
+    display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid #2A3038;}
   .ccpage .plabel .l{display:flex;align-items:center;gap:9px;}
   .ccpage .plabel .l .tag{font-size:13px;font-weight:700;color:#9AA4B0;}
   .ccpage .copybtn-top{background:#2E3742;color:#E5E8EB;border:1px solid #3E4854;border-radius:8px;
@@ -73,10 +71,10 @@
   .ccpage .copybtn-top:hover{background:#3A4450;}
   .ccpage .codebox{background:#191F28;color:#E4E9F0;margin:0;padding:26px 24px;flex:1;overflow:auto;
     font-family:var(--mono);font-size:19px;line-height:2.05;white-space:pre-wrap;word-break:break-word;border:0;}
+  .ccpage .codebox.hide{display:none;}
   .ccpage .codebox .h{color:var(--lime);font-weight:800;}
   .ccpage .codebox .star{color:#FF7A7A;font-weight:800;}
   .ccpage .codebox .tgt{color:#7DD3FC;}
-
   .ccpage .copybtn-big{margin-top:14px;width:100%;border:none;border-radius:13px;flex:none;
     background:var(--blue);color:#fff;font-size:20px;font-weight:800;padding:18px;cursor:pointer;font-family:inherit;
     display:inline-flex;align-items:center;justify-content:center;gap:10px;transition:.15s;}
@@ -86,41 +84,38 @@
 
 <div class="ccpage">
   <h2>🔎 크롤링 검사</h2>
-  <p class="sub">검사할 모음전·소싱처를 고르면, 그 범위만 담은 정합성 프롬프트를 만들어 Claude Code 에 붙여넣습니다.</p>
+  <p class="sub">무슨 검사를 할지 고르고, 검사할 모음전·소싱처를 담으면 그 범위만 담은 프롬프트를 만들어 Claude Code 에 붙여넣습니다.</p>
 
-  <div class="ccseg">
-    <button type="button" class="ccs on" data-ccseg="scope">🎯 검사 범위 선택</button>
-    <button type="button" class="ccs" data-ccseg="stock">📦 재고 정합성 검사</button>
-    <button type="button" class="ccs" data-ccseg="price">💰 가격 정합성 검사</button>
-    <button type="button" class="ccs" data-ccseg="both">🔄 재고+가격 한번에</button>
-  </div>
+  <!-- ═══ 선택 화면 ═══ -->
+  <div class="ccview on" id="ccPick">
+    <div class="kindlabel">무슨 검사를 할까요?</div>
+    <div class="ccseg">
+      <button type="button" class="ccs on" data-kind="stock">📦 재고 정합성</button>
+      <button type="button" class="ccs" data-kind="price">💰 가격 정합성</button>
+      <button type="button" class="ccs" data-kind="both">🔄 재고+가격</button>
+    </div>
 
-  <!-- ─── 검사 범위 선택 패널 ─── -->
-  <div class="ccpanel on" data-ccpanel="scope">
-    <p class="scopehint">검사할 <b>모음전</b>을 골라 담고, 행을 펼쳐 그 모음전의 <b>소싱처</b>를 켜고 끄세요(기본 전부 켜짐). 안 고르면 아래 프롬프트를 직접 채워도 됩니다.</p>
+    <p class="scopehint">검사할 <b>모음전</b>을 골라 담고, 행을 펼쳐 그 모음전의 <b>소싱처</b>를 켜고 끄세요(기본 전부 켜짐).</p>
     <div class="chips" id="ccChips"></div>
     <div class="srch">🔍 <input type="text" id="ccSearch" placeholder="모음전 이름 검색 (예: 르무통, 나이키)" autocomplete="off"></div>
+    <div class="allrow" id="ccAllRow"><span class="cb" id="ccAllCb"></span><span>전체 선택</span><span class="mmeta" id="ccAllCnt" style="margin-left:auto"></span></div>
     <div class="list" id="ccList"><div class="loading">모음전 목록 불러오는 중…</div></div>
     <div class="scopefoot">
       <span class="scnt" id="ccScnt">모음전 <b>0개</b> · 소싱처 합계 <b>0개</b></span>
-      <button type="button" class="makebtn" id="ccMake" disabled>이 범위로 프롬프트 만들기 →</button>
+      <button type="button" class="makebtn" id="ccMake" disabled>프롬프트 만들기 →</button>
     </div>
   </div>
 
-  <!-- ─── 재고 패널 ─── -->
-  <div class="ccpanel" data-ccpanel="stock">
-    <ol class="howto">
-      <li><span class="n">1</span><span><b>「검사 범위 선택」</b>에서 고르거나 아래 대상을 직접 확인</span></li>
-      <li><span class="n">2</span><span><b>「전체 복사」</b> 누르기</span></li>
-      <li><span class="n">3</span><span><b>Claude Code</b>에 붙여넣기 → 검사 시작</span></li>
-    </ol>
-
+  <!-- ═══ 결과 화면 ═══ -->
+  <div class="ccview" id="ccResult">
+    <button type="button" class="backbtn" id="ccBack">← 범위 다시 고르기</button>
     <div class="promptwrap">
       <div class="plabel">
-        <span class="l">📋 복사할 프롬프트 <span class="tag">· 재고 정합성 조사</span></span>
+        <span class="l">📋 복사할 프롬프트 <span class="tag" id="ccResTag">· 재고 정합성 조사</span></span>
         <button type="button" class="copybtn-top" id="ccCopyTop">전체 복사</button>
       </div>
-      <div class="codebox" id="ccPrompt"><span class="h">재고 정합성 조사를 시작한다.</span>
+
+      <div class="codebox" id="ccBoxStock"><span class="h">재고 정합성 조사를 시작한다.</span>
 아래 프로토콜을 순서대로 실행하라.
 
 <span class="h">■ 대상</span>
@@ -128,74 +123,32 @@
 - URL    : 해당 소싱처의 매트릭스 등록 URL 전체</span>
 
 <span class="h">■ 절대 원칙 (데이터 무결성 3대)</span>
-- 재고 기준 = 실브라우저 상품 URL의 실제 데이터
-  (추정·폴백·평균 금지)
+- 재고 기준 = 실브라우저 상품 URL의 실제 데이터 (추정·폴백·평균 금지)
 - 확인 못 하면 '있음'이 아니라 '확인 불가'로 표기
 - 크롤 = 로컬(크롬 확장/Playwright). 서버 크롤 실패는 정상
 
-<span class="h">■ 먼저 읽을 정본</span> (기준·유형·의심코드의 단일 진실 원천 — 계속 갱신됨)
-- 조사 전, 정본을 읽고 기준을 잡는다
-  · 크롤링 가이드 docs/크롤링-가이드.md (인앱: /sourcing-guide/map)
-    §1 재고편 = 재고 센티넬(0=품절 / 999=수량미상'있음' /
-      -1=불명 / None=미크롤 / '확인 불가')·소싱처별 수집 방식
-    §5 재고 에러 카탈로그(S1~S21…) = NG 증상별 실제 사례·근본원인·의심 코드
+<span class="h">■ 먼저 읽을 정본</span> (계속 갱신됨 — 정본 최신본 우선)
+- 크롤링 가이드 docs/크롤링-가이드.md (인앱: /sourcing-guide/map)
+    §1 재고편 = 센티넬(0=품절/999=수량미상'있음'/-1=불명/None=미크롤/'확인 불가')
+    §5 재고 에러 카탈로그(S1~S21…) = NG 증상별 사례·근본원인·의심 코드
       → 귀책=P(코드 수정) 제안 전 반드시 대조(교차회귀 방지)
-    §7 배선·자가검증 = 귀책=P일 때 어디를 고치나
-      (_match_option_so·_persist_option_stocks·_resolve_stock 등)
-  · 데이터 가이드 /data-guide = 재고 저장 위치(current_stock)·단일 진실 원천
-    ※ 이 검사 대상 = 소싱처 크롤 재고(매트릭스 셀).
-      실물 재고관리(InventoryTx 거래원장 실시간 합산)와 다름
-- 정본은 계속 확장된다. 프롬프트에 박힌 값보다 정본 최신본을 우선한다
+    §7 배선·자가검증 = 귀책=P일 때 어디를 고치나(_match_option_so 등)
+- 데이터 가이드 /data-guide = 저장 위치(current_stock)·단일 진실 원천
+    ※ 검사 대상 = 소싱처 크롤 재고(매트릭스 셀), 실물 재고관리(InventoryTx) 아님
 
 <span class="h">■ 5단계</span>
-1) 크롤     — 등록 URL 전체 로컬 크롤 → 최신 재고 DB 반영
-2) 실브라우저 — 각 URL 직접 열어 색×사이즈별 실제 재고
-              (상태 + 가능하면 수량) 엑셀로 정리
-3) 대조     — 크롤 결과값(매트릭스 저장)과 2의 엑셀을
-              색×사이즈 셀 단위로 1:1 대조
-4) OK/NG 판정 + 이중 태그
-   · OK = 상태 일치 (수량 긁는 소싱처는 수량도 일치)
-   · NG = 불일치 → 두 태그 부착:
-     [귀책]  그 URL 실브라우저로 열어 같은 상품인지 확인
-        U = URL측 문제(대체상품·다른상품·404·만료)
-            → 사용자가 URL 정정
-        P = 프로그램측 문제(URL은 맞는데 저장값 틀림)
-            → 코드 수정
-     [증상]  <span class="star">A 품절둔갑</span>(실=품절, 프로그램=있음) ★최고위험
-             B 거짓품절(실=있음, 프로그램=품절/차단)
-             C 999·센티넬둔갑(프로그램=센티넬, 실=실수량 존재)
-             D 미수집·확인불가 둔갑(매칭실패인데 '있음' 표기)
-             E 수량불일치(상태는 맞으나 수량 상이)
-5) 집계·출력
-   · 소싱처별 집계표 : OK-1/OK-2, NG(귀책 U)/NG(귀책 P),
-     증상 A~E별 개수
-   · 조치 리스트 2분리
-     - URL 정정(귀책 U) : URL·색·사이즈·실값·프로그램값·이유
-     - 코드 수정(귀책 P) : 셀·증상·의심 코드 파일:라인
-   · 색×사이즈 전수 대조 엑셀 산출
+1) 크롤 → 2) 실브라우저 색×사이즈 재고 엑셀 → 3) 매트릭스 대조
+4) OK/NG 이중 태그
+   [귀책] U=URL측(대체상품·404·만료→사용자 URL 정정) / P=프로그램측(→코드 수정)
+   [증상] <span class="star">A 품절둔갑</span>★ / B 거짓품절 / C 999·센티넬둔갑 /
+          D 미수집·확인불가 / E 수량불일치
+5) 소싱처별 집계 + 조치 U/P 분리 + 색×사이즈 전수 엑셀
 
 <span class="h">■ 진행 방식</span>
 - 크롤은 실시간 감시(사후 추측 금지). 로드된 확장 버전 먼저 확인
 - 작업 전 origin/main 최신 대조(stale 워크트리 오진 방지)</div>
-    </div>
 
-    <button type="button" class="copybtn-big" id="ccCopyBig">📋 프롬프트 전체 복사</button>
-  </div>
-
-  <!-- ─── 가격 패널 ─── -->
-  <div class="ccpanel" data-ccpanel="price">
-    <ol class="howto">
-      <li><span class="n">1</span><span><b>「검사 범위 선택」</b>에서 고르거나 아래 대상을 직접 확인</span></li>
-      <li><span class="n">2</span><span><b>「전체 복사」</b> 누르기</span></li>
-      <li><span class="n">3</span><span><b>Claude Code</b>에 붙여넣기 → 검사 시작</span></li>
-    </ol>
-
-    <div class="promptwrap">
-      <div class="plabel">
-        <span class="l">📋 복사할 프롬프트 <span class="tag">· 가격 정합성 조사</span></span>
-        <button type="button" class="copybtn-top">전체 복사</button>
-      </div>
-      <div class="codebox"><span class="h">가격 정합성 조사를 시작한다.</span>
+      <div class="codebox hide" id="ccBoxPrice"><span class="h">가격 정합성 조사를 시작한다.</span>
 아래 프로토콜을 순서대로 실행하라.
 
 <span class="h">■ 대상</span>
@@ -203,81 +156,34 @@
 - URL    : 해당 소싱처의 매트릭스 등록 URL 전체</span>
 
 <span class="h">■ 절대 원칙 (데이터 무결성 3대)</span>
-- 가격 기준 = 실브라우저 상품 URL의 실제 값
-  (표면가·혜택·최종매입가 모두 · 추정·폴백·평균 금지)
-- 매칭·크롤 실패 시 대표가(평균·최저·95000) 폴백 금지
-  → '가격 없음 + 크롤 실패'로 표기
+- 가격 기준 = 실브라우저 상품 URL의 실제 값 (표면가·혜택·최종매입가 모두 · 폴백 금지)
+- 매칭·크롤 실패 시 대표가(평균·최저·95000) 폴백 금지 → '가격 없음 + 크롤 실패' 표기
 - 크롤 = 로컬(크롬 확장/Playwright). 서버 크롤 실패는 정상
 
-<span class="h">■ 먼저 읽을 정본</span> (기준·유형·의심코드의 단일 진실 원천 — 계속 갱신됨)
-- 조사 전, 정본을 읽고 기준을 잡는다
-  · 크롤링 가이드 docs/크롤링-가이드.md (인앱: /sourcing-guide/map)
+<span class="h">■ 먼저 읽을 정본</span> (계속 갱신됨 — 정본 최신본 우선)
+- 크롤링 가이드 docs/크롤링-가이드.md (인앱: /sourcing-guide/map)
     §2 가격편 = 혜택 4분류(선반영/후반영/결제택1/캐시백)·소싱처별 계산·저장 배선
     §3 매트릭스 표기 = 셀(표면가+최종매입가)·계산식 영수증·완전한 B(다중 URL 최저)
-    §5 가격 에러(P1~P23)+기타(O) = NG 증상별 실제 사례·의심 코드
-  · 데이터 가이드 /data-guide = 핵심 공식·단일 진실 원천(표면가/최종매입가 단일 출처)
-- 정본은 계속 확장된다. 프롬프트에 박힌 값보다 정본 최신본을 우선한다
+    §5 가격 에러(P1~P23)+기타(O) = NG 증상별 사례·의심 코드
+- 데이터 가이드 /data-guide = 핵심 공식·단일 진실 원천(표면가/최종매입가 단일 출처)
 
 <span class="h">■ 3층 (표면노출가 − 혜택 = 최종매입가)</span>
-① 표면노출가 : 소싱처에 적힌 노출가 (셀 작은 글씨)
-② 혜택       : 선반영·후반영·결제택1·캐시백 (%는 베이스금액 기준)
-③ 최종매입가 : ① − ② = 실제 사는 값 (셀 큰 숫자·계산식 영수증)
+① 표면노출가  ② 혜택(선반영·후반영·결제택1·캐시백 · %는 베이스금액 기준)  ③ 최종매입가
 
 <span class="h">■ 5단계</span>
-1) 크롤     — 등록 URL 전체 로컬 크롤 → 최신 가격·혜택 DB 반영
-2) 실브라우저 — 각 URL 직접 열어 3층(표면가·혜택 항목/금액·최종매입가)
-              읽어 엑셀로 정리
-3) 대조     — 크롤 결과값(셀=표면가+최종매입가, 계산식=혜택 내역)과
-              2의 엑셀을 셀 단위로 1:1 대조
-4) OK/NG 판정 + 이중 태그
-   · OK = 3층 모두 일치 (혜택 미정의 소싱처=표면가=최종가면 표면가만)
-   · NG = 불일치 → 두 태그 부착:
-     [귀책]  그 URL 실브라우저로 열어 같은 상품인지 확인
-        U = URL측 문제(대체상품·다른상품·404·만료)
-            → 사용자가 URL 정정
-        P = 프로그램측 문제(URL은 맞는데 저장가·혜택·계산 틀림)
-            → 코드 수정
-     [증상]  A 표면가 오류(실 표면가 ≠ 프로그램, 오긁음·1원둔갑·stale)
-             <span class="star">B 언더프라이싱</span>(프로그램 최종가 < 실제, 없는/과다 혜택) ★최고위험
-             <span class="star">C 폴백가 둔갑</span>(크롤 실패인데 대표가·95000 표시) ★최고위험
-             D 혜택 누락(실제 받는 혜택이 프로그램에 안 뜸 → 매입가 과대표시)
-             E 셀≠계산식(표면·혜택 맞는데 셀 큰숫자 ≠ 계산식 영수증)
-5) 집계·출력
-   · 소싱처별 집계표 : OK-1/OK-2, NG(귀책 U)/NG(귀책 P),
-     증상 A~E별 개수
-   · 조치 리스트 2분리
-     - URL 정정(귀책 U) : URL·색·사이즈·실값·프로그램값·이유
-     - 코드 수정(귀책 P) : 셀·층·증상·의심 코드 파일:라인
-   · 색×사이즈 전수 대조 엑셀 산출
-
-<span class="h">■ 가격 특유 함정 (꼭 확인)</span>
-- 완전한 B : 한 소싱처 URL 여러 개면 셀은 최저 최종매입가 후보 선택.
-  stale 후보면 유령가=언더프라이싱(B). 셀·계산식은 같은 후보 써야(E)
-- 라이브 확장크롤(save_crawl_result)은 혜택 미저장(price/stock만)
-  → 무신사·롯데온 혜택 안 뜨면 여기(D). 혜택 배선 _SITE_BY_SRC 확인
+1) 크롤 → 2) 실브라우저 3층 엑셀 → 3) 매트릭스(셀=표면가+최종매입가·계산식=혜택) 대조
+4) OK/NG 이중 태그
+   [귀책] U/P (재고와 동일)
+   [증상] A 표면가오류 / <span class="star">B 언더프라이싱</span>★ / <span class="star">C 폴백가둔갑</span>★ /
+          D 혜택누락 / E 셀≠계산식
+5) 소싱처별 집계 + 조치 U/P 분리 + 전수 엑셀
+   ※ 완전한 B(다중URL 최저후보 stale=유령가)·라이브확장크롤 혜택미저장(_SITE_BY_SRC) 확인
 
 <span class="h">■ 진행 방식</span>
 - 크롤은 실시간 감시(사후 추측 금지). 로드된 확장 버전 먼저 확인
 - 작업 전 origin/main 최신 대조(stale 워크트리 오진 방지)</div>
-    </div>
 
-    <button type="button" class="copybtn-big">📋 프롬프트 전체 복사</button>
-  </div>
-
-  <!-- ─── 재고+가격 한번에 패널 (순차 지시) ─── -->
-  <div class="ccpanel" data-ccpanel="both">
-    <ol class="howto">
-      <li><span class="n">1</span><span><b>「검사 범위 선택」</b>에서 고르거나 아래 대상을 직접 확인</span></li>
-      <li><span class="n">2</span><span><b>「전체 복사」</b> 누르기</span></li>
-      <li><span class="n">3</span><span><b>Claude Code</b>에 붙여넣기 → 재고 먼저, 그다음 가격</span></li>
-    </ol>
-
-    <div class="promptwrap">
-      <div class="plabel">
-        <span class="l">📋 복사할 프롬프트 <span class="tag">· 재고+가격 순차 조사</span></span>
-        <button type="button" class="copybtn-top">전체 복사</button>
-      </div>
-      <div class="codebox"><span class="h">재고·가격 정합성 조사를 순차로 진행한다.</span>
+      <div class="codebox hide" id="ccBoxBoth"><span class="h">재고·가격 정합성 조사를 순차로 진행한다.</span>
 <span class="star">★ 반드시 순서대로</span> — [1단계] 재고를 완전히 끝낸 뒤에 [2단계] 가격을 시작한다.
   동시 진행 금지(혼선·오판·에러 위험). 재고 집계·엑셀을 마친 뒤에만 가격으로.
 
@@ -291,93 +197,54 @@
 - 크롤 = 로컬(크롬 확장/Playwright). 서버 크롤 실패는 정상
 
 <span class="h">■ 먼저 읽을 정본</span> (계속 갱신됨 — 정본 최신본 우선)
-- 크롤링 가이드 docs/크롤링-가이드.md (인앱: /sourcing-guide/map)
-    §1 재고편 · §2 가격편 · §3 매트릭스 표기 · §5 에러 카탈로그(S/P/O) · §7 배선
+- 크롤링 가이드 docs/크롤링-가이드.md : §1 재고 · §2 가격 · §3 매트릭스 · §5 에러(S/P/O) · §7 배선
 - 데이터 가이드 /data-guide = 저장 위치·단일 진실 원천
     ※ 재고 검사 대상 = 소싱처 크롤 재고(매트릭스 셀), 실물 재고관리(InventoryTx) 아님
 
 <span class="h">━━━ [1단계] 재고 정합성 조사 (먼저, 끝까지) ━━━</span>
 1) 크롤 → 2) 실브라우저 색×사이즈 재고 엑셀 → 3) 매트릭스 대조
-4) OK/NG 이중 태그
-   [귀책] U=URL측(대체상품·404·만료→사용자 URL 정정) / P=프로그램측(→코드 수정)
-   [증상] <span class="star">A 품절둔갑</span>★ / B 거짓품절 / C 999·센티넬둔갑 /
-          D 미수집·확인불가 / E 수량불일치
-5) 소싱처별 집계 + 조치 U/P 분리 + 색×사이즈 전수 엑셀
-   ↳ 여기(재고 엑셀)까지 완료한 뒤에만 [2단계]로 넘어간다.
+4) OK/NG 이중 태그 [귀책 U/P] [증상 <span class="star">A 품절둔갑</span>★/B 거짓품절/C 999둔갑/D 미수집/E 수량불일치]
+5) 소싱처별 집계 + 조치 U/P 분리 + 전수 엑셀
+   ↳ 여기(재고 엑셀)까지 완료한 뒤에만 [2단계]로.
 
 <span class="h">━━━ [2단계] 가격 정합성 조사 (재고 완료 후) ━━━</span>
 3층 = 표면노출가 − 혜택(선반영/후반영/결제택1/캐시백) = 최종매입가
 1) 크롤 → 2) 실브라우저 3층 엑셀 → 3) 매트릭스(셀=표면가+최종매입가·계산식=혜택) 대조
-4) OK/NG 이중 태그
-   [귀책] U/P (재고와 동일)
-   [증상] A 표면가오류 / <span class="star">B 언더프라이싱</span>★ / <span class="star">C 폴백가둔갑</span>★ /
-          D 혜택누락 / E 셀≠계산식
+4) OK/NG 이중 태그 [귀책 U/P] [증상 A 표면가/<span class="star">B 언더프라이싱</span>★/<span class="star">C 폴백가</span>★/D 혜택누락/E 셀≠계산식]
 5) 소싱처별 집계 + 조치 U/P 분리 + 전수 엑셀
-   ※ 완전한 B(다중URL 최저후보 stale=유령가)·라이브확장크롤 혜택미저장(_SITE_BY_SRC) 확인
 
 <span class="h">■ 진행 방식</span>
 - 크롤은 실시간 감시(사후 추측 금지). 로드된 확장 버전 먼저 확인
-- 작업 전 origin/main 최신 대조. <span class="star">1단계(재고) 완료 전 2단계(가격) 착수 금지.</span></div>
+- <span class="star">1단계(재고) 완료 전 2단계(가격) 착수 금지.</span></div>
     </div>
-
-    <button type="button" class="copybtn-big">📋 프롬프트 전체 복사</button>
+    <button type="button" class="copybtn-big" id="ccCopyBig">📋 프롬프트 전체 복사</button>
   </div>
 </div>
 
 <script>
 (function(){
-  var segs = document.querySelectorAll('.ccpage .ccs');
-  var panels = document.querySelectorAll('.ccpage .ccpanel');
-  function showSeg(key){
-    segs.forEach(function(x){ x.classList.toggle('on', x.getAttribute('data-ccseg') === key); });
-    panels.forEach(function(p){ p.classList.toggle('on', p.getAttribute('data-ccpanel') === key); });
-  }
-  segs.forEach(function(s){ s.addEventListener('click', function(){ showSeg(s.getAttribute('data-ccseg')); }); });
-
-  /* ── 복사 ── */
-  function feedback(btn, label){
-    btn.classList.add('done'); btn.textContent = '✓ 복사됨';
-    setTimeout(function(){ btn.classList.remove('done'); btn.textContent = label; }, 1400);
-  }
-  function copyText(text, btn, label){
-    var ok = function(){ feedback(btn, label); };
-    var fallback = function(){
-      var ta = document.createElement('textarea');
-      ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
-      document.body.appendChild(ta); ta.select();
-      var done = document.execCommand('copy'); document.body.removeChild(ta);
-      if (done) ok();
-    };
-    if (navigator.clipboard && navigator.clipboard.writeText) {
-      navigator.clipboard.writeText(text).then(ok).catch(fallback);
-    } else { fallback(); }
-  }
-  panels.forEach(function(panel){
-    var box = panel.querySelector('.codebox');
-    if (!box) return;
-    panel.querySelectorAll('.copybtn-top, .copybtn-big').forEach(function(btn){
-      var label = btn.textContent;
-      btn.addEventListener('click', function(){ copyText(box.innerText, btn, label); });
+  var KIND = 'stock';
+  var kindSegs = document.querySelectorAll('.ccpage .ccs');
+  kindSegs.forEach(function(s){
+    s.addEventListener('click', function(){
+      KIND = s.getAttribute('data-kind');
+      kindSegs.forEach(function(x){ x.classList.toggle('on', x === s); });
     });
   });
 
-  /* ── 검사 범위 선택 (칩 추가형 + 소싱처 트리) ── */
-  var BUNDLES = [];          // [{code, sources:[name...]}]
-  var SEL = {};              // code -> Set(sources) (기본 전부)
-  var EXP = {};              // code -> bool (펼침)
-  var listEl = document.getElementById('ccList');
-  var chipsEl = document.getElementById('ccChips');
-  var searchEl = document.getElementById('ccSearch');
-  var scntEl = document.getElementById('ccScnt');
-  var makeEl = document.getElementById('ccMake');
-  var byCode = {};
+  var BUNDLES = [], SEL = {}, EXP = {}, byCode = {};
+  var pick = document.getElementById('ccPick'), result = document.getElementById('ccResult');
+  var listEl = document.getElementById('ccList'), chipsEl = document.getElementById('ccChips');
+  var searchEl = document.getElementById('ccSearch'), scntEl = document.getElementById('ccScnt'), makeEl = document.getElementById('ccMake');
+  var allCb = document.getElementById('ccAllCb'), allCnt = document.getElementById('ccAllCnt');
+  var TAGS = {stock:'· 재고 정합성 조사', price:'· 가격 정합성 조사', both:'· 재고+가격 순차 조사'};
 
   function selCodes(){ return Object.keys(SEL); }
   function totalSrc(){ return selCodes().reduce(function(a,c){ return a + SEL[c].size; }, 0); }
 
   function renderChips(){
     var codes = selCodes();
-    if (!codes.length){ chipsEl.innerHTML = '<span class="chip empty">아직 고른 모음전이 없습니다 — 아래 목록에서 선택</span>'; return; }
+    if (!codes.length){ chipsEl.innerHTML = '<span class="chip empty">아직 고른 모음전이 없습니다 — 아래에서 선택</span>'; return; }
     chipsEl.innerHTML = codes.map(function(c){
       return '<span class="chip">'+c+' <span class="cs">·'+SEL[c].size+'소싱처</span> <span class="cx" data-uncheck="'+c+'">✕</span></span>';
     }).join('');
@@ -385,6 +252,10 @@
   function renderFoot(){
     scntEl.innerHTML = '모음전 <b>'+selCodes().length+'개</b> · 소싱처 합계 <b>'+totalSrc()+'개</b>';
     makeEl.disabled = selCodes().length === 0;
+    var total = BUNDLES.length, sel = selCodes().length;
+    allCb.classList.toggle('on', total > 0 && sel === total);
+    allCb.textContent = (total > 0 && sel === total) ? '✓' : (sel > 0 ? '–' : '');
+    allCnt.textContent = total ? ('전체 '+total+'개') : '';
   }
   function renderList(){
     var q = (searchEl.value || '').trim().toLowerCase();
@@ -396,15 +267,12 @@
         var so = on && SEL[b.code].has(s);
         return '<span class="srcchip'+(so?' on':'')+'" data-src="'+b.code+'|'+s+'"><span class="cb sm'+(so?' on':'')+'">'+(so?'✓':'')+'</span>'+s+'</span>';
       }).join('');
-      return '<div class="mrow">'+
-        '<div class="mhd" data-exp="'+b.code+'">'+
+      return '<div class="mrow"><div class="mhd" data-exp="'+b.code+'">'+
           '<span class="cb'+(on?' on':'')+'" data-check="'+b.code+'">'+(on?'✓':'')+'</span>'+
           '<span class="mnm">'+b.code+'</span>'+
           '<span class="mmeta">소싱처 '+(on?nsel+'/'+b.sources.length:b.sources.length)+'</span>'+
-          '<span class="chev'+(EXP[b.code]?' open':'')+'">▶</span>'+
-        '</div>'+
-        '<div class="srcpanel'+(EXP[b.code]?' open':'')+'">'+srcs+'</div>'+
-      '</div>';
+          '<span class="chev'+(EXP[b.code]?' open':'')+'">▶</span></div>'+
+        '<div class="srcpanel'+(EXP[b.code]?' open':'')+'">'+srcs+'</div></div>';
     }).join('');
   }
   function renderAll(){ renderChips(); renderList(); renderFoot(); }
@@ -415,55 +283,63 @@
     renderAll();
   }
   function toggleSrc(code, s){
-    if (!SEL[code]) return;
+    if (!SEL[code]) SEL[code] = new Set();       // ★버그 수정: 모음전 미선택이어도 소싱처 클릭하면 담김
     if (SEL[code].has(s)) SEL[code].delete(s); else SEL[code].add(s);
     if (SEL[code].size === 0) delete SEL[code];
     renderAll();
   }
   function toggleExp(code){ EXP[code] = !EXP[code]; renderList(); }
+  function toggleAll(){
+    if (selCodes().length === BUNDLES.length){ SEL = {}; }
+    else { BUNDLES.forEach(function(b){ SEL[b.code] = new Set(b.sources); }); }
+    renderAll();
+  }
 
   listEl.addEventListener('click', function(e){
     var t = e.target;
-    var chk = t.closest('[data-check]'); var sc = t.closest('[data-src]'); var ex = t.closest('[data-exp]');
+    var sc = t.closest('[data-src]'), chk = t.closest('[data-check]'), ex = t.closest('[data-exp]');
     if (sc){ e.stopPropagation(); var p = sc.getAttribute('data-src').split('|'); toggleSrc(p[0], p[1]); return; }
     if (chk){ e.stopPropagation(); toggleCheck(chk.getAttribute('data-check')); return; }
     if (ex){ toggleExp(ex.getAttribute('data-exp')); }
   });
-  chipsEl.addEventListener('click', function(e){
-    var x = e.target.closest('[data-uncheck]');
-    if (x){ toggleCheck(x.getAttribute('data-uncheck')); }
-  });
+  chipsEl.addEventListener('click', function(e){ var x = e.target.closest('[data-uncheck]'); if (x) toggleCheck(x.getAttribute('data-uncheck')); });
+  document.getElementById('ccAllRow').addEventListener('click', toggleAll);
   searchEl.addEventListener('input', renderList);
 
-  /* 선택 → 대상 텍스트 주입 + 재고 탭으로 */
   function injectTargets(){
-    var codes = selCodes();
-    var lines;
+    var codes = selCodes(), lines;
     if (codes.length === 1){
       var c = codes[0];
-      lines = '- 모음전 : ' + c + '\n' +
-              '- 소싱처 : ' + Array.from(SEL[c]).join(', ') + '\n' +
-              '- URL    : 위 모음전·소싱처의 매트릭스 등록 URL 전체';
+      lines = '- 모음전 : ' + c + '\n- 소싱처 : ' + Array.from(SEL[c]).join(', ') + '\n- URL    : 위 모음전·소싱처의 매트릭스 등록 URL 전체';
     } else {
-      lines = '- 대상 (모음전 → 소싱처) :\n' +
-              codes.map(function(c){ return '    · ' + c + ' → ' + Array.from(SEL[c]).join(', '); }).join('\n') + '\n' +
-              '- URL : 위 각 모음전·소싱처의 매트릭스 등록 URL 전체';
+      lines = '- 대상 (모음전 → 소싱처) :\n' + codes.map(function(c){ return '    · ' + c + ' → ' + Array.from(SEL[c]).join(', '); }).join('\n') + '\n- URL : 위 각 모음전·소싱처의 매트릭스 등록 URL 전체';
     }
-    ['ccTargetStock','ccTargetPrice','ccTargetBoth'].forEach(function(id){
-      var el = document.getElementById(id); if (el) el.textContent = lines;
-    });
+    ['ccTargetStock','ccTargetPrice','ccTargetBoth'].forEach(function(id){ var el = document.getElementById(id); if (el) el.textContent = lines; });
   }
+  var boxes = {stock:document.getElementById('ccBoxStock'), price:document.getElementById('ccBoxPrice'), both:document.getElementById('ccBoxBoth')};
   makeEl.addEventListener('click', function(){
     if (!selCodes().length) return;
     injectTargets();
-    showSeg('stock');
+    Object.keys(boxes).forEach(function(k){ boxes[k].classList.toggle('hide', k !== KIND); });
+    document.getElementById('ccResTag').textContent = TAGS[KIND];
+    pick.classList.remove('on'); result.classList.add('on');
   });
+  document.getElementById('ccBack').addEventListener('click', function(){ result.classList.remove('on'); pick.classList.add('on'); });
 
-  /* 목록 로드 */
+  /* 복사 */
+  function feedback(btn, label){ btn.classList.add('done'); btn.textContent='✓ 복사됨'; setTimeout(function(){ btn.classList.remove('done'); btn.textContent=label; },1400); }
+  function copyText(text, btn, label){
+    var ok=function(){feedback(btn,label);};
+    var fb=function(){var ta=document.createElement('textarea');ta.value=text;ta.style.position='fixed';ta.style.opacity='0';document.body.appendChild(ta);ta.select();var d=document.execCommand('copy');document.body.removeChild(ta);if(d)ok();};
+    if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(text).then(ok).catch(fb);}else{fb();}
+  }
+  function curBox(){ return boxes[KIND]; }
+  document.getElementById('ccCopyTop').addEventListener('click', function(){ copyText(curBox().innerText, this, '전체 복사'); });
+  document.getElementById('ccCopyBig').addEventListener('click', function(){ copyText(curBox().innerText, this, '📋 프롬프트 전체 복사'); });
+
   fetch('/api/bundles/with-sources').then(function(r){ return r.json(); }).then(function(d){
     if (!d || !d.ok || !Array.isArray(d.bundles)){ listEl.innerHTML = '<div class="loading">목록을 불러오지 못했습니다</div>'; return; }
-    BUNDLES = d.bundles;
-    BUNDLES.forEach(function(b){ byCode[b.code] = b; });
+    BUNDLES = d.bundles; BUNDLES.forEach(function(b){ byCode[b.code] = b; });
     renderAll();
   }).catch(function(){ listEl.innerHTML = '<div class="loading">목록을 불러오지 못했습니다</div>'; });
 })();

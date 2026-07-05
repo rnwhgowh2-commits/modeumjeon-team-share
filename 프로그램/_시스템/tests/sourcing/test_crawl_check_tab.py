@@ -49,40 +49,49 @@ def client(monkeypatch):
     return app.test_client()
 
 
-def test_crawl_check_full_page_200(client):
+def test_crawl_check_kinds_and_prompts(client):
+    """검사 종류 세그먼트(재고/가격/재고+가격) + 세 프롬프트 본문이 있는지."""
     r = client.get("/sourcing-guide/crawl-check")
     assert r.status_code == 200
     body = r.data.decode("utf-8")
-    assert "재고 정합성 검사" in body
-    assert "가격 정합성 검사" in body
+    # 검사 종류 세그먼트 (탭 없앤 통합 — 종류 선택기)
+    assert "재고 정합성" in body
+    assert "가격 정합성" in body
+    assert "재고+가격" in body
+    # 재고 프롬프트
+    assert "재고 정합성 조사를 시작한다" in body
     assert "품절둔갑" in body
     assert "999·센티넬" in body
     assert "귀책" in body
-    # 재고 정본 참조에 데이터 가이드 + 소싱크롤재고 vs 실물재고관리 구분
     assert "/data-guide" in body
     assert "InventoryTx" in body
+    # 가격 프롬프트 (3층·증상)
+    assert "가격 정합성 조사를 시작한다" in body
+    assert "표면노출가" in body
+    assert "언더프라이싱" in body
+    assert "셀≠계산식" in body
 
 
 def test_crawl_check_scope_selector_present(client):
-    """검사 범위 선택(모음전+소싱처 칩 추가형) UI 가 있는지."""
+    """검사 범위 선택(모음전+소싱처 + 전체 선택) UI + 대상 주입 지점."""
     r = client.get("/sourcing-guide/crawl-check")
     assert r.status_code == 200
     body = r.data.decode("utf-8")
-    assert "검사 범위 선택" in body
+    assert "무슨 검사를 할까요" in body                   # 종류 선택 안내
     assert "/api/bundles/with-sources" in body          # 모음전+소싱처 목록 로드
-    assert "이 범위로 프롬프트 만들기" in body
-    assert 'id="ccTargetStock"' in body                  # 대상 주입 지점(재고)
-    assert 'id="ccTargetPrice"' in body                  # 대상 주입 지점(가격)
+    assert "프롬프트 만들기" in body
+    assert "전체 선택" in body                            # 전체 선택
+    assert 'id="ccTargetStock"' in body
+    assert 'id="ccTargetPrice"' in body
+    assert 'id="ccTargetBoth"' in body
 
 
-def test_crawl_check_both_tab_sequential(client):
-    """재고+가격 한번에 탭 = 순차 지시(재고 먼저 → 가격)."""
+def test_crawl_check_both_sequential(client):
+    """재고+가격 = 순차 지시(재고 먼저 → 가격, 동시 금지)."""
     r = client.get("/sourcing-guide/crawl-check")
     assert r.status_code == 200
     body = r.data.decode("utf-8")
-    assert "재고+가격 한번에" in body                     # 4번째 세그먼트
-    assert 'id="ccTargetBoth"' in body                    # 통합 대상 주입 지점
-    assert "반드시 순서대로" in body                       # 순차 지시
+    assert "반드시 순서대로" in body
     assert "[1단계] 재고" in body and "[2단계] 가격" in body
     assert "동시 진행 금지" in body
 
@@ -91,19 +100,6 @@ def test_crawl_check_bare_sets_sameorigin(client):
     r = client.get("/sourcing-guide/crawl-check?bare=1")
     assert r.status_code == 200
     assert r.headers.get("X-Frame-Options") == "SAMEORIGIN"
-
-
-def test_crawl_check_price_panel_present(client):
-    """가격 정합성 검사 탭 = 3층 대조 + 5증상 프롬프트가 채워졌는지."""
-    r = client.get("/sourcing-guide/crawl-check")
-    assert r.status_code == 200
-    body = r.data.decode("utf-8")
-    assert "가격 정합성 조사를 시작한다" in body   # 가격 프롬프트 본문
-    assert "표면노출가" in body                    # 3층
-    assert "언더프라이싱" in body                  # 증상 B
-    assert "혜택 누락" in body                      # 증상 D
-    assert "셀≠계산식" in body                     # 증상 E
-    assert "/data-guide" in body                   # 정본 읽기(데이터 가이드)
 
 
 def test_overview_has_crawl_check_card(client):
