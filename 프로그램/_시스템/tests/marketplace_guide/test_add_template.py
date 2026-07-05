@@ -39,7 +39,8 @@ def test_prompt_generator_present():
     html = _add()
     assert "genPrompt" in html               # 프롬프트 생성 함수
     assert "복사" in html                     # 복사 버튼
-    assert "판매처 추가 가이드 참고해서" in html  # 프롬프트 본문 템플릿
+    assert "docs/markets/_schema.yaml" in html  # 프롬프트가 실제 정본(스키마)을 가리킴
+    assert "coupang.yaml" in html                # 참고 프로파일 명시
     assert "100% 검증 전" in html             # 무결성 규칙 문구
 
 
