@@ -561,8 +561,9 @@ def save_secrets(env_prefix: str):
             "message": "변경 사항 없음 — 기존 키 그대로 유지됩니다.",
         })
 
-    project_root = Path(__file__).resolve().parents[2]
-    env_path = project_root / ".env"
+    # 영속 경로(호스트 볼륨 마운트) 우선 — 컨테이너 교체돼도 유지. 없으면 프로젝트 .env.
+    from lemouton.auth import secrets as _S2
+    env_path = _S2.secrets_env_path()
 
     try:
         masked = update_env_keys(env_path, env_keys)

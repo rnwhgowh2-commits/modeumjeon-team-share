@@ -43,6 +43,10 @@ jobs:
               cd ~/app
               sudo docker build --build-arg CACHEBUST=${{ github.sha }} -t modeumjeon . >/tmp/build.log 2>&1 || { tail -30 /tmp/build.log; exit 1; }
               sudo docker rm -f modeumjeon 2>/dev/null || true
+              # UI 저장 시크릿 영속 폴더 — 컨테이너 교체돼도 유지(마운트). 컨테이너 app(uid 1000) 이 쓰도록 소유권 부여.
+              sudo mkdir -p /home/ubuntu/ui_secrets
+              sudo chown -R 1000:1000 /home/ubuntu/ui_secrets
+              sudo chmod 700 /home/ubuntu/ui_secrets
               DBURL="${{ secrets.DATABASE_URL }}"
               EXTRA=""
               case "$DBURL" in
@@ -50,7 +54,9 @@ jobs:
                 *) echo "[deploy] DATABASE_URL 미설정/형식불일치 → app.env(도쿄) 유지" ;;
               esac
               sudo docker run -d --name modeumjeon --restart unless-stopped \
-                -p 80:8080 --env-file ~/app.env $EXTRA -e DISABLE_AUTH=1 modeumjeon \
+                -p 80:8080 --env-file ~/app.env $EXTRA -e DISABLE_AUTH=1 \
+                -v /home/ubuntu/ui_secrets:/data/secrets \
+                -e LEMOUTON_SECRETS_ENV=/data/secrets/.env modeumjeon \
                 || { echo "[deploy] ❌ docker run 실패 — 컨테이너 미교체"; exit 1; }
               sleep 3
               echo "[deploy] 실행 이미지: $(sudo docker inspect -f "{{.Image}}" modeumjeon 2>/dev/null)"
