@@ -157,7 +157,7 @@ def full_cycle(*, dry_run: bool = False) -> dict:
             try:
                 # 실전송 게이트 — LEMOUTON_LIVE_UPLOAD 가 참일 때만 실제 어댑터.
                 # 기본 OFF → DryRunAdapter (외부 호출 없음).
-                ss_ad, cp_ad = select_adapters()
+                adapters = select_adapters()   # {market: adapter} 레지스트리
                 # (market, 마켓옵션ID) → canonical_sku (matched 채널옵션만)
                 sku_by_option = build_sku_by_option(s)
                 # 업로드 속도 정본 = 계정(API) 단위. 마켓별 '1개당 최소 초 간격'을
@@ -171,7 +171,7 @@ def full_cycle(*, dry_run: bool = False) -> dict:
                 _live = live_upload_enabled()
                 r = run_uploader(s, c_output,
                                  sku_by_option=sku_by_option,
-                                 ss_adapter=ss_ad, cp_adapter=cp_ad,
+                                 adapters=adapters,
                                  dlq_path=dlq_path,
                                  force=False, persist=_live, pacer=pacer)
                 _mode = 'live' if _live else 'dryrun'

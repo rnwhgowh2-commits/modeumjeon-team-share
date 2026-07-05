@@ -115,6 +115,35 @@ SMARTSTORE: dict = {
 
 
 # ──────────────────────────────────────────────────────────────
+# 롯데온 (LOTTE ON Open API, 셀러센터)
+#   근거: docs/markets/lotteon.yaml (API 센터 공개 개발가이드 실측 2026-07-05)
+#   인증 = 정적 Bearer 인증키. trNo(거래처번호) 는 모든 상품/가격/재고 호출 필수.
+# ──────────────────────────────────────────────────────────────
+LOTTEON: dict = {
+    "base_url": os.environ.get("LOTTEON_BASE_URL", "https://openapi.lotteon.com"),
+    "api_key": os.environ.get("LOTTEON_MAIN_API_KEY", ""),
+    "tr_no": os.environ.get("LOTTEON_MAIN_TR_NO", ""),
+    "tr_grp_cd": os.environ.get("LOTTEON_TR_GRP_CD", "SR"),   # 일반셀러 상수
+    "lrtr_no": os.environ.get("LOTTEON_MAIN_LRTR_NO", ""),    # 하위거래처(선택, 미사용 시 빈값)
+
+    # 클라이언트 동작 파라미터
+    #   문서 상한 = 분당 10,000회(≈166/s). 보수적으로 기본 50/s.
+    "rate_limit_per_sec": float(os.environ.get("LOTTEON_RATE_LIMIT_PER_SEC", "50")),
+    "max_retries": int(os.environ.get("LOTTEON_MAX_RETRIES", "3")),
+    "retry_backoff_sec": float(os.environ.get("LOTTEON_RETRY_BACKOFF_SEC", "2")),
+    "request_timeout_sec": float(os.environ.get("LOTTEON_REQUEST_TIMEOUT_SEC", "30")),
+
+    # API 엔드포인트 (모두 POST, JSON)
+    "paths": {
+        "detail": "/v1/openapi/product/v1/product/detail",
+        "price_change": "/v1/openapi/product/v1/item/price/change",
+        "stock_change": "/v1/openapi/product/v1/item/stock/change",
+        "identity": "/v1/openapi/common/v1/identity",
+    },
+}
+
+
+# ──────────────────────────────────────────────────────────────
 # Notifier (vendored shared/notifier.py 가 참조)
 # ──────────────────────────────────────────────────────────────
 NOTIFIER: dict = {
@@ -148,4 +177,4 @@ MONITOR: dict = {
 }
 
 
-__all__ = ["COUPANG", "SMARTSTORE", "NOTIFIER", "MONITOR"]
+__all__ = ["COUPANG", "SMARTSTORE", "LOTTEON", "NOTIFIER", "MONITOR"]

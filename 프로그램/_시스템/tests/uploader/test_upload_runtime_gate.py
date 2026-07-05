@@ -30,6 +30,7 @@ from lemouton.uploader.runtime import (
 )
 from lemouton.uploader.adapters.smartstore import SmartStoreAdapter
 from lemouton.uploader.adapters.coupang import CoupangAdapter
+from lemouton.uploader.adapters.lotteon import LotteonAdapter
 
 
 class TestLiveUploadFlag:
@@ -51,13 +52,14 @@ class TestLiveUploadFlag:
 class TestSelectAdapters:
     def test_default_is_dryrun(self, monkeypatch):
         monkeypatch.delenv("LEMOUTON_LIVE_UPLOAD", raising=False)
-        ss, cp = select_adapters()
-        assert isinstance(ss, DryRunAdapter)
-        assert isinstance(cp, DryRunAdapter)
+        ad = select_adapters()
+        assert isinstance(ad["smartstore"], DryRunAdapter)
+        assert isinstance(ad["coupang"], DryRunAdapter)
+        assert isinstance(ad["lotteon"], DryRunAdapter)
 
     def test_dryrun_no_external_call(self, monkeypatch):
         monkeypatch.delenv("LEMOUTON_LIVE_UPLOAD", raising=False)
-        ss, _ = select_adapters()
+        ss = select_adapters()["smartstore"]
         r = ss.update_price_and_stock(canonical_sku="X", market_product_id="1",
                                       market_option_id="2", new_price=1000, new_stock=5)
         assert r.success is True
@@ -65,15 +67,17 @@ class TestSelectAdapters:
 
     def test_live_flag_selects_real(self, monkeypatch):
         monkeypatch.setenv("LEMOUTON_LIVE_UPLOAD", "1")
-        ss, cp = select_adapters()
-        assert isinstance(ss, SmartStoreAdapter)
-        assert isinstance(cp, CoupangAdapter)
+        ad = select_adapters()
+        assert isinstance(ad["smartstore"], SmartStoreAdapter)
+        assert isinstance(ad["coupang"], CoupangAdapter)
+        assert isinstance(ad["lotteon"], LotteonAdapter)
 
     def test_explicit_live_false_overrides_env(self, monkeypatch):
         monkeypatch.setenv("LEMOUTON_LIVE_UPLOAD", "1")
-        ss, cp = select_adapters(live=False)
-        assert isinstance(ss, DryRunAdapter)
-        assert isinstance(cp, DryRunAdapter)
+        ad = select_adapters(live=False)
+        assert isinstance(ad["smartstore"], DryRunAdapter)
+        assert isinstance(ad["coupang"], DryRunAdapter)
+        assert isinstance(ad["lotteon"], DryRunAdapter)
 
 
 @pytest.fixture

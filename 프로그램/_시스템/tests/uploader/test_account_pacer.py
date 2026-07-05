@@ -177,8 +177,8 @@ _SKU = {("smartstore", 555): "SKU-A", ("coupang", 777): "SKU-B"}
 def test_run_uploader_paces_every_send(db, tmp_path):
     pacer = _RecordingPacer()
     r = run_uploader(db, _cout_two_markets(), sku_by_option=_SKU,
-                     ss_adapter=_OkAdapter("smartstore"),
-                     cp_adapter=_OkAdapter("coupang"),
+                     adapters={"smartstore": _OkAdapter("smartstore"),
+                               "coupang": _OkAdapter("coupang")},
                      dlq_path=str(tmp_path / "dlq.jsonl"), pacer=pacer)
     assert r["uploaded"] == 2
     # 전송된 각 옵션마다 그 마켓으로 pacer.wait 1회
@@ -188,7 +188,7 @@ def test_run_uploader_paces_every_send(db, tmp_path):
 def test_run_uploader_without_pacer_still_works(db, tmp_path):
     # pacer 미주입(기본 None) → 현행 동작 그대로
     r = run_uploader(db, _cout_two_markets(), sku_by_option=_SKU,
-                     ss_adapter=_OkAdapter("smartstore"),
-                     cp_adapter=_OkAdapter("coupang"),
+                     adapters={"smartstore": _OkAdapter("smartstore"),
+                               "coupang": _OkAdapter("coupang")},
                      dlq_path=str(tmp_path / "dlq.jsonl"))
     assert r["uploaded"] == 2
