@@ -79,6 +79,34 @@
   .fopt-url{margin:2px 0 0 15px;font-size:11px;color:#8b95a1;font-family:ui-monospace,monospace;word-break:break-all;}
   .fopt-url::before{content:'└ ';color:#c2c9d2;}
   .fnone{font-size:12px;color:#0F6E56;padding:6px 2px;}
+  /* [2026-07-05] 확정 크롤 카드 — 실행/정지 세그먼트 + 진행 링 + 실시간 로그 + 계수 미니표 */
+  .au-card.src-run.is-running{border-color:#12B76A;box-shadow:0 0 0 3px #E7F7EF;}
+  .au-card.src-run.is-running .au-band.src{background:linear-gradient(90deg,#12B76A,#0ea15c);}
+  .rsc{display:inline-flex;border:1px solid #e5e8eb;border-radius:9px;overflow:hidden;flex:none;}
+  .rsc button{border:0;background:#fff;padding:6px 15px;font-size:12.5px;font-weight:600;color:#6b7684;cursor:pointer;font-family:inherit;display:flex;align-items:center;gap:6px;}
+  .rsc .run.on{background:#12B76A;color:#fff;} .rsc .stop.on{background:#EEF1F4;color:#191F28;}
+  .rsc .ic{width:8px;height:8px;background:currentColor;} .rsc .run .ic{border-radius:50%;} .rsc .stop .ic{border-radius:2px;}
+  .cz{border-radius:10px;background:#F7F9FB;border:1px solid #e5e8eb;padding:11px;margin:11px 0;overflow:hidden;position:relative;}
+  .cz-row{display:grid;grid-template-columns:56px 1fr;gap:12px;align-items:center;}
+  .cz-ring{width:56px;height:56px;border-radius:50%;background:conic-gradient(#12B76A var(--p,0%),#E6EBF1 0);-webkit-mask:radial-gradient(farthest-side,transparent 62%,#000 63%);mask:radial-gradient(farthest-side,transparent 62%,#000 63%);flex:none;}
+  .cz-ringwrap{position:relative;width:56px;height:56px;display:flex;align-items:center;justify-content:center;}
+  .cz-rtxt{position:absolute;text-align:center;} .cz-rtxt b{font-size:13px;font-variant-numeric:tabular-nums;color:#191F28;} .cz-rtxt small{display:block;font-size:8px;color:#8b95a1;}
+  .cz-feed{height:52px;overflow:hidden;font-size:11px;line-height:1.8;-webkit-mask:linear-gradient(#000 60%,transparent);mask:linear-gradient(#000 60%,transparent);}
+  .cz-feed div{white-space:nowrap;color:#4e5968;} .cz-feed .k{color:#12B76A;font-weight:700;} .cz-feed .r{color:#3182f6;font-weight:700;}
+  .cz-paused{position:absolute;inset:0;background:rgba(247,249,251,.92);display:flex;align-items:center;justify-content:center;font-size:12px;color:#8b95a1;font-weight:600;}
+  .base-freq{font-size:11.5px;color:#8b95a1;display:flex;align-items:center;gap:6px;flex-wrap:wrap;}
+  .base-freq .mini{width:40px;height:28px;border:1px solid #d1d6db;border-radius:6px;text-align:center;font-size:13px;font-weight:700;font-variant-numeric:tabular-nums;font-family:inherit;color:#191F28;}
+  .km-lab{font-size:11.5px;font-weight:700;color:#1D9E75;margin:14px 0 6px;}
+  table.km{width:100%;border-collapse:collapse;font-size:12px;}
+  table.km td{padding:6px 7px;border-bottom:1px solid #f0f2f5;}
+  table.km td.r{text-align:right;}
+  .km-src{display:inline-flex;align-items:center;gap:6px;font-weight:600;}
+  .km-ic{width:17px;height:17px;border-radius:5px;font-size:9px;font-weight:700;color:#fff;background:#185FA5;display:inline-flex;align-items:center;justify-content:center;}
+  .km-step{display:inline-flex;align-items:center;border:1px solid #d1d6db;border-radius:7px;overflow:hidden;}
+  .km-step button{width:24px;height:24px;border:0;background:#fff;font-size:14px;color:#6b7684;cursor:pointer;}
+  .km-step button:disabled{opacity:.35;cursor:default;}
+  .km-step .v{min-width:34px;text-align:center;font-size:12.5px;font-weight:700;color:#1b64da;font-variant-numeric:tabular-nums;}
+  .km-more{display:inline-flex;align-items:center;gap:6px;background:#EAF2FE;border:1px solid #cfe1fb;border-radius:9px;padding:9px 12px;font-size:12.5px;font-weight:600;color:#1b64da;text-decoration:none;margin-top:10px;}
 </style>
 {% endblock %}
 {% block content %}
@@ -96,22 +124,27 @@
 
   <div class="au-pair">
     <!-- 소싱처 (좌) -->
-    <div class="au-card">
+    <div class="au-card src-run" id="crawl-card">
       <div class="au-band src">소싱처 · 자동으로 긁기</div>
       <div class="au-body">
-        <div class="au-ct"><div class="au-title">🕷 크롤 자동 주기</div><div class="tog" id="t-crawl"></div></div>
-        <div class="au-d">정해둔 주기마다 소싱처를 자동으로 한 번씩 긁어요.</div>
-        <div class="au-q">얼마나 자주 긁을까요?</div>
-        <div class="au-freq" id="freq">
-          <span class="chip" data-h="0" data-m="30">30분</span>
-          <span class="chip" data-h="1" data-m="0">1시간</span>
-          <span class="chip" data-h="3" data-m="0">3시간</span>
-          <span class="chip" data-h="6" data-m="0">6시간</span>
-          <span class="chip" id="chip-custom">직접</span>
-          <span class="hm"><input id="in-h" type="number" min="0" value="1"><span class="colon">:</span><input id="in-m" type="number" min="0" max="59" value="0"><span class="u">시:분</span></span>
+        <div class="au-ct"><div class="au-title">🐘 크롤 · 자동으로 긁기</div>
+          <div class="rsc" id="crawl-seg">
+            <button type="button" class="run" data-run="1"><span class="ic"></span>실행</button>
+            <button type="button" class="stop" data-run="0"><span class="ic"></span>정지</button>
+          </div>
         </div>
-        <div class="au-next" id="next-run">다음 실행 예정 · <b>—</b></div>
-        <a href="/automation/weights" style="display:inline-flex;align-items:center;gap:6px;margin-top:10px;font-size:13px;font-weight:600;color:#3182F6;text-decoration:none;background:#EAF2FE;border:1px solid #cfe1fb;border-radius:9px;padding:8px 12px">🌲 소싱처·브랜드·모음전별 계수(주기 배수) 설정 →</a>
+        <div class="au-d">「실행」하면 오래된 것부터 자동으로 한 바퀴씩 돌며 긁어요. (연속 — 정해진 다음 실행 시각은 없어요)</div>
+        <div class="cz" id="cz">
+          <div class="cz-row">
+            <div class="cz-ringwrap"><div class="cz-ring" id="cz-ring"></div><div class="cz-rtxt"><b id="cz-pct">0%</b><small>이번 한 바퀴</small></div></div>
+            <div class="cz-feed" id="cz-feed"><div>대기 중…</div></div>
+          </div>
+          <div class="cz-paused" id="cz-paused">⏸ 정지됨 — 「실행」을 켜면 시작해요</div>
+        </div>
+        <div class="base-freq">기본 주기 · <input class="mini" id="in-h" type="number" min="0" value="6">시간 <input class="mini" id="in-m" type="number" min="0" max="59" value="0">분 <small>(계수 ×1 기준)</small></div>
+        <div class="km-lab">🌲 소싱처별 계수 (자주 긁을수록 ×N)</div>
+        <table class="km"><tbody id="km-body"><tr><td class="km-empty" style="font-size:11.5px;color:#8b95a1;padding:8px 2px">불러오는 중…</td></tr></tbody></table>
+        <a class="km-more" href="/automation/weights">브랜드·모음전별까지 자세히 설정 →</a>
       </div>
     </div>
 
@@ -144,12 +177,8 @@
   </div>
 
   <div class="runsec" id="runsec">
-    <div class="rs-band">🐘 실행중 · 크롤 실패<span class="rs-live" id="rs-live"></span></div>
+    <div class="rs-band">🚨 크롤 실패<span class="rs-live" id="rs-live"></span></div>
     <div class="rs-body">
-      <div class="rs-run" id="rs-run" style="display:none;">
-        <div class="rs-ring" id="rs-ring"></div>
-        <div><b id="rs-pct" style="color:#191F28;font-variant-numeric:tabular-nums;">0%</b> 진행 · <span id="rs-now">대기</span></div>
-      </div>
       <div class="rs-fail-h">크롤 실패 <span class="fbadge" id="f-count">0</span> · 유형별</div>
       <div class="fsplit">
         <div class="ftypes" id="f-types"></div>
@@ -179,22 +208,15 @@
   function save(patch){ fetch('/api/automation/save',{method:'POST',headers:{'Content-Type':'application/json','Accept':'application/json'},body:JSON.stringify(patch)}).then(function(r){return r.json();}).then(function(d){ if(d&&d.ok) toast(); }).catch(function(){}); }
 
   function tog(el,on){ el.classList.toggle('on',!!on); }
-  function fmtNext(){
-    var el=document.querySelector('#next-run b');
-    if(!st.crawl_auto_enabled){ el.textContent='꺼짐'; return; }
-    var mins=st.crawl_interval_hours*60+st.crawl_interval_minutes;
-    if(mins<=0){ el.textContent='주기 설정 필요'; return; }
-    var d=new Date(Date.now()+mins*60000); var p=function(n){return(n<10?'0':'')+n;};
-    el.textContent=p(d.getHours())+':'+p(d.getMinutes())+' (약 '+(st.crawl_interval_hours?st.crawl_interval_hours+'시간 ':'')+(st.crawl_interval_minutes?st.crawl_interval_minutes+'분':'')+' 뒤)';
-  }
-  function paintFreq(){
-    var chips=document.querySelectorAll('#freq .chip[data-h]');
-    var matched=false;
-    chips.forEach(function(c){ var on=(parseInt(c.dataset.h,10)===st.crawl_interval_hours && parseInt(c.dataset.m,10)===st.crawl_interval_minutes); c.classList.toggle('on',on); if(on)matched=true; });
-    document.getElementById('chip-custom').classList.toggle('on',!matched);
+  function paintSeg(){
+    var run=st.crawl_auto_enabled;
+    var seg=document.getElementById('crawl-seg');
+    seg.querySelector('.run').classList.toggle('on',run);
+    seg.querySelector('.stop').classList.toggle('on',!run);
+    document.getElementById('crawl-card').classList.toggle('is-running',run);
+    document.getElementById('cz-paused').style.display=run?'none':'flex';
     document.getElementById('in-h').value=st.crawl_interval_hours;
     document.getElementById('in-m').value=st.crawl_interval_minutes;
-    fmtNext();
   }
   function paintMode(){
     document.querySelectorAll('#seg .rd').forEach(function(s){ s.classList.toggle('on',s.dataset.mode===st.autosend_mode); });
@@ -202,17 +224,15 @@
   }
 
   // 초기 렌더
-  tog(document.getElementById('t-crawl'),st.crawl_auto_enabled);
   tog(document.getElementById('t-pur'),st.autosend_on_purchase);
   tog(document.getElementById('t-stk'),st.autosend_on_stock);
   tog(document.getElementById('t-prc'),st.autosend_on_price);
   document.getElementById('in-thr').value=st.autosend_stock_threshold;
-  paintFreq(); paintMode();
+  paintSeg(); paintMode();
 
   // 이벤트
-  document.getElementById('t-crawl').addEventListener('click',function(){ st.crawl_auto_enabled=!st.crawl_auto_enabled; tog(this,st.crawl_auto_enabled); fmtNext(); save({crawl_auto_enabled:st.crawl_auto_enabled}); try{ if(window.MoumExt){ st.crawl_auto_enabled ? MoumExt.autoPollStart() : MoumExt.autoPollStop(); } }catch(_){} });
-  document.querySelectorAll('#freq .chip[data-h]').forEach(function(c){ c.addEventListener('click',function(){ st.crawl_interval_hours=parseInt(c.dataset.h,10); st.crawl_interval_minutes=parseInt(c.dataset.m,10); paintFreq(); save({crawl_interval_hours:st.crawl_interval_hours,crawl_interval_minutes:st.crawl_interval_minutes}); }); });
-  function customTime(){ st.crawl_interval_hours=Math.max(0,parseInt(document.getElementById('in-h').value,10)||0); st.crawl_interval_minutes=Math.max(0,Math.min(59,parseInt(document.getElementById('in-m').value,10)||0)); paintFreq(); save({crawl_interval_hours:st.crawl_interval_hours,crawl_interval_minutes:st.crawl_interval_minutes}); }
+  document.querySelectorAll('#crawl-seg button').forEach(function(b){ b.addEventListener('click',function(){ var run=this.dataset.run==='1'; if(run===st.crawl_auto_enabled) return; st.crawl_auto_enabled=run; paintSeg(); paintRun(); save({crawl_auto_enabled:run}); try{ if(window.MoumExt){ run ? MoumExt.autoPollStart() : MoumExt.autoPollStop(); } }catch(_){} }); });
+  function customTime(){ st.crawl_interval_hours=Math.max(0,parseInt(document.getElementById('in-h').value,10)||0); st.crawl_interval_minutes=Math.max(0,Math.min(59,parseInt(document.getElementById('in-m').value,10)||0)); document.getElementById('in-m').value=st.crawl_interval_minutes; save({crawl_interval_hours:st.crawl_interval_hours,crawl_interval_minutes:st.crawl_interval_minutes}); }
   document.getElementById('in-h').addEventListener('change',customTime);
   document.getElementById('in-m').addEventListener('change',customTime);
 
@@ -273,20 +293,48 @@
     }).catch(function(){});
   }
 
-  // ── 실행중 링 (확장 크롤 상태) ──
+  // ── 실행중 링 + 실시간 로그 (카드 안, 확장 크롤 상태) ──
+  var _feedRest='<div>대기 중… 「실행」을 켜면 지금 긁는 소싱처가 여기 흘러요</div>';
   function paintRun(){
     var s=(window.MoumExt&&MoumExt.getCrawlState&&MoumExt.getCrawlState())||{};
     var running=!!(s&&s.running);
     document.getElementById('runsec').classList.toggle('on',running);
-    document.getElementById('rs-run').style.display=running?'flex':'none';
+    var ring=document.getElementById('cz-ring'), pct=document.getElementById('cz-pct'), feed=document.getElementById('cz-feed');
+    if(!ring) return;
     if(running){
-      var v=s.view||{}; var done=v.done||0, total=v.total||0; var pct=total?Math.round(done/total*100):0;
-      document.getElementById('rs-ring').style.setProperty('--p',pct+'%');
-      document.getElementById('rs-pct').textContent=pct+'%';
-      document.getElementById('rs-now').textContent=(s.running||'')+' 긁는 중…';
+      var v=s.view||{}; var done=v.done||0, total=v.total||0; var p=total?Math.round(done/total*100):0;
+      ring.style.setProperty('--p',p+'%'); pct.textContent=p+'%';
+      feed.innerHTML='<div><span class="r">↻</span> '+(s.running||'')+' 긁는 중…</div>';
+    } else {
+      ring.style.setProperty('--p','0%');
+      pct.textContent=st.crawl_auto_enabled?'대기':'0%';
+      feed.innerHTML=_feedRest;
     }
   }
-  renderSpeed(); renderFailures(); paintRun();
+  // ── 계수 미니표 (소싱처별 ×N, 스텝퍼로 바로 조절) ──
+  function renderKmini(){
+    fetch('/api/crawl/weight-tree').then(function(r){return r.json();}).then(function(d){
+      var tb=document.getElementById('km-body'); if(!tb) return; tb.innerHTML='';
+      var src=(d&&d.src)||[];
+      if(!src.length){ tb.innerHTML='<tr><td class="km-empty" style="font-size:11.5px;color:#8b95a1;padding:8px 2px">아직 소싱처가 없어요.</td></tr>'; return; }
+      src.forEach(function(s){
+        var lab=s.label||s.scope_key||'?';
+        var tr=document.createElement('tr');
+        tr.innerHTML='<td><span class="km-src"><span class="km-ic">'+lab.charAt(0)+'</span>'+lab+'</span></td>'+
+          '<td class="r"><span class="km-step" data-key="'+encodeURIComponent(s.scope_key)+'" data-w="'+s.weight+'"><button data-d="-1"'+(s.weight<=1?' disabled':'')+'>−</button><span class="v">×'+s.weight+'</span><button data-d="1"'+(s.weight>=5?' disabled':'')+'>+</button></span></td>';
+        tb.appendChild(tr);
+      });
+      tb.querySelectorAll('.km-step button').forEach(function(btn){
+        btn.addEventListener('click',function(){
+          var stp=this.parentElement; var cur=parseInt(stp.dataset.w,10)||1;
+          var nw=Math.max(1,Math.min(5,cur+parseInt(this.dataset.d,10))); if(nw===cur) return;
+          fetch('/api/crawl/weight-rule',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({scope_type:'source',scope_key:decodeURIComponent(stp.dataset.key),weight:nw})})
+            .then(function(r){return r.json();}).then(function(rr){ if(rr&&rr.ok){ toast(); renderKmini(); } });
+        });
+      });
+    }).catch(function(){});
+  }
+  renderSpeed(); renderFailures(); renderKmini(); paintRun();
   setInterval(paintRun,3000);
   setInterval(renderFailures,15000);
 })();
