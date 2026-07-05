@@ -13,71 +13,73 @@
   .ccpage .ccview{display:none;flex:1;min-height:0;flex-direction:column;}
   .ccpage .ccview.on{display:flex;}
 
-  /* 검사 종류 세그먼트 (맨 위) */
-  .ccpage .kindlabel{font-size:14px;font-weight:800;color:var(--sub);margin:20px 0 8px;}
-  .ccpage .ccseg{display:inline-flex;background:var(--seg-bg);border-radius:14px;padding:6px;gap:4px;margin:0 0 18px;}
-  .ccpage .ccs{border:none;background:none;cursor:pointer;font-family:inherit;
-    font-size:19px;font-weight:800;color:var(--sub);padding:13px 26px;border-radius:10px;
-    display:inline-flex;align-items:center;gap:9px;transition:.15s;}
+  /* 세로 스텝 타임라인 (여백 넓게) */
+  .ccpage .cctl{position:relative;padding-left:40px;margin-top:14px;}
+  .ccpage .ccstep{position:relative;margin-bottom:52px;}
+  .ccpage .ccstep:last-child{margin-bottom:8px;}
+  .ccpage .ccstep::before{content:'';position:absolute;left:-28px;top:30px;bottom:-52px;width:2px;background:var(--line);}
+  .ccpage .ccstep:last-child::before{display:none;}
+  .ccpage .stepn{position:absolute;left:-40px;top:0;width:26px;height:26px;border-radius:50%;
+    background:var(--ink);color:#fff;font-size:13px;font-weight:800;display:inline-flex;align-items:center;justify-content:center;}
+  .ccpage .stept{font-weight:800;font-size:16px;margin-bottom:11px;}
+
+  /* ① 검사 종류 세그먼트 */
+  .ccpage .ccseg{display:inline-flex;background:var(--seg-bg);border-radius:13px;padding:5px;gap:4px;}
+  .ccpage .ccs{border:none;background:none;cursor:pointer;font-family:inherit;font-size:18px;font-weight:800;color:var(--sub);
+    padding:12px 24px;border-radius:9px;display:inline-flex;align-items:center;gap:8px;transition:.15s;}
   .ccpage .ccs.on{background:#fff;color:var(--ink);box-shadow:0 2px 6px rgba(0,0,0,.10);}
 
-  /* 범위 선택 */
-  .ccpage .scopehint{font-size:15px;color:var(--sub);margin:0 0 12px;}
-  .ccpage .chips{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px;min-height:34px;}
-  .ccpage .chip{display:inline-flex;align-items:center;gap:8px;background:#E8F1FE;color:var(--blue-d);
-    border-radius:999px;padding:8px 14px;font-size:15px;font-weight:700;}
+  /* ② 모음전 */
+  .ccpage .chips{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px;min-height:20px;}
+  .ccpage .chip{display:inline-flex;align-items:center;gap:8px;background:#E8F1FE;color:var(--blue-d);border-radius:999px;padding:7px 13px;font-size:14.5px;font-weight:700;}
   .ccpage .chip .cx{cursor:pointer;opacity:.6;font-weight:800;}
-  .ccpage .chip .cs{font-size:12.5px;color:#4E79B8;font-weight:600;}
-  .ccpage .chip.empty{background:none;color:var(--sub);font-weight:600;font-size:14.5px;padding:8px 2px;}
-  .ccpage .srch{display:flex;align-items:center;gap:9px;border:1px solid var(--line);border-radius:11px;padding:12px 15px;margin-bottom:10px;}
-  .ccpage .srch input{border:0;outline:0;flex:1;font-size:16px;font-family:inherit;color:var(--ink);background:none;}
-  .ccpage .allrow{display:flex;align-items:center;gap:11px;padding:11px 15px;background:var(--soft);border-radius:10px;
-    margin-bottom:10px;font-size:15px;font-weight:800;cursor:pointer;}
-  .ccpage .list{flex:1;min-height:120px;border:1px solid var(--line2);border-radius:12px;overflow:auto;background:#fff;}
-  .ccpage .mrow{border-bottom:1px solid var(--line2);}
+  .ccpage .chip .cs{font-size:12px;color:#4E79B8;font-weight:600;}
+  .ccpage .chip.empty{background:none;color:var(--sub);font-weight:600;font-size:14px;padding:7px 2px;}
+  .ccpage .srch{display:flex;align-items:center;gap:9px;border:1px solid var(--line);border-radius:11px;padding:11px 14px;margin-bottom:9px;}
+  .ccpage .srch input{border:0;outline:0;flex:1;font-size:15.5px;font-family:inherit;color:var(--ink);background:none;}
+  .ccpage .allrow{display:flex;align-items:center;gap:11px;padding:10px 14px;background:var(--soft);border-radius:9px;margin-bottom:9px;font-size:14.5px;font-weight:800;cursor:pointer;}
+  .ccpage .list{max-height:200px;overflow:auto;border:1px solid var(--line2);border-radius:11px;background:#fff;}
+  .ccpage .mrow{display:flex;align-items:center;gap:12px;padding:12px 15px;border-bottom:1px solid var(--line2);cursor:pointer;}
   .ccpage .mrow:last-child{border-bottom:0;}
-  .ccpage .mhd{display:flex;align-items:center;gap:12px;padding:13px 16px;cursor:pointer;}
-  .ccpage .cb{width:21px;height:21px;border:2px solid #C9D2DC;border-radius:6px;flex:none;
-    display:inline-flex;align-items:center;justify-content:center;color:#fff;font-size:13px;background:#fff;}
+  .ccpage .cb{width:20px;height:20px;border:2px solid #C9D2DC;border-radius:6px;flex:none;display:inline-flex;align-items:center;justify-content:center;color:#fff;font-size:13px;background:#fff;}
   .ccpage .cb.on{background:var(--blue);border-color:var(--blue);}
-  .ccpage .cb.sm{width:18px;height:18px;font-size:11px;border-radius:5px;}
-  .ccpage .mnm{font-weight:700;flex:1;font-size:16px;}
-  .ccpage .mmeta{font-size:13px;color:var(--sub);font-variant-numeric:tabular-nums;}
-  .ccpage .chev{color:#94A0AD;font-size:12px;transition:transform .15s;}
-  .ccpage .chev.open{transform:rotate(90deg);}
-  .ccpage .srcpanel{display:none;padding:2px 16px 14px 49px;background:var(--soft);}
-  .ccpage .srcpanel.open{display:flex;flex-wrap:wrap;gap:8px;}
-  .ccpage .srcchip{display:inline-flex;align-items:center;gap:7px;padding:7px 12px;border-radius:9px;
-    border:1px solid var(--line);background:#fff;font-size:14px;font-weight:700;cursor:pointer;color:#8B95A1;}
+  .ccpage .cb.sm{width:17px;height:17px;font-size:11px;border-radius:5px;}
+  .ccpage .mnm{font-weight:700;flex:1;font-size:15.5px;}
+  .ccpage .mmeta{font-size:12.5px;color:var(--sub);font-variant-numeric:tabular-nums;}
+
+  /* ③ 소싱처 — 전체선택 버튼(위상) + 칩 */
+  .ccpage .srchint{font-size:14.5px;color:var(--sub);padding:8px 2px;}
+  .ccpage .srcblk{margin-bottom:14px;}
+  .ccpage .srcblk:last-child{margin-bottom:0;}
+  .ccpage .srchdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:9px;gap:10px;}
+  .ccpage .srchdr .lbl{font-size:13.5px;font-weight:800;color:var(--sub);}
+  .ccpage .allbtn{font-size:13.5px;font-weight:800;border:1.5px solid var(--blue);background:#fff;color:var(--blue-d);border-radius:9px;padding:8px 15px;cursor:pointer;font-family:inherit;}
+  .ccpage .allbtn:hover{background:#EAF2FE;}
+  .ccpage .srcs{display:flex;flex-wrap:wrap;gap:7px;}
+  .ccpage .srcchip{display:inline-flex;align-items:center;gap:7px;padding:8px 12px;border-radius:9px;border:1px solid var(--line);background:#fff;font-size:14px;font-weight:700;cursor:pointer;color:#8B95A1;}
   .ccpage .srcchip.on{border-color:var(--blue);background:#EAF2FE;color:var(--blue-d);}
-  .ccpage .scopefoot{display:flex;align-items:center;justify-content:space-between;margin-top:14px;padding-top:14px;border-top:1px solid var(--line2);}
+
+  .ccpage .scopefoot{display:flex;align-items:center;justify-content:space-between;margin-top:16px;padding-top:14px;border-top:1px solid var(--line2);}
   .ccpage .scnt{font-size:16px;font-weight:700;}.ccpage .scnt b{color:var(--blue);}
-  .ccpage .makebtn{background:var(--blue);color:#fff;border:none;border-radius:12px;padding:14px 26px;
-    font-size:17px;font-weight:800;cursor:pointer;font-family:inherit;}
+  .ccpage .makebtn{background:var(--blue);color:#fff;border:none;border-radius:12px;padding:14px 26px;font-size:17px;font-weight:800;cursor:pointer;font-family:inherit;}
   .ccpage .makebtn:disabled{background:#C9D2DC;cursor:not-allowed;}
-  .ccpage .loading{padding:30px;text-align:center;color:var(--sub);font-size:15px;}
+  .ccpage .loading{padding:24px;text-align:center;color:var(--sub);font-size:15px;}
 
   /* 결과 (프롬프트) */
-  .ccpage .backbtn{align-self:flex-start;background:#F2F4F6;color:#4E5968;border:none;border-radius:10px;
-    padding:10px 18px;font-size:15px;font-weight:700;cursor:pointer;font-family:inherit;margin-bottom:14px;}
+  .ccpage .backbtn{align-self:flex-start;background:#F2F4F6;color:#4E5968;border:none;border-radius:10px;padding:10px 18px;font-size:15px;font-weight:700;cursor:pointer;font-family:inherit;margin-bottom:14px;}
   .ccpage .backbtn:hover{background:#E8EBEE;}
   .ccpage .promptwrap{flex:1;display:flex;flex-direction:column;min-height:0;border:1px solid #2A3038;border-radius:14px;overflow:hidden;}
-  .ccpage .plabel{background:#0F141A;color:#DCE2EA;font-size:16px;font-weight:800;padding:13px 18px;
-    display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid #2A3038;}
+  .ccpage .plabel{background:#0F141A;color:#DCE2EA;font-size:16px;font-weight:800;padding:13px 18px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid #2A3038;}
   .ccpage .plabel .l{display:flex;align-items:center;gap:9px;}
   .ccpage .plabel .l .tag{font-size:13px;font-weight:700;color:#9AA4B0;}
-  .ccpage .copybtn-top{background:#2E3742;color:#E5E8EB;border:1px solid #3E4854;border-radius:8px;
-    font-size:15px;font-weight:800;padding:8px 15px;cursor:pointer;font-family:inherit;}
+  .ccpage .copybtn-top{background:#2E3742;color:#E5E8EB;border:1px solid #3E4854;border-radius:8px;font-size:15px;font-weight:800;padding:8px 15px;cursor:pointer;font-family:inherit;}
   .ccpage .copybtn-top:hover{background:#3A4450;}
-  .ccpage .codebox{background:#191F28;color:#E4E9F0;margin:0;padding:26px 24px;flex:1;overflow:auto;
-    font-family:var(--mono);font-size:19px;line-height:2.05;white-space:pre-wrap;word-break:break-word;border:0;}
+  .ccpage .codebox{background:#191F28;color:#E4E9F0;margin:0;padding:26px 24px;flex:1;overflow:auto;font-family:var(--mono);font-size:19px;line-height:2.05;white-space:pre-wrap;word-break:break-word;border:0;}
   .ccpage .codebox.hide{display:none;}
   .ccpage .codebox .h{color:var(--lime);font-weight:800;}
   .ccpage .codebox .star{color:#FF7A7A;font-weight:800;}
   .ccpage .codebox .tgt{color:#7DD3FC;}
-  .ccpage .copybtn-big{margin-top:14px;width:100%;border:none;border-radius:13px;flex:none;
-    background:var(--blue);color:#fff;font-size:20px;font-weight:800;padding:18px;cursor:pointer;font-family:inherit;
-    display:inline-flex;align-items:center;justify-content:center;gap:10px;transition:.15s;}
+  .ccpage .copybtn-big{margin-top:14px;width:100%;border:none;border-radius:13px;flex:none;background:var(--blue);color:#fff;font-size:20px;font-weight:800;padding:18px;cursor:pointer;font-family:inherit;display:inline-flex;align-items:center;justify-content:center;gap:10px;transition:.15s;}
   .ccpage .copybtn-big:hover{background:var(--blue-d);}
   .ccpage .copybtn-big.done{background:#1E7C4A;}
 </style>
@@ -86,20 +88,35 @@
   <h2>🔎 크롤링 검사</h2>
   <p class="sub">무슨 검사를 할지 고르고, 검사할 모음전·소싱처를 담으면 그 범위만 담은 프롬프트를 만들어 Claude Code 에 붙여넣습니다.</p>
 
-  <!-- ═══ 선택 화면 ═══ -->
+  <!-- ═══ 선택 화면 (3단 타임라인) ═══ -->
   <div class="ccview on" id="ccPick">
-    <div class="kindlabel">무슨 검사를 할까요?</div>
-    <div class="ccseg">
-      <button type="button" class="ccs on" data-kind="stock">📦 재고 정합성</button>
-      <button type="button" class="ccs" data-kind="price">💰 가격 정합성</button>
-      <button type="button" class="ccs" data-kind="both">🔄 재고+가격</button>
+    <div class="cctl">
+      <div class="ccstep">
+        <span class="stepn">1</span>
+        <div class="stept">무슨 검사를 할까요?</div>
+        <div class="ccseg">
+          <button type="button" class="ccs on" data-kind="stock">📦 재고 정합성</button>
+          <button type="button" class="ccs" data-kind="price">💰 가격 정합성</button>
+          <button type="button" class="ccs" data-kind="both">🔄 재고+가격</button>
+        </div>
+      </div>
+
+      <div class="ccstep">
+        <span class="stepn">2</span>
+        <div class="stept">검사할 모음전</div>
+        <div class="chips" id="ccChips"></div>
+        <div class="srch">🔍 <input type="text" id="ccSearch" placeholder="모음전 이름 검색 (예: 르무통, 나이키)" autocomplete="off"></div>
+        <div class="allrow" id="ccAllRow"><span class="cb" id="ccAllCb"></span><span>모음전 전체 선택</span><span class="mmeta" id="ccAllCnt" style="margin-left:auto"></span></div>
+        <div class="list" id="ccList"><div class="loading">모음전 목록 불러오는 중…</div></div>
+      </div>
+
+      <div class="ccstep">
+        <span class="stepn">3</span>
+        <div class="stept">그 모음전의 소싱처</div>
+        <div id="ccSrcStep"><div class="srchint">먼저 ② 에서 검사할 모음전을 고르세요.</div></div>
+      </div>
     </div>
 
-    <p class="scopehint">검사할 <b>모음전</b>을 골라 담고, 행을 펼쳐 그 모음전의 <b>소싱처</b>를 켜고 끄세요(기본 전부 켜짐).</p>
-    <div class="chips" id="ccChips"></div>
-    <div class="srch">🔍 <input type="text" id="ccSearch" placeholder="모음전 이름 검색 (예: 르무통, 나이키)" autocomplete="off"></div>
-    <div class="allrow" id="ccAllRow"><span class="cb" id="ccAllCb"></span><span>전체 선택</span><span class="mmeta" id="ccAllCnt" style="margin-left:auto"></span></div>
-    <div class="list" id="ccList"><div class="loading">모음전 목록 불러오는 중…</div></div>
     <div class="scopefoot">
       <span class="scnt" id="ccScnt">모음전 <b>0개</b> · 소싱처 합계 <b>0개</b></span>
       <button type="button" class="makebtn" id="ccMake" disabled>프롬프트 만들기 →</button>
@@ -224,19 +241,18 @@
 <script>
 (function(){
   var KIND = 'stock';
-  var kindSegs = document.querySelectorAll('.ccpage .ccs');
-  kindSegs.forEach(function(s){
+  document.querySelectorAll('.ccpage .ccs').forEach(function(s){
     s.addEventListener('click', function(){
       KIND = s.getAttribute('data-kind');
-      kindSegs.forEach(function(x){ x.classList.toggle('on', x === s); });
+      document.querySelectorAll('.ccpage .ccs').forEach(function(x){ x.classList.toggle('on', x === s); });
     });
   });
 
-  var BUNDLES = [], SEL = {}, EXP = {}, byCode = {};
+  var BUNDLES = [], SEL = {}, byCode = {};
   var pick = document.getElementById('ccPick'), result = document.getElementById('ccResult');
   var listEl = document.getElementById('ccList'), chipsEl = document.getElementById('ccChips');
   var searchEl = document.getElementById('ccSearch'), scntEl = document.getElementById('ccScnt'), makeEl = document.getElementById('ccMake');
-  var allCb = document.getElementById('ccAllCb'), allCnt = document.getElementById('ccAllCnt');
+  var allCb = document.getElementById('ccAllCb'), allCnt = document.getElementById('ccAllCnt'), srcStep = document.getElementById('ccSrcStep');
   var TAGS = {stock:'· 재고 정합성 조사', price:'· 가격 정합성 조사', both:'· 재고+가격 순차 조사'};
 
   function selCodes(){ return Object.keys(SEL); }
@@ -245,8 +261,31 @@
   function renderChips(){
     var codes = selCodes();
     if (!codes.length){ chipsEl.innerHTML = '<span class="chip empty">아직 고른 모음전이 없습니다 — 아래에서 선택</span>'; return; }
-    chipsEl.innerHTML = codes.map(function(c){
-      return '<span class="chip">'+c+' <span class="cs">·'+SEL[c].size+'소싱처</span> <span class="cx" data-uncheck="'+c+'">✕</span></span>';
+    chipsEl.innerHTML = codes.map(function(c){ return '<span class="chip">'+c+' <span class="cs">·'+SEL[c].size+'소싱처</span> <span class="cx" data-uncheck="'+c+'">✕</span></span>'; }).join('');
+  }
+  function renderList(){
+    var q = (searchEl.value || '').trim().toLowerCase();
+    var rows = BUNDLES.filter(function(b){ return !q || b.code.toLowerCase().indexOf(q) >= 0; });
+    if (!rows.length){ listEl.innerHTML = '<div class="loading">검색 결과 없음</div>'; return; }
+    listEl.innerHTML = rows.map(function(b){
+      var on = !!SEL[b.code];
+      return '<div class="mrow" data-check="'+b.code+'"><span class="cb'+(on?' on':'')+'">'+(on?'✓':'')+'</span>'+
+        '<span class="mnm">'+b.code+'</span><span class="mmeta">소싱처 '+b.sources.length+'</span></div>';
+    }).join('');
+  }
+  function renderSrcStep(){
+    var codes = selCodes();
+    if (!codes.length){ srcStep.innerHTML = '<div class="srchint">먼저 ② 에서 검사할 모음전을 고르세요.</div>'; return; }
+    srcStep.innerHTML = codes.map(function(c){
+      var b = byCode[c], sel = SEL[c], allOn = sel.size === b.sources.length;
+      var chips = b.sources.map(function(s){
+        var so = sel.has(s);
+        return '<span class="srcchip'+(so?' on':'')+'" data-src="'+c+'|'+s+'"><span class="cb sm'+(so?' on':'')+'">'+(so?'✓':'')+'</span>'+s+'</span>';
+      }).join('');
+      var lbl = (codes.length > 1 ? c + ' · ' : '') + '소싱처 ' + sel.size + '/' + b.sources.length + ' 켜짐';
+      return '<div class="srcblk"><div class="srchdr"><span class="lbl">'+lbl+'</span>'+
+        '<button type="button" class="allbtn" data-srcall="'+c+'">'+(allOn ? '전체 해제' : '전체 선택')+'</button></div>'+
+        '<div class="srcs">'+chips+'</div></div>';
     }).join('');
   }
   function renderFoot(){
@@ -257,25 +296,7 @@
     allCb.textContent = (total > 0 && sel === total) ? '✓' : (sel > 0 ? '–' : '');
     allCnt.textContent = total ? ('전체 '+total+'개') : '';
   }
-  function renderList(){
-    var q = (searchEl.value || '').trim().toLowerCase();
-    var rows = BUNDLES.filter(function(b){ return !q || b.code.toLowerCase().indexOf(q) >= 0; });
-    if (!rows.length){ listEl.innerHTML = '<div class="loading">검색 결과 없음</div>'; return; }
-    listEl.innerHTML = rows.map(function(b){
-      var on = !!SEL[b.code], nsel = on ? SEL[b.code].size : 0;
-      var srcs = b.sources.map(function(s){
-        var so = on && SEL[b.code].has(s);
-        return '<span class="srcchip'+(so?' on':'')+'" data-src="'+b.code+'|'+s+'"><span class="cb sm'+(so?' on':'')+'">'+(so?'✓':'')+'</span>'+s+'</span>';
-      }).join('');
-      return '<div class="mrow"><div class="mhd" data-exp="'+b.code+'">'+
-          '<span class="cb'+(on?' on':'')+'" data-check="'+b.code+'">'+(on?'✓':'')+'</span>'+
-          '<span class="mnm">'+b.code+'</span>'+
-          '<span class="mmeta">소싱처 '+(on?nsel+'/'+b.sources.length:b.sources.length)+'</span>'+
-          '<span class="chev'+(EXP[b.code]?' open':'')+'">▶</span></div>'+
-        '<div class="srcpanel'+(EXP[b.code]?' open':'')+'">'+srcs+'</div></div>';
-    }).join('');
-  }
-  function renderAll(){ renderChips(); renderList(); renderFoot(); }
+  function renderAll(){ renderChips(); renderList(); renderSrcStep(); renderFoot(); }
 
   function toggleCheck(code){
     if (SEL[code]) delete SEL[code];
@@ -283,27 +304,32 @@
     renderAll();
   }
   function toggleSrc(code, s){
-    if (!SEL[code]) SEL[code] = new Set();       // ★버그 수정: 모음전 미선택이어도 소싱처 클릭하면 담김
+    if (!SEL[code]) SEL[code] = new Set();
     if (SEL[code].has(s)) SEL[code].delete(s); else SEL[code].add(s);
     if (SEL[code].size === 0) delete SEL[code];
     renderAll();
   }
-  function toggleExp(code){ EXP[code] = !EXP[code]; renderList(); }
-  function toggleAll(){
+  function toggleSrcAll(code){
+    var b = byCode[code]; if (!b) return;
+    if (SEL[code] && SEL[code].size === b.sources.length) SEL[code] = new Set();   // 전부 켜짐 → 해제
+    else SEL[code] = new Set(b.sources);                                          // → 전부 켜기
+    if (SEL[code].size === 0) delete SEL[code];
+    renderAll();
+  }
+  function toggleAllMoum(){
     if (selCodes().length === BUNDLES.length){ SEL = {}; }
     else { BUNDLES.forEach(function(b){ SEL[b.code] = new Set(b.sources); }); }
     renderAll();
   }
 
-  listEl.addEventListener('click', function(e){
-    var t = e.target;
-    var sc = t.closest('[data-src]'), chk = t.closest('[data-check]'), ex = t.closest('[data-exp]');
-    if (sc){ e.stopPropagation(); var p = sc.getAttribute('data-src').split('|'); toggleSrc(p[0], p[1]); return; }
-    if (chk){ e.stopPropagation(); toggleCheck(chk.getAttribute('data-check')); return; }
-    if (ex){ toggleExp(ex.getAttribute('data-exp')); }
-  });
+  listEl.addEventListener('click', function(e){ var r = e.target.closest('[data-check]'); if (r) toggleCheck(r.getAttribute('data-check')); });
   chipsEl.addEventListener('click', function(e){ var x = e.target.closest('[data-uncheck]'); if (x) toggleCheck(x.getAttribute('data-uncheck')); });
-  document.getElementById('ccAllRow').addEventListener('click', toggleAll);
+  srcStep.addEventListener('click', function(e){
+    var all = e.target.closest('[data-srcall]'), sc = e.target.closest('[data-src]');
+    if (all){ toggleSrcAll(all.getAttribute('data-srcall')); return; }
+    if (sc){ var p = sc.getAttribute('data-src').split('|'); toggleSrc(p[0], p[1]); }
+  });
+  document.getElementById('ccAllRow').addEventListener('click', toggleAllMoum);
   searchEl.addEventListener('input', renderList);
 
   function injectTargets(){
@@ -326,7 +352,6 @@
   });
   document.getElementById('ccBack').addEventListener('click', function(){ result.classList.remove('on'); pick.classList.add('on'); });
 
-  /* 복사 */
   function feedback(btn, label){ btn.classList.add('done'); btn.textContent='✓ 복사됨'; setTimeout(function(){ btn.classList.remove('done'); btn.textContent=label; },1400); }
   function copyText(text, btn, label){
     var ok=function(){feedback(btn,label);};
