@@ -46,6 +46,39 @@
   .thr .u{font-size:11.5px;color:#6b7684;}
   .au-saved{font-size:12px;color:#0F6E56;margin-top:auto;padding-top:14px;display:flex;align-items:center;gap:5px;opacity:0;transition:opacity .2s;}
   .au-saved.on{opacity:1;}
+  /* ③ 마켓별 속도 표 */
+  .spd{margin-top:14px;border-top:1px solid #f1f3f5;padding-top:12px;}
+  .spd-h{font-size:12.5px;font-weight:700;color:#854F0B;margin-bottom:8px;}
+  table.spd-t{width:100%;border-collapse:collapse;font-size:12px;}
+  table.spd-t th,table.spd-t td{padding:6px 7px;border-bottom:1px solid #f0f2f5;}
+  table.spd-t th{font-size:10px;color:#8b95a1;font-weight:600;text-align:left;}
+  table.spd-t th.r,table.spd-t td.r{text-align:right;}
+  table.spd-t td.r{font-variant-numeric:tabular-nums;font-weight:700;}
+  table.spd-t td.mkt{font-weight:700;color:#854F0B;}
+  .spd-in{width:44px;text-align:right;border:1px solid #d1d6db;border-radius:6px;padding:4px 6px;font-size:12.5px;font-variant-numeric:tabular-nums;font-family:inherit;}
+  .spd-sum td{background:#f6eee6;font-weight:700;color:#7a5320;font-size:11px;}
+  .spd-empty{font-size:11.5px;color:#8b95a1;padding:8px 2px;}
+  /* 실행중 + 실패 유형화 (full width) */
+  .runsec{margin-top:18px;background:#fff;border:1px solid #e5e8eb;border-radius:14px;overflow:hidden;}
+  .runsec .rs-band{background:#0F6E56;color:#fff;font-size:12.5px;font-weight:700;padding:8px 16px;display:flex;align-items:center;gap:8px;}
+  .rs-live{width:8px;height:8px;border-radius:50%;background:#fff;display:none;animation:rspulse 1.1s infinite;}
+  .runsec.on .rs-live{display:inline-block;}
+  @keyframes rspulse{0%{box-shadow:0 0 0 0 rgba(255,255,255,.6);}70%{box-shadow:0 0 0 7px rgba(255,255,255,0);}}
+  .rs-body{padding:14px 16px;}
+  .rs-run{display:flex;align-items:center;gap:12px;margin-bottom:10px;color:#6b7684;font-size:12.5px;}
+  .rs-ring{width:44px;height:44px;border-radius:50%;background:conic-gradient(#12B76A var(--p,0%),#E6EBF1 0);-webkit-mask:radial-gradient(farthest-side,transparent 64%,#000 65%);mask:radial-gradient(farthest-side,transparent 64%,#000 65%);flex:none;}
+  .rs-fail-h{font-size:12px;font-weight:700;color:#c0392b;margin:4px 0 8px;}
+  .fbadge{background:#fdecec;color:#e03a3e;font-size:10px;font-weight:700;padding:1px 7px;border-radius:9px;font-variant-numeric:tabular-nums;}
+  .fsplit{display:grid;grid-template-columns:140px 1fr;gap:12px;}
+  .ftypes{display:flex;flex-direction:column;gap:5px;}
+  .ftype{border:1px solid #e5e8eb;background:#fff;border-radius:8px;padding:7px 9px;font-size:11.5px;font-weight:600;cursor:pointer;display:flex;justify-content:space-between;align-items:center;}
+  .ftype.on{background:#fdecec;border-color:#f3b0b0;color:#c0392b;}
+  .ftype .n{font-variant-numeric:tabular-nums;}
+  .fopt{margin:6px 0 0;}
+  .fopt-nm{font-size:12px;font-weight:600;color:#191F28;display:flex;align-items:center;gap:5px;}
+  .fopt-url{margin:2px 0 0 15px;font-size:11px;color:#8b95a1;font-family:ui-monospace,monospace;word-break:break-all;}
+  .fopt-url::before{content:'└ ';color:#c2c9d2;}
+  .fnone{font-size:12px;color:#0F6E56;padding:6px 2px;}
 </style>
 {% endblock %}
 {% block content %}
@@ -97,7 +130,29 @@
         <div class="cond"><div class="cl">사입(직접 매입) 재고·가격 변동</div><div class="tog" id="t-pur"></div></div>
         <div class="cond"><div class="cl">소싱처 재고 변동<small>재고가 <span class="thr"><input id="in-thr" type="number" min="0" value="4"><span class="u">개 이하</span></span>로 바뀐 것만 보냄</small></div><div class="tog" id="t-stk"></div></div>
         <div class="cond"><div class="cl">소싱처 가격 변동</div><div class="tog" id="t-prc"></div></div>
+
+        <div class="spd">
+          <div class="spd-h">🚚 마켓 · 계정(API)별 업로드 속도</div>
+          <table class="spd-t" id="spd-t"><thead><tr>
+            <th>마켓 · 계정</th><th class="r">1개당 초</th><th class="r">시간당 개수</th>
+          </tr></thead><tbody id="spd-body"><tr><td colspan="3" class="spd-empty">불러오는 중…</td></tr></tbody></table>
+        </div>
         <div class="au-saved" id="saved">✓ 자동 저장됨</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="runsec" id="runsec">
+    <div class="rs-band">🐘 실행중 · 크롤 실패<span class="rs-live" id="rs-live"></span></div>
+    <div class="rs-body">
+      <div class="rs-run" id="rs-run" style="display:none;">
+        <div class="rs-ring" id="rs-ring"></div>
+        <div><b id="rs-pct" style="color:#191F28;font-variant-numeric:tabular-nums;">0%</b> 진행 · <span id="rs-now">대기</span></div>
+      </div>
+      <div class="rs-fail-h">크롤 실패 <span class="fbadge" id="f-count">0</span> · 유형별</div>
+      <div class="fsplit">
+        <div class="ftypes" id="f-types"></div>
+        <div id="f-detail"><div class="fnone">불러오는 중…</div></div>
       </div>
     </div>
   </div>
@@ -165,6 +220,74 @@
   document.getElementById('t-stk').addEventListener('click',function(){ st.autosend_on_stock=!st.autosend_on_stock; tog(this,st.autosend_on_stock); save({autosend_on_stock:st.autosend_on_stock}); });
   document.getElementById('t-prc').addEventListener('click',function(){ st.autosend_on_price=!st.autosend_on_price; tog(this,st.autosend_on_price); save({autosend_on_price:st.autosend_on_price}); });
   document.getElementById('in-thr').addEventListener('change',function(){ st.autosend_stock_threshold=Math.max(0,parseInt(this.value,10)||0); this.value=st.autosend_stock_threshold; save({autosend_stock_threshold:st.autosend_stock_threshold}); });
+
+  // ── ③ 마켓 계정별 속도 표 ──
+  var _mktStyle='font-size:9.5px;font-weight:700;color:#fff;background:#854F0B;border-radius:5px;padding:1px 6px;';
+  function renderSpeed(){
+    fetch('/api/upload/account-speed').then(function(r){return r.json();}).then(function(d){
+      var tb=document.getElementById('spd-body'); tb.innerHTML='';
+      var accs=(d&&d.accounts)||[]; var totals=(d&&d.market_totals)||{};
+      if(!accs.length){ tb.innerHTML='<tr><td colspan="3" class="spd-empty">등록된 판매처 계정이 없어요. 「판매처 계정」에서 추가하면 여기 나와요.</td></tr>'; return; }
+      var byMkt={}; accs.forEach(function(a){ (byMkt[a.market]=byMkt[a.market]||[]).push(a); });
+      Object.keys(byMkt).forEach(function(mkt){
+        byMkt[mkt].forEach(function(a,i){
+          var tr=document.createElement('tr');
+          tr.innerHTML='<td>'+(i===0?'<span style="'+_mktStyle+'">'+mkt+'</span> ':'&nbsp;&nbsp;&nbsp;')+a.account_name+'</td>'+
+            '<td class="r"><input class="spd-in" type="number" min="1" value="'+a.seconds_per_item+'" data-acc="'+a.account_id+'"></td>'+
+            '<td class="r" data-hr="'+a.account_id+'">'+a.per_hour+'</td>';
+          tb.appendChild(tr);
+        });
+        var s=document.createElement('tr'); s.className='spd-sum';
+        s.innerHTML='<td>↳ 총 스토어 업로드수</td><td></td><td class="r">'+(totals[mkt]||0)+'개/1시간</td>';
+        tb.appendChild(s);
+      });
+      tb.querySelectorAll('.spd-in').forEach(function(inp){
+        inp.addEventListener('change',function(){
+          var sec=Math.max(1,parseInt(this.value,10)||1); this.value=sec; var acc=this.dataset.acc;
+          fetch('/api/upload/account-speed',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({account_id:parseInt(acc,10),seconds_per_item:sec})})
+            .then(function(r){return r.json();}).then(function(rr){ if(rr&&rr.ok){ renderSpeed(); toast(); } });
+        });
+      });
+    }).catch(function(){});
+  }
+
+  // ── ⑤ 실패 유형화 ──
+  var _failGroups=[];
+  function renderFailDetail(idx){
+    var g=_failGroups[idx]; var dt=document.getElementById('f-detail');
+    if(!g){ dt.innerHTML=''; return; }
+    dt.innerHTML=g.items.map(function(it){ return '<div class="fopt"><div class="fopt-nm"><span style="color:#e03a3e">✕</span> '+(it.site||'')+'</div><div class="fopt-url">'+it.url+'</div></div>'; }).join('');
+    document.querySelectorAll('#f-types .ftype').forEach(function(b,i){ b.classList.toggle('on',i===idx); });
+  }
+  function renderFailures(){
+    fetch('/api/crawl/failures').then(function(r){return r.json();}).then(function(d){
+      _failGroups=(d&&d.groups)||[];
+      var total=_failGroups.reduce(function(s,g){return s+g.count;},0);
+      document.getElementById('f-count').textContent=total;
+      var tp=document.getElementById('f-types');
+      if(!_failGroups.length){ tp.innerHTML=''; document.getElementById('f-detail').innerHTML='<div class="fnone">✓ 크롤 실패 없음</div>'; return; }
+      tp.innerHTML=_failGroups.map(function(g,i){ return '<button class="ftype" data-i="'+i+'">'+g.emoji+' '+g.label+' <span class="n">'+g.count+'</span></button>'; }).join('');
+      tp.querySelectorAll('.ftype').forEach(function(b){ b.addEventListener('click',function(){ renderFailDetail(parseInt(this.dataset.i,10)); }); });
+      renderFailDetail(0);
+    }).catch(function(){});
+  }
+
+  // ── 실행중 링 (확장 크롤 상태) ──
+  function paintRun(){
+    var s=(window.MoumExt&&MoumExt.getCrawlState&&MoumExt.getCrawlState())||{};
+    var running=!!(s&&s.running);
+    document.getElementById('runsec').classList.toggle('on',running);
+    document.getElementById('rs-run').style.display=running?'flex':'none';
+    if(running){
+      var v=s.view||{}; var done=v.done||0, total=v.total||0; var pct=total?Math.round(done/total*100):0;
+      document.getElementById('rs-ring').style.setProperty('--p',pct+'%');
+      document.getElementById('rs-pct').textContent=pct+'%';
+      document.getElementById('rs-now').textContent=(s.running||'')+' 긁는 중…';
+    }
+  }
+  renderSpeed(); renderFailures(); paintRun();
+  setInterval(paintRun,3000);
+  setInterval(renderFailures,15000);
 })();
 </script>
 {% endblock %}
