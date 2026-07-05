@@ -849,6 +849,8 @@ def test_upload_account_api(account_id: int):
         return _test_coupang(creds, display_name, env_prefix)
     elif market == "smartstore":
         return _test_smartstore(creds, display_name, env_prefix)
+    elif market == "lotteon":
+        return _test_lotteon(creds, display_name, env_prefix)
     else:
         return jsonify({"ok": False, "error": f"{market} 테스트 미구현"}), 400
 
@@ -926,6 +928,71 @@ def _test_coupang(creds, display_name: str, env_prefix: str):
         "elapsed_sec": elapsed,
         "body_snippet": body_snippet,
         "hint": "Vendor ID/Access/Secret 정확한지 확인",
+    }), 502
+
+
+def _test_lotteon(creds, display_name: str, env_prefix: str):
+    """롯데온 Open API ping — identity 호출로 인증키+출발지 IP 검증 (상품 불필요).
+
+    GET /v1/openapi/common/v1/identity — 발급키가 유효하고 서버 IP 가 인증키에
+    등록돼 있으면 200 + returnCode 정상. 401=키 오류 / 403=IP 미등록.
+    """
+    import time as _time
+    import requests
+    from shared.platforms.lotteon.auth import build_headers
+
+    started = _time.time()
+    url = "https://openapi.lotteon.com/v1/openapi/common/v1/identity"
+    try:
+        r = requests.get(url, headers=build_headers(creds.api_key), timeout=15)
+    except Exception as e:
+        elapsed = round(_time.time() - started, 2)
+        return jsonify({
+            "ok": False,
+            "error": f"네트워크 오류: {type(e).__name__}: {e}",
+            "elapsed_sec": elapsed,
+        }), 500
+
+    elapsed = round(_time.time() - started, 2)
+    if r.status_code == 200:
+        try:
+            data = r.json()
+            rc = str(data.get("returnCode"))
+            if rc in ("0000", "SUCCESS"):
+                return jsonify({
+                    "ok": True,
+                    "message": f"✅ {display_name} 롯데온 API 연결 성공 (인증키·출발지 IP OK, 응답 {elapsed}s)",
+                    "status_code": 200,
+                    "elapsed_sec": elapsed,
+                    "tr_no": creds.tr_no,
+                })
+            return jsonify({
+                "ok": False,
+                "error": f"롯데온 응답 이상 — returnCode={rc}",
+                "status_code": 200,
+                "elapsed_sec": elapsed,
+                "body_snippet": (r.text or "")[:300],
+            }), 502
+        except Exception:
+            return jsonify({
+                "ok": True,
+                "message": "✅ 롯데온 API 응답 (200, JSON 파싱 실패)",
+                "status_code": 200,
+                "elapsed_sec": elapsed,
+            })
+
+    hint = {
+        401: "인증키(API 인증키) 가 틀렸거나 만료 — OpenAPI관리에서 재발급 후 다시 등록",
+        403: "출발지 IP 미등록 — OpenAPI관리 1단계에 서버 IP(54.116.196.90) 등록 필요",
+        429: "호출량 초과(분당 10,000) — 잠시 후 재시도",
+    }.get(r.status_code, "인증키·거래처번호가 정확한지 확인")
+    return jsonify({
+        "ok": False,
+        "error": f"롯데온 API 실패 — HTTP {r.status_code}",
+        "status_code": r.status_code,
+        "elapsed_sec": elapsed,
+        "body_snippet": (r.text or "")[:300],
+        "hint": hint,
     }), 502
 
 
