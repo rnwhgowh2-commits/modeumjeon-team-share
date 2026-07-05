@@ -17,26 +17,23 @@
   <span class="brand-app-logo {{ market_key }} {{ size }}" aria-hidden="true">{{ glyph }}</span>
 {% endmacro %}
 
-<header class="page-header">
-  <h1>판매처 계정</h1>
-  <p class="subtitle">스마트스토어 / 쿠팡 등 마켓 셀러 계정 — 시크릿은 <code>.env</code> 단일 출처</p>
+<header class="page-header" style="display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap;">
+  <div>
+    <h1>판매처 계정</h1>
+    <p class="subtitle">스마트스토어 / 쿠팡 등 마켓 셀러 계정 — 시크릿은 <code>.env</code> 단일 출처</p>
+  </div>
+  {# ━━━━━━━━━━ 판매처 매뉴얼 진입 (레이아웃2 · 제목줄 우측 · 흰 카드 통일) ━━━━━━━━━━ #}
+  <div class="mkg-cards" style="display:flex;gap:10px;flex-shrink:0;">
+    <button type="button" class="mkg-card" data-guide-modal="/marketplace-guide/add?bare=1"
+      style="display:flex;align-items:center;gap:8px;background:#fff;border:1px solid #E5E8EB;border-radius:11px;padding:10px 14px;cursor:pointer;font-size:13.5px;font-weight:700;color:#191F28;white-space:nowrap;">
+      <span style="font-size:16px;">➕</span> 판매처 추가·업데이트
+    </button>
+    <button type="button" class="mkg-card" data-guide-modal="/marketplace-guide/map?bare=1"
+      style="display:flex;align-items:center;gap:8px;background:#fff;border:1px solid #E5E8EB;border-radius:11px;padding:10px 14px;cursor:pointer;font-size:13.5px;font-weight:700;color:#191F28;white-space:nowrap;">
+      <span style="font-size:16px;">📖</span> 데이터 코드 지도
+    </button>
+  </div>
 </header>
-
-{# ━━━━━━━━━━ 판매처 매뉴얼 진입 (소싱처 가이드 미러) ━━━━━━━━━━ #}
-<div class="mkg-cards" style="display:flex;gap:14px;margin:0 0 20px;">
-  <button type="button" class="mkg-card" data-guide-modal="/marketplace-guide/add?bare=1"
-    style="flex:1;display:flex;align-items:center;gap:12px;background:#fff;border:1px solid #E5E8EB;border-radius:14px;padding:16px 18px;cursor:pointer;text-align:left;">
-    <span style="font-size:20px;">➕</span>
-    <span><b style="display:block;font-size:15px;">판매처 추가·업데이트</b>
-    <span style="font-size:12.5px;color:#8B95A1;">마켓 선택 → 인증 → 프롬프트 생성</span></span>
-  </button>
-  <button type="button" class="mkg-card" data-guide-modal="/marketplace-guide/map?bare=1"
-    style="flex:1;display:flex;align-items:center;gap:12px;background:#0A2540;border:1px solid #0A2540;border-radius:14px;padding:16px 18px;cursor:pointer;text-align:left;">
-    <span style="font-size:20px;">📖</span>
-    <span><b style="display:block;font-size:15px;color:#fff;">데이터 코드 지도</b>
-    <span style="font-size:12.5px;color:#C9D1D9;">가격·재고가 마켓까지 가는 길</span></span>
-  </button>
-</div>
 
 {# ━━━━━━━━━━ V1 사이드바 + 우측 테이블 레이아웃 ━━━━━━━━━━ #}
 <section class="up-shell">

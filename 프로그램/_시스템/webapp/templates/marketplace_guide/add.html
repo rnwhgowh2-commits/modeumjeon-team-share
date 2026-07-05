@@ -3,7 +3,8 @@
 {% block content %}
 <style>
   /* 시안 #4(좌측 세로 레일) — 미니멀 팔레트: 먹색+회색+네이비 포인트 */
-  .ma{font-family:'Pretendard','Malgun Gothic',sans-serif;color:#191F28;padding:26px 28px;max-width:720px;}
+  /* 160% 확대(가독성) — zoom 으로 글자·여백·입력칸 전체 비례 확대. max-width 640×1.6≈1024 로 1040px 팝업창에 맞춤(가로 스크롤 방지). */
+  .ma{font-family:'Pretendard','Malgun Gothic',sans-serif;color:#191F28;padding:26px 28px;max-width:640px;zoom:1.6;}
   .ma h2{font-size:20px;font-weight:800;margin:0;}
   .ma .lead{font-size:12.5px;color:#8B95A1;margin-top:5px;line-height:1.55;}
   .ma .tabs{display:flex;border-bottom:2px solid #E9ECEF;margin:16px 0 0;}
