@@ -817,14 +817,14 @@ def compute_breakdown(session, *, sku: str, source_id: int, sale_price: float,
         # _coupon_pick 은 함수 top-level 에서 이미 None 초기화됨(NameError 방지) — 여기선 값만 대입.
         if _pcl:
             from lemouton.pricing.benefit_gate import pick_best_coupon as _pbc
-            from lemouton.sourcing.models_pricing import SourceRegistry as _SR0
-            from lemouton.sourcing import crawl_guide as _cg0
-            _cg0_key = f'__cg_{source_id}'
+            from lemouton.sourcing import roster as _roster0
+            # ★ 현행 가이드는 SourcingSource(roster) — 사용자가 UI 에서 편집하는 저장소.
+            #   (구 SourceRegistry 는 2026-06-30 이관 시점 stale — 편집 미반영)
+            _cg0_key = f'__cg_{_site_for}'
             if _cache is not None and _cg0_key in _cache:
                 _g0 = _cache[_cg0_key]
             else:
-                _sr0 = session.query(_SR0).filter_by(id=source_id).first()
-                _g0 = _cg0.loads(_sr0.crawl_guide if _sr0 else None)
+                _g0 = _roster0.get_guide(_site_for)
                 if _cache is not None:
                     _cache[_cg0_key] = _g0
             _cb0 = next((b for b in ((_g0.get('pricing') or {}).get('benefits') or [])
@@ -880,17 +880,16 @@ def compute_breakdown(session, *, sku: str, source_id: int, sale_price: float,
             import logging as _logging
             _gate_logger = _logging.getLogger(__name__)
             try:
-                from lemouton.sourcing.models_pricing import SourceRegistry as _SR
-                from lemouton.sourcing import crawl_guide as _cg
+                from lemouton.sourcing import roster as _roster
                 from lemouton.pricing.benefit_gate import gated_off_names as _gated_off
 
-                # ── 가이드 로드 (캐시 우선, 단일 호출 시 매 번 쿼리) ──
-                _cg_key = f'__cg_{source_id}'
+                # ── 가이드 로드 (현행 SourcingSource=roster, 캐시 우선) ──
+                #   구 SourceRegistry 는 stale — 사용자 편집 반영 안 됨.
+                _cg_key = f'__cg_{_site_for}'
                 if _cache is not None and _cg_key in _cache:
                     _guide_parsed = _cache[_cg_key]
                 else:
-                    _src_reg = session.query(_SR).filter_by(id=source_id).first()
-                    _guide_parsed = _cg.loads(_src_reg.crawl_guide if _src_reg else None)
+                    _guide_parsed = _roster.get_guide(_site_for)
                     if _cache is not None:
                         _cache[_cg_key] = _guide_parsed
 
