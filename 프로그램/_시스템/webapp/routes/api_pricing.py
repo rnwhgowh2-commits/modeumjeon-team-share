@@ -500,6 +500,8 @@ def _option_matrix_data(code: str):
 
         # 그룹의 모든 Model 의 옵션 통합
         model_codes = [mm.model_code for mm in models_in_group]
+        # [2026-07-05] 옵션별 브랜드 — 모델 브랜드 맵(상속 계산용, lazy-load 없이)
+        model_brand_map = {mm.model_code: mm.brand for mm in models_in_group}
         opts = (
             s.query(Option)
             .filter(Option.model_code.in_(model_codes))
@@ -1009,6 +1011,8 @@ def _option_matrix_data(code: str):
                     _purchase_price = int(_resolved_avg * (1 + _val / 10000.0))
                 elif _mode == 'amount':
                     _purchase_price = int(_resolved_avg + _val)
+            _own_brand = (o.brand or '').strip() or None
+            _mdl_brand = (model_brand_map.get(o.model_code) or '').strip() or None
             opt_rows.append({
                 'sku': o.canonical_sku,
                 'model_code': o.model_code,  # [v3 시나리오 C] 그룹 안 모델 식별
@@ -1016,6 +1020,9 @@ def _option_matrix_data(code: str):
                 'color_display': o.color_display or o.color_code,
                 'size_code': o.size_code,
                 'size_display': o.size_display or o.size_code,
+                # [2026-07-05] 옵션별 브랜드 — brand(자체·미지정=None) / effective(상속 반영)
+                'brand': _own_brand,
+                'effective_brand': _own_brand or _mdl_brand,
                 # 옵션 매트릭스 활성 여부 (혜택 '옵션 직접 선택' 팝업이 활성 옵션만 노출)
                 'is_active': bool(getattr(o, 'is_active', True)),
                 'auto_enabled': auto,
