@@ -2,7 +2,8 @@
 {% block title %}데이터 코드 지도{% endblock %}
 {% block content %}
 <style>
-  .mm{font-family:'Pretendard','Malgun Gothic',sans-serif;color:#191F28;padding:26px 30px;max-width:1000px;}
+  /* 160% 확대(가독성) — zoom 으로 전체 비례 확대. max-width 640×1.6≈1024 로 1040px 팝업창에 맞춤(가로 스크롤 방지). */
+  .mm{font-family:'Pretendard','Malgun Gothic',sans-serif;color:#191F28;padding:26px 30px;max-width:640px;zoom:1.6;}
   .mm h2{font-size:22px;font-weight:800;margin:0 0 6px;}
   .mm .sub{font-size:13px;color:#8B95A1;margin-bottom:20px;}
   .mm .flow{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:14px 0;}
@@ -49,6 +50,8 @@
   <div class="cm"><div>스마트스토어 인증·호출</div><div class="f">platforms/smartstore/client.py</div></div>
   <div class="cm"><div>쿠팡 HMAC 서명·테스트</div><div class="f">accounts.py · _test_coupang</div></div>
   <div class="cm"><div>마켓 정의·키 스키마</div><div class="f">accounts.py · MARKET_METADATA</div></div>
+  <div class="cm"><div>마켓 프로파일 스키마(정본)</div><div class="f">docs/markets/_schema.yaml</div></div>
+  <div class="cm"><div>완성 프로파일(참고)</div><div class="f">docs/markets/coupang.yaml · smartstore.yaml</div></div>
 
   <div class="risk"><b>⚠️ 정직성</b> — 실전송 기본 OFF(<code>LEMOUTON_LIVE_UPLOAD</code>) · 0원·재고없음 전송 금지 · 크롤 실패 값 폴백 금지("없음" 표기).</div>
 </div>

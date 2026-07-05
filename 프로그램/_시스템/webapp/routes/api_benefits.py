@@ -436,6 +436,9 @@ def compute_breakdown(session, *, sku: str, source_id: int, sale_price: float,
     _card_enabled = True
     _card_issuer = None
     _dynamic_benefits = {}
+    # ★ 2026-07-04 — 무신사 상품쿠폰 선택 결과(영수증 투명성용). 무신사 블록 밖(함수 끝)에서
+    #   참조하므로 여기서 top-level 초기화 → NameError 방지. 무신사 외 소싱처는 항상 None 유지.
+    _coupon_pick = None
     try:
         from lemouton.sources.models import SourceProduct
         from lemouton.sourcing.models_pricing import OptionSourceUrl
@@ -808,7 +811,36 @@ def compute_breakdown(session, *, sku: str, source_id: int, sale_price: float,
                 self.value = value; self.enabled = enabled
                 self.sort_order = 999; self.template_id = None
         _base_override = float(_dynamic_benefits.get('surface_price') or 0)
-        effective.append(('dyn', _Inj('상품쿠폰', float(_dynamic_benefits.get('coupon_amount') or 0), enabled=bool(_dynamic_benefits.get('coupon_amount')))))
+        # 상품쿠폰 — product_coupon_list 있으면 쿠폰별 키워드 필터+최고 선택, 없으면 기존 단일값(하위호환)
+        _pcl = _dynamic_benefits.get('product_coupon_list')
+        _coupon_val = float(_dynamic_benefits.get('coupon_amount') or 0)
+        # _coupon_pick 은 함수 top-level 에서 이미 None 초기화됨(NameError 방지) — 여기선 값만 대입.
+        if _pcl:
+            from lemouton.pricing.benefit_gate import pick_best_coupon as _pbc
+            from lemouton.sourcing import roster as _roster0
+            # ★ 현행 가이드는 SourcingSource(roster) — 사용자가 UI 에서 편집하는 저장소.
+            #   (구 SourceRegistry 는 2026-06-30 이관 시점 stale — 편집 미반영)
+            _cg0_key = f'__cg_{_site_for}'
+            if _cache is not None and _cg0_key in _cache:
+                _g0 = _cache[_cg0_key]
+            else:
+                _g0 = _roster0.get_guide(_site_for)
+                if _cache is not None:
+                    _cache[_cg0_key] = _g0
+            _cb0 = next((b for b in ((_g0.get('pricing') or {}).get('benefits') or [])
+                         if (b.get('name') or '').replace(' ', '') == '상품쿠폰'), {})
+            if not _cb0:
+                import logging as _lg0
+                _lg0.getLogger(__name__).warning(
+                    "[coupon-gate] 무신사 product_coupon_list 있으나 '상품 쿠폰' 혜택 미발견 "
+                    "(source_id=%s, sku=%s) — 제외 키워드 미적용, 등급쿠폰이 반영될 수 있음(설정 확인)",
+                    source_id, sku)
+            _coupon_pick = _pbc(_pcl, _cb0, _g0.get('exclude_keywords') or [])
+            _coupon_val = float(_coupon_pick['amount']) if _coupon_pick else 0.0
+        effective.append(('dyn', _Inj('상품쿠폰', _coupon_val, enabled=bool(_coupon_val))))
+        # ★ 등급할인(등급별 상시 할인, 예: LV.9 4%=−4,910) — 유지. '적립금 선할인'(구매적립/선할인
+        #   토글의 4,380)과는 별개 항목이다. 선할인 토글은 '구매적립'을 택1하므로 등급적립으로 반영되고,
+        #   등급할인은 표면가에 이미 미반영이라 여기서 차감하는 게 맞다(제거하면 과대 매입가). 2026-07-05
         effective.append(('dyn', _Inj('등급할인', float(_dynamic_benefits.get('grade_discount_amount') or 0), enabled=bool(_dynamic_benefits.get('grade_discount_amount')))))
         effective.append(('dyn', _Inj('등급적립', float(_dynamic_benefits.get('grade_reward_amount') or 0), enabled=bool(_dynamic_benefits.get('grade_reward_amount')))))
         effective.append(('dyn', _Inj('무신사머니 결제 적립', float(_dynamic_benefits.get('money_reward_amount') or 0), enabled=bool(_dynamic_benefits.get('money_reward_amount')))))
@@ -841,6 +873,17 @@ def compute_breakdown(session, *, sku: str, source_id: int, sale_price: float,
             btype='rate', value=0.0273,
             enabled=True,
         )))
+    # ★ 2026-07-05 — 무신사 결제 택1: 무신사머니 적립이 잡히면(활성) 그걸로, 없으면 현대카드 2.73%.
+    #   정본 설계(musinsa_playwright.py:833·838): '무신사머니 활성=크롤러 차감 / 비활성=현대카드 fallback'.
+    #   무신사머니 결제 적립 금액이 있으면 그게 결제 혜택(프로모션 포함이라 등급 기본%보다 클 수 있음) →
+    #   현대카드 비활성. 안 잡히면(적용 불가 계정 등) 현대카드 2.73% 로 결제 계산. (사용자 확정 2026-07-05)
+    if _site_for == 'musinsa':
+        _money_amt = float((_dynamic_benefits or {}).get('money_reward_amount') or 0)
+        effective.append(('dyn', _DynBenefit(
+            name='현대카드 2.73% (무신사머니 미적용 시)',
+            btype='rate', value=0.0273,
+            enabled=(_money_amt <= 0),
+        )))
 
     # ★ 2026-06-23 — 무신사 조건부 혜택 키워드 게이트 (Task 1b-3).
     #   status='conditional' 가이드 혜택만 대상. always·하드코딩 항목은 절대 불변.
@@ -851,17 +894,16 @@ def compute_breakdown(session, *, sku: str, source_id: int, sale_price: float,
             import logging as _logging
             _gate_logger = _logging.getLogger(__name__)
             try:
-                from lemouton.sourcing.models_pricing import SourceRegistry as _SR
-                from lemouton.sourcing import crawl_guide as _cg
+                from lemouton.sourcing import roster as _roster
                 from lemouton.pricing.benefit_gate import gated_off_names as _gated_off
 
-                # ── 가이드 로드 (캐시 우선, 단일 호출 시 매 번 쿼리) ──
-                _cg_key = f'__cg_{source_id}'
+                # ── 가이드 로드 (현행 SourcingSource=roster, 캐시 우선) ──
+                #   구 SourceRegistry 는 stale — 사용자 편집 반영 안 됨.
+                _cg_key = f'__cg_{_site_for}'
                 if _cache is not None and _cg_key in _cache:
                     _guide_parsed = _cache[_cg_key]
                 else:
-                    _src_reg = session.query(_SR).filter_by(id=source_id).first()
-                    _guide_parsed = _cg.loads(_src_reg.crawl_guide if _src_reg else None)
+                    _guide_parsed = _roster.get_guide(_site_for)
                     if _cache is not None:
                         _cache[_cg_key] = _guide_parsed
 
@@ -879,9 +921,9 @@ def compute_breakdown(session, *, sku: str, source_id: int, sale_price: float,
                     if _bname in _off:
                         _it2.enabled = False
                 # 이름이 effective 에 없는 conditional 혜택 → 조용한 실패 방지 경고
-                _eff_names = {(_it2.benefit_name or '') for _k2, _it2 in effective}
+                _eff_names = {(_it2.benefit_name or '').replace(' ', '') for _k2, _it2 in effective}
                 for _cname in _gated_names:
-                    if _cname not in _eff_names:
+                    if _cname.replace(' ', '') not in _eff_names:
                         _gate_logger.warning(
                             '[benefit-gate] conditional 혜택 "%s" 이(가) effective 목록에 없음 '
                             '(source_id=%s, sku=%s) — 가이드·템플릿 이름 불일치 의심',
@@ -894,11 +936,20 @@ def compute_breakdown(session, *, sku: str, source_id: int, sale_price: float,
 
     # ★ 카테고리 정렬 + 결제 택1 + 누적 차감 → 순수 계산 함수로 위임 (M1 추출, 2026-06-08)
     from lemouton.pricing.final_price import compute_final_price
-    return compute_final_price(
+    _result = compute_final_price(
         sale_price, effective,
         card_enabled=_card_enabled, card_issuer=_card_issuer,
         base_override=_base_override,
     )
+    # ★ 2026-07-04 — 계산식 영수증 투명성: 무신사 상품쿠폰 적용/제외 내역 노출.
+    if isinstance(_result, dict) and _coupon_pick:
+        _result['coupon_decision'] = {
+            'used': _coupon_pick.get('name'),
+            'used_amount': _coupon_pick.get('amount'),
+            'excluded': [{'name': e.get('name'), 'amount': e.get('amount'), 'reason': e.get('reason')}
+                         for e in (_coupon_pick.get('excluded') or [])],
+        }
+    return _result
 
 
 @bp.get('/breakdown/<sku>/<int:source_id>')

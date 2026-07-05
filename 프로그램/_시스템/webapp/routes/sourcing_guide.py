@@ -439,6 +439,23 @@ def data_code_map():
     return render_template("sourcing_guide/map.html", active="sourcing_guide", layout="base.html", drift=drift)
 
 
+@bp.route("/crawl-check")
+def crawl_check():
+    """크롤링 검사 카드 — 2탭(재고 정합성 검사 / 가격 정합성 검사).
+
+    재고 탭 = 재고 정합성 조사 프로토콜 전체 프롬프트(복사형). 순수 정적 표시 — 서버 로직·DB 무영향.
+    ?bare=1 → 사이드바 없는 최소 레이아웃(_bare.html). 전체보기 팝업이 iframe 으로 띄움.
+    """
+    if request.args.get("bare"):
+        # 전체보기의 same-origin iframe 팝업 → 전역 X-Frame-Options: DENY 예외.
+        resp = make_response(render_template(
+            "sourcing_guide/crawl_check.html", active="sourcing_guide", layout="_bare.html"))
+        resp.headers["X-Frame-Options"] = "SAMEORIGIN"
+        return resp
+    return render_template("sourcing_guide/crawl_check.html",
+                           active="sourcing_guide", layout="base.html")
+
+
 @bp.route("/map.md")
 def data_code_map_raw():
     """정본 마크다운 원문 그대로 (MD 바로열기). Claude가 그대로 읽고 복귀."""

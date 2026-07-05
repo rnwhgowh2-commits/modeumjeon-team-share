@@ -35,7 +35,8 @@ def parse_musinsa_benefit_amounts(lines, surface_price=None) -> dict:
 
     매칭 규칙(공백 제거 기준):
       · 등급적립    : '등급적립(' 또는 '구매적립' 포함 + 금액 → grade_reward_amount
-      · 무신사머니   : '무신사머니' + '적립' 포함 + 금액 → money_reward_amount, money_active=True
+      · 무신사머니   : '무신사머니'+'결제'+'적립' 라인 + 금액 → money_reward_amount, money_active=True
+                     (삼성카드 포인트·보유적립금·첫결제·최대적립 라인 제외 — 결제혜택 아님)
       · 등급할인    : '등급할인' 포함 & '불가' 없음 + 금액 → grade_discount_amount
       · 상품쿠폰    : '상품쿠폰' 포함 & '없음' 없음 + 금액 → coupon_amount
     surface_price 주어지면 각 금액이 0<v<=surface*0.4 가드 통과해야 채택(아니면 0).
@@ -70,8 +71,13 @@ def parse_musinsa_benefit_amounts(lines, surface_price=None) -> dict:
             v = _won(ln)
             if ok(v):
                 out['grade_reward_amount'] = max(out['grade_reward_amount'], v)
-        # 무신사머니 결제 적립
-        if '무신사머니' in l and '적립' in l:
+        # 무신사머니 결제 적립 — '무신사머니 결제 시 X% 적립' 클린 라인만.
+        #   ★ 2026-07-05 — 삼성카드 무신사머니 포인트 적립·보유 적립금·첫결제 추가적립·최대적립 요약은
+        #     결제혜택(계산 대상)이 아님 → 제외. 기존 max 가 삼성카드/보유적립 라인(예: 9,499)을 긁어
+        #     money_reward 과다크롤 → 언더프라이싱하던 것 수정. (정본: 결제적립 트리거='무신사머니 결제',
+        #     tests/pricing/test_breakdown_musinsa_fresh GUIDE). l 은 공백 제거됨 → 키워드도 공백 없음.
+        if '무신사머니' in l and '결제' in l and '적립' in l \
+                and '삼성' not in l and '보유' not in l and '첫' not in l and '최대적립' not in l:
             v = _won(ln)
             if ok(v):
                 out['money_reward_amount'] = max(out['money_reward_amount'], v)

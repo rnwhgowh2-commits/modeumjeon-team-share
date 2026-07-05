@@ -2530,7 +2530,10 @@ document.addEventListener('click', async (e) => {
   btn.disabled = true;
   const res = await apiPost('/api/cycle/crawl', {});
   btn.disabled = false;
-  if (res.ok) {
+  if (res && res.server_crawl_disabled) {
+    // 크롤=로컬 원칙 — 서버 전체크롤 비활성. 로컬 확장(각 모음전 '실행'/크롤 위젯)이 담당.
+    flash(res.message || '서버 크롤은 비활성 — 로컬 확장이 크롤합니다.', 'ok');
+  } else if (res.ok) {
     flash('전체 크롤링 시작 — 완료 시 텔레그램·실행 이력으로 결과 안내', 'ok');
   } else {
     flash('전체 크롤링 실패: ' + (res.error || 'unknown'), 'err');

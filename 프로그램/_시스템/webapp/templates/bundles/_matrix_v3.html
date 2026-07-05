@@ -3937,6 +3937,13 @@ table.ompk-tab th.corner{color:#b0b8c1;cursor:default}
     //   각 차감 단계 뒤에 다음 % 혜택의 곱셈 기준이 되는 '베이스금액 ①②…' 줄을 끼움.
     //   마지막 단계 뒤는 베이스금액 줄 생략 (= 혜택 적용가와 동일).
     const _steps = (j.steps || []);
+    // ★ 2026-07-05 — 무신사 상품쿠폰 제외 시: 원래(최고 금액) 쿠폰·대표 쿠폰명 계산 (영수증 표기용).
+    const _cpExInfo = (cd) => {
+      const ex = (cd && cd.excluded) || [];
+      if (!ex.length) return null;
+      const best = ex.reduce((a, b) => ((b.amount || 0) > (a.amount || 0) ? b : a), ex[0]);
+      return { was: best.amount || 0, name: best.name || '쿠폰', more: ex.length - 1, reason: best.reason || '제외' };
+    };
     let _rcLines = `
         <div class="cf-rc-ln">
           <span class="lbl">${_saleLbl}</span>
@@ -3952,6 +3959,18 @@ table.ompk-tab th.corner{color:#b0b8c1;cursor:default}
           <span class="lbl">└ ${escapeHtml(st.name)}${_pct}</span>
           <span class="num">-${(st.deduct || 0).toLocaleString('ko-KR')}원</span>
         </div>`;
+      // ★ 2026-07-04 — 무신사 상품쿠폰: 적용된 쿠폰/제외된 쿠폰 투명 표기 (coupon_decision).
+      if (st.name === '상품쿠폰' && j.coupon_decision) {
+        const _cd = j.coupon_decision;
+        const _ex = _cpExInfo(_cd);
+        const _exTxt = _ex
+          ? ` · 제외 ${escapeHtml(_ex.name)}${_ex.more > 0 ? ` 외 ${_ex.more}건` : ''}(${escapeHtml(_ex.reason)})`
+          : '';
+        _rcLines += `
+        <div class="cf-rc-ln cf-rc-note">
+          적용 쿠폰: ${escapeHtml(_cd.used || '-')}${_exTxt}
+        </div>`;
+      }
       if (!_isLast) {
         _baseNo += 1;
         const _nx = _steps[i + 1];
@@ -3964,6 +3983,22 @@ table.ompk-tab th.corner{color:#b0b8c1;cursor:default}
         </div>`;
       }
     });
+    // ★ 2026-07-05 — 상품쿠폰이 전부 제외돼 '상품쿠폰' 단계가 없을 때: 원래 금액(취소선)→0원 + '제외됨' 배지 + 대표 제외 내역.
+    //   (원래 얼마였는데 등급 정기쿠폰이라 빠졌는지 한눈에 — 예: 5,110원 → 0원)
+    if (j.coupon_decision && !_steps.some(st => st.name === '상품쿠폰')) {
+      const _ex = _cpExInfo(j.coupon_decision);
+      if (_ex) {
+        const _wasTxt = _ex.was > 0
+          ? `<span class="rc-was">${_ex.was.toLocaleString('ko-KR')}원</span><span class="rc-to">→</span>`
+          : '';
+        _rcLines += `
+        <div class="cf-rc-ln sub cpex">
+          <span class="lbl">└ 상품쿠폰 <span class="cf-rc-badge">제외됨</span></span>
+          <span class="num">${_wasTxt}<span class="rc-now">0원</span></span>
+        </div>
+        <div class="cf-rc-ln cf-rc-note">${escapeHtml(_ex.name)}${_ex.more > 0 ? ` 외 ${_ex.more}건` : ''} · ${escapeHtml(_ex.reason)}</div>`;
+      }
+    }
     const saleHtml = `
       <div class="cf-receipt">
         ${_rcLines}

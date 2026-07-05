@@ -165,10 +165,11 @@
       `<div class="apply-cell"><div class="always">✓ 상시</div><div class="ctg" style="display:none"><span class="sw"><i></i></span>조건부</div></div>` +
       `<button type="button" class="bdel" title="삭제">×</button>` +
       `<div class="cond" style="display:none;grid-column:1/-1">` +
-        `<div><div class="clab i">적용 키워드 <span class="modeg"><b class="tm on" data-m="any">하나라도</b><b class="tm" data-m="all">모두</b></span></div>` +
+        `<div><div class="clab i">적용 키워드 <span class="modeg"><b class="tm on" data-m="any">하나라도 있으면</b><b class="tm" data-m="all">모두 있어야</b></span></div>` +
         `<div class="chips trig-chips"><input class="cin trig-in" placeholder="키워드 추가…"></div></div>` +
-        `<div><div class="clab e">제외 키워드 <span class="modeg"><b class="em on" data-m="any">하나라도</b><b class="em" data-m="all">모두</b></span></div>` +
-        `<div class="chips excl-chips"><input class="cin excl-in" placeholder="제외 키워드 추가…"></div></div>` +
+        `<div><div class="clab e">제외 키워드 <span class="modeg"><b class="em on" data-m="any">하나라도 있으면</b><b class="em" data-m="all">모두 있어야</b></span></div>` +
+        `<div class="chips excl-chips"><input class="cin excl-in" placeholder="제외 키워드 추가…"></div>` +
+        `<div class="kw-hint">여러 개는 쉼표로 한 번에</div></div>` +
         `<div class="csum"></div>` +
       `</div>`;
     return card;
@@ -202,7 +203,18 @@
       }
     });
 
-    // 칩 Enter 추가
+    // 쉼표(,/，) 기준으로 여러 키워드 분리 — 빈 토큰 제거
+    const splitKeywords = (raw) => raw.split(/[,，]/).map(s=>s.trim()).filter(Boolean);
+
+    // 여러 키워드를 한 번에 칩으로 추가 (기존 makeChip 재사용)
+    function addChips(card, chipsEl, refInput, cls, raw){
+      const words = splitKeywords(raw);
+      words.forEach(w=> chipsEl.insertBefore(makeChip(w, cls), refInput));
+      if(words.length) updateCsum(card);
+      return words.length > 0;
+    }
+
+    // 칩 Enter 추가 (쉼표로 구분된 여러 단어 = 여러 칩)
     incEl.addEventListener('keydown', e=>{
       if(e.key !== 'Enter') return;
       const t = e.target;
@@ -212,11 +224,30 @@
       const v = t.value.trim(); if(!v) return;
       if(t.classList.contains('trig-in')){
         const chips = card.querySelector('.trig-chips');
-        chips.insertBefore(makeChip(v, 'i'), t); t.value = ''; updateCsum(card);
+        if(addChips(card, chips, t, 'i', v)) t.value = '';
       } else if(t.classList.contains('excl-in')){
         const chips = card.querySelector('.excl-chips');
-        chips.insertBefore(makeChip(v, 'e'), t); t.value = ''; updateCsum(card);
+        if(addChips(card, chips, t, 'e', v)) t.value = '';
       }
+    });
+
+    // 쉼표 포함 텍스트 붙여넣기 → 여러 칩으로 분리
+    incEl.addEventListener('paste', e=>{
+      const t = e.target;
+      if(!t.classList || !(t.classList.contains('trig-in') || t.classList.contains('excl-in'))) return;
+      const text = (e.clipboardData || window.clipboardData).getData('text');
+      if(!text || text.indexOf(',') === -1 && text.indexOf('，') === -1) return; // 쉼표 없으면 기본 붙여넣기 동작 유지
+      e.preventDefault();
+      const card = t.closest('.bcard');
+      if(!card) return;
+      if(t.classList.contains('trig-in')){
+        const chips = card.querySelector('.trig-chips');
+        addChips(card, chips, t, 'i', text);
+      } else {
+        const chips = card.querySelector('.excl-chips');
+        addChips(card, chips, t, 'e', text);
+      }
+      t.value = '';
     });
   }
 
