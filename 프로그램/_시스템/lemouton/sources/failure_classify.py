@@ -36,3 +36,26 @@ def classify_crawl_failure(status, error_message):
             return {"type": t, "label": FAILURE_TYPES[t]["label"], "emoji": FAILURE_TYPES[t]["emoji"]}
     # 어느 유형에도 안 걸림(메시지 없음 포함) → 유형 외
     return {"type": "etc", "label": FAILURE_TYPES["etc"]["label"], "emoji": FAILURE_TYPES["etc"]["emoji"]}
+
+
+def list_crawl_failures(session) -> list:
+    """last_status='error' 인 활성 URL을 실패 유형별로 묶어 반환(화면 ⑤ 데이터).
+
+    반환: [{type, label, emoji, count, items:[{source_product_id, site, url, error}]}]
+    유형 순서는 FAILURE_TYPES 순으로 고정.
+    """
+    from lemouton.sources.models import SourceProduct
+    rows = (session.query(SourceProduct)
+            .filter(SourceProduct.deleted_at.is_(None))
+            .filter(SourceProduct.last_status == "error")
+            .all())
+    groups = {}
+    for sp in rows:
+        c = classify_crawl_failure("error", sp.last_error_msg)
+        g = groups.setdefault(c["type"], {"type": c["type"], "label": c["label"],
+                                          "emoji": c["emoji"], "count": 0, "items": []})
+        g["count"] += 1
+        g["items"].append({"source_product_id": sp.id, "site": sp.site,
+                           "url": sp.url, "error": sp.last_error_msg})
+    order = list(FAILURE_TYPES.keys())
+    return sorted(groups.values(), key=lambda g: order.index(g["type"]))

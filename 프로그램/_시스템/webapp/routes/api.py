@@ -102,6 +102,17 @@ def set_account_upload_speed():
         s.close()
 
 
+@bp.get('/crawl/failures')
+def crawl_failures():
+    """[읽기전용] 크롤 실패 URL을 유형별로 묶어 반환(화면 ⑤ 실패 유형화)."""
+    from lemouton.sources.failure_classify import list_crawl_failures
+    s = SessionLocal()
+    try:
+        return jsonify({"groups": list_crawl_failures(s)})
+    finally:
+        s.close()
+
+
 # ---------- Bundles ----------
 
 _BUNDLE_FIELDS = ('model_name_display', 'category',
