@@ -3423,6 +3423,12 @@
 .fxpop-v2 .cf-receipt .cf-rc-ln.base .num { font-size: 14px; font-weight: 800; color: #1B64DA; }
 /* ★ 2026-07-04 — 무신사 상품쿠폰 적용/제외 투명성 노트(coupon_decision). 영수증 서브 텍스트, 값 없음. */
 .fxpop-v2 .cf-receipt .cf-rc-note { padding: 1px 0 4px 12px; font-size: 11px; color: #B0B8C1; line-height: 1.4; }
+/* ★ 2026-07-05 — 상품쿠폰 전부 제외 시: 원래 금액(취소선)→0원 + '제외됨' 배지 */
+.fxpop-v2 .cf-receipt .cf-rc-ln.sub.cpex .num { color: #4E5968; font-weight: 700; }
+.fxpop-v2 .cf-receipt .cf-rc-ln.sub.cpex .num .rc-was { text-decoration: line-through; color: #B0B8C1; font-weight: 600; font-size: 13px; font-variant-numeric: tabular-nums; }
+.fxpop-v2 .cf-receipt .cf-rc-ln.sub.cpex .num .rc-to { color: #B0B8C1; font-weight: 500; margin: 0 5px; }
+.fxpop-v2 .cf-receipt .cf-rc-ln.sub.cpex .num .rc-now { color: #3182F6; font-weight: 800; font-variant-numeric: tabular-nums; }
+.fxpop-v2 .cf-receipt .cf-rc-badge { display: inline-block; font-size: 10px; font-weight: 700; padding: 0 6px; border-radius: 5px; background: #FDECEE; color: #F04452; margin-left: 6px; vertical-align: 1px; }
 /* ★ 굵은 가로 점선 — 혜택 적용가(영수증) ↔ 세부 혜택 위상 구분선 */
 .fxpop-v2 .cf-phase-sep { border: none; border-top: 3px dashed #C4CCD4; margin: 13px 0 2px; }
 /* 정률 혜택 행 — 곱셈 기준 베이스금액 표기 */
