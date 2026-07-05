@@ -49,24 +49,37 @@ def test_score_exact_match():
     assert reason == 'exact'
 
 
-def test_score_model_and_size():
-    """모델·사이즈 일치, 컬러 다름 = 80"""
+def test_score_color_mismatch_rejected():
+    """[정합성] 모델·사이즈 일치라도 색상 다르면 매핑 거부(0).
+
+    색상 무시 매핑은 1:N 오매핑을 야기 → 금지(score_pair 정책). 옛 '80 model_size'는 폐기.
+    """
     o = make_option('K1', '225', 'BLK', size_display='225', color_display='블랙')
     m = make_model('르무통 클래식')
     bh = {'sku': 'BH-2', 'model_name': '르무통 클래식', 'size': 225, 'color_text': '화이트'}
     score, reason = score_pair(o, m, bh)
-    assert score == 80
-    assert reason == 'model_size'
+    assert score == 0
+    assert reason == 'color_mismatch'
 
 
-def test_score_model_only():
-    """모델 일치, 사이즈 다름 = 50"""
+def test_score_size_mismatch_rejected():
+    """[정합성] 모델 일치라도 사이즈 다르면 매핑 거부(0). 옛 '50 model_only'는 폐기."""
     o = make_option('K1', '225', 'BLK', size_display='225', color_display='블랙')
     m = make_model('르무통 클래식')
     bh = {'sku': 'BH-3', 'model_name': '르무통 클래식', 'size': 230, 'color_text': '블랙'}
     score, reason = score_pair(o, m, bh)
-    assert score == 50
-    assert reason == 'model_only'
+    assert score == 0
+    assert reason == 'size_mismatch'
+
+
+def test_score_color_missing_goes_to_review():
+    """모델·사이즈 일치 + 색상 데이터 한쪽 누락 = 60(자동매핑 아닌 검토 큐)."""
+    o = make_option('K1', '225', 'BLK', size_display='225', color_display='블랙')
+    m = make_model('르무통 클래식')
+    bh = {'sku': 'BH-7', 'model_name': '르무통 클래식', 'size': 225, 'color_text': ''}
+    score, reason = score_pair(o, m, bh)
+    assert score == 60
+    assert reason == 'model_size_only'
 
 
 def test_score_no_match_different_model():
