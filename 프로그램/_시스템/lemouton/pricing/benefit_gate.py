@@ -216,6 +216,10 @@ def pick_best_coupon(coupons, benefit, exclude_rules=None):
         survivors.append({'name': name, 'amount': amount})
 
     if not survivors:
+        # 후보 없음: 쿠폰은 있었으나 전부 제외됐으면 제외 내역을 남겨 영수증 투명성 확보
+        #   (name=None·amount=0 → 상품쿠폰 0원 + "제외됨" 표시). 애초에 빈 목록이면 None.
+        if excluded:
+            return {'name': None, 'amount': 0, 'candidates': [], 'excluded': excluded}
         return None
     best = max(survivors, key=lambda x: x['amount'])
     return {'name': best['name'], 'amount': best['amount'],
