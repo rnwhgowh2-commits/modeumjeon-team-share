@@ -19,7 +19,7 @@ def _render(tab, live_enabled=False):
     ]))
     cfg = om.TAB_CONFIG.get(tab)
     rows = [] if (live_enabled or not cfg) else cfg["rows"]
-    export_markets = ["smartstore", "lotteon"] if tab == "list" else []
+    export_markets = ["coupang", "lotteon", "smartstore"] if tab == "list" else []
     return env.get_template("orders/index.html").render(
         tab=tab, subtabs=om.SUBTABS, active="orders_" + tab,
         cfg=cfg, live_enabled=live_enabled, rows=rows,
@@ -100,11 +100,11 @@ def test_export_downloads_xlsx_for_smartstore(monkeypatch):
 
 
 def test_export_rejects_unsupported_market():
-    # order_rows 가 ValueError → 400 (추측 데이터 안 만듦). 쿠팡=아직 UI 미노출.
-    r = _client().get("/orders/export.xlsx?market=coupang&days=7")
+    # order_rows 가 ValueError → 400 (추측 데이터 안 만듦). 11번가=아직 UI 미노출.
+    r = _client().get("/orders/export.xlsx?market=eleven11&days=7")
     assert r.status_code == 400
 
 
-def test_list_export_offers_both_markets():
+def test_list_export_offers_three_markets():
     html = _render("list")
-    assert "스마트스토어" in html and "롯데온" in html   # 마켓 선택 칩
+    assert "스마트스토어" in html and "롯데온" in html and "쿠팡" in html   # 마켓 선택 칩

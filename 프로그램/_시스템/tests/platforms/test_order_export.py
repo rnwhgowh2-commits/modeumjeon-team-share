@@ -42,7 +42,7 @@ def test_smartstore_rows_map_and_join(monkeypatch):
 
 
 def test_order_rows_rejects_unsupported():
-    for mk in ("coupang", "eleven11", "gmarket"):
+    for mk in ("eleven11", "gmarket", "auction"):
         with pytest.raises(ValueError):
             oe.order_rows(mk, days=7)          # UI 미노출 마켓 — 추측 데이터 안 만듦
 
@@ -58,7 +58,42 @@ def test_rows_to_xlsx_has_header_and_row():
 
 
 def test_supported_markets():
-    assert oe.SUPPORTED == {"smartstore", "lotteon"}   # UI 엑셀버튼 노출(코드 준비)
+    assert oe.SUPPORTED == {"smartstore", "lotteon", "coupang"}   # 3마켓 UI 노출
+
+
+class FakeCoupangClient:
+    def __init__(self):
+        self.calls = 0
+
+    def request(self, method, path, query=""):
+        self.calls += 1
+        # 첫 status 첫 페이지에만 1건, 나머지는 빈 목록(nextToken 없음)
+        if self.calls == 1:
+            return {"code": 200, "data": [{
+                "shipmentBoxId": 1, "orderedAt": "2026-07-05T09:00:00+09:00",
+                "parcelPrintMessage": "문앞",
+                "orderer": {"name": "구매자A", "ordererNumber": "01000000000"},
+                "receiver": {"name": "수령자A", "receiverNumber": "01011112222",
+                             "addr1": "서울", "addr2": "101동", "postCode": "04315"},
+                "orderItems": [{"vendorItemId": 9, "sellerProductName": "코트",
+                                "sellerProductItemName": "블랙/95", "shippingCount": 1,
+                                "salesPrice": {"units": 189000, "nanos": 0}}]}],
+                "nextToken": ""}
+        return {"code": 200, "data": [], "nextToken": ""}
+
+
+def test_coupang_rows_flatten_and_map(monkeypatch):
+    monkeypatch.setenv("COUPANG_VENDOR_ID", "A00012345")   # fetch_orders 가 요구
+    since = dt.datetime(2026, 7, 5, tzinfo=oe.KST)
+    until = dt.datetime(2026, 7, 6, tzinfo=oe.KST)
+    rows = oe.coupang_order_rows(since, until, client=FakeCoupangClient())
+    assert len(rows) == 1
+    r = rows[0]
+    assert r["상품명"] == "코트" and r["옵션"] == "블랙/95" and r["수량"] == 1
+    assert r["수령자"] == "수령자A" and r["구매자"] == "구매자A"
+    assert r["단가"] == 189000                 # 금액 객체 units 추출
+    assert r["정산예정금액"] == ""              # 쿠팡 정산 별도(폴백 0 금지)
+    assert r["쇼핑몰"] == "쿠팡"
 
 
 class FakeLotteonClient:
