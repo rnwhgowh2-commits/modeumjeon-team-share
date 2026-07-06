@@ -127,6 +127,15 @@
   .au-cont{font-size:10.5px;font-weight:700;border-radius:20px;padding:2px 10px;background:#E7F7EF;color:#0e8f54;margin-left:8px;}
   .base-freq{font-size:11.5px;color:#8b95a1;display:flex;align-items:center;gap:6px;flex-wrap:wrap;}
   .base-freq .mini{width:40px;height:28px;border:1px solid #d1d6db;border-radius:6px;text-align:center;font-size:13px;font-weight:700;font-variant-numeric:tabular-nums;font-family:inherit;color:#191F28;}
+  /* [차수별 완료 시각] A안 리스트 + 펼치기/접기 */
+  .czlog{margin-top:12px;border-top:1px dashed #e5e8eb;padding-top:11px;}
+  .czlog-h{font-size:11.5px;font-weight:700;color:#0CA678;margin-bottom:8px;display:flex;align-items:center;gap:8px;}
+  .czlog-tg{margin-left:auto;border:1px solid #cfe1fb;background:#EAF2FE;color:#1b64da;border-radius:7px;padding:2px 9px;font-size:11px;font-weight:600;cursor:pointer;font-family:inherit;}
+  .czlog-list{max-height:260px;overflow-y:auto;}
+  .czlog-row{display:flex;align-items:baseline;gap:10px;padding:5px 2px;border-bottom:1px solid #f2f4f6;font-size:12.5px;}
+  .czlog-row:last-child{border-bottom:0;}
+  .czlog-rc{color:#1b64da;font-weight:700;width:46px;flex:none;}
+  .czlog-tm{margin-left:auto;font-family:ui-monospace,monospace;font-variant-numeric:tabular-nums;color:#191F28;}
   .km-lab{font-size:11.5px;font-weight:700;color:#1D9E75;margin:14px 0 6px;}
   table.km{width:100%;border-collapse:collapse;font-size:12px;}
   table.km td{padding:6px 7px;border-bottom:1px solid #f0f2f5;}
@@ -176,6 +185,10 @@
             </div>
           </div>
           <div class="cz-paused" id="cz-paused">⏸ 정지됨 — 「실행」을 켜면 시작해요</div>
+        </div>
+        <div class="czlog" id="czlog" style="display:none">
+          <div class="czlog-h">🕐 차수별 완료 시각<button type="button" class="czlog-tg" id="czlog-tg"></button></div>
+          <div class="czlog-list" id="czlog-list"></div>
         </div>
         <div class="km-lab">🌲 소싱처별 계수 (자주 긁을수록 ×N)</div>
         <table class="km"><tbody id="km-body"><tr><td class="km-empty" style="font-size:11.5px;color:#8b95a1;padding:8px 2px">불러오는 중…</td></tr></tbody></table>
@@ -371,8 +384,30 @@
       if(laps) laps.textContent=(ls.laps_today!=null?ls.laps_today:0);
       if(avg) avg.innerHTML='⏱ 평균 1바퀴 <b>'+(ls.avg_lap_minutes!=null?ls.avg_lap_minutes+'분':'–')+'</b>';
       renderBars(ls.recent_lap_minutes);
+      _lastLaps=ls.today_laps||[]; renderLapLog();
     }).catch(function(){});
   }
+  // ── 차수별 완료 시각 (A안 리스트 + 펼치기/접기) ──
+  var _lastLaps=[], _lapsExpanded=false;
+  function _kstLap(iso){   // ISO(naive UTC) → "26.07.07. 06:10" (브라우저 로컬=KST)
+    if(!iso) return '';
+    var s=/[Zz]|[+-]\d\d:?\d\d$/.test(iso)?iso:iso+'Z';
+    var t=new Date(s); if(isNaN(t.getTime())) return '';
+    var p=function(n){return ('0'+n).slice(-2);};
+    return p(t.getFullYear()%100)+'.'+p(t.getMonth()+1)+'.'+p(t.getDate())+'. '+p(t.getHours())+':'+p(t.getMinutes());
+  }
+  function renderLapLog(){
+    var sec=document.getElementById('czlog'), list=document.getElementById('czlog-list'), tg=document.getElementById('czlog-tg');
+    if(!sec||!list) return;
+    var laps=_lastLaps||[];
+    if(!laps.length){ sec.style.display='none'; return; }
+    sec.style.display='';
+    var rev=laps.slice().reverse();              // 최신 회차 먼저
+    var show=_lapsExpanded?rev:rev.slice(0,3);   // 접힘=최근 3
+    list.innerHTML=show.map(function(x){ return '<div class="czlog-row"><span class="czlog-rc">'+x.no+'회차</span><span class="czlog-tm">'+_kstLap(x.at)+'</span></div>'; }).join('');
+    if(tg){ if(laps.length>3){ tg.style.display=''; tg.textContent=_lapsExpanded?'접기 ▴':('펼치기 ▾ ('+laps.length+')'); } else { tg.style.display='none'; } }
+  }
+  (function(){ var tg=document.getElementById('czlog-tg'); if(tg) tg.addEventListener('click',function(){ _lapsExpanded=!_lapsExpanded; renderLapLog(); }); })();
   function _extState(){ try{ return (window.MoumExt&&MoumExt.getCrawlState&&MoumExt.getCrawlState())||{}; }catch(e){ return {}; } }
   // 링 % = 오직 위젯(crawl_log)의 __moumOverall 값 — 같은 페이지·같은 계산 → 위젯과 항상 일치.
   //   ★서버 랩 진행률(65/74=89% 잔값)은 절대 안 씀(그게 위젯과 안 맞던 원인). fresh 없으면 0%.

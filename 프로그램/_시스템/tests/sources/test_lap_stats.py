@@ -49,6 +49,19 @@ def test_lap_stats_avg_and_recent_durations(db):
     assert st["avg_lap_minutes"] == 43           # (30+40+60)/3 = 43.33 → 43
 
 
+def test_lap_stats_today_laps_list(db):
+    """차수별 완료 시각 목록(회차 no + ISO at) — A안 리스트가 읽음."""
+    now = datetime(2026, 7, 7, 5, 0, 0)          # KST 14:00 July7
+    base = datetime(2026, 7, 6, 15, 0, 0)        # July7 00:00 KST = July6 15:00 UTC
+    for m in (10, 25, 41):
+        db.add(CrawlLapRun(completed_at=base + timedelta(minutes=m)))
+    db.flush()
+    tl = lap_stats(db, now=now)["today_laps"]
+    assert len(tl) == 3
+    assert tl[0]["no"] == 1 and tl[0]["at"] == "2026-07-06T15:10:00"
+    assert tl[2]["no"] == 3 and tl[2]["at"] == "2026-07-06T15:41:00"
+
+
 def test_lap_stats_empty_when_no_runs(db):
     now = datetime(2026, 7, 6, 5, 0, 0)
     st = lap_stats(db, now=now)

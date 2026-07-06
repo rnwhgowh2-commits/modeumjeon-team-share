@@ -274,11 +274,14 @@ def lap_stats(session, *, now, tz_offset_hours: int = _KST_OFFSET_H) -> dict:
     diffs = [round((times[i] - times[i - 1]).total_seconds() / 60)
              for i in range(1, len(times))]
     avg = round(sum(diffs) / len(diffs)) if diffs else None
+    # 차수별 완료 시각(회차 no=오늘 n번째 + ISO naive UTC). 최근 50 (화면은 접기/펼치기).
+    today_laps = [{"no": i + 1, "at": t.isoformat()} for i, t in enumerate(times)][-50:]
     return {
         "laps_today": len(times),
         "current_lap_no": len(times) + 1,
         "avg_lap_minutes": avg,
         "recent_lap_minutes": diffs[-12:],
+        "today_laps": today_laps,
     }
 
 
