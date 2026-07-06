@@ -19,9 +19,18 @@ def _render(tab, live_enabled=False):
     ]))
     cfg = om.TAB_CONFIG.get(tab)
     rows = [] if (live_enabled or not cfg) else cfg["rows"]
+    export_markets = ["smartstore"] if tab == "list" else []
     return env.get_template("orders/index.html").render(
         tab=tab, subtabs=om.SUBTABS, active="orders_" + tab,
-        cfg=cfg, live_enabled=live_enabled, rows=rows)
+        cfg=cfg, live_enabled=live_enabled, rows=rows,
+        export_markets=export_markets)
+
+
+def _client():
+    app = Flask(__name__, template_folder="webapp/templates",
+                root_path=pathlib.Path(om.__file__).parents[2].as_posix())
+    app.register_blueprint(om.bp)
+    return app.test_client()
 
 
 def test_extra_gate_default_off(monkeypatch):
@@ -71,3 +80,26 @@ def test_routes_registered():
     app.register_blueprint(om.bp)
     rules = {r.rule for r in app.url_map.iter_rules()}
     assert "/orders/" in rules
+    assert "/orders/export.xlsx" in rules
+
+
+def test_list_has_export_button_and_settle_column():
+    html = _render("list")
+    assert "엑셀 내보내기" in html          # 다운로드 버튼
+    assert "정산예정금액" in html            # 표에 정산 열
+    assert "최근 7일" in html                # 기간 프리셋 칩
+
+
+def test_export_downloads_xlsx_for_smartstore(monkeypatch):
+    monkeypatch.setattr(om._oe, "order_rows",
+                        lambda market, days=7, **k: [{"상품명": "코트", "정산예정금액": 100}])
+    r = _client().get("/orders/export.xlsx?market=smartstore&days=7")
+    assert r.status_code == 200
+    assert "spreadsheetml" in r.headers["Content-Type"]
+    assert r.data[:2] == b"PK"                # xlsx(zip) 바이트
+
+
+def test_export_rejects_unsupported_market():
+    # order_rows 가 ValueError → 400 (추측 데이터 안 만듦)
+    r = _client().get("/orders/export.xlsx?market=lotteon&days=7")
+    assert r.status_code == 400
