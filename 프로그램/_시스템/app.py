@@ -91,6 +91,8 @@ def create_app() -> Flask:
     import lemouton.mapping.models  # noqa: F401
     # v34.11 — brand 색 DB 영속화 (Fly.io 멀티 인스턴스 + deploy reset 문제 해결)
     import webapp.icon_store_model  # noqa: F401
+    # 우리 서버 IP 명부 (팀 공유) — 신규 테이블, create_all 자동 생성
+    import webapp.server_ip_model  # noqa: F401
 
     init_db()
 
