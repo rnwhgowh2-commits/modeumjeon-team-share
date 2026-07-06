@@ -1039,6 +1039,13 @@
     // [2026-07-06] 자동화 왼쪽 링이 위젯과 '똑같은 값'을 쓰도록 전역 노출(같은 페이지·같은 계산).
     //   서버 랩 진행률(별도 경로)로 흉내내던 불일치를 근본 제거. active=크롤 중.
     try { window.__moumOverall = { done: prog.done, total: prog.total, pct: prog.pct, active: active, ts: Date.now() }; } catch (_) {}
+    // [2026-07-06] 한 패스(전체 URL 1회) 완료 → 서버에 통보(오늘 바퀴 +1). 패스당 1회(엣지),
+    //   다탭 중복은 서버가 디듀프. 확장 재로드 없이 페이지에서 바퀴 집계.
+    try {
+      if (b && prog.total > 0 && (prog.pct >= 100 || b.status === 'done')) {
+        if (!b.__passPosted) { b.__passPosted = true; fetch('/api/crawl/pass-done', { method: 'POST' }).catch(function () {}); }
+      } else if (b && prog.pct < 100 && b.status !== 'done') { b.__passPosted = false; }
+    } catch (_) {}
     safeText(document.getElementById('mcl-overall-cnt'), prog.done + ' / ' + (prog.total || prog.done));
     setWidth(document.getElementById('mcl-overall-fill'), prog.pct);
     // [2026-06-19 R2] 전체 진행률 도넛

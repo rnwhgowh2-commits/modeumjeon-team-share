@@ -68,11 +68,19 @@ def crawl_pass_done():
     """확장이 '한 크롤 패스(전체 URL 1회) 완료'를 통보 → 오늘 바퀴 +1 기록 + 카운터 리셋.
 
     한 바퀴 완료 판정의 authoritative 신호. 서버가 완료를 추측(over-serve 등)하면 가짜 바퀴가
-    생기므로, 실제 크롤을 끝낸 확장만이 이 신호를 보낸다(runQueueBG 큐 소진 시).
+    생기므로, 실제 크롤을 끝낸 쪽(확장 runQueueBG 소진 / 페이지 crawl_log 100%)이 보낸다.
+    다탭·재렌더로 여러 번 와도 최근 20초 내 완료가 있으면 무시(디듀프).
     """
     from lemouton.sources.crawl_schedule import start_new_lap
+    from lemouton.sources.models import CrawlLapRun
+    from datetime import datetime, timedelta
     s = SessionLocal()
     try:
+        recent = (s.query(CrawlLapRun)
+                  .filter(CrawlLapRun.completed_at >= datetime.utcnow() - timedelta(seconds=20))
+                  .first())
+        if recent is not None:
+            return jsonify({"ok": True, "deduped": True})
         n = start_new_lap(s)   # record=True → CrawlLapRun 기록 + crawl_lap_count 리셋
         s.commit()
         return jsonify({"ok": True, "reset": n})
