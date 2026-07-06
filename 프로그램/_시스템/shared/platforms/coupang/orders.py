@@ -45,16 +45,16 @@ def fetch_orders(since: datetime, until: datetime,
     # 전역 COUPANG_VENDOR_ID 는 비어있음. config 없으면 전역 env 폴백.
     vid = (getattr(client, "_cfg", {}) or {}).get("vendor_id") or _vendor_id()
     path = f"/v2/providers/openapi/apis/api/v5/vendors/{vid}/ordersheets"
-    params = {
-        "createdAtFrom": since.strftime("%Y-%m-%dT%H:%M:%S"),
-        "createdAtTo":   until.strftime("%Y-%m-%dT%H:%M:%S"),
-        "maxPerPage":    max_per_page,
-    }
+    # CoupangClient.request 는 query 를 '문자열'로 받아 HMAC 서명에 그대로 쓴다
+    # (settlements.py 동일 패턴). dict 를 넘기면 서명 단계에서 lstrip 크래시.
+    q = (f"createdAtFrom={since.strftime('%Y-%m-%dT%H:%M:%S')}"
+         f"&createdAtTo={until.strftime('%Y-%m-%dT%H:%M:%S')}"
+         f"&maxPerPage={max_per_page}")
     if status:
-        params["status"] = status
+        q += f"&status={status}"
     if next_token:
-        params["nextToken"] = next_token
-    return client.request("GET", path, query=params)
+        q += f"&nextToken={next_token}"
+    return client.request("GET", path, query=q)
 
 
 def fetch_order_detail(order_sheet_id: str,
