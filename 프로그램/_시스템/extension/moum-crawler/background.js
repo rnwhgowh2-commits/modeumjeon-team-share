@@ -12,7 +12,7 @@
 
 // [2026-07-05 병합] 리포 확장은 stale(실제 로드=Desktop moum-crawler-v0.7.14, 별도 동기화 예정).
 // 두 갈래 0.7.6 병합: 자동화 워커(due-bundles 폴링→기존 크롤 큐 위임) + 무신사 상품쿠폰 전량수집.
-const MOUM_EXT_VERSION = "0.7.6";  // 0.7.6 = 자동화 워커 폴링 + 무신사 상품쿠폰(product_coupon_list) 전량수집 API우선+DOM폴백. 0.7.5 = manifest 버전동기화. 0.7.4 = content_mou 백그라운드 로그 중계. 0.7.3 = 현대H몰 sellGbcd 품절판정(S19). 0.6.x: 백그라운드 크롤 상태 영속+SW 자동재개
+const MOUM_EXT_VERSION = "0.7.17";  // 0.7.17 = 실시간 집계(agg done/total) 브로드캐스트 → 자동화 링이 위젯과 동일. 0.7.16 = 상세 전체크롤 최우선. 0.7.6 = 자동화 워커 폴링 + 무신사 상품쿠폰(product_coupon_list) 전량수집 API우선+DOM폴백. 0.7.5 = manifest 버전동기화. 0.7.4 = content_mou 백그라운드 로그 중계. 0.7.3 = 현대H몰 sellGbcd 품절판정(S19). 0.6.x: 백그라운드 크롤 상태 영속+SW 자동재개
 
 // cascade 위치 시퀀서 — 창이 여러 개 열려도 서로 어긋나 보임
 let _winSeq = 0;
@@ -940,10 +940,25 @@ function _baseGlobs() {
   if (/localhost|127\.0\.0\.1/.test(o)) return [o + "/*"];
   return MOUM_TAB_GLOBS;
 }
+// [2026-07-06 v0.7.17] 실시간 집계(done/total) — 위젯(crawl_log)의 bundleProgress 와 동일식으로
+//   모든 모음전 view 를 합산. bgEmit 이 매 이벤트에 실어 보내면 자동화 페이지 링이 위젯과 똑같이 오름.
+function _aggProgress() {
+  let done = 0, total = 0;
+  for (const c in _mgr.view) {
+    const b = _mgr.view[c]; total += (b.total || 0);
+    const src = b.sources || {}; const keys = Object.keys(src);
+    const urlKeys = keys.filter((k) => k.indexOf("|") >= 0);
+    const use = urlKeys.length ? urlKeys : keys.filter((k) => k.indexOf("|") < 0);
+    let ss = 0; for (const sk of use) ss += (src[sk] && src[sk].done) || 0;
+    done += Math.max(ss, b.done || 0);
+  }
+  return { done: done, total: total };
+}
 function bgEmit(detail) {
   detail = detail || {};
   if (detail.ts == null) detail.ts = Date.now();
   try { bgUpdateView(detail); } catch (_) {}
+  try { detail.agg = _aggProgress(); } catch (_) {}   // 자동화 링용 실시간 집계
   try {
     chrome.tabs.query({ url: _baseGlobs() }, (tabs) => {
       if (!tabs) return;

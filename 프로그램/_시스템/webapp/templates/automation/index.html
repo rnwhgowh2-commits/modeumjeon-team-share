@@ -368,25 +368,35 @@
       var lp=(d&&d.lap_progress)||{}, ls=(d&&d.lap_stats)||{};
       _lapPct=lp.pct||0;
       var on=!!st.crawl_auto_enabled;
-      var ring=document.getElementById('cz-ring'), pct=document.getElementById('cz-pct'),
-          laps=document.getElementById('cz-laps'), avg=document.getElementById('cz-avg');
-      // 링 % = 서버 랩 진행률(크롤 결과가 저장될 때마다 오름). 항상 갱신(1.5초 폴링).
-      if(ring) ring.style.setProperty('--p',(on?_lapPct:0)+'%');
-      if(pct) pct.textContent=on?(_lapPct+'%'):'0%';
+      var laps=document.getElementById('cz-laps'), avg=document.getElementById('cz-avg');
       if(laps) laps.textContent=(ls.laps_today!=null?ls.laps_today:0);
       if(avg) avg.innerHTML='⏱ 평균 1바퀴 <b>'+(ls.avg_lap_minutes!=null?ls.avg_lap_minutes+'분':'–')+'</b>';
       renderBars(ls.recent_lap_minutes);
+      // 링 % = 확장 실시간 진행이 있으면 그걸(위젯과 동일), 없으면 서버 랩 진행률(폴백).
+      if(!_extRingActive()){
+        var ring=document.getElementById('cz-ring'), pct=document.getElementById('cz-pct');
+        if(ring) ring.style.setProperty('--p',(on?_lapPct:0)+'%');
+        if(pct) pct.textContent=on?(_lapPct+'%'):'0%';
+      }
     }).catch(function(){});
   }
+  // 확장 실시간 진행량(agg done/total) — 크롤 중 + 값 있으면 링을 이걸로(위젯과 동일).
+  function _extState(){ try{ return (window.MoumExt&&MoumExt.getCrawlState&&MoumExt.getCrawlState())||{}; }catch(e){ return {}; } }
+  function _extProgress(){ var s=_extState(); return s.progress||null; }
+  function _extRunning(){ return !!_extState().running; }
+  function _extRingActive(){ var p=_extProgress(); return _extRunning() && p && (+p.total>0); }
   function paintRun(){
-    var s=(window.MoumExt&&MoumExt.getCrawlState&&MoumExt.getCrawlState())||{};
-    var running=!!(s&&s.running);
+    var s=_extState();
+    var running=!!s.running;
     var card=document.getElementById('crawl-card'); if(card) card.classList.toggle('is-running',running);
     var rs=document.getElementById('runsec'); if(rs) rs.classList.toggle('on',running);
-    var ring=document.getElementById('cz-ring'), feed=document.getElementById('cz-feed');
+    var ring=document.getElementById('cz-ring'), feed=document.getElementById('cz-feed'), pct=document.getElementById('cz-pct');
     if(!ring) return;
-    // 링 %는 pollLap(서버)이 소유. 여기선 회전(실크롤 중)·로그만.
     if(running){
+      // 링 = 확장 실시간 진행(위젯과 동일 done/total), 1초마다. 값 없으면(구버전 확장) 서버값 유지.
+      var p=s.progress;
+      if(p && +p.total>0){ var pc=Math.min(100,Math.round(+p.done / +p.total*100));
+        ring.style.setProperty('--p',pc+'%'); if(pct) pct.textContent=pc+'%'; }
       if(feed) feed.innerHTML='<span class="r">↻</span> '+(s.running||'')+' 긁는 중…';
       ring.classList.add('spin');
     } else {

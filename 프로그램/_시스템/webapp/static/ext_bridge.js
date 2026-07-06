@@ -8,7 +8,9 @@
   let _seq = 0;
 
   // 백그라운드 큐 상태 캐시 (getCrawlState 동기 응답용)
-  var _bgCache = { running: null, paused: false, queue: [] };
+  //   progress = 확장 실시간 집계(done/total) — 자동화 링이 위젯과 동일하게 움직이도록.
+  //   확장 0.7.17+ 가 모든 크롤 이벤트에 detail.agg 를 실어 보냄(구버전이면 없음 → 링은 서버 폴백).
+  var _bgCache = { running: null, paused: false, queue: [], progress: { done: 0, total: 0 } };
 
   window.addEventListener("message", (ev) => {
     if (ev.source !== window) return;
@@ -27,7 +29,10 @@
         _bgCache.running = det.running || null;
         _bgCache.paused = !!det.paused;
         _bgCache.queue = (det.queue || []).filter(function(q) { return q.status === "wait"; }).map(function(q) { return q.code; });
+        if (!det.running) _bgCache.progress = { done: 0, total: 0 };   // 크롤 끝 = 진행 초기화
       }
+      // 확장 0.7.17+ 실시간 집계 — 모든 이벤트에 실려옴. 링이 위젯과 동일하게 오름.
+      if (det.agg && det.agg.total != null) _bgCache.progress = { done: +det.agg.done || 0, total: +det.agg.total || 0 };
       try { window.dispatchEvent(new CustomEvent("moum-crawl-log", { detail: det })); } catch (_) {}
     }
   });
