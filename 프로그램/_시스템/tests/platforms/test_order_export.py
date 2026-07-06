@@ -42,9 +42,9 @@ def test_smartstore_rows_map_and_join(monkeypatch):
 
 
 def test_order_rows_rejects_unsupported():
-    for mk in ("coupang", "lotteon", "eleven11"):
+    for mk in ("coupang", "eleven11", "gmarket"):
         with pytest.raises(ValueError):
-            oe.order_rows(mk, days=7)          # 추측 데이터 안 만듦
+            oe.order_rows(mk, days=7)          # UI 미노출 마켓 — 추측 데이터 안 만듦
 
 
 def test_rows_to_xlsx_has_header_and_row():
@@ -57,8 +57,8 @@ def test_rows_to_xlsx_has_header_and_row():
     assert ws[2][1].value == "코트"             # 상품명 열
 
 
-def test_supported_is_smartstore_only():
-    assert oe.SUPPORTED == {"smartstore"}       # 정직: UI 노출은 검증된 것만
+def test_supported_markets():
+    assert oe.SUPPORTED == {"smartstore", "lotteon"}   # UI 엑셀버튼 노출(코드 준비)
 
 
 class FakeLotteonClient:
@@ -83,6 +83,6 @@ def test_lotteon_rows_map_from_delivery_orders():
     assert r["쇼핑몰"] == "롯데온"
 
 
-def test_lotteon_in_builders_not_yet_supported():
-    assert "lotteon" in oe._BUILDERS           # 코드 준비됨
-    assert "lotteon" not in oe.SUPPORTED        # 키/검증 전까진 UI 미노출(정직)
+def test_lotteon_ready_in_builders_and_supported():
+    assert "lotteon" in oe._BUILDERS and "lotteon" in oe.SUPPORTED   # 코드+UI 노출
+    assert oe._ENV_PREFIX["lotteon"] == "LOTTEON_MAIN"               # 실키 로드용 prefix

@@ -19,7 +19,10 @@ HEADER = ["주문일", "상품명", "옵션", "수량", "주소", "", "우편번
           "배송메시지", "구매자", "수령자전화번호", "구매자번호", "쇼핑몰",
           "쇼핑몰ID", "단가", "정산예정금액"]
 
-SUPPORTED = {"smartstore"}   # 실제 뽑기 가능한 마켓(코드+검증). 늘어나면 여기에 추가.
+SUPPORTED = {"smartstore", "lotteon"}   # UI 엑셀버튼 노출(코드 준비). 실키=서버 UI저장.
+# 마켓 → 계정 시크릿 env_prefix(판매처 계정 기본). load_credentials 로 실키 로드.
+_ENV_PREFIX = {"smartstore": "SMARTSTORE_MAIN", "coupang": "COUPANG_MAIN",
+               "lotteon": "LOTTEON_MAIN"}
 
 
 def _g(o, *keys, default=""):
@@ -134,17 +137,40 @@ def lotteon_order_rows(since: _dt.datetime, until: _dt.datetime,
 _BUILDERS = {"smartstore": smartstore_order_rows, "lotteon": lotteon_order_rows}
 
 
+def _account_client(market: str):
+    """서버 UI(판매처 계정)에 저장된 실키로 마켓 클라이언트 생성.
+
+    핵심: 마켓 config dict 는 import 시 env 를 한 번만 읽어(모듈 전역) UI 저장 키를
+    못 본다. market_fetch 의 빌더가 refresh_env()+load_credentials 로 최신 시크릿을
+    설정에 주입한다(멀티워커 불일치 해소, 롯데온 선례). 키 없으면 None → 기본 클라 폴백.
+    """
+    prefix = _ENV_PREFIX.get(market)
+    if not prefix:
+        return None
+    try:
+        from lemouton.auth import secrets as S
+        S.refresh_env()
+        from lemouton.uploader import market_fetch as _mf
+        builder = {"smartstore": _mf._smartstore_client,
+                   "coupang": _mf._coupang_client,
+                   "lotteon": _mf._lotteon_client}.get(market)
+        return builder(prefix) if builder else None
+    except Exception:
+        return None   # 키 미설정 등 → row builder 가 기본 클라(app.env)로 폴백
+
+
 def order_rows(market: str, days: int = 7, client=None,
                now: Optional[_dt.datetime] = None) -> list:
     """마켓별 최근 days일 주문 행. 미지원(UI) 마켓은 ValueError(추측 데이터 안 만듦).
 
-    SUPPORTED 만 UI(엑셀 버튼)에 노출. _BUILDERS 에 있으나 SUPPORTED 아닌 마켓
-    (예: 롯데온 — 코드 준비됨·키/검증 대기)은 서버/검증용으로 allow_unverified=True 시만.
+    client 미지정 시 서버 UI 저장 실키로 계정 클라이언트를 만들어 사용.
     """
     if market not in SUPPORTED:
         raise ValueError(f"'{market}' 주문 엑셀 미지원(UI) — 코드/키/검증 필요")
     until = now or _dt.datetime.now(KST)
     since = until - _dt.timedelta(days=days)
+    if client is None:
+        client = _account_client(market)
     return _BUILDERS[market](since, until, client=client)
 
 
