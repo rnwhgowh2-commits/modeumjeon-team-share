@@ -81,7 +81,8 @@
   .frow{display:flex;align-items:center;gap:10px;padding:7px 2px;border-top:1px solid #f5f6f8;font-size:12px;}
   .frow .fopt{font-weight:600;white-space:nowrap;}
   .frow .furl{color:#8b95a1;font-family:ui-monospace,monospace;font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;min-width:0;}
-  .frow .ftg{margin-left:auto;border-radius:6px;padding:1px 7px;font-size:11px;font-weight:700;white-space:nowrap;}
+  .frow .ftime{color:#8b95a1;font-size:11px;white-space:nowrap;font-variant-numeric:tabular-nums;opacity:.85;}
+  .frow .ftg{border-radius:6px;padding:1px 7px;font-size:11px;font-weight:700;white-space:nowrap;}
   .ftg.t-etc{background:#F2F4F6;color:#4e5968;} .ftg.t-block{background:#FFECEC;color:#C92A2A;}
   .ftg.t-login{background:#FFF3BF;color:#8a6d00;} .ftg.t-parse{background:#E7F5FF;color:#1971C2;} .ftg.t-network{background:#FFF4E6;color:#E8590C;}
   .fbadge{background:#fdecec;color:#e03a3e;font-size:10px;font-weight:700;padding:1px 7px;border-radius:9px;font-variant-numeric:tabular-nums;}
@@ -304,6 +305,20 @@
   function _esc(s){ return (s==null?'':String(s)).replace(/[&<>"]/g,function(m){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m];}); }
   function _dec(s){ try{ return decodeURIComponent(s); }catch(e){ return s; } }
   function _shortUrl(u){ try{ var x=new URL(u); var t=_dec(x.pathname+x.search); return _esc(x.hostname.replace(/^www\./,'')+(t.length>26?'…'+t.slice(-24):t)); }catch(e){ u=_esc(_dec(u)); return u.length>36?'…'+u.slice(-34):u; } }
+  // 에러 발견 시각 → 상대시간(방금~N년 전). last_fetched_at 은 naive UTC → Z 붙여 파싱.
+  function _relTime(iso){
+    if(!iso) return '';
+    var s=/[Zz]|[+-]\d\d:?\d\d$/.test(iso)?iso:iso+'Z';
+    var t=new Date(s); if(isNaN(t.getTime())) return '';
+    var sec=Math.floor((Date.now()-t.getTime())/1000); if(sec<0) sec=0;
+    if(sec<60) return '방금';
+    var m=Math.floor(sec/60); if(m<60) return m+'분 전';
+    var h=Math.floor(m/60);   if(h<24) return h+'시간 전';
+    var d=Math.floor(h/24);   if(d===1) return '어제'; if(d<7) return d+'일 전';
+    var w=Math.floor(d/7);    if(w<5) return w+'주 전';
+    var mo=Math.floor(d/30);  if(mo<12) return mo+'개월 전';
+    return Math.floor(d/365)+'년 전';
+  }
   function renderFailures(){
     fetch('/api/crawl/failures').then(function(r){return r.json();}).then(function(d){
       var groups=(d&&d.groups)||[];
@@ -316,14 +331,16 @@
       groups.forEach(function(g){ (g.items||[]).forEach(function(it){
         var k=it.site||'?';
         var s=bySite[k]||(bySite[k]={label:it.site_label||it.site||'?', items:[]});
-        s.items.push({br:it.brand, opt:it.option_scope, url:it.url, tl:g.label, em:g.emoji, tc:g.type});
+        s.items.push({br:it.brand, opt:it.option_scope, url:it.url, tl:g.label, em:g.emoji, tc:g.type, at:it.detected_at});
       }); });
       acc.innerHTML=Object.keys(bySite).map(function(k){
         var s=bySite[k];
         var brands=Array.from(new Set(s.items.map(function(x){return x.br;}).filter(Boolean)));
         var rows=s.items.map(function(it){
+          var rel=_relTime(it.at);
           return '<div class="frow"><span class="fopt">'+_esc(it.opt||'')+'</span>'+
             '<span class="furl">'+_shortUrl(it.url)+'</span>'+
+            (rel?'<span class="ftime">🕐 '+rel+'</span>':'')+
             '<span class="ftg t-'+_esc(it.tc)+'">'+_esc(it.em+' '+it.tl)+'</span></div>';
         }).join('');
         return '<div class="facc open"><button class="facc-h" type="button">'+

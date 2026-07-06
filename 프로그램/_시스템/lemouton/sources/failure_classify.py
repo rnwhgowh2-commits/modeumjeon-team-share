@@ -108,6 +108,8 @@ def list_crawl_failures(session) -> list:
             "url_type": meta["url_type"],
             "url": sp.url,
             "error": sp.last_error_msg,
+            # 에러 발견 시각 = 마지막 크롤 시점(A안 상대시간). naive UTC ISO.
+            "detected_at": sp.last_fetched_at.isoformat() if sp.last_fetched_at else None,
         })
     order = list(FAILURE_TYPES.keys())
     return sorted(groups.values(), key=lambda g: order.index(g["type"]))

@@ -40,6 +40,17 @@ def test_failure_item_has_brand_site_label_option_scope(db):
     assert it["option_scope"] == "블랙 · 265~270"   # 단일 색 · 사이즈 범위
 
 
+def test_failure_item_has_detected_at(db):
+    """에러 발견 시각(A안 상대시간) = last_fetched_at ISO 로 노출."""
+    from datetime import datetime
+    sp = _fail(db, site="musinsa", url="https://m.com/p/9", err="옵션 없음",
+               model_code="MT", brand="르무통", url_type="단품", opts=[("블랙", "260")])
+    sp.last_fetched_at = datetime(2026, 7, 6, 0, 40, 0)
+    db.flush()
+    it = _find(list_crawl_failures(db), sp.id)
+    assert it["detected_at"] == "2026-07-06T00:40:00"
+
+
 def test_option_scope_multi_color(db):
     sp = _fail(db, site="ssf", url="https://s.com/p/2", err="타임아웃",
                model_code="SS", brand="르무통", url_type="색상모음전",
