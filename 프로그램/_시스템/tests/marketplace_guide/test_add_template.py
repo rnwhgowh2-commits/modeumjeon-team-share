@@ -49,6 +49,9 @@ def test_prompt_generator_present():
     assert "데이터 코드 지도" in html          # 공식 API 전수를 지도에 카탈로그화하는 단계
     assert "operationId" in html or "apiNo" in html  # 구분자=공식 API 식별자
     assert "LEMOUTON_LIVE_UPLOAD" in html      # 실송신 전역 잠금
+    assert "완료 기준" in html                  # 배포·라이브 화면 확인까지가 완료(G1)
+    assert "green" in html                     # 기존 테스트 전부 통과 유지(G2)
+    assert "정산" in html and "마진" in html    # 정산(마진 계산용) 엔드포인트 카탈로그(G3)
 
 
 def test_design_tokens():
