@@ -35,6 +35,26 @@
   </div>
 </header>
 
+{# ━━━━━━━━━━ 우리 서버 IP — 마켓 「출발지 IP 등록」칸에 붙여넣을 값 (팀 공유) ━━━━━━━━━━ #}
+<section class="server-ip-card" style="background:#fff;border:1px solid #E5E8EB;border-radius:14px;margin:0 0 18px;overflow:hidden;">
+  <div style="display:flex;align-items:center;gap:9px;padding:13px 18px;border-bottom:1px solid #F2F4F6;">
+    <span style="font-size:17px;">🖥️</span>
+    <b style="font-size:14.5px;color:#191F28;">우리 서버 IP</b>
+    <span style="margin-left:auto;color:#6B7684;font-size:12px;">마켓 「출발지 IP 등록」칸에 붙여넣을 값</span>
+  </div>
+  <div id="server-ip-list" style="padding:2px 10px;">
+    <div style="padding:16px 8px;color:#6B7684;font-size:13px;">불러오는 중…</div>
+  </div>
+  <div style="display:flex;gap:8px;padding:11px 14px;background:#F9FAFB;border-top:1px solid #F2F4F6;">
+    <input id="sip-name" placeholder="서버 이름 (예: 업로드 서버)"
+      style="flex:1.1;border:1px solid #E5E8EB;border-radius:8px;padding:8px 11px;font-size:12.5px;">
+    <input id="sip-ip" placeholder="IP 주소" onkeydown="if(event.key==='Enter')sipAdd()"
+      style="flex:1.4;border:1px solid #E5E8EB;border-radius:8px;padding:8px 11px;font-size:12.5px;font-family:ui-monospace,SFMono-Regular,Consolas,monospace;">
+    <button type="button" onclick="sipAdd()"
+      style="border:1px solid #3182F6;background:#3182F6;color:#fff;border-radius:8px;padding:8px 16px;font-size:12.5px;font-weight:700;cursor:pointer;white-space:nowrap;">+ 추가</button>
+  </div>
+</section>
+
 {# ━━━━━━━━━━ V1 사이드바 + 우측 테이블 레이아웃 ━━━━━━━━━━ #}
 <section class="up-shell">
 
@@ -1207,5 +1227,61 @@ document.addEventListener('keydown', (e) => {
     closeV2Modal();
   }
 });
+
+// ━━━━━━━━━━ 우리 서버 IP (디자인5 미니멀 리스트) ━━━━━━━━━━
+const SIP_API = '/accounts/api/server-ips';
+function sipEsc(s){return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+function sipCopy(ip){
+  const done = () => showToast('📋 ' + ip + ' 복사됨', 'success');
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(ip).then(done, () => { sipCopyFallback(ip); done(); });
+  } else { sipCopyFallback(ip); done(); }
+}
+function sipCopyFallback(ip){
+  const a = document.createElement('textarea'); a.value = ip;
+  document.body.appendChild(a); a.select();
+  try { document.execCommand('copy'); } catch(e){} a.remove();
+}
+function sipRender(items){
+  const box = document.getElementById('server-ip-list');
+  if (!box) return;
+  if (!items.length){
+    box.innerHTML = '<div style="padding:16px 8px;color:#6B7684;font-size:13px;">아직 없어요 — 아래에서 이름과 IP를 추가하세요.</div>';
+    return;
+  }
+  box.innerHTML = items.map(it => `
+    <div style="display:flex;align-items:center;gap:12px;padding:11px 8px;border-bottom:1px solid #F2F4F6;">
+      <span style="font-size:15px;">🖥️</span>
+      <span style="min-width:112px;font-weight:600;font-size:13px;color:#191F28;">${sipEsc(it.name) || '<span style=\'color:#98A2B3\'>이름 없음</span>'}</span>
+      <span style="flex:1;font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-weight:600;font-size:14px;font-variant-numeric:tabular-nums;letter-spacing:.01em;color:#191F28;">${sipEsc(it.ip)}</span>
+      <button type="button" onclick="sipCopy('${sipEsc(it.ip)}')" title="복사"
+        style="border:1px solid #E5E8EB;background:#fff;color:#3182F6;border-radius:8px;padding:6px 12px;font-size:12.5px;font-weight:700;cursor:pointer;white-space:nowrap;">📋 복사</button>
+      <button type="button" onclick="sipDelete(${it.id})" title="삭제"
+        style="border:none;background:transparent;font-size:14px;cursor:pointer;padding:4px;">🗑</button>
+    </div>`).join('');
+}
+function sipLoad(){
+  fetch(SIP_API).then(r=>r.json()).then(d=>{ if(d.ok) sipRender(d.items); })
+    .catch(()=>{ const b=document.getElementById('server-ip-list'); if(b) b.innerHTML='<div style="padding:16px 8px;color:#DC2626;font-size:13px;">목록을 불러오지 못했어요.</div>'; });
+}
+function sipAdd(){
+  const n = document.getElementById('sip-name'), p = document.getElementById('sip-ip');
+  const ip = (p.value||'').trim();
+  if (!ip){ p.style.borderColor = '#DC2626'; p.focus(); return; }
+  p.style.borderColor = '#E5E8EB';
+  fetch(SIP_API, {method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({name:(n.value||'').trim(), ip})})
+    .then(r=>r.json()).then(d=>{
+      if(!d.ok){ showToast(d.error || '추가 실패', 'error'); return; }
+      n.value=''; p.value=''; n.focus(); sipLoad();
+      showToast('서버 IP 추가됨', 'success');
+    }).catch(()=>showToast('네트워크 오류', 'error'));
+}
+function sipDelete(id){
+  fetch(SIP_API + '/' + id, {method:'DELETE'}).then(r=>r.json()).then(d=>{
+    if(d.ok){ sipLoad(); } else { showToast(d.error || '삭제 실패', 'error'); }
+  }).catch(()=>showToast('네트워크 오류', 'error'));
+}
+sipLoad();
 </script>
 {% endblock %}

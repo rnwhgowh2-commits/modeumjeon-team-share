@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import logging
 import os
+import re
 
 from flask import Blueprint, jsonify, render_template, request
 
@@ -614,6 +615,79 @@ def list_markets():
     # 사용자 지정 우선순위: 쿠팡 > 스스 > 롯데온 > 11번가 > 옥션 > G마켓 > 기타
     markets.sort(key=lambda m: MARKET_METADATA.get(m["key"], {}).get("sort_order", 999))
     return jsonify({"ok": True, "markets": markets})
+
+
+# ──────────────────────────────────────────────────────────
+#  우리 서버 IP 명부 — 마켓 "출발지 IP 등록"칸에 붙여넣을 값 (팀 공유)
+# ──────────────────────────────────────────────────────────
+
+# 첫 조회 시 목록이 비어 있으면 넣어주는 기본값(업로드 서버).
+_DEFAULT_SERVER_IPS = [("업로드 서버", "54.116.196.90")]
+_IP_RE = re.compile(r"^[0-9A-Fa-f:.]+$")
+
+
+def _seed_server_ips_if_empty(s) -> None:
+    from webapp.server_ip_model import ServerIp
+    if s.query(ServerIp).count() == 0:
+        for i, (name, ip) in enumerate(_DEFAULT_SERVER_IPS):
+            s.add(ServerIp(name=name, ip=ip, sort_order=i))
+        s.commit()
+
+
+@bp.route("/api/server-ips", methods=["GET"])
+def list_server_ips():
+    """우리 서버 IP 목록. 비어 있으면 기본(업로드 서버)을 시드 후 반환."""
+    from webapp.server_ip_model import ServerIp
+    s = SessionLocal()
+    try:
+        _seed_server_ips_if_empty(s)
+        rows = s.query(ServerIp).order_by(ServerIp.sort_order, ServerIp.id).all()
+        return jsonify({"ok": True, "items": [r.to_dict() for r in rows]})
+    finally:
+        s.close()
+
+
+@bp.route("/api/server-ips", methods=["POST"])
+def add_server_ip():
+    """서버 IP 한 건 추가. Body: {"name": "업로드 서버", "ip": "54.116.196.90"}. 이름은 선택."""
+    from sqlalchemy import func
+    from webapp.server_ip_model import ServerIp
+    body = request.get_json(silent=True) or {}
+    name = (body.get("name") or "").strip()
+    ip = (body.get("ip") or "").strip()
+    if not ip:
+        return jsonify({"ok": False, "error": "IP 주소를 입력하세요"}), 400
+    if len(ip) > 64 or not _IP_RE.match(ip):
+        return jsonify({"ok": False, "error": "IP 형식이 올바르지 않아요 (숫자·점만)"}), 400
+    s = SessionLocal()
+    try:
+        max_order = s.query(func.coalesce(func.max(ServerIp.sort_order), 0)).scalar() or 0
+        row = ServerIp(name=name[:80], ip=ip, sort_order=int(max_order) + 1)
+        s.add(row)
+        s.commit()
+        s.refresh(row)
+        return jsonify({"ok": True, "item": row.to_dict()})
+    except Exception as e:
+        s.rollback()
+        return jsonify({"ok": False, "error": f"저장 실패: {type(e).__name__}: {e}"}), 500
+    finally:
+        s.close()
+
+
+@bp.route("/api/server-ips/<int:ip_id>", methods=["DELETE"])
+def delete_server_ip(ip_id: int):
+    """서버 IP 한 건 삭제."""
+    from webapp.server_ip_model import ServerIp
+    s = SessionLocal()
+    try:
+        row = s.get(ServerIp, ip_id)
+        if row is None:
+            return jsonify({"ok": False, "error": "이미 없는 항목이에요"}), 404
+        s.delete(row)
+        s.commit()
+        return jsonify({"ok": True})
+    finally:
+        s.close()
 
 
 @bp.route("/api/upload/accounts", methods=["POST"])
