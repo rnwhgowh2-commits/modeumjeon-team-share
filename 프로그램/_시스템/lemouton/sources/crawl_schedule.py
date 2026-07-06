@@ -196,6 +196,28 @@ def _lap_products(session) -> list:
     return [p for p in _active_products(session) if normalize_url(p.url) in disp]
 
 
+def _lap_view(session) -> list:
+    """이번 랩에 '실제로 셀' URL만 (p, quota, served). straggler 제외.
+
+    한 바퀴가 100%를 못 찍고 멈추던 근본원인 = 계속 실패하거나(보고 안 됨) 확장이 못 긁는
+    URL이 served=0 에 머물러 랩이 완료 못 함. 그런 URL(아래 둘)을 이번 랩 계산에서 제외한다
+    (크롤은 계속 시도되고 「크롤 실패」 패널엔 그대로 표면화 — 숨기지 않음):
+      ① last_status='error' 이고 아직 못 채움(계속 실패하는 URL)
+      ② 재패스가 일어났는데(다른 URL이 quota 초과 크롤됨) 여전히 한 번도 안 긁힌 straggler
+    아직 안 긁혔지만 정상(status ok/none)인 URL은 남겨 조기완료를 막는다.
+    """
+    prods = _lap_products(session)
+    info = [(p, lap_quota(session, p), int(p.crawl_lap_count or 0), (p.last_status or ""))
+            for p in prods]
+    maxc = max((s for _, _, s, _ in info), default=0)
+    live = []
+    for p, q, s, st in info:
+        if s == 0 and (st == "error" or maxc > q):
+            continue
+        live.append((p, q, s))
+    return live
+
+
 def weighted_due_products(session) -> list:
     """이번 가중 랩에 아직 덜 채운(계수 미달) URL을 '적게 채운 순'으로 반환.
 
@@ -205,20 +227,19 @@ def weighted_due_products(session) -> list:
     from datetime import datetime as _dt
     _MIN = _dt.min
     remaining = []
-    for p in _lap_products(session):
-        quota = lap_quota(session, p)
-        served = int(p.crawl_lap_count or 0)
+    for p, quota, served in _lap_view(session):
         if served < quota:
             remaining.append((served / quota, _as_naive_utc(p.last_fetched_at) or _MIN, p.id, p))
     remaining.sort(key=lambda t: (t[0], t[1], t[2]))
     return [t[3] for t in remaining]
 
 
-def start_new_lap(session, now=None) -> int:
-    """이번 랩 카운터 전부 0으로 리셋(다음 가중 랩 시작) + 완료 1건 기록.
+def start_new_lap(session, now=None, record=True) -> int:
+    """이번 랩 카운터 전부 0으로 리셋(다음 가중 랩 시작) + (record 시) 완료 1건 기록.
 
     가중 한 바퀴가 끝나 새 랩을 시작하는 순간 = 랩 1개 완료 → CrawlLapRun append
-    (자정 이후 개수 = '오늘 몇 바퀴', 간격 = '1바퀴 시간'). 호출자가 commit. 리셋 개수 반환.
+    (자정 이후 개수 = '오늘 몇 바퀴', 간격 = '1바퀴 시간'). record=False 면 리셋만(전부
+    실패해 실제 크롤 0인 경우 spurious 바퀴 방지). 호출자가 commit. 리셋 개수 반환.
     """
     from datetime import datetime as _dt
     from lemouton.sources.models import CrawlLapRun
@@ -227,7 +248,8 @@ def start_new_lap(session, now=None) -> int:
         if int(p.crawl_lap_count or 0) != 0:
             p.crawl_lap_count = 0
         n += 1
-    session.add(CrawlLapRun(completed_at=now or _dt.utcnow()))
+    if record:
+        session.add(CrawlLapRun(completed_at=now or _dt.utcnow()))
     session.flush()
     return n
 
@@ -270,7 +292,9 @@ def next_lap_products(session) -> list:
         return due
     if not _lap_products(session):
         return []
-    start_new_lap(session)
+    # 완료 기록은 실제 크롤된 게 있을 때만(전부 실패면 spurious '바퀴' 방지).
+    served_this_lap = lap_progress(session)["served"] > 0
+    start_new_lap(session, record=served_this_lap)
     # 랩 리셋은 반드시 영속 — 이 함수는 읽기 라우트(/crawl/queue·due-bundles)에서
     #   호출되는데 그 라우트들은 commit 하지 않는다. flush 만 하면 close()에서 롤백돼
     #   served 가 quota 에 붙박이고 매 폴링이 전체 랩 = 계수 배수가 무력화된다.
@@ -285,10 +309,9 @@ def lap_progress(session) -> dict:
     """링 표시용 — 이번 가중 랩 진행률. served/total(가중 합) + pct(0~100)."""
     served_sum = 0
     total = 0
-    for p in _lap_products(session):
-        quota = lap_quota(session, p)
+    for p, quota, served in _lap_view(session):
         total += quota
-        served_sum += min(int(p.crawl_lap_count or 0), quota)
+        served_sum += min(served, quota)
     pct = round(served_sum / total * 100) if total else 0
     return {"served": served_sum, "total": total, "pct": pct}
 

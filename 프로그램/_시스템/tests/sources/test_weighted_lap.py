@@ -46,6 +46,40 @@ def test_orphan_url_excluded_from_lap(db):
     assert lap_progress(db)["total"] == 1                # dispatchable 1개만 계수 합
 
 
+def test_error_url_excluded_from_lap_so_it_completes(db):
+    """계속 실패(last_status=error)하는 URL은 랩 완료를 막지 않는다(크롤 불가 → 제외)."""
+    a = _sp(db, "s1", "u/ok")
+    b = _sp(db, "s1", "u/err")
+    a.crawl_lap_count = 1            # 정상 크롤됨
+    b.last_status = "error"; b.crawl_lap_count = 0   # 매번 실패
+    db.flush()
+    assert weighted_due_products(db) == []      # b 제외 → a 완료 → 남은 것 없음
+    assert lap_progress(db)["pct"] == 100        # 링 100% (a 기준)
+
+
+def test_overserved_straggler_excluded_so_it_completes(db):
+    """재패스(over-serve)에도 한 번도 안 긁힌 URL은 straggler로 제외 → 랩 완료."""
+    a = _sp(db, "s1", "u/a")
+    b = _sp(db, "s1", "u/b")
+    a.crawl_lap_count = 2            # 두 번 긁힘(재패스 발생)
+    b.crawl_lap_count = 0            # 한 번도 못 긁힘
+    db.flush()
+    assert weighted_due_products(db) == []
+    assert lap_progress(db)["pct"] == 100
+
+
+def test_not_yet_crawled_ok_url_still_blocks(db):
+    """아직 안 긁혔지만 정상(status ok)인 URL은 랩을 안 끝냄(조기완료 방지)."""
+    a = _sp(db, "s1", "u/a")
+    b = _sp(db, "s1", "u/b")
+    a.crawl_lap_count = 1            # 긁힘
+    b.last_status = "ok"; b.crawl_lap_count = 0    # 아직 안 긁힘(정상)
+    db.flush()
+    ids = {p.id for p in weighted_due_products(db)}
+    assert b.id in ids               # b 아직 due → 랩 미완료
+    assert lap_progress(db)["pct"] < 100
+
+
 def test_lap_quota_is_effective_weight(db):
     a, b, c = _set_weights(db)
     assert lap_quota(db, a) == 1

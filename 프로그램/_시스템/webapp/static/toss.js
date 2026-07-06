@@ -2376,7 +2376,7 @@ document.addEventListener('click', async (e) => {
       } catch (_) {}
       try {
         if (window.MoumExt.enqueueCrawl) {
-          window.MoumExt.enqueueCrawl(code);
+          window.MoumExt.enqueueCrawl(code, true);   // 상세 「전체크롤」 = 최우선(큐 맨 앞)
         } else {
           // 구버전 ext_bridge 폴백 — 단일 실행
           window.MoumExt.crawlBundleAll(code).then((r) => {

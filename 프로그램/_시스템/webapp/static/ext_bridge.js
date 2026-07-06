@@ -162,8 +162,9 @@
   }
 
   // 백그라운드 큐에 모음전 1건 추가 — toss.js bundle-run-now 핸들러에서 호출.
-  function enqueueCrawl(code) {
-    send("crawl.enqueue", { code: code }, 10000).catch(function() {});
+  //   priority=true (모음전 상세 「전체크롤」) → 확장 큐 맨 앞(다음 순번). 자동 폴링은 뒤에 붙음.
+  function enqueueCrawl(code, priority) {
+    send("crawl.enqueue", { code: code, priority: !!priority }, 10000).catch(function() {});
   }
   // 큐 상태 조회 — 동기. 백그라운드 queue 이벤트로 캐시된 _bgCache 반환.
   function getCrawlState() {

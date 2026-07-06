@@ -1099,14 +1099,19 @@ function mgrEnqueue(payload) {
   const codes = payload.codes || (code ? [code] : []);
   if (payload.base) _mgr.base = payload.base;
   if (!codes.length) return { ok: false, error: "code 없음" };
-  let added = 0;
+  // [2026-07-06] priority=true (모음전 상세에서 직접 「전체크롤」) → 큐 맨 앞에 삽입해 다음 순번.
+  //   자동 폴링(due-bundles)은 priority 없이 큐 뒤에 붙는다(오래된 순 유지).
+  const prio = !!payload.priority;
+  const fresh = [];
   for (const c of codes) {
     if (!c || c === _mgr.running || _mgr.queue.indexOf(c) >= 0) continue;
-    _mgr.queue.push(c); added++;
+    fresh.push(c);
   }
+  if (prio) _mgr.queue.unshift(...fresh);   // 앞에 삽입(순서 유지)
+  else      _mgr.queue.push(...fresh);      // 뒤에 붙임
   bgEmitQueue();
   if (!_mgr.running) runQueueBG();
-  return { ok: true, queued: added, position: _mgr.queue.length };
+  return { ok: true, queued: fresh.length, position: prio ? 1 : _mgr.queue.length };
 }
 function mgrPause() {
   if (!_mgr.running) return { ok: false, error: "진행 중 아님" };
