@@ -47,9 +47,11 @@ def fetch_orders(since: datetime, until: datetime,
     path = f"/v2/providers/openapi/apis/api/v5/vendors/{vid}/ordersheets"
     # CoupangClient.request 는 query 를 '문자열'로 받아 HMAC 서명에 그대로 쓴다
     # (settlements.py 동일 패턴). dict 를 넘기면 서명 단계에서 lstrip 크래시.
-    # 날짜 형식은 쿠팡 요구: yyyy-MM-dd+09:00 (KST 오프셋·리터럴 '+'). 시각 포함 시 400.
-    q = (f"createdAtFrom={since.strftime('%Y-%m-%d')}+09:00"
-         f"&createdAtTo={until.strftime('%Y-%m-%d')}+09:00"
+    # 날짜 형식은 쿠팡 요구: yyyy-MM-dd+09:00. '+' 는 쿼리에서 공백으로 디코딩되므로
+    # %2B 로 인코딩해야 쿠팡이 KST 오프셋으로 인식(문서 예시 동일). HMAC 서명도 같은
+    # 문자열이라 일치. (리터럴 '+' → 공백 → date-format 400)
+    q = (f"createdAtFrom={since.strftime('%Y-%m-%d')}%2B09:00"
+         f"&createdAtTo={until.strftime('%Y-%m-%d')}%2B09:00"
          f"&maxPerPage={max_per_page}")
     if status:
         q += f"&status={status}"
