@@ -72,6 +72,25 @@ def _extract_uploads(c_output: dict, sku_by_option: dict) -> list[dict]:
                 "new_price": opt.get("price", 0),
                 "new_stock": opt.get("stock", 0),
             })
+
+    # 11번가 — 롯데온과 동일. formatter 가 "eleven11" 페이로드를 방출하면 자동 포함.
+    #   (현재 formatter 는 미방출 — DB 매핑컬럼 eleven11_product_id/option_id 신설 = 나중.
+    #    여기서 먼저 읽도록 두어 라우팅 누락 방지. 없으면 .get() 이 {} 라 무해.)
+    for model_code, payload in c_output.get("eleven11", {}).items():
+        product_id = payload["product_id"]
+        for opt in payload.get("options", []):
+            option_id = opt["option_id"]
+            sku = sku_by_option.get(("eleven11", option_id))
+            if not sku:
+                continue
+            uploads.append({
+                "market": "eleven11",
+                "canonical_sku": sku,
+                "market_product_id": product_id,
+                "market_option_id": option_id,
+                "new_price": opt.get("price", 0),
+                "new_stock": opt.get("stock", 0),
+            })
     return uploads
 
 

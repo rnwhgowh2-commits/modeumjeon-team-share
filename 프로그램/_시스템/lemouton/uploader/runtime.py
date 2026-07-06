@@ -53,15 +53,18 @@ def select_adapters(*, live: bool | None = None) -> dict[str, MarketAdapter]:
             "smartstore": DryRunAdapter("smartstore"),
             "coupang": DryRunAdapter("coupang"),
             "lotteon": DryRunAdapter("lotteon"),
+            "eleven11": DryRunAdapter("eleven11"),
         }
     from .adapters.coupang import CoupangAdapter
     from .adapters.smartstore import SmartStoreAdapter
     from .adapters.lotteon import LotteonAdapter
+    from .adapters.eleven11 import Eleven11Adapter
     logger.warning("[uploader] LIVE 업로드 활성 — 실제 마켓 전송이 발생합니다")
     return {
         "smartstore": SmartStoreAdapter(),
         "coupang": CoupangAdapter(),
         "lotteon": LotteonAdapter(),
+        "eleven11": Eleven11Adapter(),
     }
 
 

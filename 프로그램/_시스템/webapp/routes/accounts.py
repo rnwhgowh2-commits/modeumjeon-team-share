@@ -393,6 +393,7 @@ MARKET_KEY_SUFFIXES = {
     "smartstore": ["CLIENT_ID", "CLIENT_SECRET"],
     "coupang": ["ACCESS_KEY", "SECRET_KEY", "VENDOR_ID"],
     "lotteon": ["API_KEY", "TR_NO"],
+    "eleven11": ["OPENAPI_KEY"],   # 11번가 = openapikey 헤더 단일 인증키 (OAuth·시크릿 없음)
 }
 
 # UI 노출용 라벨 — sensitive 여부도 표시
@@ -404,6 +405,7 @@ KEY_LABELS = {
     "VENDOR_ID": ("Vendor ID (셀러 코드)", False),
     "API_KEY": ("API 인증키 (Bearer)", True),
     "TR_NO": ("거래처번호 (판매자 센터)", False),
+    "OPENAPI_KEY": ("OpenAPI 인증키 (openapikey 헤더)", True),
 }
 
 # 마켓 메타데이터 — UI 사이드바에서 사용 (라벨·아이콘·도움말·상태)
@@ -444,10 +446,13 @@ MARKET_METADATA = {
     "eleven11": {
         "label": "11번가",
         "icon": "🟣",
-        "api_type": "OAuth (SK 쇼핑)",
-        "guide_url": "https://api.11st.co.kr/",
-        "guide_text": "11번가 셀러 API — 클라이언트 등록 후 Key/Secret 발급",
+        "api_type": "OpenAPI (openapikey 헤더 · XML)",
+        "guide_url": "https://openapi.11st.co.kr/openapi/OpenApiFrontMain.tmall",
+        "guide_text": ("11번가 셀러오피스 로그인 > 하단 Open API > 서비스 등록·확인 에서 "
+                       "① OPENAPI KEY 발급 ② 서버 IP 등록(54.116.196.90). 인증은 "
+                       "'openapikey: {발급키}' 헤더(단일 인증키·시크릿 없음)."),
         "default_prefix": "ELEVEN11_MAIN",
+        # 라이브 미검증(키 없음) — 셀러 REST 엔드포인트 스펙 미확보. 검증 후 ready 승격.
         "status": "coming_soon",
         "sort_order": 4,
     },
