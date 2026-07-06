@@ -7,9 +7,13 @@
 
 레이아웃 = 사용자 확정 "5번(KPI 요약 + 표)" — 네 탭(list·sales·cs·register)이 공통.
 """
-from flask import Blueprint, render_template, request
+import datetime as _dt
+import io as _io
+
+from flask import Blueprint, render_template, request, send_file, abort
 
 from lemouton.markets import capabilities as _cap
+from lemouton.markets import order_export as _oe
 
 
 bp = Blueprint('orders', __name__, url_prefix='/orders')
@@ -29,14 +33,15 @@ TAB_CONFIG = {
     'list': {
         'kpis': [('신규주문', '2건'), ('발송대기', '1건'), ('발송완료', '2건'), ('주문 합계', '774,000원')],
         'cols': [('no', '주문번호', 'mono'), ('mk', '마켓', 'mk'), ('pd', '상품 · 옵션', 'text'),
-                 ('qty', '수량', 'num'), ('amt', '금액', 'num'), ('date', '주문일', 'text'), ('st', '상태', 'status')],
+                 ('qty', '수량', 'num'), ('amt', '금액', 'num'), ('net', '정산예정금액', 'num'),
+                 ('date', '주문일', 'text'), ('st', '상태', 'status')],
         'action': '송장입력',
         'rows': [
-            {'no': '2026070500123', 'mk': '쿠팡', 'pd': '르무통 캐시미어 코트 · 베이지/95', 'qty': '1', 'amt': '189,000원', 'date': '07-05 09:12', 'st': {'t': '발송대기', 'c': 'wait'}},
-            {'no': '2026070500118', 'mk': '스마트스토어', 'pd': '르무통 울 머플러 · 차콜', 'qty': '2', 'amt': '118,000원', 'date': '07-05 08:40', 'st': {'t': '신규주문', 'c': 'new'}},
-            {'no': '2026070500097', 'mk': '쿠팡', 'pd': '르무통 니트 집업 · 네이비/100', 'qty': '1', 'amt': '129,000원', 'date': '07-05 07:55', 'st': {'t': '신규주문', 'c': 'new'}},
-            {'no': '2026070499801', 'mk': '스마트스토어', 'pd': '르무통 램스울 가디건 · 오트밀/M', 'qty': '1', 'amt': '149,000원', 'date': '07-04 21:03', 'st': {'t': '발송완료', 'c': 'done'}},
-            {'no': '2026070499777', 'mk': '쿠팡', 'pd': '르무통 캐시미어 코트 · 블랙/100', 'qty': '1', 'amt': '189,000원', 'date': '07-04 19:41', 'st': {'t': '발송완료', 'c': 'done'}},
+            {'no': '2026070500123', 'mk': '쿠팡', 'pd': '르무통 캐시미어 코트 · 베이지/95', 'qty': '1', 'amt': '189,000원', 'net': '169,155원', 'date': '07-05 09:12', 'st': {'t': '발송대기', 'c': 'wait'}},
+            {'no': '2026070500118', 'mk': '스마트스토어', 'pd': '르무통 울 머플러 · 차콜', 'qty': '2', 'amt': '118,000원', 'net': '111,510원', 'date': '07-05 08:40', 'st': {'t': '신규주문', 'c': 'new'}},
+            {'no': '2026070500097', 'mk': '쿠팡', 'pd': '르무통 니트 집업 · 네이비/100', 'qty': '1', 'amt': '129,000원', 'net': '—', 'date': '07-05 07:55', 'st': {'t': '신규주문', 'c': 'new'}},
+            {'no': '2026070499801', 'mk': '스마트스토어', 'pd': '르무통 램스울 가디건 · 오트밀/M', 'qty': '1', 'amt': '149,000원', 'net': '140,540원', 'date': '07-04 21:03', 'st': {'t': '발송완료', 'c': 'done'}},
+            {'no': '2026070499777', 'mk': '쿠팡', 'pd': '르무통 캐시미어 코트 · 블랙/100', 'qty': '1', 'amt': '189,000원', 'net': '169,155원', 'date': '07-04 19:41', 'st': {'t': '발송완료', 'c': 'done'}},
         ],
     },
     'sales': {
@@ -89,5 +94,31 @@ def orders_index():
             live_enabled=live,
             # 게이트 OFF = 샘플 미리보기. ON(향후 실fetch 배선 시)이면 빈 목록 → 빈 상태.
             rows=[] if live else cfg['rows'],
+            # 주문 내역 탭: 실데이터 엑셀 내보내기 가능한 마켓(코드+키+검증된 것만).
+            export_markets=sorted(_oe.SUPPORTED) if tab == 'list' else [],
         )
     return render_template('orders/index.html', **ctx)
+
+
+@bp.route('/export.xlsx')
+def orders_export():
+    """선택 마켓 최근 N일 주문 → 샵마인 형식 엑셀 다운로드(서버측 실조회).
+
+    미지원 마켓은 400(추측 데이터 안 만듦). 스마트스토어만 실배선(2026-07-07 검증).
+    """
+    market = (request.args.get('market') or 'smartstore').strip()
+    try:
+        days = int(request.args.get('days') or 7)
+    except (TypeError, ValueError):
+        days = 7
+    days = max(1, min(90, days))
+    try:
+        rows = _oe.order_rows(market, days=days)
+    except ValueError as e:
+        abort(400, str(e))
+    xlsx = _oe.rows_to_xlsx(rows)
+    stamp = _dt.datetime.now(_oe.KST).strftime('%Y%m%d')
+    fname = f"모음전_{market}_최근{days}일주문_{stamp}.xlsx"
+    return send_file(
+        _io.BytesIO(xlsx), as_attachment=True, download_name=fname,
+        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
