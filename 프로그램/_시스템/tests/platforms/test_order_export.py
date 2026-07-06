@@ -64,9 +64,12 @@ def test_supported_markets():
 class FakeCoupangClient:
     def __init__(self):
         self.calls = 0
+        self._cfg = {"vendor_id": "A00012345"}   # 계정 클라이언트가 주입하는 vendor_id
+        self.paths = []
 
     def request(self, method, path, query=""):
         self.calls += 1
+        self.paths.append(path)
         # 첫 status 첫 페이지에만 1건, 나머지는 빈 목록(nextToken 없음)
         if self.calls == 1:
             return {"code": 200, "data": [{
@@ -83,10 +86,12 @@ class FakeCoupangClient:
 
 
 def test_coupang_rows_flatten_and_map(monkeypatch):
-    monkeypatch.setenv("COUPANG_VENDOR_ID", "A00012345")   # fetch_orders 가 요구
+    # 전역 COUPANG_VENDOR_ID 없어도 계정 클라이언트 _cfg.vendor_id 로 동작해야 함(버그수정)
+    monkeypatch.delenv("COUPANG_VENDOR_ID", raising=False)
     since = dt.datetime(2026, 7, 5, tzinfo=oe.KST)
     until = dt.datetime(2026, 7, 6, tzinfo=oe.KST)
-    rows = oe.coupang_order_rows(since, until, client=FakeCoupangClient())
+    fc = FakeCoupangClient()
+    rows = oe.coupang_order_rows(since, until, client=fc)
     assert len(rows) == 1
     r = rows[0]
     assert r["상품명"] == "코트" and r["옵션"] == "블랙/95" and r["수량"] == 1
@@ -94,6 +99,8 @@ def test_coupang_rows_flatten_and_map(monkeypatch):
     assert r["단가"] == 189000                 # 금액 객체 units 추출
     assert r["정산예정금액"] == ""              # 쿠팡 정산 별도(폴백 0 금지)
     assert r["쇼핑몰"] == "쿠팡"
+    assert "/vendors/A00012345/ordersheets" in fc.paths[0]   # 클라 config vendor_id 사용
+    assert "/api/v5/" in fc.paths[0]           # v5 정정 반영
 
 
 class FakeLotteonClient:
