@@ -40,8 +40,10 @@ def fetch_orders(since: datetime, until: datetime,
 
     Returns: {"code","message","data":[...발주서...],"nextToken":"..."}
     """
-    vid = _vendor_id()
     client = client or CoupangClient()
+    # 계정 클라이언트(config 주입 vendor_id) 우선 — UI 저장 키는 COUPANG_MAIN_* 접두라
+    # 전역 COUPANG_VENDOR_ID 는 비어있음. config 없으면 전역 env 폴백.
+    vid = (getattr(client, "_cfg", {}) or {}).get("vendor_id") or _vendor_id()
     path = f"/v2/providers/openapi/apis/api/v5/vendors/{vid}/ordersheets"
     params = {
         "createdAtFrom": since.strftime("%Y-%m-%dT%H:%M:%S"),
