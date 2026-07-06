@@ -1,0 +1,115 @@
+# docs/markets/eleven11.yaml — 11번가(11st 셀러 Open API) 프로파일
+# 근거: 11번가 OPEN API CENTER 공개 개발문서 실측(2026-07-06, 로그인 없이 판독 가능한 범위).
+#   https://openapi.11st.co.kr/openapi/OpenApiServiceIntroduce.tmall (서비스 소개·XML 규격)
+#   https://openapi.11st.co.kr/openapi/OpenApiOperationGuide.tmall (인증·openapikey 헤더)
+#   https://openapi.11st.co.kr/openapi/OpenApiFrontMain.tmall (키 발급·서비스 등록·IP 등록)
+#   STEP 0(슬러그·접두)= webapp/routes/accounts.py MARKET_METADATA["eleven11"], default_prefix=ELEVEN11_MAIN.
+# ⚠️ 라이브 미검증(키 없음) — 코드·공개문서 근거만. LEMOUTON_LIVE_UPLOAD OFF, status=coming_soon 유지.
+# ⚠️ 셀러 REST 엔드포인트(상품/재고/가격) 경로·요청/응답 XML 필드명은 로그인 게이트 안 → 미확보.
+#    해당 값은 TODO(조사필요)로 두고, 코드는 뼈대만(실제 호출 로직 없음). 추측·폴백 금지(CLAUDE.md).
+
+meta:
+  market: eleven11
+  display_name: 11번가
+  last_analyzed: "2026-07-06"
+  base_url: https://api.11st.co.kr   # 셀러 REST 호스트(공개 문서상). 확정 스펙 확보 시 갱신.
+  evidence: >
+    11번가 OPEN API CENTER 공개 문서 실측(2026-07-06):
+    인증=openapikey 헤더(단일 키·시크릿/토큰교환 없음), 포맷=XML(서비스소개 "HTTP와 XML"),
+    키발급/IP등록=셀러오피스 로그인 후 Open API > 서비스 등록·확인.
+    일반 Open API(openapi.11st.co.kr/openapi/OpenApiService.tmall)는 상품/카테고리 '검색'만 →
+    셀러 상품/재고/가격 수정은 셀러 REST API(로그인 게이트) 필요. 그 엔드포인트·XML 필드는 미확보.
+    라이브 미검증(키 없음) — 코드 근거만.
+
+auth:
+  method: API Key (openapikey 헤더 · OAuth/HMAC 아님)
+  token_endpoint: null   # 토큰 발급 단계 없음. 발급받은 OPENAPI KEY 를 그대로 헤더로 사용.
+  env_keys:
+    - ELEVEN11_MAIN_OPENAPI_KEY   # 셀러오피스 발급 OPENAPI KEY (32자). openapikey 헤더로 전달.
+  header_format: >
+    openapikey: {ELEVEN11_MAIN_OPENAPI_KEY}
+    Accept: application/xml
+    Content-Type: application/xml; charset=euc-kr   # POST/PUT XML 본문
+  signature: null   # 서명 없음
+  ip_allowlist: >
+    API 센터에 등록된 출발지 IP 만 통과(미등록 차단). 업로드 서버(AWS 54.116.196.90 등)를
+    셀러오피스 Open API 서비스 등록 화면에서 개발/상용 IP 로 등록해야 함. [[project_market_api_server_side]]
+  key_issue_path: >
+    11번가 셀러오피스 로그인 → 하단 [Open API] → Home > 서비스 등록·확인 > 서비스등록
+    (담당업무=개발, 사용용도=주문 통합관리 등) → OPENAPI KEY 발급 + 서비스 IP 등록.
+
+# ⚠️ 셀러 REST 엔드포인트 = 로그인 게이트로 미확보. 스펙 확보(사용자 브라우저/문서) 후 채운다.
+#    형식은 롯데온 대칭(작업/메서드/경로). 지금은 추측 방지를 위해 TODO.
+endpoints:
+  fetch_options: "TODO(조사필요 — 셀러 REST 상품/옵션 상세조회. XML 응답에서 단품·색·사이즈·재고·가격)"
+  get_detail:    "TODO(조사필요 — 상품 상세조회)"
+  update_price:  "TODO(조사필요 — 가격 수정)"
+  update_stock:  "TODO(조사필요 — 재고 수정)"
+  register:      "TODO(조사필요, 나중 — 상품 등록)"
+
+option_structure:
+  option_id_field: "TODO(조사필요 — 11번가 단품/옵션 식별자. 응답 XML 필드명 미확보)"
+  color_field: "TODO(조사필요)"
+  size_field: "TODO(조사필요)"
+  stock_field: "TODO(조사필요)"
+  price_field: "TODO(조사필요)"
+  status_field: "TODO(조사필요 — 판매상태(판매중/품절))"
+  note: >
+    11번가는 응답이 XML. 옵션/단품 구조와 필드명은 셀러 REST 문서(로그인 게이트) 확보 후 확정.
+    0/센티넬로 재고·가격을 붕괴시키지 말고 미상은 None 으로 표면화(CLAUDE.md).
+
+fields:
+  connect:
+    - { name: product_id, type: string, required: true, source: 사용자입력(11번가 상품번호),
+        note: "상세조회로 옵션·가격·재고 읽어 자동매칭. = SetChannel.market_product_id. 응답 필드명 TODO." }
+  update:
+    update_price: "TODO(조사필요 — 가격수정 요청 XML 스키마)"
+    update_stock: "TODO(조사필요 — 재고수정 요청 XML 스키마)"
+  register: "TODO(조사필요, 나중) — 표준카테고리·상품정보제공고시·배송/반품 등 필드 방대."
+
+step4_form:
+  connect_mode:
+    user_inputs:
+      - 11번가 상품번호 *필수
+    auto_or_display:
+      - 옵션/가격/재고 = 상세조회로 읽어 표시 (스펙 확보 후 활성)
+  update_mode:
+    user_inputs:
+      - 옵션별 재고 / (선택) 판매가
+  register_mode: "TODO(나중)"
+
+response:
+  success: "TODO(조사필요 — 성공 판정 XML 필드/코드). 11번가 XML 응답의 결과코드·메시지 확인 후."
+  errors:
+    http:
+      - "401 등록되지 않은 OpenAPI Key (키 확인)"
+      - "403 접근 거부 (출발지 IP 미등록)"
+      - "429 호출 횟수 초과"
+      - "5xx 시스템 오류"
+    body: "TODO(조사필요 — XML 결과코드 매트릭스)"
+  rate_limit:
+    policy: "TODO(조사필요 — 문서상 호출 상한). 보수적 기본 5/s 로 클라이언트 설정."
+  retry: "권장 max_retries=3, 지수백오프 (롯데온·쿠팡 어댑터 선례 준용)."
+
+safety:
+  draft_on_register: "TODO — 등록 착수 시 확인. 현재 등록 미구현."
+  price_change_guard: >
+    쿠팡·롯데온 선례처럼 업로드 전 sanity(확정매입가×1.05 미만 차단·마진 하한·재고≤소싱재고).
+    가격/재고는 실브라우저 소싱처 URL 실값 기준(CLAUDE.md). 폴백 금지.
+  notes: >
+    라이브 미검증(키없음) + 셀러 REST 스펙 미확보. 실계정 100% 검증 전 '완료' 선언 금지.
+    현재 배선 범위 = 계정/키 등록·시크릿 로더·dispatcher client·어댑터(가격→재고 순서·Mock)·
+    market_fetch 조회 분기·runtime 드라이런/실전송 레지스터·orchestrator 라우팅.
+    미구현(스펙/DB 선행) = products/prices/inventory 실호출(XML 필드), formatter 자동전송 emit +
+    DB 매핑컬럼(eleven11_product_id/option_id) — 신규등록·모델매핑 단계(나중).
+
+code_map:
+  auth: shared/platforms/eleven11/auth.py            # openapikey 헤더 (구현됨)
+  client: shared/platforms/eleven11/client.py        # XML HTTP 전송·rate limit·재시도 (구현됨)
+  dispatcher_client: lemouton/auth/api_eleven11.py   # 계정→client 캐시 계층 (구현됨)
+  fetch: shared/platforms/eleven11/products.py        # get_product_detail+extract_items (스펙 확보 후)
+  register: shared/platforms/eleven11/products.py     # 나중
+  update_price: shared/platforms/eleven11/prices.py   # 스펙 확보 후
+  update_stock: shared/platforms/eleven11/inventory.py # 스펙 확보 후
+  adapter: lemouton/uploader/adapters/eleven11.py     # Eleven11Adapter + MockEleven11Adapter (구현됨)
+  secrets: lemouton/auth/secrets.py                    # Eleven11Credentials + MARKET_SCHEMAS (구현됨)

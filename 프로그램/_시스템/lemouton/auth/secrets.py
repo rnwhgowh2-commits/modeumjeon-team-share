@@ -161,11 +161,24 @@ class LotteonCredentials(_MaskedReprMixin):
     tr_no: str = Field(min_length=1)
 
 
-# 마켓 → 스키마 라우팅 (Phase 2-B/C 에서 11번가·OAuth 등 확장 가능)
+class Eleven11Credentials(_MaskedReprMixin):
+    """11번가 셀러 Open API 자격증명.
+
+    ``.env`` 키: ``{env_prefix}_OPENAPI_KEY``
+    · openapi_key = 셀러오피스에서 발급한 OPENAPI KEY (32자).
+      호출 시 ``openapikey: {키}`` 헤더로 전달(OAuth 토큰교환·시크릿 없음).
+      출발지 IP 를 API 센터에 등록해야 통과(미등록 차단).
+    """
+
+    openapi_key: str = Field(min_length=1)
+
+
+# 마켓 → 스키마 라우팅
 MARKET_SCHEMAS: dict[str, Type[_MaskedReprMixin]] = {
     "smartstore": SmartstoreCredentials,
     "coupang": CoupangCredentials,
     "lotteon": LotteonCredentials,
+    "eleven11": Eleven11Credentials,
 }
 
 

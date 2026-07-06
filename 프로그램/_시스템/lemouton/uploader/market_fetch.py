@@ -31,6 +31,8 @@ def fetch_market_options(market: str, product_id: str, *,
         return _fetch_coupang(product_id, env_prefix)
     if market == "lotteon":
         return _fetch_lotteon(product_id, env_prefix)
+    if market == "eleven11":
+        return _fetch_eleven11(product_id, env_prefix)
     return FetchResult(False, None, [], f"아직 지원하지 않는 마켓: {market}")
 
 
@@ -125,6 +127,38 @@ def _fetch_lotteon(product_id: str, env_prefix: Optional[str] = None) -> FetchRe
     ]
     name = detail.get("spdNm") or detail.get("pdNm")
     return FetchResult(True, name, opts)
+
+
+def _eleven11_client(env_prefix: Optional[str]):
+    """env_prefix 계정 키로 Eleven11Client 생성. 없으면 None(=전역 기본)."""
+    if not env_prefix:
+        return None
+    from lemouton.auth import secrets as S
+    from shared.platforms import ELEVEN11
+    from shared.platforms.eleven11.client import Eleven11Client
+    c = S.load_credentials(market="eleven11", env_prefix=env_prefix)
+    return Eleven11Client(config={**ELEVEN11, "openapi_key": c.openapi_key})
+
+
+def _fetch_eleven11(product_id: str, env_prefix: Optional[str] = None) -> FetchResult:
+    # ⚠️ 11번가 셀러 REST 상품 상세조회 스펙 미확보 → products 가 NotImplementedError.
+    #    try/except 로 '옵션 조회 실패: 스펙 미확보'를 명시 표면화(추측·폴백 금지).
+    from shared.platforms.eleven11.products import get_product_detail, extract_items
+    if not str(product_id).strip():
+        return FetchResult(False, None, [], "상품번호가 비어있어요")
+    try:
+        client = _eleven11_client(env_prefix)
+        detail = get_product_detail(str(product_id), client=client)
+        items = extract_items(detail)
+    except Exception as e:  # noqa: BLE001 — 조회 실패/스펙 미확보 명시 표면화(폴백 금지)
+        return FetchResult(False, None, [], f"옵션 조회 실패: {e}")
+    opts = [
+        MarketOption(option_id=str(it["option_id"]), color=it.get("color"),
+                     size=it.get("size"), stock=it.get("stock"),
+                     price=it.get("sale_price"))
+        for it in items
+    ]
+    return FetchResult(True, detail if isinstance(detail, str) else None, opts)
 
 
 def _fetch_coupang(product_id: str, env_prefix: Optional[str] = None) -> FetchResult:

@@ -144,6 +144,34 @@ LOTTEON: dict = {
 
 
 # ──────────────────────────────────────────────────────────────
+# 11번가 (11st 셀러 Open API)
+#   근거: docs/markets/eleven11.yaml (공개 개발문서 실측 2026-07-06).
+#   인증 = 셀러오피스 발급 OPENAPI KEY 를 'openapikey' 헤더로 전달(단일 키·시크릿 없음).
+#   포맷 = XML(요청·응답). 출발지 IP 를 API 센터에 등록해야 통과.
+#   ⚠️ 셀러 REST 엔드포인트(상품/재고/가격) 경로·XML 필드 스펙은 로그인 게이트 안 →
+#      미확보(paths=TODO). products/prices/inventory 는 스펙 확보 후 구현(추측 금지).
+# ──────────────────────────────────────────────────────────────
+ELEVEN11: dict = {
+    # 셀러 REST API 베이스(공개 문서상 셀러 API 호스트). 확정 스펙 확보 시 갱신.
+    "base_url": os.environ.get("ELEVEN11_BASE_URL", "https://api.11st.co.kr"),
+    "openapi_key": os.environ.get("ELEVEN11_MAIN_OPENAPI_KEY", ""),
+
+    # 클라이언트 동작 파라미터 (보수적 기본값)
+    "rate_limit_per_sec": float(os.environ.get("ELEVEN11_RATE_LIMIT_PER_SEC", "5")),
+    "max_retries": int(os.environ.get("ELEVEN11_MAX_RETRIES", "3")),
+    "retry_backoff_sec": float(os.environ.get("ELEVEN11_RETRY_BACKOFF_SEC", "2")),
+    "request_timeout_sec": float(os.environ.get("ELEVEN11_REQUEST_TIMEOUT_SEC", "30")),
+
+    # API 엔드포인트 (셀러 REST) — ⚠️ 로그인 게이트로 미확보. 스펙 확보 후 채움(추측 금지).
+    "paths": {
+        "detail": None,        # 상품/옵션 상세조회 (기존 상품 연동)
+        "price_change": None,  # 가격 수정
+        "stock_change": None,  # 재고 수정
+    },
+}
+
+
+# ──────────────────────────────────────────────────────────────
 # Notifier (vendored shared/notifier.py 가 참조)
 # ──────────────────────────────────────────────────────────────
 NOTIFIER: dict = {
@@ -177,4 +205,4 @@ MONITOR: dict = {
 }
 
 
-__all__ = ["COUPANG", "SMARTSTORE", "LOTTEON", "NOTIFIER", "MONITOR"]
+__all__ = ["COUPANG", "SMARTSTORE", "LOTTEON", "ELEVEN11", "NOTIFIER", "MONITOR"]

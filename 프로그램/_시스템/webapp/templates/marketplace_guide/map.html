@@ -75,6 +75,7 @@ const DM_MARKETS=[
   {id:'coupang',nm:'쿠팡',status:'ok',env:{인증:'HMAC-SHA256',API:'REST · WING Open API',문서:'wing.coupang.com',키:'ACCESS_KEY·SECRET_KEY·VENDOR_ID'}},
   {id:'smartstore',nm:'스마트스토어',status:'ok',env:{인증:'OAuth2 + bcrypt',API:'REST · 네이버 커머스',문서:'apicenter.commerce.naver.com',키:'CLIENT_ID·CLIENT_SECRET'}},
   {id:'lotteon',nm:'롯데온',status:'todo',env:{인증:'정적 인증키(Bearer) + IP 등록',API:'REST · 롯데온 Open API',문서:'store.lotteon.com',키:'API_KEY·TR_NO (LOTTEON_MAIN)'}},
+  {id:'eleven11',nm:'11번가',status:'todo',env:{인증:'openapikey 헤더 + IP 등록',API:'REST · XML · 11번가 Open API',문서:'openapi.11st.co.kr',키:'OPENAPI_KEY (ELEVEN11_MAIN)'}},
 ];
 // 마켓별 = 그 마켓 공식 문서의 카테고리 그대로. items 는 확인된 것만(정산+우리 코드),
 // 나머지 카테고리는 빈 목록 → "공식 문서에서 가져오는 중" 자리표시. st: ok/code/off/todo.
@@ -503,6 +504,23 @@ const MKT_CATS={
       {nm:'반품접수정보 등록',dir:'send',st:'off',code:'apiNo=267'},
       {nm:'반품진행상태 등록',dir:'send',st:'off',code:'apiNo=268'},
     ]},
+  ],
+  eleven11:[
+    {g:'시작하기',items:[
+      {nm:'인증(openapikey 헤더)',dir:'send',st:'code',code:'auth.build_headers · 공개문서 확인(2026-07-06)'},
+    ]},
+    {g:'일반 Open API(검색 전용 · 셀러 아님)',items:[
+      {nm:'상품 검색',dir:'recv',st:'off',code:'apiCode=ProductSearch'},
+    ]},
+    // ⚠️ 아래 셀러 API 그룹은 로그인 게이트라 자동 판독 불가 → 사용자 브라우저 콘솔 추출 후 채움.
+    //    정산(마진 계산용) 포함. 추측 금지 → 확인 전까지 빈 목록("가져오는 중").
+    {g:'상품',items:[]},
+    {g:'재고',items:[]},
+    {g:'가격',items:[]},
+    {g:'주문',items:[]},
+    {g:'정산',items:[]},
+    {g:'클레임',items:[]},
+    {g:'배송',items:[]},
   ],
 };
 const DM_LBL={ok:'됨',code:'연결됨',off:'공식제공',todo:'미정의'};
