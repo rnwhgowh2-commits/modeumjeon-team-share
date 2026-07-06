@@ -403,9 +403,10 @@
     if(!laps.length){ sec.style.display='none'; return; }
     sec.style.display='';
     var rev=laps.slice().reverse();              // 최신 회차 먼저
-    var show=_lapsExpanded?rev:rev.slice(0,3);   // 접힘=최근 3
+    var show=_lapsExpanded?rev:[];               // 접힘=완전히 숨김 / 펼침=전체
+    list.style.display=_lapsExpanded?'':'none';
     list.innerHTML=show.map(function(x){ return '<div class="czlog-row"><span class="czlog-rc">'+x.no+'회차</span><span class="czlog-tm">'+_kstLap(x.at)+'</span></div>'; }).join('');
-    if(tg){ if(laps.length>3){ tg.style.display=''; tg.textContent=_lapsExpanded?'접기 ▴':('펼치기 ▾ ('+laps.length+')'); } else { tg.style.display='none'; } }
+    if(tg){ tg.style.display=''; tg.textContent=_lapsExpanded?'접기 ▴':('펼치기 ▾ ('+laps.length+')'); }
   }
   (function(){ var tg=document.getElementById('czlog-tg'); if(tg) tg.addEventListener('click',function(){ _lapsExpanded=!_lapsExpanded; renderLapLog(); }); })();
   function _extState(){ try{ return (window.MoumExt&&MoumExt.getCrawlState&&MoumExt.getCrawlState())||{}; }catch(e){ return {}; } }
