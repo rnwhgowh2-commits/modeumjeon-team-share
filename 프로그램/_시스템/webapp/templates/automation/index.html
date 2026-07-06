@@ -380,24 +380,25 @@
       }
     }).catch(function(){});
   }
-  // 확장 실시간 진행량(agg done/total) — 크롤 중 + 값 있으면 링을 이걸로(위젯과 동일).
+  // 링 = 위젯(crawl_log)이 계산한 '전체 진행'을 그대로 사용(같은 페이지·같은 값 → 항상 일치).
+  //   window.__moumOverall = {done,total,pct,active,ts} — crawl_log.js 가 갱신. active=크롤 중.
   function _extState(){ try{ return (window.MoumExt&&MoumExt.getCrawlState&&MoumExt.getCrawlState())||{}; }catch(e){ return {}; } }
-  function _extProgress(){ var s=_extState(); return s.progress||null; }
-  function _extRunning(){ return !!_extState().running; }
-  function _extRingActive(){ var p=_extProgress(); return _extRunning() && p && (+p.total>0); }
+  function _overall(){ var o=window.__moumOverall; if(!o) return null; if(Date.now()-(o.ts||0)>15000) return null; return o; }
+  function _extRunning(){ var o=_overall(); if(o&&o.active) return true; return !!_extState().running; }
+  function _extRingActive(){ var o=_overall(); return !!(o && o.active && +o.total>0); }
   function paintRun(){
-    var s=_extState();
-    var running=!!s.running;
+    var o=_overall();
+    var running=_extRunning();
     var card=document.getElementById('crawl-card'); if(card) card.classList.toggle('is-running',running);
     var rs=document.getElementById('runsec'); if(rs) rs.classList.toggle('on',running);
     var ring=document.getElementById('cz-ring'), feed=document.getElementById('cz-feed'), pct=document.getElementById('cz-pct');
     if(!ring) return;
     if(running){
-      // 링 = 확장 실시간 진행(위젯과 동일 done/total), 1초마다. 값 없으면(구버전 확장) 서버값 유지.
-      var p=s.progress;
-      if(p && +p.total>0){ var pc=Math.min(100,Math.round(+p.done / +p.total*100));
+      // 링 = 위젯 전체 진행값(있으면). 없으면(구버전) 서버값 유지.
+      if(o && +o.total>0){ var pc=Math.min(100,Math.round(+o.pct));
         ring.style.setProperty('--p',pc+'%'); if(pct) pct.textContent=pc+'%'; }
-      if(feed) feed.innerHTML='<span class="r">↻</span> '+(s.running||'')+' 긁는 중…';
+      var nm=_extState().running||'';
+      if(feed) feed.innerHTML='<span class="r">↻</span> '+nm+' 긁는 중…';
       ring.classList.add('spin');
     } else {
       if(feed) feed.textContent='대기 중… 「실행」을 켜면 지금 긁는 소싱처가 여기 흘러요';

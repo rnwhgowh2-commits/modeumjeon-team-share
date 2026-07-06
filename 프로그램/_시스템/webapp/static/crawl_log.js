@@ -1036,6 +1036,9 @@
     // 전체바 = 선택 모음전 진행
     var b = bundles[selected];
     var prog = b ? bundleProgress(b) : { done: 0, total: 0, pct: 0 };
+    // [2026-07-06] 자동화 왼쪽 링이 위젯과 '똑같은 값'을 쓰도록 전역 노출(같은 페이지·같은 계산).
+    //   서버 랩 진행률(별도 경로)로 흉내내던 불일치를 근본 제거. active=크롤 중.
+    try { window.__moumOverall = { done: prog.done, total: prog.total, pct: prog.pct, active: active, ts: Date.now() }; } catch (_) {}
     safeText(document.getElementById('mcl-overall-cnt'), prog.done + ' / ' + (prog.total || prog.done));
     setWidth(document.getElementById('mcl-overall-fill'), prog.pct);
     // [2026-06-19 R2] 전체 진행률 도넛
