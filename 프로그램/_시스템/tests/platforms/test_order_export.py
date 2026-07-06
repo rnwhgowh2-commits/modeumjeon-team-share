@@ -58,4 +58,31 @@ def test_rows_to_xlsx_has_header_and_row():
 
 
 def test_supported_is_smartstore_only():
-    assert oe.SUPPORTED == {"smartstore"}       # 정직: 실제 되는 것만
+    assert oe.SUPPORTED == {"smartstore"}       # 정직: UI 노출은 검증된 것만
+
+
+class FakeLotteonClient:
+    def request(self, method, path, body=None):
+        return {"returnCode": "0000", "data": {"deliveryOrderList": [{
+            "odCmptDttm": "20260705120000", "spdNm": "코트", "sitmNm": "블랙/95",
+            "odQty": 1, "slPrc": 189000, "actualAmt": 170000,
+            "dvpCustNm": "수령자A", "dvpMphnNo": "01011112222", "odrNm": "구매자A",
+            "dvpZipNo": "04315", "dvpStnmZipAddr": "서울 어딘가", "dvpStnmDtlAddr": "101동",
+            "dvMsg": "문앞", "mphnNo": "01000000000"}]}}
+
+
+def test_lotteon_rows_map_from_delivery_orders():
+    since = dt.datetime(2026, 7, 5, tzinfo=oe.KST)
+    until = dt.datetime(2026, 7, 6, tzinfo=oe.KST)
+    rows = oe.lotteon_order_rows(since, until, client=FakeLotteonClient())
+    assert len(rows) == 1
+    r = rows[0]
+    assert r["주문일"] == "2026-07-05" and r["상품명"] == "코트" and r["옵션"] == "블랙/95"
+    assert r["수령자"] == "수령자A" and r["구매자"] == "구매자A"
+    assert r["단가"] == 189000 and r["정산예정금액"] == 170000
+    assert r["쇼핑몰"] == "롯데온"
+
+
+def test_lotteon_in_builders_not_yet_supported():
+    assert "lotteon" in oe._BUILDERS           # 코드 준비됨
+    assert "lotteon" not in oe.SUPPORTED        # 키/검증 전까진 UI 미노출(정직)
