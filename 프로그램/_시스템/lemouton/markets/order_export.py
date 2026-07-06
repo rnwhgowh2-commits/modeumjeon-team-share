@@ -95,16 +95,57 @@ def smartstore_order_rows(since: _dt.datetime, until: _dt.datetime,
     return rows
 
 
+def lotteon_order_rows(since: _dt.datetime, until: _dt.datetime,
+                       client=None) -> list:
+    """롯데온 출고/회수지시(주문정보) → 16컬럼 행(dict) 리스트.
+
+    apiNo=209 SellerDeliveryOrdersSearch(하루 윈도우) 응답 deliveryOrderList 매핑.
+    정산예정금액은 주문 API엔 없음(실결제 actualAmt 로 근사) — 정밀 정산은 정산 그룹 API 후속.
+    """
+    from shared.platforms.lotteon.orders import iter_delivery_orders
+
+    rows = []
+    for od in iter_delivery_orders(since, until, client=client):
+        opt = _g(od, "sitmNm") or (
+            (str(_g(od, "adtnOptNm")) + " " + str(_g(od, "adtnOptVal"))).strip())
+        addr = (str(_g(od, "dvpStnmZipAddr")) + " " + str(_g(od, "dvpStnmDtlAddr"))).strip()
+        odc = str(_g(od, "odCmptDttm"))
+        rows.append({
+            "주문일": (odc[:4] + "-" + odc[4:6] + "-" + odc[6:8]) if len(odc) >= 8 else odc,
+            "상품명": _g(od, "spdNm"),
+            "옵션": opt,
+            "수량": _g(od, "odQty", default=""),
+            "주소": addr,
+            "우편번호": _g(od, "dvpZipNo"),
+            "수령자": _g(od, "dvpCustNm"),
+            "배송메시지": _g(od, "dvMsg"),
+            "구매자": _g(od, "odrNm"),
+            "수령자전화번호": _g(od, "dvpMphnNo", "dvpTelNo"),
+            "구매자번호": _g(od, "mphnNo", "telNo"),
+            "쇼핑몰": "롯데온",
+            "쇼핑몰ID": "",
+            "단가": _g(od, "slPrc", default=""),
+            "정산예정금액": _g(od, "actualAmt", default=""),   # 실결제 근사(정밀 정산은 후속)
+        })
+    return rows
+
+
+# 마켓별 행 빌더(코드 존재). SUPPORTED = 그중 실계정 검증까지 끝나 UI 노출 가능한 것.
+_BUILDERS = {"smartstore": smartstore_order_rows, "lotteon": lotteon_order_rows}
+
+
 def order_rows(market: str, days: int = 7, client=None,
                now: Optional[_dt.datetime] = None) -> list:
-    """마켓별 최근 days일 주문 행. 미지원 마켓은 ValueError(추측 데이터 안 만듦)."""
+    """마켓별 최근 days일 주문 행. 미지원(UI) 마켓은 ValueError(추측 데이터 안 만듦).
+
+    SUPPORTED 만 UI(엑셀 버튼)에 노출. _BUILDERS 에 있으나 SUPPORTED 아닌 마켓
+    (예: 롯데온 — 코드 준비됨·키/검증 대기)은 서버/검증용으로 allow_unverified=True 시만.
+    """
     if market not in SUPPORTED:
-        raise ValueError(f"'{market}' 주문 엑셀 미지원 — 코드/키/검증 필요")
+        raise ValueError(f"'{market}' 주문 엑셀 미지원(UI) — 코드/키/검증 필요")
     until = now or _dt.datetime.now(KST)
     since = until - _dt.timedelta(days=days)
-    if market == "smartstore":
-        return smartstore_order_rows(since, until, client=client)
-    raise ValueError(market)   # pragma: no cover
+    return _BUILDERS[market](since, until, client=client)
 
 
 def rows_to_xlsx(rows: list) -> bytes:

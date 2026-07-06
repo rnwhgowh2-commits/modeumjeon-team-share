@@ -89,6 +89,7 @@ CAPABILITIES: dict[str, list[Capability]] = {
         Capability("product_fetch", "판매가·옵션 조회", "recv", _L + "products", "get_product_detail"),
         Capability("price_update", "가격", "send", _L + "prices", "update_price"),
         Capability("stock_update", "재고", "send", _L + "inventory", "update_stock"),
+        Capability("order_fetch", "출고/회수지시(주문정보) 조회", "recv", _L + "orders", "iter_delivery_orders"),
     ],
 }
 
