@@ -182,6 +182,20 @@ def _active_products(session) -> list:
             .all())
 
 
+def _lap_products(session) -> list:
+    """가중 랩 대상 = 확장에 실제 보낼 수 있는(모음전에 걸린) 활성 URL만.
+
+    orphan/미연결 URL(어떤 BundleSourceUrl 에도 없음)은 due_bundle_codes 가 코드로
+    못 바꿔 확장이 영영 못 긁는다 → 랩에 넣으면 served 가 quota 에 못 닿아 '한 바퀴'가
+    영영 안 끝나고 링이 멈춘다(라이브 확인된 89% 정지·오늘 바퀴 0 고정의 뿌리).
+    그래서 랩은 dispatchable URL 로만 센다.
+    """
+    from lemouton.sourcing.models import BundleSourceUrl
+    from lemouton.sources.service import normalize_url
+    disp = {normalize_url(b.url) for b in session.query(BundleSourceUrl).all()}
+    return [p for p in _active_products(session) if normalize_url(p.url) in disp]
+
+
 def weighted_due_products(session) -> list:
     """이번 가중 랩에 아직 덜 채운(계수 미달) URL을 '적게 채운 순'으로 반환.
 
@@ -191,7 +205,7 @@ def weighted_due_products(session) -> list:
     from datetime import datetime as _dt
     _MIN = _dt.min
     remaining = []
-    for p in _active_products(session):
+    for p in _lap_products(session):
         quota = lap_quota(session, p)
         served = int(p.crawl_lap_count or 0)
         if served < quota:
@@ -209,7 +223,7 @@ def start_new_lap(session, now=None) -> int:
     from datetime import datetime as _dt
     from lemouton.sources.models import CrawlLapRun
     n = 0
-    for p in _active_products(session):
+    for p in _lap_products(session):
         if int(p.crawl_lap_count or 0) != 0:
             p.crawl_lap_count = 0
         n += 1
@@ -254,7 +268,7 @@ def next_lap_products(session) -> list:
     due = weighted_due_products(session)
     if due:
         return due
-    if not _active_products(session):
+    if not _lap_products(session):
         return []
     start_new_lap(session)
     # 랩 리셋은 반드시 영속 — 이 함수는 읽기 라우트(/crawl/queue·due-bundles)에서
@@ -271,7 +285,7 @@ def lap_progress(session) -> dict:
     """링 표시용 — 이번 가중 랩 진행률. served/total(가중 합) + pct(0~100)."""
     served_sum = 0
     total = 0
-    for p in _active_products(session):
+    for p in _lap_products(session):
         quota = lap_quota(session, p)
         total += quota
         served_sum += min(int(p.crawl_lap_count or 0), quota)

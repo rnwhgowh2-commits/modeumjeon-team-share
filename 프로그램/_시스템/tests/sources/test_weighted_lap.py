@@ -10,13 +10,17 @@ from lemouton.sources.crawl_schedule import (
     lap_progress, lap_quota, next_lap_products, set_crawl_weight_rule,
 )
 from lemouton.sources.models import SourceProduct
+import lemouton.sourcing.models as M
 
 NOW = datetime(2026, 7, 6, 12, 0, 0)
 
 
 def _sp(db, site, url):
+    """랩 대상은 dispatchable(모음전에 걸린) URL만 → 테스트 URL도 BundleSourceUrl 로 연결."""
     sp = SourceProduct(site=site, url=url, last_fetched_at=None)
-    db.add(sp); db.flush()
+    db.add(sp)
+    db.add(M.BundleSourceUrl(model_code="LAP-" + site, source_key=site, url=url, sort_order=0))
+    db.flush()
     return sp
 
 
@@ -29,6 +33,17 @@ def _set_weights(db):
     set_crawl_weight_rule(db, "source", "s3", 3)
     db.flush()
     return a, b, c
+
+
+def test_orphan_url_excluded_from_lap(db):
+    """모음전에 안 걸린 orphan URL 은 랩에서 제외 — 확장이 못 긁어 랩을 영영 막으므로."""
+    disp = _sp(db, "s1", "u/disp")                       # 모음전 연결됨
+    orph = SourceProduct(site="s1", url="u/orph", last_fetched_at=None)
+    db.add(orph); db.flush()                             # BundleSourceUrl 없음(orphan)
+    ids = {p.id for p in weighted_due_products(db)}
+    assert disp.id in ids
+    assert orph.id not in ids
+    assert lap_progress(db)["total"] == 1                # dispatchable 1개만 계수 합
 
 
 def test_lap_quota_is_effective_weight(db):
@@ -185,7 +200,9 @@ def test_lap_reset_persists_across_session_close():
 
     s1 = _S(eng)
     a = SourceProduct(site="s1", url="u/a", last_fetched_at=None)
-    s1.add(a); s1.flush()
+    s1.add(a)
+    s1.add(M.BundleSourceUrl(model_code="LAP", source_key="s1", url="u/a", sort_order=0))
+    s1.flush()
     record_crawl_served(a)          # 계수1 → quota 소진
     s1.commit()
     # 라우트처럼: next_lap_products 호출 후 세션 닫음(commit 안 함)

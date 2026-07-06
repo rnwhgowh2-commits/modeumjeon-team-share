@@ -16,9 +16,12 @@ def _enable(db, on=True, hours=6, minutes=0):
 
 
 def _sp(db, url, *, last=None, weight=1):
+    import lemouton.sourcing.models as M
     sp = SourceProduct(site="musinsa", url=url, crawl_weight=weight,
                        no_change_streak=0, last_fetched_at=last)
-    db.add(sp); db.flush()
+    db.add(sp)
+    db.add(M.BundleSourceUrl(model_code="LAP", source_key="musinsa", url=url, sort_order=0))
+    db.flush()
     return sp
 
 
