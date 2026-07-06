@@ -119,7 +119,8 @@ def orders_export():
     except Exception as e:   # noqa: BLE001 — 마켓 API/인증/IP 오류를 사유와 함께 표면화(키는 미노출)
         import logging
         logging.getLogger(__name__).exception("order export failed market=%s", market)
-        abort(502, f"[{market}] 주문 조회 실패: {type(e).__name__}: {str(e)[:300]}")
+        # 4xx 로 반환(CDN 이 5xx 본문을 자기 페이지로 가려 사유가 안 보임 → 사유 표면화)
+        abort(400, f"[{market}] 주문 조회 실패: {type(e).__name__}: {str(e)[:300]}")
     xlsx = _oe.rows_to_xlsx(rows)
     stamp = _dt.datetime.now(_oe.KST).strftime('%Y%m%d')
     fname = f"모음전_{market}_최근{days}일주문_{stamp}.xlsx"
