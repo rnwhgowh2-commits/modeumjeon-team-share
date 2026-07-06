@@ -22,6 +22,10 @@
   .cw-ic{width:29px;height:29px;border-radius:8px;font-size:16px;font-weight:700;display:inline-flex;align-items:center;justify-content:center;color:#fff;flex:none}
   .ic-src{background:#191F28}.ic-brd{background:#7F77DD}.ic-mdl{background:#1D9E75}.ic-opt{background:#D85A30}.ic-url{background:#5F5E5A}
   .cw-url{font-size:16px;font-family:ui-monospace,monospace;color:#6b7684;word-break:break-all}
+  /* [항목6] URL leaf = 어느 소싱처인지 2줄(윗줄 소싱처, 아랫줄 주소) */
+  .cw-urlbox{display:flex;flex-direction:column;gap:3px}
+  .cw-srcline{display:flex;align-items:center;gap:7px;font-weight:700;font-size:15px;color:#191F28}
+  .cw-url2{font-family:ui-monospace,monospace;font-size:13px;color:#8b95a1;word-break:break-all}
   .cw-step{display:inline-flex;align-items:center;border:1px solid #d7dce2;border-radius:10px;overflow:hidden;background:#fff}
   .cw-step button{width:38px;height:38px;border:0;background:#fff;font-size:23px;color:#4b5563;cursor:pointer}
   .cw-step button:hover:not(:disabled){background:#f2f4f6}
@@ -119,9 +123,10 @@
     if(n.scope_type==='option' && n.size) s+=' <span class="cw-osz">'+esc(n.size)+'</span>';
     if(n.scope_type==='model' && n.brand && mode==='mdl') s+=' <span class="cw-brdtag">'+esc(n.brand)+'</span>';
     if(n.scope_type==='url'){
-      s='';
-      if(n.site_label && (mode==='brd'||mode==='mdl')) s+='<span class="cw-ic ic-src" style="width:15px;height:15px;font-size:8px">'+esc(icChar(n.site_label))+'</span> ';
-      s+='<span class="cw-url">'+esc(n.label)+'</span>';
+      var nm=n.site_label||n.site||'소싱처';
+      s='<div class="cw-urlbox"><div class="cw-srcline">'+
+        '<span class="cw-ic ic-src" style="width:18px;height:18px;font-size:10px">'+esc(icChar(nm))+'</span>'+esc(nm)+
+        '</div><div class="cw-url2">'+esc(n.label)+'</div></div>';
     }
     return s;
   }

@@ -68,6 +68,22 @@
   .rs-run{display:flex;align-items:center;gap:12px;margin-bottom:10px;color:#6b7684;font-size:12.5px;}
   .rs-ring{width:44px;height:44px;border-radius:50%;background:conic-gradient(#12B76A var(--p,0%),#E6EBF1 0);-webkit-mask:radial-gradient(farthest-side,transparent 64%,#000 65%);mask:radial-gradient(farthest-side,transparent 64%,#000 65%);flex:none;}
   .rs-fail-h{font-size:12px;font-weight:700;color:#c0392b;margin:4px 0 8px;}
+  /* [항목5] 크롤 실패 B 아코디언 — 소싱처 > (브랜드) > 옵션·url·유형 */
+  .facc{border:1px solid #f0f2f5;border-radius:10px;margin-bottom:8px;overflow:hidden;}
+  .facc-h{display:flex;align-items:center;gap:8px;width:100%;border:0;background:#FBFCFD;padding:9px 12px;font-size:12.5px;font-weight:600;color:#191F28;cursor:pointer;font-family:inherit;text-align:left;}
+  .facc-h .fcnt{margin-left:auto;background:#FFECEC;color:#C92A2A;border-radius:20px;font-size:11px;font-weight:700;padding:1px 8px;}
+  .facc-h .fcar{color:#b0b8c1;font-size:10px;transition:transform .15s;}
+  .facc.open .facc-h .fcar{transform:rotate(90deg);}
+  .fsic{width:18px;height:18px;border-radius:5px;background:#185FA5;color:#fff;font-size:10px;font-weight:700;display:inline-flex;align-items:center;justify-content:center;flex:none;}
+  .fbr{background:#EEF2FF;color:#4263EB;border-radius:6px;padding:1px 7px;font-size:11px;font-weight:600;}
+  .facc-b{display:none;padding:2px 12px 8px;}
+  .facc.open .facc-b{display:block;}
+  .frow{display:flex;align-items:center;gap:10px;padding:7px 2px;border-top:1px solid #f5f6f8;font-size:12px;}
+  .frow .fopt{font-weight:600;white-space:nowrap;}
+  .frow .furl{color:#8b95a1;font-family:ui-monospace,monospace;font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;min-width:0;}
+  .frow .ftg{margin-left:auto;border-radius:6px;padding:1px 7px;font-size:11px;font-weight:700;white-space:nowrap;}
+  .ftg.t-etc{background:#F2F4F6;color:#4e5968;} .ftg.t-block{background:#FFECEC;color:#C92A2A;}
+  .ftg.t-login{background:#FFF3BF;color:#8a6d00;} .ftg.t-parse{background:#E7F5FF;color:#1971C2;} .ftg.t-network{background:#FFF4E6;color:#E8590C;}
   .fbadge{background:#fdecec;color:#e03a3e;font-size:10px;font-weight:700;padding:1px 7px;border-radius:9px;font-variant-numeric:tabular-nums;}
   .fsplit{display:grid;grid-template-columns:140px 1fr;gap:12px;}
   .ftypes{display:flex;flex-direction:column;gap:5px;}
@@ -87,12 +103,23 @@
   .rsc .run.on{background:#12B76A;color:#fff;} .rsc .stop.on{background:#EEF1F4;color:#191F28;}
   .rsc .ic{width:8px;height:8px;background:currentColor;} .rsc .run .ic{border-radius:50%;} .rsc .stop .ic{border-radius:2px;}
   .cz{border-radius:10px;background:#F7F9FB;border:1px solid #e5e8eb;padding:11px;margin:11px 0;overflow:hidden;position:relative;}
-  .cz-row{display:grid;grid-template-columns:56px 1fr;gap:12px;align-items:center;}
-  .cz-ring{width:56px;height:56px;border-radius:50%;background:conic-gradient(#12B76A var(--p,0%),#E6EBF1 0);-webkit-mask:radial-gradient(farthest-side,transparent 62%,#000 63%);mask:radial-gradient(farthest-side,transparent 62%,#000 63%);flex:none;}
-  .cz-ringwrap{position:relative;width:56px;height:56px;display:flex;align-items:center;justify-content:center;}
-  .cz-rtxt{position:absolute;text-align:center;} .cz-rtxt b{font-size:13px;font-variant-numeric:tabular-nums;color:#191F28;} .cz-rtxt small{display:block;font-size:8px;color:#8b95a1;}
-  .cz-feed{height:52px;overflow:hidden;font-size:11px;line-height:1.8;-webkit-mask:linear-gradient(#000 60%,transparent);mask:linear-gradient(#000 60%,transparent);}
-  .cz-feed div{white-space:nowrap;color:#4e5968;} .cz-feed .k{color:#12B76A;font-weight:700;} .cz-feed .r{color:#3182f6;font-weight:700;}
+  /* C 배치 — 왼쪽 「오늘 N바퀴」 · 가운데 링 · 오른쪽 평균+막대 (수직 가운데) */
+  .cz-row{display:flex;align-items:center;justify-content:center;gap:16px;}
+  .cz-today{text-align:center;flex:none;}
+  .cz-today .lbl{display:block;font-size:11px;color:#8b95a1;font-weight:600;}
+  .cz-today b{font-size:30px;font-weight:800;color:#0CA678;line-height:1.05;font-variant-numeric:tabular-nums;}
+  .cz-ring{width:104px;height:104px;border-radius:50%;background:conic-gradient(#12B76A var(--p,0%),#E6EBF1 0);-webkit-mask:radial-gradient(farthest-side,transparent 65%,#000 66%);mask:radial-gradient(farthest-side,transparent 65%,#000 66%);flex:none;}
+  .cz-ringwrap{position:relative;width:104px;height:104px;display:flex;align-items:center;justify-content:center;flex:none;}
+  .cz-rtxt{position:absolute;text-align:center;line-height:1.05;} .cz-rtxt b{font-size:24px;font-weight:800;letter-spacing:-.5px;font-variant-numeric:tabular-nums;color:#191F28;} .cz-rtxt small{display:block;font-size:10px;color:#8b95a1;font-weight:600;}
+  .cz-right{flex:1;min-width:0;display:flex;flex-direction:column;justify-content:center;gap:8px;}
+  .cz-avg{display:inline-flex;align-items:center;gap:5px;background:#EEF4FF;color:#3556C9;border-radius:8px;padding:3px 10px;font-size:11.5px;font-weight:600;align-self:flex-start;white-space:nowrap;}
+  .cz-avg b{font-weight:700;}
+  .cz-bars{display:flex;gap:2px;align-items:flex-end;height:36px;}
+  .cz-bars i{flex:1;min-width:3px;background:#12B76A;border-radius:2px;display:block;}
+  .cz-bars i.cur{background:#3182f6;}
+  .cz-bars .cz-none{color:#b0b8c1;font-size:11px;align-self:center;}
+  .cz-feed{font-size:10.5px;line-height:1.5;color:#8b95a1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .cz-feed .k{color:#12B76A;font-weight:700;} .cz-feed .r{color:#3182f6;font-weight:700;}
   .cz-paused{position:absolute;inset:0;background:rgba(247,249,251,.92);display:flex;align-items:center;justify-content:center;font-size:12px;color:#8b95a1;font-weight:600;}
   .cz-ring.spin{animation:cz-spin 2.4s linear infinite;}
   @keyframes cz-spin{to{transform:rotate(360deg);}}
@@ -139,8 +166,13 @@
         <div class="au-d">쉬지 않고 오래된 것부터 계속 긁어요 — 시간표 없이 항상 돕니다.</div>
         <div class="cz" id="cz">
           <div class="cz-row">
-            <div class="cz-ringwrap"><div class="cz-ring" id="cz-ring"></div><div class="cz-rtxt"><b id="cz-pct">0%</b><small>이번 한 바퀴</small></div></div>
-            <div class="cz-feed" id="cz-feed"><div>대기 중…</div></div>
+            <div class="cz-today"><span class="lbl">오늘</span><b id="cz-laps">0</b><span class="lbl">바퀴</span></div>
+            <div class="cz-ringwrap"><div class="cz-ring" id="cz-ring"></div><div class="cz-rtxt"><b id="cz-pct">0%</b><small>이번 바퀴</small></div></div>
+            <div class="cz-right">
+              <div class="cz-avg" id="cz-avg">⏱ 평균 1바퀴 <b>–</b></div>
+              <div class="cz-bars" id="cz-bars"><span class="cz-none">아직 완료한 바퀴가 없어요</span></div>
+              <div class="cz-feed" id="cz-feed">대기 중… 「실행」을 켜면 지금 긁는 소싱처가 여기 흘러요</div>
+            </div>
           </div>
           <div class="cz-paused" id="cz-paused">⏸ 정지됨 — 「실행」을 켜면 시작해요</div>
         </div>
@@ -181,11 +213,8 @@
   <div class="runsec" id="runsec">
     <div class="rs-band">🚨 크롤 실패<span class="rs-live" id="rs-live"></span></div>
     <div class="rs-body">
-      <div class="rs-fail-h">크롤 실패 <span class="fbadge" id="f-count">0</span> · 유형별</div>
-      <div class="fsplit">
-        <div class="ftypes" id="f-types"></div>
-        <div id="f-detail"><div class="fnone">불러오는 중…</div></div>
-      </div>
+      <div class="rs-fail-h">크롤 실패 <span class="fbadge" id="f-count">0</span> · 소싱처별</div>
+      <div id="f-acc"><div class="fnone">불러오는 중…</div></div>
     </div>
   </div>
 </div>
@@ -271,24 +300,38 @@
     }).catch(function(){});
   }
 
-  // ── ⑤ 실패 유형화 ──
-  var _failGroups=[];
-  function renderFailDetail(idx){
-    var g=_failGroups[idx]; var dt=document.getElementById('f-detail');
-    if(!g){ dt.innerHTML=''; return; }
-    dt.innerHTML=g.items.map(function(it){ return '<div class="fopt"><div class="fopt-nm"><span style="color:#e03a3e">✕</span> '+(it.site||'')+'</div><div class="fopt-url">'+it.url+'</div></div>'; }).join('');
-    document.querySelectorAll('#f-types .ftype').forEach(function(b,i){ b.classList.toggle('on',i===idx); });
-  }
+  // ── ⑤ 크롤 실패 — B 아코디언(소싱처 > 브랜드 > 옵션·url·유형) ──
+  function _esc(s){ return (s==null?'':String(s)).replace(/[&<>"]/g,function(m){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m];}); }
+  function _shortUrl(u){ try{ var x=new URL(u); var t=(x.pathname+x.search); return _esc(x.hostname.replace(/^www\./,'')+(t.length>26?'…'+t.slice(-24):t)); }catch(e){ u=_esc(u); return u.length>36?'…'+u.slice(-34):u; } }
   function renderFailures(){
     fetch('/api/crawl/failures').then(function(r){return r.json();}).then(function(d){
-      _failGroups=(d&&d.groups)||[];
-      var total=_failGroups.reduce(function(s,g){return s+g.count;},0);
+      var groups=(d&&d.groups)||[];
+      var total=groups.reduce(function(s,g){return s+g.count;},0);
       document.getElementById('f-count').textContent=total;
-      var tp=document.getElementById('f-types');
-      if(!_failGroups.length){ tp.innerHTML=''; document.getElementById('f-detail').innerHTML='<div class="fnone">✓ 크롤 실패 없음</div>'; return; }
-      tp.innerHTML=_failGroups.map(function(g,i){ return '<button class="ftype" data-i="'+i+'">'+g.emoji+' '+g.label+' <span class="n">'+g.count+'</span></button>'; }).join('');
-      tp.querySelectorAll('.ftype').forEach(function(b){ b.addEventListener('click',function(){ renderFailDetail(parseInt(this.dataset.i,10)); }); });
-      renderFailDetail(0);
+      var acc=document.getElementById('f-acc');
+      if(!total){ acc.innerHTML='<div class="fnone">✓ 크롤 실패 없음</div>'; return; }
+      // 모든 실패 item 평탄화(+유형) → 소싱처별 그룹
+      var bySite={};
+      groups.forEach(function(g){ (g.items||[]).forEach(function(it){
+        var k=it.site||'?';
+        var s=bySite[k]||(bySite[k]={label:it.site_label||it.site||'?', items:[]});
+        s.items.push({br:it.brand, opt:it.option_scope, url:it.url, tl:g.label, em:g.emoji, tc:g.type});
+      }); });
+      acc.innerHTML=Object.keys(bySite).map(function(k){
+        var s=bySite[k];
+        var brands=Array.from(new Set(s.items.map(function(x){return x.br;}).filter(Boolean)));
+        var rows=s.items.map(function(it){
+          return '<div class="frow"><span class="fopt">'+_esc(it.opt||'')+'</span>'+
+            '<span class="furl">'+_shortUrl(it.url)+'</span>'+
+            '<span class="ftg t-'+_esc(it.tc)+'">'+_esc(it.em+' '+it.tl)+'</span></div>';
+        }).join('');
+        return '<div class="facc open"><button class="facc-h" type="button">'+
+          '<span class="fcar">▶</span><span class="fsic">'+_esc((s.label||'?').charAt(0))+'</span>'+_esc(s.label)+
+          (brands.length?' <span class="fbr">'+_esc(brands.join(', '))+'</span>':'')+
+          '<span class="fcnt">'+s.items.length+'</span></button>'+
+          '<div class="facc-b">'+rows+'</div></div>';
+      }).join('');
+      acc.querySelectorAll('.facc-h').forEach(function(b){ b.addEventListener('click',function(){ this.parentElement.classList.toggle('open'); }); });
     }).catch(function(){});
   }
 
@@ -296,28 +339,41 @@
   //   링 채움 % = 서버의 '가중 한 바퀴' 진행률(각 URL을 계수만큼 크롤 = 한 바퀴).
   //     확장이 잠깐 쉬어도 랩 진행률은 서버에 남아 이어짐(배치 done/total 아님).
   //   회전(spin) = 지금 실제로 긁는 중인지(확장 상태). 로그 = 지금 긁는 소싱처.
-  var _feedRest='<div>대기 중… 「실행」을 켜면 지금 긁는 소싱처가 여기 흘러요</div>';
   var _lapPct=0;
+  function renderBars(recent){
+    var el=document.getElementById('cz-bars'); if(!el) return;
+    if(!recent||!recent.length){ el.innerHTML='<span class="cz-none">아직 완료한 바퀴가 없어요</span>'; return; }
+    var mx=Math.max.apply(null,recent)||1;
+    var html=recent.map(function(m){ var h=Math.max(14,Math.round(m/mx*100)); return '<i style="height:'+h+'%"></i>'; }).join('');
+    html+='<i class="cur" style="height:60%"></i>';   // 지금 진행 중 바퀴(파랑)
+    el.innerHTML=html;
+  }
   function pollLap(){
     fetch('/api/crawl/queue').then(function(r){return r.json();}).then(function(d){
-      var lp=(d&&d.lap_progress)||{}; _lapPct=lp.pct||0;
-      var ring=document.getElementById('cz-ring'), pct=document.getElementById('cz-pct');
+      var lp=(d&&d.lap_progress)||{}, ls=(d&&d.lap_stats)||{};
+      _lapPct=lp.pct||0;
+      var on=!!st.crawl_auto_enabled;
+      var ring=document.getElementById('cz-ring'), pct=document.getElementById('cz-pct'),
+          laps=document.getElementById('cz-laps'), avg=document.getElementById('cz-avg');
       if(ring) ring.style.setProperty('--p',_lapPct+'%');
-      if(pct) pct.textContent=st.crawl_auto_enabled?(_lapPct+'%'):'0%';
+      if(pct) pct.textContent=on?(_lapPct+'%'):'0%';
+      if(laps) laps.textContent=(ls.laps_today!=null?ls.laps_today:0);
+      if(avg) avg.innerHTML='⏱ 평균 1바퀴 <b>'+(ls.avg_lap_minutes!=null?ls.avg_lap_minutes+'분':'–')+'</b>';
+      renderBars(ls.recent_lap_minutes);
     }).catch(function(){});
   }
   function paintRun(){
     var s=(window.MoumExt&&MoumExt.getCrawlState&&MoumExt.getCrawlState())||{};
     var running=!!(s&&s.running);
-    document.getElementById('runsec').classList.toggle('on',running);
-    var ring=document.getElementById('cz-ring'), pct=document.getElementById('cz-pct'), feed=document.getElementById('cz-feed');
+    var card=document.getElementById('crawl-card'); if(card) card.classList.toggle('is-running',running);
+    var rs=document.getElementById('runsec'); if(rs) rs.classList.toggle('on',running);
+    var ring=document.getElementById('cz-ring'), feed=document.getElementById('cz-feed');
     if(!ring) return;
     if(running){
-      feed.innerHTML='<div><span class="r">↻</span> '+(s.running||'')+' 긁는 중…</div>';
+      if(feed) feed.innerHTML='<span class="r">↻</span> '+(s.running||'')+' 긁는 중…';
       ring.classList.add('spin');
     } else {
-      pct.textContent=st.crawl_auto_enabled?(_lapPct+'%'):'0%';
-      feed.innerHTML=_feedRest;
+      if(feed) feed.textContent='대기 중… 「실행」을 켜면 지금 긁는 소싱처가 여기 흘러요';
       ring.classList.remove('spin');
     }
   }

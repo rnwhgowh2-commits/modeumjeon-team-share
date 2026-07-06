@@ -176,6 +176,15 @@ class CrawlDelta(Base):
     detail = Column(Text)  # 무엇이 얼마→얼마로 (사람이 읽는 요약)
 
 
+class CrawlLapRun(Base):
+    """가중 랩 1바퀴 완료 = 1행. 자정(KST) 이후 개수 = '오늘 몇 바퀴',
+    연속 완료 간격 = '1바퀴 걸린 시간'(평균·막대). 완료 시 start_new_lap 이 append."""
+    __tablename__ = "crawl_lap_runs"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    completed_at = Column(DateTime, default=datetime.utcnow, nullable=False, index=True)
+
+
 class CrawlWeightRule(Base):
     """계수 규칙 — 소싱처/브랜드/모음전/URL 범위별. 없으면 상속·기본 ×1."""
     __tablename__ = "crawl_weight_rules"

@@ -53,6 +53,23 @@ def test_last_fetched_at_serialized_iso(db):
     assert isinstance(out["items"][0]["last_fetched_at"], str)  # iso 문자열
 
 
+def test_payload_includes_lap_stats(db):
+    """링 박스(항목4) — 오늘 바퀴/평균/막대 데이터가 페이로드에 포함."""
+    from lemouton.sources.models import CrawlLapRun
+    from datetime import datetime as _dt, timedelta as _td
+    _enable(db, on=True)
+    _sp(db, "u/a")
+    base = _dt(2026, 7, 5, 15, 0, 0)             # 6일 00:00 KST
+    for m in (0, 30, 70):
+        db.add(CrawlLapRun(completed_at=base + _td(minutes=m)))
+    db.flush()
+    st = due_crawl_payload(db, now=_dt(2026, 7, 6, 5, 0, 0))["lap_stats"]
+    assert st["laps_today"] == 3
+    assert st["current_lap_no"] == 4
+    assert st["recent_lap_minutes"] == [30, 40]
+    assert st["avg_lap_minutes"] == 35
+
+
 def test_payload_includes_lap_progress(db):
     """링('이번 한 바퀴')이 읽는 가중 랩 진행률 — 항상 포함(정지 상태여도)."""
     from lemouton.sources.crawl_schedule import (

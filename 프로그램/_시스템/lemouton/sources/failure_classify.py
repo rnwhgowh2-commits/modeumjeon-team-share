@@ -38,13 +38,45 @@ def classify_crawl_failure(status, error_message):
     return {"type": "etc", "label": FAILURE_TYPES["etc"]["label"], "emoji": FAILURE_TYPES["etc"]["emoji"]}
 
 
+def _option_scope(colors, sizes, url_type):
+    """실패 URL이 덮는 옵션 범위를 짧게. 옵션 없으면 url_type 폴백."""
+    if colors:
+        if len(colors) == 1:
+            c = colors[0]
+            if len(sizes) == 1:
+                return c + " · " + sizes[0]
+            if len(sizes) > 1:
+                return c + " · " + sizes[0] + "~" + sizes[-1]
+            return c
+        return colors[0] + " 외 " + str(len(colors) - 1) + "색"
+    return url_type or "옵션 미상"
+
+
 def list_crawl_failures(session) -> list:
     """last_status='error' 인 활성 URL을 실패 유형별로 묶어 반환(화면 ⑤ 데이터).
 
-    반환: [{type, label, emoji, count, items:[{source_product_id, site, url, error}]}]
-    유형 순서는 FAILURE_TYPES 순으로 고정.
+    각 item = 소싱처(site·site_label) / 브랜드 / 옵션(색·사이즈) / url_type / url / error
+    → B 아코디언(소싱처>브랜드>옵션/url)이 4계층으로 파고든다. 유형 순서 고정.
     """
-    from lemouton.sources.models import SourceProduct
+    from lemouton.sources.models import SourceProduct, SourceOption
+    from lemouton.sources.service import normalize_url
+    from lemouton.sourcing.models import BundleSourceUrl, Model
+    try:
+        from lemouton.sourcing.source_registry import get_labels
+        labels = get_labels() or {}
+    except Exception:
+        labels = {}
+
+    # 정규화 URL → {model_codes, url_type}
+    url_meta = {}
+    for b in session.query(BundleSourceUrl).all():
+        n = normalize_url(b.url)
+        m = url_meta.setdefault(n, {"model_codes": set(), "url_type": None})
+        m["model_codes"].add(b.model_code)
+        if b.url_type and not m["url_type"]:
+            m["url_type"] = b.url_type
+    brand_by_model = {m.model_code: m.brand for m in session.query(Model).all()}
+
     rows = (session.query(SourceProduct)
             .filter(SourceProduct.deleted_at.is_(None))
             .filter(SourceProduct.last_status == "error")
@@ -52,10 +84,25 @@ def list_crawl_failures(session) -> list:
     groups = {}
     for sp in rows:
         c = classify_crawl_failure("error", sp.last_error_msg)
+        meta = url_meta.get(normalize_url(sp.url), {"model_codes": set(), "url_type": None})
+        mcs = sorted(meta["model_codes"])
+        brands = sorted({brand_by_model.get(mc) for mc in mcs if brand_by_model.get(mc)})
+        opts = (session.query(SourceOption)
+                .filter_by(source_product_id=sp.id, deleted_at=None).all())
+        colors = sorted({o.color_text for o in opts if o.color_text})
+        sizes = sorted({o.size_text for o in opts if o.size_text})
         g = groups.setdefault(c["type"], {"type": c["type"], "label": c["label"],
                                           "emoji": c["emoji"], "count": 0, "items": []})
         g["count"] += 1
-        g["items"].append({"source_product_id": sp.id, "site": sp.site,
-                           "url": sp.url, "error": sp.last_error_msg})
+        g["items"].append({
+            "source_product_id": sp.id,
+            "site": sp.site,
+            "site_label": labels.get(sp.site, sp.site),
+            "brand": brands[0] if brands else None,
+            "option_scope": _option_scope(colors, sizes, meta["url_type"]),
+            "url_type": meta["url_type"],
+            "url": sp.url,
+            "error": sp.last_error_msg,
+        })
     order = list(FAILURE_TYPES.keys())
     return sorted(groups.values(), key=lambda g: order.index(g["type"]))

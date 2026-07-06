@@ -5,7 +5,7 @@
 - 완화배수 = min(1 + 무변동연속 × RELAX_STEP, RELAX_CAP): 계속 안 변하면 덜 긁음.
 실제 크롤 실행은 P3(워커). 여기는 순서만 정한다.
 """
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 
 RELAX_STEP = 0.5   # 무변동 1회당 간격 +0.5배
 RELAX_CAP = 4.0    # 완화 상한(최대 4배)
@@ -200,15 +200,50 @@ def weighted_due_products(session) -> list:
     return [t[3] for t in remaining]
 
 
-def start_new_lap(session) -> int:
-    """이번 랩 카운터 전부 0으로 리셋(다음 가중 랩 시작). 호출자가 commit. 리셋 개수 반환."""
+def start_new_lap(session, now=None) -> int:
+    """이번 랩 카운터 전부 0으로 리셋(다음 가중 랩 시작) + 완료 1건 기록.
+
+    가중 한 바퀴가 끝나 새 랩을 시작하는 순간 = 랩 1개 완료 → CrawlLapRun append
+    (자정 이후 개수 = '오늘 몇 바퀴', 간격 = '1바퀴 시간'). 호출자가 commit. 리셋 개수 반환.
+    """
+    from datetime import datetime as _dt
+    from lemouton.sources.models import CrawlLapRun
     n = 0
     for p in _active_products(session):
         if int(p.crawl_lap_count or 0) != 0:
             p.crawl_lap_count = 0
         n += 1
+    session.add(CrawlLapRun(completed_at=now or _dt.utcnow()))
     session.flush()
     return n
+
+
+_KST_OFFSET_H = 9   # 자정 기준 = 한국시간(UTC+9)
+
+
+def lap_stats(session, *, now, tz_offset_hours: int = _KST_OFFSET_H) -> dict:
+    """자정(KST) 이후 '오늘 몇 바퀴' + 평균/최근 1바퀴 시간(분). 링 박스가 읽음.
+
+    laps_today = 자정 이후 완료 개수. current_lap_no = 지금 몇 바퀴째(오늘+1).
+    recent_lap_minutes = 연속 완료 간격(분) 최근 12개. avg = 그 평균(없으면 None).
+    """
+    from lemouton.sources.models import CrawlLapRun
+    kst = _as_naive_utc(now) + timedelta(hours=tz_offset_hours)
+    kst_midnight = kst.replace(hour=0, minute=0, second=0, microsecond=0)
+    midnight_utc = kst_midnight - timedelta(hours=tz_offset_hours)
+    runs = (session.query(CrawlLapRun)
+            .filter(CrawlLapRun.completed_at >= midnight_utc)
+            .order_by(CrawlLapRun.completed_at.asc()).all())
+    times = [_as_naive_utc(r.completed_at) for r in runs]
+    diffs = [round((times[i] - times[i - 1]).total_seconds() / 60)
+             for i in range(1, len(times))]
+    avg = round(sum(diffs) / len(diffs)) if diffs else None
+    return {
+        "laps_today": len(times),
+        "current_lap_no": len(times) + 1,
+        "avg_lap_minutes": avg,
+        "recent_lap_minutes": diffs[-12:],
+    }
 
 
 def next_lap_products(session) -> list:
@@ -296,9 +331,10 @@ def due_crawl_payload(session, *, now) -> dict:
     s = get_or_init(session)
     base = base_crawl_interval_seconds(session)
     prog = lap_progress(session)   # 링('이번 한 바퀴')용 — 정지 상태여도 항상 노출
+    stats = lap_stats(session, now=now)   # 오늘 몇 바퀴·평균·막대 (항목4)
     if not bool(s.crawl_auto_enabled):
         return {"enabled": False, "base_interval_seconds": base,
-                "count": 0, "items": [], "lap_progress": prog}
+                "count": 0, "items": [], "lap_progress": prog, "lap_stats": stats}
     products = due_products(session, base_interval_seconds=base, now=now)
     items = [{
         "source_product_id": p.id,
@@ -309,4 +345,5 @@ def due_crawl_payload(session, *, now) -> dict:
         "last_fetched_at": p.last_fetched_at.isoformat() if p.last_fetched_at else None,
     } for p in products]
     return {"enabled": True, "base_interval_seconds": base,
-            "count": len(items), "items": items, "lap_progress": prog}
+            "count": len(items), "items": items,
+            "lap_progress": prog, "lap_stats": stats}
