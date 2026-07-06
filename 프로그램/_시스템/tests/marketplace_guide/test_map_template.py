@@ -53,10 +53,10 @@ def test_key_data_tab():
     assert "주요 데이터" in html          # ⭐ 탭 이름(구 '모아보기')
 
 
-def test_six_domains_present():
+def test_official_category_names_present():
     html = _map()
-    for g in ["상품·옵션 등록·관리", "가격·재고·판매상태",
-              "조회·연동", "주문·배송", "정산", "고객응대(CS)"]:
+    # 쿠팡 공식 섹션 + 공통 정산 카테고리
+    for g in ["물류센터", "브랜드", "상품", "배송·환불", "쿠폰·캐시백", "로켓그로스", "정산", "고객응대(CS)"]:
         assert g in html
 
 
@@ -70,7 +70,8 @@ def test_status_four_states():
 def test_settlement_official_apis_catalogued():
     html = _map()
     # 정산 그룹에 마켓 공식 정산 엔드포인트 반영(마진 계산용 정산금액·수수료)
-    for s in ["건별 정산내역", "수수료 상세", "부가세", "상품별 차감내역", "중개셀러 통합정보"]:
+    for s in ["매출내역 조회(정산금액)", "수수료 상세", "부가세",
+              "상품별 차감내역", "상품별 수수료내역", "중개셀러 통합정보"]:
         assert s in html
 
 
