@@ -305,19 +305,15 @@
   function _esc(s){ return (s==null?'':String(s)).replace(/[&<>"]/g,function(m){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m];}); }
   function _dec(s){ try{ return decodeURIComponent(s); }catch(e){ return s; } }
   function _shortUrl(u){ try{ var x=new URL(u); var t=_dec(x.pathname+x.search); return _esc(x.hostname.replace(/^www\./,'')+(t.length>26?'…'+t.slice(-24):t)); }catch(e){ u=_esc(_dec(u)); return u.length>36?'…'+u.slice(-34):u; } }
-  // 에러 발견 시각 → 상대시간(방금~N년 전). last_fetched_at 은 naive UTC → Z 붙여 파싱.
-  function _relTime(iso){
+  // 에러 발견 시각 → 절대시각 「26.07.06 오후 1:30」(한국시간). naive UTC → Z 붙여 파싱, 브라우저 로컬(KST) 표기.
+  function _absTime(iso){
     if(!iso) return '';
     var s=/[Zz]|[+-]\d\d:?\d\d$/.test(iso)?iso:iso+'Z';
     var t=new Date(s); if(isNaN(t.getTime())) return '';
-    var sec=Math.floor((Date.now()-t.getTime())/1000); if(sec<0) sec=0;
-    if(sec<60) return '방금';
-    var m=Math.floor(sec/60); if(m<60) return m+'분 전';
-    var h=Math.floor(m/60);   if(h<24) return h+'시간 전';
-    var d=Math.floor(h/24);   if(d===1) return '어제'; if(d<7) return d+'일 전';
-    var w=Math.floor(d/7);    if(w<5) return w+'주 전';
-    var mo=Math.floor(d/30);  if(mo<12) return mo+'개월 전';
-    return Math.floor(d/365)+'년 전';
+    var p=function(n){return ('0'+n).slice(-2);};
+    var yy=p(t.getFullYear()%100), mm=p(t.getMonth()+1), dd=p(t.getDate());
+    var h=t.getHours(), ap=h<12?'오전':'오후', h12=h%12||12;
+    return yy+'.'+mm+'.'+dd+' '+ap+' '+h12+':'+p(t.getMinutes());
   }
   function renderFailures(){
     fetch('/api/crawl/failures').then(function(r){return r.json();}).then(function(d){
@@ -337,10 +333,10 @@
         var s=bySite[k];
         var brands=Array.from(new Set(s.items.map(function(x){return x.br;}).filter(Boolean)));
         var rows=s.items.map(function(it){
-          var rel=_relTime(it.at);
+          var at=_absTime(it.at);
           return '<div class="frow"><span class="fopt">'+_esc(it.opt||'')+'</span>'+
             '<span class="furl">'+_shortUrl(it.url)+'</span>'+
-            (rel?'<span class="ftime">🕐 '+rel+'</span>':'')+
+            (at?'<span class="ftime">🕐 '+at+'</span>':'')+
             '<span class="ftg t-'+_esc(it.tc)+'">'+_esc(it.em+' '+it.tl)+'</span></div>';
         }).join('');
         return '<div class="facc open"><button class="facc-h" type="button">'+
