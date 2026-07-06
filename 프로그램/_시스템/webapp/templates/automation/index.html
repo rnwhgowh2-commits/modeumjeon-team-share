@@ -349,10 +349,11 @@
     }).catch(function(){});
   }
 
-  // ── 링('이번 한 바퀴') + 실시간 로그 ──
-  //   링 채움 % = 서버의 '가중 한 바퀴' 진행률(각 URL을 계수만큼 크롤 = 한 바퀴).
-  //     확장이 잠깐 쉬어도 랩 진행률은 서버에 남아 이어짐(배치 done/total 아님).
-  //   회전(spin) = 지금 실제로 긁는 중인지(확장 상태). 로그 = 지금 긁는 소싱처.
+  // ── 링('이번 바퀴') — 크롤 중엔 확장 실시간, 유휴엔 서버 랩 진행률 ──
+  //   크롤 중: 링 = 확장의 실시간 진행(위젯과 동일 done/total). 서버 폴링(3초·배치 저장)은
+  //     한 박자 늦어 '느리게 오른다'처럼 보였음 → paintRun 이 1초마다 확장값으로 매끄럽게 갱신.
+  //   유휴(정지·크롤끝): 링 = 서버 lap_progress(영속 — 확장 잠깐 쉬어도 이어짐).
+  //   오늘 N바퀴·평균·막대 = 항상 서버(pollLap).
   var _lapPct=0;
   function renderBars(recent){
     var el=document.getElementById('cz-bars'); if(!el) return;
@@ -367,13 +368,17 @@
       var lp=(d&&d.lap_progress)||{}, ls=(d&&d.lap_stats)||{};
       _lapPct=lp.pct||0;
       var on=!!st.crawl_auto_enabled;
-      var ring=document.getElementById('cz-ring'), pct=document.getElementById('cz-pct'),
-          laps=document.getElementById('cz-laps'), avg=document.getElementById('cz-avg');
-      if(ring) ring.style.setProperty('--p',_lapPct+'%');
-      if(pct) pct.textContent=on?(_lapPct+'%'):'0%';
+      var laps=document.getElementById('cz-laps'), avg=document.getElementById('cz-avg');
       if(laps) laps.textContent=(ls.laps_today!=null?ls.laps_today:0);
       if(avg) avg.innerHTML='⏱ 평균 1바퀴 <b>'+(ls.avg_lap_minutes!=null?ls.avg_lap_minutes+'분':'–')+'</b>';
       renderBars(ls.recent_lap_minutes);
+      // 링 %는 '크롤 중이 아닐 때만' 서버값으로 — 크롤 중엔 paintRun 이 확장 실시간으로 소유.
+      var running=!!(window.MoumExt&&MoumExt.getCrawlState&&(MoumExt.getCrawlState()||{}).running);
+      if(!running){
+        var ring=document.getElementById('cz-ring'), pct=document.getElementById('cz-pct');
+        if(ring) ring.style.setProperty('--p',(on?_lapPct:0)+'%');
+        if(pct) pct.textContent=on?(_lapPct+'%'):'0%';
+      }
     }).catch(function(){});
   }
   function paintRun(){
@@ -381,12 +386,18 @@
     var running=!!(s&&s.running);
     var card=document.getElementById('crawl-card'); if(card) card.classList.toggle('is-running',running);
     var rs=document.getElementById('runsec'); if(rs) rs.classList.toggle('on',running);
-    var ring=document.getElementById('cz-ring'), feed=document.getElementById('cz-feed');
+    var ring=document.getElementById('cz-ring'), feed=document.getElementById('cz-feed'), pct=document.getElementById('cz-pct');
     if(!ring) return;
     if(running){
+      // 링 = 확장 실시간 진행(위젯과 동일 done/total) — 서버 폴링보다 빠르고 매끄럽게.
+      var v=s.view||{}; var done=+v.done||0, total=+v.total||0;
+      if(total>0){ var p=Math.min(100,Math.round(done/total*100));
+        ring.style.setProperty('--p',p+'%'); if(pct) pct.textContent=p+'%'; }
       if(feed) feed.innerHTML='<span class="r">↻</span> '+(s.running||'')+' 긁는 중…';
       ring.classList.add('spin');
     } else {
+      // 유휴 = 서버 랩 진행률(pollLap 가 이미 갱신). 여기선 회전·로그만 정리.
+      if(pct) pct.textContent=st.crawl_auto_enabled?(_lapPct+'%'):'0%';
       if(feed) feed.textContent='대기 중… 「실행」을 켜면 지금 긁는 소싱처가 여기 흘러요';
       ring.classList.remove('spin');
     }
@@ -419,8 +430,8 @@
   //   토글 클릭 때만 시작하면, 실행 ON인 채 새로고침하면 폴링이 안 살아나던 갭 보완.
   //   확장 미설치면 send()가 reject → 조용히 무시.
   try{ if(st.crawl_auto_enabled && window.MoumExt && MoumExt.autoPollStart){ var _ap=MoumExt.autoPollStart(); if(_ap&&_ap.catch)_ap.catch(function(){}); } }catch(_){}
-  setInterval(paintRun,3000);
-  setInterval(pollLap,3000);
+  setInterval(paintRun,1000);   // 크롤 중 링을 확장 실시간으로 매끄럽게(1초)
+  setInterval(pollLap,3000);    // 서버 오늘바퀴·평균·막대(+유휴 링)
   setInterval(renderFailures,15000);
 })();
 </script>
