@@ -30,9 +30,11 @@
     .ord5 .empty{padding:40px 20px;text-align:center;color:var(--sub);font-size:13px;line-height:1.7;}
     .ord5 .hidden{display:none;}
     .ord5 .xbar{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px;flex-wrap:wrap;}
-    .ord5 .periods{display:flex;gap:6px;}
-    .ord5 .pchip{font-size:12px;font-weight:700;border:1px solid var(--line2);background:#fff;border-radius:20px;padding:5px 12px;cursor:pointer;color:var(--sub);}
+    .ord5 .periods{display:flex;gap:6px;align-items:center;}
+    .ord5 .pchip,.ord5 .mchip{font-size:12px;font-weight:700;border:1px solid var(--line2);background:#fff;border-radius:20px;padding:5px 12px;cursor:pointer;color:var(--sub);}
     .ord5 .pchip.on{background:var(--blue);color:#fff;border-color:var(--blue);}
+    .ord5 .mchip.on{background:var(--ink);color:#fff;border-color:var(--ink);}
+    .ord5 .xlbl{font-size:11px;font-weight:800;color:var(--faint);margin-right:2px;}
     .ord5 .xbtn{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;font-weight:800;color:#fff;background:var(--green);border:none;border-radius:8px;padding:8px 15px;text-decoration:none;cursor:pointer;}
     .ord5 .xbtn:hover{filter:brightness(.95);}
     .ord5 .exhint{font-size:11.5px;color:var(--sub);margin:-4px 0 14px;line-height:1.5;}
@@ -50,15 +52,21 @@
     </div>
 
     {% if export_markets %}
+    {% set mklabel = {'smartstore':'스마트스토어','lotteon':'롯데온','coupang':'쿠팡'} %}
     <div class="xbar">
-      <div class="periods">
+      <div class="periods" id="ex-markets">
+        <span class="xlbl">마켓</span>
+        {% for m in export_markets %}<span class="mchip{% if loop.first %} on{% endif %}" data-mk="{{ m }}">{{ mklabel.get(m, m) }}</span>{% endfor %}
+      </div>
+      <div class="periods" id="ex-periods">
+        <span class="xlbl">기간</span>
         <span class="pchip" data-days="1">오늘</span>
         <span class="pchip on" data-days="7">최근 7일</span>
         <span class="pchip" data-days="30">최근 30일</span>
       </div>
-      <a id="xlsxbtn" class="xbtn" href="/orders/export.xlsx?market=smartstore&days=7">⬇ 엑셀 내보내기</a>
+      <a id="xlsxbtn" class="xbtn" href="/orders/export.xlsx?market={{ export_markets[0] }}&days=7">⬇ 엑셀 내보내기</a>
     </div>
-    <div class="exhint">「엑셀 내보내기」 = <b>스마트스토어 실주문</b>(주문일·상품·옵션·수량·주소·수령자·전화·단가·정산예정금액 16열, 샵마인 형식). 아래 표는 레이아웃 미리보기입니다.</div>
+    <div class="exhint">「엑셀 내보내기」 = 선택한 마켓의 <b>실주문</b>(주문일·상품·옵션·수량·주소·수령자·전화·단가·정산예정금액 16열, 샵마인 형식). 아래 표는 레이아웃 미리보기입니다.</div>
     {% endif %}
 
     <div class="kpis">
@@ -99,12 +107,20 @@
           r.classList.toggle('hidden', mk!=='전체' && r.getAttribute('data-mk')!==mk);
         });
       });});
-      // 기간 프리셋 → 엑셀 내보내기 버튼 days 갱신
-      var pchips=document.querySelectorAll('.ord5 .pchip'), xbtn=document.getElementById('xlsxbtn');
+      // 마켓·기간 선택 → 엑셀 내보내기 버튼 href 갱신
+      var xbtn=document.getElementById('xlsxbtn');
+      var mchips=document.querySelectorAll('.ord5 .mchip'), pchips=document.querySelectorAll('.ord5 .pchip');
+      var selMk=(mchips[0]&&mchips[0].getAttribute('data-mk'))||'smartstore', selDays='7';
+      function syncBtn(){ if(xbtn){xbtn.href='/orders/export.xlsx?market='+selMk+'&days='+selDays;} }
+      mchips.forEach(function(m){m.addEventListener('click',function(){
+        mchips.forEach(function(x){x.classList.remove('on');});m.classList.add('on');
+        selMk=m.getAttribute('data-mk'); syncBtn();
+      });});
       pchips.forEach(function(p){p.addEventListener('click',function(){
         pchips.forEach(function(x){x.classList.remove('on');});p.classList.add('on');
-        if(xbtn){xbtn.href='/orders/export.xlsx?market=smartstore&days='+p.getAttribute('data-days');}
+        selDays=p.getAttribute('data-days'); syncBtn();
       });});
+      syncBtn();
     })();
   </script>
 
