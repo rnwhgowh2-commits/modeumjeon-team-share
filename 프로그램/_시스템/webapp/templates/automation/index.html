@@ -364,39 +364,32 @@
     el.innerHTML=html;
   }
   function pollLap(){
+    // 오늘 바퀴·평균·막대만 서버에서(링 %는 안 건드림 — paintRun 이 위젯값으로만 그린다).
     fetch('/api/crawl/queue').then(function(r){return r.json();}).then(function(d){
-      var lp=(d&&d.lap_progress)||{}, ls=(d&&d.lap_stats)||{};
-      _lapPct=lp.pct||0;
-      var on=!!st.crawl_auto_enabled;
+      var ls=(d&&d.lap_stats)||{};
       var laps=document.getElementById('cz-laps'), avg=document.getElementById('cz-avg');
       if(laps) laps.textContent=(ls.laps_today!=null?ls.laps_today:0);
       if(avg) avg.innerHTML='⏱ 평균 1바퀴 <b>'+(ls.avg_lap_minutes!=null?ls.avg_lap_minutes+'분':'–')+'</b>';
       renderBars(ls.recent_lap_minutes);
-      // 링 % = 확장 실시간 진행이 있으면 그걸(위젯과 동일), 없으면 서버 랩 진행률(폴백).
-      if(!_extRingActive()){
-        var ring=document.getElementById('cz-ring'), pct=document.getElementById('cz-pct');
-        if(ring) ring.style.setProperty('--p',(on?_lapPct:0)+'%');
-        if(pct) pct.textContent=on?(_lapPct+'%'):'0%';
-      }
     }).catch(function(){});
   }
-  // 링 = 위젯(crawl_log)이 계산한 '전체 진행'을 그대로 사용(같은 페이지·같은 값 → 항상 일치).
-  //   window.__moumOverall = {done,total,pct,active,ts} — crawl_log.js 가 갱신. active=크롤 중.
   function _extState(){ try{ return (window.MoumExt&&MoumExt.getCrawlState&&MoumExt.getCrawlState())||{}; }catch(e){ return {}; } }
-  function _overall(){ var o=window.__moumOverall; if(!o) return null; if(Date.now()-(o.ts||0)>15000) return null; return o; }
-  function _extRunning(){ var o=_overall(); if(o&&o.active) return true; return !!_extState().running; }
-  function _extRingActive(){ var o=_overall(); return !!(o && o.active && +o.total>0); }
+  // 링 % = 오직 위젯(crawl_log)의 __moumOverall 값 — 같은 페이지·같은 계산 → 위젯과 항상 일치.
+  //   ★서버 랩 진행률(65/74=89% 잔값)은 절대 안 씀(그게 위젯과 안 맞던 원인). fresh 없으면 0%.
+  //   paintRun(1초)이 링의 유일한 소유자 — pollLap 과 충돌 없음.
   function paintRun(){
-    var o=_overall();
-    var running=_extRunning();
+    var o=window.__moumOverall;
+    var fresh=!!(o && (Date.now()-(o.ts||0)<15000) && (+o.total>0));
+    var running=fresh ? (o.active!==false) : false;
+    if(!running){ try{ running=!!_extState().running; }catch(e){} }   // 회전 표시만 보정
     var card=document.getElementById('crawl-card'); if(card) card.classList.toggle('is-running',running);
     var rs=document.getElementById('runsec'); if(rs) rs.classList.toggle('on',running);
     var ring=document.getElementById('cz-ring'), feed=document.getElementById('cz-feed'), pct=document.getElementById('cz-pct');
     if(!ring) return;
+    var p=fresh ? Math.min(100,Math.round(+o.pct||0)) : 0;   // 위젯값만
+    ring.style.setProperty('--p',p+'%');
+    if(pct) pct.textContent=p+'%';
     if(running){
-      // 링 = 위젯 전체 진행값(있으면). 없으면(구버전) 서버값 유지.
-      if(o && +o.total>0){ var pc=Math.min(100,Math.round(+o.pct));
-        ring.style.setProperty('--p',pc+'%'); if(pct) pct.textContent=pc+'%'; }
       var nm=_extState().running||'';
       if(feed) feed.innerHTML='<span class="r">↻</span> '+nm+' 긁는 중…';
       ring.classList.add('spin');
