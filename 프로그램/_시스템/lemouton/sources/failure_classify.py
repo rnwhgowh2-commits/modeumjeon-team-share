@@ -58,7 +58,7 @@ def list_crawl_failures(session) -> list:
     각 item = 소싱처(site·site_label) / 브랜드 / 옵션(색·사이즈) / url_type / url / error
     → B 아코디언(소싱처>브랜드>옵션/url)이 4계층으로 파고든다. 유형 순서 고정.
     """
-    from lemouton.sources.models import SourceProduct, SourceOption
+    from lemouton.sources.models import SourceProduct, SourceOption, ModelSourceLink
     from lemouton.sources.service import normalize_url
     from lemouton.sourcing.models import BundleSourceUrl, Model
     try:
@@ -76,6 +76,11 @@ def list_crawl_failures(session) -> list:
         if b.url_type and not m["url_type"]:
             m["url_type"] = b.url_type
     brand_by_model = {m.model_code: m.brand for m in session.query(Model).all()}
+    # SourceProduct → model_code 직접 링크(ModelSourceLink) — URL 정규화 매칭이 어긋나도
+    #   브랜드를 찾게 하는 더 확실한 경로.
+    msl_by_sp = {}
+    for l in session.query(ModelSourceLink).all():
+        msl_by_sp.setdefault(l.source_product_id, set()).add(l.model_code)
 
     rows = (session.query(SourceProduct)
             .filter(SourceProduct.deleted_at.is_(None))
@@ -85,7 +90,7 @@ def list_crawl_failures(session) -> list:
     for sp in rows:
         c = classify_crawl_failure("error", sp.last_error_msg)
         meta = url_meta.get(normalize_url(sp.url), {"model_codes": set(), "url_type": None})
-        mcs = sorted(meta["model_codes"])
+        mcs = sorted(set(meta["model_codes"]) | msl_by_sp.get(sp.id, set()))
         brands = sorted({brand_by_model.get(mc) for mc in mcs if brand_by_model.get(mc)})
         opts = (session.query(SourceOption)
                 .filter_by(source_product_id=sp.id, deleted_at=None).all())

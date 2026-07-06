@@ -302,7 +302,8 @@
 
   // ── ⑤ 크롤 실패 — B 아코디언(소싱처 > 브랜드 > 옵션·url·유형) ──
   function _esc(s){ return (s==null?'':String(s)).replace(/[&<>"]/g,function(m){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m];}); }
-  function _shortUrl(u){ try{ var x=new URL(u); var t=(x.pathname+x.search); return _esc(x.hostname.replace(/^www\./,'')+(t.length>26?'…'+t.slice(-24):t)); }catch(e){ u=_esc(u); return u.length>36?'…'+u.slice(-34):u; } }
+  function _dec(s){ try{ return decodeURIComponent(s); }catch(e){ return s; } }
+  function _shortUrl(u){ try{ var x=new URL(u); var t=_dec(x.pathname+x.search); return _esc(x.hostname.replace(/^www\./,'')+(t.length>26?'…'+t.slice(-24):t)); }catch(e){ u=_esc(_dec(u)); return u.length>36?'…'+u.slice(-34):u; } }
   function renderFailures(){
     fetch('/api/crawl/failures').then(function(r){return r.json();}).then(function(d){
       var groups=(d&&d.groups)||[];
