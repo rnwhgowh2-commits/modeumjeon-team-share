@@ -118,7 +118,8 @@ safety:
     가격/재고는 실브라우저 소싱처 URL 실값 기준(CLAUDE.md). 폴백 금지.
   notes: >
     라이브 미검증(키없음). 실계정 100% 검증 전 '완료' 선언 금지.
-    orchestrator.py 이진 else 함정 — lotteon 행이 쿠팡 어댑터로 나가면 금전 손실 → {market:adapter} dict 로 배선.
+    전송경로 세 곳을 반드시 함께 배선(pipeline.py 방출 / orchestrator _extract_uploads / select_adapters dict).
+    한 곳만 빠지면 lotteon 행이 조용히 누락되거나 다른 마켓 어댑터로 나가 금전 손실. select_adapters 는 이미 {market:adapter} dict 레지스터 → 한 줄만 추가.
 
 code_map:
   auth: shared/platforms/lotteon/auth.py
