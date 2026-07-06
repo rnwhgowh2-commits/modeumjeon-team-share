@@ -83,6 +83,7 @@ CAPABILITIES: dict[str, list[Capability]] = {
         Capability("inquiry_fetch", "고객문의 조회", "recv", _S + "orders", "fetch_inquiries"),
         Capability("inquiry_reply", "문의 답변", "send", _S + "orders", "reply_inquiry"),
         Capability("claim_handle", "반품·취소·교환 처리", "send", _S + "orders", "handle_claim"),
+        Capability("settlement_fetch", "정산 예정금액(건별)", "recv", _S + "settlements", "iter_settle_by_case"),
     ],
     "lotteon": [
         Capability("product_fetch", "판매가·옵션 조회", "recv", _L + "products", "get_product_detail"),
