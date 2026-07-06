@@ -199,20 +199,20 @@ def _lap_products(session) -> list:
 def _lap_view(session) -> list:
     """이번 랩에 '실제로 셀' URL만 (p, quota, served). straggler 제외.
 
-    한 바퀴가 100%를 못 찍고 멈추던 근본원인 = 계속 실패하거나(보고 안 됨) 확장이 못 긁는
-    URL이 served=0 에 머물러 랩이 완료 못 함. 그런 URL(아래 둘)을 이번 랩 계산에서 제외한다
-    (크롤은 계속 시도되고 「크롤 실패」 패널엔 그대로 표면화 — 숨기지 않음):
-      ① last_status='error' 이고 아직 못 채움(계속 실패하는 URL)
-      ② 재패스가 일어났는데(다른 URL이 quota 초과 크롤됨) 여전히 한 번도 안 긁힌 straggler
-    아직 안 긁혔지만 정상(status ok/none)인 URL은 남겨 조기완료를 막는다.
+    계속 실패(last_status='error')하고 아직 못 채운 URL만 랩 계산에서 제외한다(크롤 불가 →
+    랩을 막지 않게. 크롤은 계속 시도되고 「크롤 실패」 패널엔 그대로 표면화 — 숨기지 않음).
+
+    ★[2026-07-06 버그수정] 이전엔 'maxc>q(다른 URL이 quota 초과)' 도 제외조건에 넣었으나,
+    재시도·중복저장으로 크롤 중간에 한 URL만 2번 긁혀도 참이 돼 → 아직 안 긁힌 URL을
+    몽땅 제외 → **패스 중간에 가짜 완료**(오늘 바퀴 우르르 증가·링 0% 튐). 이 조건 제거.
+    '한 패스 끝' 판정은 서버 추측이 아니라 확장의 pass-done 신호로 한다(due_bundle_codes).
     """
     prods = _lap_products(session)
-    info = [(p, lap_quota(session, p), int(p.crawl_lap_count or 0), (p.last_status or ""))
-            for p in prods]
-    maxc = max((s for _, _, s, _ in info), default=0)
     live = []
-    for p, q, s, st in info:
-        if s == 0 and (st == "error" or maxc > q):
+    for p in prods:
+        q = lap_quota(session, p)
+        s = int(p.crawl_lap_count or 0)
+        if s == 0 and (p.last_status or "") == "error":
             continue
         live.append((p, q, s))
     return live
@@ -292,9 +292,10 @@ def next_lap_products(session) -> list:
         return due
     if not _lap_products(session):
         return []
-    # 완료 기록은 실제 크롤된 게 있을 때만(전부 실패면 spurious '바퀴' 방지).
-    served_this_lap = lap_progress(session)["served"] > 0
-    start_new_lap(session, record=served_this_lap)
+    # ★[2026-07-06] 서버 자동리셋은 '리셋만'(record=False) — 한 바퀴 '기록'(오늘 바퀴+1)은
+    #   확장의 pass-done 신호(POST /api/crawl/pass-done)만 한다. 서버가 완료를 추측해 기록하면
+    #   가짜 바퀴가 생김(over-serve 버그의 교훈). 여기선 안 쉬게 카운터만 리셋.
+    start_new_lap(session, record=False)
     # 랩 리셋은 반드시 영속 — 이 함수는 읽기 라우트(/crawl/queue·due-bundles)에서
     #   호출되는데 그 라우트들은 commit 하지 않는다. flush 만 하면 close()에서 롤백돼
     #   served 가 quota 에 붙박이고 매 폴링이 전체 랩 = 계수 배수가 무력화된다.

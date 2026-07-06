@@ -1166,20 +1166,27 @@ function mgrSnapshot() {
 // ── 큐 러너 — 모음전을 하나씩 꺼내 순차 크롤. 중지 시 큐 비움. ──
 async function runQueueBG() {
   bgKeepaliveStart();
+  let crawled = 0;
   try {
     while (_mgr.queue.length) {
       if (_mgr.stopped) break;
       const code = _mgr.queue.shift();
       _mgr.running = code; _mgr.paused = false;
       bgEmitQueue();
-      try { await crawlBundleAllBG(code); } catch (e) { console.warn("[moum] bundle err", code, e); }
+      try { await crawlBundleAllBG(code); crawled++; } catch (e) { console.warn("[moum] bundle err", code, e); }
       if (_mgr.stopped) break;
     }
   } finally {
+    const wasStopped = _mgr.stopped;
     _mgr.queue = []; _mgr.running = null; _mgr.paused = false; _mgr.stopped = false; _mgr._kick = null;
     bgEmitQueue();
     bgKeepaliveStop();
     try { bgClearPersist(); } catch (_) {}   // 크롤 종료 — 체크포인트 제거(불필요 재가동 방지)
+    // [2026-07-06 v0.7.17] 한 패스(전체 URL 1회) 완료 → 서버에 통보(오늘 바퀴 +1).
+    //   중지·미크롤이면 안 보냄. 서비스탭 닫기 전에(bgFetch 가 탭 필요).
+    if (crawled > 0 && !wasStopped) {
+      try { await bgFetch("/api/crawl/pass-done", { method: "POST" }); } catch (_) {}
+    }
     await closeServiceTabIfOwned();   // SW 가 띄운 백그라운드 mou-m 탭 정리
   }
 }

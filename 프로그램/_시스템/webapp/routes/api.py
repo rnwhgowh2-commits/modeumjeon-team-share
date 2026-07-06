@@ -63,6 +63,23 @@ def crawl_due_bundles():
         s.close()
 
 
+@bp.post('/crawl/pass-done')
+def crawl_pass_done():
+    """확장이 '한 크롤 패스(전체 URL 1회) 완료'를 통보 → 오늘 바퀴 +1 기록 + 카운터 리셋.
+
+    한 바퀴 완료 판정의 authoritative 신호. 서버가 완료를 추측(over-serve 등)하면 가짜 바퀴가
+    생기므로, 실제 크롤을 끝낸 확장만이 이 신호를 보낸다(runQueueBG 큐 소진 시).
+    """
+    from lemouton.sources.crawl_schedule import start_new_lap
+    s = SessionLocal()
+    try:
+        n = start_new_lap(s)   # record=True → CrawlLapRun 기록 + crawl_lap_count 리셋
+        s.commit()
+        return jsonify({"ok": True, "reset": n})
+    finally:
+        s.close()
+
+
 @bp.post('/sources/crawl-weight')
 def set_source_crawl_weight():
     """URL 계수(1~5) 저장. body: {source_product_id, weight}."""

@@ -57,15 +57,31 @@ def test_error_url_excluded_from_lap_so_it_completes(db):
     assert lap_progress(db)["pct"] == 100        # 링 100% (a 기준)
 
 
-def test_overserved_straggler_excluded_so_it_completes(db):
-    """재패스(over-serve)에도 한 번도 안 긁힌 URL은 straggler로 제외 → 랩 완료."""
+def test_overserved_url_does_not_prematurely_complete_lap(db):
+    """★버그수정: 한 URL이 재시도로 2번 긁혀도(over-serve) 아직 안 긁힌 URL을 제외해
+    조기완료시키면 안 된다(가짜 바퀴·링 0% 튐의 원인이던 maxc>q 로직 제거)."""
     a = _sp(db, "s1", "u/a")
     b = _sp(db, "s1", "u/b")
-    a.crawl_lap_count = 2            # 두 번 긁힘(재패스 발생)
-    b.crawl_lap_count = 0            # 한 번도 못 긁힘
+    a.crawl_lap_count = 2            # 재시도로 두 번(정상적으로 일어남)
+    b.crawl_lap_count = 0            # 아직 안 긁힘(정상 · 곧 긁을 것)
     db.flush()
-    assert weighted_due_products(db) == []
-    assert lap_progress(db)["pct"] == 100
+    ids = {p.id for p in weighted_due_products(db)}
+    assert b.id in ids               # b 아직 due — 조기완료 안 함
+    assert lap_progress(db)["pct"] < 100
+
+
+def test_no_premature_completion_midpass(db):
+    """패스 중간(한 URL over-serve, 나머지 다수 아직 0)에 랩이 완료로 판정되면 안 됨."""
+    a = _sp(db, "s1", "u/a"); b = _sp(db, "s1", "u/b"); c = _sp(db, "s1", "u/c")
+    d = _sp(db, "s1", "u/d"); e = _sp(db, "s1", "u/e")
+    a.crawl_lap_count = 2            # 재시도
+    b.crawl_lap_count = 1
+    # c,d,e 는 아직 0 (미크롤, 정상)
+    db.flush()
+    due = weighted_due_products(db)
+    ids = {p.id for p in due}
+    assert {c.id, d.id, e.id}.issubset(ids)   # 셋 다 아직 due
+    assert due != []                          # 조기완료 아님
 
 
 def test_not_yet_crawled_ok_url_still_blocks(db):
