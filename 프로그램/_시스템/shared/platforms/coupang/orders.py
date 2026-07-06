@@ -30,14 +30,19 @@ def _vendor_id() -> str:
 def fetch_orders(since: datetime, until: datetime,
                   client: Optional[CoupangClient] = None,
                   status: Optional[str] = None,
-                  max_per_page: int = 50) -> dict:
-    """기간 조건 주문 조회. 생성일 기준 (yyyy-mm-ddTHH:MM:SS).
+                  max_per_page: int = 50,
+                  next_token: Optional[str] = None) -> dict:
+    """발주서 목록 조회(일단위 페이징). 생성일 기준. status 필수(공식).
 
-    Returns: {"data": [...주문...], "nextToken": "..."}
+    공식 스펙(developers.coupangcorp.com, GET_ORDERSHEET, 2026-07-07 실측): v5.
+    status ∈ ACCEPT/INSTRUCT/DEPARTURE/DELIVERING/FINAL_DELIVERY/NONE_TRACKING.
+    페이징: 응답 nextToken 을 다음 요청 next_token 으로. 최대 31일.
+
+    Returns: {"code","message","data":[...발주서...],"nextToken":"..."}
     """
     vid = _vendor_id()
     client = client or CoupangClient()
-    path = f"/v2/providers/openapi/apis/api/v4/vendors/{vid}/ordersheets"
+    path = f"/v2/providers/openapi/apis/api/v5/vendors/{vid}/ordersheets"
     params = {
         "createdAtFrom": since.strftime("%Y-%m-%dT%H:%M:%S"),
         "createdAtTo":   until.strftime("%Y-%m-%dT%H:%M:%S"),
@@ -45,6 +50,8 @@ def fetch_orders(since: datetime, until: datetime,
     }
     if status:
         params["status"] = status
+    if next_token:
+        params["nextToken"] = next_token
     return client.request("GET", path, query=params)
 
 

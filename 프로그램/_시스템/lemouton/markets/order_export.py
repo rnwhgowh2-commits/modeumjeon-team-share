@@ -19,7 +19,7 @@ HEADER = ["주문일", "상품명", "옵션", "수량", "주소", "", "우편번
           "배송메시지", "구매자", "수령자전화번호", "구매자번호", "쇼핑몰",
           "쇼핑몰ID", "단가", "정산예정금액"]
 
-SUPPORTED = {"smartstore", "lotteon"}   # UI 엑셀버튼 노출(코드 준비). 실키=서버 UI저장.
+SUPPORTED = {"smartstore", "lotteon", "coupang"}   # UI 엑셀버튼 노출. 실키=서버 UI저장.
 # 마켓 → 계정 시크릿 env_prefix(판매처 계정 기본). load_credentials 로 실키 로드.
 _ENV_PREFIX = {"smartstore": "SMARTSTORE_MAIN", "coupang": "COUPANG_MAIN",
                "lotteon": "LOTTEON_MAIN"}
@@ -133,8 +133,67 @@ def lotteon_order_rows(since: _dt.datetime, until: _dt.datetime,
     return rows
 
 
+def _won(obj):
+    """쿠팡 금액 객체 {currencyCode,units,nanos} → 정수 원. 없으면 ''(폴백 0 금지)."""
+    if isinstance(obj, dict) and obj.get("units") is not None:
+        try:
+            return int(obj["units"])
+        except (TypeError, ValueError):
+            return ""
+    return ""
+
+
+def coupang_order_rows(since: _dt.datetime, until: _dt.datetime,
+                       client=None) -> list:
+    """쿠팡 발주서 목록 → 16컬럼 행(dict). status별(공식 필수) 순회 + nextToken 페이징.
+
+    발주서(shipmentBox) 하위 orderItems[] 평탄화(옵션 단위 1행). 정산예정금액은 발주서에
+    없음(쿠팡 정산 revenue-history 별도) → 빈칸(근사·폴백 금지). 스펙=GET_ORDERSHEET v5.
+    """
+    from shared.platforms.coupang.orders import fetch_orders
+
+    statuses = ["ACCEPT", "INSTRUCT", "DEPARTURE", "DELIVERING", "FINAL_DELIVERY"]
+    seen, rows = set(), []
+    for st in statuses:
+        token = None
+        for _ in range(50):   # nextToken 페이징 안전 상한
+            resp = fetch_orders(since, until, client=client, status=st, next_token=token)
+            for box in (resp.get("data") or []):
+                orderer = box.get("orderer") or {}
+                rcv = box.get("receiver") or {}
+                addr = (str(rcv.get("addr1") or "") + " " + str(rcv.get("addr2") or "")).strip()
+                ordered = str(box.get("orderedAt") or box.get("paidAt") or "")[:10]
+                for it in (box.get("orderItems") or []):
+                    key = (box.get("shipmentBoxId"), it.get("vendorItemId"))
+                    if key in seen:
+                        continue
+                    seen.add(key)
+                    rows.append({
+                        "주문일": ordered,
+                        "상품명": it.get("sellerProductName") or it.get("vendorItemName") or "",
+                        "옵션": it.get("sellerProductItemName") or "",
+                        "수량": it.get("shippingCount", ""),
+                        "주소": addr,
+                        "우편번호": rcv.get("postCode") or "",
+                        "수령자": rcv.get("name") or "",
+                        "배송메시지": box.get("parcelPrintMessage") or "",
+                        "구매자": orderer.get("name") or "",
+                        "수령자전화번호": rcv.get("receiverNumber") or rcv.get("safeNumber") or "",
+                        "구매자번호": orderer.get("ordererNumber") or orderer.get("safeNumber") or "",
+                        "쇼핑몰": "쿠팡",
+                        "쇼핑몰ID": "",
+                        "단가": _won(it.get("salesPrice")),
+                        "정산예정금액": "",   # 쿠팡 정산=revenue-history 별도(후속). 폴백 금지.
+                    })
+            token = resp.get("nextToken")
+            if not token:
+                break
+    return rows
+
+
 # 마켓별 행 빌더(코드 존재). SUPPORTED = 그중 실계정 검증까지 끝나 UI 노출 가능한 것.
-_BUILDERS = {"smartstore": smartstore_order_rows, "lotteon": lotteon_order_rows}
+_BUILDERS = {"smartstore": smartstore_order_rows, "lotteon": lotteon_order_rows,
+             "coupang": coupang_order_rows}
 
 
 def _account_client(market: str):
