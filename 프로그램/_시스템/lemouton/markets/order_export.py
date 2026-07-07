@@ -424,18 +424,68 @@ def _finalize_rows(rows: list) -> list:
     return rows
 
 
+# ── 성능: 마켓 병렬 조회 + 단기 캐시 ──────────────────────────────────
+# 대시보드(preview.json)와 엑셀(export.xlsx)이 각각 3마켓 API를 처음부터 다시
+# 조회해 느렸음. (1) 마켓별 조회를 병렬로(합계→최댓값) (2) 짧은 TTL 캐시로 대시보드
+# 조회를 다운로드가 재사용(→ 즉시). 캐시는 웹 라우트만 opt-in(use_cache=True);
+# 직접 호출·테스트는 기존대로 항상 실조회(결정적).
+import threading as _threading
+import time as _time
+from concurrent.futures import ThreadPoolExecutor as _ThreadPool
+
+CACHE_TTL = 90.0                      # 초 — 이 안에서 같은 (마켓,기간) 재조회는 캐시 히트
+_CACHE: dict = {}                     # (markets, days) -> (monotonic_ts, rows)
+_CACHE_LOCK = _threading.Lock()
+
+
+def _fetch_combined(markets, days, now) -> list:
+    """마켓별 주문을 병렬 조회 후 최신순 통합. 한 마켓 실패는 전파(부분 성공 숨김 금지)."""
+    if len(markets) == 1:             # 단일 마켓은 스레드 오버헤드 불필요
+        results = {markets[0]: order_rows(markets[0], days=days, now=now)}
+    else:
+        results, errors = {}, []
+        with _ThreadPool(max_workers=min(4, len(markets))) as ex:
+            futs = {ex.submit(order_rows, mk, days=days, now=now): mk for mk in markets}
+            for fut, mk in futs.items():
+                try:
+                    results[mk] = fut.result()
+                except Exception as e:   # noqa: BLE001 — 대표 오류로 전파(어느 마켓인지 호출부가 표면화)
+                    errors.append(e)
+        if errors:
+            raise errors[0]
+    all_rows = []
+    for mk in markets:                # 입력 순서 유지 후 정렬
+        all_rows += results.get(mk, [])
+    all_rows.sort(key=lambda r: str(r.get("주문일", "")), reverse=True)  # 최신 먼저
+    return all_rows
+
+
+def clear_cache() -> None:
+    """캐시 비우기(테스트·강제 새로고침용)."""
+    with _CACHE_LOCK:
+        _CACHE.clear()
+
+
 def combined_order_rows(markets, days: int = 7,
-                        now: Optional[_dt.datetime] = None) -> list:
+                        now: Optional[_dt.datetime] = None,
+                        use_cache: bool = False) -> list:
     """여러 마켓 주문을 합쳐 최신순(주문일 내림차순)으로. 판매처 열로 마켓 구분.
 
     미지원 마켓이 섞이면 ValueError(추측 데이터 안 만듦). 한 마켓 조회 실패는 전체 실패로
-    전파(부분 성공을 조용히 숨기지 않음 — 호출부가 어느 마켓 문제인지 표면화).
+    전파. use_cache=True(웹 라우트) + now 미지정이면 TTL 캐시 사용(대시보드↔다운로드 공유).
     """
-    all_rows = []
-    for mk in markets:
-        all_rows += order_rows(mk, days=days, now=now)
-    all_rows.sort(key=lambda r: str(r.get("주문일", "")), reverse=True)  # 최신 먼저
-    return all_rows
+    markets = list(markets)
+    if use_cache and now is None:
+        key = (tuple(markets), days)
+        with _CACHE_LOCK:
+            hit = _CACHE.get(key)
+            if hit and (_time.monotonic() - hit[0]) < CACHE_TTL:
+                return hit[1]
+        rows = _fetch_combined(markets, days, now)
+        with _CACHE_LOCK:
+            _CACHE[key] = (_time.monotonic(), rows)
+        return rows
+    return _fetch_combined(markets, days, now)
 
 
 def resolve_columns(columns=None) -> list:
