@@ -132,6 +132,45 @@ def test_columns_bc_are_market_and_status():
     assert oe.ALL_COLUMNS[2] == "주문상태"    # 요청: C열 주문상태
 
 
+def test_shipping_column_after_price():
+    i = oe.ALL_COLUMNS.index("단가")
+    assert oe.ALL_COLUMNS[i + 1] == "배송비"       # 단가 다음 = 배송비
+    assert oe.ALL_COLUMNS[i + 2] == "정산예정금액"
+
+
+def test_coupang_settle_includes_delivery():
+    # 실제 정산 = 상품 settlementAmount + 배송비 deliveryFee.settlementAmount
+    class C:
+        _cfg = {"vendor_id": "A1"}
+        def request(self, method, path, query=""):
+            if "ordersheets" in path and "nextToken" not in query:
+                return {"data": [{"shipmentBoxId": 1, "orderId": 5, "status": "FINAL_DELIVERY",
+                        "orderer": {}, "receiver": {}, "shippingPrice": {"units": 3000},
+                        "orderItems": [{"vendorItemId": 9, "sellerProductName": "코트",
+                                        "shippingCount": 1, "salesPrice": {"units": 100000}}]}], "nextToken": ""}
+            if "revenue-history" in path:
+                return {"data": [{"orderId": 5, "deliveryFee": {"settlementAmount": 2900},
+                        "items": [{"vendorItemId": 9, "settlementAmount": 88450}]}], "hasNext": False}
+            return {"data": [], "nextToken": ""}
+    r = oe.coupang_order_rows(dt.datetime(2026, 7, 5, tzinfo=oe.KST),
+                              dt.datetime(2026, 7, 8, tzinfo=oe.KST), client=C())[0]
+    assert r["배송비"] == 3000
+    assert r["정산예정금액"] == 88450 + 2900       # 상품정산 + 배송비정산
+
+
+def test_smartstore_settle_maps_splits_delivery():
+    from shared.platforms.smartstore import settlements as ss
+    class C:
+        def request(self, method, path, query="", body=None):
+            return {"elements": [
+                {"productOrderType": "PROD_ORDER", "productOrderId": "P1", "orderId": "O1", "settleExpectAmount": 10000},
+                {"productOrderType": "DELIVERY", "productOrderId": "SHIP1", "orderId": "O1", "settleExpectAmount": 2500},
+            ], "pagination": {"totalPages": 1}}
+    prod, deliv = ss.settle_expect_maps(search_date="2026-07-01", client=C())
+    assert prod == {"P1": 10000}                  # 상품 정산 = 상품주문번호별
+    assert deliv == {"O1": 2500}                  # 배송비 정산 = 주문번호별
+
+
 def test_combined_rows_sorted_desc(monkeypatch):
     # 두 마켓 행을 합쳐 주문일 내림차순 정렬
     monkeypatch.setattr(oe, "order_rows", lambda mk, days=7, **k: {
