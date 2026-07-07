@@ -47,6 +47,37 @@ def test_order_rows_rejects_unsupported():
             oe.order_rows(mk, days=7)          # UI 미노출 마켓 — 추측 데이터 안 만듦
 
 
+def test_order_rows_uses_explicit_range(monkeypatch):
+    # since/until 명시 시 days 대신 그 기간을 그대로 빌더에 전달(빠른 기간 버튼·직접 날짜)
+    cap = {}
+    def fake_builder(since, until, client=None):
+        cap["since"], cap["until"] = since, until
+        return []
+    monkeypatch.setitem(oe._BUILDERS, "smartstore", fake_builder)
+    monkeypatch.setattr(oe, "_account_client", lambda m: object())
+    s = dt.datetime(2026, 6, 1, tzinfo=KST)
+    u = dt.datetime(2026, 6, 10, 23, 59, 59, tzinfo=KST)
+    oe.order_rows("smartstore", days=7, since=s, until=u)
+    assert cap["since"] == s and cap["until"] == u   # days=7 무시, 명시 기간 사용
+
+
+def test_combined_range_in_cache_key(monkeypatch):
+    # 기간이 다르면 캐시 키가 달라 각각 조회(같은 마켓이라도 섞이지 않음)
+    oe.clear_cache()
+    calls = []
+    def fake(mk, days=7, now=None, since=None, until=None, **k):
+        calls.append((since, until))
+        return []
+    monkeypatch.setattr(oe, "order_rows", fake)
+    s1 = dt.datetime(2026, 6, 1, tzinfo=KST); u1 = dt.datetime(2026, 6, 2, tzinfo=KST)
+    s2 = dt.datetime(2026, 6, 3, tzinfo=KST); u2 = dt.datetime(2026, 6, 4, tzinfo=KST)
+    oe.combined_order_rows(["coupang"], use_cache=True, since=s1, until=u1)
+    oe.combined_order_rows(["coupang"], use_cache=True, since=s1, until=u1)  # 캐시 히트
+    oe.combined_order_rows(["coupang"], use_cache=True, since=s2, until=u2)  # 다른 기간→조회
+    assert calls == [(s1, u1), (s2, u2)]
+    oe.clear_cache()
+
+
 def test_rows_to_xlsx_default_columns():
     xlsx = oe.rows_to_xlsx([{"판매처": "쿠팡", "상품명": "코트"}])
     assert xlsx[:2] == b"PK"                    # xlsx = zip

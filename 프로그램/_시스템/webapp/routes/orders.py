@@ -127,6 +127,30 @@ def _parse_cols(args):
     return [c for c in raw.split(',') if c] if raw else None
 
 
+def _parse_range(args):
+    """from·to(YYYY-MM-DD) → (since, until) KST datetime. 없으면 (None, None)=days 사용.
+
+    since=시작일 00:00, until=종료일 23:59:59.999 (그 날 하루 전체 포함). 잘못된 형식·역순은
+    무시(None) → days 폴백. 최대 90일로 제한(과도한 조회 방지).
+    """
+    fr = (args.get('from') or '').strip()
+    to = (args.get('to') or '').strip()
+    if not fr or not to:
+        return None, None
+    try:
+        d1 = _dt.datetime.strptime(fr, '%Y-%m-%d').date()
+        d2 = _dt.datetime.strptime(to, '%Y-%m-%d').date()
+    except ValueError:
+        return None, None
+    if d2 < d1:
+        d1, d2 = d2, d1
+    if (d2 - d1).days > 90:            # 상한 90일
+        d1 = d2 - _dt.timedelta(days=90)
+    since = _dt.datetime(d1.year, d1.month, d1.day, 0, 0, 0, tzinfo=_oe.KST)
+    until = _dt.datetime(d2.year, d2.month, d2.day, 23, 59, 59, 999000, tzinfo=_oe.KST)
+    return since, until
+
+
 @bp.route('/export.xlsx')
 def orders_export():
     """선택 마켓(다중) 최근 N일 주문 → 엑셀 다운로드(서버측 실조회, 최신순 통합).
@@ -136,12 +160,14 @@ def orders_export():
     """
     markets = _parse_markets(request.args)
     days = _parse_days(request.args)
+    since, until = _parse_range(request.args)
     cols = _parse_cols(request.args)
     if not markets:
         abort(400, "선택된 마켓이 없어요(지원: 쿠팡·롯데온·스마트스토어).")
     try:
         # use_cache=True → 방금 대시보드가 받아둔 조회를 재사용(다운로드 즉시).
-        rows = _oe.combined_order_rows(markets, days=days, use_cache=True)
+        rows = _oe.combined_order_rows(markets, days=days, use_cache=True,
+                                       since=since, until=until)
     except ValueError as e:
         abort(400, str(e))
     except Exception as e:   # noqa: BLE001 — 마켓 API/인증/IP 오류를 사유와 함께 표면화(키 미노출)
@@ -149,9 +175,12 @@ def orders_export():
         logging.getLogger(__name__).exception("order export failed markets=%s", markets)
         abort(400, f"[{','.join(markets)}] 주문 조회 실패: {type(e).__name__}: {str(e)[:300]}")
     xlsx = _oe.rows_to_xlsx(rows, columns=cols)
-    stamp = _dt.datetime.now(_oe.KST).strftime('%Y%m%d')
     label = "통합" if len(markets) > 1 else markets[0]
-    fname = f"모음전_{label}주문_최근{days}일_{stamp}.xlsx"
+    if since and until:               # 기간 지정 시 파일명에 시작~끝
+        period = f"{since.strftime('%Y%m%d')}-{until.strftime('%Y%m%d')}"
+    else:
+        period = f"최근{days}일_{_dt.datetime.now(_oe.KST).strftime('%Y%m%d')}"
+    fname = f"모음전_{label}주문_{period}.xlsx"
     return send_file(
         _io.BytesIO(xlsx), as_attachment=True, download_name=fname,
         mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
@@ -180,10 +209,12 @@ def orders_preview():
     from flask import jsonify
     markets = _parse_markets(request.args)
     days = _parse_days(request.args)
+    since, until = _parse_range(request.args)
     if not markets:
         return jsonify(ok=False, error="선택된 마켓이 없어요."), 400
     try:
-        rows = _oe.combined_order_rows(markets, days=days, use_cache=True)
+        rows = _oe.combined_order_rows(markets, days=days, use_cache=True,
+                                       since=since, until=until)
     except ValueError as e:
         return jsonify(ok=False, error=str(e)), 400
     except Exception as e:   # noqa: BLE001

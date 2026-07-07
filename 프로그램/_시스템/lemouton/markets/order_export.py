@@ -379,15 +379,20 @@ def _account_client(market: str):
 
 
 def order_rows(market: str, days: int = 7, client=None,
-               now: Optional[_dt.datetime] = None) -> list:
-    """마켓별 최근 days일 주문 행. 미지원(UI) 마켓은 ValueError(추측 데이터 안 만듦).
+               now: Optional[_dt.datetime] = None,
+               since: Optional[_dt.datetime] = None,
+               until: Optional[_dt.datetime] = None) -> list:
+    """마켓별 주문 행. 미지원(UI) 마켓은 ValueError(추측 데이터 안 만듦).
 
+    기간 = since~until 명시 시 그대로 사용(빠른 기간 버튼·직접 날짜), 아니면 최근 days일.
     client 미지정 시 서버 UI 저장 실키로 계정 클라이언트를 만들어 사용.
     """
     if market not in SUPPORTED:
         raise ValueError(f"'{market}' 주문 엑셀 미지원(UI) — 코드/키/검증 필요")
-    until = now or _dt.datetime.now(KST)
-    since = until - _dt.timedelta(days=days)
+    if until is None:
+        until = now or _dt.datetime.now(KST)
+    if since is None:
+        since = until - _dt.timedelta(days=days)
     if client is None:
         client = _account_client(market)
     return _finalize_rows(_BUILDERS[market](since, until, client=client))
@@ -438,14 +443,16 @@ _CACHE: dict = {}                     # (markets, days) -> (monotonic_ts, rows)
 _CACHE_LOCK = _threading.Lock()
 
 
-def _fetch_combined(markets, days, now) -> list:
+def _fetch_combined(markets, days, now, since=None, until=None) -> list:
     """마켓별 주문을 병렬 조회 후 최신순 통합. 한 마켓 실패는 전파(부분 성공 숨김 금지)."""
+    def _one(mk):
+        return order_rows(mk, days=days, now=now, since=since, until=until)
     if len(markets) == 1:             # 단일 마켓은 스레드 오버헤드 불필요
-        results = {markets[0]: order_rows(markets[0], days=days, now=now)}
+        results = {markets[0]: _one(markets[0])}
     else:
         results, errors = {}, []
         with _ThreadPool(max_workers=min(4, len(markets))) as ex:
-            futs = {ex.submit(order_rows, mk, days=days, now=now): mk for mk in markets}
+            futs = {ex.submit(_one, mk): mk for mk in markets}
             for fut, mk in futs.items():
                 try:
                     results[mk] = fut.result()
@@ -468,24 +475,29 @@ def clear_cache() -> None:
 
 def combined_order_rows(markets, days: int = 7,
                         now: Optional[_dt.datetime] = None,
-                        use_cache: bool = False) -> list:
+                        use_cache: bool = False,
+                        since: Optional[_dt.datetime] = None,
+                        until: Optional[_dt.datetime] = None) -> list:
     """여러 마켓 주문을 합쳐 최신순(주문일 내림차순)으로. 판매처 열로 마켓 구분.
 
-    미지원 마켓이 섞이면 ValueError(추측 데이터 안 만듦). 한 마켓 조회 실패는 전체 실패로
-    전파. use_cache=True(웹 라우트) + now 미지정이면 TTL 캐시 사용(대시보드↔다운로드 공유).
+    기간 = since~until 명시(빠른 기간 버튼·직접 날짜) 또는 최근 days일. 미지원 마켓이
+    섞이면 ValueError. 한 마켓 조회 실패는 전체 실패로 전파. use_cache=True(웹 라우트) +
+    now 미지정이면 TTL 캐시 사용(대시보드↔다운로드 공유, 캐시 키에 기간 포함).
     """
     markets = list(markets)
     if use_cache and now is None:
-        key = (tuple(markets), days)
+        key = (tuple(markets), days,
+               since.isoformat() if since else None,
+               until.isoformat() if until else None)
         with _CACHE_LOCK:
             hit = _CACHE.get(key)
             if hit and (_time.monotonic() - hit[0]) < CACHE_TTL:
                 return hit[1]
-        rows = _fetch_combined(markets, days, now)
+        rows = _fetch_combined(markets, days, now, since=since, until=until)
         with _CACHE_LOCK:
             _CACHE[key] = (_time.monotonic(), rows)
         return rows
-    return _fetch_combined(markets, days, now)
+    return _fetch_combined(markets, days, now, since=since, until=until)
 
 
 def resolve_columns(columns=None) -> list:

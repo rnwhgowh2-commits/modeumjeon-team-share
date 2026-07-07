@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 """주문·정산·문의반품·신규등록 탭 — 5번 레이아웃(요약+표) · 안전 OFF(연결됨·검증대기)."""
+import datetime as _dt
 import pathlib
 
 import pytest
@@ -44,6 +45,36 @@ def test_four_dashboard_tabs_configured():
     for t in ["list", "sales", "cs", "register"]:
         c = om.TAB_CONFIG[t]
         assert c["kpis"] and c["cols"] and c["rows"]
+
+
+def test_list_tab_has_quick_range_buttons():
+    html = _render("list", live_enabled=True)
+    assert 'id="qchips"' in html            # 빠른 버튼 컨테이너
+    assert 'id="qdirect"' in html           # 「직접」 시작~끝 날짜
+    assert "버튼 관리" in html               # 관리 진입(모달)
+    assert "빠른 기간 버튼 관리" in html      # 관리 모달 제목
+    assert "moum_quick_ranges_v1" in html   # 저장 키
+    assert "2~3일 전" in html and "지난주" in html and "지난달" in html   # 기본 버튼
+
+
+def test_parse_range_reads_from_to():
+    since, until = om._parse_range({"from": "2026-06-01", "to": "2026-06-10"})
+    assert since.date() == _dt.date(2026, 6, 1)
+    assert until.date() == _dt.date(2026, 6, 10)
+    assert until.hour == 23 and until.minute == 59        # 종료일 하루 전체 포함
+
+
+def test_parse_range_swaps_reversed_and_clamps():
+    since, until = om._parse_range({"from": "2026-06-10", "to": "2026-06-01"})
+    assert since.date() == _dt.date(2026, 6, 1) and until.date() == _dt.date(2026, 6, 10)
+    s, u = om._parse_range({"from": "2026-01-01", "to": "2026-12-31"})
+    assert (u.date() - s.date()).days == 90                # 90일 상한
+
+
+def test_parse_range_absent_or_bad_is_none():
+    assert om._parse_range({}) == (None, None)
+    assert om._parse_range({"from": "2026-06-01"}) == (None, None)   # 한쪽만 → None
+    assert om._parse_range({"from": "bad", "to": "also-bad"}) == (None, None)
 
 
 @pytest.mark.parametrize("tab,kpi,col", [
