@@ -224,6 +224,45 @@ def test_combined_rows_sorted_desc(monkeypatch):
     assert [r["주문일"] for r in out] == ["2026-07-05", "2026-07-01"]   # 최신 먼저
 
 
+def test_combined_parallel_error_propagates(monkeypatch):
+    # 한 마켓이 실패하면 전체 실패로 전파(부분 성공 숨김 금지)
+    def _fake(mk, days=7, **k):
+        if mk == "coupang":
+            raise RuntimeError("쿠팡 인증 실패")
+        return [{"주문일": "2026-07-05", "판매처": "롯데온"}]
+    monkeypatch.setattr(oe, "order_rows", _fake)
+    with pytest.raises(RuntimeError):
+        oe.combined_order_rows(["coupang", "lotteon"], days=7)
+
+
+def test_combined_cache_reuses_fetch(monkeypatch):
+    # use_cache=True: 같은 (마켓,기간) 두 번째 호출은 실조회 없이 캐시 재사용(다운로드 즉시)
+    oe.clear_cache()
+    calls = {"n": 0}
+    def _fake(mk, days=7, **k):
+        calls["n"] += 1
+        return [{"주문일": "2026-07-05", "판매처": "쿠팡"}]
+    monkeypatch.setattr(oe, "order_rows", _fake)
+    a = oe.combined_order_rows(["coupang"], days=7, use_cache=True)
+    b = oe.combined_order_rows(["coupang"], days=7, use_cache=True)
+    assert calls["n"] == 1          # 두 번째는 캐시 히트 → order_rows 재호출 없음
+    assert a is b                   # 같은 결과 객체 재사용
+    oe.clear_cache()
+
+
+def test_combined_no_cache_by_default(monkeypatch):
+    # 기본(use_cache=False): 매번 실조회(직접 호출·테스트 결정성 유지)
+    oe.clear_cache()
+    calls = {"n": 0}
+    def _fake(mk, days=7, **k):
+        calls["n"] += 1
+        return []
+    monkeypatch.setattr(oe, "order_rows", _fake)
+    oe.combined_order_rows(["coupang"], days=7)
+    oe.combined_order_rows(["coupang"], days=7)
+    assert calls["n"] == 2          # 캐시 미사용 → 매번 조회
+
+
 def test_status_ko_mapping():
     assert oe._status_ko("coupang", "INSTRUCT") == "상품준비중"
     assert oe._status_ko("smartstore", "DELIVERED") == "배송완료"

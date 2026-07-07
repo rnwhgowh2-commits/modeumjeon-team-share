@@ -140,7 +140,8 @@ def orders_export():
     if not markets:
         abort(400, "선택된 마켓이 없어요(지원: 쿠팡·롯데온·스마트스토어).")
     try:
-        rows = _oe.combined_order_rows(markets, days=days)
+        # use_cache=True → 방금 대시보드가 받아둔 조회를 재사용(다운로드 즉시).
+        rows = _oe.combined_order_rows(markets, days=days, use_cache=True)
     except ValueError as e:
         abort(400, str(e))
     except Exception as e:   # noqa: BLE001 — 마켓 API/인증/IP 오류를 사유와 함께 표면화(키 미노출)
@@ -182,7 +183,7 @@ def orders_preview():
     if not markets:
         return jsonify(ok=False, error="선택된 마켓이 없어요."), 400
     try:
-        rows = _oe.combined_order_rows(markets, days=days)
+        rows = _oe.combined_order_rows(markets, days=days, use_cache=True)
     except ValueError as e:
         return jsonify(ok=False, error=str(e)), 400
     except Exception as e:   # noqa: BLE001
