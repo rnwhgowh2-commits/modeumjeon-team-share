@@ -17,9 +17,12 @@ KST = _dt.timezone(_dt.timedelta(hours=9))
 # 선택·순서 조정 가능한 전체 열(사용자 요청: B=판매처, C=주문상태). 기본 순서 = 이 목록.
 ALL_COLUMNS = ["주문일", "판매처", "주문상태", "상품명", "옵션", "수량",
                "수령자", "수령자전화번호", "주소", "우편번호", "배송메시지",
-               "구매자", "구매자번호", "단가", "배송비", "정산예정금액"]
+               "구매자", "구매자번호", "단가", "배송비", "상품금액", "주문금액",
+               "정산예정금액"]
+# 상품금액 = 단가×수량 / 주문금액 = 상품금액 + 배송비(배송건당 1회) / 정산예정금액 = 상품정산+배송비정산.
+# 배송비는 배송건(묶음) 단위 → 배송건 첫 행에만 표시(나머지 0, 합계 중복 방지).
 # 정산예정금액 = 상품 정산 + 배송비 정산(각자 수수료 차감). 배송비는 별도 정산 라인
-# (쿠팡 deliveryFee.settlementAmount·스스 DELIVERY행·롯데온 실결제 포함) 이라 합산한다.
+# (쿠팡 deliveryFee.settlementAmount·스스 DELIVERY행·롯데온 실결제 포함).
 DEFAULT_COLUMNS = list(ALL_COLUMNS)
 HEADER = DEFAULT_COLUMNS   # 하위호환 별칭
 
@@ -112,6 +115,7 @@ def smartstore_order_rows(since: _dt.datetime, until: _dt.datetime,
                 settle_val += deliv_settle[oid]
                 _deliv_used.add(oid)
         rows.append({
+            "_shipkey": ("smartstore", oid),   # 배송건(주문) 단위 배송비 정규화용
             "주문일": str(_g(od, "orderDate", "paymentDate"))[:10],
             "판매처": "스마트스토어",
             "상품명": _g(po, "productName"),
@@ -151,6 +155,7 @@ def lotteon_order_rows(since: _dt.datetime, until: _dt.datetime,
         addr = (str(_g(od, "dvpStnmZipAddr")) + " " + str(_g(od, "dvpStnmDtlAddr"))).strip()
         odc = str(_g(od, "odCmptDttm"))
         rows.append({
+            "_shipkey": ("lotteon", _g(od, "odNo")),   # 배송건(주문) 단위 배송비 정규화용
             "주문일": (odc[:4] + "-" + odc[4:6] + "-" + odc[6:8]) if len(odc) >= 8 else odc,
             "판매처": "롯데온",
             "상품명": _html.unescape(str(_g(od, "spdNm"))),   # &lt;매장정품&gt; → <매장정품>
@@ -212,6 +217,7 @@ def coupang_order_rows(since: _dt.datetime, until: _dt.datetime,
                     ship = _won(box.get("shippingPrice"))
                     rows.append({
                         "_oid": box.get("orderId"), "_vid": it.get("vendorItemId"),  # 정산 조인용
+                        "_shipkey": ("coupang", box.get("orderId")),   # 배송건 단위 배송비 정규화
                         "주문일": ordered,
                         "판매처": "쿠팡",
                         "상품명": it.get("sellerProductName") or it.get("vendorItemName") or "",
@@ -254,12 +260,15 @@ def coupang_order_rows(since: _dt.datetime, until: _dt.datetime,
                 val += deliv_settle[oid]
                 _deliv_used.add(oid)
             r["정산예정금액"] = val
-        else:                                          # 미정산: 상품추정 + 배송비추정
+        else:                                          # 미정산: 상품추정 + 배송비추정(주문당 1회)
             prod_est = _cp_estimate_settle(r.get("단가"), r.get("수량"), 0)
             if prod_est == "":
                 r["정산예정금액"] = ""
             else:
-                deliv_est = round(int(ship) * CP_SHIP_FEE_FACTOR) if str(ship).lstrip("-").isdigit() else 0
+                deliv_est = 0
+                if oid not in _deliv_used and str(ship).lstrip("-").isdigit():
+                    deliv_est = round(int(ship) * CP_SHIP_FEE_FACTOR)
+                    _deliv_used.add(oid)
                 r["정산예정금액"] = prod_est + deliv_est
     return rows
 
@@ -360,7 +369,38 @@ def order_rows(market: str, days: int = 7, client=None,
     since = until - _dt.timedelta(days=days)
     if client is None:
         client = _account_client(market)
-    return _BUILDERS[market](since, until, client=client)
+    return _finalize_rows(_BUILDERS[market](since, until, client=client))
+
+
+def _to_int(v, default=None):
+    """'4,000'·'4000.00'·4000 → 4000. 실패 시 default."""
+    try:
+        return int(float(str(v).replace(",", "")))
+    except (TypeError, ValueError):
+        return default
+
+
+def _finalize_rows(rows: list) -> list:
+    """상품금액(단가×수량)·주문금액(상품+배송비)·배송비 배송건당 1회 정규화.
+
+    배송비는 배송건(_shipkey=주문번호) 단위라, 같은 배송건의 두 번째 행부터 배송비 0
+    (합계 중복 방지). 정산예정금액 delivery 는 빌더에서 이미 배송건당 1회 처리.
+    """
+    seen = set()
+    for r in rows:
+        unit = _to_int(r.get("단가"))
+        qty = _to_int(r.get("수량"), 1) or 1
+        prod = unit * qty if unit is not None else ""
+        r["상품금액"] = prod
+        sk = r.pop("_shipkey", None)
+        ship = _to_int(r.get("배송비"), 0) or 0
+        if sk is not None and sk in seen:
+            ship = 0                       # 이미 계산한 배송건 → 0
+        elif sk is not None:
+            seen.add(sk)
+        r["배송비"] = ship
+        r["주문금액"] = (prod + ship) if prod != "" else ""
+    return rows
 
 
 def combined_order_rows(markets, days: int = 7,
