@@ -76,6 +76,31 @@ def test_supported_markets():
     assert oe.SUPPORTED == {"smartstore", "lotteon", "coupang"}   # 3마켓 UI 노출
 
 
+def test_coupang_settlement_join(monkeypatch):
+    # 발주서 조회 → revenue-history 를 (주문번호,옵션ID)로 조인해 정산예정금액 채움
+    class C:
+        _cfg = {"vendor_id": "A00012345"}
+        def request(self, method, path, query=""):
+            if "ordersheets" in path:
+                if "nextToken" in query:
+                    return {"data": [], "nextToken": ""}
+                return {"data": [{"shipmentBoxId": 1, "orderId": 777, "status": "FINAL_DELIVERY",
+                        "orderer": {}, "receiver": {},
+                        "orderItems": [{"vendorItemId": 9, "sellerProductName": "코트",
+                                        "shippingCount": 1, "salesPrice": {"units": 189000}}]}],
+                        "nextToken": ""}
+            if "revenue-history" in path:
+                return {"data": [{"orderId": 777, "items": [
+                        {"vendorItemId": 9, "settlementAmount": 165155}]}], "hasNext": False}
+            return {"data": []}
+    since = dt.datetime(2026, 7, 5, tzinfo=oe.KST)
+    until = dt.datetime(2026, 7, 8, tzinfo=oe.KST)
+    rows = oe.coupang_order_rows(since, until, client=C())
+    assert len(rows) == 1
+    assert rows[0]["정산예정금액"] == 165155      # revenue-history 조인됨
+    assert "_oid" not in rows[0] and "_vid" not in rows[0]   # 임시키 정리됨
+
+
 def test_columns_bc_are_market_and_status():
     assert oe.ALL_COLUMNS[0] == "주문일"
     assert oe.ALL_COLUMNS[1] == "판매처"      # 요청: B열 판매처

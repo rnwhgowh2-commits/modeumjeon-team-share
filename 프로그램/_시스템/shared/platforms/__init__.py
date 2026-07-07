@@ -62,6 +62,8 @@ COUPANG: dict = {
             "/v2/providers/seller_api/apis/api/v1/marketplace"
             "/seller-products/inflow-status"
         ),
+        # 매출내역(정산 예정금액) 조회 — settlements.py 사용. (누락돼 있던 경로 추가)
+        "revenue_history": "/v2/providers/openapi/apis/api/v1/revenue-history",
     },
 }
 
