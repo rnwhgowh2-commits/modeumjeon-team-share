@@ -61,6 +61,18 @@ def test_supported_markets():
     assert oe.SUPPORTED == {"smartstore", "lotteon", "coupang"}   # 3마켓 UI 노출
 
 
+def test_header_has_order_status():
+    assert oe.HEADER[-1] == "주문상태"        # 사용자 요청 컬럼(맨 끝)
+
+
+def test_status_ko_mapping():
+    assert oe._status_ko("coupang", "INSTRUCT") == "상품준비중"
+    assert oe._status_ko("smartstore", "DELIVERED") == "배송완료"
+    assert oe._status_ko("lotteon", "11") == "출고지시"
+    assert oe._status_ko("coupang", "UNKNOWN_X") == "UNKNOWN_X"   # 미매핑=원값(추측금지)
+    assert oe._status_ko("coupang", None) == ""
+
+
 class FakeCoupangClient:
     def __init__(self):
         self.calls = 0

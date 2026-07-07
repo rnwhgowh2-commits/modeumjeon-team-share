@@ -14,10 +14,27 @@ from typing import Optional
 
 KST = _dt.timezone(_dt.timedelta(hours=9))
 
-# 샵마인 발송대기 엑셀과 동일한 16컬럼(빈 열 포함).
+# 샵마인 발송대기 엑셀(16열) + 주문상태(사용자 요청). 주문상태는 맨 끝에 추가.
 HEADER = ["주문일", "상품명", "옵션", "수량", "주소", "", "우편번호", "수령자",
           "배송메시지", "구매자", "수령자전화번호", "구매자번호", "쇼핑몰",
-          "쇼핑몰ID", "단가", "정산예정금액"]
+          "쇼핑몰ID", "단가", "정산예정금액", "주문상태"]
+
+# 마켓별 원시 상태코드 → 한글. 미매핑은 원값 그대로(추측 금지).
+_STATUS_KO = {
+    "smartstore": {"PAYMENT_WAITING": "결제대기", "PAYED": "결제완료", "DELIVERING": "배송중",
+                   "DELIVERED": "배송완료", "PURCHASE_DECIDED": "구매확정",
+                   "CANCELED": "취소", "RETURNED": "반품", "EXCHANGED": "교환"},
+    "coupang": {"ACCEPT": "결제완료", "INSTRUCT": "상품준비중", "DEPARTURE": "배송지시",
+                "DELIVERING": "배송중", "FINAL_DELIVERY": "배송완료",
+                "NONE_TRACKING": "업체직접배송"},
+    "lotteon": {"11": "출고지시", "23": "회수지시"},
+}
+
+
+def _status_ko(market, raw):
+    if raw in (None, ""):
+        return ""
+    return _STATUS_KO.get(market, {}).get(str(raw), str(raw))
 
 SUPPORTED = {"smartstore", "lotteon", "coupang"}   # UI 엑셀버튼 노출. 실키=서버 UI저장.
 # 마켓 → 계정 시크릿 env_prefix(판매처 계정 기본). load_credentials 로 실키 로드.
@@ -94,6 +111,7 @@ def smartstore_order_rows(since: _dt.datetime, until: _dt.datetime,
             "쇼핑몰ID": "",
             "단가": _g(po, "unitPrice", "totalPaymentAmount", default=""),
             "정산예정금액": settle_map.get(poid, ""),
+            "주문상태": _status_ko("smartstore", _g(po, "productOrderStatus")),
         })
     return rows
 
@@ -129,6 +147,7 @@ def lotteon_order_rows(since: _dt.datetime, until: _dt.datetime,
             "쇼핑몰ID": "",
             "단가": _g(od, "slPrc", default=""),
             "정산예정금액": _g(od, "actualAmt", default=""),   # 실결제 근사(정밀 정산은 후속)
+            "주문상태": _status_ko("lotteon", _g(od, "odPrgsStepCd")),
         })
     return rows
 
@@ -184,6 +203,7 @@ def coupang_order_rows(since: _dt.datetime, until: _dt.datetime,
                         "쇼핑몰ID": "",
                         "단가": _won(it.get("salesPrice")),
                         "정산예정금액": "",   # 쿠팡 정산=revenue-history 별도(후속). 폴백 금지.
+                        "주문상태": _status_ko("coupang", box.get("status") or st),
                     })
             token = resp.get("nextToken")
             if not token:

@@ -127,3 +127,50 @@ def orders_export():
     return send_file(
         _io.BytesIO(xlsx), as_attachment=True, download_name=fname,
         mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+
+
+def _mask_name(s):
+    s = str(s or "")
+    return (s[0] + "*" * (len(s) - 1)) if len(s) >= 2 else s
+
+
+def _mask_phone(s):
+    s = str(s or "")
+    d = s.replace("-", "")
+    return (s[:3] + "****" + s[-2:]) if len(d) >= 7 else s
+
+
+def _mask_addr(s):
+    # 시/구 수준까지만(앞 2어절)
+    parts = str(s or "").split()
+    return " ".join(parts[:2]) + (" …" if len(parts) > 2 else "")
+
+
+@bp.route('/preview.json')
+def orders_preview():
+    """주문 미리보기(JSON) — 개인정보는 마스킹. 화면 표시/점검용. 전체 원본은 엑셀 다운로드."""
+    from flask import jsonify
+    market = (request.args.get('market') or 'smartstore').strip()
+    try:
+        days = int(request.args.get('days') or 7)
+    except (TypeError, ValueError):
+        days = 7
+    days = max(1, min(90, days))
+    try:
+        rows = _oe.order_rows(market, days=days)
+    except ValueError as e:
+        return jsonify(ok=False, error=str(e)), 400
+    except Exception as e:   # noqa: BLE001
+        import logging
+        logging.getLogger(__name__).exception("order preview failed market=%s", market)
+        return jsonify(ok=False, error=f"{type(e).__name__}: {str(e)[:300]}"), 400
+    safe = []
+    for r in rows:
+        r = dict(r)
+        r["수령자"] = _mask_name(r.get("수령자"))
+        r["구매자"] = _mask_name(r.get("구매자"))
+        r["수령자전화번호"] = _mask_phone(r.get("수령자전화번호"))
+        r["구매자번호"] = _mask_phone(r.get("구매자번호"))
+        r["주소"] = _mask_addr(r.get("주소"))
+        safe.append(r)
+    return jsonify(ok=True, market=market, days=days, count=len(safe), rows=safe)
