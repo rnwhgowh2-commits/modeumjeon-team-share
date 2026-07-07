@@ -46,12 +46,12 @@ def test_four_dashboard_tabs_configured():
 
 
 @pytest.mark.parametrize("tab,kpi,col", [
-    ("list", "신규주문", "주문번호"),
     ("sales", "정산 예정", "정산 예정액"),
     ("cs", "미답변 문의", "내용"),
     ("register", "등록 대기", "카테고리"),
 ])
 def test_tab_renders_layout(tab, kpi, col):
+    # list 는 7번(AJAX) 전용 레이아웃이라 별도 테스트. sales/cs/register 는 샘플 레이아웃 유지.
     html = _render(tab)
     assert kpi in html, kpi
     assert col in html, col
@@ -60,14 +60,24 @@ def test_tab_renders_layout(tab, kpi, col):
 
 
 def test_action_button_disabled_when_off():
-    html = _render("list")
-    assert "disabled" in html                   # 송장입력 비활성
+    html = _render("register")
+    assert "disabled" in html                   # 등록 버튼 비활성(샘플 탭)
 
 
 def test_live_on_shows_empty_state():
-    html = _render("list", live_enabled=True)
+    html = _render("sales", live_enabled=True)
     assert "아직 표시할 실데이터가 없어요" in html
     assert "안전 OFF" not in html                # live=on → 배너 숨김
+
+
+def test_list_is_seven_layout():
+    # 7번: 좌측 필터(마켓·기간·주문상태·검색) + 대시보드 + 실주문(preview.json) — 샘플/배너 없음
+    html = _render("list")
+    for t in ["마켓", "기간", "주문상태", "검색", "엑셀 양식 설정", "엑셀 내보내기",
+              "preview.json", "kpis", "tablewrap"]:
+        assert t in html, t
+    assert "안전 OFF" not in html                # 모순 배너 제거됨
+    assert "레이아웃 미리보기(샘플)" not in html
 
 
 def test_margin_still_placeholder():
@@ -101,11 +111,11 @@ def test_preview_masks_personal_fields(monkeypatch):
     assert row["주문상태"] == "배송완료" and row["상품명"] == "코트"   # 비개인정보는 그대로
 
 
-def test_list_has_export_button_and_settle_column():
+def test_list_has_export_controls():
     html = _render("list")
     assert "엑셀 내보내기" in html          # 다운로드 버튼
-    assert "정산예정금액" in html            # 표에 정산 열
     assert "최근 7일" in html                # 기간 프리셋 칩
+    assert "정산예정금액" in html            # 양식 열 목록(all_columns)에 포함
 
 
 def test_export_downloads_xlsx_for_smartstore(monkeypatch):

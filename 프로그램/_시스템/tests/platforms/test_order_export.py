@@ -161,7 +161,19 @@ def test_lotteon_rows_map_from_delivery_orders():
     assert r["주문일"] == "2026-07-05" and r["상품명"] == "코트" and r["옵션"] == "블랙/95"
     assert r["수령자"] == "수령자A" and r["구매자"] == "구매자A"
     assert r["단가"] == 189000 and r["정산예정금액"] == 170000
-    assert r["쇼핑몰"] == "롯데온"
+    assert r["판매처"] == "롯데온"
+
+
+def test_lotteon_unescapes_html_entities():
+    class C:
+        def request(self, method, path, body=None):
+            return {"data": {"deliveryOrderList": [{
+                "odCmptDttm": "20260705", "spdNm": "&lt;매장정품&gt; 코트",
+                "sitmNm": "R&amp;B / 100", "odQty": 1}]}}
+    r = oe.lotteon_order_rows(dt.datetime(2026, 7, 5, tzinfo=oe.KST),
+                              dt.datetime(2026, 7, 6, tzinfo=oe.KST), client=C())[0]
+    assert r["상품명"] == "<매장정품> 코트"        # &lt; &gt; 해제
+    assert r["옵션"] == "R&B / 100"                # &amp; 해제
 
 
 def test_lotteon_ready_in_builders_and_supported():

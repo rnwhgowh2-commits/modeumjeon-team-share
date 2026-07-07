@@ -6,7 +6,163 @@
   <h1>{{ current.label }}</h1>
   <p class="greeting">{{ current.desc }}</p>
 
-  {% if cfg %}
+  {% if tab == 'list' %}
+  {# ══ 7번: 좌측 필터패널 + 대시보드 + 실주문 표(AJAX) ══ #}
+  {% set mklabel = {'smartstore':'스마트스토어','lotteon':'롯데온','coupang':'쿠팡'} %}
+  <style>
+    .o7{--ink:#191F28;--sub:#8B95A1;--faint:#B0B8C1;--line:#F1F3F5;--line2:#E5E8EB;--bg:#F8FAFB;--blue:#1B64DA;--green:#15803D;--amber:#B45309;--sky:#0369A1;--red:#DC2626;--mono:ui-monospace,Menlo,monospace;}
+    .o7{display:grid;grid-template-columns:212px 1fr;gap:20px;align-items:start;}
+    .o7 .side{position:sticky;top:14px;background:#fff;border:1px solid var(--line2);border-radius:14px;padding:16px 15px;font-size:13px;}
+    .o7 .fg{margin-bottom:16px;}
+    .o7 .fl{font-size:11px;font-weight:800;color:var(--faint);letter-spacing:.02em;margin-bottom:7px;}
+    .o7 label.ck{display:flex;align-items:center;gap:8px;padding:4px 0;cursor:pointer;}
+    .o7 label.ck input{width:15px;height:15px;accent-color:var(--blue);}
+    .o7 .pchip{display:inline-block;font-size:12px;font-weight:700;border:1px solid var(--line2);background:#fff;border-radius:18px;padding:5px 11px;cursor:pointer;color:var(--sub);margin:0 3px 3px 0;}
+    .o7 .pchip.on{background:var(--blue);color:#fff;border-color:var(--blue);}
+    .o7 .srch{width:100%;border:1px solid var(--line2);border-radius:9px;padding:8px 10px;font-size:13px;font-family:inherit;}
+    .o7 .gbtn{width:100%;font-size:13px;font-weight:700;border:1px solid var(--line2);background:#fff;border-radius:9px;padding:9px;cursor:pointer;color:var(--ink);margin-top:8px;}
+    .o7 .xbtn{width:100%;display:flex;align-items:center;justify-content:center;gap:6px;font-size:13px;font-weight:800;color:#fff;background:var(--green);border:none;border-radius:9px;padding:11px;cursor:pointer;text-decoration:none;margin-top:8px;}
+    .o7 .kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:14px;}
+    .o7 .kpi{background:var(--bg);border:1px solid var(--line);border-radius:12px;padding:13px 15px;}
+    .o7 .kpi .l{font-size:11.5px;color:var(--sub);font-weight:700;}
+    .o7 .kpi .v{font-size:22px;font-weight:800;margin-top:4px;font-variant-numeric:tabular-nums;}
+    .o7 .kpi .v small{font-size:12px;color:var(--sub);font-weight:600;}
+    .o7 .mkline{display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap;}
+    .o7 .mkbox{background:#fff;border:1px solid var(--line2);border-radius:10px;padding:7px 13px;font-size:12px;}
+    .o7 .mkbox b{font-weight:800;font-variant-numeric:tabular-nums;}
+    .o7 table{width:100%;border-collapse:collapse;font-size:12.5px;background:#fff;border:1px solid var(--line2);border-radius:12px;overflow:hidden;}
+    .o7 th{background:#F7F9FB;padding:9px 10px;font-size:11px;font-weight:800;color:var(--sub);text-align:left;border-bottom:1px solid var(--line2);white-space:nowrap;}
+    .o7 td{padding:9px 10px;border-bottom:1px solid var(--line);}
+    .o7 tr:last-child td{border-bottom:none;}
+    .o7 td.num,.o7 th.num{text-align:right;font-variant-numeric:tabular-nums;}
+    .o7 .mk{font-size:10.5px;font-weight:800;padding:2px 7px;border-radius:6px;}
+    .o7 .mk.cp{background:#FEE2E2;color:#B91C1C;}.o7 .mk.lo{background:#EDE9FE;color:#6D28D9;}.o7 .mk.ss{background:#DCFCE7;color:#15803D;}
+    .o7 .bd{font-size:10px;font-weight:800;border-radius:18px;padding:2px 8px;white-space:nowrap;}
+    .o7 .bd.blue{background:#E8F0FE;color:var(--blue);}.o7 .bd.amber{background:#FEF3C7;color:var(--amber);}.o7 .bd.sky{background:#E0F2FE;color:var(--sky);}.o7 .bd.green{background:#E7F6EC;color:var(--green);}.o7 .bd.red{background:#FEE2E2;color:var(--red);}.o7 .bd.gray{background:#F1F3F5;color:#8B95A1;}
+    .o7 .state{padding:34px;text-align:center;color:var(--sub);font-size:13px;background:#fff;border:1px solid var(--line2);border-radius:12px;line-height:1.7;}
+    .o7 .muted{color:var(--faint);}
+    .o7 .cfgov{position:fixed;inset:0;background:rgba(20,25,35,.5);z-index:200;display:none;align-items:center;justify-content:center;}
+    .o7 .cfgov.on{display:flex;}
+    .o7 .cfgbox{background:#fff;width:380px;max-width:92vw;border-radius:16px;overflow:hidden;box-shadow:0 20px 50px rgba(0,0,0,.3);}
+    .o7 .cfghd{padding:16px 20px 12px;font-size:15px;font-weight:800;}.o7 .cfghd span{display:block;font-size:11.5px;font-weight:500;color:var(--sub);margin-top:3px;}
+    .o7 .collist{max-height:340px;overflow:auto;padding:4px 12px;}
+    .o7 .colrow{display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:9px;}.o7 .colrow:hover{background:#F7F9FB;}
+    .o7 .colrow .cn{flex:1;font-size:13.5px;}.o7 .colrow.off .cn{color:var(--faint);}
+    .o7 .colrow .ar{border:none;background:none;cursor:pointer;color:var(--faint);font-size:15px;padding:2px 4px;}.o7 .colrow .ar:hover{color:var(--ink);}
+    .o7 .cfgft{display:flex;gap:8px;padding:14px 20px;border-top:1px solid var(--line);}
+    .o7 .cfgft button{flex:1;font-size:13px;font-weight:700;border-radius:9px;padding:10px;cursor:pointer;border:1px solid var(--line2);background:#fff;color:var(--sub);}
+    .o7 .cfgft button.prim{background:var(--ink);color:#fff;border-color:var(--ink);}
+  </style>
+  <div class="o7">
+    <aside class="side">
+      <div class="fg"><div class="fl">마켓</div>
+        <label class="ck"><input type="checkbox" id="mk-all" checked> <b>전체</b></label>
+        {% for m in export_markets %}<label class="ck"><input type="checkbox" class="mk-ck" value="{{ m }}" checked> {{ mklabel.get(m, m) }}</label>{% endfor %}
+      </div>
+      <div class="fg"><div class="fl">기간</div>
+        <span class="pchip" data-days="1">오늘</span><span class="pchip on" data-days="7">최근 7일</span><span class="pchip" data-days="30">최근 30일</span>
+      </div>
+      <div class="fg"><div class="fl">주문상태</div><div id="st-filter"><span class="muted" style="font-size:12px">불러오는 중…</span></div></div>
+      <div class="fg"><div class="fl">검색 (상품·수령자)</div><input class="srch" id="srch" placeholder="검색어 입력"></div>
+      <div class="fg" style="margin-bottom:0">
+        <button type="button" class="gbtn" id="cfgbtn">⚙ 엑셀 양식 설정</button>
+        <a class="xbtn" id="xlsxbtn" href="#">⬇ 엑셀 내보내기</a>
+      </div>
+    </aside>
+    <main class="main">
+      <div class="kpis" id="kpis"></div>
+      <div class="mkline" id="mkline"></div>
+      <div id="tablewrap"><div class="state">주문을 불러오는 중…</div></div>
+      <div style="font-size:11.5px;color:var(--sub);margin-top:10px">💡 화면은 개요(연락처 가림)입니다. <b>전체 원본</b>은 「엑셀 내보내기」로 받으세요.</div>
+    </main>
+  </div>
+  <div class="o7"><div class="cfgov" id="cfgov"><div class="cfgbox">
+    <div class="cfghd">엑셀 양식 설정<span>넣을 열을 켜고, ↑↓ 로 순서를 바꾸세요</span></div>
+    <div class="collist" id="collist"></div>
+    <div class="cfgft"><button type="button" id="cfgreset">기본값</button><button type="button" id="cfgsave" class="prim">저장</button></div>
+  </div></div></div>
+  <script>
+  (function(){
+    var ALLCOLS={{ all_columns|tojson }};
+    var MKLABEL={smartstore:'스마트스토어',lotteon:'롯데온',coupang:'쿠팡'};
+    var MKCLS={'스마트스토어':'ss','롯데온':'lo','쿠팡':'cp'};
+    var days='7', rows=[], srch='', stOff={};   // stOff: 꺼진 상태
+    var LS='moum_order_cols_v1';
+    function loadCols(){try{var s=JSON.parse(localStorage.getItem(LS));if(Array.isArray(s)&&s.length){var nm=s.map(function(x){return x.c;});ALLCOLS.forEach(function(c){if(nm.indexOf(c)<0)s.push({c:c,on:true});});return s.filter(function(x){return ALLCOLS.indexOf(x.c)>=0;});}}catch(e){}return ALLCOLS.map(function(c){return{c:c,on:true};});}
+    var cols=loadCols();
+    function stCls(s){if(/결제완료|신규|결제대기/.test(s))return'blue';if(/준비중|출고지시|발송대기/.test(s))return'amber';if(/배송중/.test(s))return'sky';if(/완료|구매확정/.test(s))return'green';if(/취소|반품|교환|거부/.test(s))return'red';return'gray';}
+    var WAIT=/결제완료|준비중|출고지시|신규|결제대기/;
+    function num(v){v=(''+v).replace(/[^0-9]/g,'');return v?parseInt(v):0;}
+    function selMk(){return [].slice.call(document.querySelectorAll('.mk-ck')).filter(function(c){return c.checked;}).map(function(c){return c.value;});}
+    function selCols(){return cols.filter(function(x){return x.on;}).map(function(x){return x.c;});}
+    function syncBtn(){var mks=selMk();var x=document.getElementById('xlsxbtn');x.href='/orders/export.xlsx?markets='+encodeURIComponent(mks.join(','))+'&days='+days+'&cols='+encodeURIComponent(selCols().join(','));x.style.opacity=mks.length?'1':'.4';x.style.pointerEvents=mks.length?'auto':'none';}
+    function filtered(){return rows.filter(function(r){
+      if(stOff[r['주문상태']||''])return false;
+      if(srch){var s=srch.toLowerCase();if(((r['상품명']||'')+ (r['수령자']||'')).toLowerCase().indexOf(s)<0)return false;}
+      return true;});}
+    function renderKPI(fr){
+      var wait=fr.filter(function(r){return WAIT.test(r['주문상태']||'');}).length;
+      var settle=fr.reduce(function(a,r){return a+num(r['정산예정금액']);},0);
+      var amt=fr.reduce(function(a,r){return a+num(r['단가']);},0);
+      document.getElementById('kpis').innerHTML=
+       kpi('주문',fr.length+'<small>건</small>')+kpi('발송대기',wait+'<small>건</small>')+kpi('주문금액',(amt/10000).toFixed(0)+'<small>만</small>')+kpi('정산예정',(settle/10000).toFixed(0)+'<small>만</small>');
+      // 마켓별
+      var by={};fr.forEach(function(r){by[r['판매처']]=(by[r['판매처']]||0)+1;});
+      document.getElementById('mkline').innerHTML=Object.keys(by).map(function(m){return '<span class="mkbox"><span class="mk '+(MKCLS[m]||'gray')+'">'+m+'</span> <b>'+by[m]+'</b>건</span>';}).join('');
+    }
+    function kpi(l,v){return '<div class="kpi"><div class="l">'+l+'</div><div class="v">'+v+'</div></div>';}
+    function renderTable(fr){
+      if(!fr.length){document.getElementById('tablewrap').innerHTML='<div class="state">조건에 맞는 주문이 없어요.</div>';return;}
+      var head='<tr><th>주문일</th><th>판매처</th><th>주문상태</th><th>상품 · 옵션</th><th class="num">수량</th><th class="num">단가</th><th class="num">정산예정</th><th>수령자</th></tr>';
+      var body=fr.map(function(r){return '<tr><td>'+(r['주문일']||'')+'</td>'
+        +'<td><span class="mk '+(MKCLS[r['판매처']]||'gray')+'">'+(r['판매처']||'')+'</span></td>'
+        +'<td><span class="bd '+stCls(r['주문상태']||'')+'">'+(r['주문상태']||'-')+'</span></td>'
+        +'<td>'+(r['상품명']||'')+' <span class="muted">'+(r['옵션']||'')+'</span></td>'
+        +'<td class="num">'+(r['수량']||'')+'</td><td class="num">'+(r['단가']?Number(num(r['단가'])).toLocaleString():'')+'</td>'
+        +'<td class="num">'+(r['정산예정금액']?Number(num(r['정산예정금액'])).toLocaleString():'—')+'</td>'
+        +'<td class="muted">'+(r['수령자']||'')+'</td></tr>';}).join('');
+      document.getElementById('tablewrap').innerHTML='<table>'+head+body+'</table>';
+    }
+    function renderStFilter(){
+      var set={};rows.forEach(function(r){var s=r['주문상태']||'(없음)';set[s]=(set[s]||0)+1;});
+      var keys=Object.keys(set);
+      document.getElementById('st-filter').innerHTML=keys.length?keys.map(function(s){return '<label class="ck"><input type="checkbox" class="st-ck" value="'+s+'" '+(stOff[s]?'':'checked')+'> '+s+' <span class="muted">'+set[s]+'</span></label>';}).join(''):'<span class="muted" style="font-size:12px">주문 없음</span>';
+      [].slice.call(document.querySelectorAll('.st-ck')).forEach(function(c){c.addEventListener('change',function(){stOff[c.value]=!c.checked;render();});});
+    }
+    function render(){var fr=filtered();renderKPI(fr);renderTable(fr);syncBtn();}
+    function load(){
+      document.getElementById('tablewrap').innerHTML='<div class="state">주문을 불러오는 중…</div>';
+      var mks=selMk();syncBtn();
+      if(!mks.length){rows=[];renderStFilter();render();return;}
+      fetch('/orders/preview.json?markets='+encodeURIComponent(mks.join(','))+'&days='+days,{cache:'no-store'})
+        .then(function(r){return r.json();}).then(function(j){
+          if(!j.ok){document.getElementById('tablewrap').innerHTML='<div class="state">불러오기 실패: '+(j.error||'')+'</div>';rows=[];return;}
+          rows=j.rows||[];renderStFilter();render();
+        }).catch(function(e){document.getElementById('tablewrap').innerHTML='<div class="state">네트워크 오류</div>';});
+    }
+    // 필터 이벤트
+    var allck=document.getElementById('mk-all');
+    allck.addEventListener('change',function(){[].slice.call(document.querySelectorAll('.mk-ck')).forEach(function(c){c.checked=allck.checked;});load();});
+    [].slice.call(document.querySelectorAll('.mk-ck')).forEach(function(c){c.addEventListener('change',function(){allck.checked=[].slice.call(document.querySelectorAll('.mk-ck')).every(function(x){return x.checked;});load();});});
+    [].slice.call(document.querySelectorAll('.o7 .pchip')).forEach(function(p){p.addEventListener('click',function(){document.querySelectorAll('.o7 .pchip').forEach(function(x){x.classList.remove('on');});p.classList.add('on');days=p.getAttribute('data-days');load();});});
+    var st;document.getElementById('srch').addEventListener('input',function(e){srch=e.target.value;clearTimeout(st);st=setTimeout(render,200);});
+    // 양식 설정 모달
+    var ov=document.getElementById('cfgov'),list=document.getElementById('collist');
+    function renderColRows(){list.innerHTML='';cols.forEach(function(x,i){var row=document.createElement('div');row.className='colrow'+(x.on?'':' off');
+      row.innerHTML='<input type="checkbox" '+(x.on?'checked':'')+'><span class="cn">'+x.c+'</span><button class="ar up" '+(i===0?'style=visibility:hidden':'')+'>↑</button><button class="ar dn" '+(i===cols.length-1?'style=visibility:hidden':'')+'>↓</button>';
+      row.querySelector('input').addEventListener('change',function(e){x.on=e.target.checked;row.classList.toggle('off',!x.on);});
+      row.querySelector('.up').addEventListener('click',function(){cols.splice(i-1,0,cols.splice(i,1)[0]);renderColRows();});
+      row.querySelector('.dn').addEventListener('click',function(){cols.splice(i+1,0,cols.splice(i,1)[0]);renderColRows();});
+      list.appendChild(row);});}
+    document.getElementById('cfgbtn').addEventListener('click',function(){renderColRows();ov.classList.add('on');});
+    ov.addEventListener('click',function(e){if(e.target===ov)ov.classList.remove('on');});
+    document.getElementById('cfgreset').addEventListener('click',function(){cols=ALLCOLS.map(function(c){return{c:c,on:true};});renderColRows();});
+    document.getElementById('cfgsave').addEventListener('click',function(){localStorage.setItem(LS,JSON.stringify(cols));ov.classList.remove('on');syncBtn();});
+    load();
+  })();
+  </script>
+
+  {% elif cfg %}
   <style>
     .ord5{--ink:#191F28;--sub:#8B95A1;--faint:#B0B8C1;--line:#F1F3F5;--line2:#E5E8EB;--bg:#F8FAFB;
       --blue:#1B64DA;--green:#15803D;--amber:#B45309;--mono:ui-monospace,Menlo,monospace;}
