@@ -140,6 +140,16 @@ def test_amount_columns_order():
     assert oe.ALL_COLUMNS[i + 4] == "정산예정금액"
 
 
+def test_column_meta_marks_calc_vs_api():
+    m = oe.columns_meta()
+    assert m["상품금액"]["kind"] == "calc" and "단가" in m["상품금액"]["desc"]
+    assert m["주문금액"]["kind"] == "calc"
+    assert m["정산예정금액"]["kind"] == "calc"
+    assert m["단가"]["kind"] == "api"                    # 마켓 원본
+    assert oe.column_meta("없는열")["kind"] == "api"      # 미등록=원본 기본
+    assert set(m) == set(oe.ALL_COLUMNS)                 # 전 열 메타 보유
+
+
 def test_finalize_amounts_and_shipping_dedup():
     rows = [
         {"_shipkey": ("cp", "O1"), "단가": 10000, "수량": 2, "배송비": 3000},

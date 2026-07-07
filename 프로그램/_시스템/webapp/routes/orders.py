@@ -97,6 +97,7 @@ def orders_index():
             # 주문 내역 탭: 실데이터 엑셀 내보내기 가능한 마켓(코드+키+검증된 것만).
             export_markets=sorted(_oe.SUPPORTED) if tab == 'list' else [],
             all_columns=_oe.ALL_COLUMNS if tab == 'list' else [],
+            col_meta=_oe.columns_meta() if tab == 'list' else {},
         )
     return render_template('orders/index.html', **ctx)
 
