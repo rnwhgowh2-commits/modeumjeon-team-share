@@ -37,6 +37,7 @@
   var order = [];          // 표시 순서(진행중→대기→완료). 'queue' 이벤트로 갱신.
   var selected = null;     // 우측 상세에 표시할 모음전 code
   var anyRunning = false;
+  var passPosted = false;  // 이번 패스(전체 큐) pass-done 이미 보냈나 — 실행당 1회 게이트
   var globalStartTs = 0;
   var _elapsedTimer = null;
 
@@ -682,6 +683,24 @@
     }
     return null;
   }
+  // [2026-07-08] 한 패스(전체 큐 = 모든 due 모음전 1회) 완료 판정 — '오늘 바퀴 +1' 신호용.
+  //   statuses = order 의 모음전 상태 배열. prevPosted = 직전 passPosted.
+  //   ★버그수정: 이전엔 '선택 모음전' 하나가 done 될 때마다 발사 → selected 가 크롤 중
+  //     모음전을 자동 추종하므로 한 바퀴에 모음전 개수(x)만큼 pass-done 이 나가 '오늘 바퀴'가
+  //     한 번에 x씩 뛰었다. 이제 큐가 완전히 소진(run/pause/wait 0)되고 done≥1·stop 0 일 때만
+  //     딱 1회. 진행 중(pending)이면 재무장(다음 패스 완료용). 회귀: tests/js/test_pass_done_once_per_lap.js
+  function passDoneDecision(statuses, prevPosted) {
+    var pending = false, done = 0, stopped = 0;
+    for (var i = 0; i < statuses.length; i++) {
+      var s = statuses[i];
+      if (s === 'run' || s === 'pause' || s === 'wait') pending = true;   // 큐 미소진
+      else if (s === 'done') done++;
+      else if (s === 'stop') stopped++;
+    }
+    if (pending) return { post: false, posted: false };                    // 진행 중 → 재무장
+    if (done > 0 && stopped === 0 && !prevPosted) return { post: true, posted: true };
+    return { post: false, posted: prevPosted };
+  }
   function onPauseClick() {
     if (!window.MoumExt) return;
     var rb = runningBundle();
@@ -1039,12 +1058,13 @@
     // [2026-07-06] 자동화 왼쪽 링이 위젯과 '똑같은 값'을 쓰도록 전역 노출(같은 페이지·같은 계산).
     //   서버 랩 진행률(별도 경로)로 흉내내던 불일치를 근본 제거. active=크롤 중.
     try { window.__moumOverall = { done: prog.done, total: prog.total, pct: prog.pct, active: active, ts: Date.now() }; } catch (_) {}
-    // [2026-07-06] 한 패스(전체 URL 1회) 완료 → 서버에 통보(오늘 바퀴 +1). 패스당 1회(엣지),
-    //   다탭 중복은 서버가 디듀프. 확장 재로드 없이 페이지에서 바퀴 집계.
+    // [2026-07-08] 한 패스(전체 큐 = 모든 due 모음전 1회) 완료 → 서버에 통보(오늘 바퀴 +1).
+    //   ★ 실행 전체가 끝난 순간 딱 1회(선택 모음전 단위 아님 — x배 카운팅 버그 수정).
+    //   다탭 중복·확장 경로(runQueueBG)와 겹쳐도 서버가 20초 디듀프로 하나로 합침.
     try {
-      if (b && prog.total > 0 && (prog.pct >= 100 || b.status === 'done')) {
-        if (!b.__passPosted) { b.__passPosted = true; fetch('/api/crawl/pass-done', { method: 'POST' }).catch(function () {}); }
-      } else if (b && prog.pct < 100 && b.status !== 'done') { b.__passPosted = false; }
+      var _pd = passDoneDecision(order.map(function (c) { return bundles[c] && bundles[c].status; }), passPosted);
+      passPosted = _pd.posted;
+      if (_pd.post) fetch('/api/crawl/pass-done', { method: 'POST' }).catch(function () {});
     } catch (_) {}
     safeText(document.getElementById('mcl-overall-cnt'), prog.done + ' / ' + (prog.total || prog.done));
     setWidth(document.getElementById('mcl-overall-fill'), prog.pct);
