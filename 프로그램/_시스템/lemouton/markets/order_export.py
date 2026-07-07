@@ -126,6 +126,7 @@ def lotteon_order_rows(since: _dt.datetime, until: _dt.datetime,
     apiNo=209 SellerDeliveryOrdersSearch(하루 윈도우) 응답 deliveryOrderList 매핑.
     정산예정금액은 주문 API엔 없음(실결제 actualAmt 로 근사) — 정밀 정산은 정산 그룹 API 후속.
     """
+    import html as _html
     from shared.platforms.lotteon.orders import iter_delivery_orders
 
     rows = []
@@ -137,8 +138,8 @@ def lotteon_order_rows(since: _dt.datetime, until: _dt.datetime,
         rows.append({
             "주문일": (odc[:4] + "-" + odc[4:6] + "-" + odc[6:8]) if len(odc) >= 8 else odc,
             "판매처": "롯데온",
-            "상품명": _g(od, "spdNm"),
-            "옵션": opt,
+            "상품명": _html.unescape(str(_g(od, "spdNm"))),   # &lt;매장정품&gt; → <매장정품>
+            "옵션": _html.unescape(str(opt)),
             "수량": _g(od, "odQty", default=""),
             "주소": addr,
             "우편번호": _g(od, "dvpZipNo"),
