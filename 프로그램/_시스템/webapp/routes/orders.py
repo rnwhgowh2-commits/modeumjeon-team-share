@@ -96,34 +96,60 @@ def orders_index():
             rows=[] if live else cfg['rows'],
             # 주문 내역 탭: 실데이터 엑셀 내보내기 가능한 마켓(코드+키+검증된 것만).
             export_markets=sorted(_oe.SUPPORTED) if tab == 'list' else [],
+            all_columns=_oe.ALL_COLUMNS if tab == 'list' else [],
         )
     return render_template('orders/index.html', **ctx)
 
 
+def _parse_markets(args):
+    """markets(콤마·다중) 또는 market(단일). SUPPORTED 로 필터(순서 유지·중복 제거)."""
+    raw = args.get('markets') or args.get('market') or 'smartstore'
+    out, seen = [], set()
+    for m in raw.split(','):
+        m = m.strip()
+        if m in _oe.SUPPORTED and m not in seen:
+            seen.add(m)
+            out.append(m)
+    return out
+
+
+def _parse_days(args):
+    try:
+        d = int(args.get('days') or 7)
+    except (TypeError, ValueError):
+        d = 7
+    return max(1, min(90, d))
+
+
+def _parse_cols(args):
+    raw = (args.get('cols') or '').strip()
+    return [c for c in raw.split(',') if c] if raw else None
+
+
 @bp.route('/export.xlsx')
 def orders_export():
-    """선택 마켓 최근 N일 주문 → 샵마인 형식 엑셀 다운로드(서버측 실조회).
+    """선택 마켓(다중) 최근 N일 주문 → 엑셀 다운로드(서버측 실조회, 최신순 통합).
 
-    미지원 마켓은 400(추측 데이터 안 만듦). 스마트스토어만 실배선(2026-07-07 검증).
+    markets=콤마구분(다중). cols=콤마구분(열 구성·순서, A5 양식). 미지원 마켓/조회실패는
+    사유와 함께 400(CDN 이 5xx 본문을 가려서 4xx 로 표면화). 추측 데이터 안 만듦.
     """
-    market = (request.args.get('market') or 'smartstore').strip()
+    markets = _parse_markets(request.args)
+    days = _parse_days(request.args)
+    cols = _parse_cols(request.args)
+    if not markets:
+        abort(400, "선택된 마켓이 없어요(지원: 쿠팡·롯데온·스마트스토어).")
     try:
-        days = int(request.args.get('days') or 7)
-    except (TypeError, ValueError):
-        days = 7
-    days = max(1, min(90, days))
-    try:
-        rows = _oe.order_rows(market, days=days)
+        rows = _oe.combined_order_rows(markets, days=days)
     except ValueError as e:
         abort(400, str(e))
-    except Exception as e:   # noqa: BLE001 — 마켓 API/인증/IP 오류를 사유와 함께 표면화(키는 미노출)
+    except Exception as e:   # noqa: BLE001 — 마켓 API/인증/IP 오류를 사유와 함께 표면화(키 미노출)
         import logging
-        logging.getLogger(__name__).exception("order export failed market=%s", market)
-        # 4xx 로 반환(CDN 이 5xx 본문을 자기 페이지로 가려 사유가 안 보임 → 사유 표면화)
-        abort(400, f"[{market}] 주문 조회 실패: {type(e).__name__}: {str(e)[:300]}")
-    xlsx = _oe.rows_to_xlsx(rows)
+        logging.getLogger(__name__).exception("order export failed markets=%s", markets)
+        abort(400, f"[{','.join(markets)}] 주문 조회 실패: {type(e).__name__}: {str(e)[:300]}")
+    xlsx = _oe.rows_to_xlsx(rows, columns=cols)
     stamp = _dt.datetime.now(_oe.KST).strftime('%Y%m%d')
-    fname = f"모음전_{market}_최근{days}일주문_{stamp}.xlsx"
+    label = "통합" if len(markets) > 1 else markets[0]
+    fname = f"모음전_{label}주문_최근{days}일_{stamp}.xlsx"
     return send_file(
         _io.BytesIO(xlsx), as_attachment=True, download_name=fname,
         mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
@@ -148,21 +174,19 @@ def _mask_addr(s):
 
 @bp.route('/preview.json')
 def orders_preview():
-    """주문 미리보기(JSON) — 개인정보는 마스킹. 화면 표시/점검용. 전체 원본은 엑셀 다운로드."""
+    """주문 미리보기(JSON·다중마켓 최신순) — 개인정보 마스킹. 화면 표시용. 원본은 엑셀."""
     from flask import jsonify
-    market = (request.args.get('market') or 'smartstore').strip()
+    markets = _parse_markets(request.args)
+    days = _parse_days(request.args)
+    if not markets:
+        return jsonify(ok=False, error="선택된 마켓이 없어요."), 400
     try:
-        days = int(request.args.get('days') or 7)
-    except (TypeError, ValueError):
-        days = 7
-    days = max(1, min(90, days))
-    try:
-        rows = _oe.order_rows(market, days=days)
+        rows = _oe.combined_order_rows(markets, days=days)
     except ValueError as e:
         return jsonify(ok=False, error=str(e)), 400
     except Exception as e:   # noqa: BLE001
         import logging
-        logging.getLogger(__name__).exception("order preview failed market=%s", market)
+        logging.getLogger(__name__).exception("order preview failed markets=%s", markets)
         return jsonify(ok=False, error=f"{type(e).__name__}: {str(e)[:300]}"), 400
     safe = []
     for r in rows:
@@ -173,4 +197,5 @@ def orders_preview():
         r["구매자번호"] = _mask_phone(r.get("구매자번호"))
         r["주소"] = _mask_addr(r.get("주소"))
         safe.append(r)
-    return jsonify(ok=True, market=market, days=days, count=len(safe), rows=safe)
+    return jsonify(ok=True, markets=markets, days=days,
+                   columns=_oe.ALL_COLUMNS, count=len(safe), rows=safe)

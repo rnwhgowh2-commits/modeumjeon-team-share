@@ -38,7 +38,7 @@ def test_smartstore_rows_map_and_join(monkeypatch):
     assert r["수령자"] == "수령자A" and r["구매자"] == "구매자A"
     assert r["단가"] == 189000
     assert r["정산예정금액"] == 169155        # 정산 조인됨
-    assert r["쇼핑몰"] == "04.스마트스토어"
+    assert r["판매처"] == "스마트스토어"       # 판매처 열(B)
 
 
 def test_order_rows_rejects_unsupported():
@@ -47,22 +47,49 @@ def test_order_rows_rejects_unsupported():
             oe.order_rows(mk, days=7)          # UI 미노출 마켓 — 추측 데이터 안 만듦
 
 
-def test_rows_to_xlsx_has_header_and_row():
-    xlsx = oe.rows_to_xlsx([{"상품명": "코트", "정산예정금액": 100}])
+def test_rows_to_xlsx_default_columns():
+    xlsx = oe.rows_to_xlsx([{"판매처": "쿠팡", "상품명": "코트"}])
     assert xlsx[:2] == b"PK"                    # xlsx = zip
     import io, openpyxl
-    wb = openpyxl.load_workbook(io.BytesIO(xlsx))
-    ws = wb.active
-    assert [(c.value or "") for c in ws[1]] == oe.HEADER   # 빈 열은 None→"" 정규화
-    assert ws[2][1].value == "코트"             # 상품명 열
+    ws = openpyxl.load_workbook(io.BytesIO(xlsx)).active
+    assert [(c.value or "") for c in ws[1]] == oe.DEFAULT_COLUMNS
+    assert ws[1][1].value == "판매처" and ws[1][2].value == "주문상태"   # B열·C열
+    assert ws[2][1].value == "쿠팡"             # 판매처 값
+
+
+def test_rows_to_xlsx_custom_columns_order():
+    cols = ["판매처", "주문상태", "상품명"]        # 사용자 지정 부분집합·순서
+    xlsx = oe.rows_to_xlsx([{"판매처": "쿠팡", "주문상태": "결제완료", "상품명": "코트", "단가": 9}], columns=cols)
+    import io, openpyxl
+    ws = openpyxl.load_workbook(io.BytesIO(xlsx)).active
+    assert [c.value for c in ws[1]] == cols     # 지정 열만·순서대로
+    assert [c.value for c in ws[2]] == ["쿠팡", "결제완료", "코트"]
+
+
+def test_resolve_columns_filters_unknown():
+    assert oe.resolve_columns(["상품명", "없는열", "판매처"]) == ["상품명", "판매처"]
+    assert oe.resolve_columns([]) == oe.DEFAULT_COLUMNS
+    assert oe.resolve_columns(None) == oe.DEFAULT_COLUMNS
 
 
 def test_supported_markets():
     assert oe.SUPPORTED == {"smartstore", "lotteon", "coupang"}   # 3마켓 UI 노출
 
 
-def test_header_has_order_status():
-    assert oe.HEADER[-1] == "주문상태"        # 사용자 요청 컬럼(맨 끝)
+def test_columns_bc_are_market_and_status():
+    assert oe.ALL_COLUMNS[0] == "주문일"
+    assert oe.ALL_COLUMNS[1] == "판매처"      # 요청: B열 판매처
+    assert oe.ALL_COLUMNS[2] == "주문상태"    # 요청: C열 주문상태
+
+
+def test_combined_rows_sorted_desc(monkeypatch):
+    # 두 마켓 행을 합쳐 주문일 내림차순 정렬
+    monkeypatch.setattr(oe, "order_rows", lambda mk, days=7, **k: {
+        "coupang": [{"주문일": "2026-07-01", "판매처": "쿠팡"}],
+        "lotteon": [{"주문일": "2026-07-05", "판매처": "롯데온"}],
+    }[mk])
+    out = oe.combined_order_rows(["coupang", "lotteon"], days=7)
+    assert [r["주문일"] for r in out] == ["2026-07-05", "2026-07-01"]   # 최신 먼저
 
 
 def test_status_ko_mapping():

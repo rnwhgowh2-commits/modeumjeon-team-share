@@ -14,10 +14,12 @@ from typing import Optional
 
 KST = _dt.timezone(_dt.timedelta(hours=9))
 
-# 샵마인 발송대기 엑셀(16열) + 주문상태(사용자 요청). 주문상태는 맨 끝에 추가.
-HEADER = ["주문일", "상품명", "옵션", "수량", "주소", "", "우편번호", "수령자",
-          "배송메시지", "구매자", "수령자전화번호", "구매자번호", "쇼핑몰",
-          "쇼핑몰ID", "단가", "정산예정금액", "주문상태"]
+# 선택·순서 조정 가능한 전체 열(사용자 요청: B=판매처, C=주문상태). 기본 순서 = 이 목록.
+ALL_COLUMNS = ["주문일", "판매처", "주문상태", "상품명", "옵션", "수량",
+               "수령자", "수령자전화번호", "주소", "우편번호", "배송메시지",
+               "구매자", "구매자번호", "단가", "정산예정금액"]
+DEFAULT_COLUMNS = list(ALL_COLUMNS)
+HEADER = DEFAULT_COLUMNS   # 하위호환 별칭
 
 # 마켓별 원시 상태코드 → 한글. 미매핑은 원값 그대로(추측 금지).
 _STATUS_KO = {
@@ -97,6 +99,7 @@ def smartstore_order_rows(since: _dt.datetime, until: _dt.datetime,
         poid = _g(po, "productOrderId")
         rows.append({
             "주문일": str(_g(od, "orderDate", "paymentDate"))[:10],
+            "판매처": "스마트스토어",
             "상품명": _g(po, "productName"),
             "옵션": _g(po, "productOption"),
             "수량": _g(po, "quantity", default=""),
@@ -133,6 +136,7 @@ def lotteon_order_rows(since: _dt.datetime, until: _dt.datetime,
         odc = str(_g(od, "odCmptDttm"))
         rows.append({
             "주문일": (odc[:4] + "-" + odc[4:6] + "-" + odc[6:8]) if len(odc) >= 8 else odc,
+            "판매처": "롯데온",
             "상품명": _g(od, "spdNm"),
             "옵션": opt,
             "수량": _g(od, "odQty", default=""),
@@ -189,6 +193,7 @@ def coupang_order_rows(since: _dt.datetime, until: _dt.datetime,
                     seen.add(key)
                     rows.append({
                         "주문일": ordered,
+                        "판매처": "쿠팡",
                         "상품명": it.get("sellerProductName") or it.get("vendorItemName") or "",
                         "옵션": it.get("sellerProductItemName") or "",
                         "수량": it.get("shippingCount", ""),
@@ -253,15 +258,43 @@ def order_rows(market: str, days: int = 7, client=None,
     return _BUILDERS[market](since, until, client=client)
 
 
-def rows_to_xlsx(rows: list) -> bytes:
-    """행(dict) → 샵마인 형식 xlsx 바이트."""
+def combined_order_rows(markets, days: int = 7,
+                        now: Optional[_dt.datetime] = None) -> list:
+    """여러 마켓 주문을 합쳐 최신순(주문일 내림차순)으로. 판매처 열로 마켓 구분.
+
+    미지원 마켓이 섞이면 ValueError(추측 데이터 안 만듦). 한 마켓 조회 실패는 전체 실패로
+    전파(부분 성공을 조용히 숨기지 않음 — 호출부가 어느 마켓 문제인지 표면화).
+    """
+    all_rows = []
+    for mk in markets:
+        all_rows += order_rows(mk, days=days, now=now)
+    all_rows.sort(key=lambda r: str(r.get("주문일", "")), reverse=True)  # 최신 먼저
+    return all_rows
+
+
+def resolve_columns(columns=None) -> list:
+    """사용자 지정 열(순서 유지)을 유효 열로 필터. 비면 기본 전체."""
+    if not columns:
+        return list(DEFAULT_COLUMNS)
+    seen, out = set(), []
+    for c in columns:
+        c = (c or "").strip()
+        if c in ALL_COLUMNS and c not in seen:
+            seen.add(c)
+            out.append(c)
+    return out or list(DEFAULT_COLUMNS)
+
+
+def rows_to_xlsx(rows: list, columns=None) -> bytes:
+    """행(dict) → xlsx 바이트. columns 로 열 구성·순서 지정(A5 양식 설정)."""
     import openpyxl
+    cols = resolve_columns(columns)
     wb = openpyxl.Workbook()
     ws = wb.active
     ws.title = "주문"
-    ws.append(HEADER)
+    ws.append(cols)
     for r in rows:
-        ws.append([r.get(h, "") for h in HEADER])
+        ws.append([r.get(c, "") for c in cols])
     buf = io.BytesIO()
     wb.save(buf)
     return buf.getvalue()

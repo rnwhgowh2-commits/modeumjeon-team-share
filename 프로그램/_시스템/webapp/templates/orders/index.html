@@ -39,34 +39,60 @@
     .ord5 .xbtn:hover{filter:brightness(.95);}
     .ord5 .exhint{font-size:11.5px;color:var(--sub);margin:-4px 0 14px;line-height:1.5;}
     .ord5 .exhint b{color:var(--green);}
+    /* 미니멀 툴바 */
+    .ord5 .xbar2{display:flex;align-items:center;gap:18px;flex-wrap:wrap;margin:6px 0 10px;}
+    .ord5 .grp{display:flex;align-items:center;gap:6px;}
+    .ord5 .mchip.off{opacity:.45;}
+    .ord5 .gbtn{font-size:12.5px;font-weight:700;border:1px solid var(--line2);background:#fff;border-radius:8px;padding:8px 13px;cursor:pointer;color:var(--ink);}
+    .ord5 .gbtn:hover{background:#F7F9FB;}
+    .ord5 .cfgov{position:fixed;inset:0;background:rgba(20,25,35,.5);z-index:200;display:none;align-items:center;justify-content:center;}
+    .ord5 .cfgov.on{display:flex;}
+    .ord5 .cfgbox{background:#fff;width:380px;max-width:92vw;border-radius:16px;overflow:hidden;box-shadow:0 20px 50px rgba(0,0,0,.3);}
+    .ord5 .cfghd{padding:16px 20px 12px;font-size:15px;font-weight:800;}
+    .ord5 .cfghd span{display:block;font-size:11.5px;font-weight:500;color:var(--sub);margin-top:3px;}
+    .ord5 .collist{max-height:340px;overflow:auto;padding:4px 12px;}
+    .ord5 .colrow{display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:9px;}
+    .ord5 .colrow:hover{background:#F7F9FB;}
+    .ord5 .colrow input{width:16px;height:16px;accent-color:var(--blue);}
+    .ord5 .colrow .cn{flex:1;font-size:13.5px;}
+    .ord5 .colrow.off .cn{color:var(--faint);}
+    .ord5 .colrow .ar{border:none;background:none;cursor:pointer;color:var(--faint);font-size:15px;padding:2px 4px;line-height:1;}
+    .ord5 .colrow .ar:hover{color:var(--ink);}
+    .ord5 .cfgft{display:flex;gap:8px;padding:14px 20px;border-top:1px solid var(--line);}
+    .ord5 .cfgft button{flex:1;font-size:13px;font-weight:700;border-radius:9px;padding:10px;cursor:pointer;border:1px solid var(--line2);background:#fff;color:var(--sub);}
+    .ord5 .cfgft button.prim{background:var(--ink);color:#fff;border-color:var(--ink);}
   </style>
   <div class="ord5">
     {% if not live_enabled %}
     <div class="banner">🔒 <b>안전 OFF · 연결됨(검증대기)</b> — 아래는 <b>레이아웃 미리보기(샘플)</b>입니다. 실제 마켓 데이터를 불러오려면 <b>실계정 API 키 연결 + 검증</b>이 필요합니다(<code>LEMOUTON_MARKET_EXTRA</code>). 작업 버튼은 검증 전까지 비활성입니다.</div>
     {% endif %}
 
-    <div class="chips">
-      <span class="chip on" data-mk="전체">전체</span>
-      <span class="chip" data-mk="쿠팡">쿠팡</span>
-      <span class="chip" data-mk="스마트스토어">스마트스토어</span>
-    </div>
-
     {% if export_markets %}
     {% set mklabel = {'smartstore':'스마트스토어','lotteon':'롯데온','coupang':'쿠팡'} %}
-    <div class="xbar">
-      <div class="periods" id="ex-markets">
-        <span class="xlbl">마켓</span>
-        {% for m in export_markets %}<span class="mchip{% if loop.first %} on{% endif %}" data-mk="{{ m }}">{{ mklabel.get(m, m) }}</span>{% endfor %}
+    <div class="xbar2">
+      <div class="grp"><span class="xlbl">마켓</span>
+        <span class="mchip on" data-all="1">전체</span>
+        {% for m in export_markets %}<span class="mchip on" data-mk="{{ m }}">{{ mklabel.get(m, m) }}</span>{% endfor %}
       </div>
-      <div class="periods" id="ex-periods">
-        <span class="xlbl">기간</span>
+      <div class="grp"><span class="xlbl">기간</span>
         <span class="pchip" data-days="1">오늘</span>
         <span class="pchip on" data-days="7">최근 7일</span>
         <span class="pchip" data-days="30">최근 30일</span>
       </div>
-      <a id="xlsxbtn" class="xbtn" href="/orders/export.xlsx?market={{ export_markets[0] }}&days=7">⬇ 엑셀 내보내기</a>
+      <div class="grp" style="margin-left:auto">
+        <button type="button" id="cfgbtn" class="gbtn">⚙ 양식 설정</button>
+        <a id="xlsxbtn" class="xbtn" href="#">⬇ 엑셀 내보내기</a>
+      </div>
     </div>
-    <div class="exhint">「엑셀 내보내기」 = 선택한 마켓의 <b>실주문</b>(주문일·상품·옵션·수량·주소·수령자·전화·단가·정산예정금액 16열, 샵마인 형식). 아래 표는 레이아웃 미리보기입니다.</div>
+    <div class="exhint" id="exhint">선택한 마켓의 <b>실주문</b>을 <b>최신순 한 파일</b>로 내려받습니다(판매처 열로 구분). 열 구성·순서는 「양식 설정」에서 바꿀 수 있어요.</div>
+
+    <div class="cfgov" id="cfgov">
+      <div class="cfgbox">
+        <div class="cfghd">엑셀 양식 설정<span>넣을 열을 켜고, ↑↓ 로 순서를 바꾸세요</span></div>
+        <div class="collist" id="collist"></div>
+        <div class="cfgft"><button type="button" id="cfgreset">기본값</button><button type="button" id="cfgsave" class="prim">저장</button></div>
+      </div>
+    </div>
     {% endif %}
 
     <div class="kpis">
@@ -99,28 +125,62 @@
   </div>
   <script>
     (function(){
-      var chips=document.querySelectorAll('.ord5 .chip');
-      chips.forEach(function(c){c.addEventListener('click',function(){
-        chips.forEach(function(x){x.classList.remove('on');});c.classList.add('on');
-        var mk=c.getAttribute('data-mk');
-        document.querySelectorAll('#ord-table tr[data-mk]').forEach(function(r){
-          r.classList.toggle('hidden', mk!=='전체' && r.getAttribute('data-mk')!==mk);
-        });
+      var xbtn=document.getElementById('xlsxbtn'); if(!xbtn) return;
+      var ALLCOLS={{ all_columns|tojson }};
+      var mchips=[].slice.call(document.querySelectorAll('.ord5 .mchip'));
+      var pchips=[].slice.call(document.querySelectorAll('.ord5 .pchip'));
+      var allChip=document.querySelector('.ord5 .mchip[data-all]');
+      var mkChips=mchips.filter(function(c){return c.hasAttribute('data-mk');});
+      var days='7';
+      // 열 구성(localStorage): [{c:이름, on:bool}] 순서=배열순
+      var LS='moum_order_cols_v1';
+      function loadCols(){try{var s=JSON.parse(localStorage.getItem(LS));if(Array.isArray(s)&&s.length){var names=s.map(function(x){return x.c;});
+        ALLCOLS.forEach(function(c){if(names.indexOf(c)<0)s.push({c:c,on:true});});   // 신규 열 보강
+        return s.filter(function(x){return ALLCOLS.indexOf(x.c)>=0;});}}catch(e){}
+        return ALLCOLS.map(function(c){return {c:c,on:true};});}
+      var cols=loadCols();
+      function selMarkets(){return mkChips.filter(function(c){return c.classList.contains('on');}).map(function(c){return c.getAttribute('data-mk');});}
+      function selCols(){return cols.filter(function(x){return x.on;}).map(function(x){return x.c;});}
+      function syncBtn(){
+        var mks=selMarkets();
+        var url='/orders/export.xlsx?markets='+encodeURIComponent(mks.join(','))+'&days='+days
+                +'&cols='+encodeURIComponent(selCols().join(','));
+        xbtn.href=url;
+        xbtn.style.opacity=mks.length?'1':'.4'; xbtn.style.pointerEvents=mks.length?'auto':'none';
+      }
+      function syncAllChip(){if(allChip)allChip.classList.toggle('on', mkChips.every(function(c){return c.classList.contains('on');}));}
+      // 마켓 토글(다중)
+      mkChips.forEach(function(c){c.addEventListener('click',function(){
+        c.classList.toggle('on'); c.classList.toggle('off',!c.classList.contains('on'));
+        syncAllChip(); syncBtn();
       });});
-      // 마켓·기간 선택 → 엑셀 내보내기 버튼 href 갱신
-      var xbtn=document.getElementById('xlsxbtn');
-      var mchips=document.querySelectorAll('.ord5 .mchip'), pchips=document.querySelectorAll('.ord5 .pchip');
-      var selMk=(mchips[0]&&mchips[0].getAttribute('data-mk'))||'smartstore', selDays='7';
-      function syncBtn(){ if(xbtn){xbtn.href='/orders/export.xlsx?market='+selMk+'&days='+selDays;} }
-      mchips.forEach(function(m){m.addEventListener('click',function(){
-        mchips.forEach(function(x){x.classList.remove('on');});m.classList.add('on');
-        selMk=m.getAttribute('data-mk'); syncBtn();
-      });});
+      if(allChip)allChip.addEventListener('click',function(){
+        var turnOn=!allChip.classList.contains('on');
+        mkChips.forEach(function(c){c.classList.toggle('on',turnOn);c.classList.toggle('off',!turnOn);});
+        allChip.classList.toggle('on',turnOn); syncBtn();
+      });
       pchips.forEach(function(p){p.addEventListener('click',function(){
         pchips.forEach(function(x){x.classList.remove('on');});p.classList.add('on');
-        selDays=p.getAttribute('data-days'); syncBtn();
+        days=p.getAttribute('data-days'); syncBtn();
       });});
-      syncBtn();
+      // 양식 설정 모달
+      var ov=document.getElementById('cfgov'), list=document.getElementById('collist');
+      function renderCols(){list.innerHTML='';cols.forEach(function(x,i){
+        var row=document.createElement('div');row.className='colrow'+(x.on?'':' off');
+        row.innerHTML='<input type="checkbox" '+(x.on?'checked':'')+'><span class="cn">'+x.c+'</span>'
+          +'<button class="ar up" '+(i===0?'disabled style=visibility:hidden':'')+'>↑</button>'
+          +'<button class="ar dn" '+(i===cols.length-1?'disabled style=visibility:hidden':'')+'>↓</button>';
+        row.querySelector('input').addEventListener('change',function(e){x.on=e.target.checked;row.classList.toggle('off',!x.on);});
+        row.querySelector('.up').addEventListener('click',function(){cols.splice(i-1,0,cols.splice(i,1)[0]);renderCols();});
+        row.querySelector('.dn').addEventListener('click',function(){cols.splice(i+1,0,cols.splice(i,1)[0]);renderCols();});
+        list.appendChild(row);
+      });}
+      document.getElementById('cfgbtn').addEventListener('click',function(){renderCols();ov.classList.add('on');});
+      ov.addEventListener('click',function(e){if(e.target===ov)ov.classList.remove('on');});
+      document.getElementById('cfgreset').addEventListener('click',function(){cols=ALLCOLS.map(function(c){return{c:c,on:true};});renderCols();});
+      document.getElementById('cfgsave').addEventListener('click',function(){
+        localStorage.setItem(LS,JSON.stringify(cols));ov.classList.remove('on');syncBtn();});
+      syncAllChip(); syncBtn();
     })();
   </script>
 

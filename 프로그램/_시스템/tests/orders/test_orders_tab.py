@@ -23,7 +23,8 @@ def _render(tab, live_enabled=False):
     return env.get_template("orders/index.html").render(
         tab=tab, subtabs=om.SUBTABS, active="orders_" + tab,
         cfg=cfg, live_enabled=live_enabled, rows=rows,
-        export_markets=export_markets)
+        export_markets=export_markets,
+        all_columns=om._oe.ALL_COLUMNS if tab == "list" else [])
 
 
 def _client():
