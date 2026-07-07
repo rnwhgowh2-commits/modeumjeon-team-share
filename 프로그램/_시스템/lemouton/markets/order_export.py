@@ -195,6 +195,7 @@ def coupang_order_rows(since: _dt.datetime, until: _dt.datetime,
                     seen.add(key)
                     rows.append({
                         "_oid": box.get("orderId"), "_vid": it.get("vendorItemId"),  # 정산 조인용
+                        "_ship": _won(box.get("shippingPrice")),                       # 배송비(추정용)
                         "주문일": ordered,
                         "판매처": "쿠팡",
                         "상품명": it.get("sellerProductName") or it.get("vendorItemName") or "",
@@ -217,18 +218,40 @@ def coupang_order_rows(since: _dt.datetime, until: _dt.datetime,
             if not token:
                 break
 
-    # 정산 조인: revenue-history [since ~ 전일] 를 (주문번호,옵션ID)별 settlementAmount 로.
-    # 최근 주문은 아직 미정산이라 대부분 빈칸(정상). 실패해도 주문은 그대로.
+    # 정산예정금액 채우기:
+    #  1) 실제 정산(revenue-history, [since~전일]) 있으면 그 값(확정) 우선.
+    #  2) 미정산(최근 주문)이면 사용자 계산식으로 추정:
+    #     추정 = round((단가×수량 + 배송비) × 0.8845)   ← 수수료 11.55% 가정.
+    #     ⚠️ 배송비에도 수수료를 매기는지는 미확정 — 실제 정산이 잡히면 대조해 검증.
     try:
         settle = _coupang_settle_map(since, until, client)
-        for r in rows:
-            amt = settle.get((str(r.pop("_oid", "")), r.pop("_vid", None)))
-            if amt is not None:
-                r["정산예정금액"] = amt
     except Exception:
-        for r in rows:            # 조인 실패 → 임시키만 정리
-            r.pop("_oid", None); r.pop("_vid", None)
+        settle = {}
+    for r in rows:
+        oid, vid, ship = str(r.pop("_oid", "")), r.pop("_vid", None), r.pop("_ship", 0)
+        actual = settle.get((oid, vid))
+        if actual is not None:
+            r["정산예정금액"] = actual                        # 확정 정산액
+        else:
+            r["정산예정금액"] = _cp_estimate_settle(r.get("단가"), r.get("수량"), ship)
     return rows
+
+
+CP_FEE_FACTOR = 0.8845   # 1 - 0.1155 (쿠팡 판매수수료 11.55% 가정)
+
+
+def _cp_estimate_settle(unit, qty, ship):
+    """미정산 쿠팡 주문 정산예정금액 추정 = round((단가×수량 + 배송비) × 0.8845).
+
+    단가 없으면 빈칸(폴백 0 금지). 확정액 아님(추정) — 실제 정산으로 검증 필요.
+    """
+    try:
+        u = int(unit)
+    except (TypeError, ValueError):
+        return ""            # 단가 없음 → 추정 안 함
+    q = int(qty) if str(qty).strip().isdigit() else 1
+    s = int(ship) if str(ship).strip().lstrip("-").isdigit() else 0
+    return round((u * q + s) * CP_FEE_FACTOR)
 
 
 def _coupang_settle_map(since, until, client):
