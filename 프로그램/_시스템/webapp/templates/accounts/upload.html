@@ -1089,8 +1089,10 @@ async function loadSchemaIntoFields(market, envPrefix) {
                name="${f.suffix}"
                type="${f.sensitive ? 'password' : 'text'}"
                placeholder="${f.current_set ? '변경하려면 새 값 입력 (비워두면 기존 유지)' : f.env_key}"
-               autocomplete="off"
-               spellcheck="false"
+               autocomplete="new-password"
+               autocorrect="off" autocapitalize="off" spellcheck="false"
+               data-lpignore="true" data-1p-ignore data-form-type="other"
+               readonly onfocus="this.removeAttribute('readonly')"
                class="form-input ${f.current_set ? 'has-value' : ''}">
         ${f.current_set
             ? `<div class="v2-cur-val" style="margin-top:5px;font-size:12px;color:#0b8a3e;">✓ 현재 저장됨: <code style="background:#eef6ef;padding:1px 6px;border-radius:4px;">${f.masked || '●●●●'}</code></div>`
