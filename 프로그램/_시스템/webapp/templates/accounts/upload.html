@@ -950,6 +950,7 @@ async function confirmDeleteAccount(accountId, displayName) {
 let _v2Mode = 'create';      // 'create' | 'keys'
 let _v2Market = null;
 let _v2EnvPrefix = null;
+let _v2CreatePrefix = null;   // 신규 등록 시 발급받은 빈 고유 env_prefix
 let _v2Markets = [];          // /api/markets 응답 캐시
 
 // 호환성 — 기존 호출자
@@ -1053,7 +1054,15 @@ async function selectMarket(market) {
     : '';
 
   // 스키마 로드
-  const envPrefix = _v2EnvPrefix || market.default_prefix || (market.key.toUpperCase() + '_MAIN');
+  //  · keys 모드 : 해당 계정의 env_prefix → 기존 키를 보여줌 (수정)
+  //  · create 모드 : 빈 고유 env_prefix 발급 → 폼이 빈칸으로 뜸 (신규)
+  let envPrefix;
+  if (_v2Mode === 'keys') {
+    envPrefix = _v2EnvPrefix || market.default_prefix || (market.key.toUpperCase() + '_MAIN');
+  } else {
+    envPrefix = await fetchNextPrefix(market.key);
+    _v2CreatePrefix = envPrefix;
+  }
   await loadSchemaIntoFields(market.key, envPrefix);
 
   // 첫 입력란에 포커스
@@ -1102,6 +1111,7 @@ function closeV2Modal() {
   _v2Mode = 'create';
   _v2Market = null;
   _v2EnvPrefix = null;
+  _v2CreatePrefix = null;
 }
 
 async function submitV2() {
@@ -1130,8 +1140,8 @@ async function submitV2() {
         document.getElementById('v2-submit-text').textContent = '등록 + API 연동';
         return;
       }
-      // env_prefix 자동 생성 — {MARKET}_{N} 형태 (사용자에게 노출 X)
-      const env_prefix = await generateUniqueEnvPrefix(marketMeta?.default_prefix || (market.toUpperCase() + '_MAIN'));
+      // env_prefix — 마켓 선택 시 발급받은 빈 고유 prefix 재사용 (없으면 재조회)
+      const env_prefix = _v2CreatePrefix || await fetchNextPrefix(market);
       // account_key — 계정명 기반 자동
       const account_key = display_name.replace(/\s+/g, '_').replace(/[^a-zA-Z0-9_가-힣]/g, '');
 
@@ -1214,11 +1224,16 @@ async function quickAddAccount() {
   } catch (e) { showToast('추가 실패: ' + e, 'error'); }
 }
 
-async function generateUniqueEnvPrefix(base) {
-  // 기존 계정 목록을 통해 중복 회피 — base, base_2, base_3...
-  // (간단히: 첫 번째 시도로 base 사용, 충돌 시 백엔드가 _2, _3 자동 부여하도록 위임)
-  // 현재는 base 그대로 사용 — 백엔드 409 에러 시 사용자에게 안내됨
-  return base;
+async function fetchNextPrefix(market) {
+  // 백엔드에서 '빈' 고유 env_prefix 발급 (MAIN → _2 → _3 …)
+  try {
+    const res = await fetch(`/accounts/api/markets/${encodeURIComponent(market)}/next-prefix`);
+    const data = await res.json();
+    if (data.ok && data.env_prefix) return data.env_prefix;
+  } catch (e) { /* 폴백 */ }
+  // 폴백 — 백엔드가 최종 중복검사(409)하므로 base 사용
+  const m = _v2Markets.find(x => x.key === market);
+  return (m && m.default_prefix) || (market.toUpperCase() + '_MAIN');
 }
 
 // ESC 닫기

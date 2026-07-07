@@ -617,6 +617,50 @@ def list_markets():
     return jsonify({"ok": True, "markets": markets})
 
 
+def _next_free_env_prefix(market: str) -> str:
+    """신규 계정용 '빈' 고유 env_prefix 발급.
+
+    마켓당 여러 계정 + 계정별 API 키가 별개이므로, 신규 등록 시 기존 계정과
+    다른 저장칸을 써야 한다. 후보 = default_prefix(…_MAIN) → {ROOT}_2 → {ROOT}_3 …
+    이미 UploadAccount 가 쓰거나 .env 에 값이 남아있는 prefix 는 건너뛴다
+    (빈 폼 보장 — 기존 키가 새 폼에 새어나오지 않게).
+    """
+    meta = MARKET_METADATA.get(market, {})
+    default_prefix = meta.get("default_prefix") or f"{market.upper()}_MAIN"
+    root = default_prefix[:-5] if default_prefix.endswith("_MAIN") else default_prefix
+    suffixes = MARKET_KEY_SUFFIXES.get(market, [])
+    first_sfx = suffixes[0] if suffixes else "CLIENT_ID"
+
+    s = SessionLocal()
+    try:
+        used = {row[0] for row in s.query(UploadAccount.env_prefix).all()}
+    finally:
+        s.close()
+
+    candidates = [default_prefix] + [f"{root}_{i}" for i in range(2, 100)]
+    for cand in candidates:
+        if cand in used:
+            continue
+        if os.environ.get(f"{cand}_{first_sfx}"):
+            continue  # .env 잔존값 있으면 스킵 (빈 폼 보장)
+        return cand
+    # 폴백 — 극단적 상황 (계정 100개 초과)
+    return f"{root}_{len(used) + 1}"
+
+
+@bp.route("/api/markets/<market>/next-prefix", methods=["GET"])
+def market_next_prefix(market: str):
+    """신규 계정 등록 모달이 마켓 선택 즉시 호출 — 빈 고유 env_prefix 반환."""
+    market = market.lower()
+    if market not in MARKET_KEY_SUFFIXES:
+        return jsonify({"ok": False, "error": "market 미지원"}), 400
+    return jsonify({
+        "ok": True,
+        "market": market,
+        "env_prefix": _next_free_env_prefix(market),
+    })
+
+
 # ──────────────────────────────────────────────────────────
 #  우리 서버 IP 명부 — 마켓 "출발지 IP 등록"칸에 붙여넣을 값 (팀 공유)
 # ──────────────────────────────────────────────────────────
