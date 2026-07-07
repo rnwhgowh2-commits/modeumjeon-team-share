@@ -158,6 +158,24 @@ def test_coupang_settle_includes_delivery():
     assert r["정산예정금액"] == 88450 + 2900       # 상품정산 + 배송비정산
 
 
+def test_coupang_estimate_shipping_fee_3pct():
+    # 미정산 추정: 상품 11.55%(0.8845) + 배송비 3%(0.97). 배송비 있는 주문.
+    class C:
+        _cfg = {"vendor_id": "A1"}
+        def request(self, method, path, query=""):
+            if "ordersheets" in path and "nextToken" not in query:
+                return {"data": [{"shipmentBoxId": 1, "orderId": 5, "status": "ACCEPT",
+                        "orderer": {}, "receiver": {}, "shippingPrice": {"units": 3000},
+                        "orderItems": [{"vendorItemId": 9, "sellerProductName": "코트",
+                                        "shippingCount": 1, "salesPrice": {"units": 100000}}]}], "nextToken": ""}
+            return {"data": [], "nextToken": "", "hasNext": False}   # 미정산(revenue 빈값)
+    r = oe.coupang_order_rows(dt.datetime(2026, 7, 5, tzinfo=oe.KST),
+                              dt.datetime(2026, 7, 8, tzinfo=oe.KST), client=C())[0]
+    assert r["배송비"] == 3000
+    assert r["정산예정금액"] == round(100000 * 0.8845) + round(3000 * 0.97)   # 상품 + 배송비(3%)
+    assert oe.CP_SHIP_FEE_FACTOR == 0.97
+
+
 def test_smartstore_settle_maps_splits_delivery():
     from shared.platforms.smartstore import settlements as ss
     class C:
