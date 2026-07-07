@@ -17,7 +17,9 @@ KST = _dt.timezone(_dt.timedelta(hours=9))
 # 선택·순서 조정 가능한 전체 열(사용자 요청: B=판매처, C=주문상태). 기본 순서 = 이 목록.
 ALL_COLUMNS = ["주문일", "판매처", "주문상태", "상품명", "옵션", "수량",
                "수령자", "수령자전화번호", "주소", "우편번호", "배송메시지",
-               "구매자", "구매자번호", "단가", "정산예정금액"]
+               "구매자", "구매자번호", "단가", "배송비", "정산예정금액"]
+# 정산예정금액 = 상품 정산 + 배송비 정산(각자 수수료 차감). 배송비는 별도 정산 라인
+# (쿠팡 deliveryFee.settlementAmount·스스 DELIVERY행·롯데온 실결제 포함) 이라 합산한다.
 DEFAULT_COLUMNS = list(ALL_COLUMNS)
 HEADER = DEFAULT_COLUMNS   # 하위호환 별칭
 
@@ -79,24 +81,36 @@ def smartstore_order_rows(since: _dt.datetime, until: _dt.datetime,
         d = fetch_order_detail(ids[i:i + 300], client=client)
         detail += (d.get("data", d) if isinstance(d, dict) else d) or []
 
-    # 정산예정금액(결제일 기준, 하루씩) — 실패해도 주문은 나오게 방어.
-    settle_map = {}
+    # 정산(결제일 기준, 하루씩): 상품(productOrderId) + 배송비(DELIVERY→orderId) 별도 맵.
+    prod_settle, deliv_settle = {}, {}
     day = since
     while day <= until:
         try:
-            settle_map.update(_settle.settle_expect_by_product_order(
+            p, d = _settle.settle_expect_maps(
                 search_date=day.strftime("%Y-%m-%d"),
-                period_type="SETTLE_CASEBYCASE_PAY_DATE", client=client))
+                period_type="SETTLE_CASEBYCASE_PAY_DATE", client=client)
+            prod_settle.update(p)
+            for k, v in d.items():
+                deliv_settle[k] = deliv_settle.get(k, 0) + v
         except Exception:
             pass
         day += _dt.timedelta(days=1)
 
     rows = []
+    _deliv_used = set()   # 배송비 정산은 주문당 1회만 더함
     for it in detail:
         po = it.get("productOrder", {}) if isinstance(it, dict) else {}
         od = it.get("order", {}) if isinstance(it, dict) else {}
         sa = po.get("shippingAddress", {}) if isinstance(po, dict) else {}
         poid = _g(po, "productOrderId")
+        oid = _g(od, "orderId")
+        prod_amt = prod_settle.get(poid)
+        settle_val = ""
+        if prod_amt is not None:                       # 상품 정산 있으면 = 상품정산 + 배송비정산(1회)
+            settle_val = prod_amt
+            if oid and oid not in _deliv_used and oid in deliv_settle:
+                settle_val += deliv_settle[oid]
+                _deliv_used.add(oid)
         rows.append({
             "주문일": str(_g(od, "orderDate", "paymentDate"))[:10],
             "판매처": "스마트스토어",
@@ -113,7 +127,8 @@ def smartstore_order_rows(since: _dt.datetime, until: _dt.datetime,
             "쇼핑몰": "04.스마트스토어",
             "쇼핑몰ID": "",
             "단가": _g(po, "unitPrice", "totalPaymentAmount", default=""),
-            "정산예정금액": settle_map.get(poid, ""),
+            "배송비": _g(po, "deliveryFeeAmount", default=""),
+            "정산예정금액": settle_val,
             "주문상태": _status_ko("smartstore", _g(po, "productOrderStatus")),
         })
     return rows
@@ -151,7 +166,8 @@ def lotteon_order_rows(since: _dt.datetime, until: _dt.datetime,
             "쇼핑몰": "롯데온",
             "쇼핑몰ID": "",
             "단가": _g(od, "slPrc", default=""),
-            "정산예정금액": _g(od, "actualAmt", default=""),   # 실결제 근사(정밀 정산은 후속)
+            "배송비": _g(od, "dvCst", default=""),
+            "정산예정금액": _g(od, "actualAmt", default=""),   # 실결제(상품+배송비-할인) 근사
             "주문상태": _status_ko("lotteon", _g(od, "odPrgsStepCd")),
         })
     return rows
@@ -193,9 +209,9 @@ def coupang_order_rows(since: _dt.datetime, until: _dt.datetime,
                     if key in seen:
                         continue
                     seen.add(key)
+                    ship = _won(box.get("shippingPrice"))
                     rows.append({
                         "_oid": box.get("orderId"), "_vid": it.get("vendorItemId"),  # 정산 조인용
-                        "_ship": _won(box.get("shippingPrice")),                       # 배송비(추정용)
                         "주문일": ordered,
                         "판매처": "쿠팡",
                         "상품명": it.get("sellerProductName") or it.get("vendorItemName") or "",
@@ -211,6 +227,7 @@ def coupang_order_rows(since: _dt.datetime, until: _dt.datetime,
                         "쇼핑몰": "쿠팡",
                         "쇼핑몰ID": "",
                         "단가": _won(it.get("salesPrice")),
+                        "배송비": ship,
                         "정산예정금액": "",
                         "주문상태": _status_ko("coupang", box.get("status") or st),
                     })
@@ -218,22 +235,32 @@ def coupang_order_rows(since: _dt.datetime, until: _dt.datetime,
             if not token:
                 break
 
-    # 정산예정금액 채우기:
-    #  1) 실제 정산(revenue-history, [since~전일]) 있으면 그 값(확정) 우선.
-    #  2) 미정산(최근 주문)이면 사용자 계산식으로 추정:
-    #     추정 = round((단가×수량 + 배송비) × 0.8845)   ← 수수료 11.55% 가정.
-    #     ⚠️ 배송비에도 수수료를 매기는지는 미확정 — 실제 정산이 잡히면 대조해 검증.
+    # 정산예정금액 = 상품 정산 + 배송비 정산(주문당 1회).
+    #  1) 실제(revenue-history): items.settlementAmount + deliveryFee.settlementAmount.
+    #  2) 미정산(최근): 추정 = round(단가×수량×0.8845) + round(배송비×0.8845).
+    #     ⚠️ 배송비 실수수료율은 상품과 달라(문서 확인) 추정의 배송비분은 근사.
     try:
-        settle = _coupang_settle_map(since, until, client)
+        item_settle, deliv_settle = _coupang_settle_map(since, until, client)
     except Exception:
-        settle = {}
+        item_settle, deliv_settle = {}, {}
+    _deliv_used = set()
     for r in rows:
-        oid, vid, ship = str(r.pop("_oid", "")), r.pop("_vid", None), r.pop("_ship", 0)
-        actual = settle.get((oid, vid))
-        if actual is not None:
-            r["정산예정금액"] = actual                        # 확정 정산액
-        else:
-            r["정산예정금액"] = _cp_estimate_settle(r.get("단가"), r.get("수량"), ship)
+        oid, vid = str(r.pop("_oid", "")), r.pop("_vid", None)
+        ship = r.get("배송비") or 0
+        actual = item_settle.get((oid, vid))
+        if actual is not None:                        # 확정: 상품정산 + 배송비정산(주문당 1회)
+            val = actual
+            if oid not in _deliv_used and oid in deliv_settle:
+                val += deliv_settle[oid]
+                _deliv_used.add(oid)
+            r["정산예정금액"] = val
+        else:                                          # 미정산: 상품추정 + 배송비추정
+            prod_est = _cp_estimate_settle(r.get("단가"), r.get("수량"), 0)
+            if prod_est == "":
+                r["정산예정금액"] = ""
+            else:
+                deliv_est = round(int(ship) * CP_FEE_FACTOR) if str(ship).lstrip("-").isdigit() else 0
+                r["정산예정금액"] = prod_est + deliv_est
     return rows
 
 
@@ -255,21 +282,42 @@ def _cp_estimate_settle(unit, qty, ship):
 
 
 def _coupang_settle_map(since, until, client):
-    """쿠팡 revenue-history → {(orderId, vendorItemId): settlementAmount 합}."""
-    from shared.platforms.coupang.settlements import iter_revenue_items
+    """쿠팡 revenue-history →
+       (상품정산 {(orderId, vendorItemId): items.settlementAmount 합},
+        배송비정산 {orderId: deliveryFee.settlementAmount 합}).
+
+    배송비는 주문 레벨 deliveryFee.settlementAmount(총배송비−배송비수수료−VAT) 별도 필드라
+    페이지를 직접 순회해 뽑는다(iter_revenue_items 는 items 만 평탄화).
+    """
+    from shared.platforms.coupang.settlements import fetch_revenue_page
     rec_to = (until - _dt.timedelta(days=1)).strftime("%Y-%m-%d")   # 종료는 전일까지
     rec_from = since.strftime("%Y-%m-%d")
-    acc = {}
-    for rec in iter_revenue_items(rec_from, rec_to, client=client):
-        oid, vid = str(rec.get("orderId") or ""), rec.get("vendorItemId")
-        amt = rec.get("settlementAmount")
-        if amt is None:
-            continue
-        try:
-            acc[(oid, vid)] = acc.get((oid, vid), 0) + int(amt)
-        except (TypeError, ValueError):
-            pass
-    return acc
+    item_map, deliv_map = {}, {}
+    token = ""
+    for _ in range(200):   # 페이징 안전 상한
+        resp = fetch_revenue_page(rec_from, rec_to, token=token, max_per_page=50, client=client)
+        for order in (resp.get("data") or []):
+            oid = str(order.get("orderId") or "")
+            damt = (order.get("deliveryFee") or {}).get("settlementAmount")
+            if damt is not None:
+                try:
+                    deliv_map[oid] = deliv_map.get(oid, 0) + int(damt)
+                except (TypeError, ValueError):
+                    pass
+            for it in (order.get("items") or []):
+                vid, amt = it.get("vendorItemId"), it.get("settlementAmount")
+                if amt is None:
+                    continue
+                try:
+                    item_map[(oid, vid)] = item_map.get((oid, vid), 0) + int(amt)
+                except (TypeError, ValueError):
+                    pass
+        if not resp.get("hasNext"):
+            break
+        token = resp.get("nextToken") or ""
+        if not token:
+            break
+    return item_map, deliv_map
 
 
 # 마켓별 행 빌더(코드 존재). SUPPORTED = 그중 실계정 검증까지 끝나 UI 노출 가능한 것.

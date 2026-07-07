@@ -111,3 +111,31 @@ def settle_expect_by_product_order(search_date: Optional[str] = None,
             continue
         acc[poid] = acc.get(poid, 0) + amt
     return acc
+
+
+def settle_expect_maps(search_date: Optional[str] = None,
+                       period_type: str = _DEFAULT_PERIOD,
+                       client: Optional[SmartStoreClient] = None,
+                       **filters) -> tuple:
+    """(상품정산 by productOrderId, 배송비정산 by orderId) 두 맵 반환.
+
+    네이버 정산은 productOrderType 별 별도 행: 상품(PROD_ORDER)은 상품주문번호로,
+    배송비(DELIVERY)는 배송비번호가 달라 orderId 로 집계해야 주문에 붙일 수 있다.
+    (환불 등은 상품주문번호로 상계.) 폴백 금지: 금액 없는 행 스킵.
+    """
+    prod: dict = {}
+    deliv: dict = {}
+    for el in iter_settle_by_case(search_date=search_date, period_type=period_type,
+                                  client=client, **filters):
+        amt = el.get("settleExpectAmount")
+        if amt is None:
+            continue
+        if el.get("productOrderType") == "DELIVERY":
+            oid = el.get("orderId")
+            if oid is not None:
+                deliv[oid] = deliv.get(oid, 0) + amt
+        else:
+            poid = el.get("productOrderId")
+            if poid is not None:
+                prod[poid] = prod.get(poid, 0) + amt
+    return prod, deliv
