@@ -259,12 +259,13 @@ def coupang_order_rows(since: _dt.datetime, until: _dt.datetime,
             if prod_est == "":
                 r["정산예정금액"] = ""
             else:
-                deliv_est = round(int(ship) * CP_FEE_FACTOR) if str(ship).lstrip("-").isdigit() else 0
+                deliv_est = round(int(ship) * CP_SHIP_FEE_FACTOR) if str(ship).lstrip("-").isdigit() else 0
                 r["정산예정금액"] = prod_est + deliv_est
     return rows
 
 
-CP_FEE_FACTOR = 0.8845   # 1 - 0.1155 (쿠팡 판매수수료 11.55% 가정)
+CP_FEE_FACTOR = 0.8845        # 1 - 0.1155 (쿠팡 상품 판매수수료 11.55%)
+CP_SHIP_FEE_FACTOR = 0.97     # 1 - 0.03  (쿠팡 배송비 수수료 3% — 상품과 별도 요율)
 
 
 def _cp_estimate_settle(unit, qty, ship):
