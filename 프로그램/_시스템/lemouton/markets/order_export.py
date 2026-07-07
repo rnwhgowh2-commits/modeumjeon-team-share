@@ -26,6 +26,27 @@ ALL_COLUMNS = ["주문일", "판매처", "주문상태", "상품명", "옵션", 
 DEFAULT_COLUMNS = list(ALL_COLUMNS)
 HEADER = DEFAULT_COLUMNS   # 하위호환 별칭
 
+# 열 구분자(메타): kind=calc(우리가 별도 계산) / api(마켓 원본). desc=계산식·출처.
+# 양식 설정에서 열마다 이 구분자를 보여줘 추가/삭제/순서변경을 명확히 한다.
+COLUMN_META = {
+    "주문상태":     {"kind": "api",  "desc": "마켓 상태코드→한글"},
+    "단가":         {"kind": "api",  "desc": "상품 개당가"},
+    "배송비":       {"kind": "api",  "desc": "배송건(묶음) 배송비"},
+    "상품금액":     {"kind": "calc", "desc": "단가 × 수량"},
+    "주문금액":     {"kind": "calc", "desc": "상품금액 + 배송비"},
+    "정산예정금액": {"kind": "calc", "desc": "상품정산 + 배송비정산(수수료 차감)"},
+}
+
+
+def column_meta(col: str) -> dict:
+    """열의 구분자(kind·desc). 미등록은 마켓 원본으로 간주."""
+    return COLUMN_META.get(col, {"kind": "api", "desc": "마켓 원본"})
+
+
+def columns_meta() -> dict:
+    """전체 열 → 구분자 매핑(양식 설정 UI 표시용)."""
+    return {c: column_meta(c) for c in ALL_COLUMNS}
+
 # 마켓별 원시 상태코드 → 한글. 미매핑은 원값 그대로(추측 금지).
 _STATUS_KO = {
     "smartstore": {"PAYMENT_WAITING": "결제대기", "PAYED": "결제완료", "DELIVERING": "배송중",
