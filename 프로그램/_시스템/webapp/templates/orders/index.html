@@ -55,6 +55,27 @@
     .o7 .cfgft{display:flex;gap:8px;padding:14px 20px;border-top:1px solid var(--line);}
     .o7 .cfgft button{flex:1;font-size:13px;font-weight:700;border-radius:9px;padding:10px;cursor:pointer;border:1px solid var(--line2);background:#fff;color:var(--sub);}
     .o7 .cfgft button.prim{background:var(--ink);color:#fff;border-color:var(--ink);}
+    .o7 .fl .qmng{margin-left:auto;font-size:11px;font-weight:700;color:var(--blue);cursor:pointer;}
+    .o7 .qchips{display:flex;flex-wrap:wrap;gap:5px;}
+    .o7 .qdirect{display:none;align-items:center;gap:6px;margin-top:8px;}
+    .o7 .qdirect.on{display:flex;}
+    .o7 .qdirect input[type=date]{font-family:inherit;font-size:12px;color:var(--ink);border:1px solid var(--line2);border-radius:8px;padding:5px 7px;background:#fff;}
+    .o7 .qdirect input:focus{outline:none;border-color:var(--blue);}
+    .o7 .qdash{color:var(--faint);font-weight:700;}
+    .o7 .qcur{font-size:11px;color:var(--faint);margin-top:7px;font-variant-numeric:tabular-nums;}
+    /* 기간 버튼 관리 모달 */
+    .o7 .qrow{display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:9px;}.o7 .qrow:hover{background:#F7F9FB;}
+    .o7 .qrow .qn{flex:1;font-size:13.5px;}.o7 .qrow .qd{display:block;font-size:11px;color:var(--sub);margin-top:2px;}
+    .o7 .qrow .ar{border:none;background:none;cursor:pointer;color:var(--faint);font-size:15px;padding:2px 4px;}.o7 .qrow .ar:hover{color:var(--ink);}
+    .o7 .qrow .ar.del:hover{color:var(--red);}
+    .o7 .qadd{width:calc(100% - 24px);margin:6px 12px;border:1px dashed var(--blue);background:#EEF4FF;color:var(--blue);border-radius:9px;padding:9px;font-size:13px;font-weight:700;cursor:pointer;}
+    .o7 .qform{margin:6px 12px;background:#F7F9FB;border:1px solid var(--line2);border-radius:10px;padding:11px;}
+    .o7 .qform .frow{display:flex;gap:7px;margin-bottom:7px;}
+    .o7 .qform label{font-size:10.5px;color:var(--faint);font-weight:700;display:block;margin-bottom:3px;}
+    .o7 .qform input,.o7 .qform select{width:100%;font-family:inherit;font-size:12.5px;border:1px solid var(--line2);border-radius:7px;padding:6px 7px;}
+    .o7 .qform .fbtns{display:flex;gap:7px;justify-content:flex-end;}
+    .o7 .qform .fbtns button{border:none;border-radius:8px;padding:7px 13px;font-size:12px;font-weight:700;cursor:pointer;}
+    .o7 .qform .fbtns .pri{background:var(--blue);color:#fff;}.o7 .qform .fbtns .sec{background:#EEF1F4;color:var(--sub);}
   </style>
   <div class="o7">
     <aside class="side">
@@ -62,8 +83,11 @@
         <label class="ck"><input type="checkbox" id="mk-all" checked> <b>전체</b></label>
         {% for m in export_markets %}<label class="ck"><input type="checkbox" class="mk-ck" value="{{ m }}" checked> {{ mklabel.get(m, m) }}</label>{% endfor %}
       </div>
-      <div class="fg"><div class="fl">기간</div>
-        <span class="pchip" data-days="1">오늘</span><span class="pchip on" data-days="7">최근 7일</span><span class="pchip" data-days="30">최근 30일</span>
+      <div class="fg"><div class="fl">기간 <span class="qmng" id="qmng">⚙ 버튼 관리</span></div>
+        <div class="qchips" id="qchips"></div>
+        <div class="qdirect" id="qdirect">
+          <input type="date" id="qfrom"><span class="qdash">~</span><input type="date" id="qto">
+        </div>
       </div>
       <div class="fg"><div class="fl">주문상태</div><div id="st-filter"><span class="muted" style="font-size:12px">불러오는 중…</span></div></div>
       <div class="fg"><div class="fl">검색 (상품·수령자)</div><input class="srch" id="srch" placeholder="검색어 입력"></div>
@@ -84,14 +108,60 @@
     <div class="collist" id="collist"></div>
     <div class="cfgft"><button type="button" id="cfgreset">기본값</button><button type="button" id="cfgsave" class="prim">저장</button></div>
   </div></div></div>
+  <div class="o7"><div class="cfgov" id="qov"><div class="cfgbox">
+    <div class="cfghd">빠른 기간 버튼 관리<span>버튼을 켜고 끄듯 추가·수정·삭제하고, ↑↓ 로 순서를 바꾸세요</span></div>
+    <div class="collist" id="qlist"></div>
+    <button type="button" class="qadd" id="qaddbtn">+ 새 버튼 만들기</button>
+    <div class="cfgft"><button type="button" id="qreset">기본값</button><button type="button" id="qsave" class="prim">저장</button></div>
+  </div></div></div>
   <script>
   (function(){
     var ALLCOLS={{ all_columns|tojson }};
     var COLMETA={{ col_meta|tojson }};
     var MKLABEL={smartstore:'스마트스토어',lotteon:'롯데온',coupang:'쿠팡'};
     var MKCLS={'스마트스토어':'ss','롯데온':'lo','쿠팡':'cp'};
-    var days='7', rows=[], srch='', stOff={};   // stOff: 꺼진 상태
+    var rows=[], srch='', stOff={};   // stOff: 꺼진 상태
     var LS='moum_order_cols_v1';
+    // ── 빠른 기간 버튼 ──
+    var QLS='moum_quick_ranges_v1';
+    var QDEFAULT=[
+      {name:'오늘', kind:'today'},
+      {name:'어제', kind:'dayAgo', n:1},
+      {name:'그제', kind:'dayAgo', n:2},
+      {name:'2~3일 전', kind:'daysAgoRange', a:3, b:2},
+      {name:'최근 7일', kind:'lastN', n:7, def:true},
+      {name:'이번 주', kind:'thisWeek'},
+      {name:'지난주', kind:'lastWeek'},
+      {name:'이번 달', kind:'thisMonth'},
+      {name:'지난달', kind:'lastMonth'}
+    ];
+    function loadQuick(){try{var s=JSON.parse(localStorage.getItem(QLS));if(Array.isArray(s)&&s.length)return s;}catch(e){}return QDEFAULT.map(function(x){return Object.assign({},x);});}
+    var quick=loadQuick();
+    var cur={from:'', to:'', label:''};   // 현재 조회 기간
+    function fmt(d){return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
+    function addDays(d,n){var x=new Date(d);x.setDate(x.getDate()+n);return x;}
+    function rangeOf(q){   // 버튼 정의 → {from,to} (오늘 기준)
+      var t=new Date();t.setHours(0,0,0,0);var f,e;
+      switch(q.kind){
+        case 'today': f=t;e=t;break;
+        case 'dayAgo': f=addDays(t,-(q.n||1));e=f;break;
+        case 'daysAgoRange': f=addDays(t,-(q.a||1));e=addDays(t,-(q.b||0));if(e<f){var tmp=f;f=e;e=tmp;}break;
+        case 'lastN': f=addDays(t,-((q.n||7)-1));e=t;break;
+        case 'thisWeek': f=addDays(t,-((t.getDay()+6)%7));e=t;break;
+        case 'lastWeek': var mon=addDays(t,-((t.getDay()+6)%7));f=addDays(mon,-7);e=addDays(mon,-1);break;
+        case 'thisMonth': f=new Date(t.getFullYear(),t.getMonth(),1);e=t;break;
+        case 'lastMonth': f=new Date(t.getFullYear(),t.getMonth()-1,1);e=new Date(t.getFullYear(),t.getMonth(),0);break;
+        case 'fixed': return {from:q.from||fmt(t), to:q.to||fmt(t)};
+        default: f=t;e=t;
+      }
+      return {from:fmt(f), to:fmt(e)};
+    }
+    function kindDesc(q){var r=rangeOf(q);
+      var kn={today:'오늘 하루',dayAgo:(q.n===1?'어제 하루':q.n===2?'그제 하루':(q.n+'일 전 하루')),
+        daysAgoRange:(q.a+'~'+q.b+'일 전'),lastN:('최근 '+q.n+'일(오늘 포함)'),thisWeek:'이번 주(월~오늘)',
+        lastWeek:'지난주(월~일)',thisMonth:'이번 달',lastMonth:'지난달',fixed:'고정 기간'}[q.kind]||'';
+      return kn+' · '+r.from+' ~ '+r.to;
+    }
     function loadCols(){try{var s=JSON.parse(localStorage.getItem(LS));if(Array.isArray(s)&&s.length){var nm=s.map(function(x){return x.c;});ALLCOLS.forEach(function(c){if(nm.indexOf(c)<0)s.push({c:c,on:true});});return s.filter(function(x){return ALLCOLS.indexOf(x.c)>=0;});}}catch(e){}return ALLCOLS.map(function(c){return{c:c,on:true};});}
     var cols=loadCols();
     function stCls(s){if(/결제완료|신규|결제대기/.test(s))return'blue';if(/준비중|출고지시|발송대기/.test(s))return'amber';if(/배송중/.test(s))return'sky';if(/완료|구매확정/.test(s))return'green';if(/취소|반품|교환|거부/.test(s))return'red';return'gray';}
@@ -99,7 +169,8 @@
     function num(v){v=(''+v).replace(/[^0-9]/g,'');return v?parseInt(v):0;}
     function selMk(){return [].slice.call(document.querySelectorAll('.mk-ck')).filter(function(c){return c.checked;}).map(function(c){return c.value;});}
     function selCols(){return cols.filter(function(x){return x.on;}).map(function(x){return x.c;});}
-    function syncBtn(){var mks=selMk();var x=document.getElementById('xlsxbtn');x.href='/orders/export.xlsx?markets='+encodeURIComponent(mks.join(','))+'&days='+days+'&cols='+encodeURIComponent(selCols().join(','));x.style.opacity=mks.length?'1':'.4';x.style.pointerEvents=mks.length?'auto':'none';}
+    function qparam(){return 'from='+encodeURIComponent(cur.from)+'&to='+encodeURIComponent(cur.to);}
+    function syncBtn(){var mks=selMk();var x=document.getElementById('xlsxbtn');x.href='/orders/export.xlsx?markets='+encodeURIComponent(mks.join(','))+'&'+qparam()+'&cols='+encodeURIComponent(selCols().join(','));x.style.opacity=mks.length?'1':'.4';x.style.pointerEvents=mks.length?'auto':'none';}
     function filtered(){return rows.filter(function(r){
       if(stOff[r['주문상태']||''])return false;
       if(srch){var s=srch.toLowerCase();if(((r['상품명']||'')+ (r['수령자']||'')).toLowerCase().indexOf(s)<0)return false;}
@@ -138,7 +209,7 @@
       document.getElementById('tablewrap').innerHTML='<div class="state">주문을 불러오는 중…</div>';
       var mks=selMk();syncBtn();
       if(!mks.length){rows=[];renderStFilter();render();return;}
-      fetch('/orders/preview.json?markets='+encodeURIComponent(mks.join(','))+'&days='+days,{cache:'no-store'})
+      fetch('/orders/preview.json?markets='+encodeURIComponent(mks.join(','))+'&'+qparam(),{cache:'no-store'})
         .then(function(r){return r.json();}).then(function(j){
           if(!j.ok){document.getElementById('tablewrap').innerHTML='<div class="state">불러오기 실패: '+(j.error||'')+'</div>';rows=[];return;}
           rows=j.rows||[];renderStFilter();render();
@@ -148,8 +219,83 @@
     var allck=document.getElementById('mk-all');
     allck.addEventListener('change',function(){[].slice.call(document.querySelectorAll('.mk-ck')).forEach(function(c){c.checked=allck.checked;});load();});
     [].slice.call(document.querySelectorAll('.mk-ck')).forEach(function(c){c.addEventListener('change',function(){allck.checked=[].slice.call(document.querySelectorAll('.mk-ck')).every(function(x){return x.checked;});load();});});
-    [].slice.call(document.querySelectorAll('.o7 .pchip')).forEach(function(p){p.addEventListener('click',function(){document.querySelectorAll('.o7 .pchip').forEach(function(x){x.classList.remove('on');});p.classList.add('on');days=p.getAttribute('data-days');load();});});
+    // ── 빠른 기간 버튼 렌더·선택 ──
+    var qwrap=document.getElementById('qchips'),qdirect=document.getElementById('qdirect'),
+        qfromEl=document.getElementById('qfrom'),qtoEl=document.getElementById('qto');
+    var activeIdx=-1;   // -1 = 직접
+    function renderQChips(){
+      qwrap.innerHTML='';
+      quick.forEach(function(q,i){var c=document.createElement('span');c.className='pchip'+(i===activeIdx?' on':'');
+        c.textContent=q.name;c.title=kindDesc(q);
+        c.addEventListener('click',function(){pickQuick(i);});qwrap.appendChild(c);});
+      var d=document.createElement('span');d.className='pchip'+(activeIdx===-1&&cur.from?' on':'');d.textContent='직접 ▾';
+      d.addEventListener('click',function(){toggleDirect();});qwrap.appendChild(d);
+    }
+    function markQChips(){[].slice.call(qwrap.children).forEach(function(c,i){
+      if(i<quick.length)c.classList.toggle('on',i===activeIdx);
+      else c.classList.toggle('on',activeIdx===-1&&qdirect.classList.contains('on'));});}
+    function pickQuick(i){activeIdx=i;var r=rangeOf(quick[i]);cur={from:r.from,to:r.to,label:quick[i].name};
+      qdirect.classList.remove('on');qfromEl.value=r.from;qtoEl.value=r.to;markQChips();load();}
+    function toggleDirect(){activeIdx=-1;var open=!qdirect.classList.contains('on');qdirect.classList.toggle('on',open);
+      if(open){if(!qfromEl.value){var r=rangeOf(quick[0]);qfromEl.value=r.from;qtoEl.value=r.to;}applyDirect();}markQChips();}
+    function applyDirect(){if(!qfromEl.value||!qtoEl.value)return;cur={from:qfromEl.value,to:qtoEl.value,label:'직접'};markQChips();load();}
+    qfromEl.addEventListener('change',applyDirect);qtoEl.addEventListener('change',applyDirect);
+    // 초기 기본 버튼(def) 선택
+    (function(){var di=quick.reduce(function(a,q,i){return q.def?i:a;},-1);pick0(di>=0?di:0);})();
+    function pick0(i){activeIdx=i;var r=rangeOf(quick[i]);cur={from:r.from,to:r.to,label:quick[i].name};qfromEl.value=r.from;qtoEl.value=r.to;}
+    renderQChips();
     var st;document.getElementById('srch').addEventListener('input',function(e){srch=e.target.value;clearTimeout(st);st=setTimeout(render,200);});
+    // ── 기간 버튼 관리 모달 ──
+    var qov=document.getElementById('qov'),qlist=document.getElementById('qlist'),qeditIdx=null;
+    var KINDLABEL={today:'오늘',dayAgo:'N일 전(하루)',daysAgoRange:'N~M일 전(범위)',lastN:'최근 N일',
+      thisWeek:'이번 주',lastWeek:'지난주',thisMonth:'이번 달',lastMonth:'지난달',fixed:'시작~끝 직접'};
+    function renderQList(){qlist.innerHTML='';quick.forEach(function(q,i){var row=document.createElement('div');row.className='qrow';
+      row.innerHTML='<span class="qn">'+q.name+'<span class="qd">'+kindDesc(q)+'</span></span>'
+        +'<button class="ar edit" title="수정">✎</button>'
+        +'<button class="ar up" '+(i===0?'style=visibility:hidden':'')+'>↑</button>'
+        +'<button class="ar dn" '+(i===quick.length-1?'style=visibility:hidden':'')+'>↓</button>'
+        +'<button class="ar del" title="삭제">🗑</button>';
+      row.querySelector('.edit').addEventListener('click',function(){openQForm(i);});
+      row.querySelector('.up').addEventListener('click',function(){quick.splice(i-1,0,quick.splice(i,1)[0]);renderQList();});
+      row.querySelector('.dn').addEventListener('click',function(){quick.splice(i+1,0,quick.splice(i,1)[0]);renderQList();});
+      row.querySelector('.del').addEventListener('click',function(){quick.splice(i,1);renderQList();});
+      qlist.appendChild(row);});}
+    function paramFields(kind,q){q=q||{};
+      if(kind==='dayAgo'||kind==='lastN')return '<div><label>숫자(N)</label><input type="number" min="1" id="qp-n" value="'+(q.n||(kind==='lastN'?7:1))+'"></div>';
+      if(kind==='daysAgoRange')return '<div><label>N일 전</label><input type="number" min="1" id="qp-a" value="'+(q.a||3)+'"></div><div><label>M일 전</label><input type="number" min="1" id="qp-b" value="'+(q.b||2)+'"></div>';
+      if(kind==='fixed')return '<div><label>시작</label><input type="date" id="qp-from" value="'+(q.from||'')+'"></div><div><label>끝</label><input type="date" id="qp-to" value="'+(q.to||'')+'"></div>';
+      return '';
+    }
+    function openQForm(idx){qeditIdx=(idx==null?null:idx);var q=(idx==null?{name:'',kind:'lastN',n:7}:quick[idx]);
+      var f=document.createElement('div');f.className='qform';f.id='qform';
+      f.innerHTML='<div class="frow"><div style="flex:1"><label>버튼 이름</label><input id="qf-name" placeholder="예: 3일 전" value="'+(q.name||'')+'"></div>'
+        +'<div style="flex:1"><label>기간 종류</label><select id="qf-kind"></select></div></div>'
+        +'<div class="frow" id="qf-params">'+paramFields(q.kind,q)+'</div>'
+        +'<div class="fbtns"><button type="button" class="sec" id="qf-cancel">취소</button><button type="button" class="pri" id="qf-ok">'+(idx==null?'추가':'저장')+'</button></div>';
+      var old=document.getElementById('qform');if(old)old.remove();
+      qlist.parentNode.insertBefore(f,qlist.nextSibling);
+      var ksel=document.getElementById('qf-kind');Object.keys(KINDLABEL).forEach(function(k){var o=document.createElement('option');o.value=k;o.textContent=KINDLABEL[k];if(k===q.kind)o.selected=true;ksel.appendChild(o);});
+      ksel.addEventListener('change',function(){document.getElementById('qf-params').innerHTML=paramFields(ksel.value,{});});
+      document.getElementById('qf-cancel').addEventListener('click',function(){f.remove();});
+      document.getElementById('qf-ok').addEventListener('click',function(){
+        var name=(document.getElementById('qf-name').value||'').trim();var kind=ksel.value;
+        if(!name){document.getElementById('qf-name').focus();return;}
+        var nq={name:name,kind:kind};
+        if(kind==='dayAgo'||kind==='lastN')nq.n=Math.max(1,parseInt(document.getElementById('qp-n').value)||1);
+        if(kind==='daysAgoRange'){nq.a=Math.max(1,parseInt(document.getElementById('qp-a').value)||1);nq.b=Math.max(0,parseInt(document.getElementById('qp-b').value)||0);}
+        if(kind==='fixed'){nq.from=document.getElementById('qp-from').value;nq.to=document.getElementById('qp-to').value;}
+        if(qeditIdx==null)quick.push(nq);else{if(quick[qeditIdx].def)nq.def=true;quick[qeditIdx]=nq;}
+        f.remove();renderQList();});
+    }
+    document.getElementById('qmng').addEventListener('click',function(){renderQList();var o=document.getElementById('qform');if(o)o.remove();qov.classList.add('on');});
+    document.getElementById('qaddbtn').addEventListener('click',function(){openQForm(null);});
+    qov.addEventListener('click',function(e){if(e.target===qov)qov.classList.remove('on');});
+    document.getElementById('qreset').addEventListener('click',function(){quick=QDEFAULT.map(function(x){return Object.assign({},x);});renderQList();});
+    document.getElementById('qsave').addEventListener('click',function(){
+      localStorage.setItem(QLS,JSON.stringify(quick));qov.classList.remove('on');
+      if(activeIdx>=quick.length)activeIdx=0;
+      renderQChips();
+      if(activeIdx>=0)pickQuick(activeIdx);else applyDirect();});
     // 양식 설정 모달
     var ov=document.getElementById('cfgov'),list=document.getElementById('collist');
     function renderColRows(){list.innerHTML='';cols.forEach(function(x,i){var row=document.createElement('div');row.className='colrow'+(x.on?'':' off');
