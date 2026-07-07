@@ -171,8 +171,9 @@ def coupang_order_rows(since: _dt.datetime, until: _dt.datetime,
                        client=None) -> list:
     """쿠팡 발주서 목록 → 16컬럼 행(dict). status별(공식 필수) 순회 + nextToken 페이징.
 
-    발주서(shipmentBox) 하위 orderItems[] 평탄화(옵션 단위 1행). 정산예정금액은 발주서에
-    없음(쿠팡 정산 revenue-history 별도) → 빈칸(근사·폴백 금지). 스펙=GET_ORDERSHEET v5.
+    발주서(shipmentBox) 하위 orderItems[] 평탄화(옵션 단위 1행). 정산예정금액은 발주서엔
+    없어 revenue-history(별도 API)를 (주문번호,옵션ID)로 조인 — 미정산(최근주문)은 빈칸
+    (폴백 금지). 스펙=GET_ORDERSHEET v5.
     """
     from shared.platforms.coupang.orders import fetch_orders
 
@@ -193,6 +194,7 @@ def coupang_order_rows(since: _dt.datetime, until: _dt.datetime,
                         continue
                     seen.add(key)
                     rows.append({
+                        "_oid": box.get("orderId"), "_vid": it.get("vendorItemId"),  # 정산 조인용
                         "주문일": ordered,
                         "판매처": "쿠팡",
                         "상품명": it.get("sellerProductName") or it.get("vendorItemName") or "",
@@ -208,13 +210,43 @@ def coupang_order_rows(since: _dt.datetime, until: _dt.datetime,
                         "쇼핑몰": "쿠팡",
                         "쇼핑몰ID": "",
                         "단가": _won(it.get("salesPrice")),
-                        "정산예정금액": "",   # 쿠팡 정산=revenue-history 별도(후속). 폴백 금지.
+                        "정산예정금액": "",
                         "주문상태": _status_ko("coupang", box.get("status") or st),
                     })
             token = resp.get("nextToken")
             if not token:
                 break
+
+    # 정산 조인: revenue-history [since ~ 전일] 를 (주문번호,옵션ID)별 settlementAmount 로.
+    # 최근 주문은 아직 미정산이라 대부분 빈칸(정상). 실패해도 주문은 그대로.
+    try:
+        settle = _coupang_settle_map(since, until, client)
+        for r in rows:
+            amt = settle.get((str(r.pop("_oid", "")), r.pop("_vid", None)))
+            if amt is not None:
+                r["정산예정금액"] = amt
+    except Exception:
+        for r in rows:            # 조인 실패 → 임시키만 정리
+            r.pop("_oid", None); r.pop("_vid", None)
     return rows
+
+
+def _coupang_settle_map(since, until, client):
+    """쿠팡 revenue-history → {(orderId, vendorItemId): settlementAmount 합}."""
+    from shared.platforms.coupang.settlements import iter_revenue_items
+    rec_to = (until - _dt.timedelta(days=1)).strftime("%Y-%m-%d")   # 종료는 전일까지
+    rec_from = since.strftime("%Y-%m-%d")
+    acc = {}
+    for rec in iter_revenue_items(rec_from, rec_to, client=client):
+        oid, vid = str(rec.get("orderId") or ""), rec.get("vendorItemId")
+        amt = rec.get("settlementAmount")
+        if amt is None:
+            continue
+        try:
+            acc[(oid, vid)] = acc.get((oid, vid), 0) + int(amt)
+        except (TypeError, ValueError):
+            pass
+    return acc
 
 
 # 마켓별 행 빌더(코드 존재). SUPPORTED = 그중 실계정 검증까지 끝나 UI 노출 가능한 것.
