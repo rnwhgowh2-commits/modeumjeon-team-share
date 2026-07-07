@@ -76,6 +76,31 @@ def test_supported_markets():
     assert oe.SUPPORTED == {"smartstore", "lotteon", "coupang"}   # 3마켓 UI 노출
 
 
+def test_cp_estimate_settle_formula():
+    # (단가×수량 + 배송비) × 0.8845
+    assert oe._cp_estimate_settle(100000, 1, 3000) == round(103000 * 0.8845)
+    assert oe._cp_estimate_settle(100000, 2, 0) == round(200000 * 0.8845)
+    assert oe._cp_estimate_settle("", 1, 3000) == ""      # 단가 없으면 추정 안 함(폴백 금지)
+    assert oe._cp_estimate_settle(None, 1, 0) == ""
+
+
+def test_coupang_actual_wins_over_estimate():
+    # 실 정산액이 있으면 추정 대신 확정액 사용
+    class C:
+        _cfg = {"vendor_id": "A1"}
+        def request(self, method, path, query=""):
+            if "ordersheets" in path and "nextToken" not in query:
+                return {"data": [{"shipmentBoxId": 1, "orderId": 5, "status": "FINAL_DELIVERY",
+                        "orderer": {}, "receiver": {}, "shippingPrice": {"units": 3000},
+                        "orderItems": [{"vendorItemId": 9, "sellerProductName": "코트",
+                                        "shippingCount": 1, "salesPrice": {"units": 100000}}]}], "nextToken": ""}
+            if "revenue-history" in path:
+                return {"data": [{"orderId": 5, "items": [{"vendorItemId": 9, "settlementAmount": 99999}]}], "hasNext": False}
+            return {"data": [], "nextToken": ""}
+    r = oe.coupang_order_rows(dt.datetime(2026,7,5,tzinfo=oe.KST), dt.datetime(2026,7,8,tzinfo=oe.KST), client=C())[0]
+    assert r["정산예정금액"] == 99999            # 확정액 우선(추정 아님)
+
+
 def test_coupang_settlement_join(monkeypatch):
     # 발주서 조회 → revenue-history 를 (주문번호,옵션ID)로 조인해 정산예정금액 채움
     class C:
@@ -161,7 +186,8 @@ def test_coupang_rows_flatten_and_map(monkeypatch):
     assert r["상품명"] == "코트" and r["옵션"] == "블랙/95" and r["수량"] == 1
     assert r["수령자"] == "수령자A" and r["구매자"] == "구매자A"
     assert r["단가"] == 189000                 # 금액 객체 units 추출
-    assert r["정산예정금액"] == ""              # 쿠팡 정산 별도(폴백 0 금지)
+    # 실 정산 없음 → 추정 = round(189000 × 0.8845) = 167170 (배송비 0)
+    assert r["정산예정금액"] == round(189000 * oe.CP_FEE_FACTOR)
     assert r["쇼핑몰"] == "쿠팡"
     assert "/vendors/A00012345/ordersheets" in fc.paths[0]   # 클라 config vendor_id 사용
     assert "/api/v5/" in fc.paths[0]           # v5 정정 반영
