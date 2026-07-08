@@ -18,7 +18,10 @@ KST = _dt.timezone(_dt.timedelta(hours=9))
 ALL_COLUMNS = ["주문일", "판매처", "주문상태", "상품명", "옵션", "수량",
                "수령자", "수령자전화번호", "주소", "우편번호", "배송메시지",
                "구매자", "구매자번호", "단가", "배송비", "상품금액", "주문금액",
-               "정산예정금액"]
+               "정산예정금액",
+               # 샵마인 대조로 추가(2026-07-08) — 판매처관리 계정명·주문번호·수수료·송장 등.
+               "오픈마켓주문번호", "쇼핑몰별칭", "송장입력", "실결제금액",
+               "총주문금액", "옵션추가금", "마켓수수료", "수수료율", "정산예정금(배송비포함)"]
 # 상품금액 = 단가×수량 / 주문금액 = 상품금액 + 배송비(배송건당 1회) / 정산예정금액 = 상품정산+배송비정산.
 # 배송비는 배송건(묶음) 단위 → 배송건 첫 행에만 표시(나머지 0, 합계 중복 방지).
 # 정산예정금액 = 상품 정산 + 배송비 정산(각자 수수료 차감). 배송비는 별도 정산 라인
@@ -35,6 +38,15 @@ COLUMN_META = {
     "상품금액":     {"kind": "calc", "desc": "단가 × 수량"},
     "주문금액":     {"kind": "calc", "desc": "상품금액 + 배송비"},
     "정산예정금액": {"kind": "calc", "desc": "상품정산 + 배송비정산(수수료 차감)"},
+    "오픈마켓주문번호": {"kind": "api",  "desc": "마켓 주문번호(ordNo·odNo·orderId 등)"},
+    "쇼핑몰별칭":   {"kind": "calc", "desc": "판매처관리 계정명(별칭)"},
+    "송장입력":     {"kind": "api",  "desc": "송장번호(없으면 '송장미입력')"},
+    "실결제금액":   {"kind": "api",  "desc": "고객 실결제(할인 반영). 없으면 총주문금액"},
+    "총주문금액":   {"kind": "calc", "desc": "단가×수량 + 옵션추가금"},
+    "옵션추가금":   {"kind": "api",  "desc": "옵션 추가금(마켓 제공 시)"},
+    "마켓수수료":   {"kind": "calc", "desc": "실결제 − 정산예정금액(둘 다 있을 때)"},
+    "수수료율":     {"kind": "calc", "desc": "마켓수수료 ÷ 총주문금액"},
+    "정산예정금(배송비포함)": {"kind": "calc", "desc": "정산예정금액 + 고객배송비"},
 }
 
 
@@ -162,6 +174,9 @@ def smartstore_order_rows(since: _dt.datetime, until: _dt.datetime,
             "배송비": _g(po, "deliveryFeeAmount", default=""),
             "정산예정금액": settle_val,
             "주문상태": _status_ko("smartstore", _g(po, "productOrderStatus")),
+            "오픈마켓주문번호": poid or oid,
+            "실결제금액": _g(po, "totalPaymentAmount", default=""),   # 할인 반영 실결제
+            "옵션추가금": _g(po, "optionPrice", default=""),
         })
     return rows
 
@@ -202,6 +217,9 @@ def lotteon_order_rows(since: _dt.datetime, until: _dt.datetime,
             "배송비": _g(od, "dvCst", default=""),
             "정산예정금액": _g(od, "actualAmt", default=""),   # 실결제(상품+배송비-할인) 근사
             "주문상태": _status_ko("lotteon", _g(od, "odPrgsStepCd")),
+            "오픈마켓주문번호": _g(od, "odNo"),
+            "실결제금액": _g(od, "actualAmt", default=""),   # 실결제(정산예상은 주문API 없음→수수료 공란)
+            "송장입력": _g(od, "invNo", "dvInvNo", default=""),
         })
     return rows
 
@@ -264,6 +282,8 @@ def coupang_order_rows(since: _dt.datetime, until: _dt.datetime,
                         "배송비": ship,
                         "정산예정금액": "",
                         "주문상태": _status_ko("coupang", box.get("status") or st),
+                        "오픈마켓주문번호": box.get("orderId") or "",
+                        "송장입력": it.get("invoiceNumber") or box.get("invoiceNumber") or "",
                     })
             token = resp.get("nextToken")
             if not token:
@@ -411,6 +431,7 @@ def esm_order_rows(market: str, since: _dt.datetime, until: _dt.datetime,
             "배송비": _g(od, "ShippingFee", default=""),
             "정산예정금액": "",   # 아래 정산 조인으로 채움(미정산=공란)
             "주문상태": _status_ko("esm", _g(od, "OrderStatus")),
+            "오픈마켓주문번호": _g(od, "OrderNo"),
         })
 
     # 정산예정금액 = 판매대금 정산조회(getsettleorder) SettlementPrice 를 ContrNo(=OrderNo)로 조인.
@@ -482,6 +503,9 @@ def eleven11_order_rows(since: _dt.datetime, until: _dt.datetime, client=None) -
             #  구매확정 목록엔 없어 공란. 실정산액(정산완료분)은 settlementList.stlAmt(후속).
             "정산예정금액": _g11(od, "stlPlnAmt"),
             "주문상태": status,
+            "오픈마켓주문번호": _g11(od, "ordNo"),
+            "실결제금액": _g11(od, "ordPayAmt"),   # 결제금액 = 주문금액+배송비-할인(공문 확인)
+            "송장입력": _g11(od, "invcNo"),
         }
 
     # 상태별 목록 3종 병합(전체 주문 라이프사이클): 발송대기 → 배송완료 → 구매확정.
@@ -540,6 +564,24 @@ def _account_client(market: str):
         return None   # 키 미설정 등 → row builder 가 기본 클라(app.env)로 폴백
 
 
+def _account_alias(market: str) -> str:
+    """판매처관리(UploadAccount)에 등록된 그 마켓 계정의 표시명(쇼핑몰별칭).
+
+    없으면 빈 문자열(추측 금지). market 의 활성 계정 중 첫 번째 display_name.
+    """
+    try:
+        from shared.db import SessionLocal
+        from lemouton.sourcing.models_v2 import UploadAccount
+        with SessionLocal() as s:
+            acc = (s.query(UploadAccount)
+                   .filter(UploadAccount.market == market,
+                           UploadAccount.is_active == True)  # noqa: E712
+                   .order_by(UploadAccount.id).first())
+            return acc.display_name if acc else ""
+    except Exception:
+        return ""
+
+
 def order_rows(market: str, days: int = 7, client=None,
                now: Optional[_dt.datetime] = None,
                since: Optional[_dt.datetime] = None,
@@ -557,7 +599,12 @@ def order_rows(market: str, days: int = 7, client=None,
         since = until - _dt.timedelta(days=days)
     if client is None:
         client = _account_client(market)
-    return _finalize_rows(_BUILDERS[market](since, until, client=client))
+    rows = _finalize_rows(_BUILDERS[market](since, until, client=client))
+    alias = _account_alias(market)   # 쇼핑몰별칭 = 판매처관리 계정명
+    if alias:
+        for r in rows:
+            r["쇼핑몰별칭"] = alias
+    return rows
 
 
 def _to_int(v, default=None):
@@ -621,6 +668,32 @@ def _finalize_rows(rows: list) -> list:
             seen.add(sk)
         r["배송비"] = ship
         r["주문금액"] = (prod + ship) if prod != "" else ""
+
+        # ── 샵마인 대조 파생(2026-07-08): 총주문금액·마켓수수료·수수료율 ──
+        opt_add = _to_int(r.get("옵션추가금"), 0) or 0
+        total = (prod + opt_add) if prod != "" else ""   # 총주문금액 = 단가×수량 + 옵션추가금
+        r["총주문금액"] = total
+        settle = _to_int(r.get("정산예정금액"))
+        paid = _to_int(r.get("실결제금액"))
+        if paid is None and isinstance(total, int):
+            paid = total                     # 실결제 미제공(쿠팡 등) → 총주문금액(할인 없음 가정)
+        # 마켓수수료 = 실결제 − 정산예정금액(둘 다 있고 양수일 때만). 아니면 공란(폴백 금지).
+        if paid is not None and settle is not None and paid - settle > 0:
+            fee = paid - settle
+            r["마켓수수료"] = fee
+            r["수수료율"] = (f"{round(fee / total * 100, 2)}%"
+                             if isinstance(total, int) and total > 0 else "")
+        else:
+            r["마켓수수료"] = ""
+            r["수수료율"] = ""
+        # 정산예정금(배송비포함) = 정산예정금액 + 고객배송비(무료배송이면 동일)
+        r["정산예정금(배송비포함)"] = (settle + ship) if settle is not None else ""
+        # 새 열 기본값 보장(빌더 미설정 시): 송장 없으면 '송장미입력'.
+        r.setdefault("실결제금액", "")
+        r.setdefault("옵션추가금", "")
+        r.setdefault("오픈마켓주문번호", "")
+        r.setdefault("쇼핑몰별칭", "")
+        r["송장입력"] = r.get("송장입력") or "송장미입력"
     return rows
 
 
