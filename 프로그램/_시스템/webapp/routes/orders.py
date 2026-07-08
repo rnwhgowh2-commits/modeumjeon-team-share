@@ -321,15 +321,14 @@ def probe_coupang_return():
     if since is None:
         since = until - _dt.timedelta(days=7)
     client = _oe._account_client("coupang")   # 서버 UI 실키 로드된 계정 클라이언트
-    from shared.platforms import COUPANG        # refresh_env 후 vendor_id 채워짐
-    vendor = COUPANG.get("vendor_id")
+    vendor = (getattr(client, "_cfg", {}) or {}).get("vendor_id")   # 계정 config 주입값
     base = f"/v2/providers/openapi/apis/api/v4/vendors/{vendor}/returnRequests"
     f_d, t_d = since.strftime("%Y-%m-%d"), until.strftime("%Y-%m-%d")
 
     def _try(status, dtfmt):
         frm = since.strftime(dtfmt)
         to = until.strftime(dtfmt)
-        q = f"createdAtFrom={frm}&createdAtTo={to}&status={status}&maxPerPage=50"
+        q = f"searchType=timeFrame&createdAtFrom={frm}&createdAtTo={to}&status={status}&maxPerPage=50"
         try:
             resp = client.request(method="GET", path=base, query=q)
         except Exception as ex:   # noqa: BLE001
