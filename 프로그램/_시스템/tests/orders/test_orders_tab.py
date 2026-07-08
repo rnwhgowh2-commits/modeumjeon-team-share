@@ -103,10 +103,11 @@ def test_live_on_shows_empty_state():
 
 
 def test_list_is_seven_layout():
-    # 7번: 좌측 필터(마켓·기간·주문상태·검색) + 대시보드 + 실주문(preview.json) — 샘플/배너 없음
+    # 7번: 좌측 필터(마켓·기간·검색) + 엑셀 양식(프리셋) + 대시보드 + 실주문(preview.json)
     html = _render("list")
-    for t in ["마켓", "기간", "주문상태", "검색", "엑셀 양식 설정", "엑셀 내보내기",
-              "preview.json", "kpis", "tablewrap"]:
+    for t in ["마켓", "기간", "검색", "엑셀 양식", "양식 관리", "엑셀 내보내기",
+              "preview.json", "kpis", "tablewrap", "presetSel", "colpop",
+              "moum_order_presets_v1", "택배전송용", "마진계산기용"]:
         assert t in html, t
     assert "안전 OFF" not in html                # 모순 배너 제거됨
     assert "레이아웃 미리보기(샘플)" not in html
