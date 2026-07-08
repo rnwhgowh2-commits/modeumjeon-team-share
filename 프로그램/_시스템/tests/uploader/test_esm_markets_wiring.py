@@ -69,8 +69,9 @@ class TestPlatformConfig:
         assert AUCTION["site_id"] == "A" and GMARKET["site_id"] == "G"
         assert AUCTION["auth_audience"] == "sa.esmplus.com"
         assert AUCTION["auth_alg"] == "HS256"
-        # 엔드포인트는 스펙 미확보 → None (추측 금지)
-        assert AUCTION["paths"]["orders"] is None
+        # 주문조회는 공개문서 확보 → 경로 세팅. 상품/정산은 미확보 → None(추측 금지).
+        assert AUCTION["paths"]["orders"] == "/shipping/v1/Order/RequestOrders"
+        assert GMARKET["paths"]["orders"] == "/shipping/v1/Order/RequestOrders"
         assert GMARKET["paths"]["settlement"] is None
 
     def test_not_in_order_export_supported_yet(self):

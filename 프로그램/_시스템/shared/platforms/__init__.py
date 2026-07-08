@@ -178,22 +178,26 @@ ELEVEN11: dict = {
 # 인증 = JWT(HmacSHA256): header.kid=master_id, payload.ssi="{site}:{seller_id}"
 #   (site: 옥션 "A" / G마켓 "G"), payload.aud="sa.esmplus.com", secret_key 로 서명.
 # 옥션·G마켓은 같은 ESM+ 마스터 계정 → master_id·secret_key 공통, seller_id·site 만 다름.
-# ⚠️ 주문/정산/상품 엔드포인트 경로는 스펙 미확보(문서 문의 etapihelp@gmail.com). 확보 후 채움(추측 금지).
+# 주문조회 = POST https://sa2.esmplus.com/shipping/v1/Order/RequestOrders (공개문서 etapi.gmarket.com/67).
+#   Authorization: Bearer {JWT}. 상품/정산 엔드포인트는 미확보 → None(추측 금지).
 # ──────────────────────────────────────────────────────────────
 _ESM_COMMON: dict = {
-    "base_url": os.environ.get("ESM_BASE_URL", "https://etapi.gmarket.com"),
-    "auth_audience": "sa.esmplus.com",
+    # 실 API 호스트(sa2.esmplus.com) — etapi.gmarket.com 은 '문서' 호스트라 호출용 아님.
+    "base_url": os.environ.get("ESM_BASE_URL", "https://sa2.esmplus.com"),
+    "auth_audience": "sa.esmplus.com",   # JWT payload.aud (고정)
+    "auth_issuer": os.environ.get("ESM_AUTH_ISSUER", "www.esmplus.com"),  # JWT payload.iss (발행자 도메인)
     "auth_alg": "HS256",
     "rate_limit_per_sec": float(os.environ.get("ESM_RATE_LIMIT_PER_SEC", "5")),
+    "order_min_interval_sec": float(os.environ.get("ESM_ORDER_MIN_INTERVAL_SEC", "5")),  # 주문조회 5초당 1회
     "max_retries": int(os.environ.get("ESM_MAX_RETRIES", "3")),
     "retry_backoff_sec": float(os.environ.get("ESM_RETRY_BACKOFF_SEC", "2")),
     "request_timeout_sec": float(os.environ.get("ESM_REQUEST_TIMEOUT_SEC", "30")),
     "paths": {
-        "orders": None,        # 주문 조회
-        "settlement": None,    # 정산 조회
-        "detail": None,        # 상품/옵션 상세
-        "price_change": None,  # 가격 수정
-        "stock_change": None,  # 재고 수정
+        "orders": "/shipping/v1/Order/RequestOrders",  # 주문조회(공개문서 확보)
+        "settlement": None,    # 정산 조회 — 미확보
+        "detail": None,        # 상품/옵션 상세 — 미확보
+        "price_change": None,  # 가격 수정 — 미확보
+        "stock_change": None,  # 재고 수정 — 미확보
     },
 }
 
