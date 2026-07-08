@@ -378,7 +378,8 @@ def esm_order_rows(market: str, since: _dt.datetime, until: _dt.datetime,
                    client=None) -> list:
     """옥션·G마켓(ESM 2.0) 주문조회 → 행(dict) 리스트. RequestOrders 응답 매핑.
 
-    market = "auction" | "gmarket". 정산예정금액은 주문 API 에 없음 → 공란(폴백 금지).
+    market = "auction" | "gmarket". 정산예정금액 = 판매대금 정산조회(getsettleorder)를 주문번호
+    (OrderNo↔ContrNo)로 조인. 미정산(최근 주문)은 공란(폴백 금지, 스스·쿠팡과 동일 정직성).
     ⚠️ 라이브 미검증(키 입력 후 서버 검증 필요). 검증 전 SUPPORTED 미포함.
     """
     from shared.platforms.esm.orders import iter_orders
@@ -388,6 +389,7 @@ def esm_order_rows(market: str, since: _dt.datetime, until: _dt.datetime,
         addr = (str(_g(od, "DelFrontAddress")) + " " + str(_g(od, "DelBackAddress"))).strip()
         rows.append({
             "_shipkey": (market, _g(od, "OrderNo")),   # 배송건(주문) 단위 배송비 정규화용
+            "_ono": str(_g(od, "OrderNo")),            # 정산 조인용(ContrNo)
             "주문일": _g(od, "OrderDate"),
             "판매처": label,
             "상품명": _g(od, "GoodsName"),
@@ -404,9 +406,22 @@ def esm_order_rows(market: str, since: _dt.datetime, until: _dt.datetime,
             "쇼핑몰ID": "",
             "단가": _g(od, "SalePrice", default=""),
             "배송비": _g(od, "ShippingFee", default=""),
-            "정산예정금액": "",   # ESM 주문API엔 정산 없음 — 폴백 금지(공란)
+            "정산예정금액": "",   # 아래 정산 조인으로 채움(미정산=공란)
             "주문상태": _status_ko("esm", _g(od, "OrderStatus")),
         })
+
+    # 정산예정금액 = 판매대금 정산조회(getsettleorder) SettlementPrice 를 ContrNo(=OrderNo)로 조인.
+    #  미정산(최근 주문)은 맵에 없어 공란(폴백 금지). 정산 API 실패는 조용히 공란(주문은 살림).
+    try:
+        from shared.platforms.esm.settlements import settle_price_map
+        srch = (getattr(client, "_cfg", {}) or {}).get("settle_srch_type", "D1") if client else "D1"
+        smap = settle_price_map(market, since, until, client=client, srch_type=srch)
+    except Exception:   # noqa: BLE001 — 정산 조회 실패는 정산액만 공란(주문 데이터는 유지)
+        smap = {}
+    for r in rows:
+        ono = r.pop("_ono", "")
+        if ono in smap:
+            r["정산예정금액"] = smap[ono]
     return rows
 
 

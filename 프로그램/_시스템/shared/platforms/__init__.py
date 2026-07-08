@@ -189,12 +189,14 @@ _ESM_COMMON: dict = {
     "auth_alg": "HS256",
     "rate_limit_per_sec": float(os.environ.get("ESM_RATE_LIMIT_PER_SEC", "5")),
     "order_min_interval_sec": float(os.environ.get("ESM_ORDER_MIN_INTERVAL_SEC", "5")),  # 주문조회 5초당 1회
+    "settle_srch_type": os.environ.get("ESM_SETTLE_SRCH_TYPE", "D1"),  # 정산 조회 기준일(D1~D10). 라이브 튜닝.
     "max_retries": int(os.environ.get("ESM_MAX_RETRIES", "3")),
     "retry_backoff_sec": float(os.environ.get("ESM_RETRY_BACKOFF_SEC", "2")),
     "request_timeout_sec": float(os.environ.get("ESM_REQUEST_TIMEOUT_SEC", "30")),
     "paths": {
-        "orders": "/shipping/v1/Order/RequestOrders",  # 주문조회(공개문서 확보)
-        "settlement": None,    # 정산 조회 — 미확보
+        "orders": "/shipping/v1/Order/RequestOrders",      # 주문조회(공개문서 확보)
+        "settlement": "/account/v1/settle/getsettleorder",  # 판매대금 정산조회(공개문서 확보)
+        "settlement_delivery": "/account/v1/settle/getsettledeliveryfee",  # 배송비 정산(후속)
         "detail": None,        # 상품/옵션 상세 — 미확보
         "price_change": None,  # 가격 수정 — 미확보
         "stock_change": None,  # 재고 수정 — 미확보

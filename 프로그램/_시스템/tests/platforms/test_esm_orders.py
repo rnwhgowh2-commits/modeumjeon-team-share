@@ -129,8 +129,9 @@ class TestEsmOrderRows:
         assert r["단가"] == 50000 and r["배송비"] == 3000 and r["수량"] == 2
         assert r["주소"] == "서울시 101호" and r["우편번호"] == "12345"
         assert r["수령자"] == "수령" and r["수령자전화번호"] == "01011112222"
-        assert r["정산예정금액"] == ""              # ESM 주문API엔 정산 없음 — 폴백 금지
+        assert r["정산예정금액"] == ""              # 정산 조인 없음(client 무자격) → 공란(폴백 금지)
         assert r["_shipkey"] == ("auction", "A1")
+        assert "_ono" not in r                      # 조인용 임시키 제거됨
 
     def test_gmarket_label(self, monkeypatch):
         from lemouton.markets import order_export as oe
@@ -145,3 +146,68 @@ class TestEsmOrderRows:
         assert oe._ENV_PREFIX["auction"] == "AUCTION_MAIN"
         # 라이브 검증 전 — 주문 엑셀 노출 마켓에는 미포함(거짓주문 방지)
         assert "auction" not in oe.SUPPORTED and "gmarket" not in oe.SUPPORTED
+
+
+class _FakeSettle:
+    def __init__(self, pages, cfg=None):
+        self.pages = list(pages)
+        self.bodies = []
+        self._cfg = cfg or {}
+
+    def request_settlement(self, body):
+        self.bodies.append(body)
+        return self.pages.pop(0)
+
+
+# ── 정산조회(getsettleorder) + 조인 ──
+class TestSettlement:
+    def test_settle_price_map_sums_and_params(self):
+        from shared.platforms.esm.settlements import settle_price_map
+        since = _dt.datetime(2026, 7, 1, tzinfo=KST)
+        until = _dt.datetime(2026, 7, 10, tzinfo=KST)
+        resp = {"ResultCode": 0, "TotalCount": 2, "Data": [
+            {"ContrNo": "A1", "SettlementPrice": 45000},
+            {"ContrNo": "A1", "SettlementPrice": -5000},   # 환불(부호반전) → 합산
+        ]}
+        fake = _FakeSettle([resp])
+        m = settle_price_map("auction", since, until, client=fake, srch_type="D1", page_rows=500)
+        assert m["A1"] == 40000
+        b = fake.bodies[0]
+        assert b["SiteType"] == "A" and b["SrchType"] == "D1"
+        assert b["SrchStartDate"] == "2026-07-01" and b["SrchEndDate"] == "2026-07-10"
+
+    def test_settle_error_raises(self):
+        from shared.platforms.esm.settlements import settle_price_map
+        since = _dt.datetime(2026, 7, 1, tzinfo=KST)
+        until = _dt.datetime(2026, 7, 3, tzinfo=KST)
+        fake = _FakeSettle([{"ResultCode": 9, "Message": "권한없음"}])
+        with pytest.raises(RuntimeError):
+            settle_price_map("gmarket", since, until, client=fake)
+
+    def test_order_rows_join_settlement(self, monkeypatch):
+        from lemouton.markets import order_export as oe
+        monkeypatch.setattr("shared.platforms.esm.orders.iter_orders",
+                            lambda *a, **k: iter(TestEsmOrderRows.SAMPLE))   # OrderNo="A1"
+        settle_resp = {"ResultCode": 0, "TotalCount": 1,
+                       "Data": [{"ContrNo": "A1", "SettlementPrice": 47000}]}
+        client = _FakeSettle([settle_resp], cfg={"settle_srch_type": "D2"})
+        since = _dt.datetime(2026, 7, 1, tzinfo=KST)
+        until = _dt.datetime(2026, 7, 10, tzinfo=KST)
+        rows = oe.esm_order_rows("auction", since, until, client=client)
+        assert rows[0]["정산예정금액"] == 47000       # ContrNo(=OrderNo) 조인
+        assert client.bodies[0]["SrchType"] == "D2"   # config srch_type 사용
+
+    def test_order_rows_settlement_failure_blank(self, monkeypatch):
+        # 정산 조회가 실패해도 주문은 살리고 정산액만 공란(폴백 금지).
+        from lemouton.markets import order_export as oe
+        monkeypatch.setattr("shared.platforms.esm.orders.iter_orders",
+                            lambda *a, **k: iter(TestEsmOrderRows.SAMPLE))
+        class Boom:
+            _cfg = {}
+            def request_settlement(self, body):
+                raise RuntimeError("정산 API 다운")
+        since = _dt.datetime(2026, 7, 1, tzinfo=KST)
+        until = _dt.datetime(2026, 7, 3, tzinfo=KST)
+        rows = oe.esm_order_rows("gmarket", since, until, client=Boom())
+        assert rows[0]["정산예정금액"] == ""
+        assert rows[0]["상품명"] == "코트"             # 주문 데이터는 유지
