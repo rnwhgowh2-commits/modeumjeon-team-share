@@ -72,3 +72,8 @@ class EsmClient:
         """주문조회(RequestOrders) — 5초 rate limit 적용."""
         path = (self._cfg.get("paths") or {}).get("orders")
         return self.post(path, body, is_order=True)
+
+    def request_settlement(self, body: dict) -> dict:
+        """판매대금 정산조회(getsettleorder)."""
+        path = (self._cfg.get("paths") or {}).get("settlement")
+        return self.post(path, body)

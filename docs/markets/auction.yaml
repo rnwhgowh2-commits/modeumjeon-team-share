@@ -39,10 +39,10 @@ auth:
     ESM PLUS 로그인 → 판매자정보 > 판매도구 관리 > 판매도구 사용 '사용' → 판매도구 업체 선택 →
     ESM Trading API secret key 발급. 옥션·G마켓 판매자 ID + ESM 마스터 ID 준비.
 
-# 주문조회 = 공개문서 확보(etapi.gmarket.com/67). 상품/정산은 미확보 TODO(추측 금지).
+# 주문조회·정산조회 = 공개문서 확보(etapi.gmarket.com/67·/41). 상품/가격/재고는 미확보 TODO(추측 금지).
 endpoints:
   fetch_orders:  "POST https://sa2.esmplus.com/shipping/v1/Order/RequestOrders (공개문서 확보·구현됨)"
-  fetch_settlement: "TODO(조사필요 — 정산 조회)"
+  fetch_settlement: "POST https://sa2.esmplus.com/account/v1/settle/getsettleorder (판매대금 정산, 구현됨). 배송비=/account/v1/settle/getsettledeliveryfee(후속)"
   fetch_options: "TODO(조사필요 — 상품/옵션 상세조회)"
   update_price:  "TODO(조사필요 — 가격 수정)"
   update_stock:  "TODO(조사필요 — 재고 수정)"
@@ -107,5 +107,6 @@ code_map:
   auth: shared/platforms/esm/auth.py               # JWT/HmacSHA256 서명 (구현됨·Bearer)
   client: shared/platforms/esm/client.py           # HTTP 전송·rate limit·재시도 (구현됨)
   orders: shared/platforms/esm/orders.py           # RequestOrders 페이징·31일윈도우·중복제거 (구현됨)
-  fetch_orders: lemouton/markets/order_export.py::auction_order_rows  # 행 매핑(구현됨). 라이브 검증 후 SUPPORTED 추가
+  settlements: shared/platforms/esm/settlements.py  # getsettleorder → ContrNo:SettlementPrice 맵 (구현됨)
+  fetch_orders: lemouton/markets/order_export.py::auction_order_rows  # 행 매핑+정산 조인(구현됨). 라이브 검증 후 SUPPORTED 추가
   client_builder: lemouton/uploader/market_fetch.py::_auction_client  # 계정 키→EsmClient (구현됨)

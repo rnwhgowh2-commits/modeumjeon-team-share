@@ -69,10 +69,11 @@ class TestPlatformConfig:
         assert AUCTION["site_id"] == "A" and GMARKET["site_id"] == "G"
         assert AUCTION["auth_audience"] == "sa.esmplus.com"
         assert AUCTION["auth_alg"] == "HS256"
-        # 주문조회는 공개문서 확보 → 경로 세팅. 상품/정산은 미확보 → None(추측 금지).
+        # 주문조회·정산조회는 공개문서 확보 → 경로 세팅. 상품/가격/재고는 미확보 → None(추측 금지).
         assert AUCTION["paths"]["orders"] == "/shipping/v1/Order/RequestOrders"
         assert GMARKET["paths"]["orders"] == "/shipping/v1/Order/RequestOrders"
-        assert GMARKET["paths"]["settlement"] is None
+        assert GMARKET["paths"]["settlement"] == "/account/v1/settle/getsettleorder"
+        assert GMARKET["paths"]["detail"] is None
 
     def test_not_in_order_export_supported_yet(self):
         # 스켈레톤 단계 — 주문 엑셀 노출 마켓에는 아직 포함 안 됨(거짓 주문 방지).
