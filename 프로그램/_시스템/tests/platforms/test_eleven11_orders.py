@@ -34,6 +34,7 @@ _XML = """<?xml version="1.0" encoding="euc-kr" standalone="yes"?>
     <ns2:memID>test11st</ns2:memID>
     <ns2:ordPrtblTel>010-1111-2222</ns2:ordPrtblTel>
     <ns2:ordDlvReqCont>null</ns2:ordDlvReqCont>
+    <ns2:stlPlnAmt>34200</ns2:stlPlnAmt>
   </ns2:order>
   <ns2:order>
     <ns2:ordNo>201001108318120</ns2:ordNo>
@@ -110,11 +111,11 @@ class TestOrderRows:
         assert r["수령자전화번호"] == "010-9999-9999"
         assert r["구매자"] == "김구매"
         assert r["배송메시지"] == ""                  # "null" → 공란
-        assert r["정산예정금액"] == ""                # 주문 API엔 정산 없음(폴백 금지)
+        assert r["정산예정금액"] == "34200"           # stlPlnAmt(정산예정금액) — 실호출 확인
         assert r["_shipkey"] == ("eleven11", "4506571")
 
-    def test_registered_not_supported_yet(self):
+    def test_registered_and_supported(self):
         from lemouton.markets import order_export as oe
         assert "eleven11" in oe._BUILDERS
         assert oe._ENV_PREFIX["eleven11"] == "ELEVEN11_MAIN"
-        assert "eleven11" not in oe.SUPPORTED       # 키+라이브검증 전 미노출
+        assert "eleven11" in oe.SUPPORTED           # 서버 실호출 검증 완료(2026-07-08)
