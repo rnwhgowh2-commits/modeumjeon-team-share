@@ -20,7 +20,8 @@ import datetime as _dt
 import re as _re
 import xml.etree.ElementTree as _ET
 
-_PATH = "/rest/ordservices/complete/{s}/{e}"
+_PATH = "/rest/ordservices/complete/{s}/{e}"            # 결제완료(발송대기)
+_PATH_COMPLETED = "/rest/ordservices/completed/{s}/{e}"  # 판매완료(구매확정)
 _MAX_WINDOW_DAYS = 7        # 문서: 조회기간 최대 7일
 
 
@@ -52,15 +53,14 @@ def _parse(xml_text: str):
     return _ET.fromstring(cleaned)
 
 
-def iter_orders(since: _dt.datetime, until: _dt.datetime, *, client):
-    """11번가 결제완료(발주확인) 주문 상품라인(dict) 제너레이터.
+def _iter_path(path_tmpl: str, since: _dt.datetime, until: _dt.datetime, *, client):
+    """경로 템플릿 하나로 7일 윈도우 분할 조회 + <order> 파싱 + (ordNo,ordPrdSeq) 중복제거.
 
-    (ordNo, ordPrdSeq) 로 중복 제거(윈도우 경계 중복 방지). client.request 로 XML 텍스트를
-    받아 파싱한다. HTTP 오류는 client 가 예외로 표면화(추측·폴백 금지).
+    client.request(XML 텍스트) → 파싱. HTTP 오류는 client 가 예외로 표면화(추측·폴백 금지).
     """
     seen = set()
     for w_from, w_to in _windows(since, until):
-        path = _PATH.format(s=_fmt(w_from), e=_fmt(w_to))
+        path = path_tmpl.format(s=_fmt(w_from), e=_fmt(w_to))
         xml_text = client.request("GET", path)
         root = _parse(xml_text)
         if root is None:
@@ -76,3 +76,17 @@ def iter_orders(since: _dt.datetime, until: _dt.datetime, *, client):
                 continue
             seen.add(key)
             yield od
+
+
+def iter_orders(since: _dt.datetime, until: _dt.datetime, *, client):
+    """결제완료(발주확인·발송대기) 주문 상품라인. GET /rest/ordservices/complete."""
+    return _iter_path(_PATH, since, until, client=client)
+
+
+def iter_completed(since: _dt.datetime, until: _dt.datetime, *, client):
+    """판매완료(구매확정) 주문 상품라인. GET /rest/ordservices/completed.
+
+    구매확정 목록 — 수령자·주소·단가(selPrc)는 미제공(배송 완료·정산 단계라 미포함).
+    ordNo·ordDt·prdNm·slctPrdOptNm·ordQty·dlvCst·ordAmt·ordPayAmt·pocnfrmDt(구매확정일) 등.
+    """
+    return _iter_path(_PATH_COMPLETED, since, until, client=client)
