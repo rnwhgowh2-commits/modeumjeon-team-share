@@ -42,7 +42,7 @@ def test_smartstore_rows_map_and_join(monkeypatch):
 
 
 def test_order_rows_rejects_unsupported():
-    for mk in ("eleven11", "gmarket", "auction"):
+    for mk in ("gmarket", "auction", "wemakeprice"):
         with pytest.raises(ValueError):
             oe.order_rows(mk, days=7)          # UI 미노출 마켓 — 추측 데이터 안 만듦
 
@@ -104,7 +104,8 @@ def test_resolve_columns_filters_unknown():
 
 
 def test_supported_markets():
-    assert oe.SUPPORTED == {"smartstore", "lotteon", "coupang"}   # 3마켓 UI 노출
+    # 11번가는 서버 실호출 검증 완료(2026-07-08) → SUPPORTED 포함. 옥션·G마켓은 검증 후 추가.
+    assert oe.SUPPORTED == {"smartstore", "lotteon", "coupang", "eleven11"}
 
 
 def test_cp_estimate_settle_formula():

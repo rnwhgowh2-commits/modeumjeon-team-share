@@ -67,7 +67,9 @@ def _status_ko(market, raw):
         return ""
     return _STATUS_KO.get(market, {}).get(str(raw), str(raw))
 
-SUPPORTED = {"smartstore", "lotteon", "coupang"}   # UI 엑셀버튼 노출. 실키=서버 UI저장.
+SUPPORTED = {"smartstore", "lotteon", "coupang", "eleven11"}   # UI 엑셀버튼 노출. 실키=서버 UI저장.
+# 11번가 = 서버 실호출 검증 완료(2026-07-08): 주문(complete)+정산예정금액(stlPlnAmt) 실응답 확인.
+# 옥션·G마켓(auction·gmarket)은 키 입력+실호출 검증 후 추가.
 # 마켓 → 계정 시크릿 env_prefix(판매처 계정 기본). load_credentials 로 실키 로드.
 _ENV_PREFIX = {"smartstore": "SMARTSTORE_MAIN", "coupang": "COUPANG_MAIN",
                "lotteon": "LOTTEON_MAIN",
@@ -473,7 +475,9 @@ def eleven11_order_rows(since: _dt.datetime, until: _dt.datetime, client=None) -
             "쇼핑몰ID": "",
             "단가": _g11(od, "selPrc"),
             "배송비": ship,
-            "정산예정금액": "",   # 11번가 주문 API엔 정산 없음(별도 API) — 폴백 금지
+            # 정산예정금액 = 주문 응답의 stlPlnAmt(정산예정금액) — 서버 실호출로 필드 확인(2026-07-08).
+            #  없으면 공란(폴백 금지). 실정산액(정산 완료분)은 settlementList.stlAmt(후속).
+            "정산예정금액": _g11(od, "stlPlnAmt"),
             "주문상태": "결제완료",  # 이 엔드포인트 = 발주확인(결제완료·발송대기) 목록
         })
     return rows

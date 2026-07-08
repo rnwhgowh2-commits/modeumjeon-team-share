@@ -75,9 +75,9 @@ class TestPlatformConfig:
         assert GMARKET["paths"]["settlement"] == "/account/v1/settle/getsettleorder"
         assert GMARKET["paths"]["detail"] is None
 
-    def test_not_in_order_export_supported_yet(self):
-        # 스켈레톤 단계 — 주문 엑셀 노출 마켓에는 아직 포함 안 됨(거짓 주문 방지).
+    def test_esm_not_in_supported_yet(self):
+        # 옥션·G마켓은 키+실호출 검증 전이라 주문 엑셀 미노출(거짓 주문 방지).
+        # (11번가는 2026-07-08 서버 실호출 검증 완료 → SUPPORTED 포함)
         from lemouton.markets import order_export as oe
         assert "auction" not in oe.SUPPORTED
         assert "gmarket" not in oe.SUPPORTED
-        assert "eleven11" not in oe.SUPPORTED
