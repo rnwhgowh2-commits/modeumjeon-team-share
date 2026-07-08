@@ -90,8 +90,12 @@ def crawl_pass_done():
                 s.execute(text("SELECT pg_advisory_xact_lock(4823017)"))
         except Exception:
             pass   # 락 실패해도 기존 20초 디듀프로 동작(최악의 경우만 경합 잔존)
+        # [2026-07-08] 디듀프 창 20→120초. pass-done POST 가 느려 확장 bgFetch 가 타임아웃→재시도
+        #   하면 같은 바퀴가 ~20초 뒤 두 번째로 도착해 20초 창을 아슬아슬 빠져나가 중복쌍이 됐다
+        #   (라이브: #61 18:40:58 / #62 18:41:18 = 20초). 진짜 바퀴는 ~25분(1400초+) 간격이라
+        #   120초는 절대 안 겹치고, 재시도 쌍은 확실히 흡수한다.
         recent = (s.query(CrawlLapRun)
-                  .filter(CrawlLapRun.completed_at >= now - timedelta(seconds=20))
+                  .filter(CrawlLapRun.completed_at >= now - timedelta(seconds=120))
                   .first())
         if recent is not None:
             s.rollback()   # advisory xact 락 해제(삽입 안 함)
@@ -109,7 +113,7 @@ def crawl_laps_audit():
     from lemouton.sources.crawl_schedule import audit_lap_runs
     s = SessionLocal()
     try:
-        w = int(request.args.get('window', 90))
+        w = int(request.args.get('window', 120))
         a = audit_lap_runs(s, window_seconds=w)
         a.pop('dup_ids', None)   # 요약만(큰 목록 제외)
         return jsonify(a)
@@ -124,7 +128,7 @@ def crawl_laps_dedup():
     from lemouton.sources.crawl_schedule import audit_lap_runs, dedupe_lap_runs
     s = SessionLocal()
     try:
-        w = int(request.args.get('window', 90))
+        w = int(request.args.get('window', 120))
         if request.args.get('apply') != '1':
             a = audit_lap_runs(s, window_seconds=w)
             a.pop('dup_ids', None)
