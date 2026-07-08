@@ -144,7 +144,7 @@ def smartstore_order_rows(since: _dt.datetime, until: _dt.datetime,
                 _deliv_used.add(oid)
         rows.append({
             "_shipkey": ("smartstore", oid),   # 배송건(주문) 단위 배송비 정규화용
-            "주문일": str(_g(od, "orderDate", "paymentDate"))[:10],
+            "주문일": _g(od, "orderDate", "paymentDate"),   # 시간 포함(_finalize 에서 통일)
             "판매처": "스마트스토어",
             "상품명": _g(po, "productName"),
             "옵션": _g(po, "productOption"),
@@ -184,7 +184,7 @@ def lotteon_order_rows(since: _dt.datetime, until: _dt.datetime,
         odc = str(_g(od, "odCmptDttm"))
         rows.append({
             "_shipkey": ("lotteon", _g(od, "odNo")),   # 배송건(주문) 단위 배송비 정규화용
-            "주문일": (odc[:4] + "-" + odc[4:6] + "-" + odc[6:8]) if len(odc) >= 8 else odc,
+            "주문일": odc,   # YYYYMMDDHHMMSS — _finalize 에서 시간 포함 통일
             "판매처": "롯데온",
             "상품명": _html.unescape(str(_g(od, "spdNm"))),   # &lt;매장정품&gt; → <매장정품>
             "옵션": _html.unescape(str(opt)),
@@ -236,7 +236,7 @@ def coupang_order_rows(since: _dt.datetime, until: _dt.datetime,
                 orderer = box.get("orderer") or {}
                 rcv = box.get("receiver") or {}
                 addr = (str(rcv.get("addr1") or "") + " " + str(rcv.get("addr2") or "")).strip()
-                ordered = str(box.get("orderedAt") or box.get("paidAt") or "")[:10]
+                ordered = str(box.get("orderedAt") or box.get("paidAt") or "")   # 시간 포함
                 for it in (box.get("orderItems") or []):
                     key = (box.get("shipmentBoxId"), it.get("vendorItemId"))
                     if key in seen:
@@ -568,14 +568,47 @@ def _to_int(v, default=None):
         return default
 
 
+import re as _re_dt
+
+
+def _norm_order_dt(v) -> str:
+    """주문일을 'YYYY-MM-DD HH:MM:SS'(시간 없으면 'YYYY-MM-DD')로 통일.
+
+    마켓별 형식(ISO·공백구분·YYYYMMDDHHMMSS 등)을 정규화 → 시간 표시 + 문자열 정렬=시간순.
+    못 알아보면 원본 유지.
+    """
+    s = str(v or "").strip()
+    if not s:
+        return ""
+    # 순수 숫자(YYYYMMDD[HHMM[SS]]) — 롯데온 등
+    if s.isdigit():
+        d = s
+        if len(d) >= 8:
+            out = f"{d[0:4]}-{d[4:6]}-{d[6:8]}"
+            if len(d) >= 12:
+                out += f" {d[8:10]}:{d[10:12]}" + (f":{d[12:14]}" if len(d) >= 14 else ":00")
+            return out
+        return s
+    dm = _re_dt.search(r"(\d{4})[-./](\d{1,2})[-./](\d{1,2})", s)
+    if not dm:
+        return s
+    date = f"{int(dm.group(1)):04d}-{int(dm.group(2)):02d}-{int(dm.group(3)):02d}"
+    tm = _re_dt.search(r"(\d{1,2}):(\d{2})(?::(\d{2}))?", s)
+    if tm:
+        return f"{date} {int(tm.group(1)):02d}:{tm.group(2)}:{tm.group(3) or '00'}"
+    return date
+
+
 def _finalize_rows(rows: list) -> list:
-    """상품금액(단가×수량)·주문금액(상품+배송비)·배송비 배송건당 1회 정규화.
+    """상품금액(단가×수량)·주문금액(상품+배송비)·배송비 배송건당 1회 정규화 + 주문일 시간 통일.
 
     배송비는 배송건(_shipkey=주문번호) 단위라, 같은 배송건의 두 번째 행부터 배송비 0
     (합계 중복 방지). 정산예정금액 delivery 는 빌더에서 이미 배송건당 1회 처리.
+    주문일은 'YYYY-MM-DD HH:MM:SS' 로 통일(마켓 간 형식 차이 제거 → 시간 표시·정렬 정확).
     """
     seen = set()
     for r in rows:
+        r["주문일"] = _norm_order_dt(r.get("주문일"))
         unit = _to_int(r.get("단가"))
         qty = _to_int(r.get("수량"), 1) or 1
         prod = unit * qty if unit is not None else ""
