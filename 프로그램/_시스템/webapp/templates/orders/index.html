@@ -8,7 +8,7 @@
 
   {% if tab == 'list' %}
   {# ══ 7번: 좌측 필터패널 + 대시보드 + 실주문 표(AJAX) ══ #}
-  {% set mklabel = {'smartstore':'스마트스토어','lotteon':'롯데온','coupang':'쿠팡'} %}
+  {% set mklabel = {'smartstore':'스마트스토어','lotteon':'롯데온','coupang':'쿠팡','eleven11':'11번가','auction':'옥션','gmarket':'G마켓'} %}
   <style>
     .o7{--ink:#191F28;--sub:#8B95A1;--faint:#B0B8C1;--line:#F1F3F5;--line2:#E5E8EB;--bg:#F8FAFB;--blue:#1B64DA;--green:#15803D;--amber:#B45309;--sky:#0369A1;--red:#DC2626;--mono:ui-monospace,Menlo,monospace;}
     .o7{display:grid;grid-template-columns:212px 1fr;gap:20px;align-items:start;}
@@ -118,7 +118,7 @@
   (function(){
     var ALLCOLS={{ all_columns|tojson }};
     var COLMETA={{ col_meta|tojson }};
-    var MKLABEL={smartstore:'스마트스토어',lotteon:'롯데온',coupang:'쿠팡'};
+    var MKLABEL={smartstore:'스마트스토어',lotteon:'롯데온',coupang:'쿠팡',eleven11:'11번가',auction:'옥션',gmarket:'G마켓'};
     var MKCLS={'스마트스토어':'ss','롯데온':'lo','쿠팡':'cp'};
     var rows=[], srch='', stOff={};   // stOff: 꺼진 상태
     var LS='moum_order_cols_v1';
@@ -379,7 +379,7 @@
     {% endif %}
 
     {% if export_markets %}
-    {% set mklabel = {'smartstore':'스마트스토어','lotteon':'롯데온','coupang':'쿠팡'} %}
+    {% set mklabel = {'smartstore':'스마트스토어','lotteon':'롯데온','coupang':'쿠팡','eleven11':'11번가','auction':'옥션','gmarket':'G마켓'} %}
     <div class="xbar2">
       <div class="grp"><span class="xlbl">마켓</span>
         <span class="mchip on" data-all="1">전체</span>
