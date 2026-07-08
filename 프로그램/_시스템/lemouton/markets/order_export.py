@@ -635,6 +635,38 @@ def clear_cache() -> None:
         _CACHE.clear()
 
 
+import re as _re
+
+
+def _row_order_date(r):
+    """행의 '주문일'에서 날짜(date) 추출. 형식 무관(YYYY-MM-DD, YYYY.MM.DD, ISO 등)."""
+    m = _re.search(r"(\d{4})[-./](\d{1,2})[-./](\d{1,2})", str(r.get("주문일") or ""))
+    if not m:
+        return None
+    try:
+        return _dt.date(int(m.group(1)), int(m.group(2)), int(m.group(3)))
+    except ValueError:
+        return None
+
+
+def _filter_by_order_date(rows, since, until):
+    """주문일이 [since, until] 안에 든 행만 남김(기간 = 주문일 기준 통일).
+
+    마켓·상태별 API 는 기준일이 제각각(결제완료일·배송완료일·변경일 등)이라, 화면의 '기간'을
+    사용자 기대대로 '주문일' 기준으로 맞추기 위해 최종 행을 주문일로 다시 거른다.
+    주문일 파싱 실패 행은 남긴다(데이터 손실 방지).
+    """
+    if not since or not until:
+        return rows
+    lo, hi = since.date(), until.date()
+    out = []
+    for r in rows:
+        d = _row_order_date(r)
+        if d is None or (lo <= d <= hi):
+            out.append(r)
+    return out
+
+
 def combined_order_rows(markets, days: int = 7,
                         now: Optional[_dt.datetime] = None,
                         use_cache: bool = False,
@@ -647,6 +679,12 @@ def combined_order_rows(markets, days: int = 7,
     now 미지정이면 TTL 캐시 사용(대시보드↔다운로드 공유, 캐시 키에 기간 포함).
     """
     markets = list(markets)
+
+    def _build():
+        rows = _fetch_combined(markets, days, now, since=since, until=until)
+        # 기간 명시(빠른 버튼·직접 날짜) 시 주문일 기준으로 최종 필터 → '기간=주문일' 통일.
+        return _filter_by_order_date(rows, since, until)
+
     if use_cache and now is None:
         key = (tuple(markets), days,
                since.isoformat() if since else None,
@@ -655,11 +693,11 @@ def combined_order_rows(markets, days: int = 7,
             hit = _CACHE.get(key)
             if hit and (_time.monotonic() - hit[0]) < CACHE_TTL:
                 return hit[1]
-        rows = _fetch_combined(markets, days, now, since=since, until=until)
+        rows = _build()
         with _CACHE_LOCK:
             _CACHE[key] = (_time.monotonic(), rows)
         return rows
-    return _fetch_combined(markets, days, now, since=since, until=until)
+    return _build()
 
 
 def resolve_columns(columns=None) -> list:
