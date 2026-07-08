@@ -232,3 +232,57 @@ def orders_preview():
         safe.append(r)
     return jsonify(ok=True, markets=markets, days=days,
                    columns=_oe.ALL_COLUMNS, count=len(safe), rows=safe)
+
+
+@bp.route('/_probe11')
+def probe_eleven11():
+    """[임시 진단] 11번가 각 상태 엔드포인트 실응답 요약(값 노출 없이 result_code·건수·필드명만).
+
+    배송준비중(todaydelivery/delaydelivery)이 에러인지 빈 목록인지 확인용. 확인 후 제거.
+    """
+    from flask import jsonify
+    import datetime as _dt
+    import xml.etree.ElementTree as _ET
+    import re as _re
+    since, until = _parse_range(request.args)
+    if until is None:
+        until = _dt.datetime.now(_oe.KST)
+    if since is None:
+        since = until - _dt.timedelta(days=7)
+    client = _oe._account_client("eleven11")
+
+    def _summ(path):
+        try:
+            xml = client.request("GET", path)
+        except Exception as e:   # noqa: BLE001
+            return {"error": f"{type(e).__name__}: {str(e)[:200]}"}
+        try:
+            cleaned = _re.sub(r"<\?xml[^>]*\?>", "", xml or "", count=1).lstrip()
+            root = _ET.fromstring(cleaned) if cleaned else None
+        except Exception as e:   # noqa: BLE001
+            return {"parse_error": str(e)[:150], "head": (xml or "")[:200]}
+        if root is None:
+            return {"empty": True}
+        rc = None
+        fields = set()
+        norders = 0
+        for el in root.iter():
+            ln = el.tag.rsplit("}", 1)[-1]
+            if ln == "result_code":
+                rc = (el.text or "").strip()
+            if ln == "order":
+                norders += 1
+                for c in el:
+                    fields.add(c.tag.rsplit("}", 1)[-1])
+        return {"result_code": rc, "order_count": norders, "fields": sorted(fields)}
+
+    s, e = since.strftime("%Y%m%d%H%M"), until.strftime("%Y%m%d%H%M")
+    return jsonify(
+        window=[s, e],
+        complete=_summ(f"/rest/ordservices/complete/{s}/{e}"),
+        todaydelivery=_summ("/rest/ordservices/todaydelivery/completes"),
+        delaydelivery=_summ("/rest/ordservices/delaydelivery/completes"),
+        shipping=_summ(f"/rest/ordservices/shipping/{s}/{e}"),
+        standby=_summ(f"/rest/ordservices/standby/{s}/{e}"),
+        delvplacestandby=_summ(f"/rest/ordservices/delvplacestandby/{s}/{e}"),
+    )
