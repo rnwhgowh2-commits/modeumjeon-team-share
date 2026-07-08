@@ -275,27 +275,18 @@ class TestPickCheapestBuyable:
 
 
 # ─────────────────────────────────────────────────────────────
-# _effective_stock_status — 셀 status 확정 (match_failed→품절 / uncollected→확인불가)
-#   [2026-07-08] (다) 소멸 vs 이름불일치 구분:
-#     match_failed = 소싱처가 옵션 목록을 성공(ok) 크롤했는데 이 색×사이즈가 목록에 없음
-#       = 소싱처 미판매/소멸 → '품절'(not_sold). 재고있음(ample=oversell) 둔갑 금지.
-#       단 크롤 실패·미크롤이면 목록이 최신 아님 → 품절 둔갑 금지, '확인 불가'.
-#     stock_uncollected = 매칭은 됐으나 이 셀 per-size 재고 미수집(애매) → '확인 불가'.
+# _effective_stock_status — 셀 status 확정 (match_failed·uncollected → '확인 불가')
+#   [2026-07-05] 르무통 오렌지 260/270 유령재고 회귀:
+#     소싱처가 안 파는 색×사이즈(match_failed)인데 crawled_stock=None + 상품 last_status='ok'
+#     → _resolve_stock 이 '재고있음'(ample) 으로 둔갑(품절둔갑=금전위험). match_failed 도
+#     uncollected 와 동일하게 '확인 불가'로 확정해야 한다(가격은 이미 폴백 금지됐으나 재고 누락).
 # ─────────────────────────────────────────────────────────────
 class TestEffectiveStockStatus:
-    def test_match_failed_ok_is_not_sold_soldout(self):
+    def test_match_failed_is_uncollected_not_source_ok(self):
         from webapp.routes.api_pricing import _effective_stock_status
-        # 소싱처 목록에 없음(미판매/소멸) + 크롤 성공 → '품절'(not_sold)
+        # 소싱처가 안 파는 조합(match_failed): 상품 크롤은 ok 여도 이 셀은 '확인 불가'
         assert _effective_stock_status(
-            {'match_failed': True, 'last_status': 'ok'}) == 'not_sold'
-
-    def test_match_failed_not_ok_is_uncollected_not_soldout(self):
-        from webapp.routes.api_pricing import _effective_stock_status
-        # 크롤 실패·미크롤 = 목록 최신 아님 → 품절 둔갑 금지, '확인 불가'
-        assert _effective_stock_status(
-            {'match_failed': True, 'last_status': 'error'}) == 'uncollected'
-        assert _effective_stock_status(
-            {'match_failed': True, 'last_status': None}) == 'uncollected'
+            {'match_failed': True, 'last_status': 'ok'}) == 'uncollected'
 
     def test_uncollected_still_uncollected(self):
         from webapp.routes.api_pricing import _effective_stock_status
@@ -307,15 +298,15 @@ class TestEffectiveStockStatus:
         assert _effective_stock_status({'last_status': 'ok'}) == 'ok'
         assert _effective_stock_status({'last_status': 'error'}) == 'error'
 
-    def test_match_failed_ok_resolves_to_soldout_not_ample(self):
-        # 통합: match_failed+ok 셀은 '품절'로 풀려야 한다 (재고있음/ample 아님).
+    def test_match_failed_resolves_to_confirm_unavailable_not_ample(self):
+        # 통합: match_failed 셀은 '확인 불가'/'uncollected' 로 풀려야 한다 (ample 아님).
         from webapp.routes.api_pricing import (
             _effective_stock_status, _resolve_stock, _stock_state)
         d = {'match_failed': True, 'last_status': 'ok',
              'site': 'lemouton', 'crawled_stock': None}
         eff = _effective_stock_status(d)
-        assert _resolve_stock(d['site'], d['crawled_stock'], eff) == (0, '품절', True)
-        assert _stock_state(d['site'], d['crawled_stock'], eff) == 'soldout'
+        assert _resolve_stock(d['site'], d['crawled_stock'], eff) == (None, '확인 불가', False)
+        assert _stock_state(d['site'], d['crawled_stock'], eff) == 'uncollected'
         assert _stock_state(d['site'], d['crawled_stock'], eff) != 'ample'
 
 
