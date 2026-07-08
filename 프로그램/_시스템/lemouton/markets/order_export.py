@@ -469,7 +469,7 @@ def eleven11_order_rows(since: _dt.datetime, until: _dt.datetime, client=None) -
     (배송중 shipping 은 송장만 제공 → 상세 없어 제외.)
     """
     from shared.platforms.eleven11.orders import (
-        iter_orders, iter_delivered, iter_completed)
+        iter_orders, iter_delivered, iter_completed, iter_preparing, iter_shipping)
 
     def _g11(od, *keys):
         for k in keys:
@@ -481,9 +481,12 @@ def eleven11_order_rows(since: _dt.datetime, until: _dt.datetime, client=None) -
     def _row(od, status):
         addr = (str(_g11(od, "rcvrBaseAddr")) + " " + str(_g11(od, "rcvrDtlsAddr"))).strip()
         ship = _g11(od, "bmDlvCst") if od.get("bndlDlvYN") == "Y" else _g11(od, "dlvCst")
+        # 주문일: ordDt(있으면). 배송중(shipping) 목록은 ordDt 미제공 → ordNo 앞 8자리(YYYYMMDD)로 보정.
+        ordno = str(_g11(od, "ordNo"))
+        ord_dt = _g11(od, "ordDt") or (ordno[:8] if ordno[:2] == "20" and len(ordno) >= 8 else "")
         return {
             "_shipkey": ("eleven11", _g11(od, "bndlDlvSeq") or _g11(od, "ordNo")),
-            "주문일": _g11(od, "ordDt"),
+            "주문일": ord_dt,
             "판매처": "11번가",
             "상품명": _g11(od, "prdNm"),
             "옵션": _g11(od, "slctPrdOptNm"),
@@ -526,6 +529,8 @@ def eleven11_order_rows(since: _dt.datetime, until: _dt.datetime, client=None) -
                 raise
 
     _collect(iter_orders, "결제완료", True)      # 발송대기(필수)
+    _collect(iter_preparing, "배송준비중", False)  # 배송준비중(오늘발송+발송기한경과, 전체 필드)
+    _collect(iter_shipping, "배송중", False)      # 배송중(송장·주문번호만 — 상세 미제공)
     _collect(iter_delivered, "배송완료", False)   # 배송완료
     _collect(iter_completed, "구매확정", False)   # 구매확정
     return rows

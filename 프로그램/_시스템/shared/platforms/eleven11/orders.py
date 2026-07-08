@@ -23,8 +23,10 @@ import xml.etree.ElementTree as _ET
 _PATH = "/rest/ordservices/complete/{s}/{e}"             # 결제완료(발송대기)
 _PATH_DELIVERED = "/rest/ordservices/dlvcompleted/{s}/{e}"  # 배송완료
 _PATH_COMPLETED = "/rest/ordservices/completed/{s}/{e}"   # 판매완료(구매확정)
+_PATH_SHIPPING = "/rest/ordservices/shipping/{s}/{e}"    # 배송중(송장·주문번호만)
+_PATH_TODAY = "/rest/ordservices/todaydelivery/completes"   # 오늘발송(배송준비중, 당일 자동)
+_PATH_DELAY = "/rest/ordservices/delaydelivery/completes"   # 발송기한경과(배송준비중, 당일 자동)
 _MAX_WINDOW_DAYS = 7        # 문서: 조회기간 최대 7일
-# 참고: 배송중(/rest/ordservices/shipping)은 송장·주문번호만 반환(상품·주소 없음) → 행 미생성.
 
 
 def _fmt(d: _dt.datetime) -> str:
@@ -101,3 +103,40 @@ def iter_completed(since: _dt.datetime, until: _dt.datetime, *, client):
     ordNo·ordDt·prdNm·slctPrdOptNm·ordQty·dlvCst·ordAmt·ordPayAmt·pocnfrmDt(구매확정일) 등.
     """
     return _iter_path(_PATH_COMPLETED, since, until, client=client)
+
+
+def _iter_fixed(path: str, *, client):
+    """날짜 파라미터 없는 고정 경로 조회(오늘발송·발송기한경과 = 조회기간 당일 자동)."""
+    xml_text = client.request("GET", path)
+    root = _parse(xml_text)
+    if root is None:
+        return
+    for el in root.iter():
+        if _localname(el.tag) != "order":
+            continue
+        yield {_localname(c.tag): (c.text or "").strip() for c in el}
+
+
+def iter_preparing(since: _dt.datetime, until: _dt.datetime, *, client):
+    """배송준비중(발주확인 후·발송 전). todaydelivery+delaydelivery 병합.
+
+    두 목록 모두 '결제완료 목록과 컬럼 동일 + dlvSndDue(발송마감)·delaySendDt(발송예정)' (문서 실측).
+    조회기간이 당일 자동이라 날짜 파라미터 없음(since/until 미사용). (ordNo,ordPrdSeq,prdNo) 중복제거.
+    """
+    seen = set()
+    for path in (_PATH_TODAY, _PATH_DELAY):
+        for od in _iter_fixed(path, client=client):
+            key = (od.get("ordNo"), od.get("ordPrdSeq"), od.get("prdNo"))
+            if key in seen:
+                continue
+            seen.add(key)
+            yield od
+
+
+def iter_shipping(since: _dt.datetime, until: _dt.datetime, *, client):
+    """배송중. GET /rest/ordservices/shipping/{s}/{e} (7일 윈도우).
+
+    ⚠️ 이 엔드포인트는 ordNo·ordPrdSeq·invcNo(송장)·dlvEtprsCd(택배사)·sndEndDt(발송일)만 반환 —
+    상품명·수령자·주소·단가 없음(문서 실측). 주문일(ordDt)도 없어 order_export 에서 ordNo 앞 8자리로 보정.
+    """
+    return _iter_path(_PATH_SHIPPING, since, until, client=client)
