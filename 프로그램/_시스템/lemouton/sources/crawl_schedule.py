@@ -254,6 +254,56 @@ def start_new_lap(session, now=None, record=True) -> int:
     return n
 
 
+#  ── 회차(CrawlLapRun) 전수 중복 감사·청소 ─────────────────────────────
+#   진짜 한 바퀴는 수 분 간격(라이브 실측 평균 8분·최소 8분)인데, 신고자 중복으로 같은
+#   바퀴가 0~수십 초 간격의 클러스터로 여러 행 박혔다. 연속 두 행의 간격이 window_seconds
+#   이하면 같은 바퀴(중복)로 본다. 이 값은 중복 간격(<30초)보다 크고 진짜 간격(수 분)보다
+#   작아 안전하다.
+_DEDUP_WINDOW_SECONDS = 90
+
+
+def audit_lap_runs(session, window_seconds: int = _DEDUP_WINDOW_SECONDS) -> dict:
+    """CrawlLapRun 전수 조사. 연속 간격이 window 이하인 행 = 같은 바퀴 중복.
+
+    반환 {total, real_laps(=중복 제거 후 진짜 바퀴 수), duplicates, max_cluster,
+    dup_ids}. 삭제는 안 함(dry-run). dup_ids = 지울 대상(각 클러스터 첫 행만 남김).
+    """
+    from lemouton.sources.models import CrawlLapRun
+    runs = (session.query(CrawlLapRun)
+            .order_by(CrawlLapRun.completed_at.asc(), CrawlLapRun.id.asc()).all())
+    prev_t = None
+    real = 0
+    dup_ids = []
+    cluster = 0
+    max_cluster = 0
+    for r in runs:
+        t = _as_naive_utc(r.completed_at)
+        if prev_t is None or (t - prev_t).total_seconds() > window_seconds:
+            real += 1                       # 새 바퀴(경계) — 이 행 유지
+            max_cluster = max(max_cluster, cluster)
+            cluster = 1
+        else:
+            dup_ids.append(r.id)            # 직전 행과 가까움 = 같은 바퀴 중복
+            cluster += 1
+        prev_t = t
+    max_cluster = max(max_cluster, cluster)
+    return {"total": len(runs), "real_laps": real, "duplicates": len(dup_ids),
+            "max_cluster": max_cluster, "dup_ids": dup_ids,
+            "window_seconds": window_seconds}
+
+
+def dedupe_lap_runs(session, window_seconds: int = _DEDUP_WINDOW_SECONDS) -> dict:
+    """중복 회차 삭제 — 각 클러스터의 첫 행만 남기고 제거. 호출자가 commit. audit dict 반환."""
+    from lemouton.sources.models import CrawlLapRun
+    a = audit_lap_runs(session, window_seconds)
+    if a["dup_ids"]:
+        (session.query(CrawlLapRun)
+         .filter(CrawlLapRun.id.in_(a["dup_ids"]))
+         .delete(synchronize_session=False))
+        session.flush()
+    return a
+
+
 _KST_OFFSET_H = 9   # 자정 기준 = 한국시간(UTC+9)
 
 
