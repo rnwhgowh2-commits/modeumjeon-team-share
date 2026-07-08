@@ -41,7 +41,7 @@ auth:
 # 주문조회(발주확인) = 셀러오피스 로그인 문서 실측 확보(2026-07-07, 사용자 로그인 브라우저 판독).
 #    상품/가격/재고 셀러 REST 는 아직 미확보 → TODO(추측 금지).
 endpoints:
-  fetch_orders:  "GET https://api.11st.co.kr/rest/ordservices/complete/{startTime}/{endTime} (발주확인 기간별 결제완료 목록, 구현됨)"
+  fetch_orders:  "GET /rest/ordservices/complete/{start}/{end} (발송대기·결제완료, 구현됨) + GET /rest/ordservices/completed/{start}/{end} (구매확정, 구현됨) — 두 목록 병합"
   fetch_options: "TODO(조사필요 — 셀러 REST 상품/옵션 상세조회)"
   get_detail:    "TODO(조사필요 — 상품 상세조회)"
   update_price:  "TODO(조사필요 — 가격 수정)"

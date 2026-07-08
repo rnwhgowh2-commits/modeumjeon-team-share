@@ -437,14 +437,15 @@ def gmarket_order_rows(since: _dt.datetime, until: _dt.datetime, client=None) ->
 
 
 def eleven11_order_rows(since: _dt.datetime, until: _dt.datetime, client=None) -> list:
-    """11번가 발주확인(기간별 결제완료 목록조회) → 행(dict). GET complete/{start}/{end} XML 매핑.
+    """11번가 주문 → 행(dict). 발송대기(complete) + 구매확정(completed) 두 목록을 합침.
 
-    이 엔드포인트는 결제완료(발송대기) 목록 → 주문상태 "결제완료" 고정. 정산예정금액은 주문
-    API 에 없음(11번가 정산 별도) → 공란(폴백 금지). 배송비는 묶음배송(bndlDlvYN=Y)이면
-    묶음배송비(bmDlvCst), 아니면 개별(dlvCst); 배송건(_shipkey=bndlDlvSeq) 단위 1회 정규화.
-    ⚠️ 라이브 미검증(키 입력 후 서버 검증 필요). 검증 전 SUPPORTED 미포함.
+    · 결제완료(발송대기, complete): 수령자·주소·단가(selPrc)·정산예정(stlPlnAmt) 등 전체 필드.
+    · 구매확정(completed): 배송정보·단가 미제공(완료·정산 단계) → 해당 열 공란(폴백 금지).
+    배송비는 묶음배송(bndlDlvYN=Y)이면 묶음배송비(bmDlvCst), 아니면 개별(dlvCst); 배송건
+    (_shipkey=bndlDlvSeq) 단위 1회 정규화. 상태별 API가 나뉘어 있어 두 API를 합쳐 전체 상태 표시.
+    (배송중·배송완료 중간상태는 별도 엔드포인트 — 필요시 후속.)
     """
-    from shared.platforms.eleven11.orders import iter_orders
+    from shared.platforms.eleven11.orders import iter_orders, iter_completed
 
     def _g11(od, *keys):
         for k in keys:
@@ -453,11 +454,10 @@ def eleven11_order_rows(since: _dt.datetime, until: _dt.datetime, client=None) -
                 return v
         return ""
 
-    rows = []
-    for od in iter_orders(since, until, client=client):
+    def _row(od, status):
         addr = (str(_g11(od, "rcvrBaseAddr")) + " " + str(_g11(od, "rcvrDtlsAddr"))).strip()
         ship = _g11(od, "bmDlvCst") if od.get("bndlDlvYN") == "Y" else _g11(od, "dlvCst")
-        rows.append({
+        return {
             "_shipkey": ("eleven11", _g11(od, "bndlDlvSeq") or _g11(od, "ordNo")),
             "주문일": _g11(od, "ordDt"),
             "판매처": "11번가",
@@ -473,13 +473,22 @@ def eleven11_order_rows(since: _dt.datetime, until: _dt.datetime, client=None) -
             "구매자번호": _g11(od, "ordPrtblTel", "ordTlphnNo"),
             "쇼핑몰": "11번가",
             "쇼핑몰ID": "",
-            "단가": _g11(od, "selPrc"),
+            "단가": _g11(od, "selPrc"),   # 구매확정 목록엔 없음 → 공란(폴백 금지)
             "배송비": ship,
-            # 정산예정금액 = 주문 응답의 stlPlnAmt(정산예정금액) — 서버 실호출로 필드 확인(2026-07-08).
-            #  없으면 공란(폴백 금지). 실정산액(정산 완료분)은 settlementList.stlAmt(후속).
+            # 정산예정금액 = 주문 응답의 stlPlnAmt(정산예정금액) — 서버 실호출로 확인(2026-07-08).
+            #  구매확정 목록엔 없어 공란. 실정산액(정산완료분)은 settlementList.stlAmt(후속).
             "정산예정금액": _g11(od, "stlPlnAmt"),
-            "주문상태": "결제완료",  # 이 엔드포인트 = 발주확인(결제완료·발송대기) 목록
-        })
+            "주문상태": status,
+        }
+
+    rows = []
+    for od in iter_orders(since, until, client=client):       # 발송대기
+        rows.append(_row(od, "결제완료"))
+    try:
+        for od in iter_completed(since, until, client=client):  # 구매확정
+            rows.append(_row(od, "구매확정"))
+    except Exception:   # noqa: BLE001 — 구매확정 조회 실패는 발송대기 결과는 살리고 조용히 스킵
+        pass
     return rows
 
 
