@@ -315,15 +315,14 @@ def probe_coupang_return():
     """[임시 진단] 쿠팡 반품/취소 목록(returnRequests) 실응답 — status 후보별 필드·건수."""
     from flask import jsonify
     import datetime as _dt
-    from shared.platforms import COUPANG
-    from shared.platforms.coupang.client import CoupangClient
     since, until = _parse_range(request.args)
     if until is None:
         until = _dt.datetime.now(_oe.KST)
     if since is None:
         since = until - _dt.timedelta(days=7)
+    client = _oe._account_client("coupang")   # 서버 UI 실키 로드된 계정 클라이언트
+    from shared.platforms import COUPANG        # refresh_env 후 vendor_id 채워짐
     vendor = COUPANG.get("vendor_id")
-    client = CoupangClient()
     base = f"/v2/providers/openapi/apis/api/v4/vendors/{vendor}/returnRequests"
     f_d, t_d = since.strftime("%Y-%m-%d"), until.strftime("%Y-%m-%d")
 
