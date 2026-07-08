@@ -70,19 +70,34 @@ def crawl_pass_done():
     한 바퀴 완료 판정의 authoritative 신호. 서버가 완료를 추측(over-serve 등)하면 가짜 바퀴가
     생기므로, 실제 크롤을 끝낸 쪽(확장 runQueueBG 소진 / 페이지 crawl_log 100%)이 보낸다.
     다탭·재렌더로 여러 번 와도 최근 20초 내 완료가 있으면 무시(디듀프).
+
+    [2026-07-08] 동시 pass-done 원자적 직렬화. 확장(runQueueBG)과 페이지(crawl_log)가 한 바퀴
+    완료 순간에 ~100ms 안에 둘 다 쏘면, 아래 '조회 후 삽입'이 비원자적이라 둘 다 "최근 없음"을
+    통과해 회차가 2개 박혔다(라이브 확인: 0.0~0.14초 간격 중복쌍 #81/#82·#83/#84 등).
+    운영은 gunicorn 3워커(멀티프로세스)라 파이썬 락은 무효 → DB advisory 락으로 프로세스를
+    넘어 직렬화한다. 두 번째 요청은 첫 번째가 커밋한 회차를 보고 디듀프 → 회차 정확히 1개.
+    SQLite(개발/테스트)는 쓰기가 직렬화돼 이 경합이 없으므로 락을 건너뛴다.
     """
     from lemouton.sources.crawl_schedule import start_new_lap
     from lemouton.sources.models import CrawlLapRun
     from datetime import datetime, timedelta
+    from sqlalchemy import text
     s = SessionLocal()
     try:
+        now = datetime.utcnow()
+        try:
+            if s.bind is not None and s.bind.dialect.name == "postgresql":
+                s.execute(text("SELECT pg_advisory_xact_lock(4823017)"))
+        except Exception:
+            pass   # 락 실패해도 기존 20초 디듀프로 동작(최악의 경우만 경합 잔존)
         recent = (s.query(CrawlLapRun)
-                  .filter(CrawlLapRun.completed_at >= datetime.utcnow() - timedelta(seconds=20))
+                  .filter(CrawlLapRun.completed_at >= now - timedelta(seconds=20))
                   .first())
         if recent is not None:
+            s.rollback()   # advisory xact 락 해제(삽입 안 함)
             return jsonify({"ok": True, "deduped": True})
-        n = start_new_lap(s)   # record=True → CrawlLapRun 기록 + crawl_lap_count 리셋
-        s.commit()
+        n = start_new_lap(s, now=now)   # record=True → CrawlLapRun 기록 + crawl_lap_count 리셋
+        s.commit()   # 삽입 영속 + advisory 락 해제
         return jsonify({"ok": True, "reset": n})
     finally:
         s.close()
