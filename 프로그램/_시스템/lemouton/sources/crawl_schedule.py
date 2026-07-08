@@ -259,7 +259,7 @@ def start_new_lap(session, now=None, record=True) -> int:
 #   바퀴가 0~수십 초 간격의 클러스터로 여러 행 박혔다. 연속 두 행의 간격이 window_seconds
 #   이하면 같은 바퀴(중복)로 본다. 이 값은 중복 간격(<30초)보다 크고 진짜 간격(수 분)보다
 #   작아 안전하다.
-_DEDUP_WINDOW_SECONDS = 90
+_DEDUP_WINDOW_SECONDS = 120
 
 
 def audit_lap_runs(session, window_seconds: int = _DEDUP_WINDOW_SECONDS) -> dict:
