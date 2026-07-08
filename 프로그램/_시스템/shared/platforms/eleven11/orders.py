@@ -20,9 +20,11 @@ import datetime as _dt
 import re as _re
 import xml.etree.ElementTree as _ET
 
-_PATH = "/rest/ordservices/complete/{s}/{e}"            # 결제완료(발송대기)
-_PATH_COMPLETED = "/rest/ordservices/completed/{s}/{e}"  # 판매완료(구매확정)
+_PATH = "/rest/ordservices/complete/{s}/{e}"             # 결제완료(발송대기)
+_PATH_DELIVERED = "/rest/ordservices/dlvcompleted/{s}/{e}"  # 배송완료
+_PATH_COMPLETED = "/rest/ordservices/completed/{s}/{e}"   # 판매완료(구매확정)
 _MAX_WINDOW_DAYS = 7        # 문서: 조회기간 최대 7일
+# 참고: 배송중(/rest/ordservices/shipping)은 송장·주문번호만 반환(상품·주소 없음) → 행 미생성.
 
 
 def _fmt(d: _dt.datetime) -> str:
@@ -81,6 +83,15 @@ def _iter_path(path_tmpl: str, since: _dt.datetime, until: _dt.datetime, *, clie
 def iter_orders(since: _dt.datetime, until: _dt.datetime, *, client):
     """결제완료(발주확인·발송대기) 주문 상품라인. GET /rest/ordservices/complete."""
     return _iter_path(_PATH, since, until, client=client)
+
+
+def iter_delivered(since: _dt.datetime, until: _dt.datetime, *, client):
+    """배송완료 주문 상품라인. GET /rest/ordservices/dlvcompleted.
+
+    전체 필드(수령자·주소·단가 selPrc·옵션·송장 invcNo·dlvEndDt 배송완료일). 정산예정금액(stlPlnAmt)은
+    없음(정산 전 단계) → 공란.
+    """
+    return _iter_path(_PATH_DELIVERED, since, until, client=client)
 
 
 def iter_completed(since: _dt.datetime, until: _dt.datetime, *, client):
