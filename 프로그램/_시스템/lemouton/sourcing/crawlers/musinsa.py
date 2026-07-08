@@ -69,6 +69,28 @@ PDP_REFERER_BASE = "https://www.musinsa.com"
 DEFAULT_TIMEOUT = 30
 IMPERSONATE = "chrome120"  # curl_cffi 가 V7 Chrome UA 에 가장 가까운 프로필
 
+# 재고 불명(확인 불가) 센티넬 — 재고 API(prioritized-inventories)를 못 읽음(전체 실패).
+#   무신사는 양의 재고 수량이 없어(outOfStock=false + remainQuantity 없음 = 충분 '추론')
+#   재고 API 가 통째로 비면 모든 옵션이 999(충분)로 둔갑 → 실제 품절도 팔림(오버셀).
+#   → 재고 API 전체 실패 시 -1(확인불가)로 표면화. webapp _resolve_stock 의 -1 과 동일.
+#   🔒 재고 3대 원칙: 폴백 금지·못하면 '확인 불가'.
+_STOCK_UNKNOWN = -1
+
+
+def _musinsa_option_stock(out_of_stock: bool, remain_i, inv_read_ok: bool) -> int:
+    """무신사 옵션 재고 판정 (단일 진실 원천).
+
+      out_of_stock=true      → 0 (품절)
+      remain_i = N (>=0)     → N (한정 잔여)
+      remain_i None + API성공 → 999 (충분 · 표시 없음)
+      remain_i None + API실패 → -1 (확인불가 · 재고 API 전체 부재=오버셀 방지)
+    """
+    if out_of_stock:
+        return 0
+    if remain_i is None:
+        return 999 if inv_read_ok else _STOCK_UNKNOWN
+    return remain_i if remain_i >= 0 else 0
+
 
 # V7: ``/musinsa\.com\/products\/(\d+)/`` (background.js crawlByUrl)
 PRODUCT_ID_PATTERN = re.compile(r"/products/(\d+)")
@@ -464,6 +486,10 @@ class MusinsaCrawler(AbstractCrawler):
         inv_by_variant: dict[int, dict] = {
             int(it["productVariantId"]): it for it in inv_list if "productVariantId" in it
         }
+        # [2026-07-08] ⓪ 수집 성공 게이트 — 재고 API 가 통째로 비었나(전체 실패)?
+        #   옵션은 있는데 재고 응답이 0건이면 신호를 못 읽은 것 → '충분(999)' 둔갑 금지.
+        #   (일부 variant 만 없는 건 정상 충분으로 둠 · 전체 부재만 확인불가 처리)
+        inv_read_ok = bool(inv_by_variant)
 
         # 4) optionItems → CrawlResult.options 행 생성
         # V7: dropdownCount=1 → option1=사이즈, option2=''
@@ -503,12 +529,7 @@ class MusinsaCrawler(AbstractCrawler):
                 remain_i = int(remain) if remain is not None else None
             except (TypeError, ValueError):
                 remain_i = None
-            if out_of_stock:
-                stock = 0
-            elif remain_i is None:
-                stock = 999
-            else:
-                stock = remain_i if remain_i >= 0 else 0
+            stock = _musinsa_option_stock(out_of_stock, remain_i, inv_read_ok)
 
             # V7 option_id: `{productId}|{option1}|{option2}` 패턴 (T10 lemouton 과 동일 규약)
             options.append({
