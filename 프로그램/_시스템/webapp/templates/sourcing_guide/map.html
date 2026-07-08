@@ -57,14 +57,6 @@
   .sgmap .axis .ax{font-size:12px;font-weight:800;color:#9AA4B0;text-transform:uppercase;letter-spacing:.04em;margin-right:5px;}
   .sgmap .pill{font-size:13px;font-weight:700;border-radius:5px;padding:2px 7px;background:#EEF1F4;color:var(--sub);}
   .sgmap .pill.api{background:#E8F3FF;color:var(--blue);}
-  .sgmap .pill.json{background:#F1EBFF;color:#7C3AED;}
-  .sgmap .stype{font-size:12px;font-weight:800;border-radius:5px;padding:2px 7px;}
-  .sgmap .stype.num{background:#E7F6EC;color:#1A7F37;}
-  .sgmap .stype.cap{background:#FFF4E5;color:#B45309;}
-  .sgmap .stype.weak{background:#FDECEC;color:#C0392B;}
-  .sgmap .win{font-size:11.5px;font-weight:700;border-radius:5px;padding:2px 7px;}
-  .sgmap .win.no{background:#E7F6EC;color:#1A7F37;}
-  .sgmap .win.yes{background:#FFF4E5;color:#B45309;}
   .sgmap .dm{background:#F9FAFB;border:1px solid var(--line);border-radius:8px;padding:8px 11px;margin-bottom:7px;}
   .sgmap .dm .ax{font-size:12px;font-weight:800;color:#9AA4B0;text-transform:uppercase;letter-spacing:.04em;display:block;margin-bottom:6px;}
   .sgmap .dgrid{display:flex;gap:7px 14px;flex-wrap:wrap;}
@@ -313,21 +305,6 @@
       <div class="lead"><span class="klabel">핵심</span><span class="sum">소싱처마다 재고·가격을 읽는 방법이 다르다 — API일수록 정확. 종착지 _resolve_stock.</span></div>
       <div class="why" style="margin-bottom:14px;"><b>왜 소싱처마다 다른가</b> — 4가지가 방식을 정함: ① 전용 재고 <b>API</b>를 공개하나(무신사·롯데온) ② 페이지에 <b>내장 구조데이터</b>(<span class="mono" style="color:inherit">__NEXT_DATA__·option_stock_data·uitemObj</span>)가 있나(현대H몰·르무통·SSG) ③ <b>WAF/봇차단</b>으로 서버 접근이 막히나(롯데아이몰·네이버) ④ <b>로그인</b>은 대개 <b>혜택만</b> 필요(재고·표면가는 무로그인). 그래서 "API &gt; 내장 JSON &gt; HTML &gt; DOM" 순으로 가능한 가장 높은 방식을 쓴다.</div>
 
-      <div class="why" style="background:#F0FDFA;border:1px solid #99F6E4;margin-bottom:14px;">
-        <b style="color:#0F766E;font-size:14px;">재고 판정 우선순위 (게이트 순서) — 위에서 걸리면 멈춤</b>
-        <div style="margin-top:7px;line-height:2;">
-          <b>⓪ 수집 성공?</b> <span class="mono" style="color:inherit;">(200+파싱+옵션데이터)</span> → 실패 = <b style="color:#475569;">⚪ 확인 불가</b> <span style="color:#9AA4B0;">(999 금지·재크롤·판매보류)</span><br>
-          성공 시 ↓ <b>① 옵션 있나?</b> <span style="color:#9AA4B0;">(목록에 이 색×사이즈)</span> → 없으면 <span style="color:#DC2626;"><b>품절</b>(옵션 소멸·999 금지)</span><br>
-          있으면 ↓ <b>②</b> 품절신호(<span class="ink">0·SLDOUT</span>) → 🔴품절 · <b>③</b> 한정 N(<span class="ink">remainQty·stkQty·N</span>) → 🟠한정 · <b>④</b> 제한신호 없음 → 🟢<span class="ink">999 충분</span>
-        </div>
-        <div style="margin-top:8px;color:#B45309;background:#fff;border-radius:8px;padding:7px 10px;">
-          <b>⚠️ 조용한 실패 방지</b> — 품절·한정 신호를 <b>못 읽은 것</b>(크롤 실패·필드 부재·파싱 에러)은 999가 아니라 <b>⚪확인불가</b>(수량0·판매 제외). "성공적으로 읽었는데 제한이 없는 것"만 🟢999. <span style="color:#9AA4B0;">[2026-07-08 정정: SSG usablInvQty 필드부재·무신사 재고API 전체실패 → 999 아닌 확인불가(-1)]</span>
-        </div>
-        <div style="margin-top:6px;">
-          <b>충분 신호 종류</b> — <span class="stype num">실수량</span> 르무통·SSG·롯데온·현대H몰·스스(실제 재고 숫자) · <span class="stype cap">상한</span> 롯데아이몰(30↑만 확실) · <span class="stype weak">⚠추론·상태값</span> 무신사·SSF(양의 수량 없음 → ⓪게이트 특히 중요)
-        </div>
-      </div>
-
       <div class="scard"><div class="src">무신사</div><div>
         <div class="axes"><span class="axis"><span class="ax">재고·표면가</span><span class="pill">무로그인 · 서버</span></span><span class="axis"><span class="ax">혜택</span><span class="pill">로그인 · 확장</span></span></div>
         <div class="dm"><span class="ax">수집 방법 (데이터별)</span><div class="dgrid">
@@ -335,8 +312,7 @@
         <table class="st3">
           <tr><td class="sn"><span class="sgdot" style="background:#DC2626"></span>품절(없음)</td><td class="how"><span class="pill api">API</span> <span class="ink">outOfStock=true</span> → 재고 0</td></tr>
           <tr><td class="sn"><span class="sgdot" style="background:#E8830C"></span>한정(N개)</td><td class="how"><span class="pill api">API</span> 재고 수치 또는 <span class="ink">"잔여·마지막 N개"</span> → 실수량 N</td></tr>
-          <tr><td class="sn"><span class="sgdot" style="background:#15803D"></span>충분(표식없음)</td><td class="how"><span class="pill api">API</span> 신호 없음 → <span class="ink">999</span> <span class="stype weak">⚠추론</span> <span style="color:#9AA4B0">(양의 수량 없음 → ⓪게이트 중요)</span></td></tr>
-          <tr class="special"><td class="sn" style="color:#B45309">⚠ 파싱 실패</td><td class="how"><b style="color:#C0392B">재고 API 전체 실패</b>(inv 0건) → <b style="color:#C0392B">확인불가(-1)</b> · 999(충분) 둔갑 금지 = 오버셀 방지 <span style="color:#9AA4B0">[2026-07-08 musinsa.py]</span></td></tr>
+          <tr><td class="sn"><span class="sgdot" style="background:#15803D"></span>충분(표식없음)</td><td class="how"><span class="pill api">API</span> 신호 없음 → <span class="ink">999</span></td></tr>
           <tr class="special"><td class="sn">⚠ 특이사항</td><td class="how">옵션 매핑 실패·없음 → <span class="ink">옵션없음</span> / API 호출 실패 → <span class="ink">크롤실패</span></td></tr>
         </table>
         <div class="meta"><span class="elabel">엔드포인트</span><span class="mono">.../options/v2/prioritized-inventories</span> · <span class="elabel">코드</span><span class="mono">musinsa.py:492</span></div>
@@ -350,27 +326,26 @@
         <table class="st3">
           <tr><td class="sn"><span class="sgdot" style="background:#DC2626"></span>품절(없음)</td><td class="how"><span class="pill">HTML</span> 정규식 <span class="ink">usablInvQty=0</span></td></tr>
           <tr><td class="sn"><span class="sgdot" style="background:#E8830C"></span>한정(N개)</td><td class="how"><span class="pill">HTML</span> <span class="ink">usablInvQty=N</span> (실수량)</td></tr>
-          <tr><td class="sn"><span class="sgdot" style="background:#15803D"></span>충분(표식없음)</td><td class="how"><span class="pill">HTML</span> usablInvQty 큰 값 → 충분 <span class="stype num">실수량</span></td></tr>
-          <tr class="special"><td class="sn" style="color:#B45309">⚠ 파싱 실패</td><td class="how"><span class="ink">usablInvQty 필드 부재</span>(필드명·포맷 변경) → <b style="color:#C0392B">확인불가(-1)</b> · 0(품절)도 999(재고있음)도 둔갑 금지 <span style="color:#9AA4B0">[2026-07-08 ssg.py]</span></td></tr>
+          <tr><td class="sn"><span class="sgdot" style="background:#15803D"></span>충분(표식없음)</td><td class="how"><span class="pill">HTML</span> usablInvQty 큰 값 → 충분</td></tr>
           <tr class="special"><td class="sn">⚠ 특이사항</td><td class="how">딜페이지(dealItemView.ss) 파싱 실패 → <span class="ink">크롤실패</span> / 단일색 사이즈 파싱버그 주의</td></tr>
           <tr class="special"><td class="sn" style="color:#15803D">✅ 해결(07-04)</td><td class="how">단품 미수집 36칸 = <b>중복 SourceOption</b>(size_text '220' vs '220mm')에서 매칭이 <b>stale None 행을 먼저 골라</b> 실재고 무시 → <span class="mono">_match_option_so</span> 가 <span class="ink">재고 있는 행 우선</span>. 라이브 미수집 0·값 실측 일치.</td></tr>
         </table>
-        <div class="meta"><span class="elabel">경로</span><span class="mono">창없는 SW fetch → /api/sources/parse</span> <span class="win no">창없이</span> · <span class="elabel">코드</span><span class="mono">ssg.py:608</span></div>
+        <div class="meta"><span class="elabel">경로</span><span class="mono">navGrab → /api/sources/parse</span> · <span class="elabel">코드</span><span class="mono">ssg.py:608</span></div>
         <div class="why" style="margin-top:8px;margin-bottom:0;"><b>왜 HTML?</b> 재고·가격·혜택이 SSR HTML JS블록(<span class="mono" style="color:inherit">uitemObj</span>의 <span class="mono" style="color:inherit">usablInvQty·bestAmt</span>)에 통째로 박혀 옴 → 2순위 내장 JSON(정규식). 익명 curl_cffi 서버, 로그인 불필요.</div>
       </div></div>
 
       <div class="scard"><div class="src">SSF</div><div>
         <div class="axes"><span class="axis"><span class="ax">재고·표면가</span><span class="pill">무로그인 · 서버</span></span><span class="axis"><span class="ax">혜택</span><span class="pill">무로그인 · 서버</span></span></div>
         <div class="dm"><span class="ax">수집 방법 (데이터별)</span><div class="dgrid">
-          <span class="dp"><b>상품명</b><span class="pill">HTML</span></span><span class="dp"><b>대표이미지</b><span class="pill">HTML</span></span><span class="dp"><b>추가이미지</b><span class="pill">HTML</span></span><span class="dp"><b>옵션</b><span class="pill">HTML</span></span><span class="dp"><b>재고</b><span class="pill">HTML</span></span><span class="dp"><b>표면노출가</b><span class="pill">HTML</span></span><span class="dp"><b>혜택</b><span class="pill">HTML</span></span></div></div>
+          <span class="dp"><b>상품명</b><span class="pill">DOM</span></span><span class="dp"><b>대표이미지</b><span class="pill">DOM</span></span><span class="dp"><b>추가이미지</b><span class="pill">DOM</span></span><span class="dp"><b>옵션</b><span class="pill">DOM</span></span><span class="dp"><b>재고</b><span class="pill">DOM</span></span><span class="dp"><b>표면노출가</b><span class="pill">DOM</span></span><span class="dp"><b>혜택</b><span class="pill">DOM</span></span></div></div>
         <table class="st3">
-          <tr><td class="sn"><span class="sgdot" style="background:#DC2626"></span>품절(없음)</td><td class="how"><span class="pill">HTML</span> <span class="ink">statcd=SLDOUT</span></td></tr>
-          <tr><td class="sn"><span class="sgdot" style="background:#E8830C"></span>한정(N개)</td><td class="how"><span class="pill">HTML</span> <span class="ink">품절임박 ( N )</span> → N (괄호공백 주의)</td></tr>
-          <tr><td class="sn"><span class="sgdot" style="background:#15803D"></span>충분(표식없음)</td><td class="how"><span class="pill">HTML</span> statcd 정상 → 충분 <span class="stype weak">⚠상태값</span> <span style="color:#9AA4B0">(수량 아님 → ⓪게이트 중요)</span></td></tr>
-          <tr class="special"><td class="sn">⚠ 특이사항</td><td class="how">옵션 li 없음 → <span class="ink">옵션없음</span> · 옵션 목록 통째 파싱 실패 시 단품 폴백(999)은 정상 단품과 구분 불가 → 상품 status 로 게이트</td></tr>
+          <tr><td class="sn"><span class="sgdot" style="background:#DC2626"></span>품절(없음)</td><td class="how"><span class="pill">DOM</span> <span class="ink">statcd=SLDOUT</span></td></tr>
+          <tr><td class="sn"><span class="sgdot" style="background:#E8830C"></span>한정(N개)</td><td class="how"><span class="pill">DOM</span> <span class="ink">품절임박 ( N )</span> → N (괄호공백 주의)</td></tr>
+          <tr><td class="sn"><span class="sgdot" style="background:#15803D"></span>충분(표식없음)</td><td class="how"><span class="pill">DOM</span> statcd 정상 → 충분</td></tr>
+          <tr class="special"><td class="sn">⚠ 특이사항</td><td class="how">옵션 li 없음 → <span class="ink">옵션없음</span></td></tr>
         </table>
-        <div class="meta"><span class="elabel">셀렉터</span><span class="mono">#optionDiv1 li a[optcd]@statcd</span> <span class="win no">창없이</span> · <span class="elabel">코드</span><span class="mono">ssf.py</span></div>
-        <div class="why" style="margin-top:8px;margin-bottom:0;"><b>왜 HTML 정규식?</b> 옵션·<span class="mono" style="color:inherit">statcd</span>·품절임박N 이 <b>raw HTML</b>(SSR)에 모두 있음 → 창없이 정규식 파싱(3순위). curl_cffi/확장 SW fetch raw 서버, 무로그인. <span style="color:#9AA4B0">[2026-07-08 정정: DOM→HTML — 렌더 불필요·창없이 실증]</span> 단 정상재고 정량은 비공개(999가 정답).</div>
+        <div class="meta"><span class="elabel">셀렉터</span><span class="mono">#optionDiv1 li a[optcd]@statcd</span> · <span class="elabel">코드</span><span class="mono">ssf.py</span></div>
+        <div class="why" style="margin-top:8px;margin-bottom:0;"><b>왜 정규식?</b> 옵션이 <span class="mono" style="color:inherit">&lt;script&gt;</span> JS문자열로만 존재(드롭다운 lazy 렌더) → 3순위 정규식(<span class="mono" style="color:inherit">statcd</span>·품절임박N). curl_cffi raw 서버, 무로그인. 단 정상재고 정량은 비공개(999가 정답).</div>
       </div></div>
 
       <div class="scard"><div class="src">롯데온</div><div>
@@ -380,7 +355,7 @@
         <table class="st3">
           <tr><td class="sn"><span class="sgdot" style="background:#DC2626"></span>품절(없음)</td><td class="how"><span class="pill api">API</span> 매핑 품절 / <span class="pill">DOM</span> <span class="ink">li.soldout</span></td></tr>
           <tr><td class="sn"><span class="sgdot" style="background:#E8830C"></span>한정(N개)</td><td class="how"><span class="pill api">API</span> 옵션 매핑 <span class="ink">stkQty</span> → 실수량 N <span style="color:#9AA4B0">(라이브 검증 220=5·10개)</span></td></tr>
-          <tr><td class="sn"><span class="sgdot" style="background:#15803D"></span>충분(표식없음)</td><td class="how"><span class="pill api">API</span> stkQty <span class="ink">실수량(20·30·41)</span> → 충분 <span class="stype num">실수량</span> <span style="color:#9AA4B0">(999 아님)</span></td></tr>
+          <tr><td class="sn"><span class="sgdot" style="background:#15803D"></span>충분(표식없음)</td><td class="how"><span class="pill api">API</span> stkQty <span class="ink">실수량(20·30·41)</span> → 충분 <span style="color:#9AA4B0">(999 아님)</span></td></tr>
           <tr class="special"><td class="sn">⚠ 특이사항</td><td class="how">매핑 API + DOM 둘 다 실패 → <span class="ink">크롤실패</span></td></tr>
         </table>
         <div class="meta"><span class="elabel">엔드포인트</span><span class="mono">pbf.../option/mapping/{spd}/{sitm}</span> · <span class="elabel">코드</span><span class="mono">lotteon.py:1293</span></div>
@@ -394,7 +369,7 @@
         <table class="st3">
           <tr><td class="sn"><span class="sgdot" style="background:#DC2626"></span>품절(없음)</td><td class="how"><span class="pill api">API</span> SKU <span class="ink">stockQuantity=0</span></td></tr>
           <tr><td class="sn"><span class="sgdot" style="background:#E8830C"></span>한정(N개)</td><td class="how"><span class="pill api">API</span> <span class="ink">stockQuantity=N</span> → 실수량</td></tr>
-          <tr><td class="sn"><span class="sgdot" style="background:#15803D"></span>충분(표식없음)</td><td class="how"><span class="pill api">API</span> stockQuantity 큼 → 충분 <span class="stype num">실수량</span></td></tr>
+          <tr><td class="sn"><span class="sgdot" style="background:#15803D"></span>충분(표식없음)</td><td class="how"><span class="pill api">API</span> stockQuantity 큼 → 충분</td></tr>
           <tr class="special"><td class="sn">⚠ 특이사항</td><td class="how">per-SKU 재고는 <span class="ink">_persist_option_stocks</span>로 영속(2026-06-22 수정) · <span class="mono">A.id</span> 사용(productNo 쓰면 999 둔갑) / WAF 차단 → 크롤실패</td></tr>
         </table>
         <div class="meta"><span class="elabel">엔드포인트</span><span class="mono">/n/v2/channels/{cu}/products/{A.id}</span> · <span class="elabel">코드</span><span class="mono">ss_lemouton.py</span></div>
@@ -408,7 +383,7 @@
         <table class="st3">
           <tr><td class="sn"><span class="sgdot" style="background:#DC2626"></span>품절(없음)</td><td class="how"><span class="pill">HTML</span> option_stock_data <span class="ink">재고 0 / is_selling=F</span></td></tr>
           <tr><td class="sn"><span class="sgdot" style="background:#E8830C"></span>한정(N개)</td><td class="how"><span class="pill">HTML</span> option_stock_data <span class="ink">수량 N</span> → 실수량</td></tr>
-          <tr><td class="sn"><span class="sgdot" style="background:#15803D"></span>충분(표식없음)</td><td class="how"><span class="pill">HTML</span> option_stock_data 수량 큼 → 충분 <span class="stype num">실수량</span></td></tr>
+          <tr><td class="sn"><span class="sgdot" style="background:#15803D"></span>충분(표식없음)</td><td class="how"><span class="pill">HTML</span> 수량 충분 → 충분</td></tr>
           <tr class="special"><td class="sn">⚠ 특이사항</td><td class="how">실제 조합만 수집(미판매 사이즈 과다수집 방지) → 날조 옵션 없음</td></tr>
         </table>
         <div class="meta"><span class="elabel">코드</span><span class="mono">lemouton.py</span></div>
@@ -422,7 +397,7 @@
         <table class="st3">
           <tr><td class="sn"><span class="sgdot" style="background:#DC2626"></span>품절(없음)</td><td class="how"><span class="pill">내장</span> <span class="ink">sellGbcd="11"</span> → 품절 (⚠ 품절도 stockCount=1 센티넬로 옴)</td></tr>
           <tr><td class="sn"><span class="sgdot" style="background:#E8830C"></span>한정(N개)</td><td class="how"><span class="pill">내장</span> sellGbcd="00" + <span class="ink">stockCount=N</span> → 실수량</td></tr>
-          <tr><td class="sn"><span class="sgdot" style="background:#15803D"></span>충분(표식없음)</td><td class="how"><span class="pill json">내장</span> sellGbcd="00" + stockCount 큼 → 충분 <span class="stype num">실수량</span></td></tr>
+          <tr><td class="sn"><span class="sgdot" style="background:#15803D"></span>충분(표식없음)</td><td class="how"><span class="pill">내장</span> sellGbcd="00" + stockCount 큼 → 충분</td></tr>
           <tr class="special"><td class="sn">★ 품절판정</td><td class="how"><b>반드시 <span class="ink">sellGbcd</span> 우선</b> — stockCount 단독 판정 금지(품절도 stockCount=1 = 거짓 '1개 있음' 금전손실). 라이브 실증 2026-07-03(올리브 230·240·250·260 = sellGbcd 11 품절인데 stockCount 1)</td></tr>
           <tr class="special"><td class="sn">⚠ 특이사항</td><td class="how">단품=<span class="ink">__NEXT_DATA__ stockList[]</span> / 모음전(색×사이즈)=<span class="ink">item-stockcount API</span> 색별 프로브. API 직접호출 방화벽 차단 → navGrab. 혜택은 로그인 DOM</td></tr>
         </table>
@@ -437,8 +412,8 @@
         <table class="st3">
           <tr><td class="sn"><span class="sgdot" style="background:#DC2626"></span>품절(없음)</td><td class="how"><span class="pill">내장</span> itemInvQtyInfo <span class="ink">inv_qty=0</span></td></tr>
           <tr><td class="sn"><span class="sgdot" style="background:#E8830C"></span>한정(N개)</td><td class="how"><span class="pill">내장</span> <span class="ink">inv_qty=N</span> → 실수량(라이브 검증)</td></tr>
-          <tr><td class="sn"><span class="sgdot" style="background:#15803D"></span>충분(표식없음)</td><td class="how"><span class="pill json">내장</span> inv_qty <b>30 상한</b>(=충분/30개+) → <span class="ink">50 으로 표기</span> <span class="stype cap">상한</span> <span style="color:#9AA4B0">(30↑만 확실, _lotteimall_disp_qty)</span></td></tr>
-          <tr class="special"><td class="sn">⚠ 특이사항</td><td class="how">WAF 403 → <b>확장 SW fetch(쿠키+권한)로 창없이 통과</b> <span class="win no">창없이</span> · 간헐 실패 시 창 폴백 <span style="color:#9AA4B0">[2026-07-08 정정: 서버 curl_cffi/navGrab → SW fetch]</span> / 혜택 L.POINT는 로그인</td></tr>
+          <tr><td class="sn"><span class="sgdot" style="background:#15803D"></span>충분(표식없음)</td><td class="how"><span class="pill">내장</span> inv_qty <b>30 상한</b>(=충분/30개+) → <span class="ink">50 으로 표기</span> (실수량 30 과 혼동 방지, <span class="mono">_lotteimall_disp_qty</span>)</td></tr>
+          <tr class="special"><td class="sn">⚠ 특이사항</td><td class="how">WAF 403 → 서버 <span class="ink">curl_cffi 위장</span> 또는 확장 navGrab / 혜택 L.POINT는 로그인</td></tr>
         </table>
         <div class="meta"><span class="elabel">위치</span><span class="mono">itemInvQtyInfo[].inv_qty · dataBenefit</span> · <span class="elabel">코드</span><span class="mono">lotteon.py(도메인 라우팅)</span></div>
         <div class="why" style="margin-top:8px;margin-bottom:0;"><b>왜 내장 JSON?</b> 핵심 재고·가격이 SSR <span class="mono" style="color:inherit">itemInvQtyInfo</span>/<span class="mono" style="color:inherit">dataBenefit</span>에 박혀 옴(2순위). 단 WAF 403이라 서버는 curl_cffi 위장으로 받음. 혜택(L.POINT)은 로그인.</div>
@@ -529,8 +504,7 @@
           <tr><td class="el">3</td><td><b>SSR HTML 정규식/셀렉터</b></td><td>구조 JSON은 없지만 raw HTML/JS문자열에 값 존재</td><td>SSF형</td></tr>
           <tr><td class="el">4</td><td><b>렌더 DOM (확장 navGrab)</b></td><td>위 셋 불가·JS 렌더 후에만 생김 (최후)</td><td>롯데온 혜택가형</td></tr>
         </table>
-        <div class="d" style="background:#F0FDFA;border:1px solid #99F6E4;border-radius:8px;padding:8px 11px;margin-bottom:7px"><b style="color:#0F766E">전송 방법 — 창없는 확장 SW fetch <span class="win no">창없이</span></b> : 순위 1~3(API·내장JSON·HTML)의 원문을 <b>창 없이</b> 가져오는 기본 경로. 확장 서비스워커가 <span class="mono" style="color:inherit">쿠키+host_permissions</span>로 요청 → WAF·봇차단·CORS를 통과하고 렌더가 불필요(SSG·롯데아이몰·SSF 실증). <b>렌더 DOM(창)은 순위 4 혜택 등 JS로만 생기는 값에만.</b> 실패 시 창 경로 자동 폴백(자가보호).</div>
-        <div class="d"><b>가로 게이트(어느 순위든 적용):</b> 방화벽·게이트웨이(현대H몰 API 차단)·CORS → 한 단계 내림 / WAF·봇차단 → <b>창없는 SW fetch</b>(쿠키+권한)로 통과, 안 되면 창 폴백(롯데아이몰) / 로그인은 <b>혜택만</b> → 혜택만 확장 / 정량 비공개(무신사 정상재고·SSF 일반재고) → <b>999가 정답</b>(가짜 숫자 금지) / <b>수집 실패·파싱 실패 → 999 아닌 ⚪확인불가</b>(오버셀 방지).</div>
+        <div class="d"><b>가로 게이트(어느 순위든 적용):</b> 방화벽·게이트웨이(현대H몰 API 차단)·CORS → 한 단계 내림 / WAF·봇차단 → curl_cffi 위장 또는 확장 navGrab 강제(롯데아이몰) / 로그인은 <b>혜택만</b> → 혜택만 확장 / 정량 비공개(무신사 정상재고·SSF 일반재고) → <b>999가 정답</b>(가짜 숫자 금지).</div>
       </div></div>
       <div class="step"><div class="stepn">3</div><div class="sc"><div class="st">항목별 위치 추출 (재고 3단계 규칙 포함)<span class="who c">CLAUDE</span></div><div class="ref">→ <span class="lk">2 재고</span> + <span class="lk">3 가격</span></div></div></div>
       <div class="step"><div class="stepn">4</div><div class="sc"><div class="st">혜택 종합 — 여러 URL 교차분석<span class="tag">신설</span><span class="who c">CLAUDE</span></div><div class="ref">→ <span class="lk">3 가격</span> · 모든 URL=상시 / 일부=조건부 + 트리거</div></div></div>
@@ -587,7 +561,6 @@
       <div class="step"><div class="stepn u">6</div><div class="sc"><div class="st">육안 확인(장기 안전망)<span class="who u">사용자</span></div><div class="d">평소 데이터지도 보다 배너 뜨면 인지</div></div></div>
       <div class="d" style="margin-top:8px"><b>자동 vs 절차:</b> 소싱처 누락·확장버전·심볼변경 = <b>자동 감지</b> / 순수 로직만 조용히 바뀜(버전·심볼 그대로) = <b>절차</b>(코드 고칠 때 가이드도 같이).</div>
       <div class="why" style="margin-top:8px">✅ <b>현재 상태</b>: 4·5의 자동 배너 <b>적용 완료</b> — 데이터지도 상단에 소싱처 누락(P1)·심볼 사라짐(C2)·확장 버전 불일치(C1) 자동 표시. 순수 로직 변경은 여전히 절차로.</div>
-      <div class="why" style="margin-top:8px;background:#F0FDFA;border:1px solid #99F6E4"><b style="color:#0F766E">[2026-07-08] 재고 게이트 로직 = A 트랙 동기화 대상</b> — 재고 판정 우선순위(⓪수집성공→⚪확인불가 / ①옵션존재→②품절→③한정→④충분)·<b>파싱/수집 실패 → 999 아닌 확인불가(-1)</b>·충분 신호 종류(실수량/상한/추론)는 <b>순수 로직</b>이라 자동 감지 밖 → 코드(ssg.py·musinsa.py·api_pricing.py) 바뀌면 §2 재고 탭·<span class="mono">.md</span> 를 <b>같은 작업에서</b> 갱신한다.</div>
     </div>
 
   </div>

@@ -175,12 +175,6 @@ FIELD_OPTN_TYPE1_RE = _build_field_re("uitemOptnTypeNm1")
 FIELD_OPTN_TYPE2_RE = _build_field_re("uitemOptnTypeNm2")
 FIELD_USABL_INV_RE = _build_field_re("usablInvQty")
 FIELD_BEST_AMT_RE = _build_field_re("bestAmt")
-
-# 재고 불명(확인 불가) 센티넬 — 크롤은 됐으나 재고 신호(usablInvQty)를 못 읽음
-#   (필드명·포맷 변경 등 파싱 실패). 0(품절 둔갑)도 999(재고있음 둔갑)도 금지 →
-#   화면 '⚠️확인필요'+수량0(판매 제외)로 표면화. webapp _resolve_stock 의 -1 과 동일.
-#   🔒 재고 3대 원칙: 폴백 금지·못하면 '확인 불가'.
-_STOCK_UNKNOWN = -1
 # sellprc 는 parseInt('NNNNN', 10) 형식
 FIELD_SELLPRC_RE = re.compile(r"sellprc\s*:\s*parseInt\(\s*'([^']*)'")
 
@@ -693,11 +687,11 @@ def _parse_uitem_options(
 
         sellprc = _to_int(sellprc_m.group(1)) if sellprc_m else 0
         best_amt = _to_int(bestamt_m.group(1)) if bestamt_m else 0
-        # [2026-07-02 A1 → 2026-07-08 재정의] usablInvQty 필드가 present 이면 그 값
-        #   ('0'=진짜 품절, 'N'=실수량). ABSENT(정규식 미스=필드명/포맷 변경 등 파싱 실패)
-        #   이면 0(품절 둔갑)도 999(재고있음 둔갑=오버셀)도 금지 → _STOCK_UNKNOWN(-1)=확인불가.
-        #   🔒 재고 3대 원칙: 폴백 금지·못하면 '확인 불가'(수량0 취급·판매 제외·재크롤).
-        stock = _to_int(inv_m.group(1)) if inv_m else _STOCK_UNKNOWN
+        # [2026-07-02 A1 fix] usablInvQty 필드가 present 이면 그 값('0'=진짜 품절),
+        #   ABSENT(정규식 미스=필드명/포맷 변경 등 파싱 실패) 이면 0(품절 둔갑) 금지 →
+        #   타 크롤러(무신사·SSF·롯데)와 동일하게 999(수량미상='재고있음')로 매핑.
+        #   §1 재고 센티넬 일관성: 파싱 실패를 진짜 품절과 구분(품절 둔갑=금전손실).
+        stock = _to_int(inv_m.group(1)) if inv_m else 999
 
         # sale_price 단일 진실 원천: bestAmt 우선, 없으면 sellprc
         sale_price = best_amt if best_amt > 0 else sellprc
