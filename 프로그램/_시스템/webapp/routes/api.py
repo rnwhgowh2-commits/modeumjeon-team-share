@@ -103,6 +103,40 @@ def crawl_pass_done():
         s.close()
 
 
+@bp.get('/crawl/laps/audit')
+def crawl_laps_audit():
+    """CrawlLapRun 회차 중복 전수 조사(dry-run, 삭제 안 함). ?window=초(기본 90)."""
+    from lemouton.sources.crawl_schedule import audit_lap_runs
+    s = SessionLocal()
+    try:
+        w = int(request.args.get('window', 90))
+        a = audit_lap_runs(s, window_seconds=w)
+        a.pop('dup_ids', None)   # 요약만(큰 목록 제외)
+        return jsonify(a)
+    finally:
+        s.close()
+
+
+@bp.post('/crawl/laps/dedup')
+def crawl_laps_dedup():
+    """중복 회차 삭제 — 각 바퀴 클러스터의 첫 행만 남김. 기본은 dry-run,
+    ?apply=1 이어야 실제 삭제. ?window=초(기본 90)."""
+    from lemouton.sources.crawl_schedule import audit_lap_runs, dedupe_lap_runs
+    s = SessionLocal()
+    try:
+        w = int(request.args.get('window', 90))
+        if request.args.get('apply') != '1':
+            a = audit_lap_runs(s, window_seconds=w)
+            a.pop('dup_ids', None)
+            return jsonify({**a, "applied": False})
+        a = dedupe_lap_runs(s, window_seconds=w)
+        s.commit()
+        n = len(a.pop('dup_ids', []))
+        return jsonify({**a, "applied": True, "removed": n})
+    finally:
+        s.close()
+
+
 @bp.post('/sources/crawl-weight')
 def set_source_crawl_weight():
     """URL 계수(1~5) 저장. body: {source_product_id, weight}."""
