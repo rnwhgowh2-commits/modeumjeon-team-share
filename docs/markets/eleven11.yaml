@@ -38,14 +38,34 @@ auth:
     11번가 셀러오피스 로그인 → 하단 [Open API] → Home > 서비스 등록·확인 > 서비스등록
     (담당업무=개발, 사용용도=주문 통합관리 등) → OPENAPI KEY 발급 + 서비스 IP 등록.
 
-# ⚠️ 셀러 REST 엔드포인트 = 로그인 게이트로 미확보. 스펙 확보(사용자 브라우저/문서) 후 채운다.
-#    형식은 롯데온 대칭(작업/메서드/경로). 지금은 추측 방지를 위해 TODO.
+# 주문조회(발주확인) = 셀러오피스 로그인 문서 실측 확보(2026-07-07, 사용자 로그인 브라우저 판독).
+#    상품/가격/재고 셀러 REST 는 아직 미확보 → TODO(추측 금지).
 endpoints:
-  fetch_options: "TODO(조사필요 — 셀러 REST 상품/옵션 상세조회. XML 응답에서 단품·색·사이즈·재고·가격)"
+  fetch_orders:  "GET https://api.11st.co.kr/rest/ordservices/complete/{startTime}/{endTime} (발주확인 기간별 결제완료 목록, 구현됨)"
+  fetch_options: "TODO(조사필요 — 셀러 REST 상품/옵션 상세조회)"
   get_detail:    "TODO(조사필요 — 상품 상세조회)"
   update_price:  "TODO(조사필요 — 가격 수정)"
   update_stock:  "TODO(조사필요 — 재고 수정)"
   register:      "TODO(조사필요, 나중 — 상품 등록)"
+
+# 발주확인(기간별 결제완료 목록조회) 요청/응답 — 개발가이드>주문>결제완료 실측(2026-07-07).
+fetch_orders_spec:
+  request:
+    url: "GET https://api.11st.co.kr/rest/ordservices/complete/{startTime}/{endTime}"
+    startTime_endTime: '"YYYYMMDDhhmm"(분 단위). 조회기간 최대 7일 → 코드가 7일 윈도우 분할. 최대 3,000건.'
+    auth: "openapikey 헤더(Eleven11Client). 응답 XML(euc-kr)."
+  response:
+    root: "<ns2:orders> 하위 <ns2:order> 반복(주문 상품라인 1개 = 1 요소)"
+    fields: >
+      ordNo(주문번호)·ordDt(주문일시)·prdNm(상품명)·prdNo(상품번호)·ordPrdSeq(상품순번)·
+      slctPrdOptNm(선택옵션)·ordQty(수량)·selPrc(판매단가)·ordAmt/ordPayAmt(주문·결제금액)·
+      dlvCst/bmDlvCst(배송비/묶음배송비)·bndlDlvSeq·bndlDlvYN(묶음배송)·rcvrNm(수령자)·
+      rcvrPrtblNo/rcvrTlphn(수령자 연락처)·rcvrBaseAddr+rcvrDtlsAddr(주소)·rcvrMailNo(우편)·
+      ordNm/memID(구매자)·ordPrtblTel/ordTlphnNo(구매자 연락처)·ordDlvReqCont(배송요청).
+  note: >
+    이 엔드포인트=결제완료(발주확인·발송대기) 목록 → 주문상태 "결제완료" 고정. 정산예정금액은
+    주문 API 에 없음(11번가 정산 별도) → 공란(폴백 금지). 배송비는 묶음배송이면 bmDlvCst.
+    다른 상태(발송처리·완료조회)는 별도 엔드포인트(후속).
 
 option_structure:
   option_id_field: "TODO(조사필요 — 11번가 단품/옵션 식별자. 응답 XML 필드명 미확보)"
@@ -106,8 +126,11 @@ safety:
 code_map:
   auth: shared/platforms/eleven11/auth.py            # openapikey 헤더 (구현됨)
   client: shared/platforms/eleven11/client.py        # XML HTTP 전송·rate limit·재시도 (구현됨)
+  orders: shared/platforms/eleven11/orders.py        # 발주확인 기간별 조회·7일윈도우·XML파싱·중복제거 (구현됨)
+  fetch_orders: lemouton/markets/order_export.py::eleven11_order_rows  # 행 매핑(구현됨). 라이브검증 후 SUPPORTED 추가
+  order_client_builder: lemouton/uploader/market_fetch.py::_eleven11_client  # 계정 키→Eleven11Client (구현됨)
   dispatcher_client: lemouton/auth/api_eleven11.py   # 계정→client 캐시 계층 (구현됨)
-  fetch: shared/platforms/eleven11/products.py        # get_product_detail+extract_items (스펙 확보 후)
+  fetch: shared/platforms/eleven11/products.py        # get_product_detail+extract_items (상품 스펙 확보 후)
   register: shared/platforms/eleven11/products.py     # 나중
   update_price: shared/platforms/eleven11/prices.py   # 스펙 확보 후
   update_stock: shared/platforms/eleven11/inventory.py # 스펙 확보 후

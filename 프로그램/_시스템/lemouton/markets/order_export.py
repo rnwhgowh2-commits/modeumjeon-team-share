@@ -71,7 +71,8 @@ SUPPORTED = {"smartstore", "lotteon", "coupang"}   # UI 엑셀버튼 노출. 실
 # 마켓 → 계정 시크릿 env_prefix(판매처 계정 기본). load_credentials 로 실키 로드.
 _ENV_PREFIX = {"smartstore": "SMARTSTORE_MAIN", "coupang": "COUPANG_MAIN",
                "lotteon": "LOTTEON_MAIN",
-               "auction": "AUCTION_MAIN", "gmarket": "GMARKET_MAIN"}
+               "auction": "AUCTION_MAIN", "gmarket": "GMARKET_MAIN",
+               "eleven11": "ELEVEN11_MAIN"}
 
 
 def _g(o, *keys, default=""):
@@ -433,11 +434,57 @@ def gmarket_order_rows(since: _dt.datetime, until: _dt.datetime, client=None) ->
     return esm_order_rows("gmarket", since, until, client=client)
 
 
+def eleven11_order_rows(since: _dt.datetime, until: _dt.datetime, client=None) -> list:
+    """11번가 발주확인(기간별 결제완료 목록조회) → 행(dict). GET complete/{start}/{end} XML 매핑.
+
+    이 엔드포인트는 결제완료(발송대기) 목록 → 주문상태 "결제완료" 고정. 정산예정금액은 주문
+    API 에 없음(11번가 정산 별도) → 공란(폴백 금지). 배송비는 묶음배송(bndlDlvYN=Y)이면
+    묶음배송비(bmDlvCst), 아니면 개별(dlvCst); 배송건(_shipkey=bndlDlvSeq) 단위 1회 정규화.
+    ⚠️ 라이브 미검증(키 입력 후 서버 검증 필요). 검증 전 SUPPORTED 미포함.
+    """
+    from shared.platforms.eleven11.orders import iter_orders
+
+    def _g11(od, *keys):
+        for k in keys:
+            v = od.get(k)
+            if v not in (None, "", "null"):
+                return v
+        return ""
+
+    rows = []
+    for od in iter_orders(since, until, client=client):
+        addr = (str(_g11(od, "rcvrBaseAddr")) + " " + str(_g11(od, "rcvrDtlsAddr"))).strip()
+        ship = _g11(od, "bmDlvCst") if od.get("bndlDlvYN") == "Y" else _g11(od, "dlvCst")
+        rows.append({
+            "_shipkey": ("eleven11", _g11(od, "bndlDlvSeq") or _g11(od, "ordNo")),
+            "주문일": _g11(od, "ordDt"),
+            "판매처": "11번가",
+            "상품명": _g11(od, "prdNm"),
+            "옵션": _g11(od, "slctPrdOptNm"),
+            "수량": _g11(od, "ordQty"),
+            "주소": addr,
+            "우편번호": _g11(od, "rcvrMailNo"),
+            "수령자": _g11(od, "rcvrNm"),
+            "배송메시지": _g11(od, "ordDlvReqCont"),
+            "구매자": _g11(od, "ordNm", "memID"),
+            "수령자전화번호": _g11(od, "rcvrPrtblNo", "rcvrTlphn"),
+            "구매자번호": _g11(od, "ordPrtblTel", "ordTlphnNo"),
+            "쇼핑몰": "11번가",
+            "쇼핑몰ID": "",
+            "단가": _g11(od, "selPrc"),
+            "배송비": ship,
+            "정산예정금액": "",   # 11번가 주문 API엔 정산 없음(별도 API) — 폴백 금지
+            "주문상태": "결제완료",  # 이 엔드포인트 = 발주확인(결제완료·발송대기) 목록
+        })
+    return rows
+
+
 # 마켓별 행 빌더(코드 존재). SUPPORTED = 그중 실계정 검증까지 끝나 UI 노출 가능한 것.
-# 옥션·G마켓 = 빌더/조회 코드 준비됨(공개문서 스펙). 실키 입력+서버 라이브검증 후 SUPPORTED 추가.
+# 옥션·G마켓·11번가 = 빌더/조회 코드 준비됨(공개문서 스펙). 실키 입력+서버 라이브검증 후 SUPPORTED 추가.
 _BUILDERS = {"smartstore": smartstore_order_rows, "lotteon": lotteon_order_rows,
              "coupang": coupang_order_rows,
-             "auction": auction_order_rows, "gmarket": gmarket_order_rows}
+             "auction": auction_order_rows, "gmarket": gmarket_order_rows,
+             "eleven11": eleven11_order_rows}
 
 
 def _account_client(market: str):
@@ -458,7 +505,8 @@ def _account_client(market: str):
                    "coupang": _mf._coupang_client,
                    "lotteon": _mf._lotteon_client,
                    "auction": _mf._auction_client,
-                   "gmarket": _mf._gmarket_client}.get(market)
+                   "gmarket": _mf._gmarket_client,
+                   "eleven11": _mf._eleven11_client}.get(market)
         return builder(prefix) if builder else None
     except Exception:
         return None   # 키 미설정 등 → row builder 가 기본 클라(app.env)로 폴백
