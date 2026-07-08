@@ -276,13 +276,72 @@ def probe_eleven11():
                     fields.add(c.tag.rsplit("}", 1)[-1])
         return {"result_code": rc, "order_count": norders, "fields": sorted(fields)}
 
+    def _lookup(path):
+        """개별 주문조회(claimservice/orderlistall) — 태그·상태만(값 노출 최소)."""
+        try:
+            xml = client.request("GET", path)
+        except Exception as ex:   # noqa: BLE001
+            return {"error": f"{type(ex).__name__}: {str(ex)[:200]}"}
+        cleaned = _re.sub(r"<\?xml[^>]*\?>", "", xml or "", count=1).lstrip()
+        if not cleaned:
+            return {"empty": True}
+        try:
+            root = _ET.fromstring(cleaned)
+        except Exception as ex:   # noqa: BLE001
+            return {"parse_error": str(ex)[:120], "head": cleaned[:200]}
+        tags = sorted({el.tag.rsplit("}", 1)[-1] for el in root.iter()})
+        stat = [el.text for el in root.iter()
+                if el.tag.rsplit("}", 1)[-1] in ("ordPrdStatNm", "ordPrdStat")]
+        return {"tags": tags, "status_vals": stat[:4]}
+
     s, e = since.strftime("%Y%m%d%H%M"), until.strftime("%Y%m%d%H%M")
-    return jsonify(
-        window=[s, e],
-        complete=_summ(f"/rest/ordservices/complete/{s}/{e}"),
-        todaydelivery=_summ("/rest/ordservices/todaydelivery/completes"),
-        delaydelivery=_summ("/rest/ordservices/delaydelivery/completes"),
-        shipping=_summ(f"/rest/ordservices/shipping/{s}/{e}"),
-        standby=_summ(f"/rest/ordservices/standby/{s}/{e}"),
-        delvplacestandby=_summ(f"/rest/ordservices/delvplacestandby/{s}/{e}"),
-    )
+    sample = request.args.get("ord", "")   # 개별조회 테스트용 주문번호(선택)
+    out = {
+        "window": [s, e],
+        "complete": _summ(f"/rest/ordservices/complete/{s}/{e}"),
+        "todaydelivery": _summ("/rest/ordservices/todaydelivery/completes"),
+        "delaydelivery": _summ("/rest/ordservices/delaydelivery/completes"),
+        "shipping": _summ(f"/rest/ordservices/shipping/{s}/{e}"),
+        "standby": _summ(f"/rest/ordservices/standby/{s}/{e}"),
+        "delvplacestandby": _summ(f"/rest/ordservices/delvplacestandby/{s}/{e}"),
+    }
+    if sample:
+        out["orderlistall"] = _lookup(f"/rest/claimservice/orderlistall/{sample}")
+    return jsonify(out)
+
+
+@bp.route('/_probecp')
+def probe_coupang_return():
+    """[임시 진단] 쿠팡 반품/취소 목록(returnRequests) 실응답 — status 후보별 필드·건수."""
+    from flask import jsonify
+    import datetime as _dt
+    from shared.platforms import COUPANG
+    from shared.platforms.coupang.client import CoupangClient
+    since, until = _parse_range(request.args)
+    if until is None:
+        until = _dt.datetime.now(_oe.KST)
+    if since is None:
+        since = until - _dt.timedelta(days=7)
+    vendor = COUPANG.get("vendor_id")
+    client = CoupangClient()
+    base = f"/v2/providers/openapi/apis/api/v4/vendors/{vendor}/returnRequests"
+    f_d, t_d = since.strftime("%Y-%m-%d"), until.strftime("%Y-%m-%d")
+
+    def _try(status, dtfmt):
+        frm = since.strftime(dtfmt)
+        to = until.strftime(dtfmt)
+        q = f"createdAtFrom={frm}&createdAtTo={to}&status={status}&maxPerPage=50"
+        try:
+            resp = client.request(method="GET", path=base, query=q)
+        except Exception as ex:   # noqa: BLE001
+            return {"error": f"{type(ex).__name__}: {str(ex)[:180]}"}
+        data = resp.get("data") if isinstance(resp, dict) else None
+        item0 = (data or [{}])[0] if data else {}
+        return {"count": len(data or []),
+                "top_keys": sorted(resp.keys()) if isinstance(resp, dict) else None,
+                "item_keys": sorted(item0.keys()) if isinstance(item0, dict) else None}
+
+    out = {"vendor_set": bool(vendor), "range": [f_d, t_d]}
+    for st in ("RU", "CC", "UC", "RETURNS_UNCHECKED", "PR"):
+        out[f"status={st}"] = _try(st, "%Y-%m-%dT%H:%M")
+    return jsonify(out)
