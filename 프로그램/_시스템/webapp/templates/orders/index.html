@@ -99,6 +99,15 @@
     .o7 .colpop .cpf button.pri{background:var(--blue);color:#fff;border-color:var(--blue);}
     /* 양식 관리 모달 — 프리셋 목록 */
     .o7 .presetbar{padding:6px 12px;border-bottom:1px solid var(--line);}
+    /* 시안 4 — 좌 양식목록 + 우 열편집 나란히 */
+    .o7 .cfgbox-wide{width:720px;}
+    .o7 .cfgbody{display:flex;align-items:stretch;}
+    .o7 .cfgcol{display:flex;flex-direction:column;}
+    .o7 .cfgcol-l{width:250px;flex:none;border-right:1px solid var(--line);}
+    .o7 .cfgcol-r{flex:1;min-width:0;}
+    .o7 .cfgcolh{padding:9px 14px 6px;font-size:11px;font-weight:800;color:var(--sub);letter-spacing:.02em;}
+    .o7 .cfgbody .presetbar{border-bottom:none;flex:1;max-height:360px;overflow:auto;}
+    .o7 .cfgbody .collist{max-height:360px;}
     .o7 .prow{display:flex;align-items:center;gap:7px;padding:7px 9px;border:1px solid var(--line2);border-radius:8px;margin-bottom:5px;font-size:13px;cursor:pointer;}
     .o7 .prow.on{border-color:var(--blue);background:#EEF4FF;}
     .o7 .prow .pn{flex:1;font-weight:700;} .o7 .prow .pc{color:var(--faint);font-size:11px;}
@@ -134,10 +143,18 @@
       <div style="font-size:11.5px;color:var(--sub);margin-top:10px">💡 화면은 개요(연락처 가림)입니다. <b>전체 원본</b>은 「엑셀 내보내기」로 받으세요.</div>
     </main>
   </div>
-  <div class="o7"><div class="cfgov" id="cfgov"><div class="cfgbox">
-    <div class="cfghd">엑셀 양식 관리<span>양식을 고르고 열을 켜고 ↑↓ 순서. 추가·이름수정·삭제 가능</span></div>
-    <div class="presetbar" id="presetbar"></div>
-    <div class="collist" id="collist"></div>
+  <div class="o7"><div class="cfgov" id="cfgov"><div class="cfgbox cfgbox-wide">
+    <div class="cfghd">엑셀 양식 관리<span>왼쪽에서 양식을 고르고, 오른쪽에서 열을 켜고 ↑↓ 로 순서를 바꾸세요. 추가·이름수정·삭제 가능</span></div>
+    <div class="cfgbody">
+      <div class="cfgcol cfgcol-l">
+        <div class="cfgcolh">양식 목록</div>
+        <div class="presetbar" id="presetbar"></div>
+      </div>
+      <div class="cfgcol cfgcol-r">
+        <div class="cfgcolh">열 켜기 · 순서</div>
+        <div class="collist" id="collist"></div>
+      </div>
+    </div>
     <div class="cfgft"><button type="button" id="cfgreset">기본값</button><button type="button" id="cfgsave" class="prim">저장</button></div>
   </div></div></div>
   <div class="o7"><div class="colpop" id="colpop"></div></div>
@@ -153,13 +170,26 @@
     var COLMETA={{ col_meta|tojson }};
     var MKLABEL={smartstore:'스마트스토어',lotteon:'롯데온',coupang:'쿠팡',eleven11:'11번가',auction:'옥션',gmarket:'G마켓'};
     var MKCLS={'스마트스토어':'ss','롯데온':'lo','쿠팡':'cp','11번가':'e11','옥션':'au','G마켓':'gm'};
-    // 화면 패널 컬럼(샵마인 순서 + 맨 앞 판매처·주문상태). 정렬: 숫자 우측 / 배지 가운데 / 나머지 좌측.
+    // 화면 패널 컬럼(사용자 지정 순서, 2026-07-08 샵마인 대조). t=화면 라벨(없으면 c).
+    // 정렬: 숫자·금액 우측(num) / 배지·상태 가운데(ctr) / 나머지 좌측(txt).
     var PANEL_COLS=[
-      {c:'판매처',a:'ctr'},{c:'주문상태',a:'ctr'},{c:'주문일',a:'txt'},{c:'상품명',a:'txt'},
-      {c:'옵션',a:'txt'},{c:'수량',a:'num'},{c:'주소',a:'txt'},{c:'우편번호',a:'txt'},
-      {c:'수령자',a:'txt'},{c:'배송메시지',a:'txt'},{c:'구매자',a:'txt'},{c:'수령자전화번호',a:'txt'},
-      {c:'구매자번호',a:'txt'},{c:'단가',a:'num'},{c:'정산예정금액',a:'num'}
+      {c:'주문일',a:'txt'},{c:'주문상태',a:'ctr'},{c:'판매처',a:'ctr'},
+      {c:'송장입력',a:'ctr'},{c:'쇼핑몰별칭',a:'txt'},
+      {c:'상품명',a:'txt'},{c:'옵션',a:'txt'},{c:'수량',a:'num'},
+      {c:'오픈마켓주문번호',a:'txt',t:'오픈마켓 주문번호'},
+      {c:'단가',a:'num'},{c:'실결제금액',a:'num'},
+      {c:'배송비',a:'num',t:'고객배송비'},
+      {c:'정산예정금액',a:'num',t:'정산예상금'},
+      {c:'정산예정금(배송비포함)',a:'num'},
+      {c:'총주문금액',a:'num'},{c:'옵션추가금',a:'num'},
+      {c:'마켓수수료',a:'num'},{c:'수수료율',a:'num'},
+      {c:'구매자',a:'txt'},{c:'구매자번호',a:'txt',t:'구매자전화번호'},
+      {c:'수령자',a:'txt'},{c:'수령자전화번호',a:'txt'},
+      {c:'우편번호',a:'txt'},{c:'주소',a:'txt'}
     ];
+    var MONEY_COLS={'단가':1,'실결제금액':1,'배송비':1,'정산예정금액':1,
+      '정산예정금(배송비포함)':1,'총주문금액':1,'옵션추가금':1,'마켓수수료':1,
+      '상품금액':1,'주문금액':1};
     var rows=[], srch='';
     var colFilter={};   // {컬럼명: {excluded:Set}} — 헤더 필터(엑셀식). 값 제외 목록.
     function filterKey(col,r){var v=r[col]||''; return col==='주문일'?String(v).slice(0,10):String(v);}
@@ -204,17 +234,17 @@
       return kn+' · '+r.from+' ~ '+r.to;
     }
     // ── 엑셀 다중 양식(프리셋) ── {name, cols:[{c,on}] 순서포함}. localStorage 저장.
-    var PLS='moum_order_presets_v1';
+    var PLS='moum_order_presets_v2';   // v2: 샵마인 대조 새 열(수수료·송장·별칭) 반영 → 기본값 갱신
     function mkPreset(name, enabled){   // enabled=켤 열 이름(순서). 나머지는 off로 뒤에 붙임.
       var cols=enabled.filter(function(c){return ALLCOLS.indexOf(c)>=0;}).map(function(c){return {c:c,on:true};});
       ALLCOLS.forEach(function(c){if(enabled.indexOf(c)<0)cols.push({c:c,on:false});});
       return {name:name, cols:cols};
     }
     function defaultPresets(){return [
-      mkPreset('택배전송용',['수령자','수령자전화번호','우편번호','주소','상품명','옵션','수량','배송메시지']),
-      mkPreset('마진계산기용',['상품명','옵션','수량','단가','배송비','상품금액','주문금액','정산예정금액']),
-      mkPreset('샵마인용',['주문일','상품명','옵션','수량','주소','우편번호','수령자','배송메시지','구매자','수령자전화번호','구매자번호','판매처','단가','정산예정금액']),
-      mkPreset('정산확인용',['판매처','주문일','상품명','수량','단가','정산예정금액']),
+      mkPreset('택배전송용',['수령자','수령자전화번호','우편번호','주소','상품명','옵션','수량','배송메시지','송장입력']),
+      mkPreset('마진계산기용',['주문일','판매처','쇼핑몰별칭','상품명','옵션','수량','오픈마켓주문번호','단가','실결제금액','배송비','정산예정금액','정산예정금(배송비포함)','구매자','구매자번호','수령자','수령자전화번호','우편번호','주소','총주문금액','옵션추가금','마켓수수료','수수료율','주문상태','송장입력']),
+      mkPreset('샵마인용',['주문일','판매처','쇼핑몰별칭','상품명','옵션','수량','오픈마켓주문번호','단가','실결제금액','배송비','정산예정금액','정산예정금(배송비포함)','구매자','수령자','수령자전화번호','구매자번호','우편번호','주소','배송메시지','총주문금액','옵션추가금','마켓수수료','수수료율','주문상태','송장입력']),
+      mkPreset('정산확인용',['판매처','주문일','오픈마켓주문번호','상품명','수량','단가','실결제금액','정산예정금액','마켓수수료','수수료율']),
       mkPreset('전체', ALLCOLS.slice()),
     ];}
     function loadPresets(){try{var s=JSON.parse(localStorage.getItem(PLS));if(Array.isArray(s)&&s.length){
@@ -254,7 +284,7 @@
       if(col==='판매처')return '<span class="mk '+(MKCLS[v]||'gray')+'">'+esc(v||'')+'</span>';
       if(col==='주문상태')return '<span class="bd '+stCls(v||'')+'">'+esc(v||'-')+'</span>';
       if(col==='수량')return esc(v||'');
-      if(col==='단가'||col==='정산예정금액')return v?Number(num(v)).toLocaleString():'<span class="muted">—</span>';
+      if(MONEY_COLS[col])return (v!==''&&v!=null)?Number(num(v)).toLocaleString():'<span class="muted">—</span>';
       if((col==='배송메시지'||col==='수령자'||col==='구매자')&&!v)return '<span class="muted">—</span>';
       return esc(v||'');
     }
@@ -262,7 +292,7 @@
       if(!fr.length){document.getElementById('tablewrap').innerHTML='<div class="state">조건에 맞는 주문이 없어요.</div>';return;}
       var head='<tr>'+PANEL_COLS.map(function(pc){
         var active=colFilter[pc.c]&&colFilter[pc.c].excluded&&colFilter[pc.c].excluded.size;
-        return '<th class="fcol '+pc.a+(active?' filtered':'')+'" data-col="'+pc.c+'">'+pc.c+'<span class="fic">▼</span></th>';
+        return '<th class="fcol '+pc.a+(active?' filtered':'')+'" data-col="'+pc.c+'">'+(pc.t||pc.c)+'<span class="fic">▼</span></th>';
       }).join('')+'</tr>';
       var body=fr.map(function(r){return '<tr>'+PANEL_COLS.map(function(pc){
         return '<td class="'+(pc.a==='num'?'num':(pc.a==='ctr'?'ctr':''))+'">'+cellHTML(pc.c,r)+'</td>';

@@ -107,7 +107,7 @@ def test_list_is_seven_layout():
     html = _render("list")
     for t in ["마켓", "기간", "검색", "엑셀 양식", "양식 관리", "엑셀 내보내기",
               "preview.json", "kpis", "tablewrap", "presetSel", "colpop",
-              "moum_order_presets_v1", "택배전송용", "마진계산기용"]:
+              "moum_order_presets_v2", "택배전송용", "마진계산기용"]:
         assert t in html, t
     assert "안전 OFF" not in html                # 모순 배너 제거됨
     assert "레이아웃 미리보기(샘플)" not in html
@@ -169,3 +169,25 @@ def test_export_rejects_unsupported_market():
 def test_list_export_offers_three_markets():
     html = _render("list")
     assert "스마트스토어" in html and "롯데온" in html and "쿠팡" in html   # 마켓 선택 칩
+
+
+def test_shopmine_fee_derivation():
+    """샵마인 대조(2026-07-08): 마켓수수료 = 실결제 − 정산예정, 수수료율 = 수수료/총주문.
+
+    4개 마켓 실샘플로 검증. 실결제 없으면(쿠팡) 총주문금액으로. 정산==실결제(롯데온,
+    정산 API 없음)면 수수료 공란(0/음수 폴백 금지 — 없는 값 지어내지 않음).
+    """
+    from lemouton.markets.order_export import _finalize_rows
+    cases = [   # (실결제, 정산, 기대 수수료, 기대 율)
+        ({"단가": 37400, "수량": 1, "실결제금액": 34830, "정산예정금액": 33146}, 1684, "4.5%"),
+        ({"단가": 140000, "수량": 1, "정산예정금액": 123830}, 16170, "11.55%"),   # 쿠팡: 실결제 없음
+        ({"단가": 83200, "수량": 1, "실결제금액": 66060, "정산예정금액": 62096}, 3964, "4.76%"),
+        ({"단가": 65500, "수량": 1, "실결제금액": 55700, "정산예정금액": 55700}, "", ""),  # 롯데온: 정산=실결제
+    ]
+    for row, fee, rate in cases:
+        _finalize_rows([row])
+        assert row["마켓수수료"] == fee, row
+        assert row["수수료율"] == rate, row
+    # 송장 없으면 '송장미입력', 새 열 존재
+    assert cases[0][0]["송장입력"] == "송장미입력"
+    assert cases[0][0]["총주문금액"] == 37400
