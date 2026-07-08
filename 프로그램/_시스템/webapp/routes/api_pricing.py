@@ -1500,7 +1500,10 @@ def save_crawl_result():
                     sp.last_price = int(price)
                 except Exception:
                     pass
-            if stock is not None:
+            # [2026-07-08] ⓪ 수집 성공 게이트 — 성공(ok) 크롤만 상품 재고합계 기록.
+            #   실패(error 등)면 옛값 보존(하드리셋 NULL=미크롤 유지) → 실패가 재고합계를
+            #   덮어써 '재고있음' 둔갑하는 것 방지. 옵션 레벨 영속도 동일하게 ok 에서만(하단).
+            if status == 'ok' and stock is not None:
                 try:
                     sp.last_stock = int(stock)
                 except Exception:
