@@ -173,12 +173,30 @@ class Eleven11Credentials(_MaskedReprMixin):
     openapi_key: str = Field(min_length=1)
 
 
+class EsmCredentials(_MaskedReprMixin):
+    """옥션·G마켓(ESM 2.0 · 이베이코리아) 통합 셀러 API 자격증명.
+
+    ``.env`` 키: ``{env_prefix}_MASTER_ID``, ``{env_prefix}_SECRET_KEY``, ``{env_prefix}_SELLER_ID``
+    · master_id  = ESM+ 마스터 ID (JWT header ``kid``).
+    · secret_key = 발급 시크릿 키 — JWT 서명(HmacSHA256)에 사용.
+    · seller_id  = 해당 마켓 판매자 ID (payload ``ssi`` = ``"{site}:{seller_id}"``,
+                   site = 옥션 ``"A"`` / G마켓 ``"G"``).
+    옥션·G마켓은 같은 ESM 마스터 계정이라 master_id·secret_key 는 공통, seller_id 만 다르다.
+    """
+
+    master_id: str = Field(min_length=1)
+    secret_key: str = Field(min_length=1)
+    seller_id: str = Field(min_length=1)
+
+
 # 마켓 → 스키마 라우팅
 MARKET_SCHEMAS: dict[str, Type[_MaskedReprMixin]] = {
     "smartstore": SmartstoreCredentials,
     "coupang": CoupangCredentials,
     "lotteon": LotteonCredentials,
     "eleven11": Eleven11Credentials,
+    "auction": EsmCredentials,    # 옥션 (ESM 2.0)
+    "gmarket": EsmCredentials,    # G마켓 (ESM 2.0) — 옥션과 동일 스키마(master·secret 공통)
 }
 
 

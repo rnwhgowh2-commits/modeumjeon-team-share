@@ -174,6 +174,47 @@ ELEVEN11: dict = {
 
 
 # ──────────────────────────────────────────────────────────────
+# 옥션·G마켓 (ESM 2.0 · 이베이코리아) 통합 셀러 API
+# 인증 = JWT(HmacSHA256): header.kid=master_id, payload.ssi="{site}:{seller_id}"
+#   (site: 옥션 "A" / G마켓 "G"), payload.aud="sa.esmplus.com", secret_key 로 서명.
+# 옥션·G마켓은 같은 ESM+ 마스터 계정 → master_id·secret_key 공통, seller_id·site 만 다름.
+# ⚠️ 주문/정산/상품 엔드포인트 경로는 스펙 미확보(문서 문의 etapihelp@gmail.com). 확보 후 채움(추측 금지).
+# ──────────────────────────────────────────────────────────────
+_ESM_COMMON: dict = {
+    "base_url": os.environ.get("ESM_BASE_URL", "https://etapi.gmarket.com"),
+    "auth_audience": "sa.esmplus.com",
+    "auth_alg": "HS256",
+    "rate_limit_per_sec": float(os.environ.get("ESM_RATE_LIMIT_PER_SEC", "5")),
+    "max_retries": int(os.environ.get("ESM_MAX_RETRIES", "3")),
+    "retry_backoff_sec": float(os.environ.get("ESM_RETRY_BACKOFF_SEC", "2")),
+    "request_timeout_sec": float(os.environ.get("ESM_REQUEST_TIMEOUT_SEC", "30")),
+    "paths": {
+        "orders": None,        # 주문 조회
+        "settlement": None,    # 정산 조회
+        "detail": None,        # 상품/옵션 상세
+        "price_change": None,  # 가격 수정
+        "stock_change": None,  # 재고 수정
+    },
+}
+
+AUCTION: dict = {
+    **_ESM_COMMON,
+    "site_id": "A",   # ESM payload ssi 앞자리(옥션)
+    "master_id": os.environ.get("AUCTION_MAIN_MASTER_ID", ""),
+    "secret_key": os.environ.get("AUCTION_MAIN_SECRET_KEY", ""),
+    "seller_id": os.environ.get("AUCTION_MAIN_SELLER_ID", ""),
+}
+
+GMARKET: dict = {
+    **_ESM_COMMON,
+    "site_id": "G",   # ESM payload ssi 앞자리(G마켓)
+    "master_id": os.environ.get("GMARKET_MAIN_MASTER_ID", ""),
+    "secret_key": os.environ.get("GMARKET_MAIN_SECRET_KEY", ""),
+    "seller_id": os.environ.get("GMARKET_MAIN_SELLER_ID", ""),
+}
+
+
+# ──────────────────────────────────────────────────────────────
 # Notifier (vendored shared/notifier.py 가 참조)
 # ──────────────────────────────────────────────────────────────
 NOTIFIER: dict = {
@@ -207,4 +248,4 @@ MONITOR: dict = {
 }
 
 
-__all__ = ["COUPANG", "SMARTSTORE", "LOTTEON", "ELEVEN11", "NOTIFIER", "MONITOR"]
+__all__ = ["COUPANG", "SMARTSTORE", "LOTTEON", "ELEVEN11", "AUCTION", "GMARKET", "NOTIFIER", "MONITOR"]
