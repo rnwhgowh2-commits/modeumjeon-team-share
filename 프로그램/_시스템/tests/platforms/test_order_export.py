@@ -378,7 +378,8 @@ def test_lotteon_rows_map_from_delivery_orders():
     rows = oe.lotteon_order_rows(since, until, client=FakeLotteonClient())
     assert len(rows) == 1
     r = rows[0]
-    assert r["주문일"] == "2026-07-05" and r["상품명"] == "코트" and r["옵션"] == "블랙/95"
+    # 빌더는 원본(odCmptDttm) 방출 → _finalize/order_rows 에서 'YYYY-MM-DD HH:MM:SS' 통일.
+    assert r["주문일"] == "20260705120000" and r["상품명"] == "코트" and r["옵션"] == "블랙/95"
     assert r["수령자"] == "수령자A" and r["구매자"] == "구매자A"
     assert r["단가"] == 189000 and r["정산예정금액"] == 170000
     assert r["판매처"] == "롯데온"
@@ -394,6 +395,21 @@ def test_lotteon_unescapes_html_entities():
                               dt.datetime(2026, 7, 6, tzinfo=oe.KST), client=C())[0]
     assert r["상품명"] == "<매장정품> 코트"        # &lt; &gt; 해제
     assert r["옵션"] == "R&B / 100"                # &amp; 해제
+
+
+def test_norm_order_dt_formats():
+    # 마켓별 주문일 형식 → 'YYYY-MM-DD HH:MM:SS' 통일(시간 표시·정렬용)
+    assert oe._norm_order_dt("2026-07-08 20:22:54") == "2026-07-08 20:22:54"   # 11번가
+    assert oe._norm_order_dt("2026-07-05T09:00:00+09:00") == "2026-07-05 09:00:00"  # ISO(쿠팡·스스·ESM)
+    assert oe._norm_order_dt("20260705093012") == "2026-07-05 09:30:12"         # 롯데온 14자리
+    assert oe._norm_order_dt("20260705") == "2026-07-05"                        # 날짜만
+    assert oe._norm_order_dt("2026-07-05") == "2026-07-05"                      # 시간 없으면 날짜만
+    assert oe._norm_order_dt("") == ""
+
+
+def test_finalize_normalizes_order_datetime():
+    rows = oe._finalize_rows([{"주문일": "20260708202254", "단가": 1000, "수량": 1}])
+    assert rows[0]["주문일"] == "2026-07-08 20:22:54"       # 시간 포함 통일
 
 
 def test_lotteon_ready_in_builders_and_supported():
