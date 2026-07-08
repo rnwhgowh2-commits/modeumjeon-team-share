@@ -256,6 +256,22 @@ def test_combined_rows_sorted_desc(monkeypatch):
     assert [r["주문일"] for r in out] == ["2026-07-05", "2026-07-01"]   # 최신 먼저
 
 
+def test_combined_filters_by_order_date(monkeypatch):
+    # 기간(since/until) 명시 시 주문일이 범위 밖인 행은 제외(기간=주문일 통일).
+    monkeypatch.setattr(oe, "order_rows", lambda mk, **k: [
+        {"주문일": "2026-07-03 10:00:00", "판매처": "11번가"},   # 범위 안
+        {"주문일": "2026-06-28 20:22:54", "판매처": "11번가"},   # 범위 밖(구매확정만 오늘)
+        {"주문일": "값없음", "판매처": "11번가"},                 # 파싱 실패 → 남김
+    ])
+    since = dt.datetime(2026, 7, 1, tzinfo=KST)
+    until = dt.datetime(2026, 7, 5, 23, 59, tzinfo=KST)
+    out = oe.combined_order_rows(["eleven11"], since=since, until=until)
+    days = [r["주문일"] for r in out]
+    assert "2026-07-03 10:00:00" in days          # 주문일 범위 안 → 포함
+    assert "2026-06-28 20:22:54" not in days       # 주문일 범위 밖 → 제외
+    assert "값없음" in days                          # 파싱 실패 → 데이터 손실 방지 위해 남김
+
+
 def test_combined_parallel_error_propagates(monkeypatch):
     # 한 마켓이 실패하면 전체 실패로 전파(부분 성공 숨김 금지)
     def _fake(mk, days=7, **k):

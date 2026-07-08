@@ -83,7 +83,7 @@
         <label class="ck"><input type="checkbox" id="mk-all" checked> <b>전체</b></label>
         {% for m in export_markets %}<label class="ck"><input type="checkbox" class="mk-ck" value="{{ m }}" checked> {{ mklabel.get(m, m) }}</label>{% endfor %}
       </div>
-      <div class="fg"><div class="fl">기간 <span class="qmng" id="qmng">⚙ 버튼 관리</span></div>
+      <div class="fg"><div class="fl">기간 <span style="font-weight:400;color:var(--faint)">· 주문일 기준</span> <span class="qmng" id="qmng">⚙ 버튼 관리</span></div>
         <div class="qchips" id="qchips"></div>
         <div class="qdirect" id="qdirect">
           <input type="date" id="qfrom"><span class="qdash">~</span><input type="date" id="qto">
