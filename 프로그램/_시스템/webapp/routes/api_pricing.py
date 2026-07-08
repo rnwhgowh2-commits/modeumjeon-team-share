@@ -262,6 +262,10 @@ def _resolve_stock(site, raw, status=None):
         # [2026-07-04] uncollected = 상품 크롤은 됐으나 '이 셀(색·사이즈) per-size 재고를 못
         #   긁음' → 예전엔 상품 last_stock(합계)·'재고있음'으로 둔갑(품절인데 있음=금전위험).
         #   폴백 금지·누락 표면화 원칙: '확인 불가'로 정직하게 드러낸다.
+        # [2026-07-08] (다) not_sold = 소싱처가 옵션 목록을 성공 크롤했는데 이 색×사이즈가
+        #   목록에 없음(미판매/소멸) → 품절. 판매 제외(기회손실 방향, 오버셀 아님).
+        if status == 'not_sold':
+            return (0, '품절', True)
         if status == 'uncollected':
             return (None, '확인 불가', False)
         if status == 'error':
@@ -280,6 +284,8 @@ def _stock_state(site, raw, status=None):
     """재고 원시값(+last_status) → 상태 문자열(프론트 스타일/툴팁용). _resolve_stock 과 동일 의미.
        soldout / unknown / limited / ample / uncrawled / crawlfail."""
     if raw is None:
+        if status == 'not_sold':
+            return 'soldout'       # (다) 소싱처 미판매/소멸 → 품절
         if status == 'uncollected':
             return 'uncollected'   # 매칭됐으나 이 셀 재고 미수집 → '확인 불가'
         if status == 'error':
@@ -309,7 +315,14 @@ def _effective_stock_status(d):
         · match_failed       = 소싱처가 안 파는 색×사이즈 조합(르무통 오렌지 260/270 유령재고)
       둘 다 실재고 근거 없음 → '재고있음' 금지(품절둔갑=금전위험). 그 외엔 상품 last_status.
     """
-    if d.get('stock_uncollected') or d.get('match_failed'):
+    # [2026-07-08] (다) 소멸 vs 이름불일치 구분:
+    #   match_failed = 소싱처가 옵션 목록을 성공(ok) 크롤했는데 이 색×사이즈가 그 목록에 없음
+    #     = 소싱처 미판매/소멸 → '품절'(not_sold). 크롤 실패·미크롤이면 목록이 최신이 아니라
+    #     품절 둔갑 금지 → '확인 불가'(uncollected). (오버셀 아님 — 품절은 판매 제외·기회손실 방향)
+    #   stock_uncollected = 매칭됐으나 이 셀 per-size 재고 미수집(애매) → '확인 불가'.
+    if d.get('match_failed'):
+        return 'not_sold' if d.get('last_status') == 'ok' else 'uncollected'
+    if d.get('stock_uncollected'):
         return 'uncollected'
     return d.get('last_status')
 
