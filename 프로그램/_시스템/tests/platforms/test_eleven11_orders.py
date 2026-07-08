@@ -120,26 +120,38 @@ class TestOrderRows:
         assert oe._ENV_PREFIX["eleven11"] == "ELEVEN11_MAIN"
         assert "eleven11" in oe.SUPPORTED           # 서버 실호출 검증 완료(2026-07-08)
 
-    def test_merges_completed_status(self):
-        # 발송대기(complete) + 구매확정(completed) 두 목록을 합쳐 전체 상태 표시.
+    def test_merges_all_statuses(self):
+        # 발송대기(complete)+배송완료(dlvcompleted)+구매확정(completed) 3종 병합 → 전체 상태.
         from lemouton.markets import order_export as oe
-        completed_xml = ('<?xml version="1.0" encoding="euc-kr"?>'
-                         '<ns2:orders xmlns:ns2="http://x">'
-                         '<ns2:order><ns2:ordNo>99</ns2:ordNo><ns2:ordPrdSeq>1</ns2:ordPrdSeq>'
-                         '<ns2:prdNm>완료상품</ns2:prdNm><ns2:slctPrdOptNm>옵션Z</ns2:slctPrdOptNm>'
-                         '<ns2:ordQty>3</ns2:ordQty><ns2:dlvCst>0</ns2:dlvCst>'
-                         '<ns2:pocnfrmDt>2026-07-02 10:00:00</ns2:pocnfrmDt></ns2:order>'
-                         '</ns2:orders>')
+
+        def _one(no, nm, opt, qty, extra=""):
+            return ('<ns2:order><ns2:ordNo>' + no + '</ns2:ordNo><ns2:ordPrdSeq>1</ns2:ordPrdSeq>'
+                    '<ns2:prdNm>' + nm + '</ns2:prdNm><ns2:slctPrdOptNm>' + opt + '</ns2:slctPrdOptNm>'
+                    '<ns2:ordQty>' + qty + '</ns2:ordQty><ns2:dlvCst>0</ns2:dlvCst>' + extra + '</ns2:order>')
+
+        def _doc(inner):
+            return '<?xml version="1.0" encoding="euc-kr"?><ns2:orders xmlns:ns2="http://x">' + inner + '</ns2:orders>'
+
+        delivered_xml = _doc(_one("77", "배송완료상품", "옵션D", "2",
+                                  "<ns2:rcvrNm>수령인</ns2:rcvrNm><ns2:selPrc>12000</ns2:selPrc>"
+                                  "<ns2:dlvEndDt>2026-07-03 10:00:00</ns2:dlvEndDt>"))
+        completed_xml = _doc(_one("99", "구매확정상품", "옵션Z", "3",
+                                  "<ns2:pocnfrmDt>2026-07-02 10:00:00</ns2:pocnfrmDt>"))
 
         class _PathClient:
             def request(self, method, path, body=None):
-                return completed_xml if "/completed/" in path else _XML
+                if "/dlvcompleted/" in path:
+                    return delivered_xml
+                if "/completed/" in path:
+                    return completed_xml
+                return _XML                      # complete(발송대기)
 
         since = _dt.datetime(2026, 7, 1, tzinfo=KST)
         until = _dt.datetime(2026, 7, 5, tzinfo=KST)
         rows = oe.eleven11_order_rows(since, until, client=_PathClient())
         statuses = {r["주문상태"] for r in rows}
-        assert "결제완료" in statuses and "구매확정" in statuses      # 두 상태 병합
+        assert {"결제완료", "배송완료", "구매확정"} <= statuses      # 3상태 병합
+        deliv = [r for r in rows if r["주문상태"] == "배송완료"][0]
+        assert deliv["상품명"] == "배송완료상품" and deliv["단가"] == "12000" and deliv["수령자"] == "수령인"
         done = [r for r in rows if r["주문상태"] == "구매확정"][0]
-        assert done["상품명"] == "완료상품" and done["옵션"] == "옵션Z" and done["수량"] == "3"
         assert done["단가"] == "" and done["수령자"] == ""            # 구매확정 목록 미제공 → 공란

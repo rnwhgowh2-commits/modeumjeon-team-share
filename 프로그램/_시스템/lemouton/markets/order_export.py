@@ -437,15 +437,18 @@ def gmarket_order_rows(since: _dt.datetime, until: _dt.datetime, client=None) ->
 
 
 def eleven11_order_rows(since: _dt.datetime, until: _dt.datetime, client=None) -> list:
-    """11번가 주문 → 행(dict). 발송대기(complete) + 구매확정(completed) 두 목록을 합침.
+    """11번가 주문 → 행(dict). 상태별 API 3종 병합(전체 라이프사이클).
 
-    · 결제완료(발송대기, complete): 수령자·주소·단가(selPrc)·정산예정(stlPlnAmt) 등 전체 필드.
+    11번가는 주문을 상태별 API로 나눠 줌 → 3종을 합쳐 전체 상태 표시:
+    · 결제완료(발송대기, complete): 전체 필드(수령자·주소·단가 selPrc·정산예정 stlPlnAmt).
+    · 배송완료(dlvcompleted): 전체 필드(수령자·주소·단가·송장·dlvEndDt). 정산예정 없음→공란.
     · 구매확정(completed): 배송정보·단가 미제공(완료·정산 단계) → 해당 열 공란(폴백 금지).
-    배송비는 묶음배송(bndlDlvYN=Y)이면 묶음배송비(bmDlvCst), 아니면 개별(dlvCst); 배송건
-    (_shipkey=bndlDlvSeq) 단위 1회 정규화. 상태별 API가 나뉘어 있어 두 API를 합쳐 전체 상태 표시.
-    (배송중·배송완료 중간상태는 별도 엔드포인트 — 필요시 후속.)
+    (ordNo,ordPrdSeq) 상태 간 중복 제거. 배송비는 묶음배송(bndlDlvYN=Y)이면 bmDlvCst,
+    아니면 dlvCst; 배송건(_shipkey=bndlDlvSeq) 단위 1회 정규화.
+    (배송중 shipping 은 송장만 제공 → 상세 없어 제외.)
     """
-    from shared.platforms.eleven11.orders import iter_orders, iter_completed
+    from shared.platforms.eleven11.orders import (
+        iter_orders, iter_delivered, iter_completed)
 
     def _g11(od, *keys):
         for k in keys:
@@ -481,14 +484,26 @@ def eleven11_order_rows(since: _dt.datetime, until: _dt.datetime, client=None) -
             "주문상태": status,
         }
 
-    rows = []
-    for od in iter_orders(since, until, client=client):       # 발송대기
-        rows.append(_row(od, "결제완료"))
-    try:
-        for od in iter_completed(since, until, client=client):  # 구매확정
-            rows.append(_row(od, "구매확정"))
-    except Exception:   # noqa: BLE001 — 구매확정 조회 실패는 발송대기 결과는 살리고 조용히 스킵
-        pass
+    # 상태별 목록 3종 병합(전체 주문 라이프사이클): 발송대기 → 배송완료 → 구매확정.
+    #  (ordNo,ordPrdSeq) 로 상태 간 중복 제거. 발송대기(complete)는 필수(오류 전파),
+    #  배송완료·구매확정은 부가(실패 시 조용히 스킵 — 나머지 상태는 살림).
+    rows, seen = [], set()
+
+    def _collect(iter_fn, status, required):
+        try:
+            for od in iter_fn(since, until, client=client):
+                key = (od.get("ordNo"), od.get("ordPrdSeq"))
+                if key in seen:
+                    continue
+                seen.add(key)
+                rows.append(_row(od, status))
+        except Exception:   # noqa: BLE001
+            if required:
+                raise
+
+    _collect(iter_orders, "결제완료", True)      # 발송대기(필수)
+    _collect(iter_delivered, "배송완료", False)   # 배송완료
+    _collect(iter_completed, "구매확정", False)   # 구매확정
     return rows
 
 
