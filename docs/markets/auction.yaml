@@ -39,18 +39,38 @@ auth:
     ESM PLUS 로그인 → 판매자정보 > 판매도구 관리 > 판매도구 사용 '사용' → 판매도구 업체 선택 →
     ESM Trading API secret key 발급. 옥션·G마켓 판매자 ID + ESM 마스터 ID 준비.
 
-# ⚠️ 엔드포인트 = 스펙 미확보(문서 로그인/문의 게이트). 확보 후 채운다(추측 방지 TODO).
+# 주문조회 = 공개문서 확보(etapi.gmarket.com/67). 상품/정산은 미확보 TODO(추측 금지).
 endpoints:
-  fetch_orders:  "TODO(조사필요 — 주문 조회. 통합 발송엑셀 합류 목표)"
+  fetch_orders:  "POST https://sa2.esmplus.com/shipping/v1/Order/RequestOrders (공개문서 확보·구현됨)"
   fetch_settlement: "TODO(조사필요 — 정산 조회)"
   fetch_options: "TODO(조사필요 — 상품/옵션 상세조회)"
   update_price:  "TODO(조사필요 — 가격 수정)"
   update_stock:  "TODO(조사필요 — 재고 수정)"
   register:      "TODO(조사필요, 나중 — 상품 등록)"
 
+# 주문조회(RequestOrders) 요청/응답 — etapi.gmarket.com/67 실측(2026-07-07). 코드=shared/platforms/esm/orders.py
+fetch_orders_spec:
+  request:
+    siteType: "1:옥션 2:G마켓 (옥션=1)"
+    orderStatus: "1:결제완료 2:배송준비중 3:배송중 4:배송완료 5:구매결정완료 — 코드가 1~5 순회+중복제거"
+    requestDateType: "1:주문일 (구현=1)"
+    requestDateFromTo: '"YYYY-MM-DD hh:mm", 31일 제한 → 코드가 31일 윈도우 분할'
+    paging: "pageIndex·pageSize"
+    rate_limit: "주문조회 5초당 1회(client order_min_interval_sec=5)"
+  response:
+    envelope: "{ResultCode:0, Message, Data:{TotalCount, RequestOrders:[...]}}"
+    fields: >
+      OrderNo(주문번호=_shipkey)·OrderDate(주문일시)·OrderStatus(1~5)·GoodsName(상품명)·
+      ItemOptionSelectList(옵션배열)·ContrAmount(수량)·SalePrice(단가)·ShippingFee(배송비)·
+      ReceiverName·HpNo·TelNo(수령인)·ZipCode·DelFrontAddress·DelBackAddress(주소)·
+      BuyerName·BuyerId(구매자,마스킹)·DelMemo(배송메모).
+  note: >
+    정산예정금액은 주문 API 에 없음 → 공란(폴백 금지). ItemOptionSelectList 하위 필드명은
+    라이브 응답에서 확정(현재 방어적 결합). 미상은 None/공란(0·센티넬 금지, CLAUDE.md).
+
 option_structure:
   note: >
-    ESM 응답 필드명(주문/옵션/재고/가격)은 스펙 확보 후 확정. 미상은 None 으로 표면화(0/센티넬 금지, CLAUDE.md).
+    옵션=ItemOptionSelectList. 하위 필드명은 라이브 확정. 미상은 None 표면화(0/센티넬 금지).
 
 fields:
   connect:
@@ -84,6 +104,8 @@ code_map:
   secrets: lemouton/auth/secrets.py                # EsmCredentials + MARKET_SCHEMAS["auction"] (구현됨)
   platform_config: shared/platforms/__init__.py    # AUCTION dict (site_id="A", JWT 메타) (구현됨)
   accounts_ui: webapp/routes/accounts.py           # MARKET_KEY_SUFFIXES/KEY_LABELS/MARKET_METADATA (구현됨)
-  auth: "shared/platforms/esm/auth.py"             # JWT/HmacSHA256 서명 (스펙 확보 후)
-  client: "shared/platforms/esm/client.py"         # HTTP 전송·rate limit (스펙 확보 후)
-  fetch_orders: "TODO — order_export.auction_order_rows (스펙 확보 후, SUPPORTED 추가)"
+  auth: shared/platforms/esm/auth.py               # JWT/HmacSHA256 서명 (구현됨·Bearer)
+  client: shared/platforms/esm/client.py           # HTTP 전송·rate limit·재시도 (구현됨)
+  orders: shared/platforms/esm/orders.py           # RequestOrders 페이징·31일윈도우·중복제거 (구현됨)
+  fetch_orders: lemouton/markets/order_export.py::auction_order_rows  # 행 매핑(구현됨). 라이브 검증 후 SUPPORTED 추가
+  client_builder: lemouton/uploader/market_fetch.py::_auction_client  # 계정 키→EsmClient (구현됨)

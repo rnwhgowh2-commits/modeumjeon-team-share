@@ -56,6 +56,9 @@ _STATUS_KO = {
                 "DELIVERING": "배송중", "FINAL_DELIVERY": "배송완료",
                 "NONE_TRACKING": "업체직접배송"},
     "lotteon": {"11": "출고지시", "23": "회수지시"},
+    # 옥션·G마켓(ESM 2.0) 공통 — orderStatus 1~5.
+    "esm": {"1": "결제완료", "2": "배송준비중", "3": "배송중",
+            "4": "배송완료", "5": "구매결정"},
 }
 
 
@@ -67,7 +70,8 @@ def _status_ko(market, raw):
 SUPPORTED = {"smartstore", "lotteon", "coupang"}   # UI 엑셀버튼 노출. 실키=서버 UI저장.
 # 마켓 → 계정 시크릿 env_prefix(판매처 계정 기본). load_credentials 로 실키 로드.
 _ENV_PREFIX = {"smartstore": "SMARTSTORE_MAIN", "coupang": "COUPANG_MAIN",
-               "lotteon": "LOTTEON_MAIN"}
+               "lotteon": "LOTTEON_MAIN",
+               "auction": "AUCTION_MAIN", "gmarket": "GMARKET_MAIN"}
 
 
 def _g(o, *keys, default=""):
@@ -351,9 +355,74 @@ def _coupang_settle_map(since, until, client):
     return item_map, deliv_map
 
 
+def _esm_option(lst) -> str:
+    """ESM ItemOptionSelectList → 옵션 문자열. 옵션 dict 의 문자열 값 결합(방어적).
+
+    정확한 하위 필드명은 라이브 검증에서 확정(공개문서 미명시). 실데이터만 표시, 날조 없음.
+    """
+    if not lst:
+        return ""
+    parts = []
+    for it in lst:
+        if isinstance(it, dict):
+            vals = [str(v).strip() for v in it.values()
+                    if isinstance(v, (str, int)) and str(v).strip()]
+            if vals:
+                parts.append(" ".join(vals))
+        elif it:
+            parts.append(str(it))
+    return " / ".join(p for p in parts if p)
+
+
+def esm_order_rows(market: str, since: _dt.datetime, until: _dt.datetime,
+                   client=None) -> list:
+    """옥션·G마켓(ESM 2.0) 주문조회 → 행(dict) 리스트. RequestOrders 응답 매핑.
+
+    market = "auction" | "gmarket". 정산예정금액은 주문 API 에 없음 → 공란(폴백 금지).
+    ⚠️ 라이브 미검증(키 입력 후 서버 검증 필요). 검증 전 SUPPORTED 미포함.
+    """
+    from shared.platforms.esm.orders import iter_orders
+    label = {"auction": "옥션", "gmarket": "G마켓"}.get(market, market)
+    rows = []
+    for od in iter_orders(market, since, until, client=client):
+        addr = (str(_g(od, "DelFrontAddress")) + " " + str(_g(od, "DelBackAddress"))).strip()
+        rows.append({
+            "_shipkey": (market, _g(od, "OrderNo")),   # 배송건(주문) 단위 배송비 정규화용
+            "주문일": _g(od, "OrderDate"),
+            "판매처": label,
+            "상품명": _g(od, "GoodsName"),
+            "옵션": _esm_option(od.get("ItemOptionSelectList")),
+            "수량": _g(od, "ContrAmount", default=""),
+            "주소": addr,
+            "우편번호": _g(od, "ZipCode"),
+            "수령자": _g(od, "ReceiverName"),
+            "배송메시지": _g(od, "DelMemo"),
+            "구매자": _g(od, "BuyerName"),
+            "수령자전화번호": _g(od, "HpNo", "TelNo"),
+            "구매자번호": _g(od, "BuyerId"),
+            "쇼핑몰": label,
+            "쇼핑몰ID": "",
+            "단가": _g(od, "SalePrice", default=""),
+            "배송비": _g(od, "ShippingFee", default=""),
+            "정산예정금액": "",   # ESM 주문API엔 정산 없음 — 폴백 금지(공란)
+            "주문상태": _status_ko("esm", _g(od, "OrderStatus")),
+        })
+    return rows
+
+
+def auction_order_rows(since: _dt.datetime, until: _dt.datetime, client=None) -> list:
+    return esm_order_rows("auction", since, until, client=client)
+
+
+def gmarket_order_rows(since: _dt.datetime, until: _dt.datetime, client=None) -> list:
+    return esm_order_rows("gmarket", since, until, client=client)
+
+
 # 마켓별 행 빌더(코드 존재). SUPPORTED = 그중 실계정 검증까지 끝나 UI 노출 가능한 것.
+# 옥션·G마켓 = 빌더/조회 코드 준비됨(공개문서 스펙). 실키 입력+서버 라이브검증 후 SUPPORTED 추가.
 _BUILDERS = {"smartstore": smartstore_order_rows, "lotteon": lotteon_order_rows,
-             "coupang": coupang_order_rows}
+             "coupang": coupang_order_rows,
+             "auction": auction_order_rows, "gmarket": gmarket_order_rows}
 
 
 def _account_client(market: str):
@@ -372,7 +441,9 @@ def _account_client(market: str):
         from lemouton.uploader import market_fetch as _mf
         builder = {"smartstore": _mf._smartstore_client,
                    "coupang": _mf._coupang_client,
-                   "lotteon": _mf._lotteon_client}.get(market)
+                   "lotteon": _mf._lotteon_client,
+                   "auction": _mf._auction_client,
+                   "gmarket": _mf._gmarket_client}.get(market)
         return builder(prefix) if builder else None
     except Exception:
         return None   # 키 미설정 등 → row builder 가 기본 클라(app.env)로 폴백

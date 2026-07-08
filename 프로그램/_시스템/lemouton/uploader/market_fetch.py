@@ -140,6 +140,32 @@ def _eleven11_client(env_prefix: Optional[str]):
     return Eleven11Client(config={**ELEVEN11, "openapi_key": c.openapi_key})
 
 
+def _esm_client(market: str, env_prefix: Optional[str]):
+    """env_prefix 계정 키로 EsmClient(옥션·G마켓) 생성. 없으면 None(=전역 기본).
+
+    옥션·G마켓은 같은 ESM 스키마(master_id·secret_key·seller_id). site_id 는 config 고정(A/G).
+    """
+    if not env_prefix:
+        return None
+    from lemouton.auth import secrets as S
+    from shared.platforms import AUCTION, GMARKET
+    from shared.platforms.esm.client import EsmClient
+    base = AUCTION if market == "auction" else GMARKET
+    c = S.load_credentials(market=market, env_prefix=env_prefix)
+    return EsmClient(config={**base,
+                             "master_id": c.master_id,
+                             "secret_key": c.secret_key,
+                             "seller_id": c.seller_id})
+
+
+def _auction_client(env_prefix: Optional[str]):
+    return _esm_client("auction", env_prefix)
+
+
+def _gmarket_client(env_prefix: Optional[str]):
+    return _esm_client("gmarket", env_prefix)
+
+
 def _fetch_eleven11(product_id: str, env_prefix: Optional[str] = None) -> FetchResult:
     # ⚠️ 11번가 셀러 REST 상품 상세조회 스펙 미확보 → products 가 NotImplementedError.
     #    try/except 로 '옵션 조회 실패: 스펙 미확보'를 명시 표면화(추측·폴백 금지).

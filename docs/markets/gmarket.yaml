@@ -34,9 +34,9 @@ auth:
     ESM PLUS 로그인 → 판매자정보 > 판매도구 관리 사용설정 → ESM Trading API secret key 발급
     (옥션과 동일 발급 경로·키, G마켓 판매자 ID 만 별도).
 
-# ⚠️ 엔드포인트 = auction.yaml 과 공통이나 스펙 미확보 → 확보 후 함께 채운다(추측 금지 TODO).
+# 엔드포인트 = auction.yaml 과 공통. 주문조회는 공개문서 확보·구현됨(siteType=2). 상품/정산은 TODO.
 endpoints:
-  fetch_orders:  "TODO(조사필요 — 주문 조회. 통합 발송엑셀 합류 목표)"
+  fetch_orders:  "POST https://sa2.esmplus.com/shipping/v1/Order/RequestOrders (siteType=2, 구현됨. 스펙 auction.yaml::fetch_orders_spec)"
   fetch_settlement: "TODO(조사필요 — 정산 조회)"
   fetch_options: "TODO(조사필요 — 상품/옵션 상세조회)"
   update_price:  "TODO(조사필요 — 가격 수정)"
@@ -76,5 +76,7 @@ code_map:
   secrets: lemouton/auth/secrets.py                # EsmCredentials(옥션과 공용) + MARKET_SCHEMAS["gmarket"] (구현됨)
   platform_config: shared/platforms/__init__.py    # GMARKET dict (site_id="G", JWT 메타) (구현됨)
   accounts_ui: webapp/routes/accounts.py           # MARKET_KEY_SUFFIXES/KEY_LABELS/MARKET_METADATA (구현됨)
-  auth: "shared/platforms/esm/auth.py"             # JWT/HmacSHA256 (옥션과 공용, 스펙 확보 후)
-  fetch_orders: "TODO — order_export.gmarket_order_rows (스펙 확보 후, SUPPORTED 추가)"
+  auth: shared/platforms/esm/auth.py               # JWT/HmacSHA256 (옥션과 공용, 구현됨)
+  orders: shared/platforms/esm/orders.py           # RequestOrders (siteType=2, 구현됨)
+  fetch_orders: lemouton/markets/order_export.py::gmarket_order_rows  # 행 매핑(구현됨). 라이브 검증 후 SUPPORTED 추가
+  client_builder: lemouton/uploader/market_fetch.py::_gmarket_client  # 계정 키→EsmClient (구현됨)
