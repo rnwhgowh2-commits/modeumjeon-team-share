@@ -395,6 +395,10 @@ MARKET_KEY_SUFFIXES = {
     "coupang": ["ACCESS_KEY", "SECRET_KEY", "VENDOR_ID"],
     "lotteon": ["API_KEY", "TR_NO"],
     "eleven11": ["OPENAPI_KEY"],   # 11번가 = openapikey 헤더 단일 인증키 (OAuth·시크릿 없음)
+    # 옥션·G마켓 = ESM 2.0(이베이코리아) 통합. JWT(HmacSHA256): kid=마스터ID, ssi="{site}:{판매자ID}".
+    # master_id·secret_key 는 두 마켓 공통, seller_id 만 다름(옥션 site A / G마켓 site G).
+    "auction": ["MASTER_ID", "SECRET_KEY", "SELLER_ID"],
+    "gmarket": ["MASTER_ID", "SECRET_KEY", "SELLER_ID"],
 }
 
 # UI 노출용 라벨 — sensitive 여부도 표시
@@ -407,6 +411,8 @@ KEY_LABELS = {
     "API_KEY": ("API 인증키 (Bearer)", True),
     "TR_NO": ("거래처번호 (판매자 센터)", False),
     "OPENAPI_KEY": ("OpenAPI 인증키 (openapikey 헤더)", True),
+    "MASTER_ID": ("ESM 마스터 ID (ESM+ 통합)", False),
+    "SELLER_ID": ("판매자 ID (옥션/G마켓)", False),
 }
 
 # 마켓 메타데이터 — UI 사이드바에서 사용 (라벨·아이콘·도움말·상태)
@@ -453,28 +459,33 @@ MARKET_METADATA = {
                        "① OPENAPI KEY 발급 ② 서버 IP 등록(54.116.196.90). 인증은 "
                        "'openapikey: {발급키}' 헤더(단일 인증키·시크릿 없음)."),
         "default_prefix": "ELEVEN11_MAIN",
-        # 라이브 미검증(키 없음) — 셀러 REST 엔드포인트 스펙 미확보. 검증 후 ready 승격.
-        "status": "coming_soon",
+        # UI 온보딩(키 등록) 개방. 실제 주문조회·전송은 스펙 확보+검증 후. (order_export.SUPPORTED 미포함)
+        "status": "ready",
         "sort_order": 4,
     },
     "auction": {
         "label": "옥션",
         "icon": "🟡",
-        "api_type": "ESM 2.0 (이베이코리아)",
-        "guide_url": "https://www.esmplus.com/",
-        "guide_text": "ESM 2.0 통합 셀러 API (옥션·G마켓 통합)",
+        "api_type": "ESM 2.0 (이베이코리아 · JWT)",
+        "guide_url": "https://etapi.gmarket.com/",
+        "guide_text": ("ESM+ 로그인 > 판매자정보 > 판매도구 관리에서 사용 설정 후 ESM Trading API "
+                       "발급. 필요값 = ① ESM 마스터 ID ② 시크릿 키 ③ 옥션 판매자 ID. "
+                       "옥션·G마켓은 같은 마스터ID·시크릿을 쓰고 판매자 ID만 다름."),
         "default_prefix": "AUCTION_MAIN",
-        "status": "coming_soon",
+        # UI 온보딩 개방. 주문 API 엔드포인트 스펙은 확보 후 채움(추측 금지). (order_export.SUPPORTED 미포함)
+        "status": "ready",
         "sort_order": 5,
     },
     "gmarket": {
         "label": "G마켓",
         "icon": "🟡",
-        "api_type": "ESM 2.0 (이베이코리아)",
-        "guide_url": "https://www.esmplus.com/",
-        "guide_text": "ESM 2.0 통합 셀러 API (옥션·G마켓 통합)",
+        "api_type": "ESM 2.0 (이베이코리아 · JWT)",
+        "guide_url": "https://etapi.gmarket.com/",
+        "guide_text": ("ESM+ 로그인 > 판매자정보 > 판매도구 관리에서 사용 설정 후 ESM Trading API "
+                       "발급. 필요값 = ① ESM 마스터 ID ② 시크릿 키 ③ G마켓 판매자 ID. "
+                       "옥션과 같은 마스터ID·시크릿, 판매자 ID만 다름."),
         "default_prefix": "GMARKET_MAIN",
-        "status": "coming_soon",
+        "status": "ready",
         "sort_order": 6,
     },
     # 기타 — sort_order 99+

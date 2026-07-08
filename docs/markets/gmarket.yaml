@@ -1,0 +1,80 @@
+# docs/markets/gmarket.yaml — G마켓(Gmarket · ESM 2.0 이베이코리아) 프로파일
+# 옥션과 동일한 ESM Trading API. 인증·발급·엔드포인트는 auction.yaml 과 공통(같은 ESM+ 마스터 계정).
+#   차이 = Site ID "G"(payload ssi = "G:{판매자ID}") + seller_id 만 다름. master_id·secret_key 공통.
+#   근거 문서: https://etapi.gmarket.com/ · https://etapi.gmarket.com/pages/API-가이드 (2026-07-07 실측)
+#   STEP 0(슬러그·접두)= webapp/routes/accounts.py MARKET_METADATA["gmarket"], default_prefix=GMARKET_MAIN.
+# ⚠️ 라이브 미검증 — 현재 배선 범위 = 계정/키 등록 온보딩(스켈레톤). 엔드포인트 스펙 미확보 → TODO. 추측 금지.
+
+meta:
+  market: gmarket
+  display_name: G마켓
+  esm_group: true            # 옥션·G마켓 통합(ESM 2.0). auction.yaml 과 인증 공통.
+  last_analyzed: "2026-07-07"
+  base_url: https://etapi.gmarket.com
+  evidence: >
+    ESM Trading API 공개 문서 실측(2026-07-07): 인증=JWT(HS256/HmacSHA256).
+    payload.ssi = "G:{판매자ID}" (site G=G마켓), 그 외 header/payload/서명은 옥션과 동일.
+    옥션·G마켓은 같은 ESM+ 마스터 계정 → master_id·secret_key 공통, seller_id·site 만 다름.
+    라이브 미검증 — 엔드포인트/필드 미확보(문서 문의 etapihelp@gmail.com).
+
+auth:
+  method: JWT (HmacSHA256 서명 · 옥션과 공통)
+  token_endpoint: null
+  env_keys:
+    - GMARKET_MAIN_MASTER_ID    # ESM+ 마스터 ID(옥션과 동일 값) → JWT header.kid
+    - GMARKET_MAIN_SECRET_KEY   # 발급 시크릿 키(옥션과 동일 값) → HmacSHA256 서명(민감)
+    - GMARKET_MAIN_SELLER_ID    # G마켓 판매자 ID → payload.ssi = "G:{SELLER_ID}"
+  jwt_format: >
+    header  = {"alg":"HS256","typ":"JWT","kid":"{MASTER_ID}"}
+    payload = {"iss":"{판매도메인}","sub":"sell","aud":"sa.esmplus.com","ssi":"G:{SELLER_ID}","iat":<epoch>}
+    signature = HmacSHA256(base64url(header)+"."+base64url(payload), SECRET_KEY)
+  signature: HmacSHA256 (payload 서명)
+  ip_allowlist: "ESM API IP 등록 정책 확인 필요(TODO). auction.yaml 참조."
+  key_issue_path: >
+    ESM PLUS 로그인 → 판매자정보 > 판매도구 관리 사용설정 → ESM Trading API secret key 발급
+    (옥션과 동일 발급 경로·키, G마켓 판매자 ID 만 별도).
+
+# ⚠️ 엔드포인트 = auction.yaml 과 공통이나 스펙 미확보 → 확보 후 함께 채운다(추측 금지 TODO).
+endpoints:
+  fetch_orders:  "TODO(조사필요 — 주문 조회. 통합 발송엑셀 합류 목표)"
+  fetch_settlement: "TODO(조사필요 — 정산 조회)"
+  fetch_options: "TODO(조사필요 — 상품/옵션 상세조회)"
+  update_price:  "TODO(조사필요 — 가격 수정)"
+  update_stock:  "TODO(조사필요 — 재고 수정)"
+  register:      "TODO(조사필요, 나중 — 상품 등록)"
+
+option_structure:
+  note: "auction.yaml 과 동일(ESM 응답 구조 공통). 필드명은 스펙 확보 후 확정. 미상=None(CLAUDE.md)."
+
+fields:
+  connect:
+    - { name: seller_product_id, type: string, required: true, source: 사용자입력(G마켓 상품번호),
+        note: "상세조회로 옵션·가격·재고 자동매칭. 응답 필드명 TODO." }
+
+response:
+  success: "TODO(조사필요 — auction.yaml 과 공통)"
+  errors:
+    http:
+      - "401 인증 실패 (JWT 서명/마스터ID/시크릿 확인)"
+      - "403 권한 없음 (판매도구 사용설정/IP)"
+      - "429 호출 횟수 초과"
+      - "5xx 시스템 오류"
+    body: "TODO(조사필요)"
+  rate_limit:
+    policy: "TODO(조사필요). 보수적 기본 5/s(ESM_RATE_LIMIT_PER_SEC)."
+  retry: "권장 max_retries=3, 지수백오프."
+
+safety:
+  price_change_guard: >
+    업로드 전 sanity(확정매입가×1.05 미만 차단·마진 하한·재고≤소싱재고). 실브라우저 소싱처 URL 실값 기준.
+  notes: >
+    라이브 미검증 + 엔드포인트 스펙 미확보. 실계정 100% 검증 전 '완료' 선언 금지.
+    현재 배선 범위(스켈레톤) = 계정/키 등록·시크릿 로더(EsmCredentials 공용)·플랫폼 설정(GMARKET).
+    order_export.SUPPORTED 미포함(주문 엑셀 미노출). 실 조회/전송은 스펙 확보+검증 후.
+
+code_map:
+  secrets: lemouton/auth/secrets.py                # EsmCredentials(옥션과 공용) + MARKET_SCHEMAS["gmarket"] (구현됨)
+  platform_config: shared/platforms/__init__.py    # GMARKET dict (site_id="G", JWT 메타) (구현됨)
+  accounts_ui: webapp/routes/accounts.py           # MARKET_KEY_SUFFIXES/KEY_LABELS/MARKET_METADATA (구현됨)
+  auth: "shared/platforms/esm/auth.py"             # JWT/HmacSHA256 (옥션과 공용, 스펙 확보 후)
+  fetch_orders: "TODO — order_export.gmarket_order_rows (스펙 확보 후, SUPPORTED 추가)"
