@@ -258,7 +258,17 @@
     var presets=loadPresets();
     var activeIdxP=0;   // 다운로드에 쓸 활성 양식
     var cols=presets[activeIdxP].cols;   // 관리 모달 편집 대상(활성 양식의 열)
-    function stCls(s){if(/결제완료|신규|결제대기/.test(s))return'blue';if(/준비중|출고지시|발송대기/.test(s))return'amber';if(/배송중/.test(s))return'sky';if(/완료|구매확정/.test(s))return'green';if(/취소|반품|교환|거부/.test(s))return'red';return'gray';}
+    // 통일 배지: 마켓별 상이한 상태 라벨 → 12개 통일 상태 + 4계열 색(결제=회색·배송=파랑계열·완료=초록·클레임요청=주황·클레임완료=빨강). 원본은 hover(title).
+    var UNIFY_RULES=[
+      [/^결제대기/,'결제대기','gray'],[/^결제완료|^신규/,'결제완료','gray'],
+      [/배송지시/,'배송대기중','sky'],[/준비중|상품준비|출고지시|발송대기/,'배송준비중','sky'],
+      [/배송중|발송완료|업체직접/,'배송중','blue'],[/배송완료/,'배송완료','green'],
+      [/구매확정|수취완료|구매결정/,'구매확정','green'],
+      [/취소요청/,'취소요청','amber'],[/취소완료|주문취소|철회/,'취소완료','red'],
+      [/반품요청|회수지시|회수진행/,'반품요청','amber'],[/반품완료|회수완료|회수확정/,'반품완료','red'],
+      [/교환요청/,'교환요청','amber'],[/교환완료|교환거부/,'교환완료','red']];
+    function unifyStatus(s){s=String(s||'');for(var i=0;i<UNIFY_RULES.length;i++){if(UNIFY_RULES[i][0].test(s))return{canon:UNIFY_RULES[i][1],cls:UNIFY_RULES[i][2]};}return{canon:s||'-',cls:'gray'};}
+    function stCls(s){return unifyStatus(s).cls;}
     var WAIT=/결제완료|준비중|출고지시|신규|결제대기/;
     function num(v){v=(''+v).replace(/[^0-9]/g,'');return v?parseInt(v):0;}
     function selMk(){return [].slice.call(document.querySelectorAll('.mk-ck')).filter(function(c){return c.checked;}).map(function(c){return c.value;});}
@@ -302,7 +312,8 @@
     function cellHTML(col,r){
       var v=r[col];
       if(col==='판매처')return '<span class="mk '+(MKCLS[v]||'gray')+'">'+esc(v||'')+'</span>';
-      if(col==='주문상태')return '<span class="bd '+stCls(v||'')+'">'+esc(v||'-')+'</span>';
+      if(col==='주문상태'){var u=unifyStatus(v||'');var orig=String(v||'').trim()||'-';
+        return '<span class="bd '+u.cls+'" title="원본 · '+esc(r['판매처']||'')+' : '+esc(orig)+'">'+esc(u.canon)+'</span>';}
       if(col==='수량')return esc(v||'');
       if(MONEY_COLS[col])return (v!==''&&v!=null)?Number(num(v)).toLocaleString():'<span class="muted">—</span>';
       if((col==='배송메시지'||col==='수령자'||col==='구매자')&&!v)return '<span class="muted">—</span>';
