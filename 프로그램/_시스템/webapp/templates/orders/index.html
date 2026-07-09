@@ -30,6 +30,9 @@
     .o7 .mkline{display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap;}
     .o7 .mkbox{background:#fff;border:1px solid var(--line2);border-radius:10px;padding:7px 13px;font-size:12px;}
     .o7 .mkbox b{font-weight:800;font-variant-numeric:tabular-nums;}
+    .o7 .mkchip{cursor:pointer;user-select:none;transition:border-color .1s,box-shadow .1s;}
+    .o7 .mkchip:hover{border-color:var(--blue);}
+    .o7 .mkchip.on{border-color:var(--blue);box-shadow:0 0 0 2px var(--blue) inset;background:#EEF4FF;}
     .o7 table{width:max-content;min-width:100%;border-collapse:collapse;font-size:12.5px;background:#fff;border:1px solid var(--line2);border-radius:12px;}
     .o7 th{background:#F7F9FB;padding:9px 10px;font-size:11px;font-weight:800;color:var(--sub);text-align:left;border-bottom:1px solid var(--line2);white-space:nowrap;}
     .o7 td{padding:9px 10px;border-bottom:1px solid var(--line);}
@@ -273,9 +276,26 @@
       var amt=fr.reduce(function(a,r){return a+num(r['단가']);},0);
       document.getElementById('kpis').innerHTML=
        kpi('주문',fr.length+'<small>건</small>')+kpi('발송대기',wait+'<small>건</small>')+kpi('주문금액',(amt/10000).toFixed(0)+'<small>만</small>')+kpi('정산예정',(settle/10000).toFixed(0)+'<small>만</small>');
-      // 마켓별
-      var by={};fr.forEach(function(r){by[r['판매처']]=(by[r['판매처']]||0)+1;});
-      document.getElementById('mkline').innerHTML=Object.keys(by).map(function(m){return '<span class="mkbox"><span class="mk '+(MKCLS[m]||'gray')+'">'+m+'</span> <b>'+by[m]+'</b>건</span>';}).join('');
+      // 마켓별 칩 — 전체 rows 기준(항상 모든 마켓 보이게, 마켓 전환 가능). 클릭 시 그 마켓만 필터.
+      var by={};rows.forEach(function(r){if(r['판매처'])by[r['판매처']]=(by[r['판매처']]||0)+1;});
+      var actMk=curMarketFilter();
+      document.getElementById('mkline').innerHTML=Object.keys(by).map(function(m){
+        return '<span class="mkbox mkchip'+(actMk===m?' on':'')+'" data-mk="'+esc(m)+'"><span class="mk '+(MKCLS[m]||'gray')+'">'+m+'</span> <b>'+by[m]+'</b>건</span>';
+      }).join('');
+      [].slice.call(document.querySelectorAll('#mkline .mkchip')).forEach(function(el){
+        el.addEventListener('click',function(){toggleMarket(el.getAttribute('data-mk'));});
+      });
+    }
+    function allMarkets(){var s={};rows.forEach(function(r){if(r['판매처'])s[r['판매처']]=1;});return Object.keys(s);}
+    function curMarketFilter(){   // 판매처가 단일 마켓만 보이게 걸려 있으면 그 마켓, 아니면 null
+      var ex=colFilter['판매처']&&colFilter['판매처'].excluded; if(!ex||!ex.size)return null;
+      var vis=allMarkets().filter(function(m){return !ex.has(m);});
+      return vis.length===1?vis[0]:null;
+    }
+    function toggleMarket(m){   // 칩 클릭: 그 마켓만 필터(다시 누르면 해제)
+      if(curMarketFilter()===m){ delete colFilter['판매처']; }
+      else { colFilter['판매처']={excluded:new Set(allMarkets().filter(function(x){return x!==m;}))}; }
+      render();
     }
     function kpi(l,v){return '<div class="kpi"><div class="l">'+l+'</div><div class="v">'+v+'</div></div>';}
     function esc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
