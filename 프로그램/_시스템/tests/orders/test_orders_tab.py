@@ -128,7 +128,8 @@ def test_routes_registered():
     assert "/orders/preview.json" in rules
 
 
-def test_preview_masks_personal_fields(monkeypatch):
+def test_preview_shows_personal_fields_unmasked(monkeypatch):
+    # 사용자 요청(관리자 화면): 구매자·수령자·전화·주소를 마스킹 없이 원본 그대로 노출.
     monkeypatch.setattr(om._oe, "order_rows", lambda market, days=7, **k: [{
         "상품명": "코트", "수령자": "김지현", "구매자": "김지현",
         "수령자전화번호": "01011112222", "구매자번호": "01011112222",
@@ -138,10 +139,10 @@ def test_preview_masks_personal_fields(monkeypatch):
     j = r.get_json()
     assert j["ok"] and j["count"] == 1
     row = j["rows"][0]
-    assert row["수령자"] == "김**"              # 이름 마스킹
-    assert row["수령자전화번호"].startswith("010") and "****" in row["수령자전화번호"]
-    assert "테헤란로" not in row["주소"]         # 상세주소 가림(시/구까지만)
-    assert row["주문상태"] == "배송완료" and row["상품명"] == "코트"   # 비개인정보는 그대로
+    assert row["수령자"] == "김지현" and row["구매자"] == "김지현"       # 마스킹 없음
+    assert row["수령자전화번호"] == "01011112222" and "*" not in row["수령자전화번호"]
+    assert row["주소"] == "서울 강남구 테헤란로 123 4층"              # 주소 전체(안 끊김)
+    assert row["주문상태"] == "배송완료" and row["상품명"] == "코트"
 
 
 def test_list_has_export_controls():
