@@ -164,11 +164,21 @@ ELEVEN11: dict = {
     "retry_backoff_sec": float(os.environ.get("ELEVEN11_RETRY_BACKOFF_SEC", "2")),
     "request_timeout_sec": float(os.environ.get("ELEVEN11_REQUEST_TIMEOUT_SEC", "30")),
 
-    # API 엔드포인트 (셀러 REST) — ⚠️ 로그인 게이트로 미확보. 스펙 확보 후 채움(추측 금지).
+    # API 엔드포인트 (셀러 REST) — 개발가이드 콘솔 fetch 로 서비스 URL 확보(2026-07-10).
+    #   host=api.11st.co.kr. 요청/응답 XML 필드명은 각 상세페이지 한 겹 더(확보 후 파서 구현).
+    #   price_change 만 정확 하위경로 미확인(prodmarketservice 계열) → None 유지(추측 금지).
     "paths": {
-        "detail": None,        # 상품/옵션 상세조회 (기존 상품 연동)
-        "price_change": None,  # 가격 수정
-        "stock_change": None,  # 재고 수정
+        "detail": "/rest/prodmarketservice/prodmarket",              # 상품조회(연동, cat39) 확인
+        "stock_change": "/rest/prodmarketservice/prodmarket/stocks",  # 재고처리(cat40) 확인
+        "price_change": None,                                         # 가격=prodmarketservice 계열, 정확경로 미확인
+        "register": "/rest/prodservices/product",                    # 상품등록(cat81, POST) 확인
+        "orders": "/rest/ordservices/complete",                      # 결제완료/신규주문(cat110) 확인
+        "dispatch": "/rest/ordservices/reqdelivery",                 # 발송처리 송장(cat112) 확인
+        "packaging": "/rest/ordservices/reqpackaging",               # 발주처리(cat111) 확인
+        "settlement": "/rest/settlement/settlementList",             # 정산조회 마진(cat151, GET) 확인
+        "claim_cancel": "/rest/claimservice/reqrejectorder",         # 취소처리(cat48) 확인
+        "claim_exchange": "/rest/claimservice/exchangeorders",       # 교환처리(cat49) 확인
+        "claim_return": "/rest/claimservice/returnorders",           # 반품처리(cat50) 확인
     },
 }
 

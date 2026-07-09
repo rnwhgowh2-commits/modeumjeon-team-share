@@ -628,15 +628,39 @@ const MKT_CATS={
     {g:'일반 Open API(검색 전용 · 셀러 아님)',items:[
       {nm:'상품 검색',dir:'recv',st:'off',code:'apiCode=ProductSearch'},
     ]},
-    // ⚠️ 아래 셀러 API 그룹은 로그인 게이트라 자동 판독 불가 → 사용자 브라우저 콘솔 추출 후 채움.
-    //    정산(마진 계산용) 포함. 추측 금지 → 확인 전까지 빈 목록("가져오는 중").
-    {g:'상품',items:[]},
-    {g:'재고',items:[]},
-    {g:'가격',items:[]},
-    {g:'주문',items:[]},
-    {g:'정산',items:[]},
-    {g:'클레임',items:[]},
-    {g:'배송',items:[]},
+    // 셀러 REST 서비스 URL = 개발가이드 콘솔 fetch 추출(2026-07-10). host=api.11st.co.kr.
+    //   code=서비스경로(categoryNo). st: code=경로 config 반영·필드미확보 / off=경로만.
+    //   요청/응답 XML 필드는 상세페이지 한 겹 더(확보 후 파서 구현 → ok).
+    {g:'상품',items:[
+      {nm:'상품 등록',dir:'send',st:'code',code:'/rest/prodservices/product (cat81)'},
+      {nm:'상품 조회(연동)',dir:'recv',st:'code',code:'/rest/prodmarketservice/prodmarket (cat39)'},
+      {nm:'판매중지',dir:'send',st:'off',code:'/rest/prodstatservice/stat/stopdisplay (cat42)'},
+      {nm:'상품 Q&A',dir:'send',st:'off',code:'/rest/prodqnaservices/prodqnalist (cat41)'},
+    ]},
+    {g:'재고·가격',items:[
+      {nm:'재고 변경',dir:'send',st:'code',code:'/rest/prodmarketservice/prodmarket/stocks (cat40)'},
+      {nm:'가격 변경',dir:'send',st:'off',code:'prodmarketservice 계열(정확 경로 확인중)'},
+    ]},
+    {g:'주문·발송',items:[
+      {nm:'결제완료(신규주문)',dir:'recv',st:'code',code:'/rest/ordservices/complete (cat110)'},
+      {nm:'발주처리',dir:'send',st:'code',code:'/rest/ordservices/reqpackaging (cat111)'},
+      {nm:'발송처리(송장)',dir:'send',st:'code',code:'/rest/ordservices/reqdelivery (cat112)'},
+      {nm:'완료조회',dir:'recv',st:'off',code:'/rest/ordservices/completed (cat113)'},
+    ]},
+    {g:'정산',items:[
+      {nm:'정산조회(마진)',dir:'recv',st:'code',code:'/rest/settlement/settlementList (cat151)'},
+    ]},
+    {g:'클레임',items:[
+      {nm:'취소 처리',dir:'send',st:'code',code:'/rest/claimservice/reqrejectorder (cat48)'},
+      {nm:'교환 처리',dir:'send',st:'code',code:'/rest/claimservice/exchangeorders (cat49)'},
+      {nm:'반품 처리',dir:'send',st:'code',code:'/rest/claimservice/returnorders (cat50)'},
+      {nm:'주문 조회(주소)',dir:'recv',st:'off',code:'/rest/claimservice/orderlistalladdr (cat115)'},
+    ]},
+    {g:'배송지·공통',items:[
+      {nm:'출고지',dir:'send',st:'off',code:'/rest/areaservice/outboundarea (cat43)'},
+      {nm:'우편번호',dir:'recv',st:'off',code:'/rest/commonservices/roadAddrSuggest (cat44)'},
+      {nm:'카테고리 조회',dir:'recv',st:'off',code:'/rest/cateservice/category (cat38)'},
+    ]},
   ],
   auction:ESM_CATS,   // 옥션·G마켓 = 같은 ESM Trading API → 카탈로그 공통(ESM_CATS)
   gmarket:ESM_CATS,
