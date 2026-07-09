@@ -63,7 +63,9 @@ def columns_meta() -> dict:
 _STATUS_KO = {
     "smartstore": {"PAYMENT_WAITING": "결제대기", "PAYED": "결제완료", "DELIVERING": "배송중",
                    "DELIVERED": "배송완료", "PURCHASE_DECIDED": "구매확정",
-                   "CANCELED": "취소", "RETURNED": "반품", "EXCHANGED": "교환"},
+                   "CANCELED": "취소완료", "RETURNED": "반품완료", "EXCHANGED": "교환완료",
+                   "CANCEL_REQUEST": "취소요청", "RETURN_REQUEST": "반품요청",
+                   "EXCHANGE_REQUEST": "교환요청"},
     "coupang": {"ACCEPT": "결제완료", "INSTRUCT": "상품준비중", "DEPARTURE": "배송지시",
                 "DELIVERING": "배송중", "FINAL_DELIVERY": "배송완료",
                 "NONE_TRACKING": "업체직접배송"},
@@ -263,9 +265,12 @@ def lotteon_order_rows(since: _dt.datetime, until: _dt.datetime,
         }
 
     seen = {r["오픈마켓주문번호"] for r in rows if r.get("오픈마켓주문번호")}
-    for fn, status, qkey in ((_clm.iter_cancel, "취소", "cnclQty"),
-                             (_clm.iter_return, "반품", "rtngQty"),
-                             (_clm.iter_exchange, "교환", "xchgQty")):
+    #  요청↔완료 세분: 클레임 itemList의 odPrgsStepCd 로 판정(21취소완료·27반품완료). 교환 완료코드
+    #  미확정 → 교환요청 유지(라이브 재측정으로 실코드 확인 후 보정). 그 외(회수지시·진행)=요청.
+    _lo_done = {"취소": "21", "반품": "27"}   # 교환=None(완료코드 미확정)
+    for fn, base, qkey in ((_clm.iter_cancel, "취소", "cnclQty"),
+                           (_clm.iter_return, "반품", "rtngQty"),
+                           (_clm.iter_exchange, "교환", "xchgQty")):
         try:
             for it in fn(since, until, client=client):
                 on = _g(it, "odNo")
@@ -273,6 +278,9 @@ def lotteon_order_rows(since: _dt.datetime, until: _dt.datetime,
                     continue
                 if on:
                     seen.add(on)
+                done_code = _lo_done.get(base)
+                step = str(_g(it, "odPrgsStepCd"))
+                status = (base + "완료") if (done_code and step == done_code) else (base + "요청")
                 rows.append(_claim_row(it, status, qkey))
         except Exception:   # noqa: BLE001 — 클레임 조회 실패는 활성 주문 유지
             pass
@@ -444,7 +452,9 @@ def coupang_order_rows(since: _dt.datetime, until: _dt.datetime,
             odno = str(rq.get("orderId") or "")
             if odno and odno in seen_ord:
                 continue
-            st = "취소" if rq.get("receiptType") == "CANCEL" else "반품"
+            # 요청↔완료 세분: receiptStatus RETURNS_COMPLETED=완료, 그 외(RU 접수·PR 진행 등)=요청.
+            _base = "취소" if rq.get("receiptType") == "CANCEL" else "반품"
+            st = _base + ("완료" if rq.get("receiptStatus") == "RETURNS_COMPLETED" else "요청")
             for it in (rq.get("returnItems") or [{}]):
                 rows.append(_cp_claim_row(
                     odno, st, it.get("sellerProductName"), it.get("vendorItemName"),
@@ -457,9 +467,10 @@ def coupang_order_rows(since: _dt.datetime, until: _dt.datetime,
             odno = str(ex.get("orderId") or "")
             if odno and odno in seen_ord:
                 continue
+            _exst = "교환완료" if ex.get("exchangeStatus") == "SUCCESS" else "교환요청"
             for it in (ex.get("exchangeItemDtoV1s") or [{}]):
                 rows.append(_cp_claim_row(
-                    odno, "교환", it.get("orderItemName") or it.get("targetItemName"),
+                    odno, _exst, it.get("orderItemName") or it.get("targetItemName"),
                     None, it.get("quantity"), it.get("orderItemUnitPrice"),
                     ex.get("reasonCodeText"), None, ex.get("createdAt")))
     except Exception:   # noqa: BLE001
@@ -683,6 +694,10 @@ def eleven11_order_rows(since: _dt.datetime, until: _dt.datetime, client=None) -
             "송장입력": _g11(od, "twPrdInvcNo"),
         }
 
+    def _return_row(od, _status):
+        """반품 목록 → 행. ordPrdStat A01=반품완료, 그 외(601 클레임진행중 등)=반품요청."""
+        return _claim_row(od, "반품완료" if str(_g11(od, "ordPrdStat")) == "A01" else "반품요청")
+
     # 활성 5상태 + 클레임 3종 병합(전체 라이프사이클). (ordNo,ordPrdSeq) 로 중복 제거.
     #  발송대기(complete)는 필수(오류 전파), 나머지는 부가(실패 시 조용히 스킵). 클레임은 활성에
     #  없는 건(취소 등)만 추가 — 이미 활성에 있으면 그 상태 유지(중복 방지).
@@ -709,10 +724,10 @@ def eleven11_order_rows(since: _dt.datetime, until: _dt.datetime, client=None) -
     _collect(iter_shipping, "배송중", False)      # 배송중(송장·주문번호만 — 상세 미제공)
     _collect(iter_delivered, "배송완료", False)   # 배송완료
     _collect(iter_completed, "구매확정", False)   # 구매확정
-    _collect(iter_cancel, "취소", False, _claim_row)     # 취소요청
-    _collect(iter_canceled, "취소", False, _claim_row)   # 취소완료
-    _collect(iter_return, "반품", False, _claim_row)     # 반품요청
-    _collect(iter_exchange, "교환", False, _claim_row)   # 교환요청
+    _collect(iter_cancel, "취소요청", False, _claim_row)     # 취소처리중(cancelorders)
+    _collect(iter_canceled, "취소완료", False, _claim_row)   # 주문취소 완료(canceledorders)
+    _collect(iter_return, "반품", False, _return_row)        # 반품(ordPrdStat A01=완료)
+    _collect(iter_exchange, "교환요청", False, _claim_row)   # 교환요청(완료코드 미확정)
     return rows
 
 
