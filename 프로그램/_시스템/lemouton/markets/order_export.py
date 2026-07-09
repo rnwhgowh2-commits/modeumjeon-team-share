@@ -119,9 +119,14 @@ def smartstore_order_rows(since: _dt.datetime, until: _dt.datetime,
     client = client or SmartStoreClient()
 
     # 변경 주문내역은 '상태변경일' 기준이라, 주문일이 창 안이어도 최근 상태변경(구매확정 등)이
-    # 창 밖으로 밀리면 빠진다(며칠 지난 주문의 드리프트). 조회 끝을 +14일 넉넉히 잡고
-    # combined_order_rows 가 최종적으로 주문일 기준으로 트리밍(기간=주문일 유지).
-    fetch_until = until + _dt.timedelta(days=14)
+    # 창 밖으로 밀리면 빠진다(며칠 지난 주문의 드리프트). 조회 끝을 살짝 넉넉히 잡고
+    # combined_order_rows 가 주문일 기준으로 트리밍(기간=주문일 유지).
+    # ⚠️ 네이버 last-changed 는 미래일·과도한 범위 = 400(조회 범위 초과). 그래서:
+    #  (1) 미래 금지(now 로 상한) (2) 전체 스팬 ≤ 10일일 때만 버퍼 적용(아니면 버퍼 포기).
+    now = _dt.datetime.now(KST)
+    fetch_until = min(until + _dt.timedelta(days=3), now)
+    if fetch_until <= until or (fetch_until - since).days > 10:
+        fetch_until = until
     ids = iter_changed_product_order_ids(since, fetch_until, client=client)
     detail = []
     for i in range(0, len(ids), 300):
