@@ -67,7 +67,10 @@ _STATUS_KO = {
     "coupang": {"ACCEPT": "결제완료", "INSTRUCT": "상품준비중", "DEPARTURE": "배송지시",
                 "DELIVERING": "배송중", "FINAL_DELIVERY": "배송완료",
                 "NONE_TRACKING": "업체직접배송"},
-    "lotteon": {"11": "출고지시", "23": "회수지시"},
+    # 롯데온 odPrgsStepCd(공식문서 apiNo140 실측 12코드 전체). 209는 11 고정 → 140으로 현재단계 반영.
+    "lotteon": {"11": "출고지시", "12": "상품준비", "13": "발송완료", "14": "배송완료",
+                "15": "수취완료", "21": "취소완료", "22": "철회", "23": "회수지시",
+                "24": "회수진행", "25": "회수완료", "26": "회수확정", "27": "반품완료"},
     # 옥션·G마켓(ESM 2.0) 공통 — orderStatus 1~5.
     "esm": {"1": "결제완료", "2": "배송준비중", "3": "배송중",
             "4": "배송완료", "5": "구매결정"},
@@ -208,6 +211,7 @@ def lotteon_order_rows(since: _dt.datetime, until: _dt.datetime,
         odc = str(_g(od, "odCmptDttm"))
         rows.append({
             "_shipkey": ("lotteon", _g(od, "odNo")),   # 배송건(주문) 단위 배송비 정규화용
+            "_odseq": _g(od, "odSeq", default=""),      # 140 진행단계 조인 키(odNo+odSeq)
             "주문일": odc,   # YYYYMMDDHHMMSS — _finalize 에서 시간 포함 통일
             "판매처": "롯데온",
             "상품명": _html.unescape(str(_g(od, "spdNm"))),   # &lt;매장정품&gt; → <매장정품>
@@ -273,11 +277,41 @@ def lotteon_order_rows(since: _dt.datetime, until: _dt.datetime,
         except Exception:   # noqa: BLE001 — 클레임 조회 실패는 활성 주문 유지
             pass
 
+    # ── 현재 주문진행단계(SellerDeliveryProgressStateSearch, apiNo140) 반영 ──
+    #  209(출고/회수지시) 행은 단계가 11(출고지시)에 고정 → 140으로 현재단계(발송완료·배송완료·
+    #  수취완료·취소완료·반품완료 등)를 덮어쓴다. 검색일=배송지시생성일시(209와 동일)라 같은
+    #  [since,until] 창으로 odNo+odSeq 조인. 여러 진행이력이면 배송상태발생일시(dvTrcStatDttm) 최신 채택.
+    from shared.platforms.lotteon.orders import iter_progress_states as _iter_prog
+    now = _dt.datetime.now(KST)
+    prog = {}      # (odNo, odSeq) → (dvTrcStatDttm, step) — 정밀 조인
+    prog_od = {}   # odNo → (dvTrcStatDttm, step) — odSeq 없을 때 폴백(최신 단계)
+    try:
+        for it in _iter_prog(since, until, client=client):
+            step = str(_g(it, "odPrgsStepCd"))
+            if not step:
+                continue
+            odno = str(_g(it, "odNo"))
+            dttm = str(_g(it, "dvTrcStatDttm"))
+            key = (odno, str(_g(it, "odSeq")))
+            if key not in prog or dttm >= prog[key][0]:
+                prog[key] = (dttm, step)
+            if odno not in prog_od or dttm >= prog_od[odno][0]:
+                prog_od[odno] = (dttm, step)
+    except Exception:   # noqa: BLE001 — 진행단계 조회 실패는 209 단계(출고지시) 유지
+        prog, prog_od = {}, {}
+    if prog:
+        for r in rows:
+            if not r.get("_shipkey"):     # 209 배송행만(클레임행은 자체 상태 유지)
+                continue
+            odno = str(r.get("오픈마켓주문번호"))
+            hit = prog.get((odno, str(r.get("_odseq")))) or prog_od.get(odno)
+            if hit:
+                r["주문상태"] = _status_ko("lotteon", hit[1])
+
     # ── 마켓수수료 실값(SettleCommission, apiNo45) — odNo별 수수료 합으로 마켓수수료 채움 ──
     #  ★정산 기준일=구매확정일이라, 주문일이 창 안인 주문의 수수료는 구매확정(=나중) 시점에 기록됨.
     #  따라서 수수료 조회창을 [주문창 시작 ~ 지금]으로 넓혀 odNo로 조인(창을 주문창으로만 두면 안 겹침).
     #  odNo 매칭이라 넓혀도 안전(우리 주문에 없는 odNo는 무시). _finalize가 실값 우선 사용.
-    now = _dt.datetime.now(KST)
     try:
         cmap = _clm.commission_map(since, max(until, now), client=client)
     except Exception:   # noqa: BLE001
@@ -811,6 +845,7 @@ def _finalize_rows(rows: list) -> list:
         qty = _to_int(r.get("수량"), 1) or 1
         prod = unit * qty if unit is not None else ""
         r["상품금액"] = prod
+        r.pop("_odseq", None)              # 140 진행단계 조인 임시키 제거(출력 누출 방지)
         sk = r.pop("_shipkey", None)
         ship = _to_int(r.get("배송비"), 0) or 0
         if sk is not None and sk in seen:

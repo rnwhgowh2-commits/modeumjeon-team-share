@@ -80,3 +80,60 @@ def iter_delivery_orders(since: datetime, until: datetime,
         for od in _orders_of(resp):
             yield od
         win_start = win_end
+
+
+# ── 주문진행단계 조회(apiNo=140 SellerDeliveryProgressStateSearch) ──
+#  209(출고/회수지시)는 주문 '수집'용이라 단계가 11(출고지시)에 고정. 140은 '수집 완료된
+#  주문의 실시간 주문진행단계'(odPrgsStepCd 11~27) 조회용(공식문서 권장 용법). 209로 모은
+#  주문의 현재 단계(발송완료/배송완료/수취완료/취소완료/반품완료 등)를 채우는 데 쓴다.
+#  검색일 기준 = 배송지시생성일시(209와 동일) → 같은 [since,until] 창으로 조인. 1일 초과 불가.
+_PATH_PROGRESS = "/v1/openapi/delivery/v1/SellerDeliveryProgressStateSearch"
+
+
+def fetch_progress_states(srch_start: str, srch_end: str,
+                          od_no: Optional[str] = None,
+                          tr_no: Optional[str] = None,
+                          tr_grp_cd: Optional[str] = None,
+                          lrtr_no: Optional[str] = None,
+                          client: Optional[LotteonClient] = None) -> dict:
+    """주문진행단계 1구간(≤1일) 조회 (raw 응답).
+
+    srch_start/srch_end = yyyymmddhhmmss(배송지시생성일시). odNo 지정 시 단건 조회.
+    """
+    client = client or LotteonClient()
+    body = {
+        "trGrpCd": tr_grp_cd if tr_grp_cd is not None else _CFG.get("tr_grp_cd", "SR"),
+        "trNo": tr_no if tr_no is not None else _CFG.get("tr_no", ""),
+        "lrtrNo": lrtr_no if lrtr_no is not None else _CFG.get("lrtr_no", ""),
+        "srchStrtDt": srch_start,
+        "srchEndDt": srch_end,
+        "odNo": od_no or "",
+    }
+    return client.request(method="POST", path=_PATH_PROGRESS, body=body)
+
+
+def _progress_of(resp: dict) -> list:
+    data = resp.get("data") if isinstance(resp, dict) else None
+    if isinstance(data, dict):
+        return data.get("deliveryProgressStateList") or []
+    return []
+
+
+def iter_progress_states(since: datetime, until: datetime,
+                         client: Optional[LotteonClient] = None,
+                         **filters) -> Iterator[dict]:
+    """[since, until] 배송지시생성일시 기준 주문진행단계를 하루 단위로 순회하며 yield.
+
+    각 항목: odNo·odSeq·procSeq·odPrgsStepCd(11~27)·dvTrcStatDttm(배송상태발생일시) 등.
+    """
+    client = client or LotteonClient()
+    win_start = since
+    while win_start < until:
+        win_end = min(win_start + timedelta(days=1), until)
+        resp = fetch_progress_states(
+            srch_start=win_start.strftime(_FMT),
+            srch_end=(win_end - timedelta(seconds=1)).strftime(_FMT),
+            client=client, **filters)
+        for it in _progress_of(resp):
+            yield it
+        win_start = win_end
