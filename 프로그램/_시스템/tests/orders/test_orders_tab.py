@@ -191,3 +191,12 @@ def test_shopmine_fee_derivation():
     # 송장 없으면 '송장미입력', 새 열 존재
     assert cases[0][0]["송장입력"] == "송장미입력"
     assert cases[0][0]["총주문금액"] == 37400
+
+
+def test_preset_market_fee_wins_over_derivation():
+    """빌더가 정산 API 실값으로 마켓수수료를 미리 채우면 파생값 대신 그걸 사용(롯데온 SettleCommission)."""
+    from lemouton.markets.order_export import _finalize_rows
+    r = {"단가": 100000, "수량": 1, "실결제금액": 100000, "정산예정금액": 90000, "마켓수수료": 8800}
+    _finalize_rows([r])
+    assert r["마켓수수료"] == 8800                 # 파생(100000-90000=10000) 아닌 실값 8800
+    assert r["수수료율"] == "8.8%"                 # 8800/100000
