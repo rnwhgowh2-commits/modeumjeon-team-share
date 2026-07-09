@@ -68,6 +68,38 @@ class EsmClient:
                     time.sleep(backoff * (attempt + 1))
         raise last_exc
 
+    def request(self, method: str, path: str, body: dict | None = None) -> dict:
+        """GET/PUT/POST {base}{path} (JSON) → JSON. 상품/가격/재고 API 용.
+
+        주문 rate limit(5초/1회)은 적용하지 않는다(그 제한은 주문조회 전용).
+        5xx/네트워크는 지수백오프 재시도, 마지막 실패는 전파(추측·폴백 금지).
+        롯데온 client.request 시그니처와 동일 — Fake 클라이언트로 단위테스트 가능.
+        """
+        import requests
+
+        if not path:
+            raise ValueError("ESM 엔드포인트 경로 미설정 — 스펙 미확보(추측 금지)")
+        url = self.base_url + path
+        retries = int(self._cfg.get("max_retries", 3))
+        backoff = float(self._cfg.get("retry_backoff_sec", 2))
+        timeout = float(self._cfg.get("request_timeout_sec", 30))
+        last_exc = None
+        for attempt in range(retries):
+            try:
+                resp = requests.request(method.upper(), url, json=body,
+                                        headers=self._headers(), timeout=timeout)
+                if resp.status_code >= 500:
+                    raise RuntimeError(f"ESM {resp.status_code} 서버오류")
+                resp.raise_for_status()
+                return resp.json()
+            except Exception as e:  # noqa: BLE001 — 재시도 대상. 마지막 실패는 전파.
+                last_exc = e
+                logger.warning("[esm] %s %s 실패(%d/%d): %s",
+                               method.upper(), path, attempt + 1, retries, e)
+                if attempt < retries - 1:
+                    time.sleep(backoff * (attempt + 1))
+        raise last_exc
+
     def request_orders(self, body: dict) -> dict:
         """주문조회(RequestOrders) — 5초 rate limit 적용."""
         path = (self._cfg.get("paths") or {}).get("orders")

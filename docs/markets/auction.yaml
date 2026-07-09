@@ -4,9 +4,10 @@
 #   https://etapi.gmarket.com/pages/API-가이드 (인증 = JWT/HmacSHA256 상세)
 #   ESM Plus 판매도구 관리에서 사용 설정 후 발급. Site ID: 옥션 "A" / G마켓 "G".
 #   STEP 0(슬러그·접두)= webapp/routes/accounts.py MARKET_METADATA["auction"], default_prefix=AUCTION_MAIN.
-# ⚠️ 라이브 미검증 — 공개문서 근거만. 현재 배선 범위 = 계정/키 등록 온보딩(스켈레톤).
+# ⚠️ 라이브 미검증(키없음) — 코드 근거만. 상품/가격/재고 엔드포인트는 공개문서 실측 확보(2026-07-09).
+#    현재 배선 범위 = 계정/키 등록 + 인증/클라이언트 + 연동(옵션조회)·가격·재고 어댑터 + 자동전송 formatter.
+#    실전송은 LEMOUTON_LIVE_UPLOAD OFF 기본. 실계정 100% 검증 전 '완료' 선언 금지(CLAUDE.md 3대 원칙).
 # ⚠️ 옥션·G마켓은 같은 ESM+ 마스터 계정. master_id·secret_key 공통, seller_id·site 만 다름.
-#    주문/정산/상품 엔드포인트 경로·필드는 스펙 미확보(문서 문의 etapihelp@gmail.com) → TODO. 추측 금지.
 
 meta:
   market: auction
@@ -39,14 +40,15 @@ auth:
     ESM PLUS 로그인 → 판매자정보 > 판매도구 관리 > 판매도구 사용 '사용' → 판매도구 업체 선택 →
     ESM Trading API secret key 발급. 옥션·G마켓 판매자 ID + ESM 마스터 ID 준비.
 
-# 주문조회·정산조회 = 공개문서 확보(etapi.gmarket.com/67·/41). 상품/가격/재고는 미확보 TODO(추측 금지).
+# 전 엔드포인트 공개문서 확보(etapi.gmarket.com, 2026-07-09). 상품 host=sa2.esmplus.com /item/v1.
 endpoints:
-  fetch_orders:  "POST https://sa2.esmplus.com/shipping/v1/Order/RequestOrders (공개문서 확보·구현됨)"
-  fetch_settlement: "POST https://sa2.esmplus.com/account/v1/settle/getsettleorder (판매대금 정산, 구현됨). 배송비=/account/v1/settle/getsettledeliveryfee(후속)"
-  fetch_options: "TODO(조사필요 — 상품/옵션 상세조회)"
-  update_price:  "TODO(조사필요 — 가격 수정)"
-  update_stock:  "TODO(조사필요 — 재고 수정)"
-  register:      "TODO(조사필요, 나중 — 상품 등록)"
+  fetch_orders:  "POST https://sa2.esmplus.com/shipping/v1/Order/RequestOrders (문서 /67, 구현됨)"
+  fetch_settlement: "POST https://sa2.esmplus.com/account/v1/settle/getsettleorder (판매대금 정산 /41, 구현됨). 배송비=/account/v1/settle/getsettledeliveryfee /42(후속)"
+  resolve_goods_no: "GET /item/v1/site-goods/{siteGoodsNo}/goods-no (사이트상품번호→goodsNo, 문서 /30, 구현됨)"
+  fetch_options: "GET /item/v1/goods/{goodsNo} 상세조회(옵션 포함, 문서 /20) + /recommended-options(문서 /26). 구현=esm/products.py"
+  update_price:  "PUT /item/v1/goods/{goodsNo}/price body{iac|gmkt:가격}(본품 대표가, 문서 /186, 구현=esm/prices.py). 10원 단위."
+  update_stock:  "PUT /item/v1/goods/{goodsNo}/recommended-options full-replace qty(옵션 상품 /26, 구현=esm/inventory.py). 본품재고=/stock(옵션無 전용 /194)."
+  register:      "POST /item/v1/goods (상품 등록, 문서 /20·/140). 필드=itemBasicInfo/itemAddtionalInfo. 후속(카테고리·고시코드 등)."
 
 # 주문조회(RequestOrders) 요청/응답 — etapi.gmarket.com/67 실측(2026-07-07). 코드=shared/platforms/esm/orders.py
 fetch_orders_spec:
@@ -68,17 +70,34 @@ fetch_orders_spec:
     정산예정금액은 주문 API 에 없음 → 공란(폴백 금지). ItemOptionSelectList 하위 필드명은
     라이브 응답에서 확정(현재 방어적 결합). 미상은 None/공란(0·센티넬 금지, CLAUDE.md).
 
+# 상품/옵션/가격/재고 스펙 — etapi.gmarket.com 실측(2026-07-09). 코드=shared/platforms/esm/{products,prices,inventory}.py
+product_spec:
+  detail_response: >
+    goodsNo·SiteGoodsNo·itemBasicInfo.goodsName.kor·itemAddtionalInfo.price.{Gmkt|Iac}(사이트별 현재가)·
+    itemAddtionalInfo.stock.{Gmkt|Iac}(본품재고)·itemAddtionalInfo.recommendedOpts.independent.details[](옵션).
+  option_details_fields: >
+    manageCode(판매자옵션코드=옵션ID)·recommendedOptValue(색/사이즈)·qty.{gmkt|iac}(사이트별 옵션재고)·
+    addAmnt(옵션 추가금)·isSoldOut(품절). ESM 이 대소문자 혼용 → 파서 대소문자 무시.
+  update:
+    price: "PUT .../price {iac|gmkt:가격}. 본품(대표) 판매가. 10원 단위·양수. 옵션차등가는 recommended-options addAmnt(후속·라이브검증)."
+    stock: "옵션 상품 = PUT .../recommended-options 로 details[] 전체 재전송(PATCH 없음). GET 후 대상 옵션 qty[사이트]만 바꿔 echo-back(누락 방지)."
+    site_key: "옥션=iac / G마켓=gmkt."
+  traps:
+    - "모음전=색·사이즈 옵션 상품 → 본품 재고수정(/194)·본품가(/186)로는 옵션 재고를 못 바꿈. 옵션재고=recommended-options full-replace."
+    - "실시간 가격·재고 체크(/86·/87)는 조회 API 아님(판매자 호스팅 콜백) → 연동 조회는 상세조회/옵션조회 사용."
+
 option_structure:
   note: >
-    옵션=ItemOptionSelectList. 하위 필드명은 라이브 확정. 미상은 None 표면화(0/센티넬 금지).
+    옵션=recommendedOpts.independent.details[]. option_id=manageCode. 재고=qty[사이트].
+    미상은 None 표면화(0/센티넬 금지, CLAUDE.md).
 
 fields:
   connect:
-    - { name: seller_product_id, type: string, required: true, source: 사용자입력(옥션 상품번호),
-        note: "상세조회로 옵션·가격·재고 자동매칭. 응답 필드명 TODO." }
+    - { name: seller_product_id, type: string, required: true, source: 사용자입력(옥션 사이트 상품번호),
+        note: "resolve_goods_no 로 goodsNo 변환 후 상세조회 → 옵션·재고 자동매칭." }
 
 response:
-  success: "TODO(조사필요 — 성공 판정 필드/코드)"
+  success: "상품/가격/재고 응답 resultCode 0(=성공). 주문/정산은 ResultCode 0. 대소문자 무시 파싱."
   errors:
     http:
       - "401 인증 실패 (JWT 서명/마스터ID/시크릿 확인)"
@@ -95,18 +114,29 @@ safety:
     쿠팡·롯데온 선례처럼 업로드 전 sanity(확정매입가×1.05 미만 차단·마진 하한·재고≤소싱재고).
     가격/재고는 실브라우저 소싱처 URL 실값 기준(CLAUDE.md). 폴백 금지.
   notes: >
-    라이브 미검증 + 엔드포인트 스펙 미확보. 실계정 100% 검증 전 '완료' 선언 금지.
-    현재 배선 범위(스켈레톤) = 계정/키 등록(판매처관리)·시크릿 로더(EsmCredentials)·플랫폼 설정(AUCTION).
-    미구현(스펙 선행) = JWT 클라이언트 실호출·주문/정산 조회 빌더(order_export)·가격/재고 업로드·
-    formatter emit + DB 매핑컬럼. order_export.SUPPORTED 미포함(주문 엑셀에 노출 안 함 — 거짓주문 방지).
+    라이브 미검증(키없음) — 코드 근거만(엔드포인트는 공개문서 확보). 실계정 100% 검증 전 '완료' 선언 금지.
+    배선 완료 = 계정/키 등록 + 인증(JWT)·클라이언트 + 연동(옵션조회 _fetch_esm)·가격(prices)·재고(inventory)
+    어댑터(EsmAdapter) + 오케스트레이터 라우팅 + 자동전송 formatter(build_auction_payload) + DB 매핑컬럼
+    (auction_product_id/auction_option_id) + 연결테스트(_test_esm).
+    실전송 게이트 = LEMOUTON_LIVE_UPLOAD(기본 OFF, DryRunAdapter). order_export.SUPPORTED 미포함(주문 엑셀 미노출).
+    남은 검증(실계정 키 후) = 옵션 응답 필드명·recommended-options PUT envelope·가격 addAmnt 차등가.
 
 code_map:
   secrets: lemouton/auth/secrets.py                # EsmCredentials + MARKET_SCHEMAS["auction"] (구현됨)
-  platform_config: shared/platforms/__init__.py    # AUCTION dict (site_id="A", JWT 메타) (구현됨)
+  platform_config: shared/platforms/__init__.py    # AUCTION dict (site_id="A", paths 상품/가격/재고) (구현됨)
   accounts_ui: webapp/routes/accounts.py           # MARKET_KEY_SUFFIXES/KEY_LABELS/MARKET_METADATA (구현됨)
+  connection_test: webapp/routes/accounts.py::_test_esm  # JWT 인증 read-only 주문 프로브 (구현됨)
   auth: shared/platforms/esm/auth.py               # JWT/HmacSHA256 서명 (구현됨·Bearer)
-  client: shared/platforms/esm/client.py           # HTTP 전송·rate limit·재시도 (구현됨)
+  client: shared/platforms/esm/client.py           # HTTP post/request(GET·PUT)·재시도 (구현됨)
   orders: shared/platforms/esm/orders.py           # RequestOrders 페이징·31일윈도우·중복제거 (구현됨)
   settlements: shared/platforms/esm/settlements.py  # getsettleorder → ContrNo:SettlementPrice 맵 (구현됨)
+  products: shared/platforms/esm/products.py       # 상세조회·옵션추출·goodsNo 변환 (연동, 구현됨)
+  prices: shared/platforms/esm/prices.py           # 본품 가격수정(사이트키) (구현됨)
+  inventory: shared/platforms/esm/inventory.py     # 옵션 재고 full-replace echo-back (구현됨)
+  adapter: lemouton/uploader/adapters/esm.py       # EsmAdapter("auction")·MockEsmAdapter (구현됨)
+  formatter: lemouton/formatter/esm.py             # build_auction_payload (미매핑=None → 자동전송0) (구현됨)
+  fetch_options: lemouton/uploader/market_fetch.py::_fetch_esm  # 기존 상품 연동(옵션 조회) (구현됨)
   fetch_orders: lemouton/markets/order_export.py::auction_order_rows  # 행 매핑+정산 조인(구현됨). 라이브 검증 후 SUPPORTED 추가
-  client_builder: lemouton/uploader/market_fetch.py::_auction_client  # 계정 키→EsmClient (구현됨)
+  registry: lemouton/uploader/runtime.py::select_adapters + orchestrator._extract_uploads  # auction 라우팅 (구현됨)
+  db_columns: lemouton/sourcing/models.py + shared/db.py  # models.auction_product_id·options.auction_option_id (구현됨)
+  tests: tests/uploader/test_esm_upload_wiring.py + test_esm_markets_wiring.py  # Mock/Fake 단위테스트 (green)

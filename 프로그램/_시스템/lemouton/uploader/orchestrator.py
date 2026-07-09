@@ -91,6 +91,26 @@ def _extract_uploads(c_output: dict, sku_by_option: dict) -> list[dict]:
                 "new_price": opt.get("price", 0),
                 "new_stock": opt.get("stock", 0),
             })
+
+    # 옥션·G마켓(ESM 2.0) — 롯데온과 동일. formatter 가 방출하면 자동 포함.
+    #   market_product_id=goodsNo, market_option_id=옵션 manageCode.
+    #   미매핑(auction_product_id NULL) 모델은 build 가 None → 방출 0(안전).
+    for _mkt in ("auction", "gmarket"):
+        for model_code, payload in c_output.get(_mkt, {}).items():
+            product_id = payload["product_id"]
+            for opt in payload.get("options", []):
+                option_id = opt["option_id"]
+                sku = sku_by_option.get((_mkt, option_id))
+                if not sku:
+                    continue
+                uploads.append({
+                    "market": _mkt,
+                    "canonical_sku": sku,
+                    "market_product_id": product_id,
+                    "market_option_id": option_id,
+                    "new_price": opt.get("price", 0),
+                    "new_stock": opt.get("stock", 0),
+                })
     return uploads
 
 

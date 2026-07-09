@@ -76,9 +76,125 @@ const DM_MARKETS=[
   {id:'smartstore',nm:'스마트스토어',status:'ok',env:{인증:'OAuth2 + bcrypt',API:'REST · 네이버 커머스',문서:'apicenter.commerce.naver.com',키:'CLIENT_ID·CLIENT_SECRET'}},
   {id:'lotteon',nm:'롯데온',status:'todo',env:{인증:'정적 인증키(Bearer) + IP 등록',API:'REST · 롯데온 Open API',문서:'store.lotteon.com',키:'API_KEY·TR_NO (LOTTEON_MAIN)'}},
   {id:'eleven11',nm:'11번가',status:'todo',env:{인증:'openapikey 헤더 + IP 등록',API:'REST · XML · 11번가 Open API',문서:'openapi.11st.co.kr',키:'OPENAPI_KEY (ELEVEN11_MAIN)'}},
+  {id:'auction',nm:'옥션',status:'todo',env:{인증:'JWT(HmacSHA256/HS256) 서명',API:'REST · ESM Trading API(이베이코리아)',문서:'etapi.gmarket.com',키:'MASTER_ID·SECRET_KEY·SELLER_ID (AUCTION_MAIN)'}},
+  {id:'gmarket',nm:'G마켓',status:'todo',env:{인증:'JWT(HmacSHA256/HS256) 서명',API:'REST · ESM Trading API(옥션과 공통)',문서:'etapi.gmarket.com',키:'MASTER_ID·SECRET_KEY·SELLER_ID (GMARKET_MAIN)'}},
 ];
 // 마켓별 = 그 마켓 공식 문서의 카테고리 그대로. items 는 확인된 것만(정산+우리 코드),
 // 나머지 카테고리는 빈 목록 → "공식 문서에서 가져오는 중" 자리표시. st: ok/code/off/todo.
+// 옥션·G마켓 = 같은 ESM Trading API(마스터 계정 공통, site A/G 만 다름) → 카탈로그 동일.
+// code(/NN) = ESM 공식 문서 페이지번호(etapi.gmarket.com/NN). st: code=우리 코드 있음·검증대기 / off=공식제공.
+// 근거: 공개문서 실측(2026-07-09). 상품 host=sa2.esmplus.com /item/v1, 주문·정산=/shipping·/account.
+const ESM_CATS=[
+  {g:'시작하기·인증',items:[
+    {nm:'JWT 인증(HmacSHA256 서명)',dir:'send',st:'code',code:'API-가이드 · esm/auth.py'},
+  ]},
+  {g:'배송정보',items:[
+    {nm:'판매자주소록 관리',dir:'send',st:'off',code:'16'},
+    {nm:'출하지 관리',dir:'send',st:'off',code:'17'},
+    {nm:'묶음배송비 관리',dir:'send',st:'off',code:'18'},
+    {nm:'발송 정책 관리',dir:'send',st:'off',code:'19'},
+    {nm:'택배사 리스트 조회',dir:'recv',st:'off',code:'142'},
+  ]},
+  {g:'카테고리·브랜드',items:[
+    {nm:'지마켓·옥션 카테고리 조회',dir:'recv',st:'off',code:'4'},
+    {nm:'ESM 카테고리 조회',dir:'recv',st:'off',code:'5'},
+    {nm:'ESM-Site 카테고리 매칭조회',dir:'recv',st:'off',code:'13'},
+    {nm:'미니샵 카테고리 조회',dir:'recv',st:'off',code:'14'},
+    {nm:'브랜드코드 조회',dir:'recv',st:'off',code:'15'},
+  ]},
+  {g:'상품',items:[
+    {nm:'상품 상세조회(옵션 포함)',dir:'recv',st:'code',code:'20'},
+    {nm:'상품 등록',dir:'send',st:'off',code:'20'},
+    {nm:'상품 등록/수정 전문(sample)',dir:'recv',st:'off',code:'140'},
+    {nm:'상품번호 조회(사이트↔goodsNo)',dir:'recv',st:'code',code:'30'},
+    {nm:'상품 삭제',dir:'send',st:'off',code:'29'},
+    {nm:'상품 목록 조회',dir:'recv',st:'off',code:'160'},
+    {nm:'고시 정보 조회(상품정보제공고시)',dir:'recv',st:'off',code:'161'},
+    {nm:'원산지 리스트 조회',dir:'recv',st:'off',code:'162'},
+  ]},
+  {g:'가격·재고(상품 기능별)',items:[
+    {nm:'가격 수정(본품 gmkt/iac)',dir:'send',st:'code',code:'186'},
+    {nm:'재고 수정(본품·옵션無 전용)',dir:'send',st:'code',code:'194'},
+    {nm:'가격/재고/판매상태 수정(sell-status)',dir:'send',st:'off',code:'21'},
+    {nm:'상품명 수정',dir:'send',st:'off',code:'22'},
+    {nm:'이미지 수정',dir:'send',st:'off',code:'23'},
+    {nm:'상세설명 수정',dir:'send',st:'off',code:'24'},
+    {nm:'최소구매수량 수정',dir:'send',st:'off',code:'31'},
+  ]},
+  {g:'옵션·추가구성',items:[
+    {nm:'옵션 조회(색·사이즈·재고·추가금)',dir:'recv',st:'code',code:'26'},
+    {nm:'옵션 수정 full-replace(가격·재고)',dir:'send',st:'code',code:'26'},
+    {nm:'추천옵션 항목 조회',dir:'recv',st:'off',code:'155'},
+    {nm:'사이트 카테고리별 등록옵션 조회',dir:'recv',st:'off',code:'34'},
+    {nm:'추가구성 항목 조회',dir:'recv',st:'off',code:'35'},
+  ]},
+  {g:'고객혜택·광고',items:[
+    {nm:'판매자할인 관리',dir:'send',st:'off',code:'25'},
+    {nm:'지마켓 복수구매할인',dir:'send',st:'off',code:'36'},
+    {nm:'옥션 복수 할인',dir:'send',st:'off',code:'37'},
+    {nm:'판매자지급 스마일캐시',dir:'send',st:'off',code:'38'},
+    {nm:'리스팅 부가서비스',dir:'send',st:'off',code:'40'},
+    {nm:'덤',dir:'send',st:'off',code:'33'},
+    {nm:'사은품',dir:'send',st:'off',code:'32'},
+  ]},
+  {g:'그룹·이벤트',items:[
+    {nm:'그룹 생성/수정/삭제',dir:'send',st:'off',code:'44'},
+    {nm:'그룹정보 조회',dir:'recv',st:'off',code:'45'},
+    {nm:'이벤트홍보 관리',dir:'send',st:'off',code:'179'},
+    {nm:'이벤트홍보별 상품 관리',dir:'send',st:'off',code:'180'},
+  ]},
+  {g:'주문·배송',items:[
+    {nm:'입금확인중 주문조회',dir:'recv',st:'off',code:'66'},
+    {nm:'주문조회(RequestOrders)',dir:'recv',st:'code',code:'67'},
+    {nm:'주문확인',dir:'send',st:'off',code:'68'},
+    {nm:'발송예정일 등록',dir:'send',st:'off',code:'69'},
+    {nm:'발송처리',dir:'send',st:'off',code:'70'},
+    {nm:'배송완료',dir:'send',st:'off',code:'71'},
+    {nm:'주문상태조회',dir:'recv',st:'off',code:'72'},
+    {nm:'배송진행정보 조회',dir:'recv',st:'off',code:'73'},
+  ]},
+  {g:'클레임',items:[
+    {nm:'취소조회',dir:'recv',st:'off',code:'50'},
+    {nm:'취소승인',dir:'send',st:'off',code:'51'},
+    {nm:'판매취소',dir:'send',st:'off',code:'52'},
+    {nm:'반품조회',dir:'recv',st:'off',code:'53'},
+    {nm:'반품승인',dir:'send',st:'off',code:'57'},
+    {nm:'반품수거 송장등록',dir:'send',st:'off',code:'55'},
+    {nm:'교환조회',dir:'recv',st:'off',code:'59'},
+    {nm:'교환수거 송장등록',dir:'send',st:'off',code:'60'},
+    {nm:'미수령신고 조회',dir:'recv',st:'off',code:'74'},
+  ]},
+  {g:'정산',items:[
+    {nm:'판매대금 정산조회(마진)',dir:'recv',st:'code',code:'41'},
+    {nm:'배송비 정산조회',dir:'recv',st:'code',code:'42'},
+    {nm:'글로벌셀러 예치금 송금내역',dir:'recv',st:'off',code:'210'},
+  ]},
+  {g:'CS',items:[
+    {nm:'판매자문의 조회',dir:'recv',st:'off',code:'47'},
+    {nm:'판매자문의 답변',dir:'send',st:'off',code:'48'},
+    {nm:'긴급알리미 조회',dir:'recv',st:'off',code:'43'},
+    {nm:'긴급알리미 답변',dir:'send',st:'off',code:'46'},
+    {nm:'ESM 공지사항 조회',dir:'recv',st:'off',code:'49'},
+  ]},
+  {g:'서비스(당일배송·홈쇼핑·실시간)',items:[
+    {nm:'당일배송 지점관리',dir:'send',st:'off',code:'76'},
+    {nm:'상품별 지점정보 관리',dir:'send',st:'off',code:'80'},
+    {nm:'홈쇼핑 편성표 관리',dir:'send',st:'off',code:'85'},
+    {nm:'실시간 가격·재고 체크(G마켓·콜백)',dir:'send',st:'off',code:'86'},
+    {nm:'실시간 가격·재고 체크(옥션·콜백)',dir:'send',st:'off',code:'87'},
+  ]},
+  {g:'스타배송(풀필먼트)',items:[
+    {nm:'SKU 등록/수정',dir:'send',st:'off',code:'88'},
+    {nm:'SKU 조회',dir:'recv',st:'off',code:'89'},
+    {nm:'SKU 재고현황 조회',dir:'recv',st:'off',code:'91'},
+    {nm:'입고 등록',dir:'send',st:'off',code:'106'},
+    {nm:'반출 요청',dir:'send',st:'off',code:'110'},
+    {nm:'외부주문 등록/수정',dir:'send',st:'off',code:'95'},
+    {nm:'풀필먼트 상품 등록/수정',dir:'send',st:'off',code:'114'},
+    {nm:'풀필먼트 가격/판매상태 관리',dir:'send',st:'off',code:'115'},
+    {nm:'풀필먼트 추천옵션 관리',dir:'send',st:'off',code:'116'},
+  ]},
+];
 const MKT_CATS={
   coupang:[
     {g:'물류센터',items:[
@@ -522,6 +638,8 @@ const MKT_CATS={
     {g:'클레임',items:[]},
     {g:'배송',items:[]},
   ],
+  auction:ESM_CATS,   // 옥션·G마켓 = 같은 ESM Trading API → 카탈로그 공통(ESM_CATS)
+  gmarket:ESM_CATS,
 };
 const DM_LBL={ok:'됨',code:'연결됨',off:'공식제공',todo:'미정의'};
 const DM_KEY='moum_datamap_starred';

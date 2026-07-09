@@ -991,6 +991,8 @@ def test_upload_account_api(account_id: int):
         return _test_smartstore(creds, display_name, env_prefix)
     elif market == "lotteon":
         return _test_lotteon(creds, display_name, env_prefix)
+    elif market in ("auction", "gmarket"):
+        return _test_esm(creds, display_name, env_prefix, market)
     else:
         return jsonify({"ok": False, "error": f"{market} 테스트 미구현"}), 400
 
@@ -1215,6 +1217,82 @@ def _test_lotteon(creds, display_name: str, env_prefix: str):
         "elapsed_sec": elapsed,
         "body_snippet": (r.text or "")[:300],
         "hint": hint,
+    }), 502
+
+
+def _test_esm(creds, display_name: str, env_prefix: str, market: str):
+    """옥션·G마켓(ESM 2.0) 연결 테스트 — JWT 인증으로 read-only 주문조회 1건 프로브.
+
+    RequestOrders(읽기 전용, 5초/1회 rate limit)를 최근 1일·pageSize=1 로 호출해
+    인증(JWT 서명)+조회 라운드트립을 확인한다. 실제 값 변경 없음(identity+read).
+    401=JWT/키 오류 · 403=IP 미등록/판매도구 미사용 · 429=호출초과.
+    """
+    import time as _time
+    import datetime as _dt
+    import requests
+    from shared.platforms import AUCTION, GMARKET
+    from shared.platforms.esm.auth import build_headers
+
+    cfg = AUCTION if market == "auction" else GMARKET
+    base = (cfg.get("base_url") or "https://sa2.esmplus.com").rstrip("/")
+    path = (cfg.get("paths") or {}).get("orders") or "/shipping/v1/Order/RequestOrders"
+    site_type = 1 if market == "auction" else 2
+    now = _dt.datetime.now()
+    body = {
+        "siteType": site_type,
+        "orderStatus": 1,
+        "requestDateType": 1,
+        "requestDateFrom": (now - _dt.timedelta(days=1)).strftime("%Y-%m-%d %H:%M"),
+        "requestDateTo": now.strftime("%Y-%m-%d %H:%M"),
+        "pageIndex": 1,
+        "pageSize": 1,
+    }
+    try:
+        headers = build_headers(
+            creds.master_id, creds.secret_key, cfg.get("site_id", ""), creds.seller_id,
+            issuer=cfg.get("auth_issuer", "www.esmplus.com"),
+            audience=cfg.get("auth_audience", "sa.esmplus.com"),
+            iat=int(_time.time()),
+        )
+    except Exception as e:
+        return jsonify({"ok": False, "error": f"JWT 생성 실패 — {e}",
+                        "hint": "마스터ID·시크릿키·판매자ID 를 다시 확인하세요."}), 400
+
+    started = _time.time()
+    try:
+        r = requests.post(base + path, json=body, headers=headers, timeout=15)
+    except Exception as e:
+        return jsonify({"ok": False, "error": f"네트워크 오류: {type(e).__name__}: {e}",
+                        "elapsed_sec": round(_time.time() - started, 2)}), 500
+
+    elapsed = round(_time.time() - started, 2)
+    label = "옥션" if market == "auction" else "G마켓"
+    if r.status_code == 200:
+        try:
+            data = r.json()
+            rc = str(data.get("ResultCode"))
+            if rc in ("0", "None"):
+                return jsonify({
+                    "ok": True,
+                    "message": f"✅ {display_name} {label} ESM API 연결 성공 (JWT 인증 OK, 응답 {elapsed}s)",
+                    "status_code": 200, "elapsed_sec": elapsed, "seller_id": creds.seller_id,
+                })
+            return jsonify({"ok": False, "error": f"{label} 응답 이상 — ResultCode={rc}",
+                            "status_code": 200, "elapsed_sec": elapsed,
+                            "body_snippet": (r.text or "")[:300]}), 502
+        except Exception:
+            return jsonify({"ok": True, "message": f"✅ {label} ESM API 응답 (200, JSON 파싱 실패)",
+                            "status_code": 200, "elapsed_sec": elapsed})
+
+    hint = {
+        401: "JWT 인증 실패 — 마스터ID·시크릿키 확인(ESM+ 판매도구 관리에서 재발급)",
+        403: "권한 없음 — 판매도구 사용 '사용' 설정 / 서버 IP(54.116.196.90) 등록 확인",
+        429: "호출 횟수 초과 — 잠시 후 재시도(주문조회 5초당 1회)",
+    }.get(r.status_code, "마스터ID·시크릿키·판매자ID 가 정확한지 확인")
+    return jsonify({
+        "ok": False, "error": f"{label} ESM API 실패 — HTTP {r.status_code}",
+        "status_code": r.status_code, "elapsed_sec": elapsed,
+        "body_snippet": (r.text or "")[:300], "hint": hint,
     }), 502
 
 

@@ -33,6 +33,8 @@ def fetch_market_options(market: str, product_id: str, *,
         return _fetch_lotteon(product_id, env_prefix)
     if market == "eleven11":
         return _fetch_eleven11(product_id, env_prefix)
+    if market in ("auction", "gmarket"):
+        return _fetch_esm(market, product_id, env_prefix)
     return FetchResult(False, None, [], f"아직 지원하지 않는 마켓: {market}")
 
 
@@ -164,6 +166,37 @@ def _auction_client(env_prefix: Optional[str]):
 
 def _gmarket_client(env_prefix: Optional[str]):
     return _esm_client("gmarket", env_prefix)
+
+
+def _fetch_esm(market: str, product_id: str, env_prefix: Optional[str] = None) -> FetchResult:
+    """옥션·G마켓(ESM 2.0) 기존 상품 연동 — 사이트상품번호→goodsNo→옵션 조회.
+
+    입력=옥션/G마켓 사이트 상품번호. resolve_goods_no 로 마스터 goodsNo 변환 후 상세조회.
+    옵션 재고는 해당 마켓 사이트 값(gmkt/iac). 미상은 None(0/센티넬 금지 — 미상 표면화).
+    """
+    from shared.platforms.esm.products import (resolve_goods_no, get_goods_detail,
+                                               extract_options, _ci_get)
+    if not str(product_id).strip():
+        return FetchResult(False, None, [], "상품번호가 비어있어요")
+    try:
+        client = _esm_client(market, env_prefix)
+        if client is None:
+            return FetchResult(False, None, [], "계정 키가 없어요 (env_prefix 필요)")
+        goods_no = resolve_goods_no(str(product_id), client=client)
+        detail = get_goods_detail(str(goods_no), client=client)
+    except Exception as e:  # noqa: BLE001 — 조회 실패는 명시 표면화(폴백 금지)
+        return FetchResult(False, None, [], f"옵션 조회 실패: {e}")
+    opts = [
+        MarketOption(option_id=str(o["option_id"]), color=o.get("color"),
+                     size=o.get("size"), stock=o.get("stock"), price=None)
+        for o in extract_options(detail, market)
+    ]
+    basic = _ci_get(detail, "itemBasicInfo") or {}
+    gname = _ci_get(basic, "goodsName")
+    if isinstance(gname, dict):
+        gname = _ci_get(gname, "kor") or _ci_get(gname, "eng")
+    name = gname or _ci_get(detail, "goodsName")
+    return FetchResult(True, name, opts)
 
 
 def _fetch_eleven11(product_id: str, env_prefix: Optional[str] = None) -> FetchResult:

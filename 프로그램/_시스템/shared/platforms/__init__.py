@@ -197,9 +197,14 @@ _ESM_COMMON: dict = {
         "orders": "/shipping/v1/Order/RequestOrders",      # 주문조회(공개문서 확보)
         "settlement": "/account/v1/settle/getsettleorder",  # 판매대금 정산조회(공개문서 확보)
         "settlement_delivery": "/account/v1/settle/getsettledeliveryfee",  # 배송비 정산(후속)
-        "detail": None,        # 상품/옵션 상세 — 미확보
-        "price_change": None,  # 가격 수정 — 미확보
-        "stock_change": None,  # 재고 수정 — 미확보
+        # 상품/가격/재고 — ESM Trading API 공개문서 실측(etapi.gmarket.com, 2026-07-09).
+        #   {goodsNo}=마스터 상품번호, {siteGoodsNo}=옥션/G마켓 사이트 상품번호.
+        "site_goods_map": "/item/v1/site-goods/{siteGoodsNo}/goods-no",  # 사이트상품번호→goodsNo (문서 /30)
+        "detail": "/item/v1/goods/{goodsNo}",                  # 상품 상세조회(옵션 포함, 문서 /20)
+        "options": "/item/v1/goods/{goodsNo}/recommended-options",  # 옵션 조회/수정 full-replace (문서 /26)
+        "price_change": "/item/v1/goods/{goodsNo}/price",      # 본품가 수정 gmkt/iac (문서 /186)
+        "stock_change": "/item/v1/goods/{goodsNo}/stock",      # 본품재고 수정(옵션無 전용, 문서 /194)
+        "register": "/item/v1/goods",                          # 신규 상품 등록(문서 /20·/140, 후속)
     },
 }
 
