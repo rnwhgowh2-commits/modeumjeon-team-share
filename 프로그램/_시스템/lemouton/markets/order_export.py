@@ -118,7 +118,11 @@ def smartstore_order_rows(since: _dt.datetime, until: _dt.datetime,
 
     client = client or SmartStoreClient()
 
-    ids = iter_changed_product_order_ids(since, until, client=client)
+    # 변경 주문내역은 '상태변경일' 기준이라, 주문일이 창 안이어도 최근 상태변경(구매확정 등)이
+    # 창 밖으로 밀리면 빠진다(며칠 지난 주문의 드리프트). 조회 끝을 +14일 넉넉히 잡고
+    # combined_order_rows 가 최종적으로 주문일 기준으로 트리밍(기간=주문일 유지).
+    fetch_until = until + _dt.timedelta(days=14)
+    ids = iter_changed_product_order_ids(since, fetch_until, client=client)
     detail = []
     for i in range(0, len(ids), 300):
         d = fetch_order_detail(ids[i:i + 300], client=client)
