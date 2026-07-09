@@ -1795,6 +1795,7 @@ async function crawlBundleAllBG(code) {
   (r.options || []).forEach((o) =>
     (o.sources || []).forEach((s) => {
       if (!s.product_url || ALL.indexOf(s.source_key) < 0) return;
+      if (s.crawl_weight === 0) return;   // [2026-07-10] 계수 0 = 크롤 제외(자동/전체 크롤 모두 안 긁음)
       const key = s.source_key + "|" + s.product_url;
       if (seen.has(key)) return;
       seen.add(key);
