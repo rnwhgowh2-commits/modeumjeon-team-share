@@ -342,9 +342,20 @@ def _won(obj):
     return ""
 
 
+def _cp_windows(since: _dt.datetime, until: _dt.datetime, days: int = 30):
+    """쿠팡 조회 최대 31일 제약(발주서·revenue) → [since,until]을 ≤days 윈도우로 분할."""
+    cur = since
+    step = _dt.timedelta(days=days)
+    while cur < until:
+        nxt = min(cur + step, until)
+        yield cur, nxt
+        cur = nxt
+
+
 def coupang_order_rows(since: _dt.datetime, until: _dt.datetime,
                        client=None) -> list:
     """쿠팡 발주서 목록 → 16컬럼 행(dict). status별(공식 필수) 순회 + nextToken 페이징.
+    조회 최대 31일 제약 → _cp_windows 로 30일 분할(긴 기간·통합 조회 400 방지).
 
     발주서(shipmentBox) 하위 orderItems[] 평탄화(옵션 단위 1행). 정산예정금액은 발주서엔
     없어 revenue-history(별도 API)를 (주문번호,옵션ID)로 조인 — 미정산(최근주문)은 빈칸
@@ -354,10 +365,11 @@ def coupang_order_rows(since: _dt.datetime, until: _dt.datetime,
 
     statuses = ["ACCEPT", "INSTRUCT", "DEPARTURE", "DELIVERING", "FINAL_DELIVERY"]
     seen, rows = set(), []
-    for st in statuses:
+    for _w0, _w1 in _cp_windows(since, until):   # 발주서 조회 최대 31일 → 30일 윈도우(seen 이 창 간 중복 제거)
+      for st in statuses:
         token = None
         for _ in range(50):   # nextToken 페이징 안전 상한
-            resp = fetch_orders(since, until, client=client, status=st, next_token=token)
+            resp = fetch_orders(_w0, _w1, client=client, status=st, next_token=token)
             for box in (resp.get("data") or []):
                 orderer = box.get("orderer") or {}
                 rcv = box.get("receiver") or {}
@@ -505,11 +517,12 @@ def _coupang_settle_map(since, until, client):
     페이지를 직접 순회해 뽑는다(iter_revenue_items 는 items 만 평탄화).
     """
     from shared.platforms.coupang.settlements import fetch_revenue_page
-    rec_to = (until - _dt.timedelta(days=1)).strftime("%Y-%m-%d")   # 종료는 전일까지
-    rec_from = since.strftime("%Y-%m-%d")
     item_map, deliv_map = {}, {}
-    token = ""
-    for _ in range(200):   # 페이징 안전 상한
+    for _w0, _w1 in _cp_windows(since, until):   # revenue-history 도 장기간 제약 → 30일 분할
+      rec_from = _w0.strftime("%Y-%m-%d")
+      rec_to = (_w1 - _dt.timedelta(days=1)).strftime("%Y-%m-%d")   # 종료는 전일까지
+      token = ""
+      for _ in range(200):   # 페이징 안전 상한
         resp = fetch_revenue_page(rec_from, rec_to, token=token, max_per_page=50, client=client)
         for order in (resp.get("data") or []):
             oid = str(order.get("orderId") or "")
