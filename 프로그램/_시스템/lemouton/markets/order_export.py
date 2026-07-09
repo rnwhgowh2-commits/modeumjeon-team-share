@@ -466,10 +466,11 @@ def eleven11_order_rows(since: _dt.datetime, until: _dt.datetime, client=None) -
     · 구매확정(completed): 배송정보·단가 미제공(완료·정산 단계) → 해당 열 공란(폴백 금지).
     (ordNo,ordPrdSeq) 상태 간 중복 제거. 배송비는 묶음배송(bndlDlvYN=Y)이면 bmDlvCst,
     아니면 dlvCst; 배송건(_shipkey=bndlDlvSeq) 단위 1회 정규화.
-    (배송중 shipping 은 송장만 제공 → 상세 없어 제외.)
+    배송준비중=packaging(전체), 배송중=shipping(송장만), 취소/반품/교환=claimservice 병합.
     """
     from shared.platforms.eleven11.orders import (
-        iter_orders, iter_delivered, iter_completed, iter_preparing, iter_shipping)
+        iter_orders, iter_delivered, iter_completed, iter_preparing, iter_shipping,
+        iter_cancel, iter_return, iter_exchange)
 
     def _g11(od, *keys):
         for k in keys:
@@ -511,28 +512,56 @@ def eleven11_order_rows(since: _dt.datetime, until: _dt.datetime, client=None) -
             "송장입력": _g11(od, "invcNo"),
         }
 
-    # 상태별 목록 3종 병합(전체 주문 라이프사이클): 발송대기 → 배송완료 → 구매확정.
-    #  (ordNo,ordPrdSeq) 로 상태 간 중복 제거. 발송대기(complete)는 필수(오류 전파),
-    #  배송완료·구매확정은 부가(실패 시 조용히 스킵 — 나머지 상태는 살림).
+    def _claim_row(od, status):
+        """취소/반품/교환 목록 → 행. 클레임 목록은 상품명·단가 미제공(주문번호·옵션·수량·사유·상태만)."""
+        ordno = str(_g11(od, "ordNo"))
+        addr = (str(_g11(od, "rcvrBaseAddr")) + " " + str(_g11(od, "rcvrDtlsAddr"))).strip()
+        return {
+            "주문일": ordno[:8] if ordno[:2] == "20" and len(ordno) >= 8 else "",
+            "판매처": "11번가",
+            "상품명": "",   # 클레임 목록 미제공
+            "옵션": _g11(od, "slctPrdOptNm", "optName"),
+            "수량": _g11(od, "ordCnQty", "clmReqQty", "ordQty"),
+            "주소": addr,
+            "우편번호": _g11(od, "rcvrMailNo"),
+            "수령자": _g11(od, "rcvrNm"),
+            "배송메시지": _g11(od, "ordCnDtlsRsn", "clmReqCont", "clmReqRsn"),   # 클레임 사유
+            "구매자": _g11(od, "ordNm"),
+            "수령자전화번호": _g11(od, "rcvrPrtblNo", "rcvrTlphn"),
+            "구매자번호": _g11(od, "ordPrtblTel", "ordTlphnNo"),
+            "쇼핑몰": "11번가", "쇼핑몰ID": "",
+            "단가": "", "배송비": 0, "정산예정금액": "",
+            "주문상태": status,
+            "오픈마켓주문번호": ordno,
+            "실결제금액": "",
+            "송장입력": _g11(od, "twPrdInvcNo"),
+        }
+
+    # 활성 5상태 + 클레임 3종 병합(전체 라이프사이클). (ordNo,ordPrdSeq) 로 중복 제거.
+    #  발송대기(complete)는 필수(오류 전파), 나머지는 부가(실패 시 조용히 스킵). 클레임은 활성에
+    #  없는 건(취소 등)만 추가 — 이미 활성에 있으면 그 상태 유지(중복 방지).
     rows, seen = [], set()
 
-    def _collect(iter_fn, status, required):
+    def _collect(iter_fn, status, required, builder=_row):
         try:
             for od in iter_fn(since, until, client=client):
                 key = (od.get("ordNo"), od.get("ordPrdSeq"))
                 if key in seen:
                     continue
                 seen.add(key)
-                rows.append(_row(od, status))
+                rows.append(builder(od, status))
         except Exception:   # noqa: BLE001
             if required:
                 raise
 
-    _collect(iter_orders, "결제완료", True)      # 발송대기(필수)
-    _collect(iter_preparing, "배송준비중", False)  # 배송준비중(오늘발송+발송기한경과, 전체 필드)
+    _collect(iter_orders, "결제완료", True)       # 발송대기(필수)
+    _collect(iter_preparing, "배송준비중", False)  # 배송준비중 전체(packaging)
     _collect(iter_shipping, "배송중", False)      # 배송중(송장·주문번호만 — 상세 미제공)
     _collect(iter_delivered, "배송완료", False)   # 배송완료
     _collect(iter_completed, "구매확정", False)   # 구매확정
+    _collect(iter_cancel, "취소", False, _claim_row)     # 취소요청
+    _collect(iter_return, "반품", False, _claim_row)     # 반품요청
+    _collect(iter_exchange, "교환", False, _claim_row)   # 교환요청
     return rows
 
 

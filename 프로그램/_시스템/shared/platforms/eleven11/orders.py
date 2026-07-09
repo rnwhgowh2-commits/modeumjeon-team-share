@@ -21,11 +21,14 @@ import re as _re
 import xml.etree.ElementTree as _ET
 
 _PATH = "/rest/ordservices/complete/{s}/{e}"             # 결제완료(발송대기)
+_PATH_PACKAGING = "/rest/ordservices/packaging/{s}/{e}"  # 배송준비중 전체(발주확인 완료), 기간조회
 _PATH_DELIVERED = "/rest/ordservices/dlvcompleted/{s}/{e}"  # 배송완료
 _PATH_COMPLETED = "/rest/ordservices/completed/{s}/{e}"   # 판매완료(구매확정)
 _PATH_SHIPPING = "/rest/ordservices/shipping/{s}/{e}"    # 배송중(송장·주문번호만)
-_PATH_TODAY = "/rest/ordservices/todaydelivery/completes"   # 오늘발송(배송준비중, 당일 자동)
-_PATH_DELAY = "/rest/ordservices/delaydelivery/completes"   # 발송기한경과(배송준비중, 당일 자동)
+# 클레임 목록조회(공개문서 실측 2026-07-09) — 취소/반품/교환. 최대 30일이나 7일 윈도우로 분할.
+_PATH_CANCEL = "/rest/claimservice/cancelorders/{s}/{e}"     # 취소요청 목록
+_PATH_RETURN = "/rest/claimservice/returnorders/{s}/{e}"     # 반품요청 목록
+_PATH_EXCHANGE = "/rest/claimservice/exchangeorders/{s}/{e}"  # 교환요청 목록
 _MAX_WINDOW_DAYS = 7        # 문서: 조회기간 최대 7일
 
 
@@ -105,32 +108,31 @@ def iter_completed(since: _dt.datetime, until: _dt.datetime, *, client):
     return _iter_path(_PATH_COMPLETED, since, until, client=client)
 
 
-def _iter_fixed(path: str, *, client):
-    """날짜 파라미터 없는 고정 경로 조회(오늘발송·발송기한경과 = 조회기간 당일 자동)."""
-    xml_text = client.request("GET", path)
-    root = _parse(xml_text)
-    if root is None:
-        return
-    for el in root.iter():
-        if _localname(el.tag) != "order":
-            continue
-        yield {_localname(c.tag): (c.text or "").strip() for c in el}
-
-
 def iter_preparing(since: _dt.datetime, until: _dt.datetime, *, client):
-    """배송준비중(발주확인 후·발송 전). todaydelivery+delaydelivery 병합.
+    """배송준비중(발주확인 완료·발송 전) 전체 목록. GET /rest/ordservices/packaging.
 
-    두 목록 모두 '결제완료 목록과 컬럼 동일 + dlvSndDue(발송마감)·delaySendDt(발송예정)' (문서 실측).
-    조회기간이 당일 자동이라 날짜 파라미터 없음(since/until 미사용). (ordNo,ordPrdSeq,prdNo) 중복제거.
+    ★ todaydelivery/delaydelivery(오늘발송·기한경과)는 '발송해야 할' 것만 줘서 발송예정일이 미래인
+    배송준비중(예약·주문제작)이 빠졌음. packaging 은 발주확인 완료 주문 '전체'를 기간조회로 준다
+    (필드=결제완료와 동일). 서버 프로브로 today/delay 가 0 반환·개별조회는 301 배송준비중 확인 후 교체.
     """
-    seen = set()
-    for path in (_PATH_TODAY, _PATH_DELAY):
-        for od in _iter_fixed(path, client=client):
-            key = (od.get("ordNo"), od.get("ordPrdSeq"), od.get("prdNo"))
-            if key in seen:
-                continue
-            seen.add(key)
-            yield od
+    return _iter_path(_PATH_PACKAGING, since, until, client=client)
+
+
+def iter_cancel(since: _dt.datetime, until: _dt.datetime, *, client):
+    """취소요청 목록. GET /rest/claimservice/cancelorders. 필드: ordNo·ordPrdSeq·prdNo·
+    slctPrdOptNm·ordCnQty(취소수량)·ordCnRsnCd/ordCnDtlsRsn(사유)·ordCnStatCd·createDt."""
+    return _iter_path(_PATH_CANCEL, since, until, client=client)
+
+
+def iter_return(since: _dt.datetime, until: _dt.datetime, *, client):
+    """반품요청 목록. GET /rest/claimservice/returnorders. 필드: ordNo·ordPrdSeq·prdNo·
+    optName·clmReqQty·clmReqRsn/clmReqCont(사유)·clmStat·ordNm·reqDt 등."""
+    return _iter_path(_PATH_RETURN, since, until, client=client)
+
+
+def iter_exchange(since: _dt.datetime, until: _dt.datetime, *, client):
+    """교환요청 목록. GET /rest/claimservice/exchangeorders. 반품과 유사 클레임 필드."""
+    return _iter_path(_PATH_EXCHANGE, since, until, client=client)
 
 
 def iter_shipping(since: _dt.datetime, until: _dt.datetime, *, client):

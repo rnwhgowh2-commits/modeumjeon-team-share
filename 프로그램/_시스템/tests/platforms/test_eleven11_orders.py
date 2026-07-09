@@ -156,49 +156,60 @@ class TestOrderRows:
         done = [r for r in rows if r["주문상태"] == "구매확정"][0]
         assert done["단가"] == "" and done["수령자"] == ""            # 구매확정 목록 미제공 → 공란
 
-    def test_merges_preparing_and_shipping(self):
-        # 배송준비중(todaydelivery+delaydelivery)·배송중(shipping) 병합 = 샵마인 대조 갭 보강.
+    def test_merges_preparing_shipping_claims(self):
+        # 배송준비중(packaging 전체)·배송중(shipping)·취소/반품/교환(claimservice) 병합.
         from lemouton.markets import order_export as oe
 
         def _doc(inner):
             return ('<?xml version="1.0" encoding="euc-kr"?><ns2:orders xmlns:ns2="http://x">'
                     + inner + '</ns2:orders>')
 
-        # 배송준비중: 결제완료와 동일 필드(전체). 오늘발송(today)·발송기한경과(delay) 각 1건.
-        today_xml = _doc('<ns2:order><ns2:ordNo>20260707082111111</ns2:ordNo>'
-                         '<ns2:ordPrdSeq>1</ns2:ordPrdSeq><ns2:prdNm>준비중상품</ns2:prdNm>'
-                         '<ns2:ordQty>1</ns2:ordQty><ns2:selPrc>5000</ns2:selPrc>'
-                         '<ns2:rcvrNm>홍길동</ns2:rcvrNm><ns2:ordDt>2026-07-07 09:00:00</ns2:ordDt></ns2:order>')
-        delay_xml = _doc('<ns2:order><ns2:ordNo>20260705082122222</ns2:ordNo>'
-                         '<ns2:ordPrdSeq>1</ns2:ordPrdSeq><ns2:prdNm>지연상품</ns2:prdNm>'
-                         '<ns2:ordQty>1</ns2:ordQty><ns2:selPrc>7000</ns2:selPrc>'
-                         '<ns2:rcvrNm>김철수</ns2:rcvrNm><ns2:ordDt>2026-07-05 09:00:00</ns2:ordDt></ns2:order>')
-        # 배송중: shipping = ordNo·invcNo·dlvEtprsCd·sndEndDt 만(상품·주소·ordDt 없음).
+        # 배송준비중 전체: packaging = 결제완료와 동일 필드. 2건(미래발송 포함).
+        packaging_xml = _doc(
+            '<ns2:order><ns2:ordNo>20260707082111111</ns2:ordNo>'
+            '<ns2:ordPrdSeq>1</ns2:ordPrdSeq><ns2:prdNm>준비중상품</ns2:prdNm>'
+            '<ns2:ordQty>1</ns2:ordQty><ns2:selPrc>5000</ns2:selPrc>'
+            '<ns2:rcvrNm>홍길동</ns2:rcvrNm><ns2:ordDt>2026-07-07 09:00:00</ns2:ordDt></ns2:order>'
+            '<ns2:order><ns2:ordNo>20260708082122222</ns2:ordNo>'
+            '<ns2:ordPrdSeq>1</ns2:ordPrdSeq><ns2:prdNm>예약상품</ns2:prdNm>'
+            '<ns2:ordQty>1</ns2:ordQty><ns2:selPrc>7000</ns2:selPrc>'
+            '<ns2:rcvrNm>김철수</ns2:rcvrNm><ns2:ordDt>2026-07-08 09:00:00</ns2:ordDt></ns2:order>')
         shipping_xml = _doc('<ns2:order><ns2:ordNo>20260706082133333</ns2:ordNo>'
                             '<ns2:ordPrdSeq>1</ns2:ordPrdSeq><ns2:invcNo>1234567890</ns2:invcNo>'
-                            '<ns2:dlvEtprsCd>00034</ns2:dlvEtprsCd>'
                             '<ns2:sndEndDt>2026-07-06 16:00:00</ns2:sndEndDt></ns2:order>')
+        # 취소: ordCnQty·slctPrdOptNm·사유(상품명 없음). 반품: clmReqQty·optName.
+        cancel_xml = _doc('<ns2:order><ns2:ordNo>20260703082144444</ns2:ordNo>'
+                          '<ns2:ordPrdSeq>1</ns2:ordPrdSeq><ns2:slctPrdOptNm>블랙/M</ns2:slctPrdOptNm>'
+                          '<ns2:ordCnQty>1</ns2:ordCnQty><ns2:ordCnDtlsRsn>단순변심</ns2:ordCnDtlsRsn></ns2:order>')
+        return_xml = _doc('<ns2:order><ns2:ordNo>20260704082155555</ns2:ordNo>'
+                          '<ns2:ordPrdSeq>1</ns2:ordPrdSeq><ns2:optName>화이트/L</ns2:optName>'
+                          '<ns2:clmReqQty>2</ns2:clmReqQty><ns2:clmReqRsn>불량</ns2:clmReqRsn></ns2:order>')
 
         class _PathClient:
             def request(self, method, path, body=None):
-                if "/todaydelivery/" in path:
-                    return today_xml
-                if "/delaydelivery/" in path:
-                    return delay_xml
+                if "/packaging/" in path:
+                    return packaging_xml
                 if "/shipping/" in path:
                     return shipping_xml
-                return _doc("")                  # 다른 상태 없음(result_code 0 유사)
+                if "/cancelorders/" in path:
+                    return cancel_xml
+                if "/returnorders/" in path:
+                    return return_xml
+                return _doc("")                  # 그 외 상태 없음
 
         since = _dt.datetime(2026, 7, 1, tzinfo=KST)
         until = _dt.datetime(2026, 7, 8, tzinfo=KST)
         rows = oe.eleven11_order_rows(since, until, client=_PathClient())
         statuses = {r["주문상태"] for r in rows}
-        assert {"배송준비중", "배송중"} <= statuses
+        assert {"배송준비중", "배송중", "취소", "반품"} <= statuses
         prep = [r for r in rows if r["주문상태"] == "배송준비중"]
-        assert {p["상품명"] for p in prep} == {"준비중상품", "지연상품"}   # today+delay 병합
-        assert [p for p in prep if p["상품명"] == "준비중상품"][0]["단가"] == "5000"
-        # 배송중: 상세 없음 → 주문번호·송장은 채워지고 주문일은 ordNo 앞8자리(YYYYMMDD)로 보정.
+        assert {p["상품명"] for p in prep} == {"준비중상품", "예약상품"}   # packaging 전체
+        # 배송중: 송장만 + 주문일 ordNo 보정
         ship = [r for r in rows if r["주문상태"] == "배송중"][0]
-        assert ship["오픈마켓주문번호"] == "20260706082133333"
-        assert ship["송장입력"] == "1234567890" and ship["상품명"] == ""
-        assert ship["주문일"] == "20260706"      # ordDt 없음 → ordNo[:8] 보정
+        assert ship["송장입력"] == "1234567890" and ship["주문일"] == "20260706"
+        # 취소/반품: 주문번호·옵션·수량 채워지고 상품명은 공란(목록 미제공)
+        cx = [r for r in rows if r["주문상태"] == "취소"][0]
+        assert cx["오픈마켓주문번호"] == "20260703082144444" and cx["옵션"] == "블랙/M"
+        assert cx["수량"] == "1" and cx["상품명"] == ""
+        rx = [r for r in rows if r["주문상태"] == "반품"][0]
+        assert rx["옵션"] == "화이트/L" and rx["수량"] == "2"
