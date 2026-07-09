@@ -58,3 +58,41 @@ def test_iter_handles_empty_and_missing_data():
     since = dt.datetime(2026, 7, 1, tzinfo=KST)
     until = dt.datetime(2026, 7, 3, tzinfo=KST)
     assert list(lo.iter_delivery_orders(since, until, client=fc)) == []   # 빈 응답 안전
+
+
+def test_order_rows_merges_claims():
+    """취소/반품/교환(claimservice)이 출고/회수지시 활성주문과 병합되는지 (MCP 실측 스펙)."""
+    from lemouton.markets import order_export as oe
+
+    def _claim(odno, item):
+        return {"returnCode": "0000",
+                "data": [{"odNo": odno, "clmNo": "C1", "itemList": [item]}]}
+
+    class RouteClient:
+        def request(self, method, path, body=None):
+            if "/delivery/" in path:
+                return {"data": {"deliveryOrderList": [
+                    {"odNo": "OD_ACTIVE", "spdNm": "활성상품", "odQty": "1",
+                     "slPrc": "10000", "odPrgsStepCd": "11", "odCmptDttm": "20260705100000"}]}}
+            if "cancellationOpenApi" in path:
+                return _claim("OD_CANCEL", {"odSeq": 1, "procSeq": 1, "spdNm": "취소상품",
+                              "sitmNm": "옵A", "odQty": "1", "itmSlPrc": "5000",
+                              "cnclQty": "1", "clmRsnCnts": "변심", "odAccpDttm": "20260705120000"})
+            if "returningOpenApi" in path:
+                return _claim("OD_RETURN", {"odSeq": 1, "procSeq": 1, "spdNm": "반품상품",
+                              "sitmNm": "옵B", "rtngQty": "2", "itmSlPrc": "7000",
+                              "odAccpDttm": "20260705120000"})
+            if "exchangeOpenApi" in path:
+                return _claim("OD_EXCHANGE", {"odSeq": 1, "procSeq": 1, "spdNm": "교환상품",
+                              "xchgQty": "1", "odAccpDttm": "20260705120000"})
+            return {"data": {}}
+
+    since = dt.datetime(2026, 7, 5, tzinfo=KST)
+    until = dt.datetime(2026, 7, 6, tzinfo=KST)
+    rows = oe.lotteon_order_rows(since, until, client=RouteClient())
+    st = {r["주문상태"] for r in rows}
+    assert {"취소", "반품", "교환"} <= st
+    cx = [r for r in rows if r["주문상태"] == "취소"][0]
+    assert cx["오픈마켓주문번호"] == "OD_CANCEL" and cx["상품명"] == "취소상품" and cx["수량"] == "1"
+    rx = [r for r in rows if r["주문상태"] == "반품"][0]
+    assert rx["상품명"] == "반품상품" and rx["수량"] == "2"
