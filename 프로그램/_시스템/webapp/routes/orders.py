@@ -232,3 +232,37 @@ def orders_preview():
         safe.append(r)
     return jsonify(ok=True, markets=markets, days=days,
                    columns=_oe.ALL_COLUMNS, count=len(safe), rows=safe)
+
+
+@bp.route('/_probesettle')
+def probe_lotteon_settle():
+    """[임시] 롯데온 SettleCommission 실응답 — 수수료맵 0 원인(빈응답 vs 오류) 진단."""
+    from flask import jsonify
+    import datetime as _dt
+    since, until = _parse_range(request.args)
+    if until is None: until = _dt.datetime.now(_oe.KST)
+    if since is None: since = until - _dt.timedelta(days=7)
+    client = _oe._account_client("lotteon")
+    from shared.platforms import LOTTEON as _CFG
+    body = {"trGrpCd": _CFG.get("tr_grp_cd","SR"), "trNo": _CFG.get("tr_no",""),
+            "lrtrNo": _CFG.get("lrtr_no",""),
+            "startDate": since.strftime("%Y%m%d"), "endDate": until.strftime("%Y%m%d")}
+    out = {"body_keys": list(body.keys()), "trNo_set": bool(body["trNo"]), "lrtrNo_set": bool(body["lrtrNo"])}
+    try:
+        resp = client.request(method="POST", path="/v1/openapi/settle/v1/se/SettleCommission", body=body)
+        data = resp.get("data") if isinstance(resp,dict) else None
+        out["returnCode"] = resp.get("returnCode") if isinstance(resp,dict) else None
+        out["message"] = (resp.get("message") if isinstance(resp,dict) else str(resp))
+        out["dataCount"] = len(data or []) if isinstance(data,list) else "not-list"
+        if data: out["sample_keys"] = sorted((data[0] or {}).keys())
+        out["top_keys"] = sorted(resp.keys()) if isinstance(resp,dict) else None
+    except Exception as e:
+        out["error"] = f"{type(e).__name__}: {str(e)[:250]}"
+    # commission_map 결과도
+    try:
+        from shared.platforms.lotteon import claims as _lc
+        cm = _lc.commission_map(since, until, client=client)
+        out["commission_map_size"] = len(cm)
+    except Exception as e:
+        out["commission_map_err"] = f"{type(e).__name__}: {str(e)[:150]}"
+    return jsonify(out)
