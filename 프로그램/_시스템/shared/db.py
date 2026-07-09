@@ -233,6 +233,12 @@ def _apply_lightweight_migrations() -> None:
         #             NULL=미매핑 → build_lotteon_payload 가 None → 자동전송 0(안전).
         ("models", "lotteon_product_id", "VARCHAR(64)"),
         ("options", "lotteon_option_id", "VARCHAR(128)"),
+        # 2026-07-09: 옥션·G마켓(ESM 2.0) 자동전송 formatter 용 — 마스터 goodsNo·옵션 manageCode.
+        #             NULL=미매핑 → build_{auction,gmarket}_payload 가 None → 자동전송 0(안전).
+        ("models", "auction_product_id", "VARCHAR(64)"),
+        ("models", "gmarket_product_id", "VARCHAR(64)"),
+        ("options", "auction_option_id", "VARCHAR(128)"),
+        ("options", "gmarket_option_id", "VARCHAR(128)"),
         # 2026-07-05: (폐기) market_upload_policies — P4 마켓 per_minute 정책 제거,
         #             계정 단위(account_upload_policies)로 흡수. 기존 DB의 잔여 테이블은
         #             참조 안 함(무해). 업로드 속도 정본 = 계정.

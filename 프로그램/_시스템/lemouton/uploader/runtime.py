@@ -54,17 +54,23 @@ def select_adapters(*, live: bool | None = None) -> dict[str, MarketAdapter]:
             "coupang": DryRunAdapter("coupang"),
             "lotteon": DryRunAdapter("lotteon"),
             "eleven11": DryRunAdapter("eleven11"),
+            "auction": DryRunAdapter("auction"),
+            "gmarket": DryRunAdapter("gmarket"),
         }
     from .adapters.coupang import CoupangAdapter
     from .adapters.smartstore import SmartStoreAdapter
     from .adapters.lotteon import LotteonAdapter
     from .adapters.eleven11 import Eleven11Adapter
+    from .adapters.esm import EsmAdapter
     logger.warning("[uploader] LIVE 업로드 활성 — 실제 마켓 전송이 발생합니다")
     return {
         "smartstore": SmartStoreAdapter(),
         "coupang": CoupangAdapter(),
         "lotteon": LotteonAdapter(),
         "eleven11": Eleven11Adapter(),
+        # 옥션·G마켓 = 같은 ESM Trading API, site_id 만 A/G(EsmAdapter 가 market 으로 구분).
+        "auction": EsmAdapter("auction"),
+        "gmarket": EsmAdapter("gmarket"),
     }
 
 

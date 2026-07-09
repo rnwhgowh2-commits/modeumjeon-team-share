@@ -69,11 +69,14 @@ class TestPlatformConfig:
         assert AUCTION["site_id"] == "A" and GMARKET["site_id"] == "G"
         assert AUCTION["auth_audience"] == "sa.esmplus.com"
         assert AUCTION["auth_alg"] == "HS256"
-        # 주문조회·정산조회는 공개문서 확보 → 경로 세팅. 상품/가격/재고는 미확보 → None(추측 금지).
+        # 주문·정산·상품/가격/재고 모두 공개문서 확보(etapi.gmarket.com, 2026-07-09) → 경로 세팅.
         assert AUCTION["paths"]["orders"] == "/shipping/v1/Order/RequestOrders"
         assert GMARKET["paths"]["orders"] == "/shipping/v1/Order/RequestOrders"
         assert GMARKET["paths"]["settlement"] == "/account/v1/settle/getsettleorder"
-        assert GMARKET["paths"]["detail"] is None
+        assert GMARKET["paths"]["detail"] == "/item/v1/goods/{goodsNo}"
+        assert GMARKET["paths"]["price_change"] == "/item/v1/goods/{goodsNo}/price"
+        assert GMARKET["paths"]["stock_change"] == "/item/v1/goods/{goodsNo}/stock"
+        assert GMARKET["paths"]["options"] == "/item/v1/goods/{goodsNo}/recommended-options"
 
     def test_esm_not_in_supported_yet(self):
         # 옥션·G마켓은 키+실호출 검증 전이라 주문 엑셀 미노출(거짓 주문 방지).

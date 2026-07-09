@@ -62,6 +62,8 @@ class Model(Base):
     coupang_product_id = Column(String(64))            # productId (구매자 페이지 URL 용)
     coupang_seller_product_id = Column(String(64))   # sellerProductId (셀러센터 상품수정 + GET·매핑 API 용)
     lotteon_product_id = Column(String(64))          # 롯데온 판매자상품번호(spdNo) — 자동전송 formatter 용
+    auction_product_id = Column(String(64))          # 옥션(ESM) 마스터 상품번호(goodsNo) — 자동전송 formatter 용
+    gmarket_product_id = Column(String(64))          # G마켓(ESM) 마스터 상품번호(goodsNo) — 자동전송 formatter 용
 
     # [B] 추가 — 가격 오버라이드
     boxhero_purchase_price_override = Column(Integer)
@@ -230,6 +232,8 @@ class Option(Base):
     naver_option_id = Column(String(128))
     coupang_option_id = Column(String(128))
     lotteon_option_id = Column(String(128))          # 롯데온 판매자단품번호(sitmNo) — 자동전송 formatter 용
+    auction_option_id = Column(String(128))          # 옥션(ESM) 옵션 판매자코드(manageCode) — 자동전송 formatter 용
+    gmarket_option_id = Column(String(128))          # G마켓(ESM) 옵션 판매자코드(manageCode) — 자동전송 formatter 용
 
     # 박스히어로 매핑
     boxhero_sku = Column(String(64))

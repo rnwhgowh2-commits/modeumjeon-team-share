@@ -6,6 +6,7 @@ from lemouton.sourcing.master import get_model, get_option_by_canonical
 from .smartstore import build_smartstore_payload
 from .coupang import build_coupang_payload
 from .lotteon import build_lotteon_payload
+from .esm import build_auction_payload, build_gmarket_payload
 
 
 def run_formatter(
@@ -53,9 +54,13 @@ def run_formatter(
             "naver_option_id": opt.naver_option_id,
             "coupang_option_id": opt.coupang_option_id,
             "lotteon_option_id": opt.lotteon_option_id,
+            "auction_option_id": opt.auction_option_id,
+            "gmarket_option_id": opt.gmarket_option_id,
             "ss": decision.get("ss", {}),
             "coupang": decision.get("coupang", {}),
             "lotteon": decision.get("lotteon", {}),
+            "auction": decision.get("auction", {}),
+            "gmarket": decision.get("gmarket", {}),
         }
         decisions_by_model[opt.model_code].append(merged)
         boxhero_by_sku[sku] = opt_data.get("boxhero_stock", 0)
@@ -63,6 +68,8 @@ def run_formatter(
     smartstore_payloads: dict[str, dict] = {}
     coupang_payloads: dict[str, dict] = {}
     lotteon_payloads: dict[str, dict] = {}
+    auction_payloads: dict[str, dict] = {}
+    gmarket_payloads: dict[str, dict] = {}
 
     for model_code, model_decisions in decisions_by_model.items():
         m = get_model(session, model_code)
@@ -80,6 +87,8 @@ def run_formatter(
             "naver_product_id": m.naver_product_id,
             "coupang_product_id": m.coupang_product_id,
             "lotteon_product_id": m.lotteon_product_id,
+            "auction_product_id": m.auction_product_id,
+            "gmarket_product_id": m.gmarket_product_id,
             "naver_product_name_override": m.naver_product_name_override,
             "coupang_product_name_override": m.coupang_product_name_override,
         }
@@ -111,9 +120,19 @@ def run_formatter(
         if lo_payload is not None:
             lotteon_payloads[model_code] = lo_payload
 
+        # 옥션·G마켓(ESM) — {market}_product_id 매핑된 모델만(미매핑이면 None → 자동전송 0).
+        au_payload = build_auction_payload(model_decisions, model_dict, boxhero_by_sku)
+        if au_payload is not None:
+            auction_payloads[model_code] = au_payload
+        gm_payload = build_gmarket_payload(model_decisions, model_dict, boxhero_by_sku)
+        if gm_payload is not None:
+            gmarket_payloads[model_code] = gm_payload
+
     return {
         "smartstore": smartstore_payloads,
         "coupang": coupang_payloads,
         "lotteon": lotteon_payloads,
+        "auction": auction_payloads,
+        "gmarket": gmarket_payloads,
         "alerts": alerts,
     }
