@@ -232,35 +232,3 @@ def orders_preview():
         safe.append(r)
     return jsonify(ok=True, markets=markets, days=days,
                    columns=_oe.ALL_COLUMNS, count=len(safe), rows=safe)
-
-
-@bp.route('/_probeorder')
-def probe_order_by_number():
-    """[임시] 쿠팡 주문번호 직접 조회 — 발주서 단건(orderId) + 반품/취소(orderId). 값 노출 최소."""
-    from flask import jsonify
-    ordno = request.args.get('ord', '')
-    client = _oe._account_client("coupang")
-    vid = (getattr(client, "_cfg", {}) or {}).get("vendor_id")
-    base = f"/v2/providers/openapi/apis/api/v4/vendors/{vid}"
-    out = {"ord": ordno, "vendor_set": bool(vid)}
-    # 1) 발주서 단건 조회(orderId) — 활성 주문(취소되면 없음)
-    try:
-        resp = client.request("GET", f"{base}/{ordno}/ordersheets")
-        data = resp.get("data") if isinstance(resp, dict) else None
-        boxes = data if isinstance(data, list) else ([data] if data else [])
-        out["ordersheet"] = {"count": len(boxes),
-                             "status": [b.get("status") for b in boxes][:3]}
-    except Exception as e:   # noqa: BLE001
-        out["ordersheet"] = {"error": f"{type(e).__name__}: {str(e)[:150]}"}
-    # 2) 반품/취소 조회(orderId, status 없이 = 전체) — 취소/반품이면 여기
-    try:
-        resp = client.request("GET", f"{base}/returnRequests", query=f"orderId={ordno}")
-        data = resp.get("data") if isinstance(resp, dict) else None
-        arr = data if isinstance(data, list) else []
-        out["returnRequests"] = {"count": len(arr),
-                                 "receiptType": [r.get("receiptType") for r in arr][:5],
-                                 "receiptStatus": [r.get("receiptStatus") for r in arr][:5],
-                                 "createdAt": [r.get("createdAt") for r in arr][:5]}
-    except Exception as e:   # noqa: BLE001
-        out["returnRequests"] = {"error": f"{type(e).__name__}: {str(e)[:150]}"}
-    return jsonify(out)
