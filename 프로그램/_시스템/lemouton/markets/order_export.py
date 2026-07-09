@@ -263,6 +263,18 @@ def lotteon_order_rows(since: _dt.datetime, until: _dt.datetime,
                 rows.append(_claim_row(it, status, qkey))
         except Exception:   # noqa: BLE001 — 클레임 조회 실패는 활성 주문 유지
             pass
+
+    # ── 마켓수수료 실값(SettleCommission, apiNo45) — odNo별 수수료 합으로 마켓수수료 채움 ──
+    #  정산 기준일=구매확정일이라 구매확정 주문만 채워짐(_finalize가 실값 우선 사용). 실패는 공란(파생 폴백).
+    try:
+        cmap = _clm.commission_map(since, until, client=client)
+    except Exception:   # noqa: BLE001
+        cmap = {}
+    if cmap:
+        for r in rows:
+            fee = cmap.get(r.get("오픈마켓주문번호"))
+            if fee:
+                r["마켓수수료"] = int(round(fee))
     return rows
 
 
@@ -803,9 +815,16 @@ def _finalize_rows(rows: list) -> list:
         paid = _to_int(r.get("실결제금액"))
         if paid is None and isinstance(total, int):
             paid = total                     # 실결제 미제공(쿠팡 등) → 총주문금액(할인 없음 가정)
-        # 마켓수수료 = 실결제 − 정산예정금액(둘 다 있고 양수일 때만). 아니면 공란(폴백 금지).
-        if paid is not None and settle is not None and paid - settle > 0:
+        # 마켓수수료: 빌더가 정산 API 실값으로 미리 채웠으면(롯데온 SettleCommission) 그대로 사용,
+        #  아니면 실결제 − 정산예정금액 파생(둘 다 있고 양수일 때). 아니면 공란(폴백 금지).
+        preset_fee = _to_int(r.get("마켓수수료"))
+        if preset_fee is not None and preset_fee > 0:
+            fee = preset_fee
+        elif paid is not None and settle is not None and paid - settle > 0:
             fee = paid - settle
+        else:
+            fee = None
+        if fee is not None:
             r["마켓수수료"] = fee
             r["수수료율"] = (f"{round(fee / total * 100, 2)}%"
                              if isinstance(total, int) and total > 0 else "")
