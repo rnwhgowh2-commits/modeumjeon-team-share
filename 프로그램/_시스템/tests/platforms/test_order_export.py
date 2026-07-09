@@ -158,6 +158,41 @@ def test_coupang_settlement_join(monkeypatch):
     assert "_oid" not in rows[0] and "_vid" not in rows[0]   # 임시키 정리됨
 
 
+
+def test_coupang_claims_merge():
+    """returnRequests(취소/반품)+exchangeRequests(교환) 병합 (MCP 실측 스펙)."""
+    class C:
+        _cfg = {"vendor_id": "A1"}
+        def request(self, method, path, query=""):
+            if "ordersheets" in path:
+                return {"data": [{"shipmentBoxId": 1, "orderId": 100, "status": "FINAL_DELIVERY",
+                        "orderer": {}, "receiver": {}, "orderItems": [{"vendorItemId": 9,
+                        "sellerProductName": "활성", "shippingCount": 1,
+                        "salesPrice": {"units": 10000}}]}], "nextToken": ""}
+            if "returnRequests" in path:
+                return {"data": [{"receiptId": 501, "orderId": 200, "receiptType": "CANCEL",
+                        "reasonCodeText": "변심", "requesterName": "홍길동",
+                        "createdAt": "2026-07-06T10:00:00",
+                        "returnItems": [{"sellerProductName": "취소상품", "vendorItemName": "옵A",
+                                         "cancelCount": 1}]}]}
+            if "exchangeRequests" in path:
+                return {"data": [{"exchangeId": 601, "orderId": 300, "reasonCodeText": "불량",
+                        "createdAt": "2026-07-06T11:00:00",
+                        "exchangeItemDtoV1s": [{"orderItemName": "교환상품", "quantity": 2,
+                                                "orderItemUnitPrice": 7000}]}]}
+            if "revenue-history" in path:
+                return {"data": [], "hasNext": False}
+            return {"data": [], "nextToken": ""}
+    rows = oe.coupang_order_rows(dt.datetime(2026, 7, 5, tzinfo=oe.KST),
+                                 dt.datetime(2026, 7, 8, tzinfo=oe.KST), client=C())
+    st = {r["주문상태"] for r in rows}
+    assert {"취소", "교환"} <= st
+    cx = [r for r in rows if r["주문상태"] == "취소"][0]
+    assert cx["오픈마켓주문번호"] == "200" and cx["상품명"] == "취소상품" and cx["수량"] == 1
+    ex = [r for r in rows if r["주문상태"] == "교환"][0]
+    assert ex["오픈마켓주문번호"] == "300" and ex["수량"] == 2
+
+
 def test_columns_bc_are_market_and_status():
     assert oe.ALL_COLUMNS[0] == "주문일"
     assert oe.ALL_COLUMNS[1] == "판매처"      # 요청: B열 판매처
