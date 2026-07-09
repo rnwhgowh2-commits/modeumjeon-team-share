@@ -274,9 +274,12 @@ def lotteon_order_rows(since: _dt.datetime, until: _dt.datetime,
             pass
 
     # ── 마켓수수료 실값(SettleCommission, apiNo45) — odNo별 수수료 합으로 마켓수수료 채움 ──
-    #  정산 기준일=구매확정일이라 구매확정 주문만 채워짐(_finalize가 실값 우선 사용). 실패는 공란(파생 폴백).
+    #  ★정산 기준일=구매확정일이라, 주문일이 창 안인 주문의 수수료는 구매확정(=나중) 시점에 기록됨.
+    #  따라서 수수료 조회창을 [주문창 시작 ~ 지금]으로 넓혀 odNo로 조인(창을 주문창으로만 두면 안 겹침).
+    #  odNo 매칭이라 넓혀도 안전(우리 주문에 없는 odNo는 무시). _finalize가 실값 우선 사용.
+    now = _dt.datetime.now(KST)
     try:
-        cmap = _clm.commission_map(since, until, client=client)
+        cmap = _clm.commission_map(since, max(until, now), client=client)
     except Exception:   # noqa: BLE001
         cmap = {}
     if cmap:
