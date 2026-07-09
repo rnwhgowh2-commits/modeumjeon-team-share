@@ -83,6 +83,7 @@
     (r.options || []).forEach((o) =>
       (o.sources || []).forEach((s) => {
         if (!s.product_url || sourceKeys.indexOf(s.source_key) < 0) return;
+        if (s.crawl_weight === 0) return;   // [2026-07-10] 계수 0 = 크롤 제외(안 긁음)
         if (seen.has(s.product_url)) return;
         seen.add(s.product_url);
         list.push({ source_key: s.source_key, url: s.product_url });

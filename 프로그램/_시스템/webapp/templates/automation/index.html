@@ -276,7 +276,7 @@
   paintSeg(); paintMode();
 
   // 이벤트
-  document.querySelectorAll('#crawl-seg button').forEach(function(b){ b.addEventListener('click',function(){ var run=this.dataset.run==='1'; if(run===st.crawl_auto_enabled) return; st.crawl_auto_enabled=run; paintSeg(); paintRun(); save({crawl_auto_enabled:run}); try{ if(window.MoumExt){ run ? MoumExt.autoPollStart() : MoumExt.autoPollStop(); } }catch(_){} }); });
+  document.querySelectorAll('#crawl-seg button').forEach(function(b){ b.addEventListener('click',function(){ var run=this.dataset.run==='1'; if(run===st.crawl_auto_enabled) return; st.crawl_auto_enabled=run; paintSeg(); paintRun(); save({crawl_auto_enabled:run}); try{ if(window.MoumExt){ if(run){ MoumExt.autoPollStart(); } else { MoumExt.autoPollStop(); /* [2026-07-10] 정지 = 예약중단 + 지금 도는 크롤도 즉시 중지(안 그러면 진행중인 건 끝까지 감) */ if(MoumExt.stopCrawl){ var _sc=MoumExt.stopCrawl(); if(_sc&&_sc.catch)_sc.catch(function(){}); } } } }catch(_){} }); });
 
   document.querySelectorAll('#seg .rd').forEach(function(s){ s.addEventListener('click',function(){ st.autosend_mode=s.dataset.mode; paintMode(); save({autosend_mode:st.autosend_mode}); }); });
   document.getElementById('t-pur').addEventListener('click',function(){ st.autosend_on_purchase=!st.autosend_on_purchase; tog(this,st.autosend_on_purchase); save({autosend_on_purchase:st.autosend_on_purchase}); });
@@ -444,13 +444,13 @@
         var lab=s.label||s.scope_key||'?';
         var tr=document.createElement('tr');
         tr.innerHTML='<td><span class="km-src"><span class="km-ic">'+lab.charAt(0)+'</span>'+lab+'</span></td>'+
-          '<td class="r"><span class="km-step" data-key="'+encodeURIComponent(s.scope_key)+'" data-w="'+s.weight+'"><button data-d="-1"'+(s.weight<=1?' disabled':'')+'>−</button><span class="v">×'+s.weight+'</span><button data-d="1"'+(s.weight>=5?' disabled':'')+'>+</button></span></td>';
+          '<td class="r"><span class="km-step" data-key="'+encodeURIComponent(s.scope_key)+'" data-w="'+s.weight+'"><button data-d="-1"'+(s.weight<=0?' disabled':'')+'>−</button>'+(s.weight<=0?'<span class="v" style="color:#8b95a1">제외</span>':'<span class="v">×'+s.weight+'</span>')+'<button data-d="1"'+(s.weight>=5?' disabled':'')+'>+</button></span></td>';
         tb.appendChild(tr);
       });
       tb.querySelectorAll('.km-step button').forEach(function(btn){
         btn.addEventListener('click',function(){
-          var stp=this.parentElement; var cur=parseInt(stp.dataset.w,10)||1;
-          var nw=Math.max(1,Math.min(5,cur+parseInt(this.dataset.d,10))); if(nw===cur) return;
+          var stp=this.parentElement; var cur=parseInt(stp.dataset.w,10); if(isNaN(cur))cur=1;
+          var nw=Math.max(0,Math.min(5,cur+parseInt(this.dataset.d,10))); if(nw===cur) return;   // 0=크롤 제외
           fetch('/api/crawl/weight-rule',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({scope_type:'source',scope_key:decodeURIComponent(stp.dataset.key),weight:nw})})
             .then(function(r){return r.json();}).then(function(rr){ if(rr&&rr.ok){ toast(); renderKmini(); } });
         });

@@ -14,14 +14,14 @@ def test_set_weight_ok(db):
     assert r == 3 and sp.crawl_weight == 3
 
 
-def test_weight_clamped_1_to_5(db):
+def test_weight_clamped_0_to_5(db):
     sp = _sp(db)
     set_crawl_weight(db, sp.id, 9); db.flush()
     assert sp.crawl_weight == 5      # 상한
     set_crawl_weight(db, sp.id, 0); db.flush()
-    assert sp.crawl_weight == 1      # 하한
+    assert sp.crawl_weight == 0      # [2026-07-10] 0=크롤 제외 허용(하한 0)
     set_crawl_weight(db, sp.id, -3); db.flush()
-    assert sp.crawl_weight == 1
+    assert sp.crawl_weight == 0      # 음수도 0으로
 
 
 def test_missing_product_raises(db):

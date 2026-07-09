@@ -22,7 +22,12 @@ def _as_naive_utc(dt: datetime | None) -> datetime | None:
 
 def effective_interval_seconds(base_interval_seconds: float,
                                crawl_weight, no_change_streak) -> float:
-    weight = max(1, int(crawl_weight or 1))
+    # 계수 None = 기본(1). 계수 0 = '크롤 제외' → 영원히 마감 안 됨(무한대 간격).
+    #   ★0 or 1 이 1로 튀는 함정 때문에 or 대신 명시적 None 체크.
+    weight = 1 if crawl_weight is None else int(crawl_weight)
+    if weight <= 0:
+        return float("inf")
+    weight = min(5, weight)
     streak = max(0, int(no_change_streak or 0))
     base = base_interval_seconds / weight
     relax = min(1.0 + streak * RELAX_STEP, RELAX_CAP)
@@ -32,7 +37,12 @@ def effective_interval_seconds(base_interval_seconds: float,
 def overdue_seconds(now: datetime, last_fetched_at,
                     base_interval_seconds: float,
                     crawl_weight, no_change_streak) -> float:
-    """연체 초. 클수록 더 오래 밀림. 한 번도 안 긁음 = 무한대(최우선)."""
+    """연체 초. 클수록 더 오래 밀림. 한 번도 안 긁음 = 무한대(최우선).
+
+    계수 0 = 크롤 제외 → 한 번도 안 긁었어도 영원히 마감 안 됨(−무한대)."""
+    _w = 1 if crawl_weight is None else int(crawl_weight)
+    if _w <= 0:
+        return float("-inf")
     if last_fetched_at is None:
         return float("inf")
     n = _as_naive_utc(now)
@@ -73,12 +83,12 @@ def due_products(session, *, base_interval_seconds: float, now: datetime) -> lis
 
 
 def set_crawl_weight(session, source_product_id: int, weight) -> int:
-    """URL(SourceProduct)의 계수(1~5) 저장. 1~5로 클램프. 호출자가 commit."""
+    """URL(SourceProduct)의 계수(0~5) 저장. 0~5로 클램프(0=크롤 제외). 호출자가 commit."""
     from lemouton.sources.models import SourceProduct
     sp = session.get(SourceProduct, source_product_id)
     if sp is None:
         raise ValueError(f"source_product {source_product_id} 없음")
-    sp.crawl_weight = max(1, min(5, int(weight)))
+    sp.crawl_weight = max(0, min(5, int(weight)))   # 0 = 크롤 제외
     session.flush()
     return sp.crawl_weight
 
@@ -87,7 +97,7 @@ _SCOPE_TYPES = ("source", "brand", "model", "url")
 
 
 def set_crawl_weight_rule(session, scope_type: str, scope_key: str, weight):
-    """범위 계수 규칙 설정. weight None = 해제(삭제→상속). 1~5 클램프. 호출자 commit."""
+    """범위 계수 규칙 설정. weight None = 해제(삭제→상속). 0~5 클램프(0=제외). 호출자 commit."""
     from lemouton.sources.models import CrawlWeightRule
     if scope_type not in _SCOPE_TYPES:
         raise ValueError(f"scope_type: {scope_type}")
@@ -98,7 +108,7 @@ def set_crawl_weight_rule(session, scope_type: str, scope_key: str, weight):
             session.delete(r)
         session.flush()
         return None
-    w = max(1, min(5, int(weight)))
+    w = max(0, min(5, int(weight)))   # 0 = 크롤 제외 규칙
     if r is not None:
         r.weight = w
     else:
@@ -165,8 +175,11 @@ def resolve_crawl_weight(session, source_product) -> int:
 # ════════════════════════════════════════════════════════════════════
 
 def lap_quota(session, source_product) -> int:
-    """이번 랩에 이 URL을 몇 번 크롤해야 하나 = 유효계수(1~5)."""
-    return max(1, min(5, resolve_crawl_weight(session, source_product)))
+    """이번 랩에 이 URL을 몇 번 크롤해야 하나 = 유효계수(1~5). 계수 0 = 0(랩에서 제외)."""
+    w = resolve_crawl_weight(session, source_product)
+    if w <= 0:
+        return 0
+    return max(1, min(5, w))
 
 
 def record_crawl_served(source_product) -> int:
@@ -211,6 +224,8 @@ def _lap_view(session) -> list:
     live = []
     for p in prods:
         q = lap_quota(session, p)
+        if q <= 0:                       # 계수 0 = 랩에서 완전 제외(안 긁음·링 계산서도 빠짐)
+            continue
         s = int(p.crawl_lap_count or 0)
         if s == 0 and (p.last_status or "") == "error":
             continue

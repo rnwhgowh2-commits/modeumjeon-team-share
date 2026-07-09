@@ -905,6 +905,12 @@ def _option_matrix_data(code: str):
         # 옵션마다 자동계산 산출 (auto_enabled 일 때만)
         opt_rows = []
         color_groups = {}  # color_code -> [size_code, ...]
+        # [2026-07-10] 계수(계수 규칙) 1회 로드 — 셀에 crawl_weight 주입용. 계수 0 = 크롤 제외
+        #   (확장·크롤 버튼이 이 값 보고 건너뜀). automation 계수 UI=소싱처(source) 단위,
+        #   드릴다운=URL 단위 → url>source>기본1 (model/brand 는 max 라 0 이 이기기 드묾).
+        from lemouton.sources.crawl_schedule import list_weight_rules as _lwr
+        _wr = _lwr(s)
+        _wr_url = _wr.get('url', {}); _wr_src = _wr.get('source', {})
         for o in opts:
             cfg = cfg_dict.get(o.canonical_sku)
             auto = cfg.auto_enabled if cfg else True
@@ -925,6 +931,9 @@ def _option_matrix_data(code: str):
             #   메우면 가짜 판매가가 화면에 떠 수동주문 유발 → 손실. _resolve_sourcing_cost 로
             #   '크롤 실제가만, 없으면 None(소싱 카드 가격없음)' 통일 (형제 경로 :2010 과 동일 원칙).
             sources_for_opt = sku_to_sources.get(o.canonical_sku, [])
+            for _c in sources_for_opt:               # 계수 주입 (0=크롤 제외)
+                _cu = _norm_url(_c.get('product_url') or '')
+                _c['crawl_weight'] = _wr_url.get(_cu, _wr_src.get(_c.get('site'), 1))
             _cost_src = _pick_cheapest_buyable(sources_for_opt)
             purchase = _resolve_sourcing_cost(_cost_src)
 

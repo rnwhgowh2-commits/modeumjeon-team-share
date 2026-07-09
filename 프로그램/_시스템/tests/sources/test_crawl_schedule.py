@@ -28,9 +28,21 @@ def test_high_weight_stays_frequent_even_relaxed():
     assert effective_interval_seconds(BASE, 5, 100) < BASE
 
 
-def test_weight_none_or_zero_treated_as_one():
+def test_weight_none_defaults_to_one():
     assert effective_interval_seconds(BASE, None, 0) == BASE
-    assert effective_interval_seconds(BASE, 0, 0) == BASE
+
+
+def test_weight_zero_excludes_from_crawl():
+    # [2026-07-10] 계수 0 = 크롤 제외 → 간격 무한대(마감 안 됨)
+    assert effective_interval_seconds(BASE, 0, 0) == float("inf")
+    now = datetime(2026, 7, 4, 12, 0, 0)
+    # 아무리 오래됐어도 due 아님
+    lf = now - timedelta(days=365)
+    assert overdue_seconds(now, lf, BASE, 0, 0) == float("-inf")
+    assert is_due(now, lf, BASE, 0, 0) is False
+    # 한 번도 안 긁었어도(last_fetched None) due 아님 — 첫 크롤도 스킵
+    assert overdue_seconds(now, None, BASE, 0, 0) == float("-inf")
+    assert is_due(now, None, BASE, 0, 0) is False
 
 
 def test_never_crawled_is_infinitely_overdue():
