@@ -360,6 +360,52 @@ def coupang_order_rows(since: _dt.datetime, until: _dt.datetime,
                     deliv_est = round(int(ship) * CP_SHIP_FEE_FACTOR)
                     _deliv_used.add(oid)
                 r["정산예정금액"] = prod_est + deliv_est
+
+    # ── 취소/반품/교환 병합(returnRequests + exchangeRequests, MCP 실측 2026-07-09) ──
+    #  활성 발주서에 없는 주문만 추가. 쿠팡 주문번호는 날짜 미인코딩 → 주문일=접수일(createdAt) 근사.
+    from shared.platforms.coupang import claims as _cc
+
+    def _cp_claim_row(odno, status, name, opt, qty, unit, reason, buyer, cdt):
+        return {
+            "주문일": str(cdt or ""), "판매처": "쿠팡",
+            "상품명": name or "", "옵션": opt or "",
+            "수량": qty if qty not in (None, "") else "",
+            "주소": "", "우편번호": "", "수령자": buyer or "",
+            "배송메시지": reason or "", "구매자": buyer or "",
+            "수령자전화번호": "", "구매자번호": "",
+            "쇼핑몰": "쿠팡", "쇼핑몰ID": "",
+            "단가": unit if unit not in (None, "") else "",
+            "배송비": 0, "정산예정금액": "",
+            "주문상태": status, "오픈마켓주문번호": str(odno or ""),
+            "실결제금액": "", "송장입력": "",
+        }
+
+    seen_ord = {r.get("오픈마켓주문번호") for r in rows if r.get("오픈마켓주문번호")}
+    try:
+        for rq in _cc.iter_returns(since, until, client=client):
+            odno = str(rq.get("orderId") or "")
+            if odno and odno in seen_ord:
+                continue
+            st = "취소" if rq.get("receiptType") == "CANCEL" else "반품"
+            for it in (rq.get("returnItems") or [{}]):
+                rows.append(_cp_claim_row(
+                    odno, st, it.get("sellerProductName"), it.get("vendorItemName"),
+                    it.get("cancelCount"), None, rq.get("reasonCodeText"),
+                    rq.get("requesterName"), rq.get("createdAt")))
+    except Exception:   # noqa: BLE001 — 클레임 조회 실패는 활성 주문 유지
+        pass
+    try:
+        for ex in _cc.iter_exchanges(since, until, client=client):
+            odno = str(ex.get("orderId") or "")
+            if odno and odno in seen_ord:
+                continue
+            for it in (ex.get("exchangeItemDtoV1s") or [{}]):
+                rows.append(_cp_claim_row(
+                    odno, "교환", it.get("orderItemName") or it.get("targetItemName"),
+                    None, it.get("quantity"), it.get("orderItemUnitPrice"),
+                    ex.get("reasonCodeText"), None, ex.get("createdAt")))
+    except Exception:   # noqa: BLE001
+        pass
     return rows
 
 
