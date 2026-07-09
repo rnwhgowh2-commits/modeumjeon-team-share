@@ -9,8 +9,8 @@ def test_set_and_clamp(db):
     assert db.query(CrawlWeightRule).filter_by(scope_type="source", scope_key="musinsa").first().weight == 3
     set_crawl_weight_rule(db, "source", "musinsa", 9); db.flush()   # 상한
     assert db.query(CrawlWeightRule).filter_by(scope_type="source", scope_key="musinsa").first().weight == 5
-    set_crawl_weight_rule(db, "source", "musinsa", 0); db.flush()   # 하한
-    assert db.query(CrawlWeightRule).filter_by(scope_type="source", scope_key="musinsa").first().weight == 1
+    set_crawl_weight_rule(db, "source", "musinsa", 0); db.flush()   # [2026-07-10] 0=크롤 제외 규칙 허용
+    assert db.query(CrawlWeightRule).filter_by(scope_type="source", scope_key="musinsa").first().weight == 0
 
 
 def test_none_deletes_rule_inherit(db):
