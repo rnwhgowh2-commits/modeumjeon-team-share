@@ -221,6 +221,48 @@ def lotteon_order_rows(since: _dt.datetime, until: _dt.datetime,
             "실결제금액": _g(od, "actualAmt", default=""),   # 실결제(정산예상은 주문API 없음→수수료 공란)
             "송장입력": _g(od, "invNo", "dvInvNo", default=""),
         })
+
+    # ── 취소/반품/교환 병합(claimservice, MCP 실측 2026-07-09) ──
+    #  활성(출고/회수지시)에 없는 주문만 추가(취소는 출고목록에 없음). 조회 실패는 활성 유지(부가).
+    from shared.platforms.lotteon import claims as _clm
+
+    def _claim_row(it, status, qty_key):
+        addr = (str(_g(it, "rtrvStnmZipAddr")) + " " + str(_g(it, "rtrvStnmDtlAddr"))).strip()
+        return {
+            "주문일": str(_g(it, "odAccpDttm", "clmReqDttm")),   # 주문접수일(기간=주문일)
+            "판매처": "롯데온",
+            "상품명": _html.unescape(str(_g(it, "spdNm"))),
+            "옵션": _html.unescape(str(_g(it, "sitmNm"))),
+            "수량": _g(it, qty_key, "odQty", default=""),
+            "주소": addr,
+            "우편번호": _g(it, "rtrvZipNo", default=""),
+            "수령자": _g(it, "rtrvCustNm", default=""),
+            "배송메시지": _g(it, "clmRsnCnts", default=""),   # 클레임 사유
+            "구매자": _g(it, "rtrvCustNm", default=""),
+            "수령자전화번호": _g(it, "rtrvMphnNo", "rtrvTelNo", default=""),
+            "구매자번호": "",
+            "쇼핑몰": "롯데온", "쇼핑몰ID": "",
+            "단가": _g(it, "itmSlPrc", default=""),
+            "배송비": 0, "정산예정금액": "",
+            "주문상태": status,
+            "오픈마켓주문번호": _g(it, "odNo"),
+            "실결제금액": "", "송장입력": "",
+        }
+
+    seen = {r["오픈마켓주문번호"] for r in rows if r.get("오픈마켓주문번호")}
+    for fn, status, qkey in ((_clm.iter_cancel, "취소", "cnclQty"),
+                             (_clm.iter_return, "반품", "rtngQty"),
+                             (_clm.iter_exchange, "교환", "xchgQty")):
+        try:
+            for it in fn(since, until, client=client):
+                on = _g(it, "odNo")
+                if on and on in seen:
+                    continue
+                if on:
+                    seen.add(on)
+                rows.append(_claim_row(it, status, qkey))
+        except Exception:   # noqa: BLE001 — 클레임 조회 실패는 활성 주문 유지
+            pass
     return rows
 
 
