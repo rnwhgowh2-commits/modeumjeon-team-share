@@ -570,7 +570,7 @@ def eleven11_order_rows(since: _dt.datetime, until: _dt.datetime, client=None) -
     """
     from shared.platforms.eleven11.orders import (
         iter_orders, iter_delivered, iter_completed, iter_preparing, iter_shipping,
-        iter_cancel, iter_return, iter_exchange)
+        iter_cancel, iter_canceled, iter_return, iter_exchange)
 
     def _g11(od, *keys):
         for k in keys:
@@ -664,6 +664,7 @@ def eleven11_order_rows(since: _dt.datetime, until: _dt.datetime, client=None) -
     _collect(iter_delivered, "배송완료", False)   # 배송완료
     _collect(iter_completed, "구매확정", False)   # 구매확정
     _collect(iter_cancel, "취소", False, _claim_row)     # 취소요청
+    _collect(iter_canceled, "취소", False, _claim_row)   # 취소완료
     _collect(iter_return, "반품", False, _claim_row)     # 반품요청
     _collect(iter_exchange, "교환", False, _claim_row)   # 교환요청
     return rows
