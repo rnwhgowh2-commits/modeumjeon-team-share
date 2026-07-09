@@ -221,14 +221,6 @@ def orders_preview():
         import logging
         logging.getLogger(__name__).exception("order preview failed markets=%s", markets)
         return jsonify(ok=False, error=f"{type(e).__name__}: {str(e)[:300]}"), 400
-    safe = []
-    for r in rows:
-        r = dict(r)
-        r["수령자"] = _mask_name(r.get("수령자"))
-        r["구매자"] = _mask_name(r.get("구매자"))
-        r["수령자전화번호"] = _mask_phone(r.get("수령자전화번호"))
-        r["구매자번호"] = _mask_phone(r.get("구매자번호"))
-        r["주소"] = _mask_addr(r.get("주소"))
-        safe.append(r)
+    # 화면에 원본 그대로(구매자·수령자·전화·주소 마스킹 없이) — 사용자 요청(관리자 화면, 본인 데이터).
     return jsonify(ok=True, markets=markets, days=days,
-                   columns=_oe.ALL_COLUMNS, count=len(safe), rows=safe)
+                   columns=_oe.ALL_COLUMNS, count=len(rows), rows=rows)
