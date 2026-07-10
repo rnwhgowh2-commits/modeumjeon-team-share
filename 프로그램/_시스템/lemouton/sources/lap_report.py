@@ -106,90 +106,89 @@ def excluded_sites(session) -> list[str]:
     return sorted(lab.get(k, k) for k, w in src.items() if (w or 0) <= 0)
 
 
-def _source_id_by_key(session) -> dict:
-    """소싱처 키 → 레지스트리 source_id (최종매입가 API 가 요구)."""
-    try:
-        from lemouton.sourcing.source_registry import get_all_sources
-        return {s["key"]: s["id"] for s in (get_all_sources(session) or [])
-                if s.get("key") and s.get("id") is not None}
-    except Exception:
-        return {}
+def _link_by_product(session, prods) -> dict:
+    """SourceProduct.id → OptionSourceUrl (그 상품 URL에 걸린 옵션-소싱처 연결).
 
-
-def _rep_sku_by_key(session) -> dict:
-    """소싱처 키 → 대표 옵션 sku (그 소싱처에 URL이 걸린 모음전의 옵션 하나).
-
-    최종매입가는 (sku, source_id) 단위로 계산된다 → 소싱처 요약엔 대표 1건이 필요.
+    최종매입가는 (canonical_sku, source_id)로만 계산된다. 그 두 열쇠의 진짜 출처가
+    바로 이 연결 테이블이다. 소싱처 이름으로 짐작하지 않는다 — 짐작하면 늘 None 이 된다.
+    연결이 없으면 None → 화면은 「확인불가」로 정직하게 표기.
     """
     try:
-        from lemouton.sourcing.models import BundleSourceUrl, Option
+        from lemouton.sourcing.models_pricing import OptionSourceUrl
+        from lemouton.sources.service import normalize_url as _nu
     except Exception:
         return {}
-    out: dict = {}
+    idx = {}
     try:
-        codes: dict = {}
-        for b in session.query(BundleSourceUrl).all():
-            if b.source_key and b.model_code and b.source_key not in codes:
-                codes[b.source_key] = b.model_code
-        if not codes:
-            return {}
-        for key, mc in codes.items():
-            o = (session.query(Option)
-                 .filter(Option.model_code == mc)
-                 .order_by(Option.canonical_sku.asc()).first())
-            if o is not None:
-                out[key] = o.canonical_sku
+        for l in session.query(OptionSourceUrl).all():
+            if not l.product_url:
+                continue
+            idx.setdefault(_nu(l.product_url), l)
+        return {p.id: idx.get(_nu(p.url)) for p in prods}
     except Exception:
         return {}
-    return out
+
+
+def _stock_cells(session, source_product_id: int, limit: int = 200) -> tuple:
+    from lemouton.sources.models import SourceOption
+    opts = (session.query(SourceOption)
+            .filter(SourceOption.source_product_id == source_product_id,
+                    SourceOption.deleted_at.is_(None))
+            .limit(limit).all())
+    grid = [{"color": o.color_text, "size": o.size_text, "stock": o.current_stock}
+            for o in opts]
+    summ = {"ample": 0, "limited": 0, "soldout": 0, "unknown": 0}
+    for g in grid:
+        q = g["stock"]
+        if q is None or q < 0:
+            summ["unknown"] += 1
+        elif q == 0:
+            summ["soldout"] += 1
+        elif q >= 999:
+            summ["ample"] += 1
+        else:
+            summ["limited"] += 1
+    return grid, summ
 
 
 def keep_sources(session, *, crawled_sites: set, changed_sites: set) -> list[dict]:
-    """이번 바퀴에 '변동 없던' 소싱처의 지금 값.
+    """이번 바퀴에 '변동 없던' 소싱처의 지금 값 — ★상품(URL) 단위.
 
-    표면노출가 = 그 소싱처 URL들의 last_price 대표(최빈/최저).
-    최종매입가는 (sku, source_id)로 화면이 따로 부른다 → 여기선 그 열쇠만 준다.
-    재고는 색×사이즈 격자용 옵션 목록(과다 방지 상한).
+    한 소싱처에 상품 URL이 여러 개다(르무통 공홈 9개). 소싱처 한 줄로 뭉치면
+      · 표면노출가 = 최저가 폴백 (CLAUDE.md 가 금지)
+      · 색×사이즈가 서로 덮어써 격자(154칸)와 요약(400개)이 모순
+    둘 다 필연이다. 그래서 값은 상품마다 따로 낸다. 폴백 없음, 합산 없음.
     """
-    from lemouton.sources.models import SourceProduct, SourceOption
+    from lemouton.sources.models import SourceProduct
 
     lab = site_labels()
-    sid = _source_id_by_key(session)
-    sku = _rep_sku_by_key(session)
     out = []
     for site in sorted(crawled_sites - changed_sites):
         prods = (session.query(SourceProduct)
                  .filter(SourceProduct.site == site,
-                         SourceProduct.deleted_at.is_(None)).all())
+                         SourceProduct.deleted_at.is_(None))
+                 .order_by(SourceProduct.id).all())
         if not prods:
             continue
-        prices = [p.last_price for p in prods if p.last_price]
-        surface = min(prices) if prices else None
-        spids = [p.id for p in prods]
-        opts = (session.query(SourceOption)
-                .filter(SourceOption.source_product_id.in_(spids),
-                        SourceOption.deleted_at.is_(None))
-                .limit(400).all()) if spids else []
-        grid = [{"color": o.color_text, "size": o.size_text,
-                 "stock": o.current_stock} for o in opts]
-        summ = {"ample": 0, "limited": 0, "soldout": 0, "unknown": 0}
-        for g in grid:
-            q = g["stock"]
-            if q is None:
-                summ["unknown"] += 1
-            elif q < 0:
-                summ["unknown"] += 1
-            elif q == 0:
-                summ["soldout"] += 1
-            elif q >= 999:
-                summ["ample"] += 1
-            else:
-                summ["limited"] += 1
+        link_by = _link_by_product(session, prods)
+        items = []
+        for p in prods:
+            grid, summ = _stock_cells(session, p.id)
+            l = link_by.get(p.id)
+            items.append({
+                "source_product_id": p.id,
+                "url": p.url,
+                "name": p.product_name or p.url,
+                "surface_price": p.last_price,          # 그 상품의 값. 대표가·최저가 폴백 없음
+                "sku": getattr(l, "canonical_sku", None),
+                "source_id": getattr(l, "source_id", None),
+                "stock_summary": summ,
+                "stock_grid": grid,
+            })
         out.append({
             "site": site, "site_label": lab.get(site, site),
-            "surface_price": surface,
-            "sku": sku.get(site), "source_id": sid.get(site),
-            "stock_summary": summ, "stock_grid": grid,
+            "product_count": len(items),
+            "products": items,
         })
     return out
 
