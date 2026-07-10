@@ -806,7 +806,8 @@ def _account_alias(market: str) -> str:
 def order_rows(market: str, days: int = 7, client=None,
                now: Optional[_dt.datetime] = None,
                since: Optional[_dt.datetime] = None,
-               until: Optional[_dt.datetime] = None) -> list:
+               until: Optional[_dt.datetime] = None,
+               warnings: Optional[list] = None) -> list:
     """마켓별 주문 행. 미지원(UI) 마켓은 ValueError(추측 데이터 안 만듦).
 
     기간 = since~until 명시 시 그대로 사용(빠른 기간 버튼·직접 날짜), 아니면 최근 days일.
@@ -814,8 +815,12 @@ def order_rows(market: str, days: int = 7, client=None,
     병렬 조회해 합친다(계정 등록 = 자동 연동). 각 행의 쇼핑몰별칭 = 그 주문을 가져온 계정명.
 
     · 키 미등록 계정은 건너뛴다(대표 계정으로 폴백하면 같은 주문이 중복 계상되므로 금지).
-    · 계정 조회 실패(인증·네트워크)는 계정명과 함께 전파(부분 성공 숨김 금지).
     · 등록 계정 0개 또는 전부 키 미등록이면 기존 동작(대표 계정 1개 조회)으로 폴백.
+    · 일부 계정 조회 실패(IP 미등록·인증 등):
+        - warnings 리스트를 받으면 → 그 계정만 빼고 나머지를 반환하고 사유를 warnings 에 담는다
+          (화면은 나머지를 보여주되 빠진 계정을 배너로 명시 — 조용한 실패 금지).
+        - warnings 없이 호출되면(엑셀 등) → 예외 전파(불완전한 발송 파일 생성 방지).
+    · 모든 계정이 실패하면 warnings 유무와 무관하게 예외 전파(보여줄 게 없음).
     """
     if market not in SUPPORTED:
         raise ValueError(f"'{market}' 주문 엑셀 미지원(UI) — 코드/키/검증 필요")
@@ -843,6 +848,8 @@ def order_rows(market: str, days: int = 7, client=None,
         cli = _account_client(market, prefix)
         if cli is None:                         # 키 미등록 → 건너뜀(중복 방지)
             _log.warning("주문조회 계정 건너뜀(키 미등록): market=%s account=%s", market, name)
+            if warnings is not None:
+                warnings.append(f"[{market}·{name}] API 키가 없어 조회에서 제외됐어요.")
             continue
         built.append((name, cli))
 
@@ -851,17 +858,21 @@ def order_rows(market: str, days: int = 7, client=None,
     if len(built) == 1:
         return _rows_for(built[0][1], built[0][0])
 
-    out, errors = [], []
+    out, errors, ok_cnt = [], [], 0
     with _ThreadPool(max_workers=min(4, len(built))) as ex:
         futs = {ex.submit(_rows_for, cli, name): name for name, cli in built}
         for fut, name in futs.items():
             try:
                 out += fut.result()
+                ok_cnt += 1
             except Exception as e:              # noqa: BLE001 — 어느 계정인지 표면화
                 errors.append(RuntimeError(
                     f"[{market}·{name}] 주문 조회 실패: {type(e).__name__}: {e}"))
-    if errors:
+    if errors and (ok_cnt == 0 or warnings is None):
+        # 전부 실패(보여줄 게 없음) 또는 경고 채널 없음(엑셀) → 전파. 불완전 결과 숨김 금지.
         raise errors[0]
+    if errors:                                  # 일부 실패 → 나머지 반환 + 사유를 배너로
+        warnings.extend(str(e) for e in errors)
     return out
 
 
@@ -977,10 +988,14 @@ _CACHE: dict = {}                     # (markets, days) -> (monotonic_ts, rows)
 _CACHE_LOCK = _threading.Lock()
 
 
-def _fetch_combined(markets, days, now, since=None, until=None) -> list:
-    """마켓별 주문을 병렬 조회 후 최신순 통합. 한 마켓 실패는 전파(부분 성공 숨김 금지)."""
+def _fetch_combined(markets, days, now, since=None, until=None, warnings=None) -> list:
+    """마켓별 주문을 병렬 조회 후 최신순 통합. 한 마켓 실패는 전파(부분 성공 숨김 금지).
+
+    warnings(list) 전달 시 일부 계정 조회 실패는 그 사유를 담고 나머지를 반환(order_rows 참조).
+    """
     def _one(mk):
-        return order_rows(mk, days=days, now=now, since=since, until=until)
+        return order_rows(mk, days=days, now=now, since=since, until=until,
+                          warnings=warnings)
     if len(markets) == 1:             # 단일 마켓은 스레드 오버헤드 불필요
         results = {markets[0]: _one(markets[0])}
     else:
@@ -1043,17 +1058,21 @@ def combined_order_rows(markets, days: int = 7,
                         now: Optional[_dt.datetime] = None,
                         use_cache: bool = False,
                         since: Optional[_dt.datetime] = None,
-                        until: Optional[_dt.datetime] = None) -> list:
+                        until: Optional[_dt.datetime] = None,
+                        warnings: Optional[list] = None) -> list:
     """여러 마켓 주문을 합쳐 최신순(주문일 내림차순)으로. 판매처 열로 마켓 구분.
 
     기간 = since~until 명시(빠른 기간 버튼·직접 날짜) 또는 최근 days일. 미지원 마켓이
     섞이면 ValueError. 한 마켓 조회 실패는 전체 실패로 전파. use_cache=True(웹 라우트) +
     now 미지정이면 TTL 캐시 사용(대시보드↔다운로드 공유, 캐시 키에 기간 포함).
+    warnings(list) 전달 시 제외된 계정 사유가 담긴다. ★캐시에도 경고를 함께 저장한다 —
+    캐시 적중 때 경고가 사라지면 그 자체로 조용한 실패가 되기 때문.
     """
     markets = list(markets)
 
-    def _build():
-        rows = _fetch_combined(markets, days, now, since=since, until=until)
+    def _build(warns):
+        rows = _fetch_combined(markets, days, now, since=since, until=until,
+                               warnings=warns)
         # 기간 명시(빠른 버튼·직접 날짜) 시 주문일 기준으로 최종 필터 → '기간=주문일' 통일.
         return _filter_by_order_date(rows, since, until)
 
@@ -1064,12 +1083,18 @@ def combined_order_rows(markets, days: int = 7,
         with _CACHE_LOCK:
             hit = _CACHE.get(key)
             if hit and (_time.monotonic() - hit[0]) < CACHE_TTL:
+                if hit[2] and warnings is None:
+                    # 화면(부분 허용)이 채운 캐시를 엑셀(전량 필요)이 받으면 불완전 파일이
+                    # 조용히 나간다 → 경고가 있으면 경고 채널 없는 호출엔 캐시를 주지 않는다.
+                    raise RuntimeError(hit[2][0])
+                if warnings is not None:
+                    warnings.extend(hit[2])       # 캐시된 경고도 함께 되살림
                 return hit[1]
-        rows = _build()
+        rows = _build(warnings)                   # warnings=None 이면 order_rows 가 전파
         with _CACHE_LOCK:
-            _CACHE[key] = (_time.monotonic(), rows)
+            _CACHE[key] = (_time.monotonic(), rows, list(warnings or []))
         return rows
-    return _build()
+    return _build(warnings)
 
 
 def resolve_columns(columns=None) -> list:
