@@ -53,6 +53,12 @@
     .o7 .state{padding:34px;text-align:center;color:var(--sub);font-size:13px;background:#fff;border:1px solid var(--line2);border-radius:12px;line-height:1.7;}
     .o7 .muted{color:var(--faint);}
     .o7 .acct{font-size:11.5px;color:var(--sub);white-space:nowrap;}
+    /* 제외된 계정 경고 — 빠진 계정을 숨기지 않고 명시(조용한 실패 금지) */
+    .o7 .warnbar{display:none;margin-top:10px;background:#FEF2F2;border:1px solid #FCA5A5;border-radius:10px;padding:10px 12px;font-size:12px;color:#991B1B;}
+    .o7 .warnbar.on{display:block;}
+    .o7 .warnbar .wt{font-weight:800;margin-bottom:4px;}
+    .o7 .warnbar ul{margin:0;padding-left:18px;line-height:1.7;}
+    .o7 .warnbar .hint{margin-top:6px;color:#7F1D1D;opacity:.85;}
     .o7 .cfgov{position:fixed;inset:0;background:rgba(20,25,35,.5);z-index:200;display:none;align-items:center;justify-content:center;}
     .o7 .cfgov.on{display:flex;}
     .o7 .cfgbox{background:#fff;width:380px;max-width:92vw;border-radius:16px;overflow:hidden;box-shadow:0 20px 50px rgba(0,0,0,.3);}
@@ -152,6 +158,7 @@
       <div class="kpis" id="kpis"></div>
       <div class="mkline" id="mkline"></div>
       <div class="acctline" id="acctline"></div>
+      <div class="warnbar" id="warnbar"></div>
       <div id="tablewrap"><div class="state">주문을 불러오는 중…</div></div>
       <div style="font-size:11.5px;color:var(--sub);margin-top:10px">💡 표는 옆으로 스크롤하면 모든 열(주소 포함)이 보입니다. <b>전체 원본</b>은 「엑셀 내보내기」로도 받을 수 있어요.</div>
     </main>
@@ -328,6 +335,24 @@
         });
       });
     }
+    // 조회에서 빠진 계정을 빨간 줄로 명시(숨기지 않음). 원문 사유는 hover.
+    function warnText(w){
+      w=String(w||'');
+      var m=w.match(/^\[([^\]]+)\]/), who=m?m[1].replace('·',' · '):'';
+      if(/API 키가 없어/.test(w))return w;
+      if(/ip address|not allowed for this request/i.test(w))
+        return who+' — 이 계정의 판매자센터에 우리 서버 IP가 등록되지 않았어요.';
+      if(/401|unauthorized/i.test(w))return who+' — 키가 맞지 않아요(인증 실패).';
+      return who+' — 주문을 불러오지 못했어요.';
+    }
+    function renderWarn(ws){
+      var el=document.getElementById('warnbar');
+      if(!ws||!ws.length){el.classList.remove('on');el.innerHTML='';return;}
+      el.innerHTML='<div class="wt">⚠️ 아래 계정 '+ws.length+'개는 주문을 불러오지 못해 표에서 빠져 있어요</div>'
+        +'<ul>'+ws.map(function(w){return '<li title="'+esc(w)+'">'+esc(warnText(w))+'</li>';}).join('')+'</ul>'
+        +'<div class="hint">「판매처 관리」에서 그 계정의 키와 서버 IP 등록을 확인해 주세요. 빠진 계정이 있는 동안 「엑셀 내보내기」는 발송 누락을 막기 위해 파일을 만들지 않습니다.</div>';
+      el.classList.add('on');
+    }
     // 계정명은 화면에서만 마켓 표기 중복 제거 — 「브랜드마켓(쿠팡)」 → 「브랜드마켓」 (원본은 title)
     function acctName(v){return String(v||'').replace(/\s*\((?:쿠팡|스마트스토어|롯데온|11번가|옥션|G마켓)\)\s*$/,'').trim();}
     function allAccounts(mk){var s={};rows.forEach(function(r){
@@ -386,8 +411,8 @@
       if(!mks.length){rows=[];render();return;}
       fetch('/orders/preview.json?markets='+encodeURIComponent(mks.join(','))+'&'+qparam(),{cache:'no-store'})
         .then(function(r){return r.json();}).then(function(j){
-          if(!j.ok){document.getElementById('tablewrap').innerHTML='<div class="state">불러오기 실패: '+(j.error||'')+'</div>';rows=[];return;}
-          rows=j.rows||[];colFilter={};render();
+          if(!j.ok){document.getElementById('tablewrap').innerHTML='<div class="state">불러오기 실패: '+(j.error||'')+'</div>';rows=[];renderWarn([]);return;}
+          rows=j.rows||[];colFilter={};renderWarn(j.warnings||[]);render();
         }).catch(function(e){document.getElementById('tablewrap').innerHTML='<div class="state">네트워크 오류</div>';});
     }
     // 필터 이벤트
