@@ -905,16 +905,17 @@ def order_rows(market: str, days: int = 7, client=None,
     if len(built) == 1:
         return _rows_for(built[0][1], built[0][0])
 
+    # ★ 계정은 '순차' 조회한다(병렬 금지). 마켓 API 레이트리밋은 서버 IP 기준이라, 같은 마켓의
+    #   계정을 병렬로 때리면 초당 요청이 계정 수만큼 곱해져 429 가 난다(스스 5계정 병렬 → 전멸).
+    #   마켓 간 병렬(_fetch_combined)은 그대로 → 동시 요청 수는 다계정 도입 이전과 동일.
     out, errors, ok_cnt = [], [], 0
-    with _ThreadPool(max_workers=min(4, len(built))) as ex:
-        futs = {ex.submit(_rows_for, cli, name): name for name, cli in built}
-        for fut, name in futs.items():
-            try:
-                out += fut.result()
-                ok_cnt += 1
-            except Exception as e:              # noqa: BLE001 — 어느 계정인지 표면화
-                errors.append(RuntimeError(
-                    f"[{market}·{name}] 주문 조회 실패: {type(e).__name__}: {e}"))
+    for name, cli in built:
+        try:
+            out += _rows_for(cli, name)
+            ok_cnt += 1
+        except Exception as e:                  # noqa: BLE001 — 어느 계정인지 표면화
+            errors.append(RuntimeError(
+                f"[{market}·{name}] 주문 조회 실패: {type(e).__name__}: {e}"))
     if errors and (ok_cnt == 0 or warnings is None):
         # 전부 실패(보여줄 게 없음) 또는 경고 채널 없음(엑셀) → 전파. 불완전 결과 숨김 금지.
         raise errors[0]
