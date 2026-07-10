@@ -1503,7 +1503,8 @@ async function crawlItemInTabBG(tabId, code, item) {
             let st = null; const ssx = o2.filter((o) => o && typeof o.stock === "number"); if (ssx.length) st = ssx.reduce((a, o) => a + Math.max(0, o.stock), 0);
             if (price != null) return {
               url: url, source_key: sk, price: price, stock: st,
-              options: o2.map((o) => ({ color: o.color_text, size: o.size_text, stock: o.stock })),
+              // [2026-07-10] price 동봉 — 가격 변동 감지용(서버가 price 로 비교)
+              options: o2.map((o) => ({ color: o.color_text, size: o.size_text, stock: o.stock, price: o.price })),
               status: "ok", product_name: pp.product_name_raw || null, error: null,
             };
           }
@@ -1567,7 +1568,9 @@ async function crawlItemInTabBG(tabId, code, item) {
   const _realN = opts2.filter((o) => typeof o.stock === "number" && o.stock !== 999).length;
   return {
     url: url, source_key: sk, price: price, stock: stock,
-    options: opts2.map((o) => ({ color: o.color_text, size: o.size_text, stock: o.stock })),
+    // [2026-07-10] price 동봉 — 서버 persist_crawled_options 는 price 를 받을 걸로 설계됐는데
+    //   확장이 안 보내서 '가격 변동'이 영원히 0건이었다(회차 보고서 30회차 실측). 파서 옵션엔 price 있음.
+    options: opts2.map((o) => ({ color: o.color_text, size: o.size_text, stock: o.stock, price: o.price })),
     status: ok ? "ok" : "error", product_name: p.product_name_raw || null,
     error: ok ? null : "옵션 가격 없음",
     sku_diag: grab.sku_diag || null,
@@ -1631,7 +1634,9 @@ async function fetchRawParseAdapter(item) {
   const ok = price != null;
   return {
     url: url, source_key: sk, price: price, stock: stock,
-    options: opts2.map((o) => ({ color: o.color_text, size: o.size_text, stock: o.stock })),
+    // [2026-07-10] price 동봉 — 서버 persist_crawled_options 는 price 를 받을 걸로 설계됐는데
+    //   확장이 안 보내서 '가격 변동'이 영원히 0건이었다(회차 보고서 30회차 실측). 파서 옵션엔 price 있음.
+    options: opts2.map((o) => ({ color: o.color_text, size: o.size_text, stock: o.stock, price: o.price })),
     status: ok ? "ok" : "error", product_name: p.product_name_raw || null,
     error: ok ? null : "옵션 가격 없음",
   };
@@ -1669,7 +1674,8 @@ async function fetchMusinsaAdapter(item) {
       const inv = invMap[it.no];
       let st = null;
       if (inv) st = (inv.outOfStock === true) ? 0 : (typeof inv.remainQuantity === "number" ? inv.remainQuantity : 999);
-      return { color: "", size: size, stock: st };
+      // [2026-07-10] price 동봉 — 무신사는 옵션별 가격이 없고 상품 표면가(salePrice) 공통.
+      return { color: "", size: size, stock: st, price: salePrice };
     });
     const stock = options.reduce((s, o) => s + (typeof o.stock === "number" ? o.stock : 0), 0);
     return { url: url, source_key: sk, price: salePrice, stock: stock, options: options,
@@ -1749,7 +1755,9 @@ async function fetchHmallAdapter(item) {
   const ok = price != null;
   return {
     url: url, source_key: sk, price: price, stock: stock,
-    options: opts2.map((o) => ({ color: o.color_text, size: o.size_text, stock: o.stock })),
+    // [2026-07-10] price 동봉 — 서버 persist_crawled_options 는 price 를 받을 걸로 설계됐는데
+    //   확장이 안 보내서 '가격 변동'이 영원히 0건이었다(회차 보고서 30회차 실측). 파서 옵션엔 price 있음.
+    options: opts2.map((o) => ({ color: o.color_text, size: o.size_text, stock: o.stock, price: o.price })),
     status: ok ? "ok" : "error", product_name: p.product_name_raw || null,
     error: ok ? null : "옵션 가격 없음",
   };
