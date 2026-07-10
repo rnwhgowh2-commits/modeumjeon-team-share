@@ -33,6 +33,14 @@
     .o7 .mkchip{cursor:pointer;user-select:none;transition:border-color .1s,box-shadow .1s;}
     .o7 .mkchip:hover{border-color:var(--blue);}
     .o7 .mkchip.on{border-color:var(--blue);box-shadow:0 0 0 2px var(--blue) inset;background:#EEF4FF;}
+    /* 계정 칩 줄 — 마켓을 고르면 그 마켓 계정만 펼쳐짐(2단 좁히기) */
+    .o7 .acctline{display:none;flex-wrap:wrap;gap:6px;align-items:center;margin-top:8px;padding:8px 10px;background:#fff;border:1px dashed var(--line2);border-radius:10px;}
+    .o7 .acctline.on{display:flex;}
+    .o7 .acctline .lbl{font-size:11.5px;color:var(--sub);font-weight:800;margin-right:2px;}
+    .o7 .acchip{cursor:pointer;user-select:none;background:#fff;border:1px solid var(--line2);border-radius:16px;padding:3px 10px;font-size:11.5px;}
+    .o7 .acchip:hover{border-color:var(--blue);}
+    .o7 .acchip.on{border-color:var(--blue);background:#EEF4FF;color:var(--blue);font-weight:800;}
+    .o7 .acchip b{font-weight:800;font-variant-numeric:tabular-nums;}
     .o7 table{width:max-content;min-width:100%;border-collapse:collapse;font-size:12.5px;background:#fff;border:1px solid var(--line2);border-radius:12px;}
     .o7 th{background:#F7F9FB;padding:9px 10px;font-size:11px;font-weight:800;color:var(--sub);text-align:left;border-bottom:1px solid var(--line2);white-space:nowrap;}
     .o7 td{padding:9px 10px;border-bottom:1px solid var(--line);}
@@ -44,6 +52,7 @@
     .o7 .bd.blue{background:#E8F0FE;color:var(--blue);}.o7 .bd.amber{background:#FEF3C7;color:var(--amber);}.o7 .bd.sky{background:#E0F2FE;color:var(--sky);}.o7 .bd.green{background:#E7F6EC;color:var(--green);}.o7 .bd.red{background:#FEE2E2;color:var(--red);}.o7 .bd.gray{background:#F1F3F5;color:#8B95A1;}
     .o7 .state{padding:34px;text-align:center;color:var(--sub);font-size:13px;background:#fff;border:1px solid var(--line2);border-radius:12px;line-height:1.7;}
     .o7 .muted{color:var(--faint);}
+    .o7 .acct{font-size:11.5px;color:var(--sub);white-space:nowrap;}
     .o7 .cfgov{position:fixed;inset:0;background:rgba(20,25,35,.5);z-index:200;display:none;align-items:center;justify-content:center;}
     .o7 .cfgov.on{display:flex;}
     .o7 .cfgbox{background:#fff;width:380px;max-width:92vw;border-radius:16px;overflow:hidden;box-shadow:0 20px 50px rgba(0,0,0,.3);}
@@ -142,6 +151,7 @@
     <main class="main">
       <div class="kpis" id="kpis"></div>
       <div class="mkline" id="mkline"></div>
+      <div class="acctline" id="acctline"></div>
       <div id="tablewrap"><div class="state">주문을 불러오는 중…</div></div>
       <div style="font-size:11.5px;color:var(--sub);margin-top:10px">💡 표는 옆으로 스크롤하면 모든 열(주소 포함)이 보입니다. <b>전체 원본</b>은 「엑셀 내보내기」로도 받을 수 있어요.</div>
     </main>
@@ -177,7 +187,7 @@
     // 정렬: 숫자·금액 우측(num) / 배지·상태 가운데(ctr) / 나머지 좌측(txt).
     var PANEL_COLS=[
       {c:'주문일',a:'txt'},{c:'주문상태',a:'ctr'},{c:'판매처',a:'ctr'},
-      {c:'송장입력',a:'ctr'},{c:'쇼핑몰별칭',a:'txt'},
+      {c:'쇼핑몰별칭',a:'txt',t:'계정'},{c:'송장입력',a:'ctr'},
       {c:'상품명',a:'txt'},{c:'옵션',a:'txt'},{c:'수량',a:'num'},
       {c:'오픈마켓주문번호',a:'txt',t:'오픈마켓 주문번호'},
       {c:'단가',a:'num'},{c:'실결제금액',a:'num'},
@@ -295,7 +305,41 @@
       [].slice.call(document.querySelectorAll('#mkline .mkchip')).forEach(function(el){
         el.addEventListener('click',function(){toggleMarket(el.getAttribute('data-mk'));});
       });
+      renderAcctChips(actMk);
     }
+    // 계정 칩 — 마켓을 고른 상태에서만, 그 마켓의 계정만 펼침(계정 23개가 한 줄에 쏟아지지 않게)
+    function renderAcctChips(actMk){
+      var al=document.getElementById('acctline');
+      var accs=actMk?allAccounts(actMk):[];
+      if(!actMk||accs.length<2){al.classList.remove('on');al.innerHTML='';return;}
+      var cnt={};rows.forEach(function(r){
+        if(r['판매처']===actMk&&r['쇼핑몰별칭'])cnt[r['쇼핑몰별칭']]=(cnt[r['쇼핑몰별칭']]||0)+1;});
+      var curA=curAcctFilter();
+      al.innerHTML='<span class="lbl">'+esc(actMk)+' 계정</span>'
+        +'<span class="acchip'+(curA?'':' on')+'" data-acct="">전체 <b>'+accs.length+'</b></span>'
+        +accs.map(function(a){
+            return '<span class="acchip'+(curA===a?' on':'')+'" data-acct="'+esc(a)+'" title="'+esc(a)+'">'
+              +esc(acctName(a))+' <b>'+(cnt[a]||0)+'</b></span>';}).join('');
+      al.classList.add('on');
+      [].slice.call(al.querySelectorAll('.acchip')).forEach(function(el){
+        el.addEventListener('click',function(){
+          var a=el.getAttribute('data-acct');
+          if(!a){ delete colFilter['쇼핑몰별칭']; render(); } else { toggleAccount(a); }
+        });
+      });
+    }
+    // 계정명은 화면에서만 마켓 표기 중복 제거 — 「브랜드마켓(쿠팡)」 → 「브랜드마켓」 (원본은 title)
+    function acctName(v){return String(v||'').replace(/\s*\((?:쿠팡|스마트스토어|롯데온|11번가|옥션|G마켓)\)\s*$/,'').trim();}
+    function allAccounts(mk){var s={};rows.forEach(function(r){
+      if(mk&&r['판매처']!==mk)return; if(r['쇼핑몰별칭'])s[r['쇼핑몰별칭']]=1;});return Object.keys(s);}
+    function curAcctFilter(){   // 계정이 하나만 보이게 걸려 있으면 그 계정, 아니면 null
+      var ex=colFilter['쇼핑몰별칭']&&colFilter['쇼핑몰별칭'].excluded; if(!ex||!ex.size)return null;
+      var vis=allAccounts(null).filter(function(a){return !ex.has(a);});
+      return vis.length===1?vis[0]:null;}
+    function toggleAccount(a){   // 계정 칩 클릭: 그 계정만 필터(다시 누르면 해제)
+      if(curAcctFilter()===a){ delete colFilter['쇼핑몰별칭']; }
+      else { colFilter['쇼핑몰별칭']={excluded:new Set(allAccounts(null).filter(function(x){return x!==a;}))}; }
+      render();}
     function allMarkets(){var s={};rows.forEach(function(r){if(r['판매처'])s[r['판매처']]=1;});return Object.keys(s);}
     function curMarketFilter(){   // 판매처가 단일 마켓만 보이게 걸려 있으면 그 마켓, 아니면 null
       var ex=colFilter['판매처']&&colFilter['판매처'].excluded; if(!ex||!ex.size)return null;
@@ -303,6 +347,7 @@
       return vis.length===1?vis[0]:null;
     }
     function toggleMarket(m){   // 칩 클릭: 그 마켓만 필터(다시 누르면 해제)
+      delete colFilter['쇼핑몰별칭'];   // 마켓이 바뀌면 계정 필터는 초기화(마켓→계정 2단 흐름)
       if(curMarketFilter()===m){ delete colFilter['판매처']; }
       else { colFilter['판매처']={excluded:new Set(allMarkets().filter(function(x){return x!==m;}))}; }
       render();
@@ -314,6 +359,8 @@
       if(col==='판매처')return '<span class="mk '+(MKCLS[v]||'gray')+'">'+esc(v||'')+'</span>';
       if(col==='주문상태'){var u=unifyStatus(v||'');var orig=String(v||'').trim()||'-';
         return '<span class="bd '+u.cls+'" title="원본 · '+esc(r['판매처']||'')+' : '+esc(orig)+'">'+esc(u.canon)+'</span>';}
+      if(col==='쇼핑몰별칭'){var an=acctName(v);
+        return an?'<span class="acct" title="'+esc(v||'')+'">'+esc(an)+'</span>':'<span class="muted">—</span>';}
       if(col==='수량')return esc(v||'');
       if(MONEY_COLS[col])return (v!==''&&v!=null)?Number(num(v)).toLocaleString():'<span class="muted">—</span>';
       if((col==='배송메시지'||col==='수령자'||col==='구매자')&&!v)return '<span class="muted">—</span>';
