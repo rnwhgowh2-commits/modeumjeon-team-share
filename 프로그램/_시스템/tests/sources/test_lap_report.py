@@ -163,22 +163,64 @@ def test_excluded_sites_lists_weight_zero(db):
     assert excluded_sites(db) == [expected]     # 계수 2 인 무신사는 안 들어감
 
 
-# ── 변동 없던 소싱처의 '지금 값' (C안 하단) ────────────────────────
-def test_keep_sources_excludes_changed_and_summarizes_stock(db):
+# ── 변동 없던 소싱처의 '지금 값' — ★상품(URL) 단위 ────────────────────
+def test_keep_sources_is_per_product_no_price_fallback(db):
+    """★한 소싱처에 상품 2개. 최저가로 뭉개지 말고 상품마다 제 값을 낸다."""
     from lemouton.sources.models import SourceProduct, SourceOption
     from lemouton.sources.lap_report import keep_sources
-    sp = SourceProduct(site="ssf", url="https://www.ssfshop.com/p/1", last_price=119900)
-    db.add(sp); db.flush()
-    for c, s, q in [("블랙", "250", 999), ("블랙", "260", 3), ("아이보리", "250", 0), ("아이보리", "260", None)]:
-        db.add(SourceOption(source_product_id=sp.id, color_text=c, size_text=s, current_stock=q))
+    a = SourceProduct(site="ssf", url="https://www.ssfshop.com/p/1",
+                      product_name="클래식 블랙", last_price=119900)
+    b = SourceProduct(site="ssf", url="https://www.ssfshop.com/p/2",
+                      product_name="클래식 아이보리", last_price=129000)
+    db.add_all([a, b]); db.flush()
+    db.add(SourceOption(source_product_id=a.id, color_text="블랙", size_text="250", current_stock=999))
+    db.add(SourceOption(source_product_id=a.id, color_text="블랙", size_text="260", current_stock=0))
+    db.add(SourceOption(source_product_id=b.id, color_text="아이보리", size_text="250", current_stock=3))
     db.commit()
 
-    ks = keep_sources(db, crawled_sites={"ssf", "musinsa"}, changed_sites={"musinsa"})
-    assert [k["site"] for k in ks] == ["ssf"]          # 변동난 musinsa 는 빠짐
-    k = ks[0]
-    assert k["surface_price"] == 119900
-    assert k["stock_summary"] == {"ample": 1, "limited": 1, "soldout": 1, "unknown": 1}
-    assert len(k["stock_grid"]) == 4                    # 색×사이즈 격자용 원자료
+    ks = keep_sources(db, crawled_sites={"ssf"}, changed_sites=set())
+    assert len(ks) == 1 and ks[0]["product_count"] == 2
+    ps = {p["name"]: p for p in ks[0]["products"]}
+    # 값이 상품마다 따로 (min() 폴백이면 둘 다 119900 이 된다)
+    assert ps["클래식 블랙"]["surface_price"] == 119900
+    assert ps["클래식 아이보리"]["surface_price"] == 129000
+    # 격자·요약도 상품 안에서만 (섞이면 블랙 상품에 아이보리가 들어온다)
+    assert ps["클래식 블랙"]["stock_summary"] == {"ample": 1, "limited": 0, "soldout": 1, "unknown": 0}
+    assert len(ps["클래식 블랙"]["stock_grid"]) == 2
+    assert ps["클래식 아이보리"]["stock_summary"] == {"ample": 0, "limited": 1, "soldout": 0, "unknown": 0}
+    assert {g["color"] for g in ps["클래식 아이보리"]["stock_grid"]} == {"아이보리"}
+
+
+def test_keep_sources_grid_and_summary_never_disagree(db):
+    """★격자 칸 수 = 요약 합계. (뭉치면 색·사이즈가 덮어써 154칸인데 400개라 말한다)"""
+    from lemouton.sources.models import SourceProduct, SourceOption
+    from lemouton.sources.lap_report import keep_sources
+    sp = SourceProduct(site="ssf", url="https://www.ssfshop.com/p/9", last_price=1000)
+    db.add(sp); db.flush()
+    for c, z, q in [("블랙", "250", 999), ("블랙", "260", 3), ("아이보리", "250", 0), ("아이보리", "260", None)]:
+        db.add(SourceOption(source_product_id=sp.id, color_text=c, size_text=z, current_stock=q))
+    db.commit()
+    p = keep_sources(db, crawled_sites={"ssf"}, changed_sites=set())[0]["products"][0]
+    assert len(p["stock_grid"]) == sum(p["stock_summary"].values()) == 4
+    assert p["stock_summary"] == {"ample": 1, "limited": 1, "soldout": 1, "unknown": 1}
+
+
+def test_keep_sources_keys_come_from_link_not_site_name(db):
+    """★최종매입가 열쇠(sku·source_id)는 상품 URL에 걸린 연결에서 온다.
+    연결이 없으면 None → 화면은 「확인불가」. (소싱처 이름으로 짐작하면 늘 None 이었다)"""
+    from lemouton.sources.models import SourceProduct
+    from lemouton.sourcing.models_pricing import OptionSourceUrl
+    from lemouton.sources.lap_report import keep_sources
+    a = SourceProduct(site="ssf", url="https://www.ssfshop.com/p/1", last_price=1)
+    b = SourceProduct(site="ssf", url="https://www.ssfshop.com/p/2", last_price=2)
+    db.add_all([a, b]); db.flush()
+    db.add(OptionSourceUrl(canonical_sku="SKU-A", source_id=7,
+                           product_url="https://www.ssfshop.com/p/1"))
+    db.commit()
+    ps = {p["url"]: p for p in keep_sources(db, crawled_sites={"ssf"}, changed_sites=set())[0]["products"]}
+    assert (ps["https://www.ssfshop.com/p/1"]["sku"], ps["https://www.ssfshop.com/p/1"]["source_id"]) == ("SKU-A", 7)
+    assert ps["https://www.ssfshop.com/p/2"]["sku"] is None      # 연결 없음 = 확인불가
+    assert ps["https://www.ssfshop.com/p/2"]["source_id"] is None
 
 
 def test_keep_sources_empty_when_all_changed(db):
