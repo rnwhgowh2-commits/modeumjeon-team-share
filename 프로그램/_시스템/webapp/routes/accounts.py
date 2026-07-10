@@ -952,6 +952,44 @@ def login_upload_account(account_id: int):
     return jsonify({"ok": True, "pid": pid, "display_name": display_name, "message": msg})
 
 
+@bp.route("/api/upload/accounts/<int:account_id>/key-fingerprint", methods=["GET"])
+def account_key_fingerprint_api(account_id: int):
+    """계정에 '실제로 저장된' 셀러 식별키의 지문(해시 앞 6자). 읽기 전용·키 값 미노출.
+
+    지문이 같은 두 계정 = 같은 키가 저장돼 있다는 뜻(입력 실수 또는 저장 오류).
+    주문조회의 중복 판정(_client_identity)과 완전히 같은 값을 쓰므로, 배너에 뜬 지문과
+    이 값을 대조하면 어느 계정끼리 겹치는지 사용자가 직접 확인할 수 있다.
+    """
+    from lemouton.markets.order_export import (
+        _account_client, _client_identity, _ident_fingerprint)
+
+    s = SessionLocal()
+    try:
+        acc = s.query(UploadAccount).get(account_id)
+        if not acc:
+            return jsonify({"ok": False, "error": "계정 없음"}), 404
+        market, env_prefix, name = acc.market, acc.env_prefix, acc.display_name
+    finally:
+        s.close()
+
+    try:
+        cli = _account_client(market, env_prefix)
+    except Exception as e:   # noqa: BLE001
+        return jsonify({"ok": False, "account": name, "error": f"{type(e).__name__}"}), 400
+    if cli is None:
+        return jsonify({"ok": False, "account": name, "market": market,
+                        "env_prefix": env_prefix, "error": "키 미등록"}), 400
+
+    ident = _client_identity(market, cli)
+    if ident is None:
+        return jsonify({"ok": True, "account": name, "market": market,
+                        "env_prefix": env_prefix, "fingerprint": None,
+                        "note": "이 마켓은 식별키 비교를 지원하지 않아요."})
+    return jsonify({"ok": True, "account": name, "market": market,
+                    "env_prefix": env_prefix,
+                    "fingerprint": _ident_fingerprint(ident)})
+
+
 @bp.route("/api/upload/accounts/<int:account_id>/test", methods=["POST"])
 def test_upload_account_api(account_id: int):
     """판매처 API 연결 테스트 — 등록된 자격증명으로 실 API 호출.
