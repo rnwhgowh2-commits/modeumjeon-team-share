@@ -3,6 +3,7 @@
 import io
 
 import pandas as pd
+import pytest
 
 from lemouton.margin import sell_source as SS
 
@@ -61,3 +62,23 @@ def test_settle_source_and_origin_tagged():
     df = SS.from_shopmine_excel(data, "샵마인.xlsx")
     assert df.loc[0, "_settle_source"] == "real"
     assert df.loc[0, "_sell_origin"] == "shopmine"
+
+
+def test_missing_required_column_raises():
+    cols = [c for c in COLS if c != "단가"]
+    data = _xlsx([["1001", "배송완료", 70000, 1, "06.쿠팡", "코트 12345",
+                   "블랙/95", "1234", 80000, 9240, "11.55%", "정산예정",
+                   "홍길동", "2026-07-04"]], cols)
+    with pytest.raises(ValueError, match="필수 컬럼"):
+        SS.from_shopmine_excel(data, "샵마인.xlsx")
+
+
+def test_optional_columns_are_filled_blank_not_required():
+    """옵션·송장입력 등 선택 컬럼이 없어도 통과하고 빈 값으로 채워진다."""
+    cols = [c for c in COLS if c not in ("옵션", "송장입력")]
+    data = _xlsx([["1001", "배송완료", 70000, 80000, 1, "06.쿠팡", "코트 12345",
+                   80000, 9240, "11.55%", "정산예정", "홍길동", "2026-07-04"]], cols)
+    df = SS.from_shopmine_excel(data, "샵마인.xlsx")
+    assert df.loc[0, "옵션"] == ""
+    assert df.loc[0, "송장입력"] == ""
+    assert df.loc[0, "단가"] == 80000

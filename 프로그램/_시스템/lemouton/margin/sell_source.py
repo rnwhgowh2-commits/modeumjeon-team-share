@@ -121,6 +121,15 @@ def from_shopmine_excel(file_bytes: bytes, filename: str) -> pd.DataFrame:
     if "삼품명" in df.columns and "상품명" not in df.columns:
         df = df.rename(columns={"삼품명": "상품명"})
 
+    # 필수 컬럼 검증 — 없는 채로 통과시키면 matcher 가 판매가·마진을 0 으로 계산해
+    # 조용히 틀린 표를 보여준다(조용한 실패 금지). 원본의 무방비 df['단가'] KeyError 를
+    # 명시적 에러로 대체. buy_parser.parse_buy 의 필수 컬럼 검증 패턴과 동일.
+    required = ["오픈마켓주문번호", "상품명", "단가", "수량",
+                "실결제금액", "정산예상금액_배송비포함", "수취고객명"]
+    missing = [c for c in required if c not in df.columns]
+    if missing:
+        raise ValueError(f"매출 엑셀에 필수 컬럼이 없습니다: {missing}")
+
     # 쿠팡 '알수없음' 정산금액·수수료 보정 (원본과 동일: bare 정산예상금액 포함)
     for col in ("정산예상금액", "정산예상금액_배송비포함", "마켓수수료"):
         if col in df.columns:
@@ -138,11 +147,10 @@ def from_shopmine_excel(file_bytes: bytes, filename: str) -> pd.DataFrame:
         df.loc[mask, "수수료율"] = "11.55%"
 
     # 숫자형 변환 (단가·실결제금액 센티널 제거, 수량 정수화)
-    for col in ("단가", "실결제금액"):
-        if col in df.columns:
-            df[col] = _to_numeric_safe(df[col])
-    if "수량" in df.columns:
-        df["수량"] = pd.to_numeric(df["수량"], errors="coerce").fillna(1).astype(int)
+    # — 위 required 검증이 세 컬럼 존재를 보장하므로 직접 대입.
+    df["단가"] = _to_numeric_safe(df["단가"])
+    df["실결제금액"] = _to_numeric_safe(df["실결제금액"])
+    df["수량"] = pd.to_numeric(df["수량"], errors="coerce").fillna(1).astype(int)
 
     # 출처·정산 근거 태깅
     df["_settle_source"] = "real"
