@@ -226,3 +226,93 @@ def orders_preview():
     return jsonify(ok=True, markets=markets, days=days,
                    columns=_oe.ALL_COLUMNS, count=len(rows), rows=rows,
                    warnings=warnings)
+
+
+# ──────────────────────────────────────────────────────────────
+#  송장(운송장) 입력·전송
+#   · 엑셀 업로드 → 「오픈마켓주문번호」 매칭 → 그 행에 운송장번호
+#   · 직접 입력  → 행 선택 + 택배사 + 송장번호
+#   · 전송은 **드라이런 기본**. 요청이 live=true 라도 전역 스위치가 꺼져 있으면 강등한다.
+# ──────────────────────────────────────────────────────────────
+
+def _live_enabled() -> bool:
+    """실전송 전역 스위치(LEMOUTON_LIVE_UPLOAD). 테스트에서 monkeypatch 지점."""
+    from lemouton.uploader.runtime import live_upload_enabled
+    return live_upload_enabled()
+
+
+def _client_for(market: str, alias: str):
+    """행의 「쇼핑몰별칭」(계정 표시명) → 그 계정의 마켓 클라이언트.
+
+    별칭이 비었거나 못 찾으면 대표 계정으로 폴백(_account_client 기본).
+    다계정에서 엉뚱한 계정으로 송장이 나가지 않도록 별칭 우선 매칭.
+    """
+    env_prefix = None
+    try:
+        for prefix, name in (_oe._active_accounts(market) or []):
+            if alias and str(name) == str(alias):
+                env_prefix = prefix
+                break
+    except Exception:   # noqa: BLE001 — 계정 조회 실패는 대표 계정 폴백
+        env_prefix = None
+    return _oe._account_client(market, env_prefix)
+
+
+@bp.route('/invoice/upload', methods=['POST'])
+def orders_invoice_upload():
+    """송장 엑셀 업로드 → 「오픈마켓주문번호」로 매칭한 결과 반환(전송 아님)."""
+    from flask import jsonify
+    from lemouton.markets.invoice_excel import (parse_invoice_excel, match_invoices,
+                                                InvoiceExcelError)
+
+    f = request.files.get('file')
+    if f is None:
+        return jsonify(ok=False, error="엑셀 파일이 없어요."), 400
+
+    order_nos = [s.strip() for s in (request.form.get('order_nos') or '').split(',') if s.strip()]
+    try:
+        excel_rows = parse_invoice_excel(f.read())
+    except InvoiceExcelError as e:
+        return jsonify(ok=False, error=str(e)), 400
+    except Exception as e:   # noqa: BLE001 — 손상 파일 등
+        return jsonify(ok=False, error=f"엑셀을 읽지 못했어요: {type(e).__name__}"), 400
+
+    res = match_invoices(excel_rows, order_nos)
+    return jsonify(ok=True, matched=res.matched, unmatched=res.unmatched,
+                   conflicts=res.conflicts, read=len(excel_rows))
+
+
+@bp.route('/invoice/send', methods=['POST'])
+def orders_invoice_send():
+    """선택한 주문의 운송장번호를 마켓으로 전송. 기본은 드라이런(미전송)."""
+    from flask import jsonify
+    from lemouton.markets.invoice_send import send_invoice
+
+    body = request.get_json(silent=True) or {}
+    rows = body.get('rows') or []
+    if not rows:
+        return jsonify(ok=False, error="전송할 주문이 없어요."), 400
+
+    # 안전 게이트: 요청 live=true + 서버 전역 스위치 ON 일 때만 실제 전송.
+    live = bool(body.get('live')) and _live_enabled()
+
+    results, sent, failed = [], 0, 0
+    for r in rows:
+        market = str(r.get('market') or '')
+        try:
+            cli = _client_for(market, r.get('alias') or '') if live else None
+        except Exception:   # noqa: BLE001 — 클라이언트 생성 실패도 전송 실패로 표면화
+            cli = None
+        res = send_invoice(market=market, order_no=r.get('order_no'),
+                           courier_name=r.get('courier') or '',
+                           invoice_no=r.get('invoice_no'),
+                           send_ids=r.get('send_ids'), client=cli, live=live)
+        if res.success:
+            sent += 1
+        else:
+            failed += 1
+        results.append({"market": res.market, "order_no": res.order_no,
+                        "success": res.success, "dry_run": res.dry_run,
+                        "error": res.error})
+
+    return jsonify(ok=True, live=live, sent=sent, failed=failed, results=results)
