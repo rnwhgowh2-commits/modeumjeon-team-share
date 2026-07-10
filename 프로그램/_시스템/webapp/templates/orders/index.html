@@ -504,7 +504,13 @@
         ? '<span class="inv-ok">'+(res.dry_run?'미리보기 ✓':'✓ 전송')+' '+esc((invMap[k]||{}).invoice_no||'')+'</span>'
         : '<span class="inv-no" title="'+esc(res.error||'')+'">✗ 실패</span>';
       if(invBad[k]) return '<span class="inv-no" title="'+esc(invBad[k])+'">모순 — 제외</span>';
-      if(!invSel[k]) return v?('<span class="mono">'+esc(v)+'</span>'):'<span class="inv-empty">송장미입력</span>';
+      if(!invSel[k]){
+        // 서버가 '없음'을 문자열 "송장미입력" 로 채워 보낸다 → 값이 아니라 '빈 상태'로 취급.
+        //  (그대로 두면 한글에 고정폭 글꼴이 붙어 옆 칸과 달라 보인다)
+        var s=String(v||'').trim();
+        if(!s || s==='송장미입력') return '<span class="inv-empty">송장미입력</span>';
+        return '<span class="mono">'+esc(s)+'</span>';
+      }
       var cur=invMap[k]||{courier:COURIERS[0],invoice_no:''};
       var opts=COURIERS.map(function(c){return '<option'+(c===cur.courier?' selected':'')+'>'+c+'</option>';}).join('');
       return '<span class="invedit"><select class="inv-cr" data-k="'+esc(k)+'">'+opts+'</select>'
