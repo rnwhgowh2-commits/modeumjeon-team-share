@@ -671,9 +671,11 @@ def eleven11_order_rows(since: _dt.datetime, until: _dt.datetime, client=None) -
         ord_dt = _g11(od, "ordDt") or (ordno[:8] if ordno[:2] == "20" and len(ordno) >= 8 else "")
         return {
             "_shipkey": ("eleven11", _g11(od, "bndlDlvSeq") or _g11(od, "ordNo")),
-            # 송장 전송용 식별자 — 발송처리(/rest/ordservices/reqdelivery)는 주문번호만으론
-            #   행을 특정 못 한다(한 주문에 상품라인 여러 개). 상품주문번호(ordPrdSeq) 함께 보존.
-            "_send_ids": {"ord_no": ordno, "ord_prd_seq": str(_g11(od, "ordPrdSeq") or "")},
+            # 송장 전송용 식별자 — 발송처리(/rest/ordservices/reqdelivery)의 대상 단위는
+            #   **배송번호(dlvNo)** 다(주문번호로 대체 불가). 부분발송용 ordPrdSeq 도 함께 보존.
+            "_send_ids": {"ord_no": ordno,
+                          "ord_prd_seq": str(_g11(od, "ordPrdSeq") or ""),
+                          "dlv_no": str(_g11(od, "dlvNo") or "")},
             "주문일": ord_dt,
             "판매처": "11번가",
             "상품명": _g11(od, "prdNm"),
