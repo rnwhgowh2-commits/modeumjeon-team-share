@@ -27,6 +27,20 @@ from shared.platforms.smartstore.token_store import TokenStore
 logger = logging.getLogger(__name__)
 
 
+def _per_account_path(base_path: str, client_id: str) -> str:
+    """토큰 캐시·락 파일을 계정(client_id)별로 분리한 경로.
+
+    전역 경로 하나를 여러 계정이 공유하면 먼저 토큰을 받은 스토어의 자격으로 다른 스토어를
+    조회하게 된다(다른 가게 주문 통째 누락). client_id 는 파일명에 그대로 쓰지 않고
+    해시 앞 12자만 붙인다(키 노출 방지).
+    """
+    import hashlib
+    from pathlib import Path
+    p = Path(base_path)
+    tag = hashlib.sha256((client_id or "").encode("utf-8")).hexdigest()[:12]
+    return str(p.with_name(f"{p.stem}.{tag}{p.suffix}"))
+
+
 # ──────────────────────────────────────────────────────────────
 # 예외
 # ──────────────────────────────────────────────────────────────
@@ -126,8 +140,8 @@ class SmartStoreClient:
             client_id=self._cfg["client_id"],
             client_secret=self._cfg["client_secret"],
             endpoint_url=self._cfg["base_url"] + paths.get("token", "/external/v1/oauth2/token"),
-            cache_path=self._cfg["token_cache_path"],
-            lock_path=self._cfg["token_lock_path"],
+            cache_path=_per_account_path(self._cfg["token_cache_path"], self._cfg["client_id"]),
+            lock_path=_per_account_path(self._cfg["token_lock_path"], self._cfg["client_id"]),
             refresh_margin_sec=self._cfg.get("token_refresh_margin_sec", 600),
             lock_acquire_timeout_sec=self._cfg.get("token_lock_acquire_timeout_sec", 10),
         )
