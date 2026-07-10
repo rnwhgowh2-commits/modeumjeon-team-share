@@ -383,6 +383,12 @@ def coupang_order_rows(since: _dt.datetime, until: _dt.datetime,
                     ship = _won(box.get("shippingPrice"))
                     rows.append({
                         "_oid": box.get("orderId"), "_vid": it.get("vendorItemId"),  # 정산 조인용
+                        # 송장 전송용 식별자 — coupang/orders.py::send_tracking 이 요구.
+                        #   shipment_box_id = 발주서(묶음배송) 번호 → 요청 경로
+                        #   order_sheet_id  = 발주서의 orderId → 요청 본문 orderSheetId
+                        #   ⚠️ 본문 필드명(orderSheetId)이 달라, 라이브 1건 전송으로 최종 확인 필요.
+                        "_send_ids": {"shipment_box_id": box.get("shipmentBoxId"),
+                                      "order_sheet_id": box.get("orderId")},
                         "_shipkey": ("coupang", box.get("orderId")),   # 배송건 단위 배송비 정규화
                         "주문일": ordered,
                         "판매처": "쿠팡",
