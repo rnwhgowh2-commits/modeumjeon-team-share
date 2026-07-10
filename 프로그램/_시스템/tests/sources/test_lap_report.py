@@ -205,22 +205,51 @@ def test_keep_sources_grid_and_summary_never_disagree(db):
     assert p["stock_summary"] == {"ample": 1, "limited": 1, "soldout": 1, "unknown": 1}
 
 
-def test_keep_sources_keys_come_from_link_not_site_name(db):
-    """★최종매입가 열쇠(sku·source_id)는 상품 URL에 걸린 연결에서 온다.
-    연결이 없으면 None → 화면은 「확인불가」. (소싱처 이름으로 짐작하면 늘 None 이었다)"""
+def test_keep_sources_keys_come_from_option_url_link(db):
+    """★최종매입가 열쇠(sku·source_id)는 '옵션 ↔ 등록 URL' 매핑에서 온다.
+
+    라이브에서 두 번 틀렸다:
+      · 소싱처 이름으로 짐작 → 레지스트리엔 id 가 없어 늘 None
+      · 레거시 OptionSourceUrl 만 조회 → 그 표는 비어 있어 27개 전부 「확인불가」
+    매트릭스가 믿는 경로(OptionSourceUrlLink ⨝ BundleSourceUrl + 도메인 매칭)를 쓴다.
+    """
+    from lemouton.sources.models import SourceProduct
+    from lemouton.sourcing.models import BundleSourceUrl, OptionSourceUrlLink
+    from lemouton.sourcing.models_pricing import SourceRegistry
+    from lemouton.sources.lap_report import keep_sources
+
+    db.add(SourceRegistry(name="르무통 공홈", main_url="https://lemouton.co.kr"))
+    a = SourceProduct(site="lemouton", url="https://lemouton.co.kr/p/1", last_price=116900)
+    b = SourceProduct(site="lemouton", url="https://lemouton.co.kr/p/2", last_price=129000)
+    db.add_all([a, b]); db.flush()
+    reg_id = db.query(SourceRegistry).first().id
+
+    bsu = BundleSourceUrl(model_code="M1", source_key="lemouton",
+                          url="https://lemouton.co.kr/p/1")
+    db.add(bsu); db.flush()
+    db.add(OptionSourceUrlLink(option_canonical_sku="SKU-A", bundle_source_url_id=bsu.id))
+    db.commit()
+
+    ps = {p["url"]: p for p in
+          keep_sources(db, crawled_sites={"lemouton"}, changed_sites=set())[0]["products"]}
+    got = ps["https://lemouton.co.kr/p/1"]
+    assert (got["sku"], got["source_id"]) == ("SKU-A", reg_id)   # 레거시 표가 비어도 찾아낸다
+    assert ps["https://lemouton.co.kr/p/2"]["sku"] is None        # 매핑 없음 = 확인불가
+    assert ps["https://lemouton.co.kr/p/2"]["source_id"] is None
+
+
+def test_keep_sources_keys_fall_back_to_legacy_table(db):
+    """레거시 OptionSourceUrl 밖에 없던 옛 데이터도 계속 계산된다."""
     from lemouton.sources.models import SourceProduct
     from lemouton.sourcing.models_pricing import OptionSourceUrl
     from lemouton.sources.lap_report import keep_sources
-    a = SourceProduct(site="ssf", url="https://www.ssfshop.com/p/1", last_price=1)
-    b = SourceProduct(site="ssf", url="https://www.ssfshop.com/p/2", last_price=2)
-    db.add_all([a, b]); db.flush()
-    db.add(OptionSourceUrl(canonical_sku="SKU-A", source_id=7,
+    sp = SourceProduct(site="ssf", url="https://www.ssfshop.com/p/1", last_price=1)
+    db.add(sp)
+    db.add(OptionSourceUrl(canonical_sku="SKU-L", source_id=7,
                            product_url="https://www.ssfshop.com/p/1"))
     db.commit()
-    ps = {p["url"]: p for p in keep_sources(db, crawled_sites={"ssf"}, changed_sites=set())[0]["products"]}
-    assert (ps["https://www.ssfshop.com/p/1"]["sku"], ps["https://www.ssfshop.com/p/1"]["source_id"]) == ("SKU-A", 7)
-    assert ps["https://www.ssfshop.com/p/2"]["sku"] is None      # 연결 없음 = 확인불가
-    assert ps["https://www.ssfshop.com/p/2"]["source_id"] is None
+    got = keep_sources(db, crawled_sites={"ssf"}, changed_sites=set())[0]["products"][0]
+    assert (got["sku"], got["source_id"]) == ("SKU-L", 7)
 
 
 def test_keep_sources_empty_when_all_changed(db):
