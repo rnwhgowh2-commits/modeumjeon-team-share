@@ -161,3 +161,26 @@ def test_excluded_sites_lists_weight_zero(db):
     db.commit()
     expected = site_labels().get("lotteon", "lotteon")
     assert excluded_sites(db) == [expected]     # 계수 2 인 무신사는 안 들어감
+
+
+# ── 변동 없던 소싱처의 '지금 값' (C안 하단) ────────────────────────
+def test_keep_sources_excludes_changed_and_summarizes_stock(db):
+    from lemouton.sources.models import SourceProduct, SourceOption
+    from lemouton.sources.lap_report import keep_sources
+    sp = SourceProduct(site="ssf", url="https://www.ssfshop.com/p/1", last_price=119900)
+    db.add(sp); db.flush()
+    for c, s, q in [("블랙", "250", 999), ("블랙", "260", 3), ("아이보리", "250", 0), ("아이보리", "260", None)]:
+        db.add(SourceOption(source_product_id=sp.id, color_text=c, size_text=s, current_stock=q))
+    db.commit()
+
+    ks = keep_sources(db, crawled_sites={"ssf", "musinsa"}, changed_sites={"musinsa"})
+    assert [k["site"] for k in ks] == ["ssf"]          # 변동난 musinsa 는 빠짐
+    k = ks[0]
+    assert k["surface_price"] == 119900
+    assert k["stock_summary"] == {"ample": 1, "limited": 1, "soldout": 1, "unknown": 1}
+    assert len(k["stock_grid"]) == 4                    # 색×사이즈 격자용 원자료
+
+
+def test_keep_sources_empty_when_all_changed(db):
+    from lemouton.sources.lap_report import keep_sources
+    assert keep_sources(db, crawled_sites={"ssf"}, changed_sites={"ssf"}) == []
