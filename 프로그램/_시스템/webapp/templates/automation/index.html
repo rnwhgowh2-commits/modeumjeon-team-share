@@ -143,13 +143,39 @@
   .czlog-ch{color:#8b95a1;margin-left:10px;font-size:11px;transition:.15s;display:inline-block;}
   .czlog-row.on .czlog-ch{transform:rotate(90deg);color:#3182F6;}
 
-  /* [2026-07-10] 회차 보고서 (D6 — 굵은 구분선으로 위상 구분) */
+  /* [2026-07-10] 회차 보고서 팝업 (1200px · 결과 상단 · 묶음+더보기) */
+  .lrmask{position:fixed;inset:0;background:rgba(15,20,30,.42);z-index:9000;display:flex;align-items:center;justify-content:center;}
+  .lrbox{width:min(1200px,94vw);height:90vh;background:#fff;border-radius:14px;box-shadow:0 18px 50px rgba(0,0,0,.28);display:flex;flex-direction:column;overflow:hidden;}
+  .lrh{display:flex;align-items:center;gap:14px;padding:16px 24px;border-bottom:1px solid #EFF1F3;flex:none;}
+  .lrh-no{font-size:16px;font-weight:700;}
+  .lrh-tm,.lrh-du{font-size:15px;font-weight:700;color:#191F28;font-variant-numeric:tabular-nums;}
+  .lrh-du small{font-size:11.5px;font-weight:500;color:#8B95A1;margin-left:4px;}
+  .lrh-sp{flex:1;}
+  .lrh-nav button{border:1px solid #E5E8EB;background:#fff;border-radius:8px;padding:5px 11px;font-size:12px;font-weight:600;color:#4E5968;cursor:pointer;font-family:inherit;margin-left:6px;}
+  .lrh-nav button[disabled]{opacity:.4;cursor:default;}
+  .lrh-x{border:0;background:transparent;font-size:19px;color:#8B95A1;cursor:pointer;padding:2px 6px;margin-left:8px;font-family:inherit;}
+  .lrb{flex:1;overflow-y:auto;padding:20px 24px 24px;font-size:12.5px;}
+
+  /* 상단: 요약 + 결과 나란히 */
+  .lrtop{display:grid;grid-template-columns:1.35fr 1fr;gap:30px;align-items:start;}
+  .lrblk-h{font-size:11px;font-weight:700;color:#8B95A1;margin-bottom:8px;letter-spacing:.03em;}
   .lrep{padding:16px 4px 8px;font-size:12.5px;}
   .lrep-sum{display:flex;flex-wrap:wrap;gap:18px;color:#4E5968;}
   .lrep-sum b{color:#191F28;font-variant-numeric:tabular-nums;}
   .lrep-sum .exc{color:#B0B8C1;}
   .lrep-rule{height:2px;background:#E5E8EB;margin:22px 0 20px;}   /* ★D6 굵은 구분선 */
-  .lrep-chg{display:grid;grid-template-columns:1fr 1fr;gap:36px;}
+  .lrep-chg{display:grid;grid-template-columns:1fr 1.35fr;gap:38px;}   /* 가격 좁게 · 재고 넓게 */
+  /* 묶음(소싱처 · 변동유형) + 5건 미리 + 더 보기 */
+  .lrg{display:flex;align-items:center;gap:10px;height:42px;padding:0 12px;background:#F7F8F9;border-radius:9px;cursor:pointer;margin-bottom:6px;}
+  .lrg .gi{font-size:10px;}
+  .lrg .gn{font-weight:700;color:#191F28;}
+  .lrg .gt{color:#4E5968;}
+  .lrg .gc{margin-left:auto;font-weight:700;font-variant-numeric:tabular-nums;}
+  .lrg .gx{color:#8B95A1;font-size:11px;}
+  .lrglist{padding-left:12px;border-left:2px solid #EFF1F3;margin:2px 0 10px;}
+  .lrmore{font-size:12px;color:#3182F6;font-weight:600;padding:9px 0;cursor:pointer;}
+  .lrow .vt{white-space:nowrap;}    /* 「옵션 사라짐」 줄바꿈 금지 */
+  .lrow{height:38px;padding:0;}     /* 행 높이 균일 */
   .lrep-ch{font-size:12px;font-weight:700;color:#4E5968;margin-bottom:10px;}
   .lrep-ch i{font-style:normal;color:#8b95a1;margin-left:5px;font-variant-numeric:tabular-nums;}
   .lrow{display:grid;align-items:center;gap:12px;padding:8px 0;}
@@ -464,8 +490,7 @@
           +'<span class="czlog-rc">'+x.no+'회차</span>'
           +'<span class="czlog-tm">'+tm+'</span>'
           +(dur?'<span class="czlog-dur">'+dur+'분</span>':'')
-          +'<span class="czlog-ch">▸</span></div>'
-          +'<div class="lrep" id="lrep-'+x.no+'" style="display:none"></div>';
+          +'<span class="czlog-ch">▸</span></div>';
       }).join('');
     }
     if(tg){ tg.style.display=''; tg.textContent=_lapsExpanded?'접기 ▴':('펼치기 ▾ ('+laps.length+')'); }
@@ -478,53 +503,122 @@
 
   // ── 회차 보고서 그리기 (D6 — 요약 │ 굵은 선 │ 가격·재고 2열 │ 결과) ──
   function _esc(s){ return String(s==null?'':s).replace(/[&<>]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;'}[c];}); }
-  function lapRepHtml(d){
-    var s=d.summary||{}, c=d.changes||{}, r=d.result||{}, lp=d.lap||{};
-    var exc=(s.excluded_sites||[]).length ? '<span class="exc">'+_esc(s.excluded_sites.join(' · '))+' 제외</span>' : '';
-    var avg=lp.avg_minutes? ' <span style="color:#8b95a1;font-weight:400">평균 '+lp.avg_minutes+'분</span>' : '';
-    var pr=(c.price||[]).map(function(x){
+  // ── 회차 보고서 팝업 (결과 상단 · 가격/재고 2열 · 소싱처·유형 묶음 + 5건 미리) ──
+  var _lrOpen=null;
+  function _grpLabel(kind,x){
+    if(kind==='price') return x.dir==='up'?'가격 오름':(x.dir==='dn'?'가격 내림':'가격 변동');
+    if(x.to==='옵션 사라짐') return '옵션 사라짐';
+    return x.dir==='so'?'품절 전환':(x.dir==='re'?'재입고':(x.dir==='unk'?'확인불가':'재고 변동'));
+  }
+  function _icon(kind,x){
+    if(kind==='price') return x.dir==='up'?'▲':(x.dir==='dn'?'▼':'·');
+    return (x.to==='옵션 사라짐'||x.dir==='so')?'■':(x.dir==='re'?'＋':'·');
+  }
+  function _rowHtml(kind,x){
+    if(kind==='price'){
       var dl=(x.delta==null)?'':((x.delta>0?'+':'−')+Math.abs(x.delta).toLocaleString());
-      var ic=(x.dir==='up'?'▲':x.dir==='dn'?'▼':'·');
-      return '<div class="lrow p"><span class="ic lc-'+x.dir+'">'+ic+'</span>'
-        +'<span class="nm">'+_esc(x.option)+'<small>'+_esc(x.site)+'</small></span>'
+      return '<div class="lrow p"><span class="ic lc-'+x.dir+'">'+_icon(kind,x)+'</span>'
+        +'<span class="nm">'+_esc(x.option)+'</span>'
         +'<span class="val"><span class="vf">'+_esc(x.from)+'</span><span class="va">→</span><span class="vt">'+_esc(x.to)+'</span></span>'
         +'<span class="dt lc-'+x.dir+'">'+dl+'</span></div>';
-    }).join('') || '<div class="lrep-empty">가격 변동 없음</div>';
-    var st=(c.stock||[]).map(function(x){
-      var ic=(x.dir==='so'?'■':x.dir==='re'?'＋':'·');
-      return '<div class="lrow s"><span class="ic lc-'+x.dir+'">'+ic+'</span>'
-        +'<span class="nm">'+_esc(x.option)+'<small>'+_esc(x.site)+'</small></span>'
-        +'<span class="val"><span class="vf">'+_esc(x.from)+'</span><span class="va">→</span><span class="vt lc-'+x.dir+'">'+_esc(x.to)+'</span></span></div>';
-    }).join('') || '<div class="lrep-empty">재고 변동 없음</div>';
-    var fl=r.failing_now||[];
-    var fn=fl.reduce(function(a,b){return a+(b.count||0);},0);
+    }
+    return '<div class="lrow s"><span class="ic lc-'+x.dir+'">'+_icon(kind,x)+'</span>'
+      +'<span class="nm">'+_esc(x.option)+'</span>'
+      +'<span class="val"><span class="vf">'+_esc(x.from)+'</span><span class="va">→</span><span class="vt lc-'+x.dir+'">'+_esc(x.to)+'</span></span></div>';
+  }
+  function _groups(kind,list){
+    if(!list || !list.length) return '<div class="lrep-empty">'+(kind==='price'?'가격':'재고')+' 변동 없음</div>';
+    var g={}, order=[]; var SEP=' ·· ';
+    list.forEach(function(x){ var k=x.site+SEP+_grpLabel(kind,x); if(!g[k]){g[k]=[];order.push(k);} g[k].push(x); });
+    return order.map(function(k,gi){
+      var arr=g[k], p=k.split(SEP), site=p[0], lab=p[1];
+      var id='lrg-'+kind+'-'+gi, rest=arr.length-5;
+      return '<div class="lrg" data-t="'+id+'"><span class="gi lc-'+arr[0].dir+'">'+_icon(kind,arr[0])+'</span>'
+        +'<span class="gn">'+_esc(site)+'</span><span class="gt">· '+lab+'</span>'
+        +'<span class="gc">'+arr.length+'건</span><span class="gx">▾</span></div>'
+        +'<div class="lrglist" id="'+id+'">'
+        +arr.slice(0,5).map(function(x){return _rowHtml(kind,x);}).join('')
+        +(rest>0? '<div style="display:none" id="'+id+'-rest">'+arr.slice(5).map(function(x){return _rowHtml(kind,x);}).join('')+'</div>'
+                 +'<div class="lrmore" data-more="'+id+'">'+rest+'건 더 보기 ▾</div>' : '')
+        +'</div>';
+    }).join('');
+  }
+  function lapRepHtml(d){
+    var s=d.summary||{}, c=d.changes||{}, r=d.result||{}, lp=d.lap||{};
+    var exc=(s.excluded_sites||[]).length? '<span class="exc">'+_esc(s.excluded_sites.join(' · '))+' 제외</span>' : '';
+    var fs=(s.first_seen||0)? '<span class="exc">처음 수집 <b style="color:#8B95A1">'+Number(s.first_seen).toLocaleString()+'</b>건(변동 아님)</span>' : '';
+    var fl=r.failing_now||[], fn=fl.reduce(function(a,b){return a+(b.count||0);},0);
     var why=fl.map(function(f){return _esc(f.reason)+' '+f.count+'건';}).join(' · ');
-    // 처음 수집(이전 값이 없어 값이 처음 잡힌 것) — 변동이 아니라고 분명히 표기
-    var fs=(s.first_seen||0)? '<span class="exc">처음 수집 <b style="color:#8B95A1">'+s.first_seen+'</b>건(변동 아님)</span>' : '';
-    return '<div class="lrep-sum"><span>긁은 URL <b>'+(s.urls||0)+'</b>개</span><span>소싱처 <b>'+(s.sites||0)+'</b>곳</span>'
-      +'<span>소요 <b>'+(lp.minutes||0)+'분</b>'+avg+'</span>'+fs+exc+'</div>'
+    return '<div class="lrtop">'
+      +'<div><div class="lrblk-h">이번 바퀴</div><div class="lrep-sum">'
+      +'<span>긁은 URL <b>'+(s.urls||0)+'</b>개</span><span>소싱처 <b>'+(s.sites||0)+'</b>곳</span>'
+      +'<span>소요 <b>'+(lp.minutes||0)+'분</b></span>'+fs+exc+'</div></div>'
+      +'<div><div class="lrblk-h">결과</div><div class="lrep-sfb">'
+      +'<span class="ok">저장 <b>'+(r.saved||0)+'</b>건</span>'
+      +(fn? '<span class="er">지금 실패 중 <b>'+fn+'</b>건</span>' : '')
+      +'<span class="why">'+(fn? why+' · 회차별이 아니라 <b>현재</b> 기준이에요' : '지금 실패 중인 주소는 없어요')+'</span>'
+      +'</div></div></div>'
       +'<div class="lrep-rule"></div>'
       +'<div class="lrep-chg">'
-      +'<div><div class="lrep-ch">가격 변동<i>'+(c.price||[]).length+'</i></div>'+pr+'</div>'
-      +'<div><div class="lrep-ch">재고 변동<i>'+(c.stock||[]).length+'</i></div>'+st+'</div></div>'
-      +'<div class="lrep-sf"><div class="lrep-sfh">결과</div><div class="lrep-sfb">'
-      +'<span class="ok">이번 바퀴 저장 <b>'+(r.saved||0)+'</b>건</span>'
-      +(fn? '<span class="er">지금 실패 중 <b>'+fn+'</b>건</span><span class="why">'+why+' · 회차별이 아니라 <b>현재</b> 기준이에요</span>'
-          : '<span class="why">지금 실패 중인 주소는 없어요</span>')
-      +'</div></div>';
+      +'<div><div class="lrep-ch">가격 변동<i>'+((c.price||[]).length)+'</i></div>'+_groups('price',c.price)+'</div>'
+      +'<div><div class="lrep-ch">재고 변동<i>'+((c.stock||[]).length)+'</i></div>'+_groups('stock',c.stock)+'</div>'
+      +'</div>';
   }
-  // 회차 줄 클릭 → 그 회차 보고서 펼치기/접기
+  function closeLap(){ var m=document.getElementById('lrmask'); if(m) m.style.display='none'; _lrOpen=null; }
+  function openLap(no){
+    no=parseInt(no,10); if(isNaN(no)) return;
+    var laps=_lastLaps||[]; if(!laps.length) return;
+    var nos=laps.map(function(x){return x.no;});
+    var mn=Math.min.apply(null,nos), mx=Math.max.apply(null,nos);
+    if(no<mn||no>mx) return;
+    _lrOpen=no;
+    var i=-1; for(var k=0;k<laps.length;k++){ if(laps[k].no===no){ i=k; break; } }
+    var cur=(i>=0)?laps[i]:null;
+    var tm=cur? ((i>0? (_sameDayIso(laps[i-1].at,cur.at)? _kstHM(laps[i-1].at) : _kstLap(laps[i-1].at))+'~' : '')+_kstHM(cur.at)) : '';
+    var dur=(i>0)? _lapMin(laps,i) : null;
+    document.getElementById('lrmask').style.display='flex';
+    document.getElementById('lrh-no').textContent=no+'회차';
+    document.getElementById('lrh-tm').textContent=tm;
+    document.getElementById('lrh-du').textContent=dur? (dur+'분') : '';
+    var pb=document.getElementById('lr-prev'), nb=document.getElementById('lr-next');
+    pb.disabled=(no<=mn); nb.disabled=(no>=mx);
+    pb.textContent='◂ '+(no-1)+'회차'; nb.textContent=(no+1)+'회차 ▸';
+    var body=document.getElementById('lrb');
+    body.innerHTML='<div class="lrep-empty">불러오는 중…</div>';
+    fetch('/api/crawl/lap-report?no='+encodeURIComponent(no))
+      .then(function(x){return x.json();})
+      .then(function(d){ body.innerHTML=(d&&d.ok)? lapRepHtml(d) : '<div class="lrep-empty">'+_esc((d&&d.error)||'불러오지 못했어요')+'</div>'; })
+      .catch(function(){ body.innerHTML='<div class="lrep-empty">불러오지 못했어요</div>'; });
+  }
+  // 팝업 뼈대 1회 생성 + 닫기/이동/묶음 토글
+  (function(){
+    var m=document.createElement('div'); m.className='lrmask'; m.id='lrmask'; m.style.display='none';
+    m.innerHTML='<div class="lrbox"><div class="lrh">'
+      +'<span class="lrh-no" id="lrh-no"></span><span class="lrh-tm" id="lrh-tm"></span>'
+      +'<span class="lrh-du" id="lrh-du"></span><span class="lrh-sp"></span>'
+      +'<span class="lrh-nav"><button type="button" id="lr-prev"></button><button type="button" id="lr-next"></button></span>'
+      +'<button type="button" class="lrh-x" id="lr-x">✕</button></div>'
+      +'<div class="lrb" id="lrb"></div></div>';
+    document.body.appendChild(m);
+    m.addEventListener('click',function(e){ if(e.target===m) closeLap(); });
+    document.getElementById('lr-x').addEventListener('click',closeLap);
+    document.getElementById('lr-prev').addEventListener('click',function(){ if(_lrOpen) openLap(_lrOpen-1); });
+    document.getElementById('lr-next').addEventListener('click',function(){ if(_lrOpen) openLap(_lrOpen+1); });
+    document.getElementById('lrb').addEventListener('click',function(e){
+      var g=e.target.closest && e.target.closest('.lrg');
+      if(g){ var el=document.getElementById(g.getAttribute('data-t'));
+        if(el){ var on=el.style.display!=='none'; el.style.display=on?'none':''; var x=g.querySelector('.gx'); if(x) x.textContent=on?'▸':'▾'; }
+        return; }
+      var mo=e.target.closest && e.target.closest('.lrmore');
+      if(mo){ var rest=document.getElementById(mo.getAttribute('data-more')+'-rest'); if(rest){ rest.style.display=''; mo.style.display='none'; } }
+    });
+    document.addEventListener('keydown',function(e){ if(e.key==='Escape' && _lrOpen) closeLap(); });
+  })();
+  // 회차 줄 클릭 → 팝업 열기
   (function(){ var list=document.getElementById('czlog-list'); if(!list) return;
     list.addEventListener('click', function(e){
       var row=e.target.closest && e.target.closest('.czlog-row'); if(!row) return;
-      var no=row.getAttribute('data-no'), box=document.getElementById('lrep-'+no); if(!box) return;
-      if(box.style.display!=='none'){ box.style.display='none'; row.classList.remove('on'); return; }
-      row.classList.add('on'); box.style.display='';
-      box.innerHTML='<div class="lrep-empty">불러오는 중…</div>';
-      fetch('/api/crawl/lap-report?no='+encodeURIComponent(no))
-        .then(function(x){return x.json();})
-        .then(function(d){ box.innerHTML = (d&&d.ok) ? lapRepHtml(d) : '<div class="lrep-empty">'+_esc((d&&d.error)||'불러오지 못했어요')+'</div>'; })
-        .catch(function(){ box.innerHTML='<div class="lrep-empty">불러오지 못했어요</div>'; });
+      openLap(row.getAttribute('data-no'));
     });
   })();
   (function(){ var tg=document.getElementById('czlog-tg'); if(tg) tg.addEventListener('click',function(){ _lapsExpanded=!_lapsExpanded; renderLapLog(); }); })();
