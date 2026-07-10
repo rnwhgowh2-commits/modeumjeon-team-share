@@ -173,15 +173,25 @@
   .lrkb{display:none;padding:6px 0 16px 28px;}
   .lrkrow.open .lrkb{display:block;}
   .lrksec{font-size:11px;font-weight:700;color:#8B95A1;margin:8px 0 6px;}
-  .rcpt{display:grid;grid-template-columns:1fr 120px;gap:2px 12px;font-size:12.5px;max-width:440px;}
+  /* 가격 = 영수증 (확인불가는 마지막 줄에서 조용히) */
+  .rcpt{display:grid;grid-template-columns:170px 110px;gap:3px 14px;font-size:12.5px;max-width:300px;}
   .rcpt .l{color:#4E5968;} .rcpt .v{text-align:right;font-variant-numeric:tabular-nums;}
   .rcpt .m{color:#8B95A1;}
-  .rcpt .tot{border-top:1px solid #E5E8EB;margin-top:4px;padding-top:6px;font-weight:700;color:#191F28;}
-  .grid{display:grid;grid-template-columns:repeat(10,1fr);gap:4px;font-size:10.5px;}
-  .grid span{border-radius:5px;padding:3px 0;text-align:center;}
-  .g-am{background:#EAF7EF;color:#087443} .g-li{background:#FEF6E7;color:#8a5b00}
-  .g-so{background:#F2F4F6;color:#B0B8C1;text-decoration:line-through} .g-un{background:#FFF4E6;color:#B54708}
-  .nofin{color:#F59E0B;font-size:11.5px;}
+  .rcpt .tot{border-top:1px solid #E5E8EB;margin-top:5px;padding-top:7px;font-weight:700;color:#191F28;}
+  .rcpt .unk{color:#8B95A1;font-weight:600;font-size:12px;}
+  .rtail{font-size:11.5px;color:#8B95A1;margin-top:6px;}
+  /* 재고 = 촘촘한 사이즈 칸 (칸=글자 폭 / 충분은 배경으로 가라앉히고 문제만 진하게) */
+  .sgrow{display:flex;align-items:center;gap:12px;padding:4px 0;}
+  .sgnm{width:110px;flex:none;font-size:12px;color:#4E5968;}
+  .sgg{display:flex;gap:4px;flex-wrap:wrap;}
+  .sgg span{width:46px;text-align:center;font-size:10.5px;border-radius:5px;padding:4px 0;font-variant-numeric:tabular-nums;}
+  .g-am{background:#F1F7F3;color:#8FA898}
+  .g-li{background:#FFE9A8;color:#7A4E00;font-weight:700}
+  .g-so{background:#DDE1E6;color:#6B7684;text-decoration:line-through}
+  .g-un{background:#FFB84D;color:#5C3200;font-weight:700}
+  .sglg{display:flex;gap:14px;align-items:center;font-size:11px;color:#8B95A1;margin-top:10px;}
+  .sglg i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:5px;vertical-align:-1px;}
+  .nofin{color:#8B95A1;font-size:11.5px;}
   .lrep-sum{display:flex;flex-wrap:wrap;gap:18px;color:#4E5968;}
   .lrep-sum b{color:#191F28;font-variant-numeric:tabular-nums;}
   .lrep-sum .exc{color:#B0B8C1;}
@@ -605,13 +615,15 @@
       +'<div class="lrkeep"><div class="lrep-ch" style="margin-top:6px">변동 없음 — 소싱처를 누르면 가격·재고가 펼쳐져요</div>'+kb+'</div>';
   }
   function _receipt(k, br){
+    var sp = (br && br.sale_price!=null) ? br.sale_price : k.surface_price;
+    var head = '<div class="l">표면노출가</div><div class="v">'+(sp!=null? Number(sp).toLocaleString() : '확인불가')+'</div>';
     if(!br || !br.ok || br.final_price==null){
-      return '<div class="nofin">최종매입가 확인불가 (계산 실패)</div>'
-        +(k.surface_price!=null? '<div class="lrksec" style="margin-top:6px">표면노출가 <b style="font-variant-numeric:tabular-nums">'+Number(k.surface_price).toLocaleString()+'</b></div>':'');
+      return '<div class="rcpt">'+head
+        +'<div class="l tot">= 최종매입가</div><div class="v tot unk">확인불가</div></div>'
+        +'<div class="rtail">혜택을 읽지 못했어요. 추측한 값 대신 「확인불가」로 둡니다.</div>';
     }
     var steps=(br.steps||[]).filter(function(x){return x.deduct;});
-    return '<div class="rcpt">'
-      +'<div class="l">표면노출가</div><div class="v">'+Number(br.sale_price||k.surface_price||0).toLocaleString()+'</div>'
+    return '<div class="rcpt">'+head
       +steps.map(function(x){ return '<div class="l m">− '+_esc(x.name)+'</div><div class="v m">'+Number(x.deduct).toLocaleString()+'</div>'; }).join('')
       +'<div class="l tot">= 최종매입가</div><div class="v tot">'+Number(br.final_price).toLocaleString()+'</div>'
       +'</div>';
@@ -620,21 +632,31 @@
     var g=k.stock_grid||[];
     if(!g.length) return '<div class="nofin">재고 정보 없음</div>';
     var colors=[], sizes=[];
-    g.forEach(function(o){ if(o.color && colors.indexOf(o.color)<0) colors.push(o.color);
-                           if(o.size && sizes.indexOf(o.size)<0) sizes.push(o.size); });
-    sizes.sort();
-    var idx={}; g.forEach(function(o){ idx[(o.color||'')+'|'+(o.size||'')]=o.stock; });
+    g.forEach(function(o){ var c=o.color||'단품';
+      if(colors.indexOf(c)<0) colors.push(c);
+      if(o.size && sizes.indexOf(o.size)<0) sizes.push(o.size); });
+    sizes.sort(function(a,b){                       // 220mm·230mm… 숫자 순 (글자 순 아님)
+      var x=parseFloat(a), y=parseFloat(b);
+      if(isNaN(x)||isNaN(y)) return String(a).localeCompare(String(b));
+      return x-y; });
+    if(!sizes.length) sizes=[''];
+    var idx={}; g.forEach(function(o){ idx[(o.color||'단품')+'|'+(o.size||'')]=o.stock; });
     function cls(q){ if(q==null||q<0) return 'g-un'; if(q===0) return 'g-so'; if(q>=999) return 'g-am'; return 'g-li'; }
-    var html='';
-    colors.forEach(function(c){
-      html+='<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">'
-        +'<span style="width:76px;font-size:11px;color:#8B95A1;white-space:nowrap">'+_esc(c)+'</span>'
-        +'<div class="grid" style="flex:1">'
-        +sizes.map(function(s){ var q=idx[c+'|'+s]; return '<span class="'+cls(q)+'">'+_esc(s)+'</span>'; }).join('')
+    function tip(c,z,q){ var w = q==null||q<0? '확인불가' : (q===0? '품절' : (q>=999? '충분' : q+'개'));
+      return c+' '+z+' — '+w; }
+    var html = colors.map(function(c){
+      return '<div class="sgrow"><div class="sgnm">'+_esc(c)+'</div><div class="sgg">'
+        +sizes.map(function(z){ var q=idx[c+'|'+z];
+            return '<span class="'+cls(q)+'" title="'+_esc(tip(c,z||'단품',q))+'">'+_esc(z||'단품')+'</span>'; }).join('')
         +'</div></div>';
-    });
+    }).join('');
     var su=k.stock_summary||{};
-    return html+'<div style="margin-top:6px;font-size:11px;color:#B0B8C1">초록=충분 '+(su.ample||0)+' · 노랑=한정 '+(su.limited||0)+' · 취소선=품절 '+(su.soldout||0)+' · 주황=확인불가 '+(su.unknown||0)+'</div>';
+    return html+'<div class="sglg">'
+      +'<span><i style="background:#F1F7F3"></i>충분 '+(su.ample||0)+'</span>'
+      +'<span><i style="background:#FFE9A8"></i>한정 '+(su.limited||0)+'</span>'
+      +'<span><i style="background:#DDE1E6"></i>품절 '+(su.soldout||0)+'</span>'
+      +'<span><i style="background:#FFB84D"></i>확인불가 '+(su.unknown||0)+'</span>'
+      +'</div>';
   }
   function openKeep(row){
     var site=row.getAttribute('data-site'), k=_keepMap[site]; if(!k) return;
