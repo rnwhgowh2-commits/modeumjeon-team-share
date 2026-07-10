@@ -106,6 +106,94 @@ def excluded_sites(session) -> list[str]:
     return sorted(lab.get(k, k) for k, w in src.items() if (w or 0) <= 0)
 
 
+def _source_id_by_key(session) -> dict:
+    """소싱처 키 → 레지스트리 source_id (최종매입가 API 가 요구)."""
+    try:
+        from lemouton.sourcing.source_registry import get_all_sources
+        return {s["key"]: s["id"] for s in (get_all_sources(session) or [])
+                if s.get("key") and s.get("id") is not None}
+    except Exception:
+        return {}
+
+
+def _rep_sku_by_key(session) -> dict:
+    """소싱처 키 → 대표 옵션 sku (그 소싱처에 URL이 걸린 모음전의 옵션 하나).
+
+    최종매입가는 (sku, source_id) 단위로 계산된다 → 소싱처 요약엔 대표 1건이 필요.
+    """
+    try:
+        from lemouton.sourcing.models import BundleSourceUrl, Option
+    except Exception:
+        return {}
+    out: dict = {}
+    try:
+        codes: dict = {}
+        for b in session.query(BundleSourceUrl).all():
+            if b.source_key and b.model_code and b.source_key not in codes:
+                codes[b.source_key] = b.model_code
+        if not codes:
+            return {}
+        for key, mc in codes.items():
+            o = (session.query(Option)
+                 .filter(Option.model_code == mc)
+                 .order_by(Option.canonical_sku.asc()).first())
+            if o is not None:
+                out[key] = o.canonical_sku
+    except Exception:
+        return {}
+    return out
+
+
+def keep_sources(session, *, crawled_sites: set, changed_sites: set) -> list[dict]:
+    """이번 바퀴에 '변동 없던' 소싱처의 지금 값.
+
+    표면노출가 = 그 소싱처 URL들의 last_price 대표(최빈/최저).
+    최종매입가는 (sku, source_id)로 화면이 따로 부른다 → 여기선 그 열쇠만 준다.
+    재고는 색×사이즈 격자용 옵션 목록(과다 방지 상한).
+    """
+    from lemouton.sources.models import SourceProduct, SourceOption
+
+    lab = site_labels()
+    sid = _source_id_by_key(session)
+    sku = _rep_sku_by_key(session)
+    out = []
+    for site in sorted(crawled_sites - changed_sites):
+        prods = (session.query(SourceProduct)
+                 .filter(SourceProduct.site == site,
+                         SourceProduct.deleted_at.is_(None)).all())
+        if not prods:
+            continue
+        prices = [p.last_price for p in prods if p.last_price]
+        surface = min(prices) if prices else None
+        spids = [p.id for p in prods]
+        opts = (session.query(SourceOption)
+                .filter(SourceOption.source_product_id.in_(spids),
+                        SourceOption.deleted_at.is_(None))
+                .limit(400).all()) if spids else []
+        grid = [{"color": o.color_text, "size": o.size_text,
+                 "stock": o.current_stock} for o in opts]
+        summ = {"ample": 0, "limited": 0, "soldout": 0, "unknown": 0}
+        for g in grid:
+            q = g["stock"]
+            if q is None:
+                summ["unknown"] += 1
+            elif q < 0:
+                summ["unknown"] += 1
+            elif q == 0:
+                summ["soldout"] += 1
+            elif q >= 999:
+                summ["ample"] += 1
+            else:
+                summ["limited"] += 1
+        out.append({
+            "site": site, "site_label": lab.get(site, site),
+            "surface_price": surface,
+            "sku": sku.get(site), "source_id": sid.get(site),
+            "stock_summary": summ, "stock_grid": grid,
+        })
+    return out
+
+
 def failing_now(session) -> list[dict]:
     """'지금 실패 중'(★회차별 아님 — 현재 last_status='error') 사유별 묶음."""
     try:
@@ -195,6 +283,12 @@ def lap_report(session, *, lap_no: int, now: datetime) -> dict | None:
 
     minutes = max(1, round((end - start).total_seconds() / 60))
     stats = lap_stats(session, now=now)
+    _crawled = {sp_map[i].site for i in spids if i in sp_map}
+    _changed = {r["site"] for r in price_rows} | {r["site"] for r in stock_rows}
+    try:
+        _keep = keep_sources(session, crawled_sites=_crawled, changed_sites=_changed)
+    except Exception:
+        _keep = []            # 요약 실패해도 변동 보고서는 살린다
     return {
         "lap": {
             "no": lap_no,
@@ -211,6 +305,8 @@ def lap_report(session, *, lap_no: int, now: datetime) -> dict | None:
             "first_seen": first_seen["price"] + first_seen["stock"],
         },
         "changes": {"price": price_rows, "stock": stock_rows},
+        # 변동 없던 소싱처의 지금 값 (표면가 + 최종매입가 열쇠 + 재고 격자)
+        "keep_sources": _keep,
         "result": {
             "saved": len(deltas),          # 이번 바퀴 저장된(=성공) 크롤 수
             "failing_now": failing_now(session),   # ★현재 기준(회차별 아님)

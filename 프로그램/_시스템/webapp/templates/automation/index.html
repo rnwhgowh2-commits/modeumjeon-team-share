@@ -162,6 +162,26 @@
   .lrtop{display:grid;grid-template-columns:1.35fr 1fr;gap:30px;align-items:start;}
   .lrblk-h{font-size:11px;font-weight:700;color:#8B95A1;margin-bottom:8px;letter-spacing:.03em;}
   .lrep{padding:16px 4px 8px;font-size:12.5px;}
+  /* [2026-07-10] C안 — 빈 상태 · 그대로 소싱처 토글 · 영수증 · 색×사이즈 격자 */
+  .lrempty{border:1px dashed #E5E8EB;border-radius:10px;padding:16px;text-align:center;color:#B0B8C1;font-size:12.5px;}
+  .lrkeep{margin-top:36px;opacity:.82;}                    /* 위=주인공 / 아래=배경 (흐린 글자) */
+  .lrkrow{border-top:1px solid #EFF1F3;}
+  .lrkh{display:grid;grid-template-columns:16px 1fr 22px;align-items:center;gap:12px;height:44px;cursor:pointer;font-size:12.5px;}
+  .lrkh:hover{background:#FBFCFD;}
+  .lrkh .knm{font-weight:600;color:#4E5968;}
+  .lrkh .kx{color:#B0B8C1;text-align:center;font-size:11px;}
+  .lrkb{display:none;padding:6px 0 16px 28px;}
+  .lrkrow.open .lrkb{display:block;}
+  .lrksec{font-size:11px;font-weight:700;color:#8B95A1;margin:8px 0 6px;}
+  .rcpt{display:grid;grid-template-columns:1fr 120px;gap:2px 12px;font-size:12.5px;max-width:440px;}
+  .rcpt .l{color:#4E5968;} .rcpt .v{text-align:right;font-variant-numeric:tabular-nums;}
+  .rcpt .m{color:#8B95A1;}
+  .rcpt .tot{border-top:1px solid #E5E8EB;margin-top:4px;padding-top:6px;font-weight:700;color:#191F28;}
+  .grid{display:grid;grid-template-columns:repeat(10,1fr);gap:4px;font-size:10.5px;}
+  .grid span{border-radius:5px;padding:3px 0;text-align:center;}
+  .g-am{background:#EAF7EF;color:#087443} .g-li{background:#FEF6E7;color:#8a5b00}
+  .g-so{background:#F2F4F6;color:#B0B8C1;text-decoration:line-through} .g-un{background:#FFF4E6;color:#B54708}
+  .nofin{color:#F59E0B;font-size:11.5px;}
   .lrep-sum{display:flex;flex-wrap:wrap;gap:18px;color:#4E5968;}
   .lrep-sum b{color:#191F28;font-variant-numeric:tabular-nums;}
   .lrep-sum .exc{color:#B0B8C1;}
@@ -545,12 +565,29 @@
         +'</div>';
     }).join('');
   }
+  // ── C안: 위=변동(좌 가격/우 재고) · 아래=그대로(이름만 → 클릭 토글) ──
+  var _keepMap = {};
   function lapRepHtml(d){
     var s=d.summary||{}, c=d.changes||{}, r=d.result||{}, lp=d.lap||{};
     var exc=(s.excluded_sites||[]).length? '<span class="exc">'+_esc(s.excluded_sites.join(' · '))+' 제외</span>' : '';
     var fs=(s.first_seen||0)? '<span class="exc">처음 수집 <b style="color:#8B95A1">'+Number(s.first_seen).toLocaleString()+'</b>건(변동 아님)</span>' : '';
     var fl=r.failing_now||[], fn=fl.reduce(function(a,b){return a+(b.count||0);},0);
     var why=fl.map(function(f){return _esc(f.reason)+' '+f.count+'건';}).join(' · ');
+    var pn=(c.price||[]).length, sn=(c.stock||[]).length;
+    var pbody = pn? _groups('price',c.price) : '<div class="lrempty">이번 바퀴 가격 변동 0건</div>';
+    var sbody = sn? _groups('stock',c.stock) : '<div class="lrempty">이번 바퀴 재고 변동 0건</div>';
+    // 하단 '그대로' 소싱처
+    _keepMap={};
+    var keep=(d.keep_sources||[]);
+    keep.forEach(function(k){ _keepMap[k.site]=k; });
+    var kb = keep.length
+      ? keep.map(function(k){
+          return '<div class="lrkrow" data-site="'+_esc(k.site)+'"><div class="lrkh">'
+            +'<span style="color:#B0B8C1;text-align:center">·</span>'
+            +'<span class="knm">'+_esc(k.site_label||k.site)+'</span>'
+            +'<span class="kx">▸</span></div><div class="lrkb"></div></div>';
+        }).join('')
+      : '<div class="lrempty">변동 없는 소싱처가 없어요</div>';
     return '<div class="lrtop">'
       +'<div><div class="lrblk-h">이번 바퀴</div><div class="lrep-sum">'
       +'<span>긁은 URL <b>'+(s.urls||0)+'</b>개</span><span>소싱처 <b>'+(s.sites||0)+'</b>곳</span>'
@@ -562,9 +599,52 @@
       +'</div></div></div>'
       +'<div class="lrep-rule"></div>'
       +'<div class="lrep-chg">'
-      +'<div><div class="lrep-ch">가격 변동<i>'+((c.price||[]).length)+'</i></div>'+_groups('price',c.price)+'</div>'
-      +'<div><div class="lrep-ch">재고 변동<i>'+((c.stock||[]).length)+'</i></div>'+_groups('stock',c.stock)+'</div>'
+      +'<div><div class="lrep-ch">가격 변동<i>'+pn+'</i></div>'+pbody+'</div>'
+      +'<div><div class="lrep-ch">재고 변동<i>'+sn+'</i></div>'+sbody+'</div>'
+      +'</div>'
+      +'<div class="lrkeep"><div class="lrep-ch" style="margin-top:6px">변동 없음 — 소싱처를 누르면 가격·재고가 펼쳐져요</div>'+kb+'</div>';
+  }
+  function _receipt(k, br){
+    if(!br || !br.ok || br.final_price==null){
+      return '<div class="nofin">최종매입가 확인불가 (계산 실패)</div>'
+        +(k.surface_price!=null? '<div class="lrksec" style="margin-top:6px">표면노출가 <b style="font-variant-numeric:tabular-nums">'+Number(k.surface_price).toLocaleString()+'</b></div>':'');
+    }
+    var steps=(br.steps||[]).filter(function(x){return x.deduct;});
+    return '<div class="rcpt">'
+      +'<div class="l">표면노출가</div><div class="v">'+Number(br.sale_price||k.surface_price||0).toLocaleString()+'</div>'
+      +steps.map(function(x){ return '<div class="l m">− '+_esc(x.name)+'</div><div class="v m">'+Number(x.deduct).toLocaleString()+'</div>'; }).join('')
+      +'<div class="l tot">= 최종매입가</div><div class="v tot">'+Number(br.final_price).toLocaleString()+'</div>'
       +'</div>';
+  }
+  function _grid(k){
+    var g=k.stock_grid||[];
+    if(!g.length) return '<div class="nofin">재고 정보 없음</div>';
+    var colors=[], sizes=[];
+    g.forEach(function(o){ if(o.color && colors.indexOf(o.color)<0) colors.push(o.color);
+                           if(o.size && sizes.indexOf(o.size)<0) sizes.push(o.size); });
+    sizes.sort();
+    var idx={}; g.forEach(function(o){ idx[(o.color||'')+'|'+(o.size||'')]=o.stock; });
+    function cls(q){ if(q==null||q<0) return 'g-un'; if(q===0) return 'g-so'; if(q>=999) return 'g-am'; return 'g-li'; }
+    var html='';
+    colors.forEach(function(c){
+      html+='<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">'
+        +'<span style="width:76px;font-size:11px;color:#8B95A1;white-space:nowrap">'+_esc(c)+'</span>'
+        +'<div class="grid" style="flex:1">'
+        +sizes.map(function(s){ var q=idx[c+'|'+s]; return '<span class="'+cls(q)+'">'+_esc(s)+'</span>'; }).join('')
+        +'</div></div>';
+    });
+    var su=k.stock_summary||{};
+    return html+'<div style="margin-top:6px;font-size:11px;color:#B0B8C1">초록=충분 '+(su.ample||0)+' · 노랑=한정 '+(su.limited||0)+' · 취소선=품절 '+(su.soldout||0)+' · 주황=확인불가 '+(su.unknown||0)+'</div>';
+  }
+  function openKeep(row){
+    var site=row.getAttribute('data-site'), k=_keepMap[site]; if(!k) return;
+    var body=row.querySelector('.lrkb');
+    body.innerHTML='<div class="lrempty">불러오는 중…</div>';
+    var done=function(br){ body.innerHTML='<div class="lrksec">가격</div>'+_receipt(k,br)
+      +'<div class="lrksec" style="margin-top:14px">재고</div>'+_grid(k); };
+    if(k.sku==null || k.source_id==null || k.surface_price==null){ done(null); return; }
+    fetch('/api/source-benefits/breakdown/'+encodeURIComponent(k.sku)+'/'+k.source_id+'?sale_price='+k.surface_price)
+      .then(function(x){return x.json();}).then(done).catch(function(){ done(null); });
   }
   function closeLap(){ var m=document.getElementById('lrmask'); if(m) m.style.display='none'; _lrOpen=null; }
   function openLap(no){
@@ -607,6 +687,12 @@
     document.getElementById('lr-prev').addEventListener('click',function(){ if(_lrOpen) openLap(_lrOpen-1); });
     document.getElementById('lr-next').addEventListener('click',function(){ if(_lrOpen) openLap(_lrOpen+1); });
     document.getElementById('lrb').addEventListener('click',function(e){
+      var kh=e.target.closest && e.target.closest('.lrkh');
+      if(kh){ var row=kh.parentElement, was=row.classList.contains('open');
+        row.classList.toggle('open');
+        kh.querySelector('.kx').textContent = was? '▸' : '▾';
+        if(!was && !row.getAttribute('data-loaded')){ row.setAttribute('data-loaded','1'); openKeep(row); }
+        return; }
       var g=e.target.closest && e.target.closest('.lrg');
       if(g){ var el=document.getElementById(g.getAttribute('data-t'));
         if(el){ var on=el.style.display!=='none'; el.style.display=on?'none':''; var x=g.querySelector('.gx'); if(x) x.textContent=on?'▸':'▾'; }
