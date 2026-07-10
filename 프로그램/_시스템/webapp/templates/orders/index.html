@@ -53,6 +53,18 @@
     .o7 .state{padding:34px;text-align:center;color:var(--sub);font-size:13px;background:#fff;border:1px solid var(--line2);border-radius:12px;line-height:1.7;}
     .o7 .muted{color:var(--faint);}
     .o7 .acct{font-size:11.5px;color:var(--sub);white-space:nowrap;}
+    /* 송장 칸 — 옆 「계정」 칸과 글자 크기를 맞춘다(표 기본 12.5px 를 물려받아 혼자 커 보였음).
+       실제 송장번호는 자릿수가 세로로 가지런하도록 고정폭 글꼴. */
+    .o7 .inv-empty{font-size:11.5px;color:var(--faint);white-space:nowrap;}
+    .o7 td .mono{font-family:ui-monospace,Consolas,monospace;font-size:11.5px;color:var(--sub);
+                 font-variant-numeric:tabular-nums;white-space:nowrap;}
+    .o7 .inv-ok,.o7 .inv-no{font-size:11.5px;}
+    /* 마켓별 도착 진행 표시(주루룩 나열) */
+    .o7 .loadbar{display:none;margin:8px 0 0;font-size:12px;color:var(--sub);}
+    .o7 .loadbar.on{display:block;}
+    .o7 .loadbar .dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--blue);
+                      margin-right:6px;animation:o7pulse .9s ease-in-out infinite;}
+    @keyframes o7pulse{0%,100%{opacity:.25}50%{opacity:1}}
     /* 제외된 계정 경고 — 빠진 계정을 숨기지 않고 명시(조용한 실패 금지) */
     .o7 .warnbar{display:none;margin-top:10px;background:#FEF2F2;border:1px solid #FCA5A5;border-radius:10px;padding:10px 12px;font-size:12px;color:#991B1B;}
     .o7 .warnbar.on{display:block;}
@@ -194,6 +206,7 @@
       <div class="mkline" id="mkline"></div>
       <div class="acctline" id="acctline"></div>
       <div class="warnbar" id="warnbar"></div>
+      <div class="loadbar" id="loadbar"></div>
       <div id="invbar"></div>
       <input type="file" id="invfile" accept=".xlsx" style="display:none">
       <div class="droprel" id="droprel">
@@ -491,7 +504,7 @@
         ? '<span class="inv-ok">'+(res.dry_run?'미리보기 ✓':'✓ 전송')+' '+esc((invMap[k]||{}).invoice_no||'')+'</span>'
         : '<span class="inv-no" title="'+esc(res.error||'')+'">✗ 실패</span>';
       if(invBad[k]) return '<span class="inv-no" title="'+esc(invBad[k])+'">모순 — 제외</span>';
-      if(!invSel[k]) return v?('<span class="mono">'+esc(v)+'</span>'):'<span class="muted">송장미입력</span>';
+      if(!invSel[k]) return v?('<span class="mono">'+esc(v)+'</span>'):'<span class="inv-empty">송장미입력</span>';
       var cur=invMap[k]||{courier:COURIERS[0],invoice_no:''};
       var opts=COURIERS.map(function(c){return '<option'+(c===cur.courier?' selected':'')+'>'+c+'</option>';}).join('');
       return '<span class="invedit"><select class="inv-cr" data-k="'+esc(k)+'">'+opts+'</select>'
@@ -505,7 +518,12 @@
       return (invMap[k]&&invMap[k].src==='xl')?' r-xl':' r-hand';
     }
     function renderTable(fr){
-      if(!fr.length){document.getElementById('tablewrap').innerHTML='<div class="state">조건에 맞는 주문이 없어요.</div>';renderInvBar(fr);return;}
+      if(!fr.length){
+        // 아직 불러오는 중이면 '없어요'가 아니라 '불러오는 중'(거짓 표시 방지)
+        document.getElementById('tablewrap').innerHTML= loading
+          ? '<div class="state">주문을 불러오는 중… ('+loadDone+'/'+loadTotal+' 판매처)</div>'
+          : '<div class="state">조건에 맞는 주문이 없어요.</div>';
+        renderInvBar(fr);return;}
       var head='<tr><th class="ctr invck"><input type="checkbox" id="inv-all"></th>'+PANEL_COLS.map(function(pc){
         var active=colFilter[pc.c]&&colFilter[pc.c].excluded&&colFilter[pc.c].excluded.size;
         return '<th class="fcol '+pc.a+(active?' filtered':'')+'" data-col="'+pc.c+'">'+(pc.t||pc.c)+'<span class="fic">▼</span></th>';
@@ -642,15 +660,44 @@
         }).catch(function(){alert('전송 실패(네트워크)');});
     }
     function render(){var fr=filtered();renderKPI(fr);renderTable(fr);syncBtn();}
+    // ── 마켓별로 따로 불러와, 도착하는 대로 표에 쌓는다(한 마켓이 느려도 나머지가 먼저 보임) ──
+    var loadSeq=0, loading=false, loadDone=0, loadTotal=0, warnAll=[];
+    function sortRows(){rows.sort(function(a,b){
+      return String(b['주문일']||'').localeCompare(String(a['주문일']||''));});}   // 최신 먼저
+    function renderLoadBar(){
+      var el=document.getElementById('loadbar');
+      if(!el)return;
+      if(loading){el.classList.add('on');
+        el.innerHTML='<span class="dot"></span>불러오는 중… <b>'+loadDone+'/'+loadTotal+'</b> 판매처 완료'
+          +' · 지금까지 <b>'+rows.length+'</b>건';
+      } else { el.classList.remove('on'); el.innerHTML=''; }
+    }
     function load(){
-      document.getElementById('tablewrap').innerHTML='<div class="state">주문을 불러오는 중…</div>';
       var mks=selMk();syncBtn();
-      if(!mks.length){rows=[];render();return;}
-      fetch('/orders/preview.json?markets='+encodeURIComponent(mks.join(','))+'&'+qparam(),{cache:'no-store'})
-        .then(function(r){return r.json();}).then(function(j){
-          if(!j.ok){document.getElementById('tablewrap').innerHTML='<div class="state">불러오기 실패: '+(j.error||'')+'</div>';rows=[];renderWarn([]);return;}
-          rows=j.rows||[];colFilter={};renderWarn(j.warnings||[]);render();
-        }).catch(function(e){document.getElementById('tablewrap').innerHTML='<div class="state">네트워크 오류</div>';});
+      var seq=++loadSeq;
+      rows=[];colFilter={};warnAll=[];loadDone=0;loadTotal=mks.length;
+      renderWarn([]);
+      if(!mks.length){loading=false;renderLoadBar();render();return;}
+      loading=true;renderLoadBar();
+      document.getElementById('tablewrap').innerHTML='<div class="state">주문을 불러오는 중…</div>';
+      mks.forEach(function(mk){
+        fetch('/orders/preview.json?market='+encodeURIComponent(mk)+'&'+qparam(),{cache:'no-store'})
+          .then(function(r){return r.json();})
+          .then(function(j){
+            if(seq!==loadSeq)return;                 // 새 조회가 시작됐으면 옛 응답 버림
+            loadDone++;
+            if(j.ok){ rows=rows.concat(j.rows||[]); (j.warnings||[]).forEach(function(w){warnAll.push(w);}); }
+            else { warnAll.push('['+mk+'] 주문 조회 실패: '+(j.error||'')); }
+            if(loadDone>=loadTotal)loading=false;
+            sortRows();renderWarn(warnAll);render();renderLoadBar();
+          })
+          .catch(function(){
+            if(seq!==loadSeq)return;
+            loadDone++; warnAll.push('['+mk+'] 네트워크 오류로 불러오지 못했어요.');
+            if(loadDone>=loadTotal)loading=false;
+            renderWarn(warnAll);render();renderLoadBar();
+          });
+      });
     }
     // 필터 이벤트
     var allck=document.getElementById('mk-all');
