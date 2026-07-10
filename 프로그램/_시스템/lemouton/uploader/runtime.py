@@ -2,6 +2,7 @@
 
 안전 원칙:
   · 실제 마켓 전송은 환경변수 ``LEMOUTON_LIVE_UPLOAD`` 가 참일 때만.
+  · 송장 전송은 별도 스위치 ``LEMOUTON_LIVE_INVOICE`` (:func:`live_invoice_enabled`).
   · 기본값 OFF → :class:`DryRunAdapter` (외부 호출 없음).
   · 켜더라도 shared.platforms.price_guard 가 0/비정상 가격을 전송 직전 abort.
 """
@@ -32,9 +33,26 @@ class DryRunAdapter(MarketAdapter):
                             error="dry-run (외부 호출 없음)")
 
 
+def _env_truthy(name: str) -> bool:
+    return (os.environ.get(name, "") or "").strip().lower() in _TRUTHY
+
+
 def live_upload_enabled() -> bool:
-    """실전송 허용 여부 — 환경변수 ``LEMOUTON_LIVE_UPLOAD`` (기본 OFF)."""
-    return (os.environ.get("LEMOUTON_LIVE_UPLOAD", "") or "").strip().lower() in _TRUTHY
+    """가격·재고 실전송 허용 여부 — 환경변수 ``LEMOUTON_LIVE_UPLOAD`` (기본 OFF).
+
+    스케줄러가 무인 반복하는 경로라 송장(사람이 1건씩 누름)보다 위험하다.
+    송장만 켜고 싶으면 ``LEMOUTON_LIVE_INVOICE`` 를 쓸 것.
+    """
+    return _env_truthy("LEMOUTON_LIVE_UPLOAD")
+
+
+def live_invoice_enabled() -> bool:
+    """송장(운송장) 실전송 허용 여부 — ``LEMOUTON_LIVE_INVOICE`` (기본 OFF).
+
+    ``LEMOUTON_LIVE_UPLOAD`` 가 켜져 있으면 송장도 함께 허용(기존 동작 보존).
+    반대는 성립하지 않는다 — 송장을 켜도 가격·재고 업로드는 잠긴 채로 둔다.
+    """
+    return _env_truthy("LEMOUTON_LIVE_INVOICE") or live_upload_enabled()
 
 
 def select_adapters(*, live: bool | None = None) -> dict[str, MarketAdapter]:

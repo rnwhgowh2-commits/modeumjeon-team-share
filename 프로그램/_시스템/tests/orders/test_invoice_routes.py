@@ -97,6 +97,15 @@ class TestSend:
         assert body["results"][0]["dry_run"] is True
         assert called == []
 
+    def test_route_gate_reads_invoice_switch_not_upload_switch(self, monkeypatch):
+        """/orders 의 게이트는 LEMOUTON_LIVE_INVOICE 를 본다 — 가격·재고 스위치가 아니라."""
+        monkeypatch.delenv("LEMOUTON_LIVE_UPLOAD", raising=False)
+        monkeypatch.delenv("LEMOUTON_LIVE_INVOICE", raising=False)
+        assert om._live_enabled() is False
+
+        monkeypatch.setenv("LEMOUTON_LIVE_INVOICE", "1")
+        assert om._live_enabled() is True
+
     def test_live_request_refused_when_global_switch_off(self, client, monkeypatch):
         """요청이 live=true 라도 전역 스위치 OFF 면 실제 전송하지 않는다."""
         import shared.platforms.coupang.orders as cp

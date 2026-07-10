@@ -236,9 +236,12 @@ def orders_preview():
 # ──────────────────────────────────────────────────────────────
 
 def _live_enabled() -> bool:
-    """실전송 전역 스위치(LEMOUTON_LIVE_UPLOAD). 테스트에서 monkeypatch 지점."""
-    from lemouton.uploader.runtime import live_upload_enabled
-    return live_upload_enabled()
+    """송장 실전송 스위치(LEMOUTON_LIVE_INVOICE). 테스트에서 monkeypatch 지점.
+
+    가격·재고 자동 업로드(LEMOUTON_LIVE_UPLOAD)와 분리된 스위치다.
+    """
+    from lemouton.uploader.runtime import live_invoice_enabled
+    return live_invoice_enabled()
 
 
 def _client_for(market: str, alias: str):
