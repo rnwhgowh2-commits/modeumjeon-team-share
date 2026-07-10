@@ -803,6 +803,33 @@ def _account_alias(market: str) -> str:
     return accs[0][1] if accs else ""
 
 
+# 마켓별 '셀러를 식별하는' 설정 키 — 이 값이 같으면 이름이 달라도 같은 셀러 계정이다.
+_IDENTITY_KEYS = {
+    "coupang": ("vendor_id",),
+    "smartstore": ("client_id",),
+    "lotteon": ("tr_no",),
+    "eleven11": ("api_key", "openapi_key"),
+    "auction": ("seller_id",),
+    "gmarket": ("seller_id",),
+}
+
+
+def _client_identity(market: str, cli) -> Optional[str]:
+    """클라이언트가 가리키는 실제 셀러 식별자. 판정 불가면 None(중복 제거하지 않음).
+
+    같은 셀러를 두 계정으로 등록하면 같은 주문이 2배로 잡히므로, 조회 전에 이 값으로
+    중복을 접는다. 키 값 자체는 로그·화면에 노출하지 않는다(식별용 내부 비교만).
+    """
+    cfg = getattr(cli, "_cfg", None)
+    if not isinstance(cfg, dict):
+        return None
+    for k in _IDENTITY_KEYS.get(market, ()):
+        v = cfg.get(k)
+        if v:
+            return f"{market}:{k}:{v}"
+    return None
+
+
 def order_rows(market: str, days: int = 7, client=None,
                now: Optional[_dt.datetime] = None,
                since: Optional[_dt.datetime] = None,
@@ -852,6 +879,26 @@ def order_rows(market: str, days: int = 7, client=None,
                 warnings.append(f"[{market}·{name}] API 키가 없어 조회에서 제외됐어요.")
             continue
         built.append((name, cli))
+
+    # ★ 같은 셀러를 가리키는 계정이 여러 개 등록돼 있으면 한 번만 조회한다.
+    #   (판매처관리에 같은 마켓 셀러가 이름만 달리 두 번 등록된 사례 — 그대로 두면 같은 주문이
+    #    2배로 계상돼 발송·정산이 배로 잡힌다. CLAUDE 🔒 중복·모순 절대 금지.)
+    seen_ident, uniq, dups = set(), [], []
+    for name, cli in built:
+        ident = _client_identity(market, cli)
+        if ident is not None and ident in seen_ident:
+            dups.append(name)
+            continue
+        if ident is not None:
+            seen_ident.add(ident)
+        uniq.append((name, cli))
+    if dups:
+        _log.warning("중복 셀러 계정 제외: market=%s accounts=%s", market, dups)
+        if warnings is not None:
+            warnings.append(
+                f"[{market}] 같은 셀러 계정이 중복 등록돼 있어 한 번만 조회했어요: "
+                + ", ".join(dups))
+    built = uniq
 
     if not built:                               # 등록 0개/전부 키 없음 → 대표 계정 폴백
         return _rows_for(_account_client(market), _account_alias(market))
