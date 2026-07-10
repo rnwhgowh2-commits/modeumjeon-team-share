@@ -518,6 +518,49 @@ def market_sort_key(market: str) -> tuple:
     return (meta.get("sort_order", 999), market)
 
 
+# 마켓별 '셀러를 식별하는' 키 접미사. 이 값이 같으면 이름이 달라도 같은 판매자 계정이다.
+#  order_export._IDENTITY_KEYS 와 같은 필드를 가리킨다(지문도 같은 값이 나오도록).
+_IDENTITY_SUFFIX = {
+    "coupang": "VENDOR_ID",
+    "smartstore": "CLIENT_ID",
+    "lotteon": "TR_NO",
+    "eleven11": "OPENAPI_KEY",
+    "auction": "SELLER_ID",
+    "gmarket": "SELLER_ID",
+}
+
+
+def _find_duplicate_key_account(market: str, env_prefix: str, env_keys: dict):
+    """이번에 저장할 셀러 식별키가 같은 마켓의 '다른 활성 계정'에 이미 있으면 (계정명들, 지문).
+
+    없으면 None. 값 자체는 어디에도 노출하지 않는다(지문만).
+    """
+    sfx = _IDENTITY_SUFFIX.get(market)
+    if not sfx:
+        return None
+    # 이번에 들어온 값. 안 들어왔으면 기존값(=변경 없음)이라 중복 검사 불필요.
+    new_val = (env_keys.get(f"{env_prefix}_{sfx}") or "").strip()
+    if not new_val:
+        return None
+
+    s = SessionLocal()
+    try:
+        others = (s.query(UploadAccount)
+                  .filter(UploadAccount.market == market,
+                          UploadAccount.is_active == True,          # noqa: E712
+                          UploadAccount.env_prefix != env_prefix)
+                  .order_by(UploadAccount.id).all())
+        names = [a.display_name for a in others
+                 if (os.environ.get(f"{a.env_prefix}_{sfx}", "") or "").strip() == new_val]
+    finally:
+        s.close()
+
+    if not names:
+        return None
+    from lemouton.markets.order_export import _ident_fingerprint
+    return names, _ident_fingerprint(f"{market}:{sfx.lower()}:{new_val}")
+
+
 @bp.route("/api/secrets/<env_prefix>", methods=["POST"])
 def save_secrets(env_prefix: str):
     """UI에서 입력한 시크릿을 .env 에 저장 + 환경변수 즉시 반영.
@@ -577,6 +620,22 @@ def save_secrets(env_prefix: str):
             "masked": {},
             "message": "변경 사항 없음 — 기존 키 그대로 유지됩니다.",
         })
+
+    # ★ 같은 셀러 키가 두 계정에 저장되는 것을 '저장 단계'에서 막는다(전 마켓 공통).
+    #   실제 사고: 11번가 두 쌍이 같은 OPENAPI_KEY 로 저장돼, 주문조회에서 한쪽 가게가 통째로
+    #   빠졌다(브라우저 자동완성이 이전 계정 키를 다시 채운 것으로 추정). 저장을 막지 않으면
+    #   같은 주문 2배 계상 또는 다른 가게 주문 누락(발송 사고)으로 이어진다.
+    conflict = _find_duplicate_key_account(market, env_prefix, env_keys)
+    if conflict:
+        names, fp = conflict
+        return jsonify({
+            "ok": False,
+            "error": f"이 키는 이미 「{'」, 「'.join(names)}」 계정에 등록돼 있어요 (키 지문 {fp}).",
+            "hint": "브라우저 자동완성이 이전 계정의 키를 다시 채웠을 수 있어요. "
+                    "칸을 비우고 이 가게의 키를 직접 붙여넣어 주세요.",
+            "conflicts": names,
+            "fingerprint": fp,
+        }), 409
 
     # 영속 경로(호스트 볼륨 마운트) 우선 — 컨테이너 교체돼도 유지. 없으면 프로젝트 .env.
     from lemouton.auth import secrets as _S2

@@ -147,6 +147,8 @@
                   <span class="status-icon err">✗</span> 미지원
                 {% endif %}
               </div>
+              {# 키 지문 — 같은 지문 = 같은 셀러 키. 중복이면 빨갛게(키 값은 표시하지 않음). #}
+              <div class="status-line fp-line" data-acc-id="{{ acc.id }}" data-market="{{ acc.market }}"></div>
               {% if acc.login_state == 'logged_in' %}
               <div class="status-line" title="영구 인증 쿠키 (NID_AUT 등) 발견 — 자동 로그인 가능">
                 <span class="status-icon ok">✓</span> 영구 로그인 ({{ acc.login_age_days }}일 경과)
@@ -1082,14 +1084,18 @@ async function loadSchemaIntoFields(market, envPrefix) {
       container.innerHTML = `<div class="form-error">스키마 로드 실패: ${data.error || ''}</div>`;
       return;
     }
+    // ★ 크롬 비밀번호 관리자가 '같은 이름의 칸'으로 인식해 이전 계정 키를 다시 채우는 사고를
+    //   막는다(실제로 11번가 두 쌍이 같은 키로 저장됨). 칸 이름을 열 때마다 무작위화하고,
+    //   렌더 직후 값을 강제로 비운다. 서버에도 중복키 저장 차단(409)이 걸려 있다.
+    const _nonce = Math.random().toString(36).slice(2, 10);
     container.innerHTML = data.fields.map(f => `
       <div class="form-row">
         <label for="v2-secret-${f.suffix}">${f.label}${f.sensitive ? ' 🔒' : ''}<span class="req">*</span></label>
         <input id="v2-secret-${f.suffix}"
-               name="${f.suffix}"
+               name="f-${_nonce}-${f.suffix}"
                type="${f.sensitive ? 'password' : 'text'}"
                placeholder="${f.current_set ? '변경하려면 새 값 입력 (비워두면 기존 유지)' : f.env_key}"
-               autocomplete="new-password"
+               autocomplete="off"
                autocorrect="off" autocapitalize="off" spellcheck="false"
                data-lpignore="true" data-1p-ignore data-form-type="other"
                readonly onfocus="this.removeAttribute('readonly')"
@@ -1099,10 +1105,42 @@ async function loadSchemaIntoFields(market, envPrefix) {
             : `<div class="v2-cur-val" style="margin-top:5px;font-size:12px;color:#c0392b;">⨯ 미등록</div>`}
       </div>
     `).join('');
+    // 브라우저가 렌더 직후 자동으로 채워 넣는 값을 지운다(비어 있어야 '기존 유지'가 된다).
+    const _clear = () => container.querySelectorAll('input.form-input').forEach(i => { i.value = ''; });
+    _clear(); setTimeout(_clear, 0); setTimeout(_clear, 250);
   } catch (e) {
     container.innerHTML = `<div class="form-error">스키마 로드 실패: ${e.message}</div>`;
   }
 }
+
+// ── 키 지문 표시 — 같은 마켓 안에서 지문이 같으면 '같은 셀러 키'(중복) 이므로 빨갛게 표시.
+//    키 값은 절대 노출하지 않는다(해시 앞 6자만). 서버가 이미 중복 저장을 막지만, 과거에
+//    저장된 중복을 사용자가 눈으로 바로 찾을 수 있어야 한다.
+async function loadKeyFingerprints() {
+  const lines = [].slice.call(document.querySelectorAll('.fp-line[data-acc-id]'));
+  if (!lines.length) return;
+  const got = [];
+  for (const el of lines) {
+    try {
+      const r = await fetch(`/accounts/api/upload/accounts/${el.dataset.accId}/key-fingerprint`,
+                            { headers: { 'Accept': 'application/json' } });
+      const j = await r.json();
+      if (j.ok && j.fingerprint) got.push({ el, market: el.dataset.market, fp: j.fingerprint });
+    } catch (e) { /* 지문은 부가정보 — 실패해도 화면은 그대로 */ }
+  }
+  const count = {};
+  got.forEach(g => { const k = g.market + ':' + g.fp; count[k] = (count[k] || 0) + 1; });
+  got.forEach(g => {
+    const dup = count[g.market + ':' + g.fp] > 1;
+    g.el.innerHTML = dup
+      ? `<span class="status-icon err">✗</span> <b style="color:#c0392b">키 중복 ${g.fp}</b>`
+      : `<span class="status-icon ok">✓</span> <span style="color:#6b7684">키 지문 ${g.fp}</span>`;
+    g.el.title = dup
+      ? '같은 마켓의 다른 계정과 API 키가 같습니다. 이 가게의 키로 다시 입력하세요.'
+      : '이 계정에 저장된 셀러 키의 지문(해시 앞 6자). 키 값은 표시하지 않습니다.';
+  });
+}
+document.addEventListener('DOMContentLoaded', loadKeyFingerprints);
 
 function closeV2Modal() {
   document.getElementById('v2-modal-bg').classList.remove('visible');
@@ -1168,7 +1206,8 @@ async function submitV2() {
         });
         const d2 = await r2.json();
         if (!d2.ok) {
-          showToast('계정은 등록 / 키 저장 실패: ' + (d2.error || ''), 'warning');
+          // 409 = 다른 계정과 같은 키 → 원인·해결법을 그대로 노출(조용히 저장하지 않는다)
+          showToast('계정은 등록 / 키 저장 실패: ' + (d2.error || '') + (d2.hint ? '\n' + d2.hint : ''), 'warning');
         } else {
           showToast(`✅ ${display_name} 등록 + API 키 저장 완료`, 'success');
         }
@@ -1195,7 +1234,8 @@ async function submitV2() {
         closeV2Modal();
         setTimeout(() => location.reload(), 700);
       } else {
-        showToast('저장 실패: ' + (d.error || ''), 'error');
+        // 409 = 다른 계정과 같은 키(자동완성 사고 등) → 어느 계정과 겹치는지·해결법 함께 표시
+        showToast('저장 실패: ' + (d.error || '') + (d.hint ? '\n' + d.hint : ''), 'error');
         btn.disabled = false;
         document.getElementById('v2-submit-text').textContent = '키 저장 + 즉시 적용';
       }
