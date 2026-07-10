@@ -59,7 +59,7 @@ class TestInvoiceUiPresent:
         assert "SENDABLE" in html
         assert "coupang:1" in html and "smartstore:1" in html
         assert "lotteon:1" in html            # 발송처리(apiNo=137) 구현 완료
-        assert "eleven11:1" not in html       # 스펙 미확보 — 아직 체크 불가
+        assert "eleven11:1" in html           # reqdelivery + 로젠 코드 00002 실측 확정
         assert "auction:1" not in html and "gmarket:1" not in html
 
     def test_row_color_classes_distinguish_excel_and_manual(self):

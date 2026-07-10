@@ -14,7 +14,7 @@
   · 스마트스토어 = send_tracking([productOrderId], 택배사코드, 운송장번호)
                   ※ 「오픈마켓주문번호」가 곧 productOrderId 라 그대로 쓴다.
   · 롯데온     = 배송상태 통보(odNo·odSeq·spdNo·sitmNo·slQty + 발송완료 13)
-  · 11번가     = reqdelivery(배송번호 dlvNo 단위). ⚠️ 택배사 코드표 미확보 → 실제로는 차단 중.
+  · 11번가     = reqdelivery(배송번호 dlvNo 단위). 택배사 코드는 실측 대조한 것만.
 """
 from __future__ import annotations
 
@@ -37,13 +37,12 @@ class CourierCodeUnknown(ValueError):
 #
 #   최근 7일 주문에서 관측된 코드: KGB(84) · CJGLS(8) · HANJIN(1) · HYUNDAI(1) · JMNP(1).
 #   네이버는 코드표 API 를 주지 않는다(후보 3경로 모두 404) — 이름↔코드 근거는 주문 단위 교차확인뿐.
-#   ⚠️ 아래에 없는 이름은 추측하지 않고 실패시킨다. 옛 매핑의 LOTTE·EPOST 는 관측조차 되지 않았고,
-#      관측된 HYUNDAI·JMNP 가 어느 택배사인지는 확인되지 않았다.
-#      확정 방법: 그 택배사로 1건 발송한 뒤 delivery.deliveryCompany 를 읽는다.
+#   ⚠️ **관측된 코드 ≠ 확정된 이름.** 11번가와 같은 기준(실계정 1:1 대조)을 적용해,
+#      대조한 로젠만 싣는다. CJGLS·HANJIN·HYUNDAI·JMNP 는 코드가 보였을 뿐 어느 택배사인지
+#      대조하지 못했고, 옛 매핑의 LOTTE·EPOST 는 관측조차 되지 않았다.
+#      확정 방법: 그 택배사로 1건 발송한 뒤 그 주문의 delivery.deliveryCompany 를 읽는다.
 _SMARTSTORE_COURIER: dict[str, str] = {
-    "로젠택배": "KGB",        # 판매자센터 화면 ↔ API 교차확인 완료
-    "CJ대한통운": "CJGLS",    # 관측됨(8건). CJ GLS = CJ대한통운 옛 상호
-    "한진택배": "HANJIN",     # 관측됨(1건)
+    "로젠택배": "KGB",        # 판매자센터 화면 「로젠택배」 ↔ API KGB 1:1 대조 완료
 }
 
 
@@ -51,13 +50,17 @@ _SMARTSTORE_COURIER: dict[str, str] = {
 _ALREADY_SHIPPED_STATES = {"배송중", "배송완료", "구매확정", "발송완료"}
 
 
-# 11번가 택배사 코드(dlvEtprsCd) — **미확보. 비워 둔다.**
-#   오픈소스 구현들이 서로 다른 체계를 주장한다: 로젠택배 = 5자리 "00002"(samba-wave) vs
-#   2자리 "05"(PHP 2건). 우체국·CJ 도 어긋난다(00007/00034 vs 01/06). 하나는 틀렸고,
-#   틀린 코드로 보내면 고객 배송조회에 엉뚱한 택배사가 뜬다(조용한 오배송 표기).
-#   확정 방법: 사장님이 이미 로젠으로 발송한 11번가 주문을 배송중 목록에서 읽으면
-#   11번가가 되돌려주는 dlvEtprsCd 가 곧 정답이다(shared.platforms.eleven11.orders.iter_shipping).
-_ELEVEN11_COURIER: dict[str, str] = {}
+# 11번가 택배사 코드(dlvEtprsCd) — **실계정 발송 이력으로 대조한 것만** 넣는다.
+#   오픈소스 구현들이 서로 다른 체계를 주장했다(로젠: 5자리 "00002" vs 2자리 "05").
+#   2026-07-10 실측으로 5자리 체계 확정 + 아래 두 값은 셀러오피스 배송관리 화면의 택배사
+#   이름과 송장번호로 1:1 대조(로젠 92816272404→00002 / 롯데 317651308380→00012).
+#   나머지(CJ 00034·한진 00011 등)는 공개 출처 값만 있고 대조를 못 해 넣지 않는다 —
+#   틀린 코드로 보내면 고객 배송조회에 엉뚱한 택배사가 뜬다(조용한 오표기).
+#   추가 확인: /orders/diag/eleven11-couriers?invoice=<송장번호>
+_ELEVEN11_COURIER: dict[str, str] = {
+    "로젠택배": "00002",
+    "롯데택배": "00012",
+}
 
 
 def resolve_courier_code(market: str, courier_name: str) -> str:
@@ -88,7 +91,7 @@ def resolve_courier_code(market: str, courier_name: str) -> str:
         code = _ELEVEN11_COURIER.get(courier_name)
         if not code:
             raise CourierCodeUnknown(
-                f"11번가 택배사 코드 미확보: {courier_name} — 실제 코드 확인 후 전송")
+                f"11번가 택배사 코드 미검증: {courier_name} — 실계정 발송 이력으로 대조 후 전송")
         return code
     raise CourierCodeUnknown(f"{market} 택배사 코드표 없음")
 

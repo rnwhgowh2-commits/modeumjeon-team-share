@@ -37,12 +37,12 @@ class TestCourierCode:
         with pytest.raises(CourierCodeUnknown):
             resolve_courier_code("smartstore", "없는택배")
 
-    @pytest.mark.parametrize("name", ["롯데택배", "우체국택배"])
+    @pytest.mark.parametrize("name", ["롯데택배", "우체국택배", "CJ대한통운", "한진택배"])
     def test_smartstore_unproven_courier_blocked(self, name):
-        """이름↔코드 교차확인 못 한 택배사는 전송하지 않는다.
+        """이름↔코드를 1:1 대조하지 못한 택배사는 전송하지 않는다(11번가와 같은 기준).
 
-        실측에서 HYUNDAI·JMNP 코드가 관측됐지만 어느 택배사인지 확인되지 않았다.
-        기존 LOTTE·EPOST 는 관측조차 되지 않았다 → 추측 전송 금지.
+        CJGLS·HANJIN·HYUNDAI·JMNP 는 코드가 관측만 됐고, LOTTE·EPOST 는 관측조차 안 됐다.
+        관측은 '그 코드가 존재한다'는 증거일 뿐 '그 이름이다'는 증거가 아니다.
         """
         from lemouton.markets.invoice_send import resolve_courier_code, CourierCodeUnknown
         with pytest.raises(CourierCodeUnknown):
@@ -252,49 +252,67 @@ class TestLotteonSend:
 
 
 class TestEleven11Send:
-    """전송 경로(reqdelivery)는 구현됐지만 **택배사 코드표가 미확보** — 추측해서 보내지 않는다.
+    """택배사 코드는 **실계정 발송 이력으로 검증한 것만** 넣는다.
 
-    출처가 서로 다른 값을 주장한다(로젠: 5자리 00002 vs 2자리 05). 틀린 코드로 보내면
-    고객 배송조회에 엉뚱한 택배사가 뜬다 → 확정 전까지 전송 차단.
+    라이브 실측(2026-07-10): 셀러오피스 배송관리 화면의 택배사 이름과 API 가 돌려준
+    dlvEtprsCd 를 송장번호로 대조 — 로젠 92816272404→00002 / 롯데 317651308380→00012.
+    검증 안 된 택배사(CJ·한진·우체국)는 표에 넣지 않는다(추측 전송 금지).
     """
 
-    def test_courier_code_is_not_guessed(self):
-        from lemouton.markets.invoice_send import resolve_courier_code, CourierCodeUnknown
-        with pytest.raises(CourierCodeUnknown):
-            resolve_courier_code("eleven11", "로젠택배")
+    def test_verified_codes_only(self):
+        from lemouton.markets.invoice_send import resolve_courier_code
+        assert resolve_courier_code("eleven11", "로젠택배") == "00002"
+        assert resolve_courier_code("eleven11", "롯데택배") == "00012"
 
-    def test_send_blocked_until_code_confirmed(self):
+    def test_same_courier_differs_across_markets(self):
+        """로젠택배: 11번가 00002 / 쿠팡 KGB / 네이버 KGB / 롯데온 0005.
+
+        네이버가 LOGEN 이라는 가정은 라이브 실측으로 반증됐다(2026-07-10).
+        '마켓마다 다르다'는 원칙은 그대로다 — 네이버가 우연히 쿠팡과 같은 KGB 를 쓸 뿐.
+        """
+        from lemouton.markets.invoice_send import resolve_courier_code
+        assert resolve_courier_code("eleven11", "로젠택배") == "00002"
+        assert resolve_courier_code("coupang", "로젠택배") == "KGB"
+        assert resolve_courier_code("smartstore", "로젠택배") == "KGB"
+        assert resolve_courier_code("lotteon", "로젠택배") == "0005"
+
+    def test_unverified_courier_is_not_guessed(self):
+        """CJ·한진은 공개 출처 값만 있고 실계정으로 대조 못 함 → 보내지 않는다."""
+        from lemouton.markets.invoice_send import resolve_courier_code, CourierCodeUnknown
+        for name in ("CJ대한통운", "한진택배", "우체국택배"):
+            with pytest.raises(CourierCodeUnknown):
+                resolve_courier_code("eleven11", name)
+
+    def test_missing_dlv_no_fails_not_guess(self):
+        """dlvNo 는 주문번호로 대체 불가 — 없으면 보내지 않는다."""
         from lemouton.markets.invoice_send import send_invoice
         r = send_invoice(market="eleven11", order_no="O1", courier_name="로젠택배",
-                         invoice_no="777", send_ids={"dlv_no": "D1", "ord_no": "O1",
-                                                     "ord_prd_seq": "1"},
+                         invoice_no="777", send_ids={"ord_no": "O1"},
                          client=object(), live=True)
-        assert r.success is False
-        assert "택배사 코드" in (r.error or "")
-
-    def test_missing_dlv_no_fails_not_guess(self, monkeypatch):
-        """dlvNo 는 주문번호로 대체 불가 — 없으면 보내지 않는다."""
-        import lemouton.markets.invoice_send as m
-        monkeypatch.setattr(m, "_ELEVEN11_COURIER", {"로젠택배": "00002"})
-        r = m.send_invoice(market="eleven11", order_no="O1", courier_name="로젠택배",
-                           invoice_no="777", send_ids={"ord_no": "O1"},
-                           client=object(), live=True)
         assert r.success is False and "식별자" in (r.error or "")
 
-    def test_live_send_uses_dlv_no_once_code_known(self, monkeypatch):
-        import lemouton.markets.invoice_send as m
+    def test_live_send_uses_dlv_no(self, monkeypatch):
         import shared.platforms.eleven11.shipping as sh
         got = {}
-        monkeypatch.setattr(m, "_ELEVEN11_COURIER", {"로젠택배": "00002"})
         monkeypatch.setattr(sh, "send_tracking", lambda **kw: got.update(kw) or True)
 
-        r = m.send_invoice(market="eleven11", order_no="O1", courier_name="로젠택배",
-                           invoice_no="777", send_ids={"dlv_no": "D77", "ord_no": "O1",
-                                                       "ord_prd_seq": "2"},
-                           client=object(), live=True)
+        from lemouton.markets.invoice_send import send_invoice
+        r = send_invoice(market="eleven11", order_no="O1", courier_name="로젠택배",
+                         invoice_no="777", send_ids={"dlv_no": "D77", "ord_no": "O1",
+                                                     "ord_prd_seq": "2"},
+                         client=object(), live=True)
         assert r.success is True
         assert got["dlv_no"] == "D77" and got["delivery_company_code"] == "00002"
         assert got["invoice_number"] == "777"
+
+    def test_dry_run_makes_no_call(self, monkeypatch):
+        import shared.platforms.eleven11.shipping as sh
+        called = []
+        monkeypatch.setattr(sh, "send_tracking", lambda **kw: called.append(1))
+        from lemouton.markets.invoice_send import send_invoice
+        r = send_invoice(market="eleven11", order_no="O1", courier_name="로젠택배",
+                         invoice_no="777", send_ids={"dlv_no": "D77"}, live=False)
+        assert r.dry_run is True and called == []
 
 
 class TestUnsupportedMarket:
