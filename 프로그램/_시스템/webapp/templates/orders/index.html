@@ -650,7 +650,8 @@
       if(!ready.length)return;
       var payload={live:!!live, rows:ready.map(function(r){var k=invKey(r),m=invMap[k];
         return {market:invSlug(r), order_no:r['오픈마켓주문번호'], courier:m.courier,
-                invoice_no:m.invoice_no, alias:r['쇼핑몰별칭']||'', send_ids:r['_send_ids']||null};})};
+                invoice_no:m.invoice_no, alias:r['쇼핑몰별칭']||'', send_ids:r['_send_ids']||null,
+                status:r['주문상태']||''};})};   // 서버가 '이미 발송된 주문' 덮어쓰기를 막는 근거
       fetch('/orders/invoice/send',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)})
         .then(function(r){return r.json();}).then(function(j){
           if(!j.ok){alert('전송 실패: '+(j.error||''));return;}

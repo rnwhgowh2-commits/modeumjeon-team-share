@@ -159,6 +159,7 @@ def smartstore_order_rows(since: _dt.datetime, until: _dt.datetime,
         po = it.get("productOrder", {}) if isinstance(it, dict) else {}
         od = it.get("order", {}) if isinstance(it, dict) else {}
         sa = po.get("shippingAddress", {}) if isinstance(po, dict) else {}
+        dv = it.get("delivery", {}) if isinstance(it, dict) else {}
         poid = _g(po, "productOrderId")
         oid = _g(od, "orderId")
         prod_amt = prod_settle.get(poid)
@@ -191,6 +192,9 @@ def smartstore_order_rows(since: _dt.datetime, until: _dt.datetime,
             "오픈마켓주문번호": poid or oid,
             "실결제금액": _g(po, "totalPaymentAmount", default=""),   # 할인 반영 실결제
             "옵션추가금": _g(po, "optionPrice", default=""),
+            # 이미 등록된 송장은 마켓이 정본 — 안 읽어오면 사용자가 손으로 다시 치게 되고,
+            # 그 값이 실제와 어긋나도 화면상 알 길이 없다(2026-07-10 실제 발생).
+            "송장입력": _g(dv, "trackingNumber", default=""),
         })
     return rows
 
@@ -242,7 +246,9 @@ def lotteon_order_rows(since: _dt.datetime, until: _dt.datetime,
             "주문상태": _status_ko("lotteon", _g(od, "odPrgsStepCd")),
             "오픈마켓주문번호": _g(od, "odNo"),
             "실결제금액": _g(od, "actualAmt", default=""),   # 실결제(정산예상은 주문API 없음→수수료 공란)
-            "송장입력": _g(od, "invNo", "dvInvNo", default=""),
+            # 송장은 출고지시(209) 응답에 **없다** — 진행단계(140)의 invcNo 가 정본.
+            #   옛 코드가 여기서 invNo·dvInvNo 를 찾아 154행 전부 공란이었다(2026-07-10).
+            "송장입력": "",
         })
 
     # ── 취소/반품/교환 병합(claimservice, MCP 실측 2026-07-09) ──
@@ -299,8 +305,9 @@ def lotteon_order_rows(since: _dt.datetime, until: _dt.datetime,
     #  [since,until] 창으로 odNo+odSeq 조인. 여러 진행이력이면 배송상태발생일시(dvTrcStatDttm) 최신 채택.
     from shared.platforms.lotteon.orders import iter_progress_states as _iter_prog
     now = _dt.datetime.now(KST)
-    prog = {}      # (odNo, odSeq) → (dvTrcStatDttm, step) — 정밀 조인
-    prog_od = {}   # odNo → (dvTrcStatDttm, step) — odSeq 없을 때 폴백(최신 단계)
+    #  송장(invcNo)도 여기서만 온다 — 같은 조인으로 주문상태와 함께 채운다.
+    prog = {}      # (odNo, odSeq) → (dvTrcStatDttm, step, invcNo) — 정밀 조인
+    prog_od = {}   # odNo → (dvTrcStatDttm, step, invcNo) — odSeq 없을 때 폴백(최신 단계)
     try:
         for it in _iter_prog(since, until, client=client):
             step = str(_g(it, "odPrgsStepCd"))
@@ -308,11 +315,12 @@ def lotteon_order_rows(since: _dt.datetime, until: _dt.datetime,
                 continue
             odno = str(_g(it, "odNo"))
             dttm = str(_g(it, "dvTrcStatDttm"))
+            invc = str(_g(it, "invcNo", default="") or "")
             key = (odno, str(_g(it, "odSeq")))
             if key not in prog or dttm >= prog[key][0]:
-                prog[key] = (dttm, step)
+                prog[key] = (dttm, step, invc)
             if odno not in prog_od or dttm >= prog_od[odno][0]:
-                prog_od[odno] = (dttm, step)
+                prog_od[odno] = (dttm, step, invc)
     except Exception:   # noqa: BLE001 — 진행단계 조회 실패는 209 단계(출고지시) 유지
         prog, prog_od = {}, {}
     if prog:
@@ -323,6 +331,8 @@ def lotteon_order_rows(since: _dt.datetime, until: _dt.datetime,
             hit = prog.get((odno, str(r.get("_odseq")))) or prog_od.get(odno)
             if hit:
                 r["주문상태"] = _status_ko("lotteon", hit[1])
+                if hit[2]:
+                    r["송장입력"] = hit[2]
 
     # ── 마켓수수료 실값(SettleCommission, apiNo45) — odNo별 수수료 합으로 마켓수수료 채움 ──
     #  ★정산 기준일=구매확정일이라, 주문일이 창 안인 주문의 수수료는 구매확정(=나중) 시점에 기록됨.
