@@ -57,7 +57,7 @@ def test_lotteon_without_fee_is_none():
     row = _oe_row(판매처="롯데온", 실결제금액=100000, 마켓수수료="",
                   **{"_settle_source": "none"})
     df = SS._rows_to_df([row])
-    assert df.loc[0, "정산예상금액_배송비포함"] == ""
+    assert df.loc[0, "정산예상금액_배송비포함"] == 0
     assert df.loc[0, "_settle_source"] == "none"
 
 
@@ -70,10 +70,48 @@ def test_coupang_estimated_is_passed_through_and_tagged():
     assert df.loc[0, "_settle_source"] == "estimated"
 
 
-def test_settle_source_none_leaves_settlement_blank():
+def test_settle_source_none_yields_zero_not_blank():
     row = _oe_row(**{"정산예정금(배송비포함)": "", "_settle_source": "none"})
     df = SS._rows_to_df([row])
-    assert df.loc[0, "정산예상금액_배송비포함"] == ""
+    assert df.loc[0, "정산예상금액_배송비포함"] == 0
+
+
+def test_none_settlement_does_not_produce_nan_through_matcher():
+    """정산 없음 → NaN 금지. NaN 이면 JSON 이 깨지고 pandas sum 이 손실을 지운다."""
+    import math
+    import pandas as pd
+    from lemouton.margin import matcher as M
+
+    sell = SS._rows_to_df([_oe_row(판매처="롯데온", 실결제금액=100000,
+                                   마켓수수료="", **{"_settle_source": "none"})])
+    buy = pd.DataFrame([{
+        "마켓주문일자": "26.07.04", "마켓명": "롯데ON", "마켓주문번호": "1001",
+        "수령인명": "홍길동", "마켓상품명": "코트 12345", "옵션1": "블랙/95",
+        "구매가격": 50000, "사이트주문번호": "SO-1", "간단메모": "",
+    }])
+    matched, _, _ = M.match_data(buy, sell)
+    assert len(matched) == 1
+    r = matched[0]
+    assert not math.isnan(float(r["정산예상금액"]))
+    assert not math.isnan(float(r["순마진"]))
+    assert r["순마진"] == -50000        # 매입 손실이 총합에서 사라지지 않는다
+
+
+def test_none_settlement_row_is_json_serializable():
+    import json
+    import pandas as pd
+    from lemouton.margin import matcher as M
+
+    sell = SS._rows_to_df([_oe_row(판매처="롯데온", 실결제금액=100000,
+                                   마켓수수료="", **{"_settle_source": "none"})])
+    buy = pd.DataFrame([{
+        "마켓주문일자": "26.07.04", "마켓명": "롯데ON", "마켓주문번호": "1001",
+        "수령인명": "홍길동", "마켓상품명": "코트 12345", "옵션1": "블랙/95",
+        "구매가격": 50000, "사이트주문번호": "SO-1", "간단메모": "",
+    }])
+    matched, _, _ = M.match_data(buy, sell)
+    assert len(matched) == 1
+    json.dumps(matched, default=float, allow_nan=False)   # 던지면 실패
 
 
 def test_market_fetch_failure_propagates(monkeypatch):

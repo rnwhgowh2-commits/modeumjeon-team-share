@@ -196,6 +196,12 @@ def _to_int_or_blank(v):
 def _settlement_for(row: dict):
     """SellRow 의 정산예상금액_배송비포함 + _settle_source 결정. 스펙 §4.
 
+    정산 없음(none) 은 빈칸이 아니라 0 이다. matcher 가 빈칸을 NaN 으로 바꾸는데,
+    NaN 은 (a) JSON 직렬화를 깨뜨리고 (b) pandas sum() 이 건너뛰어 매입 손실을
+    총합에서 지워버린다. 0 은 margin_rules.js 가 이미 '정산 없음'으로 읽는 센티널이며
+    (정산 0 + 매입>0 → 의심손실), 실제로 0원에 정산되는 주문은 없다.
+    출처의 정직성은 _settle_source='none' 태그가 보존한다.
+
     롯데온만 재계산한다 — order_export 가 정산액 자리에 actualAmt(실결제)를 넣기 때문.
     actualAmt 는 배송비를 이미 포함하므로 배송비를 다시 더하지 않는다.
     """
@@ -204,14 +210,14 @@ def _settlement_for(row: dict):
         paid = _to_int_or_blank(row.get("실결제금액"))
         fee = _to_int_or_blank(row.get("마켓수수료"))
         if paid == "" or fee == "" or fee <= 0:
-            return "", "none"
+            return 0, "none"
         return paid - fee, "real"
 
     if src == "none":
-        return "", "none"
+        return 0, "none"
     settle = _to_int_or_blank(row.get("정산예정금(배송비포함)"))
     if settle == "":
-        return "", "none"
+        return 0, "none"
     return settle, src
 
 
