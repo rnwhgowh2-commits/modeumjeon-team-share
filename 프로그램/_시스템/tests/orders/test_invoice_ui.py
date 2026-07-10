@@ -53,6 +53,40 @@ class TestInvoiceUiPresent:
             assert cls in html
 
 
+class TestToolbarLeftAndDragDrop:
+    """툴바는 왼쪽 고정(가로 스크롤해도 보임) · 표 전체가 드롭존."""
+
+    def test_toolbar_is_left_aligned_and_sticky(self):
+        html = _render_list_tab()
+        assert "justify-content:flex-start" in html   # 양끝 정렬 아님 → 버튼이 왼쪽
+        assert "position:sticky" in html and "left:0" in html
+
+    def test_table_is_a_drop_zone_with_overlay(self):
+        html = _render_list_tab()
+        assert 'id="droprel"' in html and 'id="dropov"' in html
+        assert "여기에 놓으세요" in html
+
+    def test_drag_drop_and_click_share_one_upload_path(self):
+        """드래그앤드롭과 「엑셀 업로드」 클릭이 같은 함수로 들어간다(동작 불일치 방지)."""
+        html = _render_list_tab()
+        assert "function uploadInvoiceFile" in html
+        assert html.count("uploadInvoiceFile(") >= 3   # 정의 + 클릭 + 드롭
+
+    def test_only_xlsx_accepted(self):
+        html = _render_list_tab()
+        assert "\\.xlsx$" in html                      # 확장자 검사
+
+    def test_drop_outside_table_does_not_open_file(self):
+        """표 밖에 떨어뜨렸을 때 브라우저가 파일을 열어 작업 내용이 날아가지 않게."""
+        html = _render_list_tab()
+        assert "document.addEventListener(t,function(e){if(hasFile(e))e.preventDefault();});" in html
+
+    def test_hint_tells_user_drag_is_possible(self):
+        """1번안(표 전체 드롭)은 평소 표시가 없으니 안내 문구로 알린다."""
+        html = _render_list_tab()
+        assert "표 위로 끌어다 놓아도" in html
+
+
 class TestPreviewPassesSendIds:
     @pytest.fixture
     def client(self):
