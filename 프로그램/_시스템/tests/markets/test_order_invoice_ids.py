@@ -77,6 +77,7 @@ def test_send_ids_not_leaked_into_excel_columns():
 # ── 11번가 ────────────────────────────────────────────────────
 _XML_11 = """<?xml version="1.0" encoding="euc-kr"?><ns2:orders xmlns:ns2="http://x">
  <ns2:order><ns2:ordNo>202607100001</ns2:ordNo><ns2:ordPrdSeq>2</ns2:ordPrdSeq>
+  <ns2:dlvNo>D77</ns2:dlvNo>
   <ns2:prdNm>스커트</ns2:prdNm><ns2:ordQty>1</ns2:ordQty><ns2:selPrc>19000</ns2:selPrc>
   <ns2:rcvrNm>홍길동</ns2:rcvrNm><ns2:ordDt>2026-07-08 16:53:53</ns2:ordDt></ns2:order>
 </ns2:orders>"""
@@ -99,6 +100,17 @@ def test_eleven11_row_keeps_ord_no_and_ord_prd_seq():
     assert send is not None, "11번가 전송 식별자(_send_ids)가 행에 없다"
     assert send["ord_no"] == "202607100001"
     assert send["ord_prd_seq"] == "2"
+
+
+def test_eleven11_row_keeps_dlv_no():
+    """발송처리 URL 의 마지막 인자는 배송번호(dlvNo) — 주문번호로 대신할 수 없다."""
+    from lemouton.markets.order_export import eleven11_order_rows, _finalize_rows
+
+    since = _dt.datetime(2026, 7, 8, tzinfo=KST)
+    until = _dt.datetime(2026, 7, 9, tzinfo=KST)
+    rows = _finalize_rows(eleven11_order_rows(since, until, client=_Fake11()))
+
+    assert rows[0]["_send_ids"]["dlv_no"] == "D77"
 
 
 # ── 롯데온 ────────────────────────────────────────────────────

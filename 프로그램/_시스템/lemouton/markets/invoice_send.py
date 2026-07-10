@@ -6,13 +6,15 @@
 안전 원칙(CLAUDE.md):
   · **드라이런 기본** — live=True 일 때만 마켓 API 를 실제로 호출한다.
   · **추측 금지** — 택배사 코드가 마켓마다 달라, 확보하지 못한 마켓은 보내지 않고 명시 실패.
-  · **거짓 성공 금지** — 전송 함수가 없는 마켓(롯데온·11번가·옥션·G마켓)은 조용히 성공시키지 않는다.
+  · **거짓 성공 금지** — 전송 함수가 없는 마켓(옥션·G마켓)은 조용히 성공시키지 않는다.
   · **식별자 추측 금지** — 쿠팡은 shipmentBoxId 가 없으면 보내지 않는다(주문 행의 _send_ids).
 
 마켓별 전송 방식:
   · 쿠팡      = send_tracking(shipmentBoxId, orderSheetId, 택배사코드, 운송장번호)
   · 스마트스토어 = send_tracking([productOrderId], 택배사코드, 운송장번호)
                   ※ 「오픈마켓주문번호」가 곧 productOrderId 라 그대로 쓴다.
+  · 롯데온     = 배송상태 통보(odNo·odSeq·spdNo·sitmNo·slQty + 발송완료 13)
+  · 11번가     = reqdelivery(배송번호 dlvNo 단위). ⚠️ 택배사 코드표 미확보 → 실제로는 차단 중.
 """
 from __future__ import annotations
 
@@ -20,7 +22,8 @@ from dataclasses import dataclass
 from typing import Optional
 
 # 실제 전송 함수를 가진 마켓만. 나머지는 명시 실패.
-SUPPORTED_SEND = {"coupang", "smartstore", "lotteon"}
+#   11번가는 전송 경로(reqdelivery)는 구현됐지만 택배사 코드표가 비어 있어 실제로는 막힌다.
+SUPPORTED_SEND = {"coupang", "smartstore", "lotteon", "eleven11"}
 
 
 class CourierCodeUnknown(ValueError):
@@ -38,6 +41,15 @@ _SMARTSTORE_COURIER: dict[str, str] = {
     "롯데택배": "LOTTE",
     "우체국택배": "EPOST",
 }
+
+
+# 11번가 택배사 코드(dlvEtprsCd) — **미확보. 비워 둔다.**
+#   오픈소스 구현들이 서로 다른 체계를 주장한다: 로젠택배 = 5자리 "00002"(samba-wave) vs
+#   2자리 "05"(PHP 2건). 우체국·CJ 도 어긋난다(00007/00034 vs 01/06). 하나는 틀렸고,
+#   틀린 코드로 보내면 고객 배송조회에 엉뚱한 택배사가 뜬다(조용한 오배송 표기).
+#   확정 방법: 사장님이 이미 로젠으로 발송한 11번가 주문을 배송중 목록에서 읽으면
+#   11번가가 되돌려주는 dlvEtprsCd 가 곧 정답이다(shared.platforms.eleven11.orders.iter_shipping).
+_ELEVEN11_COURIER: dict[str, str] = {}
 
 
 def resolve_courier_code(market: str, courier_name: str) -> str:
@@ -63,6 +75,12 @@ def resolve_courier_code(market: str, courier_name: str) -> str:
         code = DELIVERY_COMPANY_CODES.get(courier_name)
         if not code:
             raise CourierCodeUnknown(f"롯데온 택배사 코드 없음: {courier_name}")
+        return code
+    if market == "eleven11":
+        code = _ELEVEN11_COURIER.get(courier_name)
+        if not code:
+            raise CourierCodeUnknown(
+                f"11번가 택배사 코드 미확보: {courier_name} — 실제 코드 확인 후 전송")
         return code
     raise CourierCodeUnknown(f"{market} 택배사 코드표 없음")
 
@@ -115,6 +133,9 @@ def send_invoice(*, market: str, order_no, courier_name: str, invoice_no,
         if missing:
             return SendResult(market, order_no, False,
                               error=f"롯데온 전송 식별자 없음({', '.join(missing)}) — 추측 전송 금지")
+    if market == "eleven11" and not ids.get("dlv_no"):
+        return SendResult(market, order_no, False,
+                          error="11번가 전송 식별자(배송번호 dlvNo) 없음 — 주문번호로 대체 불가")
 
     if not live:                                   # 드라이런 게이트 — 여기서 끝
         return SendResult(market, order_no, True, dry_run=True)
@@ -133,6 +154,10 @@ def send_invoice(*, market: str, order_no, courier_name: str, invoice_no,
                                   invoice_number=str(invoice_no), client=client)
             if not ok:
                 return SendResult(market, order_no, False, error="롯데온 발송처리 거부(returnCode)")
+        elif market == "eleven11":
+            from shared.platforms.eleven11 import shipping as el
+            el.send_tracking(dlv_no=ids["dlv_no"], invoice_number=str(invoice_no),
+                             delivery_company_code=code, client=client)
         else:                                      # smartstore
             from shared.platforms.smartstore import orders as ss
             ss.send_tracking([order_no], code, str(invoice_no), client=client)

@@ -261,6 +261,36 @@ def _client_for(market: str, alias: str):
     return _oe._account_client(market, env_prefix)
 
 
+@bp.route('/diag/eleven11-couriers')
+def orders_diag_eleven11_couriers():
+    """11번가 택배사 코드(dlvEtprsCd) 확인 — 읽기 전용, 코드·건수만.
+
+    11번가 발송처리용 택배사 코드는 공개 출처마다 값이 달라(로젠: 00002 vs 05) 추측할 수 없다.
+    정답은 이미 발송한 주문이 갖고 있다 — 배송중 목록이 되돌려주는 dlvEtprsCd 가 곧 11번가의 코드.
+    응답에는 코드와 건수만 담는다(주문번호·송장번호·고객정보 미포함).
+    """
+    from flask import jsonify
+    from shared.platforms.eleven11 import orders as eo
+
+    cli = _client_for('eleven11', '')
+    if cli is None:
+        return jsonify(ok=False, error='11번가 키가 등록돼 있지 않습니다'), 400
+
+    days = max(1, min(30, int(request.args.get('days', 14))))
+    until = _dt.datetime.now()
+    since = until - _dt.timedelta(days=days)
+
+    counts: dict = {}
+    for od in eo.iter_shipping(since, until, client=cli):
+        code = str(od.get('dlvEtprsCd') or '').strip()
+        if code:
+            counts[code] = counts.get(code, 0) + 1
+
+    note = ('최근 {}일 발송 이력이 없어 코드를 확인하지 못했습니다'.format(days) if not counts
+            else '가장 많이 쓴 코드가 평소 택배사(로젠)일 가능성이 높습니다')
+    return jsonify(ok=True, days=days, codes=counts, note=note)
+
+
 @bp.route('/invoice/upload', methods=['POST'])
 def orders_invoice_upload():
     """송장 엑셀 업로드 → 「오픈마켓주문번호」로 매칭한 결과 반환(전송 아님)."""

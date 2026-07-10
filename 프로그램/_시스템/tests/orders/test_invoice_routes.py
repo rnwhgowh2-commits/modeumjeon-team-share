@@ -138,14 +138,28 @@ class TestSend:
         assert body["sent"] == 1 and body["failed"] == 0
 
     def test_unsupported_market_fails_loudly(self, client, monkeypatch):
-        """11번가는 발송처리 스펙 미확보 → 조용히 성공하지 않고 실패로 집계."""
+        """옥션은 발송처리 미구현 → 조용히 성공하지 않고 실패로 집계."""
         monkeypatch.setattr(om, "_live_enabled", lambda: True)
         monkeypatch.setattr(om, "_client_for", lambda market, alias: None)
         body = client.post("/orders/invoice/send",
+                           json=_send_body(live=True, market="auction")).get_json()
+        assert body["results"][0]["success"] is False
+        assert "auction" in body["results"][0]["error"]
+        assert body["sent"] == 0 and body["failed"] == 1
+
+    def test_eleven11_blocked_by_missing_courier_code(self, client, monkeypatch):
+        """11번가는 전송 경로가 있어도 택배사 코드 미확보라 실제로 나가면 안 된다."""
+        import shared.platforms.eleven11.shipping as el
+        called = []
+        monkeypatch.setattr(el, "send_tracking", lambda **k: called.append(1))
+        monkeypatch.setattr(om, "_live_enabled", lambda: True)
+        monkeypatch.setattr(om, "_client_for", lambda market, alias: None)
+
+        body = client.post("/orders/invoice/send",
                            json=_send_body(live=True, market="eleven11")).get_json()
         assert body["results"][0]["success"] is False
-        assert "eleven11" in body["results"][0]["error"]
-        assert body["sent"] == 0 and body["failed"] == 1
+        assert "택배사 코드" in body["results"][0]["error"]
+        assert called == []
 
     def test_empty_rows_is_400(self, client):
         r = client.post("/orders/invoice/send", json={"live": False, "rows": []})

@@ -134,8 +134,54 @@ class TestLotteonSend:
         assert r.success is False and "거부" in (r.error or "")
 
 
+class TestEleven11Send:
+    """전송 경로(reqdelivery)는 구현됐지만 **택배사 코드표가 미확보** — 추측해서 보내지 않는다.
+
+    출처가 서로 다른 값을 주장한다(로젠: 5자리 00002 vs 2자리 05). 틀린 코드로 보내면
+    고객 배송조회에 엉뚱한 택배사가 뜬다 → 확정 전까지 전송 차단.
+    """
+
+    def test_courier_code_is_not_guessed(self):
+        from lemouton.markets.invoice_send import resolve_courier_code, CourierCodeUnknown
+        with pytest.raises(CourierCodeUnknown):
+            resolve_courier_code("eleven11", "로젠택배")
+
+    def test_send_blocked_until_code_confirmed(self):
+        from lemouton.markets.invoice_send import send_invoice
+        r = send_invoice(market="eleven11", order_no="O1", courier_name="로젠택배",
+                         invoice_no="777", send_ids={"dlv_no": "D1", "ord_no": "O1",
+                                                     "ord_prd_seq": "1"},
+                         client=object(), live=True)
+        assert r.success is False
+        assert "택배사 코드" in (r.error or "")
+
+    def test_missing_dlv_no_fails_not_guess(self, monkeypatch):
+        """dlvNo 는 주문번호로 대체 불가 — 없으면 보내지 않는다."""
+        import lemouton.markets.invoice_send as m
+        monkeypatch.setattr(m, "_ELEVEN11_COURIER", {"로젠택배": "00002"})
+        r = m.send_invoice(market="eleven11", order_no="O1", courier_name="로젠택배",
+                           invoice_no="777", send_ids={"ord_no": "O1"},
+                           client=object(), live=True)
+        assert r.success is False and "식별자" in (r.error or "")
+
+    def test_live_send_uses_dlv_no_once_code_known(self, monkeypatch):
+        import lemouton.markets.invoice_send as m
+        import shared.platforms.eleven11.shipping as sh
+        got = {}
+        monkeypatch.setattr(m, "_ELEVEN11_COURIER", {"로젠택배": "00002"})
+        monkeypatch.setattr(sh, "send_tracking", lambda **kw: got.update(kw) or True)
+
+        r = m.send_invoice(market="eleven11", order_no="O1", courier_name="로젠택배",
+                           invoice_no="777", send_ids={"dlv_no": "D77", "ord_no": "O1",
+                                                       "ord_prd_seq": "2"},
+                           client=object(), live=True)
+        assert r.success is True
+        assert got["dlv_no"] == "D77" and got["delivery_company_code"] == "00002"
+        assert got["invoice_number"] == "777"
+
+
 class TestUnsupportedMarket:
-    @pytest.mark.parametrize("market", ["eleven11", "auction", "gmarket"])
+    @pytest.mark.parametrize("market", ["auction", "gmarket"])
     def test_unsupported_market_fails_loudly(self, market):
         """전송 함수 없는 마켓은 조용히 성공하지 않는다(거짓 성공 금지)."""
         from lemouton.markets.invoice_send import send_invoice
