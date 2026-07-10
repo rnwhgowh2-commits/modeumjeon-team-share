@@ -33,6 +33,18 @@ def test_counts_courier_codes_from_shipped_orders(client, monkeypatch):
     assert body["codes"] == {"00002": 2, "00034": 1}
 
 
+def test_reports_send_dates_per_code(client, monkeypatch):
+    """코드가 여러 개면 건수만으론 어느 게 로젠인지 못 가린다 → 발송일을 함께 보여준다."""
+    import shared.platforms.eleven11.orders as eo
+    monkeypatch.setattr(om, "_client_for", lambda market, alias: object())
+    monkeypatch.setattr(eo, "iter_shipping", lambda *a, **k: iter([
+        {"dlvEtprsCd": "00002", "sndEndDt": "2026-07-08 11:20:00"},
+        {"dlvEtprsCd": "00011", "sndEndDt": "2026-07-03 09:00:00"},
+    ]))
+    body = client.get("/orders/diag/eleven11-couriers").get_json()
+    assert body["dates"] == {"00002": ["2026-07-08"], "00011": ["2026-07-03"]}
+
+
 def test_does_not_leak_order_or_customer_data(client, monkeypatch):
     """코드·건수만. 송장번호·주문번호가 응답에 섞이면 안 된다."""
     import shared.platforms.eleven11.orders as eo
