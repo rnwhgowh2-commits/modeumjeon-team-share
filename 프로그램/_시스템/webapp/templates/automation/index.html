@@ -131,11 +131,47 @@
   .czlog{margin-top:12px;border-top:1px dashed #e5e8eb;padding-top:11px;}
   .czlog-h{font-size:11.5px;font-weight:700;color:#0CA678;margin-bottom:8px;display:flex;align-items:center;gap:8px;}
   .czlog-tg{margin-left:auto;border:1px solid #cfe1fb;background:#EAF2FE;color:#1b64da;border-radius:7px;padding:2px 9px;font-size:11px;font-weight:600;cursor:pointer;font-family:inherit;}
-  .czlog-list{max-height:260px;overflow-y:auto;}
-  .czlog-row{display:flex;align-items:baseline;gap:10px;padding:5px 2px;border-bottom:1px solid #f2f4f6;font-size:12.5px;}
+  .czlog-list{max-height:640px;overflow-y:auto;}
+  .czlog-row{display:flex;align-items:baseline;gap:10px;padding:7px 2px;border-bottom:1px solid #f2f4f6;font-size:12.5px;cursor:pointer;}
   .czlog-row:last-child{border-bottom:0;}
+  .czlog-row:hover{background:#FBFCFD;}
+  .czlog-row.on{background:#F4F8FF;}
   .czlog-rc{color:#1b64da;font-weight:700;width:46px;flex:none;}
-  .czlog-tm{margin-left:auto;font-family:ui-monospace,monospace;font-variant-numeric:tabular-nums;color:#191F28;}
+  /* [2026-07-10] 실시 시각·소요시간 = 검정 굵게 */
+  .czlog-tm{margin-left:auto;font-family:ui-monospace,monospace;font-variant-numeric:tabular-nums;color:#191F28;font-weight:700;}
+  .czlog-dur{color:#191F28;font-weight:700;font-variant-numeric:tabular-nums;margin-left:12px;}
+  .czlog-ch{color:#8b95a1;margin-left:10px;font-size:11px;transition:.15s;display:inline-block;}
+  .czlog-row.on .czlog-ch{transform:rotate(90deg);color:#3182F6;}
+
+  /* [2026-07-10] 회차 보고서 (D6 — 굵은 구분선으로 위상 구분) */
+  .lrep{padding:16px 4px 8px;font-size:12.5px;}
+  .lrep-sum{display:flex;flex-wrap:wrap;gap:18px;color:#4E5968;}
+  .lrep-sum b{color:#191F28;font-variant-numeric:tabular-nums;}
+  .lrep-sum .exc{color:#B0B8C1;}
+  .lrep-rule{height:2px;background:#E5E8EB;margin:22px 0 20px;}   /* ★D6 굵은 구분선 */
+  .lrep-chg{display:grid;grid-template-columns:1fr 1fr;gap:36px;}
+  .lrep-ch{font-size:12px;font-weight:700;color:#4E5968;margin-bottom:10px;}
+  .lrep-ch i{font-style:normal;color:#8b95a1;margin-left:5px;font-variant-numeric:tabular-nums;}
+  .lrow{display:grid;align-items:center;gap:12px;padding:8px 0;}
+  .lrow.p{grid-template-columns:14px minmax(80px,1fr) 148px 66px;}
+  .lrow.s{grid-template-columns:14px minmax(80px,1fr) 128px;}
+  .lrow + .lrow{border-top:1px solid #F2F4F6;}
+  .lrow .ic{font-size:10px;text-align:center;}
+  .lrow .nm{color:#191F28;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .lrow .nm small{color:#B0B8C1;margin-left:6px;font-size:10.5px;}
+  .lrow .val{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:8px;}
+  .lrow .vf{text-align:right;color:#B0B8C1;font-variant-numeric:tabular-nums;}
+  .lrow .va{text-align:center;color:#B0B8C1;font-size:10px;}
+  .lrow .vt{text-align:left;font-weight:700;color:#191F28;font-variant-numeric:tabular-nums;}
+  .lrow .dt{text-align:right;font-weight:700;font-variant-numeric:tabular-nums;}
+  .lc-up{color:#EF4444;} .lc-dn{color:#3182F6;} .lc-so{color:#8B95A1;} .lc-re{color:#22C55E;} .lc-chg,.lc-flat{color:#4E5968;}
+  .lrep-empty{color:#B0B8C1;padding:7px 0;}
+  .lrep-sf{margin-top:30px;padding-top:16px;border-top:1px solid #F2F4F6;}
+  .lrep-sfh{font-size:11px;font-weight:700;color:#8B95A1;margin-bottom:6px;}
+  .lrep-sfb{display:flex;gap:20px;align-items:baseline;color:#4E5968;flex-wrap:wrap;}
+  .lrep-sfb b{font-variant-numeric:tabular-nums;font-size:14px;}
+  .lrep-sfb .ok b{color:#22C55E;} .lrep-sfb .er b{color:#EF4444;}
+  .lrep-sfb .why{color:#B0B8C1;font-size:11px;}
   .km-lab{font-size:11.5px;font-weight:700;color:#1D9E75;margin:14px 0 6px;}
   table.km{width:100%;border-collapse:collapse;font-size:12px;}
   table.km td{padding:6px 7px;border-bottom:1px solid #f0f2f5;}
@@ -405,9 +441,79 @@
     var rev=laps.slice().reverse();              // 최신 회차 먼저
     var show=_lapsExpanded?rev:[];               // 접힘=완전히 숨김 / 펼침=전체
     list.style.display=_lapsExpanded?'':'none';
-    list.innerHTML=show.map(function(x){ return '<div class="czlog-row"><span class="czlog-rc">'+x.no+'회차</span><span class="czlog-tm">'+_kstLap(x.at)+'</span></div>'; }).join('');
+    // [2026-07-10] 폴링이 열어둔 보고서를 닫지 않게 — 회차 목록이 그대로면 다시 그리지 않는다.
+    var sig=laps.map(function(x){return x.no+'@'+x.at;}).join('|')+'#'+(_lapsExpanded?1:0);
+    if(sig!==_lapSig){
+      _lapSig=sig;
+      var idxByNo={}; laps.forEach(function(y,i){ idxByNo[y.no]=i; });
+      list.innerHTML=show.map(function(x){
+        var i=idxByNo[x.no], dur=_lapMin(laps,i);
+        var tm=(i>0? _kstLap(laps[i-1].at)+'~' : '')+_kstLap(x.at);   // 시작~종료
+        return '<div class="czlog-row" data-no="'+x.no+'">'
+          +'<span class="czlog-rc">'+x.no+'회차</span>'
+          +'<span class="czlog-tm">'+tm+'</span>'
+          +(dur?'<span class="czlog-dur">'+dur+'분</span>':'')
+          +'<span class="czlog-ch">▸</span></div>'
+          +'<div class="lrep" id="lrep-'+x.no+'" style="display:none"></div>';
+      }).join('');
+    }
     if(tg){ tg.style.display=''; tg.textContent=_lapsExpanded?'접기 ▴':('펼치기 ▾ ('+laps.length+')'); }
   }
+  var _lapSig='';
+  function _lapMin(chrono,i){ if(i<=0) return null;
+    var a=Date.parse(chrono[i-1].at+'Z'), b=Date.parse(chrono[i].at+'Z');
+    if(isNaN(a)||isNaN(b)) return null;
+    return Math.max(1, Math.round((b-a)/60000)); }
+
+  // ── 회차 보고서 그리기 (D6 — 요약 │ 굵은 선 │ 가격·재고 2열 │ 결과) ──
+  function _esc(s){ return String(s==null?'':s).replace(/[&<>]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;'}[c];}); }
+  function lapRepHtml(d){
+    var s=d.summary||{}, c=d.changes||{}, r=d.result||{}, lp=d.lap||{};
+    var exc=(s.excluded_sites||[]).length ? '<span class="exc">'+_esc(s.excluded_sites.join(' · '))+' 제외</span>' : '';
+    var avg=lp.avg_minutes? ' <span style="color:#8b95a1;font-weight:400">평균 '+lp.avg_minutes+'분</span>' : '';
+    var pr=(c.price||[]).map(function(x){
+      var dl=(x.delta==null)?'':((x.delta>0?'+':'−')+Math.abs(x.delta).toLocaleString());
+      var ic=(x.dir==='up'?'▲':x.dir==='dn'?'▼':'·');
+      return '<div class="lrow p"><span class="ic lc-'+x.dir+'">'+ic+'</span>'
+        +'<span class="nm">'+_esc(x.option)+'<small>'+_esc(x.site)+'</small></span>'
+        +'<span class="val"><span class="vf">'+_esc(x.from)+'</span><span class="va">→</span><span class="vt">'+_esc(x.to)+'</span></span>'
+        +'<span class="dt lc-'+x.dir+'">'+dl+'</span></div>';
+    }).join('') || '<div class="lrep-empty">가격 변동 없음</div>';
+    var st=(c.stock||[]).map(function(x){
+      var ic=(x.dir==='so'?'■':x.dir==='re'?'＋':'·');
+      return '<div class="lrow s"><span class="ic lc-'+x.dir+'">'+ic+'</span>'
+        +'<span class="nm">'+_esc(x.option)+'<small>'+_esc(x.site)+'</small></span>'
+        +'<span class="val"><span class="vf">'+_esc(x.from)+'</span><span class="va">→</span><span class="vt lc-'+x.dir+'">'+_esc(x.to)+'</span></span></div>';
+    }).join('') || '<div class="lrep-empty">재고 변동 없음</div>';
+    var fl=r.failing_now||[];
+    var fn=fl.reduce(function(a,b){return a+(b.count||0);},0);
+    var why=fl.map(function(f){return _esc(f.reason)+' '+f.count+'건';}).join(' · ');
+    return '<div class="lrep-sum"><span>긁은 URL <b>'+(s.urls||0)+'</b>개</span><span>소싱처 <b>'+(s.sites||0)+'</b>곳</span>'
+      +'<span>소요 <b>'+(lp.minutes||0)+'분</b>'+avg+'</span>'+exc+'</div>'
+      +'<div class="lrep-rule"></div>'
+      +'<div class="lrep-chg">'
+      +'<div><div class="lrep-ch">가격 변동<i>'+(c.price||[]).length+'</i></div>'+pr+'</div>'
+      +'<div><div class="lrep-ch">재고 변동<i>'+(c.stock||[]).length+'</i></div>'+st+'</div></div>'
+      +'<div class="lrep-sf"><div class="lrep-sfh">결과</div><div class="lrep-sfb">'
+      +'<span class="ok">이번 바퀴 저장 <b>'+(r.saved||0)+'</b>건</span>'
+      +(fn? '<span class="er">지금 실패 중 <b>'+fn+'</b>건</span><span class="why">'+why+' · 회차별이 아니라 <b>현재</b> 기준이에요</span>'
+          : '<span class="why">지금 실패 중인 주소는 없어요</span>')
+      +'</div></div>';
+  }
+  // 회차 줄 클릭 → 그 회차 보고서 펼치기/접기
+  (function(){ var list=document.getElementById('czlog-list'); if(!list) return;
+    list.addEventListener('click', function(e){
+      var row=e.target.closest && e.target.closest('.czlog-row'); if(!row) return;
+      var no=row.getAttribute('data-no'), box=document.getElementById('lrep-'+no); if(!box) return;
+      if(box.style.display!=='none'){ box.style.display='none'; row.classList.remove('on'); return; }
+      row.classList.add('on'); box.style.display='';
+      box.innerHTML='<div class="lrep-empty">불러오는 중…</div>';
+      fetch('/api/crawl/lap-report?no='+encodeURIComponent(no))
+        .then(function(x){return x.json();})
+        .then(function(d){ box.innerHTML = (d&&d.ok) ? lapRepHtml(d) : '<div class="lrep-empty">'+_esc((d&&d.error)||'불러오지 못했어요')+'</div>'; })
+        .catch(function(){ box.innerHTML='<div class="lrep-empty">불러오지 못했어요</div>'; });
+    });
+  })();
   (function(){ var tg=document.getElementById('czlog-tg'); if(tg) tg.addEventListener('click',function(){ _lapsExpanded=!_lapsExpanded; renderLapLog(); }); })();
   function _extState(){ try{ return (window.MoumExt&&MoumExt.getCrawlState&&MoumExt.getCrawlState())||{}; }catch(e){ return {}; } }
   // 링 % = 오직 위젯(crawl_log)의 __moumOverall 값 — 같은 페이지·같은 계산 → 위젯과 항상 일치.
