@@ -106,13 +106,18 @@ class _FakeLo:
     def request(self, method, path, body=None):
         if "/delivery/" in path:
             return {"data": {"deliveryOrderList": [
-                {"odNo": "OD777", "odSeq": "3", "spdNm": "코트", "odQty": "1",
+                {"odNo": "OD777", "odSeq": "3", "procSeq": "1",
+                 "spdNo": "LO#100", "sitmNo": "LO#10010",
+                 "spdNm": "코트", "odQty": "2",
                  "slPrc": "10000", "odPrgsStepCd": "11", "odCmptDttm": "20260708100000"}]}}
         return {"data": {}}
 
 
-def test_lotteon_row_keeps_od_no_and_od_seq():
-    """롯데온 배송상태 통보는 단품순번(odSeq) 필요 — _odseq 는 마지막에 pop 되어 사라진다."""
+def test_lotteon_row_keeps_all_ids_required_by_delivery_inform():
+    """롯데온 배송상태 통보 필수값: odNo·odSeq·procSeq·spdNo·sitmNo·slQty (공식문서 apiNo=137).
+
+    _odseq 는 진행단계 조인 후 _finalize_rows 가 pop 하므로 살아남는 사본이 필요하다.
+    """
     from lemouton.markets.order_export import lotteon_order_rows, _finalize_rows
 
     since = _dt.datetime(2026, 7, 8, tzinfo=KST)
@@ -123,3 +128,7 @@ def test_lotteon_row_keeps_od_no_and_od_seq():
     assert send is not None, "롯데온 전송 식별자(_send_ids)가 행에 없다"
     assert send["od_no"] == "OD777"
     assert send["od_seq"] == "3"
+    assert send["proc_seq"] == "1"
+    assert send["spd_no"] == "LO#100"
+    assert send["sitm_no"] == "LO#10010"
+    assert send["qty"] == "2"

@@ -214,10 +214,14 @@ def lotteon_order_rows(since: _dt.datetime, until: _dt.datetime,
         rows.append({
             "_shipkey": ("lotteon", _g(od, "odNo")),   # 배송건(주문) 단위 배송비 정규화용
             "_odseq": _g(od, "odSeq", default=""),      # 140 진행단계 조인 키(odNo+odSeq)
-            # 송장 전송용 식별자 — 배송상태 통보는 단품순번(odSeq)까지 필요.
+            # 송장 전송용 식별자 — 배송상태 통보(apiNo=137) 필수값 전부.
             #   _odseq 는 조인 후 _finalize_rows 가 pop 하므로, 살아남는 사본을 따로 둔다.
             "_send_ids": {"od_no": str(_g(od, "odNo", default="")),
-                          "od_seq": str(_g(od, "odSeq", default=""))},
+                          "od_seq": str(_g(od, "odSeq", default="")),
+                          "proc_seq": str(_g(od, "procSeq", default="1")),
+                          "spd_no": str(_g(od, "spdNo", default="")),
+                          "sitm_no": str(_g(od, "sitmNo", default="")),
+                          "qty": str(_g(od, "odQty", default=""))},
             "주문일": odc,   # YYYYMMDDHHMMSS — _finalize 에서 시간 포함 통일
             "판매처": "롯데온",
             "상품명": _html.unescape(str(_g(od, "spdNm"))),   # &lt;매장정품&gt; → <매장정품>

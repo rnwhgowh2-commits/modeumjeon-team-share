@@ -20,7 +20,7 @@ from dataclasses import dataclass
 from typing import Optional
 
 # 실제 전송 함수를 가진 마켓만. 나머지는 명시 실패.
-SUPPORTED_SEND = {"coupang", "smartstore"}
+SUPPORTED_SEND = {"coupang", "smartstore", "lotteon"}
 
 
 class CourierCodeUnknown(ValueError):
@@ -41,7 +41,11 @@ _SMARTSTORE_COURIER: dict[str, str] = {
 
 
 def resolve_courier_code(market: str, courier_name: str) -> str:
-    """마켓별 택배사 코드. 근거 없는 값은 만들지 않고 CourierCodeUnknown."""
+    """마켓별 택배사 코드. 근거 없는 값은 만들지 않고 CourierCodeUnknown.
+
+    ⚠️ 같은 택배사라도 마켓마다 코드가 다르다 —
+       로젠택배: 쿠팡 KGB · 네이버 LOGEN · 롯데온 0005.
+    """
     if market == "coupang":
         from shared.platforms.coupang.shipping import DELIVERY_COMPANY_CODES
         code = DELIVERY_COMPANY_CODES.get(courier_name)
@@ -53,6 +57,12 @@ def resolve_courier_code(market: str, courier_name: str) -> str:
         if not code:
             raise CourierCodeUnknown(
                 f"스마트스토어 택배사 코드 미확보: {courier_name} — 실제 코드 확인 후 전송")
+        return code
+    if market == "lotteon":
+        from shared.platforms.lotteon.shipping import DELIVERY_COMPANY_CODES
+        code = DELIVERY_COMPANY_CODES.get(courier_name)
+        if not code:
+            raise CourierCodeUnknown(f"롯데온 택배사 코드 없음: {courier_name}")
         return code
     raise CourierCodeUnknown(f"{market} 택배사 코드표 없음")
 
@@ -95,13 +105,16 @@ def send_invoice(*, market: str, order_no, courier_name: str, invoice_no,
     if not str(invoice_no or "").strip():
         return SendResult(market, order_no, False, error="운송장번호 없음")
 
-    sb = os_ = None
+    ids = send_ids or {}
     if market == "coupang":
-        sb = (send_ids or {}).get("shipment_box_id")
-        os_ = (send_ids or {}).get("order_sheet_id")
-        if not sb or not os_:
+        if not ids.get("shipment_box_id") or not ids.get("order_sheet_id"):
             return SendResult(market, order_no, False,
                               error="쿠팡 전송 식별자(shipment_box_id) 없음 — 추측 전송 금지")
+    if market == "lotteon":
+        missing = [k for k in ("od_no", "od_seq", "spd_no", "sitm_no", "qty") if not ids.get(k)]
+        if missing:
+            return SendResult(market, order_no, False,
+                              error=f"롯데온 전송 식별자 없음({', '.join(missing)}) — 추측 전송 금지")
 
     if not live:                                   # 드라이런 게이트 — 여기서 끝
         return SendResult(market, order_no, True, dry_run=True)
@@ -109,7 +122,17 @@ def send_invoice(*, market: str, order_no, courier_name: str, invoice_no,
     try:
         if market == "coupang":
             from shared.platforms.coupang import orders as cp
-            cp.send_tracking(sb, os_, code, str(invoice_no), client=client)
+            cp.send_tracking(ids["shipment_box_id"], ids["order_sheet_id"],
+                             code, str(invoice_no), client=client)
+        elif market == "lotteon":
+            from shared.platforms.lotteon import shipping as lo
+            ok = lo.send_tracking(od_no=ids["od_no"], od_seq=ids["od_seq"],
+                                  proc_seq=ids.get("proc_seq") or "1",
+                                  spd_no=ids["spd_no"], sitm_no=ids["sitm_no"],
+                                  qty=ids["qty"], delivery_company_code=code,
+                                  invoice_number=str(invoice_no), client=client)
+            if not ok:
+                return SendResult(market, order_no, False, error="롯데온 발송처리 거부(returnCode)")
         else:                                      # smartstore
             from shared.platforms.smartstore import orders as ss
             ss.send_tracking([order_no], code, str(invoice_no), client=client)
