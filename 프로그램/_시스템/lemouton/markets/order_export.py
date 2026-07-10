@@ -908,14 +908,40 @@ def order_rows(market: str, days: int = 7, client=None,
     # ★ 계정은 '순차' 조회한다(병렬 금지). 마켓 API 레이트리밋은 서버 IP 기준이라, 같은 마켓의
     #   계정을 병렬로 때리면 초당 요청이 계정 수만큼 곱해져 429 가 난다(스스 5계정 병렬 → 전멸).
     #   마켓 간 병렬(_fetch_combined)은 그대로 → 동시 요청 수는 다계정 도입 이전과 동일.
+    # ★ 계정 간 '주문 단위' 중복 제거 (최후 방어선).
+    #   같은 스토어를 API 앱만 달리해 여러 계정으로 등록하면 자격증명(client_id 등)이 서로 달라
+    #   _client_identity 로는 못 잡는다(스스 5계정이 같은 스토어인 실제 사례). 그러나 마켓
+    #   주문번호는 그 마켓 안에서 유일하므로, 다른 계정이 같은 주문을 또 주면 같은 주문이다.
+    #   → 앞선 계정에서 이미 본 행은 버린다(주문 2배 계상 = 발송·정산 2배 방지).
+    def _row_key(r):
+        return (str(r.get("오픈마켓주문번호", "")), str(r.get("상품명", "")),
+                str(r.get("옵션", "")))
+
     out, errors, ok_cnt = [], [], 0
+    seen_rows, same_store = set(), []           # seen_rows = '앞선 계정들'이 이미 준 주문
     for name, cli in built:
         try:
-            out += _rows_for(cli, name)
-            ok_cnt += 1
+            rs = _rows_for(cli, name)
         except Exception as e:                  # noqa: BLE001 — 어느 계정인지 표면화
             errors.append(RuntimeError(
                 f"[{market}·{name}] 주문 조회 실패: {type(e).__name__}: {e}"))
+            continue
+        ok_cnt += 1
+        # 계정 '사이'의 중복만 제거한다. 한 계정이 준 행끼리는 그대로 둔다
+        # (같은 주문의 여러 옵션행 등 정상 데이터를 지우지 않기 위해).
+        fresh = [r for r in rs if _row_key(r) not in seen_rows]
+        if rs and not fresh:                    # 이 계정 주문이 전부 앞 계정과 동일 = 같은 스토어
+            same_store.append(name)
+        out += fresh
+        seen_rows.update(_row_key(r) for r in rs)
+
+    if same_store:
+        _log.warning("같은 스토어 중복 계정(주문 전부 동일): market=%s accounts=%s", market, same_store)
+        if warnings is not None:
+            warnings.append(
+                f"[{market}] 같은 셀러 계정이 중복 등록돼 있어 한 번만 조회했어요: "
+                + ", ".join(same_store))
+
     if errors and (ok_cnt == 0 or warnings is None):
         # 전부 실패(보여줄 게 없음) 또는 경고 채널 없음(엑셀) → 전파. 불완전 결과 숨김 금지.
         raise errors[0]
