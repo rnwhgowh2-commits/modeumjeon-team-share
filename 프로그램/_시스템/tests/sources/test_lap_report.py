@@ -67,10 +67,12 @@ def test_lap_report_second_lap_has_changes(db):
     assert r["lap"]["no"] == 2 and r["lap"]["minutes"] == 7
     assert r["summary"]["urls"] == 1
     # 가격 = 오름(+4900), 재고 = 품절 전환
-    assert r["changes"]["price"] == [{
-        "site": "musinsa", "option": "블랙/265",
-        "from": "115,000", "to": "119,900", "delta": 4900, "dir": "up",
-    }]
+    p = r["changes"]["price"]
+    assert len(p) == 1
+    assert p[0]["site"] == "musinsa"          # 원문 키(호환)
+    assert p[0]["site_label"]                  # 사람이 읽는 이름(hmall→현대H몰)
+    assert (p[0]["option"], p[0]["from"], p[0]["to"], p[0]["delta"], p[0]["dir"]) \
+        == ("블랙/265", "115,000", "119,900", 4900, "up")
     assert r["changes"]["stock"][0]["to"] == "품절"
     assert r["changes"]["stock"][0]["dir"] == "so"
     assert r["result"]["saved"] == 1
@@ -151,9 +153,11 @@ def test_stock_to_unknown_is_change_not_dropped(db):
 
 
 def test_excluded_sites_lists_weight_zero(db):
+    """계수 0 소싱처만, 사람이 읽는 이름으로(hmall→현대H몰)."""
     from lemouton.sources.crawl_schedule import set_crawl_weight_rule
-    from lemouton.sources.lap_report import excluded_sites
+    from lemouton.sources.lap_report import excluded_sites, site_labels
     set_crawl_weight_rule(db, "source", "lotteon", 0)
     set_crawl_weight_rule(db, "source", "musinsa", 2)
     db.commit()
-    assert excluded_sites(db) == ["lotteon"]
+    expected = site_labels().get("lotteon", "lotteon")
+    assert excluded_sites(db) == [expected]     # 계수 2 인 무신사는 안 들어감

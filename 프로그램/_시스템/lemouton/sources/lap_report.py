@@ -89,11 +89,21 @@ def lap_bounds(session, *, lap_no: int, now: datetime) -> tuple | None:
     return start, end
 
 
+def site_labels() -> dict:
+    """소싱처 키 → 사람이 읽는 이름(hmall → 현대H몰). 실패해도 빈 dict."""
+    try:
+        from lemouton.sourcing.source_registry import get_labels
+        return get_labels() or {}
+    except Exception:
+        return {}
+
+
 def excluded_sites(session) -> list[str]:
-    """계수 0 = 이번 바퀴에서 아예 제외된 소싱처."""
+    """계수 0 = 이번 바퀴에서 아예 제외된 소싱처 (사람이 읽는 이름)."""
     from lemouton.sources.crawl_schedule import list_weight_rules
     src = list_weight_rules(session).get("source", {})
-    return sorted(k for k, w in src.items() if (w or 0) <= 0)
+    lab = site_labels()
+    return sorted(lab.get(k, k) for k, w in src.items() if (w or 0) <= 0)
 
 
 def failing_now(session) -> list[dict]:
@@ -137,11 +147,13 @@ def lap_report(session, *, lap_no: int, now: datetime) -> dict | None:
     #   → 변동 목록에서 빼고 first_seen 으로 따로 센다.
     price_rows, stock_rows = [], []
     first_seen = {"price": 0, "stock": 0}
+    _lab = site_labels()          # hmall → 현대H몰 (화면 표기용)
     for d in deltas:
         if not (d.price_changed or d.stock_changed):
             continue
         sp = sp_map.get(d.source_product_id)
         site = (sp.site if sp else "?")
+        site_label = _lab.get(site, site)
         for it in parse_detail(d.detail or ""):
             if it["kind"] == "price":
                 fw, tw = _price_word(it["from"]), _price_word(it["to"])
@@ -153,7 +165,8 @@ def lap_report(session, *, lap_no: int, now: datetime) -> dict | None:
                 if delta == 0:
                     continue
                 price_rows.append({
-                    "site": site, "option": it["option"], "from": fw, "to": tw,
+                    "site": site, "site_label": site_label,
+                    "option": it["option"], "from": fw, "to": tw,
                     "delta": delta,
                     "dir": ("up" if (delta or 0) > 0 else "dn" if (delta or 0) < 0 else "unk"),
                 })
@@ -165,7 +178,8 @@ def lap_report(session, *, lap_no: int, now: datetime) -> dict | None:
                 if fw == tw:
                     continue
                 stock_rows.append({
-                    "site": site, "option": it["option"], "from": fw, "to": tw,
+                    "site": site, "site_label": site_label,
+                    "option": it["option"], "from": fw, "to": tw,
                     "dir": ("so" if tw == "품절" else "re" if fw == "품절"
                             else "unk" if tw == "확인불가" else "chg"),
                 })
@@ -174,7 +188,8 @@ def lap_report(session, *, lap_no: int, now: datetime) -> dict | None:
                     first_seen["stock"] += 1
                     continue
                 stock_rows.append({
-                    "site": site, "option": it["option"], "from": "있음", "to": "옵션 사라짐",
+                    "site": site, "site_label": site_label,
+                    "option": it["option"], "from": "있음", "to": "옵션 사라짐",
                     "dir": "so",
                 })
 
