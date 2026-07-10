@@ -369,7 +369,8 @@ def orders_invoice_send():
         res = send_invoice(market=market, order_no=r.get('order_no'),
                            courier_name=r.get('courier') or '',
                            invoice_no=r.get('invoice_no'),
-                           send_ids=r.get('send_ids'), client=cli, live=live)
+                           send_ids=r.get('send_ids'), client=cli, live=live,
+                           order_status=r.get('status'))
         if res.success:
             sent += 1
         else:
