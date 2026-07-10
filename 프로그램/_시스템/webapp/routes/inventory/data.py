@@ -1462,6 +1462,7 @@ def data_price_templates_update_margin(tpl_id):
 
 @bp.route('/data/items/export.xlsx', methods=['GET', 'POST'])
 def data_items_export():
+<<<<<<< Updated upstream
     """[2026-05-25 D-6 v2] 사용자 명시 양식 — 평균매입가 추가.
 
     헤더 (10 base + N 위치):
@@ -1472,6 +1473,12 @@ def data_items_export():
     색상·사이즈 빈값 → '-'.
 
     필터 반영: filtered=1 + skus[] (POST) 전달 시 그 옵션만 export. 미전달 시 전체.
+=======
+    """우리 양식 8 base 컬럼 + 동적 위치별 재고 컬럼 엑셀 다운로드.
+
+    헤더 (사용자 spec): SKU / 바코드 / 브랜드 / 제품명 / 색상 / 사이즈 / 평균매입가 / 총재고 / {위치명1} 재고 / {위치명2} 재고 / ...
+    빈 색상 → 'one' / 빈 사이즈 → 'free'
+>>>>>>> Stashed changes
     """
     from io import BytesIO
     from datetime import datetime
@@ -1484,6 +1491,7 @@ def data_items_export():
 
     s = SessionLocal()
     try:
+<<<<<<< Updated upstream
         # 화면에서 필터된 SKU 목록 — filtered=1 이면 그 옵션만 export (없으면 전체)
         is_filtered = request.values.get('filtered') == '1'
         # [2026-05-28] is_active=True 만 export (사용자 OFF 비활성은 숨김)
@@ -1506,6 +1514,23 @@ def data_items_export():
             .order_by(InventoryLocation.sort_order, InventoryLocation.id)
             .all()
         )
+=======
+        options = (
+            s.query(Option)
+            .options(joinedload(Option.model))
+            .order_by(Option.model_code, Option.sort_order, Option.canonical_sku)
+            .all()
+        )
+        all_skus = [o.canonical_sku for o in options]
+
+        total_stock_map = get_stock_batch(s, all_skus)
+        locs = (
+            s.query(InventoryLocation)
+            .filter(InventoryLocation.deleted_at.is_(None))
+            .order_by(InventoryLocation.sort_order, InventoryLocation.id)
+            .all()
+        )
+>>>>>>> Stashed changes
         per_loc_stock = {}
         for loc in locs:
             loc_map = get_stock_batch(s, all_skus, location_id=loc.id)
@@ -1516,6 +1541,7 @@ def data_items_export():
         ws = wb.active
         ws.title = '재고관리'
 
+<<<<<<< Updated upstream
         # [2026-05-25 D-6 v2] 사용자 양식 — 10 base + N 위치 (평균매입가 추가)
         headers = ['SKU', '바코드', '품번', '브랜드', '카테고리', '모델명',
                    '색상', '사이즈', '평균매입가', '총재고']
@@ -1541,6 +1567,24 @@ def data_items_export():
                 sku_display = o.boxhero_sku
             row = [sku_display, barcode, article, brand, category, mname,
                    color, size, avg, total]
+=======
+        headers = ['SKU', '바코드', '브랜드', '제품명', '색상', '사이즈', '평균매입가', '총재고']
+        for loc in locs:
+            headers.append(f'{loc.name} 재고')
+        ws.append(headers)
+
+        for o in options:
+            barcode = o.barcode or o.boxhero_sku or ''
+            brand = (o.model.brand or '') if o.model else ''
+            pname = ((o.model.model_name_display or o.model.model_name_raw) if o.model else o.canonical_sku) or ''
+            color = (o.color_display or o.color_code or 'one')
+            size = (o.size_display or o.size_code or 'free')
+            if color == pname or (len(color) > 12 and pname.startswith(color[:8])):
+                color = 'one'
+            avg = int(o.boxhero_avg_purchase_price or 0)
+            total = int(total_stock_map.get(o.canonical_sku, 0))
+            row = [o.canonical_sku, barcode, brand, pname, color, size, avg, total]
+>>>>>>> Stashed changes
             for loc in locs:
                 row.append(int(per_loc_stock.get(o.canonical_sku, {}).get(loc.id, 0)))
             ws.append(row)
@@ -1555,8 +1599,12 @@ def data_items_export():
         ws.row_dimensions[1].height = 24
         ws.freeze_panes = 'A2'
 
+<<<<<<< Updated upstream
         # [D-6 v2] 컬럼 너비 — 10 base (SKU/바코드/품번/브랜드/카테고리/모델명/색상/사이즈/평균매입가/총재고) + N 위치
         widths = [18, 16, 16, 12, 18, 28, 18, 10, 12, 8] + [12] * len(locs)
+=======
+        widths = [16, 16, 14, 36, 14, 10, 12, 10] + [12] * len(locs)
+>>>>>>> Stashed changes
         for i, w in enumerate(widths):
             ws.column_dimensions[openpyxl.utils.get_column_letter(i + 1)].width = w
 
@@ -1569,7 +1617,11 @@ def data_items_export():
         return send_file(buf,
             mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
             as_attachment=True,
+<<<<<<< Updated upstream
             download_name=f'재고관리_{"필터_" if is_filtered else ""}{ts}.xlsx',
+=======
+            download_name=f'재고관리_{ts}.xlsx',
+>>>>>>> Stashed changes
         )
     finally:
         s.close()

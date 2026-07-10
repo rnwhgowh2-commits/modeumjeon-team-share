@@ -263,39 +263,62 @@ def _client_for(market: str, alias: str):
 
 @bp.route('/diag/eleven11-couriers')
 def orders_diag_eleven11_couriers():
-    """11번가 택배사 코드(dlvEtprsCd) 확인 — 읽기 전용, 코드·건수만.
+    """11번가 택배사 코드(dlvEtprsCd) 확인 — 읽기 전용.
 
     11번가 발송처리용 택배사 코드는 공개 출처마다 값이 달라(로젠: 00002 vs 05) 추측할 수 없다.
-    정답은 이미 발송한 주문이 갖고 있다 — 배송중 목록이 되돌려주는 dlvEtprsCd 가 곧 11번가의 코드.
-    응답에는 코드와 건수만 담는다(주문번호·송장번호·고객정보 미포함).
+    정답은 이미 발송한 주문이 갖고 있다 — 배송중·배송완료 목록이 되돌려주는 dlvEtprsCd.
+
+    `?invoice=<송장번호>` 를 주면 그 건의 코드만 곧장 찾아준다(셀러오피스 화면엔 택배사와
+    송장번호가 나란히 보이므로, 송장번호 하나면 이름↔코드가 확정된다).
+
+    등록된 11번가 계정을 모두 훑고 어느 계정에서 나온 코드인지 함께 알린다.
+    응답에는 코드·건수·발송일(날짜)만 담는다(주문번호·고객정보 미포함).
     """
     from flask import jsonify
     from shared.platforms.eleven11 import orders as eo
 
-    cli = _client_for('eleven11', '')
-    if cli is None:
-        return jsonify(ok=False, error='11번가 키가 등록돼 있지 않습니다'), 400
-
+    accounts = _oe._active_accounts('eleven11') or [(None, '대표 계정')]
     days = max(1, min(30, int(request.args.get('days', 14))))
+    want = str(request.args.get('invoice') or '').strip()
     until = _dt.datetime.now()
     since = until - _dt.timedelta(days=days)
 
-    counts: dict = {}
-    dates: dict = {}
-    for od in eo.iter_shipping(since, until, client=cli):
-        code = str(od.get('dlvEtprsCd') or '').strip()
-        if not code:
+    per_account, merged, dates, match, reached = [], {}, {}, None, 0
+    for _prefix, alias in accounts:
+        cli = _client_for('eleven11', alias or '')
+        if cli is None:
             continue
-        counts[code] = counts.get(code, 0) + 1
-        # 발송일(날짜만) — 코드가 여러 개일 때 어느 발송이 어느 택배사였는지 사람이 대조하는 용도.
-        day = str(od.get('sndEndDt') or '')[:10]
-        if day and day not in dates.setdefault(code, []):
-            dates[code].append(day)
+        reached += 1
+        counts: dict = {}
+        for src in (eo.iter_shipping, eo.iter_delivered):
+            for od in src(since, until, client=cli):
+                code = str(od.get('dlvEtprsCd') or '').strip()
+                if want and str(od.get('invcNo') or '').strip() == want and code:
+                    match = {'alias': alias, 'code': code}
+                if not code:
+                    continue
+                counts[code] = counts.get(code, 0) + 1
+                merged[code] = merged.get(code, 0) + 1
+                # 발송일(날짜만) — 코드가 여러 개일 때 사람이 어느 택배사였는지 대조하는 용도.
+                day = str(od.get('sndEndDt') or od.get('dlvEndDt') or '')[:10]
+                if day and day not in dates.setdefault(code, []):
+                    dates[code].append(day)
+        per_account.append({'alias': alias, 'codes': counts})
 
-    note = ('최근 {}일 발송 이력이 없어 코드를 확인하지 못했습니다'.format(days) if not counts
-            else '코드가 여러 개면 발송일로 어느 택배사였는지 대조하세요')
-    return jsonify(ok=True, days=days, codes=counts,
-                   dates={k: sorted(v) for k, v in dates.items()}, note=note)
+    if not reached:
+        return jsonify(ok=False, error='11번가 키가 등록돼 있지 않습니다'), 400
+
+    if want:
+        note = ('송장번호 {} 의 택배사 코드를 찾았습니다'.format(want) if match
+                else '최근 {}일 발송 내역에서 그 송장번호를 찾지 못했습니다'.format(days))
+    elif not merged:
+        note = '최근 {}일 발송 이력이 없어 코드를 확인하지 못했습니다'.format(days)
+    else:
+        note = '코드가 여러 개면 ?invoice=<송장번호> 로 한 건을 콕 집어 확인하세요'
+
+    return jsonify(ok=True, days=days, codes=merged,
+                   dates={k: sorted(v) for k, v in dates.items()},
+                   accounts=per_account, match=match, note=note)
 
 
 @bp.route('/invoice/upload', methods=['POST'])
