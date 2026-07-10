@@ -128,6 +128,20 @@ def test_option_added_is_first_seen_removed_is_change(db):
     assert r["changes"]["stock"][0]["dir"] == "so"
 
 
+def test_lap_no_beyond_50_still_found(db):
+    """★today_laps 는 최근 50개만 잘라 보낸다 → 51번째 이후 회차가 404 나던 버그(라이브)."""
+    from lemouton.sources.models import CrawlLapRun
+    base = datetime(2026, 7, 10, 0, 10, 0)          # naive UTC(=KST 09:10) → 오늘
+    for i in range(60):                              # 오늘 60바퀴
+        db.add(CrawlLapRun(completed_at=base + timedelta(minutes=5 * i)))
+    db.commit()
+    now = base + timedelta(minutes=5 * 60)
+    assert lap_bounds(db, lap_no=55, now=now) is not None      # 잘린 50개 밖
+    r = lap_report(db, lap_no=55, now=now)
+    assert r is not None and r["lap"]["no"] == 55
+    assert lap_report(db, lap_no=61, now=now) is None          # 진짜 범위 밖
+
+
 def test_stock_to_unknown_is_change_not_dropped(db):
     # 3개 → 확인불가(-1) : 크롤 불확실 — 변동으로 표면화(숨기지 않음)
     t2 = _seed_first(db, "[블랙/265] 재고 3→-1")

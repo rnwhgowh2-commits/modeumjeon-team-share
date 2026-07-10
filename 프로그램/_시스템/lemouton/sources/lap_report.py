@@ -61,16 +61,26 @@ def _price_word(v):
 
 
 def lap_bounds(session, *, lap_no: int, now: datetime) -> tuple | None:
-    """N회차(오늘 기준)의 (시작, 끝). 없으면 None."""
-    from lemouton.sources.models import CrawlLapRun
-    from lemouton.sources.crawl_schedule import lap_stats, _as_naive_utc
+    """N회차(오늘 N번째 완료)의 (시작, 끝). 없으면 None.
 
-    laps = lap_stats(session, now=now)["today_laps"]
-    if not (1 <= lap_no <= len(laps)):
+    ★lap_stats()['today_laps'] 는 화면용으로 **최근 50개만** 잘라 보낸다(`[-50:]`).
+      거기 순번으로 찾으면 오늘 151회차 같은 번호를 못 찾아 404 가 난다(라이브 실측).
+      → 오늘의 CrawlLapRun 을 직접 시간순으로 세어 N번째를 잡는다.
+    """
+    from lemouton.sources.models import CrawlLapRun
+    from lemouton.sources.crawl_schedule import _as_naive_utc, _KST_OFFSET_H
+
+    kst = _as_naive_utc(now) + timedelta(hours=_KST_OFFSET_H)
+    midnight_utc = (kst.replace(hour=0, minute=0, second=0, microsecond=0)
+                    - timedelta(hours=_KST_OFFSET_H))
+    runs = (session.query(CrawlLapRun)
+            .filter(CrawlLapRun.completed_at >= midnight_utc)
+            .order_by(CrawlLapRun.completed_at.asc()).all())
+    if not (1 <= lap_no <= len(runs)):
         return None
-    end = datetime.fromisoformat(laps[lap_no - 1]["at"])
+    end = _as_naive_utc(runs[lap_no - 1].completed_at)
     if lap_no >= 2:
-        start = datetime.fromisoformat(laps[lap_no - 2]["at"])
+        start = _as_naive_utc(runs[lap_no - 2].completed_at)
     else:
         prev = (session.query(CrawlLapRun)
                 .filter(CrawlLapRun.completed_at < end)
