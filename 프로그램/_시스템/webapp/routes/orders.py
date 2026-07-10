@@ -281,14 +281,21 @@ def orders_diag_eleven11_couriers():
     since = until - _dt.timedelta(days=days)
 
     counts: dict = {}
+    dates: dict = {}
     for od in eo.iter_shipping(since, until, client=cli):
         code = str(od.get('dlvEtprsCd') or '').strip()
-        if code:
-            counts[code] = counts.get(code, 0) + 1
+        if not code:
+            continue
+        counts[code] = counts.get(code, 0) + 1
+        # 발송일(날짜만) — 코드가 여러 개일 때 어느 발송이 어느 택배사였는지 사람이 대조하는 용도.
+        day = str(od.get('sndEndDt') or '')[:10]
+        if day and day not in dates.setdefault(code, []):
+            dates[code].append(day)
 
     note = ('최근 {}일 발송 이력이 없어 코드를 확인하지 못했습니다'.format(days) if not counts
-            else '가장 많이 쓴 코드가 평소 택배사(로젠)일 가능성이 높습니다')
-    return jsonify(ok=True, days=days, codes=counts, note=note)
+            else '코드가 여러 개면 발송일로 어느 택배사였는지 대조하세요')
+    return jsonify(ok=True, days=days, codes=counts,
+                   dates={k: sorted(v) for k, v in dates.items()}, note=note)
 
 
 @bp.route('/invoice/upload', methods=['POST'])
