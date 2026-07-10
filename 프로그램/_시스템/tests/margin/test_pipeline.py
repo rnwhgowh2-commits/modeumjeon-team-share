@@ -179,3 +179,26 @@ def test_blank_settlement_becomes_zero_not_empty_string():
     assert r["단가"] == 0
     for key in ("matched", "unmatched_buy", "unmatched_sell", "buy_missing"):
         json.dumps(out[key], default=str, allow_nan=False)
+
+
+def test_no_numpy_scalars_leak_into_output():
+    """pandas 를 거친 값은 np.int64 로 나온다. np.int64 는 int 의 하위클래스가 아니라
+    json.dumps / flask.jsonify 가 'Object of type int64 is not JSON serializable' 로 죽는다.
+    (np.float64 는 float 하위클래스라 통과 — 그래서 조용히 지나치기 쉽다.)
+    """
+    import numpy as np
+
+    out = P.run(pd.DataFrame([_buy()]), pd.DataFrame([_sell()]))
+    for key in ("matched", "unmatched_buy", "unmatched_sell", "buy_missing"):
+        for rec in out[key]:
+            for k, v in rec.items():
+                assert not isinstance(v, np.generic), f"{key}.{k} = {type(v).__name__}"
+
+
+def test_matched_is_flask_jsonify_safe():
+    from flask import Flask, jsonify
+
+    out = P.run(pd.DataFrame([_buy()]), pd.DataFrame([_sell()]))
+    app = Flask(__name__)
+    with app.app_context():
+        jsonify(matched=out["matched"])   # TypeError 나면 라우트가 500 난다

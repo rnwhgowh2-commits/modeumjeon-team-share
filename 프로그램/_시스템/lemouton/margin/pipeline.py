@@ -11,6 +11,7 @@ frozen). 태그가 UI 까지 닿지 않으면 쿠팡 추정 정산액(양수)이
 import logging
 from datetime import datetime
 
+import numpy as np
 import pandas as pd
 
 from lemouton.margin.buy_parser import split_by_site_order_no
@@ -130,9 +131,24 @@ _NUMERIC_FIELDS = {
 }
 
 
+def _to_py(v):
+    """numpy 스칼라 → 파이썬 기본형.
+
+    pandas 를 거친 값은 np.int64 / np.bool_ 로 나온다. np.float64 는 float 의
+    하위클래스라 통과하지만 **np.int64 는 int 의 하위클래스가 아니다** — json.dumps 와
+    flask.jsonify 가 `Object of type int64 is not JSON serializable` 로 죽는다.
+    라우트·store·export 가 각자 방어하면 언젠가 한 곳이 빠진다. 여기서 한 번에 막는다.
+    """
+    if isinstance(v, np.generic):
+        return v.item()
+    return v
+
+
 def _json_safe(rec: dict, coerce_numeric: bool, counter: list) -> dict:
-    """NaN / NaT / pd.NA 정리. jsonify 가 뱉는 bare NaN 리터럴을 브라우저
-    JSON.parse 가 거부해 마진탭 전체가 안 뜨는 사고를 막는다(Task 7 동종 버그).
+    """NaN / NaT / pd.NA 정리 + numpy 스칼라 → 파이썬 기본형.
+
+    jsonify 가 뱉는 bare NaN 리터럴을 브라우저 JSON.parse 가 거부해 마진탭 전체가
+    안 뜨는 사고를 막는다(Task 7 동종 버그).
 
     coerce_numeric=True: 숫자 칸(_NUMERIC_FIELDS) NaN → 0(counter[0] 증가),
       그 외 NaN → "". aggregator 로 흘러가는 matched/unmatched 용.
@@ -151,7 +167,7 @@ def _json_safe(rec: dict, coerce_numeric: bool, counter: list) -> dict:
             else:
                 out[k] = ""
         else:
-            out[k] = v
+            out[k] = _to_py(v)
     return out
 
 
