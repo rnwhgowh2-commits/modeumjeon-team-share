@@ -122,7 +122,11 @@ def lap_report(session, *, lap_no: int, now: datetime) -> dict | None:
         for sp in session.query(SourceProduct).filter(SourceProduct.id.in_(spids)).all():
             sp_map[sp.id] = sp
 
+    # ★[2026-07-10] '처음 수집'(이전 값 없음 → 값이 처음 잡힘)은 변동이 아니다.
+    #   그냥 세면 첫 크롤 때 수백~수천 건이 '가격 변동'으로 둔갑해 사용자를 속인다(라이브 실측).
+    #   → 변동 목록에서 빼고 first_seen 으로 따로 센다.
     price_rows, stock_rows = [], []
+    first_seen = {"price": 0, "stock": 0}
     for d in deltas:
         if not (d.price_changed or d.stock_changed):
             continue
@@ -130,24 +134,38 @@ def lap_report(session, *, lap_no: int, now: datetime) -> dict | None:
         site = (sp.site if sp else "?")
         for it in parse_detail(d.detail or ""):
             if it["kind"] == "price":
+                fw, tw = _price_word(it["from"]), _price_word(it["to"])
+                if fw == "없음":                 # 처음 가격이 잡힘 = 변동 아님
+                    first_seen["price"] += 1
+                    continue
                 f, t = _to_int(it["from"]), _to_int(it["to"])
                 delta = (t - f) if (f is not None and t is not None) else None
+                if delta == 0:
+                    continue
                 price_rows.append({
-                    "site": site, "option": it["option"],
-                    "from": _price_word(it["from"]), "to": _price_word(it["to"]),
+                    "site": site, "option": it["option"], "from": fw, "to": tw,
                     "delta": delta,
-                    "dir": ("up" if (delta or 0) > 0 else "dn" if (delta or 0) < 0 else "flat"),
+                    "dir": ("up" if (delta or 0) > 0 else "dn" if (delta or 0) < 0 else "unk"),
                 })
             elif it["kind"] == "stock":
                 fw, tw = _stock_word(it["from"]), _stock_word(it["to"])
+                if fw == "미크롤":               # 처음 재고가 잡힘 = 변동 아님
+                    first_seen["stock"] += 1
+                    continue
+                if fw == tw:
+                    continue
                 stock_rows.append({
                     "site": site, "option": it["option"], "from": fw, "to": tw,
-                    "dir": ("so" if tw == "품절" else "re" if fw == "품절" else "chg"),
+                    "dir": ("so" if tw == "품절" else "re" if fw == "품절"
+                            else "unk" if tw == "확인불가" else "chg"),
                 })
-            else:  # 옵션 생김/사라짐
+            else:  # 옵션 생김 = 신규(변동 아님) / 사라짐 = 옵션 소멸(중요 변동)
+                if it["to"] == "생김":
+                    first_seen["stock"] += 1
+                    continue
                 stock_rows.append({
-                    "site": site, "option": it["option"], "from": "-", "to": it["to"],
-                    "dir": ("so" if it["to"] == "사라짐" else "re"),
+                    "site": site, "option": it["option"], "from": "있음", "to": "옵션 사라짐",
+                    "dir": "so",
                 })
 
     minutes = max(1, round((end - start).total_seconds() / 60))
@@ -164,6 +182,8 @@ def lap_report(session, *, lap_no: int, now: datetime) -> dict | None:
             "urls": len(spids),
             "sites": len({(sp_map[i].site) for i in spids if i in sp_map}),
             "excluded_sites": excluded_sites(session),
+            # 처음 수집(이전 값 없음 → 값이 처음 잡힘). 변동 아님 — 따로 표기.
+            "first_seen": first_seen["price"] + first_seen["stock"],
         },
         "changes": {"price": price_rows, "stock": stock_rows},
         "result": {
