@@ -27,10 +27,17 @@ class CourierCodeUnknown(ValueError):
     """그 마켓의 택배사 코드를 확보하지 못함 — 추측해서 보내지 않는다."""
 
 
-# 스마트스토어 택배사 코드: 실제 코드값 **미확보**.
-#   쿠팡과 코드 체계가 달라(쿠팡 로젠=KGB) 그대로 쓰면 엉뚱한 택배사로 등록된다.
-#   실제 값 확인(네이버 커머스 택배사 코드) 후 채운다. 그전까지 스스 전송은 명시 실패.
-_SMARTSTORE_COURIER: dict[str, str] = {}
+# 스마트스토어(네이버) 택배사 코드.
+#   ⚠️ 쿠팡과 코드 체계가 **다르다** — 로젠택배: 쿠팡=KGB / 네이버=LOGEN. 섞으면 엉뚱한 택배사로 등록.
+#   근거: 네이버 dispatch 를 실제 호출하는 독립 구현 2건이 동일 매핑 사용(2026-07-10 확인).
+#   공식 문서(로그인 게이트)로 재확인 전까지 '라이브 미검증' — 없는 이름은 추측하지 않고 실패.
+_SMARTSTORE_COURIER: dict[str, str] = {
+    "로젠택배": "LOGEN",
+    "CJ대한통운": "CJGLS",
+    "한진택배": "HANJIN",
+    "롯데택배": "LOTTE",
+    "우체국택배": "EPOST",
+}
 
 
 def resolve_courier_code(market: str, courier_name: str) -> str:

@@ -21,11 +21,28 @@ class TestCourierCode:
         with pytest.raises(CourierCodeUnknown):
             resolve_courier_code("coupang", "없는택배")
 
-    def test_smartstore_code_not_guessed(self):
-        """스마트스토어 택배사 코드 미확보 — 추측 대신 명시 실패."""
+    def test_smartstore_logen_is_logen_not_kgb(self):
+        """같은 로젠택배라도 마켓마다 코드가 다르다 — 스스=LOGEN, 쿠팡=KGB. 섞으면 오등록."""
+        from lemouton.markets.invoice_send import resolve_courier_code
+        assert resolve_courier_code("smartstore", "로젠택배") == "LOGEN"
+        assert resolve_courier_code("coupang", "로젠택배") == "KGB"
+
+    def test_smartstore_unknown_courier_still_raises(self):
+        """확보한 이름만 매핑 — 모르는 택배사는 추측하지 않는다."""
         from lemouton.markets.invoice_send import resolve_courier_code, CourierCodeUnknown
         with pytest.raises(CourierCodeUnknown):
-            resolve_courier_code("smartstore", "로젠택배")
+            resolve_courier_code("smartstore", "없는택배")
+
+    def test_smartstore_live_send_passes_naver_code(self, monkeypatch):
+        import shared.platforms.smartstore.orders as ss
+        got = {}
+        monkeypatch.setattr(ss, "send_tracking",
+                            lambda ids, code, inv, client=None: got.update(ids=ids, code=code, inv=inv))
+        from lemouton.markets.invoice_send import send_invoice
+        r = send_invoice(market="smartstore", order_no="P1", courier_name="로젠택배",
+                         invoice_no="777", client=object(), live=True)
+        assert r.success is True
+        assert got == {"ids": ["P1"], "code": "LOGEN", "inv": "777"}
 
 
 # ── 드라이런 게이트 ──────────────────────────────────────────
