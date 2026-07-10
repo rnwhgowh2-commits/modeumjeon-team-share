@@ -154,6 +154,7 @@
     .o7 .dropov .d{font-size:12px;color:var(--sub);}
     .o7 .ibar .tag{border-radius:99px;padding:1px 7px;font-size:11px;font-weight:700;margin-left:4px;}
     .o7 .ibar .tag.xl{background:#FFF8DB;color:#94670A;} .o7 .ibar .tag.bad{background:#FDECEC;color:var(--red);}
+    .o7 .ibar .gbtn{white-space:nowrap;}   /* 「엑셀 업로드」가 두 줄로 접히지 않게 */
     .o7 .ibar .gbtn[disabled]{opacity:.45;cursor:not-allowed;}
     .o7 .ibar .gbtn.prim{background:var(--blue);border-color:var(--blue);color:#fff;}
     .o7 .ihint{font-size:11.5px;color:var(--sub);margin:6px 2px 0;}
@@ -562,16 +563,19 @@
         +(nBad?' <span class="tag bad">모순 '+nBad+'</span>':'')+'</span>'
         +'<span class="ir"><button type="button" class="gbtn" id="invup">📄 엑셀 업로드</button>'
         +'<button type="button" class="gbtn" id="invclear">선택 해제</button>'
-        +'<button type="button" class="gbtn" id="invprev"'+(ready.length?'':' disabled')+'>미리보기</button>'
         +'<button type="button" class="gbtn prim" id="invsend"'+(ready.length?'':' disabled')+'>전송 ('+ready.length+'건)</button></span></div>'
         +'<div class="ihint">엑셀은 「오픈마켓주문번호」와 「운송장번호」 열이 필요해요. '
         +'<b>엑셀 파일을 표 위로 끌어다 놓아도</b> 됩니다. 직접 넣으려면 왼쪽 체크박스를 켜세요. '
-        +'<b>전송은 미리보기로 먼저 확인</b>하세요 — 되돌리기 어렵습니다.</div>';
+        +'「전송」을 누르면 <b>확인창</b>이 뜹니다 — 되돌리기 어려우니 표를 먼저 확인하세요.</div>';
       document.getElementById('invup').onclick=function(){document.getElementById('invfile').click();};
       document.getElementById('invclear').onclick=function(){invSel={};invMap={};invBad={};invResult={};render();};
-      document.getElementById('invprev').onclick=function(){invSend(false);};
       document.getElementById('invsend').onclick=function(){
-        if(confirm('선택한 '+invReady(filtered()).length+'건의 송장을 실제 마켓으로 전송합니다. 되돌리기 어렵습니다. 진행할까요?')) invSend(true);
+        // 「미리보기」 버튼을 없앴으므로 이 확인창이 화면상 마지막 방어선이다(서버 전역 스위치가 그 다음).
+        var n=invReady(filtered()).length;
+        if(confirm('송장 '+n+'건을 실제 마켓으로 전송합니다.\n\n'
+                 + '· 되돌리기 어렵습니다(고객 배송조회에 바로 반영).\n'
+                 + '· 표의 택배사·송장번호가 맞는지 확인하셨나요?\n\n'
+                 + '진행할까요?')) invSend(true);
       };
     }
     // 엑셀 업로드 — 「엑셀 업로드」 버튼 클릭 또는 표 위로 드래그앤드롭, 둘 다 이 함수로 들어온다.

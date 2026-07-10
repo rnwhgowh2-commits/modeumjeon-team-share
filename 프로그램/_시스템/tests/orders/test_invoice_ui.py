@@ -35,10 +35,23 @@ class TestInvoiceUiPresent:
         assert "inv-ck" in html               # 행 체크박스 클래스
         assert "엑셀 업로드" in html
 
-    def test_send_is_two_step_preview_then_send(self):
+    def test_send_is_single_button_guarded_by_confirm(self):
+        """사용자 요청으로 「미리보기」 버튼 제거 — 확인창이 화면상 마지막 방어선."""
         html = _render_list_tab()
-        assert 'id="invprev"' in html and 'id="invsend"' in html
-        assert "미리보기" in html
+        assert 'id="invsend"' in html
+        assert 'id="invprev"' not in html          # 미리보기 버튼 없음
+        assert "confirm(" in html
+        assert "되돌리기 어렵습니다" in html
+
+    def test_hint_has_no_dangling_preview_reference(self):
+        """없는 버튼(「미리보기」)을 가리키는 안내 문구가 남아 있으면 안 된다(모순 표기 금지)."""
+        html = _render_list_tab()
+        assert "전송은 미리보기로 먼저 확인" not in html
+
+    def test_toolbar_buttons_do_not_wrap_to_two_lines(self):
+        """「엑셀 업로드」가 두 줄로 접히지 않게."""
+        html = _render_list_tab()
+        assert ".o7 .ibar .gbtn{white-space:nowrap;}" in html
 
     def test_only_sendable_markets_are_checkable(self):
         """전송 함수 없는 마켓은 화면에서도 체크 못 하게(거짓 기대 방지)."""
