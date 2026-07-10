@@ -121,10 +121,43 @@ def test_sell_df_without_settle_source_defaults_to_none():
     assert out["matched"][0]["_settle_source"] == "none"
 
 
-# ── JSON 안전 ──
+# ── JSON 안전 + 숫자 칸 dtype 보존 ──
+
+def test_numeric_fields_stay_numeric_after_sanitizing():
+    """숫자 칸에 ''를 넣으면 컬럼이 object dtype 이 되어 aggregator 의 sum() 이
+    TypeError 로 죽는다. NaN 을 실제로 태워야 landmine 을 잡으므로 두 번째 행에
+    정산 NaN 을 넣는다(깨끗한 행만으로는 '' 분기가 안 타 landmine 을 못 잡는다)."""
+    buy = pd.DataFrame([_buy(), _buy(마켓주문번호="2002", _uid="1_2002_김")])
+    sell = pd.DataFrame([_sell(), _sell(오픈마켓주문번호="2002",
+                                        정산예상금액_배송비포함=float("nan"))])
+    out = P.run(buy, sell)
+    df = pd.DataFrame(out["matched"])
+    assert len(df) == 2
+    for col in ("단가", "판매가", "정산예상금액", "구매가격", "순마진", "마진율"):
+        assert pd.api.types.is_numeric_dtype(df[col]), col
+    assert df["순마진"].sum() == 20000   # 20000(정상) + 0(NaN→0 보정)
+
+
+def test_nan_in_numeric_field_becomes_zero_and_is_counted():
+    """NaN → 0 (조용히 넘기지 않고 nan_coerced 로 센다).
+
+    주의: matcher(frozen)는 순마진 = 정산 - 매입 을 먼저 계산한다. 정산이 NaN 이면
+    `pd.to_numeric(nan) or 0` = nan(nan 은 truthy) 이라 순마진·마진율도 NaN 으로 오염된다.
+    → sanitizer 가 세 칸(정산·순마진·마진율)을 모두 0 으로 보정한다. 원 스케치의
+    `순마진 == -50000` 은 matcher 결합상 불가능(수정: 순마진도 0). 매입 손실 '신호'는
+    정산 0 + 구매가격 50000 으로 살아있다(margin_rules.js 가 읽는 의심손실 조건).
+    """
+    sell = pd.DataFrame([_sell(정산예상금액_배송비포함=float("nan"))])
+    out = P.run(pd.DataFrame([_buy()]), sell)
+    r = out["matched"][0]
+    assert r["정산예상금액"] == 0
+    assert r["구매가격"] == 50000         # 매입 손실 신호는 정산 0 + 매입>0 으로 살아있다
+    assert r["순마진"] == 0               # matcher 결합: 정산 NaN → 순마진도 NaN → 0 보정
+    assert out["nan_coerced"] >= 1
+    pd.DataFrame(out["matched"])["순마진"].sum()   # dtype 안 깨짐
+
 
 def test_all_outputs_are_json_serializable():
-    """NaN 이 섞이면 jsonify 가 NaN 리터럴을 뱉고 브라우저 JSON.parse 가 거부한다."""
     buy = pd.DataFrame([_buy(), _buy(마켓주문번호="2002", 사이트주문번호=None,
                                      국내송장번호=None, 간단메모=None, _uid="1_2002_김")])
     out = P.run(buy, pd.DataFrame([_sell()]))
@@ -132,9 +165,17 @@ def test_all_outputs_are_json_serializable():
         json.dumps(out[key], default=str, allow_nan=False)
 
 
-def test_blank_settlement_does_not_leak_nan():
-    """정산금액 셀이 비면 matcher 가 NaN 을 만든다 → sanitize 로 '' 대체, allow_nan=False 통과."""
+def test_clean_data_coerces_nothing():
+    out = P.run(pd.DataFrame([_buy()]), pd.DataFrame([_sell()]))
+    assert out["nan_coerced"] == 0
+
+
+def test_blank_settlement_becomes_zero_not_empty_string():
+    """정산금액 셀이 비면 matcher 가 NaN 을 만든다 → 숫자 칸은 0(빈문자 금지)."""
     out = P.run(pd.DataFrame([_buy()]),
                 pd.DataFrame([_sell(정산예상금액_배송비포함="", 실결제금액="", 단가="")]))
+    r = out["matched"][0]
+    assert r["정산예상금액"] == 0
+    assert r["단가"] == 0
     for key in ("matched", "unmatched_buy", "unmatched_sell", "buy_missing"):
         json.dumps(out[key], default=str, allow_nan=False)

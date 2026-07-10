@@ -119,19 +119,39 @@ def _attach_settle_source(matched, buy_df, sell_df) -> int:
 
 
 # ── JSON 안전 (Part C) ────────────────────────────────────────────────────
+#
+# 숫자 칸은 숫자로 남는다. NaN → 0 (이 시스템의 '값 없음' 부호, Task 7 참조 —
+# margin_rules.js 가 정산 0 + 매입>0 을 '의심손실'로 읽는다). 문자 칸은 NaN → "".
+# 숫자 칸에 ""를 넣으면 컬럼이 object dtype 이 되어 aggregator 의
+# df['순마진'].sum() 이 str+float TypeError 로 죽는다(원인에서 멀리 떨어진 곳에서).
+_NUMERIC_FIELDS = {
+    "단가", "판매가", "실결제금액", "정산예상금액", "구매가격",
+    "순마진", "마진율", "수량_매출",
+}
 
-def _json_safe(rec: dict) -> dict:
-    """NaN / NaT / pd.NA → '' 로 치환. jsonify 가 뱉는 bare NaN 리터럴을
-    브라우저 JSON.parse 가 거부해 마진탭 전체가 안 뜨는 사고를 막는다(Task 7 동종 버그)."""
+
+def _json_safe(rec: dict, coerce_numeric: bool, counter: list) -> dict:
+    """NaN / NaT / pd.NA 정리. jsonify 가 뱉는 bare NaN 리터럴을 브라우저
+    JSON.parse 가 거부해 마진탭 전체가 안 뜨는 사고를 막는다(Task 7 동종 버그).
+
+    coerce_numeric=True: 숫자 칸(_NUMERIC_FIELDS) NaN → 0(counter[0] 증가),
+      그 외 NaN → "". aggregator 로 흘러가는 matched/unmatched 용.
+    coerce_numeric=False: 모든 NaN → "". buy_missing(원본 더망고, 표시 전용, 하류 집계 없음).
+    """
     out = {}
     for k, v in rec.items():
         try:
-            if pd.isna(v):
-                out[k] = ""
-                continue
+            is_na = pd.isna(v)
         except (ValueError, TypeError):
-            pass  # 배열 등 스칼라 아님 → 그대로 둔다
-        out[k] = v
+            is_na = False  # 배열 등 스칼라 아님 → 그대로 둔다
+        if is_na:
+            if coerce_numeric and k in _NUMERIC_FIELDS:
+                out[k] = 0
+                counter[0] += 1
+            else:
+                out[k] = ""
+        else:
+            out[k] = v
     return out
 
 
@@ -147,6 +167,7 @@ def run(buy_df, sell_df, price_ranges=None) -> dict:
             "unmatched_sell": list[dict],
             "buy_missing": list[dict],    # G열 미기입 매입 행 (JSON-safe records)
             "settle_unknown": int,        # 조인 실패로 _settle_source=unknown 된 matched 수
+            "nan_coerced": int,           # 숫자 칸 NaN → 0 으로 보정된 셀 수 (정상=0)
         }
     """
     ranges = price_ranges or DEFAULT_PRICE_RANGES
@@ -180,11 +201,18 @@ def run(buy_df, sell_df, price_ranges=None) -> dict:
     # ── _settle_source 재부착 (Part B) — sanitize 전에(파생값 읽어야 함)
     settle_unknown = _attach_settle_source(matched, buy_df, sell_df)
 
-    # ── JSON 안전 (Part C)
-    matched = [_json_safe(r) for r in matched]
-    unmatched_buy = [_json_safe(r) for r in unmatched_buy]
-    unmatched_sell = [_json_safe(r) for r in unmatched_sell]
-    buy_missing_records = [_json_safe(r) for r in buy_missing.to_dict("records")]
+    # ── JSON 안전 (Part C) — 숫자 칸은 0 으로 남긴다(aggregator sum 보호)
+    counter = [0]
+    matched = [_json_safe(r, True, counter) for r in matched]
+    unmatched_buy = [_json_safe(r, True, counter) for r in unmatched_buy]
+    unmatched_sell = [_json_safe(r, True, counter) for r in unmatched_sell]
+    # buy_missing 은 원본 더망고 표시 전용 — 하류 집계 없음 → 전부 "" 로.
+    buy_missing_records = [_json_safe(r, False, counter) for r in buy_missing.to_dict("records")]
+
+    nan_coerced = counter[0]
+    if nan_coerced:
+        # 두 생산자가 정상이면 항상 0. 0 이 아니면 생산자 회귀 신호 → 라우트가 표면화.
+        logger.warning("pipeline: 숫자 칸 NaN %d개를 0 으로 보정", nan_coerced)
 
     return {
         "matched": matched,
@@ -192,4 +220,5 @@ def run(buy_df, sell_df, price_ranges=None) -> dict:
         "unmatched_sell": unmatched_sell,
         "buy_missing": buy_missing_records,
         "settle_unknown": settle_unknown,
+        "nan_coerced": nan_coerced,
     }
