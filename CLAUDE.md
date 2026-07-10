@@ -38,5 +38,9 @@
 
 ## ✅ 검증
 
-- DB 스키마 변경 시 Alembic 마이그레이션 생성 → Supabase 적용
+- **DB 스키마 변경 (Alembic 은 이 저장소에 없다 — 2026-07-10 확인)**
+  - 신규 **테이블** → `shared/db.py:init_db()` 의 `Base.metadata.create_all` 이 생성한다.
+    단 **모델 모듈을 `app.py` 가 import 해야** 등록된다 (`import lemouton.xxx.models  # noqa: F401`).
+  - 기존 테이블의 신규 **컬럼** → `shared/db.py:_apply_lightweight_migrations()` 의
+    `migrations` 리스트에 `(table, column, dtype)` 추가.
 - 데이터 무결성: 중복·모순 절대 금지 (가격·재고 오류 = 금전 손실)
