@@ -1,0 +1,92 @@
+# -*- coding: utf-8 -*-
+"""sell_source.from_api — order_export 행 → SellRow DF + 정산 정책."""
+import datetime as dt
+
+import pytest
+
+from lemouton.margin import sell_source as SS
+
+KST = dt.timezone(dt.timedelta(hours=9))
+SINCE = dt.datetime(2026, 7, 1, tzinfo=KST)
+UNTIL = dt.datetime(2026, 7, 8, tzinfo=KST)
+
+
+def _oe_row(**kw):
+    base = {
+        "주문일": "2026-07-04 09:00:00", "판매처": "스마트스토어", "주문상태": "배송완료",
+        "상품명": "코트 12345", "옵션": "블랙/95", "수량": 1, "수령자": "홍길동",
+        "단가": 80000, "배송비": 0, "정산예정금액": 70000, "실결제금액": 80000,
+        "마켓수수료": 10000, "수수료율": "12.5%", "오픈마켓주문번호": "1001",
+        "송장입력": "1234", "정산예정금(배송비포함)": 70000, "_settle_source": "real",
+    }
+    base.update(kw)
+    return base
+
+
+def test_market_name_mapped_to_shopmine_form(monkeypatch):
+    monkeypatch.setattr(SS, "_fetch_rows", lambda *a, **k: ([_oe_row()], []))
+    df = SS.from_api(SINCE, UNTIL)
+    assert df.loc[0, "쇼핑몰"] == "04.스마트스토어"
+    assert df.loc[0, "_sell_origin"] == "api"
+
+
+def test_all_markets_mapped():
+    for api_name, ko in [("스마트스토어", "04.스마트스토어"), ("쿠팡", "06.쿠팡"),
+                         ("롯데온", "18.롯데온"), ("11번가", "03.11번가"),
+                         ("옥션", "02.옥션"), ("G마켓", "01.지마켓")]:
+        assert SS.market_to_shopmine(api_name) == ko
+
+
+def test_settlement_column_renamed_from_order_export():
+    row = _oe_row(**{"정산예정금(배송비포함)": 71000})
+    df = SS._rows_to_df([row])
+    assert df.loc[0, "정산예상금액_배송비포함"] == 71000
+
+
+def test_lotteon_settlement_is_paid_minus_fee():
+    """롯데온: 정산 = 실결제(actualAmt, 배송비 포함) − 실수수료. 배송비 재가산 금지."""
+    row = _oe_row(판매처="롯데온", 실결제금액=100000, 마켓수수료=12000,
+                  배송비=3000, **{"정산예정금액": 100000, "정산예정금(배송비포함)": 103000,
+                                  "_settle_source": "real"})
+    df = SS._rows_to_df([row])
+    assert df.loc[0, "정산예상금액_배송비포함"] == 88000
+    assert df.loc[0, "_settle_source"] == "real"
+
+
+def test_lotteon_without_fee_is_none():
+    row = _oe_row(판매처="롯데온", 실결제금액=100000, 마켓수수료="",
+                  **{"_settle_source": "none"})
+    df = SS._rows_to_df([row])
+    assert df.loc[0, "정산예상금액_배송비포함"] == ""
+    assert df.loc[0, "_settle_source"] == "none"
+
+
+def test_coupang_estimated_is_passed_through_and_tagged():
+    """쿠팡 추정치는 order_export 계산식 그대로. 실결제금액이 API 에 없어 통일 불가(스펙 §4)."""
+    row = _oe_row(판매처="쿠팡", 실결제금액="", 단가=10000, 수량=1,
+                  **{"정산예정금(배송비포함)": 8845, "_settle_source": "estimated"})
+    df = SS._rows_to_df([row])
+    assert df.loc[0, "정산예상금액_배송비포함"] == 8845
+    assert df.loc[0, "_settle_source"] == "estimated"
+
+
+def test_settle_source_none_leaves_settlement_blank():
+    row = _oe_row(**{"정산예정금(배송비포함)": "", "_settle_source": "none"})
+    df = SS._rows_to_df([row])
+    assert df.loc[0, "정산예상금액_배송비포함"] == ""
+
+
+def test_market_fetch_failure_propagates(monkeypatch):
+    """마켓 1개 실패 → 분석 전체 중단. 부분 성공 숨김 금지 (스펙 §9)."""
+    def _boom(*a, **k):
+        raise RuntimeError("롯데온 IP 미등록")
+    monkeypatch.setattr(SS, "_fetch_rows", _boom)
+    with pytest.raises(RuntimeError, match="롯데온"):
+        SS.from_api(SINCE, UNTIL)
+
+
+def test_account_warnings_are_surfaced(monkeypatch):
+    monkeypatch.setattr(SS, "_fetch_rows",
+                        lambda *a, **k: ([_oe_row()], ["[coupang] 키 없음"]))
+    df = SS.from_api(SINCE, UNTIL)
+    assert df.attrs["warnings"] == ["[coupang] 키 없음"]
