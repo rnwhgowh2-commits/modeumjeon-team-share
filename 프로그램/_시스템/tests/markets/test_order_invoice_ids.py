@@ -72,3 +72,63 @@ def test_send_ids_not_leaked_into_excel_columns():
     from lemouton.markets.order_export import ALL_COLUMNS
 
     assert not any(c.startswith("_") for c in ALL_COLUMNS)
+
+
+# ── 11번가 ────────────────────────────────────────────────────
+_XML_11 = """<?xml version="1.0" encoding="euc-kr"?><ns2:orders xmlns:ns2="http://x">
+ <ns2:order><ns2:ordNo>202607100001</ns2:ordNo><ns2:ordPrdSeq>2</ns2:ordPrdSeq>
+  <ns2:prdNm>스커트</ns2:prdNm><ns2:ordQty>1</ns2:ordQty><ns2:selPrc>19000</ns2:selPrc>
+  <ns2:rcvrNm>홍길동</ns2:rcvrNm><ns2:ordDt>2026-07-08 16:53:53</ns2:ordDt></ns2:order>
+</ns2:orders>"""
+
+
+class _Fake11:
+    def request(self, method, path, body=None):
+        return _XML_11
+
+
+def test_eleven11_row_keeps_ord_no_and_ord_prd_seq():
+    """11번가 발송처리는 상품주문번호(ordPrdSeq)까지 필요 — 중복제거용으로만 쓰고 버리면 전송 불가."""
+    from lemouton.markets.order_export import eleven11_order_rows, _finalize_rows
+
+    since = _dt.datetime(2026, 7, 8, tzinfo=KST)
+    until = _dt.datetime(2026, 7, 9, tzinfo=KST)
+    rows = _finalize_rows(eleven11_order_rows(since, until, client=_Fake11()))
+
+    send = rows[0].get("_send_ids")
+    assert send is not None, "11번가 전송 식별자(_send_ids)가 행에 없다"
+    assert send["ord_no"] == "202607100001"
+    assert send["ord_prd_seq"] == "2"
+
+
+# ── 롯데온 ────────────────────────────────────────────────────
+class _FakeLo:
+    def request(self, method, path, body=None):
+        if "/delivery/" in path:
+            return {"data": {"deliveryOrderList": [
+                {"odNo": "OD777", "odSeq": "3", "procSeq": "1",
+                 "spdNo": "LO#100", "sitmNo": "LO#10010",
+                 "spdNm": "코트", "odQty": "2",
+                 "slPrc": "10000", "odPrgsStepCd": "11", "odCmptDttm": "20260708100000"}]}}
+        return {"data": {}}
+
+
+def test_lotteon_row_keeps_all_ids_required_by_delivery_inform():
+    """롯데온 배송상태 통보 필수값: odNo·odSeq·procSeq·spdNo·sitmNo·slQty (공식문서 apiNo=137).
+
+    _odseq 는 진행단계 조인 후 _finalize_rows 가 pop 하므로 살아남는 사본이 필요하다.
+    """
+    from lemouton.markets.order_export import lotteon_order_rows, _finalize_rows
+
+    since = _dt.datetime(2026, 7, 8, tzinfo=KST)
+    until = _dt.datetime(2026, 7, 9, tzinfo=KST)
+    rows = _finalize_rows(lotteon_order_rows(since, until, client=_FakeLo()))
+
+    send = rows[0].get("_send_ids")
+    assert send is not None, "롯데온 전송 식별자(_send_ids)가 행에 없다"
+    assert send["od_no"] == "OD777"
+    assert send["od_seq"] == "3"
+    assert send["proc_seq"] == "1"
+    assert send["spd_no"] == "LO#100"
+    assert send["sitm_no"] == "LO#10010"
+    assert send["qty"] == "2"

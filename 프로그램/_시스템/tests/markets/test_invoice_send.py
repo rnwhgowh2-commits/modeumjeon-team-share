@@ -92,8 +92,50 @@ class TestCoupangSend:
 
 
 # ── 미지원 마켓 ──────────────────────────────────────────────
+class TestLotteonSend:
+    def test_logen_code_is_0005_not_kgb_nor_logen(self):
+        """로젠택배: 롯데온 0005 / 쿠팡 KGB / 네이버 LOGEN — 세 마켓 전부 다르다."""
+        from lemouton.markets.invoice_send import resolve_courier_code
+        assert resolve_courier_code("lotteon", "로젠택배") == "0005"
+        assert resolve_courier_code("coupang", "로젠택배") == "KGB"
+        assert resolve_courier_code("smartstore", "로젠택배") == "LOGEN"
+
+    def test_missing_ids_fail_not_guess(self):
+        from lemouton.markets.invoice_send import send_invoice
+        r = send_invoice(market="lotteon", order_no="OD1", courier_name="로젠택배",
+                         invoice_no="1", send_ids={"od_no": "OD1"}, client=object(), live=True)
+        assert r.success is False and "식별자" in (r.error or "")
+
+    def test_live_send_passes_all_ids(self, monkeypatch):
+        import shared.platforms.lotteon.shipping as lo
+        got = {}
+
+        def fake(**kw):
+            got.update(kw)
+            return True
+
+        monkeypatch.setattr(lo, "send_tracking", fake)
+        from lemouton.markets.invoice_send import send_invoice
+        ids = {"od_no": "OD1", "od_seq": "3", "proc_seq": "1",
+               "spd_no": "LO#100", "sitm_no": "LO#10010", "qty": "2"}
+        r = send_invoice(market="lotteon", order_no="OD1", courier_name="로젠택배",
+                         invoice_no="777", send_ids=ids, client=object(), live=True)
+        assert r.success is True
+        assert got["delivery_company_code"] == "0005"
+        assert got["od_no"] == "OD1" and got["sitm_no"] == "LO#10010" and got["qty"] == "2"
+
+    def test_rejected_by_market_is_failure(self, monkeypatch):
+        import shared.platforms.lotteon.shipping as lo
+        monkeypatch.setattr(lo, "send_tracking", lambda **kw: False)
+        from lemouton.markets.invoice_send import send_invoice
+        ids = {"od_no": "OD1", "od_seq": "3", "spd_no": "S", "sitm_no": "I", "qty": "1"}
+        r = send_invoice(market="lotteon", order_no="OD1", courier_name="로젠택배",
+                         invoice_no="777", send_ids=ids, client=object(), live=True)
+        assert r.success is False and "거부" in (r.error or "")
+
+
 class TestUnsupportedMarket:
-    @pytest.mark.parametrize("market", ["lotteon", "eleven11", "auction", "gmarket"])
+    @pytest.mark.parametrize("market", ["eleven11", "auction", "gmarket"])
     def test_unsupported_market_fails_loudly(self, market):
         """전송 함수 없는 마켓은 조용히 성공하지 않는다(거짓 성공 금지)."""
         from lemouton.markets.invoice_send import send_invoice

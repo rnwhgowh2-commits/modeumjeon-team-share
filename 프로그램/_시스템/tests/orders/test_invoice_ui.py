@@ -58,7 +58,9 @@ class TestInvoiceUiPresent:
         html = _render_list_tab()
         assert "SENDABLE" in html
         assert "coupang:1" in html and "smartstore:1" in html
-        assert "lotteon:1" not in html        # 미지원 마켓은 포함하지 않음
+        assert "lotteon:1" in html            # 발송처리(apiNo=137) 구현 완료
+        assert "eleven11:1" not in html       # 스펙 미확보 — 아직 체크 불가
+        assert "auction:1" not in html and "gmarket:1" not in html
 
     def test_row_color_classes_distinguish_excel_and_manual(self):
         html = _render_list_tab()

@@ -129,12 +129,13 @@ class TestSend:
         assert body["sent"] == 1 and body["failed"] == 0
 
     def test_unsupported_market_fails_loudly(self, client, monkeypatch):
+        """11번가는 발송처리 스펙 미확보 → 조용히 성공하지 않고 실패로 집계."""
         monkeypatch.setattr(om, "_live_enabled", lambda: True)
         monkeypatch.setattr(om, "_client_for", lambda market, alias: None)
         body = client.post("/orders/invoice/send",
-                           json=_send_body(live=True, market="lotteon")).get_json()
+                           json=_send_body(live=True, market="eleven11")).get_json()
         assert body["results"][0]["success"] is False
-        assert "lotteon" in body["results"][0]["error"]
+        assert "eleven11" in body["results"][0]["error"]
         assert body["sent"] == 0 and body["failed"] == 1
 
     def test_empty_rows_is_400(self, client):
