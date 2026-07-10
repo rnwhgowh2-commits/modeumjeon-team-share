@@ -164,7 +164,8 @@
   .lrow .va{text-align:center;color:#B0B8C1;font-size:10px;}
   .lrow .vt{text-align:left;font-weight:700;color:#191F28;font-variant-numeric:tabular-nums;}
   .lrow .dt{text-align:right;font-weight:700;font-variant-numeric:tabular-nums;}
-  .lc-up{color:#EF4444;} .lc-dn{color:#3182F6;} .lc-so{color:#8B95A1;} .lc-re{color:#22C55E;} .lc-chg,.lc-flat{color:#4E5968;}
+  .lc-up{color:#EF4444;} .lc-dn{color:#3182F6;} .lc-so{color:#8B95A1;} .lc-re{color:#22C55E;}
+  .lc-unk{color:#F59E0B;} .lc-chg,.lc-flat{color:#4E5968;}   /* 확인불가 = 주의 노랑 */
   .lrep-empty{color:#B0B8C1;padding:7px 0;}
   .lrep-sf{margin-top:30px;padding-top:16px;border-top:1px solid #F2F4F6;}
   .lrep-sfh{font-size:11px;font-weight:700;color:#8B95A1;margin-bottom:6px;}
@@ -488,8 +489,10 @@
     var fl=r.failing_now||[];
     var fn=fl.reduce(function(a,b){return a+(b.count||0);},0);
     var why=fl.map(function(f){return _esc(f.reason)+' '+f.count+'건';}).join(' · ');
+    // 처음 수집(이전 값이 없어 값이 처음 잡힌 것) — 변동이 아니라고 분명히 표기
+    var fs=(s.first_seen||0)? '<span class="exc">처음 수집 <b style="color:#8B95A1">'+s.first_seen+'</b>건(변동 아님)</span>' : '';
     return '<div class="lrep-sum"><span>긁은 URL <b>'+(s.urls||0)+'</b>개</span><span>소싱처 <b>'+(s.sites||0)+'</b>곳</span>'
-      +'<span>소요 <b>'+(lp.minutes||0)+'분</b>'+avg+'</span>'+exc+'</div>'
+      +'<span>소요 <b>'+(lp.minutes||0)+'분</b>'+avg+'</span>'+fs+exc+'</div>'
       +'<div class="lrep-rule"></div>'
       +'<div class="lrep-chg">'
       +'<div><div class="lrep-ch">가격 변동<i>'+(c.price||[]).length+'</i></div>'+pr+'</div>'

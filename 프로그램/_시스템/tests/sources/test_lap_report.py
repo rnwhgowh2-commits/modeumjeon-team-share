@@ -88,6 +88,54 @@ def test_lap_report_out_of_range(db):
     assert lap_report(db, lap_no=99, now=datetime(2026, 7, 10, 2, 0, 0)) is None
 
 
+# ── ★첫 수집은 '변동'이 아니다 (라이브서 921건 둔갑했던 버그) ─────────
+def _seed_first(db, detail):
+    from lemouton.sources.models import SourceProduct, CrawlLapRun, CrawlDelta
+    sp = SourceProduct(site="ssg", url="https://www.ssg.com/item/1")
+    db.add(sp); db.flush()
+    t0 = datetime(2026, 7, 10, 1, 0, 0)
+    t1 = t0 + timedelta(minutes=5)
+    t2 = t1 + timedelta(minutes=5)
+    db.add(CrawlLapRun(completed_at=t1)); db.add(CrawlLapRun(completed_at=t2))
+    db.add(CrawlDelta(source_product_id=sp.id, crawled_at=t1 + timedelta(minutes=1),
+                      price_changed=True, stock_changed=True, detail=detail))
+    db.commit()
+    return t2
+
+
+def test_first_seen_price_is_not_a_change(db):
+    # 이전 가격 없음(None) → 값이 처음 잡힘 = 변동 아님
+    t2 = _seed_first(db, "[블랙/265] 가격 None→120320")
+    r = lap_report(db, lap_no=2, now=t2 + timedelta(minutes=1))
+    assert r["changes"]["price"] == []
+    assert r["summary"]["first_seen"] == 1
+
+
+def test_first_seen_stock_is_not_a_change(db):
+    # 미크롤(None) → 30개 = 처음 수집
+    t2 = _seed_first(db, "[블랙/265] 재고 None→30")
+    r = lap_report(db, lap_no=2, now=t2 + timedelta(minutes=1))
+    assert r["changes"]["stock"] == []
+    assert r["summary"]["first_seen"] == 1
+
+
+def test_option_added_is_first_seen_removed_is_change(db):
+    t2 = _seed_first(db, "[화이트/270] 옵션 생김 · [블랙/280] 옵션 사라짐")
+    r = lap_report(db, lap_no=2, now=t2 + timedelta(minutes=1))
+    assert r["summary"]["first_seen"] == 1                    # 생김 = 신규
+    assert len(r["changes"]["stock"]) == 1                    # 사라짐 = 변동
+    assert r["changes"]["stock"][0]["to"] == "옵션 사라짐"
+    assert r["changes"]["stock"][0]["dir"] == "so"
+
+
+def test_stock_to_unknown_is_change_not_dropped(db):
+    # 3개 → 확인불가(-1) : 크롤 불확실 — 변동으로 표면화(숨기지 않음)
+    t2 = _seed_first(db, "[블랙/265] 재고 3→-1")
+    r = lap_report(db, lap_no=2, now=t2 + timedelta(minutes=1))
+    assert r["changes"]["stock"][0]["to"] == "확인불가"
+    assert r["changes"]["stock"][0]["dir"] == "unk"
+
+
 def test_excluded_sites_lists_weight_zero(db):
     from lemouton.sources.crawl_schedule import set_crawl_weight_rule
     from lemouton.sources.lap_report import excluded_sites
