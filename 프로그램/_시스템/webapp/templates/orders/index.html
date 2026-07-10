@@ -138,9 +138,20 @@
     .o7 .prow .ic.del:hover{background:#FDECEC;color:var(--red);}
     .o7 .padd{width:100%;border:1px dashed var(--blue);background:#EEF4FF;color:var(--blue);border-radius:8px;padding:8px;font-size:12.5px;font-weight:700;cursor:pointer;}
     /* 송장 전송 — 표 위 툴바 + 행 색 구분(엑셀=노랑 / 직접=파랑 / 모순·실패=빨강 / 전송=초록) */
-    .o7 .ibar{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;
-      margin-top:10px;background:#fff;border:1px solid var(--line2);border-radius:10px;padding:9px 12px;font-size:12.5px;}
+    /* 툴바는 왼쪽 고정: 표를 옆으로 스크롤해도 화면 왼쪽에 붙어 버튼이 항상 보인다. */
+    .o7 .ibar{display:flex;align-items:center;justify-content:flex-start;gap:10px;flex-wrap:wrap;
+      margin-top:10px;background:#fff;border:1px solid var(--line2);border-radius:10px;padding:9px 12px;font-size:12.5px;
+      position:sticky;left:0;width:max-content;max-width:100%;z-index:5;}
     .o7 .ibar .il b{color:var(--ink);} .o7 .ibar .ir{display:flex;gap:6px;}
+    /* 표 전체가 드롭존 — 파일을 표 위로 끌면 오버레이가 뜬다 */
+    .o7 .droprel{position:relative;}
+    .o7 .dropov{position:absolute;inset:0;background:rgba(49,130,246,.10);border:2px dashed var(--blue);
+      border-radius:12px;display:flex;align-items:center;justify-content:center;z-index:9;}
+    .o7 .dropov[hidden]{display:none;}
+    .o7 .dropov .in{background:#fff;border:1px solid var(--blue);border-radius:12px;padding:16px 24px;text-align:center;
+      box-shadow:0 6px 18px rgba(0,0,0,.10);}
+    .o7 .dropov .ic{font-size:26px;} .o7 .dropov .t{font-weight:700;font-size:13.5px;margin-top:4px;}
+    .o7 .dropov .d{font-size:12px;color:var(--sub);}
     .o7 .ibar .tag{border-radius:99px;padding:1px 7px;font-size:11px;font-weight:700;margin-left:4px;}
     .o7 .ibar .tag.xl{background:#FFF8DB;color:#94670A;} .o7 .ibar .tag.bad{background:#FDECEC;color:var(--red);}
     .o7 .ibar .gbtn[disabled]{opacity:.45;cursor:not-allowed;}
@@ -184,7 +195,13 @@
       <div class="warnbar" id="warnbar"></div>
       <div id="invbar"></div>
       <input type="file" id="invfile" accept=".xlsx" style="display:none">
-      <div id="tablewrap"><div class="state">주문을 불러오는 중…</div></div>
+      <div class="droprel" id="droprel">
+        <div id="tablewrap"><div class="state">주문을 불러오는 중…</div></div>
+        <div class="dropov" id="dropov" hidden>
+          <div class="in"><div class="ic">📄</div><div class="t">여기에 놓으세요</div>
+            <div class="d">「오픈마켓주문번호」·「운송장번호」 열이 있는 엑셀 (.xlsx)</div></div>
+        </div>
+      </div>
       <div style="font-size:11.5px;color:var(--sub);margin-top:10px">💡 표는 옆으로 스크롤하면 모든 열(주소 포함)이 보입니다. <b>전체 원본</b>은 「엑셀 내보내기」로도 받을 수 있어요.</div>
     </main>
   </div>
@@ -543,7 +560,8 @@
         +'<button type="button" class="gbtn" id="invclear">선택 해제</button>'
         +'<button type="button" class="gbtn" id="invprev"'+(ready.length?'':' disabled')+'>미리보기</button>'
         +'<button type="button" class="gbtn prim" id="invsend"'+(ready.length?'':' disabled')+'>전송 ('+ready.length+'건)</button></span></div>'
-        +'<div class="ihint">엑셀은 「오픈마켓주문번호」와 「운송장번호」 열이 필요해요. 직접 넣으려면 왼쪽 체크박스를 켜세요. '
+        +'<div class="ihint">엑셀은 「오픈마켓주문번호」와 「운송장번호」 열이 필요해요. '
+        +'<b>엑셀 파일을 표 위로 끌어다 놓아도</b> 됩니다. 직접 넣으려면 왼쪽 체크박스를 켜세요. '
         +'<b>전송은 미리보기로 먼저 확인</b>하세요 — 되돌리기 어렵습니다.</div>';
       document.getElementById('invup').onclick=function(){document.getElementById('invfile').click();};
       document.getElementById('invclear').onclick=function(){invSel={};invMap={};invBad={};invResult={};render();};
@@ -552,13 +570,14 @@
         if(confirm('선택한 '+invReady(filtered()).length+'건의 송장을 실제 마켓으로 전송합니다. 되돌리기 어렵습니다. 진행할까요?')) invSend(true);
       };
     }
-    document.getElementById('invfile').addEventListener('change',function(e){
-      var f=e.target.files[0]; if(!f)return;
+    // 엑셀 업로드 — 「엑셀 업로드」 버튼 클릭 또는 표 위로 드래그앤드롭, 둘 다 이 함수로 들어온다.
+    function uploadInvoiceFile(f){
+      if(!f)return;
+      if(!/\.xlsx$/i.test(f.name)){alert('엑셀(.xlsx) 파일만 올릴 수 있어요.');return;}
       var fr=filtered();
       var fd=new FormData(); fd.append('file',f);
       fd.append('order_nos', fr.map(function(r){return r['오픈마켓주문번호']||'';}).filter(Boolean).join(','));
       fetch('/orders/invoice/upload',{method:'POST',body:fd}).then(function(r){return r.json();}).then(function(j){
-        e.target.value='';
         if(!j.ok){alert('엑셀 오류: '+(j.error||''));return;}
         invBad={}; invResult={};
         var conf={}; (j.conflicts||[]).forEach(function(o){conf[o]=1;});
@@ -573,7 +592,27 @@
         if((j.conflicts||[]).length) msg+=' · 모순 '+j.conflicts.length+'건(전송 제외)';
         render(); alert(msg);
       }).catch(function(){alert('업로드 실패(네트워크)');});
+    }
+    document.getElementById('invfile').addEventListener('change',function(e){
+      uploadInvoiceFile(e.target.files[0]); e.target.value='';
     });
+    // 표 전체가 드롭존 — 파일을 표 위 아무 데나 놓으면 업로드된다.
+    (function(){
+      var rel=document.getElementById('droprel'), ov=document.getElementById('dropov'), depth=0;
+      function hasFile(e){var t=(e.dataTransfer||{}).types||[];return [].indexOf.call(t,'Files')>=0;}
+      rel.addEventListener('dragenter',function(e){if(!hasFile(e))return;e.preventDefault();depth++;ov.hidden=false;});
+      rel.addEventListener('dragover',function(e){if(!hasFile(e))return;e.preventDefault();e.dataTransfer.dropEffect='copy';ov.hidden=false;});
+      rel.addEventListener('dragleave',function(e){if(!hasFile(e))return;depth--;if(depth<=0){depth=0;ov.hidden=true;}});
+      rel.addEventListener('drop',function(e){
+        if(!hasFile(e))return;
+        e.preventDefault();depth=0;ov.hidden=true;
+        uploadInvoiceFile((e.dataTransfer.files||[])[0]);
+      });
+      // 표 밖에 떨어뜨렸을 때 브라우저가 그 파일을 열어버리는 것 방지(작업 내용 유실 방지)
+      ['dragover','drop'].forEach(function(t){
+        document.addEventListener(t,function(e){if(hasFile(e))e.preventDefault();});
+      });
+    })();
     function invSend(live){
       var fr=filtered(), ready=invReady(fr);
       if(!ready.length)return;
