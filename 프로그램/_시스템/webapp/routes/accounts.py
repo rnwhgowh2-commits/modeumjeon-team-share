@@ -991,6 +991,8 @@ def test_upload_account_api(account_id: int):
         return _test_smartstore(creds, display_name, env_prefix)
     elif market == "lotteon":
         return _test_lotteon(creds, display_name, env_prefix)
+    elif market == "eleven11":
+        return _test_eleven11(creds, display_name, env_prefix)
     elif market in ("auction", "gmarket"):
         return _test_esm(creds, display_name, env_prefix, market)
     else:
@@ -1296,6 +1298,50 @@ def _test_esm(creds, display_name: str, env_prefix: str, market: str):
     }), 502
 
 
+def _test_eleven11(creds, display_name: str, env_prefix: str):
+    """11번가 셀러 OpenAPI ping — 최근 6시간 결제완료 주문 목록 조회(읽기 전용).
+
+    프로덕션 주문조회가 쓰는 경로(iter_orders)를 그대로 쓴다 — 테스트가 통과했는데 실제
+    주문조회가 실패하는 어긋남을 막기 위해. 주문 0건도 성공(인증·IP 통과가 판정 대상).
+    """
+    import time as _time
+    import datetime as _dt2
+
+    started = _time.time()
+    try:
+        from lemouton.uploader.market_fetch import _eleven11_client
+        from shared.platforms.eleven11.orders import iter_orders
+        client = _eleven11_client(env_prefix)
+        until = _dt2.datetime.now()
+        since = until - _dt2.timedelta(hours=6)
+        seen = 0
+        for _od in iter_orders(since, until, client=client):
+            seen += 1
+            if seen >= 1:
+                break                      # 1건만 확인하면 충분(전량 조회 안 함)
+    except Exception as e:                 # noqa: BLE001 — 사유를 그대로 표면화(키 미노출)
+        elapsed = round(_time.time() - started, 2)
+        msg = f"{type(e).__name__}: {e}"
+        hint = ""
+        if "403" in msg:
+            hint = "403 — 11번가 API 센터에 서버 IP(54.116.196.90) 등록이 필요합니다."
+        elif "401" in msg:
+            hint = "401 — OPENAPI KEY 를 다시 확인하세요."
+        elif "500" in msg:
+            hint = "500 — 11번가 서버 오류. 잠시 후 다시 시도하세요."
+        return jsonify({"ok": False, "error": msg[:300], "hint": hint,
+                        "elapsed_sec": elapsed}), 400
+
+    elapsed = round(_time.time() - started, 2)
+    return jsonify({
+        "ok": True,
+        "market": "eleven11",
+        "account": display_name,
+        "detail": f"최근 6시간 결제완료 주문 {seen}건 조회 성공(인증·IP 통과)",
+        "elapsed_sec": elapsed,
+    })
+
+
 def _test_smartstore(creds, display_name: str, env_prefix: str):
     """스마트스토어 OAuth 토큰 발급 시도 — Bcrypt 서명."""
     import time as _time
@@ -1306,7 +1352,18 @@ def _test_smartstore(creds, display_name: str, env_prefix: str):
     started = _time.time()
     timestamp = str(int(_time.time() * 1000))
     password = f"{creds.client_id}_{timestamp}".encode("utf-8")
-    hashed = bcrypt.hashpw(password, creds.client_secret.encode("utf-8"))
+    # ★ client_secret 은 네이버가 주는 bcrypt salt($2a$04$...) 형식. 잘못 붙여넣으면 bcrypt 가
+    #   ValueError 를 던지는데 이 줄이 try 밖이라 워커가 죽어 '빈 502'로 나갔다(원인이 안 보임).
+    try:
+        hashed = bcrypt.hashpw(password, creds.client_secret.encode("utf-8"))
+    except (ValueError, TypeError) as e:
+        return jsonify({
+            "ok": False,
+            "error": f"Client Secret 형식 오류 — {type(e).__name__}",
+            "hint": "네이버 커머스 API 센터의 Client Secret 을 그대로 다시 입력하세요"
+                    " (앞뒤 공백·줄바꿈 없이, $2a$ 로 시작하는 전체 문자열).",
+            "elapsed_sec": round(_time.time() - started, 2),
+        }), 400
     client_secret_sign = base64.standard_b64encode(hashed).decode("utf-8")
 
     try:
