@@ -106,27 +106,63 @@ def excluded_sites(session) -> list[str]:
     return sorted(lab.get(k, k) for k, w in src.items() if (w or 0) <= 0)
 
 
-def _link_by_product(session, prods) -> dict:
-    """SourceProduct.id → OptionSourceUrl (그 상품 URL에 걸린 옵션-소싱처 연결).
+# source_key → SourceRegistry.id (main_url 도메인 매칭). 매트릭스(api_pricing)와 같은 규칙.
+_KEY_DOMAIN = {
+    "lemouton": "lemouton.co.kr", "ss_lemouton": "smartstore.naver.com",
+    "musinsa": "musinsa.com", "ssf": "ssfshop.com",
+    "lotteon": "lotteon.com", "ssg": "ssg.com",
+}
 
-    최종매입가는 (canonical_sku, source_id)로만 계산된다. 그 두 열쇠의 진짜 출처가
-    바로 이 연결 테이블이다. 소싱처 이름으로 짐작하지 않는다 — 짐작하면 늘 None 이 된다.
-    연결이 없으면 None → 화면은 「확인불가」로 정직하게 표기.
+
+def _key_to_regid(session) -> dict:
+    from lemouton.sourcing.models_pricing import SourceRegistry
+    rows = session.query(SourceRegistry).all()
+    out = {}
+    for k, dom in _KEY_DOMAIN.items():
+        for r in rows:
+            if dom in (r.main_url or ""):
+                out[k] = r.id
+                break
+    return out
+
+
+def _link_by_product(session, prods) -> dict:
+    """SourceProduct.id → (canonical_sku, source_id) — 최종매입가 계산의 두 열쇠.
+
+    ★열쇠의 출처는 '옵션 ↔ 등록 URL' 매핑(OptionSourceUrlLink ⨝ BundleSourceUrl)이다.
+      매트릭스가 믿는 바로 그 경로. 소싱처 이름으로 짐작하면(레지스트리엔 id 가 없다)
+      늘 None 이 되고, 레거시 OptionSourceUrl 은 라이브에서 비어 있다 — 둘 다 겪었다.
+    레거시 표는 폴백으로만 본다. 못 찾으면 None → 화면은 「확인불가」로 정직하게.
     """
-    try:
+    from lemouton.sources.service import normalize_url as _nu
+
+    by_url = {}
+    try:                                    # ① 정본 — 옵션 ↔ 등록 URL
+        from lemouton.sourcing.models import BundleSourceUrl, OptionSourceUrlLink
+        regid = _key_to_regid(session)
+        rows = (session.query(OptionSourceUrlLink, BundleSourceUrl)
+                .join(BundleSourceUrl,
+                      OptionSourceUrlLink.bundle_source_url_id == BundleSourceUrl.id)
+                .all())
+        for lk, bsu in rows:
+            sid = regid.get(bsu.source_key)
+            if not bsu.url or sid is None:
+                continue                    # 레지스트리에 없는 소싱처 = 혜택 계산 불가
+            by_url.setdefault(_nu(bsu.url), (lk.option_canonical_sku, sid))
+    except Exception:
+        pass
+    try:                                    # ② 레거시 폴백
         from lemouton.sourcing.models_pricing import OptionSourceUrl
-        from lemouton.sources.service import normalize_url as _nu
-    except Exception:
-        return {}
-    idx = {}
-    try:
         for l in session.query(OptionSourceUrl).all():
-            if not l.product_url:
-                continue
-            idx.setdefault(_nu(l.product_url), l)
-        return {p.id: idx.get(_nu(p.url)) for p in prods}
+            if l.product_url and l.source_id is not None:
+                by_url.setdefault(_nu(l.product_url), (l.canonical_sku, l.source_id))
     except Exception:
-        return {}
+        pass
+
+    out = {}
+    for pr in prods:
+        out[pr.id] = by_url.get(_nu(pr.url)) if pr.url else None
+    return out
 
 
 def _stock_cells(session, source_product_id: int, limit: int = 200) -> tuple:
@@ -174,14 +210,14 @@ def keep_sources(session, *, crawled_sites: set, changed_sites: set) -> list[dic
         items = []
         for p in prods:
             grid, summ = _stock_cells(session, p.id)
-            l = link_by.get(p.id)
+            key = link_by.get(p.id) or (None, None)
             items.append({
                 "source_product_id": p.id,
                 "url": p.url,
                 "name": p.product_name or p.url,
                 "surface_price": p.last_price,          # 그 상품의 값. 대표가·최저가 폴백 없음
-                "sku": getattr(l, "canonical_sku", None),
-                "source_id": getattr(l, "source_id", None),
+                "sku": key[0],
+                "source_id": key[1],
                 "stock_summary": summ,
                 "stock_grid": grid,
             })
