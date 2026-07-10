@@ -187,9 +187,24 @@ def market_to_shopmine(panmaecheo: str) -> str:
 
 
 def _to_int_or_blank(v):
+    """정수로. 못 하면 "" (0 으로 폴백하지 않는다 — 0 은 '정산 0원'을 뜻하므로).
+
+    쉼표(`"103,000"`)·소수점 문자열(`"88000.0"`)·float 을 모두 받는다. 이걸 놓치면
+    정산액이 조용히 사라져 `none` 으로 강등되고, 사용자는 이유 없이 '정산 확인 불가'를 본다.
+    파싱 실패는 빈 값이 아닐 때만 로그로 남긴다.
+    """
+    if v is None or v == "":
+        return ""
+    if isinstance(v, bool):
+        return ""
     try:
         return int(v)
     except (TypeError, ValueError):
+        pass
+    try:
+        return int(float(str(v).replace(",", "").strip()))
+    except (TypeError, ValueError):
+        logger.debug("정수 변환 실패(무시): %r", v)
         return ""
 
 
@@ -201,6 +216,16 @@ def _settlement_for(row: dict):
     총합에서 지워버린다. 0 은 margin_rules.js 가 이미 '정산 없음'으로 읽는 센티널이며
     (정산 0 + 매입>0 → 의심손실), 실제로 0원에 정산되는 주문은 없다.
     출처의 정직성은 _settle_source='none' 태그가 보존한다.
+
+    ★ 어느 필드를 읽는가 — `정산예정금(배송비포함)` 이 아니라 `정산예정금액` 이다.
+      order_export 의 `정산예정금액` 은 이미 **상품정산 + 배송비정산**이고
+      (COLUMN_META: "상품정산 + 배송비정산(수수료 차감)"),
+      `정산예정금(배송비포함)` 은 거기에 **고객배송비 총액**을 한 번 더 더한다.
+      그걸 마진 분자로 쓰면 배송건당 배송비만큼 마진이 부풀려진다.
+      (샵마인 실파일 대조: 정산예상금액 25330 + 고객배송비 3000 = (배송비포함) 28330.
+       샵마인의 (배송비포함)은 '상품정산 + 고객배송비' 라, 우리 `정산예정금액` 과
+       배송건에서 배송비 수수료만큼 차이가 난다. 우리 쪽이 보수적(작다) — 실수취액에 가깝다.
+       정확한 차이는 골든테스트 2단계(scripts/margin_api_parity.py, 서버 실행)로 정량화한다.)
 
     롯데온만 재계산한다 — order_export 가 정산액 자리에 actualAmt(실결제)를 넣기 때문.
     actualAmt 는 배송비를 이미 포함하므로 배송비를 다시 더하지 않는다.
@@ -215,7 +240,7 @@ def _settlement_for(row: dict):
 
     if src == "none":
         return 0, "none"
-    settle = _to_int_or_blank(row.get("정산예정금(배송비포함)"))
+    settle = _to_int_or_blank(row.get("정산예정금액"))
     if settle == "":
         return 0, "none"
     return settle, src

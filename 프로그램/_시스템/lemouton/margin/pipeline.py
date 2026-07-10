@@ -68,7 +68,32 @@ _TAG_RANK = {"none": 0, "estimated": 1, "real": 2}
 
 
 def _pick(tags):
+    """가장 신뢰도 낮은 태그를 고른다.
+
+    같은 (주문번호·상품명·옵션) 에 정상행과 클레임행이 함께 걸리면 real 과 none 이 섞인다.
+    이때 none 을 택하므로, 실제로 정산된 주문의 배지가 '확인 불가'로 보수적으로 표시될 수
+    있다. 값(정산예상금액)은 matcher 가 고른 실제 매출행에서 오므로 숫자는 옳다 —
+    배지만 보수적이다. 의도된 편향이니 '고치지' 말 것.
+    """
     return min(tags, key=lambda t: _TAG_RANK.get(t, 0))
+
+
+def _norm_sell_key(v) -> str:
+    """매출 주문번호 정규화 — matcher.match_data 안의 중첩함수 `_sell_order_key` 와 동일.
+
+    matcher 는 동결(가드 테스트)이라 그 함수를 import 할 수 없어 여기 복제한다.
+    이 정규화를 빠뜨리면 '1001.0' 로 색인해 두고 '1001' 로 찾게 되어, 매칭은 성공했는데
+    태그 조인만 빗나가 settle_unknown 이 이유 없이 부풀어 오른다.
+    """
+    if pd.isna(v):
+        return ""
+    try:
+        return str(v.item()) if hasattr(v, "item") else str(int(v))
+    except (ValueError, TypeError, OverflowError):
+        s = str(v).strip()
+        if s.endswith(".0"):
+            s = s[:-2]
+        return s
 
 
 def _attach_settle_source(matched, buy_df, sell_df) -> int:
@@ -88,9 +113,10 @@ def _attach_settle_source(matched, buy_df, sell_df) -> int:
             alias.setdefault(str(keys[-1]), set()).update(str(k) for k in keys)
 
     # 2) widened 매출 인덱스: (주문번호, 상품명, 옵션) → 그 키에 걸린 _settle_source 집합
+    #    주문번호는 matcher 가 매칭에 쓴 것과 같은 방식으로 정규화한다(_norm_sell_key).
     sell_tags: dict = {}
     for _, sr in sell_df.iterrows():
-        k = (str(sr.get("오픈마켓주문번호", "")).strip(),
+        k = (_norm_sell_key(sr.get("오픈마켓주문번호", "")),
              str(sr.get("상품명", "")),
              str(sr.get("옵션", "")))
         sell_tags.setdefault(k, set()).add(str(sr.get("_settle_source", "none")))

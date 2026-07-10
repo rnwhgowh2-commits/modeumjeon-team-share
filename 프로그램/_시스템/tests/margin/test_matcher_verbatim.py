@@ -3,6 +3,7 @@
 import pathlib
 
 import pandas as pd
+import pytest
 
 from lemouton.margin import matcher as M
 
@@ -52,7 +53,13 @@ def test_match_data_stage1_precise():
 
 
 def test_source_is_verbatim_except_import_lines():
-    """원본과의 diff 가 config import 두 줄뿐이어야 한다 (docstring 포함 전부 동일)."""
+    """원본과의 diff 가 config import 두 줄뿐이어야 한다 (docstring 포함 전부 동일).
+
+    원본은 개발자 PC 에만 있는 단독앱이라 CI·팀원 PC 에서는 skip 된다.
+    (skip 이 아니라 FileNotFoundError 로 '에러' 나면 스위트 전체가 빨개진다.)
+    """
+    if not ORIGINAL.exists():
+        pytest.skip(f"원본 마진계산기 없음: {ORIGINAL}")
     ported = pathlib.Path(M.__file__).read_text(encoding="utf-8").splitlines()
     original = ORIGINAL.read_text(encoding="utf-8").splitlines()
 
@@ -61,3 +68,11 @@ def test_source_is_verbatim_except_import_lines():
 
     assert strip(ported) == strip(original), \
         "matcher 본문이 원본과 다릅니다 — 무수정 이식 규칙 위반"
+
+
+def test_original_path_guard_is_skippable():
+    """원본 경로가 없는 PC(CI·팀원)에서 이 파일이 FileNotFoundError 로 '에러' 나면 안 된다.
+    가드가 있으면 skip 된다. (test_export.py 는 같은 패턴을 이미 쓰고 있다.)"""
+    import inspect
+    src = inspect.getsource(test_source_is_verbatim_except_import_lines)
+    assert "ORIGINAL.exists()" in src, "원본 부재 시 skip 가드가 없습니다"

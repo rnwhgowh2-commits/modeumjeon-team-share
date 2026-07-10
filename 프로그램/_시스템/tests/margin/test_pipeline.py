@@ -98,21 +98,29 @@ def test_ambiguous_tags_pick_least_trusted():
     assert out["matched"][0]["_settle_source"] == "estimated"
 
 
-def test_no_sell_match_marks_unknown_and_counts():
+def test_unknown_is_a_defensive_net_not_a_normal_path():
     """조인이 빗나가면 조용히 넘기지 않고 unknown 으로 세어 표면화한다.
 
-    matcher._sell_order_key 는 주문번호의 꼬리 '.0' 을 떼고 매칭하지만(→ '1001' 로 성사),
-    pipeline 의 widened 조인은 매출 원본 문자열('1001.0')을 그대로 키로 쓴다.
-    별칭표에는 '1001' 만 있어 조인이 빗나가고 → unknown. 상품명/옵션은 matched 행이
-    매출값을 그대로 복사하므로 조인 실패를 만들 수 없다(원 스케치의 상품명-불일치는
-    unknown 을 못 만든다). 주문키 정규화 잔차가 유일한 실제 갭이다.
+    주문키를 matcher 와 같은 방식으로 정규화한 뒤(_norm_sell_key)로는 run() 을 통해
+    조인 실패를 만들 수 없다 — matched 행의 상품명·옵션은 matcher 가 매출행에서 그대로
+    복사하고, 주문키는 별칭표가 덮기 때문이다. 즉 unknown 은 **정상 경로가 아니라 방어망**이다.
+    그래서 방어망 자체를 단위로 검증한다: sell_df 에 대응이 없는 matched 행을 직접 넣는다.
     """
     buy = pd.DataFrame([_buy(마켓주문번호="1001")])
-    sell = pd.DataFrame([_sell(오픈마켓주문번호="1001.0")])
+    sell = pd.DataFrame([_sell(오픈마켓주문번호="1001")])
+    orphan = {"마켓주문번호": "9999", "상품명": "없는상품", "옵션_매출": "없는옵션"}
+    unknown = P._attach_settle_source([orphan], buy, sell)
+    assert orphan["_settle_source"] == "unknown"
+    assert unknown == 1
+
+
+def test_run_never_leaves_unknown_for_well_formed_data():
+    """정상 데이터에서는 settle_unknown 이 0 이어야 한다 (실데이터 260704 도 0)."""
+    buy = pd.DataFrame([_buy(마켓주문번호="1001")])
+    sell = pd.DataFrame([_sell(오픈마켓주문번호="1001.0", _settle_source="estimated")])
     out = P.run(buy, sell)
-    assert len(out["matched"]) == 1
-    assert out["matched"][0]["_settle_source"] == "unknown"
-    assert out["settle_unknown"] == 1
+    assert out["matched"][0]["_settle_source"] == "estimated"
+    assert out["settle_unknown"] == 0
 
 
 def test_sell_df_without_settle_source_defaults_to_none():
@@ -202,3 +210,16 @@ def test_matched_is_flask_jsonify_safe():
     app = Flask(__name__)
     with app.app_context():
         jsonify(matched=out["matched"])   # TypeError 나면 라우트가 500 난다
+
+
+def test_join_normalizes_sell_order_key_like_matcher():
+    """matcher._sell_order_key 는 sell 주문번호의 '.0' 을 떨군다(1001.0 → 1001).
+    pipeline 의 sell_tags 가 원본 문자열로 색인하면 매칭은 되는데 태그 조인만 빗나가
+    settle_unknown 이 이유 없이 부풀어 오른다.
+    """
+    buy = pd.DataFrame([_buy(마켓주문번호="1001")])
+    sell = pd.DataFrame([_sell(오픈마켓주문번호="1001.0", _settle_source="estimated")])
+    out = P.run(buy, sell)
+    assert len(out["matched"]) == 1
+    assert out["matched"][0]["_settle_source"] == "estimated"
+    assert out["settle_unknown"] == 0

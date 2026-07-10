@@ -38,7 +38,10 @@ def test_all_markets_mapped():
 
 
 def test_settlement_column_renamed_from_order_export():
-    row = _oe_row(**{"정산예정금(배송비포함)": 71000})
+    """SellRow 의 정산예상금액_배송비포함 ← order_export 의 `정산예정금액`.
+    (`정산예정금(배송비포함)` 이 아니다 — 그건 고객배송비를 한 번 더 더한 값이라
+     배송비 이중계상이 된다. test_settlement_does_not_double_count_shipping 참조.)"""
+    row = _oe_row(**{"정산예정금액": 71000, "정산예정금(배송비포함)": 74000})
     df = SS._rows_to_df([row])
     assert df.loc[0, "정산예상금액_배송비포함"] == 71000
 
@@ -63,8 +66,9 @@ def test_lotteon_without_fee_is_none():
 
 def test_coupang_estimated_is_passed_through_and_tagged():
     """쿠팡 추정치는 order_export 계산식 그대로. 실결제금액이 API 에 없어 통일 불가(스펙 §4)."""
-    row = _oe_row(판매처="쿠팡", 실결제금액="", 단가=10000, 수량=1,
-                  **{"정산예정금(배송비포함)": 8845, "_settle_source": "estimated"})
+    row = _oe_row(판매처="쿠팡", 실결제금액="", 단가=10000, 수량=1, 배송비=0,
+                  **{"정산예정금액": 8845, "정산예정금(배송비포함)": 8845,
+                     "_settle_source": "estimated"})
     df = SS._rows_to_df([row])
     assert df.loc[0, "정산예상금액_배송비포함"] == 8845
     assert df.loc[0, "_settle_source"] == "estimated"
@@ -128,3 +132,62 @@ def test_account_warnings_are_surfaced(monkeypatch):
                         lambda *a, **k: ([_oe_row()], ["[coupang] 키 없음"]))
     df = SS.from_api(SINCE, UNTIL)
     assert df.attrs["warnings"] == ["[coupang] 키 없음"]
+
+
+# ── 배송비 이중계상 (코드리뷰 C1) ──────────────────────────────────────────
+
+def test_settlement_does_not_double_count_shipping():
+    """order_export 의 `정산예정금액` 은 이미 '상품정산 + 배송비정산' 이다
+    (COLUMN_META desc). `정산예정금(배송비포함)` 은 거기에 **고객배송비 총액**을 또 더한다
+    → 배송비가 두 번. 배송건당 마진이 배송비만큼 부풀려진다.
+
+    샵마인 실파일 확인: 정산예상금액 25330 + 고객배송비 3000 = (배송비포함) 28330.
+    즉 샵마인의 (배송비포함) 은 '상품정산 + 고객배송비'. 우리 `정산예정금액` 은
+    '상품정산 + 배송비정산' 이므로, 여기에 배송비를 또 더하면 안 된다.
+    """
+    row = _oe_row(판매처="스마트스토어", 배송비=3000,
+                  **{"정산예정금액": 70000,              # 상품정산 + 배송비정산
+                     "정산예정금(배송비포함)": 73000,     # + 고객배송비 (이중)
+                     "_settle_source": "real"})
+    df = SS._rows_to_df([row])
+    assert df.loc[0, "정산예상금액_배송비포함"] == 70000, "배송비를 두 번 세면 안 된다"
+
+
+def test_coupang_estimate_uses_settlement_not_plus_shipping():
+    """쿠팡 미정산 추정도 `정산예정금액`(=상품추정+배송비추정) 을 그대로 쓴다."""
+    row = _oe_row(판매처="쿠팡", 배송비=2500, 실결제금액="",
+                  **{"정산예정금액": 11270,
+                     "정산예정금(배송비포함)": 13770,
+                     "_settle_source": "estimated"})
+    df = SS._rows_to_df([row])
+    assert df.loc[0, "정산예상금액_배송비포함"] == 11270
+    assert df.loc[0, "_settle_source"] == "estimated"
+
+
+def test_free_shipping_order_is_unaffected():
+    """배송비 0 이면 두 필드가 같으므로 값이 바뀌지 않는다 (회귀 안전망)."""
+    row = _oe_row(배송비=0, **{"정산예정금액": 63510,
+                              "정산예정금(배송비포함)": 63510,
+                              "_settle_source": "real"})
+    df = SS._rows_to_df([row])
+    assert df.loc[0, "정산예상금액_배송비포함"] == 63510
+
+
+# ── _to_int_or_blank 견고성 (코드리뷰 I2) ─────────────────────────────────
+
+def test_to_int_handles_comma_and_float_strings():
+    """쉼표·소수점 문자열이 조용히 0/none 으로 떨어지면 정산액이 사라진다."""
+    assert SS._to_int_or_blank("103,000") == 103000
+    assert SS._to_int_or_blank("88000.0") == 88000
+    assert SS._to_int_or_blank(88000.0) == 88000
+    assert SS._to_int_or_blank("") == ""
+    assert SS._to_int_or_blank(None) == ""
+    assert SS._to_int_or_blank("알수없음") == ""
+
+
+def test_lotteon_settlement_survives_formatted_strings():
+    row = _oe_row(판매처="롯데온", 실결제금액="103,000", 마켓수수료="12,000.0",
+                  **{"_settle_source": "real"})
+    df = SS._rows_to_df([row])
+    assert df.loc[0, "정산예상금액_배송비포함"] == 91000
+    assert df.loc[0, "_settle_source"] == "real"
