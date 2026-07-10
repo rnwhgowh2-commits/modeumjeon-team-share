@@ -179,6 +179,29 @@ def crawl_weight_tree():
         s.close()
 
 
+@bp.get('/crawl/lap-report')
+def crawl_lap_report():
+    """[읽기] N회차(오늘 기준) 크롤 보고서 — 요약 · 변동(가격/재고) · 성공.
+
+    ★실패는 회차별로 기록되지 않는다 → result.failing_now 는 '지금 실패 중'(현재 기준).
+      회차 실패 건수를 지어내지 않기 위함.
+    """
+    from datetime import datetime as _dt
+    from lemouton.sources.lap_report import lap_report
+    try:
+        no = int(request.args.get('no') or 0)
+    except (TypeError, ValueError):
+        return jsonify({"ok": False, "error": "회차 번호(no)가 필요해요"}), 400
+    s = SessionLocal()
+    try:
+        r = lap_report(s, lap_no=no, now=_dt.utcnow())
+        if r is None:
+            return jsonify({"ok": False, "error": "그 회차 기록이 없어요"}), 404
+        return jsonify({"ok": True, **r})
+    finally:
+        s.close()
+
+
 @bp.post('/crawl/weight-rule')
 def set_crawl_weight_rule_route():
     """계수 규칙 설정/해제. body {scope_type, scope_key, weight?(없으면 해제)}."""
