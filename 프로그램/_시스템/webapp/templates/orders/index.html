@@ -59,6 +59,11 @@
     .o7 .warnbar .wt{font-weight:800;margin-bottom:4px;}
     .o7 .warnbar ul{margin:0;padding-left:18px;line-height:1.7;}
     .o7 .warnbar .hint{margin-top:6px;color:#7F1D1D;opacity:.85;}
+    /* 중복 계정 접힘 = 정상 처리(실패 아님) → 실패 목록과 색·문구를 분리 */
+    .o7 .warnbar .dupwrap{margin-top:10px;padding-top:9px;border-top:1px solid #FCA5A5;color:#78350F;}
+    .o7 .warnbar .dupwrap .hint{color:#78350F;}
+    .o7 .warnbar.info{background:#FFFBEB;border-color:#FCD34D;color:#78350F;}
+    .o7 .warnbar.info .dupwrap{border-top:none;margin-top:0;padding-top:0;}
     .o7 .cfgov{position:fixed;inset:0;background:rgba(20,25,35,.5);z-index:200;display:none;align-items:center;justify-content:center;}
     .o7 .cfgov.on{display:flex;}
     .o7 .cfgbox{background:#fff;width:380px;max-width:92vw;border-radius:16px;overflow:hidden;box-shadow:0 20px 50px rgba(0,0,0,.3);}
@@ -335,26 +340,59 @@
         });
       });
     }
-    // 조회에서 빠진 계정을 빨간 줄로 명시(숨기지 않음). 원문 사유는 hover.
+    // 조회에서 빠진 계정을 명시(숨기지 않음). 원문 사유는 hover.
+    //  ★중복 계정 접힘은 '실패'가 아니라 정상 처리 — 실패 목록과 섞으면 거짓 표기가 된다.
+    var MKKO={coupang:'쿠팡',smartstore:'스마트스토어',lotteon:'롯데온',eleven11:'11번가',auction:'옥션',gmarket:'G마켓'};
+    function warnWho(w){
+      var m=String(w).match(/^\[([^\]]+)\]/); if(!m)return '';
+      var p=m[1].split('·'), mk=MKKO[p[0]]||p[0];
+      return p[1]?mk+' · '+acctName(p[1]):mk;
+    }
+    function warnKind(w){
+      w=String(w);
+      if(/중복 등록/.test(w))return 'dup';
+      if(/API 키가 없어/.test(w))return 'nokey';
+      if(/ip address|not allowed for this request|출발지 ?IP|IP ?미등록/i.test(w))return 'ip';
+      if(/401|unauthorized/i.test(w))return 'auth';
+      if(/HTTP 5\d\d/.test(w))return 'server';
+      return 'etc';
+    }
     function warnText(w){
-      w=String(w||'');
-      var m=w.match(/^\[([^\]]+)\]/), who=m?m[1].replace('·',' · '):'';
-      if(/API 키가 없어/.test(w))return w;
-      if(/ip address|not allowed for this request/i.test(w))
-        return who+' — 이 계정의 판매자센터에 우리 서버 IP가 등록되지 않았어요.';
-      if(/401|unauthorized/i.test(w))return who+' — 키가 맞지 않아요(인증 실패).';
-      return who+' — 주문을 불러오지 못했어요.';
+      var who=warnWho(w);
+      switch(warnKind(w)){
+        case 'nokey':  return who+' — API 키가 없어 조회에서 제외됐어요.';
+        case 'ip':     return who+' — 판매자센터에 우리 서버 IP가 등록되지 않았어요.';
+        case 'auth':   return who+' — 키가 맞지 않아요(인증 실패).';
+        case 'server': return who+' — 마켓 서버가 오류를 돌려줬어요(잠시 후 다시 시도).';
+        default:       return who+' — 주문을 불러오지 못했어요.';
+      }
+    }
+    function dupText(w){
+      var names=(String(w).split(':')[1]||'').trim();
+      return warnWho(w)+' — 같은 셀러가 중복 등록돼 한 번만 조회했어요 (접은 계정: '+names+')';
     }
     function renderWarn(ws){
       var el=document.getElementById('warnbar');
-      if(!ws||!ws.length){el.classList.remove('on');el.innerHTML='';return;}
-      el.innerHTML='<div class="wt">⚠️ 아래 계정 '+ws.length+'개는 주문을 불러오지 못해 표에서 빠져 있어요</div>'
-        +'<ul>'+ws.map(function(w){return '<li title="'+esc(w)+'">'+esc(warnText(w))+'</li>';}).join('')+'</ul>'
-        +'<div class="hint">「판매처 관리」에서 그 계정의 키와 서버 IP 등록을 확인해 주세요. 빠진 계정이 있는 동안 「엑셀 내보내기」는 발송 누락을 막기 위해 파일을 만들지 않습니다.</div>';
+      if(!ws||!ws.length){el.classList.remove('on');el.classList.remove('info');el.innerHTML='';return;}
+      var dups=ws.filter(function(w){return warnKind(w)==='dup';});
+      var fails=ws.filter(function(w){return warnKind(w)!=='dup';});
+      var html='';
+      if(fails.length){
+        html+='<div class="wt">⚠️ 아래 계정 '+fails.length+'개는 주문을 불러오지 못해 표에서 빠져 있어요</div>'
+          +'<ul>'+fails.map(function(w){return '<li title="'+esc(w)+'">'+esc(warnText(w))+'</li>';}).join('')+'</ul>'
+          +'<div class="hint">「판매처 관리」에서 그 계정의 키와 서버 IP 등록을 확인해 주세요. 빠진 계정이 있는 동안 「엑셀 내보내기」는 발송 누락을 막기 위해 파일을 만들지 않습니다.</div>';
+      }
+      if(dups.length){
+        html+='<div class="dupwrap"><div class="wt">ℹ️ 중복 등록된 계정은 한 번만 조회했어요 (주문 2배 계상 방지)</div>'
+          +'<ul>'+dups.map(function(w){return '<li title="'+esc(w)+'">'+esc(dupText(w))+'</li>';}).join('')+'</ul>'
+          +'<div class="hint">같은 셀러가 두 번 등록돼 있어요. 「판매처 관리」에서 중복 계정을 정리해 주세요.</div></div>';
+      }
+      el.innerHTML=html;
       el.classList.add('on');
+      if(fails.length){el.classList.remove('info');}else{el.classList.add('info');}   // 안내만이면 회색
     }
     // 계정명은 화면에서만 마켓 표기 중복 제거 — 「브랜드마켓(쿠팡)」 → 「브랜드마켓」 (원본은 title)
-    function acctName(v){return String(v||'').replace(/\s*\((?:쿠팡|스마트스토어|롯데온|11번가|옥션|G마켓)\)\s*$/,'').trim();}
+    function acctName(v){return String(v||'').replace(/\s*\((?:쿠팡|스마트스토어|스스|롯데온|11번가|옥션|G마켓|지마켓)\)\s*$/,'').trim();}
     function allAccounts(mk){var s={};rows.forEach(function(r){
       if(mk&&r['판매처']!==mk)return; if(r['쇼핑몰별칭'])s[r['쇼핑몰별칭']]=1;});return Object.keys(s);}
     function curAcctFilter(){   // 계정이 하나만 보이게 걸려 있으면 그 계정, 아니면 null
