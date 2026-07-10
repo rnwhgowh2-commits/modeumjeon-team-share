@@ -831,6 +831,18 @@ _IDENTITY_KEYS = {
 }
 
 
+# 마켓별 '계정 동시 조회 수'. 스마트스토어는 계정 병렬 시 429 로 전멸한 전례가 있어 1(순차).
+#  나머지는 한도가 넉넉해 소폭 병렬 → 계정 수가 많은 마켓의 대기시간을 줄인다.
+_ACCOUNT_WORKERS = {
+    "smartstore": 1,
+    "coupang": 2,
+    "eleven11": 2,
+    "lotteon": 3,
+    "auction": 2,
+    "gmarket": 2,
+}
+
+
 def _ident_fingerprint(ident: str) -> str:
     """자격증명 식별자의 지문(해시 앞 6자). 키 값 자체는 절대 노출하지 않는다.
 
@@ -936,9 +948,6 @@ def order_rows(market: str, days: int = 7, client=None,
     if len(built) == 1:
         return _rows_for(built[0][1], built[0][0])
 
-    # ★ 계정은 '순차' 조회한다(병렬 금지). 마켓 API 레이트리밋은 서버 IP 기준이라, 같은 마켓의
-    #   계정을 병렬로 때리면 초당 요청이 계정 수만큼 곱해져 429 가 난다(스스 5계정 병렬 → 전멸).
-    #   마켓 간 병렬(_fetch_combined)은 그대로 → 동시 요청 수는 다계정 도입 이전과 동일.
     # ★ 계정 간 '주문 단위' 중복 제거 (최후 방어선).
     #   같은 스토어를 API 앱만 달리해 여러 계정으로 등록하면 자격증명(client_id 등)이 서로 달라
     #   _client_identity 로는 못 잡는다(스스 5계정이 같은 스토어인 실제 사례). 그러나 마켓
@@ -948,14 +957,35 @@ def order_rows(market: str, days: int = 7, client=None,
         return (str(r.get("오픈마켓주문번호", "")), str(r.get("상품명", "")),
                 str(r.get("옵션", "")))
 
+    # ── 계정 조회 (속도) ──
+    #  스마트스토어는 계정을 병렬로 때리면 429(어댑티브 리미터·IP 기준)로 전멸한 전례가 있어
+    #  반드시 순차. 나머지 마켓은 한도가 넉넉해 소폭 병렬로 대기시간을 줄인다.
+    #  ★병합은 항상 '등록 순서'로 한다 — 중복 판정(어느 계정을 남길지)이 실행마다 달라지면 안 됨.
+    workers = min(_ACCOUNT_WORKERS.get(market, 1), len(built))
+    fetched = [None] * len(built)               # i → rows(list) | Exception
+    if workers > 1:
+        with _ThreadPool(max_workers=workers) as ex:
+            futs = {ex.submit(_rows_for, cli, name): i
+                    for i, (name, cli) in enumerate(built)}
+            for fut, i in futs.items():
+                try:
+                    fetched[i] = fut.result()
+                except Exception as e:          # noqa: BLE001
+                    fetched[i] = e
+    else:
+        for i, (name, cli) in enumerate(built):
+            try:
+                fetched[i] = _rows_for(cli, name)
+            except Exception as e:              # noqa: BLE001
+                fetched[i] = e
+
     out, errors, ok_cnt = [], [], 0
     seen_rows, same_store = set(), []           # seen_rows = '앞선 계정들'이 이미 준 주문
-    for name, cli in built:
-        try:
-            rs = _rows_for(cli, name)
-        except Exception as e:                  # noqa: BLE001 — 어느 계정인지 표면화
+    for i, (name, cli) in enumerate(built):
+        rs = fetched[i]
+        if isinstance(rs, Exception):           # 어느 계정인지 표면화
             errors.append(RuntimeError(
-                f"[{market}·{name}] 주문 조회 실패: {type(e).__name__}: {e}"))
+                f"[{market}·{name}] 주문 조회 실패: {type(rs).__name__}: {rs}"))
             continue
         ok_cnt += 1
         # 계정 '사이'의 중복만 제거한다. 한 계정이 준 행끼리는 그대로 둔다
