@@ -187,6 +187,7 @@ def smartstore_order_rows(since: _dt.datetime, until: _dt.datetime,
             "단가": _g(po, "unitPrice", "totalPaymentAmount", default=""),
             "배송비": _g(po, "deliveryFeeAmount", default=""),
             "정산예정금액": settle_val,
+            "_settle_source": "real" if settle_val != "" else "none",
             "주문상태": _status_ko("smartstore", _g(po, "productOrderStatus")),
             "오픈마켓주문번호": poid or oid,
             "실결제금액": _g(po, "totalPaymentAmount", default=""),   # 할인 반영 실결제
@@ -231,6 +232,7 @@ def lotteon_order_rows(since: _dt.datetime, until: _dt.datetime,
             "단가": _g(od, "slPrc", default=""),
             "배송비": _g(od, "dvCst", default=""),
             "정산예정금액": _g(od, "actualAmt", default=""),   # 실결제(상품+배송비-할인) 근사
+            "_settle_source": "none",   # 아래 SettleCommission 조인 성공 시 real 로 승격
             "주문상태": _status_ko("lotteon", _g(od, "odPrgsStepCd")),
             "오픈마켓주문번호": _g(od, "odNo"),
             "실결제금액": _g(od, "actualAmt", default=""),   # 실결제(정산예상은 주문API 없음→수수료 공란)
@@ -258,7 +260,7 @@ def lotteon_order_rows(since: _dt.datetime, until: _dt.datetime,
             "구매자번호": "",
             "쇼핑몰": "롯데온", "쇼핑몰ID": "",
             "단가": _g(it, "itmSlPrc", default=""),
-            "배송비": 0, "정산예정금액": "",
+            "배송비": 0, "정산예정금액": "", "_settle_source": "none",
             "주문상태": status,
             "오픈마켓주문번호": _g(it, "odNo"),
             "실결제금액": "", "송장입력": "",
@@ -329,6 +331,7 @@ def lotteon_order_rows(since: _dt.datetime, until: _dt.datetime,
             fee = cmap.get(r.get("오픈마켓주문번호"))
             if fee:
                 r["마켓수수료"] = int(round(fee))
+                r["_settle_source"] = "real"   # 실결제 − 실수수료 로 정산 산출 가능
     return rows
 
 
@@ -428,16 +431,19 @@ def coupang_order_rows(since: _dt.datetime, until: _dt.datetime,
                 val += deliv_settle[oid]
                 _deliv_used.add(oid)
             r["정산예정금액"] = val
+            r["_settle_source"] = "real"
         else:                                          # 미정산: 상품추정 + 배송비추정(주문당 1회)
             prod_est = _cp_estimate_settle(r.get("단가"), r.get("수량"), 0)
             if prod_est == "":
                 r["정산예정금액"] = ""
+                r["_settle_source"] = "none"
             else:
                 deliv_est = 0
                 if oid not in _deliv_used and str(ship).lstrip("-").isdigit():
                     deliv_est = round(int(ship) * CP_SHIP_FEE_FACTOR)
                     _deliv_used.add(oid)
                 r["정산예정금액"] = prod_est + deliv_est
+                r["_settle_source"] = "estimated"
 
     # ── 취소/반품/교환 병합(returnRequests + exchangeRequests, MCP 실측 2026-07-09) ──
     #  활성 발주서에 없는 주문만 추가. 쿠팡 주문번호는 날짜 미인코딩 → 주문일=접수일(createdAt) 근사.
@@ -453,7 +459,7 @@ def coupang_order_rows(since: _dt.datetime, until: _dt.datetime,
             "수령자전화번호": "", "구매자번호": "",
             "쇼핑몰": "쿠팡", "쇼핑몰ID": "",
             "단가": unit if unit not in (None, "") else "",
-            "배송비": 0, "정산예정금액": "",
+            "배송비": 0, "정산예정금액": "", "_settle_source": "none",
             "주문상태": status, "오픈마켓주문번호": str(odno or ""),
             "실결제금액": "", "송장입력": "",
         }
@@ -600,6 +606,7 @@ def esm_order_rows(market: str, since: _dt.datetime, until: _dt.datetime,
             "단가": _g(od, "SalePrice", default=""),
             "배송비": _g(od, "ShippingFee", default=""),
             "정산예정금액": "",   # 아래 정산 조인으로 채움(미정산=공란)
+            "_settle_source": "none",   # 아래 정산 조인 성공 시 real 로 승격
             "주문상태": _status_ko("esm", _g(od, "OrderStatus")),
             "오픈마켓주문번호": _g(od, "OrderNo"),
         })
@@ -616,6 +623,7 @@ def esm_order_rows(market: str, since: _dt.datetime, until: _dt.datetime,
         ono = r.pop("_ono", "")
         if ono in smap:
             r["정산예정금액"] = smap[ono]
+            r["_settle_source"] = "real"
     return rows
 
 
@@ -676,6 +684,7 @@ def eleven11_order_rows(since: _dt.datetime, until: _dt.datetime, client=None) -
             # 정산예정금액 = 주문 응답의 stlPlnAmt(정산예정금액) — 서버 실호출로 확인(2026-07-08).
             #  구매확정 목록엔 없어 공란. 실정산액(정산완료분)은 settlementList.stlAmt(후속).
             "정산예정금액": _g11(od, "stlPlnAmt"),
+            "_settle_source": "real" if _g11(od, "stlPlnAmt") not in ("", None) else "none",
             "주문상태": status,
             "오픈마켓주문번호": _g11(od, "ordNo"),
             "실결제금액": _g11(od, "ordPayAmt"),   # 결제금액 = 주문금액+배송비-할인(공문 확인)
@@ -700,7 +709,7 @@ def eleven11_order_rows(since: _dt.datetime, until: _dt.datetime, client=None) -
             "수령자전화번호": _g11(od, "rcvrPrtblNo", "rcvrTlphn"),
             "구매자번호": _g11(od, "ordPrtblTel", "ordTlphnNo"),
             "쇼핑몰": "11번가", "쇼핑몰ID": "",
-            "단가": "", "배송비": 0, "정산예정금액": "",
+            "단가": "", "배송비": 0, "정산예정금액": "", "_settle_source": "none",
             "주문상태": status,
             "오픈마켓주문번호": ordno,
             "실결제금액": "",
@@ -1019,6 +1028,7 @@ def _finalize_rows(rows: list) -> list:
         r.setdefault("오픈마켓주문번호", "")
         r.setdefault("쇼핑몰별칭", "")
         r["송장입력"] = r.get("송장입력") or "송장미입력"
+        r.setdefault("_settle_source", "none")
     return rows
 
 
