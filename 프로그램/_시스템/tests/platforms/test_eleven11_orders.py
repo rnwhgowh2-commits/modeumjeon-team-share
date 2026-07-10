@@ -201,15 +201,16 @@ class TestOrderRows:
         until = _dt.datetime(2026, 7, 8, tzinfo=KST)
         rows = oe.eleven11_order_rows(since, until, client=_PathClient())
         statuses = {r["주문상태"] for r in rows}
-        assert {"배송준비중", "배송중", "취소", "반품"} <= statuses
+        # 주문상태 통일(2026-07-10): 클레임 접수는 '취소요청·반품요청'(완료와 구분).
+        assert {"배송준비중", "배송중", "취소요청", "반품요청"} <= statuses
         prep = [r for r in rows if r["주문상태"] == "배송준비중"]
         assert {p["상품명"] for p in prep} == {"준비중상품", "예약상품"}   # packaging 전체
         # 배송중: 송장만 + 주문일 ordNo 보정
         ship = [r for r in rows if r["주문상태"] == "배송중"][0]
         assert ship["송장입력"] == "1234567890" and ship["주문일"] == "20260706"
         # 취소/반품: 주문번호·옵션·수량 채워지고 상품명은 공란(목록 미제공)
-        cx = [r for r in rows if r["주문상태"] == "취소"][0]
+        cx = [r for r in rows if r["주문상태"] == "취소요청"][0]
         assert cx["오픈마켓주문번호"] == "20260703082144444" and cx["옵션"] == "블랙/M"
         assert cx["수량"] == "1" and cx["상품명"] == ""
-        rx = [r for r in rows if r["주문상태"] == "반품"][0]
+        rx = [r for r in rows if r["주문상태"] == "반품요청"][0]
         assert rx["옵션"] == "화이트/L" and rx["수량"] == "2"

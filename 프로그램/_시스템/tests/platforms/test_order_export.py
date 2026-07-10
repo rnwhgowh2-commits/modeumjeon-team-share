@@ -186,10 +186,13 @@ def test_coupang_claims_merge():
     rows = oe.coupang_order_rows(dt.datetime(2026, 7, 5, tzinfo=oe.KST),
                                  dt.datetime(2026, 7, 8, tzinfo=oe.KST), client=C())
     st = {r["주문상태"] for r in rows}
-    assert {"취소", "교환"} <= st
-    cx = [r for r in rows if r["주문상태"] == "취소"][0]
+    # 주문상태 통일(2026-07-10): 접수 단계는 '취소요청·교환요청'(완료와 구분). 옛 '취소·교환' 아님.
+    assert {"취소요청", "교환요청"} <= st
+    # 행 중복 없음 — 주문1 + 취소1 + 교환1. 중복 시 주문 건수·정산 합계가 부풀려짐(CLAUDE.md).
+    assert len(rows) == 3
+    cx = [r for r in rows if r["주문상태"] == "취소요청"][0]
     assert cx["오픈마켓주문번호"] == "200" and cx["상품명"] == "취소상품" and cx["수량"] == 1
-    ex = [r for r in rows if r["주문상태"] == "교환"][0]
+    ex = [r for r in rows if r["주문상태"] == "교환요청"][0]
     assert ex["오픈마켓주문번호"] == "300" and ex["수량"] == 2
 
 
