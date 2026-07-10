@@ -26,7 +26,8 @@ for _m in (
         pass
 
 from lemouton.uploader.runtime import (
-    live_upload_enabled, select_adapters, build_sku_by_option, DryRunAdapter,
+    live_upload_enabled, live_invoice_enabled, select_adapters,
+    build_sku_by_option, DryRunAdapter,
 )
 from lemouton.uploader.adapters.smartstore import SmartStoreAdapter
 from lemouton.uploader.adapters.coupang import CoupangAdapter
@@ -47,6 +48,49 @@ class TestLiveUploadFlag:
     def test_falsy(self, monkeypatch, val):
         monkeypatch.setenv("LEMOUTON_LIVE_UPLOAD", val)
         assert live_upload_enabled() is False
+
+
+class TestLiveInvoiceFlag:
+    """송장 실전송은 가격·재고 업로드와 별개 스위치(LEMOUTON_LIVE_INVOICE).
+
+    송장 = 사람이 버튼을 눌러 1건씩. 가격·재고 = 스케줄러가 무인 반복.
+    위험도가 달라 같은 스위치로 묶으면 안 된다.
+    """
+
+    def test_disabled_by_default(self, monkeypatch):
+        monkeypatch.delenv("LEMOUTON_LIVE_INVOICE", raising=False)
+        monkeypatch.delenv("LEMOUTON_LIVE_UPLOAD", raising=False)
+        assert live_invoice_enabled() is False
+
+    @pytest.mark.parametrize("val", ["1", "true", "TRUE", "on", "yes"])
+    def test_truthy(self, monkeypatch, val):
+        monkeypatch.delenv("LEMOUTON_LIVE_UPLOAD", raising=False)
+        monkeypatch.setenv("LEMOUTON_LIVE_INVOICE", val)
+        assert live_invoice_enabled() is True
+
+    @pytest.mark.parametrize("val", ["0", "", "false", "off", "no"])
+    def test_falsy(self, monkeypatch, val):
+        monkeypatch.delenv("LEMOUTON_LIVE_UPLOAD", raising=False)
+        monkeypatch.setenv("LEMOUTON_LIVE_INVOICE", val)
+        assert live_invoice_enabled() is False
+
+    def test_live_upload_implies_invoice(self, monkeypatch):
+        """기존 동작 보존 — LIVE_UPLOAD 만 켜 두면 송장도 실전송."""
+        monkeypatch.delenv("LEMOUTON_LIVE_INVOICE", raising=False)
+        monkeypatch.setenv("LEMOUTON_LIVE_UPLOAD", "1")
+        assert live_invoice_enabled() is True
+
+    def test_invoice_on_does_not_arm_price_stock_upload(self, monkeypatch):
+        """★ 격리 보증 — 송장을 켜도 가격·재고는 드라이런에 잠겨 있어야 한다."""
+        monkeypatch.delenv("LEMOUTON_LIVE_UPLOAD", raising=False)
+        monkeypatch.setenv("LEMOUTON_LIVE_INVOICE", "1")
+
+        assert live_invoice_enabled() is True
+        assert live_upload_enabled() is False
+        ad = select_adapters()
+        for market in ("smartstore", "coupang", "lotteon",
+                       "eleven11", "auction", "gmarket"):
+            assert isinstance(ad[market], DryRunAdapter), market
 
 
 class TestSelectAdapters:
