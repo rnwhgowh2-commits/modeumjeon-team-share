@@ -433,6 +433,14 @@
     var p=function(n){return ('0'+n).slice(-2);};
     return p(t.getFullYear()%100)+'.'+p(t.getMonth()+1)+'.'+p(t.getDate())+'. '+p(t.getHours())+':'+p(t.getMinutes());
   }
+  function _kstDate(iso){ if(!iso) return null;
+    var s=/[Zz]|[+-]\d\d:?\d\d$/.test(iso)?iso:iso+'Z';
+    var t=new Date(s); return isNaN(t.getTime())?null:t; }
+  function _kstHM(iso){ var t=_kstDate(iso); if(!t) return '';
+    var p=function(n){return ('0'+n).slice(-2);};
+    return p(t.getHours())+':'+p(t.getMinutes()); }
+  function _sameDayIso(a,b){ var x=_kstDate(a), y=_kstDate(b);
+    return !!(x&&y&&x.toDateString()===y.toDateString()); }
   function renderLapLog(){
     var sec=document.getElementById('czlog'), list=document.getElementById('czlog-list'), tg=document.getElementById('czlog-tg');
     if(!sec||!list) return;
@@ -449,7 +457,9 @@
       var idxByNo={}; laps.forEach(function(y,i){ idxByNo[y.no]=i; });
       list.innerHTML=show.map(function(x){
         var i=idxByNo[x.no], dur=_lapMin(laps,i);
-        var tm=(i>0? _kstLap(laps[i-1].at)+'~' : '')+_kstLap(x.at);   // 시작~종료
+        // 시작~종료. 같은 날이면 시:분만("19:48~19:51") — 날짜 두 번 안 쓰게.
+        var _st=(i>0? laps[i-1].at : null);
+        var tm=(_st? (_sameDayIso(_st,x.at)? _kstHM(_st) : _kstLap(_st))+'~' : '')+_kstHM(x.at);
         return '<div class="czlog-row" data-no="'+x.no+'">'
           +'<span class="czlog-rc">'+x.no+'회차</span>'
           +'<span class="czlog-tm">'+tm+'</span>'
