@@ -820,6 +820,15 @@ _IDENTITY_KEYS = {
 }
 
 
+def _ident_fingerprint(ident: str) -> str:
+    """자격증명 식별자의 지문(해시 앞 6자). 키 값 자체는 절대 노출하지 않는다.
+
+    같은 지문 = 같은 키/셀러번호. 사용자가 '어느 계정끼리 같은 키인지' 대조할 수 있다.
+    """
+    import hashlib
+    return hashlib.sha256(ident.encode("utf-8")).hexdigest()[:6]
+
+
 def _client_identity(market: str, cli) -> Optional[str]:
     """클라이언트가 가리키는 실제 셀러 식별자. 판정 불가면 None(중복 제거하지 않음).
 
@@ -889,21 +898,26 @@ def order_rows(market: str, days: int = 7, client=None,
     # ★ 같은 셀러를 가리키는 계정이 여러 개 등록돼 있으면 한 번만 조회한다.
     #   (판매처관리에 같은 마켓 셀러가 이름만 달리 두 번 등록된 사례 — 그대로 두면 같은 주문이
     #    2배로 계상돼 발송·정산이 배로 잡힌다. CLAUDE 🔒 중복·모순 절대 금지.)
-    seen_ident, uniq, dups = set(), [], []
+    seen_ident, uniq, dups = {}, [], []      # ident → 먼저 등록된 계정명
     for name, cli in built:
         ident = _client_identity(market, cli)
         if ident is not None and ident in seen_ident:
-            dups.append(name)
+            dups.append((name, seen_ident[ident], _ident_fingerprint(ident)))
             continue
         if ident is not None:
-            seen_ident.add(ident)
+            seen_ident[ident] = name
         uniq.append((name, cli))
     if dups:
-        _log.warning("중복 셀러 계정 제외: market=%s accounts=%s", market, dups)
+        _log.warning("동일 자격증명 계정 제외: market=%s accounts=%s",
+                     market, [d[0] for d in dups])
         if warnings is not None:
-            warnings.append(
-                f"[{market}] 같은 셀러 계정이 중복 등록돼 있어 한 번만 조회했어요: "
-                + ", ".join(dups))
+            # 원인을 '같은 키가 입력됨'으로 명확히 말한다(주문이 같아 접은 경우와 구분).
+            #  키 지문 = 자격증명 해시 앞 6자 — 키 값을 노출하지 않으면서 어느 계정끼리 같은
+            #  키인지 사용자가 대조할 수 있게 한다.
+            for name, first, fp in dups:
+                warnings.append(
+                    f"[{market}·{name}] 「{first}」와 API 키(셀러 식별자)가 같아 조회에서 "
+                    f"제외했어요 — 키 지문 {fp}. 다른 가게라면 그 가게의 키를 다시 입력하세요.")
     built = uniq
 
     if not built:                               # 등록 0개/전부 키 없음 → 대표 계정 폴백
@@ -942,11 +956,13 @@ def order_rows(market: str, days: int = 7, client=None,
         seen_rows.update(_row_key(r) for r in rs)
 
     if same_store:
-        _log.warning("같은 스토어 중복 계정(주문 전부 동일): market=%s accounts=%s", market, same_store)
+        _log.warning("주문 전부 동일한 계정(같은 스토어로 보임): market=%s accounts=%s",
+                     market, same_store)
         if warnings is not None:
+            # 키는 서로 다른데 주문이 완전히 같은 경우 — '같은 키' 경고와 원인이 다르다.
             warnings.append(
-                f"[{market}] 같은 셀러 계정이 중복 등록돼 있어 한 번만 조회했어요: "
-                + ", ".join(same_store))
+                f"[{market}] 앞 계정과 주문이 완전히 같아 한 번만 반영했어요"
+                f"(같은 스토어로 보임): " + ", ".join(same_store))
 
     if errors and (ok_cnt == 0 or warnings is None):
         # 전부 실패(보여줄 게 없음) 또는 경고 채널 없음(엑셀) → 전파. 불완전 결과 숨김 금지.
