@@ -147,18 +147,34 @@ class TestSend:
         assert "auction" in body["results"][0]["error"]
         assert body["sent"] == 0 and body["failed"] == 1
 
-    def test_eleven11_blocked_by_missing_courier_code(self, client, monkeypatch):
-        """11번가는 전송 경로가 있어도 택배사 코드 미확보라 실제로 나가면 안 된다."""
+    def test_eleven11_sends_with_dlv_no(self, client, monkeypatch):
+        """11번가는 배송번호(dlvNo)로 발송처리한다 — 로젠 코드 00002(실측 확정)."""
+        import shared.platforms.eleven11.shipping as el
+        got = {}
+        monkeypatch.setattr(el, "send_tracking", lambda **k: got.update(k) or True)
+        monkeypatch.setattr(om, "_live_enabled", lambda: True)
+        monkeypatch.setattr(om, "_client_for", lambda market, alias: None)
+
+        body = _send_body(live=True, market="eleven11")
+        body["rows"][0]["send_ids"] = {"dlv_no": "D77", "ord_no": "100", "ord_prd_seq": "1"}
+        res = client.post("/orders/invoice/send", json=body).get_json()
+        assert res["results"][0]["success"] is True
+        assert got["dlv_no"] == "D77" and got["delivery_company_code"] == "00002"
+
+    def test_eleven11_blocked_when_courier_unverified(self, client, monkeypatch):
+        """실계정으로 대조하지 못한 택배사(CJ)는 조용히 보내지 않는다."""
         import shared.platforms.eleven11.shipping as el
         called = []
         monkeypatch.setattr(el, "send_tracking", lambda **k: called.append(1))
         monkeypatch.setattr(om, "_live_enabled", lambda: True)
         monkeypatch.setattr(om, "_client_for", lambda market, alias: None)
 
-        body = client.post("/orders/invoice/send",
-                           json=_send_body(live=True, market="eleven11")).get_json()
-        assert body["results"][0]["success"] is False
-        assert "택배사 코드" in body["results"][0]["error"]
+        body = _send_body(live=True, market="eleven11")
+        body["rows"][0]["courier"] = "CJ대한통운"
+        body["rows"][0]["send_ids"] = {"dlv_no": "D77"}
+        res = client.post("/orders/invoice/send", json=body).get_json()
+        assert res["results"][0]["success"] is False
+        assert "택배사 코드" in res["results"][0]["error"]
         assert called == []
 
     def test_empty_rows_is_400(self, client):

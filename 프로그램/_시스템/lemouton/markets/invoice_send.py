@@ -14,7 +14,7 @@
   · 스마트스토어 = send_tracking([productOrderId], 택배사코드, 운송장번호)
                   ※ 「오픈마켓주문번호」가 곧 productOrderId 라 그대로 쓴다.
   · 롯데온     = 배송상태 통보(odNo·odSeq·spdNo·sitmNo·slQty + 발송완료 13)
-  · 11번가     = reqdelivery(배송번호 dlvNo 단위). ⚠️ 택배사 코드표 미확보 → 실제로는 차단 중.
+  · 11번가     = reqdelivery(배송번호 dlvNo 단위). 택배사 코드는 실측 대조한 것만.
 """
 from __future__ import annotations
 
@@ -43,13 +43,17 @@ _SMARTSTORE_COURIER: dict[str, str] = {
 }
 
 
-# 11번가 택배사 코드(dlvEtprsCd) — **미확보. 비워 둔다.**
-#   오픈소스 구현들이 서로 다른 체계를 주장한다: 로젠택배 = 5자리 "00002"(samba-wave) vs
-#   2자리 "05"(PHP 2건). 우체국·CJ 도 어긋난다(00007/00034 vs 01/06). 하나는 틀렸고,
-#   틀린 코드로 보내면 고객 배송조회에 엉뚱한 택배사가 뜬다(조용한 오배송 표기).
-#   확정 방법: 사장님이 이미 로젠으로 발송한 11번가 주문을 배송중 목록에서 읽으면
-#   11번가가 되돌려주는 dlvEtprsCd 가 곧 정답이다(shared.platforms.eleven11.orders.iter_shipping).
-_ELEVEN11_COURIER: dict[str, str] = {}
+# 11번가 택배사 코드(dlvEtprsCd) — **실계정 발송 이력으로 대조한 것만** 넣는다.
+#   오픈소스 구현들이 서로 다른 체계를 주장했다(로젠: 5자리 "00002" vs 2자리 "05").
+#   2026-07-10 실측으로 5자리 체계 확정 + 아래 두 값은 셀러오피스 배송관리 화면의 택배사
+#   이름과 송장번호로 1:1 대조(로젠 92816272404→00002 / 롯데 317651308380→00012).
+#   나머지(CJ 00034·한진 00011 등)는 공개 출처 값만 있고 대조를 못 해 넣지 않는다 —
+#   틀린 코드로 보내면 고객 배송조회에 엉뚱한 택배사가 뜬다(조용한 오표기).
+#   추가 확인: /orders/diag/eleven11-couriers?invoice=<송장번호>
+_ELEVEN11_COURIER: dict[str, str] = {
+    "로젠택배": "00002",
+    "롯데택배": "00012",
+}
 
 
 def resolve_courier_code(market: str, courier_name: str) -> str:
@@ -80,7 +84,7 @@ def resolve_courier_code(market: str, courier_name: str) -> str:
         code = _ELEVEN11_COURIER.get(courier_name)
         if not code:
             raise CourierCodeUnknown(
-                f"11번가 택배사 코드 미확보: {courier_name} — 실제 코드 확인 후 전송")
+                f"11번가 택배사 코드 미검증: {courier_name} — 실계정 발송 이력으로 대조 후 전송")
         return code
     raise CourierCodeUnknown(f"{market} 택배사 코드표 없음")
 
