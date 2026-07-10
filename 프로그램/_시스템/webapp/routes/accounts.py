@@ -1352,18 +1352,19 @@ def _test_smartstore(creds, display_name: str, env_prefix: str):
     started = _time.time()
     timestamp = str(int(_time.time() * 1000))
     password = f"{creds.client_id}_{timestamp}".encode("utf-8")
-    # ★ client_secret 은 네이버가 주는 bcrypt salt($2a$04$...) 형식. 잘못 붙여넣으면 bcrypt 가
-    #   ValueError 를 던지는데 이 줄이 try 밖이라 워커가 죽어 '빈 502'로 나갔다(원인이 안 보임).
-    try:
-        hashed = bcrypt.hashpw(password, creds.client_secret.encode("utf-8"))
-    except (ValueError, TypeError) as e:
+    # ★ 잘못된 salt 를 bcrypt 에 넘기면 파이썬 예외가 아니라 네이티브에서 죽어 워커가 통째로
+    #   내려간다(try/except 로 못 잡음 → 원인 없는 빈 502). bcrypt 를 부르기 '전에' 형식 검사.
+    from shared.platforms.smartstore.auth import (
+        is_valid_client_secret, normalize_client_secret)
+    if not is_valid_client_secret(creds.client_secret):
         return jsonify({
             "ok": False,
-            "error": f"Client Secret 형식 오류 — {type(e).__name__}",
+            "error": "Client Secret 형식 오류 — bcrypt salt 형식이 아닙니다.",
             "hint": "네이버 커머스 API 센터의 Client Secret 을 그대로 다시 입력하세요"
-                    " (앞뒤 공백·줄바꿈 없이, $2a$ 로 시작하는 전체 문자열).",
+                    " (앞뒤 공백·줄바꿈 없이, $2a$ 로 시작하는 전체 문자열 29자).",
             "elapsed_sec": round(_time.time() - started, 2),
         }), 400
+    hashed = bcrypt.hashpw(password, normalize_client_secret(creds.client_secret).encode("utf-8"))
     client_secret_sign = base64.standard_b64encode(hashed).decode("utf-8")
 
     try:

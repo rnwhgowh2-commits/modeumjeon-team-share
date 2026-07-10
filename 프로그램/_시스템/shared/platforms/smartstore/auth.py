@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import base64
 import logging
+import re
 import time
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -27,6 +28,23 @@ import bcrypt
 import requests
 
 logger = logging.getLogger(__name__)
+
+# 네이버 Client Secret = bcrypt salt 문자열 ($2a$04$ + base64 22자).
+#  ★ bcrypt.hashpw 에 잘못된 salt 를 넘기면 파이썬 예외가 아니라 네이티브에서 죽어
+#    워커가 통째로 내려간다(try/except 로 못 잡음 → 원인 없는 빈 502).
+#    그래서 bcrypt 를 부르기 '전에' 형식을 검사한다.
+#  끝 앵커($) 필수 — 없으면 뒤에 줄바꿈/쓰레기가 붙은 값이 통과해 bcrypt 로 넘어간다.
+_BCRYPT_SALT_RE = re.compile(r"^\$2[abxy]?\$\d{2}\$[./A-Za-z0-9]{22}$")
+
+
+def normalize_client_secret(client_secret: str) -> str:
+    """붙여넣기로 섞인 앞뒤 공백·줄바꿈 제거(bcrypt salt 에는 공백이 없다)."""
+    return (client_secret or "").strip()
+
+
+def is_valid_client_secret(client_secret: str) -> bool:
+    """bcrypt salt 형식인지. bcrypt 를 부르기 전 판정용."""
+    return bool(_BCRYPT_SALT_RE.match(normalize_client_secret(client_secret)))
 
 
 @dataclass(frozen=True)
@@ -58,15 +76,23 @@ def build_client_secret_sign(client_id: str, client_secret: str,
         base64 로 인코딩된 서명 문자열.
 
     Raises:
-        ValueError: client_id 또는 client_secret 이 비어있음.
+        ValueError: client_id/client_secret 이 비어있거나 bcrypt salt 형식이 아님.
     """
     if not client_id:
         raise ValueError("client_id 가 비어있습니다 (.env 확인)")
     if not client_secret:
         raise ValueError("client_secret 이 비어있습니다 (.env 확인)")
+    secret = normalize_client_secret(client_secret)
+    if not _BCRYPT_SALT_RE.match(secret):
+        # bcrypt 를 아예 부르지 않는다(부르면 워커가 죽는다).
+        raise ValueError(
+            "client_secret 이 bcrypt salt 형식이 아닙니다 — 네이버 커머스 API 센터의 "
+            "Client Secret 을 앞뒤 공백·줄바꿈 없이 '$2a$' 로 시작하는 전체 문자열로 "
+            "다시 입력하세요."
+        )
 
     password = f"{client_id}_{timestamp_ms}".encode("utf-8")
-    hashed = bcrypt.hashpw(password, client_secret.encode("utf-8"))
+    hashed = bcrypt.hashpw(password, secret.encode("utf-8"))
     return base64.standard_b64encode(hashed).decode("utf-8")
 
 
