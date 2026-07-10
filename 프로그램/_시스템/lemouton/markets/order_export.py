@@ -752,14 +752,15 @@ _BUILDERS = {"smartstore": smartstore_order_rows, "lotteon": lotteon_order_rows,
              "eleven11": eleven11_order_rows}
 
 
-def _account_client(market: str):
-    """서버 UI(판매처 계정)에 저장된 실키로 마켓 클라이언트 생성.
+def _account_client(market: str, env_prefix: Optional[str] = None):
+    """판매처관리에 저장된 실키로 마켓 클라이언트 생성. env_prefix 미지정 시 대표 계정.
 
     핵심: 마켓 config dict 는 import 시 env 를 한 번만 읽어(모듈 전역) UI 저장 키를
     못 본다. market_fetch 의 빌더가 refresh_env()+load_credentials 로 최신 시크릿을
-    설정에 주입한다(멀티워커 불일치 해소, 롯데온 선례). 키 없으면 None → 기본 클라 폴백.
+    설정에 주입한다(멀티워커 불일치 해소, 롯데온 선례).
+    None 반환 = 그 계정 키 미등록/불량(자격증명 min_length=1 검증 실패) → 호출부가 판단.
     """
-    prefix = _ENV_PREFIX.get(market)
+    prefix = env_prefix or _ENV_PREFIX.get(market)
     if not prefix:
         return None
     try:
@@ -777,22 +778,29 @@ def _account_client(market: str):
         return None   # 키 미설정 등 → row builder 가 기본 클라(app.env)로 폴백
 
 
-def _account_alias(market: str) -> str:
-    """판매처관리(UploadAccount)에 등록된 그 마켓 계정의 표시명(쇼핑몰별칭).
+def _active_accounts(market: str) -> list:
+    """판매처관리(UploadAccount)의 그 마켓 활성 계정 [(env_prefix, display_name)].
 
-    없으면 빈 문자열(추측 금지). market 의 활성 계정 중 첫 번째 display_name.
+    계정 등록 = 자동 연동(별도 배선 불필요). 등록 순(id)으로 반환.
+    조회 실패·미등록은 빈 리스트 → 호출부가 대표 계정(_ENV_PREFIX) 단일 조회로 폴백.
     """
     try:
         from shared.db import SessionLocal
         from lemouton.sourcing.models_v2 import UploadAccount
         with SessionLocal() as s:
-            acc = (s.query(UploadAccount)
-                   .filter(UploadAccount.market == market,
-                           UploadAccount.is_active == True)  # noqa: E712
-                   .order_by(UploadAccount.id).first())
-            return acc.display_name if acc else ""
-    except Exception:
-        return ""
+            accs = (s.query(UploadAccount)
+                    .filter(UploadAccount.market == market,
+                            UploadAccount.is_active == True)  # noqa: E712
+                    .order_by(UploadAccount.id).all())
+            return [(a.env_prefix, a.display_name) for a in accs if a.env_prefix]
+    except Exception:   # noqa: BLE001
+        return []
+
+
+def _account_alias(market: str) -> str:
+    """그 마켓 활성 계정 중 첫 번째 표시명(폴백 경로 전용). 없으면 빈 문자열(추측 금지)."""
+    accs = _active_accounts(market)
+    return accs[0][1] if accs else ""
 
 
 def order_rows(market: str, days: int = 7, client=None,
@@ -802,7 +810,12 @@ def order_rows(market: str, days: int = 7, client=None,
     """마켓별 주문 행. 미지원(UI) 마켓은 ValueError(추측 데이터 안 만듦).
 
     기간 = since~until 명시 시 그대로 사용(빠른 기간 버튼·직접 날짜), 아니면 최근 days일.
-    client 미지정 시 서버 UI 저장 실키로 계정 클라이언트를 만들어 사용.
+    client 미지정 시 **판매처관리에 등록된 그 마켓 활성 계정 전부**를 계정별 실키로
+    병렬 조회해 합친다(계정 등록 = 자동 연동). 각 행의 쇼핑몰별칭 = 그 주문을 가져온 계정명.
+
+    · 키 미등록 계정은 건너뛴다(대표 계정으로 폴백하면 같은 주문이 중복 계상되므로 금지).
+    · 계정 조회 실패(인증·네트워크)는 계정명과 함께 전파(부분 성공 숨김 금지).
+    · 등록 계정 0개 또는 전부 키 미등록이면 기존 동작(대표 계정 1개 조회)으로 폴백.
     """
     if market not in SUPPORTED:
         raise ValueError(f"'{market}' 주문 엑셀 미지원(UI) — 코드/키/검증 필요")
@@ -810,14 +823,46 @@ def order_rows(market: str, days: int = 7, client=None,
         until = now or _dt.datetime.now(KST)
     if since is None:
         since = until - _dt.timedelta(days=days)
-    if client is None:
-        client = _account_client(market)
-    rows = _finalize_rows(_BUILDERS[market](since, until, client=client))
-    alias = _account_alias(market)   # 쇼핑몰별칭 = 판매처관리 계정명
-    if alias:
-        for r in rows:
-            r["쇼핑몰별칭"] = alias
-    return rows
+
+    def _rows_for(cli, alias):
+        rs = _finalize_rows(_BUILDERS[market](since, until, client=cli))
+        if alias:
+            for r in rs:
+                r["쇼핑몰별칭"] = alias
+        return rs
+
+    if client is not None:                      # 클라이언트 명시(테스트·단일 계정 호출)
+        return _rows_for(client, _account_alias(market))
+
+    import logging as _logging
+    _log = _logging.getLogger(__name__)
+
+    built = []                                  # [(계정명, 클라이언트)]
+    accounts = _active_accounts(market)
+    for prefix, name in accounts:
+        cli = _account_client(market, prefix)
+        if cli is None:                         # 키 미등록 → 건너뜀(중복 방지)
+            _log.warning("주문조회 계정 건너뜀(키 미등록): market=%s account=%s", market, name)
+            continue
+        built.append((name, cli))
+
+    if not built:                               # 등록 0개/전부 키 없음 → 대표 계정 폴백
+        return _rows_for(_account_client(market), _account_alias(market))
+    if len(built) == 1:
+        return _rows_for(built[0][1], built[0][0])
+
+    out, errors = [], []
+    with _ThreadPool(max_workers=min(4, len(built))) as ex:
+        futs = {ex.submit(_rows_for, cli, name): name for name, cli in built}
+        for fut, name in futs.items():
+            try:
+                out += fut.result()
+            except Exception as e:              # noqa: BLE001 — 어느 계정인지 표면화
+                errors.append(RuntimeError(
+                    f"[{market}·{name}] 주문 조회 실패: {type(e).__name__}: {e}"))
+    if errors:
+        raise errors[0]
+    return out
 
 
 def _to_int(v, default=None):
