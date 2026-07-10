@@ -181,6 +181,34 @@ def test_response_is_json_serializable(client, monkeypatch):
     assert r.get_json() is not None  # 파싱 성공 = NaN 리터럴 없음
 
 
+def test_nan_in_payload_aborts_with_500_and_saves_nothing(client, monkeypatch):
+    """NaN 을 0 으로 덮지 않는다 — summary 의 NaN 은 '합계 0'이 아니라 '합계가 틀림'이다."""
+    import lemouton.margin.aggregator as A
+    real = A.aggregate
+
+    def _poisoned(rows, ranges):
+        agg = real(rows, ranges)
+        agg["summary"]["총순마진"] = float("nan")
+        return agg
+
+    monkeypatch.setattr("webapp.routes.api_margin.aggregator.aggregate", _poisoned)
+    _upload(client)
+    _patch_from_api(monkeypatch, _sell_df([("1000", "real", 50000)]))
+    r = client.post("/api/margin/analyze",
+                    json={"since": "2026-07-01", "until": "2026-07-09"})
+    assert r.status_code == 500
+    err = r.get_json()["error"]
+    assert "NaN" in err or "계산 불가능" in err
+    # 목록 엔드포인트는 bare list 를 반환한다(이 모듈 규약) → 아무것도 저장 안 됨
+    assert client.get("/api/margin/analyses").get_json() == []
+
+
+def test_numpy_scalars_still_normalized(client):
+    import numpy as np
+    assert api_margin._json_normalize(
+        {"a": np.int64(5), "b": [np.float64(1.5)]}) == {"a": 5, "b": [1.5]}
+
+
 # ── 목록 / 로드 / 삭제 ────────────────────────────────────────────────────
 
 def test_analyses_list_get_delete(client, monkeypatch):
