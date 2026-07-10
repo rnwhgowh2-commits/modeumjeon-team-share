@@ -529,7 +529,7 @@
   function _groups(kind,list){
     if(!list || !list.length) return '<div class="lrep-empty">'+(kind==='price'?'가격':'재고')+' 변동 없음</div>';
     var g={}, order=[]; var SEP=' ·· ';
-    list.forEach(function(x){ var k=x.site+SEP+_grpLabel(kind,x); if(!g[k]){g[k]=[];order.push(k);} g[k].push(x); });
+    list.forEach(function(x){ var k=(x.site_label||x.site)+SEP+_grpLabel(kind,x); if(!g[k]){g[k]=[];order.push(k);} g[k].push(x); });
     return order.map(function(k,gi){
       var arr=g[k], p=k.split(SEP), site=p[0], lab=p[1];
       var id='lrg-'+kind+'-'+gi, rest=arr.length-5;
