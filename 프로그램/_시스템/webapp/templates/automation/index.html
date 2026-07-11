@@ -617,7 +617,7 @@
     return '<div class="lrtop">'
       +'<div><div class="lrblk-h">이번 바퀴</div><div class="lrep-sum">'
       +'<span>긁은 URL <b>'+(s.urls||0)+'</b>개</span><span>소싱처 <b>'+(s.sites||0)+'</b>곳</span>'
-      +'<span>소요 <b>'+(lp.minutes||0)+'분</b></span>'+fs+exc+'</div></div>'
+      +(lp.minutes!=null? '<span>소요 <b>'+lp.minutes+'분</b></span>' : '')+fs+exc+'</div></div>'
       +'<div><div class="lrblk-h">결과</div><div class="lrep-sfb">'
       +'<span class="ok">저장 <b>'+(r.saved||0)+'</b>건</span>'
       +(fn? '<span class="er">지금 실패 중 <b>'+fn+'</b>건</span>' : '')

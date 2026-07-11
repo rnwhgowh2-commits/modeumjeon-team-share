@@ -90,6 +90,31 @@ def test_lap_report_out_of_range(db):
     assert lap_report(db, lap_no=99, now=datetime(2026, 7, 10, 2, 0, 0)) is None
 
 
+def test_lap1_after_overnight_gap_has_no_bogus_minutes(db):
+    """★오늘 1회차의 '소요'가 어제 마지막~오늘 첫 회차(밤새 쉰 시간)로 잡히던 버그.
+
+    라이브: 어제 21:52 → 오늘 09:35 = 703분. 실제 크롤 시간이 아니라 정지 상태 간격.
+    시작이 '어제'면 그 회차의 소요는 알 수 없다 → minutes=None(화면은 소요를 숨긴다).
+    """
+    from lemouton.sources.models import CrawlLapRun
+    db.add(CrawlLapRun(completed_at=datetime(2026, 7, 9, 12, 52, 0)))   # 어제(KST 21:52)
+    db.add(CrawlLapRun(completed_at=datetime(2026, 7, 10, 0, 35, 0)))   # 오늘(KST 09:35) = 1회차
+    db.commit()
+    r = lap_report(db, lap_no=1, now=datetime(2026, 7, 10, 0, 40, 0))
+    assert r is not None and r["lap"]["no"] == 1
+    assert r["lap"]["minutes"] is None      # 703분 같은 가짜 소요를 내지 않는다
+
+
+def test_lap2_same_day_keeps_real_minutes(db):
+    """같은 날 연속 회차는 소요(분)를 그대로 낸다."""
+    from lemouton.sources.models import CrawlLapRun
+    db.add(CrawlLapRun(completed_at=datetime(2026, 7, 10, 0, 30, 0)))   # 1회차 KST 09:30
+    db.add(CrawlLapRun(completed_at=datetime(2026, 7, 10, 0, 36, 0)))   # 2회차 KST 09:36
+    db.commit()
+    r = lap_report(db, lap_no=2, now=datetime(2026, 7, 10, 0, 40, 0))
+    assert r["lap"]["minutes"] == 6
+
+
 # ── ★첫 수집은 '변동'이 아니다 (라이브서 921건 둔갑했던 버그) ─────────
 def _seed_first(db, detail):
     from lemouton.sources.models import SourceProduct, CrawlLapRun, CrawlDelta
