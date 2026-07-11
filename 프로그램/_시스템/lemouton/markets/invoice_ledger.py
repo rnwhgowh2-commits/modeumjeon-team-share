@@ -48,6 +48,11 @@ def remember(rows, *, session=None) -> int:
 
     s, own = _open_session(session)
     saved = 0
+    # ★ 한 배치에 같은 (판매처,주문번호)가 여러 번 온다(11번가는 한 주문에 상품라인 여러 개).
+    #   프로덕션 SessionLocal 은 autoflush=False 라 s.get 이 방금 add 한 형제를 못 봐,
+    #   그대로 두면 중복 PK 로 commit 이 통째로 터져 0건 저장된다. 이 배치에서 이미 다룬
+    #   객체를 pending 에 들고 있다가 재사용(마지막 값이 이긴다).
+    pending: dict = {}
     try:
         for r in rows:
             status = _clean(r.get("주문상태"))
@@ -60,14 +65,20 @@ def remember(rows, *, session=None) -> int:
             order_no = _clean(r.get("오픈마켓주문번호"))
             if not market or not order_no:
                 continue
-            row = s.get(InvoiceLedger, {"market": market, "order_no": order_no})
+            courier = _clean(r.get("택배사"))
+            key = (market, order_no)
+            row = pending.get(key)
             if row is None:
-                s.add(InvoiceLedger(market=market, order_no=order_no,
-                                    invoice_no=inv, courier=_clean(r.get("택배사")) or None))
+                row = s.get(InvoiceLedger, {"market": market, "order_no": order_no})
+            if row is None:
+                row = InvoiceLedger(market=market, order_no=order_no,
+                                    invoice_no=inv, courier=courier or None)
+                s.add(row)
             else:
                 row.invoice_no = inv
-                if _clean(r.get("택배사")):
-                    row.courier = _clean(r.get("택배사"))
+                if courier:
+                    row.courier = courier
+            pending[key] = row
             saved += 1
         s.commit()
     finally:
