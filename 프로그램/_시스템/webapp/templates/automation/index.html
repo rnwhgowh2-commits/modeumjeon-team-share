@@ -203,6 +203,7 @@
   .g-li{background:#FFE9A8;color:#7A4E00;font-weight:700}
   .g-so{background:#DDE1E6;color:#6B7684;text-decoration:line-through}
   .g-un{background:#FFB84D;color:#5C3200;font-weight:700}
+  .g-na{background:transparent;color:#E5E8EB;}   /* 그 소싱처가 안 파는 조합 — 확인불가 아님 */
   .sglg{display:flex;gap:14px;align-items:center;font-size:11px;color:#8B95A1;margin-top:10px;}
   .sglg i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:5px;vertical-align:-1px;}
   .nofin{color:#8B95A1;font-size:11.5px;}
@@ -657,11 +658,17 @@
       return x-y; });
     if(!sizes.length) sizes=[''];
     var idx={}; g.forEach(function(o){ idx[(o.color||'단품')+'|'+(o.size||'')]=o.stock; });
+    // ★색×사이즈를 곱하면 '그 소싱처가 안 파는 조합'까지 칸이 생긴다(9색×14사이즈=126 > 실제 102).
+    //   없는 조합을 확인불가로 칠하면 "재고를 못 읽었다"는 거짓말 + 범례(확인불가 0)와 모순.
+    //   → 데이터에 있는 조합만 상태를 칠하고, 없는 조합은 빈 칸으로 둔다.
+    function has(k){ return Object.prototype.hasOwnProperty.call(idx,k); }
     function cls(q){ if(q==null||q<0) return 'g-un'; if(q===0) return 'g-so'; if(q>=999) return 'g-am'; return 'g-li'; }
     function word(q){ return q==null||q<0? '확인불가' : (q===0? '품절' : (q>=999? '충분' : q+'개')); }
     var html = colors.map(function(c){
       return '<div class="sgrow"><div class="sgnm">'+_esc(c)+'</div><div class="sgg">'
-        +sizes.map(function(z){ var q=idx[c+'|'+z];
+        +sizes.map(function(z){ var k=c+'|'+z;
+            if(!has(k)) return '<span class="g-na" title="'+_esc(c+' '+(z||'단품')+' — 이 소싱처엔 없는 조합')+'">'+_esc(z||'단품')+'</span>';
+            var q=idx[k];
             return '<span class="'+cls(q)+'" title="'+_esc(c+' '+(z||'단품')+' — '+word(q))+'">'+_esc(z||'단품')+'</span>'; }).join('')
         +'</div></div>';
     }).join('');
@@ -671,6 +678,7 @@
       +'<span><i style="background:#FFE9A8"></i>한정 '+(su.limited||0)+'</span>'
       +'<span><i style="background:#DDE1E6"></i>품절 '+(su.soldout||0)+'</span>'
       +'<span><i style="background:#FFB84D"></i>확인불가 '+(su.unknown||0)+'</span>'
+      +'<span style="color:#B0B8C1">빈 칸 = 이 소싱처엔 없는 조합</span>'
       +'</div>';
   }
   // 소싱처를 펼치면 상품 줄. 최종매입가는 상품마다 다르므로 한 번에 일괄 계산한다.
