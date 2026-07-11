@@ -150,6 +150,53 @@ def test_source_from_memo():
 
 
 @pytest.mark.skipif(shutil.which("node") is None, reason="node 없음")
+def test_source_earliest_occurrence_wins():
+    """두 소싱처가 언급된 메모는 '최초 등장' 소싱처로 귀속 — SRC 배열 순서가 아니라
+    메모 내 위치가 기준이다(오귀속 차단).
+
+    NOTE: 코디네이터 원안 예시("SSG보다 롯데가 싸서 롯데 구매")는 SSG 가 index 0,
+    롯데가 index 6 이라 '최초 등장' 규칙상 SSG 가 나온다(원안 기대값 '롯데' 와 모순).
+    실제 귀속(롯데) 을 원하면 '빈도' 규칙이어야 하지만, 지정된 구현은 '최초 등장'이다.
+    따라서 '최초 등장이 배열 순서를 이긴다'를 진짜로 증명하는 입력으로 교정:
+    '롯데가 SSG보다 …' → 배열 순서 코드=SSG, 최초 등장 코드=롯데."""
+    r = subprocess.run(["node", "-e",
+        f"const R=require('{R.as_posix()}');"
+        "console.log(R.__test.sourceOf({간단메모:'롯데가 SSG보다 싸서 롯데 구매'}))"],
+        capture_output=True, text=True, encoding="utf-8")
+    assert r.returncode == 0, r.stderr
+    assert r.stdout.strip() == "롯데"
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="node 없음")
+def test_render_source_groups_and_note():
+    r = subprocess.run(["node", "-e",
+        f"const R=require('{R.as_posix()}');"
+        "const d={counts:{unmatched_buy:3,unmatched_sell:1},matched:["
+        "{간단메모:'무신사 x',판매가:100000,순마진:20000},"
+        "{간단메모:'무신사 y',판매가:50000,순마진:5000},"
+        "{간단메모:'롯데 z',판매가:80000,순마진:10000}]};"
+        "const html=R.__test.renderSource(d);"
+        # 무신사 매출 150,000 > 롯데 80,000 → 무신사 row first; note shows 3 and 1
+        "const musIdx=html.indexOf('무신사'), lotIdx=html.indexOf('롯데');"
+        "console.log([musIdx>=0 && lotIdx>=0 && musIdx<lotIdx, /150,000/.test(html), /매입 미매칭 3건/.test(html), /매출 미매칭 1건/.test(html)].join(','))"],
+        capture_output=True, text=True, encoding="utf-8")
+    assert r.returncode == 0, r.stderr
+    assert r.stdout.strip() == "true,true,true,true"
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="node 없음")
+def test_render_source_empty_shows_affirmation():
+    """매칭 0건·미매칭 0건 → '0건·0건' 소음 대신 확인 메시지(검사 실행됨) + 빈 tbody."""
+    r = subprocess.run(["node", "-e",
+        f"const R=require('{R.as_posix()}');"
+        "const html=R.__test.renderSource({counts:{unmatched_buy:0,unmatched_sell:0},matched:[]});"
+        "console.log([/미매칭 없음/.test(html), html.indexOf('<tbody></tbody>')>=0].join(','))"],
+        capture_output=True, text=True, encoding="utf-8")
+    assert r.returncode == 0, r.stderr
+    assert r.stdout.strip() == "true,true"
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="node 없음")
 def test_pie_svg_shapes():
     """pieSvg 계약 고정 — 단일행=full-circle(<circle), 2행=조각 2개(<path)."""
     script = (
