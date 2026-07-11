@@ -1540,9 +1540,10 @@ def save_crawl_result():
             except Exception:
                 pass
             sp.last_error_msg = it.get('error') or None
-            pn = it.get('product_name')
-            if pn:
-                sp.product_name = str(pn)[:255]
+            # [2026-07-11] 상품명 = 치유 규칙(비었/내비쓰레기만 갱신, 좋은 이름 보호).
+            #   기존엔 무조건 덮어써서 확장이 보낸 '메인메뉴'(내비)가 parse 치유를 도로 클로버.
+            from lemouton.sources.service import apply_name_heal as _heal_name
+            _heal_name(sp, it.get('product_name'))
             # [2026-06-06] 옵션단위 표시가 갱신 — 매트릭스는 SourceOption.current_price 를
             #   우선 표시한다(상품 last_price 는 fallback). 무신사 회원가·롯데온 혜택가는
             #   상품 내 균일하므로 이 상품의 모든 옵션 가격을 일괄 갱신 → 화면에 신규가 반영.

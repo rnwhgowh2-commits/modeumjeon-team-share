@@ -781,6 +781,27 @@ def persist_crawled_options(session: Session, *, source_product, options) -> dic
     return {'upserted': upserted, 'pruned': pruned, 'failed': failed, 'err': err_sample}
 
 
+# 상품명으로 잘못 저장되는 내비/섹션 텍스트. 빈값 포함 = '채워야 할 상태'.
+_NAME_JUNK = {"", "메인메뉴", "메뉴"}
+
+
+def apply_name_heal(source_product, new_name) -> bool:
+    """상품명 치유 — 현재가 비었거나 내비 쓰레기(「메인메뉴」)면 새 이름으로 갱신.
+
+    [2026-07-11] 옛 파서(og:title 도입 전)가 PC 첫 h2 '메인메뉴'(내비)를 상품명으로
+      저장했고, fill-if-blank 가드 때문에 파서를 고쳐도 stale '메인메뉴'가 영원히 남았다.
+      확장 저장 경로(api_sources_parse)·서버 저장 경로(save_crawl_result) 둘 다 이 함수를
+      부른다. 정상 저장된 좋은 이름은 덮지 않는다(파서 폴백이 더 나쁜 값을 줄 때 보호).
+    반환 True = 갱신함.
+    """
+    _new = (new_name or "").strip()
+    _cur = (getattr(source_product, "product_name", None) or "").strip()
+    if _new and _new not in _NAME_JUNK and _cur in _NAME_JUNK:
+        source_product.product_name = _new
+        return True
+    return False
+
+
 def save_crawl_result(
     session: Session,
     *,
@@ -788,16 +809,8 @@ def save_crawl_result(
     crawl_result: Any,  # CrawlResult
 ) -> dict:
     """CrawlResult → SourceProduct 메타 갱신 + 옵션 row 들 upsert."""
-    # 모음전 단위 메타
-    #  [2026-07-11] 상품명 갱신 — 비었을 때만 채우던 것을 '비었거나 내비 쓰레기면' 갱신으로.
-    #    옛 파서(og:title 도입 전)가 PC 첫 h2 '메인메뉴'(내비)를 상품명으로 저장했고,
-    #    fill-if-blank 가드 때문에 파서를 고쳐도 stale '메인메뉴'가 영원히 남았다(라이브 실측).
-    #    정상 저장된 좋은 이름은 덮지 않는다(파서 폴백이 더 나쁜 값을 줄 때 보호).
-    _new_name = (crawl_result.product_name_raw or "").strip()
-    _cur_name = (source_product.product_name or "").strip()
-    _NAME_JUNK = {"", "메인메뉴", "메뉴"}
-    if _new_name and _new_name not in _NAME_JUNK and _cur_name in _NAME_JUNK:
-        source_product.product_name = _new_name
+    # 모음전 단위 메타 — 상품명 치유([2026-07-11]). 아래 apply_name_heal 참조.
+    apply_name_heal(source_product, crawl_result.product_name_raw)
 
     source_product.last_fetched_at = _utcnow()
     source_product.last_status = 'ok'
