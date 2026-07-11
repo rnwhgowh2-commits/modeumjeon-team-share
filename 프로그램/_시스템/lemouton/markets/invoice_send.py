@@ -146,6 +146,77 @@ def _verify_coupang(resp, order_no: str) -> Optional[str]:
     return None
 
 
+def read_registered_invoice(*, market: str, order_no, send_ids: Optional[dict] = None,
+                            client=None) -> Optional[str]:
+    """전송 직후 마켓에 **실제 등록된** 송장번호를 되읽는다. 못 읽으면 None.
+
+    화면의 「✓ 전송」 숫자를 입력값이 아니라 이 값으로 표시하기 위한 것 — 숫자 자체가
+    '마켓에 등록됨'의 증거가 되게 한다(2026-07-10 오입력 사고 재발 방지).
+
+    ⚠️ None 은 '전송 실패'가 아니라 '아직 확인 불가'다(전파 지연 등). 전송의 성공/실패는
+       send_invoice 의 응답검증이 이미 판정했다. 못 읽었다고 입력값을 마켓값인 척 쓰지 않는다.
+    """
+    order_no = str(order_no)
+    ids = send_ids or {}
+    try:
+        if market == "smartstore":
+            from shared.platforms.smartstore import orders as ss
+            r = ss.fetch_order_detail([order_no], client=client)
+            for it in (r or {}).get("data") or []:
+                po = it.get("productOrder") or {}
+                if str(po.get("productOrderId")) == order_no:
+                    return (it.get("delivery") or {}).get("trackingNumber") or None
+
+        elif market == "coupang":
+            from shared.platforms.coupang import orders as cp
+            osid = ids.get("order_sheet_id")
+            if not osid:
+                return None
+            r = cp.fetch_order_detail(str(osid), client=client)
+            data = (r or {}).get("data")
+            boxes = data if isinstance(data, list) else ([data] if isinstance(data, dict) else [])
+            for box in boxes:
+                if box.get("invoiceNumber"):
+                    return str(box["invoiceNumber"])
+                for it in (box.get("orderItems") or []):
+                    if it.get("invoiceNumber"):
+                        return str(it["invoiceNumber"])
+
+        elif market == "lotteon":
+            from shared.platforms.lotteon import orders as lo
+            import datetime as _dt
+            until = _dt.datetime.now()
+            since = until - _dt.timedelta(days=3)
+            odno = str(ids.get("od_no") or order_no)
+            odseq = str(ids.get("od_seq") or "")
+            best, best_dttm = None, ""
+            for it in lo.iter_progress_states(since, until, client=client):
+                if str(it.get("odNo")) != odno:
+                    continue
+                if odseq and str(it.get("odSeq")) != odseq:
+                    continue
+                dttm = str(it.get("dvTrcStatDttm") or "")
+                if it.get("invcNo") and dttm >= best_dttm:
+                    best, best_dttm = str(it.get("invcNo")), dttm
+            return best
+
+        elif market == "eleven11":
+            from shared.platforms.eleven11 import orders as el
+            import datetime as _dt
+            until = _dt.datetime.now()
+            since = until - _dt.timedelta(days=3)
+            dlv = str(ids.get("dlv_no") or "")
+            # 송장 등록 직후 상태 = 배송중(iter_shipping). 배송완료는 폴백.
+            for iter_fn in (el.iter_shipping, el.iter_delivered):
+                for od in iter_fn(since, until, client=client):
+                    hit = (dlv and str(od.get("dlvNo")) == dlv) or str(od.get("ordNo")) == order_no
+                    if hit and od.get("invcNo"):
+                        return str(od.get("invcNo"))
+    except Exception:   # noqa: BLE001 — 되읽기 실패는 '확인 불가'(None), 전송 판정과 무관
+        return None
+    return None
+
+
 def send_invoice(*, market: str, order_no, courier_name: str, invoice_no,
                  send_ids: Optional[dict] = None, client=None,
                  live: bool = False, order_status: Optional[str] = None) -> SendResult:
