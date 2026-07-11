@@ -446,7 +446,7 @@ MARKET_METADATA = {
         "guide_text": ("롯데온 판매자 센터 > 판매자정보 > OpenAPI관리 에서 "
                        "① 서버 IP 등록(54.116.196.90) ② 인증키 발급. 거래처번호(trNo)도 여기서 확인."),
         "default_prefix": "LOTTEON_MAIN",
-        # UI 온보딩(계정·키 등록·연결 테스트) 개방. 실제 전송은 LEMOUTON_LIVE_UPLOAD(OFF)가 별도 게이트.
+        # UI 온보딩(계정·키 등록·연결 테스트) 개방. 실제 전송은 MOUM_LIVE_UPLOAD(OFF)가 별도 게이트.
         "status": "ready",
         "sort_order": 3,
     },

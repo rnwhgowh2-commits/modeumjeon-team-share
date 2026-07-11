@@ -4,7 +4,7 @@
 #   https://openapi.11st.co.kr/openapi/OpenApiOperationGuide.tmall (인증·openapikey 헤더)
 #   https://openapi.11st.co.kr/openapi/OpenApiFrontMain.tmall (키 발급·서비스 등록·IP 등록)
 #   STEP 0(슬러그·접두)= webapp/routes/accounts.py MARKET_METADATA["eleven11"], default_prefix=ELEVEN11_MAIN.
-# ⚠️ 라이브 미검증(키 없음) — 코드·공개문서 근거만. LEMOUTON_LIVE_UPLOAD OFF, status=coming_soon 유지.
+# ⚠️ 라이브 미검증(키 없음) — 코드·공개문서 근거만. MOUM_LIVE_UPLOAD OFF, status=coming_soon 유지.
 # ⚠️ 셀러 REST 엔드포인트(상품/재고/가격) 경로·요청/응답 XML 필드명은 로그인 게이트 안 → 미확보.
 #    해당 값은 TODO(조사필요)로 두고, 코드는 뼈대만(실제 호출 로직 없음). 추측·폴백 금지(CLAUDE.md).
 

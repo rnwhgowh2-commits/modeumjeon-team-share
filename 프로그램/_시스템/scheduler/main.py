@@ -2,12 +2,12 @@
 
 Flask 프로세스 안에서 BackgroundScheduler를 띄운다 (단일 사용자 로컬 운영).
 
-연속 모드 (LEMOUTON_CYCLE_MODE=continuous, default):
-    이전 사이클이 끝나면 ``LEMOUTON_CONTINUOUS_GAP_SEC`` (default 60s) 대기 후
+연속 모드 (MOUM_CYCLE_MODE=continuous, default):
+    이전 사이클이 끝나면 ``MOUM_CONTINUOUS_GAP_SEC`` (default 60s) 대기 후
     다음 사이클 자동 reschedule. 사이트 부하 보호 위한 최소 간격만 둠.
 
-레거시 인터벌 모드 (LEMOUTON_CYCLE_MODE=interval):
-    ``LEMOUTON_CYCLE_HOURS`` (default 6) 간격으로 정시 실행.
+레거시 인터벌 모드 (MOUM_CYCLE_MODE=interval):
+    ``MOUM_CYCLE_HOURS`` (default 6) 간격으로 정시 실행.
 """
 from __future__ import annotations
 
@@ -37,14 +37,14 @@ def get_scheduler() -> BackgroundScheduler:
 def _continuous_full_cycle(*, dry_run: bool = False) -> dict:
     """full_cycle 1회 실행 후 다음 실행을 즉시 reschedule (연속 모드).
 
-    사이클 사이 최소 ``LEMOUTON_CONTINUOUS_GAP_SEC`` 초 간격 보장 (사이트 부하 보호).
+    사이클 사이 최소 ``MOUM_CONTINUOUS_GAP_SEC`` 초 간격 보장 (사이트 부하 보호).
     """
     try:
         return full_cycle(dry_run=dry_run)
     finally:
         try:
             sched = get_scheduler()
-            gap_sec = int(os.environ.get('LEMOUTON_CONTINUOUS_GAP_SEC', '60'))
+            gap_sec = int(os.environ.get('MOUM_CONTINUOUS_GAP_SEC', '60'))
             next_at = datetime.now(timezone.utc) + timedelta(seconds=gap_sec)
             sched.reschedule_job('full_cycle', trigger='date', run_date=next_at)
         except Exception:
@@ -55,13 +55,13 @@ def start_scheduler() -> BackgroundScheduler:
     """앱 부팅 시 호출. 모드에 따라 full_cycle job 등록 후 시작.
 
     - continuous (default): 사이클 종료 후 60초 후 즉시 다음 — 무제한 연속
-    - interval (legacy): LEMOUTON_CYCLE_HOURS 간격
+    - interval (legacy): MOUM_CYCLE_HOURS 간격
     """
     sched = get_scheduler()
     if sched.running:
         return sched
 
-    mode = (os.environ.get('LEMOUTON_CYCLE_MODE') or 'continuous').lower()
+    mode = (os.environ.get('MOUM_CYCLE_MODE') or 'continuous').lower()
     if mode == 'continuous':
         sched.add_job(
             _continuous_full_cycle,
@@ -73,10 +73,10 @@ def start_scheduler() -> BackgroundScheduler:
             misfire_grace_time=60 * 30,
         )
         sched.start()
-        gap_sec = int(os.environ.get('LEMOUTON_CONTINUOUS_GAP_SEC', '60'))
+        gap_sec = int(os.environ.get('MOUM_CONTINUOUS_GAP_SEC', '60'))
         logger.info('scheduler started — continuous mode (gap %ds between cycles)', gap_sec)
     else:
-        interval_hours = int(os.environ.get('LEMOUTON_CYCLE_HOURS', '6'))
+        interval_hours = int(os.environ.get('MOUM_CYCLE_HOURS', '6'))
         sched.add_job(
             full_cycle,
             'interval',
@@ -91,9 +91,9 @@ def start_scheduler() -> BackgroundScheduler:
         logger.info('scheduler started — interval mode (every %dh)', interval_hours)
 
     # 연동 구성 주기 수집(판매처 현재값 + 소싱 변동 스냅샷). env 가드(0=비활성, 기본 12h).
-    # collect 는 마켓 read-only(쓰기 0). 운영 부하는 LEMOUTON_SETS_COLLECT_HOURS 로 통제.
+    # collect 는 마켓 read-only(쓰기 0). 운영 부하는 MOUM_SETS_COLLECT_HOURS 로 통제.
     try:
-        sets_hours = int(os.environ.get('LEMOUTON_SETS_COLLECT_HOURS', '12'))
+        sets_hours = int(os.environ.get('MOUM_SETS_COLLECT_HOURS', '12'))
     except ValueError:
         sets_hours = 12
     if sets_hours > 0 and sched.get_job('sets_collect') is None:

@@ -5,7 +5,7 @@ build_coupang_payload 와 동형. 옵션별 가격 직접 매핑.
 ⚠️ 안전: 모델에 lotteon_product_id 가 없으면(미매핑) None 반환 → 오케스트레이터가
 이 모델을 건너뜀 → 자동 전송 0. 현재 모든 모델의 lotteon_product_id 는 NULL 이므로
 이 빌더는 아무 것도 방출하지 않는다(배선만 준비 상태). 실제 자동 전송은
-LEMOUTON_LIVE_UPLOAD ON + 롯데온 상품/옵션 ID 매핑 후에만 발생.
+MOUM_LIVE_UPLOAD ON + 롯데온 상품/옵션 ID 매핑 후에만 발생.
 """
 
 

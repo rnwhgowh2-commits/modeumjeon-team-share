@@ -2,7 +2,7 @@
 """[TEST] 「주문 내역」 송장 라우트 — 엑셀 업로드 매칭 · 전송(드라이런 게이트).
 
 안전 규칙(테스트로 못박음):
-  · 요청이 live=true 라도 서버 전역 스위치(LEMOUTON_LIVE_UPLOAD)가 꺼져 있으면 실제 전송 금지.
+  · 요청이 live=true 라도 서버 전역 스위치(MOUM_LIVE_UPLOAD)가 꺼져 있으면 실제 전송 금지.
   · 미지원 마켓·식별자 없음은 조용히 성공하지 않는다.
 """
 import io
@@ -98,12 +98,12 @@ class TestSend:
         assert called == []
 
     def test_route_gate_reads_invoice_switch_not_upload_switch(self, monkeypatch):
-        """/orders 의 게이트는 LEMOUTON_LIVE_INVOICE 를 본다 — 가격·재고 스위치가 아니라."""
-        monkeypatch.delenv("LEMOUTON_LIVE_UPLOAD", raising=False)
-        monkeypatch.delenv("LEMOUTON_LIVE_INVOICE", raising=False)
+        """/orders 의 게이트는 MOUM_LIVE_INVOICE 를 본다 — 가격·재고 스위치가 아니라."""
+        monkeypatch.delenv("MOUM_LIVE_UPLOAD", raising=False)
+        monkeypatch.delenv("MOUM_LIVE_INVOICE", raising=False)
         assert om._live_enabled() is False
 
-        monkeypatch.setenv("LEMOUTON_LIVE_INVOICE", "1")
+        monkeypatch.setenv("MOUM_LIVE_INVOICE", "1")
         assert om._live_enabled() is True
 
     def test_live_request_refused_when_global_switch_off(self, client, monkeypatch):

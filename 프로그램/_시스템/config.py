@@ -11,7 +11,7 @@ load_dotenv(PROJECT_ROOT / ".env", override=True)
 
 # UI 저장 시크릿의 영속 경로(배포 시 호스트 볼륨 마운트). gunicorn --preload 로
 # 마스터에서 1회 로드 → fork 된 모든 워커가 시작 시 키를 공유(배포 후 재입력 불필요).
-_secrets_env = os.environ.get("LEMOUTON_SECRETS_ENV")
+_secrets_env = os.environ.get("MOUM_SECRETS_ENV")
 if _secrets_env and Path(_secrets_env).exists():
     load_dotenv(_secrets_env, override=True)
 
@@ -22,7 +22,7 @@ class Config:
     DEBUG = os.environ.get("FLASK_DEBUG", "0") == "1"
     SECRET_KEY = os.environ.get("FLASK_SECRET_KEY", "dev-only-not-secure")
 
-    DB_PATH = PROJECT_ROOT / os.environ.get("LEMOUTON_DB_PATH", "data/lemouton.db")
+    DB_PATH = PROJECT_ROOT / os.environ.get("MOUM_DB_PATH", "data/lemouton.db")
     # DATABASE_URL 환경변수 우선 (PostgreSQL / Supabase 등) — 없으면 SQLite 폴백 (백워드 호환).
     # 신규 팀공유 프로젝트 (C:\dev\모음전 프로젝트\) 에서는 .env 에 DATABASE_URL=postgresql://... 설정.
     DB_URL = os.environ.get("DATABASE_URL") or f"sqlite:///{DB_PATH.as_posix()}"
