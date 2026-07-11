@@ -88,12 +88,13 @@
   });
   document.getElementById('mg-panes').addEventListener('click', function(e){
     var b=e.target.closest('[data-export]'); if(!b||!window.__mgData) return;
-    var visible=[...document.querySelectorAll('.mg-tbl tbody tr')].filter(function(tr){return tr.style.display!=='none';});
-    // 화면 필터 결과를 서버로 보내 엑셀 생성 (analysis_id + tab)
+    // 현재는 전체(all) 시트 다운로드 — 화면 필터 반영 엑셀은 후속(#5)
     fetch('/api/margin/export',{method:'POST',headers:{'Content-Type':'application/json'},
       body:JSON.stringify({analysis_id:window.__mgData.analysis_id, tab:'all'})})
-      .then(function(r){return r.blob();}).then(function(bl){
+      .then(function(r){ if(!r.ok) throw new Error('export '+r.status); return r.blob(); })
+      .then(function(bl){
         var u=URL.createObjectURL(bl),a=document.createElement('a');a.href=u;a.download='마진분석.xlsx';a.click();URL.revokeObjectURL(u);
-      });
+      })
+      .catch(function(){ alert('엑셀 생성에 실패했습니다. 다시 시도해 주세요.'); });
   });
 </script>

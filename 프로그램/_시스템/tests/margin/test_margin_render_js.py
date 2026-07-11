@@ -72,14 +72,38 @@ def test_row_class_from_classify():
 @pytest.mark.skipif(shutil.which("node") is None, reason="node 없음")
 def test_price_bucket_matches_python_ranges():
     """priceBucket 이 aggregator._classify(판매가) 와 동일 라벨을 낸다 —
-    금액대 필터가 매칭행에 없는 필드로 무동작하던 결함의 회귀 방지."""
+    금액대 필터가 매칭행에 없는 필드로 무동작하던 결함의 회귀 방지.
+    기대값을 config.DEFAULT_PRICE_RANGES 에서 파생 → 파이썬만 바꾸면 이 테스트가 깨진다."""
+    from lemouton.margin.config import DEFAULT_PRICE_RANGES
+    expected = "|".join(lbl for _, _, lbl in DEFAULT_PRICE_RANGES)
+    # pick a value clearly inside each range (midpoint; for the open top range use low+1)
+    import math
+    vals = []
+    for lo, hi, _ in DEFAULT_PRICE_RANGES:
+        vals.append(lo + 1 if math.isinf(hi) else (lo + hi)//2)
+    js_vals = ",".join("{판매가:%d}" % v for v in vals)
     r = subprocess.run(["node", "-e",
-        f"const R=require('{R.as_posix()}');"
-        "const f=R.__test.priceBucket;"
-        "console.log([f({판매가:5000}),f({판매가:25000}),f({판매가:45000}),f({판매가:80000}),f({판매가:150000})].join('|'))"],
+        f"const R=require('{R.as_posix()}');const f=R.__test.priceBucket;"
+        f"console.log([{js_vals}].map(f).join('|'))"],
         capture_output=True, text=True, encoding="utf-8")
     assert r.returncode == 0, r.stderr
-    assert r.stdout.strip() == "~1만|1~3만|3~5만|5~10만|10만~"
+    assert r.stdout.strip() == expected
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="node 없음")
+def test_row_data_attr_escapes_doublequote():
+    """브랜드에 큰따옴표가 있어도 data-br 속성이 잘리지 않는다 —
+    escAttr(&quot;) 이 없으면 속성이 truncate 되어 브랜드 필터가 해당 행을 숨긴다."""
+    r = subprocess.run(["node", "-e",
+        "global.window=global;"
+        f"require('{RULES.as_posix()}');"
+        f"require('{R.as_posix()}');"
+        "var d={filters:{},matched:[{브랜드:'a\"b',마켓:'X',판매가:5000,상품명:'p',옵션_매출:'o'}]};"
+        "var h=global.MG_RENDERERS.all(d);"
+        "console.log(h.indexOf('data-br=\"a&quot;b\"')>=0);"],
+        capture_output=True, text=True, encoding="utf-8")
+    assert r.returncode == 0, r.stderr
+    assert r.stdout.strip() == "true", r.stdout
 
 
 @pytest.mark.skipif(shutil.which("node") is None, reason="node 없음")

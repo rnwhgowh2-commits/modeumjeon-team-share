@@ -3,6 +3,7 @@
   'use strict';
   function won(v){ var n=Number(String(v==null?0:v).replace(/,/g,'')); return (isFinite(n)?n:0).toLocaleString('en-US'); }
   function esc(s){ return String(s==null?'':s).replace(/[&<>]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;'}[c];}); }
+  function escAttr(s){ return esc(s).replace(/"/g,'&quot;'); }
 
   var PIE = ['#3182F6','#12B886','#F59F00','#F03E3E','#7048E8','#1098AD','#E8590C','#868E96'];
   function pieSlices(rows, key){
@@ -85,7 +86,7 @@
       + '<th class="num">정산예정</th><th class="num">매입</th><th class="num">순마진</th>'
       + '<th class="num">마진율</th><th class="ctr">매칭</th></tr>';
     var body = (d.matched||[]).map(function(r){
-      return '<tr class="'+rowClass(r)+'" data-mk="'+esc(r.마켓)+'" data-br="'+esc(r.브랜드)+'" data-pr="'+esc(priceBucket(r))+'">'
+      return '<tr class="'+rowClass(r)+'" data-mk="'+escAttr(r.마켓)+'" data-br="'+escAttr(r.브랜드)+'" data-pr="'+escAttr(priceBucket(r))+'">'
         + '<td>'+esc(r.주문일).slice(0,10)+'</td><td class="ctr">'+esc(r.마켓)+'</td>'
         + '<td>'+esc(r.상품명)+' · '+esc(r.옵션_매출)+'</td>'
         + '<td class="num">'+won(r.판매가)+'</td><td class="num">'+won(r.정산예상금액)+'</td>'
