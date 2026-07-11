@@ -58,4 +58,13 @@
   </div>
 </div>
 <script src="{{ url_for('static', filename='margin_rules.js') }}?v=20260711a"></script>
+<script src="{{ url_for('static', filename='margin_render.js') }}?v=20260711a"></script>
 <script src="{{ url_for('static', filename='margin_app.js') }}?v=20260711a"></script>
+<script>
+  window.MG_RENDER = function(d){ window.MG_SHOW_TAB('summary', d); };
+  window.MG_SHOW_TAB = function(tab, d){
+    var r = (window.MG_RENDERERS || {})[tab];
+    document.getElementById('mg-panes').innerHTML = r ? r(d)
+      : '<div class="mg-empty">이 탭은 다음 태스크에서 구현됩니다.</div>';
+  };
+</script>
