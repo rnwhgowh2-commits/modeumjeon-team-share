@@ -43,3 +43,15 @@
 #margin-app .mg-pie{display:flex;gap:14px;align-items:center}
 #margin-app .mg-legs{font-size:12px}#margin-app .mg-leg{padding:2px 0}
 #margin-app .mg-dot{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:5px;vertical-align:middle}
+#margin-app .mg-filter{display:flex;gap:8px;margin-bottom:12px;align-items:center}
+#margin-app .mg-filter select{padding:6px 10px;border:1px solid var(--mg-line);border-radius:7px;font-size:12.5px}
+#margin-app .mg-xlsx{margin-left:auto;padding:7px 14px;border:1px solid var(--mg-line);background:#fff;border-radius:7px;font-weight:700;cursor:pointer}
+#margin-app .mg-tblwrap{overflow-x:auto;background:#fff;border:1px solid var(--mg-line);border-radius:12px}
+#margin-app .mg-tbl{width:100%;border-collapse:collapse;font-size:12.5px}
+#margin-app .mg-tbl th,.mg-tbl td{padding:9px 12px;border-bottom:1px solid var(--mg-line);text-align:left;white-space:nowrap}
+#margin-app .mg-tbl th{background:#fafbfc;font-size:11.5px;color:var(--mg-sub);font-weight:700}
+#margin-app .mg-tbl td.num,.mg-tbl th.num{text-align:right;font-variant-numeric:tabular-nums}
+#margin-app .mg-tbl td.ctr,.mg-tbl th.ctr{text-align:center}
+#margin-app .mg-tbl tr.mg-loss td{background:#FEF6F6}
+#margin-app .mg-tbl tr.mg-high td{background:#F2FBF7}
+#margin-app .mg-tbl tr.mg-uncomp td{background:#FAFAFA;color:#868E96}

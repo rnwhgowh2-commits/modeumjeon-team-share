@@ -54,7 +54,34 @@
       + '<div class="mg-chart"><div class="mg-ct">마켓별 순마진</div>'+pieSvg(d.market,'순마진','마켓')+'</div></div>';
   }
 
-  root.MG_RENDERERS = { summary: renderSummary, __won: won, __esc: esc, __pieSvg: pieSvg };
-  var api = { pieSlices: pieSlices, won: won };
+  function rowClass(r){
+    var MR = root.MR; if (!MR) return '';
+    var c = MR.classify(r);
+    return c==='loss'?'mg-loss':c==='highmargin'?'mg-high':c==='uncomputable'?'mg-uncomp':'';
+  }
+  function renderAll(d){
+    var f = d.filters||{};
+    function opts(arr){ return ['<option value="">전체</option>'].concat((arr||[]).map(function(x){return '<option>'+esc(x)+'</option>';})).join(''); }
+    var bar = '<div class="mg-filter">'
+      + '<select data-f="마켓">'+opts(f.markets)+'</select>'
+      + '<select data-f="브랜드">'+opts(f.brands)+'</select>'
+      + '<select data-f="금액대">'+opts(f.priceRange)+'</select>'
+      + '<button class="mg-xlsx" data-export="detail_filtered">필터 결과 엑셀</button></div>';
+    var head = '<tr><th>주문일</th><th>마켓</th><th>상품 · 옵션</th><th class="num">판매가</th>'
+      + '<th class="num">정산예정</th><th class="num">매입</th><th class="num">순마진</th>'
+      + '<th class="num">마진율</th><th class="ctr">매칭</th></tr>';
+    var body = (d.matched||[]).map(function(r){
+      return '<tr class="'+rowClass(r)+'" data-mk="'+esc(r.마켓)+'" data-br="'+esc(r.브랜드)+'" data-pr="'+esc(r.금액대)+'">'
+        + '<td>'+esc(r.주문일).slice(0,10)+'</td><td class="ctr">'+esc(r.마켓)+'</td>'
+        + '<td>'+esc(r.상품명)+' · '+esc(r.옵션_매출)+'</td>'
+        + '<td class="num">'+won(r.판매가)+'</td><td class="num">'+won(r.정산예상금액)+'</td>'
+        + '<td class="num">'+won(r.구매가격)+'</td><td class="num">'+won(r.순마진)+'</td>'
+        + '<td class="num">'+(Number(r.마진율)||0).toFixed(1)+'</td><td class="ctr">'+esc(r.매칭타입)+'</td></tr>';
+    }).join('');
+    return bar + '<div class="mg-tblwrap"><table class="mg-tbl"><thead>'+head+'</thead><tbody>'+body+'</tbody></table></div>';
+  }
+
+  root.MG_RENDERERS = { summary: renderSummary, all: renderAll, __won: won, __esc: esc, __pieSvg: pieSvg };
+  var api = { pieSlices: pieSlices, won: won, rowClass: rowClass };
   if (typeof module!=='undefined'&&module.exports) module.exports={__test:api};
 })(typeof window!=='undefined'?window:globalThis);

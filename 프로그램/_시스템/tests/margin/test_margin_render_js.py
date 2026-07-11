@@ -57,6 +57,19 @@ def test_summary_minicards_count_from_rules():
 
 
 @pytest.mark.skipif(shutil.which("node") is None, reason="node 없음")
+def test_row_class_from_classify():
+    import pathlib
+    RULES = (pathlib.Path(__file__).resolve().parents[2] / "webapp" / "static" / "margin_rules.js").as_posix()
+    r = subprocess.run(["node", "-e",
+        f"global.window=global; require('{RULES}');"
+        f"const R=require('{R.as_posix()}');"
+        "console.log(R.__test.rowClass({정산예상금액:0,구매가격:50000})+'|'+R.__test.rowClass({정산예상금액:70000,구매가격:0}))"],
+        capture_output=True, text=True, encoding="utf-8")
+    assert r.returncode == 0, r.stderr
+    assert r.stdout.strip() == "mg-loss|mg-high"
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="node 없음")
 def test_pie_svg_shapes():
     """pieSvg 계약 고정 — 단일행=full-circle(<circle), 2행=조각 2개(<path)."""
     script = (

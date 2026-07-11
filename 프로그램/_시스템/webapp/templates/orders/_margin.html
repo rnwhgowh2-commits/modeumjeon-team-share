@@ -62,6 +62,7 @@
 <script src="{{ url_for('static', filename='margin_app.js') }}?v=20260711a"></script>
 <script>
   window.MG_RENDER = function(d){
+    window.__mgData = d;
     var nav = document.getElementById('mg-subnav');
     if (nav) {
       nav.querySelectorAll('a').forEach(function(x){ x.classList.remove('on'); });
@@ -74,4 +75,25 @@
     document.getElementById('mg-panes').innerHTML = r ? r(d)
       : '<div class="mg-empty">이 탭은 다음 태스크에서 구현됩니다.</div>';
   };
+</script>
+<script>
+  document.getElementById('mg-panes').addEventListener('change', function(e){
+    var sel = e.target.closest('select[data-f]'); if(!sel) return;
+    function q(f){ var s=document.querySelector('select[data-f="'+f+'"]'); return s?s.value:''; }
+    var mk=q('마켓'), br=q('브랜드'), pr=q('금액대');
+    document.querySelectorAll('.mg-tbl tbody tr').forEach(function(tr){
+      var show=(!mk||tr.dataset.mk===mk)&&(!br||tr.dataset.br===br)&&(!pr||tr.dataset.pr===pr);
+      tr.style.display = show?'':'none';
+    });
+  });
+  document.getElementById('mg-panes').addEventListener('click', function(e){
+    var b=e.target.closest('[data-export]'); if(!b||!window.__mgData) return;
+    var visible=[...document.querySelectorAll('.mg-tbl tbody tr')].filter(function(tr){return tr.style.display!=='none';});
+    // 화면 필터 결과를 서버로 보내 엑셀 생성 (analysis_id + tab)
+    fetch('/api/margin/export',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({analysis_id:window.__mgData.analysis_id, tab:'all'})})
+      .then(function(r){return r.blob();}).then(function(bl){
+        var u=URL.createObjectURL(bl),a=document.createElement('a');a.href=u;a.download='마진분석.xlsx';a.click();URL.revokeObjectURL(u);
+      });
+  });
 </script>
