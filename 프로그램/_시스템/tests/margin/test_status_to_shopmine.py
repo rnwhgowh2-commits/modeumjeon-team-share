@@ -7,6 +7,8 @@ from lemouton.margin import sell_source as S
 from lemouton.margin import config as C
 
 
+# ⚠ _bucket 은 STAND-IN 프록시다 — classifier.py 이식(플랜 B) 전까지 config 상수로
+#   버킷을 근사 판정한다. classifier 이식 후에는 이 헬퍼를 실제 classifier 로 재조준한다.
 def _bucket(shopmine_status: str) -> str:
     """config 규칙으로 샵마인 문자열이 어느 정산 버킷인지 (테스트용 축약 판정)."""
     s = shopmine_status
@@ -24,13 +26,17 @@ def _bucket(shopmine_status: str) -> str:
 
 
 def test_lotteon_withdraw_is_cancel_not_settled():
+    # raw 철회 는 config 상 정산O 로 샘 (이 remap 이 존재하는 이유)
+    assert _bucket("철회") == "O"
     out = S.status_to_shopmine("롯데온", "철회")
-    assert _bucket(out) == "취소", f"철회 → {out} (정산O 로 새면 안 됨)"
+    assert _bucket(out) == "취소", f"철회 → {out}"
 
 
 def test_lotteon_collect_confirmed_is_return_not_settled():
+    # ⚠ _bucket 프록시가 "회수" 부분매칭이라 이 케이스는 약하게만 검증됨.
+    #   실제 classifier 이식(플랜 B) 후 raw 회수확정→O 누출을 정밀 재검증한다.
     out = S.status_to_shopmine("롯데온", "회수확정")
-    assert _bucket(out) == "반품", f"회수확정 → {out} (정산O 로 새면 안 됨)"
+    assert _bucket(out) == "반품", f"회수확정 → {out}"
 
 
 def test_pinned_values_land_in_settled():

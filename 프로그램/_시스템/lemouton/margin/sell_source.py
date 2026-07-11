@@ -189,14 +189,15 @@ def market_to_shopmine(panmaecheo: str) -> str:
 # order_export '판매처'별 API 주문상태 → 샵마인 정산 어휘 정규화.
 # 위험값(정산O 로 오분류되는 값)만 remap + '우연히 맞던' 값 명시 pin.
 # 이미 SETTLEMENT_* 에 정확히 있는 값은 여기 없으면 identity 통과.
+_ESM_STATUS = {"구매결정": "구매확정"}   # 옥션·G마켓 공통 (ESM 2.0). esm 클레임 값은 여기에 추가.
 _STATUS_TO_SHOPMINE = {
     "롯데온": {
         "철회": "취소완료",        # ★odPrgsStepCd 22 — 기본값 O 로 새던 것
         "회수확정": "반품완료",     # ★odPrgsStepCd 26 — 기본값 O 로 새던 것
         "발송완료": "발송완료(배송중)",  # pin: 정산O
     },
-    "옥션":  {"구매결정": "구매확정"},   # pin: 정산O
-    "G마켓": {"구매결정": "구매확정"},
+    "옥션":  _ESM_STATUS,   # pin: 정산O
+    "G마켓": _ESM_STATUS,
     "쿠팡":  {"업체직접배송": "배송중"},  # pin: 정산O
 }
 
