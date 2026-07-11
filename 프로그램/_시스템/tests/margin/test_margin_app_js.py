@@ -13,10 +13,10 @@ APP = pathlib.Path(__file__).resolve().parents[2] / "webapp" / "static" / "margi
 def test_won_formats_thousands():
     r = subprocess.run(["node", "-e",
         f"const M=require('{APP.as_posix()}');"
-        "console.log(M.__test.won(1325722)+'|'+M.__test.won('')+'|'+M.__test.won(-98000))"],
+        "console.log(M.__test.won(1325722)+'|'+M.__test.won('')+'|'+M.__test.won(-98000)+'|'+M.__test.won('1,234,567'))"],
         capture_output=True, text=True, encoding="utf-8")
     assert r.returncode == 0, r.stderr
-    assert r.stdout.strip() == "1,325,722|0|-98,000"
+    assert r.stdout.strip() == "1,325,722|0|-98,000|1,234,567"
 
 
 @pytest.mark.skipif(shutil.which("node") is None, reason="node 없음")

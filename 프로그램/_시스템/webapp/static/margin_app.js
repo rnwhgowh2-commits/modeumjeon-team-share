@@ -8,11 +8,19 @@
     if (!isFinite(n)) n = 0;
     return n.toLocaleString('en-US');
   }
+  function esc(s) {
+    return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c];
+    });
+  }
   function $(id) { return document.getElementById(id); }
   function post(url, body, isForm) {
     return fetch(url, isForm ? { method: 'POST', body: body }
       : { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
-      .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, status: r.status, j: j }; }); });
+      .then(function (r) {
+        return r.json().catch(function () { return {}; })
+          .then(function (j) { return { ok: r.ok, status: r.status, j: j }; });
+      });
   }
 
   function init() {
@@ -38,7 +46,7 @@
       document.querySelector('.mg-urow[data-step=buy]').classList.add('done');
       $('mg-analyze-btn').disabled = false;
       $('mg-analyze-status').textContent = '기간 확인 후 분석 시작을 누르세요';
-    });
+    }).catch(function () { $('mg-buy-status').textContent = '오류: 네트워크 실패 (다시 시도하세요)'; });
   }
 
   function uploadShopmine(file) {
@@ -48,7 +56,7 @@
     post('/api/margin/upload-shopmine', fd, true).then(function (res) {
       $('mg-sm-status').textContent = res.ok
         ? ('옥션·G마켓 ' + res.j.rows + '건 추가됨') : ('오류: ' + (res.j.error || res.status));
-    });
+    }).catch(function () { $('mg-sm-status').textContent = '오류: 네트워크 실패'; });
   }
 
   function analyze() {
@@ -66,6 +74,10 @@
       $('mg-analyze-status').textContent = '분석 완료 · ' + res.j.counts.matched + '건 매칭';
       render(res.j);
       loadHistory();
+    }).catch(function () {
+      $('mg-analyze-btn').disabled = false;
+      $('mg-analyze-status').textContent = '실패: 네트워크 오류 (다시 시도하세요)';
+      showWarn(['분석 요청이 네트워크 오류로 실패했습니다.']);
     });
   }
 
@@ -98,13 +110,16 @@
       var box = $('mg-history-list'); if (!box) return;
       if (!list || !list.length) { box.innerHTML = '<div class="mg-hint">아직 분석 기록이 없어요.</div>'; return; }
       box.innerHTML = list.map(function (a) {
-        return '<a class="mg-hitem" data-id="' + a.id + '">'
-          + a.created_at.slice(0, 16).replace('T', ' ') + ' · '
-          + a.buy_filename + ' · 매칭 ' + (a.counts && a.counts.matched || 0) + '건</a>';
+        return '<a class="mg-hitem" data-id="' + esc(a.id) + '">'
+          + (a.created_at || '').slice(0, 16).replace('T', ' ') + ' · '
+          + esc(a.buy_filename) + ' · 매칭 ' + (a.counts && a.counts.matched || 0) + '건</a>';
       }).join('');
       box.querySelectorAll('.mg-hitem').forEach(function (el) {
         el.addEventListener('click', function () { openAnalysis(el.dataset.id); });
       });
+    }).catch(function () {
+      var box = $('mg-history-list');
+      if (box) box.innerHTML = '<div class="mg-hint">기록을 불러오지 못했어요.</div>';
     });
   }
   function openAnalysis(id) {
@@ -112,7 +127,7 @@
     // row_meta 로 TOP-LEVEL 에 준다. render() 가 기대하는 analyze 의 평면 형태로 재구성한다.
     // (counts·markets_failed 는 blob 에 없으므로 j.payload.* 는 undefined → j.* 로 폴백.)
     fetch('/api/margin/analyses/' + id).then(function (r) { return r.json(); }).then(function (j) {
-      if (!j || !j.payload || !j.payload.matched) return;
+      if (!j || !j.payload || !j.payload.matched) { $('mg-analyze-status').textContent = '이 분석은 상세 데이터가 없어요.'; return; }
       var data = Object.assign({}, j.payload, {
         analysis_id: j.id,
         counts: j.payload.counts || j.counts,
@@ -120,7 +135,7 @@
       });
       render(data);
       $('mg-analyze-status').textContent = '과거 분석 불러옴 · ' + id;
-    });
+    }).catch(function () { $('mg-analyze-status').textContent = '과거 분석을 불러오지 못했어요.'; });
   }
 
   if (typeof document !== 'undefined') {
