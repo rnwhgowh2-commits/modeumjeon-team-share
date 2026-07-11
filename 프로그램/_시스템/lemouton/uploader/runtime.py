@@ -55,6 +55,24 @@ def live_invoice_enabled() -> bool:
     return _env_truthy("MOUM_LIVE_INVOICE") or live_upload_enabled()
 
 
+def real_upload_armed(session) -> bool:
+    """가격·재고 실전송 = **두 겹 잠금**. 서버 열쇠와 화면 열쇠가 둘 다 켜져야 True.
+
+    · 서버 열쇠 = ``MOUM_LIVE_UPLOAD`` (재배포로만 켬 — 오조작 방지 바깥 잠금)
+    · 화면 열쇠 = 자동화 설정 ``autosend_mode == 'real'`` (사용자가 화면에서)
+
+    금전 사고 위험이 큰 무인 자동전송이라, 한 겹은 항상 서버에 둔다. 화면에서 실수로
+    켜도 서버 잠금이 걸려 있으면 나가지 않는다. 설정을 못 읽으면 안전하게 미전송.
+    """
+    if not live_upload_enabled():          # 서버 열쇠 먼저 — 없으면 화면 볼 것도 없음
+        return False
+    try:
+        from lemouton.pricing.settings import get_automation
+        return get_automation(session).get("autosend_mode") == "real"
+    except Exception:   # noqa: BLE001 — 설정 조회 실패는 안전측(미전송)
+        return False
+
+
 def select_adapters(*, live: bool | None = None) -> dict[str, MarketAdapter]:
     """``{market: adapter}`` 레지스트리 반환.
 
