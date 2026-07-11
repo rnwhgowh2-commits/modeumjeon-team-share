@@ -279,3 +279,25 @@ class BundleOption(Base):
         UniqueConstraint("bundle_product_id", "canonical_sku",
                          name="uq_bundle_options_product_sku"),
     )
+
+
+# ════════════════════════════════════════════════════════════
+#  INVOICE LEDGER — 송장 원장 (마켓이 나중에 번호를 빼먹어도 잃지 않게)
+# ════════════════════════════════════════════════════════════
+
+class InvoiceLedger(Base):
+    """한 번 본 송장번호를 영구 보관.
+
+    배경: 11번가는 주문이 '구매확정'으로 넘어가면 어떤 목록 API로도 송장번호(invcNo)를
+    돌려주지 않는다(배송중·배송완료 목록엔 있으나 상태 전이 후 빠짐, 2026-07-10 실측).
+    → 배송중·배송완료 때 본 송장번호를 여기 저장해두면, 구매확정으로 넘어가 API가
+    번호를 빼먹어도 우리 저장분에서 채워 '확인 불가'를 면한다. 모든 마켓 공통 안전장치.
+    """
+    __tablename__ = "invoice_ledger"
+
+    market = Column(String(32), primary_key=True)        # 판매처(쿠팡·11번가 등) — 화면 표기 그대로
+    order_no = Column(String(128), primary_key=True)     # 오픈마켓주문번호
+    invoice_no = Column(String(64), nullable=False)      # 송장번호(운송장번호)
+    courier = Column(String(64))                         # 택배사(있으면)
+    captured_at = Column(DateTime, default=lambda: datetime.now(timezone.utc),
+                         onupdate=lambda: datetime.now(timezone.utc))

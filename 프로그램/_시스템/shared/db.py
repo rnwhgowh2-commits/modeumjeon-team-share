@@ -244,6 +244,7 @@ def _apply_lightweight_migrations() -> None:
         #             참조 안 함(무해). 업로드 속도 정본 = 계정.
         # 2026-07-04: account_upload_policies 신규 테이블 → create_all 생성
         # 2026-07-05: crawl_weight_rules 신규 테이블 → create_all 생성
+        # 2026-07-10: invoice_ledger 신규 테이블(송장 원장) → create_all 생성(FK 없음)
     ]
     inspector = inspect(engine)
     existing_tables = set(inspector.get_table_names())

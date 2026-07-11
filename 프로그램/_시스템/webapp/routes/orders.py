@@ -174,6 +174,7 @@ def orders_export():
         import logging
         logging.getLogger(__name__).exception("order export failed markets=%s", markets)
         abort(400, f"[{','.join(markets)}] 주문 조회 실패: {type(e).__name__}: {str(e)[:300]}")
+    _apply_invoice_ledger(rows)   # 엑셀에도 원장으로 채운 송장 반영
     xlsx = _oe.rows_to_xlsx(rows, columns=cols)
     label = "통합" if len(markets) > 1 else markets[0]
     if since and until:               # 기간 지정 시 파일명에 시작~끝
@@ -222,6 +223,7 @@ def orders_preview():
         import logging
         logging.getLogger(__name__).exception("order preview failed markets=%s", markets)
         return jsonify(ok=False, error=f"{type(e).__name__}: {str(e)[:300]}"), 400
+    _apply_invoice_ledger(rows)   # 한 번 본 송장은 잃지 않게(11번가 구매확정 등)
     # 화면에 원본 그대로(구매자·수령자·전화·주소 마스킹 없이) — 사용자 요청(관리자 화면, 본인 데이터).
     return jsonify(ok=True, markets=markets, days=days,
                    columns=_oe.ALL_COLUMNS, count=len(rows), rows=rows,
@@ -242,6 +244,23 @@ def _live_enabled() -> bool:
     """
     from lemouton.uploader.runtime import live_invoice_enabled
     return live_invoice_enabled()
+
+
+def _apply_invoice_ledger(rows) -> None:
+    """조회 결과에 송장 원장을 적용(제자리 수정).
+
+    ① remember: 배송중·배송완료 등에서 본 진짜 송장번호를 DB 에 보관.
+    ② fill_missing: 번호가 빈 발송완료 주문('확인 불가')을 저장분에서 채움.
+       → 11번가 구매확정처럼 API 가 번호를 빼먹어도 한 번 본 건 잃지 않는다.
+    DB 문제로 주문 화면이 깨지면 안 되므로 실패는 조용히 무시(표시는 원본 그대로).
+    """
+    try:
+        from lemouton.markets import invoice_ledger as _led
+        _led.remember(rows)
+        _led.fill_missing(rows)
+    except Exception:   # noqa: BLE001 — 원장은 보조기능, 주문 조회를 막지 않는다
+        import logging
+        logging.getLogger(__name__).exception("invoice ledger apply failed")
 
 
 def _client_for(market: str, alias: str):
