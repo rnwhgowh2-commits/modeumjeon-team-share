@@ -1048,6 +1048,175 @@
     })();
   </script>
 
+  {% elif tab == 'inspect' %}
+  {# ══ 배송검사 — 더망고 업로드 · 중복송장 · 배송흐름 · 배송방식 (자체 스코프 .di) ══ #}
+  <style>
+    .di{--ink:#191F28;--sub:#8B95A1;--line:#E5E8EB;--line2:#F1F3F5;--bg:#F8FAFB;
+        --blue:#3182F6;--blued:#1B64DA;--bluel:#E8F2FF;--green:#16A34A;--greenb:#22C55E;
+        --amber:#B4690E;--red:#EF4444;--kkad:#FEF3E2;}
+    .di .card{background:#fff;border:1px solid var(--line);border-radius:12px;padding:18px;margin-bottom:16px;}
+    .di .ct{font-size:15px;font-weight:700;margin-bottom:12px;}
+    .di .dz{display:block;border:2px dashed var(--line);border-radius:12px;padding:24px;text-align:center;cursor:pointer;}
+    .di .dz:hover{border-color:var(--blue);background:#FbFCFF;}
+    .di .dz .ic{font-size:32px;} .di .dz .t{font-weight:600;margin-top:6px;} .di .dz .fn{font-size:12px;color:var(--sub);margin-top:4px;}
+    .di .fl{font-size:12px;font-weight:600;color:#4E5968;margin-bottom:6px;}
+    .di .rcs{display:flex;gap:8px;}
+    .di .rc{flex:1;border:1px solid var(--line);border-radius:8px;padding:10px 12px;cursor:pointer;display:flex;flex-direction:column;}
+    .di .rc.on{border-color:var(--blue);background:var(--bluel);}
+    .di .rc b{font-size:13px;} .di .rc span{font-size:11px;color:var(--sub);}
+    .di .btn{border:none;border-radius:8px;padding:9px 16px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;}
+    .di .btn.p{background:var(--blue);color:#fff;} .di .btn.s{background:#fff;border:1px solid var(--line);color:#4E5968;}
+    .di .msg{margin-top:10px;font-size:13px;}
+    .di .sums{display:flex;gap:12px;margin-bottom:14px;}
+    .di .st{background:#fff;border:1px solid var(--line);border-radius:12px;padding:14px 18px;min-width:130px;cursor:pointer;}
+    .di .st.on{box-shadow:0 0 0 2px var(--blue) inset;}
+    .di .st .n{font-size:22px;font-weight:700;font-variant-numeric:tabular-nums;} .di .st .l{font-size:11.5px;color:var(--sub);}
+    .di table{width:100%;border-collapse:collapse;font-size:12.5px;background:#fff;}
+    .di th{background:#F7F9FB;padding:9px 10px;font-size:11px;font-weight:700;color:var(--sub);text-align:left;border-bottom:1px solid var(--line);white-space:nowrap;}
+    .di td{padding:9px 10px;border-bottom:1px solid var(--line2);vertical-align:middle;}
+    .di th.c,.di td.c{text-align:center;}
+    .di .badge{display:inline-block;font-size:11px;font-weight:600;padding:3px 9px;border-radius:999px;}
+    .di .b-dup{background:rgba(239,68,68,.1);color:var(--red);}
+    .di .b-flow{background:rgba(245,158,11,.14);color:var(--amber);}
+    .di .b-ok{background:rgba(34,197,94,.12);color:var(--green);}
+    .di .chip{display:inline-flex;border:1px solid var(--line);border-radius:999px;overflow:hidden;}
+    .di .chip button{border:none;background:#fff;padding:4px 11px;font-size:11px;font-weight:600;cursor:pointer;color:var(--sub);}
+    .di .chip button.on-k{background:var(--kkad);color:var(--amber);}
+    .di .chip button.on-j{background:var(--bluel);color:var(--blued);}
+    .di .ov{position:fixed;inset:0;background:rgba(20,25,35,.5);z-index:200;display:none;align-items:center;justify-content:center;}
+    .di .ov.on{display:flex;}
+    .di .box{background:#fff;width:640px;max-width:92vw;border-radius:16px;overflow:hidden;box-shadow:0 20px 50px rgba(0,0,0,.3);}
+    .di .bh{padding:16px 20px;font-size:15px;font-weight:700;border-bottom:1px solid var(--line);display:flex;align-items:center;}
+    .di .bh .x{margin-left:auto;border:none;background:#F2F4F6;width:30px;height:30px;border-radius:8px;font-size:17px;cursor:pointer;color:#4E5968;}
+    .di .bb{padding:16px 20px;max-height:60vh;overflow:auto;} .di .bf{display:flex;gap:8px;justify-content:flex-end;padding:14px 20px;border-top:1px solid var(--line);}
+    .di select{font-family:inherit;font-size:12px;border:1px solid var(--line);border-radius:6px;padding:4px 8px;background:#fff;}
+    .di .state{padding:34px;text-align:center;color:var(--sub);font-size:13px;}
+  </style>
+  <div class="di">
+    <div class="card">
+      <div class="ct">더망고 주문내역 업로드</div>
+      <label class="dz" id="di-dz">
+        <input type="file" id="di-file" accept=".xls,.htm,.html" style="display:none">
+        <div class="ic">📥</div><div class="t">더망고 엑셀을 선택하거나 여기로 끌어놓기</div>
+        <div class="fn" id="di-fn"></div>
+      </label>
+      <div style="margin-top:14px">
+        <div class="fl">이번 업로드 전체 배송방식</div>
+        <div class="rcs">
+          <label class="rc on"><input type="radio" name="di-bulk" value="자동판정" checked hidden><b>자동판정</b><span>구분자 매핑대로</span></label>
+          <label class="rc"><input type="radio" name="di-bulk" value="까대기" hidden><b>전부 까대기</b><span>📦 사무실 경유</span></label>
+          <label class="rc"><input type="radio" name="di-bulk" value="직배" hidden><b>전부 직배</b><span>🚚 소싱처 직접</span></label>
+        </div>
+      </div>
+      <div style="margin-top:14px;text-align:right">
+        <button class="btn s" type="button" id="di-mapbtn">⚙ 구분자 매핑</button>
+        <button class="btn p" type="button" id="di-upbtn">업로드</button>
+      </div>
+      <div class="msg" id="di-msg"></div>
+    </div>
+
+    <div class="sums" id="di-sums"></div>
+
+    <div class="card" style="padding:0;overflow:hidden">
+      <div style="overflow-x:auto">
+        <table>
+          <thead><tr><th>마켓</th><th>수령인</th><th>상품</th><th class="c">송장번호</th>
+            <th class="c">배송방식</th><th class="c">검사</th><th>근거</th></tr></thead>
+          <tbody id="di-body"><tr><td colspan="7" class="state">더망고 엑셀을 업로드하세요</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div class="di"><div class="ov" id="di-mapov"><div class="box">
+    <div class="bh">⚙ 구분자 매핑 설정 <button class="x" type="button" id="di-mapx">×</button></div>
+    <div class="bb"><table><thead><tr><th>더망고주문상태(원본)</th><th class="c">의미</th>
+      <th class="c">기본 배송방식</th><th class="c">배송흐름 검사</th></tr></thead>
+      <tbody id="di-mapbody"></tbody></table></div>
+    <div class="bf"><button class="btn s" type="button" id="di-mapcancel">취소</button>
+      <button class="btn p" type="button" id="di-mapsave">저장</button></div>
+  </div></div></div>
+
+  <script>
+  (function(){
+    if(!document.getElementById('di-body')) return;
+    var $=function(s){return document.querySelector(s);};
+    var FILTER=null, DATA={orders:[],status_map:[],summary:{}};
+    var MEANS=['배송전','해외배송중','국내배송중','배송완료','취소반품교환','기타'];
+    var METHODS=['미지정','까대기','직배'];
+    function esc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+    function chip(uid,m){
+      var k=(m==='까대기')?' class="on-k"':'', j=(m==='직배')?' class="on-j"':'';
+      return '<span class="chip" data-uid="'+esc(uid)+'"><button'+k+' data-m="까대기">까대기</button>'
+           + '<button'+j+' data-m="직배">직배</button></span>';
+    }
+    function flagBadge(r){return r.dup?'<span class="badge b-dup">중복송장</span>'
+      :r.flow_missing?'<span class="badge b-flow">배송흐름 없음</span>'
+      :'<span class="badge b-ok">정상</span>';}
+    function load(){fetch('/orders/inspect/data').then(function(r){return r.json();})
+      .then(function(j){DATA=j;renderSum();renderTable();});}
+    function renderSum(){var s=DATA.summary||{};var ok=(s.total||0)-(s.dup||0)-(s.flow||0);
+      $('#di-sums').innerHTML=
+        '<div class="st'+(FILTER==='dup'?' on':'')+'" data-f="dup" style="border-color:#EF4444"><div class="n" style="color:#EF4444">'+(s.dup||0)+'</div><div class="l">중복송장</div></div>'
+       +'<div class="st'+(FILTER==='flow'?' on':'')+'" data-f="flow" style="border-color:#F59E0B"><div class="n" style="color:#B4690E">'+(s.flow||0)+'</div><div class="l">배송흐름 없음</div></div>'
+       +'<div class="st'+(FILTER===''?' on':'')+'" data-f="" style="border-color:#22C55E"><div class="n" style="color:#16A34A">'+ok+'</div><div class="l">정상</div></div>';
+      [].slice.call(document.querySelectorAll('#di-sums .st')).forEach(function(c){
+        c.onclick=function(){FILTER=c.getAttribute('data-f')||null;renderSum();renderTable();};});}
+    function renderTable(){var rows=DATA.orders||[];
+      if(FILTER==='dup')rows=rows.filter(function(r){return r.dup;});
+      else if(FILTER==='flow')rows=rows.filter(function(r){return r.flow_missing;});
+      if(!rows.length){$('#di-body').innerHTML='<tr><td colspan="7" class="state">'
+        +(DATA.orders&&DATA.orders.length?'조건에 맞는 주문이 없어요.':'더망고 엑셀을 업로드하세요')+'</td></tr>';return;}
+      $('#di-body').innerHTML=rows.map(function(r){
+        var why=r.dup?'같은 주문에 송장 2회 이상'
+          :r.flow_missing?(r.market_status==='송장전송실패'?'마켓상태=송장전송실패':'배송완료 단계인데 배송흐름 없음'):'';
+        return '<tr><td>'+esc(r.market)+'</td><td>'+esc(r.recipient)+'</td>'
+          +'<td style="font-size:12px">'+esc(r.product)+'</td>'
+          +'<td class="c" style="font-size:12px">'+(r.invoice||'—')+'</td>'
+          +'<td class="c">'+chip(r.uid,r.method)+'</td>'
+          +'<td class="c">'+flagBadge(r)+'</td>'
+          +'<td style="font-size:12px;color:#8B95A1">'+esc(why)+'</td></tr>';
+      }).join('');
+      [].slice.call(document.querySelectorAll('#di-body .chip button')).forEach(function(b){
+        b.onclick=function(){var uid=b.parentElement.getAttribute('data-uid'),m=b.getAttribute('data-m');
+          fetch('/orders/inspect/method',{method:'POST',headers:{'Content-Type':'application/json'},
+            body:JSON.stringify({uid:uid,method:m})}).then(load);};});}
+    // 업로드
+    var fileEl=$('#di-file');
+    $('#di-dz').onclick=function(){fileEl.click();};
+    fileEl.onchange=function(){$('#di-fn').textContent=fileEl.files[0]?fileEl.files[0].name:'';};
+    [].slice.call(document.querySelectorAll('input[name=di-bulk]')).forEach(function(r){
+      r.onchange=function(){[].slice.call(document.querySelectorAll('.di .rc')).forEach(function(l){
+        l.classList.toggle('on',l.querySelector('input').checked);});};});
+    $('#di-upbtn').onclick=function(){
+      if(!fileEl.files[0]){$('#di-msg').innerHTML='<span style="color:#EF4444">파일을 선택하세요</span>';return;}
+      var fd=new FormData();fd.append('file',fileEl.files[0]);
+      fd.append('bulk_method',document.querySelector('input[name=di-bulk]:checked').value);
+      $('#di-msg').textContent='업로드 중…';
+      fetch('/orders/inspect/upload',{method:'POST',body:fd}).then(function(r){return r.json();})
+        .then(function(j){if(j.ok){$('#di-msg').innerHTML='<span style="color:#16A34A">✔ '+j.parsed
+          +'건 처리 (신규 '+j.inserted+' · 갱신 '+j.updated+')</span>';load();}
+          else $('#di-msg').innerHTML='<span style="color:#EF4444">✖ '+esc(j.error)+'</span>';});};
+    // 매핑 모달
+    function openMap(){$('#di-mapbody').innerHTML=(DATA.status_map||[]).map(function(m){
+      return '<tr data-value="'+esc(m.value)+'"><td style="font-weight:600">'+esc(m.value)+'</td>'
+        +'<td class="c"><select class="di-mean">'+MEANS.map(function(o){return '<option'+(o===m.meaning?' selected':'')+'>'+o+'</option>';}).join('')+'</select></td>'
+        +'<td class="c"><select class="di-method">'+METHODS.map(function(o){return '<option'+(o===m.default_method?' selected':'')+'>'+o+'</option>';}).join('')+'</select></td>'
+        +'<td class="c"><input type="checkbox" class="di-flow"'+(m.flow?' checked':'')+'></td></tr>';
+    }).join('');$('#di-mapov').classList.add('on');}
+    function closeMap(){$('#di-mapov').classList.remove('on');}
+    $('#di-mapbtn').onclick=openMap; $('#di-mapx').onclick=closeMap; $('#di-mapcancel').onclick=closeMap;
+    $('#di-mapov').onclick=function(e){if(e.target===$('#di-mapov'))closeMap();};
+    $('#di-mapsave').onclick=function(){
+      var items=[].slice.call(document.querySelectorAll('#di-mapbody tr')).map(function(tr){
+        return {value:tr.getAttribute('data-value'),meaning:tr.querySelector('.di-mean').value,
+          default_method:tr.querySelector('.di-method').value,flow:tr.querySelector('.di-flow').checked};});
+      fetch('/orders/inspect/mapping',{method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({items:items})}).then(function(){closeMap();load();});};
+    load();
+  })();
+  </script>
+
   {% else %}
   <div class="card" style="padding:32px;text-align:center">
     <div style="margin-bottom:14px"><span class="badge badge-info">⏳ 후속 구현 예정</span></div>
