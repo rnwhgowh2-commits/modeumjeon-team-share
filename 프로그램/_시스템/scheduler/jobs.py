@@ -7,10 +7,34 @@ Coupang 어댑터 wiring은 이미 [A]~[D]에서 완료되어 있고, 여기선 
 from __future__ import annotations
 
 import logging
+import json
+import os
 from datetime import datetime, timezone
 from typing import Optional
 
 logger = logging.getLogger(__name__)
+
+# 미리보기(이번 사이클 '나갈 값' 집계) 저장 경로 — /automation 화면이 읽는다.
+_PREVIEW_PATH = os.path.join(os.path.dirname(__file__), '..', 'data', 'upload_preview.json')
+
+
+def _save_upload_preview(preview: dict) -> None:
+    """마켓별 나갈 값 집계 + 저장 시각을 JSON 으로 저장(원자적 교체)."""
+    payload = {"at": datetime.now(timezone.utc).isoformat(), "markets": preview or {}}
+    os.makedirs(os.path.dirname(_PREVIEW_PATH), exist_ok=True)
+    tmp = _PREVIEW_PATH + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as f:
+        json.dump(payload, f, ensure_ascii=False)
+    os.replace(tmp, _PREVIEW_PATH)
+
+
+def load_upload_preview() -> dict:
+    """저장된 미리보기 집계. 없으면 빈 결과."""
+    try:
+        with open(_PREVIEW_PATH, encoding="utf-8") as f:
+            return json.load(f)
+    except Exception:   # noqa: BLE001 — 파일 없음/손상 = 빈 미리보기
+        return {"at": None, "markets": {}}
 
 
 def full_cycle(*, dry_run: bool = False) -> dict:
@@ -167,18 +191,28 @@ def full_cycle(*, dry_run: bool = False) -> dict:
                 pacer = build_market_pacer(s)
                 import os
                 dlq_path = os.path.join(os.path.dirname(__file__), '..', 'data', 'uploader_dlq.jsonl')
+                # 변동 종류 토글(소싱처 가격/재고) 을 실제 전송 결정에 반영.
+                from lemouton.pricing.settings import get_automation
+                automation = get_automation(s)
                 # persist=live: 실제 전송했을 때만 기준선 커밋(#12). dry-run 은 커밋 안 함
                 #   → 현행 동작 보존 + 미전송분이 '전송됨' 기준선으로 오염되지 않음.
                 r = run_uploader(s, c_output,
                                  sku_by_option=sku_by_option,
                                  adapters=adapters,
                                  dlq_path=dlq_path,
-                                 force=False, persist=_live, pacer=pacer)
+                                 force=False, persist=_live, pacer=pacer,
+                                 automation=automation)
+                # 미리보기 결과(이번 사이클에 '나갈 값') 를 저장 → /automation 화면이 읽어 표시.
+                try:
+                    _save_upload_preview(r.get('preview') or {})
+                except Exception:   # noqa: BLE001 — 미리보기 저장 실패는 사이클과 무관
+                    pass
                 _mode = 'live' if _live else 'dryrun'
                 result['phases']['D_uploader'] = {
                     'ok': True,
                     'detail': (f"mode={_mode} · uploaded {r.get('uploaded', 0)} / "
-                               f"skipped {r.get('skipped', 0)} / failed {r.get('failed', 0)}"
+                               f"skipped {r.get('skipped', 0)} / filtered {r.get('filtered_out', 0)} / "
+                               f"failed {r.get('failed', 0)}"
                                + (f" / HELD({r.get('hold_reason')})" if r.get('held') else "")),
                 }
             finally:

@@ -23,8 +23,14 @@ def automation_view():
         s.commit()
     finally:
         s.close()
+    # 미리보기 결과(지난 사이클 '나갈 값') — 켜기 전에 무엇이 나갈지 먼저 보기.
+    try:
+        from scheduler.jobs import load_upload_preview
+        preview = load_upload_preview()
+    except Exception:   # noqa: BLE001
+        preview = {"at": None, "markets": {}}
     return render_template('automation/index.html', active='automation', a=a,
-                           server_unlocked=server_unlocked, armed=armed)
+                           server_unlocked=server_unlocked, armed=armed, preview=preview)
 
 
 @bp.route('/automation/weights')
