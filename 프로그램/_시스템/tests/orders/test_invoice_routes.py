@@ -137,6 +137,35 @@ class TestSend:
         assert got == {"sb": "SB1", "code": "KGB", "inv": "1234567890"}
         assert body["sent"] == 1 and body["failed"] == 0
 
+    def test_success_carries_market_readback_number(self, client, monkeypatch):
+        """실전송 성공 시 응답에 마켓 재조회 송장번호가 실린다(화면 표시 기준)."""
+        import shared.platforms.coupang.orders as cp
+        from lemouton.markets import invoice_send as isend
+        monkeypatch.setattr(cp, "send_tracking", lambda *a, **k: {"code": 200})
+        monkeypatch.setattr(om, "_live_enabled", lambda: True)
+        monkeypatch.setattr(om, "_client_for", lambda market, alias: None)
+        monkeypatch.setattr(isend, "read_registered_invoice",
+                            lambda **k: "614199998888")
+
+        body = client.post("/orders/invoice/send", json=_send_body(live=True)).get_json()
+        assert body["results"][0]["success"] is True
+        assert body["results"][0]["market_invoice_no"] == "614199998888"
+
+    def test_dry_run_does_not_read_back(self, client, monkeypatch):
+        """미리보기는 마켓을 되읽지 않는다(외부 조회 0)."""
+        import shared.platforms.coupang.orders as cp
+        from lemouton.markets import invoice_send as isend
+        monkeypatch.setattr(cp, "send_tracking", lambda *a, **k: None)
+        monkeypatch.setattr(om, "_live_enabled", lambda: False)
+        called = []
+        monkeypatch.setattr(isend, "read_registered_invoice",
+                            lambda **k: called.append(1))
+
+        body = client.post("/orders/invoice/send", json=_send_body(live=True)).get_json()
+        assert body["results"][0]["dry_run"] is True
+        assert body["results"][0]["market_invoice_no"] is None
+        assert called == []
+
     def test_unsupported_market_fails_loudly(self, client, monkeypatch):
         """옥션은 발송처리 미구현 → 조용히 성공하지 않고 실패로 집계."""
         monkeypatch.setattr(om, "_live_enabled", lambda: True)

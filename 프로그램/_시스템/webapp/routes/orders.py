@@ -375,8 +375,19 @@ def orders_invoice_send():
             sent += 1
         else:
             failed += 1
+
+        # 실전송 성공 시 마켓에 실제 등록된 송장번호를 되읽어 화면에 표시(입력값 아님).
+        #   입력값과 다르면 프런트가 빨간 경고로 드러낸다. 못 읽으면 None(확인 대기).
+        market_invoice_no = None
+        if res.success and not res.dry_run:
+            from lemouton.markets.invoice_send import read_registered_invoice
+            market_invoice_no = read_registered_invoice(
+                market=market, order_no=r.get('order_no'),
+                send_ids=r.get('send_ids'), client=cli)
+
         results.append({"market": res.market, "order_no": res.order_no,
                         "success": res.success, "dry_run": res.dry_run,
-                        "error": res.error})
+                        "error": res.error,
+                        "market_invoice_no": market_invoice_no})
 
     return jsonify(ok=True, live=live, sent=sent, failed=failed, results=results)

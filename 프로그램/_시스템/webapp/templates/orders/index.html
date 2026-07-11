@@ -177,6 +177,8 @@
       font-family:ui-monospace,Consolas,monospace;}
     .o7 .inv-ok{color:#0CA678;font-weight:700;font-family:ui-monospace,Consolas,monospace;}
     .o7 .inv-no{color:var(--red);font-weight:700;cursor:help;}
+    .o7 .inv-no s{color:var(--faint);font-weight:400;}   /* 마켓≠입력 시 입력값은 취소선 */
+    .o7 .inv-wait{color:var(--faint);font-weight:400;font-family:inherit;}
     .o7 tr.r-xl td{background:#FFFBEB;} .o7 tr.r-hand td{background:#F3F8FF;}
     .o7 tr.r-bad td{background:#FEF2F2;} .o7 tr.r-sent td{background:#F0FDF4;}
   </style>
@@ -500,9 +502,20 @@
     // 「송장입력」 칸 — 선택한 줄만 택배사·송장번호 입력이 살아난다(엑셀로 채운 줄은 값 표시).
     function invCellHTML(r,v){
       var k=invKey(r), res=invResult[k];
-      if(res) return res.success
-        ? '<span class="inv-ok">'+(res.dry_run?'미리보기 ✓':'✓ 전송')+' '+esc((invMap[k]||{}).invoice_no||'')+'</span>'
-        : '<span class="inv-no" title="'+esc(res.error||'')+'">✗ 실패</span>';
+      if(res){
+        if(!res.success) return '<span class="inv-no" title="'+esc(res.error||'')+'">✗ 실패</span>';
+        var typed=String((invMap[k]||{}).invoice_no||'').trim();
+        if(res.dry_run) return '<span class="inv-ok">미리보기 ✓ '+esc(typed)+'</span>';
+        // 실전송 성공 — 표시 숫자는 '마켓 재조회값'이 기준(입력값 아님).
+        var mkt=res.market_invoice_no==null?'':String(res.market_invoice_no).trim();
+        if(!mkt)  // 마켓이 아직 안 돌려줌 → 입력값을 보여주되 '확인 대기'로 표기(마켓값인 척 금지)
+          return '<span class="inv-ok" title="마켓에서 아직 송장을 확인하지 못했어요(전파 지연일 수 있음)">✓ 전송 '
+               + esc(typed)+' <span class="inv-wait">· 마켓확인대기</span></span>';
+        if(typed && mkt!==typed)  // 입력≠마켓 → 빨간 경고로 드러냄(오입력 즉시 포착)
+          return '<span class="inv-no" title="입력한 송장번호와 마켓 등록값이 달라요. 마켓 기준이 진짜입니다.">'
+               + '⚠ 마켓 '+esc(mkt)+' <s>입력 '+esc(typed)+'</s></span>';
+        return '<span class="inv-ok" title="마켓에 실제 등록된 송장번호(재조회 확인)">✓ 전송 '+esc(mkt)+'</span>';
+      }
       if(invBad[k]) return '<span class="inv-no" title="'+esc(invBad[k])+'">모순 — 제외</span>';
       if(!invSel[k]){
         // 서버가 '없음'을 문자열 "송장미입력" 로 채워 보낸다 → 값이 아니라 '빈 상태'로 취급.
@@ -657,7 +670,8 @@
           if(!j.ok){alert('전송 실패: '+(j.error||''));return;}
           (j.results||[]).forEach(function(res){
             fr.forEach(function(r){ if(invSlug(r)===res.market && String(r['오픈마켓주문번호'])===String(res.order_no))
-              invResult[invKey(r)]={success:res.success,dry_run:res.dry_run,error:res.error}; });
+              invResult[invKey(r)]={success:res.success,dry_run:res.dry_run,error:res.error,
+                                    market_invoice_no:res.market_invoice_no}; });
           });
           render();
           var head = j.live ? '실제 전송' : '미리보기(실제로 보내지 않음)';
