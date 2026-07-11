@@ -17,7 +17,7 @@ def test_file_exists():
 def test_verbatim_from_original():
     if not ORIGINAL.exists():
         pytest.skip(f"원본 없음: {ORIGINAL}")
-    assert PORTED.read_text(encoding="utf-8") == ORIGINAL.read_text(encoding="utf-8"), \
+    assert PORTED.read_bytes() == ORIGINAL.read_bytes(), \
         "margin_rules.js 가 원본과 다릅니다 — 규칙은 원본 그대로 이식"
 
 
@@ -33,6 +33,6 @@ def test_classify_rules_via_node():
     console.log(JSON.stringify(out));
     """
     r = subprocess.run(["node", "-e", script, str(PORTED)],
-                       capture_output=True, text=True)
+                       capture_output=True, text=True, encoding="utf-8")
     assert r.returncode == 0, r.stderr
     assert r.stdout.strip().endswith('["loss","highmargin","normal","uncomputable"]')
