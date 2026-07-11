@@ -206,6 +206,41 @@ class TestSend:
         assert "택배사 코드" in res["results"][0]["error"]
         assert called == []
 
+
+class TestInvoiceLedgerWiring:
+    """조회 시 송장 원장이 적용돼, 한 번 본 송장번호를 잃지 않는다."""
+
+    def test_preview_applies_ledger(self, client, monkeypatch):
+        seen = {}
+        monkeypatch.setattr(om._oe, "combined_order_rows",
+                            lambda *a, **k: [{"판매처": "11번가", "오픈마켓주문번호": "O1",
+                                              "송장입력": "확인 불가", "주문상태": "구매확정"}])
+
+        def fake_remember(rows, **k): seen["remember"] = True
+        def fake_fill(rows, **k):
+            seen["fill"] = True
+            rows[0]["송장입력"] = "9988776655"
+        import lemouton.markets.invoice_ledger as led
+        monkeypatch.setattr(led, "remember", fake_remember)
+        monkeypatch.setattr(led, "fill_missing", fake_fill)
+
+        body = client.get("/orders/preview.json?markets=eleven11&days=7").get_json()
+        assert seen == {"remember": True, "fill": True}
+        assert body["rows"][0]["송장입력"] == "9988776655"
+
+    def test_ledger_failure_does_not_break_preview(self, client, monkeypatch):
+        """원장(DB) 오류가 나도 주문 화면은 원본 그대로 뜬다."""
+        monkeypatch.setattr(om._oe, "combined_order_rows",
+                            lambda *a, **k: [{"판매처": "쿠팡", "오픈마켓주문번호": "O1",
+                                              "송장입력": "111", "주문상태": "배송완료"}])
+        import lemouton.markets.invoice_ledger as led
+        monkeypatch.setattr(led, "remember",
+                            lambda *a, **k: (_ for _ in ()).throw(RuntimeError("db down")))
+
+        r = client.get("/orders/preview.json?markets=coupang&days=7")
+        assert r.status_code == 200
+        assert r.get_json()["rows"][0]["송장입력"] == "111"
+
     def test_empty_rows_is_400(self, client):
         r = client.post("/orders/invoice/send", json={"live": False, "rows": []})
         assert r.status_code == 400
