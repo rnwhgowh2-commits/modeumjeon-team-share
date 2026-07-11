@@ -186,6 +186,32 @@ def market_to_shopmine(panmaecheo: str) -> str:
     return _PANMAECHEO_TO_SHOPMINE.get(str(panmaecheo).strip(), str(panmaecheo).strip())
 
 
+# order_export '판매처'별 API 주문상태 → 샵마인 정산 어휘 정규화.
+# 위험값(정산O 로 오분류되는 값)만 remap + '우연히 맞던' 값 명시 pin.
+# 이미 SETTLEMENT_* 에 정확히 있는 값은 여기 없으면 identity 통과.
+_STATUS_TO_SHOPMINE = {
+    "롯데온": {
+        "철회": "취소완료",        # ★odPrgsStepCd 22 — 기본값 O 로 새던 것
+        "회수확정": "반품완료",     # ★odPrgsStepCd 26 — 기본값 O 로 새던 것
+        "발송완료": "발송완료(배송중)",  # pin: 정산O
+    },
+    "옥션":  {"구매결정": "구매확정"},   # pin: 정산O
+    "G마켓": {"구매결정": "구매확정"},
+    "쿠팡":  {"업체직접배송": "배송중"},  # pin: 정산O
+}
+
+
+def status_to_shopmine(panmaecheo, api_status):
+    """(판매처, API 주문상태) → 샵마인 정산 정규 문자열. 미지 값은 원본 통과."""
+    status = "" if api_status is None else str(api_status).strip()
+    if not status:
+        return status
+    per = _STATUS_TO_SHOPMINE.get(str(panmaecheo).strip())
+    if per and status in per:
+        return per[status]
+    return status
+
+
 def _to_int_or_blank(v):
     """정수로. 못 하면 "" (0 으로 폴백하지 않는다 — 0 은 '정산 0원'을 뜻하므로).
 
@@ -265,7 +291,7 @@ def _rows_to_df(rows: list) -> pd.DataFrame:
             "수취고객명": r.get("수령자", ""),
             "주문일": r.get("주문일", ""),
             "송장입력": r.get("송장입력", ""),
-            "주문상태": r.get("주문상태", ""),
+            "주문상태": status_to_shopmine(r.get("판매처", ""), r.get("주문상태", "")),
             "_settle_source": src,
             "_sell_origin": "api",
         })
