@@ -522,6 +522,8 @@
         //  (그대로 두면 한글에 고정폭 글꼴이 붙어 옆 칸과 달라 보인다)
         var s=String(v||'').trim();
         if(!s || s==='송장미입력') return '<span class="inv-empty">송장미입력</span>';
+        if(s==='확인 불가')  // 발송은 됐으나 마켓이 송장번호를 안 줌(11번가 구매확정 등) — 미입력과 구분
+          return '<span class="inv-empty" title="발송된 주문이지만 마켓이 송장번호를 제공하지 않아 확인할 수 없어요(예: 11번가 구매확정). 발송 안 한 게 아닙니다.">확인 불가</span>';
         return '<span class="mono">'+esc(s)+'</span>';
       }
       var cur=invMap[k]||{courier:COURIERS[0],invoice_no:''};
