@@ -350,6 +350,26 @@ def orders_diag_invoice_ledger():
     from shared.db import SessionLocal
     from lemouton.sourcing.models_v2 import InvoiceLedger
 
+    # 셀프테스트: 합성 행으로 remember→읽기→정리. 저장 경로가 실제로 도는지·예외를 표면화.
+    if request.args.get('selftest'):
+        from lemouton.markets import invoice_ledger as _led
+        probe = [{"판매처": "__selftest__", "오픈마켓주문번호": "__t__",
+                  "송장입력": "SELFTEST123", "주문상태": "배송완료"}]
+        try:
+            n = _led.remember(probe)
+            s2 = SessionLocal()
+            try:
+                row = (s2.query(InvoiceLedger)
+                       .filter(InvoiceLedger.order_no == "__t__").first())
+                read_back = row.invoice_no if row else None
+                if row is not None:
+                    s2.delete(row); s2.commit()      # 정리(원장 오염 방지)
+            finally:
+                s2.close()
+            return jsonify(ok=True, remembered=n, read_back=read_back)
+        except Exception as e:   # noqa: BLE001 — 예외 문자열 그대로 보고(진단 목적)
+            return jsonify(ok=False, error=f"{type(e).__name__}: {str(e)[:400]}")
+
     want = str(request.args.get('order_no') or '').strip()
     s = SessionLocal()
     try:
