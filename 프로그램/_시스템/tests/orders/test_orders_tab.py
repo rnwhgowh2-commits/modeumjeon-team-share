@@ -121,6 +121,7 @@ def test_margin_renders_skeleton():
     html = _render("margin")
     assert 'id="margin-app"' in html
     assert 'data-mtab="summary"' in html
+    assert "후속 구현 예정" not in html
 
 
 def test_routes_registered():

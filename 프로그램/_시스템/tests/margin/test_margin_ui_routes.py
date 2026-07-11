@@ -39,4 +39,4 @@ def test_static_assets_referenced(client):
 def test_upload_steps_present(client):
     html = client.get("/orders/?tab=margin").get_data(as_text=True)
     assert "더망고" in html      # ① 엑셀
-    assert "분석" in html          # ④ 분석 버튼
+    assert "분석 시작" in html     # ④ 분석 버튼
