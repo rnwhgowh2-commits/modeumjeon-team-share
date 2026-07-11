@@ -6,7 +6,7 @@
 #   STEP 0(슬러그·접두)= webapp/routes/accounts.py MARKET_METADATA["auction"], default_prefix=AUCTION_MAIN.
 # ⚠️ 라이브 미검증(키없음) — 코드 근거만. 상품/가격/재고 엔드포인트는 공개문서 실측 확보(2026-07-09).
 #    현재 배선 범위 = 계정/키 등록 + 인증/클라이언트 + 연동(옵션조회)·가격·재고 어댑터 + 자동전송 formatter.
-#    실전송은 LEMOUTON_LIVE_UPLOAD OFF 기본. 실계정 100% 검증 전 '완료' 선언 금지(CLAUDE.md 3대 원칙).
+#    실전송은 MOUM_LIVE_UPLOAD OFF 기본. 실계정 100% 검증 전 '완료' 선언 금지(CLAUDE.md 3대 원칙).
 # ⚠️ 옥션·G마켓은 같은 ESM+ 마스터 계정. master_id·secret_key 공통, seller_id·site 만 다름.
 
 meta:
@@ -118,7 +118,7 @@ safety:
     배선 완료 = 계정/키 등록 + 인증(JWT)·클라이언트 + 연동(옵션조회 _fetch_esm)·가격(prices)·재고(inventory)
     어댑터(EsmAdapter) + 오케스트레이터 라우팅 + 자동전송 formatter(build_auction_payload) + DB 매핑컬럼
     (auction_product_id/auction_option_id) + 연결테스트(_test_esm).
-    실전송 게이트 = LEMOUTON_LIVE_UPLOAD(기본 OFF, DryRunAdapter). order_export.SUPPORTED 미포함(주문 엑셀 미노출).
+    실전송 게이트 = MOUM_LIVE_UPLOAD(기본 OFF, DryRunAdapter). order_export.SUPPORTED 미포함(주문 엑셀 미노출).
     남은 검증(실계정 키 후) = 옵션 응답 필드명·recommended-options PUT envelope·가격 addAmnt 차등가.
 
 code_map:

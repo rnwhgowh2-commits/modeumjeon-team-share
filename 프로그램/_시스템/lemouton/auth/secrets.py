@@ -35,10 +35,10 @@ except ImportError:  # dotenv 미설치 환경(테스트 등)
 def secrets_env_path() -> Path:
     """UI(env_writer)가 시크릿을 쓰는 .env 경로.
 
-    ``LEMOUTON_SECRETS_ENV`` 가 있으면 그 경로(배포 시 호스트 볼륨에 마운트된 영속 경로 —
+    ``MOUM_SECRETS_ENV`` 가 있으면 그 경로(배포 시 호스트 볼륨에 마운트된 영속 경로 —
     컨테이너 교체돼도 유지). 없으면 프로젝트 루트 ``.env``(로컬 개발 폴백).
     """
-    p = os.environ.get("LEMOUTON_SECRETS_ENV")
+    p = os.environ.get("MOUM_SECRETS_ENV")
     return Path(p) if p else (Path(__file__).resolve().parents[2] / ".env")
 
 

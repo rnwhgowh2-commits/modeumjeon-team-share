@@ -155,7 +155,7 @@ def full_cycle(*, dry_run: bool = False) -> dict:
             from lemouton.uploader.throttle import build_market_pacer
             s = _SL2()
             try:
-                # 실전송 게이트 — LEMOUTON_LIVE_UPLOAD 가 참일 때만 실제 어댑터.
+                # 실전송 게이트 — MOUM_LIVE_UPLOAD 가 참일 때만 실제 어댑터.
                 # 기본 OFF → DryRunAdapter (외부 호출 없음).
                 adapters = select_adapters()   # {market: adapter} 레지스트리
                 # (market, 마켓옵션ID) → canonical_sku (matched 채널옵션만)

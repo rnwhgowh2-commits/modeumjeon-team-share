@@ -2,7 +2,7 @@
 # 근거: 롯데ON API 센터 공개 개발가이드 실측(로그인 없이 렌더, 2026-07-05 브라우저 판독).
 #   https://api.lotteon.com/apiService/?apiNm=GetStarted (인증) 및 각 API 상세 페이지.
 #   STEP 0(슬러그·접두)= webapp/routes/accounts.py:429 MARKET_METADATA["lotteon"].
-# ⚠️ 라이브 미검증(키 없음) — 코드·문서 근거만. LEMOUTON_LIVE_UPLOAD OFF, status=coming_soon 유지.
+# ⚠️ 라이브 미검증(키 없음) — 코드·문서 근거만. MOUM_LIVE_UPLOAD OFF, status=coming_soon 유지.
 # ⚠️ 추측·폴백 금지(CLAUDE.md 3대 원칙).
 
 meta:

@@ -9,7 +9,7 @@ market 인자로 구분한다(EsmAdapter("auction") / EsmAdapter("gmarket")).
   · market_option_id  → 옵션 판매자코드(manageCode)
 가격(본품 대표가) 먼저, 성공 시 재고(옵션 full-replace). 어느 단계든 실패면 즉시 실패 반환.
 
-⚠️ 라이브 미검증(키없음) — LEMOUTON_LIVE_UPLOAD OFF 에서는 DryRunAdapter 가 대신 쓰인다.
+⚠️ 라이브 미검증(키없음) — MOUM_LIVE_UPLOAD OFF 에서는 DryRunAdapter 가 대신 쓰인다.
 """
 from .base import MarketAdapter, UploadResult
 

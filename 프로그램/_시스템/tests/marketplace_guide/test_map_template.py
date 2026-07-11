@@ -31,7 +31,7 @@ def test_code_map_files():
 
 def test_risk_integrity():
     html = _map()
-    assert "LEMOUTON_LIVE_UPLOAD" in html
+    assert "MOUM_LIVE_UPLOAD" in html
     assert "0원" in html or "재고" in html
 
 
@@ -90,7 +90,7 @@ def test_empty_category_placeholder():
 
 def test_capabilities_gate_referenced():
     html = _map()
-    assert "LEMOUTON_MARKET_EXTRA" in html
+    assert "MOUM_MARKET_EXTRA" in html
     assert "capabilities.py" in html
 
 

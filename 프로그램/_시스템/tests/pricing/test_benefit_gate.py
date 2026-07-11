@@ -8,7 +8,7 @@ from lemouton.pricing.benefit_gate import (
 
 
 # 2026-06-11 라이브 추출 — 르무통 메이트 (musinsa.com/products/4046672) 혜택 라인
-LEMOUTON_LINES = [
+MOUM_LINES = [
     "등급 할인 불가",
     "상품 쿠폰",
     "적립금 사용",
@@ -64,7 +64,7 @@ def test_grade_discount_vetoed_by_bulga():
     """등급 할인은 포함('등급 할인')엔 맞지만 제외('불가')에 걸려 미적용."""
     benefit = {"name": "등급 할인", "triggers": ["등급 할인"], "match": "any"}
     excludes = [{"word": "불가", "with": [], "except": []}]
-    out = gate_benefit(benefit, LEMOUTON_LINES, excludes)
+    out = gate_benefit(benefit, MOUM_LINES, excludes)
     assert out["applied"] is False
     assert len(out["excluded"]) == 1
     assert "veto" in out["reason"]
@@ -73,7 +73,7 @@ def test_grade_discount_vetoed_by_bulga():
 def test_coupon_applied():
     """상품 쿠폰은 '쿠폰' 매칭 + 제외 없음 → 적용."""
     benefit = {"name": "상품 쿠폰", "triggers": ["쿠폰"], "match": "any"}
-    out = gate_benefit(benefit, LEMOUTON_LINES, [])
+    out = gate_benefit(benefit, MOUM_LINES, [])
     assert out["applied"] is True
     assert "상품 쿠폰" in out["matched_lines"]
 
@@ -83,8 +83,8 @@ def test_any_vs_all_diverge_on_real_lines():
     triggers = ["적립", "캐시백"]
     any_b = {"name": "구매적립", "triggers": triggers, "match": "any"}
     all_b = {"name": "구매적립", "triggers": triggers, "match": "all"}
-    assert gate_benefit(any_b, LEMOUTON_LINES, [])["applied"] is True
-    assert gate_benefit(all_b, LEMOUTON_LINES, [])["applied"] is False
+    assert gate_benefit(any_b, MOUM_LINES, [])["applied"] is True
+    assert gate_benefit(all_b, MOUM_LINES, [])["applied"] is False
 
 
 def test_gate_benefits_batch():
@@ -93,6 +93,6 @@ def test_gate_benefits_batch():
         {"name": "상품 쿠폰", "triggers": ["쿠폰"], "match": "any"},
     ]
     excludes = [{"word": "불가", "with": [], "except": []}]
-    res = gate_benefits(benefits, LEMOUTON_LINES, excludes)
+    res = gate_benefits(benefits, MOUM_LINES, excludes)
     by_name = {r["name"]: r["applied"] for r in res}
     assert by_name == {"등급 할인": False, "상품 쿠폰": True}

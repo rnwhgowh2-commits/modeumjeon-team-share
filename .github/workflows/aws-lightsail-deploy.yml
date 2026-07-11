@@ -56,7 +56,7 @@ jobs:
               sudo docker run -d --name modeumjeon --restart unless-stopped \
                 -p 80:8080 --env-file ~/app.env $EXTRA -e DISABLE_AUTH=1 \
                 -v /home/ubuntu/ui_secrets:/data/secrets \
-                -e LEMOUTON_SECRETS_ENV=/data/secrets/.env modeumjeon \
+                -e MOUM_SECRETS_ENV=/data/secrets/.env modeumjeon \
                 || { echo "[deploy] ❌ docker run 실패 — 컨테이너 미교체"; exit 1; }
               sleep 3
               echo "[deploy] 실행 이미지: $(sudo docker inspect -f "{{.Image}}" modeumjeon 2>/dev/null)"

@@ -1,7 +1,7 @@
 """[v2] 주문·정산·CS·신규등록 — `/orders`.
 
 판매자 마켓 API 연동 데이터 위에서 동작(주문·정산·문의반품·신규등록·마진).
-확장 기능 커넥터(lemouton.markets.capabilities) + 마스터 게이트 LEMOUTON_MARKET_EXTRA.
+확장 기능 커넥터(lemouton.markets.capabilities) + 마스터 게이트 MOUM_MARKET_EXTRA.
 게이트 OFF(기본) = '연결됨(검증대기)' — 샘플 미리보기 + 액션 버튼 비활성. 실데이터는
 실계정 키 연결 + 검증 후. (관련: CLAUDE.md 🔒 3대 원칙 — 검증 전 완료/전송 금지)
 
@@ -236,9 +236,9 @@ def orders_preview():
 # ──────────────────────────────────────────────────────────────
 
 def _live_enabled() -> bool:
-    """송장 실전송 스위치(LEMOUTON_LIVE_INVOICE). 테스트에서 monkeypatch 지점.
+    """송장 실전송 스위치(MOUM_LIVE_INVOICE). 테스트에서 monkeypatch 지점.
 
-    가격·재고 자동 업로드(LEMOUTON_LIVE_UPLOAD)와 분리된 스위치다.
+    가격·재고 자동 업로드(MOUM_LIVE_UPLOAD)와 분리된 스위치다.
     """
     from lemouton.uploader.runtime import live_invoice_enabled
     return live_invoice_enabled()
