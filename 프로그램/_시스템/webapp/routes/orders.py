@@ -340,6 +340,37 @@ def orders_diag_eleven11_couriers():
                    accounts=per_account, match=match, note=note)
 
 
+@bp.route('/diag/invoice-ledger')
+def orders_diag_invoice_ledger():
+    """송장 원장 상태 — 읽기 전용(저장이 실제로 되는지 확인용).
+
+    마켓별 저장 건수 + 총계. `?order_no=<주문번호>` 로 그 주문의 저장된 송장 조회.
+    """
+    from flask import jsonify
+    from shared.db import SessionLocal
+    from lemouton.sourcing.models_v2 import InvoiceLedger
+
+    want = str(request.args.get('order_no') or '').strip()
+    s = SessionLocal()
+    try:
+        if want:
+            row = (s.query(InvoiceLedger)
+                   .filter(InvoiceLedger.order_no == want).first())
+            if row is None:
+                return jsonify(ok=True, found=False, order_no=want,
+                               note='원장에 저장된 적 없는 주문입니다')
+            return jsonify(ok=True, found=True, order_no=want,
+                           market=row.market, invoice_no=row.invoice_no,
+                           courier=row.courier)
+        counts: dict = {}
+        for row in s.query(InvoiceLedger).all():
+            counts[row.market] = counts.get(row.market, 0) + 1
+        return jsonify(ok=True, counts=counts, total=sum(counts.values()),
+                       note='배송중·배송완료 때 본 송장번호가 여기 쌓입니다')
+    finally:
+        s.close()
+
+
 @bp.route('/invoice/upload', methods=['POST'])
 def orders_invoice_upload():
     """송장 엑셀 업로드 → 「오픈마켓주문번호」로 매칭한 결과 반환(전송 아님)."""
