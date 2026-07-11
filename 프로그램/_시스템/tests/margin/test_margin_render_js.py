@@ -118,6 +118,15 @@ def test_price_bucket_missing_or_nonnumeric_is_blank():
 
 
 @pytest.mark.skipif(shutil.which("node") is None, reason="node 없음")
+def test_group_label_keys():
+    r = subprocess.run(["node", "-e",
+        f"const R=require('{R.as_posix()}');console.log(R.__test.groupLabelKey('daily')+'|'+R.__test.groupLabelKey('brand'))"],
+        capture_output=True, text=True, encoding="utf-8")
+    assert r.returncode == 0, r.stderr
+    assert r.stdout.strip() == "일자|브랜드"
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="node 없음")
 def test_pie_svg_shapes():
     """pieSvg 계약 고정 — 단일행=full-circle(<circle), 2행=조각 2개(<path)."""
     script = (

@@ -96,7 +96,33 @@
     return bar + '<div class="mg-tblwrap"><table class="mg-tbl"><thead>'+head+'</thead><tbody>'+body+'</tbody></table></div>';
   }
 
-  root.MG_RENDERERS = { summary: renderSummary, all: renderAll, __won: won, __esc: esc, __pieSvg: pieSvg };
-  var api = { pieSlices: pieSlices, won: won, rowClass: rowClass, priceBucket: priceBucket };
+  var GROUP = { daily:['daily','일자'], monthly:['monthly','월'], brand:['brand','브랜드'],
+                pricerange:['priceRange','금액대'], product:['product','상품명'], market:['market','마켓'] };
+  function groupLabelKey(tab){ return (GROUP[tab]||[null,''])[1]; }
+  function renderGroup(tab, d){
+    var conf=GROUP[tab]; if(!conf) return '<div class="mg-empty">준비 중</div>';
+    var rows=d[conf[0]]||[], labelKey=conf[1];
+    var head='<tr><th>'+labelKey+'</th><th class="num">매출</th><th class="num">순마진</th><th class="num">건수</th></tr>';
+    var body=rows.map(function(r){
+      return '<tr><td>'+esc(r[labelKey])+'</td><td class="num">'+won(r.매출)+'</td>'
+        +'<td class="num">'+won(r.순마진)+'</td><td class="num">'+(r.건수!=null?r.건수:(r.매입건수!=null?r.매입건수:''))+'</td></tr>';
+    }).join('');
+    return '<div class="mg-charts"><div class="mg-chart"><div class="mg-ct">'+labelKey+' 매출 비중</div>'
+      + pieSvg(rows,'매출',labelKey)+'</div></div>'
+      + '<div class="mg-tblwrap"><table class="mg-tbl"><thead>'+head+'</thead><tbody>'+body+'</tbody></table></div>';
+  }
+
+  root.MG_RENDERERS = {
+    summary: renderSummary, all: renderAll,
+    daily: function(d){return renderGroup('daily',d);},
+    monthly: function(d){return renderGroup('monthly',d);},
+    brand: function(d){return renderGroup('brand',d);},
+    pricerange: function(d){return renderGroup('pricerange',d);},
+    product: function(d){return renderGroup('product',d);},
+    market: function(d){return renderGroup('market',d);},
+    source: function(){ return '<div class="mg-empty">소싱처별 — 간단메모의 소싱처 URL 기준 집계(다음 태스크).</div>'; },
+    __won: won, __esc: esc, __pieSvg: pieSvg
+  };
+  var api = { pieSlices: pieSlices, won: won, rowClass: rowClass, priceBucket: priceBucket, groupLabelKey: groupLabelKey };
   if (typeof module!=='undefined'&&module.exports) module.exports={__test:api};
 })(typeof window!=='undefined'?window:globalThis);
