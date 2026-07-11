@@ -18,6 +18,9 @@ def _render(tab, live_enabled=False):
         DictLoader({"base.html": "{% block content %}{% endblock %}"}),
         FileSystemLoader(str(TPL)),
     ]))
+    # margin 탭 include(orders/_margin.html)는 정적파일 url_for 를 쓴다 — 앱 컨텍스트 없이
+    # 렌더하므로 스텁 제공.
+    env.globals["url_for"] = lambda *a, **k: "#"
     cfg = om.TAB_CONFIG.get(tab)
     rows = [] if (live_enabled or not cfg) else cfg["rows"]
     export_markets = ["coupang", "lotteon", "smartstore"] if tab == "list" else []
@@ -113,9 +116,11 @@ def test_list_is_seven_layout():
     assert "레이아웃 미리보기(샘플)" not in html
 
 
-def test_margin_still_placeholder():
+def test_margin_renders_skeleton():
+    # Task 2: margin 탭은 더 이상 '후속 구현 예정' 플레이스홀더가 아니라 B 레이아웃 뼈대다.
     html = _render("margin")
-    assert "후속 구현 예정" in html
+    assert 'id="margin-app"' in html
+    assert 'data-mtab="summary"' in html
 
 
 def test_routes_registered():

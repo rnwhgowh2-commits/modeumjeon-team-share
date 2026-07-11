@@ -1,0 +1,29 @@
+#margin-app{--mg-line:#E5E8EB;--mg-ink:#191F28;--mg-sub:#6B7684;--mg-blue:#3182F6;
+  --mg-blue-bg:#E8F1FE;--mg-green:#12B886;--mg-red:#F03E3E;--mg-amber:#F59F00;font-size:13px;color:var(--mg-ink)}
+#margin-app .mg-ucard{background:#fff;border:1px solid var(--mg-line);border-radius:12px;padding:16px;margin-bottom:16px}
+#margin-app .mg-urow{display:flex;gap:12px;align-items:center;padding:10px 0;border-bottom:1px dashed var(--mg-line)}
+#margin-app .mg-urow:last-of-type{border-bottom:0}
+#margin-app .mg-ubadge{width:24px;height:24px;border-radius:50%;background:#F1F3F5;color:#868E96;
+  display:flex;align-items:center;justify-content:center;font-weight:700;flex:0 0 auto}
+#margin-app .mg-urow.done .mg-ubadge{background:#E6F7F1;color:#0C7A5A}
+#margin-app .mg-umain{flex:1}
+#margin-app .mg-ut{font-weight:700}
+#margin-app .mg-us{font-size:12px;color:var(--mg-sub);margin-top:2px}
+#margin-app .mg-hint{font-size:11px;color:#8B95A1;margin-left:6px}
+#margin-app .mg-uact{font-weight:700;padding:7px 14px;border-radius:7px;cursor:pointer;border:0;font-size:12.5px}
+#margin-app .mg-uact.p{background:var(--mg-blue);color:#fff}
+#margin-app .mg-uact.p:disabled{background:#C1C8CE;cursor:default}
+#margin-app .mg-uact.g{background:#F1F3F5;color:#4E5968}
+#margin-app .mg-optional{margin-top:10px;font-size:12px;color:var(--mg-sub)}
+#margin-app .mg-body{display:grid;grid-template-columns:160px 1fr;gap:16px}
+#margin-app .mg-subnav{background:#fff;border:1px solid var(--mg-line);border-radius:12px;padding:7px;height:max-content}
+#margin-app .mg-subnav a{display:block;padding:9px 12px;border-radius:7px;color:#4E5968;cursor:pointer;margin-bottom:1px}
+#margin-app .mg-subnav a.on{background:var(--mg-blue-bg);color:#1B64DA;font-weight:700}
+#margin-app .mg-subnav a.soon{color:#B0B8C1;cursor:default;font-size:12px}
+#margin-app .mg-content{min-height:300px}
+#margin-app .mg-empty{padding:60px 20px;text-align:center;color:var(--mg-sub);background:#fff;
+  border:1px solid var(--mg-line);border-radius:12px}
+#margin-app .mg-warn{background:#FEF2F2;border:1px solid #FCA5A5;color:#991B1B;border-radius:10px;padding:10px 14px;margin-bottom:14px;font-size:12.5px}
+#margin-app .mg-history{margin-top:20px}
+#margin-app .mg-hh{font-weight:700;margin-bottom:8px}
+#margin-app .mg-hlist{display:flex;flex-direction:column;gap:6px}

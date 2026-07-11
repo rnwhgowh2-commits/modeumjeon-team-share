@@ -779,6 +779,9 @@
     })();
   </script>
 
+  {% elif tab == 'margin' %}
+    {% include 'orders/_margin.html' %}
+
   {% else %}
   <div class="card" style="padding:32px;text-align:center">
     <div style="margin-bottom:14px"><span class="badge badge-info">⏳ 후속 구현 예정</span></div>
