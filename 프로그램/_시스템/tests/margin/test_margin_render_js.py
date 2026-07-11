@@ -70,6 +70,30 @@ def test_row_class_from_classify():
 
 
 @pytest.mark.skipif(shutil.which("node") is None, reason="node 없음")
+def test_price_bucket_matches_python_ranges():
+    """priceBucket 이 aggregator._classify(판매가) 와 동일 라벨을 낸다 —
+    금액대 필터가 매칭행에 없는 필드로 무동작하던 결함의 회귀 방지."""
+    r = subprocess.run(["node", "-e",
+        f"const R=require('{R.as_posix()}');"
+        "const f=R.__test.priceBucket;"
+        "console.log([f({판매가:5000}),f({판매가:25000}),f({판매가:45000}),f({판매가:80000}),f({판매가:150000})].join('|'))"],
+        capture_output=True, text=True, encoding="utf-8")
+    assert r.returncode == 0, r.stderr
+    assert r.stdout.strip() == "~1만|1~3만|3~5만|5~10만|10만~"
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="node 없음")
+def test_price_bucket_missing_or_nonnumeric_is_blank():
+    r = subprocess.run(["node", "-e",
+        f"const R=require('{R.as_posix()}');"
+        "const f=R.__test.priceBucket;"
+        "console.log(JSON.stringify([f({}),f({판매가:''}),f({판매가:'abc'})]))"],
+        capture_output=True, text=True, encoding="utf-8")
+    assert r.returncode == 0, r.stderr
+    assert r.stdout.strip() == '["","",""]'
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="node 없음")
 def test_pie_svg_shapes():
     """pieSvg 계약 고정 — 단일행=full-circle(<circle), 2행=조각 2개(<path)."""
     script = (

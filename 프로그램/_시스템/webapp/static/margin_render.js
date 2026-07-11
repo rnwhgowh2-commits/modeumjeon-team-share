@@ -59,6 +59,20 @@
     var c = MR.classify(r);
     return c==='loss'?'mg-loss':c==='highmargin'?'mg-high':c==='uncomputable'?'mg-uncomp':'';
   }
+  // aggregator._classify(판매가) 를 그대로 재현 — 매칭행에 없는 금액대를 클라에서 재계산.
+  // config.DEFAULT_PRICE_RANGES 와 경계·라벨 1:1 일치 (low<=x<high). 값 없음/숫자아님 → ''.
+  var PRICE_RANGES = [[0,10000,'~1만'],[10000,30000,'1~3만'],[30000,50000,'3~5만'],
+                      [50000,100000,'5~10만'],[100000,Infinity,'10만~']];
+  function priceBucket(r){
+    var raw = r ? r['판매가'] : null;
+    if (raw==null || raw==='') return '';
+    var n = Number(String(raw).replace(/,/g,''));
+    if (!isFinite(n)) return '';
+    for (var i=0;i<PRICE_RANGES.length;i++){
+      if (n>=PRICE_RANGES[i][0] && n<PRICE_RANGES[i][1]) return PRICE_RANGES[i][2];
+    }
+    return '';
+  }
   function renderAll(d){
     var f = d.filters||{};
     function opts(arr){ return ['<option value="">전체</option>'].concat((arr||[]).map(function(x){return '<option>'+esc(x)+'</option>';})).join(''); }
@@ -71,7 +85,7 @@
       + '<th class="num">정산예정</th><th class="num">매입</th><th class="num">순마진</th>'
       + '<th class="num">마진율</th><th class="ctr">매칭</th></tr>';
     var body = (d.matched||[]).map(function(r){
-      return '<tr class="'+rowClass(r)+'" data-mk="'+esc(r.마켓)+'" data-br="'+esc(r.브랜드)+'" data-pr="'+esc(r.금액대)+'">'
+      return '<tr class="'+rowClass(r)+'" data-mk="'+esc(r.마켓)+'" data-br="'+esc(r.브랜드)+'" data-pr="'+esc(priceBucket(r))+'">'
         + '<td>'+esc(r.주문일).slice(0,10)+'</td><td class="ctr">'+esc(r.마켓)+'</td>'
         + '<td>'+esc(r.상품명)+' · '+esc(r.옵션_매출)+'</td>'
         + '<td class="num">'+won(r.판매가)+'</td><td class="num">'+won(r.정산예상금액)+'</td>'
@@ -82,6 +96,6 @@
   }
 
   root.MG_RENDERERS = { summary: renderSummary, all: renderAll, __won: won, __esc: esc, __pieSvg: pieSvg };
-  var api = { pieSlices: pieSlices, won: won, rowClass: rowClass };
+  var api = { pieSlices: pieSlices, won: won, rowClass: rowClass, priceBucket: priceBucket };
   if (typeof module!=='undefined'&&module.exports) module.exports={__test:api};
 })(typeof window!=='undefined'?window:globalThis);
