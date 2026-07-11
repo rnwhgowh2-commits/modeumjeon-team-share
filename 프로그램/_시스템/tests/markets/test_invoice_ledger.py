@@ -20,7 +20,9 @@ def session():
     from lemouton.sourcing.models_v2 import InvoiceLedger
     eng = create_engine("sqlite:///:memory:")
     InvoiceLedger.__table__.create(eng)
-    s = sessionmaker(bind=eng, future=True)()
+    # 프로덕션 SessionLocal 과 동일하게 autoflush=False — s.get 이 미flush 형제를 안 봐
+    # 배치 내 중복 PK 가 실제로 재현된다(autoflush=True 면 이 버그가 가려진다).
+    s = sessionmaker(bind=eng, autoflush=False, future=True)()
     yield s
     s.close()
 
@@ -64,6 +66,20 @@ class TestRemember:
         remember([_row("11번가", "O1", "222", "배송완료")], session=session)
         rows = session.query(InvoiceLedger).all()
         assert len(rows) == 1 and rows[0].invoice_no == "222"
+
+    def test_duplicate_key_in_one_batch_does_not_crash(self, session):
+        """★ 라이브 버그: 11번가는 한 주문에 상품라인이 여러 개 → 같은 (판매처,주문번호)가
+        한 배치에 중복. flush 전이라 s.get 이 형제를 못 봐 중복 PK 로 commit 이 터지면
+        배치 전체가 롤백돼 0건 저장된다. 중복은 마지막 값으로 합쳐 1건만 저장해야 한다."""
+        from lemouton.markets.invoice_ledger import remember
+        from lemouton.sourcing.models_v2 import InvoiceLedger
+        rows = [_row("11번가", "ORD1", "111", "배송완료"),   # 상품라인 1
+                _row("11번가", "ORD1", "111", "배송완료"),   # 상품라인 2 (같은 송장)
+                _row("11번가", "ORD2", "222", "배송완료")]
+        saved = remember(rows, session=session)
+        stored = {r.order_no: r.invoice_no for r in session.query(InvoiceLedger).all()}
+        assert stored == {"ORD1": "111", "ORD2": "222"}   # 터지지 않고 2건
+        assert saved >= 2
 
     def test_same_order_no_different_market_are_separate(self, session):
         from lemouton.markets.invoice_ledger import remember
