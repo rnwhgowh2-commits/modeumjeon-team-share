@@ -61,7 +61,14 @@
 <script src="{{ url_for('static', filename='margin_render.js') }}?v=20260711a"></script>
 <script src="{{ url_for('static', filename='margin_app.js') }}?v=20260711a"></script>
 <script>
-  window.MG_RENDER = function(d){ window.MG_SHOW_TAB('summary', d); };
+  window.MG_RENDER = function(d){
+    var nav = document.getElementById('mg-subnav');
+    if (nav) {
+      nav.querySelectorAll('a').forEach(function(x){ x.classList.remove('on'); });
+      var s = nav.querySelector('a[data-mtab="summary"]'); if (s) s.classList.add('on');
+    }
+    window.MG_SHOW_TAB('summary', d);
+  };
   window.MG_SHOW_TAB = function(tab, d){
     var r = (window.MG_RENDERERS || {})[tab];
     document.getElementById('mg-panes').innerHTML = r ? r(d)

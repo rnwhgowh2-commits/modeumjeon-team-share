@@ -35,8 +35,9 @@
     var s=d.summary||{}, c=d.counts||{};
     // 분류 카운트(정상/고마진/의심손실/계산불가)는 서버 summary 에 없다 → 규칙 모듈로
     // matched 행에서 직접 집계한다(조용한 0 차단, 손실 신호 복원). MR = margin_rules.js.
-    var MR = root.MR || root.MG_RULES;
-    var cls = (MR && MR.summarize) ? MR.summarize(d.matched||[]) : {};
+    var MR = root.MR;
+    var hasCls = !!(MR && MR.summarize);
+    var cls = hasCls ? MR.summarize(d.matched||[]) : {};
     var kpis=[['총매출',s.총매출],['총정산',s.총정산],['총매입',s.총매입],['총순마진',s.총순마진,'hl'],['평균 마진율',(s.평균마진율||0),'pct']];
     var kpiHtml=kpis.map(function(k){
       var val=k[2]==='pct'?((Number(k[1])||0).toFixed(1)+'<span class="u"> %</span>'):(won(k[1])+'<span class="u"> 원</span>');
@@ -44,9 +45,10 @@
     }).join('');
     var minis=[['정상',cls.정상,''],['고마진',cls.고마진,'g'],['의심손실',cls.의심손실,'r'],['계산불가',cls.계산불가,'a']];
     var miniHtml=minis.map(function(m){
-      return '<div class="mg-mini '+m[2]+'"><span class="k">'+m[0]+'</span><span class="v">'+(m[1]||0)+'</span></div>';
+      var mv = hasCls ? (m[1]||0) : '—';
+      return '<div class="mg-mini '+m[2]+'"><span class="k">'+m[0]+'</span><span class="v">'+mv+'</span></div>';
     }).join('');
-    var estNote = c.settle_estimated ? '<div class="mg-hint" style="margin-top:6px">※ 정산 미확정(추정) '+c.settle_estimated+'건 포함</div>' : '';
+    var estNote = c.settle_estimated ? '<div class="mg-hint" style="margin-top:6px">※ 정산 미확정(추정) '+esc(c.settle_estimated)+'건 포함</div>' : '';
     return '<div class="mg-kpis">'+kpiHtml+'</div><div class="mg-minis">'+miniHtml+'</div>'+estNote
       + '<div class="mg-charts"><div class="mg-chart"><div class="mg-ct">마켓별 매출</div>'+pieSvg(d.market,'매출','마켓')+'</div>'
       + '<div class="mg-chart"><div class="mg-ct">마켓별 순마진</div>'+pieSvg(d.market,'순마진','마켓')+'</div></div>';

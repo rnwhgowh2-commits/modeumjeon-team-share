@@ -54,3 +54,25 @@ def test_summary_minicards_count_from_rules():
                        capture_output=True, text=True, encoding="utf-8")
     assert r.returncode == 0, r.stderr
     assert r.stdout.strip() == '{"loss":true,"unc":true,"norm":true}', r.stdout
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="node 없음")
+def test_pie_svg_shapes():
+    """pieSvg 계약 고정 — 단일행=full-circle(<circle), 2행=조각 2개(<path)."""
+    script = (
+        "global.window=global;"
+        f"require('{R.as_posix()}');"              # margin_render.js → global.MG_RENDERERS
+        "var pieSvg=global.MG_RENDERERS.__pieSvg;"
+        "var one=pieSvg([{매출:100,마켓:'A'}],'매출','마켓');"
+        "var two=pieSvg([{매출:30,마켓:'A'},{매출:70,마켓:'B'}],'매출','마켓');"
+        "var pathCount=(two.match(/<path/g)||[]).length;"
+        "console.log(JSON.stringify({"
+        "circle:one.indexOf('<circle')>=0,"
+        "oneHasPath:one.indexOf('<path')>=0,"
+        "twoPaths:pathCount"
+        "}));"
+    )
+    r = subprocess.run(["node", "-e", script],
+                       capture_output=True, text=True, encoding="utf-8")
+    assert r.returncode == 0, r.stderr
+    assert r.stdout.strip() == '{"circle":true,"oneHasPath":false,"twoPaths":2}', r.stdout
