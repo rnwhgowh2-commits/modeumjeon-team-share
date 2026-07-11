@@ -108,8 +108,18 @@
     });
   }
   function openAnalysis(id) {
+    // analyses_get 는 payload(matched·집계 배열)를 NESTED 로, counts·markets_failed 는
+    // row_meta 로 TOP-LEVEL 에 준다. render() 가 기대하는 analyze 의 평면 형태로 재구성한다.
+    // (counts·markets_failed 는 blob 에 없으므로 j.payload.* 는 undefined → j.* 로 폴백.)
     fetch('/api/margin/analyses/' + id).then(function (r) { return r.json(); }).then(function (j) {
-      if (j && j.matched) { render(j); $('mg-analyze-status').textContent = '과거 분석 불러옴 · ' + id; }
+      if (!j || !j.payload || !j.payload.matched) return;
+      var data = Object.assign({}, j.payload, {
+        analysis_id: j.id,
+        counts: j.payload.counts || j.counts,
+        markets_failed: j.payload.markets_failed || j.markets_failed || []
+      });
+      render(data);
+      $('mg-analyze-status').textContent = '과거 분석 불러옴 · ' + id;
     });
   }
 
