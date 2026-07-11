@@ -37,6 +37,20 @@
   .rd.real.on .dot{border-color:#e03a3e;} .rd.real.on .dot::after{background:#e03a3e;}
   .au-warn{background:#fff5f5;border:1px solid #f3c2c2;border-radius:9px;padding:9px 12px;font-size:11.5px;color:#c0392b;line-height:1.55;margin-bottom:10px;display:none;}
   .au-warn.on{display:block;}
+  /* 두 겹 잠금 상태 바 + 페이지 배너 */
+  .live-banner{border-radius:11px;padding:11px 15px;margin-bottom:16px;font-size:13px;font-weight:600;display:flex;align-items:center;gap:10px;}
+  .live-banner.safe{background:#e6f9f1;color:#0b7a54;}
+  .live-banner.live{background:#fdecee;color:#c0343f;border:1px solid #f7b9c0;}
+  .live-banner .em{font-size:18px;}
+  .locks{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin:2px 0 13px;}
+  .lock{border:1px solid #e5e8eb;border-radius:10px;padding:9px 11px;background:#f9fafb;}
+  .lock.hot{border-color:#f7b9c0;background:#fdecee;}
+  .lock .l-top{display:flex;align-items:center;gap:6px;font-size:11px;color:#8b95a1;}
+  .lock .l-val{font-weight:700;font-size:12.5px;margin-top:2px;}
+  .pill{font-size:10.5px;font-weight:700;padding:2px 8px;border-radius:20px;}
+  .pill.off{background:#f2f4f6;color:#8b95a1;} .pill.on{background:#e6f9f1;color:#0b7a54;} .pill.red{background:#fdecee;color:#c0343f;}
+  .rd.locked{opacity:.5;pointer-events:none;}
+  .rd.locked .rt small{color:#c0343f;}
   .sec{font-size:11.5px;font-weight:700;color:#8b95a1;margin:6px 0 1px;}
   .cond{display:flex;align-items:center;gap:10px;padding:11px 0;border-top:1px solid #f1f3f5;}
   .cl{flex:1;font-size:13px;font-weight:600;}
@@ -268,9 +282,15 @@
      data-pur="{{ 1 if a.autosend_on_purchase else 0 }}"
      data-stk="{{ 1 if a.autosend_on_stock else 0 }}"
      data-thr="{{ a.autosend_stock_threshold }}"
-     data-prc="{{ 1 if a.autosend_on_price else 0 }}">
+     data-prc="{{ 1 if a.autosend_on_price else 0 }}"
+     data-server="{{ 1 if server_unlocked else 0 }}"
+     data-armed="{{ 1 if armed else 0 }}">
   <div class="au-h">⚙️ 자동화 설정</div>
   <div class="au-sub">쉬지 않고 오래된 것부터 자동으로 긁고, 값이 바뀌면 자동으로 판매처에 보냅니다. (팀 공유 · 켜고 끄면 바로 저장돼요)</div>
+  <div class="live-banner {{ 'live' if armed else 'safe' }}" id="page-banner">
+    {% if armed %}<span class="em">🔴</span> <b>실제 전송 켜짐</b> — 값이 바뀌면 판매처에 <b>실제로 나갑니다</b>.
+    {% else %}<span class="em">🛡️</span> 지금은 「미리보기만」이에요 — 값이 바뀌어도 판매처에 <b>실제로 나가지 않습니다</b>.{% endif %}
+  </div>
 
   <div class="au-pair">
     <!-- 소싱처 (좌) -->
@@ -312,9 +332,19 @@
       <div class="au-body">
         <div class="au-ct"><div class="au-title">📤 자동 전송</div></div>
         <div class="au-d">값이 바뀌면 자동으로 판매처에 보내요. 기본은 안전하게 「미리보기만」이에요.</div>
+        <div class="locks">
+          <div class="lock" id="lk-server">
+            <div class="l-top">🔒 서버 잠금 <span class="pill {{ 'on' if server_unlocked else 'off' }}">{{ '열림' if server_unlocked else '잠김' }}</span></div>
+            <div class="l-val">{{ '실제 전송 허용됨' if server_unlocked else '실제 전송 차단' }}</div>
+          </div>
+          <div class="lock {{ 'hot' if armed else '' }}" id="lk-ui">
+            <div class="l-top">🖥️ 화면 스위치 <span class="pill {{ 'red' if armed else 'off' }}" id="lk-ui-pill">{{ '실제 전송' if armed else '미리보기만' }}</span></div>
+            <div class="l-val" id="lk-ui-val">{{ '🔴 나가는 중' if armed else '안 나감' }}</div>
+          </div>
+        </div>
         <div class="au-radio" id="seg">
           <label class="rd" data-mode="preview"><span class="dot"></span><span class="rt">미리보기만 <small>· 마켓에 안 보내고 「보낼 값」만 만들어 둠 (안전)</small></span></label>
-          <label class="rd real" data-mode="real"><span class="dot"></span><span class="rt">실제 전송 <small>· 쿠팡·스마트스토어에 바로 반영</small></span></label>
+          <label class="rd real{{ ' locked' if not server_unlocked else '' }}" data-mode="real"><span class="dot"></span><span class="rt">실제 전송 <small>{% if server_unlocked %}· 쿠팡·스마트스토어에 바로 반영{% else %}· 서버 잠금이 걸려 지금은 고를 수 없어요{% endif %}</small></span></label>
         </div>
         <div class="au-warn" id="warn">⚠️ 「실제 전송」은 쿠팡·스마트스토어에 바로 반영됩니다. 처음 한 번은 확인을 거쳐요.</div>
 
@@ -371,9 +401,21 @@
     document.getElementById('crawl-card').classList.toggle('is-running',run);
     document.getElementById('cz-paused').style.display=run?'none':'flex';
   }
+  var serverUnlocked = R.dataset.server==='1';   // 서버 열쇠(MOUM_LIVE_UPLOAD) — 페이지 로드시 고정
   function paintMode(){
     document.querySelectorAll('#seg .rd').forEach(function(s){ s.classList.toggle('on',s.dataset.mode===st.autosend_mode); });
     document.getElementById('warn').classList.toggle('on',st.autosend_mode==='real');
+    // 두 겹 잠금 = 서버 열림 AND 화면 실제전송. 화면 스위치 잠금칸 + 페이지 배너를 같이 갱신.
+    var armed = serverUnlocked && st.autosend_mode==='real';
+    var pill=document.getElementById('lk-ui-pill'), val=document.getElementById('lk-ui-val'), lk=document.getElementById('lk-ui');
+    if(pill){ pill.textContent=armed?'실제 전송':'미리보기만'; pill.className='pill '+(armed?'red':'off'); }
+    if(val){ val.textContent=armed?'🔴 나가는 중':'안 나감'; }
+    if(lk){ lk.classList.toggle('hot',armed); }
+    var b=document.getElementById('page-banner');
+    if(b){ b.className='live-banner '+(armed?'live':'safe');
+      b.innerHTML=armed
+        ? '<span class="em">🔴</span> <b>실제 전송 켜짐</b> — 값이 바뀌면 판매처에 <b>실제로 나갑니다</b>.'
+        : '<span class="em">🛡️</span> 지금은 「미리보기만」이에요 — 값이 바뀌어도 판매처에 <b>실제로 나가지 않습니다</b>.'; }
   }
 
   // 초기 렌더
@@ -388,7 +430,16 @@
   // 이벤트
   document.querySelectorAll('#crawl-seg button').forEach(function(b){ b.addEventListener('click',function(){ var run=this.dataset.run==='1'; if(run===st.crawl_auto_enabled) return; st.crawl_auto_enabled=run; paintSeg(); paintRun(); save({crawl_auto_enabled:run}); try{ if(window.MoumExt){ if(run){ MoumExt.autoPollStart(); } else { MoumExt.autoPollStop(); /* [2026-07-10] 정지 = 예약중단 + 지금 도는 크롤도 즉시 중지(안 그러면 진행중인 건 끝까지 감) */ if(MoumExt.stopCrawl){ var _sc=MoumExt.stopCrawl(); if(_sc&&_sc.catch)_sc.catch(function(){}); } } } }catch(_){} }); });
 
-  document.querySelectorAll('#seg .rd').forEach(function(s){ s.addEventListener('click',function(){ st.autosend_mode=s.dataset.mode; paintMode(); save({autosend_mode:st.autosend_mode}); }); });
+  document.querySelectorAll('#seg .rd').forEach(function(s){ s.addEventListener('click',function(){
+    var mode=s.dataset.mode;
+    // 서버 잠금이 걸려 있으면 실제전송은 못 고른다(두 겹 잠금 바깥 열쇠).
+    if(mode==='real' && !serverUnlocked){ alert('서버 잠금이 걸려 있어 「실제 전송」을 켤 수 없어요.\n\n실제로 켜려면 관리자에게 서버 잠금 해제를 요청하세요. 지금은 미리보기만 동작합니다.'); return; }
+    // 실제전송으로 바꿀 때 한 번 더 확인(무장 확인).
+    if(mode==='real' && st.autosend_mode!=='real'){
+      if(!confirm('「실제 전송」을 켜면, 값이 바뀔 때마다 쿠팡·스마트스토어·롯데온에 실제로 나갑니다.\n\n정말 켤까요?')) return;
+    }
+    st.autosend_mode=mode; paintMode(); save({autosend_mode:st.autosend_mode});
+  }); });
   document.getElementById('t-pur').addEventListener('click',function(){ st.autosend_on_purchase=!st.autosend_on_purchase; tog(this,st.autosend_on_purchase); save({autosend_on_purchase:st.autosend_on_purchase}); });
   document.getElementById('t-stk').addEventListener('click',function(){ st.autosend_on_stock=!st.autosend_on_stock; tog(this,st.autosend_on_stock); save({autosend_on_stock:st.autosend_on_stock}); });
   document.getElementById('t-prc').addEventListener('click',function(){ st.autosend_on_price=!st.autosend_on_price; tog(this,st.autosend_on_price); save({autosend_on_price:st.autosend_on_price}); });

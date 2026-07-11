@@ -150,14 +150,15 @@ def full_cycle(*, dry_run: bool = False) -> dict:
             from shared.db import SessionLocal as _SL2
             from lemouton.uploader.orchestrator import run_uploader
             from lemouton.uploader.runtime import (
-                select_adapters, build_sku_by_option, live_upload_enabled,
+                select_adapters, build_sku_by_option, real_upload_armed,
             )
             from lemouton.uploader.throttle import build_market_pacer
             s = _SL2()
             try:
-                # 실전송 게이트 — MOUM_LIVE_UPLOAD 가 참일 때만 실제 어댑터.
-                # 기본 OFF → DryRunAdapter (외부 호출 없음).
-                adapters = select_adapters()   # {market: adapter} 레지스트리
+                # 실전송 = 두 겹 잠금(real_upload_armed): 서버 열쇠 MOUM_LIVE_UPLOAD +
+                #   화면 열쇠 autosend_mode=='real'. 둘 다 켜져야 실제 어댑터, 아니면 드라이런.
+                _live = real_upload_armed(s)
+                adapters = select_adapters(live=_live)   # {market: adapter} 레지스트리
                 # (market, 마켓옵션ID) → canonical_sku (matched 채널옵션만)
                 sku_by_option = build_sku_by_option(s)
                 # 업로드 속도 정본 = 계정(API) 단위. 마켓별 '1개당 최소 초 간격'을
@@ -168,7 +169,6 @@ def full_cycle(*, dry_run: bool = False) -> dict:
                 dlq_path = os.path.join(os.path.dirname(__file__), '..', 'data', 'uploader_dlq.jsonl')
                 # persist=live: 실제 전송했을 때만 기준선 커밋(#12). dry-run 은 커밋 안 함
                 #   → 현행 동작 보존 + 미전송분이 '전송됨' 기준선으로 오염되지 않음.
-                _live = live_upload_enabled()
                 r = run_uploader(s, c_output,
                                  sku_by_option=sku_by_option,
                                  adapters=adapters,
