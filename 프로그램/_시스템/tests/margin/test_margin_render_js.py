@@ -140,6 +140,16 @@ def test_render_group_market_output():
 
 
 @pytest.mark.skipif(shutil.which("node") is None, reason="node 없음")
+def test_source_from_memo():
+    r = subprocess.run(["node", "-e",
+        f"const R=require('{R.as_posix()}');"
+        "console.log(R.__test.sourceOf({간단메모:'무신사 https://musinsa.com/app/goods/123'})+'|'+R.__test.sourceOf({간단메모:'메모없음'}))"],
+        capture_output=True, text=True, encoding="utf-8")
+    assert r.returncode == 0, r.stderr
+    assert r.stdout.strip() == "무신사|미상"
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="node 없음")
 def test_pie_svg_shapes():
     """pieSvg 계약 고정 — 단일행=full-circle(<circle), 2행=조각 2개(<path)."""
     script = (

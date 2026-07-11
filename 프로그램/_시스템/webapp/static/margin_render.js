@@ -113,6 +113,24 @@
       + '<div class="mg-tblwrap"><table class="mg-tbl"><thead>'+head+'</thead><tbody>'+body+'</tbody></table></div>';
   }
 
+  var SRC = ['무신사','SSF','SSG','롯데','ABC마트','그랜드스테이지','GS샵','폴더','나이키','올리브영','지마켓','패션플러스','르무통'];
+  function sourceOf(r){
+    var memo=String(r.간단메모||''); for(var i=0;i<SRC.length;i++) if(memo.indexOf(SRC[i])>=0) return SRC[i];
+    return '미상';
+  }
+  function renderSource(d){
+    var g={}; (d.matched||[]).forEach(function(r){ var s=sourceOf(r); (g[s]=g[s]||{매출:0,순마진:0,건수:0});
+      g[s].매출+=Number(r.판매가)||0; g[s].순마진+=Number(r.순마진)||0; g[s].건수++; });
+    var rows=Object.keys(g).map(function(k){return {소싱처:k,매출:g[k].매출,순마진:g[k].순마진,건수:g[k].건수};})
+      .sort(function(a,b){return b.매출-a.매출;});
+    var head='<tr><th>소싱처</th><th class="num">매출</th><th class="num">순마진</th><th class="num">건수</th></tr>';
+    var body=rows.map(function(r){return '<tr><td>'+esc(r.소싱처)+'</td><td class="num">'+won(r.매출)
+      +'</td><td class="num">'+won(r.순마진)+'</td><td class="num">'+r.건수+'</td></tr>';}).join('');
+    var c=d.counts||{};
+    var note='<div class="mg-hint" style="margin-bottom:10px">매입 미매칭 '+(c.unmatched_buy||0)+'건 · 매출 미매칭 '+(c.unmatched_sell||0)+'건</div>';
+    return note+'<div class="mg-tblwrap"><table class="mg-tbl"><thead>'+head+'</thead><tbody>'+body+'</tbody></table></div>';
+  }
+
   root.MG_RENDERERS = {
     summary: renderSummary, all: renderAll,
     daily: function(d){return renderGroup('daily',d);},
@@ -121,9 +139,9 @@
     pricerange: function(d){return renderGroup('pricerange',d);},
     product: function(d){return renderGroup('product',d);},
     market: function(d){return renderGroup('market',d);},
-    source: function(){ return '<div class="mg-empty">소싱처별 — 간단메모의 소싱처 URL 기준 집계(다음 태스크).</div>'; },
+    source: function(d){return renderSource(d);},
     __won: won, __esc: esc, __pieSvg: pieSvg
   };
-  var api = { pieSlices: pieSlices, won: won, rowClass: rowClass, priceBucket: priceBucket, groupLabelKey: groupLabelKey };
+  var api = { pieSlices: pieSlices, won: won, rowClass: rowClass, priceBucket: priceBucket, groupLabelKey: groupLabelKey, sourceOf: sourceOf };
   if (typeof module!=='undefined'&&module.exports) module.exports={__test:api};
 })(typeof window!=='undefined'?window:globalThis);
