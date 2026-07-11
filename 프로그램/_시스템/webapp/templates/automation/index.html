@@ -9,6 +9,14 @@
   .au-card{background:#fff;border:1px solid #e5e8eb;border-radius:14px;overflow:hidden;display:flex;flex-direction:column;}
   .au-band{color:#fff;font-size:12.5px;font-weight:700;padding:8px 16px;}
   .au-band.src{background:#185FA5;} .au-band.mkt{background:#854F0B;}
+  /* 판매처 카드 = 소싱처와 같은 계열: 실행중=초록 / 그 외=회색 + 돈 나감 빨간 배지 */
+  .au-band.mkt-run{background:#12B886;} .au-band.mkt-idle{background:#8B95A1;}
+  .band-flex{display:flex;align-items:center;gap:9px;}
+  .band-chip{margin-left:auto;font-size:10.5px;font-weight:700;background:rgba(255,255,255,.22);padding:2px 9px;border-radius:20px;}
+  .rbadge{background:#F04452;color:#fff;font-size:10px;font-weight:800;padding:2px 8px;border-radius:20px;display:none;align-items:center;gap:4px;}
+  .rbadge.on{display:inline-flex;}
+  .rbadge .blip{width:6px;height:6px;border-radius:50%;background:#fff;}
+  .au-card.run{border-color:#9BE7C9;box-shadow:0 4px 16px rgba(18,184,134,.12);}
   .au-body{padding:16px 18px;display:flex;flex-direction:column;flex:1;}
   .au-ct{display:flex;align-items:center;justify-content:space-between;gap:10px;}
   .au-title{font-size:14.5px;font-weight:700;color:#191F28;}
@@ -39,12 +47,12 @@
   .au-warn.on{display:block;}
   /* 두 겹 잠금 상태 바 + 페이지 배너 */
   .live-banner{border-radius:11px;padding:11px 15px;margin-bottom:16px;font-size:13px;font-weight:600;display:flex;align-items:center;gap:10px;}
-  .live-banner.safe{background:#e6f9f1;color:#0b7a54;}
-  .live-banner.live{background:#fdecee;color:#c0343f;border:1px solid #f7b9c0;}
+  .live-banner.safe{background:#f2f4f6;color:#4e5968;}
+  .live-banner.live{background:#e6f9f1;color:#0b7a54;border:1px solid #9be7c9;}
   .live-banner .em{font-size:18px;}
   .locks{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin:2px 0 13px;}
   .lock{border:1px solid #e5e8eb;border-radius:10px;padding:9px 11px;background:#f9fafb;}
-  .lock.hot{border-color:#f7b9c0;background:#fdecee;}
+  .lock.hot{border-color:#9be7c9;background:#e6f9f1;}
   .lock .l-top{display:flex;align-items:center;gap:6px;font-size:11px;color:#8b95a1;}
   .lock .l-val{font-weight:700;font-size:12.5px;margin-top:2px;}
   .pill{font-size:10.5px;font-weight:700;padding:2px 8px;border-radius:20px;}
@@ -288,8 +296,9 @@
   <div class="au-h">⚙️ 자동화 설정</div>
   <div class="au-sub">쉬지 않고 오래된 것부터 자동으로 긁고, 값이 바뀌면 자동으로 판매처에 보냅니다. (팀 공유 · 켜고 끄면 바로 저장돼요)</div>
   <div class="live-banner {{ 'live' if armed else 'safe' }}" id="page-banner">
-    {% if armed %}<span class="em">🔴</span> <b>실제 전송 켜짐</b> — 값이 바뀌면 판매처에 <b>실제로 나갑니다</b>.
-    {% else %}<span class="em">🛡️</span> 지금은 「미리보기만」이에요 — 값이 바뀌어도 판매처에 <b>실제로 나가지 않습니다</b>.{% endif %}
+    {% if armed %}<span class="em">🟢</span> <b>실행중</b> — 값이 바뀌면 판매처에 나가고 있어요.
+      <span class="rbadge on"><span class="blip"></span>실제 나감</span>
+    {% else %}<span class="em">⚪</span> 지금은 「미리보기만」이에요 — 값이 바뀌어도 판매처에 <b>실제로 나가지 않습니다</b>.{% endif %}
   </div>
 
   <div class="au-pair">
@@ -327,8 +336,12 @@
     </div>
 
     <!-- 판매처 (우) -->
-    <div class="au-card">
-      <div class="au-band mkt">판매처 · 자동으로 보내기</div>
+    <div class="au-card {{ 'run' if armed else '' }}" id="mkt-card">
+      <div class="au-band band-flex {{ 'mkt-run' if armed else 'mkt-idle' }}" id="mkt-band">
+        <span>📤 판매처 · 자동으로 보내기</span>
+        <span class="rbadge {{ 'on' if armed else '' }}" id="mkt-rbadge"><span class="blip"></span>실제 나감</span>
+        <span class="band-chip" id="mkt-chip">{{ '실행중' if armed else '안 나감' }}</span>
+      </div>
       <div class="au-body">
         <div class="au-ct"><div class="au-title">📤 자동 전송</div></div>
         <div class="au-d">값이 바뀌면 자동으로 판매처에 보내요. 기본은 안전하게 「미리보기만」이에요.</div>
@@ -408,14 +421,20 @@
     // 두 겹 잠금 = 서버 열림 AND 화면 실제전송. 화면 스위치 잠금칸 + 페이지 배너를 같이 갱신.
     var armed = serverUnlocked && st.autosend_mode==='real';
     var pill=document.getElementById('lk-ui-pill'), val=document.getElementById('lk-ui-val'), lk=document.getElementById('lk-ui');
-    if(pill){ pill.textContent=armed?'실제 전송':'미리보기만'; pill.className='pill '+(armed?'red':'off'); }
-    if(val){ val.textContent=armed?'🔴 나가는 중':'안 나감'; }
+    if(pill){ pill.textContent=armed?'실제 전송':'미리보기만'; pill.className='pill '+(armed?'on':'off'); }
+    if(val){ val.textContent=armed?'🟢 나가는 중':'안 나감'; }
     if(lk){ lk.classList.toggle('hot',armed); }
+    // 판매처 카드 = 소싱처와 같은 계열: 실행중=초록 / 그 외=회색 + 빨간 배지·상태칩
+    var band=document.getElementById('mkt-band'), card=document.getElementById('mkt-card');
+    if(band){ band.classList.toggle('mkt-run',armed); band.classList.toggle('mkt-idle',!armed); }
+    if(card){ card.classList.toggle('run',armed); }
+    var rb=document.getElementById('mkt-rbadge'); if(rb){ rb.classList.toggle('on',armed); }
+    var chip=document.getElementById('mkt-chip'); if(chip){ chip.textContent=armed?'실행중':'안 나감'; }
     var b=document.getElementById('page-banner');
     if(b){ b.className='live-banner '+(armed?'live':'safe');
       b.innerHTML=armed
-        ? '<span class="em">🔴</span> <b>실제 전송 켜짐</b> — 값이 바뀌면 판매처에 <b>실제로 나갑니다</b>.'
-        : '<span class="em">🛡️</span> 지금은 「미리보기만」이에요 — 값이 바뀌어도 판매처에 <b>실제로 나가지 않습니다</b>.'; }
+        ? '<span class="em">🟢</span> <b>실행중</b> — 값이 바뀌면 판매처에 나가고 있어요. <span class="rbadge on"><span class="blip"></span>실제 나감</span>'
+        : '<span class="em">⚪</span> 지금은 「미리보기만」이에요 — 값이 바뀌어도 판매처에 <b>실제로 나가지 않습니다</b>.'; }
   }
 
   // 초기 렌더
