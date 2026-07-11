@@ -18,6 +18,28 @@ from .dlq import enqueue_dlq
 from .adapters.base import MarketAdapter
 
 
+def autosend_keep(old_price, new_price, old_stock, new_stock, automation: dict) -> bool:
+    """자동화 설정 토글에 따라 이 변동을 실제로 보낼지 판정.
+
+    · 가격이 바뀌었고 autosend_on_price → 보냄
+    · 재고가 바뀌었고 autosend_on_stock 이며 새 재고가 임계(autosend_stock_threshold) 이하 → 보냄
+    한 항목이 가격·재고 둘 다 바뀌면 어느 한쪽만 조건 맞아도 보낸다(API가 둘 다 실어 감).
+    사입 토글은 소스 구분이 페이로드에 없어 여기서 다루지 않는다(별도 작업).
+    """
+    price_changed = old_price != new_price
+    stock_changed = old_stock != new_stock
+    if price_changed and automation.get("autosend_on_price"):
+        return True
+    if stock_changed and automation.get("autosend_on_stock"):
+        try:
+            thr = int(automation.get("autosend_stock_threshold") or 0)
+        except (TypeError, ValueError):
+            thr = 0
+        if int(new_stock) <= thr:
+            return True
+    return False
+
+
 def _extract_uploads(c_output: dict, sku_by_option: dict) -> list[dict]:
     """C 페이로드에서 (market, sku, product_id, option_id, price, stock) 리스트 추출."""
     uploads = []
@@ -126,6 +148,7 @@ def run_uploader(
     force: bool = False,
     persist: bool = False,
     pacer=None,
+    automation: dict | None = None,
 ) -> dict:
     """메인 진입점. force=True면 보류 무시하고 진행.
 
@@ -140,10 +163,12 @@ def run_uploader(
     """
     uploads = _extract_uploads(c_output, sku_by_option)
 
-    # 변동 감지
+    # 변동 감지 + (설정 있으면) 변동 종류 토글 필터 + 미리보기 집계
     actionable = []
     skipped = 0
+    filtered_out = 0
     diff_for_dryrun = []
+    preview: dict[str, dict] = {}   # market → {건수, 가격, 재고}
     for u in uploads:
         change = detect_change(
             session,
@@ -153,12 +178,24 @@ def run_uploader(
         if not change.has_change:
             skipped += 1
             continue
+        # 변동 종류 토글(소싱처 가격/재고) — automation 주면 필터. 없으면 현행대로 전량.
+        if automation is not None and not autosend_keep(
+                change.old_price, change.new_price,
+                change.old_stock, change.new_stock, automation):
+            filtered_out += 1
+            continue
         actionable.append(u)
         diff_for_dryrun.append({
             "market": u["market"],
             "old_price": change.old_price, "new_price": change.new_price,
             "old_stock": change.old_stock, "new_stock": change.new_stock,
         })
+        pv = preview.setdefault(u["market"], {"count": 0, "price": 0, "stock": 0})
+        pv["count"] += 1
+        if change.old_price != change.new_price:
+            pv["price"] += 1
+        if change.old_stock != change.new_stock:
+            pv["stock"] += 1
 
     # 드라이런
     summary = compute_dryrun_summary(
@@ -168,6 +205,7 @@ def run_uploader(
     if summary.should_hold and not force:
         return {
             "uploaded": 0, "skipped": skipped, "failed": 0,
+            "filtered_out": filtered_out, "preview": preview,
             "held": True, "hold_reason": summary.hold_reason,
             "summary": summary,
         }
@@ -259,6 +297,7 @@ def run_uploader(
         session.commit()   # #12 — 변동감지 기준선(MarketRegistration) 영속
     return {
         "uploaded": uploaded, "skipped": skipped, "failed": failed,
+        "filtered_out": filtered_out, "preview": preview,
         "held": False, "hold_reason": "",
         "summary": summary,
     }
