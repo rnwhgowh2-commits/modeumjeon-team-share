@@ -316,7 +316,16 @@ def lap_report(session, *, lap_no: int, now: datetime) -> dict | None:
                     "dir": "so",
                 })
 
-    minutes = max(1, round((end - start).total_seconds() / 60))
+    # [2026-07-11] 소요(분). 시작이 '어제'면(오늘 1회차 = 밤새 정지 후 첫 바퀴) 그 간격은
+    #   크롤 시간이 아니라 쉰 시간이다 → 703분 같은 가짜값을 내지 않고 None(화면은 소요 숨김).
+    #   같은 KST 날짜의 연속 회차만 실제 소요로 본다. delta 창(start,end)은 그대로(변동 집계용).
+    from lemouton.sources.crawl_schedule import _as_naive_utc as _nu, _KST_OFFSET_H as _kh
+    _start_kst_date = (_nu(start) + timedelta(hours=_kh)).date()
+    _end_kst_date = (_nu(end) + timedelta(hours=_kh)).date()
+    if _start_kst_date == _end_kst_date:
+        minutes = max(1, round((end - start).total_seconds() / 60))
+    else:
+        minutes = None
     stats = lap_stats(session, now=now)
     _crawled = {sp_map[i].site for i in spids if i in sp_map}
     _changed = {r["site"] for r in price_rows} | {r["site"] for r in stock_rows}

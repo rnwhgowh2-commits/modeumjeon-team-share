@@ -789,8 +789,15 @@ def save_crawl_result(
 ) -> dict:
     """CrawlResult → SourceProduct 메타 갱신 + 옵션 row 들 upsert."""
     # 모음전 단위 메타
-    if crawl_result.product_name_raw and not source_product.product_name:
-        source_product.product_name = crawl_result.product_name_raw
+    #  [2026-07-11] 상품명 갱신 — 비었을 때만 채우던 것을 '비었거나 내비 쓰레기면' 갱신으로.
+    #    옛 파서(og:title 도입 전)가 PC 첫 h2 '메인메뉴'(내비)를 상품명으로 저장했고,
+    #    fill-if-blank 가드 때문에 파서를 고쳐도 stale '메인메뉴'가 영원히 남았다(라이브 실측).
+    #    정상 저장된 좋은 이름은 덮지 않는다(파서 폴백이 더 나쁜 값을 줄 때 보호).
+    _new_name = (crawl_result.product_name_raw or "").strip()
+    _cur_name = (source_product.product_name or "").strip()
+    _NAME_JUNK = {"", "메인메뉴", "메뉴"}
+    if _new_name and _new_name not in _NAME_JUNK and _cur_name in _NAME_JUNK:
+        source_product.product_name = _new_name
 
     source_product.last_fetched_at = _utcnow()
     source_product.last_status = 'ok'
