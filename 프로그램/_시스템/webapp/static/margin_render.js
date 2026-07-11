@@ -104,8 +104,9 @@
     var rows=d[conf[0]]||[], labelKey=conf[1];
     var head='<tr><th>'+labelKey+'</th><th class="num">매출</th><th class="num">순마진</th><th class="num">건수</th></tr>';
     var body=rows.map(function(r){
+      // 매입건수 fallback: 소싱처(Task7) 대비 — 현 6탭은 항상 건수 보유
       return '<tr><td>'+esc(r[labelKey])+'</td><td class="num">'+won(r.매출)+'</td>'
-        +'<td class="num">'+won(r.순마진)+'</td><td class="num">'+(r.건수!=null?r.건수:(r.매입건수!=null?r.매입건수:''))+'</td></tr>';
+        +'<td class="num">'+won(r.순마진)+'</td><td class="num">'+esc(r.건수!=null?r.건수:(r.매입건수!=null?r.매입건수:''))+'</td></tr>';
     }).join('');
     return '<div class="mg-charts"><div class="mg-chart"><div class="mg-ct">'+labelKey+' 매출 비중</div>'
       + pieSvg(rows,'매출',labelKey)+'</div></div>'

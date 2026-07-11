@@ -127,6 +127,19 @@ def test_group_label_keys():
 
 
 @pytest.mark.skipif(shutil.which("node") is None, reason="node 없음")
+def test_render_group_market_output():
+    r = subprocess.run(["node", "-e",
+        "global.window=global;"
+        f"const R=require('{R.as_posix()}');"
+        "const html=global.MG_RENDERERS.market({market:[{마켓:'A&B',매출:1234,순마진:56,건수:2}]});"
+        "console.log([/A&amp;B/.test(html), /1,234/.test(html), /<th>마켓<\\/th>/.test(html), /(>|\\s)2(<)/.test(html)].join(','))"],
+        capture_output=True, text=True, encoding="utf-8")
+    assert r.returncode == 0, r.stderr
+    # label escaped (A&B → A&amp;B), 매출 comma-formatted, header = 마켓, 건수=2 present
+    assert r.stdout.strip() == "true,true,true,true"
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="node 없음")
 def test_pie_svg_shapes():
     """pieSvg 계약 고정 — 단일행=full-circle(<circle), 2행=조각 2개(<path)."""
     script = (
