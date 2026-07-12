@@ -122,6 +122,16 @@ def test_upsert_replace_stale_keeps_only_current_upload(db):
     assert a2.delivery_method == "직배" and a2.delivery_method_source == "수기"  # 수기 보존
 
 
+def test_clear_orders_resets_to_zero(db):
+    # 「비우기」 = 더망고 주문 전량 삭제(미실시 0). 상태매핑은 보존.
+    svc.seed_default_status_map(db)
+    svc.upsert_orders(db, [_row("C1"), _row("C2")])
+    n = svc.clear_orders(db)
+    assert n == 2
+    assert db.query(M.MangoOrder).count() == 0
+    assert len(db.query(M.MangoStatusMap).all()) > 0   # 상태매핑은 유지
+
+
 def test_upsert_default_accumulates(db):
     # 기본(replace_stale=False)은 누적 — 부분 업로드가 옛 데이터를 지우지 않는다.
     svc.seed_default_status_map(db)

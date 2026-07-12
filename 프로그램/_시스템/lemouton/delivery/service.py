@@ -151,6 +151,16 @@ def upsert_orders(session, rows, bulk_method=None, replace_stale=False) -> dict:
     return {"inserted": inserted, "updated": updated, "deleted": deleted}
 
 
+def clear_orders(session) -> int:
+    """배송검사 초기화 — 더망고 주문 전량 삭제(→ 미실시 0 상태). 삭제 건수 반환.
+
+    상태매핑(MangoStatusMap)은 사용자 편집이라 보존한다.
+    """
+    n = session.query(MangoOrder).delete(synchronize_session=False)
+    session.commit()
+    return n
+
+
 def find_duplicate_invoices(session):
     """같은 주문(mango_uid)에 서로 다른 송장이 2회 이상 = 중복송장."""
     return session.query(MangoOrder).filter(MangoOrder.is_duplicate_invoice.is_(True)).all()
