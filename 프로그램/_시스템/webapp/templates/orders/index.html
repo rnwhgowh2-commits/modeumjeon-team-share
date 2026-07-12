@@ -1108,9 +1108,14 @@
         [].slice.call(document.querySelectorAll('.mc-rc')).forEach(function(l){l.classList.toggle('on',l.querySelector('input').checked);});});});
       document.getElementById('mgUpBtn').addEventListener('click',function(){
         if(!mgFile.files[0]){document.getElementById('mangoMsg').innerHTML='<span style="color:var(--red)">파일을 선택하세요</span>';return;}
+        // 업로드 누르는 순간 기존 검사 결과를 화면에서 즉시 비운다(신규 업로드인지 바로 파악되게).
+        // 서버 DB 는 이 업로드의 replace_stale 로 이번 목록만 남게 교체된다.
+        mangoOrders=[]; mangoMap={}; mangoSummary={dup:0,flow:0,unknown:0,total:0}; dmCheckFilter=null;
+        renderDmBars(); renderCheckView(); if(typeof render==='function')render();
+        document.getElementById('mangoResult').textContent='';
         var fd=new FormData();fd.append('file',mgFile.files[0]);
         fd.append('bulk_method',document.querySelector('input[name=mgbulk]:checked').value);
-        document.getElementById('mangoMsg').textContent='업로드·마켓 대조 중…';
+        document.getElementById('mangoMsg').textContent='업로드·마켓 대조 중… (기존 결과는 비웠어요)';
         fetch('/orders/inspect/upload',{method:'POST',body:fd}).then(function(r){return r.json();}).then(function(j){
           if(j.ok){document.getElementById('mangoMsg').innerHTML='<span style="color:var(--green)">✔ '+j.parsed+'건 처리 · 마켓대조 '+(j.market_checked||0)+'건</span>';
             document.getElementById('mangoResult').textContent='✔ '+j.parsed+'건 · 마켓대조 '+(j.market_checked||0);
