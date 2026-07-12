@@ -32,6 +32,7 @@ from flask import Blueprint, jsonify, request, send_file
 from shared.db import SessionLocal
 from lemouton.margin import aggregator, export, pipeline, store
 from lemouton.margin import sell_source
+from lemouton.margin import matcher, classifier
 from lemouton.margin.buy_parser import parse_buy
 from lemouton.margin.config import DEFAULT_PRICE_RANGES
 
@@ -201,6 +202,100 @@ def upload_shopmine():
     return jsonify({"rows": int(len(sell_df)), "markets": markets})
 
 
+# ── 블랙스팟 분류 계약 복원 (원본 app.py /api/analyze) ─────────────────────
+
+def _has_trace(r: dict) -> bool:
+    """raw 매입 흔적 판정 — 원본 app.py 1356~1374 그대로.
+
+    구매가격 float>0(≠999999999.99 센티널) OR 국내송장번호 OR 사이트주문번호 OR
+    간단메모에 http/HTTP OR 더망고주문상태(사용자 연동)에 배송대기중/국내배송중.
+    """
+    def _v(x):
+        s = str(x or "").strip()
+        return bool(s) and s not in ("nan", "0", "0.0", "None")
+
+    try:
+        buy = float(str(r.get("구매가격", 0)).replace(",", "") or 0)
+        if buy > 0 and buy != 999999999.99:
+            return True
+    except (ValueError, TypeError):
+        pass
+    if _v(r.get("국내송장번호")) or _v(r.get("사이트주문번호")):
+        return True
+    memo = str(r.get("간단메모", "") or "")
+    if "http" in memo or "HTTP" in memo:
+        return True
+    mg = str(r.get("더망고주문상태 (사용자 연동)", "") or "")
+    if any(k in mg for k in ("배송대기중", "국내배송중")):
+        return True
+    return False
+
+
+def _augment_blackspot(payload, buy_df, sell_df, out):
+    """원본 app.py `/api/analyze`(1334~1422) 계약 복원 — payload 를 제자리 보강한다.
+
+    추가/변경:
+      · classified / blackspot_summary — 분류기 실행 결과.
+      · unmatched_buy — 분류기 밖 매입흔적 raw 행 보강(원본 1336~1387).
+      · summary.mango_total / mango_with_order_no / mango_with_trace — 검증 카운트(1401~1418).
+      · missing_order_no — G열 미기입 매입 행(1419~1422).
+
+    ★ finite 가드: classified·보강행은 matcher.match_for_classifier 의 raw .to_dict()
+      에서 와 빈 셀이 NaN(float) 로 남는다. 라우트가 저장 전 _assert_finite 로 NaN 을 크게
+      실패시키므로, buy_missing 과 동일하게 pipeline._json_safe(coerce_numeric=False) 로
+      '표시 전용'(하류 집계 없음) NaN→"" 정리해 통과시킨다. (원본은 finite 가드 없이 저장했다.)
+
+    ★ 분류기 입력 = buy_valid(사이트주문번호 있는 행) — 원본 app.py 355행과 동일.
+      full staged df 를 넣으면 buy_missing 흔적행까지 classified 에 들어가 보강 로직이
+      죽는다(match_data 가 모든 매입행을 matched/unmatched 로 이미 덮으므로).
+    """
+    counter = [0]
+
+    buy_valid, _buy_missing = pipeline.split_by_site_order_no(buy_df)
+    mc = matcher.match_for_classifier(buy_valid, sell_df)
+    cls = classifier.classify(mc["matched"], mc["mango_unmatched"], mc["shopmine_only"])
+    classified = [pipeline._json_safe(r, False, counter) for r in cls["classified"]]
+    payload["classified"] = classified
+    payload["blackspot_summary"] = cls["summary"]
+
+    # unmatched_buy 매입흔적 보강 (원본 1336~1387) — classified 밖 흔적행을 전체내역에 노출.
+    unmatched_buy_list = list(payload.get("unmatched_buy") or [])
+    existing_keys = set()
+    for r in payload.get("matched") or []:
+        mk = str(r.get("마켓주문번호", "")).strip()
+        if mk:
+            existing_keys.add(mk)
+    for r in unmatched_buy_list:
+        mk = str(r.get("마켓주문번호", "")).strip()
+        if mk:
+            existing_keys.add(mk)
+    for r in classified:
+        if r.get("데이터출처") in ("더망고+샵마인", "더망고만"):
+            mk = str(r.get("마켓주문번호", "")).strip()
+            if mk:
+                existing_keys.add(mk)
+
+    for _, raw_row in buy_df.iterrows():
+        raw_dict = raw_row.to_dict()
+        mk = str(raw_dict.get("마켓주문번호", "")).strip()
+        if not mk or mk in existing_keys:
+            continue
+        if _has_trace(raw_dict):
+            unmatched_buy_list.append(pipeline._json_safe(raw_dict, False, counter))
+            existing_keys.add(mk)
+    payload["unmatched_buy"] = unmatched_buy_list
+
+    # 검증 카운트 (원본 1401~1418) — summary 에 주입.
+    summary = payload.setdefault("summary", {})
+    summary["mango_total"] = int(len(buy_df))
+    # buy_valid = 전체 − buy_missing. split 은 partition 이므로 len 차 = buy_valid 수(원본과 동일).
+    summary["mango_with_order_no"] = int(len(buy_df) - len(out.get("buy_missing", [])))
+    summary["mango_with_trace"] = int(summary.get("card_all", 0))
+
+    # G열 미기입 매입 행 (원본 1419~1422) — 이미 JSON-safe records.
+    payload["missing_order_no"] = out.get("buy_missing", [])
+
+
 # ── 분석 ──────────────────────────────────────────────────────────────────
 
 @bp.route("/analyze", methods=["POST"])
@@ -233,6 +328,9 @@ def analyze():
     out = pipeline.run(staged["df"], sell_df)
     agg = aggregator.aggregate(out["matched"], DEFAULT_PRICE_RANGES)
     payload = _json_normalize({**out, **agg})
+    # 2b) 블랙스팟 분류 계약 복원 — classified·blackspot_summary·검증 카운트·흔적 보강.
+    #     NaN 을 품은 raw 행은 _augment 내부에서 표시전용 sanitize → 아래 finite 가드 통과.
+    _augment_blackspot(payload, staged["df"], sell_df, out)
     # NaN/Inf 는 저장 전에 크게 실패시킨다 — 조용한 0 으로 덮지 않는다(store._pack 경보 보존).
     try:
         _assert_finite(payload)
