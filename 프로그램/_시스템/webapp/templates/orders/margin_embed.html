@@ -396,6 +396,15 @@ h1 {
 }
 .table-wrap tbody tr:hover { background: #F9FAFB; }
 
+/* ── 브랜드 사전 관리 (설정 탭) ── */
+.bd-group{border-bottom:1px solid #f1f3f5;padding:8px 0}
+.bd-bname{font-weight:700;font-size:13px;color:#111827;margin-bottom:5px}
+.bd-count{display:inline-block;background:#eef1f4;color:#6b7280;border-radius:10px;padding:0 7px;font-size:11px;font-weight:400;margin-left:4px}
+.bd-chips{display:flex;flex-wrap:wrap;gap:6px}
+.bd-chip{display:inline-flex;align-items:center;gap:5px;background:#f8fafc;border:1px solid #e5e7eb;border-radius:6px;padding:3px 8px;font-size:12px}
+.bd-x{cursor:pointer;color:#9ca3af;font-size:11px}
+.bd-x:hover{color:#F04452}
+
 /* ── 필터 바 ── */
 .filters {
   display: flex;
@@ -837,14 +846,6 @@ tr.cross-detail td{padding:0 !important;border-bottom:2px solid #000 !important}
 .et-goto:hover{background:#1B6FE0;}
 .sum-abn{cursor:pointer;transition:.12s;} .sum-abn:hover{background:#FFE6E6;}
 .sum-abn .sa-go{font-size:12px;color:#F04452;font-weight:800;border:1px solid #F04452;border-radius:6px;padding:2px 9px;white-space:nowrap;}
-/* ── 정합성 검산 칩 (요약 탭) ── */
-.recon-line{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin:10px 0;padding:10px 14px;border-radius:8px;font-size:13px}
-.recon-line.ok{background:#ECFDF5;border:1px solid #22C55E}
-.recon-line.warn{background:#FEF2F2;border:1px solid #F04452}
-.recon-line .rc-badge{font-weight:700}
-.recon-line.ok .rc-badge{color:#16A34A}
-.recon-line.warn .rc-badge{color:#F04452}
-.recon-line .rc-chip{background:#fff;border:1px solid #e5e7eb;border-radius:6px;padding:2px 8px;font-size:12px;color:#F04452}
 /* ── 브랜드별 미확정 배너 ── */
 .brand-unresolved-banner{display:flex;flex-wrap:wrap;align-items:center;gap:10px;padding:10px 14px;background:#FEFCE8;border:1px solid #FACC15;border-radius:8px;margin-bottom:12px;}
 .brand-unresolved-banner .bu-badge{font-weight:800;color:#CA8A04;}
@@ -855,6 +856,28 @@ tr.cross-detail td{padding:0 !important;border-bottom:2px solid #000 !important}
 .brand-unresolved-list div{padding:2px 0;}
 /* ── 브랜드별/마켓별 표 이상가 보조표기 ── */
 .ab-sub{display:block;font-size:11px;color:#F04452;margin-top:2px;font-variant-numeric:tabular-nums}
+/* ── 브랜드 확정률 진행바 + 정리 launcher ── */
+.bstat{background:#FEFCE8;border:1px solid #FACC15;border-radius:10px;padding:12px 16px;margin-bottom:14px}
+.bstat-top{display:flex;align-items:center;gap:12px;font-size:13px}
+.bstat-top b{color:#111827}.bstat-sub{color:#CA8A04}
+.bstat-btn{margin-left:auto;background:#CA8A04;color:#fff;border:none;border-radius:7px;padding:6px 12px;font-size:12px;font-weight:600;cursor:pointer}
+.bstat-bar{height:8px;background:#fff;border:1px solid #FACC15;border-radius:5px;overflow:hidden;margin-top:8px}
+.bstat-bar>i{display:block;height:100%;background:#22C55E}
+.n{font-variant-numeric:tabular-nums}
+/* ── 미확정 정리 패널 모달 ── */
+.bfix-ov{position:fixed;inset:0;background:rgba(0,0,0,.5);display:none;align-items:center;justify-content:center;z-index:9999;padding:24px}
+.bfix-ov.on{display:flex}
+.bfix-box{background:#fff;border-radius:12px;max-width:640px;width:100%;max-height:85vh;display:flex;flex-direction:column}
+.bfix-h{display:flex;align-items:center;padding:14px 18px;border-bottom:1px solid #e5e7eb;font-size:15px}
+.bfix-info{padding:8px 18px;color:#6b7280;font-size:12.5px;border-bottom:1px solid #f1f3f5}
+.bfix-list{padding:8px 18px;overflow:auto;flex:1}
+.bfix-row{display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid #f1f3f5;font-size:13px}
+.bfix-kw{font-weight:600;min-width:120px}
+.bfix-cnt{color:#6b7280;min-width:48px;text-align:right}
+.bfix-arrow{color:#9ca3af}
+.bfix-brand{border:1px solid #d1d6db;border-radius:5px;padding:4px 8px;font-size:13px;width:140px}
+.bfix-foot{display:flex;align-items:center;gap:12px;padding:14px 18px;border-top:1px solid #e5e7eb}
+.bfix-hint{color:#6b7280;font-size:12px}
 </style>
 <script src="{{ url_for('static', filename='margin_rules.js') }}"></script>
   <script src="{{ url_for('static', filename='margin_ext_check.js') }}"></script>
@@ -880,12 +903,12 @@ tr.cross-detail td{padding:0 !important;border-bottom:2px solid #000 !important}
     </label>
 
     <!-- 매출 파일 -->
-    <label class="upload-box" id="sellBox" for="sellFileInput">
-      <input type="file" id="sellFileInput" accept=".xlsx,.xls,.htm,.html" multiple>
-      <div class="upload-icon">📤</div>
-      <div class="upload-label">매출 엑셀 (샵마인)</div>
-      <div class="upload-sub">.xlsx / .xls — 클릭 또는 드래그</div>
-      <div class="upload-status" id="sellStatus">파일 없음</div>
+    <label class="upload-box" id="sellBox" style="cursor:default;justify-content:center;text-align:center;">  <!-- [모음전] 매출=마켓API 자동조회 → 업로드칸 대신 안내 (for 제거·클릭무효) -->
+      <input type="file" id="sellFileInput" accept=".xlsx,.xls,.htm,.html" multiple disabled style="display:none">
+      <div class="upload-icon">🔗</div>
+      <div class="upload-label">매출 = 마켓 API 자동 조회</div>
+      <div class="upload-sub">샵마인 업로드 불필요 — 분석 시작 시 판매처 API에서 매출을 불러옵니다</div>
+      <div class="upload-status" id="sellStatus" style="display:none">파일 없음</div>
     </label>
 
   </div>
@@ -1224,7 +1247,7 @@ async function uploadFiles(type, files) {
     console.log('[업로드] 서버 응답:', type, res.status);
     if (!res.ok) {
       var errText = '';
-      try { var ej = await res.json(); errText = ej.error || ''; } catch(_) { errText = await res.text(); }
+      var raw = ''; try { raw = await res.text(); } catch(_) {} try { errText = (JSON.parse(raw).error) || raw; } catch(_) { errText = raw || String(res.status); }  /* [모음전] 단일 읽기 — body stream 이중읽기 방지 */
       setStatus(type, 'err', '서버 오류: ' + (errText || res.status));
       console.error('업로드 서버 오류:', res.status, errText);
       return;
@@ -1586,6 +1609,7 @@ function renderCurrentTab() {
   /* 설정 탭은 분석 전에도 접근 가능 */
   if (currentTab === 'settings') {
     el.innerHTML = renderSettings();
+    if (typeof loadBrandDict === 'function') loadBrandDict();
     /* 비동기로 소싱처 계정 로드 */
     if (typeof renderSourcingAccounts === 'function') renderSourcingAccounts();
     return;
@@ -1652,12 +1676,29 @@ window._productCounts = (function() {
 function _saveProductCounts() {
   try { localStorage.setItem('margin_product_counts', JSON.stringify(window._productCounts)); } catch(_) {}
 }
+/* 서버에서 등록수 로드 (localStorage는 오프라인 캐시로 유지) */
+function loadProductCountsFromServer(cb){
+  fetch('/api/product-counts').then(function(r){return r.json();}).then(function(res){
+    var counts = (res && res.counts) || {};
+    /* 서버 값을 중첩 구조로 역매핑 (type:key) */
+    var nested = {};
+    Object.keys(counts).forEach(function(k){
+      var i = k.indexOf(':');
+      if(i>0){ var t=k.slice(0,i), key=k.slice(i+1); (nested[t]=nested[t]||{})[key]=counts[k]; }
+    });
+    window._productCounts = nested;
+    try{ localStorage.setItem('margin_product_counts', JSON.stringify(nested)); }catch(_){}
+    if(typeof cb==='function') cb();
+  }).catch(function(){ if(typeof cb==='function') cb(); });
+}
 function setProductCount(type, key, val) {
   var n = parseInt(val, 10);
   if (isNaN(n) || n < 0) n = 0;
   if (!window._productCounts[type]) window._productCounts[type] = {};
   window._productCounts[type][key] = n;
   _saveProductCounts();
+  fetch('/api/product-counts',{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({key: type+':'+key, count: n})}).catch(function(){});
 }
 
 function saveUserSettings() {
@@ -2132,19 +2173,62 @@ function renderAbnormalBanner(rows) {
        + '</div>';
 }
 
-/* 브랜드 미확정 배너 HTML (d.brand_unresolved 건수>0 일 때만 반환) */
-var _buBannerSeq = 0;
+/* 브랜드 확정률 진행바 + 정리 launcher (client-side, getFilteredData 기준) */
 function renderBrandUnresolvedBanner(d) {
-  var bu = d && d.brand_unresolved;
-  if (!bu || !bu['건수']) return '';
-  var listId = 'buList' + (_buBannerSeq++);
-  var names = (bu['상품명'] || []).map(function(n) { return '<div>' + esc(n) + '</div>'; }).join('');
-  return '<div class="brand-unresolved-banner">'
-       + '<span class="bu-badge">⚠ 브랜드 미확정 ' + bu['건수'] + '건</span>'
-       + '<span class="bu-msg">매출 ' + fmt(bu['매출']) + '원 · 브랜드 매칭이 확인되지 않았습니다.</span>'
-       + '<span class="bu-toggle" onclick="var el=document.getElementById(\'' + listId + '\');if(el)el.classList.toggle(\'on\')">상품명 보기 ▾</span>'
-       + '<div class="brand-unresolved-list" id="' + listId + '">' + names + '</div>'
-       + '</div>';
+  var g = (typeof getFilteredData === 'function') ? getFilteredData() : d;
+  var rows = (g && g.matched) || [];
+  if (!rows.length) return '';
+  var un = rows.filter(function(r) { return r['브랜드'] === '미확정'; });
+  var unCnt = un.length;
+  var total = rows.length;
+  if (unCnt === 0) return '';
+  var unSales = un.reduce(function(a, r) { return a + (+r['판매가'] || 0); }, 0);
+  var rate = Math.round((total - unCnt) / total * 100);
+  return '<div class="bstat">'
+    + '<div class="bstat-top"><b>브랜드 확정률 <span class="n">' + rate + '%</span></b>'
+    + '<span class="bstat-sub">미확정 <span class="n">' + unCnt + '건</span> · <span class="n">' + fmt(unSales) + '원</span></span>'
+    + '<button class="bstat-btn" onclick="openBrandFix()">미확정 정리하기 →</button></div>'
+    + '<div class="bstat-bar"><i style="width:' + rate + '%"></i></div></div>';
+}
+
+/* 미확정 정리 패널 — 자동 추천 로드 */
+function openBrandFix() {
+  document.getElementById('brandFixOv').classList.add('on');
+  document.getElementById('bfixList').textContent = '불러오는 중…';
+  fetch('/api/brand_dict/suggest').then(function(r) { return r.json(); }).then(function(s) {
+    var info = '추천 ' + (s.suggestions || []).length + '개 · 이름만으론 추정 불가 ' + (s.unresolvable || 0) + '건';
+    document.getElementById('bfixInfo').textContent = info;
+    var h = '';
+    (s.suggestions || []).forEach(function(it) {
+      h += '<label class="bfix-row"><input type="checkbox" checked data-kw="' + escAttr(it.keyword) + '">'
+        + '<span class="bfix-kw">' + esc(it.keyword) + '</span>'
+        + '<span class="bfix-cnt n">' + it.count + '건</span>'
+        + '<span class="bfix-arrow">→</span>'
+        + '<input class="bfix-brand" data-for="' + escAttr(it.keyword) + '" value="' + escAttr(it.keyword) + '"></label>';
+    });
+    document.getElementById('bfixList').innerHTML = h || '추천할 미확정 후보가 없습니다.';
+  }).catch(function(e) { document.getElementById('bfixList').textContent = '불러오기 실패: ' + e; });
+}
+function closeBrandFix() { document.getElementById('brandFixOv').classList.remove('on'); }
+function applyBrandFix() {
+  var rows = document.querySelectorAll('#bfixList .bfix-row');
+  var items = [];
+  rows.forEach(function(row) {
+    var cb = row.querySelector('input[type=checkbox]');
+    if (cb && cb.checked) {
+      var kw = cb.getAttribute('data-kw');
+      var br = (row.querySelector('.bfix-brand').value || '').trim();
+      if (kw && br) items.push({ keyword: kw, brand: br });
+    }
+  });
+  if (!items.length) { alert('추가할 항목을 선택하세요.'); return; }
+  var btn = document.getElementById('bfixAdd'); btn.disabled = true; btn.textContent = '추가 중…';
+  fetch('/api/brand_dict', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ items: items }) })
+    .then(function(r) { return r.json(); }).then(function(res) {
+      closeBrandFix(); btn.disabled = false; btn.textContent = '선택 항목 사전에 추가';
+      alert(items.length + '개 브랜드를 사전에 추가했습니다. 다시 분석합니다.');
+      if (typeof analyzeAndRender === 'function') analyzeAndRender();
+    }).catch(function(e) { btn.disabled = false; btn.textContent = '선택 항목 사전에 추가'; alert('실패: ' + e); });
 }
 
 /* 전체내역 탭으로 이동 + 비정상마진 필터 자동 적용 */
@@ -2375,6 +2459,17 @@ function renderSettings() {
        + '  <button onclick="saveSourcingAccounts()" style="padding:8px 16px;background:#3b82f6;color:#fff;border:none;border-radius:6px;cursor:pointer;font-weight:500">💾 저장</button>'
        + '  <button onclick="reloadCookieStatus()" style="padding:8px 16px;background:#6b7280;color:#fff;border:none;border-radius:6px;cursor:pointer">🍪 쿠키 상태 재확인</button>'
        + '</div>'
+       + '</div>'
+       + '<div class="card" style="max-width:900px;">'
+       + '<div class="table-header" style="margin-bottom:14px"><h3>🏷️ 브랜드 사전 관리</h3>'
+       +   '<span style="color:#6b7280;font-size:12px">키워드가 든 상품이 그 브랜드로 분류됩니다. 미확정을 여기서 정리하세요.</span></div>'
+       + '<div style="display:flex;gap:8px;flex-wrap:wrap;padding:10px 0;align-items:center">'
+       +   '<input id="bdSearch" placeholder="🔍 브랜드·키워드 검색" oninput="filterBrandDict()" style="flex:1;min-width:160px;border:1px solid #d1d6db;border-radius:6px;padding:6px 10px;font-size:13px">'
+       +   '<input id="bdKw" placeholder="키워드 (예: 라코스테)" style="border:1px solid #d1d6db;border-radius:6px;padding:6px 10px;font-size:13px;width:150px">'
+       +   '<input id="bdBrand" placeholder="브랜드 (예: 라코스테)" style="border:1px solid #d1d6db;border-radius:6px;padding:6px 10px;font-size:13px;width:150px">'
+       +   '<button onclick="addBrandDict()" style="background:#2563EB;color:#fff;border:none;border-radius:6px;padding:6px 14px;font-size:13px;font-weight:600;cursor:pointer">추가</button>'
+       + '</div>'
+       + '<div id="brandDictBox" style="padding:8px 0 4px">불러오는 중…</div>'
        + '</div>';
 }
 
@@ -2730,6 +2825,53 @@ function saleAmt(r) {
 /* HTML 속성값(onclick 등)에 안전하게 넣을 수 있도록 이스케이프 */
 function escAttr(s) {
   return String(s || '').replace(/\\/g,'\\\\').replace(/'/g, "\\'").replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+/* ── 브랜드 사전 관리 (설정 탭) ── */
+function loadBrandDict(){
+  var box=document.getElementById('brandDictBox');
+  if(!box) return;
+  fetch('/api/brand_dict').then(function(r){return r.json();}).then(function(res){
+    var map=(res && res.brands)||{};
+    /* 브랜드별 그룹핑 */
+    var byBrand={};
+    Object.keys(map).forEach(function(kw){ var b=map[kw]; (byBrand[b]=byBrand[b]||[]).push(kw); });
+    var brands=Object.keys(byBrand).sort(function(a,b){return a.localeCompare(b,'ko');});
+    if(!brands.length){ box.innerHTML='<div style="color:#9ca3af;font-size:13px">등록된 브랜드가 없습니다.</div>'; return; }
+    var h='';
+    brands.forEach(function(b){
+      var chips=byBrand[b].sort().map(function(kw){
+        return '<span class="bd-chip"><span class="bd-kw">'+esc(kw)+'</span>'
+          +'<span class="bd-x" onclick="delBrandDict(\''+escAttr(kw)+'\')">✕</span></span>';
+      }).join('');
+      h+='<div class="bd-group" data-brand="'+escAttr(b)+'"><div class="bd-bname">'+esc(b)
+        +' <span class="bd-count">'+byBrand[b].length+'</span></div><div class="bd-chips">'+chips+'</div></div>';
+    });
+    box.innerHTML=h;
+    filterBrandDict();
+  }).catch(function(e){ box.innerHTML='<div style="color:#F04452;font-size:13px">불러오기 실패: '+esc(String(e))+'</div>'; });
+}
+function addBrandDict(){
+  var kw=(document.getElementById('bdKw').value||'').trim();
+  var br=(document.getElementById('bdBrand').value||'').trim();
+  if(!kw||!br){ alert('키워드와 브랜드를 모두 입력하세요.'); return; }
+  fetch('/api/brand_dict',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({keyword:kw,brand:br})})
+   .then(function(r){return r.json();}).then(function(){ document.getElementById('bdKw').value=''; document.getElementById('bdBrand').value=''; loadBrandDict(); })
+   .catch(function(e){ alert('추가 실패: '+e); });
+}
+function delBrandDict(kw){
+  if(!confirm('"'+kw+'" 키워드를 사전에서 삭제할까요?')) return;
+  fetch('/api/brand_dict',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({keyword:kw,delete:true})})
+   .then(function(r){return r.json();}).then(function(){ loadBrandDict(); })
+   .catch(function(e){ alert('삭제 실패: '+e); });
+}
+function filterBrandDict(){
+  var q=((document.getElementById('bdSearch')||{}).value||'').trim().toLowerCase();
+  document.querySelectorAll('#brandDictBox .bd-group').forEach(function(g){
+    var brand=(g.getAttribute('data-brand')||'').toLowerCase();
+    var kws=[...g.querySelectorAll('.bd-kw')].map(function(e){return e.textContent.toLowerCase();}).join(' ');
+    g.style.display = (!q || brand.indexOf(q)>=0 || kws.indexOf(q)>=0) ? '' : 'none';
+  });
 }
 
 /* 연속구매 배지 클릭 시 해당 수령인의 주문내역으로 필터 (전체내역 탭 이동 + 수령인 검색) */
@@ -4280,18 +4422,6 @@ function renderSummary(d) {
      + '<span class="sa-live">↻ 수기 정정·제외 시 실시간</span>'
      + '<span class="sa-go">클릭 → 전체내역 보기 →</span>'
      + '</div>';
-  /* ── 정합성 검산 칩 (총매출 vs Σ마켓별 vs Σ브랜드별) ── */
-  if (d.reconcile) {
-    var rc = d.reconcile;
-    var ok = rc['일치'];
-    h += '<div class="recon-line ' + (ok?'ok':'warn') + '">'
-       + '<span class="rc-badge">' + (ok?'✓ 정합성 일치':'⚠ 정합성 불일치') + '</span>'
-       + '<span class="rc-msg">마켓·브랜드 합계 = 총매출 ' + fmt(rc['총매출']) + '원</span>'
-       + (rc['더망고만']?'<span class="rc-chip">더망고만 ' + rc['더망고만'] + '건</span>':'')
-       + (rc['샵마인만']?'<span class="rc-chip">샵마인만 ' + rc['샵마인만'] + '건</span>':'')
-       + (rc['마켓미확정']?'<span class="rc-chip">마켓 미확정 ' + rc['마켓미확정'] + '건</span>':'')
-       + '</div>';
-  }
   /* ── 5카드 ── */
   h += '<div class="sum-cards">'
      + _sumCard('총매출','판매가', fmt(매출)+'원')
@@ -10832,6 +10962,12 @@ function openGuide() {
 function closeGuide() {
   document.getElementById('guideModal').classList.remove('open');
 }
+
+/* 등록수: 페이지 로드 시 서버에서 최신값 회수 (analyzeAndRender 는 requestAnalyze 로
+   조기 return 하는 경로가 있어 안전하지 않음 → DOMContentLoaded 에서 1회 로드) */
+document.addEventListener('DOMContentLoaded', function(){
+  loadProductCountsFromServer();
+});
 </script>
 
 <!-- ══ 활용가이드 모달 ══ -->
@@ -10879,6 +11015,16 @@ function closeGuide() {
 </table>
 
     </div>
+  </div>
+</div>
+
+<div id="brandFixOv" class="bfix-ov" onclick="if(event.target===this)closeBrandFix()">
+  <div class="bfix-box">
+    <div class="bfix-h"><b>미확정 브랜드 정리 — 자동 추천</b><span onclick="closeBrandFix()" style="margin-left:auto;cursor:pointer">✕</span></div>
+    <div class="bfix-info" id="bfixInfo"></div>
+    <div class="bfix-list" id="bfixList">불러오는 중…</div>
+    <div class="bfix-foot"><button class="bstat-btn" id="bfixAdd" onclick="applyBrandFix()">선택 항목 사전에 추가</button>
+      <span class="bfix-hint">키워드가 든 상품이 다음 분석부터 해당 브랜드로 분류됩니다.</span></div>
   </div>
 </div>
 
