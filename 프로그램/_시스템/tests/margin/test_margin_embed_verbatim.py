@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """margin_embed.html 무수정 이식 동치 가드 (test_classifier_verbatim / test_matcher_verbatim 패턴).
 
-서빙 템플릿 orders/margin_embed.html 이 원본 index.html 에서 오직 9개 씨앗(seam)만
+서빙 템플릿 orders/margin_embed.html 이 원본 index.html 에서 오직 씨앗(seam, 8종/11회)만
 바꾼 결과임을 증명한다 — 렌더 함수·CSS·`_getRowsByCardFilter_internal` 우선순위 체인이
 드리프트하면 크게 실패한다.
 
@@ -44,6 +44,7 @@ _SEAM_TOKENS = (
     "/api/analyze", "/api/margin/analyze",  # 분석 엔드포인트
     "/api/download", "/api/margin/export",  # 내보내기 엔드포인트
     "analysis_id: (window.analysisData",    # 내보내기 body 주입
+    "buyLoaded",                            # 분석버튼 게이트 (buyLoaded&&sellLoaded ↔ buyLoaded)
 )
 
 

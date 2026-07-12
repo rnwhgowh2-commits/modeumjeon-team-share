@@ -73,4 +73,29 @@
 - **[완료]** 1:1 가드(원본 1340 `and classified`) 추가 / inert `counter` 주석 명시.
 
 ---
+
+## Task C — 원본 프런트 전량 이식 (사용자 확정 2026-07-12)
+
+**확정 결정:** ① **iframe 임베드** (원본 index.html 을 bare SAMEORIGIN 라우트로 거의 그대로 서빙 → `/orders?tab=margin` 에서 iframe). ② **매입 엑셀 업로드 트리거 유지** (원본 UX 그대로, 서버가 매출은 마켓 API 로 = Task 2 /api/margin/upload+analyze 와 일치).
+
+**원본 index.html = 10,819줄:** CSS 7~840 · margin_rules.js(외부, 이식됨) 841 · 거대 inline `<script>` 954~10769(≈9,800줄). **iframe 이므로 렌더 함수·CSS·`_getRowsByCardFilter_internal` 전부 verbatim** — 손대는 곳만:
+
+**엔드포인트 재배선 지도(원본 fetch → 모음전):**
+- 지금 배선(C): `/api/upload`→`/api/margin/upload`(+`/upload-shopmine` 선택) · `/api/analyze`→`/api/margin/analyze` · `/api/download`→`/api/margin/export`
+- 우아한 no-op(C, 크래시 금지): `/api/open-profile`·`/api/data-files`·`/api/cookie-status/all`·`/api/load-data-file`·`/api/check-login`·`/api/open-order`·`/api/report-misjudgment`·`/api/issue_upload` (단독앱 로컬파일/쿠키/프로필 기능 — 모음전 무관)
+- Task D 이월: `/api/keywords`·`/api/settings` (설정 5종) — 단 C 에서 카드키워드 **기본값 주입**해 카드 렌더 (`_getCardKeywords` 5698)
+- Task E 이월: `/api/check-sourcing`·`/api/sourcing-sites`·`/api/blackspot/fetch_order_no` (서버 Playwright→로컬 확장)
+- 후속: `/api/blackspot/manual_order_no`
+
+**C 서브태스크:** C1+C2 = bare 라우트에 원본 페이지 verbatim 서빙 + 위 재배선(업로드→분석→전탭 렌더 실동작) → C3 = `/orders?tab=margin` iframe 임베드(548줄 재구현본 `_margin.html`/`margin_app.js`/`margin_render.js`/`margin.css` 폐기, `margin_rules.js` 유지) → C4 = 원본 스크린샷 탭별 1:1 검증(★사용자 제공 블랙스팟 3장 필요).
+
+**C1+C2 완료(커밋 `6c9ee491`, 185 passed, verbatim 9심 diff·스펙✅·품질Approve).** bare 라우트 `GET /orders/margin-embed`(SAMEORIGIN, base.html 미상속). 리뷰 후속 = 빌드스크립트 in-repo 커밋 + `test_margin_embed_verbatim.py` 동치 가드(진행중).
+
+### C3/C4 이월 (C1+C2 구현자 자진 신고 — 설계상 이월)
+- **[C3 필수]** `updateAnalyzeBtn()` 이 `buyLoaded && sellLoaded` 게이트 → 모음전은 매출=마켓 API(업로드 아님)라 **매입만 업로드해도 "분석 시작" 활성화**되도록 C3에서 수정(현재 sell/샵마인 업로드 안 하면 버튼 비활성 위험). iframe 배선과 함께 처리.
+- **[export 후속]** `/api/margin/export` 는 저장 payload 만 내보냄 → 원본의 화면상 제외(excluded_ids)·수정 matched·price_ranges 미반영. 실계약 갭.
+- **[Task D 연동]** analyze 가 `price_ranges` 무시(DEFAULT 사용) → 금액대별 탭 사용자 커스텀 미반영. 설정(D)과 함께.
+- **[저impact]** 매입 다중파일 업로드는 첫 파일만 읽음(더망고 매입은 보통 단일).
+
+---
 *폐기: `docs/superpowers/plans/2026-07-11-마진계산기-화면-B레이아웃.md` (원본 1:1 방향에서 무효).*

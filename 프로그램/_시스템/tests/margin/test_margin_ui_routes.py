@@ -1,5 +1,9 @@
 # -*- coding: utf-8 -*-
-"""margin 탭 화면 — 렌더 + 정적파일 로드 + 서브탭 자리."""
+"""margin 탭 화면 — C3: 원본 마진계산기 풀페이지를 same-origin iframe 으로 임베드.
+
+구 재구현본(margin_app.js·margin_render.js·margin.css)은 폐기됨. 탭은 이제
+/orders/margin-embed 를 가리키는 iframe 만 담는다.
+"""
 import pytest
 
 
@@ -15,28 +19,28 @@ def client(monkeypatch):
 def test_margin_tab_renders(client):
     r = client.get("/orders/?tab=margin")
     assert r.status_code == 200
-    html = r.get_data(as_text=True)
-    assert 'id="margin-app"' in html
 
 
-def test_left_subnav_has_11_slots(client):
+def test_margin_tab_embeds_iframe(client):
+    """탭 = /orders/margin-embed 를 가리키는 iframe (원본 풀페이지 임베드)."""
     html = client.get("/orders/?tab=margin").get_data(as_text=True)
-    for label in ("요약", "전체내역", "일별", "월별", "브랜드별", "금액대별",
-                  "상품별", "마켓별", "소싱처별"):
-        assert label in html, label
-    # 준비중 2개 자리
-    assert "블랙스팟" in html and "설정" in html
-    assert html.count('data-mtab=') >= 9
+    assert "<iframe" in html
+    assert 'id="margin-embed-frame"' in html
+    # url_for('orders.margin_embed') 해석 경로
+    assert "/orders/margin-embed" in html
 
 
-def test_static_assets_referenced(client):
+def test_margin_tab_no_retired_reimplementation(client):
+    """폐기된 재구현본 자산·마커가 탭 HTML 에 남아있지 않아야 한다."""
     html = client.get("/orders/?tab=margin").get_data(as_text=True)
-    assert "margin_rules.js" in html
-    assert "margin_app.js" in html
-    assert "margin.css" in html
+    assert "margin_app.js" not in html
+    assert "margin_render.js" not in html
+    assert "margin.css" not in html
+    assert 'id="margin-app"' not in html
 
 
-def test_upload_steps_present(client):
-    html = client.get("/orders/?tab=margin").get_data(as_text=True)
-    assert "더망고" in html      # ① 엑셀
-    assert "분석 시작" in html     # ④ 분석 버튼
+def test_embed_route_reachable(client):
+    """iframe src 가 실제로 200 을 반환(404 임베드 방지)."""
+    r = client.get("/orders/margin-embed")
+    assert r.status_code == 200
+    assert r.headers.get("X-Frame-Options") == "SAMEORIGIN"

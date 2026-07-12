@@ -5,7 +5,7 @@
 치환하고 나머지 10,819 줄(렌더 함수·CSS·`_getRowsByCardFilter_internal` 우선순위
 체인 등)은 verbatim 으로 옮긴다.
 
-■ 무수정 보장 방식 — `transform()` 은 순수 함수다. 씨앗 치환은 총 9건:
+■ 무수정 보장 방식 — `transform()` 은 순수 함수다. 씨앗 치환은 총 11건:
     1) 자산 ref (margin_rules.js)                        · 1회
     2) 업로드 FormData 필드 (buy_file/sell_file→file)    · 1회
     3) 업로드 엔드포인트 (/api/upload→/api/margin/*)       · 1회
@@ -13,6 +13,7 @@
     5) 분석 엔드포인트 (/api/analyze→/api/margin/analyze)  · 3회
     6) 내보내기 body 에 analysis_id 주입                   · 1회
     7) 내보내기 엔드포인트 (/api/download→/api/margin/export)· 1회
+    8) 분석버튼 게이트 (buyLoaded&&sellLoaded→buyLoaded)   · 2회
   각 치환은 기대 발생 횟수를 assert 한다 — 원본이 상류에서 바뀌어 씨앗이 안 맞으면
   조용히 넘어가지 않고 크게 실패한다(SILENT MISS 방지).
 
@@ -70,11 +71,20 @@ SEAMS: list[tuple[str, str, int]] = [
     ),
     # 7) 내보내기 엔드포인트 URL (원본 /api/download → /api/margin/export)
     ("'/api/download'", "'/api/margin/export'", 1),
+    # 8) [모음전 신규 씨앗] 분석 버튼 게이트 — 원본은 매입+매출 둘 다 업로드해야 활성
+    #    (buyLoaded && sellLoaded). 모음전은 매출(SALES)이 분석 시점에 마켓 API 에서
+    #    오고 사용자 업로드가 아니므로(샵마인 sell/보조 업로드는 OPTIONAL) 매입 업로드만
+    #    으로 활성화해야 한다. updateAnalyzeBtn() + startAnalysis()의 finally 2곳 모두.
+    (
+        "!(buyLoaded && sellLoaded)",
+        "!buyLoaded  /* [모음전] 매출=마켓API(분석시점)·샵마인 보조업로드 OPTIONAL → 매입만으로 활성 */",
+        2,
+    ),
 ]
 
 
 def transform(original_text: str) -> str:
-    """원본 index.html 텍스트에 9개 씨앗 치환을 적용해 margin_embed.html 텍스트를 반환.
+    """원본 index.html 텍스트에 씨앗 치환(8종/11회)을 적용해 margin_embed.html 텍스트를 반환.
 
     순수 함수 — 파일 I/O 없음. 각 씨앗의 발생 횟수가 기대와 다르면 ValueError 로 크게
     실패한다(상류 원본 변경으로 씨앗이 어긋나면 조용히 넘어가지 않도록).

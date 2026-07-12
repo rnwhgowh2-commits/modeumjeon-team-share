@@ -1245,7 +1245,7 @@ function setStatus(type, kind, msg) {
 }
 
 function updateAnalyzeBtn() {
-  document.getElementById('analyzeBtn').disabled = !(buyLoaded && sellLoaded);
+  document.getElementById('analyzeBtn').disabled = !buyLoaded  /* [모음전] 매출=마켓API(분석시점)·샵마인 보조업로드 OPTIONAL → 매입만으로 활성 */;
 }
 
 /* ══════════════════════════════════════════════════════
@@ -1322,7 +1322,7 @@ async function startAnalysis() {
   } catch (e) {
     msg.textContent = '오류: ' + e.message;
   } finally {
-    btn.disabled = !(buyLoaded && sellLoaded);
+    btn.disabled = !buyLoaded  /* [모음전] 매출=마켓API(분석시점)·샵마인 보조업로드 OPTIONAL → 매입만으로 활성 */;
   }
 }
 
