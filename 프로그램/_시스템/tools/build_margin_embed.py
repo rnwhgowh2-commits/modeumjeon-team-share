@@ -37,9 +37,13 @@ DST = pathlib.Path(__file__).resolve().parents[1] / "webapp" / "templates" / "or
 # 순서는 무의미(문자열이 서로 겹치지 않음). 각 old 는 원본에서 정확히 count 회.
 SEAMS: list[tuple[str, str, int]] = [
     # 1) 자산 참조 (원본 841행) — 모음전 static/margin_rules.js (js/ 하위경로 제거)
+    #    + [E2] 소싱처 주문상태 검사 seam 스크립트 주입 (원본 fetch('/api/check-sourcing')
+    #      대체 = window._moumExtCheckFetch → 부모 MoumExt 로컬 크롬확장). iframe 이 부모와
+    #      same-origin 이므로 이 파일이 로드되어 window.parent.MoumExt.send 를 호출한다.
     (
         "<script src=\"{{ url_for('static', filename='js/margin_rules.js') }}\"></script>",
-        "<script src=\"{{ url_for('static', filename='margin_rules.js') }}\"></script>",
+        "<script src=\"{{ url_for('static', filename='margin_rules.js') }}\"></script>\n"
+        "  <script src=\"{{ url_for('static', filename='margin_ext_check.js') }}\"></script>",
         1,
     ),
     # 2) 업로드 FormData 필드: 원본 buy_file/sell_file → 모음전 'file'
@@ -104,6 +108,17 @@ SEAMS: list[tuple[str, str, int]] = [
         "        if (logContent) logContent.textContent = logs + '\\n\\n' + summary;\n"
         "        var _mSupp = document.getElementById('supp_input_' + uid); if (_mSupp) _mSupp.value = res.order_no;  /* [모음전] 무상태 → 재분석(로그 삭제) 대신 반영칸 프리필 */",
         1,
+    ),
+    # 11) [모음전 신규 씨앗 · E2] 소싱처 주문상태 확인 = 서버 Playwright(/api/check-sourcing) 제거
+    #     → 로컬 크롬확장(window._moumExtCheckFetch, margin_ext_check.js 가 정의). 크롤=로컬 원칙.
+    #     단일확인(checkSourcing)·일괄확인(_runBatchSourcingCheck) 2곳의 fetch 호출부만 치환한다.
+    #     소비 코드(`var result = await resp.json();` + result.status/courier/tracking/error 사용)는
+    #     그대로 — _moumExtCheckFetch 가 .json() 으로 동일 형태를 반환한다(다른 라인 무변경).
+    #     확장 미설치/미로그인/파싱실패는 margin_ext_check.js 에서 정직하게 error 로 표면화.
+    (
+        "fetch('/api/check-sourcing', {",
+        "_moumExtCheckFetch('/api/check-sourcing', {",
+        2,
     ),
 ]
 

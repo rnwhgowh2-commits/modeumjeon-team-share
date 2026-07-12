@@ -47,6 +47,7 @@ _SEAM_TOKENS = (
     "buyLoaded",                            # 분석버튼 게이트 (buyLoaded&&sellLoaded ↔ buyLoaded)
     "/api/blackspot/fetch_order_no", "_mMissRow",  # 소싱처 주문번호 추출 — 무상태 서버에 memo 동봉
     "const summary", "analyzeAndRender", "_mSupp",  # 추출 성공 UX — 거짓 카운트 제거 + 반영칸 프리필
+    "margin_ext_check.js", "_moumExtCheckFetch", "/api/check-sourcing",  # [E2] 소싱처 주문상태 = 서버 Playwright 제거 → 로컬 크롬확장
 )
 
 

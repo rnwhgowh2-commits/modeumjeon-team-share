@@ -839,6 +839,7 @@ tr.cross-detail td{padding:0 !important;border-bottom:2px solid #000 !important}
 .sum-abn .sa-go{font-size:12px;color:#F04452;font-weight:800;border:1px solid #F04452;border-radius:6px;padding:2px 9px;white-space:nowrap;}
 </style>
 <script src="{{ url_for('static', filename='margin_rules.js') }}"></script>
+  <script src="{{ url_for('static', filename='margin_ext_check.js') }}"></script>
 </head>
 <body>
 
@@ -9506,7 +9507,7 @@ async function checkSourcing(idx) {
   }
   _updateSingleRowSourcingCell(idx, '⏳ 확인 중...', 'tag-gray');
   try {
-    var resp = await fetch('/api/check-sourcing', {
+    var resp = await _moumExtCheckFetch('/api/check-sourcing', {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({memo: memo, idx: idx})
@@ -9691,7 +9692,7 @@ async function _runBatchSourcingCheck(targets, label) {
       /* 백엔드에는 숫자 idx만 의미 있음 — 복합키인 경우 -1 전송 (UI 업데이트는 srcKey로 수행) */
       var backendIdx = (typeof srcKey === 'number') ? srcKey
                      : (/^-?\d+$/.test(String(srcKey)) ? Number(srcKey) : -1);
-      var resp = await fetch('/api/check-sourcing', {
+      var resp = await _moumExtCheckFetch('/api/check-sourcing', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({memo: row['간단메모'], idx: backendIdx}),

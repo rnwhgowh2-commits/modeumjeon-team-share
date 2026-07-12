@@ -12,7 +12,7 @@
 
 // [2026-07-05 병합] 리포 확장은 stale(실제 로드=Desktop moum-crawler-v0.7.14, 별도 동기화 예정).
 // 두 갈래 0.7.6 병합: 자동화 워커(due-bundles 폴링→기존 크롤 큐 위임) + 무신사 상품쿠폰 전량수집.
-const MOUM_EXT_VERSION = "0.7.17";  // 0.7.17 = 실시간 집계(agg done/total) 브로드캐스트 → 자동화 링이 위젯과 동일. 0.7.16 = 상세 전체크롤 최우선. 0.7.6 = 자동화 워커 폴링 + 무신사 상품쿠폰(product_coupon_list) 전량수집 API우선+DOM폴백. 0.7.5 = manifest 버전동기화. 0.7.4 = content_mou 백그라운드 로그 중계. 0.7.3 = 현대H몰 sellGbcd 품절판정(S19). 0.6.x: 백그라운드 크롤 상태 영속+SW 자동재개
+const MOUM_EXT_VERSION = "0.7.18";  // 0.7.18 = [E2] 마진계산기 소싱처 주문상태 확인(sourcing.check-order → 주문 URL 창 오픈+사이트별 파서 주입, 크롤=로컬). 0.7.17 = 실시간 집계(agg done/total) 브로드캐스트 → 자동화 링이 위젯과 동일. 0.7.16 = 상세 전체크롤 최우선. 0.7.6 = 자동화 워커 폴링 + 무신사 상품쿠폰(product_coupon_list) 전량수집 API우선+DOM폴백. 0.7.5 = manifest 버전동기화. 0.7.4 = content_mou 백그라운드 로그 중계. 0.7.3 = 현대H몰 sellGbcd 품절판정(S19). 0.6.x: 백그라운드 크롤 상태 영속+SW 자동재개
 
 // cascade 위치 시퀀서 — 창이 여러 개 열려도 서로 어긋나 보임
 let _winSeq = 0;
@@ -62,6 +62,19 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     handleCloseWin(msg.payload || {})
       .then((r) => sendResponse(r))
       .catch((e) => sendResponse({ ok: false, error: String(e && e.message ? e.message : e) }));
+    return true; // async
+  }
+  // ── [2026-07-12 · Task E2] 소싱처 주문상태 확인 (마진계산기 '✓ 확인' 버튼) ──
+  //   서버 Playwright(원본 /api/check-sourcing) 를 대체 — 로그인된 이 브라우저로 주문 URL 을 열어
+  //   사이트별 파서를 주입해 상태를 읽고 창을 닫는다(크롤=로컬 원칙). 미로그인/파싱실패 정직 표면화.
+  if (type === "sourcing.check-order") {
+    handleCheckOrder(msg.payload || {})
+      .then((r) => sendResponse(r))
+      .catch((e) => sendResponse({
+        ok: false, order_status: "", courier: "", tracking: "",
+        site_name: (msg.payload || {}).site_name || "", source: "ext-local", logs: [],
+        is_logged_in: null, error: String(e && e.message ? e.message : e),
+      }));
     return true; // async
   }
   if (type === "sysinfo") {
@@ -420,6 +433,183 @@ async function handleCloseWin(payload) {
   if (winId == null) return { ok: true };
   try { await chrome.windows.remove(winId); } catch (_) {}
   return { ok: true };
+}
+
+// ── [Task E2] 소싱처 주문상태 확인 ─────────────────────────────────────────
+//   원본(단독앱) modules/sourcing_checker.py 의 check_order_sync → check_order_status 를
+//   메커니즘만 이식: Python Playwright(전용 프로필) 대신, 로그인된 이 브라우저에서 주문 URL 을
+//   보이는 창(focused:false)으로 열고 → 사이트별 파서(orderStatusExtractor)를 chrome.scripting
+//   으로 주입해 상태를 읽고 → 창을 닫는다(handleCrawl/crawlOne 의 탭 수명주기와 동일).
+//
+//   반환: { ok, order_status, courier, tracking, site_name, source, logs, error, is_logged_in }
+//     · ok=true       : 확정된 상태(배송완료/배송중/취소/반품/교환/미발송)를 읽음
+//     · is_logged_in=false : 로그인 페이지로 리다이렉트됨 → 거짓 성공 금지, 정직 표면화
+//     · 그 외          : 확인불가/파싱실패 사유를 error 에 담아 반환
+//   창 누수 방지: 성공/실패/예외 무관하게 finally 에서 창을 닫는다.
+async function handleCheckOrder(payload) {
+  const url = payload.url || "";
+  const siteKey = payload.site_key || "";
+  const siteName = payload.site_name || "";
+  const logs = [];
+  const fail = (error, extra) => Object.assign({
+    ok: false, order_status: "", courier: "", tracking: "",
+    site_name: siteName, source: "ext-local", logs, is_logged_in: null, error,
+  }, extra || {});
+
+  if (!url) return fail("주문 URL 없음");
+  logs.push("[1/3] 로그인된 브라우저로 주문 URL 열기: " + url);
+
+  let win = null;
+  try {
+    win = await chrome.windows.create({ url, focused: false });
+    const tab = win && win.tabs && win.tabs[0];
+    if (!tab) return fail("주문 확인 창 생성 실패");
+    const tabId = tab.id;
+    await waitTabComplete(tabId, 25000);
+    // SPA(무신사 등) 상태/송장 DOM 이 로드 완료 뒤 늦게 뜰 수 있어 안정화 대기.
+    await new Promise((r) => setTimeout(r, 2500));
+    logs.push("[2/3] 페이지 로드 완료 → 사이트별 상태 파싱(site_key=" + (siteKey || "generic") + ")");
+
+    const out = await chrome.scripting.executeScript({
+      target: { tabId }, world: "ISOLATED",
+      func: orderStatusExtractor, args: [siteKey],
+    });
+    const res = (out && out[0] && out[0].result) || null;
+    if (!res) return fail("상태 파싱 결과 없음(주입 실패)");
+
+    if (res.status === "로그인필요") {
+      logs.push("[3/3] 로그인 리다이렉트 감지 → 로그인 필요");
+      return {
+        ok: false, order_status: "", courier: "", tracking: "",
+        site_name: siteName, source: "ext-local", logs, is_logged_in: false,
+        error: "로그인 필요 — 이 브라우저에서 소싱처에 로그인 후 재시도",
+      };
+    }
+    logs.push("[3/3] 상태: " + (res.status || "확인불가") + (res.detail ? (" (" + res.detail + ")") : ""));
+    const confirmed = !!(res.status && res.status !== "확인불가" && !res.error);
+    return {
+      ok: confirmed,
+      order_status: res.status || "확인불가",
+      courier: res.courier || "",
+      tracking: res.tracking || "",
+      site_name: siteName, source: "ext-local", logs, is_logged_in: true,
+      error: res.error || "",
+    };
+  } catch (e) {
+    return fail(String(e && e.message ? e.message : e));
+  } finally {
+    if (win && win.id != null) { try { await chrome.windows.remove(win.id); } catch (_) {} }
+  }
+}
+
+// orderStatusExtractor — 주문상세 페이지 컨텍스트(ISOLATED world)에서 실행되는 순수 파서.
+//   ⚠️ 이 함수는 chrome.scripting 이 문자열화해 페이지에 주입한다 → 바깥 스코프 변수 참조 금지.
+//      (site_key 는 args 로 전달됨.) 페이지 DOM 을 변형(버튼/메뉴 제거)하나 창은 곧 닫히므로 무해.
+//
+//   원본 sourcing_checker.py 이식(메커니즘 아닌 로직):
+//     · _check_login_redirect  (URL 로그인 키워드)                         원본 2038
+//     · _check_musinsa         (p.company-name / button.tracking-number)   원본 2067
+//     · _check_ssfshop         (checkDelivery onclick 파싱)                원본 2202
+//     · _extract_status_from_labels + _classify_status_text (범용 라벨/키워드) 원본 2281·2300
+//     · _DOM_CLEAN_JS          (버튼/메뉴 제거 → '반품 신청' 버튼 오탐 방지)  원본 2329
+//   미이식(라이브 확정 필요): 무신사 '배송 조회' 버튼 클릭 흐름·롯데 DeliveryTrace URL 이동·
+//     쿠키 복원/자동로그인·오판 스냅샷 저장. → 송장/택배사는 best-effort.
+function orderStatusExtractor(siteKey) {
+  var S = {
+    DELIVERED: "배송완료", SHIPPING: "배송중", NOT_SENT: "주문완료(미발송)",
+    CANCEL: "취소", RETURN: "반품", EXCHANGE: "교환", UNKNOWN: "확인불가", LOGIN: "로그인필요",
+  };
+  function has(t, arr) { for (var i = 0; i < arr.length; i++) { if (t.indexOf(arr[i]) >= 0) return true; } return false; }
+
+  // 0) 로그인 리다이렉트 감지 (원본 _check_login_redirect)
+  var href = (location.href || "").toLowerCase();
+  if (has(href, ["login", "member.one", "signin", "sign-in", "/auth", "lcloginmem"])) {
+    return { status: S.LOGIN, courier: "", tracking: "", detail: "로그인 리다이렉트", error: "" };
+  }
+
+  var rawBody = "";
+  try { rawBody = (document.body && document.body.innerText) || ""; } catch (e) { rawBody = ""; }
+  if (!rawBody || rawBody.length < 20) {
+    return { status: S.UNKNOWN, courier: "", tracking: "", detail: "", error: "페이지 본문 비어있음(렌더 실패/미로그인 가능)" };
+  }
+  // 없는 주문/접근 오류 = 계정불일치/번호오류 가능 → 정직하게 확인불가+사유
+  if (has(rawBody, ["주문정보를 찾을 수 없", "주문 정보가 없", "존재하지 않는 주문", "찾을 수 없습니다"])) {
+    return { status: S.UNKNOWN, courier: "", tracking: "", detail: "", error: "주문 정보 없음(계정 불일치/주문번호 오류 가능)" };
+  }
+
+  // 1) 택배사/송장 — 사이트별 셀렉터 우선, 실패 시 범용 라벨 패턴 (DOM 변형 전에 raw 에서 추출)
+  var courier = "", tracking = "";
+  var COURIERS = ["CJ대한통운", "롯데글로벌로지스", "대한통운", "한진택배", "롯데택배", "우체국택배", "로젠택배", "경동택배"];
+  for (var ci = 0; ci < COURIERS.length; ci++) { if (rawBody.indexOf(COURIERS[ci]) >= 0) { courier = COURIERS[ci]; break; } }
+  try {
+    if (siteKey === "musinsa") {
+      var cn = document.querySelector("p.company-name"); if (cn && (cn.innerText || "").trim()) courier = cn.innerText.trim();
+      var tn = document.querySelector("button.tracking-number"); if (tn) tracking = (tn.innerText || "").trim();
+    } else if (siteKey === "ssfshop") {
+      var btn = document.querySelector('button[onclick*="checkDelivery"]');
+      if (btn) {
+        var oc = btn.getAttribute("onclick") || "";
+        var mm = oc.match(/checkDelivery\s*\(\s*['"]([^'"]*)['"]\s*,\s*['"]([^'"]*)['"]/);
+        if (mm) { if (mm[1]) courier = mm[1]; tracking = mm[2] || ""; }
+      }
+    }
+  } catch (e) { /* 셀렉터 실패 → 범용 폴백 */ }
+  if (!tracking) {
+    var TW = ["송장번호", "운송장번호", "운송장", "송장", "트래킹", "tracking"];
+    for (var ti = 0; ti < TW.length; ti++) {
+      var kw = TW[ti].replace(/\s+/g, "\\s*");
+      var m2 = rawBody.match(new RegExp(kw + "\\s*[:：#(]?\\s*([A-Z0-9\\-]{9,20})", "i"));
+      if (m2) {
+        var cand = m2[1];
+        // 전화번호(0으로 시작 10~11자리) 배제
+        if (/\d/.test(cand) && !/^0\d{8,10}$/.test(cand.replace(/[-\s]/g, ""))) { tracking = cand; break; }
+      }
+    }
+  }
+
+  // 2) 상태 판별용 정제 텍스트 — 버튼/메뉴 제거로 '반품 신청'·'교환 신청' 버튼 오탐 방지 (원본 _DOM_CLEAN_JS)
+  var cleanBody = rawBody;
+  try {
+    var kill = [
+      "button", "a.btn", 'a[class*="btn"]', ".btn-area", ".btns", ".btn-group",
+      '[class*="button"]', '[role="button"]', 'input[type="button"]', 'input[type="submit"]',
+      "nav", ".gnb", ".lnb", ".side-menu", ".snb", ".menu", ".category",
+      "footer", "header", ".header", ".util", ".util-menu", ".quick-menu",
+      ".order-btn", ".action-area", ".cs-area", ".cs-menu",
+    ];
+    kill.forEach(function (sel) {
+      try { document.querySelectorAll(sel).forEach(function (el) { el.remove(); }); } catch (e) {}
+    });
+    cleanBody = (document.body && document.body.innerText) || rawBody;
+  } catch (e) { cleanBody = rawBody; }
+
+  // 3) 상태 분류 (원본 _classify_status_text — 종결상태 우선순위: 배송완료 > 반품완료 > 취소 > 반품접수 > 교환 > 배송중 > 미발송)
+  function classify(text) {
+    if (has(text, ["배송완료", "배달완료"])) return [S.DELIVERED, "배송완료 감지"];
+    if (has(text, ["반품완료", "반품 완료", "반품처리완료"])) return [S.RETURN, "반품완료 감지"];
+    if (has(text, ["주문취소", "취소완료", "결제취소", "취소 완료"])) return [S.CANCEL, "취소 감지"];
+    if (has(text, ["반품접수", "반품신청"])) return [S.RETURN, "반품접수 감지"];
+    if (has(text, ["교환완료", "교환 완료", "교환접수", "교환신청"])) return [S.EXCHANGE, "교환 감지"];
+    if (has(text, ["배송중", "배송 중", "배달중", "배송출발", "간선상차"])) return [S.SHIPPING, "배송중 감지"];
+    if (has(text, ["발송완료", "발송 완료", "출고완료", "출고 완료"])) return [S.SHIPPING, "발송완료 감지"];
+    if (has(text, ["결제완료", "주문접수", "상품준비", "주문완료", "입금완료"])) return [S.NOT_SENT, "미발송 감지"];
+    return ["", ""];
+  }
+  // 3a) 라벨 우선 ("주문상태: 배송완료" 등) — 원본 _extract_status_from_labels
+  var labels = ["주문상태", "배송상태", "처리상태", "현재상태", "진행상태"];
+  var labelVal = "";
+  for (var li = 0; li < labels.length; li++) {
+    var lm = cleanBody.match(new RegExp(labels[li] + "\\s*[:：\\n\\r\\s]+([가-힣A-Za-z0-9/\\s]{2,20}?)(?:\\n|$|\\s{2,})"));
+    if (lm) { var v = (lm[1] || "").trim(); if (v.length >= 2 && v.length <= 15) { labelVal = v; break; } }
+  }
+  var st = "", dt = "";
+  if (labelVal) { var r1 = classify(labelVal); if (r1[0]) { st = r1[0]; dt = "라벨[" + labelVal + "]→" + r1[1]; } }
+  if (!st) { var r2 = classify(cleanBody); st = r2[0]; dt = r2[1]; }
+  if (!st) {
+    if (tracking) { st = S.SHIPPING; dt = "송장번호 발견"; }
+    else { st = S.UNKNOWN; dt = "상태 판별 불가"; }
+  }
+  return { status: st, courier: courier, tracking: tracking, detail: dt, error: "" };
 }
 
 // ── 시스템 신호(보조): CPU/메모리 사용률 0~100. 권한·측정 실패 시 null. ──
