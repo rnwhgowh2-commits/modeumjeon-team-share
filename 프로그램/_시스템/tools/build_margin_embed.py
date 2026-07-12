@@ -91,6 +91,20 @@ SEAMS: list[tuple[str, str, int]] = [
         "  fetch('/api/blackspot/fetch_order_no', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({uid:uid, memo:(_mMissRow['간단메모']||'')})})  /* [모음전] memo 동봉 (_mMissRow) */",
         1,
     ),
+    # 10) [모음전 신규 씨앗] 추출 성공 UX — 무상태 서버는 재매칭을 안 하므로:
+    #     (a) '매칭 N건, 미기입 N건' 조각은 undefined 만 보여주고 거짓 숫자를 암시 → 제거.
+    #     (b) analyzeAndRender()(재분석=로그 삭제)로 추출값을 날리는 대신, 반영칸
+    #         (supp_input_<uid>)에 프리필해 사용자가 [✏️ 반영] 으로 확정하게 한다.
+    #     로그는 그대로 유지. (검증 기준 = 사용자가 화면에서 보는 것)
+    (
+        "        const summary = '✅ ' + (res.site_name || '소싱처') + ' 주문번호: ' + res.order_no + ' (출처: ' + res.source + ')\\n매칭 ' + res.matched_count + '건, 미기입 ' + res.missing_count + '건';\n"
+        "        if (logContent) logContent.textContent = logs + '\\n\\n' + summary;\n"
+        "        analyzeAndRender();",
+        "        const summary = '✅ ' + (res.site_name || '소싱처') + ' 주문번호: ' + res.order_no + ' (출처: ' + res.source + ')';  /* [모음전] 무상태 → 매칭/미기입 카운트 없음(거짓 숫자 금지) */\n"
+        "        if (logContent) logContent.textContent = logs + '\\n\\n' + summary;\n"
+        "        var _mSupp = document.getElementById('supp_input_' + uid); if (_mSupp) _mSupp.value = res.order_no;  /* [모음전] 무상태 → 재분석(로그 삭제) 대신 반영칸 프리필 */",
+        1,
+    ),
 ]
 
 

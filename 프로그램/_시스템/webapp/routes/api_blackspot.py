@@ -41,3 +41,21 @@ def api_fetch_order_no():
     memo = body.get("memo", "")
     # 메모가 아예 안 오면(씨앗 미적용 캐시 등) 파서가 '간단메모 비어있음' 실패를 정직하게 반환.
     return jsonify(fetch_order_no(memo))
+
+
+@bp.route("/manual_order_no", methods=["POST"])
+def api_manual_order_no():
+    """[정직한 미지원 스텁] 주문번호 수동 반영·재매칭.
+
+    페이지의 [✏️ 반영] 버튼(`submitManualOrderNo`)이 이 경로로 POST 한다. 원본은
+    supplement 저장 + 전체 재매칭을 했지만, 그건 무상태 모음전 서버가 갖지 못한
+    stateful 워크플로(별도 후속 작업)다. 아직 미구현이므로 **재매칭을 꾸며내지 않고**
+    HTTP 200 + success:false + 명확한 안내 문구를 돌려준다. 이렇게 해야 페이지가
+    404 raw 실패(‘통신 오류’)로 사용자를 혼란시키지 않고, 안내 메시지를 그대로 띄운다
+    (submitManualOrderNo 는 `res.error` 를 alert 로 표시).
+    """
+    return jsonify({
+        "success": False,
+        "error": "주문번호 반영·재매칭은 아직 지원되지 않습니다 "
+                 "(더망고 매입 엑셀에 직접 입력 후 재분석하세요).",
+    })

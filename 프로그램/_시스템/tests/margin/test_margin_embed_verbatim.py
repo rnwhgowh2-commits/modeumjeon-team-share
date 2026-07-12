@@ -46,6 +46,7 @@ _SEAM_TOKENS = (
     "analysis_id: (window.analysisData",    # 내보내기 body 주입
     "buyLoaded",                            # 분석버튼 게이트 (buyLoaded&&sellLoaded ↔ buyLoaded)
     "/api/blackspot/fetch_order_no", "_mMissRow",  # 소싱처 주문번호 추출 — 무상태 서버에 memo 동봉
+    "const summary", "analyzeAndRender", "_mSupp",  # 추출 성공 UX — 거짓 카운트 제거 + 반영칸 프리필
 )
 
 

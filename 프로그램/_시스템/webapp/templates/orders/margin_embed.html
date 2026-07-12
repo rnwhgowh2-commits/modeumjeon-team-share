@@ -8709,9 +8709,9 @@ function fetchOrderNoFromSource(uid) {
       if (res.error && !res.success && !res.logs) { if (logContent) logContent.textContent = '❌ 오류: ' + res.error; return; }
       const logs = (res.logs || []).join('\n');
       if (res.success) {
-        const summary = '✅ ' + (res.site_name || '소싱처') + ' 주문번호: ' + res.order_no + ' (출처: ' + res.source + ')\n매칭 ' + res.matched_count + '건, 미기입 ' + res.missing_count + '건';
+        const summary = '✅ ' + (res.site_name || '소싱처') + ' 주문번호: ' + res.order_no + ' (출처: ' + res.source + ')';  /* [모음전] 무상태 → 매칭/미기입 카운트 없음(거짓 숫자 금지) */
         if (logContent) logContent.textContent = logs + '\n\n' + summary;
-        analyzeAndRender();
+        var _mSupp = document.getElementById('supp_input_' + uid); if (_mSupp) _mSupp.value = res.order_no;  /* [모음전] 무상태 → 재분석(로그 삭제) 대신 반영칸 프리필 */
       } else {
         if (logContent) logContent.textContent = logs + '\n\n❌ ' + (res.error || '추출 실패') + '\n→ 좌측 입력칸에 직접 주문번호를 입력 후 [✏️ 반영] 을 눌러주세요.';
       }

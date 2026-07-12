@@ -73,6 +73,20 @@ def test_no_fabricated_counts(client):
     assert "missing_count" not in b
 
 
+def test_manual_order_no_honest_unsupported_stub(client):
+    """[✏️ 반영] → /api/blackspot/manual_order_no: 재매칭은 미지원이므로 200 + success:false
+    + 명확한 안내(404 raw 실패로 사용자 혼란시키지 않음, 재매칭 꾸며내지 않음)."""
+    r = client.post("/api/blackspot/manual_order_no",
+                    json={"uid": "m_0", "site_order_no": "202508031019270004"})
+    assert r.status_code == 200
+    b = r.get_json()
+    assert b["success"] is False
+    assert "아직 지원되지 않습니다" in b["error"]
+    # 거짓 재매칭 숫자를 만들어내지 않는다.
+    assert "matched_count" not in b
+    assert "missing_count" not in b
+
+
 def test_route_registered_at_exact_literal_path():
     """리터럴 경로가 정확히 /api/blackspot/fetch_order_no 로 매핑된다(페이지가 하드코딩)."""
     app = Flask(__name__)
