@@ -495,7 +495,8 @@ def _mango_to_dict(o):
         'mango_status': o.mango_status, 'market_status': o.market_status,
         'method': o.delivery_method, 'method_source': o.delivery_method_source,
         # v2 마켓 실데이터
-        'market_api_status': o.market_api_status, 'market_api_invoice': o.market_api_invoice or '',
+        'market_api_status': o.market_api_status, 'market_api_status_raw': o.market_api_status_raw or '',
+        'market_api_invoice': o.market_api_invoice or '',
         'why_error': o.market_check_error,
     }
 
@@ -548,7 +549,8 @@ def inspect_upload():
     s = SessionLocal()
     try:
         _dsvc.seed_default_status_map(s)
-        res = _dsvc.upsert_orders(s, rows, bulk_method=bulk)
+        # 실제 업로드 = 최신 스냅샷(이번 목록에 없는 옛 더망고 주문 삭제 → 누적 방지)
+        res = _dsvc.upsert_orders(s, rows, bulk_method=bulk, replace_stale=True)
         # 업로드 즉시 마켓 API 조회(오픈마켓주문번호 매칭 → 실상태·실송장 캐시)
         from lemouton.delivery import market_enrich as _me
         uids = [r["mango_uid"] for r in rows]
@@ -560,6 +562,17 @@ def inspect_upload():
             warn.append(f"마켓 조회 실패: {type(e).__name__}")
         return jsonify(ok=True, inserted=res['inserted'], updated=res['updated'],
                        parsed=len(rows), market_checked=enr.get('checked', 0), warnings=warn)
+    finally:
+        s.close()
+
+
+@bp.route('/inspect/clear', methods=['POST'])
+def inspect_clear():
+    """배송검사 초기화 — 더망고 주문 전량 삭제(미실시 0 상태로)."""
+    s = SessionLocal()
+    try:
+        n = _dsvc.clear_orders(s)
+        return jsonify(ok=True, deleted=n)
     finally:
         s.close()
 

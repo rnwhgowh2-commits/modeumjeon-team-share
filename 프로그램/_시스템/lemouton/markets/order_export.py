@@ -129,7 +129,7 @@ def _g(o, *keys, default=""):
 
 
 def smartstore_order_rows(since: _dt.datetime, until: _dt.datetime,
-                          client=None) -> list:
+                          client=None, include_settlement: bool = True) -> list:
     """스마트스토어 [since,until] 주문 → 16컬럼 행(dict) 리스트.
 
     변경 상품주문 내역 조회(정식 코드) → 상세 → 정산예정금액(결제일 기준) 조인.
@@ -158,9 +158,11 @@ def smartstore_order_rows(since: _dt.datetime, until: _dt.datetime,
         detail += (d.get("data", d) if isinstance(d, dict) else d) or []
 
     # 정산(결제일 기준, 하루씩): 상품(productOrderId) + 배송비(DELIVERY→orderId) 별도 맵.
+    # include_settlement=False(배송검사 등 주문상태·송장만 필요) 면 이 하루씩 루프를 건너뛴다
+    # — 넓은 조회창에서 하루씩 정산 호출이 타임아웃의 원인.
     prod_settle, deliv_settle = {}, {}
     day = since
-    while day <= until:
+    while include_settlement and day <= until:
         try:
             p, d = _settle.settle_expect_maps(
                 search_date=day.strftime("%Y-%m-%d"),
@@ -209,6 +211,7 @@ def smartstore_order_rows(since: _dt.datetime, until: _dt.datetime,
             "정산예정금액": settle_val,
             "_settle_source": "real" if settle_val != "" else "none",
             "주문상태": _status_ko("smartstore", _g(po, "productOrderStatus")),
+            "주문상태원본": _g(po, "productOrderStatus"),
             "오픈마켓주문번호": poid or oid,
             "실결제금액": _g(po, "totalPaymentAmount", default=""),   # 할인 반영 실결제
             "옵션추가금": _g(po, "optionPrice", default=""),
@@ -220,7 +223,7 @@ def smartstore_order_rows(since: _dt.datetime, until: _dt.datetime,
 
 
 def lotteon_order_rows(since: _dt.datetime, until: _dt.datetime,
-                       client=None) -> list:
+                       client=None, include_settlement: bool = True) -> list:
     """롯데온 출고/회수지시(주문정보) → 16컬럼 행(dict) 리스트.
 
     apiNo=209 SellerDeliveryOrdersSearch(하루 윈도우) 응답 deliveryOrderList 매핑.
@@ -265,6 +268,7 @@ def lotteon_order_rows(since: _dt.datetime, until: _dt.datetime,
             "정산예정금액": _g(od, "actualAmt", default=""),   # 실결제(상품+배송비-할인) 근사
             "_settle_source": "none",   # 아래 SettleCommission 조인 성공 시 real 로 승격
             "주문상태": _status_ko("lotteon", _g(od, "odPrgsStepCd")),
+            "주문상태원본": _g(od, "odPrgsStepCd"),
             "오픈마켓주문번호": _g(od, "odNo"),
             "실결제금액": _g(od, "actualAmt", default=""),   # 실결제(정산예상은 주문API 없음→수수료 공란)
             # 송장은 출고지시(209) 응답에 **없다** — 진행단계(140)의 invcNo 가 정본.
@@ -352,6 +356,7 @@ def lotteon_order_rows(since: _dt.datetime, until: _dt.datetime,
             hit = prog.get((odno, str(r.get("_odseq")))) or prog_od.get(odno)
             if hit:
                 r["주문상태"] = _status_ko("lotteon", hit[1])
+                r["주문상태원본"] = hit[1]
                 if hit[2]:
                     r["송장입력"] = hit[2]
 
@@ -360,7 +365,8 @@ def lotteon_order_rows(since: _dt.datetime, until: _dt.datetime,
     #  따라서 수수료 조회창을 [주문창 시작 ~ 지금]으로 넓혀 odNo로 조인(창을 주문창으로만 두면 안 겹침).
     #  odNo 매칭이라 넓혀도 안전(우리 주문에 없는 odNo는 무시). _finalize가 실값 우선 사용.
     try:
-        cmap = _clm.commission_map(since, max(until, now), client=client)
+        cmap = _clm.commission_map(since, max(until, now), client=client) \
+            if include_settlement else {}
     except Exception:   # noqa: BLE001
         cmap = {}
     if cmap:
@@ -393,7 +399,7 @@ def _cp_windows(since: _dt.datetime, until: _dt.datetime, days: int = 30):
 
 
 def coupang_order_rows(since: _dt.datetime, until: _dt.datetime,
-                       client=None) -> list:
+                       client=None, include_settlement: bool = True) -> list:
     """쿠팡 발주서 목록 → 16컬럼 행(dict). status별(공식 필수) 순회 + nextToken 페이징.
     조회 최대 31일 제약 → _cp_windows 로 30일 분할(긴 기간·통합 조회 400 방지).
 
@@ -448,6 +454,7 @@ def coupang_order_rows(since: _dt.datetime, until: _dt.datetime,
                         "배송비": ship,
                         "정산예정금액": "",
                         "주문상태": _status_ko("coupang", box.get("status") or st),
+                        "주문상태원본": box.get("status") or st,
                         "오픈마켓주문번호": box.get("orderId") or "",
                         "송장입력": it.get("invoiceNumber") or box.get("invoiceNumber") or "",
                     })
@@ -460,7 +467,8 @@ def coupang_order_rows(since: _dt.datetime, until: _dt.datetime,
     #  2) 미정산(최근): 추정 = round(단가×수량×0.8845) + round(배송비×0.8845).
     #     ⚠️ 배송비 실수수료율은 상품과 달라(문서 확인) 추정의 배송비분은 근사.
     try:
-        item_settle, deliv_settle = _coupang_settle_map(since, until, client)
+        item_settle, deliv_settle = _coupang_settle_map(since, until, client) \
+            if include_settlement else ({}, {})
     except Exception:
         item_settle, deliv_settle = {}, {}
     _deliv_used = set()
@@ -617,7 +625,7 @@ def _esm_option(lst) -> str:
 
 
 def esm_order_rows(market: str, since: _dt.datetime, until: _dt.datetime,
-                   client=None) -> list:
+                   client=None, include_settlement: bool = True) -> list:
     """옥션·G마켓(ESM 2.0) 주문조회 → 행(dict) 리스트. RequestOrders 응답 매핑.
 
     market = "auction" | "gmarket". 정산예정금액 = 판매대금 정산조회(getsettleorder)를 주문번호
@@ -651,6 +659,7 @@ def esm_order_rows(market: str, since: _dt.datetime, until: _dt.datetime,
             "정산예정금액": "",   # 아래 정산 조인으로 채움(미정산=공란)
             "_settle_source": "none",   # 아래 정산 조인 성공 시 real 로 승격
             "주문상태": _status_ko("esm", _g(od, "OrderStatus")),
+            "주문상태원본": _g(od, "OrderStatus"),
             "오픈마켓주문번호": _g(od, "OrderNo"),
         })
 
@@ -670,15 +679,20 @@ def esm_order_rows(market: str, since: _dt.datetime, until: _dt.datetime,
     return rows
 
 
-def auction_order_rows(since: _dt.datetime, until: _dt.datetime, client=None) -> list:
-    return esm_order_rows("auction", since, until, client=client)
+def auction_order_rows(since: _dt.datetime, until: _dt.datetime, client=None,
+                       include_settlement: bool = True) -> list:
+    return esm_order_rows("auction", since, until, client=client,
+                          include_settlement=include_settlement)
 
 
-def gmarket_order_rows(since: _dt.datetime, until: _dt.datetime, client=None) -> list:
-    return esm_order_rows("gmarket", since, until, client=client)
+def gmarket_order_rows(since: _dt.datetime, until: _dt.datetime, client=None,
+                       include_settlement: bool = True) -> list:
+    return esm_order_rows("gmarket", since, until, client=client,
+                          include_settlement=include_settlement)
 
 
-def eleven11_order_rows(since: _dt.datetime, until: _dt.datetime, client=None) -> list:
+def eleven11_order_rows(since: _dt.datetime, until: _dt.datetime, client=None,
+                        include_settlement: bool = True) -> list:
     """11번가 주문 → 행(dict). 상태별 API 3종 병합(전체 라이프사이클).
 
     11번가는 주문을 상태별 API로 나눠 줌 → 3종을 합쳐 전체 상태 표시:
@@ -912,6 +926,7 @@ def order_rows(market: str, days: int = 7, client=None,
                now: Optional[_dt.datetime] = None,
                since: Optional[_dt.datetime] = None,
                until: Optional[_dt.datetime] = None,
+               include_settlement: bool = True,
                warnings: Optional[list] = None) -> list:
     """마켓별 주문 행. 미지원(UI) 마켓은 ValueError(추측 데이터 안 만듦).
 
@@ -935,7 +950,8 @@ def order_rows(market: str, days: int = 7, client=None,
         since = until - _dt.timedelta(days=days)
 
     def _rows_for(cli, alias):
-        rs = _finalize_rows(_BUILDERS[market](since, until, client=cli))
+        rs = _finalize_rows(_BUILDERS[market](since, until, client=cli,
+                                              include_settlement=include_settlement))
         if alias:
             for r in rs:
                 r["쇼핑몰별칭"] = alias
@@ -1182,7 +1198,8 @@ _CACHE: dict = {}                     # (markets, days) -> (monotonic_ts, rows)
 _CACHE_LOCK = _threading.Lock()
 
 
-def _fetch_combined(markets, days, now, since=None, until=None, warnings=None) -> list:
+def _fetch_combined(markets, days, now, since=None, until=None,
+                    include_settlement=True, warnings=None) -> list:
     """마켓별 주문을 병렬 조회 후 최신순 통합.
 
     ★ 마켓 단위 부분 실패 정책 — 계정 단위(order_rows) 정책과 동일하게 warnings 게이트:
@@ -1194,7 +1211,7 @@ def _fetch_combined(markets, days, now, since=None, until=None, warnings=None) -
     """
     def _one(mk):
         return order_rows(mk, days=days, now=now, since=since, until=until,
-                          warnings=warnings)
+                          include_settlement=include_settlement, warnings=warnings)
     results, errors = {}, []          # errors = [(market, Exception)]
     if len(markets) == 1:             # 단일 마켓은 스레드 오버헤드 불필요
         try:
@@ -1265,6 +1282,7 @@ def combined_order_rows(markets, days: int = 7,
                         use_cache: bool = False,
                         since: Optional[_dt.datetime] = None,
                         until: Optional[_dt.datetime] = None,
+                        include_settlement: bool = True,
                         warnings: Optional[list] = None) -> list:
     """여러 마켓 주문을 합쳐 최신순(주문일 내림차순)으로. 판매처 열로 마켓 구분.
 
@@ -1278,14 +1296,15 @@ def combined_order_rows(markets, days: int = 7,
 
     def _build(warns):
         rows = _fetch_combined(markets, days, now, since=since, until=until,
-                               warnings=warns)
+                               include_settlement=include_settlement, warnings=warns)
         # 기간 명시(빠른 버튼·직접 날짜) 시 주문일 기준으로 최종 필터 → '기간=주문일' 통일.
         return _filter_by_order_date(rows, since, until)
 
     if use_cache and now is None:
         key = (tuple(markets), days,
                since.isoformat() if since else None,
-               until.isoformat() if until else None)
+               until.isoformat() if until else None,
+               include_settlement)
         with _CACHE_LOCK:
             hit = _CACHE.get(key)
             if hit and (_time.monotonic() - hit[0]) < CACHE_TTL:

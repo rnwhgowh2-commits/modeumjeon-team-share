@@ -105,6 +105,70 @@ def test_upsert_preserves_manual(db):
     assert o2.mango_status == "국내배송중"
 
 
+def test_upsert_replace_stale_keeps_only_current_upload(db):
+    # 최신 스냅샷: 이번 업로드에 없는 옛 주문은 삭제. 이어지는 주문은 유지(수기 방식 보존).
+    svc.seed_default_status_map(db)
+    svc.upsert_orders(db, [_row("A1"), _row("A2")], replace_stale=True)
+    o = db.query(M.MangoOrder).filter_by(mango_uid="A2").one()   # A2에 수기 지정
+    o.delivery_method, o.delivery_method_source = "직배", "수기"
+    db.commit()
+    # 두 번째 업로드엔 A1 빠짐, A2 유지, A3 신규
+    res = svc.upsert_orders(db, [_row("A2", mango_status="국내배송중"), _row("A3")],
+                            replace_stale=True)
+    uids = {x.mango_uid for x in db.query(M.MangoOrder).all()}
+    assert uids == {"A2", "A3"}                     # A1(옛 주문) 삭제됨
+    assert res["deleted"] == 1
+    a2 = db.query(M.MangoOrder).filter_by(mango_uid="A2").one()
+    assert a2.delivery_method == "직배" and a2.delivery_method_source == "수기"  # 수기 보존
+
+
+def test_memo_kkadaegi_forces_method(db):
+    # 간단메모(N열=memo)에 '까대기' 있으면 무조건 배송방식=까대기. 자동/일괄보다 우선.
+    svc.seed_default_status_map(db)
+    svc.upsert_orders(db, [_row("M1", memo="까대기 급함"),          # 메모 까대기 → 까대기
+                           _row("M2", memo="직배로", mango_status="국내배송중"),  # 메모 직배 → 직배
+                           _row("M3", memo="특이사항없음")])          # 메모 없음 → 자동
+    m1 = db.query(M.MangoOrder).filter_by(mango_uid="M1").one()
+    m2 = db.query(M.MangoOrder).filter_by(mango_uid="M2").one()
+    assert m1.delivery_method == "까대기" and m1.delivery_method_source == "메모"
+    assert m2.delivery_method == "직배" and m2.delivery_method_source == "메모"
+    # 메모가 일괄보다 우선(전부 직배 일괄이라도 메모 까대기가 이김)
+    svc.upsert_orders(db, [_row("M4", memo="까대기")], bulk_method="직배")
+    m4 = db.query(M.MangoOrder).filter_by(mango_uid="M4").one()
+    assert m4.delivery_method == "까대기" and m4.delivery_method_source == "메모"
+
+
+def test_memo_does_not_override_manual(db):
+    # 수기 지정은 메모보다 우선(사용자가 직접 누른 게 최우선).
+    svc.seed_default_status_map(db)
+    svc.upsert_orders(db, [_row("M5", memo="까대기")])
+    o = db.query(M.MangoOrder).filter_by(mango_uid="M5").one()
+    o.delivery_method, o.delivery_method_source = "직배", "수기"
+    db.commit()
+    svc.upsert_orders(db, [_row("M5", memo="까대기")])   # 재업로드해도 수기 유지
+    o2 = db.query(M.MangoOrder).filter_by(mango_uid="M5").one()
+    assert o2.delivery_method == "직배" and o2.delivery_method_source == "수기"
+
+
+def test_clear_orders_resets_to_zero(db):
+    # 「비우기」 = 더망고 주문 전량 삭제(미실시 0). 상태매핑은 보존.
+    svc.seed_default_status_map(db)
+    svc.upsert_orders(db, [_row("C1"), _row("C2")])
+    n = svc.clear_orders(db)
+    assert n == 2
+    assert db.query(M.MangoOrder).count() == 0
+    assert len(db.query(M.MangoStatusMap).all()) > 0   # 상태매핑은 유지
+
+
+def test_upsert_default_accumulates(db):
+    # 기본(replace_stale=False)은 누적 — 부분 업로드가 옛 데이터를 지우지 않는다.
+    svc.seed_default_status_map(db)
+    svc.upsert_orders(db, [_row("B1")])
+    svc.upsert_orders(db, [_row("B2")])
+    uids = {x.mango_uid for x in db.query(M.MangoOrder).all()}
+    assert uids == {"B1", "B2"}
+
+
 def test_upsert_invoice_history_and_duplicate(db):
     svc.seed_default_status_map(db)
     svc.upsert_orders(db, [_row("102", invoice_no="AAA")])

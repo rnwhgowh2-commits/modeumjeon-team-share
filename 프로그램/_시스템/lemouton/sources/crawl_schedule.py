@@ -127,6 +127,61 @@ def list_weight_rules(session) -> dict:
     return out
 
 
+# ── 소싱처별 동시 상한(concurrency) ─────────────────────────────
+#   창없이 소싱처는 창 렌더 없이 병렬 fetch 가능 → 기본 크게. 창 필요는 작게(창 개수).
+_WINDOWLESS_SOURCES = {"hmall", "lemouton", "ssf", "ssg", "lotteimall"}
+_CONCURRENCY_DEFAULT_WINLESS = 8
+_CONCURRENCY_DEFAULT_WINDOWED = 3
+_CONCURRENCY_MIN, _CONCURRENCY_MAX = 1, 10
+
+
+def source_is_windowless(source_key: str) -> bool:
+    return str(source_key or "").strip() in _WINDOWLESS_SOURCES
+
+
+def default_source_concurrency(source_key: str) -> int:
+    """행이 없을 때 쓰는 성격 기본값(창없이 8 / 창 필요 3)."""
+    return (_CONCURRENCY_DEFAULT_WINLESS if source_is_windowless(source_key)
+            else _CONCURRENCY_DEFAULT_WINDOWED)
+
+
+def get_source_concurrency_map(session) -> dict:
+    """명시적으로 저장된 {source_key: limit} 만(기본값 미포함)."""
+    from lemouton.sources.models import CrawlConcurrencyRule
+    return {r.source_key: r.limit_val for r in session.query(CrawlConcurrencyRule).all()}
+
+
+def resolve_source_concurrency(session, source_key: str) -> int:
+    """그 소싱처의 최종 동시 상한 = 저장값 있으면 그것, 없으면 성격 기본값."""
+    from lemouton.sources.models import CrawlConcurrencyRule
+    r = (session.query(CrawlConcurrencyRule)
+         .filter_by(source_key=str(source_key or "").strip()).first())
+    if r is not None:
+        return r.limit_val
+    return default_source_concurrency(source_key)
+
+
+def set_source_concurrency(session, source_key: str, limit):
+    """소싱처 동시 상한 설정. limit None = 해제(삭제→성격 기본값). 1~10 클램프. 호출자 commit."""
+    from lemouton.sources.models import CrawlConcurrencyRule
+    key = str(source_key or "").strip()
+    if not key:
+        raise ValueError("source_key 필요")
+    r = session.query(CrawlConcurrencyRule).filter_by(source_key=key).first()
+    if limit is None:
+        if r is not None:
+            session.delete(r)
+        session.flush()
+        return default_source_concurrency(key)
+    v = max(_CONCURRENCY_MIN, min(_CONCURRENCY_MAX, int(limit)))
+    if r is not None:
+        r.limit_val = v
+    else:
+        session.add(CrawlConcurrencyRule(source_key=key, limit_val=v))
+    session.flush()
+    return v
+
+
 def resolve_crawl_weight(session, source_product) -> int:
     """URL의 최종 계수: URL→모음전(최고)→브랜드(최고)→소싱처→기본1."""
     from lemouton.sources.models import CrawlWeightRule
