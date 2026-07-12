@@ -8703,7 +8703,8 @@ function fetchOrderNoFromSource(uid) {
   const logContent = document.getElementById('log_content_' + uid);
   if (logRow) logRow.style.display = '';
   if (logContent) logContent.textContent = '🔵 추출 중...\n';
-  fetch('/api/blackspot/fetch_order_no', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({uid:uid})})
+  var _mMissRow = ((window.analysisData && window.analysisData.missing_order_no) || []).filter(function(x){return String(x['_uid'])===String(uid);})[0] || {};  /* [모음전] 무상태 서버 → uid 행의 간단메모를 클라에서 찾아 동봉 (_mMissRow) */
+  fetch('/api/blackspot/fetch_order_no', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({uid:uid, memo:(_mMissRow['간단메모']||'')})})  /* [모음전] memo 동봉 (_mMissRow) */
     .then(r => r.json()).then(res => {
       if (res.error && !res.success && !res.logs) { if (logContent) logContent.textContent = '❌ 오류: ' + res.error; return; }
       const logs = (res.logs || []).join('\n');

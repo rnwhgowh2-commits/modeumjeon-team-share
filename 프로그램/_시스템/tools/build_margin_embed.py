@@ -80,6 +80,17 @@ SEAMS: list[tuple[str, str, int]] = [
         "!buyLoaded  /* [모음전] 매출=마켓API(분석시점)·샵마인 보조업로드 OPTIONAL → 매입만으로 활성 */",
         2,
     ),
+    # 9) [모음전 신규 씨앗] 소싱처 주문번호 추출 — 무상태 서버는 uid 만으론 메모를 모른다.
+    #    원본은 서버 store['buy_missing_df'] 에서 uid 로 행을 찾아 간단메모를 읽었다.
+    #    모음전 analyze 는 무상태(그 저장소 없음) → uid 행의 간단메모를 클라이언트
+    #    (window.analysisData.missing_order_no) 에서 찾아 POST 에 동봉한다. 그래야
+    #    /api/blackspot/fetch_order_no 가 순수 파싱만으로 주문번호를 뽑을 수 있다.
+    (
+        "  fetch('/api/blackspot/fetch_order_no', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({uid:uid})})",
+        "  var _mMissRow = ((window.analysisData && window.analysisData.missing_order_no) || []).filter(function(x){return String(x['_uid'])===String(uid);})[0] || {};  /* [모음전] 무상태 서버 → uid 행의 간단메모를 클라에서 찾아 동봉 (_mMissRow) */\n"
+        "  fetch('/api/blackspot/fetch_order_no', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({uid:uid, memo:(_mMissRow['간단메모']||'')})})  /* [모음전] memo 동봉 (_mMissRow) */",
+        1,
+    ),
 ]
 
 

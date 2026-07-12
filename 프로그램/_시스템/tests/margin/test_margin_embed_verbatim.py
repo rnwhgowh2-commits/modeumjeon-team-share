@@ -45,6 +45,7 @@ _SEAM_TOKENS = (
     "/api/download", "/api/margin/export",  # 내보내기 엔드포인트
     "analysis_id: (window.analysisData",    # 내보내기 body 주입
     "buyLoaded",                            # 분석버튼 게이트 (buyLoaded&&sellLoaded ↔ buyLoaded)
+    "/api/blackspot/fetch_order_no", "_mMissRow",  # 소싱처 주문번호 추출 — 무상태 서버에 memo 동봉
 )
 
 
