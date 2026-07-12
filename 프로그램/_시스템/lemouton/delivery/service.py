@@ -128,9 +128,16 @@ def upsert_orders(session, rows, bulk_method=None, replace_stale=False) -> dict:
         distinct = {h["invoice"] for h in hist if h.get("invoice")}
         o.is_duplicate_invoice = len(distinct) >= 2
 
-        # 배송방식 판정 (수기는 보존)
+        # 배송방식 판정 — 우선순위: 수기 > 메모 > 일괄 > 자동
+        #  · 메모(N열 간단메모)에 '까대기'/'직배' 가 적혔으면 무조건 그 방식(사용자가 주문에
+        #    직접 메모한 값이라 강함). memo 는 의미필드로 읽으므로 더망고 열 위치가 바뀌어도 유지.
+        memo = str(r.get("memo") or "")
+        memo_method = "까대기" if "까대기" in memo else ("직배" if "직배" in memo else None)
         if o.delivery_method_source != "수기":
-            if bulk_method in ("까대기", "직배"):
+            if memo_method:
+                o.delivery_method = memo_method
+                o.delivery_method_source = "메모"
+            elif bulk_method in ("까대기", "직배"):
                 o.delivery_method = bulk_method
                 o.delivery_method_source = "일괄"
             else:

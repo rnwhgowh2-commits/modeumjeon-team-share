@@ -122,6 +122,34 @@ def test_upsert_replace_stale_keeps_only_current_upload(db):
     assert a2.delivery_method == "직배" and a2.delivery_method_source == "수기"  # 수기 보존
 
 
+def test_memo_kkadaegi_forces_method(db):
+    # 간단메모(N열=memo)에 '까대기' 있으면 무조건 배송방식=까대기. 자동/일괄보다 우선.
+    svc.seed_default_status_map(db)
+    svc.upsert_orders(db, [_row("M1", memo="까대기 급함"),          # 메모 까대기 → 까대기
+                           _row("M2", memo="직배로", mango_status="국내배송중"),  # 메모 직배 → 직배
+                           _row("M3", memo="특이사항없음")])          # 메모 없음 → 자동
+    m1 = db.query(M.MangoOrder).filter_by(mango_uid="M1").one()
+    m2 = db.query(M.MangoOrder).filter_by(mango_uid="M2").one()
+    assert m1.delivery_method == "까대기" and m1.delivery_method_source == "메모"
+    assert m2.delivery_method == "직배" and m2.delivery_method_source == "메모"
+    # 메모가 일괄보다 우선(전부 직배 일괄이라도 메모 까대기가 이김)
+    svc.upsert_orders(db, [_row("M4", memo="까대기")], bulk_method="직배")
+    m4 = db.query(M.MangoOrder).filter_by(mango_uid="M4").one()
+    assert m4.delivery_method == "까대기" and m4.delivery_method_source == "메모"
+
+
+def test_memo_does_not_override_manual(db):
+    # 수기 지정은 메모보다 우선(사용자가 직접 누른 게 최우선).
+    svc.seed_default_status_map(db)
+    svc.upsert_orders(db, [_row("M5", memo="까대기")])
+    o = db.query(M.MangoOrder).filter_by(mango_uid="M5").one()
+    o.delivery_method, o.delivery_method_source = "직배", "수기"
+    db.commit()
+    svc.upsert_orders(db, [_row("M5", memo="까대기")])   # 재업로드해도 수기 유지
+    o2 = db.query(M.MangoOrder).filter_by(mango_uid="M5").one()
+    assert o2.delivery_method == "직배" and o2.delivery_method_source == "수기"
+
+
 def test_clear_orders_resets_to_zero(db):
     # 「비우기」 = 더망고 주문 전량 삭제(미실시 0). 상태매핑은 보존.
     svc.seed_default_status_map(db)
