@@ -110,6 +110,25 @@ def test_enrich_widens_window_and_skips_settlement(db, monkeypatch):
     assert o.market_check_error is None and o.market_api_status == "배송중"
 
 
+def test_iter_enrich_streams_per_market_events(db, monkeypatch):
+    # 스트리밍: start(마켓목록) → 마켓마다 fetching/done(matched·total) → done.
+    _seed(db, "1", "쿠팡", "A100")
+    _seed(db, "2", "롯데ON", "B200")
+    _seed(db, "3", "무신사", "C300")   # 미지원 → skipped
+    monkeypatch.setattr(me._oe, "combined_order_rows", lambda markets, **kw: [
+        {"판매처": "쿠팡", "오픈마켓주문번호": "A100", "주문상태": "배송중", "송장입력": "INV-A"},
+        {"판매처": "롯데온", "오픈마켓주문번호": "B200", "주문상태": "배송준비중", "송장입력": "송장미입력"}])
+    evs = list(me.iter_enrich(db, ["1", "2", "3"]))
+    start = evs[0]
+    assert start["phase"] == "start" and start["skipped"] == 1
+    assert {m["slug"] for m in start["markets"]} == {"coupang", "lotteon"}
+    done = evs[-1]
+    assert done["phase"] == "done" and done["checked"] == 2 and done["skipped"] == 1
+    # 마켓 done 이벤트에 matched/total 담김
+    mdone = [e for e in evs if e.get("phase") == "market" and e.get("state") == "done"]
+    assert {e["slug"]: e["matched"] for e in mdone} == {"coupang": 1, "lotteon": 1}
+
+
 def test_match_keys_paren():
     # 스마트스토어 괄호형 '주문번호(상품주문번호)' → 상품주문번호(안)·주문번호(밖) 후보 포함
     assert me._match_keys("2026070695107551(2026070668195471)") == [

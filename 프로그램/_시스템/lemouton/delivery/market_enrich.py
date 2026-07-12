@@ -97,8 +97,31 @@ def _query_window(orders):
     return since, until
 
 
-def enrich_from_market_api(session, uploaded_uids, warnings=None) -> dict:
-    """업로드된 주문을 마켓 API 실주문으로 보강. 반환 {checked, unmatched, skipped}."""
+# 슬러그 → 화면 표시 라벨(진행현황 마켓 칩)
+_LABEL = {"coupang": "쿠팡", "lotteon": "롯데온",
+          "smartstore": "스마트스토어", "eleven11": "11번가"}
+
+
+def _apply_match(o, fr):
+    """조회된 마켓 행(fr)을 주문(o)에 반영. 매칭 성공 처리."""
+    inv = str(fr.get("송장입력") or "").strip()
+    if inv == "송장미입력":
+        inv = ""
+    o.market_api_status = str(fr.get("주문상태") or "").strip() or None
+    o.market_api_status_raw = str(fr.get("주문상태원본") or "").strip() or None
+    o.market_api_invoice = inv
+    o.market_shipped_at = str(fr.get("발송처리일") or "").strip() or None
+    o.market_check_error = None
+    o.market_checked_at = _now()
+
+
+def iter_enrich(session, uploaded_uids, warnings=None):
+    """업로드 주문을 마켓 API 로 보강하며 진행 이벤트를 마켓마다 순차 yield(스트리밍용).
+
+    이벤트: start(markets[{slug,label,total}], skipped) → 마켓마다 market(state=fetching→done,
+    matched/total) → done(checked,unmatched,skipped). DB 갱신은 부수효과(마지막에 commit).
+    마켓을 하나씩 조회해 '어느 마켓 몇 건'을 실시간으로 흘려준다(폴링 없이 업로드 응답 스트림).
+    """
     if warnings is None:
         warnings = []
     orders = (session.query(MangoOrder)
@@ -114,59 +137,93 @@ def enrich_from_market_api(session, uploaded_uids, warnings=None) -> dict:
             o.market_check_error = "옥션·G마켓은 주문 조회 미지원"
             o.market_checked_at = _now()
 
-    # 마켓별 실주문 조회 → 오픈마켓주문번호 인덱스 + 실제 응답 온 마켓(슬러그) 추적
-    index = {}
-    fetched_slugs = set()
-    if grouped:
-        since, until = _query_window(orders)   # 주문일까지 소급(7일 기본창 밖 주문 매칭)
-        try:
-            # include_settlement=False — 배송검사는 주문상태·송장만 필요. 정산 하루씩 루프는
-            # 넓은 창에서 타임아웃 유발이라 끈다.
-            fetched = _oe.combined_order_rows(list(grouped.keys()), use_cache=True,
-                                              since=since, until=until,
-                                              include_settlement=False,
-                                              warnings=warnings)
-        except Exception as e:   # noqa: BLE001 — 조회 전체 실패도 확인불가로 표면화
-            fetched = []
-            warnings.append(f"[배송검사] 마켓 조회 실패: {type(e).__name__}")
-        for fr in fetched:
-            no = str(fr.get("오픈마켓주문번호") or "").strip()
-            if no:
-                index[no] = fr
-            sl = market_slug(fr.get("판매처"))
-            if sl:
-                fetched_slugs.add(sl)
-
-    checked = unmatched = 0
+    orders_by_slug = {}
     for o in orders:
         if o.mango_uid in skipped_set:
             continue
-        fr = None
-        for k in _match_keys(o.market_order_no):   # 괄호형(스스 상품주문번호) 포함 후보로 매칭
-            if k in index:
-                fr = index[k]
-                break
-        if fr is None:
-            # 왜 못 찾았나 구분: 그 마켓 응답이 아예 없으면=조회 실패(IP/키), 있으면=기간 밖/취소
-            slug = market_slug(o.market_name)
-            if slug and slug not in fetched_slugs:
-                o.market_check_error = f"{o.market_name} 계정 조회 실패 · 「판매처 관리」에서 서버 IP·키 확인"
-            else:
-                o.market_check_error = "마켓에서 주문 못 찾음 · 조회 기간 밖이거나 취소된 주문"
-            o.market_checked_at = _now()
-            unmatched += 1
-            continue
-        inv = str(fr.get("송장입력") or "").strip()
-        if inv == "송장미입력":
-            inv = ""
-        o.market_api_status = str(fr.get("주문상태") or "").strip() or None
-        o.market_api_status_raw = str(fr.get("주문상태원본") or "").strip() or None
-        o.market_api_invoice = inv
-        o.market_shipped_at = str(fr.get("발송처리일") or "").strip() or None
-        o.market_check_error = None
-        o.market_checked_at = _now()
-        checked += 1
+        sl = market_slug(o.market_name)
+        if sl:
+            orders_by_slug.setdefault(sl, []).append(o)
+
+    market_slugs = list(grouped.keys())
+    yield {"phase": "start", "skipped": len(skipped_uids),
+           "markets": [{"slug": sl, "label": _LABEL.get(sl, sl),
+                        "total": len(orders_by_slug.get(sl, []))} for sl in market_slugs]}
+
+    since, until = _query_window(orders) if market_slugs else (None, None)
+    checked = unmatched = 0
+
+    # 모든 마켓을 '조회 중'으로 먼저 표시 → 한번에(병렬) 조회 시작. 각 마켓은 끝나는 대로 완료.
+    # (마켓 4개 동시, 한 마켓 안의 계정만 순차 = 주문내역과 동일한 병렬 방식·429 방지)
+    for sl in market_slugs:
+        yield {"phase": "market", "slug": sl, "label": _LABEL.get(sl, sl),
+               "total": len(orders_by_slug.get(sl, [])), "matched": 0, "state": "fetching"}
+
+    if market_slugs:
+        import queue as _queue
+        from concurrent.futures import ThreadPoolExecutor
+
+        q = _queue.Queue()
+
+        def _fetch(sl):   # 워커: 조회만(DB 안 건드림 — 세션은 메인 스레드 전용)
+            try:
+                rows = _oe.combined_order_rows([sl], use_cache=True, since=since, until=until,
+                                               include_settlement=False, warnings=warnings)
+            except Exception as e:   # noqa: BLE001
+                rows = None
+                warnings.append(f"[배송검사] {_LABEL.get(sl, sl)} 조회 실패: {type(e).__name__}")
+            q.put((sl, rows))
+
+        ex = ThreadPoolExecutor(max_workers=min(4, len(market_slugs)))
+        try:
+            for sl in market_slugs:
+                ex.submit(_fetch, sl)
+            for _ in market_slugs:
+                sl, fetched = q.get()          # 끝나는 대로(완료 순서)
+                if fetched is None:
+                    fetched = []
+                index, responded = {}, False
+                for fr in fetched:
+                    no = str(fr.get("오픈마켓주문번호") or "").strip()
+                    if no:
+                        index[no] = fr
+                    if market_slug(fr.get("판매처")) == sl:
+                        responded = True
+                m_checked = 0
+                for o in orders_by_slug.get(sl, []):   # 매칭·DB 갱신은 메인 스레드에서만
+                    fr = None
+                    for k in _match_keys(o.market_order_no):   # 괄호형(스스 상품주문번호) 포함
+                        if k in index:
+                            fr = index[k]
+                            break
+                    if fr is None:
+                        if not responded:
+                            o.market_check_error = f"{o.market_name} 계정 조회 실패 · 「판매처 관리」에서 서버 IP·키 확인"
+                        else:
+                            o.market_check_error = "마켓에서 주문 못 찾음 · 조회 기간 밖이거나 취소된 주문"
+                        o.market_checked_at = _now()
+                        unmatched += 1
+                        continue
+                    _apply_match(o, fr)
+                    checked += 1
+                    m_checked += 1
+                yield {"phase": "market", "slug": sl, "label": _LABEL.get(sl, sl),
+                       "total": len(orders_by_slug.get(sl, [])), "matched": m_checked, "state": "done"}
+        finally:
+            ex.shutdown(wait=False)
 
     session.commit()
-    return {"checked": checked, "unmatched": unmatched, "skipped": len(skipped_uids),
-            "warnings": warnings}
+    yield {"phase": "done", "checked": checked, "unmatched": unmatched,
+           "skipped": len(skipped_uids), "warnings": list(warnings)}
+
+
+def enrich_from_market_api(session, uploaded_uids, warnings=None) -> dict:
+    """iter_enrich 를 소비해 요약 반환(비스트리밍 호출·테스트용). {checked,unmatched,skipped}."""
+    if warnings is None:
+        warnings = []
+    done = {"checked": 0, "unmatched": 0, "skipped": 0}
+    for ev in iter_enrich(session, uploaded_uids, warnings):
+        if ev.get("phase") == "done":
+            done = ev
+    return {"checked": done.get("checked", 0), "unmatched": done.get("unmatched", 0),
+            "skipped": done.get("skipped", 0), "warnings": warnings}
