@@ -837,6 +837,24 @@ tr.cross-detail td{padding:0 !important;border-bottom:2px solid #000 !important}
 .et-goto:hover{background:#1B6FE0;}
 .sum-abn{cursor:pointer;transition:.12s;} .sum-abn:hover{background:#FFE6E6;}
 .sum-abn .sa-go{font-size:12px;color:#F04452;font-weight:800;border:1px solid #F04452;border-radius:6px;padding:2px 9px;white-space:nowrap;}
+/* ── 정합성 검산 칩 (요약 탭) ── */
+.recon-line{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin:10px 0;padding:10px 14px;border-radius:8px;font-size:13px}
+.recon-line.ok{background:#ECFDF5;border:1px solid #22C55E}
+.recon-line.warn{background:#FEF2F2;border:1px solid #F04452}
+.recon-line .rc-badge{font-weight:700}
+.recon-line.ok .rc-badge{color:#16A34A}
+.recon-line.warn .rc-badge{color:#F04452}
+.recon-line .rc-chip{background:#fff;border:1px solid #e5e7eb;border-radius:6px;padding:2px 8px;font-size:12px;color:#F04452}
+/* ── 브랜드별 미확정 배너 ── */
+.brand-unresolved-banner{display:flex;flex-wrap:wrap;align-items:center;gap:10px;padding:10px 14px;background:#FEFCE8;border:1px solid #FACC15;border-radius:8px;margin-bottom:12px;}
+.brand-unresolved-banner .bu-badge{font-weight:800;color:#CA8A04;}
+.brand-unresolved-banner .bu-msg{color:#6b7280;font-size:12px;}
+.brand-unresolved-banner .bu-toggle{margin-left:auto;font-size:12px;color:#CA8A04;font-weight:700;border:1px solid #FACC15;border-radius:6px;padding:2px 9px;cursor:pointer;background:#fff;white-space:nowrap;}
+.brand-unresolved-list{display:none;width:100%;margin-top:8px;padding-top:8px;border-top:1px dashed #FACC15;font-size:12px;color:#78716c;max-height:160px;overflow-y:auto;}
+.brand-unresolved-list.on{display:block;}
+.brand-unresolved-list div{padding:2px 0;}
+/* ── 브랜드별/마켓별 표 이상가 보조표기 ── */
+.ab-sub{display:block;font-size:11px;color:#F04452;margin-top:2px;font-variant-numeric:tabular-nums}
 </style>
 <script src="{{ url_for('static', filename='margin_rules.js') }}"></script>
   <script src="{{ url_for('static', filename='margin_ext_check.js') }}"></script>
@@ -2114,6 +2132,21 @@ function renderAbnormalBanner(rows) {
        + '</div>';
 }
 
+/* 브랜드 미확정 배너 HTML (d.brand_unresolved 건수>0 일 때만 반환) */
+var _buBannerSeq = 0;
+function renderBrandUnresolvedBanner(d) {
+  var bu = d && d.brand_unresolved;
+  if (!bu || !bu['건수']) return '';
+  var listId = 'buList' + (_buBannerSeq++);
+  var names = (bu['상품명'] || []).map(function(n) { return '<div>' + esc(n) + '</div>'; }).join('');
+  return '<div class="brand-unresolved-banner">'
+       + '<span class="bu-badge">⚠ 브랜드 미확정 ' + bu['건수'] + '건</span>'
+       + '<span class="bu-msg">매출 ' + fmt(bu['매출']) + '원 · 브랜드 매칭이 확인되지 않았습니다.</span>'
+       + '<span class="bu-toggle" onclick="var el=document.getElementById(\'' + listId + '\');if(el)el.classList.toggle(\'on\')">상품명 보기 ▾</span>'
+       + '<div class="brand-unresolved-list" id="' + listId + '">' + names + '</div>'
+       + '</div>';
+}
+
 /* 전체내역 탭으로 이동 + 비정상마진 필터 자동 적용 */
 function gotoAbnormalAll() {
   window.__allMarginFilter = 'abnormal';
@@ -3168,11 +3201,16 @@ function aggByKey(matched, key) {
   var groups = {};
   matched.forEach(function(r) {
     var k = r[key] || '기타';
-    if (!groups[k]) groups[k] = { 매출:0, 매입:0, 순마진:0, 건수:0 };
+    if (!groups[k]) groups[k] = { 매출:0, 매입:0, 순마진:0, 건수:0, _abCnt:0, _abSum:0 };
     groups[k]['매출'] += MR.rowSale(r, saleAmt);
     groups[k]['매입'] += Number(r['구매가격']) || 0;
     groups[k]['순마진'] += MR.rowMargin(r);
     groups[k]['건수'] += 1;
+    /* 이상가 보조표기용 — 그룹 집계와 동일 기준(matched 필터 통과 행)으로 카운트/합산 */
+    if (r['이상가']) {
+      groups[k]['_abCnt'] += 1;
+      groups[k]['_abSum'] += (Number(r['판매가']) || 0);
+    }
   });
   return Object.entries(groups).map(function(e) {
     var obj = e[1];
@@ -4242,6 +4280,18 @@ function renderSummary(d) {
      + '<span class="sa-live">↻ 수기 정정·제외 시 실시간</span>'
      + '<span class="sa-go">클릭 → 전체내역 보기 →</span>'
      + '</div>';
+  /* ── 정합성 검산 칩 (총매출 vs Σ마켓별 vs Σ브랜드별) ── */
+  if (d.reconcile) {
+    var rc = d.reconcile;
+    var ok = rc['일치'];
+    h += '<div class="recon-line ' + (ok?'ok':'warn') + '">'
+       + '<span class="rc-badge">' + (ok?'✓ 정합성 일치':'⚠ 정합성 불일치') + '</span>'
+       + '<span class="rc-msg">마켓·브랜드 합계 = 총매출 ' + fmt(rc['총매출']) + '원</span>'
+       + (rc['더망고만']?'<span class="rc-chip">더망고만 ' + rc['더망고만'] + '건</span>':'')
+       + (rc['샵마인만']?'<span class="rc-chip">샵마인만 ' + rc['샵마인만'] + '건</span>':'')
+       + (rc['마켓미확정']?'<span class="rc-chip">마켓 미확정 ' + rc['마켓미확정'] + '건</span>':'')
+       + '</div>';
+  }
   /* ── 5카드 ── */
   h += '<div class="sum-cards">'
      + _sumCard('총매출','판매가', fmt(매출)+'원')
@@ -4677,11 +4727,16 @@ function renderBrand(d) {
     var 마진율 = 매출 > 0 ? (순마진 / 매출 * 100) : 0;
     var t = trends[brand] || {};
     var m = brandTrendMetric;
+    /* 이상가 보조표기용 — 표 집계와 동일하게 live 기준으로 카운트/합산 */
+    var abRows = live.filter(function(r) { return r['이상가']; });
+    var abCnt = abRows.length;
+    var abSum = abRows.reduce(function(s, r) { return s + (Number(r['판매가']) || 0); }, 0);
     return {
       브랜드: brand, items: items, 매출: 매출, 매입: 매입, 순마진: 순마진, 마진율: 마진율, 건수: live.length,
       전일: t['전일'] ? t['전일'][m] : null,
       주간: t['주간'] ? t['주간'][m] : null,
       월간: t['월간'] ? t['월간'][m] : null,
+      _abCnt: abCnt, _abSum: abSum,
     };
   });
 
@@ -4701,8 +4756,11 @@ function renderBrand(d) {
     return '<th class="sortable" onclick="sortBrandBy(&quot;' + col + '&quot;)">' + label + '<span class="sort-arrow">' + arrow + '</span></th>';
   }
 
+  /* 브랜드 미확정 배너 (백엔드 d.brand_unresolved) */
+  let h = renderBrandUnresolvedBanner(d);
+
   /* 기간 평균 배너 (사용자 요청 C — 4-카드, 브랜드당 평균 추가) */
-  let h = renderPeriodAvgBanner({tabKey:'brand', entityCount: sorted.length, entityLabel:'브랜드', entityEmoji:'🏷️'});
+  h += renderPeriodAvgBanner({tabKey:'brand', entityCount: sorted.length, entityLabel:'브랜드', entityEmoji:'🏷️'});
 
   /* 원형차트 */
   h += '<div style="display:flex;gap:16px;flex-wrap:wrap;margin-bottom:20px;">';
@@ -4767,10 +4825,12 @@ function renderBrandRow(g, idx) {
   var avgSalePerOrder   = g.건수 > 0 ? Math.round(g.매출   / g.건수) : 0;
   var avgMarginPerOrder = g.건수 > 0 ? Math.round(g.순마진 / g.건수) : 0;
 
+  var abSub = (g._abCnt > 0) ? '<span class="ab-sub">이 중 이상가 ' + g._abCnt + '건 · ' + fmt(g._abSum) + '원</span>' : '';
+  var saleTd = (g.매출 < 0 ? '<td class="neg">' : '<td>') + fmt(g.매출) + abSub + '</td>';
   var h = '<tr class="product-row" onclick="toggleBrandDetail(' + idx + ')">'
        + '<td><span class="toggle-icon" id="bIcon' + idx + '">▶</span></td>'
        + '<td style="font-weight:700;">' + esc(g.브랜드) + '</td>'
-       + numCell(g.매출) + numCell(g.매입) + numCell(g.순마진)
+       + saleTd + numCell(g.매입) + numCell(g.순마진)
        + '<td style="font-weight:700;"' + (g.마진율 < 0 ? ' class="neg"' : '') + '>' + fmtPct(g.마진율) + '</td>'
        + '<td>' + g.건수 + '</td>'
        + '<td style="text-align:right;color:#1f2937;font-weight:600">' + (avgSalePerOrder ? avgSalePerOrder.toLocaleString() : '-') + '</td>'
@@ -10181,8 +10241,10 @@ function renderMarketTab(d) {
     var s1       = effScore(g.매출   * 30 / days, regCount, window.userSettings.saleEff1);
     var s2       = effScore(g.순마진 * 30 / days, regCount, window.userSettings.marginEff1);
     var savedVal = regCount > 0 ? regCount : '';
+    var mktAbSub = (g._abCnt > 0) ? '<span class="ab-sub">이 중 이상가 ' + g._abCnt + '건 · ' + fmt(g._abSum) + '원</span>' : '';
+    var mktSaleTd = (g.매출 < 0 ? '<td class="neg">' : '<td>') + fmt(g.매출) + mktAbSub + '</td>';
     h += '<tr class="cross-row" data-cross-key="'+escAttr(mktKey)+'" data-cross-tab="market"><td style="font-weight:700"><span class="cross-arrow">▶</span> '+esc(mktKey)+'</td>';
-    h += numCell(g.매출)+numCell(g.매입)+numCell(g.순마진);
+    h += mktSaleTd+numCell(g.매입)+numCell(g.순마진);
     h += '<td style="font-weight:700"'+(g.마진율<0?' class="neg"':'')+'>'+g.마진율.toFixed(1)+'%</td>';
     h += '<td>'+g.건수+'</td>';
     h += '<td onclick="event.stopPropagation()" style="min-width:70px"><input type="number" min="0" step="1" value="'+savedVal+'" placeholder="0" style="width:60px;text-align:center;border:1px solid #ccc;border-radius:4px;padding:2px 4px" onchange="setProductCount(\'market\',\''+escAttr(mktKey)+'\',this.value);renderCurrentTab()"></td>';

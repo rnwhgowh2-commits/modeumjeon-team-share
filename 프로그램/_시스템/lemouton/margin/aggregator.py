@@ -25,6 +25,9 @@ def aggregate(result_rows, price_ranges):
             'market': [], 'daily': [], 'monthly': [],
             'brand': [], 'priceRange': [],
             'filters': {'brands': [], 'markets': [], 'priceRange': []},
+            'reconcile': {'총매출': 0, 'Σ마켓별': 0, 'Σ브랜드별': 0, '일치': True,
+                          '더망고만': 0, '샵마인만': 0, '마켓미확정': 0},
+            'brand_unresolved': {'건수': 0, '매출': 0, '상품명': []},
         }
 
     df = pd.DataFrame(result_rows)
@@ -256,6 +259,27 @@ def aggregate(result_rows, price_ranges):
         'priceRange': label_order,
     }
 
+    # ── 정합성 검산 + 브랜드 미확정 (원본 _aggregate 추적 — 요약 검산 칩·브랜드 배너용) ──
+    _sum_market = sum(r['매출'] for r in market_rows)
+    _sum_brand  = sum(r['매출'] for r in brand_rows)
+    reconcile = {
+        '총매출':    int(round(total_매출)),
+        'Σ마켓별':  int(_sum_market),
+        'Σ브랜드별': int(_sum_brand),
+        '일치':      bool(_sum_market == int(round(total_매출)) == _sum_brand),
+    }
+    _src = df['데이터출처'] if '데이터출처' in df.columns else pd.Series([], dtype=str)
+    reconcile['더망고만'] = int((_src == '더망고만').sum())
+    reconcile['샵마인만'] = int((_src == '샵마인만').sum())
+    reconcile['마켓미확정'] = int((df['마켓'].fillna('').astype(str).str.strip() == '').sum()) if '마켓' in df.columns else 0
+
+    _mj = df[df['브랜드'] == '미확정'] if '브랜드' in df.columns else df.iloc[0:0]
+    brand_unresolved = {
+        '건수':   int(len(_mj)),
+        '매출':   int(round(_mj['판매가'].sum())) if len(_mj) else 0,
+        '상품명': sorted(_mj['상품명'].dropna().astype(str).unique().tolist()) if len(_mj) else [],
+    }
+
     return {
         'summary':    summary,
         'market':     market_rows,
@@ -265,4 +289,6 @@ def aggregate(result_rows, price_ranges):
         'priceRange': price_rows,
         'product':    product_rows,
         'filters':    filters,
+        'reconcile':  reconcile,
+        'brand_unresolved': brand_unresolved,
     }
