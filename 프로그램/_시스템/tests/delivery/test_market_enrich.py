@@ -63,15 +63,23 @@ def test_enrich_matches_and_caches(db, monkeypatch):
     assert res["checked"] == 2
 
 
-def test_enrich_unmatched_and_fetch_fail(db, monkeypatch):
-    _seed(db, "10", "쿠팡", "NOEXIST")      # 마켓 응답에 없음
-
-    def fake_rows(markets, **kw):
-        return []
-    monkeypatch.setattr(me._oe, "combined_order_rows", fake_rows)
+def test_enrich_unmatched_fetch_fail(db, monkeypatch):
+    # 쿠팡 응답이 아예 없음(조회 실패) → 사유=계정 조회 실패(IP/키)
+    _seed(db, "10", "쿠팡", "NOEXIST")
+    monkeypatch.setattr(me._oe, "combined_order_rows", lambda markets, **kw: [])
     me.enrich_from_market_api(db, ["10"])
     o = db.query(M.MangoOrder).filter_by(mango_uid="10").one()
-    assert o.market_check_error and "못 찾" in o.market_check_error
+    assert o.market_check_error and "조회 실패" in o.market_check_error
+
+
+def test_enrich_unmatched_but_market_fetched(db, monkeypatch):
+    # 쿠팡은 조회됐는데 그 주문만 없음 → 사유=기간 밖/취소
+    _seed(db, "11", "쿠팡", "NOEXIST")
+    monkeypatch.setattr(me._oe, "combined_order_rows", lambda markets, **kw: [
+        {"판매처": "쿠팡", "오픈마켓주문번호": "OTHER", "주문상태": "배송중", "송장입력": "X"}])
+    me.enrich_from_market_api(db, ["11"])
+    o = db.query(M.MangoOrder).filter_by(mango_uid="11").one()
+    assert o.market_check_error and ("기간" in o.market_check_error or "취소" in o.market_check_error)
 
 
 def test_match_keys_paren():

@@ -75,14 +75,15 @@ def enrich_from_market_api(session, uploaded_uids, warnings=None) -> dict:
     grouped, skipped_uids = group_by_market(rows)
     skipped_set = set(skipped_uids)
 
-    # 미지원 마켓 주문 → 확인불가
+    # 미지원 마켓 주문 → 확인불가 (옥션·G마켓 등)
     for o in orders:
         if o.mango_uid in skipped_set:
-            o.market_check_error = "마켓 API 미지원(주문 조회 불가)"
+            o.market_check_error = "옥션·G마켓은 주문 조회 미지원"
             o.market_checked_at = _now()
 
-    # 마켓별 실주문 조회 → 오픈마켓주문번호 인덱스
+    # 마켓별 실주문 조회 → 오픈마켓주문번호 인덱스 + 실제 응답 온 마켓(슬러그) 추적
     index = {}
+    fetched_slugs = set()
     if grouped:
         try:
             fetched = _oe.combined_order_rows(list(grouped.keys()), use_cache=True,
@@ -94,6 +95,9 @@ def enrich_from_market_api(session, uploaded_uids, warnings=None) -> dict:
             no = str(fr.get("오픈마켓주문번호") or "").strip()
             if no:
                 index[no] = fr
+            sl = market_slug(fr.get("판매처"))
+            if sl:
+                fetched_slugs.add(sl)
 
     checked = unmatched = 0
     for o in orders:
@@ -105,7 +109,12 @@ def enrich_from_market_api(session, uploaded_uids, warnings=None) -> dict:
                 fr = index[k]
                 break
         if fr is None:
-            o.market_check_error = "마켓에서 못 찾음(조회 실패 또는 기간 밖)"
+            # 왜 못 찾았나 구분: 그 마켓 응답이 아예 없으면=조회 실패(IP/키), 있으면=기간 밖/취소
+            slug = market_slug(o.market_name)
+            if slug and slug not in fetched_slugs:
+                o.market_check_error = f"{o.market_name} 계정 조회 실패 · 「판매처 관리」에서 서버 IP·키 확인"
+            else:
+                o.market_check_error = "마켓에서 주문 못 찾음 · 조회 기간 밖이거나 취소된 주문"
             o.market_checked_at = _now()
             unmatched += 1
             continue
