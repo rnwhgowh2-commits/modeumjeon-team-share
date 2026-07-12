@@ -72,3 +72,25 @@ def test_enrich_unmatched_and_fetch_fail(db, monkeypatch):
     me.enrich_from_market_api(db, ["10"])
     o = db.query(M.MangoOrder).filter_by(mango_uid="10").one()
     assert o.market_check_error and "못 찾" in o.market_check_error
+
+
+def test_match_keys_paren():
+    # 스마트스토어 괄호형 '주문번호(상품주문번호)' → 상품주문번호(안)·주문번호(밖) 후보 포함
+    assert me._match_keys("2026070695107551(2026070668195471)") == [
+        "2026070695107551(2026070668195471)", "2026070668195471", "2026070695107551"]
+    assert me._match_keys("A100") == ["A100"]
+
+
+def test_enrich_matches_paren_orderno(db, monkeypatch):
+    # 더망고엔 괄호형으로 저장, 마켓은 상품주문번호(괄호 안)만 반환 → 매칭돼야 함
+    db.add(M.MangoOrder(mango_uid="P1", market_name="스마트스토어",
+                        market_order_no="2026070695107551(2026070668195471)",
+                        mango_status="해외현지배송중"))
+    db.commit()
+    monkeypatch.setattr(me._oe, "combined_order_rows", lambda markets, **kw: [
+        {"판매처": "스마트스토어", "오픈마켓주문번호": "2026070668195471",
+         "주문상태": "배송완료", "송장입력": "INV-SS"}])
+    me.enrich_from_market_api(db, ["P1"])
+    o = db.query(M.MangoOrder).filter_by(mango_uid="P1").one()
+    assert o.market_check_error is None          # 확인불가 아님(매칭 성공)
+    assert o.market_api_status == "배송완료" and o.market_api_invoice == "INV-SS"
