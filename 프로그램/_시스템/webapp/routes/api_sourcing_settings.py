@@ -18,12 +18,17 @@ r"""소싱처 계정 관리 API — `/api/sourcing-sites` + `/api/settings` (GET
   파일 평문 저장을 재구현하지 않는다(팀 공유·배포 무관 영속·CLAUDE.md 3대 원칙).
 
 ■ list ↔ account_key 매핑 (페이지는 사이트별 계정 LIST, 스토어는 account_key 키):
-  · 정렬 규칙: 'default' 키 우선, 나머지 오름차순 → 결정적(deterministic) 순서.
-  · POST 시 키 배정: 들어온 리스트의 index i → 현재 저장 순서의 i 번째 기존 키
-    재사용, 초과분은 새 안정 키 발급('default' → '_2' → '_3' …, MAIN/_2 패턴).
-  · pw 마스킹 보존은 index 가 아닌 **id 일치**로 찾는다(원본은 index 기준이라
-    중간 삭제 시 pw 가 엉키는 위험이 있음 → id 매칭이 자격증명 무결성에 안전).
-  · 리스트에서 사라진 기존 계정은 스토어에서 remove.
+  · account_key 는 저장된 로그인 세션/쿠키 파일명({source}_{account_key}.json,
+    profile_dir(source, account_key))을 이름짓는 **안정 식별자**다. 따라서 위치가
+    아니라 **login_id 정체성**으로 키를 배정한다 — 위치 기반이면 중간 삭제·순서
+    변경 시 한 회원이 다른 회원의 세션/쿠키·비밀번호를 물려받는 조용한 오계정
+    로그인이 발생(Task E 자동 로그인이 이 자격증명에 얹히기 전에 반드시 차단).
+  · 들어온 id 가 기존 계정과 일치 → 그 account_key 재사용. 새 id → 새 키 발급
+    ('default' → '_2' → '_3' …, MAIN/_2 패턴, 충돌 회피).
+  · 마스킹 pw('***')는 id 일치 계정의 기존 pw 만 복원. 일치 없으면 400(위치
+    추정 폴백 없음). login_id RENAME = remove-old + add-new(새 키·새 세션).
+  · GET 표시 순서만 'default' 우선·나머지 오름차순으로 정렬(표시용, 정체성 무관).
+  · 들어온 리스트에 id 가 없는 기존 계정은 스토어에서 remove.
 
 ■ owner(담당자) 필드: SourcingCredential 스키마에 컬럼이 없고 SourcingAccount.
   display_name 은 운영센터 라벨로 이미 쓰이므로, 작은 사이드 테이블
@@ -148,11 +153,29 @@ def get_settings():
 def save_settings():
     """소싱처 계정 설정 저장.
 
-    · pw == '***' → 기존 저장 pw 유지(id 일치로 조회).
-    · 완전 빈 행(id·pw 모두 빈값) → 저장 안 함(no-op, 손실 아님).
-    · id 는 있는데 pw 를 결정할 수 없음 → 400(조용한 실패 금지).
-    · 리스트에서 사라진 기존 계정 → remove.
-    검증을 먼저 전부 통과한 뒤에만 쓰기(부분 저장 방지 = 원자성).
+    account_key 배정은 **login_id 정체성** 기준이다(리스트 위치 아님):
+      · 들어온 id 가 기존 저장 계정과 일치 → 그 계정의 기존 account_key 재사용.
+        account_key 는 저장된 세션/쿠키 파일명({source}_{account_key}.json,
+        profile_dir(source, account_key))을 이름짓는 **안정 식별자**이므로,
+        위치 기반 배정은 중간 삭제·순서변경 시 C 가 B 의 세션을 물려받는
+        조용한 오계정 로그인을 부른다.
+      · 새 id(일치 없음) → 새 안정 키 발급(default → _2/_3, 충돌 회피).
+    규칙:
+      · pw == '***' 인데 **id 일치 없음** → 400(위치 추정 폴백 금지). login_id
+        RENAME 은 곧 remove-old + add-new 이며, 마스킹 pw 는 재입력해야 한다.
+      · pw == '***' + id 일치 → 그 계정의 기존 pw 유지.
+      · 완전 빈 행(id·pw 모두 빈값) → 저장 안 함(no-op, 손실 아님).
+      · id 는 있는데 pw 를 결정할 수 없음 → 400(조용한 실패 금지).
+      · 들어온 리스트에 id 가 없는 기존 계정 → remove(+owner 행 제거).
+        (세션/쿠키 파일 정리는 Task E 소관 — 여기서 하지 않음.)
+      · owner 는 정체성으로 확정된 같은 account_key 에 묶여 절대 드리프트 X.
+
+    ※ 정합성 주의: 이 핸들러는 검증을 먼저 끝낸 뒤 쓰기하지만, 두 스토어
+      (자격증명 DB + owner 사이드 테이블)에 걸쳐 각 upsert/set_owner 가 개별
+      커밋한다 — **트랜잭션이 아니다**. 검증 실패는 쓰기 전에 400 으로 반환되므로
+      정상 경로에선 부분 저장이 없다. 쓰기 도중 예외(예: DB 단절)는 부분 커밋을
+      남길 수 있으나 orphan owner 행은 무해하다(GET 은 자격증명 키만 순회하므로
+      대응 자격증명이 없는 owner 행은 결코 노출되지 않는다).
     """
     from lemouton.auth.sourcing_credentials import default_store
     from lemouton.margin import sourcing_owner_store
@@ -180,30 +203,37 @@ def save_settings():
                             "error": f"{source} 계정 목록은 list 여야 합니다."}), 400
 
         cur = current_all.get(source, {})           # {account_key: {id, pw, login_method}}
-        by_id = {(c.get("id") or ""): c for c in cur.values()}
-        ordered = _ordered_keys(cur)
-        used = set(ordered)
+        # login_id → 기존 account_key (정체성 매핑). 세션 파일명이 이 키에 묶인다.
+        key_by_id = {(c.get("id") or ""): k for k, c in cur.items()}
+        used = set(cur.keys())
 
         # id 가 있는 실제 행만(빈 행은 무시 — 저장할 자격증명이 없음)
         real_accs = [a for a in accs if isinstance(a, dict) and (a.get("id") or "").strip()]
 
         kept_keys = set()
-        for i, acc in enumerate(real_accs):
+        for acc in real_accs:
             id_val = (acc.get("id") or "").strip()
             pw_in = acc.get("pw")
             method = (acc.get("login_method") or "direct").strip() or "direct"
             owner = (acc.get("owner") or "").strip()
 
-            # pw 결정: 마스킹이면 id 일치로 기존 pw 조회(없으면 index 폴백)
+            existing_key = key_by_id.get(id_val)   # None 이면 새 id
+
+            # pw 결정: 마스킹이면 반드시 id 일치 계정에서 조회(위치 추정 금지).
+            # (PW_MASK '***' 는 예약 sentinel — 사용자는 실제 pw 로 '***' 를 못 쓴다.)
             if pw_in == PW_MASK:
-                prev = by_id.get(id_val)
-                if prev is None and i < len(ordered):
-                    prev = cur.get(ordered[i])
-                pw_val = (prev or {}).get("pw", "") if prev else ""
+                if existing_key is None:
+                    return jsonify({
+                        "success": False,
+                        "error": f"{source}/{id_val}: 비밀번호를 다시 입력해야 합니다 "
+                                 f"— 계정 ID 가 새로 입력되었습니다.",
+                    }), 400
+                pw_val = (cur.get(existing_key) or {}).get("pw", "")
                 if not pw_val:
                     return jsonify({
                         "success": False,
-                        "error": f"{source}/{id_val}: 마스킹된 비밀번호인데 기존 값을 찾을 수 없습니다.",
+                        "error": f"{source}/{id_val}: 저장된 비밀번호가 없어 마스킹 값을 "
+                                 f"복원할 수 없습니다 — 다시 입력해 주세요.",
                     }), 400
             else:
                 pw_val = pw_in or ""
@@ -213,21 +243,21 @@ def save_settings():
                         "error": f"{source}/{id_val}: 비밀번호가 비어 있습니다.",
                     }), 400
 
-            # account_key 배정: 기존 순서 index 재사용, 초과분은 새 키 발급
-            if i < len(ordered):
-                key = ordered[i]
+            # account_key 배정: id 일치면 기존 키 재사용, 새 id 면 새 키 발급.
+            if existing_key is not None:
+                key = existing_key
             else:
                 key = _mint_key(used)
                 used.add(key)
             kept_keys.add(key)
             upserts.append((source, key, id_val, pw_val, method, owner))
 
-        # 리스트에서 사라진 기존 계정 제거
-        for key in ordered:
+        # 들어온 리스트에 id 가 없는(= 재사용되지 않은) 기존 계정 제거
+        for key in cur.keys():
             if key not in kept_keys:
                 removes.append((source, key))
 
-    # ── 쓰기 단계 (검증 전부 통과 후) ──
+    # ── 쓰기 단계 (검증 전부 통과 후 — 단, 트랜잭션 아님; docstring 참조) ──
     try:
         for source, key, id_val, pw_val, method, owner in upserts:
             store.upsert(source=source, account_key=key,
@@ -236,6 +266,7 @@ def save_settings():
         for source, key in removes:
             store.remove(source, key)
             sourcing_owner_store.remove_owner(source, key)
+            # NOTE: 저장된 세션/쿠키 파일({source}_{account_key}) 정리는 Task E 소관.
     except ValueError as e:
         # 사전 검증을 통과했음에도 스토어가 거부 → 조용히 넘기지 않고 표면화.
         logger.warning("[api_settings] 저장 거부: %s", e)

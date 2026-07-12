@@ -202,6 +202,54 @@ def test_post_non_dict_accounts_400(client):
     assert r.status_code == 400
 
 
+# ── account_key = login_id 정체성 (세션/쿠키 파일명이 이 키에 묶임) ────
+def test_middle_delete_keeps_original_account_keys(client):
+    # 저장 [A/default, B/_2, C/_3] → 가운데 B 삭제 → A·C 는 원래 키 유지(재배치 X)
+    _seed("musinsa", "default", "idA", "pwA")
+    _seed("musinsa", "_2", "idB", "pwB")
+    _seed("musinsa", "_3", "idC", "pwC")
+    body = client.get("/api/settings").get_json()
+    kept = [a for a in body["accounts"]["musinsa"] if a["id"] in ("idA", "idC")]
+    body["accounts"]["musinsa"] = kept
+    assert client.post("/api/settings", json=body).status_code == 200
+    allc = sc.default_store().load_all()["musinsa"]
+    # 키가 뒤섞이지 않았다 — idA→default, idC→_3 그대로
+    assert allc["default"]["id"] == "idA"
+    assert allc["_3"]["id"] == "idC"
+    assert set(allc.keys()) == {"default", "_3"}
+    # 세션 오배정 방지: pw 도 각자 것 유지
+    assert allc["default"]["pw"] == "pwA"
+    assert allc["_3"]["pw"] == "pwC"
+
+
+def test_rename_with_masked_pw_after_delete_is_400_and_no_write(client):
+    # 저장 [A/default, B/_2]. A 삭제 + B 의 id 를 'idB2' 로 변경(마스킹 pw 유지) →
+    # 위치 폴백이 있었다면 idB2 가 A(default)의 pwA 를 물려받는 오배정이 났을 것.
+    # 정체성 기준에서는 id 일치가 없으므로 400, 저장은 그대로.
+    _seed("musinsa", "default", "idA", "pwA")
+    _seed("musinsa", "_2", "idB", "pwB")
+    payload = {"accounts": {"musinsa": [
+        {"id": "idB2", "pw": PW_MASK, "owner": "", "login_method": "direct"},
+    ]}}
+    r = client.post("/api/settings", json=payload)
+    assert r.status_code == 400
+    # 아무것도 바뀌지 않음
+    allc = sc.default_store().load_all()["musinsa"]
+    assert allc["default"] == {"id": "idA", "pw": "pwA", "login_method": "direct"}
+    assert allc["_2"] == {"id": "idB", "pw": "pwB", "login_method": "direct"}
+    assert "idB2" not in {c["id"] for c in allc.values()}
+
+
+def test_edit_same_id_new_pw_updates_in_place(client):
+    _seed("musinsa", "default", "idX", "pw-old")
+    body = client.get("/api/settings").get_json()
+    body["accounts"]["musinsa"][0]["pw"] = "pw-new"   # 같은 id, 새 pw
+    assert client.post("/api/settings", json=body).status_code == 200
+    allc = sc.default_store().load_all()["musinsa"]
+    assert set(allc.keys()) == {"default"}            # 같은 키 유지(새 키 발급 X)
+    assert allc["default"]["pw"] == "pw-new"
+
+
 # ── owner(담당자) round-trip — 사이드 테이블 SourcingAccountOwner ──────
 def test_post_owner_persists_and_roundtrips(client):
     payload = {"accounts": {"musinsa": [
