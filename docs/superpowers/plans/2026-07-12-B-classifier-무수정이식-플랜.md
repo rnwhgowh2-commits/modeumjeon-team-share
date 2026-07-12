@@ -54,4 +54,19 @@
 - 신규 4테스트 통과 + `tests/margin/` 전체 통과 + verbatim 가드가 원본과 바이트 동치 증명 + Plan A `_bucket` 실 classifier 화.
 
 ---
+
+## Task 2 (다음) — 데이터 계약 사전조사 결과 (원본 app.py /api/analyze 1313~1459 실측)
+
+원본 프런트가 읽는 `analysisData` = `/api/analyze` 가 반환하는 단일 객체. 키:
+- `matched` (list) · `unmatched_buy` (list — **raw 매입흔적 보강행 추가**: classified 미포함 + `_has_trace` 인 buy_df 행을 더망고만으로 합침, app.py 1336~1387) · `unmatched_sell`
+- `classified` (list) = **`classifier.classify()` 결과** ← Task B 이식본이 채운다
+- `blackspot_summary` = classifier `summary`
+- `summary` = `_aggregate` 결과 + **`_compute_card_counts(matched, source='matched')` 로 card_* 덮어쓰기**(방안 A, 전체내역과 100% 일치) + `mango_total`(raw 행수)·`mango_with_order_no`(buy_valid)·`mango_with_trace`(=card_all) + `_issue_applied`(선택)
+- `missing_order_no` = buy_missing_df records
+- 그 외 `_aggregate` 의 모든 탭 집계(daily/monthly/brand/price_range/product/market/sourcing/card_*)
+
+**Task 2 이식 대상 함수(원본 app.py):** `_run_full_pipeline`(matcher.match_for_classifier→classifier.classify 연결)·`_aggregate`·`_compute_card_counts`·buy_valid_df/buy_missing_df 산출. 현 worktree `api_margin.analyze` 는 `{**out, **agg}` 만 반환 → `classified`·`blackspot_summary`·card_* 미포함. **계약 테스트**로 원본 키 전량 고정.
+**주의:** `_card_keywords`(카드 키워드) 주입은 Task D(설정) 소관 — Task 2 는 분류/집계 계약까지.
+
+---
 *폐기: `docs/superpowers/plans/2026-07-11-마진계산기-화면-B레이아웃.md` (원본 1:1 방향에서 무효).*
