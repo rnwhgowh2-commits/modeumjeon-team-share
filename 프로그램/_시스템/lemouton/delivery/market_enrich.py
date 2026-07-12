@@ -152,45 +152,65 @@ def iter_enrich(session, uploaded_uids, warnings=None):
 
     since, until = _query_window(orders) if market_slugs else (None, None)
     checked = unmatched = 0
+
+    # 모든 마켓을 '조회 중'으로 먼저 표시 → 한번에(병렬) 조회 시작. 각 마켓은 끝나는 대로 완료.
+    # (마켓 4개 동시, 한 마켓 안의 계정만 순차 = 주문내역과 동일한 병렬 방식·429 방지)
     for sl in market_slugs:
-        label = _LABEL.get(sl, sl)
-        mkt_orders = orders_by_slug.get(sl, [])
-        yield {"phase": "market", "slug": sl, "label": label,
-               "total": len(mkt_orders), "matched": 0, "state": "fetching"}
-        # 그 마켓만 조회(정산 스킵). 실패해도 확인불가로 표면화.
+        yield {"phase": "market", "slug": sl, "label": _LABEL.get(sl, sl),
+               "total": len(orders_by_slug.get(sl, [])), "matched": 0, "state": "fetching"}
+
+    if market_slugs:
+        import queue as _queue
+        from concurrent.futures import ThreadPoolExecutor
+
+        q = _queue.Queue()
+
+        def _fetch(sl):   # 워커: 조회만(DB 안 건드림 — 세션은 메인 스레드 전용)
+            try:
+                rows = _oe.combined_order_rows([sl], use_cache=True, since=since, until=until,
+                                               include_settlement=False, warnings=warnings)
+            except Exception as e:   # noqa: BLE001
+                rows = None
+                warnings.append(f"[배송검사] {_LABEL.get(sl, sl)} 조회 실패: {type(e).__name__}")
+            q.put((sl, rows))
+
+        ex = ThreadPoolExecutor(max_workers=min(4, len(market_slugs)))
         try:
-            fetched = _oe.combined_order_rows([sl], use_cache=True, since=since, until=until,
-                                              include_settlement=False, warnings=warnings)
-        except Exception as e:   # noqa: BLE001
-            fetched = []
-            warnings.append(f"[배송검사] {label} 조회 실패: {type(e).__name__}")
-        index, responded = {}, False
-        for fr in fetched:
-            no = str(fr.get("오픈마켓주문번호") or "").strip()
-            if no:
-                index[no] = fr
-            if market_slug(fr.get("판매처")) == sl:
-                responded = True
-        m_checked = 0
-        for o in mkt_orders:
-            fr = None
-            for k in _match_keys(o.market_order_no):   # 괄호형(스스 상품주문번호) 포함 후보
-                if k in index:
-                    fr = index[k]
-                    break
-            if fr is None:
-                if not responded:
-                    o.market_check_error = f"{o.market_name} 계정 조회 실패 · 「판매처 관리」에서 서버 IP·키 확인"
-                else:
-                    o.market_check_error = "마켓에서 주문 못 찾음 · 조회 기간 밖이거나 취소된 주문"
-                o.market_checked_at = _now()
-                unmatched += 1
-                continue
-            _apply_match(o, fr)
-            checked += 1
-            m_checked += 1
-        yield {"phase": "market", "slug": sl, "label": label,
-               "total": len(mkt_orders), "matched": m_checked, "state": "done"}
+            for sl in market_slugs:
+                ex.submit(_fetch, sl)
+            for _ in market_slugs:
+                sl, fetched = q.get()          # 끝나는 대로(완료 순서)
+                if fetched is None:
+                    fetched = []
+                index, responded = {}, False
+                for fr in fetched:
+                    no = str(fr.get("오픈마켓주문번호") or "").strip()
+                    if no:
+                        index[no] = fr
+                    if market_slug(fr.get("판매처")) == sl:
+                        responded = True
+                m_checked = 0
+                for o in orders_by_slug.get(sl, []):   # 매칭·DB 갱신은 메인 스레드에서만
+                    fr = None
+                    for k in _match_keys(o.market_order_no):   # 괄호형(스스 상품주문번호) 포함
+                        if k in index:
+                            fr = index[k]
+                            break
+                    if fr is None:
+                        if not responded:
+                            o.market_check_error = f"{o.market_name} 계정 조회 실패 · 「판매처 관리」에서 서버 IP·키 확인"
+                        else:
+                            o.market_check_error = "마켓에서 주문 못 찾음 · 조회 기간 밖이거나 취소된 주문"
+                        o.market_checked_at = _now()
+                        unmatched += 1
+                        continue
+                    _apply_match(o, fr)
+                    checked += 1
+                    m_checked += 1
+                yield {"phase": "market", "slug": sl, "label": _LABEL.get(sl, sl),
+                       "total": len(orders_by_slug.get(sl, [])), "matched": m_checked, "state": "done"}
+        finally:
+            ex.shutdown(wait=False)
 
     session.commit()
     yield {"phase": "done", "checked": checked, "unmatched": unmatched,
