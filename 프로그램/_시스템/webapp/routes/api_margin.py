@@ -249,6 +249,9 @@ def _augment_blackspot(payload, buy_df, sell_df, out):
       full staged df 를 넣으면 buy_missing 흔적행까지 classified 에 들어가 보강 로직이
       죽는다(match_data 가 모든 매입행을 matched/unmatched 로 이미 덮으므로).
     """
+    # counter 는 _json_safe 의 nan_coerced 집계용이나 여기선 coerce_numeric=False(표시 전용,
+    # NaN→"") 라 절대 증가하지 않는다 — 의도적으로 버린다. 훗날 coerce_numeric=True 로
+    # 바꾸면 이 집계가 살아나야 하므로 인자는 계속 넘긴다(값만 무시).
     counter = [0]
 
     buy_valid, _buy_missing = pipeline.split_by_site_order_no(buy_df)
@@ -259,30 +262,32 @@ def _augment_blackspot(payload, buy_df, sell_df, out):
     payload["blackspot_summary"] = cls["summary"]
 
     # unmatched_buy 매입흔적 보강 (원본 1336~1387) — classified 밖 흔적행을 전체내역에 노출.
+    # 원본 1340행처럼 classified 가 비면(전량 buy_missing 인 퇴화 케이스) 보강을 건너뛴다.
     unmatched_buy_list = list(payload.get("unmatched_buy") or [])
-    existing_keys = set()
-    for r in payload.get("matched") or []:
-        mk = str(r.get("마켓주문번호", "")).strip()
-        if mk:
-            existing_keys.add(mk)
-    for r in unmatched_buy_list:
-        mk = str(r.get("마켓주문번호", "")).strip()
-        if mk:
-            existing_keys.add(mk)
-    for r in classified:
-        if r.get("데이터출처") in ("더망고+샵마인", "더망고만"):
+    if classified:
+        existing_keys = set()
+        for r in payload.get("matched") or []:
             mk = str(r.get("마켓주문번호", "")).strip()
             if mk:
                 existing_keys.add(mk)
+        for r in unmatched_buy_list:
+            mk = str(r.get("마켓주문번호", "")).strip()
+            if mk:
+                existing_keys.add(mk)
+        for r in classified:
+            if r.get("데이터출처") in ("더망고+샵마인", "더망고만"):
+                mk = str(r.get("마켓주문번호", "")).strip()
+                if mk:
+                    existing_keys.add(mk)
 
-    for _, raw_row in buy_df.iterrows():
-        raw_dict = raw_row.to_dict()
-        mk = str(raw_dict.get("마켓주문번호", "")).strip()
-        if not mk or mk in existing_keys:
-            continue
-        if _has_trace(raw_dict):
-            unmatched_buy_list.append(pipeline._json_safe(raw_dict, False, counter))
-            existing_keys.add(mk)
+        for _, raw_row in buy_df.iterrows():
+            raw_dict = raw_row.to_dict()
+            mk = str(raw_dict.get("마켓주문번호", "")).strip()
+            if not mk or mk in existing_keys:
+                continue
+            if _has_trace(raw_dict):
+                unmatched_buy_list.append(pipeline._json_safe(raw_dict, False, counter))
+                existing_keys.add(mk)
     payload["unmatched_buy"] = unmatched_buy_list
 
     # 검증 카운트 (원본 1401~1418) — summary 에 주입.
