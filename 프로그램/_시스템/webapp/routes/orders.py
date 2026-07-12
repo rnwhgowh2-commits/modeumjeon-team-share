@@ -495,7 +495,8 @@ def _mango_to_dict(o):
         'mango_status': o.mango_status, 'market_status': o.market_status,
         'method': o.delivery_method, 'method_source': o.delivery_method_source,
         # v2 마켓 실데이터
-        'market_api_status': o.market_api_status, 'market_api_invoice': o.market_api_invoice or '',
+        'market_api_status': o.market_api_status, 'market_api_status_raw': o.market_api_status_raw or '',
+        'market_api_invoice': o.market_api_invoice or '',
         'why_error': o.market_check_error,
     }
 
