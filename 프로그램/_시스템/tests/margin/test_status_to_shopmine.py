@@ -4,25 +4,19 @@
 핵심: 롯데온 철회/회수확정이 정산O 로 새지 않고 취소/반품으로 떨어져야 한다.
 """
 from lemouton.margin import sell_source as S
-from lemouton.margin import config as C
+from lemouton.margin import classifier as CL
 
 
-# ⚠ _bucket 은 STAND-IN 프록시다 — classifier.py 이식(플랜 B) 전까지 config 상수로
-#   버킷을 근사 판정한다. classifier 이식 후에는 이 헬퍼를 실제 classifier 로 재조준한다.
+# ✅ 플랜 B 완료 — _bucket 은 이제 실제 classifier._determine_settlement_status 를 호출한다.
+#   (이전의 config 근사 프록시를 폐기.) 샵마인 문자열 하나를 매칭된 행으로 감싸
+#   실 정산 판정 → 취소/반품/O 로 환원. classifier 와 정확히 같은 축으로 검증된다.
+_SETTLE_MAP = {"O": "O", "X_취소": "취소", "X_반품": "반품", "X_미매칭": "미매칭"}
+
+
 def _bucket(shopmine_status: str) -> str:
-    """config 규칙으로 샵마인 문자열이 어느 정산 버킷인지 (테스트용 축약 판정)."""
-    s = shopmine_status
-    if s in C.SETTLEMENT_O_EXACT or s in C.SETTLEMENT_X_EXCEPT_TO_O:
-        return "O"
-    if any(k in s for k in C.SETTLEMENT_EXCHANGE_KEYWORDS):
-        return "O"
-    if any(tok in s for tok in ("반품", "회수", "환불", "수거")):
-        return "반품"
-    if any(k in s for k in C.SETTLEMENT_CANCEL_KEYWORDS) or "취소" in s:
-        return "취소"
-    if s in C.SETTLEMENT_X_EXACT:
-        return "반품" if any(t in s for t in ("반품", "회수", "환불", "수거", "교환")) else "취소"
-    return "O"
+    """실 classifier 로 샵마인 문자열이 어느 정산 버킷인지 판정."""
+    row = {"샵마인_매칭": True, "샵마인_정상건존재": False, "샵마인_주문상태": shopmine_status}
+    return _SETTLE_MAP[CL._determine_settlement_status(row)]
 
 
 def test_lotteon_withdraw_is_cancel_not_settled():
@@ -33,10 +27,12 @@ def test_lotteon_withdraw_is_cancel_not_settled():
 
 
 def test_lotteon_collect_confirmed_is_return_not_settled():
-    # ⚠ _bucket 프록시가 "회수" 부분매칭이라 이 케이스는 약하게만 검증됨.
-    #   실제 classifier 이식(플랜 B) 후 raw 회수확정→O 누출을 정밀 재검증한다.
+    # 정밀 재검증(플랜 B): raw "회수확정" 은 실 classifier 에서 O(정산됨) 로 '샌다'.
+    #   ("회수확정" 은 X_EXACT 에도 없고 RETURN 키워드("회수지시/완료/진행/중")와도
+    #    부분매칭되지 않아 기본값 O 로 떨어진다.) → remap 이 반드시 필요한 이유.
+    assert _bucket("회수확정") == "O", "raw 회수확정 이 O 로 새지 않으면 remap 전제가 바뀐 것"
     out = S.status_to_shopmine("롯데온", "회수확정")
-    assert _bucket(out) == "반품", f"회수확정 → {out}"
+    assert _bucket(out) == "반품", f"회수확정 → {out}"  # remap 후 반품으로 교정
 
 
 def test_pinned_values_land_in_settled():
