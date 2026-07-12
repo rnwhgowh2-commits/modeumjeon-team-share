@@ -13,6 +13,8 @@ from collections import defaultdict
 import pandas as pd
 
 from lemouton.margin.config import MARKET_MAP, MARKET_REVERSE
+from lemouton.margin import brand_dict
+from lemouton.margin.brand_dict import match_brand
 
 logger = logging.getLogger(__name__)
 
@@ -56,89 +58,19 @@ def extract_product_code(product_name):
     return matches[-1] if matches else ''
 
 
-KNOWN_BRANDS = [
-    'NATIONAL GEOGRAPHIC', 'NATIONALGEOGRAPHIC', 'NATIONAL GEOGRAPHIC KIDS',
-    'CODES COMBINE INNERWEAR', 'CODES COMBINE',
-    'EMPORIO ARMANI', 'EMPORIO ARMANI UNDERWEAR',
-    'BEANPOLE KIDS', 'BEANPOLE',
-    'THE NORTH FACE', 'NORTH FACE',
-    'WACKY WILLY', 'SAINT BARNET',
-    'PARTIMENTO WOMEN', 'PARTIMENTO',
-    'JANSPORT', 'KODAK', 'KODAK APPAREL',
-    'TOPTEN KIDS', 'TOPTEN',
-    'TRILLION',
-    'CGP', 'EIDER', 'PUMA', 'ARENA',
-    '나이키', '아디다스', '푸마', '코오롱스포츠',
-    '파르티멘토', '와키윌리', '잔스포츠', '코닥',
-    '노스페이스', '빈폴키즈', '빈폴', '폴햄',
-    '탑텐키즈', '탑텐', '트릴리온',
-    '오르시떼', '에이더',
-    'LEE', 'NIKE', 'CGP', 'ORCITE',
-]
-BRAND_NORMALIZE = {
-    'NATIONAL GEOGRAPHIC': '내셔널지오그래픽', 'NATIONALGEOGRAPHIC': '내셔널지오그래픽',
-    'NATIONAL GEOGRAPHIC KIDS': '내셔널지오그래픽',
-    'CODES COMBINE INNERWEAR': '코데즈컴바인', 'CODES COMBINE': '코데즈컴바인',
-    'EMPORIO ARMANI UNDERWEAR': '엠포리오아르마니', 'EMPORIO ARMANI': '엠포리오아르마니',
-    'THE NORTH FACE': '노스페이스', 'NORTH FACE': '노스페이스', '노스페이스': '노스페이스',
-    'BEANPOLE KIDS': '빈폴키즈', 'BEANPOLE': '빈폴', '빈폴키즈': '빈폴키즈', '빈폴': '빈폴',
-    'WACKY WILLY': '와키윌리', '와키윌리': '와키윌리',
-    'SAINT BARNET': '세인트바넷',
-    'PARTIMENTO WOMEN': '파르티멘토', 'PARTIMENTO': '파르티멘토', '파르티멘토': '파르티멘토',
-    'JANSPORT': '잔스포츠', '잔스포츠': '잔스포츠',
-    'KODAK': '코닥', 'KODAK APPAREL': '코닥', '코닥': '코닥',
-    'TOPTEN KIDS': '탑텐키즈', 'TOPTEN': '탑텐', '탑텐키즈': '탑텐키즈', '탑텐': '탑텐',
-    'TRILLION': '트릴리온', '트릴리온': '트릴리온',
-    'CGP': '씨지피', 'EIDER': '에이더', 'PUMA': '푸마', 'ARENA': '아레나',
-    '나이키': '나이키', 'NIKE': '나이키',
-    '아디다스': '아디다스',
-    '푸마': '푸마', '코오롱스포츠': '코오롱스포츠',
-    '폴햄': '폴햄',
-    'LEE': '리', 'Lee': '리',
-    'ORCITE': '오르시떼', '오르시떼': '오르시떼',
-    '에이더': '에이더',
-}
-KNOWN_BRANDS.sort(key=len, reverse=True)
-
-
 def extract_brand(product_name):
-    """상품명에서 브랜드 추출. 사전 매칭 → 나이키 모델 → fallback."""
+    """상품명에서 브랜드 정확매칭. 사전 미등록 → '미확정' (추측 금지).
+
+    브랜드 사전은 brand_dict.get_map() 이 반환하는 live 캐시를 매 호출마다 조회한다.
+    /api/brand_dict 로 사전이 갱신되면(runtime reload) 재시작 없이 즉시 반영된다.
+    """
     try:
         if pd.isna(product_name):
-            return '기타'
+            return "미확정"
     except (TypeError, ValueError):
         pass
-    s = str(product_name)
-    s_upper = s.upper()
-
-    for brand in KNOWN_BRANDS:
-        if brand.upper() in s_upper:
-            return BRAND_NORMALIZE.get(brand, brand)
-
-    nike_models = ['에어맥스', '에어포스', '코트 비전', '조던', '덩크', 'P-6000',
-                   '빅토리', '킬샷', '플렉스', '보메로', '코르테즈', 'V5 RNR',
-                   '윈드러너', '챌린저', '스톰', 'NSW', '드라이 핏', '폼 러너',
-                   '레트로', '프로 웜업', '스포츠웨어', '런 스위프트', '런 디파이',
-                   '스탠다드 이슈', '카와 슬라이드', '에브리데이 플러스']
-    for model in nike_models:
-        if model in s:
-            return '나이키'
-
-    cleaned = re.sub(r'<[^>]+>', '', s)
-    cleaned = re.sub(r'\[[^\]]*\]\s*', '', cleaned)
-
-    if re.search(r'\b[A-Z]{2}\d{4}', s):
-        m2 = re.search(r'매장정품[>]?\s+([가-힣]{1,4})\s', cleaned)
-        if m2 and m2.group(1) not in ['탑텐', '빈폴', '코닥', '폴햄', '아레나']:
-            return '나이키'
-
-    m = re.search(r'매장정품\s+(\S+)', cleaned)
-    if m:
-        word = m.group(1)
-        if not word.isdigit():
-            return BRAND_NORMALIZE.get(word, word)
-
-    return '기타'
+    brand = match_brand(product_name, brand_dict.get_map())
+    return brand or "미확정"
 
 
 def normalize_option(option_text):

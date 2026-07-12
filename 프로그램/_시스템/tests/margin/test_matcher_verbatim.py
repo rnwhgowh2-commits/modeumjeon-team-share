@@ -64,7 +64,12 @@ def test_source_is_verbatim_except_import_lines():
     original = ORIGINAL.read_text(encoding="utf-8").splitlines()
 
     def strip(lines):
-        return [ln for ln in lines if "config import" not in ln]
+        # 무수정 이식에서 유일하게 손대는 것 = 패키지 경로 import 줄:
+        #   from config import ...            → from lemouton.margin.config import ...
+        #   from modules import brand_dict    → from lemouton.margin import brand_dict
+        #   from modules.brand_dict import .. → from lemouton.margin.brand_dict import ..
+        skip = ("config import", "import brand_dict", "brand_dict import")
+        return [ln for ln in lines if not any(s in ln for s in skip)]
 
     assert strip(ported) == strip(original), \
         "matcher 본문이 원본과 다릅니다 — 무수정 이식 규칙 위반"
