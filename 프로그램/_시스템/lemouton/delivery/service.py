@@ -179,3 +179,56 @@ def set_method_manual(session, mango_uid, method) -> bool:
     o.delivery_method_source = "수기"
     session.commit()
     return True
+
+
+# ── v2 검사 (마켓 API 실데이터 기준) ──
+from datetime import datetime as _dt, timezone as _tz  # noqa: E402
+from lemouton.markets.order_export import _SHIPPED_STATES  # noqa: E402
+
+
+def find_double_invoice_risk(session):
+    """더망고는 아직 해외현지배송중(재출력 대상)인데 마켓엔 이미 송장/배송중 → 이중송장 위험."""
+    out = []
+    for o in (session.query(MangoOrder)
+              .filter(MangoOrder.mango_status == "해외현지배송중").all()):
+        if o.market_check_error:            # 확인불가 제외
+            continue
+        if (o.market_api_invoice or "") or (o.market_api_status in _SHIPPED_STATES):
+            out.append(o)
+    return out
+
+
+def _stall_base_time(o):
+    """정체 24h 기준시각 — 마켓 발송처리일 우선, 없으면 송장 첫 관측시각."""
+    hist0 = (o.invoice_history or [{}])[0].get("at") if o.invoice_history else None
+    for cand in (o.market_shipped_at, hist0):
+        if cand:
+            try:
+                return _dt.fromisoformat(cand)
+            except (ValueError, TypeError):
+                continue
+    return None
+
+
+def find_flow_stalled(session, now=None):
+    """송장 있음 + 마켓상태 배송중 미만 + 24h 경과 → 배송흐름 정체."""
+    now = now or _dt.now(_tz.utc)
+    out = []
+    for o in session.query(MangoOrder).all():
+        if o.market_check_error:
+            continue
+        if not o.market_api_status:            # 마켓 상태 미확인 → 판정 보류
+            continue
+        has_inv = bool((o.market_api_invoice or "") or (o.invoice_no or ""))
+        if not has_inv:
+            continue
+        if o.market_api_status in _SHIPPED_STATES:   # 이미 흐름 시작 → 정상
+            continue
+        base = _stall_base_time(o)
+        if base is None:
+            continue
+        if base.tzinfo is None:
+            base = base.replace(tzinfo=_tz.utc)
+        if (now - base).total_seconds() > 24 * 3600:
+            out.append(o)
+    return out

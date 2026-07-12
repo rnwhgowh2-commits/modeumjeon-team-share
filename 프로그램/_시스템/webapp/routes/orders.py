@@ -478,24 +478,29 @@ def _mango_to_dict(o):
         'product': o.product_name, 'option': o.option1, 'invoice': o.invoice_no or '',
         'mango_status': o.mango_status, 'market_status': o.market_status,
         'method': o.delivery_method, 'method_source': o.delivery_method_source,
-        'dup': bool(o.is_duplicate_invoice),
+        # v2 마켓 실데이터
+        'market_api_status': o.market_api_status, 'market_api_invoice': o.market_api_invoice or '',
+        'why_error': o.market_check_error,
     }
 
 
 @bp.route('/inspect/data')
 def inspect_data():
-    """배송검사 목록 + 검사요약 + 구분자 매핑 (JSON)."""
+    """배송검사 목록 + 검사요약(v2 마켓 실데이터) + 구분자 매핑 (JSON)."""
     s = SessionLocal()
     try:
         _dsvc.seed_default_status_map(s)   # 최초 진입 시 기본 매핑 보장
         orders = (s.query(_dsvc.MangoOrder)
                   .order_by(_dsvc.MangoOrder.last_uploaded_at.desc()).limit(1000).all())
-        dup_uids = {o.mango_uid for o in _dsvc.find_duplicate_invoices(s)}
-        flow_uids = {o.mango_uid for o in _dsvc.find_flow_missing(s)}
+        dup_uids = {o.mango_uid for o in _dsvc.find_double_invoice_risk(s)}
+        flow_uids = {o.mango_uid for o in _dsvc.find_flow_stalled(s)}
+        unk_uids = {o.mango_uid for o in orders if o.market_check_error}
         rows = []
         for o in orders:
             d = _mango_to_dict(o)
-            d['flow_missing'] = o.mango_uid in flow_uids
+            d['dup'] = o.mango_uid in dup_uids
+            d['flow_stalled'] = o.mango_uid in flow_uids
+            d['unknown'] = o.mango_uid in unk_uids
             rows.append(d)
         status_map = [
             {'value': m.status_value, 'meaning': m.meaning,
@@ -504,7 +509,7 @@ def inspect_data():
         ]
         return jsonify(ok=True, orders=rows, status_map=status_map,
                        summary={'dup': len(dup_uids), 'flow': len(flow_uids),
-                                'total': len(orders)})
+                                'unknown': len(unk_uids), 'total': len(orders)})
     finally:
         s.close()
 
@@ -528,8 +533,17 @@ def inspect_upload():
     try:
         _dsvc.seed_default_status_map(s)
         res = _dsvc.upsert_orders(s, rows, bulk_method=bulk)
+        # 업로드 즉시 마켓 API 조회(오픈마켓주문번호 매칭 → 실상태·실송장 캐시)
+        from lemouton.delivery import market_enrich as _me
+        uids = [r["mango_uid"] for r in rows]
+        warn = []
+        try:
+            enr = _me.enrich_from_market_api(s, uids, warnings=warn)
+        except Exception as e:   # noqa: BLE001 — enrich 실패해도 업로드는 성공 처리
+            enr = {"checked": 0}
+            warn.append(f"마켓 조회 실패: {type(e).__name__}")
         return jsonify(ok=True, inserted=res['inserted'], updated=res['updated'],
-                       parsed=len(rows))
+                       parsed=len(rows), market_checked=enr.get('checked', 0), warnings=warn)
     finally:
         s.close()
 

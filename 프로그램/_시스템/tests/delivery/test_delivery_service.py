@@ -162,3 +162,49 @@ def test_set_method_manual(db):
     assert o.delivery_method == "직배"
     assert o.delivery_method_source == "수기"
     assert svc.set_method_manual(db, "nonexist", "직배") is False
+
+
+# ── v2 마켓 API 연동 ──
+from datetime import datetime, timedelta, timezone
+
+
+def test_market_api_fields(db):
+    o = M.MangoOrder(mango_uid="m1")
+    o.market_api_status = "배송준비중"
+    o.market_api_invoice = "INV1"
+    o.market_check_error = None
+    db.add(o); db.commit()
+    got = db.query(M.MangoOrder).filter_by(mango_uid="m1").one()
+    assert got.market_api_status == "배송준비중"
+    assert got.market_api_invoice == "INV1"
+
+
+def _mk(db, uid, **kw):
+    o = M.MangoOrder(mango_uid=uid, invoice_history=[])
+    for k, v in kw.items():
+        setattr(o, k, v)
+    db.add(o); db.commit(); return o
+
+
+def test_find_double_invoice_risk(db):
+    _mk(db, "d1", mango_status="해외현지배송중", market_api_invoice="INV", market_check_error=None)
+    _mk(db, "d2", mango_status="해외현지배송중", market_api_status="배송중", market_check_error=None)
+    _mk(db, "d3", mango_status="해외현지배송중", market_api_invoice="", market_api_status="배송준비중", market_check_error=None)
+    _mk(db, "d4", mango_status="해외현지배송중", market_api_invoice="INV", market_check_error="확인불가")
+    risk = svc.find_double_invoice_risk(db)
+    assert {o.mango_uid for o in risk} == {"d1", "d2"}
+
+
+def test_find_flow_stalled(db):
+    old = (datetime.now(timezone.utc) - timedelta(hours=30)).isoformat()
+    recent = (datetime.now(timezone.utc) - timedelta(hours=3)).isoformat()
+    _mk(db, "s1", market_api_invoice="INV", market_api_status="배송준비중",
+        invoice_history=[{"invoice": "INV", "at": old}], market_check_error=None)
+    _mk(db, "s2", market_api_invoice="INV", market_api_status="배송중",
+        invoice_history=[{"invoice": "INV", "at": old}], market_check_error=None)
+    _mk(db, "s3", market_api_invoice="INV", market_api_status="배송준비중",
+        invoice_history=[{"invoice": "INV", "at": recent}], market_check_error=None)
+    _mk(db, "s4", market_api_invoice="INV", market_api_status="배송준비중",
+        invoice_history=[{"invoice": "INV", "at": old}], market_check_error="확인불가")
+    stalled = svc.find_flow_stalled(db)
+    assert {o.mango_uid for o in stalled} == {"s1"}
