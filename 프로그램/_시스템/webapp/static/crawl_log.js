@@ -389,6 +389,8 @@
       '.mcl-card-cnt .mcl-c-reg { color:#E5EAF0; font-weight:800; }',
       '.mcl-card-cnt .mcl-vdiv { color:#3a4654; margin:0 3px; }',
       '.mcl-card-cnt .mcl-c-ok { color:#34D399; font-weight:800; }',
+      '.mcl-card-cnt .mcl-wins { color:#3AD9A6; font-weight:800; }',
+      '.mcl-wdot { display:inline-block; width:6px; height:6px; border-radius:50%; background:#3AD9A6; margin-right:2px; vertical-align:middle; }',
       '.mcl-card-cnt .mcl-c-no { color:#F87171; font-weight:800; text-decoration:underline; text-underline-offset:2px; cursor:pointer; margin-left:4px; }',
       '.mcl-card-tag.mcl-hidden { display:none; }',
       '.mcl-card-toggle { font-size:11px; color:#60A5FA; background:none; border:none; cursor:pointer; padding:0 0 0 8px; flex-shrink:0; white-space:nowrap; }',
@@ -926,7 +928,13 @@
         _res = ' <span class="mcl-vdiv">│</span> <span class="mcl-c-ok">✓ ' + _ok + '</span>'
              + (_fail > 0 ? ' <span class="mcl-c-no" title="클릭 → 옵션 매트릭스">✗ ' + _fail + '</span>' : '');
       }
-      cntEl.innerHTML = '<span class="mcl-c-reg">URL 등록수 ' + _reg + '</span>' + _res;
+      // [2026-07-12] 진행 중 소싱처가 지금 몇 창으로 URL 을 나눠 긁는지 (동시 상한 반영)
+      var _wins = '';
+      if (s.status === 'run' && (s.wins || 1) > 1) {
+        var _dots = ''; for (var _wi = 0; _wi < s.wins; _wi++) _dots += '<span class="mcl-wdot"></span>';
+        _wins = ' <span class="mcl-vdiv">│</span> <span class="mcl-wins" title="지금 이 소싱처가 연 창(=URL 나눠 긁기)">⧉ ' + _dots + ' ' + s.wins + '창</span>';
+      }
+      cntEl.innerHTML = '<span class="mcl-c-reg">URL 등록수 ' + _reg + '</span>' + _res + _wins;
       var _noEl = cntEl.querySelector('.mcl-c-no');
       if (_noEl) _noEl.addEventListener('click', function (e) { e.stopPropagation(); openMatrixForFail(selected); });
       var toggleEl = document.createElement('button'); toggleEl.type = 'button'; toggleEl.className = 'mcl-card-toggle';
@@ -1143,7 +1151,7 @@
 
   function handleCrawlLog(e) {
     var d = e.detail; if (!d) return;
-    var type = d.type, ts = d.ts || Date.now(), code = d.bundle, sk = d.source, level = d.level || '', msg = d.msg || '', m = d.metrics;
+    var type = d.type, ts = d.ts || Date.now(), code = d.bundle, sk = d.source, level = d.level || '', msg = d.msg || '', m = d.metrics, wins = d.wins;
 
     // 'queue' — 진행중+대기 목록 갱신(레일)
     if (type === 'queue') {
@@ -1247,6 +1255,7 @@
       case 'window-open': {
         if (sk) {
           var s1 = getSource(b, sk); s1.status = 'run'; s1.done = 0; s1.total = null; s1.expanded = true;
+          if (wins != null) s1.wins = wins;   // [2026-07-12] 이 소싱처가 연 창 수(URL 나눠 긁기)
           s1.logs.push({ ts: ts, level: level, msg: msg || '창 시작' });
         }
         mergeMetrics(b, m);
