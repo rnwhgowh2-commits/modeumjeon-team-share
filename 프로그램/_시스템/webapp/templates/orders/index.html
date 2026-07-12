@@ -181,6 +181,27 @@
     .o7 .inv-wait{color:var(--faint);font-weight:400;font-family:inherit;}
     .o7 tr.r-xl td{background:#FFFBEB;} .o7 tr.r-hand td{background:#F3F8FF;}
     .o7 tr.r-bad td{background:#FEF2F2;} .o7 tr.r-sent td{background:#F0FDF4;}
+    /* 배송검사 통합 — 더망고 카드·배송방식 토글칩·검사 막대 */
+    .o7 .mango-card{background:#fff;border:1px solid var(--line2);border-radius:12px;padding:13px 15px;margin-bottom:13px;}
+    .o7 .mango-card .mc-t{font-size:13.5px;font-weight:800;margin-bottom:9px;}
+    .o7 .mango-card .mc-sub{font-size:11px;font-weight:500;color:var(--sub);margin-left:6px;}
+    .o7 .mc-dz{display:flex;align-items:center;justify-content:center;gap:9px;border:2px dashed var(--line2);border-radius:10px;padding:13px;cursor:pointer;background:#fff;}
+    .o7 .mc-dz:hover{border-color:var(--blue);}
+    .o7 .mc-dz .ic{font-size:20px;} .o7 .mc-dz .t{font-weight:700;font-size:12.5px;} .o7 .mc-dz .fn{font-size:11.5px;color:var(--sub);}
+    .o7 .mc-row{display:flex;align-items:center;gap:7px;margin-top:11px;flex-wrap:wrap;}
+    .o7 .mc-rc{border:1px solid var(--line2);border-radius:8px;padding:6px 12px;font-size:12px;font-weight:700;color:var(--sub);cursor:pointer;}
+    .o7 .mc-rc.on{border-color:var(--blue);background:#EEF4FF;color:var(--blue);}
+    .o7 .mc-msg{margin-top:9px;font-size:12.5px;}
+    .o7 .dm-chip{display:inline-flex;border:1px solid var(--line2);border-radius:999px;overflow:hidden;}
+    .o7 .dm-chip button{border:none;background:#fff;padding:3px 9px;font-size:10.5px;font-weight:700;color:var(--sub);cursor:pointer;}
+    .o7 .dm-chip button.onk{background:#FEF3E2;color:var(--amber);}
+    .o7 .dm-chip button.onj{background:#EEF4FF;color:var(--blue);}
+    .o7 #dmbars .dmbar{margin-bottom:8px;cursor:pointer;padding:2px;}
+    .o7 #dmbars .dt{display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px;}
+    .o7 #dmbars .dt b{font-variant-numeric:tabular-nums;}
+    .o7 #dmbars .dk{height:6px;background:var(--line);border-radius:99px;overflow:hidden;}
+    .o7 #dmbars .dk span{display:block;height:6px;border-radius:99px;}
+    .o7 .bd.red{background:#FEE2E2;color:var(--red);} .o7 .bd.green{background:#E7F6EC;color:var(--green);}
   </style>
   <div class="o7">
     <aside class="side">
@@ -194,6 +215,7 @@
           <input type="date" id="qfrom"><span class="qdash">~</span><input type="date" id="qto">
         </div>
       </div>
+      <div class="fg"><div class="fl">배송검사 · 눌러서 거르기</div><div id="dmbars"></div></div>
       <div class="fg"><div class="fl">검색 (상품·수령자)</div><input class="srch" id="srch" placeholder="검색어 입력"></div>
       <div class="fg"><div class="fl" style="line-height:1.5">💡 표의 <b>열 제목</b>을 누르면<br>값을 골라 거를 수 있어요(필터)</div></div>
       <div class="fg" style="margin-bottom:0">
@@ -204,6 +226,23 @@
       </div>
     </aside>
     <main class="main">
+      <div class="mango-card" id="mangoCard">
+        <div class="mc-t">📥 더망고 대조 업로드 <span class="mc-sub">오픈마켓주문번호로 매칭 → 배송방식·배송검사</span></div>
+        <label class="mc-dz" id="mangoDz">
+          <input type="file" id="mangoFile" accept=".xls,.htm,.html" style="display:none">
+          <span class="ic">📥</span><span class="t">더망고 엑셀 선택 · 끌어놓기</span><span class="fn" id="mangoFn"></span>
+        </label>
+        <div class="mc-row">
+          <div class="fl" style="margin:0 10px 0 0">전체 배송방식</div>
+          <label class="mc-rc on"><input type="radio" name="mgbulk" value="자동판정" checked hidden>자동판정</label>
+          <label class="mc-rc"><input type="radio" name="mgbulk" value="까대기" hidden>전부 까대기</label>
+          <label class="mc-rc"><input type="radio" name="mgbulk" value="직배" hidden>전부 직배</label>
+          <span style="margin-left:auto"></span>
+          <button class="gbtn" id="mgMapBtn" style="width:auto;margin:0">⚙ 구분자 매핑</button>
+          <button class="gbtn" id="mgUpBtn" style="width:auto;margin:0;background:var(--blue);border-color:var(--blue);color:#fff">업로드</button>
+        </div>
+        <div class="mc-msg" id="mangoMsg"></div>
+      </div>
       <div class="kpis" id="kpis"></div>
       <div class="mkline" id="mkline"></div>
       <div class="acctline" id="acctline"></div>
@@ -265,6 +304,7 @@
     var PANEL_COLS=[
       {c:'주문일',a:'txt'},{c:'주문상태',a:'ctr'},{c:'판매처',a:'ctr'},
       {c:'쇼핑몰별칭',a:'txt',t:'계정'},{c:'송장입력',a:'ctr'},
+      {c:'배송방식',a:'ctr'},{c:'배송검사',a:'ctr'},
       {c:'상품명',a:'txt'},{c:'옵션',a:'txt'},{c:'수량',a:'num'},
       {c:'오픈마켓주문번호',a:'txt',t:'오픈마켓 주문번호'},
       {c:'단가',a:'num'},{c:'실결제금액',a:'num'},
@@ -366,6 +406,11 @@
       for(var col in colFilter){var ex=colFilter[col]&&colFilter[col].excluded;
         if(ex&&ex.size&&ex.has(filterKey(col,r)))return false;}   // 헤더 필터(제외값)
       if(srch){var s=srch.toLowerCase();if(((r['상품명']||'')+ (r['수령자']||'')).toLowerCase().indexOf(s)<0)return false;}
+      if(dmCheckFilter){var m=dmOf(r);   // 사이드바 배송검사 막대 필터
+        if(!m)return false;
+        if(dmCheckFilter==='dup'&&!m.dup)return false;
+        if(dmCheckFilter==='flow'&&!m.flow)return false;
+        if(dmCheckFilter==='unk'&&!m.unk)return false;}
       return true;});}
     function renderKPI(fr){
       var wait=fr.filter(function(r){return WAIT.test(r['주문상태']||'');}).length;
@@ -486,8 +531,53 @@
     }
     function kpi(l,v){return '<div class="kpi"><div class="l">'+l+'</div><div class="v">'+v+'</div></div>';}
     function esc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+    // ── 배송검사(더망고 대조) 병합 — 오픈마켓주문번호 → {uid, method, dup, flow, unk} ──
+    var mangoMap={}, mangoSummary={dup:0,flow:0,unknown:0,total:0};
+    function dmOf(r){return mangoMap[String(r['오픈마켓주문번호']||'').trim()]||null;}
+    function dmMethodCell(r){
+      var m=dmOf(r); if(!m||!m.method)return '<span class="muted">—</span>';
+      return '<span class="dm-chip" data-uid="'+esc(m.uid)+'">'
+        +'<button class="'+(m.method==='까대기'?'onk':'')+'" data-m="까대기">까대기</button>'
+        +'<button class="'+(m.method==='직배'?'onj':'')+'" data-m="직배">직배</button></span>';
+    }
+    function dmCheckCell(r){
+      var m=dmOf(r); if(!m)return '<span class="muted">—</span>';
+      if(m.dup)return '<span class="bd red" title="더망고는 해외현지배송중인데 마켓엔 이미 송장">🔴 이중송장</span>';
+      if(m.flow)return '<span class="bd amber" title="송장 넣고 24h 배송중 안 됨">🟡 정체</span>';
+      if(m.unk)return '<span class="bd gray" title="마켓 조회 실패(서버 IP 미등록 등)">⚪ 확인불가</span>';
+      return '<span class="bd green">🟢 정상</span>';
+    }
+    var dmCheckFilter=null;   // 'dup'|'flow'|'unk'|null — 사이드바 막대 클릭
+    function loadMango(cb){
+      fetch('/orders/inspect/data',{cache:'no-store'}).then(function(r){return r.json();}).then(function(j){
+        mangoMap={};
+        (j.orders||[]).forEach(function(o){
+          var k=String(o.ord||'').trim(); if(!k)return;
+          mangoMap[k]={uid:o.uid,method:o.method,dup:!!o.dup,flow:!!o.flow_stalled,unk:!!o.unknown};
+        });
+        mangoSummary=j.summary||mangoSummary;
+        renderDmBars();
+        if(cb)cb(); else if(typeof render==='function')render();
+      }).catch(function(){if(cb)cb();});
+    }
+    function renderDmBars(){
+      var el=document.getElementById('dmbars'); if(!el)return;
+      var s=mangoSummary, tot=Math.max(1,s.total||1);
+      var ok=(s.total||0)-(s.dup||0)-(s.flow||0)-(s.unknown||0);
+      var defs=[['dup','🔴 이중송장','var(--red)',s.dup||0],['flow','🟡 배송흐름 정체','var(--amber)',s.flow||0],
+                ['unk','⚪ 확인불가','var(--faint)',s.unknown||0],['ok','🟢 정상','var(--green)',ok]];
+      el.innerHTML=defs.map(function(d){
+        var on=(dmCheckFilter===d[0])?' style="outline:2px solid '+d[2]+';outline-offset:1px;border-radius:6px"':'';
+        return '<div class="dmbar" data-f="'+d[0]+'"'+on+'><div class="dt"><span>'+d[1]+'</span><b style="color:'+d[2]+'">'+d[3]+'</b></div>'
+          +'<div class="dk"><span style="width:'+Math.min(100,Math.round(d[3]/tot*100))+'%;background:'+d[2]+'"></span></div></div>';
+      }).join('');
+      [].slice.call(el.querySelectorAll('.dmbar')).forEach(function(b){b.onclick=function(){
+        var f=b.getAttribute('data-f'); dmCheckFilter=(f==='ok'||dmCheckFilter===f)?null:f; render();};});
+    }
     function cellHTML(col,r){
       var v=r[col];
+      if(col==='배송방식')return dmMethodCell(r);
+      if(col==='배송검사')return dmCheckCell(r);
       if(col==='판매처')return '<span class="mk '+(MKCLS[v]||'gray')+'">'+esc(v||'')+'</span>';
       if(col==='주문상태'){var u=unifyStatus(v||'');var orig=String(v||'').trim()||'-';
         return '<span class="bd '+u.cls+'" title="원본 · '+esc(r['판매처']||'')+' : '+esc(orig)+'">'+esc(u.canon)+'</span>';}
@@ -866,7 +956,33 @@
     }
     function closeColPop(){pop.classList.remove('on');}
     document.addEventListener('click',function(e){if(pop.classList.contains('on')&&!pop.contains(e.target)&&!e.target.closest('th.fcol'))closeColPop();});
+
+    // ── 배송검사 통합 배선 (더망고 업로드 · 배송방식 토글칩) ──
+    var mgFile=document.getElementById('mangoFile');
+    if(document.getElementById('mangoDz')){
+      document.getElementById('mangoDz').addEventListener('click',function(){mgFile.click();});
+      mgFile.addEventListener('change',function(){document.getElementById('mangoFn').textContent=mgFile.files[0]?mgFile.files[0].name:'';});
+      [].slice.call(document.querySelectorAll('input[name=mgbulk]')).forEach(function(rd){rd.addEventListener('change',function(){
+        [].slice.call(document.querySelectorAll('.mc-rc')).forEach(function(l){l.classList.toggle('on',l.querySelector('input').checked);});});});
+      document.getElementById('mgUpBtn').addEventListener('click',function(){
+        if(!mgFile.files[0]){document.getElementById('mangoMsg').innerHTML='<span style="color:var(--red)">파일을 선택하세요</span>';return;}
+        var fd=new FormData();fd.append('file',mgFile.files[0]);
+        fd.append('bulk_method',document.querySelector('input[name=mgbulk]:checked').value);
+        document.getElementById('mangoMsg').textContent='업로드·마켓 대조 중…';
+        fetch('/orders/inspect/upload',{method:'POST',body:fd}).then(function(r){return r.json();}).then(function(j){
+          if(j.ok){document.getElementById('mangoMsg').innerHTML='<span style="color:var(--green)">✔ '+j.parsed+'건 처리 · 마켓대조 '+(j.market_checked||0)+'건</span>';loadMango();}
+          else document.getElementById('mangoMsg').innerHTML='<span style="color:var(--red)">✖ '+esc(j.error||'')+'</span>';});});
+      document.getElementById('mgMapBtn').addEventListener('click',function(){window.open('/orders/?tab=inspect','_blank');});
+    }
+    // 배송방식 토글칩 클릭(표에 위임) → 수기 지정
+    document.getElementById('tablewrap').addEventListener('click',function(e){
+      var btn=e.target.closest('.dm-chip button'); if(!btn)return;
+      var uid=btn.parentElement.getAttribute('data-uid'), m=btn.getAttribute('data-m');
+      fetch('/orders/inspect/method',{method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({uid:uid,method:m})}).then(function(){loadMango();});});
+
     load();
+    loadMango();
   })();
   </script>
 

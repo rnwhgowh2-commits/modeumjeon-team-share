@@ -67,8 +67,6 @@ def _default_layout() -> dict:
                  'url': '/templates', 'active_key': 'templates', 'badge_key': None},
                 {'id': 'i_orders', 'emoji': '📦', 'name': '주문 내역',
                  'url': '/orders/?tab=list', 'active_key': 'orders_list', 'badge_key': None},
-                {'id': 'i_inspect', 'emoji': '🚚', 'name': '배송검사',
-                 'url': '/orders/?tab=inspect', 'active_key': 'orders_inspect', 'badge_key': None},
                 {'id': 'i_sales', 'emoji': '💵', 'name': '정산·매출',
                  'url': '/orders/?tab=sales', 'active_key': 'orders_sales', 'badge_key': None},
                 {'id': 'i_cs', 'emoji': '💬', 'name': '문의·반품',
@@ -95,27 +93,19 @@ def _default_layout() -> dict:
 _layout_cache: dict = {'mtime': 0.0, 'data': None}
 
 
-def _ensure_inspect(layout: dict) -> bool:
-    """기존 저장 메뉴에 '배송검사'(i_inspect) 버튼이 없으면 '주문 내역'(i_orders) 바로 뒤에 끼운다.
+def _remove_inspect(layout: dict) -> bool:
+    """배송검사가 주문 내역으로 흡수됨 → 저장 메뉴에 남은 '배송검사'(i_inspect) 항목 제거(idempotent).
 
-    기존 사용자 순서·커스터마이징은 건드리지 않고, 빠진 버튼 1개만 안전하게 보강한다(idempotent).
-    사용자가 일부러 지운 경우까지 되살리진 않음 — id 존재 여부만 본다.
+    (구분자 매핑 설정은 주문 내역 상단 「구분자 매핑」 버튼으로 접근.)
     """
-    stages = layout.get('stages') or []
-    exists = any(it.get('id') == 'i_inspect'
-                 for st in stages for it in (st.get('items') or []))
-    if exists:
-        return False
-    item = {'id': 'i_inspect', 'emoji': '🚚', 'name': '배송검사',
-            'url': '/orders/?tab=inspect', 'active_key': 'orders_inspect', 'badge_key': None}
-    for st in stages:
+    changed = False
+    for st in layout.get('stages') or []:
         items = st.get('items') or []
-        for i, it in enumerate(items):
-            if it.get('id') == 'i_orders':
-                items.insert(i + 1, item)
-                st['items'] = items
-                return True
-    return False
+        new = [it for it in items if it.get('id') != 'i_inspect']
+        if len(new) != len(items):
+            st['items'] = new
+            changed = True
+    return changed
 
 
 def _load() -> dict:
@@ -135,7 +125,7 @@ def _load() -> dict:
             return _layout_cache['data']
         with open(LAYOUT_PATH, 'r', encoding='utf-8') as f:
             data = json.load(f)
-        if _ensure_inspect(data):          # 저장된 메뉴에 배송검사 버튼 자동 보강(1회)
+        if _remove_inspect(data):          # 배송검사 주문내역 흡수 → 저장 메뉴의 별도 항목 제거(1회)
             _save(data)
             try:
                 mtime = LAYOUT_PATH.stat().st_mtime

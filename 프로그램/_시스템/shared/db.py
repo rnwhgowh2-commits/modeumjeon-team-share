@@ -245,6 +245,12 @@ def _apply_lightweight_migrations() -> None:
         # 2026-07-04: account_upload_policies 신규 테이블 → create_all 생성
         # 2026-07-05: crawl_weight_rules 신규 테이블 → create_all 생성
         # 2026-07-10: invoice_ledger 신규 테이블(송장 원장) → create_all 생성(FK 없음)
+        # 2026-07-12: 배송검사 v2 — 마켓 API 조회 캐시(mango_orders)
+        ("mango_orders", "market_api_status", "VARCHAR(32)"),
+        ("mango_orders", "market_api_invoice", "VARCHAR(64)"),
+        ("mango_orders", "market_shipped_at", "VARCHAR(32)"),
+        ("mango_orders", "market_checked_at", "DATETIME"),
+        ("mango_orders", "market_check_error", "VARCHAR(200)"),
     ]
     inspector = inspect(engine)
     existing_tables = set(inspector.get_table_names())

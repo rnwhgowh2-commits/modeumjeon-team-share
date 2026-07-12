@@ -42,6 +42,13 @@ class MangoOrder(Base):
     last_uploaded_at = Column(DateTime, default=_now, onupdate=_now)
     raw = Column(JSON)                                  # 원본 행 dict (감사용)
 
+    # v2 마켓 API 연동 캐시 (오픈마켓주문번호로 실주문 조회 결과)
+    market_api_status = Column(String(32))     # 마켓 통일 주문상태(배송준비중/배송중/배송완료…)
+    market_api_invoice = Column(String(64))    # 마켓에 등록된 송장번호
+    market_shipped_at = Column(String(32))     # 마켓 발송처리일시(제공 마켓만)
+    market_checked_at = Column(DateTime)       # 마지막 조회 시각
+    market_check_error = Column(String(200))   # 조회 실패/미매칭 사유(있으면 '확인 불가')
+
 
 class MangoStatusMap(Base):
     __tablename__ = "mango_status_map"
