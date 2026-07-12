@@ -1827,6 +1827,20 @@ async function crawlBundleAllBG(code) {
   const total = sourceKeys.reduce((n, k) => n + bySource[k].length, 0);
   if (!total) { await _finalize(); emit("finish", { level: "warn", msg: "대상 URL 없음" }); return { ok: false, error: "대상 URL 없음" }; }
 
+  // [2026-07-12 2단계] 소싱처별 '동시 상한' — 서버(weight-tree)에서 받아 한 소싱처의 URL 을
+  //   여러 창으로 나눠 병렬로 긁는다(공유 커서=중복 0). ⚠️첫 배포 안전상 소싱처당 최대 3창으로
+  //   클램프(검증 후 상향). 못 받으면 1(=현행 순차) 폴백. 사이트 차단 위험 → 에러 시 상한 낮추기.
+  const CONSERVATIVE_MAX = 3;
+  const sourceCaps = {};
+  try {
+    const _wt = await bgFetch("/api/crawl/weight-tree").then((x) => x.json());
+    (_wt && _wt.src || []).forEach((s) => { if (s && s.scope_key != null) sourceCaps[s.scope_key] = s.concurrency; });
+  } catch (_) {}
+  function effectiveCap(sk) {
+    const v = sourceCaps[sk];
+    return Math.max(1, Math.min(CONSERVATIVE_MAX, (v == null ? 1 : (parseInt(v, 10) || 1))));
+  }
+
   // [2026-07-12] 동시 창 상한 3→10 (사용자 요청) — 예전처럼 창을 넉넉히 열어 빠르게.
   //   실제 도달치는 '메모리 안전장치'(MEM≥96 보류·≥98 강제감소)가 정한다 = 브레이크는 메모리.
   //   ★CPU 기반 자동감소는 해제(evaluateConcurrency): chrome.system.cpu 는 PC 전체 CPU라
@@ -1850,26 +1864,26 @@ async function crawlBundleAllBG(code) {
   async function runSource(sk) {
     const list = bySource[sk];
     const startIdx = sourceProgress[sk] || 0;
-    let winId = null, tabId = null;
     let pausedMid = false;
     const srcOuts = [];   // 이 소싱처 결과 누적 → 소싱처 완료 즉시 증분 저장용
-    try {
+    const wins = [];      // 이 소싱처가 연 창들(URL 병렬 — 여러 창이 커서 공유)
+    let cursor = startIdx;                 // ★ 창들이 공유하는 URL 커서
+    const nWorkers = Math.max(1, Math.min(effectiveCap(sk), list.length - startIdx));
+    // [2026-07-12 2단계] 한 소싱처의 URL 을 nWorkers 개 창이 나눠 긁는다. i=cursor++ 는 단일스레드라
+    //   원자적 → 같은 URL 을 두 창이 안 집는다(중복 0). 일시정지 시엔 진행위치를 저장 안 하고 그
+    //   소싱처를 처음부터 재크롤(누락 방지·중복은 감수 — 안전 우선).
+    async function _worker(wi) {
       const w = await handleOpenWin({});
-      if (!w || !w.ok || w.tabId == null) {
-        for (let j = startIdx; j < list.length; j++) { results.push({ url: list[j].url, source_key: sk, status: "error", error: (w && w.error) || "창 생성 실패" }); done++; }
-        delete sourceProgress[sk];
-        emit("source-done", { source: sk, level: "warn", msg: sk + " 창 생성 실패 — " + (list.length - startIdx) + "건 건너뜀", metrics: { concurrency, cap, active, done, total } });
-        return;
-      }
-      winId = w.winId; tabId = w.tabId;
-      emit("window-open", { source: sk, level: "", msg: sk + " 창 시작", metrics: { concurrency, cap, active, done, total } });
-      for (let i = startIdx; i < list.length; i++) {
-        if (_mgr.stopped) break;
-        if (_mgr.paused) { sourceProgress[sk] = i; pausedMid = true; break; }
+      if (!w || !w.ok || w.tabId == null) return;   // 이 창 실패 → 다른 창이 남은 URL 커버(커서 공유)
+      wins.push(w);
+      const tabId = w.tabId;
+      if (wi === 0) emit("window-open", { source: sk, level: "", msg: sk + " 창 시작" + (nWorkers > 1 ? (" ×" + nWorkers + " (URL 나눠 긁기)") : ""), metrics: { concurrency, cap, active, done, total } });
+      while (!_mgr.stopped) {
+        if (_mgr.paused) { pausedMid = true; break; }
+        const i = cursor++;                 // ★ 원자적(단일스레드) — 창끼리 URL 안 겹침
+        if (i >= list.length) break;
         const t0 = Date.now();
         let out;
-        // [2026-06-14 fix F] 하드 타임아웃으로 감싸 행 방지. 타임아웃/예외도 error 유닛으로
-        //   표면화하고 다음 유닛 진행 → 한 건 행이 전체크롤을 마비시키지 않음 + 중지 반응성 회복.
         const _r = await withTimeout(crawlItemInTabBG(tabId, code, list[i]), UNIT_TIMEOUT_MS);
         if (_r && _r.__timeout) {
           out = { url: list[i].url, source_key: sk, status: "error", error: "유닛 타임아웃 " + (UNIT_TIMEOUT_MS / 1000) + "s(행 추정·건너뜀)" };
@@ -1880,12 +1894,11 @@ async function crawlBundleAllBG(code) {
         }
         const sec = (Date.now() - t0) / 1000;
         latencies.push(sec); if (latencies.length > 12) latencies.shift();
-        results.push(out); srcOuts.push(out); done++; sourceProgress[sk] = i + 1;
+        results.push(out); srcOuts.push(out); done++;
         if (cooldown > 0) cooldown--;
         emit("item-done", {
           source: sk, level: out.status === "ok" ? "" : "warn",
           url: (out && out.url) || (list[i] && list[i].url) || null,
-          // [2026-06-19 D8] URL별 상세표(상품명·표면노출가)용 — 위젯이 per-URL 행 렌더에 사용.
           name: (out && out.product_name) || null,
           surf: (out && out.price != null) ? out.price : null,
           url_type: (list[i] && list[i].url_type) || "dan",
@@ -1893,7 +1906,6 @@ async function crawlBundleAllBG(code) {
           msg: (out.status === "ok"
             ? (sk + " 표면 " + (out.price != null ? out.price.toLocaleString() + "원" : "가격없음") + " (" + sec.toFixed(1) + "s)")
             : (sk + " 실패: " + (out.error || "")))
-            // [2026-06-22 진단] 네이버 SKU 재고 — 수집결과(sku_diag)+실수량 매핑수 표면화(스스 999 원인).
             + (out.sku_diag != null ? (" [SKU재고 " + out.sku_diag + " · 실수량 " + (out.stock_real_n || 0) + "/" + (out.stock_total_n || 0) + "]") : ""),
           metrics: { concurrency, cap, active, done, total, avgSec: +bgMedian(latencies).toFixed(2), cpu: lastSys.cpu, mem: lastSys.mem },
         });
@@ -1905,29 +1917,36 @@ async function crawlBundleAllBG(code) {
           }
         }
       }
-      // [2026-06-19 fix ②③] 실패(error) URL 1회 자동 재시도 — 일시 실패(타임아웃·순간차단) 자가치유.
-      //   창이 아직 열린 상태에서 재크롤. 성공 시 srcOuts/results 의 해당 항목을 교체(저장은 ok만).
+    }
+    try {
+      await Promise.all(Array.from({ length: nWorkers }, (_u, wi) => _worker(wi)));
+      if (!wins.length) {   // 창을 하나도 못 열었음 → 전건 실패(기존 동작 보존)
+        for (let j = startIdx; j < list.length; j++) { results.push({ url: list[j].url, source_key: sk, status: "error", error: "창 생성 실패" }); done++; }
+        delete sourceProgress[sk];
+        emit("source-done", { source: sk, level: "warn", msg: sk + " 창 생성 실패 — 건너뜀", metrics: { concurrency, cap, active, done, total } });
+        return;
+      }
+      // 실패 URL 1회 자동 재시도 — 열린 창 하나 재사용(성공 시 srcOuts/results 교체, 저장은 ok만)
       if (!_mgr.stopped && !_mgr.paused) {
         const _failed = srcOuts.filter((o) => o && o.status === "error");
-        if (_failed.length && tabId != null) {
+        const _tab = wins[0] && wins[0].tabId;
+        if (_failed.length && _tab != null) {
           emit("retry", { source: sk, level: "", msg: sk + " 실패 " + _failed.length + "건 자동 재시도", metrics: { concurrency, cap, active, done, total } });
           for (const _f of _failed) {
             if (_mgr.stopped || _mgr.paused) break;
             const _orig = list.find((x) => x.url === _f.url) || { url: _f.url };
-            const _r2 = await withTimeout(crawlItemInTabBG(tabId, code, _orig), UNIT_TIMEOUT_MS);
+            const _r2 = await withTimeout(crawlItemInTabBG(_tab, code, _orig), UNIT_TIMEOUT_MS);
             const _out2 = (_r2 && !_r2.__timeout && !_r2.__error && _r2.status === "ok") ? _r2 : null;
             if (_out2) {
               const _si = srcOuts.indexOf(_f); if (_si >= 0) srcOuts[_si] = _out2;
               const _ri = results.indexOf(_f); if (_ri >= 0) results[_ri] = _out2;
-              // [2026-06-22] "item-retried" 타입 사용 — "item-done" 은 bgUpdateView 에서 s.done++ 하므로
-              //   재시도 성공 시에도 "item-done" 을 쓰면 s.done 이 이중 증가(42/40 오버카운트 버그).
               emit("item-retried", { source: sk, level: "", url: _out2.url, name: _out2.product_name || null, surf: (_out2.price != null) ? _out2.price : null, lineId: sk + "|" + _out2.url, msg: sk + " 재시도 성공 — 표면 " + (_out2.price != null ? _out2.price.toLocaleString() + "원" : "가격없음"), metrics: { concurrency, cap, active, done, total } });
             }
           }
         }
       }
     } finally {
-      if (winId != null) { try { await handleCloseWin({ winId: winId }); } catch (_) {} }
+      for (const _w of wins) { if (_w && _w.winId != null) { try { await handleCloseWin({ winId: _w.winId }); } catch (_) {} } }
     }
     if (pausedMid) { pendingSources.unshift(sk); return; }
     if (_mgr.stopped) return;
