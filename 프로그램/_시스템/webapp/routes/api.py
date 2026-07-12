@@ -43,42 +43,47 @@ _CRAWL_QUEUE_TTL = 8.0
 
 
 class _SingleFlightTTLCache:
-    """프로세스-로컬 단일값 TTL 캐시 + 싱글플라이트 갱신.
+    """프로세스-로컬 키별 TTL 캐시 + 싱글플라이트 갱신.
 
-    get(producer): 신선하면 즉시 반환. 만료+직전값 있음 → 한 스레드만 producer()로
-    갱신하고 경쟁 스레드는 직전값(stale) 반환. 직전값 없음 → 락 잡고 1회만 채움.
+    get(key, producer): 그 key 값이 신선하면 즉시 반환. 만료+직전값 있음 → 한 스레드만
+    producer()로 갱신하고 경쟁 스레드는 직전값(stale) 반환. 직전값 없음 → 락 잡고 1회만 채움.
+
+    ★키 분리 이유 — 실행/정지(crawl_auto_enabled) 같은 사용자 토글은 즉시 반영돼야 한다.
+      단일값 캐시로 상태를 뭉개면 정지시켜도 최대 8초간 '실행 중' 페이로드가 서빙되고,
+      테스트에서도 enabled=True 결과가 enabled=False 케이스로 새어 나온다(교차 오염).
+      key 에 토글 상태를 실으면 값이 바뀌는 즉시 다른 캐시 슬롯 → 지연 없이 정확.
     """
 
     def __init__(self, ttl: float):
         self.ttl = ttl
-        self.at = 0.0
-        self.payload = None
+        self.entries: dict = {}     # key -> [at(mono), payload]
         self.lock = threading.Lock()
 
-    def get(self, producer):
-        mono = time.monotonic()
-        if self.payload is not None and (mono - self.at) < self.ttl:
-            return self.payload                       # 신선
-        if self.payload is not None:
+    def get(self, key, producer):
+        e = self.entries.get(key)
+        if e is not None and (time.monotonic() - e[0]) < self.ttl:
+            return e[1]                               # 신선
+        if e is not None:
             # 만료지만 직전값 있음 — 한 스레드만 갱신, 나머지는 stale 반환(stampede 차단)
             if not self.lock.acquire(blocking=False):
-                return self.payload
+                return e[1]
             try:
-                mono = time.monotonic()
-                if self.payload is not None and (mono - self.at) < self.ttl:
-                    return self.payload               # 다른 스레드가 이미 갱신함
-                self.payload = producer()
-                self.at = time.monotonic()
-                return self.payload
+                e2 = self.entries.get(key)
+                if e2 is not None and (time.monotonic() - e2[0]) < self.ttl:
+                    return e2[1]                      # 다른 스레드가 이미 갱신함
+                payload = producer()
+                self.entries[key] = [time.monotonic(), payload]
+                return payload
             finally:
                 self.lock.release()
-        # 캐시가 아예 비어있음 — 락 잡고 딱 1회만 채운다(첫 요청만 대기)
+        # 이 key 캐시가 아예 비어있음 — 락 잡고 딱 1회만 채운다(첫 요청만 대기)
         with self.lock:
-            if self.payload is not None:              # 대기 중 다른 스레드가 채움
-                return self.payload
-            self.payload = producer()
-            self.at = time.monotonic()
-            return self.payload
+            e2 = self.entries.get(key)
+            if e2 is not None:                        # 대기 중 다른 스레드가 채움
+                return e2[1]
+            payload = producer()
+            self.entries[key] = [time.monotonic(), payload]
+            return payload
 
 
 _crawl_queue_cache = _SingleFlightTTLCache(_CRAWL_QUEUE_TTL)
@@ -94,6 +99,7 @@ def crawl_queue():
     잦은 폴링 대비 8초 TTL 캐시 + 싱글플라이트(위 주석 참조).
     """
     from lemouton.sources.crawl_schedule import due_crawl_payload
+    from lemouton.pricing.settings import get_or_init
 
     def _produce():
         s = SessionLocal()
@@ -103,7 +109,13 @@ def crawl_queue():
         finally:
             s.close()
 
-    return jsonify(_crawl_queue_cache.get(_produce))
+    # 실행/정지 토글은 즉시 반영돼야 하므로 캐시 키에 싣는다(가벼운 단일행 조회).
+    s = SessionLocal()
+    try:
+        enabled = bool(get_or_init(s).crawl_auto_enabled)
+    finally:
+        s.close()
+    return jsonify(_crawl_queue_cache.get(enabled, _produce))
 
 
 @bp.route('/crawl/due-bundles')
@@ -127,7 +139,13 @@ def crawl_due_bundles():
         finally:
             s.close()
 
-    return jsonify(_crawl_due_bundles_cache.get(_produce))
+    # 실행/정지 토글은 즉시 반영 — 캐시 키에 싣는다(가벼운 단일행 조회).
+    s = SessionLocal()
+    try:
+        enabled = bool(get_or_init(s).crawl_auto_enabled)
+    finally:
+        s.close()
+    return jsonify(_crawl_due_bundles_cache.get(enabled, _produce))
 
 
 @bp.post('/crawl/pass-done')
@@ -338,7 +356,7 @@ def crawl_failures():
         finally:
             s.close()
 
-    return jsonify(_crawl_failures_cache.get(_produce))
+    return jsonify(_crawl_failures_cache.get("all", _produce))
 
 
 # ---------- 옵션별 브랜드 ----------

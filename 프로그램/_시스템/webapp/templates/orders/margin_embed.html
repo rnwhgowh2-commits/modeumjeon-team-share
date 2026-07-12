@@ -405,6 +405,19 @@ h1 {
 .bd-x{cursor:pointer;color:#9ca3af;font-size:11px}
 .bd-x:hover{color:#F04452}
 
+/* ── 미확정 정리 (설정 탭) ── */
+.mj-tab{padding:7px 14px;font-size:13px;font-weight:600;color:#6b7280;border:1px solid #e5e7eb;border-bottom:none;border-radius:8px 8px 0 0;cursor:pointer;background:#f8fafc}
+.mj-tab.on{color:#CA8A04;background:#fff;border-color:#FACC15}
+.mj-pane{border-top:1px solid #FACC15}
+.mj-row{display:flex;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid #f1f3f5;font-size:13px}
+.mj-kw{font-weight:600;min-width:120px}.mj-cnt{color:#6b7280;min-width:48px;text-align:right}.mj-ar{color:#9ca3af}
+.mj-brand{border:1px solid #d1d6db;border-radius:5px;padding:4px 8px;font-size:13px;width:140px}
+.mj-mrow{display:grid;grid-template-columns:1fr 60px 110px 110px 60px;gap:8px;align-items:center;padding:6px 0;border-bottom:1px solid #f1f3f5;font-size:13px}
+.mj-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mj-mkw,.mj-mbr{border:1px solid #d1d6db;border-radius:5px;padding:4px 6px;font-size:12px}
+.btn-amber{background:#CA8A04;color:#fff;border:none;border-radius:6px;padding:6px 13px;font-size:13px;font-weight:600;cursor:pointer}
+.btn-blue{background:#2563EB;color:#fff;border:none;border-radius:5px;padding:4px 9px;font-size:12px;font-weight:600;cursor:pointer}
+
 /* ── 필터 바 ── */
 .filters {
   display: flex;
@@ -1644,6 +1657,7 @@ function renderCurrentTab() {
   if (currentTab === 'settings') {
     el.innerHTML = renderSettings();
     if (typeof loadBrandDict === 'function') loadBrandDict();
+    if (typeof loadUnresolved === 'function') loadUnresolved();
     /* 비동기로 소싱처 계정 로드 */
     if (typeof renderSourcingAccounts === 'function') renderSourcingAccounts();
     return;
@@ -2504,6 +2518,16 @@ function renderSettings() {
        +   '<button onclick="addBrandDict()" style="background:#2563EB;color:#fff;border:none;border-radius:6px;padding:6px 14px;font-size:13px;font-weight:600;cursor:pointer">추가</button>'
        + '</div>'
        + '<div id="brandDictBox" style="padding:8px 0 4px">불러오는 중…</div>'
+       + '</div>'
+       + '<div class="card" style="margin-top:16px;border:2px solid #FACC15">'
+       + '<div class="table-header"><h3>⚠️ 미확정 정리</h3>'
+       +   '<span style="color:#6b7280;font-size:12px" id="mjSummary">분석 후 이용 가능</span></div>'
+       + '<div style="display:flex;gap:6px;padding:10px 14px 0">'
+       +   '<button id="mjTab0" class="mj-tab on" onclick="mjSwitch(0)">자동 추천</button>'
+       +   '<button id="mjTab1" class="mj-tab" onclick="mjSwitch(1)">수기 지정</button>'
+       + '</div>'
+       + '<div id="mjPane0" class="mj-pane" style="padding:12px 14px">불러오는 중…</div>'
+       + '<div id="mjPane1" class="mj-pane" style="padding:12px 14px;display:none">불러오는 중…</div>'
        + '</div>';
 }
 
@@ -2908,6 +2932,63 @@ function filterBrandDict(){
   });
 }
 
+/* ── 미확정 정리 (자동 추천 / 수기 지정) ── */
+function mjSwitch(i){
+  document.getElementById('mjPane0').style.display = i===0?'':'none';
+  document.getElementById('mjPane1').style.display = i===1?'':'none';
+  document.getElementById('mjTab0').classList.toggle('on', i===0);
+  document.getElementById('mjTab1').classList.toggle('on', i===1);
+}
+function loadUnresolved(){
+  var p0=document.getElementById('mjPane0'), p1=document.getElementById('mjPane1'), s=document.getElementById('mjSummary');
+  if(!p0) return;
+  fetch('/api/brand_dict/suggest').then(function(r){return r.json();}).then(function(res){
+    var sug=res.suggestions||[], up=res.unresolved_products||[], tot=res.total_unclassified||0;
+    if(s) s.textContent = tot ? ('미확정 '+tot+'건 · 자동추천 '+sug.length+' · 수기 '+up.length) : '미확정 없음(또는 분석 전)';
+    // 자동 추천 탭
+    if(!sug.length){ p0.innerHTML='<div style="color:#9ca3af">자동 추천할 후보가 없습니다. (데이터 분석 후 이용)</div>'; }
+    else {
+      var h='<div style="font-size:12px;color:#6b7280;margin-bottom:8px">체크 후 추가하면 그 키워드가 든 상품이 전부 분류됩니다. 브랜드명은 한글로 자동 채워집니다.</div>';
+      sug.forEach(function(it){
+        h+='<label class="mj-row"><input type="checkbox" checked data-kw="'+escAttr(it.keyword)+'">'
+          +'<span class="mj-kw">'+esc(it.keyword)+'</span><span class="mj-cnt">'+it.count+'건</span><span class="mj-ar">→</span>'
+          +'<input class="mj-brand" value="'+escAttr(it.brand||it.keyword)+'"></label>';
+      });
+      h+='<div style="margin-top:12px"><button class="btn-amber" onclick="mjApplyAuto()">선택 항목 사전에 추가</button></div>';
+      p0.innerHTML=h;
+    }
+    // 수기 지정 탭
+    if(!up.length){ p1.innerHTML='<div style="color:#9ca3af">수기 지정할 미확정 상품이 없습니다.</div>'; }
+    else {
+      var h2='<div style="font-size:12px;color:#6b7280;margin-bottom:8px">상품명에 브랜드가 없어 자동으론 못 잡는 것 — 상품명을 보고 <b>브랜드 식별 키워드</b>와 브랜드를 직접 넣으세요. (남여공용·반팔 같은 일반 단어는 넣지 마세요)</div>';
+      up.forEach(function(it,i){
+        h2+='<div class="mj-mrow"><span class="mj-name" title="'+escAttr(it.name)+'">'+esc(it.name)+'</span><span class="mj-cnt">'+it.count+'건</span>'
+          +'<input class="mj-mkw" id="mjkw'+i+'" placeholder="키워드"><input class="mj-mbr" id="mjbr'+i+'" placeholder="브랜드">'
+          +'<button class="btn-blue" onclick="mjApplyManual('+i+')">추가</button></div>';
+      });
+      p1.innerHTML=h2;
+    }
+  }).catch(function(e){ if(p0) p0.textContent='불러오기 실패: '+e; });
+}
+function mjApplyAuto(){
+  var items=[];
+  document.querySelectorAll('#mjPane0 .mj-row').forEach(function(row){
+    var cb=row.querySelector('input[type=checkbox]');
+    if(cb&&cb.checked){ var kw=cb.getAttribute('data-kw'); var br=(row.querySelector('.mj-brand').value||'').trim(); if(kw&&br) items.push({keyword:kw,brand:br}); }
+  });
+  if(!items.length){ alert('추가할 항목을 선택하세요.'); return; }
+  fetch('/api/brand_dict',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({items:items})})
+    .then(function(r){return r.json();}).then(function(){ alert(items.length+'개 추가됨. 다음 분석부터 반영됩니다.'); if(typeof loadBrandDict==='function')loadBrandDict(); loadUnresolved(); })
+    .catch(function(e){ alert('실패: '+e); });
+}
+function mjApplyManual(i){
+  var kw=(document.getElementById('mjkw'+i).value||'').trim(), br=(document.getElementById('mjbr'+i).value||'').trim();
+  if(!kw||!br){ alert('키워드와 브랜드를 모두 입력하세요.'); return; }
+  fetch('/api/brand_dict',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({keyword:kw,brand:br})})
+    .then(function(r){return r.json();}).then(function(){ if(typeof loadBrandDict==='function')loadBrandDict(); loadUnresolved(); })
+    .catch(function(e){ alert('실패: '+e); });
+}
+
 /* 연속구매 배지 클릭 시 해당 수령인의 주문내역으로 필터 (전체내역 탭 이동 + 수령인 검색) */
 function filterByRecipient(name, evt) {
   if (evt) { evt.stopPropagation(); evt.preventDefault(); }
@@ -3064,6 +3145,8 @@ function updateAnalyzeMsg() {
   msg.innerHTML = '<span>' + txt + '</span>'
     + ' <span style="margin-left:14px;color:#191F28;font-weight:700;font-size:35px;">총매출 ' + fmtW(sales) + '원</span>'
     + ' <span style="margin-left:12px;color:' + (margn<0?'#dc2626':'#1AB053') + ';font-weight:700;font-size:35px;">총마진 ' + fmtW(margn) + '원</span>';
+  var _mFailed = (window.analysisData && window.analysisData.markets_failed) || [];  /* [모음전] 연동안됨/조회실패 마켓 표면화 (markets_failed) */
+  if (_mFailed.length) { msg.innerHTML += '<div style="margin-top:8px;padding:8px 12px;background:#FFF3F3;border:1px solid #FFD5D5;border-radius:8px;color:#dc2626;font-size:13px;line-height:1.65;">⚠️ 아래 마켓은 API 연동이 안 됐거나 조회에 실패해 <b>매출에서 제외</b>하고 분석했어요:<br>' + _mFailed.map(function(w){ return '· ' + String(w); }).join('<br>') + '</div>'; }  /* [모음전] _mFailed 배너 */
   if (typeof currentTab !== 'undefined' && currentTab === 'summary' && typeof renderCurrentTab === 'function') {
     try { renderCurrentTab(); } catch (e) {}
   }

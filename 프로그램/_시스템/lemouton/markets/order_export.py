@@ -90,6 +90,20 @@ def _status_ko(market, raw):
     return _STATUS_KO.get(market, {}).get(str(raw), str(raw))
 
 SUPPORTED = {"smartstore", "lotteon", "coupang", "eleven11"}   # UI 엑셀버튼 노출. 실키=서버 UI저장.
+# 마켓 키 → 한글 표시명(사용자 배너·경고용). 미등록 키는 원문 그대로.
+_MARKET_KO = {"smartstore": "스마트스토어", "lotteon": "롯데온", "coupang": "쿠팡",
+              "eleven11": "11번가", "auction": "옥션", "gmarket": "G마켓"}
+
+
+def market_label(market: str) -> str:
+    """마켓 키의 한글 표시명. 미등록은 원문."""
+    return _MARKET_KO.get(market, market)
+
+
+def _market_fail_msg(market: str, err: Exception) -> str:
+    """마켓 통째 실패 → 사용자 배너 문구(한글 마켓명 + 사유). 조용한 실패 금지."""
+    return (f"[{market_label(market)}] 매출(주문) 조회에 실패해 이 마켓을 분석에서 "
+            f"제외했어요: {err}")
 # 11번가 = 서버 실호출 검증 완료(2026-07-08): 주문(complete)+정산예정금액(stlPlnAmt) 실응답 확인.
 # 옥션·G마켓(auction·gmarket)은 키 입력+실호출 검증 후 추가.
 # 마켓 → 계정 시크릿 env_prefix(판매처 계정 기본). load_credentials 로 실키 로드.
@@ -969,8 +983,17 @@ def order_rows(market: str, days: int = 7, client=None,
                     f"제외했어요 — 키 지문 {fp}. 다른 가게라면 그 가게의 키를 다시 입력하세요.")
     built = uniq
 
-    if not built:                               # 등록 0개/전부 키 없음 → 대표 계정 폴백
-        return _rows_for(_account_client(market), _account_alias(market))
+    if not built:                               # 등록 0개/전부 키 없음
+        cli0 = _account_client(market)          # 대표 계정(env 폴백) 시도
+        if cli0 is None:                        # 자격증명이 하나도 없음 = API 연동 안 됨
+            if warnings is not None:            # 화면·분석 → 제외 표면화 + 빈 결과(계속 진행)
+                warnings.append(
+                    f"[{market_label(market)}] API 연동(키)이 등록돼 있지 않아 "
+                    f"매출 조회에서 제외했어요. 판매처 계정 관리에서 키를 등록하세요.")
+                return []
+            raise RuntimeError(                 # 엑셀 등 → 조용한 빈 파일 대신 전파
+                f"'{market_label(market)}' API 자격증명이 등록돼 있지 않습니다.")
+        return _rows_for(cli0, _account_alias(market))
     if len(built) == 1:
         return _rows_for(built[0][1], built[0][0])
 
@@ -1160,26 +1183,38 @@ _CACHE_LOCK = _threading.Lock()
 
 
 def _fetch_combined(markets, days, now, since=None, until=None, warnings=None) -> list:
-    """마켓별 주문을 병렬 조회 후 최신순 통합. 한 마켓 실패는 전파(부분 성공 숨김 금지).
+    """마켓별 주문을 병렬 조회 후 최신순 통합.
 
-    warnings(list) 전달 시 일부 계정 조회 실패는 그 사유를 담고 나머지를 반환(order_rows 참조).
+    ★ 마켓 단위 부분 실패 정책 — 계정 단위(order_rows) 정책과 동일하게 warnings 게이트:
+      · warnings(list) 있음(화면·마진 분석) → 통째로 실패한 마켓은 그 사유를 warnings 에
+        담아 '제외'로 표면화하고 성공한 마켓만 반환(부분 성공 허용·조용한 실패 금지).
+        단 모든 마켓이 실패하면(보여줄 게 없음) 전파.
+      · warnings 없음(엑셀 다운로드) → 한 마켓이라도 실패하면 전파(불완전 파일 방지).
+    warnings 있을 때 일부 계정 실패 사유도 함께 담긴다(order_rows 참조).
     """
     def _one(mk):
         return order_rows(mk, days=days, now=now, since=since, until=until,
                           warnings=warnings)
+    results, errors = {}, []          # errors = [(market, Exception)]
     if len(markets) == 1:             # 단일 마켓은 스레드 오버헤드 불필요
-        results = {markets[0]: _one(markets[0])}
+        try:
+            results[markets[0]] = _one(markets[0])
+        except Exception as e:        # noqa: BLE001
+            errors.append((markets[0], e))
     else:
-        results, errors = {}, []
         with _ThreadPool(max_workers=min(4, len(markets))) as ex:
             futs = {ex.submit(_one, mk): mk for mk in markets}
             for fut, mk in futs.items():
                 try:
                     results[mk] = fut.result()
-                except Exception as e:   # noqa: BLE001 — 대표 오류로 전파(어느 마켓인지 호출부가 표면화)
-                    errors.append(e)
-        if errors:
-            raise errors[0]
+                except Exception as e:   # noqa: BLE001 — 어느 마켓인지 함께 보관
+                    errors.append((mk, e))
+    if errors:
+        # 전부 실패(보여줄 게 없음) 또는 경고 채널 없음(엑셀) → 전파. 부분 결과 숨김 금지.
+        if warnings is None or not results:
+            raise errors[0][1]
+        for mk, e in errors:            # 일부 실패 → 나머지 반환 + 실패 마켓을 배너로
+            warnings.append(_market_fail_msg(mk, e))
     all_rows = []
     for mk in markets:                # 입력 순서 유지 후 정렬
         all_rows += results.get(mk, [])
