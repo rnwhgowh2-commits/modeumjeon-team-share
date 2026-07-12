@@ -72,10 +72,11 @@ def due_products(session, *, base_interval_seconds: float, now: datetime) -> lis
     products = (session.query(SourceProduct)
                 .filter(SourceProduct.deleted_at.is_(None))
                 .all())
+    resolve = build_batch_weight_resolver(session)   # ★N+1 제거: 제품마다 쿼리 X
     scored = []
     for p in products:
         od = overdue_seconds(now, p.last_fetched_at, base_interval_seconds,
-                             resolve_crawl_weight(session, p), p.no_change_streak)
+                             resolve(p), p.no_change_streak)
         if od >= 0:
             scored.append((od, p))
     scored.sort(key=lambda t: t[0], reverse=True)   # 연체 큰 순
@@ -219,6 +220,69 @@ def resolve_crawl_weight(session, source_product) -> int:
     return 1
 
 
+def build_batch_weight_resolver(session):
+    """제품 다수의 계수를 한 번의 preload 로 in-memory 해결하는 리졸버를 반환.
+
+    ★라이브 장애 근본 수정(2026-07-12): resolve_crawl_weight 를 제품마다 호출하면
+      제품마다 BundleSourceUrl 테이블 통째 재로드 등으로 N+1(449쿼리/5~13초) → DB·워커
+      마비. 이 함수는 규칙/번들URL/모델브랜드를 **각 1쿼리씩** 미리 읽어 두고, 반환한
+      resolve(source_product) 는 쿼리 없이 순수 계산으로 resolve_crawl_weight 와
+      **완전히 동일한 5단계** 결과를 낸다(동치성은 test_batch_weight_resolver 가 지킴).
+
+    5단계(resolve_crawl_weight 와 바이트 동일):
+      1) url 규칙 → 그 weight
+      2) 아니면 이 url 에 걸린 model_code 들의 model 규칙 있으면 max(weight)
+      3) 아니면 그 model_code 들의 브랜드 규칙 있으면 max(weight)
+      4) 아니면 source(site) 규칙 → weight
+      5) 아니면 기본 1
+    """
+    from lemouton.sources.models import CrawlWeightRule
+    from lemouton.sources.service import normalize_url
+    from lemouton.sourcing.models import BundleSourceUrl, Model
+
+    # (scope_type, scope_key) → weight  (1쿼리)
+    rules = {(r.scope_type, r.scope_key): r.weight
+             for r in session.query(CrawlWeightRule).all()}
+
+    # normalize_url(b.url) → {model_code, ...}  (1쿼리)
+    url_to_models: dict[str, set] = {}
+    for mc, url in session.query(BundleSourceUrl.model_code, BundleSourceUrl.url).all():
+        url_to_models.setdefault(normalize_url(url), set()).add(mc)
+
+    # model_code → brand (비어있지 않은 것만; resolve_crawl_weight 의 `if m.brand` 필터와 동일)  (1쿼리)
+    model_to_brand: dict[str, str] = {
+        mc: brand for mc, brand in session.query(Model.model_code, Model.brand).all()
+        if brand
+    }
+
+    def resolve(source_product) -> int:
+        nurl = normalize_url(source_product.url)
+        w = rules.get(("url", nurl))
+        if w is not None:
+            return w
+
+        model_codes = url_to_models.get(nurl)
+        if model_codes:
+            mws = [rules[("model", mc)] for mc in model_codes
+                   if ("model", mc) in rules]
+            if mws:
+                return max(mws)
+            brands = {model_to_brand[mc] for mc in model_codes
+                      if mc in model_to_brand}
+            if brands:
+                bws = [rules[("brand", b)] for b in brands
+                       if ("brand", b) in rules]
+                if bws:
+                    return max(bws)
+
+        sw = rules.get(("source", source_product.site))
+        if sw is not None:
+            return sw
+        return 1
+
+    return resolve
+
+
 # ════════════════════════════════════════════════════════════════════
 #  가중 라운드로빈 랩 (연속 모드 = 기준주기 0)
 #  ─ 시간 기준 없이 최대한 자주 크롤하되, 계수만큼 빈도 배수.
@@ -229,12 +293,18 @@ def resolve_crawl_weight(session, source_product) -> int:
 #  ─ 전부 채우면 랩 완료 → start_new_lap 로 리셋(다음 랩 즉시 시작 = 절대 안 쉼).
 # ════════════════════════════════════════════════════════════════════
 
-def lap_quota(session, source_product) -> int:
-    """이번 랩에 이 URL을 몇 번 크롤해야 하나 = 유효계수(1~5). 계수 0 = 0(랩에서 제외)."""
-    w = resolve_crawl_weight(session, source_product)
+def _quota_from_weight(w) -> int:
+    """유효계수 → 랩 quota: 0 이하 = 0(랩 제외), 그 외 1~5 클램프. (계수→quota 단일 정의)"""
     if w <= 0:
         return 0
     return max(1, min(5, w))
+
+
+def lap_quota(session, source_product) -> int:
+    """이번 랩에 이 URL을 몇 번 크롤해야 하나 = 유효계수(1~5). 계수 0 = 0(랩에서 제외).
+
+    (단건 공개 API. 핫패스는 _lap_view 가 배치 리졸버로 계산 — 여기서 결과는 동일.)"""
+    return _quota_from_weight(resolve_crawl_weight(session, source_product))
 
 
 def record_crawl_served(source_product) -> int:
@@ -276,9 +346,10 @@ def _lap_view(session) -> list:
     '한 패스 끝' 판정은 서버 추측이 아니라 확장의 pass-done 신호로 한다(due_bundle_codes).
     """
     prods = _lap_products(session)
+    resolve = build_batch_weight_resolver(session)   # ★N+1 제거: 제품마다 쿼리 X
     live = []
     for p in prods:
-        q = lap_quota(session, p)
+        q = _quota_from_weight(resolve(p))
         if q <= 0:                       # 계수 0 = 랩에서 완전 제외(안 긁음·링 계산서도 빠짐)
             continue
         s = int(p.crawl_lap_count or 0)
