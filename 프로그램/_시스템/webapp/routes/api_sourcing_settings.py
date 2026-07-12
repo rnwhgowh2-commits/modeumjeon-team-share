@@ -25,9 +25,10 @@ r"""소싱처 계정 관리 API — `/api/sourcing-sites` + `/api/settings` (GET
     중간 삭제 시 pw 가 엉키는 위험이 있음 → id 매칭이 자격증명 무결성에 안전).
   · 리스트에서 사라진 기존 계정은 스토어에서 remove.
 
-■ owner(담당자) 필드: SourcingCredential 스키마에 컬럼이 없어 영속 불가 →
-  GET 은 항상 owner:"" 로 반환(페이지는 acc.owner || '' 로 우아하게 처리).
-  ※ id/pw/login_method(핵심 자격증명·로그인 계약)는 100% 영속된다.
+■ owner(담당자) 필드: SourcingCredential 스키마에 컬럼이 없고 SourcingAccount.
+  display_name 은 운영센터 라벨로 이미 쓰이므로, 작은 사이드 테이블
+  SourcingAccountOwner((source, account_key)→owner)에 영속한다
+  (lemouton.margin.sourcing_owner_store). id/pw/login_method/owner 모두 round-trip.
 
 ■ /api/cookie-status/all · /api/check-sourcing 은 여기 없음(Task E — 로컬 확장
   자동 점검). 페이지는 이미 .catch 로 우아하게 degrade 한다(건드리지 않음).
@@ -120,9 +121,12 @@ def get_settings():
     형태: {"accounts": {<source>: [{id, pw:'***', owner:'', login_method}, ...]}}
     """
     from lemouton.auth.sourcing_credentials import default_store
+    from lemouton.margin import sourcing_owner_store
     allc = default_store().load_all()  # {source: {account_key: {id, pw, login_method}}}
+    owners = sourcing_owner_store.load_all()  # {source: {account_key: owner}}
     accounts = {}
     for source, amap in allc.items():
+        omap = owners.get(source, {})
         lst = []
         for key in _ordered_keys(amap):
             creds = amap[key] or {}
@@ -130,7 +134,7 @@ def get_settings():
             lst.append({
                 "id": creds.get("id", "") or "",
                 "pw": PW_MASK if has_pw else "",
-                "owner": "",  # DB 스키마 미지원 (report 참조)
+                "owner": omap.get(key, "") or "",  # 사이드 테이블(SourcingAccountOwner)
                 "login_method": creds.get("login_method") or "direct",
             })
         accounts[source] = lst
@@ -151,6 +155,7 @@ def save_settings():
     검증을 먼저 전부 통과한 뒤에만 쓰기(부분 저장 방지 = 원자성).
     """
     from lemouton.auth.sourcing_credentials import default_store
+    from lemouton.margin import sourcing_owner_store
 
     data = request.get_json(silent=True) or {}
     incoming = data.get("accounts")
@@ -163,7 +168,7 @@ def save_settings():
     known = _known_source_keys()
     current_all = store.load_all()
 
-    upserts = []   # (source, account_key, id, pw, login_method)
+    upserts = []   # (source, account_key, id, pw, login_method, owner)
     removes = []   # (source, account_key)
 
     for source, accs in incoming.items():
@@ -187,6 +192,7 @@ def save_settings():
             id_val = (acc.get("id") or "").strip()
             pw_in = acc.get("pw")
             method = (acc.get("login_method") or "direct").strip() or "direct"
+            owner = (acc.get("owner") or "").strip()
 
             # pw 결정: 마스킹이면 id 일치로 기존 pw 조회(없으면 index 폴백)
             if pw_in == PW_MASK:
@@ -214,7 +220,7 @@ def save_settings():
                 key = _mint_key(used)
                 used.add(key)
             kept_keys.add(key)
-            upserts.append((source, key, id_val, pw_val, method))
+            upserts.append((source, key, id_val, pw_val, method, owner))
 
         # 리스트에서 사라진 기존 계정 제거
         for key in ordered:
@@ -223,11 +229,13 @@ def save_settings():
 
     # ── 쓰기 단계 (검증 전부 통과 후) ──
     try:
-        for source, key, id_val, pw_val, method in upserts:
+        for source, key, id_val, pw_val, method, owner in upserts:
             store.upsert(source=source, account_key=key,
                          id_value=id_val, pw_value=pw_val, login_method=method)
+            sourcing_owner_store.set_owner(source, key, owner)  # 빈 값이면 행 제거
         for source, key in removes:
             store.remove(source, key)
+            sourcing_owner_store.remove_owner(source, key)
     except ValueError as e:
         # 사전 검증을 통과했음에도 스토어가 거부 → 조용히 넘기지 않고 표면화.
         logger.warning("[api_settings] 저장 거부: %s", e)

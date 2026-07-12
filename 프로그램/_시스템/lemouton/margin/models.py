@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import datetime as _dt
 
-from sqlalchemy import Date, DateTime, Integer, JSON, LargeBinary, String
+from sqlalchemy import Date, DateTime, Integer, JSON, LargeBinary, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
 from shared.db import Base
@@ -56,3 +56,28 @@ class CardKeywordConfig(Base):
     config: Mapped[dict] = mapped_column(JSON, default=dict)
     updated_at: Mapped[_dt.datetime] = mapped_column(
         DateTime, default=_dt.datetime.utcnow, onupdate=_dt.datetime.utcnow)
+
+
+class SourcingAccountOwner(Base):
+    """소싱처 계정 담당자(owner) 라벨 — 마진 계산기 소싱처 계정 관리 탭 전용.
+
+    ``sourcing_credentials`` 에는 owner 컬럼이 없다(create_all 은 기존 테이블에
+    컬럼을 추가하지 못하므로 그 테이블을 건드리면 라이브 DB 가 깨진다). 또한
+    ``SourcingAccount.display_name`` 은 소싱처 운영센터 라벨로 이미 쓰이므로
+    덮어쓰면 그 화면 표시가 오염된다(accounts.py:1660). 그래서 담당자 라벨은
+    (source, account_key)→owner 를 담는 작은 사이드 테이블로 분리한다.
+    owner 는 비밀이 아닌 라벨 → 평문 컬럼으로 충분. Alembic 없음 —
+    shared/db.py:init_db() 의 create_all 이 생성한다(margin.models 는 무조건 import).
+    """
+
+    __tablename__ = "sourcing_account_owners"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    source: Mapped[str] = mapped_column(String(32), nullable=False)
+    account_key: Mapped[str] = mapped_column(String(64), nullable=False)
+    owner: Mapped[str] = mapped_column(String(128), default="", nullable=False)
+
+    __table_args__ = (
+        UniqueConstraint("source", "account_key",
+                         name="uq_sourcing_account_owners_source_key"),
+    )

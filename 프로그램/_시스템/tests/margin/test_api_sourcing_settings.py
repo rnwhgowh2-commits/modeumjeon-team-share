@@ -19,7 +19,9 @@ from sqlalchemy.orm import sessionmaker
 
 import shared.db as shared_db
 from lemouton.sourcing.models_v2 import SourcingCredential
+from lemouton.margin.models import SourcingAccountOwner
 from lemouton.auth import sourcing_credentials as sc
+from lemouton.margin import sourcing_owner_store
 from webapp.routes import api_sourcing_settings as mod
 
 PW_MASK = "***"
@@ -29,6 +31,7 @@ PW_MASK = "***"
 def client(tmp_path, monkeypatch):
     eng = create_engine(f"sqlite:///{tmp_path/'t.db'}", future=True)
     SourcingCredential.__table__.create(eng, checkfirst=True)
+    SourcingAccountOwner.__table__.create(eng, checkfirst=True)
     Session = sessionmaker(bind=eng, future=True, expire_on_commit=False)
     # 스토어는 호출 시점에 `from shared.db import SessionLocal` 로 읽는다 → 속성 패치로 충분.
     monkeypatch.setattr(shared_db, "SessionLocal", Session)
@@ -197,3 +200,41 @@ def test_post_unknown_source_is_400(client):
 def test_post_non_dict_accounts_400(client):
     r = client.post("/api/settings", json={"accounts": [1, 2, 3]})
     assert r.status_code == 400
+
+
+# ── owner(담당자) round-trip — 사이드 테이블 SourcingAccountOwner ──────
+def test_post_owner_persists_and_roundtrips(client):
+    payload = {"accounts": {"musinsa": [
+        {"id": "buyerA", "pw": "pwA", "owner": "홍길동", "login_method": "direct"},
+    ]}}
+    assert client.post("/api/settings", json=payload).status_code == 200
+    body = client.get("/api/settings").get_json()
+    assert body["accounts"]["musinsa"][0]["owner"] == "홍길동"
+    # 새 세션(팀 공유 영속)도 본다
+    assert sourcing_owner_store.load_all()["musinsa"]["default"] == "홍길동"
+
+
+def test_post_clear_owner_persists_empty(client):
+    client.post("/api/settings", json={"accounts": {"musinsa": [
+        {"id": "buyerA", "pw": "pwA", "owner": "홍길동", "login_method": "direct"}]}})
+    # 마스킹 pw 그대로 두고 owner 만 비움
+    body = client.get("/api/settings").get_json()
+    body["accounts"]["musinsa"][0]["owner"] = ""
+    assert client.post("/api/settings", json=body).status_code == 200
+    after = client.get("/api/settings").get_json()
+    assert after["accounts"]["musinsa"][0]["owner"] == ""
+    # 빈 값 → 행 제거(빈 행 축적 방지)
+    assert sourcing_owner_store.load_all().get("musinsa", {}) == {}
+
+
+def test_removing_account_removes_owner_row(client):
+    client.post("/api/settings", json={"accounts": {"musinsa": [
+        {"id": "buyerA", "pw": "pwA", "owner": "홍길동", "login_method": "direct"}]}})
+    assert sourcing_owner_store.load_all()["musinsa"]["default"] == "홍길동"
+    # 계정을 리스트에서 제거 → owner 행도 제거
+    assert client.post("/api/settings", json={"accounts": {"musinsa": []}}).status_code == 200
+    s2 = client._Session()
+    try:
+        assert s2.query(SourcingAccountOwner).count() == 0  # 새 세션이 사라진 것을 본다
+    finally:
+        s2.close()
