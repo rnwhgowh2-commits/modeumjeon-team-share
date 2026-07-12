@@ -3,6 +3,7 @@
 UI에서 호출되는 모든 변경/조회 엔드포인트. 자동 등록(SS·쿠팡)은 T14/T15에서 wiring.
 """
 import json
+import time
 from datetime import datetime, timedelta, timezone
 
 from flask import Blueprint, jsonify, request
@@ -27,18 +28,35 @@ def _err(msg, code=400):
 
 # ---------- Crawl queue (읽기 전용) ----------
 
+# 폴링 완화용 프로세스-로컬 짧은 TTL 캐시.
+#   자동화 페이지가 /api/crawl/queue 를 1~2초마다 폴링하는데 due_crawl_payload 는
+#   무겁다(수백 쿼리·수초 — 라이브 장애 시 449q/5~13s 관측). 잦은 폴링이 그대로
+#   DB·워커를 마비시켜 전체 사이트가 521/500 이 됐다(2026-07-12). 크롤 큐는 초 단위
+#   staleness 가 무해(주기적 크롤)하므로 짧게 캐시해 폭주를 막는다. gunicorn 3워커라
+#   워커별 캐시(≈3배 완화) + 워커당 8초에 1회만 무거운 쿼리를 돈다.
+_CRAWL_QUEUE_TTL = 8.0
+_crawl_queue_cache = {"at": 0.0, "payload": None}
+
+
 @bp.route('/crawl/queue')
 def crawl_queue():
     """[읽기전용] 로컬 크롤러(확장)가 폴링하는 '지금 긁을 URL' 목록 + 실행/정지.
 
     서버는 목록만 알려줄 뿐 소싱처에 접속하지 않는다(크롤=로컬 원칙).
+    잦은 폴링 대비 8초 TTL 캐시(위 주석 참조).
     """
-    from datetime import datetime, timezone
     from lemouton.sources.crawl_schedule import due_crawl_payload
+    c = _crawl_queue_cache
+    mono = time.monotonic()
+    if c["payload"] is not None and (mono - c["at"]) < _CRAWL_QUEUE_TTL:
+        return jsonify(c["payload"])
     s = SessionLocal()
     try:
         now = datetime.now(timezone.utc).replace(tzinfo=None)  # naive UTC
-        return jsonify(due_crawl_payload(s, now=now))
+        payload = due_crawl_payload(s, now=now)
+        c["payload"] = payload
+        c["at"] = mono
+        return jsonify(payload)
     finally:
         s.close()
 
