@@ -82,6 +82,34 @@ def test_enrich_unmatched_but_market_fetched(db, monkeypatch):
     assert o.market_check_error and ("기간" in o.market_check_error or "취소" in o.market_check_error)
 
 
+def test_enrich_widens_window_and_skips_settlement(db, monkeypatch):
+    # 해외배송중 = 오래된 주문(40여일 전). 7일 기본창 밖이라 조회 못 하던 문제 →
+    # enrich 는 업로드된 주문의 '주문일'까지 조회 기간을 넓히고, 배송검사는 정산이
+    # 필요 없으니 정산 조회를 건너뛴다(정산 하루씩 루프 = 넓은 창에서 타임아웃 원인).
+    import datetime as _dt
+    db.add(M.MangoOrder(mango_uid="OLD", market_name="스마트스토어",
+                        market_order_no="SS-OLD", mango_status="해외현지배송중",
+                        ordered_at="2026-06-01"))
+    db.commit()
+    captured = {}
+
+    def fake_rows(markets, **kw):
+        captured.update(kw)
+        return [{"판매처": "스마트스토어", "오픈마켓주문번호": "SS-OLD",
+                 "주문상태": "배송중", "송장입력": "X"}]
+    monkeypatch.setattr(me._oe, "combined_order_rows", fake_rows)
+
+    me.enrich_from_market_api(db, ["OLD"])
+    # ① 조회 기간이 주문일(2026-06-01)을 덮어야 매칭 가능
+    since = captured.get("since")
+    assert since is not None and since.date() <= _dt.date(2026, 6, 1)
+    # ② 배송검사는 정산 스킵(넓은 창 타임아웃 방지)
+    assert captured.get("include_settlement") is False
+    # 결과: 오래된 주문도 매칭됨
+    o = db.query(M.MangoOrder).filter_by(mango_uid="OLD").one()
+    assert o.market_check_error is None and o.market_api_status == "배송중"
+
+
 def test_match_keys_paren():
     # 스마트스토어 괄호형 '주문번호(상품주문번호)' → 상품주문번호(안)·주문번호(밖) 후보 포함
     assert me._match_keys("2026070695107551(2026070668195471)") == [

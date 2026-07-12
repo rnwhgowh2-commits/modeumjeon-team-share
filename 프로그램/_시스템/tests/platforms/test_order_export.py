@@ -50,7 +50,7 @@ def test_order_rows_rejects_unsupported():
 def test_order_rows_uses_explicit_range(monkeypatch):
     # since/until 명시 시 days 대신 그 기간을 그대로 빌더에 전달(빠른 기간 버튼·직접 날짜)
     cap = {}
-    def fake_builder(since, until, client=None):
+    def fake_builder(since, until, client=None, include_settlement=True):
         cap["since"], cap["until"] = since, until
         return []
     monkeypatch.setitem(oe._BUILDERS, "smartstore", fake_builder)
