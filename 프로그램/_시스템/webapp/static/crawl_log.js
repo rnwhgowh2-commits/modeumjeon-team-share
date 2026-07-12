@@ -928,11 +928,13 @@
         _res = ' <span class="mcl-vdiv">│</span> <span class="mcl-c-ok">✓ ' + _ok + '</span>'
              + (_fail > 0 ? ' <span class="mcl-c-no" title="클릭 → 옵션 매트릭스">✗ ' + _fail + '</span>' : '');
       }
-      // [2026-07-12] 진행 중 소싱처가 지금 몇 창으로 URL 을 나눠 긁는지 (동시 상한 반영)
+      // [2026-07-13] 진행 중이면 항상 「N창」 표시(1이어도) — 안 뜨는 게 아니라 지금 순차라 1창임을
+      //   보이게. 여러 창(2단계 병렬)이면 2·3창으로. 점은 최대 5개까지만 그림(과다 방지).
       var _wins = '';
-      if (s.status === 'run' && (s.wins || 1) > 1) {
-        var _dots = ''; for (var _wi = 0; _wi < s.wins; _wi++) _dots += '<span class="mcl-wdot"></span>';
-        _wins = ' <span class="mcl-vdiv">│</span> <span class="mcl-wins" title="지금 이 소싱처가 연 창(=URL 나눠 긁기)">⧉ ' + _dots + ' ' + s.wins + '창</span>';
+      if (s.status === 'run') {
+        var _wn = s.wins || 1;
+        var _dots = ''; for (var _wi = 0; _wi < Math.min(_wn, 5); _wi++) _dots += '<span class="mcl-wdot"></span>';
+        _wins = ' <span class="mcl-vdiv">│</span> <span class="mcl-wins" title="지금 이 소싱처가 연 창 수(2 이상이면 URL 을 나눠 병렬로 긁는 중)">⧉ ' + _dots + ' ' + _wn + '창</span>';
       }
       cntEl.innerHTML = '<span class="mcl-c-reg">URL 등록수 ' + _reg + '</span>' + _res + _wins;
       var _noEl = cntEl.querySelector('.mcl-c-no');
