@@ -776,13 +776,20 @@ tr.cross-row.expanded{background:#000;color:#fff}
 tr.cross-row.expanded td{font-weight:700;color:#fff}
 tr.cross-row .cross-arrow{display:inline-block;margin-right:5px;font-size:10px;color:#999;transition:transform 0.15s}
 tr.cross-row.expanded .cross-arrow{color:#fff;transform:rotate(0deg)}
+/* 주문건 보기 — 탭 표 행/버튼 → 해당 그룹 주문내역 팝업 (order-drill) */
+tr.ord-drill-row{cursor:pointer;transition:background 0.1s}
+tr.ord-drill-row:hover{background:#f5f5f5}
+.ord-drill-btn{cursor:pointer;border:none;background:transparent;font-size:12px;padding:1px 5px;border-radius:4px;opacity:0.65;vertical-align:middle}
+.ord-drill-btn:hover{opacity:1;background:#eef2ff}
+tr.cross-row.expanded .ord-drill-btn{opacity:0.9}
 tr.cross-detail{background:#fafafa}
 tr.cross-detail td{padding:0 !important;border-bottom:2px solid #000 !important}
 .cross-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;padding:18px}
 .cross-card{background:#fff;border:1px solid #e5e8eb;border-radius:8px;padding:14px 16px}
 .cross-card .cc-h{font-size:13.5px;font-weight:800;color:#000;margin-bottom:10px;padding-bottom:7px;border-bottom:1.5px solid #000}
-.cross-card .cc-row{display:grid;grid-template-columns:1fr 75px 1fr 60px;gap:9px;align-items:center;padding:5px 0;font-size:12.5px;border-bottom:1px solid #f5f5f5}
+.cross-card .cc-row{display:grid;grid-template-columns:1fr 75px 1fr 60px;gap:9px;align-items:center;padding:5px 0;font-size:12.5px;border-bottom:1px solid #f5f5f5;cursor:pointer}
 .cross-card .cc-row:last-child{border-bottom:none}
+.cross-card .cc-row:hover{background:#f8fafc}
 .cross-card .cc-row .nm{font-weight:600;color:#191F28;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .cross-card .cc-row .v{font-weight:700;text-align:right;font-variant-numeric:tabular-nums;color:#000}
 .cross-card .cc-row .bar{height:12px;background:#f0f0f0;border-radius:2px;overflow:hidden}
@@ -878,6 +885,33 @@ tr.cross-detail td{padding:0 !important;border-bottom:2px solid #000 !important}
 .bfix-brand{border:1px solid #d1d6db;border-radius:5px;padding:4px 8px;font-size:13px;width:140px}
 .bfix-foot{display:flex;align-items:center;gap:12px;padding:14px 18px;border-top:1px solid #e5e7eb}
 .bfix-hint{color:#6b7280;font-size:12px}
+/* ── 계층 분석 드릴 패널 ── */
+.hier-btn{background:var(--accent-soft,#EAF1FE);color:#2563EB;border:1px solid #bfdbfe;border-radius:8px;padding:7px 14px;font-size:13px;font-weight:600;cursor:pointer;margin-bottom:12px}
+.hier-ov{position:fixed;inset:0;background:rgba(0,0,0,.5);display:none;align-items:center;justify-content:center;z-index:9998;padding:20px}
+.hier-ov.on{display:flex}
+.hier-box{background:#fff;border-radius:12px;max-width:1000px;width:100%;max-height:88vh;display:flex;flex-direction:column;overflow:hidden}
+.hier-h{display:flex;align-items:center;gap:12px;padding:14px 18px;border-bottom:1px solid #e5e7eb}
+.hier-h b{font-size:15px}.hier-crumb{font-size:13px;color:#6b7280}.hier-crumb .cb{cursor:pointer;color:#2563EB}
+.hier-x{margin-left:auto;cursor:pointer;color:#9ca3af}
+.hier-body{overflow:auto;padding:14px 18px}
+.hier-lv{font-size:13px;font-weight:600;color:#374151;margin:10px 0 6px}
+.hier-tbl{width:100%;border-collapse:collapse;font-size:13px}
+.hier-tbl th,.hier-tbl td{padding:7px 9px;border-bottom:1px solid #f1f3f5;text-align:left}
+.hier-tbl th{color:#6b7280;font-weight:600;font-size:12px}
+.hier-tbl .r{text-align:right}.hier-tbl .n{font-variant-numeric:tabular-nums}
+.hier-tbl tr.drill{cursor:pointer}.hier-tbl tr.drill:hover{background:#f8fafc}
+.hier-tbl td.neg{color:#F04452}.hier-tbl .nm{max-width:280px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.hier-reg{width:52px;border:1px solid #d1d6db;border-radius:4px;padding:2px 5px;text-align:right;font-size:12px}
+.hier-tbl .eff{color:#16A34A;font-weight:600}.hier-tbl .effb{color:#F04452;font-weight:600}
+.hier-tbl.ord td{font-size:12px}
+/* ── 주문내역 팝업 (Cross-analysis 막대 클릭 등에서 재사용) ── */
+.odt-ov{position:fixed;inset:0;background:rgba(0,0,0,.5);display:none;align-items:center;justify-content:center;z-index:10000;padding:20px}
+.odt-ov.on{display:flex}
+.odt-box{background:#fff;border-radius:12px;max-width:920px;width:100%;max-height:86vh;display:flex;flex-direction:column;overflow:hidden}
+.odt-h{display:flex;align-items:center;gap:10px;padding:13px 18px;border-bottom:1px solid #e5e7eb}
+.odt-h b{font-size:15px}.odt-count{color:#6b7280;font-size:13px}
+.odt-x{margin-left:auto;cursor:pointer;color:#9ca3af}
+.odt-body{overflow:auto;padding:12px 18px}
 </style>
 <script src="{{ url_for('static', filename='margin_rules.js') }}"></script>
   <script src="{{ url_for('static', filename='margin_ext_check.js') }}"></script>
@@ -2204,7 +2238,7 @@ function openBrandFix() {
         + '<span class="bfix-kw">' + esc(it.keyword) + '</span>'
         + '<span class="bfix-cnt n">' + it.count + '건</span>'
         + '<span class="bfix-arrow">→</span>'
-        + '<input class="bfix-brand" data-for="' + escAttr(it.keyword) + '" value="' + escAttr(it.keyword) + '"></label>';
+        + '<input class="bfix-brand" data-for="' + escAttr(it.keyword) + '" value="' + escAttr(it.brand || it.keyword) + '"></label>';
     });
     document.getElementById('bfixList').innerHTML = h || '추천할 미확정 후보가 없습니다.';
   }).catch(function(e) { document.getElementById('bfixList').textContent = '불러오기 실패: ' + e; });
@@ -3932,10 +3966,11 @@ function _crossPriceRangeOf(r) {
   return '30만원~';
 }
 
-function _renderCrossAnalysis(itemKey, tabKey) {
+/* 탭(itemKey/tabKey) 기준 행 집합 — _renderCrossAnalysis 와 _crossOrders 가 동일 로직 공유 */
+function _crossItemRows(itemKey, tabKey) {
   var d = (typeof getFilteredData === 'function') ? getFilteredData() : null;
-  if (!d || !d.matched) return '<div style="padding:30px;text-align:center;color:#999;font-size:13px">분석 데이터가 없습니다</div>';
-  var rows = d.matched.filter(function(r){
+  if (!d || !d.matched) return [];
+  return d.matched.filter(function(r){
     if (typeof _isLiveRow === 'function' && !_isLiveRow(r)) return false;
     if (tabKey === 'brand') return String(r['브랜드']||'').trim() === itemKey;
     if (tabKey === 'market') return String(r['마켓']||'').trim() === itemKey;
@@ -3947,6 +3982,58 @@ function _renderCrossAnalysis(itemKey, tabKey) {
     if (tabKey === 'price') return _crossPriceRangeOf(r) === itemKey;
     return false;
   });
+}
+
+/* 막대(dim/value) 판정 키 — _renderCrossAnalysis 의 집계 keyOf 와 동일해야 클릭 필터가 표시값과 일치 */
+var _crossKeyOf = {
+  brand:  function(r){return String(r['브랜드']||'-').trim() || '-'},
+  market: function(r){return String(r['마켓']||'-').trim() || '-'},
+  source: function(r){
+    var src = (typeof detectSourceNameJS === 'function') ? detectSourceNameJS(r['간단메모']) : '';
+    return src || '미분류';
+  },
+  price:  function(r){return _crossPriceRangeOf(r)}
+};
+
+/* Cross-analysis 막대 클릭 → 해당 조건 주문내역 팝업 */
+function _crossOrders(itemKey, tabKey, dim, val) {
+  var rows = _crossItemRows(itemKey, tabKey);
+  var keyFn = _crossKeyOf[dim];
+  var matched = keyFn ? rows.filter(function(r){ return keyFn(r) === val; }) : rows;
+  showOrderDetail(itemKey + ' · ' + val, matched);
+}
+
+/* ══ 탭 브레이크다운 표 행/버튼 클릭 → 해당 그룹 주문내역 팝업 (Cross-analysis 막대 클릭과 별개)
+   · 각 탭이 실제로 그룹핑에 사용하는 필드/라벨과 100% 동일하게 매칭 (서버가 이미 계산해 둔
+     r['일자']/r['월']/r['금액대'] 를 그대로 사용 — 별도 버킷팅 로직 재발명 금지) ══ */
+function _tabFieldVal(r, field) {
+  if (field === 'brand')   return String(r['브랜드'] || '기타');
+  if (field === 'market')  return String(r['마켓'] || '기타');
+  if (field === 'daily')   return String(r['일자'] || '');
+  if (field === 'monthly') return String(r['월'] || '');
+  if (field === 'price')   return String(r['금액대'] || '기타');
+  if (field === 'product') return String(r['상품코드'] || '코드없음');
+  if (field === 'source')  return (typeof detectSourceNameJS === 'function') ? (detectSourceNameJS(r['간단메모']) || '') : '';
+  return '';
+}
+function _tabOrders(field, val, label) {
+  var d = (typeof getFilteredData === 'function') ? getFilteredData() : (window._lastData || null);
+  var rows = (d && d.matched) || [];
+  var matched = rows.filter(function(r){
+    if (typeof _isLiveRow === 'function' && !_isLiveRow(r)) return false;
+    return _tabFieldVal(r, field) === val;
+  });
+  showOrderDetail((label != null && label !== '') ? label : val, matched);
+}
+function _tabBtn(field, val, label) {
+  return '<button type="button" class="ord-drill-btn" title="주문건 보기" onclick="event.stopPropagation();_tabOrders(\''
+    + escAttr(field) + '\',\'' + escAttr(val) + '\',\'' + escAttr(label != null ? label : val) + '\')">📋</button>';
+}
+
+function _renderCrossAnalysis(itemKey, tabKey) {
+  var d = (typeof getFilteredData === 'function') ? getFilteredData() : null;
+  if (!d || !d.matched) return '<div style="padding:30px;text-align:center;color:#999;font-size:13px">분석 데이터가 없습니다</div>';
+  var rows = _crossItemRows(itemKey, tabKey);
   if (!rows.length) return '<div style="padding:30px;text-align:center;color:#999;font-size:13px">'+esc(itemKey)+' 데이터 없음</div>';
   var dims = {
     brand:  [{k:'market',l:'🛒 마켓 비중'}, {k:'price',l:'💰 금액대 비중'}, {k:'source',l:'📦 소싱처 비중'}],
@@ -3954,15 +4041,7 @@ function _renderCrossAnalysis(itemKey, tabKey) {
     source: [{k:'market',l:'🛒 마켓 비중'}, {k:'brand',l:'🏷️ 브랜드 비중'}, {k:'price',l:'💰 금액대 비중'}],
     price:  [{k:'market',l:'🛒 마켓 비중'}, {k:'brand',l:'🏷️ 브랜드 비중'}, {k:'source',l:'📦 소싱처 비중'}]
   };
-  var keyOf = {
-    brand:  function(r){return String(r['브랜드']||'-').trim() || '-'},
-    market: function(r){return String(r['마켓']||'-').trim() || '-'},
-    source: function(r){
-      var src = (typeof detectSourceNameJS === 'function') ? detectSourceNameJS(r['간단메모']) : '';
-      return src || '미분류';
-    },
-    price:  function(r){return _crossPriceRangeOf(r)}
-  };
+  var keyOf = _crossKeyOf;
   var dimList = dims[tabKey];
   if (!dimList) return '<div style="padding:30px">탭 매핑 없음: '+esc(tabKey)+'</div>';
   var html = '<div class="cross-grid">';
@@ -3982,7 +4061,7 @@ function _renderCrossAnalysis(itemKey, tabKey) {
     html += '<div class="cc-h">'+dim.l+' ('+esc(itemKey)+')</div>';
     entries.forEach(function(e){
       var pct = totalRev > 0 ? (e[1]/totalRev*100) : 0;
-      html += '<div class="cc-row">';
+      html += '<div class="cc-row" onclick="event.stopPropagation();_crossOrders(\''+escAttr(itemKey)+'\',\''+escAttr(tabKey)+'\',\''+escAttr(dim.k)+'\',\''+escAttr(e[0])+'\')">';
       html += '<span class="nm">'+esc(e[0])+'</span>';
       html += '<span class="v">'+_crossFmtMan(e[1])+'</span>';
       html += '<div class="bar"><div class="bf" style="width:'+Math.min(100,pct).toFixed(0)+'%"></div></div>';
@@ -4579,8 +4658,12 @@ function sortableAggTable(tabKey, title, rows, keyCol) {
       tipHtml = '<td style="font-size:11px;color:#8B95A1;">판매건수 ÷ 등록상품수</td>';
     }
     var isPriceTab = (tabKey === 'pricerange');
-    h += '<tr' + (isPriceTab ? ' class="cross-row" data-cross-key="'+escAttr(mk)+'" data-cross-tab="price"' : '') + '>'
-       + '<td style="font-weight:600">' + (isPriceTab ? '<span class="cross-arrow">▶</span> ' : '') + esc(mk) + '</td>'
+    var isMonthTab = (tabKey === 'monthly');
+    var rowAttrs = isPriceTab
+      ? ' class="cross-row" data-cross-key="'+escAttr(mk)+'" data-cross-tab="price"'
+      : (isMonthTab ? ' class="ord-drill-row" onclick="_tabOrders(\'monthly\',\''+escAttr(mk)+'\',\''+escAttr(mk)+'\')"' : '');
+    h += '<tr' + rowAttrs + '>'
+       + '<td style="font-weight:600">' + (isPriceTab ? '<span class="cross-arrow">▶</span> ' : '') + esc(mk) + (isPriceTab ? ' '+_tabBtn('price', mk, mk) : '') + '</td>'
        + numCell(r['매출']) + numCell(r['매입']) + numCell(r['순마진'])
        + pctCell(r['마진율'])
        + '<td id="' + (isMarket ? 'agg_market_cnt_' + esc(mk) : '') + '" data-count="' + (r['건수']||0) + '">' + (r['건수']||0) + '</td>'
@@ -4682,7 +4765,7 @@ function renderDaily(d) {
   sorted.forEach(function(g, idx) {
     h += '<tr class="product-row" onclick="toggleDailyDetail(' + idx + ')">'
        + '<td><span class="toggle-icon" id="dIcon' + idx + '">▶</span></td>'
-       + '<td style="font-weight:700;">' + esc(g.일자) + '</td>'
+       + '<td style="font-weight:700;">' + esc(g.일자) + ' ' + _tabBtn('daily', g.일자, g.일자) + '</td>'
        + numCell(g.매출) + numCell(g.매입) + numCell(g.순마진)
        + '<td style="font-weight:700;"' + (g.마진율 < 0 ? ' class="neg"' : '') + '>' + fmtPct(g.마진율) + '</td>'
        + '<td>' + g.건수 + '</td>'
@@ -4887,7 +4970,8 @@ function renderBrand(d) {
   }
 
   /* 브랜드 미확정 배너 (백엔드 d.brand_unresolved) */
-  let h = renderBrandUnresolvedBanner(d);
+  let h = '<button class="hier-btn" onclick="openHier(\'brand\')">🔎 계층 분석 (브랜드 › 마켓 › 계정)</button>';
+  h += renderBrandUnresolvedBanner(d);
 
   /* 기간 평균 배너 (사용자 요청 C — 4-카드, 브랜드당 평균 추가) */
   h += renderPeriodAvgBanner({tabKey:'brand', entityCount: sorted.length, entityLabel:'브랜드', entityEmoji:'🏷️'});
@@ -4959,7 +5043,7 @@ function renderBrandRow(g, idx) {
   var saleTd = (g.매출 < 0 ? '<td class="neg">' : '<td>') + fmt(g.매출) + abSub + '</td>';
   var h = '<tr class="product-row" onclick="toggleBrandDetail(' + idx + ')">'
        + '<td><span class="toggle-icon" id="bIcon' + idx + '">▶</span></td>'
-       + '<td style="font-weight:700;">' + esc(g.브랜드) + '</td>'
+       + '<td style="font-weight:700;">' + esc(g.브랜드) + ' ' + _tabBtn('brand', g.브랜드, g.브랜드) + '</td>'
        + saleTd + numCell(g.매입) + numCell(g.순마진)
        + '<td style="font-weight:700;"' + (g.마진율 < 0 ? ' class="neg"' : '') + '>' + fmtPct(g.마진율) + '</td>'
        + '<td>' + g.건수 + '</td>'
@@ -5365,7 +5449,7 @@ function renderProduct(d) {
   sorted.forEach(function(g, idx) {
     h += '<tr class="product-row" onclick="toggleProductDetail(' + idx + ')">'
        + '<td><span class="toggle-icon" id="pIcon' + idx + '">▶</span></td>'
-       + '<td style="font-size:12px;">' + esc(g.code) + '</td>'
+       + '<td style="font-size:12px;">' + esc(g.code) + ' ' + _tabBtn('product', g.code, g.상품명 || g.code) + '</td>'
        + '<td style="font-weight:600;">' + esc(g.브랜드) + '</td>'
        + '<td style="max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="' + esc(g.상품명) + '">' + esc(g.상품명) + '</td>'
        + numCell(g.매출) + numCell(g.매입) + numCell(g.순마진)
@@ -10336,7 +10420,8 @@ function renderMarketTab(d) {
   }
 
   /* 기간 평균 배너 (사용자 요청 C — 4-카드 마켓당 평균) */
-  var h = renderPeriodAvgBanner({tabKey:'market', entityCount: markets.length, entityLabel:'마켓', entityEmoji:'🛒'});
+  var h = '<button class="hier-btn" onclick="openHier(\'market\')">🔎 계층 분석 (마켓 › 계정 › 브랜드 › 소싱처)</button>';
+  h += renderPeriodAvgBanner({tabKey:'market', entityCount: markets.length, entityLabel:'마켓', entityEmoji:'🛒'});
 
   h += '<div class="summary-grid" style="grid-template-columns:repeat(4,1fr);margin-bottom:20px">';
   h += mkCard('총 매출', fmt(totalSale)+'원', matched.length+'건 합산', false);
@@ -10373,7 +10458,7 @@ function renderMarketTab(d) {
     var savedVal = regCount > 0 ? regCount : '';
     var mktAbSub = (g._abCnt > 0) ? '<span class="ab-sub">이 중 이상가 ' + g._abCnt + '건 · ' + fmt(g._abSum) + '원</span>' : '';
     var mktSaleTd = (g.매출 < 0 ? '<td class="neg">' : '<td>') + fmt(g.매출) + mktAbSub + '</td>';
-    h += '<tr class="cross-row" data-cross-key="'+escAttr(mktKey)+'" data-cross-tab="market"><td style="font-weight:700"><span class="cross-arrow">▶</span> '+esc(mktKey)+'</td>';
+    h += '<tr class="cross-row" data-cross-key="'+escAttr(mktKey)+'" data-cross-tab="market"><td style="font-weight:700"><span class="cross-arrow">▶</span> '+esc(mktKey)+' '+_tabBtn('market', mktKey, mktKey)+'</td>';
     h += mktSaleTd+numCell(g.매입)+numCell(g.순마진);
     h += '<td style="font-weight:700"'+(g.마진율<0?' class="neg"':'')+'>'+g.마진율.toFixed(1)+'%</td>';
     h += '<td>'+g.건수+'</td>';
@@ -10542,7 +10627,7 @@ function renderSourceTab(d) {
   rows.forEach(function(g){
     var avgSale   = g.건수 > 0 ? Math.round(g.매출   / g.건수) : 0;
     var avgMargin = g.건수 > 0 ? Math.round(g.순마진 / g.건수) : 0;
-    h += '<tr class="cross-row" data-cross-key="'+escAttr(g.소싱처)+'" data-cross-tab="source"><td style="font-weight:700"><span class="cross-arrow">▶</span> '+esc(g.소싱처)+'</td>';
+    h += '<tr class="cross-row" data-cross-key="'+escAttr(g.소싱처)+'" data-cross-tab="source"><td style="font-weight:700"><span class="cross-arrow">▶</span> '+esc(g.소싱처)+' '+_tabBtn('source', g.소싱처, g.소싱처)+'</td>';
     h += numCell(g.매출)+numCell(g.매입)+numCell(g.순마진);
     h += '<td style="font-weight:700"'+(g.마진율<0?' class="neg"':'')+'>'+g.마진율.toFixed(1)+'%</td>';
     h += '<td>'+g.건수+'</td>';
@@ -11027,6 +11112,113 @@ document.addEventListener('DOMContentLoaded', function(){
       <span class="bfix-hint">키워드가 든 상품이 다음 분석부터 해당 브랜드로 분류됩니다.</span></div>
   </div>
 </div>
+
+<div id="hierOv" class="hier-ov" onclick="if(event.target===this)closeHier()">
+  <div class="hier-box">
+    <div class="hier-h"><b>계층 분석</b><span id="hierCrumb" class="hier-crumb"></span>
+      <span class="hier-x" onclick="closeHier()">✕</span></div>
+    <div id="hierBody" class="hier-body"></div>
+  </div>
+</div>
+
+<div id="orderDetailOv" class="odt-ov" onclick="if(event.target===this)closeOrderDetail()">
+  <div class="odt-box">
+    <div class="odt-h"><b id="odtTitle">주문내역</b><span id="odtCount" class="odt-count"></span><span class="odt-x" onclick="closeOrderDetail()">✕</span></div>
+    <div id="odtBody" class="odt-body"></div>
+  </div>
+</div>
+<script>
+/* ── 계층 분석 드릴 패널 (마켓별/브랜드별 탭 → 다차원 드릴다운) ── */
+var HIER_DIMS = { market:['마켓','계정','브랜드','소싱처'], brand:['브랜드','마켓','계정'] };
+var _hierMode='market', _hierPath=[];  // path = [{dim, value}]
+function _hierRows(){ var g=(typeof getFilteredData==='function')?getFilteredData():window._lastData; return (g&&g.matched)||[]; }
+function _hierVal(r, dim){
+  if(dim==='소싱처') return (typeof detectSourceNameJS==='function'? (detectSourceNameJS(r['간단메모']||'')||'(미확인)') : '(미확인)');
+  return r[dim]!=null && String(r[dim]).trim()!=='' ? String(r[dim]) : '(미확인)';
+}
+function openHier(mode){ _hierMode=mode; _hierPath=[]; document.getElementById('hierOv').classList.add('on'); _hierEnsureCounts(renderHier); }
+function closeHier(){ document.getElementById('hierOv').classList.remove('on'); }
+function hierDrill(dim,val){ _hierPath.push({dim:dim,value:val}); renderHier(); }
+function hierCrumbTo(i){ _hierPath=_hierPath.slice(0,i); renderHier(); }
+function _hierKey(){ return _hierMode+':'+_hierPath.map(function(p){return p.dim+'='+p.value;}).join('>'); }
+function renderHier(){
+  var dims=HIER_DIMS[_hierMode];
+  var rows=_hierRows().filter(function(r){ return _hierPath.every(function(p){ return _hierVal(r,p.dim)===p.value; }); });
+  // breadcrumb
+  var cb='<span class="cb" onclick="hierCrumbTo(0)">전체</span>';
+  _hierPath.forEach(function(p,i){ cb+=' › <span class="cb" onclick="hierCrumbTo('+(i+1)+')">'+esc(p.value)+'</span>'; });
+  document.getElementById('hierCrumb').innerHTML=cb;
+  var depth=_hierPath.length;
+  var h='';
+  if(depth < dims.length){
+    var dim=dims[depth];
+    // group rows by this dimension
+    var groups={};
+    rows.forEach(function(r){ var v=_hierVal(r,dim); (groups[v]=groups[v]||[]).push(r); });
+    var arr=Object.keys(groups).map(function(v){
+      var gr=groups[v];
+      var 매출=gr.reduce(function(a,r){return a+(+r['판매가']||0);},0);
+      var 순마진=gr.reduce(function(a,r){return a+(+r['순마진']||0);},0);
+      return {v:v, 매출:매출, 순마진:순마진, 건수:gr.length};
+    }).sort(function(a,b){return b.매출-a.매출;});
+    h+='<div class="hier-lv">▾ '+esc(dim)+'별 ('+arr.length+') — 행을 누르면 다음 단계로</div>';
+    h+='<table class="hier-tbl"><thead><tr><th>'+esc(dim)+'</th><th class="r">매출</th><th class="r">순마진</th><th class="r">마진율</th><th class="r">건수</th><th class="r">등록수</th><th class="r">매출효율</th><th class="r">마진효율</th></tr></thead><tbody>';
+    arr.forEach(function(x){
+      var pathKey=_hierMode+':'+_hierPath.map(function(p){return p.dim+'='+p.value;}).concat([dim+'='+x.v]).join('>');
+      var reg=_hierGetCount(pathKey);
+      var se=reg>0?(x.매출/reg):null, me=reg>0?(x.순마진/reg):null;
+      var mr=x.매출>0?(x.순마진/x.매출*100):0;
+      var canDrill = depth < dims.length-1;
+      h+='<tr'+(canDrill?' class="drill" onclick="hierDrill(\''+escAttr(dim)+'\',\''+escAttr(x.v)+'\')"':'')+'>'
+        +'<td>'+(canDrill?'▸ ':'')+esc(x.v)+'</td>'
+        +'<td class="r n">'+fmt(x.매출)+'</td>'
+        +'<td class="r n'+(x.순마진<0?' neg':'')+'">'+fmt(x.순마진)+'</td>'
+        +'<td class="r n'+(mr<0?' neg':'')+'">'+mr.toFixed(1)+'%</td>'
+        +'<td class="r n">'+x.건수+'</td>'
+        +'<td class="r" onclick="event.stopPropagation()"><input class="hier-reg n" value="'+(reg||'')+'" onchange="_hierSetCount(\''+escAttr(pathKey)+'\',this.value);renderHier()"></td>'
+        +'<td class="r n">'+(se!=null?'<span class="'+(se>=1?'eff':'effb')+'">'+fmt(se)+'</span>':'—')+'</td>'
+        +'<td class="r n">'+(me!=null?'<span class="'+(me>=0?'eff':'effb')+'">'+fmt(me)+'</span>':'—')+'</td>'
+        +'</tr>';
+    });
+    h+='</tbody></table>';
+  }
+  // 주문내역 (최심도 레벨에서만 표시)
+  if(depth===dims.length){
+    h+=_hierOrders(rows);
+  }
+  document.getElementById('hierBody').innerHTML=h;
+}
+function _hierOrders(rows){
+  var h='<div class="hier-lv">📋 주문내역 ('+rows.length+'건)</div>';
+  h+='<table class="hier-tbl ord"><thead><tr><th>주문일</th><th>상품명</th><th>옵션</th><th class="r">판매가</th><th class="r">순마진</th><th class="r">마진율</th><th>소싱처</th></tr></thead><tbody>';
+  rows.slice(0,200).forEach(function(r){
+    var 매출=+r['판매가']||0, 마진=+r['순마진']||0, mr=매출>0?(마진/매출*100):0;
+    h+='<tr><td class="n">'+esc(String(r['주문일']||''))+'</td>'
+      +'<td class="nm">'+esc(String(r['상품명']||''))+'</td>'
+      +'<td>'+esc(String(r['옵션_매출']||''))+'</td>'
+      +'<td class="r n">'+fmt(매출)+'</td>'
+      +'<td class="r n'+(마진<0?' neg':'')+'">'+fmt(마진)+'</td>'
+      +'<td class="r n'+(mr<0?' neg':'')+'">'+mr.toFixed(1)+'%</td>'
+      +'<td>'+esc(typeof detectSourceNameJS==='function'?(detectSourceNameJS(r['간단메모']||'')||''):'')+'</td></tr>';
+  });
+  if(rows.length>200) h+='<tr><td colspan="7" style="color:var(--mut,#6b7280)">…상위 200건만 표시</td></tr>';
+  h+='</tbody></table>';
+  return h;
+}
+/* ── 재사용 주문내역 팝업 (Cross-analysis 막대 클릭 등에서 호출) ── */
+function showOrderDetail(title, rows){
+  document.getElementById('odtTitle').textContent = title;
+  document.getElementById('odtCount').textContent = (rows?rows.length:0) + '건';
+  document.getElementById('odtBody').innerHTML = (rows&&rows.length) ? _hierOrders(rows) : '<div style="color:#9ca3af;padding:16px">해당 주문이 없습니다.</div>';
+  document.getElementById('orderDetailOv').classList.add('on');
+}
+function closeOrderDetail(){ document.getElementById('orderDetailOv').classList.remove('on'); }
+// 등록수: 서버(/api/product-counts) + 로컬 캐시. window._hierCounts 초기화는 최초 open 시.
+var _hierCounts=null;
+function _hierEnsureCounts(cb){ if(_hierCounts){cb&&cb();return;} fetch('/api/product-counts').then(function(r){return r.json();}).then(function(res){_hierCounts=(res&&res.counts)||{};cb&&cb();}).catch(function(){_hierCounts={};cb&&cb();}); }
+function _hierGetCount(key){ return (_hierCounts&&_hierCounts[key])||0; }
+function _hierSetCount(key,val){ var n=parseInt(val,10)||0; if(!_hierCounts)_hierCounts={}; _hierCounts[key]=n; fetch('/api/product-counts',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({key:key,count:n})}).catch(function(){}); }
+</script>
 
 </body>
 </html>
