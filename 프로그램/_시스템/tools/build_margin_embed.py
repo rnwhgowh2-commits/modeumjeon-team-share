@@ -156,6 +156,20 @@ SEAMS: list[tuple[str, str, int]] = [
         "      var raw = ''; try { raw = await res.text(); } catch(_) {} try { errText = (JSON.parse(raw).error) || raw; } catch(_) { errText = raw || String(res.status); }  /* [모음전] 단일 읽기 — body stream 이중읽기 방지 */",
         1,
     ),
+    # 14) [모음전 신규 씨앗] 연동 안 된/조회 실패한 마켓 표면화 (사용자 요청).
+    #     서버 analyze 는 markets_failed(=제외 사유 배너 목록)을 응답에 담는다. 원본
+    #     updateAnalyzeMsg 는 '분석 완료 N건 매칭 / 총매출 / 총마진'만 보여줘, 매출에서
+    #     빠진 마켓이 조용히 사라진다(블랙스팟 오신호). analyze 메시지 아래에 빨간 안내로
+    #     '이 마켓은 API 연동이 안 돼(또는 조회 실패) 제외됐어요'를 항상 표면화한다.
+    #     updateAnalyzeMsg 는 제외/편집 토글마다 재실행되지만 innerHTML= 로 매번 새로
+    #     조립 후 += 로 덧붙이므로 누적되지 않는다(멱등).
+    (
+        "    + ' <span style=\"margin-left:12px;color:' + (margn<0?'#dc2626':'#1AB053') + ';font-weight:700;font-size:35px;\">총마진 ' + fmtW(margn) + '원</span>';",
+        "    + ' <span style=\"margin-left:12px;color:' + (margn<0?'#dc2626':'#1AB053') + ';font-weight:700;font-size:35px;\">총마진 ' + fmtW(margn) + '원</span>';\n"
+        "  var _mFailed = (window.analysisData && window.analysisData.markets_failed) || [];  /* [모음전] 연동안됨/조회실패 마켓 표면화 (markets_failed) */\n"
+        "  if (_mFailed.length) { msg.innerHTML += '<div style=\"margin-top:8px;padding:8px 12px;background:#FFF3F3;border:1px solid #FFD5D5;border-radius:8px;color:#dc2626;font-size:13px;line-height:1.65;\">⚠️ 아래 마켓은 API 연동이 안 됐거나 조회에 실패해 <b>매출에서 제외</b>하고 분석했어요:<br>' + _mFailed.map(function(w){ return '· ' + String(w); }).join('<br>') + '</div>'; }  /* [모음전] _mFailed 배너 */",
+        1,
+    ),
 ]
 
 

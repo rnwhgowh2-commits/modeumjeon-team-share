@@ -311,7 +311,7 @@ def test_combined_filters_by_order_date(monkeypatch):
 
 
 def test_combined_parallel_error_propagates(monkeypatch):
-    # 한 마켓이 실패하면 전체 실패로 전파(부분 성공 숨김 금지)
+    # 한 마켓이 실패하면 전체 실패로 전파(부분 성공 숨김 금지) — warnings 채널 없음(엑셀)
     def _fake(mk, days=7, **k):
         if mk == "coupang":
             raise RuntimeError("쿠팡 인증 실패")
@@ -319,6 +319,44 @@ def test_combined_parallel_error_propagates(monkeypatch):
     monkeypatch.setattr(oe, "order_rows", _fake)
     with pytest.raises(RuntimeError):
         oe.combined_order_rows(["coupang", "lotteon"], days=7)
+
+
+def test_combined_partial_failure_warns_and_proceeds_with_warnings(monkeypatch):
+    # ★ warnings 채널이 있으면(화면·마진 분석) 한 마켓이 통째로 실패해도 502 로 죽지 않고
+    #   그 마켓을 '제외'로 표면화(warnings)한 뒤 나머지 마켓 결과를 반환한다.
+    def _fake(mk, days=7, **k):
+        if mk == "coupang":
+            raise RuntimeError("쿠팡 인증 실패")
+        return [{"주문일": "2026-07-05", "판매처": "롯데온"}]
+    monkeypatch.setattr(oe, "order_rows", _fake)
+    warns: list = []
+    out = oe.combined_order_rows(["coupang", "lotteon"], days=7, warnings=warns)
+    assert [r["판매처"] for r in out] == ["롯데온"]      # 성공 마켓 결과는 유지
+    assert any("쿠팡" in w for w in warns)               # 실패 마켓은 제외 배너로 표면화
+    assert any("제외" in w for w in warns)
+
+
+def test_combined_all_markets_fail_raises_even_with_warnings(monkeypatch):
+    # 전부 실패면 보여줄 게 없으므로 warnings 유무와 무관하게 전파(거짓 빈결과 금지).
+    def _fake(mk, days=7, **k):
+        raise RuntimeError(f"{mk} 실패")
+    monkeypatch.setattr(oe, "order_rows", _fake)
+    with pytest.raises(RuntimeError):
+        oe.combined_order_rows(["coupang", "lotteon"], days=7, warnings=[])
+
+
+def test_order_rows_no_credentials_warns_and_excludes(monkeypatch):
+    # ★ 계정이 하나도 연동 안 된 마켓 — warnings 있으면 'API 연동 없음'으로 표면화 + 빈 결과
+    #   (raise 하지 않음 → 다른 마켓 분석은 계속). warnings 없으면(엑셀) 전파.
+    monkeypatch.setattr(oe, "_active_accounts", lambda m: [])
+    monkeypatch.setattr(oe, "_account_client", lambda m, prefix=None: None)
+    warns: list = []
+    out = oe.order_rows("coupang", days=7, warnings=warns)
+    assert out == []
+    assert any("연동" in w for w in warns)
+    # warnings 없이(엑셀 다운로드) 호출하면 조용한 빈 파일 대신 전파
+    with pytest.raises(Exception):
+        oe.order_rows("coupang", days=7)
 
 
 def test_combined_cache_reuses_fetch(monkeypatch):
