@@ -566,6 +566,52 @@ def inspect_upload():
         s.close()
 
 
+@bp.route('/inspect/upload-stream', methods=['POST'])
+def inspect_upload_stream():
+    """더망고 업로드 → 진행현황을 NDJSON 스트리밍(마켓별 실건수). 폴링 없이 응답 스트림.
+
+    이벤트(한 줄=JSON): parsed → start(마켓목록) → market(fetching→done, matched/total) → done.
+    파싱 에러는 스트림 전에 422로 낸다(스트림 시작 후엔 헤더 못 바꿈).
+    """
+    from flask import Response, stream_with_context
+    import json as _json
+    f = request.files.get('file')
+    if not f:
+        return jsonify(ok=False, error='파일이 없습니다.'), 400
+    bulk = request.form.get('bulk_method') or None
+    if bulk == '자동판정':
+        bulk = None
+    try:
+        rows = parse_mango_xls(f.read())
+    except MangoParseError as e:
+        return jsonify(ok=False, error=str(e)), 422
+    except Exception as e:   # noqa: BLE001
+        return jsonify(ok=False, error=f'엑셀을 읽지 못했어요: {type(e).__name__}'), 400
+
+    def gen():
+        from lemouton.delivery import market_enrich as _me
+        s = SessionLocal()
+        try:
+            _dsvc.seed_default_status_map(s)
+            res = _dsvc.upsert_orders(s, rows, bulk_method=bulk, replace_stale=True)
+            yield _json.dumps({"phase": "parsed", "parsed": len(rows),
+                               "inserted": res["inserted"], "updated": res["updated"]},
+                              ensure_ascii=False) + "\n"
+            warn = []
+            try:
+                for ev in _me.iter_enrich(s, [r["mango_uid"] for r in rows], warn):
+                    yield _json.dumps(ev, ensure_ascii=False) + "\n"
+            except Exception as e:   # noqa: BLE001 — enrich 실패해도 업로드는 성공(확인불가로 남음)
+                warn.append(f"마켓 조회 실패: {type(e).__name__}")
+                yield _json.dumps({"phase": "done", "checked": 0, "unmatched": 0,
+                                   "skipped": 0, "warnings": warn}, ensure_ascii=False) + "\n"
+        finally:
+            s.close()
+
+    return Response(stream_with_context(gen()), mimetype="application/x-ndjson",
+                    headers={"X-Accel-Buffering": "no", "Cache-Control": "no-cache"})
+
+
 @bp.route('/inspect/clear', methods=['POST'])
 def inspect_clear():
     """배송검사 초기화 — 더망고 주문 전량 삭제(미실시 0 상태로)."""

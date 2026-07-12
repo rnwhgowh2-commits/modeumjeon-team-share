@@ -271,6 +271,7 @@
             <button class="gbtn" id="mgUpBtn" style="width:auto;margin:0;background:var(--blue);border-color:var(--blue);color:#fff">업로드</button>
           </div>
           <div class="mc-msg" id="mangoMsg"></div>
+          <div id="mgProg" style="display:none;margin-top:10px"></div>
         </div>
       </div>
       <div class="oview-tabs" id="oviewTabs">
@@ -1116,12 +1117,49 @@
         var fd=new FormData();fd.append('file',mgFile.files[0]);
         fd.append('bulk_method',document.querySelector('input[name=mgbulk]:checked').value);
         document.getElementById('mangoMsg').textContent='업로드·마켓 대조 중… (기존 결과는 비웠어요)';
-        fetch('/orders/inspect/upload',{method:'POST',body:fd}).then(function(r){return r.json();}).then(function(j){
-          if(j.ok){document.getElementById('mangoMsg').innerHTML='<span style="color:var(--green)">✔ '+j.parsed+'건 처리 · 마켓대조 '+(j.market_checked||0)+'건</span>';
-            document.getElementById('mangoResult').textContent='✔ '+j.parsed+'건 · 마켓대조 '+(j.market_checked||0);
-            document.getElementById('mangoCard').classList.remove('open');   // 업로드 끝나면 접어 표를 넓게
-            loadMango();}
-          else document.getElementById('mangoMsg').innerHTML='<span style="color:var(--red)">✖ '+esc(j.error||'')+'</span>';});});
+        // 진행현황: 서버가 마켓 하나 끝낼 때마다 흘려주는 스트림(NDJSON)을 받아 D+건수로 표시.
+        var box=document.getElementById('mgProg'); box.style.display='block'; box.innerHTML='';
+        var prog={}, order=[];
+        function drawProg(){
+          var totAll=order.reduce(function(a,sl){return a+(prog[sl].total||0);},0)||1;
+          var doneAll=order.reduce(function(a,sl){return a+(prog[sl].state==='done'?prog[sl].matched:0);},0);
+          var rows=order.map(function(sl){var m=prog[sl];
+            var st=m.state==='done'?'완료':(m.state==='fetching'?'조회 중':'대기');
+            var wait=m.state==='wait', fetc=m.state==='fetching', okk=m.state==='done';
+            var col=okk?'var(--green)':(fetc?'var(--blue)':'var(--line2)');
+            var w=okk&&m.total?Math.round(m.matched/m.total*100):(fetc?100:0);
+            return '<div style="display:grid;grid-template-columns:92px 1fr 74px;align-items:center;gap:8px;padding:5px 0">'
+              +'<span style="font-size:12px;color:'+(wait?'var(--faint)':'var(--ink)')+'">'+esc(m.label)+'</span>'
+              +'<div style="height:6px;background:var(--line);border-radius:9px;overflow:hidden"><span style="display:block;height:6px;width:'+w+'%;background:'+col+';border-radius:9px;'+(fetc?'opacity:.45':'')+'"></span></div>'
+              +'<span style="text-align:right;font-size:11.5px;font-variant-numeric:tabular-nums;color:var(--sub)"><b style="color:var(--ink)">'+(okk?m.matched:0)+'</b>/'+m.total+' '+st+'</span></div>';
+          }).join('');
+          box.innerHTML='<div style="background:#fff;border:1px solid var(--line2);border-radius:10px;padding:11px 13px">'
+            +'<div style="display:flex;align-items:baseline;gap:7px;margin-bottom:6px"><b style="font-size:16px;font-variant-numeric:tabular-nums">'+doneAll+'</b><span style="font-size:12px;color:var(--sub)">/ '+totAll+'건 마켓 대조 중…</span></div>'
+            +'<div style="height:6px;background:var(--line);border-radius:9px;overflow:hidden;margin-bottom:6px"><span style="display:block;height:6px;width:'+Math.round(doneAll/totAll*100)+'%;background:var(--blue);border-radius:9px"></span></div>'+rows+'</div>';
+        }
+        var parsed=0;
+        function onEv(e){
+          if(e.phase==='parsed'){parsed=e.parsed;document.getElementById('mangoMsg').textContent='파싱 '+parsed+'건 · 마켓 대조 중…';}
+          else if(e.phase==='start'){order=(e.markets||[]).map(function(m){return m.slug;});
+            (e.markets||[]).forEach(function(m){prog[m.slug]={label:m.label,total:m.total,matched:0,state:'wait'};});drawProg();}
+          else if(e.phase==='market'){var m=prog[e.slug]||{label:e.label,matched:0};
+            m.state=e.state;m.matched=e.matched||0;m.total=e.total;m.label=e.label;prog[e.slug]=m;
+            if(order.indexOf(e.slug)<0)order.push(e.slug);drawProg();}
+          else if(e.phase==='done'){
+            document.getElementById('mangoMsg').innerHTML='<span style="color:var(--green)">✔ '+parsed+'건 처리 · 마켓대조 '+(e.checked||0)+'건</span>';
+            document.getElementById('mangoResult').textContent='✔ '+parsed+'건 · 마켓대조 '+(e.checked||0);
+            setTimeout(function(){box.style.display='none';document.getElementById('mangoCard').classList.remove('open');loadMango();},700);}
+        }
+        fetch('/orders/inspect/upload-stream',{method:'POST',body:fd}).then(function(resp){
+          if(!resp.ok||!resp.body){resp.json().then(function(j){document.getElementById('mangoMsg').innerHTML='<span style="color:var(--red)">✖ '+esc((j&&j.error)||'업로드 실패')+'</span>';}).catch(function(){document.getElementById('mangoMsg').innerHTML='<span style="color:var(--red)">✖ 업로드 실패</span>';});box.style.display='none';return;}
+          var reader=resp.body.getReader(),dec=new TextDecoder(),buf='';
+          function pump(){return reader.read().then(function(r){
+            if(r.done)return;
+            buf+=dec.decode(r.value,{stream:true});var lines=buf.split('\n');buf=lines.pop();
+            lines.forEach(function(ln){if(ln.trim()){try{onEv(JSON.parse(ln));}catch(x){}}});
+            return pump();});}
+          return pump();
+        }).catch(function(){document.getElementById('mangoMsg').innerHTML='<span style="color:var(--red)">✖ 업로드 실패(네트워크)</span>';box.style.display='none';});});
       document.getElementById('mgMapBtn').addEventListener('click',function(){window.open('/orders/?tab=inspect','_blank');});
       document.getElementById('mgClearBtn').addEventListener('click',function(){
         var n=(mangoSummary&&mangoSummary.total)||0;
