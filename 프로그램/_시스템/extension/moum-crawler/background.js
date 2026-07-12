@@ -1827,10 +1827,12 @@ async function crawlBundleAllBG(code) {
   const total = sourceKeys.reduce((n, k) => n + bySource[k].length, 0);
   if (!total) { await _finalize(); emit("finish", { level: "warn", msg: "대상 URL 없음" }); return { ok: false, error: "대상 URL 없음" }; }
 
-  // [2026-06-22] 동시 창 상한 5→3 — 고부하(CPU/메모리 높음)에서 무거운 페이지가 타임아웃·
-  //   빈HTML 그랩으로 일시 실패하던 빈도 감소(소싱처 통째 0% 방지). 속도와 안정성 트레이드오프.
-  let cap = bgClamp(((typeof navigator !== "undefined" && navigator.hardwareConcurrency) || 4) - 1, 1, 3);
-  let concurrency = 1;
+  // [2026-07-12] 동시 창 상한 3→10 (사용자 요청) — 예전처럼 창을 넉넉히 열어 빠르게.
+  //   실제 도달치는 '메모리 안전장치'(MEM≥96 보류·≥98 강제감소)가 정한다 = 브레이크는 메모리.
+  //   ★CPU 기반 자동감소는 해제(evaluateConcurrency): chrome.system.cpu 는 PC 전체 CPU라
+  //     다른 앱이 바쁘면 크롤이 지레 1개로 쪼그라들어 느려지던 원인(사용자 확인). 이제 메모리만 브레이크.
+  let cap = 10;                         // 천장 10(사용자 요청). 실제 도달치는 메모리 안전장치가 정함.
+  let concurrency = Math.min(4, cap);   // 1에서 기어오르지 말고 예전 편안값(4)에서 시작
   emit("concurrency", { level: "", msg: "초기 동시 창 " + concurrency + "/" + cap, metrics: { concurrency, cap, active: 0, total, done: 0 } });
 
   const pendingSources = sourceKeys.slice();
@@ -1956,15 +1958,17 @@ async function crawlBundleAllBG(code) {
     const med = bgMedian(latencies) || 0.001;
     const throughput = concurrency / med;
     const cpu = lastSys.cpu, mem = lastSys.mem;
-    if ((cpu != null && cpu >= 95) || (mem != null && mem >= 98)) {
-      if (concurrency > 1) { concurrency--; cooldown = 3; prevThroughput = throughput; emit("concurrency", { level: "down", msg: "자원 한계(CPU≥95·MEM≥98) 강제 −1 → " + concurrency, metrics: { concurrency, cap, active, cpu, mem, done, total } }); }
+    // [2026-07-12] CPU 기반 감소 해제 — chrome.system.cpu 는 PC 전체 CPU라 다른 앱이 바쁘면
+    //   크롤이 지레 1개로 줄어 느려졌다(사용자 확인). 브레이크는 '메모리'만 둔다.
+    if (mem != null && mem >= 98) {
+      if (concurrency > 1) { concurrency--; cooldown = 3; prevThroughput = throughput; emit("concurrency", { level: "down", msg: "메모리 한계(MEM≥98) 강제 −1 → " + concurrency, metrics: { concurrency, cap, active, cpu, mem, done, total } }); }
       return;
     }
-    const blockUp = (cpu != null && cpu >= 90) || (mem != null && mem >= 96);
+    const blockUp = (mem != null && mem >= 96);   // 메모리 높을 때만 +1 보류(CPU는 무시)
     if (throughput > prevThroughput * 1.05) {
       prevThroughput = throughput;
       if (concurrency < cap && !blockUp) { concurrency++; cooldown = 3; emit("concurrency", { level: "up", msg: "처리량 개선 → 창 +1 = " + concurrency, metrics: { concurrency, cap, active, cpu, mem, done, total } }); }
-      else if (blockUp && concurrency < cap) { emit("resource", { level: "warn", msg: "처리량 여력 있으나 자원 높음(CPU≥90·MEM≥96) → +1 보류", metrics: { concurrency, cap, active, cpu, mem, done, total } }); }
+      else if (blockUp && concurrency < cap) { emit("resource", { level: "warn", msg: "처리량 여력 있으나 메모리 높음(MEM≥96) → +1 보류", metrics: { concurrency, cap, active, cpu, mem, done, total } }); }
     } else if (throughput < prevThroughput * 0.9 && concurrency > 1) {
       concurrency--; cooldown = 3; prevThroughput = throughput; emit("concurrency", { level: "down", msg: "처리량 하락 → 창 −1 = " + concurrency, metrics: { concurrency, cap, active, cpu, mem, done, total } });
     } else { prevThroughput = Math.max(prevThroughput, throughput); }
