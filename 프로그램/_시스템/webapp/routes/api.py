@@ -3,6 +3,7 @@
 UI에서 호출되는 모든 변경/조회 엔드포인트. 자동 등록(SS·쿠팡)은 T14/T15에서 wiring.
 """
 import json
+import threading
 import time
 from datetime import datetime, timedelta, timezone
 
@@ -28,14 +29,61 @@ def _err(msg, code=400):
 
 # ---------- Crawl queue (읽기 전용) ----------
 
-# 폴링 완화용 프로세스-로컬 짧은 TTL 캐시.
-#   자동화 페이지가 /api/crawl/queue 를 1~2초마다 폴링하는데 due_crawl_payload 는
+# 폴링 완화용 프로세스-로컬 짧은 TTL 캐시 + 싱글플라이트.
+#   자동화 페이지가 /api/crawl/queue·due-bundles 를 1~2초마다 폴링하는데 그 계산은
 #   무겁다(수백 쿼리·수초 — 라이브 장애 시 449q/5~13s 관측). 잦은 폴링이 그대로
 #   DB·워커를 마비시켜 전체 사이트가 521/500 이 됐다(2026-07-12). 크롤 큐는 초 단위
-#   staleness 가 무해(주기적 크롤)하므로 짧게 캐시해 폭주를 막는다. gunicorn 3워커라
-#   워커별 캐시(≈3배 완화) + 워커당 8초에 1회만 무거운 쿼리를 돈다.
+#   staleness 가 무해(주기적 크롤)하므로 짧게 캐시해 폭주를 막는다.
+#   ★싱글플라이트: gunicorn 3워커 × 워커당 스레드들이 캐시 만료 순간 동시에 무거운
+#     쿼리를 돌리는 stampede(thundering herd)를 막는다. 캐시가 만료됐어도 **직전 값이
+#     있으면** 한 스레드만 갱신하고 나머지는 직전(수초 stale)을 그대로 받는다. 값이 아예
+#     없을 때만 락 잡고 채운다. (배치 리졸버로 개별 계산도 가볍게 만들었지만, 캐시 없이도
+#     견디도록 이중 방어.)
 _CRAWL_QUEUE_TTL = 8.0
-_crawl_queue_cache = {"at": 0.0, "payload": None}
+
+
+class _SingleFlightTTLCache:
+    """프로세스-로컬 단일값 TTL 캐시 + 싱글플라이트 갱신.
+
+    get(producer): 신선하면 즉시 반환. 만료+직전값 있음 → 한 스레드만 producer()로
+    갱신하고 경쟁 스레드는 직전값(stale) 반환. 직전값 없음 → 락 잡고 1회만 채움.
+    """
+
+    def __init__(self, ttl: float):
+        self.ttl = ttl
+        self.at = 0.0
+        self.payload = None
+        self.lock = threading.Lock()
+
+    def get(self, producer):
+        mono = time.monotonic()
+        if self.payload is not None and (mono - self.at) < self.ttl:
+            return self.payload                       # 신선
+        if self.payload is not None:
+            # 만료지만 직전값 있음 — 한 스레드만 갱신, 나머지는 stale 반환(stampede 차단)
+            if not self.lock.acquire(blocking=False):
+                return self.payload
+            try:
+                mono = time.monotonic()
+                if self.payload is not None and (mono - self.at) < self.ttl:
+                    return self.payload               # 다른 스레드가 이미 갱신함
+                self.payload = producer()
+                self.at = time.monotonic()
+                return self.payload
+            finally:
+                self.lock.release()
+        # 캐시가 아예 비어있음 — 락 잡고 딱 1회만 채운다(첫 요청만 대기)
+        with self.lock:
+            if self.payload is not None:              # 대기 중 다른 스레드가 채움
+                return self.payload
+            self.payload = producer()
+            self.at = time.monotonic()
+            return self.payload
+
+
+_crawl_queue_cache = _SingleFlightTTLCache(_CRAWL_QUEUE_TTL)
+_crawl_due_bundles_cache = _SingleFlightTTLCache(_CRAWL_QUEUE_TTL)
+_crawl_failures_cache = _SingleFlightTTLCache(_CRAWL_QUEUE_TTL)
 
 
 @bp.route('/crawl/queue')
@@ -43,22 +91,19 @@ def crawl_queue():
     """[읽기전용] 로컬 크롤러(확장)가 폴링하는 '지금 긁을 URL' 목록 + 실행/정지.
 
     서버는 목록만 알려줄 뿐 소싱처에 접속하지 않는다(크롤=로컬 원칙).
-    잦은 폴링 대비 8초 TTL 캐시(위 주석 참조).
+    잦은 폴링 대비 8초 TTL 캐시 + 싱글플라이트(위 주석 참조).
     """
     from lemouton.sources.crawl_schedule import due_crawl_payload
-    c = _crawl_queue_cache
-    mono = time.monotonic()
-    if c["payload"] is not None and (mono - c["at"]) < _CRAWL_QUEUE_TTL:
-        return jsonify(c["payload"])
-    s = SessionLocal()
-    try:
-        now = datetime.now(timezone.utc).replace(tzinfo=None)  # naive UTC
-        payload = due_crawl_payload(s, now=now)
-        c["payload"] = payload
-        c["at"] = mono
-        return jsonify(payload)
-    finally:
-        s.close()
+
+    def _produce():
+        s = SessionLocal()
+        try:
+            now = datetime.now(timezone.utc).replace(tzinfo=None)  # naive UTC
+            return due_crawl_payload(s, now=now)
+        finally:
+            s.close()
+
+    return jsonify(_crawl_queue_cache.get(_produce))
 
 
 @bp.route('/crawl/due-bundles')
@@ -67,18 +112,22 @@ def crawl_due_bundles():
 
     서버는 목록만 알려줄 뿐 크롤하지 않는다(크롤=로컬 원칙). 확장이 이 코드를
     기존 `mgrEnqueue({codes})` 큐로 넘겨 검증된 크롤 흐름을 재사용한다.
+    queue 와 형제(같이 폴링됨) → 동일 8초 TTL 캐시 + 싱글플라이트.
     """
-    from datetime import datetime, timezone
     from lemouton.sources.crawl_schedule import due_bundle_codes
     from lemouton.pricing.settings import get_or_init
-    s = SessionLocal()
-    try:
-        now = datetime.now(timezone.utc).replace(tzinfo=None)
-        enabled = bool(get_or_init(s).crawl_auto_enabled)
-        codes = due_bundle_codes(s, now=now)
-        return jsonify({"enabled": enabled, "count": len(codes), "codes": codes})
-    finally:
-        s.close()
+
+    def _produce():
+        s = SessionLocal()
+        try:
+            now = datetime.now(timezone.utc).replace(tzinfo=None)
+            enabled = bool(get_or_init(s).crawl_auto_enabled)
+            codes = due_bundle_codes(s, now=now)
+            return {"enabled": enabled, "count": len(codes), "codes": codes}
+        finally:
+            s.close()
+
+    return jsonify(_crawl_due_bundles_cache.get(_produce))
 
 
 @bp.post('/crawl/pass-done')
@@ -277,13 +326,19 @@ def set_account_upload_speed():
 
 @bp.get('/crawl/failures')
 def crawl_failures():
-    """[읽기전용] 크롤 실패 URL을 유형별로 묶어 반환(화면 ⑤ 실패 유형화)."""
+    """[읽기전용] 크롤 실패 URL을 유형별로 묶어 반환(화면 ⑤ 실패 유형화).
+
+    자동화 페이지가 함께 폴링 → 동일 8초 TTL 캐시 + 싱글플라이트(폭주 차단)."""
     from lemouton.sources.failure_classify import list_crawl_failures
-    s = SessionLocal()
-    try:
-        return jsonify({"groups": list_crawl_failures(s)})
-    finally:
-        s.close()
+
+    def _produce():
+        s = SessionLocal()
+        try:
+            return {"groups": list_crawl_failures(s)}
+        finally:
+            s.close()
+
+    return jsonify(_crawl_failures_cache.get(_produce))
 
 
 # ---------- 옵션별 브랜드 ----------
