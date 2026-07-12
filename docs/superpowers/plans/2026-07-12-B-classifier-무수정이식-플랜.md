@@ -120,9 +120,11 @@
 - **iframe 경계:** 마진 페이지는 iframe, MoumExt 는 부모. → (a) content_mou 가 all_frames 면 iframe 에 ext_bridge 직접 로드(세임), (b) 아니면 부모↔iframe postMessage 릴레이. 구현 전 manifest 확인 필수.
 - **UI 계약 §5 유지:** fetch_order_no 응답 `{success, order_no, site_name, source, logs[], error, matched_count, missing_count}`.
 
-**E 분해:**
-- **E-plumbing(지금, 검증가능):** 부모↔iframe↔확장 릴레이 + 페이지 세임(check-sourcing·fetch_order_no 를 브리지 경유로, 확장 미설치/로그인필요 시 우아한 표면화) + 메시지 계약 단위테스트 + 확장 핸들러 스켈레톤(`sourcing.check-order` 수신, 미구현시 명확한 "라이브 페이지 필요" 반환). **날조 스크래핑 금지.**
-- **E-live(사용자 환경 필요):** 소싱처별(무신사·SSG·롯데온·르무통·현대H몰) 주문상태 추출 로직 + 실검증 → **확장 로드 + 실 소싱처 로그인** 필요. 라이브 페이지 대상으로 개발. [[project_crawl_is_local_pc_principle]] [[reference_loaded_extension_path]](확장=데스크톱사본, repo수정만으론 라이브 미반영→재다운로드).
+**★재발견(코드 실측):** `sourcing_parser.fetch_order_no` = **순수 파싱(브라우저X)** — 메모 텍스트 regex + URL 템플릿 역매칭으로 주문번호 추출. 핸드오프 §5의 "fetch_order_no→Playwright→확장"은 혼동. 따라서 fetch_order_no 는 **확장 불필요·서버 검증가능**. 확장 필요한 건 **check-sourcing(주문 STATUS)** = `check_order_sync` 가 소싱처 사이트를 실제 탐색.
+
+**E 분해(정정):**
+- **E1 주문번호 추출(지금, 완전 검증가능):** `sourcing_parser`(extract_memo_info·detect_order_no_from_url·fetch_order_no) + `sourcing_checker.SOURCING_SITES`(order_detail_url 템플릿) 무수정 이식 + `/api/blackspot/fetch_order_no` 라우트(모음전 stateless — 메모/행을 페이지가 전달). 페이지 `fetchOrderNoFromSource` 가 이미 호출. **확장 없이 동작·TDD.**
+- **E2 주문상태 확인(확장·E-live):** check-sourcing → 확장 브리지(`sourcing.check-order` 신규 타입) 릴레이+세임+degradation+스켈레톤(지금, 검증가능) / 소싱처별 실 주문상태 추출·실검증(확장 로드+실 로그인 필요, **날조 금지**). [[project_crawl_is_local_pc_principle]] [[reference_loaded_extension_path]]
 
 ---
 *폐기: `docs/superpowers/plans/2026-07-11-마진계산기-화면-B레이아웃.md` (원본 1:1 방향에서 무효).*
