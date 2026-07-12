@@ -159,6 +159,29 @@ def test_analyze_reflects_keyword_change_from_db(client, monkeypatch):
     assert j["summary"]["_card_keywords"]["confirmed_blackspot"]["memo"] == ["변경됨"]
 
 
+def test_analyze_omits_empty_cards_to_preserve_frontend_fallback(client, monkeypatch):
+    """빈 cards 는 summary 에 truthy-but-empty 로 실리면 안 된다.
+
+    페이지 _getCardKeywords() 는 truthy 값을 그대로 쓰는데 JS 는 {} 도 truthy →
+    빈 dict 를 실으면 내장 폴백(기본 키워드맵)을 가로채 모든 조회가 [] 가 되고
+    블랙스팟 버킷팅이 조용히 실패한다. 빈 cards(의도적 {cards:{}} POST) 면 아무것도
+    싣지 않아 프론트가 폴백하도록 한다.
+    """
+    from webapp.routes import api_keywords
+    monkeypatch.setattr(api_keywords, "SessionLocal", api_margin.SessionLocal)
+    kw_app = Flask(__name__)
+    kw_app.register_blueprint(api_keywords.bp)
+    kw_client = kw_app.test_client()
+    # cards 를 의도적으로 비운다
+    assert kw_client.post("/api/keywords", json={"cards": {}}).status_code == 200
+
+    _upload(client)
+    _patch_from_api(monkeypatch, _sell_df([("1000", "real", 50000)]))
+    j = client.post("/api/margin/analyze", json={}).get_json()
+    # 키가 아예 없거나(선호) 있어도 falsy 여야 한다 — truthy-but-empty 금지.
+    assert not j["summary"].get("_card_keywords")
+
+
 def test_analyze_aborts_when_a_market_fails(client, monkeypatch):
     _upload(client)
 

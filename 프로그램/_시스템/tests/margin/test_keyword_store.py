@@ -76,6 +76,39 @@ def test_team_shared_persists_across_sessions(session):
         s2.close()
 
 
+def test_seed_insert_is_idempotent_under_race(session, monkeypatch):
+    """동시 최초 요청 둘이 각자 id=1 을 INSERT 해도 500 나지 않는다.
+
+    다른 요청이 먼저 시드해 둔 상태에서, '행 없음'(stale)을 본 이 세션이
+    INSERT 를 시도해 IntegrityError → rollback → 기존 행 재읽기로 복구하는지 검증.
+    """
+    s, Session = session
+    from lemouton.margin import keyword_store as KS
+    from lemouton.margin.models import CardKeywordConfig
+
+    # 다른 요청이 먼저 시드한 상태 (행이 이미 DB 에 존재).
+    pre = Session()
+    try:
+        pre.add(CardKeywordConfig(id=1, config={"cards": {"seeded": {"label": "S"}}}))
+        pre.commit()
+    finally:
+        pre.close()
+
+    # 이 세션은 '행 없음'을 봤다고 가정 → 첫 _row 만 None → INSERT 충돌 유도.
+    real_row = KS._row
+    calls = {"n": 0}
+
+    def stale_first(sess):
+        calls["n"] += 1
+        return None if calls["n"] == 1 else real_row(sess)
+
+    monkeypatch.setattr(KS, "_row", stale_first)
+
+    cfg = KS.get_config(s)  # 500 나면 안 된다
+    assert cfg["cards"] == {"seeded": {"label": "S"}}
+    assert calls["n"] >= 2  # 충돌 후 재읽기까지 갔다
+
+
 def test_seed_matches_page_builtin_fallback(session):
     """시드가 페이지 내장 폴백(_getCardKeywords)의 대표 카드들과 일치해야 한다."""
     s, _ = session

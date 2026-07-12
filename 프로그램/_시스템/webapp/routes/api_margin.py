@@ -342,12 +342,17 @@ def analyze():
     #   읽는다 → 매 분석마다 팀 DB 값을 실어야, 편집 없이도 팀 설정이 즉시 반영된다.
     #   (여기서 안 실으면 페이지 내장 폴백으로 떨어져 팀 DB 가 무력화된다.)
     #   카드 값은 문자열/리스트뿐 → _assert_finite 안전.
+    #   ★ 비어 있으면 아무것도 싣지 않는다: 페이지의 _getCardKeywords() 는 truthy 값을
+    #     그대로 쓰는데 JS 는 {} 도 truthy → 빈 dict 를 실으면 페이지 내장 폴백(기본
+    #     키워드맵)을 가로채 모든 키워드 조회가 [] 가 되고 블랙스팟 버킷팅이 조용히
+    #     실패한다. 빈 cards 는 의도적 {cards:{}} POST 로만 도달 → 그땐 폴백을 살린다.
     _kw_session = SessionLocal()
     try:
-        _cards = keyword_store.get_config(_kw_session).get("cards", {})
+        _cards = keyword_store.get_config(_kw_session).get("cards") or {}
     finally:
         _kw_session.close()
-    payload.setdefault("summary", {})["_card_keywords"] = _cards
+    if _cards:
+        payload.setdefault("summary", {})["_card_keywords"] = _cards
     # NaN/Inf 는 저장 전에 크게 실패시킨다 — 조용한 0 으로 덮지 않는다(store._pack 경보 보존).
     try:
         _assert_finite(payload)
