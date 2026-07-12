@@ -650,11 +650,12 @@
       function sec(cls,emoji,title,list,opt){ if(!list.length)return ''; opt=opt||{};
         var btn=opt.send?'<button class="sbtn" id="chkSendOk">✓ '+list.length+'건 송장 전송</button>':'';
         return '<div class="chk-sec"><div class="chk-sec-h '+cls+'">'+emoji+' '+title+' <b style="font-variant-numeric:tabular-nums">'+list.length+'</b>'+btn+'</div>'+chkTable(list,opt)+'</div>';}
-      el.innerHTML=sec('cs-dup','🔴','이중송장 위험 · 재출력 금지',dup)
-        +sec('cs-stall','🟡','배송흐름 정체 · 소싱처 확인',stall)
-        +sec('cs-unk','⚪','확인불가 · 조회 안 됨',unk,{why:true})
-        +sec('cs-ok','🟢','발송 대상 · 아직 마켓에 송장 안 나감',sendable,{send:true})
-        +sec('cs-done','✅','이미 발송/완료 · 조치 불필요',doneOk);
+      function ss(k){return !dmCheckFilter||dmCheckFilter===k;}   // 사이드바 막대 클릭 시 그 섹션만
+      el.innerHTML=(ss('dup')?sec('cs-dup','🔴','이중송장 위험 · 재출력 금지',dup):'')
+        +(ss('flow')?sec('cs-stall','🟡','배송흐름 정체 · 소싱처 확인',stall):'')
+        +(ss('unk')?sec('cs-unk','⚪','확인불가 · 조회 안 됨',unk,{why:true}):'')
+        +(ss('ok')?sec('cs-ok','🟢','발송 대상 · 아직 마켓에 송장 안 나감',sendable,{send:true}):'')
+        +(ss('ok')?sec('cs-done','✅','이미 발송/완료 · 조치 불필요',doneOk):'');
       var sb=document.getElementById('chkSendOk');
       if(sb)sb.onclick=function(){ setOView('mkt'); dmCheckFilter=null;
         alert('발송 대상 '+sendable.length+'건입니다. 「전체 주문」에서 대상을 선택해 송장 전송하세요.\\n(검사 뷰에서 바로 전송은 다음 업데이트 예정)');};
@@ -690,24 +691,20 @@
       if(p&&p.classList.contains('on')&&!p.contains(e.target)&&!e.target.closest('.chk-fth'))p.classList.remove('on');});
     function renderDmBars(){
       var el=document.getElementById('dmbars'); if(!el)return;
-      // 표에 불러온 주문 기준(inView) 카운트 — 클릭 필터 결과와 일치. 전체(/뒤)는 더망고 전체(mangoSummary).
-      var v={dup:0,flow:0,unk:0,ok:0};
-      rows.forEach(function(r){var m=dmOf(r); if(!m)return;
-        if(m.dup)v.dup++; else if(m.flow)v.flow++; else if(m.unk)v.unk++; else v.ok++;});
-      var s=mangoSummary||{}, T={dup:s.dup||0,flow:s.flow||0,unk:s.unknown||0,
-        ok:(s.total||0)-(s.dup||0)-(s.flow||0)-(s.unknown||0)};
-      var maxIn=Math.max(1,v.dup,v.flow,v.unk,v.ok);
-      var defs=[['dup','🔴 이중송장','var(--red)',v.dup,T.dup],['flow','🟡 배송흐름 정체','var(--amber)',v.flow,T.flow],
-                ['unk','⚪ 확인불가','var(--faint)',v.unk,T.unk],['ok','🟢 정상','var(--green)',v.ok,T.ok]];
-      var hasHidden=defs.some(function(d){return d[4]>d[3];});
+      // 배송검사 전체(더망고 스냅샷) 기준 카운트 — 마켓·기간 필터와 무관하게 항상 더망고 전체.
+      var s=mangoSummary||{};
+      var okc=(s.total||0)-(s.dup||0)-(s.flow||0)-(s.unknown||0);
+      var defs=[['dup','🔴 이중송장','var(--red)',s.dup||0],['flow','🟡 배송흐름 정체','var(--amber)',s.flow||0],
+                ['unk','⚪ 확인불가','var(--faint)',s.unknown||0],['ok','🟢 정상','var(--green)',okc]];
+      var mx=Math.max(1,defs[0][3],defs[1][3],defs[2][3],defs[3][3]);
       el.innerHTML=defs.map(function(d){
         var on=(dmCheckFilter===d[0])?' style="outline:2px solid '+d[2]+';outline-offset:1px;border-radius:6px"':'';
-        var tot=(d[4]>d[3])?' <span style="color:var(--faint);font-weight:500">/ '+d[4]+'</span>':'';
-        return '<div class="dmbar" data-f="'+d[0]+'"'+on+'><div class="dt"><span>'+d[1]+'</span><b style="color:'+d[2]+'">'+d[3]+tot+'</b></div>'
-          +'<div class="dk"><span style="width:'+Math.min(100,Math.round(d[3]/maxIn*100))+'%;background:'+d[2]+'"></span></div></div>';
-      }).join('') + (hasHidden?'<div style="font-size:10.5px;color:var(--faint);margin-top:2px;line-height:1.4">숫자 = 지금 표에 뜬 것 / 더망고 전체. 나머지는 <b>기간을 넓히면</b> 표에 나옵니다.</div>':'');
+        return '<div class="dmbar" data-f="'+d[0]+'"'+on+'><div class="dt"><span>'+d[1]+'</span><b style="color:'+d[2]+'">'+d[3]+'</b></div>'
+          +'<div class="dk"><span style="width:'+Math.min(100,Math.round(d[3]/mx*100))+'%;background:'+d[2]+'"></span></div></div>';
+      }).join('') + '<div style="font-size:10.5px;color:var(--faint);margin-top:2px;line-height:1.4">더망고 전체 기준(마켓·기간과 무관). 눌러서 거르기.</div>';
       [].slice.call(el.querySelectorAll('.dmbar')).forEach(function(b){b.onclick=function(){
-        var f=b.getAttribute('data-f'); dmCheckFilter=(f==='ok'||dmCheckFilter===f)?null:f; render();};});
+        var f=b.getAttribute('data-f'); dmCheckFilter=(dmCheckFilter===f)?null:f;
+        if(document.getElementById('checkView').style.display!=='none'){renderCheckView();} else {render();}};});
     }
     function cellHTML(col,r){
       var v=r[col];
