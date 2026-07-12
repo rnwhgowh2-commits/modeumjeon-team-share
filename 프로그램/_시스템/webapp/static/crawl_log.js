@@ -928,11 +928,14 @@
         _res = ' <span class="mcl-vdiv">│</span> <span class="mcl-c-ok">✓ ' + _ok + '</span>'
              + (_fail > 0 ? ' <span class="mcl-c-no" title="클릭 → 옵션 매트릭스">✗ ' + _fail + '</span>' : '');
       }
-      // [2026-07-13] 진행 중이면 항상 「N창」 표시(1이어도) — 안 뜨는 게 아니라 지금 순차라 1창임을
-      //   보이게. 여러 창(2단계 병렬)이면 2·3창으로. 점은 최대 5개까지만 그림(과다 방지).
+      // [2026-07-13] 진행 중이면 「N창」 표시. 창 수(wins)는 소싱처(sk) 단위 항목에만
+      //   저장되는데(window-open 이벤트가 sk 로 기록), 카드는 url_type(sk|단품 등)이라
+      //   s.wins 를 읽으면 항상 undefined→1 로 틀렸다. 좌측 자동화 카드와 숫자를 맞추려
+      //   소싱처 단위 항목 b.sources[sk] 의 wins·run 상태를 그대로 읽는다(=좌측과 동일 원천).
       var _wins = '';
-      if (s.status === 'run') {
-        var _wn = s.wins || 1;
+      var _srcSt = b.sources[sk];
+      if (_srcSt && _srcSt.status === 'run') {
+        var _wn = _srcSt.wins || 1;
         var _dots = ''; for (var _wi = 0; _wi < Math.min(_wn, 5); _wi++) _dots += '<span class="mcl-wdot"></span>';
         _wins = ' <span class="mcl-vdiv">│</span> <span class="mcl-wins" title="지금 이 소싱처가 연 창 수(2 이상이면 URL 을 나눠 병렬로 긁는 중)">⧉ ' + _dots + ' ' + _wn + '창</span>';
       }
