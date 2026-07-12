@@ -286,6 +286,11 @@
   .km-step button{width:24px;height:24px;border:0;background:#fff;font-size:14px;color:#6b7684;cursor:pointer;}
   .km-step button:disabled{opacity:.35;cursor:default;}
   .km-step .v{min-width:34px;text-align:center;font-size:12.5px;font-weight:700;color:#1b64da;font-variant-numeric:tabular-nums;}
+  .km-step.conc .v{color:#0b7a54;min-width:26px;}
+  .km-th{font-size:10px;color:#8b95a1;font-weight:600;padding:4px 7px;}
+  .km-wl{font-size:8.5px;font-weight:700;padding:1px 5px;border-radius:10px;background:#e6f9f1;color:#0b7a54;margin-left:5px;white-space:nowrap;}
+  .km-wl.win{background:#fff7e6;color:#8a5a06;}
+  .km-prep{font-size:9px;color:#c0343f;font-weight:700;}
   .km-more{display:inline-flex;align-items:center;gap:6px;background:#EAF2FE;border:1px solid #cfe1fb;border-radius:9px;padding:9px 12px;font-size:12.5px;font-weight:600;color:#1b64da;text-decoration:none;margin-top:10px;}
 </style>
 {% endblock %}
@@ -337,8 +342,11 @@
           <div class="czlog-h">🕐 차수별 완료 시각<button type="button" class="czlog-tg" id="czlog-tg"></button></div>
           <div class="czlog-list" id="czlog-list"></div>
         </div>
-        <div class="km-lab">🌲 소싱처별 계수 (자주 긁을수록 ×N)</div>
-        <table class="km"><tbody id="km-body"><tr><td class="km-empty" style="font-size:11.5px;color:#8b95a1;padding:8px 2px">불러오는 중…</td></tr></tbody></table>
+        <div class="km-lab">🌲 소싱처별 설정 — 계수(자주 긁을수록 ×N) · 동시 상한(한 번에 몇 갈래)</div>
+        <table class="km">
+          <thead><tr><th class="km-th" style="text-align:left">소싱처</th><th class="km-th r">계수</th><th class="km-th r">동시 상한 <span class="km-prep">· 엔진 준비 중</span></th></tr></thead>
+          <tbody id="km-body"><tr><td colspan="3" class="km-empty" style="font-size:11.5px;color:#8b95a1;padding:8px 2px">불러오는 중…</td></tr></tbody>
+        </table>
         <a class="km-more" href="/automation/weights">브랜드·모음전별까지 자세히 설정 →</a>
       </div>
     </div>
@@ -925,16 +933,29 @@
       if(!src.length){ tb.innerHTML='<tr><td class="km-empty" style="font-size:11.5px;color:#8b95a1;padding:8px 2px">아직 소싱처가 없어요.</td></tr>'; return; }
       src.forEach(function(s){
         var lab=s.label||s.scope_key||'?';
+        var c=(s.concurrency==null?'':s.concurrency);
+        var wl=s.winless?'<span class="km-wl">창없이</span>':'<span class="km-wl win">창 필요</span>';
         var tr=document.createElement('tr');
-        tr.innerHTML='<td><span class="km-src"><span class="km-ic">'+lab.charAt(0)+'</span>'+lab+'</span></td>'+
-          '<td class="r"><span class="km-step" data-key="'+encodeURIComponent(s.scope_key)+'" data-w="'+s.weight+'"><button data-d="-1"'+(s.weight<=0?' disabled':'')+'>−</button>'+(s.weight<=0?'<span class="v" style="color:#8b95a1">제외</span>':'<span class="v">×'+s.weight+'</span>')+'<button data-d="1"'+(s.weight>=5?' disabled':'')+'>+</button></span></td>';
+        tr.innerHTML='<td><span class="km-src"><span class="km-ic">'+lab.charAt(0)+'</span>'+lab+'</span>'+wl+'</td>'+
+          '<td class="r"><span class="km-step wt" data-key="'+encodeURIComponent(s.scope_key)+'" data-w="'+s.weight+'"><button data-d="-1"'+(s.weight<=0?' disabled':'')+'>−</button>'+(s.weight<=0?'<span class="v" style="color:#8b95a1">제외</span>':'<span class="v">×'+s.weight+'</span>')+'<button data-d="1"'+(s.weight>=5?' disabled':'')+'>+</button></span></td>'+
+          '<td class="r"><span class="km-step conc" data-src="'+encodeURIComponent(s.scope_key)+'" data-c="'+c+'"><button data-d="-1"'+(c<=1?' disabled':'')+'>−</button><span class="v">'+c+'</span><button data-d="1"'+(c>=10?' disabled':'')+'>+</button></span></td>';
         tb.appendChild(tr);
       });
-      tb.querySelectorAll('.km-step button').forEach(function(btn){
+      // 계수 스테퍼(×N, 0~5)
+      tb.querySelectorAll('.km-step.wt button').forEach(function(btn){
         btn.addEventListener('click',function(){
           var stp=this.parentElement; var cur=parseInt(stp.dataset.w,10); if(isNaN(cur))cur=1;
           var nw=Math.max(0,Math.min(5,cur+parseInt(this.dataset.d,10))); if(nw===cur) return;   // 0=크롤 제외
           fetch('/api/crawl/weight-rule',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({scope_type:'source',scope_key:decodeURIComponent(stp.dataset.key),weight:nw})})
+            .then(function(r){return r.json();}).then(function(rr){ if(rr&&rr.ok){ toast(); renderKmini(); } });
+        });
+      });
+      // 동시 상한 스테퍼(N, 1~10)
+      tb.querySelectorAll('.km-step.conc button').forEach(function(btn){
+        btn.addEventListener('click',function(){
+          var stp=this.parentElement; var cur=parseInt(stp.dataset.c,10); if(isNaN(cur))cur=3;
+          var nv=Math.max(1,Math.min(10,cur+parseInt(this.dataset.d,10))); if(nv===cur) return;
+          fetch('/api/crawl/concurrency-rule',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({source_key:decodeURIComponent(stp.dataset.src),limit:nv})})
             .then(function(r){return r.json();}).then(function(rr){ if(rr&&rr.ok){ toast(); renderKmini(); } });
         });
       });

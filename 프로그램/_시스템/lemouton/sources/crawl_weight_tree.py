@@ -17,11 +17,14 @@ DEFAULT_WEIGHT = 1
 def build_weight_tree(session) -> dict:
     from lemouton.sources.models import SourceProduct
     from lemouton.sources.service import normalize_url
-    from lemouton.sources.crawl_schedule import list_weight_rules
+    from lemouton.sources.crawl_schedule import (
+        list_weight_rules, get_source_concurrency_map,
+        default_source_concurrency, source_is_windowless)
     from lemouton.sourcing.models import BundleSourceUrl, Model, Option
     from lemouton.sourcing.source_registry import get_labels
 
     rules = list_weight_rules(session)  # {source:{}, brand:{}, model:{}, url:{}}
+    conc_map = get_source_concurrency_map(session)   # {source_key: 저장된 동시상한}
     try:
         labels = get_labels() or {}
     except Exception:
@@ -152,6 +155,10 @@ def build_weight_tree(session) -> dict:
         src_tree.append({
             "scope_type": "source", "scope_key": site, "label": src_label(site),
             "weight": sw, "direct": sd, "editable": True, "children": bchildren,
+            # 소싱처별 동시 상한(저장값 있으면 그것, 없으면 성격 기본) + 창없이 여부.
+            "concurrency": conc_map.get(site, default_source_concurrency(site)),
+            "conc_direct": site in conc_map,
+            "winless": source_is_windowless(site),
         })
 
     # ── brd 기준(4열): 브랜드 → 모음전 → 옵션 → URL(소싱처별) ──

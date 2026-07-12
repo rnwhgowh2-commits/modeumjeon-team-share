@@ -219,6 +219,23 @@ def set_crawl_weight_rule_route():
         s.close()
 
 
+@bp.post('/crawl/concurrency-rule')
+def set_source_concurrency_route():
+    """소싱처 동시 상한 설정/해제. body {source_key, limit?(없으면 성격 기본으로 해제)}."""
+    from lemouton.sources.crawl_schedule import set_source_concurrency
+    data = request.get_json(silent=True) or {}
+    s = SessionLocal()
+    try:
+        v = set_source_concurrency(s, data.get('source_key'),
+                                   data.get('limit'))
+        s.commit()
+        return jsonify({"ok": True, "limit": v})
+    except (ValueError, TypeError) as e:
+        return jsonify({"ok": False, "error": str(e)}), 400
+    finally:
+        s.close()
+
+
 @bp.get('/upload/account-speed')
 def list_account_upload_speed():
     """[읽기] 계정별 업로드 속도 + 마켓 총 스토어 업로드수(화면 ③ 표). 커밋 없음(읽기)."""

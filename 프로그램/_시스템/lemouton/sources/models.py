@@ -197,3 +197,16 @@ class CrawlWeightRule(Base):
     __table_args__ = (
         UniqueConstraint("scope_type", "scope_key", name="uq_crawl_weight_rule"),
     )
+
+
+class CrawlConcurrencyRule(Base):
+    """소싱처별 '동시 상한' — 한 소싱처를 한 번에 몇 갈래로 나눠 긁을지(1~10).
+
+    별도 테이블(create_all 로 신규 생성 — 기존 DB 컬럼 마이그레이션 불필요).
+    행 없으면 소싱처 성격 기본값(창없이 8 / 창 필요 3)을 쓴다.
+    """
+    __tablename__ = "crawl_concurrency_rules"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    source_key = Column(String(64), nullable=False, unique=True)   # hmall/musinsa/lotteon…
+    limit_val = Column(Integer, nullable=False)                    # 1~10
