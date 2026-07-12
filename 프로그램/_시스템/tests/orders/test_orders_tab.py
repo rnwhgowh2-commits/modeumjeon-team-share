@@ -121,8 +121,9 @@ def test_margin_renders_skeleton():
     #   (구 B레이아웃 재구현본 id="margin-app" 은 폐기 — 원본 1:1 방향).
     html = _render("margin")
     assert 'id="margin-embed-frame"' in html
-    assert '/orders/margin-embed' in html
+    assert '<iframe' in html
     assert "후속 구현 예정" not in html
+    # (실제 라우트/src=/orders/margin-embed 는 test_margin_ui_routes.py 가 앱 컨텍스트에서 검증)
 
 
 def test_routes_registered():
