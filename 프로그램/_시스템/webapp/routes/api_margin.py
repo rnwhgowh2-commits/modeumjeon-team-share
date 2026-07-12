@@ -32,6 +32,7 @@ from flask import Blueprint, jsonify, request, send_file
 from shared.db import SessionLocal
 from lemouton.margin import aggregator, export, pipeline, store
 from lemouton.margin import sell_source
+from lemouton.margin import keyword_store
 from lemouton.margin import matcher, classifier
 from lemouton.margin.buy_parser import parse_buy
 from lemouton.margin.config import DEFAULT_PRICE_RANGES
@@ -336,6 +337,17 @@ def analyze():
     # 2b) 블랙스팟 분류 계약 복원 — classified·blackspot_summary·검증 카운트·흔적 보강.
     #     NaN 을 품은 raw 행은 _augment 내부에서 표시전용 sanitize → 아래 finite 가드 통과.
     _augment_blackspot(payload, staged["df"], sell_df, out)
+    # ★ 팀 공유 카드 키워드를 summary 에 주입 — 원본 app.py:879 미러.
+    #   페이지의 _getCardKeywords() 는 window.analysisData.summary._card_keywords 를
+    #   읽는다 → 매 분석마다 팀 DB 값을 실어야, 편집 없이도 팀 설정이 즉시 반영된다.
+    #   (여기서 안 실으면 페이지 내장 폴백으로 떨어져 팀 DB 가 무력화된다.)
+    #   카드 값은 문자열/리스트뿐 → _assert_finite 안전.
+    _kw_session = SessionLocal()
+    try:
+        _cards = keyword_store.get_config(_kw_session).get("cards", {})
+    finally:
+        _kw_session.close()
+    payload.setdefault("summary", {})["_card_keywords"] = _cards
     # NaN/Inf 는 저장 전에 크게 실패시킨다 — 조용한 0 으로 덮지 않는다(store._pack 경보 보존).
     try:
         _assert_finite(payload)

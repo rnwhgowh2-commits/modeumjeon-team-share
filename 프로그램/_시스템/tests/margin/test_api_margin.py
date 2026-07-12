@@ -13,7 +13,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from shared.db import Base
-from lemouton.margin.models import MarginAnalysis  # 테이블 등록
+from lemouton.margin.models import MarginAnalysis, CardKeywordConfig  # 테이블 등록
 from lemouton.margin.sell_source import SELL_COLUMNS
 from webapp.routes import api_margin
 
@@ -54,6 +54,7 @@ def _sell_df(specs):
 def client(tmp_path, monkeypatch):
     eng = create_engine(f"sqlite:///{tmp_path / 't.db'}", future=True)
     MarginAnalysis.__table__.create(eng, checkfirst=True)
+    CardKeywordConfig.__table__.create(eng, checkfirst=True)  # analyze 가 카드 키워드 주입
     Session = sessionmaker(bind=eng, future=True, expire_on_commit=False)
     monkeypatch.setattr(api_margin, "SessionLocal", Session)
     monkeypatch.setattr(api_margin, "_PENDING", {})
@@ -115,6 +116,47 @@ def test_analyze_stores_and_returns_full_payload(client, monkeypatch):
     assert len(j["matched"]) == 1
     assert j["summary"]["총순마진"] == 20000
     assert "market" in j and "daily" in j and "filters" in j
+
+
+def test_analyze_injects_team_db_card_keywords_into_summary(client, monkeypatch):
+    """analyze 응답의 summary._card_keywords == 팀 DB cards dict (미편집=시드 기본값).
+
+    원본 app.py:879 미러 — 페이지는 summary._card_keywords 를 읽으므로 매 분석마다
+    실려야 한다. 안 실으면 페이지 내장 폴백으로 떨어져 팀 DB 가 무력화된다.
+    """
+    _upload(client)
+    _patch_from_api(monkeypatch, _sell_df([("1000", "real", 50000)]))
+    r = client.post("/api/margin/analyze", json={})
+    j = r.get_json()
+    kw = j["summary"]["_card_keywords"]
+    assert isinstance(kw, dict)
+    # 시드 기본값이 그대로 실려야 한다
+    assert kw["confirmed_blackspot"]["memo"] == ["블랙"]
+    assert kw["memo_settled"]["memo"] == ["입금", "철회"]
+
+
+def test_analyze_reflects_keyword_change_from_db(client, monkeypatch):
+    """DB → analyze 흐름: /api/keywords 로 카드를 바꾸면 이후 analyze 가 반영.
+
+    에디터의 in-session 갱신이 아니라 팀 DB 를 읽어 실린다는 증명.
+    같은 DB(엔진)를 공유하도록 api_keywords.SessionLocal 도 같은 Session 으로 패치.
+    """
+    from webapp.routes import api_keywords
+    monkeypatch.setattr(api_keywords, "SessionLocal", api_margin.SessionLocal)
+    kw_app = Flask(__name__)
+    kw_app.register_blueprint(api_keywords.bp)
+    kw_client = kw_app.test_client()
+
+    # 팀 DB 에서 카드 하나 변경
+    resp = kw_client.post("/api/keywords", json={
+        "card": "confirmed_blackspot",
+        "data": {"memo": ["변경됨"], "label": "확인된 블랙스팟"}})
+    assert resp.status_code == 200
+
+    _upload(client)
+    _patch_from_api(monkeypatch, _sell_df([("1000", "real", 50000)]))
+    j = client.post("/api/margin/analyze", json={}).get_json()
+    assert j["summary"]["_card_keywords"]["confirmed_blackspot"]["memo"] == ["변경됨"]
 
 
 def test_analyze_aborts_when_a_market_fails(client, monkeypatch):

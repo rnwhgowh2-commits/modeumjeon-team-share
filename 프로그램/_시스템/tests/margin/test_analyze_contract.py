@@ -17,7 +17,7 @@ from flask import Flask
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
-from lemouton.margin.models import MarginAnalysis  # 테이블 등록
+from lemouton.margin.models import MarginAnalysis, CardKeywordConfig  # 테이블 등록
 from lemouton.margin.sell_source import SELL_COLUMNS
 from webapp.routes import api_margin
 
@@ -76,6 +76,7 @@ def _sell_df():
 def client(tmp_path, monkeypatch):
     eng = create_engine(f"sqlite:///{tmp_path / 't.db'}", future=True)
     MarginAnalysis.__table__.create(eng, checkfirst=True)
+    CardKeywordConfig.__table__.create(eng, checkfirst=True)  # analyze 가 카드 키워드 주입
     Session = sessionmaker(bind=eng, future=True, expire_on_commit=False)
     monkeypatch.setattr(api_margin, "SessionLocal", Session)
     monkeypatch.setattr(api_margin, "_PENDING", {})
