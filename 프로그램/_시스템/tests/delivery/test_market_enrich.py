@@ -130,3 +130,19 @@ def test_enrich_matches_paren_orderno(db, monkeypatch):
     o = db.query(M.MangoOrder).filter_by(mango_uid="P1").one()
     assert o.market_check_error is None          # 확인불가 아님(매칭 성공)
     assert o.market_api_status == "배송완료" and o.market_api_invoice == "INV-SS"
+
+
+def test_enrich_matches_paren_outer_orderno(db, monkeypatch):
+    # 반대 방향: 마켓이 '주문번호'(괄호 밖, orderId)를 오픈마켓주문번호로 줄 때도 매칭돼야 함.
+    # 스스 빌더 오픈마켓주문번호 = productOrderId or orderId → 괄호 안·밖 둘 다 커버.
+    db.add(M.MangoOrder(mango_uid="P2", market_name="스마트스토어",
+                        market_order_no="2026070695107551(2026070668195471)",
+                        mango_status="해외현지배송중"))
+    db.commit()
+    monkeypatch.setattr(me._oe, "combined_order_rows", lambda markets, **kw: [
+        {"판매처": "스마트스토어", "오픈마켓주문번호": "2026070695107551",   # 괄호 밖(주문번호)
+         "주문상태": "배송중", "송장입력": "INV-OUT"}])
+    me.enrich_from_market_api(db, ["P2"])
+    o = db.query(M.MangoOrder).filter_by(mango_uid="P2").one()
+    assert o.market_check_error is None          # 괄호 밖 번호로도 매칭
+    assert o.market_api_status == "배송중" and o.market_api_invoice == "INV-OUT"
