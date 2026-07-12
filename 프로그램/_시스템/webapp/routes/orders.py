@@ -474,7 +474,8 @@ def orders_invoice_send():
 
 def _mango_to_dict(o):
     return {
-        'uid': o.mango_uid, 'market': o.market_name, 'recipient': o.recipient,
+        'uid': o.mango_uid, 'ord': o.market_order_no or '',  # 매칭키=오픈마켓주문번호
+        'market': o.market_name, 'recipient': o.recipient,
         'product': o.product_name, 'option': o.option1, 'invoice': o.invoice_no or '',
         'mango_status': o.mango_status, 'market_status': o.market_status,
         'method': o.delivery_method, 'method_source': o.delivery_method_source,
