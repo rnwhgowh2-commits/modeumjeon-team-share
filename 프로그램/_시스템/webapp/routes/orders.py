@@ -566,6 +566,17 @@ def inspect_upload():
         s.close()
 
 
+@bp.route('/inspect/clear', methods=['POST'])
+def inspect_clear():
+    """배송검사 초기화 — 더망고 주문 전량 삭제(미실시 0 상태로)."""
+    s = SessionLocal()
+    try:
+        n = _dsvc.clear_orders(s)
+        return jsonify(ok=True, deleted=n)
+    finally:
+        s.close()
+
+
 @bp.route('/inspect/method', methods=['POST'])
 def inspect_method():
     """행별 수기 배송방식 지정."""

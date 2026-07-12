@@ -266,6 +266,7 @@
             <label class="mc-rc"><input type="radio" name="mgbulk" value="까대기" hidden>전부 까대기</label>
             <label class="mc-rc"><input type="radio" name="mgbulk" value="직배" hidden>전부 직배</label>
             <span style="margin-left:auto"></span>
+            <button class="gbtn" id="mgClearBtn" style="width:auto;margin:0;background:transparent;border-color:var(--line2);color:var(--sub);font-size:11px">비우기</button>
             <button class="gbtn" id="mgMapBtn" style="width:auto;margin:0">⚙ 구분자 매핑</button>
             <button class="gbtn" id="mgUpBtn" style="width:auto;margin:0;background:var(--blue);border-color:var(--blue);color:#fff">업로드</button>
           </div>
@@ -1117,6 +1118,17 @@
             loadMango();}
           else document.getElementById('mangoMsg').innerHTML='<span style="color:var(--red)">✖ '+esc(j.error||'')+'</span>';});});
       document.getElementById('mgMapBtn').addEventListener('click',function(){window.open('/orders/?tab=inspect','_blank');});
+      document.getElementById('mgClearBtn').addEventListener('click',function(){
+        var n=(mangoSummary&&mangoSummary.total)||0;
+        if(!n){document.getElementById('mangoMsg').textContent='비울 배송검사 데이터가 없어요.';return;}
+        if(!confirm('배송검사 '+n+'건을 모두 비울까요?\n(더망고 주문을 지워 미실시 0 상태로 되돌립니다)'))return;
+        document.getElementById('mangoMsg').textContent='비우는 중…';
+        fetch('/orders/inspect/clear',{method:'POST'}).then(function(r){return r.json();}).then(function(j){
+          if(j.ok){document.getElementById('mangoMsg').innerHTML='<span style="color:var(--green)">✔ '+j.deleted+'건 비움 · 배송검사 미실시</span>';
+            document.getElementById('mangoResult').textContent='';
+            loadMango();}
+          else document.getElementById('mangoMsg').innerHTML='<span style="color:var(--red)">✖ 비우기 실패</span>';})
+          .catch(function(){document.getElementById('mangoMsg').innerHTML='<span style="color:var(--red)">✖ 비우기 실패(네트워크)</span>';});});
     }
     // 배송방식 토글칩 클릭(표에 위임) → 수기 지정
     document.getElementById('tablewrap').addEventListener('click',function(e){
