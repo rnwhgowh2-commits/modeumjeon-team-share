@@ -3,10 +3,32 @@
 오픈마켓주문번호로 order_export 실주문과 매칭 → 마켓 통일상태·등록송장을 MangoOrder 에 캐시.
 마켓 API = 서버(AWS) 전용. 로컬/테스트는 order_export 를 monkeypatch.
 """
+import re
 from datetime import datetime, timezone
 
 from lemouton.markets import order_export as _oe
 from lemouton.delivery.models import MangoOrder
+
+_PAREN = re.compile(r'^(.+?)\((.+?)\)\s*$')
+
+
+def _match_keys(order_no):
+    """더망고 주문번호 → 마켓 오픈마켓주문번호 매칭 후보 키(순서대로).
+
+    더망고는 스마트스토어를 '주문번호(상품주문번호)' 괄호 형식으로 저장하는데,
+    order_export 오픈마켓주문번호는 상품주문번호(또는 주문번호)만이라 그대로는 매칭 실패한다.
+    → 괄호 안(상품주문번호)·괄호 밖(주문번호)도 후보로 넣는다.
+    """
+    no = (order_no or "").strip()
+    keys = [no] if no else []
+    m = _PAREN.match(no)
+    if m:
+        inner, outer = m.group(2).strip(), m.group(1).strip()
+        if inner:
+            keys.append(inner)   # 스마트스토어 오픈마켓주문번호 = 상품주문번호(괄호 안)
+        if outer:
+            keys.append(outer)
+    return keys
 
 # 더망고 마켓명(B열) → order_export 슬러그. SUPPORTED 밖은 None(스킵).
 _SLUG = {
@@ -77,8 +99,11 @@ def enrich_from_market_api(session, uploaded_uids, warnings=None) -> dict:
     for o in orders:
         if o.mango_uid in skipped_set:
             continue
-        no = (o.market_order_no or "").strip()
-        fr = index.get(no)
+        fr = None
+        for k in _match_keys(o.market_order_no):   # 괄호형(스스 상품주문번호) 포함 후보로 매칭
+            if k in index:
+                fr = index[k]
+                break
         if fr is None:
             o.market_check_error = "마켓에서 못 찾음(조회 실패 또는 기간 밖)"
             o.market_checked_at = _now()
