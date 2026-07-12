@@ -47,6 +47,17 @@ def order_match_keys(order_num, market_name):
     return [s] if s else []
 
 
+def extract_account(shop_alias):
+    """'박스(지마켓)' -> '박스'. 괄호 없으면 원문. 빈값이면 ''."""
+    if shop_alias is None:
+        return ''
+    s = str(shop_alias).strip()
+    if not s or s in ('nan', 'None'):
+        return ''
+    i = s.find('(')
+    return s[:i].strip() if i > 0 else s
+
+
 def extract_product_code(product_name):
     """상품명에서 5자리 이상 숫자 마지막 매칭값 추출."""
     try:
@@ -146,6 +157,7 @@ def match_data(buy_df, sell_df):
         return {
             '주문일':        str(s_row.get('주문일', '')),
             '마켓':          market_display,
+            '계정':          extract_account(s_row.get('쇼핑몰별칭', '')),
             '상품명':        str(s_row.get('상품명', '')),
             '브랜드':        b_row.get('_brand', '기타'),
             '옵션_매출':     str(s_row.get('옵션', '')) if '옵션' in s_row else '',
