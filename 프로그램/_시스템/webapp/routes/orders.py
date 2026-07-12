@@ -10,7 +10,7 @@
 import datetime as _dt
 import io as _io
 
-from flask import Blueprint, render_template, request, send_file, abort, jsonify
+from flask import Blueprint, render_template, request, send_file, abort, make_response, jsonify
 
 from lemouton.markets import capabilities as _cap
 from lemouton.markets import order_export as _oe
@@ -104,6 +104,21 @@ def orders_index():
             col_meta=_oe.columns_meta() if tab == 'list' else {},
         )
     return render_template('orders/index.html', **ctx)
+
+
+@bp.route('/margin-embed')
+def margin_embed():
+    """원본 마진계산기 풀페이지(무수정 이식)를 iframe 용 standalone 로 서빙.
+
+    base.html(사이드바/셸)을 확장하지 않는 원본 그대로의 전체 페이지다. `/orders?tab=margin`
+    에서 same-origin iframe 으로 임베드(C3)하기 위해 X-Frame-Options: SAMEORIGIN 예외를 준다
+    (전역 기본 DENY 가 same-origin iframe 까지 막으므로 — marketplace_guide 패턴과 동일).
+    엔드포인트는 /api/margin/* 로 재배선됨(업로드·분석·내보내기). 설정(Task D)·소싱 자동검사
+    (Task E) 엔드포인트는 원본 URL 유지 — 현재 404 여도 .catch 로 삼켜져 렌더를 막지 않는다.
+    """
+    resp = make_response(render_template('orders/margin_embed.html'))
+    resp.headers['X-Frame-Options'] = 'SAMEORIGIN'
+    return resp
 
 
 def _parse_markets(args):

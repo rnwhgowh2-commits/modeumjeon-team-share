@@ -6,6 +6,9 @@ python-dotenv>=1.0,<2.0
 requests>=2.31,<3.0
 curl_cffi>=0.7,<1.0
 openpyxl>=3.1,<4.0
+pandas>=2.0,<3.0            # 마진계산기 — 엑셀 파싱·매칭·집계
+xlrd==2.0.1                 # 마진계산기 — 바이너리 .xls (샵마인 구버전)
+html5lib>=1.1,<2.0          # 마진계산기 — HTML 형식 .xls fallback
 beautifulsoup4>=4.12,<5.0
 lxml>=5.0,<7.0
 playwright>=1.45,<2.0

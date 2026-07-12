@@ -205,5 +205,9 @@
     startSchedule,
     stopSchedule,
     scheduleStatus,
+    // [2026-07-12 · E2] 마진계산기 소싱처 주문상태 확인 — 로그인된 이 브라우저로 주문 URL 을 열어
+    //   배경 워커가 상태를 읽는다(크롤=로컬). margin_ext_check.js(iframe)가 window.parent.MoumExt
+    //   .checkSourcingOrder 로 호출. send 는 IIFE private 라 타입 메서드로만 노출한다.
+    checkSourcingOrder: (payload, timeoutMs) => send("sourcing.check-order", payload, timeoutMs || 90000),
   };
 })();

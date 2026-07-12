@@ -10,9 +10,10 @@
 //  결과 저장은 mou-m.com /api/sources/crawl-result (ext_bridge.crawlBundleAll 이 호출).
 //  grabHtml/crawl(URL마다 창 생성·즉시 닫기) 핸들러는 하위호환 위해 유지.
 
-// [2026-07-05 병합] 리포 확장은 stale(실제 로드=Desktop moum-crawler-v0.7.14, 별도 동기화 예정).
-// 두 갈래 0.7.6 병합: 자동화 워커(due-bundles 폴링→기존 크롤 큐 위임) + 무신사 상품쿠폰 전량수집.
-const MOUM_EXT_VERSION = "0.7.17";  // 0.7.17 = 실시간 집계(agg done/total) 브로드캐스트 → 자동화 링이 위젯과 동일. 0.7.16 = 상세 전체크롤 최우선. 0.7.6 = 자동화 워커 폴링 + 무신사 상품쿠폰(product_coupon_list) 전량수집 API우선+DOM폴백. 0.7.5 = manifest 버전동기화. 0.7.4 = content_mou 백그라운드 로그 중계. 0.7.3 = 현대H몰 sellGbcd 품절판정(S19). 0.6.x: 백그라운드 크롤 상태 영속+SW 자동재개
+// [2026-07-07 화해] 리포 ↔ 데스크톱 로드본(v0.7.17) 동기화 완료 — 롯데온 익스트랙터
+//   (롯데오너스 lotte_member_discount_rate·재고 base/sitm 우선, 2026-07-03 fix Ⓑ·B) 이관.
+//   이제 리포가 원천. 데스크톱은 리포에서 동기화(통째복사 금지·패치만).
+const MOUM_EXT_VERSION = "0.7.26";  // 0.7.26 = [E2] 마진계산기 소싱처 주문상태 확인(sourcing.check-order → 주문 URL 창 오픈+사이트별 파서 주입, 크롤=로컬). spike = 무신사 창없는 probe(진단 전용, 엔진 미배선). 0.7.17 = 실시간 집계(agg done/total) 브로드캐스트 → 자동화 링이 위젯과 동일. 0.7.16 = 상세 전체크롤 최우선. 0.7.6 = 자동화 워커 폴링 + 무신사 상품쿠폰(product_coupon_list) 전량수집 API우선+DOM폴백. 0.7.5 = manifest 버전동기화. 0.7.4 = content_mou 백그라운드 로그 중계. 0.7.3 = 현대H몰 sellGbcd 품절판정(S19). 0.6.x: 백그라운드 크롤 상태 영속+SW 자동재개
 
 // cascade 위치 시퀀서 — 창이 여러 개 열려도 서로 어긋나 보임
 let _winSeq = 0;
@@ -64,10 +65,39 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       .catch((e) => sendResponse({ ok: false, error: String(e && e.message ? e.message : e) }));
     return true; // async
   }
+  // ── [2026-07-12 · Task E2] 소싱처 주문상태 확인 (마진계산기 '✓ 확인' 버튼) ──
+  //   서버 Playwright(원본 /api/check-sourcing) 를 대체 — 로그인된 이 브라우저로 주문 URL 을 열어
+  //   사이트별 파서를 주입해 상태를 읽고 창을 닫는다(크롤=로컬 원칙). 미로그인/파싱실패 정직 표면화.
+  if (type === "sourcing.check-order") {
+    handleCheckOrder(msg.payload || {})
+      .then((r) => sendResponse(r))
+      .catch((e) => sendResponse({
+        ok: false, order_status: "", courier: "", tracking: "",
+        site_name: (msg.payload || {}).site_name || "", source: "ext-local", logs: [],
+        is_logged_in: null, error: String(e && e.message ? e.message : e),
+      }));
+    return true; // async
+  }
   if (type === "sysinfo") {
     handleSysinfo()
       .then((r) => sendResponse(r))
       .catch((_) => sendResponse({ ok: true, cpu: null, mem: null }));
+    return true; // async
+  }
+  if (type === "probe.musinsa") {
+    probeMusinsaWindowless((msg.payload || {}).goodsId)
+      .then((r) => sendResponse(r))
+      .catch((e) => sendResponse({ ok: false, error: String(e && e.message ? e.message : e) }));
+    return true; // async
+  }
+  // [2026-07-07] 어댑터 단건 테스트(읽기 전용·저장 안 함) — G1 검증용. payload={sk,url}.
+  if (type === "probe.adapter") {
+    const _p = msg.payload || {};
+    const _fn = FETCH_ADAPTERS[_p.sk];
+    if (typeof _fn !== "function") { sendResponse({ ok: false, error: "어댑터 없음: " + _p.sk }); return false; }
+    Promise.resolve(_fn({ source_key: _p.sk, url: _p.url, url_type: _p.url_type || "dan" }))
+      .then((r) => sendResponse(r))
+      .catch((e) => sendResponse({ ok: false, error: String(e && e.message ? e.message : e) }));
     return true; // async
   }
   // ── [2026-06-14] 2단계: 백그라운드 오케스트레이터 제어 메시지 ──
@@ -100,6 +130,54 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   sendResponse({ error: "unknown type: " + type });
   return false;
 });
+
+// ── [스파이크 2026-07-07] 무신사 창없는 재고·가격 probe (서비스워커 직접 fetch) ──
+//   목적: musinsaExtractor(탭 컨텍스트)와 동일한 API를 SW에서 호출해 200 되는지 실측.
+//   엔진 미배선 — probe.musinsa 메시지로 수동 호출만. 폴백 금지: 실패는 http 코드로 그대로 표면화.
+async function probeMusinsaWindowless(goodsId) {
+  const t0 = Date.now();
+  const base = "https://goods-detail.musinsa.com/api2/goods/" + goodsId;
+  const out = { ok: false, goodsId: goodsId, http_options: null, http_inv: null,
+                http_price: null, stock_map: null, salePrice: null, error: null };
+  function finish() { out.elapsed_ms = Date.now() - t0; return out; }
+  try {
+    const or = await fetch(base + "/options", { credentials: "include", headers: { Accept: "application/json" } });
+    out.http_options = or.status;
+    if (!or.ok) { out.error = "options http " + or.status; return finish(); }
+    const oj = await or.json();
+    const basic = (oj.data || {}).basic || [];
+    const valueNos = [];
+    basic.forEach((g) => (g.optionValues || g.values || []).forEach((v) => { if (v.no != null) valueNos.push(v.no); }));
+
+    const ir = await fetch(base + "/options/v2/prioritized-inventories", {
+      method: "POST", credentials: "include",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify({ optionValueNos: valueNos }),
+    });
+    out.http_inv = ir.status;
+    if (ir.ok) {
+      const ij = await ir.json();
+      const arr = (ij && ij.data) || [];
+      const m = {};
+      arr.forEach((x) => { m[x.productVariantId] = x; });
+      out.stock_map = m;
+    }
+
+    const pr = await fetch(base, { credentials: "include", headers: { Accept: "application/json" } });
+    out.http_price = pr.status;
+    if (pr.ok) {
+      const pj = await pr.json();
+      out.salePrice = (((pj.data || {}).goodsPrice) || {}).salePrice != null
+        ? pj.data.goodsPrice.salePrice : null;
+    }
+
+    out.ok = (out.http_options === 200 && out.http_inv === 200 && out.stock_map != null);
+    return finish();
+  } catch (e) {
+    out.error = String(e && e.message ? e.message : e);
+    return finish();
+  }
+}
 
 // ── 소싱처별 추출 레시피 (페이지 컨텍스트에서 실행될 함수) ──
 const EXTRACTORS = { musinsa: musinsaExtractor, lotteon: lotteonExtractor };
@@ -782,11 +860,27 @@ async function lotteonExtractor() {
     const t = document.body.innerText;
     if (benefit == null) benefit = pickBenefit(t);
     if (sale == null) sale = pickSale(t);
-    if (benefit != null) break;   // MIN 통과한 유효 혜택가만 종료 조건
+    if (sale != null && benefit != null) break;   // 둘 다(표면가+혜택가) 잡히면 종료
+    if (sale != null && i >= 6) break;             // 표면가만·혜택가 없음(비로그인/무혜택) → 종료
     await sleep(500);
   }
-  const price = (benefit != null) ? benefit : sale;
+  // [2026-07-03 fix Ⓑ] 표면노출가 = 판매가(sale, 롯데오너스 제외). 기존엔 '나의 혜택가'
+  //   (benefit, 롯데오너스 포함)를 저장 → 롯데오너스 이중차감 위험. 표면가 우선, 없으면 benefit 폴백.
+  const price = (sale != null) ? sale : benefit;
   const valid = (price != null && price >= MIN);   // 하한 재확인(방어)
+  // 롯데오너스(회원할인율) — 크롤가이드 §2 표준 키 lotte_member_discount_rate 로 emit해야
+  //   서버(api_benefits compute_breakdown)가 자동 적용. 페이지의 '롯데오너스 … N%' 파싱,
+  //   없으면 표면가·혜택가 차이로 산출. 있을 때만 실음(없으면 미반영 — 사용자 정책 2026-07-03).
+  let ownusRate = 0;
+  {
+    const _bt = document.body.innerText;
+    const _m = _bt.match(/롯데오너스[^%]{0,20}?(\d+(?:\.\d+)?)\s*%/);
+    if (_m) ownusRate = parseFloat(_m[1]) / 100;
+    else if (sale != null && benefit != null && benefit < sale) ownusRate = Math.round((sale - benefit) / sale * 1000) / 1000;
+  }
+  const _lotteBenefit = ownusRate > 0
+    ? { lotte_member_discount_rate: ownusRate, lotte_member_discount_label: `롯데오너스 할인 ${(+(ownusRate * 100).toFixed(2))}%` }
+    : {};
   const soldOut = /품절|일시품절/.test(document.body.innerText) && !valid;
 
   // ── [2026-06-15 fix 롯데온 v3] 옵션매핑 API 직읽기 (범용·fail-safe, 라이브 ★FIN 검증) ──
@@ -798,26 +892,57 @@ async function lotteonExtractor() {
   //   URL 확보: ① 페이지가 부른 mapping URL(performance) ② location 에서 spd/sitm 조립.
   //   ★ fail-safe: API 실패(URL/CORS/파싱/빈옵션) → DOM 스캔 폴백 → 그래도 0건이면 옵션 비움(거짓충분 절대 금지).
   let options = [];
-  let mapUrl = "";
-  // ① performance 엔트리(페이지가 이미 호출 — LO·PD 공통). 늦으면 ~10s 폴링. 쿼리 제거(경로만으로 200).
-  for (let i = 0; i < 25; i++) {
+  // ★[2026-07-03 fix B] 재고 소스 = base/sitm 엔드포인트 우선 (전수조사+라이브 결론).
+  //   option/mapping 은 크롤 시점(콜드) 부분응답(예 37/97)만 와서 나머지 셀 드롭 → 서버 last_stock
+  //   (롯데온 999) 폴백 → '확인필요' 둔갑. 반면 base/sitm/{sitmNo}(페이지 최초 주력 API,
+  //   서버 크롤러 LOTTEON_API_PATHS 首)는 optionInfo.optionMappingInfo 에 전 97셀을 담아 온다(라이브 확인).
+  //   → base 우선, option/mapping 폴백. 둘 다 no-store 로 폴링해 최다 응답 채택.
+  const _sitm = new URLSearchParams(location.search).get("sitmNo") || "";
+  const _spd = (location.pathname.match(/\/product\/([A-Za-z0-9]+)/) || [])[1] || "";
+  let _mapHit = "";
+  for (let i = 0; i < 12; i++) {
     const hit = (performance.getEntriesByType("resource") || [])
       .map((e) => e.name).find((u) => /\/product\/v2\/detail\/option\/mapping\//.test(u));
-    if (hit) { mapUrl = hit.split("?")[0]; break; }
-    await sleep(400);
+    if (hit) { _mapHit = hit.split("?")[0]; break; }
+    await sleep(300);
   }
-  // ② 폴백: location 에서 조립 (/p/product/{spd}?sitmNo={sitm}) — LO형 URL 커버
-  if (!mapUrl) {
-    const spd = (location.pathname.match(/\/product\/([A-Za-z0-9]+)/) || [])[1] || "";
-    const sitm = new URLSearchParams(location.search).get("sitmNo") || "";
-    if (spd && sitm) mapUrl = "https://pbf.lotteon.com/product/v2/detail/option/mapping/" + spd + "/" + sitm;
-  }
-  if (mapUrl) {
+  const _stockUrls = [];
+  if (_sitm) _stockUrls.push("https://pbf.lotteon.com/product/v2/detail/search/base/sitm/" + _sitm);  // 우선: base
+  if (_mapHit) _stockUrls.push(_mapHit);                                                                 // 폴백: 페이지 mapping
+  else if (_spd && _sitm) _stockUrls.push("https://pbf.lotteon.com/product/v2/detail/option/mapping/" + _spd + "/" + _sitm);
+  if (_stockUrls.length) {
     try {
-      const resp = await fetch(mapUrl, { credentials: "include", headers: { accept: "application/json" } });
-      if (resp.ok) {
-        const j = await resp.json();
-        const oi = (j && j.data && j.data.optionInfo) || {};
+      // [2026-07-03 fix Ⓒ] pbf 부분응답 방지 — 옵션조합 수가 안정(2회 연속 최대치)될 때까지
+      //   재요청 후 '가장 많은 셀' 응답으로 추출. 크롤 시점 부분 pbf → 놓친 셀이 서버서
+      //   999(확인필요)로 남던 문제(색상모음전 37/97 셀) 근본 수정.
+      // ★롯데온 pbf 콜드-부분응답 대응 (전수조사 결론 2026-07-03) —
+      //   크롤 시점 pbf 는 색상모음전 97셀이 '점진적으로' 채워진다(콜드). 매핑에 아직 없는 셀은
+      //   아래 색×사이즈 루프서 드롭되고, 서버가 그 셀을 상품 last_stock(롯데온 999)로 폴백해
+      //   '확인필요' 둔갑시킨다. pbf 엔 명시적 완성 개수 필드가 없으므로, '옵션조합 수 증가가
+      //   멈출 때까지' 인내 폴링한다(콜드 플래토 버스트를 넘도록 넉넉히). cache:no-store 필수.
+      //   예산=UNIT_TIMEOUT_MS 60s → 최대 ~17s(24×700ms) 안전(과거 6×450ms 는 콜드 구간 조기종료로
+      //   37셀만 수집→60셀 999 회귀 원인). 최대치 응답을 keep, 증가 6회 연속 없으면 완성 간주.
+      // base(우선)·mapping 후보를 no-store 폴링, optionMappingInfo 최다 응답 채택(콜드 인내).
+      //   base 는 대개 첫 응답에 전 97셀 → 수초 내 종료. 예산 UNIT_TIMEOUT 60s → 최대 ~20s 안전.
+      let oi = {}, _best = -1, _flat = 0;
+      for (let _i = 0; _i < 20; _i++) {
+        let _grew = false;
+        for (const _u of _stockUrls) {
+          try {
+            const resp = await fetch(_u, { credentials: "include", cache: "no-store", headers: { accept: "application/json" } });
+            if (resp.ok) {
+              const _j = await resp.json();
+              const _oi = (_j && _j.data && _j.data.optionInfo) || {};
+              const _n = Object.keys(_oi.optionMappingInfo || {}).length;
+              if (_n > _best) { _best = _n; oi = _oi; _grew = true; }   // 새 최대 채택
+            }
+          } catch (e) { /* 다음 후보/재시도 */ }
+        }
+        _flat = _grew ? 0 : _flat + 1;
+        if (_best > 0 && _flat >= 4) break;   // 4회 정체 = 완성(base 완전시 즉시 종료)
+        await sleep(500);
+      }
+      {
         const axes = oi.optionList || [];
         const omi = oi.optionMappingInfo || {};
         const colorAxis = axes.find((a) => a.title === "색상") || null;
@@ -861,13 +986,13 @@ async function lotteonExtractor() {
               const size = (s.label || "").replace(/mm/i, "").trim();
               if (!size) continue;
               const _isSub = _realSpd && sku.spdNo && _digitsOnly(sku.spdNo) !== _realSpd;
-              options.push({ color: (c.label || "").trim(), size, price: valid ? price : null, stock: _isSub ? 0 : skuStock(sku) });
+              options.push({ color: (c.label || "").trim(), size, price: valid ? price : null, stock: _isSub ? 0 : skuStock(sku), ..._lotteBenefit });
             }
           }
         } else {
           // 옵션 없는 단일상품 — 매핑 1건이면 상품레벨 재고로
           const vals = Object.values(omi);
-          if (vals.length === 1) options.push({ color: "", size: "", price: valid ? price : null, stock: skuStock(vals[0]) });
+          if (vals.length === 1) options.push({ color: "", size: "", price: valid ? price : null, stock: skuStock(vals[0]), ..._lotteBenefit });
         }
       }
     } catch (e) { /* CORS/파싱 실패 → DOM 폴백 */ }
@@ -892,7 +1017,7 @@ async function lotteonExtractor() {
       }
       if (!(size in m) || st < m[size]) m[size] = st;
     }
-    options = Object.keys(m).map((size) => ({ color: "", size, price: valid ? price : null, stock: m[size] }));
+    options = Object.keys(m).map((size) => ({ color: "", size, price: valid ? price : null, stock: m[size], ..._lotteBenefit }));
   }
 
   return {
@@ -900,7 +1025,7 @@ async function lotteonExtractor() {
     price: valid ? price : null,
     stock: valid && !soldOut ? 999 : 0,
     product_name: document.title.split(":")[0].trim().slice(0, 120),
-    benefit_price: benefit, sale_price: sale,
+    benefit_price: benefit, sale_price: sale, ..._lotteBenefit,
     option_count: options.length, options,
     error: valid ? null : (soldOut ? "품절" : "가격 추출 실패(렌더 미완/하한 미달)"),
   };
@@ -918,6 +1043,24 @@ async function lotteonExtractor() {
 //   이게 없으면 전체크롤 소싱처 목록(ALL)에서 빠져 hmall URL 이 큐에 안 들어감(크롤 누락).
 const BG_PARSE_SOURCES = ["lemouton", "ssf", "ssg", "ss_lemouton", "hmall", "lotteimall"];
 const BG_JS_SOURCES = ["musinsa", "lotteon"];
+
+// ── [2026-07-07] 창없는 Fast-lane 프레임워크 (플래그 OFF 기본) ──
+//   FAST_FETCH_SOURCES 에 든 소싱처는 crawlItemInTabBG 최상단에서 어댑터(창 없이 직접 fetch)를
+//   먼저 시도한다. 성공(status:"ok")이면 그 값을 쓰고, 실패/예외면 그대로 아래 기존 창 경로로
+//   폴백한다(★경로 폴백이지 값 폴백 아님 — 가짜값 안 채움). 어댑터는 소싱처별 G1 검증 통과 후
+//   Phase 2 에서 FETCH_ADAPTERS 에 등록하고 FAST_FETCH_SOURCES 에 그 소싱처 키를 추가한다.
+//   배열이 비어 있는 동안(현재)은 어떤 소싱처도 fetch 경로를 타지 않아 기존 동작과 100% 동일.
+// G1/안전 통과분만 ON. 르무통·SSF=색×사이즈 전수 실브라우저 100%일치(2026-07-08). ssg·lotteimall=
+//   windowless==기존 서버파서 동일+raw없으면 창 폴백(자가보호)→데이터 악화 불가. 전셀 대조는 크롤-검사 탭.
+//   ⚠️보류: musinsa(혜택=로그인DOM 손실)·hmall(색×사이즈 API보강 창필요)·ss_lemouton(per-SKU 로그인API)
+//           =어댑터 '성공'반환하나 불완전→폴백안됨→정책확정 후 추가.
+const FAST_FETCH_SOURCES = ["lemouton", "ssf", "hmall"];   // [2026-07-09] hmall 추가 — 창없이 raw __NEXT_DATA__ + item-stockcount SW fetch 실측 통과.
+// [2026-07-09] SSG·롯데아이몰 = 확장 SW fetch(cross-site)를 WAF가 차단(Sec-Fetch-Site, JS 위조 불가).
+//   해법 = 그 도메인 탭 안에서 same-origin fetch(WAF 통과·롯데아이몰 실증) → 렌더 없이 원문 확보.
+//   데이터는 SSR 원문(uitemObj/itemInvQtyInfo)에 있고 서버 파서가 읽음 → 창(렌더 DOM)과 값 동일.
+//   ★benefit_lines 미사용 소싱처(default navGrab 경로 = 혜택 크롤 안 함)라 창없이로도 손실 없음(무신사·롯데온과 다름).
+const SAMEORIGIN_FETCH_SOURCES = ["ssg", "lotteimall"];
+const FETCH_ADAPTERS = {};       // sk -> async (item) => crawlItemInTabBG 와 동일 형태 결과
 
 const _mgr = { queue: [], running: null, paused: false, stopped: false, base: "", _kick: null, view: {} };
 
@@ -1319,6 +1462,69 @@ async function hmallPerSizeOptions(tabId, url) {
 // ── 1건 처리(창 재사용) — 백그라운드 내부 핸들러 직접 호출(메시지 왕복 없음) ──
 async function crawlItemInTabBG(tabId, code, item) {
   const sk = item.source_key, url = item.url;
+  // [2026-07-07] 창없는 fast-lane — 플래그 ON + 어댑터 등록된 소싱처만. 성공 시 즉시 반환,
+  //   실패/예외면 아래 기존 창 경로로 폴백(경로 폴백). 플래그 비면 이 블록은 건너뜀(동작 불변).
+  if (FAST_FETCH_SOURCES.indexOf(sk) >= 0 && typeof FETCH_ADAPTERS[sk] === "function") {
+    try {
+      const _fx = await FETCH_ADAPTERS[sk](item);
+      if (_fx && _fx.status === "ok") return _fx;
+    } catch (_e) { /* 창 경로로 폴백 */ }
+  }
+  // [2026-07-09] SSG·롯데아이몰 — 도메인 탭에서 same-origin fetch(렌더 없이 원문). WAF 통과 경로.
+  //   탭이 이미 그 도메인이면 바로 fetch(빠름), 아니면 도메인 루트로 1회 이동해 origin 확보.
+  //   원문·서버파서로 price/stock 산출 == 창 경로와 동일. 어떤 실패든 아래 navGrab 창 경로로 폴백(안전).
+  if (SAMEORIGIN_FETCH_SOURCES.indexOf(sk) >= 0) {
+    try {
+      const origin = new URL(url).origin;
+      let onOrigin = false;
+      try { const cur = await chrome.tabs.get(tabId); onOrigin = !!(cur && cur.url && new URL(cur.url).origin === origin); } catch (_) {}
+      if (!onOrigin) {
+        try {
+          await chrome.tabs.update(tabId, { url: origin + "/" });
+          await waitTabComplete(tabId, 20000);
+          const c2 = await chrome.tabs.get(tabId);
+          onOrigin = !!(c2 && c2.url && new URL(c2.url).origin === origin);
+        } catch (_) {}
+      }
+      if (onOrigin) {
+        const out = await chrome.scripting.executeScript({
+          target: { tabId: tabId }, world: "ISOLATED", args: [url],
+          func: async (u) => {
+            try {
+              const r = await fetch(u, { credentials: "include" });
+              if (!r.ok) return { err: "http " + r.status };
+              const t = await r.text();
+              return (t && t.length > 3000) ? { html: t } : { err: "short " + (t ? t.length : 0) };
+            } catch (e) { return { err: "ex" }; }
+          },
+        });
+        const res = out && out[0] && out[0].result;
+        if (res && res.html) {
+          let pp = null;
+          try {
+            pp = await bgFetch("/api/sources/parse", {
+              method: "POST", headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ source_key: sk, url: url, html: res.html }),
+            }).then((x) => x.json());
+          } catch (_) { pp = null; }
+          if (pp && pp.ok) {
+            const o2 = Array.isArray(pp.options) ? pp.options : [];
+            const pr = o2.filter((o) => o && typeof o.price === "number" && o.price > 0);
+            const bu = pr.filter((o) => (o.stock == null) || o.stock > 0);
+            const pl = bu.length ? bu : pr;
+            let price = null; if (pl.length) price = pl.reduce((m, o) => (o.price < m ? o.price : m), pl[0].price);
+            let st = null; const ssx = o2.filter((o) => o && typeof o.stock === "number"); if (ssx.length) st = ssx.reduce((a, o) => a + Math.max(0, o.stock), 0);
+            if (price != null) return {
+              url: url, source_key: sk, price: price, stock: st,
+              // [2026-07-10] price 동봉 — 가격 변동 감지용(서버가 price 로 비교)
+              options: o2.map((o) => ({ color: o.color_text, size: o.size_text, stock: o.stock, price: o.price })),
+              status: "ok", product_name: pp.product_name_raw || null, error: null,
+            };
+          }
+        }
+      }
+    } catch (_) { /* navGrab 창 경로로 폴백 */ }
+  }
   if (BG_JS_SOURCES.indexOf(sk) >= 0) {
     const x = await handleNavExtract({ tabId: tabId, url: url, source_key: sk }) || {};
     return {
@@ -1375,7 +1581,9 @@ async function crawlItemInTabBG(tabId, code, item) {
   const _realN = opts2.filter((o) => typeof o.stock === "number" && o.stock !== 999).length;
   return {
     url: url, source_key: sk, price: price, stock: stock,
-    options: opts2.map((o) => ({ color: o.color_text, size: o.size_text, stock: o.stock })),
+    // [2026-07-10] price 동봉 — 서버 persist_crawled_options 는 price 를 받을 걸로 설계됐는데
+    //   확장이 안 보내서 '가격 변동'이 영원히 0건이었다(회차 보고서 30회차 실측). 파서 옵션엔 price 있음.
+    options: opts2.map((o) => ({ color: o.color_text, size: o.size_text, stock: o.stock, price: o.price })),
     status: ok ? "ok" : "error", product_name: p.product_name_raw || null,
     error: ok ? null : "옵션 가격 없음",
     sku_diag: grab.sku_diag || null,
@@ -1389,6 +1597,190 @@ async function crawlItemInTabBG(tabId, code, item) {
 //   가격이 전부 버려지고(하드리셋만 남아) 전 옵션이 판매차단됐다. 대책=소싱처가 끝날
 //   때마다 그 소싱처 결과를 즉시 저장(크롤 도중 = bgFetch 정상 동작 구간) + 저장결과를
 //   로그에 표면화(조용한 실패 제거). 최종 일괄 저장은 백스톱으로 유지(중복 저장은 무해).
+// ══════════════════════════════════════════════════════════════════
+//  [2026-07-07] 창없는 Fast-lane 어댑터 (Phase 2) — 전부 플래그 OFF(FAST_FETCH_SOURCES=[])
+//   등록만 해두고, 소싱처별 G1(실브라우저 값 100% 대조) 통과 후에만 FAST_FETCH_SOURCES 에 추가.
+// ══════════════════════════════════════════════════════════════════
+
+// 공통 — BG_PARSE 소싱처(내장JSON/HTML): 창 없이 raw HTML fetch → 기존 서버 파서 재사용.
+//   창 크롤(navGrab)과 유일한 차이 = "페이지를 열어 렌더 HTML" 대신 "raw HTML 직접 fetch".
+//   데이터가 raw HTML(SSR/내장JSON)에 있으면 동일 결과. WAF/렌더로 비면 status!=ok → 창 폴백.
+//   ⚠️ 혜택이 로그인 DOM 인 소싱처(현대H몰·SSF 일부)는 이 경로가 재고·표면가만 → 혜택은 창 필요(켤 때 G1 확인).
+async function fetchRawParseAdapter(item) {
+  const sk = item.source_key, url = item.url;
+  // [2026-07-08] 봇차단(403)·과부하(429)·서버오류(5xx)·빈응답 대비 재시도(backoff).
+  //   3회까지 재시도(0.4s·0.8s 대기). 그래도 실패하면 status:error 반환 → 상위 crawlItemInTabBG
+  //   가 자동으로 '창 경로(navGrab)'로 폴백(렌더로 더 강하게 뚫음). 창도 실패하면 '확인불가'(거짓 금지).
+  let html = null, lastErr = "";
+  for (let attempt = 0; attempt < 3; attempt++) {
+    if (attempt) await new Promise((res) => setTimeout(res, 400 * attempt));
+    try {
+      const r = await fetch(url, { credentials: "include" });
+      if (!r.ok) {
+        lastErr = "http " + r.status;
+        if (r.status === 403 || r.status === 429 || r.status >= 500) continue; // 차단·과부하·서버오류=재시도
+        break; // 그 외 4xx=재시도 무의미
+      }
+      const t = await r.text();
+      if (!t || t.length < 500) { lastErr = "빈 HTML(" + (t ? t.length : 0) + ")"; continue; }
+      html = t; break;
+    } catch (e) { lastErr = "fetch 예외"; continue; }
+  }
+  if (!html) return { url: url, source_key: sk, status: "error", error: "SW fetch 실패(재시도3): " + lastErr };
+  let p;
+  try {
+    p = await bgFetch("/api/sources/parse", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ source_key: sk, url: url, html: html }),
+    }).then((x) => x.json());
+  } catch (e) { return { url: url, source_key: sk, status: "error", error: "parse 호출 실패" }; }
+  if (!p || !p.ok) return { url: url, source_key: sk, status: "error", error: (p && (p.message || p.error)) || "parse 실패" };
+  const opts2 = Array.isArray(p.options) ? p.options : [];
+  const priced = opts2.filter((o) => o && typeof o.price === "number" && o.price > 0);
+  const buyable = priced.filter((o) => (o.stock == null) || o.stock > 0);
+  const pool = buyable.length ? buyable : priced;
+  let price = null;
+  if (pool.length) price = pool.reduce((m, o) => (o.price < m ? o.price : m), pool[0].price);
+  let stock = null;
+  const stocks = opts2.filter((o) => o && typeof o.stock === "number");
+  if (stocks.length) stock = stocks.reduce((s, o) => s + Math.max(0, o.stock), 0);
+  const ok = price != null;
+  return {
+    url: url, source_key: sk, price: price, stock: stock,
+    // [2026-07-10] price 동봉 — 서버 persist_crawled_options 는 price 를 받을 걸로 설계됐는데
+    //   확장이 안 보내서 '가격 변동'이 영원히 0건이었다(회차 보고서 30회차 실측). 파서 옵션엔 price 있음.
+    options: opts2.map((o) => ({ color: o.color_text, size: o.size_text, stock: o.stock, price: o.price })),
+    status: ok ? "ok" : "error", product_name: p.product_name_raw || null,
+    error: ok ? null : "옵션 가격 없음",
+  };
+}
+
+// 무신사 — 창 없이 재고 API(prioritized-inventories) + 표면가 API(goodsPrice.salePrice).
+//   ⚠️ 회원 혜택은 로그인 DOM 이라 이 경로엔 없음 → 무신사 fast-lane 은 재고·표면가 갱신용.
+//   혜택까지 필요한 전체크롤은 창 경로 유지(켤 때 정책 확정).
+async function fetchMusinsaAdapter(item) {
+  const url = item.url, sk = "musinsa";
+  const id = (url.match(/products\/(\d+)/) || [])[1];
+  if (!id) return { url: url, source_key: sk, status: "error", error: "product id 없음" };
+  const base = "https://goods-detail.musinsa.com/api2/goods/" + id;
+  try {
+    const oj = await fetch(base + "/options", { credentials: "include", headers: { Accept: "application/json" } }).then((r) => r.json());
+    const basic = (oj.data || {}).basic || [];
+    const its = (oj.data || {}).optionItems || [];
+    const valueNos = [];
+    basic.forEach((g) => (g.optionValues || g.values || []).forEach((v) => { if (v.no != null) valueNos.push(v.no); }));
+    const ir = await fetch(base + "/options/v2/prioritized-inventories", {
+      method: "POST", credentials: "include",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify({ optionValueNos: valueNos }),
+    });
+    if (!ir.ok) return { url: url, source_key: sk, status: "error", error: "inv http " + ir.status };
+    const ij = await ir.json();
+    const invMap = {};
+    ((ij && ij.data) || []).forEach((x) => { invMap[x.productVariantId] = x; });
+    const gj = await fetch(base, { credentials: "include", headers: { Accept: "application/json" } }).then((r) => r.json());
+    const salePrice = (((gj.data || {}).goodsPrice) || {}).salePrice;
+    if (salePrice == null) return { url: url, source_key: sk, status: "error", error: "표면가 없음" };
+    // 재고 3상태: 품절=0 / 잔여 N개=N(한정) / 표식없음=999(충분·수량 비공개).
+    const options = its.map((it) => {
+      const size = (it.optionValues && it.optionValues[0] && it.optionValues[0].name) || it.managedCode || "";
+      const inv = invMap[it.no];
+      let st = null;
+      if (inv) st = (inv.outOfStock === true) ? 0 : (typeof inv.remainQuantity === "number" ? inv.remainQuantity : 999);
+      // [2026-07-10] price 동봉 — 무신사는 옵션별 가격이 없고 상품 표면가(salePrice) 공통.
+      return { color: "", size: size, stock: st, price: salePrice };
+    });
+    const stock = options.reduce((s, o) => s + (typeof o.stock === "number" ? o.stock : 0), 0);
+    return { url: url, source_key: sk, price: salePrice, stock: stock, options: options,
+             status: "ok", product_name: null, surface_price: salePrice };
+  } catch (e) { return { url: url, source_key: sk, status: "error", error: "예외 " + String(e).slice(0, 40) }; }
+}
+
+// 현대H몰 — 창 없이. raw HTML(__NEXT_DATA__ SSR)로 표면가·색옵션 → 서버 parse,
+//   + 색×사이즈 실재고는 item-stockcount API(uitmSeq 프로브)를 SW fetch(cross-origin)로.
+//   ★hmall.py 파서는 __NEXT_DATA__ JSON 만 읽음 → 창(렌더)이든 raw든 값 동일(2026-07-09 실측 통과:
+//     bbprc/sellPrc/stockList 원문 존재 + item-stockcount 200). 실패 시 error 반환→기존 창 경로 폴백.
+async function fetchHmallPerSizeSW(slitmCd) {
+  const out = [];
+  for (let seq = 1; seq <= 15; seq++) {
+    let list = [];
+    try {
+      const qs = new URLSearchParams({
+        slitmCd: slitmCd, setItemYn: "N", uitmCombYn: "Y", uitmAttrTypeSeq: "2",
+        selectBoxIdx: "1", uitmSeq: String(seq), rishpNotfExpsYn: "Y",
+        befUitmSeq1: "0", befUitmSeq2: "0", befUitmSeq3: "0", setSlitmCd: slitmCd, setSlitmYn: "N",
+      });
+      const r = await fetch("https://www.hmall.com/api/hf/dp/v1/item-ptc/item-stockcount?" + qs.toString(),
+        { credentials: "include", headers: { Accept: "application/json" } });
+      const j = await r.json();
+      list = (j && j.respData && j.respData.stockList) || [];
+    } catch (e) { break; }
+    if (!list.length) break;
+    if (!list.some((it) => it.uitm2AttrNm)) return null;   // 2축(색×사이즈) 아님 → per-size 미적용
+    list.forEach((it) => {
+      const c = it.uitm1AttrNm || "", s = it.uitm2AttrNm || "";
+      if (c && s) out.push({
+        color_text: c, size_text: s,
+        // 품절판정 = sellGbcd("00"=판매 / 그 외=품절). stockCount 아님(품절도 1 센티넬).
+        stock: (it.sellGbcd && String(it.sellGbcd) !== "00")
+          ? 0 : (typeof it.stockCount === "number" ? it.stockCount : null),
+        price: (typeof it.sellPrc === "number" ? it.sellPrc : null),
+      });
+    });
+  }
+  return out.length ? out : null;
+}
+
+async function fetchHmallAdapter(item) {
+  const url = item.url, sk = "hmall";
+  let html;
+  try {
+    const r = await fetch(url, { credentials: "include" });
+    if (!r.ok) return { url: url, source_key: sk, status: "error", error: "html http " + r.status };
+    html = await r.text();
+  } catch (e) { return { url: url, source_key: sk, status: "error", error: "html fetch 예외" }; }
+  if (!html || html.length < 500) return { url: url, source_key: sk, status: "error", error: "빈 HTML" };
+  let p;
+  try {
+    p = await bgFetch("/api/sources/parse", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ source_key: sk, url: url, html: html }),
+    }).then((x) => x.json());
+  } catch (e) { return { url: url, source_key: sk, status: "error", error: "parse 호출 실패" }; }
+  if (!p || !p.ok) return { url: url, source_key: sk, status: "error", error: (p && (p.message || p.error)) || "parse 실패" };
+  let opts2 = Array.isArray(p.options) ? p.options : [];
+  // 모음전(2축) 색×사이즈 실재고 보강 — 창 경로의 hmallPerSizeOptions 와 동일 로직을 SW fetch 로.
+  const um = String(url).match(/slitmCd=(\d+)/);
+  if (um) {
+    try {
+      const ps = await fetchHmallPerSizeSW(um[1]);
+      if (ps && ps.length) opts2 = graftComboColorPrices(p.options, ps);   // per-size 가격 0 → 색별 가격 이식
+    } catch (e) { /* per-size 실패 시 색-레벨 유지 */ }
+  }
+  const priced = opts2.filter((o) => o && typeof o.price === "number" && o.price > 0);
+  const buyable = priced.filter((o) => (o.stock == null) || o.stock > 0);
+  const pool = buyable.length ? buyable : priced;
+  let price = null;
+  if (pool.length) price = pool.reduce((m, o) => (o.price < m ? o.price : m), pool[0].price);
+  let stock = null;
+  const stocks = opts2.filter((o) => o && typeof o.stock === "number");
+  if (stocks.length) stock = stocks.reduce((s, o) => s + Math.max(0, o.stock), 0);
+  const ok = price != null;
+  return {
+    url: url, source_key: sk, price: price, stock: stock,
+    // [2026-07-10] price 동봉 — 서버 persist_crawled_options 는 price 를 받을 걸로 설계됐는데
+    //   확장이 안 보내서 '가격 변동'이 영원히 0건이었다(회차 보고서 30회차 실측). 파서 옵션엔 price 있음.
+    options: opts2.map((o) => ({ color: o.color_text, size: o.size_text, stock: o.stock, price: o.price })),
+    status: ok ? "ok" : "error", product_name: p.product_name_raw || null,
+    error: ok ? null : "옵션 가격 없음",
+  };
+}
+
+// 등록(플래그 OFF 이므로 아직 아무 소싱처도 이 경로를 타지 않음 — 켜기는 소싱처별 G1 후).
+["lemouton", "ssg", "lotteimall", "ssf", "ss_lemouton"].forEach((k) => { FETCH_ADAPTERS[k] = fetchRawParseAdapter; });
+FETCH_ADAPTERS["hmall"] = fetchHmallAdapter;     // [2026-07-09] 창없이 어댑터(raw __NEXT_DATA__ + item-stockcount SW fetch)
+FETCH_ADAPTERS["musinsa"] = fetchMusinsaAdapter;
+
 function toItemBG(x) {
   return {
     url: x.url, price: x.price, stock: x.stock, options: x.options,
@@ -1424,6 +1816,7 @@ async function crawlBundleAllBG(code) {
   (r.options || []).forEach((o) =>
     (o.sources || []).forEach((s) => {
       if (!s.product_url || ALL.indexOf(s.source_key) < 0) return;
+      if (s.crawl_weight === 0) return;   // [2026-07-10] 계수 0 = 크롤 제외(자동/전체 크롤 모두 안 긁음)
       const key = s.source_key + "|" + s.product_url;
       if (seen.has(key)) return;
       seen.add(key);
@@ -1730,3 +2123,183 @@ function bgBootResume() {
 }
 // SW 가 (재)기동될 때마다 1회 시도 — 진행 중이던 크롤이 있으면 자동 재개.
 try { bgBootResume(); } catch (_) {}
+
+// ── [Task E2] 소싱처 주문상태 확인 ─────────────────────────────────────────
+//   원본(단독앱) modules/sourcing_checker.py 의 check_order_sync → check_order_status 를
+//   메커니즘만 이식: Python Playwright(전용 프로필) 대신, 로그인된 이 브라우저에서 주문 URL 을
+//   보이는 창(focused:false)으로 열고 → 사이트별 파서(orderStatusExtractor)를 chrome.scripting
+//   으로 주입해 상태를 읽고 → 창을 닫는다(handleCrawl/crawlOne 의 탭 수명주기와 동일).
+//
+//   반환: { ok, order_status, courier, tracking, site_name, source, logs, error, is_logged_in }
+//     · ok=true       : 확정된 상태(배송완료/배송중/취소/반품/교환/미발송)를 읽음
+//     · is_logged_in=false : 로그인 페이지로 리다이렉트됨 → 거짓 성공 금지, 정직 표면화
+//     · 그 외          : 확인불가/파싱실패 사유를 error 에 담아 반환
+//   창 누수 방지: 성공/실패/예외 무관하게 finally 에서 창을 닫는다.
+async function handleCheckOrder(payload) {
+  const url = payload.url || "";
+  const siteKey = payload.site_key || "";
+  const siteName = payload.site_name || "";
+  const logs = [];
+  const fail = (error, extra) => Object.assign({
+    ok: false, order_status: "", courier: "", tracking: "",
+    site_name: siteName, source: "ext-local", logs, is_logged_in: null, error,
+  }, extra || {});
+
+  if (!url) return fail("주문 URL 없음");
+  logs.push("[1/3] 로그인된 브라우저로 주문 URL 열기: " + url);
+
+  let win = null;
+  try {
+    win = await chrome.windows.create({ url, focused: false });
+    const tab = win && win.tabs && win.tabs[0];
+    if (!tab) return fail("주문 확인 창 생성 실패");
+    const tabId = tab.id;
+    await waitTabComplete(tabId, 25000);
+    // SPA(무신사 등) 상태/송장 DOM 이 로드 완료 뒤 늦게 뜰 수 있어 안정화 대기.
+    await new Promise((r) => setTimeout(r, 2500));
+    logs.push("[2/3] 페이지 로드 완료 → 사이트별 상태 파싱(site_key=" + (siteKey || "generic") + ")");
+
+    const out = await chrome.scripting.executeScript({
+      target: { tabId }, world: "ISOLATED",
+      func: orderStatusExtractor, args: [siteKey],
+    });
+    const res = (out && out[0] && out[0].result) || null;
+    if (!res) return fail("상태 파싱 결과 없음(주입 실패)");
+
+    if (res.status === "로그인필요") {
+      logs.push("[3/3] 로그인 리다이렉트 감지 → 로그인 필요");
+      return {
+        ok: false, order_status: "", courier: "", tracking: "",
+        site_name: siteName, source: "ext-local", logs, is_logged_in: false,
+        error: "로그인 필요 — 이 브라우저에서 소싱처에 로그인 후 재시도",
+      };
+    }
+    logs.push("[3/3] 상태: " + (res.status || "확인불가") + (res.detail ? (" (" + res.detail + ")") : ""));
+    const confirmed = !!(res.status && res.status !== "확인불가" && !res.error);
+    return {
+      ok: confirmed,
+      order_status: res.status || "확인불가",
+      courier: res.courier || "",
+      tracking: res.tracking || "",
+      site_name: siteName, source: "ext-local", logs, is_logged_in: true,
+      error: res.error || "",
+    };
+  } catch (e) {
+    return fail(String(e && e.message ? e.message : e));
+  } finally {
+    if (win && win.id != null) { try { await chrome.windows.remove(win.id); } catch (_) {} }
+  }
+}
+
+// orderStatusExtractor — 주문상세 페이지 컨텍스트(ISOLATED world)에서 실행되는 순수 파서.
+//   ⚠️ 이 함수는 chrome.scripting 이 문자열화해 페이지에 주입한다 → 바깥 스코프 변수 참조 금지.
+//      (site_key 는 args 로 전달됨.) 페이지 DOM 을 변형(버튼/메뉴 제거)하나 창은 곧 닫히므로 무해.
+//
+//   원본 sourcing_checker.py 이식(메커니즘 아닌 로직):
+//     · _check_login_redirect  (URL 로그인 키워드)                         원본 2038
+//     · _check_musinsa         (p.company-name / button.tracking-number)   원본 2067
+//     · _check_ssfshop         (checkDelivery onclick 파싱)                원본 2202
+//     · _extract_status_from_labels + _classify_status_text (범용 라벨/키워드) 원본 2281·2300
+//     · _DOM_CLEAN_JS          (버튼/메뉴 제거 → '반품 신청' 버튼 오탐 방지)  원본 2329
+//   미이식(라이브 확정 필요): 무신사 '배송 조회' 버튼 클릭 흐름·롯데 DeliveryTrace URL 이동·
+//     쿠키 복원/자동로그인·오판 스냅샷 저장. → 송장/택배사는 best-effort.
+function orderStatusExtractor(siteKey) {
+  var S = {
+    DELIVERED: "배송완료", SHIPPING: "배송중", NOT_SENT: "주문완료(미발송)",
+    CANCEL: "취소", RETURN: "반품", EXCHANGE: "교환", UNKNOWN: "확인불가", LOGIN: "로그인필요",
+  };
+  function has(t, arr) { for (var i = 0; i < arr.length; i++) { if (t.indexOf(arr[i]) >= 0) return true; } return false; }
+
+  // 0) 로그인 리다이렉트 감지 (원본 _check_login_redirect)
+  var href = (location.href || "").toLowerCase();
+  if (has(href, ["login", "member.one", "signin", "sign-in", "/auth", "lcloginmem"])) {
+    return { status: S.LOGIN, courier: "", tracking: "", detail: "로그인 리다이렉트", error: "" };
+  }
+
+  var rawBody = "";
+  try { rawBody = (document.body && document.body.innerText) || ""; } catch (e) { rawBody = ""; }
+  if (!rawBody || rawBody.length < 20) {
+    return { status: S.UNKNOWN, courier: "", tracking: "", detail: "", error: "페이지 본문 비어있음(렌더 실패/미로그인 가능)" };
+  }
+  // 없는 주문/접근 오류 = 계정불일치/번호오류 가능 → 정직하게 확인불가+사유
+  if (has(rawBody, ["주문정보를 찾을 수 없", "주문 정보가 없", "존재하지 않는 주문", "찾을 수 없습니다"])) {
+    return { status: S.UNKNOWN, courier: "", tracking: "", detail: "", error: "주문 정보 없음(계정 불일치/주문번호 오류 가능)" };
+  }
+
+  // 1) 택배사/송장 — 사이트별 셀렉터 우선, 실패 시 범용 라벨 패턴 (DOM 변형 전에 raw 에서 추출)
+  var courier = "", tracking = "";
+  var COURIERS = ["CJ대한통운", "롯데글로벌로지스", "대한통운", "한진택배", "롯데택배", "우체국택배", "로젠택배", "경동택배"];
+  for (var ci = 0; ci < COURIERS.length; ci++) { if (rawBody.indexOf(COURIERS[ci]) >= 0) { courier = COURIERS[ci]; break; } }
+  try {
+    if (siteKey === "musinsa") {
+      var cn = document.querySelector("p.company-name"); if (cn && (cn.innerText || "").trim()) courier = cn.innerText.trim();
+      var tn = document.querySelector("button.tracking-number"); if (tn) tracking = (tn.innerText || "").trim();
+    } else if (siteKey === "ssfshop") {
+      var btn = document.querySelector('button[onclick*="checkDelivery"]');
+      if (btn) {
+        var oc = btn.getAttribute("onclick") || "";
+        var mm = oc.match(/checkDelivery\s*\(\s*['"]([^'"]*)['"]\s*,\s*['"]([^'"]*)['"]/);
+        if (mm) { if (mm[1]) courier = mm[1]; tracking = mm[2] || ""; }
+      }
+    }
+  } catch (e) { /* 셀렉터 실패 → 범용 폴백 */ }
+  if (!tracking) {
+    var TW = ["송장번호", "운송장번호", "운송장", "송장", "트래킹", "tracking"];
+    for (var ti = 0; ti < TW.length; ti++) {
+      var kw = TW[ti].replace(/\s+/g, "\\s*");
+      var m2 = rawBody.match(new RegExp(kw + "\\s*[:：#(]?\\s*([A-Z0-9\\-]{9,20})", "i"));
+      if (m2) {
+        var cand = m2[1];
+        // 전화번호(0으로 시작 10~11자리) 배제
+        if (/\d/.test(cand) && !/^0\d{8,10}$/.test(cand.replace(/[-\s]/g, ""))) { tracking = cand; break; }
+      }
+    }
+  }
+
+  // 2) 상태 판별용 정제 텍스트 — 버튼/메뉴 제거로 '반품 신청'·'교환 신청' 버튼 오탐 방지 (원본 _DOM_CLEAN_JS)
+  var cleanBody = rawBody;
+  try {
+    var kill = [
+      "button", "a.btn", 'a[class*="btn"]', ".btn-area", ".btns", ".btn-group",
+      '[class*="button"]', '[role="button"]', 'input[type="button"]', 'input[type="submit"]',
+      "nav", ".gnb", ".lnb", ".side-menu", ".snb", ".menu", ".category",
+      "footer", "header", ".header", ".util", ".util-menu", ".quick-menu",
+      ".order-btn", ".action-area", ".cs-area", ".cs-menu",
+    ];
+    kill.forEach(function (sel) {
+      try { document.querySelectorAll(sel).forEach(function (el) { el.remove(); }); } catch (e) {}
+    });
+    cleanBody = (document.body && document.body.innerText) || rawBody;
+  } catch (e) { cleanBody = rawBody; }
+
+  // 3) 상태 분류 (원본 _classify_status_text — 종결상태 우선순위: 배송완료 > 반품완료 > 취소 > 반품접수 > 교환 > 배송중 > 미발송)
+  function classify(text) {
+    if (has(text, ["배송완료", "배달완료"])) return [S.DELIVERED, "배송완료 감지"];
+    if (has(text, ["반품완료", "반품 완료", "반품처리완료"])) return [S.RETURN, "반품완료 감지"];
+    if (has(text, ["주문취소", "취소완료", "결제취소", "취소 완료"])) return [S.CANCEL, "취소 감지"];
+    if (has(text, ["반품접수", "반품신청"])) return [S.RETURN, "반품접수 감지"];
+    if (has(text, ["교환완료", "교환 완료", "교환접수", "교환신청"])) return [S.EXCHANGE, "교환 감지"];
+    if (has(text, ["배송중", "배송 중", "배달중", "배송출발", "간선상차"])) return [S.SHIPPING, "배송중 감지"];
+    if (has(text, ["발송완료", "발송 완료", "출고완료", "출고 완료"])) return [S.SHIPPING, "발송완료 감지"];
+    if (has(text, ["결제완료", "주문접수", "상품준비", "주문완료", "입금완료"])) return [S.NOT_SENT, "미발송 감지"];
+    return ["", ""];
+  }
+  // 3a) 라벨 우선 ("주문상태: 배송완료" 등) — 원본 _extract_status_from_labels
+  var labels = ["주문상태", "배송상태", "처리상태", "현재상태", "진행상태"];
+  var labelVal = "";
+  for (var li = 0; li < labels.length; li++) {
+    var lm = cleanBody.match(new RegExp(labels[li] + "\\s*[:：\\n\\r\\s]+([가-힣A-Za-z0-9/\\s]{2,20}?)(?:\\n|$|\\s{2,})"));
+    if (lm) { var v = (lm[1] || "").trim(); if (v.length >= 2 && v.length <= 15) { labelVal = v; break; } }
+  }
+  var st = "", dt = "";
+  if (labelVal) { var r1 = classify(labelVal); if (r1[0]) { st = r1[0]; dt = "라벨[" + labelVal + "]→" + r1[1]; } }
+  if (!st) { var r2 = classify(cleanBody); st = r2[0]; dt = r2[1]; }
+  if (!st) {
+    // ★ 송장번호만 있고 상태 키워드가 하나도 없으면 배송중으로 단정하지 않는다 —
+    //   송장은 배송완료/반품 주문에도 남는다. 금전 판단(블랙스팟)에 오버클레임 금지 →
+    //   확인불가(미확정)로 반환하되 송장은 그대로 노출(정보 손실 없음). 상태를 지어내지 않음.
+    if (tracking) { st = S.UNKNOWN; dt = "송장번호만 발견 — 상태 미확정"; }
+    else { st = S.UNKNOWN; dt = "상태 판별 불가"; }
+  }
+  return { status: st, courier: courier, tracking: tracking, detail: dt, error: "" };
+}

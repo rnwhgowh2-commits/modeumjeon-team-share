@@ -18,6 +18,9 @@ def _render(tab, live_enabled=False):
         DictLoader({"base.html": "{% block content %}{% endblock %}"}),
         FileSystemLoader(str(TPL)),
     ]))
+    # margin 탭 include(orders/_margin.html)는 정적파일 url_for 를 쓴다 — 앱 컨텍스트 없이
+    # 렌더하므로 스텁 제공.
+    env.globals["url_for"] = lambda *a, **k: "#"
     cfg = om.TAB_CONFIG.get(tab)
     rows = [] if (live_enabled or not cfg) else cfg["rows"]
     export_markets = ["coupang", "lotteon", "smartstore"] if tab == "list" else []
@@ -113,9 +116,14 @@ def test_list_is_seven_layout():
     assert "레이아웃 미리보기(샘플)" not in html
 
 
-def test_margin_still_placeholder():
+def test_margin_renders_skeleton():
+    # Task C3: margin 탭은 이제 원본 마진계산기 풀페이지를 iframe 으로 임베드한다
+    #   (구 B레이아웃 재구현본 id="margin-app" 은 폐기 — 원본 1:1 방향).
     html = _render("margin")
-    assert "후속 구현 예정" in html
+    assert 'id="margin-embed-frame"' in html
+    assert '<iframe' in html
+    assert "후속 구현 예정" not in html
+    # (실제 라우트/src=/orders/margin-embed 는 test_margin_ui_routes.py 가 앱 컨텍스트에서 검증)
 
 
 def test_routes_registered():
