@@ -150,6 +150,18 @@ def test_memo_does_not_override_manual(db):
     assert o2.delivery_method == "직배" and o2.delivery_method_source == "수기"
 
 
+def test_is_cancel_return_detects_from_market_or_mango_status(db):
+    # 취소·반품·교환 = 마켓상태(M열) 또는 구분자(L열)에 해당 단어 있으면.
+    class O:
+        def __init__(s, m="", l=""):
+            s.market_status, s.mango_status = m, l
+    assert svc.is_cancel_return(O(m="취소/반품/교환 완료"))
+    assert svc.is_cancel_return(O(m="취소신청"))
+    assert svc.is_cancel_return(O(l="반품/교환/취소완료"))
+    assert svc.is_cancel_return(O(m="특이사항없음", l="해외현지배송중")) is False
+    assert svc.is_cancel_return(O(m="배송완료")) is False
+
+
 def test_clear_orders_resets_to_zero(db):
     # 「비우기」 = 더망고 주문 전량 삭제(미실시 0). 상태매핑은 보존.
     svc.seed_default_status_map(db)

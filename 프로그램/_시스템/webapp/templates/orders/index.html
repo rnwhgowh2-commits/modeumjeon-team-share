@@ -191,6 +191,7 @@
     .o7 .cs-dup{background:#FEE2E2;color:var(--red);} .o7 .cs-stall{background:#FEF3C7;color:var(--amber);}
     .o7 .cs-unk{background:#F1F3F5;color:#5F6B7A;} .o7 .cs-ok{background:#E7F6EC;color:var(--green);}
     .o7 .cs-done{background:#EEF1F4;color:#5F6B7A;}
+    .o7 .cs-cancel{background:#EDEAF2;color:#7A6E92;}
     .o7 .chk-fth.on{color:var(--blue);}
     .o7 .chk-pop{display:none;position:absolute;z-index:400;background:#fff;border:1px solid var(--line2);border-radius:10px;box-shadow:0 10px 30px rgba(0,0,0,.18);width:220px;}
     .o7 .chk-pop.on{display:block;}
@@ -643,10 +644,12 @@
       var el=document.getElementById('checkSections'); if(!el)return;
       if(!mangoOrders.length){el.innerHTML='<div class="state" style="padding:30px;text-align:center;color:var(--sub);background:#fff;border:1px solid var(--line2);border-radius:12px">더망고를 업로드하면 검사 결과가 나옵니다.</div>';return;}
       var all=mangoOrders.filter(chkPass);
-      var dup=all.filter(function(o){return o.dup;}),
-          stall=all.filter(function(o){return o.flow_stalled;}),
-          unk=all.filter(function(o){return o.unknown;}),
-          okAll=all.filter(function(o){return !o.dup&&!o.flow_stalled&&!o.unknown;}),
+      // 취소·반품·교환 = 검사 불필요(마켓 API 가 안 돌려줘 매칭 불가). 다른 검사에서 제외.
+      var cancel=all.filter(function(o){return o.cancel;}),
+          dup=all.filter(function(o){return o.dup&&!o.cancel;}),
+          stall=all.filter(function(o){return o.flow_stalled&&!o.cancel;}),
+          unk=all.filter(function(o){return o.unknown&&!o.cancel;}),
+          okAll=all.filter(function(o){return !o.cancel&&!o.dup&&!o.flow_stalled&&!o.unknown;}),
           sendable=okAll.filter(function(o){return !isShipped(o);}),
           doneOk=okAll.filter(isShipped);
       function sec(cls,emoji,title,list,opt){ if(!list.length)return ''; opt=opt||{};
@@ -655,6 +658,7 @@
       function ss(k){return !dmCheckFilter||dmCheckFilter===k;}   // 사이드바 막대 클릭 시 그 섹션만
       el.innerHTML=(ss('dup')?sec('cs-dup','🔴','이중송장 위험 · 재출력 금지',dup):'')
         +(ss('flow')?sec('cs-stall','🟡','배송흐름 정체 · 소싱처 확인',stall):'')
+        +(ss('cancel')?sec('cs-cancel','🚫','취소·반품·교환 · 검사 불필요',cancel):'')
         +(ss('unk')?sec('cs-unk','⚪','확인불가 · 조회 안 됨',unk,{why:true}):'')
         +(ss('ok')?sec('cs-ok','🟢','발송 대상 · 아직 마켓에 송장 안 나감',sendable,{send:true}):'')
         +(ss('ok')?sec('cs-done','✅','이미 발송/완료 · 조치 불필요',doneOk):'');
@@ -695,8 +699,9 @@
       var el=document.getElementById('dmbars'); if(!el)return;
       // 배송검사 전체(더망고 스냅샷) 기준 카운트 — 마켓·기간 필터와 무관하게 항상 더망고 전체.
       var s=mangoSummary||{};
-      var okc=(s.total||0)-(s.dup||0)-(s.flow||0)-(s.unknown||0);
+      var okc=(s.total||0)-(s.dup||0)-(s.flow||0)-(s.unknown||0)-(s.cancel||0);
       var defs=[['dup','🔴 이중송장','var(--red)',s.dup||0],['flow','🟡 배송흐름 정체','var(--amber)',s.flow||0],
+                ['cancel','🚫 취소·반품','var(--faint)',s.cancel||0],
                 ['unk','⚪ 확인불가','var(--faint)',s.unknown||0],['ok','🟢 정상','var(--green)',okc]];
       var mx=Math.max(1,defs[0][3],defs[1][3],defs[2][3],defs[3][3]);
       el.innerHTML=defs.map(function(d){

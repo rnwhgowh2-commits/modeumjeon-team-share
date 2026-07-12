@@ -509,12 +509,15 @@ def inspect_data():
         _dsvc.seed_default_status_map(s)   # 최초 진입 시 기본 매핑 보장
         orders = (s.query(_dsvc.MangoOrder)
                   .order_by(_dsvc.MangoOrder.last_uploaded_at.desc()).limit(1000).all())
-        dup_uids = {o.mango_uid for o in _dsvc.find_double_invoice_risk(s)}
-        flow_uids = {o.mango_uid for o in _dsvc.find_flow_stalled(s)}
-        unk_uids = {o.mango_uid for o in orders if o.market_check_error}
+        # 취소·반품·교환 = 검사 불필요(마켓 API 가 안 돌려줘 매칭 불가) → 다른 검사에서 제외.
+        cancel_uids = {o.mango_uid for o in orders if _dsvc.is_cancel_return(o)}
+        dup_uids = {o.mango_uid for o in _dsvc.find_double_invoice_risk(s)} - cancel_uids
+        flow_uids = {o.mango_uid for o in _dsvc.find_flow_stalled(s)} - cancel_uids
+        unk_uids = {o.mango_uid for o in orders if o.market_check_error} - cancel_uids
         rows = []
         for o in orders:
             d = _mango_to_dict(o)
+            d['cancel'] = o.mango_uid in cancel_uids
             d['dup'] = o.mango_uid in dup_uids
             d['flow_stalled'] = o.mango_uid in flow_uids
             d['unknown'] = o.mango_uid in unk_uids
@@ -526,7 +529,8 @@ def inspect_data():
         ]
         return jsonify(ok=True, orders=rows, status_map=status_map,
                        summary={'dup': len(dup_uids), 'flow': len(flow_uids),
-                                'unknown': len(unk_uids), 'total': len(orders)})
+                                'unknown': len(unk_uids), 'cancel': len(cancel_uids),
+                                'total': len(orders)})
     finally:
         s.close()
 

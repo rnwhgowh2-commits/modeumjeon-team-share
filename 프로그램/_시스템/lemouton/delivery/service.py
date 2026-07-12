@@ -158,6 +158,19 @@ def upsert_orders(session, rows, bulk_method=None, replace_stale=False) -> dict:
     return {"inserted": inserted, "updated": updated, "deleted": deleted}
 
 
+_CANCEL_KW = ("취소", "반품", "교환", "환불", "반송")
+
+
+def is_cancel_return(o) -> bool:
+    """취소·반품·교환된 주문인가 — 더망고 마켓상태(M열) 또는 구분자(L열)에 해당 단어 있으면.
+
+    이런 주문은 마켓 주문조회 API 가 안 돌려줘(정상 배송건만 반환) 매칭이 안 된다.
+    → '확인불가'가 아니라 '취소·반품(검사 불필요)'로 따로 분류한다.
+    """
+    s = (o.market_status or "") + " " + (o.mango_status or "")
+    return any(k in s for k in _CANCEL_KW)
+
+
 def clear_orders(session) -> int:
     """배송검사 초기화 — 더망고 주문 전량 삭제(→ 미실시 0 상태). 삭제 건수 반환.
 
