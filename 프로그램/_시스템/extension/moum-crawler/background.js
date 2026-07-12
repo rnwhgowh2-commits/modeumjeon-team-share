@@ -1877,7 +1877,7 @@ async function crawlBundleAllBG(code) {
       if (!w || !w.ok || w.tabId == null) return;   // 이 창 실패 → 다른 창이 남은 URL 커버(커서 공유)
       wins.push(w);
       const tabId = w.tabId;
-      if (wi === 0) emit("window-open", { source: sk, level: "", msg: sk + " 창 시작" + (nWorkers > 1 ? (" ×" + nWorkers + " (URL 나눠 긁기)") : ""), metrics: { concurrency, cap, active, done, total } });
+      if (wi === 0) emit("window-open", { source: sk, level: "", wins: nWorkers, msg: sk + " 창 시작" + (nWorkers > 1 ? (" ×" + nWorkers + " (URL 나눠 긁기)") : ""), metrics: { concurrency, cap, active, done, total } });
       while (!_mgr.stopped) {
         if (_mgr.paused) { pausedMid = true; break; }
         const i = cursor++;                 // ★ 원자적(단일스레드) — 창끼리 URL 안 겹침
