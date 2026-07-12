@@ -195,7 +195,6 @@ def smartstore_order_rows(since: _dt.datetime, until: _dt.datetime,
             "정산예정금액": settle_val,
             "_settle_source": "real" if settle_val != "" else "none",
             "주문상태": _status_ko("smartstore", _g(po, "productOrderStatus")),
-            "주문상태원본": _g(po, "productOrderStatus"),
             "오픈마켓주문번호": poid or oid,
             "실결제금액": _g(po, "totalPaymentAmount", default=""),   # 할인 반영 실결제
             "옵션추가금": _g(po, "optionPrice", default=""),
@@ -252,7 +251,6 @@ def lotteon_order_rows(since: _dt.datetime, until: _dt.datetime,
             "정산예정금액": _g(od, "actualAmt", default=""),   # 실결제(상품+배송비-할인) 근사
             "_settle_source": "none",   # 아래 SettleCommission 조인 성공 시 real 로 승격
             "주문상태": _status_ko("lotteon", _g(od, "odPrgsStepCd")),
-            "주문상태원본": _g(od, "odPrgsStepCd"),
             "오픈마켓주문번호": _g(od, "odNo"),
             "실결제금액": _g(od, "actualAmt", default=""),   # 실결제(정산예상은 주문API 없음→수수료 공란)
             # 송장은 출고지시(209) 응답에 **없다** — 진행단계(140)의 invcNo 가 정본.
@@ -340,7 +338,6 @@ def lotteon_order_rows(since: _dt.datetime, until: _dt.datetime,
             hit = prog.get((odno, str(r.get("_odseq")))) or prog_od.get(odno)
             if hit:
                 r["주문상태"] = _status_ko("lotteon", hit[1])
-                r["주문상태원본"] = hit[1]
                 if hit[2]:
                     r["송장입력"] = hit[2]
 
@@ -437,7 +434,6 @@ def coupang_order_rows(since: _dt.datetime, until: _dt.datetime,
                         "배송비": ship,
                         "정산예정금액": "",
                         "주문상태": _status_ko("coupang", box.get("status") or st),
-                        "주문상태원본": box.get("status") or st,
                         "오픈마켓주문번호": box.get("orderId") or "",
                         "송장입력": it.get("invoiceNumber") or box.get("invoiceNumber") or "",
                     })
@@ -641,7 +637,6 @@ def esm_order_rows(market: str, since: _dt.datetime, until: _dt.datetime,
             "정산예정금액": "",   # 아래 정산 조인으로 채움(미정산=공란)
             "_settle_source": "none",   # 아래 정산 조인 성공 시 real 로 승격
             "주문상태": _status_ko("esm", _g(od, "OrderStatus")),
-            "주문상태원본": _g(od, "OrderStatus"),
             "오픈마켓주문번호": _g(od, "OrderNo"),
         })
 
