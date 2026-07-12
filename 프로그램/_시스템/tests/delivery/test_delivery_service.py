@@ -105,6 +105,32 @@ def test_upsert_preserves_manual(db):
     assert o2.mango_status == "국내배송중"
 
 
+def test_upsert_replace_stale_keeps_only_current_upload(db):
+    # 최신 스냅샷: 이번 업로드에 없는 옛 주문은 삭제. 이어지는 주문은 유지(수기 방식 보존).
+    svc.seed_default_status_map(db)
+    svc.upsert_orders(db, [_row("A1"), _row("A2")], replace_stale=True)
+    o = db.query(M.MangoOrder).filter_by(mango_uid="A2").one()   # A2에 수기 지정
+    o.delivery_method, o.delivery_method_source = "직배", "수기"
+    db.commit()
+    # 두 번째 업로드엔 A1 빠짐, A2 유지, A3 신규
+    res = svc.upsert_orders(db, [_row("A2", mango_status="국내배송중"), _row("A3")],
+                            replace_stale=True)
+    uids = {x.mango_uid for x in db.query(M.MangoOrder).all()}
+    assert uids == {"A2", "A3"}                     # A1(옛 주문) 삭제됨
+    assert res["deleted"] == 1
+    a2 = db.query(M.MangoOrder).filter_by(mango_uid="A2").one()
+    assert a2.delivery_method == "직배" and a2.delivery_method_source == "수기"  # 수기 보존
+
+
+def test_upsert_default_accumulates(db):
+    # 기본(replace_stale=False)은 누적 — 부분 업로드가 옛 데이터를 지우지 않는다.
+    svc.seed_default_status_map(db)
+    svc.upsert_orders(db, [_row("B1")])
+    svc.upsert_orders(db, [_row("B2")])
+    uids = {x.mango_uid for x in db.query(M.MangoOrder).all()}
+    assert uids == {"B1", "B2"}
+
+
 def test_upsert_invoice_history_and_duplicate(db):
     svc.seed_default_status_map(db)
     svc.upsert_orders(db, [_row("102", invoice_no="AAA")])

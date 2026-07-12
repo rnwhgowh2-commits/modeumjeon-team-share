@@ -66,12 +66,17 @@ def _auto_method(status_value, status_map) -> str:
     return m.default_method if m else "미지정"
 
 
-def upsert_orders(session, rows, bulk_method=None) -> dict:
+def upsert_orders(session, rows, bulk_method=None, replace_stale=False) -> dict:
     """파싱된 rows(dict 리스트)를 mango_uid 기준 upsert.
 
     bulk_method: '까대기'/'직배' 이면 이번 업로드 전체를 그 방식으로(source='일괄'),
                  None 또는 '자동판정' 이면 L매핑 자동(source='자동').
     수기(source=='수기') 행의 배송방식은 절대 덮지 않는다.
+    replace_stale: True(실제 업로드 라우트에서만) 면 '최신 스냅샷' — 이번 업로드에 없는 옛
+                   주문은 삭제(더망고 전체 목록 = 항상 이번 업로드분만). 이어지는 주문은
+                   upsert 로 유지(수기 배송방식 보존). 더망고는 현재 주문 전체 스냅샷이라,
+                   목록에서 빠진 건 발송완료 등으로 빠진 것 → 배송검사 대상 아님.
+                   기본 False = 누적(테스트·부분 업로드가 옛 데이터를 지우지 않게).
     """
     status_map = get_status_map(session)
     # 처음 보는 구분자값은 매핑행 자동 생성(모달에서 편집 가능하게). 기본=미지정·검사 제외.
@@ -133,7 +138,17 @@ def upsert_orders(session, rows, bulk_method=None) -> dict:
                 o.delivery_method_source = "자동"
 
     session.commit()
-    return {"inserted": inserted, "updated": updated}
+
+    # 최신 스냅샷: 이번 업로드에 없는 옛 주문 삭제(누적 방지). 이어지는 주문은 위 upsert 로
+    # 이미 갱신됐고 수기 배송방식도 보존됨 — 여기선 '이번 목록에 없는' 것만 지운다.
+    deleted = 0
+    uploaded_uids = {r["mango_uid"] for r in rows}
+    if replace_stale and uploaded_uids:
+        deleted = (session.query(MangoOrder)
+                   .filter(~MangoOrder.mango_uid.in_(uploaded_uids))
+                   .delete(synchronize_session=False))
+        session.commit()
+    return {"inserted": inserted, "updated": updated, "deleted": deleted}
 
 
 def find_duplicate_invoices(session):

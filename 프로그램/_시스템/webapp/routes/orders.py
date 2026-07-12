@@ -549,7 +549,8 @@ def inspect_upload():
     s = SessionLocal()
     try:
         _dsvc.seed_default_status_map(s)
-        res = _dsvc.upsert_orders(s, rows, bulk_method=bulk)
+        # 실제 업로드 = 최신 스냅샷(이번 목록에 없는 옛 더망고 주문 삭제 → 누적 방지)
+        res = _dsvc.upsert_orders(s, rows, bulk_method=bulk, replace_stale=True)
         # 업로드 즉시 마켓 API 조회(오픈마켓주문번호 매칭 → 실상태·실송장 캐시)
         from lemouton.delivery import market_enrich as _me
         uids = [r["mango_uid"] for r in rows]
