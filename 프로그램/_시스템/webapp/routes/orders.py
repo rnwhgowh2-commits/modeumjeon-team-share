@@ -10,10 +10,13 @@
 import datetime as _dt
 import io as _io
 
-from flask import Blueprint, render_template, request, send_file, abort
+from flask import Blueprint, render_template, request, send_file, abort, jsonify
 
 from lemouton.markets import capabilities as _cap
 from lemouton.markets import order_export as _oe
+from shared.db import SessionLocal
+from lemouton.delivery import service as _dsvc
+from lemouton.delivery.mango_parser import parse_mango_xls, MangoParseError
 
 
 bp = Blueprint('orders', __name__, url_prefix='/orders')
@@ -21,6 +24,7 @@ bp = Blueprint('orders', __name__, url_prefix='/orders')
 
 SUBTABS = [
     {'key': 'list', 'label': '📋 주문 내역', 'desc': '마켓별 주문 통합 조회 + 송장 입력'},
+    {'key': 'inspect', 'label': '🚚 배송검사', 'desc': '더망고 업로드 · 중복송장 · 배송흐름 · 배송방식'},
     {'key': 'sales', 'label': '💵 정산·매출', 'desc': '마켓별 정산 예정금액·매출 집계'},
     {'key': 'cs', 'label': '💬 문의·반품', 'desc': '고객문의·반품/취소/교환 조회·처리'},
     {'key': 'register', 'label': '🆕 신규 상품 등록', 'desc': '모음전 상품을 마켓에 신규 등록'},
@@ -461,3 +465,117 @@ def orders_invoice_send():
                         "market_invoice_no": market_invoice_no})
 
     return jsonify(ok=True, live=live, sent=sent, failed=failed, results=results)
+
+
+# ──────────────────────────────────────────────────────────────
+#  배송검사 (inspect) — 더망고 업로드 · 중복송장 · 배송흐름 · 배송방식
+#   업로드=더망고 엑셀(HTML위장 .xls) → MangoOrder DB 누적. 검사·배송방식은 엑셀 기반.
+# ──────────────────────────────────────────────────────────────
+
+def _mango_to_dict(o):
+    return {
+        'uid': o.mango_uid, 'market': o.market_name, 'recipient': o.recipient,
+        'product': o.product_name, 'option': o.option1, 'invoice': o.invoice_no or '',
+        'mango_status': o.mango_status, 'market_status': o.market_status,
+        'method': o.delivery_method, 'method_source': o.delivery_method_source,
+        'dup': bool(o.is_duplicate_invoice),
+    }
+
+
+@bp.route('/inspect/data')
+def inspect_data():
+    """배송검사 목록 + 검사요약 + 구분자 매핑 (JSON)."""
+    s = SessionLocal()
+    try:
+        _dsvc.seed_default_status_map(s)   # 최초 진입 시 기본 매핑 보장
+        orders = (s.query(_dsvc.MangoOrder)
+                  .order_by(_dsvc.MangoOrder.last_uploaded_at.desc()).limit(1000).all())
+        dup_uids = {o.mango_uid for o in _dsvc.find_duplicate_invoices(s)}
+        flow_uids = {o.mango_uid for o in _dsvc.find_flow_missing(s)}
+        rows = []
+        for o in orders:
+            d = _mango_to_dict(o)
+            d['flow_missing'] = o.mango_uid in flow_uids
+            rows.append(d)
+        status_map = [
+            {'value': m.status_value, 'meaning': m.meaning,
+             'default_method': m.default_method, 'flow': bool(m.is_flow_check_target)}
+            for m in sorted(_dsvc.get_status_map(s).values(), key=lambda x: x.sort_order)
+        ]
+        return jsonify(ok=True, orders=rows, status_map=status_map,
+                       summary={'dup': len(dup_uids), 'flow': len(flow_uids),
+                                'total': len(orders)})
+    finally:
+        s.close()
+
+
+@bp.route('/inspect/upload', methods=['POST'])
+def inspect_upload():
+    """더망고 엑셀 업로드 → 파싱 → upsert. bulk_method=까대기/직배/자동판정."""
+    f = request.files.get('file')
+    if not f:
+        return jsonify(ok=False, error='파일이 없습니다.'), 400
+    bulk = request.form.get('bulk_method') or None
+    if bulk == '자동판정':
+        bulk = None
+    try:
+        rows = parse_mango_xls(f.read())
+    except MangoParseError as e:
+        return jsonify(ok=False, error=str(e)), 422
+    except Exception as e:   # noqa: BLE001 — 손상 파일 등 사유 표면화(조용한 성공 금지)
+        return jsonify(ok=False, error=f'엑셀을 읽지 못했어요: {type(e).__name__}'), 400
+    s = SessionLocal()
+    try:
+        _dsvc.seed_default_status_map(s)
+        res = _dsvc.upsert_orders(s, rows, bulk_method=bulk)
+        return jsonify(ok=True, inserted=res['inserted'], updated=res['updated'],
+                       parsed=len(rows))
+    finally:
+        s.close()
+
+
+@bp.route('/inspect/method', methods=['POST'])
+def inspect_method():
+    """행별 수기 배송방식 지정."""
+    body = request.get_json(silent=True) or {}
+    uid, method = body.get('uid'), body.get('method')
+    if method not in ('까대기', '직배', '미지정'):
+        return jsonify(ok=False, error='잘못된 배송방식'), 400
+    s = SessionLocal()
+    try:
+        return jsonify(ok=_dsvc.set_method_manual(s, uid, method))
+    finally:
+        s.close()
+
+
+@bp.route('/inspect/bulk-method', methods=['POST'])
+def inspect_bulk_method():
+    """전체 일괄 배송방식 지정(수기 제외)."""
+    method = (request.get_json(silent=True) or {}).get('method')
+    if method not in ('까대기', '직배', '미지정'):
+        return jsonify(ok=False, error='잘못된 배송방식'), 400
+    s = SessionLocal()
+    try:
+        return jsonify(ok=True, changed=_dsvc.apply_bulk_method(s, method))
+    finally:
+        s.close()
+
+
+@bp.route('/inspect/mapping', methods=['POST'])
+def inspect_mapping():
+    """구분자 매핑 저장. body: {items:[{value, meaning, default_method, flow}]}"""
+    items = (request.get_json(silent=True) or {}).get('items') or []
+    s = SessionLocal()
+    try:
+        by_value = _dsvc.get_status_map(s)
+        for it in items:
+            m = by_value.get(it.get('value'))
+            if not m:
+                continue
+            m.meaning = it.get('meaning', m.meaning)
+            m.default_method = it.get('default_method', m.default_method)
+            m.is_flow_check_target = bool(it.get('flow', m.is_flow_check_target))
+        s.commit()
+        return jsonify(ok=True)
+    finally:
+        s.close()
