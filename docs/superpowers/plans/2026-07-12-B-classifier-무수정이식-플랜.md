@@ -109,4 +109,20 @@
 - **D3** ⑤ 소싱처계정 → 모음전 기존 `SourcingCredential` DB 연결(§6: 모델 `lemouton/sourcing/models_v2.py:129`, 스토어 `lemouton/auth/sourcing_credentials.py:161`, 라우트 `accounts.py:1612/1695`). **평문 settings.json 재이식 금지.** `/api/settings`·`/api/sourcing-sites` 를 이 DB에 매핑. Task E(소싱처 자동확인)와 인접.
 
 ---
+
+## Task E — 소싱처 자동확인 (서버 Playwright → 로컬 크롬확장)
+
+**원본:** `/api/check-sourcing`·`/api/sourcing-login`·`/api/blackspot/fetch_order_no` 전부 `@require_local` + Playwright(원본은 로컬앱). 모음전=서버앱 → crawl=local 원칙상 **서버 Playwright 금지**, 로컬 크롬확장(moum-crawler) 경유.
+
+**아키텍처:**
+- 브리지 `webapp/static/ext_bridge.js` = `window.MoumExt.send(type,payload)` ↔ 확장 `{__moum:"page",type,payload,reqId}` postMessage, 응답 `{__moum:"ext",reqId,ok,resp,error}`. 확장 감지 = `documentElement[data-moum-ext]`.
+- **신규 메시지 타입** `sourcing.check-order` {url, account_id, site_name} → 확장이 로컬 브라우저로 소싱처 주문페이지 열어 주문상태 추출 → resp. (원본 `check_order_sync` 등가.)
+- **iframe 경계:** 마진 페이지는 iframe, MoumExt 는 부모. → (a) content_mou 가 all_frames 면 iframe 에 ext_bridge 직접 로드(세임), (b) 아니면 부모↔iframe postMessage 릴레이. 구현 전 manifest 확인 필수.
+- **UI 계약 §5 유지:** fetch_order_no 응답 `{success, order_no, site_name, source, logs[], error, matched_count, missing_count}`.
+
+**E 분해:**
+- **E-plumbing(지금, 검증가능):** 부모↔iframe↔확장 릴레이 + 페이지 세임(check-sourcing·fetch_order_no 를 브리지 경유로, 확장 미설치/로그인필요 시 우아한 표면화) + 메시지 계약 단위테스트 + 확장 핸들러 스켈레톤(`sourcing.check-order` 수신, 미구현시 명확한 "라이브 페이지 필요" 반환). **날조 스크래핑 금지.**
+- **E-live(사용자 환경 필요):** 소싱처별(무신사·SSG·롯데온·르무통·현대H몰) 주문상태 추출 로직 + 실검증 → **확장 로드 + 실 소싱처 로그인** 필요. 라이브 페이지 대상으로 개발. [[project_crawl_is_local_pc_principle]] [[reference_loaded_extension_path]](확장=데스크톱사본, repo수정만으론 라이브 미반영→재다운로드).
+
+---
 *폐기: `docs/superpowers/plans/2026-07-11-마진계산기-화면-B레이아웃.md` (원본 1:1 방향에서 무효).*
