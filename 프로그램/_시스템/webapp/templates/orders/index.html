@@ -182,6 +182,16 @@
     .o7 tr.r-xl td{background:#FFFBEB;} .o7 tr.r-hand td{background:#F3F8FF;}
     .o7 tr.r-bad td{background:#FEF2F2;} .o7 tr.r-sent td{background:#F0FDF4;}
     /* 배송검사 통합 — 더망고 카드·배송방식 토글칩·검사 막대 */
+    /* 배송검사 서브탭(A3) + 검사 섹션(B3) */
+    .o7 .oview-tabs{display:flex;gap:4px;border-bottom:2px solid var(--line);margin-bottom:12px;}
+    .o7 .ovt{border:none;background:none;padding:8px 14px;font-size:13px;font-weight:700;color:var(--sub);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-2px;}
+    .o7 .ovt.on{color:var(--blue);border-bottom-color:var(--blue);}
+    .o7 .chk-sec{margin-bottom:14px;}
+    .o7 .chk-sec-h{display:flex;align-items:center;gap:8px;font-size:12.5px;font-weight:800;padding:8px 12px;border-radius:8px;margin-bottom:6px;}
+    .o7 .cs-dup{background:#FEE2E2;color:var(--red);} .o7 .cs-stall{background:#FEF3C7;color:var(--amber);}
+    .o7 .cs-unk{background:#F1F3F5;color:#5F6B7A;} .o7 .cs-ok{background:#E7F6EC;color:var(--green);}
+    .o7 .chk-sec-h .sbtn{margin-left:auto;border:none;border-radius:7px;padding:5px 12px;font-size:11.5px;font-weight:800;cursor:pointer;background:var(--green);color:#fff;}
+    .o7 .chk-why{font-size:11px;color:#B45309;}
     /* 시안 B — 접이식 컬러 헤더 바 + 폭 제한 */
     .o7 .mango-card{max-width:820px;border:1px solid #F3D9B0;border-radius:12px;overflow:hidden;margin-bottom:13px;background:#fff;}
     .o7 .mc-head{display:flex;align-items:center;gap:10px;width:100%;text-align:left;border:none;background:#FEF3E2;padding:11px 15px;cursor:pointer;font-family:inherit;}
@@ -258,6 +268,11 @@
           <div class="mc-msg" id="mangoMsg"></div>
         </div>
       </div>
+      <div class="oview-tabs" id="oviewTabs">
+        <button type="button" class="ovt on" data-v="mkt">📋 전체 주문</button>
+        <button type="button" class="ovt" data-v="check">🚚 배송검사 <span id="ovtCheckN"></span></button>
+      </div>
+      <div id="mktView">
       <div class="kpis" id="kpis"></div>
       <div class="mkline" id="mkline"></div>
       <div class="acctline" id="acctline"></div>
@@ -273,6 +288,11 @@
         </div>
       </div>
       <div style="font-size:11.5px;color:var(--sub);margin-top:10px">💡 표는 옆으로 스크롤하면 모든 열(주소 포함)이 보입니다. <b>전체 원본</b>은 「엑셀 내보내기」로도 받을 수 있어요.</div>
+      </div>
+      <div id="checkView" style="display:none">
+        <div style="font-size:11.5px;color:var(--sub);margin:2px 0 12px">🚚 더망고 대조 <b>전체</b> 기준(왼쪽 마켓·기간 필터와 무관). 문제 없는 것만 골라 송장 전송하세요.</div>
+        <div id="checkSections"><div class="state">더망고를 업로드하면 검사 결과가 나옵니다.</div></div>
+      </div>
     </main>
   </div>
   <div class="o7"><div class="cfgov" id="cfgov"><div class="cfgbox cfgbox-wide">
@@ -563,18 +583,60 @@
       return '<span class="bd green">🟢 정상</span>';
     }
     var dmCheckFilter=null;   // 'dup'|'flow'|'unk'|null — 사이드바 막대 클릭
+    var mangoOrders=[];
     function loadMango(cb){
       fetch('/orders/inspect/data',{cache:'no-store'}).then(function(r){return r.json();}).then(function(j){
-        mangoMap={};
-        (j.orders||[]).forEach(function(o){
+        mangoMap={}; mangoOrders=j.orders||[];
+        mangoOrders.forEach(function(o){
           var k=String(o.ord||'').trim(); if(!k)return;
           mangoMap[k]={uid:o.uid,method:o.method,dup:!!o.dup,flow:!!o.flow_stalled,unk:!!o.unknown};
         });
         mangoSummary=j.summary||mangoSummary;
-        renderDmBars();
+        var n=(mangoSummary.dup||0)+(mangoSummary.flow||0)+(mangoSummary.unknown||0);
+        var nb=document.getElementById('ovtCheckN'); if(nb)nb.textContent=n?('· 문제 '+n):('· '+(mangoSummary.total||0));
+        renderDmBars(); renderCheckView();
         if(cb)cb(); else if(typeof render==='function')render();
       }).catch(function(){if(cb)cb();});
     }
+    // ── 배송검사 뷰(B3 검사별 섹션) — 더망고 전체 기준(마켓·기간 무관) ──
+    function chkMk(m){var c={'쿠팡':'cp','롯데온':'lo','롯데ON':'lo','스마트스토어':'ss','11번가':'e11','옥션':'au','G마켓':'gm','옥션2.0':'au','G마켓2.0':'gm'}[m]||'gray';
+      return '<span class="mk '+c+'">'+esc(m||'')+'</span>';}
+    function chkMi(m){var ic=m==='까대기'?'📦':m==='직배'?'🚚':'⬜';var cl=m==='까대기'?'k':m==='직배'?'j':'';return '<span class="mi '+cl+'" style="font-size:10.5px;padding:2px 8px;border-radius:999px;font-weight:700;border:1px solid var(--line2)">'+ic+' '+esc(m||'미지정')+'</span>';}
+    function chkTable(list,opt){opt=opt||{};
+      var head='<tr>'+(opt.why?'<th>안 되는 이유</th>':'')+'<th>마켓</th><th>수령인</th><th>상품</th><th class="c">송장</th><th class="c">배송방식</th><th class="c">마켓상태</th></tr>';
+      var body=list.map(function(o){
+        var why=opt.why?('<td><span class="chk-why">'+esc(o.why_error||'')+'</span></td>'):'';
+        return '<tr>'+why+'<td>'+chkMk(o.market)+'</td><td>'+esc(o.recipient||'')+'</td>'
+          +'<td style="font-size:11px">'+esc((o.product||'').slice(0,32))+'</td><td class="c" style="font-size:11px">'+(o.invoice||o.market_api_invoice||'—')+'</td>'
+          +'<td class="c">'+chkMi(o.method)+'</td><td class="c" style="font-size:11px">'+esc(o.market_api_status||'—')+'</td></tr>';}).join('');
+      return '<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:12px;background:#fff;border:1px solid var(--line2);border-radius:10px;overflow:hidden"><thead>'
+        + head + '</thead><tbody>'+body+'</tbody></table></div>';}
+    function renderCheckView(){
+      var el=document.getElementById('checkSections'); if(!el)return;
+      if(!mangoOrders.length){el.innerHTML='<div class="state" style="padding:30px;text-align:center;color:var(--sub);background:#fff;border:1px solid var(--line2);border-radius:12px">더망고를 업로드하면 검사 결과가 나옵니다.</div>';return;}
+      var dup=mangoOrders.filter(function(o){return o.dup;}),
+          stall=mangoOrders.filter(function(o){return o.flow_stalled;}),
+          unk=mangoOrders.filter(function(o){return o.unknown;}),
+          ok=mangoOrders.filter(function(o){return !o.dup&&!o.flow_stalled&&!o.unknown;});
+      function sec(cls,emoji,title,list,opt){ if(!list.length)return '';
+        var btn=(cls==='cs-ok')?'<button class="sbtn" id="chkSendOk">✓ 정상 '+list.length+'건 송장 전송</button>':'';
+        return '<div class="chk-sec"><div class="chk-sec-h '+cls+'">'+emoji+' '+title+' <b style="font-variant-numeric:tabular-nums">'+list.length+'</b>'+btn+'</div>'+chkTable(list,opt)+'</div>';}
+      el.innerHTML=sec('cs-dup','🔴','이중송장 위험 · 재출력 금지',dup)
+        +sec('cs-stall','🟡','배송흐름 정체 · 소싱처 확인',stall)
+        +sec('cs-unk','⚪','확인불가 · 조회 안 됨',unk,{why:true})
+        +sec('cs-ok','🟢','정상 · 송장 전송 가능',ok);
+      var sb=document.getElementById('chkSendOk');
+      if(sb)sb.onclick=function(){ // 정상건 전송 → 전체주문 뷰로 전환(실제 송장전송 흐름은 거기서)
+        setOView('mkt'); dmCheckFilter=null;
+        alert('정상 '+ok.length+'건입니다. 「전체 주문」에서 대상을 선택해 송장 전송하세요.\\n(검사 뷰에서 바로 전송은 다음 업데이트 예정)');};
+    }
+    function setOView(v){
+      document.querySelectorAll('.ovt').forEach(function(b){b.classList.toggle('on',b.getAttribute('data-v')===v);});
+      document.getElementById('mktView').style.display=(v==='mkt')?'':'none';
+      document.getElementById('checkView').style.display=(v==='check')?'':'none';
+      if(v==='check')renderCheckView();
+    }
+    [].slice.call(document.querySelectorAll('.ovt')).forEach(function(b){b.addEventListener('click',function(){setOView(b.getAttribute('data-v'));});});
     function renderDmBars(){
       var el=document.getElementById('dmbars'); if(!el)return;
       // 표에 불러온 주문 기준(inView) 카운트 — 클릭 필터 결과와 일치. 전체(/뒤)는 더망고 전체(mangoSummary).
@@ -983,7 +1045,15 @@
     var mgFile=document.getElementById('mangoFile');
     if(document.getElementById('mangoDz')){
       document.getElementById('mangoHead').addEventListener('click',function(){document.getElementById('mangoCard').classList.toggle('open');});
-      document.getElementById('mangoDz').addEventListener('click',function(){mgFile.click();});
+      var mgDz=document.getElementById('mangoDz');
+      mgDz.addEventListener('click',function(){mgFile.click();});
+      // 드래그앤드랍
+      ['dragover','dragenter'].forEach(function(ev){mgDz.addEventListener(ev,function(e){e.preventDefault();e.stopPropagation();mgDz.style.borderColor='var(--blue)';mgDz.style.background='#F5F9FF';});});
+      ['dragleave','dragend'].forEach(function(ev){mgDz.addEventListener(ev,function(e){e.preventDefault();e.stopPropagation();mgDz.style.borderColor='';mgDz.style.background='';});});
+      mgDz.addEventListener('drop',function(e){e.preventDefault();e.stopPropagation();mgDz.style.borderColor='';mgDz.style.background='';
+        var f=e.dataTransfer&&e.dataTransfer.files&&e.dataTransfer.files[0]; if(!f)return;
+        try{var dt=new DataTransfer();dt.items.add(f);mgFile.files=dt.files;}catch(_){}
+        document.getElementById('mangoFn').textContent=f.name;});
       mgFile.addEventListener('change',function(){document.getElementById('mangoFn').textContent=mgFile.files[0]?mgFile.files[0].name:'';});
       [].slice.call(document.querySelectorAll('input[name=mgbulk]')).forEach(function(rd){rd.addEventListener('change',function(){
         [].slice.call(document.querySelectorAll('.mc-rc')).forEach(function(l){l.classList.toggle('on',l.querySelector('input').checked);});});});
