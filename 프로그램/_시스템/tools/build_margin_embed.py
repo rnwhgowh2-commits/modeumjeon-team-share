@@ -120,6 +120,42 @@ SEAMS: list[tuple[str, str, int]] = [
         "_moumExtCheckFetch('/api/check-sourcing', {",
         2,
     ),
+    # 12) [모음전 신규 씨앗] 매출 = 마켓 API 자동 조회 → 샵마인 매출 엑셀 업로드칸 제거.
+    #     원본은 매입(더망고)·매출(샵마인) 두 업로드칸이 있으나, 모음전은 SALES 를
+    #     분석 시점에 판매처 마켓 API 에서 자동 조회한다(사용자가 샵마인 엑셀을 올리지
+    #     않음). 따라서 매출 업로드칸(label#sellBox)을 비상호작용 안내로 교체한다.
+    #     ── JS 무결성: initUploadBox('sellBox','sellFileInput','sell') (원본 로직)이
+    #     getElementById 로 두 요소를 찾으므로 id="sellBox"·sellFileInput·sellStatus 를
+    #     그대로 남겨 콘솔 에러 없이 조용히 초기화되게 한다(sellLoaded 는 영구 false 지만
+    #     분석 게이트가 이미 !buyLoaded(씨앗 8)라 무해). 외곽은 <label> 유지(닫는 태그
+    #     무변경) + for 제거 + input 을 disabled·display:none 로 두어 클릭해도 파일창이
+    #     열리지 않게 한다. 라벨/아이콘/설명/상태 텍스트만 안내 문구로 치환.
+    (
+        "    <label class=\"upload-box\" id=\"sellBox\" for=\"sellFileInput\">\n"
+        "      <input type=\"file\" id=\"sellFileInput\" accept=\".xlsx,.xls,.htm,.html\" multiple>\n"
+        "      <div class=\"upload-icon\">📤</div>\n"
+        "      <div class=\"upload-label\">매출 엑셀 (샵마인)</div>\n"
+        "      <div class=\"upload-sub\">.xlsx / .xls — 클릭 또는 드래그</div>\n"
+        "      <div class=\"upload-status\" id=\"sellStatus\">파일 없음</div>\n"
+        "    </label>",
+        "    <label class=\"upload-box\" id=\"sellBox\" style=\"cursor:default;justify-content:center;text-align:center;\">  <!-- [모음전] 매출=마켓API 자동조회 → 업로드칸 대신 안내 (for 제거·클릭무효) -->\n"
+        "      <input type=\"file\" id=\"sellFileInput\" accept=\".xlsx,.xls,.htm,.html\" multiple disabled style=\"display:none\">\n"
+        "      <div class=\"upload-icon\">🔗</div>\n"
+        "      <div class=\"upload-label\">매출 = 마켓 API 자동 조회</div>\n"
+        "      <div class=\"upload-sub\">샵마인 업로드 불필요 — 분석 시작 시 판매처 API에서 매출을 불러옵니다</div>\n"
+        "      <div class=\"upload-status\" id=\"sellStatus\" style=\"display:none\">파일 없음</div>\n"
+        "    </label>",
+        1,
+    ),
+    # 13) [모음전 신규 씨앗 · 버그수정] 업로드 에러 핸들러 이중읽기(body stream already read).
+    #     원본은 res.json() 이 (비-JSON 본문에서) 읽기를 시작한 뒤 throw 하면, catch 의
+    #     res.text() 가 "body stream already read" 로 다시 실패했다. 단일 읽기로 교체:
+    #     본문을 text() 로 한 번만 읽고, 그 문자열을 JSON.parse 시도한다.
+    (
+        "      try { var ej = await res.json(); errText = ej.error || ''; } catch(_) { errText = await res.text(); }",
+        "      var raw = ''; try { raw = await res.text(); } catch(_) {} try { errText = (JSON.parse(raw).error) || raw; } catch(_) { errText = raw || String(res.status); }  /* [모음전] 단일 읽기 — body stream 이중읽기 방지 */",
+        1,
+    ),
 ]
 
 
