@@ -38,3 +38,21 @@ class MarginAnalysis(Base):
     counts: Mapped[dict] = mapped_column(JSON, default=dict)
 
     result_blob: Mapped[bytes] = mapped_column(LargeBinary)
+
+
+class CardKeywordConfig(Base):
+    """카드별 분류 키워드 설정 — 팀 공유 단일 row (id=1 고정).
+
+    원본(대량등록 마진계산기)은 단일 사용자 card_keywords.json 이었으나, 팀 공유
+    앱에서는 DB 한 행으로 승격한다(멀티유저가 같은 설정을 본다). `config` 에 전체
+    설정 JSON(top-level `cards` + `_comment`/`version` 등)을 통째로 담는다 — 원본
+    계약이 top-level 키를 그대로 보존하도록 요구하므로 컬럼 분해하지 않는다.
+    비어 있으면 lemouton/margin/card_keywords_seed.json 으로 시드한다.
+    """
+
+    __tablename__ = "card_keyword_config"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, default=1)
+    config: Mapped[dict] = mapped_column(JSON, default=dict)
+    updated_at: Mapped[_dt.datetime] = mapped_column(
+        DateTime, default=_dt.datetime.utcnow, onupdate=_dt.datetime.utcnow)

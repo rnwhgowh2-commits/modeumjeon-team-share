@@ -98,6 +98,7 @@ def register_routes(app: Flask) -> None:
     from webapp.routes.api_sources_parse import bp as api_sources_parse_bp  # Task 6 — 창 HTML→파서 구조화
     from webapp.routes.admin_dedup import bp as admin_dedup_bp  # Task 4 — 단품 dedup 마이그레이션
     from webapp.routes.api_margin import bp as api_margin_bp  # 마진 계산기 — 업로드·분석·내보내기
+    from webapp.routes.api_keywords import bp as api_keywords_bp  # 카드별 분류 키워드 (팀 공유) — /api/keywords
     from scheduler.webhook import bp as webhook_bp
     app.register_blueprint(home_bp)
     app.register_blueprint(bundles_bp)
@@ -126,6 +127,7 @@ def register_routes(app: Flask) -> None:
     app.register_blueprint(api_sources_parse_bp)  # Task 6 — 창 HTML→파서 구조화
     app.register_blueprint(admin_dedup_bp)  # Task 4 — 단품 dedup 마이그레이션
     app.register_blueprint(api_margin_bp)  # 마진 계산기 — 업로드·분석·내보내기
+    app.register_blueprint(api_keywords_bp)  # 카드별 분류 키워드 (팀 공유) — /api/keywords
     app.register_blueprint(webhook_bp)
 
     @app.context_processor
