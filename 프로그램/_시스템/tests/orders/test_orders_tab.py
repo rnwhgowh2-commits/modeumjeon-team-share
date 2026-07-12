@@ -117,10 +117,11 @@ def test_list_is_seven_layout():
 
 
 def test_margin_renders_skeleton():
-    # Task 2: margin 탭은 더 이상 '후속 구현 예정' 플레이스홀더가 아니라 B 레이아웃 뼈대다.
+    # Task C3: margin 탭은 이제 원본 마진계산기 풀페이지를 iframe 으로 임베드한다
+    #   (구 B레이아웃 재구현본 id="margin-app" 은 폐기 — 원본 1:1 방향).
     html = _render("margin")
-    assert 'id="margin-app"' in html
-    assert 'data-mtab="summary"' in html
+    assert 'id="margin-embed-frame"' in html
+    assert '/orders/margin-embed' in html
     assert "후속 구현 예정" not in html
 
 
