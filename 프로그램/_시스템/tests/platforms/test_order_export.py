@@ -321,6 +321,25 @@ def test_combined_parallel_error_propagates(monkeypatch):
         oe.combined_order_rows(["coupang", "lotteon"], days=7)
 
 
+def test_smartstore_never_queries_future_dates(monkeypatch):
+    """기간추론(+3일 마진)이 period_to 를 미래로 만들면(예: 오늘 07-13, until 07-15),
+    naver last-changed API 가 HTTP 400 [104139] '조회 가능한 날짜 범위를 초과'로 거절 →
+    스마트스토어 매출 통째 누락 → 마진 마이너스(라이브 실측 id2). until 을 now 로 캡한다."""
+    import shared.platforms.smartstore.orders as _sso
+    cap = {}
+    def fake_iter(since, until, client=None, **k):
+        cap["since"], cap["until"] = since, until
+        return []                                   # 상세·정산 경로 안 타게 빈 목록
+    monkeypatch.setattr(_sso, "iter_changed_product_order_ids", fake_iter)
+    now = dt.datetime.now(oe.KST)
+    future_until = now + dt.timedelta(days=2)        # 미래 period_to (기간추론 마진)
+    since = now - dt.timedelta(days=11)
+    oe.smartstore_order_rows(since, future_until, client=object(),
+                             include_settlement=False)
+    # 조회 끝(lastChangedTo)이 미래로 나가면 안 됨 — now 이하로 캡
+    assert cap["until"] <= now + dt.timedelta(seconds=2)
+
+
 def test_order_rows_coerces_naive_dates_to_aware(monkeypatch):
     """라이브 마진 경로는 naive since/until(_parse_dt)을 넘긴다. 빌더(smartstore 등)가
     now=datetime.now(KST)(aware)와 비교하므로 naive 면 'offset-naive vs offset-aware' TypeError 로
