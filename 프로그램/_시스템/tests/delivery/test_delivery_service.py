@@ -44,12 +44,40 @@ def test_models_create(db):
 def test_seed_default_status_map(db):
     svc.seed_default_status_map(db)
     rows = {r.status_value: r for r in db.query(M.MangoStatusMap).all()}
+    # 2026-07-12 사용자 워크플로 반영
     assert rows["해외현지배송중"].default_method == "까대기"
+    assert rows["현지배송완료"].default_method == "까대기"
+    assert rows["현지배송완료"].is_flow_check_target is True   # 까대기 송장입력·발송 = 검사 핵심
+    assert rows["배송대기중"].default_method == "직배"
+    assert rows["국내배송중"].default_method == "직배"
     assert rows["국내배송중"].is_flow_check_target is True
-    assert rows["배송완료"].is_flow_check_target is True
-    assert rows["결제완료"].is_flow_check_target is False
+    assert rows["배송완료"].is_flow_check_target is False       # 도착 완료 = 검사 제외
+    assert rows["결제완료"].default_method == "미지정"
     svc.seed_default_status_map(db)  # idempotent
     assert db.query(M.MangoStatusMap).filter_by(status_value="해외현지배송중").count() == 1
+
+
+def test_reconcile_updates_old_default_but_preserves_edit(db):
+    # 옛 기본값(국내배송중=미지정)으로 선삽입 → 재시드가 직배로 갱신
+    db.add(M.MangoStatusMap(status_value="국내배송중", meaning="국내배송중",
+                            default_method="미지정", is_flow_check_target=True))
+    # 사용자가 배송대기중을 손수 '까대기'로 바꿔둔 상태
+    db.add(M.MangoStatusMap(status_value="배송대기중", meaning="배송전",
+                            default_method="까대기", is_flow_check_target=False))
+    db.commit()
+    svc.seed_default_status_map(db)
+    rows = {r.status_value: r for r in db.query(M.MangoStatusMap).all()}
+    assert rows["국내배송중"].default_method == "직배"    # 옛 기본값 → 갱신됨
+    assert rows["배송대기중"].default_method == "까대기"  # 사용자 수정 → 보존됨
+
+
+def test_upsert_autoadds_unknown_status(db):
+    svc.seed_default_status_map(db)
+    svc.upsert_orders(db, [_row("900", mango_status="현지배송완료")])   # 시드에 있음
+    svc.upsert_orders(db, [_row("901", mango_status="깜짝새상태")])     # 처음 보는 값
+    assert db.query(M.MangoStatusMap).filter_by(status_value="깜짝새상태").count() == 1
+    m = db.query(M.MangoStatusMap).filter_by(status_value="깜짝새상태").one()
+    assert m.default_method == "미지정" and m.is_flow_check_target is False
 
 
 def test_upsert_auto_method_from_map(db):
@@ -98,11 +126,17 @@ def test_find_duplicate_invoices(db):
 
 def test_find_flow_missing(db):
     svc.seed_default_status_map(db)
-    svc.upsert_orders(db, [_row("300", mango_status="배송완료",
+    # 현지배송완료(까대기 송장입력·검사대상) + 송장전송실패 → 배송흐름 없음
+    svc.upsert_orders(db, [_row("300", mango_status="현지배송완료",
                                  market_status="송장전송실패", invoice_no="X")])
-    svc.upsert_orders(db, [_row("301", mango_status="배송완료",
+    # 국내배송중(직배 검사대상) + 정상 송장 → 제외
+    svc.upsert_orders(db, [_row("301", mango_status="국내배송중",
                                  market_status="송장전송완료", invoice_no="Y")])
-    svc.upsert_orders(db, [_row("302", mango_status="결제완료", market_status="특이사항없음")])
+    # 배송완료(도착=검사 제외) + 송장전송실패라도 대상 아님
+    svc.upsert_orders(db, [_row("302", mango_status="배송완료",
+                                 market_status="송장전송실패", invoice_no="Z")])
+    # 결제완료(검사대상 아님) → 제외
+    svc.upsert_orders(db, [_row("303", mango_status="결제완료", market_status="특이사항없음")])
     missing = svc.find_flow_missing(db)
     assert {o.mango_uid for o in missing} == {"300"}
 

@@ -4,14 +4,27 @@ from datetime import datetime, timezone
 from lemouton.delivery.models import MangoOrder, MangoStatusMap
 
 # (status_value, meaning, default_method, is_flow_check_target, sort_order)
+# 사용자 실워크플로 반영(2026-07-12):
+#  · 해외현지배송중 = 까대기 주문완료(주문내역만, 송장 전)
+#  · 현지배송완료   = 까대기 송장 미리 입력·출력한 상태 → 배송흐름 검사 핵심 대상
+#  · 배송대기중/국내배송중 = 직배 / 배송완료 = 도착(검사 제외) / 반품·취소 = 미지정
 _DEFAULT_MAP = [
     ("결제완료",             "배송전",     "미지정", False, 10),
-    ("배송대기중",           "배송전",     "미지정", False, 20),
+    ("배송대기중",           "배송전",     "직배",   False, 20),
     ("해외현지배송중",       "해외배송중", "까대기", False, 30),
-    ("국내배송중",           "국내배송중", "미지정", True,  40),
-    ("배송완료",             "배송완료",   "미지정", True,  50),
+    ("현지배송완료",         "국내배송중", "까대기", True,  35),
+    ("국내배송중",           "국내배송중", "직배",   True,  40),
+    ("배송완료",             "배송완료",   "미지정", False, 50),
     ("반품/교환/취소진행중", "취소반품교환", "미지정", False, 60),
     ("반품/교환/취소완료",   "취소반품교환", "미지정", False, 70),
+]
+
+# 이전 기본값 → 사용자가 모달에서 안 바꿨으면(값이 옛 기본과 동일하면) 새 기본값으로 1회 갱신.
+# 사용자가 손수 바꾼 값은 옛 기본과 달라 매칭되지 않아 보존된다. (status, old_method, old_flow)
+_RECONCILE_FROM_OLD = [
+    ("배송대기중", "미지정", False),
+    ("국내배송중", "미지정", True),
+    ("배송완료",   "미지정", True),
 ]
 
 
@@ -20,15 +33,27 @@ def _now():
 
 
 def seed_default_status_map(session):
-    """기본 매핑을 없는 것만 삽입 (idempotent)."""
-    existing = {r.status_value for r in session.query(MangoStatusMap.status_value).all()}
-    for value, meaning, method, flow, order in _DEFAULT_MAP:
-        if value in existing:
-            continue
-        session.add(MangoStatusMap(status_value=value, meaning=meaning,
-                                   default_method=method, is_flow_check_target=flow,
-                                   sort_order=order))
-    session.commit()
+    """기본 매핑 보강. 없는 값은 삽입 + 옛 기본값 그대로인 행은 새 기본값으로 갱신(수정본 보존). idempotent."""
+    by_value = {r.status_value: r for r in session.query(MangoStatusMap).all()}
+    canonical = {v: (mean, method, flow, order)
+                 for (v, mean, method, flow, order) in _DEFAULT_MAP}
+    changed = False
+    # 1) 없는 매핑 삽입
+    for value, (mean, method, flow, order) in canonical.items():
+        if value not in by_value:
+            session.add(MangoStatusMap(status_value=value, meaning=mean,
+                                       default_method=method, is_flow_check_target=flow,
+                                       sort_order=order))
+            changed = True
+    # 2) 옛 기본값 그대로인 행만 새 기본값으로 갱신(사용자 수정 보존)
+    for value, old_method, old_flow in _RECONCILE_FROM_OLD:
+        r = by_value.get(value)
+        if r and r.default_method == old_method and bool(r.is_flow_check_target) == old_flow:
+            mean, method, flow, order = canonical[value]
+            r.meaning, r.default_method, r.is_flow_check_target = mean, method, flow
+            changed = True
+    if changed:
+        session.commit()
 
 
 def get_status_map(session) -> dict:
@@ -49,6 +74,19 @@ def upsert_orders(session, rows, bulk_method=None) -> dict:
     수기(source=='수기') 행의 배송방식은 절대 덮지 않는다.
     """
     status_map = get_status_map(session)
+    # 처음 보는 구분자값은 매핑행 자동 생성(모달에서 편집 가능하게). 기본=미지정·검사 제외.
+    new_status = False
+    for r in rows:
+        sv = r.get("mango_status")
+        if sv and sv not in status_map:
+            m = MangoStatusMap(status_value=sv, meaning="기타",
+                               default_method="미지정", is_flow_check_target=False,
+                               sort_order=900)
+            session.add(m)
+            status_map[sv] = m
+            new_status = True
+    if new_status:
+        session.commit()
     inserted = updated = 0
     for r in rows:
         uid = r["mango_uid"]
