@@ -1832,7 +1832,9 @@ async function crawlBundleAllBG(code) {
   //   ★CPU 기반 자동감소는 해제(evaluateConcurrency): chrome.system.cpu 는 PC 전체 CPU라
   //     다른 앱이 바쁘면 크롤이 지레 1개로 쪼그라들어 느려지던 원인(사용자 확인). 이제 메모리만 브레이크.
   let cap = 30;                         // 천장 30(사용자 요청). ⚠️한 모음전 소싱처 ~8개라 현 구조선 ~8 바인딩(30은 천장). 메모리가 실제 브레이크.
-  let concurrency = Math.min(4, cap);   // 1에서 기어오르지 말고 예전 편안값(4)에서 시작
+  // [2026-07-12] 시작부터 이 모음전의 소싱처를 한꺼번에 연다(burst) — 4에서 +1씩 기어오르며
+  //   창이 찔끔찔끔 열리던 것 개선. 천장(cap)·소싱처 수 안에서 즉시 최대치. 메모리 높으면 자동 감소.
+  let concurrency = Math.min(cap, Math.max(1, sourceKeys.length));
   emit("concurrency", { level: "", msg: "초기 동시 창 " + concurrency + "/" + cap, metrics: { concurrency, cap, active: 0, total, done: 0 } });
 
   const pendingSources = sourceKeys.slice();
