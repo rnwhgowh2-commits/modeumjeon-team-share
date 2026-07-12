@@ -98,4 +98,15 @@
 - **[저impact]** 매입 다중파일 업로드는 첫 파일만 읽음(더망고 매입은 보통 단일).
 
 ---
+
+## Task D — 설정 5종 (팀 DB / 기존 SourcingCredential 연결)
+
+원본 설정 저장(실측): ①카드키워드=`/api/keywords` GET/POST(card_keywords.json, 구조 `{cards:{name:{memo[],mg[],mk_sync[],sub_rtn[],sub_ex[],label}}}`) · ②③고마진·효율1=localStorage `margin_user_settings` · ④금액대=in-memory `priceRanges`(휘발) · ⑤소싱처계정=`/api/settings` GET/POST(settings.json 평문, `{accounts:{site:[{id,pw}]}}`, PW 마스킹)+`/api/sourcing-sites`.
+
+**D 서브태스크:**
+- **D1** ① 카드키워드 → 팀 DB 테이블 + 모음전 `/api/keywords` GET/POST 구현. **페이지 세임 불필요**(iframe 페이지가 이미 /api/keywords 호출; C1+C2에서 기본값 렌더 확인). store 패턴=`lemouton/margin/store.py`+`shared/db.py SessionLocal`. Alembic 없음→create_all.
+- **D2** ②③④ 사용자설정(고마진·효율1·금액대) → 팀 DB + 엔드포인트 + **페이지 세임**(applyUserSettings·priceRanges 가 localStorage/in-memory 대신 서버 저장·로드 시 hydrate). 빌드스크립트 SEAMS 경유.
+- **D3** ⑤ 소싱처계정 → 모음전 기존 `SourcingCredential` DB 연결(§6: 모델 `lemouton/sourcing/models_v2.py:129`, 스토어 `lemouton/auth/sourcing_credentials.py:161`, 라우트 `accounts.py:1612/1695`). **평문 settings.json 재이식 금지.** `/api/settings`·`/api/sourcing-sites` 를 이 DB에 매핑. Task E(소싱처 자동확인)와 인접.
+
+---
 *폐기: `docs/superpowers/plans/2026-07-11-마진계산기-화면-B레이아웃.md` (원본 1:1 방향에서 무효).*
