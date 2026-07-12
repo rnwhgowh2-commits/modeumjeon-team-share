@@ -100,6 +100,19 @@ def market_label(market: str) -> str:
     return _MARKET_KO.get(market, market)
 
 
+def _ensure_kst(dt_val):
+    """naive datetime → KST-aware(이미 aware 면 그대로, None/비datetime 은 그대로).
+
+    ★ 마켓 빌더(smartstore_order_rows 등)는 now=datetime.now(KST)(aware)와 since/until 을
+      비교한다. 라이브 마진 경로는 naive(_parse_dt: strptime/date)를 넘겨
+      'can't compare offset-naive and offset-aware datetimes' 로 그 마켓 조회가 통째 실패했다
+      → 스마트스토어 제외 → 매출 누락·마진 마이너스(라이브 실측). 여기서 KST 로 통일한다.
+    """
+    if isinstance(dt_val, _dt.datetime) and dt_val.tzinfo is None:
+        return dt_val.replace(tzinfo=KST)
+    return dt_val
+
+
 def _market_fail_msg(market: str, err: Exception) -> str:
     """마켓 통째 실패 → 사용자 배너 문구(한글 마켓명 + 사유). 조용한 실패 금지."""
     return (f"[{market_label(market)}] 매출(주문) 조회에 실패해 이 마켓을 분석에서 "
@@ -948,6 +961,9 @@ def order_rows(market: str, days: int = 7, client=None,
         until = now or _dt.datetime.now(KST)
     if since is None:
         since = until - _dt.timedelta(days=days)
+    # ★ tz 통일 — 빌더가 aware(KST) now 와 비교하므로 naive since/until 을 KST 로 강제.
+    #   (라이브: 스마트스토어가 offset-naive/aware TypeError 로 통째 실패 → 매출 누락·마진 왜곡)
+    since, until = _ensure_kst(since), _ensure_kst(until)
 
     def _rows_for(cli, alias):
         rs = _finalize_rows(_BUILDERS[market](since, until, client=cli,

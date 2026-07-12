@@ -321,6 +321,27 @@ def test_combined_parallel_error_propagates(monkeypatch):
         oe.combined_order_rows(["coupang", "lotteon"], days=7)
 
 
+def test_order_rows_coerces_naive_dates_to_aware(monkeypatch):
+    """라이브 마진 경로는 naive since/until(_parse_dt)을 넘긴다. 빌더(smartstore 등)가
+    now=datetime.now(KST)(aware)와 비교하므로 naive 면 'offset-naive vs offset-aware' TypeError 로
+    그 마켓 조회가 통째 실패한다 → 스마트스토어 제외 → 매출 누락·마진 마이너스(라이브 실측).
+    order_rows 가 KST-aware 로 강제해 어느 호출부가 넘겨도 안전하게 한다."""
+    cap = {}
+    def fake_builder(since, until, client=None, include_settlement=True):
+        cap["since"], cap["until"] = since, until
+        return []
+    monkeypatch.setitem(oe._BUILDERS, "smartstore", fake_builder)
+    oe.order_rows("smartstore", client=object(),
+                  since=dt.datetime(2026, 7, 2), until=dt.datetime(2026, 7, 15))
+    assert cap["since"].tzinfo is not None and cap["until"].tzinfo is not None  # aware 로 강제
+    # 이미 aware 면 시각 이동 없이 그대로
+    cap.clear()
+    aware_s = dt.datetime(2026, 7, 2, tzinfo=oe.KST)
+    aware_u = dt.datetime(2026, 7, 15, tzinfo=oe.KST)
+    oe.order_rows("smartstore", client=object(), since=aware_s, until=aware_u)
+    assert cap["since"] == aware_s and cap["until"] == aware_u
+
+
 def test_combined_partial_failure_warns_and_proceeds_with_warnings(monkeypatch):
     # ★ warnings 채널이 있으면(화면·마진 분석) 한 마켓이 통째로 실패해도 502 로 죽지 않고
     #   그 마켓을 '제외'로 표면화(warnings)한 뒤 나머지 마켓 결과를 반환한다.
