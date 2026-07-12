@@ -68,5 +68,9 @@
 **Task 2 이식 대상 함수(원본 app.py):** `_run_full_pipeline`(matcher.match_for_classifier→classifier.classify 연결)·`_aggregate`·`_compute_card_counts`·buy_valid_df/buy_missing_df 산출. 현 worktree `api_margin.analyze` 는 `{**out, **agg}` 만 반환 → `classified`·`blackspot_summary`·card_* 미포함. **계약 테스트**로 원본 키 전량 고정.
 **주의:** `_card_keywords`(카드 키워드) 주입은 Task D(설정) 소관 — Task 2 는 분류/집계 계약까지.
 
+### Task 2 이월(follow-up) — 품질리뷰 지적 (비차단)
+- **[아키텍처, 이월]** 현재 분류 호출(`split_by_site_order_no→match_for_classifier→classify`)이 라우트의 `_augment_blackspot` 안에 있다. 원본은 `_run_full_pipeline` 에서 매칭+분류를 함께 했다. `pipeline.run` 이 `classified`/`blackspot_summary` 를 직접 반환하도록 옮기면 응집도↑(라우트는 계약 글루만). 단 keeper `pipeline.run` 계약 변경 = 기존 172테스트 영향 → **전용 리팩터로 분리**(Task C 착수 전 또는 별도). 지금은 안 건드림.
+- **[완료]** 1:1 가드(원본 1340 `and classified`) 추가 / inert `counter` 주석 명시.
+
 ---
 *폐기: `docs/superpowers/plans/2026-07-11-마진계산기-화면-B레이아웃.md` (원본 1:1 방향에서 무효).*
