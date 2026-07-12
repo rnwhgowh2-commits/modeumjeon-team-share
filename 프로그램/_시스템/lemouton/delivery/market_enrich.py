@@ -122,7 +122,6 @@ def enrich_from_market_api(session, uploaded_uids, warnings=None) -> dict:
         if inv == "송장미입력":
             inv = ""
         o.market_api_status = str(fr.get("주문상태") or "").strip() or None
-        o.market_api_status_raw = str(fr.get("주문상태원본") or "").strip() or None
         o.market_api_invoice = inv
         o.market_shipped_at = str(fr.get("발송처리일") or "").strip() or None
         o.market_check_error = None
