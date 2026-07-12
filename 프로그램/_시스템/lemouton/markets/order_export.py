@@ -161,6 +161,12 @@ def smartstore_order_rows(since: _dt.datetime, until: _dt.datetime,
     # ⚠️ 네이버 last-changed 는 미래일·과도한 범위 = 400(조회 범위 초과). 그래서:
     #  (1) 미래 금지(now 로 상한) (2) 전체 스팬 ≤ 10일일 때만 버퍼 적용(아니면 버퍼 포기).
     now = _dt.datetime.now(KST)
+    # ★ until 미래 금지 — 마진 기간추론이 +3일 마진으로 period_to 를 미래(예: 오늘 07-13,
+    #   until 07-15)로 만들면 아래 버퍼 리셋(fetch_until=until)이 미래를 그대로 넘겨
+    #   naver last-changed 가 HTTP 400 [104139] 조회범위초과로 거절 → 스마트스토어 매출
+    #   통째 누락·마진 마이너스(라이브 실측). 조회·정산 루프 모두 now 로 상한.
+    if until > now:
+        until = now
     fetch_until = min(until + _dt.timedelta(days=3), now)
     if fetch_until <= until or (fetch_until - since).days > 10:
         fetch_until = until
