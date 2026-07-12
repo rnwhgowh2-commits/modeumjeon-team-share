@@ -127,8 +127,8 @@
   .fopt-url::before{content:'└ ';color:#c2c9d2;}
   .fnone{font-size:12px;color:#0F6E56;padding:6px 2px;}
   /* [2026-07-05] 확정 크롤 카드 — 실행/정지 세그먼트 + 진행 링 + 실시간 로그 + 계수 미니표 */
-  .au-card.src-run.is-running{border-color:#9be7c9;box-shadow:0 4px 16px rgba(18,184,134,.12);}
-  .au-card.src-run.is-running .au-band.src{background:#12B886;}
+  .au-card.src-run.crawl-on{border-color:#9be7c9;box-shadow:0 4px 16px rgba(18,184,134,.12);}
+  .au-card.src-run.crawl-on .au-band.src{background:#12B886;}
   .rsc{display:inline-flex;border:1px solid #e5e8eb;border-radius:9px;overflow:hidden;flex:none;}
   .rsc button{border:0;background:#fff;padding:6px 15px;font-size:12.5px;font-weight:600;color:#6b7684;cursor:pointer;font-family:inherit;display:flex;align-items:center;gap:6px;}
   .rsc .run.on{background:#12B76A;color:#fff;} .rsc .stop.on{background:#EEF1F4;color:#191F28;}
@@ -311,7 +311,7 @@
 
   <div class="au-pair">
     <!-- 소싱처 (좌) -->
-    <div class="au-card src-run" id="crawl-card">
+    <div class="au-card src-run {{ 'crawl-on' if a.crawl_auto_enabled else '' }}" id="crawl-card">
       <div class="au-band src">소싱처 · 자동으로 긁기</div>
       <div class="au-body">
         <div class="au-ct"><div class="au-title">🐘 크롤 · 자동으로 긁기<span class="au-cont">연속</span></div>
@@ -436,7 +436,7 @@
     var seg=document.getElementById('crawl-seg');
     seg.querySelector('.run').classList.toggle('on',run);
     seg.querySelector('.stop').classList.toggle('on',!run);
-    document.getElementById('crawl-card').classList.toggle('is-running',run);
+    document.getElementById('crawl-card').classList.toggle('crawl-on',run);
     document.getElementById('cz-paused').style.display=run?'none':'flex';
   }
   var serverUnlocked = R.dataset.server==='1';   // 서버 열쇠(MOUM_LIVE_UPLOAD) — 페이지 로드시 고정
