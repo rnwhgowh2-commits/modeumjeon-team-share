@@ -446,7 +446,7 @@ MARKET_METADATA = {
         "guide_text": ("롯데온 판매자 센터 > 판매자정보 > OpenAPI관리 에서 "
                        "① 서버 IP 등록(54.116.196.90) ② 인증키 발급. 거래처번호(trNo)도 여기서 확인."),
         "default_prefix": "LOTTEON_MAIN",
-        # UI 온보딩(계정·키 등록·연결 테스트) 개방. 실제 전송은 LEMOUTON_LIVE_UPLOAD(OFF)가 별도 게이트.
+        # UI 온보딩(계정·키 등록·연결 테스트) 개방. 실제 전송은 MOUM_LIVE_UPLOAD(OFF)가 별도 게이트.
         "status": "ready",
         "sort_order": 3,
     },
@@ -518,6 +518,49 @@ def market_sort_key(market: str) -> tuple:
     return (meta.get("sort_order", 999), market)
 
 
+# 마켓별 '셀러를 식별하는' 키 접미사. 이 값이 같으면 이름이 달라도 같은 판매자 계정이다.
+#  order_export._IDENTITY_KEYS 와 같은 필드를 가리킨다(지문도 같은 값이 나오도록).
+_IDENTITY_SUFFIX = {
+    "coupang": "VENDOR_ID",
+    "smartstore": "CLIENT_ID",
+    "lotteon": "TR_NO",
+    "eleven11": "OPENAPI_KEY",
+    "auction": "SELLER_ID",
+    "gmarket": "SELLER_ID",
+}
+
+
+def _find_duplicate_key_account(market: str, env_prefix: str, env_keys: dict):
+    """이번에 저장할 셀러 식별키가 같은 마켓의 '다른 활성 계정'에 이미 있으면 (계정명들, 지문).
+
+    없으면 None. 값 자체는 어디에도 노출하지 않는다(지문만).
+    """
+    sfx = _IDENTITY_SUFFIX.get(market)
+    if not sfx:
+        return None
+    # 이번에 들어온 값. 안 들어왔으면 기존값(=변경 없음)이라 중복 검사 불필요.
+    new_val = (env_keys.get(f"{env_prefix}_{sfx}") or "").strip()
+    if not new_val:
+        return None
+
+    s = SessionLocal()
+    try:
+        others = (s.query(UploadAccount)
+                  .filter(UploadAccount.market == market,
+                          UploadAccount.is_active == True,          # noqa: E712
+                          UploadAccount.env_prefix != env_prefix)
+                  .order_by(UploadAccount.id).all())
+        names = [a.display_name for a in others
+                 if (os.environ.get(f"{a.env_prefix}_{sfx}", "") or "").strip() == new_val]
+    finally:
+        s.close()
+
+    if not names:
+        return None
+    from lemouton.markets.order_export import _ident_fingerprint
+    return names, _ident_fingerprint(f"{market}:{sfx.lower()}:{new_val}")
+
+
 @bp.route("/api/secrets/<env_prefix>", methods=["POST"])
 def save_secrets(env_prefix: str):
     """UI에서 입력한 시크릿을 .env 에 저장 + 환경변수 즉시 반영.
@@ -577,6 +620,22 @@ def save_secrets(env_prefix: str):
             "masked": {},
             "message": "변경 사항 없음 — 기존 키 그대로 유지됩니다.",
         })
+
+    # ★ 같은 셀러 키가 두 계정에 저장되는 것을 '저장 단계'에서 막는다(전 마켓 공통).
+    #   실제 사고: 11번가 두 쌍이 같은 OPENAPI_KEY 로 저장돼, 주문조회에서 한쪽 가게가 통째로
+    #   빠졌다(브라우저 자동완성이 이전 계정 키를 다시 채운 것으로 추정). 저장을 막지 않으면
+    #   같은 주문 2배 계상 또는 다른 가게 주문 누락(발송 사고)으로 이어진다.
+    conflict = _find_duplicate_key_account(market, env_prefix, env_keys)
+    if conflict:
+        names, fp = conflict
+        return jsonify({
+            "ok": False,
+            "error": f"이 키는 이미 「{'」, 「'.join(names)}」 계정에 등록돼 있어요 (키 지문 {fp}).",
+            "hint": "브라우저 자동완성이 이전 계정의 키를 다시 채웠을 수 있어요. "
+                    "칸을 비우고 이 가게의 키를 직접 붙여넣어 주세요.",
+            "conflicts": names,
+            "fingerprint": fp,
+        }), 409
 
     # 영속 경로(호스트 볼륨 마운트) 우선 — 컨테이너 교체돼도 유지. 없으면 프로젝트 .env.
     from lemouton.auth import secrets as _S2
@@ -952,6 +1011,44 @@ def login_upload_account(account_id: int):
     return jsonify({"ok": True, "pid": pid, "display_name": display_name, "message": msg})
 
 
+@bp.route("/api/upload/accounts/<int:account_id>/key-fingerprint", methods=["GET"])
+def account_key_fingerprint_api(account_id: int):
+    """계정에 '실제로 저장된' 셀러 식별키의 지문(해시 앞 6자). 읽기 전용·키 값 미노출.
+
+    지문이 같은 두 계정 = 같은 키가 저장돼 있다는 뜻(입력 실수 또는 저장 오류).
+    주문조회의 중복 판정(_client_identity)과 완전히 같은 값을 쓰므로, 배너에 뜬 지문과
+    이 값을 대조하면 어느 계정끼리 겹치는지 사용자가 직접 확인할 수 있다.
+    """
+    from lemouton.markets.order_export import (
+        _account_client, _client_identity, _ident_fingerprint)
+
+    s = SessionLocal()
+    try:
+        acc = s.query(UploadAccount).get(account_id)
+        if not acc:
+            return jsonify({"ok": False, "error": "계정 없음"}), 404
+        market, env_prefix, name = acc.market, acc.env_prefix, acc.display_name
+    finally:
+        s.close()
+
+    try:
+        cli = _account_client(market, env_prefix)
+    except Exception as e:   # noqa: BLE001
+        return jsonify({"ok": False, "account": name, "error": f"{type(e).__name__}"}), 400
+    if cli is None:
+        return jsonify({"ok": False, "account": name, "market": market,
+                        "env_prefix": env_prefix, "error": "키 미등록"}), 400
+
+    ident = _client_identity(market, cli)
+    if ident is None:
+        return jsonify({"ok": True, "account": name, "market": market,
+                        "env_prefix": env_prefix, "fingerprint": None,
+                        "note": "이 마켓은 식별키 비교를 지원하지 않아요."})
+    return jsonify({"ok": True, "account": name, "market": market,
+                    "env_prefix": env_prefix,
+                    "fingerprint": _ident_fingerprint(ident)})
+
+
 @bp.route("/api/upload/accounts/<int:account_id>/test", methods=["POST"])
 def test_upload_account_api(account_id: int):
     """판매처 API 연결 테스트 — 등록된 자격증명으로 실 API 호출.
@@ -991,6 +1088,8 @@ def test_upload_account_api(account_id: int):
         return _test_smartstore(creds, display_name, env_prefix)
     elif market == "lotteon":
         return _test_lotteon(creds, display_name, env_prefix)
+    elif market == "eleven11":
+        return _test_eleven11(creds, display_name, env_prefix)
     elif market in ("auction", "gmarket"):
         return _test_esm(creds, display_name, env_prefix, market)
     else:
@@ -1296,6 +1395,50 @@ def _test_esm(creds, display_name: str, env_prefix: str, market: str):
     }), 502
 
 
+def _test_eleven11(creds, display_name: str, env_prefix: str):
+    """11번가 셀러 OpenAPI ping — 최근 6시간 결제완료 주문 목록 조회(읽기 전용).
+
+    프로덕션 주문조회가 쓰는 경로(iter_orders)를 그대로 쓴다 — 테스트가 통과했는데 실제
+    주문조회가 실패하는 어긋남을 막기 위해. 주문 0건도 성공(인증·IP 통과가 판정 대상).
+    """
+    import time as _time
+    import datetime as _dt2
+
+    started = _time.time()
+    try:
+        from lemouton.uploader.market_fetch import _eleven11_client
+        from shared.platforms.eleven11.orders import iter_orders
+        client = _eleven11_client(env_prefix)
+        until = _dt2.datetime.now()
+        since = until - _dt2.timedelta(hours=6)
+        seen = 0
+        for _od in iter_orders(since, until, client=client):
+            seen += 1
+            if seen >= 1:
+                break                      # 1건만 확인하면 충분(전량 조회 안 함)
+    except Exception as e:                 # noqa: BLE001 — 사유를 그대로 표면화(키 미노출)
+        elapsed = round(_time.time() - started, 2)
+        msg = f"{type(e).__name__}: {e}"
+        hint = ""
+        if "403" in msg:
+            hint = "403 — 11번가 API 센터에 서버 IP(54.116.196.90) 등록이 필요합니다."
+        elif "401" in msg:
+            hint = "401 — OPENAPI KEY 를 다시 확인하세요."
+        elif "500" in msg:
+            hint = "500 — 11번가 서버 오류. 잠시 후 다시 시도하세요."
+        return jsonify({"ok": False, "error": msg[:300], "hint": hint,
+                        "elapsed_sec": elapsed}), 400
+
+    elapsed = round(_time.time() - started, 2)
+    return jsonify({
+        "ok": True,
+        "market": "eleven11",
+        "account": display_name,
+        "detail": f"최근 6시간 결제완료 주문 {seen}건 조회 성공(인증·IP 통과)",
+        "elapsed_sec": elapsed,
+    })
+
+
 def _test_smartstore(creds, display_name: str, env_prefix: str):
     """스마트스토어 OAuth 토큰 발급 시도 — Bcrypt 서명."""
     import time as _time
@@ -1306,7 +1449,19 @@ def _test_smartstore(creds, display_name: str, env_prefix: str):
     started = _time.time()
     timestamp = str(int(_time.time() * 1000))
     password = f"{creds.client_id}_{timestamp}".encode("utf-8")
-    hashed = bcrypt.hashpw(password, creds.client_secret.encode("utf-8"))
+    # ★ 잘못된 salt 를 bcrypt 에 넘기면 파이썬 예외가 아니라 네이티브에서 죽어 워커가 통째로
+    #   내려간다(try/except 로 못 잡음 → 원인 없는 빈 502). bcrypt 를 부르기 '전에' 형식 검사.
+    from shared.platforms.smartstore.auth import (
+        is_valid_client_secret, normalize_client_secret)
+    if not is_valid_client_secret(creds.client_secret):
+        return jsonify({
+            "ok": False,
+            "error": "Client Secret 형식 오류 — bcrypt salt 형식이 아닙니다.",
+            "hint": "네이버 커머스 API 센터의 Client Secret 을 그대로 다시 입력하세요"
+                    " (앞뒤 공백·줄바꿈 없이, $2a$ 로 시작하는 전체 문자열 29자).",
+            "elapsed_sec": round(_time.time() - started, 2),
+        }), 400
+    hashed = bcrypt.hashpw(password, normalize_client_secret(creds.client_secret).encode("utf-8"))
     client_secret_sign = base64.standard_b64encode(hashed).decode("utf-8")
 
     try:

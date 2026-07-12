@@ -13,13 +13,24 @@ bp = Blueprint('settings', __name__)
 def automation_view():
     """[자동화 설정] 크롤 자동 주기 + 판매처 자동 전송 (팀 공유 단일 설정)."""
     from lemouton.pricing.settings import get_automation
+    from lemouton.uploader.runtime import live_upload_enabled, real_upload_armed
     s = SessionLocal()
     try:
         a = get_automation(s)
+        # 두 겹 잠금 상태 — 화면이 서버 열쇠/무장 여부를 정직하게 보여주도록.
+        server_unlocked = live_upload_enabled()   # 서버 열쇠(MOUM_LIVE_UPLOAD)
+        armed = real_upload_armed(s)              # 둘 다 켜져 실제 나가는 중인가
         s.commit()
     finally:
         s.close()
-    return render_template('automation/index.html', active='automation', a=a)
+    # 미리보기 결과(지난 사이클 '나갈 값') — 켜기 전에 무엇이 나갈지 먼저 보기.
+    try:
+        from scheduler.jobs import load_upload_preview
+        preview = load_upload_preview()
+    except Exception:   # noqa: BLE001
+        preview = {"at": None, "markets": {}}
+    return render_template('automation/index.html', active='automation', a=a,
+                           server_unlocked=server_unlocked, armed=armed, preview=preview)
 
 
 @bp.route('/automation/weights')

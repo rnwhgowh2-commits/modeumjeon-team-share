@@ -524,6 +524,7 @@
     document.body.appendChild(p);
 
     document.getElementById('mcl-close-btn').addEventListener('click', function () {
+      collapseIntent = 'closed';
       var panel = document.getElementById(PANEL_ID);
       if (panel) panel.classList.add('mcl-hidden');
       hideRailMin();
@@ -562,7 +563,15 @@
     return rail;
   }
 
+  // [2026-07-10] 접기 의사를 기억한다.
+  //   크롤이 도는 동안 'queue'·'start' 이벤트마다 ensurePanel()→showPanel() 이 불려서
+  //   사용자가 「─」로 접어도 몇 초 뒤 패널이 저절로 다시 펼쳐지던 버그.
+  //   null=펼침 / 'min'=레일 / 'closed'=완전히 닫음. 되돌리는 건 사용자(레일 클릭)·새로고침뿐.
+  var collapseIntent = null;
+
   function minimizePanel() {
+    if (collapseIntent === 'closed') return;      // 닫은 위젯을 자동 이벤트로 되살리지 않는다
+    collapseIntent = 'min';
     var panel = document.getElementById(PANEL_ID);
     if (panel) panel.classList.add('mcl-hidden');
     renderRailMin();
@@ -571,6 +580,7 @@
     applyDock();
   }
   function restorePanel() {
+    collapseIntent = null;                        // 사용자가 직접 펼침
     var panel = document.getElementById(PANEL_ID);
     if (panel) panel.classList.remove('mcl-hidden');
     hideRailMin();
@@ -581,6 +591,14 @@
     if (rail) rail.style.display = 'none';
   }
   function showPanel() {
+    if (collapseIntent === 'closed') return;
+    if (collapseIntent === 'min') {               // 접어둔 상태 — 레일만 최신으로
+      renderRailMin();
+      var rail = document.getElementById(RAIL_MIN_ID);
+      if (rail) rail.style.display = 'block';
+      applyDock();
+      return;
+    }
     var p = document.getElementById(PANEL_ID);
     if (p) p.classList.remove('mcl-hidden');
     applyDock();
@@ -1108,7 +1126,10 @@
     }
   }
 
-  function renderAll() { renderRail(); renderDetail(); renderHeader(); }
+  function renderAll() {
+    renderRail(); renderDetail(); renderHeader();
+    if (collapseIntent === 'min') renderRailMin();   // 접어둬도 작은 카드 진행률은 살아 있게
+  }
 
   // ── 이벤트 핸들러 ────────────────────────────────────────────────
   var _registered = false;

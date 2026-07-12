@@ -89,11 +89,144 @@ def lap_bounds(session, *, lap_no: int, now: datetime) -> tuple | None:
     return start, end
 
 
+def site_labels() -> dict:
+    """소싱처 키 → 사람이 읽는 이름(hmall → 현대H몰). 실패해도 빈 dict."""
+    try:
+        from lemouton.sourcing.source_registry import get_labels
+        return get_labels() or {}
+    except Exception:
+        return {}
+
+
 def excluded_sites(session) -> list[str]:
-    """계수 0 = 이번 바퀴에서 아예 제외된 소싱처."""
+    """계수 0 = 이번 바퀴에서 아예 제외된 소싱처 (사람이 읽는 이름)."""
     from lemouton.sources.crawl_schedule import list_weight_rules
     src = list_weight_rules(session).get("source", {})
-    return sorted(k for k, w in src.items() if (w or 0) <= 0)
+    lab = site_labels()
+    return sorted(lab.get(k, k) for k, w in src.items() if (w or 0) <= 0)
+
+
+# source_key → SourceRegistry.id (main_url 도메인 매칭). 매트릭스(api_pricing)와 같은 규칙.
+_KEY_DOMAIN = {
+    "lemouton": "lemouton.co.kr", "ss_lemouton": "smartstore.naver.com",
+    "musinsa": "musinsa.com", "ssf": "ssfshop.com",
+    "lotteon": "lotteon.com", "ssg": "ssg.com",
+}
+
+
+def _key_to_regid(session) -> dict:
+    from lemouton.sourcing.models_pricing import SourceRegistry
+    rows = session.query(SourceRegistry).all()
+    out = {}
+    for k, dom in _KEY_DOMAIN.items():
+        for r in rows:
+            if dom in (r.main_url or ""):
+                out[k] = r.id
+                break
+    return out
+
+
+def _link_by_product(session, prods) -> dict:
+    """SourceProduct.id → (canonical_sku, source_id) — 최종매입가 계산의 두 열쇠.
+
+    ★열쇠의 출처는 '옵션 ↔ 등록 URL' 매핑(OptionSourceUrlLink ⨝ BundleSourceUrl)이다.
+      매트릭스가 믿는 바로 그 경로. 소싱처 이름으로 짐작하면(레지스트리엔 id 가 없다)
+      늘 None 이 되고, 레거시 OptionSourceUrl 은 라이브에서 비어 있다 — 둘 다 겪었다.
+    레거시 표는 폴백으로만 본다. 못 찾으면 None → 화면은 「확인불가」로 정직하게.
+    """
+    from lemouton.sources.service import normalize_url as _nu
+
+    by_url = {}
+    try:                                    # ① 정본 — 옵션 ↔ 등록 URL
+        from lemouton.sourcing.models import BundleSourceUrl, OptionSourceUrlLink
+        regid = _key_to_regid(session)
+        rows = (session.query(OptionSourceUrlLink, BundleSourceUrl)
+                .join(BundleSourceUrl,
+                      OptionSourceUrlLink.bundle_source_url_id == BundleSourceUrl.id)
+                .all())
+        for lk, bsu in rows:
+            sid = regid.get(bsu.source_key)
+            if not bsu.url or sid is None:
+                continue                    # 레지스트리에 없는 소싱처 = 혜택 계산 불가
+            by_url.setdefault(_nu(bsu.url), (lk.option_canonical_sku, sid))
+    except Exception:
+        pass
+    try:                                    # ② 레거시 폴백
+        from lemouton.sourcing.models_pricing import OptionSourceUrl
+        for l in session.query(OptionSourceUrl).all():
+            if l.product_url and l.source_id is not None:
+                by_url.setdefault(_nu(l.product_url), (l.canonical_sku, l.source_id))
+    except Exception:
+        pass
+
+    out = {}
+    for pr in prods:
+        out[pr.id] = by_url.get(_nu(pr.url)) if pr.url else None
+    return out
+
+
+def _stock_cells(session, source_product_id: int, limit: int = 200) -> tuple:
+    from lemouton.sources.models import SourceOption
+    opts = (session.query(SourceOption)
+            .filter(SourceOption.source_product_id == source_product_id,
+                    SourceOption.deleted_at.is_(None))
+            .limit(limit).all())
+    grid = [{"color": o.color_text, "size": o.size_text, "stock": o.current_stock}
+            for o in opts]
+    summ = {"ample": 0, "limited": 0, "soldout": 0, "unknown": 0}
+    for g in grid:
+        q = g["stock"]
+        if q is None or q < 0:
+            summ["unknown"] += 1
+        elif q == 0:
+            summ["soldout"] += 1
+        elif q >= 999:
+            summ["ample"] += 1
+        else:
+            summ["limited"] += 1
+    return grid, summ
+
+
+def keep_sources(session, *, crawled_sites: set, changed_sites: set) -> list[dict]:
+    """이번 바퀴에 '변동 없던' 소싱처의 지금 값 — ★상품(URL) 단위.
+
+    한 소싱처에 상품 URL이 여러 개다(르무통 공홈 9개). 소싱처 한 줄로 뭉치면
+      · 표면노출가 = 최저가 폴백 (CLAUDE.md 가 금지)
+      · 색×사이즈가 서로 덮어써 격자(154칸)와 요약(400개)이 모순
+    둘 다 필연이다. 그래서 값은 상품마다 따로 낸다. 폴백 없음, 합산 없음.
+    """
+    from lemouton.sources.models import SourceProduct
+
+    lab = site_labels()
+    out = []
+    for site in sorted(crawled_sites - changed_sites):
+        prods = (session.query(SourceProduct)
+                 .filter(SourceProduct.site == site,
+                         SourceProduct.deleted_at.is_(None))
+                 .order_by(SourceProduct.id).all())
+        if not prods:
+            continue
+        link_by = _link_by_product(session, prods)
+        items = []
+        for p in prods:
+            grid, summ = _stock_cells(session, p.id)
+            key = link_by.get(p.id) or (None, None)
+            items.append({
+                "source_product_id": p.id,
+                "url": p.url,
+                "name": p.product_name or p.url,
+                "surface_price": p.last_price,          # 그 상품의 값. 대표가·최저가 폴백 없음
+                "sku": key[0],
+                "source_id": key[1],
+                "stock_summary": summ,
+                "stock_grid": grid,
+            })
+        out.append({
+            "site": site, "site_label": lab.get(site, site),
+            "product_count": len(items),
+            "products": items,
+        })
+    return out
 
 
 def failing_now(session) -> list[dict]:
@@ -137,11 +270,13 @@ def lap_report(session, *, lap_no: int, now: datetime) -> dict | None:
     #   → 변동 목록에서 빼고 first_seen 으로 따로 센다.
     price_rows, stock_rows = [], []
     first_seen = {"price": 0, "stock": 0}
+    _lab = site_labels()          # hmall → 현대H몰 (화면 표기용)
     for d in deltas:
         if not (d.price_changed or d.stock_changed):
             continue
         sp = sp_map.get(d.source_product_id)
         site = (sp.site if sp else "?")
+        site_label = _lab.get(site, site)
         for it in parse_detail(d.detail or ""):
             if it["kind"] == "price":
                 fw, tw = _price_word(it["from"]), _price_word(it["to"])
@@ -153,7 +288,8 @@ def lap_report(session, *, lap_no: int, now: datetime) -> dict | None:
                 if delta == 0:
                     continue
                 price_rows.append({
-                    "site": site, "option": it["option"], "from": fw, "to": tw,
+                    "site": site, "site_label": site_label,
+                    "option": it["option"], "from": fw, "to": tw,
                     "delta": delta,
                     "dir": ("up" if (delta or 0) > 0 else "dn" if (delta or 0) < 0 else "unk"),
                 })
@@ -165,7 +301,8 @@ def lap_report(session, *, lap_no: int, now: datetime) -> dict | None:
                 if fw == tw:
                     continue
                 stock_rows.append({
-                    "site": site, "option": it["option"], "from": fw, "to": tw,
+                    "site": site, "site_label": site_label,
+                    "option": it["option"], "from": fw, "to": tw,
                     "dir": ("so" if tw == "품절" else "re" if fw == "품절"
                             else "unk" if tw == "확인불가" else "chg"),
                 })
@@ -174,12 +311,28 @@ def lap_report(session, *, lap_no: int, now: datetime) -> dict | None:
                     first_seen["stock"] += 1
                     continue
                 stock_rows.append({
-                    "site": site, "option": it["option"], "from": "있음", "to": "옵션 사라짐",
+                    "site": site, "site_label": site_label,
+                    "option": it["option"], "from": "있음", "to": "옵션 사라짐",
                     "dir": "so",
                 })
 
-    minutes = max(1, round((end - start).total_seconds() / 60))
+    # [2026-07-11] 소요(분). 시작이 '어제'면(오늘 1회차 = 밤새 정지 후 첫 바퀴) 그 간격은
+    #   크롤 시간이 아니라 쉰 시간이다 → 703분 같은 가짜값을 내지 않고 None(화면은 소요 숨김).
+    #   같은 KST 날짜의 연속 회차만 실제 소요로 본다. delta 창(start,end)은 그대로(변동 집계용).
+    from lemouton.sources.crawl_schedule import _as_naive_utc as _nu, _KST_OFFSET_H as _kh
+    _start_kst_date = (_nu(start) + timedelta(hours=_kh)).date()
+    _end_kst_date = (_nu(end) + timedelta(hours=_kh)).date()
+    if _start_kst_date == _end_kst_date:
+        minutes = max(1, round((end - start).total_seconds() / 60))
+    else:
+        minutes = None
     stats = lap_stats(session, now=now)
+    _crawled = {sp_map[i].site for i in spids if i in sp_map}
+    _changed = {r["site"] for r in price_rows} | {r["site"] for r in stock_rows}
+    try:
+        _keep = keep_sources(session, crawled_sites=_crawled, changed_sites=_changed)
+    except Exception:
+        _keep = []            # 요약 실패해도 변동 보고서는 살린다
     return {
         "lap": {
             "no": lap_no,
@@ -196,6 +349,8 @@ def lap_report(session, *, lap_no: int, now: datetime) -> dict | None:
             "first_seen": first_seen["price"] + first_seen["stock"],
         },
         "changes": {"price": price_rows, "stock": stock_rows},
+        # 변동 없던 소싱처의 지금 값 (표면가 + 최종매입가 열쇠 + 재고 격자)
+        "keep_sources": _keep,
         "result": {
             "saved": len(deltas),          # 이번 바퀴 저장된(=성공) 크롤 수
             "failing_now": failing_now(session),   # ★현재 기준(회차별 아님)

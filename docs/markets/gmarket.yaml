@@ -75,7 +75,7 @@ safety:
     라이브 미검증(키없음) — 코드 근거만(엔드포인트 공개문서 확보). 실계정 100% 검증 전 '완료' 선언 금지.
     배선 완료 = 계정/키 등록 + 인증·클라이언트(옥션과 공용) + 연동(_fetch_esm)·가격·재고 어댑터(EsmAdapter("gmarket"))
     + 오케스트레이터 라우팅 + 자동전송 formatter(build_gmarket_payload) + DB 매핑컬럼(gmarket_product_id/gmarket_option_id)
-    + 연결테스트(_test_esm). 실전송 게이트 = LEMOUTON_LIVE_UPLOAD(기본 OFF). order_export.SUPPORTED 미포함(주문 엑셀 미노출).
+    + 연결테스트(_test_esm). 실전송 게이트 = MOUM_LIVE_UPLOAD(기본 OFF). order_export.SUPPORTED 미포함(주문 엑셀 미노출).
 
 code_map:
   secrets: lemouton/auth/secrets.py                # EsmCredentials(옥션과 공용) + MARKET_SCHEMAS["gmarket"] (구현됨)

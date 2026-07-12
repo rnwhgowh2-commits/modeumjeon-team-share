@@ -1,7 +1,8 @@
 """[D] 업로더 런타임 — 실전송 게이트 + 옵션↔마켓 매핑.
 
 안전 원칙:
-  · 실제 마켓 전송은 환경변수 ``LEMOUTON_LIVE_UPLOAD`` 가 참일 때만.
+  · 실제 마켓 전송은 환경변수 ``MOUM_LIVE_UPLOAD`` 가 참일 때만.
+  · 송장 전송은 별도 스위치 ``MOUM_LIVE_INVOICE`` (:func:`live_invoice_enabled`).
   · 기본값 OFF → :class:`DryRunAdapter` (외부 호출 없음).
   · 켜더라도 shared.platforms.price_guard 가 0/비정상 가격을 전송 직전 abort.
 """
@@ -32,9 +33,44 @@ class DryRunAdapter(MarketAdapter):
                             error="dry-run (외부 호출 없음)")
 
 
+def _env_truthy(name: str) -> bool:
+    return (os.environ.get(name, "") or "").strip().lower() in _TRUTHY
+
+
 def live_upload_enabled() -> bool:
-    """실전송 허용 여부 — 환경변수 ``LEMOUTON_LIVE_UPLOAD`` (기본 OFF)."""
-    return (os.environ.get("LEMOUTON_LIVE_UPLOAD", "") or "").strip().lower() in _TRUTHY
+    """가격·재고 실전송 허용 여부 — 환경변수 ``MOUM_LIVE_UPLOAD`` (기본 OFF).
+
+    스케줄러가 무인 반복하는 경로라 송장(사람이 1건씩 누름)보다 위험하다.
+    송장만 켜고 싶으면 ``MOUM_LIVE_INVOICE`` 를 쓸 것.
+    """
+    return _env_truthy("MOUM_LIVE_UPLOAD")
+
+
+def live_invoice_enabled() -> bool:
+    """송장(운송장) 실전송 허용 여부 — ``MOUM_LIVE_INVOICE`` (기본 OFF).
+
+    ``MOUM_LIVE_UPLOAD`` 가 켜져 있으면 송장도 함께 허용(기존 동작 보존).
+    반대는 성립하지 않는다 — 송장을 켜도 가격·재고 업로드는 잠긴 채로 둔다.
+    """
+    return _env_truthy("MOUM_LIVE_INVOICE") or live_upload_enabled()
+
+
+def real_upload_armed(session) -> bool:
+    """가격·재고 실전송 = **두 겹 잠금**. 서버 열쇠와 화면 열쇠가 둘 다 켜져야 True.
+
+    · 서버 열쇠 = ``MOUM_LIVE_UPLOAD`` (재배포로만 켬 — 오조작 방지 바깥 잠금)
+    · 화면 열쇠 = 자동화 설정 ``autosend_mode == 'real'`` (사용자가 화면에서)
+
+    금전 사고 위험이 큰 무인 자동전송이라, 한 겹은 항상 서버에 둔다. 화면에서 실수로
+    켜도 서버 잠금이 걸려 있으면 나가지 않는다. 설정을 못 읽으면 안전하게 미전송.
+    """
+    if not live_upload_enabled():          # 서버 열쇠 먼저 — 없으면 화면 볼 것도 없음
+        return False
+    try:
+        from lemouton.pricing.settings import get_automation
+        return get_automation(session).get("autosend_mode") == "real"
+    except Exception:   # noqa: BLE001 — 설정 조회 실패는 안전측(미전송)
+        return False
 
 
 def select_adapters(*, live: bool | None = None) -> dict[str, MarketAdapter]:

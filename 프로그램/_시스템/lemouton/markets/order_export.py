@@ -78,6 +78,11 @@ _STATUS_KO = {
             "4": "배송완료", "5": "구매결정"},
 }
 
+# 이미 발송/완료 단계 — 송장이 비어 있으면 '미입력'(발송 전)이 아니라 '확인 불가'
+#   (발송은 됐으나 마켓이 번호를 안 줌)로 구분 표기한다.
+#   특히 11번가는 구매확정 주문의 invcNo 를 API로 제공하지 않아, '미입력'으로 두면 오해된다.
+_SHIPPED_STATES = {"배송중", "배송완료", "발송완료", "수취완료", "구매확정", "구매결정", "배송지시"}
+
 
 def _status_ko(market, raw):
     if raw in (None, ""):
@@ -159,6 +164,7 @@ def smartstore_order_rows(since: _dt.datetime, until: _dt.datetime,
         po = it.get("productOrder", {}) if isinstance(it, dict) else {}
         od = it.get("order", {}) if isinstance(it, dict) else {}
         sa = po.get("shippingAddress", {}) if isinstance(po, dict) else {}
+        dv = it.get("delivery", {}) if isinstance(it, dict) else {}
         poid = _g(po, "productOrderId")
         oid = _g(od, "orderId")
         prod_amt = prod_settle.get(poid)
@@ -192,6 +198,9 @@ def smartstore_order_rows(since: _dt.datetime, until: _dt.datetime,
             "오픈마켓주문번호": poid or oid,
             "실결제금액": _g(po, "totalPaymentAmount", default=""),   # 할인 반영 실결제
             "옵션추가금": _g(po, "optionPrice", default=""),
+            # 이미 등록된 송장은 마켓이 정본 — 안 읽어오면 사용자가 손으로 다시 치게 되고,
+            # 그 값이 실제와 어긋나도 화면상 알 길이 없다(2026-07-10 실제 발생).
+            "송장입력": _g(dv, "trackingNumber", default=""),
         })
     return rows
 
@@ -215,6 +224,14 @@ def lotteon_order_rows(since: _dt.datetime, until: _dt.datetime,
         rows.append({
             "_shipkey": ("lotteon", _g(od, "odNo")),   # 배송건(주문) 단위 배송비 정규화용
             "_odseq": _g(od, "odSeq", default=""),      # 140 진행단계 조인 키(odNo+odSeq)
+            # 송장 전송용 식별자 — 배송상태 통보(apiNo=137) 필수값 전부.
+            #   _odseq 는 조인 후 _finalize_rows 가 pop 하므로, 살아남는 사본을 따로 둔다.
+            "_send_ids": {"od_no": str(_g(od, "odNo", default="")),
+                          "od_seq": str(_g(od, "odSeq", default="")),
+                          "proc_seq": str(_g(od, "procSeq", default="1")),
+                          "spd_no": str(_g(od, "spdNo", default="")),
+                          "sitm_no": str(_g(od, "sitmNo", default="")),
+                          "qty": str(_g(od, "odQty", default=""))},
             "주문일": odc,   # YYYYMMDDHHMMSS — _finalize 에서 시간 포함 통일
             "판매처": "롯데온",
             "상품명": _html.unescape(str(_g(od, "spdNm"))),   # &lt;매장정품&gt; → <매장정품>
@@ -236,7 +253,9 @@ def lotteon_order_rows(since: _dt.datetime, until: _dt.datetime,
             "주문상태": _status_ko("lotteon", _g(od, "odPrgsStepCd")),
             "오픈마켓주문번호": _g(od, "odNo"),
             "실결제금액": _g(od, "actualAmt", default=""),   # 실결제(정산예상은 주문API 없음→수수료 공란)
-            "송장입력": _g(od, "invNo", "dvInvNo", default=""),
+            # 송장은 출고지시(209) 응답에 **없다** — 진행단계(140)의 invcNo 가 정본.
+            #   옛 코드가 여기서 invNo·dvInvNo 를 찾아 154행 전부 공란이었다(2026-07-10).
+            "송장입력": "",
         })
 
     # ── 취소/반품/교환 병합(claimservice, MCP 실측 2026-07-09) ──
@@ -293,8 +312,9 @@ def lotteon_order_rows(since: _dt.datetime, until: _dt.datetime,
     #  [since,until] 창으로 odNo+odSeq 조인. 여러 진행이력이면 배송상태발생일시(dvTrcStatDttm) 최신 채택.
     from shared.platforms.lotteon.orders import iter_progress_states as _iter_prog
     now = _dt.datetime.now(KST)
-    prog = {}      # (odNo, odSeq) → (dvTrcStatDttm, step) — 정밀 조인
-    prog_od = {}   # odNo → (dvTrcStatDttm, step) — odSeq 없을 때 폴백(최신 단계)
+    #  송장(invcNo)도 여기서만 온다 — 같은 조인으로 주문상태와 함께 채운다.
+    prog = {}      # (odNo, odSeq) → (dvTrcStatDttm, step, invcNo) — 정밀 조인
+    prog_od = {}   # odNo → (dvTrcStatDttm, step, invcNo) — odSeq 없을 때 폴백(최신 단계)
     try:
         for it in _iter_prog(since, until, client=client):
             step = str(_g(it, "odPrgsStepCd"))
@@ -302,11 +322,12 @@ def lotteon_order_rows(since: _dt.datetime, until: _dt.datetime,
                 continue
             odno = str(_g(it, "odNo"))
             dttm = str(_g(it, "dvTrcStatDttm"))
+            invc = str(_g(it, "invcNo", default="") or "")
             key = (odno, str(_g(it, "odSeq")))
             if key not in prog or dttm >= prog[key][0]:
-                prog[key] = (dttm, step)
+                prog[key] = (dttm, step, invc)
             if odno not in prog_od or dttm >= prog_od[odno][0]:
-                prog_od[odno] = (dttm, step)
+                prog_od[odno] = (dttm, step, invc)
     except Exception:   # noqa: BLE001 — 진행단계 조회 실패는 209 단계(출고지시) 유지
         prog, prog_od = {}, {}
     if prog:
@@ -317,6 +338,8 @@ def lotteon_order_rows(since: _dt.datetime, until: _dt.datetime,
             hit = prog.get((odno, str(r.get("_odseq")))) or prog_od.get(odno)
             if hit:
                 r["주문상태"] = _status_ko("lotteon", hit[1])
+                if hit[2]:
+                    r["송장입력"] = hit[2]
 
     # ── 마켓수수료 실값(SettleCommission, apiNo45) — odNo별 수수료 합으로 마켓수수료 채움 ──
     #  ★정산 기준일=구매확정일이라, 주문일이 창 안인 주문의 수수료는 구매확정(=나중) 시점에 기록됨.
@@ -386,6 +409,12 @@ def coupang_order_rows(since: _dt.datetime, until: _dt.datetime,
                     ship = _won(box.get("shippingPrice"))
                     rows.append({
                         "_oid": box.get("orderId"), "_vid": it.get("vendorItemId"),  # 정산 조인용
+                        # 송장 전송용 식별자 — coupang/orders.py::send_tracking 이 요구.
+                        #   shipment_box_id = 발주서(묶음배송) 번호 → 요청 경로
+                        #   order_sheet_id  = 발주서의 orderId → 요청 본문 orderSheetId
+                        #   ⚠️ 본문 필드명(orderSheetId)이 달라, 라이브 1건 전송으로 최종 확인 필요.
+                        "_send_ids": {"shipment_box_id": box.get("shipmentBoxId"),
+                                      "order_sheet_id": box.get("orderId")},
                         "_shipkey": ("coupang", box.get("orderId")),   # 배송건 단위 배송비 정규화
                         "주문일": ordered,
                         "판매처": "쿠팡",
@@ -665,6 +694,11 @@ def eleven11_order_rows(since: _dt.datetime, until: _dt.datetime, client=None) -
         ord_dt = _g11(od, "ordDt") or (ordno[:8] if ordno[:2] == "20" and len(ordno) >= 8 else "")
         return {
             "_shipkey": ("eleven11", _g11(od, "bndlDlvSeq") or _g11(od, "ordNo")),
+            # 송장 전송용 식별자 — 발송처리(/rest/ordservices/reqdelivery)의 대상 단위는
+            #   **배송번호(dlvNo)** 다(주문번호로 대체 불가). 부분발송용 ordPrdSeq 도 함께 보존.
+            "_send_ids": {"ord_no": ordno,
+                          "ord_prd_seq": str(_g11(od, "ordPrdSeq") or ""),
+                          "dlv_no": str(_g11(od, "dlvNo") or "")},
             "주문일": ord_dt,
             "판매처": "11번가",
             "상품명": _g11(od, "prdNm"),
@@ -823,6 +857,27 @@ _IDENTITY_KEYS = {
 }
 
 
+# 마켓별 '계정 동시 조회 수'. 스마트스토어는 계정 병렬 시 429 로 전멸한 전례가 있어 1(순차).
+#  나머지는 한도가 넉넉해 소폭 병렬 → 계정 수가 많은 마켓의 대기시간을 줄인다.
+_ACCOUNT_WORKERS = {
+    "smartstore": 1,
+    "coupang": 2,
+    "eleven11": 2,
+    "lotteon": 3,
+    "auction": 2,
+    "gmarket": 2,
+}
+
+
+def _ident_fingerprint(ident: str) -> str:
+    """자격증명 식별자의 지문(해시 앞 6자). 키 값 자체는 절대 노출하지 않는다.
+
+    같은 지문 = 같은 키/셀러번호. 사용자가 '어느 계정끼리 같은 키인지' 대조할 수 있다.
+    """
+    import hashlib
+    return hashlib.sha256(ident.encode("utf-8")).hexdigest()[:6]
+
+
 def _client_identity(market: str, cli) -> Optional[str]:
     """클라이언트가 가리키는 실제 셀러 식별자. 판정 불가면 None(중복 제거하지 않음).
 
@@ -892,21 +947,26 @@ def order_rows(market: str, days: int = 7, client=None,
     # ★ 같은 셀러를 가리키는 계정이 여러 개 등록돼 있으면 한 번만 조회한다.
     #   (판매처관리에 같은 마켓 셀러가 이름만 달리 두 번 등록된 사례 — 그대로 두면 같은 주문이
     #    2배로 계상돼 발송·정산이 배로 잡힌다. CLAUDE 🔒 중복·모순 절대 금지.)
-    seen_ident, uniq, dups = set(), [], []
+    seen_ident, uniq, dups = {}, [], []      # ident → 먼저 등록된 계정명
     for name, cli in built:
         ident = _client_identity(market, cli)
         if ident is not None and ident in seen_ident:
-            dups.append(name)
+            dups.append((name, seen_ident[ident], _ident_fingerprint(ident)))
             continue
         if ident is not None:
-            seen_ident.add(ident)
+            seen_ident[ident] = name
         uniq.append((name, cli))
     if dups:
-        _log.warning("중복 셀러 계정 제외: market=%s accounts=%s", market, dups)
+        _log.warning("동일 자격증명 계정 제외: market=%s accounts=%s",
+                     market, [d[0] for d in dups])
         if warnings is not None:
-            warnings.append(
-                f"[{market}] 같은 셀러 계정이 중복 등록돼 있어 한 번만 조회했어요: "
-                + ", ".join(dups))
+            # 원인을 '같은 키가 입력됨'으로 명확히 말한다(주문이 같아 접은 경우와 구분).
+            #  키 지문 = 자격증명 해시 앞 6자 — 키 값을 노출하지 않으면서 어느 계정끼리 같은
+            #  키인지 사용자가 대조할 수 있게 한다.
+            for name, first, fp in dups:
+                warnings.append(
+                    f"[{market}·{name}] 「{first}」와 API 키(셀러 식별자)가 같아 조회에서 "
+                    f"제외했어요 — 키 지문 {fp}. 다른 가게라면 그 가게의 키를 다시 입력하세요.")
     built = uniq
 
     if not built:                               # 등록 0개/전부 키 없음 → 대표 계정 폴백
@@ -914,17 +974,63 @@ def order_rows(market: str, days: int = 7, client=None,
     if len(built) == 1:
         return _rows_for(built[0][1], built[0][0])
 
-    # ★ 계정은 '순차' 조회한다(병렬 금지). 마켓 API 레이트리밋은 서버 IP 기준이라, 같은 마켓의
-    #   계정을 병렬로 때리면 초당 요청이 계정 수만큼 곱해져 429 가 난다(스스 5계정 병렬 → 전멸).
-    #   마켓 간 병렬(_fetch_combined)은 그대로 → 동시 요청 수는 다계정 도입 이전과 동일.
+    # ★ 계정 간 '주문 단위' 중복 제거 (최후 방어선).
+    #   같은 스토어를 API 앱만 달리해 여러 계정으로 등록하면 자격증명(client_id 등)이 서로 달라
+    #   _client_identity 로는 못 잡는다(스스 5계정이 같은 스토어인 실제 사례). 그러나 마켓
+    #   주문번호는 그 마켓 안에서 유일하므로, 다른 계정이 같은 주문을 또 주면 같은 주문이다.
+    #   → 앞선 계정에서 이미 본 행은 버린다(주문 2배 계상 = 발송·정산 2배 방지).
+    def _row_key(r):
+        return (str(r.get("오픈마켓주문번호", "")), str(r.get("상품명", "")),
+                str(r.get("옵션", "")))
+
+    # ── 계정 조회 (속도) ──
+    #  스마트스토어는 계정을 병렬로 때리면 429(어댑티브 리미터·IP 기준)로 전멸한 전례가 있어
+    #  반드시 순차. 나머지 마켓은 한도가 넉넉해 소폭 병렬로 대기시간을 줄인다.
+    #  ★병합은 항상 '등록 순서'로 한다 — 중복 판정(어느 계정을 남길지)이 실행마다 달라지면 안 됨.
+    workers = min(_ACCOUNT_WORKERS.get(market, 1), len(built))
+    fetched = [None] * len(built)               # i → rows(list) | Exception
+    if workers > 1:
+        with _ThreadPool(max_workers=workers) as ex:
+            futs = {ex.submit(_rows_for, cli, name): i
+                    for i, (name, cli) in enumerate(built)}
+            for fut, i in futs.items():
+                try:
+                    fetched[i] = fut.result()
+                except Exception as e:          # noqa: BLE001
+                    fetched[i] = e
+    else:
+        for i, (name, cli) in enumerate(built):
+            try:
+                fetched[i] = _rows_for(cli, name)
+            except Exception as e:              # noqa: BLE001
+                fetched[i] = e
+
     out, errors, ok_cnt = [], [], 0
-    for name, cli in built:
-        try:
-            out += _rows_for(cli, name)
-            ok_cnt += 1
-        except Exception as e:                  # noqa: BLE001 — 어느 계정인지 표면화
+    seen_rows, same_store = set(), []           # seen_rows = '앞선 계정들'이 이미 준 주문
+    for i, (name, cli) in enumerate(built):
+        rs = fetched[i]
+        if isinstance(rs, Exception):           # 어느 계정인지 표면화
             errors.append(RuntimeError(
-                f"[{market}·{name}] 주문 조회 실패: {type(e).__name__}: {e}"))
+                f"[{market}·{name}] 주문 조회 실패: {type(rs).__name__}: {rs}"))
+            continue
+        ok_cnt += 1
+        # 계정 '사이'의 중복만 제거한다. 한 계정이 준 행끼리는 그대로 둔다
+        # (같은 주문의 여러 옵션행 등 정상 데이터를 지우지 않기 위해).
+        fresh = [r for r in rs if _row_key(r) not in seen_rows]
+        if rs and not fresh:                    # 이 계정 주문이 전부 앞 계정과 동일 = 같은 스토어
+            same_store.append(name)
+        out += fresh
+        seen_rows.update(_row_key(r) for r in rs)
+
+    if same_store:
+        _log.warning("주문 전부 동일한 계정(같은 스토어로 보임): market=%s accounts=%s",
+                     market, same_store)
+        if warnings is not None:
+            # 키는 서로 다른데 주문이 완전히 같은 경우 — '같은 키' 경고와 원인이 다르다.
+            warnings.append(
+                f"[{market}] 앞 계정과 주문이 완전히 같아 한 번만 반영했어요"
+                f"(같은 스토어로 보임): " + ", ".join(same_store))
+
     if errors and (ok_cnt == 0 or warnings is None):
         # 전부 실패(보여줄 게 없음) 또는 경고 채널 없음(엑셀) → 전파. 불완전 결과 숨김 금지.
         raise errors[0]
@@ -1022,12 +1128,19 @@ def _finalize_rows(rows: list) -> list:
             r["수수료율"] = ""
         # 정산예정금(배송비포함) = 정산예정금액 + 고객배송비(무료배송이면 동일)
         r["정산예정금(배송비포함)"] = (settle + ship) if settle is not None else ""
-        # 새 열 기본값 보장(빌더 미설정 시): 송장 없으면 '송장미입력'.
+        # 새 열 기본값 보장(빌더 미설정 시).
         r.setdefault("실결제금액", "")
         r.setdefault("옵션추가금", "")
         r.setdefault("오픈마켓주문번호", "")
         r.setdefault("쇼핑몰별칭", "")
-        r["송장입력"] = r.get("송장입력") or "송장미입력"
+        # 송장 없음의 두 의미를 구분(정직성): 발송 전이면 '송장미입력'(넣어야 함),
+        #   이미 발송된 주문인데 비어 있으면 '확인 불가'(발송은 됐으나 마켓이 번호를 안 줌).
+        #   11번가는 구매확정 주문의 invcNo 를 API로 제공하지 않아, 여기서 '미입력'으로 두면
+        #   발송 안 한 것처럼 오해된다(2026-07-10 확인).
+        if not str(r.get("송장입력") or "").strip():
+            r["송장입력"] = ("확인 불가"
+                             if str(r.get("주문상태") or "").strip() in _SHIPPED_STATES
+                             else "송장미입력")
         r.setdefault("_settle_source", "none")
     return rows
 

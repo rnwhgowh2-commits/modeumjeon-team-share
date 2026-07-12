@@ -7,7 +7,7 @@
 가격 먼저, 성공 시 재고 (쿠팡·롯데온 어댑터와 동일 순서). 어느 단계든 실패면 즉시 실패 반환.
 
 ⚠️ 실 전송 경로(prices/inventory)는 셀러 REST 스펙 미확보로 NotImplementedError 를 던진다.
-   실전송은 LEMOUTON_LIVE_UPLOAD OFF(기본)라 정상 흐름에선 호출되지 않고, 만약 켜서
+   실전송은 MOUM_LIVE_UPLOAD OFF(기본)라 정상 흐름에선 호출되지 않고, 만약 켜서
    호출되면 '스펙 미확보'가 실패로 명시 표면화된다(추측 전송으로 금전 손실 방지).
    테스트·드라이런은 MockEleven11Adapter / DryRunAdapter 를 사용.
 """

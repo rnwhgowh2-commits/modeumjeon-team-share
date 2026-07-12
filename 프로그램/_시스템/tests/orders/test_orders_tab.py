@@ -40,7 +40,7 @@ def _client():
 
 
 def test_extra_gate_default_off(monkeypatch):
-    monkeypatch.delenv("LEMOUTON_MARKET_EXTRA", raising=False)
+    monkeypatch.delenv("MOUM_MARKET_EXTRA", raising=False)
     assert cap.market_extra_enabled() is False
 
 

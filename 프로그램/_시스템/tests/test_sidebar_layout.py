@@ -44,7 +44,9 @@ def test_default_contains_all_visible_items():
         # 'source_registry'(사전)·'dlq'(업로드 실패함)는 2026-06-30 default 에서 제거(통합·요청).
         'sourcing_guide', 'accounts_upload',
         'track',
+        # 주문 메뉴 4탭(주문·정산·CS·신규등록) — orders_cs·orders_register 추가분 반영.
         'templates', 'orders_list', 'orders_sales', 'orders_margin',
+        'orders_cs', 'orders_register',
         'trash', 'alerts',
     }
     assert keys == expected

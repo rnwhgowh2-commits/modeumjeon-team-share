@@ -55,9 +55,9 @@ def sanity_check(site: str, sale_price: int, tier2_expected: int,
 # ════════════════════════════════════════════
 #  르무통 공홈 (lemouton.co.kr)
 # ════════════════════════════════════════════
-LEMOUTON_NAVER_PAY_RATE = 0.01      # 네이버페이 결제 시 1% 적립
-LEMOUTON_REVIEW_REWARD = 5000        # 리뷰 작성 시 5,000원 적립 (고정)
-LEMOUTON_HYUNDAI_CARD_RATE = 0.0273  # 현대카드 결제 시 2.73% 캐시백
+MOUM_NAVER_PAY_RATE = 0.01      # 네이버페이 결제 시 1% 적립
+MOUM_REVIEW_REWARD = 5000        # 리뷰 작성 시 5,000원 적립 (고정)
+MOUM_HYUNDAI_CARD_RATE = 0.0273  # 현대카드 결제 시 2.73% 캐시백
 
 
 def apply_lemouton_policy(sale_price: int) -> dict:
@@ -66,11 +66,11 @@ def apply_lemouton_policy(sale_price: int) -> dict:
     sale_price → -1% (네이버페이) → -5,000 (리뷰) → -2.73% (현대카드)
     """
     base1 = max(sale_price, 0)
-    naver_pay = int(base1 * LEMOUTON_NAVER_PAY_RATE)
+    naver_pay = int(base1 * MOUM_NAVER_PAY_RATE)
     base2 = max(base1 - naver_pay, 0)
-    review = LEMOUTON_REVIEW_REWARD if base2 > LEMOUTON_REVIEW_REWARD else 0
+    review = MOUM_REVIEW_REWARD if base2 > MOUM_REVIEW_REWARD else 0
     base3 = max(base2 - review, 0)
-    card_cb = int(base3 * LEMOUTON_HYUNDAI_CARD_RATE)
+    card_cb = int(base3 * MOUM_HYUNDAI_CARD_RATE)
     tier2 = max(base3 - card_cb, 0)
 
     sanity_check("lemouton", sale_price, tier2)
@@ -79,10 +79,10 @@ def apply_lemouton_policy(sale_price: int) -> dict:
         "tier2_expected": tier2,
         "breakdown": {
             "sale_price": sale_price,
-            "naver_pay_reward_rate": LEMOUTON_NAVER_PAY_RATE,
+            "naver_pay_reward_rate": MOUM_NAVER_PAY_RATE,
             "naver_pay_reward_amount": naver_pay,
             "review_reward": review,
-            "hyundai_card_rate": LEMOUTON_HYUNDAI_CARD_RATE,
+            "hyundai_card_rate": MOUM_HYUNDAI_CARD_RATE,
             "hyundai_card_amount": card_cb,
             "base1_after_naver": base1 - naver_pay,
             "base2_after_review": base2 - review,

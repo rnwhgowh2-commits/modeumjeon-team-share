@@ -53,6 +53,18 @@
     .o7 .state{padding:34px;text-align:center;color:var(--sub);font-size:13px;background:#fff;border:1px solid var(--line2);border-radius:12px;line-height:1.7;}
     .o7 .muted{color:var(--faint);}
     .o7 .acct{font-size:11.5px;color:var(--sub);white-space:nowrap;}
+    /* 송장 칸 — 옆 「계정」 칸과 글자 크기를 맞춘다(표 기본 12.5px 를 물려받아 혼자 커 보였음).
+       실제 송장번호는 자릿수가 세로로 가지런하도록 고정폭 글꼴. */
+    .o7 .inv-empty{font-size:11.5px;color:var(--faint);white-space:nowrap;}
+    .o7 td .mono{font-family:ui-monospace,Consolas,monospace;font-size:11.5px;color:var(--sub);
+                 font-variant-numeric:tabular-nums;white-space:nowrap;}
+    .o7 .inv-ok,.o7 .inv-no{font-size:11.5px;}
+    /* 마켓별 도착 진행 표시(주루룩 나열) */
+    .o7 .loadbar{display:none;margin:8px 0 0;font-size:12px;color:var(--sub);}
+    .o7 .loadbar.on{display:block;}
+    .o7 .loadbar .dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--blue);
+                      margin-right:6px;animation:o7pulse .9s ease-in-out infinite;}
+    @keyframes o7pulse{0%,100%{opacity:.25}50%{opacity:1}}
     /* 제외된 계정 경고 — 빠진 계정을 숨기지 않고 명시(조용한 실패 금지) */
     .o7 .warnbar{display:none;margin-top:10px;background:#FEF2F2;border:1px solid #FCA5A5;border-radius:10px;padding:10px 12px;font-size:12px;color:#991B1B;}
     .o7 .warnbar.on{display:block;}
@@ -137,6 +149,59 @@
     .o7 .prow .ic{border:none;background:#F2F4F6;width:24px;height:24px;border-radius:6px;font-size:12px;color:var(--sub);cursor:pointer;}
     .o7 .prow .ic.del:hover{background:#FDECEC;color:var(--red);}
     .o7 .padd{width:100%;border:1px dashed var(--blue);background:#EEF4FF;color:var(--blue);border-radius:8px;padding:8px;font-size:12.5px;font-weight:700;cursor:pointer;}
+    /* 송장 전송 — 표 위 툴바 + 행 색 구분(엑셀=노랑 / 직접=파랑 / 모순·실패=빨강 / 전송=초록) */
+    /* 툴바는 왼쪽 고정: 표를 옆으로 스크롤해도 화면 왼쪽에 붙어 버튼이 항상 보인다. */
+    .o7 .ibar{display:flex;align-items:center;justify-content:flex-start;gap:10px;flex-wrap:wrap;
+      margin-top:10px;background:#fff;border:1px solid var(--line2);border-radius:10px;padding:9px 12px;font-size:12.5px;
+      position:sticky;left:0;width:max-content;max-width:100%;z-index:5;}
+    .o7 .ibar .il b{color:var(--ink);} .o7 .ibar .ir{display:flex;gap:6px;}
+    /* 표 전체가 드롭존 — 파일을 표 위로 끌면 오버레이가 뜬다 */
+    .o7 .droprel{position:relative;}
+    .o7 .dropov{position:absolute;inset:0;background:rgba(49,130,246,.10);border:2px dashed var(--blue);
+      border-radius:12px;display:flex;align-items:center;justify-content:center;z-index:9;}
+    .o7 .dropov[hidden]{display:none;}
+    .o7 .dropov .in{background:#fff;border:1px solid var(--blue);border-radius:12px;padding:16px 24px;text-align:center;
+      box-shadow:0 6px 18px rgba(0,0,0,.10);}
+    .o7 .dropov .ic{font-size:26px;} .o7 .dropov .t{font-weight:700;font-size:13.5px;margin-top:4px;}
+    .o7 .dropov .d{font-size:12px;color:var(--sub);}
+    .o7 .ibar .tag{border-radius:99px;padding:1px 7px;font-size:11px;font-weight:700;margin-left:4px;}
+    .o7 .ibar .tag.xl{background:#FFF8DB;color:#94670A;} .o7 .ibar .tag.bad{background:#FDECEC;color:var(--red);}
+    .o7 .ibar .gbtn{white-space:nowrap;}   /* 「엑셀 업로드」가 두 줄로 접히지 않게 */
+    .o7 .ibar .gbtn[disabled]{opacity:.45;cursor:not-allowed;}
+    .o7 .ibar .gbtn.prim{background:var(--blue);border-color:var(--blue);color:#fff;}
+    .o7 .ihint{font-size:11.5px;color:var(--sub);margin:6px 2px 0;}
+    .o7 th.invck,.o7 td.invck{width:30px;text-align:center;}
+    .o7 .invedit{display:inline-flex;gap:5px;align-items:center;}
+    .o7 .inv-cr{border:1px solid var(--line2);border-radius:6px;padding:2px 4px;font-size:11px;background:#fff;}
+    .o7 .inv-no-in{border:1px solid var(--line2);border-radius:6px;padding:3px 6px;font-size:11px;width:110px;
+      font-family:ui-monospace,Consolas,monospace;}
+    .o7 .inv-ok{color:#0CA678;font-weight:700;font-family:ui-monospace,Consolas,monospace;}
+    .o7 .inv-no{color:var(--red);font-weight:700;cursor:help;}
+    .o7 .inv-no s{color:var(--faint);font-weight:400;}   /* 마켓≠입력 시 입력값은 취소선 */
+    .o7 .inv-wait{color:var(--faint);font-weight:400;font-family:inherit;}
+    .o7 tr.r-xl td{background:#FFFBEB;} .o7 tr.r-hand td{background:#F3F8FF;}
+    .o7 tr.r-bad td{background:#FEF2F2;} .o7 tr.r-sent td{background:#F0FDF4;}
+    /* 배송검사 통합 — 더망고 카드·배송방식 토글칩·검사 막대 */
+    .o7 .mango-card{background:#fff;border:1px solid var(--line2);border-radius:12px;padding:13px 15px;margin-bottom:13px;}
+    .o7 .mango-card .mc-t{font-size:13.5px;font-weight:800;margin-bottom:9px;}
+    .o7 .mango-card .mc-sub{font-size:11px;font-weight:500;color:var(--sub);margin-left:6px;}
+    .o7 .mc-dz{display:flex;align-items:center;justify-content:center;gap:9px;border:2px dashed var(--line2);border-radius:10px;padding:13px;cursor:pointer;background:#fff;}
+    .o7 .mc-dz:hover{border-color:var(--blue);}
+    .o7 .mc-dz .ic{font-size:20px;} .o7 .mc-dz .t{font-weight:700;font-size:12.5px;} .o7 .mc-dz .fn{font-size:11.5px;color:var(--sub);}
+    .o7 .mc-row{display:flex;align-items:center;gap:7px;margin-top:11px;flex-wrap:wrap;}
+    .o7 .mc-rc{border:1px solid var(--line2);border-radius:8px;padding:6px 12px;font-size:12px;font-weight:700;color:var(--sub);cursor:pointer;}
+    .o7 .mc-rc.on{border-color:var(--blue);background:#EEF4FF;color:var(--blue);}
+    .o7 .mc-msg{margin-top:9px;font-size:12.5px;}
+    .o7 .dm-chip{display:inline-flex;border:1px solid var(--line2);border-radius:999px;overflow:hidden;}
+    .o7 .dm-chip button{border:none;background:#fff;padding:3px 9px;font-size:10.5px;font-weight:700;color:var(--sub);cursor:pointer;}
+    .o7 .dm-chip button.onk{background:#FEF3E2;color:var(--amber);}
+    .o7 .dm-chip button.onj{background:#EEF4FF;color:var(--blue);}
+    .o7 #dmbars .dmbar{margin-bottom:8px;cursor:pointer;padding:2px;}
+    .o7 #dmbars .dt{display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px;}
+    .o7 #dmbars .dt b{font-variant-numeric:tabular-nums;}
+    .o7 #dmbars .dk{height:6px;background:var(--line);border-radius:99px;overflow:hidden;}
+    .o7 #dmbars .dk span{display:block;height:6px;border-radius:99px;}
+    .o7 .bd.red{background:#FEE2E2;color:var(--red);} .o7 .bd.green{background:#E7F6EC;color:var(--green);}
   </style>
   <div class="o7">
     <aside class="side">
@@ -150,6 +215,7 @@
           <input type="date" id="qfrom"><span class="qdash">~</span><input type="date" id="qto">
         </div>
       </div>
+      <div class="fg"><div class="fl">배송검사 · 눌러서 거르기</div><div id="dmbars"></div></div>
       <div class="fg"><div class="fl">검색 (상품·수령자)</div><input class="srch" id="srch" placeholder="검색어 입력"></div>
       <div class="fg"><div class="fl" style="line-height:1.5">💡 표의 <b>열 제목</b>을 누르면<br>값을 골라 거를 수 있어요(필터)</div></div>
       <div class="fg" style="margin-bottom:0">
@@ -160,11 +226,37 @@
       </div>
     </aside>
     <main class="main">
+      <div class="mango-card" id="mangoCard">
+        <div class="mc-t">📥 더망고 대조 업로드 <span class="mc-sub">오픈마켓주문번호로 매칭 → 배송방식·배송검사</span></div>
+        <label class="mc-dz" id="mangoDz">
+          <input type="file" id="mangoFile" accept=".xls,.htm,.html" style="display:none">
+          <span class="ic">📥</span><span class="t">더망고 엑셀 선택 · 끌어놓기</span><span class="fn" id="mangoFn"></span>
+        </label>
+        <div class="mc-row">
+          <div class="fl" style="margin:0 10px 0 0">전체 배송방식</div>
+          <label class="mc-rc on"><input type="radio" name="mgbulk" value="자동판정" checked hidden>자동판정</label>
+          <label class="mc-rc"><input type="radio" name="mgbulk" value="까대기" hidden>전부 까대기</label>
+          <label class="mc-rc"><input type="radio" name="mgbulk" value="직배" hidden>전부 직배</label>
+          <span style="margin-left:auto"></span>
+          <button class="gbtn" id="mgMapBtn" style="width:auto;margin:0">⚙ 구분자 매핑</button>
+          <button class="gbtn" id="mgUpBtn" style="width:auto;margin:0;background:var(--blue);border-color:var(--blue);color:#fff">업로드</button>
+        </div>
+        <div class="mc-msg" id="mangoMsg"></div>
+      </div>
       <div class="kpis" id="kpis"></div>
       <div class="mkline" id="mkline"></div>
       <div class="acctline" id="acctline"></div>
       <div class="warnbar" id="warnbar"></div>
-      <div id="tablewrap"><div class="state">주문을 불러오는 중…</div></div>
+      <div class="loadbar" id="loadbar"></div>
+      <div id="invbar"></div>
+      <input type="file" id="invfile" accept=".xlsx" style="display:none">
+      <div class="droprel" id="droprel">
+        <div id="tablewrap"><div class="state">주문을 불러오는 중…</div></div>
+        <div class="dropov" id="dropov" hidden>
+          <div class="in"><div class="ic">📄</div><div class="t">여기에 놓으세요</div>
+            <div class="d">「오픈마켓주문번호」·「운송장번호」 열이 있는 엑셀 (.xlsx)</div></div>
+        </div>
+      </div>
       <div style="font-size:11.5px;color:var(--sub);margin-top:10px">💡 표는 옆으로 스크롤하면 모든 열(주소 포함)이 보입니다. <b>전체 원본</b>은 「엑셀 내보내기」로도 받을 수 있어요.</div>
     </main>
   </div>
@@ -195,11 +287,24 @@
     var COLMETA={{ col_meta|tojson }};
     var MKLABEL={smartstore:'스마트스토어',lotteon:'롯데온',coupang:'쿠팡',eleven11:'11번가',auction:'옥션',gmarket:'G마켓'};
     var MKCLS={'스마트스토어':'ss','롯데온':'lo','쿠팡':'cp','11번가':'e11','옥션':'au','G마켓':'gm'};
+    // 송장 전송용 마켓 슬러그(서버 라우트가 쓰는 키). 라벨→슬러그.
+    var MKSLUG={'쿠팡':'coupang','스마트스토어':'smartstore','롯데온':'lotteon','11번가':'eleven11','옥션':'auction','G마켓':'gmarket'};
+    // 현재 송장 전송 함수가 있는 마켓(그 외는 서버가 명시 실패). 화면에서도 미리 표시.
+    var SENDABLE={coupang:1, smartstore:1, lotteon:1, eleven11:1};
+    var COURIERS=['로젠택배','CJ대한통운','롯데택배','한진택배','우체국택배'];
+    // 송장 편집 상태 — key = 판매처|오픈마켓주문번호
+    var invSel={},            // 선택된 행 (체크박스)
+        invMap={},            // key → {courier, invoice_no, src:'xl'|'hand'}
+        invBad={},            // key → 사유 (모순 등, 전송 제외)
+        invResult={};         // key → {success, dry_run, error}
+    function invKey(r){return String(r['판매처']||'')+'|'+String(r['오픈마켓주문번호']||'');}
+    function invSlug(r){return MKSLUG[r['판매처']]||'';}
     // 화면 패널 컬럼(사용자 지정 순서, 2026-07-08 샵마인 대조). t=화면 라벨(없으면 c).
     // 정렬: 숫자·금액 우측(num) / 배지·상태 가운데(ctr) / 나머지 좌측(txt).
     var PANEL_COLS=[
       {c:'주문일',a:'txt'},{c:'주문상태',a:'ctr'},{c:'판매처',a:'ctr'},
       {c:'쇼핑몰별칭',a:'txt',t:'계정'},{c:'송장입력',a:'ctr'},
+      {c:'배송방식',a:'ctr'},{c:'배송검사',a:'ctr'},
       {c:'상품명',a:'txt'},{c:'옵션',a:'txt'},{c:'수량',a:'num'},
       {c:'오픈마켓주문번호',a:'txt',t:'오픈마켓 주문번호'},
       {c:'단가',a:'num'},{c:'실결제금액',a:'num'},
@@ -301,6 +406,11 @@
       for(var col in colFilter){var ex=colFilter[col]&&colFilter[col].excluded;
         if(ex&&ex.size&&ex.has(filterKey(col,r)))return false;}   // 헤더 필터(제외값)
       if(srch){var s=srch.toLowerCase();if(((r['상품명']||'')+ (r['수령자']||'')).toLowerCase().indexOf(s)<0)return false;}
+      if(dmCheckFilter){var m=dmOf(r);   // 사이드바 배송검사 막대 필터
+        if(!m)return false;
+        if(dmCheckFilter==='dup'&&!m.dup)return false;
+        if(dmCheckFilter==='flow'&&!m.flow)return false;
+        if(dmCheckFilter==='unk'&&!m.unk)return false;}
       return true;});}
     function renderKPI(fr){
       var wait=fr.filter(function(r){return WAIT.test(r['주문상태']||'');}).length;
@@ -350,13 +460,16 @@
     }
     function warnKind(w){
       w=String(w);
-      if(/중복 등록/.test(w))return 'dup';
+      // 원인이 다른 두 가지를 구분한다: 같은 키를 넣음(dupkey) vs 주문이 동일(dup)
+      if(/키\(셀러 식별자\)가 같아/.test(w))return 'dupkey';
+      if(/주문이 완전히 같아|중복 등록/.test(w))return 'dup';
       if(/API 키가 없어/.test(w))return 'nokey';
       if(/ip address|not allowed for this request|출발지 ?IP|IP ?미등록/i.test(w))return 'ip';
       if(/401|unauthorized/i.test(w))return 'auth';
       if(/HTTP 5\d\d/.test(w))return 'server';
       return 'etc';
     }
+    function isDupKind(w){var k=warnKind(w);return k==='dup'||k==='dupkey';}
     function warnText(w){
       var who=warnWho(w);
       switch(warnKind(w)){
@@ -368,14 +481,15 @@
       }
     }
     function dupText(w){
-      var names=(String(w).split(':')[1]||'').trim();
-      return warnWho(w)+' — 같은 셀러가 중복 등록돼 한 번만 조회했어요 (접은 계정: '+names+')';
+      // 서버가 이미 사용자용 문장으로 보낸다 — 마켓 코드만 한글로 바꿔 그대로 보여준다.
+      var body=String(w).replace(/^\[[^\]]+\]\s*/,'');
+      return warnWho(w)+' — '+body;
     }
     function renderWarn(ws){
       var el=document.getElementById('warnbar');
       if(!ws||!ws.length){el.classList.remove('on');el.classList.remove('info');el.innerHTML='';return;}
-      var dups=ws.filter(function(w){return warnKind(w)==='dup';});
-      var fails=ws.filter(function(w){return warnKind(w)!=='dup';});
+      var dups=ws.filter(isDupKind);
+      var fails=ws.filter(function(w){return !isDupKind(w);});
       var html='';
       if(fails.length){
         html+='<div class="wt">⚠️ 아래 계정 '+fails.length+'개는 주문을 불러오지 못해 표에서 빠져 있어요</div>'
@@ -417,41 +531,286 @@
     }
     function kpi(l,v){return '<div class="kpi"><div class="l">'+l+'</div><div class="v">'+v+'</div></div>';}
     function esc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+    // ── 배송검사(더망고 대조) 병합 — 오픈마켓주문번호 → {uid, method, dup, flow, unk} ──
+    var mangoMap={}, mangoSummary={dup:0,flow:0,unknown:0,total:0};
+    function dmOf(r){return mangoMap[String(r['오픈마켓주문번호']||'').trim()]||null;}
+    function dmMethodCell(r){
+      var m=dmOf(r); if(!m||!m.method)return '<span class="muted">—</span>';
+      return '<span class="dm-chip" data-uid="'+esc(m.uid)+'">'
+        +'<button class="'+(m.method==='까대기'?'onk':'')+'" data-m="까대기">까대기</button>'
+        +'<button class="'+(m.method==='직배'?'onj':'')+'" data-m="직배">직배</button></span>';
+    }
+    function dmCheckCell(r){
+      var m=dmOf(r); if(!m)return '<span class="muted">—</span>';
+      if(m.dup)return '<span class="bd red" title="더망고는 해외현지배송중인데 마켓엔 이미 송장">🔴 이중송장</span>';
+      if(m.flow)return '<span class="bd amber" title="송장 넣고 24h 배송중 안 됨">🟡 정체</span>';
+      if(m.unk)return '<span class="bd gray" title="마켓 조회 실패(서버 IP 미등록 등)">⚪ 확인불가</span>';
+      return '<span class="bd green">🟢 정상</span>';
+    }
+    var dmCheckFilter=null;   // 'dup'|'flow'|'unk'|null — 사이드바 막대 클릭
+    function loadMango(cb){
+      fetch('/orders/inspect/data',{cache:'no-store'}).then(function(r){return r.json();}).then(function(j){
+        mangoMap={};
+        (j.orders||[]).forEach(function(o){
+          var k=String(o.ord||'').trim(); if(!k)return;
+          mangoMap[k]={uid:o.uid,method:o.method,dup:!!o.dup,flow:!!o.flow_stalled,unk:!!o.unknown};
+        });
+        mangoSummary=j.summary||mangoSummary;
+        renderDmBars();
+        if(cb)cb(); else if(typeof render==='function')render();
+      }).catch(function(){if(cb)cb();});
+    }
+    function renderDmBars(){
+      var el=document.getElementById('dmbars'); if(!el)return;
+      var s=mangoSummary, tot=Math.max(1,s.total||1);
+      var ok=(s.total||0)-(s.dup||0)-(s.flow||0)-(s.unknown||0);
+      var defs=[['dup','🔴 이중송장','var(--red)',s.dup||0],['flow','🟡 배송흐름 정체','var(--amber)',s.flow||0],
+                ['unk','⚪ 확인불가','var(--faint)',s.unknown||0],['ok','🟢 정상','var(--green)',ok]];
+      el.innerHTML=defs.map(function(d){
+        var on=(dmCheckFilter===d[0])?' style="outline:2px solid '+d[2]+';outline-offset:1px;border-radius:6px"':'';
+        return '<div class="dmbar" data-f="'+d[0]+'"'+on+'><div class="dt"><span>'+d[1]+'</span><b style="color:'+d[2]+'">'+d[3]+'</b></div>'
+          +'<div class="dk"><span style="width:'+Math.min(100,Math.round(d[3]/tot*100))+'%;background:'+d[2]+'"></span></div></div>';
+      }).join('');
+      [].slice.call(el.querySelectorAll('.dmbar')).forEach(function(b){b.onclick=function(){
+        var f=b.getAttribute('data-f'); dmCheckFilter=(f==='ok'||dmCheckFilter===f)?null:f; render();};});
+    }
     function cellHTML(col,r){
       var v=r[col];
+      if(col==='배송방식')return dmMethodCell(r);
+      if(col==='배송검사')return dmCheckCell(r);
       if(col==='판매처')return '<span class="mk '+(MKCLS[v]||'gray')+'">'+esc(v||'')+'</span>';
       if(col==='주문상태'){var u=unifyStatus(v||'');var orig=String(v||'').trim()||'-';
         return '<span class="bd '+u.cls+'" title="원본 · '+esc(r['판매처']||'')+' : '+esc(orig)+'">'+esc(u.canon)+'</span>';}
       if(col==='쇼핑몰별칭'){var an=acctName(v);
         return an?'<span class="acct" title="'+esc(v||'')+'">'+esc(an)+'</span>':'<span class="muted">—</span>';}
+      if(col==='송장입력')return invCellHTML(r,v);
       if(col==='수량')return esc(v||'');
       if(MONEY_COLS[col])return (v!==''&&v!=null)?Number(num(v)).toLocaleString():'<span class="muted">—</span>';
       if((col==='배송메시지'||col==='수령자'||col==='구매자')&&!v)return '<span class="muted">—</span>';
       return esc(v||'');
     }
+    // 「송장입력」 칸 — 선택한 줄만 택배사·송장번호 입력이 살아난다(엑셀로 채운 줄은 값 표시).
+    function invCellHTML(r,v){
+      var k=invKey(r), res=invResult[k];
+      if(res){
+        if(!res.success) return '<span class="inv-no" title="'+esc(res.error||'')+'">✗ 실패</span>';
+        var typed=String((invMap[k]||{}).invoice_no||'').trim();
+        if(res.dry_run) return '<span class="inv-ok">미리보기 ✓ '+esc(typed)+'</span>';
+        // 실전송 성공 — 표시 숫자는 '마켓 재조회값'이 기준(입력값 아님).
+        var mkt=res.market_invoice_no==null?'':String(res.market_invoice_no).trim();
+        if(!mkt)  // 마켓이 아직 안 돌려줌 → 입력값을 보여주되 '확인 대기'로 표기(마켓값인 척 금지)
+          return '<span class="inv-ok" title="마켓에서 아직 송장을 확인하지 못했어요(전파 지연일 수 있음)">✓ 전송 '
+               + esc(typed)+' <span class="inv-wait">· 마켓확인대기</span></span>';
+        if(typed && mkt!==typed)  // 입력≠마켓 → 빨간 경고로 드러냄(오입력 즉시 포착)
+          return '<span class="inv-no" title="입력한 송장번호와 마켓 등록값이 달라요. 마켓 기준이 진짜입니다.">'
+               + '⚠ 마켓 '+esc(mkt)+' <s>입력 '+esc(typed)+'</s></span>';
+        return '<span class="inv-ok" title="마켓에 실제 등록된 송장번호(재조회 확인)">✓ 전송 '+esc(mkt)+'</span>';
+      }
+      if(invBad[k]) return '<span class="inv-no" title="'+esc(invBad[k])+'">모순 — 제외</span>';
+      if(!invSel[k]){
+        // 서버가 '없음'을 문자열 "송장미입력" 로 채워 보낸다 → 값이 아니라 '빈 상태'로 취급.
+        //  (그대로 두면 한글에 고정폭 글꼴이 붙어 옆 칸과 달라 보인다)
+        var s=String(v||'').trim();
+        if(!s || s==='송장미입력') return '<span class="inv-empty">송장미입력</span>';
+        if(s==='확인 불가')  // 발송은 됐으나 마켓이 송장번호를 안 줌(11번가 구매확정 등) — 미입력과 구분
+          return '<span class="inv-empty" title="발송된 주문이지만 마켓이 송장번호를 제공하지 않아 확인할 수 없어요(예: 11번가 구매확정). 발송 안 한 게 아닙니다.">확인 불가</span>';
+        return '<span class="mono">'+esc(s)+'</span>';
+      }
+      var cur=invMap[k]||{courier:COURIERS[0],invoice_no:''};
+      var opts=COURIERS.map(function(c){return '<option'+(c===cur.courier?' selected':'')+'>'+c+'</option>';}).join('');
+      return '<span class="invedit"><select class="inv-cr" data-k="'+esc(k)+'">'+opts+'</select>'
+           + '<input class="inv-no-in" data-k="'+esc(k)+'" placeholder="송장번호" value="'+esc(cur.invoice_no)+'"></span>';
+    }
+    function rowCls(r){
+      var k=invKey(r);
+      if(invBad[k])return ' r-bad';
+      if(invResult[k])return invResult[k].success?' r-sent':' r-bad';
+      if(!invSel[k])return '';
+      return (invMap[k]&&invMap[k].src==='xl')?' r-xl':' r-hand';
+    }
     function renderTable(fr){
-      if(!fr.length){document.getElementById('tablewrap').innerHTML='<div class="state">조건에 맞는 주문이 없어요.</div>';return;}
-      var head='<tr>'+PANEL_COLS.map(function(pc){
+      if(!fr.length){
+        // 아직 불러오는 중이면 '없어요'가 아니라 '불러오는 중'(거짓 표시 방지)
+        document.getElementById('tablewrap').innerHTML= loading
+          ? '<div class="state">주문을 불러오는 중… ('+loadDone+'/'+loadTotal+' 판매처)</div>'
+          : '<div class="state">조건에 맞는 주문이 없어요.</div>';
+        renderInvBar(fr);return;}
+      var head='<tr><th class="ctr invck"><input type="checkbox" id="inv-all"></th>'+PANEL_COLS.map(function(pc){
         var active=colFilter[pc.c]&&colFilter[pc.c].excluded&&colFilter[pc.c].excluded.size;
         return '<th class="fcol '+pc.a+(active?' filtered':'')+'" data-col="'+pc.c+'">'+(pc.t||pc.c)+'<span class="fic">▼</span></th>';
       }).join('')+'</tr>';
-      var body=fr.map(function(r){return '<tr>'+PANEL_COLS.map(function(pc){
-        return '<td class="'+(pc.a==='num'?'num':(pc.a==='ctr'?'ctr':''))+'">'+cellHTML(pc.c,r)+'</td>';
-      }).join('')+'</tr>';}).join('');
+      var body=fr.map(function(r){
+        var k=invKey(r), send=SENDABLE[invSlug(r)];
+        var ck='<td class="ctr invck"><input type="checkbox" class="inv-ck" data-k="'+esc(k)+'"'
+              +(invSel[k]?' checked':'')+(send?'':' disabled title="이 마켓은 아직 송장 전송을 지원하지 않아요"')+'></td>';
+        return '<tr class="'+rowCls(r).trim()+'">'+ck+PANEL_COLS.map(function(pc){
+          return '<td class="'+(pc.a==='num'?'num':(pc.a==='ctr'?'ctr':''))+'">'+cellHTML(pc.c,r)+'</td>';
+        }).join('')+'</tr>';}).join('');
       document.getElementById('tablewrap').innerHTML='<table>'+head+body+'</table>';
       [].slice.call(document.querySelectorAll('#tablewrap th.fcol')).forEach(function(th){
         th.addEventListener('click',function(e){openColPop(th.getAttribute('data-col'),th);e.stopPropagation();});});
+      bindInvCells(fr);
+      renderInvBar(fr);
+    }
+    // ── 송장: 셀 이벤트 · 툴바 · 업로드 · 전송 ────────────────────────
+    function bindInvCells(fr){
+      var wrap=document.getElementById('tablewrap');
+      var all=document.getElementById('inv-all');
+      if(all) all.addEventListener('change',function(){
+        fr.forEach(function(r){ if(!SENDABLE[invSlug(r)])return; var k=invKey(r);
+          if(all.checked){invSel[k]=1; if(!invMap[k])invMap[k]={courier:COURIERS[0],invoice_no:'',src:'hand'};}
+          else delete invSel[k]; });
+        render();
+      });
+      [].slice.call(wrap.querySelectorAll('.inv-ck')).forEach(function(cb){
+        cb.addEventListener('change',function(){var k=cb.getAttribute('data-k');
+          if(cb.checked){invSel[k]=1; if(!invMap[k])invMap[k]={courier:COURIERS[0],invoice_no:'',src:'hand'};}
+          else delete invSel[k];
+          render();});
+      });
+      [].slice.call(wrap.querySelectorAll('.inv-cr')).forEach(function(s){
+        s.addEventListener('change',function(){var k=s.getAttribute('data-k');
+          (invMap[k]=invMap[k]||{}).courier=s.value; renderInvBar(filtered());});
+      });
+      [].slice.call(wrap.querySelectorAll('.inv-no-in')).forEach(function(i){
+        i.addEventListener('input',function(){var k=i.getAttribute('data-k');
+          var m=(invMap[k]=invMap[k]||{}); m.invoice_no=i.value.trim(); if(!m.src)m.src='hand';
+          renderInvBar(filtered());});
+      });
+    }
+    function invReady(fr){   // 전송 가능한 행 = 선택 + 송장번호 있음 + 모순 아님 + 지원 마켓
+      return fr.filter(function(r){var k=invKey(r);
+        return invSel[k] && !invBad[k] && SENDABLE[invSlug(r)] && (invMap[k]||{}).invoice_no;});
+    }
+    function renderInvBar(fr){
+      var ready=invReady(fr), nSel=fr.filter(function(r){return invSel[invKey(r)];}).length;
+      var nBad=fr.filter(function(r){return invBad[invKey(r)];}).length;
+      var nXl=ready.filter(function(r){return (invMap[invKey(r)]||{}).src==='xl';}).length;
+      document.getElementById('invbar').innerHTML=
+        '<div class="ibar"><span class="il">송장 전송 · 선택 <b>'+nSel+'</b>건 · 보낼 수 있음 <b>'+ready.length+'</b>건'
+        +(nXl?' <span class="tag xl">엑셀 '+nXl+'</span>':'')
+        +(nBad?' <span class="tag bad">모순 '+nBad+'</span>':'')+'</span>'
+        +'<span class="ir"><button type="button" class="gbtn" id="invup">📄 엑셀 업로드</button>'
+        +'<button type="button" class="gbtn" id="invclear">선택 해제</button>'
+        +'<button type="button" class="gbtn prim" id="invsend"'+(ready.length?'':' disabled')+'>전송 ('+ready.length+'건)</button></span></div>'
+        +'<div class="ihint">엑셀은 「오픈마켓주문번호」와 「운송장번호」 열이 필요해요. '
+        +'<b>엑셀 파일을 표 위로 끌어다 놓아도</b> 됩니다. 직접 넣으려면 왼쪽 체크박스를 켜세요. '
+        +'「전송」을 누르면 <b>확인창</b>이 뜹니다 — 되돌리기 어려우니 표를 먼저 확인하세요.</div>';
+      document.getElementById('invup').onclick=function(){document.getElementById('invfile').click();};
+      document.getElementById('invclear').onclick=function(){invSel={};invMap={};invBad={};invResult={};render();};
+      document.getElementById('invsend').onclick=function(){
+        // 「미리보기」 버튼을 없앴으므로 이 확인창이 화면상 마지막 방어선이다(서버 전역 스위치가 그 다음).
+        var n=invReady(filtered()).length;
+        if(confirm('송장 '+n+'건을 실제 마켓으로 전송합니다.\n\n'
+                 + '· 되돌리기 어렵습니다(고객 배송조회에 바로 반영).\n'
+                 + '· 표의 택배사·송장번호가 맞는지 확인하셨나요?\n\n'
+                 + '진행할까요?')) invSend(true);
+      };
+    }
+    // 엑셀 업로드 — 「엑셀 업로드」 버튼 클릭 또는 표 위로 드래그앤드롭, 둘 다 이 함수로 들어온다.
+    function uploadInvoiceFile(f){
+      if(!f)return;
+      if(!/\.xlsx$/i.test(f.name)){alert('엑셀(.xlsx) 파일만 올릴 수 있어요.');return;}
+      var fr=filtered();
+      var fd=new FormData(); fd.append('file',f);
+      fd.append('order_nos', fr.map(function(r){return r['오픈마켓주문번호']||'';}).filter(Boolean).join(','));
+      fetch('/orders/invoice/upload',{method:'POST',body:fd}).then(function(r){return r.json();}).then(function(j){
+        if(!j.ok){alert('엑셀 오류: '+(j.error||''));return;}
+        invBad={}; invResult={};
+        var conf={}; (j.conflicts||[]).forEach(function(o){conf[o]=1;});
+        fr.forEach(function(r){
+          var ono=r['오픈마켓주문번호']||'', k=invKey(r);
+          if(conf[ono]){invBad[k]='같은 주문에 서로 다른 송장번호가 올라왔어요'; delete invSel[k]; return;}
+          var m=(j.matched||{})[ono];
+          if(m && SENDABLE[invSlug(r)]){invSel[k]=1; invMap[k]={courier:m.courier||COURIERS[0], invoice_no:m.invoice_no, src:'xl'};}
+        });
+        var msg='엑셀 '+(j.read||0)+'줄 읽음 · 채움 '+Object.keys(j.matched||{}).length+'건';
+        if((j.unmatched||[]).length) msg+=' · 주문 못 찾음 '+j.unmatched.length+'건 ('+j.unmatched.slice(0,3).join(', ')+(j.unmatched.length>3?' …':'')+')';
+        if((j.conflicts||[]).length) msg+=' · 모순 '+j.conflicts.length+'건(전송 제외)';
+        render(); alert(msg);
+      }).catch(function(){alert('업로드 실패(네트워크)');});
+    }
+    document.getElementById('invfile').addEventListener('change',function(e){
+      uploadInvoiceFile(e.target.files[0]); e.target.value='';
+    });
+    // 표 전체가 드롭존 — 파일을 표 위 아무 데나 놓으면 업로드된다.
+    (function(){
+      var rel=document.getElementById('droprel'), ov=document.getElementById('dropov'), depth=0;
+      function hasFile(e){var t=(e.dataTransfer||{}).types||[];return [].indexOf.call(t,'Files')>=0;}
+      rel.addEventListener('dragenter',function(e){if(!hasFile(e))return;e.preventDefault();depth++;ov.hidden=false;});
+      rel.addEventListener('dragover',function(e){if(!hasFile(e))return;e.preventDefault();e.dataTransfer.dropEffect='copy';ov.hidden=false;});
+      rel.addEventListener('dragleave',function(e){if(!hasFile(e))return;depth--;if(depth<=0){depth=0;ov.hidden=true;}});
+      rel.addEventListener('drop',function(e){
+        if(!hasFile(e))return;
+        e.preventDefault();depth=0;ov.hidden=true;
+        uploadInvoiceFile((e.dataTransfer.files||[])[0]);
+      });
+      // 표 밖에 떨어뜨렸을 때 브라우저가 그 파일을 열어버리는 것 방지(작업 내용 유실 방지)
+      ['dragover','drop'].forEach(function(t){
+        document.addEventListener(t,function(e){if(hasFile(e))e.preventDefault();});
+      });
+    })();
+    function invSend(live){
+      var fr=filtered(), ready=invReady(fr);
+      if(!ready.length)return;
+      var payload={live:!!live, rows:ready.map(function(r){var k=invKey(r),m=invMap[k];
+        return {market:invSlug(r), order_no:r['오픈마켓주문번호'], courier:m.courier,
+                invoice_no:m.invoice_no, alias:r['쇼핑몰별칭']||'', send_ids:r['_send_ids']||null,
+                status:r['주문상태']||''};})};   // 서버가 '이미 발송된 주문' 덮어쓰기를 막는 근거
+      fetch('/orders/invoice/send',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)})
+        .then(function(r){return r.json();}).then(function(j){
+          if(!j.ok){alert('전송 실패: '+(j.error||''));return;}
+          (j.results||[]).forEach(function(res){
+            fr.forEach(function(r){ if(invSlug(r)===res.market && String(r['오픈마켓주문번호'])===String(res.order_no))
+              invResult[invKey(r)]={success:res.success,dry_run:res.dry_run,error:res.error,
+                                    market_invoice_no:res.market_invoice_no}; });
+          });
+          render();
+          var head = j.live ? '실제 전송' : '미리보기(실제로 보내지 않음)';
+          if(live && !j.live) head='⚠︎ 실전송 스위치가 꺼져 있어 미리보기로 처리했습니다';
+          alert(head+' — 성공 '+j.sent+'건 / 실패 '+j.failed+'건'
+                +(j.failed?'\n\n실패 사유는 「송장입력」 칸에 마우스를 올리면 보입니다.':''));
+        }).catch(function(){alert('전송 실패(네트워크)');});
     }
     function render(){var fr=filtered();renderKPI(fr);renderTable(fr);syncBtn();}
+    // ── 마켓별로 따로 불러와, 도착하는 대로 표에 쌓는다(한 마켓이 느려도 나머지가 먼저 보임) ──
+    var loadSeq=0, loading=false, loadDone=0, loadTotal=0, warnAll=[];
+    function sortRows(){rows.sort(function(a,b){
+      return String(b['주문일']||'').localeCompare(String(a['주문일']||''));});}   // 최신 먼저
+    function renderLoadBar(){
+      var el=document.getElementById('loadbar');
+      if(!el)return;
+      if(loading){el.classList.add('on');
+        el.innerHTML='<span class="dot"></span>불러오는 중… <b>'+loadDone+'/'+loadTotal+'</b> 판매처 완료'
+          +' · 지금까지 <b>'+rows.length+'</b>건';
+      } else { el.classList.remove('on'); el.innerHTML=''; }
+    }
     function load(){
-      document.getElementById('tablewrap').innerHTML='<div class="state">주문을 불러오는 중…</div>';
       var mks=selMk();syncBtn();
-      if(!mks.length){rows=[];render();return;}
-      fetch('/orders/preview.json?markets='+encodeURIComponent(mks.join(','))+'&'+qparam(),{cache:'no-store'})
-        .then(function(r){return r.json();}).then(function(j){
-          if(!j.ok){document.getElementById('tablewrap').innerHTML='<div class="state">불러오기 실패: '+(j.error||'')+'</div>';rows=[];renderWarn([]);return;}
-          rows=j.rows||[];colFilter={};renderWarn(j.warnings||[]);render();
-        }).catch(function(e){document.getElementById('tablewrap').innerHTML='<div class="state">네트워크 오류</div>';});
+      var seq=++loadSeq;
+      rows=[];colFilter={};warnAll=[];loadDone=0;loadTotal=mks.length;
+      renderWarn([]);
+      if(!mks.length){loading=false;renderLoadBar();render();return;}
+      loading=true;renderLoadBar();
+      document.getElementById('tablewrap').innerHTML='<div class="state">주문을 불러오는 중…</div>';
+      mks.forEach(function(mk){
+        fetch('/orders/preview.json?market='+encodeURIComponent(mk)+'&'+qparam(),{cache:'no-store'})
+          .then(function(r){return r.json();})
+          .then(function(j){
+            if(seq!==loadSeq)return;                 // 새 조회가 시작됐으면 옛 응답 버림
+            loadDone++;
+            if(j.ok){ rows=rows.concat(j.rows||[]); (j.warnings||[]).forEach(function(w){warnAll.push(w);}); }
+            else { warnAll.push('['+mk+'] 주문 조회 실패: '+(j.error||'')); }
+            if(loadDone>=loadTotal)loading=false;
+            sortRows();renderWarn(warnAll);render();renderLoadBar();
+          })
+          .catch(function(){
+            if(seq!==loadSeq)return;
+            loadDone++; warnAll.push('['+mk+'] 네트워크 오류로 불러오지 못했어요.');
+            if(loadDone>=loadTotal)loading=false;
+            renderWarn(warnAll);render();renderLoadBar();
+          });
+      });
     }
     // 필터 이벤트
     var allck=document.getElementById('mk-all');
@@ -597,7 +956,33 @@
     }
     function closeColPop(){pop.classList.remove('on');}
     document.addEventListener('click',function(e){if(pop.classList.contains('on')&&!pop.contains(e.target)&&!e.target.closest('th.fcol'))closeColPop();});
+
+    // ── 배송검사 통합 배선 (더망고 업로드 · 배송방식 토글칩) ──
+    var mgFile=document.getElementById('mangoFile');
+    if(document.getElementById('mangoDz')){
+      document.getElementById('mangoDz').addEventListener('click',function(){mgFile.click();});
+      mgFile.addEventListener('change',function(){document.getElementById('mangoFn').textContent=mgFile.files[0]?mgFile.files[0].name:'';});
+      [].slice.call(document.querySelectorAll('input[name=mgbulk]')).forEach(function(rd){rd.addEventListener('change',function(){
+        [].slice.call(document.querySelectorAll('.mc-rc')).forEach(function(l){l.classList.toggle('on',l.querySelector('input').checked);});});});
+      document.getElementById('mgUpBtn').addEventListener('click',function(){
+        if(!mgFile.files[0]){document.getElementById('mangoMsg').innerHTML='<span style="color:var(--red)">파일을 선택하세요</span>';return;}
+        var fd=new FormData();fd.append('file',mgFile.files[0]);
+        fd.append('bulk_method',document.querySelector('input[name=mgbulk]:checked').value);
+        document.getElementById('mangoMsg').textContent='업로드·마켓 대조 중…';
+        fetch('/orders/inspect/upload',{method:'POST',body:fd}).then(function(r){return r.json();}).then(function(j){
+          if(j.ok){document.getElementById('mangoMsg').innerHTML='<span style="color:var(--green)">✔ '+j.parsed+'건 처리 · 마켓대조 '+(j.market_checked||0)+'건</span>';loadMango();}
+          else document.getElementById('mangoMsg').innerHTML='<span style="color:var(--red)">✖ '+esc(j.error||'')+'</span>';});});
+      document.getElementById('mgMapBtn').addEventListener('click',function(){window.open('/orders/?tab=inspect','_blank');});
+    }
+    // 배송방식 토글칩 클릭(표에 위임) → 수기 지정
+    document.getElementById('tablewrap').addEventListener('click',function(e){
+      var btn=e.target.closest('.dm-chip button'); if(!btn)return;
+      var uid=btn.parentElement.getAttribute('data-uid'), m=btn.getAttribute('data-m');
+      fetch('/orders/inspect/method',{method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({uid:uid,method:m})}).then(function(){loadMango();});});
+
     load();
+    loadMango();
   })();
   </script>
 
@@ -659,7 +1044,7 @@
   </style>
   <div class="ord5">
     {% if not live_enabled %}
-    <div class="banner">🔒 <b>안전 OFF · 연결됨(검증대기)</b> — 아래는 <b>레이아웃 미리보기(샘플)</b>입니다. 실제 마켓 데이터를 불러오려면 <b>실계정 API 키 연결 + 검증</b>이 필요합니다(<code>LEMOUTON_MARKET_EXTRA</code>). 작업 버튼은 검증 전까지 비활성입니다.</div>
+    <div class="banner">🔒 <b>안전 OFF · 연결됨(검증대기)</b> — 아래는 <b>레이아웃 미리보기(샘플)</b>입니다. 실제 마켓 데이터를 불러오려면 <b>실계정 API 키 연결 + 검증</b>이 필요합니다(<code>MOUM_MARKET_EXTRA</code>). 작업 버튼은 검증 전까지 비활성입니다.</div>
     {% endif %}
 
     {% if export_markets %}
@@ -781,6 +1166,177 @@
 
   {% elif tab == 'margin' %}
     {% include 'orders/_margin.html' %}
+  {% elif tab == 'inspect' %}
+  {# ══ 배송검사 — 더망고 업로드 · 중복송장 · 배송흐름 · 배송방식 (자체 스코프 .di) ══ #}
+  <style>
+    .di{--ink:#191F28;--sub:#8B95A1;--line:#E5E8EB;--line2:#F1F3F5;--bg:#F8FAFB;
+        --blue:#3182F6;--blued:#1B64DA;--bluel:#E8F2FF;--green:#16A34A;--greenb:#22C55E;
+        --amber:#B4690E;--red:#EF4444;--kkad:#FEF3E2;}
+    .di .card{background:#fff;border:1px solid var(--line);border-radius:12px;padding:18px;margin-bottom:16px;}
+    .di .ct{font-size:15px;font-weight:700;margin-bottom:12px;}
+    .di .dz{display:block;border:2px dashed var(--line);border-radius:12px;padding:24px;text-align:center;cursor:pointer;}
+    .di .dz:hover{border-color:var(--blue);background:#FbFCFF;}
+    .di .dz .ic{font-size:32px;} .di .dz .t{font-weight:600;margin-top:6px;} .di .dz .fn{font-size:12px;color:var(--sub);margin-top:4px;}
+    .di .fl{font-size:12px;font-weight:600;color:#4E5968;margin-bottom:6px;}
+    .di .rcs{display:flex;gap:8px;}
+    .di .rc{flex:1;border:1px solid var(--line);border-radius:8px;padding:10px 12px;cursor:pointer;display:flex;flex-direction:column;}
+    .di .rc.on{border-color:var(--blue);background:var(--bluel);}
+    .di .rc b{font-size:13px;} .di .rc span{font-size:11px;color:var(--sub);}
+    .di .btn{border:none;border-radius:8px;padding:9px 16px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;}
+    .di .btn.p{background:var(--blue);color:#fff;} .di .btn.s{background:#fff;border:1px solid var(--line);color:#4E5968;}
+    .di .msg{margin-top:10px;font-size:13px;}
+    .di .sums{display:flex;gap:12px;margin-bottom:14px;}
+    .di .st{background:#fff;border:1px solid var(--line);border-radius:12px;padding:14px 18px;min-width:130px;cursor:pointer;}
+    .di .st.on{box-shadow:0 0 0 2px var(--blue) inset;}
+    .di .st .n{font-size:22px;font-weight:700;font-variant-numeric:tabular-nums;} .di .st .l{font-size:11.5px;color:var(--sub);}
+    .di table{width:100%;border-collapse:collapse;font-size:12.5px;background:#fff;}
+    .di th{background:#F7F9FB;padding:9px 10px;font-size:11px;font-weight:700;color:var(--sub);text-align:left;border-bottom:1px solid var(--line);white-space:nowrap;}
+    .di td{padding:9px 10px;border-bottom:1px solid var(--line2);vertical-align:middle;}
+    .di th.c,.di td.c{text-align:center;}
+    .di .badge{display:inline-block;font-size:11px;font-weight:600;padding:3px 9px;border-radius:999px;}
+    .di .b-dup{background:rgba(239,68,68,.1);color:var(--red);}
+    .di .b-flow{background:rgba(245,158,11,.14);color:var(--amber);}
+    .di .b-ok{background:rgba(34,197,94,.12);color:var(--green);}
+    .di .mi{display:inline-flex;align-items:center;gap:5px;padding:4px 11px;border-radius:999px;font-size:12px;font-weight:600;cursor:pointer;border:1px solid var(--line);}
+    .di .mi.mi-k{background:var(--kkad);color:var(--amber);border-color:#F3D9B0;}
+    .di .mi.mi-j{background:var(--bluel);color:var(--blued);border-color:#C7DCFB;}
+    .di .mi.mi-n{background:#fff;color:var(--sub);}
+    .di .ov{position:fixed;inset:0;background:rgba(20,25,35,.5);z-index:200;display:none;align-items:center;justify-content:center;}
+    .di .ov.on{display:flex;}
+    .di .box{background:#fff;width:640px;max-width:92vw;border-radius:16px;overflow:hidden;box-shadow:0 20px 50px rgba(0,0,0,.3);}
+    .di .bh{padding:16px 20px;font-size:15px;font-weight:700;border-bottom:1px solid var(--line);display:flex;align-items:center;}
+    .di .bh .x{margin-left:auto;border:none;background:#F2F4F6;width:30px;height:30px;border-radius:8px;font-size:17px;cursor:pointer;color:#4E5968;}
+    .di .bb{padding:16px 20px;max-height:60vh;overflow:auto;} .di .bf{display:flex;gap:8px;justify-content:flex-end;padding:14px 20px;border-top:1px solid var(--line);}
+    .di select{font-family:inherit;font-size:12px;border:1px solid var(--line);border-radius:6px;padding:4px 8px;background:#fff;}
+    .di .state{padding:34px;text-align:center;color:var(--sub);font-size:13px;}
+  </style>
+  <div class="di">
+    <div class="card">
+      <div class="ct">더망고 주문내역 업로드</div>
+      <label class="dz" id="di-dz">
+        <input type="file" id="di-file" accept=".xls,.htm,.html" style="display:none">
+        <div class="ic">📥</div><div class="t">더망고 엑셀을 선택하거나 여기로 끌어놓기</div>
+        <div class="fn" id="di-fn"></div>
+      </label>
+      <div style="margin-top:14px">
+        <div class="fl">이번 업로드 전체 배송방식</div>
+        <div class="rcs">
+          <label class="rc on"><input type="radio" name="di-bulk" value="자동판정" checked hidden><b>자동판정</b><span>구분자 매핑대로</span></label>
+          <label class="rc"><input type="radio" name="di-bulk" value="까대기" hidden><b>전부 까대기</b><span>📦 사무실 경유</span></label>
+          <label class="rc"><input type="radio" name="di-bulk" value="직배" hidden><b>전부 직배</b><span>🚚 소싱처 직접</span></label>
+        </div>
+      </div>
+      <div style="margin-top:14px;text-align:right">
+        <button class="btn s" type="button" id="di-mapbtn">⚙ 구분자 매핑</button>
+        <button class="btn p" type="button" id="di-upbtn">업로드</button>
+      </div>
+      <div class="msg" id="di-msg"></div>
+    </div>
+
+    <div class="sums" id="di-sums"></div>
+
+    <div class="card" style="padding:0;overflow:hidden">
+      <div style="overflow-x:auto">
+        <table>
+          <thead><tr><th>마켓</th><th>수령인</th><th>상품</th><th class="c">송장번호</th>
+            <th class="c">배송방식</th><th class="c">검사</th><th>근거</th></tr></thead>
+          <tbody id="di-body"><tr><td colspan="7" class="state">더망고 엑셀을 업로드하세요</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div class="di"><div class="ov" id="di-mapov"><div class="box">
+    <div class="bh">⚙ 구분자 매핑 설정 <button class="x" type="button" id="di-mapx">×</button></div>
+    <div class="bb"><table><thead><tr><th>더망고주문상태(원본)</th><th class="c">의미</th>
+      <th class="c">기본 배송방식</th><th class="c">배송흐름 검사</th></tr></thead>
+      <tbody id="di-mapbody"></tbody></table></div>
+    <div class="bf"><button class="btn s" type="button" id="di-mapcancel">취소</button>
+      <button class="btn p" type="button" id="di-mapsave">저장</button></div>
+  </div></div></div>
+
+  <script>
+  (function(){
+    if(!document.getElementById('di-body')) return;
+    var $=function(s){return document.querySelector(s);};
+    var FILTER=null, DATA={orders:[],status_map:[],summary:{}};
+    var MEANS=['배송전','해외배송중','국내배송중','배송완료','취소반품교환','기타'];
+    var METHODS=['미지정','까대기','직배'];
+    function esc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+    var CYCLE=['미지정','까대기','직배'];
+    function methodCell(uid,m){
+      var ic=(m==='까대기')?'📦':(m==='직배')?'🚚':'⬜';
+      var cls=(m==='까대기')?'mi-k':(m==='직배')?'mi-j':'mi-n';
+      return '<span class="mi '+cls+'" data-uid="'+esc(uid)+'" data-m="'+esc(m)+'" '
+           + 'title="클릭하면 까대기 → 직배 → 미지정 순서로 바뀝니다">'+ic+' '+esc(m)+'</span>';
+    }
+    function flagBadge(r){return r.dup?'<span class="badge b-dup">중복송장</span>'
+      :r.flow_missing?'<span class="badge b-flow">배송흐름 없음</span>'
+      :'<span class="badge b-ok">정상</span>';}
+    function load(){fetch('/orders/inspect/data').then(function(r){return r.json();})
+      .then(function(j){DATA=j;renderSum();renderTable();});}
+    function renderSum(){var s=DATA.summary||{};var ok=(s.total||0)-(s.dup||0)-(s.flow||0);
+      $('#di-sums').innerHTML=
+        '<div class="st'+(FILTER==='dup'?' on':'')+'" data-f="dup" style="border-color:#EF4444"><div class="n" style="color:#EF4444">'+(s.dup||0)+'</div><div class="l">중복송장</div></div>'
+       +'<div class="st'+(FILTER==='flow'?' on':'')+'" data-f="flow" style="border-color:#F59E0B"><div class="n" style="color:#B4690E">'+(s.flow||0)+'</div><div class="l">배송흐름 없음</div></div>'
+       +'<div class="st'+(FILTER===''?' on':'')+'" data-f="" style="border-color:#22C55E"><div class="n" style="color:#16A34A">'+ok+'</div><div class="l">정상</div></div>';
+      [].slice.call(document.querySelectorAll('#di-sums .st')).forEach(function(c){
+        c.onclick=function(){FILTER=c.getAttribute('data-f')||null;renderSum();renderTable();};});}
+    function renderTable(){var rows=DATA.orders||[];
+      if(FILTER==='dup')rows=rows.filter(function(r){return r.dup;});
+      else if(FILTER==='flow')rows=rows.filter(function(r){return r.flow_missing;});
+      if(!rows.length){$('#di-body').innerHTML='<tr><td colspan="7" class="state">'
+        +(DATA.orders&&DATA.orders.length?'조건에 맞는 주문이 없어요.':'더망고 엑셀을 업로드하세요')+'</td></tr>';return;}
+      $('#di-body').innerHTML=rows.map(function(r){
+        var why=r.dup?'같은 주문에 송장 2회 이상'
+          :r.flow_missing?(r.market_status==='송장전송실패'?'마켓상태=송장전송실패':'배송완료 단계인데 배송흐름 없음'):'';
+        return '<tr><td>'+esc(r.market)+'</td><td>'+esc(r.recipient)+'</td>'
+          +'<td style="font-size:12px">'+esc(r.product)+'</td>'
+          +'<td class="c" style="font-size:12px">'+(r.invoice||'—')+'</td>'
+          +'<td class="c">'+methodCell(r.uid,r.method)+'</td>'
+          +'<td class="c">'+flagBadge(r)+'</td>'
+          +'<td style="font-size:12px;color:#8B95A1">'+esc(why)+'</td></tr>';
+      }).join('');
+      [].slice.call(document.querySelectorAll('#di-body .mi')).forEach(function(el){
+        el.onclick=function(){var uid=el.getAttribute('data-uid');
+          var next=CYCLE[(CYCLE.indexOf(el.getAttribute('data-m'))+1)%3];
+          fetch('/orders/inspect/method',{method:'POST',headers:{'Content-Type':'application/json'},
+            body:JSON.stringify({uid:uid,method:next})}).then(load);};});}
+    // 업로드
+    var fileEl=$('#di-file');
+    $('#di-dz').onclick=function(){fileEl.click();};
+    fileEl.onchange=function(){$('#di-fn').textContent=fileEl.files[0]?fileEl.files[0].name:'';};
+    [].slice.call(document.querySelectorAll('input[name=di-bulk]')).forEach(function(r){
+      r.onchange=function(){[].slice.call(document.querySelectorAll('.di .rc')).forEach(function(l){
+        l.classList.toggle('on',l.querySelector('input').checked);});};});
+    $('#di-upbtn').onclick=function(){
+      if(!fileEl.files[0]){$('#di-msg').innerHTML='<span style="color:#EF4444">파일을 선택하세요</span>';return;}
+      var fd=new FormData();fd.append('file',fileEl.files[0]);
+      fd.append('bulk_method',document.querySelector('input[name=di-bulk]:checked').value);
+      $('#di-msg').textContent='업로드 중…';
+      fetch('/orders/inspect/upload',{method:'POST',body:fd}).then(function(r){return r.json();})
+        .then(function(j){if(j.ok){$('#di-msg').innerHTML='<span style="color:#16A34A">✔ '+j.parsed
+          +'건 처리 (신규 '+j.inserted+' · 갱신 '+j.updated+')</span>';load();}
+          else $('#di-msg').innerHTML='<span style="color:#EF4444">✖ '+esc(j.error)+'</span>';});};
+    // 매핑 모달
+    function openMap(){$('#di-mapbody').innerHTML=(DATA.status_map||[]).map(function(m){
+      return '<tr data-value="'+esc(m.value)+'"><td style="font-weight:600">'+esc(m.value)+'</td>'
+        +'<td class="c"><select class="di-mean">'+MEANS.map(function(o){return '<option'+(o===m.meaning?' selected':'')+'>'+o+'</option>';}).join('')+'</select></td>'
+        +'<td class="c"><select class="di-method">'+METHODS.map(function(o){return '<option'+(o===m.default_method?' selected':'')+'>'+o+'</option>';}).join('')+'</select></td>'
+        +'<td class="c"><input type="checkbox" class="di-flow"'+(m.flow?' checked':'')+'></td></tr>';
+    }).join('');$('#di-mapov').classList.add('on');}
+    function closeMap(){$('#di-mapov').classList.remove('on');}
+    $('#di-mapbtn').onclick=openMap; $('#di-mapx').onclick=closeMap; $('#di-mapcancel').onclick=closeMap;
+    $('#di-mapov').onclick=function(e){if(e.target===$('#di-mapov'))closeMap();};
+    $('#di-mapsave').onclick=function(){
+      var items=[].slice.call(document.querySelectorAll('#di-mapbody tr')).map(function(tr){
+        return {value:tr.getAttribute('data-value'),meaning:tr.querySelector('.di-mean').value,
+          default_method:tr.querySelector('.di-method').value,flow:tr.querySelector('.di-flow').checked};});
+      fetch('/orders/inspect/mapping',{method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({items:items})}).then(function(){closeMap();load();});};
+    load();
+  })();
+  </script>
 
   {% else %}
       <div style="padding:40px;text-align:center;color:#8B95A1">준비 중인 탭입니다.</div>

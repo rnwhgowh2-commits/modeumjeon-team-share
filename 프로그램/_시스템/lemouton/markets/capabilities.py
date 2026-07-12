@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """판매처(마켓) 확장 기능 커넥터 — 흩어진 API 부품을 (마켓×기능) 레지스트리로 묶고,
-마스터 게이트(``LEMOUTON_MARKET_EXTRA``) 뒤에 안전하게 둔다.
+마스터 게이트(``MOUM_MARKET_EXTRA``) 뒤에 안전하게 둔다.
 
 원칙:
 - **기본 OFF.** 켜지 않으면 확장 기능(주문·정산·반품·문의·카테고리·배송·신규등록 등)은
@@ -8,7 +8,7 @@
 - "코드(래퍼)는 있으나 프로그램이 아직 안 쓰는" 부품을 **한 곳에서 닿게(=연결)** 하되,
   실계정 100% 검증 전에는 ``verified=False`` → 데이터 코드 지도에 **"연결됨(검증대기)"** 로 표기.
 - 가격·재고·판매상태·조회처럼 **이미 실사용 중인 핵심 기능만 ``verified=True``** (게이트와 무관하게 사용).
-- 새 기능을 실제로 켤 때: 배포 env ``LEMOUTON_MARKET_EXTRA=1`` + **해당 기능 실계정 검증** 후 ``verified`` 승격.
+- 새 기능을 실제로 켤 때: 배포 env ``MOUM_MARKET_EXTRA=1`` + **해당 기능 실계정 검증** 후 ``verified`` 승격.
 
 관련: CLAUDE.md 🔒 3대 원칙(실계정 검증 전 완료 금지) · docs/markets/_새-마켓-추가-가이드.md
 """
@@ -25,12 +25,12 @@ class CapabilityDisabled(RuntimeError):
 
 def market_extra_enabled() -> bool:
     """확장 기능(주문·정산·CS 등) 실호출 허용 여부. 기본 False(=연결만·검증대기)."""
-    return os.environ.get("LEMOUTON_MARKET_EXTRA") == "1"
+    return os.environ.get("MOUM_MARKET_EXTRA") == "1"
 
 
 DISABLED_MESSAGE = (
     "이 기능은 아직 '연결됨(검증대기)' 상태예요. 실계정 검증 후 "
-    "LEMOUTON_MARKET_EXTRA=1 로 켜야 실제로 호출됩니다."
+    "MOUM_MARKET_EXTRA=1 로 켜야 실제로 호출됩니다."
 )
 
 

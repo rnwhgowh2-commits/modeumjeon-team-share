@@ -5,6 +5,8 @@
 #       → 컨테이너 교체 → 헬스체크. (GHCR 불필요)
 # 필요한 GitHub Secret (등록 완료): LIGHTSAIL_HOST, LIGHTSAIL_SSH_KEY
 # 서버 1회 준비(완료): docker 설치 + /home/ubuntu/app.env (환경변수)
+# 컨테이너 인라인 -e 플래그(DISABLE_AUTH, MOUM_LIVE_INVOICE)는 이 파일이 단일 진실 원천 —
+#   여기 없으면 재배포마다 꺼진다. 송장 실전송=ON(사용자 승인). 가격·재고 업로드(MOUM_LIVE_UPLOAD)는 미포함=OFF.
 # ════════════════════════════════════════════════════════════
 name: AWS Lightsail 자동배포
 
@@ -55,8 +57,9 @@ jobs:
               esac
               sudo docker run -d --name modeumjeon --restart unless-stopped \
                 -p 80:8080 --env-file ~/app.env $EXTRA -e DISABLE_AUTH=1 \
+                -e MOUM_LIVE_INVOICE=1 \
                 -v /home/ubuntu/ui_secrets:/data/secrets \
-                -e LEMOUTON_SECRETS_ENV=/data/secrets/.env modeumjeon \
+                -e MOUM_SECRETS_ENV=/data/secrets/.env modeumjeon \
                 || { echo "[deploy] ❌ docker run 실패 — 컨테이너 미교체"; exit 1; }
               sleep 3
               echo "[deploy] 실행 이미지: $(sudo docker inspect -f "{{.Image}}" modeumjeon 2>/dev/null)"

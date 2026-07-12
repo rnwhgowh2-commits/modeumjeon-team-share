@@ -86,6 +86,13 @@ def parse_source_html():
         _persist_navgrab_option_stocks(source_key, url, payload.get("options") or [])
     except Exception:
         pass  # best-effort — 실패해도 파싱 결과 반환·crawl-result 저장은 유지
+    # [2026-07-11] 상품명 치유 — 확장 저장 경로는 product_name 을 갱신하지 않아
+    #   옛 파서가 박은 '메인메뉴'가 영영 남았다(라이브 실측). parse 는 매 크롤마다
+    #   불리고 정확한 og:title(product_name_raw)을 쥐고 있으므로 여기서 URL+site 매칭 상품에 치유.
+    try:
+        _heal_product_name(source_key, url, payload.get("product_name_raw"))
+    except Exception:
+        pass  # best-effort
     return jsonify(ok=True, **payload)
 
 
@@ -108,6 +115,26 @@ def _persist_navgrab_option_stocks(source_key: str, url: str, options: list) -> 
         s.flush()
         persist_crawled_options(s, source_product=sp, options=options)
         s.commit()
+    finally:
+        s.close()
+
+
+def _heal_product_name(source_key: str, url: str, new_name) -> None:
+    """URL+site 매칭 SourceProduct 의 상품명을 치유(비었/내비쓰레기 → 정확한 이름)."""
+    from lemouton.sources.service import normalize_url, apply_name_heal
+    from lemouton.sources.models import SourceProduct
+    from shared.db import SessionLocal
+    if not (new_name and str(new_name).strip()):
+        return
+    s = SessionLocal()
+    try:
+        target = normalize_url(url)
+        sp = next((p for p in s.query(SourceProduct)
+                   .filter(SourceProduct.deleted_at.is_(None)).all()
+                   if p.url and normalize_url(p.url) == target
+                   and getattr(p, "site", None) == source_key), None)
+        if sp is not None and apply_name_heal(sp, new_name):
+            s.commit()
     finally:
         s.close()
 

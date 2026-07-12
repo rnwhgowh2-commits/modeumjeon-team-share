@@ -3,7 +3,7 @@
 // ============================================================
 // [v2] 임시저장 Floating Bubble — 시안 C
 // ============================================================
-window.LEMOUTON_DRAFT_KEYS = {
+window.MOUM_DRAFT_KEYS = {
   new: 'lemouton:draft:new',
   migrate: 'lemouton:draft:migrate',
 };
@@ -18,7 +18,7 @@ const DRAFT_PAGE_URL = {
 
 function getAllDrafts() {
   const out = [];
-  for (const [page, key] of Object.entries(window.LEMOUTON_DRAFT_KEYS)) {
+  for (const [page, key] of Object.entries(window.MOUM_DRAFT_KEYS)) {
     try {
       const raw = localStorage.getItem(key);
       if (!raw) continue;
@@ -97,7 +97,7 @@ function mountDraftBubble() {
 
 // 페이지별 자동 임시저장 helper (input 변경 시 debounce 저장)
 function setupDraftAutoSave(page, inputIds) {
-  const key = window.LEMOUTON_DRAFT_KEYS[page];
+  const key = window.MOUM_DRAFT_KEYS[page];
   if (!key) return;
   let timer;
   function save() {
@@ -132,7 +132,7 @@ function setupDraftAutoSave(page, inputIds) {
 }
 
 function clearDraft(page) {
-  const key = window.LEMOUTON_DRAFT_KEYS[page];
+  const key = window.MOUM_DRAFT_KEYS[page];
   if (key) localStorage.removeItem(key);
   refreshDraftBubble();
 }

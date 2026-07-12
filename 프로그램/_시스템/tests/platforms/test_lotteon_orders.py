@@ -91,8 +91,9 @@ def test_order_rows_merges_claims():
     until = dt.datetime(2026, 7, 6, tzinfo=KST)
     rows = oe.lotteon_order_rows(since, until, client=RouteClient())
     st = {r["주문상태"] for r in rows}
-    assert {"취소", "반품", "교환"} <= st
-    cx = [r for r in rows if r["주문상태"] == "취소"][0]
+    # 주문상태 통일(2026-07-10): 클레임 접수는 '취소요청·반품요청·교환요청'(완료와 구분).
+    assert {"취소요청", "반품요청", "교환요청"} <= st
+    cx = [r for r in rows if r["주문상태"] == "취소요청"][0]
     assert cx["오픈마켓주문번호"] == "OD_CANCEL" and cx["상품명"] == "취소상품" and cx["수량"] == "1"
-    rx = [r for r in rows if r["주문상태"] == "반품"][0]
+    rx = [r for r in rows if r["주문상태"] == "반품요청"][0]
     assert rx["상품명"] == "반품상품" and rx["수량"] == "2"

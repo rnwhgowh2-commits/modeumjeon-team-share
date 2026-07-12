@@ -8,7 +8,15 @@
   .au-pair{display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:stretch;}
   .au-card{background:#fff;border:1px solid #e5e8eb;border-radius:14px;overflow:hidden;display:flex;flex-direction:column;}
   .au-band{color:#fff;font-size:12.5px;font-weight:700;padding:8px 16px;}
-  .au-band.src{background:#185FA5;} .au-band.mkt{background:#854F0B;}
+  .au-band.src{background:#8B95A1;} .au-band.mkt{background:#854F0B;}
+  /* 판매처 카드 = 소싱처와 같은 계열: 실행중=초록 / 그 외=회색 + 돈 나감 빨간 배지 */
+  .au-band.mkt-run{background:#12B886;} .au-band.mkt-idle{background:#8B95A1;}
+  .band-flex{display:flex;align-items:center;gap:9px;}
+  .band-chip{margin-left:auto;font-size:10.5px;font-weight:700;background:rgba(255,255,255,.22);padding:2px 9px;border-radius:20px;}
+  .rbadge{background:#F04452;color:#fff;font-size:10px;font-weight:800;padding:2px 8px;border-radius:20px;display:none;align-items:center;gap:4px;}
+  .rbadge.on{display:inline-flex;}
+  .rbadge .blip{width:6px;height:6px;border-radius:50%;background:#fff;}
+  .au-card.run{border-color:#9BE7C9;box-shadow:0 4px 16px rgba(18,184,134,.12);}
   .au-body{padding:16px 18px;display:flex;flex-direction:column;flex:1;}
   .au-ct{display:flex;align-items:center;justify-content:space-between;gap:10px;}
   .au-title{font-size:14.5px;font-weight:700;color:#191F28;}
@@ -37,6 +45,28 @@
   .rd.real.on .dot{border-color:#e03a3e;} .rd.real.on .dot::after{background:#e03a3e;}
   .au-warn{background:#fff5f5;border:1px solid #f3c2c2;border-radius:9px;padding:9px 12px;font-size:11.5px;color:#c0392b;line-height:1.55;margin-bottom:10px;display:none;}
   .au-warn.on{display:block;}
+  /* 두 겹 잠금 상태 바 + 페이지 배너 */
+  .live-banner{border-radius:11px;padding:11px 15px;margin-bottom:16px;font-size:13px;font-weight:600;display:flex;align-items:center;gap:10px;}
+  .live-banner.safe{background:#f2f4f6;color:#4e5968;}
+  .live-banner.live{background:#e6f9f1;color:#0b7a54;border:1px solid #9be7c9;}
+  .live-banner .em{font-size:18px;}
+  .locks{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin:2px 0 13px;}
+  .lock{border:1px solid #e5e8eb;border-radius:10px;padding:9px 11px;background:#f9fafb;}
+  .lock.hot{border-color:#9be7c9;background:#e6f9f1;}
+  .pv-box{border:1px dashed #d1d6db;border-radius:10px;padding:11px 13px;margin:2px 0 12px;background:#fff;}
+  .pv-h{font-weight:700;font-size:12px;margin-bottom:8px;} .pv-h small{color:#8b95a1;font-weight:400;}
+  table.pv-t{width:100%;border-collapse:collapse;font-size:12px;}
+  table.pv-t th,table.pv-t td{padding:5px 7px;border-bottom:1px solid #eef0f2;}
+  table.pv-t th{color:#8b95a1;font-weight:600;text-align:left;font-size:11px;}
+  table.pv-t th.r,table.pv-t td.r{text-align:right;font-variant-numeric:tabular-nums;font-family:ui-monospace,Consolas,monospace;}
+  table.pv-t tr.pv-sum td{font-weight:700;border-bottom:0;}
+  .pv-empty{font-size:11.5px;color:#8b95a1;}
+  .lock .l-top{display:flex;align-items:center;gap:6px;font-size:11px;color:#8b95a1;}
+  .lock .l-val{font-weight:700;font-size:12.5px;margin-top:2px;}
+  .pill{font-size:10.5px;font-weight:700;padding:2px 8px;border-radius:20px;}
+  .pill.off{background:#f2f4f6;color:#8b95a1;} .pill.on{background:#e6f9f1;color:#0b7a54;} .pill.red{background:#fdecee;color:#c0343f;}
+  .rd.locked{opacity:.5;pointer-events:none;}
+  .rd.locked .rt small{color:#c0343f;}
   .sec{font-size:11.5px;font-weight:700;color:#8b95a1;margin:6px 0 1px;}
   .cond{display:flex;align-items:center;gap:10px;padding:11px 0;border-top:1px solid #f1f3f5;}
   .cl{flex:1;font-size:13px;font-weight:600;}
@@ -97,8 +127,8 @@
   .fopt-url::before{content:'└ ';color:#c2c9d2;}
   .fnone{font-size:12px;color:#0F6E56;padding:6px 2px;}
   /* [2026-07-05] 확정 크롤 카드 — 실행/정지 세그먼트 + 진행 링 + 실시간 로그 + 계수 미니표 */
-  .au-card.src-run.is-running{border-color:#12B76A;box-shadow:0 0 0 3px #E7F7EF;}
-  .au-card.src-run.is-running .au-band.src{background:linear-gradient(90deg,#12B76A,#0ea15c);}
+  .au-card.src-run.crawl-on{border-color:#9be7c9;box-shadow:0 4px 16px rgba(18,184,134,.12);}
+  .au-card.src-run.crawl-on .au-band.src{background:#12B886;}
   .rsc{display:inline-flex;border:1px solid #e5e8eb;border-radius:9px;overflow:hidden;flex:none;}
   .rsc button{border:0;background:#fff;padding:6px 15px;font-size:12.5px;font-weight:600;color:#6b7684;cursor:pointer;font-family:inherit;display:flex;align-items:center;gap:6px;}
   .rsc .run.on{background:#12B76A;color:#fff;} .rsc .stop.on{background:#EEF1F4;color:#191F28;}
@@ -143,13 +173,86 @@
   .czlog-ch{color:#8b95a1;margin-left:10px;font-size:11px;transition:.15s;display:inline-block;}
   .czlog-row.on .czlog-ch{transform:rotate(90deg);color:#3182F6;}
 
-  /* [2026-07-10] 회차 보고서 (D6 — 굵은 구분선으로 위상 구분) */
+  /* [2026-07-10] 회차 보고서 팝업 (1200px · 결과 상단 · 묶음+더보기) */
+  .lrmask{position:fixed;inset:0;background:rgba(15,20,30,.42);z-index:9000;display:flex;align-items:center;justify-content:center;}
+    /* [2026-07-10] 140% 확대 — 본문(zoom:1.3)보다 작아 보이던 문제.
+     zoom 이 곱해지므로 폭·높이를 1.4 로 나눠 잡아야 화면을 안 넘긴다(렌더 = 1200*1.4 / 90vh). */
+.lrbox{zoom:1.4;width:min(1200px,calc(94vw / 1.4));height:calc(90vh / 1.4);background:#fff;border-radius:14px;box-shadow:0 18px 50px rgba(0,0,0,.28);display:flex;flex-direction:column;overflow:hidden;}
+  .lrh{display:flex;align-items:center;gap:14px;padding:16px 24px;border-bottom:1px solid #EFF1F3;flex:none;}
+  .lrh-no{font-size:16px;font-weight:700;}
+  .lrh-tm,.lrh-du{font-size:15px;font-weight:700;color:#191F28;font-variant-numeric:tabular-nums;}
+  .lrh-du small{font-size:11.5px;font-weight:500;color:#8B95A1;margin-left:4px;}
+  .lrh-sp{flex:1;}
+  .lrh-nav button{border:1px solid #E5E8EB;background:#fff;border-radius:8px;padding:5px 11px;font-size:12px;font-weight:600;color:#4E5968;cursor:pointer;font-family:inherit;margin-left:6px;}
+  .lrh-nav button[disabled]{opacity:.4;cursor:default;}
+  .lrh-x{border:0;background:transparent;font-size:19px;color:#8B95A1;cursor:pointer;padding:2px 6px;margin-left:8px;font-family:inherit;}
+  .lrb{flex:1;overflow-y:auto;padding:20px 24px 24px;font-size:12.5px;}
+
+  /* 상단: 요약 + 결과 나란히 */
+  .lrtop{display:grid;grid-template-columns:1.35fr 1fr;gap:30px;align-items:start;}
+  .lrblk-h{font-size:11px;font-weight:700;color:#8B95A1;margin-bottom:8px;letter-spacing:.03em;}
   .lrep{padding:16px 4px 8px;font-size:12.5px;}
+  /* [2026-07-10] C안 — 빈 상태 · 그대로 소싱처 토글 · 영수증 · 색×사이즈 격자 */
+  .lrempty{border:1px dashed #E5E8EB;border-radius:10px;padding:16px;text-align:center;color:#B0B8C1;font-size:12.5px;}
+  .lrkeep{margin-top:36px;opacity:.82;}                    /* 위=주인공 / 아래=배경 (흐린 글자) */
+  .lrkrow{border-top:1px solid #EFF1F3;}
+  .lrkh{display:grid;grid-template-columns:16px 1fr 90px 22px;align-items:center;gap:12px;height:44px;cursor:pointer;font-size:12.5px;}
+  .lrkh:hover{background:#FBFCFD;}
+  .lrkh .knm{font-weight:600;color:#4E5968;}
+  .lrkh .kx{color:#B0B8C1;text-align:center;font-size:11px;}
+  .lrkb{display:none;padding:6px 0 16px 28px;}
+  .lrkrow.open .lrkb{display:block;}
+  .lrksec{font-size:11px;font-weight:700;color:#8B95A1;margin:8px 0 6px;}
+  /* 소싱처 → 상품(URL) 2단. 값의 진짜 단위는 상품이다. */
+  .lrkh .kcnt{font-size:11.5px;color:#B0B8C1;text-align:right;font-variant-numeric:tabular-nums;}
+  .lrpcolh{display:grid;grid-template-columns:1fr 96px 130px 20px;gap:12px;font-size:10.5px;color:#B0B8C1;padding:6px 0 4px;}
+  .lrpcolh span:nth-child(2),.lrpcolh span:nth-child(3){text-align:right;}
+  .lrprow{border-top:1px solid #EFF1F3;}
+  .lrph{display:grid;grid-template-columns:1fr 96px 130px 20px;gap:12px;align-items:center;height:40px;cursor:pointer;font-size:12.5px;}
+  .lrph:hover{background:#FBFCFD;}
+  .lrph .pn{color:#191F28;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .lrph .pp{text-align:right;font-variant-numeric:tabular-nums;color:#4E5968;}
+  .lrph .pf{text-align:right;font-variant-numeric:tabular-nums;font-weight:700;}
+  .lrph .pf.unk{font-weight:600;color:#8B95A1;font-size:11.5px;}
+  .lrph .px{color:#B0B8C1;text-align:center;font-size:10px;}
+  .lrpb{display:none;padding:8px 0 16px 4px;}
+  .lrprow.open .lrpb{display:block;}
+  /* 가격 = 영수증 (확인불가는 마지막 줄에서 조용히) */
+  .rcpt{display:grid;grid-template-columns:170px 110px;gap:3px 14px;font-size:12.5px;max-width:300px;}
+  .rcpt .l{color:#4E5968;} .rcpt .v{text-align:right;font-variant-numeric:tabular-nums;}
+  .rcpt .m{color:#8B95A1;}
+  .rcpt .tot{border-top:1px solid #E5E8EB;margin-top:5px;padding-top:7px;font-weight:700;color:#191F28;}
+  .rcpt .unk{color:#8B95A1;font-weight:600;font-size:12px;}
+  .rtail{font-size:11.5px;color:#8B95A1;margin-top:6px;}
+  /* 재고 = 촘촘한 사이즈 칸 (칸=글자 폭 / 충분은 배경으로 가라앉히고 문제만 진하게) */
+  .sgrow{display:flex;align-items:center;gap:12px;padding:4px 0;}
+  .sgnm{width:110px;flex:none;font-size:12px;color:#4E5968;}
+  .sgg{display:flex;gap:4px;flex-wrap:wrap;}
+  .sgg span{width:46px;text-align:center;font-size:10.5px;border-radius:5px;padding:4px 0;font-variant-numeric:tabular-nums;}
+  .g-am{background:#F1F7F3;color:#8FA898}
+  .g-li{background:#FFE9A8;color:#7A4E00;font-weight:700}
+  .g-so{background:#DDE1E6;color:#6B7684;text-decoration:line-through}
+  .g-un{background:#FFB84D;color:#5C3200;font-weight:700}
+  .g-na{background:transparent;color:#E5E8EB;}   /* 그 소싱처가 안 파는 조합 — 확인불가 아님 */
+  .sglg{display:flex;gap:14px;align-items:center;font-size:11px;color:#8B95A1;margin-top:10px;}
+  .sglg i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:5px;vertical-align:-1px;}
+  .nofin{color:#8B95A1;font-size:11.5px;}
   .lrep-sum{display:flex;flex-wrap:wrap;gap:18px;color:#4E5968;}
   .lrep-sum b{color:#191F28;font-variant-numeric:tabular-nums;}
   .lrep-sum .exc{color:#B0B8C1;}
   .lrep-rule{height:2px;background:#E5E8EB;margin:22px 0 20px;}   /* ★D6 굵은 구분선 */
-  .lrep-chg{display:grid;grid-template-columns:1fr 1fr;gap:36px;}
+  .lrep-chg{display:grid;grid-template-columns:1fr 1.35fr;gap:38px;}   /* 가격 좁게 · 재고 넓게 */
+  /* 묶음(소싱처 · 변동유형) + 5건 미리 + 더 보기 */
+  .lrg{display:flex;align-items:center;gap:10px;height:42px;padding:0 12px;background:#F7F8F9;border-radius:9px;cursor:pointer;margin-bottom:6px;}
+  .lrg .gi{font-size:10px;}
+  .lrg .gn{font-weight:700;color:#191F28;}
+  .lrg .gt{color:#4E5968;}
+  .lrg .gc{margin-left:auto;font-weight:700;font-variant-numeric:tabular-nums;}
+  .lrg .gx{color:#8B95A1;font-size:11px;}
+  .lrglist{padding-left:12px;border-left:2px solid #EFF1F3;margin:2px 0 10px;}
+  .lrmore{font-size:12px;color:#3182F6;font-weight:600;padding:9px 0;cursor:pointer;}
+  .lrow .vt{white-space:nowrap;}    /* 「옵션 사라짐」 줄바꿈 금지 */
+  .lrow{height:38px;padding:0;}     /* 행 높이 균일 */
   .lrep-ch{font-size:12px;font-weight:700;color:#4E5968;margin-bottom:10px;}
   .lrep-ch i{font-style:normal;color:#8b95a1;margin-left:5px;font-variant-numeric:tabular-nums;}
   .lrow{display:grid;align-items:center;gap:12px;padding:8px 0;}
@@ -195,13 +298,20 @@
      data-pur="{{ 1 if a.autosend_on_purchase else 0 }}"
      data-stk="{{ 1 if a.autosend_on_stock else 0 }}"
      data-thr="{{ a.autosend_stock_threshold }}"
-     data-prc="{{ 1 if a.autosend_on_price else 0 }}">
+     data-prc="{{ 1 if a.autosend_on_price else 0 }}"
+     data-server="{{ 1 if server_unlocked else 0 }}"
+     data-armed="{{ 1 if armed else 0 }}">
   <div class="au-h">⚙️ 자동화 설정</div>
   <div class="au-sub">쉬지 않고 오래된 것부터 자동으로 긁고, 값이 바뀌면 자동으로 판매처에 보냅니다. (팀 공유 · 켜고 끄면 바로 저장돼요)</div>
+  <div class="live-banner {{ 'live' if armed else 'safe' }}" id="page-banner">
+    {% if armed %}<span class="em">🟢</span> <b>실행중</b> — 값이 바뀌면 판매처에 나가고 있어요.
+      <span class="rbadge on"><span class="blip"></span>실제 나감</span>
+    {% else %}<span class="em">⚪</span> 지금은 「미리보기만」이에요 — 값이 바뀌어도 판매처에 <b>실제로 나가지 않습니다</b>.{% endif %}
+  </div>
 
   <div class="au-pair">
     <!-- 소싱처 (좌) -->
-    <div class="au-card src-run" id="crawl-card">
+    <div class="au-card src-run {{ 'crawl-on' if a.crawl_auto_enabled else '' }}" id="crawl-card">
       <div class="au-band src">소싱처 · 자동으로 긁기</div>
       <div class="au-body">
         <div class="au-ct"><div class="au-title">🐘 크롤 · 자동으로 긁기<span class="au-cont">연속</span></div>
@@ -234,19 +344,50 @@
     </div>
 
     <!-- 판매처 (우) -->
-    <div class="au-card">
-      <div class="au-band mkt">판매처 · 자동으로 보내기</div>
+    <div class="au-card {{ 'run' if armed else '' }}" id="mkt-card">
+      <div class="au-band band-flex {{ 'mkt-run' if armed else 'mkt-idle' }}" id="mkt-band">
+        <span>📤 판매처 · 자동으로 보내기</span>
+        <span class="rbadge {{ 'on' if armed else '' }}" id="mkt-rbadge"><span class="blip"></span>실제 나감</span>
+        <span class="band-chip" id="mkt-chip">{{ '실행중' if armed else '안 나감' }}</span>
+      </div>
       <div class="au-body">
         <div class="au-ct"><div class="au-title">📤 자동 전송</div></div>
         <div class="au-d">값이 바뀌면 자동으로 판매처에 보내요. 기본은 안전하게 「미리보기만」이에요.</div>
+        <div class="locks">
+          <div class="lock" id="lk-server">
+            <div class="l-top">🔒 서버 잠금 <span class="pill {{ 'on' if server_unlocked else 'off' }}">{{ '열림' if server_unlocked else '잠김' }}</span></div>
+            <div class="l-val">{{ '실제 전송 허용됨' if server_unlocked else '실제 전송 차단' }}</div>
+          </div>
+          <div class="lock {{ 'hot' if armed else '' }}" id="lk-ui">
+            <div class="l-top">🖥️ 화면 스위치 <span class="pill {{ 'red' if armed else 'off' }}" id="lk-ui-pill">{{ '실제 전송' if armed else '미리보기만' }}</span></div>
+            <div class="l-val" id="lk-ui-val">{{ '🔴 나가는 중' if armed else '안 나감' }}</div>
+          </div>
+        </div>
+        {% set pv = (preview or {}).get('markets') or {} %}
+        <div class="pv-box">
+          <div class="pv-h">📋 미리보기 결과 · 이번에 나갈 값 <small>{% if preview and preview.get('at') %}(마지막 확인 방금){% else %}(아직 집계 전){% endif %}</small></div>
+          {% if pv %}
+          <table class="pv-t"><thead><tr><th>마켓</th><th class="r">보낼 건수</th><th class="r">가격 바뀜</th><th class="r">재고 바뀜</th></tr></thead>
+          <tbody>
+          {% set ns = {'c':0,'p':0,'s':0} %}
+          {% for mk, v in pv.items() %}
+            <tr><td>{{ mk }}</td><td class="r">{{ v.get('count',0) }}</td><td class="r">{{ v.get('price',0) }}</td><td class="r">{{ v.get('stock',0) }}</td></tr>
+            {% if ns.update({'c': ns.c + v.get('count',0), 'p': ns.p + v.get('price',0), 's': ns.s + v.get('stock',0)}) %}{% endif %}
+          {% endfor %}
+            <tr class="pv-sum"><td>합계</td><td class="r">{{ ns.c }}</td><td class="r">{{ ns.p }}</td><td class="r">{{ ns.s }}</td></tr>
+          </tbody></table>
+          {% else %}
+          <div class="pv-empty">아직 나갈 값이 없어요. 크롤이 한 바퀴 돌면 여기에 「무엇이·몇 건」 나갈지 뜹니다.</div>
+          {% endif %}
+        </div>
         <div class="au-radio" id="seg">
           <label class="rd" data-mode="preview"><span class="dot"></span><span class="rt">미리보기만 <small>· 마켓에 안 보내고 「보낼 값」만 만들어 둠 (안전)</small></span></label>
-          <label class="rd real" data-mode="real"><span class="dot"></span><span class="rt">실제 전송 <small>· 쿠팡·스마트스토어에 바로 반영</small></span></label>
+          <label class="rd real{{ ' locked' if not server_unlocked else '' }}" data-mode="real"><span class="dot"></span><span class="rt">실제 전송 <small>{% if server_unlocked %}· 쿠팡·스마트스토어에 바로 반영{% else %}· 서버 잠금이 걸려 지금은 고를 수 없어요{% endif %}</small></span></label>
         </div>
         <div class="au-warn" id="warn">⚠️ 「실제 전송」은 쿠팡·스마트스토어에 바로 반영됩니다. 처음 한 번은 확인을 거쳐요.</div>
 
         <div class="sec">어떤 변동이면 보낼까요?</div>
-        <div class="cond"><div class="cl">사입(직접 매입) 재고·가격 변동</div><div class="tog" id="t-pur"></div></div>
+        <div class="cond" style="opacity:.55;"><div class="cl">사입(직접 매입) 재고·가격 변동 <small style="color:#c0343f;">준비 중 — 아직 전송에 반영 안 됨</small></div><div class="tog" id="t-pur"></div></div>
         <div class="cond"><div class="cl">소싱처 재고 변동<small>재고가 <span class="thr"><input id="in-thr" type="number" min="0" value="4"><span class="u">개 이하</span></span>로 바뀐 것만 보냄</small></div><div class="tog" id="t-stk"></div></div>
         <div class="cond"><div class="cl">소싱처 가격 변동</div><div class="tog" id="t-prc"></div></div>
 
@@ -295,12 +436,30 @@
     var seg=document.getElementById('crawl-seg');
     seg.querySelector('.run').classList.toggle('on',run);
     seg.querySelector('.stop').classList.toggle('on',!run);
-    document.getElementById('crawl-card').classList.toggle('is-running',run);
+    document.getElementById('crawl-card').classList.toggle('crawl-on',run);
     document.getElementById('cz-paused').style.display=run?'none':'flex';
   }
+  var serverUnlocked = R.dataset.server==='1';   // 서버 열쇠(MOUM_LIVE_UPLOAD) — 페이지 로드시 고정
   function paintMode(){
     document.querySelectorAll('#seg .rd').forEach(function(s){ s.classList.toggle('on',s.dataset.mode===st.autosend_mode); });
     document.getElementById('warn').classList.toggle('on',st.autosend_mode==='real');
+    // 두 겹 잠금 = 서버 열림 AND 화면 실제전송. 화면 스위치 잠금칸 + 페이지 배너를 같이 갱신.
+    var armed = serverUnlocked && st.autosend_mode==='real';
+    var pill=document.getElementById('lk-ui-pill'), val=document.getElementById('lk-ui-val'), lk=document.getElementById('lk-ui');
+    if(pill){ pill.textContent=armed?'실제 전송':'미리보기만'; pill.className='pill '+(armed?'on':'off'); }
+    if(val){ val.textContent=armed?'🟢 나가는 중':'안 나감'; }
+    if(lk){ lk.classList.toggle('hot',armed); }
+    // 판매처 카드 = 소싱처와 같은 계열: 실행중=초록 / 그 외=회색 + 빨간 배지·상태칩
+    var band=document.getElementById('mkt-band'), card=document.getElementById('mkt-card');
+    if(band){ band.classList.toggle('mkt-run',armed); band.classList.toggle('mkt-idle',!armed); }
+    if(card){ card.classList.toggle('run',armed); }
+    var rb=document.getElementById('mkt-rbadge'); if(rb){ rb.classList.toggle('on',armed); }
+    var chip=document.getElementById('mkt-chip'); if(chip){ chip.textContent=armed?'실행중':'안 나감'; }
+    var b=document.getElementById('page-banner');
+    if(b){ b.className='live-banner '+(armed?'live':'safe');
+      b.innerHTML=armed
+        ? '<span class="em">🟢</span> <b>실행중</b> — 값이 바뀌면 판매처에 나가고 있어요. <span class="rbadge on"><span class="blip"></span>실제 나감</span>'
+        : '<span class="em">⚪</span> 지금은 「미리보기만」이에요 — 값이 바뀌어도 판매처에 <b>실제로 나가지 않습니다</b>.'; }
   }
 
   // 초기 렌더
@@ -315,7 +474,16 @@
   // 이벤트
   document.querySelectorAll('#crawl-seg button').forEach(function(b){ b.addEventListener('click',function(){ var run=this.dataset.run==='1'; if(run===st.crawl_auto_enabled) return; st.crawl_auto_enabled=run; paintSeg(); paintRun(); save({crawl_auto_enabled:run}); try{ if(window.MoumExt){ if(run){ MoumExt.autoPollStart(); } else { MoumExt.autoPollStop(); /* [2026-07-10] 정지 = 예약중단 + 지금 도는 크롤도 즉시 중지(안 그러면 진행중인 건 끝까지 감) */ if(MoumExt.stopCrawl){ var _sc=MoumExt.stopCrawl(); if(_sc&&_sc.catch)_sc.catch(function(){}); } } } }catch(_){} }); });
 
-  document.querySelectorAll('#seg .rd').forEach(function(s){ s.addEventListener('click',function(){ st.autosend_mode=s.dataset.mode; paintMode(); save({autosend_mode:st.autosend_mode}); }); });
+  document.querySelectorAll('#seg .rd').forEach(function(s){ s.addEventListener('click',function(){
+    var mode=s.dataset.mode;
+    // 서버 잠금이 걸려 있으면 실제전송은 못 고른다(두 겹 잠금 바깥 열쇠).
+    if(mode==='real' && !serverUnlocked){ alert('서버 잠금이 걸려 있어 「실제 전송」을 켤 수 없어요.\n\n실제로 켜려면 관리자에게 서버 잠금 해제를 요청하세요. 지금은 미리보기만 동작합니다.'); return; }
+    // 실제전송으로 바꿀 때 한 번 더 확인(무장 확인).
+    if(mode==='real' && st.autosend_mode!=='real'){
+      if(!confirm('「실제 전송」을 켜면, 값이 바뀔 때마다 쿠팡·스마트스토어·롯데온에 실제로 나갑니다.\n\n정말 켤까요?')) return;
+    }
+    st.autosend_mode=mode; paintMode(); save({autosend_mode:st.autosend_mode});
+  }); });
   document.getElementById('t-pur').addEventListener('click',function(){ st.autosend_on_purchase=!st.autosend_on_purchase; tog(this,st.autosend_on_purchase); save({autosend_on_purchase:st.autosend_on_purchase}); });
   document.getElementById('t-stk').addEventListener('click',function(){ st.autosend_on_stock=!st.autosend_on_stock; tog(this,st.autosend_on_stock); save({autosend_on_stock:st.autosend_on_stock}); });
   document.getElementById('t-prc').addEventListener('click',function(){ st.autosend_on_price=!st.autosend_on_price; tog(this,st.autosend_on_price); save({autosend_on_price:st.autosend_on_price}); });
@@ -433,6 +601,14 @@
     var p=function(n){return ('0'+n).slice(-2);};
     return p(t.getFullYear()%100)+'.'+p(t.getMonth()+1)+'.'+p(t.getDate())+'. '+p(t.getHours())+':'+p(t.getMinutes());
   }
+  function _kstDate(iso){ if(!iso) return null;
+    var s=/[Zz]|[+-]\d\d:?\d\d$/.test(iso)?iso:iso+'Z';
+    var t=new Date(s); return isNaN(t.getTime())?null:t; }
+  function _kstHM(iso){ var t=_kstDate(iso); if(!t) return '';
+    var p=function(n){return ('0'+n).slice(-2);};
+    return p(t.getHours())+':'+p(t.getMinutes()); }
+  function _sameDayIso(a,b){ var x=_kstDate(a), y=_kstDate(b);
+    return !!(x&&y&&x.toDateString()===y.toDateString()); }
   function renderLapLog(){
     var sec=document.getElementById('czlog'), list=document.getElementById('czlog-list'), tg=document.getElementById('czlog-tg');
     if(!sec||!list) return;
@@ -449,13 +625,14 @@
       var idxByNo={}; laps.forEach(function(y,i){ idxByNo[y.no]=i; });
       list.innerHTML=show.map(function(x){
         var i=idxByNo[x.no], dur=_lapMin(laps,i);
-        var tm=(i>0? _kstLap(laps[i-1].at)+'~' : '')+_kstLap(x.at);   // 시작~종료
+        // 시작~종료. 같은 날이면 시:분만("19:48~19:51") — 날짜 두 번 안 쓰게.
+        var _st=(i>0? laps[i-1].at : null);
+        var tm=(_st? (_sameDayIso(_st,x.at)? _kstHM(_st) : _kstLap(_st))+'~' : '')+_kstHM(x.at);
         return '<div class="czlog-row" data-no="'+x.no+'">'
           +'<span class="czlog-rc">'+x.no+'회차</span>'
           +'<span class="czlog-tm">'+tm+'</span>'
           +(dur?'<span class="czlog-dur">'+dur+'분</span>':'')
-          +'<span class="czlog-ch">▸</span></div>'
-          +'<div class="lrep" id="lrep-'+x.no+'" style="display:none"></div>';
+          +'<span class="czlog-ch">▸</span></div>';
       }).join('');
     }
     if(tg){ tg.style.display=''; tg.textContent=_lapsExpanded?'접기 ▴':('펼치기 ▾ ('+laps.length+')'); }
@@ -468,53 +645,250 @@
 
   // ── 회차 보고서 그리기 (D6 — 요약 │ 굵은 선 │ 가격·재고 2열 │ 결과) ──
   function _esc(s){ return String(s==null?'':s).replace(/[&<>]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;'}[c];}); }
-  function lapRepHtml(d){
-    var s=d.summary||{}, c=d.changes||{}, r=d.result||{}, lp=d.lap||{};
-    var exc=(s.excluded_sites||[]).length ? '<span class="exc">'+_esc(s.excluded_sites.join(' · '))+' 제외</span>' : '';
-    var avg=lp.avg_minutes? ' <span style="color:#8b95a1;font-weight:400">평균 '+lp.avg_minutes+'분</span>' : '';
-    var pr=(c.price||[]).map(function(x){
+  // ── 회차 보고서 팝업 (결과 상단 · 가격/재고 2열 · 소싱처·유형 묶음 + 5건 미리) ──
+  var _lrOpen=null;
+  function _grpLabel(kind,x){
+    if(kind==='price') return x.dir==='up'?'가격 오름':(x.dir==='dn'?'가격 내림':'가격 변동');
+    if(x.to==='옵션 사라짐') return '옵션 사라짐';
+    return x.dir==='so'?'품절 전환':(x.dir==='re'?'재입고':(x.dir==='unk'?'확인불가':'재고 변동'));
+  }
+  function _icon(kind,x){
+    if(kind==='price') return x.dir==='up'?'▲':(x.dir==='dn'?'▼':'·');
+    return (x.to==='옵션 사라짐'||x.dir==='so')?'■':(x.dir==='re'?'＋':'·');
+  }
+  function _rowHtml(kind,x){
+    if(kind==='price'){
       var dl=(x.delta==null)?'':((x.delta>0?'+':'−')+Math.abs(x.delta).toLocaleString());
-      var ic=(x.dir==='up'?'▲':x.dir==='dn'?'▼':'·');
-      return '<div class="lrow p"><span class="ic lc-'+x.dir+'">'+ic+'</span>'
-        +'<span class="nm">'+_esc(x.option)+'<small>'+_esc(x.site)+'</small></span>'
+      return '<div class="lrow p"><span class="ic lc-'+x.dir+'">'+_icon(kind,x)+'</span>'
+        +'<span class="nm">'+_esc(x.option)+'</span>'
         +'<span class="val"><span class="vf">'+_esc(x.from)+'</span><span class="va">→</span><span class="vt">'+_esc(x.to)+'</span></span>'
         +'<span class="dt lc-'+x.dir+'">'+dl+'</span></div>';
-    }).join('') || '<div class="lrep-empty">가격 변동 없음</div>';
-    var st=(c.stock||[]).map(function(x){
-      var ic=(x.dir==='so'?'■':x.dir==='re'?'＋':'·');
-      return '<div class="lrow s"><span class="ic lc-'+x.dir+'">'+ic+'</span>'
-        +'<span class="nm">'+_esc(x.option)+'<small>'+_esc(x.site)+'</small></span>'
-        +'<span class="val"><span class="vf">'+_esc(x.from)+'</span><span class="va">→</span><span class="vt lc-'+x.dir+'">'+_esc(x.to)+'</span></span></div>';
-    }).join('') || '<div class="lrep-empty">재고 변동 없음</div>';
-    var fl=r.failing_now||[];
-    var fn=fl.reduce(function(a,b){return a+(b.count||0);},0);
+    }
+    return '<div class="lrow s"><span class="ic lc-'+x.dir+'">'+_icon(kind,x)+'</span>'
+      +'<span class="nm">'+_esc(x.option)+'</span>'
+      +'<span class="val"><span class="vf">'+_esc(x.from)+'</span><span class="va">→</span><span class="vt lc-'+x.dir+'">'+_esc(x.to)+'</span></span></div>';
+  }
+  function _groups(kind,list){
+    if(!list || !list.length) return '<div class="lrep-empty">'+(kind==='price'?'가격':'재고')+' 변동 없음</div>';
+    var g={}, order=[]; var SEP=' ·· ';
+    list.forEach(function(x){ var k=(x.site_label||x.site)+SEP+_grpLabel(kind,x); if(!g[k]){g[k]=[];order.push(k);} g[k].push(x); });
+    return order.map(function(k,gi){
+      var arr=g[k], p=k.split(SEP), site=p[0], lab=p[1];
+      var id='lrg-'+kind+'-'+gi, rest=arr.length-5;
+      return '<div class="lrg" data-t="'+id+'"><span class="gi lc-'+arr[0].dir+'">'+_icon(kind,arr[0])+'</span>'
+        +'<span class="gn">'+_esc(site)+'</span><span class="gt">· '+lab+'</span>'
+        +'<span class="gc">'+arr.length+'건</span><span class="gx">▾</span></div>'
+        +'<div class="lrglist" id="'+id+'">'
+        +arr.slice(0,5).map(function(x){return _rowHtml(kind,x);}).join('')
+        +(rest>0? '<div style="display:none" id="'+id+'-rest">'+arr.slice(5).map(function(x){return _rowHtml(kind,x);}).join('')+'</div>'
+                 +'<div class="lrmore" data-more="'+id+'">'+rest+'건 더 보기 ▾</div>' : '')
+        +'</div>';
+    }).join('');
+  }
+  // ── C안: 위=변동(좌 가격/우 재고) · 아래=그대로(이름만 → 클릭 토글) ──
+  var _keepMap = {}, _prodMap = {};
+  function lapRepHtml(d){
+    var s=d.summary||{}, c=d.changes||{}, r=d.result||{}, lp=d.lap||{};
+    var exc=(s.excluded_sites||[]).length? '<span class="exc">'+_esc(s.excluded_sites.join(' · '))+' 제외</span>' : '';
+    var fs=(s.first_seen||0)? '<span class="exc">처음 수집 <b style="color:#8B95A1">'+Number(s.first_seen).toLocaleString()+'</b>건(변동 아님)</span>' : '';
+    var fl=r.failing_now||[], fn=fl.reduce(function(a,b){return a+(b.count||0);},0);
     var why=fl.map(function(f){return _esc(f.reason)+' '+f.count+'건';}).join(' · ');
-    // 처음 수집(이전 값이 없어 값이 처음 잡힌 것) — 변동이 아니라고 분명히 표기
-    var fs=(s.first_seen||0)? '<span class="exc">처음 수집 <b style="color:#8B95A1">'+s.first_seen+'</b>건(변동 아님)</span>' : '';
-    return '<div class="lrep-sum"><span>긁은 URL <b>'+(s.urls||0)+'</b>개</span><span>소싱처 <b>'+(s.sites||0)+'</b>곳</span>'
-      +'<span>소요 <b>'+(lp.minutes||0)+'분</b>'+avg+'</span>'+fs+exc+'</div>'
+    var pn=(c.price||[]).length, sn=(c.stock||[]).length;
+    var pbody = pn? _groups('price',c.price) : '<div class="lrempty">이번 바퀴 가격 변동 0건</div>';
+    var sbody = sn? _groups('stock',c.stock) : '<div class="lrempty">이번 바퀴 재고 변동 0건</div>';
+    // 하단 '그대로' 소싱처
+    _keepMap={};
+    var keep=(d.keep_sources||[]);
+    keep.forEach(function(k){ _keepMap[k.site]=k; });
+    var kb = keep.length
+      ? keep.map(function(k){
+          return '<div class="lrkrow" data-site="'+_esc(k.site)+'"><div class="lrkh">'
+            +'<span style="color:#B0B8C1;text-align:center">·</span>'
+            +'<span class="knm">'+_esc(k.site_label||k.site)+'</span>'
+            +'<span class="kcnt">상품 '+(k.product_count||0)+'개</span>'
+            +'<span class="kx">▸</span></div><div class="lrkb"></div></div>';
+        }).join('')
+      : '<div class="lrempty">변동 없는 소싱처가 없어요</div>';
+    return '<div class="lrtop">'
+      +'<div><div class="lrblk-h">이번 바퀴</div><div class="lrep-sum">'
+      +'<span>긁은 URL <b>'+(s.urls||0)+'</b>개</span><span>소싱처 <b>'+(s.sites||0)+'</b>곳</span>'
+      +(lp.minutes!=null? '<span>소요 <b>'+lp.minutes+'분</b></span>' : '')+fs+exc+'</div></div>'
+      +'<div><div class="lrblk-h">결과</div><div class="lrep-sfb">'
+      +'<span class="ok">저장 <b>'+(r.saved||0)+'</b>건</span>'
+      +(fn? '<span class="er">지금 실패 중 <b>'+fn+'</b>건</span>' : '')
+      +'<span class="why">'+(fn? why+' · 회차별이 아니라 <b>현재</b> 기준이에요' : '지금 실패 중인 주소는 없어요')+'</span>'
+      +'</div></div></div>'
       +'<div class="lrep-rule"></div>'
       +'<div class="lrep-chg">'
-      +'<div><div class="lrep-ch">가격 변동<i>'+(c.price||[]).length+'</i></div>'+pr+'</div>'
-      +'<div><div class="lrep-ch">재고 변동<i>'+(c.stock||[]).length+'</i></div>'+st+'</div></div>'
-      +'<div class="lrep-sf"><div class="lrep-sfh">결과</div><div class="lrep-sfb">'
-      +'<span class="ok">이번 바퀴 저장 <b>'+(r.saved||0)+'</b>건</span>'
-      +(fn? '<span class="er">지금 실패 중 <b>'+fn+'</b>건</span><span class="why">'+why+' · 회차별이 아니라 <b>현재</b> 기준이에요</span>'
-          : '<span class="why">지금 실패 중인 주소는 없어요</span>')
-      +'</div></div>';
+      +'<div><div class="lrep-ch">가격 변동<i>'+pn+'</i></div>'+pbody+'</div>'
+      +'<div><div class="lrep-ch">재고 변동<i>'+sn+'</i></div>'+sbody+'</div>'
+      +'</div>'
+      +'<div class="lrkeep"><div class="lrep-ch" style="margin-top:6px">변동 없음 — 소싱처를 누르면 가격·재고가 펼쳐져요</div>'+kb+'</div>';
   }
-  // 회차 줄 클릭 → 그 회차 보고서 펼치기/접기
+  function _receipt(p, br){
+    var sp = (br && br.sale_price!=null) ? br.sale_price : p.surface_price;
+    var head = '<div class="l">표면노출가</div><div class="v">'+(sp!=null? Number(sp).toLocaleString() : '확인불가')+'</div>';
+    // ★ 일괄 계산(/breakdowns) 응답엔 ok 플래그가 없다(래퍼에만 있음). 최종매입가 유무로 판단.
+    if(!br || br.final_price==null){
+      return '<div class="rcpt">'+head
+        +'<div class="l tot">= 최종매입가</div><div class="v tot unk">확인불가</div></div>'
+        +'<div class="rtail">혜택을 읽지 못했어요. 추측한 값 대신 「확인불가」로 둡니다.</div>';
+    }
+    var steps=(br.steps||[]).filter(function(x){return x.deduct;});
+    return '<div class="rcpt">'+head
+      +steps.map(function(x){ return '<div class="l m">− '+_esc(x.name)+'</div><div class="v m">'+Number(x.deduct).toLocaleString()+'</div>'; }).join('')
+      +'<div class="l tot">= 최종매입가</div><div class="v tot">'+Number(br.final_price).toLocaleString()+'</div>'
+      +'</div>';
+  }
+  function _grid(p){
+    var g=p.stock_grid||[];
+    if(!g.length) return '<div class="nofin">재고 정보 없음</div>';
+    var colors=[], sizes=[];
+    g.forEach(function(o){ var c=o.color||'단품';
+      if(colors.indexOf(c)<0) colors.push(c);
+      if(o.size && sizes.indexOf(o.size)<0) sizes.push(o.size); });
+    sizes.sort(function(a,b){                       // 220mm·230mm… 숫자 순 (글자 순 아님)
+      var x=parseFloat(a), y=parseFloat(b);
+      if(isNaN(x)||isNaN(y)) return String(a).localeCompare(String(b));
+      return x-y; });
+    if(!sizes.length) sizes=[''];
+    var idx={}; g.forEach(function(o){ idx[(o.color||'단품')+'|'+(o.size||'')]=o.stock; });
+    // ★색×사이즈를 곱하면 '그 소싱처가 안 파는 조합'까지 칸이 생긴다(9색×14사이즈=126 > 실제 102).
+    //   없는 조합을 확인불가로 칠하면 "재고를 못 읽었다"는 거짓말 + 범례(확인불가 0)와 모순.
+    //   → 데이터에 있는 조합만 상태를 칠하고, 없는 조합은 빈 칸으로 둔다.
+    function has(k){ return Object.prototype.hasOwnProperty.call(idx,k); }
+    function cls(q){ if(q==null||q<0) return 'g-un'; if(q===0) return 'g-so'; if(q>=999) return 'g-am'; return 'g-li'; }
+    function word(q){ return q==null||q<0? '확인불가' : (q===0? '품절' : (q>=999? '충분' : q+'개')); }
+    var html = colors.map(function(c){
+      return '<div class="sgrow"><div class="sgnm">'+_esc(c)+'</div><div class="sgg">'
+        +sizes.map(function(z){ var k=c+'|'+z;
+            if(!has(k)) return '<span class="g-na" title="'+_esc(c+' '+(z||'단품')+' — 이 소싱처엔 없는 조합')+'">'+_esc(z||'단품')+'</span>';
+            var q=idx[k];
+            return '<span class="'+cls(q)+'" title="'+_esc(c+' '+(z||'단품')+' — '+word(q))+'">'+_esc(z||'단품')+'</span>'; }).join('')
+        +'</div></div>';
+    }).join('');
+    var su=p.stock_summary||{};
+    return html+'<div class="sglg">'
+      +'<span><i style="background:#F1F7F3"></i>충분 '+(su.ample||0)+'</span>'
+      +'<span><i style="background:#FFE9A8"></i>한정 '+(su.limited||0)+'</span>'
+      +'<span><i style="background:#DDE1E6"></i>품절 '+(su.soldout||0)+'</span>'
+      +'<span><i style="background:#FFB84D"></i>확인불가 '+(su.unknown||0)+'</span>'
+      +'<span style="color:#B0B8C1">빈 칸 = 이 소싱처엔 없는 조합</span>'
+      +'</div>';
+  }
+  // 소싱처를 펼치면 상품 줄. 최종매입가는 상품마다 다르므로 한 번에 일괄 계산한다.
+  function openKeep(row){
+    var site=row.getAttribute('data-site'), k=_keepMap[site]; if(!k) return;
+    var body=row.querySelector('.lrkb');
+    var prods=k.products||[];
+    if(!prods.length){ body.innerHTML='<div class="lrempty">상품이 없어요</div>'; return; }
+    _prodMap[site]=prods;
+    body.innerHTML='<div class="lrpcolh"><span>상품</span><span>표면노출가</span><span>최종매입가</span><span></span></div>'
+      + prods.map(function(p,i){
+          return '<div class="lrprow" data-site="'+_esc(site)+'" data-i="'+i+'"><div class="lrph">'
+            +'<div class="pn" title="'+_esc(p.url||'')+'">'+_esc(p.name||p.url||'상품')+'</div>'
+            +'<div class="pp">'+(p.surface_price!=null? Number(p.surface_price).toLocaleString() : '확인불가')+'</div>'
+            +'<div class="pf unk" data-fin>…</div>'
+            +'<div class="px">▸</div></div><div class="lrpb"></div></div>';
+        }).join('');
+    // 일괄 계산 — 열쇠(sku·source_id)가 없는 상품은 애초에 보내지 않는다(확인불가 확정).
+    var items=[];
+    prods.forEach(function(p,i){
+      if(p.sku && p.source_id!=null && p.surface_price)
+        items.push({key:'i'+i, sku:p.sku, source_id:p.source_id,
+                    sale_price:p.surface_price, source_product_id:p.source_product_id});
+    });
+    var cells=body.querySelectorAll('[data-fin]');
+    var paint=function(res){
+      prods.forEach(function(p,i){
+        var br=res? res['i'+i] : null;
+        p._br = (br && br.final_price!=null) ? br : null;
+        var c=cells[i]; if(!c) return;
+        if(p._br){ c.textContent=Number(p._br.final_price).toLocaleString(); c.classList.remove('unk'); }
+        else { c.textContent='확인불가'; c.classList.add('unk'); }
+      });
+    };
+    if(!items.length){ paint(null); return; }
+    fetch('/api/source-benefits/breakdowns',{method:'POST',
+        headers:{'Content-Type':'application/json'}, body:JSON.stringify({items:items})})
+      .then(function(r){return r.json();})
+      .then(function(d){ paint((d&&d.results)||null); })
+      .catch(function(){ paint(null); });
+  }
+  function openProduct(prow){
+    var site=prow.getAttribute('data-site'), i=+prow.getAttribute('data-i');
+    var p=(_prodMap[site]||[])[i]; if(!p) return;
+    prow.querySelector('.lrpb').innerHTML =
+      '<div class="lrksec">가격</div>'+_receipt(p, p._br)
+      +'<div class="lrksec" style="margin-top:14px">재고</div>'+_grid(p);
+  }
+  function closeLap(){ var m=document.getElementById('lrmask'); if(m) m.style.display='none'; _lrOpen=null; }
+  function openLap(no){
+    no=parseInt(no,10); if(isNaN(no)) return;
+    var laps=_lastLaps||[]; if(!laps.length) return;
+    var nos=laps.map(function(x){return x.no;});
+    var mn=Math.min.apply(null,nos), mx=Math.max.apply(null,nos);
+    if(no<mn||no>mx) return;
+    _lrOpen=no;
+    var i=-1; for(var k=0;k<laps.length;k++){ if(laps[k].no===no){ i=k; break; } }
+    var cur=(i>=0)?laps[i]:null;
+    var tm=cur? ((i>0? (_sameDayIso(laps[i-1].at,cur.at)? _kstHM(laps[i-1].at) : _kstLap(laps[i-1].at))+'~' : '')+_kstHM(cur.at)) : '';
+    var dur=(i>0)? _lapMin(laps,i) : null;
+    document.getElementById('lrmask').style.display='flex';
+    document.getElementById('lrh-no').textContent=no+'회차';
+    document.getElementById('lrh-tm').textContent=tm;
+    document.getElementById('lrh-du').textContent=dur? (dur+'분') : '';
+    var pb=document.getElementById('lr-prev'), nb=document.getElementById('lr-next');
+    pb.disabled=(no<=mn); nb.disabled=(no>=mx);
+    pb.textContent='◂ '+(no-1)+'회차'; nb.textContent=(no+1)+'회차 ▸';
+    var body=document.getElementById('lrb');
+    body.innerHTML='<div class="lrep-empty">불러오는 중…</div>';
+    fetch('/api/crawl/lap-report?no='+encodeURIComponent(no))
+      .then(function(x){return x.json();})
+      .then(function(d){ body.innerHTML=(d&&d.ok)? lapRepHtml(d) : '<div class="lrep-empty">'+_esc((d&&d.error)||'불러오지 못했어요')+'</div>'; })
+      .catch(function(){ body.innerHTML='<div class="lrep-empty">불러오지 못했어요</div>'; });
+  }
+  // 팝업 뼈대 1회 생성 + 닫기/이동/묶음 토글
+  (function(){
+    var m=document.createElement('div'); m.className='lrmask'; m.id='lrmask'; m.style.display='none';
+    m.innerHTML='<div class="lrbox"><div class="lrh">'
+      +'<span class="lrh-no" id="lrh-no"></span><span class="lrh-tm" id="lrh-tm"></span>'
+      +'<span class="lrh-du" id="lrh-du"></span><span class="lrh-sp"></span>'
+      +'<span class="lrh-nav"><button type="button" id="lr-prev"></button><button type="button" id="lr-next"></button></span>'
+      +'<button type="button" class="lrh-x" id="lr-x">✕</button></div>'
+      +'<div class="lrb" id="lrb"></div></div>';
+    document.body.appendChild(m);
+    m.addEventListener('click',function(e){ if(e.target===m) closeLap(); });
+    document.getElementById('lr-x').addEventListener('click',closeLap);
+    document.getElementById('lr-prev').addEventListener('click',function(){ if(_lrOpen) openLap(_lrOpen-1); });
+    document.getElementById('lr-next').addEventListener('click',function(){ if(_lrOpen) openLap(_lrOpen+1); });
+    document.getElementById('lrb').addEventListener('click',function(e){
+      var ph=e.target.closest && e.target.closest('.lrph');
+      if(ph){ var prow=ph.parentElement, pwas=prow.classList.contains('open');
+        prow.classList.toggle('open');
+        ph.querySelector('.px').textContent = pwas? '\u25b8' : '\u25be';
+        if(!pwas && !prow.getAttribute('data-loaded')){ prow.setAttribute('data-loaded','1'); openProduct(prow); }
+        return; }
+      var kh=e.target.closest && e.target.closest('.lrkh');
+      if(kh){ var row=kh.parentElement, was=row.classList.contains('open');
+        row.classList.toggle('open');
+        kh.querySelector('.kx').textContent = was? '▸' : '▾';
+        if(!was && !row.getAttribute('data-loaded')){ row.setAttribute('data-loaded','1'); openKeep(row); }
+        return; }
+      var g=e.target.closest && e.target.closest('.lrg');
+      if(g){ var el=document.getElementById(g.getAttribute('data-t'));
+        if(el){ var on=el.style.display!=='none'; el.style.display=on?'none':''; var x=g.querySelector('.gx'); if(x) x.textContent=on?'▸':'▾'; }
+        return; }
+      var mo=e.target.closest && e.target.closest('.lrmore');
+      if(mo){ var rest=document.getElementById(mo.getAttribute('data-more')+'-rest'); if(rest){ rest.style.display=''; mo.style.display='none'; } }
+    });
+    document.addEventListener('keydown',function(e){ if(e.key==='Escape' && _lrOpen) closeLap(); });
+  })();
+  // 회차 줄 클릭 → 팝업 열기
   (function(){ var list=document.getElementById('czlog-list'); if(!list) return;
     list.addEventListener('click', function(e){
       var row=e.target.closest && e.target.closest('.czlog-row'); if(!row) return;
-      var no=row.getAttribute('data-no'), box=document.getElementById('lrep-'+no); if(!box) return;
-      if(box.style.display!=='none'){ box.style.display='none'; row.classList.remove('on'); return; }
-      row.classList.add('on'); box.style.display='';
-      box.innerHTML='<div class="lrep-empty">불러오는 중…</div>';
-      fetch('/api/crawl/lap-report?no='+encodeURIComponent(no))
-        .then(function(x){return x.json();})
-        .then(function(d){ box.innerHTML = (d&&d.ok) ? lapRepHtml(d) : '<div class="lrep-empty">'+_esc((d&&d.error)||'불러오지 못했어요')+'</div>'; })
-        .catch(function(){ box.innerHTML='<div class="lrep-empty">불러오지 못했어요</div>'; });
+      openLap(row.getAttribute('data-no'));
     });
   })();
   (function(){ var tg=document.getElementById('czlog-tg'); if(tg) tg.addEventListener('click',function(){ _lapsExpanded=!_lapsExpanded; renderLapLog(); }); })();

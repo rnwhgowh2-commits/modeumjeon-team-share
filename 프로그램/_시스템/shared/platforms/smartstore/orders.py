@@ -106,16 +106,23 @@ def fetch_order_detail(product_order_ids: list[str],
     )
 
 
-def send_tracking(product_order_ids: list[str], shipping_company: str,
+def send_tracking(product_order_ids: list[str], delivery_company_code: str,
                    tracking_number: str,
                    client: Optional[SmartStoreClient] = None,
                    shipping_date_ymd: Optional[str] = None) -> dict:
-    """발송·송장 전송 (최대 30개 한번에, 동일 송장 번호 기준)."""
+    """발송·송장 전송 (최대 30개 한번에, 같은 송장번호 = 합포장).
+
+    body 필드 = deliveryMethod + deliveryCompanyCode + trackingNumber.
+    (기존에 shippingCompany 로 보내던 것은 필드명 오류 — 실전송 이력이 없어 드러나지 않았다.)
+    delivery_company_code 는 **네이버 코드**(로젠=LOGEN). 쿠팡 코드(로젠=KGB)와 다르니 섞지 말 것.
+    ⚠️ 라이브 미검증 — 실계정 1건 전송으로 최종 확인.
+    """
     client = client or SmartStoreClient()
     body = {
         "dispatchProductOrders": [{
             "productOrderId": pid,
-            "shippingCompany": shipping_company,
+            "deliveryMethod": "DELIVERY",
+            "deliveryCompanyCode": delivery_company_code,
             "trackingNumber":  tracking_number,
             "dispatchDate":    shipping_date_ymd
                                or datetime.now().strftime("%Y-%m-%dT%H:%M:%S.000+09:00"),

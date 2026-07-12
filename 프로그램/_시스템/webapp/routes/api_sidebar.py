@@ -93,6 +93,21 @@ def _default_layout() -> dict:
 _layout_cache: dict = {'mtime': 0.0, 'data': None}
 
 
+def _remove_inspect(layout: dict) -> bool:
+    """배송검사가 주문 내역으로 흡수됨 → 저장 메뉴에 남은 '배송검사'(i_inspect) 항목 제거(idempotent).
+
+    (구분자 매핑 설정은 주문 내역 상단 「구분자 매핑」 버튼으로 접근.)
+    """
+    changed = False
+    for st in layout.get('stages') or []:
+        items = st.get('items') or []
+        new = [it for it in items if it.get('id') != 'i_inspect']
+        if len(new) != len(items):
+            st['items'] = new
+            changed = True
+    return changed
+
+
 def _load() -> dict:
     """파일에서 로드. 없으면 기본값 생성·저장. mtime 캐시 적용."""
     if not LAYOUT_PATH.exists():
@@ -110,6 +125,12 @@ def _load() -> dict:
             return _layout_cache['data']
         with open(LAYOUT_PATH, 'r', encoding='utf-8') as f:
             data = json.load(f)
+        if _remove_inspect(data):          # 배송검사 주문내역 흡수 → 저장 메뉴의 별도 항목 제거(1회)
+            _save(data)
+            try:
+                mtime = LAYOUT_PATH.stat().st_mtime
+            except OSError:
+                pass
         _layout_cache['data'] = data
         _layout_cache['mtime'] = mtime
         return data
