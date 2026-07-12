@@ -182,9 +182,17 @@
     .o7 tr.r-xl td{background:#FFFBEB;} .o7 tr.r-hand td{background:#F3F8FF;}
     .o7 tr.r-bad td{background:#FEF2F2;} .o7 tr.r-sent td{background:#F0FDF4;}
     /* 배송검사 통합 — 더망고 카드·배송방식 토글칩·검사 막대 */
-    .o7 .mango-card{background:#fff;border:1px solid var(--line2);border-radius:12px;padding:13px 15px;margin-bottom:13px;}
-    .o7 .mango-card .mc-t{font-size:13.5px;font-weight:800;margin-bottom:9px;}
-    .o7 .mango-card .mc-sub{font-size:11px;font-weight:500;color:var(--sub);margin-left:6px;}
+    /* 시안 B — 접이식 컬러 헤더 바 + 폭 제한 */
+    .o7 .mango-card{max-width:820px;border:1px solid #F3D9B0;border-radius:12px;overflow:hidden;margin-bottom:13px;background:#fff;}
+    .o7 .mc-head{display:flex;align-items:center;gap:10px;width:100%;text-align:left;border:none;background:#FEF3E2;padding:11px 15px;cursor:pointer;font-family:inherit;}
+    .o7 .mc-head:hover{background:#FCEBD3;}
+    .o7 .mc-badge{font-size:13px;font-weight:800;color:var(--amber);white-space:nowrap;}
+    .o7 .mc-headsub{font-size:11.5px;color:var(--amber);opacity:.85;}
+    .o7 .mc-result{margin-left:auto;font-size:11px;font-weight:700;color:var(--green);white-space:nowrap;}
+    .o7 .mc-chev{color:var(--amber);font-size:12px;transition:transform .15s;}
+    .o7 .mango-card.open .mc-chev{transform:rotate(180deg);}
+    .o7 .mc-body{display:none;padding:14px 15px;}
+    .o7 .mango-card.open .mc-body{display:block;}
     .o7 .mc-dz{display:flex;align-items:center;justify-content:center;gap:9px;border:2px dashed var(--line2);border-radius:10px;padding:13px;cursor:pointer;background:#fff;}
     .o7 .mc-dz:hover{border-color:var(--blue);}
     .o7 .mc-dz .ic{font-size:20px;} .o7 .mc-dz .t{font-weight:700;font-size:12.5px;} .o7 .mc-dz .fn{font-size:11.5px;color:var(--sub);}
@@ -226,22 +234,29 @@
       </div>
     </aside>
     <main class="main">
-      <div class="mango-card" id="mangoCard">
-        <div class="mc-t">📥 더망고 대조 업로드 <span class="mc-sub">오픈마켓주문번호로 매칭 → 배송방식·배송검사</span></div>
-        <label class="mc-dz" id="mangoDz">
-          <input type="file" id="mangoFile" accept=".xls,.htm,.html" style="display:none">
-          <span class="ic">📥</span><span class="t">더망고 엑셀 선택 · 끌어놓기</span><span class="fn" id="mangoFn"></span>
-        </label>
-        <div class="mc-row">
-          <div class="fl" style="margin:0 10px 0 0">전체 배송방식</div>
-          <label class="mc-rc on"><input type="radio" name="mgbulk" value="자동판정" checked hidden>자동판정</label>
-          <label class="mc-rc"><input type="radio" name="mgbulk" value="까대기" hidden>전부 까대기</label>
-          <label class="mc-rc"><input type="radio" name="mgbulk" value="직배" hidden>전부 직배</label>
-          <span style="margin-left:auto"></span>
-          <button class="gbtn" id="mgMapBtn" style="width:auto;margin:0">⚙ 구분자 매핑</button>
-          <button class="gbtn" id="mgUpBtn" style="width:auto;margin:0;background:var(--blue);border-color:var(--blue);color:#fff">업로드</button>
+      <div class="mango-card open" id="mangoCard">
+        <button type="button" class="mc-head" id="mangoHead">
+          <span class="mc-badge">📥 더망고 대조</span>
+          <span class="mc-headsub">오픈마켓주문번호로 마켓과 대조 → 배송방식·배송검사</span>
+          <span class="mc-result" id="mangoResult"></span>
+          <span class="mc-chev">▾</span>
+        </button>
+        <div class="mc-body" id="mangoBody">
+          <label class="mc-dz" id="mangoDz">
+            <input type="file" id="mangoFile" accept=".xls,.htm,.html" style="display:none">
+            <span class="ic">📥</span><span class="t">더망고 엑셀 선택 · 끌어놓기</span><span class="fn" id="mangoFn"></span>
+          </label>
+          <div class="mc-row">
+            <div class="fl" style="margin:0 10px 0 0">전체 배송방식</div>
+            <label class="mc-rc on"><input type="radio" name="mgbulk" value="자동판정" checked hidden>자동판정</label>
+            <label class="mc-rc"><input type="radio" name="mgbulk" value="까대기" hidden>전부 까대기</label>
+            <label class="mc-rc"><input type="radio" name="mgbulk" value="직배" hidden>전부 직배</label>
+            <span style="margin-left:auto"></span>
+            <button class="gbtn" id="mgMapBtn" style="width:auto;margin:0">⚙ 구분자 매핑</button>
+            <button class="gbtn" id="mgUpBtn" style="width:auto;margin:0;background:var(--blue);border-color:var(--blue);color:#fff">업로드</button>
+          </div>
+          <div class="mc-msg" id="mangoMsg"></div>
         </div>
-        <div class="mc-msg" id="mangoMsg"></div>
       </div>
       <div class="kpis" id="kpis"></div>
       <div class="mkline" id="mkline"></div>
@@ -562,15 +577,22 @@
     }
     function renderDmBars(){
       var el=document.getElementById('dmbars'); if(!el)return;
-      var s=mangoSummary, tot=Math.max(1,s.total||1);
-      var ok=(s.total||0)-(s.dup||0)-(s.flow||0)-(s.unknown||0);
-      var defs=[['dup','🔴 이중송장','var(--red)',s.dup||0],['flow','🟡 배송흐름 정체','var(--amber)',s.flow||0],
-                ['unk','⚪ 확인불가','var(--faint)',s.unknown||0],['ok','🟢 정상','var(--green)',ok]];
+      // 표에 불러온 주문 기준(inView) 카운트 — 클릭 필터 결과와 일치. 전체(/뒤)는 더망고 전체(mangoSummary).
+      var v={dup:0,flow:0,unk:0,ok:0};
+      rows.forEach(function(r){var m=dmOf(r); if(!m)return;
+        if(m.dup)v.dup++; else if(m.flow)v.flow++; else if(m.unk)v.unk++; else v.ok++;});
+      var s=mangoSummary||{}, T={dup:s.dup||0,flow:s.flow||0,unk:s.unknown||0,
+        ok:(s.total||0)-(s.dup||0)-(s.flow||0)-(s.unknown||0)};
+      var maxIn=Math.max(1,v.dup,v.flow,v.unk,v.ok);
+      var defs=[['dup','🔴 이중송장','var(--red)',v.dup,T.dup],['flow','🟡 배송흐름 정체','var(--amber)',v.flow,T.flow],
+                ['unk','⚪ 확인불가','var(--faint)',v.unk,T.unk],['ok','🟢 정상','var(--green)',v.ok,T.ok]];
+      var hasHidden=defs.some(function(d){return d[4]>d[3];});
       el.innerHTML=defs.map(function(d){
         var on=(dmCheckFilter===d[0])?' style="outline:2px solid '+d[2]+';outline-offset:1px;border-radius:6px"':'';
-        return '<div class="dmbar" data-f="'+d[0]+'"'+on+'><div class="dt"><span>'+d[1]+'</span><b style="color:'+d[2]+'">'+d[3]+'</b></div>'
-          +'<div class="dk"><span style="width:'+Math.min(100,Math.round(d[3]/tot*100))+'%;background:'+d[2]+'"></span></div></div>';
-      }).join('');
+        var tot=(d[4]>d[3])?' <span style="color:var(--faint);font-weight:500">/ '+d[4]+'</span>':'';
+        return '<div class="dmbar" data-f="'+d[0]+'"'+on+'><div class="dt"><span>'+d[1]+'</span><b style="color:'+d[2]+'">'+d[3]+tot+'</b></div>'
+          +'<div class="dk"><span style="width:'+Math.min(100,Math.round(d[3]/maxIn*100))+'%;background:'+d[2]+'"></span></div></div>';
+      }).join('') + (hasHidden?'<div style="font-size:10.5px;color:var(--faint);margin-top:2px;line-height:1.4">숫자 = 지금 표에 뜬 것 / 더망고 전체. 나머지는 <b>기간을 넓히면</b> 표에 나옵니다.</div>':'');
       [].slice.call(el.querySelectorAll('.dmbar')).forEach(function(b){b.onclick=function(){
         var f=b.getAttribute('data-f'); dmCheckFilter=(f==='ok'||dmCheckFilter===f)?null:f; render();};});
     }
@@ -772,7 +794,7 @@
                 +(j.failed?'\n\n실패 사유는 「송장입력」 칸에 마우스를 올리면 보입니다.':''));
         }).catch(function(){alert('전송 실패(네트워크)');});
     }
-    function render(){var fr=filtered();renderKPI(fr);renderTable(fr);syncBtn();}
+    function render(){var fr=filtered();renderKPI(fr);renderTable(fr);syncBtn();renderDmBars();}
     // ── 마켓별로 따로 불러와, 도착하는 대로 표에 쌓는다(한 마켓이 느려도 나머지가 먼저 보임) ──
     var loadSeq=0, loading=false, loadDone=0, loadTotal=0, warnAll=[];
     function sortRows(){rows.sort(function(a,b){
@@ -960,6 +982,7 @@
     // ── 배송검사 통합 배선 (더망고 업로드 · 배송방식 토글칩) ──
     var mgFile=document.getElementById('mangoFile');
     if(document.getElementById('mangoDz')){
+      document.getElementById('mangoHead').addEventListener('click',function(){document.getElementById('mangoCard').classList.toggle('open');});
       document.getElementById('mangoDz').addEventListener('click',function(){mgFile.click();});
       mgFile.addEventListener('change',function(){document.getElementById('mangoFn').textContent=mgFile.files[0]?mgFile.files[0].name:'';});
       [].slice.call(document.querySelectorAll('input[name=mgbulk]')).forEach(function(rd){rd.addEventListener('change',function(){
@@ -970,7 +993,10 @@
         fd.append('bulk_method',document.querySelector('input[name=mgbulk]:checked').value);
         document.getElementById('mangoMsg').textContent='업로드·마켓 대조 중…';
         fetch('/orders/inspect/upload',{method:'POST',body:fd}).then(function(r){return r.json();}).then(function(j){
-          if(j.ok){document.getElementById('mangoMsg').innerHTML='<span style="color:var(--green)">✔ '+j.parsed+'건 처리 · 마켓대조 '+(j.market_checked||0)+'건</span>';loadMango();}
+          if(j.ok){document.getElementById('mangoMsg').innerHTML='<span style="color:var(--green)">✔ '+j.parsed+'건 처리 · 마켓대조 '+(j.market_checked||0)+'건</span>';
+            document.getElementById('mangoResult').textContent='✔ '+j.parsed+'건 · 마켓대조 '+(j.market_checked||0);
+            document.getElementById('mangoCard').classList.remove('open');   // 업로드 끝나면 접어 표를 넓게
+            loadMango();}
           else document.getElementById('mangoMsg').innerHTML='<span style="color:var(--red)">✖ '+esc(j.error||'')+'</span>';});});
       document.getElementById('mgMapBtn').addEventListener('click',function(){window.open('/orders/?tab=inspect','_blank');});
     }
