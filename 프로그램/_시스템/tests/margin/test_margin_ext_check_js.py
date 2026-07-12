@@ -12,11 +12,32 @@ import subprocess
 
 import pytest
 
-FILE = pathlib.Path(__file__).resolve().parents[2] / "webapp" / "static" / "margin_ext_check.js"
+_STATIC = pathlib.Path(__file__).resolve().parents[2] / "webapp" / "static"
+FILE = _STATIC / "margin_ext_check.js"
+EXT_BRIDGE = _STATIC / "ext_bridge.js"
 
 
 def test_file_exists():
     assert FILE.exists()
+
+
+def test_seam_uses_typed_bridge_method_not_private_send():
+    """[E2 리뷰 회귀가드] seam 은 MoumExt 의 타입 메서드 checkSourcingOrder 를 호출해야 한다.
+
+    raw send 는 ext_bridge.js IIFE 내부 private 라 window.MoumExt 로 노출되지 않는다 →
+    ext.send(...) 호출은 happy path 에서 TypeError 로 죽는다(해피패스 배선 사망 회귀). 방지.
+    """
+    seam = FILE.read_text(encoding="utf-8")
+    bridge = EXT_BRIDGE.read_text(encoding="utf-8")
+    # (1) 브리지가 타입 메서드를 노출
+    assert "checkSourcingOrder:" in bridge, "ext_bridge.js MoumExt 에 checkSourcingOrder 미노출"
+    assert 'send("sourcing.check-order"' in bridge, "checkSourcingOrder 가 sourcing.check-order 로 배선 안 됨"
+    # (2) seam 이 타입 메서드를 호출, raw send 직접호출 금지
+    assert "ext.checkSourcingOrder(" in seam, "seam 이 타입 메서드를 호출하지 않음"
+    assert "ext.send(" not in seam, "seam 이 노출 안 된 private send 를 직접 호출(해피패스 사망 회귀)"
+    # (3) 배치 중지(AbortController) 배선
+    assert "opts.signal" in seam or "opts && opts.signal" in seam, "opts.signal(배치 중지) 미배선"
+    assert "AbortError" in seam, "AbortError 처리 미배선"
 
 
 @pytest.mark.skipif(shutil.which("node") is None, reason="node 없음")

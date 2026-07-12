@@ -86,25 +86,49 @@
     return res;
   }
 
+  // 배치 중지(AbortController) 지원 — in-flight 확인을 signal 'abort' 로 즉시 중단.
+  //   원본 배치 소비 코드의 catch(e){ if(e.name==='AbortError') break; } 가 살아나도록 AbortError 를 던진다.
+  function _withAbort(promise, signal) {
+    if (!signal) return promise;
+    if (signal.aborted) return Promise.reject(new DOMException("aborted", "AbortError"));
+    return new Promise(function (resolve, reject) {
+      var onAbort = function () { reject(new DOMException("aborted", "AbortError")); };
+      signal.addEventListener("abort", onAbort, { once: true });
+      promise.then(
+        function (v) { try { signal.removeEventListener("abort", onAbort); } catch (e) {} resolve(v); },
+        function (e) { try { signal.removeEventListener("abort", onAbort); } catch (_) {} reject(e); }
+      );
+    });
+  }
+
   // ── 확장 호출 → UI 계약({status, courier, tracking, error})으로 매핑 ──────
-  async function _run(memo) {
+  async function _run(memo, signal) {
+    // 배치 중지: 이미 중단됐으면 즉시 AbortError (가짜 상태 표시 금지).
+    if (signal && signal.aborted) throw new DOMException("aborted", "AbortError");
+
     var ext = _ext();
     if (!ext || !ext.installed || !ext.installed()) {
       // 조용한 실패 금지: 확장이 없으면 서버로 폴백하지 않고 그 사실을 그대로 표면화.
       return { error: "모음전 크롬확장 필요 (로컬 크롤) — 확장 로드 후 재시도" };
     }
+    // 브리지 구버전 방어: MoumExt 에 checkSourcingOrder(타입 메서드)가 없으면 원시 TypeError 대신
+    //   정직한 안내. (raw send 는 IIFE private 라 노출 안 됨 → 반드시 타입 메서드로 호출.)
+    if (typeof ext.checkSourcingOrder !== "function") {
+      return { error: "모음전 확장/브리지 업데이트 필요 (checkSourcingOrder 미노출) — 페이지 새로고침·확장 재로드" };
+    }
     var info = _parseMemo(memo);
     if (!info.url) return { error: "간단메모에 URL 없음 — 확인 불가" };
     if (!info.site_key) return { error: "소싱처 식별 불가 — 확인 불가 (지원 소싱처 URL/이름 아님)" };
 
+    var payload = {
+      url: info.url,
+      account_id: info.account_id,
+      site_name: info.site_name,
+      site_key: info.site_key,
+      memo: memo
+    };
     try {
-      var resp = await ext.send("sourcing.check-order", {
-        url: info.url,
-        account_id: info.account_id,
-        site_name: info.site_name,
-        site_key: info.site_key,
-        memo: memo
-      }, 90000);
+      var resp = await _withAbort(ext.checkSourcingOrder(payload, 90000), signal);
 
       // 미로그인은 거짓 성공으로 덮지 않고 명시적으로 표면화.
       if (resp && resp.is_logged_in === false) {
@@ -118,18 +142,27 @@
           error: ""
         };
       }
-      return { status: (resp && resp.order_status) || "", error: (resp && resp.error) || "확인 실패" };
+      // 미확정(확인불가 등)도 order_status 를 그대로 노출 — 송장만 발견=배송중 둔갑 금지(background 가 확인불가로 반환).
+      return {
+        status: (resp && resp.order_status) || "",
+        courier: (resp && resp.courier) || "",
+        tracking: (resp && resp.tracking) || "",
+        error: (resp && resp.error) || "확인 실패"
+      };
     } catch (e) {
+      if (e && e.name === "AbortError") throw e;   // 배치 중지 → 상위 루프가 처리(가짜 상태 금지)
       return { error: "확장 통신 오류: " + String((e && e.message) || e) };
     }
   }
 
   // 원본 fetch('/api/check-sourcing', {...}) 를 대체 — Response 유사 객체(.json()) 반환.
   //   원본 소비 코드: `var resp = await _moumExtCheckFetch(...); var result = await resp.json();`
+  //   opts.signal(배치 AbortController) 을 _run 으로 전달해 중지가 in-flight 확인을 끊게 한다.
   window._moumExtCheckFetch = function (url, opts) {
     var memo = "";
     try { memo = (JSON.parse((opts && opts.body) || "{}").memo) || ""; } catch (e) { memo = ""; }
-    return { json: function () { return _run(memo); } };  // .json() → Promise<{status,courier,tracking,error}>
+    var signal = opts && opts.signal;
+    return { json: function () { return _run(memo, signal); } };  // .json() → Promise<{status,courier,tracking,error}>
   };
 
   // 테스트/디버그 노출 (순수 파서 단위 검증용).

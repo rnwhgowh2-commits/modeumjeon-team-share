@@ -12,7 +12,7 @@
 
 // [2026-07-05 병합] 리포 확장은 stale(실제 로드=Desktop moum-crawler-v0.7.14, 별도 동기화 예정).
 // 두 갈래 0.7.6 병합: 자동화 워커(due-bundles 폴링→기존 크롤 큐 위임) + 무신사 상품쿠폰 전량수집.
-const MOUM_EXT_VERSION = "0.7.18";  // 0.7.18 = [E2] 마진계산기 소싱처 주문상태 확인(sourcing.check-order → 주문 URL 창 오픈+사이트별 파서 주입, 크롤=로컬). 0.7.17 = 실시간 집계(agg done/total) 브로드캐스트 → 자동화 링이 위젯과 동일. 0.7.16 = 상세 전체크롤 최우선. 0.7.6 = 자동화 워커 폴링 + 무신사 상품쿠폰(product_coupon_list) 전량수집 API우선+DOM폴백. 0.7.5 = manifest 버전동기화. 0.7.4 = content_mou 백그라운드 로그 중계. 0.7.3 = 현대H몰 sellGbcd 품절판정(S19). 0.6.x: 백그라운드 크롤 상태 영속+SW 자동재개
+const MOUM_EXT_VERSION = "0.7.19";  // 0.7.19 = [E2 리뷰] 송장만 발견=배송중 단정 제거(확인불가·미확정). 0.7.18 = [E2] 마진계산기 소싱처 주문상태 확인(sourcing.check-order → 주문 URL 창 오픈+사이트별 파서 주입, 크롤=로컬). 0.7.17 = 실시간 집계(agg done/total) 브로드캐스트 → 자동화 링이 위젯과 동일. 0.7.16 = 상세 전체크롤 최우선. 0.7.6 = 자동화 워커 폴링 + 무신사 상품쿠폰(product_coupon_list) 전량수집 API우선+DOM폴백. 0.7.5 = manifest 버전동기화. 0.7.4 = content_mou 백그라운드 로그 중계. 0.7.3 = 현대H몰 sellGbcd 품절판정(S19). 0.6.x: 백그라운드 크롤 상태 영속+SW 자동재개
 
 // cascade 위치 시퀀서 — 창이 여러 개 열려도 서로 어긋나 보임
 let _winSeq = 0;
@@ -606,7 +606,10 @@ function orderStatusExtractor(siteKey) {
   if (labelVal) { var r1 = classify(labelVal); if (r1[0]) { st = r1[0]; dt = "라벨[" + labelVal + "]→" + r1[1]; } }
   if (!st) { var r2 = classify(cleanBody); st = r2[0]; dt = r2[1]; }
   if (!st) {
-    if (tracking) { st = S.SHIPPING; dt = "송장번호 발견"; }
+    // ★ 송장번호만 있고 상태 키워드가 하나도 없으면 배송중으로 단정하지 않는다 —
+    //   송장은 배송완료/반품 주문에도 남는다. 금전 판단(블랙스팟)에 오버클레임 금지 →
+    //   확인불가(미확정)로 반환하되 송장은 그대로 노출(정보 손실 없음). 상태를 지어내지 않음.
+    if (tracking) { st = S.UNKNOWN; dt = "송장번호만 발견 — 상태 미확정"; }
     else { st = S.UNKNOWN; dt = "상태 판별 불가"; }
   }
   return { status: st, courier: courier, tracking: tracking, detail: dt, error: "" };

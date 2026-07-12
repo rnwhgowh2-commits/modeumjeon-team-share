@@ -6,7 +6,7 @@
 
 // ⚠️ 실제 로드되는 확장은 데스크톱 사본(reference_loaded_extension_path) — 리포 파일 수정 후
 //    반드시 데스크톱 폴더에 재복사 + chrome://extensions 새로고침해야 이 버전이 반영된다.
-const MOUM_EXT_VERSION = "0.7.7";   // 0.7.7 = [E2] 마진계산기 소싱처 주문상태 확인(sourcing.check-order, 로컬 크롬확장). 0.7.4 = 백그라운드 크롤 로그 페이지 중계
+const MOUM_EXT_VERSION = "0.7.8";   // 0.7.8 = [E2 리뷰] 송장만=배송중 단정 제거. 0.7.7 = [E2] 마진계산기 소싱처 주문상태 확인(sourcing.check-order, 로컬 크롬확장). 0.7.4 = 백그라운드 크롤 로그 페이지 중계
 
 // (1) 설치 마커 — document_start 시점이라 documentElement 는 이미 존재
 try {
