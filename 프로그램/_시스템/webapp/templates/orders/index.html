@@ -1079,10 +1079,10 @@
     .di .b-dup{background:rgba(239,68,68,.1);color:var(--red);}
     .di .b-flow{background:rgba(245,158,11,.14);color:var(--amber);}
     .di .b-ok{background:rgba(34,197,94,.12);color:var(--green);}
-    .di .chip{display:inline-flex;border:1px solid var(--line);border-radius:999px;overflow:hidden;}
-    .di .chip button{border:none;background:#fff;padding:4px 11px;font-size:11px;font-weight:600;cursor:pointer;color:var(--sub);}
-    .di .chip button.on-k{background:var(--kkad);color:var(--amber);}
-    .di .chip button.on-j{background:var(--bluel);color:var(--blued);}
+    .di .mi{display:inline-flex;align-items:center;gap:5px;padding:4px 11px;border-radius:999px;font-size:12px;font-weight:600;cursor:pointer;border:1px solid var(--line);}
+    .di .mi.mi-k{background:var(--kkad);color:var(--amber);border-color:#F3D9B0;}
+    .di .mi.mi-j{background:var(--bluel);color:var(--blued);border-color:#C7DCFB;}
+    .di .mi.mi-n{background:#fff;color:var(--sub);}
     .di .ov{position:fixed;inset:0;background:rgba(20,25,35,.5);z-index:200;display:none;align-items:center;justify-content:center;}
     .di .ov.on{display:flex;}
     .di .box{background:#fff;width:640px;max-width:92vw;border-radius:16px;overflow:hidden;box-shadow:0 20px 50px rgba(0,0,0,.3);}
@@ -1145,10 +1145,12 @@
     var MEANS=['배송전','해외배송중','국내배송중','배송완료','취소반품교환','기타'];
     var METHODS=['미지정','까대기','직배'];
     function esc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
-    function chip(uid,m){
-      var k=(m==='까대기')?' class="on-k"':'', j=(m==='직배')?' class="on-j"':'';
-      return '<span class="chip" data-uid="'+esc(uid)+'"><button'+k+' data-m="까대기">까대기</button>'
-           + '<button'+j+' data-m="직배">직배</button></span>';
+    var CYCLE=['미지정','까대기','직배'];
+    function methodCell(uid,m){
+      var ic=(m==='까대기')?'📦':(m==='직배')?'🚚':'⬜';
+      var cls=(m==='까대기')?'mi-k':(m==='직배')?'mi-j':'mi-n';
+      return '<span class="mi '+cls+'" data-uid="'+esc(uid)+'" data-m="'+esc(m)+'" '
+           + 'title="클릭하면 까대기 → 직배 → 미지정 순서로 바뀝니다">'+ic+' '+esc(m)+'</span>';
     }
     function flagBadge(r){return r.dup?'<span class="badge b-dup">중복송장</span>'
       :r.flow_missing?'<span class="badge b-flow">배송흐름 없음</span>'
@@ -1173,14 +1175,15 @@
         return '<tr><td>'+esc(r.market)+'</td><td>'+esc(r.recipient)+'</td>'
           +'<td style="font-size:12px">'+esc(r.product)+'</td>'
           +'<td class="c" style="font-size:12px">'+(r.invoice||'—')+'</td>'
-          +'<td class="c">'+chip(r.uid,r.method)+'</td>'
+          +'<td class="c">'+methodCell(r.uid,r.method)+'</td>'
           +'<td class="c">'+flagBadge(r)+'</td>'
           +'<td style="font-size:12px;color:#8B95A1">'+esc(why)+'</td></tr>';
       }).join('');
-      [].slice.call(document.querySelectorAll('#di-body .chip button')).forEach(function(b){
-        b.onclick=function(){var uid=b.parentElement.getAttribute('data-uid'),m=b.getAttribute('data-m');
+      [].slice.call(document.querySelectorAll('#di-body .mi')).forEach(function(el){
+        el.onclick=function(){var uid=el.getAttribute('data-uid');
+          var next=CYCLE[(CYCLE.indexOf(el.getAttribute('data-m'))+1)%3];
           fetch('/orders/inspect/method',{method:'POST',headers:{'Content-Type':'application/json'},
-            body:JSON.stringify({uid:uid,method:m})}).then(load);};});}
+            body:JSON.stringify({uid:uid,method:next})}).then(load);};});}
     // 업로드
     var fileEl=$('#di-file');
     $('#di-dz').onclick=function(){fileEl.click();};
