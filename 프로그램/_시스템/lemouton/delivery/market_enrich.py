@@ -4,7 +4,7 @@
 마켓 API = 서버(AWS) 전용. 로컬/테스트는 order_export 를 monkeypatch.
 """
 import re
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from lemouton.markets import order_export as _oe
 from lemouton.delivery.models import MangoOrder
@@ -64,6 +64,39 @@ def _now():
     return datetime.now(timezone.utc)
 
 
+_KST = timezone(timedelta(hours=9))
+_DATE_RE = re.compile(r"(\d{4})[-./](\d{1,2})[-./](\d{1,2})")
+# 마켓 조회 최대 소급(일). 해외현지배송중은 보통 2~4주 전 주문 → 넉넉히 두 달.
+# 이보다 오래된 주문은 마켓 조회 범위 밖이라 정직하게 '확인 불가'로 남긴다.
+_MAX_LOOKBACK_DAYS = 62
+
+
+def _parse_order_date(s):
+    """더망고 주문일자(A열) 문자열 → datetime(KST). 형식 무관(YYYY-MM-DD·YYYY.MM.DD 등). 실패 None."""
+    m = _DATE_RE.search(str(s or ""))
+    if not m:
+        return None
+    try:
+        return datetime(int(m.group(1)), int(m.group(2)), int(m.group(3)), tzinfo=_KST)
+    except ValueError:
+        return None
+
+
+def _query_window(orders):
+    """업로드 주문의 주문일 범위 → 마켓 조회 (since, until).
+
+    가장 오래된 주문일까지 소급하되 _MAX_LOOKBACK_DAYS 로 상한(마켓 조회 한계·속도 보호).
+    7일 기본창은 '해외현지배송중'처럼 오래된 주문을 놓쳐 매칭 실패(확인불가) 하던 원인.
+    """
+    until = datetime.now(_KST)
+    floor = until - timedelta(days=_MAX_LOOKBACK_DAYS)
+    dates = [d for d in (_parse_order_date(o.ordered_at) for o in orders) if d]
+    if not dates:
+        return floor, until          # 주문일을 못 읽으면 소급 상한까지 넓게(7일보다 안전)
+    since = max(min(dates) - timedelta(days=1), floor)   # 하루 버퍼, 상한 클램프
+    return since, until
+
+
 def enrich_from_market_api(session, uploaded_uids, warnings=None) -> dict:
     """업로드된 주문을 마켓 API 실주문으로 보강. 반환 {checked, unmatched, skipped}."""
     if warnings is None:
@@ -85,8 +118,13 @@ def enrich_from_market_api(session, uploaded_uids, warnings=None) -> dict:
     index = {}
     fetched_slugs = set()
     if grouped:
+        since, until = _query_window(orders)   # 주문일까지 소급(7일 기본창 밖 주문 매칭)
         try:
+            # include_settlement=False — 배송검사는 주문상태·송장만 필요. 정산 하루씩 루프는
+            # 넓은 창에서 타임아웃 유발이라 끈다.
             fetched = _oe.combined_order_rows(list(grouped.keys()), use_cache=True,
+                                              since=since, until=until,
+                                              include_settlement=False,
                                               warnings=warnings)
         except Exception as e:   # noqa: BLE001 — 조회 전체 실패도 확인불가로 표면화
             fetched = []
