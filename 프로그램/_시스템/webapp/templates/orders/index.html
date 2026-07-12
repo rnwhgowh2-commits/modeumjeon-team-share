@@ -625,12 +625,24 @@
     // 이미 발송(배송중/완료 또는 마켓 송장 있음)인지 — #4 정상 분리
     var SHIPPED_JS={'배송중':1,'배송완료':1,'발송완료':1,'수취완료':1,'구매확정':1,'구매결정':1,'배송지시':1};
     function isShipped(o){return !!(SHIPPED_JS[o.market_api_status]||o.market_api_invoice);}
-    // 컬럼 필터(#1)
-    var chkFilter={};   // field → Set(제외값)
-    function chkPass(o){for(var f in chkFilter){var ex=chkFilter[f];if(ex&&ex.size&&ex.has(String(o[f]||'(없음)')))return false;}return true;}
-    function chkTable(list,opt){opt=opt||{};
-      function th(f,label,cls){var on=chkFilter[f]&&chkFilter[f].size;
-        return '<th class="'+(cls||'')+' chk-fth'+(on?' on':'')+'" data-f="'+f+'" style="cursor:pointer;white-space:nowrap">'+label+' <span style="font-size:8px;color:var(--faint)">▼</span></th>';}
+    // 컬럼 필터 — 섹션별 독립. 각 칸(이중송장/정체/취소반품/확인불가/발송대상/이미발송)의
+    // 필터는 그 칸 주문건에 있는 값만 대상이고, 그 칸에만 적용된다(칸끼리 안 섞임).
+    var secFilter={};   // secKey → {field → Set(제외값)}
+    function passSec(o,sk){var f=secFilter[sk];if(!f)return true;
+      for(var k in f){var ex=f[k];if(ex&&ex.size&&ex.has(String(o[k]||'(없음)')))return false;}return true;}
+    function ordersOfSec(sk){return mangoOrders.filter(function(o){
+      if(sk==='cancel')return !!o.cancel;
+      if(o.cancel)return false;
+      if(sk==='dup')return !!o.dup;
+      if(sk==='stall')return !!o.flow_stalled;
+      if(sk==='unk')return !!o.unknown;
+      var isOk=!o.dup&&!o.flow_stalled&&!o.unknown;
+      if(sk==='send')return isOk&&!isShipped(o);
+      if(sk==='done')return isOk&&isShipped(o);
+      return false;});}
+    function chkTable(list,sk,opt){opt=opt||{};
+      function th(f,label,cls){var on=secFilter[sk]&&secFilter[sk][f]&&secFilter[sk][f].size;
+        return '<th class="'+(cls||'')+' chk-fth'+(on?' on':'')+'" data-sec="'+sk+'" data-f="'+f+'" style="cursor:pointer;white-space:nowrap">'+label+' <span style="font-size:8px;color:var(--faint)">▼</span></th>';}
       var head='<tr>'+(opt.why?'<th>안 되는 이유</th>':'')+th('market','마켓')+'<th>수령인</th><th>상품</th><th class="c">송장(마켓)</th>'
         +th('method','배송방식','c')+th('market_api_status','마켓상태','c')+'</tr>';
       var body=list.map(function(o){
@@ -643,47 +655,52 @@
     function renderCheckView(){
       var el=document.getElementById('checkSections'); if(!el)return;
       if(!mangoOrders.length){el.innerHTML='<div class="state" style="padding:30px;text-align:center;color:var(--sub);background:#fff;border:1px solid var(--line2);border-radius:12px">더망고를 업로드하면 검사 결과가 나옵니다.</div>';return;}
-      var all=mangoOrders.filter(chkPass);
-      // 취소·반품·교환 = 검사 불필요(마켓 API 가 안 돌려줘 매칭 불가). 다른 검사에서 제외.
-      var cancel=all.filter(function(o){return o.cancel;}),
-          dup=all.filter(function(o){return o.dup&&!o.cancel;}),
-          stall=all.filter(function(o){return o.flow_stalled&&!o.cancel;}),
-          unk=all.filter(function(o){return o.unknown&&!o.cancel;}),
-          okAll=all.filter(function(o){return !o.cancel&&!o.dup&&!o.flow_stalled&&!o.unknown;}),
-          sendable=okAll.filter(function(o){return !isShipped(o);}),
-          doneOk=okAll.filter(isShipped);
-      function sec(cls,emoji,title,list,opt){ if(!list.length)return ''; opt=opt||{};
+      // 섹션마다: 그 섹션 주문건(ordersOfSec) → 그 섹션 필터(passSec) 적용해 표시.
+      function sec(cls,emoji,title,sk,opt){ opt=opt||{};
+        var base=ordersOfSec(sk); if(!base.length)return '';
+        var list=base.filter(function(o){return passSec(o,sk);});
         var btn=opt.send?'<button class="sbtn" id="chkSendOk">✓ '+list.length+'건 송장 전송</button>':'';
-        return '<div class="chk-sec"><div class="chk-sec-h '+cls+'">'+emoji+' '+title+' <b style="font-variant-numeric:tabular-nums">'+list.length+'</b>'+btn+'</div>'+chkTable(list,opt)+'</div>';}
+        return '<div class="chk-sec"><div class="chk-sec-h '+cls+'">'+emoji+' '+title+' <b style="font-variant-numeric:tabular-nums">'+list.length+'</b>'+btn+'</div>'+chkTable(list,sk,opt)+'</div>';}
       function ss(k){return !dmCheckFilter||dmCheckFilter===k;}   // 사이드바 막대 클릭 시 그 섹션만
-      el.innerHTML=(ss('dup')?sec('cs-dup','🔴','이중송장 위험 · 재출력 금지',dup):'')
-        +(ss('flow')?sec('cs-stall','🟡','배송흐름 정체 · 소싱처 확인',stall):'')
-        +(ss('cancel')?sec('cs-cancel','🚫','취소·반품·교환 · 검사 불필요',cancel):'')
-        +(ss('unk')?sec('cs-unk','⚪','확인불가 · 조회 안 됨',unk,{why:true}):'')
-        +(ss('ok')?sec('cs-ok','🟢','발송 대상 · 아직 마켓에 송장 안 나감',sendable,{send:true}):'')
-        +(ss('ok')?sec('cs-done','✅','이미 발송/완료 · 조치 불필요',doneOk):'');
+      el.innerHTML=(ss('dup')?sec('cs-dup','🔴','이중송장 위험 · 재출력 금지','dup'):'')
+        +(ss('flow')?sec('cs-stall','🟡','배송흐름 정체 · 소싱처 확인','stall'):'')
+        +(ss('cancel')?sec('cs-cancel','🚫','취소·반품·교환 · 검사 불필요','cancel'):'')
+        +(ss('unk')?sec('cs-unk','⚪','확인불가 · 조회 안 됨','unk',{why:true}):'')
+        +(ss('ok')?sec('cs-ok','🟢','발송 대상 · 아직 마켓에 송장 안 나감','send',{send:true}):'')
+        +(ss('ok')?sec('cs-done','✅','이미 발송/완료 · 조치 불필요','done'):'');
       var sb=document.getElementById('chkSendOk');
       if(sb)sb.onclick=function(){ setOView('mkt'); dmCheckFilter=null;
-        alert('발송 대상 '+sendable.length+'건입니다. 「전체 주문」에서 대상을 선택해 송장 전송하세요.\\n(검사 뷰에서 바로 전송은 다음 업데이트 예정)');};
-      // 컬럼 필터 헤더 바인딩
-      [].slice.call(el.querySelectorAll('.chk-fth')).forEach(function(th){th.onclick=function(e){openChkPop(th.getAttribute('data-f'),th);e.stopPropagation();};});
+        alert('「전체 주문」에서 대상을 선택해 송장 전송하세요.\\n(검사 뷰에서 바로 전송은 다음 업데이트 예정)');};
+      // 컬럼 필터 헤더 바인딩(섹션·필드 함께 전달)
+      [].slice.call(el.querySelectorAll('.chk-fth')).forEach(function(th){th.onclick=function(e){openChkPop(th.getAttribute('data-f'),th,th.getAttribute('data-sec'));e.stopPropagation();};});
     }
-    // 컬럼 필터 팝오버
-    function openChkPop(field,anchor){
+    // 컬럼 필터 팝오버 — 그 섹션(sk) 주문건에 있는 값만, (모두 선택) 포함.
+    function openChkPop(field,anchor,sk){
       var pop=document.getElementById('chkPop'); if(!pop)return;
-      var cnt={}; mangoOrders.forEach(function(o){var v=String(o[field]||'(없음)');cnt[v]=(cnt[v]||0)+1;});
-      var ex=chkFilter[field]||new Set();
+      var base=ordersOfSec(sk);
+      var cnt={}; base.forEach(function(o){var v=String(o[field]||'(없음)');cnt[v]=(cnt[v]||0)+1;});
+      var f=secFilter[sk]||{}, ex=f[field]||new Set();
       var vals=Object.keys(cnt).sort();
+      var allOn=vals.every(function(v){return !ex.has(v);});
       pop.innerHTML='<div style="padding:7px 9px;border-bottom:1px solid var(--line2);font-size:11px;font-weight:800;color:var(--sub)">값으로 거르기</div>'
-        +'<div style="max-height:220px;overflow:auto;padding:5px 8px">'+vals.map(function(v){return '<label style="display:flex;align-items:center;gap:6px;padding:3px 0;font-size:11.5px"><input type="checkbox" data-v="'+esc(v)+'"'+(ex.has(v)?'':' checked')+'> '+esc(v)+' <span style="color:var(--faint);margin-left:auto">'+cnt[v]+'</span></label>';}).join('')+'</div>'
+        +'<div style="max-height:220px;overflow:auto;padding:5px 8px">'
+        +'<label style="display:flex;align-items:center;gap:6px;padding:4px 0;font-size:11.5px;font-weight:800;color:var(--ink);border-bottom:1px solid var(--line);margin-bottom:3px"><input type="checkbox" id="chkPopAll"'+(allOn?' checked':'')+'> (모두 선택)</label>'
+        +vals.map(function(v){return '<label style="display:flex;align-items:center;gap:6px;padding:3px 0;font-size:11.5px"><input type="checkbox" class="chkPopV" data-v="'+esc(v)+'"'+(ex.has(v)?'':' checked')+'> '+esc(v)+' <span style="color:var(--faint);margin-left:auto">'+cnt[v]+'</span></label>';}).join('')+'</div>'
         +'<div style="display:flex;gap:6px;padding:7px 9px;border-top:1px solid var(--line2)"><button class="btn" id="chkPopClear" style="flex:1;font-size:11px;padding:5px">모두</button><button class="btn p" id="chkPopOk" style="flex:1;font-size:11px;padding:5px">적용</button></div>';
       var r=anchor.getBoundingClientRect();
       pop.style.left=Math.max(8,r.left+window.scrollX)+'px'; pop.style.top=(r.bottom+window.scrollY+4)+'px';
       pop.classList.add('on');
-      document.getElementById('chkPopClear').onclick=function(){[].slice.call(pop.querySelectorAll('input')).forEach(function(c){c.checked=true;});};
+      var master=document.getElementById('chkPopAll');
+      function vboxes(){return [].slice.call(pop.querySelectorAll('.chkPopV'));}
+      function syncMaster(){master.checked=vboxes().every(function(c){return c.checked;});}
+      master.onclick=function(){var on=master.checked;vboxes().forEach(function(c){c.checked=on;});};
+      vboxes().forEach(function(c){c.addEventListener('change',syncMaster);});
+      document.getElementById('chkPopClear').onclick=function(){vboxes().forEach(function(c){c.checked=true;});master.checked=true;};
       document.getElementById('chkPopOk').onclick=function(){
-        var exc=new Set();[].slice.call(pop.querySelectorAll('input')).forEach(function(c){if(!c.checked)exc.add(c.getAttribute('data-v'));});
-        if(exc.size)chkFilter[field]=exc; else delete chkFilter[field];
+        var exc=new Set();vboxes().forEach(function(c){if(!c.checked)exc.add(c.getAttribute('data-v'));});
+        if(!secFilter[sk])secFilter[sk]={};
+        if(exc.size)secFilter[sk][field]=exc; else delete secFilter[sk][field];
+        if(!Object.keys(secFilter[sk]).length)delete secFilter[sk];
         pop.classList.remove('on'); renderCheckView();};
     }
     function setOView(v){
