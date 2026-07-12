@@ -105,7 +105,7 @@
 
 **D 서브태스크:**
 - **D1** ① 카드키워드 → 팀 DB 테이블 + 모음전 `/api/keywords` GET/POST 구현. **페이지 세임 불필요**(iframe 페이지가 이미 /api/keywords 호출; C1+C2에서 기본값 렌더 확인). store 패턴=`lemouton/margin/store.py`+`shared/db.py SessionLocal`. Alembic 없음→create_all.
-- **D2** ②③④ 사용자설정(고마진·효율1·금액대) → 팀 DB + 엔드포인트 + **페이지 세임**(applyUserSettings·priceRanges 가 localStorage/in-memory 대신 서버 저장·로드 시 hydrate). 빌드스크립트 SEAMS 경유.
+- **D2** ②③④ 사용자설정(고마진·효율1·금액대) → **원본 그대로 localStorage 유지**(사용자 2026-07-12 못박음: 원본 따라가라). 원본이 `margin_user_settings`·`priceRanges` 를 브라우저 localStorage 로 저장하므로 모음전도 동일 → **verbatim 이식(C1+C2)으로 이미 동작. 추가 작업·팀DB·페이지 세임 없음.** [[feedback_replicate_original_dont_ask_approach]]
 - **D3** ⑤ 소싱처계정 → 모음전 기존 `SourcingCredential` DB 연결(§6: 모델 `lemouton/sourcing/models_v2.py:129`, 스토어 `lemouton/auth/sourcing_credentials.py:161`, 라우트 `accounts.py:1612/1695`). **평문 settings.json 재이식 금지.** `/api/settings`·`/api/sourcing-sites` 를 이 DB에 매핑. Task E(소싱처 자동확인)와 인접.
 
 ---
