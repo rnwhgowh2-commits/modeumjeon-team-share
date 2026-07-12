@@ -291,6 +291,13 @@
   .km-wl{font-size:8.5px;font-weight:700;padding:1px 5px;border-radius:10px;background:#e6f9f1;color:#0b7a54;margin-left:5px;white-space:nowrap;}
   .km-wl.win{background:#fff7e6;color:#8a5a06;}
   .km-prep{font-size:9px;color:#c0343f;font-weight:700;}
+  /* 지금 진행(실시간 창 수) — 위젯과 같은 점 게이지(C안) */
+  .km-live{display:inline-flex;align-items:center;gap:7px;justify-content:flex-end;}
+  .km-live .dots{display:inline-flex;gap:3px;}
+  .km-live .dot{width:8px;height:8px;border-radius:50%;background:#E4E8EC;}
+  .km-live .dot.on{background:#12B886;}
+  .km-live .runn{font-weight:700;color:#0b7a54;min-width:12px;text-align:right;font-variant-numeric:tabular-nums;}
+  .km-live .runn.idle{color:#c0c6cd;}
   .km-more{display:inline-flex;align-items:center;gap:6px;background:#EAF2FE;border:1px solid #cfe1fb;border-radius:9px;padding:9px 12px;font-size:12.5px;font-weight:600;color:#1b64da;text-decoration:none;margin-top:10px;}
 </style>
 {% endblock %}
@@ -344,8 +351,8 @@
         </div>
         <div class="km-lab">🌲 소싱처별 설정 — 계수(자주 긁을수록 ×N) · 동시 상한(한 번에 몇 갈래)</div>
         <table class="km">
-          <thead><tr><th class="km-th" style="text-align:left">소싱처</th><th class="km-th r">계수</th><th class="km-th r">동시 상한 <span class="km-prep">· 엔진 준비 중</span></th></tr></thead>
-          <tbody id="km-body"><tr><td colspan="3" class="km-empty" style="font-size:11.5px;color:#8b95a1;padding:8px 2px">불러오는 중…</td></tr></tbody>
+          <thead><tr><th class="km-th" style="text-align:left">소싱처</th><th class="km-th r">계수</th><th class="km-th r">동시 상한 <span class="km-prep">· 엔진 준비 중</span></th><th class="km-th r">지금 진행</th></tr></thead>
+          <tbody id="km-body"><tr><td colspan="4" class="km-empty" style="font-size:11.5px;color:#8b95a1;padding:8px 2px">불러오는 중…</td></tr></tbody>
         </table>
         <a class="km-more" href="/automation/weights">브랜드·모음전별까지 자세히 설정 →</a>
       </div>
@@ -930,7 +937,7 @@
     fetch('/api/crawl/weight-tree').then(function(r){return r.json();}).then(function(d){
       var tb=document.getElementById('km-body'); if(!tb) return; tb.innerHTML='';
       var src=(d&&d.src)||[];
-      if(!src.length){ tb.innerHTML='<tr><td class="km-empty" style="font-size:11.5px;color:#8b95a1;padding:8px 2px">아직 소싱처가 없어요.</td></tr>'; return; }
+      if(!src.length){ tb.innerHTML='<tr><td colspan="4" class="km-empty" style="font-size:11.5px;color:#8b95a1;padding:8px 2px">아직 소싱처가 없어요.</td></tr>'; return; }
       src.forEach(function(s){
         var lab=s.label||s.scope_key||'?';
         var c=(s.concurrency==null?'':s.concurrency);
@@ -938,9 +945,11 @@
         var tr=document.createElement('tr');
         tr.innerHTML='<td><span class="km-src"><span class="km-ic">'+lab.charAt(0)+'</span>'+lab+'</span>'+wl+'</td>'+
           '<td class="r"><span class="km-step wt" data-key="'+encodeURIComponent(s.scope_key)+'" data-w="'+s.weight+'"><button data-d="-1"'+(s.weight<=0?' disabled':'')+'>−</button>'+(s.weight<=0?'<span class="v" style="color:#8b95a1">제외</span>':'<span class="v">×'+s.weight+'</span>')+'<button data-d="1"'+(s.weight>=5?' disabled':'')+'>+</button></span></td>'+
-          '<td class="r"><span class="km-step conc" data-src="'+encodeURIComponent(s.scope_key)+'" data-c="'+c+'"><button data-d="-1"'+(c<=1?' disabled':'')+'>−</button><span class="v">'+c+'</span><button data-d="1"'+(c>=10?' disabled':'')+'>+</button></span></td>';
+          '<td class="r"><span class="km-step conc" data-src="'+encodeURIComponent(s.scope_key)+'" data-c="'+c+'"><button data-d="-1"'+(c<=1?' disabled':'')+'>−</button><span class="v">'+c+'</span><button data-d="1"'+(c>=10?' disabled':'')+'>+</button></span></td>'+
+          '<td class="r"><span class="km-live" data-live="'+encodeURIComponent(s.scope_key)+'"><span class="dots"></span><span class="runn idle">0</span></span></td>';
         tb.appendChild(tr);
       });
+      paintKmLive();   // 새로 그린 행에 현재 실시간 값 즉시 반영
       // 계수 스테퍼(×N, 0~5)
       tb.querySelectorAll('.km-step.wt button').forEach(function(btn){
         btn.addEventListener('click',function(){
@@ -961,6 +970,35 @@
       });
     }).catch(function(){});
   }
+  // ── 「지금 진행」 실시간 창 수 (위젯과 같은 moum-crawl-log 이벤트 구독) ──
+  //   소싱처(sk)가 지금 열고 있는 창 수를, 모음전(bundle)별로 쌓아 합산.
+  //   → 순차면 한 모음전분(예: 롯데온 1창), 나중에 B(여러 모음전 동시)면 자동 합산.
+  var _liveByBundle = {};   // { bundleCode: { sk: winsNow } }
+  function _liveSum(sk){
+    var n=0; for(var code in _liveByBundle){ if(_liveByBundle[code] && _liveByBundle[code][sk]) n+=_liveByBundle[code][sk]; } return n;
+  }
+  function paintKmLive(){
+    var els=document.querySelectorAll('.km-live[data-live]'); if(!els.length) return;
+    els.forEach(function(el){
+      var sk=decodeURIComponent(el.getAttribute('data-live'));
+      var n=_liveSum(sk);
+      var dots=''; for(var i=0;i<4;i++){ dots+='<span class="dot'+(i<n?' on':'')+'"></span>'; }
+      el.querySelector('.dots').innerHTML=dots;
+      var rn=el.querySelector('.runn'); rn.textContent=(n>0?n:'0'); rn.className='runn'+(n>0?'':' idle');
+    });
+  }
+  window.addEventListener('moum-crawl-log', function(e){
+    try{
+      var d=(e&&e.detail)||{}; var code=d.bundle, sk=d.source, t=d.type;
+      if(!code) return;
+      if(t==='start'){ _liveByBundle[code]={}; }
+      else if(t==='window-open'){ if(sk){ if(!_liveByBundle[code])_liveByBundle[code]={}; _liveByBundle[code][sk]=(d.wins!=null?d.wins:1); } }
+      else if(t==='source-done'){ if(sk && _liveByBundle[code]) delete _liveByBundle[code][sk]; }
+      else if(t==='finish'){ delete _liveByBundle[code]; }
+      else return;
+      paintKmLive();
+    }catch(_){}
+  });
   renderSpeed(); renderFailures(); renderKmini(); pollLap(); paintRun();
   // 로드 시 실행 상태면 확장 폴링 재개(서비스워커 재시작·페이지 재방문 대비).
   //   토글 클릭 때만 시작하면, 실행 ON인 채 새로고침하면 폴링이 안 살아나던 갭 보완.
