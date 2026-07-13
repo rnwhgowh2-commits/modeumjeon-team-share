@@ -406,6 +406,22 @@ def test_order_rows_coerces_naive_dates_to_aware(monkeypatch):
     assert cap["since"] == aware_s and cap["until"] == aware_u
 
 
+def test_eleven11_claim_row_no_synthetic_date(monkeypatch):
+    """11번가 클레임(취소완료) 행 주문일은 공란 — ordNo 앞 8자리는 실주문일이 아니다
+    (라이브: 20260703…인데 실주문일 07-06 → 07-03 오추정돼 기간필터 탈락). 공란=필터 보존."""
+    import shared.platforms.eleven11.orders as e11
+    _empty = lambda *a, **k: iter([])
+    for nm in ("iter_orders", "iter_delivered", "iter_completed", "iter_preparing",
+               "iter_shipping", "iter_cancel", "iter_return", "iter_exchange"):
+        monkeypatch.setattr(e11, nm, _empty)
+    monkeypatch.setattr(e11, "iter_canceled", lambda s, u, **k: iter([
+        {"ordNo": "20260703081308490", "ordPrdSeq": "1", "slctPrdOptNm": "블랙"}]))
+    rows = oe.eleven11_order_rows(dt.datetime(2026, 7, 5, tzinfo=oe.KST),
+                                  dt.datetime(2026, 7, 12, tzinfo=oe.KST), client=object())
+    claim = [r for r in rows if r.get("오픈마켓주문번호") == "20260703081308490"]
+    assert claim and claim[0]["주문일"] == ""   # 07-03 프리픽스 아님
+
+
 def test_eleven11_fetch_window_never_future(monkeypatch):
     """11번가 상태별 조회 끝을 +14일 잡되 now 로 상한. 미래일을 넣으면 API 가 그 창을 400 거부 →
     _collect try/except 로 그 상태(취소완료 등)가 통째 빠진다(라이브: 07-06 취소완료 1건 누락)."""
