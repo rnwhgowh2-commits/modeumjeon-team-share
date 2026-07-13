@@ -822,7 +822,11 @@ def eleven11_order_rows(since: _dt.datetime, until: _dt.datetime, client=None,
         ordno = str(_g11(od, "ordNo"))
         addr = (str(_g11(od, "rcvrBaseAddr")) + " " + str(_g11(od, "rcvrDtlsAddr"))).strip()
         return {
-            "주문일": ordno[:8] if ordno[:2] == "20" and len(ordno) >= 8 else "",
+            # ★ 주문일 공란(폴백 금지). 클레임 목록엔 ordDt 가 없고, ordNo 앞 8자리는 주문일이
+            #   아니다(라이브: 주문번호 20260703… 인데 실주문일 07-06 → 07-03 으로 오추정돼
+            #   기간필터에서 통째 탈락). 공란이면 combined_order_rows 가 유지하고(주문일 파싱실패
+            #   =보존), 매처가 주문번호로 매칭해 더망고(매입)의 실주문일을 쓴다.
+            "주문일": "",
             "판매처": "11번가",
             "상품명": "",   # 클레임 목록 미제공
             "옵션": _g11(od, "slctPrdOptNm", "optName"),

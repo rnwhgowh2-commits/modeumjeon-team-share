@@ -100,7 +100,6 @@ def register_routes(app: Flask) -> None:
     from webapp.routes.api_margin import bp as api_margin_bp  # 마진 계산기 — 업로드·분석·내보내기
     from webapp.routes.api_keywords import bp as api_keywords_bp  # 카드별 분류 키워드 (팀 공유) — /api/keywords
     from webapp.routes.api_brand_dict import bp as api_brand_dict_bp  # 브랜드 사전·미확정 정리 — /api/brand_dict(/suggest)
-    from webapp.routes.api_margin_probe import bp as api_margin_probe_bp  # [임시]
     from webapp.routes.api_sourcing_settings import bp as api_sourcing_settings_bp  # 소싱처 계정 관리 — /api/sourcing-sites·/api/settings
     from webapp.routes.api_blackspot import bp as api_blackspot_bp  # 소싱처 주문번호 추출 — /api/blackspot/fetch_order_no
     from scheduler.webhook import bp as webhook_bp
@@ -133,7 +132,6 @@ def register_routes(app: Flask) -> None:
     app.register_blueprint(api_margin_bp)  # 마진 계산기 — 업로드·분석·내보내기
     app.register_blueprint(api_keywords_bp)  # 카드별 분류 키워드 (팀 공유) — /api/keywords
     app.register_blueprint(api_brand_dict_bp)  # 브랜드 사전·미확정 정리 — /api/brand_dict(/suggest)
-    app.register_blueprint(api_margin_probe_bp)  # [임시]
     app.register_blueprint(api_sourcing_settings_bp)  # 소싱처 계정 관리 — /api/sourcing-sites·/api/settings
     app.register_blueprint(api_blackspot_bp)  # 소싱처 주문번호 추출 — /api/blackspot/fetch_order_no
     app.register_blueprint(webhook_bp)
