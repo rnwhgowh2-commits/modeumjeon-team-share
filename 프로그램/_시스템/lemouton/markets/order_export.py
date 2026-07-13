@@ -245,6 +245,7 @@ def smartstore_order_rows(since: _dt.datetime, until: _dt.datetime,
             # 이미 등록된 송장은 마켓이 정본 — 안 읽어오면 사용자가 손으로 다시 치게 되고,
             # 그 값이 실제와 어긋나도 화면상 알 길이 없다(2026-07-10 실제 발생).
             "송장입력": _g(dv, "trackingNumber", default=""),
+            "발송처리일": _g(dv, "sendDate", "sendDate", default=""),   # 스스 발송일 → 경과시간용
         })
     return rows
 
@@ -815,6 +816,7 @@ def eleven11_order_rows(since: _dt.datetime, until: _dt.datetime, client=None,
             "오픈마켓주문번호": _g11(od, "ordNo"),
             "실결제금액": _g11(od, "ordPayAmt"),   # 결제금액 = 주문금액+배송비-할인(공문 확인)
             "송장입력": _g11(od, "invcNo"),
+            "발송처리일": _g11(od, "sndEndDt", "dlvEndDt"),   # 발송일(배송중)·배송완료일 → 경과시간용
         }
 
     def _claim_row(od, status):
