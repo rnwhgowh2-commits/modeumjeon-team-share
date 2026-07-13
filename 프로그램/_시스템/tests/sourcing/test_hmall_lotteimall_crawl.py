@@ -174,3 +174,43 @@ def test_lotteimall_disp_qty_matches_site_thresholds():
     assert _lotteimall_disp_qty(10) == 999   # ★ 구 로직은 10을 '10개 남음'으로 오표기했음
     assert _lotteimall_disp_qty(30) == 999   # 충분
     assert _lotteimall_disp_qty(600) == 999  # 판매중=충분
+
+
+def test_lotteimall_limited_size_stored_without_paren_suffix():
+    """★ 2026-07-14 회귀 — 한정('N개 남음') 사이즈가 매트릭스에서 '미크롤' 둔갑하던 버그.
+
+    단품(단일색)은 사이즈가 color_text 에 담기는데, 한정 사이즈 li 텍스트가
+    "250mm (2개 남음)" 이라 그대로 저장됐다. 매칭(_stk_digits = 모든 숫자 이어붙임)이
+    "250"+"2"="2502" → 우리 사이즈 "250" 과 불일치 → 그 사이즈만 미크롤(품절은 괄호에
+    숫자 없어 우연히 정상). 저장 라벨에서 상태 꼬리표를 제거해 매칭을 복구한다.
+    재고 값 자체(한정=2)는 보존돼야 한다."""
+    from lemouton.sourcing.crawlers.lotteon import LotteCrawler
+    html = """
+    <div class="title">르무통 메이트 그레이</div>
+    <div class="price"><span class="num">113,630</span>
+      <div class="final"><span class="num">122,180</span></div></div>
+    <div class="inp_option inpOptList"><ul>
+      <li id="0_0"><p class="txt_option">사이즈 선택</p></li>
+      <li id="0_1"><p class="txt_option">230mm</p></li>
+      <li id="0_2"><p class="txt_option">250mm (2개 남음)</p></li>
+      <li class="soldout" id="0_3"><p class="txt_option">220mm (품절)</p></li>
+    </ul></div>
+    <script>itemInvQtyInfo = [];
+      itemInvQtyInfo[0] = {opt_cd_0:'99',opt_val_cd_0:'1',item_no:1,inv_qty:30,master_yn:'N'};
+      itemInvQtyInfo[1] = {opt_cd_0:'99',opt_val_cd_0:'2',item_no:2,inv_qty:2,master_yn:'N'};
+      itemInvQtyInfo[2] = {opt_cd_0:'99',opt_val_cd_0:'3',item_no:3,inv_qty:0,master_yn:'N'};
+    </script>
+    """
+    res = LotteCrawler().parse_html(
+        html, "https://www.lotteimall.com/goods/viewGoodsDetail.lotte?goods_no=2559329941")
+    by_stock = {}
+    for o in res.options:
+        # 저장 라벨(색·사이즈 어디에 담기든)에 상태 꼬리표('(...)')가 남으면 안 된다.
+        assert "(" not in (o.get("color_text") or ""), o
+        assert "(" not in (o.get("size_text") or ""), o
+        # 사이즈 숫자만 남아야 _stk_digits 매칭이 정확 (예: '250mm' → '250')
+        by_stock[(o.get("color_text") or "").replace("mm", "")] = o.get("stock")
+    # 3상태 값 보존: 250=한정 2 / 230=충분 999 / 220=품절 0
+    assert by_stock.get("250") == 2, by_stock
+    assert by_stock.get("230") == 999, by_stock
+    assert by_stock.get("220") == 0, by_stock

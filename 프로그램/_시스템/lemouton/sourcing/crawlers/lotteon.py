@@ -1446,13 +1446,22 @@ class LotteCrawler(AbstractCrawler):
                     stock_int = _lotteimall_disp_qty(size_qty_map[_lbl_key])
                 else:
                     stock_int = 0 if is_sold_out else 999
+                # ★ 2026-07-14 — 저장용 라벨에서 상태 꼬리표('(품절)'·'(N개 남음)') 제거.
+                #   버그: 단품(단일색)은 사이즈가 color_text 에 담기는데(위 특성), 한정 사이즈는
+                #   li 텍스트가 "250mm (2개 남음)" 이라 그대로 저장됐다. 매트릭스 매칭
+                #   (_stk_digits = 모든 숫자 이어붙임)이 "250"+"2"="2502" 를 만들어 우리 사이즈
+                #   "250" 과 불일치 → 그 사이즈만 '미크롤' 둔갑(품절은 괄호에 숫자없어 우연히 정상).
+                #   재고 값(stock_int)은 이미 위에서 괄호 제거한 _lbl_key/_csk 로 정확히 뽑았으므로
+                #   여기선 '저장 키'만 정리한다(값·품절판정에 영향 없음).
+                _store_color = _SIZE_PAREN_PATTERN.sub("", color_text or "").strip()
+                _store_size = _SIZE_PAREN_PATTERN.sub("", size_text or "").strip()
                 # CrawlResult.price: V7 는 maxPrice 사용 (옵션 표시 가격)
                 # 단, maxPrice 가 0 일 수 있으므로 V7 의 ``maxPrice || '-'`` 분기는
                 # 본 모듈에서는 0 그대로 유지 (CrawlResult 스키마는 int).
                 options.append({
-                    "option_id": f"{product_id}|{color_text}|{size_text}",
-                    "color_text": color_text,
-                    "size_text": size_text,
+                    "option_id": f"{product_id}|{_store_color}|{_store_size}",
+                    "color_text": _store_color,
+                    "size_text": _store_size,
                     "price": base_for_policy,
                     "sale_price": base_for_policy,
                     # ★ 2026-05-13: 사이트 자동 적용 카드 할인 정보 (UI 표시용)
