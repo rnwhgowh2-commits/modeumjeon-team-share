@@ -667,9 +667,12 @@
       if(sk==='send')return !prog&&!inv;         // 발송 대상: 마켓 송장 없음
       return false;});}
     // 발송처리일(마켓 등록시각) → 경과시간
-    function shipHours(o){var s=String(o.shipped_at||'');if(!s)return null;
-      var m=s.match(/(\d{4})[-\/.](\d{1,2})[-\/.](\d{1,2})[ T]?(\d{1,2})?:?(\d{1,2})?/);if(!m)return null;
-      var dt=new Date(+m[1],+m[2]-1,+m[3],+(m[4]||0),+(m[5]||0));if(isNaN(dt.getTime()))return null;
+    function shipHours(o){var s=String(o.shipped_at||'').trim();if(!s)return null;
+      var dt=null,m=s.match(/(\d{4})[-\/.](\d{1,2})[-\/.](\d{1,2})[ T]?(\d{1,2})?:?(\d{1,2})?/);
+      if(m){dt=new Date(+m[1],+m[2]-1,+m[3],+(m[4]||0),+(m[5]||0));}
+      else{var d=s.replace(/\D/g,'');   // yyyyMMddHHmmss (구분자 없음)
+        if(d.length>=8)dt=new Date(+d.slice(0,4),+d.slice(4,6)-1,+d.slice(6,8),+(d.slice(8,10)||0),+(d.slice(10,12)||0));}
+      if(!dt||isNaN(dt.getTime()))return null;
       var h=Math.floor((Date.now()-dt.getTime())/3600000);return h>=0?h:null;}
     function elapsedTxt(o){var h=shipHours(o);if(h==null)return '';
       return h<24?(h+'시간 경과'):(Math.floor(h/24)+'일 '+(h%24)+'시간 경과');}
