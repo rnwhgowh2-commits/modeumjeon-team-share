@@ -877,10 +877,11 @@ def eleven11_order_rows(since: _dt.datetime, until: _dt.datetime, client=None,
                     continue
                 seen.add(key)
                 r = builder(od, status)
-                # 11번가 원본 상태코드(API코드 칸): 클레임=clmStat, 일반=엔드포인트 코드
-                #  (11번가는 상태 필드가 아니라 '어느 API를 불렀나'로 상태를 판정 → 엔드포인트가 곧 상태).
+                # API코드 = 마켓이 실제로 준 상태코드만(clmStat 클레임 / ordPrdStat). 없으면 비운다.
+                #  ★엔드포인트 이름(shipping·completed 등) 같은 합성값은 넣지 않는다 — 실제 API 코드
+                #   아닌 건 추정이라, 못 받으면 빈칸으로 둔다(정합성: 확실히 API로 받은 것만).
                 r["주문상태원본"] = (od.get("clmStat") or od.get("ordPrdStat")
-                                 or r.get("주문상태원본") or code)
+                                 or r.get("주문상태원본") or "")
                 rows.append(r)
         except Exception:   # noqa: BLE001
             if required:
