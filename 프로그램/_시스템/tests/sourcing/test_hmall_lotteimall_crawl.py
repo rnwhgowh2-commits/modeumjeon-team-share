@@ -156,12 +156,21 @@ def test_lotteimall_2axis_color_size_inv_qty():
     assert out == {("블랙", "230mm"): 20, ("블랙", "240mm"): 0, ("아이보리", "230mm"): 5}
 
 
-def test_lotteimall_sufficient_cap_shows_50():
-    """롯데아이몰 '충분'(inv_qty=30 상한)은 50으로 표기 — 실수량 30과 헷갈림 방지.
-    실수량(<30)·품절(0)은 그대로. 라이브 확인(2026-07-03): inv_qty 최댓값=30(97조합), 30 초과 없음=상한."""
+def test_lotteimall_disp_qty_matches_site_thresholds():
+    """롯데아이몰 재고 3상태 = 사이트 자체 JS 기준에 정렬.
+    라이브 근거(2026-07-13, goods 2559329941 페이지 JS 원문):
+        if (optInvQty <= 0)      -> ' (품절)'
+        else if (optInvQty > 500)-> ' (판매중)'          # 충분(대량)
+        else if (optInvQty < 5)  -> ' (N개 남음)'         # ★ 한정 = 실수량
+        else (5 <= inv_qty <=500)-> 라벨 없음 = 충분
+    → 경계는 5(한정)와 500(판매중). 파서는 <5=실수량N, >=5=충분(999)로 판정한다.
+    (구 로직의 '30 상한' 은 특정 상품 1회 관찰의 오일반화였음.)"""
     from lemouton.sourcing.crawlers.lotteon import _lotteimall_disp_qty
-    assert _lotteimall_disp_qty(30) == 50    # 충분 → 50
-    assert _lotteimall_disp_qty(100) == 50   # 방어: 상한 이상도 50
-    assert _lotteimall_disp_qty(29) == 29    # 실수량 그대로
-    assert _lotteimall_disp_qty(5) == 5
-    assert _lotteimall_disp_qty(0) == 0      # 품절 그대로
+    assert _lotteimall_disp_qty(0) == 0      # 품절
+    assert _lotteimall_disp_qty(1) == 1      # 한정: 실수량 그대로
+    assert _lotteimall_disp_qty(2) == 2      # "2개 남음"
+    assert _lotteimall_disp_qty(4) == 4      # 한정 상한(<5)
+    assert _lotteimall_disp_qty(5) == 999    # 충분(사이트=라벨없음)
+    assert _lotteimall_disp_qty(10) == 999   # ★ 구 로직은 10을 '10개 남음'으로 오표기했음
+    assert _lotteimall_disp_qty(30) == 999   # 충분
+    assert _lotteimall_disp_qty(600) == 999  # 판매중=충분

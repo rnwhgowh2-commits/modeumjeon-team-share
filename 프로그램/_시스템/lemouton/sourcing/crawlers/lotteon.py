@@ -499,17 +499,29 @@ _ITEM_INV_QTY_PATTERN = re.compile(
 _OPT_LI_ID_PATTERN = re.compile(r"\d+_(\d+)$")
 _SIZE_PAREN_PATTERN = re.compile(r"\s*\(.*?\)\s*")
 
-# ★ 2026-07-04 — 롯데아이몰 '충분' 표기값.
-#   롯데아이몰 itemInvQtyInfo.inv_qty 는 재고가 많으면 30 으로 상한(cap)한다
-#   (라이브 확인 2026-07-03: 97조합 inv_qty 최댓값=30, 30 초과 없음). 30 은 실수량 30 과
-#   헷갈리므로, 충분(inv_qty>=30)은 50 으로 표기한다(실수량<30·품절0은 그대로).
-_LOTTEIMALL_SUFFICIENT_CAP = 30
-_LOTTEIMALL_SUFFICIENT_DISP = 50
+# ★ 2026-07-13 — 롯데아이몰 재고 3상태 기준을 '사이트 자체 JS'에 정렬(경계 5).
+#   근거: 라이브 상품 페이지 JS 원문(goods 2559329941, 실측)이 재고 라벨을 이렇게 붙인다.
+#       if (optInvQty <= 0)       → ' (품절)'
+#       else if (optInvQty > 500) → ' (판매중)'        # 충분(대량)
+#       else if (optInvQty < 5)   → ' (N개 남음)'       # ★ 한정 = 실수량 노출
+#       else (5 <= inv_qty <= 500)→ 라벨 없음 = 충분
+#   → 사이트가 "N개 남음"(한정)으로 보는 경계는 inv_qty<5 뿐이다. 5~500 은 그냥 '있음/충분'.
+#   [구 로직 폐기] 이전엔 '30 상한→50 표기'였는데, 이는 특정 상품(97조합) 1회 관찰에서
+#     최댓값이 우연히 30이었던 것을 상한으로 오일반화한 것. 그 결과 inv_qty 10 같은
+#     '충분' 재고를 "10개 남음"으로 오표기 → 진짜 한정(2개)과 구분 불가(사용자 리포트).
+#   충분 센티넬 = 999(프로젝트 표준: 품절0 / 실수량N / 충분999). '확인 불가'는 별도(-1).
+_LOTTEIMALL_LIMITED_THRESHOLD = 5   # inv_qty < 5 → 한정(실수량 노출)
+_LOTTEIMALL_SUFFICIENT_DISP = 999   # inv_qty >= 5 → 충분
 
 
 def _lotteimall_disp_qty(inv_qty: int) -> int:
-    """롯데아이몰 재고 표기값: 충분(inv_qty>=30 상한)→50, 그 외(실수량<30·품절0)는 그대로."""
-    return _LOTTEIMALL_SUFFICIENT_DISP if inv_qty >= _LOTTEIMALL_SUFFICIENT_CAP else inv_qty
+    """롯데아이몰 재고 3상태 표기값(사이트 JS 기준):
+    품절(<=0)→0 · 한정(0<inv_qty<5)→실수량 그대로 · 충분(>=5)→999."""
+    if inv_qty <= 0:
+        return 0
+    if inv_qty < _LOTTEIMALL_LIMITED_THRESHOLD:
+        return inv_qty
+    return _LOTTEIMALL_SUFFICIENT_DISP
 
 
 def _extract_item_inv_qty(html: str) -> dict[str, int]:
