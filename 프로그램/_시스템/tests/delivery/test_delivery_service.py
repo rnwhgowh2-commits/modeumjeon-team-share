@@ -150,42 +150,31 @@ def test_memo_does_not_override_manual(db):
     assert o2.delivery_method == "직배" and o2.delivery_method_source == "수기"
 
 
-def test_is_cancel_return_detects_from_market_or_mango_status(db):
-    # 미매칭(market_api_status 없음) → 더망고 M열/L열 키워드로 판정.
+def test_is_cancel_return_uses_only_real_market_status(db):
+    # ★오직 마켓 API 실제 상태만 신뢰. 더망고 M열/L열은 신빙성 없어 무시.
     class O:
         def __init__(s, m="", l="", api=None):
             s.market_status, s.mango_status, s.market_api_status = m, l, api
-    assert svc.is_cancel_return(O(m="취소신청"))
-    assert svc.is_cancel_return(O(l="반품/교환/취소완료"))
-    assert svc.is_cancel_return(O(m="특이사항없음", l="해외현지배송중")) is False
-    assert svc.is_cancel_return(O(m="배송완료")) is False
-
-
-def test_is_cancel_return_prefers_real_market_status(db):
-    # ★실제 마켓상태(API)가 있으면 그게 기준 — 더망고 구분자보다 우선(과분류 교정).
-    class O:
-        def __init__(s, m="", l="", api=None):
-            s.market_status, s.mango_status, s.market_api_status = m, l, api
-    # 더망고 L열은 취소완료라 해도, 실제 마켓상태가 배송완료면 취소 아님.
+    # 더망고가 취소라 해도 API 상태 없거나 정상이면 취소 아님(확인불가/정상).
+    assert svc.is_cancel_return(O(m="취소신청", api=None)) is False
+    assert svc.is_cancel_return(O(l="반품/교환/취소완료", api=None)) is False
     assert svc.is_cancel_return(O(l="반품/교환/취소완료", api="배송완료")) is False
-    assert svc.is_cancel_return(O(l="반품/교환/취소완료", api="구매확정")) is False
-    # 실제 마켓상태가 취소완료/회수완료면 취소.
-    assert svc.is_cancel_return(O(m="특이사항없음", api="취소완료"))
+    # API 실제 상태가 클레임이면 취소.
+    assert svc.is_cancel_return(O(api="취소완료"))
+    assert svc.is_cancel_return(O(api="반품요청"))
     assert svc.is_cancel_return(O(api="회수완료"))
-    # 미매칭(api 없음)인 쿠팡 취소는 더망고 폴백으로 여전히 취소.
-    assert svc.is_cancel_return(O(m="취소신청", api=None))
 
 
-def test_cancel_type_splits_only_when_unambiguous(db):
-    # 마켓상태에 한 종류만 명확하면 그것, 합쳐졌거나 없으면 '그외'.
+def test_cancel_type_splits_by_real_market_status(db):
+    # 마켓 API 실제 상태에 한 종류만 명확하면 그것, 합쳐졌거나 애매하면 '그외'.
     class O:
-        def __init__(s, m=""):
-            s.market_status = m
-    assert svc.cancel_type(O("취소신청")) == "취소"
-    assert svc.cancel_type(O("반품신청")) == "반품"
-    assert svc.cancel_type(O("교환신청")) == "교환"
-    assert svc.cancel_type(O("취소/반품/교환 완료")) == "그외"   # 합쳐짐 → 구분 불가
-    assert svc.cancel_type(O("특이사항없음")) == "그외"
+        def __init__(s, api=""):
+            s.market_api_status = api
+    assert svc.cancel_type(O("취소완료")) == "취소"
+    assert svc.cancel_type(O("반품요청")) == "반품"
+    assert svc.cancel_type(O("교환완료")) == "교환"
+    assert svc.cancel_type(O("회수완료")) == "그외"      # 회수=애매
+    assert svc.cancel_type(O("")) == "그외"
 
 
 def test_clear_orders_resets_to_zero(db):
