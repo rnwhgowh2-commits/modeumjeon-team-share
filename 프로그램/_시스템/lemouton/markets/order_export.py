@@ -869,27 +869,32 @@ def eleven11_order_rows(since: _dt.datetime, until: _dt.datetime, client=None,
     #   combined_order_rows 가 최종적으로 주문일 기준으로 트리밍한다(기간=주문일 유지).
     f_until = min(until + _dt.timedelta(days=14), _dt.datetime.now(KST))
 
-    def _collect(iter_fn, status, required, builder=_row):
+    def _collect(iter_fn, status, required, builder=_row, code=""):
         try:
             for od in iter_fn(since, f_until, client=client):
                 key = (od.get("ordNo"), od.get("ordPrdSeq"))
                 if key in seen:
                     continue
                 seen.add(key)
-                rows.append(builder(od, status))
+                r = builder(od, status)
+                # 11번가 원본 상태코드(API코드 칸): 클레임=clmStat, 일반=엔드포인트 코드
+                #  (11번가는 상태 필드가 아니라 '어느 API를 불렀나'로 상태를 판정 → 엔드포인트가 곧 상태).
+                r["주문상태원본"] = (od.get("clmStat") or od.get("ordPrdStat")
+                                 or r.get("주문상태원본") or code)
+                rows.append(r)
         except Exception:   # noqa: BLE001
             if required:
                 raise
 
-    _collect(iter_orders, "결제완료", True)       # 발송대기(필수)
-    _collect(iter_preparing, "배송준비중", False)  # 배송준비중 전체(packaging)
-    _collect(iter_shipping, "배송중", False)      # 배송중(송장·주문번호만 — 상세 미제공)
-    _collect(iter_delivered, "배송완료", False)   # 배송완료
-    _collect(iter_completed, "구매확정", False)   # 구매확정
-    _collect(iter_cancel, "취소요청", False, _claim_row)     # 취소처리중(cancelorders)
-    _collect(iter_canceled, "취소완료", False, _claim_row)   # 주문취소 완료(canceledorders)
-    _collect(iter_return, "반품", False, _return_row)        # 반품(ordPrdStat A01=완료)
-    _collect(iter_exchange, "교환요청", False, _claim_row)   # 교환요청(완료코드 미확정)
+    _collect(iter_orders, "결제완료", True, code="complete")       # 발송대기(필수)
+    _collect(iter_preparing, "배송준비중", False, code="packaging")  # 배송준비중 전체(packaging)
+    _collect(iter_shipping, "배송중", False, code="shipping")      # 배송중(송장·주문번호만 — 상세 미제공)
+    _collect(iter_delivered, "배송완료", False, code="dlvcompleted")   # 배송완료
+    _collect(iter_completed, "구매확정", False, code="completed")   # 구매확정
+    _collect(iter_cancel, "취소요청", False, _claim_row, code="cancel")     # 취소처리중(cancelorders)
+    _collect(iter_canceled, "취소완료", False, _claim_row, code="canceled")   # 주문취소 완료(canceledorders)
+    _collect(iter_return, "반품", False, _return_row, code="return")        # 반품(ordPrdStat A01=완료)
+    _collect(iter_exchange, "교환요청", False, _claim_row, code="exchange")   # 교환요청(완료코드 미확정)
     return rows
 
 
