@@ -313,7 +313,7 @@ def lotteon_order_rows(since: _dt.datetime, until: _dt.datetime,
     #  활성(출고/회수지시)에 없는 주문만 추가(취소는 출고목록에 없음). 조회 실패는 활성 유지(부가).
     from shared.platforms.lotteon import claims as _clm
 
-    def _claim_row(it, status, qty_key):
+    def _claim_row(it, status, qty_key, raw_code=""):
         addr = (str(_g(it, "rtrvStnmZipAddr")) + " " + str(_g(it, "rtrvStnmDtlAddr"))).strip()
         return {
             "주문일": str(_g(it, "odAccpDttm", "clmReqDttm")),   # 주문접수일(기간=주문일)
@@ -332,6 +332,7 @@ def lotteon_order_rows(since: _dt.datetime, until: _dt.datetime,
             "단가": _g(it, "itmSlPrc", default=""),
             "배송비": 0, "정산예정금액": "", "_settle_source": "none",
             "주문상태": status,
+            "주문상태원본": raw_code,   # odPrgsStepCd(21취소완료·27반품완료 등) — API코드 칸
             "오픈마켓주문번호": _g(it, "odNo"),
             "실결제금액": "", "송장입력": "",
         }
@@ -356,7 +357,7 @@ def lotteon_order_rows(since: _dt.datetime, until: _dt.datetime,
                 done_code = _lo_done.get(base)
                 step = str(_g(it, "odPrgsStepCd"))
                 status = (base + "완료") if (done_code and step == done_code) else (base + "요청")
-                rows.append(_claim_row(it, status, qkey))
+                rows.append(_claim_row(it, status, qkey, step))
         except Exception:   # noqa: BLE001 — 클레임 조회 실패는 활성 주문 유지
             pass
 
@@ -537,7 +538,7 @@ def coupang_order_rows(since: _dt.datetime, until: _dt.datetime,
     #  활성 발주서에 없는 주문만 추가. 쿠팡 주문번호는 날짜 미인코딩 → 주문일=접수일(createdAt) 근사.
     from shared.platforms.coupang import claims as _cc
 
-    def _cp_claim_row(odno, status, name, opt, qty, unit, reason, buyer, cdt):
+    def _cp_claim_row(odno, status, name, opt, qty, unit, reason, buyer, cdt, raw_code=""):
         return {
             "주문일": str(cdt or ""), "판매처": "쿠팡",
             "상품명": name or "", "옵션": opt or "",
@@ -548,7 +549,8 @@ def coupang_order_rows(since: _dt.datetime, until: _dt.datetime,
             "쇼핑몰": "쿠팡", "쇼핑몰ID": "",
             "단가": unit if unit not in (None, "") else "",
             "배송비": 0, "정산예정금액": "", "_settle_source": "none",
-            "주문상태": status, "오픈마켓주문번호": str(odno or ""),
+            "주문상태": status, "주문상태원본": raw_code or "",   # receiptStatus/exchangeStatus — API코드 칸
+            "오픈마켓주문번호": str(odno or ""),
             "실결제금액": "", "송장입력": "",
         }
 
@@ -570,7 +572,8 @@ def coupang_order_rows(since: _dt.datetime, until: _dt.datetime,
                 rows.append(_cp_claim_row(
                     odno, st, it.get("sellerProductName"), it.get("vendorItemName"),
                     it.get("cancelCount"), None, rq.get("reasonCodeText"),
-                    rq.get("requesterName"), rq.get("createdAt")))
+                    rq.get("requesterName"), rq.get("createdAt"),
+                    rq.get("receiptStatus") or rq.get("receiptType")))
     except Exception:   # noqa: BLE001 — 클레임 조회 실패는 활성 주문 유지
         pass
     try:
@@ -583,7 +586,8 @@ def coupang_order_rows(since: _dt.datetime, until: _dt.datetime,
                 rows.append(_cp_claim_row(
                     odno, _exst, it.get("orderItemName") or it.get("targetItemName"),
                     None, it.get("quantity"), it.get("orderItemUnitPrice"),
-                    ex.get("reasonCodeText"), None, ex.get("createdAt")))
+                    ex.get("reasonCodeText"), None, ex.get("createdAt"),
+                    ex.get("exchangeStatus")))
     except Exception:   # noqa: BLE001
         pass
     return rows
@@ -817,6 +821,7 @@ def eleven11_order_rows(since: _dt.datetime, until: _dt.datetime, client=None,
             "실결제금액": _g11(od, "ordPayAmt"),   # 결제금액 = 주문금액+배송비-할인(공문 확인)
             "송장입력": _g11(od, "invcNo"),
             "발송처리일": _g11(od, "sndEndDt", "dlvEndDt"),   # 발송일(배송중)·배송완료일 → 경과시간용
+            "주문상태원본": _g11(od, "ordPrdStat"),   # 11번가 상품주문상태코드 → API코드 칸(엔드포인트별 상태)
         }
 
     def _claim_row(od, status):
@@ -843,6 +848,7 @@ def eleven11_order_rows(since: _dt.datetime, until: _dt.datetime, client=None,
             "쇼핑몰": "11번가", "쇼핑몰ID": "",
             "단가": "", "배송비": 0, "정산예정금액": "", "_settle_source": "none",
             "주문상태": status,
+            "주문상태원본": _g11(od, "ordPrdStat"),   # 11번가 상품주문상태코드 → API코드 칸
             "오픈마켓주문번호": ordno,
             "실결제금액": "",
             "송장입력": _g11(od, "twPrdInvcNo"),
