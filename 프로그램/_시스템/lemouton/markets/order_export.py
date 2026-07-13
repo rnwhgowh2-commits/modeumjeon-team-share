@@ -203,12 +203,20 @@ def smartstore_order_rows(since: _dt.datetime, until: _dt.datetime,
         poid = _g(po, "productOrderId")
         oid = _g(od, "orderId")
         prod_amt = prod_settle.get(poid)
-        settle_val = ""
+        settle_val, settle_src = "", "none"
         if prod_amt is not None:                       # 상품 정산 있으면 = 상품정산 + 배송비정산(1회)
             settle_val = prod_amt
             if oid and oid not in _deliv_used and oid in deliv_settle:
                 settle_val += deliv_settle[oid]
                 _deliv_used.add(oid)
+            settle_src = "real"
+        else:
+            # 최근 주문(정산 전) — 실결제금액 × (1-6%) 로 추정(쿠팡 미정산 추정과 동형).
+            #  네이버는 오늘 주문의 정산을 아직 안 줘서 빈칸이면 순마진=0-매입=손실로 둔갑한다.
+            est = _ss_estimate_settle(_g(po, "totalPaymentAmount"),
+                                      _g(po, "unitPrice"), _g(po, "quantity"))
+            if est != "":
+                settle_val, settle_src = est, "estimated"
         rows.append({
             "_shipkey": ("smartstore", oid),   # 배송건(주문) 단위 배송비 정규화용
             "주문일": _g(od, "orderDate", "paymentDate"),   # 시간 포함(_finalize 에서 통일)
@@ -228,7 +236,7 @@ def smartstore_order_rows(since: _dt.datetime, until: _dt.datetime,
             "단가": _g(po, "unitPrice", "totalPaymentAmount", default=""),
             "배송비": _g(po, "deliveryFeeAmount", default=""),
             "정산예정금액": settle_val,
-            "_settle_source": "real" if settle_val != "" else "none",
+            "_settle_source": settle_src,
             "주문상태": _status_ko("smartstore", _g(po, "productOrderStatus")),
             "주문상태원본": _g(po, "productOrderStatus"),
             "오픈마켓주문번호": poid or oid,
@@ -582,6 +590,29 @@ def _cp_estimate_settle(unit, qty, ship):
     q = int(qty) if str(qty).strip().isdigit() else 1
     s = int(ship) if str(ship).strip().lstrip("-").isdigit() else 0
     return round((u * q + s) * CP_FEE_FACTOR)
+
+
+SS_FEE_FACTOR = 0.94          # 1 - 0.06 (스마트스토어 판매수수료 추정 6% — 사용자 지정)
+
+
+def _ss_estimate_settle(paid, unit, qty):
+    """미정산(최근·정산 전) 스마트스토어 주문 정산예정금액 추정 = round(매출 × 0.94).
+
+    매출 = 실결제금액(할인 반영, 우선) → 없으면 단가×수량. 둘 다 없으면 빈칸(폴백 0 금지).
+    확정액 아님(추정) — _settle_source='estimated' 로 태그해 실정산과 구분한다.
+    네이버는 최근 주문 정산을 미래에 확정하므로(오늘 주문=오늘 정산 없음), 실정산 없을 때만 사용.
+    """
+    base = None
+    try:
+        base = int(paid)
+    except (TypeError, ValueError):
+        try:
+            u = int(unit)
+            q = int(qty) if str(qty).strip().isdigit() else 1
+            base = u * q
+        except (TypeError, ValueError):
+            return ""             # 매출 근거 없음 → 추정 안 함
+    return round(base * SS_FEE_FACTOR)
 
 
 def _coupang_settle_map(since, until, client):
