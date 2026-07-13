@@ -497,6 +497,7 @@ def _mango_to_dict(o):
         # v2 마켓 실데이터
         'market_api_status': o.market_api_status, 'market_api_status_raw': o.market_api_status_raw or '',
         'market_api_invoice': o.market_api_invoice or '',
+        'shipped_at': o.market_shipped_at or '',      # 마켓 발송처리일(경과시간 계산용)
         'why_error': o.market_check_error,
     }
 
@@ -509,10 +510,10 @@ def inspect_data():
         _dsvc.seed_default_status_map(s)   # 최초 진입 시 기본 매핑 보장
         orders = (s.query(_dsvc.MangoOrder)
                   .order_by(_dsvc.MangoOrder.last_uploaded_at.desc()).limit(1000).all())
-        # 취소·반품·교환 = 검사 불필요(마켓 API 가 안 돌려줘 매칭 불가) → 다른 검사에서 제외.
+        # ★분류는 마켓 API 실데이터 기준(더망고 구분자 신빙성 없음). 백엔드는 취소(API상태)·
+        #  확인불가(매칭실패)만 판정하고, 발송대상/배송흐름정체/이미발송은 프론트가 API 송장·
+        #  상태로 파생한다(단일 진실 = market_api_invoice + market_api_status).
         cancel_uids = {o.mango_uid for o in orders if _dsvc.is_cancel_return(o)}
-        dup_uids = {o.mango_uid for o in _dsvc.find_double_invoice_risk(s)} - cancel_uids
-        flow_uids = {o.mango_uid for o in _dsvc.find_flow_stalled(s)} - cancel_uids
         unk_uids = {o.mango_uid for o in orders if o.market_check_error} - cancel_uids
         rows = []
         ctype_cnt = {}
@@ -523,8 +524,6 @@ def inspect_data():
             d['ctype'] = _dsvc.cancel_type(o) if is_c else None   # 취소/반품/교환/그외
             if is_c:
                 ctype_cnt[d['ctype']] = ctype_cnt.get(d['ctype'], 0) + 1
-            d['dup'] = o.mango_uid in dup_uids
-            d['flow_stalled'] = o.mango_uid in flow_uids
             d['unknown'] = o.mango_uid in unk_uids
             rows.append(d)
         status_map = [
@@ -533,8 +532,7 @@ def inspect_data():
             for m in sorted(_dsvc.get_status_map(s).values(), key=lambda x: x.sort_order)
         ]
         return jsonify(ok=True, orders=rows, status_map=status_map,
-                       summary={'dup': len(dup_uids), 'flow': len(flow_uids),
-                                'unknown': len(unk_uids), 'cancel': len(cancel_uids),
+                       summary={'unknown': len(unk_uids), 'cancel': len(cancel_uids),
                                 'cancel_types': ctype_cnt, 'total': len(orders)})
     finally:
         s.close()
