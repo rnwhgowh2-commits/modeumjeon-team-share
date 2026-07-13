@@ -515,9 +515,14 @@ def inspect_data():
         flow_uids = {o.mango_uid for o in _dsvc.find_flow_stalled(s)} - cancel_uids
         unk_uids = {o.mango_uid for o in orders if o.market_check_error} - cancel_uids
         rows = []
+        ctype_cnt = {}
         for o in orders:
             d = _mango_to_dict(o)
-            d['cancel'] = o.mango_uid in cancel_uids
+            is_c = o.mango_uid in cancel_uids
+            d['cancel'] = is_c
+            d['ctype'] = _dsvc.cancel_type(o) if is_c else None   # 취소/반품/교환/그외
+            if is_c:
+                ctype_cnt[d['ctype']] = ctype_cnt.get(d['ctype'], 0) + 1
             d['dup'] = o.mango_uid in dup_uids
             d['flow_stalled'] = o.mango_uid in flow_uids
             d['unknown'] = o.mango_uid in unk_uids
@@ -530,7 +535,7 @@ def inspect_data():
         return jsonify(ok=True, orders=rows, status_map=status_map,
                        summary={'dup': len(dup_uids), 'flow': len(flow_uids),
                                 'unknown': len(unk_uids), 'cancel': len(cancel_uids),
-                                'total': len(orders)})
+                                'cancel_types': ctype_cnt, 'total': len(orders)})
     finally:
         s.close()
 

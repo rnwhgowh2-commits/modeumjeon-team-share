@@ -158,17 +158,42 @@ def upsert_orders(session, rows, bulk_method=None, replace_stale=False) -> dict:
     return {"inserted": inserted, "updated": updated, "deleted": deleted}
 
 
-_CANCEL_KW = ("취소", "반품", "교환", "환불", "반송")
+_CANCEL_KW = ("취소", "반품", "교환", "환불", "반송", "회수")
 
 
 def is_cancel_return(o) -> bool:
-    """취소·반품·교환된 주문인가 — 더망고 마켓상태(M열) 또는 구분자(L열)에 해당 단어 있으면.
+    """취소·반품·교환(클레임)된 주문인가.
 
-    이런 주문은 마켓 주문조회 API 가 안 돌려줘(정상 배송건만 반환) 매칭이 안 된다.
-    → '확인불가'가 아니라 '취소·반품(검사 불필요)'로 따로 분류한다.
+    ★기준 우선순위: 마켓 API 로 조회된 '실제 마켓상태(market_api_status)'가 있으면 그게 기준.
+      더망고 구분자(L열)는 완료건을 '반품/교환/취소완료'로 뭉뚱그려, 실제로는 배송완료·구매확정
+      인 정상 주문까지 취소로 과분류하던 문제가 있었다 → 실제 마켓상태를 우선한다.
+    ★폴백: 마켓 API 가 취소건을 안 돌려주는 경우(쿠팡 등, 미매칭이라 market_api_status 없음)
+      만 더망고 M열/L열 키워드로 판정한다.
     """
+    api = getattr(o, "market_api_status", None) or ""
+    if api:
+        return any(k in api for k in _CANCEL_KW)
     s = (o.market_status or "") + " " + (o.mango_status or "")
     return any(k in s for k in _CANCEL_KW)
+
+
+def cancel_type(o) -> str:
+    """취소건 세부 분류 — 마켓상태(M열)에 '한 종류만' 명확하면 그것, 합쳐졌거나 없으면 '그외'.
+
+    더망고는 완료된 클레임을 '취소/반품/교환 완료'처럼 셋을 합쳐 저장해, 그런 건 어느
+    것인지 데이터로 구분 불가 → '그외'(억지 분류 금지). 명확한 건 '취소신청/반품신청/
+    교환신청' 처럼 한 종류만 든 경우.
+    기준=실제 마켓상태(market_api_status) 우선, 없으면 더망고 마켓상태(M열).
+    """
+    m = (getattr(o, "market_api_status", None) or o.market_status or "")
+    c, r, e = ("취소" in m), ("반품" in m), ("교환" in m)
+    if c and not r and not e:
+        return "취소"
+    if r and not c and not e:
+        return "반품"
+    if e and not c and not r:
+        return "교환"
+    return "그외"
 
 
 def clear_orders(session) -> int:
