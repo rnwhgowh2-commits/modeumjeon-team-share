@@ -192,6 +192,9 @@
     .o7 .cs-unk{background:#F1F3F5;color:#5F6B7A;} .o7 .cs-ok{background:#E7F6EC;color:var(--green);}
     .o7 .cs-done{background:#EEF1F4;color:#5F6B7A;}
     .o7 .cs-cancel{background:#EDEAF2;color:#7A6E92;}
+    .o7 .chk-tt{border:1px solid var(--line2);background:#fff;border-radius:9px;padding:8px 15px;font-size:13px;font-weight:700;color:var(--sub);cursor:pointer;}
+    .o7 .chk-tt.on{background:var(--ink);color:#fff;border-color:var(--ink);}
+    .o7 .chk-tt b{font-variant-numeric:tabular-nums;margin-left:5px;}
     .o7 .chk-fth.on{color:var(--blue);}
     .o7 .chk-pop{display:none;position:absolute;z-index:400;background:#fff;border:1px solid var(--line2);border-radius:10px;box-shadow:0 10px 30px rgba(0,0,0,.18);width:220px;}
     .o7 .chk-pop.on{display:block;}
@@ -297,7 +300,11 @@
       <div style="font-size:11.5px;color:var(--sub);margin-top:10px">💡 표는 옆으로 스크롤하면 모든 열(주소 포함)이 보입니다. <b>전체 원본</b>은 「엑셀 내보내기」로도 받을 수 있어요.</div>
       </div>
       <div id="checkView" style="display:none">
-        <div style="font-size:11.5px;color:var(--sub);margin:2px 0 12px">🚚 더망고 대조 <b>전체</b> 기준(왼쪽 마켓·기간 필터와 무관). 문제 없는 것만 골라 송장 전송하세요.</div>
+        <div style="font-size:11.5px;color:var(--sub);margin:2px 0 10px">🚚 더망고 대조 <b>전체</b> 기준(왼쪽 마켓·기간 필터와 무관). 문제 없는 것만 골라 송장 전송하세요.</div>
+        <div id="chkTopTabs" style="display:flex;gap:8px;margin-bottom:12px">
+          <button type="button" class="chk-tt on" data-tt="need">🛠 조치 필요 <b id="ttNeedN">0</b></button>
+          <button type="button" class="chk-tt" data-tt="nonneed">✅ 조치 불필요 <b id="ttNonN">0</b></button>
+        </div>
         <div id="checkSections"><div class="state">더망고를 업로드하면 검사 결과가 나옵니다.</div></div>
         <div id="chkPop" class="chk-pop"></div>
       </div>
@@ -591,6 +598,16 @@
       return '<span class="bd green">🟢 정상</span>';
     }
     var dmCheckFilter=null;   // 'dup'|'flow'|'unk'|null — 사이드바 막대 클릭
+    // 상위탭(A안): 조치 필요(이중송장·정체·확인불가·발송대상) / 조치 불필요(취소반품·이미발송)
+    var chkTopTab='need';   // 'need' | 'nonneed'
+    var TAB_OF={dup:'need',flow:'need',unk:'need',ok:'need',cancel:'nonneed'};   // 사이드바 막대→상위탭
+    function updateTopTabs(){
+      var nd=ordersOfSec('dup').length+ordersOfSec('stall').length+ordersOfSec('unk').length+ordersOfSec('send').length;
+      var no=ordersOfSec('cancel').length+ordersOfSec('done').length;
+      var a=document.getElementById('ttNeedN'),b=document.getElementById('ttNonN');
+      if(a)a.textContent=nd; if(b)b.textContent=no;
+    }
+    function syncTopTabUI(){[].slice.call(document.querySelectorAll('.chk-tt')).forEach(function(x){x.classList.toggle('on',x.getAttribute('data-tt')===chkTopTab);});}
     var mangoOrders=[];
     function loadMango(cb){
       fetch('/orders/inspect/data',{cache:'no-store'}).then(function(r){return r.json();}).then(function(j){
@@ -654,6 +671,7 @@
         + head + '</thead><tbody>'+body+'</tbody></table></div>';}
     function renderCheckView(){
       var el=document.getElementById('checkSections'); if(!el)return;
+      updateTopTabs(); syncTopTabUI();
       if(!mangoOrders.length){el.innerHTML='<div class="state" style="padding:30px;text-align:center;color:var(--sub);background:#fff;border:1px solid var(--line2);border-radius:12px">더망고를 업로드하면 검사 결과가 나옵니다.</div>';return;}
       // 섹션마다: 그 섹션 주문건(ordersOfSec) → 그 섹션 필터(passSec) 적용해 표시.
       function sec(cls,emoji,title,sk,opt){ opt=opt||{};
@@ -662,12 +680,14 @@
         var btn=opt.send?'<button class="sbtn" id="chkSendOk">✓ '+list.length+'건 송장 전송</button>':'';
         return '<div class="chk-sec"><div class="chk-sec-h '+cls+'">'+emoji+' '+title+' <b style="font-variant-numeric:tabular-nums">'+list.length+'</b>'+btn+'</div>'+chkTable(list,sk,opt)+'</div>';}
       function ss(k){return !dmCheckFilter||dmCheckFilter===k;}   // 사이드바 막대 클릭 시 그 섹션만
-      el.innerHTML=(ss('dup')?sec('cs-dup','🔴','이중송장 위험 · 재출력 금지','dup'):'')
-        +(ss('flow')?sec('cs-stall','🟡','배송흐름 정체 · 소싱처 확인','stall'):'')
-        +(ss('cancel')?sec('cs-cancel','🚫','취소·반품·교환 · 검사 불필요','cancel'):'')
-        +(ss('unk')?sec('cs-unk','⚪','확인불가 · 조회 안 됨','unk',{why:true}):'')
-        +(ss('ok')?sec('cs-ok','🟢','발송 대상 · 아직 마켓에 송장 안 나감','send',{send:true}):'')
-        +(ss('ok')?sec('cs-done','✅','이미 발송/완료 · 조치 불필요','done'):'');
+      function tt(t){return chkTopTab===t;}                       // 상위탭(A안) 게이트
+      var html=(tt('need')&&ss('dup')?sec('cs-dup','🔴','이중송장 위험 · 재출력 금지','dup'):'')
+        +(tt('need')&&ss('flow')?sec('cs-stall','🟡','배송흐름 정체 · 소싱처 확인','stall'):'')
+        +(tt('need')&&ss('unk')?sec('cs-unk','⚪','확인불가 · 조회 안 됨','unk',{why:true}):'')
+        +(tt('need')&&ss('ok')?sec('cs-ok','🟢','발송 대상 · 아직 마켓에 송장 안 나감','send',{send:true}):'')
+        +(tt('nonneed')&&ss('cancel')?sec('cs-cancel','🚫','취소·반품·교환 · 검사 불필요','cancel'):'')
+        +(tt('nonneed')&&ss('ok')?sec('cs-done','✅','이미 발송/완료 · 조치 불필요','done'):'');
+      el.innerHTML=html||'<div class="state" style="padding:24px;text-align:center;color:var(--sub);background:#fff;border:1px solid var(--line2);border-radius:12px">이 탭에는 해당하는 주문이 없어요.</div>';
       var sb=document.getElementById('chkSendOk');
       if(sb)sb.onclick=function(){ setOView('mkt'); dmCheckFilter=null;
         alert('「전체 주문」에서 대상을 선택해 송장 전송하세요.\\n(검사 뷰에서 바로 전송은 다음 업데이트 예정)');};
@@ -710,6 +730,9 @@
       if(v==='check')renderCheckView();
     }
     [].slice.call(document.querySelectorAll('.ovt')).forEach(function(b){b.addEventListener('click',function(){setOView(b.getAttribute('data-v'));});});
+    // 상위탭(조치 필요/불필요) 클릭
+    [].slice.call(document.querySelectorAll('.chk-tt')).forEach(function(b){b.addEventListener('click',function(){
+      chkTopTab=b.getAttribute('data-tt'); dmCheckFilter=null; syncTopTabUI(); renderCheckView();});});
     document.addEventListener('click',function(e){var p=document.getElementById('chkPop');
       if(p&&p.classList.contains('on')&&!p.contains(e.target)&&!e.target.closest('.chk-fth'))p.classList.remove('on');});
     function renderDmBars(){
@@ -728,6 +751,7 @@
       }).join('') + '<div style="font-size:10.5px;color:var(--faint);margin-top:2px;line-height:1.4">더망고 전체 기준(마켓·기간과 무관). 눌러서 거르기.</div>';
       [].slice.call(el.querySelectorAll('.dmbar')).forEach(function(b){b.onclick=function(){
         var f=b.getAttribute('data-f'); dmCheckFilter=(dmCheckFilter===f)?null:f;
+        if(dmCheckFilter&&TAB_OF[f])chkTopTab=TAB_OF[f];   // 그 칸이 든 상위탭으로 이동
         if(document.getElementById('checkView').style.display!=='none'){renderCheckView();} else {render();}};});
     }
     function cellHTML(col,r){
