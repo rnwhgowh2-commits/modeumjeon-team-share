@@ -1828,9 +1828,12 @@ async function crawlBundleAllBG(code) {
   if (!total) { await _finalize(); emit("finish", { level: "warn", msg: "대상 URL 없음" }); return { ok: false, error: "대상 URL 없음" }; }
 
   // [2026-07-12 2단계] 소싱처별 '동시 상한' — 서버(weight-tree)에서 받아 한 소싱처의 URL 을
-  //   여러 창으로 나눠 병렬로 긁는다(공유 커서=중복 0). ⚠️첫 배포 안전상 소싱처당 최대 3창으로
-  //   클램프(검증 후 상향). 못 받으면 1(=현행 순차) 폴백. 사이트 차단 위험 → 에러 시 상한 낮추기.
-  const CONSERVATIVE_MAX = 3;
+  //   여러 창으로 나눠 병렬로 긁는다(공유 커서=중복 0). 못 받으면 1(=현행 순차) 폴백.
+  // [2026-07-14 상향] 첫 배포 안전 클램프 3 → 8 (사용자 결정: 화면 설정대로).
+  //   이제 화면의 '동시 상한' 스테퍼(5~8)가 실제 창 수를 정한다. 소싱처당 최대 8창.
+  //   ⚠️사이트 차단 위험 영역: 첫 실크롤에서 차단·빈응답·중복 여부를 반드시 육안 검증하고,
+  //     실패가 보이면 이 상한을 낮춘다(=🔒 재고·가격 정합성 우선).
+  const PER_SOURCE_MAX = 8;
   const sourceCaps = {};
   try {
     const _wt = await bgFetch("/api/crawl/weight-tree").then((x) => x.json());
@@ -1838,7 +1841,7 @@ async function crawlBundleAllBG(code) {
   } catch (_) {}
   function effectiveCap(sk) {
     const v = sourceCaps[sk];
-    return Math.max(1, Math.min(CONSERVATIVE_MAX, (v == null ? 1 : (parseInt(v, 10) || 1))));
+    return Math.max(1, Math.min(PER_SOURCE_MAX, (v == null ? 1 : (parseInt(v, 10) || 1))));
   }
 
   // [2026-07-12] 동시 창 상한 3→10 (사용자 요청) — 예전처럼 창을 넉넉히 열어 빠르게.
