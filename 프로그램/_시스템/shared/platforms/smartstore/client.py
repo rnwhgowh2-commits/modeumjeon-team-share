@@ -54,9 +54,12 @@ class SmartStoreAPIError(Exception):
 
 
 class SmartStoreRateLimitError(Exception):
-    def __init__(self, retry_after_sec: int):
-        super().__init__(f"429 rate limited, retry_after={retry_after_sec}")
+    def __init__(self, retry_after_sec: int, is_quota: bool = False):
+        kind = "quota limited" if is_quota else "rate limited"
+        super().__init__(f"429 {kind}, retry_after={retry_after_sec}")
         self.retry_after_sec = retry_after_sec
+        # 초당 rate limit(True=일일 판매자 할당량 quota). quota 는 짧은 재시도로 안 풀린다.
+        self.is_quota = is_quota
 
 
 # ──────────────────────────────────────────────────────────────
@@ -242,7 +245,7 @@ class SmartStoreClient:
                     if self._consecutive_429 >= threshold:
                         self._notify_rate_limit_saturation(self._consecutive_429)
                     retry_sec = self._parse_retry_after(resp)
-                raise SmartStoreRateLimitError(retry_after_sec=retry_sec)
+                raise SmartStoreRateLimitError(retry_after_sec=retry_sec, is_quota=is_quota)
 
             if status == 401 and code == "GW.AUTHN" and not retried_auth_once:
                 logger.info("[smartstore] 401 GW.AUTHN — 토큰 무효화 후 재시도")

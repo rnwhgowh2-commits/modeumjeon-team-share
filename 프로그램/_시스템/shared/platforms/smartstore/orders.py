@@ -15,11 +15,19 @@
 """
 from __future__ import annotations
 
+import logging
+import time
 from datetime import datetime, timedelta
 from typing import Literal, Optional
 from urllib.parse import urlencode
 
-from shared.platforms.smartstore.client import SmartStoreClient
+from shared.platforms.smartstore.client import SmartStoreClient, SmartStoreRateLimitError
+
+logger = logging.getLogger(__name__)
+
+# 주문 조회(margin·주문내역) 경로의 429 재시도 — 워커 requeue 경로와 달리 여기선 즉시
+# 재시도해야 마켓이 통째 빠지지 않는다(스스=앱 단위 rate limit, 다계정 순차조회 시 흔함).
+_ORDER_QUERY_429_RETRIES = 5
 
 
 def _q(params: dict) -> str:
@@ -47,17 +55,38 @@ def fetch_orders(last_changed_from, last_changed_to=None,
     (API 센터 실측 + 2026-07-07 실계정 검증 — 최근 7일 33건 조회 성공).
     """
     client = client or SmartStoreClient()
-    return client.request(
-        method="GET",
-        path="/external/v1/pay-order/seller/product-orders/last-changed-statuses",
-        query=_q({
-            "lastChangedFrom": _iso(last_changed_from),
-            "lastChangedTo":   _iso(last_changed_to) if last_changed_to else None,
-            "lastChangedType": last_changed_type,
-            "limitCount":      limit_count,
-            "moreSequence":    more_sequence,
-        }),
-    )
+    query = _q({
+        "lastChangedFrom": _iso(last_changed_from),
+        "lastChangedTo":   _iso(last_changed_to) if last_changed_to else None,
+        "lastChangedType": last_changed_type,
+        "limitCount":      limit_count,
+        "moreSequence":    more_sequence,
+    })
+    # 429(rate limit) 재시도 — client.request 는 워커 requeue 를 위해 429 를 즉시 raise 한다.
+    #   주문 조회 경로엔 requeue 가 없으므로(=마켓이 통째 markets_failed 로 빠짐), 여기서
+    #   retry_after 만큼 쉬고 재시도한다. client.request 가 429 마다 limiter 를 halve 하므로
+    #   재시도할수록 호출 간격이 벌어져 회복된다. GW.QUOTA_LIMIT(판매자 일일 할당량 소진)은
+    #   짧은 대기로 안 풀리므로 재시도 없이 즉시 전파(무의미한 지연 방지).
+    last_exc: Optional[SmartStoreRateLimitError] = None
+    for attempt in range(_ORDER_QUERY_429_RETRIES + 1):
+        try:
+            return client.request(
+                method="GET",
+                path="/external/v1/pay-order/seller/product-orders/last-changed-statuses",
+                query=query,
+            )
+        except SmartStoreRateLimitError as e:
+            last_exc = e
+            if getattr(e, "is_quota", False) or attempt >= _ORDER_QUERY_429_RETRIES:
+                raise
+            wait = min(max(int(getattr(e, "retry_after_sec", 5) or 5), 2), 15)
+            logger.warning(
+                "[smartstore] 주문조회 429 rate limit — %ds 대기 후 재시도 (%d/%d)",
+                wait, attempt + 1, _ORDER_QUERY_429_RETRIES,
+            )
+            time.sleep(wait)
+    assert last_exc is not None
+    raise last_exc
 
 
 def iter_changed_product_order_ids(since: datetime, until: datetime,

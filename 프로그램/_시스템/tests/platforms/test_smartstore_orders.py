@@ -84,3 +84,65 @@ def test_order_detail_endpoint_unchanged():
     assert call["method"] == "POST"
     assert call["path"] == "/external/v1/pay-order/seller/product-orders/query"
     assert call["body"] == {"productOrderIds": ["X", "Y"]}
+
+
+# ── 주문조회 429 rate limit 재시도 (마진·주문내역 경로) ──────────────────────
+# client.request 는 워커 requeue 를 위해 429 를 즉시 raise 한다. 주문조회 경로엔
+# requeue 가 없으므로(=마켓 통째 markets_failed) fetch_orders 가 retry_after 만큼
+# 쉬고 재시도해야 한다(2026-07-14 260714 실서버에서 스스 48건 누락으로 발각).
+from shared.platforms.smartstore.client import SmartStoreRateLimitError
+
+
+class FlakyClient:
+    """앞의 n_429 번은 429, 그 뒤부터 정상 응답."""
+    def __init__(self, n_429, ok_response, is_quota=False):
+        self.n_429 = n_429
+        self.ok = ok_response
+        self.is_quota = is_quota
+        self.calls = 0
+
+    def request(self, method, path, query="", body=None):
+        self.calls += 1
+        if self.calls <= self.n_429:
+            raise SmartStoreRateLimitError(retry_after_sec=5, is_quota=self.is_quota)
+        return self.ok
+
+
+def test_fetch_orders_retries_on_429_then_succeeds(monkeypatch):
+    monkeypatch.setattr(om.time, "sleep", lambda *_: None)  # 실제 대기 제거
+    fc = FlakyClient(n_429=2, ok_response=_page(["A", "B"]))
+    since = dt.datetime(2026, 7, 1, 0, 0, tzinfo=KST)
+    resp = om.fetch_orders(since, client=fc)
+    assert fc.calls == 3  # 429×2 + 성공×1
+    assert [r["productOrderId"] for r in resp["data"]["lastChangeStatuses"]] == ["A", "B"]
+
+
+def test_fetch_orders_raises_after_retries_exhausted(monkeypatch):
+    monkeypatch.setattr(om.time, "sleep", lambda *_: None)
+    fc = FlakyClient(n_429=99, ok_response=_page([]))  # 항상 429
+    since = dt.datetime(2026, 7, 1, 0, 0, tzinfo=KST)
+    import pytest
+    with pytest.raises(SmartStoreRateLimitError):
+        om.fetch_orders(since, client=fc)
+    assert fc.calls == om._ORDER_QUERY_429_RETRIES + 1  # 최초 + 재시도 상한
+
+
+def test_fetch_orders_does_not_retry_quota_limit(monkeypatch):
+    """일일 판매자 할당량 소진(GW.QUOTA_LIMIT)은 짧은 재시도로 안 풀린다 → 즉시 전파."""
+    monkeypatch.setattr(om.time, "sleep", lambda *_: None)
+    fc = FlakyClient(n_429=99, ok_response=_page([]), is_quota=True)
+    since = dt.datetime(2026, 7, 1, 0, 0, tzinfo=KST)
+    import pytest
+    with pytest.raises(SmartStoreRateLimitError):
+        om.fetch_orders(since, client=fc)
+    assert fc.calls == 1  # 재시도 없이 즉시
+
+
+def test_iter_changed_ids_retries_are_transparent(monkeypatch):
+    """iter 경로도 429 재시도 후 정상 수집(윈도우·페이징과 무관하게 복원)."""
+    monkeypatch.setattr(om.time, "sleep", lambda *_: None)
+    fc = FlakyClient(n_429=1, ok_response=_page(["X", "Y"]))
+    since = dt.datetime(2026, 7, 1, 0, 0, tzinfo=KST)
+    until = dt.datetime(2026, 7, 1, 12, 0, tzinfo=KST)
+    ids = om.iter_changed_product_order_ids(since, until, client=fc)
+    assert ids == ["X", "Y"]
