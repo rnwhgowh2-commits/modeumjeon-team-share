@@ -641,11 +641,12 @@
       return '<span class="muted">—</span>';
     }
     // 마켓상태 = 우리 통일값 + 마켓 원본(#3)
-    function mktStatusCell(o){
-      var u=o.market_api_status||'', raw=o.market_api_status_raw||'';
-      if(!u)return '<span class="muted">—</span>';
-      return esc(u)+((raw&&raw!==u)?' <span class="muted" style="font-size:10px">· '+esc(raw)+'</span>':'');
-    }
+    // 마켓상태 = 우리 통일 상태명(분류 기준). API코드는 별도 칸(mktCodeCell).
+    function mktStatusCell(o){var u=o.market_api_status||'';
+      return u?esc(u):'<span class="muted">—</span>';}
+    // API코드 = 마켓 원본 코드(FINAL_DELIVERY·12·PAYED 등) — 마켓 실제 주문상태
+    function mktCodeCell(o){var raw=o.market_api_status_raw||'';
+      return raw?'<span style="font-family:ui-monospace,Menlo,monospace;font-size:10.5px;color:var(--sub)">'+esc(raw)+'</span>':'<span class="muted">—</span>';}
     // 이미 발송(배송중/완료 또는 마켓 송장 있음)인지 — #4 정상 분리
     var SHIPPED_JS={'배송중':1,'배송완료':1,'발송완료':1,'수취완료':1,'구매확정':1,'구매결정':1,'배송지시':1};
     function isShipped(o){return !!(SHIPPED_JS[o.market_api_status]||o.market_api_invoice);}
@@ -686,12 +687,13 @@
       function th(f,label,cls){var on=secFilter[sk]&&secFilter[sk][f]&&secFilter[sk][f].size;
         return '<th class="'+(cls||'')+' chk-fth'+(on?' on':'')+'" data-sec="'+sk+'" data-f="'+f+'" style="cursor:pointer;white-space:nowrap">'+label+' <span style="font-size:8px;color:var(--faint)">▼</span></th>';}
       var head='<tr>'+(opt.why?'<th>안 되는 이유</th>':'')+th('market','마켓')+'<th>수령인</th><th>상품</th><th class="c">송장(마켓)</th>'
-        +th('method','배송방식','c')+th('market_api_status','마켓상태','c')+'</tr>';
+        +th('method','배송방식','c')+th('market_api_status','마켓상태','c')+th('market_api_status_raw','API코드','c')+'</tr>';
       var body=list.map(function(o){
         var why=opt.why?('<td><span class="chk-why">'+esc(o.why_error||'')+'</span></td>'):'';
         return '<tr>'+why+'<td>'+chkMk(o.market)+'</td><td>'+esc(o.recipient||'')+'</td>'
           +'<td style="font-size:11px">'+esc((o.product||'').slice(0,32))+'</td><td class="c" style="font-size:11px">'+apiInvCell(o)+'</td>'
-          +'<td class="c">'+chkMi(o.method)+'</td><td class="c" style="font-size:11px">'+mktStatusCell(o)+'</td></tr>';}).join('');
+          +'<td class="c">'+chkMi(o.method)+'</td><td class="c" style="font-size:11px">'+mktStatusCell(o)+'</td>'
+          +'<td class="c">'+mktCodeCell(o)+'</td></tr>';}).join('');
       return '<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:12px;background:#fff;border:1px solid var(--line2);border-radius:10px;overflow:hidden"><thead>'
         + head + '</thead><tbody>'+body+'</tbody></table></div>';}
     function renderCheckView(){
