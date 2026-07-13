@@ -151,15 +151,29 @@ def test_memo_does_not_override_manual(db):
 
 
 def test_is_cancel_return_detects_from_market_or_mango_status(db):
-    # 취소·반품·교환 = 마켓상태(M열) 또는 구분자(L열)에 해당 단어 있으면.
+    # 미매칭(market_api_status 없음) → 더망고 M열/L열 키워드로 판정.
     class O:
-        def __init__(s, m="", l=""):
-            s.market_status, s.mango_status = m, l
-    assert svc.is_cancel_return(O(m="취소/반품/교환 완료"))
+        def __init__(s, m="", l="", api=None):
+            s.market_status, s.mango_status, s.market_api_status = m, l, api
     assert svc.is_cancel_return(O(m="취소신청"))
     assert svc.is_cancel_return(O(l="반품/교환/취소완료"))
     assert svc.is_cancel_return(O(m="특이사항없음", l="해외현지배송중")) is False
     assert svc.is_cancel_return(O(m="배송완료")) is False
+
+
+def test_is_cancel_return_prefers_real_market_status(db):
+    # ★실제 마켓상태(API)가 있으면 그게 기준 — 더망고 구분자보다 우선(과분류 교정).
+    class O:
+        def __init__(s, m="", l="", api=None):
+            s.market_status, s.mango_status, s.market_api_status = m, l, api
+    # 더망고 L열은 취소완료라 해도, 실제 마켓상태가 배송완료면 취소 아님.
+    assert svc.is_cancel_return(O(l="반품/교환/취소완료", api="배송완료")) is False
+    assert svc.is_cancel_return(O(l="반품/교환/취소완료", api="구매확정")) is False
+    # 실제 마켓상태가 취소완료/회수완료면 취소.
+    assert svc.is_cancel_return(O(m="특이사항없음", api="취소완료"))
+    assert svc.is_cancel_return(O(api="회수완료"))
+    # 미매칭(api 없음)인 쿠팡 취소는 더망고 폴백으로 여전히 취소.
+    assert svc.is_cancel_return(O(m="취소신청", api=None))
 
 
 def test_cancel_type_splits_only_when_unambiguous(db):
