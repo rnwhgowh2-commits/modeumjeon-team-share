@@ -53,8 +53,8 @@ def _probe_impl():
                 for wf, wt in cc._windows(since, max(until, now)):
                     tok = None
                     for _ in range(30):
-                        q = (f"searchType=timeFrame&createdAtFrom={cc._iso(wf)}"
-                             f"&createdAtTo={cc._iso(wt)}&status={st}&maxPerPage=50")
+                        q = (f"searchType=timeFrame&createdAtFrom={cc._iso_min(wf)}"
+                             f"&createdAtTo={cc._iso_min(wt)}&status={st}&maxPerPage=50")
                         if tok:
                             q += f"&nextToken={tok}"
                         resp = cl.request("GET", path, query=q)
