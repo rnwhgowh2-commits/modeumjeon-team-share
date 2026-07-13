@@ -24,6 +24,13 @@ from lemouton.margin.config import COUPANG_FEE_RATE
 
 logger = logging.getLogger(__name__)
 
+# 롯데온 미정산(구매확정 전) 정산 추정 계수 — 원본(샵마인) 정산과 마켓주문번호 조인해 역산.
+#  실결제(actualAmt) 확보분: 원본정산/실결제 = 0.947(수수료 ~5.3%).
+#  실결제 미확보분(actualAmt 누락): 원본정산/판매가(단가×수량) = 0.884.
+#  ⚠️ 실결제 미확보는 롯데온 주문 API 가 actualAmt 를 못 준 것 → 근본은 그 조회 보강.
+LO_FEE_FACTOR_PAID = 0.947
+LO_FEE_FACTOR_LIST = 0.884
+
 # matcher 가 읽는 컬럼 + 마진 표시에 필요한 컬럼
 SELL_COLUMNS = [
     "오픈마켓주문번호", "상품명", "옵션", "수량", "단가", "실결제금액",
@@ -261,9 +268,21 @@ def _settlement_for(row: dict):
     if row.get("판매처") == "롯데온":
         paid = _to_int_or_blank(row.get("실결제금액"))
         fee = _to_int_or_blank(row.get("마켓수수료"))
-        if paid == "" or fee == "" or fee <= 0:
-            return 0, "none"
-        return paid - fee, "real"
+        if paid != "" and fee != "" and fee > 0:
+            return paid - fee, "real"            # 실수수료 확보 → 정확
+        # ★ 미정산(구매확정 전 → 마켓수수료 미기록) 추정. 실수수료 없다고 0(손실 둔갑) 금지.
+        #   원본(샵마인) 대조 역산: 실결제 있으면 실결제×0.947(수수료 ~5.3%),
+        #   실결제 미확보(actualAmt 누락)면 단가×수량×0.884. estimated 태그(실값과 구분).
+        if paid != "" and paid > 0:
+            return round(paid * LO_FEE_FACTOR_PAID), "estimated"
+        unit = _to_int_or_blank(row.get("단가"))
+        if unit != "" and unit > 0:
+            try:
+                qty = int(row.get("수량") or 1)
+            except (TypeError, ValueError):
+                qty = 1
+            return round(unit * qty * LO_FEE_FACTOR_LIST), "estimated"
+        return 0, "none"
 
     if src == "none":
         return 0, "none"
