@@ -42,9 +42,14 @@ def _windows(since: datetime, until: datetime):
 
 
 def _iso(d: datetime) -> str:
-    # ★ 쿠팡 returnRequests/exchangeRequests 의 createdAtFrom/To 는 'yyyy-MM-ddTHH:mm'(초 없음)만
-    #   받는다. 초를 붙이면 HTTP 400 "The format of createdAtFrom is yyyy-MM-ddTHH:mm" 로 전체
-    #   조회가 실패 → 취소/반품 통째 누락(서버 프로브 실측 2026-07-13). 초 제거.
+    # ★ 서버 프로브 실측(2026-07-13): 두 엔드포인트가 요구 포맷이 다르다.
+    #   exchangeRequests → 'yyyy-MM-ddTHH:mm:ss'(초 필수). returnRequests → 'yyyy-MM-ddTHH:mm'(초 금지).
+    #   맞는 포맷 아니면 HTTP 400 으로 전체 조회 실패 → 취소/반품/교환 통째 누락.
+    return d.strftime("%Y-%m-%dT%H:%M:%S")
+
+
+def _iso_min(d: datetime) -> str:
+    """returnRequests 전용(초 없음). 초를 붙이면 400."""
     return d.strftime("%Y-%m-%dT%H:%M")
 
 
@@ -59,8 +64,8 @@ def iter_returns(since: datetime, until: datetime, *,
         for st in _RETURN_STATUSES:
             token = None
             for _ in range(50):
-                q = (f"searchType=timeFrame&createdAtFrom={_iso(w_from)}"
-                     f"&createdAtTo={_iso(w_to)}&status={st}&maxPerPage=50")
+                q = (f"searchType=timeFrame&createdAtFrom={_iso_min(w_from)}"
+                     f"&createdAtTo={_iso_min(w_to)}&status={st}&maxPerPage=50")
                 if token:
                     q += f"&nextToken={token}"
                 resp = client.request("GET", path, query=q)

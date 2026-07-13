@@ -406,13 +406,13 @@ def test_order_rows_coerces_naive_dates_to_aware(monkeypatch):
     assert cap["since"] == aware_s and cap["until"] == aware_u
 
 
-def test_coupang_claims_iso_format_no_seconds():
-    """쿠팡 returnRequests/exchangeRequests 는 createdAtFrom 이 'yyyy-MM-ddTHH:mm'(초 없음)만
-    받는다. 초를 붙이면 HTTP 400 으로 취소/반품 전체 조회가 실패한다(서버 프로브 실측)."""
+def test_coupang_claims_iso_formats_differ_by_endpoint():
+    """서버 프로브 실측: returnRequests 는 'yyyy-MM-ddTHH:mm'(초 금지),
+    exchangeRequests 는 'yyyy-MM-ddTHH:mm:ss'(초 필수). 틀리면 HTTP 400 전체 실패."""
     import shared.platforms.coupang.claims as _cc
-    s = _cc._iso(dt.datetime(2026, 7, 3, 9, 5, 30))
-    assert s == "2026-07-03T09:05"          # 초 없음
-    assert s.count(":") == 1
+    t = dt.datetime(2026, 7, 3, 9, 5, 30)
+    assert _cc._iso_min(t) == "2026-07-03T09:05"      # returnRequests: 초 없음
+    assert _cc._iso(t) == "2026-07-03T09:05:30"       # exchangeRequests: 초 있음
 
 
 def test_coupang_claim_window_extends_to_now(monkeypatch):
