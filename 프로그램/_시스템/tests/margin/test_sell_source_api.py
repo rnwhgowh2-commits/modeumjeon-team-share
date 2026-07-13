@@ -56,8 +56,28 @@ def test_lotteon_settlement_is_paid_minus_fee():
     assert df.loc[0, "_settle_source"] == "real"
 
 
-def test_lotteon_without_fee_is_none():
+def test_lotteon_without_fee_estimates_from_paid():
+    """롯데온 미정산(구매확정 전 → 마켓수수료 미기록): 실결제 있으면 실결제×0.947 추정.
+    옛 동작(0·none)은 최근 주문을 손실로 둔갑시켜 마진 마이너스를 유발했다(라이브 실측)."""
     row = _oe_row(판매처="롯데온", 실결제금액=100000, 마켓수수료="",
+                  **{"_settle_source": "none"})
+    df = SS._rows_to_df([row])
+    assert df.loc[0, "정산예상금액_배송비포함"] == round(100000 * 0.947)  # 94700
+    assert df.loc[0, "_settle_source"] == "estimated"
+
+
+def test_lotteon_without_paid_estimates_from_list_price():
+    """실결제(actualAmt)도 미확보면 단가×수량×0.884 로 추정(원본 대조 역산)."""
+    row = _oe_row(판매처="롯데온", 실결제금액="", 단가=50000, 수량=2, 마켓수수료="",
+                  **{"_settle_source": "none"})
+    df = SS._rows_to_df([row])
+    assert df.loc[0, "정산예상금액_배송비포함"] == round(100000 * 0.884)  # 88400
+    assert df.loc[0, "_settle_source"] == "estimated"
+
+
+def test_lotteon_no_basis_stays_none():
+    """실결제·단가 모두 없으면 추정 근거 없음 → 0·none (조용한 추정 금지)."""
+    row = _oe_row(판매처="롯데온", 실결제금액="", 단가="", 마켓수수료="",
                   **{"_settle_source": "none"})
     df = SS._rows_to_df([row])
     assert df.loc[0, "정산예상금액_배송비포함"] == 0
@@ -86,7 +106,8 @@ def test_none_settlement_does_not_produce_nan_through_matcher():
     import pandas as pd
     from lemouton.margin import matcher as M
 
-    sell = SS._rows_to_df([_oe_row(판매처="롯데온", 실결제금액=100000,
+    # 추정 근거(실결제·단가) 없는 진짜 none 행 — 정산 0(빈칸 아님)이라야 손실이 총합에 남는다.
+    sell = SS._rows_to_df([_oe_row(판매처="롯데온", 실결제금액="", 단가="",
                                    마켓수수료="", **{"_settle_source": "none"})])
     buy = pd.DataFrame([{
         "마켓주문일자": "26.07.04", "마켓명": "롯데ON", "마켓주문번호": "1001",
@@ -106,7 +127,8 @@ def test_none_settlement_row_is_json_serializable():
     import pandas as pd
     from lemouton.margin import matcher as M
 
-    sell = SS._rows_to_df([_oe_row(판매처="롯데온", 실결제금액=100000,
+    # 추정 근거(실결제·단가) 없는 진짜 none 행 — 정산 0(빈칸 아님)이라야 손실이 총합에 남는다.
+    sell = SS._rows_to_df([_oe_row(판매처="롯데온", 실결제금액="", 단가="",
                                    마켓수수료="", **{"_settle_source": "none"})])
     buy = pd.DataFrame([{
         "마켓주문일자": "26.07.04", "마켓명": "롯데ON", "마켓주문번호": "1001",
