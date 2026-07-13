@@ -334,11 +334,14 @@ def lotteon_order_rows(since: _dt.datetime, until: _dt.datetime,
     #  요청↔완료 세분: 클레임 itemList의 odPrgsStepCd 로 판정(21취소완료·27반품완료). 교환 완료코드
     #  미확정 → 교환요청 유지(라이브 재측정으로 실코드 확인 후 보정). 그 외(회수지시·진행)=요청.
     _lo_done = {"취소": "21", "반품": "27"}   # 교환=None(완료코드 미확정)
+    # ★ 클레임은 '클레임 접수일' 기준 조회 → 기간 안 주문이 나중에 취소되면 [since,until] 밖이라
+    #   통째 누락(라이브: 롯데온 4건). 조회 끝을 now 로 넓힌다(주문번호 매칭이라 넓혀도 안전).
+    _lo_claim_until = max(until, _dt.datetime.now(KST))
     for fn, base, qkey in ((_clm.iter_cancel, "취소", "cnclQty"),
                            (_clm.iter_return, "반품", "rtngQty"),
                            (_clm.iter_exchange, "교환", "xchgQty")):
         try:
-            for it in fn(since, until, client=client):
+            for it in fn(since, _lo_claim_until, client=client):
                 on = _g(it, "odNo")
                 if on and on in seen:
                     continue
@@ -542,9 +545,14 @@ def coupang_order_rows(since: _dt.datetime, until: _dt.datetime,
             "실결제금액": "", "송장입력": "",
         }
 
+    # ★ 클레임(취소/반품/교환)은 '클레임 생성일' 기준 조회다. 기간 안 주문이 나중에(기간 밖)
+    #   취소되면 그 클레임은 [since,until] 창에 안 잡혀 통째 누락된다(라이브: 쿠팡 취소완료
+    #   62건 미조회 = 손실 미포착). 롯데온 commission_map 처럼 조회 끝을 now 로 넓힌다
+    #   (주문번호로 매칭하므로 넓혀도 우리 주문에 없는 건 무시돼 안전).
+    _claim_until = max(until, _dt.datetime.now(KST))
     seen_ord = {r.get("오픈마켓주문번호") for r in rows if r.get("오픈마켓주문번호")}
     try:
-        for rq in _cc.iter_returns(since, until, client=client):
+        for rq in _cc.iter_returns(since, _claim_until, client=client):
             odno = str(rq.get("orderId") or "")
             if odno and odno in seen_ord:
                 continue
@@ -559,7 +567,7 @@ def coupang_order_rows(since: _dt.datetime, until: _dt.datetime,
     except Exception:   # noqa: BLE001 — 클레임 조회 실패는 활성 주문 유지
         pass
     try:
-        for ex in _cc.iter_exchanges(since, until, client=client):
+        for ex in _cc.iter_exchanges(since, _claim_until, client=client):
             odno = str(ex.get("orderId") or "")
             if odno and odno in seen_ord:
                 continue
