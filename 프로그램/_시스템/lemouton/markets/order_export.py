@@ -259,8 +259,13 @@ def lotteon_order_rows(since: _dt.datetime, until: _dt.datetime,
     import html as _html
     from shared.platforms.lotteon.orders import iter_delivery_orders
 
+    # ★ 209(출고/회수지시)는 '배송지시생성일시' 기준 조회다. 기간 안(주문일) 주문이라도
+    #   배송지시가 나중에(예: 07-12 주문 → 07-13 지시생성) 잡히면 [since,until] 창 밖이라
+    #   통째 누락된다(라이브: 07-12 신규주문 6건, 서버 프로브 확인). 조회 끝을 now 로 넓히고
+    #   combined_order_rows 가 주문일 기준으로 다시 트리밍(기간=주문일 유지).
+    _lo_fetch_until = max(until, _dt.datetime.now(KST))
     rows = []
-    for od in iter_delivery_orders(since, until, client=client):
+    for od in iter_delivery_orders(since, _lo_fetch_until, client=client):
         opt = _g(od, "sitmNm") or (
             (str(_g(od, "adtnOptNm")) + " " + str(_g(od, "adtnOptVal"))).strip())
         addr = (str(_g(od, "dvpStnmZipAddr")) + " " + str(_g(od, "dvpStnmDtlAddr"))).strip()

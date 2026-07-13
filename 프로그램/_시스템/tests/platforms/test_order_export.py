@@ -434,6 +434,23 @@ def test_coupang_claim_window_extends_to_now(monkeypatch):
     assert cap["exc"] >= now - dt.timedelta(seconds=5)
 
 
+def test_lotteon_delivery_window_extends_to_now(monkeypatch):
+    """롯데온 출고지시(209)는 '배송지시생성일시' 기준 → 기간 안 주문이 나중에 배송지시되면
+    [since,until] 밖이라 누락(라이브: 07-12 신규주문 6건). 조회 끝을 now 로 넓혀야 잡힌다."""
+    import shared.platforms.lotteon.orders as _lo
+    import shared.platforms.lotteon.claims as _lc
+    monkeypatch.setattr(_lc, "commission_map", lambda *a, **k: {})
+    for nm in ("iter_cancel", "iter_return", "iter_exchange"):
+        monkeypatch.setattr(_lc, nm, lambda *a, **k: iter([]))
+    cap = {}
+    monkeypatch.setattr(_lo, "iter_delivery_orders",
+                        lambda s, u, **k: cap.__setitem__("until", u) or iter([]))
+    now = dt.datetime.now(oe.KST)
+    oe.lotteon_order_rows(dt.datetime(2026, 7, 3, tzinfo=oe.KST),
+                          dt.datetime(2026, 7, 5, tzinfo=oe.KST), client=object())
+    assert cap["until"] >= now - dt.timedelta(seconds=5)   # 과거 until 이 아니라 now 로 확장
+
+
 def test_lotteon_claim_window_extends_to_now(monkeypatch):
     """롯데온 클레임도 접수일 기준 → 기간 밖 취소 누락(라이브: 4건). 조회 끝을 now 로 넓힌다."""
     import shared.platforms.lotteon.orders as _lo
@@ -571,12 +588,20 @@ def test_coupang_rows_flatten_and_map(monkeypatch):
 
 class FakeLotteonClient:
     def request(self, method, path, body=None):
-        return {"returnCode": "0000", "data": {"deliveryOrderList": [{
-            "odCmptDttm": "20260705120000", "spdNm": "코트", "sitmNm": "블랙/95",
-            "odQty": 1, "slPrc": 189000, "actualAmt": 170000,
-            "dvpCustNm": "수령자A", "dvpMphnNo": "01011112222", "odrNm": "구매자A",
-            "dvpZipNo": "04315", "dvpStnmZipAddr": "서울 어딘가", "dvpStnmDtlAddr": "101동",
-            "dvMsg": "문앞", "mphnNo": "01000000000"}]}}
+        # 실제 209 처럼: 배송지시일시(20260705120000)를 포함하는 하루창에서만 1회 반환.
+        #  (창을 now 로 넓혀 여러 날 순회해도 주문은 자기 날짜 창에서만 나옴 = 중복 없음)
+        if "SellerDeliveryOrdersSearch" in path:
+            b = body or {}
+            s, e = str(b.get("srchStrtDt", "")), str(b.get("srchEndDt", ""))
+            if not (s <= "20260705120000" <= e):
+                return {"returnCode": "0000", "data": {"deliveryOrderList": []}}
+            return {"returnCode": "0000", "data": {"deliveryOrderList": [{
+                "odCmptDttm": "20260705120000", "spdNm": "코트", "sitmNm": "블랙/95",
+                "odQty": 1, "slPrc": 189000, "actualAmt": 170000,
+                "dvpCustNm": "수령자A", "dvpMphnNo": "01011112222", "odrNm": "구매자A",
+                "dvpZipNo": "04315", "dvpStnmZipAddr": "서울 어딘가", "dvpStnmDtlAddr": "101동",
+                "dvMsg": "문앞", "mphnNo": "01000000000"}]}}
+        return {"returnCode": "0000", "data": {}}
 
 
 def test_lotteon_rows_map_from_delivery_orders():
