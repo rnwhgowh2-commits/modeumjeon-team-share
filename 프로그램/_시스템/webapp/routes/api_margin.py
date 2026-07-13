@@ -292,10 +292,14 @@ def _augment_blackspot(payload, buy_df, sell_df, out):
                 existing_keys.add(mk)
     payload["unmatched_buy"] = unmatched_buy_list
 
-    # 블랙스팟 카드 집계 (원본 app.py:1532 `_compute_card_counts(store['matched'], source='matched')`).
-    #   ★ out["matched"] = match_data(full 더망고) + _주문미이행/_매입흔적 플래그(pipeline.run) —
-    #     원본 store['matched'] 와 동일 구성(사이트주문번호 없는 매입흔적 행 포함). source='matched' 는
-    #     상세분류/소싱처확인필요를 쓰지 않으므로(더망고·샵마인 상태·메모로만 분기) 미분류 matched 로 정확.
+    # 블랙스팟 카드 집계 — 원본 `_compute_card_counts` 이식.
+    #   ★ source='classified' (매출=마켓 API 이식본의 정답) — **더망고 매입흔적 주문건이 기준(anchor)**.
+    #     원본은 매출=샵마인(전건 커버)이라 source='matched'(store['matched'])=매입흔적 전건이었지만,
+    #     우리 매출=마켓 API 는 **연동 안 된 마켓(옥션/G마켓)·정산 미확정분을 부분 커버** → matched 만
+    #     세면 매입흔적 카운트가 API 커버리지에 따라 줄어든다(오검출). source='classified' 는
+    #     classified(매칭분) + buy_df 매입흔적 미매칭행(가상행)을 합쳐 **더망고 매입흔적 전건**을 세므로
+    #     API 가 무엇을 커버하든 매입흔적 anchor 가 불변(=클라이언트 _getRowsByCardFilter('all') 과 동일).
+    #     API 미커버 매입흔적은 더망고 주문상태로만 분류되고 정산은 미확정으로 남는다(정직).
     #   ★ 팀 카드 키워드(cards) 주입 — 원본 load_card_keywords() 대체(DB 세션 격리).
     #   summary.update 로 aggregator 가 0 으로 둔 card_* 를 실제 분류값으로 덮어쓴다(원본 계약).
     _cc_session = SessionLocal()
@@ -304,7 +308,8 @@ def _augment_blackspot(payload, buy_df, sell_df, out):
     finally:
         _cc_session.close()
     summary = payload.setdefault("summary", {})
-    summary.update(compute_card_counts(out.get("matched", []), source="matched", card_kw=_cc_kw))
+    summary.update(compute_card_counts(
+        cls["classified"], buy_df_raw=buy_df, source="classified", card_kw=_cc_kw))
 
     # 검증 카운트 (원본 1401~1418) — summary 에 주입.
     summary["mango_total"] = int(len(buy_df))
