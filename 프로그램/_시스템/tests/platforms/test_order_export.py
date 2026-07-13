@@ -406,6 +406,27 @@ def test_order_rows_coerces_naive_dates_to_aware(monkeypatch):
     assert cap["since"] == aware_s and cap["until"] == aware_u
 
 
+def test_eleven11_fetch_window_never_future(monkeypatch):
+    """11번가 상태별 조회 끝을 +14일 잡되 now 로 상한. 미래일을 넣으면 API 가 그 창을 400 거부 →
+    _collect try/except 로 그 상태(취소완료 등)가 통째 빠진다(라이브: 07-06 취소완료 1건 누락)."""
+    import shared.platforms.eleven11.orders as e11
+    cap = {}
+
+    def _mk(name):
+        def _f(since, until, *, client=None):
+            cap[name] = until
+            return iter([])
+        return _f
+    for nm in ("iter_orders", "iter_delivered", "iter_completed", "iter_preparing",
+               "iter_shipping", "iter_cancel", "iter_canceled", "iter_return", "iter_exchange"):
+        monkeypatch.setattr(e11, nm, _mk(nm))
+    now = dt.datetime.now(oe.KST)
+    # until 이 미래(+많이)여도 조회창은 now 를 넘지 않아야 함
+    oe.eleven11_order_rows(now - dt.timedelta(days=5), now + dt.timedelta(days=30), client=object())
+    for nm in ("iter_orders", "iter_canceled"):
+        assert cap[nm] <= now + dt.timedelta(seconds=5), f"{nm} 조회창이 미래로 나감"
+
+
 def test_coupang_claims_iso_formats_differ_by_endpoint():
     """서버 프로브 실측: returnRequests 는 'yyyy-MM-ddTHH:mm'(초 금지),
     exchangeRequests 는 'yyyy-MM-ddTHH:mm:ss'(초 필수). 틀리면 HTTP 400 전체 실패."""

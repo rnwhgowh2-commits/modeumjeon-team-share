@@ -851,9 +851,11 @@ def eleven11_order_rows(since: _dt.datetime, until: _dt.datetime, client=None,
     #  없는 건(취소 등)만 추가 — 이미 활성에 있으면 그 상태 유지(중복 방지).
     rows, seen = [], set()
     # 발송·배송완료·정산은 주문일보다 늦게 찍혀, 주문일이 창 안이어도 그 상태일이 창 밖이면
-    # 상태별 API가 안 준다(배송준비중→배송중→배송완료 진행). 조회 끝을 +14일 넉넉히 잡고
-    # combined_order_rows 가 최종적으로 주문일 기준으로 트리밍한다(기간=주문일 유지).
-    f_until = until + _dt.timedelta(days=14)
+    # 상태별 API가 안 준다(배송준비중→배송중→배송완료 진행). 조회 끝을 +14일 넉넉히 잡되
+    # ★미래 금지(now 상한). 미래일을 넣으면 11번가 API가 그 창을 거부(400)해 _collect 의
+    #   try/except 로 그 상태(취소완료 등)가 통째 빠진다(라이브: 07-06 취소완료 1건 누락).
+    #   combined_order_rows 가 최종적으로 주문일 기준으로 트리밍한다(기간=주문일 유지).
+    f_until = min(until + _dt.timedelta(days=14), _dt.datetime.now(KST))
 
     def _collect(iter_fn, status, required, builder=_row):
         try:
