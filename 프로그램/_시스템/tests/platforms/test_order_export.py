@@ -41,6 +41,51 @@ def test_smartstore_rows_map_and_join(monkeypatch):
     assert r["판매처"] == "스마트스토어"       # 판매처 열(B)
 
 
+def test_ss_estimate_settle_formula():
+    # 매출 × 0.94 (수수료 6%). 실결제금액 우선, 없으면 단가×수량, 둘 다 없으면 빈칸(폴백 0 금지).
+    assert oe._ss_estimate_settle(90000, 100000, 1) == round(90000 * 0.94)   # 실결제 우선
+    assert oe._ss_estimate_settle("", 50000, 2) == round(100000 * 0.94)      # 단가×수량 폴백
+    assert oe._ss_estimate_settle("", "", 1) == ""                           # 근거 없음 → 빈칸
+
+
+class FakeSSClientNoSettle:
+    """정산 전(최근) 주문 대역 — settle/case 는 빈 응답(오늘 주문=정산 미확정)."""
+    def request(self, method, path, query="", body=None):
+        if "last-changed-statuses" in path:
+            return {"data": {"lastChangeStatuses": [{"productOrderId": "P9"}]}}
+        if path.endswith("/product-orders/query"):
+            return {"data": [{
+                "order": {"orderDate": "2026-07-05T09:00:00", "ordererName": "구매자", "ordererTel": "010"},
+                "productOrder": {"productOrderId": "P9", "productName": "코트", "productOption": "블랙/95",
+                                 "quantity": 1, "unitPrice": 100000, "totalPaymentAmount": 90000,
+                                 "shippingAddress": {"name": "수령", "tel1": "010", "zipCode": "1",
+                                                     "baseAddress": "서울", "detailedAddress": "1"}},
+            }]}
+        if "pay-settle/settle/case" in path:
+            return {"elements": [], "pagination": {"totalPages": 1}}   # 정산 없음
+        return {"data": {}}
+
+
+def test_smartstore_estimates_settle_when_unsettled():
+    # 정산 전 최근 주문 → 실결제금액 × 0.94 추정 + _settle_source='estimated'(실값과 구분).
+    #  빈칸으로 두면 순마진=0-매입=손실로 둔갑(사용자 지적).
+    since = dt.datetime(2026, 7, 5, tzinfo=KST)
+    until = dt.datetime(2026, 7, 5, 23, tzinfo=KST)
+    rows = oe.smartstore_order_rows(since, until, client=FakeSSClientNoSettle())
+    assert len(rows) == 1
+    r = rows[0]
+    assert r["_settle_source"] == "estimated"
+    assert r["정산예정금액"] == round(90000 * 0.94)     # 실결제 90000 × 0.94 = 84600
+
+
+def test_smartstore_real_settle_wins_over_estimate():
+    # 실정산 있으면 추정 대신 확정액 사용(_settle_source='real').
+    since = dt.datetime(2026, 7, 5, tzinfo=KST)
+    until = dt.datetime(2026, 7, 5, 23, tzinfo=KST)
+    r = oe.smartstore_order_rows(since, until, client=FakeSSClient())[0]
+    assert r["_settle_source"] == "real" and r["정산예정금액"] == 169155
+
+
 def test_order_rows_rejects_unsupported():
     for mk in ("gmarket", "auction", "wemakeprice"):
         with pytest.raises(ValueError):
