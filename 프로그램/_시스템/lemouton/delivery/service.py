@@ -171,6 +171,24 @@ def is_cancel_return(o) -> bool:
     return any(k in s for k in _CANCEL_KW)
 
 
+def cancel_type(o) -> str:
+    """취소건 세부 분류 — 마켓상태(M열)에 '한 종류만' 명확하면 그것, 합쳐졌거나 없으면 '그외'.
+
+    더망고는 완료된 클레임을 '취소/반품/교환 완료'처럼 셋을 합쳐 저장해, 그런 건 어느
+    것인지 데이터로 구분 불가 → '그외'(억지 분류 금지). 명확한 건 '취소신청/반품신청/
+    교환신청' 처럼 마켓상태에 한 종류만 든 경우.
+    """
+    m = o.market_status or ""
+    c, r, e = ("취소" in m), ("반품" in m), ("교환" in m)
+    if c and not r and not e:
+        return "취소"
+    if r and not c and not e:
+        return "반품"
+    if e and not c and not r:
+        return "교환"
+    return "그외"
+
+
 def clear_orders(session) -> int:
     """배송검사 초기화 — 더망고 주문 전량 삭제(→ 미실시 0 상태). 삭제 건수 반환.
 

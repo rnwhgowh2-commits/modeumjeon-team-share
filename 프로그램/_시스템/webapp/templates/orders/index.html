@@ -649,6 +649,7 @@
       for(var k in f){var ex=f[k];if(ex&&ex.size&&ex.has(String(o[k]||'(없음)')))return false;}return true;}
     function ordersOfSec(sk){return mangoOrders.filter(function(o){
       if(sk==='cancel')return !!o.cancel;
+      if(sk.indexOf('c_')===0)return !!o.cancel&&o.ctype===sk.slice(2);   // 취소/반품/교환/그외 세부
       if(o.cancel)return false;
       if(sk==='dup')return !!o.dup;
       if(sk==='stall')return !!o.flow_stalled;
@@ -685,7 +686,12 @@
         +(tt('need')&&ss('flow')?sec('cs-stall','🟡','배송흐름 정체 · 소싱처 확인','stall'):'')
         +(tt('need')&&ss('unk')?sec('cs-unk','⚪','확인불가 · 조회 안 됨','unk',{why:true}):'')
         +(tt('need')&&ss('ok')?sec('cs-ok','🟢','발송 대상 · 아직 마켓에 송장 안 나감','send',{send:true}):'')
-        +(tt('nonneed')&&ss('cancel')?sec('cs-cancel','🚫','취소·반품·교환 · 검사 불필요','cancel'):'')
+        +(tt('nonneed')&&ss('cancel')?
+             sec('cs-cancel','🚫','취소','c_취소')
+            +sec('cs-cancel','↩️','반품','c_반품')
+            +sec('cs-cancel','🔄','교환','c_교환')
+            +sec('cs-cancel','▫️','그외 (완료·구분 불가)','c_그외')
+          :'')
         +(tt('nonneed')&&ss('ok')?sec('cs-done','✅','이미 발송/완료 · 조치 불필요','done'):'');
       el.innerHTML=html||'<div class="state" style="padding:24px;text-align:center;color:var(--sub);background:#fff;border:1px solid var(--line2);border-radius:12px">이 탭에는 해당하는 주문이 없어요.</div>';
       var sb=document.getElementById('chkSendOk');

@@ -162,6 +162,18 @@ def test_is_cancel_return_detects_from_market_or_mango_status(db):
     assert svc.is_cancel_return(O(m="배송완료")) is False
 
 
+def test_cancel_type_splits_only_when_unambiguous(db):
+    # 마켓상태에 한 종류만 명확하면 그것, 합쳐졌거나 없으면 '그외'.
+    class O:
+        def __init__(s, m=""):
+            s.market_status = m
+    assert svc.cancel_type(O("취소신청")) == "취소"
+    assert svc.cancel_type(O("반품신청")) == "반품"
+    assert svc.cancel_type(O("교환신청")) == "교환"
+    assert svc.cancel_type(O("취소/반품/교환 완료")) == "그외"   # 합쳐짐 → 구분 불가
+    assert svc.cancel_type(O("특이사항없음")) == "그외"
+
+
 def test_clear_orders_resets_to_zero(db):
     # 「비우기」 = 더망고 주문 전량 삭제(미실시 0). 상태매핑은 보존.
     svc.seed_default_status_map(db)
