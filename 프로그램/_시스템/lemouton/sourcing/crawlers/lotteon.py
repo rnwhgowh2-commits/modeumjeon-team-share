@@ -1439,10 +1439,10 @@ class LotteCrawler(AbstractCrawler):
                 _csk = (_SIZE_PAREN_PATTERN.sub("", (color["name"] or "")).strip(),
                         _SIZE_PAREN_PATTERN.sub("", (size_text or "")).strip())
                 if cs_qty_map and _csk in cs_qty_map:
-                    # 2축 조합별 실재고(0=품절·N=실수량). 충분(inv_qty>=30 상한)→50 표기.
+                    # 2축 조합별 실재고(0=품절·<5=실수량N·>=5=충분999). _lotteimall_disp_qty(사이트 JS 기준).
                     stock_int = _lotteimall_disp_qty(cs_qty_map[_csk])
                 elif _lbl_key in size_qty_map:
-                    # 단축 실재고(0=품절·N=실수량·충분). 충분(inv_qty>=30 상한)→50 표기.
+                    # 단축 실재고(0=품절·<5=실수량N·>=5=충분999). _lotteimall_disp_qty(사이트 JS 기준).
                     stock_int = _lotteimall_disp_qty(size_qty_map[_lbl_key])
                 else:
                     stock_int = 0 if is_sold_out else 999
