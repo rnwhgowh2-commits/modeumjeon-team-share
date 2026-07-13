@@ -42,7 +42,10 @@ def _windows(since: datetime, until: datetime):
 
 
 def _iso(d: datetime) -> str:
-    return d.strftime("%Y-%m-%dT%H:%M:%S")
+    # ★ 쿠팡 returnRequests/exchangeRequests 의 createdAtFrom/To 는 'yyyy-MM-ddTHH:mm'(초 없음)만
+    #   받는다. 초를 붙이면 HTTP 400 "The format of createdAtFrom is yyyy-MM-ddTHH:mm" 로 전체
+    #   조회가 실패 → 취소/반품 통째 누락(서버 프로브 실측 2026-07-13). 초 제거.
+    return d.strftime("%Y-%m-%dT%H:%M")
 
 
 def iter_returns(since: datetime, until: datetime, *,

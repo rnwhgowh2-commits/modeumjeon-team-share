@@ -406,6 +406,15 @@ def test_order_rows_coerces_naive_dates_to_aware(monkeypatch):
     assert cap["since"] == aware_s and cap["until"] == aware_u
 
 
+def test_coupang_claims_iso_format_no_seconds():
+    """쿠팡 returnRequests/exchangeRequests 는 createdAtFrom 이 'yyyy-MM-ddTHH:mm'(초 없음)만
+    받는다. 초를 붙이면 HTTP 400 으로 취소/반품 전체 조회가 실패한다(서버 프로브 실측)."""
+    import shared.platforms.coupang.claims as _cc
+    s = _cc._iso(dt.datetime(2026, 7, 3, 9, 5, 30))
+    assert s == "2026-07-03T09:05"          # 초 없음
+    assert s.count(":") == 1
+
+
 def test_coupang_claim_window_extends_to_now(monkeypatch):
     """쿠팡 취소/반품/교환은 '클레임 생성일' 기준 조회 → 기간 안 주문이 나중에 취소되면
     [since,until] 밖이라 통째 누락(라이브: 62건). 조회 끝을 now 로 넓혀야 잡힌다."""

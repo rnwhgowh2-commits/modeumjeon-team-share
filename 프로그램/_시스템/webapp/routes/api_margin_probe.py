@@ -85,17 +85,21 @@ def _probe_impl():
         from shared.platforms.lotteon import claims as lc
         cl = oe._account_client("lotteon")
         out["client_ok"] = cl is not None
-        # 출고지시(209) — until vs now 확장 비교
-        for label, u in (("until", until), ("now", now)):
-            got, hit, err = 0, 0, None
+        wide = since - _dt.timedelta(days=3)
+        # 출고지시(209) — until / now / 넓은창(-3d~now) 비교 + 실제 반환 주문번호 샘플
+        for label, s, u in (("until", since, until), ("now", since, now), ("wide", wide, now)):
+            got, hit, err, sample = 0, 0, None, []
             try:
-                for od in iter_delivery_orders(since, u, client=cl):
+                for od in iter_delivery_orders(s, u, client=cl):
                     got += 1
-                    if str(od.get("odNo") or "") in want:
+                    on = str(od.get("odNo") or "")
+                    if on in want:
                         hit += 1
+                    if len(sample) < 5:
+                        sample.append(on)
             except Exception as e:
-                err = f"{type(e).__name__}: {e}"[:120]
-            out["found_by"][f"delivery_{label}"] = {"got": got, "want_hit": hit, "err": err}
+                err = f"{type(e).__name__}: {e}"[:150]
+            out["found_by"][f"delivery_{label}"] = {"got": got, "want_hit": hit, "err": err, "sample": sample}
         # 클레임
         for nm, fn in (("cancel", lc.iter_cancel), ("return", lc.iter_return), ("exchange", lc.iter_exchange)):
             got, hit, err = 0, 0, None
