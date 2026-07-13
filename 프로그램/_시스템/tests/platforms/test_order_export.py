@@ -406,6 +406,43 @@ def test_order_rows_coerces_naive_dates_to_aware(monkeypatch):
     assert cap["since"] == aware_s and cap["until"] == aware_u
 
 
+def test_coupang_claim_window_extends_to_now(monkeypatch):
+    """쿠팡 취소/반품/교환은 '클레임 생성일' 기준 조회 → 기간 안 주문이 나중에 취소되면
+    [since,until] 밖이라 통째 누락(라이브: 62건). 조회 끝을 now 로 넓혀야 잡힌다."""
+    import shared.platforms.coupang.orders as _co
+    import shared.platforms.coupang.claims as _cc
+    monkeypatch.setattr(_co, "fetch_orders", lambda *a, **k: {"data": [], "nextToken": ""})
+    monkeypatch.setattr(oe, "_coupang_settle_map", lambda *a, **k: ({}, {}))
+    cap = {}
+    monkeypatch.setattr(_cc, "iter_returns",
+                        lambda s, u, client=None: cap.__setitem__("ret", u) or iter([]))
+    monkeypatch.setattr(_cc, "iter_exchanges",
+                        lambda s, u, client=None: cap.__setitem__("exc", u) or iter([]))
+    now = dt.datetime.now(oe.KST)
+    oe.coupang_order_rows(dt.datetime(2026, 7, 3, tzinfo=oe.KST),
+                          dt.datetime(2026, 7, 5, tzinfo=oe.KST), client=object())
+    assert cap["ret"] >= now - dt.timedelta(seconds=5)   # 과거 until 이 아니라 now 로 확장
+    assert cap["exc"] >= now - dt.timedelta(seconds=5)
+
+
+def test_lotteon_claim_window_extends_to_now(monkeypatch):
+    """롯데온 클레임도 접수일 기준 → 기간 밖 취소 누락(라이브: 4건). 조회 끝을 now 로 넓힌다."""
+    import shared.platforms.lotteon.orders as _lo
+    import shared.platforms.lotteon.claims as _lc
+    monkeypatch.setattr(_lo, "iter_delivery_orders", lambda *a, **k: iter([]))
+    monkeypatch.setattr(_lc, "commission_map", lambda *a, **k: {})
+    cap = {}
+    for nm in ("iter_cancel", "iter_return", "iter_exchange"):
+        monkeypatch.setattr(_lc, nm,
+                            (lambda name: (lambda s, u, client=None:
+                                           cap.__setitem__(name, u) or iter([])))(nm))
+    now = dt.datetime.now(oe.KST)
+    oe.lotteon_order_rows(dt.datetime(2026, 7, 3, tzinfo=oe.KST),
+                          dt.datetime(2026, 7, 5, tzinfo=oe.KST), client=object())
+    assert cap["iter_cancel"] >= now - dt.timedelta(seconds=5)
+    assert cap["iter_return"] >= now - dt.timedelta(seconds=5)
+
+
 def test_combined_partial_failure_warns_and_proceeds_with_warnings(monkeypatch):
     # ★ warnings 채널이 있으면(화면·마진 분석) 한 마켓이 통째로 실패해도 502 로 죽지 않고
     #   그 마켓을 '제외'로 표면화(warnings)한 뒤 나머지 마켓 결과를 반환한다.
