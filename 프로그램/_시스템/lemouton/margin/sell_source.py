@@ -31,6 +31,11 @@ logger = logging.getLogger(__name__)
 LO_FEE_FACTOR_PAID = 0.947
 LO_FEE_FACTOR_LIST = 0.884
 
+# 11번가 미정산(배송완료·배송중 = stlPlnAmt 없음) 정산 추정 — 원본 조인 역산.
+#  실결제(ordPayAmt) 확보분: 원본정산/실결제 = 0.964. 실결제 미확보(단가만): 원본정산/단가×수량 = 0.869.
+EL_FEE_FACTOR_PAID = 0.964
+EL_FEE_FACTOR_LIST = 0.869
+
 # matcher 가 읽는 컬럼 + 마진 표시에 필요한 컬럼
 SELL_COLUMNS = [
     "오픈마켓주문번호", "상품명", "옵션", "수량", "단가", "실결제금액",
@@ -282,6 +287,24 @@ def _settlement_for(row: dict):
             except (TypeError, ValueError):
                 qty = 1
             return round(unit * qty * LO_FEE_FACTOR_LIST), "estimated"
+        return 0, "none"
+
+    if row.get("판매처") == "11번가":
+        if src != "none":                        # stlPlnAmt(정산예정금액) 확보 → real
+            settle = _to_int_or_blank(row.get("정산예정금액"))
+            if settle != "":
+                return settle, src
+        # ★ 미정산(배송완료·배송중 = stlPlnAmt 없음) 추정. 실수수료 없다고 0(손실 둔갑) 금지.
+        paid = _to_int_or_blank(row.get("실결제금액"))
+        if paid != "" and paid > 0:
+            return round(paid * EL_FEE_FACTOR_PAID), "estimated"
+        unit = _to_int_or_blank(row.get("단가"))
+        if unit != "" and unit > 0:
+            try:
+                qty = int(row.get("수량") or 1)
+            except (TypeError, ValueError):
+                qty = 1
+            return round(unit * qty * EL_FEE_FACTOR_LIST), "estimated"
         return 0, "none"
 
     if src == "none":

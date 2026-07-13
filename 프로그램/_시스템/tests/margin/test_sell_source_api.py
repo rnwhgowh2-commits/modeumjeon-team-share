@@ -75,6 +75,33 @@ def test_lotteon_without_paid_estimates_from_list_price():
     assert df.loc[0, "_settle_source"] == "estimated"
 
 
+def test_eleven11_real_settlement_kept():
+    """11번가 stlPlnAmt(정산예정금액) 있으면 real 그대로."""
+    row = _oe_row(판매처="11번가", 단가=90000, 실결제금액=85000,
+                  **{"정산예정금액": 83000, "_settle_source": "real"})
+    df = SS._rows_to_df([row])
+    assert df.loc[0, "정산예상금액_배송비포함"] == 83000
+    assert df.loc[0, "_settle_source"] == "real"
+
+
+def test_eleven11_unsettled_estimates_from_paid():
+    """11번가 미정산(배송완료 = stlPlnAmt 없음): 실결제×0.964 추정."""
+    row = _oe_row(판매처="11번가", 단가=90000, 실결제금액=85000, 마켓수수료="",
+                  **{"정산예정금액": "", "_settle_source": "none"})
+    df = SS._rows_to_df([row])
+    assert df.loc[0, "정산예상금액_배송비포함"] == round(85000 * 0.964)
+    assert df.loc[0, "_settle_source"] == "estimated"
+
+
+def test_eleven11_unsettled_no_paid_estimates_from_unit():
+    """실결제 없고 단가만 있으면 단가×수량×0.869 추정."""
+    row = _oe_row(판매처="11번가", 단가=50000, 수량=2, 실결제금액="",
+                  **{"정산예정금액": "", "_settle_source": "none"})
+    df = SS._rows_to_df([row])
+    assert df.loc[0, "정산예상금액_배송비포함"] == round(100000 * 0.869)
+    assert df.loc[0, "_settle_source"] == "estimated"
+
+
 def test_lotteon_no_basis_stays_none():
     """실결제·단가 모두 없으면 추정 근거 없음 → 0·none (조용한 추정 금지)."""
     row = _oe_row(판매처="롯데온", 실결제금액="", 단가="", 마켓수수료="",
