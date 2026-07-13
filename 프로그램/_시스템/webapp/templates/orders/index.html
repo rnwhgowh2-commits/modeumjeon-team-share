@@ -474,7 +474,9 @@
        kpi('주문',fr.length+'<small>건</small>')+kpi('발송대기',wait+'<small>건</small>')+kpi('주문금액',(amt/10000).toFixed(0)+'<small>만</small>')+kpi('정산예정',(settle/10000).toFixed(0)+'<small>만</small>');
       // 마켓별 칩 — 전체 rows 기준(항상 모든 마켓 보이게, 마켓 전환 가능). 클릭 시 그 마켓만 필터.
       var by={};rows.forEach(function(r){if(r['판매처'])by[r['판매처']]=(by[r['판매처']]||0)+1;});
-      var actMk=curMarketFilter();
+      var loadedMks=Object.keys(by);
+      // 마켓 칩을 눌러 걸었거나, 애초에 한 마켓만 불러왔으면 그 마켓을 활성 처리 → 계정 칩 노출.
+      var actMk=curMarketFilter()||(loadedMks.length===1?loadedMks[0]:null);
       document.getElementById('mkline').innerHTML=Object.keys(by).map(function(m){
         return '<span class="mkbox mkchip'+(actMk===m?' on':'')+'" data-mk="'+esc(m)+'"><span class="mk '+(MKCLS[m]||'gray')+'">'+m+'</span> <b>'+by[m]+'</b>건</span>';
       }).join('');
