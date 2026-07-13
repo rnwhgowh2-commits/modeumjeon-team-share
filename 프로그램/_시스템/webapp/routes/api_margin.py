@@ -34,6 +34,7 @@ from lemouton.margin import aggregator, export, pipeline, store
 from lemouton.margin import sell_source
 from lemouton.margin import keyword_store
 from lemouton.margin import matcher, classifier
+from lemouton.margin.card_counts import compute_card_counts
 from lemouton.margin.buy_parser import parse_buy
 from lemouton.margin.config import DEFAULT_PRICE_RANGES
 
@@ -291,8 +292,21 @@ def _augment_blackspot(payload, buy_df, sell_df, out):
                 existing_keys.add(mk)
     payload["unmatched_buy"] = unmatched_buy_list
 
-    # 검증 카운트 (원본 1401~1418) — summary 에 주입.
+    # 블랙스팟 카드 집계 (원본 app.py:1532 `_compute_card_counts(store['matched'], source='matched')`).
+    #   ★ out["matched"] = match_data(full 더망고) + _주문미이행/_매입흔적 플래그(pipeline.run) —
+    #     원본 store['matched'] 와 동일 구성(사이트주문번호 없는 매입흔적 행 포함). source='matched' 는
+    #     상세분류/소싱처확인필요를 쓰지 않으므로(더망고·샵마인 상태·메모로만 분기) 미분류 matched 로 정확.
+    #   ★ 팀 카드 키워드(cards) 주입 — 원본 load_card_keywords() 대체(DB 세션 격리).
+    #   summary.update 로 aggregator 가 0 으로 둔 card_* 를 실제 분류값으로 덮어쓴다(원본 계약).
+    _cc_session = SessionLocal()
+    try:
+        _cc_kw = keyword_store.get_config(_cc_session).get("cards") or {}
+    finally:
+        _cc_session.close()
     summary = payload.setdefault("summary", {})
+    summary.update(compute_card_counts(out.get("matched", []), source="matched", card_kw=_cc_kw))
+
+    # 검증 카운트 (원본 1401~1418) — summary 에 주입.
     summary["mango_total"] = int(len(buy_df))
     # buy_valid = 전체 − buy_missing. split 은 partition 이므로 len 차 = buy_valid 수(원본과 동일).
     summary["mango_with_order_no"] = int(len(buy_df) - len(out.get("buy_missing", [])))
