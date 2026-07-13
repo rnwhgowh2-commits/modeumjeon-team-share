@@ -18,6 +18,16 @@ def _pd(v, default):
 
 @bp.post("/_probe")
 def probe():
+    import traceback
+    try:
+        return _probe_impl()
+    except Exception as e:   # noqa: BLE001 — 진단용: 실오류 그대로 반환
+        return jsonify({"fatal": f"{type(e).__name__}: {e}",
+                        "traceback": traceback.format_exc()[-1500:]}), 200
+
+
+def _probe_impl():
+    from lemouton.markets import order_export as oe
     body = request.get_json(silent=True) or {}
     market = body.get("market")
     want = set(str(x) for x in (body.get("order_numbers") or []))
@@ -27,10 +37,11 @@ def probe():
     out = {"market": market, "want_n": len(want), "found_by": {}}
 
     if market == "coupang":
-        from shared.platforms.coupang.client import CoupangClient
         from shared.platforms.coupang import claims as cc
-        cl = CoupangClient()
+        cl = oe._account_client("coupang")     # 작동 경로와 동일한 실계정 클라이언트
+        out["client_ok"] = cl is not None
         vid = cc._vendor(cl)
+        out["vendor_id"] = str(vid)
         # 1) returnRequests: 각 상태값별 실호출 → 반환 orderId + 우리 want 중 몇 개
         cand = ["RU", "CC", "PR", "UC", "RETURNS_COMPLETED", "RETURNS_UNCHECKED",
                 "VENDOR_WAREHOUSE_CONFIRM", "REQUEST_COUPANG_CHECK", "RELEASE_STOP_UNCHECKED"]
@@ -72,7 +83,8 @@ def probe():
     elif market == "lotteon":
         from shared.platforms.lotteon.orders import iter_delivery_orders
         from shared.platforms.lotteon import claims as lc
-        cl = None
+        cl = oe._account_client("lotteon")
+        out["client_ok"] = cl is not None
         # 출고지시(209) — until vs now 확장 비교
         for label, u in (("until", until), ("now", now)):
             got, hit, err = 0, 0, None
