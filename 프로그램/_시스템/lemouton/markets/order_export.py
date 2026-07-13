@@ -392,6 +392,7 @@ def lotteon_order_rows(since: _dt.datetime, until: _dt.datetime,
             if hit:
                 r["주문상태"] = _status_ko("lotteon", hit[1])
                 r["주문상태원본"] = hit[1]
+                r["발송처리일"] = hit[0]        # 배송상태발생일시(dvTrcStatDttm)=발송처리 시각(경과시간용)
                 if hit[2]:
                     r["송장입력"] = hit[2]
 
