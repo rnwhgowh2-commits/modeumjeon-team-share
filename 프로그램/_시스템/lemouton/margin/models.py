@@ -58,6 +58,23 @@ class CardKeywordConfig(Base):
         DateTime, default=_dt.datetime.utcnow, onupdate=_dt.datetime.utcnow)
 
 
+class ProductCountConfig(Base):
+    """계층 분석 경로별 등록수 — 팀 공유 단일 row (id=1 고정).
+
+    원본(대량등록 마진계산기)은 단일 사용자 product_counts.json({경로키: 등록수}) 이었으나,
+    팀 공유 앱에서는 DB 한 행으로 승격한다(멀티유저가 같은 등록수를 본다). `counts` 에
+    {경로키: int} dict 를 통째로 담는다 — 계층 분석의 매출효율·마진효율(매출÷등록수) 입력.
+    CardKeywordConfig 와 동일 패턴. 비어 있으면 빈 dict(시드 불필요).
+    """
+
+    __tablename__ = "product_count_config"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, default=1)
+    counts: Mapped[dict] = mapped_column(JSON, default=dict)
+    updated_at: Mapped[_dt.datetime] = mapped_column(
+        DateTime, default=_dt.datetime.utcnow, onupdate=_dt.datetime.utcnow)
+
+
 class SourcingAccountOwner(Base):
     """소싱처 계정 담당자(owner) 라벨 — 마진 계산기 소싱처 계정 관리 탭 전용.
 
