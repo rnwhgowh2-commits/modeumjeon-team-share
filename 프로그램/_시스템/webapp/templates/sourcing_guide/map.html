@@ -64,6 +64,7 @@
   .sgmap .stype.weak{background:#FDECEC;color:#C0392B;}
   .sgmap .win{font-size:11.5px;font-weight:700;border-radius:5px;padding:2px 7px;}
   .sgmap .win.no{background:#E7F6EC;color:#1A7F37;}
+  .sgmap .win.one{background:#EAF3FF;color:#1B64DA;}
   .sgmap .win.yes{background:#FFF4E5;color:#B45309;}
   .sgmap .tbwrap{overflow-x:auto;border:1px solid var(--line);border-radius:10px;margin-bottom:16px;}
   .sgmap .sgtb{width:100%;border-collapse:collapse;font-size:12.5px;background:#fff;min-width:1080px;}
@@ -285,16 +286,23 @@
       </div>
       <div class="card">
         <div><span class="no">02</span><span class="ti">저장</span></div>
-        <div class="detail">추출값을 <span class="ink">DB 컬럼 + dynamic_benefits_json</span>에 기록한다. 옵션 재고는 <span class="ink">(색·사이즈)당 SourceOption 1행</span>에 영속.</div>
+        <div class="detail">추출값을 <span class="ink">DB + 혜택 스냅샷</span>에 기록. 옵션 재고는 <span class="ink">(색·사이즈)당 1행</span>씩 영속 — <b>매트릭스 한 칸 = 저장 1행</b>.</div>
         <div class="div"></div>
-        <div class="erow"><span class="elabel">코드</span><span class="mono">service.py:429</span>
-          <span class="elabel">위치</span><span class="mono">last_price·current_stock·dynamic_benefits_json</span> (<span class="ink">Supabase</span>/AWS)
-          <span class="elabel">뜻</span>긁은 값을 DB에 영속. <span style="color:#9AA4B0">매트릭스 읽기(<span class="mono" style="color:inherit">_match_option_so</span>)·크롤 쓰기(<span class="mono" style="color:inherit">_persist</span>)가 같은 행을 봐야 함 — 중복행이면 stale 둔갑(→5 에러이력 S3).</span></div>
-        <div class="erow" style="background:#FFF7ED;border-radius:8px;padding:8px 10px;margin-top:6px">
-          <span class="elabel" style="color:#C2410C">⚠ 옵션행 생성 vs 갱신</span>
-          <span class="ink">사이즈별 SourceOption은 ①서버 <span class="mono" style="color:inherit">_ingest</span> ②navGrab <span class="mono" style="color:inherit">parse</span>(<span class="mono" style="color:inherit">_persist_navgrab_option_stocks</span> — <b>생성</b>)에서만 만들어진다.</span>
-          <span style="color:#9AA4B0">확장 <span class="mono" style="color:inherit">crawl-result</span>(<span class="mono" style="color:inherit">_persist_option_stocks</span>)는 <b>기존 행 갱신만</b>·<span class="mono" style="color:inherit">ext_bridge</span>는 <span class="mono" style="color:inherit">options[]</span> 미전송. → 옵션행이 없으면(신규 URL) 매트릭스가 상품 <span class="mono" style="color:inherit">last_stock</span>(전 사이즈 <b>합계</b>)을 <b>균일 폴백</b> = 르무통 올리브 전 사이즈 53·품절 265도 '있음' 둔갑(2026-06-26 ②parse 생성으로 수정 — 르무통·SSF·SSG·스스). 무신사는 client추출이라 별도 배선 필요, 롯데온은 per-size 자체 미수집(999/0).</span>
-          <span style="color:#DC2626;display:block;margin-top:4px">★ <b>남은 변종(2026-07-03 수정)</b>: 위 수정은 "옵션행 <b>부재</b>→전 사이즈 균일 폴백"만 막음. <b>옵션행은 있는데 그 사이즈 <span class="mono" style="color:inherit">current_stock</span>=NULL</b>이면 여전히 <span class="mono" style="color:inherit">else last_stock</span>으로 <b>그 칸만 합계 둔갑</b>(SSG 단품 블랙 13칸 중 7칸=380). → <span class="mono" style="color:inherit">crawled_stock</span>을 <span class="mono" style="color:inherit">_opt_stock if _so_matched</span>(매칭됐으면 None=미상 표면화, last_stock 폴백 금지)로 수정. 근본(SSG 단품 일부 NULL=저장 누락)은 별도 추적.</span></div>
+        <table style="width:100%;border-collapse:collapse;font-size:12.5px">
+          <thead><tr style="color:#8B95A1;font-size:11px;text-align:left"><th style="padding:5px 8px;font-weight:700">항목</th><th style="padding:5px 8px;font-weight:700">무엇을</th><th style="padding:5px 8px;font-weight:700">어디에</th><th style="padding:5px 8px;font-weight:700">주의</th></tr></thead>
+          <tbody>
+            <tr style="border-top:1px solid #EEF1F4"><td style="padding:6px 8px"><b>재고</b></td><td style="padding:6px 8px">(색·사이즈)당 실수량</td><td style="padding:6px 8px"><span class="mono">current_stock</span></td><td style="padding:6px 8px;color:#8B95A1">빈값→상품값 둔갑 금지</td></tr>
+            <tr style="border-top:1px solid #EEF1F4"><td style="padding:6px 8px"><b>표면가</b></td><td style="padding:6px 8px">최저 표면노출가</td><td style="padding:6px 8px"><span class="mono">last_price</span></td><td style="padding:6px 8px;color:#8B95A1">—</td></tr>
+            <tr style="border-top:1px solid #EEF1F4"><td style="padding:6px 8px"><b>혜택</b></td><td style="padding:6px 8px">SSG머니·쿠폰 등</td><td style="padding:6px 8px"><span class="mono">dynamic_benefits_json</span></td><td style="padding:6px 8px;color:#8B95A1">무로그인만 저장</td></tr>
+            <tr style="border-top:1px solid #EEF1F4"><td style="padding:6px 8px"><b>옵션칸</b></td><td style="padding:6px 8px">색×사이즈 조합 행</td><td style="padding:6px 8px">서버 <span class="mono">_ingest</span>·navGrab <span class="mono">parse</span></td><td style="padding:6px 8px;color:#8B95A1">확장 크롤=갱신만</td></tr>
+          </tbody>
+        </table>
+        <div class="erow" style="color:#9AA4B0;margin-top:7px;font-size:11.5px">코드 <span class="mono" style="color:inherit">service.py:429</span> · 매트릭스 읽기(<span class="mono" style="color:inherit">_match_option_so</span>)·크롤 쓰기(<span class="mono" style="color:inherit">_persist</span>)가 같은 행을 봐야 함 — 중복행이면 stale 둔갑(→5 에러이력 S3).</div>
+        <details style="margin-top:6px"><summary style="cursor:pointer;font-size:12px;color:#C2410C;font-weight:700">⚠ 옵션행 생성 vs 갱신 · 재고 둔갑 이력 (자세히)</summary>
+          <div style="font-size:11.5px;color:#6B7280;padding:8px 4px;line-height:1.75">
+            사이즈별 SourceOption은 <b>①서버 <span class="mono" style="color:inherit">_ingest</span> ②navGrab <span class="mono" style="color:inherit">parse</span>(생성)</b>에서만 만들어진다. 확장 <span class="mono" style="color:inherit">crawl-result</span>는 <b>기존 행 갱신만</b>·<span class="mono" style="color:inherit">ext_bridge</span>는 <span class="mono" style="color:inherit">options[]</span> 미전송 → 옵션행이 없으면(신규 URL) 상품 <span class="mono" style="color:inherit">last_stock</span>(전 사이즈 합계) 균일 폴백 = 르무통 올리브 품절 265도 '있음' 둔갑(2026-06-26 parse 생성으로 수정 — 르무통·SSF·SSG·스스. 무신사·롯데온 별도).<br>
+            <span style="color:#DC2626">★ <b>남은 변종(2026-07-03 수정)</b></span>: 옵션행은 있는데 그 사이즈 <span class="mono" style="color:inherit">current_stock</span>=NULL이면 여전히 <span class="mono" style="color:inherit">else last_stock</span>으로 그 칸만 합계 둔갑(SSG 단품 블랙 13칸 중 7칸=380). → 매칭됐으면 None(미상) 표면화, last_stock 폴백 금지로 수정. 근본(SSG 단품 일부 NULL=저장 누락)은 별도 추적.
+          </div></details>
       </div>
       <div class="card">
         <div><span class="no">03</span><span class="ti">계산</span></div>
@@ -383,7 +391,8 @@
           <tr class="special"><td class="sn">⚠ 특이사항</td><td class="how">딜페이지(dealItemView.ss) 파싱 실패 → <span class="ink">크롤실패</span> / 단일색 사이즈 파싱버그 주의</td></tr>
           <tr class="special"><td class="sn" style="color:#15803D">✅ 해결(07-04)</td><td class="how">단품 미수집 36칸 = <b>중복 SourceOption</b>(size_text '220' vs '220mm')에서 매칭이 <b>stale None 행을 먼저 골라</b> 실재고 무시 → <span class="mono">_match_option_so</span> 가 <span class="ink">재고 있는 행 우선</span>. 라이브 미수집 0·값 실측 일치.</td></tr>
         </table>
-        <div class="meta"><span class="elabel">경로</span><span class="mono">창없는 SW fetch → /api/sources/parse</span> <span class="win no">창없이</span> · <span class="elabel">코드</span><span class="mono">ssg.py:608</span></div>
+        <div class="meta"><span class="elabel">경로</span><span class="mono">same-origin fetch(도메인 탭) → /api/sources/parse</span> <span class="win one">도메인 탭 1개</span> · <span class="elabel">코드</span><span class="mono">ssg.py:608</span></div>
+        <div class="why" style="margin-top:6px;margin-bottom:0;background:#EAF3FF;border:1px solid #C7E0FF;"><b>왜 창 1개?</b> SSG는 WAF(Sec-Fetch 차단)로 확장이 밖에서 직접 fetch하면 막힘 → <b>ssg.com 도메인 탭 1개</b>를 열어 그 안에서 same-origin fetch(렌더는 안 함). URL이 여러 개여도 <b>탭 1개 안에서 동시 fetch</b>(동시 상한만큼) — SSF(창 0개)와 다른 점.</div>
         <div class="why" style="margin-top:8px;margin-bottom:0;"><b>왜 HTML?</b> 재고·가격·혜택이 SSR HTML JS블록(<span class="mono" style="color:inherit">uitemObj</span>의 <span class="mono" style="color:inherit">usablInvQty·bestAmt</span>)에 통째로 박혀 옴 → 2순위 내장 JSON(정규식). 익명 curl_cffi 서버, 로그인 불필요.</div>
       </div></div>
 
@@ -466,10 +475,10 @@
           <tr><td class="sn"><span class="sgdot" style="background:#DC2626"></span>품절(없음)</td><td class="how"><span class="pill">내장</span> itemInvQtyInfo <span class="ink">inv_qty=0</span></td></tr>
           <tr><td class="sn"><span class="sgdot" style="background:#E8830C"></span>한정(N개)</td><td class="how"><span class="pill">내장</span> <span class="ink">inv_qty&lt;5</span> → 실수량 N ('N개 남음', 사이트 JS 기준)</td></tr>
           <tr><td class="sn"><span class="sgdot" style="background:#15803D"></span>충분(표식없음)</td><td class="how"><span class="pill json">내장</span> inv_qty <b>≥5</b> → <span class="ink">999(충분)</span> <span class="stype num">실수량</span> <span style="color:#9AA4B0">(사이트: 5~500 라벨없음·&gt;500 판매중, _lotteimall_disp_qty)</span></td></tr>
-          <tr class="special"><td class="sn">⚠ 특이사항</td><td class="how">WAF 403 → <b>확장 SW fetch(쿠키+권한)로 창없이 통과</b> <span class="win no">창없이</span> · 간헐 실패 시 창 폴백 <span style="color:#9AA4B0">[2026-07-08 정정: 서버 curl_cffi/navGrab → SW fetch]</span> / 혜택 L.POINT는 로그인</td></tr>
+          <tr class="special"><td class="sn">⚠ 특이사항</td><td class="how">WAF 403 → <b>롯데아이몰 도메인 탭 1개에서 same-origin fetch로 통과</b> <span class="win one">도메인 탭 1개</span> · 간헐 실패 시 렌더 창 폴백 <span style="color:#9AA4B0">[2026-07-14 정정: SW fetch(창0) 아님 — same-origin(창1). SSG와 동일 방식]</span> / 혜택 L.POINT는 로그인</td></tr>
         </table>
         <div class="meta"><span class="elabel">위치</span><span class="mono">itemInvQtyInfo[].inv_qty · dataBenefit</span> · <span class="elabel">코드</span><span class="mono">lotteon.py(도메인 라우팅)</span></div>
-        <div class="why" style="margin-top:8px;margin-bottom:0;"><b>왜 내장 JSON?</b> 핵심 재고·가격이 SSR <span class="mono" style="color:inherit">itemInvQtyInfo</span>/<span class="mono" style="color:inherit">dataBenefit</span>에 박혀 옴(2순위). 단 WAF 403이라 <b>확장 SW fetch</b>(쿠키+권한)로 창없이 통과(안 되면 창 폴백). 혜택(L.POINT)은 로그인.</div>
+        <div class="why" style="margin-top:8px;margin-bottom:0;"><b>왜 내장 JSON?</b> 핵심 재고·가격이 SSR <span class="mono" style="color:inherit">itemInvQtyInfo</span>/<span class="mono" style="color:inherit">dataBenefit</span>에 박혀 옴(2순위). 단 WAF 403이라 <b>도메인 탭 1개에서 same-origin fetch</b>로 통과(SSG와 동일, 안 되면 렌더 창 폴백). 혜택(L.POINT)은 로그인.</div>
       </div></div>
     </div>
 
@@ -482,11 +491,11 @@
         <tr><th>소싱처</th><th class="c">표면 방식</th><th>표면 대상</th><th class="c">혜택 방식</th><th>혜택 대상</th><th class="c">창</th><th>프로그램 가격표시 로직</th></tr>
         <tr><td class="src">무신사</td><td class="c"><span class="pill api">API</span></td><td><span class="jf">goodsPrice.salePrice</span></td><td class="c"><span class="pill api">API</span><span class="pill">DOM</span></td><td><span class="jf">쿠폰=API(창없이) · 회원가=렌더DOM(창)</span></td><td class="c"><span class="win yes">회원가 창</span></td><td><span class="lg">표면가 − 쿠폰 − 회원가 = 최종매입가</span></td></tr>
         <tr><td class="src">르무통</td><td class="c"><span class="pill">HTML</span></td><td><span class="jf">meta · product_price</span></td><td class="c"><span class="pill">템플릿</span></td><td><span class="jf">고정 혜택</span></td><td class="c"><span class="win no">창없이</span></td><td><span class="lg">표면가 − 템플릿혜택 = 최종매입가</span></td></tr>
-        <tr><td class="src">SSG</td><td class="c"><span class="pill">HTML</span></td><td><span class="jf">bestAmt</span></td><td class="c"><span class="pill">HTML</span></td><td><span class="jf">SSG MONEY · 카드혜택</span></td><td class="c"><span class="win no">창없이</span></td><td><span class="lg">표면가 − SSG혜택 = 최종매입가</span></td></tr>
+        <tr><td class="src">SSG</td><td class="c"><span class="pill">HTML</span></td><td><span class="jf">bestAmt</span></td><td class="c"><span class="pill">HTML</span></td><td><span class="jf">SSG MONEY · 카드혜택</span></td><td class="c"><span class="win one">도메인 탭 1개</span></td><td><span class="lg">표면가 − SSG혜택 = 최종매입가</span></td></tr>
         <tr><td class="src">SSF</td><td class="c"><span class="pill">HTML</span></td><td><span class="jf">em.price</span></td><td class="c"><span class="pill">HTML</span></td><td><span class="jf">기프트+멤버십포인트</span></td><td class="c"><span class="win no">창없이</span></td><td><span class="lg">표면가 − 기프트포인트 = 최종매입가</span></td></tr>
         <tr><td class="src">롯데온</td><td class="c"><span class="pill">DOM</span></td><td><span class="jf">.final span.num</span> <span style="color:#B45309;font-size:10px">렌더 필요·창(SSR 원문엔 없음, 실측 07-08)</span></td><td class="c"><span class="pill">DOM</span></td><td><span class="jf">dataBenefit(회원할인·L.POINT)</span></td><td class="c"><span class="win yes">표면·혜택 창</span></td><td><span class="lg">표면가 − 회원할인 − L.POINT = 최종매입가</span></td></tr>
         <tr><td class="src">현대H몰</td><td class="c"><span class="pill json">내장</span></td><td><span class="jf">bbprc</span></td><td class="c"><span class="pill">DOM</span></td><td><span class="jf">H.Point · 카드 즉시할인</span></td><td class="c"><span class="win yes">혜택 창</span></td><td><span class="lg">표면가 − H.Point − 카드할인 = 최종매입가</span></td></tr>
-        <tr><td class="src">롯데아이몰</td><td class="c"><span class="pill json">내장</span></td><td><span class="jf">.real_price</span></td><td class="c"><span class="pill json">내장</span></td><td><span class="jf">dataBenefit</span></td><td class="c"><span class="win no">창없이</span></td><td><span class="lg">표면가 − 혜택 = 최종매입가</span></td></tr>
+        <tr><td class="src">롯데아이몰</td><td class="c"><span class="pill json">내장</span></td><td><span class="jf">.real_price</span></td><td class="c"><span class="pill json">내장</span></td><td><span class="jf">dataBenefit</span></td><td class="c"><span class="win one">도메인 탭 1개</span></td><td><span class="lg">표면가 − 혜택 = 최종매입가</span></td></tr>
         <tr><td class="src">스마트스토어</td><td class="c"><span class="pill api">API</span></td><td><span class="jf">inline 판매가</span></td><td class="c"><span class="pill api">API</span></td><td><span class="jf">API / 템플릿</span></td><td class="c"><span class="win no">창없이</span></td><td><span class="lg">표면가 − 혜택 = 최종매입가</span></td></tr>
       </table></div>
 
@@ -572,8 +581,13 @@
           <tr><td class="el">3</td><td><b>SSR HTML 정규식/셀렉터</b></td><td>구조 JSON은 없지만 raw HTML/JS문자열에 값 존재</td><td>SSF형</td></tr>
           <tr><td class="el">4</td><td><b>렌더 DOM (확장 navGrab)</b></td><td>위 셋 불가·JS 렌더 후에만 생김 (최후)</td><td>롯데온 혜택가형</td></tr>
         </table>
-        <div class="d" style="background:#F0FDFA;border:1px solid #99F6E4;border-radius:8px;padding:8px 11px;margin-bottom:7px"><b style="color:#0F766E">전송 방법 — 창없는 확장 SW fetch <span class="win no">창없이</span></b> : 순위 1~3(API·내장JSON·HTML)의 원문을 <b>창 없이</b> 가져오는 기본 경로. 확장 서비스워커가 <span class="mono" style="color:inherit">쿠키+host_permissions</span>로 요청 → WAF·봇차단·CORS를 통과하고 렌더가 불필요(SSG·롯데아이몰·SSF 실증). <b>렌더 DOM(창)은 순위 4 혜택 등 JS로만 생기는 값에만.</b> 실패 시 창 경로 자동 폴백(자가보호).</div>
-        <div class="d"><b>가로 게이트(어느 순위든 적용):</b> 방화벽·게이트웨이(현대H몰 API 차단)·CORS → 한 단계 내림 / WAF·봇차단 → <b>창없는 SW fetch</b>(쿠키+권한)로 통과, 안 되면 창 폴백(롯데아이몰) / 로그인은 <b>혜택만</b> → 혜택만 확장 / 정량 비공개(무신사 정상재고·SSF 일반재고) → <b>999가 정답</b>(가짜 숫자 금지) / <b>수집 실패·파싱 실패 → 999 아닌 ⚪확인불가</b>(오버셀 방지).</div>
+        <div class="d" style="background:#F0FDFA;border:1px solid #99F6E4;border-radius:8px;padding:8px 11px;margin-bottom:7px"><b style="color:#0F766E">전송 방법 — 창을 여는 3가지 방식</b> : 값이 어디 있느냐에 따라 크롤이 여는 창 수가 다르다.
+          <div style="margin-top:6px;line-height:1.9">
+            <span class="win no">창 0개 · SW fetch</span> 확장 서비스워커가 <b>탭 없이 직접</b> 원문 fetch(쿠키+host_permissions). <b>르무통·SSF·현대H몰</b>. 가장 빠르고 조용.<br>
+            <span class="win one">창 1개 · same-origin fetch</span> WAF(Sec-Fetch 차단)로 밖에서 못 부름 → <b>그 도메인 탭 1개</b>를 열고 그 안에서 same-origin fetch(렌더는 안 함). <b>SSG·롯데아이몰</b>. URL 여러 개여도 탭 1개서 동시 fetch.<br>
+            <span class="win yes">창 N개 · 렌더</span> 값이 JS로 그려져야 생김(로그인 혜택 등) → 페이지를 실제로 <b>렌더</b>. <b>무신사·롯데온</b>. 실패 시 fetch형도 이 렌더로 폴백(자가보호).
+          </div></div>
+        <div class="d"><b>가로 게이트(어느 순위든 적용):</b> 방화벽·게이트웨이(현대H몰 API 차단)·CORS → 한 단계 내림 / WAF·봇차단(SSG·롯데아이몰) → <b>도메인 탭 same-origin fetch</b>(창 1개)로 통과, 안 되면 렌더 창 폴백 / 로그인은 <b>혜택만</b> → 혜택만 확장 / 정량 비공개(무신사 정상재고·SSF 일반재고) → <b>999가 정답</b>(가짜 숫자 금지) / <b>수집 실패·파싱 실패 → 999 아닌 ⚪확인불가</b>(오버셀 방지).</div>
       </div></div>
       <div class="step"><div class="stepn">3</div><div class="sc"><div class="st">항목별 위치 추출 (재고 3단계 규칙 포함)<span class="who c">CLAUDE</span></div><div class="ref">→ <span class="lk">2 재고</span> + <span class="lk">3 가격</span></div></div></div>
       <div class="step"><div class="stepn">4</div><div class="sc"><div class="st">혜택 종합 — 여러 URL 교차분석<span class="tag">신설</span><span class="who c">CLAUDE</span></div><div class="ref">→ <span class="lk">3 가격</span> · 모든 URL=상시 / 일부=조건부 + 트리거</div></div></div>
