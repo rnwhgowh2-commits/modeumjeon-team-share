@@ -27,6 +27,8 @@
   .sgmap .gtab{padding:9px 13px;font-size:16px;font-weight:700;color:var(--sub);border-bottom:2px solid transparent;cursor:pointer;margin-bottom:-1px;}
   .sgmap .gtab .k{font-size:13px;color:#9CA3AF;margin-right:4px;}
   .sgmap .gtab.on{color:var(--ink);border-bottom-color:var(--ink);}.sgmap .gtab.on .k{color:var(--ink);}
+  .sgmap .gtab-glabel{align-self:center;font-size:10.5px;font-weight:800;color:#9AA4B0;background:#F2F4F6;border-radius:5px;padding:3px 8px;margin:0 2px 8px 8px;letter-spacing:.02em;}
+  .sgmap .gtab-glabel:first-child{margin-left:0;}
   .sgmap .sec{display:none;}.sgmap .sec.on{display:block;}
   .sgmap table.dt{width:100%;border-collapse:collapse;background:#fff;border:1px solid var(--line2);border-radius:10px;overflow:hidden;font-size:15.5px;line-height:1.6;margin-bottom:6px;}
   .sgmap table.dt th{background:#F2F4F6;text-align:left;padding:10px 12px;font-weight:800;color:#374151;border-bottom:1px solid var(--line2);font-size:13px;}
@@ -257,13 +259,17 @@
   <!-- ===== 보기 ===== -->
   <div class="mode on" id="m-view">
     <div class="gtabs">
+      <span class="gtab-glabel">정보 수집</span>
       <div class="gtab on" data-s="s1"><span class="k">1</span>🗺️ 전체흐름</div>
-      <div class="gtab" data-s="s2"><span class="k">2</span>📦 재고</div>
-      <div class="gtab" data-s="s3"><span class="k">3</span>💰 가격</div>
-      <div class="gtab" data-s="s4"><span class="k">4</span>📊 매트릭스 로그</div>
-      <div class="gtab" data-s="s6"><span class="k">5</span>⚠️ 에러이력</div>
-      <div class="gtab" data-s="s7"><span class="k">6</span>➕ 신규추가</div>
-      <div class="gtab" data-s="s8"><span class="k">7</span>🔄 동기화</div>
+      <div class="gtab" data-s="s5"><span class="k">2</span>🧭 수집 방식</div>
+      <span class="gtab-glabel">소싱처별 상세</span>
+      <div class="gtab" data-s="s2"><span class="k">3</span>📦 재고</div>
+      <div class="gtab" data-s="s3"><span class="k">4</span>💰 가격</div>
+      <span class="gtab-glabel">운영</span>
+      <div class="gtab" data-s="s4"><span class="k">5</span>📊 매트릭스 로그</div>
+      <div class="gtab" data-s="s6"><span class="k">6</span>⚠️ 에러이력</div>
+      <div class="gtab" data-s="s7"><span class="k">7</span>➕ 신규추가</div>
+      <div class="gtab" data-s="s8"><span class="k">8</span>🔄 동기화</div>
     </div>
 
     <!-- 1 전체흐름 -->
@@ -319,6 +325,44 @@
           <span class="elabel">뜻</span>매트릭스 렌더. 셀·매트릭스가 <span class="ink">window.DATA</span> 한 벌 공유.</div>
       </div>
       <div class="warn">⚠️ BG_PARSE(르무통·SSF·SSG·스스)는 price·stock만 저장 — 혜택 미저장.</div>
+    </div>
+
+    <!-- 5 수집 방식 (창 여는 법) -->
+    <div class="sec" id="s5">
+      <div class="lead"><span class="klabel">핵심</span><span class="sum">창을 여는 방식은 3가지 — 값이 어디 있느냐로 갈린다. '동시 상한'은 한 번에 동시에 긁는 개수(창 수 아님).</span></div>
+      <div class="why" style="margin-bottom:14px;"><b>왜 나누나</b> — 같은 크롤이라도 값을 어디서 얻느냐에 따라 창 여는 방식이 다르다. <b>fetch 는 원래 동시에 여러 개를 쏠 수 있어서</b>, 탭 1개(또는 0개) 안에서 동시에 긁으면 창 없이도 빨라진다. 렌더가 꼭 필요한 소싱처(로그인 혜택 등)만 창을 URL 수만큼 연다.</div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:18px">
+        <div style="background:#fff;border:1px solid var(--line2);border-top:3px solid #1A7F37;border-radius:12px;padding:14px 16px">
+          <div style="font-weight:800;font-size:15px">SW fetch <span class="win no">창 0개</span></div>
+          <div style="font-size:12.5px;color:var(--sub);margin:8px 0;line-height:1.6">확장 서비스워커가 <b>탭 없이 직접</b> 원문 fetch. 가장 빠르고 조용.</div>
+          <div><span class="pill">르무통</span> <span class="pill">SSF</span> <span class="pill">현대H몰</span></div>
+        </div>
+        <div style="background:#fff;border:1px solid var(--line2);border-top:3px solid #1B64DA;border-radius:12px;padding:14px 16px">
+          <div style="font-weight:800;font-size:15px">same-origin fetch <span class="win one">창 1개</span></div>
+          <div style="font-size:12.5px;color:var(--sub);margin:8px 0;line-height:1.6">WAF(Sec-Fetch 차단)로 밖에서 못 부름 → <b>그 도메인 탭 1개</b>서 same-origin fetch(렌더 없음). URL 여러 개여도 탭 1개.</div>
+          <div><span class="pill">SSG</span> <span class="pill">롯데아이몰</span></div>
+        </div>
+        <div style="background:#fff;border:1px solid var(--line2);border-top:3px solid #B45309;border-radius:12px;padding:14px 16px">
+          <div style="font-weight:800;font-size:15px">렌더 창 <span class="win yes">창 N개</span></div>
+          <div style="font-size:12.5px;color:var(--sub);margin:8px 0;line-height:1.6">값이 JS로 그려져야 생김(로그인 혜택 등) → 페이지를 실제로 렌더. fetch형도 실패 시 이 렌더로 폴백.</div>
+          <div><span class="pill">무신사</span> <span class="pill">롯데온</span></div>
+        </div>
+      </div>
+
+      <div class="tbcap">📋 소싱처별 수집 한눈에 (요약표) — 창 여는 법 · 창 수 · 데이터 · 속도 · 혜택</div>
+      <div class="tbwrap"><table class="sgtb">
+        <tr><th>소싱처</th><th class="c">창 여는 법</th><th class="c">창 수</th><th class="c">데이터</th><th class="c">속도</th><th class="c">혜택</th></tr>
+        <tr><td class="src">르무통</td><td class="c"><span class="win no">SW fetch</span></td><td class="c">0</td><td class="c"><span class="pill">HTML</span></td><td class="c">🟢 빠름</td><td class="c">무로그인</td></tr>
+        <tr><td class="src">SSF</td><td class="c"><span class="win no">SW fetch</span></td><td class="c">0</td><td class="c"><span class="pill">HTML</span></td><td class="c">🟢 빠름</td><td class="c">무로그인</td></tr>
+        <tr><td class="src">현대H몰</td><td class="c"><span class="win no">SW fetch</span></td><td class="c">0</td><td class="c"><span class="pill json">내장</span></td><td class="c">🟢 빠름</td><td class="c">일부 로그인</td></tr>
+        <tr><td class="src">SSG</td><td class="c"><span class="win one">same-origin</span></td><td class="c">1</td><td class="c"><span class="pill">HTML</span></td><td class="c">🟡 보통</td><td class="c">무로그인</td></tr>
+        <tr><td class="src">롯데아이몰</td><td class="c"><span class="win one">same-origin</span></td><td class="c">1</td><td class="c"><span class="pill json">내장</span></td><td class="c">🟡 보통</td><td class="c">무로그인</td></tr>
+        <tr><td class="src">무신사</td><td class="c"><span class="win yes">렌더</span></td><td class="c">N</td><td class="c"><span class="pill api">API</span></td><td class="c">🟠 느림</td><td class="c">로그인</td></tr>
+        <tr><td class="src">롯데온</td><td class="c"><span class="win yes">렌더</span></td><td class="c">N</td><td class="c"><span class="pill api">API</span></td><td class="c">🟠 느림</td><td class="c">로그인</td></tr>
+        <tr><td class="src">스마트스토어</td><td class="c"><span class="win yes">확장 로그인</span></td><td class="c">—</td><td class="c"><span class="pill api">API</span></td><td class="c">🟡 보통</td><td class="c">로그인(per-SKU)</td></tr>
+      </table></div>
+      <div class="why" style="margin-top:12px;"><b>동시 상한(자동화 설정)</b> = 그 소싱처를 <b>한 번에 동시에 긁는 개수</b>. fetch형(창0·창1)은 창은 그대로 두고 <b>동시 fetch만</b> 늘고, 렌더형(창N)은 <b>창 개수</b>가 늘어난다. 차단이 보이면 그 숫자를 낮추면 됨.</div>
     </div>
 
     <!-- 2 재고 -->
@@ -700,7 +744,7 @@
     if(e.target.tagName==='INPUT'||e.target.tagName==='TEXTAREA') return;
     var order=[].map.call(tabs,function(t){return t.dataset.s;});
     var cur=root.querySelector('.gtab.on').dataset.s, i=order.indexOf(cur);
-    if(/^[1-7]$/.test(e.key)&&order[+e.key-1]) show(order[+e.key-1]);
+    if(/^[1-8]$/.test(e.key)&&order[+e.key-1]) show(order[+e.key-1]);
     else if(e.key==='ArrowRight'&&i<order.length-1) show(order[i+1]);
     else if(e.key==='ArrowLeft'&&i>0) show(order[i-1]);
   });
