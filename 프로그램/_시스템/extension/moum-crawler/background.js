@@ -13,7 +13,7 @@
 // [2026-07-07 화해] 리포 ↔ 데스크톱 로드본(v0.7.17) 동기화 완료 — 롯데온 익스트랙터
 //   (롯데오너스 lotte_member_discount_rate·재고 base/sitm 우선, 2026-07-03 fix Ⓑ·B) 이관.
 //   이제 리포가 원천. 데스크톱은 리포에서 동기화(통째복사 금지·패치만).
-const MOUM_EXT_VERSION = "0.7.26";  // 0.7.26 = [E2] 마진계산기 소싱처 주문상태 확인(sourcing.check-order → 주문 URL 창 오픈+사이트별 파서 주입, 크롤=로컬). spike = 무신사 창없는 probe(진단 전용, 엔진 미배선). 0.7.17 = 실시간 집계(agg done/total) 브로드캐스트 → 자동화 링이 위젯과 동일. 0.7.16 = 상세 전체크롤 최우선. 0.7.6 = 자동화 워커 폴링 + 무신사 상품쿠폰(product_coupon_list) 전량수집 API우선+DOM폴백. 0.7.5 = manifest 버전동기화. 0.7.4 = content_mou 백그라운드 로그 중계. 0.7.3 = 현대H몰 sellGbcd 품절판정(S19). 0.6.x: 백그라운드 크롤 상태 영속+SW 자동재개
+const MOUM_EXT_VERSION = "0.7.34";  // 0.7.34 = winless 동시 레인 — fetch형 소싱처(SW: lemouton·ssf·hmall = 창0 / same-origin: ssg·lotteimall = 도메인탭1개)는 창을 URL마다 안 열고 탭 1개(또는 0개) 안에서 '동시 상한'개 동시 fetch. '동시 상한'=레인수(창수 아님). winless 레인은 fetchOnly(창 폴백 생략·정직 error). 렌더(무신사·롯데온)만 창=레인 유지. 0.7.33 = 소싱처별 동시상한 클램프 3→8. 0.7.26 = [E2] 마진계산기 소싱처 주문상태 확인(sourcing.check-order → 주문 URL 창 오픈+사이트별 파서 주입, 크롤=로컬). spike = 무신사 창없는 probe(진단 전용, 엔진 미배선). 0.7.17 = 실시간 집계(agg done/total) 브로드캐스트 → 자동화 링이 위젯과 동일. 0.7.16 = 상세 전체크롤 최우선. 0.7.6 = 자동화 워커 폴링 + 무신사 상품쿠폰(product_coupon_list) 전량수집 API우선+DOM폴백. 0.7.5 = manifest 버전동기화. 0.7.4 = content_mou 백그라운드 로그 중계. 0.7.3 = 현대H몰 sellGbcd 품절판정(S19). 0.6.x: 백그라운드 크롤 상태 영속+SW 자동재개
 
 // cascade 위치 시퀀서 — 창이 여러 개 열려도 서로 어긋나 보임
 let _winSeq = 0;
@@ -1460,7 +1460,9 @@ async function hmallPerSizeOptions(tabId, url) {
 }
 
 // ── 1건 처리(창 재사용) — 백그라운드 내부 핸들러 직접 호출(메시지 왕복 없음) ──
-async function crawlItemInTabBG(tabId, code, item) {
+//   opts.fetchOnly=true → fetch 경로(SW/same-origin)만 시도하고, 실패해도 창(navGrab/렌더)
+//   폴백을 안 탄다. winless 동시 레인이 공유 도메인탭을 렌더로 뺏어 오파싱하는 것을 차단(§4 무결성).
+async function crawlItemInTabBG(tabId, code, item, opts) {
   const sk = item.source_key, url = item.url;
   // [2026-07-07] 창없는 fast-lane — 플래그 ON + 어댑터 등록된 소싱처만. 성공 시 즉시 반환,
   //   실패/예외면 아래 기존 창 경로로 폴백(경로 폴백). 플래그 비면 이 블록은 건너뜀(동작 불변).
@@ -1524,6 +1526,11 @@ async function crawlItemInTabBG(tabId, code, item) {
         }
       }
     } catch (_) { /* navGrab 창 경로로 폴백 */ }
+  }
+  // [2026-07-14] winless 동시 레인 모드 — fetch 실패 시 창(navGrab/렌더) 폴백을 생략하고
+  //   정직하게 error 반환(공유 도메인탭 렌더 경쟁 원천 차단). 상위에서 1회 재시도(재-fetch)함.
+  if (opts && opts.fetchOnly) {
+    return { url: url, source_key: sk, status: "error", error: "fetch 실패(창 폴백 생략)" };
   }
   if (BG_JS_SOURCES.indexOf(sk) >= 0) {
     const x = await handleNavExtract({ tabId: tabId, url: url, source_key: sk }) || {};
@@ -1869,76 +1876,120 @@ async function crawlBundleAllBG(code) {
     const startIdx = sourceProgress[sk] || 0;
     let pausedMid = false;
     const srcOuts = [];   // 이 소싱처 결과 누적 → 소싱처 완료 즉시 증분 저장용
-    const wins = [];      // 이 소싱처가 연 창들(URL 병렬 — 여러 창이 커서 공유)
-    let cursor = startIdx;                 // ★ 창들이 공유하는 URL 커서
-    const nWorkers = Math.max(1, Math.min(effectiveCap(sk), list.length - startIdx));
-    // [2026-07-12 2단계] 한 소싱처의 URL 을 nWorkers 개 창이 나눠 긁는다. i=cursor++ 는 단일스레드라
-    //   원자적 → 같은 URL 을 두 창이 안 집는다(중복 0). 일시정지 시엔 진행위치를 저장 안 하고 그
-    //   소싱처를 처음부터 재크롤(누락 방지·중복은 감수 — 안전 우선).
-    async function _worker(wi) {
-      const w = await handleOpenWin({});
-      if (!w || !w.ok || w.tabId == null) return;   // 이 창 실패 → 다른 창이 남은 URL 커버(커서 공유)
-      wins.push(w);
-      const tabId = w.tabId;
-      if (wi === 0) emit("window-open", { source: sk, level: "", wins: nWorkers, msg: sk + " 창 시작" + (nWorkers > 1 ? (" ×" + nWorkers + " (URL 나눠 긁기)") : ""), metrics: { concurrency, cap, active, done, total } });
-      while (!_mgr.stopped) {
-        if (_mgr.paused) { pausedMid = true; break; }
-        const i = cursor++;                 // ★ 원자적(단일스레드) — 창끼리 URL 안 겹침
-        if (i >= list.length) break;
-        const t0 = Date.now();
-        let out;
-        const _r = await withTimeout(crawlItemInTabBG(tabId, code, list[i]), UNIT_TIMEOUT_MS);
-        if (_r && _r.__timeout) {
-          out = { url: list[i].url, source_key: sk, status: "error", error: "유닛 타임아웃 " + (UNIT_TIMEOUT_MS / 1000) + "s(행 추정·건너뜀)" };
-        } else if (_r && _r.__error) {
-          out = { url: list[i].url, source_key: sk, status: "error", error: _r.__error };
-        } else {
-          out = _r || { url: list[i].url, source_key: sk, status: "error", error: "결과 없음" };
-        }
-        const sec = (Date.now() - t0) / 1000;
-        latencies.push(sec); if (latencies.length > 12) latencies.shift();
-        results.push(out); srcOuts.push(out); done++;
-        if (cooldown > 0) cooldown--;
-        emit("item-done", {
-          source: sk, level: out.status === "ok" ? "" : "warn",
-          url: (out && out.url) || (list[i] && list[i].url) || null,
-          name: (out && out.product_name) || null,
-          surf: (out && out.price != null) ? out.price : null,
-          url_type: (list[i] && list[i].url_type) || "dan",
-          lineId: out.status === "ok" ? (sk + "|" + ((out && out.url) || (list[i] && list[i].url) || "")) : null,
-          msg: (out.status === "ok"
-            ? (sk + " 표면 " + (out.price != null ? out.price.toLocaleString() + "원" : "가격없음") + " (" + sec.toFixed(1) + "s)")
-            : (sk + " 실패: " + (out.error || "")))
-            + (out.sku_diag != null ? (" [SKU재고 " + out.sku_diag + " · 실수량 " + (out.stock_real_n || 0) + "/" + (out.stock_total_n || 0) + "]") : ""),
-          metrics: { concurrency, cap, active, done, total, avgSec: +bgMedian(latencies).toFixed(2), cpu: lastSys.cpu, mem: lastSys.mem },
-        });
-        if (done % 3 === 0) {
-          lastSys = await handleSysinfo().then((s) => ({ cpu: s && s.cpu != null ? s.cpu : null, mem: s && s.mem != null ? s.mem : null })).catch(() => ({ cpu: null, mem: null }));
-          if (lastSys.cpu != null || lastSys.mem != null) {
-            const hot = (lastSys.cpu != null && lastSys.cpu >= 90) || (lastSys.mem != null && lastSys.mem >= 96);
-            if (hot) emit("resource", { level: "warn", msg: "자원 높음 — CPU " + lastSys.cpu + "% / MEM " + lastSys.mem + "%", metrics: { concurrency, cap, active, cpu: lastSys.cpu, mem: lastSys.mem } });
-          }
+    const wins = [];      // 이 소싱처가 연 창들
+    let cursor = startIdx;                 // ★ 레인들이 공유하는 URL 커서(단일스레드 → 원자적)
+    const nLanes = Math.max(1, Math.min(effectiveCap(sk), list.length - startIdx));
+
+    // [2026-07-14] 소싱처 유형별 병렬 방식 — '동시 상한'(effectiveCap)은 이제 '창 수'가 아니라
+    //   "한꺼번에 몇 개를 동시에 긁느냐(레인 수)"다. 같은 URL 을 두 레인이 안 집도록 cursor 는
+    //   단일스레드 원자 증가(i = cursor++). 창을 URL 마다 여는 게 병렬화의 본질이 아니다 —
+    //   fetch 는 원래 동시 실행되므로 탭 1개(또는 0개) 안에서 동시에 쏘면 창 없이 빨라진다.
+    //   · SW fetch(lemouton·ssf·hmall)  = 창 0개. 서비스워커에서 동시 어댑터 호출.
+    //   · same-origin(ssg·lotteimall)   = 도메인 탭 1개. 그 탭에서 동시 fetch(창 1개, 렌더 없음).
+    //   · 렌더(musinsa·lotteon)          = 레인마다 창 1개(기존 동작 보존).
+    //   winless 레인은 fetchOnly=true → fetch 실패 시 창(navGrab) 폴백 생략·정직 error(§4 무결성).
+    const isSW = FAST_FETCH_SOURCES.indexOf(sk) >= 0;
+    const isSameOrigin = SAMEORIGIN_FETCH_SOURCES.indexOf(sk) >= 0;
+    const winless = isSW || isSameOrigin;
+
+    // 한 URL 처리(레인 공통 본문). tabId = null(SW) / 공유 도메인탭(same-origin) / 전용창(렌더).
+    async function _processOne(tabId, laneOpts) {
+      if (_mgr.paused) { pausedMid = true; return false; }
+      const i = cursor++;                 // ★ 원자적(단일스레드) — 레인끼리 URL 안 겹침
+      if (i >= list.length) return false;
+      const t0 = Date.now();
+      let out;
+      const _r = await withTimeout(crawlItemInTabBG(tabId, code, list[i], laneOpts), UNIT_TIMEOUT_MS);
+      if (_r && _r.__timeout) {
+        out = { url: list[i].url, source_key: sk, status: "error", error: "유닛 타임아웃 " + (UNIT_TIMEOUT_MS / 1000) + "s(행 추정·건너뜀)" };
+      } else if (_r && _r.__error) {
+        out = { url: list[i].url, source_key: sk, status: "error", error: _r.__error };
+      } else {
+        out = _r || { url: list[i].url, source_key: sk, status: "error", error: "결과 없음" };
+      }
+      const sec = (Date.now() - t0) / 1000;
+      latencies.push(sec); if (latencies.length > 12) latencies.shift();
+      results.push(out); srcOuts.push(out); done++;
+      if (cooldown > 0) cooldown--;
+      emit("item-done", {
+        source: sk, level: out.status === "ok" ? "" : "warn",
+        url: (out && out.url) || (list[i] && list[i].url) || null,
+        name: (out && out.product_name) || null,
+        surf: (out && out.price != null) ? out.price : null,
+        url_type: (list[i] && list[i].url_type) || "dan",
+        lineId: out.status === "ok" ? (sk + "|" + ((out && out.url) || (list[i] && list[i].url) || "")) : null,
+        msg: (out.status === "ok"
+          ? (sk + " 표면 " + (out.price != null ? out.price.toLocaleString() + "원" : "가격없음") + " (" + sec.toFixed(1) + "s)")
+          : (sk + " 실패: " + (out.error || "")))
+          + (out.sku_diag != null ? (" [SKU재고 " + out.sku_diag + " · 실수량 " + (out.stock_real_n || 0) + "/" + (out.stock_total_n || 0) + "]") : ""),
+        metrics: { concurrency, cap, active, done, total, avgSec: +bgMedian(latencies).toFixed(2), cpu: lastSys.cpu, mem: lastSys.mem },
+      });
+      if (done % 3 === 0) {
+        lastSys = await handleSysinfo().then((s) => ({ cpu: s && s.cpu != null ? s.cpu : null, mem: s && s.mem != null ? s.mem : null })).catch(() => ({ cpu: null, mem: null }));
+        if (lastSys.cpu != null || lastSys.mem != null) {
+          const hot = (lastSys.cpu != null && lastSys.cpu >= 90) || (lastSys.mem != null && lastSys.mem >= 96);
+          if (hot) emit("resource", { level: "warn", msg: "자원 높음 — CPU " + lastSys.cpu + "% / MEM " + lastSys.mem + "%", metrics: { concurrency, cap, active, cpu: lastSys.cpu, mem: lastSys.mem } });
         }
       }
+      return true;
     }
+    // 레인 = 공유 커서에서 URL 하나씩 뽑아 처리(레인 여러 개 = 동시성)
+    async function _lane(tabId, laneOpts) {
+      while (!_mgr.stopped) { const cont = await _processOne(tabId, laneOpts); if (!cont) break; }
+    }
+
+    let sharedTab = null;
     try {
-      await Promise.all(Array.from({ length: nWorkers }, (_u, wi) => _worker(wi)));
-      if (!wins.length) {   // 창을 하나도 못 열었음 → 전건 실패(기존 동작 보존)
-        for (let j = startIdx; j < list.length; j++) { results.push({ url: list[j].url, source_key: sk, status: "error", error: "창 생성 실패" }); done++; }
-        delete sourceProgress[sk];
-        emit("source-done", { source: sk, level: "warn", msg: sk + " 창 생성 실패 — 건너뜀", metrics: { concurrency, cap, active, done, total } });
-        return;
+      if (winless) {
+        const laneOpts = { fetchOnly: true };
+        if (isSameOrigin) {
+          // 도메인 탭 1개 — origin 으로 미리 이동해 두면 레인들이 same-origin fetch(WAF 통과)만 한다.
+          const w = await handleOpenWin({});
+          if (!w || !w.ok || w.tabId == null) {   // 도메인 탭 못 열었음 → 전건 실패(정직)
+            for (let j = startIdx; j < list.length; j++) { results.push({ url: list[j].url, source_key: sk, status: "error", error: "도메인 탭 생성 실패" }); done++; }
+            delete sourceProgress[sk];
+            emit("source-done", { source: sk, level: "warn", msg: sk + " 도메인 탭 생성 실패 — 건너뜀", metrics: { concurrency, cap, active, done, total } });
+            return;
+          }
+          wins.push(w); sharedTab = w.tabId;
+          try {
+            const origin = new URL(list[startIdx].url).origin;
+            await chrome.tabs.update(sharedTab, { url: origin + "/" });
+            await waitTabComplete(sharedTab, 20000);
+          } catch (_) { /* origin 확보 실패해도 crawlItemInTabBG 가 레인 내에서 재확보 시도 */ }
+        }
+        emit("window-open", { source: sk, level: "", wins: (sharedTab != null ? 1 : 0),
+          msg: sk + (isSW ? " 창없이" : " 도메인탭 1개") + " · 동시 " + nLanes + "개 긁기",
+          metrics: { concurrency, cap, active, done, total } });
+        await Promise.all(Array.from({ length: nLanes }, () => _lane(sharedTab, laneOpts)));
+      } else {
+        // 렌더 경로(무신사·롯데온) — 레인마다 창 1개(기존 동작 보존).
+        const _mkLane = async (wi) => {
+          const w = await handleOpenWin({});
+          if (!w || !w.ok || w.tabId == null) return;   // 이 창 실패 → 다른 창이 남은 URL 커버(커서 공유)
+          wins.push(w);
+          if (wi === 0) emit("window-open", { source: sk, level: "", wins: nLanes, msg: sk + " 창 시작" + (nLanes > 1 ? (" ×" + nLanes + " (URL 나눠 긁기)") : ""), metrics: { concurrency, cap, active, done, total } });
+          await _lane(w.tabId, null);
+        };
+        await Promise.all(Array.from({ length: nLanes }, (_u, wi) => _mkLane(wi)));
+        if (!wins.length) {   // 창을 하나도 못 열었음 → 전건 실패(기존 동작 보존)
+          for (let j = startIdx; j < list.length; j++) { results.push({ url: list[j].url, source_key: sk, status: "error", error: "창 생성 실패" }); done++; }
+          delete sourceProgress[sk];
+          emit("source-done", { source: sk, level: "warn", msg: sk + " 창 생성 실패 — 건너뜀", metrics: { concurrency, cap, active, done, total } });
+          return;
+        }
       }
-      // 실패 URL 1회 자동 재시도 — 열린 창 하나 재사용(성공 시 srcOuts/results 교체, 저장은 ok만)
+      // 실패 URL 1회 자동 재시도(성공 시 srcOuts/results 교체, 저장은 ok만)
       if (!_mgr.stopped && !_mgr.paused) {
         const _failed = srcOuts.filter((o) => o && o.status === "error");
-        const _tab = wins[0] && wins[0].tabId;
-        if (_failed.length && _tab != null) {
+        const _retryTab = winless ? sharedTab : (wins[0] && wins[0].tabId);
+        const _retryOpts = winless ? { fetchOnly: true } : null;
+        if (_failed.length && (_retryTab != null || isSW)) {   // SW 는 탭 없이도 재시도(어댑터 재-fetch)
           emit("retry", { source: sk, level: "", msg: sk + " 실패 " + _failed.length + "건 자동 재시도", metrics: { concurrency, cap, active, done, total } });
           for (const _f of _failed) {
             if (_mgr.stopped || _mgr.paused) break;
-            const _orig = list.find((x) => x.url === _f.url) || { url: _f.url };
-            const _r2 = await withTimeout(crawlItemInTabBG(_tab, code, _orig), UNIT_TIMEOUT_MS);
+            const _orig = list.find((x) => x.url === _f.url) || { url: _f.url, source_key: sk };
+            const _r2 = await withTimeout(crawlItemInTabBG(_retryTab, code, _orig, _retryOpts), UNIT_TIMEOUT_MS);
             const _out2 = (_r2 && !_r2.__timeout && !_r2.__error && _r2.status === "ok") ? _r2 : null;
             if (_out2) {
               const _si = srcOuts.indexOf(_f); if (_si >= 0) srcOuts[_si] = _out2;
