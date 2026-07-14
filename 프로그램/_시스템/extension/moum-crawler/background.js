@@ -1979,13 +1979,22 @@ async function crawlBundleAllBG(code) {
           return;
         }
       }
-      // 실패 URL 1회 자동 재시도(성공 시 srcOuts/results 교체, 저장은 ok만)
+      // 실패 URL 1회 자동 재시도 — ★winless 는 '렌더 폴백'으로 한 번 더 뚫는다(기존 안전망 복원).
+      //   fetch(fast)로 실패한 건만 렌더로 재시도 → raw fetch 가 WAF 챌린지/빈응답으로 비어도
+      //   창 렌더로 값 확보(기존 동작과 동일 커버리지). 재시도는 순차라 공유탭 렌더 경쟁 없음.
+      //   same-origin 은 이미 열린 도메인탭 재사용, SW 는 임시창 1개 열어 씀(끝나면 닫음).
       if (!_mgr.stopped && !_mgr.paused) {
         const _failed = srcOuts.filter((o) => o && o.status === "error");
-        const _retryTab = winless ? sharedTab : (wins[0] && wins[0].tabId);
-        const _retryOpts = winless ? { fetchOnly: true } : null;
-        if (_failed.length && (_retryTab != null || isSW)) {   // SW 는 탭 없이도 재시도(어댑터 재-fetch)
-          emit("retry", { source: sk, level: "", msg: sk + " 실패 " + _failed.length + "건 자동 재시도", metrics: { concurrency, cap, active, done, total } });
+        let _retryTab, _retryWin = null;
+        if (winless) {
+          if (sharedTab != null) { _retryTab = sharedTab; }                        // 도메인탭 재사용(same-origin)
+          else if (_failed.length) { _retryWin = await handleOpenWin({}); _retryTab = (_retryWin && _retryWin.ok) ? _retryWin.tabId : null; }  // SW=임시창
+        } else {
+          _retryTab = wins[0] && wins[0].tabId;
+        }
+        const _retryOpts = null;   // ★재시도는 fetchOnly 끔 → 창(navGrab) 렌더 폴백 허용(안전망)
+        if (_failed.length && _retryTab != null) {
+          emit("retry", { source: sk, level: "", msg: sk + " 실패 " + _failed.length + "건 자동 재시도(렌더)", metrics: { concurrency, cap, active, done, total } });
           for (const _f of _failed) {
             if (_mgr.stopped || _mgr.paused) break;
             const _orig = list.find((x) => x.url === _f.url) || { url: _f.url, source_key: sk };
@@ -1998,6 +2007,7 @@ async function crawlBundleAllBG(code) {
             }
           }
         }
+        if (_retryWin && _retryWin.winId != null) { try { await handleCloseWin({ winId: _retryWin.winId }); } catch (_) {} }
       }
     } finally {
       for (const _w of wins) { if (_w && _w.winId != null) { try { await handleCloseWin({ winId: _w.winId }); } catch (_) {} } }
