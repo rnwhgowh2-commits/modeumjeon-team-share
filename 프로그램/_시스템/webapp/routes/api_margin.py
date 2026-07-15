@@ -480,3 +480,69 @@ def export_route():
     return send_file(
         io.BytesIO(data), mimetype=_XLSX_CT, as_attachment=True,
         download_name=f"마진분석_{aid}.xlsx")
+
+
+# ── [임시 진단] 롯데온 정산예정금액 API 실응답 규명 (배포 후 제거) ─────────────
+@bp.route("/_probe_lo_settle", methods=["POST"])
+def _probe_lo_settle():
+    """롯데온 SettleCommission 원응답을 계정별로 덤프 — 필드 규명용.
+
+    body {since:'YYYY-MM-DD', until:'YYYY-MM-DD', orders?:[...]} .
+    반환: 응답 data[] 의 전체 필드명 union + 샘플 원행 + 요청 주문번호별 원행.
+    trNo 는 계정별 client._cfg 에서 읽는다(모듈 _CFG 버그 회피).
+    """
+    body = request.get_json(silent=True) or {}
+    try:
+        since = _dt.datetime.fromisoformat(body["since"])
+        until = _dt.datetime.fromisoformat(body["until"])
+    except Exception:
+        return jsonify({"error": "since/until (YYYY-MM-DD) 필요"}), 400
+    want = set(str(o) for o in (body.get("orders") or []))
+
+    from lemouton.markets.order_export import _account_client, _active_accounts, _ENV_PREFIX
+    from shared.platforms.lotteon.claims import _windows
+
+    accts = _active_accounts("lotteon") or [(_ENV_PREFIX.get("lotteon"), "대표")]
+    field_names: set = set()
+    sample: list = []
+    by_order: list = []
+    acct_info: list = []
+    errors: list = []
+    path = "/v1/openapi/settle/v1/se/SettleCommission"
+
+    for prefix, name in accts:
+        cli = _account_client("lotteon", prefix)
+        if cli is None:
+            acct_info.append({"acct": name, "prefix": prefix, "client": None})
+            continue
+        cfg = getattr(cli, "_cfg", {}) or {}
+        n_lines = 0
+        for w_from, w_to in _windows(since, until):
+            b = {"trGrpCd": cfg.get("tr_grp_cd", "SR"), "trNo": cfg.get("tr_no", ""),
+                 "lrtrNo": cfg.get("lrtr_no", ""),
+                 "startDate": w_from.strftime("%Y%m%d"), "endDate": w_to.strftime("%Y%m%d")}
+            try:
+                resp = cli.request(method="POST", path=path, body=b)
+            except Exception as e:  # noqa: BLE001
+                errors.append({"acct": name, "window": b["startDate"], "err": str(e)[:200]})
+                continue
+            rows = ((resp.get("data") if isinstance(resp, dict) else None) or [])
+            n_lines += len(rows)
+            for r in rows:
+                if isinstance(r, dict):
+                    field_names.update(r.keys())
+                    if len(sample) < 12:
+                        sample.append({"_acct": name, **r})
+                    od = str(r.get("odNo") or "")
+                    if want and od in want:
+                        by_order.append({"_acct": name, **r})
+        acct_info.append({"acct": name, "prefix": prefix, "trNo": cfg.get("tr_no", ""),
+                          "lines": n_lines})
+
+    return jsonify({
+        "field_names": sorted(field_names),
+        "accounts": acct_info,
+        "sample": sample,
+        "by_order": by_order,
+        "errors": errors,
+    })
