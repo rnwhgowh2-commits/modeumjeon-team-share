@@ -355,4 +355,19 @@ class AutoConfirmLog(Base):
     account_alias = Column(String(128), nullable=False)
     count = Column(Integer, default=0, nullable=False)
     result = Column(String(16), nullable=False)   # sent|partial|failed|unsupported
+
+
+class LotteonSettlement(Base):
+    """롯데온 판매자센터 정산예정금액조회(크롤) 결과 — 주문 라인별 정산예정금액·판매경로.
+    소스=soapi selectBgtSettleManagementList (pymtTgtAmt·slChNo). 로컬 크롬 크롤러가 수집→서버 push.
+    미정산 주문에도 pymtTgtAmt 정확 → 마진계산기가 이 값을 정산예정금액으로 직접 사용(오차0).
+    """
+    __tablename__ = "lotteon_settlements"
+    od_no = Column(String(30), primary_key=True)          # 오픈마켓주문번호
+    od_seq = Column(String(10), primary_key=True, default="1")  # 주문순번(단품 라인)
+    pymt_tgt_amt = Column(Integer, nullable=False)        # 지급대상금액(정산예정금액) 라인값
+    sl_chnl = Column(String(20))                          # 판매경로 "제휴"/"롯데ON"
+    tr_no = Column(String(20))                            # 계정(거래처번호)
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc),
+                        onupdate=lambda: datetime.now(timezone.utc))
     source = Column(String(12), default="manual", nullable=False)   # manual|auto

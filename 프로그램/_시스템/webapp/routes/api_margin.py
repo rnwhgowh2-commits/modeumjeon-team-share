@@ -482,6 +482,38 @@ def export_route():
         download_name=f"마진분석_{aid}.xlsx")
 
 
+# ── 크롤 정산 수집(ingest) ──────────────────────────────────────────────────
+
+@bp.route("/lotteon-settlement", methods=["POST"])
+def lotteon_settlement_ingest():
+    """크롤러 push: [{odNo, odSeq, pymtTgtAmt, slChNo, trNo}] → (od_no,od_seq)별 upsert."""
+    from lemouton.sourcing.models_v2 import LotteonSettlement
+    rows = request.get_json(silent=True) or []
+    if not isinstance(rows, list):
+        return jsonify({"error": "list 필요"}), 400
+    n = 0
+    with SessionLocal() as s:
+        for r in rows:
+            od = str(r.get("odNo") or "").strip()
+            if not od:
+                continue
+            seq = str(r.get("odSeq") or "1")
+            try:
+                amt = int(round(float(r.get("pymtTgtAmt") or 0)))
+            except (TypeError, ValueError):
+                continue
+            obj = s.get(LotteonSettlement, {"od_no": od, "od_seq": seq})
+            if obj is None:
+                obj = LotteonSettlement(od_no=od, od_seq=seq)
+                s.add(obj)
+            obj.pymt_tgt_amt = amt
+            obj.sl_chnl = r.get("slChNo") or None
+            obj.tr_no = r.get("trNo") or None
+            n += 1
+        s.commit()
+    return jsonify({"upserted": n})
+
+
 # ── [임시 진단] 롯데온 정산예정금액 API 실응답 규명 (배포 후 제거) ─────────────
 @bp.route("/_probe_lo_settle", methods=["POST"])
 def _probe_lo_settle():

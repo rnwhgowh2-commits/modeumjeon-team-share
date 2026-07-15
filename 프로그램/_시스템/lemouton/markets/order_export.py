@@ -456,6 +456,26 @@ def lotteon_order_rows(since: _dt.datetime, until: _dt.datetime,
             _to_int(r.get("_lo_platform_dc"), 0) or 0,
             aff)
         r["_settle_source"] = "estimated"        # 구매확정 전 추정(제휴는 상품별 이력)
+
+    # ── 크롤 정산(판매자센터 pymtTgtAmt) 최우선 — 미정산 포함 오차0 ──
+    try:
+        from lemouton.sourcing.models_v2 import LotteonSettlement
+        from shared.db import SessionLocal as _SL
+        ods = {str(r.get("오픈마켓주문번호") or "") for r in rows}
+        ods.discard("")
+        cmap = {}
+        if ods:
+            with _SL() as _s:
+                for x in _s.query(LotteonSettlement).filter(
+                        LotteonSettlement.od_no.in_(list(ods))).all():
+                    cmap[(x.od_no, str(x.od_seq))] = x.pymt_tgt_amt
+        for r in rows:
+            v = cmap.get((str(r.get("오픈마켓주문번호") or ""), str(r.get("_odseq") or "1")))
+            if v is not None:
+                r["정산예정금액"] = v
+                r["_settle_source"] = "real"
+    except Exception:   # noqa: BLE001 — DB 없거나 조회 실패 시 기존값 유지(폴백 아님)
+        pass
     return rows
 
 
