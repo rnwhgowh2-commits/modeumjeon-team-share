@@ -270,41 +270,46 @@ def _settlement_for(row: dict):
     actualAmt 는 배송비를 이미 포함하므로 배송비를 다시 더하지 않는다.
     """
     src = row.get("_settle_source", "none")
+    # ★ 배송비(고객배송비) — 샵마인 정산예상금액_배송비포함 = 상품정산(수수료차감) + 배송비(전액).
+    #   추정 정산에 배송비를 전액 더한다(수수료율은 상품에만, 배송비는 원본 정의대로 전액).
+    #   order_export 가 배송건 첫 행에만 배송비를 싣고 나머지 0 → 행별 그대로 더해 중복 없음.
+    #   실결제 기반 추정은 실결제(=상품+배송비)에서 배송비를 뺀 상품분에 수수료율을 곱하고
+    #   배송비를 전액 재가산 → 배송비가 수수료만큼 깎이지 않게(원본과 동일 처리).
+    _ship = _to_int_or_blank(row.get("배송비")) or 0
     if row.get("판매처") == "롯데온":
         paid = _to_int_or_blank(row.get("실결제금액"))
         fee = _to_int_or_blank(row.get("마켓수수료"))
         if paid != "" and fee != "" and fee > 0:
-            return paid - fee, "real"            # 실수수료 확보 → 정확
+            return paid - fee, "real"            # 실수수료 확보 → 정확(실결제=상품+배송비 포함)
         # ★ 미정산(구매확정 전 → 마켓수수료 미기록) 추정. 실수수료 없다고 0(손실 둔갑) 금지.
-        #   원본(샵마인) 대조 역산: 실결제 있으면 실결제×0.947(수수료 ~5.3%),
-        #   실결제 미확보(actualAmt 누락)면 단가×수량×0.884. estimated 태그(실값과 구분).
+        #   실결제 있으면 (실결제−배송비)×0.947 + 배송비, 없으면 단가×수량×0.884 + 배송비.
         if paid != "" and paid > 0:
-            return round(paid * LO_FEE_FACTOR_PAID), "estimated"
+            return round((paid - _ship) * LO_FEE_FACTOR_PAID) + _ship, "estimated"
         unit = _to_int_or_blank(row.get("단가"))
         if unit != "" and unit > 0:
             try:
                 qty = int(row.get("수량") or 1)
             except (TypeError, ValueError):
                 qty = 1
-            return round(unit * qty * LO_FEE_FACTOR_LIST), "estimated"
+            return round(unit * qty * LO_FEE_FACTOR_LIST) + _ship, "estimated"
         return 0, "none"
 
     if row.get("판매처") == "11번가":
-        if src != "none":                        # stlPlnAmt(정산예정금액) 확보 → real
+        if src != "none":                        # stlPlnAmt(정산예정금액) 확보 → real(배송비 포함)
             settle = _to_int_or_blank(row.get("정산예정금액"))
             if settle != "":
                 return settle, src
         # ★ 미정산(배송완료·배송중 = stlPlnAmt 없음) 추정. 실수수료 없다고 0(손실 둔갑) 금지.
         paid = _to_int_or_blank(row.get("실결제금액"))
         if paid != "" and paid > 0:
-            return round(paid * EL_FEE_FACTOR_PAID), "estimated"
+            return round((paid - _ship) * EL_FEE_FACTOR_PAID) + _ship, "estimated"
         unit = _to_int_or_blank(row.get("단가"))
         if unit != "" and unit > 0:
             try:
                 qty = int(row.get("수량") or 1)
             except (TypeError, ValueError):
                 qty = 1
-            return round(unit * qty * EL_FEE_FACTOR_LIST), "estimated"
+            return round(unit * qty * EL_FEE_FACTOR_LIST) + _ship, "estimated"
         return 0, "none"
 
     if src == "none":
