@@ -546,3 +546,55 @@ def _probe_lo_settle():
         "by_order": by_order,
         "errors": errors,
     })
+
+
+# ── [임시 진단] 롯데온 주문 원응답 전체 필드 덤프 — 할인/판매경로 존재 확인 ─────
+@bp.route("/_probe_lo_order", methods=["POST"])
+def _probe_lo_order():
+    """롯데온 출고지시(209) 원응답 deliveryOrderList[] 의 전체 필드명 + 마스킹 샘플.
+
+    body {since:'YYYY-MM-DD', until:'YYYY-MM-DD'} . 셀러부담할인·판매경로 등 정산 계산
+    입력 필드가 원응답에 있는지 규명. 개인정보 필드는 마스킹. 배포·확인 후 제거.
+    """
+    body = request.get_json(silent=True) or {}
+    try:
+        since = _dt.datetime.fromisoformat(body["since"])
+        until = _dt.datetime.fromisoformat(body["until"])
+    except Exception:
+        return jsonify({"error": "since/until (YYYY-MM-DD) 필요"}), 400
+
+    from lemouton.markets.order_export import _account_client, _active_accounts, _ENV_PREFIX
+    from shared.platforms.lotteon.orders import iter_delivery_orders
+
+    _PII = {"dvpCustNm", "dvpStnmZipAddr", "dvpStnmDtlAddr", "dvpMphnNo", "dvpTelNo",
+            "odrNm", "mphnNo", "telNo", "dvpZipNo", "dvMsg"}
+    accts = _active_accounts("lotteon") or [(_ENV_PREFIX.get("lotteon"), "대표")]
+    field_names: set = set()
+    sample: list = []
+    acct_info: list = []
+    errors: list = []
+    for prefix, name in accts[:1]:  # 대표(또는 첫) 계정 1개로 충분(필드 스키마 동일)
+        cli = _account_client("lotteon", prefix)
+        if cli is None:
+            continue
+        try:
+            n = 0
+            for od in iter_delivery_orders(since, until, if_cpl_yn="", client=cli):
+                if not isinstance(od, dict):
+                    continue
+                n += 1
+                field_names.update(od.keys())
+                if len(sample) < 3:
+                    sample.append({k: ("***" if k in _PII else v) for k, v in od.items()})
+                if n >= 200:
+                    break
+            acct_info.append({"acct": name, "orders": n})
+        except Exception as e:  # noqa: BLE001
+            errors.append({"acct": name, "err": str(e)[:300]})
+
+    return jsonify({
+        "field_names": sorted(field_names),
+        "accounts": acct_info,
+        "sample": sample,
+        "errors": errors,
+    })
