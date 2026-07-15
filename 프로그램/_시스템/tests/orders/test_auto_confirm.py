@@ -15,9 +15,11 @@ from lemouton.orders import auto_confirm as ac
 
 @pytest.fixture
 def session():
-    from lemouton.sourcing.models_v2 import AutoConfirmSetting
+    from lemouton.sourcing.models_v2 import (AutoConfirmSetting, AutoConfirmConfig,
+                                             AutoConfirmLog)
     eng = create_engine("sqlite:///:memory:")
-    AutoConfirmSetting.__table__.create(eng)
+    for m in (AutoConfirmSetting, AutoConfirmConfig, AutoConfirmLog):
+        m.__table__.create(eng)
     s = sessionmaker(bind=eng, autoflush=False, future=True)()
     yield s
     s.close()
@@ -49,10 +51,16 @@ class TestTargetLogic:
 class TestSettings:
     def test_default_all_off(self, session, accounts):
         tree = ac.list_settings(session)
-        assert tree["live"] is False
         cp = next(m for m in tree["markets"] if m["market"] == "coupang")
         assert cp["total"] == 2 and cp["enabled_count"] == 0
         assert all(a["enabled"] is False for a in cp["accounts"])
+        # 자동 실행은 기본 꺼짐 · 이력 비어 있음
+        assert tree["auto"]["enabled"] is False and tree["logs"] == []
+
+    def test_emergency_disable_env_forces_dryrun(self, session, accounts, monkeypatch):
+        monkeypatch.setenv("MOUM_CONFIRM_DISABLED", "1")
+        assert ac.live_confirm_enabled() is False
+        assert ac.list_settings(session)["live"] is False
 
     def test_set_account_then_reflected(self, session, accounts):
         ac.set_account(session, "coupang", "브랜드위시", True)
@@ -203,7 +211,50 @@ class TestRunDryRun:
         res = ac.run(session, live=True)
         assert res["by"][0]["result"] == "sent" and res["by"][0]["count"] == 1
 
+    def test_run_records_history_log(self, session, accounts, monkeypatch):
+        self._stub_orders(monkeypatch); self._live_on(monkeypatch)
+        monkeypatch.setattr("lemouton.orders.confirm_api.confirm_targets", lambda *a, **k: None)
+        monkeypatch.setattr(ac, "_readback_moved", lambda market, targets, client: len(targets))
+        ac.set_account(session, "coupang", "브랜드위시", True)
+        ac.run(session, live=True, source="auto")
+        logs = ac.recent_logs(session)
+        assert logs and logs[0]["market"] == "coupang" and logs[0]["source"] == "auto"
+        assert logs[0]["count"] == 2 and logs[0]["result"] == "sent"
+
     def test_no_enabled_returns_note(self, session, accounts, monkeypatch):
         self._stub_orders(monkeypatch)
         res = ac.run(session, live=False)
         assert res["total"] == 0 and "note" in res
+
+
+class TestAutoConfigAndTick:
+    def test_config_defaults_and_set(self, session):
+        cfg = ac.get_config(session)
+        assert cfg.enabled is False and cfg.interval_minutes == 5
+        ac.set_config(session, enabled=True, interval_minutes=7)
+        cfg2 = ac.get_config(session)
+        assert cfg2.enabled is True and cfg2.interval_minutes == 7
+
+    def test_interval_clamped(self, session):
+        ac.set_config(session, interval_minutes=9999)
+        assert ac.get_config(session).interval_minutes == 180
+        ac.set_config(session, interval_minutes=0)
+        assert ac.get_config(session).interval_minutes == 180  # 0 무시 → 이전값 유지
+
+    def test_tick_noop_when_auto_off(self, session, accounts):
+        assert ac.tick(session)["ran"] is False
+
+    def test_tick_runs_when_on_and_interval_elapsed(self, session, accounts, monkeypatch):
+        # 자동 ON, 대상 계정 켬, 주문 스텁 + confirm 성공
+        rows = {"coupang": [{"판매처": "쿠팡", "쇼핑몰별칭": "브랜드위시",
+                             "주문상태": "결제완료", "오픈마켓주문번호": "C1"}]}
+        monkeypatch.setattr(ac._oe, "combined_order_rows", lambda mks, **kw: rows.get(mks[0], []))
+        monkeypatch.setattr(ac, "_client_for", lambda m, a: object())
+        monkeypatch.setattr("lemouton.orders.confirm_api.confirm_targets", lambda *a, **k: None)
+        monkeypatch.setattr(ac, "_readback_moved", lambda *a, **k: 1)
+        ac.set_account(session, "coupang", "브랜드위시", True)
+        ac.set_config(session, enabled=True, interval_minutes=5)
+        r1 = ac.tick(session)
+        assert r1["ran"] is True and r1["total"] == 1
+        # 방금 돌았으니 간격 전 재틱은 no-op(멀티워커 중복 방지)
+        assert ac.tick(session)["ran"] is False

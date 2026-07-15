@@ -325,3 +325,34 @@ class AutoConfirmSetting(Base):
     last_run_count = Column(Integer, default=0, nullable=False)  # 그때 넘긴 건수
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc),
                         onupdate=lambda: datetime.now(timezone.utc))
+
+
+class AutoConfirmConfig(Base):
+    """자동 실행(스케줄러) 전역 설정 — 단일 row(id=1). '켜두면 알아서' 마스터.
+
+    · enabled = 자동 실행 ON/OFF. ★ON 이면 스케줄러가 실전환을 무인 실행한다(사용자가
+      화면 스위치로 켬 = 실전환 arming). 되읽기 검증·계정별 대상·안전한 앞단계(발주확인)가 안전망.
+    · interval_minutes = 몇 분마다(사용자 직접 입력, 1~180).
+    · last_run_at = 스케줄러가 마지막으로 한 바퀴 돈 시각(다음 실행 계산 기준).
+    """
+    __tablename__ = "auto_confirm_config"
+
+    id = Column(Integer, primary_key=True, default=1)
+    enabled = Column(Boolean, default=False, nullable=False)
+    interval_minutes = Column(Integer, default=5, nullable=False)
+    last_run_at = Column(DateTime)
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc),
+                        onupdate=lambda: datetime.now(timezone.utc))
+
+
+class AutoConfirmLog(Base):
+    """전환 이력 — 언제·어느 마켓·계정에서 몇 건을 배송준비중으로 넘겼나(화면 타임라인용)."""
+    __tablename__ = "auto_confirm_log"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    ran_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), index=True)
+    market = Column(String(32), nullable=False)
+    account_alias = Column(String(128), nullable=False)
+    count = Column(Integer, default=0, nullable=False)
+    result = Column(String(16), nullable=False)   # sent|partial|failed|unsupported
+    source = Column(String(12), default="manual", nullable=False)   # manual|auto

@@ -493,7 +493,13 @@ def auto_confirm_config():
     from lemouton.orders import auto_confirm as _ac
     s = SessionLocal()
     try:
-        return jsonify(ok=True, **_ac.list_settings(s))
+        out = _ac.list_settings(s)
+        try:
+            from scheduler.main import auto_confirm_job_info
+            out["scheduler"] = auto_confirm_job_info()
+        except Exception:   # noqa: BLE001 — 스케줄러 정보 실패는 설정 조회를 막지 않음
+            out["scheduler"] = {"scheduler_running": False, "tick_registered": False}
+        return jsonify(ok=True, **out)
     except Exception as e:   # noqa: BLE001 — 설정 조회 실패도 화면을 막지 않게 사유 표면화
         import logging
         logging.getLogger(__name__).exception("auto-confirm config failed")
@@ -568,6 +574,24 @@ def auto_confirm_diag_order():
                 walk(it, prefix)
     walk(data[0])
     return jsonify(ok=True, found=True, order_no=order_no, fields=picked)
+
+
+@bp.route('/auto-confirm/auto', methods=['POST'])
+def auto_confirm_auto():
+    """자동 실행(스케줄러) 설정 저장 — body {enabled?, interval_minutes?}.
+
+    enabled=true 로 켜면 스케줄러가 무인 실전환을 시작한다(화면 확인창이 그 arming).
+    """
+    from lemouton.orders import auto_confirm as _ac
+    body = request.get_json(silent=True) or {}
+    s = SessionLocal()
+    try:
+        _ac.set_config(s,
+                       enabled=body.get('enabled'),
+                       interval_minutes=body.get('interval_minutes'))
+        return jsonify(ok=True, **_ac.list_settings(s))
+    finally:
+        s.close()
 
 
 @bp.route('/auto-confirm/run', methods=['POST'])

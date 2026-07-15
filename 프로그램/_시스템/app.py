@@ -471,6 +471,16 @@ def create_app() -> Flask:
             return jsonify(error='not_found', path=_req.path), 404
         return render_template_or_text(f"404 — {_req.path} 없음"), 404
 
+    # 자동전환 스케줄러(1분 틱) — gunicorn(--preload) 마스터에서 1회 기동. 서버크롤 스케줄러와
+    # 독립(발주확인=마켓 API). MOUM_NO_AUTOCONFIRM_SCHED=1 이면 끔(테스트·로컬 선택).
+    if os.environ.get("MOUM_NO_AUTOCONFIRM_SCHED") != "1":
+        try:
+            from scheduler.main import start_auto_confirm_scheduler
+            start_auto_confirm_scheduler()
+        except Exception:   # noqa: BLE001 — 스케줄러 실패가 앱 기동을 막지 않게
+            import logging
+            logging.getLogger(__name__).exception("auto-confirm 스케줄러 시작 실패")
+
     return app
 
 

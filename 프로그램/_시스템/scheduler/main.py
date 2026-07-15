@@ -110,6 +110,50 @@ def start_scheduler() -> BackgroundScheduler:
     return sched
 
 
+def _auto_confirm_tick():
+    """자동전환 스케줄러 틱 — 자동 실행 켜져 있고 간격 지났으면 한 바퀴."""
+    try:
+        from shared.db import SessionLocal
+        from lemouton.orders import auto_confirm as ac
+        s = SessionLocal()
+        try:
+            ac.tick(s)
+        finally:
+            s.close()
+    except Exception:   # noqa: BLE001 — 틱 실패가 스케줄러를 죽이지 않게
+        logger.exception("auto-confirm tick failed")
+
+
+def start_auto_confirm_scheduler() -> BackgroundScheduler:
+    """자동전환 틱(1분) 등록·기동. ★서버크롤 스케줄러(DISABLE_SCHEDULER)와 무관하게 항상.
+
+    발주확인은 마켓 API(크롤 부하와 별개)라 크롤 차단과 독립적으로 돌아야 한다.
+    자동 실행 OFF 면 틱이 곧바로 no-op 이라 부하 없음.
+    """
+    sched = get_scheduler()
+    if sched.get_job('auto_confirm_tick') is None:
+        sched.add_job(_auto_confirm_tick, 'interval', minutes=1,
+                      id='auto_confirm_tick', max_instances=1, coalesce=True,
+                      misfire_grace_time=120)
+        logger.info('scheduler: auto_confirm_tick job every 1min')
+    if not sched.running:
+        sched.start()
+    return sched
+
+
+def auto_confirm_job_info() -> dict:
+    """자동전환 틱 잡 상태(운영 확인용) — 스케줄러가 실제로 도는지."""
+    try:
+        sched = get_scheduler()
+        job = sched.get_job('auto_confirm_tick') if sched else None
+        return {"scheduler_running": bool(sched and sched.running),
+                "tick_registered": job is not None,
+                "tick_next": job.next_run_time.isoformat()
+                             if (job and job.next_run_time) else None}
+    except Exception:   # noqa: BLE001
+        return {"scheduler_running": False, "tick_registered": False, "tick_next": None}
+
+
 def shutdown_scheduler():
     sched = get_scheduler()
     if sched.running:
