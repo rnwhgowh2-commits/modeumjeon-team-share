@@ -528,6 +528,48 @@ def auto_confirm_set():
         s.close()
 
 
+@bp.route('/auto-confirm/diag-order')
+def auto_confirm_diag_order():
+    """[읽기전용 진단] 스스 주문 상세 원본 — 발주확인 여부 필드 확인(placeOrderStatus 등).
+
+    상태변경 아님(조회만). ?market=smartstore&order_no=..&alias=.. .
+    개인정보는 제외하고 상태·발주·배송 관련 필드만 추려 반환.
+    """
+    from lemouton.orders import auto_confirm as _ac
+    market = (request.args.get('market') or 'smartstore').strip()
+    order_no = (request.args.get('order_no') or '').strip()
+    alias = (request.args.get('alias') or '').strip()
+    if market != 'smartstore':
+        return jsonify(ok=False, error='이 진단은 스마트스토어 전용이에요.'), 400
+    if not order_no:
+        return jsonify(ok=False, error='order_no 가 필요해요.'), 400
+    try:
+        cli = _ac._client_for(market, alias)
+        from shared.platforms.smartstore import orders as ss
+        resp = ss.fetch_order_detail([order_no], client=cli)
+    except Exception as e:   # noqa: BLE001
+        return jsonify(ok=False, error=f"{type(e).__name__}: {str(e)[:200]}"), 400
+    data = (resp or {}).get('data') or []
+    if not data:
+        return jsonify(ok=True, found=False, order_no=order_no)
+    # 중첩 dict 를 훑어 상태·발주·배송 관련 필드만 수집(개인정보 배제)
+    picked = {}
+    KEYS = ('status', 'place', 'confirm', 'deliver', 'dispatch', 'date')
+    def walk(o, prefix=''):
+        if isinstance(o, dict):
+            for k, v in o.items():
+                kl = str(k).lower()
+                if isinstance(v, (dict, list)):
+                    walk(v, prefix + k + '.')
+                elif any(t in kl for t in KEYS):
+                    picked[prefix + k] = v
+        elif isinstance(o, list):
+            for it in o[:3]:
+                walk(it, prefix)
+    walk(data[0])
+    return jsonify(ok=True, found=True, order_no=order_no, fields=picked)
+
+
 @bp.route('/auto-confirm/run', methods=['POST'])
 def auto_confirm_run():
     """자동전환 실행. 기본 드라이런(넘어갈 건수만). body live=true + 서버 스위치 ON 이면 실전환.
