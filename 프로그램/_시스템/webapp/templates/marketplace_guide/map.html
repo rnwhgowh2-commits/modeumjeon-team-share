@@ -460,9 +460,9 @@ const MKT_CATS={
     ]},
     {g:'주문',items:[
       {nm:'상품 주문 목록 조회',dir:'recv',st:'code',code:'seller-get-product-order-ids-pay-order-seller'},
-      {nm:'상품 주문 상세 내역 조회',dir:'recv',st:'code',code:'seller-get-product-orders-pay-order-seller'},
+      {nm:'상품 주문 상세 내역 조회',dir:'recv',st:'ok',code:'…/product-orders/query · fetch_order_detail · ★placeOrderStatus=OK 로 발주확인 판정(productOrderStatus는 PAYED 유지)'},
       {nm:'조건형 상품 주문 상세 내역 조회',dir:'recv',st:'off',code:'seller-get-product-orders-with-conditions-pay-order-seller'},
-      {nm:'변경 상품 주문 내역 조회',dir:'recv',st:'off',code:'seller-get-last-changed-status-pay-order-seller'},
+      {nm:'변경 상품 주문 내역 조회',dir:'recv',st:'ok',code:'…/product-orders/last-changed-statuses · iter_changed_product_order_ids (주문조회)'},
       {nm:'발주 확인 처리',dir:'send',st:'ok',code:'…/product-orders/confirm · orders.confirm_orders (자동전환·상태 PAYED유지→placeOrderStatus)'},
       {nm:'발송 처리',dir:'send',st:'code',code:'seller-dispatch-product-orders-pay-order-seller'},
       {nm:'발송 지연 처리',dir:'send',st:'off',code:'seller-delay-dispatch-due-date-pay-order-seller'},
@@ -658,7 +658,7 @@ const MKT_CATS={
     {g:'주문',items:[
       {nm:'결제완료(발송대기) 조회',dir:'recv',st:'ok',code:'/rest/ordservices/complete/{s}/{e}'},
       {nm:'발주처리(발송대기→배송준비중)',dir:'send',st:'ok',code:'/rest/ordservices/reqpackaging/{ordNo}/{ordPrdSeq}/{addPrdYn}/{addPrdNo}/{dlvNo} · shipping.set_packaging (자동전환)'},
-      {nm:'배송준비중 조회',dir:'recv',st:'ok',code:'/rest/ordservices/packaging/{s}/{e}'},
+      {nm:'배송준비중 조회',dir:'recv',st:'code',code:'/rest/ordservices/packaging/{s}/{e} · iter_packaging (코드 있으나 주 조회는 complete 사용)'},
       {nm:'발송처리(송장)',dir:'send',st:'code',code:'/rest/ordservices/reqdelivery/… · shipping.send_tracking'},
     ]},
     {g:'정산',items:[]},
