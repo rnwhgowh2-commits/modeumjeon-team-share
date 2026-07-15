@@ -40,6 +40,7 @@ EL_FEE_FACTOR_LIST = 0.869
 SELL_COLUMNS = [
     "오픈마켓주문번호", "상품명", "옵션", "수량", "단가", "실결제금액",
     "정산예상금액_배송비포함", "마켓수수료", "수수료율", "쇼핑몰",
+    "쇼핑몰별칭",        # 계정명 — matcher 가 extract_account 로 '계정' 산출(다계정 구분)
     "수취고객명", "주문일", "송장입력", "주문상태",
     "_settle_source",   # real | estimated | none
     "_sell_origin",     # api | shopmine
@@ -338,6 +339,9 @@ def _rows_to_df(rows: list) -> pd.DataFrame:
             "마켓수수료": r.get("마켓수수료", ""),
             "수수료율": r.get("수수료율", ""),
             "쇼핑몰": market_to_shopmine(r.get("판매처", "")),
+            # order_export 가 _rows_for 에서 계정명(display_name)을 쇼핑몰별칭에 태깅함(L1050).
+            # 이걸 실어야 matcher 가 '계정'을 산출해 다계정(롯데온 7계정 등)을 구분한다.
+            "쇼핑몰별칭": r.get("쇼핑몰별칭", ""),
             "수취고객명": r.get("수령자", ""),
             "주문일": r.get("주문일", ""),
             "송장입력": r.get("송장입력", ""),
