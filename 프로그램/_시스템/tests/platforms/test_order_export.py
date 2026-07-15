@@ -471,6 +471,25 @@ def test_coupang_claim_window_extends_to_now(monkeypatch):
     assert cap["exc"] >= now - dt.timedelta(seconds=5)
 
 
+def test_coupang_settle_window_extends_to_now(monkeypatch):
+    """쿠팡 revenue-history 는 'recognitionDate(정산 인식일)' 기준 → 인식은 주문보다 늦게
+    (구매확정 후) 일어난다. 주문 기간(until)까지만 조회하면 그 뒤 인식된 정산을 놓쳐
+    정산완료 주문도 estimated 로 남는다(260704 재분석 실측: 쿠팡 92건). 조회 끝을 now 로
+    넓혀야 잡힌다 — 롯데온 commission·클레임 조회와 동일 패턴."""
+    import shared.platforms.coupang.orders as _co
+    import shared.platforms.coupang.claims as _cc
+    monkeypatch.setattr(_co, "fetch_orders", lambda *a, **k: {"data": [], "nextToken": ""})
+    monkeypatch.setattr(_cc, "iter_returns", lambda *a, **k: iter([]))
+    monkeypatch.setattr(_cc, "iter_exchanges", lambda *a, **k: iter([]))
+    cap = {}
+    monkeypatch.setattr(oe, "_coupang_settle_map",
+                        lambda s, u, c: cap.__setitem__("until", u) or ({}, {}))
+    now = dt.datetime.now(oe.KST)
+    oe.coupang_order_rows(dt.datetime(2026, 7, 3, tzinfo=oe.KST),
+                          dt.datetime(2026, 7, 5, tzinfo=oe.KST), client=object())
+    assert cap["until"] >= now - dt.timedelta(seconds=5)   # 과거 until 이 아니라 now 로 확장
+
+
 def test_lotteon_delivery_window_extends_to_now(monkeypatch):
     """롯데온 출고지시(209)는 '배송지시생성일시' 기준 → 기간 안 주문이 나중에 배송지시되면
     [since,until] 밖이라 누락(라이브: 07-12 신규주문 6건). 조회 끝을 now 로 넓혀야 잡힌다."""
