@@ -13,6 +13,9 @@ class FakeClient:
 
     def request(self, method=None, path=None, body=None, query=None):
         self.calls.append({"method": method, "path": path, "body": body, "query": query})
+        # 스스 발주확인은 네이버식 성공 본문을 돌려준다(confirm 이 본문을 검사하므로).
+        if path and path.endswith("/confirm"):
+            return {"data": {"successProductOrderIds": list((body or {}).get("productOrderIds") or [])}}
         return {"returnCode": "0000"}   # 롯데온 성공 코드(다른 마켓은 무시)
 
 
@@ -41,6 +44,19 @@ def test_smartstore_confirm_shape():
     assert call["method"] == "POST"
     assert call["path"] == "/external/v1/pay-order/seller/product-orders/confirm"
     assert call["body"] == {"productOrderIds": ["PO1", "PO2"]}
+
+
+def test_smartstore_confirm_raises_when_not_confirmed():
+    """200 이지만 본문에 성공이 없으면(=미확정) 거짓성공 대신 예외 — 되읽기 전에 잡는다."""
+    from shared.platforms.smartstore import orders as ss
+    import pytest
+
+    class NoOkClient(FakeClient):
+        def request(self, method=None, path=None, body=None, query=None):
+            return {"data": {"successProductOrderIds": [], "failProductOrderInfos":
+                             [{"productOrderId": "PO1", "code": "X", "message": "안됨"}]}}
+    with pytest.raises(RuntimeError):
+        ss.confirm_orders(["PO1"], client=NoOkClient())
 
 
 def test_lotteon_set_preparing_shape():

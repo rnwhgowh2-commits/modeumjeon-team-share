@@ -143,15 +143,27 @@ def confirm_orders(product_order_ids: list[str],
           body {"productOrderIds":[...]}.
     ⚠️ 라이브 미검증 — 실주문 1건으로 상태 전이 확인 후 신뢰.
     """
+    import json as _json
     client = client or SmartStoreClient()
     ids = [str(p) for p in product_order_ids if p]
     if not ids:
         raise ValueError("스마트스토어 발주확인: productOrderId 없음 — 추측 전송 금지")
-    return client.request(
+    resp = client.request(
         method="POST",
         path="/external/v1/pay-order/seller/product-orders/confirm",
         body={"productOrderIds": ids},
     )
+    # 네이버는 HTTP 200 에 개별 결과를 담는다(dispatch 동일) → 확정 확인. 거짓성공 금지.
+    data = (resp or {}).get("data") or resp or {}
+    ok = {str(x) for x in (data.get("successProductOrderIds") or [])}
+    fails = data.get("failProductOrderInfos") or []
+    missing = [p for p in ids if p not in ok]
+    if fails or missing:
+        raise RuntimeError(
+            "스마트스토어 발주확인 미완료: 실패=" + _json.dumps(fails[:2], ensure_ascii=False)
+            + " 누락=" + _json.dumps(missing[:3], ensure_ascii=False)
+            + " 원응답=" + _json.dumps(resp, ensure_ascii=False)[:500])
+    return resp
 
 
 def send_tracking(product_order_ids: list[str], delivery_company_code: str,
