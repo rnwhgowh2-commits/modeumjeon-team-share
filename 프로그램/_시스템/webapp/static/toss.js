@@ -1346,9 +1346,9 @@ async function openPriceTplModal(id, initialTab) {
       : {bg:'#FEF3C7', tx:'#92400E'};
     const defaultRate = prefix === 'ss' ? '9.45' : '12.42';
     return `
-      <div style="background:#FAFBFC;border:1px solid #EAEDF0;border-radius:8px;padding:12px 14px;margin-bottom:10px">
+      <div class="ptm-side" data-prefix="${prefix}" data-side="${side}" style="background:#FAFBFC;border:1px solid #EAEDF0;border-radius:8px;padding:12px 14px;margin-bottom:10px">
         <div style="font-size:12px;font-weight:700;color:#4E5968;margin-bottom:8px;display:flex;align-items:center;gap:6px">
-          <span style="background:${sideColor.bg};color:${sideColor.tx};padding:2px 8px;border-radius:4px;font-size:11px;font-weight:700">${sideLabel}</span>
+          <span class="ptm-side-tag" style="background:${sideColor.bg};color:${sideColor.tx};padding:2px 8px;border-radius:4px;font-size:11px;font-weight:700">${sideLabel}</span>
           책정 방식
         </div>
         <div style="display:flex;flex-direction:column;gap:3px">
@@ -1357,19 +1357,64 @@ async function openPriceTplModal(id, initialTab) {
           ${radioRow('fixed',  '지정가',   fixedKey,  '원 (할인가)', '')}
         </div>
         <input type="hidden" data-key="${modeKey}" data-mode-hidden="${prefix}-${side}" value="${curMode}">
+        <div class="ptm-res" data-prefix="${prefix}" data-side="${side}" style="margin-top:9px;padding-top:9px;border-top:1px dashed #E5E8EB;display:flex;justify-content:flex-end;gap:14px;align-items:baseline">
+          <span style="font-size:11px;color:#8B95A1">판매가 <b class="ptm-sell" style="font-size:15px;color:#191F28;font-weight:800;font-variant-numeric:tabular-nums">–</b></span>
+          <span style="font-size:11px;color:#8B95A1">남는 돈 <b class="ptm-keep" style="font-size:13px;color:#12B886;font-weight:700;font-variant-numeric:tabular-nums">–</b></span>
+        </div>
       </div>`;
   };
-  const market = (prefix, topHtml) => `
-    ${topHtml || ''}
-    ${row('마켓 수수료율', num(prefix + '_fee_rate', '0.06 = 6%', '0.0001'))}
-    ${row('정상가', num(prefix + '_normal_price', '원'))}
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+  // [2026-07-15] 마진 UI 재설계 — 마켓 카드(소싱·사입 합침 토글) + 고급(부대비용) 분리
+  const _mkMeta = {
+    ss:      { name: '스마트스토어', dot: '#03C75A', letter: 'N' },
+    coupang: { name: '쿠팡',        dot: '#F53C3C', letter: 'C' },
+  };
+  const feePct = (prefix) => {
+    const raw = initial[`${prefix}_fee_rate`];
+    const pct = raw != null ? (Number(raw) * 100) : (prefix === 'ss' ? 6 : 11.55);
+    return Math.round(pct * 100) / 100;
+  };
+  // 소싱·사입이 같은 설정이면 '합침'(토글 꺼짐) 기본. 다르면 '다르게'(펼침).
+  const isUnified = (prefix) => {
+    const mS = initial[`${prefix}_mode_sourcing`] || 'rate';
+    const mP = initial[`${prefix}_mode_purchase`] || 'rate';
+    if (mS !== mP) return false;
+    if (mS === 'fixed') return (initial[`${prefix}_external_sale_price`] || 0) == (initial[`${prefix}_boxhero_sale_price`] || 0);
+    const suf = mS === 'amount' ? 'amount' : 'rate';
+    return (initial[`${prefix}_${suf}_sourcing`] || 0) == (initial[`${prefix}_${suf}_purchase`] || 0);
+  };
+  const marginCard = (prefix) => {
+    const m = _mkMeta[prefix];
+    const uni = isUnified(prefix);
+    return `
+    <div class="ptm-mcard" data-prefix="${prefix}" data-unified="${uni ? '1' : '0'}" style="border:1px solid #E5E8EB;border-radius:12px;padding:15px 16px;margin-bottom:12px">
+      <div style="display:flex;align-items:center;margin-bottom:12px;gap:8px">
+        <span style="display:inline-flex;align-items:center;gap:8px;font-weight:700"><span style="width:22px;height:22px;border-radius:6px;background:${m.dot};color:#fff;display:flex;align-items:center;justify-content:center;font-size:12px">${m.letter}</span>${m.name}</span>
+        <span class="ptm-fee-badge" data-prefix="${prefix}" style="font-size:11.5px;color:#8B95A1;background:#F2F4F6;border:1px solid #E5E8EB;border-radius:20px;padding:2px 9px">수수료 ${feePct(prefix)}%</span>
+        <label class="ptm-uni-toggle" data-prefix="${prefix}" style="margin-left:auto;font-size:12.5px;color:${uni ? '#8B95A1' : '#3182F6'};font-weight:${uni ? '400' : '600'};display:inline-flex;align-items:center;gap:7px;cursor:pointer;user-select:none">
+          <span class="ptm-uni-sw" style="width:36px;height:20px;background:${uni ? '#CDD3D8' : '#3182F6'};border-radius:20px;position:relative;flex-shrink:0;display:inline-block">
+            <span style="position:absolute;left:${uni ? '2px' : '18px'};top:2px;width:16px;height:16px;background:#fff;border-radius:50%;transition:.15s"></span>
+          </span>소싱·사입 다르게</label>
+      </div>
       ${modeCards(prefix, 'sourcing')}
-      ${modeCards(prefix, 'purchase')}
-    </div>
-    ${row('배송타입', delivery(prefix))}
-    ${row('반품비', num(prefix + '_return_fee', '원'))}
-    ${row('교환비', num(prefix + '_exchange_fee', '원'))}`;
+      <div class="ptm-purchase-wrap" data-prefix="${prefix}" style="display:${uni ? 'none' : 'block'}">
+        ${modeCards(prefix, 'purchase')}
+      </div>
+      <div class="ptm-uni-note" data-prefix="${prefix}" style="display:${uni ? 'block' : 'none'};font-size:12px;color:#8B95A1;margin-top:-2px">한 번 정하면 소싱·사입에 같이 적용돼요.</div>
+    </div>`;
+  };
+  const advMarket = (prefix, extraTop) => {
+    const m = _mkMeta[prefix];
+    return `
+    <div style="border:1px solid #E5E8EB;border-radius:12px;padding:14px 16px;margin-bottom:12px">
+      <div style="font-size:13px;font-weight:700;margin-bottom:10px;display:flex;align-items:center;gap:7px"><span style="width:18px;height:18px;border-radius:5px;background:${m.dot};color:#fff;display:flex;align-items:center;justify-content:center;font-size:10px">${m.letter}</span>${m.name}</div>
+      ${extraTop || ''}
+      ${row('마켓 수수료율', `<div style="display:flex;align-items:center;gap:6px"><input type="number" data-key="${prefix}_fee_rate" data-rate-display="1" step="0.01" value="${feePct(prefix)}" style="width:90px;padding:6px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px;text-align:right;font-variant-numeric:tabular-nums"><span style="font-size:12px;color:#6B7684">%</span></div>`)}
+      ${row('정상가', num(prefix + '_normal_price', '원'))}
+      ${row('배송타입', delivery(prefix))}
+      ${row('반품비', num(prefix + '_return_fee', '원'))}
+      ${row('교환비', num(prefix + '_exchange_fee', '원'))}
+    </div>`;
+  };
 
   // [2026-06-02] 매입가 산정 우선순위 — 「평균 매입가」 바로 아래 보조행 (시안3)
   //   사입 카드 0원 차단 UX 의 단일 진실 원천. 같은 템플릿 옵션 모두 일괄 적용.
@@ -1439,10 +1484,12 @@ async function openPriceTplModal(id, initialTab) {
             style="padding:8px 16px;background:none;border:none;border-bottom:2px solid transparent;font-size:14px;color:#8B95A1;font-weight:500;cursor:pointer">${label}</button>`;
 
   const inner = `
-    <div style="display:flex;gap:2px;border-bottom:1px solid #E5E8EB;margin-bottom:6px">
-      ${tabBtn('basic', '기본정보')}${tabBtn('ss', '스마트스토어')}${tabBtn('cp', '쿠팡')}
+    <div class="ptm-tabbar" style="display:flex;gap:30px;border-bottom:1px solid #E5E8EB;margin-bottom:16px;padding-left:4px">
+      <div class="ptm-tab" data-tab="cost" style="display:inline-flex;align-items:baseline;gap:6px;padding:12px 2px;border-bottom:2px solid transparent;cursor:pointer"><span class="t" style="font-size:15px;font-weight:600;color:#8B95A1">원가</span><span class="s" style="font-size:11.5px;color:#8B95A1">사올 때</span></div>
+      <div class="ptm-tab" data-tab="margin" style="display:inline-flex;align-items:baseline;gap:6px;padding:12px 2px;border-bottom:2px solid transparent;cursor:pointer"><span class="t" style="font-size:15px;font-weight:600;color:#8B95A1">마진</span><span class="s" style="font-size:11.5px;color:#8B95A1">팔 때</span></div>
+      <div class="ptm-tab" data-tab="adv" style="display:inline-flex;align-items:baseline;gap:6px;padding:12px 2px;border-bottom:2px solid transparent;cursor:pointer"><span class="t" style="font-size:15px;font-weight:600;color:#8B95A1">고급</span></div>
     </div>
-    <div class="ptm-panel" data-panel="basic">
+    <div class="ptm-panel" data-panel="cost">
       <div style="position:relative;margin:8px 0 4px">
         <input id="ptm-prod-search" type="text" autocomplete="off"
                placeholder="제품(모델) 검색 — 선택 시 평균 매입가 자동 입력"
@@ -1452,15 +1499,23 @@ async function openPriceTplModal(id, initialTab) {
       ${row('템플릿명', txt('name', '브랜드명 + 모델명 (예: 르무통 클래식)'))}
       ${row('평균 매입가', num('boxhero_purchase_price', '원'))}
       ${prioSubRow(v('price_source_priority') || 'template')}
-      ${row('매입가 하한', num('guardrail_lower', '원'))}
-      ${row('매입가 상한', num('guardrail_upper', '원'))}
+      <div style="border:1px solid #E5E8EB;border-radius:12px;padding:14px 16px;margin-top:12px">
+        <div style="font-size:12.5px;font-weight:700;margin-bottom:10px">🔒 안전선 <span style="font-weight:400;color:#8B95A1;font-size:11.5px">— 이 범위를 벗어난 원가면 표시로 알려줘요</span></div>
+        ${row('매입가 하한', num('guardrail_lower', '원'))}
+        ${row('매입가 상한', num('guardrail_upper', '원'))}
+      </div>
     </div>
-    <div class="ptm-panel" data-panel="ss" style="display:none">
-      ${market('ss')}
+    <div class="ptm-panel" data-panel="margin" style="display:none">
+      ${marginCard('ss')}
+      ${marginCard('coupang')}
+      <div style="font-size:12px;color:#8B95A1;margin-top:2px">💡 수수료는 마켓별로 자동 적용돼요. 배송·반품·교환·정상가는 「고급」에 있어요.</div>
+    </div>
+    <div class="ptm-panel" data-panel="adv" style="display:none">
       ${policyBlock(v('pricing_policy') || 'cheapest')}
-    </div>
-    <div class="ptm-panel" data-panel="cp" style="display:none">
-      ${market('coupang', row('위너 프리미엄가', num('winner_premium_price', '원')))}
+      <div style="height:8px"></div>
+      <div style="font-size:12.5px;font-weight:700;color:#3182F6;margin:8px 0 10px">🚚 마켓별 부대비용</div>
+      ${advMarket('ss')}
+      ${advMarket('coupang', row('위너 프리미엄가', num('winner_premium_price', '원')))}
     </div>`;
 
   const box = _modalBox(
@@ -1479,16 +1534,16 @@ async function openPriceTplModal(id, initialTab) {
   const activateTab = (name) => {
     tabs.forEach(t => {
       const on = t.dataset.tab === name;
-      t.style.color = on ? '#3182F6' : '#8B95A1';
-      t.style.fontWeight = on ? '700' : '500';
       t.style.borderBottomColor = on ? '#3182F6' : 'transparent';
+      const tl = t.querySelector('.t');
+      if (tl) { tl.style.color = on ? '#3182F6' : '#8B95A1'; tl.style.fontWeight = on ? '700' : '600'; }
     });
     panels.forEach(p => { p.style.display = p.dataset.panel === name ? '' : 'none'; });
   };
   tabs.forEach(t => t.addEventListener('click', () => activateTab(t.dataset.tab)));
-  // [2026-05-25] 호출자가 initialTab 전달 시 해당 탭 활성 (예: 마켓 행 "수정" → 'ss'/'cp')
-  const validTabs = ['basic', 'ss', 'cp'];
-  activateTab(validTabs.includes(initialTab) ? initialTab : 'basic');
+  // 호출자 initialTab 매핑 (구 basic→원가 / ss·cp→마진)
+  const _tabMap = { basic: 'cost', cost: 'cost', ss: 'margin', cp: 'margin', margin: 'margin', adv: 'adv' };
+  activateTab(_tabMap[initialTab] || 'cost');
 
   // 배송타입 라디오 ↔ 배송비 입력 연동 (무료배송 = 배송비 0)
   ['ss', 'coupang'].forEach(prefix => {
@@ -1712,6 +1767,99 @@ async function openPriceTplModal(id, initialTab) {
     });
   });
 
+  // ── [2026-07-15] 라이브 미리보기 (판매가·남는 돈) — 백엔드 compute_sale_price_unified 와 동일식 ──
+  const _roundUnit = (val, unit) => {
+    // 백엔드 round_to_unit 와 동일 — 버림(floor). (2026-07-02 규칙: 백원 이하 버림)
+    unit = +unit || 100;
+    if (unit <= 0) return val;
+    return Math.floor(val / unit) * unit;
+  };
+  const _calcSale = (purchase, mode, rate, amount, fixed, fee, ship, unit) => {
+    purchase = Math.trunc(+purchase || 0); fee = +fee || 0; ship = Math.trunc(+ship || 0); unit = +unit || 100;
+    mode = (mode || 'rate').toLowerCase(); amount = Math.trunc(+amount || 0); fixed = Math.trunc(+fixed || 0);
+    if (mode === 'fixed' && fixed <= 0) mode = 'rate';
+    if (mode === 'fixed') { const sell = fixed; return { sell, keep: Math.round(sell * (1 - fee)) - purchase }; }
+    if (purchase <= 0) return { sell: 0, keep: 0 };
+    if (mode === 'amount') {
+      const denom = (1 - fee) || 1e-9;
+      const sell = _roundUnit(Math.round((purchase + amount) / denom + ship), unit);
+      return { sell, keep: amount };   // 마진금액 = 수수료 뒤 목표 실수령 (사용자 입력값 그대로)
+    }
+    const sell = _roundUnit(Math.round(purchase * (1 + rate) * (1 + fee) + ship), unit);
+    return { sell, keep: Math.round(sell * (1 - fee)) - purchase };
+  };
+  const _readSide = (prefix, side) => {
+    const hid = box.querySelector(`input[data-mode-hidden="${prefix}-${side}"]`);
+    const mode = (hid && hid.value) || 'rate';
+    const fixedKey = side === 'sourcing' ? `${prefix}_external_sale_price` : `${prefix}_boxhero_sale_price`;
+    let rate = 0, amount = 0, fixed = 0;
+    if (mode === 'rate') { const e = box.querySelector(`input[data-key="${prefix}_rate_${side}"]`); rate = (parseFloat(e && e.value) || 0) / 100; }
+    else if (mode === 'amount') { const e = box.querySelector(`input[data-key="${prefix}_amount_${side}"]`); amount = parseFloat(e && e.value) || 0; }
+    else { const e = box.querySelector(`input[data-key="${fixedKey}"]`); fixed = parseFloat(e && e.value) || 0; }
+    return { mode, rate, amount, fixed };
+  };
+  const _fmt = (n) => (n || n === 0) ? Number(n).toLocaleString() : '–';
+  const recompute = () => {
+    const ppEl = box.querySelector('input[data-key="boxhero_purchase_price"]');
+    const purchase = parseFloat(ppEl && ppEl.value) || 0;
+    const unitEl = box.querySelector('input[data-key="rounding_unit"]');
+    const unit = parseFloat(unitEl && unitEl.value) || 100;
+    ['ss', 'coupang'].forEach(prefix => {
+      const feeEl = box.querySelector(`input[data-key="${prefix}_fee_rate"]`);
+      const fee = (parseFloat(feeEl && feeEl.value) || 0) / 100;
+      const shipEl = box.querySelector(`input[data-key="${prefix}_delivery_fee"]`);
+      const ship = parseFloat(shipEl && shipEl.value) || 0;
+      const badge = box.querySelector(`.ptm-fee-badge[data-prefix="${prefix}"]`);
+      if (badge) badge.textContent = `수수료 ${Math.round(fee * 10000) / 100}%`;
+      ['sourcing', 'purchase'].forEach(side => {
+        const s = _readSide(prefix, side);
+        const r = _calcSale(purchase, s.mode, s.rate, s.amount, s.fixed, fee, ship, unit);
+        const resEl = box.querySelector(`.ptm-res[data-prefix="${prefix}"][data-side="${side}"]`);
+        if (!resEl) return;
+        const sellEl = resEl.querySelector('.ptm-sell'), keepEl = resEl.querySelector('.ptm-keep');
+        if (r.sell > 0) {
+          sellEl.textContent = _fmt(r.sell) + '원';
+          keepEl.textContent = _fmt(r.keep) + '원';
+          keepEl.style.color = r.keep < 0 ? '#F04452' : '#12B886';
+        } else { sellEl.textContent = '원가 필요'; keepEl.textContent = '–'; }
+      });
+    });
+  };
+  // 합침 토글 (소싱·사입 다르게)
+  box.querySelectorAll('.ptm-uni-toggle').forEach(tg => {
+    tg.addEventListener('click', () => {
+      const prefix = tg.dataset.prefix;
+      const card = box.querySelector(`.ptm-mcard[data-prefix="${prefix}"]`);
+      const next = card.dataset.unified === '1';   // 현재 합침이면 → 다르게(펼침)
+      card.dataset.unified = next ? '0' : '1';
+      const splitOn = next;   // true = 다르게 펼침
+      const wrap = box.querySelector(`.ptm-purchase-wrap[data-prefix="${prefix}"]`);
+      const note = box.querySelector(`.ptm-uni-note[data-prefix="${prefix}"]`);
+      if (wrap) wrap.style.display = splitOn ? 'block' : 'none';
+      if (note) note.style.display = splitOn ? 'none' : 'block';
+      const sw = tg.querySelector('.ptm-uni-sw'), knob = sw && sw.firstElementChild;
+      if (sw) sw.style.background = splitOn ? '#3182F6' : '#CDD3D8';
+      if (knob) knob.style.left = splitOn ? '18px' : '2px';
+      tg.style.color = splitOn ? '#3182F6' : '#8B95A1';
+      tg.style.fontWeight = splitOn ? '600' : '400';
+      const srcTag = box.querySelector(`.ptm-side[data-prefix="${prefix}"][data-side="sourcing"] .ptm-side-tag`);
+      if (srcTag) srcTag.textContent = splitOn ? '소싱처' : '마진';
+      recompute();
+    });
+  });
+  // 초기: 합침 상태면 소싱 카드 태그를 '마진'으로
+  ['ss', 'coupang'].forEach(prefix => {
+    const card = box.querySelector(`.ptm-mcard[data-prefix="${prefix}"]`);
+    if (card && card.dataset.unified === '1') {
+      const srcTag = box.querySelector(`.ptm-side[data-prefix="${prefix}"][data-side="sourcing"] .ptm-side-tag`);
+      if (srcTag) srcTag.textContent = '마진';
+    }
+  });
+  box.addEventListener('input', recompute);
+  box.addEventListener('change', recompute);
+  box.querySelectorAll('.ptm-modecard').forEach(c => c.addEventListener('click', () => setTimeout(recompute, 0)));
+  recompute();
+
   box.querySelector('#ptm-cancel').addEventListener('click', () => bg.remove());
   box.querySelector('#ptm-save').addEventListener('click', async () => {
     const payload = id ? { id: parseInt(id) } : {};
@@ -1726,9 +1874,19 @@ async function openPriceTplModal(id, initialTab) {
       }
       payload[k] = parsed;
     });
+    // 합침(소싱·사입 같게) 마켓 → 소싱 값을 사입에 복사
+    ['ss', 'coupang'].forEach(prefix => {
+      const card = box.querySelector(`.ptm-mcard[data-prefix="${prefix}"]`);
+      if (!card || card.dataset.unified !== '1') return;
+      const cp = (from, to) => { if (payload[from] !== undefined) payload[to] = payload[from]; };
+      cp(`${prefix}_mode_sourcing`, `${prefix}_mode_purchase`);
+      cp(`${prefix}_rate_sourcing`, `${prefix}_rate_purchase`);
+      cp(`${prefix}_amount_sourcing`, `${prefix}_amount_purchase`);
+      cp(`${prefix}_external_sale_price`, `${prefix}_boxhero_sale_price`);
+    });
     if (!payload.name || !String(payload.name).trim()) {
       alert('템플릿명을 입력하세요.');
-      activateTab('basic');
+      activateTab('cost');
       return;
     }
     const res = await apiPost('/api/templates/price', payload);
