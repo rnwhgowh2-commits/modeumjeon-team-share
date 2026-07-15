@@ -743,7 +743,8 @@ def _probe_lo_calc2():
     from shared.platforms.lotteon.orders import iter_delivery_orders
     F = ["odNo", "odSeq", "procSeq", "odQty", "slPrc", "slAmt", "dvCst", "adtnDvCst",
          "prEntpShrAmtSum", "prSfcoShrAmtSum", "fvrAmtSum", "sptDcPgmCmsnSum",
-         "actualAmt", "ctrtTypCd", "odSlTypCd", "odTypCd", "odTypDtlCd", "spdNo", "sitmNo"]
+         "actualAmt", "ctrtTypCd", "odSlTypCd", "odTypCd", "odTypDtlCd", "spdNo", "sitmNo",
+         "chNo", "chDtlNo", "odCstTypCd", "imptDvsCd", "dvRsvDvsCd", "odTypDtlCd"]
     rows, errors = [], []
     for prefix, name in _active_accounts("lotteon"):
         cli = _account_client("lotteon", prefix)
