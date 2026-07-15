@@ -725,3 +725,38 @@ def _probe_lo_fields2():
             r["benefit_err"] = str(e)[:200]
         results.append(r)
     return jsonify({"results": results})
+
+
+# ── [임시 진단] 엑셀 주문의 209 원성분 통째 반환 — 오프라인 오차0 매핑용 ──
+@bp.route("/_probe_lo_calc2", methods=["POST"])
+def _probe_lo_calc2():
+    """body {since, until, orders:[...]}. 전 계정 209 순회, 요청 주문번호의 정산 성분
+    원필드를 그대로 반환(오프라인 대조·매핑 확정용). 확인 후 제거."""
+    body = request.get_json(silent=True) or {}
+    try:
+        since = _dt.datetime.fromisoformat(body["since"])
+        until = _dt.datetime.fromisoformat(body["until"])
+    except Exception:
+        return jsonify({"error": "since/until 필요"}), 400
+    want = set(str(o) for o in (body.get("orders") or []))
+    from lemouton.markets.order_export import _account_client, _active_accounts
+    from shared.platforms.lotteon.orders import iter_delivery_orders
+    F = ["odNo", "odSeq", "procSeq", "odQty", "slPrc", "slAmt", "dvCst", "adtnDvCst",
+         "prEntpShrAmtSum", "prSfcoShrAmtSum", "fvrAmtSum", "sptDcPgmCmsnSum",
+         "actualAmt", "ctrtTypCd", "odSlTypCd", "odTypCd", "odTypDtlCd", "spdNo", "sitmNo"]
+    rows, errors = [], []
+    for prefix, name in _active_accounts("lotteon"):
+        cli = _account_client("lotteon", prefix)
+        if cli is None:
+            continue
+        try:
+            for od in iter_delivery_orders(since, until, if_cpl_yn="", client=cli):
+                odno = str(od.get("odNo") or "")
+                if want and odno not in want:
+                    continue
+                rec = {f: od.get(f) for f in F}
+                rec["acct"] = name
+                rows.append(rec)
+        except Exception as e:  # noqa: BLE001
+            errors.append({"acct": name, "err": str(e)[:200]})
+    return jsonify({"rows": rows, "errors": errors})
