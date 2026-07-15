@@ -70,6 +70,14 @@ class PriceTemplate(Base):
     # 'color'    — 같은 색상은 동일 판매가 (소싱처 MAX 기준) → 역마진 방지 + SEO 유리
     pricing_policy = Column(String(16), default='cheapest', nullable=False)
 
+    # [2026-07-15] 마켓별 색상 통일 — 스스/쿠팡 각각. 'color'=켜짐 / 'cheapest'=꺼짐(기본).
+    #   레거시 pricing_policy(전역)는 백워드 호환용으로만 남김. 실제 적용은 아래 마켓별 값 우선.
+    #   unify_rule: 'max'(가장 비싼 사이즈 기준·손해 방지) | 'src_cheapest'(최저가·마진 최대)
+    ss_pricing_policy = Column(String(16), default='cheapest', nullable=False)
+    ss_unify_rule = Column(String(16), default='max', nullable=False)
+    coupang_pricing_policy = Column(String(16), default='cheapest', nullable=False)
+    coupang_unify_rule = Column(String(16), default='max', nullable=False)
+
     # [2026-05-25] 매입가 산정 우선순위 (사입 카드 0원 차단 — V5 시안)
     # 'template' (기본) — 템플릿 boxhero_purchase_price 우선 → 0이면 옵션 평균매입가 폴백
     # 'avg'              — 옵션 boxhero_avg_purchase_price 우선 → 0이면 템플릿값 폴백

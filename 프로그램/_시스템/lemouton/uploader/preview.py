@@ -171,6 +171,12 @@ def build_upload_preview(s: Session, code: str) -> dict:
             'ss_ready': ss_ok, 'cp_ready': cp_ok,
         })
 
+    # [2026-07-15] 마켓별 색상 통일 — 최종 업로드가를 같은 색끼리 하나로 (정책 'color' 인 마켓만).
+    #   기본 'cheapest' 면 no-op → 회귀 없음. 업로드가(rows[].ss_price/cp_price)에만 적용해
+    #   화면(옵션 트리 카드) 대비 어긋남 없이 '실제 나가는 값'을 통일한다.
+    from lemouton.pricing.color_unify import apply_color_unify
+    apply_color_unify(rows, tpl)
+
     total = len(opts)
     missing = []
     if ss_active and not ss_pid:

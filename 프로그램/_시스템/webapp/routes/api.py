@@ -1477,6 +1477,9 @@ def upsert_price_template():
                   'guardrail_lower', 'guardrail_upper', 'rounding_unit',
                   # [2026-05-25] 판매가 정책 ('color' / 'cheapest')
                   'pricing_policy',
+                  # [2026-07-15] 마켓별 색상 통일 (스스/쿠팡) + 통일 규칙
+                  'ss_pricing_policy', 'ss_unify_rule',
+                  'coupang_pricing_policy', 'coupang_unify_rule',
                   # [2026-05-25 V5] 매입가 산정 우선순위 ('template' / 'avg')
                   'price_source_priority',
                   'ss_normal_price', 'ss_boxhero_sale_price', 'ss_external_sale_price',

@@ -166,6 +166,11 @@ def _apply_lightweight_migrations() -> None:
         ("bundle_source_urls", "url_type", "VARCHAR(16) DEFAULT '단품' NOT NULL"),
         # 2026-05-25: 판매가 정책 (색상 통일 / 옵션별 cheapest) — A2+D3 시안 적용
         ("price_templates", "pricing_policy", "VARCHAR(16) DEFAULT 'cheapest'"),
+        # 2026-07-15: 마켓별 색상 통일 (스스/쿠팡 각각) + 통일 규칙(max/src_cheapest)
+        ("price_templates", "ss_pricing_policy", "VARCHAR(16) DEFAULT 'cheapest'"),
+        ("price_templates", "ss_unify_rule", "VARCHAR(16) DEFAULT 'max'"),
+        ("price_templates", "coupang_pricing_policy", "VARCHAR(16) DEFAULT 'cheapest'"),
+        ("price_templates", "coupang_unify_rule", "VARCHAR(16) DEFAULT 'max'"),
         # 2026-05-25: 매입가 산정 우선순위 (V5 시안 — 사입 카드 0원 차단)
         ("price_templates", "price_source_priority", "VARCHAR(16) DEFAULT 'template'"),
         # 2026-05-25: 옵션별 지정가 (C1 시안 — 3번째 가격 카드)

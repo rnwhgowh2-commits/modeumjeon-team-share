@@ -1446,39 +1446,45 @@ async function openPriceTplModal(id, initialTab) {
   };
 
   // [2026-05-25] D3 시안 — 판매가 정책 토글 (색상 통일 / 옵션별 cheapest) + 르무통 케이스 ! 툴팁
-  const policyBlock = (curPolicy) => {
-    const isColor = curPolicy === 'color';
-    const sliderBg = isColor ? '#3182F6' : '#D1D6DB';
-    const knobX = isColor ? '23px' : '3px';
-    const pillBg = isColor ? '#3182F6' : '#E5E8EB';
-    const pillFg = isColor ? '#fff' : '#4E5968';
-    const pillTx = isColor ? '켜짐' : '꺼짐';
-    const statusTx = isColor ? '색상 통일' : '옵션별 cheapest (기본)';
+  // [2026-07-15] 마켓별 색상 통일 (design 4 — 토글 + 규칙 카드 택1). 스스/쿠팡 각각.
+  const policyMarketCard = (prefix, mkName, dotColor, letter) => {
+    const policyKey = prefix === 'ss' ? 'ss_pricing_policy' : 'coupang_pricing_policy';
+    const ruleKey   = prefix === 'ss' ? 'ss_unify_rule' : 'coupang_unify_rule';
+    const on   = (initial[policyKey] || 'cheapest') === 'color';
+    const rule = initial[ruleKey] || 'max';
+    const isMax = rule !== 'src_cheapest';
+    const dot = (sel) => sel ? '<span style="position:absolute;inset:3px;background:#3182F6;border-radius:50%;"></span>' : '';
+    const ruleCard = (r, title, desc, sel) => `
+      <div class="ptm-cu-rule" data-prefix="${prefix}" data-rule="${r}" style="border:${sel ? '2px solid #3182F6' : '1px solid #E5E8EB'};background:${sel ? '#E8F3FF' : '#fff'};border-radius:10px;padding:10px 12px;cursor:pointer;">
+        <div style="display:flex;align-items:center;gap:7px;font-size:12.5px;font-weight:700;color:${sel ? '#191F28' : '#6B7684'};">
+          <span class="ptm-cu-radio" style="width:14px;height:14px;border-radius:50%;border:1.5px solid ${sel ? '#3182F6' : '#CDD3D8'};position:relative;flex-shrink:0;display:inline-block;">${dot(sel)}</span>${title}</div>
+        <div style="font-size:11px;color:#8B95A1;margin-top:5px;line-height:1.5;">${desc}</div>
+      </div>`;
     return `
-    <div class="ptm-policy-block" style="margin-top:14px; padding-top:14px; border-top:1px dashed #E5E8EB;">
-      <div style="font-size:12.5px; color:#3182F6; font-weight:700; margin-bottom:10px; letter-spacing:.2px;">▦ 판매가 정책</div>
-      <div style="display:flex; align-items:flex-start; gap:14px; padding:14px 16px; background:#FAFBFC; border:1.5px solid #E5E8EB; border-radius:12px;">
-        <label id="ptm-policy-switch" style="position:relative; width:48px; height:28px; flex-shrink:0; cursor:pointer; margin-top:2px;">
-          <span class="ptm-policy-slider" style="position:absolute; inset:0; background:${sliderBg}; border-radius:28px; transition:.2s;">
-            <span class="ptm-policy-knob" style="position:absolute; height:22px; width:22px; left:${knobX}; top:3px; background:#fff; border-radius:50%; transition:.2s; box-shadow:0 2px 6px rgba(0,0,0,.2);"></span>
-          </span>
-        </label>
-        <div style="flex:1; min-width:0;">
-          <div style="display:flex; align-items:center; gap:7px; font-size:15px; font-weight:700; color:#191F28; letter-spacing:-.2px;">
-            색상 통일 모드
-            <span class="ptm-policy-info" style="position:relative; display:inline-flex; width:18px; height:18px; align-items:center; justify-content:center; border-radius:50%; background:#3182F6; color:#fff; font-size:11px; font-weight:800; cursor:help; font-family:inherit; font-style:normal; user-select:none; line-height:1;">!</span>
-          </div>
-          <div style="font-size:13px; color:#6B7684; margin-top:3px; line-height:1.55;">
-            같은 색상은 같은 가격으로 통일해요.<br>비싼 소싱처 기준이라 손해 볼 일이 없어요.
-          </div>
-          <div style="font-size:12px; color:#8B95A1; margin-top:6px;">
-            현재 <span class="ptm-policy-pill" style="display:inline-block; padding:2px 8px; background:${pillBg}; color:${pillFg}; border-radius:5px; font-weight:700; font-size:11px;">${pillTx}</span> · <span class="ptm-policy-status">${statusTx}</span>
-          </div>
-        </div>
+    <div class="ptm-cu-card" data-prefix="${prefix}" style="border:1px solid #E5E8EB;border-radius:12px;padding:13px 15px;margin-bottom:10px;">
+      <div style="display:flex;align-items:center;gap:10px;">
+        <span style="display:inline-flex;align-items:center;gap:8px;font-weight:700;font-size:13.5px;"><span style="width:20px;height:20px;border-radius:5px;background:${dotColor};color:#fff;display:flex;align-items:center;justify-content:center;font-size:11px;">${letter}</span>${mkName}</span>
+        <span class="ptm-cu-pill" data-prefix="${prefix}" style="margin-left:auto;font-size:11px;font-weight:700;padding:2px 8px;border-radius:5px;background:${on ? '#3182F6' : '#E5E8EB'};color:${on ? '#fff' : '#4E5968'};">${on ? '켜짐' : '꺼짐'}</span>
+        <span class="ptm-cu-sw" data-prefix="${prefix}" style="width:40px;height:23px;border-radius:23px;position:relative;flex-shrink:0;cursor:pointer;background:${on ? '#3182F6' : '#CDD3D8'};display:inline-block;">
+          <span style="position:absolute;top:3px;left:${on ? '20px' : '3px'};width:17px;height:17px;background:#fff;border-radius:50%;box-shadow:0 1px 3px rgba(0,0,0,.25);transition:.15s;"></span>
+        </span>
       </div>
-      <input type="hidden" data-key="pricing_policy" id="ptm-policy-hidden" value="${curPolicy}">
+      <div class="ptm-cu-rules" data-prefix="${prefix}" style="display:${on ? 'grid' : 'none'};grid-template-columns:1fr 1fr;gap:9px;margin-top:12px;border-top:1px dashed #E5E8EB;padding-top:12px;">
+        ${ruleCard('max', '가장 비싼 사이즈', '그 색 최고가로 통일 · 원가보다 싸게 팔 일 없음(손해 방지)', isMax)}
+        ${ruleCard('src_cheapest', '최저가 소싱처', '그 색 최저가로 통일 · 마진 최대', !isMax)}
+      </div>
+      <input type="hidden" data-key="${policyKey}" class="ptm-cu-policy" data-prefix="${prefix}" value="${on ? 'color' : 'cheapest'}">
+      <input type="hidden" data-key="${ruleKey}" class="ptm-cu-rulehidden" data-prefix="${prefix}" value="${rule}">
     </div>`;
   };
+  const policyBlock = () => `
+    <div class="ptm-policy-block" style="margin-top:14px; padding-top:14px; border-top:1px dashed #E5E8EB;">
+      <div style="display:flex;align-items:center;gap:7px;font-size:12.5px; color:#3182F6; font-weight:700; margin-bottom:4px;">▦ 색상 통일 모드
+        <span class="ptm-policy-info" style="display:inline-flex; width:17px; height:17px; align-items:center; justify-content:center; border-radius:50%; background:#3182F6; color:#fff; font-size:10px; font-weight:800; cursor:help; font-style:normal;">!</span></div>
+      <div style="font-size:12px;color:#8B95A1;margin-bottom:11px;line-height:1.55;">같은 색은 같은 가격으로 통일해요(스스에서 사이즈별 가격이 달라 경고 나는 걸 막음). 마켓마다 켜고, 켜면 기준을 고르세요.</div>
+      ${policyMarketCard('ss', '스마트스토어', '#03C75A', 'N')}
+      ${policyMarketCard('coupang', '쿠팡', '#F53C3C', 'C')}
+    </div>`;
   const tabBtn = (key, label) => `
     <button type="button" class="ptm-tab" data-tab="${key}"
             style="padding:8px 16px;background:none;border:none;border-bottom:2px solid transparent;font-size:14px;color:#8B95A1;font-weight:500;cursor:pointer">${label}</button>`;
@@ -1511,7 +1517,7 @@ async function openPriceTplModal(id, initialTab) {
       <div style="font-size:12px;color:#8B95A1;margin-top:2px">💡 수수료는 마켓별로 자동 적용돼요. 배송·반품·교환·정상가는 「고급」에 있어요.</div>
     </div>
     <div class="ptm-panel" data-panel="adv" style="display:none">
-      ${policyBlock(v('pricing_policy') || 'cheapest')}
+      ${policyBlock()}
       <div style="height:8px"></div>
       <div style="font-size:12.5px;font-weight:700;color:#3182F6;margin:8px 0 10px">🚚 마켓별 부대비용</div>
       ${advMarket('ss')}
@@ -1563,29 +1569,36 @@ async function openPriceTplModal(id, initialTab) {
     });
   });
 
-  // [2026-05-25] D3 — 정책 토글 스위치 (색상 통일 ↔ 옵션별 cheapest)
-  const policySwitch = box.querySelector('#ptm-policy-switch');
-  const policyHidden = box.querySelector('#ptm-policy-hidden');
-  if (policySwitch && policyHidden) {
-    policySwitch.addEventListener('click', () => {
-      const cur = policyHidden.value === 'color' ? 'color' : 'cheapest';
-      const next = cur === 'color' ? 'cheapest' : 'color';
-      policyHidden.value = next;
-      const isColor = next === 'color';
-      const slider = policySwitch.querySelector('.ptm-policy-slider');
-      const knob   = policySwitch.querySelector('.ptm-policy-knob');
-      if (slider) slider.style.background = isColor ? '#3182F6' : '#D1D6DB';
-      if (knob)   knob.style.left = isColor ? '23px' : '3px';
-      const pill = box.querySelector('.ptm-policy-pill');
-      if (pill) {
-        pill.textContent = isColor ? '켜짐' : '꺼짐';
-        pill.style.background = isColor ? '#3182F6' : '#E5E8EB';
-        pill.style.color = isColor ? '#fff' : '#4E5968';
-      }
-      const status = box.querySelector('.ptm-policy-status');
-      if (status) status.textContent = isColor ? '색상 통일' : '옵션별 cheapest (기본)';
+  // [2026-07-15] 마켓별 색상 통일 — 토글 + 규칙 카드 택1
+  box.querySelectorAll('.ptm-cu-sw').forEach(sw => {
+    sw.addEventListener('click', () => {
+      const prefix = sw.dataset.prefix;
+      const hidden = box.querySelector(`.ptm-cu-policy[data-prefix="${prefix}"]`);
+      const on = hidden.value !== 'color';   // 토글
+      hidden.value = on ? 'color' : 'cheapest';
+      sw.style.background = on ? '#3182F6' : '#CDD3D8';
+      const knob = sw.firstElementChild;
+      if (knob) knob.style.left = on ? '20px' : '3px';
+      const pill = box.querySelector(`.ptm-cu-pill[data-prefix="${prefix}"]`);
+      if (pill) { pill.textContent = on ? '켜짐' : '꺼짐'; pill.style.background = on ? '#3182F6' : '#E5E8EB'; pill.style.color = on ? '#fff' : '#4E5968'; }
+      const rules = box.querySelector(`.ptm-cu-rules[data-prefix="${prefix}"]`);
+      if (rules) rules.style.display = on ? 'grid' : 'none';
     });
-  }
+  });
+  box.querySelectorAll('.ptm-cu-rule').forEach(card => {
+    card.addEventListener('click', () => {
+      const prefix = card.dataset.prefix, rule = card.dataset.rule;
+      box.querySelector(`.ptm-cu-rulehidden[data-prefix="${prefix}"]`).value = rule;
+      box.querySelectorAll(`.ptm-cu-rule[data-prefix="${prefix}"]`).forEach(c => {
+        const on = c.dataset.rule === rule;
+        c.style.border = on ? '2px solid #3182F6' : '1px solid #E5E8EB';
+        c.style.background = on ? '#E8F3FF' : '#fff';
+        c.querySelector('div').style.color = on ? '#191F28' : '#6B7684';
+        const radio = c.querySelector('.ptm-cu-radio');
+        if (radio) { radio.style.border = `1.5px solid ${on ? '#3182F6' : '#CDD3D8'}`; radio.innerHTML = on ? '<span style="position:absolute;inset:3px;background:#3182F6;border-radius:50%;"></span>' : ''; }
+      });
+    });
+  });
   // [2026-06-02] 매입가 우선순위 토글 (template / avg) — 선택 시 설명도 교체
   const prioHidden = box.querySelector('#ptm-prio-hidden');
   const prioBtns = box.querySelectorAll('.ptm-prio-opt');
