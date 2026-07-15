@@ -33,10 +33,13 @@
     .o7 .mkchip{cursor:pointer;user-select:none;transition:border-color .1s,box-shadow .1s;}
     .o7 .mkchip:hover{border-color:var(--blue);}
     .o7 .mkchip.on{border-color:var(--blue);box-shadow:0 0 0 2px var(--blue) inset;background:#EEF4FF;}
-    /* 계정 칩 줄 — 마켓을 고르면 그 마켓 계정만 펼쳐짐(2단 좁히기) */
-    .o7 .acctline{display:none;flex-wrap:wrap;gap:6px;align-items:center;margin-top:8px;padding:8px 10px;background:#fff;border:1px dashed var(--line2);border-radius:10px;}
-    .o7 .acctline.on{display:flex;}
-    .o7 .acctline .lbl{font-size:11.5px;color:var(--sub);font-weight:800;margin-right:2px;}
+    /* 계정 칩 줄 — 고른 마켓마다 계정 그룹을 한 줄씩(다중선택·마켓별 묶음) */
+    .o7 .acctline{display:none;margin-top:8px;}
+    .o7 .acctline.on{display:block;}
+    .o7 .acctgrp{display:flex;flex-wrap:wrap;gap:6px;align-items:center;padding:8px 10px;background:#fff;border:1px dashed var(--line2);border-radius:10px;margin-bottom:8px;}
+    .o7 .acctgrp:last-child{margin-bottom:0;}
+    .o7 .acctline .lbl{font-size:11.5px;color:var(--sub);font-weight:800;margin-right:2px;display:inline-flex;align-items:center;gap:5px;}
+    .o7 .acctline .lbl .mk{font-size:10.5px;}
     .o7 .acchip{cursor:pointer;user-select:none;background:#fff;border:1px solid var(--line2);border-radius:16px;padding:3px 10px;font-size:11.5px;}
     .o7 .acchip:hover{border-color:var(--blue);}
     .o7 .acchip.on{border-color:var(--blue);background:#EEF4FF;color:var(--blue);font-weight:800;}
@@ -232,6 +235,37 @@
     .o7 #dmbars .dk{height:6px;background:var(--line);border-radius:99px;overflow:hidden;}
     .o7 #dmbars .dk span{display:block;height:6px;border-radius:99px;}
     .o7 .bd.red{background:#FEE2E2;color:var(--red);} .o7 .bd.green{background:#E7F6EC;color:var(--green);}
+    /* ⚡ 자동전환 탭(E안) — 헤더 + 마켓·계정 스위치 표 */
+    .o7 .ovt.auto.on{color:var(--green);border-bottom-color:var(--green);}
+    .o7 .ac-head{display:flex;align-items:center;gap:12px;background:#F3FBF4;border:1px solid #C7E9CE;border-radius:12px;padding:12px 15px;margin-bottom:12px;flex-wrap:wrap;}
+    .o7 .ac-title{font-weight:800;font-size:14px;color:var(--green);white-space:nowrap;}
+    .o7 .ac-sub{font-size:12px;color:var(--sub);}
+    .o7 .ac-live{font-size:10.5px;font-weight:800;border-radius:20px;padding:2px 9px;background:#F1F3F5;color:#8B95A1;}
+    .o7 .ac-live.on{background:#E7F6EC;color:var(--green);}
+    .o7 .ac-master{margin-left:auto;display:inline-flex;align-items:center;gap:8px;font-size:12.5px;font-weight:800;}
+    .o7 table.ac-table{width:100%;border-collapse:collapse;font-size:12.5px;background:#fff;border:1px solid var(--line2);border-radius:12px;overflow:hidden;}
+    .o7 table.ac-table th{background:#F7F9FB;padding:9px 11px;font-size:11px;font-weight:800;color:var(--sub);text-align:left;border-bottom:1px solid var(--line2);white-space:nowrap;}
+    .o7 table.ac-table td{padding:8px 11px;border-bottom:1px solid var(--line);white-space:nowrap;}
+    .o7 table.ac-table tr:last-child td{border-bottom:none;}
+    .o7 table.ac-table td.num,.o7 table.ac-table th.num{text-align:right;font-variant-numeric:tabular-nums;}
+    .o7 table.ac-table td.ctr,.o7 table.ac-table th.ctr{text-align:center;}
+    .o7 table.ac-table tr.ac-mrow td{background:#F7F9FB;}
+    .o7 table.ac-table .ac-all{font-size:10.5px;color:var(--sub);font-weight:700;}
+    .o7 table.ac-table .ac-last{font-size:11px;color:var(--sub);font-variant-numeric:tabular-nums;}
+    .o7 .muted{color:var(--faint);}
+    /* 토글 스위치 (초록=자동전환 켜짐) */
+    .o7 .sw{position:relative;display:inline-block;width:38px;height:22px;flex:none;vertical-align:middle;}
+    .o7 .sw input{opacity:0;width:0;height:0;position:absolute;margin:0;}
+    .o7 .sw .tk{position:absolute;inset:0;background:#D1D6DB;border-radius:99px;transition:.15s;cursor:pointer;}
+    .o7 .sw .tk::before{content:"";position:absolute;width:16px;height:16px;left:3px;top:3px;background:#fff;border-radius:50%;transition:.15s;box-shadow:0 1px 3px rgba(0,0,0,.25);}
+    .o7 .sw input:checked + .tk{background:var(--green);}
+    .o7 .sw input:checked + .tk::before{transform:translateX(16px);}
+    .o7 .sw input:indeterminate + .tk{background:#9DC9A8;}
+    .o7 .sw input:indeterminate + .tk::before{transform:translateX(8px);}
+    .o7 .sw.sm{width:32px;height:19px;}
+    .o7 .sw.sm .tk::before{width:13px;height:13px;}
+    .o7 .sw.sm input:checked + .tk::before{transform:translateX(13px);}
+    .o7 .sw.sm input:indeterminate + .tk::before{transform:translateX(6px);}
   </style>
   <div class="o7">
     <aside class="side">
@@ -285,6 +319,7 @@
       <div class="oview-tabs" id="oviewTabs">
         <button type="button" class="ovt on" data-v="mkt">📋 전체 주문</button>
         <button type="button" class="ovt" data-v="check">🚚 배송검사 <span id="ovtCheckN"></span></button>
+        <button type="button" class="ovt auto" data-v="auto">⚡ 자동전환 <span id="ovtAutoN" style="color:var(--green)"></span></button>
       </div>
       <div id="mktView">
       <div class="kpis" id="kpis"></div>
@@ -311,6 +346,10 @@
         </div>
         <div id="checkSections"><div class="state">더망고를 업로드하면 검사 결과가 나옵니다.</div></div>
         <div id="chkPop" class="chk-pop"></div>
+      </div>
+      <div id="autoView" style="display:none">
+        <div style="font-size:11.5px;color:var(--sub);margin:2px 0 10px">⚡ 「결제완료」 주문을 <b>자동으로</b> 「배송준비중」으로 넘깁니다. 마켓·계정별로 켜고 끄세요. 안전을 위해 실제 전환은 기본 꺼짐 — 지금은 <b>몇 건 넘어갈지 미리보기</b>까지 됩니다.</div>
+        <div id="autoBody"><div class="state">불러오는 중…</div></div>
       </div>
     </main>
   </div>
@@ -472,37 +511,41 @@
       var amt=fr.reduce(function(a,r){return a+num(r['단가']);},0);
       document.getElementById('kpis').innerHTML=
        kpi('주문',fr.length+'<small>건</small>')+kpi('발송대기',wait+'<small>건</small>')+kpi('주문금액',(amt/10000).toFixed(0)+'<small>만</small>')+kpi('정산예정',(settle/10000).toFixed(0)+'<small>만</small>');
-      // 마켓별 칩 — 전체 rows 기준(항상 모든 마켓 보이게, 마켓 전환 가능). 클릭 시 그 마켓만 필터.
+      // 마켓별 칩 — 전체 rows 기준. 여러 개 동시 선택(다시 누르면 제외). 고른 것만 파랗게.
       var by={};rows.forEach(function(r){if(r['판매처'])by[r['판매처']]=(by[r['판매처']]||0)+1;});
-      var loadedMks=Object.keys(by);
-      // 마켓 칩을 눌러 걸었거나, 애초에 한 마켓만 불러왔으면 그 마켓을 활성 처리 → 계정 칩 노출.
-      var actMk=curMarketFilter()||(loadedMks.length===1?loadedMks[0]:null);
       document.getElementById('mkline').innerHTML=Object.keys(by).map(function(m){
-        return '<span class="mkbox mkchip'+(actMk===m?' on':'')+'" data-mk="'+esc(m)+'"><span class="mk '+(MKCLS[m]||'gray')+'">'+m+'</span> <b>'+by[m]+'</b>건</span>';
+        return '<span class="mkbox mkchip'+(isMarketOn(m)?' on':'')+'" data-mk="'+esc(m)+'"><span class="mk '+(MKCLS[m]||'gray')+'">'+m+'</span> <b>'+by[m]+'</b>건</span>';
       }).join('');
       [].slice.call(document.querySelectorAll('#mkline .mkchip')).forEach(function(el){
         el.addEventListener('click',function(){toggleMarket(el.getAttribute('data-mk'));});
       });
-      renderAcctChips(actMk);
+      renderAcctChips();
     }
-    // 계정 칩 — 마켓을 고른 상태에서만, 그 마켓의 계정만 펼침(계정 23개가 한 줄에 쏟아지지 않게)
-    function renderAcctChips(actMk){
+    // 계정 칩 — 명시적으로 고른 마켓마다 계정 그룹을 한 줄씩(마켓별 묶음·다중선택)
+    function renderAcctChips(){
       var al=document.getElementById('acctline');
-      var accs=actMk?allAccounts(actMk):[];
-      if(!actMk||accs.length<2){al.classList.remove('on');al.innerHTML='';return;}
-      var cnt={};rows.forEach(function(r){
-        if(r['판매처']===actMk&&r['쇼핑몰별칭'])cnt[r['쇼핑몰별칭']]=(cnt[r['쇼핑몰별칭']]||0)+1;});
-      var curA=curAcctFilter();
-      al.innerHTML='<span class="lbl">'+esc(actMk)+' 계정</span>'
-        +'<span class="acchip'+(curA?'':' on')+'" data-acct="">전체 <b>'+accs.length+'</b></span>'
-        +accs.map(function(a){
-            return '<span class="acchip'+(curA===a?' on':'')+'" data-acct="'+esc(a)+'" title="'+esc(a)+'">'
-              +esc(acctName(a))+' <b>'+(cnt[a]||0)+'</b></span>';}).join('');
+      var mks=selectedMarkets().filter(function(m){return allAccounts(m).length>=2;});
+      if(!mks.length){al.classList.remove('on');al.innerHTML='';return;}
+      al.innerHTML=mks.map(function(m){
+        var accs=allAccounts(m);
+        var cnt={};rows.forEach(function(r){if(r['판매처']===m&&r['쇼핑몰별칭'])cnt[r['쇼핑몰별칭']]=(cnt[r['쇼핑몰별칭']]||0)+1;});
+        var allOn=acctAllOn(m), sel=selectedAcctsIn(m);
+        return '<div class="acctgrp" data-mk="'+esc(m)+'">'
+          +'<span class="lbl"><span class="mk '+(MKCLS[m]||'gray')+'">'+esc(m)+'</span> 계정</span>'
+          +'<span class="acchip'+(allOn?' on':'')+'" data-acct="">전체 <b>'+accs.length+'</b></span>'
+          +accs.map(function(a){var on=!allOn&&sel.indexOf(a)>=0;
+            return '<span class="acchip'+(on?' on':'')+'" data-acct="'+esc(a)+'" title="'+esc(a)+'">'
+              +esc(acctName(a))+' <b>'+(cnt[a]||0)+'</b></span>';}).join('')
+          +'</div>';
+      }).join('');
       al.classList.add('on');
-      [].slice.call(al.querySelectorAll('.acchip')).forEach(function(el){
-        el.addEventListener('click',function(){
-          var a=el.getAttribute('data-acct');
-          if(!a){ delete colFilter['쇼핑몰별칭']; render(); } else { toggleAccount(a); }
+      [].slice.call(al.querySelectorAll('.acctgrp')).forEach(function(grp){
+        var m=grp.getAttribute('data-mk');
+        [].slice.call(grp.querySelectorAll('.acchip')).forEach(function(el){
+          el.addEventListener('click',function(){
+            var a=el.getAttribute('data-acct');
+            if(!a){ selectAllAccounts(m); } else { toggleAccount(m,a); }
+          });
         });
       });
     }
@@ -565,24 +608,34 @@
     function acctName(v){return String(v||'').replace(/\s*\((?:쿠팡|스마트스토어|스스|롯데온|11번가|옥션|G마켓|지마켓)\)\s*$/,'').trim();}
     function allAccounts(mk){var s={};rows.forEach(function(r){
       if(mk&&r['판매처']!==mk)return; if(r['쇼핑몰별칭'])s[r['쇼핑몰별칭']]=1;});return Object.keys(s);}
-    function curAcctFilter(){   // 계정이 하나만 보이게 걸려 있으면 그 계정, 아니면 null
-      var ex=colFilter['쇼핑몰별칭']&&colFilter['쇼핑몰별칭'].excluded; if(!ex||!ex.size)return null;
-      var vis=allAccounts(null).filter(function(a){return !ex.has(a);});
-      return vis.length===1?vis[0]:null;}
-    function toggleAccount(a){   // 계정 칩 클릭: 그 계정만 필터(다시 누르면 해제)
-      if(curAcctFilter()===a){ delete colFilter['쇼핑몰별칭']; }
-      else { colFilter['쇼핑몰별칭']={excluded:new Set(allAccounts(null).filter(function(x){return x!==a;}))}; }
-      render();}
+    // ── 계정 다중선택(마켓별 독립) ── 제외집합은 별칭 기준 전역. 마켓별로 그 마켓 계정만 다룬다.
+    function acctExcluded(){return (colFilter['쇼핑몰별칭']&&colFilter['쇼핑몰별칭'].excluded)||new Set();}
+    function applyAcctExcluded(ex){if(ex.size)colFilter['쇼핑몰별칭']={excluded:ex};else delete colFilter['쇼핑몰별칭'];}
+    function acctAllOn(m){var A=allAccounts(m),ex=acctExcluded();return A.length>0&&A.every(function(a){return !ex.has(a);});}
+    function selectedAcctsIn(m){var ex=acctExcluded();return allAccounts(m).filter(function(a){return !ex.has(a);});}
+    // '전체' 상태에서 첫 클릭 = 그 계정만 / 이후 = 토글 추가·제외. 다시 전부/전무면 그 마켓 계정 필터 해제.
+    function toggleAccount(m,a){
+      var A=allAccounts(m),ex=acctExcluded();
+      var sel=new Set(A.filter(function(x){return !ex.has(x);}));
+      if(sel.size===A.length){ sel=new Set([a]); }
+      else if(sel.has(a)){ sel.delete(a); } else { sel.add(a); }
+      A.forEach(function(x){ex.delete(x);});                 // 이 마켓 계정 제외 초기화 후 재설정
+      if(sel.size>0&&sel.size<A.length)A.forEach(function(x){if(!sel.has(x))ex.add(x);});
+      applyAcctExcluded(ex); render();}
+    function selectAllAccounts(m){var A=allAccounts(m),ex=acctExcluded();A.forEach(function(x){ex.delete(x);});applyAcctExcluded(ex);render();}
     function allMarkets(){var s={};rows.forEach(function(r){if(r['판매처'])s[r['판매처']]=1;});return Object.keys(s);}
-    function curMarketFilter(){   // 판매처가 단일 마켓만 보이게 걸려 있으면 그 마켓, 아니면 null
-      var ex=colFilter['판매처']&&colFilter['판매처'].excluded; if(!ex||!ex.size)return null;
-      var vis=allMarkets().filter(function(m){return !ex.has(m);});
-      return vis.length===1?vis[0]:null;
+    // ── 마켓 다중선택 ── 필터 없음 = 아무것도 명시 안 고름(전체 표시). 고르면 그 집합만.
+    function selectedMarkets(){
+      var ex=colFilter['판매처']&&colFilter['판매처'].excluded; if(!ex)return [];
+      return allMarkets().filter(function(m){return !ex.has(m);});
     }
-    function toggleMarket(m){   // 칩 클릭: 그 마켓만 필터(다시 누르면 해제)
-      delete colFilter['쇼핑몰별칭'];   // 마켓이 바뀌면 계정 필터는 초기화(마켓→계정 2단 흐름)
-      if(curMarketFilter()===m){ delete colFilter['판매처']; }
-      else { colFilter['판매처']={excluded:new Set(allMarkets().filter(function(x){return x!==m;}))}; }
+    function isMarketOn(m){return selectedMarkets().indexOf(m)>=0;}
+    function toggleMarket(m){   // 다중 토글: 고르면 추가, 다시 누르면 제외. 전부/전무면 전체 보기.
+      var all=allMarkets();
+      var sel=new Set(selectedMarkets());
+      if(sel.has(m)){ sel.delete(m); } else { sel.add(m); }
+      if(sel.size===0||sel.size===all.length){ delete colFilter['판매처']; }
+      else { colFilter['판매처']={excluded:new Set(all.filter(function(x){return !sel.has(x);}))}; }
       render();
     }
     function kpi(l,v){return '<div class="kpi"><div class="l">'+l+'</div><div class="v">'+v+'</div></div>';}
@@ -764,7 +817,9 @@
       document.querySelectorAll('.ovt').forEach(function(b){b.classList.toggle('on',b.getAttribute('data-v')===v);});
       document.getElementById('mktView').style.display=(v==='mkt')?'':'none';
       document.getElementById('checkView').style.display=(v==='check')?'':'none';
+      var av=document.getElementById('autoView'); if(av)av.style.display=(v==='auto')?'':'none';
       if(v==='check')renderCheckView();
+      if(v==='auto')loadAutoConfig();
     }
     [].slice.call(document.querySelectorAll('.ovt')).forEach(function(b){b.addEventListener('click',function(){setOView(b.getAttribute('data-v'));});});
     // 상위탭(조치 필요/불필요) 클릭
@@ -1264,8 +1319,96 @@
       fetch('/orders/inspect/method',{method:'POST',headers:{'Content-Type':'application/json'},
         body:JSON.stringify({uid:uid,method:m})}).then(function(){loadMango();});});
 
+    // ── ⚡ 자동전환(E안) — 마켓·계정별 결제완료→배송준비중 스위치 ──
+    var autoTree=null, autoCnt={};   // autoCnt: '넘어갈' 미리보기 건수(market|alias, __mk__market)
+    function autoSwHTML(scope,market,alias,checked,indet,small){
+      return '<label class="sw'+(small?' sm':'')+'"><input type="checkbox" class="acsw" data-scope="'+scope
+        +'" data-mk="'+esc(market)+'" data-alias="'+esc(alias)+'"'+(checked?' checked':'')
+        +(indet?' data-indet="1"':'')+'><span class="tk"></span></label>';
+    }
+    function fmtLast(iso){try{var d=new Date(iso);return (d.getMonth()+1)+'/'+d.getDate()+' '
+      +String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0');}catch(e){return '';}}
+    function updateAutoTabN(){var n=document.getElementById('ovtAutoN');if(!n)return;
+      var on=0;(autoTree&&autoTree.markets||[]).forEach(function(m){on+=m.enabled_count;});
+      n.textContent=on?('· 켜짐 '+on):'';}
+    function loadAutoConfig(){
+      var body=document.getElementById('autoBody');
+      fetch('/orders/auto-confirm/config',{cache:'no-store'}).then(function(r){return r.json();}).then(function(j){
+        if(!j.ok){if(body)body.innerHTML='<div class="state">설정을 불러오지 못했어요: '+esc(j.error||'')+'</div>';return;}
+        autoTree={markets:j.markets||[],live:!!j.live}; updateAutoTabN(); renderAutoView();
+      }).catch(function(){if(body)body.innerHTML='<div class="state">불러오기 실패(네트워크)</div>';});
+    }
+    function renderAutoView(){
+      var body=document.getElementById('autoBody'); if(!body||!autoTree)return;
+      var mks=autoTree.markets||[];
+      if(!mks.length){body.innerHTML='<div class="state">등록된 판매처 계정이 없어요. 「판매처 관리」에서 계정을 먼저 등록하세요.</div>';return;}
+      var totAcc=0,onAcc=0; mks.forEach(function(m){totAcc+=m.total;onAcc+=m.enabled_count;});
+      var allOn=totAcc>0&&onAcc===totAcc, anyOn=onAcc>0;
+      var liveTag=autoTree.live?'<span class="ac-live on">실전환 켜짐</span>'
+                               :'<span class="ac-live">실전환 꺼짐 · 미리보기만</span>';
+      var html='<div class="ac-head"><span class="ac-title">⚡ 자동 배송준비중 전환</span>'
+        +'<span class="ac-sub">결제완료 → 배송준비중</span>'+liveTag
+        +'<span class="ac-master">전체 '+autoSwHTML('all','','',allOn,anyOn&&!allOn,false)+'</span>'
+        +'<button class="runbtn ghost" id="acRun" style="border:1px solid var(--line2);background:var(--ink);color:#fff;border-radius:9px;padding:9px 13px;font-size:12.5px;font-weight:800;cursor:pointer">⚡ 지금 즉시 전환</button></div>';
+      html+='<table class="ac-table"><tr><th style="width:36%">마켓 · 계정</th><th class="num">넘어갈</th>'
+        +'<th class="ctr" style="width:92px">자동전환</th><th>마지막 전환</th></tr>';
+      mks.forEach(function(m){
+        var mAllOn=m.total>0&&m.enabled_count===m.total, mAny=m.enabled_count>0;
+        var mc=autoCnt['__mk__'+m.market];
+        html+='<tr class="ac-mrow"><td><span class="mk '+(MKCLS[m.label]||'gray')+'">'+esc(m.label)+'</span> <b class="ac-all">전체</b></td>'
+          +'<td class="num">'+(mc==null?'<span class="muted">—</span>':mc)+'</td>'
+          +'<td class="ctr">'+autoSwHTML('market',m.market,'',mAllOn,mAny&&!mAllOn,false)+'</td>'
+          +'<td class="muted">—</td></tr>';
+        (m.accounts||[]).forEach(function(a){
+          var c=autoCnt[m.market+'|'+a.alias];
+          html+='<tr><td style="padding-left:30px">'+esc(a.alias)+'</td>'
+            +'<td class="num">'+(c==null?'<span class="muted">—</span>':c)+'</td>'
+            +'<td class="ctr">'+autoSwHTML('account',m.market,a.alias,a.enabled,false,true)+'</td>'
+            +'<td class="ac-last">'+(a.last_run_at?esc(fmtLast(a.last_run_at))+' · '+a.last_run_count+'건':'<span class="muted">—</span>')+'</td></tr>';
+        });
+      });
+      html+='</table><div style="font-size:11px;color:var(--faint);margin-top:8px">「넘어갈」 건수는 <b>지금 즉시 전환</b>을 누르면 채워집니다(미리보기 · 실제 전환 아님).</div>';
+      body.innerHTML=html; bindAuto();
+    }
+    function bindAuto(){
+      [].slice.call(document.querySelectorAll('#autoBody .acsw')).forEach(function(cb){
+        if(cb.getAttribute('data-indet'))cb.indeterminate=true;
+        cb.addEventListener('change',function(){
+          autoSet(cb.getAttribute('data-scope'),cb.getAttribute('data-mk'),cb.getAttribute('data-alias'),cb.checked);});
+      });
+      var rb=document.getElementById('acRun'); if(rb)rb.onclick=autoRun;
+    }
+    function autoSet(scope,market,alias,enabled){
+      var payload={scope:scope,enabled:enabled};
+      if(scope==='market')payload.market=market;
+      if(scope==='account'){payload.market=market;payload.alias=alias;}
+      fetch('/orders/auto-confirm/set',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)})
+        .then(function(r){return r.json();}).then(function(j){
+          if(!j.ok){alert('저장 실패: '+(j.error||''));loadAutoConfig();return;}
+          autoTree={markets:j.markets||[],live:!!j.live}; updateAutoTabN(); renderAutoView();
+        }).catch(function(){alert('저장 실패(네트워크)');loadAutoConfig();});
+    }
+    function autoRun(){
+      var rb=document.getElementById('acRun'); if(rb){rb.disabled=true;rb.textContent='확인 중…';}
+      fetch('/orders/auto-confirm/run',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({live:false})})
+        .then(function(r){return r.json();}).then(function(j){
+          if(!j.ok){alert('실행 실패: '+(j.error||''));return;}
+          autoCnt={}; (j.by||[]).forEach(function(b){autoCnt[b.market+'|'+b.alias]=b.count;
+            autoCnt['__mk__'+b.market]=(autoCnt['__mk__'+b.market]||0)+b.count;});
+          renderAutoView();
+          var msg;
+          if(j.note){ msg=j.note; }
+          else{ msg='미리보기 — 켜진 계정에서 「결제완료」 '+j.total+'건이 「배송준비중」으로 넘어갈 예정입니다.\n\n'
+                   +'실제 전환은 안전을 위해 아직 꺼져 있어요(마켓에 실제 요청 없음).'; }
+          if((j.warnings||[]).length)msg+='\n\n⚠️ 주의:\n· '+j.warnings.join('\n· ');
+          alert(msg);
+        }).catch(function(){alert('실행 실패(네트워크)');})
+        .then(function(){var b=document.getElementById('acRun'); if(b){b.disabled=false;b.textContent='⚡ 지금 즉시 전환';}});
+    }
+
     load();
     loadMango();
+    loadAutoConfig();   // 탭 배지(켜짐 N)를 위해 시작 시 한 번 (열기 전에도 표시)
   })();
   </script>
 

@@ -301,3 +301,27 @@ class InvoiceLedger(Base):
     courier = Column(String(64))                         # 택배사(있으면)
     captured_at = Column(DateTime, default=lambda: datetime.now(timezone.utc),
                          onupdate=lambda: datetime.now(timezone.utc))
+
+
+# ════════════════════════════════════════════════════════════
+#  AUTO-CONFIRM SETTING — 「결제완료 → 배송준비중」 자동전환 ON/OFF (마켓·계정별)
+# ════════════════════════════════════════════════════════════
+
+class AutoConfirmSetting(Base):
+    """마켓·계정 단위 자동전환 스위치(팀 공유 · 단일 진실 원천 = 계정 leaf).
+
+    · 한 행 = (판매처, 쇼핑몰별칭) 계정 하나의 켜짐/꺼짐.
+    · '전체'·'마켓별' 스위치는 저장하지 않고 leaf 들의 all-on/some/none 으로 파생한다
+      (중복·모순 방지 — 마켓 스위치와 계정 스위치가 서로 다른 값을 갖는 사고를 원천 차단).
+    · 기본값 = 꺼짐(행 없음). 실제 마켓 상태 변경은 별도 LIVE 스위치가 또 잠근다.
+    · last_run_at/last_run_count = 마지막으로 이 계정에서 몇 건을 넘겼는지(화면 이력).
+    """
+    __tablename__ = "auto_confirm_settings"
+
+    market = Column(String(32), primary_key=True)          # 판매처 슬러그(coupang·lotteon…)
+    account_alias = Column(String(128), primary_key=True)  # 쇼핑몰별칭(계정 표시명). 마켓단일계정도 별칭.
+    enabled = Column(Boolean, default=False, nullable=False)
+    last_run_at = Column(DateTime)                         # 마지막 전환 실행 시각(KST 저장 안 함 — UTC)
+    last_run_count = Column(Integer, default=0, nullable=False)  # 그때 넘긴 건수
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc),
+                        onupdate=lambda: datetime.now(timezone.utc))

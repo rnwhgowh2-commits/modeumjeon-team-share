@@ -483,6 +483,73 @@ def orders_invoice_send():
 
 
 # ──────────────────────────────────────────────────────────────
+#  자동전환 — 「결제완료 → 배송준비중」 마켓·계정별 ON/OFF + 즉시 전환(드라이런 기본)
+#   설정=팀 공유 DB(AutoConfirmSetting, 계정 leaf 단위). 실전환은 LIVE 스위치가 또 잠근다.
+# ──────────────────────────────────────────────────────────────
+
+@bp.route('/auto-confirm/config')
+def auto_confirm_config():
+    """자동전환 설정 트리(마켓·계정별 ON/OFF + 이력 + LIVE 스위치)."""
+    from lemouton.orders import auto_confirm as _ac
+    s = SessionLocal()
+    try:
+        return jsonify(ok=True, **_ac.list_settings(s))
+    except Exception as e:   # noqa: BLE001 — 설정 조회 실패도 화면을 막지 않게 사유 표면화
+        import logging
+        logging.getLogger(__name__).exception("auto-confirm config failed")
+        return jsonify(ok=False, error=f"{type(e).__name__}: {str(e)[:200]}"), 400
+    finally:
+        s.close()
+
+
+@bp.route('/auto-confirm/set', methods=['POST'])
+def auto_confirm_set():
+    """자동전환 스위치 저장. body: {scope:'all'|'market'|'account', market?, alias?, enabled}."""
+    from lemouton.orders import auto_confirm as _ac
+    body = request.get_json(silent=True) or {}
+    scope = str(body.get('scope') or '')
+    enabled = bool(body.get('enabled'))
+    s = SessionLocal()
+    try:
+        if scope == 'all':
+            n = _ac.set_all(s, enabled)
+        elif scope == 'market':
+            n = _ac.set_market(s, str(body.get('market') or ''), enabled)
+        elif scope == 'account':
+            _ac.set_account(s, str(body.get('market') or ''),
+                            str(body.get('alias') or ''), enabled)
+            n = 1
+        else:
+            return jsonify(ok=False, error='scope 는 all·market·account 중 하나여야 해요.'), 400
+        return jsonify(ok=True, changed=n, **_ac.list_settings(s))
+    except ValueError as e:
+        return jsonify(ok=False, error=str(e)), 400
+    finally:
+        s.close()
+
+
+@bp.route('/auto-confirm/run', methods=['POST'])
+def auto_confirm_run():
+    """자동전환 실행. 기본 드라이런(넘어갈 건수만). body live=true + 서버 스위치 ON 이면 실전환.
+
+    실전환 게이트가 켜져도, 아직 실전환이 배선되지 않은 마켓은 거짓 성공 대신 명시 실패로
+    표시된다(CLAUDE.md 🔒 — 확인 못한 걸 했다고 하지 않는다).
+    """
+    from lemouton.orders import auto_confirm as _ac
+    body = request.get_json(silent=True) or {}
+    live = bool(body.get('live'))
+    s = SessionLocal()
+    try:
+        return jsonify(**_ac.run(s, live=live))
+    except Exception as e:   # noqa: BLE001 — 실행 실패 사유 표면화(조용한 실패 금지)
+        import logging
+        logging.getLogger(__name__).exception("auto-confirm run failed")
+        return jsonify(ok=False, error=f"{type(e).__name__}: {str(e)[:300]}"), 400
+    finally:
+        s.close()
+
+
+# ──────────────────────────────────────────────────────────────
 #  배송검사 (inspect) — 더망고 업로드 · 중복송장 · 배송흐름 · 배송방식
 #   업로드=더망고 엑셀(HTML위장 .xls) → MangoOrder DB 누적. 검사·배송방식은 엑셀 기반.
 # ──────────────────────────────────────────────────────────────
