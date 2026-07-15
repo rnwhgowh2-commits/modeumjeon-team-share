@@ -182,9 +182,14 @@ def _target_rows_by_leaf(enabled, days: int, warnings: list) -> dict:
     for m in markets:
         label = MARKET_KO.get(m, m)
         try:
+            # warnings 채널을 넘겨야 계정 일부 실패(IP 미등록 등)에도 부분 결과를 받는다.
+            # (안 넘기면 combined_order_rows 가 캐시-경고에서 RuntimeError 로 전체를 막음)
+            mkwarns: list = []
             rows = _oe.combined_order_rows([m], days=days, use_cache=True,
-                                           include_settlement=False)
-        except Exception as e:   # noqa: BLE001 — 한 마켓 실패는 사유 남기고 건너뜀
+                                           include_settlement=False, warnings=mkwarns)
+            for w in mkwarns:
+                warnings.append(f"[{label}] {w}")
+        except Exception as e:   # noqa: BLE001 — 한 마켓 전체 실패만 사유 남기고 건너뜀
             logger.warning("auto-confirm fetch failed market=%s: %s", m, e)
             warnings.append(f"[{label}] 주문을 불러오지 못해 건너뜀 ({type(e).__name__})")
             continue
@@ -293,7 +298,7 @@ def _readback_moved(market: str, targets: list, client) -> int:
         return 0
     try:
         rows = _oe.combined_order_rows([market], days=7, use_cache=False,
-                                       include_settlement=False)
+                                       include_settlement=False, warnings=[])
     except Exception:   # noqa: BLE001 — 재조회 실패 = 확인 불가 → 이동 0(거짓 성공 금지)
         return 0
     still_paid = {str(r.get("오픈마켓주문번호") or "")
