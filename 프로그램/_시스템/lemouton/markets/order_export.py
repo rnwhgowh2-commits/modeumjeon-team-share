@@ -505,7 +505,13 @@ def coupang_order_rows(since: _dt.datetime, until: _dt.datetime,
     #  2) 미정산(최근): 추정 = round(단가×수량×0.8845) + round(배송비×0.8845).
     #     ⚠️ 배송비 실수수료율은 상품과 달라(문서 확인) 추정의 배송비분은 근사.
     try:
-        item_settle, deliv_settle = _coupang_settle_map(since, until, client) \
+        # ★ 정산 조회창은 now 로 넓힌다 — 쿠팡 revenue-history 는 recognitionDate(정산 인식일)
+        #   기준인데 인식은 주문보다 늦게(구매확정 후) 일어난다. 주문 기간(until)까지만 조회하면
+        #   그 뒤 인식된 정산을 놓쳐 정산완료 주문도 estimated 로 남는다(260704 재분석 실측:
+        #   쿠팡 92건 estimated). 롯데온 commission_map·클레임 조회가 이미 쓰는 max(until, now)
+        #   패턴과 동일. _cp_windows 가 30일 분할하므로 장기 조회도 안전.
+        _settle_until = max(until, _dt.datetime.now(KST))
+        item_settle, deliv_settle = _coupang_settle_map(since, _settle_until, client) \
             if include_settlement else ({}, {})
     except Exception:
         item_settle, deliv_settle = {}, {}
