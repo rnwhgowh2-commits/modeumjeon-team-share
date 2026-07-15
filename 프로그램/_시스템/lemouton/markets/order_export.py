@@ -89,6 +89,20 @@ def _status_ko(market, raw):
         return ""
     return _STATUS_KO.get(market, {}).get(str(raw), str(raw))
 
+
+def _ss_status(product_order_status, place_order_status):
+    """스마트스토어 표시 상태 — 발주확인(placeOrderStatus=OK)을 반영.
+
+    ★네이버는 발주확인(배송준비)해도 productOrderStatus 를 PAYED(결제완료) 그대로 둔다.
+      productOrderStatus 만 보면 이미 배송준비된 주문이 「결제완료」로 둔갑한다(2026-07-15 실측:
+      placeOrderStatus=OK·placeOrderDate 있는데 productOrderStatus=PAYED). placeOrderStatus=OK 면
+      발주확인 완료 → 「배송준비중」으로 표시(자동전환 대상에서도 자동 제외됨).
+    """
+    base = _status_ko("smartstore", product_order_status)
+    if base == "결제완료" and str(place_order_status or "").upper() == "OK":
+        return "배송준비중"
+    return base
+
 SUPPORTED = {"smartstore", "lotteon", "coupang", "eleven11"}   # UI 엑셀버튼 노출. 실키=서버 UI저장.
 # 마켓 키 → 한글 표시명(사용자 배너·경고용). 미등록 키는 원문 그대로.
 _MARKET_KO = {"smartstore": "스마트스토어", "lotteon": "롯데온", "coupang": "쿠팡",
@@ -237,7 +251,7 @@ def smartstore_order_rows(since: _dt.datetime, until: _dt.datetime,
             "배송비": _g(po, "deliveryFeeAmount", default=""),
             "정산예정금액": settle_val,
             "_settle_source": settle_src,
-            "주문상태": _status_ko("smartstore", _g(po, "productOrderStatus")),
+            "주문상태": _ss_status(_g(po, "productOrderStatus"), _g(po, "placeOrderStatus")),
             "주문상태원본": _g(po, "productOrderStatus"),
             "오픈마켓주문번호": poid or oid,
             "실결제금액": _g(po, "totalPaymentAmount", default=""),   # 할인 반영 실결제
