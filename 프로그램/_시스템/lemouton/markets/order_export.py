@@ -176,6 +176,7 @@ def smartstore_order_rows(since: _dt.datetime, until: _dt.datetime,
     from shared.platforms.smartstore.client import SmartStoreClient
 
     client = client or SmartStoreClient()
+    since, until = _ensure_kst(since), _ensure_kst(until)   # naive(_parse_dt/probe)→KST(비교 TypeError 방지)
 
     # 변경 주문내역은 '상태변경일' 기준이라, 주문일이 창 안이어도 최근 상태변경(구매확정 등)이
     # 창 밖으로 밀리면 빠진다(며칠 지난 주문의 드리프트). 조회 끝을 살짝 넉넉히 잡고
@@ -973,6 +974,19 @@ def eleven11_order_rows(since: _dt.datetime, until: _dt.datetime, client=None,
     _collect(iter_canceled, "취소완료", False, _claim_row, code="canceled")   # 주문취소 완료(canceledorders)
     _collect(iter_return, "반품", False, _return_row, code="return")        # 반품(ordPrdStat A01=완료)
     _collect(iter_exchange, "교환요청", False, _claim_row, code="exchange")   # 교환요청(완료코드 미확정)
+
+    # ── 11번가 정산금액(settlementList, 구매확정분) 있으면 최우선 = 오차0 ──
+    if include_settlement:
+        try:
+            from shared.platforms.eleven11 import settlement as _el_settle
+            smap = _el_settle.settlement_map(since, _until_now(until), client=client)
+            for r in rows:
+                v = smap.get(str(r.get("오픈마켓주문번호") or ""))
+                if v is not None:
+                    r["정산예정금액"] = v
+                    r["_settle_source"] = "real"
+        except Exception:   # noqa: BLE001 — 조회 실패 시 기존 stlPlnAmt/추정 유지(폴백 아님)
+            pass
     return rows
 
 
