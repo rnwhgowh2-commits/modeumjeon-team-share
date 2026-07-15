@@ -1395,10 +1395,9 @@
         +'<th class="ctr" style="width:82px">대상</th><th>마지막 전환</th><th style="width:30px"></th></tr>';
       mks.forEach(function(m){
         var mAllOn=m.total>0&&m.enabled_count===m.total, mAny=m.enabled_count>0;
-        var unsup=(m.market==='eleven11');
-        html+='<tr class="ac-mrow"><td><span class="mk '+(MKCLS[m.label]||'gray')+'">'+esc(m.label)+'</span> <b class="ac-all"'+(unsup?' style="color:var(--amber)"':'')+'>'+(unsup?'미지원':'전체')+'</b></td>'
-          +'<td class="ctr">'+(unsup?'<span class="sw"><input type="checkbox" disabled><span class="tk"></span></span>':autoSwHTML('market',m.market,'',mAllOn,mAny&&!mAllOn,false))+'</td>'
-          +'<td class="'+(unsup?'muted':'muted')+'">'+(unsup?'발주확인 준비중':'—')+'</td><td></td></tr>';
+        html+='<tr class="ac-mrow"><td><span class="mk '+(MKCLS[m.label]||'gray')+'">'+esc(m.label)+'</span> <b class="ac-all">전체</b></td>'
+          +'<td class="ctr">'+autoSwHTML('market',m.market,'',mAllOn,mAny&&!mAllOn,false)+'</td>'
+          +'<td class="muted">—</td><td></td></tr>';
         (m.accounts||[]).forEach(function(a){
           var key=m.market+'|'+a.alias, ex=acExpand[key], lg=logsFor(m.market,a.alias);
           html+='<tr><td style="padding-left:30px">'+esc(a.alias)+'</td>'

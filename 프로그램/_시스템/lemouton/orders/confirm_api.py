@@ -20,7 +20,7 @@ CONFIDENCE = {
     "lotteon": "코드검증(apiNo=137 문서판독)",
     "coupang": "공식문서(acknowledgement)",
     "smartstore": "공식문서(발주확인)",
-    "eleven11": "미배선(발주확인 API 미확정)",
+    "eleven11": "콘솔추출(reqpackaging 발주처리)",
 }
 
 
@@ -72,9 +72,15 @@ def confirm_targets(market: str, targets: list, client):
                 raise RuntimeError("롯데온 상품준비 처리 거부(returnCode)")
 
     elif market == "eleven11":
-        # complete(결제완료) → packaging(배송준비중) 전이의 write(발주확인) API 가 아직 미확정.
-        # 셀러 콘솔에서 실제 호출을 추출해 배선할 것(11st 는 MCP 차단 → 콘솔 유일통로).
-        raise ConfirmUnsupported("11번가 발주확인(배송준비중 전환) API 미확정 — 확인 후 배선")
+        from shared.platforms.eleven11 import shipping as el
+        for t in targets:
+            ids = t.get("_send_ids") or {}
+            missing = [k for k in ("ord_no", "dlv_no") if not ids.get(k)]
+            if missing:
+                raise ValueError(f"11번가: 발주처리 식별자 없음({', '.join(missing)}) — 전환 불가")
+            el.set_packaging(ord_no=ids["ord_no"], ord_prd_seq=ids.get("ord_prd_seq"),
+                             dlv_no=ids["dlv_no"], client=client)
+        return None   # 상태 발송대기→배송준비중 바뀜 → 되읽기로 검증
 
     else:
         raise ConfirmUnsupported(f"{market} 전환 미지원")

@@ -165,14 +165,18 @@ class TestRunDryRun:
         row = session.get(AutoConfirmSetting, {"market": "coupang", "account_alias": "브랜드위시"})
         assert row.last_run_at is None    # 거짓 성공 이력 안 남김
 
-    def test_live_eleven11_unsupported_honest(self, session, accounts, monkeypatch):
-        rows = {"eleven11": [{"판매처": "11번가", "쇼핑몰별칭": "대표 계정",
-                              "주문상태": "결제완료", "오픈마켓주문번호": "E1"}]}
+    def test_live_eleven11_now_supported(self, session, accounts, monkeypatch):
+        # 11번가 발주처리(reqpackaging) 배선됨 — 더는 unsupported 아님.
+        rows = {"eleven11": [{"판매처": "11번가", "쇼핑몰별칭": "대표 계정", "주문상태": "결제완료",
+                              "오픈마켓주문번호": "E1",
+                              "_send_ids": {"ord_no": "E1", "ord_prd_seq": "1", "dlv_no": "D9"}}]}
         monkeypatch.setattr(ac._oe, "combined_order_rows", lambda mks, **kw: rows.get(mks[0], []))
         self._live_on(monkeypatch)
+        monkeypatch.setattr("lemouton.orders.confirm_api.confirm_targets", lambda *a, **k: None)
+        monkeypatch.setattr(ac, "_readback_moved", lambda *a, **k: 1)
         ac.set_account(session, "eleven11", "대표 계정", True)
         res = ac.run(session, live=True)
-        assert res["by"][0]["result"] == "unsupported" and res["total"] == 0
+        assert res["by"][0]["result"] == "sent" and res["total"] == 1
 
     def test_limit_caps_attempted(self, session, accounts, monkeypatch):
         self._stub_orders(monkeypatch); self._live_on(monkeypatch)

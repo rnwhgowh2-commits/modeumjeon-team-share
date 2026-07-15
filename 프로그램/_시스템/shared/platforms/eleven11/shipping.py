@@ -34,6 +34,7 @@ from typing import Optional
 logger = logging.getLogger(__name__)
 
 _PATH = "/rest/ordservices/reqdelivery/{send_dt}/{mthd}/{corp}/{invc}/{dlv_no}"
+_PATH_PACKAGING = "/rest/ordservices/reqpackaging/{ord_no}/{ord_prd_seq}/{add_yn}/{add_no}/{dlv_no}"
 _METHOD_PARCEL = "01"                 # 배송방식: 01=택배 (03=직접 04=퀵 05=배송없음)
 
 # 목표상태(발송됨)에 이미 도달한 코드 — 재전송·합포장에서 정상적으로 나온다.
@@ -96,3 +97,29 @@ def send_tracking(*, dlv_no: str, invoice_number: str, delivery_company_code: st
         logger.info("[11번가] 발송처리: 이미 처리됨(%s) dlvNo=%s — 성공 처리", code, dlv_no)
         return True
     raise Eleven11ShipError(f"11번가 발송처리 거부 ({code}): {text}")
+
+
+def set_packaging(*, ord_no: str, ord_prd_seq: str, dlv_no: str,
+                  add_prd_yn: str = "N", add_prd_no: str = "null", client=None) -> bool:
+    """발주처리 — 발송대기(결제완료) → 배송준비중(packaging). 성공 True / 거부 Eleven11ShipError.
+
+    공식(셀러 OPEN API CENTER 「주문 > 발주처리」, 2026-07-15 콘솔 추출):
+      GET /rest/ordservices/reqpackaging/{ordNo}/{ordPrdSeq}/{addPrdYn}/{addPrdNo}/{dlvNo}
+      성공 = result_code "0" ("전체 1건이 정상적으로 발주처리가 되었습니다").
+      추가구성상품 없으면 addPrdYn=N, addPrdNo=null(리터럴 문자열).
+    ⚠️ 라이브 미검증 — 실주문 1건으로 확인 후 신뢰(auto_confirm 되읽기 검증 병행).
+    """
+    if not str(ord_no or "").strip():
+        raise ValueError("11번가 발주처리: 주문번호(ordNo) 없음 — 전환 불가")
+    if not str(dlv_no or "").strip():
+        raise ValueError("11번가 발주처리: 배송번호(dlvNo) 없음 — 전환 불가")
+    if client is None:
+        from shared.platforms.eleven11.client import Eleven11Client
+        client = Eleven11Client()
+    path = _PATH_PACKAGING.format(ord_no=str(ord_no), ord_prd_seq=str(ord_prd_seq or ""),
+                                  add_yn=(add_prd_yn or "N"), add_no=(add_prd_no or "null"),
+                                  dlv_no=str(dlv_no))
+    code, text = _result(client.request("GET", path))
+    if code == "0":
+        return True
+    raise Eleven11ShipError(f"11번가 발주처리 거부 ({code}): {text}")

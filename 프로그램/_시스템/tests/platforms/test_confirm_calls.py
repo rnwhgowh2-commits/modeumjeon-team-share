@@ -87,11 +87,43 @@ def test_lotteon_set_preparing_shape():
     assert item["invcNo"] == "" and item["dvCoCd"] == ""   # 준비 단계엔 송장 없음
 
 
-def test_confirm_api_eleven11_unsupported():
-    from lemouton.orders import confirm_api as capi
+def test_eleven11_set_packaging_shape():
+    from shared.platforms.eleven11 import shipping as el
+
+    class FakeE11:
+        def __init__(self): self.calls = []
+        def request(self, method, path):
+            self.calls.append((method, path))
+            return '<?xml version="1.0"?><ResultOrder><result_code>0</result_code>' \
+                   '<result_text>전체 1건이 정상적으로 발주처리</result_text></ResultOrder>'
+    c = FakeE11()
+    assert el.set_packaging(ord_no="O1", ord_prd_seq="1", dlv_no="D9", client=c) is True
+    assert c.calls[0] == ("GET", "/rest/ordservices/reqpackaging/O1/1/N/null/D9")
+
+
+def test_eleven11_set_packaging_rejected_raises():
+    from shared.platforms.eleven11 import shipping as el
     import pytest
-    with pytest.raises(capi.ConfirmUnsupported):
-        capi.confirm_targets("eleven11", [{"오픈마켓주문번호": "E1"}], client=object())
+
+    class FakeE11:
+        def request(self, method, path):
+            return '<ResultOrder><result_code>-9999</result_code><result_text>거부</result_text></ResultOrder>'
+    with pytest.raises(el.Eleven11ShipError):
+        el.set_packaging(ord_no="O1", ord_prd_seq="1", dlv_no="D9", client=FakeE11())
+
+
+def test_confirm_api_eleven11_routes_to_packaging(monkeypatch):
+    from lemouton.orders import confirm_api as capi
+    called = {}
+    monkeypatch.setattr("shared.platforms.eleven11.shipping.set_packaging",
+                        lambda **kw: called.update(kw) or True)
+    r = capi.confirm_targets("eleven11", [{"오픈마켓주문번호": "E1",
+        "_send_ids": {"ord_no": "E1", "ord_prd_seq": "1", "dlv_no": "D9"}}], client=object())
+    assert r is None and called["ord_no"] == "E1" and called["dlv_no"] == "D9"
+
+    import pytest
+    with pytest.raises(ValueError):   # 식별자 없으면 추측 안 하고 예외
+        capi.confirm_targets("eleven11", [{"오픈마켓주문번호": "E1", "_send_ids": {}}], client=object())
 
 
 def test_confirm_api_routes_and_requires_ids():
