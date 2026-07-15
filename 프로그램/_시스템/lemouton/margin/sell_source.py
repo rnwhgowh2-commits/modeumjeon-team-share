@@ -271,20 +271,22 @@ def _settlement_for(row: dict):
     """
     src = row.get("_settle_source", "none")
     # ★ 배송비(고객배송비) — 샵마인 정산예상금액_배송비포함 = 상품정산(수수료차감) + 배송비(전액).
-    #   추정 정산에 배송비를 전액 더한다(수수료율은 상품에만, 배송비는 원본 정의대로 전액).
+    #   ★★실결제금액 = 상품가(배송비 미포함) 이다. 샵마인 실증: 실결제=정산+수수료, 고객배송비는
+    #     별도 컬럼(실결제 30,318 + 수수료 1,744 = 정산 28,574, 배송비 4,000은 실결제 밖).
+    #     따라서 추정 정산 = (상품 추정: 실결제 또는 단가×수량 × 수수료율) + 배송비(전액 가산).
+    #     수수료율은 상품에만, 배송비는 원본 정의대로 전액(수수료 안 깎음).
     #   order_export 가 배송건 첫 행에만 배송비를 싣고 나머지 0 → 행별 그대로 더해 중복 없음.
-    #   실결제 기반 추정은 실결제(=상품+배송비)에서 배송비를 뺀 상품분에 수수료율을 곱하고
-    #   배송비를 전액 재가산 → 배송비가 수수료만큼 깎이지 않게(원본과 동일 처리).
+    #   정산완료(real: 롯데온 실결제−실수수료·11번가 stlPlnAmt)는 이미 배송비 포함 → 재가산 안 함.
     _ship = _to_int_or_blank(row.get("배송비")) or 0
     if row.get("판매처") == "롯데온":
         paid = _to_int_or_blank(row.get("실결제금액"))
         fee = _to_int_or_blank(row.get("마켓수수료"))
         if paid != "" and fee != "" and fee > 0:
-            return paid - fee, "real"            # 실수수료 확보 → 정확(실결제=상품+배송비 포함)
+            return paid - fee, "real"            # 실수수료 확보 → 정확(배송비 포함 실정산)
         # ★ 미정산(구매확정 전 → 마켓수수료 미기록) 추정. 실수수료 없다고 0(손실 둔갑) 금지.
-        #   실결제 있으면 (실결제−배송비)×0.947 + 배송비, 없으면 단가×수량×0.884 + 배송비.
+        #   실결제(상품가)×0.947 + 배송비, 없으면 단가×수량×0.884 + 배송비.
         if paid != "" and paid > 0:
-            return round((paid - _ship) * LO_FEE_FACTOR_PAID) + _ship, "estimated"
+            return round(paid * LO_FEE_FACTOR_PAID) + _ship, "estimated"
         unit = _to_int_or_blank(row.get("단가"))
         if unit != "" and unit > 0:
             try:
@@ -302,7 +304,7 @@ def _settlement_for(row: dict):
         # ★ 미정산(배송완료·배송중 = stlPlnAmt 없음) 추정. 실수수료 없다고 0(손실 둔갑) 금지.
         paid = _to_int_or_blank(row.get("실결제금액"))
         if paid != "" and paid > 0:
-            return round((paid - _ship) * EL_FEE_FACTOR_PAID) + _ship, "estimated"
+            return round(paid * EL_FEE_FACTOR_PAID) + _ship, "estimated"
         unit = _to_int_or_blank(row.get("단가"))
         if unit != "" and unit > 0:
             try:
