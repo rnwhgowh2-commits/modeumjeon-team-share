@@ -57,6 +57,30 @@ def test_fetch_combined_default_tags_kind_order(monkeypatch):
     assert all(r.get("_kind") == "order" for r in rows)   # 기본 태그 붙음
 
 
+def test_preview_json_uses_new_order_rows(monkeypatch):
+    """preview.json 이 new_order_rows(=옛주문 상태변경 제외)를 쓰는지."""
+    import pathlib
+    from flask import Flask
+    from webapp.routes import orders as om
+
+    called = {"fn": None}
+
+    def _fake_new(markets, **kw):
+        called["fn"] = "new_order_rows"
+        return [{"오픈마켓주문번호": "A", "주문일": "2026-07-15 09:00:00", "_kind": "order"}]
+
+    monkeypatch.setattr(om._oe, "new_order_rows", _fake_new)
+
+    app = Flask(__name__, template_folder="webapp/templates",
+                root_path=pathlib.Path(om.__file__).parents[2].as_posix())
+    app.register_blueprint(om.bp)
+    client = app.test_client()
+
+    resp = client.get("/orders/preview.json?markets=smartstore&days=7")
+    assert resp.status_code == 200
+    assert called["fn"] == "new_order_rows"
+
+
 def test_window_days_fallback_and_since_until():
     """_window — since/until 없으면 최근 days일, 있으면 그 범위."""
     lo, hi = oe._window(None, None, days=3,

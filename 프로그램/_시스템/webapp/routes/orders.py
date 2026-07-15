@@ -234,8 +234,8 @@ def orders_preview():
         return jsonify(ok=False, error="선택된 마켓이 없어요."), 400
     warnings = []   # 일부 계정 조회 실패(IP 미등록 등) → 나머지는 보여주되 배너로 명시
     try:
-        rows = _oe.combined_order_rows(markets, days=days, use_cache=True,
-                                       since=since, until=until, warnings=warnings)
+        rows = _oe.new_order_rows(markets, days=days, use_cache=True,
+                                  since=since, until=until, warnings=warnings)
     except ValueError as e:
         return jsonify(ok=False, error=str(e)), 400
     except Exception as e:   # noqa: BLE001
