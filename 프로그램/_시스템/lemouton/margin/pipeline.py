@@ -112,25 +112,38 @@ def _attach_settle_source(matched, buy_df, sell_df) -> int:
         if keys:
             alias.setdefault(str(keys[-1]), set()).update(str(k) for k in keys)
 
-    # 2) widened 매출 인덱스: (주문번호, 상품명, 옵션) → 그 키에 걸린 _settle_source 집합
+    # 2) widened 매출 인덱스: (주문번호, 상품명, 옵션) → 그 키에 걸린 _settle_source 집합 + 배송비
     #    주문번호는 matcher 가 매칭에 쓴 것과 같은 방식으로 정규화한다(_norm_sell_key).
+    #    ★배송비도 같은 조인으로 부착 — matcher(_make_result_row)는 원본과 바이트 동치라 배송비를
+    #    출력하지 않으므로(verbatim), 여기서 sell_df 의 배송비(order_export 가 배송건 첫 행에만 실음)를
+    #    되짚어 붙인다. 샵마인 고객배송비와 건별 대조·정산 검증용.
     sell_tags: dict = {}
+    sell_ship: dict = {}
     for _, sr in sell_df.iterrows():
         k = (_norm_sell_key(sr.get("오픈마켓주문번호", "")),
              str(sr.get("상품명", "")),
              str(sr.get("옵션", "")))
         sell_tags.setdefault(k, set()).add(str(sr.get("_settle_source", "none")))
+        try:
+            ship = int(pd.to_numeric(sr.get("배송비", 0), errors="coerce") or 0)
+        except (TypeError, ValueError):
+            ship = 0
+        sell_ship[k] = max(sell_ship.get(k, 0), ship)   # 배송건 첫 행 값(나머지 0) 보존
 
-    # 3) 태그 부착 — 가장 보수적인 태그가 이긴다
+    # 3) 태그 부착 — 가장 보수적인 태그가 이긴다. 배송비도 같은 후보키로 부착.
     unknown = 0
     for r in matched:
         mon = str(r.get("마켓주문번호", ""))
         candidates = alias.get(mon, {mon})
         tags = set()
+        ship = 0
         for k in candidates:
-            hit = sell_tags.get((k, str(r.get("상품명", "")), str(r.get("옵션_매출", ""))))
+            trip = (k, str(r.get("상품명", "")), str(r.get("옵션_매출", "")))
+            hit = sell_tags.get(trip)
             if hit:
                 tags |= hit
+            ship = max(ship, sell_ship.get(trip, 0))
+        r["배송비"] = ship
         if tags:
             r["_settle_source"] = _pick(tags)
         else:
