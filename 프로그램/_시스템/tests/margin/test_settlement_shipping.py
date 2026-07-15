@@ -14,11 +14,12 @@ from lemouton.margin.sell_source import (
 
 
 def test_lotteon_estimate_realpaid_adds_full_shipping():
+    # 실결제=상품가(배송비 미포함) → 실결제×수수료율 + 배송비(전액).
     row = {"판매처": "롯데온", "실결제금액": 34000, "마켓수수료": "",
            "배송비": 4000, "단가": 30000, "수량": 1}
     settle, src = _settlement_for(row)
     assert src == "estimated"
-    assert settle == round((34000 - 4000) * LO_FEE_FACTOR_PAID) + 4000
+    assert settle == round(34000 * LO_FEE_FACTOR_PAID) + 4000
 
 
 def test_lotteon_estimate_unitbased_adds_full_shipping():
@@ -30,11 +31,12 @@ def test_lotteon_estimate_unitbased_adds_full_shipping():
 
 
 def test_eleven11_estimate_realpaid_adds_full_shipping():
+    # 실결제=상품가(배송비 미포함) → 실결제×수수료율 + 배송비(전액).
     row = {"판매처": "11번가", "_settle_source": "none", "정산예정금액": "",
            "실결제금액": 25000, "배송비": 2500, "단가": 20000, "수량": 1}
     settle, src = _settlement_for(row)
     assert src == "estimated"
-    assert settle == round((25000 - 2500) * EL_FEE_FACTOR_PAID) + 2500
+    assert settle == round(25000 * EL_FEE_FACTOR_PAID) + 2500
 
 
 def test_eleven11_estimate_unitbased_adds_full_shipping():
