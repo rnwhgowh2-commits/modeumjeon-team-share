@@ -761,3 +761,31 @@ def _probe_lo_calc2():
         except Exception as e:  # noqa: BLE001
             errors.append({"acct": name, "err": str(e)[:200]})
     return jsonify({"rows": rows, "errors": errors})
+
+
+# ── [임시 진단] SettleItmdSales 구매확정 지급대상금액 = 엑셀 대조용 ──
+@bp.route("/_probe_lo_itmd", methods=["POST"])
+def _probe_lo_itmd():
+    """body {since, until}. 전 계정 SettleItmdSales(구매확정 정산) 조회 → 주문번호별
+    {pymtAmt, is_affiliate}. 엑셀 정산예정금액과 오프라인 대조용. 확인 후 제거."""
+    body = request.get_json(silent=True) or {}
+    try:
+        since = _dt.datetime.fromisoformat(body["since"])
+        until = _dt.datetime.fromisoformat(body["until"])
+    except Exception:
+        return jsonify({"error": "since/until 필요"}), 400
+    from lemouton.markets.order_export import _account_client, _active_accounts
+    from shared.platforms.lotteon.settlement import itmd_map
+    rows, errors = [], []
+    for prefix, name in _active_accounts("lotteon"):
+        cli = _account_client("lotteon", prefix)
+        if cli is None:
+            continue
+        try:
+            m = itmd_map(since, until, client=cli)
+            for od, v in m.items():
+                rows.append({"acct": name, "odNo": od, "pymtAmt": v["pymtAmt"],
+                             "pcs_cmsn": v["pcs_cmsn"], "is_affiliate": v["is_affiliate"]})
+        except Exception as e:  # noqa: BLE001
+            errors.append({"acct": name, "err": str(e)[:200]})
+    return jsonify({"rows": rows, "errors": errors, "count": len(rows)})
