@@ -135,6 +135,25 @@ def fetch_order_detail(product_order_ids: list[str],
     )
 
 
+def confirm_orders(product_order_ids: list[str],
+                    client: Optional[SmartStoreClient] = None) -> dict:
+    """발주확인 — 결제완료(PAYED) → 배송준비(발주확인). 최대 다건.
+
+    공식: POST /external/v1/pay-order/seller/product-orders/confirm,
+          body {"productOrderIds":[...]}.
+    ⚠️ 라이브 미검증 — 실주문 1건으로 상태 전이 확인 후 신뢰.
+    """
+    client = client or SmartStoreClient()
+    ids = [str(p) for p in product_order_ids if p]
+    if not ids:
+        raise ValueError("스마트스토어 발주확인: productOrderId 없음 — 추측 전송 금지")
+    return client.request(
+        method="POST",
+        path="/external/v1/pay-order/seller/product-orders/confirm",
+        body={"productOrderIds": ids},
+    )
+
+
 def send_tracking(product_order_ids: list[str], delivery_company_code: str,
                    tracking_number: str,
                    client: Optional[SmartStoreClient] = None,

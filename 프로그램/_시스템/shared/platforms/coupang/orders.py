@@ -69,6 +69,24 @@ def fetch_order_detail(order_sheet_id: str,
     return client.request("GET", path)
 
 
+def acknowledge(shipment_box_ids, client: Optional[CoupangClient] = None) -> dict:
+    """상품준비중 처리(발주확인) — ACCEPT(결제완료) → INSTRUCT(상품준비중).
+
+    공식: PUT /v4/vendors/{vendorId}/ordersheets/acknowledgement,
+          body {"vendorId":vid, "shipmentBoxIds":[long,...]}.
+    ⚠️ 라이브 미검증 — 실주문 1건으로 상태가 INSTRUCT 로 바뀌는지 확인 후 신뢰.
+    """
+    vid = (getattr(client, "_cfg", {}) or {}).get("vendor_id") or _vendor_id()
+    client = client or CoupangClient()
+    path = (f"/v2/providers/openapi/apis/api/v4/vendors/{vid}"
+            f"/ordersheets/acknowledgement")
+    ids = [int(x) if str(x).isdigit() else x for x in shipment_box_ids if x]
+    if not ids:
+        raise ValueError("쿠팡 상품준비중 처리: shipmentBoxId 없음 — 추측 전송 금지")
+    body = {"vendorId": vid, "shipmentBoxIds": ids}
+    return client.request("PUT", path, body=body)
+
+
 def send_tracking(shipment_box_id: str, order_sheet_id: str,
                    delivery_company_code: str, invoice_number: str,
                    client: Optional[CoupangClient] = None) -> dict:

@@ -27,6 +27,7 @@ from typing import Optional
 logger = logging.getLogger(__name__)
 
 _PATH = "/v1/openapi/delivery/v1/SellerDeliveryProgressStateInform"
+_STEP_PREPARING = "12"        # 상품준비(=배송준비중)
 _STEP_SHIPPED = "13"          # 발송완료
 _TYPE_DELIVERY = "DV"         # 배송(회수=RTRV)
 
@@ -91,6 +92,41 @@ def send_tracking(*, od_no: str, od_seq, proc_seq, spd_no: str, sitm_no: str,
     rc = str((resp or {}).get("returnCode"))
     if rc not in ("0000", "SUCCESS"):
         logger.warning("[lotteon] 발송처리 거부 odNo=%s returnCode=%s %s",
+                       od_no, rc, (resp or {}).get("message") or "")
+        return False
+    return True
+
+
+def set_preparing(*, od_no: str, od_seq, proc_seq, spd_no: str, sitm_no: str,
+                  qty, client=None, occurred_at: Optional[datetime] = None) -> bool:
+    """단품 1건을 '상품준비(12)=배송준비중'으로 통보. 성공 True / 실패 False.
+
+    발송완료(13)와 같은 엔드포인트(apiNo=137)지만 단계코드만 12, 송장 필드(invcNbr/dvCoCd/
+    invcNo)는 아직 없으니 비운다(상품준비 단계엔 불필요). 상품·단품·수량은 필수.
+    ⚠️ 라이브 미검증 — 실주문 1건으로 확인 후 신뢰.
+    """
+    from shared.platforms.lotteon.client import LotteonClient
+    client = client or LotteonClient()
+    when = (occurred_at or datetime.now()).strftime("%Y%m%d%H%M%S")
+    item = {
+        "dvRtrvDvsCd": _TYPE_DELIVERY,
+        "odNo": str(od_no), "odSeq": str(od_seq), "procSeq": str(proc_seq or "1"),
+        "orglProcSeq": "", "clmNo": "",
+        "odPrgsStepCd": _STEP_PREPARING,
+        "dvTrcStatDttm": when,
+        "invcNbr": "", "dvCoCd": "", "invcNo": "",
+        "spdNo": str(spd_no), "spdNm": "", "sitmNo": str(sitm_no),
+        "itmNm": "", "itmSlPrc": "", "slQty": str(qty),
+    }
+    try:
+        resp = client.request(method="POST", path=_PATH,
+                              body={"deliveryProgressStateList": [item]})
+    except Exception as e:   # noqa: BLE001 — 실패 표면화(조용한 성공 금지)
+        logger.warning("[lotteon] 상품준비 처리 실패 odNo=%s: %s", od_no, e)
+        return False
+    rc = str((resp or {}).get("returnCode"))
+    if rc not in ("0000", "SUCCESS"):
+        logger.warning("[lotteon] 상품준비 거부 odNo=%s returnCode=%s %s",
                        od_no, rc, (resp or {}).get("message") or "")
         return False
     return True

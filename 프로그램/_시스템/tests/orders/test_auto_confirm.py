@@ -126,14 +126,55 @@ class TestRunDryRun:
         from lemouton.sourcing.models_v2 import AutoConfirmSetting
         assert all(r.last_run_at is None for r in session.query(AutoConfirmSetting).all())
 
-    def test_live_gate_on_but_market_unsupported_is_honest_failure(self, session, accounts, monkeypatch):
-        self._stub_orders(monkeypatch)
-        monkeypatch.setattr(ac, "live_confirm_enabled", lambda: True)    # 게이트 ON
+    def _live_on(self, monkeypatch):
+        monkeypatch.setattr(ac, "live_confirm_enabled", lambda: True)
+        monkeypatch.setattr(ac, "_client_for", lambda m, a: object())   # 더미 클라(None 아님)
+
+    def test_live_coupang_sent_and_records_history(self, session, accounts, monkeypatch):
+        self._stub_orders(monkeypatch); self._live_on(monkeypatch)
+        calls = {}
+        monkeypatch.setattr("lemouton.orders.confirm_api.confirm_targets",
+                            lambda market, targets, client: calls.__setitem__(market, len(targets)))
+        monkeypatch.setattr(ac, "_readback_moved", lambda market, targets, client: len(targets))
         ac.set_account(session, "coupang", "브랜드위시", True)
         res = ac.run(session, live=True)
         assert res["live"] is True
-        # 실전환 미배선 → 거짓 성공 금지, 'unsupported' 로 표면화
-        assert res["by"][0]["result"] == "unsupported"
+        leaf = res["by"][0]
+        assert leaf["result"] == "sent" and leaf["count"] == 2   # C1 결제완료 + C2 신규주문
+        assert calls["coupang"] == 2
+        from lemouton.sourcing.models_v2 import AutoConfirmSetting
+        row = session.get(AutoConfirmSetting, {"market": "coupang", "account_alias": "브랜드위시"})
+        assert row.last_run_at is not None and row.last_run_count == 2
+
+    def test_live_readback_zero_is_failed_no_false_success(self, session, accounts, monkeypatch):
+        self._stub_orders(monkeypatch); self._live_on(monkeypatch)
+        monkeypatch.setattr("lemouton.orders.confirm_api.confirm_targets", lambda *a, **k: None)
+        monkeypatch.setattr(ac, "_readback_moved", lambda *a, **k: 0)    # 안 움직임(스펙 틀림 시)
+        ac.set_account(session, "coupang", "브랜드위시", True)
+        res = ac.run(session, live=True)
+        assert res["by"][0]["result"] == "failed" and res["total"] == 0
+        from lemouton.sourcing.models_v2 import AutoConfirmSetting
+        row = session.get(AutoConfirmSetting, {"market": "coupang", "account_alias": "브랜드위시"})
+        assert row.last_run_at is None    # 거짓 성공 이력 안 남김
+
+    def test_live_eleven11_unsupported_honest(self, session, accounts, monkeypatch):
+        rows = {"eleven11": [{"판매처": "11번가", "쇼핑몰별칭": "대표 계정",
+                              "주문상태": "결제완료", "오픈마켓주문번호": "E1"}]}
+        monkeypatch.setattr(ac._oe, "combined_order_rows", lambda mks, **kw: rows.get(mks[0], []))
+        self._live_on(monkeypatch)
+        ac.set_account(session, "eleven11", "대표 계정", True)
+        res = ac.run(session, live=True)
+        assert res["by"][0]["result"] == "unsupported" and res["total"] == 0
+
+    def test_limit_caps_attempted(self, session, accounts, monkeypatch):
+        self._stub_orders(monkeypatch); self._live_on(monkeypatch)
+        seen = {}
+        monkeypatch.setattr("lemouton.orders.confirm_api.confirm_targets",
+                            lambda market, targets, client: seen.__setitem__(market, len(targets)))
+        monkeypatch.setattr(ac, "_readback_moved", lambda market, targets, client: len(targets))
+        ac.set_account(session, "coupang", "브랜드위시", True)
+        res = ac.run(session, live=True, limit=1)
+        assert seen["coupang"] == 1 and res["by"][0]["attempted"] == 1
 
     def test_no_enabled_returns_note(self, session, accounts, monkeypatch):
         self._stub_orders(monkeypatch)

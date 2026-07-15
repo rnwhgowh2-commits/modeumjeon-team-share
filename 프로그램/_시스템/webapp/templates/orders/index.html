@@ -1349,7 +1349,8 @@
       var html='<div class="ac-head"><span class="ac-title">⚡ 자동 배송준비중 전환</span>'
         +'<span class="ac-sub">결제완료 → 배송준비중</span>'+liveTag
         +'<span class="ac-master">전체 '+autoSwHTML('all','','',allOn,anyOn&&!allOn,false)+'</span>'
-        +'<button class="runbtn ghost" id="acRun" style="border:1px solid var(--line2);background:var(--ink);color:#fff;border-radius:9px;padding:9px 13px;font-size:12.5px;font-weight:800;cursor:pointer">⚡ 지금 즉시 전환</button></div>';
+        +'<button class="runbtn ghost" id="acRun" style="border:1px solid var(--line2);background:var(--ink);color:#fff;border-radius:9px;padding:9px 13px;font-size:12.5px;font-weight:800;cursor:pointer">⚡ 지금 즉시 전환</button>'
+        +'<button class="runbtn ghost" id="acSample" title="마켓별 1건만 실제로 넘겨 검증합니다(실전환 스위치가 켜진 서버에서만 실제 반영)" style="border:1px solid #F0B37E;background:#fff;color:#B45309;border-radius:9px;padding:9px 13px;font-size:12.5px;font-weight:800;cursor:pointer">🧪 샘플 1건 검증</button></div>';
       html+='<table class="ac-table"><tr><th style="width:36%">마켓 · 계정</th><th class="num">넘어갈</th>'
         +'<th class="ctr" style="width:92px">자동전환</th><th>마지막 전환</th></tr>';
       mks.forEach(function(m){
@@ -1377,6 +1378,34 @@
           autoSet(cb.getAttribute('data-scope'),cb.getAttribute('data-mk'),cb.getAttribute('data-alias'),cb.checked);});
       });
       var rb=document.getElementById('acRun'); if(rb)rb.onclick=autoRun;
+      var sb=document.getElementById('acSample'); if(sb)sb.onclick=autoRunSample;
+    }
+    var AC_RESULT_KO={sent:'✅ 전환·확인됨',partial:'🟡 일부만 이동',failed:'❌ 실패',
+                     unsupported:'⚪ 아직 미지원',dryrun:'미리보기',skip:'대상 없음'};
+    function autoResultLines(j){
+      return (j.by||[]).filter(function(b){return b.result!=='skip';}).map(function(b){
+        var s=(AC_RESULT_KO[b.result]||b.result)+' — '+b.label+' '+b.alias
+          +(b.attempted?(' ('+b.count+'/'+b.attempted+'건)'):'');
+        if(b.error)s+=' · '+b.error;
+        return s;
+      }).join('\n');
+    }
+    function autoRunSample(){
+      if(!confirm('마켓별 「결제완료」 주문 1건씩만 실제로 「배송준비중」으로 넘겨 검증합니다.\n\n'
+        +'· 실전환 스위치가 켜진 서버에서만 실제로 반영됩니다(꺼져 있으면 미리보기).\n'
+        +'· 넘긴 뒤 그 주문을 다시 조회해 진짜 바뀌었는지 확인합니다.\n\n진행할까요?'))return;
+      var sb=document.getElementById('acSample'); if(sb){sb.disabled=true;sb.textContent='검증 중…';}
+      fetch('/orders/auto-confirm/run',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({live:true,limit:1})})
+        .then(function(r){return r.json();}).then(function(j){
+          if(!j.ok){alert('검증 실패: '+(j.error||''));return;}
+          loadAutoConfig();   // 마지막 전환 이력 갱신
+          var head=j.live?'🧪 샘플 실전환 결과 — 실제로 넘겼습니다':'실전환 스위치가 꺼져 있어 미리보기로 처리됐어요(실제 변화 없음)';
+          var lines=autoResultLines(j)||'대상 주문이 없어요(켜진 계정에 결제완료 주문 없음).';
+          var msg=head+'\n\n'+lines;
+          if((j.warnings||[]).length)msg+='\n\n⚠️ 주의:\n· '+j.warnings.join('\n· ');
+          alert(msg);
+        }).catch(function(){alert('검증 실패(네트워크)');})
+        .then(function(){var b=document.getElementById('acSample'); if(b){b.disabled=false;b.textContent='🧪 샘플 1건 검증';}});
     }
     function autoSet(scope,market,alias,enabled){
       var payload={scope:scope,enabled:enabled};

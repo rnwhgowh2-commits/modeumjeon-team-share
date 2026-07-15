@@ -538,9 +538,13 @@ def auto_confirm_run():
     from lemouton.orders import auto_confirm as _ac
     body = request.get_json(silent=True) or {}
     live = bool(body.get('live'))
+    try:
+        limit = int(body.get('limit')) if body.get('limit') is not None else None
+    except (TypeError, ValueError):
+        limit = None
     s = SessionLocal()
     try:
-        return jsonify(**_ac.run(s, live=live))
+        return jsonify(**_ac.run(s, live=live, limit=limit))
     except Exception as e:   # noqa: BLE001 — 실행 실패 사유 표면화(조용한 실패 금지)
         import logging
         logging.getLogger(__name__).exception("auto-confirm run failed")

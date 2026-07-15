@@ -198,11 +198,13 @@ def _target_rows_by_leaf(enabled, days: int, warnings: list) -> dict:
     return out
 
 
-def run(session, *, live: bool = False, days: int = 7) -> dict:
+def run(session, *, live: bool = False, days: int = 7, limit=None) -> dict:
     """자동전환 실행. 기본 드라이런(집계만). live=True + 서버 스위치 ON 이면 실전환 시도.
 
-    반환: {ok, live, total, by:[{market,label,alias,count,result}], warnings}
-      result: 'dryrun'(미리보기) | 'unsupported'(실전환 미지원·명시실패) | 'sent' | 'failed'
+    limit(정수) = 계정별 최대 몇 건만 전환할지(마켓별 실주문 1건 검증용). None=제한 없음.
+    반환: {ok, live, total, by:[{market,label,alias,count,attempted,result,error?}], warnings}
+      result: 'dryrun'(미리보기) | 'sent'(전환·되읽기확인) | 'partial'(일부만 이동) |
+              'failed'(요청·검증 실패) | 'unsupported'(실전환 미배선) | 'skip'(대상 0)
     """
     is_live = bool(live) and live_confirm_enabled()
     warnings: list = []
@@ -211,38 +213,84 @@ def run(session, *, live: bool = False, days: int = 7) -> dict:
         return {"ok": True, "live": is_live, "total": 0, "by": [], "warnings": [],
                 "note": "켜진 마켓·계정이 없어요. 먼저 자동전환을 켜세요."}
 
+    lim = limit if isinstance(limit, int) and limit > 0 else None
     by_leaf = _target_rows_by_leaf(enabled, days, warnings)
     by, total = [], 0
     stored = _enabled_map(session)
     for (m, alias) in enabled:
         rows = by_leaf.get((m, alias), [])
-        cnt = len(rows)
-        total += cnt
         if not is_live:
-            result = "dryrun"
-        else:
-            # 실전환 경로: 마켓별 confirm API 가 검증되면 여기서 호출. 현재는 미검증 →
-            # 거짓 성공 금지, 명시 실패로 표면화(LIVE 를 켜도 실제 상태는 안 바뀜).
-            result = _confirm_market(m, rows)
-            if result == "sent" and cnt:
-                row = stored.get((m, alias))
-                if row is not None:
-                    row.last_run_at = _dt.datetime.now(_dt.timezone.utc)
-                    row.last_run_count = cnt
+            by.append({"market": m, "label": MARKET_KO.get(m, m), "alias": alias,
+                       "count": len(rows), "result": "dryrun"})
+            total += len(rows)
+            continue
+        targets = rows[:lim] if lim else rows
+        res = _confirm_leaf(m, alias, targets)
         by.append({"market": m, "label": MARKET_KO.get(m, m), "alias": alias,
-                   "count": cnt, "result": result})
+                   "count": res["moved"], "attempted": len(targets),
+                   "result": res["result"], "error": res.get("error")})
+        total += res["moved"]
+        if res["moved"] > 0:
+            row = stored.get((m, alias))
+            if row is not None:
+                row.last_run_at = _dt.datetime.now(_dt.timezone.utc)
+                row.last_run_count = res["moved"]
     if is_live:
         session.commit()
     return {"ok": True, "live": is_live, "total": total, "by": by, "warnings": warnings}
 
 
-def _confirm_market(market: str, rows: list) -> str:
-    """마켓에 '결제완료→배송준비중' 실전환 요청.
+def _client_for(market: str, alias: str):
+    """행의 「쇼핑몰별칭」 → 그 계정의 마켓 클라이언트(별칭 정규화 매칭). 없으면 대표 계정."""
+    env_prefix = None
+    try:
+        for prefix, name in (_oe._active_accounts(market) or []):
+            if alias and norm_alias(name) == norm_alias(alias):
+                env_prefix = prefix
+                break
+    except Exception:   # noqa: BLE001 — 계정 조회 실패는 대표 계정 폴백
+        env_prefix = None
+    return _oe._account_client(market, env_prefix)
 
-    ⚠️ 마켓별 발주확인/상품준비중 처리 API 는 스펙 검증 후 배선한다. 현재는 미검증이므로
-    **거짓 성공 대신 'unsupported'** 를 돌려준다(CLAUDE.md 🔒 — 확인 못한 걸 했다고 하지 않음).
-    검증 완료 마켓부터 여기 분기를 채운다.
+
+def _confirm_leaf(market: str, alias: str, targets: list) -> dict:
+    """한 계정의 결제완료 주문들을 배송준비중으로 전환 + 되읽기 검증.
+
+    되읽기 검증 = 전환 후 그 마켓을 재조회해 대상 주문이 '결제완료'를 벗어났는지 확인.
+    → 스펙이 틀려도 거짓 성공이 아니라 정직한 실패로 표면화(CLAUDE.md 🔒).
     """
-    # TODO(스펙검증 후): coupang=상품준비중 처리 / smartstore=발주확인(dispatch) /
-    #   lotteon=상품준비중 / eleven11=발송처리 준비. 각 실계정 1:1 대조 후 활성화.
-    return "unsupported"
+    from lemouton.orders import confirm_api as _capi
+    if not targets:
+        return {"result": "skip", "moved": 0}
+    cli = _client_for(market, alias)
+    if cli is None:
+        return {"result": "failed", "moved": 0, "error": "계정 키 미등록/불량"}
+    try:
+        _capi.confirm_targets(market, targets, cli)
+    except _capi.ConfirmUnsupported as e:
+        return {"result": "unsupported", "moved": 0, "error": str(e)}
+    except Exception as e:   # noqa: BLE001 — 전환 요청 실패는 사유와 함께 표면화
+        return {"result": "failed", "moved": 0, "error": f"{type(e).__name__}: {str(e)[:200]}"}
+    moved = _readback_moved(market, targets, cli)
+    if moved >= len(targets):
+        result = "sent"
+    elif moved > 0:
+        result = "partial"
+    else:
+        result = "failed"
+    return {"result": result, "moved": moved}
+
+
+def _readback_moved(market: str, targets: list, client) -> int:
+    """전환 후 재조회 — 대상 주문 중 '결제완료'를 벗어난(=이동한) 건수. 확인 실패 시 0."""
+    want = {str(t.get("오픈마켓주문번호") or "") for t in targets if t.get("오픈마켓주문번호")}
+    if not want:
+        return 0
+    try:
+        rows = _oe.combined_order_rows([market], days=7, use_cache=False,
+                                       include_settlement=False)
+    except Exception:   # noqa: BLE001 — 재조회 실패 = 확인 불가 → 이동 0(거짓 성공 금지)
+        return 0
+    still_paid = {str(r.get("오픈마켓주문번호") or "")
+                  for r in rows if is_confirm_target(r.get("주문상태"))}
+    return sum(1 for o in want if o not in still_paid)
