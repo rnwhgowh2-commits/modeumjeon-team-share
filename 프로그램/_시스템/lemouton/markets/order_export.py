@@ -14,6 +14,14 @@ from typing import Optional
 
 KST = _dt.timezone(_dt.timedelta(hours=9))
 
+
+def _until_now(until):
+    """max(until, 지금 KST) — until 이 naive(마진계산기)면 now 도 naive 로 맞춰 비교(TypeError 방지)."""
+    now = _dt.datetime.now(KST)
+    if getattr(until, "tzinfo", None) is None:
+        now = now.replace(tzinfo=None)
+    return max(until, now)
+
 # 선택·순서 조정 가능한 전체 열(사용자 요청: B=판매처, C=주문상태). 기본 순서 = 이 목록.
 ALL_COLUMNS = ["주문일", "판매처", "주문상태", "상품명", "옵션", "수량",
                "수령자", "수령자전화번호", "주소", "우편번호", "배송메시지",
@@ -278,7 +286,7 @@ def lotteon_order_rows(since: _dt.datetime, until: _dt.datetime,
     #   배송지시가 나중에(예: 07-12 주문 → 07-13 지시생성) 잡히면 [since,until] 창 밖이라
     #   통째 누락된다(라이브: 07-12 신규주문 6건, 서버 프로브 확인). 조회 끝을 now 로 넓히고
     #   combined_order_rows 가 주문일 기준으로 다시 트리밍(기간=주문일 유지).
-    _lo_fetch_until = max(until, _dt.datetime.now(KST))
+    _lo_fetch_until = _until_now(until)
     rows = []
     for od in iter_delivery_orders(since, _lo_fetch_until, client=client):
         opt = _g(od, "sitmNm") or (
@@ -317,6 +325,12 @@ def lotteon_order_rows(since: _dt.datetime, until: _dt.datetime,
             "주문상태": _status_ko("lotteon", _g(od, "odPrgsStepCd")),
             "주문상태원본": _g(od, "odPrgsStepCd"),
             "오픈마켓주문번호": _g(od, "odNo"),
+            # 209 정산 성분(2026-07-15 실검증 매핑) — 아래 정산 조인에서 compute_settlement 입력.
+            "_lo_slAmt": _g(od, "slAmt", default=""),              # 상품가
+            "_lo_seller_dc": _g(od, "sptDcPgmCmsnSum", default=""),  # 셀러부담 할인
+            "_lo_platform_dc": _g(od, "prSfcoShrAmtSum", default=""),  # 롯데부담 할인
+            "_lo_dvcst": _g(od, "dvCst", default=""),              # 수수료적용배송비
+            "_lo_spdno": _g(od, "spdNo", default=""),              # 상품번호(제휴 학습 키)
             "실결제금액": _g(od, "actualAmt", default=""),   # 실결제(정산예상은 주문API 없음→수수료 공란)
             # 송장은 출고지시(209) 응답에 **없다** — 진행단계(140)의 invcNo 가 정본.
             #   옛 코드가 여기서 invNo·dvInvNo 를 찾아 154행 전부 공란이었다(2026-07-10).
@@ -357,7 +371,7 @@ def lotteon_order_rows(since: _dt.datetime, until: _dt.datetime,
     _lo_done = {"취소": "21", "반품": "27"}   # 교환=None(완료코드 미확정)
     # ★ 클레임은 '클레임 접수일' 기준 조회 → 기간 안 주문이 나중에 취소되면 [since,until] 밖이라
     #   통째 누락(라이브: 롯데온 4건). 조회 끝을 now 로 넓힌다(주문번호 매칭이라 넓혀도 안전).
-    _lo_claim_until = max(until, _dt.datetime.now(KST))
+    _lo_claim_until = _until_now(until)
     for fn, base, qkey in ((_clm.iter_cancel, "취소", "cnclQty"),
                            (_clm.iter_return, "반품", "rtngQty"),
                            (_clm.iter_exchange, "교환", "xchgQty")):
@@ -412,21 +426,36 @@ def lotteon_order_rows(since: _dt.datetime, until: _dt.datetime,
                 if hit[2]:
                     r["송장입력"] = hit[2]
 
-    # ── 마켓수수료 실값(SettleCommission, apiNo45) — odNo별 수수료 합으로 마켓수수료 채움 ──
-    #  ★정산 기준일=구매확정일이라, 주문일이 창 안인 주문의 수수료는 구매확정(=나중) 시점에 기록됨.
-    #  따라서 수수료 조회창을 [주문창 시작 ~ 지금]으로 넓혀 odNo로 조인(창을 주문창으로만 두면 안 겹침).
-    #  odNo 매칭이라 넓혀도 안전(우리 주문에 없는 odNo는 무시). _finalize가 실값 우선 사용.
-    try:
-        cmap = _clm.commission_map(since, max(until, now), client=client) \
-            if include_settlement else {}
-    except Exception:   # noqa: BLE001
-        cmap = {}
-    if cmap:
-        for r in rows:
-            fee = cmap.get(r.get("오픈마켓주문번호"))
-            if fee:
-                r["마켓수수료"] = int(round(fee))
-                r["_settle_source"] = "real"   # 실결제 − 실수수료 로 정산 산출 가능
+    # ── 정산예정금액(2026-07-15 실검증 오차0) ────────────────────────────────
+    #  구매확정 주문 = SettleItmdSales.pymtAmt(마켓 실지급액, 정확) — 계산 불필요.
+    #  미정산 주문   = 209 성분 + compute_settlement(제휴는 상품별 이력으로 추정).
+    #  ★정산 기준일=구매확정일이라 조회창을 [주문창 시작 ~ 지금]으로 넓혀 odNo/spdNo 로 조인.
+    from lemouton.margin.lotteon_settlement import compute_settlement as _lo_calc
+    itmd, aff_by_spd = {}, {}
+    if include_settlement:
+        try:
+            from shared.platforms.lotteon import settlement as _lo_settle
+            itmd, aff_by_spd = _lo_settle.scan(since, _lo_fetch_until, client=client)
+        except Exception:   # noqa: BLE001
+            itmd, aff_by_spd = {}, {}
+    for r in rows:
+        odno = str(r.get("오픈마켓주문번호") or "")
+        hit = itmd.get(odno)
+        if hit:                                  # 구매확정 = 마켓 실지급액(정확)
+            r["정산예정금액"] = hit["pymtAmt"]
+            r["_settle_source"] = "real"
+            continue
+        slamt = _to_int(r.get("_lo_slAmt"))
+        if slamt is None:                        # 209 성분 없음(클레임행 등) → 유지
+            continue
+        aff = bool(aff_by_spd.get(str(r.get("_lo_spdno") or ""), False))
+        dvc = _to_int(r.get("_lo_dvcst"), 0) or 0
+        r["정산예정금액"] = _lo_calc(
+            slamt, dvc, dvc,
+            _to_int(r.get("_lo_seller_dc"), 0) or 0,
+            _to_int(r.get("_lo_platform_dc"), 0) or 0,
+            aff)
+        r["_settle_source"] = "estimated"        # 구매확정 전 추정(제휴는 상품별 이력)
     return rows
 
 
@@ -524,7 +553,7 @@ def coupang_order_rows(since: _dt.datetime, until: _dt.datetime,
         #   그 뒤 인식된 정산을 놓쳐 정산완료 주문도 estimated 로 남는다(260704 재분석 실측:
         #   쿠팡 92건 estimated). 롯데온 commission_map·클레임 조회가 이미 쓰는 max(until, now)
         #   패턴과 동일. _cp_windows 가 30일 분할하므로 장기 조회도 안전.
-        _settle_until = max(until, _dt.datetime.now(KST))
+        _settle_until = _until_now(until)
         item_settle, deliv_settle = _coupang_settle_map(since, _settle_until, client) \
             if include_settlement else ({}, {})
     except Exception:
@@ -578,7 +607,7 @@ def coupang_order_rows(since: _dt.datetime, until: _dt.datetime,
     #   취소되면 그 클레임은 [since,until] 창에 안 잡혀 통째 누락된다(라이브: 쿠팡 취소완료
     #   62건 미조회 = 손실 미포착). 롯데온 commission_map 처럼 조회 끝을 now 로 넓힌다
     #   (주문번호로 매칭하므로 넓혀도 우리 주문에 없는 건 무시돼 안전).
-    _claim_until = max(until, _dt.datetime.now(KST))
+    _claim_until = _until_now(until)
     seen_ord = {r.get("오픈마켓주문번호") for r in rows if r.get("오픈마켓주문번호")}
     try:
         for rq in _cc.iter_returns(since, _claim_until, client=client):
