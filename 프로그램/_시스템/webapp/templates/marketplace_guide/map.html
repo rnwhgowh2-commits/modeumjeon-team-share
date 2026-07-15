@@ -789,7 +789,7 @@ function dmTransRail(){
 }
 // API 정보 확보 절차 — 「마켓별 전체 API」 탭으로 이동
 function dmApiSteps(){
-  let h=`<div class="apih3" style="margin-top:22px;border-top:1px solid var(--line2);padding-top:16px">① API 정보 확보 절차 (공통 순서)</div>`;
+  let h=`<div class="apih3" style="margin-top:4px">① API 정보 확보 절차 (공통 순서)</div>`;
   h+=`<table class="cmp"><tr><th style="width:38px">단계</th><th>방법</th><th style="width:130px">언제</th></tr>`;
   API_STEPS.forEach(s=>{h+=`<tr><td class="c"><b>${s[0]}</b></td><td>${s[1]}</td><td class="g">${s[2]}</td></tr>`;});
   h+=`</table>`;
@@ -822,7 +822,8 @@ function dmTransMarket(id){
 function dmRender(){
   // 상위탭(대분류)
   let top=`<button class="toptab${DM_TOP==='all'?' on':''}" data-top="all">📚 마켓별 전체 API</button>`
-    +`<button class="toptab tr${DM_TOP==='trans'?' on':''}" data-top="trans">⚡ 주문상태 전환</button>`;
+    +`<button class="toptab tr${DM_TOP==='trans'?' on':''}" data-top="trans">⚡ 주문상태 전환</button>`
+    +`<button class="toptab${DM_TOP==='howto'?' on':''}" data-top="howto">🔍 API 문서 정보 수집법</button>`;
   document.getElementById('dm-toptabs').innerHTML=top;
   // 하위탭(마켓)
   let sub='';
@@ -834,6 +835,8 @@ function dmRender(){
   const body=document.getElementById('dm-body');
   if(DM_TOP==='trans'){
     body.innerHTML=`<div class="tsplit"><div class="trail">${dmTransRail()}</div><div class="tcontent">${(DM_TSUB==='summary')?dmTransSummary():dmTransMarket(DM_TSUB)}</div></div>`;
+  }else if(DM_TOP==='howto'){
+    body.innerHTML=`<div class="favhead"><span class="ft">🔍 API 문서 정보 수집법</span><span class="fs">마켓 공식 API 문서를 확보하는 순서 · 마켓별 어디까지 가면 되나</span></div>`+dmApiSteps();
   }else{
     const m=DM_MARKETS.filter(x=>x.id===DM_MK)[0]; const cats=MKT_CATS[DM_MK]||[];
     if(DM_SUBG>=cats.length) DM_SUBG=0;
@@ -843,7 +846,7 @@ function dmRender(){
     if(!gr.items.length){ right=`<div class="empty" style="padding:30px 20px;"><div style="font-size:24px">📄</div><b>${gr.g}</b> 카테고리의 API 항목은<br>공식 문서에서 가져오는 중이에요.<br><span style="font-size:11px;color:var(--faint)">이 카테고리 문서 화면을 주시면 채웁니다.</span></div>`; }
     else { right=`<div class="two">${dmColLux('send','📤 보내기','프로그램 → 마켓',send)}${dmColLux('recv','📥 받기','마켓 → 프로그램',recv)}</div>`; }
     h+=`<div class="md"><div class="ml">`+cats.map((g,i)=>`<button class="${i===DM_SUBG?'on':''}" data-g="${i}">${g.g}<span class="n">${g.items.length||'…'}</span></button>`).join('')+`</div><div class="mr">${right}</div></div>`;
-    body.innerHTML=h+dmApiSteps();
+    body.innerHTML=h;
   }
   document.querySelectorAll('.dm2 .toptab').forEach(t=>t.onclick=()=>{DM_TOP=t.dataset.top;if(DM_TOP==='trans'&&DM_TSUB!=='summary'&&TRANS_MK.indexOf(DM_TSUB)<0)DM_TSUB='summary';dmRender();});
   document.querySelectorAll('.dm2 .mktab[data-m]').forEach(t=>t.onclick=()=>{DM_MK=t.dataset.m;DM_SUBG=0;dmRender();});
