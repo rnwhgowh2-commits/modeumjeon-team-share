@@ -1548,20 +1548,34 @@ async function openPriceTplModal(id, initialTab, opts) {
         + '.ptm-inline-left [style*="flex:0 0 200px"]{flex:0 0 116px !important}';
       document.head.appendChild(st);
     }
-    const SM = { cost: { t: '💵 원가', tag: '사올 때' }, margin: { t: '🏷️ 마진', tag: '팔 때', hero: true }, adv: { t: '⚙️ 고급', tag: '' } };
+    const SM = {
+      cost: { t: '💵 원가', tag: '사올 때', stripBg: '#E8F3FF', stripFg: '#1D4CB0', tagFg: '#6B8CC0' },
+      margin: { t: '🏷️ 마진', tag: '팔 때', hero: true },
+      adv: { t: '⚙️ 고급', tag: '', stripBg: '#F1F3F5', stripFg: '#4E5968', tagFg: '#8B95A1' },
+    };
     const secs = {};
     box.querySelectorAll('.ptm-panel').forEach(p => {
       p.style.display = '';
       const meta = SM[p.dataset.panel]; if (!meta) return;
       const sec = document.createElement('div');
-      sec.style.cssText = meta.hero
-        ? 'background:#fff;border:1px solid #E5E8EB;border-radius:12px;padding:16px 18px;box-shadow:0 6px 18px rgba(49,130,246,.14)'
-        : 'padding:6px 2px';
-      const h = document.createElement('div');
-      h.style.cssText = 'display:flex;align-items:center;gap:8px;font-size:' + (meta.hero ? '15px' : '13px') + ';font-weight:700;color:' + (meta.hero ? '#191F28' : '#6B7684') + ';margin-bottom:12px';
-      h.innerHTML = meta.t + (meta.hero ? ' <span style="font-size:10px;color:#fff;background:#12B886;border-radius:20px;padding:1px 8px">핵심</span>' : '') + (meta.tag ? ' <span style="font-size:11px;font-weight:500;color:#8B95A1">· ' + meta.tag + '</span>' : '');
-      sec.appendChild(h); sec.appendChild(p);
       secs[p.dataset.panel] = sec;
+      if (meta.hero) {
+        sec.style.cssText = 'background:#fff;border:1px solid #E5E8EB;border-radius:12px;padding:16px 18px;box-shadow:0 6px 18px rgba(49,130,246,.14)';
+        const h = document.createElement('div');
+        h.style.cssText = 'display:flex;align-items:center;gap:8px;font-size:15px;font-weight:700;color:#191F28;margin-bottom:12px';
+        h.innerHTML = meta.t + ' <span style="font-size:10px;color:#fff;background:#12B886;border-radius:20px;padding:1px 8px">핵심</span>' + (meta.tag ? ' <span style="font-size:11px;font-weight:500;color:#8B95A1">· ' + meta.tag + '</span>' : '');
+        sec.appendChild(h); sec.appendChild(p);
+      } else {
+        // 시안11 4번 — 컬러 헤더 스트립 카드 (원가=파랑 / 고급=회색)
+        sec.style.cssText = 'background:#fff;border:1px solid #E5E8EB;border-radius:12px;overflow:hidden';
+        const strip = document.createElement('div');
+        strip.style.cssText = 'background:' + meta.stripBg + ';color:' + meta.stripFg + ';font-size:13px;font-weight:700;padding:9px 15px';
+        strip.innerHTML = meta.t + (meta.tag ? ' <span style="font-size:11px;font-weight:500;color:' + (meta.tagFg || meta.stripFg) + '">· ' + meta.tag + '</span>' : '');
+        const bodyWrap = document.createElement('div');
+        bodyWrap.style.cssText = 'padding:13px 15px';
+        bodyWrap.appendChild(p);
+        sec.appendChild(strip); sec.appendChild(bodyWrap);
+      }
       if (p.dataset.panel === 'margin') {
         // 마켓 카드 2개씩(2열) — 마켓 많아도 항상 2개씩 줄바꿈
         p.style.display = 'grid';
@@ -1579,7 +1593,7 @@ async function openPriceTplModal(id, initialTab, opts) {
     leftCol.className = 'ptm-inline-left';
     leftCol.style.cssText = 'display:flex;flex-direction:column;gap:14px;min-width:0';
     if (secs.cost) leftCol.appendChild(secs.cost);
-    if (secs.adv) { secs.adv.style.borderTop = '1px dashed #E5E8EB'; secs.adv.style.paddingTop = '14px'; leftCol.appendChild(secs.adv); }
+    if (secs.adv) { leftCol.appendChild(secs.adv); }
     grid.appendChild(leftCol);
     if (secs.margin) { secs.margin.style.minWidth = '0'; grid.appendChild(secs.margin); }
     const mbody = box.querySelector('.modal-body') || box;
