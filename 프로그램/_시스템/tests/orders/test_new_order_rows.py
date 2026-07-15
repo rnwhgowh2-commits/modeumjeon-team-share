@@ -43,3 +43,23 @@ def test_change_blank_orderdate_dropped(monkeypatch):
     monkeypatch.setattr(oe, "combined_order_rows", _fake_combined(rows))
     out = oe.new_order_rows(["coupang"], since=SINCE, until=UNTIL)
     assert {r["오픈마켓주문번호"] for r in out} == {"F"}   # 공란 change(쿠팡·11번가) 제외
+
+
+def test_fetch_combined_default_tags_kind_order(monkeypatch):
+    """빌더가 _kind 를 안 붙여도 _fetch_combined 가 'order'로 기본 태그(후속 태스크 의존)."""
+    def _fake_order_rows(market, **kw):          # _fetch_combined 의 per-market 디스패치
+        return [{"오픈마켓주문번호": "G", "주문일": "2026-07-15 09:00:00",
+                 "주문상태": "결제완료"}]          # ★ _kind 키 없음
+    monkeypatch.setattr(oe, "order_rows", _fake_order_rows)
+    rows = oe._fetch_combined(["smartstore"], days=7, now=SINCE,
+                              since=SINCE, until=UNTIL)
+    assert rows and rows[0]["오픈마켓주문번호"] == "G"
+    assert all(r.get("_kind") == "order" for r in rows)   # 기본 태그 붙음
+
+
+def test_window_days_fallback_and_since_until():
+    """_window — since/until 없으면 최근 days일, 있으면 그 범위."""
+    lo, hi = oe._window(None, None, days=3,
+                        now=dt.datetime(2026, 7, 15, 12, tzinfo=KST))
+    assert (lo, hi) == (dt.date(2026, 7, 12), dt.date(2026, 7, 15))
+    assert oe._window(SINCE, UNTIL, 7) == (dt.date(2026, 7, 15), dt.date(2026, 7, 15))
