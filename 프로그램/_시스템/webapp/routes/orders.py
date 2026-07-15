@@ -542,9 +542,12 @@ def auto_confirm_run():
         limit = int(body.get('limit')) if body.get('limit') is not None else None
     except (TypeError, ValueError):
         limit = None
+    order_nos = body.get('order_nos') or None   # 승인한 주문번호만 콕 집어 전환
+    if order_nos is not None and not isinstance(order_nos, list):
+        order_nos = None
     s = SessionLocal()
     try:
-        return jsonify(**_ac.run(s, live=live, limit=limit))
+        return jsonify(**_ac.run(s, live=live, limit=limit, order_nos=order_nos))
     except Exception as e:   # noqa: BLE001 — 실행 실패 사유 표면화(조용한 실패 금지)
         import logging
         logging.getLogger(__name__).exception("auto-confirm run failed")

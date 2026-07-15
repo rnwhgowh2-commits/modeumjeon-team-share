@@ -176,6 +176,19 @@ class TestRunDryRun:
         res = ac.run(session, live=True, limit=1)
         assert seen["coupang"] == 1 and res["by"][0]["attempted"] == 1
 
+    def test_order_nos_targets_only_approved(self, session, accounts, monkeypatch):
+        self._stub_orders(monkeypatch); self._live_on(monkeypatch)
+        seen = {}
+        monkeypatch.setattr("lemouton.orders.confirm_api.confirm_targets",
+                            lambda market, targets, client:
+                            seen.__setitem__(market, [t["오픈마켓주문번호"] for t in targets]))
+        monkeypatch.setattr(ac, "_readback_moved", lambda market, targets, client: len(targets))
+        ac.set_account(session, "coupang", "브랜드위시", True)
+        # 브랜드위시 결제완료는 C1·C2 지만, 승인은 C2 만
+        res = ac.run(session, live=True, order_nos=["C2"])
+        assert seen["coupang"] == ["C2"]          # C1 은 안 넘김
+        assert res["by"][0]["count"] == 1
+
     def test_no_enabled_returns_note(self, session, accounts, monkeypatch):
         self._stub_orders(monkeypatch)
         res = ac.run(session, live=False)

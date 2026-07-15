@@ -198,10 +198,12 @@ def _target_rows_by_leaf(enabled, days: int, warnings: list) -> dict:
     return out
 
 
-def run(session, *, live: bool = False, days: int = 7, limit=None) -> dict:
+def run(session, *, live: bool = False, days: int = 7, limit=None,
+        order_nos=None) -> dict:
     """자동전환 실행. 기본 드라이런(집계만). live=True + 서버 스위치 ON 이면 실전환 시도.
 
     limit(정수) = 계정별 최대 몇 건만 전환할지(마켓별 실주문 1건 검증용). None=제한 없음.
+    order_nos(집합/목록) = 지정 시 그 오픈마켓주문번호만 대상(승인한 주문만 콕 집어 전환).
     반환: {ok, live, total, by:[{market,label,alias,count,attempted,result,error?}], warnings}
       result: 'dryrun'(미리보기) | 'sent'(전환·되읽기확인) | 'partial'(일부만 이동) |
               'failed'(요청·검증 실패) | 'unsupported'(실전환 미배선) | 'skip'(대상 0)
@@ -214,11 +216,14 @@ def run(session, *, live: bool = False, days: int = 7, limit=None) -> dict:
                 "note": "켜진 마켓·계정이 없어요. 먼저 자동전환을 켜세요."}
 
     lim = limit if isinstance(limit, int) and limit > 0 else None
+    only = {str(o) for o in order_nos} if order_nos else None
     by_leaf = _target_rows_by_leaf(enabled, days, warnings)
     by, total = [], 0
     stored = _enabled_map(session)
     for (m, alias) in enabled:
         rows = by_leaf.get((m, alias), [])
+        if only is not None:   # 승인한 주문번호만 남긴다(콕 집어 전환)
+            rows = [r for r in rows if str(r.get("오픈마켓주문번호") or "") in only]
         if not is_live:
             by.append({"market": m, "label": MARKET_KO.get(m, m), "alias": alias,
                        "count": len(rows), "result": "dryrun"})
