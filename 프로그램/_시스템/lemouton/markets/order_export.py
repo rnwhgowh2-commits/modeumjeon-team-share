@@ -176,6 +176,7 @@ def smartstore_order_rows(since: _dt.datetime, until: _dt.datetime,
     from shared.platforms.smartstore.client import SmartStoreClient
 
     client = client or SmartStoreClient()
+    since, until = _ensure_kst(since), _ensure_kst(until)   # naive(_parse_dt/probe)→KST(비교 TypeError 방지)
 
     # 변경 주문내역은 '상태변경일' 기준이라, 주문일이 창 안이어도 최근 상태변경(구매확정 등)이
     # 창 밖으로 밀리면 빠진다(며칠 지난 주문의 드리프트). 조회 끝을 살짝 넉넉히 잡고
