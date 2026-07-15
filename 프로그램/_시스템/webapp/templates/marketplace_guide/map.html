@@ -821,9 +821,9 @@ function dmTransMarket(id){
 }
 function dmRender(){
   // 상위탭(대분류)
-  let top=`<button class="toptab${DM_TOP==='all'?' on':''}" data-top="all">📚 마켓별 전체 API</button>`
-    +`<button class="toptab tr${DM_TOP==='trans'?' on':''}" data-top="trans">⚡ 주문상태 전환</button>`
-    +`<button class="toptab${DM_TOP==='howto'?' on':''}" data-top="howto">🔍 API 문서 정보 수집법</button>`;
+  let top=`<button class="toptab${DM_TOP==='howto'?' on':''}" data-top="howto">🔍 API 문서 정보 수집법</button>`
+    +`<button class="toptab${DM_TOP==='all'?' on':''}" data-top="all">📚 마켓별 전체 API</button>`
+    +`<button class="toptab tr${DM_TOP==='trans'?' on':''}" data-top="trans">⚡ 주문상태 전환</button>`;
   document.getElementById('dm-toptabs').innerHTML=top;
   // 하위탭(마켓)
   let sub='';
