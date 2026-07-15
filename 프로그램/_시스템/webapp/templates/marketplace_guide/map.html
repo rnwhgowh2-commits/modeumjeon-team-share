@@ -61,7 +61,7 @@
   .dm2 .achip.off{background:var(--offb);color:var(--off);} .dm2 .achip.ok{background:var(--okb);color:var(--ok);}
   .dm2 .achip.code{background:var(--codeb);color:var(--code);} .dm2 .achip.del{background:#FEE2E2;color:var(--del);}
   .dm2 .agrp .an{font-size:10px;color:var(--faint);font-weight:700;}
-  .dm2 .litem{display:grid;grid-template-columns:18px 1fr auto;gap:9px;align-items:start;padding:8px 13px;border-top:1px solid var(--line);}
+  .dm2 .litem{display:grid;grid-template-columns:1fr auto;gap:9px;align-items:start;padding:8px 13px;border-top:1px solid var(--line);}
   .dm2 .agrp + .litem{border-top:none;} .dm2 .litem:hover{background:#FAFBFC;} .dm2 .litem.off{opacity:.5;}
   .dm2 .litem .lnm{font-weight:700;font-size:13px;line-height:1.35;}
   .dm2 .litem .lcode{display:inline-block;margin-top:3px;font-family:var(--mono);font-size:10px;border-radius:6px;padding:2px 7px;word-break:break-all;line-height:1.4;}
@@ -86,7 +86,7 @@
 
 <div class="dm2">
   <h2>📖 데이터 코드 지도 — 판매처</h2>
-  <div class="sub">각 마켓의 <b>개발환경</b> + 프로그램과 주고받는 API를 <b>그 마켓 공식 문서의 카테고리 그대로</b> 왼쪽에 나열(네이버 9·롯데온 13). 색은 <b>상태</b>에만, 방향은 <b>보내기/받기</b> 위치로. 별(☆)로 담으면 「주요 데이터」에서 마켓끼리 비교.</div>
+  <div class="sub">각 마켓의 <b>개발환경</b> + 프로그램과 주고받는 API를 <b>그 마켓 공식 문서의 카테고리 그대로</b> 왼쪽에 나열(네이버 9·롯데온 13). 색은 <b>상태</b>에만, 방향은 <b>보내기/받기</b> 위치로.</div>
 
   <div class="flow">
     <span class="nd">프로그램<small> · 가격·재고</small></span><span class="ar">→</span>
@@ -752,8 +752,8 @@ function dmSec(t,ar,sub,items){if(!items.length)return '';let h=`<div class="dse
 const DM_ACTC={조회:'off',등록:'ok',수정:'code',삭제:'del'};
 function dmActOf(it){if(it.dir==='recv')return '조회';const n=it.nm;if(/삭제|파기/.test(n))return '삭제';if(/생성|등록|업로드|추가|적용|발급|입고|반출/.test(n))return '등록';return '수정';}
 function dmUse(it){return it.st==='ok'||it.st==='code';} // 씀 = 우리 코드로 연결됨(실사용 or 검증대기)
-function dmRowLux(it){const on=dmStar.has(it.nm)?' on':'';const use=dmUse(it),wait=it.st==='code';
-  return `<div class="litem${use?'':' off'}"><span class="lstar${on}" data-k="${it.nm}" title="주요 데이터로 담기">${dmStar.has(it.nm)?'★':'☆'}</span>`
+function dmRowLux(it){const use=dmUse(it),wait=it.st==='code';
+  return `<div class="litem${use?'':' off'}">`
     +`<div class="lbd"><div class="lnm">${it.nm}</div><span class="lcode ${use?'use':'doc'}">${use?'':'문서 '}${it.code}</span></div>`
     +`<span class="luse ${use?'on':'no'}"><span class="udot"></span>${use?'씀':'안 씀'}${wait?'<span class="wtag">검증대기</span>':''}</span></div>`;}
 function dmColLux(cls,head,sub,items){
@@ -791,8 +791,7 @@ function dmTransMarket(id){
 function dmRender(){
   // 상위탭(대분류)
   let top=`<button class="toptab${DM_TOP==='all'?' on':''}" data-top="all">📚 마켓별 전체 API</button>`
-    +`<button class="toptab tr${DM_TOP==='trans'?' on':''}" data-top="trans">⚡ 주문상태 전환</button>`
-    +`<button class="toptab fav${DM_TOP==='fav'?' on':''}" data-top="fav"><span class="fc">⭐</span> 주요 데이터 <span class="cnt">${dmN()}</span></button>`;
+    +`<button class="toptab tr${DM_TOP==='trans'?' on':''}" data-top="trans">⚡ 주문상태 전환</button>`;
   document.getElementById('dm-toptabs').innerHTML=top;
   // 하위탭(마켓)
   let sub='';
@@ -805,18 +804,7 @@ function dmRender(){
   const subEl=document.getElementById('dm-mktabs'); subEl.innerHTML=sub; subEl.style.display=(DM_TOP==='fav')?'none':'';
   const leg=document.querySelector('.dm2 .legend'); if(leg)leg.style.display=(DM_TOP==='all')?'':'none';
   const body=document.getElementById('dm-body');
-  if(DM_TOP==='fav'){
-    let h=`<div class="favhead"><span class="ft">⭐ 주요 데이터</span><span class="fs">담은 항목을 마켓끼리 비교(마켓에 없으면 —)</span></div>`;
-    if(dmN()===0){h+=`<div class="empty"><div class="big">⭐</div>담긴 항목이 없어요.<br>마켓별 데이터에서 별(☆)을 눌러 "주요 데이터"로 담으면 여기서 마켓끼리 나란히 비교됩니다.</div>`;}
-    else{
-      h+=`<table class="cmp"><tr><th>주요 데이터</th><th class="mk">방향</th>`+DM_MARKETS.map(m=>`<th class="mk">${m.nm}</th>`).join('')+`</tr>`;
-      [...dmStar].forEach(name=>{
-        let dir=null; const cells=DM_MARKETS.map(m=>{const it=dmFind(m.id,name); if(it&&!dir)dir=it.dir; return it?dmSt(it.st):'<span style="color:var(--faint)">—</span>';});
-        h+=`<tr><td class="el">${name}</td><td class="dc">${dir==='send'?'보내기':dir==='recv'?'받기':'—'}</td>`+cells.map(c=>`<td class="stc">${c}</td>`).join('')+`</tr>`;
-      });
-      h+=`</table>`;}
-    body.innerHTML=h;
-  }else if(DM_TOP==='trans'){
+  if(DM_TOP==='trans'){
     body.innerHTML=(DM_TSUB==='summary')?dmTransSummary():dmTransMarket(DM_TSUB);
   }else{
     const m=DM_MARKETS.filter(x=>x.id===DM_MK)[0]; const cats=MKT_CATS[DM_MK]||[];

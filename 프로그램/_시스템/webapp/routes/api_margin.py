@@ -789,3 +789,36 @@ def _probe_lo_itmd():
         except Exception as e:  # noqa: BLE001
             errors.append({"acct": name, "err": str(e)[:200]})
     return jsonify({"rows": rows, "errors": errors, "count": len(rows)})
+
+
+# ── [임시 진단] 배선된 lotteon_order_rows 통합 검증 — 정산예정금액 재확인 ──
+@bp.route("/_probe_lo_rows", methods=["POST"])
+def _probe_lo_rows():
+    """body {since, until, orders?}. 전 계정 lotteon_order_rows 실행 → 주문번호별
+    정산예정금액·_settle_source 반환. 엑셀과 오프라인 대조(통합 경로 오차0 확인). 확인 후 제거."""
+    body = request.get_json(silent=True) or {}
+    try:
+        since = _dt.datetime.fromisoformat(body["since"])
+        until = _dt.datetime.fromisoformat(body["until"])
+    except Exception:
+        return jsonify({"error": "since/until 필요"}), 400
+    want = set(str(o) for o in (body.get("orders") or []))
+    from lemouton.markets.order_export import (lotteon_order_rows, _account_client,
+                                               _active_accounts)
+    out, errors = [], []
+    for prefix, name in _active_accounts("lotteon"):
+        cli = _account_client("lotteon", prefix)
+        if cli is None:
+            continue
+        try:
+            for r in lotteon_order_rows(since, until, client=cli, include_settlement=True):
+                od = str(r.get("오픈마켓주문번호") or "")
+                if want and od not in want:
+                    continue
+                out.append({"acct": name, "odNo": od,
+                            "정산예정금액": r.get("정산예정금액"),
+                            "_settle_source": r.get("_settle_source"),
+                            "실결제": r.get("실결제금액")})
+        except Exception as e:  # noqa: BLE001
+            errors.append({"acct": name, "err": str(e)[:250]})
+    return jsonify({"rows": out, "errors": errors})
