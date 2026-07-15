@@ -663,3 +663,65 @@ def _probe_lo_fields():
             trials.append({"label": label, "method": method, "err": str(e)[:400]})
     out["benefit_trials"] = trials
     return jsonify(out)
+
+
+# ── [임시 진단] 전 계정 순회 — 209 원필드 + getSROrderList(POST) 실샘플 ──
+@bp.route("/_probe_lo_fields2", methods=["POST"])
+def _probe_lo_fields2():
+    """전 롯데온 계정 순회: 209 주문 원필드+샘플(판매경로·배송비 발굴) + getSROrderList
+    POST(lrtrNo=trNo) 실 orderItems 샘플(할인 fvrList). body {since, until}. 확인 후 제거."""
+    body = request.get_json(silent=True) or {}
+    try:
+        since = _dt.datetime.fromisoformat(body["since"])
+        until = _dt.datetime.fromisoformat(body["until"])
+    except Exception:
+        return jsonify({"error": "since/until 필요"}), 400
+    from lemouton.markets.order_export import _account_client, _active_accounts
+    from shared.platforms.lotteon.orders import iter_delivery_orders
+    _PII = {"dvpCustNm", "dvpStnmZipAddr", "dvpStnmDtlAddr", "dvpMphnNo", "dvpTelNo",
+            "odrNm", "mphnNo", "telNo", "dvpZipNo", "dvMsg"}
+    results = []
+    for prefix, name in _active_accounts("lotteon"):
+        cli = _account_client("lotteon", prefix)
+        if cli is None:
+            continue
+        cfg = getattr(cli, "_cfg", {}) or {}
+        r = {"acct": name, "trNo": cfg.get("tr_no")}
+        # 209 원필드
+        of, osamp, oc = set(), None, 0
+        try:
+            for od in iter_delivery_orders(since, until, if_cpl_yn="", client=cli):
+                oc += 1
+                of.update(od.keys())
+                if osamp is None:
+                    osamp = {k: ("***" if k in _PII else v) for k, v in od.items()}
+            r["order_count"] = oc
+            if osamp:
+                r["order_fields"] = sorted(of)
+                r["order_sample"] = osamp
+        except Exception as e:  # noqa: BLE001
+            r["order_err"] = str(e)[:200]
+        # getSROrderList POST
+        bsamp, bc, brc = None, 0, None
+        try:
+            win = since
+            while win < until:
+                end = min(win + _dt.timedelta(days=1), until)
+                b = {"srchStrtDttm": win.strftime("%Y%m%d%H%M%S"),
+                     "srchEndDttm": (end - _dt.timedelta(seconds=1)).strftime("%Y%m%d%H%M%S"),
+                     "lrtrNo": cfg.get("tr_no", "")}
+                resp = cli.request(method="POST",
+                                   path="/v1/openapi/order/v1/getSROrderList", body=b)
+                brc = resp.get("returnCode")
+                items = ((resp.get("data") or {}).get("orderItems")) or []
+                bc += len(items)
+                if bsamp is None and items:
+                    bsamp = items[0]
+                win = end
+            r["benefit_returnCode"] = brc
+            r["benefit_order_count"] = bc
+            r["benefit_sample"] = bsamp
+        except Exception as e:  # noqa: BLE001
+            r["benefit_err"] = str(e)[:200]
+        results.append(r)
+    return jsonify({"results": results})
