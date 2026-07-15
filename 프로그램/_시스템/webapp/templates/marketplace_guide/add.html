@@ -172,6 +172,7 @@ function genPrompt(){
   var acts=curActs().join(' · ');
   var t='판매처(마켓) 연동 추가해줘 — "'+name+'".\n'
     +'⚠️ docs/markets/_새-마켓-추가-가이드.md 를 그대로 읽고 그 체크리스트대로. 작업 전 origin/main 최신 대조(stale 워크트리 금지).\n'
+    +'📖 착수 전 필독: 데이터 코드 지도(marketplace_guide/map.html)의 모든 탭을 한 번씩 쭉 정독 — 기존 판매처들이 각 데이터·API·주문상태 전환을 어떻게 배선/처리했는지 전부 파악해야 신규 추가가 유리(중요 항목은 타 마켓 방식 미러가 정답).\n'
     +'yaml만으론 안 됨 — 가이드의 배선 지점을 [백엔드+프런트+전송경로+연결테스트]까지 전부(=코드 배선 전부) 해야 "사용자가 실제로 씀". 쿠팡·스스·롯데온 선례 미러.\n'
     +'[완료 기준] 코드 배선 완료 + 기존 테스트 전부 통과(green) 유지 + 배포(워크트리→PR→머지→GitHub Actions)까지 하고 라이브 화면(연동·전송)에서 실제로 떠야 완료. 로컬 확인만·머지 전은 미완.\n'
     +'[산출물] docs/markets/<슬러그>.yaml (스키마 docs/markets/_schema.yaml, 완성본 coupang.yaml·smartstore.yaml·lotteon.yaml 참고, 근거=코드·실측만·추측 금지) + 배선 전부.\n'
