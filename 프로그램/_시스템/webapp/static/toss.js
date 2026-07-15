@@ -1536,22 +1536,54 @@ async function openPriceTplModal(id, initialTab, opts) {
   let bg;
   if (opts.inlineContainer) {
     box.style.cssText += ';max-width:none;box-shadow:none;border:none;border-radius:0;padding:0;max-height:none;overflow:visible;';
+    box.classList.add('ptm-inline');
     const _h2 = box.querySelector('h2'); if (_h2) _h2.style.display = 'none';
     const tbar = box.querySelector('.ptm-tabbar'); if (tbar) tbar.style.display = 'none';
-    const SM = { cost: { t: '💵 원가', tag: '사올 때', hero: false }, margin: { t: '🏷️ 마진', tag: '팔 때', hero: true }, adv: { t: '⚙️ 고급', tag: '', hero: false } };
+    // 인라인 전용: 입력칸이 화면 폭 전체로 늘어나지 않게 상한 + 좁은 왼쪽 칼럼 라벨 축소
+    if (!document.getElementById('ptm-inline-style')) {
+      const st = document.createElement('style'); st.id = 'ptm-inline-style';
+      st.textContent = '.ptm-inline input[type=number],.ptm-inline input[type=text]{max-width:260px}'
+        + '.ptm-inline-left label[style*="200px"]{flex:0 0 116px !important}'
+        + '.ptm-inline-left #ptm-prio-desc{padding-left:0 !important}'
+        + '.ptm-inline-left [style*="flex:0 0 200px"]{flex:0 0 116px !important}';
+      document.head.appendChild(st);
+    }
+    const SM = { cost: { t: '💵 원가', tag: '사올 때' }, margin: { t: '🏷️ 마진', tag: '팔 때', hero: true }, adv: { t: '⚙️ 고급', tag: '' } };
+    const secs = {};
     box.querySelectorAll('.ptm-panel').forEach(p => {
       p.style.display = '';
       const meta = SM[p.dataset.panel]; if (!meta) return;
       const sec = document.createElement('div');
       sec.style.cssText = meta.hero
-        ? 'background:#fff;border:1px solid #E5E8EB;border-radius:12px;padding:16px 18px;margin-bottom:14px;box-shadow:0 6px 18px rgba(49,130,246,.14)'
-        : 'padding:8px 2px;margin-bottom:14px';
+        ? 'background:#fff;border:1px solid #E5E8EB;border-radius:12px;padding:16px 18px;box-shadow:0 6px 18px rgba(49,130,246,.14)'
+        : 'padding:6px 2px';
       const h = document.createElement('div');
       h.style.cssText = 'display:flex;align-items:center;gap:8px;font-size:' + (meta.hero ? '15px' : '13px') + ';font-weight:700;color:' + (meta.hero ? '#191F28' : '#6B7684') + ';margin-bottom:12px';
       h.innerHTML = meta.t + (meta.hero ? ' <span style="font-size:10px;color:#fff;background:#12B886;border-radius:20px;padding:1px 8px">핵심</span>' : '') + (meta.tag ? ' <span style="font-size:11px;font-weight:500;color:#8B95A1">· ' + meta.tag + '</span>' : '');
-      p.parentNode.insertBefore(sec, p);
       sec.appendChild(h); sec.appendChild(p);
+      secs[p.dataset.panel] = sec;
+      if (p.dataset.panel === 'margin') {
+        // 마켓 카드 2개씩(2열) — 마켓 많아도 항상 2개씩 줄바꿈
+        p.style.display = 'grid';
+        p.style.gridTemplateColumns = 'repeat(2, minmax(0, 1fr))';
+        p.style.gap = '14px';
+        p.style.alignItems = 'start';
+        p.querySelectorAll('.ptm-mcard').forEach(c => { c.style.marginBottom = '0'; });
+        [...p.children].forEach(c => { if (!c.classList.contains('ptm-mcard')) c.style.gridColumn = '1 / -1'; });
+      }
     });
+    // 4번 대시보드: 왼쪽(원가+고급 좁은 칼럼) | 오른쪽(마진 핵심, 넓게)
+    const grid = document.createElement('div');
+    grid.style.cssText = 'display:grid;grid-template-columns:minmax(360px, 420px) 1fr;gap:18px;align-items:start';
+    const leftCol = document.createElement('div');
+    leftCol.className = 'ptm-inline-left';
+    leftCol.style.cssText = 'display:flex;flex-direction:column;gap:14px;min-width:0';
+    if (secs.cost) leftCol.appendChild(secs.cost);
+    if (secs.adv) { secs.adv.style.borderTop = '1px dashed #E5E8EB'; secs.adv.style.paddingTop = '14px'; leftCol.appendChild(secs.adv); }
+    grid.appendChild(leftCol);
+    if (secs.margin) { secs.margin.style.minWidth = '0'; grid.appendChild(secs.margin); }
+    const mbody = box.querySelector('.modal-body') || box;
+    mbody.insertBefore(grid, mbody.firstChild);
     opts.inlineContainer.replaceChildren(box);
     bg = { remove: () => {} };   // 인라인은 닫기 no-op (저장 성공 시 페이지 reload)
   } else {
@@ -1575,12 +1607,10 @@ async function openPriceTplModal(id, initialTab, opts) {
   tabs.forEach(t => t.addEventListener('click', () => activateTab(t.dataset.tab)));
   // 호출자 initialTab 매핑 (구 basic→원가 / ss·cp→마진)
   const _tabMap = { basic: 'cost', cost: 'cost', ss: 'margin', cp: 'margin', margin: 'margin', adv: 'adv' };
-  if (opts.inlineContainer) {
-    // 인라인: 탭 없이 원가·마진·고급 전 패널 표시 (activateTab 이 숨기지 않게)
-    box.querySelectorAll('.ptm-panel').forEach(p => { p.style.display = ''; });
-  } else {
+  if (!opts.inlineContainer) {
     activateTab(_tabMap[initialTab] || 'cost');
   }
+  // 인라인은 위 마운트 분기에서 패널 display(마진=grid 포함)를 이미 설정 — 여기서 리셋하지 않음
 
   // 배송타입 라디오 ↔ 배송비 입력 연동 (무료배송 = 배송비 0)
   ['ss', 'coupang'].forEach(prefix => {
