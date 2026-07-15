@@ -276,12 +276,18 @@ def _confirm_leaf(market: str, alias: str, targets: list) -> dict:
     if cli is None:
         return {"result": "failed", "moved": 0, "error": "계정 키 미등록/불량"}
     try:
-        _capi.confirm_targets(market, targets, cli)
+        confirmed = _capi.confirm_targets(market, targets, cli)
     except _capi.ConfirmUnsupported as e:
         return {"result": "unsupported", "moved": 0, "error": str(e)}
     except Exception as e:   # noqa: BLE001 — 전환 요청 실패는 사유와 함께 표면화
-        return {"result": "failed", "moved": 0, "error": f"{type(e).__name__}: {str(e)[:200]}"}
-    moved = _readback_moved(market, targets, cli)
+        return {"result": "failed", "moved": 0, "error": f"{type(e).__name__}: {str(e)[:250]}"}
+    if confirmed is not None:
+        # 마켓 API 가 개별 확정 결과를 준 경우(스스 발주확인) — 상태가 안 바뀌므로 이게 검증 신호.
+        want = {str(t.get("오픈마켓주문번호") or "") for t in targets if t.get("오픈마켓주문번호")}
+        moved = len(want & {str(c) for c in confirmed})
+    else:
+        # 상태가 바뀌는 마켓(쿠팡·롯데온) — 전환 후 재조회로 '결제완료'를 벗어났는지 독립 검증.
+        moved = _readback_moved(market, targets, cli)
     if moved >= len(targets):
         result = "sent"
     elif moved > 0:

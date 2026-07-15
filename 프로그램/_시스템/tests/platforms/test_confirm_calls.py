@@ -13,9 +13,10 @@ class FakeClient:
 
     def request(self, method=None, path=None, body=None, query=None):
         self.calls.append({"method": method, "path": path, "body": body, "query": query})
-        # 스스 발주확인은 네이버식 성공 본문을 돌려준다(confirm 이 본문을 검사하므로).
+        # 스스 발주확인은 네이버식 성공 본문(successProductOrderInfos)을 돌려준다.
         if path and path.endswith("/confirm"):
-            return {"data": {"successProductOrderIds": list((body or {}).get("productOrderIds") or [])}}
+            return {"data": {"successProductOrderInfos":
+                             [{"productOrderId": p} for p in ((body or {}).get("productOrderIds") or [])]}}
         return {"returnCode": "0000"}   # 롯데온 성공 코드(다른 마켓은 무시)
 
 
@@ -44,6 +45,20 @@ def test_smartstore_confirm_shape():
     assert call["method"] == "POST"
     assert call["path"] == "/external/v1/pay-order/seller/product-orders/confirm"
     assert call["body"] == {"productOrderIds": ["PO1", "PO2"]}
+    # 확정 집합 반환(상태 안 바뀌는 스스는 이게 검증 신호)
+    assert ss.confirm_orders(["PO1"], client=FakeClient()) == {"PO1"}
+
+
+def test_smartstore_already_confirmed_is_idempotent_success():
+    """'이미 발주확인 된 주문'(104443)은 실패가 아니라 멱등 성공으로 확정 집합에 포함."""
+    from shared.platforms.smartstore import orders as ss
+
+    class AlreadyClient(FakeClient):
+        def request(self, method=None, path=None, body=None, query=None):
+            return {"data": {"successProductOrderInfos": [],
+                             "failProductOrderInfos": [{"productOrderId": "PO1",
+                                                        "code": "104443", "message": "이미 발주확인"}]}}
+    assert ss.confirm_orders(["PO1"], client=AlreadyClient()) == {"PO1"}
 
 
 def test_smartstore_confirm_raises_when_not_confirmed():

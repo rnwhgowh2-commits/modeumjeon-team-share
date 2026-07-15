@@ -153,17 +153,25 @@ def confirm_orders(product_order_ids: list[str],
         path="/external/v1/pay-order/seller/product-orders/confirm",
         body={"productOrderIds": ids},
     )
-    # 네이버는 HTTP 200 에 개별 결과를 담는다(dispatch 동일) → 확정 확인. 거짓성공 금지.
+    # 네이버는 HTTP 200 에 개별 결과를 담는다(거짓성공 금지). 확정 목록 = successProductOrderInfos.
+    #  ★발주확인은 productOrderStatus(=결제완료/PAYED)를 바꾸지 않는다 → 상태 되읽기 대신
+    #    이 응답의 확정 목록이 유일한 검증 신호다. '이미 발주확인'(104443)은 멱등 성공.
     data = (resp or {}).get("data") or resp or {}
-    ok = {str(x) for x in (data.get("successProductOrderIds") or [])}
-    fails = data.get("failProductOrderInfos") or []
-    missing = [p for p in ids if p not in ok]
-    if fails or missing:
+    confirmed = {str(x.get("productOrderId")) for x in (data.get("successProductOrderInfos") or [])
+                 if x.get("productOrderId")}
+    real_fails = []
+    for f in (data.get("failProductOrderInfos") or []):
+        if str(f.get("code")) == "104443":        # 이미 발주확인 된 주문 = 이미 원하는 상태
+            confirmed.add(str(f.get("productOrderId")))
+        else:
+            real_fails.append(f)
+    missing = [p for p in ids if p not in confirmed]
+    if real_fails or missing:
         raise RuntimeError(
-            "스마트스토어 발주확인 미완료: 실패=" + _json.dumps(fails[:2], ensure_ascii=False)
-            + " 누락=" + _json.dumps(missing[:3], ensure_ascii=False)
-            + " 원응답=" + _json.dumps(resp, ensure_ascii=False)[:500])
-    return resp
+            "스마트스토어 발주확인 실패: " + _json.dumps(real_fails[:2], ensure_ascii=False)
+            + (" 누락=" + _json.dumps(missing[:3], ensure_ascii=False) if missing else "")
+            + " 원응답=" + _json.dumps(resp, ensure_ascii=False)[:400])
+    return confirmed   # 확정된 productOrderId 집합(= 오픈마켓주문번호)
 
 
 def send_tracking(product_order_ids: list[str], delivery_company_code: str,

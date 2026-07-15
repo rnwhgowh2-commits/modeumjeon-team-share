@@ -189,6 +189,20 @@ class TestRunDryRun:
         assert seen["coupang"] == ["C2"]          # C1 은 안 넘김
         assert res["by"][0]["count"] == 1
 
+    def test_smartstore_verified_by_confirm_set_not_status(self, session, accounts, monkeypatch):
+        # 스스는 발주확인해도 상태(결제완료)가 안 바뀐다 → 되읽기 대신 confirm 확정집합으로 검증.
+        rows = {"smartstore": [{"판매처": "스마트스토어", "쇼핑몰별칭": "대표 계정",
+                                "주문상태": "결제완료", "오픈마켓주문번호": "S1"}]}
+        monkeypatch.setattr(ac._oe, "combined_order_rows", lambda mks, **kw: rows.get(mks[0], []))
+        self._live_on(monkeypatch)
+        # confirm_targets 가 확정집합 반환 / 되읽기는 0 을 주도록(안 쓰여야 함)
+        monkeypatch.setattr("lemouton.orders.confirm_api.confirm_targets",
+                            lambda market, targets, client: {"S1"})
+        monkeypatch.setattr(ac, "_readback_moved", lambda *a, **k: 0)
+        ac.set_account(session, "smartstore", "대표 계정", True)
+        res = ac.run(session, live=True)
+        assert res["by"][0]["result"] == "sent" and res["by"][0]["count"] == 1
+
     def test_no_enabled_returns_note(self, session, accounts, monkeypatch):
         self._stub_orders(monkeypatch)
         res = ac.run(session, live=False)

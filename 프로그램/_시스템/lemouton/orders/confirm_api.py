@@ -28,13 +28,16 @@ class ConfirmUnsupported(Exception):
     """그 마켓 전환이 아직 배선되지 않음 — 거짓 성공 대신 명시 실패."""
 
 
-def confirm_targets(market: str, targets: list, client) -> None:
+def confirm_targets(market: str, targets: list, client):
     """targets(결제완료 주문 dict, `_send_ids`·`오픈마켓주문번호` 포함)를 배송준비중으로 요청.
 
-    실패는 예외로 던진다(호출부가 result='failed' 로 표면화). 이동 여부는 호출부가 되읽기로 확인.
+    실패는 예외로 던진다(호출부가 result='failed' 로 표면화).
+    반환: 확정된 오픈마켓주문번호 집합(마켓 API 가 개별 결과를 줄 때) 또는 None.
+      · None → 호출부가 '상태 되읽기'로 이동을 검증(쿠팡·롯데온: 상태가 바뀜).
+      · 집합 → 그 API 응답이 유일한 검증 신호(스스: 발주확인이 상태를 안 바꿔 되읽기 불가).
     """
     if not targets:
-        return
+        return None
 
     if market == "coupang":
         from shared.platforms.coupang import orders as cp
@@ -43,6 +46,7 @@ def confirm_targets(market: str, targets: list, client) -> None:
         if not boxes:
             raise ValueError("쿠팡: shipmentBoxId 없는 주문 — 전환 불가(추측 금지)")
         cp.acknowledge(boxes, client=client)
+        return None   # 상태 ACCEPT→INSTRUCT 로 바뀜 → 되읽기로 검증
 
     elif market == "smartstore":
         from shared.platforms.smartstore import orders as ss
@@ -50,7 +54,7 @@ def confirm_targets(market: str, targets: list, client) -> None:
         pids = [p for p in pids if p]
         if not pids:
             raise ValueError("스마트스토어: productOrderId 없는 주문 — 전환 불가")
-        ss.confirm_orders(pids, client=client)
+        return ss.confirm_orders(pids, client=client)   # 확정 집합(상태 안 바뀜 → 이게 검증)
 
     elif market == "lotteon":
         from shared.platforms.lotteon import shipping as lo
