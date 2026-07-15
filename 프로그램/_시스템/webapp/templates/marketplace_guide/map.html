@@ -23,6 +23,13 @@
   .dm2 .favtab{margin-left:auto;color:var(--sub);border:none;background:none;font-size:13.5px;font-weight:800;cursor:pointer;padding:9px 14px;border-bottom:3px solid transparent;margin-bottom:-2px;display:flex;align-items:center;gap:6px;}
   .dm2 .favtab::before{content:'';border-left:1px solid var(--line2);height:20px;margin-right:8px;}
   .dm2 .favtab.on{color:var(--ink);border-bottom-color:var(--star);} .dm2 .favtab .fc{color:var(--star);} .dm2 .favtab .cnt{background:var(--star);color:#fff;border-radius:20px;font-size:10px;padding:0 6px;min-width:16px;text-align:center;}
+  .dm2 .apitab{color:var(--sub);border:none;background:none;font-size:13.5px;font-weight:800;cursor:pointer;padding:9px 14px;border-bottom:3px solid transparent;margin-bottom:-2px;display:flex;align-items:center;gap:6px;}
+  .dm2 .apitab.on{color:var(--ink);border-bottom-color:var(--off);}
+  .dm2 .apih3{font-size:14px;font-weight:800;margin:16px 0 8px;} .dm2 .apih3:first-of-type{margin-top:4px;}
+  .dm2 .apimk{font-weight:800;font-size:13px;margin:14px 0 5px;} .dm2 .apimk small{font-size:10.5px;color:var(--sub);font-weight:600;}
+  .dm2 .cmp td.url{font-family:var(--mono);font-size:9.5px;word-break:break-all;color:var(--ink);line-height:1.4;}
+  .dm2 .cmp td.g{font-size:10.5px;color:var(--sub);} .dm2 .cmp td.star{color:var(--ok);font-weight:800;}
+  .dm2 .apinote{font-size:10.5px;color:var(--code);margin:4px 0 0;}
   .dm2 .legend{font-size:11px;color:var(--sub);display:flex;gap:13px;align-items:center;margin-bottom:12px;flex-wrap:wrap;} .dm2 .lg{display:inline-flex;align-items:center;gap:5px;} .dm2 .dt{width:8px;height:8px;border-radius:50%;} .dm2 .dt.ok{background:var(--ok);}.dm2 .dt.code{background:var(--code);}.dm2 .dt.off{background:var(--off);}.dm2 .dt.todo{background:var(--todo);}
   .dm2 .env{display:grid;grid-template-columns:auto 1fr auto 1fr;gap:3px 12px;font-size:11.5px;background:var(--bg);border:1px solid var(--line);border-radius:9px;padding:10px 13px;margin-bottom:15px;} .dm2 .env .k{color:var(--faint);font-weight:700;white-space:nowrap;} .dm2 .env .v{color:var(--ink);} .dm2 .env .v a{color:var(--sub);text-decoration:underline;text-underline-offset:2px;} .dm2 .env .v .mono{font-family:var(--mono);font-size:10.5px;color:var(--sub);}
   .dm2 .st{font-size:10.5px;font-weight:800;border-radius:5px;padding:2px 8px;white-space:nowrap;} .dm2 .st.ok{background:var(--okb);color:var(--ok);} .dm2 .st.code{background:var(--codeb);color:var(--code);} .dm2 .st.off{background:var(--offb);color:var(--off);} .dm2 .st.todo{background:var(--todob);color:var(--todo);}
@@ -250,7 +257,7 @@ const MKT_CATS={
       {nm:'발주서 단건 조회(shipmentBoxId)',dir:'recv',st:'code',code:'360033792854'},
       {nm:'발주서 단건 조회(orderId)',dir:'recv',st:'off',code:'360034320553'},
       {nm:'배송상태 변경 히스토리 조회',dir:'recv',st:'off',code:'360033792934'},
-      {nm:'상품준비중 처리',dir:'send',st:'off',code:'360033792994'},
+      {nm:'상품준비중 처리',dir:'send',st:'ok',code:'360033792994 · orders.acknowledge (발주확인·자동전환)'},
       {nm:'송장업로드 처리',dir:'send',st:'code',code:'360033793014'},
       {nm:'송장업데이트 처리',dir:'send',st:'off',code:'360034320653'},
       {nm:'출고중지완료 처리',dir:'send',st:'off',code:'360034320673'},
@@ -441,7 +448,7 @@ const MKT_CATS={
       {nm:'상품 주문 상세 내역 조회',dir:'recv',st:'code',code:'seller-get-product-orders-pay-order-seller'},
       {nm:'조건형 상품 주문 상세 내역 조회',dir:'recv',st:'off',code:'seller-get-product-orders-with-conditions-pay-order-seller'},
       {nm:'변경 상품 주문 내역 조회',dir:'recv',st:'off',code:'seller-get-last-changed-status-pay-order-seller'},
-      {nm:'발주 확인 처리',dir:'send',st:'off',code:'seller-confirm-placed-product-orders-pay-order-seller'},
+      {nm:'발주 확인 처리',dir:'send',st:'ok',code:'…/product-orders/confirm · orders.confirm_orders (자동전환·상태 PAYED유지→placeOrderStatus)'},
       {nm:'발송 처리',dir:'send',st:'code',code:'seller-dispatch-product-orders-pay-order-seller'},
       {nm:'발송 지연 처리',dir:'send',st:'off',code:'seller-delay-dispatch-due-date-pay-order-seller'},
       {nm:'배송 희망일 변경 처리',dir:'send',st:'off',code:'seller-change-hope-delivery-pay-order-seller'},
@@ -576,7 +583,7 @@ const MKT_CATS={
     {g:'배송',items:[
       {nm:'출고/회수지시(주문정보) 조회',dir:'recv',st:'code',code:'apiNo=209'},
       {nm:'출고/회수지시 연동완료 통보',dir:'send',st:'off',code:'apiNo=210'},
-      {nm:'배송상태 통보',dir:'send',st:'off',code:'apiNo=137'},
+      {nm:'배송상태 통보',dir:'send',st:'ok',code:'apiNo=137 · SellerDeliveryProgressStateInform · shipping.set_preparing(12상품준비=자동전환)·send_tracking(13발송)'},
       {nm:'배송상태 통보 V2',dir:'send',st:'off',code:'apiNo=298'},
       {nm:'발송약정일 통보',dir:'send',st:'off',code:'apiNo=138'},
       {nm:'운송장수정 통보',dir:'send',st:'off',code:'apiNo=139'},
@@ -633,7 +640,12 @@ const MKT_CATS={
     {g:'상품',items:[]},
     {g:'재고',items:[]},
     {g:'가격',items:[]},
-    {g:'주문',items:[]},
+    {g:'주문',items:[
+      {nm:'결제완료(발송대기) 조회',dir:'recv',st:'ok',code:'/rest/ordservices/complete/{s}/{e}'},
+      {nm:'발주처리(발송대기→배송준비중)',dir:'send',st:'ok',code:'/rest/ordservices/reqpackaging/{ordNo}/{ordPrdSeq}/{addPrdYn}/{addPrdNo}/{dlvNo} · shipping.set_packaging (자동전환)'},
+      {nm:'배송준비중 조회',dir:'recv',st:'ok',code:'/rest/ordservices/packaging/{s}/{e}'},
+      {nm:'발송처리(송장)',dir:'send',st:'code',code:'/rest/ordservices/reqdelivery/… · shipping.send_tracking'},
+    ]},
     {g:'정산',items:[]},
     {g:'클레임',items:[]},
     {g:'배송',items:[]},
@@ -642,6 +654,44 @@ const MKT_CATS={
   gmarket:ESM_CATS,
 };
 const DM_LBL={ok:'됨',code:'연결됨',off:'공식제공',todo:'미정의'};
+// ── 🔌 API 확보·호출 탭 데이터 (2026-07-15 4마켓 자동전환 배선하며 확인) ──
+const API_STEPS=[
+  ['①','마켓 공식 API 문서에 브라우저로 접속','항상 먼저'],
+  ['②','자동 읽기(WebFetch)로 문서 내용 확인','일반 웹페이지면 바로 됨'],
+  ['③','자동읽기가 빈 내용만 줌(로그인·자바스크립트 SPA) → 인앱 브라우저로 열기','네이버 커머스·11번가 등'],
+  ['④','인앱도 정책 차단 → 셀러 콘솔 F12에 스크립트 붙여 그 화면의 주소·파라미터 추출','11번가(openapi.11st.co.kr)'],
+  ['⑤','또는 셀러오피스에서 그 버튼(발주확인 등)을 눌러 네트워크 요청 관찰','④도 애매할 때(최후)'],
+];
+const API_HOW={
+  coupang:['①②(공식문서로 충분)','wing.coupang.com · developers.coupangcorp.com'],
+  smartstore:['①② + 응답필드는 실주문 조회','apicenter.commerce.naver.com · placeOrderStatus 등은 실주문으로 확인'],
+  lotteon:['①②(apiNo 문서)','롯데ON API센터'],
+  eleven11:['④ 콘솔 추출','openapi.11st.co.kr · 인앱 차단 → 콘솔 스크립트'],
+  esm:['① + 실측(ESM 공통)','etapi.gmarket.com'],
+};
+const API_CALLS={
+  coupang:{auth:'HMAC-SHA256',rows:[
+    ['주문조회','GET /v2/providers/openapi/apis/api/v5/vendors/{vendorId}/ordersheets?status=ACCEPT..','발주서 목록'],
+    ['★발주확인(상품준비중)','PUT /v2/providers/openapi/apis/api/v4/vendors/{vendorId}/ordersheets/acknowledgement · body {vendorId, shipmentBoxIds:[정수…]}','ACCEPT→INSTRUCT'],
+    ['송장전송','POST /…/orders/{shipmentBoxId}/ordersheets/invoices','code 200'],
+  ]},
+  smartstore:{auth:'OAuth2 Bearer',rows:[
+    ['주문조회','GET /external/v1/pay-order/seller/product-orders/last-changed-statuses','productOrderId[]'],
+    ['주문상세','POST /external/v1/pay-order/seller/product-orders/query · {productOrderIds}','placeOrderStatus 등'],
+    ['★발주확인','POST /external/v1/pay-order/seller/product-orders/confirm · {productOrderIds}','successProductOrderInfos · 이미확인=104443(성공취급)'],
+    ['송장전송','POST /…/product-orders/dispatch','—'],
+  ],note:'발주확인해도 주문상태 「결제완료(PAYED)」 그대로 → placeOrderStatus=OK 로 배송준비 판정(우리 앱이 이 필드 읽음)'},
+  lotteon:{auth:'Bearer + IP등록',rows:[
+    ['★상품준비(발주확인)','POST /v1/openapi/delivery/v1/SellerDeliveryProgressStateInform · body {…, odPrgsStepCd:"12", spdNo, sitmNo, slQty, dvRtrvDvsCd:"DV"}','returnCode "0000" (apiNo 137)'],
+    ['송장전송(발송완료)','같은 URL · odPrgsStepCd:"13" + 송장필드','returnCode "0000"'],
+  ]},
+  eleven11:{auth:'openapikey 헤더 + IP등록 · XML',rows:[
+    ['결제완료(발송대기) 조회','GET /rest/ordservices/complete/{시작}/{종료}','발송대기'],
+    ['★발주처리(→배송준비중)','GET /rest/ordservices/reqpackaging/{ordNo}/{ordPrdSeq}/{addPrdYn}/{addPrdNo}/{dlvNo}','result_code "0" · 추가구성 없으면 N/null'],
+    ['배송준비중 조회','GET /rest/ordservices/packaging/{시작}/{종료}','발주확인 완료'],
+    ['송장전송(발송처리)','GET /rest/ordservices/reqdelivery/{발송일}/{배송방식}/{택배사}/{송장}/{dlvNo}','result_code "0"'],
+  ]},
+};
 const DM_KEY='moum_datamap_starred';
 let dmStar=new Set(); try{dmStar=new Set(JSON.parse(localStorage.getItem(DM_KEY)||'[]'));}catch(e){}
 let DM_MK='coupang', DM_VIEW='map', DM_SUBG=0;
@@ -652,6 +702,7 @@ function dmRow(it){const on=dmStar.has(it.nm)?' on':'';return `<div class="item"
 function dmSec(t,ar,sub,items){if(!items.length)return '';let h=`<div class="dsec"><div class="dh"><span class="ar">${ar}</span>${t} <span class="sub2">${sub}</span></div>`;items.forEach(it=>h+=dmRow(it));return h+`</div>`;}
 function dmRender(){
   let mt=DM_MARKETS.map(m=>`<button class="mktab${m.id===DM_MK&&DM_VIEW==='map'?' on':''}" data-m="${m.id}">${m.nm}<span class="mini">${m.status==='ok'?'연동완료':'준비중'}</span></button>`).join('');
+  mt+=`<button class="apitab${DM_VIEW==='api'?' on':''}" data-api="1">🔌 API 확보·호출</button>`;
   mt+=`<button class="favtab${DM_VIEW==='fav'?' on':''}" data-fav="1"><span class="fc">⭐</span> 주요 데이터 <span class="cnt">${dmN()}</span></button>`;
   document.getElementById('dm-mktabs').innerHTML=mt;
   const body=document.getElementById('dm-body');
@@ -666,6 +717,26 @@ function dmRender(){
       });
       h+=`</table>`;}
     body.innerHTML=h;
+  }else if(DM_VIEW==='api'){
+    let h=`<div class="favhead"><span class="ft">🔌 API 확보·호출</span><span class="fs">신규 마켓 추가 시 따라하기 — ① 정보 확보 절차 → ② 실제 호출 API</span></div>`;
+    h+=`<div class="apih3">① API 정보 확보 절차 (공통 순서)</div>`;
+    h+=`<table class="cmp"><tr><th style="width:38px">단계</th><th>방법</th><th style="width:130px">언제</th></tr>`;
+    API_STEPS.forEach(s=>{h+=`<tr><td class="stc"><b>${s[0]}</b></td><td>${s[1]}</td><td class="g">${s[2]}</td></tr>`;});
+    h+=`</table>`;
+    h+=`<div class="apih3" style="font-size:12.5px">마켓별 — 어디까지 가면 되나</div>`;
+    h+=`<table class="cmp"><tr><th style="width:96px">마켓</th><th style="width:148px">확보 방법</th><th>문서·비고</th></tr>`;
+    DM_MARKETS.forEach(m=>{const k=(m.id==='auction'||m.id==='gmarket')?'esm':m.id;const a=API_HOW[k];if(a)h+=`<tr><td class="el">${m.nm}</td><td>${a[0]}</td><td class="g">${a[1]}</td></tr>`;});
+    h+=`</table>`;
+    h+=`<div class="apih3">② 마켓별 실제 호출 API <span style="font-size:11px;color:var(--sub);font-weight:600">· ★ = 결제완료→배송준비중 전환(자동전환)</span></div>`;
+    ['coupang','smartstore','lotteon','eleven11'].forEach(id=>{
+      const m=DM_MARKETS.filter(x=>x.id===id)[0], c=API_CALLS[id];
+      h+=`<div class="apimk">${m.nm} <small>· ${c.auth}</small></div>`;
+      h+=`<table class="cmp"><tr><th style="width:118px">용도</th><th>메서드 · URL</th><th style="width:118px">성공·비고</th></tr>`;
+      c.rows.forEach(r=>{const st=r[0][0]==='★';h+=`<tr><td class="el${st?' star':''}">${r[0]}</td><td class="url">${r[1]}</td><td class="g">${r[2]}</td></tr>`;});
+      h+=`</table>`;
+      if(c.note)h+=`<div class="apinote">⚠️ ${c.note}</div>`;
+    });
+    body.innerHTML=h;
   }else{
     const m=DM_MARKETS.filter(x=>x.id===DM_MK)[0]; const cats=MKT_CATS[DM_MK]||[];
     if(DM_SUBG>=cats.length) DM_SUBG=0;
@@ -679,6 +750,7 @@ function dmRender(){
   }
   document.querySelectorAll('.dm2 .mktab').forEach(t=>t.onclick=()=>{DM_MK=t.dataset.m;DM_VIEW='map';DM_SUBG=0;dmRender();});
   document.querySelectorAll('.dm2 .favtab').forEach(t=>t.onclick=()=>{DM_VIEW='fav';dmRender();});
+  document.querySelectorAll('.dm2 .apitab').forEach(t=>t.onclick=()=>{DM_VIEW='api';dmRender();});
   document.querySelectorAll('.dm2 .ml button').forEach(b=>b.onclick=()=>{DM_SUBG=+b.dataset.g;dmRender();});
   document.querySelectorAll('.dm2 .star').forEach(s=>s.onclick=()=>{const k=s.dataset.k;dmStar.has(k)?dmStar.delete(k):dmStar.add(k);dmSave();dmRender();});
 }
