@@ -12,9 +12,11 @@
   .dm2 *{box-sizing:border-box;}
   .dm2 h2{font-size:22px;font-weight:800;margin:0 0 5px;}
   .dm2 .sub{font-size:13px;color:var(--sub);margin-bottom:16px;line-height:1.55;}
-  .dm2 .flow{display:flex;align-items:center;gap:8px;flex-wrap:wrap;background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:10px 13px;margin-bottom:8px;font-size:12px;}
-  .dm2 .flow .nd{font-weight:700;} .dm2 .flow .nd small{color:var(--sub);font-weight:400;}
-  .dm2 .flow .ar{color:var(--faint);font-weight:800;}
+  .dm2 .flow{display:flex;align-items:stretch;gap:7px;margin-bottom:8px;}
+  .dm2 .flow .fstep{flex:1;border:1px solid var(--line2);border-radius:11px;padding:11px 6px;text-align:center;background:#fff;}
+  .dm2 .flow .fstep.dim{background:var(--bg);}
+  .dm2 .flow .fstep .fic{font-size:20px;line-height:1;} .dm2 .flow .fstep .fnm{font-size:12px;font-weight:800;margin-top:6px;} .dm2 .flow .fstep .fds{font-size:9.5px;color:var(--faint);margin-top:2px;}
+  .dm2 .flow .ar{display:flex;align-items:center;color:var(--off);font-weight:800;font-size:14px;}
   .dm2 .branches{font-size:11.5px;color:var(--sub);margin-bottom:18px;line-height:1.6;}
   .dm2 .branches b{color:var(--ink);}
   .dm2 .mktabs{display:flex;gap:4px;border-bottom:2px solid var(--line2);margin-bottom:14px;align-items:flex-end;flex-wrap:wrap;}
@@ -31,7 +33,7 @@
   .dm2 .cmp td.g{font-size:10.5px;color:var(--sub);} .dm2 .cmp td.star{color:var(--ok);font-weight:800;}
   .dm2 .apinote{font-size:10.5px;color:var(--code);margin:4px 0 0;}
   /* 상위탭(대분류) + 실배선 매트릭스 */
-  .dm2 .toptabs{display:flex;gap:6px;margin-bottom:11px;flex-wrap:wrap;}
+  .dm2 .toptabs{display:flex;gap:6px;margin:22px 0 16px;flex-wrap:wrap;border-top:2px solid var(--line2);padding-top:18px;}
   .dm2 .toptab{font-size:14px;font-weight:800;color:var(--sub);border:1px solid var(--line2);background:#fff;cursor:pointer;padding:9px 16px;border-radius:10px;display:flex;align-items:center;gap:6px;}
   .dm2 .toptab.on{color:#fff;background:var(--ink);border-color:var(--ink);}
   .dm2 .toptab.tr.on{background:var(--ok);border-color:var(--ok);}
@@ -82,6 +84,18 @@
   .dm2 .foot h3{font-size:13px;font-weight:800;margin:0 0 8px;}
   .dm2 .cm{display:grid;grid-template-columns:1fr auto;gap:6px;padding:5px 0;border-bottom:1px solid var(--line);font-size:12px;} .dm2 .cm .f{font-family:var(--mono);font-size:11px;color:var(--sub);}
   .dm2 .risk{margin-top:12px;background:#FFF7ED;border:1px solid #FCD9A8;border-radius:10px;padding:11px 14px;font-size:11.5px;color:#7C4A03;line-height:1.7;} .dm2 .risk code{background:#FBEBD3;border-radius:4px;padding:1px 5px;font-family:var(--mono);}
+  /* ⚡ 주문상태 전환 — 세로 레일 + 통합 경고 + 식별자 칩 (2026-07-15 재디자인) */
+  .dm2 .tsplit{display:grid;grid-template-columns:176px 1fr;gap:18px;align-items:start;margin-top:16px;}
+  .dm2 .trail{display:flex;flex-direction:column;gap:3px;border-right:1px solid var(--line);padding-right:14px;}
+  .dm2 .trail .rt{font-size:10px;font-weight:800;color:var(--faint);padding:0 10px 6px;}
+  .dm2 .trail .railbtn{display:flex;align-items:center;justify-content:space-between;gap:8px;text-align:left;border:none;border-radius:9px;padding:9px 12px;font-size:12.5px;font-weight:700;color:var(--ink);background:none;cursor:pointer;}
+  .dm2 .trail .railbtn.on{background:var(--ink);color:#fff;}
+  .dm2 .trail .rdot{width:8px;height:8px;border-radius:50%;} .dm2 .trail .rdot.done{background:var(--ok);} .dm2 .trail .rdot.wait{background:var(--code);}
+  .dm2 .idchip{font-family:var(--mono);font-size:9.5px;color:var(--sub);background:#F1F3F5;border-radius:5px;padding:2px 6px;display:inline-block;margin:1px 2px 1px 0;}
+  .dm2 .cmp td.idcell{line-height:1.7;}
+  .dm2 .warnbox{background:#FFFBEB;border:1px solid #FDE68A;border-left:3px solid var(--code);border-radius:10px;padding:11px 14px;margin-top:13px;}
+  .dm2 .warnbox .wt{font-size:11.5px;font-weight:800;color:#92400E;margin-bottom:7px;}
+  .dm2 .warnbox .wr{display:flex;gap:8px;align-items:flex-start;font-size:11px;color:#7C4A03;line-height:1.55;padding:2px 0;}
 </style>
 
 <div class="dm2">
@@ -89,10 +103,13 @@
   <div class="sub">각 마켓의 <b>개발환경</b> + 프로그램과 주고받는 API를 <b>그 마켓 공식 문서의 카테고리 그대로</b> 왼쪽에 나열(네이버 9·롯데온 13). 색은 <b>상태</b>에만, 방향은 <b>보내기/받기</b> 위치로.</div>
 
   <div class="flow">
-    <span class="nd">프로그램<small> · 가격·재고</small></span><span class="ar">→</span>
-    <span class="nd">전송 대기<small> · 스냅샷</small></span><span class="ar">→</span>
-    <span class="nd">판매처 API<small> · 스스 OAuth·쿠팡 HMAC</small></span><span class="ar">→</span>
-    <span class="nd">마켓 반영<small> · 상품·재고 갱신</small></span>
+    <div class="fstep"><div class="fic">🗂️</div><div class="fnm">프로그램</div><div class="fds">가격·재고</div></div>
+    <div class="ar">→</div>
+    <div class="fstep"><div class="fic">📤</div><div class="fnm">전송 대기</div><div class="fds">스냅샷</div></div>
+    <div class="ar">→</div>
+    <div class="fstep"><div class="fic">🔌</div><div class="fnm">판매처 API</div><div class="fds">스스 OAuth·쿠팡 HMAC</div></div>
+    <div class="ar">→</div>
+    <div class="fstep dim"><div class="fic">🛒</div><div class="fnm">마켓 반영</div><div class="fds">상품·재고 갱신</div></div>
   </div>
   <div class="branches">갈래 A · <b>신규 상품 등록</b>(모음전 상품을 마켓에 처음 올림) &nbsp;·&nbsp; 갈래 B · <b>기존 상품 연동</b>(이미 올라간 상품과 매칭 → 가격·재고만 동기화, 현재 우선 경로)</div>
 
@@ -762,14 +779,17 @@ function dmColLux(cls,head,sub,items){
   if(!items.length)inner=`<div class="lempty">— 없음</div>`;
   return `<div class="lcol ${cls}"><div class="lhead">${head}<small>${sub}</small></div>${inner}</div>`;}
 // ⚡ 주문상태 전환 — 실배선 현황 매트릭스(V1) + 확보 절차
-function dmTransSummary(){
-  let h=`<div class="favhead"><span class="ft">⚡ 주문상태 전환</span><span class="fs">결제완료 → 배송준비중 · 마켓별 실배선/검증 현황 + API 확보 절차</span></div>`;
-  h+=`<div class="apih3">📋 실배선 현황</div>`;
-  h+=`<div class="wrapbox"><table class="cmp"><tr><th style="width:96px">마켓</th><th>전환 API</th><th style="width:150px">필요 식별자</th><th class="c" style="width:44px">배선</th><th class="c" style="width:82px">검증</th></tr>`;
-  TRANS.forEach(m=>{h+=`<tr><td class="el">${dmMkb(m)}</td><td class="url">${m.api}</td><td class="ids2">${m.ids}</td><td class="c">✅</td><td class="c">${dmVb(m.v)}</td></tr>`;});
-  h+=`</table></div>`;
-  h+=`<div class="apinote">⚠️ 스스=발주확인해도 상태 그대로(placeOrderStatus=OK 로 판정) · 롯데온=결제완료 주문 생기면 1건만 확인하면 종료</div>`;
-  h+=`<div class="apih3">① API 정보 확보 절차 (공통 순서)</div>`;
+function dmIdChips(ids){return ids.split('·').map(s=>`<span class="idchip">${s.trim()}</span>`).join('');}
+// ② 세로 레일(주문상태 전환 하위 선택)
+function dmTransRail(){
+  let h=`<div class="rt">주문상태 전환</div>`;
+  h+=`<button class="railbtn${DM_TSUB==='summary'?' on':''}" data-ts="summary">📋 실배선 현황</button>`;
+  TRANS_MK.forEach(id=>{const m=DM_MARKETS.filter(x=>x.id===id)[0];const t=TRANS.filter(x=>x.nm===m.nm)[0];const d=t?(t.v==='done'?'done':'wait'):'';h+=`<button class="railbtn${DM_TSUB===id?' on':''}" data-ts="${id}"><span>${m.nm}</span>${d?`<span class="rdot ${d}"></span>`:''}</button>`;});
+  return h;
+}
+// API 정보 확보 절차 — 「마켓별 전체 API」 탭으로 이동
+function dmApiSteps(){
+  let h=`<div class="apih3" style="margin-top:22px;border-top:1px solid var(--line2);padding-top:16px">① API 정보 확보 절차 (공통 순서)</div>`;
   h+=`<table class="cmp"><tr><th style="width:38px">단계</th><th>방법</th><th style="width:130px">언제</th></tr>`;
   API_STEPS.forEach(s=>{h+=`<tr><td class="c"><b>${s[0]}</b></td><td>${s[1]}</td><td class="g">${s[2]}</td></tr>`;});
   h+=`</table>`;
@@ -777,6 +797,17 @@ function dmTransSummary(){
   h+=`<table class="cmp"><tr><th style="width:96px">마켓</th><th style="width:148px">확보 방법</th><th>문서·비고</th></tr>`;
   DM_MARKETS.forEach(m=>{const k=(m.id==='auction'||m.id==='gmarket')?'esm':m.id;const a=API_HOW[k];if(a)h+=`<tr><td class="el">${m.nm}</td><td>${a[0]}</td><td class="g">${a[1]}</td></tr>`;});
   return h+`</table>`;
+}
+function dmTransSummary(){
+  let h=`<div class="favhead"><span class="ft">⚡ 주문상태 전환</span><span class="fs">결제완료 → 배송준비중 · 마켓별 실배선/검증 현황</span></div>`;
+  h+=`<div class="apih3" style="margin-top:0">📋 실배선 현황</div>`;
+  h+=`<div class="wrapbox"><table class="cmp"><tr><th style="width:100px">마켓</th><th>전환 API</th><th style="width:172px">필요 식별자</th><th class="c" style="width:44px">배선</th><th class="c" style="width:86px">검증</th></tr>`;
+  TRANS.forEach(m=>{h+=`<tr><td class="el">${dmMkb(m)}</td><td class="url">${m.api}</td><td class="idcell">${dmIdChips(m.ids)}</td><td class="c">✅</td><td class="c">${dmVb(m.v)}</td></tr>`;});
+  h+=`</table></div>`;
+  h+=`<div class="warnbox"><div class="wt">⚠️ 마켓별 주의</div>`
+    +`<div class="wr">${dmMkb({nm:'스마트스토어',cls:'ss'})}<span>발주확인해도 주문상태 그대로(<b>placeOrderStatus=OK</b> 로 배송준비 판정)</span></div>`
+    +`<div class="wr">${dmMkb({nm:'롯데온',cls:'lo'})}<span>결제완료 주문 생기면 1건만 확인하면 종료</span></div></div>`;
+  return h;
 }
 function dmTransMarket(id){
   const m=DM_MARKETS.filter(x=>x.id===id)[0], c=API_CALLS[id], t=TRANS.filter(x=>x.nm===m.nm)[0];
@@ -797,15 +828,12 @@ function dmRender(){
   let sub='';
   if(DM_TOP==='all'){
     sub=DM_MARKETS.map(m=>`<button class="mktab${m.id===DM_MK?' on':''}" data-m="${m.id}">${m.nm}<span class="mini">${m.status==='ok'?'연동완료':'준비중'}</span></button>`).join('');
-  }else if(DM_TOP==='trans'){
-    sub=`<button class="mktab${DM_TSUB==='summary'?' on':''}" data-ts="summary">📋 실배선 현황</button>`
-      +TRANS_MK.map(id=>{const m=DM_MARKETS.filter(x=>x.id===id)[0];return `<button class="mktab${DM_TSUB===id?' on':''}" data-ts="${id}">${m.nm}</button>`;}).join('');
   }
-  const subEl=document.getElementById('dm-mktabs'); subEl.innerHTML=sub; subEl.style.display=(DM_TOP==='fav')?'none':'';
+  const subEl=document.getElementById('dm-mktabs'); subEl.innerHTML=sub; subEl.style.display=(DM_TOP==='all')?'':'none';
   const leg=document.querySelector('.dm2 .legend'); if(leg)leg.style.display=(DM_TOP==='all')?'':'none';
   const body=document.getElementById('dm-body');
   if(DM_TOP==='trans'){
-    body.innerHTML=(DM_TSUB==='summary')?dmTransSummary():dmTransMarket(DM_TSUB);
+    body.innerHTML=`<div class="tsplit"><div class="trail">${dmTransRail()}</div><div class="tcontent">${(DM_TSUB==='summary')?dmTransSummary():dmTransMarket(DM_TSUB)}</div></div>`;
   }else{
     const m=DM_MARKETS.filter(x=>x.id===DM_MK)[0]; const cats=MKT_CATS[DM_MK]||[];
     if(DM_SUBG>=cats.length) DM_SUBG=0;
@@ -815,11 +843,11 @@ function dmRender(){
     if(!gr.items.length){ right=`<div class="empty" style="padding:30px 20px;"><div style="font-size:24px">📄</div><b>${gr.g}</b> 카테고리의 API 항목은<br>공식 문서에서 가져오는 중이에요.<br><span style="font-size:11px;color:var(--faint)">이 카테고리 문서 화면을 주시면 채웁니다.</span></div>`; }
     else { right=`<div class="two">${dmColLux('send','📤 보내기','프로그램 → 마켓',send)}${dmColLux('recv','📥 받기','마켓 → 프로그램',recv)}</div>`; }
     h+=`<div class="md"><div class="ml">`+cats.map((g,i)=>`<button class="${i===DM_SUBG?'on':''}" data-g="${i}">${g.g}<span class="n">${g.items.length||'…'}</span></button>`).join('')+`</div><div class="mr">${right}</div></div>`;
-    body.innerHTML=h;
+    body.innerHTML=h+dmApiSteps();
   }
   document.querySelectorAll('.dm2 .toptab').forEach(t=>t.onclick=()=>{DM_TOP=t.dataset.top;if(DM_TOP==='trans'&&DM_TSUB!=='summary'&&TRANS_MK.indexOf(DM_TSUB)<0)DM_TSUB='summary';dmRender();});
   document.querySelectorAll('.dm2 .mktab[data-m]').forEach(t=>t.onclick=()=>{DM_MK=t.dataset.m;DM_SUBG=0;dmRender();});
-  document.querySelectorAll('.dm2 .mktab[data-ts]').forEach(t=>t.onclick=()=>{DM_TSUB=t.dataset.ts;dmRender();});
+  document.querySelectorAll('.dm2 .mktab[data-ts],.dm2 .railbtn[data-ts]').forEach(t=>t.onclick=()=>{DM_TSUB=t.dataset.ts;dmRender();});
   document.querySelectorAll('.dm2 .ml button').forEach(b=>b.onclick=()=>{DM_SUBG=+b.dataset.g;dmRender();});
   document.querySelectorAll('.dm2 .star,.dm2 .lstar').forEach(s=>s.onclick=()=>{const k=s.dataset.k;dmStar.has(k)?dmStar.delete(k):dmStar.add(k);dmSave();dmRender();});
 }
