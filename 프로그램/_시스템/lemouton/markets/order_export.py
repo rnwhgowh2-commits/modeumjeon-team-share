@@ -1392,6 +1392,8 @@ def _fetch_combined(markets, days, now, since=None, until=None,
     for mk in markets:                # 입력 순서 유지 후 정렬
         all_rows += results.get(mk, [])
     all_rows.sort(key=lambda r: str(r.get("주문일", "")), reverse=True)  # 최신 먼저
+    for _r in all_rows:
+        _r.setdefault("_kind", "order")   # 클레임 빌더가 'change'로 override(후속 태스크)
     return all_rows
 
 
@@ -1476,6 +1478,37 @@ def combined_order_rows(markets, days: int = 7,
             _CACHE[key] = (_time.monotonic(), rows, list(warnings or []))
         return rows
     return _build(warnings)
+
+
+def _window(since, until, days, now=None):
+    """필터용 [lo, hi] date 튜플. since/until 우선, 없으면 최근 days일."""
+    if since and until:
+        return since.date(), until.date()
+    now = now or _dt.datetime.now(KST)
+    return (now - _dt.timedelta(days=days)).date(), now.date()
+
+
+def new_order_rows(markets, days: int = 7, now=None, use_cache: bool = False,
+                   since=None, until=None, include_settlement: bool = True,
+                   warnings=None) -> list:
+    """주문일 탭 전용 — 실주문일이 기간 안인 주문만.
+
+    order 행은 항상 유지(취소완료여도 그날 들어온 주문이면 남김 = '상태 무관').
+    change 행(취소/교환/반품 이벤트)은 실주문일이 기간 안일 때만 유지(롯데온 등),
+    실주문일 공란/기간밖(쿠팡·11번가·옛주문)은 제외 → 기능 #2가 변경일 기준으로 잡는다.
+    """
+    rows = combined_order_rows(markets, days=days, now=now, use_cache=use_cache,
+                               since=since, until=until,
+                               include_settlement=include_settlement, warnings=warnings)
+    lo, hi = _window(since, until, days, now)
+    out = []
+    for r in rows:
+        if r.get("_kind") == "change":
+            d = _row_order_date(r)               # 실주문일 파싱(공란/실패→None)
+            if d is None or not (lo <= d <= hi):
+                continue
+        out.append(r)
+    return out
 
 
 def resolve_columns(columns=None) -> list:
