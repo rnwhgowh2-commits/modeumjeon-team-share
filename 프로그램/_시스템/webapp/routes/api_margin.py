@@ -600,3 +600,66 @@ def _probe_lo_calc():
         except Exception as e:  # noqa: BLE001
             errors.append({"acct": name, "stage": "orders", "err": str(e)[:200]})
     return jsonify({"rows": rows, "errors": errors})
+
+
+# ── [임시 진단] 롯데온 주문 필드(판매경로·배송비) + getSROrderList lrtrNo 규명 ──
+@bp.route("/_probe_lo_fields", methods=["POST"])
+def _probe_lo_fields():
+    """209 주문 원필드(판매경로·배송비 발굴) + getSROrderList(245) lrtrNo 변형 시도.
+
+    body {since, until}. 첫 활성 계정으로: ①iter_delivery_orders 원필드 union+마스킹샘플
+    (ifCplYN ''/'N'/'Y' 각각) ②getSROrderList lrtrNo 3변형 raw. 배포·확인 후 제거.
+    """
+    body = request.get_json(silent=True) or {}
+    try:
+        since = _dt.datetime.fromisoformat(body["since"])
+        until = _dt.datetime.fromisoformat(body["until"])
+    except Exception:
+        return jsonify({"error": "since/until 필요"}), 400
+    from lemouton.markets.order_export import _account_client, _active_accounts, _ENV_PREFIX
+    from shared.platforms.lotteon.orders import iter_delivery_orders
+    _PII = {"dvpCustNm", "dvpStnmZipAddr", "dvpStnmDtlAddr", "dvpMphnNo", "dvpTelNo",
+            "odrNm", "mphnNo", "telNo", "dvpZipNo", "dvMsg"}
+    accts = _active_accounts("lotteon") or [(_ENV_PREFIX.get("lotteon"), "대표")]
+    prefix, name = accts[0]
+    cli = _account_client("lotteon", prefix)
+    if cli is None:
+        return jsonify({"error": "계정 클라이언트 없음", "acct": name}), 500
+    cfg = getattr(cli, "_cfg", {}) or {}
+    out = {"acct": name, "trNo": cfg.get("tr_no"), "lrtrNo_cfg": cfg.get("lrtr_no")}
+
+    # 209 주문 필드 — ifCplYN 변형별 커버리지
+    for yn in ("", "N", "Y"):
+        fields, sample, n = set(), [], 0
+        try:
+            for od in iter_delivery_orders(since, until, if_cpl_yn=yn, client=cli):
+                n += 1
+                fields.update(od.keys())
+                if len(sample) < 2:
+                    sample.append({k: ("***" if k in _PII else v) for k, v in od.items()})
+                if n >= 60:
+                    break
+            out[f"order_ifcpl_{yn or 'empty'}"] = {"count": n, "fields": sorted(fields), "sample": sample}
+        except Exception as e:  # noqa: BLE001
+            out[f"order_ifcpl_{yn or 'empty'}"] = {"err": str(e)[:300]}
+
+    # getSROrderList(245) — lrtrNo 변형
+    day_end = (since + _dt.timedelta(days=1) - _dt.timedelta(seconds=1))
+    trials = []
+    variants = [("no_lrtr", {}),
+                ("lrtr=trNo", {"lrtrNo": cfg.get("tr_no", "")}),
+                ("lrtr=cfgLrtr", {"lrtrNo": cfg.get("lrtr_no", "")}),
+                ("post_lrtr=trNo", {"lrtrNo": cfg.get("tr_no", ""), "_method": "POST"})]
+    for label, extra in variants:
+        method = extra.pop("_method", "GET")
+        b = {"srchStrtDttm": since.strftime("%Y%m%d%H%M%S"),
+             "srchEndDttm": day_end.strftime("%Y%m%d%H%M%S"), **extra}
+        try:
+            r = cli.request(method=method, path="/v1/openapi/order/v1/getSROrderList", body=b)
+            data = r.get("data") if isinstance(r, dict) else None
+            trials.append({"label": label, "method": method, "returnCode": r.get("returnCode"),
+                           "data_type": type(data).__name__, "raw": str(r)[:700]})
+        except Exception as e:  # noqa: BLE001
+            trials.append({"label": label, "method": method, "err": str(e)[:400]})
+    out["benefit_trials"] = trials
+    return jsonify(out)
