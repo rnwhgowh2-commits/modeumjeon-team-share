@@ -747,3 +747,22 @@ def test_lotteon_claim_real_api_blank_orderdate(monkeypatch):
     assert claim["_kind"] == "change"
     assert claim["_change_date"] == "20260715120000"
     assert claim["주문일"] == ""     # odAccpDttm 미제공 → 공란(폴백 없음)
+
+
+def test_coupang_claim_tagged_and_orderdate_blank(monkeypatch):
+    """쿠팡 클레임 행: _kind='change', _change_date=createdAt, 주문일=''(실주문일 미제공)."""
+    since = dt.datetime(2026, 7, 15, tzinfo=KST)
+    until = dt.datetime(2026, 7, 15, 23, tzinfo=KST)
+    ret = {"orderId": "CP1", "receiptType": "CANCEL", "receiptStatus": "RETURNS_UNCHECKED",
+           "reasonCodeText": "변심", "requesterName": "구매자", "createdAt": "2026-07-15T12:00:00",
+           "returnItems": [{"sellerProductName": "코트", "vendorItemName": "블랙/95", "cancelCount": 1}]}
+    monkeypatch.setattr("shared.platforms.coupang.orders.fetch_orders",
+                        lambda *a, **k: {"data": []})
+    monkeypatch.setattr("shared.platforms.coupang.claims.iter_returns",
+                        lambda *a, **k: iter([ret]))
+    monkeypatch.setattr("shared.platforms.coupang.claims.iter_exchanges", lambda *a, **k: iter([]))
+    rows = oe.coupang_order_rows(since, until, client=object(), include_settlement=False)
+    claim = [r for r in rows if r["오픈마켓주문번호"] == "CP1"][0]
+    assert claim["_kind"] == "change"
+    assert claim["주문일"] == ""                          # 실주문일 미제공 → 공란
+    assert claim["_change_date"] == "2026-07-15T12:00:00"  # createdAt

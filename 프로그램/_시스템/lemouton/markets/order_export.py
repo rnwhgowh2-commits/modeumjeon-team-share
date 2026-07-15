@@ -613,7 +613,7 @@ def coupang_order_rows(since: _dt.datetime, until: _dt.datetime,
 
     def _cp_claim_row(odno, status, name, opt, qty, unit, reason, buyer, cdt, raw_code=""):
         return {
-            "주문일": str(cdt or ""), "판매처": "쿠팡",
+            "주문일": "", "판매처": "쿠팡",   # 쿠팡 클레임은 실주문일 미제공 → 공란(cdt=클레임일은 _change_date로)
             "상품명": name or "", "옵션": opt or "",
             "수량": qty if qty not in (None, "") else "",
             "주소": "", "우편번호": "", "수령자": buyer or "",
@@ -625,6 +625,8 @@ def coupang_order_rows(since: _dt.datetime, until: _dt.datetime,
             "주문상태": status, "주문상태원본": raw_code or "",   # receiptStatus/exchangeStatus — API코드 칸
             "오픈마켓주문번호": str(odno or ""),
             "실결제금액": "", "송장입력": "",
+            "_kind": "change",
+            "_change_date": str(cdt or ""),   # createdAt=변경일(#2용)
         }
 
     # ★ 클레임(취소/반품/교환)은 '클레임 생성일' 기준 조회다. 기간 안 주문이 나중에(기간 밖)
