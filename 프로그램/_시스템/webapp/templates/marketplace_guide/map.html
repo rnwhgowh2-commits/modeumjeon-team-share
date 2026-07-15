@@ -6,9 +6,9 @@
   /* 판매처 데이터·코드 지도 — 마켓 가로탭 + 「주요 데이터」(별표로 담아 마켓 비교) + 좌 영역탭 + 보내기/받기 2열.
      데이터는 실제 코드 근거(shared/platforms/*·lemouton/uploader/*·registration/*)로 작성. 2026-07-05 기준. */
   .dm2{--ink:#191F28;--sub:#8B95A1;--faint:#B0B8C1;--line:#F1F3F5;--line2:#E5E8EB;--bg:#F8FAFB;
-    --ok:#15803D;--okb:#E7F6EC;--code:#B45309;--codeb:#FAF0DE;--off:#1B64DA;--offb:#E8F0FE;--todo:#98A2B3;--todob:#EEF1F4;--star:#F59E0B;--mono:ui-monospace,Menlo,monospace;
-    /* 145% 전체 비례 확대(가독성) — zoom 으로 통째 확대 + max-width 690(≈1000/1.45)로 1040px 팝업에 맞춤(가로 스크롤 방지). */
-    font-family:'Pretendard','Malgun Gothic',sans-serif;color:#191F28;max-width:690px;zoom:1.45;margin:0 auto;padding:22px 22px 40px;}
+    --ok:#15803D;--okb:#E7F6EC;--code:#B45309;--codeb:#FAF0DE;--off:#1B64DA;--offb:#E8F0FE;--todo:#98A2B3;--todob:#EEF1F4;--del:#DC2626;--star:#F59E0B;--mono:ui-monospace,Menlo,monospace;
+    /* 158% 전체 비례 확대(가독성·팝업 고려 폰트 키움) — zoom 으로 통째 확대 + max-width 650(≈1027/1.58)로 1040px 팝업에 맞춤(가로 스크롤 방지). */
+    font-family:'Pretendard','Malgun Gothic',sans-serif;color:#191F28;max-width:650px;zoom:1.58;margin:0 auto;padding:22px 22px 40px;}
   .dm2 *{box-sizing:border-box;}
   .dm2 h2{font-size:22px;font-weight:800;margin:0 0 5px;}
   .dm2 .sub{font-size:13px;color:var(--sub);margin-bottom:16px;line-height:1.55;}
@@ -49,7 +49,30 @@
   .dm2 .st{font-size:10.5px;font-weight:800;border-radius:5px;padding:2px 8px;white-space:nowrap;} .dm2 .st.ok{background:var(--okb);color:var(--ok);} .dm2 .st.code{background:var(--codeb);color:var(--code);} .dm2 .st.off{background:var(--offb);color:var(--off);} .dm2 .st.todo{background:var(--todob);color:var(--todo);}
   .dm2 .md{display:grid;grid-template-columns:172px 1fr;gap:16px;}
   .dm2 .ml{display:flex;flex-direction:column;gap:3px;} .dm2 .ml button{text-align:left;font-size:12.5px;font-weight:700;color:var(--sub);background:none;border:none;border-radius:8px;padding:9px 11px;cursor:pointer;display:flex;justify-content:space-between;align-items:center;gap:6px;} .dm2 .ml button .n{font-size:10px;color:var(--faint);} .dm2 .ml button:hover{background:#F5F7F9;} .dm2 .ml button.on{background:var(--ink);color:#fff;} .dm2 .ml button.on .n{color:#B9C2CC;}
-  .dm2 .two{display:grid;grid-template-columns:1fr 1fr;gap:18px;}
+  .dm2 .two{display:grid;grid-template-columns:1fr 1fr;gap:14px;align-items:start;}
+  /* 고급형 A — 보내기/받기 컬럼 카드 + 등록·수정·삭제·조회 세분화 */
+  .dm2 .lcol{border:1px solid var(--line2);border-radius:12px;overflow:hidden;background:#fff;}
+  .dm2 .lhead{font-size:13.5px;font-weight:800;padding:10px 13px;display:flex;align-items:center;gap:8px;}
+  .dm2 .lhead small{margin-left:auto;font-size:10px;color:var(--faint);font-weight:600;}
+  .dm2 .lcol.send .lhead{background:linear-gradient(90deg,#FFF6E9,#FFFDF8);color:var(--code);border-bottom:1px solid #F3E2C6;}
+  .dm2 .lcol.recv .lhead{background:linear-gradient(90deg,#EEF4FF,#FAFCFF);color:var(--off);border-bottom:1px solid #D6E4FF;}
+  .dm2 .agrp{display:flex;align-items:center;gap:7px;padding:9px 13px 4px;}
+  .dm2 .achip{font-size:10px;font-weight:800;border-radius:5px;padding:2px 8px;white-space:nowrap;}
+  .dm2 .achip.off{background:var(--offb);color:var(--off);} .dm2 .achip.ok{background:var(--okb);color:var(--ok);}
+  .dm2 .achip.code{background:var(--codeb);color:var(--code);} .dm2 .achip.del{background:#FEE2E2;color:var(--del);}
+  .dm2 .agrp .an{font-size:10px;color:var(--faint);font-weight:700;}
+  .dm2 .litem{display:grid;grid-template-columns:18px 1fr auto;gap:9px;align-items:start;padding:8px 13px;border-top:1px solid var(--line);}
+  .dm2 .agrp + .litem{border-top:none;} .dm2 .litem:hover{background:#FAFBFC;} .dm2 .litem.off{opacity:.5;}
+  .dm2 .litem .lnm{font-weight:700;font-size:13px;line-height:1.35;}
+  .dm2 .litem .lcode{display:inline-block;margin-top:3px;font-family:var(--mono);font-size:10px;border-radius:6px;padding:2px 7px;word-break:break-all;line-height:1.4;}
+  .dm2 .litem .lcode.use{color:#475569;background:#F4F6F9;border:1px solid var(--line2);} .dm2 .litem .lcode.doc{color:var(--faint);background:#F7F8FA;}
+  .dm2 .litem .lstar{cursor:pointer;font-size:14px;color:#D5DBE2;text-align:center;padding-top:1px;} .dm2 .litem .lstar.on{color:var(--star);}
+  .dm2 .luse{display:inline-flex;align-items:center;gap:4px;font-size:10.5px;font-weight:800;white-space:nowrap;padding-top:1px;}
+  .dm2 .luse .udot{width:7px;height:7px;border-radius:50%;}
+  .dm2 .luse.on{color:var(--ok);} .dm2 .luse.on .udot{background:var(--ok);}
+  .dm2 .luse.no{color:var(--faint);} .dm2 .luse.no .udot{background:var(--faint);}
+  .dm2 .luse .wtag{margin-left:3px;font-size:8.5px;font-weight:800;background:#FEF3C7;color:var(--code);border-radius:4px;padding:1px 4px;}
+  .dm2 .lempty{padding:16px 13px;color:var(--faint);font-size:12px;}
   .dm2 .dsec .dh{font-size:12px;font-weight:800;padding-bottom:6px;margin-bottom:2px;border-bottom:1px solid var(--line2);display:flex;align-items:center;gap:7px;} .dm2 .dsec .dh .ar{color:var(--faint);font-size:13px;} .dm2 .dsec .dh .sub2{font-size:10.5px;color:var(--faint);font-weight:600;}
   .dm2 .item{display:grid;grid-template-columns:20px 1fr auto;gap:10px;align-items:center;padding:7px 0;border-bottom:1px solid var(--line);font-size:12.5px;} .dm2 .item:last-child{border-bottom:none;} .dm2 .star{cursor:pointer;font-size:14px;color:#D5DBE2;text-align:center;} .dm2 .star.on{color:var(--star);} .dm2 .item .nm{font-weight:700;} .dm2 .item .nm .code{display:block;font-size:9.5px;color:var(--faint);font-family:var(--mono);font-weight:400;margin-top:1px;}
   .dm2 .favhead{display:flex;align-items:baseline;gap:10px;margin-bottom:12px;} .dm2 .favhead .ft{font-size:16px;font-weight:800;} .dm2 .favhead .fs{font-size:11.5px;color:var(--sub);}
@@ -75,7 +98,7 @@
 
   <div class="toptabs" id="dm-toptabs"></div>
   <div class="mktabs" id="dm-mktabs"></div>
-  <div class="legend"><span class="lg"><span class="dt ok"></span>됨(실제 사용)</span><span class="lg"><span class="dt code"></span>연결됨(검증대기)</span><span class="lg"><span class="dt off"></span>공식제공(미구현)</span><span class="lg"><span class="dt todo"></span>미정의(확인 안 됨)</span></div>
+  <div class="legend"><span class="lg"><span class="dt ok"></span>씀(우리 코드로 연결)</span><span class="lg"><span class="dt code"></span>검증대기</span><span class="lg"><span class="dt off"></span>안 씀(마켓 문서에만)</span><span style="color:var(--line2)">|</span><span class="lg"><span class="achip off">조회</span><span class="achip ok">등록</span><span class="achip code">수정</span><span class="achip del">삭제</span></span></div>
   <div id="dm-body"></div>
 
   <div class="foot">
@@ -87,7 +110,7 @@
     <div class="cm"><div>마켓 프로파일(정본)</div><div class="f">docs/markets/_schema.yaml · coupang.yaml · smartstore.yaml</div></div>
     <div class="cm"><div>확장 기능 커넥터·마스터 게이트</div><div class="f">markets/capabilities.py · MOUM_MARKET_EXTRA</div></div>
     <div class="cm"><div>새 마켓 추가 가이드</div><div class="f">docs/markets/_새-마켓-추가-가이드.md</div></div>
-    <div class="risk">⚠️ <b>정직성</b> — 실전송 기본 OFF(<code>MOUM_LIVE_UPLOAD</code>) · 0원·재고없음 전송 금지 · 폴백 금지. 상태 4단계: <b>됨</b>(실사용) / <b>연결됨</b>(우리 코드 있음·검증대기·게이트 OFF) / <b>공식제공</b>(마켓 공식 문서엔 있으나 우리 코드 없음) / <b>미정의</b>(제공 여부 확인 안 됨).</div>
+    <div class="risk">⚠️ <b>정직성</b> — 실전송 기본 OFF(<code>MOUM_LIVE_UPLOAD</code>) · 0원·재고없음 전송 금지 · 폴백 금지. 상태 = <b>씀</b>(우리 코드로 연결됨 — 실사용 or <b>검증대기</b>) / <b>안 씀</b>(마켓 공식 문서엔 있으나 우리 코드 없음). 세부 동작은 <b>보내기</b>(등록·수정·삭제)/<b>받기</b>(조회) 위치와 색으로 구분.</div>
     <div class="risk" style="background:#EEF4FF;border-color:#C7DBFF;color:#0C447C;">📚 <b>공식 API 카탈로그 채워가는 중</b> — 각 마켓 공식 문서(로그인 SPA라 자동 판독 불가)에서 <b>확인된 그룹부터</b> 넣는다. 현재 <b>정산</b> 그룹 반영 완료(네이버·롯데온). 남은 그룹은 문서 화면을 주시면 추가: <b>네이버</b> = 상품·주문/교환·문의·N배송·통계 · <b>롯데온</b> = 거래처·상품속성·상품·판촉·주문·클레임·고객센터·배송·전시·스마트픽·공통.</div>
   </div>
 </div>
@@ -668,7 +691,7 @@ const MKT_CATS={
   auction:ESM_CATS,   // 옥션·G마켓 = 같은 ESM Trading API → 카탈로그 공통(ESM_CATS)
   gmarket:ESM_CATS,
 };
-const DM_LBL={ok:'됨',code:'연결됨',off:'공식제공',todo:'미정의'};
+const DM_LBL={ok:'씀',code:'검증대기',off:'안 씀',todo:'안 씀'};
 // ── 🔌 API 확보·호출 탭 데이터 (2026-07-15 4마켓 자동전환 배선하며 확인) ──
 const API_STEPS=[
   ['①','마켓 공식 API 문서에 브라우저로 접속','항상 먼저'],
@@ -725,6 +748,19 @@ function dmSave(){try{localStorage.setItem(DM_KEY,JSON.stringify([...dmStar]));}
 function dmFind(mk,name){for(const c of MKT_CATS[mk]){for(const it of c.items){if(it.nm===name)return it;}}return null;}
 function dmRow(it){const on=dmStar.has(it.nm)?' on':'';return `<div class="item"><span class="star${on}" data-k="${it.nm}" title="주요 데이터로 담기">${dmStar.has(it.nm)?'★':'☆'}</span><span class="nm">${it.nm}<span class="code">${it.code}</span></span>${dmSt(it.st)}</div>`;}
 function dmSec(t,ar,sub,items){if(!items.length)return '';let h=`<div class="dsec"><div class="dh"><span class="ar">${ar}</span>${t} <span class="sub2">${sub}</span></div>`;items.forEach(it=>h+=dmRow(it));return h+`</div>`;}
+// 고급형 A — 항목의 세부 동작(등록/수정/삭제/조회) 자동 분류 + 씀 판정
+const DM_ACTC={조회:'off',등록:'ok',수정:'code',삭제:'del'};
+function dmActOf(it){if(it.dir==='recv')return '조회';const n=it.nm;if(/삭제|파기/.test(n))return '삭제';if(/생성|등록|업로드|추가|적용|발급|입고|반출/.test(n))return '등록';return '수정';}
+function dmUse(it){return it.st==='ok'||it.st==='code';} // 씀 = 우리 코드로 연결됨(실사용 or 검증대기)
+function dmRowLux(it){const on=dmStar.has(it.nm)?' on':'';const use=dmUse(it),wait=it.st==='code';
+  return `<div class="litem${use?'':' off'}"><span class="lstar${on}" data-k="${it.nm}" title="주요 데이터로 담기">${dmStar.has(it.nm)?'★':'☆'}</span>`
+    +`<div class="lbd"><div class="lnm">${it.nm}</div><span class="lcode ${use?'use':'doc'}">${use?'':'문서 '}${it.code}</span></div>`
+    +`<span class="luse ${use?'on':'no'}"><span class="udot"></span>${use?'씀':'안 씀'}${wait?'<span class="wtag">검증대기</span>':''}</span></div>`;}
+function dmColLux(cls,head,sub,items){
+  const order=['등록','수정','삭제','조회'],by={};items.forEach(it=>{const a=dmActOf(it);(by[a]=by[a]||[]).push(it);});
+  let inner='';order.forEach(a=>{if(!by[a])return;inner+=`<div class="agrp"><span class="achip ${DM_ACTC[a]}">${a}</span><span class="an">${by[a].length}</span></div>`+by[a].map(dmRowLux).join('');});
+  if(!items.length)inner=`<div class="lempty">— 없음</div>`;
+  return `<div class="lcol ${cls}"><div class="lhead">${head}<small>${sub}</small></div>${inner}</div>`;}
 // ⚡ 주문상태 전환 — 실배선 현황 매트릭스(V1) + 확보 절차
 function dmTransSummary(){
   let h=`<div class="favhead"><span class="ft">⚡ 주문상태 전환</span><span class="fs">결제완료 → 배송준비중 · 마켓별 실배선/검증 현황 + API 확보 절차</span></div>`;
@@ -789,7 +825,7 @@ function dmRender(){
     const gr=cats[DM_SUBG]; const send=gr.items.filter(i=>i.dir==='send'),recv=gr.items.filter(i=>i.dir==='recv');
     let right;
     if(!gr.items.length){ right=`<div class="empty" style="padding:30px 20px;"><div style="font-size:24px">📄</div><b>${gr.g}</b> 카테고리의 API 항목은<br>공식 문서에서 가져오는 중이에요.<br><span style="font-size:11px;color:var(--faint)">이 카테고리 문서 화면을 주시면 채웁니다.</span></div>`; }
-    else { right=`<div class="two"><div>${dmSec('보내기','↑','프로그램 → 마켓',send)||'<div class="sub" style="color:var(--faint)">— 없음</div>'}</div><div>${dmSec('받기','↓','마켓 → 프로그램',recv)||'<div class="sub" style="color:var(--faint)">— 없음</div>'}</div></div>`; }
+    else { right=`<div class="two">${dmColLux('send','📤 보내기','프로그램 → 마켓',send)}${dmColLux('recv','📥 받기','마켓 → 프로그램',recv)}</div>`; }
     h+=`<div class="md"><div class="ml">`+cats.map((g,i)=>`<button class="${i===DM_SUBG?'on':''}" data-g="${i}">${g.g}<span class="n">${g.items.length||'…'}</span></button>`).join('')+`</div><div class="mr">${right}</div></div>`;
     body.innerHTML=h;
   }
@@ -797,7 +833,7 @@ function dmRender(){
   document.querySelectorAll('.dm2 .mktab[data-m]').forEach(t=>t.onclick=()=>{DM_MK=t.dataset.m;DM_SUBG=0;dmRender();});
   document.querySelectorAll('.dm2 .mktab[data-ts]').forEach(t=>t.onclick=()=>{DM_TSUB=t.dataset.ts;dmRender();});
   document.querySelectorAll('.dm2 .ml button').forEach(b=>b.onclick=()=>{DM_SUBG=+b.dataset.g;dmRender();});
-  document.querySelectorAll('.dm2 .star').forEach(s=>s.onclick=()=>{const k=s.dataset.k;dmStar.has(k)?dmStar.delete(k):dmStar.add(k);dmSave();dmRender();});
+  document.querySelectorAll('.dm2 .star,.dm2 .lstar').forEach(s=>s.onclick=()=>{const k=s.dataset.k;dmStar.has(k)?dmStar.delete(k):dmStar.add(k);dmSave();dmRender();});
 }
 dmRender();
 </script>
