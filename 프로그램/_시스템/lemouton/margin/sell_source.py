@@ -39,6 +39,7 @@ EL_FEE_FACTOR_LIST = 0.869
 # matcher 가 읽는 컬럼 + 마진 표시에 필요한 컬럼
 SELL_COLUMNS = [
     "오픈마켓주문번호", "상품명", "옵션", "수량", "단가", "실결제금액",
+    "배송비",            # 고객배송비(API) — 샵마인 고객배송비와 대조·정산 검증용
     "정산예상금액_배송비포함", "마켓수수료", "수수료율", "쇼핑몰",
     "쇼핑몰별칭",        # 계정명 — matcher 가 extract_account 로 '계정' 산출(다계정 구분)
     "수취고객명", "주문일", "송장입력", "주문상태",
@@ -335,6 +336,7 @@ def _rows_to_df(rows: list) -> pd.DataFrame:
             "수량": int(r.get("수량") or 1),
             "단가": _to_int_or_blank(r.get("단가")) or 0,
             "실결제금액": _to_int_or_blank(r.get("실결제금액")) or 0,
+            "배송비": _to_int_or_blank(r.get("배송비")) or 0,   # order_export 가 배송건 첫 행에만 실음
             "정산예상금액_배송비포함": settle,
             "마켓수수료": r.get("마켓수수료", ""),
             "수수료율": r.get("수수료율", ""),
