@@ -1273,7 +1273,8 @@ function openAddSourceModal() {
   paintLogo();
 }
 
-async function openPriceTplModal(id, initialTab) {
+async function openPriceTplModal(id, initialTab, opts) {
+  opts = opts || {};
   let initial = {};
   if (id) {
     const r = await fetch(`/api/templates/price/${id}`);
@@ -1530,9 +1531,34 @@ async function openPriceTplModal(id, initialTab) {
     `<button class="btn" id="ptm-cancel">취소</button>
      <button class="btn btn-primary" id="ptm-save">저장</button>`
   );
-  // [2026-05-25] B6 좌우 병렬 적용 — 소싱처/사입 2열 들어가도록 모달 폭 확장
-  box.style.maxWidth = '960px';
-  const bg = _modalBg(box);
+  // [2026-07-15] 인라인 마운트 — 팝업 대신 옵션 탭 페이지에 5번(엘리베이션) 섹션으로.
+  //   같은 inner·핸들러·저장을 그대로 재사용(로직 중복 0). 탭 대신 원가/마진/고급 3섹션 전부 표시.
+  let bg;
+  if (opts.inlineContainer) {
+    box.style.cssText += ';max-width:none;box-shadow:none;border:none;border-radius:0;padding:0;max-height:none;overflow:visible;';
+    const _h2 = box.querySelector('h2'); if (_h2) _h2.style.display = 'none';
+    const tbar = box.querySelector('.ptm-tabbar'); if (tbar) tbar.style.display = 'none';
+    const SM = { cost: { t: '💵 원가', tag: '사올 때', hero: false }, margin: { t: '🏷️ 마진', tag: '팔 때', hero: true }, adv: { t: '⚙️ 고급', tag: '', hero: false } };
+    box.querySelectorAll('.ptm-panel').forEach(p => {
+      p.style.display = '';
+      const meta = SM[p.dataset.panel]; if (!meta) return;
+      const sec = document.createElement('div');
+      sec.style.cssText = meta.hero
+        ? 'background:#fff;border:1px solid #E5E8EB;border-radius:12px;padding:16px 18px;margin-bottom:14px;box-shadow:0 6px 18px rgba(49,130,246,.14)'
+        : 'padding:8px 2px;margin-bottom:14px';
+      const h = document.createElement('div');
+      h.style.cssText = 'display:flex;align-items:center;gap:8px;font-size:' + (meta.hero ? '15px' : '13px') + ';font-weight:700;color:' + (meta.hero ? '#191F28' : '#6B7684') + ';margin-bottom:12px';
+      h.innerHTML = meta.t + (meta.hero ? ' <span style="font-size:10px;color:#fff;background:#12B886;border-radius:20px;padding:1px 8px">핵심</span>' : '') + (meta.tag ? ' <span style="font-size:11px;font-weight:500;color:#8B95A1">· ' + meta.tag + '</span>' : '');
+      p.parentNode.insertBefore(sec, p);
+      sec.appendChild(h); sec.appendChild(p);
+    });
+    opts.inlineContainer.replaceChildren(box);
+    bg = { remove: () => {} };   // 인라인은 닫기 no-op (저장 성공 시 페이지 reload)
+  } else {
+    // [2026-05-25] B6 좌우 병렬 — 소싱처/사입 2열 들어가도록 모달 폭 확장
+    box.style.maxWidth = '960px';
+    bg = _modalBg(box);
+  }
 
   // 탭 전환
   const tabs = box.querySelectorAll('.ptm-tab');
@@ -1549,7 +1575,12 @@ async function openPriceTplModal(id, initialTab) {
   tabs.forEach(t => t.addEventListener('click', () => activateTab(t.dataset.tab)));
   // 호출자 initialTab 매핑 (구 basic→원가 / ss·cp→마진)
   const _tabMap = { basic: 'cost', cost: 'cost', ss: 'margin', cp: 'margin', margin: 'margin', adv: 'adv' };
-  activateTab(_tabMap[initialTab] || 'cost');
+  if (opts.inlineContainer) {
+    // 인라인: 탭 없이 원가·마진·고급 전 패널 표시 (activateTab 이 숨기지 않게)
+    box.querySelectorAll('.ptm-panel').forEach(p => { p.style.display = ''; });
+  } else {
+    activateTab(_tabMap[initialTab] || 'cost');
+  }
 
   // 배송타입 라디오 ↔ 배송비 입력 연동 (무료배송 = 배송비 0)
   ['ss', 'coupang'].forEach(prefix => {

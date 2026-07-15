@@ -764,6 +764,10 @@
       })();
     </script>
 
+    {# [2026-07-15] 원가·마진·고급 인라인 편집 (팝업 제거·5번 엘리베이션). 아래 요약(pm-legacy-summary)은 숨겨서 보존. #}
+    <div id="pm-inline-editor" style="min-height:40px;"><div style="color:#9ca3af;font-size:15px;padding:8px 2px;">불러오는 중…</div></div>
+    <div id="pm-legacy-summary" style="display:none;">
+
     {# 사올 때 (매입) — 매입가 상한 + 매트릭스 재계산. 정책은 가격 템플릿 모달에서 관리 (2026-05-25). #}
     <div style="display:flex; align-items:center; gap:14px; flex-wrap:wrap;">
       <span style="font-size:24px; flex-shrink:0;">📥</span>
@@ -890,43 +894,25 @@
         </a>
       </div>
     </div>
+    </div>{# /pm-legacy-summary 숨김 래퍼 #}
   </div>
 
   <script>
-    // [2026-05-25] 수정 링크 → 적용된 가격 템플릿 편집 모달 호출
+    // [2026-07-15] 원가·마진·고급 인라인 편집 마운트 (팝업 제거). openPriceTplModal 재사용 + inlineContainer.
     (function(){
       const tplId = {{ (applied_price.id if applied_price else None)|tojson }};
-      document.querySelectorAll('.pm-edit').forEach(a => {
-        a.addEventListener('click', (e) => {
-          e.preventDefault();
-          if (!tplId) {
-            alert('이 모음전에 적용된 가격 템플릿이 없습니다. 먼저 템플릿을 선택해주세요.');
-            return;
-          }
-          if (typeof openPriceTplModal === 'function') {
-            // data-mkt: 'ss' | 'coupang' → 모달 탭 키: 'ss' | 'cp'
-            const mkt = a.dataset.mkt;
-            const tabKey = mkt === 'coupang' ? 'cp' : (mkt === 'ss' ? 'ss' : 'basic');
-            openPriceTplModal(tplId, tabKey);
-          } else {
-            alert('가격 템플릿 편집 화면을 열 수 없습니다.');
-          }
-        });
-      });
-      // 빈 슬롯 hover 효과
-      const addSlot = document.getElementById('pm-add-slot');
-      if (addSlot) {
-        addSlot.addEventListener('mouseenter', () => {
-          addSlot.style.borderColor = '#3B82F6';
-          addSlot.style.color = '#3B82F6';
-          addSlot.style.background = '#f4faff';
-        });
-        addSlot.addEventListener('mouseleave', () => {
-          addSlot.style.borderColor = '#d1d6db';
-          addSlot.style.color = '#6b7684';
-          addSlot.style.background = '#fff';
-        });
+      const host = document.getElementById('pm-inline-editor');
+      function mountInline(){
+        if (!host) return;
+        if (!tplId) {
+          host.innerHTML = '<div style="color:#9ca3af;font-size:15px;padding:10px 2px;">이 모음전에 적용된 가격 템플릿이 없습니다. 위 「가격 템플릿」에서 먼저 선택하세요.</div>';
+          return;
+        }
+        if (typeof openPriceTplModal !== 'function') { return; }
+        openPriceTplModal(tplId, null, { inlineContainer: host });
       }
+      if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', mountInline);
+      else mountInline();
     })();
   </script>
 
