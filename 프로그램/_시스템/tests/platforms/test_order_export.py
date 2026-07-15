@@ -703,3 +703,26 @@ def test_finalize_normalizes_order_datetime():
 def test_lotteon_ready_in_builders_and_supported():
     assert "lotteon" in oe._BUILDERS and "lotteon" in oe.SUPPORTED   # 코드+UI 노출
     assert oe._ENV_PREFIX["lotteon"] == "LOTTEON_MAIN"               # 실키 로드용 prefix
+
+
+def test_lotteon_claim_tagged_and_orderdate_hygiene(monkeypatch):
+    """롯데온 클레임 행: _kind='change', _change_date=clmReqDttm, 주문일=odAccpDttm(폴백 없음)."""
+    since = dt.datetime(2026, 7, 15, tzinfo=KST)
+    until = dt.datetime(2026, 7, 15, 23, tzinfo=KST)
+    claim_item = {"odNo": "LO1", "spdNm": "코트", "sitmNm": "블랙/95", "cnclQty": 1,
+                  "odAccpDttm": "20260715090000", "clmReqDttm": "20260715120000",
+                  "odPrgsStepCd": "21", "itmSlPrc": 189000}
+    monkeypatch.setattr("shared.platforms.lotteon.orders.iter_delivery_orders",
+                        lambda *a, **k: iter([]))
+    monkeypatch.setattr("shared.platforms.lotteon.orders.iter_progress_states",
+                        lambda *a, **k: iter([]))
+    monkeypatch.setattr("shared.platforms.lotteon.claims.iter_cancel",
+                        lambda *a, **k: iter([claim_item]))
+    monkeypatch.setattr("shared.platforms.lotteon.claims.iter_return", lambda *a, **k: iter([]))
+    monkeypatch.setattr("shared.platforms.lotteon.claims.iter_exchange", lambda *a, **k: iter([]))
+    monkeypatch.setattr("shared.platforms.lotteon.claims.commission_map", lambda *a, **k: {})
+    rows = oe.lotteon_order_rows(since, until, client=object(), include_settlement=False)
+    claim = [r for r in rows if r["오픈마켓주문번호"] == "LO1"][0]
+    assert claim["_kind"] == "change"
+    assert claim["_change_date"] == "20260715120000"     # clmReqDttm
+    assert claim["주문일"] == "20260715090000"            # odAccpDttm (clmReqDttm 폴백 아님)

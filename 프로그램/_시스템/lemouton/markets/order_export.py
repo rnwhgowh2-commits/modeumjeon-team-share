@@ -344,7 +344,7 @@ def lotteon_order_rows(since: _dt.datetime, until: _dt.datetime,
     def _claim_row(it, status, qty_key, raw_code=""):
         addr = (str(_g(it, "rtrvStnmZipAddr")) + " " + str(_g(it, "rtrvStnmDtlAddr"))).strip()
         return {
-            "주문일": str(_g(it, "odAccpDttm", "clmReqDttm")),   # 주문접수일(기간=주문일)
+            "주문일": str(_g(it, "odAccpDttm", default="")),   # 실주문접수일만(클레임일 폴백 금지)
             "판매처": "롯데온",
             "상품명": _html.unescape(str(_g(it, "spdNm"))),
             "옵션": _html.unescape(str(_g(it, "sitmNm"))),
@@ -363,6 +363,8 @@ def lotteon_order_rows(since: _dt.datetime, until: _dt.datetime,
             "주문상태원본": raw_code,   # odPrgsStepCd(21취소완료·27반품완료 등) — API코드 칸
             "오픈마켓주문번호": _g(it, "odNo"),
             "실결제금액": "", "송장입력": "",
+            "_kind": "change",
+            "_change_date": str(_g(it, "clmReqDttm", default="")),   # 변경일(#2용)
         }
 
     seen = {r["오픈마켓주문번호"] for r in rows if r.get("오픈마켓주문번호")}
