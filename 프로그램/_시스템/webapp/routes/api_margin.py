@@ -593,7 +593,7 @@ def _probe_lo_calc():
                 pp = int(float(od.get("slPrc") or 0)) * int(float(od.get("odQty") or 0))
                 ship = int(float(od.get("dvCst") or 0))
                 b = bm.get(odno, {"seller_discount": 0, "platform_discount": 0})
-                calc = compute_settlement(pp, ship, b["seller_discount"], b["platform_discount"])
+                calc = compute_settlement(pp, ship, ship, b["seller_discount"], b["platform_discount"], False)
                 rows.append({"acct": name, "odNo": odno, "상품가": pp, "배송비": ship,
                              "셀러부담": b["seller_discount"], "롯데부담": b["platform_discount"],
                              "계산": calc, "실수수료": cm.get(odno)})
