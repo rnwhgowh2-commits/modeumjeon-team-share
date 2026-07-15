@@ -705,8 +705,9 @@ def test_lotteon_ready_in_builders_and_supported():
     assert oe._ENV_PREFIX["lotteon"] == "LOTTEON_MAIN"               # 실키 로드용 prefix
 
 
-def test_lotteon_claim_tagged_and_orderdate_hygiene(monkeypatch):
-    """롯데온 클레임 행: _kind='change', _change_date=clmReqDttm, 주문일=odAccpDttm(폴백 없음)."""
+def test_lotteon_claim_forward_compat_uses_odaccpdttm_if_present(monkeypatch):
+    """forward-compat 계약: API가 훗날 odAccpDttm을 주면 주문일로 자동 승격(clmReqDttm 폴백 아님).
+    (현행 실API는 미제공 → test_lotteon_claim_real_api_blank_orderdate 참조.)"""
     since = dt.datetime(2026, 7, 15, tzinfo=KST)
     until = dt.datetime(2026, 7, 15, 23, tzinfo=KST)
     claim_item = {"odNo": "LO1", "spdNm": "코트", "sitmNm": "블랙/95", "cnclQty": 1,
@@ -726,3 +727,23 @@ def test_lotteon_claim_tagged_and_orderdate_hygiene(monkeypatch):
     assert claim["_kind"] == "change"
     assert claim["_change_date"] == "20260715120000"     # clmReqDttm
     assert claim["주문일"] == "20260715090000"            # odAccpDttm (clmReqDttm 폴백 아님)
+
+
+def test_lotteon_claim_real_api_blank_orderdate(monkeypatch):
+    """실제 롯데온 클레임 API는 odAccpDttm 미제공 → 주문일 공란, _change_date=clmReqDttm, _kind='change'.
+    (공란이므로 new_order_rows가 주문일 탭에서 제외 → 기능 #2에서 변경일로만 노출.)"""
+    since = dt.datetime(2026, 7, 15, tzinfo=KST)
+    until = dt.datetime(2026, 7, 15, 23, tzinfo=KST)
+    claim_item = {"odNo": "LO2", "spdNm": "코트", "sitmNm": "블랙/95", "cnclQty": 1,
+                  "clmReqDttm": "20260715120000", "odPrgsStepCd": "21", "itmSlPrc": 189000}
+    monkeypatch.setattr("shared.platforms.lotteon.orders.iter_delivery_orders", lambda *a, **k: iter([]))
+    monkeypatch.setattr("shared.platforms.lotteon.orders.iter_progress_states", lambda *a, **k: iter([]))
+    monkeypatch.setattr("shared.platforms.lotteon.claims.iter_cancel", lambda *a, **k: iter([claim_item]))
+    monkeypatch.setattr("shared.platforms.lotteon.claims.iter_return", lambda *a, **k: iter([]))
+    monkeypatch.setattr("shared.platforms.lotteon.claims.iter_exchange", lambda *a, **k: iter([]))
+    monkeypatch.setattr("shared.platforms.lotteon.claims.commission_map", lambda *a, **k: {})
+    rows = oe.lotteon_order_rows(since, until, client=object(), include_settlement=False)
+    claim = [r for r in rows if r["오픈마켓주문번호"] == "LO2"][0]
+    assert claim["_kind"] == "change"
+    assert claim["_change_date"] == "20260715120000"
+    assert claim["주문일"] == ""     # odAccpDttm 미제공 → 공란(폴백 없음)

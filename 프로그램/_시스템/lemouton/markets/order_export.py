@@ -344,7 +344,9 @@ def lotteon_order_rows(since: _dt.datetime, until: _dt.datetime,
     def _claim_row(it, status, qty_key, raw_code=""):
         addr = (str(_g(it, "rtrvStnmZipAddr")) + " " + str(_g(it, "rtrvStnmDtlAddr"))).strip()
         return {
-            "주문일": str(_g(it, "odAccpDttm", default="")),   # 실주문접수일만(클레임일 폴백 금지)
+            # 롯데온 클레임 API는 실주문일 미제공(clmReqDttm=클레임일뿐) → 현재 공란.
+            # odAccpDttm은 API가 훗날 주면 자동 승격되도록 남겨둔 forward-compat 키.
+            "주문일": str(_g(it, "odAccpDttm", default="")),
             "판매처": "롯데온",
             "상품명": _html.unescape(str(_g(it, "spdNm"))),
             "옵션": _html.unescape(str(_g(it, "sitmNm"))),
