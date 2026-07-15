@@ -766,3 +766,21 @@ def test_coupang_claim_tagged_and_orderdate_blank(monkeypatch):
     assert claim["_kind"] == "change"
     assert claim["주문일"] == ""                          # 실주문일 미제공 → 공란
     assert claim["_change_date"] == "2026-07-15T12:00:00"  # createdAt
+
+
+def test_eleven11_claim_tagged(monkeypatch):
+    """11번가 클레임 행: _kind='change', 주문일 공란 유지, _change_date best-effort(clmDt)."""
+    since = dt.datetime(2026, 7, 15, tzinfo=KST)
+    until = dt.datetime(2026, 7, 15, 23, tzinfo=KST)
+    cancel = {"ordNo": "E1", "slctPrdOptNm": "블랙/95", "ordCnQty": 1,
+              "ordPrdStat": "701", "clmDt": "20260715120000"}
+    mod = "shared.platforms.eleven11.orders."
+    for name in ("iter_orders", "iter_delivered", "iter_completed", "iter_preparing",
+                 "iter_shipping", "iter_canceled", "iter_return", "iter_exchange"):
+        monkeypatch.setattr(mod + name, lambda *a, **k: iter([]))
+    monkeypatch.setattr(mod + "iter_cancel", lambda *a, **k: iter([cancel]))
+    rows = oe.eleven11_order_rows(since, until, client=object())
+    claim = [r for r in rows if r["오픈마켓주문번호"] == "E1"][0]
+    assert claim["_kind"] == "change"
+    assert claim["주문일"] == ""
+    assert claim["_change_date"] == "20260715120000"

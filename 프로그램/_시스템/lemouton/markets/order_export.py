@@ -927,6 +927,8 @@ def eleven11_order_rows(since: _dt.datetime, until: _dt.datetime, client=None,
             "오픈마켓주문번호": ordno,
             "실결제금액": "",
             "송장입력": _g11(od, "twPrdInvcNo"),
+            "_kind": "change",
+            "_change_date": str(_g11(od, "clmDt") or ""),   # 변경일 best-effort(#2용)
         }
 
     def _return_row(od, _status):
