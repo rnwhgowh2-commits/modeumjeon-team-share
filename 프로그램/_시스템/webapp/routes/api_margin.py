@@ -546,3 +546,57 @@ def _probe_lo_settle():
         "by_order": by_order,
         "errors": errors,
     })
+
+
+# ── [임시 진단] 롯데온 정산 계산 검증 — 엑셀 주문번호 → 계산값 (배포 후 제거) ──
+@bp.route("/_probe_lo_calc", methods=["POST"])
+def _probe_lo_calc():
+    """정산 엑셀 주문번호를 209(상품가·배송비)+245(할인)+SettleCommission(실수수료)로
+    불러와 compute_settlement 로 계산. body {since, until, orders:[...]} → per-order 결과."""
+    body = request.get_json(silent=True) or {}
+    try:
+        since = _dt.datetime.fromisoformat(body["since"])
+        until = _dt.datetime.fromisoformat(body["until"])
+    except Exception:
+        return jsonify({"error": "since/until (YYYY-MM-DD) 필요"}), 400
+    want = set(str(o) for o in (body.get("orders") or []))
+
+    from lemouton.markets.order_export import _account_client, _active_accounts, _ENV_PREFIX
+    from shared.platforms.lotteon.orders import iter_delivery_orders
+    from shared.platforms.lotteon.benefits import benefit_map
+    from shared.platforms.lotteon.claims import commission_map
+    from lemouton.margin.lotteon_settlement import compute_settlement
+
+    now = _dt.datetime.now()
+    accts = _active_accounts("lotteon") or [(_ENV_PREFIX.get("lotteon"), "대표")]
+    rows = []
+    errors = []
+    for prefix, name in accts:
+        cli = _account_client("lotteon", prefix)
+        if cli is None:
+            continue
+        try:
+            bm = benefit_map(since, now, client=cli)
+        except Exception as e:  # noqa: BLE001
+            errors.append({"acct": name, "stage": "benefit", "err": str(e)[:200]})
+            bm = {}
+        try:
+            cm = commission_map(since, now, client=cli)
+        except Exception as e:  # noqa: BLE001
+            errors.append({"acct": name, "stage": "commission", "err": str(e)[:200]})
+            cm = {}
+        try:
+            for od in iter_delivery_orders(since, until, if_cpl_yn="", client=cli):
+                odno = str(od.get("odNo") or "")
+                if want and odno not in want:
+                    continue
+                pp = int(float(od.get("slPrc") or 0)) * int(float(od.get("odQty") or 0))
+                ship = int(float(od.get("dvCst") or 0))
+                b = bm.get(odno, {"seller_discount": 0, "platform_discount": 0})
+                calc = compute_settlement(pp, ship, b["seller_discount"], b["platform_discount"])
+                rows.append({"acct": name, "odNo": odno, "상품가": pp, "배송비": ship,
+                             "셀러부담": b["seller_discount"], "롯데부담": b["platform_discount"],
+                             "계산": calc, "실수수료": cm.get(odno)})
+        except Exception as e:  # noqa: BLE001
+            errors.append({"acct": name, "stage": "orders", "err": str(e)[:200]})
+    return jsonify({"rows": rows, "errors": errors})

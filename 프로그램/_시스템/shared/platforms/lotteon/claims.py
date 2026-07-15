@@ -96,11 +96,12 @@ def commission_map(since: datetime, until: datetime, *,
     실패·빈 응답은 빈 dict(폴백 금지 — 수수료 없으면 파생값 유지).
     """
     client = client or LotteonClient()
+    cfg = getattr(client, "_cfg", None) or _CFG
     path = "/v1/openapi/settle/v1/se/SettleCommission"
     out: dict = {}
     for w_from, w_to in _windows(since, until):
-        body = {"trGrpCd": _CFG.get("tr_grp_cd", "SR"), "trNo": _CFG.get("tr_no", ""),
-                "lrtrNo": _CFG.get("lrtr_no", ""),
+        body = {"trGrpCd": cfg.get("tr_grp_cd", "SR"), "trNo": cfg.get("tr_no", ""),
+                "lrtrNo": cfg.get("lrtr_no", ""),
                 "startDate": w_from.strftime("%Y%m%d"), "endDate": w_to.strftime("%Y%m%d")}
         resp = client.request(method="POST", path=path, body=body)
         for r in ((resp.get("data") if isinstance(resp, dict) else None) or []):
