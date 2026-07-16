@@ -297,34 +297,6 @@ def api_pick_orders():
                     "candidates": out, "warnings": warnings})
 
 
-@bp.get("/api/live-send-test/e11-settlement")
-def api_e11_settlement():
-    """[진단·읽기전용] 11번가 정산내역조회 스모크 — settlement_map 실호출.
-
-    ?env_prefix=&days=31 . 실제 정산 라인이 파싱되는지(건수·합계·샘플) 확인.
-    """
-    env_prefix = (request.args.get("env_prefix") or "").strip() or None
-    try:
-        days = max(1, min(int(request.args.get("days") or 31), 31))
-    except (TypeError, ValueError):
-        days = 31
-    from datetime import datetime, timedelta
-    from lemouton.markets import order_export as _oe
-    from shared.platforms.eleven11 import settlement as _stl
-    until = datetime.now()
-    since = until - timedelta(days=days)
-    try:
-        client = _oe._account_client("eleven11", env_prefix)
-        smap = _stl.settlement_map(since, until, client=client)
-    except Exception as e:  # noqa: BLE001
-        return jsonify({"ok": False, "error": f"{type(e).__name__}: {str(e)[:300]}"}), 200
-    total = sum(smap.values())
-    sample = [{"ord_no": k[0], "ord_prd_seq": k[1], "stl_amt": v}
-              for k, v in list(smap.items())[:8]]
-    return jsonify({"ok": True, "days": days, "line_count": len(smap),
-                    "total_settlement": total, "sample": sample})
-
-
 @bp.get("/api/live-send-test/direct-current")
 def api_direct_current():
     """세트 없이 (market, env_prefix, product_id)로 옵션·현재 가격/재고 조회."""
