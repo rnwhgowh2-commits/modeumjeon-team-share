@@ -190,6 +190,7 @@
   window.MoumExt = {
     installed,
     version,
+    send: (type, payload, timeoutMs) => send(type, payload, timeoutMs),   // 범용 패스스루(롯데온 정산 크롤 등)
     ping: () => send("ping", {}, 8000),
     crawl: (payload, timeoutMs) => send("crawl", payload, timeoutMs),
     crawlBundle,
