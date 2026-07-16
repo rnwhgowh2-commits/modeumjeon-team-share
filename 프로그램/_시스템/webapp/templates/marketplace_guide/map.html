@@ -928,10 +928,17 @@ function dmSettle(){
 }
 function dmRender(){
   // 상위탭(대분류)
-  let top=`<button class="toptab${DM_TOP==='howto'?' on':''}" data-top="howto">🔍 API 문서 정보 수집법</button>`
-    +`<button class="toptab${DM_TOP==='all'?' on':''}" data-top="all">📚 마켓별 전체 API</button>`
-    +`<button class="toptab tr${DM_TOP==='trans'?' on':''}" data-top="trans">⚡ 주문상태 전환</button>`
-    +`<button class="toptab settle${DM_TOP==='settle'?' on':''}" data-top="settle">💰 정산</button>`;
+  const TOP_DEFS=[
+    {k:'all',   lb:'📚 마켓별 전체 API'},
+    {k:'work:상품 조회', lb:'상품 조회'},
+    {k:'work:상품 관리', lb:'상품 관리'},
+    {k:'settle', lb:'💰 정산'},
+    {k:'work:배송·송장', lb:'배송·송장'},
+    {k:'work:클레임·CS', lb:'클레임·CS'},
+    {k:'trans',  lb:'⚡ 주문상태'},
+  ];
+  let top=TOP_DEFS.map(t=>`<button class="toptab${DM_TOP===t.k?' on':''}" data-top="${t.k}">${t.lb}</button>`).join('')
+    +`<button class="toptab howto${DM_TOP==='howto'?' on':''}" data-top="howto" style="margin-left:auto">🔍 API 문서 수집법</button>`;
   document.getElementById('dm-toptabs').innerHTML=top;
   // 하위탭(마켓)
   let sub='';
@@ -950,6 +957,12 @@ function dmRender(){
     body.innerHTML=`<div class="favhead"><span class="ft">🔍 API 문서 정보 수집법</span><span class="fs">마켓 공식 API 문서를 확보하는 순서 · 마켓별 어디까지 가면 되나</span></div>`+dmApiSteps();
   }else if(DM_TOP==='settle'){
     body.innerHTML=dmSettle();
+  }else if(DM_TOP && DM_TOP.startsWith('work:')){
+    const tab=DM_TOP.slice(5);
+    document.getElementById('dm-mktabs').style.display='none';
+    const leg2=document.querySelector('.dm2 .legend'); if(leg2)leg2.style.display='';
+    body.innerHTML=dmWorkTab(tab);
+    bindWorkRows();
   }else{
     const m=MK_META[DM_MK]; const cats=MKT_CATS_D[DM_MK]||[];
     if(DM_SUBG>=cats.length) DM_SUBG=0;
