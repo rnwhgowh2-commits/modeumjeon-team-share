@@ -520,26 +520,33 @@ def _probe_cp_refund():
     _coupang_settle_map(전부 합산) vs aggregate_settlements(REFUND 차감) 불일치 진단용. 확인 후 제거."""
     import datetime as _d
     from shared.platforms.coupang.settlements import iter_revenue_items
+    from lemouton.markets.order_export import _active_accounts
+    from lemouton.uploader import market_fetch as _mf
     days = int(request.args.get("days") or 60)
     to = _d.date.today() - _d.timedelta(days=1)
     fr = to - _d.timedelta(days=min(days, 31))
     out = {"window": [fr.isoformat(), to.isoformat()], "refund_lines": [], "sale_sample": [],
-           "n_sale": 0, "n_refund": 0, "err": None}
+           "n_sale": 0, "n_refund": 0, "accounts": [], "err": None}
+    accs = _active_accounts("coupang") or [(None, "default")]
     try:
-        for it in iter_revenue_items(recognition_from=fr.isoformat(),
-                                     recognition_to=to.isoformat()):
-            st = it.get("saleType")
-            rec = {"orderId": it.get("orderId"), "vid": it.get("vendorItemId"),
-                   "saleType": st, "settlementAmount": it.get("settlementAmount"),
-                   "saleAmount": it.get("saleAmount"), "qty": it.get("quantity")}
-            if st == "REFUND":
-                out["n_refund"] += 1
-                if len(out["refund_lines"]) < 8:
-                    out["refund_lines"].append(rec)
-            else:
-                out["n_sale"] += 1
-                if len(out["sale_sample"]) < 3:
-                    out["sale_sample"].append(rec)
+        for env_prefix, name in accs:
+            client = _mf._coupang_client(env_prefix)
+            cnt = {"name": name, "sale": 0, "refund": 0}
+            for it in iter_revenue_items(recognition_from=fr.isoformat(),
+                                         recognition_to=to.isoformat(), client=client):
+                st = it.get("saleType")
+                rec = {"orderId": it.get("orderId"), "vid": it.get("vendorItemId"),
+                       "saleType": st, "settlementAmount": it.get("settlementAmount"),
+                       "saleAmount": it.get("saleAmount"), "qty": it.get("quantity")}
+                if st == "REFUND":
+                    out["n_refund"] += 1; cnt["refund"] += 1
+                    if len(out["refund_lines"]) < 10:
+                        out["refund_lines"].append(rec)
+                else:
+                    out["n_sale"] += 1; cnt["sale"] += 1
+                    if len(out["sale_sample"]) < 3:
+                        out["sale_sample"].append(rec)
+            out["accounts"].append(cnt)
     except Exception as e:  # noqa: BLE001
         out["err"] = repr(e)
     return jsonify(out)
