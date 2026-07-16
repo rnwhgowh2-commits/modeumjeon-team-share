@@ -1,0 +1,137 @@
+{% extends 'base.html' %}
+{% block title %}크롤 로그인 — 모음전 자동화{% endblock %}
+
+{% block head %}
+<style>
+  .cl-wrap{max-width:1000px;margin:0 auto;padding:6px 4px 60px}
+  .cl-tabs{display:flex;gap:6px;margin-bottom:14px}
+  .cl-tab{padding:8px 16px;border-radius:9px 9px 0 0;font-size:13.5px;font-weight:600;
+    color:#6B7684;text-decoration:none;border:1px solid transparent}
+  .cl-tab.on{background:#fff;color:#191F28;border-color:#E5E8EB;border-bottom-color:#fff}
+  .cl-head{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:6px}
+  .cl-head h1{font-size:20px;font-weight:700;margin:0}
+  .cl-sub{color:#6B7684;font-size:13px;margin:0 0 14px}
+  .cl-counts{display:flex;gap:8px;margin:0 0 14px}
+  .cl-badge{display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:700;
+    padding:3px 10px;border-radius:20px}
+  .b-ok{background:#E6F7F0;color:#0a7a55}
+  .b-warn{background:#FFF7E6;color:#8a6100}
+  .b-danger{background:#FFF0F0;color:#c92a2a}
+  .b-none{background:#f1f3f5;color:#868e96}
+
+  .cl-card{border:1px solid #E5E8EB;border-radius:11px;background:#fff;padding:14px 16px;margin-bottom:10px;
+    display:grid;grid-template-columns:auto 1fr auto;gap:16px;align-items:center}
+  .cl-card.editing{background:#F7FAFF;border-color:#cfe0ff}
+  .cl-logo{width:34px;height:34px;border-radius:8px;background:#DA2128;color:#fff;font-weight:800;
+    font-size:13px;display:inline-flex;align-items:center;justify-content:center}
+  .cl-name{font-weight:700;font-size:14.5px}
+  .cl-fields{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .cl-field label{display:block;font-size:11.5px;color:#6B7684;margin-bottom:3px}
+  .cl-inp{width:100%;padding:8px 11px;border:1px solid #D1D6DB;border-radius:8px;font-size:13.5px;background:#fff}
+  .cl-inp:focus{outline:none;border-color:#3182F6;box-shadow:0 0 0 3px #EAF2FF}
+  .cl-right{display:flex;flex-direction:column;align-items:flex-end;gap:7px;min-width:150px}
+  .cl-status{font-size:11.5px;color:#6B7684}
+  .btn{display:inline-flex;align-items:center;gap:5px;border:1px solid #D1D6DB;background:#fff;
+    border-radius:8px;padding:7px 14px;font-size:13px;font-weight:600;cursor:pointer;color:#191F28}
+  .btn:hover{background:#f7f8fa}
+  .btn.pri{background:#3182F6;border-color:#3182F6;color:#fff}
+  .btn.pri:hover{background:#1b6fe0}
+  .btn.sm{padding:5px 11px;font-size:12px}
+  .btn[disabled]{opacity:.5;cursor:not-allowed}
+  .cl-note{background:#FFF7E6;border:1px solid #f2dca0;border-radius:9px;padding:11px 15px;font-size:12.5px;
+    color:#664d03;margin-top:12px;line-height:1.6}
+  .cl-empty{text-align:center;color:#868e96;padding:50px 0}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="cl-wrap">
+  <div class="cl-tabs">
+    <a class="cl-tab" href="/accounts/upload">판매처 계정</a>
+    <a class="cl-tab on" href="/accounts/crawl-login">🔐 크롤 로그인</a>
+  </div>
+
+  <div class="cl-head">
+    <h1>🔐 크롤 로그인</h1>
+  </div>
+  <p class="cl-sub">정산금 자동 수집용 판매자센터 로그인 정보. 비밀번호는 암호화되어 저장되며, 크롤러가 이 정보로 자동 로그인해 정산 데이터를 가져옵니다.</p>
+
+  <div class="cl-counts">
+    <span class="cl-badge b-ok">🔒 저장됨 {{ n_saved }}</span>
+    <span class="cl-badge b-warn">🔓 미저장 {{ n_unsaved }}</span>
+    <span style="margin-left:auto"></span>
+    <button class="btn" disabled title="확장(크롤러) 연결 후 사용 가능 — 지금은 정보 저장만">⚡ 전체 로그인 테스트</button>
+  </div>
+
+  {% if accounts %}
+    {% for a in accounts %}
+    <div class="cl-card{% if not a.saved %} editing{% endif %}" data-prefix="{{ a.env_prefix }}">
+      <span class="cl-logo">롯</span>
+      <div class="cl-fields">
+        <div class="cl-field">
+          <label>판매자센터 아이디</label>
+          <input class="cl-inp cl-id" type="text" autocomplete="off" value="{{ a.login_id }}"
+                 placeholder="아이디" data-name="{{ a.display_name }}">
+        </div>
+        <div class="cl-field">
+          <label>비밀번호 {% if a.saved %}<span style="color:#0a7a55">· 저장됨</span>{% endif %}</label>
+          <input class="cl-inp cl-pw" type="password" autocomplete="new-password"
+                 placeholder="{% if a.saved %}변경할 때만 입력{% else %}비밀번호{% endif %}">
+        </div>
+      </div>
+      <div class="cl-right">
+        <div class="cl-name">{{ a.display_name }}</div>
+        {% if a.saved %}
+        <span class="cl-badge b-ok cl-badge-state">🔒 저장됨</span>
+        {% else %}
+        <span class="cl-badge b-warn cl-badge-state">🔓 미저장</span>
+        {% endif %}
+        <button class="btn pri sm cl-save">저장</button>
+      </div>
+    </div>
+    {% endfor %}
+
+    <div class="cl-note">
+      ⚠️ <b>보안 안내</b> — 비밀번호는 암호화되어 저장됩니다(평문 저장 안 함). 다만 자동 로그인을 위해
+      크롤러가 복호화해 사용하므로, 서버·암호화키가 동시에 유출되면 비밀번호도 노출될 수 있습니다.
+      · 「전체 로그인 테스트」와 실제 자동 로그인은 크롤러(확장) 연결 후 동작합니다.
+    </div>
+  {% else %}
+    <div class="cl-empty">
+      크롤 로그인 대상 계정이 없습니다. 먼저 <a href="/accounts/upload">판매처 계정</a>에서 롯데온 계정을 추가하세요.
+    </div>
+  {% endif %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.querySelectorAll('.cl-save').forEach(function(btn){
+  btn.addEventListener('click', function(){
+    var card = btn.closest('.cl-card');
+    var prefix = card.dataset.prefix;
+    var loginId = card.querySelector('.cl-id').value.trim();
+    var pw = card.querySelector('.cl-pw').value;
+    var name = card.querySelector('.cl-id').dataset.name;
+    if(!loginId){ alert('아이디를 입력하세요'); return; }
+    btn.disabled = true; btn.textContent = '저장 중…';
+    fetch('/accounts/api/crawl-login/' + encodeURIComponent(prefix), {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({login_id: loginId, password: pw})
+    }).then(function(r){ return r.json(); }).then(function(d){
+      btn.disabled = false; btn.textContent = '저장';
+      if(!d.ok){ alert('저장 실패: ' + (d.error||'')); return; }
+      var badge = card.querySelector('.cl-badge-state');
+      badge.className = 'cl-badge b-ok cl-badge-state';
+      badge.textContent = '🔒 저장됨';
+      card.classList.remove('editing');
+      card.querySelector('.cl-pw').value = '';
+      card.querySelector('.cl-pw').placeholder = '변경할 때만 입력';
+    }).catch(function(e){
+      btn.disabled = false; btn.textContent = '저장';
+      alert('저장 오류: ' + e);
+    });
+  });
+});
+</script>
+{% endblock %}

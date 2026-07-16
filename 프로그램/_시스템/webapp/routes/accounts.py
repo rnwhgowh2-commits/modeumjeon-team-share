@@ -2365,3 +2365,96 @@ def api_markets_delete(mid):
         return jsonify(ok=True)
     finally:
         s.close()
+
+
+# ──────────────────────────────────────────────────────────
+#  /accounts/crawl-login — 크롤 자동로그인 저장 (방식 A, 배치3 전용 탭)
+#    판매자센터 아이디/비번을 암호화 저장 → 확장이 자동 로그인·정산 수집.
+#    비번은 Fernet 암호화(crawl_login). 여기선 저장+상태만 — 실제 로그인 테스트는
+#    확장(브라우저 세션)이 수행(다음 단계). 복호화 조회 엔드포인트도 확장 구현 시 추가.
+# ──────────────────────────────────────────────────────────
+
+# 크롤 자동로그인 지원 마켓 — 판매자센터 세션 토큰이 필요한 마켓만.
+CRAWL_LOGIN_MARKETS = ("lotteon",)
+
+
+@bp.route("/crawl-login")
+def crawl_login_view():
+    """크롤 로그인 전용 화면 — 마켓별 계정을 한 곳에 모아 로그인정보 저장·상태 확인."""
+    from lemouton.auth import crawl_login as _cl
+    s = SessionLocal()
+    try:
+        accts = (s.query(UploadAccount)
+                 .filter(UploadAccount.market.in_(CRAWL_LOGIN_MARKETS))
+                 .order_by(UploadAccount.market, UploadAccount.display_name).all())
+        rows = []
+        for acc in accts:
+            st = _cl.login_status(acc.env_prefix)
+            rows.append({
+                "id": acc.id,
+                "display_name": acc.display_name,
+                "market": acc.market,
+                "env_prefix": acc.env_prefix,
+                "saved": st["saved"],
+                "login_id": st["login_id"] or "",
+            })
+        n_saved = sum(1 for r in rows if r["saved"])
+        return render_template("accounts/crawl_login.html",
+                               accounts=rows, total=len(rows), n_saved=n_saved,
+                               n_unsaved=len(rows) - n_saved, active_app="")
+    finally:
+        s.close()
+
+
+@bp.route("/api/crawl-login/<env_prefix>", methods=["POST"])
+def save_crawl_login(env_prefix: str):
+    """판매자센터 아이디/비번 저장(비번 암호화). Body: {login_id, password}.
+
+    password 빈 칸 + 기존 저장값 있으면 아이디만 갱신(비번 유지) — 재입력 없이 이름만 수정 가능.
+    """
+    from lemouton.auth import crawl_login as _cl
+    from lemouton.auth.env_writer import EnvWriteError
+
+    if not env_prefix or not env_prefix.replace("_", "").isalnum():
+        return jsonify({"ok": False, "error": "env_prefix 형식 오류"}), 400
+
+    body = request.get_json(silent=True) or {}
+    login_id = (body.get("login_id") or "").strip()
+    password = body.get("password") or ""   # 공백 유의미할 수 있어 strip 안 함
+
+    if not login_id:
+        return jsonify({"ok": False, "error": "아이디를 입력하세요"}), 400
+
+    # 이 env_prefix 가 크롤 로그인 대상 계정인지 확인(임의 키 주입 방지)
+    s = SessionLocal()
+    try:
+        acc = (s.query(UploadAccount)
+               .filter(UploadAccount.env_prefix == env_prefix,
+                       UploadAccount.market.in_(CRAWL_LOGIN_MARKETS)).first())
+    finally:
+        s.close()
+    if acc is None:
+        return jsonify({"ok": False, "error": "크롤 로그인 대상 계정이 아닙니다"}), 404
+
+    prev = _cl.login_status(env_prefix)
+    if not password:
+        if not prev["saved"]:
+            return jsonify({"ok": False, "error": "비밀번호를 입력하세요(기존 저장값 없음)"}), 400
+        # 비번 유지 + 아이디만 갱신
+        try:
+            from lemouton.auth import secrets as _S
+            from lemouton.auth.env_writer import update_env_keys
+            update_env_keys(_S.secrets_env_path(),
+                            {f"{env_prefix}_CRAWL_LOGIN_ID": login_id}, require_non_empty=True)
+            _S.refresh_env()
+        except EnvWriteError as e:
+            return jsonify({"ok": False, "error": str(e)}), 500
+    else:
+        try:
+            _cl.save_login(env_prefix, login_id, password)
+        except EnvWriteError as e:
+            return jsonify({"ok": False, "error": str(e)}), 500
+
+    st = _cl.login_status(env_prefix)
+    return jsonify({"ok": True, "saved": st["saved"], "login_id": st["login_id"],
+                    "message": f"{acc.display_name} 로그인 정보 저장 완료(비밀번호 암호화)."})
