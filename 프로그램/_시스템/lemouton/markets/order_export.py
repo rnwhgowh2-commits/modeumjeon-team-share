@@ -300,6 +300,59 @@ def smartstore_order_rows(since: _dt.datetime, until: _dt.datetime,
     return rows
 
 
+# 롯데온 odPrgsStepCd 중 회수·반품·취소 '진행/종결' 코드(클레임 이벤트).
+#   21취소완료·22철회·23회수지시·24회수진행·25회수완료·26회수확정·27반품완료.
+_LO_CLAIM_STEP_CODES = {"21", "22", "23", "24", "25", "26", "27"}
+
+
+def _lotteon_odno_date(odno) -> Optional[str]:
+    """롯데온 주문번호 앞 8자리(YYYYMMDD)=실주문일 → 'YYYY-MM-DD'. 형식·날짜 무효면 None.
+
+    (라이브 2026-07-16: 정상 주문행 108/108 이 주문번호 앞자리=주문일 일치. 11번가 ordNo[:8]
+    보정과 동일 관행.)
+    """
+    s = str(odno or "")
+    if len(s) >= 8 and s[:2] == "20" and s[:8].isdigit():
+        try:
+            _dt.date(int(s[0:4]), int(s[4:6]), int(s[6:8]))
+            return f"{s[0:4]}-{s[4:6]}-{s[6:8]}"
+        except ValueError:
+            return None
+    return None
+
+
+def _reclassify_lotteon_returns(rows: list) -> list:
+    """209(출고/회수지시) 경로 행 중 회수·반품·취소 진행상태를 클레임(change)으로 바로잡는다.
+
+    209(SellerDeliveryOrdersSearch)는 '회수지시' 건도 돌려주는데 그 행의 odCmptDttm 는
+    '배송(회수)지시 생성일시'라, 옛 주문(예: 07-14 주문)의 주문일이 회수지시일(오늘)로 오염돼
+    new_order_rows(오늘 신규주문)에 잘못 섞인다(라이브 실측 2026-07-16: 회수지시 3건 전부).
+    → 주문번호 앞 8자리(실주문일)로 주문일을 복원하고, 반품 이벤트이므로 _kind='change'
+      (+_change_date=회수/이벤트 시각)로 재분류한다. new_order_rows 는 실주문일로 제외하고,
+      status_change_rows(CS 상태변경 탭)가 변경일로 잡는다. 같은 주문·상품의 원출고행+회수행
+      중복은 (주문번호·상품·옵션) 기준으로 최신 회수 이벤트 1건만 남긴다.
+    """
+    others: list = []
+    claims: dict = {}   # (odNo, 상품명, 옵션) → 유지행(최신 _change_date)
+    for r in rows:
+        code = str(r.get("주문상태원본") or "")
+        if not r.get("_shipkey") or code not in _LO_CLAIM_STEP_CODES:
+            others.append(r)            # 정상 주문행·이미 change 인 클레임행은 그대로
+            continue
+        evt = str(r.get("주문일") or "")   # 회수/이벤트 시각(오염된 주문일)
+        odno = str(r.get("오픈마켓주문번호") or "")
+        real = _lotteon_odno_date(odno)
+        if real:
+            r["주문일"] = real            # 실주문일 복원(없으면 원값 유지 — 폴백 금지)
+        r["_kind"] = "change"
+        r["_change_date"] = evt
+        gk = (odno, str(r.get("상품명") or ""), str(r.get("옵션") or ""))
+        prev = claims.get(gk)
+        if prev is None or evt > str(prev.get("_change_date") or ""):
+            claims[gk] = r               # 원출고행+회수행 중복 → 최신 회수 1건만
+    return others + list(claims.values())
+
+
 def lotteon_order_rows(since: _dt.datetime, until: _dt.datetime,
                        client=None, include_settlement: bool = True) -> list:
     """롯데온 출고/회수지시(주문정보) → 16컬럼 행(dict) 리스트.
@@ -508,6 +561,10 @@ def lotteon_order_rows(since: _dt.datetime, until: _dt.datetime,
                 r["_settle_source"] = "real"
     except Exception:   # noqa: BLE001 — DB 없거나 조회 실패 시 기존값 유지(폴백 아님)
         pass
+
+    # 회수·반품·취소 진행상태(209 경로)는 주문일이 회수지시 시각으로 오염됨 →
+    #   실주문일 복원 + change 재분류(옛 주문이 '오늘 신규주문'에 새는 것 방지).
+    rows = _reclassify_lotteon_returns(rows)
     return rows
 
 
