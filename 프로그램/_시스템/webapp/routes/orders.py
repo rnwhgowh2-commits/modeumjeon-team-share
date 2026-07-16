@@ -17,6 +17,7 @@ from lemouton.markets import order_export as _oe
 from shared.db import SessionLocal
 from lemouton.delivery import service as _dsvc
 from lemouton.delivery.mango_parser import parse_mango_xls, MangoParseError
+from lemouton.claims import service as _claim_svc
 
 
 bp = Blueprint('orders', __name__, url_prefix='/orders')
@@ -168,6 +169,42 @@ def _parse_range(args):
     since = _dt.datetime(d1.year, d1.month, d1.day, 0, 0, 0, tzinfo=_oe.KST)
     until = _dt.datetime(d2.year, d2.month, d2.day, 23, 59, 59, 999000, tzinfo=_oe.KST)
     return since, until
+
+
+@bp.route('/cs/claims.json')
+def cs_claims():
+    markets = _parse_markets(request.args)
+    since, until = _parse_range(request.args)
+    try:
+        res = _claim_svc.list_claims(markets, since=since, until=until)
+        return jsonify(ok=True, **res)
+    except Exception as e:   # noqa: BLE001
+        import logging
+        logging.getLogger(__name__).exception("cs claims failed markets=%s", markets)
+        return jsonify(ok=False, error=str(e), groups={"신규요청": [], "대응필요": [], "대응완료": []},
+                       market_counts={"전체": 0})
+
+
+@bp.route('/cs/claims/ack', methods=['POST'])
+def cs_claim_ack():
+    d = request.get_json(silent=True) or {}
+    ck = (d.get('claim_key') or '').strip()
+    if not ck:
+        return jsonify(ok=False, error='claim_key 필요'), 400
+    _claim_svc.acknowledge(ck, market=d.get('market', ''), order_no=d.get('order_no', ''),
+                           claim_type=d.get('claim_type', ''))
+    return jsonify(ok=True)
+
+
+@bp.route('/cs/claims/memo', methods=['POST'])
+def cs_claim_memo():
+    d = request.get_json(silent=True) or {}
+    ck = (d.get('claim_key') or '').strip()
+    if not ck:
+        return jsonify(ok=False, error='claim_key 필요'), 400
+    _claim_svc.save_memo(ck, d.get('memo', ''), market=d.get('market', ''),
+                         order_no=d.get('order_no', ''), claim_type=d.get('claim_type', ''))
+    return jsonify(ok=True)
 
 
 @bp.route('/export.xlsx')
