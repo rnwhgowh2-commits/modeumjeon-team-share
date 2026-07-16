@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "markets": [
+    {"id":"coupang","label":"쿠팡","base_url":"https://api-gateway.coupang.com","auth":"HMAC-SHA256(CEA)","env_prefixes":["COUPANG_MAIN"],"concurrency":"5 req/s 토큰버킷, 429 Retry-After 존중"},
+    {"id":"smartstore","label":"스마트스토어","base_url":"https://api.commerce.naver.com","auth":"OAuth2 + bcrypt","env_prefixes":["SMARTSTORE_MAIN"],"concurrency":"계정 순차 조회(병렬 시 429 위험)"},
+    {"id":"lotteon","label":"롯데온","base_url":"https://openapi.lotteon.com","auth":"정적 인증키(Bearer)+IP 등록","env_prefixes":["LOTTEON_MAIN"],"concurrency":"IP 등록 필수"},
+    {"id":"eleven11","label":"11번가","base_url":"https://api.11st.co.kr","auth":"openapikey 헤더+IP 등록","env_prefixes":["ELEVEN11_MAIN"],"concurrency":"계정 순차 조회 필수 — 병렬 시 429 전체 다운"},
+    {"id":"auction","label":"옥션","base_url":"https://sa2.esmplus.com","auth":"ESM 2.0 (JWT/HmacSHA256)","env_prefixes":["ESM_MAIN"],"concurrency":""},
+    {"id":"gmarket","label":"G마켓","base_url":"https://sa2.esmplus.com","auth":"ESM 2.0 (JWT/HmacSHA256)","env_prefixes":["ESM_MAIN"],"concurrency":""}
+  ],
+  "unifiedStatuses": [
+    {"id":"payment_done","name":"결제완료","meaning":"구매자 결제 완료, 판매자 발주 확인 대기","order":10},
+    {"id":"prep","name":"배송준비중","meaning":"판매자가 발주 확인함(상품준비중)","order":20},
+    {"id":"shipping","name":"배송중","meaning":"송장 등록·발송 처리됨","order":30},
+    {"id":"delivered","name":"배송완료","meaning":"수취 완료","order":40},
+    {"id":"cancel_req","name":"취소요청","meaning":"구매자 취소 신청","order":50},
+    {"id":"return_req","name":"반품요청","meaning":"구매자 반품 신청","order":60},
+    {"id":"exchange_req","name":"교환요청","meaning":"구매자 교환 신청","order":70}
+  ],
+  "transitions": [
+    {"from":"payment_done","to":"prep","requires":[],"perMarket":{"coupang":"unsupported","smartstore":"unsupported","lotteon":"unsupported","eleven11":"unsupported"}},
+    {"from":"prep","to":"shipping","requires":["송장번호"],"perMarket":{"coupang":"unsupported","smartstore":"unsupported","lotteon":"unsupported","eleven11":"unsupported"}}
+  ],
+  "codes": [],
+  "apis": []
+}
