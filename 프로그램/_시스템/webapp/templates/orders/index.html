@@ -1599,6 +1599,7 @@
     <div class="csdiv" id="cs-div-claims">
       <div class="mtabs" id="cs-mtabs"></div>
       <div class="cs-banner" id="cs-banner" style="display:none"></div>
+      <div class="cs-prog" id="cs-claims-progress" style="display:none"></div>
       <div class="kb" id="cs-board"><div class="cs-state">불러오는 중…</div></div>
     </div>
     <div class="csdiv" id="cs-div-inquiries" style="display:none">
@@ -1627,6 +1628,9 @@
     var curMarket='';
     var lastCounts={};
     var lastGroups={};
+    var EN2KO={'coupang':'쿠팡','eleven11':'11번가','lotteon':'롯데온','smartstore':'스마트스토어'};
+    var progState={}, progCount={};   // 마켓별 진행 상태(load/done/fail/prep)·건수
+    var claimSeq=0;                    // 재조회 경합 방지(오래된 응답 무시)
 
     function esc(s){
       return String(s==null?'':s).replace(/[&<>"']/g,function(c){
@@ -1659,7 +1663,40 @@
     function marketsParam(){ return ALLMK.join(','); }
 
     function setLoadingState(){
-      BOARD.innerHTML='<div class="cs-state">불러오는 중…</div>';
+      ALLMK.forEach(function(mk){ progState[mk]='load'; progCount[mk]=0; });
+      var P=document.getElementById('cs-claims-progress');
+      if(BOARD) BOARD.style.display='none';
+      if(P) P.style.display='';
+      renderProgress();
+    }
+
+    function renderProgress(){
+      var P=document.getElementById('cs-claims-progress');
+      if(!P) return;
+      var settled=0;
+      ALLMK.forEach(function(mk){ var s=progState[mk]; if(s && s!=='load') settled++; });
+      var newN=(lastGroups['신규요청']||[]).length;
+      var nodes=ALLMK.map(function(mk){
+        var s=progState[mk]||'load';
+        var lg=LOGO[EN2KO[mk]]||['?','#999'];
+        var cls,mark,st;
+        if(s==='done'){ cls='done'; mark='✓'; st='<b class="ok">'+(progCount[mk]||0)+'건</b>'; }
+        else if(s==='fail'){ cls='fail'; mark='⚠'; st='<b class="err">실패</b>'; }
+        else if(s==='prep'){ cls='prep'; mark='⏳'; st='<b class="wait">준비 중</b>'; }
+        else { cls='load'; mark='<span class="cs-spin"></span>'; st='<b class="loadc">불러오는 중…</b>'; }
+        return '<div class="cs-node '+cls+'">'
+          +'<div class="cs-badge'+(s==='prep'?' dim':'')+'" style="background:'+lg[1]+'">'+esc(lg[0])
+          +'<span class="cs-mark">'+mark+'</span></div>'
+          +'<div class="cs-node-nm">'+esc(EN2KO[mk])+'</div>'
+          +'<div class="cs-node-st">'+st+'</div></div>';
+      }).join('');
+      var allDone=settled>=ALLMK.length;
+      P.innerHTML='<div class="cs-prog-h">'
+          +(allDone?'':'<span class="cs-spin"></span>')
+          +'반품·교환·취소 불러오는 중… <b class="num">'+settled+'</b>/'+ALLMK.length+' 완료</div>'
+        +'<div class="cs-prog-sub">마켓 4곳을 동시에 불러오고 있어요 · 끝난 곳부터 표시됩니다</div>'
+        +'<div class="cs-prog-row">'+nodes+'</div>'
+        +'<div class="cs-prog-foot">⏳ 지금까지 <b class="num" style="color:var(--ink)">신규요청 '+newN+'건</b> 불러왔어요</div>';
     }
 
     function showBanner(msg, warn){
@@ -1806,30 +1843,60 @@
         .catch(function(){ alert('메모 저장 실패(네트워크)'); });
     }
 
+    function fetchOneMarket(mk){
+      // 마켓 1곳만 조회(백엔드는 ?market= 단일 지원). 실패해도 reject 하지 않고 표식만 남김.
+      return fetch('/orders/cs/claims.json?market='+encodeURIComponent(mk),{cache:'no-store'})
+        .then(function(r){ return r.json(); })
+        .then(function(j){ return {mk:mk, http:true, j:j||{}}; })
+        .catch(function(){ return {mk:mk, http:false, j:{}}; });
+    }
+
+    var STAGE_KEYS=['신규요청','대응필요','대응완료'];
+
     function load(){
+      // 마켓 4곳을 동시에(병렬) 조회. 각 마켓이 끝나는 대로 스텝 도트·배지·건수를 갱신.
+      // 같은 마켓 안 계정 여러 개는 서버가 순차 조회(429 방지) — 마켓끼리만 병렬.
       hideBanner();
+      var mySeq=++claimSeq;
+      lastGroups={'신규요청':[],'대응필요':[],'대응완료':[]};
+      lastCounts={'전체':0};
+      var warns=[];
+      var settledN=0;
       setLoadingState();
-      fetch('/orders/cs/claims.json?markets='+encodeURIComponent(marketsParam()),{cache:'no-store'})
-        .then(function(r){return r.json();})
-        .then(function(j){
-          if(!j.ok){
-            lastCounts=j.market_counts||{}; lastGroups={}; renderTabs();
-            BOARD.innerHTML='<div class="cs-state">불러오지 못했어요</div>';
-            showBanner('불러오지 못했어요: '+(j.error||'알 수 없는 오류'), false);
-            return;
+      renderTabs();
+      ALLMK.forEach(function(mk){
+        fetchOneMarket(mk).then(function(res){
+          if(mySeq!==claimSeq) return;   // 새 조회가 시작됐으면 오래된 응답 무시
+          var j=res.j||{};
+          var w=j.warnings||[];
+          var failed=(!res.http)||(j.ok===false)||w.some(function(x){ return /실패/.test(x); });
+          var prep=w.some(function(x){ return /준비\s*중/.test(x); });
+          if(failed){
+            progState[mk]='fail';
+            warns.push('['+EN2KO[mk]+'] 불러오지 못했어요'+(res.http?'':'(네트워크)'));
+          } else if(prep){
+            progState[mk]='prep';
+          } else {
+            progState[mk]='done';
+            var g=j.groups||{};
+            STAGE_KEYS.forEach(function(k){ (g[k]||[]).forEach(function(r){ lastGroups[k].push(r); }); });
+            var cnt=(j.market_counts&&j.market_counts['전체'])||0;
+            progCount[mk]=cnt;
+            lastCounts[EN2KO[mk]]=cnt;
+            w.forEach(function(x){ if(!/준비\s*중/.test(x)) warns.push(x); });
           }
-          lastCounts=j.market_counts||{};
-          lastGroups=j.groups||{};
-          renderTabs();
-          renderBoard(lastGroups);
-          if((j.warnings||[]).length){
-            showBanner(j.warnings.join(' · '), true);
+          lastCounts['전체']=STAGE_KEYS.reduce(function(n,k){ return n+lastGroups[k].length; },0);
+          settledN++;
+          renderProgress(); renderTabs();
+          if(settledN>=ALLMK.length){
+            var P=document.getElementById('cs-claims-progress');
+            if(P) P.style.display='none';
+            if(BOARD) BOARD.style.display='';
+            renderBoard(lastGroups);
+            if(warns.length) showBanner(warns.join(' · '), true);
           }
-        })
-        .catch(function(){
-          BOARD.innerHTML='<div class="cs-state">불러오지 못했어요</div>';
-          showBanner('네트워크 오류로 불러오지 못했어요', false);
         });
+      });
     }
 
     renderTabs();
