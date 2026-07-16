@@ -727,6 +727,11 @@ const MKT_CATS={
       {nm:'배송준비중 조회',dir:'recv',st:'code',code:'/rest/ordservices/packaging/{s}/{e} · iter_packaging (코드 있으나 주 조회는 complete 사용)'},
       {nm:'발송처리(송장)',dir:'send',st:'code',code:'/rest/ordservices/reqdelivery/… · shipping.send_tracking'},
     ]},
+    {g:'문의(CS)',items:[
+      {nm:'상품 QnA 목록 조회',dir:'recv',st:'ok',code:'/rest/prodqnaservices/prodqnalist/{s}/{e}/{status} · iter_product_qna (CS 상품문의 라이브)'},
+      {nm:'긴급 문의 조회',dir:'recv',st:'off',code:'스펙 미확보 — 셀러 콘솔 추출 필요'},
+      {nm:'11톡 조회',dir:'recv',st:'off',code:'스펙 미확보 — 별도 API'},
+    ]},
     {g:'정산',items:[]},
     {g:'클레임',items:[]},
     {g:'배송',items:[]},
