@@ -218,13 +218,27 @@ def api_current():
 #   pick-orders: 최근 주문에서 실제 (상품번호·단품번호) 후보를 수집.
 #   direct-current/direct-send: env_prefix+상품번호로 세트 없이 바로 조회/전송.
 # ─────────────────────────────────────────────────────────────────────────────
+@bp.get("/api/live-send-test/accounts")
+def api_accounts():
+    """마켓의 활성 계정 목록 [(env_prefix, 표시명)]. 계정 지정 검증용."""
+    market = (request.args.get("market") or "").strip()
+    if not market:
+        return jsonify({"ok": False, "error": "market 필요"}), 400
+    from lemouton.markets import order_export as _oe
+    accts = _oe._active_accounts(market) or []
+    return jsonify({"ok": True, "market": market,
+                    "accounts": [{"env_prefix": ep, "display_name": nm}
+                                 for ep, nm in accts]})
+
+
 @bp.get("/api/live-send-test/pick-orders")
 def api_pick_orders():
     """최근 주문에서 실제 상품 후보(상품번호·단품번호)를 수집. 세트 연동 불필요.
 
-    ?market=lotteon|eleven11&days=14&limit=20 . 계정별로 순회하며 중복(상품·옵션) 제거.
+    ?market=lotteon|eleven11&days=14&limit=20&env_prefix=... . env_prefix 주면 그 계정만.
     """
     market = (request.args.get("market") or "").strip()
+    want_prefix = (request.args.get("env_prefix") or "").strip() or None
     try:
         days = max(1, min(int(request.args.get("days") or 14), 120))
     except (TypeError, ValueError):
@@ -241,6 +255,8 @@ def api_pick_orders():
     until = datetime.now()
     since = until - timedelta(days=days)
     accts = _oe._active_accounts(market) or [(None, "대표 계정")]
+    if want_prefix:
+        accts = [(ep, nm) for ep, nm in accts if ep == want_prefix]
     seen, out, warnings = set(), [], []
     for env_prefix, alias in accts:
         if len(out) >= limit:
