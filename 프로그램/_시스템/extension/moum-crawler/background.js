@@ -183,8 +183,19 @@ function lotteonSettleCrawlInPage(sinceYMD, untilYMD, trNoArg) {
           var m = v.match(hex); if (m) { tok = m[0]; break; }
         }
         if (!tok) return resolve({ ok: false, error: "세션 토큰 없음 — 판매자센터 로그인 후 재시도" });
+        // trNo(판매자ID) — 지정 없으면 로그인된 판매자센터 DOM에서 자동감지
+        //   #mf_sellerShop_trNo(브랜드박스 옆 판매자코드) → 없으면 본문 LO######## 정규식.
         var trNo = trNoArg || (window.__H && window.__H.trNo) || "";
-        if (!trNo) return resolve({ ok: false, error: "trNo(판매자ID) 없음 — payload로 지정 필요" });
+        if (!trNo) {
+          try {
+            var elT = document.getElementById("mf_sellerShop_trNo");
+            if (elT) trNo = (elT.textContent || "").trim();
+          } catch (e) {}
+        }
+        if (!trNo) {
+          try { var mm = (document.body.innerText || "").match(/LO\d{8,}/); if (mm) trNo = mm[0]; } catch (e) {}
+        }
+        if (!trNo) return resolve({ ok: false, error: "trNo(판매자ID) 자동감지 실패 — 판매자센터 로그인 확인 or payload로 지정" });
         function get(p) {
           return new Promise(function (res) {
             var x = new XMLHttpRequest();

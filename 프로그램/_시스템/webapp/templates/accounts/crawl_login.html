@@ -59,7 +59,7 @@
   <div class="cl-note" style="background:#EAF2FF;border-color:#cfe0ff;color:#1d4ed8;margin:0 0 16px">
     <b>💰 롯데온 정산 수집</b> — 판매자센터에 로그인된 상태에서 눌러주세요. 로그인된 세션 토큰으로 정산 목록을 페이지별로 모아 서버에 반영합니다.
     <div style="display:flex;gap:8px;align-items:center;margin-top:10px;flex-wrap:wrap">
-      <input id="stl-trno" class="cl-inp" style="width:180px" placeholder="판매자ID(trNo) 예: LO10161082">
+      <input id="stl-trno" class="cl-inp" style="width:220px" placeholder="판매자ID(trNo) — 비우면 자동감지">
       <input id="stl-since" class="cl-inp" type="date" style="width:150px">
       <span style="color:#6B7684">~</span>
       <input id="stl-until" class="cl-inp" type="date" style="width:150px">
@@ -124,8 +124,7 @@
     var since=(document.getElementById('stl-since').value||'').replace(/-/g,'');
     var until=(document.getElementById('stl-until').value||'').replace(/-/g,'');
     if(!window.MoumExt||!window.MoumExt.installed()){out.style.color='#c00';out.textContent='확장(모음전 크롤러) 미설치/미로드 — 리로드 후 다시';return;}
-    if(!trNo){out.style.color='#c00';out.textContent='판매자ID(trNo)를 입력하세요';return;}
-    btn.disabled=true;out.style.color='#334';out.textContent='수집 중… (롯데온 판매자센터에 로그인돼 있어야 함)';
+    btn.disabled=true;out.style.color='#334';out.textContent='수집 중… (롯데온 판매자센터에 로그인돼 있어야 함 · 판매자ID 자동감지)';
     try{
       var r=await window.MoumExt.send('lotteon.settle.crawl',{trNo:trNo,since:since,until:until},180000);
       var resp=(r&&r.resp)?r.resp:r;
