@@ -55,6 +55,20 @@ class TestParseSettlement:
                        ("20260602987654321", "1"): 7000}
         assert ("20260603111111111", "1") not in out   # stlAmt 없음 → 스킵(0 대체 금지)
 
+    def test_settled_is_selprc_minus_deduct(self):
+        """정산금액 = selPrcAmt − deductAmt. stlAmt 는 배송비 라인서 공제(서비스이용료) 미반영
+        총액이라 배송비만 과다계상됨(라이브 실검증). selPrcAmt/deductAmt 있으면 그걸로 계산."""
+        from shared.platforms.eleven11.settlement import parse_settlement
+        xml = ('<?xml version="1.0" encoding="euc-kr"?><ns2:seStlDtlLists xmlns:ns2="http://x">'
+               '<ns2:seStlDtl><ordNo>555</ordNo><ordPrdSeq>1</ordPrdSeq>'
+               '<stlAmt>65032</stlAmt><selPrcAmt>73200</selPrcAmt><deductAmt>8168</deductAmt></ns2:seStlDtl>'
+               '<ns2:seStlDtl><ordNo>555</ordNo><ordPrdSeq>2</ordPrdSeq>'
+               '<stlAmt>4000</stlAmt><selPrcAmt>4000</selPrcAmt><deductAmt>212</deductAmt></ns2:seStlDtl>'
+               '</ns2:seStlDtlLists>')
+        out = parse_settlement(xml)
+        assert out[("555", "1")] == 65032        # 73200 − 8168 (stlAmt 와 동일)
+        assert out[("555", "2")] == 3788          # 4000 − 212 (stlAmt 4000 아님 — 배송비 공제 반영)
+
     def test_none_and_empty_root(self):
         from shared.platforms.eleven11.settlement import parse_settlement
         assert parse_settlement(None) == {}

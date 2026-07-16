@@ -72,8 +72,16 @@ def parse_settlement(xml_text_or_elem: Optional[Union[str, Element]]) -> Dict[tu
         stl = entry.get("stlAmt")
         if not ordno or stl in (None, "", "null"):
             continue
+        # ★정산금액 = selPrcAmt − deductAmt(판매/배송금액 − 공제). stlAmt 는 상품 라인엔 순액이지만
+        #  배송비 라인엔 서비스이용료(deductAmt=dlvAddFee)를 안 뺀 총액이라 배송비만 과다계상된다
+        #  (라이브 실검증: 배송비 stlAmt 4000 vs 판매자오피스 실정산 3788=4000−212). selPrcAmt/
+        #  deductAmt 로 계산하면 상품(73200−8168=65032)·배송비(4000−212=3788) 모두 오차0.
+        sp, dd = entry.get("selPrcAmt"), entry.get("deductAmt")
         try:
-            amt = round(float(stl))
+            if sp not in (None, "", "null") and dd not in (None, "", "null"):
+                amt = round(float(sp)) - round(float(dd))
+            else:
+                amt = round(float(stl))
         except (TypeError, ValueError):
             continue
         key = (ordno, entry.get("ordPrdSeq") or "")
