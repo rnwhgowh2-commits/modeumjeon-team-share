@@ -85,15 +85,28 @@ def build_a_output_from_stored(session) -> dict[str, dict]:
     return a_output
 
 
-def build_c_output(session) -> dict:
+def filter_a_output(a_output: dict, only_skus=None) -> dict:
+    """only_skus 가 주어지면 그 canonical_sku 만 남긴다. None 이면 전체."""
+    if only_skus is None:
+        return a_output
+    keep = set(only_skus)
+    return {sku: v for sku, v in a_output.items() if sku in keep}
+
+
+def build_c_output(session, only_skus=None) -> dict:
     """저장된 크롤 데이터 → B(pricing) → C(formatter) → 마켓별 페이로드 dict.
 
     scheduler/jobs.py full_cycle() 의 Phase B·C 를 그대로 따르되, Phase A 만
     재크롤 없는 build_a_output_from_stored 로 대체한다. 각 단계는 실크롤/실전송을
     유발하지 않는다.
+
+    only_skus 를 주면(스코프 원샷 전송) 그 canonical_sku 만 남겨 downstream
+    (B·C·전송 후보)에서 지정 SKU 외에는 절대 후보에 들어가지 않게 한다.
+    None(기본)이면 기존 호출부와 동일하게 전체를 처리한다.
     """
     # Phase A(대체): 재크롤 없이 저장 데이터로 aggregate
     a_output = build_a_output_from_stored(session)
+    a_output = filter_a_output(a_output, only_skus)
 
     # Phase B: pricing — jobs.py Phase B 미러(입력 형식·settings 동일).
     #   a_output 이 비면 pricing 엔진을 아예 부르지 않는다(graceful skip, jobs.py 동일).
