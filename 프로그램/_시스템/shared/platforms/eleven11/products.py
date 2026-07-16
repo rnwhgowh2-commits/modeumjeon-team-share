@@ -1,27 +1,27 @@
 # -*- coding: utf-8 -*-
 """
-11번가 상품/옵션 상세조회 래퍼 (기존 상품 연동 = 옵션 조회).
+11번가 상품 조회 래퍼 (상품 단위 정보 — 판매가 등).
 
-⚠️ 스펙 미확보(로그인 게이트) — 셀러 REST 상품 상세조회 엔드포인트 경로와 응답 XML
-   필드명(상품번호·단품/옵션 식별자·색/사이즈·재고·판매가)을 공개 문서에서 얻지 못했다.
-   CLAUDE.md 3대 원칙(추측·폴백 금지)에 따라 **실제 파싱 로직은 스펙 확보 후 구현**한다.
-   현재는 구조(시그니처)만 제공하고, 호출되면 스펙 필요를 명시적으로 표면화한다.
+정본 스펙(셀러 오픈API센터 · 2026-07-17):
+  · 신규 상품 조회: GET /rest/prodmarketservice/prodmarket/[prdNo] → <Product>...<selPrc>..
+    응답 필드 selPrc=판매가(상품 단위). 옵션별 재고/식별자는 stocks_query 로 조회한다.
 
-스펙 확보 시 채울 것(롯데온 products.py 대칭):
-   · get_product_detail: client.request("GET"/"POST", paths["detail"], body) → 응답 XML
-   · extract_items: XML → [{"item_name","option_id","color","size","stock",
-                            "sale_price","status"}]  (0/센티넬 붕괴 금지, 미상=None)
+주의: 옵션(단품)별 상세·재고는 이 엔드포인트가 아니라 stocks_query.get_stocks 를 쓴다
+      (이 엔드포인트는 상품 단위 — selPrc·판매상태 등).
 """
 from __future__ import annotations
 
+import re as _re
+import xml.etree.ElementTree as _ET
 from typing import Optional
 
 from shared.platforms.eleven11.client import Eleven11Client
 
-_SPEC_NEEDED = (
-    "11번가 셀러 REST 상품 상세조회 스펙 미확보(로그인 게이트). "
-    "docs/markets/eleven11.yaml 의 endpoints/fields 를 확보한 뒤 구현하세요(추측 금지)."
-)
+_PATH_DETAIL = "/rest/prodmarketservice/prodmarket/{prd_no}"
+
+
+def _localname(tag: str) -> str:
+    return tag.rsplit("}", 1)[-1]
 
 
 def get_product_detail(
@@ -29,17 +29,54 @@ def get_product_detail(
     *,
     client: Optional[Eleven11Client] = None,
     **_cfg_overrides,
-) -> str:
-    """상품/옵션 상세조회 → 응답 XML(str) 반환.
+) -> dict:
+    """상품 조회 → <Product> 필드 dict. GET prodmarket/{prdNo}.
 
-    ⚠️ 미구현 — 엔드포인트·필드 스펙 확보 후 채운다.
+    반환: {prd_no, prd_nm, sel_prc(int|None), sel_stat_cd, ...주요필드}.
+    파싱 실패는 예외로 표면화(추측·폴백 금지).
     """
-    raise NotImplementedError(_SPEC_NEEDED)
+    prd = str(product_id or "").strip()
+    if not prd:
+        raise ValueError("11번가 상품조회: 상품번호(prdNo) 없음")
+    client = client or Eleven11Client()
+    xml_text = client.request("GET", _PATH_DETAIL.format(prd_no=prd))
+    cleaned = _re.sub(r"<\?xml[^>]*\?>", "", xml_text or "", count=1).strip()
+    if not cleaned:
+        raise ValueError("11번가 상품조회: 빈 응답")
+    try:
+        root = _ET.fromstring(cleaned)
+    except _ET.ParseError as e:
+        raise ValueError(f"11번가 상품조회: XML 파싱 실패 — {e}: {cleaned[:200]}")
+    # <Product> 직속 자식만 상품 필드로(옵션/태그 하위는 무시). localname 매핑.
+    f: dict = {}
+    for child in list(root):
+        f.setdefault(_localname(child.tag), (child.text or "").strip())
+
+    def _int(v):
+        v = (v or "").strip()
+        return int(v) if v not in ("", None) and v.lstrip("-").isdigit() else None
+
+    return {
+        "prd_no": f.get("prdNo") or prd,
+        "prd_nm": f.get("prdNm") or None,
+        "sel_prc": _int(f.get("selPrc")),      # 판매가(상품 단위)
+        "sel_stat_cd": f.get("selStatCd") or None,   # 103=판매중 등
+        "sel_stat_nm": f.get("selStatNm") or None,
+        "message": f.get("message") or None,
+    }
+
+
+def get_product_price(
+    product_id: str,
+    *,
+    client: Optional[Eleven11Client] = None,
+) -> Optional[int]:
+    """상품 현재 판매가(selPrc) 조회. 미상은 None(0 날조 금지)."""
+    return get_product_detail(product_id, client=client).get("sel_prc")
 
 
 def extract_items(detail) -> list[dict]:
-    """상세조회 XML → 옵션 리스트 추출.
-
-    ⚠️ 미구현 — 응답 XML 필드명 스펙 확보 후 채운다.
-    """
-    raise NotImplementedError(_SPEC_NEEDED)
+    """옵션(단품) 리스트는 이 엔드포인트가 아니라 stocks_query.get_stocks 를 쓴다."""
+    raise NotImplementedError(
+        "11번가 옵션별 재고/식별자는 stocks_query.get_stocks(prdNo) 를 사용하세요 "
+        "(prodmarket/{prdNo} 상품조회는 상품 단위 — selPrc 만).")
