@@ -654,14 +654,18 @@ def coupang_order_rows(since: _dt.datetime, until: _dt.datetime,
     #  활성 발주서에 없는 주문만 추가. 쿠팡 주문번호는 날짜 미인코딩 → 주문일=접수일(createdAt) 근사.
     from shared.platforms.coupang import claims as _cc
 
-    def _cp_claim_row(odno, status, name, opt, qty, unit, reason, buyer, cdt, raw_code=""):
+    def _cp_claim_row(odno, status, name, opt, qty, unit, reason, buyer, cdt, raw_code="",
+                      phone="", addr="", zipcode=""):
+        # 구매자 연락처·주소(#3) — 반품/취소 목록조회(returnRequests)가 requesterPhoneNumber·
+        #  requesterAddress·requesterAddressDetail·requesterZipCode 를 함께 준다(공식 문서 확인
+        #  2026-07-16). 추가 API 호출 0. 교환(exchangeRequests)은 미제공 → 공란 유지.
         return {
             "주문일": "", "판매처": "쿠팡",   # 쿠팡 클레임은 실주문일 미제공 → 공란(cdt=클레임일은 _change_date로)
             "상품명": name or "", "옵션": opt or "",
             "수량": qty if qty not in (None, "") else "",
-            "주소": "", "우편번호": "", "수령자": buyer or "",
+            "주소": addr or "", "우편번호": zipcode or "", "수령자": buyer or "",
             "배송메시지": reason or "", "구매자": buyer or "",
-            "수령자전화번호": "", "구매자번호": "",
+            "수령자전화번호": phone or "", "구매자번호": phone or "",
             "쇼핑몰": "쿠팡", "쇼핑몰ID": "",
             "단가": unit if unit not in (None, "") else "",
             "배송비": 0, "정산예정금액": "", "_settle_source": "none",
@@ -686,12 +690,16 @@ def coupang_order_rows(since: _dt.datetime, until: _dt.datetime,
             # 요청↔완료 세분: receiptStatus RETURNS_COMPLETED=완료, 그 외(RU 접수·PR 진행 등)=요청.
             _base = "취소" if rq.get("receiptType") == "CANCEL" else "반품"
             st = _base + ("완료" if rq.get("receiptStatus") == "RETURNS_COMPLETED" else "요청")
+            _cp_addr = (str(rq.get("requesterAddress") or "") + " "
+                        + str(rq.get("requesterAddressDetail") or "")).strip()
             for it in (rq.get("returnItems") or [{}]):
                 rows.append(_cp_claim_row(
                     odno, st, it.get("sellerProductName"), it.get("vendorItemName"),
                     it.get("cancelCount"), None, rq.get("reasonCodeText"),
                     rq.get("requesterName"), rq.get("createdAt"),
-                    rq.get("receiptStatus") or rq.get("receiptType")))
+                    rq.get("receiptStatus") or rq.get("receiptType"),
+                    phone=rq.get("requesterPhoneNumber"), addr=_cp_addr,
+                    zipcode=rq.get("requesterZipCode")))
     except Exception:   # noqa: BLE001 — 클레임 조회 실패는 활성 주문 유지
         pass
     try:

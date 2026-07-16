@@ -329,6 +329,9 @@ def test_coupang_claims_merge():
             if "returnRequests" in path:
                 return {"data": [{"receiptId": 501, "orderId": 200, "receiptType": "CANCEL",
                         "reasonCodeText": "변심", "requesterName": "홍길동",
+                        "requesterPhoneNumber": "010-1111-2222",
+                        "requesterAddress": "서울 송파구 송파대로 570",
+                        "requesterAddressDetail": "3층", "requesterZipCode": "05510",
                         "createdAt": "2026-07-06T10:00:00",
                         "returnItems": [{"sellerProductName": "취소상품", "vendorItemName": "옵A",
                                          "cancelCount": 1}]}]}
@@ -349,6 +352,9 @@ def test_coupang_claims_merge():
     assert len(rows) == 3
     cx = [r for r in rows if r["주문상태"] == "취소요청"][0]
     assert cx["오픈마켓주문번호"] == "200" and cx["상품명"] == "취소상품" and cx["수량"] == 1
+    # #3: 반품/취소 목록조회가 주는 구매자 연락처·주소를 캡처(추가 API 0)
+    assert cx["수령자전화번호"] == "010-1111-2222"
+    assert cx["주소"] == "서울 송파구 송파대로 570 3층" and cx["우편번호"] == "05510"
     ex = [r for r in rows if r["주문상태"] == "교환요청"][0]
     assert ex["오픈마켓주문번호"] == "300" and ex["수량"] == 2
 
