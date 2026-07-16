@@ -243,6 +243,15 @@ def smartstore_order_rows(since: _dt.datetime, until: _dt.datetime,
                                       _g(po, "unitPrice"), _g(po, "quantity"))
             if est != "":
                 settle_val, settle_src = est, "estimated"
+            # 배송비 실정산은 상품정산 유무와 무관하게 붙어야 한다 — 반품·'배송비만 정산'(상품
+            # 없음) 케이스가 누락되던 조용한실패(쿠팡과 동일 버그클래스) 방지. 상품 추정치엔 더하고,
+            # 상품이 아예 없으면 배송비만으로 real 처리.
+            if oid and oid not in _deliv_used and oid in deliv_settle:
+                if settle_val == "":
+                    settle_val, settle_src = deliv_settle[oid], "real"
+                else:
+                    settle_val += deliv_settle[oid]
+                _deliv_used.add(oid)
         rows.append({
             "_shipkey": ("smartstore", oid),   # 배송건(주문) 단위 배송비 정규화용
             "주문일": _g(od, "orderDate", "paymentDate"),   # 시간 포함(_finalize 에서 통일)
@@ -600,17 +609,30 @@ def coupang_order_rows(since: _dt.datetime, until: _dt.datetime,
                 _deliv_used.add(oid)
             r["정산예정금액"] = val
             r["_settle_source"] = "real"
-        else:                                          # 미정산: 상품추정 + 배송비추정(주문당 1회)
+        else:
+            # 상품정산 없음. 단, 배송비 정산(deliv_map)은 상품 유무와 무관하게 주문당 1회 붙어야
+            # 한다 — 반품·조건부무료배송미달 등 '배송비만 정산'(상품 판매수량 0) 케이스를 안 붙이면
+            # 실 배송비정산이 통째 누락(조용한실패, 실측 24100197897393=9670 배송료-only). 실
+            # 배송비정산 있으면 real, 없으면 상품추정+배송비추정.
+            has_real_deliv = oid in deliv_settle and oid not in _deliv_used
             prod_est = _cp_estimate_settle(r.get("단가"), r.get("수량"), 0)
             if prod_est == "":
-                r["정산예정금액"] = ""
-                r["_settle_source"] = "none"
-            else:
-                deliv_est = 0
-                if oid not in _deliv_used and str(ship).lstrip("-").isdigit():
-                    deliv_est = round(int(ship) * CP_SHIP_FEE_FACTOR)
+                if has_real_deliv:                     # 배송비만 정산되는 주문 = real
+                    r["정산예정금액"] = deliv_settle[oid]
+                    r["_settle_source"] = "real"
                     _deliv_used.add(oid)
-                r["정산예정금액"] = prod_est + deliv_est
+                else:
+                    r["정산예정금액"] = ""
+                    r["_settle_source"] = "none"
+            else:
+                deliv_val = 0
+                if has_real_deliv:                     # 상품추정이라도 배송비는 실정산 우선(이중계상 방지)
+                    deliv_val = deliv_settle[oid]
+                    _deliv_used.add(oid)
+                elif oid not in _deliv_used and str(ship).lstrip("-").isdigit():
+                    deliv_val = round(int(ship) * CP_SHIP_FEE_FACTOR)
+                    _deliv_used.add(oid)
+                r["정산예정금액"] = prod_est + deliv_val
                 r["_settle_source"] = "estimated"
 
     # ── 취소/반품/교환 병합(returnRequests + exchangeRequests, MCP 실측 2026-07-09) ──

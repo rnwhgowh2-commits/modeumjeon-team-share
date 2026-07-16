@@ -324,6 +324,31 @@ def test_coupang_settle_includes_delivery():
     assert r["정산예정금액"] == 88450 + 2900       # 상품정산 + 배송비정산
 
 
+def test_coupang_shipping_only_settlement_is_real():
+    """상품정산 없이 배송비정산만 있는 주문(반품·배송비만 정산, 상품 판매수량 0)도 real 로
+    잡혀야 한다. deliv_map 을 상품정산(actual) 있을 때만 붙이던 Defect B 회귀 방지
+    (실측 24100197897393=9670 배송료-only 가 estimated/none 으로 통째 누락되던 것)."""
+    class C:
+        _cfg = {"vendor_id": "A1"}
+        def request(self, method, path, query=""):
+            if "ordersheets" in path and "nextToken" not in query:
+                # 상품 라인이지만 salesPrice 없음 → 단가 "" → 상품추정 불가
+                return {"data": [{"shipmentBoxId": 1, "orderId": 24100197897393, "status": "FINAL_DELIVERY",
+                        "orderer": {}, "receiver": {}, "shippingPrice": {"units": 4000},
+                        "orderItems": [{"vendorItemId": 9, "sellerProductName": "반품상품",
+                                        "shippingCount": 0}]}], "nextToken": ""}
+            if "revenue-history" in path:
+                # 상품 item 정산 없음, 배송비 정산만 9670
+                return {"data": [{"orderId": 24100197897393, "deliveryFee": {"settlementAmount": 9670},
+                        "items": []}], "hasNext": False}
+            return {"data": [], "nextToken": ""}
+    # 단일 정산 윈도우(≤30일) — fake 가 매 호출 같은 데이터라 다중 윈도우면 배송비 중복합산(테스트 artifact)
+    r = oe.coupang_order_rows(dt.datetime(2026, 7, 5, tzinfo=oe.KST),
+                              dt.datetime(2026, 7, 8, tzinfo=oe.KST), client=C())[0]
+    assert r["정산예정금액"] == 9670             # 배송비 실정산이 붙음(누락 아님)
+    assert r["_settle_source"] == "real"          # estimated/none 아님
+
+
 def test_coupang_estimate_shipping_fee_3pct():
     # 미정산 추정: 상품 11.55%(0.8845) + 배송비 3%(0.97). 배송비 있는 주문.
     class C:
