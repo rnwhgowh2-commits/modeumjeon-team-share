@@ -28,6 +28,7 @@ from typing import Iterable, Iterator, Optional
 
 from shared.platforms import COUPANG
 from shared.platforms.coupang.client import CoupangClient
+from shared.platforms.coupang.orders import _vendor_id
 
 
 def fetch_revenue_page(
@@ -40,7 +41,10 @@ def fetch_revenue_page(
     """매출내역 1페이지 조회 (raw 응답)."""
     client = client or CoupangClient()
     path = COUPANG["paths"]["revenue_history"]
-    vendor_id = COUPANG["vendor_id"]
+    # 계정 클라이언트(config 주입 vendor_id) 우선 — UI 저장 키는 COUPANG_MAIN_* 접두라 전역
+    # COUPANG["vendor_id"] 는 비어있어 멀티계정 revenue-history 가 400(vendorId null)→정산 전멸
+    # →estimated 조용히 폴백(오차 발생)했다. orders.py 와 동일하게 계정 vendor_id 우선 사용.
+    vendor_id = (getattr(client, "_cfg", {}) or {}).get("vendor_id") or _vendor_id()
     query = (
         f"vendorId={vendor_id}"
         f"&recognitionDateFrom={recognition_from}"
