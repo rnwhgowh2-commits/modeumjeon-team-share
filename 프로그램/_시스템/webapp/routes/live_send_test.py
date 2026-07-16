@@ -297,39 +297,6 @@ def api_pick_orders():
                     "candidates": out, "warnings": warnings})
 
 
-@bp.get("/api/live-send-test/e11-raw")
-def api_e11_raw():
-    """[진단] 11번가 재고조회 원시 요청/응답 XML 확인(파싱 매핑 확정용). 임시."""
-    env_prefix = (request.args.get("env_prefix") or "").strip() or None
-    product_id = (request.args.get("product_id") or "").strip()
-    if not product_id:
-        return jsonify({"ok": False, "error": "product_id 필요"}), 400
-    from lemouton.uploader.market_fetch import _eleven11_client
-    from shared.platforms.eleven11 import stocks_query as SQ
-    pid = str(product_id)
-    # 임의 경로/메서드 시험 지원({prd} 치환). 미지정이면 재고조회(POST bare prdNo).
-    path = (request.args.get("path") or "").strip()
-    method = (request.args.get("method") or "GET").strip().upper()
-    try:
-        client = _eleven11_client(env_prefix)
-        if path:
-            path = path.replace("{prd}", pid)
-            body = None
-            if method == "POST":
-                body = (request.args.get("body") or f"<prdNo>{pid}</prdNo>")
-                body = ('<?xml version="1.0" encoding="euc-kr"?>' + body).replace("{prd}", pid)
-            resp_xml = client.request(method, path, body) if body is not None \
-                else client.request(method, path)
-            req_desc = f"{method} {path}" + (f" body={body}" if body else "")
-        else:
-            req_desc = SQ._build_request_xml(pid)
-            resp_xml = client.request("POST", SQ._PATH_STOCKS, req_desc)
-    except Exception as e:  # noqa: BLE001
-        return jsonify({"ok": False, "error": f"{type(e).__name__}: {str(e)[:400]}"}), 200
-    return jsonify({"ok": True, "product_id": pid, "request": req_desc,
-                    "response_xml": (resp_xml or "")[:3500]})
-
-
 @bp.get("/api/live-send-test/direct-current")
 def api_direct_current():
     """세트 없이 (market, env_prefix, product_id)로 옵션·현재 가격/재고 조회."""
