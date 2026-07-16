@@ -43,6 +43,7 @@ SELL_COLUMNS = [
     "정산예상금액_배송비포함", "마켓수수료", "수수료율", "쇼핑몰",
     "쇼핑몰별칭",        # 계정명 — matcher 가 extract_account 로 '계정' 산출(다계정 구분)
     "수취고객명", "주문일", "송장입력", "주문상태",
+    "판매경로",          # 롯데온 유입경로(제휴=상품가 2% / 롯데ON=0) — 크롤 확정, 마진 표시용
     "_settle_source",   # real | estimated | none
     "_sell_origin",     # api | shopmine
 ]
@@ -348,6 +349,7 @@ def _rows_to_df(rows: list) -> pd.DataFrame:
             "주문일": r.get("주문일", ""),
             "송장입력": r.get("송장입력", ""),
             "주문상태": status_to_shopmine(r.get("판매처", ""), r.get("주문상태", "")),
+            "판매경로": r.get("판매경로", ""),   # 롯데온 제휴/롯데ON(제휴 2% 표시)
             "_settle_source": src,
             "_sell_origin": "api",
         })

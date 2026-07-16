@@ -170,6 +170,7 @@ def match_data(buy_df, sell_df):
             '순마진':        margin,
             '마진율':        round(margin_rate, 2),  # 판매가 기준
             '수수료율':      fee_rate,
+            '판매경로':      str(s_row.get('판매경로', '')),   # 롯데온 제휴/롯데ON(제휴 2% 표시)
             '수량_매출':     qty,
             '수령인':        str(s_row.get('수취고객명', '')),
             '상품코드':      b_row.get('_product_code', ''),

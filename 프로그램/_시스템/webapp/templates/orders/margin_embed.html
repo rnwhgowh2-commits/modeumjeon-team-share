@@ -9288,6 +9288,7 @@ function renderAll(d) {
         + mkSortTh('단가', '단가') + '<th>수량</th>' + mkSortTh('판매가', '판매가')
         + mkSortTh('정산', '정산예상금액') + mkSortTh('매입가', '구매가격')
         + mkSortTh('순마진', '순마진') + mkSortTh('마진율', '마진율')
+        + mkFilterTh('판매경로', '판매경로')
         + mkFilterTh('수령인', '수령인')
         + '<th>주문번호(더망고·샵마인)</th>'
         + mkFilterTh('더망고 상태', '더망고주문상태 (사용자 연동)')
@@ -9543,6 +9544,15 @@ function renderAllRow(r, _i) {
        + editInput('구매가격')
        + '<td style="font-weight:700;' + (dispNetMargin < 0 ? '' : '') + '"' + (dispNetMargin < 0 ? ' class="neg"' : '') + '>' + fmt(dispNetMargin) + '</td>'
        + '<td style="font-weight:700;"' + (dispMarginRate < 0 ? ' class="neg"' : '') + '>' + (isBs ? '-100%' : fmtPct(r['마진율'])) + '</td>'
+       + (function(){
+           /* 판매경로 — 롯데온 제휴(상품가 2% 수수료)/롯데ON(0). 크롤 확정값. */
+           var ch = String(r['판매경로'] || '');
+           if (!ch) return '<td style="text-align:center;color:#c9cdd2">—</td>';
+           var isAff = ch.indexOf('제휴') >= 0;
+           var st = isAff ? 'background:#FFF0F0;color:#c92a2a' : 'background:#EAF2FF;color:#1d4ed8';
+           var lbl = isAff ? '제휴 2%' : ch;
+           return '<td style="text-align:center"><span style="'+st+';padding:1px 7px;border-radius:10px;font-size:11px;font-weight:700" title="'+esc(ch)+(isAff?' — 상품가 2% 제휴수수료 부과':' — 제휴수수료 없음')+'">'+esc(lbl)+'</span></td>';
+         })()
        + '<td><span class="mango-link" data-type="buyer_name" data-keyword="' + esc(r['수령인'] || '') + '" title="더망고 수령인 검색">' + esc(r['수령인'] || '') + '</span></td>'
        + '<td style="font-size:11px;"><span class="mango-link" data-type="order_number" data-keyword="' + esc(r['마켓주문번호'] || '') + '" title="더망고 주문검색">' + esc(r['마켓주문번호'] || '') + '</span></td>'
        + (function(){
