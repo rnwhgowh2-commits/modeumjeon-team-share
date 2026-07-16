@@ -519,34 +519,43 @@ def _probe_cp_refund():
     """[임시] 쿠팡 revenue-history REFUND 라인의 raw settlementAmount 부호 확인.
     _coupang_settle_map(전부 합산) vs aggregate_settlements(REFUND 차감) 불일치 진단용. 확인 후 제거."""
     import datetime as _d
-    from shared.platforms.coupang.settlements import iter_revenue_items
+    from shared.platforms.coupang.settlements import fetch_revenue_page
     from lemouton.markets.order_export import _active_accounts
     from lemouton.uploader import market_fetch as _mf
-    days = int(request.args.get("days") or 60)
+    days = int(request.args.get("days") or 25)
     to = _d.date.today() - _d.timedelta(days=1)
-    fr = to - _d.timedelta(days=min(days, 31))
-    out = {"window": [fr.isoformat(), to.isoformat()], "refund_lines": [], "sale_sample": [],
-           "n_sale": 0, "n_refund": 0, "accounts": [], "err": None}
+    fr = to - _d.timedelta(days=min(days, 27))
+    out = {"window": [fr.isoformat(), to.isoformat()], "raw_refund_orders": [],
+           "n_orders": 0, "n_refund_orders": 0, "err": None}
+    # 첫 계정만 — REFUND 주문 원본(order-level saleType·deliveryFee 부호) 구조 확인용
     accs = _active_accounts("coupang") or [(None, "default")]
     try:
-        for env_prefix, name in accs:
-            client = _mf._coupang_client(env_prefix)
-            cnt = {"name": name, "sale": 0, "refund": 0}
-            for it in iter_revenue_items(recognition_from=fr.isoformat(),
-                                         recognition_to=to.isoformat(), client=client):
-                st = it.get("saleType")
-                rec = {"orderId": it.get("orderId"), "vid": it.get("vendorItemId"),
-                       "saleType": st, "settlementAmount": it.get("settlementAmount"),
-                       "saleAmount": it.get("saleAmount"), "qty": it.get("quantity")}
-                if st == "REFUND":
-                    out["n_refund"] += 1; cnt["refund"] += 1
-                    if len(out["refund_lines"]) < 10:
-                        out["refund_lines"].append(rec)
-                else:
-                    out["n_sale"] += 1; cnt["sale"] += 1
-                    if len(out["sale_sample"]) < 3:
-                        out["sale_sample"].append(rec)
-            out["accounts"].append(cnt)
+        env_prefix, name = accs[0]
+        client = _mf._coupang_client(env_prefix)
+        token = ""
+        for _ in range(60):
+            resp = fetch_revenue_page(fr.isoformat(), to.isoformat(),
+                                      token=token, max_per_page=50, client=client)
+            for order in (resp.get("data") or []):
+                out["n_orders"] += 1
+                items = order.get("items") or []
+                is_ref = any((it.get("saleType") == "REFUND") for it in items)
+                if is_ref:
+                    out["n_refund_orders"] += 1
+                    if len(out["raw_refund_orders"]) < 2:
+                        out["raw_refund_orders"].append({
+                            "orderId": order.get("orderId"),
+                            "order_saleType": order.get("saleType"),
+                            "deliveryFee": order.get("deliveryFee"),
+                            "items": [{"vid": it.get("vendorItemId"), "saleType": it.get("saleType"),
+                                       "settlementAmount": it.get("settlementAmount"),
+                                       "saleAmount": it.get("saleAmount")} for it in items],
+                        })
+            if not resp.get("hasNext"):
+                break
+            token = resp.get("nextToken") or ""
+            if not token:
+                break
     except Exception as e:  # noqa: BLE001
         out["err"] = repr(e)
     return jsonify(out)
