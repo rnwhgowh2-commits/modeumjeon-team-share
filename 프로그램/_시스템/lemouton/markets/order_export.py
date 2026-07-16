@@ -197,27 +197,45 @@ def smartstore_order_rows(since: _dt.datetime, until: _dt.datetime,
     #   창밖 여분 행은 하류 _filter_by_order_date(마진)·probe want 셋(검증)이 주문일로 되잘라낸다.
     fetch_until = _until_now(until)
     ids = iter_changed_product_order_ids(since, fetch_until, client=client)
-    detail = []
-    for i in range(0, len(ids), 300):
-        d = fetch_order_detail(ids[i:i + 300], client=client)
-        detail += (d.get("data", d) if isinstance(d, dict) else d) or []
 
-    # 정산(결제일 기준, 하루씩): 상품(productOrderId) + 배송비(DELIVERY→orderId) 별도 맵.
-    # include_settlement=False(배송검사 등 주문상태·송장만 필요) 면 이 하루씩 루프를 건너뛴다
-    # — 넓은 조회창에서 하루씩 정산 호출이 타임아웃의 원인.
-    prod_settle, deliv_settle = {}, {}
-    day = since
-    while include_settlement and day <= until:
+    # ── 병렬 조회(속도) — 상세(배치)와 정산(하루씩)은 서로 독립이라 한 스레드풀에서 동시에 쏜다.
+    #   스스 AdaptiveLimiter(스레드락 토큰버킷·429 응답 시 rate 반감)가 요청률을 자기조정하므로
+    #   바운드 4워커면 429 위험 없이 겹친 왕복만 줄인다. 결과 병합은 순차와 동일:
+    #   detail 은 배치 순서대로 concat, deliv_settle 은 날짜 무관 누산(가산·교환법칙).
+    #   정산(하루씩)이 넓은 조회창에서 타임아웃의 주원인 → 여기서 가장 크게 단축된다.
+    _id_batches = [ids[i:i + 300] for i in range(0, len(ids), 300)]
+    _settle_days = []
+    if include_settlement:
+        _d = since
+        while _d <= until:
+            _settle_days.append(_d)
+            _d += _dt.timedelta(days=1)
+
+    def _ss_detail(batch):
+        d = fetch_order_detail(batch, client=client)
+        return (d.get("data", d) if isinstance(d, dict) else d) or []
+
+    def _ss_settle_day(day):
         try:
-            p, d = _settle.settle_expect_maps(
+            return _settle.settle_expect_maps(
                 search_date=day.strftime("%Y-%m-%d"),
                 period_type="SETTLE_CASEBYCASE_PAY_DATE", client=client)
-            prod_settle.update(p)
-            for k, v in d.items():
-                deliv_settle[k] = deliv_settle.get(k, 0) + v
         except Exception:
-            pass
-        day += _dt.timedelta(days=1)
+            return ({}, {})
+
+    detail = []
+    prod_settle, deliv_settle = {}, {}
+    if _id_batches or _settle_days:
+        with _ThreadPool(max_workers=4) as _ex:
+            _fut_detail = [_ex.submit(_ss_detail, b) for b in _id_batches]
+            _fut_days = [_ex.submit(_ss_settle_day, d) for d in _settle_days]
+            for _f in _fut_detail:                     # 배치 순서 보존 = 순차와 동일
+                detail += _f.result()
+            for _f in _fut_days:
+                p, d = _f.result()
+                prod_settle.update(p)
+                for k, v in d.items():
+                    deliv_settle[k] = deliv_settle.get(k, 0) + v
 
     rows = []
     _deliv_used = set()   # 배송비 정산은 주문당 1회만 더함
@@ -609,13 +627,49 @@ def coupang_order_rows(since: _dt.datetime, until: _dt.datetime,
     from shared.platforms.coupang.orders import fetch_orders
 
     statuses = ["ACCEPT", "INSTRUCT", "DEPARTURE", "DELIVERING", "FINAL_DELIVERY"]
-    seen, rows = set(), []
-    for _w0, _w1 in _cp_windows(since, until):   # 발주서 조회 최대 31일 → 30일 윈도우(seen 이 창 간 중복 제거)
-      for st in statuses:
-        token = None
+    # ── 병렬 조회(속도) — 주문상태별 발주서·정산·반품·교환 조회는 서로 독립이라 한 번에 동시로 쏜다.
+    #   같은 client 를 여러 스레드가 써도 안전: request()가 매 호출 새 requests.request 를 만들고
+    #   스레드락 토큰버킷 리미터(초당 rate 캡 + 429 자동 백오프)가 요청률을 조절 → 경합·요청률
+    #   증가 없음(429 위험 불변). 행 구성·중복제거·정산적용·클레임구성은 조회 후 순차(인메모리)로
+    #   하므로 결과는 순차 실행과 동일하다(느린 왕복만 겹쳐 대기시간 단축).
+    from shared.platforms.coupang import claims as _cc
+    _settle_until = _until_now(until)
+    _claim_until = _until_now(until)
+
+    def _cp_fetch_boxes(w0, w1, st):
+        out, token = [], None
         for _ in range(50):   # nextToken 페이징 안전 상한
-            resp = fetch_orders(_w0, _w1, client=client, status=st, next_token=token)
+            resp = fetch_orders(w0, w1, client=client, status=st, next_token=token)
             for box in (resp.get("data") or []):
+                out.append((st, box))
+            token = resp.get("nextToken")
+            if not token:
+                break
+        return out
+
+    def _cp_safe_list(fn):
+        try:
+            return list(fn(since, _claim_until, client=client))
+        except Exception:   # noqa: BLE001 — 클레임 조회 실패는 활성 주문 유지
+            return []
+
+    _box_tasks = [(w0, w1, st) for (w0, w1) in _cp_windows(since, until) for st in statuses]
+    with _ThreadPool(max_workers=8) as _ex:
+        _fut_boxes = [_ex.submit(_cp_fetch_boxes, w0, w1, st) for (w0, w1, st) in _box_tasks]
+        _fut_settle = _ex.submit(_coupang_settle_map, since, _settle_until, client) \
+            if include_settlement else None
+        _fut_ret = _ex.submit(_cp_safe_list, _cc.iter_returns)
+        _fut_exc = _ex.submit(_cp_safe_list, _cc.iter_exchanges)
+        _box_results = [f.result() for f in _fut_boxes]     # 태스크 순서 보존 = 순차와 동일 중복제거
+        try:
+            item_settle, deliv_settle = _fut_settle.result() if _fut_settle else ({}, {})
+        except Exception:
+            item_settle, deliv_settle = {}, {}
+        _ret_raw, _exc_raw = _fut_ret.result(), _fut_exc.result()
+
+    seen, rows = set(), []
+    for _boxes in _box_results:
+        for st, box in _boxes:
                 orderer = box.get("orderer") or {}
                 rcv = box.get("receiver") or {}
                 addr = (str(rcv.get("addr1") or "") + " " + str(rcv.get("addr2") or "")).strip()
@@ -657,25 +711,10 @@ def coupang_order_rows(since: _dt.datetime, until: _dt.datetime,
                         "오픈마켓주문번호": box.get("orderId") or "",
                         "송장입력": it.get("invoiceNumber") or box.get("invoiceNumber") or "",
                     })
-            token = resp.get("nextToken")
-            if not token:
-                break
 
-    # 정산예정금액 = 상품 정산 + 배송비 정산(주문당 1회).
-    #  1) 실제(revenue-history): items.settlementAmount + deliveryFee.settlementAmount.
-    #  2) 미정산(최근): 추정 = round(단가×수량×0.8845) + round(배송비×0.8845).
-    #     ⚠️ 배송비 실수수료율은 상품과 달라(문서 확인) 추정의 배송비분은 근사.
-    try:
-        # ★ 정산 조회창은 now 로 넓힌다 — 쿠팡 revenue-history 는 recognitionDate(정산 인식일)
-        #   기준인데 인식은 주문보다 늦게(구매확정 후) 일어난다. 주문 기간(until)까지만 조회하면
-        #   그 뒤 인식된 정산을 놓쳐 정산완료 주문도 estimated 로 남는다(260704 재분석 실측:
-        #   쿠팡 92건 estimated). 롯데온 commission_map·클레임 조회가 이미 쓰는 max(until, now)
-        #   패턴과 동일. _cp_windows 가 30일 분할하므로 장기 조회도 안전.
-        _settle_until = _until_now(until)
-        item_settle, deliv_settle = _coupang_settle_map(since, _settle_until, client) \
-            if include_settlement else ({}, {})
-    except Exception:
-        item_settle, deliv_settle = {}, {}
+    # 정산예정금액 = 상품 정산(item_settle) + 배송비 정산(deliv_settle, 주문당 1회).
+    #  revenue-history 조회는 위 스레드풀에서 주문·클레임과 동시에 끝냈다(_settle_until=now 로 넓혀
+    #  조회 — 정산 인식일 기준이라 주문 기간 뒤 인식분까지 포함). 아래는 그 결과 적용(인메모리).
     _deliv_used = set()
     for r in rows:
         # vid 도 oid 처럼 str 정규화(양쪽 대칭). ordersheets(문자열)↔revenue-history(정수)
@@ -718,7 +757,7 @@ def coupang_order_rows(since: _dt.datetime, until: _dt.datetime,
 
     # ── 취소/반품/교환 병합(returnRequests + exchangeRequests, MCP 실측 2026-07-09) ──
     #  활성 발주서에 없는 주문만 추가. 쿠팡 주문번호는 날짜 미인코딩 → 주문일=접수일(createdAt) 근사.
-    from shared.platforms.coupang import claims as _cc
+    #  ★반품·교환 원시 목록은 위 스레드풀에서 이미 받아 _ret_raw·_exc_raw 에 담겨 있다(동시 조회).
 
     def _cp_claim_row(odno, status, name, opt, qty, unit, reason, buyer, cdt, raw_code="",
                       phone="", addr="", zipcode=""):
@@ -746,10 +785,9 @@ def coupang_order_rows(since: _dt.datetime, until: _dt.datetime,
     #   취소되면 그 클레임은 [since,until] 창에 안 잡혀 통째 누락된다(라이브: 쿠팡 취소완료
     #   62건 미조회 = 손실 미포착). 롯데온 commission_map 처럼 조회 끝을 now 로 넓힌다
     #   (주문번호로 매칭하므로 넓혀도 우리 주문에 없는 건 무시돼 안전).
-    _claim_until = _until_now(until)
     seen_ord = {r.get("오픈마켓주문번호") for r in rows if r.get("오픈마켓주문번호")}
     try:
-        for rq in _cc.iter_returns(since, _claim_until, client=client):
+        for rq in _ret_raw:
             odno = str(rq.get("orderId") or "")
             if odno and odno in seen_ord:
                 continue
@@ -769,7 +807,7 @@ def coupang_order_rows(since: _dt.datetime, until: _dt.datetime,
     except Exception:   # noqa: BLE001 — 클레임 조회 실패는 활성 주문 유지
         pass
     try:
-        for ex in _cc.iter_exchanges(since, _claim_until, client=client):
+        for ex in _exc_raw:
             odno = str(ex.get("orderId") or "")
             if odno and odno in seen_ord:
                 continue
