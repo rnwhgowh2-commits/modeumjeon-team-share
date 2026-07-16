@@ -2381,7 +2381,10 @@ CRAWL_LOGIN_MARKETS = ("lotteon",)
 @bp.route("/crawl-login")
 def crawl_login_view():
     """크롤 로그인 전용 화면 — 마켓별 계정을 한 곳에 모아 로그인정보 저장·상태 확인."""
+    import os as _os
     from lemouton.auth import crawl_login as _cl
+    from lemouton.auth import secrets as _S
+    _S.refresh_env()
     s = SessionLocal()
     try:
         accts = (s.query(UploadAccount)
@@ -2397,6 +2400,8 @@ def crawl_login_view():
                 "env_prefix": acc.env_prefix,
                 "saved": st["saved"],
                 "login_id": st["login_id"] or "",
+                # 마켓 API용 거래처번호(=판매자ID LO~) — 계정 정체성 확인·검증용으로 표시.
+                "tr_no": _os.environ.get(f"{acc.env_prefix}_TR_NO") or "",
             })
         n_saved = sum(1 for r in rows if r["saved"])
         return render_template("accounts/crawl_login.html",
@@ -2421,9 +2426,12 @@ def save_crawl_login(env_prefix: str):
     body = request.get_json(silent=True) or {}
     login_id = (body.get("login_id") or "").strip()
     password = body.get("password") or ""   # 공백 유의미할 수 있어 strip 안 함
+    tr_no = (body.get("tr_no") or "").strip()   # 판매자ID(LO~) = 마켓 API 거래처번호
 
     if not login_id:
         return jsonify({"ok": False, "error": "아이디를 입력하세요"}), 400
+    if tr_no and not tr_no.upper().startswith("LO"):
+        return jsonify({"ok": False, "error": "판매자ID는 LO로 시작해야 합니다"}), 400
 
     # 이 env_prefix 가 크롤 로그인 대상 계정인지 확인(임의 키 주입 방지)
     s = SessionLocal()
@@ -2452,6 +2460,16 @@ def save_crawl_login(env_prefix: str):
     else:
         try:
             _cl.save_login(env_prefix, login_id, password)
+        except EnvWriteError as e:
+            return jsonify({"ok": False, "error": str(e)}), 500
+
+    # 판매자ID(LO~) 저장 — 마켓 API·수집 검증 공용 {env_prefix}_TR_NO
+    if tr_no:
+        try:
+            from lemouton.auth import secrets as _S2
+            from lemouton.auth.env_writer import update_env_keys as _upd
+            _upd(_S2.secrets_env_path(), {f"{env_prefix}_TR_NO": tr_no}, require_non_empty=True)
+            _S2.refresh_env()
         except EnvWriteError as e:
             return jsonify({"ok": False, "error": str(e)}), 500
 
