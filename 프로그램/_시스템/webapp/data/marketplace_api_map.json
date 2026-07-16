@@ -6547,53 +6547,106 @@
     "method": "POST",
     "url": "https://openapi.lotteon.com/v1/openapi/contract/v1/dvp/getDvpListSr",
     "params": [
-     [
-      "afflTrCd",
-      "O",
-      "String",
-      "18",
-      "상위거래처번호"
-     ],
-     [
-      "afflLrtrCd",
-      "",
-      "String",
-      "17",
-      "하위거래처번호"
-     ]
+     "afflTrCd*:상위거래처번호",
+     "afflLrtrCd:하위거래처번호"
     ]
    },
    "res": {
-    "note": "응답은 fields 참조. 전체스펙 롯데ON apiNo=150"
+    "note": "조회 응답 — 배송지 목록"
    },
    "fields": [
     {
+     "key": "returnCode",
+     "meaning": "응답코드[0000]",
+     "example": ""
+    },
+    {
+     "key": "message",
+     "meaning": "응답메세지",
+     "example": ""
+    },
+    {
+     "key": "dataCount",
+     "meaning": "데이터수",
+     "example": ""
+    },
+    {
+     "key": "data[]",
+     "meaning": "배송지목록",
+     "example": ""
+    },
+    {
      "key": "dvpNo",
-     "meaning": "배송지번호('PLE&PLE'+번호)",
-     "example": "String"
+     "meaning": "배송지번호(PLE&PLE+번호)",
+     "example": ""
     },
     {
      "key": "dvpTypCd",
-     "meaning": "배송지유형[회수지01/출고지02]",
-     "example": "String"
+     "meaning": "유형[회수지01/출고지02]",
+     "example": ""
     },
     {
      "key": "dvpNm",
      "meaning": "배송지명",
-     "example": "String"
+     "example": ""
+    },
+    {
+     "key": "zipNo",
+     "meaning": "우편번호",
+     "example": ""
     },
     {
      "key": "zipAddr",
      "meaning": "우편주소",
-     "example": "String"
+     "example": ""
+    },
+    {
+     "key": "dtlAddr",
+     "meaning": "상세주소",
+     "example": ""
     },
     {
      "key": "stnmZipAddr",
-     "meaning": "도로명주소",
-     "example": "String"
+     "meaning": "도로명우편주소",
+     "example": ""
+    },
+    {
+     "key": "stnmDtlAddr",
+     "meaning": "도로명상세주소",
+     "example": ""
+    },
+    {
+     "key": "rpbtrNm",
+     "meaning": "담당자명",
+     "example": ""
+    },
+    {
+     "key": "mphnNo",
+     "meaning": "휴대폰번호",
+     "example": ""
+    },
+    {
+     "key": "telNo",
+     "meaning": "연락처",
+     "example": ""
+    },
+    {
+     "key": "lrtrNo",
+     "meaning": "하위거래처번호",
+     "example": ""
+    },
+    {
+     "key": "useYn",
+     "meaning": "사용여부[def Y]",
+     "example": ""
+    },
+    {
+     "key": "rprtYn",
+     "meaning": "대표출고/회수지여부[def N]",
+     "example": ""
     }
    ],
-   "success": "returnCode=0000 & data 존재. HTTP 401=인증·403=IP미등록·429=분당10000초과·500=오류 (HTTP200이어도 returnCode 확인)",
+   "success": "returnCode=0000 & data 존재. HTTP 401 미등록키·403 IP·404 비정상요청·429 분당초과·500 오류. (HTTP200이어도 returnCode 확인)",
    "idTraps": [],
    "persistIds": [],
    "codeRef": "",
@@ -6615,59 +6668,25 @@
     "method": "POST",
     "url": "https://openapi.lotteon.com/v1/openapi/contract/v1/dvp/registDvpSr",
     "params": [
-     [
-      "dvpTypCd",
-      "O",
-      "String",
-      "2",
-      "배송지유형[회수지01/출고지02]"
-     ],
-     [
-      "dvpNm",
-      "O",
-      "String",
-      "100",
-      "배송지명"
-     ],
-     [
-      "zipNo",
-      "",
-      "String",
-      "7",
-      "우편번호"
-     ],
-     [
-      "zipAddr",
-      "",
-      "String",
-      "200",
-      "우편주소"
-     ],
-     [
-      "rpbtrNm",
-      "",
-      "String",
-      "100",
-      "담당자명"
-     ],
-     [
-      "mphnNo",
-      "",
-      "String",
-      "15",
-      "휴대폰번호"
-     ],
-     [
-      "afflTrCd",
-      "O",
-      "String",
-      "18",
-      "상위거래처번호"
-     ]
+     "dvpTypCd*:배송지유형[회수지01/출고지02]",
+     "dvpNm*:배송지명",
+     "zipNo:우편번호(없으면99999)",
+     "zipAddr:우편주소(없으면없음)",
+     "dtlAddr:상세주소(없으면-)",
+     "stnmZipNo:도로명우편번호",
+     "stnmZipAddr:도로명우편주소",
+     "stnmDtlAddr:도로명상세주소",
+     "rpbtrNm:담당자명",
+     "mphnNatnNoCd:휴대폰국가[def82]",
+     "mphnNo:휴대폰번호",
+     "telNatnNoCd:연락처국가[def82]",
+     "telNo:연락처",
+     "afflTrCd*:상위거래처번호",
+     "afflLrtrCd:하위거래처번호"
     ]
    },
    "res": {
-    "note": "응답은 fields 참조. 전체스펙 롯데ON apiNo=151"
+    "note": "응답=returnCode/message(표준). data[]에 처리결과(resultCode/resultMessage) 포함 가능"
    },
    "fields": [
     {
@@ -6681,7 +6700,7 @@
      "example": "String"
     }
    ],
-   "success": "returnCode=0000 & data 존재. HTTP 401=인증·403=IP미등록·429=분당10000초과·500=오류 (HTTP200이어도 returnCode 확인)",
+   "success": "returnCode=0000 & data 존재. HTTP 401 미등록키·403 IP·404 비정상요청·429 분당초과·500 오류. (HTTP200이어도 returnCode 확인)",
    "idTraps": [],
    "persistIds": [],
    "codeRef": "",
@@ -6703,48 +6722,86 @@
     "method": "POST",
     "url": "https://openapi.lotteon.com/v1/openapi/contract/v1/lrtr/selectLrTraderSr",
     "params": [
-     [
-      "afflLrtrCd",
-      "O",
-      "String",
-      "20",
-      "하위거래처번호"
-     ],
-     [
-      "afflTrCd",
-      "O",
-      "String",
-      "20",
-      "상위거래처번호"
-     ]
+     "afflLrtrCd*:하위거래처번호",
+     "afflTrCd*:상위거래처번호"
     ]
    },
    "res": {
-    "note": "응답은 fields 참조. 전체스펙 롯데ON apiNo=154"
+    "note": "조회 응답 — 하위거래처 정보"
    },
    "fields": [
     {
+     "key": "returnCode",
+     "meaning": "응답코드",
+     "example": ""
+    },
+    {
+     "key": "message",
+     "meaning": "응답메세지",
+     "example": ""
+    },
+    {
+     "key": "data",
+     "meaning": "하위거래처(Object)",
+     "example": ""
+    },
+    {
      "key": "lntrNm",
      "meaning": "하위거래처명",
-     "example": "String"
+     "example": ""
     },
     {
      "key": "lntrTxStatCd",
-     "meaning": "하위거래처상태[01거래중/02종료/03중지]",
-     "example": "String"
+     "meaning": "상태[01거래중/02종료/03중지]",
+     "example": ""
     },
     {
      "key": "rprtStfNm",
      "meaning": "대표직원명",
-     "example": "String"
+     "example": ""
+    },
+    {
+     "key": "rpbtrTelNo",
+     "meaning": "전화번호",
+     "example": ""
     },
     {
      "key": "rpbtrMphnNo",
      "meaning": "휴대폰번호",
-     "example": "String"
+     "example": ""
+    },
+    {
+     "key": "emlAddr",
+     "meaning": "이메일주소",
+     "example": ""
+    },
+    {
+     "key": "tskStrtTm",
+     "meaning": "업무시작시간",
+     "example": ""
+    },
+    {
+     "key": "tskEndTm",
+     "meaning": "업무종료시간",
+     "example": ""
+    },
+    {
+     "key": "strPicUseYn",
+     "meaning": "스마트픽사용[def N]",
+     "example": ""
+    },
+    {
+     "key": "rvsPicUseYn",
+     "meaning": "리버스픽[def N]",
+     "example": ""
+    },
+    {
+     "key": "crssPicUseYn",
+     "meaning": "크로스픽[def N]",
+     "example": ""
     }
    ],
-   "success": "returnCode=0000 & data 존재. HTTP 401=인증·403=IP미등록·429=분당10000초과·500=오류 (HTTP200이어도 returnCode 확인)",
+   "success": "returnCode=0000 & data 존재. HTTP 401 미등록키·403 IP·404 비정상요청·429 분당초과·500 오류. (HTTP200이어도 returnCode 확인)",
    "idTraps": [],
    "persistIds": [],
    "codeRef": "",
@@ -6766,53 +6823,106 @@
     "method": "POST",
     "url": "https://openapi.lotteon.com/v1/openapi/contract/v1/dvl/getDvCstListSr",
     "params": [
-     [
-      "afflTrCd",
-      "O",
-      "String",
-      "18",
-      "상위거래처번호"
-     ],
-     [
-      "afflLrtrCd",
-      "",
-      "String",
-      "17",
-      "하위거래처번호"
-     ]
+     "afflTrCd*:상위거래처번호",
+     "afflLrtrCd:하위거래처번호"
     ]
    },
    "res": {
-    "note": "응답은 fields 참조. 전체스펙 롯데ON apiNo=166"
+    "note": "조회 응답 — 배송비정책 목록"
    },
    "fields": [
     {
+     "key": "returnCode",
+     "meaning": "응답코드",
+     "example": ""
+    },
+    {
+     "key": "data[]",
+     "meaning": "배송비정책목록",
+     "example": ""
+    },
+    {
      "key": "dvCstPolNo",
      "meaning": "배송비정책번호",
-     "example": "String"
-    },
-    {
-     "key": "dvCstPolNm",
-     "meaning": "배송비정책명",
-     "example": "String"
-    },
-    {
-     "key": "ctrtTypCd",
-     "meaning": "계약유형[중계A/위탁B/판매분매입C/직매입D]",
-     "example": "String"
+     "example": ""
     },
     {
      "key": "aplyStrtDt",
      "meaning": "적용시작일자",
-     "example": "String"
+     "example": ""
+    },
+    {
+     "key": "aplyEndDt",
+     "meaning": "적용종료일자",
+     "example": ""
+    },
+    {
+     "key": "dvCstPolNm",
+     "meaning": "배송비정책명",
+     "example": ""
+    },
+    {
+     "key": "ctrtTypCd",
+     "meaning": "계약유형[중계A/위탁B/판매분매입C/직매입D]",
+     "example": ""
     },
     {
      "key": "dvTypCd",
      "meaning": "배송유형[직접배송DRECT]",
-     "example": "String"
+     "example": ""
+    },
+    {
+     "key": "dvProcTypCd",
+     "meaning": "배송처리[업체배송LO_ENTP]",
+     "example": ""
+    },
+    {
+     "key": "dvCstTypCd",
+     "meaning": "배송비유형[배송비DV_CST/추가배송비]",
+     "example": ""
+    },
+    {
+     "key": "dvCstDvsCd",
+     "meaning": "배송비구분[유료A/무료B/조건부C]",
+     "example": ""
+    },
+    {
+     "key": "dvCst",
+     "meaning": "배송비",
+     "example": ""
+    },
+    {
+     "key": "rcst",
+     "meaning": "반품비",
+     "example": ""
+    },
+    {
+     "key": "cndlFreeStdAmt",
+     "meaning": "조건부무료기준금액",
+     "example": ""
+    },
+    {
+     "key": "inrmAdtnDvCst",
+     "meaning": "도서산간추가배송비",
+     "example": ""
+    },
+    {
+     "key": "jejuAdtnDvCst",
+     "meaning": "제주추가배송비",
+     "example": ""
+    },
+    {
+     "key": "useYn",
+     "meaning": "사용여부[def Y]",
+     "example": ""
+    },
+    {
+     "key": "rprtYn",
+     "meaning": "대표배송정책여부[def N]",
+     "example": ""
     }
    ],
-   "success": "returnCode=0000 & data 존재. HTTP 401=인증·403=IP미등록·429=분당10000초과·500=오류 (HTTP200이어도 returnCode 확인)",
+   "success": "returnCode=0000 & data 존재. HTTP 401 미등록키·403 IP·404 비정상요청·429 분당초과·500 오류. (HTTP200이어도 returnCode 확인)",
    "idTraps": [],
    "persistIds": [],
    "codeRef": "",
@@ -6834,22 +6944,32 @@
     "method": "POST",
     "url": "https://openapi.lotteon.com/v1/openapi/contract/v1/et/updateTraderSr",
     "params": [
-     "afflTrCd*",
-     "rpbtrEmlAddr",
-     "rpbtrMphnNo",
-     "prstMsgUseYn(선물메시지Y/N)",
-     "dlvrMsgYn(배송메시지)",
-     "hpDvDdUseYn(희망일배송)",
-     "ovsDvYn(해외배송)",
-     "cnslAccpPdDealYn(상담접수상품)",
-     "stffEusePdDealYn(임직원전용)"
+     "afflTrCd*:상위거래처번호",
+     "rpbtrEmlAddr:담당자이메일",
+     "rpbtrMphnNo:담당자휴대폰",
+     "mphnNatnNoCd:휴대폰국가번호[def82]",
+     "telNatnNoCd:전화국가번호[def82]",
+     "bzplcCaddrNo:사업장연락처",
+     "rprtFaxNo:대표팩스",
+     "prstMsgUseYn:선물메시지[Y/N]",
+     "dlvrMsgYn:배송메시지[Y/N]",
+     "shopCnvMsgUseYn:매장전달메시지[Y/N]",
+     "hpDvDdUseYn:희망일배송[Y/N]",
+     "ovsDvYn:해외배송[Y/N]",
+     "cnslAccpPdDealYn:상담접수상품[Y/N]",
+     "stffEusePdDealYn:임직원전용[Y/N]",
+     "nldyOprStrtTm:평일운영시작[HH24MM]",
+     "nldyOprEndTm:평일운영종료",
+     "satAwrkYn:토요일근무[Y/N]",
+     "satOprStrtTm:토요일운영시작",
+     "satOprEndTm:토요일운영종료"
     ]
    },
    "res": {
-    "note": "응답=returnCode/message(표준). 전체스펙 롯데ON apiNo=148"
+    "note": "응답=returnCode/message(표준). data[]에 처리결과(resultCode/resultMessage) 포함 가능"
    },
    "fields": [],
-   "success": "returnCode=0000 & data 존재. HTTP 401=인증·403=IP미등록·429=분당10000초과·500=오류 (HTTP200이어도 returnCode 확인)",
+   "success": "returnCode=0000 & data 존재. HTTP 401 미등록키·403 IP·404 비정상요청·429 분당초과·500 오류. (HTTP200이어도 returnCode 확인)",
    "idTraps": [],
    "persistIds": [],
    "codeRef": "",
@@ -6871,22 +6991,24 @@
     "method": "POST",
     "url": "https://openapi.lotteon.com/v1/openapi/contract/v1/lrtr/registLrTraderSr",
     "params": [
-     "afflTrCd*",
-     "lrtrNm*",
-     "lrtrTxStatCd*(01거래중/02종료/03중지)",
-     "rprtStfNm*",
-     "rpbtrTelNo",
-     "rpbtrMphnNo",
-     "emlAddr*",
-     "tskStrtTm(업무시작HHMM)",
-     "tskEndTm"
+     "afflTrCd*:상위거래처번호",
+     "lrtrNm*:하위거래처명",
+     "lrtrTxStatCd*:거래상태[01거래중/02종료/03중지]",
+     "rprtStfNm*:대표직원명",
+     "telNatnNoCd:전화국가번호[def82]",
+     "rpbtrTelNo:전화번호",
+     "mphnNatnNoCd:휴대폰국가번호[def82]",
+     "rpbtrMphnNo:휴대폰번호",
+     "emlAddr*:이메일주소",
+     "tskStrtTm:업무시작[HH24MM]",
+     "tskEndTm:업무종료"
     ]
    },
    "res": {
-    "note": "응답=returnCode/message(표준). 전체스펙 롯데ON apiNo=149"
+    "note": "응답=returnCode/message(표준). data[]에 처리결과(resultCode/resultMessage) 포함 가능"
    },
    "fields": [],
-   "success": "returnCode=0000 & data 존재. HTTP 401=인증·403=IP미등록·429=분당10000초과·500=오류 (HTTP200이어도 returnCode 확인)",
+   "success": "returnCode=0000 & data 존재. HTTP 401 미등록키·403 IP·404 비정상요청·429 분당초과·500 오류. (HTTP200이어도 returnCode 확인)",
    "idTraps": [],
    "persistIds": [],
    "codeRef": "",
@@ -6908,22 +7030,30 @@
     "method": "POST",
     "url": "https://openapi.lotteon.com/v1/openapi/contract/v1/dvp/updateDvpSr",
     "params": [
-     "dvpNo*",
-     "dvpTypCd*(회수지01/출고지02)",
-     "dvpNm",
-     "zipNo",
-     "zipAddr",
-     "dtlAddr",
-     "stnmZipAddr",
-     "rpbtrNm",
-     "mphnNo"
+     "dvpNo*:배송지번호(PLO+번호)",
+     "dvpTypCd*:유형[회수지01/출고지02]",
+     "dvpNm*:배송지명",
+     "zipNo:우편번호",
+     "zipAddr:우편주소",
+     "dtlAddr:상세주소",
+     "stnmZipNo:도로명우편번호",
+     "stnmZipAddr:도로명우편주소",
+     "stnmDtlAddr:도로명상세주소",
+     "rpbtrNm:담당자명",
+     "mphnNatnNoCd:휴대폰국가[def82]",
+     "mphnNo:휴대폰번호",
+     "telNatnNoCd:연락처국가[def82]",
+     "telNo:연락처",
+     "afflTrCd*:상위거래처번호",
+     "afflLrtrCd:하위거래처번호",
+     "useYn:사용여부[def Y]"
     ]
    },
    "res": {
-    "note": "응답=returnCode/message(표준). 전체스펙 롯데ON apiNo=152"
+    "note": "응답=returnCode/message(표준). data[]에 처리결과(resultCode/resultMessage) 포함 가능"
    },
    "fields": [],
-   "success": "returnCode=0000 & data 존재. HTTP 401=인증·403=IP미등록·429=분당10000초과·500=오류 (HTTP200이어도 returnCode 확인)",
+   "success": "returnCode=0000 & data 존재. HTTP 401 미등록키·403 IP·404 비정상요청·429 분당초과·500 오류. (HTTP200이어도 returnCode 확인)",
    "idTraps": [],
    "persistIds": [],
    "codeRef": "",
@@ -6945,16 +7075,16 @@
     "method": "POST",
     "url": "https://openapi.lotteon.com/v1/openapi/contract/v1/dvp/deleteDvpSr",
     "params": [
-     "afflTrCd*",
-     "dvpNo*",
-     "dvpTypCd*(회수지01/출고지02)"
+     "afflTrCd*:상위거래처번호",
+     "dvpNo*:배송지번호",
+     "dvpTypCd*:유형[회수지01/출고지02]"
     ]
    },
    "res": {
-    "note": "응답=returnCode/message(표준). 전체스펙 롯데ON apiNo=153"
+    "note": "응답=returnCode/message(표준). data[]에 처리결과(resultCode/resultMessage) 포함 가능"
    },
    "fields": [],
-   "success": "returnCode=0000 & data 존재. HTTP 401=인증·403=IP미등록·429=분당10000초과·500=오류 (HTTP200이어도 returnCode 확인)",
+   "success": "returnCode=0000 & data 존재. HTTP 401 미등록키·403 IP·404 비정상요청·429 분당초과·500 오류. (HTTP200이어도 returnCode 확인)",
    "idTraps": [],
    "persistIds": [],
    "codeRef": "",
@@ -6976,20 +7106,29 @@
     "method": "POST",
     "url": "https://openapi.lotteon.com/v1/openapi/contract/v1/lrtr/updateLrTraderSr",
     "params": [
-     "afflLrtrCd*",
-     "afflTrCd*",
-     "lrtrNm*",
-     "lrtrTxStatCd*(01/02/03)",
-     "rprtStfNm*",
-     "rpbtrTelNo",
-     "rpbtrMphnNo"
+     "afflLrtrCd*:하위거래처번호",
+     "afflTrCd*:상위거래처번호",
+     "lrtrNm*:하위거래처명",
+     "lrtrTxStatCd*:거래상태[01/02/03]",
+     "rprtStfNm*:대표직원명",
+     "telNatnNoCd:전화국가번호[def82]",
+     "telNatnCd:전화국가코드[defKR]",
+     "rpbtrTelNo:전화번호",
+     "mphnNatnNoCd:휴대폰국가번호[def82]",
+     "mphnNatnCd:휴대폰국가코드[defKR]",
+     "rpbtrMphnNo:휴대폰번호",
+     "emlAddr*:이메일주소",
+     "tskStrtTm:업무시작[HH24MM]",
+     "tskEndTm:업무종료",
+     "rvsPicUseYn:리버스픽[def N]",
+     "crssPicUseYn:크로스픽[def N]"
     ]
    },
    "res": {
-    "note": "응답=returnCode/message(표준). 전체스펙 롯데ON apiNo=155"
+    "note": "응답=returnCode/message(표준). data[]에 처리결과(resultCode/resultMessage) 포함 가능"
    },
    "fields": [],
-   "success": "returnCode=0000 & data 존재. HTTP 401=인증·403=IP미등록·429=분당10000초과·500=오류 (HTTP200이어도 returnCode 확인)",
+   "success": "returnCode=0000 & data 존재. HTTP 401 미등록키·403 IP·404 비정상요청·429 분당초과·500 오류. (HTTP200이어도 returnCode 확인)",
    "idTraps": [],
    "persistIds": [],
    "codeRef": "",
@@ -7011,24 +7150,30 @@
     "method": "POST",
     "url": "https://openapi.lotteon.com/v1/openapi/contract/v1/dvl/registDvCstSr",
     "params": [
-     "aplyStrtDt*",
-     "aplyEndDt*",
-     "dvCstPolNm",
-     "ctrtTypCd*(중계A/위탁B/판매분매입C/직매입D)",
-     "dvTypCd*",
-     "dvProcTypCd*",
-     "dvCstTypCd*",
-     "dvCstDvsCd*",
-     "dvCst",
-     "rcst",
-     "cndlFreeStdAmt(조건부무료기준액)"
+     "aplyStrtDt*:적용시작일자",
+     "aplyEndDt*:적용종료일자",
+     "dvCstPolNm:배송비정책명(자동생성)",
+     "ctrtTypCd*:계약유형[중계A/위탁B/판매분매입C/직매입D]",
+     "dvTypCd*:배송유형[직접배송DRECT]",
+     "dvProcTypCd*:배송처리[업체배송LO_ENTP]",
+     "dvCstTypCd*:배송비유형[배송비DV_CST/추가배송비]",
+     "dvCstDvsCd*:배송비구분[유료A/무료B/조건부C]",
+     "dvCst:배송비",
+     "rcst:반품비",
+     "rtngXchgDvCstImpsMthdCd:반품교환배송비부과방법[def N]",
+     "cndlFreeStdAmt:조건부무료기준금액",
+     "inrmAdtnDvCst:도서산간추가배송비",
+     "jejuAdtnDvCst:제주추가배송비",
+     "afflTrCd*:상위거래처번호",
+     "afflLrtrCd:하위거래처번호",
+     "useYn*:사용여부[def Y]"
     ]
    },
    "res": {
-    "note": "응답=returnCode/message(표준). 전체스펙 롯데ON apiNo=168"
+    "note": "응답=returnCode/message(표준). data[]에 처리결과(resultCode/resultMessage) 포함 가능"
    },
    "fields": [],
-   "success": "returnCode=0000 & data 존재. HTTP 401=인증·403=IP미등록·429=분당10000초과·500=오류 (HTTP200이어도 returnCode 확인)",
+   "success": "returnCode=0000 & data 존재. HTTP 401 미등록키·403 IP·404 비정상요청·429 분당초과·500 오류. (HTTP200이어도 returnCode 확인)",
    "idTraps": [],
    "persistIds": [],
    "codeRef": "",
@@ -7050,24 +7195,31 @@
     "method": "POST",
     "url": "https://openapi.lotteon.com/v1/openapi/contract/v1/dvl/updateDvCstSr",
     "params": [
-     "dvCstPolNo*",
-     "aplyStrtDt*",
-     "aplyEndDt*",
-     "dvCstPolNm",
-     "ctrtTypCd*",
-     "dvTypCd*",
-     "dvProcTypCd*",
-     "dvCstTypCd*",
-     "dvCstDvsCd*",
-     "dvCst",
-     "rcst"
+     "dvCstPolNo*:배송비정책번호(수정대상)",
+     "aplyStrtDt*:적용시작일자",
+     "aplyEndDt*:적용종료일자",
+     "dvCstPolNm:배송비정책명(자동생성)",
+     "ctrtTypCd*:계약유형[중계A/위탁B/판매분매입C/직매입D]",
+     "dvTypCd*:배송유형[직접배송DRECT]",
+     "dvProcTypCd*:배송처리[업체배송LO_ENTP]",
+     "dvCstTypCd*:배송비유형[배송비DV_CST/추가배송비]",
+     "dvCstDvsCd*:배송비구분[유료A/무료B/조건부C]",
+     "dvCst:배송비",
+     "rcst:반품비",
+     "rtngXchgDvCstImpsMthdCd:반품교환배송비부과방법[def N]",
+     "cndlFreeStdAmt:조건부무료기준금액",
+     "inrmAdtnDvCst:도서산간추가배송비",
+     "jejuAdtnDvCst:제주추가배송비",
+     "afflTrCd*:상위거래처번호",
+     "afflLrtrCd:하위거래처번호",
+     "useYn*:사용여부[def Y]"
     ]
    },
    "res": {
-    "note": "응답=returnCode/message(표준). 전체스펙 롯데ON apiNo=169"
+    "note": "응답=returnCode/message(표준). data[]에 처리결과(resultCode/resultMessage) 포함 가능"
    },
    "fields": [],
-   "success": "returnCode=0000 & data 존재. HTTP 401=인증·403=IP미등록·429=분당10000초과·500=오류 (HTTP200이어도 returnCode 확인)",
+   "success": "returnCode=0000 & data 존재. HTTP 401 미등록키·403 IP·404 비정상요청·429 분당초과·500 오류. (HTTP200이어도 returnCode 확인)",
    "idTraps": [],
    "persistIds": [],
    "codeRef": "",
@@ -7089,15 +7241,15 @@
     "method": "POST",
     "url": "https://openapi.lotteon.com/v1/openapi/contract/v1/dvl/deleteDvCstSr",
     "params": [
-     "afflTrCd*",
-     "dvpNo*(=배송비정책번호)"
+     "afflTrCd*:상위거래처번호",
+     "dvpNo*:배송비정책번호"
     ]
    },
    "res": {
-    "note": "응답=returnCode/message(표준). 전체스펙 롯데ON apiNo=170"
+    "note": "응답=returnCode/message(표준). data[]에 처리결과(resultCode/resultMessage) 포함 가능"
    },
    "fields": [],
-   "success": "returnCode=0000 & data 존재. HTTP 401=인증·403=IP미등록·429=분당10000초과·500=오류 (HTTP200이어도 returnCode 확인)",
+   "success": "returnCode=0000 & data 존재. HTTP 401 미등록키·403 IP·404 비정상요청·429 분당초과·500 오류. (HTTP200이어도 returnCode 확인)",
    "idTraps": [],
    "persistIds": [],
    "codeRef": "",
