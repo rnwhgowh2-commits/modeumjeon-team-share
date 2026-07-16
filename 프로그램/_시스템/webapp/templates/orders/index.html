@@ -1599,6 +1599,11 @@
     .cskb .del{margin-left:auto;background:none;border:none;padding:2px 4px;font-size:11px;color:var(--sub2);cursor:pointer;font-family:inherit;text-decoration:underline}
     .cskb .del:hover{color:var(--red)}
     .cskb .del:disabled{opacity:.6;cursor:not-allowed}
+    /* 대응중 → 신규요청 되돌리기(시안1 하단 링크, 삭제 링크와 통일) */
+    .cskb .rv-row-bottom{display:flex;justify-content:flex-end;margin-top:8px}
+    .cskb .rvBtn{background:none;border:none;padding:2px 4px;font-size:11px;color:var(--sub2);cursor:pointer;font-family:inherit;text-decoration:underline}
+    .cskb .rvBtn:hover{color:var(--blue)}
+    .cskb .rvBtn:disabled{opacity:.6;cursor:not-allowed}
     .cskb .kempty{padding:22px 10px;text-align:center;color:var(--sub2);font-size:12px}
     .cskb .cs-state{padding:40px 20px;text-align:center;color:var(--sub);font-size:13px;grid-column:1/-1}
     .cskb .cs-banner{background:#FEF2F2;border:1px solid #FCA5A5;border-radius:10px;padding:10px 12px;font-size:12px;color:#991B1B;margin-bottom:14px}
@@ -1834,6 +1839,13 @@
           btn.addEventListener('click',function(){ ackClaim(row, btn); });
           act.appendChild(btn);
         }
+        if(stage==='대응중'){
+          var rvRow=document.createElement('div'); rvRow.className='rv-row-bottom';
+          var rv=document.createElement('button'); rv.type='button'; rv.className='rvBtn';
+          rv.textContent='↩ 신규요청으로';
+          rv.addEventListener('click',function(){ revertClaim(row, rv); });
+          rvRow.appendChild(rv); div.appendChild(rvRow);
+        }
       }
       return div;
     }
@@ -1879,6 +1891,22 @@
       STAGE_KEYS.forEach(function(k){
         lastGroups[k]=(lastGroups[k]||[]).filter(function(r){ return r['claim_key']!==ck; });
       });
+    }
+
+    function revertClaim(row, btn){
+      btn.disabled=true; btn.textContent='되돌리는 중…';
+      fetch('/orders/cs/claims/unack',{method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({claim_key:row['claim_key'],market:row['판매처'],order_no:row['오픈마켓주문번호'],claim_type:row['유형']})})
+        .then(function(r){return r.json();})
+        .then(function(j){
+          if(!j.ok){ alert('되돌리기 실패: '+(j.error||'')); btn.disabled=false; btn.textContent='↩ 신규요청으로'; return; }
+          // 재조회 없이 즉시: 대응중 → 신규요청 복귀(맨 위로).
+          removeFromGroups(row['claim_key']);
+          row['단계']='신규요청';
+          (lastGroups['신규요청']=lastGroups['신규요청']||[]).unshift(row);
+          renderBoard(lastGroups);
+        })
+        .catch(function(){ alert('되돌리기 실패(네트워크)'); btn.disabled=false; btn.textContent='↩ 신규요청으로'; });
     }
 
     function ackClaim(row, btn){
