@@ -7702,36 +7702,196 @@
     "method": "POST",
     "url": "https://openapi.lotteon.com/v1/openapi/settle/v1/se/SettleSubtraction",
     "params": [
-     "startDate*(yyyymmdd)",
-     "endDate*(yyyymmdd)"
-    ]
+     "startDate*(String,8,yyyymmdd 시작일)",
+     "endDate*(String,8,yyyymmdd 종료일)"
+    ],
+    "note": "매출유형 중개=구매확정건 대상, 정산기준일=구매확정일"
    },
    "res": {
-    "note": "data[] 배열. 전체 롯데ON apiNo=44"
+    "sample": {
+     "returnCode": "SUCCESS",
+     "dataCount": 3,
+     "data": [
+      {
+       "salesTypCd": "A",
+       "sbtDvsCd": "01",
+       "sbtArtlCd": "04",
+       "sbtAmt": "5000.00",
+       "odNo": "2019111600200003",
+       "spdNm": "잘나가자전거",
+       "trNm": "(주)롯데마트",
+       "sbtProcDvsCd": "R"
+      },
+      {
+       "salesTypCd": "A",
+       "sbtDvsCd": "01",
+       "sbtArtlCd": "21",
+       "sbtAmt": "1000.00",
+       "odNo": "2019111600200003"
+      },
+      {
+       "salesTypCd": "B",
+       "sbtDvsCd": "01",
+       "sbtArtlCd": "23",
+       "sbtAmt": "1100.00",
+       "odNo": "2019111600200004"
+      }
+     ]
+    },
+    "sbtArtlCd_차감항목코드": {
+     "공통": {
+      "03": "롯데부담배송비(현금)",
+      "13": "추심지급",
+      "14": "채권채무상계(CM수동광고)",
+      "15": "기타조정(업체)",
+      "26": "셀러포인트(이벤트)",
+      "27": "셀러포인트(이벤트)수수료"
+     },
+     "중개": {
+      "04": "셀러포인트(구매)_상품",
+      "09": "셀러포인트(구매)수수료_상품",
+      "05": "셀러포인트(상품평)_상품",
+      "10": "셀러포인트(상품평)수수료_상품",
+      "12": "해외송금처리",
+      "19": "채권채무상계(내부광고)",
+      "21": "고객보상(현금)",
+      "22": "기타조정(상품)",
+      "25": "영중소 환급액",
+      "31": "셀러포인트(구매)_업체",
+      "32": "셀러포인트(구매)수수료_업체",
+      "33": "셀러포인트(상품평)_업체",
+      "34": "셀러포인트(상품평)수수료_업체",
+      "35": "기타(잔액이관조정용)"
+     },
+     "위탁_직매입": {
+      "23": "고객보상(현금)",
+      "24": "고객보상(포인트)"
+     }
+    }
    },
    "fields": [
     {
-     "key": "sbtDvsCd",
-     "meaning": "차감구분코드",
+     "key": "returnCode",
+     "meaning": "응답코드[0000/SUCCESS]",
+     "example": "SUCCESS"
+    },
+    {
+     "key": "dataCount",
+     "meaning": "응답 데이터 개수",
+     "example": "3"
+    },
+    {
+     "key": "data[].salesTypCd",
+     "meaning": "매출유형코드 [A:중개, B:위탁, D:직매입]",
+     "example": "A"
+    },
+    {
+     "key": "data[].trNo",
+     "meaning": "거래처번호",
+     "example": "LM000000"
+    },
+    {
+     "key": "data[].trCtrtNo",
+     "meaning": "거래처계약번호(Number)",
+     "example": "220"
+    },
+    {
+     "key": "data[].lrtrNo",
+     "meaning": "하위거래처번호",
+     "example": "SLM000000"
+    },
+    {
+     "key": "data[].strCd",
+     "meaning": "점코드",
      "example": ""
     },
     {
-     "key": "sbtArtlCd",
-     "meaning": "차감항목코드",
-     "example": ""
+     "key": "data[].bizpRegNo",
+     "meaning": "사업자등록번호",
+     "example": "2068511011"
     },
     {
-     "key": "odNo",
+     "key": "data[].trNm",
+     "meaning": "거래처명",
+     "example": "(주)롯데마트"
+    },
+    {
+     "key": "data[].tdfDvsCd",
+     "meaning": "과면세구분 [01:과세, 02:면세, 03:영세, 04:해당없음]",
+     "example": "01"
+    },
+    {
+     "key": "data[].seStdDt",
+     "meaning": "정산기준일자(중개=구매확정일)",
+     "example": "20191116"
+    },
+    {
+     "key": "data[].sbtDvsCd",
+     "meaning": "차감구분코드 [01:상품차감, 02:업체차감]",
+     "example": "01"
+    },
+    {
+     "key": "data[].sbtArtlCd",
+     "meaning": "차감항목코드(코드표는 아래 note 참조)",
+     "example": "04"
+    },
+    {
+     "key": "data[].odNo",
      "meaning": "주문번호",
-     "example": ""
+     "example": "2019111600200003"
     },
     {
-     "key": "sitmNo",
+     "key": "data[].odSeq",
+     "meaning": "주문순번(단품별 부여, Number)",
+     "example": "1"
+    },
+    {
+     "key": "data[].procSeq",
+     "meaning": "처리순번(최초1, 클레임시 +1)",
+     "example": "1"
+    },
+    {
+     "key": "data[].sitmNo",
      "meaning": "판매자단품번호",
-     "example": ""
+     "example": "LE1000011"
+    },
+    {
+     "key": "data[].sitmNm",
+     "meaning": "판매자단품명",
+     "example": "24단"
+    },
+    {
+     "key": "data[].spdNo",
+     "meaning": "판매자상품번호",
+     "example": "LE100001"
+    },
+    {
+     "key": "data[].spdNm",
+     "meaning": "판매자상품명",
+     "example": "잘나가자전거"
+    },
+    {
+     "key": "data[].sbtRegDttm",
+     "meaning": "차감등록일시(Date)",
+     "example": "20191116000000"
+    },
+    {
+     "key": "data[].sbtProcDvsCd",
+     "meaning": "차감처리구분 [R:등록, A:조정, D:삭제]",
+     "example": "R"
+    },
+    {
+     "key": "data[].sbtAmt",
+     "meaning": "차감금액(Float,22)",
+     "example": "5000.00"
+    },
+    {
+     "key": "data[].sbtRsnCnts",
+     "meaning": "차감사유내용",
+     "example": "자동"
     }
    ],
-   "success": "returnCode=0000 & data 존재. HTTP 401=인증·403=IP·429=초과·500=오류 (HTTP200이어도 returnCode 확인)",
+   "success": "returnCode=='SUCCESS' & data 존재. 체크실패=리턴코드(2000 거래처번호/2001 시작일/2002 종료일 필수). HTTP 200정상·401 미등록키·403 접근거부·404 비정상요청·429 분당초과·500 시스템오류 (HTTP200이어도 returnCode 확인)",
    "idTraps": [],
    "persistIds": [],
    "codeRef": "",
