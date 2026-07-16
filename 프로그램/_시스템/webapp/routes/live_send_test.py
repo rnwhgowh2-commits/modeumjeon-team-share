@@ -297,6 +297,27 @@ def api_pick_orders():
                     "candidates": out, "warnings": warnings})
 
 
+@bp.get("/api/live-send-test/e11-raw")
+def api_e11_raw():
+    """[진단] 11번가 재고조회 원시 요청/응답 XML 확인(파싱 매핑 확정용). 임시."""
+    env_prefix = (request.args.get("env_prefix") or "").strip() or None
+    product_id = (request.args.get("product_id") or "").strip()
+    if not product_id:
+        return jsonify({"ok": False, "error": "product_id 필요"}), 400
+    from lemouton.uploader.market_fetch import _eleven11_client
+    from shared.platforms.eleven11 import stocks_query as SQ
+    try:
+        client = _eleven11_client(env_prefix)
+        req_xml = SQ._build_request_xml(str(product_id))
+        resp_xml = client.request("POST", SQ._PATH_STOCKS, req_xml)
+    except Exception as e:  # noqa: BLE001
+        import traceback
+        return jsonify({"ok": False, "error": f"{type(e).__name__}: {e}",
+                        "detail": traceback.format_exc()[-800:]}), 200
+    return jsonify({"ok": True, "request_xml": req_xml,
+                    "response_xml": (resp_xml or "")[:4000]})
+
+
 @bp.get("/api/live-send-test/direct-current")
 def api_direct_current():
     """세트 없이 (market, env_prefix, product_id)로 옵션·현재 가격/재고 조회."""
