@@ -41,6 +41,49 @@ def test_smartstore_rows_map_and_join(monkeypatch):
     assert r["판매처"] == "스마트스토어"       # 판매처 열(B)
 
 
+class FakeSSClaimClient:
+    """반품 클레임 상품주문 대역 — productOrderStatus=RETURNED(반품완료) + 구매자 상세."""
+    def request(self, method, path, query="", body=None):
+        if "last-changed-statuses" in path:
+            return {"data": {"lastChangeStatuses": [{"productOrderId": "R1"}]}}
+        if path.endswith("/product-orders/query"):
+            return {"data": [{
+                "order": {"orderDate": "2026-07-05T09:00:00", "ordererName": "김구매", "ordererTel": "01099998888"},
+                "productOrder": {"productOrderId": "R1", "productName": "반품상품", "productOption": "블랙/250",
+                                 "quantity": 1, "unitPrice": 50000, "productOrderStatus": "RETURNED",
+                                 "claim": {"claimRequestDate": "2026-07-06T10:00:00"},
+                                 "shippingAddress": {"name": "김수령", "tel1": "01011112222",
+                                                     "zipCode": "13105", "baseAddress": "서울 강남", "detailedAddress": "1동"}},
+            }]}
+        return {"data": {}}
+
+
+def test_smartstore_claim_rows_tagged_change_with_buyer():
+    """#2: 스스 클레임 행은 _kind=change 로 태그돼 CS(status_change_rows)에 잡히고,
+    구매자·수령자·전화·주소·상품명이 CS 카드용으로 그대로 채워진다(#4)."""
+    since = dt.datetime(2026, 7, 5, tzinfo=KST)
+    until = dt.datetime(2026, 7, 7, 23, tzinfo=KST)
+    rows = oe.smartstore_order_rows(since, until, client=FakeSSClaimClient(),
+                                    include_settlement=False)
+    assert len(rows) == 1
+    r = rows[0]
+    assert r["주문상태"] == "반품완료"
+    assert r.get("_kind") == "change"                 # CS 에 잡히도록 태그(없으면 0건)
+    assert str(r.get("_change_date", "")).startswith("2026-07-06")
+    assert r["상품명"] == "반품상품"
+    assert r["구매자"] == "김구매" and r["수령자"] == "김수령"
+    assert r["수령자전화번호"] == "01011112222"
+    assert "서울 강남" in r["주소"]
+
+
+def test_smartstore_normal_order_not_tagged_change():
+    """일반 주문(결제완료·배송중 등)은 change 태그가 붙지 않아야 한다(신규주문 유지)."""
+    since = dt.datetime(2026, 7, 5, tzinfo=KST)
+    until = dt.datetime(2026, 7, 5, 23, tzinfo=KST)
+    rows = oe.smartstore_order_rows(since, until, client=FakeSSClient())
+    assert rows[0].get("_kind") != "change"
+
+
 def test_ss_estimate_settle_formula():
     # 매출 × 0.94 (수수료 6%). 실결제금액 우선, 없으면 단가×수량, 둘 다 없으면 빈칸(폴백 0 금지).
     assert oe._ss_estimate_settle(90000, 100000, 1) == round(90000 * 0.94)   # 실결제 우선

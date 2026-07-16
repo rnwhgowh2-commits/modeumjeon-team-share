@@ -125,6 +125,11 @@ def _claim_view(row, ack):
         "수량": row.get("수량", ""),
         "사유": row.get("배송메시지", ""),
         "변경일": row.get("_change_date", ""),
+        # 구매자 정보(#4) — 마켓별로 채워지는 만큼 노출(없으면 빈칸 → 카드서 「정보 없음」).
+        #  이름=구매자(없으면 수령자) / 연락처=수령자전화(없으면 구매자번호) / 주소=배송·회수지.
+        "구매자": row.get("구매자") or row.get("수령자") or "",
+        "연락처": row.get("수령자전화번호") or row.get("구매자번호") or "",
+        "주소": row.get("주소") or "",
         "claim_key": claim_key_of(row),
         "메모": (ack.memo if ack else "") or "",
         "단계": derive_stage(row, acknowledged=bool(ack and ack.acknowledged_at)),

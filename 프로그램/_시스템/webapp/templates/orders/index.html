@@ -1511,6 +1511,11 @@
     .cskb .kcard .nm{font-weight:600;font-size:12.5px;line-height:1.35;margin-bottom:4px;color:var(--ink)}
     .cskb .kcard .meta{font-size:11.5px;color:var(--sub2);display:flex;gap:7px;flex-wrap:wrap}
     .cskb .kcard .act{margin-top:9px;display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+    /* 구매자 정보(#4) — 시안3 연한 구획 박스: 사유와 시각 분리, 없으면 회색 '정보 없음' */
+    .cskb .kcard .cs-buyer{margin-top:8px;background:var(--blue-bg);border-radius:8px;padding:7px 10px;display:grid;grid-template-columns:42px 1fr;row-gap:4px;column-gap:9px;font-size:11.5px;line-height:1.45}
+    .cskb .kcard .cs-buyer .k{color:var(--blue);font-weight:600}
+    .cskb .kcard .cs-buyer .v{color:var(--ink);word-break:break-all}
+    .cskb .kcard .cs-buyer .v.none{color:#B0B8C1}
     .cskb .tb{display:inline-flex;align-items:center;gap:5px;padding:3px 9px;border-radius:6px;font-size:12px;font-weight:600;white-space:nowrap}
     .cskb .t-cancel{background:var(--amber-bg);color:var(--amber)}
     .cskb .t-return{background:var(--red-bg);color:var(--red)}
@@ -1646,6 +1651,17 @@
     }
     function hideBanner(){ BANNER.style.display='none'; BANNER.innerHTML=''; }
 
+    // 구매자 정보 박스(#4·시안3) — 이름·연락처·주소. 마켓이 안 주면 회색 '정보 없음'.
+    function buyerBox(row){
+      function line(k,v){
+        var has=v&&String(v).trim();
+        return '<span class="k">'+k+'</span><span class="v'+(has?'':' none')+'">'+(has?esc(v):'정보 없음')+'</span>';
+      }
+      return '<div class="cs-buyer">'
+        +line('구매자',row['구매자'])+line('연락처',row['연락처'])+line('주소',row['주소'])
+        +'</div>';
+    }
+
     function card(row, stage){
       var tcls=TYPE_CLS[row['유형']]||'t-cancel';
       var div=document.createElement('div');
@@ -1655,6 +1671,7 @@
         +'<div class="nm">'+esc(row['상품명'])+'</div>'
         +'<div class="meta"><span>'+esc(row['옵션'])+'</span><span>·</span><span>'+esc(row['수량'])+'개</span><span>·</span><span class="date">'+esc(row['변경일'])+'</span></div>'
         +'<div class="meta" style="margin-top:3px">사유 · '+esc(row['사유'])+'</div>'
+        +buyerBox(row)
         +'<div class="act"></div>';
       var act=div.querySelector('.act');
       if(stage==='대응완료'){

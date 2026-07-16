@@ -252,7 +252,8 @@ def smartstore_order_rows(since: _dt.datetime, until: _dt.datetime,
                 else:
                     settle_val += deliv_settle[oid]
                 _deliv_used.add(oid)
-        rows.append({
+        _ss_st = _ss_status(_g(po, "productOrderStatus"), _g(po, "placeOrderStatus"))
+        _row = {
             "_shipkey": ("smartstore", oid),   # 배송건(주문) 단위 배송비 정규화용
             "주문일": _g(od, "orderDate", "paymentDate"),   # 시간 포함(_finalize 에서 통일)
             "판매처": "스마트스토어",
@@ -272,7 +273,7 @@ def smartstore_order_rows(since: _dt.datetime, until: _dt.datetime,
             "배송비": _g(po, "deliveryFeeAmount", default=""),
             "정산예정금액": settle_val,
             "_settle_source": settle_src,
-            "주문상태": _ss_status(_g(po, "productOrderStatus"), _g(po, "placeOrderStatus")),
+            "주문상태": _ss_st,
             "주문상태원본": _g(po, "productOrderStatus"),
             "오픈마켓주문번호": poid or oid,
             "실결제금액": _g(po, "totalPaymentAmount", default=""),   # 할인 반영 실결제
@@ -281,7 +282,21 @@ def smartstore_order_rows(since: _dt.datetime, until: _dt.datetime,
             # 그 값이 실제와 어긋나도 화면상 알 길이 없다(2026-07-10 실제 발생).
             "송장입력": _g(dv, "trackingNumber", default=""),
             "발송처리일": _g(dv, "sendDate", "sendDate", default=""),   # 스스 발송일 → 경과시간용
-        })
+        }
+        # ── 취소/반품/교환 = 상태변경(#2 CS) 태그 ──
+        #  스스는 다른 마켓과 달리 '변경 상품주문 내역 조회' 한 피드가 클레임 상태(CANCELED·
+        #  RETURNED·EXCHANGED → 취소완료/반품완료/교환완료)까지 함께 준다. 그 행을 _kind='change'
+        #  로 태그해야 status_change_rows(=CS 반품·교환·취소)에 잡힌다(태그 없으면 CS 0건).
+        #  구매자·수령자·주소·상품명은 위에서 이미 채워져 CS 카드에 그대로 노출된다.
+        if _ss_st[:2] in ("취소", "반품", "교환"):
+            _row["_kind"] = "change"
+            # 변경일 — 클레임/최근변경일(있으면) → 없으면 주문일(폴백). 공란도 보존됨(status_change_rows).
+            _cl = po.get("claim") if isinstance(po.get("claim"), dict) else {}
+            _row["_change_date"] = str(
+                _g(_cl, "claimRequestDate", "claimDate")
+                or _g(po, "lastChangedDate", "claimRequestDate")
+                or _g(od, "orderDate") or "")
+        rows.append(_row)
     return rows
 
 

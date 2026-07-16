@@ -44,10 +44,13 @@ def test_extra_gate_default_off(monkeypatch):
     assert cap.market_extra_enabled() is False
 
 
-def test_four_dashboard_tabs_configured():
-    for t in ["list", "sales", "cs", "register"]:
+def test_dashboard_tabs_configured():
+    # [2026-07-16] 정산·매출(sales) 탭 삭제 → 남은 샘플 레이아웃 탭만 검증.
+    for t in ["list", "cs", "register"]:
         c = om.TAB_CONFIG[t]
         assert c["kpis"] and c["cols"] and c["rows"]
+    assert "sales" not in om.TAB_CONFIG                       # 정산·매출 완전 제거
+    assert all(t["key"] != "sales" for t in om.SUBTABS)       # 서브탭에서도 제거
 
 
 def test_list_tab_has_quick_range_buttons():
@@ -81,12 +84,11 @@ def test_parse_range_absent_or_bad_is_none():
 
 
 @pytest.mark.parametrize("tab,kpi,col", [
-    ("sales", "정산 예정", "정산 예정액"),
     ("register", "등록 대기", "카테고리"),
 ])
 def test_tab_renders_layout(tab, kpi, col):
     # list 는 7번(AJAX) 전용 레이아웃이라 별도 테스트. cs 는 실제 클레임 칸반 전용 레이아웃(아래
-    # test_cs_tab_renders_claims_kanban). sales/register 만 샘플 레이아웃 유지.
+    # test_cs_tab_renders_claims_kanban). 정산·매출(sales) 삭제 → register 만 샘플 레이아웃 유지.
     html = _render(tab)
     assert kpi in html, kpi
     assert col in html, col
@@ -115,7 +117,7 @@ def test_action_button_disabled_when_off():
 
 
 def test_live_on_shows_empty_state():
-    html = _render("sales", live_enabled=True)
+    html = _render("register", live_enabled=True)   # sales 삭제 → register 로 빈상태 검증
     assert "아직 표시할 실데이터가 없어요" in html
     assert "안전 OFF" not in html                # live=on → 배너 숨김
 
