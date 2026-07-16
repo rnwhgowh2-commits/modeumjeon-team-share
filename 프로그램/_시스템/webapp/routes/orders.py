@@ -18,6 +18,7 @@ from shared.db import SessionLocal
 from lemouton.delivery import service as _dsvc
 from lemouton.delivery.mango_parser import parse_mango_xls, MangoParseError
 from lemouton.claims import service as _claim_svc
+from lemouton.cs_inquiries import service as _inq_svc
 
 
 bp = Blueprint('orders', __name__, url_prefix='/orders')
@@ -231,6 +232,47 @@ def cs_claim_memo():
         logging.getLogger(__name__).exception("cs memo failed ck=%s", ck)
         return jsonify(ok=False, error=str(e)), 200
     return jsonify(ok=True)
+
+
+@bp.route('/cs/inquiries.json')
+def cs_inquiries():
+    markets = _parse_markets(request.args)
+    since, until = _parse_range(request.args)
+    try:
+        res = _inq_svc.list_inquiries(markets, since=since, until=until)
+        return jsonify(ok=True, **res)
+    except Exception as e:   # noqa: BLE001
+        import logging
+        logging.getLogger(__name__).exception("cs inquiries failed")
+        return jsonify(ok=False, error=str(e), groups={"미답변": [], "답변완료": []},
+                       market_counts={"전체": 0}, warnings=[])
+
+
+@bp.route('/cs/inquiries/dismiss', methods=['POST'])
+def cs_inquiry_dismiss():
+    d = request.get_json(silent=True) or {}
+    ik = (d.get('inquiry_key') or '').strip()
+    if not ik:
+        return jsonify(ok=False, error='inquiry_key 필요'), 400
+    try:
+        _inq_svc.dismiss_inquiry(ik, market=d.get('market', ''))
+    except Exception as e:   # noqa: BLE001
+        import logging
+        logging.getLogger(__name__).exception("cs inquiry dismiss failed")
+        return jsonify(ok=False, error=str(e)), 200
+    return jsonify(ok=True)
+
+
+@bp.route('/cs/inquiries/reply-preview', methods=['POST'])
+def cs_inquiry_reply_preview():
+    d = request.get_json(silent=True) or {}
+    try:
+        res = _inq_svc.reply_preview(d.get('market', ''), d.get('inquiry_id', ''), d.get('content', ''))
+        return jsonify(ok=True, **res)
+    except Exception as e:   # noqa: BLE001
+        import logging
+        logging.getLogger(__name__).exception("cs reply preview failed")
+        return jsonify(ok=False, error=str(e)), 200
 
 
 @bp.route('/export.xlsx')

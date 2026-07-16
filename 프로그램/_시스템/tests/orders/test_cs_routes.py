@@ -42,3 +42,19 @@ def test_claim_dismiss_post(monkeypatch):
     c = _make_client()
     r = c.post("/orders/cs/claims/dismiss", json={"claim_key": "쿠팡:D2:취소", "market":"쿠팡","order_no":"D2","claim_type":"취소"})
     assert r.status_code == 200 and calls["d"] == "쿠팡:D2:취소"
+
+
+def test_inquiries_json_and_actions(monkeypatch):
+    monkeypatch.setattr("webapp.routes.orders._inq_svc.list_inquiries",
+                        lambda markets, **kw: {"groups": {"미답변":[{"문의ID":"Q","inquiry_key":"쿠팡:Q"}],"답변완료":[]},
+                                               "market_counts": {"전체":1}, "warnings": ["[롯데온] 문의 연동 준비 중"]})
+    calls = {}
+    monkeypatch.setattr("webapp.routes.orders._inq_svc.dismiss_inquiry", lambda ik, **kw: calls.__setitem__("d", ik))
+    monkeypatch.setattr("webapp.routes.orders._inq_svc.reply_preview", lambda m, i, c: {"sent": False, "preview": c})
+    c = _make_client()
+    r = c.get("/orders/cs/inquiries.json?markets=coupang&status=WAIT")
+    assert r.status_code == 200 and r.get_json()["groups"]["미답변"][0]["문의ID"] == "Q"
+    r2 = c.post("/orders/cs/inquiries/dismiss", json={"inquiry_key":"쿠팡:Q","market":"쿠팡"})
+    r3 = c.post("/orders/cs/inquiries/reply-preview", json={"market":"coupang","inquiry_id":"Q","content":"답변"})
+    assert r2.status_code == 200 and calls["d"] == "쿠팡:Q"
+    assert r3.status_code == 200 and r3.get_json()["sent"] is False
