@@ -201,6 +201,22 @@ def cs_claim_ack():
     return jsonify(ok=True)
 
 
+@bp.route('/cs/claims/dismiss', methods=['POST'])
+def cs_claim_dismiss():
+    d = request.get_json(silent=True) or {}
+    ck = (d.get('claim_key') or '').strip()
+    if not ck:
+        return jsonify(ok=False, error='claim_key 필요'), 400
+    try:
+        _claim_svc.dismiss_claim(ck, market=d.get('market', ''), order_no=d.get('order_no', ''),
+                                 claim_type=d.get('claim_type', ''))
+    except Exception as e:   # noqa: BLE001 — DB 오류를 500 HTML 대신 구조화 JSON 으로(조용한 실패 방지)
+        import logging
+        logging.getLogger(__name__).exception("cs claim dismiss failed ck=%s", ck)
+        return jsonify(ok=False, error=str(e)), 200
+    return jsonify(ok=True)
+
+
 @bp.route('/cs/claims/memo', methods=['POST'])
 def cs_claim_memo():
     d = request.get_json(silent=True) or {}

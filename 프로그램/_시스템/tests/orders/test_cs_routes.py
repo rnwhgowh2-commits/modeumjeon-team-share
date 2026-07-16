@@ -34,3 +34,11 @@ def test_ack_and_memo_post(monkeypatch):
     r2 = c.post("/orders/cs/claims/memo", json={"claim_key": "롯데온:LO1:반품", "memo": "메모"})
     assert r1.status_code == 200 and calls["ack"] == "롯데온:LO1:반품"
     assert r2.status_code == 200 and calls["memo"] == ("롯데온:LO1:반품", "메모")
+
+
+def test_claim_dismiss_post(monkeypatch):
+    calls = {}
+    monkeypatch.setattr("webapp.routes.orders._claim_svc.dismiss_claim", lambda ck, **kw: calls.__setitem__("d", ck))
+    c = _make_client()
+    r = c.post("/orders/cs/claims/dismiss", json={"claim_key": "쿠팡:D2:취소", "market":"쿠팡","order_no":"D2","claim_type":"취소"})
+    assert r.status_code == 200 and calls["d"] == "쿠팡:D2:취소"

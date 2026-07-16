@@ -1524,6 +1524,9 @@
     .cskb .btn:disabled{opacity:.6;cursor:not-allowed}
     .cskb .memoIn{border:1px solid var(--line);border-radius:6px;padding:4px 8px;font-size:11.5px;flex:1;min-width:100px;color:var(--ink);font-family:inherit}
     .cskb .memoRO{margin-top:8px;font-size:11px;color:var(--sub2);line-height:1.4;word-break:break-word}
+    .cskb .del{margin-left:auto;background:none;border:none;padding:2px 4px;font-size:11px;color:var(--sub2);cursor:pointer;font-family:inherit;text-decoration:underline}
+    .cskb .del:hover{color:var(--red)}
+    .cskb .del:disabled{opacity:.6;cursor:not-allowed}
     .cskb .kempty{padding:22px 10px;text-align:center;color:var(--sub2);font-size:12px}
     .cskb .cs-state{padding:40px 20px;text-align:center;color:var(--sub);font-size:13px;grid-column:1/-1}
     .cskb .cs-banner{background:#FEF2F2;border:1px solid #FCA5A5;border-radius:10px;padding:10px 12px;font-size:12px;color:#991B1B;margin-bottom:14px}
@@ -1619,6 +1622,10 @@
         st.className='st '+(wd?'s-wd':'s-done');
         st.textContent=wd?'철회':(row['유형']||'')+'완료';
         act.appendChild(st);
+        var delBtn=document.createElement('button');
+        delBtn.type='button'; delBtn.className='del'; delBtn.textContent='삭제';
+        delBtn.addEventListener('click',function(){ dismissClaim(row, delBtn); });
+        act.appendChild(delBtn);
         // 스펙 §3: 메모는 단계를 넘어가도 유지 — 대응완료에서도 읽기전용으로 보인다.
         if(row['메모']){
           var m=document.createElement('div');
@@ -1689,6 +1696,19 @@
           load();
         })
         .catch(function(){ alert('확인 처리 실패(네트워크)'); btn.disabled=false; btn.textContent='확인 ✓'; });
+    }
+
+    function dismissClaim(row, btn){
+      if(!confirm('목록에서 삭제할까요? 실제 마켓 데이터는 바뀌지 않고, 이 화면에서만 안 보이게 됩니다.')) return;
+      btn.disabled=true; btn.textContent='삭제 중…';
+      fetch('/orders/cs/claims/dismiss',{method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({claim_key:row['claim_key'],market:row['판매처'],order_no:row['오픈마켓주문번호'],claim_type:row['유형']})})
+        .then(function(r){return r.json();})
+        .then(function(j){
+          if(!j.ok){ alert('삭제 실패: '+(j.error||'')); btn.disabled=false; btn.textContent='삭제'; return; }
+          load();
+        })
+        .catch(function(){ alert('삭제 실패(네트워크)'); btn.disabled=false; btn.textContent='삭제'; });
     }
 
     function saveMemo(row, inp){
