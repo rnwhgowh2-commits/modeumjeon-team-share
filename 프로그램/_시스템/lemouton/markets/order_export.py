@@ -755,10 +755,18 @@ def _coupang_settle_map(since, until, client):
         resp = fetch_revenue_page(rec_from, rec_to, token=token, max_per_page=50, client=client)
         for order in (resp.get("data") or []):
             oid = str(order.get("orderId") or "")
+            # ★부호 규칙(2026-07-16 라이브 raw 실증):
+            #  · deliveryFee.settlementAmount 는 REFUND 주문에서 이미 음수(-9670)로 부호가 실려온다
+            #    → 그대로 합산.
+            #  · items[].settlementAmount 는 REFUND 주문에서도 양수(+93668)로 부호가 없다
+            #    → order.saleType=="REFUND" 면 차감해야 순정산액이 맞다(안 그러면 반품 상품이
+            #    판매처럼 더해져 정산액 2배 과다계상). aggregate_settlements 와 동일 규칙.
+            is_refund = (order.get("saleType") == "REFUND")
+            sign = -1 if is_refund else 1
             damt = (order.get("deliveryFee") or {}).get("settlementAmount")
             if damt is not None:
                 try:
-                    deliv_map[oid] = deliv_map.get(oid, 0) + int(damt)
+                    deliv_map[oid] = deliv_map.get(oid, 0) + int(damt)   # 이미 부호 실림
                 except (TypeError, ValueError):
                     pass
             for it in (order.get("items") or []):
@@ -766,7 +774,7 @@ def _coupang_settle_map(since, until, client):
                 if amt is None or not vid:   # 빈 vid 는 조인 불가(빈키 "" 충돌 방지)
                     continue
                 try:
-                    item_map[(oid, vid)] = item_map.get((oid, vid), 0) + int(amt)
+                    item_map[(oid, vid)] = item_map.get((oid, vid), 0) + sign * int(amt)
                 except (TypeError, ValueError):
                     pass
         if not resp.get("hasNext"):

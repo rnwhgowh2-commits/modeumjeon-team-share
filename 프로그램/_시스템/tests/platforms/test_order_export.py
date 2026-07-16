@@ -349,6 +349,31 @@ def test_coupang_shipping_only_settlement_is_real():
     assert r["_settle_source"] == "real"          # estimated/none 아님
 
 
+def test_coupang_settle_map_refund_subtracts_product():
+    """REFUND 주문의 상품 settlementAmount 는 양수로 오지만(부호 없음) 순정산에서 차감돼야 한다.
+    라이브 raw 실증(2026-07-16): SALE +88450 / REFUND +88450 → 순정산 0. 안 빼면 반품 상품이
+    판매처럼 더해져 정산액 2배 과다계상(금전손실). 배송비 settlementAmount 는 REFUND에서 이미
+    음수(-2900)로 부호가 실려오므로 그대로 합산."""
+    class C:
+        _cfg = {"vendor_id": "A1"}
+        def request(self, method, path, query=""):
+            if "revenue-history" in path and "token=&" in query:   # 첫 페이지만
+                return {"data": [
+                    {"orderId": 7, "saleType": "SALE",
+                     "deliveryFee": {"settlementAmount": 2900},
+                     "items": [{"vendorItemId": 9, "settlementAmount": 88450}]},
+                    {"orderId": 7, "saleType": "REFUND",
+                     "deliveryFee": {"settlementAmount": -2900},
+                     "items": [{"vendorItemId": 9, "settlementAmount": 88450}]},
+                ], "hasNext": False}
+            return {"data": [], "hasNext": False}
+    item_map, deliv_map = oe._coupang_settle_map(
+        dt.datetime(2026, 7, 5, tzinfo=oe.KST),
+        dt.datetime(2026, 7, 8, tzinfo=oe.KST), C())
+    assert item_map[("7", "9")] == 0       # +88450(SALE) − 88450(REFUND) = 0 (버그면 176900)
+    assert deliv_map["7"] == 0             # +2900 + (−2900) = 0 (배송비는 이미 부호 실림)
+
+
 def test_coupang_estimate_shipping_fee_3pct():
     # 미정산 추정: 상품 11.55%(0.8845) + 배송비 3%(0.97). 배송비 있는 주문.
     class C:
