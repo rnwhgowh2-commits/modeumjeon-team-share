@@ -306,16 +306,35 @@ def api_e11_raw():
         return jsonify({"ok": False, "error": "product_id 필요"}), 400
     from lemouton.uploader.market_fetch import _eleven11_client
     from shared.platforms.eleven11 import stocks_query as SQ
+    pid = str(product_id)
+    hdr = '<?xml version="1.0" encoding="euc-kr"?>'
+    # 요청 XML 형식 후보(응답 래퍼 ProductStockss·오류메시지 기반 추정)
+    variants = {
+        "ProductStocks":  f"{hdr}<ProductStocks><prdNo>{pid}</prdNo></ProductStocks>",
+        "ProductStockss": f"{hdr}<ProductStockss><prdNo>{pid}</prdNo></ProductStockss>",
+        "ProductStock":   f"{hdr}<ProductStock><prdNo>{pid}</prdNo></ProductStock>",
+        "Product":        f"{hdr}<Product><prdNo>{pid}</prdNo></Product>",
+        "bare_prdNo":     f"{hdr}<prdNo>{pid}</prdNo>",
+    }
+    out = {}
     try:
         client = _eleven11_client(env_prefix)
-        req_xml = SQ._build_request_xml(str(product_id))
-        resp_xml = client.request("POST", SQ._PATH_STOCKS, req_xml)
     except Exception as e:  # noqa: BLE001
-        import traceback
-        return jsonify({"ok": False, "error": f"{type(e).__name__}: {e}",
-                        "detail": traceback.format_exc()[-800:]}), 200
-    return jsonify({"ok": True, "request_xml": req_xml,
-                    "response_xml": (resp_xml or "")[:4000]})
+        return jsonify({"ok": False, "error": f"client: {type(e).__name__}: {e}"}), 200
+    # POST 변형들
+    for name, body in variants.items():
+        try:
+            resp = client.request("POST", SQ._PATH_STOCKS, body)
+            out[f"POST:{name}"] = (resp or "")[:700]
+        except Exception as e:  # noqa: BLE001
+            out[f"POST:{name}"] = f"ERR {type(e).__name__}: {str(e)[:200]}"
+    # GET 변형(prdNo 쿼리)
+    try:
+        resp = client.request("GET", SQ._PATH_STOCKS + f"?prdNo={pid}")
+        out["GET:query"] = (resp or "")[:700]
+    except Exception as e:  # noqa: BLE001
+        out["GET:query"] = f"ERR {type(e).__name__}: {str(e)[:200]}"
+    return jsonify({"ok": True, "product_id": pid, "results": out})
 
 
 @bp.get("/api/live-send-test/direct-current")
