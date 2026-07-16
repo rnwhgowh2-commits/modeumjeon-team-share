@@ -11,7 +11,7 @@ from shared.db import Base
 from lemouton.sets.models import ProductSet, SetProduct, SetOption
 from lemouton.uploader.scoped_send import (
     resolve_send_mode, skus_for_set, _keep_market, _preview_row,
-    scope_c_output_to_markets,
+    scope_c_output_to_markets, build_explicit_c_output, run_explicit,
 )
 
 
@@ -118,3 +118,102 @@ def test_skus_for_set_distinct(session):
 
 def test_skus_for_set_empty_for_unknown(session):
     assert skus_for_set(session, 999) == []
+
+
+# ── 직접 값 지정: 합성 c_output (순수) ────────────────────────────────────────
+def test_build_explicit_c_output_smartstore_uses_base_plus_add():
+    c = build_explicit_c_output(market="smartstore", model_code_key="SKU_A",
+                                product_id="P1", option_id="opt1",
+                                price=12000, stock=7)
+    # 스마트스토어 = base_price + add_price(0) 형태 → _extract_uploads 가 12000 계산
+    assert list(c.keys()) == ["smartstore", "alerts"]
+    payload = c["smartstore"]["SKU_A"]
+    assert payload["product_id"] == "P1"
+    assert payload["base_price"] == 12000
+    assert payload["options"] == [{"option_id": "opt1", "add_price": 0, "stock": 7}]
+
+
+def test_build_explicit_c_output_coupang_flat_price():
+    c = build_explicit_c_output(market="coupang", model_code_key="SKU_B",
+                                product_id="P2", option_id="v99",
+                                price=9000, stock=0)
+    payload = c["coupang"]["SKU_B"]
+    assert payload["options"] == [{"option_id": "v99", "price": 9000, "stock": 0}]
+    # 지정 마켓만 존재 — 다른 마켓 키 절대 미포함
+    assert "smartstore" not in c and "lotteon" not in c
+
+
+def test_build_explicit_c_output_contains_only_one_option():
+    from lemouton.uploader.orchestrator import _extract_uploads
+    c = build_explicit_c_output(market="lotteon", model_code_key="SKU_C",
+                                product_id="P3", option_id="sitm7",
+                                price=5000, stock=3)
+    sku_by_option = {("lotteon", "sitm7"): "SKU_C",
+                     ("coupang", "other"): "SKU_X"}   # 다른 옵션도 매핑엔 있음
+    uploads = _extract_uploads(c, sku_by_option)
+    # 합성 페이로드에 그 옵션만 있으므로 정확히 1건, 다른 옵션 0
+    assert len(uploads) == 1
+    assert uploads[0]["market"] == "lotteon"
+    assert uploads[0]["market_option_id"] == "sitm7"
+    assert uploads[0]["new_price"] == 5000
+    assert uploads[0]["new_stock"] == 3
+
+
+# ── run_explicit: price_guard · 미매칭 · force(동일값 전송) ─────────────────────
+def test_run_explicit_price_guard_blocks_zero(monkeypatch):
+    monkeypatch.delenv("MOUM_LIVE_UPLOAD", raising=False)
+    # 0원 → price_guard 가 페이로드 만들기 전에 차단(session 은 건드리지 않음)
+    out = run_explicit(None, canonical_sku="SKU_A", market="smartstore",
+                       market_product_id="P1", market_option_id="opt1",
+                       new_price=0, new_stock=5, want_live=True, confirmed=True)
+    assert out["price_error"] and out["result"] is None
+
+
+def test_run_explicit_unmatched_option_surfaced(session, monkeypatch):
+    monkeypatch.delenv("MOUM_LIVE_UPLOAD", raising=False)
+    # 등록(matched)된 옵션이 없으면 정직히 실패(전송 0)
+    out = run_explicit(session, canonical_sku="SKU_A", market="smartstore",
+                       market_product_id="P1", market_option_id="opt1",
+                       new_price=10000, new_stock=5, want_live=True, confirmed=True)
+    assert out["result"] is None
+    assert "matched" in out["error"]
+
+
+@pytest.fixture
+def matched_session():
+    from lemouton.sets.models import (ProductSet, SetChannel, SetChannelOption)
+    from lemouton.uploader.models import MarketRegistration   # 테이블 생성 위해 import
+    eng = create_engine("sqlite:///:memory:", future=True)
+    Base.metadata.create_all(eng)
+    S = sessionmaker(bind=eng, future=True, expire_on_commit=False)
+    s = S()
+    s.add_all([
+        ProductSet(id=1, model_code="M1", name="세트1"),
+        SetChannel(id=5, set_id=1, market="smartstore",
+                   account_key="default", market_product_id="P1"),
+        SetChannelOption(channel_id=5, canonical_sku="SKU_A",
+                         market_option_id="opt1", status="matched"),
+        # 직전 동기화값 = 명시값과 동일 → force 없으면 변동 없음(skip)
+        MarketRegistration(canonical_sku="SKU_A", market="smartstore",
+                           last_synced_price=10000, last_synced_stock=5),
+    ])
+    s.commit()
+    try:
+        yield s
+    finally:
+        s.close()
+
+
+def test_run_explicit_force_sends_even_when_unchanged(matched_session, monkeypatch):
+    # 서버키 off → use_real False(드라이런). force=True 라 동일값도 전송 대상이 되어야 함.
+    monkeypatch.delenv("MOUM_LIVE_UPLOAD", raising=False)
+    out = run_explicit(matched_session, canonical_sku="SKU_A", market="smartstore",
+                       market_product_id="P1", market_option_id="opt1",
+                       new_price=10000, new_stock=5, want_live=True, confirmed=True)
+    assert out["use_real"] is False          # 서버키 off → 드라이런
+    assert out["price_error"] is None
+    res = out["result"]
+    # 동일값이어도 force 로 전송 대상(드라이런 어댑터 성공) → uploaded 1, skipped 0
+    assert res["uploaded"] == 1
+    assert res["skipped"] == 0
+    assert res["failed"] == 0
