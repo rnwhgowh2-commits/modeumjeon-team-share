@@ -67,7 +67,9 @@
     <details style="margin-top:12px">
       <summary style="cursor:pointer;font-size:12.5px;color:#1d4ed8">수동 수집(현재 로그인된 1계정만) · 기간 지정</summary>
       <div style="display:flex;gap:8px;align-items:center;margin-top:8px;flex-wrap:wrap">
-        <input id="stl-trno" class="cl-inp" style="width:200px" placeholder="판매자ID — 비우면 자동감지">
+        <input id="stl-trno" class="cl-inp" style="width:200px" placeholder="판매자ID — 비우면 자동감지"
+               name="lotteon_trno_nofill" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"
+               readonly onfocus="this.removeAttribute('readonly')">
         <input id="stl-since" class="cl-inp" type="date" style="width:150px">
         <span style="color:#6B7684">~</span>
         <input id="stl-until" class="cl-inp" type="date" style="width:150px">
@@ -96,11 +98,16 @@
     {% for a in accounts %}
     <div class="cl-card{% if not a.saved %} editing{% endif %}" data-prefix="{{ a.env_prefix }}">
       <span class="cl-logo">롯</span>
-      <div class="cl-fields">
+      <div class="cl-fields" style="grid-template-columns:1fr 1fr 1fr">
         <div class="cl-field">
           <label>판매자센터 아이디</label>
           <input class="cl-inp cl-id" type="text" autocomplete="off" value="{{ a.login_id }}"
                  placeholder="아이디" data-name="{{ a.display_name }}">
+        </div>
+        <div class="cl-field">
+          <label>판매자ID (LO~) {% if a.tr_no %}<span style="color:#0a7a55">· {{ a.tr_no }}</span>{% endif %}</label>
+          <input class="cl-inp cl-trno" type="text" autocomplete="off" value="{{ a.tr_no }}"
+                 placeholder="예: LO10161082">
         </div>
         <div class="cl-field">
           <label>비밀번호 {% if a.saved %}<span style="color:#0a7a55">· 저장됨</span>{% endif %}</label>
@@ -147,11 +154,17 @@
   var now=new Date(),ago=new Date();ago.setDate(ago.getDate()-60);
   var eu=document.getElementById('stl-until'),es=document.getElementById('stl-since');
   if(eu)eu.value=ymd(now); if(es)es.value=ymd(ago);
+  // ★크롬 자동완성이 trNo 칸에 로그인 아이디를 몰래 채워 잘못된 ID로 조회되던 것 방지 —
+  //   로드 직후 여러 번 비우고(자동완성은 지연 발생), 제출 시엔 LO 형식 아니면 무시.
+  var trEl=document.getElementById('stl-trno');
+  function clearTr(){ if(trEl) trEl.value=''; }
+  clearTr(); [150,400,900,1500].forEach(function(ms){setTimeout(clearTr,ms);});
 
   // 수집 1회 실행(버튼·스케줄 공용). isAuto=true 면 자동 실행(버튼 비활성화 안 함).
   async function runCollect(isAuto){
     var out=document.getElementById('stl-result');
     var trNo=(document.getElementById('stl-trno').value||'').trim();
+    if(trNo && !/^LO\d{6,}$/i.test(trNo)) trNo='';   // 자동완성 쓰레기값(로그인ID 등) 무시 → 자동감지
     var since=(document.getElementById('stl-since').value||'').replace(/-/g,'');
     var until=(document.getElementById('stl-until').value||'').replace(/-/g,'');
     if(!window.MoumExt||!window.MoumExt.installed()){out.style.color='#c00';out.textContent='확장(모음전 크롤러) 미설치/미로드 — 리로드 후 다시';return false;}
@@ -165,7 +178,18 @@
       if(resp&&resp.ok&&resp.rows){
         out.textContent=tag+'수집 '+resp.collected+'주문 — 서버 반영 중…';
         var pr=await fetch('/api/margin/lotteon-settlement',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify(resp.rows)}).then(x=>x.json()).catch(function(){return null;});
-        out.style.color='#0a7a55';out.textContent='✔ '+tag+'수집 '+resp.collected+'주문 · 서버반영 '+((pr&&pr.upserted)||0)+'건 (라인 '+resp.lines+'/'+resp.total+')';
+        // 수집된 판매자ID(LO~)를 저장된 카드와 매칭 → 어느 계정인지 명확히(라벨 검증)
+        var acctName='';
+        try{
+          var cards=Array.prototype.slice.call(document.querySelectorAll('.cl-card[data-prefix]'));
+          for(var ci=0;ci<cards.length;ci++){
+            var tv=(cards[ci].querySelector('.cl-trno')||{}).value||'';
+            if(tv && resp.trNo && tv.toUpperCase()===(''+resp.trNo).toUpperCase()){
+              var nm=cards[ci].querySelector('.cl-name'); acctName=nm?(' = '+nm.textContent.trim()):''; break;
+            }
+          }
+        }catch(_){}
+        out.style.color='#0a7a55';out.textContent='✔ '+tag+'수집 '+resp.collected+'주문 · 서버반영 '+((pr&&pr.upserted)||0)+'건 · '+(resp.trNo||'')+acctName+' (라인 '+resp.lines+'/'+resp.total+')';
         okAll=true;
       }
       else{out.style.color='#c00';out.textContent=tag+'실패: '+((resp&&resp.error)||(r&&r.error)||'알 수 없음')+(isAuto?' — 판매자센터 로그인 확인':'');}
@@ -191,6 +215,7 @@
     var since=(document.getElementById('stl-since').value||'').replace(/-/g,'');
     var until=(document.getElementById('stl-until').value||'').replace(/-/g,'');
     var sum={ok:0,verify:0,fail:0};
+    var verifyNames=[], failNames=[];
     out.style.color='#334';out.textContent=(isAuto?'[자동] ':'')+'전체 자동 시작 — '+cards.length+'계정';
     for(var i=0;i<cards.length;i++){
       var prefix=cards[i].dataset.prefix;
@@ -207,8 +232,8 @@
         span.textContent='로그인+수집 중…';
         var r=await window.MoumExt.send('lotteon.account.collect',{login_id:creds.login_id,password:creds.password,since:since,until:until},240000);
         var resp=(r&&r.resp)?r.resp:r;
-        if(resp&&resp.needs_verify){span.textContent='⚠ 본인인증 필요 — 이 계정만 건너뜀(직접 로그인 후 재시도)';span.style.color='#8a6100';sum.verify++;continue;}
-        if(!(resp&&resp.ok&&resp.rows)){span.textContent='실패: '+((resp&&resp.error)||'불명');span.style.color='#c00';sum.fail++;continue;}
+        if(resp&&resp.needs_verify){span.textContent='⚠ 2단계 인증(SMS) 필요 — 직접 로그인 후 「정산 수집」';span.style.color='#8a6100';sum.verify++;verifyNames.push(name);continue;}
+        if(!(resp&&resp.ok&&resp.rows)){span.textContent='실패: '+((resp&&resp.error)||'불명');span.style.color='#c00';sum.fail++;failNames.push(name);continue;}
         span.textContent='수집 '+resp.collected+'주문 — 서버 반영 중…';
         var pr=await fetch('/api/margin/lotteon-settlement',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify(resp.rows)}).then(function(x){return x.json();}).catch(function(){return null;});
         span.textContent='✔ '+resp.collected+'주문 · 서버반영 '+((pr&&pr.upserted)||0)+'건'+(resp.trNo?(' ('+resp.trNo+')'):'');span.style.color='#0a7a55';sum.ok++;
@@ -216,7 +241,17 @@
     }
     try{ await window.MoumExt.send('lotteon.closetab',{},15000); }catch(_){}   // 전용 탭 정리
     out.style.color=(sum.fail?'#c00':'#0a7a55');
-    out.textContent='완료 — 성공 '+sum.ok+' · 본인인증필요 '+sum.verify+' · 실패 '+sum.fail;
+    out.textContent='완료 — 자동수집 '+sum.ok+' · 2단계인증필요 '+sum.verify+' · 실패 '+sum.fail;
+    // ★2단계 인증 뜬 계정 명확히 알림(사용자가 직접 로그인 후 「정산 수집」)
+    if(verifyNames.length||failNames.length){
+      var banner=document.createElement('div');
+      banner.style.cssText='margin-top:8px;padding:10px 12px;border-radius:8px;background:#FFF7E6;border:1px solid #f2dca0;color:#664d03;font-size:12.5px;line-height:1.6';
+      var html='';
+      if(verifyNames.length) html+='<b>🔒 2단계 인증(SMS)이 떠서 자동 로그인 안 된 계정:</b><br>'+verifyNames.join(' · ')+'<br>→ 각 계정 판매자센터에 <b>직접 로그인</b>(인증 완료) 후, 아래 「수동 수집」의 <b>「정산 수집」</b>을 눌러주세요.';
+      if(failNames.length) html+=(verifyNames.length?'<br><br>':'')+'<b>⚠ 수집 실패:</b> '+failNames.join(' · ');
+      banner.innerHTML=html;
+      listBox.appendChild(banner);
+    }
     if(!isAuto)abtn.disabled=false;
     _fullRunning=false;
     return sum;
@@ -256,12 +291,15 @@ document.querySelectorAll('.cl-save').forEach(function(btn){
     var prefix = card.dataset.prefix;
     var loginId = card.querySelector('.cl-id').value.trim();
     var pw = card.querySelector('.cl-pw').value;
+    var trNoEl = card.querySelector('.cl-trno');
+    var trNo = (trNoEl && trNoEl.value || '').trim();
     var name = card.querySelector('.cl-id').dataset.name;
     if(!loginId){ alert('아이디를 입력하세요'); return; }
+    if(trNo && !/^LO\d{6,}$/i.test(trNo)){ alert('판매자ID는 LO로 시작하는 번호예요 (예: LO10161082)'); return; }
     btn.disabled = true; btn.textContent = '저장 중…';
     fetch('/accounts/api/crawl-login/' + encodeURIComponent(prefix), {
       method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({login_id: loginId, password: pw})
+      body: JSON.stringify({login_id: loginId, password: pw, tr_no: trNo})
     }).then(function(r){ return r.json(); }).then(function(d){
       btn.disabled = false; btn.textContent = '저장';
       if(!d.ok){ alert('저장 실패: ' + (d.error||'')); return; }

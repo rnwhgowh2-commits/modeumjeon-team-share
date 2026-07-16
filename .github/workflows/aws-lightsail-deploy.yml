@@ -19,6 +19,10 @@ on:
         description: '이번 배포만 자동전환 실전환 켜기(MOUM_LIVE_CONFIRM=1). ⚠️ 검증 끝나면 반드시 일반 배포(push)로 되돌려 끌 것.'
         type: boolean
         default: false
+      arm_live_upload:
+        description: '이번 배포만 가격·재고 실전송 켜기(MOUM_LIVE_UPLOAD=1). ⚠️ 검증 끝나면 반드시 일반 배포(push)로 되돌려 끌 것.'
+        type: boolean
+        default: false
 
 jobs:
   deploy:
@@ -64,6 +68,7 @@ jobs:
                 -p 80:8080 --env-file ~/app.env $EXTRA -e DISABLE_AUTH=1 \
                 -e MOUM_LIVE_INVOICE=1 \
                 ${{ github.event.inputs.arm_live_confirm == 'true' && '-e MOUM_LIVE_CONFIRM=1' || '' }} \
+                ${{ (vars.LIVE_UPLOAD_ARMED == '1' || github.event.inputs.arm_live_upload == 'true') && '-e MOUM_LIVE_UPLOAD=1' || '' }} \
                 -v /home/ubuntu/ui_secrets:/data/secrets \
                 -e MOUM_SECRETS_ENV=/data/secrets/.env modeumjeon \
                 || { echo "[deploy] ❌ docker run 실패 — 컨테이너 미교체"; exit 1; }

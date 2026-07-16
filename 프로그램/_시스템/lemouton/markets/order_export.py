@@ -26,7 +26,7 @@ def _until_now(until):
 ALL_COLUMNS = ["주문일", "판매처", "주문상태", "상품명", "옵션", "수량",
                "수령자", "수령자전화번호", "주소", "우편번호", "배송메시지",
                "구매자", "구매자번호", "단가", "배송비", "상품금액", "주문금액",
-               "정산예정금액",
+               "정산예정금액", "판매경로",
                # 샵마인 대조로 추가(2026-07-08) — 판매처관리 계정명·주문번호·수수료·송장 등.
                "오픈마켓주문번호", "쇼핑몰별칭", "송장입력", "실결제금액",
                "총주문금액", "옵션추가금", "마켓수수료", "수수료율", "정산예정금(배송비포함)"]
@@ -46,6 +46,7 @@ COLUMN_META = {
     "상품금액":     {"kind": "calc", "desc": "단가 × 수량"},
     "주문금액":     {"kind": "calc", "desc": "상품금액 + 배송비"},
     "정산예정금액": {"kind": "calc", "desc": "상품정산 + 배송비정산(수수료 차감)"},
+    "판매경로":     {"kind": "api",  "desc": "롯데온 유입경로(제휴=상품가 2% 수수료 / 롯데ON=0). 크롤 1회 확정·재판단 없음"},
     "오픈마켓주문번호": {"kind": "api",  "desc": "마켓 주문번호(ordNo·odNo·orderId 등)"},
     "쇼핑몰별칭":   {"kind": "calc", "desc": "판매처관리 계정명(별칭)"},
     "송장입력":     {"kind": "api",  "desc": "송장번호(없으면 '송장미입력')"},
@@ -197,27 +198,45 @@ def smartstore_order_rows(since: _dt.datetime, until: _dt.datetime,
     #   창밖 여분 행은 하류 _filter_by_order_date(마진)·probe want 셋(검증)이 주문일로 되잘라낸다.
     fetch_until = _until_now(until)
     ids = iter_changed_product_order_ids(since, fetch_until, client=client)
-    detail = []
-    for i in range(0, len(ids), 300):
-        d = fetch_order_detail(ids[i:i + 300], client=client)
-        detail += (d.get("data", d) if isinstance(d, dict) else d) or []
 
-    # 정산(결제일 기준, 하루씩): 상품(productOrderId) + 배송비(DELIVERY→orderId) 별도 맵.
-    # include_settlement=False(배송검사 등 주문상태·송장만 필요) 면 이 하루씩 루프를 건너뛴다
-    # — 넓은 조회창에서 하루씩 정산 호출이 타임아웃의 원인.
-    prod_settle, deliv_settle = {}, {}
-    day = since
-    while include_settlement and day <= until:
+    # ── 병렬 조회(속도) — 상세(배치)와 정산(하루씩)은 서로 독립이라 한 스레드풀에서 동시에 쏜다.
+    #   스스 AdaptiveLimiter(스레드락 토큰버킷·429 응답 시 rate 반감)가 요청률을 자기조정하므로
+    #   바운드 4워커면 429 위험 없이 겹친 왕복만 줄인다. 결과 병합은 순차와 동일:
+    #   detail 은 배치 순서대로 concat, deliv_settle 은 날짜 무관 누산(가산·교환법칙).
+    #   정산(하루씩)이 넓은 조회창에서 타임아웃의 주원인 → 여기서 가장 크게 단축된다.
+    _id_batches = [ids[i:i + 300] for i in range(0, len(ids), 300)]
+    _settle_days = []
+    if include_settlement:
+        _d = since
+        while _d <= until:
+            _settle_days.append(_d)
+            _d += _dt.timedelta(days=1)
+
+    def _ss_detail(batch):
+        d = fetch_order_detail(batch, client=client)
+        return (d.get("data", d) if isinstance(d, dict) else d) or []
+
+    def _ss_settle_day(day):
         try:
-            p, d = _settle.settle_expect_maps(
+            return _settle.settle_expect_maps(
                 search_date=day.strftime("%Y-%m-%d"),
                 period_type="SETTLE_CASEBYCASE_PAY_DATE", client=client)
-            prod_settle.update(p)
-            for k, v in d.items():
-                deliv_settle[k] = deliv_settle.get(k, 0) + v
         except Exception:
-            pass
-        day += _dt.timedelta(days=1)
+            return ({}, {})
+
+    detail = []
+    prod_settle, deliv_settle = {}, {}
+    if _id_batches or _settle_days:
+        with _ThreadPool(max_workers=4) as _ex:
+            _fut_detail = [_ex.submit(_ss_detail, b) for b in _id_batches]
+            _fut_days = [_ex.submit(_ss_settle_day, d) for d in _settle_days]
+            for _f in _fut_detail:                     # 배치 순서 보존 = 순차와 동일
+                detail += _f.result()
+            for _f in _fut_days:
+                p, d = _f.result()
+                prod_settle.update(p)
+                for k, v in d.items():
+                    deliv_settle[k] = deliv_settle.get(k, 0) + v
 
     rows = []
     _deliv_used = set()   # 배송비 정산은 주문당 1회만 더함
@@ -298,6 +317,68 @@ def smartstore_order_rows(since: _dt.datetime, until: _dt.datetime,
                 or _g(od, "orderDate") or "")
         rows.append(_row)
     return rows
+
+
+# 롯데온 odPrgsStepCd 중 회수·반품·취소 '진행/종결' 코드(클레임 이벤트).
+#   21취소완료·22철회·23회수지시·24회수진행·25회수완료·26회수확정·27반품완료.
+_LO_CLAIM_STEP_CODES = {"21", "22", "23", "24", "25", "26", "27"}
+
+
+def _lotteon_odno_date(odno) -> Optional[str]:
+    """롯데온 주문번호 앞 8자리(YYYYMMDD)=실주문일 → 'YYYY-MM-DD'. 형식·날짜 무효면 None.
+
+    (라이브 2026-07-16: 정상 주문행 108/108 이 주문번호 앞자리=주문일 일치. 11번가 ordNo[:8]
+    보정과 동일 관행.)
+    """
+    s = str(odno or "")
+    if len(s) >= 8 and s[:2] == "20" and s[:8].isdigit():
+        try:
+            _dt.date(int(s[0:4]), int(s[4:6]), int(s[6:8]))
+            return f"{s[0:4]}-{s[4:6]}-{s[6:8]}"
+        except ValueError:
+            return None
+    return None
+
+
+def _reclassify_lotteon_returns(rows: list) -> list:
+    """209(출고/회수지시) 경로 행의 주문일 이벤트일 오염을 바로잡는다.
+
+    209(SellerDeliveryOrdersSearch)는 회수지시·교환 재출고 건도 돌려주는데, 그 행의
+    odCmptDttm 는 '배송(회수/재출고)지시 생성일시'라 옛 주문(예: 07-14 주문)의 주문일이
+    지시일(오늘)로 오염돼 new_order_rows(오늘 신규주문)에 잘못 섞인다(라이브 실측 2026-07-16:
+    회수지시 3건). 회수지시(코드 23)뿐 아니라 교환 재출고(정상 출고코드 11~15로 재유입)도 같은
+    버그클래스라, **상태코드와 무관하게** 주문번호 앞 8자리(실주문일)와 주문일의 날짜가 다르면
+    이벤트일 오염으로 보고 실주문일로 복원한다(당일 출고 정상건은 날짜 동일 → 시각 포함 원값 유지).
+
+    복원 후: new_order_rows 는 실주문일로 오늘에서 제외한다. 나아가 회수·반품·취소 진행상태
+    (코드 21~27)는 클레임 이벤트이므로 _kind='change'(+_change_date=이벤트 시각)로 재분류해
+    status_change_rows(CS 상태변경 탭)가 변경일로 잡게 하고, 같은 주문·상품의 원출고행+회수행
+    중복은 (주문번호·상품·옵션) 기준으로 최신 이벤트 1건만 남긴다. 교환 재출고(11~15)는 주문일만
+    복원하고 order 로 유지(재출고=배송 진행이라 CS 대상 아님) — 실주문일 덕에 오늘엔 안 섞인다.
+    """
+    others: list = []
+    claims: dict = {}   # (odNo, 상품명, 옵션) → 유지행(최신 _change_date)
+    for r in rows:
+        if not r.get("_shipkey"):
+            others.append(r)            # 비209행(클레임행 등)은 그대로
+            continue
+        code = str(r.get("주문상태원본") or "")
+        odno = str(r.get("오픈마켓주문번호") or "")
+        odt = str(r.get("주문일") or "")   # 209 원본 주문일(정상=주문일 / 회수·재출고=이벤트일)
+        real = _lotteon_odno_date(odno)
+        # 이벤트일 오염 복원 — 코드 무관: 주문번호(실주문일) ≠ 주문일 날짜면 이벤트일로 판단.
+        if real and odt[:10] != real:
+            r["주문일"] = real
+        if code not in _LO_CLAIM_STEP_CODES:
+            others.append(r)            # 정상 출고·교환 재출고(11~15) → order 유지(날짜만 복원됨)
+            continue
+        r["_kind"] = "change"           # 회수·반품·취소(21~27) → 클레임 이벤트로 재분류
+        r["_change_date"] = odt         # 이벤트 시각(복원 전 원 주문일)
+        gk = (odno, str(r.get("상품명") or ""), str(r.get("옵션") or ""))
+        prev = claims.get(gk)
+        if prev is None or odt > str(prev.get("_change_date") or ""):
+            claims[gk] = r               # 원출고행+회수행 중복 → 최신 이벤트 1건만
+    return others + list(claims.values())
 
 
 def lotteon_order_rows(since: _dt.datetime, until: _dt.datetime,
@@ -470,8 +551,40 @@ def lotteon_order_rows(since: _dt.datetime, until: _dt.datetime,
             itmd, aff_by_spd = _lo_settle.scan(since, _lo_fetch_until, client=client)
         except Exception:   # noqa: BLE001
             itmd, aff_by_spd = {}, {}
+
+    # ── 크롤 정산(판매자센터) 캐시 로드 — 라인별 실정산액(pymtTgtAmt)+판매경로(제휴 여부).
+    #    ★제휴 판단은 크롤로 1회 확정되면 sl_chnl 에 박혀 여기서 재사용(재판단·중복작업 불필요).
+    cmap, chnlmap = {}, {}
+    try:
+        from lemouton.sourcing.models_v2 import LotteonSettlement
+        from shared.db import SessionLocal as _SL
+        ods = {str(r.get("오픈마켓주문번호") or "") for r in rows}
+        ods.discard("")
+        if ods:
+            with _SL() as _s:
+                for x in _s.query(LotteonSettlement).filter(
+                        LotteonSettlement.od_no.in_(list(ods))).all():
+                    cmap[(x.od_no, str(x.od_seq))] = x.pymt_tgt_amt
+                    if x.sl_chnl:
+                        chnlmap[(x.od_no, str(x.od_seq))] = x.sl_chnl
+    except Exception:   # noqa: BLE001 — DB 없거나 조회 실패 시 추정 경로로 폴백(추측 폴백 아님)
+        cmap, chnlmap = {}, {}
+
+    def _lo_affiliate(r):
+        """제휴 여부 — 크롤 저장 판매경로(확정) 최우선, 없으면 상품별 이력(추정). (is_aff, 판매경로라벨)."""
+        key = (str(r.get("오픈마켓주문번호") or ""), str(r.get("_odseq") or "1"))
+        chnl = chnlmap.get(key)
+        if chnl is not None:
+            return ("제휴" in chnl), chnl                       # 확정(크롤 1회 판단)
+        aff = bool(aff_by_spd.get(str(r.get("_lo_spdno") or ""), False))
+        return aff, ("제휴" if aff else "롯데ON")               # 추정(상품별 이력)
+
     for r in rows:
         odno = str(r.get("오픈마켓주문번호") or "")
+        aff, chnl_label = _lo_affiliate(r)
+        r["판매경로"] = chnl_label                              # 표시용(제휴/롯데ON)
+        r["제휴수수료율"] = 2 if aff else 0                     # 제휴면 2%(표시)
+        r["_lo_is_affiliate"] = aff
         hit = itmd.get(odno)
         if hit:                                  # 구매확정 = 마켓 실지급액(정확)
             r["정산예정금액"] = hit["pymtAmt"]
@@ -480,34 +593,24 @@ def lotteon_order_rows(since: _dt.datetime, until: _dt.datetime,
         slamt = _to_int(r.get("_lo_slAmt"))
         if slamt is None:                        # 209 성분 없음(클레임행 등) → 유지
             continue
-        aff = bool(aff_by_spd.get(str(r.get("_lo_spdno") or ""), False))
         dvc = _to_int(r.get("_lo_dvcst"), 0) or 0
         r["정산예정금액"] = _lo_calc(
             slamt, dvc, dvc,
             _to_int(r.get("_lo_seller_dc"), 0) or 0,
             _to_int(r.get("_lo_platform_dc"), 0) or 0,
             aff)
-        r["_settle_source"] = "estimated"        # 구매확정 전 추정(제휴는 상품별 이력)
+        r["_settle_source"] = "estimated"        # 구매확정 전 추정(제휴는 크롤확정 or 상품별 이력)
 
     # ── 크롤 정산(판매자센터 pymtTgtAmt) 최우선 — 미정산 포함 오차0 ──
-    try:
-        from lemouton.sourcing.models_v2 import LotteonSettlement
-        from shared.db import SessionLocal as _SL
-        ods = {str(r.get("오픈마켓주문번호") or "") for r in rows}
-        ods.discard("")
-        cmap = {}
-        if ods:
-            with _SL() as _s:
-                for x in _s.query(LotteonSettlement).filter(
-                        LotteonSettlement.od_no.in_(list(ods))).all():
-                    cmap[(x.od_no, str(x.od_seq))] = x.pymt_tgt_amt
-        for r in rows:
-            v = cmap.get((str(r.get("오픈마켓주문번호") or ""), str(r.get("_odseq") or "1")))
-            if v is not None:
-                r["정산예정금액"] = v
-                r["_settle_source"] = "real"
-    except Exception:   # noqa: BLE001 — DB 없거나 조회 실패 시 기존값 유지(폴백 아님)
-        pass
+    for r in rows:
+        v = cmap.get((str(r.get("오픈마켓주문번호") or ""), str(r.get("_odseq") or "1")))
+        if v is not None:
+            r["정산예정금액"] = v
+            r["_settle_source"] = "real"
+
+    # 회수·반품·취소 진행상태(209 경로)는 주문일이 회수지시 시각으로 오염됨 →
+    #   실주문일 복원 + change 재분류(옛 주문이 '오늘 신규주문'에 새는 것 방지).
+    rows = _reclassify_lotteon_returns(rows)
     return rows
 
 
@@ -543,13 +646,49 @@ def coupang_order_rows(since: _dt.datetime, until: _dt.datetime,
     from shared.platforms.coupang.orders import fetch_orders
 
     statuses = ["ACCEPT", "INSTRUCT", "DEPARTURE", "DELIVERING", "FINAL_DELIVERY"]
-    seen, rows = set(), []
-    for _w0, _w1 in _cp_windows(since, until):   # 발주서 조회 최대 31일 → 30일 윈도우(seen 이 창 간 중복 제거)
-      for st in statuses:
-        token = None
+    # ── 병렬 조회(속도) — 주문상태별 발주서·정산·반품·교환 조회는 서로 독립이라 한 번에 동시로 쏜다.
+    #   같은 client 를 여러 스레드가 써도 안전: request()가 매 호출 새 requests.request 를 만들고
+    #   스레드락 토큰버킷 리미터(초당 rate 캡 + 429 자동 백오프)가 요청률을 조절 → 경합·요청률
+    #   증가 없음(429 위험 불변). 행 구성·중복제거·정산적용·클레임구성은 조회 후 순차(인메모리)로
+    #   하므로 결과는 순차 실행과 동일하다(느린 왕복만 겹쳐 대기시간 단축).
+    from shared.platforms.coupang import claims as _cc
+    _settle_until = _until_now(until)
+    _claim_until = _until_now(until)
+
+    def _cp_fetch_boxes(w0, w1, st):
+        out, token = [], None
         for _ in range(50):   # nextToken 페이징 안전 상한
-            resp = fetch_orders(_w0, _w1, client=client, status=st, next_token=token)
+            resp = fetch_orders(w0, w1, client=client, status=st, next_token=token)
             for box in (resp.get("data") or []):
+                out.append((st, box))
+            token = resp.get("nextToken")
+            if not token:
+                break
+        return out
+
+    def _cp_safe_list(fn):
+        try:
+            return list(fn(since, _claim_until, client=client))
+        except Exception:   # noqa: BLE001 — 클레임 조회 실패는 활성 주문 유지
+            return []
+
+    _box_tasks = [(w0, w1, st) for (w0, w1) in _cp_windows(since, until) for st in statuses]
+    with _ThreadPool(max_workers=8) as _ex:
+        _fut_boxes = [_ex.submit(_cp_fetch_boxes, w0, w1, st) for (w0, w1, st) in _box_tasks]
+        _fut_settle = _ex.submit(_coupang_settle_map, since, _settle_until, client) \
+            if include_settlement else None
+        _fut_ret = _ex.submit(_cp_safe_list, _cc.iter_returns)
+        _fut_exc = _ex.submit(_cp_safe_list, _cc.iter_exchanges)
+        _box_results = [f.result() for f in _fut_boxes]     # 태스크 순서 보존 = 순차와 동일 중복제거
+        try:
+            item_settle, deliv_settle = _fut_settle.result() if _fut_settle else ({}, {})
+        except Exception:
+            item_settle, deliv_settle = {}, {}
+        _ret_raw, _exc_raw = _fut_ret.result(), _fut_exc.result()
+
+    seen, rows = set(), []
+    for _boxes in _box_results:
+        for st, box in _boxes:
                 orderer = box.get("orderer") or {}
                 rcv = box.get("receiver") or {}
                 addr = (str(rcv.get("addr1") or "") + " " + str(rcv.get("addr2") or "")).strip()
@@ -591,25 +730,10 @@ def coupang_order_rows(since: _dt.datetime, until: _dt.datetime,
                         "오픈마켓주문번호": box.get("orderId") or "",
                         "송장입력": it.get("invoiceNumber") or box.get("invoiceNumber") or "",
                     })
-            token = resp.get("nextToken")
-            if not token:
-                break
 
-    # 정산예정금액 = 상품 정산 + 배송비 정산(주문당 1회).
-    #  1) 실제(revenue-history): items.settlementAmount + deliveryFee.settlementAmount.
-    #  2) 미정산(최근): 추정 = round(단가×수량×0.8845) + round(배송비×0.8845).
-    #     ⚠️ 배송비 실수수료율은 상품과 달라(문서 확인) 추정의 배송비분은 근사.
-    try:
-        # ★ 정산 조회창은 now 로 넓힌다 — 쿠팡 revenue-history 는 recognitionDate(정산 인식일)
-        #   기준인데 인식은 주문보다 늦게(구매확정 후) 일어난다. 주문 기간(until)까지만 조회하면
-        #   그 뒤 인식된 정산을 놓쳐 정산완료 주문도 estimated 로 남는다(260704 재분석 실측:
-        #   쿠팡 92건 estimated). 롯데온 commission_map·클레임 조회가 이미 쓰는 max(until, now)
-        #   패턴과 동일. _cp_windows 가 30일 분할하므로 장기 조회도 안전.
-        _settle_until = _until_now(until)
-        item_settle, deliv_settle = _coupang_settle_map(since, _settle_until, client) \
-            if include_settlement else ({}, {})
-    except Exception:
-        item_settle, deliv_settle = {}, {}
+    # 정산예정금액 = 상품 정산(item_settle) + 배송비 정산(deliv_settle, 주문당 1회).
+    #  revenue-history 조회는 위 스레드풀에서 주문·클레임과 동시에 끝냈다(_settle_until=now 로 넓혀
+    #  조회 — 정산 인식일 기준이라 주문 기간 뒤 인식분까지 포함). 아래는 그 결과 적용(인메모리).
     _deliv_used = set()
     for r in rows:
         # vid 도 oid 처럼 str 정규화(양쪽 대칭). ordersheets(문자열)↔revenue-history(정수)
@@ -652,7 +776,7 @@ def coupang_order_rows(since: _dt.datetime, until: _dt.datetime,
 
     # ── 취소/반품/교환 병합(returnRequests + exchangeRequests, MCP 실측 2026-07-09) ──
     #  활성 발주서에 없는 주문만 추가. 쿠팡 주문번호는 날짜 미인코딩 → 주문일=접수일(createdAt) 근사.
-    from shared.platforms.coupang import claims as _cc
+    #  ★반품·교환 원시 목록은 위 스레드풀에서 이미 받아 _ret_raw·_exc_raw 에 담겨 있다(동시 조회).
 
     def _cp_claim_row(odno, status, name, opt, qty, unit, reason, buyer, cdt, raw_code="",
                       phone="", addr="", zipcode=""):
@@ -680,10 +804,9 @@ def coupang_order_rows(since: _dt.datetime, until: _dt.datetime,
     #   취소되면 그 클레임은 [since,until] 창에 안 잡혀 통째 누락된다(라이브: 쿠팡 취소완료
     #   62건 미조회 = 손실 미포착). 롯데온 commission_map 처럼 조회 끝을 now 로 넓힌다
     #   (주문번호로 매칭하므로 넓혀도 우리 주문에 없는 건 무시돼 안전).
-    _claim_until = _until_now(until)
     seen_ord = {r.get("오픈마켓주문번호") for r in rows if r.get("오픈마켓주문번호")}
     try:
-        for rq in _cc.iter_returns(since, _claim_until, client=client):
+        for rq in _ret_raw:
             odno = str(rq.get("orderId") or "")
             if odno and odno in seen_ord:
                 continue
@@ -703,7 +826,7 @@ def coupang_order_rows(since: _dt.datetime, until: _dt.datetime,
     except Exception:   # noqa: BLE001 — 클레임 조회 실패는 활성 주문 유지
         pass
     try:
-        for ex in _cc.iter_exchanges(since, _claim_until, client=client):
+        for ex in _exc_raw:
             odno = str(ex.get("orderId") or "")
             if odno and odno in seen_ord:
                 continue
@@ -894,6 +1017,28 @@ def gmarket_order_rows(since: _dt.datetime, until: _dt.datetime, client=None,
                           include_settlement=include_settlement)
 
 
+def _eleven11_fill_shipping_ordt(rows: list) -> list:
+    """배송중(ordDt 미제공→ordNo[:8] 근사) 라인의 주문일을 같은 주문의 실주문일로 교정.
+
+    11번가 배송중(shipping) 목록은 주문일(ordDt)을 안 줘 order 행이 ordNo 앞8자리로 근사한다
+    (라이브 82/82 일치라 대개 정확하나, 부분발송처럼 같은 주문의 일부만 배송중이면 나머지 라인은
+    실주문일을 갖는다). 같은 주문번호가 날짜목록(결제완료·배송준비중·배송완료 등)에도 있으면 그
+    실주문일(ordDt)로 배송중 라인을 덮어 정밀화한다 — 실주문일 소스만 사용(폴백 아님).
+    클레임행(_kind='change')은 주문일 공란 유지(의도)라 교정 대상 아님. 임시 출처 플래그는 제거.
+    """
+    ordt_by_no: dict = {}
+    for r in rows:
+        if r.get("_ordt_real") and r.get("주문일"):
+            ordt_by_no.setdefault(str(r.get("오픈마켓주문번호") or ""), r["주문일"])
+    for r in rows:
+        if not r.get("_ordt_real") and r.get("_kind") != "change":
+            real = ordt_by_no.get(str(r.get("오픈마켓주문번호") or ""))
+            if real:
+                r["주문일"] = real
+        r.pop("_ordt_real", None)   # 임시 출처 플래그 제거(출력 누출 방지)
+    return rows
+
+
 def eleven11_order_rows(since: _dt.datetime, until: _dt.datetime, client=None,
                         include_settlement: bool = True) -> list:
     """11번가 주문 → 행(dict). 상태별 API 3종 병합(전체 라이프사이클).
@@ -922,9 +1067,13 @@ def eleven11_order_rows(since: _dt.datetime, until: _dt.datetime, client=None,
         addr = (str(_g11(od, "rcvrBaseAddr")) + " " + str(_g11(od, "rcvrDtlsAddr"))).strip()
         ship = _g11(od, "bmDlvCst") if od.get("bndlDlvYN") == "Y" else _g11(od, "dlvCst")
         # 주문일: ordDt(있으면). 배송중(shipping) 목록은 ordDt 미제공 → ordNo 앞 8자리(YYYYMMDD)로 보정.
+        #   (라이브 82/82 ordNo[:8]=실주문일 일치라 근사는 정확하지만) 같은 주문의 날짜목록 라인이
+        #   있으면 실주문일로 교정한다(부분발송 대비) → _ordt_real 로 출처 표시.
         ordno = str(_g11(od, "ordNo"))
-        ord_dt = _g11(od, "ordDt") or (ordno[:8] if ordno[:2] == "20" and len(ordno) >= 8 else "")
+        real_ordt = _g11(od, "ordDt")
+        ord_dt = real_ordt or (ordno[:8] if ordno[:2] == "20" and len(ordno) >= 8 else "")
         return {
+            "_ordt_real": bool(real_ordt),   # 주문일이 API ordDt 출처인가(아니면 ordNo[:8] 근사)
             "_shipkey": ("eleven11", _g11(od, "bndlDlvSeq") or _g11(od, "ordNo")),
             # 송장 전송용 식별자 — 발송처리(/rest/ordservices/reqdelivery)의 대상 단위는
             #   **배송번호(dlvNo)** 다(주문번호로 대체 불가). 부분발송용 ordPrdSeq 도 함께 보존.
@@ -1050,7 +1199,8 @@ def eleven11_order_rows(since: _dt.datetime, until: _dt.datetime, client=None,
                     r["_settle_source"] = "real"
         except Exception:   # noqa: BLE001 — 조회 실패 시 기존 stlPlnAmt/추정 유지(폴백 아님)
             pass
-    return rows
+
+    return _eleven11_fill_shipping_ordt(rows)
 
 
 # 마켓별 행 빌더(코드 존재). SUPPORTED = 그중 실계정 검증까지 끝나 UI 노출 가능한 것.

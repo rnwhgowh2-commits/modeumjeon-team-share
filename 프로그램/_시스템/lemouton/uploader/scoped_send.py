@@ -86,6 +86,124 @@ def run(skus, *, want_live: bool, confirmed: bool, force: bool = False,
 
 
 # ─────────────────────────────────────────────────────────────────────────────
+# 직접 값 지정 전송 — 지정 마켓·옵션 1건에 명시값을 밀어 전송 경로 자체를 검증.
+# ─────────────────────────────────────────────────────────────────────────────
+def build_explicit_c_output(*, market, model_code_key, product_id,
+                            option_id, price, stock) -> dict:
+    """명시값 1건만 담은 최소 C 페이로드(순수). 그 마켓·그 옵션 외에는 절대 미포함.
+
+    _extract_uploads 가 마켓별로 읽는 실제 shape 에 맞춘다:
+      · smartstore = base_price + 옵션 add_price → base_price=명시가, add_price=0.
+      · 그 외(coupang·lotteon·eleven11·auction·gmarket) = 옵션 price 평면값.
+    alerts 는 빈 리스트(직접 지정은 크롤 경보 없음).
+    """
+    if market == "smartstore":
+        payload = {
+            "product_id": product_id,
+            "base_price": price,
+            "options": [{"option_id": option_id, "add_price": 0, "stock": stock}],
+        }
+    else:
+        payload = {
+            "product_id": product_id,
+            "options": [{"option_id": option_id, "price": price, "stock": stock}],
+        }
+    return {market: {model_code_key: payload}, "alerts": []}
+
+
+def _account_adapter(market: str, env_prefix, *, live: bool):
+    """그 마켓·그 계정(env_prefix) 키로 실어댑터 생성. live=False 면 DryRunAdapter.
+
+    ★다계정: 전송은 '그 상품이 등록된 계정'의 키로 나가야 한다. 기본(전역) 어댑터로
+    보내면 다른 계정엔 그 상품이 없어 NOT_FOUND 로 실패한다. env_prefix=None 이면
+    market_fetch 의 클라이언트 빌더가 전역 기본을 쓴다(단일계정 호환).
+    """
+    from lemouton.uploader.runtime import DryRunAdapter
+    if not live:
+        return DryRunAdapter(market)
+    from lemouton.uploader import market_fetch as MF
+    if market == "smartstore":
+        from lemouton.uploader.adapters.smartstore import SmartStoreAdapter
+        return SmartStoreAdapter(client=MF._smartstore_client(env_prefix))
+    if market == "coupang":
+        from lemouton.uploader.adapters.coupang import CoupangAdapter
+        return CoupangAdapter(client=MF._coupang_client(env_prefix))
+    if market == "lotteon":
+        from lemouton.uploader.adapters.lotteon import LotteonAdapter
+        return LotteonAdapter(client=MF._lotteon_client(env_prefix))
+    if market == "eleven11":
+        from lemouton.uploader.adapters.eleven11 import Eleven11Adapter
+        return Eleven11Adapter(client=MF._eleven11_client(env_prefix))
+    if market in ("auction", "gmarket"):
+        from lemouton.uploader.adapters.esm import EsmAdapter
+        return EsmAdapter(market, client=MF._esm_client(market, env_prefix))
+    raise ValueError(f"지원하지 않는 마켓: {market}")
+
+
+def run_explicit(session, *, canonical_sku, market, market_product_id,
+                 market_option_id, new_price, new_stock,
+                 want_live: bool, confirmed: bool, env_prefix=None) -> dict:
+    """지정 마켓·옵션 1건에 '명시값'을 전송(변동감지 우회, 게이트는 그대로).
+
+    안전:
+      · resolve_send_mode 3중 게이트(want_live+confirmed+서버키) 로 use_real 판정.
+        서버키 off 면 use_real=False → 드라이런(외부 호출 0).
+      · price_guard(assert_live_sale_price) 로 0/음수/비정수 가격을 전송 전에 차단.
+        (드라이런에서도 차단해 화면 검증 시 안전 · 거짓 0원 전송 금지.)
+      · 합성 c_output 은 그 마켓·그 옵션만 담는다 — 다른 상품/옵션 절대 미포함.
+      · run_uploader(force=True) 재사용 → 명시값이 현재와 같아도 전송(변동감지만 우회),
+        price_guard·DLQ·정직한 실패보고(resultCode/UploadResult) 보존. automation=None.
+      · 지정 옵션이 matched(등록) 상태가 아니면 정직히 실패 표면화(추측 전송 금지).
+    반환: {use_real, refusal, market, option_id, price_error, result}. result 는
+    run_uploader 결과(uploaded/failed/held/preview…) 또는 차단 시 None.
+    """
+    import os
+    from shared.platforms.price_guard import assert_live_sale_price, UnsafePriceError
+    from lemouton.uploader.runtime import select_adapters, build_sku_by_option
+    from lemouton.uploader.orchestrator import run_uploader
+
+    use_real, refusal = resolve_send_mode(
+        want_live=want_live, confirmed=confirmed, server_key_on=_server_key_on())
+
+    base = {"use_real": use_real, "refusal": refusal,
+            "market": market, "option_id": market_option_id, "price_error": None}
+
+    # 가격 안전 게이트 — 0/음수/비정수는 드라이런에서도 페이로드를 만들지 않는다.
+    try:
+        price = assert_live_sale_price(new_price, context=f"직접값 {market}/{market_option_id}")
+    except UnsafePriceError as e:
+        return {**base, "price_error": str(e), "result": None}
+
+    # 지정 옵션이 실제 등록(matched)된 마켓 옵션인지 확인 — 아니면 정직히 실패.
+    sku_by_option = build_sku_by_option(session)
+    s_opt = str(market_option_id)
+    mapped = sku_by_option.get((market, s_opt))
+    if mapped is None and s_opt.isdigit():
+        mapped = sku_by_option.get((market, int(s_opt)))
+    if mapped is None:
+        return {**base, "result": None,
+                "error": (f"이 옵션({market}/{market_option_id})은 매칭(matched) 상태가 "
+                          f"아니어서 전송 대상이 아니에요. 먼저 연동(매칭)이 필요합니다.")}
+
+    c_output = build_explicit_c_output(
+        market=market, model_code_key=str(canonical_sku or mapped),
+        product_id=market_product_id, option_id=market_option_id,
+        price=price, stock=new_stock,
+    )
+    # ★그 상품이 등록된 계정(env_prefix)의 키로 전송. 기본 어댑터로 보내면 다른 계정엔
+    #   그 상품이 없어 NOT_FOUND. 대상 마켓 1개만 실어댑터, 나머지는 애초에 c_output 에 없음.
+    adapters = {market: _account_adapter(market, env_prefix, live=use_real)}
+    dlq_path = os.path.join(
+        os.path.dirname(__file__), "..", "..", "data", "uploader_dlq.jsonl")
+    result = run_uploader(
+        session, c_output,
+        sku_by_option=sku_by_option, adapters=adapters, dlq_path=dlq_path,
+        force=True, persist=use_real, automation=None,
+    )
+    return {**base, "result": result}
+
+
+# ─────────────────────────────────────────────────────────────────────────────
 # 구성(세트) 단위 헬퍼 — 실전송 테스트 화면.
 # ─────────────────────────────────────────────────────────────────────────────
 def skus_for_set(session, set_id) -> list[str]:
