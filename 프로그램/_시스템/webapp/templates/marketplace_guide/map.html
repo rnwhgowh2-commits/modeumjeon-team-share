@@ -855,11 +855,11 @@ function dmSettle(){
     ['수수료','(−)',[{c:'serviceFee'},{c:'totalPayCommissionAmount'},{c:'cmsnSumAmt'},{c:'selFee'}]],
     ['판매자할인','(−)',[{inc:'settlementAmount'},{inc:'paySettleAmount'},{c:'pdDcSlrBdnAmt'},{inc:'stlAmt'}]],
     ['결제(페이)비','(−)',[{inc:'serviceFee'},{c:'totalPayCommissionAmount'},{inc:'cmsnSumAmt'},{inc:'stlAmt'}]],
-    ['배송비','(+)',[{c:'deliveryFee.settlementAmount'},{c:'productOrderType=DELIVERY'},{c:'dvCst',n:'수수료적용'},{inc:'stlAmt'}]],
+    ['배송비','(+)',[{c:'deliveryFee.settlementAmount'},{c:'productOrderType=DELIVERY'},{c:'dvCst',n:'수수료적용'},{c:'선불배송비 별도라인'}]],
     ['수량','참고',[{c:'quantity'},{c:'quantity'},{c:'slQty'},{c:'ordQty'}]],
     ['매칭 키','라인',[{c:'orderId+vendorItemId'},{c:'productOrderId'},{c:'odNo+odseq'},{c:'ordNo+ordPrdSeq'}]]
   ];
-  const TOT=['settlementAmount + deliveryFee','settleExpectAmount','pymtTgtAmt','stlAmt'];
+  const TOT=['settlementAmount + deliveryFee','settleExpectAmount','pymtTgtAmt','selPrcAmt − deductAmt'];
   const sub=`<div class="stlsub"><button class="${DM_STL==='mtx'?'on':''}" data-stl="mtx">항목×마켓 매트릭스</button>`
            +`<button class="${DM_STL==='fml'?'on':''}" data-stl="fml">계산식 대입</button></div>`;
   let bd;
@@ -868,13 +868,13 @@ function dmSettle(){
     const rows=ROWS.map(r=>`<tr><th>${r[0]}<span class="op">${r[1]}</span></th>`+r[2].map(v=>`<td>${cell(v)}</td>`).join('')+`</tr>`).join('');
     const tot=`<tr class="tot"><th>= 최종 정산액</th>`+TOT.map(c=>`<td><span class="cc res">${c}</span></td>`).join('')+`</tr>`;
     bd=`<table class="stlmtx"><thead>${head}</thead><tbody>${rows}${tot}</tbody></table>`
-      +`<div class="stlnote"><b>쿠팡·스스</b> = 상품·배송비를 별도 필드로 수집(각각 정확). <b>롯데온</b>(<span class="cc">pymtTgtAmt</span>)·<b>11번가</b>(<span class="cc">stlAmt</span>) = 지급 총액 단일 필드 — 할인·결제비·배송비가 그 필드에 <b>포함</b>돼 분리 조회 불가(금액은 총액에 반영).</div>`;
+      +`<div class="stlnote"><b>쿠팡·스스</b> = 상품·배송비를 별도 필드로 수집(각각 정확). <b>롯데온</b> = <span class="cc">pymtTgtAmt</span> 지급총액(할인·결제비 포함). <b>11번가</b> = 라인별 <span class="cc">selPrcAmt − deductAmt</span>(상품·선불배송비 각각 별도 라인, deductAmt=수수료·할인·서비스이용료 공제). ★11번가 <span class="cc">stlAmt</span> 는 배송비 라인서 서비스이용료 미반영 총액이라 <span class="cc">selPrcAmt − deductAmt</span> 로 계산해야 실정산과 오차0(라이브 검증).</div>`;
   }else{
     const FML=[
       {g:'쿠',c:'#AE3FE0',nm:'쿠팡',tm:[{t:'판매가',c:'saleAmount'},{o:'−',t:'수수료',c:'serviceFee'},{o:'+',t:'배송비',c:'deliveryFee'},{o:'=',t:'정산액',c:'settlementAmount',res:1},{o:'·',t:'할인·결제비',mi:'serviceFee 흡수'}]},
       {g:'N',c:'#03C75A',nm:'스마트스토어',tm:[{t:'기준가',c:'paySettleAmount'},{o:'−',t:'수수료',c:'totalPayCommissionAmount'},{o:'+',t:'배송비',c:'DELIVERY'},{o:'=',t:'정산액',c:'settleExpectAmount',res:1},{o:'·',t:'판매자할인',mi:'기준가에 반영'}]},
       {g:'롯',c:'#DA2128',nm:'롯데온',tm:[{t:'상품가',c:'slAmt'},{o:'−',t:'수수료',c:'cmsnSumAmt'},{o:'−',t:'셀러할인',c:'pdDcSlrBdnAmt'},{o:'+',t:'롯데부담',c:'pdDcOcoBdnAmt'},{o:'=',t:'정산액',c:'pymtTgtAmt',res:1}]},
-      {g:'11',c:'#FF4800',nm:'11번가',tm:[{t:'판매가',c:'selPrcAmt'},{o:'−',t:'수수료',c:'selFee'},{o:'=',t:'정산액',c:'stlAmt',res:1},{o:'·',t:'할인·결제비·배송비',mi:'stlAmt 흡수'}]}
+      {g:'11',c:'#FF4800',nm:'11번가',tm:[{t:'판매/배송',c:'selPrcAmt'},{o:'−',t:'공제',c:'deductAmt'},{o:'=',t:'정산액',c:'selPrcAmt−deductAmt',res:1},{o:'·',t:'배송비',mi:'선불배송비 별도 라인'}]}
     ];
     bd=`<div class="fml">`+FML.map(f=>`<div class="fr"><div class="frh"><span class="lg" style="background:${f.c}">${f.g}</span> ${f.nm}</div><div class="fx">`
       +f.tm.map(t=>(t.o?`<span class="fo"${t.o==='·'?' style="padding-top:16px"':''}>${t.o}</span>`:'')
