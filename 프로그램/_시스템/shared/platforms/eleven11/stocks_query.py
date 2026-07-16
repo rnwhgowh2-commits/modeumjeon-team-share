@@ -48,14 +48,14 @@ def _localname(tag: str) -> str:
 
 
 def _build_request_xml(product_id: str) -> str:
-    """조회 요청 XML(prdNo 만, euc-kr 선언).
+    """조회 요청 XML(정본 스펙 · 2026-07-17).
 
-    ★라이브 확정(2026-07-17): 요청 본문은 래퍼 없이 <prdNo>만. <ProductStocks> 래퍼로
-      감싸면 "재고 정보 조회 오류"를 반환하고, 래퍼 없이 <prdNo> 만 보내면 정상 조회된다.
-      (응답 래퍼는 ns2:ProductStockss — 파서는 localname 으로 ProductStock 만 순회.)
+    ★요청 본문은 <ProductStocks><ProductStock><prdNo>N</prdNo></ProductStock></ProductStocks>.
+      중첩 <ProductStock> 이 필수 — 이게 빠지면 "0 건" 으로 조회된다(라이브 확인).
     """
     return ('<?xml version="1.0" encoding="euc-kr"?>'
-            f"<prdNo>{product_id}</prdNo>")
+            f"<ProductStocks><ProductStock><prdNo>{product_id}</prdNo>"
+            "</ProductStock></ProductStocks>")
 
 
 def _to_int(text: str) -> Optional[int]:
@@ -94,6 +94,8 @@ def _parse_stocks(xml_text: str) -> list[dict]:
             "stat": f.get("prdStckStatCd") or None,
             "seller_stock_cd": f.get("sellerStockCd") or None,
             "add_prc": _to_int(f.get("addPrc", "")),
+            "prd_stck_no": f.get("prdStckNo") or None,   # 재고번호 — 재고수량 변경 키
+            "opt_wght": _to_int(f.get("optWght", "")),   # 상품무게 — 변경 시 echo-back
         })
     return options
 

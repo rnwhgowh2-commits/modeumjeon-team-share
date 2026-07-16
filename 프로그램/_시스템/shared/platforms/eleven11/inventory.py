@@ -42,6 +42,51 @@ from shared.platforms.eleven11.prices import (
 logger = logging.getLogger(__name__)
 
 _PATH_OPTION = "/rest/prodservices/updateProductOption/{prd_no}"
+# 재고번호(prdStckNo) 단위 재고수량 변경 — 옵션 1건씩 안전(full-replace 아님). 정본 2026-07-17.
+_PATH_STOCKQTY = "/rest/prodservices/stockqty/{prd_stck_no}"
+
+
+def update_stock_by_stock_no(
+    product_id: str,
+    prd_stck_no: str,
+    stock_qty: int,
+    opt_wght=None,
+    *,
+    client: Optional[Eleven11Client] = None,
+) -> StockChangeResult:
+    """재고번호(prdStckNo) 1건의 재고수량을 변경한다(옵션 단위·안전).
+
+    PUT /rest/prodservices/stockqty/{prdStckNo}
+      body: <ProductStock><prdNo>..</prdNo><prdStckNo>..</prdStckNo>
+                          <stckQty>..</stckQty><optWght>..</optWght></ProductStock>
+    응답: <ClientMessage><resultCode>200</resultCode>...</ClientMessage> (200=성공).
+    full-replace 가 아니라 대상 옵션만 바꾸므로 타 옵션 소실 위험이 없다.
+    """
+    prd = str(product_id or "").strip()
+    stck_no = str(prd_stck_no or "").strip()
+    if not prd or not stck_no:
+        raise ValueError("11번가 재고변경: prdNo·prdStckNo 필수")
+    if int(stock_qty) < 0:
+        raise ValueError(f"11번가 재고변경: 수량은 0 이상 (입력={stock_qty!r})")
+    wght = "" if opt_wght is None else str(opt_wght)
+    body = ('<?xml version="1.0" encoding="euc-kr"?>'
+            f"<ProductStock><prdNo>{_xml_escape(prd)}</prdNo>"
+            f"<prdStckNo>{_xml_escape(stck_no)}</prdStckNo>"
+            f"<stckQty>{int(stock_qty)}</stckQty>"
+            + (f"<optWght>{_xml_escape(wght)}</optWght>" if wght != "" else "")
+            + "</ProductStock>")
+    client = client or Eleven11Client()
+    xml_text = client.request("PUT", _PATH_STOCKQTY.format(prd_stck_no=stck_no), body)
+    found = _parse_client_message(xml_text)
+    code = found.get("resultcode", "") or ""
+    success = code in SUCCESS_CODES
+    if not success:
+        msg = found.get("message") or found.get("_raw") or f"resultCode={code or '누락'}"
+        logger.warning("[11번가] 재고변경 실패 prdStckNo=%s code=%s msg=%s",
+                       stck_no, code, msg)
+        return StockChangeResult(product_id=prd, success=False,
+                                 result_code=code or None, error_message=msg)
+    return StockChangeResult(product_id=prd, success=True, result_code=code)
 
 
 @dataclass
