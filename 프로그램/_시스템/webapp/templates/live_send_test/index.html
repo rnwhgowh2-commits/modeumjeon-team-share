@@ -69,6 +69,20 @@
   #lst .muted{ color:var(--lst-t3); font-size:13px; }
   #lst .hidden{ display:none; }
   #lst .empty{ color:var(--lst-t3); font-size:13px; padding:8px 0; }
+  /* 직접 값 지정 카드 */
+  #lst .ex-grid{ display:grid; grid-template-columns:1fr 1fr; gap:10px 14px; max-width:640px; margin:2px 0 10px; }
+  #lst .ex-grid label{ display:flex; flex-direction:column; gap:5px; font-size:12.5px; color:var(--lst-t2); font-weight:600; }
+  #lst .ex-grid select{ padding:8px 10px; border:1px solid var(--lst-line2); border-radius:8px; font-size:13.5px; background:#fff; }
+  #lst .ex-note{ background:var(--lst-amber-bg); border:1px solid #f5d99a; color:#8a6100; border-radius:8px; padding:8px 11px; font-size:12.5px; margin:2px 0 10px; }
+  #lst table.exval{ width:100%; border-collapse:collapse; font-size:13px; margin:6px 0 4px; max-width:720px; }
+  #lst table.exval th{ font-size:11.5px; color:var(--lst-t3); font-weight:600; text-align:left; padding:6px 10px; border-bottom:1px solid var(--lst-line); }
+  #lst table.exval th.n{ text-align:center; }
+  #lst table.exval td{ padding:9px 10px; border-bottom:1px solid #f1f3f5; vertical-align:middle; }
+  #lst table.exval td.lbl{ font-weight:700; color:var(--lst-t1); white-space:nowrap; }
+  #lst table.exval td.cur{ text-align:right; color:var(--lst-t2); font-variant-numeric:tabular-nums; font-family:var(--lst-mono); white-space:nowrap; }
+  #lst .exinput{ width:120px; padding:7px 9px; border:1px solid var(--lst-line2); border-radius:7px; font-size:13.5px; text-align:right; font-variant-numeric:tabular-nums; font-family:var(--lst-mono); }
+  #lst .exinput:focus{ outline:none; border-color:var(--lst-blue); box-shadow:0 0 0 2px var(--lst-blue-bg); }
+  #lst .btn-revert{ border-color:var(--lst-line2); color:var(--lst-t2); }
 </style>
 {% endblock %}
 {% block content %}
@@ -127,6 +141,63 @@
       <div class="step-h"><span class="step-n wait">3</span> 3단계 · 결과
         <span style="flex:1"></span><span class="st" id="lst-result-mode"></span></div>
       <div class="step-b" id="lst-result-body"></div>
+    </div>
+  </div>
+</section>
+
+<!-- 직접 값 지정 테스트 (별도 카드) -->
+<section class="card hidden" id="lst-ex">
+  <div class="pcard-h" style="margin-bottom:6px;">
+    <span class="nm">직접 값 지정 테스트</span>
+    <span class="code" id="lst-ex-setname"></span>
+    <span style="flex:1"></span>
+    <span class="st warn" id="lst-ex-keybadge">서버키 꺼짐 · 드라이런만</span>
+  </div>
+  <p class="lst-sub" style="margin:0 0 12px;">옵션 하나에 원하는 <b>가격·재고 값을 직접 넣어</b> 전송 경로만 확인합니다(변동감지 우회).
+    확인한 뒤 <b>↩ 원래값으로 되돌리기</b>로 되돌리세요. 0원·이상가는 자동 차단됩니다.</p>
+
+  <div class="ex-grid">
+    <label>마켓
+      <select id="lst-ex-market"></select>
+    </label>
+    <label>옵션(등록번호)
+      <select id="lst-ex-option"><option value="">— 마켓을 먼저 선택 —</option></select>
+    </label>
+  </div>
+  <div class="ex-note hidden" id="lst-ex-note"></div>
+
+  <div id="lst-ex-editor" class="hidden">
+    <table class="exval">
+      <tr><th>항목</th><th>현재값</th><th>넣을 값(직접)</th><th class="n">현재 → 넣을 값</th></tr>
+      <tr>
+        <td class="lbl">가격(원)</td>
+        <td class="cur" id="lst-ex-curprice">—</td>
+        <td><input class="exinput" id="lst-ex-inprice" type="number" min="1" inputmode="numeric"></td>
+        <td class="n" id="lst-ex-cmpprice"></td>
+      </tr>
+      <tr>
+        <td class="lbl">재고(개)</td>
+        <td class="cur" id="lst-ex-curstock">—</td>
+        <td><input class="exinput" id="lst-ex-instock" type="number" min="0" inputmode="numeric"></td>
+        <td class="n" id="lst-ex-cmpstock"></td>
+      </tr>
+    </table>
+    <div style="margin:8px 0 4px;">
+      <button class="btn btn-revert" id="lst-ex-revert" type="button">↩ 원래값으로 되돌리기</button>
+    </div>
+
+    <div class="guard"><span>⚠️</span><div><b>실제 판매처에 반영됩니다.</b>
+      지정한 옵션 <b>1건만</b> 입력값 그대로 전송됩니다. 0원·이상가는 자동 차단됩니다.</div></div>
+    <label class="agree"><input type="checkbox" id="lst-ex-agree">
+      이 값을 실제로 전송하는 데 동의합니다</label>
+    <button class="btn btn-danger" id="lst-ex-send" disabled>이 값으로 전송</button>
+    <span class="keyoff-hint" id="lst-ex-hint">서버키가 꺼져 있으면 눌러도 드라이런으로만 실행됩니다</span>
+
+    <!-- 결과 -->
+    <div class="step hidden" id="lst-ex-step-result" style="margin-top:12px;">
+      <div class="step-h"><span class="step-n wait">✓</span> 결과
+        <span style="flex:1"></span><span class="st" id="lst-ex-result-mode"></span></div>
+      <div class="step-b" id="lst-ex-result-body"></div>
     </div>
   </div>
 </section>
@@ -209,6 +280,7 @@
     ['lst-step1','lst-step2','lst-step3'].forEach(function(id){ $(id).classList.add('hidden'); });
     $('lst-agree').checked = false; syncSendBtn();
     $('lst-detail').classList.remove('hidden');
+    exInit(r, byMarket);   // 직접 값 지정 카드도 함께 초기화
   }
 
   function selectedMarkets(){
@@ -309,12 +381,175 @@
     $('lst-result-body').innerHTML = html;
   }
 
+  // ── 직접 값 지정 카드 ──────────────────────────────────
+  var exState = { options: [], cur: null };
+
+  function exInit(r, byMarket){
+    $('lst-ex-setname').textContent = r.model_code || '';
+    // 이 화면 대상 마켓 중, 이 구성에 연동된 것만 마켓 드롭다운에.
+    var sel = $('lst-ex-market');
+    sel.innerHTML = '';
+    var linked = SEND_MARKETS.filter(function(m){ return (byMarket[m.key] || []).length > 0; });
+    if(!linked.length){
+      sel.innerHTML = '<option value="">— 연동된 판매처 없음 —</option>';
+    } else {
+      sel.innerHTML = '<option value="">— 마켓 선택 —</option>' +
+        linked.map(function(m){ return '<option value="' + m.key + '">' + esc(m.label) + '</option>'; }).join('');
+    }
+    // 초기화
+    exState = { options: [], cur: null };
+    $('lst-ex-option').innerHTML = '<option value="">— 마켓을 먼저 선택 —</option>';
+    $('lst-ex-note').classList.add('hidden');
+    $('lst-ex-editor').classList.add('hidden');
+    $('lst-ex-step-result').classList.add('hidden');
+    $('lst-ex-agree').checked = false; exSyncSend();
+    $('lst-ex').classList.remove('hidden');
+  }
+
+  function exOnMarket(){
+    var market = $('lst-ex-market').value;
+    var optSel = $('lst-ex-option');
+    $('lst-ex-editor').classList.add('hidden');
+    $('lst-ex-step-result').classList.add('hidden');
+    $('lst-ex-note').classList.add('hidden');
+    if(!market || !state.set){ optSel.innerHTML = '<option value="">— 마켓을 먼저 선택 —</option>'; return; }
+    optSel.innerHTML = '<option value="">— 불러오는 중… —</option>';
+    fetch('/api/live-send-test/current?set_id=' + encodeURIComponent(state.set.set_id) +
+          '&market=' + encodeURIComponent(market), {cache:'no-store'})
+      .then(function(r){ return r.json(); })
+      .then(function(body){
+        if(!body.ok){ optSel.innerHTML = '<option value="">— 조회 실패 —</option>';
+          exNote(body.error || '옵션을 불러오지 못했습니다.'); return; }
+        exState.options = body.options || [];
+        if(!exState.options.length){ optSel.innerHTML = '<option value="">— 매칭된 옵션 없음 —</option>';
+          exNote(body.note || '매칭된 옵션이 없어요(먼저 연동 실행 필요).'); return; }
+        optSel.innerHTML = '<option value="">— 옵션 선택 —</option>' +
+          exState.options.map(function(o){
+            var label = o.market_option_id +
+              (o.color || o.size ? '  (' + [o.color, o.size].filter(Boolean).join(' / ') + ')' : '');
+            return '<option value="' + esc(o.market_option_id) + '">' + esc(label) + '</option>';
+          }).join('');
+        // 현재값 조회 미지원(11번가 등)이면 안내 표시하되 옵션은 고를 수 있게(직접 입력)
+        if(body.fetch_ok === false && body.note){ exNote(body.note); }
+        else { $('lst-ex-note').classList.add('hidden'); }
+      })
+      .catch(function(){ optSel.innerHTML = '<option value="">— 조회 오류 —</option>';
+        exNote('옵션 조회 중 오류가 발생했습니다.'); });
+  }
+  function exNote(msg){ var n = $('lst-ex-note'); n.textContent = msg; n.classList.remove('hidden'); }
+
+  function exOnOption(){
+    var oid = $('lst-ex-option').value;
+    $('lst-ex-step-result').classList.add('hidden');
+    if(!oid){ $('lst-ex-editor').classList.add('hidden'); return; }
+    var o = null;
+    exState.options.forEach(function(x){ if(x.market_option_id === oid) o = x; });
+    exState.cur = o;
+    $('lst-ex-curprice').textContent = (o && o.cur_price != null) ? won(o.cur_price) : '조회 안됨';
+    $('lst-ex-curstock').textContent = (o && o.cur_stock != null) ? num(o.cur_stock) : '조회 안됨';
+    // 입력칸을 현재값으로 되채움(현재값 없으면 비움)
+    $('lst-ex-inprice').value = (o && o.cur_price != null) ? o.cur_price : '';
+    $('lst-ex-instock').value = (o && o.cur_stock != null) ? o.cur_stock : '';
+    $('lst-ex-editor').classList.remove('hidden');
+    $('lst-ex-agree').checked = false; exSyncSend();
+    exUpdateCmp();
+  }
+
+  function exNumOrNull(v){ v = String(v).trim(); if(v === '') return null; var n = Number(v);
+    return isFinite(n) ? n : null; }
+
+  function exUpdateCmp(){
+    var cp = exState.cur ? exState.cur.cur_price : null;
+    var cs = exState.cur ? exState.cur.cur_stock : null;
+    var ip = exNumOrNull($('lst-ex-inprice').value);
+    var is = exNumOrNull($('lst-ex-instock').value);
+    $('lst-ex-cmpprice').innerHTML = cmpCell(cp, ip, won);
+    $('lst-ex-cmpstock').innerHTML = cmpCell(cs, is, num);
+  }
+
+  function exRevert(){
+    var o = exState.cur;
+    $('lst-ex-inprice').value = (o && o.cur_price != null) ? o.cur_price : '';
+    $('lst-ex-instock').value = (o && o.cur_stock != null) ? o.cur_stock : '';
+    exUpdateCmp();
+  }
+
+  function exSyncSend(){
+    var oid = $('lst-ex-option').value;
+    var ip = exNumOrNull($('lst-ex-inprice').value);
+    var is = exNumOrNull($('lst-ex-instock').value);
+    // 옵션 선택 + 동의 + 가격 양수 + 재고 0 이상일 때만 전송 허용
+    var ok = !!oid && $('lst-ex-agree').checked && ip != null && ip > 0 && is != null && is >= 0;
+    $('lst-ex-send').disabled = !ok;
+  }
+
+  function exSend(){
+    if(!state.set) return;
+    var oid = $('lst-ex-option').value;
+    var market = $('lst-ex-market').value;
+    var ip = exNumOrNull($('lst-ex-inprice').value);
+    var is = exNumOrNull($('lst-ex-instock').value);
+    if(!oid || !market || ip == null || is == null) return;
+    var btn = $('lst-ex-send'); btn.disabled = true; btn.textContent = '전송 중…';
+    fetch('/api/live-send-test/send-explicit', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({set_id: state.set.set_id, market: market,
+        market_option_id: oid, price: ip, stock: is, confirmed: true})
+    }).then(function(r){ return r.json(); }).then(function(body){
+      exRenderResult(body);
+      $('lst-ex-step-result').classList.remove('hidden');
+    }).catch(function(){ alert('전송 중 오류가 발생했습니다.'); })
+      .finally(function(){ btn.textContent = '이 값으로 전송'; exSyncSend(); });
+  }
+
+  function exRenderResult(body){
+    var mode = $('lst-ex-result-mode');
+    if(body.use_real){ mode.className = 'st live'; mode.textContent = '★ 실전송(LIVE)'; }
+    else { mode.className = 'st dry'; mode.textContent = '드라이런(미전송)'; }
+    var html = '';
+    if(body.price_error){
+      html += '<div class="guard"><span>⛔</span><div><b>가격 안전 차단.</b> ' +
+        esc(body.price_error) + '</div></div>';
+    }
+    if(body.error){
+      html += '<div class="guard"><span>⚠️</span><div>' + esc(body.error) + '</div></div>';
+    }
+    if(body.refusal){
+      html += '<div class="guard" style="background:var(--lst-amber-bg);border-color:#f5d99a;color:#8a6100;">' +
+        '<span>ℹ️</span><div>' + esc(body.refusal) + '</div></div>';
+    }
+    var res = body.result || null;
+    if(res){
+      if(res.held){
+        html += '<div class="guard"><span>⏸</span><div><b>자동 보류.</b> ' +
+          esc(res.hold_reason || '') + '</div></div>';
+      }
+      html += '<div style="font-size:13.5px;margin:6px 0;">전송 ' +
+        '<b>' + (res.uploaded||0) + '</b> · 스킵 ' + (res.skipped||0) +
+        ' · 실패 <b style="color:var(--lst-red)">' + (res.failed||0) + '</b></div>';
+      if((res.failed||0) > 0){
+        html += '<div class="muted" style="margin-top:6px;">실패는 응답코드로 판정됩니다(거짓 성공 없음). ' +
+          '상세는 DLQ(data/uploader_dlq.jsonl)·업로드 실패함에서 확인하세요.</div>';
+      }
+    }
+    if(!html){ html = '<div class="muted">처리 결과가 없습니다.</div>'; }
+    $('lst-ex-result-body').innerHTML = html;
+  }
+
   // ── 바인딩 ────────────────────────────────────────────
   $('lst-search-btn').addEventListener('click', doSearch);
   $('lst-q').addEventListener('keydown', function(e){ if(e.key==='Enter') doSearch(); });
   $('lst-preview-btn').addEventListener('click', doPreview);
   $('lst-agree').addEventListener('change', syncSendBtn);
   $('lst-send-btn').addEventListener('click', doSend);
+  // 직접 값 지정 카드 바인딩
+  $('lst-ex-market').addEventListener('change', exOnMarket);
+  $('lst-ex-option').addEventListener('change', exOnOption);
+  $('lst-ex-inprice').addEventListener('input', function(){ exUpdateCmp(); exSyncSend(); });
+  $('lst-ex-instock').addEventListener('input', function(){ exUpdateCmp(); exSyncSend(); });
+  $('lst-ex-revert').addEventListener('click', exRevert);
+  $('lst-ex-agree').addEventListener('change', exSyncSend);
+  $('lst-ex-send').addEventListener('click', exSend);
 })();
 </script>
 {% endblock %}
