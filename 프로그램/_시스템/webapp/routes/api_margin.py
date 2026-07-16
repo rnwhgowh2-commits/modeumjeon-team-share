@@ -512,3 +512,35 @@ def lotteon_settlement_ingest():
             n += 1
         s.commit()
     return jsonify({"upserted": n})
+
+
+@bp.route("/_probe_11st_xml", methods=["POST"])
+def _probe_11st_xml():
+    """[임시진단] 11번가 settlementList 실 XML 구조 스모크 — 실제 엔트리 태그·stlAmt·중첩
+    확인(Fix A root.iter 검증). body{since?,until?} 기본=최근 30일. 확인 후 제거."""
+    from shared.platforms.eleven11 import settlement as _s
+    from lemouton.markets.order_export import _account_client, _active_accounts
+    KST = _dt.timezone(_dt.timedelta(hours=9))
+    now = _dt.datetime.now(KST)
+    body = request.get_json(silent=True) or {}
+    try:
+        until = _dt.datetime.fromisoformat(body["until"]) if body.get("until") else now
+        since = _dt.datetime.fromisoformat(body["since"]) if body.get("since") else now - _dt.timedelta(days=30)
+    except Exception:
+        return jsonify({"error": "date parse"}), 400
+    out = []
+    for prefix, name in _active_accounts("eleven11"):
+        cli = _account_client("eleven11", prefix)
+        if cli is None:
+            continue
+        try:
+            wf, wt = next(_s._windows(since, until))
+            path = _s._PATH.format(s=_s._fmt(wf), e=_s._fmt(wt))
+            raw = cli.request("GET", path)
+            smap = _s.parse_settlement(raw)
+            head = (raw if isinstance(raw, str) else str(raw))[:1800]
+            out.append({"acct": name, "path": path, "map_size": len(smap),
+                        "sample": list(smap.items())[:6], "raw_head": head})
+        except Exception as e:  # noqa: BLE001
+            out.append({"acct": name, "err": str(e)[:300]})
+    return jsonify({"accounts": out})
