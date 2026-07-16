@@ -111,9 +111,38 @@ def build_explicit_c_output(*, market, model_code_key, product_id,
     return {market: {model_code_key: payload}, "alerts": []}
 
 
+def _account_adapter(market: str, env_prefix, *, live: bool):
+    """그 마켓·그 계정(env_prefix) 키로 실어댑터 생성. live=False 면 DryRunAdapter.
+
+    ★다계정: 전송은 '그 상품이 등록된 계정'의 키로 나가야 한다. 기본(전역) 어댑터로
+    보내면 다른 계정엔 그 상품이 없어 NOT_FOUND 로 실패한다. env_prefix=None 이면
+    market_fetch 의 클라이언트 빌더가 전역 기본을 쓴다(단일계정 호환).
+    """
+    from lemouton.uploader.runtime import DryRunAdapter
+    if not live:
+        return DryRunAdapter(market)
+    from lemouton.uploader import market_fetch as MF
+    if market == "smartstore":
+        from lemouton.uploader.adapters.smartstore import SmartStoreAdapter
+        return SmartStoreAdapter(client=MF._smartstore_client(env_prefix))
+    if market == "coupang":
+        from lemouton.uploader.adapters.coupang import CoupangAdapter
+        return CoupangAdapter(client=MF._coupang_client(env_prefix))
+    if market == "lotteon":
+        from lemouton.uploader.adapters.lotteon import LotteonAdapter
+        return LotteonAdapter(client=MF._lotteon_client(env_prefix))
+    if market == "eleven11":
+        from lemouton.uploader.adapters.eleven11 import Eleven11Adapter
+        return Eleven11Adapter(client=MF._eleven11_client(env_prefix))
+    if market in ("auction", "gmarket"):
+        from lemouton.uploader.adapters.esm import EsmAdapter
+        return EsmAdapter(market, client=MF._esm_client(market, env_prefix))
+    raise ValueError(f"지원하지 않는 마켓: {market}")
+
+
 def run_explicit(session, *, canonical_sku, market, market_product_id,
                  market_option_id, new_price, new_stock,
-                 want_live: bool, confirmed: bool) -> dict:
+                 want_live: bool, confirmed: bool, env_prefix=None) -> dict:
     """지정 마켓·옵션 1건에 '명시값'을 전송(변동감지 우회, 게이트는 그대로).
 
     안전:
@@ -161,7 +190,9 @@ def run_explicit(session, *, canonical_sku, market, market_product_id,
         product_id=market_product_id, option_id=market_option_id,
         price=price, stock=new_stock,
     )
-    adapters = select_adapters(live=use_real)
+    # ★그 상품이 등록된 계정(env_prefix)의 키로 전송. 기본 어댑터로 보내면 다른 계정엔
+    #   그 상품이 없어 NOT_FOUND. 대상 마켓 1개만 실어댑터, 나머지는 애초에 c_output 에 없음.
+    adapters = {market: _account_adapter(market, env_prefix, live=use_real)}
     dlq_path = os.path.join(
         os.path.dirname(__file__), "..", "..", "data", "uploader_dlq.jsonl")
     result = run_uploader(

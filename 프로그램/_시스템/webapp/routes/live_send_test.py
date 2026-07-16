@@ -241,13 +241,16 @@ def api_send_explicit():
                             "error": "이 옵션은 매칭(matched) 상태가 아니에요."}), 400
         canonical_sku = sco.canonical_sku
         product_id = ch.market_product_id
+        # ★그 상품이 등록된 계정의 키로 전송(다계정) — 조회와 동일한 env_prefix 사용.
+        from lemouton.sets.set_link_service import _resolve_env_prefix
+        env_prefix = _resolve_env_prefix(session, market, ch.account_key)
         try:
             out = run_explicit(
                 session,
                 canonical_sku=canonical_sku, market=market,
                 market_product_id=product_id, market_option_id=str(market_option_id),
                 new_price=price, new_stock=stock,
-                want_live=True, confirmed=confirmed,
+                want_live=True, confirmed=confirmed, env_prefix=env_prefix,
             )
         except Exception as e:   # 실전송 경로 예외를 화면에 정직히 표면화(500 팝업 방지)
             import traceback, logging
