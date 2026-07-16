@@ -1,0 +1,320 @@
+{% extends 'base.html' %}
+{% block title %}실전송 테스트 — 모음전 자동화{% endblock %}
+{% block head %}
+<style>
+  /* 실전송 테스트 — 팔레트는 앱 색 의미 그대로(초록=스스, 빨강=경고/실전송, 파랑=드라이런). */
+  #lst{
+    --lst-navy:#191F28; --lst-line:#E5E8EB; --lst-line2:#d1d6db;
+    --lst-t1:#191F28; --lst-t2:#4E5968; --lst-t3:#8B95A1;
+    --lst-blue:#3182F6; --lst-blue-bg:#EAF3FF;
+    --lst-green:#00A05B; --lst-green-bg:#E7F7EF;
+    --lst-red:#F04452; --lst-red-bg:#FDECEE;
+    --lst-amber:#F59F00; --lst-amber-bg:#FFF4E0;
+    --lst-mono:ui-monospace,SFMono-Regular,Menlo,monospace;
+  }
+  #lst .lst-sub{ color:var(--lst-t2); font-size:14px; margin:0 0 20px; }
+  #lst .searchbar{ display:flex; gap:8px; align-items:center; margin-bottom:16px; max-width:720px; }
+  #lst .searchbar input{ flex:1; padding:10px 13px; border:1px solid var(--lst-line2); border-radius:8px; font-size:14px; }
+  #lst .btn{ border:1px solid var(--lst-line2); background:#fff; border-radius:8px; padding:8px 14px; font-size:13px; font-weight:600; cursor:pointer; color:var(--lst-t2); }
+  #lst .btn:hover{ background:#f5f7f9; }
+  #lst .btn-test{ border-color:var(--lst-blue); color:var(--lst-blue); background:var(--lst-blue-bg); }
+  #lst .btn-danger{ background:var(--lst-red); color:#fff; border-color:var(--lst-red); }
+  #lst .btn-danger:disabled{ opacity:.45; cursor:not-allowed; }
+  #lst .btn:disabled{ opacity:.5; cursor:not-allowed; }
+  /* 검색 결과 리스트 */
+  #lst .reslist{ display:flex; flex-direction:column; gap:8px; margin-bottom:18px; }
+  #lst .resitem{ display:flex; align-items:center; gap:10px; border:1px solid var(--lst-line); border-radius:10px; padding:12px 14px; background:#fff; cursor:pointer; }
+  #lst .resitem:hover{ border-color:var(--lst-blue); box-shadow:0 0 0 2px var(--lst-blue-bg); }
+  #lst .resitem.on{ border-color:var(--lst-blue); box-shadow:0 0 0 2px var(--lst-blue-bg); }
+  #lst .resitem .nm{ font-size:14px; font-weight:700; }
+  #lst .resitem .code{ font-size:12px; color:var(--lst-t3); font-family:var(--lst-mono); }
+  #lst .resitem .chcount{ font-size:12px; color:var(--lst-t2); }
+  /* 상품 카드 */
+  #lst .pcard{ background:#fff; border:1px solid var(--lst-line); border-radius:12px; padding:16px 18px; margin-bottom:14px; }
+  #lst .pcard-h{ display:flex; align-items:center; gap:10px; margin-bottom:12px; }
+  #lst .pcard-h .nm{ font-size:15px; font-weight:700; }
+  #lst .pcard-h .code{ font-size:12px; color:var(--lst-t3); font-family:var(--lst-mono); }
+  #lst .mk-row{ display:flex; align-items:center; gap:9px; padding:8px 0; border-top:1px solid #f1f3f5; font-size:13.5px; }
+  #lst .mk-logo{ width:22px; height:22px; border-radius:6px; display:flex; align-items:center; justify-content:center; font-size:11px; font-weight:700; color:#fff; flex-shrink:0; }
+  #lst .mk-row .acct{ color:var(--lst-t2); font-size:12.5px; }
+  /* 상태 배지 */
+  #lst .st{ display:inline-block; font-size:11px; font-weight:600; padding:2px 9px; border-radius:20px; white-space:nowrap; }
+  #lst .st.ok{ color:var(--lst-green); background:var(--lst-green-bg); }
+  #lst .st.dry{ color:var(--lst-blue); background:var(--lst-blue-bg); }
+  #lst .st.warn{ color:var(--lst-amber); background:var(--lst-amber-bg); }
+  #lst .st.live{ color:var(--lst-red); background:var(--lst-red-bg); }
+  #lst .st.fail{ color:var(--lst-red); background:var(--lst-red-bg); }
+  /* 단계 패널 */
+  #lst .step{ border:1px solid var(--lst-line); border-radius:10px; background:#fff; margin-bottom:10px; overflow:hidden; }
+  #lst .step-h{ padding:11px 15px; font-size:13.5px; font-weight:700; display:flex; align-items:center; gap:9px; background:#fbfcfd; border-bottom:1px solid var(--lst-line); }
+  #lst .step-n{ width:20px; height:20px; border-radius:50%; background:var(--lst-blue); color:#fff; font-size:11px; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+  #lst .step-n.done{ background:var(--lst-green); }
+  #lst .step-n.wait{ background:#dfe2e6; color:#8b95a1; }
+  #lst .step-b{ padding:13px 15px; }
+  /* 미리보기 표 + 3칸 비교셀 */
+  #lst table.prev{ width:100%; border-collapse:collapse; font-size:13px; margin-top:2px; }
+  #lst table.prev th{ font-size:11.5px; color:var(--lst-t3); font-weight:600; text-align:left; padding:6px 10px; border-bottom:1px solid var(--lst-line); }
+  #lst table.prev td{ padding:8px 10px; border-bottom:1px solid #f1f3f5; }
+  #lst table.prev th.n, #lst table.prev td.n{ text-align:center; }
+  #lst .cmp{ display:grid; grid-template-columns:1fr auto 1fr; align-items:center; gap:8px; min-width:180px; }
+  #lst .cmp .cur{ text-align:right; color:var(--lst-t2); font-variant-numeric:tabular-nums; font-family:var(--lst-mono); }
+  #lst .cmp .arw{ color:var(--lst-t3); }
+  #lst .cmp .nxt{ text-align:left; font-weight:700; color:var(--lst-t1); font-variant-numeric:tabular-nums; font-family:var(--lst-mono); }
+  #lst .cmp .same{ color:var(--lst-t3); font-weight:400; }
+  /* 가드 박스 */
+  #lst .guard{ display:flex; gap:8px; align-items:flex-start; background:var(--lst-red-bg); border:1px solid #f7c1c1; border-radius:8px; padding:10px 12px; font-size:12.5px; color:#a3282e; margin:8px 0; }
+  #lst .guard b{ color:#8a1f24; }
+  #lst .agree{ display:flex; gap:8px; align-items:center; font-size:13px; margin:8px 0; }
+  #lst .keyoff-hint{ font-size:12px; color:var(--lst-t3); margin-left:8px; }
+  #lst .muted{ color:var(--lst-t3); font-size:13px; }
+  #lst .hidden{ display:none; }
+  #lst .empty{ color:var(--lst-t3); font-size:13px; padding:8px 0; }
+</style>
+{% endblock %}
+{% block content %}
+<div id="lst">
+<header class="page-header">
+  <h1>실전송 테스트</h1>
+  <p class="lst-sub">상품 하나만 골라 실제 판매처(스마트스토어·쿠팡·롯데온)에 가격·재고를 안전하게 반영합니다.
+    기본은 <b>드라이런</b> — 서버키(MOUM_LIVE_UPLOAD)가 켜지고 동의 체크를 해야만 실제 전송됩니다.</p>
+</header>
+
+<section class="card">
+  <div class="searchbar">
+    <input id="lst-q" type="text" placeholder="상품명 또는 코드로 검색  (예: 르무통 로퍼)"
+           autocomplete="off">
+    <button class="btn" id="lst-search-btn">검색</button>
+  </div>
+  <div class="reslist" id="lst-results"></div>
+
+  <div id="lst-detail" class="hidden">
+    <!-- 상품 카드 (마켓 체크박스) -->
+    <div class="pcard">
+      <div class="pcard-h">
+        <span class="nm" id="lst-set-name"></span>
+        <span class="code" id="lst-set-code"></span>
+        <span style="flex:1"></span>
+        <span class="st warn" id="lst-serverkey-badge">서버키 꺼짐 · 드라이런만</span>
+      </div>
+      <div id="lst-market-rows"></div>
+      <div style="margin-top:12px;">
+        <button class="btn btn-test" id="lst-preview-btn">먼저 미리보기(드라이런)</button>
+      </div>
+    </div>
+
+    <!-- 1단계: 미리보기 -->
+    <div class="step hidden" id="lst-step1">
+      <div class="step-h"><span class="step-n done">✓</span> 1단계 · 뭐가 나갈지 미리보기
+        <span style="flex:1"></span><span class="st dry">드라이런 · 실제 전송 안 함</span></div>
+      <div class="step-b" id="lst-preview-body"></div>
+    </div>
+
+    <!-- 2단계: 확인 -->
+    <div class="step hidden" id="lst-step2">
+      <div class="step-h"><span class="step-n">2</span> 2단계 · 실제로 보낼까요?</div>
+      <div class="step-b">
+        <div class="guard"><span>⚠️</span><div><b>실제 판매처에 반영됩니다.</b>
+          위 「보낼 값」이 셀러 계정에 그대로 올라갑니다. 0원·이상가는 자동 차단됩니다.</div></div>
+        <label class="agree"><input type="checkbox" id="lst-agree">
+          위 값을 실제로 전송하는 데 동의합니다</label>
+        <button class="btn btn-danger" id="lst-send-btn" disabled>이 상품만 실제 전송</button>
+        <span class="keyoff-hint" id="lst-send-hint">서버키가 꺼져 있으면 눌러도 드라이런으로만 실행됩니다</span>
+      </div>
+    </div>
+
+    <!-- 3단계: 결과 -->
+    <div class="step hidden" id="lst-step3">
+      <div class="step-h"><span class="step-n wait">3</span> 3단계 · 결과
+        <span style="flex:1"></span><span class="st" id="lst-result-mode"></span></div>
+      <div class="step-b" id="lst-result-body"></div>
+    </div>
+  </div>
+</section>
+</div>
+
+<script>
+(function(){
+  "use strict";
+  var SEND_MARKETS = {{ send_markets|tojson }};
+  var MK_STYLE = {
+    smartstore: {ch:'N', bg:'#03C75A', label:'스마트스토어'},
+    coupang:    {ch:'쿠', bg:'#FF4B2B', label:'쿠팡'},
+    lotteon:    {ch:'롯', bg:'#E04444', label:'롯데온'}
+  };
+  var state = { set: null, markets: [] };
+
+  function $(id){ return document.getElementById(id); }
+  function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g, function(c){
+    return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
+  function won(v){ if(v==null) return '—'; return Number(v).toLocaleString('ko-KR'); }
+  function num(v){ if(v==null) return '—'; return Number(v).toLocaleString('ko-KR'); }
+
+  // ── 검색 ──────────────────────────────────────────────
+  function doSearch(){
+    var q = $('lst-q').value.trim();
+    fetch('/api/live-send-test/search?q=' + encodeURIComponent(q), {cache:'no-store'})
+      .then(function(r){ return r.json(); })
+      .then(function(body){ renderResults(body.results || []); })
+      .catch(function(){ $('lst-results').innerHTML =
+        '<div class="empty">검색 중 오류가 발생했습니다.</div>'; });
+  }
+  function renderResults(results){
+    var box = $('lst-results');
+    if(!results.length){ box.innerHTML = '<div class="empty">검색 결과가 없습니다.</div>'; return; }
+    box.innerHTML = '';
+    results.forEach(function(r){
+      var el = document.createElement('div');
+      el.className = 'resitem';
+      el.innerHTML = '<span class="nm">' + esc(r.name) + '</span>' +
+        '<span class="code">' + esc(r.model_code) + '</span>' +
+        '<span style="flex:1"></span>' +
+        '<span class="chcount">' + (r.channels ? r.channels.length : 0) + '개 판매처 연동</span>';
+      el.addEventListener('click', function(){
+        Array.prototype.forEach.call(box.children, function(c){ c.classList.remove('on'); });
+        el.classList.add('on');
+        selectSet(r);
+      });
+      box.appendChild(el);
+    });
+  }
+
+  // ── 상품 선택 → 카드 ───────────────────────────────────
+  function selectSet(r){
+    state.set = r;
+    $('lst-set-name').textContent = r.name;
+    $('lst-set-code').textContent = r.model_code;
+    // 이 화면 대상 3마켓 중, 이 구성에 연동된 것만 체크박스로.
+    var byMarket = {};
+    (r.channels || []).forEach(function(c){ (byMarket[c.market] = byMarket[c.market] || []).push(c); });
+    var rows = $('lst-market-rows');
+    rows.innerHTML = '';
+    SEND_MARKETS.forEach(function(m){
+      var chans = byMarket[m.key] || [];
+      var stl = MK_STYLE[m.key] || {ch:'?', bg:'#888', label:m.label};
+      var linked = chans.length > 0;
+      var acct = chans.map(function(c){ return esc(c.account_key); }).join(', ');
+      var row = document.createElement('div');
+      row.className = 'mk-row';
+      row.innerHTML =
+        '<input type="checkbox" class="lst-mk-cb" value="' + m.key + '"' +
+          (linked ? ' checked' : ' disabled') + '>' +
+        '<span class="mk-logo" style="background:' + stl.bg + '">' + stl.ch + '</span>' +
+        '<span>' + esc(m.label) + '</span>' +
+        (linked ? '<span class="acct">· ' + acct + '</span>' : '') +
+        '<span style="flex:1"></span>' +
+        (linked ? '<span class="st ok">연동</span>' : '<span class="st">미연동</span>');
+      rows.appendChild(row);
+    });
+    // 초기화: 이전 단계 숨김
+    ['lst-step1','lst-step2','lst-step3'].forEach(function(id){ $(id).classList.add('hidden'); });
+    $('lst-agree').checked = false; syncSendBtn();
+    $('lst-detail').classList.remove('hidden');
+  }
+
+  function selectedMarkets(){
+    return Array.prototype.filter.call(document.querySelectorAll('.lst-mk-cb'),
+      function(cb){ return cb.checked; }).map(function(cb){ return cb.value; });
+  }
+
+  // ── 미리보기(드라이런) ─────────────────────────────────
+  function doPreview(){
+    if(!state.set) return;
+    var markets = selectedMarkets();
+    if(!markets.length){ alert('전송할 판매처를 하나 이상 선택하세요.'); return; }
+    var btn = $('lst-preview-btn'); btn.disabled = true; btn.textContent = '미리보기 계산 중…';
+    fetch('/api/live-send-test/preview', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({set_id: state.set.set_id, markets: markets})
+    }).then(function(r){ return r.json(); }).then(function(body){
+      renderPreview(body.rows || []);
+      $('lst-step1').classList.remove('hidden');
+      $('lst-step2').classList.remove('hidden');
+      $('lst-step3').classList.add('hidden');
+    }).catch(function(){ alert('미리보기 중 오류가 발생했습니다.'); })
+      .finally(function(){ btn.disabled = false; btn.textContent = '먼저 미리보기(드라이런)'; });
+  }
+  function cmpCell(cur, nxt, fmt){
+    if(cur == null || cur === nxt){
+      return '<span class="cmp"><span class="cur same">' + fmt(nxt) +
+        '</span><span class="arw">·</span><span class="same">' +
+        (cur == null ? '신규' : '그대로') + '</span></span>';
+    }
+    return '<span class="cmp"><span class="cur">' + fmt(cur) +
+      '</span><span class="arw">→</span><span class="nxt">' + fmt(nxt) + '</span></span>';
+  }
+  function renderPreview(rows){
+    var body = $('lst-preview-body');
+    if(!rows.length){ body.innerHTML =
+      '<div class="empty">보낼 변동이 없습니다. (선택 판매처에 매칭된 옵션이 없거나 값이 그대로)</div>'; return; }
+    var html = '<table class="prev"><tr><th>마켓 · 옵션</th>' +
+      '<th class="n">가격 (현재 → 보낼)</th><th class="n">재고 (현재 → 보낼)</th></tr>';
+    rows.forEach(function(u){
+      var stl = MK_STYLE[u.market] || {label:u.market};
+      html += '<tr><td>' + esc(stl.label) + ' · ' + esc(u.market_option_id) + '</td>' +
+        '<td class="n">' + cmpCell(u.old_price, u.new_price, won) + '</td>' +
+        '<td class="n">' + cmpCell(u.old_stock, u.new_stock, num) + '</td></tr>';
+    });
+    html += '</table>';
+    body.innerHTML = html;
+  }
+
+  // ── 확인 · 실제 전송 ───────────────────────────────────
+  function syncSendBtn(){ $('lst-send-btn').disabled = !$('lst-agree').checked; }
+  function doSend(){
+    if(!state.set) return;
+    var markets = selectedMarkets();
+    var btn = $('lst-send-btn'); btn.disabled = true; btn.textContent = '전송 중…';
+    fetch('/api/live-send-test/send', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({set_id: state.set.set_id, markets: markets, confirmed: true})
+    }).then(function(r){ return r.json(); }).then(function(body){
+      renderResult(body);
+      $('lst-step3').classList.remove('hidden');
+    }).catch(function(){ alert('전송 중 오류가 발생했습니다.'); })
+      .finally(function(){ btn.textContent = '이 상품만 실제 전송'; syncSendBtn(); });
+  }
+  function renderResult(body){
+    var mode = $('lst-result-mode');
+    if(body.use_real){ mode.className = 'st live'; mode.textContent = '★ 실전송(LIVE)'; }
+    else { mode.className = 'st dry'; mode.textContent = '드라이런(미전송)'; }
+    var res = (body.result) || {};
+    var html = '';
+    if(body.refusal){
+      html += '<div class="guard" style="background:var(--lst-amber-bg);border-color:#f5d99a;color:#8a6100;">' +
+        '<span>ℹ️</span><div>' + esc(body.refusal) + '</div></div>';
+    }
+    if(res.held){
+      html += '<div class="guard"><span>⏸</span><div><b>자동 보류.</b> ' +
+        esc(res.hold_reason || '') + ' — 값을 확인한 뒤 다시 시도하세요.</div></div>';
+    }
+    html += '<div style="font-size:13.5px;margin:6px 0;">전송 ' +
+      '<b>' + (res.uploaded||0) + '</b> · 스킵 ' + (res.skipped||0) +
+      ' · 실패 <b style="color:var(--lst-red)">' + (res.failed||0) + '</b></div>';
+    var pv = res.preview || {};
+    var keys = Object.keys(pv);
+    if(keys.length){
+      html += '<table class="prev"><tr><th>마켓</th><th class="n">건수</th>' +
+        '<th class="n">가격변동</th><th class="n">재고변동</th></tr>';
+      keys.forEach(function(m){
+        var stl = MK_STYLE[m] || {label:m};
+        html += '<tr><td>' + esc(stl.label) + '</td><td class="n">' + (pv[m].count||0) +
+          '</td><td class="n">' + (pv[m].price||0) + '</td><td class="n">' + (pv[m].stock||0) + '</td></tr>';
+      });
+      html += '</table>';
+    }
+    if((res.failed||0) > 0){
+      html += '<div class="muted" style="margin-top:8px;">실패는 응답코드로 판정됩니다(거짓 성공 없음). ' +
+        '상세 사유는 DLQ(data/uploader_dlq.jsonl)·업로드 실패함에서 확인하세요.</div>';
+    }
+    $('lst-result-body').innerHTML = html;
+  }
+
+  // ── 바인딩 ────────────────────────────────────────────
+  $('lst-search-btn').addEventListener('click', doSearch);
+  $('lst-q').addEventListener('keydown', function(e){ if(e.key==='Enter') doSearch(); });
+  $('lst-preview-btn').addEventListener('click', doPreview);
+  $('lst-agree').addEventListener('change', syncSendBtn);
+  $('lst-send-btn').addEventListener('click', doSend);
+})();
+</script>
+{% endblock %}
