@@ -526,10 +526,12 @@ def _probe_11_settle():
     days = int(request.args.get("days") or 25)
     until = _d.datetime.now()
     since = until - _d.timedelta(days=min(days, 31))
-    out = {"accounts": [], "neg_lines": [], "dup_keys": [], "sample": [], "err": None}
+    out = {"accounts": [], "neg_lines": [], "dup_keys": [], "sample": [],
+           "dup_pairs": [], "err": None}
     accs = _active_accounts("eleven11") or [(None, "default")]
     try:
         seen = {}
+        lines_by_key = {}
         for env_prefix, name in accs:
             client = _mf._eleven11_client(env_prefix)
             cnt = {"name": name, "lines": 0, "neg": 0}
@@ -550,6 +552,9 @@ def _probe_11_settle():
                     sp, dd = entry.get("selPrcAmt"), entry.get("deductAmt")
                     key = ordno + "|" + (entry.get("ordPrdSeq") or "")
                     seen[key] = seen.get(key, 0) + 1
+                    lines_by_key.setdefault(key, []).append(
+                        {"selPrcAmt": sp, "deductAmt": dd, "stlAmt": stl,
+                         "dlvCst": entry.get("dlvCst"), "cmmnDvsCd": entry.get("cmmnDvsCd")})
                     try:
                         spf = float(sp) if sp not in (None, "", "null") else None
                     except ValueError:
@@ -565,6 +570,8 @@ def _probe_11_settle():
                                               "selPrcAmt": sp, "deductAmt": dd, "stlAmt": stl})
             out["accounts"].append(cnt)
         out["dup_keys"] = [{"key": k, "count": v} for k, v in seen.items() if v > 1][:12]
+        out["dup_pairs"] = [{"key": k, "lines": lines_by_key[k]}
+                            for k, v in seen.items() if v > 1][:6]
     except Exception as e:  # noqa: BLE001
         out["err"] = repr(e)
     return jsonify(out)
