@@ -1,6 +1,21 @@
 """판매처 API 지도 데이터 — 스키마·완성게이트·참조무결성."""
 import pytest
+import pathlib
+from flask import Flask
+from webapp.routes import marketplace_guide as mg
 from webapp.marketplace_api_map import load_map, validate_map
+
+
+@pytest.fixture
+def client(monkeypatch):
+    monkeypatch.setenv("ENVIRONMENT", "test")   # _admin_only 우회
+    app = Flask(
+        __name__,
+        template_folder="webapp/templates",
+        root_path=pathlib.Path(mg.__file__).parents[2].as_posix(),
+    )
+    app.register_blueprint(mg.bp)
+    return app.test_client()
 
 def test_load_map_returns_dict():
     data = load_map()
@@ -45,3 +60,10 @@ def test_api_ids_are_unique():
     }
     errors = validate_map(dup)
     assert any("dup" in e and "중복" in e for e in errors)
+
+def test_map_data_route_serves_valid_json(client):
+    resp = client.get("/marketplace-guide/map-data.json")
+    assert resp.status_code == 200
+    body = resp.get_json()
+    assert body["schema_version"] == 1
+    assert body.get("validation_errors") == []

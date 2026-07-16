@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import os
 
-from flask import Blueprint, render_template, request, make_response
+from flask import Blueprint, render_template, request, make_response, jsonify
 
 bp = Blueprint("marketplace_guide", __name__, url_prefix="/marketplace-guide")
 
@@ -54,3 +54,13 @@ def data_code_map():
         resp.headers["X-Frame-Options"] = "SAMEORIGIN"
         return resp
     return render_template("marketplace_guide/map.html", layout="base.html")
+
+
+@bp.route("/map-data.json")
+def map_data():
+    """판매처 API 지도 데이터(단일 진실 원천) 서빙. Plan 2 화면이 fetch."""
+    from webapp.marketplace_api_map import load_map, validate_map
+    data = load_map()
+    data = dict(data)
+    data["validation_errors"] = validate_map(data)  # 조용한 실패 금지: 오류를 함께 노출
+    return jsonify(data)
