@@ -1077,40 +1077,65 @@
     function render(){var fr=filtered();renderKPI(fr);renderTable(fr);syncBtn();renderDmBars();}
     // ── 마켓별로 따로 불러와, 도착하는 대로 표에 쌓는다(한 마켓이 느려도 나머지가 먼저 보임) ──
     var loadSeq=0, loading=false, loadDone=0, loadTotal=0, warnAll=[];
+    // ── 기간별 캐시(SWR: 즉시 표시 + 항상 라이브 재검증) ──
+    // key = "마켓|from|to" → {rows, warnings}. 재클릭 시 저장본을 즉시 뿌리고,
+    // 백그라운드에서 실제 마켓 API를 다시 조회해 권위값으로 교체(폴백/거짓표시 없음).
+    var ordCache={}, cacheShown=false;
     function sortRows(){rows.sort(function(a,b){
       return String(b['주문일']||'').localeCompare(String(a['주문일']||''));});}   // 최신 먼저
     function renderLoadBar(){
       var el=document.getElementById('loadbar');
       if(!el)return;
       if(loading){el.classList.add('on');
-        el.innerHTML='<span class="dot"></span>불러오는 중… <b>'+loadDone+'/'+loadTotal+'</b> 판매처 완료'
+        el.innerHTML='<span class="dot"></span>'
+          +(cacheShown?'저장본 먼저 표시 · 최신 확인 중… ':'불러오는 중… ')
+          +'<b>'+loadDone+'/'+loadTotal+'</b> 판매처 완료'
           +' · 지금까지 <b>'+rows.length+'</b>건';
       } else { el.classList.remove('on'); el.innerHTML=''; }
     }
     function load(){
       var mks=selMk();syncBtn();
       var seq=++loadSeq;
-      rows=[];colFilter={};warnAll=[];loadDone=0;loadTotal=mks.length;
-      renderWarn([]);
-      if(!mks.length){loading=false;renderLoadBar();render();return;}
-      loading=true;renderLoadBar();
-      document.getElementById('tablewrap').innerHTML='<div class="state">주문을 불러오는 중…</div>';
+      colFilter={};loadDone=0;loadTotal=mks.length;
+      var ckOf=function(mk){return mk+'|'+cur.from+'|'+cur.to;};
+      var parts={}, pwarn={};   // 마켓별 결과(캐시 or 라이브) — 도착할 때마다 통째로 교체
+      function rebuild(){
+        rows=[];warnAll=[];
+        mks.forEach(function(mk){
+          if(parts[mk])rows=rows.concat(parts[mk]);
+          if(pwarn[mk])pwarn[mk].forEach(function(w){warnAll.push(w);});
+        });
+        sortRows();renderWarn(warnAll);render();renderLoadBar();
+      }
+      if(!mks.length){loading=false;rows=[];warnAll=[];cacheShown=false;renderWarn([]);renderLoadBar();render();return;}
+      // 1) 저장본(캐시) 즉시 표시 — 있으면 바로 뿌려 체감 0초
+      var anyCache=false;
+      mks.forEach(function(mk){var c=ordCache[ckOf(mk)];
+        if(c){parts[mk]=c.rows.slice();pwarn[mk]=(c.warnings||[]).slice();anyCache=true;}});
+      loading=true;cacheShown=anyCache;
+      if(anyCache){rebuild();}
+      else {rows=[];warnAll=[];renderWarn([]);renderLoadBar();
+        document.getElementById('tablewrap').innerHTML='<div class="state">주문을 불러오는 중…</div>';}
+      // 2) 항상 라이브 재검증 — 응답이 권위값. 저장본과 다르면 조용히 교체 + 캐시 갱신
       mks.forEach(function(mk){
         fetch('/orders/preview.json?market='+encodeURIComponent(mk)+'&'+qparam(),{cache:'no-store'})
           .then(function(r){return r.json();})
           .then(function(j){
             if(seq!==loadSeq)return;                 // 새 조회가 시작됐으면 옛 응답 버림
             loadDone++;
-            if(j.ok){ rows=rows.concat(j.rows||[]); (j.warnings||[]).forEach(function(w){warnAll.push(w);}); }
-            else { warnAll.push('['+mk+'] 주문 조회 실패: '+(j.error||'')); }
-            if(loadDone>=loadTotal)loading=false;
-            sortRows();renderWarn(warnAll);render();renderLoadBar();
+            if(j.ok){ parts[mk]=j.rows||[]; pwarn[mk]=j.warnings||[];
+              ordCache[ckOf(mk)]={rows:(j.rows||[]).slice(),warnings:(j.warnings||[]).slice()}; }
+            else { // 실패: 저장본이 있으면 유지하되 정직하게 경고(저장본을 최신인 척 하지 않음)
+              pwarn[mk]=['['+mk+'] 주문 조회 실패'+(parts[mk]?' — 저장본 표시 중':'')+': '+(j.error||'')]; }
+            if(loadDone>=loadTotal){loading=false;cacheShown=false;}
+            rebuild();
           })
           .catch(function(){
             if(seq!==loadSeq)return;
-            loadDone++; warnAll.push('['+mk+'] 네트워크 오류로 불러오지 못했어요.');
-            if(loadDone>=loadTotal)loading=false;
-            renderWarn(warnAll);render();renderLoadBar();
+            loadDone++;
+            pwarn[mk]=['['+mk+'] 네트워크 오류로 불러오지 못했어요.'+(parts[mk]?' 저장본 표시 중.':'')];
+            if(loadDone>=loadTotal){loading=false;cacheShown=false;}
+            rebuild();
           });
       });
     }
