@@ -129,7 +129,11 @@
     try{
       var r=await window.MoumExt.send('lotteon.settle.crawl',{trNo:trNo,since:since,until:until},180000);
       var resp=(r&&r.resp)?r.resp:r;
-      if(resp&&resp.ok){out.style.color='#0a7a55';out.textContent='✔ 수집 '+resp.collected+'주문 · 서버반영 '+resp.upserted+'건 (라인 '+resp.lines+'/'+resp.total+')';}
+      if(resp&&resp.ok&&resp.rows){
+        out.textContent='수집 '+resp.collected+'주문 — 서버 반영 중…';
+        var pr=await fetch('/api/margin/lotteon-settlement',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify(resp.rows)}).then(x=>x.json()).catch(function(){return null;});
+        out.style.color='#0a7a55';out.textContent='✔ 수집 '+resp.collected+'주문 · 서버반영 '+((pr&&pr.upserted)||0)+'건 (라인 '+resp.lines+'/'+resp.total+')';
+      }
       else{out.style.color='#c00';out.textContent='실패: '+((resp&&resp.error)||(r&&r.error)||'알 수 없음');}
     }catch(e){out.style.color='#c00';out.textContent='오류: '+e;}
     btn.disabled=false;

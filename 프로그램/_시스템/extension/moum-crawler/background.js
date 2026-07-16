@@ -13,7 +13,7 @@
 // [2026-07-07 화해] 리포 ↔ 데스크톱 로드본(v0.7.17) 동기화 완료 — 롯데온 익스트랙터
 //   (롯데오너스 lotte_member_discount_rate·재고 base/sitm 우선, 2026-07-03 fix Ⓑ·B) 이관.
 //   이제 리포가 원천. 데스크톱은 리포에서 동기화(통째복사 금지·패치만).
-const MOUM_EXT_VERSION = "0.7.35";  // 0.7.34 = winless 동시 레인 — fetch형 소싱처(SW: lemouton·ssf·hmall = 창0 / same-origin: ssg·lotteimall = 도메인탭1개)는 창을 URL마다 안 열고 탭 1개(또는 0개) 안에서 '동시 상한'개 동시 fetch. '동시 상한'=레인수(창수 아님). winless 레인은 fetchOnly(창 폴백 생략·정직 error). 렌더(무신사·롯데온)만 창=레인 유지. 0.7.33 = 소싱처별 동시상한 클램프 3→8. 0.7.26 = [E2] 마진계산기 소싱처 주문상태 확인(sourcing.check-order → 주문 URL 창 오픈+사이트별 파서 주입, 크롤=로컬). spike = 무신사 창없는 probe(진단 전용, 엔진 미배선). 0.7.17 = 실시간 집계(agg done/total) 브로드캐스트 → 자동화 링이 위젯과 동일. 0.7.16 = 상세 전체크롤 최우선. 0.7.6 = 자동화 워커 폴링 + 무신사 상품쿠폰(product_coupon_list) 전량수집 API우선+DOM폴백. 0.7.5 = manifest 버전동기화. 0.7.4 = content_mou 백그라운드 로그 중계. 0.7.3 = 현대H몰 sellGbcd 품절판정(S19). 0.6.x: 백그라운드 크롤 상태 영속+SW 자동재개
+const MOUM_EXT_VERSION = "0.7.36";  // 0.7.34 = winless 동시 레인 — fetch형 소싱처(SW: lemouton·ssf·hmall = 창0 / same-origin: ssg·lotteimall = 도메인탭1개)는 창을 URL마다 안 열고 탭 1개(또는 0개) 안에서 '동시 상한'개 동시 fetch. '동시 상한'=레인수(창수 아님). winless 레인은 fetchOnly(창 폴백 생략·정직 error). 렌더(무신사·롯데온)만 창=레인 유지. 0.7.33 = 소싱처별 동시상한 클램프 3→8. 0.7.26 = [E2] 마진계산기 소싱처 주문상태 확인(sourcing.check-order → 주문 URL 창 오픈+사이트별 파서 주입, 크롤=로컬). spike = 무신사 창없는 probe(진단 전용, 엔진 미배선). 0.7.17 = 실시간 집계(agg done/total) 브로드캐스트 → 자동화 링이 위젯과 동일. 0.7.16 = 상세 전체크롤 최우선. 0.7.6 = 자동화 워커 폴링 + 무신사 상품쿠폰(product_coupon_list) 전량수집 API우선+DOM폴백. 0.7.5 = manifest 버전동기화. 0.7.4 = content_mou 백그라운드 로그 중계. 0.7.3 = 현대H몰 sellGbcd 품절판정(S19). 0.6.x: 백그라운드 크롤 상태 영속+SW 자동재개
 
 // cascade 위치 시퀀서 — 창이 여러 개 열려도 서로 어긋나 보임
 let _winSeq = 0;
@@ -168,16 +168,9 @@ async function handleLotteonSettleCrawl(payload, base) {
     if (opened) { try { await chrome.tabs.remove(tab.id); } catch (_) {} }
   }
   if (!res.ok) return res;
-  // 3) 서버 push(POST /api/margin/lotteon-settlement)
-  try {
-    const pr = await fetch(base + "/api/margin/lotteon-settlement", {
-      method: "POST", credentials: "include",
-      headers: { "Content-Type": "application/json", Accept: "application/json" },
-      body: JSON.stringify(res.rows),
-    }).then((r) => r.json());
-    return { ok: true, collected: res.rows.length, lines: res.lines, total: res.total,
-             upserted: (pr && pr.upserted) || 0, trNo: res.trNo };
-  } catch (e) { return { ok: false, error: "서버 push 실패: " + e, collected: res.rows.length }; }
+  // 3) 서버 push 는 페이지가 한다(SW fetch 는 mou-m 인증 쿠키 미전송 → upserted 0). rows 를
+  //    호출 페이지(mou-m, 인증됨)로 돌려주고 페이지가 POST /api/margin/lotteon-settlement.
+  return { ok: true, rows: res.rows, collected: res.rows.length, lines: res.lines, total: res.total, trNo: res.trNo };
 }
 // MAIN world 주입 — 페이지 컨텍스트(store.lotteon.com origin·세션쿠키)서 실행. 외부 스코프 참조 금지.
 function lotteonSettleCrawlInPage(sinceYMD, untilYMD, trNoArg) {
