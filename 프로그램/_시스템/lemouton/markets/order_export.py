@@ -693,6 +693,17 @@ def coupang_order_rows(since: _dt.datetime, until: _dt.datetime,
                     ex.get("exchangeStatus")))
     except Exception:   # noqa: BLE001
         pass
+
+    # 클레임(반품·교환) 행에도 배송비 실정산 붙인다 — 반품 시 셀러가 반품배송비를 정산받는
+    # 케이스(상품 없이 배송료만 정산, 실측 24100197897393=9670)가 _cp_claim_row 하드코딩
+    # none 으로 통째 누락되던 것. deliv_map(주문번호별)에 있으면 그 주문 1개 행에 real 로.
+    for r in rows:
+        if r.get("_settle_source") == "none" and r.get("정산예정금액") == "":
+            odno = r.get("오픈마켓주문번호")
+            if odno and odno in deliv_settle and odno not in _deliv_used:
+                r["정산예정금액"] = deliv_settle[odno]
+                r["_settle_source"] = "real"
+                _deliv_used.add(odno)
     return rows
 
 
