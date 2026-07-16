@@ -38,6 +38,32 @@
   .dm2 .toptab.on{color:#fff;background:var(--ink);border-color:var(--ink);}
   .dm2 .toptab.tr.on{background:var(--ok);border-color:var(--ok);}
   .dm2 .toptab.fav.on{background:var(--star);border-color:var(--star);}
+  .dm2 .toptab.settle.on{background:var(--ok);border-color:var(--ok);}
+  /* 정산탭 — 매트릭스 + 계산식 (API 필드 코드) */
+  .dm2 .stlsub{display:flex;gap:6px;margin:14px 0 14px;}
+  .dm2 .stlsub button{font-size:12.5px;font-weight:800;color:var(--sub);border:1px solid var(--line2);background:#fff;cursor:pointer;padding:6px 13px;border-radius:8px;}
+  .dm2 .stlsub button.on{color:var(--ink);background:var(--bg);border-color:var(--ink);}
+  .dm2 .stlmtx{width:100%;border-collapse:collapse;font-size:12px;}
+  .dm2 .stlmtx th,.dm2 .stlmtx td{border:1px solid var(--line);padding:8px 10px;vertical-align:middle;white-space:nowrap;}
+  .dm2 .stlmtx thead th{background:var(--bg);color:var(--ink);font-weight:800;text-align:center;}
+  .dm2 .stlmtx tbody th{background:#fcfdfe;text-align:left;font-weight:700;width:120px;}
+  .dm2 .stlmtx tbody th .op{display:block;font-size:9.5px;color:var(--faint);font-weight:600;}
+  .dm2 .stlmtx tr.tot th{background:var(--okb);color:var(--ok);} .dm2 .stlmtx tr.tot td{background:var(--okb);}
+  .dm2 .cc{font-family:var(--mono);font-size:10.5px;color:var(--code);background:var(--codeb);border-radius:4px;padding:1px 6px;font-weight:600;display:inline-block;}
+  .dm2 .cc.res{color:var(--ok);background:var(--okb);}
+  .dm2 .inc{font-size:10.5px;color:var(--sub);} .dm2 .inc .cc{font-size:10px;} .dm2 .inc .t{color:var(--faint);}
+  .dm2 .mkc{display:inline-flex;align-items:center;gap:6px;justify-content:center;}
+  .dm2 .mkc .lg{width:19px;height:19px;border-radius:6px;color:#fff;font-size:10px;font-weight:800;display:inline-flex;align-items:center;justify-content:center;}
+  .dm2 .stlnote{color:var(--sub);font-size:11.5px;margin-top:11px;line-height:1.6;}
+  .dm2 .fml{display:flex;flex-direction:column;gap:10px;}
+  .dm2 .fr{border:1px solid var(--line2);border-radius:10px;padding:11px 14px;}
+  .dm2 .frh{display:flex;align-items:center;gap:8px;font-weight:800;margin-bottom:8px;font-size:13px;}
+  .dm2 .frh .lg{width:19px;height:19px;border-radius:6px;color:#fff;font-size:10px;font-weight:800;display:inline-flex;align-items:center;justify-content:center;}
+  .dm2 .fx{display:flex;flex-wrap:wrap;align-items:flex-start;gap:6px;}
+  .dm2 .tm{display:flex;flex-direction:column;align-items:center;gap:3px;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:6px 9px;min-width:60px;}
+  .dm2 .tm .t{font-weight:700;font-size:11px;} .dm2 .tm.res{background:var(--okb);border-color:#bfe6cd;}
+  .dm2 .tm.mi{background:#fff;border-style:dashed;border-color:#e5c9c9;}
+  .dm2 .fo{font-size:15px;font-weight:800;color:var(--sub);padding-top:8px;}
   .dm2 .toptab .fc{color:var(--star);} .dm2 .toptab.on .fc{color:#fff;} .dm2 .toptab .cnt{background:rgba(0,0,0,.14);color:#fff;border-radius:20px;font-size:10px;padding:0 6px;min-width:16px;text-align:center;} .dm2 .toptab:not(.on) .cnt{background:var(--star);}
   .dm2 .mkbadge{font-size:11px;font-weight:800;padding:2px 8px;border-radius:6px;white-space:nowrap;}
   .dm2 .mkbadge.cp{background:#FEE2E2;color:#B91C1C;} .dm2 .mkbadge.ss{background:#DCFCE7;color:#15803D;}
@@ -749,7 +775,7 @@ const API_CALLS={
 };
 const DM_KEY='moum_datamap_starred';
 let dmStar=new Set(); try{dmStar=new Set(JSON.parse(localStorage.getItem(DM_KEY)||'[]'));}catch(e){}
-let DM_TOP='all', DM_MK='coupang', DM_SUBG=0, DM_TSUB='summary';
+let DM_TOP='all', DM_MK='coupang', DM_SUBG=0, DM_TSUB='summary', DM_STL='mtx';
 // 자동전환 실배선 현황(V1 매트릭스). v: done=검증완료 / wait=검증대기.
 const TRANS=[
   {nm:'쿠팡',cls:'cp',api:'PUT …/ordersheets/acknowledgement',ids:'shipmentBoxId',v:'done'},
@@ -819,11 +845,52 @@ function dmTransMarket(id){
   if(c.note)h+=`<div class="apinote">⚠️ ${c.note}</div>`;
   return h;
 }
+function dmSettle(){
+  // 마켓별 정산 계산 항목 → 실 API 필드 코드. inc=별도 필드 없음(그 필드에 흡수, A안 「~에 포함」).
+  const MK=[{nm:'쿠팡',api:'revenue-history',c:'#AE3FE0',g:'쿠'},{nm:'스마트스토어',api:'settle/case',c:'#03C75A',g:'N'},
+            {nm:'롯데온',api:'soapi',c:'#DA2128',g:'롯'},{nm:'11번가',api:'settlementList',c:'#FF4800',g:'11'}];
+  const cell=(v)=>v.inc?`<span class="inc"><span class="cc">${v.inc}</span><span class="t">에 포함${v.n?' ('+v.n+')':''}</span></span>`:`<span class="cc">${v.c}</span>`;
+  const ROWS=[
+    ['판매가','기준',[{c:'saleAmount'},{c:'paySettleAmount'},{c:'slAmt'},{c:'selPrcAmt'}]],
+    ['수수료','(−)',[{c:'serviceFee'},{c:'totalPayCommissionAmount'},{c:'cmsnSumAmt'},{c:'selFee'}]],
+    ['판매자할인','(−)',[{inc:'settlementAmount'},{c:'benefitSettleAmount'},{c:'pdDcSlrBdnAmt'},{inc:'stlAmt'}]],
+    ['결제(페이)비','(−)',[{inc:'serviceFee'},{inc:'totalPayCommissionAmount'},{inc:'cmsnSumAmt'},{inc:'stlAmt'}]],
+    ['배송비','(+)',[{c:'deliveryFee.settlementAmount'},{c:'productOrderType=DELIVERY'},{inc:'pymtTgtAmt',n:'≈0'},{inc:'stlAmt'}]],
+    ['수량','참고',[{c:'quantity'},{c:'quantity'},{c:'slQty'},{c:'ordQty'}]],
+    ['매칭 키','라인',[{c:'orderId+vendorItemId'},{c:'productOrderId'},{c:'odNo+odseq'},{c:'ordNo+ordPrdSeq'}]]
+  ];
+  const TOT=['settlementAmount + deliveryFee','settleExpectAmount','pymtTgtAmt','stlAmt'];
+  const sub=`<div class="stlsub"><button class="${DM_STL==='mtx'?'on':''}" data-stl="mtx">항목×마켓 매트릭스</button>`
+           +`<button class="${DM_STL==='fml'?'on':''}" data-stl="fml">계산식 대입</button></div>`;
+  let bd;
+  if(DM_STL==='mtx'){
+    const head=`<tr><th style="text-align:left">항목</th>`+MK.map(m=>`<th><span class="mkc"><span class="lg" style="background:${m.c}">${m.g}</span>${m.nm}</span><br><span style="font-size:9px;color:var(--faint);font-weight:600;font-family:var(--mono)">${m.api}</span></th>`).join('')+`</tr>`;
+    const rows=ROWS.map(r=>`<tr><th>${r[0]}<span class="op">${r[1]}</span></th>`+r[2].map(v=>`<td>${cell(v)}</td>`).join('')+`</tr>`).join('');
+    const tot=`<tr class="tot"><th>= 최종 정산액</th>`+TOT.map(c=>`<td><span class="cc res">${c}</span></td>`).join('')+`</tr>`;
+    bd=`<table class="stlmtx"><thead>${head}</thead><tbody>${rows}${tot}</tbody></table>`
+      +`<div class="stlnote"><b>쿠팡·스스</b> = 상품·배송비를 별도 필드로 수집(각각 정확). <b>롯데온</b>(<span class="cc">pymtTgtAmt</span>)·<b>11번가</b>(<span class="cc">stlAmt</span>) = 지급 총액 단일 필드 — 할인·결제비·배송비가 그 필드에 <b>포함</b>돼 분리 조회 불가(금액은 총액에 반영).</div>`;
+  }else{
+    const FML=[
+      {g:'쿠',c:'#AE3FE0',nm:'쿠팡',tm:[{t:'판매가',c:'saleAmount'},{o:'−',t:'수수료',c:'serviceFee'},{o:'+',t:'배송비',c:'deliveryFee'},{o:'=',t:'정산액',c:'settlementAmount',res:1},{o:'·',t:'할인·결제비',mi:'serviceFee 흡수'}]},
+      {g:'N',c:'#03C75A',nm:'스마트스토어',tm:[{t:'기준가',c:'paySettleAmount'},{o:'−',t:'수수료',c:'totalPayCommissionAmount'},{o:'−',t:'할인',c:'benefitSettleAmount'},{o:'+',t:'배송비',c:'DELIVERY'},{o:'=',t:'정산액',c:'settleExpectAmount',res:1}]},
+      {g:'롯',c:'#DA2128',nm:'롯데온',tm:[{t:'상품가',c:'slAmt'},{o:'−',t:'수수료',c:'cmsnSumAmt'},{o:'−',t:'셀러할인',c:'pdDcSlrBdnAmt'},{o:'+',t:'롯데부담',c:'pdDcOcoBdnAmt'},{o:'=',t:'정산액',c:'pymtTgtAmt',res:1}]},
+      {g:'11',c:'#FF4800',nm:'11번가',tm:[{t:'판매가',c:'selPrcAmt'},{o:'−',t:'수수료',c:'selFee'},{o:'=',t:'정산액',c:'stlAmt',res:1},{o:'·',t:'할인·결제비·배송비',mi:'stlAmt 흡수'}]}
+    ];
+    bd=`<div class="fml">`+FML.map(f=>`<div class="fr"><div class="frh"><span class="lg" style="background:${f.c}">${f.g}</span> ${f.nm}</div><div class="fx">`
+      +f.tm.map(t=>(t.o?`<span class="fo"${t.o==='·'?' style="padding-top:16px"':''}>${t.o}</span>`:'')
+        +`<div class="tm${t.res?' res':''}${t.mi?' mi':''}"><span class="t">${t.t}</span>`
+        +(t.mi?`<span class="inc"><span class="t">→ ${t.mi}</span></span>`:`<span class="cc${t.res?' res':''}">${t.c}</span>`)+`</div>`).join('')
+      +`</div></div>`).join('')+`</div>`
+      +`<div class="stlnote">라인 매칭 키 = 마켓별 주문번호+순번: 쿠팡 <span class="cc">orderId+vendorItemId</span> · 스스 <span class="cc">productOrderId</span> · 롯데온 <span class="cc">odNo+odseq</span> · 11번가 <span class="cc">ordNo+ordPrdSeq</span>. 점선 항 = 별도 필드 없음(총액 흡수).</div>`;
+  }
+  return `<div class="favhead"><span class="ft">💰 정산 계산 항목 — API 필드 코드</span><span class="fs">각 항목이 어느 API 필드에서 오는지. 별도 필드 없는 항목은 「~에 포함」으로 흡수처 표시.</span></div>`+sub+bd;
+}
 function dmRender(){
   // 상위탭(대분류)
   let top=`<button class="toptab${DM_TOP==='howto'?' on':''}" data-top="howto">🔍 API 문서 정보 수집법</button>`
     +`<button class="toptab${DM_TOP==='all'?' on':''}" data-top="all">📚 마켓별 전체 API</button>`
-    +`<button class="toptab tr${DM_TOP==='trans'?' on':''}" data-top="trans">⚡ 주문상태 전환</button>`;
+    +`<button class="toptab tr${DM_TOP==='trans'?' on':''}" data-top="trans">⚡ 주문상태 전환</button>`
+    +`<button class="toptab settle${DM_TOP==='settle'?' on':''}" data-top="settle">💰 정산</button>`;
   document.getElementById('dm-toptabs').innerHTML=top;
   // 하위탭(마켓)
   let sub='';
@@ -837,6 +904,8 @@ function dmRender(){
     body.innerHTML=`<div class="tsplit"><div class="trail">${dmTransRail()}</div><div class="tcontent">${(DM_TSUB==='summary')?dmTransSummary():dmTransMarket(DM_TSUB)}</div></div>`;
   }else if(DM_TOP==='howto'){
     body.innerHTML=`<div class="favhead"><span class="ft">🔍 API 문서 정보 수집법</span><span class="fs">마켓 공식 API 문서를 확보하는 순서 · 마켓별 어디까지 가면 되나</span></div>`+dmApiSteps();
+  }else if(DM_TOP==='settle'){
+    body.innerHTML=dmSettle();
   }else{
     const m=DM_MARKETS.filter(x=>x.id===DM_MK)[0]; const cats=MKT_CATS[DM_MK]||[];
     if(DM_SUBG>=cats.length) DM_SUBG=0;
@@ -852,6 +921,7 @@ function dmRender(){
   document.querySelectorAll('.dm2 .mktab[data-m]').forEach(t=>t.onclick=()=>{DM_MK=t.dataset.m;DM_SUBG=0;dmRender();});
   document.querySelectorAll('.dm2 .mktab[data-ts],.dm2 .railbtn[data-ts]').forEach(t=>t.onclick=()=>{DM_TSUB=t.dataset.ts;dmRender();});
   document.querySelectorAll('.dm2 .ml button').forEach(b=>b.onclick=()=>{DM_SUBG=+b.dataset.g;dmRender();});
+  document.querySelectorAll('.dm2 .stlsub button').forEach(b=>b.onclick=()=>{DM_STL=b.dataset.stl;dmRender();});
   document.querySelectorAll('.dm2 .star,.dm2 .lstar').forEach(s=>s.onclick=()=>{const k=s.dataset.k;dmStar.has(k)?dmStar.delete(k):dmStar.add(k);dmSave();dmRender();});
 }
 dmRender();
