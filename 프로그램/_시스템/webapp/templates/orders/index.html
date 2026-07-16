@@ -1628,13 +1628,15 @@
     .cskb .csswitch button.on{background:#fff;color:var(--ink);box-shadow:0 1px 3px rgba(0,0,0,.08)}
     .cskb .csswitch button[disabled]{cursor:not-allowed;color:var(--sub2)}
     .cskb .mtabs{display:flex;gap:6px;align-items:stretch;margin-bottom:16px;flex-wrap:wrap}
-    .cskb .mt{background:#fff;border:1px solid var(--line);border-radius:10px;padding:8px 14px;display:inline-flex;align-items:center;gap:8px;font-size:13px;font-weight:600;color:var(--sub);cursor:pointer;font-family:inherit}
-    .cskb .mt .lg{width:22px;height:22px;border-radius:6px;display:grid;place-items:center;font-size:12px;color:#fff;font-weight:700;flex:none}
-    .cskb .mt .n{font-variant-numeric:tabular-nums;background:var(--red-bg);color:var(--red);border-radius:20px;padding:1px 8px;font-size:11.5px;font-weight:700}
+    .cskb .mt{background:#fff;border:1px solid var(--line);border-radius:20px;padding:6px 12px;display:inline-flex;align-items:center;gap:7px;font-size:12.5px;font-weight:600;color:var(--sub);cursor:pointer;font-family:inherit}
+    .cskb .mt .lg{width:18px;height:18px;border-radius:5px;display:grid;place-items:center;font-size:11px;color:#fff;font-weight:700;flex:none}
+    .cskb .mt .n{font-variant-numeric:tabular-nums;background:var(--red-bg);color:var(--red);border-radius:20px;padding:1px 7px;font-size:11px;font-weight:700}
     .cskb .mt.on{border-color:var(--blue);background:var(--blue-bg);color:var(--blue)}
     .cskb .mt.on .n{background:#fff;color:var(--blue)}
-    .cskb .kb{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+    /* 시안3 배치 — 신규요청 넓게·대응중 중간·대응완료 좁게+스크롤 */
+    .cskb .kb{display:grid;grid-template-columns:1.35fr 1.15fr 0.75fr;gap:14px;align-items:start}
     .cskb .kcol{background:var(--bg);border-radius:12px;padding:12px;min-height:160px}
+    .cskb .kcol-done{max-height:calc(100vh - 300px);overflow-y:auto}
     .cskb .kh{display:flex;align-items:center;gap:9px;margin-bottom:12px;padding:2px 4px}
     .cskb .kh .ic{width:26px;height:26px;border-radius:7px;display:grid;place-items:center;font-size:14px}
     .cskb .kh .nm{font-weight:700;font-size:13.5px;color:var(--ink)}
@@ -1642,10 +1644,10 @@
     .cskb .i-new{background:var(--amber-bg);color:var(--amber)}
     .cskb .i-chk{background:var(--blue-bg);color:var(--blue)}
     .cskb .i-done{background:var(--green-bg);color:var(--green)}
-    .cskb .kcard{background:#fff;border:1px solid var(--line);border-radius:10px;padding:11px 12px;margin-bottom:10px;box-shadow:0 1px 2px rgba(0,0,0,.03)}
+    .cskb .kcard{background:#fff;border:1px solid var(--line);border-radius:10px;padding:13px 14px;margin-bottom:10px;box-shadow:0 1px 2px rgba(0,0,0,.03)}
     .cskb .kcard .top{display:flex;align-items:center;gap:6px;margin-bottom:7px}
-    .cskb .kcard .nm{font-weight:600;font-size:12.5px;line-height:1.35;margin-bottom:4px;color:var(--ink)}
-    .cskb .kcard .meta{font-size:11.5px;color:var(--sub2);display:flex;gap:7px;flex-wrap:wrap}
+    .cskb .kcard .nm{font-weight:600;font-size:14px;line-height:1.4;margin-bottom:5px;color:var(--ink)}
+    .cskb .kcard .meta{font-size:12.5px;color:var(--sub2);display:flex;gap:7px;flex-wrap:wrap}
     .cskb .kcard .act{margin-top:9px;display:flex;gap:6px;align-items:center;flex-wrap:wrap}
     /* 구매자 정보(#4) — 시안3 연한 구획 박스: 사유와 시각 분리, 없으면 회색 '정보 없음' */
     .cskb .kcard .cs-buyer{margin-top:8px;background:var(--blue-bg);border-radius:8px;padding:7px 10px;display:grid;grid-template-columns:42px 1fr;row-gap:4px;column-gap:9px;font-size:11.5px;line-height:1.45}
@@ -2005,7 +2007,7 @@
       STAGES.forEach(function(s){
         var key=s[0], icls=s[1], icon=s[2];
         var rows=pick(groups[key]);
-        var col=document.createElement('div'); col.className='kcol';
+        var col=document.createElement('div'); col.className='kcol'+(key==='대응완료'?' kcol-done':'');
         var h=document.createElement('div'); h.className='kh';
         h.innerHTML='<div class="ic '+icls+'">'+icon+'</div><div class="nm">'+key+'</div><div class="cnt">'+rows.length+'</div>';
         col.appendChild(h);
