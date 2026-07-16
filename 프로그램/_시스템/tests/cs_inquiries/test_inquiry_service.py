@@ -67,6 +67,19 @@ def test_fetch_market_paginates_coupang(monkeypatch):
     assert len(rows) == 51   # 50 + 1, stopped on short page
 
 
+def test_coupang_fetch_includes_callcenter(monkeypatch):
+    from lemouton.cs_inquiries import service as isv
+    import datetime as dt
+    monkeypatch.setattr(isv, "_coupang_clients", lambda: [object()])
+    monkeypatch.setattr(isv, "_cp_fetch", lambda *a, **k: {"data": [{"inquiryId": "ON1", "content": "상품문의"}]})
+    monkeypatch.setattr(isv, "_cp_cc_fetch", lambda *a, **k: {"data": [{"inquiryId": "CC1", "content": "고객센터문의", "partnerCounselingStatus": "NO_ANSWER"}]})
+    rows = isv._fetch_market("coupang", dt.datetime(2026,7,10), dt.datetime(2026,7,16), "ALL")
+    forms = {r["문의형태"] for r in rows}
+    assert forms == {"온라인문의", "고객센터문의"}   # 두 종류 다 수집
+    cc = [r for r in rows if r["문의형태"] == "고객센터문의"][0]
+    assert cc["상태"] == "미답변" and cc["문의ID"] == "CC1"
+
+
 def test_coupang_fetch_uses_account_clients(monkeypatch):
     from lemouton.cs_inquiries import service as isv
     import datetime as dt

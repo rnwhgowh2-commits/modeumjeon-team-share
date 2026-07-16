@@ -75,3 +75,24 @@ def reply_online_inquiry(inquiry_id: str, content: str,
         "vendorUserId": user,
     }
     return client.request("POST", path, body=body)
+
+
+def fetch_call_center_inquiries(since: datetime, until: datetime,
+                                 client: Optional[CoupangClient] = None,
+                                 counseling_status: str = "NONE",
+                                 page_size: int = 50,
+                                 page_num: int = 1) -> dict:
+    """고객센터 문의 조회 (GET). 고객센터 상담 경유 문의.
+
+    partnerCounselingStatus: NONE(전체)/ANSWER(답변완료)/NO_ANSWER(미답변)/TRANSFER 등.
+    ★실제 파라미터·응답 필드는 라이브 보정 대상. query 는 문자열(HMAC 서명).
+    """
+    client = client or CoupangClient()
+    vid = (getattr(client, "_cfg", {}) or {}).get("vendor_id") or _vendor_id()
+    path = (f"/v2/providers/openapi/apis/api/v4/vendors/{vid}/callCenterInquiries")
+    q = (f"vendorId={vid}"
+         f"&inquiryStartAt={since.strftime('%Y-%m-%d')}"
+         f"&inquiryEndAt={until.strftime('%Y-%m-%d')}"
+         f"&partnerCounselingStatus={counseling_status}"
+         f"&pageSize={page_size}&pageNum={page_num}")
+    return client.request("GET", path, query=q)
