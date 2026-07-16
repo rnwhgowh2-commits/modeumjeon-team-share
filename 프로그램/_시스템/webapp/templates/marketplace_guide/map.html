@@ -853,9 +853,9 @@ function dmSettle(){
   const ROWS=[
     ['판매가','기준',[{c:'saleAmount'},{c:'paySettleAmount'},{c:'slAmt'},{c:'selPrcAmt'}]],
     ['수수료','(−)',[{c:'serviceFee'},{c:'totalPayCommissionAmount'},{c:'cmsnSumAmt'},{c:'selFee'}]],
-    ['판매자할인','(−)',[{inc:'settlementAmount'},{c:'benefitSettleAmount'},{c:'pdDcSlrBdnAmt'},{inc:'stlAmt'}]],
-    ['결제(페이)비','(−)',[{inc:'serviceFee'},{inc:'totalPayCommissionAmount'},{inc:'cmsnSumAmt'},{inc:'stlAmt'}]],
-    ['배송비','(+)',[{c:'deliveryFee.settlementAmount'},{c:'productOrderType=DELIVERY'},{inc:'pymtTgtAmt',n:'≈0'},{inc:'stlAmt'}]],
+    ['판매자할인','(−)',[{inc:'settlementAmount'},{inc:'paySettleAmount'},{c:'pdDcSlrBdnAmt'},{inc:'stlAmt'}]],
+    ['결제(페이)비','(−)',[{inc:'serviceFee'},{c:'totalPayCommissionAmount'},{inc:'cmsnSumAmt'},{inc:'stlAmt'}]],
+    ['배송비','(+)',[{c:'deliveryFee.settlementAmount'},{c:'productOrderType=DELIVERY'},{c:'dvCst',n:'수수료적용'},{inc:'stlAmt'}]],
     ['수량','참고',[{c:'quantity'},{c:'quantity'},{c:'slQty'},{c:'ordQty'}]],
     ['매칭 키','라인',[{c:'orderId+vendorItemId'},{c:'productOrderId'},{c:'odNo+odseq'},{c:'ordNo+ordPrdSeq'}]]
   ];
@@ -872,7 +872,7 @@ function dmSettle(){
   }else{
     const FML=[
       {g:'쿠',c:'#AE3FE0',nm:'쿠팡',tm:[{t:'판매가',c:'saleAmount'},{o:'−',t:'수수료',c:'serviceFee'},{o:'+',t:'배송비',c:'deliveryFee'},{o:'=',t:'정산액',c:'settlementAmount',res:1},{o:'·',t:'할인·결제비',mi:'serviceFee 흡수'}]},
-      {g:'N',c:'#03C75A',nm:'스마트스토어',tm:[{t:'기준가',c:'paySettleAmount'},{o:'−',t:'수수료',c:'totalPayCommissionAmount'},{o:'−',t:'할인',c:'benefitSettleAmount'},{o:'+',t:'배송비',c:'DELIVERY'},{o:'=',t:'정산액',c:'settleExpectAmount',res:1}]},
+      {g:'N',c:'#03C75A',nm:'스마트스토어',tm:[{t:'기준가',c:'paySettleAmount'},{o:'−',t:'수수료',c:'totalPayCommissionAmount'},{o:'+',t:'배송비',c:'DELIVERY'},{o:'=',t:'정산액',c:'settleExpectAmount',res:1},{o:'·',t:'판매자할인',mi:'기준가에 반영'}]},
       {g:'롯',c:'#DA2128',nm:'롯데온',tm:[{t:'상품가',c:'slAmt'},{o:'−',t:'수수료',c:'cmsnSumAmt'},{o:'−',t:'셀러할인',c:'pdDcSlrBdnAmt'},{o:'+',t:'롯데부담',c:'pdDcOcoBdnAmt'},{o:'=',t:'정산액',c:'pymtTgtAmt',res:1}]},
       {g:'11',c:'#FF4800',nm:'11번가',tm:[{t:'판매가',c:'selPrcAmt'},{o:'−',t:'수수료',c:'selFee'},{o:'=',t:'정산액',c:'stlAmt',res:1},{o:'·',t:'할인·결제비·배송비',mi:'stlAmt 흡수'}]}
     ];

@@ -875,6 +875,7 @@ def eleven11_order_rows(since: _dt.datetime, until: _dt.datetime, client=None,
     아니면 dlvCst; 배송건(_shipkey=bndlDlvSeq) 단위 1회 정규화.
     배송준비중=packaging(전체), 배송중=shipping(송장만), 취소/반품/교환=claimservice 병합.
     """
+    since, until = _ensure_kst(since), _ensure_kst(until)   # naive→KST(_until_now 비교 TypeError 방지)
     from shared.platforms.eleven11.orders import (
         iter_orders, iter_delivered, iter_completed, iter_preparing, iter_shipping,
         iter_cancel, iter_canceled, iter_return, iter_exchange)
