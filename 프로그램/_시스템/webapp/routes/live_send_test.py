@@ -212,6 +212,145 @@ def api_current():
     })
 
 
+# ─────────────────────────────────────────────────────────────────────────────
+# 직접(세트 연동 없이) 진단 — 실제 마켓 상품을 뽑아 조회·전송 검증.
+#   세트에 연동되지 않은 마켓(롯데온·11번가)의 실상품으로 전송 경로를 검증하기 위한 도구.
+#   pick-orders: 최근 주문에서 실제 (상품번호·단품번호) 후보를 수집.
+#   direct-current/direct-send: env_prefix+상품번호로 세트 없이 바로 조회/전송.
+# ─────────────────────────────────────────────────────────────────────────────
+@bp.get("/api/live-send-test/pick-orders")
+def api_pick_orders():
+    """최근 주문에서 실제 상품 후보(상품번호·단품번호)를 수집. 세트 연동 불필요.
+
+    ?market=lotteon|eleven11&days=14&limit=20 . 계정별로 순회하며 중복(상품·옵션) 제거.
+    """
+    market = (request.args.get("market") or "").strip()
+    try:
+        days = max(1, min(int(request.args.get("days") or 14), 120))
+    except (TypeError, ValueError):
+        days = 14
+    try:
+        limit = max(1, min(int(request.args.get("limit") or 20), 100))
+    except (TypeError, ValueError):
+        limit = 20
+    if market not in ("lotteon", "eleven11"):
+        return jsonify({"ok": False, "error": "market 은 lotteon·eleven11 만 지원"}), 400
+
+    from datetime import datetime, timedelta
+    from lemouton.markets import order_export as _oe
+    until = datetime.now()
+    since = until - timedelta(days=days)
+    accts = _oe._active_accounts(market) or [(None, "대표 계정")]
+    seen, out, warnings = set(), [], []
+    for env_prefix, alias in accts:
+        if len(out) >= limit:
+            break
+        try:
+            client = _oe._account_client(market, env_prefix)
+            if market == "lotteon":
+                from shared.platforms.lotteon.orders import iter_delivery_orders
+                for od in iter_delivery_orders(since, until, client=client):
+                    pid = str(_oe._g(od, "spdNo", default="") or "")
+                    oid = str(_oe._g(od, "sitmNo", default="") or "")
+                    if not pid or not oid:
+                        continue
+                    key = (env_prefix, pid, oid)
+                    if key in seen:
+                        continue
+                    seen.add(key)
+                    out.append({"alias": alias, "env_prefix": env_prefix,
+                                "product_id": pid, "option_id": oid,
+                                "name": str(_oe._g(od, "spdNm", default="") or ""),
+                                "option": str(_oe._g(od, "sitmNm", default="") or "")})
+                    if len(out) >= limit:
+                        break
+            else:  # eleven11
+                from shared.platforms.eleven11.orders import iter_orders
+                for od in iter_orders(since, until, client=client):
+                    pid = str(od.get("prdNo") or od.get("prdNoStr") or "")
+                    oid = str(od.get("mixOptNo") or od.get("optCd") or "")
+                    if not pid:
+                        continue
+                    key = (env_prefix, pid, oid)
+                    if key in seen:
+                        continue
+                    seen.add(key)
+                    out.append({"alias": alias, "env_prefix": env_prefix,
+                                "product_id": pid, "option_id": oid,
+                                "name": str(od.get("prdNm") or ""),
+                                "option": str(od.get("optNm") or "")})
+                    if len(out) >= limit:
+                        break
+        except Exception as e:  # noqa: BLE001
+            warnings.append(f"{alias}: {type(e).__name__}: {str(e)[:150]}")
+    return jsonify({"ok": True, "market": market, "count": len(out),
+                    "candidates": out, "warnings": warnings})
+
+
+@bp.get("/api/live-send-test/direct-current")
+def api_direct_current():
+    """세트 없이 (market, env_prefix, product_id)로 옵션·현재 가격/재고 조회."""
+    market = (request.args.get("market") or "").strip()
+    env_prefix = (request.args.get("env_prefix") or "").strip() or None
+    product_id = (request.args.get("product_id") or "").strip()
+    if not market or not product_id:
+        return jsonify({"ok": False, "error": "market·product_id 필요"}), 400
+    from lemouton.uploader.market_fetch import fetch_market_options
+    try:
+        fr = fetch_market_options(market, product_id, env_prefix=env_prefix)
+    except Exception as e:  # noqa: BLE001
+        return jsonify({"ok": False, "error": f"{type(e).__name__}: {e}"}), 200
+    if not fr.success:
+        return jsonify({"ok": False, "error": fr.error or "옵션 조회 실패"}), 200
+    opts = [{"market_option_id": str(o.option_id), "color": o.color, "size": o.size,
+             "cur_price": o.price, "cur_stock": o.stock} for o in fr.options]
+    return jsonify({"ok": True, "market": market, "product_id": product_id,
+                    "product_name": fr.product_name, "count": len(opts), "options": opts})
+
+
+@bp.post("/api/live-send-test/direct-send")
+def api_direct_send():
+    """세트 없이 실제 마켓 상품 옵션 1건에 명시 가격/재고 전송(검증용).
+
+    body: {market, env_prefix, product_id, option_id, price, stock, confirmed}.
+    서버키(MOUM_LIVE_UPLOAD)+confirmed 둘 다 참일 때만 실전송, 아니면 드라이런.
+    """
+    p = request.get_json(silent=True) or {}
+    market = str(p.get("market") or "").strip()
+    env_prefix = (str(p.get("env_prefix") or "").strip() or None)
+    product_id = str(p.get("product_id") or "").strip()
+    option_id = str(p.get("option_id") or "").strip()
+    confirmed = bool(p.get("confirmed"))
+    if not market or not product_id or not option_id:
+        return jsonify({"ok": False, "error": "market·product_id·option_id 필요"}), 400
+    try:
+        price = int(p.get("price"))
+        stock = int(p.get("stock"))
+    except (TypeError, ValueError):
+        return jsonify({"ok": False, "error": "price·stock 는 정수"}), 400
+    # 머니세이프티: 가격 양수·재고 0 이상(품절 허용). 폴백·추측 없음.
+    if price <= 0 or stock < 0:
+        return jsonify({"ok": False, "error": "가격은 양수, 재고는 0 이상이어야 해요."}), 400
+
+    from lemouton.uploader.scoped_send import _account_adapter, _server_key_on
+    use_real = bool(_server_key_on() and confirmed)
+    adapter = _account_adapter(market, env_prefix, live=use_real)
+    try:
+        r = adapter.update_price_and_stock(
+            canonical_sku=f"DIRECT:{product_id}:{option_id}",
+            market_product_id=product_id, market_option_id=option_id,
+            new_price=price, new_stock=stock)
+    except Exception as e:  # noqa: BLE001
+        import traceback
+        return jsonify({"ok": False, "use_real": use_real,
+                        "error": f"전송 실패: {type(e).__name__}: {e}",
+                        "detail": traceback.format_exc()[-1000:]}), 200
+    return jsonify({"ok": bool(r.success), "use_real": use_real, "market": market,
+                    "product_id": product_id, "option_id": option_id,
+                    "http_status": getattr(r, "http_status", None),
+                    "error": None if r.success else (r.error or "전송 실패")})
+
+
 @bp.get("/api/live-send-test/current-stock")
 def api_current_stock():
     """선택한 옵션 1건의 현재 재고 조회(온디맨드). 쿠팡=vendorItemId inventories.
