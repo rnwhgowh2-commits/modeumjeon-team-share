@@ -47,6 +47,27 @@ def test_reclassify_restores_orderdate_dedups_and_retags():
     assert ret[0]["수령자"] == "홍길동"                       # 구매자정보 보존
 
 
+def test_exchange_reship_date_restored_stays_order():
+    """교환 재출고(정상 출고코드 13)도 주문일이 재출고일로 오염되면 실주문일 복원(코드 무관).
+    _kind 는 order 유지(재출고=배송 진행)지만, 실주문일 덕에 오늘 신규주문엔 안 섞인다."""
+    rows = [
+        # 07-10 주문인데 오늘(07-16) 교환 재출고 → 주문일=재출고일로 오염, 코드 13(발송완료)
+        {"오픈마켓주문번호": "2026071016337230", "주문일": "2026-07-16 11:00:00",
+         "상품명": "신발", "옵션": "260", "주문상태원본": "13", "주문상태": "발송완료",
+         "_shipkey": ("lotteon", "e1"), "_kind": "order"},
+        # 당일 정상 출고(코드 12) — 손대면 안 됨(주문번호=주문일 동일)
+        {"오픈마켓주문번호": "2026071617000001", "주문일": "2026-07-16 09:00:00",
+         "상품명": "가방", "옵션": "F", "주문상태원본": "12", "주문상태": "상품준비",
+         "_shipkey": ("lotteon", "n1"), "_kind": "order"},
+    ]
+    out = oe._reclassify_lotteon_returns(rows)
+    ex = [r for r in out if r["오픈마켓주문번호"] == "2026071016337230"][0]
+    assert ex["주문일"] == "2026-07-10"      # 실주문일 복원(재출고일 07-16 아님)
+    assert ex["_kind"] == "order"            # 교환 재출고는 order 유지
+    normal = [r for r in out if r["오픈마켓주문번호"] == "2026071617000001"][0]
+    assert normal["주문일"] == "2026-07-16 09:00:00"   # 당일 정상건은 시각까지 불변
+
+
 def test_reclassify_leaves_claimrows_and_blank_shipkey_untouched():
     """이미 change(클레임행)·비209행은 건드리지 않는다."""
     rows = [

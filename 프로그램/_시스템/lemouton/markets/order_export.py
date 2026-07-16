@@ -322,34 +322,43 @@ def _lotteon_odno_date(odno) -> Optional[str]:
 
 
 def _reclassify_lotteon_returns(rows: list) -> list:
-    """209(출고/회수지시) 경로 행 중 회수·반품·취소 진행상태를 클레임(change)으로 바로잡는다.
+    """209(출고/회수지시) 경로 행의 주문일 이벤트일 오염을 바로잡는다.
 
-    209(SellerDeliveryOrdersSearch)는 '회수지시' 건도 돌려주는데 그 행의 odCmptDttm 는
-    '배송(회수)지시 생성일시'라, 옛 주문(예: 07-14 주문)의 주문일이 회수지시일(오늘)로 오염돼
-    new_order_rows(오늘 신규주문)에 잘못 섞인다(라이브 실측 2026-07-16: 회수지시 3건 전부).
-    → 주문번호 앞 8자리(실주문일)로 주문일을 복원하고, 반품 이벤트이므로 _kind='change'
-      (+_change_date=회수/이벤트 시각)로 재분류한다. new_order_rows 는 실주문일로 제외하고,
-      status_change_rows(CS 상태변경 탭)가 변경일로 잡는다. 같은 주문·상품의 원출고행+회수행
-      중복은 (주문번호·상품·옵션) 기준으로 최신 회수 이벤트 1건만 남긴다.
+    209(SellerDeliveryOrdersSearch)는 회수지시·교환 재출고 건도 돌려주는데, 그 행의
+    odCmptDttm 는 '배송(회수/재출고)지시 생성일시'라 옛 주문(예: 07-14 주문)의 주문일이
+    지시일(오늘)로 오염돼 new_order_rows(오늘 신규주문)에 잘못 섞인다(라이브 실측 2026-07-16:
+    회수지시 3건). 회수지시(코드 23)뿐 아니라 교환 재출고(정상 출고코드 11~15로 재유입)도 같은
+    버그클래스라, **상태코드와 무관하게** 주문번호 앞 8자리(실주문일)와 주문일의 날짜가 다르면
+    이벤트일 오염으로 보고 실주문일로 복원한다(당일 출고 정상건은 날짜 동일 → 시각 포함 원값 유지).
+
+    복원 후: new_order_rows 는 실주문일로 오늘에서 제외한다. 나아가 회수·반품·취소 진행상태
+    (코드 21~27)는 클레임 이벤트이므로 _kind='change'(+_change_date=이벤트 시각)로 재분류해
+    status_change_rows(CS 상태변경 탭)가 변경일로 잡게 하고, 같은 주문·상품의 원출고행+회수행
+    중복은 (주문번호·상품·옵션) 기준으로 최신 이벤트 1건만 남긴다. 교환 재출고(11~15)는 주문일만
+    복원하고 order 로 유지(재출고=배송 진행이라 CS 대상 아님) — 실주문일 덕에 오늘엔 안 섞인다.
     """
     others: list = []
     claims: dict = {}   # (odNo, 상품명, 옵션) → 유지행(최신 _change_date)
     for r in rows:
-        code = str(r.get("주문상태원본") or "")
-        if not r.get("_shipkey") or code not in _LO_CLAIM_STEP_CODES:
-            others.append(r)            # 정상 주문행·이미 change 인 클레임행은 그대로
+        if not r.get("_shipkey"):
+            others.append(r)            # 비209행(클레임행 등)은 그대로
             continue
-        evt = str(r.get("주문일") or "")   # 회수/이벤트 시각(오염된 주문일)
+        code = str(r.get("주문상태원본") or "")
         odno = str(r.get("오픈마켓주문번호") or "")
+        odt = str(r.get("주문일") or "")   # 209 원본 주문일(정상=주문일 / 회수·재출고=이벤트일)
         real = _lotteon_odno_date(odno)
-        if real:
-            r["주문일"] = real            # 실주문일 복원(없으면 원값 유지 — 폴백 금지)
-        r["_kind"] = "change"
-        r["_change_date"] = evt
+        # 이벤트일 오염 복원 — 코드 무관: 주문번호(실주문일) ≠ 주문일 날짜면 이벤트일로 판단.
+        if real and odt[:10] != real:
+            r["주문일"] = real
+        if code not in _LO_CLAIM_STEP_CODES:
+            others.append(r)            # 정상 출고·교환 재출고(11~15) → order 유지(날짜만 복원됨)
+            continue
+        r["_kind"] = "change"           # 회수·반품·취소(21~27) → 클레임 이벤트로 재분류
+        r["_change_date"] = odt         # 이벤트 시각(복원 전 원 주문일)
         gk = (odno, str(r.get("상품명") or ""), str(r.get("옵션") or ""))
         prev = claims.get(gk)
-        if prev is None or evt > str(prev.get("_change_date") or ""):
-            claims[gk] = r               # 원출고행+회수행 중복 → 최신 회수 1건만
+        if prev is None or odt > str(prev.get("_change_date") or ""):
+            claims[gk] = r               # 원출고행+회수행 중복 → 최신 이벤트 1건만
     return others + list(claims.values())
 
 
