@@ -61,9 +61,33 @@ def test_fetch_market_paginates_coupang(monkeypatch):
     import datetime as dt
     pages = {1: {"data": [{"inquiryId": str(i)} for i in range(50)]},
              2: {"data": [{"inquiryId": "x"}]}}
+    monkeypatch.setattr(isv, "_coupang_clients", lambda: [object()])
     monkeypatch.setattr(isv, "_cp_fetch", lambda since, until, **kw: pages[kw["page_num"]])
     rows = isv._fetch_market("coupang", dt.datetime(2026,7,10), dt.datetime(2026,7,16), "ALL")
     assert len(rows) == 51   # 50 + 1, stopped on short page
+
+
+def test_coupang_fetch_uses_account_clients(monkeypatch):
+    from lemouton.cs_inquiries import service as isv
+    import datetime as dt
+    fake_client = object()
+    monkeypatch.setattr(isv, "_coupang_clients", lambda: [fake_client])
+    seen = {}
+    monkeypatch.setattr(isv, "_cp_fetch",
+                        lambda since, until, **kw: (seen.__setitem__("client", kw.get("client")) or {"data": []}))
+    isv._fetch_market("coupang", dt.datetime(2026,7,10), dt.datetime(2026,7,16), "ALL")
+    assert seen["client"] is fake_client   # 기본 클라 아님 — 계정 설정 클라 사용
+
+
+def test_coupang_inquiries_uses_cfg_vendor_id():
+    from shared.platforms.coupang import inquiries as inq
+    import datetime as dt
+    class FakeCli:
+        _cfg = {"vendor_id": "A00123"}
+        def request(self, method, path, query=None, body=None):
+            return {"_path": path}
+    r = inq.fetch_online_inquiries(dt.datetime(2026,7,10), dt.datetime(2026,7,16), client=FakeCli())
+    assert "A00123" in r["_path"]   # cfg vendor_id 가 경로에 들어감(전역 env 아님)
 
 
 def test_smartstore_fetch_uses_valid_statuses(monkeypatch):

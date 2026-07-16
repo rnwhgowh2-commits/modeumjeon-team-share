@@ -58,17 +58,34 @@ def _normalize_smartstore(it):
             "답변일": _g(it, "answerDateTime", "answeredAt")}
 
 
+def _coupang_clients():
+    """판매처관리에 등록된 쿠팡 계정별 설정 클라이언트(_cfg.vendor_id 포함). 없으면 대표계정 폴백."""
+    from lemouton.markets.order_export import _account_client, _active_accounts
+    out = []
+    for prefix, _name in _active_accounts("coupang"):
+        c = _account_client("coupang", prefix)
+        if c is not None:
+            out.append(c)
+    if not out:
+        c = _account_client("coupang", None)
+        if c is not None:
+            out.append(c)
+    return out
+
+
 def _fetch_market(market, since, until, status):
     """마켓 어댑터 → 정규화 dict 리스트. 페이지네이션(안전상한). ★필드명 라이브 보정 대상."""
     if market == "coupang":
-        out, page = [], 1
-        for _ in range(30):   # 안전 상한
-            raw = _cp_fetch(since, until, answered_type="ALL", page_size=50, page_num=page)
-            items = raw.get("data") or []
-            out.extend(_normalize_coupang(it) for it in items)
-            if len(items) < 50:
-                break
-            page += 1
+        out = []
+        for _cli in _coupang_clients():
+            page = 1
+            for _ in range(30):   # 안전 상한
+                raw = _cp_fetch(since, until, client=_cli, answered_type="ALL", page_size=50, page_num=page)
+                items = raw.get("data") or []
+                out.extend(_normalize_coupang(it) for it in items)
+                if len(items) < 50:
+                    break
+                page += 1
         return out
     if market == "smartstore":
         out = []
