@@ -98,16 +98,16 @@ class TestEleven11Adapter:
                                      market_option_id="P100_1", new_price=1000, new_stock=2)
         assert r.success is False
 
-    def test_real_adapter_spec_missing_fails_safely(self):
-        # 실 어댑터: 가격은 상품(prdNo) GET 로 배선됐으나 client=object() 라 request 없음 →
-        #   AttributeError 를 'price:' 실패로 표면화(가격 실패 시 재고까지 가지 않음).
-        #   추측 전송 없이 안전 실패. (재고는 옵션 full-replace 라 단건 update_stock 이 막혀 있음.)
+    def test_real_adapter_holds_to_prevent_partial_send(self):
+        # 실 어댑터: 재고가 옵션 full-replace 라 옵션 1건 계약으로는 안전히 못 보낸다.
+        #   가격만 먼저 보내고 재고 실패 시 '가격만 바뀐' 부분전송이 되므로, 배치 경로가
+        #   완성될 때까지 아무것도 보내지 않는다(정직한 미개통). client 도 쓰지 않는다(전송 0).
         from lemouton.uploader.adapters.eleven11 import Eleven11Adapter
-        ad = Eleven11Adapter(client=object())  # client 는 실호출 전에 예외라 무관
+        ad = Eleven11Adapter(client=object())  # 전송 자체를 안 하므로 client 무관
         r = ad.update_price_and_stock(canonical_sku="SKU-E", market_product_id="P100",
                                       market_option_id="P100_1", new_price=1000, new_stock=2)
         assert r.success is False
-        assert "price" in (r.error or "")
+        assert ("미개통" in (r.error or "")) or ("보류" in (r.error or ""))
 
 
 # ──────────────────────────────────────────────────────────
