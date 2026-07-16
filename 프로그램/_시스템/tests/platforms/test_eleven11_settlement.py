@@ -57,6 +57,29 @@ class TestParseSettlement:
         assert parse_settlement(None) == {}
         assert parse_settlement("") == {}
 
+    def test_parses_when_lines_nested_under_wrapper(self):
+        """실 응답이 <Response><seStlDtlList><seStlDtl>… 처럼 한 겹 더 감싸도 파싱돼야 한다.
+        (라이브 전 실 구조 미확인 → root.iter() 견고성 회귀 방지. 평면 for el in root 면 {} 반환)."""
+        from shared.platforms.eleven11.settlement import parse_settlement
+        wrapped = """<?xml version="1.0" encoding="euc-kr"?>
+<ns2:Response xmlns:ns2="http://www.11st.co.kr/Settlement">
+  <ns2:totalCount>2</ns2:totalCount>
+  <ns2:seStlDtlList>
+    <ns2:seStlDtl>
+      <ns2:ordNo>20260601123456789</ns2:ordNo>
+      <ns2:ordPrdSeq>1</ns2:ordPrdSeq>
+      <ns2:stlAmt>10000</ns2:stlAmt>
+    </ns2:seStlDtl>
+    <ns2:seStlDtl>
+      <ns2:ordNo>20260602987654321</ns2:ordNo>
+      <ns2:ordPrdSeq>1</ns2:ordPrdSeq>
+      <ns2:stlAmt>7000</ns2:stlAmt>
+    </ns2:seStlDtl>
+  </ns2:seStlDtlList>
+</ns2:Response>"""
+        out = parse_settlement(wrapped)
+        assert out == {"20260601123456789": 10000, "20260602987654321": 7000}
+
 
 class TestSettlementMap:
     def test_windows_31day_and_path_format(self):

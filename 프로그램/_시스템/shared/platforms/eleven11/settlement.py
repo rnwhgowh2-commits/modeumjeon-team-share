@@ -58,7 +58,11 @@ def parse_settlement(xml_text_or_elem: Optional[Union[str, Element]]) -> Dict[st
         return {}
 
     result: Dict[str, int] = {}
-    for el in root:   # seStlDtlList 직계 자식 = 정산 라인 반복(orders.py <ns2:order> 와 동일 얕은 구조)
+    # root.iter() = 전체 트리 재귀(orders.py:76 <order> 파싱과 동일 견고성). 평면 `for el in root`
+    # 는 실 응답이 <Response><seStlDtlList><seStlDtl>… 처럼 래퍼로 한 겹 감싸면 래퍼를 라인으로
+    # 잘못 읽어 조용히 {} 를 반환한다(라이브 스모크 전엔 실 구조 미확인). iter() 는 중첩·네임스페이스
+    # 무관하게 실제 라인 요소(ordNo+stlAmt 보유)만 아래 가드로 골라내 그 실패모드를 제거.
+    for el in root.iter():
         entry = {}
         for child in el:
             entry[_localname(child.tag)] = (child.text or "").strip()
