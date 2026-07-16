@@ -54,13 +54,18 @@
   <div class="cl-head">
     <h1>🔐 크롤 로그인</h1>
   </div>
-  <p class="cl-sub">정산금 자동 수집용 판매자센터 로그인 정보. 비밀번호는 암호화되어 저장되며, 크롤러가 이 정보로 자동 로그인해 정산 데이터를 가져옵니다.</p>
+  <p class="cl-sub">롯데온 판매자센터에 <b>로그인해 둔 브라우저</b>에서 정산예정금액을 수집해 마진 계산기에 반영합니다. (본인인증 2단계 때문에 자동 로그인 대신 세션 방식 — 비밀번호 저장 불필요.)</p>
 
-  <div class="cl-counts">
-    <span class="cl-badge b-ok">🔒 저장됨 {{ n_saved }}</span>
-    <span class="cl-badge b-warn">🔓 미저장 {{ n_unsaved }}</span>
-    <span style="margin-left:auto"></span>
-    <button class="btn" disabled title="확장(크롤러) 연결 후 사용 가능 — 지금은 정보 저장만">⚡ 전체 로그인 테스트</button>
+  <div class="cl-note" style="background:#EAF2FF;border-color:#cfe0ff;color:#1d4ed8;margin:0 0 16px">
+    <b>💰 롯데온 정산 수집</b> — 판매자센터에 로그인된 상태에서 눌러주세요. 로그인된 세션 토큰으로 정산 목록을 페이지별로 모아 서버에 반영합니다.
+    <div style="display:flex;gap:8px;align-items:center;margin-top:10px;flex-wrap:wrap">
+      <input id="stl-trno" class="cl-inp" style="width:180px" placeholder="판매자ID(trNo) 예: LO10161082">
+      <input id="stl-since" class="cl-inp" type="date" style="width:150px">
+      <span style="color:#6B7684">~</span>
+      <input id="stl-until" class="cl-inp" type="date" style="width:150px">
+      <button class="btn pri" id="stl-run">정산 수집</button>
+      <span id="stl-result" style="font-size:12.5px;color:#334;font-weight:600"></span>
+    </div>
   </div>
 
   {% if accounts %}
@@ -106,6 +111,30 @@
 
 {% block scripts %}
 <script>
+// ── 롯데온 정산 수집 트리거(방식B: 세션) — 확장 lotteon.settle.crawl ──
+(function(){
+  var btn=document.getElementById('stl-run'); if(!btn)return;
+  function ymd(d){return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
+  var now=new Date(),ago=new Date();ago.setDate(ago.getDate()-60);
+  var eu=document.getElementById('stl-until'),es=document.getElementById('stl-since');
+  if(eu)eu.value=ymd(now); if(es)es.value=ymd(ago);
+  btn.addEventListener('click',async function(){
+    var out=document.getElementById('stl-result');
+    var trNo=(document.getElementById('stl-trno').value||'').trim();
+    var since=(document.getElementById('stl-since').value||'').replace(/-/g,'');
+    var until=(document.getElementById('stl-until').value||'').replace(/-/g,'');
+    if(!window.MoumExt||!window.MoumExt.installed()){out.style.color='#c00';out.textContent='확장(모음전 크롤러) 미설치/미로드 — 리로드 후 다시';return;}
+    if(!trNo){out.style.color='#c00';out.textContent='판매자ID(trNo)를 입력하세요';return;}
+    btn.disabled=true;out.style.color='#334';out.textContent='수집 중… (롯데온 판매자센터에 로그인돼 있어야 함)';
+    try{
+      var r=await window.MoumExt.send('lotteon.settle.crawl',{trNo:trNo,since:since,until:until},180000);
+      var resp=(r&&r.resp)?r.resp:r;
+      if(resp&&resp.ok){out.style.color='#0a7a55';out.textContent='✔ 수집 '+resp.collected+'주문 · 서버반영 '+resp.upserted+'건 (라인 '+resp.lines+'/'+resp.total+')';}
+      else{out.style.color='#c00';out.textContent='실패: '+((resp&&resp.error)||(r&&r.error)||'알 수 없음');}
+    }catch(e){out.style.color='#c00';out.textContent='오류: '+e;}
+    btn.disabled=false;
+  });
+})();
 document.querySelectorAll('.cl-save').forEach(function(btn){
   btn.addEventListener('click', function(){
     var card = btn.closest('.cl-card');
