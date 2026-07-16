@@ -57,19 +57,29 @@
   <p class="cl-sub">롯데온 판매자센터에 <b>로그인해 둔 브라우저</b>에서 정산예정금액을 수집해 마진 계산기에 반영합니다. (본인인증 2단계 때문에 자동 로그인 대신 세션 방식 — 비밀번호 저장 불필요.)</p>
 
   <div class="cl-note" style="background:#EAF2FF;border-color:#cfe0ff;color:#1d4ed8;margin:0 0 16px">
-    <b>💰 롯데온 정산 수집</b> — 판매자센터에 로그인된 상태에서 눌러주세요. 로그인된 세션 토큰으로 정산 목록을 페이지별로 모아 서버에 반영합니다.
-    <div style="display:flex;gap:8px;align-items:center;margin-top:10px;flex-wrap:wrap">
-      <input id="stl-trno" class="cl-inp" style="width:220px" placeholder="판매자ID(trNo) — 비우면 자동감지">
-      <input id="stl-since" class="cl-inp" type="date" style="width:150px">
-      <span style="color:#6B7684">~</span>
-      <input id="stl-until" class="cl-inp" type="date" style="width:150px">
-      <button class="btn pri" id="stl-run">정산 수집</button>
-      <span id="stl-result" style="font-size:12.5px;color:#334;font-weight:600"></span>
+    <b>💰 롯데온 정산 수집</b> — 저장한 아이디/비번으로 <b>자동 로그인 → 정산 수집</b>까지 한 번에. (본인인증은 새 기기·가끔만 뜨며, 그땐 그 계정만 건너뜁니다.)
+    <div style="display:flex;gap:8px;align-items:center;margin-top:12px;flex-wrap:wrap">
+      <button class="btn pri" id="stl-autoall" style="background:#1d4ed8;border-color:#1d4ed8">🤖 전체 자동 (7계정 로그인+수집)</button>
+      <span id="stl-autoall-result" style="font-size:12.5px;color:#334;font-weight:600"></span>
     </div>
-    <div style="display:flex;gap:8px;align-items:center;margin-top:10px;flex-wrap:wrap;font-size:12.5px">
+    <div id="stl-autoall-list" style="margin-top:8px;font-size:12px;display:none;background:#fff;border:1px solid #cfe0ff;border-radius:8px;padding:8px 10px"></div>
+
+    <details style="margin-top:12px">
+      <summary style="cursor:pointer;font-size:12.5px;color:#1d4ed8">수동 수집(현재 로그인된 1계정만) · 기간 지정</summary>
+      <div style="display:flex;gap:8px;align-items:center;margin-top:8px;flex-wrap:wrap">
+        <input id="stl-trno" class="cl-inp" style="width:200px" placeholder="판매자ID — 비우면 자동감지">
+        <input id="stl-since" class="cl-inp" type="date" style="width:150px">
+        <span style="color:#6B7684">~</span>
+        <input id="stl-until" class="cl-inp" type="date" style="width:150px">
+        <button class="btn pri" id="stl-run">정산 수집</button>
+        <span id="stl-result" style="font-size:12.5px;color:#334;font-weight:600"></span>
+      </div>
+    </details>
+
+    <div style="display:flex;gap:8px;align-items:center;margin-top:12px;flex-wrap:wrap;font-size:12.5px">
       <label style="display:inline-flex;align-items:center;gap:6px;cursor:pointer">
         <input type="checkbox" id="stl-auto" style="width:15px;height:15px;cursor:pointer">
-        <b>⏱ 자동 수집</b> — 이 탭이 열려 있는 동안
+        <b>⏱ 자동 반복</b> — 이 탭이 열려 있는 동안
       </label>
       <select id="stl-auto-min" class="cl-inp" style="width:auto;padding:4px 8px">
         <option value="30">30분</option>
@@ -77,7 +87,7 @@
         <option value="180">3시간</option>
         <option value="360">6시간</option>
       </select>
-      <span style="color:#6B7684">마다 로그인된 계정 정산을 자동 반영</span>
+      <span style="color:#6B7684">마다 <b>전체 자동(7계정)</b>을 반복</span>
       <span id="stl-auto-state" style="font-weight:600;color:#1d4ed8"></span>
     </div>
   </div>
@@ -111,9 +121,9 @@
     {% endfor %}
 
     <div class="cl-note">
-      ⚠️ <b>보안 안내</b> — 비밀번호는 암호화되어 저장됩니다(평문 저장 안 함). 다만 자동 로그인을 위해
+      ⚠️ <b>보안 안내</b> — 비밀번호는 암호화되어 저장됩니다(평문 저장 안 함). 다만 <b>전체 자동</b> 로그인을 위해
       크롤러가 복호화해 사용하므로, 서버·암호화키가 동시에 유출되면 비밀번호도 노출될 수 있습니다.
-      · 「전체 로그인 테스트」와 실제 자동 로그인은 크롤러(확장) 연결 후 동작합니다.
+      · 「🤖 전체 자동」은 저장된 계정을 순서대로 <b>로그아웃→로그인→정산수집</b> 합니다. 본인인증이 뜨는 계정은 건너뛰니 그 계정만 직접 로그인 후 다시 눌러주세요.
     </div>
   {% else %}
     <div class="cl-empty">
@@ -165,12 +175,63 @@
   }
   btn.addEventListener('click',function(){runCollect(false);});
 
-  // ── 자동 수집 스케줄(방식B 특성상 이 탭 열려 있고 판매자센터 로그인된 동안만) ──
+  // ── 전체 자동(방식A): 저장 계정마다 로그아웃→자동로그인→정산수집→서버반영 순회 ──
+  var _fullRunning=false;
+  async function runFullAuto(isAuto){
+    var out=document.getElementById('stl-autoall-result');
+    var listBox=document.getElementById('stl-autoall-list');
+    var abtn=document.getElementById('stl-autoall');
+    if(!window.MoumExt||!window.MoumExt.installed()){out.style.color='#c00';out.textContent='확장(모음전 크롤러) 미설치/미로드 — 리로드 후 다시';return {ok:0,verify:0,fail:0};}
+    if(_fullRunning){return {busy:true};}
+    _fullRunning=true;
+    var cards=Array.prototype.slice.call(document.querySelectorAll('.cl-card[data-prefix]'));
+    if(!cards.length){out.style.color='#c00';out.textContent='계정이 없습니다';_fullRunning=false;return {ok:0,verify:0,fail:0};}
+    if(!isAuto)abtn.disabled=true;
+    listBox.style.display='block'; listBox.innerHTML='';
+    var since=(document.getElementById('stl-since').value||'').replace(/-/g,'');
+    var until=(document.getElementById('stl-until').value||'').replace(/-/g,'');
+    var sum={ok:0,verify:0,fail:0};
+    out.style.color='#334';out.textContent=(isAuto?'[자동] ':'')+'전체 자동 시작 — '+cards.length+'계정';
+    for(var i=0;i<cards.length;i++){
+      var prefix=cards[i].dataset.prefix;
+      var nameEl=cards[i].querySelector('.cl-name');
+      var name=(nameEl&&nameEl.textContent||prefix).trim();
+      var row=document.createElement('div');row.style.padding='3px 0';
+      row.innerHTML='<b>'+name+'</b> · <span>준비…</span>';listBox.appendChild(row);
+      var span=row.querySelector('span');
+      try{
+        span.textContent='자격증명 확인…';
+        var creds=await fetch('/accounts/api/crawl-login/'+encodeURIComponent(prefix)+'/creds',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:'{}'}).then(function(x){return x.json();}).catch(function(){return null;});
+        if(!creds||!creds.ok){span.textContent='건너뜀: '+((creds&&creds.error)||'저장된 로그인 없음');span.style.color='#8a6100';sum.fail++;continue;}
+        span.textContent='로그아웃(계정 전환)…';
+        await window.MoumExt.send('lotteon.logout',{},60000).catch(function(){return null;});
+        span.textContent='자동 로그인…';
+        var lr=await window.MoumExt.send('lotteon.autologin',{login_id:creds.login_id,password:creds.password},90000);
+        var lresp=(lr&&lr.resp)?lr.resp:lr;
+        if(lresp&&lresp.needs_verify){span.textContent='⚠ 본인인증 필요 — 이 계정만 건너뜀(직접 로그인 후 재시도)';span.style.color='#8a6100';sum.verify++;continue;}
+        if(!(lresp&&lresp.ok)){span.textContent='로그인 실패: '+((lresp&&lresp.error)||'불명');span.style.color='#c00';sum.fail++;continue;}
+        span.textContent='정산 수집…';
+        var r=await window.MoumExt.send('lotteon.settle.crawl',{since:since,until:until},180000);
+        var resp=(r&&r.resp)?r.resp:r;
+        if(!(resp&&resp.ok&&resp.rows)){span.textContent='수집 실패: '+((resp&&resp.error)||'불명');span.style.color='#c00';sum.fail++;continue;}
+        var pr=await fetch('/api/margin/lotteon-settlement',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify(resp.rows)}).then(function(x){return x.json();}).catch(function(){return null;});
+        span.textContent='✔ '+resp.collected+'주문 · 서버반영 '+((pr&&pr.upserted)||0)+'건'+(resp.trNo?(' ('+resp.trNo+')'):'');span.style.color='#0a7a55';sum.ok++;
+      }catch(e){span.textContent='오류: '+e;span.style.color='#c00';sum.fail++;}
+    }
+    out.style.color=(sum.fail?'#c00':'#0a7a55');
+    out.textContent='완료 — 성공 '+sum.ok+' · 본인인증필요 '+sum.verify+' · 실패 '+sum.fail;
+    if(!isAuto)abtn.disabled=false;
+    _fullRunning=false;
+    return sum;
+  }
+  document.getElementById('stl-autoall').addEventListener('click',function(){runFullAuto(false);});
+
+  // ── 자동 반복 스케줄 — 전체 자동(7계정)을 주기 반복 ──
   function hhmm(){var d=new Date();return String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0');}
   function stopSched(){if(_timer){clearInterval(_timer);_timer=null;}}
   async function tick(){
-    var ok=await runCollect(true);
-    autoState.textContent='· 최근 '+hhmm()+(ok?' 반영됨':' 실패');
+    var s=await runFullAuto(true);
+    autoState.textContent='· 최근 '+hhmm()+' (성공 '+((s&&s.ok)||0)+'/실패 '+((s&&s.fail)||0)+')';
   }
   function startSched(){
     stopSched();

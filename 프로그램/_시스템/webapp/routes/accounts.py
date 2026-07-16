@@ -2458,3 +2458,32 @@ def save_crawl_login(env_prefix: str):
     st = _cl.login_status(env_prefix)
     return jsonify({"ok": True, "saved": st["saved"], "login_id": st["login_id"],
                     "message": f"{acc.display_name} 로그인 정보 저장 완료(비밀번호 암호화)."})
+
+
+@bp.route("/api/crawl-login/<env_prefix>/creds", methods=["POST"])
+def crawl_login_creds(env_prefix: str):
+    """[방식A 자동로그인] 저장된 판매자센터 자격증명(복호화)을 반환 — 확장이 로그인폼 자동입력용.
+
+    ⚠️ 평문 비밀번호를 이 사용자의 인증된 브라우저에 전달한다(방식A 고지된 트레이드오프,
+    crawl_login.py 보안설계 참조). 임의 키 주입 방지 위해 크롤 로그인 대상 계정만 허용.
+    """
+    from lemouton.auth import crawl_login as _cl
+    if not env_prefix or not env_prefix.replace("_", "").isalnum():
+        return jsonify({"ok": False, "error": "env_prefix 형식 오류"}), 400
+    s = SessionLocal()
+    try:
+        acc = (s.query(UploadAccount)
+               .filter(UploadAccount.env_prefix == env_prefix,
+                       UploadAccount.market.in_(CRAWL_LOGIN_MARKETS)).first())
+    finally:
+        s.close()
+    if acc is None:
+        return jsonify({"ok": False, "error": "크롤 로그인 대상 계정이 아닙니다"}), 404
+    st = _cl.login_status(env_prefix)
+    if not st["saved"]:
+        return jsonify({"ok": False, "error": "저장된 로그인 정보가 없습니다"}), 404
+    pw = _cl.get_password(env_prefix)
+    if pw is None:
+        return jsonify({"ok": False, "error": "비밀번호 복호화 실패(키 불일치/손상)"}), 500
+    return jsonify({"ok": True, "login_id": st["login_id"], "password": pw,
+                    "display_name": acc.display_name})

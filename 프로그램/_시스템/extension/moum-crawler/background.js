@@ -135,6 +135,18 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       .then((r) => sendResponse(r)).catch((e) => sendResponse({ ok: false, error: String(e) }));
     return true;
   }
+  // ── [2026-07-16] 롯데온 방식A 자동 로그인: 저장 자격증명으로 판매자센터 로그인폼 자동입력·제출 ──
+  if (type === "lotteon.autologin") {
+    handleLotteonAutoLogin(msg.payload || {})
+      .then((r) => sendResponse(r)).catch((e) => sendResponse({ ok: false, error: String(e) }));
+    return true;
+  }
+  // 로그아웃(계정 전환용) — 판매자센터 로그아웃 후 로그인 페이지 대기
+  if (type === "lotteon.logout") {
+    handleLotteonLogout()
+      .then((r) => sendResponse(r)).catch((e) => sendResponse({ ok: false, error: String(e) }));
+    return true;
+  }
   sendResponse({ error: "unknown type: " + type });
   return false;
 });
@@ -234,6 +246,137 @@ function lotteonSettleCrawlInPage(sinceYMD, untilYMD, trNoArg) {
       } catch (e) { resolve({ ok: false, error: String(e) }); }
     })();
   });
+}
+
+// ── [2026-07-16] 롯데온 방식A 자동 로그인 ──
+//   저장 자격증명(login_id/password)으로 판매자센터 로그인폼을 자동입력·제출한다.
+//   본인인증(새 기기·가끔)이 뜨면 needs_verify=true 로 멈춰 사용자가 직접 처리하게 한다.
+const _LO_LOGIN_URL = "https://store.lotteon.com/cm/main/login_SO.wsp";
+const _LO_HOME_URL = "https://store.lotteon.com/cm/main/index_SO.wsp";
+
+async function _loEnsureTab(url) {
+  let tab = (await chrome.tabs.query({ url: "https://store.lotteon.com/*" }))[0];
+  if (!tab) {
+    tab = await chrome.tabs.create({ url: url, active: false });
+    try { await waitTabComplete(tab.id, 25000); } catch (_) {}
+  }
+  return tab;
+}
+async function _loInject(tabId, fn, args) {
+  const out = await chrome.scripting.executeScript({
+    target: { tabId: tabId }, world: "MAIN", func: fn, args: args || [],
+  });
+  return (out && out[0] && out[0].result) || null;
+}
+
+async function handleLotteonAutoLogin(payload) {
+  const loginId = payload.login_id || payload.loginId || "";
+  const password = payload.password || "";
+  if (!loginId || !password) return { ok: false, error: "자격증명 없음(login_id/password 필요)" };
+  const tab = await _loEnsureTab(_LO_LOGIN_URL);
+  // 1) 현재 상태 확인 — 이미 로그인이면 그대로 통과
+  let st = await _loInject(tab.id, lotteonCheckStateInPage, []);
+  if (st && st.loggedIn) return { ok: true, already: true, trNo: st.trNo || null };
+  // 2) 로그인 페이지가 아니면 로그인 페이지로
+  if (!st || !st.hasForm) {
+    await chrome.tabs.update(tab.id, { url: _LO_LOGIN_URL });
+    try { await waitTabComplete(tab.id, 25000); } catch (_) {}
+    st = await _loInject(tab.id, lotteonCheckStateInPage, []);
+    if (st && st.loggedIn) return { ok: true, already: true, trNo: st.trNo || null };
+    if (!st || !st.hasForm) return { ok: false, error: "로그인 폼을 찾지 못함(페이지 구조 변경?)" };
+  }
+  // 3) 폼 자동입력 + 제출
+  const fr = await _loInject(tab.id, lotteonFillLoginInPage, [loginId, password]);
+  if (!fr || !fr.submitted) return { ok: false, error: (fr && fr.error) || "로그인 제출 실패(버튼 못 찾음)" };
+  // 4) 제출 후 네비게이션 대기 → 상태 재확인
+  try { await waitTabComplete(tab.id, 25000); } catch (_) {}
+  await new Promise((r) => setTimeout(r, 1500));   // WebSquare 렌더 여유
+  st = await _loInject(tab.id, lotteonCheckStateInPage, []);
+  if (st && st.needsVerify) return { ok: false, needs_verify: true, error: "본인인증 필요(새 기기·가끔) — 직접 인증 후 재시도" };
+  if (st && st.loggedIn) return { ok: true, trNo: st.trNo || null };
+  if (st && st.hasForm) return { ok: false, error: "로그인 실패(아이디/비번 확인) — 폼 그대로" };
+  return { ok: false, error: "로그인 결과 불명(상태 미확정)" };
+}
+
+async function handleLotteonLogout() {
+  const tab = (await chrome.tabs.query({ url: "https://store.lotteon.com/*" }))[0];
+  if (!tab) return { ok: true, note: "열린 탭 없음(이미 로그아웃 상태로 간주)" };
+  // 로그아웃 링크 클릭 시도(MAIN) → 없으면 로그인 페이지로 이동(세션 종료 유도)
+  const r = await _loInject(tab.id, lotteonLogoutInPage, []);
+  try { await waitTabComplete(tab.id, 20000); } catch (_) {}
+  await new Promise((res) => setTimeout(res, 1000));
+  const st = await _loInject(tab.id, lotteonCheckStateInPage, []);
+  return { ok: true, loggedOut: !!(st && !st.loggedIn), clicked: !!(r && r.clicked) };
+}
+
+// MAIN world — 로그인 상태 판정. 외부 스코프 참조 금지.
+function lotteonCheckStateInPage() {
+  try {
+    var trEl = document.getElementById("mf_sellerShop_trNo");
+    var trNo = trEl ? (trEl.textContent || "").trim() : "";
+    var idI = document.getElementById("mf_loginUserId");
+    var pwI = document.getElementById("mf_sct_passwd");
+    var hasForm = !!(idI && pwI && idI.offsetParent !== null && pwI.offsetParent !== null);
+    // 세션 토큰(56 hex) 존재 여부
+    var hasTok = false, hex = /[0-9a-f]{56}/;
+    for (var i = 0; i < sessionStorage.length; i++) {
+      var v = "" + (sessionStorage.getItem(sessionStorage.key(i)) || "");
+      if (hex.test(v)) { hasTok = true; break; }
+    }
+    var body = (document.body && document.body.innerText) || "";
+    var needsVerify = /본인인증|인증번호|휴대폰 인증|휴대전화 인증|이중 인증|OTP/.test(body) && !hasForm;
+    var onLoginPage = /login_SO\.wsp/.test(location.href);
+    // 로그인 판정: 판매자코드 노출 or 세션토큰 있고 로그인폼/로그인페이지 아님
+    var loggedIn = (!!trNo || hasTok) && !hasForm && !onLoginPage;
+    return { loggedIn: loggedIn, hasForm: hasForm, needsVerify: needsVerify, trNo: trNo, url: location.href };
+  } catch (e) { return { loggedIn: false, hasForm: false, needsVerify: false, error: String(e) }; }
+}
+
+// MAIN world — 로그인 폼 자동입력 + 제출.
+function lotteonFillLoginInPage(loginId, password) {
+  try {
+    var idI = document.getElementById("mf_loginUserId");
+    var pwI = document.getElementById("mf_sct_passwd");
+    if (!idI || !pwI) return { submitted: false, error: "입력칸 없음" };
+    function setVal(el, val) {
+      var proto = Object.getPrototypeOf(el);
+      var desc = Object.getOwnPropertyDescriptor(proto, "value");
+      if (desc && desc.set) desc.set.call(el, val); else el.value = val;
+      ["input", "change", "keyup", "blur"].forEach(function (t) {
+        el.dispatchEvent(new Event(t, { bubbles: true }));
+      });
+    }
+    idI.focus(); setVal(idI, loginId);
+    pwI.focus(); setVal(pwI, password);
+    // 로그인 버튼 찾기 — id/onclick/텍스트로. '아이디 찾기'·'비밀번호' 제외.
+    var btn = document.getElementById("mf_btn_login") || document.getElementById("btn_login");
+    if (!btn) {
+      var cands = Array.prototype.slice.call(document.querySelectorAll("a,button,input[type=submit],[onclick]"));
+      for (var i = 0; i < cands.length; i++) {
+        var t = (cands[i].textContent || cands[i].value || "").trim();
+        if (t === "로그인" && cands[i].offsetParent !== null) { btn = cands[i]; break; }
+      }
+    }
+    if (!btn) return { submitted: false, error: "로그인 버튼 못 찾음" };
+    btn.click();
+    return { submitted: true };
+  } catch (e) { return { submitted: false, error: String(e) }; }
+}
+
+// MAIN world — 로그아웃 링크 클릭(있으면). 없으면 클릭 안 함(핸들러가 로그인 페이지로 유도).
+function lotteonLogoutInPage() {
+  try {
+    var cands = Array.prototype.slice.call(document.querySelectorAll("a,button,[onclick]"));
+    for (var i = 0; i < cands.length; i++) {
+      var t = (cands[i].textContent || "").trim();
+      if ((t === "로그아웃" || t === "LOGOUT" || t === "Logout") && cands[i].offsetParent !== null) {
+        cands[i].click(); return { clicked: true };
+      }
+    }
+    // 로그아웃 버튼 못 찾으면 로그인 페이지로 이동(세션 만료 유도)
+    location.href = "https://store.lotteon.com/cm/main/login_SO.wsp";
+    return { clicked: false };
+  } catch (e) { return { clicked: false, error: String(e) }; }
 }
 
 // ── [스파이크 2026-07-07] 무신사 창없는 재고·가격 probe (서비스워커 직접 fetch) ──
