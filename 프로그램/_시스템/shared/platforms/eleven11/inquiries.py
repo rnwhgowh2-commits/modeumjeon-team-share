@@ -22,6 +22,7 @@ _MAX_WINDOW_DAYS = 7
 _PATH_PRODUCT_QNA = "/rest/prodqnaservices/prodqnalist/{s}/{e}/{status}"
 _PATH_PRODUCT_QNA_ANSWER = "/rest/prodqnaservices/prodqnaanswer/{brd}/{prd}"
 _PATH_ALIMI = "/rest/alimi/getalimilist/{s}/{e}"   # 처리상태·주문번호 선택 → 전체는 2세그먼트
+_PATH_ALIMI_ANSWER = "/rest/alimi/alimianswer"     # PUT 확인/답변(구버전 GET 은 2024/02/14 중지)
 
 
 def _ymd(d: _dt.datetime) -> str:
@@ -86,7 +87,7 @@ def iter_emergency(since: _dt.datetime, until: _dt.datetime, *, client):
     """긴급알리미 조회(긴급문의·긴급알림톡). GET /rest/alimi/getalimilist/{s}/{e}.
 
     처리상태·주문번호 경로 세그먼트는 선택 → 전체는 생략(2세그먼트). 최대 30일 윈도우.
-    ★답변 처리 API는 2024/02/14 중지 → 조회 전용.
+    답변/확인은 answer_emergency(PUT /rest/alimi/alimianswer)로 처리(구버전 GET 만 중지).
     응답 root <ns2:alimi> 하위 <ns2:alimListInfo> 반복. result_code=0 은 '결과 없음'(에러 아님).
     yield = alimListInfo 필드 dict(emerNtceSeq·emerNtceClfNm1(긴급문의/긴급알림톡)·
     emerNtceSubject·emerCtnt·prdNm·memNm·emerNtceCrntCd·emerReplyCtnt(답변) 등).
@@ -116,6 +117,28 @@ def iter_emergency(since: _dt.datetime, until: _dt.datetime, *, client):
             if key:
                 seen.add(key)
             yield row
+
+
+def answer_emergency(emer_ntce_seq: str, answer_cont: str = "", *, confirm_yn: str = "Y", client) -> dict:
+    """긴급알리미 확인/답변 처리. PUT /rest/alimi/alimianswer.
+
+    ★구버전 GET /alimianswer/{seq}/{yn}/{ctnt} 는 2024/02/14 중지 → 이 PUT 로 대체(활성).
+    body=<request><confirmYn>Y|N</confirmYn><emerNtceSeq>…</emerNtceSeq><answerCtnt>…</answerCtnt></request>.
+    응답 <alimiResult> result_code 100(확인 성공)/200(답변 성공). 반환=파싱 dict.
+    """
+    body = ('<?xml version="1.0" encoding="euc-kr"?>'
+            "<request>"
+            f"<confirmYn>{_xml_escape(confirm_yn or 'Y')}</confirmYn>"
+            f"<emerNtceSeq>{_xml_escape(str(emer_ntce_seq))}</emerNtceSeq>"
+            f"<answerCtnt>{_xml_escape(answer_cont or '')}</answerCtnt>"
+            "</request>")
+    xml_text = client.request("PUT", _PATH_ALIMI_ANSWER, body=body)
+    root = _parse(xml_text)
+    out = {}
+    if root is not None:
+        for child in root:
+            out[_localname(child.tag)] = (child.text or "").strip()
+    return out
 
 
 def answer_product_qna(brd_info_no: str, prd_no: str, answer_cont: str, *, client) -> dict:

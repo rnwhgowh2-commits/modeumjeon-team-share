@@ -730,7 +730,8 @@ const MKT_CATS={
     {g:'문의(CS)',items:[
       {nm:'상품 QnA 목록 조회',dir:'recv',st:'ok',code:'/rest/prodqnaservices/prodqnalist/{s}/{e}/{status} · iter_product_qna (CS 상품문의 라이브)'},
       {nm:'상품 QnA 답변 처리',dir:'send',st:'code',code:'PUT /rest/prodqnaservices/prodqnaanswer/{brdInfoNo}/{prdNo} · answer_product_qna (전송 OFF·이메일 자동발송)'},
-      {nm:'긴급문의 조회(긴급알리미)',dir:'recv',st:'ok',code:'/rest/alimi/getalimilist/{s}/{e} · iter_emergency (CS 긴급문의 라이브·셀러공지 제외·답변API 중지)'},
+      {nm:'긴급문의 조회(긴급알리미)',dir:'recv',st:'ok',code:'/rest/alimi/getalimilist/{s}/{e} · iter_emergency (CS 긴급문의 라이브·셀러공지 제외)'},
+      {nm:'긴급알리미 확인·답변',dir:'send',st:'code',code:'PUT /rest/alimi/alimianswer · answer_emergency (전송 OFF·구버전 GET 중지)'},
       {nm:'11톡(긴급알림톡) 조회',dir:'recv',st:'code',code:'긴급알리미에 포함(clfNm1 톡 필터) · 라이브 톡 데이터 미확인'},
     ]},
     {g:'정산',items:[]},
