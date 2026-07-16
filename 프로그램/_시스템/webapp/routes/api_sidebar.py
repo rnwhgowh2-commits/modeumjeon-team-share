@@ -67,9 +67,9 @@ def _default_layout() -> dict:
                  'url': '/templates', 'active_key': 'templates', 'badge_key': None},
                 {'id': 'i_orders', 'emoji': '📦', 'name': '주문 내역',
                  'url': '/orders/?tab=list', 'active_key': 'orders_list', 'badge_key': None},
-                {'id': 'i_sales', 'emoji': '💵', 'name': '정산·매출',
-                 'url': '/orders/?tab=sales', 'active_key': 'orders_sales', 'badge_key': None},
-                {'id': 'i_cs', 'emoji': '💬', 'name': '문의·반품',
+                # [2026-07-16] 정산·매출(i_sales) 제거(사용자 요청) + 문의·반품→CS 이름변경.
+                #   순서는 그대로: 템플릿 → 주문 내역 → CS → 신규 상품 등록 → 마진 계산기.
+                {'id': 'i_cs', 'emoji': '💬', 'name': 'CS',
                  'url': '/orders/?tab=cs', 'active_key': 'orders_cs', 'badge_key': None},
                 {'id': 'i_register', 'emoji': '🆕', 'name': '신규 상품 등록',
                  'url': '/orders/?tab=register', 'active_key': 'orders_register', 'badge_key': None},
@@ -108,6 +108,26 @@ def _remove_inspect(layout: dict) -> bool:
     return changed
 
 
+def _migrate_sell_group(layout: dict) -> bool:
+    """[2026-07-16] 판매 그룹 정리(저장된 레이아웃에도 반영, idempotent):
+      · 정산·매출(i_sales) 항목 제거 — 사용자 요청.
+      · 문의·반품(i_cs) 이름 → 'CS' (옛 이름일 때만 교체, 사용자가 손댄 이름 보존 X → 확정 변경).
+    """
+    changed = False
+    for st in layout.get('stages') or []:
+        items = st.get('items') or []
+        new = [it for it in items if it.get('id') != 'i_sales']
+        if len(new) != len(items):
+            st['items'] = new
+            items = new
+            changed = True
+        for it in items:
+            if it.get('id') == 'i_cs' and it.get('name') in ('문의·반품', '문의/반품', '문의반품'):
+                it['name'] = 'CS'
+                changed = True
+    return changed
+
+
 def _load() -> dict:
     """파일에서 로드. 없으면 기본값 생성·저장. mtime 캐시 적용."""
     if not LAYOUT_PATH.exists():
@@ -125,7 +145,9 @@ def _load() -> dict:
             return _layout_cache['data']
         with open(LAYOUT_PATH, 'r', encoding='utf-8') as f:
             data = json.load(f)
-        if _remove_inspect(data):          # 배송검사 주문내역 흡수 → 저장 메뉴의 별도 항목 제거(1회)
+        _mig1 = _remove_inspect(data)      # 배송검사 주문내역 흡수 → 저장 메뉴의 별도 항목 제거(1회)
+        _mig2 = _migrate_sell_group(data)  # 정산·매출 제거 + 문의·반품→CS(1회)
+        if _mig1 or _mig2:
             _save(data)
             try:
                 mtime = LAYOUT_PATH.stat().st_mtime
