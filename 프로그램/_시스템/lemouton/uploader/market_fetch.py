@@ -212,11 +212,20 @@ def _fetch_eleven11(product_id: str, env_prefix: Optional[str] = None) -> FetchR
         rows = get_stocks(str(product_id), client=client)
     except Exception as e:  # noqa: BLE001 — 조회 실패 명시 표면화(추측·폴백 금지)
         return FetchResult(False, None, [], f"옵션 조회 실패: {e}")
+    # 판매가는 상품(prdNo) 단위 — 상품조회로 1회 읽어 옵션에 공통 표시(미상=None).
+    base_prc = None
+    try:
+        from shared.platforms.eleven11.products import get_product_price
+        base_prc = get_product_price(str(product_id), client=client)
+    except Exception:  # noqa: BLE001 — 가격 조회 실패는 재고 목록을 막지 않음(price=None)
+        base_prc = None
     opts = [
         # market_option_id = prdStckNo(재고번호) — 재고 변경 키(PUT stockqty). 라벨은 옵션명.
+        # price = 상품 판매가(selPrc) + 옵션가(addPrc). 미상이면 None.
         MarketOption(option_id=str(r.get("prd_stck_no")),
                      color=r.get("dtl_opt_nm") or r.get("opt_nm"), size=None,
-                     stock=r.get("stock"), price=None)
+                     stock=r.get("stock"),
+                     price=(base_prc + (r.get("add_prc") or 0)) if base_prc is not None else None)
         for r in rows if r.get("prd_stck_no") is not None
     ]
     return FetchResult(True, None, opts,
