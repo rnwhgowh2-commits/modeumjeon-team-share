@@ -998,6 +998,28 @@ def gmarket_order_rows(since: _dt.datetime, until: _dt.datetime, client=None,
                           include_settlement=include_settlement)
 
 
+def _eleven11_fill_shipping_ordt(rows: list) -> list:
+    """배송중(ordDt 미제공→ordNo[:8] 근사) 라인의 주문일을 같은 주문의 실주문일로 교정.
+
+    11번가 배송중(shipping) 목록은 주문일(ordDt)을 안 줘 order 행이 ordNo 앞8자리로 근사한다
+    (라이브 82/82 일치라 대개 정확하나, 부분발송처럼 같은 주문의 일부만 배송중이면 나머지 라인은
+    실주문일을 갖는다). 같은 주문번호가 날짜목록(결제완료·배송준비중·배송완료 등)에도 있으면 그
+    실주문일(ordDt)로 배송중 라인을 덮어 정밀화한다 — 실주문일 소스만 사용(폴백 아님).
+    클레임행(_kind='change')은 주문일 공란 유지(의도)라 교정 대상 아님. 임시 출처 플래그는 제거.
+    """
+    ordt_by_no: dict = {}
+    for r in rows:
+        if r.get("_ordt_real") and r.get("주문일"):
+            ordt_by_no.setdefault(str(r.get("오픈마켓주문번호") or ""), r["주문일"])
+    for r in rows:
+        if not r.get("_ordt_real") and r.get("_kind") != "change":
+            real = ordt_by_no.get(str(r.get("오픈마켓주문번호") or ""))
+            if real:
+                r["주문일"] = real
+        r.pop("_ordt_real", None)   # 임시 출처 플래그 제거(출력 누출 방지)
+    return rows
+
+
 def eleven11_order_rows(since: _dt.datetime, until: _dt.datetime, client=None,
                         include_settlement: bool = True) -> list:
     """11번가 주문 → 행(dict). 상태별 API 3종 병합(전체 라이프사이클).
@@ -1026,9 +1048,13 @@ def eleven11_order_rows(since: _dt.datetime, until: _dt.datetime, client=None,
         addr = (str(_g11(od, "rcvrBaseAddr")) + " " + str(_g11(od, "rcvrDtlsAddr"))).strip()
         ship = _g11(od, "bmDlvCst") if od.get("bndlDlvYN") == "Y" else _g11(od, "dlvCst")
         # 주문일: ordDt(있으면). 배송중(shipping) 목록은 ordDt 미제공 → ordNo 앞 8자리(YYYYMMDD)로 보정.
+        #   (라이브 82/82 ordNo[:8]=실주문일 일치라 근사는 정확하지만) 같은 주문의 날짜목록 라인이
+        #   있으면 실주문일로 교정한다(부분발송 대비) → _ordt_real 로 출처 표시.
         ordno = str(_g11(od, "ordNo"))
-        ord_dt = _g11(od, "ordDt") or (ordno[:8] if ordno[:2] == "20" and len(ordno) >= 8 else "")
+        real_ordt = _g11(od, "ordDt")
+        ord_dt = real_ordt or (ordno[:8] if ordno[:2] == "20" and len(ordno) >= 8 else "")
         return {
+            "_ordt_real": bool(real_ordt),   # 주문일이 API ordDt 출처인가(아니면 ordNo[:8] 근사)
             "_shipkey": ("eleven11", _g11(od, "bndlDlvSeq") or _g11(od, "ordNo")),
             # 송장 전송용 식별자 — 발송처리(/rest/ordservices/reqdelivery)의 대상 단위는
             #   **배송번호(dlvNo)** 다(주문번호로 대체 불가). 부분발송용 ordPrdSeq 도 함께 보존.
@@ -1154,7 +1180,8 @@ def eleven11_order_rows(since: _dt.datetime, until: _dt.datetime, client=None,
                     r["_settle_source"] = "real"
         except Exception:   # noqa: BLE001 — 조회 실패 시 기존 stlPlnAmt/추정 유지(폴백 아님)
             pass
-    return rows
+
+    return _eleven11_fill_shipping_ordt(rows)
 
 
 # 마켓별 행 빌더(코드 존재). SUPPORTED = 그중 실계정 검증까지 끝나 UI 노출 가능한 것.
