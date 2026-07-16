@@ -331,25 +331,59 @@ def api_direct_send():
     product_id = str(p.get("product_id") or "").strip()
     option_id = str(p.get("option_id") or "").strip()
     confirmed = bool(p.get("confirmed"))
+    stock_only = bool(p.get("stock_only"))  # 가격 미확인 마켓(11번가) 재고만 검증
     if not market or not product_id or not option_id:
         return jsonify({"ok": False, "error": "market·product_id·option_id 필요"}), 400
     try:
-        price = int(p.get("price"))
         stock = int(p.get("stock"))
     except (TypeError, ValueError):
-        return jsonify({"ok": False, "error": "price·stock 는 정수"}), 400
-    # 머니세이프티: 가격 양수·재고 0 이상(품절 허용). 폴백·추측 없음.
-    if price <= 0 or stock < 0:
-        return jsonify({"ok": False, "error": "가격은 양수, 재고는 0 이상이어야 해요."}), 400
+        return jsonify({"ok": False, "error": "stock 는 정수"}), 400
+    if stock < 0:
+        return jsonify({"ok": False, "error": "재고는 0 이상이어야 해요."}), 400
+    if not stock_only:
+        try:
+            price = int(p.get("price"))
+        except (TypeError, ValueError):
+            return jsonify({"ok": False, "error": "price 는 정수"}), 400
+        if price <= 0:
+            return jsonify({"ok": False, "error": "가격은 양수여야 해요."}), 400
 
     from lemouton.uploader.scoped_send import _account_adapter, _server_key_on
     use_real = bool(_server_key_on() and confirmed)
-    adapter = _account_adapter(market, env_prefix, live=use_real)
     try:
-        r = adapter.update_price_and_stock(
-            canonical_sku=f"DIRECT:{product_id}:{option_id}",
-            market_product_id=product_id, market_option_id=option_id,
-            new_price=price, new_stock=stock)
+        if stock_only:
+            # 재고만 변경(가격 미접촉). 11번가=재고번호 PUT, 롯데온=옵션 재고.
+            if not use_real:
+                r = type("R", (), {"success": True, "http_status": None})()
+            elif market == "eleven11":
+                from lemouton.uploader.market_fetch import _eleven11_client
+                from shared.platforms.eleven11.stocks_query import get_stocks
+                from shared.platforms.eleven11.inventory import update_stock_by_stock_no
+                cli = _eleven11_client(env_prefix)
+                cur = [o for o in get_stocks(product_id, client=cli)
+                       if str(o.get("prd_stck_no")) == option_id]
+                if not cur:
+                    return jsonify({"ok": False, "use_real": use_real,
+                                    "error": f"재고번호 {option_id} 미발견"}), 200
+                sr = update_stock_by_stock_no(product_id, option_id, stock,
+                                              cur[0].get("opt_wght"), client=cli)
+                r = type("R", (), {"success": sr.success, "http_status": None,
+                                   "error": sr.error_message})()
+            elif market == "lotteon":
+                from lemouton.uploader.market_fetch import _lotteon_client
+                from shared.platforms.lotteon.inventory import update_stock
+                ok = update_stock(product_id, option_id, stock,
+                                  client=_lotteon_client(env_prefix))
+                r = type("R", (), {"success": bool(ok), "http_status": None,
+                                   "error": None if ok else "재고 변경 실패"})()
+            else:
+                return jsonify({"ok": False, "error": "stock_only 는 eleven11·lotteon만"}), 400
+        else:
+            adapter = _account_adapter(market, env_prefix, live=use_real)
+            r = adapter.update_price_and_stock(
+                canonical_sku=f"DIRECT:{product_id}:{option_id}",
+                market_product_id=product_id, market_option_id=option_id,
+                new_price=price, new_stock=stock)
     except Exception as e:  # noqa: BLE001
         import traceback
         return jsonify({"ok": False, "use_real": use_real,

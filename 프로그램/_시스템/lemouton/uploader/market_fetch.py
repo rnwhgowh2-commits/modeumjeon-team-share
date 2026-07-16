@@ -213,11 +213,11 @@ def _fetch_eleven11(product_id: str, env_prefix: Optional[str] = None) -> FetchR
     except Exception as e:  # noqa: BLE001 — 조회 실패 명시 표면화(추측·폴백 금지)
         return FetchResult(False, None, [], f"옵션 조회 실패: {e}")
     opts = [
-        # market_option_id = mixOptNo(어댑터 full-replace 매칭키와 동일). 라벨은 옵션명.
-        MarketOption(option_id=str(r.get("opt_no")),
+        # market_option_id = prdStckNo(재고번호) — 재고 변경 키(PUT stockqty). 라벨은 옵션명.
+        MarketOption(option_id=str(r.get("prd_stck_no")),
                      color=r.get("dtl_opt_nm") or r.get("opt_nm"), size=None,
                      stock=r.get("stock"), price=None)
-        for r in rows if r.get("opt_no") is not None
+        for r in rows if r.get("prd_stck_no") is not None
     ]
     return FetchResult(True, None, opts,
                        None if opts else "옵션이 없어요(상품번호·계정 확인)")
