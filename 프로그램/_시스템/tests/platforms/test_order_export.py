@@ -84,6 +84,49 @@ def test_smartstore_normal_order_not_tagged_change():
     assert rows[0].get("_kind") != "change"
 
 
+def test_enrich_change_from_active_fills_buyer_and_name():
+    """#3: 클레임(change) 빈칸을 같은 주문번호의 활성(order) 주문에서 채운다(추가 조회 없음)."""
+    rows = [
+        {"_kind": "order", "판매처": "쿠팡", "오픈마켓주문번호": "O1", "상품명": "코트",
+         "구매자": "김구매", "수령자": "김수령", "수령자전화번호": "01012345678",
+         "주소": "서울 강남", "우편번호": "06000"},
+        {"_kind": "change", "판매처": "쿠팡", "오픈마켓주문번호": "O1", "상품명": "코트",
+         "구매자": "김구매", "수령자": "", "수령자전화번호": "", "주소": ""},   # 쿠팡 클레임=이름만
+    ]
+    oe._enrich_change_from_active(rows)
+    ch = rows[1]
+    assert ch["수령자전화번호"] == "01012345678"   # 활성서 채움
+    assert ch["주소"] == "서울 강남"
+    assert ch["수령자"] == "김수령"
+
+
+def test_enrich_skips_when_no_active_match():
+    """활성에 같은 주문번호가 없으면(발주 전 취소 등) 못 채우고 그대로 둔다(폴백 금지)."""
+    rows = [{"_kind": "change", "판매처": "11번가", "오픈마켓주문번호": "X9",
+             "상품명": "", "구매자": "", "수령자전화번호": "", "주소": ""}]
+    oe._enrich_change_from_active(rows)
+    assert rows[0]["상품명"] == "" and rows[0]["주소"] == ""
+
+
+def test_enrich_productname_only_when_unambiguous():
+    """상품명은 그 주문의 활성 상품명이 한 종류일 때만 채운다(다품목 주문 오채움 금지)."""
+    # 단일 상품명 → 채움
+    rows1 = [
+        {"_kind": "order", "판매처": "11번가", "오픈마켓주문번호": "A", "상품명": "티셔츠"},
+        {"_kind": "change", "판매처": "11번가", "오픈마켓주문번호": "A", "상품명": ""},
+    ]
+    oe._enrich_change_from_active(rows1)
+    assert rows1[1]["상품명"] == "티셔츠"
+    # 두 상품명 → 모호 → 안 채움
+    rows2 = [
+        {"_kind": "order", "판매처": "11번가", "오픈마켓주문번호": "B", "상품명": "티셔츠"},
+        {"_kind": "order", "판매처": "11번가", "오픈마켓주문번호": "B", "상품명": "바지"},
+        {"_kind": "change", "판매처": "11번가", "오픈마켓주문번호": "B", "상품명": ""},
+    ]
+    oe._enrich_change_from_active(rows2)
+    assert rows2[2]["상품명"] == ""
+
+
 def test_ss_estimate_settle_formula():
     # 매출 × 0.94 (수수료 6%). 실결제금액 우선, 없으면 단가×수량, 둘 다 없으면 빈칸(폴백 0 금지).
     assert oe._ss_estimate_settle(90000, 100000, 1) == round(90000 * 0.94)   # 실결제 우선

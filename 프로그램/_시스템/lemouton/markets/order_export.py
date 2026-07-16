@@ -1599,6 +1599,47 @@ def _change_date_of(r):
         return None
 
 
+_ENRICH_BUYER_FIELDS = ("구매자", "수령자", "수령자전화번호", "구매자번호", "주소", "우편번호")
+
+
+def _enrich_change_from_active(rows) -> None:
+    """클레임(change) 행의 빈 구매자정보·상품명을, 같은 주문번호의 활성(order) 행에서 채운다.
+
+    #3(구매자 정보) — 각 마켓 빌더가 이미 함께 받아온 '활성 주문'(수령자·전화·주소·상품명
+    전부 있음)을 재사용한다. **새 API 호출 없음**(추가 조회 비용·실패 위험 0). 활성 목록에
+    없는 주문(발주 전 취소 등)은 채우지 못하고 '정보 없음'으로 남는다(정직 — 폴백 금지).
+
+    · 구매자 필드(이름·전화·주소·우편번호)는 주문번호만으로 안전(한 주문 내 동일).
+    · 상품명은 여러 상품라인이면 어느 라인인지 모호 → 그 주문의 활성 상품명이 '한 종류'일
+      때만 채운다(다품목 주문은 오채움 금지).
+    """
+    buyer_src, names = {}, {}
+    for r in rows:
+        if r.get("_kind") == "change":
+            continue
+        on = str(r.get("오픈마켓주문번호") or "")
+        if not on:
+            continue
+        key = (r.get("판매처", ""), on)
+        buyer_src.setdefault(key, r)
+        nm = str(r.get("상품명") or "").strip()
+        if nm:
+            names.setdefault(key, set()).add(nm)
+    for r in rows:
+        if r.get("_kind") != "change":
+            continue
+        key = (r.get("판매처", ""), str(r.get("오픈마켓주문번호") or ""))
+        src = buyer_src.get(key)
+        if src:
+            for f in _ENRICH_BUYER_FIELDS:
+                if not str(r.get(f) or "").strip() and str(src.get(f) or "").strip():
+                    r[f] = src[f]
+        if not str(r.get("상품명") or "").strip():
+            ns = names.get(key)
+            if ns and len(ns) == 1:
+                r["상품명"] = next(iter(ns))
+
+
 def status_change_rows(markets, days: int = 7, now=None,
                        since=None, until=None, warnings=None) -> list:
     """상태변경(취소/교환/반품) 이벤트만 — 변경일(_change_date) 기준 수집.
@@ -1606,9 +1647,12 @@ def status_change_rows(markets, days: int = 7, now=None,
     #1의 _kind='change' 태그 재사용. combined_order_rows는 주문일로 트리밍해 '옛 주문의
     이번 기간 변경'을 놓치므로, 여기선 _fetch_combined(트리밍 전)에서 change 행만 뽑아
     _change_date 로 트리밍한다.
+
+    #3: 클레임 행의 구매자정보·상품명은 같은 주문번호의 활성 주문에서 채운다(추가 조회 없음).
     """
     rows = _fetch_combined(markets, days, now, since=since, until=until,
                            include_settlement=False, warnings=warnings)
+    _enrich_change_from_active(rows)   # 활성 주문 → 클레임 빈칸 채움(구매자·상품명)
     if not (since and until):
         return [r for r in rows if r.get("_kind") == "change"]
     lo, hi = since.date(), until.date()
