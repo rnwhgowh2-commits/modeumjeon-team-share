@@ -1523,6 +1523,7 @@
     .cskb .btn{background:var(--blue);color:#fff;border:none;border-radius:7px;padding:5px 12px;font-size:11.5px;font-weight:600;cursor:pointer;font-family:inherit}
     .cskb .btn:disabled{opacity:.6;cursor:not-allowed}
     .cskb .memoIn{border:1px solid var(--line);border-radius:6px;padding:4px 8px;font-size:11.5px;flex:1;min-width:100px;color:var(--ink);font-family:inherit}
+    .cskb .memoRO{margin-top:8px;font-size:11px;color:var(--sub2);line-height:1.4;word-break:break-word}
     .cskb .kempty{padding:22px 10px;text-align:center;color:var(--sub2);font-size:12px}
     .cskb .cs-state{padding:40px 20px;text-align:center;color:var(--sub);font-size:13px;grid-column:1/-1}
     .cskb .cs-banner{background:#FEF2F2;border:1px solid #FCA5A5;border-radius:10px;padding:10px 12px;font-size:12px;color:#991B1B;margin-bottom:14px}
@@ -1549,8 +1550,10 @@
     var LOGO={'쿠팡':['C','#FF5A5A'],'11번가':['11','#F43142'],'롯데온':['L','#DA0F31'],'스마트스토어':['N','#03C75A']};
     var TYPE_CLS={'취소':'t-cancel','반품':'t-return','교환':'t-exch'};
     var STAGES=[['신규요청','i-new','🆕'],['대응필요','i-chk','👀'],['대응완료','i-done','✅']];
+    // curMarket = 클라이언트측 필터 선택(''=전체). 페치는 항상 전마켓 → 건수 배지는 항상 정확.
     var curMarket='';
     var lastCounts={};
+    var lastGroups={};
 
     function esc(s){
       return String(s==null?'':s).replace(/[&<>"']/g,function(c){
@@ -1572,13 +1575,15 @@
           +esc(label)+'<span class="n">'+n+'</span>';
         b.addEventListener('click',function(){
           if(curMarket===key) return;
-          curMarket=key; renderTabs(); load();
+          // 클라이언트측 필터만 — 재페치 없이 저장된 groups 를 다시 그린다(건수 배지는 전마켓 유지).
+          curMarket=key; renderTabs(); renderBoard(lastGroups);
         });
         MTABS.appendChild(b);
       });
     }
 
-    function marketsParam(){ return curMarket ? curMarket : ALLMK.join(','); }
+    // 페치는 항상 전마켓 → market_counts 가 전마켓 기준(전체·마켓별 배지 모두 정확).
+    function marketsParam(){ return ALLMK.join(','); }
 
     function setLoadingState(){
       BOARD.innerHTML='<div class="cs-state">불러오는 중…</div>';
@@ -1614,6 +1619,13 @@
         st.className='st '+(wd?'s-wd':'s-done');
         st.textContent=wd?'철회':(row['유형']||'')+'완료';
         act.appendChild(st);
+        // 스펙 §3: 메모는 단계를 넘어가도 유지 — 대응완료에서도 읽기전용으로 보인다.
+        if(row['메모']){
+          var m=document.createElement('div');
+          m.className='memoRO';
+          m.textContent='📝 '+row['메모'];
+          div.appendChild(m);
+        }
       } else {
         if(stage==='신규요청'){
           var btn=document.createElement('button');
@@ -1631,9 +1643,20 @@
       return div;
     }
 
+    // 선택 마켓(en_key)에 해당하는 한글 판매처명. ''=전체.
+    function selectedLabel(){
+      for(var i=0;i<MK.length;i++){ if(MK[i][1]===curMarket) return MK[i][0]; }
+      return '';
+    }
+
     function renderBoard(groups){
       groups=groups||{};
-      var total=STAGES.reduce(function(n,s){ return n+((groups[s[0]]||[]).length); },0);
+      var label=selectedLabel();
+      function pick(arr){
+        arr=arr||[];
+        return (curMarket==='') ? arr : arr.filter(function(r){ return r['판매처']===label; });
+      }
+      var total=STAGES.reduce(function(n,s){ return n+pick(groups[s[0]]).length; },0);
       BOARD.innerHTML='';
       if(!total){
         BOARD.innerHTML='<div class="cs-state">이 기간 요청이 없어요</div>';
@@ -1641,7 +1664,7 @@
       }
       STAGES.forEach(function(s){
         var key=s[0], icls=s[1], icon=s[2];
-        var rows=groups[key]||[];
+        var rows=pick(groups[key]);
         var col=document.createElement('div'); col.className='kcol';
         var h=document.createElement('div'); h.className='kh';
         h.innerHTML='<div class="ic '+icls+'">'+icon+'</div><div class="nm">'+key+'</div><div class="cnt">'+rows.length+'</div>';
@@ -1688,14 +1711,15 @@
         .then(function(r){return r.json();})
         .then(function(j){
           if(!j.ok){
-            lastCounts=j.market_counts||{}; renderTabs();
+            lastCounts=j.market_counts||{}; lastGroups={}; renderTabs();
             BOARD.innerHTML='<div class="cs-state">불러오지 못했어요</div>';
             showBanner('불러오지 못했어요: '+(j.error||'알 수 없는 오류'), false);
             return;
           }
           lastCounts=j.market_counts||{};
+          lastGroups=j.groups||{};
           renderTabs();
-          renderBoard(j.groups||{});
+          renderBoard(lastGroups);
           if((j.warnings||[]).length){
             showBanner(j.warnings.join(' · '), true);
           }

@@ -191,8 +191,13 @@ def cs_claim_ack():
     ck = (d.get('claim_key') or '').strip()
     if not ck:
         return jsonify(ok=False, error='claim_key 필요'), 400
-    _claim_svc.acknowledge(ck, market=d.get('market', ''), order_no=d.get('order_no', ''),
-                           claim_type=d.get('claim_type', ''))
+    try:
+        _claim_svc.acknowledge(ck, market=d.get('market', ''), order_no=d.get('order_no', ''),
+                               claim_type=d.get('claim_type', ''))
+    except Exception as e:   # noqa: BLE001 — DB 오류를 500 HTML 대신 구조화 JSON 으로(조용한 실패 방지)
+        import logging
+        logging.getLogger(__name__).exception("cs ack failed ck=%s", ck)
+        return jsonify(ok=False, error=str(e)), 200
     return jsonify(ok=True)
 
 
@@ -202,8 +207,13 @@ def cs_claim_memo():
     ck = (d.get('claim_key') or '').strip()
     if not ck:
         return jsonify(ok=False, error='claim_key 필요'), 400
-    _claim_svc.save_memo(ck, d.get('memo', ''), market=d.get('market', ''),
-                         order_no=d.get('order_no', ''), claim_type=d.get('claim_type', ''))
+    try:
+        _claim_svc.save_memo(ck, d.get('memo', ''), market=d.get('market', ''),
+                             order_no=d.get('order_no', ''), claim_type=d.get('claim_type', ''))
+    except Exception as e:   # noqa: BLE001 — DB 오류를 500 HTML 대신 구조화 JSON 으로(조용한 실패 방지)
+        import logging
+        logging.getLogger(__name__).exception("cs memo failed ck=%s", ck)
+        return jsonify(ok=False, error=str(e)), 200
     return jsonify(ok=True)
 
 

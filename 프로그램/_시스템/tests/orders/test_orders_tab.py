@@ -102,6 +102,11 @@ def test_cs_tab_renders_claims_kanban():
     assert "/orders/cs/claims.json" in html
     assert "반품·교환·취소" in html and "고객문의" in html
     assert "미답변 문의" not in html            # 구 샘플 레이아웃(TAB_CONFIG['cs']) 미사용
+    # 마켓탭은 클라이언트측 필터 — 페치는 항상 전마켓(건수 배지 정확). 탭 클릭이 재페치 아님.
+    assert "function marketsParam(){ return ALLMK.join(','); }" in html
+    assert "renderBoard(lastGroups)" in html
+    # 스펙 §3: 대응완료 카드에도 메모 읽기전용 표시(memoRO).
+    assert "memoRO" in html
 
 
 def test_action_button_disabled_when_off():
