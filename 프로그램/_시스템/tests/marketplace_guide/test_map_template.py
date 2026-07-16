@@ -102,3 +102,10 @@ def test_send_receive_directions():
 def test_new_market_guide_referenced():
     html = _map()
     assert "_새-마켓-추가-가이드.md" in html
+
+
+def test_map_fetches_data_and_has_work_tabs():
+    html = _map()
+    assert "/marketplace-guide/map-data.json" in html   # 데이터 구동
+    assert "dmWorkTab" in html and "bindWorkRows" in html # 업무탭 렌더
+    assert "클레임·CS" in html and "배송·송장" in html    # 업무탭 배치
