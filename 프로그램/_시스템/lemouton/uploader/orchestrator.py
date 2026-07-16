@@ -234,6 +234,7 @@ def run_uploader(
     # 호출
     uploaded = 0
     failed = 0
+    errors: list[dict] = []   # 실패 상세(마켓·sku·이유) — 반환에 담아 UI/진단에 표면화
     now = datetime.now(timezone.utc)
     for u in actionable:
         if pacer is not None:
@@ -267,6 +268,8 @@ def run_uploader(
                 "http_status": None,
                 "attempts": 1,
             })
+            errors.append({"market": u["market"], "canonical_sku": u["canonical_sku"],
+                           "error": f"어댑터 미등록 마켓: {u['market']}", "http_status": None})
             continue
         result = adapter.update_price_and_stock(
             canonical_sku=u["canonical_sku"],
@@ -312,6 +315,8 @@ def run_uploader(
                 "http_status": result.http_status,
                 "attempts": 1,
             })
+            errors.append({"market": u["market"], "canonical_sku": u["canonical_sku"],
+                           "error": result.error, "http_status": result.http_status})
             failed += 1
 
     if persist:
@@ -321,4 +326,5 @@ def run_uploader(
         "filtered_out": filtered_out, "preview": preview,
         "held": False, "hold_reason": "",
         "summary": summary,
+        "errors": errors[:20],
     }
