@@ -1127,17 +1127,55 @@
               ordCache[ckOf(mk)]={rows:(j.rows||[]).slice(),warnings:(j.warnings||[]).slice()}; }
             else { // 실패: 저장본이 있으면 유지하되 정직하게 경고(저장본을 최신인 척 하지 않음)
               pwarn[mk]=['['+mk+'] 주문 조회 실패'+(parts[mk]?' — 저장본 표시 중':'')+': '+(j.error||'')]; }
-            if(loadDone>=loadTotal){loading=false;cacheShown=false;}
+            if(loadDone>=loadTotal){loading=false;cacheShown=false;schedulePrefetch();}
             rebuild();
           })
           .catch(function(){
             if(seq!==loadSeq)return;
             loadDone++;
             pwarn[mk]=['['+mk+'] 네트워크 오류로 불러오지 못했어요.'+(parts[mk]?' 저장본 표시 중.':'')];
-            if(loadDone>=loadTotal){loading=false;cacheShown=false;}
+            if(loadDone>=loadTotal){loading=false;cacheShown=false;schedulePrefetch();}
             rebuild();
           });
       });
+    }
+    // ── 배경 프리페치: 인접 기간을 미리 데워(캐시) 다음 클릭을 즉시로 ──
+    // 사용자가 오늘→어제→그제→2~3일전 매번 새 기간을 눌러 캐시가 안 걸리던 문제 해결.
+    // 각 기간은 진짜 preview.json 조회 그대로(파생·추정 없음) = 100% 정확. 순차·완만(429 억제).
+    var prefetchTok=0, prefetchTimer=null;
+    function schedulePrefetch(){
+      if(prefetchTimer)clearTimeout(prefetchTimer);
+      prefetchTimer=setTimeout(prefetchNeighbors,500);   // 화면 로드 안정된 뒤 시작
+    }
+    function shortRanges(){   // quick 버튼 중 폭 ≤ 8일(오늘~2~3일전·최근7일·이번주 등)만
+      var out=[],seen={};
+      quick.forEach(function(q){var r=rangeOf(q);
+        if((new Date(r.to)-new Date(r.from))/86400000>8)return;   // 지난달 등 넓은 건 제외
+        var k=r.from+'|'+r.to; if(seen[k])return; seen[k]=1; out.push(r);});
+      return out;
+    }
+    function prefetchNeighbors(){
+      var myTok=++prefetchTok;                     // 이전 프리페치 취소
+      var mks=selMk(); if(!mks.length)return;
+      var ranges=shortRanges(), i=0;
+      (function step(){
+        if(myTok!==prefetchTok)return;             // 사용자가 새로 조회 → 양보(취소)
+        if(loading){setTimeout(step,600);return;}  // 사용자 조회 중이면 대기(우선권 양보)
+        if(i>=ranges.length)return;
+        var r=ranges[i++];
+        var pend=mks.filter(function(mk){return !ordCache[mk+'|'+r.from+'|'+r.to];});
+        if(!pend.length){step();return;}           // 이미 캐시된 기간 → 다음
+        var done=0;
+        pend.forEach(function(mk){
+          fetch('/orders/preview.json?market='+encodeURIComponent(mk)
+                +'&from='+encodeURIComponent(r.from)+'&to='+encodeURIComponent(r.to),{cache:'no-store'})
+            .then(function(x){return x.json();})
+            .then(function(j){ if(j&&j.ok)ordCache[mk+'|'+r.from+'|'+r.to]=
+                {rows:(j.rows||[]).slice(),warnings:(j.warnings||[]).slice()}; })
+            .catch(function(){})
+            .then(function(){ if(++done>=pend.length && myTok===prefetchTok)setTimeout(step,500); });
+        });
+      })();
     }
     // 필터 이벤트
     var allck=document.getElementById('mk-all');
