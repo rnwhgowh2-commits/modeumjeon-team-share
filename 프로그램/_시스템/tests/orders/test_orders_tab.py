@@ -192,6 +192,34 @@ def test_export_rejects_unsupported_market():
     assert r.status_code == 400
 
 
+def test_export_post_visible_rows_matches_screen_exactly():
+    # 화면 그대로 내보내기 — 화면 필터(filtered) 결과를 POST 하면 재조회 없이 그 행 그대로.
+    # 보낸 행 수 == 엑셀 데이터 행 수 (화면=다운로드 100% 일치). 마켓 재조회는 하지 않는다.
+    import io
+    import openpyxl
+    rows = [
+        {"판매처": "쿠팡", "쇼핑몰별칭": "브랜드마켓", "상품명": "신발A", "옵션": "베이지 270",
+         "수량": 1, "수령자": "홍길동", "주소": "서울 강남구"},
+        {"판매처": "쿠팡", "쇼핑몰별칭": "브랜드마켓", "상품명": "신발B", "옵션": "브라운 235",
+         "수량": 1, "수령자": "김철수", "주소": "서울 송파구"},
+    ]
+    cols = ["수령자", "주소", "상품명", "옵션", "수량"]
+    r = _client().post("/orders/export.xlsx",
+                       json={"rows": rows, "cols": cols, "fname": "모음전_주문_쿠팡.xlsx"})
+    assert r.status_code == 200
+    assert "spreadsheetml" in r.headers["Content-Type"]
+    ws = openpyxl.load_workbook(io.BytesIO(r.data)).active
+    assert ws.max_row - 1 == len(rows)              # 헤더 제외 = 보낸 행 수와 정확히 일치
+    assert [c.value for c in ws[1]] == cols         # 양식 열 구성·순서 그대로
+    assert ws.cell(row=2, column=1).value == "홍길동"
+
+
+def test_export_post_rejects_non_list_rows():
+    # rows 누락/형식오류는 400(추측 데이터·빈 파일 조용히 안 만듦).
+    r = _client().post("/orders/export.xlsx", json={"cols": ["수령자"]})
+    assert r.status_code == 400
+
+
 def test_list_export_offers_three_markets():
     html = _render("list")
     assert "스마트스토어" in html and "롯데온" in html and "쿠팡" in html   # 마켓 선택 칩

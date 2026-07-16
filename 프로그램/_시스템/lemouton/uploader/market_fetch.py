@@ -200,24 +200,27 @@ def _fetch_esm(market: str, product_id: str, env_prefix: Optional[str] = None) -
 
 
 def _fetch_eleven11(product_id: str, env_prefix: Optional[str] = None) -> FetchResult:
-    # ⚠️ 11번가 셀러 REST 상품 상세조회 스펙 미확보 → products 가 NotImplementedError.
-    #    try/except 로 '옵션 조회 실패: 스펙 미확보'를 명시 표면화(추측·폴백 금지).
-    from shared.platforms.eleven11.products import get_product_detail, extract_items
+    # 11번가는 상품 상세조회 스펙은 미확보지만, 재고조회(stocks_query)로 옵션 전체를
+    #   얻는다(mixOptNo·옵션명·재고). 이걸로 옵션 목록·현재재고를 채운다.
+    #   ⚠️판매가는 상품(prdNo) 단위라 재고조회 응답에 없다 → price=None(직접 입력).
+    #   조회 실패는 명시 표면화(추측·폴백 금지).
+    from shared.platforms.eleven11.stocks_query import get_stocks
     if not str(product_id).strip():
         return FetchResult(False, None, [], "상품번호가 비어있어요")
     try:
         client = _eleven11_client(env_prefix)
-        detail = get_product_detail(str(product_id), client=client)
-        items = extract_items(detail)
-    except Exception as e:  # noqa: BLE001 — 조회 실패/스펙 미확보 명시 표면화(폴백 금지)
+        rows = get_stocks(str(product_id), client=client)
+    except Exception as e:  # noqa: BLE001 — 조회 실패 명시 표면화(추측·폴백 금지)
         return FetchResult(False, None, [], f"옵션 조회 실패: {e}")
     opts = [
-        MarketOption(option_id=str(it["option_id"]), color=it.get("color"),
-                     size=it.get("size"), stock=it.get("stock"),
-                     price=it.get("sale_price"))
-        for it in items
+        # market_option_id = mixOptNo(어댑터 full-replace 매칭키와 동일). 라벨은 옵션명.
+        MarketOption(option_id=str(r.get("opt_no")),
+                     color=r.get("dtl_opt_nm") or r.get("opt_nm"), size=None,
+                     stock=r.get("stock"), price=None)
+        for r in rows if r.get("opt_no") is not None
     ]
-    return FetchResult(True, detail if isinstance(detail, str) else None, opts)
+    return FetchResult(True, None, opts,
+                       None if opts else "옵션이 없어요(상품번호·계정 확인)")
 
 
 def _fetch_coupang(product_id: str, env_prefix: Optional[str] = None) -> FetchResult:
