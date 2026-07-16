@@ -40,6 +40,21 @@ def autosend_keep(old_price, new_price, old_stock, new_stock, automation: dict) 
     return False
 
 
+# 전송 대상 마켓 정본 — _extract_uploads 가 라우팅하는 6마켓과 동일 순서.
+UPLOAD_MARKETS = ("smartstore", "coupang", "lotteon", "eleven11", "auction", "gmarket")
+
+
+def has_uploadable_payload(c_output: dict | None) -> bool:
+    """C 페이로드에 전송 대상 마켓이 하나라도 비어있지 않게 있으면 True.
+
+    옛 게이트(스마트스토어·쿠팡만 검사)가 롯데온/ESM 단독 변동을 드롭하던 결함 수정.
+    alerts 만 있는 dict 는 전송 대상이 아니므로 False.
+    """
+    if not c_output:
+        return False
+    return any(c_output.get(m) for m in UPLOAD_MARKETS)
+
+
 def _extract_uploads(c_output: dict, sku_by_option: dict) -> list[dict]:
     """C 페이로드에서 (market, sku, product_id, option_id, price, stock) 리스트 추출."""
     uploads = []
