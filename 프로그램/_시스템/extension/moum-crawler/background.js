@@ -437,7 +437,9 @@ function lotteonCheckStateInPage() {
       if (hex.test(v)) { hasTok = true; break; }
     }
     var body = (document.body && document.body.innerText) || "";
-    var needsVerify = /본인인증|인증번호|휴대폰 인증|휴대전화 인증|이중 인증|OTP/.test(body) && !hasForm;
+    // ★2단계 인증(SMS 보안코드) 화면 감지 — 실측 문구 "2단계 인증"·"보안코드"·"인증번호".
+    //   자동로그인이 여기서 막히면 needs_verify 로 깔끔히 멈춰 사용자가 직접 인증하게 한다.
+    var needsVerify = /2단계 인증|보안코드|본인인증|인증번호|휴대폰 인증|휴대전화 인증|이중 인증|OTP/.test(body) && !hasForm;
     var onLoginPage = /login_SO\.wsp/.test(location.href);
     // 로그인 판정: 판매자코드 노출 or 세션토큰 있고 로그인폼/로그인페이지 아님
     var loggedIn = (!!trNo || hasTok) && !hasForm && !onLoginPage;

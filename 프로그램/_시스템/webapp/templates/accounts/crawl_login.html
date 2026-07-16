@@ -191,6 +191,7 @@
     var since=(document.getElementById('stl-since').value||'').replace(/-/g,'');
     var until=(document.getElementById('stl-until').value||'').replace(/-/g,'');
     var sum={ok:0,verify:0,fail:0};
+    var verifyNames=[], failNames=[];
     out.style.color='#334';out.textContent=(isAuto?'[자동] ':'')+'전체 자동 시작 — '+cards.length+'계정';
     for(var i=0;i<cards.length;i++){
       var prefix=cards[i].dataset.prefix;
@@ -207,8 +208,8 @@
         span.textContent='로그인+수집 중…';
         var r=await window.MoumExt.send('lotteon.account.collect',{login_id:creds.login_id,password:creds.password,since:since,until:until},240000);
         var resp=(r&&r.resp)?r.resp:r;
-        if(resp&&resp.needs_verify){span.textContent='⚠ 본인인증 필요 — 이 계정만 건너뜀(직접 로그인 후 재시도)';span.style.color='#8a6100';sum.verify++;continue;}
-        if(!(resp&&resp.ok&&resp.rows)){span.textContent='실패: '+((resp&&resp.error)||'불명');span.style.color='#c00';sum.fail++;continue;}
+        if(resp&&resp.needs_verify){span.textContent='⚠ 2단계 인증(SMS) 필요 — 직접 로그인 후 「정산 수집」';span.style.color='#8a6100';sum.verify++;verifyNames.push(name);continue;}
+        if(!(resp&&resp.ok&&resp.rows)){span.textContent='실패: '+((resp&&resp.error)||'불명');span.style.color='#c00';sum.fail++;failNames.push(name);continue;}
         span.textContent='수집 '+resp.collected+'주문 — 서버 반영 중…';
         var pr=await fetch('/api/margin/lotteon-settlement',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify(resp.rows)}).then(function(x){return x.json();}).catch(function(){return null;});
         span.textContent='✔ '+resp.collected+'주문 · 서버반영 '+((pr&&pr.upserted)||0)+'건'+(resp.trNo?(' ('+resp.trNo+')'):'');span.style.color='#0a7a55';sum.ok++;
@@ -216,7 +217,17 @@
     }
     try{ await window.MoumExt.send('lotteon.closetab',{},15000); }catch(_){}   // 전용 탭 정리
     out.style.color=(sum.fail?'#c00':'#0a7a55');
-    out.textContent='완료 — 성공 '+sum.ok+' · 본인인증필요 '+sum.verify+' · 실패 '+sum.fail;
+    out.textContent='완료 — 자동수집 '+sum.ok+' · 2단계인증필요 '+sum.verify+' · 실패 '+sum.fail;
+    // ★2단계 인증 뜬 계정 명확히 알림(사용자가 직접 로그인 후 「정산 수집」)
+    if(verifyNames.length||failNames.length){
+      var banner=document.createElement('div');
+      banner.style.cssText='margin-top:8px;padding:10px 12px;border-radius:8px;background:#FFF7E6;border:1px solid #f2dca0;color:#664d03;font-size:12.5px;line-height:1.6';
+      var html='';
+      if(verifyNames.length) html+='<b>🔒 2단계 인증(SMS)이 떠서 자동 로그인 안 된 계정:</b><br>'+verifyNames.join(' · ')+'<br>→ 각 계정 판매자센터에 <b>직접 로그인</b>(인증 완료) 후, 아래 「수동 수집」의 <b>「정산 수집」</b>을 눌러주세요.';
+      if(failNames.length) html+=(verifyNames.length?'<br><br>':'')+'<b>⚠ 수집 실패:</b> '+failNames.join(' · ');
+      banner.innerHTML=html;
+      listBox.appendChild(banner);
+    }
     if(!isAuto)abtn.disabled=false;
     _fullRunning=false;
     return sum;
