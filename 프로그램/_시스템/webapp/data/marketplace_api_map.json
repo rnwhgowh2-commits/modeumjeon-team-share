@@ -8967,6 +8967,1194 @@
    "persistIds": [],
    "codeRef": "",
    "docApiNo": 218
+  },
+  {
+   "id": "lotteon.공통.a88",
+   "market": "lotteon",
+   "fnKey": "공통.a88",
+   "tabs": [],
+   "category": "공통",
+   "nm": "공통코드 그룹조회",
+   "dir": "recv",
+   "st": "off",
+   "docApiNo": 88,
+   "idTraps": [],
+   "persistIds": [],
+   "codeRef": "",
+   "success": "returnCode=0000 & data 존재. HTTP 401=인증·403=IP·429=초과·500=오류",
+   "endpoint": "GET https://openapi.lotteon.com/v1/openapi/bocommon/v1/code/getGroupCodeList",
+   "req": {
+    "method": "GET",
+    "params": [
+     "요청 파라미터 없음"
+    ]
+   },
+   "res": {
+    "note": "data[] 그룹코드"
+   },
+   "fields": [
+    {
+     "key": "grpCd",
+     "meaning": "그룹코드",
+     "example": ""
+    },
+    {
+     "key": "grpCdNm",
+     "meaning": "그룹코드명",
+     "example": ""
+    }
+   ]
+  },
+  {
+   "id": "lotteon.공통.a89",
+   "market": "lotteon",
+   "fnKey": "공통.a89",
+   "tabs": [],
+   "category": "공통",
+   "nm": "공통코드 상세조회",
+   "dir": "recv",
+   "st": "off",
+   "docApiNo": 89,
+   "idTraps": [],
+   "persistIds": [],
+   "codeRef": "",
+   "success": "grpCd로 어떤 enum이든 동적 조회 가능",
+   "endpoint": "GET https://openapi.lotteon.com/v1/openapi/bocommon/v1/code/getDetailCodeList",
+   "req": {
+    "method": "GET",
+    "params": [
+     "grpCd*(그룹코드)",
+     "langCd"
+    ]
+   },
+   "res": {
+    "note": "data[] 상세코드"
+   },
+   "fields": [
+    {
+     "key": "dtlCd",
+     "meaning": "상세코드값",
+     "example": ""
+    },
+    {
+     "key": "dtlCdNm",
+     "meaning": "상세코드명",
+     "example": ""
+    }
+   ]
+  },
+  {
+   "id": "lotteon.공통.a207",
+   "market": "lotteon",
+   "fnKey": "공통.a207",
+   "tabs": [],
+   "category": "공통",
+   "nm": "Identity(거래처 인증정보)",
+   "dir": "send",
+   "st": "off",
+   "docApiNo": 207,
+   "idTraps": [],
+   "persistIds": [],
+   "codeRef": "",
+   "success": "인증키 유효성 확인용",
+   "endpoint": "GET https://openapi.lotteon.com/v1/openapi/common/v1/identity",
+   "req": {
+    "method": "GET",
+    "params": [
+     "요청 파라미터 없음(인증키로 거래처 식별)"
+    ]
+   },
+   "res": {
+    "note": "인증키에 매핑된 거래처"
+   },
+   "fields": [
+    {
+     "key": "trGrpCd",
+     "meaning": "거래처그룹코드",
+     "example": "SR"
+    },
+    {
+     "key": "trDvsCd",
+     "meaning": "거래처구분코드",
+     "example": ""
+    }
+   ]
+  },
+  {
+   "id": "lotteon.공통.a38",
+   "market": "lotteon",
+   "fnKey": "공통.a38",
+   "tabs": [],
+   "category": "공통",
+   "nm": "기준휴일 조회",
+   "dir": "recv",
+   "st": "off",
+   "docApiNo": 38,
+   "idTraps": [],
+   "persistIds": [],
+   "codeRef": "",
+   "success": "",
+   "endpoint": "POST (롯데ON apiNo=38 — 상세 미접수, 필요시 즉석 접수)",
+   "req": {},
+   "res": {},
+   "fields": []
+  },
+  {
+   "id": "lotteon.공통.a39",
+   "market": "lotteon",
+   "fnKey": "공통.a39",
+   "tabs": [],
+   "category": "공통",
+   "nm": "휴일정보 등록관리",
+   "dir": "send",
+   "st": "off",
+   "docApiNo": 39,
+   "idTraps": [],
+   "persistIds": [],
+   "codeRef": "",
+   "success": "",
+   "endpoint": "POST (롯데ON apiNo=39 — 상세 미접수, 필요시 즉석 접수)",
+   "req": {},
+   "res": {},
+   "fields": []
+  },
+  {
+   "id": "lotteon.공통.a37",
+   "market": "lotteon",
+   "fnKey": "공통.a37",
+   "tabs": [],
+   "category": "공통",
+   "nm": "휴일 조회",
+   "dir": "recv",
+   "st": "off",
+   "docApiNo": 37,
+   "idTraps": [],
+   "persistIds": [],
+   "codeRef": "",
+   "success": "",
+   "endpoint": "POST (롯데ON apiNo=37 — 상세 미접수, 필요시 즉석 접수)",
+   "req": {},
+   "res": {},
+   "fields": []
+  },
+  {
+   "id": "lotteon.공통.a229",
+   "market": "lotteon",
+   "fnKey": "공통.a229",
+   "tabs": [],
+   "category": "공통",
+   "nm": "휴일 제외등록",
+   "dir": "send",
+   "st": "off",
+   "docApiNo": 229,
+   "idTraps": [],
+   "persistIds": [],
+   "codeRef": "",
+   "success": "",
+   "endpoint": "POST (롯데ON apiNo=229 — 상세 미접수, 필요시 즉석 접수)",
+   "req": {},
+   "res": {},
+   "fields": []
+  },
+  {
+   "id": "lotteon.상품.a157",
+   "market": "lotteon",
+   "fnKey": "상품.a157",
+   "tabs": [
+    "상품 관리"
+   ],
+   "category": "상품",
+   "nm": "예약판매 등록",
+   "dir": "send",
+   "st": "off",
+   "docApiNo": 157,
+   "idTraps": [],
+   "persistIds": [],
+   "codeRef": "",
+   "success": "",
+   "endpoint": "POST (롯데ON apiNo=157 — 상세 미접수, 필요시 즉석 접수)",
+   "req": {},
+   "res": {},
+   "fields": []
+  },
+  {
+   "id": "lotteon.상품.a158",
+   "market": "lotteon",
+   "fnKey": "상품.a158",
+   "tabs": [
+    "상품 조회"
+   ],
+   "category": "상품",
+   "nm": "예약판매 조회",
+   "dir": "recv",
+   "st": "off",
+   "docApiNo": 158,
+   "idTraps": [],
+   "persistIds": [],
+   "codeRef": "",
+   "success": "",
+   "endpoint": "POST (롯데ON apiNo=158 — 상세 미접수, 필요시 즉석 접수)",
+   "req": {},
+   "res": {},
+   "fields": []
+  },
+  {
+   "id": "lotteon.상품.a159",
+   "market": "lotteon",
+   "fnKey": "상품.a159",
+   "tabs": [
+    "상품 관리"
+   ],
+   "category": "상품",
+   "nm": "예약판매 수정",
+   "dir": "send",
+   "st": "off",
+   "docApiNo": 159,
+   "idTraps": [],
+   "persistIds": [],
+   "codeRef": "",
+   "success": "",
+   "endpoint": "POST (롯데ON apiNo=159 — 상세 미접수, 필요시 즉석 접수)",
+   "req": {},
+   "res": {},
+   "fields": []
+  },
+  {
+   "id": "lotteon.상품.a103",
+   "market": "lotteon",
+   "fnKey": "상품.a103",
+   "tabs": [
+    "상품 관리"
+   ],
+   "category": "상품",
+   "nm": "사은품 등록",
+   "dir": "send",
+   "st": "off",
+   "docApiNo": 103,
+   "idTraps": [],
+   "persistIds": [],
+   "codeRef": "",
+   "success": "",
+   "endpoint": "POST (롯데ON apiNo=103 — 상세 미접수, 필요시 즉석 접수)",
+   "req": {},
+   "res": {},
+   "fields": []
+  },
+  {
+   "id": "lotteon.상품.a104",
+   "market": "lotteon",
+   "fnKey": "상품.a104",
+   "tabs": [
+    "상품 조회"
+   ],
+   "category": "상품",
+   "nm": "사은품 상세조회",
+   "dir": "recv",
+   "st": "off",
+   "docApiNo": 104,
+   "idTraps": [],
+   "persistIds": [],
+   "codeRef": "",
+   "success": "",
+   "endpoint": "POST (롯데ON apiNo=104 — 상세 미접수, 필요시 즉석 접수)",
+   "req": {},
+   "res": {},
+   "fields": []
+  },
+  {
+   "id": "lotteon.상품.a105",
+   "market": "lotteon",
+   "fnKey": "상품.a105",
+   "tabs": [
+    "상품 관리"
+   ],
+   "category": "상품",
+   "nm": "사은품 수정",
+   "dir": "send",
+   "st": "off",
+   "docApiNo": 105,
+   "idTraps": [],
+   "persistIds": [],
+   "codeRef": "",
+   "success": "",
+   "endpoint": "POST (롯데ON apiNo=105 — 상세 미접수, 필요시 즉석 접수)",
+   "req": {},
+   "res": {},
+   "fields": []
+  },
+  {
+   "id": "lotteon.상품.a142",
+   "market": "lotteon",
+   "fnKey": "상품.a142",
+   "tabs": [
+    "상품 관리"
+   ],
+   "category": "상품",
+   "nm": "홍보문구 등록",
+   "dir": "send",
+   "st": "off",
+   "docApiNo": 142,
+   "idTraps": [],
+   "persistIds": [],
+   "codeRef": "",
+   "success": "",
+   "endpoint": "POST (롯데ON apiNo=142 — 상세 미접수, 필요시 즉석 접수)",
+   "req": {},
+   "res": {},
+   "fields": []
+  },
+  {
+   "id": "lotteon.상품.a156",
+   "market": "lotteon",
+   "fnKey": "상품.a156",
+   "tabs": [
+    "상품 조회"
+   ],
+   "category": "상품",
+   "nm": "홍보문구 조회",
+   "dir": "recv",
+   "st": "off",
+   "docApiNo": 156,
+   "idTraps": [],
+   "persistIds": [],
+   "codeRef": "",
+   "success": "",
+   "endpoint": "POST (롯데ON apiNo=156 — 상세 미접수, 필요시 즉석 접수)",
+   "req": {},
+   "res": {},
+   "fields": []
+  },
+  {
+   "id": "lotteon.상품.a160",
+   "market": "lotteon",
+   "fnKey": "상품.a160",
+   "tabs": [
+    "상품 관리"
+   ],
+   "category": "상품",
+   "nm": "판매자공지 등록",
+   "dir": "send",
+   "st": "off",
+   "docApiNo": 160,
+   "idTraps": [],
+   "persistIds": [],
+   "codeRef": "",
+   "success": "",
+   "endpoint": "POST (롯데ON apiNo=160 — 상세 미접수, 필요시 즉석 접수)",
+   "req": {},
+   "res": {},
+   "fields": []
+  },
+  {
+   "id": "lotteon.상품.a161",
+   "market": "lotteon",
+   "fnKey": "상품.a161",
+   "tabs": [
+    "상품 조회"
+   ],
+   "category": "상품",
+   "nm": "판매자공지 조회",
+   "dir": "recv",
+   "st": "off",
+   "docApiNo": 161,
+   "idTraps": [],
+   "persistIds": [],
+   "codeRef": "",
+   "success": "",
+   "endpoint": "POST (롯데ON apiNo=161 — 상세 미접수, 필요시 즉석 접수)",
+   "req": {},
+   "res": {},
+   "fields": []
+  },
+  {
+   "id": "lotteon.상품.a162",
+   "market": "lotteon",
+   "fnKey": "상품.a162",
+   "tabs": [
+    "상품 관리"
+   ],
+   "category": "상품",
+   "nm": "판매자공지 수정",
+   "dir": "send",
+   "st": "off",
+   "docApiNo": 162,
+   "idTraps": [],
+   "persistIds": [],
+   "codeRef": "",
+   "success": "",
+   "endpoint": "POST (롯데ON apiNo=162 — 상세 미접수, 필요시 즉석 접수)",
+   "req": {},
+   "res": {},
+   "fields": []
+  },
+  {
+   "id": "lotteon.상품.a95",
+   "market": "lotteon",
+   "fnKey": "상품.a95",
+   "tabs": [
+    "상품 조회"
+   ],
+   "category": "상품",
+   "nm": "승인상태변경이력 조회",
+   "dir": "recv",
+   "st": "off",
+   "docApiNo": 95,
+   "idTraps": [],
+   "persistIds": [],
+   "codeRef": "",
+   "success": "",
+   "endpoint": "POST (롯데ON apiNo=95 — 상세 미접수, 필요시 즉석 접수)",
+   "req": {},
+   "res": {},
+   "fields": []
+  },
+  {
+   "id": "lotteon.상품.a99",
+   "market": "lotteon",
+   "fnKey": "상품.a99",
+   "tabs": [
+    "상품 조회"
+   ],
+   "category": "상품",
+   "nm": "상품QnA 조회",
+   "dir": "recv",
+   "st": "off",
+   "docApiNo": 99,
+   "idTraps": [],
+   "persistIds": [],
+   "codeRef": "",
+   "success": "",
+   "endpoint": "POST (롯데ON apiNo=99 — 상세 미접수, 필요시 즉석 접수)",
+   "req": {},
+   "res": {},
+   "fields": []
+  },
+  {
+   "id": "lotteon.상품.a100",
+   "market": "lotteon",
+   "fnKey": "상품.a100",
+   "tabs": [
+    "상품 관리"
+   ],
+   "category": "상품",
+   "nm": "상품QnA 답변 등록",
+   "dir": "send",
+   "st": "off",
+   "docApiNo": 100,
+   "idTraps": [],
+   "persistIds": [],
+   "codeRef": "",
+   "success": "",
+   "endpoint": "POST (롯데ON apiNo=100 — 상세 미접수, 필요시 즉석 접수)",
+   "req": {},
+   "res": {},
+   "fields": []
+  },
+  {
+   "id": "lotteon.상품.a236",
+   "market": "lotteon",
+   "fnKey": "상품.a236",
+   "tabs": [
+    "상품 관리"
+   ],
+   "category": "상품",
+   "nm": "추가상품 재고 API",
+   "dir": "send",
+   "st": "off",
+   "docApiNo": 236,
+   "idTraps": [],
+   "persistIds": [],
+   "codeRef": "",
+   "success": "",
+   "endpoint": "POST (롯데ON apiNo=236 — 상세 미접수, 필요시 즉석 접수)",
+   "req": {},
+   "res": {},
+   "fields": []
+  },
+  {
+   "id": "lotteon.상품.a260",
+   "market": "lotteon",
+   "fnKey": "상품.a260",
+   "tabs": [
+    "상품 조회"
+   ],
+   "category": "상품",
+   "nm": "단위용량정보 조회",
+   "dir": "recv",
+   "st": "off",
+   "docApiNo": 260,
+   "idTraps": [],
+   "persistIds": [],
+   "codeRef": "",
+   "success": "",
+   "endpoint": "POST (롯데ON apiNo=260 — 상세 미접수, 필요시 즉석 접수)",
+   "req": {},
+   "res": {},
+   "fields": []
+  },
+  {
+   "id": "lotteon.상품.a304",
+   "market": "lotteon",
+   "fnKey": "상품.a304",
+   "tabs": [
+    "상품 조회"
+   ],
+   "category": "상품",
+   "nm": "실시간 재고 조회 가이드",
+   "dir": "recv",
+   "st": "off",
+   "docApiNo": 304,
+   "idTraps": [],
+   "persistIds": [],
+   "codeRef": "",
+   "success": "",
+   "endpoint": "POST (롯데ON apiNo=304 — 상세 미접수, 필요시 즉석 접수)",
+   "req": {},
+   "res": {},
+   "fields": []
+  },
+  {
+   "id": "lotteon.클레임.a238",
+   "market": "lotteon",
+   "fnKey": "클레임.a238",
+   "tabs": [
+    "클레임·CS"
+   ],
+   "category": "클레임",
+   "nm": "야놀자 결제취소",
+   "dir": "send",
+   "st": "off",
+   "docApiNo": 238,
+   "idTraps": [],
+   "persistIds": [],
+   "codeRef": "",
+   "success": "",
+   "endpoint": "POST (롯데ON apiNo=238 — 상세 미접수, 필요시 즉석 접수)",
+   "req": {},
+   "res": {},
+   "fields": []
+  },
+  {
+   "id": "lotteon.클레임.a208",
+   "market": "lotteon",
+   "fnKey": "클레임.a208",
+   "tabs": [
+    "클레임·CS"
+   ],
+   "category": "클레임",
+   "nm": "발송가능여부 체크",
+   "dir": "send",
+   "st": "off",
+   "docApiNo": 208,
+   "idTraps": [],
+   "persistIds": [],
+   "codeRef": "",
+   "success": "",
+   "endpoint": "POST (롯데ON apiNo=208 — 상세 미접수, 필요시 즉석 접수)",
+   "req": {},
+   "res": {},
+   "fields": []
+  },
+  {
+   "id": "lotteon.클레임.a53",
+   "market": "lotteon",
+   "fnKey": "클레임.a53",
+   "tabs": [
+    "클레임·CS"
+   ],
+   "category": "클레임",
+   "nm": "반품요청 거부처리",
+   "dir": "send",
+   "st": "off",
+   "docApiNo": 53,
+   "idTraps": [],
+   "persistIds": [],
+   "codeRef": "",
+   "success": "",
+   "endpoint": "POST (롯데ON apiNo=53 — 상세 미접수, 필요시 즉석 접수)",
+   "req": {},
+   "res": {},
+   "fields": []
+  },
+  {
+   "id": "lotteon.클레임.a67",
+   "market": "lotteon",
+   "fnKey": "클레임.a67",
+   "tabs": [
+    "클레임·CS"
+   ],
+   "category": "클레임",
+   "nm": "반품(요청)취소 목록조회",
+   "dir": "recv",
+   "st": "off",
+   "docApiNo": 67,
+   "idTraps": [],
+   "persistIds": [],
+   "codeRef": "",
+   "success": "",
+   "endpoint": "POST (롯데ON apiNo=67 — 상세 미접수, 필요시 즉석 접수)",
+   "req": {},
+   "res": {},
+   "fields": []
+  },
+  {
+   "id": "lotteon.클레임.a72",
+   "market": "lotteon",
+   "fnKey": "클레임.a72",
+   "tabs": [
+    "클레임·CS"
+   ],
+   "category": "클레임",
+   "nm": "교환요청 거부처리",
+   "dir": "send",
+   "st": "off",
+   "docApiNo": 72,
+   "idTraps": [],
+   "persistIds": [],
+   "codeRef": "",
+   "success": "",
+   "endpoint": "POST (롯데ON apiNo=72 — 상세 미접수, 필요시 즉석 접수)",
+   "req": {},
+   "res": {},
+   "fields": []
+  },
+  {
+   "id": "lotteon.클레임.a70",
+   "market": "lotteon",
+   "fnKey": "클레임.a70",
+   "tabs": [
+    "클레임·CS"
+   ],
+   "category": "클레임",
+   "nm": "교환(요청)취소 목록조회",
+   "dir": "recv",
+   "st": "off",
+   "docApiNo": 70,
+   "idTraps": [],
+   "persistIds": [],
+   "codeRef": "",
+   "success": "",
+   "endpoint": "POST (롯데ON apiNo=70 — 상세 미접수, 필요시 즉석 접수)",
+   "req": {},
+   "res": {},
+   "fields": []
+  },
+  {
+   "id": "lotteon.클레임.a68",
+   "market": "lotteon",
+   "fnKey": "클레임.a68",
+   "tabs": [
+    "클레임·CS"
+   ],
+   "category": "클레임",
+   "nm": "미수령신고 조회",
+   "dir": "recv",
+   "st": "off",
+   "docApiNo": 68,
+   "idTraps": [],
+   "persistIds": [],
+   "codeRef": "",
+   "success": "",
+   "endpoint": "POST (롯데ON apiNo=68 — 상세 미접수, 필요시 즉석 접수)",
+   "req": {},
+   "res": {},
+   "fields": []
+  },
+  {
+   "id": "lotteon.클레임.a66",
+   "market": "lotteon",
+   "fnKey": "클레임.a66",
+   "tabs": [
+    "클레임·CS"
+   ],
+   "category": "클레임",
+   "nm": "미수령신고 철회요청처리",
+   "dir": "send",
+   "st": "off",
+   "docApiNo": 66,
+   "idTraps": [],
+   "persistIds": [],
+   "codeRef": "",
+   "success": "",
+   "endpoint": "POST (롯데ON apiNo=66 — 상세 미접수, 필요시 즉석 접수)",
+   "req": {},
+   "res": {},
+   "fields": []
+  },
+  {
+   "id": "lotteon.클레임.a64",
+   "market": "lotteon",
+   "fnKey": "클레임.a64",
+   "tabs": [
+    "클레임·CS"
+   ],
+   "category": "클레임",
+   "nm": "구매확정후 취소",
+   "dir": "send",
+   "st": "off",
+   "docApiNo": 64,
+   "idTraps": [],
+   "persistIds": [],
+   "codeRef": "",
+   "success": "",
+   "endpoint": "POST (롯데ON apiNo=64 — 상세 미접수, 필요시 즉석 접수)",
+   "req": {},
+   "res": {},
+   "fields": []
+  },
+  {
+   "id": "lotteon.클레임.a63",
+   "market": "lotteon",
+   "fnKey": "클레임.a63",
+   "tabs": [
+    "클레임·CS"
+   ],
+   "category": "클레임",
+   "nm": "구매확정후 취소목록조회",
+   "dir": "recv",
+   "st": "off",
+   "docApiNo": 63,
+   "idTraps": [],
+   "persistIds": [],
+   "codeRef": "",
+   "success": "",
+   "endpoint": "POST (롯데ON apiNo=63 — 상세 미접수, 필요시 즉석 접수)",
+   "req": {},
+   "res": {},
+   "fields": []
+  },
+  {
+   "id": "lotteon.클레임.a59",
+   "market": "lotteon",
+   "fnKey": "클레임.a59",
+   "tabs": [
+    "클레임·CS"
+   ],
+   "category": "클레임",
+   "nm": "취소요청 거부처리",
+   "dir": "send",
+   "st": "off",
+   "docApiNo": 59,
+   "idTraps": [],
+   "persistIds": [],
+   "codeRef": "",
+   "success": "",
+   "endpoint": "POST (롯데ON apiNo=59 — 상세 미접수, 필요시 즉석 접수)",
+   "req": {},
+   "res": {},
+   "fields": []
+  },
+  {
+   "id": "lotteon.클레임.a128",
+   "market": "lotteon",
+   "fnKey": "클레임.a128",
+   "tabs": [
+    "클레임·CS"
+   ],
+   "category": "클레임",
+   "nm": "클레임혜택 취소조회",
+   "dir": "recv",
+   "st": "off",
+   "docApiNo": 128,
+   "idTraps": [],
+   "persistIds": [],
+   "codeRef": "",
+   "success": "",
+   "endpoint": "POST (롯데ON apiNo=128 — 상세 미접수, 필요시 즉석 접수)",
+   "req": {},
+   "res": {},
+   "fields": []
+  },
+  {
+   "id": "lotteon.클레임.a225",
+   "market": "lotteon",
+   "fnKey": "클레임.a225",
+   "tabs": [
+    "클레임·CS"
+   ],
+   "category": "클레임",
+   "nm": "판매자 직접취소",
+   "dir": "send",
+   "st": "off",
+   "docApiNo": 225,
+   "idTraps": [],
+   "persistIds": [],
+   "codeRef": "",
+   "success": "",
+   "endpoint": "POST (롯데ON apiNo=225 — 상세 미접수, 필요시 즉석 접수)",
+   "req": {},
+   "res": {},
+   "fields": []
+  },
+  {
+   "id": "lotteon.판촉.a135",
+   "market": "lotteon",
+   "fnKey": "판촉.a135",
+   "tabs": [
+    "상품 관리"
+   ],
+   "category": "판촉",
+   "nm": "판매자할인 조회",
+   "dir": "recv",
+   "st": "off",
+   "docApiNo": 135,
+   "idTraps": [],
+   "persistIds": [],
+   "codeRef": "",
+   "success": "",
+   "endpoint": "POST (롯데ON apiNo=135 — 상세 미접수, 필요시 즉석 접수)",
+   "req": {},
+   "res": {},
+   "fields": []
+  },
+  {
+   "id": "lotteon.판촉.a122",
+   "market": "lotteon",
+   "fnKey": "판촉.a122",
+   "tabs": [
+    "상품 관리"
+   ],
+   "category": "판촉",
+   "nm": "판매자할인 저장",
+   "dir": "send",
+   "st": "off",
+   "docApiNo": 122,
+   "idTraps": [],
+   "persistIds": [],
+   "codeRef": "",
+   "success": "",
+   "endpoint": "POST (롯데ON apiNo=122 — 상세 미접수, 필요시 즉석 접수)",
+   "req": {},
+   "res": {},
+   "fields": []
+  },
+  {
+   "id": "lotteon.판촉.a126",
+   "market": "lotteon",
+   "fnKey": "판촉.a126",
+   "tabs": [
+    "상품 관리"
+   ],
+   "category": "판촉",
+   "nm": "행사제외정책 저장",
+   "dir": "send",
+   "st": "off",
+   "docApiNo": 126,
+   "idTraps": [],
+   "persistIds": [],
+   "codeRef": "",
+   "success": "",
+   "endpoint": "POST (롯데ON apiNo=126 — 상세 미접수, 필요시 즉석 접수)",
+   "req": {},
+   "res": {},
+   "fields": []
+  },
+  {
+   "id": "lotteon.판촉.a123",
+   "market": "lotteon",
+   "fnKey": "판촉.a123",
+   "tabs": [
+    "상품 관리"
+   ],
+   "category": "판촉",
+   "nm": "수량할인 저장",
+   "dir": "send",
+   "st": "off",
+   "docApiNo": 123,
+   "idTraps": [],
+   "persistIds": [],
+   "codeRef": "",
+   "success": "",
+   "endpoint": "POST (롯데ON apiNo=123 — 상세 미접수, 필요시 즉석 접수)",
+   "req": {},
+   "res": {},
+   "fields": []
+  },
+  {
+   "id": "lotteon.판촉.a125",
+   "market": "lotteon",
+   "fnKey": "판촉.a125",
+   "tabs": [
+    "상품 관리"
+   ],
+   "category": "판촉",
+   "nm": "상품L.POINT적립 저장",
+   "dir": "send",
+   "st": "off",
+   "docApiNo": 125,
+   "idTraps": [],
+   "persistIds": [],
+   "codeRef": "",
+   "success": "",
+   "endpoint": "POST (롯데ON apiNo=125 — 상세 미접수, 필요시 즉석 접수)",
+   "req": {},
+   "res": {},
+   "fields": []
+  },
+  {
+   "id": "lotteon.판촉.a124",
+   "market": "lotteon",
+   "fnKey": "판촉.a124",
+   "tabs": [
+    "상품 관리"
+   ],
+   "category": "판촉",
+   "nm": "상품사은품 저장",
+   "dir": "send",
+   "st": "off",
+   "docApiNo": 124,
+   "idTraps": [],
+   "persistIds": [],
+   "codeRef": "",
+   "success": "",
+   "endpoint": "POST (롯데ON apiNo=124 — 상세 미접수, 필요시 즉석 접수)",
+   "req": {},
+   "res": {},
+   "fields": []
+  },
+  {
+   "id": "lotteon.전시.a257",
+   "market": "lotteon",
+   "fnKey": "전시.a257",
+   "tabs": [],
+   "category": "전시",
+   "nm": "홈쇼핑 편성표 조회",
+   "dir": "recv",
+   "st": "off",
+   "docApiNo": 257,
+   "idTraps": [],
+   "persistIds": [],
+   "codeRef": "",
+   "success": "",
+   "endpoint": "POST (롯데ON apiNo=257 — 상세 미접수, 필요시 즉석 접수)",
+   "req": {},
+   "res": {},
+   "fields": []
+  },
+  {
+   "id": "lotteon.전시.a274",
+   "market": "lotteon",
+   "fnKey": "전시.a274",
+   "tabs": [],
+   "category": "전시",
+   "nm": "홈쇼핑 스케쥴/상품 조회",
+   "dir": "recv",
+   "st": "off",
+   "docApiNo": 274,
+   "idTraps": [],
+   "persistIds": [],
+   "codeRef": "",
+   "success": "",
+   "endpoint": "POST (롯데ON apiNo=274 — 상세 미접수, 필요시 즉석 접수)",
+   "req": {},
+   "res": {},
+   "fields": []
+  },
+  {
+   "id": "lotteon.전시.a258",
+   "market": "lotteon",
+   "fnKey": "전시.a258",
+   "tabs": [],
+   "category": "전시",
+   "nm": "홈쇼핑 편성표 등록/수정",
+   "dir": "send",
+   "st": "off",
+   "docApiNo": 258,
+   "idTraps": [],
+   "persistIds": [],
+   "codeRef": "",
+   "success": "",
+   "endpoint": "POST (롯데ON apiNo=258 — 상세 미접수, 필요시 즉석 접수)",
+   "req": {},
+   "res": {},
+   "fields": []
+  },
+  {
+   "id": "lotteon.전시.a259",
+   "market": "lotteon",
+   "fnKey": "전시.a259",
+   "tabs": [],
+   "category": "전시",
+   "nm": "홈쇼핑 편성표 삭제",
+   "dir": "send",
+   "st": "off",
+   "docApiNo": 259,
+   "idTraps": [],
+   "persistIds": [],
+   "codeRef": "",
+   "success": "",
+   "endpoint": "POST (롯데ON apiNo=259 — 상세 미접수, 필요시 즉석 접수)",
+   "req": {},
+   "res": {},
+   "fields": []
+  },
+  {
+   "id": "lotteon.스마트픽.a261",
+   "market": "lotteon",
+   "fnKey": "스마트픽.a261",
+   "tabs": [
+    "배송·송장"
+   ],
+   "category": "스마트픽",
+   "nm": "픽업매장 등록",
+   "dir": "send",
+   "st": "off",
+   "docApiNo": 261,
+   "idTraps": [],
+   "persistIds": [],
+   "codeRef": "",
+   "success": "",
+   "endpoint": "POST (롯데ON apiNo=261 — 상세 미접수, 필요시 즉석 접수)",
+   "req": {},
+   "res": {},
+   "fields": []
+  },
+  {
+   "id": "lotteon.스마트픽.a262",
+   "market": "lotteon",
+   "fnKey": "스마트픽.a262",
+   "tabs": [
+    "배송·송장"
+   ],
+   "category": "스마트픽",
+   "nm": "매장휴무일 등록",
+   "dir": "send",
+   "st": "off",
+   "docApiNo": 262,
+   "idTraps": [],
+   "persistIds": [],
+   "codeRef": "",
+   "success": "",
+   "endpoint": "POST (롯데ON apiNo=262 — 상세 미접수, 필요시 즉석 접수)",
+   "req": {},
+   "res": {},
+   "fields": []
+  },
+  {
+   "id": "lotteon.스마트픽.a263",
+   "market": "lotteon",
+   "fnKey": "스마트픽.a263",
+   "tabs": [
+    "배송·송장"
+   ],
+   "category": "스마트픽",
+   "nm": "주문정보 등록",
+   "dir": "send",
+   "st": "off",
+   "docApiNo": 263,
+   "idTraps": [],
+   "persistIds": [],
+   "codeRef": "",
+   "success": "",
+   "endpoint": "POST (롯데ON apiNo=263 — 상세 미접수, 필요시 즉석 접수)",
+   "req": {},
+   "res": {},
+   "fields": []
+  },
+  {
+   "id": "lotteon.스마트픽.a264",
+   "market": "lotteon",
+   "fnKey": "스마트픽.a264",
+   "tabs": [
+    "배송·송장"
+   ],
+   "category": "스마트픽",
+   "nm": "교환권발송정보 등록",
+   "dir": "send",
+   "st": "off",
+   "docApiNo": 264,
+   "idTraps": [],
+   "persistIds": [],
+   "codeRef": "",
+   "success": "",
+   "endpoint": "POST (롯데ON apiNo=264 — 상세 미접수, 필요시 즉석 접수)",
+   "req": {},
+   "res": {},
+   "fields": []
+  },
+  {
+   "id": "lotteon.스마트픽.a265",
+   "market": "lotteon",
+   "fnKey": "스마트픽.a265",
+   "tabs": [
+    "배송·송장"
+   ],
+   "category": "스마트픽",
+   "nm": "송장수정정보 등록",
+   "dir": "send",
+   "st": "off",
+   "docApiNo": 265,
+   "idTraps": [],
+   "persistIds": [],
+   "codeRef": "",
+   "success": "",
+   "endpoint": "POST (롯데ON apiNo=265 — 상세 미접수, 필요시 즉석 접수)",
+   "req": {},
+   "res": {},
+   "fields": []
+  },
+  {
+   "id": "lotteon.스마트픽.a266",
+   "market": "lotteon",
+   "fnKey": "스마트픽.a266",
+   "tabs": [
+    "배송·송장"
+   ],
+   "category": "스마트픽",
+   "nm": "회송지시정보 등록",
+   "dir": "send",
+   "st": "off",
+   "docApiNo": 266,
+   "idTraps": [],
+   "persistIds": [],
+   "codeRef": "",
+   "success": "",
+   "endpoint": "POST (롯데ON apiNo=266 — 상세 미접수, 필요시 즉석 접수)",
+   "req": {},
+   "res": {},
+   "fields": []
+  },
+  {
+   "id": "lotteon.스마트픽.a267",
+   "market": "lotteon",
+   "fnKey": "스마트픽.a267",
+   "tabs": [
+    "배송·송장"
+   ],
+   "category": "스마트픽",
+   "nm": "반품접수정보 등록",
+   "dir": "send",
+   "st": "off",
+   "docApiNo": 267,
+   "idTraps": [],
+   "persistIds": [],
+   "codeRef": "",
+   "success": "",
+   "endpoint": "POST (롯데ON apiNo=267 — 상세 미접수, 필요시 즉석 접수)",
+   "req": {},
+   "res": {},
+   "fields": []
+  },
+  {
+   "id": "lotteon.스마트픽.a268",
+   "market": "lotteon",
+   "fnKey": "스마트픽.a268",
+   "tabs": [
+    "배송·송장"
+   ],
+   "category": "스마트픽",
+   "nm": "반품진행상태 등록",
+   "dir": "send",
+   "st": "off",
+   "docApiNo": 268,
+   "idTraps": [],
+   "persistIds": [],
+   "codeRef": "",
+   "success": "",
+   "endpoint": "POST (롯데ON apiNo=268 — 상세 미접수, 필요시 즉석 접수)",
+   "req": {},
+   "res": {},
+   "fields": []
   }
  ]
 }
