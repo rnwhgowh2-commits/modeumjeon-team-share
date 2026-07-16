@@ -274,18 +274,15 @@ async function handleLotteonAutoLogin(payload) {
   const password = payload.password || "";
   if (!loginId || !password) return { ok: false, error: "자격증명 없음(login_id/password 필요)" };
   const tab = await _loEnsureTab(_LO_LOGIN_URL);
-  // 1) 현재 상태 확인 — 이미 로그인이면 그대로 통과
+  // 1) ★항상 로그인 페이지로 새로 이동 후 판정 — 스테일 DOM·백그라운드 로그인탭 오판 방지.
+  //    세션이 살아있으면 롯데온이 login→index 로 리다이렉트하므로 checkState 가 loggedIn 을 잡는다.
+  await chrome.tabs.update(tab.id, { url: _LO_LOGIN_URL });
+  try { await waitTabComplete(tab.id, 25000); } catch (_) {}
+  await new Promise((r) => setTimeout(r, 900));
   let st = await _loInject(tab.id, lotteonCheckStateInPage, []);
   if (st && st.loggedIn) return { ok: true, already: true, trNo: st.trNo || null };
-  // 2) 로그인 페이지가 아니면 로그인 페이지로
-  if (!st || !st.hasForm) {
-    await chrome.tabs.update(tab.id, { url: _LO_LOGIN_URL });
-    try { await waitTabComplete(tab.id, 25000); } catch (_) {}
-    st = await _loInject(tab.id, lotteonCheckStateInPage, []);
-    if (st && st.loggedIn) return { ok: true, already: true, trNo: st.trNo || null };
-    if (!st || !st.hasForm) return { ok: false, error: "로그인 폼을 찾지 못함(페이지 구조 변경?)" };
-  }
-  // 3) 폼 자동입력 + 제출
+  if (!st || !st.hasForm) return { ok: false, error: "로그인 폼을 찾지 못함(페이지 구조 변경?)" };
+  // 2) 폼 자동입력 + 제출
   const fr = await _loInject(tab.id, lotteonFillLoginInPage, [loginId, password]);
   if (!fr || !fr.submitted) return { ok: false, error: (fr && fr.error) || "로그인 제출 실패(버튼 못 찾음)" };
   // 4) 제출 후 네비게이션 대기 → 상태 재확인
