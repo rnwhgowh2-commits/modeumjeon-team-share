@@ -66,6 +66,15 @@ def test_fetch_market_paginates_coupang(monkeypatch):
     assert len(rows) == 51   # 50 + 1, stopped on short page
 
 
+def test_smartstore_fetch_uses_valid_statuses(monkeypatch):
+    from lemouton.cs_inquiries import service as isv
+    import datetime as dt
+    seen = []
+    monkeypatch.setattr(isv, "_ss_fetch", lambda since, **kw: (seen.append(kw.get("inquiry_status")) or {"contents": []}))
+    isv._fetch_market("smartstore", dt.datetime(2026,7,10), dt.datetime(2026,7,16), "ALL")
+    assert "ALL" not in seen and set(seen) == {"WAIT", "ANSWERED"}
+
+
 def test_dismiss_and_reply_preview(session, monkeypatch):
     from lemouton.cs_inquiries import service as isv
     from lemouton.cs_inquiries.models import InquiryHandling

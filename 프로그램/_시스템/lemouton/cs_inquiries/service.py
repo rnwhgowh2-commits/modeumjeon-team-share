@@ -71,14 +71,16 @@ def _fetch_market(market, since, until, status):
             page += 1
         return out
     if market == "smartstore":
-        out, page = [], 1
-        for _ in range(30):
-            raw = _ss_fetch(since, inquiry_status="ALL", page_size=100, page_number=page)
-            items = raw.get("contents") or raw.get("data") or []
-            out.extend(_normalize_smartstore(it) for it in items)
-            if len(items) < 100:
-                break
-            page += 1
+        out = []
+        for st in ("WAIT", "ANSWERED"):   # 스스는 ALL 미지원(HTTP 400) → 미답변·답변완료 분리 조회
+            page = 1
+            for _ in range(30):
+                raw = _ss_fetch(since, inquiry_status=st, page_size=100, page_number=page)
+                items = raw.get("contents") or raw.get("data") or []
+                out.extend(_normalize_smartstore(it) for it in items)
+                if len(items) < 100:
+                    break
+                page += 1
         return out
     raise RuntimeError(f"{_MK_KO.get(market, market)} 문의 연동 준비 중")
 
