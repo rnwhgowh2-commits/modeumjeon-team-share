@@ -320,12 +320,18 @@ async function handleLotteonAccountCollect(payload) {
   const fr = await _loInject(tab.id, lotteonFillLoginInPage, [loginId, password]);
   if (!fr || !fr.submitted) return { ok: false, error: (fr && fr.error) || "로그인 제출 실패" };
   try { await waitTabComplete(tab.id, 25000); } catch (_) {}
-  await _sleep(1800);
-  st = await _loInject(tab.id, lotteonCheckStateInPage, []);
-  if (st && st.needsVerify) return { ok: false, needs_verify: true, error: "본인인증 필요(새 기기·가끔) — 직접 인증 후 재시도" };
-  if (!(st && st.loggedIn)) return { ok: false, error: "로그인 실패(아이디/비번 확인)" };
-  // 4) 같은 탭서 정산 수집
-  const res = await _loInject(tab.id, lotteonSettleCrawlInPage, [sinceYMD, untilYMD, ""]);
+  // ★로그인 완료를 폴링(WebSquare 비동기 로그인 — 단일 체크는 너무 이르다. 실검증: 로그인은
+  //   성공하는데 1.8초 체크가 폼을 봐 '실패' 오인). 최대 ~20초 대기.
+  let logged = null;
+  for (let i = 0; i < 16; i++) {
+    await _sleep(1200);
+    st = await _loInject(tab.id, lotteonCheckStateInPage, []);
+    if (st && st.needsVerify) return { ok: false, needs_verify: true, error: "본인인증 필요(새 기기·가끔) — 직접 인증 후 재시도" };
+    if (st && st.loggedIn) { logged = st; break; }
+  }
+  if (!logged) return { ok: false, error: "로그인 실패/지연(아이디·비번 또는 응답 지연)" };
+  // 4) 같은 탭서 정산 수집(검출된 trNo 전달 — 헤더 렌더 지연 대비)
+  const res = await _loInject(tab.id, lotteonSettleCrawlInPage, [sinceYMD, untilYMD, logged.trNo || ""]);
   if (!res || !res.ok) return { ok: false, error: (res && res.error) || "정산 수집 실패", trNo: st.trNo };
   return { ok: true, rows: res.rows, collected: res.rows.length, lines: res.lines, total: res.total, trNo: res.trNo || st.trNo };
 }
