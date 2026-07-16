@@ -41,3 +41,13 @@ def test_normalize_and_list(session, monkeypatch):
     assert [q["문의ID"] for q in res["groups"]["미답변"]] == ["CQ1"]
     assert res["groups"]["답변완료"] == []   # SQ9 답변일 07-05 = 11일전 → 7일 필터 숨김
     assert any("연동 준비 중" in w for w in res["warnings"])   # lotteon 미지원
+
+
+def test_dismiss_and_reply_preview(session, monkeypatch):
+    from lemouton.cs_inquiries import service as isv
+    from lemouton.cs_inquiries.models import InquiryHandling
+    isv.dismiss_inquiry("쿠팡:CQ1", market="쿠팡", session=session)
+    assert session.query(InquiryHandling).filter_by(inquiry_key="쿠팡:CQ1").one().dismissed_at is not None
+    monkeypatch.setenv("LEMOUTON_LIVE_INQUIRY_REPLY", "")
+    res = isv.reply_preview("coupang", "CQ1", "안녕하세요 답변드립니다")
+    assert res["sent"] is False and "안녕하세요" in res["preview"]

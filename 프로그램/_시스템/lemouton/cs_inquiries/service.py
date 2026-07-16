@@ -4,6 +4,7 @@
 전송(reply)은 LEMOUTON_LIVE_INQUIRY_REPLY OFF(기본) — 미리보기만.
 """
 import datetime as _dt
+import os as _os
 import re as _re
 
 from shared.db import SessionLocal
@@ -101,3 +102,37 @@ def list_inquiries(markets, *, since, until, now=None, session=None):
     finally:
         if own:
             session.close()
+
+
+def dismiss_inquiry(inquiry_key, *, market="", session=None):
+    own = session is None
+    session = session or SessionLocal()
+    try:
+        row = session.query(InquiryHandling).filter_by(inquiry_key=inquiry_key).one_or_none()
+        if row is None:
+            row = InquiryHandling(inquiry_key=inquiry_key, market=market)
+            session.add(row)
+        row.dismissed_at = _dt.datetime.now(_dt.timezone.utc)
+        session.commit()
+    finally:
+        if own:
+            session.close()
+
+
+def _live_reply_on():
+    return _os.getenv("LEMOUTON_LIVE_INQUIRY_REPLY", "").strip().lower() in ("1", "true", "on", "yes")
+
+
+def reply_preview(market, inquiry_id, content):
+    """답변 미리보기. LIVE OFF(기본)면 실전송 안 함(거짓 전송 금지)."""
+    if not _live_reply_on():
+        return {"sent": False, "preview": content, "note": "전송 준비 중(검증 후 열림)"}
+    if market == "coupang":
+        from shared.platforms.coupang.inquiries import reply_online_inquiry
+        reply_online_inquiry(inquiry_id, content)
+    elif market == "smartstore":
+        from shared.platforms.smartstore.orders import reply_inquiry
+        reply_inquiry(inquiry_id, content)
+    else:
+        raise RuntimeError(f"{market} 답변 전송 미지원")
+    return {"sent": True, "preview": content}
