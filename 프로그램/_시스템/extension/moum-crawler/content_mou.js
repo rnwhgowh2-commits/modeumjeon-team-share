@@ -4,7 +4,7 @@
 //   (2) 페이지 ↔ 확장 메시지 브리지 — window.postMessage 와 chrome.runtime 사이를 중계.
 //  (더망고도 동일 패턴: 콘텐츠 스크립트가 마커를 심고 페이지가 getAttribute 로 감지)
 
-const MOUM_EXT_VERSION = "0.7.26";   // 0.7.26 = [E2] 마진계산기 소싱처 주문상태 확인 배선 반영. 0.7.13 = 무신사 상품쿠폰 전량 수집(product_coupon_list). 0.7.12 = 롯데온 재고소스=base 엔드포인트 우선(완전 97셀). data-moum-ext 로 로드버전 확인 가능
+const MOUM_EXT_VERSION = "0.7.35";   // 0.7.26 = [E2] 마진계산기 소싱처 주문상태 확인 배선 반영. 0.7.13 = 무신사 상품쿠폰 전량 수집(product_coupon_list). 0.7.12 = 롯데온 재고소스=base 엔드포인트 우선(완전 97셀). data-moum-ext 로 로드버전 확인 가능
 
 // (1) 설치 마커 — document_start 시점이라 documentElement 는 이미 존재
 try {
