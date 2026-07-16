@@ -1,26 +1,6053 @@
 {
   "schema_version": 1,
   "markets": [
-    {"id":"coupang","label":"쿠팡","base_url":"https://api-gateway.coupang.com","auth":"HMAC-SHA256(CEA)","env_prefixes":["COUPANG_MAIN"],"concurrency":"5 req/s 토큰버킷, 429 Retry-After 존중"},
-    {"id":"smartstore","label":"스마트스토어","base_url":"https://api.commerce.naver.com","auth":"OAuth2 + bcrypt","env_prefixes":["SMARTSTORE_MAIN"],"concurrency":"계정 순차 조회(병렬 시 429 위험)"},
-    {"id":"lotteon","label":"롯데온","base_url":"https://openapi.lotteon.com","auth":"정적 인증키(Bearer)+IP 등록","env_prefixes":["LOTTEON_MAIN"],"concurrency":"IP 등록 필수"},
-    {"id":"eleven11","label":"11번가","base_url":"https://api.11st.co.kr","auth":"openapikey 헤더+IP 등록","env_prefixes":["ELEVEN11_MAIN"],"concurrency":"계정 순차 조회 필수 — 병렬 시 429 전체 다운"},
-    {"id":"auction","label":"옥션","base_url":"https://sa2.esmplus.com","auth":"ESM 2.0 (JWT/HmacSHA256)","env_prefixes":["ESM_MAIN"],"concurrency":""},
-    {"id":"gmarket","label":"G마켓","base_url":"https://sa2.esmplus.com","auth":"ESM 2.0 (JWT/HmacSHA256)","env_prefixes":["ESM_MAIN"],"concurrency":""}
+    {
+      "id": "coupang",
+      "label": "쿠팡",
+      "base_url": "https://api-gateway.coupang.com",
+      "auth": "HMAC-SHA256(CEA)",
+      "env_prefixes": [
+        "COUPANG_MAIN"
+      ],
+      "concurrency": "5 req/s 토큰버킷, 429 Retry-After 존중"
+    },
+    {
+      "id": "smartstore",
+      "label": "스마트스토어",
+      "base_url": "https://api.commerce.naver.com",
+      "auth": "OAuth2 + bcrypt",
+      "env_prefixes": [
+        "SMARTSTORE_MAIN"
+      ],
+      "concurrency": "계정 순차 조회(병렬 시 429 위험)"
+    },
+    {
+      "id": "lotteon",
+      "label": "롯데온",
+      "base_url": "https://openapi.lotteon.com",
+      "auth": "정적 인증키(Bearer)+IP 등록",
+      "env_prefixes": [
+        "LOTTEON_MAIN"
+      ],
+      "concurrency": "IP 등록 필수"
+    },
+    {
+      "id": "eleven11",
+      "label": "11번가",
+      "base_url": "https://api.11st.co.kr",
+      "auth": "openapikey 헤더+IP 등록",
+      "env_prefixes": [
+        "ELEVEN11_MAIN"
+      ],
+      "concurrency": "계정 순차 조회 필수 — 병렬 시 429 전체 다운"
+    },
+    {
+      "id": "auction",
+      "label": "옥션",
+      "base_url": "https://sa2.esmplus.com",
+      "auth": "ESM 2.0 (JWT/HmacSHA256)",
+      "env_prefixes": [
+        "ESM_MAIN"
+      ],
+      "concurrency": ""
+    },
+    {
+      "id": "gmarket",
+      "label": "G마켓",
+      "base_url": "https://sa2.esmplus.com",
+      "auth": "ESM 2.0 (JWT/HmacSHA256)",
+      "env_prefixes": [
+        "ESM_MAIN"
+      ],
+      "concurrency": ""
+    }
   ],
   "unifiedStatuses": [
-    {"id":"payment_done","name":"결제완료","meaning":"구매자 결제 완료, 판매자 발주 확인 대기","order":10},
-    {"id":"prep","name":"배송준비중","meaning":"판매자가 발주 확인함(상품준비중)","order":20},
-    {"id":"shipping","name":"배송중","meaning":"송장 등록·발송 처리됨","order":30},
-    {"id":"delivered","name":"배송완료","meaning":"수취 완료","order":40},
-    {"id":"cancel_req","name":"취소요청","meaning":"구매자 취소 신청","order":50},
-    {"id":"return_req","name":"반품요청","meaning":"구매자 반품 신청","order":60},
-    {"id":"exchange_req","name":"교환요청","meaning":"구매자 교환 신청","order":70}
+    {
+      "id": "payment_done",
+      "name": "결제완료",
+      "meaning": "구매자 결제 완료, 판매자 발주 확인 대기",
+      "order": 10
+    },
+    {
+      "id": "prep",
+      "name": "배송준비중",
+      "meaning": "판매자가 발주 확인함(상품준비중)",
+      "order": 20
+    },
+    {
+      "id": "shipping",
+      "name": "배송중",
+      "meaning": "송장 등록·발송 처리됨",
+      "order": 30
+    },
+    {
+      "id": "delivered",
+      "name": "배송완료",
+      "meaning": "수취 완료",
+      "order": 40
+    },
+    {
+      "id": "cancel_req",
+      "name": "취소요청",
+      "meaning": "구매자 취소 신청",
+      "order": 50
+    },
+    {
+      "id": "return_req",
+      "name": "반품요청",
+      "meaning": "구매자 반품 신청",
+      "order": 60
+    },
+    {
+      "id": "exchange_req",
+      "name": "교환요청",
+      "meaning": "구매자 교환 신청",
+      "order": 70
+    }
   ],
   "transitions": [
-    {"from":"payment_done","to":"prep","requires":[],"perMarket":{"coupang":"unsupported","smartstore":"unsupported","lotteon":"unsupported","eleven11":"unsupported"}},
-    {"from":"prep","to":"shipping","requires":["송장번호"],"perMarket":{"coupang":"unsupported","smartstore":"unsupported","lotteon":"unsupported","eleven11":"unsupported"}}
+    {
+      "from": "payment_done",
+      "to": "prep",
+      "requires": [],
+      "perMarket": {
+        "coupang": "unsupported",
+        "smartstore": "unsupported",
+        "lotteon": "unsupported",
+        "eleven11": "unsupported"
+      }
+    },
+    {
+      "from": "prep",
+      "to": "shipping",
+      "requires": [
+        "송장번호"
+      ],
+      "perMarket": {
+        "coupang": "unsupported",
+        "smartstore": "unsupported",
+        "lotteon": "unsupported",
+        "eleven11": "unsupported"
+      }
+    }
   ],
   "codes": [],
-  "apis": []
+  "apis": [
+    {
+      "id": "coupang.물류센터.출고지_생성",
+      "market": "coupang",
+      "fnKey": "물류센터.출고지_생성",
+      "tabs": [
+        "배송·송장"
+      ],
+      "category": "물류센터",
+      "nm": "출고지 생성",
+      "dir": "send",
+      "st": "off",
+      "endpoint": "apiDoc=360033918753",
+      "req": {},
+      "res": {},
+      "fields": [],
+      "success": "",
+      "idTraps": [],
+      "persistIds": [],
+      "codeRef": ""
+    },
+    {
+      "id": "coupang.logistics.outbound_places.list",
+      "market": "coupang",
+      "fnKey": "logistics.outbound_places.list",
+      "tabs": [
+        "배송·송장"
+      ],
+      "category": "물류센터",
+      "nm": "출고지 조회",
+      "dir": "recv",
+      "st": "code",
+      "endpoint": "GET /v2/providers/marketplace_openapi/apis/api/v2/vendor/shipping-place/outbound",
+      "req": {
+        "query": {
+          "pageNum": 1,
+          "pageSize": 50
+        }
+      },
+      "res": {
+        "content": [
+          {
+            "outboundShippingPlaceCode": 12345,
+            "shippingPlaceName": "본사출고지",
+            "usable": true,
+            "placeAddresses": [
+              {
+                "addressType": "JIBUN",
+                "returnZipCode": "06181",
+                "returnAddress": "서울시 강남구 ..."
+              }
+            ]
+          }
+        ]
+      },
+      "fields": [
+        {
+          "key": "content[].outboundShippingPlaceCode",
+          "meaning": "출고지 코드(상품 등록 필수 파라미터)",
+          "example": "12345"
+        },
+        {
+          "key": "content[].usable",
+          "meaning": "사용 가능 여부",
+          "example": "true"
+        }
+      ],
+      "success": "HTTP200 그리고 content 배열 반환(빈 배열도 성공)",
+      "idTraps": [
+        "실패해도 예외를 던지지 않고 [] 반환(logger.warning) — 호출부에서 빈 목록과 '조회 실패'를 구분 못 함"
+      ],
+      "persistIds": [
+        "content[].outboundShippingPlaceCode (상품 등록 파라미터)"
+      ],
+      "codeRef": "shared/platforms/coupang/shipping.py:list_outbound_places"
+    },
+    {
+      "id": "coupang.물류센터.출고지_수정",
+      "market": "coupang",
+      "fnKey": "물류센터.출고지_수정",
+      "tabs": [
+        "배송·송장"
+      ],
+      "category": "물류센터",
+      "nm": "출고지 수정",
+      "dir": "send",
+      "st": "off",
+      "endpoint": "apiDoc=360034155933",
+      "req": {},
+      "res": {},
+      "fields": [],
+      "success": "",
+      "idTraps": [],
+      "persistIds": [],
+      "codeRef": ""
+    },
+    {
+      "id": "coupang.물류센터.반품지_생성",
+      "market": "coupang",
+      "fnKey": "물류센터.반품지_생성",
+      "tabs": [
+        "배송·송장"
+      ],
+      "category": "물류센터",
+      "nm": "반품지 생성",
+      "dir": "send",
+      "st": "off",
+      "endpoint": "apiDoc=360033644794",
+      "req": {},
+      "res": {},
+      "fields": [],
+      "success": "",
+      "idTraps": [],
+      "persistIds": [],
+      "codeRef": ""
+    },
+    {
+      "id": "coupang.logistics.return_centers.list",
+      "market": "coupang",
+      "fnKey": "logistics.return_centers.list",
+      "tabs": [
+        "배송·송장"
+      ],
+      "category": "물류센터",
+      "nm": "반품지 목록 조회",
+      "dir": "recv",
+      "st": "code",
+      "endpoint": "GET /v2/providers/openapi/apis/api/v5/vendors/{vendorId}/returnShippingCenters",
+      "req": {
+        "path": {
+          "vendorId": "COUPANG_VENDOR_ID"
+        },
+        "query": {
+          "pageNum": 1,
+          "pageSize": 50
+        }
+      },
+      "res": {
+        "code": "SUCCESS",
+        "data": {
+          "content": [
+            {
+              "returnCenterCode": "1000012345",
+              "shippingPlaceName": "본사반품지",
+              "deliverCode": "CJGLS",
+              "usable": true
+            }
+          ]
+        }
+      },
+      "fields": [
+        {
+          "key": "data.content[].returnCenterCode",
+          "meaning": "반품지 센터코드(상품 등록 필수)",
+          "example": "1000012345"
+        }
+      ],
+      "success": "code=='SUCCESS' 그리고 data.content 존재(실패 시 [] 폴백 — 아래와 동일 패턴)",
+      "idTraps": [
+        "실패해도 예외 없이 [] 반환 — outbound_places 와 동일한 조용한 실패 패턴"
+      ],
+      "persistIds": [
+        "data.content[].returnCenterCode (상품 등록 파라미터)"
+      ],
+      "codeRef": "shared/platforms/coupang/shipping.py:list_return_centers"
+    },
+    {
+      "id": "coupang.물류센터.반품지_수정",
+      "market": "coupang",
+      "fnKey": "물류센터.반품지_수정",
+      "tabs": [
+        "배송·송장"
+      ],
+      "category": "물류센터",
+      "nm": "반품지 수정",
+      "dir": "send",
+      "st": "off",
+      "endpoint": "apiDoc=360033644834",
+      "req": {},
+      "res": {},
+      "fields": [],
+      "success": "",
+      "idTraps": [],
+      "persistIds": [],
+      "codeRef": ""
+    },
+    {
+      "id": "coupang.물류센터.반품지_단건_조회",
+      "market": "coupang",
+      "fnKey": "물류센터.반품지_단건_조회",
+      "tabs": [
+        "배송·송장"
+      ],
+      "category": "물류센터",
+      "nm": "반품지 단건 조회",
+      "dir": "recv",
+      "st": "off",
+      "endpoint": "apiDoc=360034156013",
+      "req": {},
+      "res": {},
+      "fields": [],
+      "success": "",
+      "idTraps": [],
+      "persistIds": [],
+      "codeRef": ""
+    },
+    {
+      "id": "coupang.물류센터.택배사_코드",
+      "market": "coupang",
+      "fnKey": "물류센터.택배사_코드",
+      "tabs": [
+        "배송·송장"
+      ],
+      "category": "물류센터",
+      "nm": "택배사 코드",
+      "dir": "recv",
+      "st": "off",
+      "endpoint": "apiDoc=360034156033",
+      "req": {},
+      "res": {},
+      "fields": [],
+      "success": "",
+      "idTraps": [],
+      "persistIds": [],
+      "codeRef": ""
+    },
+    {
+      "id": "coupang.category.meta.get",
+      "market": "coupang",
+      "fnKey": "category.meta.get",
+      "tabs": [
+        "상품 관리"
+      ],
+      "category": "카테고리",
+      "nm": "카테고리 메타정보 조회",
+      "dir": "recv",
+      "st": "code",
+      "endpoint": "GET /v2/providers/openapi/apis/api/v1/categorization/meta-data/display-categories/{displayCategoryCode}",
+      "req": {
+        "path": {
+          "displayCategoryCode": 12345
+        }
+      },
+      "res": {
+        "code": "SUCCESS",
+        "data": {
+          "attributes": [
+            {
+              "attributeTypeName": "색상",
+              "required": "MANDATORY"
+            }
+          ],
+          "noticeCategories": [
+            {
+              "noticeCategoryName": "신발"
+            }
+          ],
+          "certifications": []
+        }
+      },
+      "fields": [
+        {
+          "key": "data.attributes[]",
+          "meaning": "카테고리별 필수/선택 속성 목록",
+          "example": "색상=MANDATORY"
+        },
+        {
+          "key": "data.noticeCategories[]",
+          "meaning": "상품정보제공고시 카테고리",
+          "example": "신발"
+        }
+      ],
+      "success": "code=='SUCCESS' 그리고 data 존재(실패 시 {} 폴백)",
+      "idTraps": [],
+      "persistIds": [],
+      "codeRef": "shared/platforms/coupang/categories.py:get_meta"
+    },
+    {
+      "id": "coupang.category.predict",
+      "market": "coupang",
+      "fnKey": "category.predict",
+      "tabs": [
+        "상품 관리"
+      ],
+      "category": "카테고리",
+      "nm": "카테고리 추천",
+      "dir": "recv",
+      "st": "code",
+      "endpoint": "POST /v2/providers/openapi/apis/api/v1/categorization/predict",
+      "req": {
+        "body": {
+          "productName": "나이키 에어맥스 운동화",
+          "brand": "나이키",
+          "productDescription": "",
+          "attributes": {},
+          "sellerSkuCode": ""
+        }
+      },
+      "res": {
+        "code": "SUCCESS",
+        "data": {
+          "autoCategorizationPredictionResultType": "SUCCESS",
+          "predictedCategoryId": 12345,
+          "comment": ""
+        }
+      },
+      "fields": [
+        {
+          "key": "data.predictedCategoryId",
+          "meaning": "추천 displayCategoryCode(상품 생성 파라미터)",
+          "example": "12345"
+        },
+        {
+          "key": "data.autoCategorizationPredictionResultType",
+          "meaning": "추천 성공여부",
+          "example": "SUCCESS"
+        }
+      ],
+      "success": "code=='SUCCESS' 그리고 data.autoCategorizationPredictionResultType=='SUCCESS'",
+      "idTraps": [
+        "결과가 SUCCESS 아니면(FAIL 등) predictedCategoryId 없음 → None 반환, 수동 카테고리 선택 필요"
+      ],
+      "persistIds": [
+        "data.predictedCategoryId (상품 생성 displayCategoryCode)"
+      ],
+      "codeRef": "shared/platforms/coupang/categories.py:predict"
+    },
+    {
+      "id": "coupang.카테고리.카테고리_자동매칭_동의_확인",
+      "market": "coupang",
+      "fnKey": "카테고리.카테고리_자동매칭_동의_확인",
+      "tabs": [
+        "상품 관리"
+      ],
+      "category": "카테고리",
+      "nm": "카테고리 자동매칭 동의 확인",
+      "dir": "recv",
+      "st": "off",
+      "endpoint": "apiDoc=900003703946",
+      "req": {},
+      "res": {},
+      "fields": [],
+      "success": "",
+      "idTraps": [],
+      "persistIds": [],
+      "codeRef": ""
+    },
+    {
+      "id": "coupang.카테고리.카테고리_목록조회",
+      "market": "coupang",
+      "fnKey": "카테고리.카테고리_목록조회",
+      "tabs": [
+        "상품 관리"
+      ],
+      "category": "카테고리",
+      "nm": "카테고리 목록조회",
+      "dir": "recv",
+      "st": "off",
+      "endpoint": "apiDoc=360033400814",
+      "req": {},
+      "res": {},
+      "fields": [],
+      "success": "",
+      "idTraps": [],
+      "persistIds": [],
+      "codeRef": ""
+    },
+    {
+      "id": "coupang.카테고리.카테고리_조회",
+      "market": "coupang",
+      "fnKey": "카테고리.카테고리_조회",
+      "tabs": [
+        "상품 관리"
+      ],
+      "category": "카테고리",
+      "nm": "카테고리 조회",
+      "dir": "recv",
+      "st": "off",
+      "endpoint": "apiDoc=360034035753",
+      "req": {},
+      "res": {},
+      "fields": [],
+      "success": "",
+      "idTraps": [],
+      "persistIds": [],
+      "codeRef": ""
+    },
+    {
+      "id": "coupang.카테고리.카테고리_유효성_검사",
+      "market": "coupang",
+      "fnKey": "카테고리.카테고리_유효성_검사",
+      "tabs": [
+        "상품 관리"
+      ],
+      "category": "카테고리",
+      "nm": "카테고리 유효성 검사",
+      "dir": "recv",
+      "st": "off",
+      "endpoint": "apiDoc=360033517174",
+      "req": {},
+      "res": {},
+      "fields": [],
+      "success": "",
+      "idTraps": [],
+      "persistIds": [],
+      "codeRef": ""
+    },
+    {
+      "id": "coupang.브랜드.ID_기반_브랜드_조회",
+      "market": "coupang",
+      "fnKey": "브랜드.ID_기반_브랜드_조회",
+      "tabs": [
+        "상품 관리"
+      ],
+      "category": "브랜드",
+      "nm": "ID 기반 브랜드 조회",
+      "dir": "recv",
+      "st": "off",
+      "endpoint": "apiDoc=58351229661209",
+      "req": {},
+      "res": {},
+      "fields": [],
+      "success": "",
+      "idTraps": [],
+      "persistIds": [],
+      "codeRef": ""
+    },
+    {
+      "id": "coupang.브랜드.등록_브랜드_목록",
+      "market": "coupang",
+      "fnKey": "브랜드.등록_브랜드_목록",
+      "tabs": [
+        "상품 관리"
+      ],
+      "category": "브랜드",
+      "nm": "등록 브랜드 목록",
+      "dir": "recv",
+      "st": "off",
+      "endpoint": "apiDoc=58230230681625",
+      "req": {},
+      "res": {},
+      "fields": [],
+      "success": "",
+      "idTraps": [],
+      "persistIds": [],
+      "codeRef": ""
+    },
+    {
+      "id": "coupang.브랜드.브랜드_검색",
+      "market": "coupang",
+      "fnKey": "브랜드.브랜드_검색",
+      "tabs": [
+        "상품 관리"
+      ],
+      "category": "브랜드",
+      "nm": "브랜드 검색",
+      "dir": "recv",
+      "st": "off",
+      "endpoint": "apiDoc=58230017410841",
+      "req": {},
+      "res": {},
+      "fields": [],
+      "success": "",
+      "idTraps": [],
+      "persistIds": [],
+      "codeRef": ""
+    },
+    {
+      "id": "coupang.product.create",
+      "market": "coupang",
+      "fnKey": "product.create",
+      "tabs": [
+        "상품 관리"
+      ],
+      "category": "상품",
+      "nm": "상품 생성",
+      "dir": "send",
+      "st": "code",
+      "endpoint": "POST /v2/providers/seller_api/apis/api/v1/marketplace/seller-products",
+      "req": {
+        "body": {
+          "displayCategoryCode": 12345,
+          "sellerProductName": "...",
+          "brand": "르무통",
+          "items": [
+            {
+              "itemName": "블랙/250",
+              "originalPrice": 39900,
+              "salePrice": 29900,
+              "externalVendorSku": "SKU-001",
+              "offerCondition": "NEW"
+            }
+          ],
+          "saleStartedAt": "2026-01-01T00:00:00",
+          "requested": false
+        }
+      },
+      "res": {
+        "code": "SUCCESS",
+        "data": 123456789
+      },
+      "fields": [
+        {
+          "key": "data",
+          "meaning": "등록된 sellerProductId(정수)",
+          "example": "123456789"
+        }
+      ],
+      "success": "code=='SUCCESS' 그리고 data 가 int",
+      "idTraps": [
+        "등록 응답 data 는 sellerProductId 뿐 — vendorItemId 미포함, product.get_detail 1회 더 호출 필요",
+        "requested=false 로 보내야 임시(검토) 등록, requested=true 면 즉시 승인요청"
+      ],
+      "persistIds": [
+        "data (sellerProductId) → get_detail 조회 키"
+      ],
+      "codeRef": "shared/platforms/coupang/products.py:create_product"
+    },
+    {
+      "id": "coupang.상품.상품_승인_요청",
+      "market": "coupang",
+      "fnKey": "상품.상품_승인_요청",
+      "tabs": [
+        "상품 관리"
+      ],
+      "category": "상품",
+      "nm": "상품 승인 요청",
+      "dir": "send",
+      "st": "off",
+      "endpoint": "apiDoc=360033644894",
+      "req": {},
+      "res": {},
+      "fields": [],
+      "success": "",
+      "idTraps": [],
+      "persistIds": [],
+      "codeRef": ""
+    },
+    {
+      "id": "coupang.product.get_detail",
+      "market": "coupang",
+      "fnKey": "product.get_detail",
+      "tabs": [
+        "상품 조회"
+      ],
+      "category": "상품",
+      "nm": "상품 조회",
+      "dir": "recv",
+      "st": "ok",
+      "endpoint": "GET /v2/providers/seller_api/apis/api/v1/marketplace/seller-products/{sellerProductId}",
+      "req": {
+        "path": {
+          "sellerProductId": "사용자입력 마켓상품번호"
+        }
+      },
+      "res": {
+        "code": "SUCCESS",
+        "data": {
+          "items": [
+            {
+              "vendorItemId": 123456,
+              "itemName": "블랙/250",
+              "salePrice": 29900,
+              "attributes": [
+                {
+                  "attributeTypeName": "색상",
+                  "attributeValueName": "블랙"
+                },
+                {
+                  "attributeTypeName": "사이즈",
+                  "attributeValueName": "250"
+                }
+              ]
+            }
+          ]
+        }
+      },
+      "fields": [
+        {
+          "key": "data.items[].vendorItemId",
+          "meaning": "쿠팡 옵션ID(가격·재고 명령의 대상)",
+          "example": "123456"
+        },
+        {
+          "key": "data.items[].attributes[]",
+          "meaning": "색상/사이즈 (attributeTypeName 으로 구분)",
+          "example": "색상=블랙"
+        }
+      ],
+      "success": "code=='SUCCESS' 그리고 data.items 존재",
+      "idTraps": [
+        "등록 응답에는 vendorItemId 없음 → 이 상세조회를 1회 더 호출해야 옵션ID 확보"
+      ],
+      "persistIds": [
+        "data.items[].vendorItemId (가격·재고 명령 라우팅 키)"
+      ],
+      "codeRef": "shared/platforms/coupang/products.py:get_product + extract_vendor_items"
+    },
+    {
+      "id": "coupang.상품.상품_조회_승인불필요",
+      "market": "coupang",
+      "fnKey": "상품.상품_조회_승인불필요",
+      "tabs": [
+        "상품 조회"
+      ],
+      "category": "상품",
+      "nm": "상품 조회(승인불필요)",
+      "dir": "recv",
+      "st": "off",
+      "endpoint": "apiDoc=360042701211",
+      "req": {},
+      "res": {},
+      "fields": [],
+      "success": "",
+      "idTraps": [],
+      "persistIds": [],
+      "codeRef": ""
+    },
+    {
+      "id": "coupang.상품.상품_수정_승인필요",
+      "market": "coupang",
+      "fnKey": "상품.상품_수정_승인필요",
+      "tabs": [
+        "상품 관리"
+      ],
+      "category": "상품",
+      "nm": "상품 수정(승인필요)",
+      "dir": "send",
+      "st": "off",
+      "endpoint": "apiDoc=360034156073",
+      "req": {},
+      "res": {},
+      "fields": [],
+      "success": "",
+      "idTraps": [],
+      "persistIds": [],
+      "codeRef": ""
+    },
+    {
+      "id": "coupang.상품.상품_수정_승인불필요",
+      "market": "coupang",
+      "fnKey": "상품.상품_수정_승인불필요",
+      "tabs": [
+        "상품 관리"
+      ],
+      "category": "상품",
+      "nm": "상품 수정(승인불필요)",
+      "dir": "send",
+      "st": "off",
+      "endpoint": "apiDoc=360042169352",
+      "req": {},
+      "res": {},
+      "fields": [],
+      "success": "",
+      "idTraps": [],
+      "persistIds": [],
+      "codeRef": ""
+    },
+    {
+      "id": "coupang.상품.상품_삭제",
+      "market": "coupang",
+      "fnKey": "상품.상품_삭제",
+      "tabs": [
+        "상품 관리"
+      ],
+      "category": "상품",
+      "nm": "상품 삭제",
+      "dir": "send",
+      "st": "off",
+      "endpoint": "apiDoc=360033644954",
+      "req": {},
+      "res": {},
+      "fields": [],
+      "success": "",
+      "idTraps": [],
+      "persistIds": [],
+      "codeRef": ""
+    },
+    {
+      "id": "coupang.상품.상품_등록_현황_조회",
+      "market": "coupang",
+      "fnKey": "상품.상품_등록_현황_조회",
+      "tabs": [
+        "상품 조회"
+      ],
+      "category": "상품",
+      "nm": "상품 등록 현황 조회",
+      "dir": "recv",
+      "st": "off",
+      "endpoint": "apiDoc=4404525347353",
+      "req": {},
+      "res": {},
+      "fields": [],
+      "success": "",
+      "idTraps": [],
+      "persistIds": [],
+      "codeRef": ""
+    },
+    {
+      "id": "coupang.상품.상품_목록_페이징_조회",
+      "market": "coupang",
+      "fnKey": "상품.상품_목록_페이징_조회",
+      "tabs": [
+        "상품 조회"
+      ],
+      "category": "상품",
+      "nm": "상품 목록 페이징 조회",
+      "dir": "recv",
+      "st": "off",
+      "endpoint": "apiDoc=360033645034",
+      "req": {},
+      "res": {},
+      "fields": [],
+      "success": "",
+      "idTraps": [],
+      "persistIds": [],
+      "codeRef": ""
+    },
+    {
+      "id": "coupang.상품.상품_목록_구간_조회",
+      "market": "coupang",
+      "fnKey": "상품.상품_목록_구간_조회",
+      "tabs": [
+        "상품 조회"
+      ],
+      "category": "상품",
+      "nm": "상품 목록 구간 조회",
+      "dir": "recv",
+      "st": "off",
+      "endpoint": "apiDoc=360033645054",
+      "req": {},
+      "res": {},
+      "fields": [],
+      "success": "",
+      "idTraps": [],
+      "persistIds": [],
+      "codeRef": ""
+    },
+    {
+      "id": "coupang.상품.상품_상태변경이력_조회",
+      "market": "coupang",
+      "fnKey": "상품.상품_상태변경이력_조회",
+      "tabs": [
+        "상품 관리"
+      ],
+      "category": "상품",
+      "nm": "상품 상태변경이력 조회",
+      "dir": "recv",
+      "st": "off",
+      "endpoint": "apiDoc=360034156213",
+      "req": {},
+      "res": {},
+      "fields": [],
+      "success": "",
+      "idTraps": [],
+      "persistIds": [],
+      "codeRef": ""
+    },
+    {
+      "id": "coupang.상품.상품_요약_정보_조회",
+      "market": "coupang",
+      "fnKey": "상품.상품_요약_정보_조회",
+      "tabs": [
+        "상품 조회"
+      ],
+      "category": "상품",
+      "nm": "상품 요약 정보 조회",
+      "dir": "recv",
+      "st": "off",
+      "endpoint": "apiDoc=360033645094",
+      "req": {},
+      "res": {},
+      "fields": [],
+      "success": "",
+      "idTraps": [],
+      "persistIds": [],
+      "codeRef": ""
+    },
+    {
+      "id": "coupang.product.item_status",
+      "market": "coupang",
+      "fnKey": "product.item_status",
+      "tabs": [
+        "상품 조회"
+      ],
+      "category": "상품",
+      "nm": "아이템별 수량/가격/상태 조회",
+      "dir": "recv",
+      "st": "ok",
+      "endpoint": "GET /v2/providers/seller_api/apis/api/v1/marketplace/seller-products/{sellerProductId} (get_detail 응답 items[] 로 커버, 별도 엔드포인트 미호출)",
+      "req": {
+        "path": {
+          "sellerProductId": "마켓상품번호"
+        }
+      },
+      "res": {
+        "code": "SUCCESS",
+        "data": {
+          "items": [
+            {
+              "vendorItemId": 123456,
+              "salePrice": 29900,
+              "maximumBuyCount": 0,
+              "itemName": "블랙/250"
+            }
+          ]
+        }
+      },
+      "fields": [
+        {
+          "key": "data.items[].salePrice",
+          "meaning": "현재 판매가",
+          "example": "29900"
+        },
+        {
+          "key": "data.items[].maximumBuyCount",
+          "meaning": "최대구매수량(0=제한없음, 판매중지 플래그 아님)",
+          "example": "0"
+        }
+      ],
+      "success": "code=='SUCCESS' 그리고 data.items 존재",
+      "idTraps": [
+        "'아이템 단건 조회' 전용 API 호출 없이 상품 상세조회(get_detail) 응답의 items[] 로 대체 커버 — extract_vendor_items 가 파싱"
+      ],
+      "persistIds": [],
+      "codeRef": "shared/platforms/coupang/products.py:extract_vendor_items"
+    },
+    {
+      "id": "coupang.stock.update",
+      "market": "coupang",
+      "fnKey": "stock.update",
+      "tabs": [
+        "상품 관리"
+      ],
+      "category": "상품",
+      "nm": "아이템별 수량 변경",
+      "dir": "send",
+      "st": "ok",
+      "endpoint": "PUT /v2/providers/seller_api/apis/api/v1/marketplace/vendor-items/{vendorItemId}/quantities/{quantity}",
+      "req": {
+        "path": {
+          "vendorItemId": "쿠팡 옵션ID",
+          "quantity": "재고수량(0=품절)"
+        }
+      },
+      "res": {
+        "code": "SUCCESS",
+        "message": "",
+        "data": null
+      },
+      "fields": [
+        {
+          "key": "code",
+          "meaning": "성공 여부",
+          "example": "SUCCESS"
+        }
+      ],
+      "success": "HTTP200 그리고 code=='SUCCESS'",
+      "idTraps": [],
+      "persistIds": [],
+      "codeRef": "shared/platforms/coupang/inventory.py:update_quantity"
+    },
+    {
+      "id": "coupang.price.update",
+      "market": "coupang",
+      "fnKey": "price.update",
+      "tabs": [
+        "상품 관리"
+      ],
+      "category": "상품",
+      "nm": "아이템별 가격 변경",
+      "dir": "send",
+      "st": "ok",
+      "endpoint": "PUT /v2/providers/seller_api/apis/api/v1/marketplace/vendor-items/{vendorItemId}/prices/{price}",
+      "req": {
+        "path": {
+          "vendorItemId": "쿠팡 옵션ID",
+          "price": "판매가(10원 단위)"
+        },
+        "query": {
+          "forceSalePriceUpdate": "false"
+        }
+      },
+      "res": {
+        "code": "SUCCESS",
+        "message": "",
+        "data": null
+      },
+      "fields": [
+        {
+          "key": "code",
+          "meaning": "성공 여부 문자열",
+          "example": "SUCCESS"
+        }
+      ],
+      "success": "HTTP200 그리고 code=='SUCCESS' (변경비율 -50%~+100% 초과 시 400)",
+      "idTraps": [],
+      "persistIds": [],
+      "codeRef": "shared/platforms/coupang/prices.py:update_price"
+    },
+    {
+      "id": "coupang.상품.아이템별_판매_재개",
+      "market": "coupang",
+      "fnKey": "상품.아이템별_판매_재개",
+      "tabs": [
+        "상품 관리"
+      ],
+      "category": "상품",
+      "nm": "아이템별 판매 재개",
+      "dir": "send",
+      "st": "off",
+      "endpoint": "apiDoc=360033645154",
+      "req": {},
+      "res": {},
+      "fields": [],
+      "success": "",
+      "idTraps": [],
+      "persistIds": [],
+      "codeRef": ""
+    },
+    {
+      "id": "coupang.상품.아이템별_판매_중지",
+      "market": "coupang",
+      "fnKey": "상품.아이템별_판매_중지",
+      "tabs": [
+        "상품 관리"
+      ],
+      "category": "상품",
+      "nm": "아이템별 판매 중지",
+      "dir": "send",
+      "st": "off",
+      "endpoint": "apiDoc=360034156313",
+      "req": {},
+      "res": {},
+      "fields": [],
+      "success": "",
+      "idTraps": [],
+      "persistIds": [],
+      "codeRef": ""
+    },
+    {
+      "id": "coupang.상품.아이템별_할인율_기준가격_변경",
+      "market": "coupang",
+      "fnKey": "상품.아이템별_할인율_기준가격_변경",
+      "tabs": [
+        "상품 관리"
+      ],
+      "category": "상품",
+      "nm": "아이템별 할인율 기준가격 변경",
+      "dir": "send",
+      "st": "off",
+      "endpoint": "apiDoc=360034156333",
+      "req": {},
+      "res": {},
+      "fields": [],
+      "success": "",
+      "idTraps": [],
+      "persistIds": [],
+      "codeRef": ""
+    },
+    {
+      "id": "coupang.상품.자동생성옵션_활성화_옵션단위",
+      "market": "coupang",
+      "fnKey": "상품.자동생성옵션_활성화_옵션단위",
+      "tabs": [
+        "상품 관리"
+      ],
+      "category": "상품",
+      "nm": "자동생성옵션 활성화(옵션단위)",
+      "dir": "send",
+      "st": "off",
+      "endpoint": "apiDoc=27244057869209",
+      "req": {},
+      "res": {},
+      "fields": [],
+      "success": "",
+      "idTraps": [],
+      "persistIds": [],
+      "codeRef": ""
+    },
+    {
+      "id": "coupang.상품.자동생성옵션_활성화_전체단위",
+      "market": "coupang",
+      "fnKey": "상품.자동생성옵션_활성화_전체단위",
+      "tabs": [
+        "상품 관리"
+      ],
+      "category": "상품",
+      "nm": "자동생성옵션 활성화(전체단위)",
+      "dir": "send",
+      "st": "off",
+      "endpoint": "apiDoc=27244235299609",
+      "req": {},
+      "res": {},
+      "fields": [],
+      "success": "",
+      "idTraps": [],
+      "persistIds": [],
+      "codeRef": ""
+    },
+    {
+      "id": "coupang.상품.자동생성옵션_비활성화_옵션단위",
+      "market": "coupang",
+      "fnKey": "상품.자동생성옵션_비활성화_옵션단위",
+      "tabs": [
+        "상품 관리"
+      ],
+      "category": "상품",
+      "nm": "자동생성옵션 비활성화(옵션단위)",
+      "dir": "send",
+      "st": "off",
+      "endpoint": "apiDoc=27244841785497",
+      "req": {},
+      "res": {},
+      "fields": [],
+      "success": "",
+      "idTraps": [],
+      "persistIds": [],
+      "codeRef": ""
+    },
+    {
+      "id": "coupang.상품.자동생성옵션_비활성화_전체단위",
+      "market": "coupang",
+      "fnKey": "상품.자동생성옵션_비활성화_전체단위",
+      "tabs": [
+        "상품 관리"
+      ],
+      "category": "상품",
+      "nm": "자동생성옵션 비활성화(전체단위)",
+      "dir": "send",
+      "st": "off",
+      "endpoint": "apiDoc=27246230561177",
+      "req": {},
+      "res": {},
+      "fields": [],
+      "success": "",
+      "idTraps": [],
+      "persistIds": [],
+      "codeRef": ""
+    },
+    {
+      "id": "coupang.order.list",
+      "market": "coupang",
+      "fnKey": "order.list",
+      "tabs": [
+        "배송·송장"
+      ],
+      "category": "배송·환불",
+      "nm": "발주서 목록 조회(일단위)",
+      "dir": "recv",
+      "st": "ok",
+      "endpoint": "GET /v2/providers/openapi/apis/api/v5/vendors/{vendorId}/ordersheets",
+      "req": {
+        "query": {
+          "createdAtFrom": "2026-07-10+09:00",
+          "createdAtTo": "2026-07-16+09:00",
+          "status": "ACCEPT",
+          "maxPerPage": 50
+        }
+      },
+      "res": {
+        "code": "SUCCESS",
+        "data": [
+          {
+            "shipmentBoxId": 123,
+            "orderId": 456,
+            "orderer": {
+              "name": "홍길동"
+            },
+            "status": "ACCEPT",
+            "orderItems": [
+              {
+                "vendorItemId": 123456,
+                "vendorItemName": "블랙/250",
+                "shippingCount": 1
+              }
+            ]
+          }
+        ],
+        "nextToken": "abc"
+      },
+      "fields": [
+        {
+          "key": "data[].shipmentBoxId",
+          "meaning": "발주서(묶음배송) 번호 — 발주확인·송장전송 키",
+          "example": "123"
+        },
+        {
+          "key": "data[].status",
+          "meaning": "쿠팡 주문상태(ACCEPT=결제완료 등)",
+          "example": "ACCEPT"
+        }
+      ],
+      "success": "code=='SUCCESS' (data 빈 배열도 정상)",
+      "idTraps": [
+        "status 파라미터 필수(생략 시 400) — ACCEPT/INSTRUCT/DEPARTURE/DELIVERING/FINAL_DELIVERY/NONE_TRACKING 값별로 각각 순회 필요(한번에 전체 조회 불가)"
+      ],
+      "persistIds": [
+        "data[].shipmentBoxId (발주확인·송장전송 키)"
+      ],
+      "codeRef": "shared/platforms/coupang/orders.py:fetch_orders"
+    },
+    {
+      "id": "coupang.order.list_minutely",
+      "market": "coupang",
+      "fnKey": "order.list_minutely",
+      "tabs": [
+        "배송·송장"
+      ],
+      "category": "배송·환불",
+      "nm": "발주서 목록 조회(분단위)",
+      "dir": "recv",
+      "st": "off",
+      "endpoint": "apiDoc=360033792774",
+      "req": {},
+      "res": {},
+      "fields": [],
+      "success": "",
+      "idTraps": [],
+      "persistIds": [],
+      "codeRef": ""
+    },
+    {
+      "id": "coupang.order.get_by_shipment_box",
+      "market": "coupang",
+      "fnKey": "order.get_by_shipment_box",
+      "tabs": [
+        "배송·송장"
+      ],
+      "category": "배송·환불",
+      "nm": "발주서 단건 조회(shipmentBoxId)",
+      "dir": "recv",
+      "st": "off",
+      "endpoint": "apiDoc=360033792854",
+      "req": {},
+      "res": {},
+      "fields": [],
+      "success": "",
+      "idTraps": [],
+      "persistIds": [],
+      "codeRef": ""
+    },
+    {
+      "id": "coupang.order.get_by_order_id",
+      "market": "coupang",
+      "fnKey": "order.get_by_order_id",
+      "tabs": [
+        "배송·송장"
+      ],
+      "category": "배송·환불",
+      "nm": "발주서 단건 조회(orderId)",
+      "dir": "recv",
+      "st": "off",
+      "endpoint": "apiDoc=360034320553",
+      "req": {},
+      "res": {},
+      "fields": [],
+      "success": "",
+      "idTraps": [],
+      "persistIds": [],
+      "codeRef": ""
+    },
+    {
+      "id": "coupang.배송_환불.배송상태_변경_히스토리_조회",
+      "market": "coupang",
+      "fnKey": "배송_환불.배송상태_변경_히스토리_조회",
+      "tabs": [
+        "배송·송장"
+      ],
+      "category": "배송·환불",
+      "nm": "배송상태 변경 히스토리 조회",
+      "dir": "recv",
+      "st": "off",
+      "endpoint": "apiDoc=360033792934",
+      "req": {},
+      "res": {},
+      "fields": [],
+      "success": "",
+      "idTraps": [],
+      "persistIds": [],
+      "codeRef": ""
+    },
+    {
+      "id": "coupang.order.confirm",
+      "market": "coupang",
+      "fnKey": "order.confirm",
+      "tabs": [
+        "주문상태"
+      ],
+      "category": "배송·환불",
+      "nm": "상품준비중 처리",
+      "dir": "send",
+      "st": "ok",
+      "endpoint": "PUT /v2/providers/openapi/apis/api/v4/vendors/{vendorId}/ordersheets/acknowledgement",
+      "req": {
+        "body": {
+          "vendorId": "COUPANG_VENDOR_ID",
+          "shipmentBoxIds": [
+            123,
+            456
+          ]
+        }
+      },
+      "res": {
+        "code": "SUCCESS",
+        "message": ""
+      },
+      "fields": [
+        {
+          "key": "code",
+          "meaning": "성공 여부",
+          "example": "SUCCESS"
+        }
+      ],
+      "success": "code=='SUCCESS' — ACCEPT(결제완료)→INSTRUCT(상품준비중) 전환",
+      "idTraps": [
+        "shipmentBoxIds 없으면 ValueError 로 즉시 차단(추측 전송 금지)",
+        "★라이브 미검증 — 실주문 1건으로 INSTRUCT 전환 확인 후 신뢰 필요(코드 주석 명시)"
+      ],
+      "persistIds": [],
+      "codeRef": "shared/platforms/coupang/orders.py:acknowledge"
+    },
+    {
+      "id": "coupang.shipping.send_tracking",
+      "market": "coupang",
+      "fnKey": "shipping.send_tracking",
+      "tabs": [
+        "배송·송장"
+      ],
+      "category": "배송·환불",
+      "nm": "송장업로드 처리",
+      "dir": "send",
+      "st": "code",
+      "endpoint": "POST /v2/providers/openapi/apis/api/v4/vendors/{vendorId}/orders/{shipmentBoxId}/ordersheets/invoices",
+      "req": {
+        "body": {
+          "vendorId": "COUPANG_VENDOR_ID",
+          "orderSheetId": "456",
+          "deliveryCompanyCode": "CJGLS",
+          "invoiceNumber": "123456789012"
+        }
+      },
+      "res": {
+        "code": "SUCCESS",
+        "message": ""
+      },
+      "fields": [
+        {
+          "key": "code",
+          "meaning": "성공 여부",
+          "example": "SUCCESS"
+        }
+      ],
+      "success": "code=='SUCCESS'",
+      "idTraps": [
+        "deliveryCompanyCode 는 쿠팡 고유 코드(로젠=KGB) — 스마트스토어 코드(로젠=LOGEN)와 다르니 섞으면 오배송 처리"
+      ],
+      "persistIds": [],
+      "codeRef": "shared/platforms/coupang/orders.py:send_tracking"
+    },
+    {
+      "id": "coupang.배송_환불.송장업데이트_처리",
+      "market": "coupang",
+      "fnKey": "배송_환불.송장업데이트_처리",
+      "tabs": [
+        "배송·송장"
+      ],
+      "category": "배송·환불",
+      "nm": "송장업데이트 처리",
+      "dir": "send",
+      "st": "off",
+      "endpoint": "apiDoc=360034320653",
+      "req": {},
+      "res": {},
+      "fields": [],
+      "success": "",
+      "idTraps": [],
+      "persistIds": [],
+      "codeRef": ""
+    },
+    {
+      "id": "coupang.배송_환불.출고중지완료_처리",
+      "market": "coupang",
+      "fnKey": "배송_환불.출고중지완료_처리",
+      "tabs": [
+        "배송·송장"
+      ],
+      "category": "배송·환불",
+      "nm": "출고중지완료 처리",
+      "dir": "send",
+      "st": "off",
+      "endpoint": "apiDoc=360034320673",
+      "req": {},
+      "res": {},
+      "fields": [],
+      "success": "",
+      "idTraps": [],
+      "persistIds": [],
+      "codeRef": ""
+    },
+    {
+      "id": "coupang.배송_환불.이미출고_처리",
+      "market": "coupang",
+      "fnKey": "배송_환불.이미출고_처리",
+      "tabs": [
+        "배송·송장"
+      ],
+      "category": "배송·환불",
+      "nm": "이미출고 처리",
+      "dir": "send",
+      "st": "off",
+      "endpoint": "apiDoc=360033793034",
+      "req": {},
+      "res": {},
+      "fields": [],
+      "success": "",
+      "idTraps": [],
+      "persistIds": [],
+      "codeRef": ""
+    },
+    {
+      "id": "coupang.배송_환불.주문_상품_취소_처리",
+      "market": "coupang",
+      "fnKey": "배송_환불.주문_상품_취소_처리",
+      "tabs": [
+        "클레임·CS"
+      ],
+      "category": "배송·환불",
+      "nm": "주문 상품 취소 처리",
+      "dir": "send",
+      "st": "off",
+      "endpoint": "apiDoc=360033843154",
+      "req": {},
+      "res": {},
+      "fields": [],
+      "success": "",
+      "idTraps": [],
+      "persistIds": [],
+      "codeRef": ""
+    },
+    {
+      "id": "coupang.배송_환불.장기미배송_배송완료_처리",
+      "market": "coupang",
+      "fnKey": "배송_환불.장기미배송_배송완료_처리",
+      "tabs": [
+        "배송·송장"
+      ],
+      "category": "배송·환불",
+      "nm": "장기미배송 배송완료 처리",
+      "dir": "send",
+      "st": "off",
+      "endpoint": "apiDoc=360034320713",
+      "req": {},
+      "res": {},
+      "fields": [],
+      "success": "",
+      "idTraps": [],
+      "persistIds": [],
+      "codeRef": ""
+    },
+    {
+      "id": "coupang.claim.return_cancel.list",
+      "market": "coupang",
+      "fnKey": "claim.return_cancel.list",
+      "tabs": [
+        "클레임·CS"
+      ],
+      "category": "반품",
+      "nm": "반품/취소 요청 목록 조회",
+      "dir": "recv",
+      "st": "ok",
+      "endpoint": "GET /v2/providers/openapi/apis/api/v4/vendors/{vendorId}/returnRequests",
+      "req": {
+        "query": {
+          "searchType": "timeFrame",
+          "createdAtFrom": "2026-07-10T00:00",
+          "createdAtTo": "2026-07-16T00:00",
+          "status": "RU",
+          "maxPerPage": 50
+        }
+      },
+      "res": {
+        "data": [
+          {
+            "receiptId": 9001,
+            "orderId": 456,
+            "receiptType": "RETURN",
+            "receiptStatus": "RU",
+            "createdAt": "2026-07-14T10:00:00",
+            "requesterName": "홍길동",
+            "reasonCodeText": "단순변심",
+            "returnItems": [
+              {
+                "sellerProductName": "...",
+                "vendorItemName": "블랙/250",
+                "cancelCount": 1,
+                "purchaseCount": 1
+              }
+            ]
+          }
+        ],
+        "nextToken": null
+      },
+      "fields": [
+        {
+          "key": "data[].receiptId",
+          "meaning": "반품/취소 접수번호(승인 처리 키)",
+          "example": "9001"
+        },
+        {
+          "key": "data[].receiptType",
+          "meaning": "RETURN(반품)/CANCEL(취소) 구분",
+          "example": "RETURN"
+        },
+        {
+          "key": "data[].receiptStatus",
+          "meaning": "진행상태(RU/CC/PR/UC)",
+          "example": "RU"
+        }
+      ],
+      "success": "HTTP200 (status 파라미터 RU/CC/PR/UC 4종 각각 순회해야 전체 커버)",
+      "idTraps": [
+        "status 하나만 조회하면 다른 상태 건 누락 — 반드시 4개 상태 순회",
+        "조회기간 최대 7일 — 초과 요청 시 창을 나눠야 함",
+        "returnRequests 는 초(sec) 없는 'yyyy-MM-ddTHH:mm' 포맷 필수(exchangeRequests 와 반대) — 틀리면 400으로 전체 조회 실패"
+      ],
+      "persistIds": [
+        "data[].receiptId (반품 승인 처리 키)"
+      ],
+      "codeRef": "shared/platforms/coupang/claims.py:iter_returns"
+    },
+    {
+      "id": "coupang.반품.반품요청_단건_조회",
+      "market": "coupang",
+      "fnKey": "반품.반품요청_단건_조회",
+      "tabs": [
+        "클레임·CS"
+      ],
+      "category": "반품",
+      "nm": "반품요청 단건 조회",
+      "dir": "recv",
+      "st": "off",
+      "endpoint": "apiDoc=360034562353",
+      "req": {},
+      "res": {},
+      "fields": [],
+      "success": "",
+      "idTraps": [],
+      "persistIds": [],
+      "codeRef": ""
+    },
+    {
+      "id": "coupang.반품.반품상품_입고_확인처리",
+      "market": "coupang",
+      "fnKey": "반품.반품상품_입고_확인처리",
+      "tabs": [
+        "클레임·CS"
+      ],
+      "category": "반품",
+      "nm": "반품상품 입고 확인처리",
+      "dir": "send",
+      "st": "off",
+      "endpoint": "apiDoc=360034027214",
+      "req": {},
+      "res": {},
+      "fields": [],
+      "success": "",
+      "idTraps": [],
+      "persistIds": [],
+      "codeRef": ""
+    },
+    {
+      "id": "coupang.claim.return.approve",
+      "market": "coupang",
+      "fnKey": "claim.return.approve",
+      "tabs": [
+        "클레임·CS"
+      ],
+      "category": "반품",
+      "nm": "반품요청 승인 처리",
+      "dir": "send",
+      "st": "code",
+      "endpoint": "POST /v2/providers/openapi/apis/api/v4/vendors/{vendorId}/returnRequests/{receiptId}/approval",
+      "req": {
+        "path": {
+          "receiptId": "9001"
+        },
+        "body": {
+          "vendorId": "COUPANG_VENDOR_ID",
+          "receiptId": 9001,
+          "cancelCount": 1
+        }
+      },
+      "res": {
+        "code": "SUCCESS",
+        "message": ""
+      },
+      "fields": [
+        {
+          "key": "code",
+          "meaning": "성공 여부",
+          "example": "SUCCESS"
+        }
+      ],
+      "success": "code=='SUCCESS'",
+      "idTraps": [],
+      "persistIds": [],
+      "codeRef": "shared/platforms/coupang/claims.py:approve_return_request"
+    },
+    {
+      "id": "coupang.반품.반품철회_이력_기간별_조회",
+      "market": "coupang",
+      "fnKey": "반품.반품철회_이력_기간별_조회",
+      "tabs": [
+        "클레임·CS"
+      ],
+      "category": "반품",
+      "nm": "반품철회 이력 기간별 조회",
+      "dir": "recv",
+      "st": "off",
+      "endpoint": "apiDoc=360034027354",
+      "req": {},
+      "res": {},
+      "fields": [],
+      "success": "",
+      "idTraps": [],
+      "persistIds": [],
+      "codeRef": ""
+    },
+    {
+      "id": "coupang.반품.반품철회_이력_접수번호_조회",
+      "market": "coupang",
+      "fnKey": "반품.반품철회_이력_접수번호_조회",
+      "tabs": [
+        "클레임·CS"
+      ],
+      "category": "반품",
+      "nm": "반품철회 이력 접수번호 조회",
+      "dir": "recv",
+      "st": "off",
+      "endpoint": "apiDoc=360034027374",
+      "req": {},
+      "res": {},
+      "fields": [],
+      "success": "",
+      "idTraps": [],
+      "persistIds": [],
+      "codeRef": ""
+    },
+    {
+      "id": "coupang.반품.회수_송장_등록",
+      "market": "coupang",
+      "fnKey": "반품.회수_송장_등록",
+      "tabs": [
+        "클레임·CS"
+      ],
+      "category": "반품",
+      "nm": "회수 송장 등록",
+      "dir": "send",
+      "st": "off",
+      "endpoint": "apiDoc=360034027394",
+      "req": {},
+      "res": {},
+      "fields": [],
+      "success": "",
+      "idTraps": [],
+      "persistIds": [],
+      "codeRef": ""
+    },
+    {
+      "id": "coupang.claim.exchange.list",
+      "market": "coupang",
+      "fnKey": "claim.exchange.list",
+      "tabs": [
+        "클레임·CS"
+      ],
+      "category": "교환",
+      "nm": "교환요청 목록조회",
+      "dir": "recv",
+      "st": "ok",
+      "endpoint": "GET /v2/providers/openapi/apis/api/v4/vendors/{vendorId}/exchangeRequests",
+      "req": {
+        "query": {
+          "createdAtFrom": "2026-07-10T00:00:00",
+          "createdAtTo": "2026-07-16T00:00:00",
+          "maxPerPage": 50
+        }
+      },
+      "res": {
+        "data": [
+          {
+            "exchangeId": 7001,
+            "orderId": 456,
+            "exchangeStatus": "RECEIPT",
+            "reasonCodeText": "사이즈 교환",
+            "exchangeItemDtoV1s": [
+              {
+                "orderItemName": "블랙/250→블랙/255",
+                "quantity": 1,
+                "orderItemUnitPrice": 29900
+              }
+            ]
+          }
+        ],
+        "nextToken": null
+      },
+      "fields": [
+        {
+          "key": "data[].exchangeId",
+          "meaning": "교환 접수번호",
+          "example": "7001"
+        },
+        {
+          "key": "data[].exchangeStatus",
+          "meaning": "교환 진행상태",
+          "example": "RECEIPT"
+        }
+      ],
+      "success": "HTTP200 (status 생략=전체 조회, 7일 윈도우 필수)",
+      "idTraps": [
+        "exchangeRequests 는 초(sec) 포함 'yyyy-MM-ddTHH:mm:ss' 포맷 필수(returnRequests 와 반대) — 틀리면 400"
+      ],
+      "persistIds": [
+        "data[].exchangeId"
+      ],
+      "codeRef": "shared/platforms/coupang/claims.py:iter_exchanges"
+    },
+    {
+      "id": "coupang.교환.교환요청상품_입고_확인처리",
+      "market": "coupang",
+      "fnKey": "교환.교환요청상품_입고_확인처리",
+      "tabs": [
+        "클레임·CS"
+      ],
+      "category": "교환",
+      "nm": "교환요청상품 입고 확인처리",
+      "dir": "send",
+      "st": "off",
+      "endpoint": "apiDoc=360034027834",
+      "req": {},
+      "res": {},
+      "fields": [],
+      "success": "",
+      "idTraps": [],
+      "persistIds": [],
+      "codeRef": ""
+    },
+    {
+      "id": "coupang.교환.교환요청_거부_처리",
+      "market": "coupang",
+      "fnKey": "교환.교환요청_거부_처리",
+      "tabs": [
+        "클레임·CS"
+      ],
+      "category": "교환",
+      "nm": "교환요청 거부 처리",
+      "dir": "send",
+      "st": "off",
+      "endpoint": "apiDoc=360034027874",
+      "req": {},
+      "res": {},
+      "fields": [],
+      "success": "",
+      "idTraps": [],
+      "persistIds": [],
+      "codeRef": ""
+    },
+    {
+      "id": "coupang.교환.교환상품_송장_업로드_처리",
+      "market": "coupang",
+      "fnKey": "교환.교환상품_송장_업로드_처리",
+      "tabs": [
+        "클레임·CS"
+      ],
+      "category": "교환",
+      "nm": "교환상품 송장 업로드 처리",
+      "dir": "send",
+      "st": "off",
+      "endpoint": "apiDoc=360034027954",
+      "req": {},
+      "res": {},
+      "fields": [],
+      "success": "",
+      "idTraps": [],
+      "persistIds": [],
+      "codeRef": ""
+    },
+    {
+      "id": "coupang.쿠폰_캐시백.예산현황_조회",
+      "market": "coupang",
+      "fnKey": "쿠폰_캐시백.예산현황_조회",
+      "tabs": [
+        "상품 관리"
+      ],
+      "category": "쿠폰·캐시백",
+      "nm": "예산현황 조회",
+      "dir": "recv",
+      "st": "off",
+      "endpoint": "apiDoc=360033922353",
+      "req": {},
+      "res": {},
+      "fields": [],
+      "success": "",
+      "idTraps": [],
+      "persistIds": [],
+      "codeRef": ""
+    },
+    {
+      "id": "coupang.쿠폰_캐시백.계약서_단건_조회",
+      "market": "coupang",
+      "fnKey": "쿠폰_캐시백.계약서_단건_조회",
+      "tabs": [
+        "상품 관리"
+      ],
+      "category": "쿠폰·캐시백",
+      "nm": "계약서 단건 조회",
+      "dir": "recv",
+      "st": "off",
+      "endpoint": "apiDoc=360034204213",
+      "req": {},
+      "res": {},
+      "fields": [],
+      "success": "",
+      "idTraps": [],
+      "persistIds": [],
+      "codeRef": ""
+    },
+    {
+      "id": "coupang.쿠폰_캐시백.계약서_목록_조회",
+      "market": "coupang",
+      "fnKey": "쿠폰_캐시백.계약서_목록_조회",
+      "tabs": [
+        "상품 관리"
+      ],
+      "category": "쿠폰·캐시백",
+      "nm": "계약서 목록 조회",
+      "dir": "recv",
+      "st": "off",
+      "endpoint": "apiDoc=360034204233",
+      "req": {},
+      "res": {},
+      "fields": [],
+      "success": "",
+      "idTraps": [],
+      "persistIds": [],
+      "codeRef": ""
+    },
+    {
+      "id": "coupang.쿠폰_캐시백.즉시할인쿠폰_생성",
+      "market": "coupang",
+      "fnKey": "쿠폰_캐시백.즉시할인쿠폰_생성",
+      "tabs": [
+        "상품 관리"
+      ],
+      "category": "쿠폰·캐시백",
+      "nm": "[즉시할인쿠폰] 생성",
+      "dir": "send",
+      "st": "off",
+      "endpoint": "apiDoc=360034208913",
+      "req": {},
+      "res": {},
+      "fields": [],
+      "success": "",
+      "idTraps": [],
+      "persistIds": [],
+      "codeRef": ""
+    },
+    {
+      "id": "coupang.쿠폰_캐시백.즉시할인쿠폰_파기",
+      "market": "coupang",
+      "fnKey": "쿠폰_캐시백.즉시할인쿠폰_파기",
+      "tabs": [
+        "상품 관리"
+      ],
+      "category": "쿠폰·캐시백",
+      "nm": "[즉시할인쿠폰] 파기",
+      "dir": "send",
+      "st": "off",
+      "endpoint": "apiDoc=360034208973",
+      "req": {},
+      "res": {},
+      "fields": [],
+      "success": "",
+      "idTraps": [],
+      "persistIds": [],
+      "codeRef": ""
+    },
+    {
+      "id": "coupang.쿠폰_캐시백.즉시할인쿠폰_요청상태_확인",
+      "market": "coupang",
+      "fnKey": "쿠폰_캐시백.즉시할인쿠폰_요청상태_확인",
+      "tabs": [
+        "상품 관리"
+      ],
+      "category": "쿠폰·캐시백",
+      "nm": "[즉시할인쿠폰] 요청상태 확인",
+      "dir": "recv",
+      "st": "off",
+      "endpoint": "apiDoc=360033685834",
+      "req": {},
+      "res": {},
+      "fields": [],
+      "success": "",
+      "idTraps": [],
+      "persistIds": [],
+      "codeRef": ""
+    },
+    {
+      "id": "coupang.쿠폰_캐시백.즉시할인쿠폰_아이템_생성",
+      "market": "coupang",
+      "fnKey": "쿠폰_캐시백.즉시할인쿠폰_아이템_생성",
+      "tabs": [
+        "상품 관리"
+      ],
+      "category": "쿠폰·캐시백",
+      "nm": "[즉시할인쿠폰] 아이템 생성",
+      "dir": "send",
+      "st": "off",
+      "endpoint": "apiDoc=360034209053",
+      "req": {},
+      "res": {},
+      "fields": [],
+      "success": "",
+      "idTraps": [],
+      "persistIds": [],
+      "codeRef": ""
+    },
+    {
+      "id": "coupang.쿠폰_캐시백.즉시할인쿠폰_단건_조회_couponId",
+      "market": "coupang",
+      "fnKey": "쿠폰_캐시백.즉시할인쿠폰_단건_조회_couponId",
+      "tabs": [
+        "상품 관리"
+      ],
+      "category": "쿠폰·캐시백",
+      "nm": "[즉시할인쿠폰] 단건 조회(couponId)",
+      "dir": "recv",
+      "st": "off",
+      "endpoint": "apiDoc=360034209373",
+      "req": {},
+      "res": {},
+      "fields": [],
+      "success": "",
+      "idTraps": [],
+      "persistIds": [],
+      "codeRef": ""
+    },
+    {
+      "id": "coupang.쿠폰_캐시백.즉시할인쿠폰_단건_조회_couponItemId",
+      "market": "coupang",
+      "fnKey": "쿠폰_캐시백.즉시할인쿠폰_단건_조회_couponItemId",
+      "tabs": [
+        "상품 관리"
+      ],
+      "category": "쿠폰·캐시백",
+      "nm": "[즉시할인쿠폰] 단건 조회(couponItemId)",
+      "dir": "recv",
+      "st": "off",
+      "endpoint": "apiDoc=360034209413",
+      "req": {},
+      "res": {},
+      "fields": [],
+      "success": "",
+      "idTraps": [],
+      "persistIds": [],
+      "codeRef": ""
+    },
+    {
+      "id": "coupang.쿠폰_캐시백.즉시할인쿠폰_단건_조회_vendorItemId",
+      "market": "coupang",
+      "fnKey": "쿠폰_캐시백.즉시할인쿠폰_단건_조회_vendorItemId",
+      "tabs": [
+        "상품 관리"
+      ],
+      "category": "쿠폰·캐시백",
+      "nm": "[즉시할인쿠폰] 단건 조회(vendorItemId)",
+      "dir": "recv",
+      "st": "off",
+      "endpoint": "apiDoc=360033685594",
+      "req": {},
+      "res": {},
+      "fields": [],
+      "success": "",
+      "idTraps": [],
+      "persistIds": [],
+      "codeRef": ""
+    },
+    {
+      "id": "coupang.쿠폰_캐시백.즉시할인쿠폰_목록_조회_status",
+      "market": "coupang",
+      "fnKey": "쿠폰_캐시백.즉시할인쿠폰_목록_조회_status",
+      "tabs": [
+        "상품 관리"
+      ],
+      "category": "쿠폰·캐시백",
+      "nm": "[즉시할인쿠폰] 목록 조회(status)",
+      "dir": "recv",
+      "st": "off",
+      "endpoint": "apiDoc=360034209513",
+      "req": {},
+      "res": {},
+      "fields": [],
+      "success": "",
+      "idTraps": [],
+      "persistIds": [],
+      "codeRef": ""
+    },
+    {
+      "id": "coupang.쿠폰_캐시백.즉시할인쿠폰_목록_조회_orderId",
+      "market": "coupang",
+      "fnKey": "쿠폰_캐시백.즉시할인쿠폰_목록_조회_orderId",
+      "tabs": [
+        "상품 관리"
+      ],
+      "category": "쿠폰·캐시백",
+      "nm": "[즉시할인쿠폰] 목록 조회(orderId)",
+      "dir": "recv",
+      "st": "off",
+      "endpoint": "apiDoc=360034209573",
+      "req": {},
+      "res": {},
+      "fields": [],
+      "success": "",
+      "idTraps": [],
+      "persistIds": [],
+      "codeRef": ""
+    },
+    {
+      "id": "coupang.쿠폰_캐시백.즉시할인쿠폰_아이템_목록_조회",
+      "market": "coupang",
+      "fnKey": "쿠폰_캐시백.즉시할인쿠폰_아이템_목록_조회",
+      "tabs": [
+        "상품 관리"
+      ],
+      "category": "쿠폰·캐시백",
+      "nm": "[즉시할인쿠폰] 아이템 목록 조회",
+      "dir": "recv",
+      "st": "off",
+      "endpoint": "apiDoc=360034209633",
+      "req": {},
+      "res": {},
+      "fields": [],
+      "success": "",
+      "idTraps": [],
+      "persistIds": [],
+      "codeRef": ""
+    },
+    {
+      "id": "coupang.쿠폰_캐시백.다운로드쿠폰_생성",
+      "market": "coupang",
+      "fnKey": "쿠폰_캐시백.다운로드쿠폰_생성",
+      "tabs": [
+        "상품 관리"
+      ],
+      "category": "쿠폰·캐시백",
+      "nm": "[다운로드쿠폰] 생성",
+      "dir": "send",
+      "st": "off",
+      "endpoint": "apiDoc=360034205493",
+      "req": {},
+      "res": {},
+      "fields": [],
+      "success": "",
+      "idTraps": [],
+      "persistIds": [],
+      "codeRef": ""
+    },
+    {
+      "id": "coupang.쿠폰_캐시백.다운로드쿠폰_파기",
+      "market": "coupang",
+      "fnKey": "쿠폰_캐시백.다운로드쿠폰_파기",
+      "tabs": [
+        "상품 관리"
+      ],
+      "category": "쿠폰·캐시백",
+      "nm": "[다운로드쿠폰] 파기",
+      "dir": "send",
+      "st": "off",
+      "endpoint": "apiDoc=360033683034",
+      "req": {},
+      "res": {},
+      "fields": [],
+      "success": "",
+      "idTraps": [],
+      "persistIds": [],
+      "codeRef": ""
+    },
+    {
+      "id": "coupang.쿠폰_캐시백.다운로드쿠폰_아이템_생성",
+      "market": "coupang",
+      "fnKey": "쿠폰_캐시백.다운로드쿠폰_아이템_생성",
+      "tabs": [
+        "상품 관리"
+      ],
+      "category": "쿠폰·캐시백",
+      "nm": "[다운로드쿠폰] 아이템 생성",
+      "dir": "send",
+      "st": "off",
+      "endpoint": "apiDoc=360034208773",
+      "req": {},
+      "res": {},
+      "fields": [],
+      "success": "",
+      "idTraps": [],
+      "persistIds": [],
+      "codeRef": ""
+    },
+    {
+      "id": "coupang.쿠폰_캐시백.다운로드쿠폰_요청상태_확인",
+      "market": "coupang",
+      "fnKey": "쿠폰_캐시백.다운로드쿠폰_요청상태_확인",
+      "tabs": [
+        "상품 관리"
+      ],
+      "category": "쿠폰·캐시백",
+      "nm": "[다운로드쿠폰] 요청상태 확인",
+      "dir": "recv",
+      "st": "off",
+      "endpoint": "apiDoc=360034209973",
+      "req": {},
+      "res": {},
+      "fields": [],
+      "success": "",
+      "idTraps": [],
+      "persistIds": [],
+      "codeRef": ""
+    },
+    {
+      "id": "coupang.쿠폰_캐시백.다운로드쿠폰_단건_조회_couponId",
+      "market": "coupang",
+      "fnKey": "쿠폰_캐시백.다운로드쿠폰_단건_조회_couponId",
+      "tabs": [
+        "상품 관리"
+      ],
+      "category": "쿠폰·캐시백",
+      "nm": "[다운로드쿠폰] 단건 조회(couponId)",
+      "dir": "recv",
+      "st": "off",
+      "endpoint": "apiDoc=360033685974",
+      "req": {},
+      "res": {},
+      "fields": [],
+      "success": "",
+      "idTraps": [],
+      "persistIds": [],
+      "codeRef": ""
+    },
+    {
+      "id": "coupang.쿠폰_캐시백.도서_캐시백_적용",
+      "market": "coupang",
+      "fnKey": "쿠폰_캐시백.도서_캐시백_적용",
+      "tabs": [
+        "상품 관리"
+      ],
+      "category": "쿠폰·캐시백",
+      "nm": "[도서] 캐시백 적용",
+      "dir": "send",
+      "st": "off",
+      "endpoint": "apiDoc=360033645234",
+      "req": {},
+      "res": {},
+      "fields": [],
+      "success": "",
+      "idTraps": [],
+      "persistIds": [],
+      "codeRef": ""
+    },
+    {
+      "id": "coupang.쿠폰_캐시백.도서_캐시백_검색",
+      "market": "coupang",
+      "fnKey": "쿠폰_캐시백.도서_캐시백_검색",
+      "tabs": [
+        "상품 관리"
+      ],
+      "category": "쿠폰·캐시백",
+      "nm": "[도서] 캐시백 검색",
+      "dir": "recv",
+      "st": "off",
+      "endpoint": "apiDoc=360033645254",
+      "req": {},
+      "res": {},
+      "fields": [],
+      "success": "",
+      "idTraps": [],
+      "persistIds": [],
+      "codeRef": ""
+    },
+    {
+      "id": "coupang.쿠폰_캐시백.도서_캐시백_삭제",
+      "market": "coupang",
+      "fnKey": "쿠폰_캐시백.도서_캐시백_삭제",
+      "tabs": [
+        "상품 관리"
+      ],
+      "category": "쿠폰·캐시백",
+      "nm": "[도서] 캐시백 삭제",
+      "dir": "send",
+      "st": "off",
+      "endpoint": "apiDoc=360033645274",
+      "req": {},
+      "res": {},
+      "fields": [],
+      "success": "",
+      "idTraps": [],
+      "persistIds": [],
+      "codeRef": ""
+    },
+    {
+      "id": "coupang.cs.product_qna.list",
+      "market": "coupang",
+      "fnKey": "cs.product_qna.list",
+      "tabs": [
+        "클레임·CS"
+      ],
+      "category": "고객응대(CS)",
+      "nm": "상품별 고객문의 조회",
+      "dir": "recv",
+      "st": "ok",
+      "endpoint": "GET /v2/providers/openapi/apis/api/v5/vendors/{vendorId}/onlineInquiries",
+      "req": {
+        "query": {
+          "vendorId": "COUPANG_VENDOR_ID",
+          "inquiryStartAt": "2026-07-10",
+          "inquiryEndAt": "2026-07-16",
+          "answeredType": "NOANSWER",
+          "pageSize": 10,
+          "pageNum": 1
+        }
+      },
+      "res": {
+        "data": {
+          "content": [
+            {
+              "inquiryId": 5001,
+              "vendorItemId": 123456,
+              "content": "사이즈 문의드립니다",
+              "answeredType": "NOANSWER",
+              "inquiryAt": "2026-07-15T09:00:00"
+            }
+          ],
+          "totalElements": 1
+        }
+      },
+      "fields": [
+        {
+          "key": "data.content[].inquiryId",
+          "meaning": "문의번호(콜센터 답변 API 의 inquiryId 와 별개 체계)",
+          "example": "5001"
+        },
+        {
+          "key": "data.content[].answeredType",
+          "meaning": "NOANSWER/ANSWERED",
+          "example": "NOANSWER"
+        }
+      ],
+      "success": "HTTP200 그리고 data.content 존재(7일 이내 권장 조회범위)",
+      "idTraps": [
+        "inquiryStartAt~inquiryEndAt 최대 7일 권장 — 초과 시 타임아웃 위험(코드 주석)"
+      ],
+      "persistIds": [],
+      "codeRef": "shared/platforms/coupang/inquiries.py:fetch_online_inquiries"
+    },
+    {
+      "id": "coupang.cs.product_qna.reply",
+      "market": "coupang",
+      "fnKey": "cs.product_qna.reply",
+      "tabs": [
+        "클레임·CS"
+      ],
+      "category": "고객응대(CS)",
+      "nm": "상품별 고객문의 답변",
+      "dir": "send",
+      "st": "code",
+      "endpoint": "POST /v2/providers/openapi/apis/api/v4/vendors/{vendorId}/callCenterInquiries/{inquiryId}/replies",
+      "req": {
+        "path": {
+          "inquiryId": "5001"
+        },
+        "body": {
+          "vendorId": "COUPANG_VENDOR_ID",
+          "inquiryId": "5001",
+          "content": "270 사이즈 재입고 예정입니다",
+          "replyType": "ANSWER",
+          "parentAnswerId": 0,
+          "vendorUserId": "COUPANG_VENDOR_USER_ID"
+        }
+      },
+      "res": {
+        "code": "SUCCESS",
+        "message": ""
+      },
+      "fields": [
+        {
+          "key": "code",
+          "meaning": "성공 여부",
+          "example": "SUCCESS"
+        }
+      ],
+      "success": "code=='SUCCESS' (공식 문서상 body 필드 일부만 확인 — 코드 주석)",
+      "idTraps": [
+        "★함수명은 reply_online_inquiry 이나 실제 요청 경로는 callCenterInquiries/{inquiryId}/replies — onlineInquiries 전용 답변 API 와 다를 수 있음(코드 주석: 'body 필드 일부 미확인 → 실 호출 실패 시 discussion_queue 이관')"
+      ],
+      "persistIds": [],
+      "codeRef": "shared/platforms/coupang/inquiries.py:reply_online_inquiry"
+    },
+    {
+      "id": "coupang.cs.order_inquiry.list",
+      "market": "coupang",
+      "fnKey": "cs.order_inquiry.list",
+      "tabs": [
+        "클레임·CS"
+      ],
+      "category": "고객응대(CS)",
+      "nm": "고객센터 문의조회",
+      "dir": "recv",
+      "st": "ok",
+      "endpoint": "GET /v2/providers/openapi/apis/api/v4/vendors/{vendorId}/callCenterInquiries",
+      "req": {
+        "query": {
+          "vendorId": "COUPANG_VENDOR_ID",
+          "inquiryStartAt": "2026-07-10",
+          "inquiryEndAt": "2026-07-16",
+          "partnerCounselingStatus": "NONE",
+          "pageSize": 50,
+          "pageNum": 1
+        }
+      },
+      "res": {
+        "data": {
+          "content": [
+            {
+              "inquiryId": 6001,
+              "orderId": 456,
+              "content": "배송 언제 되나요",
+              "partnerCounselingStatus": "NONE",
+              "inquiryAt": "2026-07-15T11:00:00"
+            }
+          ]
+        }
+      },
+      "fields": [
+        {
+          "key": "data.content[].inquiryId",
+          "meaning": "고객센터 문의번호",
+          "example": "6001"
+        },
+        {
+          "key": "data.content[].partnerCounselingStatus",
+          "meaning": "NONE(전체)/ANSWER/NO_ANSWER/TRANSFER",
+          "example": "NONE"
+        }
+      ],
+      "success": "HTTP200 (실제 파라미터·응답 필드는 라이브 보정 대상 — 코드 주석)",
+      "idTraps": [
+        "★실제 파라미터·응답 필드는 라이브 보정 대상(코드 주석 명시) — 74건 라이브 조회는 성공했으나 필드 스펙 문서화 미완"
+      ],
+      "persistIds": [],
+      "codeRef": "shared/platforms/coupang/inquiries.py:fetch_call_center_inquiries"
+    },
+    {
+      "id": "coupang.고객응대_CS.고객센터_문의_단건_조회",
+      "market": "coupang",
+      "fnKey": "고객응대_CS.고객센터_문의_단건_조회",
+      "tabs": [
+        "클레임·CS"
+      ],
+      "category": "고객응대(CS)",
+      "nm": "고객센터 문의 단건 조회",
+      "dir": "recv",
+      "st": "off",
+      "endpoint": "apiDoc=20376877844249",
+      "req": {},
+      "res": {},
+      "fields": [],
+      "success": "",
+      "idTraps": [],
+      "persistIds": [],
+      "codeRef": ""
+    },
+    {
+      "id": "coupang.고객응대_CS.고객센터_문의답변",
+      "market": "coupang",
+      "fnKey": "고객응대_CS.고객센터_문의답변",
+      "tabs": [
+        "클레임·CS"
+      ],
+      "category": "고객응대(CS)",
+      "nm": "고객센터 문의답변",
+      "dir": "send",
+      "st": "off",
+      "endpoint": "apiDoc=360034156233",
+      "req": {},
+      "res": {},
+      "fields": [],
+      "success": "",
+      "idTraps": [],
+      "persistIds": [],
+      "codeRef": ""
+    },
+    {
+      "id": "coupang.고객응대_CS.고객센터_문의확인",
+      "market": "coupang",
+      "fnKey": "고객응대_CS.고객센터_문의확인",
+      "tabs": [
+        "클레임·CS"
+      ],
+      "category": "고객응대(CS)",
+      "nm": "고객센터 문의확인",
+      "dir": "send",
+      "st": "off",
+      "endpoint": "apiDoc=360034204013",
+      "req": {},
+      "res": {},
+      "fields": [],
+      "success": "",
+      "idTraps": [],
+      "persistIds": [],
+      "codeRef": ""
+    },
+    {
+      "id": "coupang.settlement.list",
+      "market": "coupang",
+      "fnKey": "settlement.list",
+      "tabs": [
+        "정산"
+      ],
+      "category": "정산",
+      "nm": "매출내역 조회(정산금액)",
+      "dir": "recv",
+      "st": "ok",
+      "endpoint": "GET /v2/providers/openapi/apis/api/v1/revenue-history",
+      "req": {
+        "query": {
+          "vendorId": "COUPANG_VENDOR_ID",
+          "recognitionDateFrom": "2026-07-01",
+          "recognitionDateTo": "2026-07-15",
+          "token": "",
+          "maxPerPage": 50
+        }
+      },
+      "res": {
+        "data": [
+          {
+            "orderId": 456,
+            "saleType": "SALE",
+            "saleDate": "2026-07-10",
+            "recognitionDate": "2026-07-11",
+            "settlementDate": "2026-07-25",
+            "items": [
+              {
+                "vendorItemId": 123456,
+                "vendorItemName": "블랙/250",
+                "salePrice": 29900,
+                "quantity": 1,
+                "saleAmount": 29900,
+                "serviceFee": 3200,
+                "serviceFeeVat": 320,
+                "settlementAmount": 26380
+              }
+            ]
+          }
+        ],
+        "hasNext": false,
+        "nextToken": null
+      },
+      "fields": [
+        {
+          "key": "data[].items[].settlementAmount",
+          "meaning": "옵션별 정산 예정 금액(수수료 차감 후)",
+          "example": "26380"
+        },
+        {
+          "key": "data[].items[].saleType",
+          "meaning": "SALE/REFUND — REFUND 는 음수로 차감 집계",
+          "example": "SALE"
+        }
+      ],
+      "success": "HTTP200 (최대 31일 범위, recognitionDateTo 는 전일까지만)",
+      "idTraps": [
+        "REFUND 행은 aggregate_by_vendor_item 에서 음수로 차감 — 원응답 자체는 양수 금액으로 옴",
+        "vendorId 를 계정별 client 설정에서 가져오지 않으면 400(vendorId null)으로 정산 전체 누락되고 estimated 값으로 조용히 폴백했던 이력 있음(코드 주석 경고)"
+      ],
+      "persistIds": [],
+      "codeRef": "shared/platforms/coupang/settlements.py:fetch_revenue_page + aggregate_by_vendor_item"
+    },
+    {
+      "id": "coupang.정산.지급내역_조회",
+      "market": "coupang",
+      "fnKey": "정산.지급내역_조회",
+      "tabs": [
+        "정산"
+      ],
+      "category": "정산",
+      "nm": "지급내역 조회",
+      "dir": "recv",
+      "st": "off",
+      "endpoint": "apiDoc=360034152213",
+      "req": {},
+      "res": {},
+      "fields": [],
+      "success": "",
+      "idTraps": [],
+      "persistIds": [],
+      "codeRef": ""
+    },
+    {
+      "id": "coupang.로켓그로스.로켓그로스_주문_API_목록_쿼리",
+      "market": "coupang",
+      "fnKey": "로켓그로스.로켓그로스_주문_API_목록_쿼리",
+      "tabs": [
+        "주문상태"
+      ],
+      "category": "로켓그로스",
+      "nm": "로켓그로스 주문 API(목록 쿼리)",
+      "dir": "recv",
+      "st": "off",
+      "endpoint": "apiDoc=41131195825433",
+      "req": {},
+      "res": {},
+      "fields": [],
+      "success": "",
+      "idTraps": [],
+      "persistIds": [],
+      "codeRef": ""
+    },
+    {
+      "id": "coupang.로켓그로스.로켓그로스_주문_API",
+      "market": "coupang",
+      "fnKey": "로켓그로스.로켓그로스_주문_API",
+      "tabs": [
+        "주문상태"
+      ],
+      "category": "로켓그로스",
+      "nm": "로켓그로스 주문 API",
+      "dir": "recv",
+      "st": "off",
+      "endpoint": "apiDoc=41129805240473",
+      "req": {},
+      "res": {},
+      "fields": [],
+      "success": "",
+      "idTraps": [],
+      "persistIds": [],
+      "codeRef": ""
+    },
+    {
+      "id": "coupang.로켓그로스.로켓창고_재고_API",
+      "market": "coupang",
+      "fnKey": "로켓그로스.로켓창고_재고_API",
+      "tabs": [
+        "상품 조회"
+      ],
+      "category": "로켓그로스",
+      "nm": "로켓창고 재고 API",
+      "dir": "recv",
+      "st": "off",
+      "endpoint": "apiDoc=41090779386521",
+      "req": {},
+      "res": {},
+      "fields": [],
+      "success": "",
+      "idTraps": [],
+      "persistIds": [],
+      "codeRef": ""
+    },
+    {
+      "id": "coupang.로켓그로스.상품_목록_페이징_조회_로켓그로스",
+      "market": "coupang",
+      "fnKey": "로켓그로스.상품_목록_페이징_조회_로켓그로스",
+      "tabs": [
+        "상품 조회"
+      ],
+      "category": "로켓그로스",
+      "nm": "상품 목록 페이징 조회(로켓그로스)",
+      "dir": "recv",
+      "st": "off",
+      "endpoint": "apiDoc=39427498030745",
+      "req": {},
+      "res": {},
+      "fields": [],
+      "success": "",
+      "idTraps": [],
+      "persistIds": [],
+      "codeRef": ""
+    },
+    {
+      "id": "coupang.로켓그로스.상품_생성_로켓그로스",
+      "market": "coupang",
+      "fnKey": "로켓그로스.상품_생성_로켓그로스",
+      "tabs": [
+        "상품 관리"
+      ],
+      "category": "로켓그로스",
+      "nm": "상품 생성(로켓그로스)",
+      "dir": "send",
+      "st": "off",
+      "endpoint": "apiDoc=39406974365849",
+      "req": {},
+      "res": {},
+      "fields": [],
+      "success": "",
+      "idTraps": [],
+      "persistIds": [],
+      "codeRef": ""
+    },
+    {
+      "id": "coupang.로켓그로스.상품_수정_로켓그로스",
+      "market": "coupang",
+      "fnKey": "로켓그로스.상품_수정_로켓그로스",
+      "tabs": [
+        "상품 관리"
+      ],
+      "category": "로켓그로스",
+      "nm": "상품 수정(로켓그로스)",
+      "dir": "send",
+      "st": "off",
+      "endpoint": "apiDoc=39407792403609",
+      "req": {},
+      "res": {},
+      "fields": [],
+      "success": "",
+      "idTraps": [],
+      "persistIds": [],
+      "codeRef": ""
+    },
+    {
+      "id": "coupang.로켓그로스.상품_조회_로켓그로스",
+      "market": "coupang",
+      "fnKey": "로켓그로스.상품_조회_로켓그로스",
+      "tabs": [
+        "상품 조회"
+      ],
+      "category": "로켓그로스",
+      "nm": "상품 조회(로켓그로스)",
+      "dir": "recv",
+      "st": "off",
+      "endpoint": "apiDoc=37338749441689",
+      "req": {},
+      "res": {},
+      "fields": [],
+      "success": "",
+      "idTraps": [],
+      "persistIds": [],
+      "codeRef": ""
+    },
+    {
+      "id": "coupang.로켓그로스.카테고리_메타_정보_조회_로켓그로스",
+      "market": "coupang",
+      "fnKey": "로켓그로스.카테고리_메타_정보_조회_로켓그로스",
+      "tabs": [
+        "상품 조회"
+      ],
+      "category": "로켓그로스",
+      "nm": "카테고리 메타 정보 조회(로켓그로스)",
+      "dir": "recv",
+      "st": "off",
+      "endpoint": "apiDoc=39429124103449",
+      "req": {},
+      "res": {},
+      "fields": [],
+      "success": "",
+      "idTraps": [],
+      "persistIds": [],
+      "codeRef": ""
+    },
+    {
+      "id": "coupang.로켓그로스.카테고리_목록_조회_로켓그로스",
+      "market": "coupang",
+      "fnKey": "로켓그로스.카테고리_목록_조회_로켓그로스",
+      "tabs": [
+        "상품 조회"
+      ],
+      "category": "로켓그로스",
+      "nm": "카테고리 목록 조회(로켓그로스)",
+      "dir": "recv",
+      "st": "off",
+      "endpoint": "apiDoc=39428894927257",
+      "req": {},
+      "res": {},
+      "fields": [],
+      "success": "",
+      "idTraps": [],
+      "persistIds": [],
+      "codeRef": ""
+    },
+    {
+      "id": "smartstore.auth.token.issue",
+      "market": "smartstore",
+      "fnKey": "auth.token.issue",
+      "tabs": [
+        "상품 관리"
+      ],
+      "category": "인증",
+      "nm": "인증 토큰 발급 요청",
+      "dir": "send",
+      "st": "ok",
+      "endpoint": "POST /external/v1/oauth2/token",
+      "req": {
+        "body_form": {
+          "client_id": "SMARTSTORE_MAIN_CLIENT_ID",
+          "timestamp": "1752600000000",
+          "client_secret_sign": "base64(bcrypt(client_id_timestamp, client_secret))",
+          "grant_type": "client_credentials",
+          "type": "SELF"
+        }
+      },
+      "res": {
+        "access_token": "AAAAxxxx...",
+        "token_type": "Bearer",
+        "expires_in": 10800
+      },
+      "fields": [
+        {
+          "key": "access_token",
+          "meaning": "API 호출용 Bearer 토큰",
+          "example": "AAAAxxxx..."
+        },
+        {
+          "key": "expires_in",
+          "meaning": "만료까지 초(보통 3시간)",
+          "example": "10800"
+        }
+      ],
+      "success": "HTTP200 그리고 access_token 필드 존재",
+      "idTraps": [
+        "client_secret 은 bcrypt salt 형식('$2a$04$...')이어야 함 — 형식 아니면 bcrypt 호출 전에 ValueError 로 차단(네이티브 크래시 예방 가드)",
+        "timestamp 는 13자리 UNIX ms, skew 없이 그대로 사용(공식 docs v2.76.0)"
+      ],
+      "persistIds": [
+        "access_token (캐시 파일 저장: data/platform_cache/smartstore_token.json, refresh_margin_sec=600)"
+      ],
+      "codeRef": "shared/platforms/smartstore/auth.py:request_new_token + build_client_secret_sign"
+    },
+    {
+      "id": "smartstore.auth.oauth2",
+      "market": "smartstore",
+      "fnKey": "auth.oauth2",
+      "tabs": [
+        "상품 관리"
+      ],
+      "category": "인증",
+      "nm": "OAuth 2.0",
+      "dir": "recv",
+      "st": "ok",
+      "endpoint": "POST /external/v1/oauth2/token (auth.token.issue 와 동일 엔드포인트 — OAuth2 개요 문서 항목)",
+      "req": {
+        "body_form": {
+          "client_id": "SMARTSTORE_MAIN_CLIENT_ID",
+          "grant_type": "client_credentials"
+        }
+      },
+      "res": {
+        "access_token": "AAAAxxxx...",
+        "token_type": "Bearer",
+        "expires_in": 10800
+      },
+      "fields": [
+        {
+          "key": "access_token",
+          "meaning": "Bearer 토큰(인증 토큰 발급 요청과 동일)",
+          "example": "AAAAxxxx..."
+        }
+      ],
+      "success": "HTTP200 그리고 access_token 존재 — 인증 토큰 발급 요청과 동일 검증",
+      "idTraps": [
+        "문서상 별개 챕터(OAuth 2.0 개요)이나 실제 호출 엔드포인트·코드는 인증 토큰 발급 요청과 동일 — 중복 문서화 항목"
+      ],
+      "persistIds": [],
+      "codeRef": "shared/platforms/smartstore/auth.py:request_new_token"
+    },
+    {
+      "id": "smartstore.API데이터솔루션_통계.고객_현황_계정",
+      "market": "smartstore",
+      "fnKey": "API데이터솔루션_통계.고객_현황_계정",
+      "tabs": [
+        "상품 조회"
+      ],
+      "category": "API데이터솔루션(통계)",
+      "nm": "고객 현황(계정)",
+      "dir": "recv",
+      "st": "off",
+      "endpoint": "get-account-customer-status-data-insight",
+      "req": {},
+      "res": {},
+      "fields": [],
+      "success": "",
+      "idTraps": [],
+      "persistIds": [],
+      "codeRef": ""
+    },
+    {
+      "id": "smartstore.API데이터솔루션_통계.고객_현황_채널",
+      "market": "smartstore",
+      "fnKey": "API데이터솔루션_통계.고객_현황_채널",
+      "tabs": [
+        "상품 조회"
+      ],
+      "category": "API데이터솔루션(통계)",
+      "nm": "고객 현황(채널)",
+      "dir": "recv",
+      "st": "off",
+      "endpoint": "get-store-customer-status-data-insight",
+      "req": {},
+      "res": {},
+      "fields": [],
+      "success": "",
+      "idTraps": [],
+      "persistIds": [],
+      "codeRef": ""
+    },
+    {
+      "id": "smartstore.API데이터솔루션_통계.재구매_통계",
+      "market": "smartstore",
+      "fnKey": "API데이터솔루션_통계.재구매_통계",
+      "tabs": [
+        "상품 조회"
+      ],
+      "category": "API데이터솔루션(통계)",
+      "nm": "재구매 통계",
+      "dir": "recv",
+      "st": "off",
+      "endpoint": "get-repurchase-data-insight",
+      "req": {},
+      "res": {},
+      "fields": [],
+      "success": "",
+      "idTraps": [],
+      "persistIds": [],
+      "codeRef": ""
+    },
+    {
+      "id": "smartstore.API데이터솔루션_통계.전체_채널_일별",
+      "market": "smartstore",
+      "fnKey": "API데이터솔루션_통계.전체_채널_일별",
+      "tabs": [
+        "상품 조회"
+      ],
+      "category": "API데이터솔루션(통계)",
+      "nm": "전체 채널 일별",
+      "dir": "recv",
+      "st": "off",
+      "endpoint": "all-channel-daily-report-using-get-bizdata-stats",
+      "req": {},
+      "res": {},
+      "fields": [],
+      "success": "",
+      "idTraps": [],
+      "persistIds": [],
+      "codeRef": ""
+    },
+    {
+      "id": "smartstore.API데이터솔루션_통계.전체_채널",
+      "market": "smartstore",
+      "fnKey": "API데이터솔루션_통계.전체_채널",
+      "tabs": [
+        "상품 조회"
+      ],
+      "category": "API데이터솔루션(통계)",
+      "nm": "전체 채널",
+      "dir": "recv",
+      "st": "off",
+      "endpoint": "all-channel-report-using-get-bizdata-stats",
+      "req": {},
+      "res": {},
+      "fields": [],
+      "success": "",
+      "idTraps": [],
+      "persistIds": [],
+      "codeRef": ""
+    },
+    {
+      "id": "smartstore.API데이터솔루션_통계.사용자_정의_채널_상세",
+      "market": "smartstore",
+      "fnKey": "API데이터솔루션_통계.사용자_정의_채널_상세",
+      "tabs": [
+        "상품 조회"
+      ],
+      "category": "API데이터솔루션(통계)",
+      "nm": "사용자 정의 채널 상세",
+      "dir": "recv",
+      "st": "off",
+      "endpoint": "custom-channel-report-using-get-bizdata-stats",
+      "req": {},
+      "res": {},
+      "fields": [],
+      "success": "",
+      "idTraps": [],
+      "persistIds": [],
+      "codeRef": ""
+    },
+    {
+      "id": "smartstore.API데이터솔루션_통계.사용자_정의_채널",
+      "market": "smartstore",
+      "fnKey": "API데이터솔루션_통계.사용자_정의_채널",
+      "tabs": [
+        "상품 조회"
+      ],
+      "category": "API데이터솔루션(통계)",
+      "nm": "사용자 정의 채널",
+      "dir": "recv",
+      "st": "off",
+      "endpoint": "custom-channel-simple-report-using-get-bizdata-stats",
+      "req": {},
+      "res": {},
+      "fields": [],
+      "success": "",
+      "idTraps": [],
+      "persistIds": [],
+      "codeRef": ""
+    },
+    {
+      "id": "smartstore.API데이터솔루션_통계.시간대별_채널",
+      "market": "smartstore",
+      "fnKey": "API데이터솔루션_통계.시간대별_채널",
+      "tabs": [
+        "상품 조회"
+      ],
+      "category": "API데이터솔루션(통계)",
+      "nm": "시간대별 채널",
+      "dir": "recv",
+      "st": "off",
+      "endpoint": "hourly-channel-report-using-get-bizdata-stats",
+      "req": {},
+      "res": {},
+      "fields": [],
+      "success": "",
+      "idTraps": [],
+      "persistIds": [],
+      "codeRef": ""
+    },
+    {
+      "id": "smartstore.API데이터솔루션_통계.시간대별",
+      "market": "smartstore",
+      "fnKey": "API데이터솔루션_통계.시간대별",
+      "tabs": [
+        "상품 조회"
+      ],
+      "category": "API데이터솔루션(통계)",
+      "nm": "시간대별",
+      "dir": "recv",
+      "st": "off",
+      "endpoint": "hourly-report-using-get-bizdata-stats",
+      "req": {},
+      "res": {},
+      "fields": [],
+      "success": "",
+      "idTraps": [],
+      "persistIds": [],
+      "codeRef": ""
+    },
+    {
+      "id": "smartstore.API데이터솔루션_통계.검색_채널",
+      "market": "smartstore",
+      "fnKey": "API데이터솔루션_통계.검색_채널",
+      "tabs": [
+        "상품 조회"
+      ],
+      "category": "API데이터솔루션(통계)",
+      "nm": "검색 채널",
+      "dir": "recv",
+      "st": "off",
+      "endpoint": "search-channel-report-using-get-bizdata-stats",
+      "req": {},
+      "res": {},
+      "fields": [],
+      "success": "",
+      "idTraps": [],
+      "persistIds": [],
+      "codeRef": ""
+    },
+    {
+      "id": "smartstore.API데이터솔루션_통계.검색_채널_키워드별",
+      "market": "smartstore",
+      "fnKey": "API데이터솔루션_통계.검색_채널_키워드별",
+      "tabs": [
+        "상품 조회"
+      ],
+      "category": "API데이터솔루션(통계)",
+      "nm": "검색 채널 키워드별",
+      "dir": "recv",
+      "st": "off",
+      "endpoint": "search-channel-keyword-report-using-get-bizdata-stats",
+      "req": {},
+      "res": {},
+      "fields": [],
+      "success": "",
+      "idTraps": [],
+      "persistIds": [],
+      "codeRef": ""
+    },
+    {
+      "id": "smartstore.API데이터솔루션_통계.웹사이트_채널_일별",
+      "market": "smartstore",
+      "fnKey": "API데이터솔루션_통계.웹사이트_채널_일별",
+      "tabs": [
+        "상품 조회"
+      ],
+      "category": "API데이터솔루션(통계)",
+      "nm": "웹사이트 채널 일별",
+      "dir": "recv",
+      "st": "off",
+      "endpoint": "website-channel-daily-report-using-get-bizdata-stats",
+      "req": {},
+      "res": {},
+      "fields": [],
+      "success": "",
+      "idTraps": [],
+      "persistIds": [],
+      "codeRef": ""
+    },
+    {
+      "id": "smartstore.API데이터솔루션_통계.웹사이트_채널",
+      "market": "smartstore",
+      "fnKey": "API데이터솔루션_통계.웹사이트_채널",
+      "tabs": [
+        "상품 조회"
+      ],
+      "category": "API데이터솔루션(통계)",
+      "nm": "웹사이트 채널",
+      "dir": "recv",
+      "st": "off",
+      "endpoint": "website-channel-report-using-get-bizdata-stats",
+      "req": {},
+      "res": {},
+      "fields": [],
+      "success": "",
+      "idTraps": [],
+      "persistIds": [],
+      "codeRef": ""
+    },
+    {
+      "id": "smartstore.API데이터솔루션_통계.페이지별_쇼핑행동",
+      "market": "smartstore",
+      "fnKey": "API데이터솔루션_통계.페이지별_쇼핑행동",
+      "tabs": [
+        "상품 조회"
+      ],
+      "category": "API데이터솔루션(통계)",
+      "nm": "페이지별(쇼핑행동)",
+      "dir": "recv",
+      "st": "off",
+      "endpoint": "page-report-using-get-bizdata-stats",
+      "req": {},
+      "res": {},
+      "fields": [],
+      "success": "",
+      "idTraps": [],
+      "persistIds": [],
+      "codeRef": ""
+    },
+    {
+      "id": "smartstore.API데이터솔루션_통계.상품별_쇼핑행동",
+      "market": "smartstore",
+      "fnKey": "API데이터솔루션_통계.상품별_쇼핑행동",
+      "tabs": [
+        "상품 조회"
+      ],
+      "category": "API데이터솔루션(통계)",
+      "nm": "상품별(쇼핑행동)",
+      "dir": "recv",
+      "st": "off",
+      "endpoint": "product-action-using-get-bizdata-stats",
+      "req": {},
+      "res": {},
+      "fields": [],
+      "success": "",
+      "idTraps": [],
+      "persistIds": [],
+      "codeRef": ""
+    },
+    {
+      "id": "smartstore.API데이터솔루션_통계.오늘_보고서_실시간",
+      "market": "smartstore",
+      "fnKey": "API데이터솔루션_통계.오늘_보고서_실시간",
+      "tabs": [
+        "상품 조회"
+      ],
+      "category": "API데이터솔루션(통계)",
+      "nm": "오늘 보고서(실시간)",
+      "dir": "recv",
+      "st": "off",
+      "endpoint": "daily-using-get-bizdata-stats",
+      "req": {},
+      "res": {},
+      "fields": [],
+      "success": "",
+      "idTraps": [],
+      "persistIds": [],
+      "codeRef": ""
+    },
+    {
+      "id": "smartstore.API데이터솔루션_통계.배송_통계",
+      "market": "smartstore",
+      "fnKey": "API데이터솔루션_통계.배송_통계",
+      "tabs": [
+        "배송·송장"
+      ],
+      "category": "API데이터솔루션(통계)",
+      "nm": "배송 통계",
+      "dir": "recv",
+      "st": "off",
+      "endpoint": "delivery-report-using-get-bizdata-stats",
+      "req": {},
+      "res": {},
+      "fields": [],
+      "success": "",
+      "idTraps": [],
+      "persistIds": [],
+      "codeRef": ""
+    },
+    {
+      "id": "smartstore.API데이터솔루션_통계.판매_성과",
+      "market": "smartstore",
+      "fnKey": "API데이터솔루션_통계.판매_성과",
+      "tabs": [
+        "상품 조회"
+      ],
+      "category": "API데이터솔루션(통계)",
+      "nm": "판매 성과",
+      "dir": "recv",
+      "st": "off",
+      "endpoint": "sales-report-using-get-bizdata-stats",
+      "req": {},
+      "res": {},
+      "fields": [],
+      "success": "",
+      "idTraps": [],
+      "persistIds": [],
+      "codeRef": ""
+    },
+    {
+      "id": "smartstore.API데이터솔루션_통계.상품_마케팅_채널_카테고리_소_별",
+      "market": "smartstore",
+      "fnKey": "API데이터솔루션_통계.상품_마케팅_채널_카테고리_소_별",
+      "tabs": [
+        "상품 조회"
+      ],
+      "category": "API데이터솔루션(통계)",
+      "nm": "상품/마케팅 채널 카테고리(소)별",
+      "dir": "recv",
+      "st": "off",
+      "endpoint": "product-category-channel-report-using-get-bizdata-stats",
+      "req": {},
+      "res": {},
+      "fields": [],
+      "success": "",
+      "idTraps": [],
+      "persistIds": [],
+      "codeRef": ""
+    },
+    {
+      "id": "smartstore.API데이터솔루션_통계.상품_마케팅_채널",
+      "market": "smartstore",
+      "fnKey": "API데이터솔루션_통계.상품_마케팅_채널",
+      "tabs": [
+        "상품 조회"
+      ],
+      "category": "API데이터솔루션(통계)",
+      "nm": "상품/마케팅 채널",
+      "dir": "recv",
+      "st": "off",
+      "endpoint": "product-marketing-report-using-get-bizdata-stats",
+      "req": {},
+      "res": {},
+      "fields": [],
+      "success": "",
+      "idTraps": [],
+      "persistIds": [],
+      "codeRef": ""
+    },
+    {
+      "id": "smartstore.API데이터솔루션_통계.상품_검색_채널",
+      "market": "smartstore",
+      "fnKey": "API데이터솔루션_통계.상품_검색_채널",
+      "tabs": [
+        "상품 조회"
+      ],
+      "category": "API데이터솔루션(통계)",
+      "nm": "상품/검색 채널",
+      "dir": "recv",
+      "st": "off",
+      "endpoint": "product-search-report-using-get-bizdata-stats",
+      "req": {},
+      "res": {},
+      "fields": [],
+      "success": "",
+      "idTraps": [],
+      "persistIds": [],
+      "codeRef": ""
+    },
+    {
+      "id": "smartstore.API데이터솔루션_통계.상품_검색_채널_상품별_키워드",
+      "market": "smartstore",
+      "fnKey": "API데이터솔루션_통계.상품_검색_채널_상품별_키워드",
+      "tabs": [
+        "상품 조회"
+      ],
+      "category": "API데이터솔루션(통계)",
+      "nm": "상품/검색 채널 상품별 키워드",
+      "dir": "recv",
+      "st": "off",
+      "endpoint": "keyword-by-product-report-using-get-bizdata-stats",
+      "req": {},
+      "res": {},
+      "fields": [],
+      "success": "",
+      "idTraps": [],
+      "persistIds": [],
+      "codeRef": ""
+    },
+    {
+      "id": "smartstore.API데이터솔루션_통계.상품_성과",
+      "market": "smartstore",
+      "fnKey": "API데이터솔루션_통계.상품_성과",
+      "tabs": [
+        "상품 조회"
+      ],
+      "category": "API데이터솔루션(통계)",
+      "nm": "상품 성과",
+      "dir": "recv",
+      "st": "off",
+      "endpoint": "product-unit-report-using-get-bizdata-stats",
+      "req": {},
+      "res": {},
+      "fields": [],
+      "success": "",
+      "idTraps": [],
+      "persistIds": [],
+      "codeRef": ""
+    },
+    {
+      "id": "smartstore.N배송.SKU_목록_조회",
+      "market": "smartstore",
+      "fnKey": "N배송.SKU_목록_조회",
+      "tabs": [
+        "배송·송장"
+      ],
+      "category": "N배송",
+      "nm": "SKU 목록 조회",
+      "dir": "recv",
+      "st": "off",
+      "endpoint": "get-ns-information-paged-list-nfa",
+      "req": {},
+      "res": {},
+      "fields": [],
+      "success": "",
+      "idTraps": [],
+      "persistIds": [],
+      "codeRef": ""
+    },
+    {
+      "id": "smartstore.N배송.SKU_조회",
+      "market": "smartstore",
+      "fnKey": "N배송.SKU_조회",
+      "tabs": [
+        "배송·송장"
+      ],
+      "category": "N배송",
+      "nm": "SKU 조회",
+      "dir": "recv",
+      "st": "off",
+      "endpoint": "get-ns-detail-nfa",
+      "req": {},
+      "res": {},
+      "fields": [],
+      "success": "",
+      "idTraps": [],
+      "persistIds": [],
+      "codeRef": ""
+    },
+    {
+      "id": "smartstore.N배송.SKU_연결상품_조회",
+      "market": "smartstore",
+      "fnKey": "N배송.SKU_연결상품_조회",
+      "tabs": [
+        "배송·송장"
+      ],
+      "category": "N배송",
+      "nm": "SKU 연결상품 조회",
+      "dir": "recv",
+      "st": "off",
+      "endpoint": "get-linked-products-nfa",
+      "req": {},
+      "res": {},
+      "fields": [],
+      "success": "",
+      "idTraps": [],
+      "persistIds": [],
+      "codeRef": ""
+    },
+    {
+      "id": "smartstore.cs.order_inquiry.list",
+      "market": "smartstore",
+      "fnKey": "cs.order_inquiry.list",
+      "tabs": [
+        "클레임·CS"
+      ],
+      "category": "문의",
+      "nm": "고객 문의 조회",
+      "dir": "recv",
+      "st": "ok",
+      "endpoint": "GET /external/v1/pay-user/inquiries",
+      "req": {
+        "query": {
+          "startSearchDate": "2026-07-10",
+          "endSearchDate": "2026-07-16",
+          "page": 1,
+          "size": 50,
+          "answered": "false"
+        }
+      },
+      "res": {
+        "content": [
+          {
+            "inquiryNo": "1001",
+            "productOrderId": "20260710-0000001",
+            "inquiryContent": "배송지 변경 가능할까요",
+            "answered": false,
+            "inquiryRegistrationDateTime": "2026-07-15T10:00:00.000+09:00"
+          }
+        ],
+        "totalPages": 1,
+        "last": true
+      },
+      "fields": [
+        {
+          "key": "content[].inquiryNo",
+          "meaning": "문의번호(답변등록 API 키)",
+          "example": "1001"
+        },
+        {
+          "key": "content[].answered",
+          "meaning": "답변완료 여부",
+          "example": "false"
+        }
+      ],
+      "success": "HTTP200 그리고 content 존재",
+      "idTraps": [
+        "★2026-07-16 API 센터 실측: 파라미터명이 startSearchDate/endSearchDate(구 startDate/inquiryStatus 는 400 원인이었음) — 문서와 실제 스펙이 다름"
+      ],
+      "persistIds": [
+        "content[].inquiryNo (답변등록 키)"
+      ],
+      "codeRef": "shared/platforms/smartstore/orders.py:fetch_inquiries"
+    },
+    {
+      "id": "smartstore.cs.order_inquiry.reply",
+      "market": "smartstore",
+      "fnKey": "cs.order_inquiry.reply",
+      "tabs": [
+        "클레임·CS"
+      ],
+      "category": "문의",
+      "nm": "고객 문의 답변 등록",
+      "dir": "send",
+      "st": "code",
+      "endpoint": "POST /external/v1/pay-merchant/inquiries/{inquiryNo}/answer",
+      "req": {
+        "path": {
+          "inquiryNo": "1001"
+        },
+        "body": {
+          "answerComment": "네, 배송 전이면 변경 가능합니다"
+        }
+      },
+      "res": {
+        "success": true
+      },
+      "fields": [
+        {
+          "key": "answerComment",
+          "meaning": "답변 본문(요청 필드명 — answerContent 아님)",
+          "example": "네, 배송 전이면..."
+        }
+      ],
+      "success": "HTTP200 (전송 OFF 상태 — 준비만 완료)",
+      "idTraps": [
+        "★body 필드는 answerComment (흔히 쓰는 answerContent 로 보내면 실패)"
+      ],
+      "persistIds": [],
+      "codeRef": "shared/platforms/smartstore/orders.py:reply_inquiry"
+    },
+    {
+      "id": "smartstore.문의.고객_문의_답변_수정",
+      "market": "smartstore",
+      "fnKey": "문의.고객_문의_답변_수정",
+      "tabs": [
+        "클레임·CS"
+      ],
+      "category": "문의",
+      "nm": "고객 문의 답변 수정",
+      "dir": "send",
+      "st": "off",
+      "endpoint": "update-inquiry-answer-pay-merchant",
+      "req": {},
+      "res": {},
+      "fields": [],
+      "success": "",
+      "idTraps": [],
+      "persistIds": [],
+      "codeRef": ""
+    },
+    {
+      "id": "smartstore.cs.product_qna.list",
+      "market": "smartstore",
+      "fnKey": "cs.product_qna.list",
+      "tabs": [
+        "클레임·CS"
+      ],
+      "category": "문의",
+      "nm": "상품 문의 목록 조회",
+      "dir": "recv",
+      "st": "ok",
+      "endpoint": "GET /external/v1/contents/qnas",
+      "req": {
+        "query": {
+          "fromDate": "2026-07-10T00:00:00.000Z",
+          "toDate": "2026-07-16T00:00:00.000Z",
+          "page": 1,
+          "size": 100,
+          "answered": "false"
+        }
+      },
+      "res": {
+        "contents": [
+          {
+            "questionId": "2001",
+            "productId": "13153051689",
+            "questionContent": "이 신발 재입고 되나요",
+            "answered": false,
+            "questionRegistrationDateTime": "2026-07-15T10:00:00.000Z"
+          }
+        ],
+        "totalPages": 1,
+        "last": true
+      },
+      "fields": [
+        {
+          "key": "contents[].questionId",
+          "meaning": "문의번호(답변등록·수정 API 키)",
+          "example": "2001"
+        }
+      ],
+      "success": "HTTP200 그리고 contents 존재",
+      "idTraps": [
+        "★2026-07-16 API 센터 실측: 기간 파라미터는 fromDate/toDate (ISO date-time ...Z 형식, 필수)"
+      ],
+      "persistIds": [
+        "contents[].questionId"
+      ],
+      "codeRef": "shared/platforms/smartstore/orders.py:fetch_product_qnas"
+    },
+    {
+      "id": "smartstore.문의.상품_문의_답변_템플릿_목록_조회",
+      "market": "smartstore",
+      "fnKey": "문의.상품_문의_답변_템플릿_목록_조회",
+      "tabs": [
+        "클레임·CS"
+      ],
+      "category": "문의",
+      "nm": "상품 문의 답변 템플릿 목록 조회",
+      "dir": "recv",
+      "st": "off",
+      "endpoint": "contents/qnas/templates",
+      "req": {},
+      "res": {},
+      "fields": [],
+      "success": "",
+      "idTraps": [],
+      "persistIds": [],
+      "codeRef": ""
+    },
+    {
+      "id": "smartstore.cs.product_qna.reply",
+      "market": "smartstore",
+      "fnKey": "cs.product_qna.reply",
+      "tabs": [
+        "클레임·CS"
+      ],
+      "category": "문의",
+      "nm": "상품 문의 답변 등록·수정",
+      "dir": "send",
+      "st": "code",
+      "endpoint": "PUT /external/v1/contents/qnas/{questionId}",
+      "req": {
+        "path": {
+          "questionId": "2001"
+        },
+        "body": {
+          "commentContent": "7월 말 재입고 예정입니다"
+        }
+      },
+      "res": {
+        "success": true
+      },
+      "fields": [
+        {
+          "key": "commentContent",
+          "meaning": "답변 본문(고객문의 answerComment 와 별개 필드명)",
+          "example": "7월 말 재입고 예정..."
+        }
+      ],
+      "success": "HTTP200 (전송 OFF·준비 단계)",
+      "idTraps": [
+        "고객문의(pay-merchant answer)와 별개 엔드포인트 — body 필드명도 다름(commentContent vs answerComment), 혼용 금지"
+      ],
+      "persistIds": [],
+      "codeRef": "shared/platforms/smartstore/orders.py:reply_product_qna"
+    },
+    {
+      "id": "smartstore.product.create",
+      "market": "smartstore",
+      "fnKey": "product.create",
+      "tabs": [
+        "상품 관리"
+      ],
+      "category": "상품",
+      "nm": "(v2) 상품 등록",
+      "dir": "send",
+      "st": "code",
+      "endpoint": "POST /external/v2/products",
+      "req": {
+        "body": {
+          "originProduct": {
+            "statusType": "SUSPENSION",
+            "leafCategoryId": "50000803",
+            "name": "...",
+            "salePrice": 128900,
+            "stockQuantity": 10,
+            "images": {
+              "representativeImage": {
+                "url": "https://shop-phinf.pstatic.net/..."
+              }
+            },
+            "detailAttribute": {
+              "productInfoProvidedNotice": {
+                "productInfoProvidedNoticeType": "SHOES",
+                "shoes": {
+                  "material": "...",
+                  "color": "...",
+                  "size": "...",
+                  "manufacturer": "...",
+                  "caution": "...",
+                  "warrantyPolicy": "...",
+                  "afterServiceDirector": "..."
+                }
+              }
+            }
+          },
+          "smartstoreChannelProduct": {
+            "channelProductDisplayStatusType": "ON"
+          }
+        }
+      },
+      "res": {
+        "originProductNo": 13153051689,
+        "smartstoreChannelProductNo": 98765432
+      },
+      "fields": [
+        {
+          "key": "originProductNo",
+          "meaning": "원상품번호(옵션·수정 API 키)",
+          "example": "13153051689"
+        },
+        {
+          "key": "smartstoreChannelProductNo",
+          "meaning": "채널상품번호(셀러센터 표시 ID)",
+          "example": "98765432"
+        }
+      ],
+      "success": "HTTP200/201 그리고 originProductNo 존재",
+      "idTraps": [
+        "statusType:'SUSPENSION' 으로 보내도 서버가 무시하고 항상 SALE 로 등록 — 등록 직후 change_status(SUSPENSION) 별도 호출 필수(auto_suspend=True 로 코드가 자동 처리)",
+        "이미지 URL 은 Naver CDN(shop-phinf.pstatic.net)만 허용, 외부 URL 은 거부됨"
+      ],
+      "persistIds": [
+        "originProductNo → 이후 조회·수정·삭제 키"
+      ],
+      "codeRef": "shared/platforms/smartstore/create_product.py:create_product"
+    },
+    {
+      "id": "smartstore.product.get_detail",
+      "market": "smartstore",
+      "fnKey": "product.get_detail",
+      "tabs": [
+        "상품 조회"
+      ],
+      "category": "상품",
+      "nm": "(v2) 원상품 조회",
+      "dir": "recv",
+      "st": "ok",
+      "endpoint": "GET /external/v2/products/origin-products/{originProductNo}",
+      "req": {
+        "path": {
+          "originProductNo": 13153051689
+        }
+      },
+      "res": {
+        "originProduct": {
+          "name": "...",
+          "salePrice": 128900,
+          "detailAttribute": {
+            "optionInfo": {
+              "optionCombinations": [
+                {
+                  "id": 56632587351,
+                  "optionName1": "블랙(블랙아웃솔)",
+                  "optionName2": "230mm",
+                  "stockQuantity": 5,
+                  "price": 0,
+                  "usable": true
+                }
+              ]
+            }
+          }
+        }
+      },
+      "fields": [
+        {
+          "key": "originProduct.detailAttribute.optionInfo.optionCombinations[].id",
+          "meaning": "네이버 옵션ID(가격·재고 명령 키)",
+          "example": "56632587351"
+        },
+        {
+          "key": "optionCombinations[].optionName1/optionName2",
+          "meaning": "색상/사이즈",
+          "example": "블랙(블랙아웃솔) / 230mm"
+        },
+        {
+          "key": "optionCombinations[].usable",
+          "meaning": "false=판매중지 옵션(제외 정책 필요)",
+          "example": "true"
+        }
+      ],
+      "success": "HTTP200 그리고 originProduct 존재(라이브 실증: 상품 13153051689 옵션 36개 수신)",
+      "idTraps": [
+        "usable=false 옵션은 판매중지 상태 — 재고/가격 push 시 제외 정책 필요(코드리뷰 지적, 미적용 시 중지 옵션에 오전송)",
+        "옵션 파싱 실패 시 parse_failed 카운트로 표면화(조용한 실패 금지) — success=True 여도 partial_failure 체크 필요"
+      ],
+      "persistIds": [
+        "optionCombinations[].id (= market_option_id, 가격·재고 명령 키)"
+      ],
+      "codeRef": "shared/platforms/smartstore/get_options.py:fetch_product_options"
+    },
+    {
+      "id": "smartstore.product.update",
+      "market": "smartstore",
+      "fnKey": "product.update",
+      "tabs": [
+        "상품 관리"
+      ],
+      "category": "상품",
+      "nm": "(v2) 원상품 수정",
+      "dir": "send",
+      "st": "ok",
+      "endpoint": "PUT /external/v2/products/origin-products/{originProductNo}",
+      "req": {
+        "path": {
+          "originProductNo": 13153051689
+        },
+        "body": {
+          "origin_product_no": 13153051689,
+          "sale_price": 128900,
+          "option_updates": {
+            "56632587351": {
+              "stockQuantity": 5,
+              "price": 0
+            }
+          },
+          "immediate_discount": {
+            "value": 10,
+            "unitType": "PERCENT"
+          }
+        }
+      },
+      "res": {
+        "success": true
+      },
+      "fields": [
+        {
+          "key": "invalidInputs[]",
+          "meaning": "실패 시 필드별 상세 사유(에러 응답)",
+          "example": "[]"
+        }
+      ],
+      "success": "HTTP200 (GET 으로 현재 전체 body 를 받아 변경분만 덮어써서 PUT — partial body 는 거부됨)",
+      "idTraps": [
+        "Naver product edit 은 originProduct 전체를 다시 보내는 형식 — partial body 전송 시 reject",
+        "옵션가(price)는 base salePrice 대비 delta(차액), 절대값 아님"
+      ],
+      "persistIds": [],
+      "codeRef": "shared/platforms/smartstore/edit_product.py:edit_options"
+    },
+    {
+      "id": "smartstore.product.delete",
+      "market": "smartstore",
+      "fnKey": "product.delete",
+      "tabs": [
+        "상품 관리"
+      ],
+      "category": "상품",
+      "nm": "(v2) 원상품 삭제",
+      "dir": "send",
+      "st": "code",
+      "endpoint": "DELETE /external/v2/products/origin-products/{originProductNo}",
+      "req": {
+        "path": {
+          "originProductNo": 13153051689
+        }
+      },
+      "res": {
+        "data": true
+      },
+      "fields": [
+        {
+          "key": "data",
+          "meaning": "삭제 성공 여부",
+          "example": "true"
+        }
+      ],
+      "success": "resp.data 가 truthy",
+      "idTraps": [
+        "영구 삭제·복구 불가 — 사용 전 SUSPENSION/OUTOFSTOCK 상태 확인 권장(코드 주석)"
+      ],
+      "persistIds": [],
+      "codeRef": "shared/platforms/smartstore/create_product.py:delete_origin_product"
+    },
+    {
+      "id": "smartstore.stock.update",
+      "market": "smartstore",
+      "fnKey": "stock.update",
+      "tabs": [
+        "상품 관리"
+      ],
+      "category": "상품",
+      "nm": "상품 옵션 재고 변경",
+      "dir": "send",
+      "st": "ok",
+      "endpoint": "PUT /external/v2/products/origin-products/{originProductNo} (edit_options 의 option_updates.stockQuantity 파라미터)",
+      "req": {
+        "body": {
+          "origin_product_no": 13153051689,
+          "option_updates": {
+            "56632587351": {
+              "stockQuantity": 0
+            }
+          }
+        }
+      },
+      "res": {
+        "success": true,
+        "options_changed": 1
+      },
+      "fields": [
+        {
+          "key": "options_changed",
+          "meaning": "실제로 갱신된 옵션 개수",
+          "example": "1"
+        }
+      ],
+      "success": "success==true",
+      "idTraps": [
+        "원상품 수정과 동일 엔드포인트·동일 PUT 1회 — 가격과 재고를 분리 호출할 수 없음(같이 보내거나 sale_price=None 으로 유지)"
+      ],
+      "persistIds": [],
+      "codeRef": "shared/platforms/smartstore/edit_product.py:edit_options"
+    },
+    {
+      "id": "smartstore.product.change_status",
+      "market": "smartstore",
+      "fnKey": "product.change_status",
+      "tabs": [
+        "상품 관리"
+      ],
+      "category": "상품",
+      "nm": "판매 상태 변경",
+      "dir": "send",
+      "st": "ok",
+      "endpoint": "PUT /external/v1/products/origin-products/{originProductNo}/change-status",
+      "req": {
+        "path": {
+          "originProductNo": 13153051689
+        },
+        "body": {
+          "statusType": "SUSPENSION"
+        }
+      },
+      "res": {
+        "success": true
+      },
+      "fields": [
+        {
+          "key": "statusType",
+          "meaning": "SALE/OUTOFSTOCK/SUSPENSION (live-verified 3종, CLOSE 등은 미확정)",
+          "example": "SUSPENSION"
+        }
+      ],
+      "success": "HTTP200 (예외 없이 반환)",
+      "idTraps": [
+        "조합형 옵션 상품의 품절은 이 API 아닌 옵션 재고 stockQuantity=0 으로 유도해야 함(원상품 전체 상태 전환용 API)",
+        "'판매종료' enum 은 미확정(CLOSE/ENDED 시도 실패 — 코드 주석)"
+      ],
+      "persistIds": [],
+      "codeRef": "shared/platforms/smartstore/change_status.py:change_sale_status"
+    },
+    {
+      "id": "smartstore.product.search",
+      "market": "smartstore",
+      "fnKey": "product.search",
+      "tabs": [
+        "상품 조회"
+      ],
+      "category": "상품",
+      "nm": "상품 목록 조회",
+      "dir": "recv",
+      "st": "ok",
+      "endpoint": "POST /external/v1/products/search",
+      "req": {
+        "body": {
+          "page": 1,
+          "size": 100
+        }
+      },
+      "res": {
+        "contents": [
+          {
+            "originProductNo": 13153051689,
+            "channelProducts": [
+              {
+                "channelProductNo": 98765432,
+                "channelServiceType": "STOREFARM",
+                "name": "..."
+              }
+            ]
+          }
+        ],
+        "last": true
+      },
+      "fields": [
+        {
+          "key": "contents[].originProductNo",
+          "meaning": "원상품번호",
+          "example": "13153051689"
+        },
+        {
+          "key": "contents[].channelProducts[].channelProductNo",
+          "meaning": "채널상품번호(셀러센터 '상품번호' 컬럼과 동일)",
+          "example": "98765432"
+        }
+      ],
+      "success": "HTTP200 그리고 contents 존재",
+      "idTraps": [
+        "origin-products GET 응답엔 channelProductNo 가 없음 — 반드시 이 search API 로만 origin↔channel 매핑 가능(get_channel_no.py 존재 이유)",
+        "최대 100건/페이지, 전체 순회 시 last==true 될 때까지 page 증가 필요(안전상한 20~30페이지)"
+      ],
+      "persistIds": [
+        "contents[].channelProducts[].channelProductNo"
+      ],
+      "codeRef": "shared/platforms/smartstore/get_channel_no.py:resolve_product_ids / fetch_channel_product_no"
+    },
+    {
+      "id": "smartstore.상품.멀티_상품_변경",
+      "market": "smartstore",
+      "fnKey": "상품.멀티_상품_변경",
+      "tabs": [
+        "상품 관리"
+      ],
+      "category": "상품",
+      "nm": "멀티 상품 변경",
+      "dir": "send",
+      "st": "off",
+      "endpoint": "update-multi-products-product",
+      "req": {},
+      "res": {},
+      "fields": [],
+      "success": "",
+      "idTraps": [],
+      "persistIds": [],
+      "codeRef": ""
+    },
+    {
+      "id": "smartstore.product.get_channel",
+      "market": "smartstore",
+      "fnKey": "product.get_channel",
+      "tabs": [
+        "상품 조회"
+      ],
+      "category": "상품",
+      "nm": "(v2) 채널 상품 조회",
+      "dir": "recv",
+      "st": "ok",
+      "endpoint": "POST /external/v1/products/search (channelProducts[] 로 커버, 별도 전용 GET 미호출)",
+      "req": {
+        "body": {
+          "page": 1,
+          "size": 100
+        }
+      },
+      "res": {
+        "contents": [
+          {
+            "originProductNo": 13153051689,
+            "channelProducts": [
+              {
+                "channelProductNo": 98765432,
+                "channelServiceType": "STOREFARM",
+                "name": "..."
+              }
+            ]
+          }
+        ]
+      },
+      "fields": [
+        {
+          "key": "contents[].channelProducts[].channelServiceType",
+          "meaning": "STOREFARM=스마트스토어 채널 구분",
+          "example": "STOREFARM"
+        }
+      ],
+      "success": "HTTP200 그리고 channelProducts 존재",
+      "idTraps": [
+        "전용 '채널 상품 조회' 엔드포인트를 별도 호출하지 않고 product.search 응답에서 channelProducts[] 를 그대로 사용 — 문서상 별개 API지만 코드는 미분리"
+      ],
+      "persistIds": [],
+      "codeRef": "shared/platforms/smartstore/get_channel_no.py:fetch_channel_product_no"
+    },
+    {
+      "id": "smartstore.상품.v2_채널_상품_수정",
+      "market": "smartstore",
+      "fnKey": "상품.v2_채널_상품_수정",
+      "tabs": [
+        "상품 관리"
+      ],
+      "category": "상품",
+      "nm": "(v2) 채널 상품 수정",
+      "dir": "send",
+      "st": "off",
+      "endpoint": "update-channel-product-product",
+      "req": {},
+      "res": {},
+      "fields": [],
+      "success": "",
+      "idTraps": [],
+      "persistIds": [],
+      "codeRef": ""
+    },
+    {
+      "id": "smartstore.상품.v2_채널_상품_삭제",
+      "market": "smartstore",
+      "fnKey": "상품.v2_채널_상품_삭제",
+      "tabs": [
+        "상품 관리"
+      ],
+      "category": "상품",
+      "nm": "(v2) 채널 상품 삭제",
+      "dir": "send",
+      "st": "off",
+      "endpoint": "delete-channel-product-product",
+      "req": {},
+      "res": {},
+      "fields": [],
+      "success": "",
+      "idTraps": [],
+      "persistIds": [],
+      "codeRef": ""
+    },
+    {
+      "id": "smartstore.상품.v2_그룹상품_등록",
+      "market": "smartstore",
+      "fnKey": "상품.v2_그룹상품_등록",
+      "tabs": [
+        "상품 관리"
+      ],
+      "category": "상품",
+      "nm": "(v2) 그룹상품 등록",
+      "dir": "send",
+      "st": "off",
+      "endpoint": "create-product-1-product",
+      "req": {},
+      "res": {},
+      "fields": [],
+      "success": "",
+      "idTraps": [],
+      "persistIds": [],
+      "codeRef": ""
+    },
+    {
+      "id": "smartstore.상품.v2_그룹상품_전환",
+      "market": "smartstore",
+      "fnKey": "상품.v2_그룹상품_전환",
+      "tabs": [
+        "상품 관리"
+      ],
+      "category": "상품",
+      "nm": "(v2) 그룹상품 전환",
+      "dir": "send",
+      "st": "off",
+      "endpoint": "group-products-product",
+      "req": {},
+      "res": {},
+      "fields": [],
+      "success": "",
+      "idTraps": [],
+      "persistIds": [],
+      "codeRef": ""
+    },
+    {
+      "id": "smartstore.상품.v2_그룹상품_해제",
+      "market": "smartstore",
+      "fnKey": "상품.v2_그룹상품_해제",
+      "tabs": [
+        "상품 관리"
+      ],
+      "category": "상품",
+      "nm": "(v2) 그룹상품 해제",
+      "dir": "send",
+      "st": "off",
+      "endpoint": "release-standard-group-product-product",
+      "req": {},
+      "res": {},
+      "fields": [],
+      "success": "",
+      "idTraps": [],
+      "persistIds": [],
+      "codeRef": ""
+    },
+    {
+      "id": "smartstore.상품.v2_그룹상품_요청_결과_조회",
+      "market": "smartstore",
+      "fnKey": "상품.v2_그룹상품_요청_결과_조회",
+      "tabs": [
+        "상품 조회"
+      ],
+      "category": "상품",
+      "nm": "(v2) 그룹상품 요청 결과 조회",
+      "dir": "recv",
+      "st": "off",
+      "endpoint": "get-progress-product",
+      "req": {},
+      "res": {},
+      "fields": [],
+      "success": "",
+      "idTraps": [],
+      "persistIds": [],
+      "codeRef": ""
+    },
+    {
+      "id": "smartstore.상품.v2_상품_상세정보_임시저장",
+      "market": "smartstore",
+      "fnKey": "상품.v2_상품_상세정보_임시저장",
+      "tabs": [
+        "상품 관리"
+      ],
+      "category": "상품",
+      "nm": "(v2) 상품 상세정보 임시저장",
+      "dir": "send",
+      "st": "off",
+      "endpoint": "save-detail-info-product",
+      "req": {},
+      "res": {},
+      "fields": [],
+      "success": "",
+      "idTraps": [],
+      "persistIds": [],
+      "codeRef": ""
+    },
+    {
+      "id": "smartstore.상품.v2_그룹상품_전환_유효성_검사",
+      "market": "smartstore",
+      "fnKey": "상품.v2_그룹상품_전환_유효성_검사",
+      "tabs": [
+        "상품 관리"
+      ],
+      "category": "상품",
+      "nm": "(v2) 그룹상품 전환 유효성 검사",
+      "dir": "recv",
+      "st": "off",
+      "endpoint": "validate-product-can-be-grouped-product",
+      "req": {},
+      "res": {},
+      "fields": [],
+      "success": "",
+      "idTraps": [],
+      "persistIds": [],
+      "codeRef": ""
+    },
+    {
+      "id": "smartstore.상품.v2_그룹상품_조회",
+      "market": "smartstore",
+      "fnKey": "상품.v2_그룹상품_조회",
+      "tabs": [
+        "상품 조회"
+      ],
+      "category": "상품",
+      "nm": "(v2) 그룹상품 조회",
+      "dir": "recv",
+      "st": "off",
+      "endpoint": "read-product-product",
+      "req": {},
+      "res": {},
+      "fields": [],
+      "success": "",
+      "idTraps": [],
+      "persistIds": [],
+      "codeRef": ""
+    },
+    {
+      "id": "smartstore.상품.v2_그룹상품_수정",
+      "market": "smartstore",
+      "fnKey": "상품.v2_그룹상품_수정",
+      "tabs": [
+        "상품 관리"
+      ],
+      "category": "상품",
+      "nm": "(v2) 그룹상품 수정",
+      "dir": "send",
+      "st": "off",
+      "endpoint": "update-product-product",
+      "req": {},
+      "res": {},
+      "fields": [],
+      "success": "",
+      "idTraps": [],
+      "persistIds": [],
+      "codeRef": ""
+    },
+    {
+      "id": "smartstore.상품.v2_그룹상품_삭제",
+      "market": "smartstore",
+      "fnKey": "상품.v2_그룹상품_삭제",
+      "tabs": [
+        "상품 관리"
+      ],
+      "category": "상품",
+      "nm": "(v2) 그룹상품 삭제",
+      "dir": "send",
+      "st": "off",
+      "endpoint": "delete-product-product",
+      "req": {},
+      "res": {},
+      "fields": [],
+      "success": "",
+      "idTraps": [],
+      "persistIds": [],
+      "codeRef": ""
+    },
+    {
+      "id": "smartstore.상품.상품_이미지_다건_등록",
+      "market": "smartstore",
+      "fnKey": "상품.상품_이미지_다건_등록",
+      "tabs": [
+        "상품 관리"
+      ],
+      "category": "상품",
+      "nm": "상품 이미지 다건 등록",
+      "dir": "send",
+      "st": "off",
+      "endpoint": "upload-product",
+      "req": {},
+      "res": {},
+      "fields": [],
+      "success": "",
+      "idTraps": [],
+      "persistIds": [],
+      "codeRef": ""
+    },
+    {
+      "id": "smartstore.상품.상품_벌크_업데이트",
+      "market": "smartstore",
+      "fnKey": "상품.상품_벌크_업데이트",
+      "tabs": [
+        "상품 관리"
+      ],
+      "category": "상품",
+      "nm": "상품 벌크 업데이트",
+      "dir": "send",
+      "st": "off",
+      "endpoint": "bulk-update-origin-product-product",
+      "req": {},
+      "res": {},
+      "fields": [],
+      "success": "",
+      "idTraps": [],
+      "persistIds": [],
+      "codeRef": ""
+    },
+    {
+      "id": "smartstore.상품.브랜드_조회",
+      "market": "smartstore",
+      "fnKey": "상품.브랜드_조회",
+      "tabs": [
+        "상품 조회"
+      ],
+      "category": "상품",
+      "nm": "브랜드 조회",
+      "dir": "recv",
+      "st": "off",
+      "endpoint": "get-brand-list-product",
+      "req": {},
+      "res": {},
+      "fields": [],
+      "success": "",
+      "idTraps": [],
+      "persistIds": [],
+      "codeRef": ""
+    },
+    {
+      "id": "smartstore.상품.전체_사이즈_타입_조회",
+      "market": "smartstore",
+      "fnKey": "상품.전체_사이즈_타입_조회",
+      "tabs": [
+        "상품 조회"
+      ],
+      "category": "상품",
+      "nm": "전체 사이즈 타입 조회",
+      "dir": "recv",
+      "st": "off",
+      "endpoint": "get-size-type-vo-list-product",
+      "req": {},
+      "res": {},
+      "fields": [],
+      "success": "",
+      "idTraps": [],
+      "persistIds": [],
+      "codeRef": ""
+    },
+    {
+      "id": "smartstore.상품.사이즈_타입_조회",
+      "market": "smartstore",
+      "fnKey": "상품.사이즈_타입_조회",
+      "tabs": [
+        "상품 조회"
+      ],
+      "category": "상품",
+      "nm": "사이즈 타입 조회",
+      "dir": "recv",
+      "st": "off",
+      "endpoint": "get-size-type-vo-product",
+      "req": {},
+      "res": {},
+      "fields": [],
+      "success": "",
+      "idTraps": [],
+      "persistIds": [],
+      "codeRef": ""
+    },
+    {
+      "id": "smartstore.상품.상품_검수_복원_요청",
+      "market": "smartstore",
+      "fnKey": "상품.상품_검수_복원_요청",
+      "tabs": [
+        "상품 관리"
+      ],
+      "category": "상품",
+      "nm": "상품 검수 복원 요청",
+      "dir": "send",
+      "st": "off",
+      "endpoint": "restore-inspection-product-product",
+      "req": {},
+      "res": {},
+      "fields": [],
+      "success": "",
+      "idTraps": [],
+      "persistIds": [],
+      "codeRef": ""
+    },
+    {
+      "id": "smartstore.상품.상품_검수_목록_조회",
+      "market": "smartstore",
+      "fnKey": "상품.상품_검수_목록_조회",
+      "tabs": [
+        "상품 조회"
+      ],
+      "category": "상품",
+      "nm": "상품 검수 목록 조회",
+      "dir": "recv",
+      "st": "off",
+      "endpoint": "get-inspection-products-request-product",
+      "req": {},
+      "res": {},
+      "fields": [],
+      "success": "",
+      "idTraps": [],
+      "persistIds": [],
+      "codeRef": ""
+    },
+    {
+      "id": "smartstore.상품.공지사항_목록_조회",
+      "market": "smartstore",
+      "fnKey": "상품.공지사항_목록_조회",
+      "tabs": [
+        "상품 조회"
+      ],
+      "category": "상품",
+      "nm": "공지사항 목록 조회",
+      "dir": "recv",
+      "st": "off",
+      "endpoint": "get-posts-contents",
+      "req": {},
+      "res": {},
+      "fields": [],
+      "success": "",
+      "idTraps": [],
+      "persistIds": [],
+      "codeRef": ""
+    },
+    {
+      "id": "smartstore.상품.공지사항_등록",
+      "market": "smartstore",
+      "fnKey": "상품.공지사항_등록",
+      "tabs": [
+        "상품 관리"
+      ],
+      "category": "상품",
+      "nm": "공지사항 등록",
+      "dir": "send",
+      "st": "off",
+      "endpoint": "create-post-contents",
+      "req": {},
+      "res": {},
+      "fields": [],
+      "success": "",
+      "idTraps": [],
+      "persistIds": [],
+      "codeRef": ""
+    },
+    {
+      "id": "smartstore.상품.공지사항_단건_조회",
+      "market": "smartstore",
+      "fnKey": "상품.공지사항_단건_조회",
+      "tabs": [
+        "상품 조회"
+      ],
+      "category": "상품",
+      "nm": "공지사항 단건 조회",
+      "dir": "recv",
+      "st": "off",
+      "endpoint": "get-post-contents",
+      "req": {},
+      "res": {},
+      "fields": [],
+      "success": "",
+      "idTraps": [],
+      "persistIds": [],
+      "codeRef": ""
+    },
+    {
+      "id": "smartstore.상품.공지사항_수정",
+      "market": "smartstore",
+      "fnKey": "상품.공지사항_수정",
+      "tabs": [
+        "상품 관리"
+      ],
+      "category": "상품",
+      "nm": "공지사항 수정",
+      "dir": "send",
+      "st": "off",
+      "endpoint": "update-post-contents",
+      "req": {},
+      "res": {},
+      "fields": [],
+      "success": "",
+      "idTraps": [],
+      "persistIds": [],
+      "codeRef": ""
+    },
+    {
+      "id": "smartstore.상품.공지사항_삭제",
+      "market": "smartstore",
+      "fnKey": "상품.공지사항_삭제",
+      "tabs": [
+        "상품 관리"
+      ],
+      "category": "상품",
+      "nm": "공지사항 삭제",
+      "dir": "send",
+      "st": "off",
+      "endpoint": "delete-post-contents",
+      "req": {},
+      "res": {},
+      "fields": [],
+      "success": "",
+      "idTraps": [],
+      "persistIds": [],
+      "codeRef": ""
+    },
+    {
+      "id": "smartstore.상품.채널상품_공지사항_적용",
+      "market": "smartstore",
+      "fnKey": "상품.채널상품_공지사항_적용",
+      "tabs": [
+        "상품 관리"
+      ],
+      "category": "상품",
+      "nm": "채널상품 공지사항 적용",
+      "dir": "send",
+      "st": "off",
+      "endpoint": "apply-notice-product",
+      "req": {},
+      "res": {},
+      "fields": [],
+      "success": "",
+      "idTraps": [],
+      "persistIds": [],
+      "codeRef": ""
+    },
+    {
+      "id": "smartstore.상품.묶음배송_그룹_목록_조회",
+      "market": "smartstore",
+      "fnKey": "상품.묶음배송_그룹_목록_조회",
+      "tabs": [
+        "배송·송장"
+      ],
+      "category": "상품",
+      "nm": "묶음배송 그룹 목록 조회",
+      "dir": "recv",
+      "st": "off",
+      "endpoint": "get-delivery-bundle-group-list-product",
+      "req": {},
+      "res": {},
+      "fields": [],
+      "success": "",
+      "idTraps": [],
+      "persistIds": [],
+      "codeRef": ""
+    },
+    {
+      "id": "smartstore.상품.묶음배송_그룹_등록",
+      "market": "smartstore",
+      "fnKey": "상품.묶음배송_그룹_등록",
+      "tabs": [
+        "배송·송장"
+      ],
+      "category": "상품",
+      "nm": "묶음배송 그룹 등록",
+      "dir": "send",
+      "st": "off",
+      "endpoint": "create-delivery-bundle-group-product",
+      "req": {},
+      "res": {},
+      "fields": [],
+      "success": "",
+      "idTraps": [],
+      "persistIds": [],
+      "codeRef": ""
+    },
+    {
+      "id": "smartstore.상품.묶음배송_그룹_단건_조회",
+      "market": "smartstore",
+      "fnKey": "상품.묶음배송_그룹_단건_조회",
+      "tabs": [
+        "배송·송장"
+      ],
+      "category": "상품",
+      "nm": "묶음배송 그룹 단건 조회",
+      "dir": "recv",
+      "st": "off",
+      "endpoint": "get-delivery-bundle-group-product",
+      "req": {},
+      "res": {},
+      "fields": [],
+      "success": "",
+      "idTraps": [],
+      "persistIds": [],
+      "codeRef": ""
+    },
+    {
+      "id": "smartstore.상품.묶음배송_그룹_수정",
+      "market": "smartstore",
+      "fnKey": "상품.묶음배송_그룹_수정",
+      "tabs": [
+        "배송·송장"
+      ],
+      "category": "상품",
+      "nm": "묶음배송 그룹 수정",
+      "dir": "send",
+      "st": "off",
+      "endpoint": "update-delivery-bundle-group-product",
+      "req": {},
+      "res": {},
+      "fields": [],
+      "success": "",
+      "idTraps": [],
+      "persistIds": [],
+      "codeRef": ""
+    },
+    {
+      "id": "smartstore.상품.희망일배송_그룹_목록_조회",
+      "market": "smartstore",
+      "fnKey": "상품.희망일배송_그룹_목록_조회",
+      "tabs": [
+        "배송·송장"
+      ],
+      "category": "상품",
+      "nm": "희망일배송 그룹 목록 조회",
+      "dir": "recv",
+      "st": "off",
+      "endpoint": "get-hope-delivery-group-list-product",
+      "req": {},
+      "res": {},
+      "fields": [],
+      "success": "",
+      "idTraps": [],
+      "persistIds": [],
+      "codeRef": ""
+    },
+    {
+      "id": "smartstore.상품.희망일배송_그룹_등록",
+      "market": "smartstore",
+      "fnKey": "상품.희망일배송_그룹_등록",
+      "tabs": [
+        "배송·송장"
+      ],
+      "category": "상품",
+      "nm": "희망일배송 그룹 등록",
+      "dir": "send",
+      "st": "off",
+      "endpoint": "create-hope-delivery-group-product",
+      "req": {},
+      "res": {},
+      "fields": [],
+      "success": "",
+      "idTraps": [],
+      "persistIds": [],
+      "codeRef": ""
+    },
+    {
+      "id": "smartstore.상품.희망일배송_그룹_단건_조회",
+      "market": "smartstore",
+      "fnKey": "상품.희망일배송_그룹_단건_조회",
+      "tabs": [
+        "배송·송장"
+      ],
+      "category": "상품",
+      "nm": "희망일배송 그룹 단건 조회",
+      "dir": "recv",
+      "st": "off",
+      "endpoint": "get-hope-delivery-group-product",
+      "req": {},
+      "res": {},
+      "fields": [],
+      "success": "",
+      "idTraps": [],
+      "persistIds": [],
+      "codeRef": ""
+    },
+    {
+      "id": "smartstore.상품.희망일배송_그룹_수정",
+      "market": "smartstore",
+      "fnKey": "상품.희망일배송_그룹_수정",
+      "tabs": [
+        "배송·송장"
+      ],
+      "category": "상품",
+      "nm": "희망일배송 그룹 수정",
+      "dir": "send",
+      "st": "off",
+      "endpoint": "update-hope-delivery-group-product",
+      "req": {},
+      "res": {},
+      "fields": [],
+      "success": "",
+      "idTraps": [],
+      "persistIds": [],
+      "codeRef": ""
+    },
+    {
+      "id": "smartstore.상품.v2_반품_택배사_다건_조회",
+      "market": "smartstore",
+      "fnKey": "상품.v2_반품_택배사_다건_조회",
+      "tabs": [
+        "배송·송장"
+      ],
+      "category": "상품",
+      "nm": "(v2) 반품 택배사 다건 조회",
+      "dir": "recv",
+      "st": "off",
+      "endpoint": "get-return-delivery-company-list-product",
+      "req": {},
+      "res": {},
+      "fields": [],
+      "success": "",
+      "idTraps": [],
+      "persistIds": [],
+      "codeRef": ""
+    },
+    {
+      "id": "smartstore.상품.전체_속성값_단위_조회",
+      "market": "smartstore",
+      "fnKey": "상품.전체_속성값_단위_조회",
+      "tabs": [
+        "상품 조회"
+      ],
+      "category": "상품",
+      "nm": "전체 속성값 단위 조회",
+      "dir": "recv",
+      "st": "off",
+      "endpoint": "get-attribute-value-unit-list-product",
+      "req": {},
+      "res": {},
+      "fields": [],
+      "success": "",
+      "idTraps": [],
+      "persistIds": [],
+      "codeRef": ""
+    },
+    {
+      "id": "smartstore.상품.카테고리별_속성값_조회",
+      "market": "smartstore",
+      "fnKey": "상품.카테고리별_속성값_조회",
+      "tabs": [
+        "상품 조회"
+      ],
+      "category": "상품",
+      "nm": "카테고리별 속성값 조회",
+      "dir": "recv",
+      "st": "off",
+      "endpoint": "get-attribute-value-list-product",
+      "req": {},
+      "res": {},
+      "fields": [],
+      "success": "",
+      "idTraps": [],
+      "persistIds": [],
+      "codeRef": ""
+    },
+    {
+      "id": "smartstore.상품.카테고리별_속성_조회",
+      "market": "smartstore",
+      "fnKey": "상품.카테고리별_속성_조회",
+      "tabs": [
+        "상품 조회"
+      ],
+      "category": "상품",
+      "nm": "카테고리별 속성 조회",
+      "dir": "recv",
+      "st": "off",
+      "endpoint": "get-attribute-list-product",
+      "req": {},
+      "res": {},
+      "fields": [],
+      "success": "",
+      "idTraps": [],
+      "persistIds": [],
+      "codeRef": ""
+    },
+    {
+      "id": "smartstore.상품.원산지_코드_전체_조회",
+      "market": "smartstore",
+      "fnKey": "상품.원산지_코드_전체_조회",
+      "tabs": [
+        "상품 조회"
+      ],
+      "category": "상품",
+      "nm": "원산지 코드 전체 조회",
+      "dir": "recv",
+      "st": "off",
+      "endpoint": "get-all-origin-area-list-product",
+      "req": {},
+      "res": {},
+      "fields": [],
+      "success": "",
+      "idTraps": [],
+      "persistIds": [],
+      "codeRef": ""
+    },
+    {
+      "id": "smartstore.상품.원산지_코드_다건_조회",
+      "market": "smartstore",
+      "fnKey": "상품.원산지_코드_다건_조회",
+      "tabs": [
+        "상품 조회"
+      ],
+      "category": "상품",
+      "nm": "원산지 코드 다건 조회",
+      "dir": "recv",
+      "st": "off",
+      "endpoint": "get-origin-area-list-product",
+      "req": {},
+      "res": {},
+      "fields": [],
+      "success": "",
+      "idTraps": [],
+      "persistIds": [],
+      "codeRef": ""
+    },
+    {
+      "id": "smartstore.상품.하위_원산지_코드_조회",
+      "market": "smartstore",
+      "fnKey": "상품.하위_원산지_코드_조회",
+      "tabs": [
+        "상품 조회"
+      ],
+      "category": "상품",
+      "nm": "하위 원산지 코드 조회",
+      "dir": "recv",
+      "st": "off",
+      "endpoint": "get-sub-origin-area-list-product",
+      "req": {},
+      "res": {},
+      "fields": [],
+      "success": "",
+      "idTraps": [],
+      "persistIds": [],
+      "codeRef": ""
+    },
+    {
+      "id": "smartstore.상품.상품정보제공고시_상품군_목록",
+      "market": "smartstore",
+      "fnKey": "상품.상품정보제공고시_상품군_목록",
+      "tabs": [
+        "상품 관리"
+      ],
+      "category": "상품",
+      "nm": "상품정보제공고시 상품군 목록",
+      "dir": "recv",
+      "st": "off",
+      "endpoint": "get-all-product-info-provided-notice-type-vo-product",
+      "req": {},
+      "res": {},
+      "fields": [],
+      "success": "",
+      "idTraps": [],
+      "persistIds": [],
+      "codeRef": ""
+    },
+    {
+      "id": "smartstore.상품.상품정보제공고시_상품군_단건",
+      "market": "smartstore",
+      "fnKey": "상품.상품정보제공고시_상품군_단건",
+      "tabs": [
+        "상품 관리"
+      ],
+      "category": "상품",
+      "nm": "상품정보제공고시 상품군 단건",
+      "dir": "recv",
+      "st": "off",
+      "endpoint": "get-product-info-provided-notice-type-vo-product",
+      "req": {},
+      "res": {},
+      "fields": [],
+      "success": "",
+      "idTraps": [],
+      "persistIds": [],
+      "codeRef": ""
+    },
+    {
+      "id": "smartstore.상품.카테고리별_표준형_옵션_조회",
+      "market": "smartstore",
+      "fnKey": "상품.카테고리별_표준형_옵션_조회",
+      "tabs": [
+        "상품 조회"
+      ],
+      "category": "상품",
+      "nm": "카테고리별 표준형 옵션 조회",
+      "dir": "recv",
+      "st": "off",
+      "endpoint": "get-standard-option-by-category-product",
+      "req": {},
+      "res": {},
+      "fields": [],
+      "success": "",
+      "idTraps": [],
+      "persistIds": [],
+      "codeRef": ""
+    },
+    {
+      "id": "smartstore.상품.제조사_조회",
+      "market": "smartstore",
+      "fnKey": "상품.제조사_조회",
+      "tabs": [
+        "상품 조회"
+      ],
+      "category": "상품",
+      "nm": "제조사 조회",
+      "dir": "recv",
+      "st": "off",
+      "endpoint": "get-manufacturer-list-product",
+      "req": {},
+      "res": {},
+      "fields": [],
+      "success": "",
+      "idTraps": [],
+      "persistIds": [],
+      "codeRef": ""
+    },
+    {
+      "id": "smartstore.상품.카탈로그_조회",
+      "market": "smartstore",
+      "fnKey": "상품.카탈로그_조회",
+      "tabs": [
+        "상품 조회"
+      ],
+      "category": "상품",
+      "nm": "카탈로그 조회",
+      "dir": "recv",
+      "st": "off",
+      "endpoint": "get-model-list-product",
+      "req": {},
+      "res": {},
+      "fields": [],
+      "success": "",
+      "idTraps": [],
+      "persistIds": [],
+      "codeRef": ""
+    },
+    {
+      "id": "smartstore.상품.카탈로그_단건_조회",
+      "market": "smartstore",
+      "fnKey": "상품.카탈로그_단건_조회",
+      "tabs": [
+        "상품 조회"
+      ],
+      "category": "상품",
+      "nm": "카탈로그 단건 조회",
+      "dir": "recv",
+      "st": "off",
+      "endpoint": "get-model-product",
+      "req": {},
+      "res": {},
+      "fields": [],
+      "success": "",
+      "idTraps": [],
+      "persistIds": [],
+      "codeRef": ""
+    },
+    {
+      "id": "smartstore.상품.전체_카테고리_조회",
+      "market": "smartstore",
+      "fnKey": "상품.전체_카테고리_조회",
+      "tabs": [
+        "상품 조회"
+      ],
+      "category": "상품",
+      "nm": "전체 카테고리 조회",
+      "dir": "recv",
+      "st": "off",
+      "endpoint": "get-category-list-product",
+      "req": {},
+      "res": {},
+      "fields": [],
+      "success": "",
+      "idTraps": [],
+      "persistIds": [],
+      "codeRef": ""
+    },
+    {
+      "id": "smartstore.상품.카테고리_조회",
+      "market": "smartstore",
+      "fnKey": "상품.카테고리_조회",
+      "tabs": [
+        "상품 조회"
+      ],
+      "category": "상품",
+      "nm": "카테고리 조회",
+      "dir": "recv",
+      "st": "off",
+      "endpoint": "get-category-product",
+      "req": {},
+      "res": {},
+      "fields": [],
+      "success": "",
+      "idTraps": [],
+      "persistIds": [],
+      "codeRef": ""
+    },
+    {
+      "id": "smartstore.상품.하위_카테고리_조회",
+      "market": "smartstore",
+      "fnKey": "상품.하위_카테고리_조회",
+      "tabs": [
+        "상품 조회"
+      ],
+      "category": "상품",
+      "nm": "하위 카테고리 조회",
+      "dir": "recv",
+      "st": "off",
+      "endpoint": "get-sub-category-product",
+      "req": {},
+      "res": {},
+      "fields": [],
+      "success": "",
+      "idTraps": [],
+      "persistIds": [],
+      "codeRef": ""
+    },
+    {
+      "id": "smartstore.상품.v2_추천_태그_검색_목록_조회",
+      "market": "smartstore",
+      "fnKey": "상품.v2_추천_태그_검색_목록_조회",
+      "tabs": [
+        "상품 조회"
+      ],
+      "category": "상품",
+      "nm": "(v2) 추천 태그 검색 목록 조회",
+      "dir": "recv",
+      "st": "off",
+      "endpoint": "get-recommend-tags-product",
+      "req": {},
+      "res": {},
+      "fields": [],
+      "success": "",
+      "idTraps": [],
+      "persistIds": [],
+      "codeRef": ""
+    },
+    {
+      "id": "smartstore.상품.v2_제한_태그_여부_조회",
+      "market": "smartstore",
+      "fnKey": "상품.v2_제한_태그_여부_조회",
+      "tabs": [
+        "상품 조회"
+      ],
+      "category": "상품",
+      "nm": "(v2) 제한 태그 여부 조회",
+      "dir": "recv",
+      "st": "off",
+      "endpoint": "is-restrict-tags-product",
+      "req": {},
+      "res": {},
+      "fields": [],
+      "success": "",
+      "idTraps": [],
+      "persistIds": [],
+      "codeRef": ""
+    },
+    {
+      "id": "smartstore.상품.v2_판매_옵션_정보_조회",
+      "market": "smartstore",
+      "fnKey": "상품.v2_판매_옵션_정보_조회",
+      "tabs": [
+        "상품 조회"
+      ],
+      "category": "상품",
+      "nm": "(v2) 판매 옵션 정보 조회",
+      "dir": "recv",
+      "st": "off",
+      "endpoint": "get-option-guides-by-category-id-product",
+      "req": {},
+      "res": {},
+      "fields": [],
+      "success": "",
+      "idTraps": [],
+      "persistIds": [],
+      "codeRef": ""
+    },
+    {
+      "id": "smartstore.상품.전체_패션모델_조회",
+      "market": "smartstore",
+      "fnKey": "상품.전체_패션모델_조회",
+      "tabs": [
+        "상품 조회"
+      ],
+      "category": "상품",
+      "nm": "전체 패션모델 조회",
+      "dir": "recv",
+      "st": "off",
+      "endpoint": "get-fashion-models-product",
+      "req": {},
+      "res": {},
+      "fields": [],
+      "success": "",
+      "idTraps": [],
+      "persistIds": [],
+      "codeRef": ""
+    },
+    {
+      "id": "smartstore.상품.패션모델_저장",
+      "market": "smartstore",
+      "fnKey": "상품.패션모델_저장",
+      "tabs": [
+        "상품 관리"
+      ],
+      "category": "상품",
+      "nm": "패션모델 저장",
+      "dir": "send",
+      "st": "off",
+      "endpoint": "save-fashion-model-product",
+      "req": {},
+      "res": {},
+      "fields": [],
+      "success": "",
+      "idTraps": [],
+      "persistIds": [],
+      "codeRef": ""
+    },
+    {
+      "id": "smartstore.상품.패션모델_수정",
+      "market": "smartstore",
+      "fnKey": "상품.패션모델_수정",
+      "tabs": [
+        "상품 관리"
+      ],
+      "category": "상품",
+      "nm": "패션모델 수정",
+      "dir": "send",
+      "st": "off",
+      "endpoint": "update-fashion-model-product",
+      "req": {},
+      "res": {},
+      "fields": [],
+      "success": "",
+      "idTraps": [],
+      "persistIds": [],
+      "codeRef": ""
+    },
+    {
+      "id": "smartstore.상품.패션모델_삭제",
+      "market": "smartstore",
+      "fnKey": "상품.패션모델_삭제",
+      "tabs": [
+        "상품 관리"
+      ],
+      "category": "상품",
+      "nm": "패션모델 삭제",
+      "dir": "send",
+      "st": "off",
+      "endpoint": "delete-fashion-model-product",
+      "req": {},
+      "res": {},
+      "fields": [],
+      "success": "",
+      "idTraps": [],
+      "persistIds": [],
+      "codeRef": ""
+    },
+    {
+      "id": "smartstore.settlement.list",
+      "market": "smartstore",
+      "fnKey": "settlement.list",
+      "tabs": [
+        "정산"
+      ],
+      "category": "정산",
+      "nm": "건별 정산 내역 조회(정산금액)",
+      "dir": "recv",
+      "st": "ok",
+      "endpoint": "GET /external/v1/pay-settle/settle/case",
+      "req": {
+        "query": {
+          "pageNumber": 1,
+          "pageSize": 1000,
+          "searchDate": "2026-07-15",
+          "periodType": "SETTLE_CASEBYCASE_SETTLE_SCHEDULE_DATE"
+        }
+      },
+      "res": {
+        "elements": [
+          {
+            "productOrderId": "20260710-0000001",
+            "orderId": "20260710000001",
+            "settleExpectAmount": 118900,
+            "paySettleAmount": 128900,
+            "productOrderType": "PROD_ORDER",
+            "settleExpectDate": "2026-07-25"
+          }
+        ],
+        "pagination": {
+          "page": 1,
+          "totalPages": 1,
+          "totalElements": 1
+        }
+      },
+      "fields": [
+        {
+          "key": "elements[].settleExpectAmount",
+          "meaning": "정산 예정 금액(수수료 차감 후)",
+          "example": "118900"
+        },
+        {
+          "key": "elements[].productOrderType",
+          "meaning": "PROD_ORDER(상품)/DELIVERY(배송비) — 집계 키가 다름",
+          "example": "PROD_ORDER"
+        }
+      ],
+      "success": "HTTP200 그리고 elements 존재(페이지네이션 totalPages 까지 순회)",
+      "idTraps": [
+        "배송비(DELIVERY) 행은 productOrderId 가 아닌 orderId 로 집계해야 함 — 상품행과 집계 키가 다름(settle_expect_maps 가 분리 처리)",
+        "settleExpectAmount 또는 productOrderId 없는 행은 건너뜀(가짜 0 대입 금지 — CLAUDE.md 폴백 금지 원칙)"
+      ],
+      "persistIds": [],
+      "codeRef": "shared/platforms/smartstore/settlements.py:iter_settle_by_case / settle_expect_maps"
+    },
+    {
+      "id": "smartstore.정산.수수료_상세_내역_조회",
+      "market": "smartstore",
+      "fnKey": "정산.수수료_상세_내역_조회",
+      "tabs": [
+        "정산"
+      ],
+      "category": "정산",
+      "nm": "수수료 상세 내역 조회",
+      "dir": "recv",
+      "st": "off",
+      "endpoint": "find-commission-details-pay-settle",
+      "req": {},
+      "res": {},
+      "fields": [],
+      "success": "",
+      "idTraps": [],
+      "persistIds": [],
+      "codeRef": ""
+    },
+    {
+      "id": "smartstore.정산.일별_정산_내역_조회",
+      "market": "smartstore",
+      "fnKey": "정산.일별_정산_내역_조회",
+      "tabs": [
+        "정산"
+      ],
+      "category": "정산",
+      "nm": "일별 정산 내역 조회",
+      "dir": "recv",
+      "st": "off",
+      "endpoint": "find-daily-settle-pay-settle",
+      "req": {},
+      "res": {},
+      "fields": [],
+      "success": "",
+      "idTraps": [],
+      "persistIds": [],
+      "codeRef": ""
+    },
+    {
+      "id": "smartstore.정산.건별_부가세_내역_조회",
+      "market": "smartstore",
+      "fnKey": "정산.건별_부가세_내역_조회",
+      "tabs": [
+        "정산"
+      ],
+      "category": "정산",
+      "nm": "건별 부가세 내역 조회",
+      "dir": "recv",
+      "st": "off",
+      "endpoint": "find-vat-declaration-by-case-pay-settle",
+      "req": {},
+      "res": {},
+      "fields": [],
+      "success": "",
+      "idTraps": [],
+      "persistIds": [],
+      "codeRef": ""
+    },
+    {
+      "id": "smartstore.정산.일별_부가세_내역_조회",
+      "market": "smartstore",
+      "fnKey": "정산.일별_부가세_내역_조회",
+      "tabs": [
+        "정산"
+      ],
+      "category": "정산",
+      "nm": "일별 부가세 내역 조회",
+      "dir": "recv",
+      "st": "off",
+      "endpoint": "find-daily-vat-declaration-pay-settle",
+      "req": {},
+      "res": {},
+      "fields": [],
+      "success": "",
+      "idTraps": [],
+      "persistIds": [],
+      "codeRef": ""
+    },
+    {
+      "id": "smartstore.order.list_ids",
+      "market": "smartstore",
+      "fnKey": "order.list_ids",
+      "tabs": [
+        "주문상태"
+      ],
+      "category": "주문",
+      "nm": "상품 주문 목록 조회",
+      "dir": "recv",
+      "st": "off",
+      "endpoint": "seller-get-product-order-ids-pay-order-seller",
+      "req": {},
+      "res": {},
+      "fields": [],
+      "success": "",
+      "idTraps": [],
+      "persistIds": [],
+      "codeRef": ""
+    },
+    {
+      "id": "smartstore.order.get_detail",
+      "market": "smartstore",
+      "fnKey": "order.get_detail",
+      "tabs": [
+        "주문상태"
+      ],
+      "category": "주문",
+      "nm": "상품 주문 상세 내역 조회",
+      "dir": "recv",
+      "st": "ok",
+      "endpoint": "POST /external/v1/pay-order/seller/product-orders/query",
+      "req": {
+        "body": {
+          "productOrderIds": [
+            "20260710-0000001"
+          ]
+        }
+      },
+      "res": {
+        "data": [
+          {
+            "productOrderId": "20260710-0000001",
+            "productOrderStatus": "PAYED",
+            "placeOrderStatus": "OK",
+            "productName": "...",
+            "optionName": "블랙/250"
+          }
+        ]
+      },
+      "fields": [
+        {
+          "key": "data[].placeOrderStatus",
+          "meaning": "★발주확인 여부는 이 필드로 판정(productOrderStatus 는 PAYED 로 유지됨)",
+          "example": "OK"
+        },
+        {
+          "key": "data[].productOrderStatus",
+          "meaning": "네이버 주문상태(PAYED 등)",
+          "example": "PAYED"
+        }
+      ],
+      "success": "HTTP200 그리고 data[] 존재",
+      "idTraps": [
+        "★발주확인 판정은 placeOrderStatus=='OK' 로 해야 함 — productOrderStatus 는 발주확인 후에도 PAYED 유지라 이걸로 판정하면 오판"
+      ],
+      "persistIds": [],
+      "codeRef": "shared/platforms/smartstore/orders.py:fetch_order_detail"
+    },
+    {
+      "id": "smartstore.주문.조건형_상품_주문_상세_내역_조회",
+      "market": "smartstore",
+      "fnKey": "주문.조건형_상품_주문_상세_내역_조회",
+      "tabs": [
+        "주문상태"
+      ],
+      "category": "주문",
+      "nm": "조건형 상품 주문 상세 내역 조회",
+      "dir": "recv",
+      "st": "off",
+      "endpoint": "seller-get-product-orders-with-conditions-pay-order-seller",
+      "req": {},
+      "res": {},
+      "fields": [],
+      "success": "",
+      "idTraps": [],
+      "persistIds": [],
+      "codeRef": ""
+    },
+    {
+      "id": "smartstore.order.list_changed",
+      "market": "smartstore",
+      "fnKey": "order.list_changed",
+      "tabs": [
+        "주문상태"
+      ],
+      "category": "주문",
+      "nm": "변경 상품 주문 내역 조회",
+      "dir": "recv",
+      "st": "ok",
+      "endpoint": "GET /external/v1/pay-order/seller/product-orders/last-changed-statuses",
+      "req": {
+        "query": {
+          "lastChangedFrom": "2026-07-15T00:00:00.000+09:00",
+          "lastChangedTo": "2026-07-16T00:00:00.000+09:00",
+          "limitCount": 300
+        }
+      },
+      "res": {
+        "data": {
+          "lastChangeStatuses": [
+            {
+              "productOrderId": "20260710-0000001",
+              "productOrderStatus": "PAYED",
+              "lastChangedType": "PAY_WAITING"
+            }
+          ],
+          "more": null
+        }
+      },
+      "fields": [
+        {
+          "key": "data.lastChangeStatuses[].productOrderId",
+          "meaning": "상품주문번호(상세조회·발주확인 키)",
+          "example": "20260710-0000001"
+        },
+        {
+          "key": "data.more.moreFrom",
+          "meaning": "300건 초과 시 이어받기 커서",
+          "example": "null"
+        }
+      ],
+      "success": "HTTP200 그리고 data.lastChangeStatuses 존재",
+      "idTraps": [
+        "lastChangedFrom 필수(REQUIRED) — 생략 시 400",
+        "300건 초과 시 data.more(moreFrom·moreSequence)로 이어받아야 함, 안 하면 뒷부분 주문 누락",
+        "429(rate limit)는 워커 requeue 가 없는 경로라 이 함수 자체에서 최대 5회 재시도(halve 로 점점 느려짐)"
+      ],
+      "persistIds": [
+        "data.lastChangeStatuses[].productOrderId"
+      ],
+      "codeRef": "shared/platforms/smartstore/orders.py:fetch_orders / iter_changed_product_order_ids"
+    },
+    {
+      "id": "smartstore.order.confirm",
+      "market": "smartstore",
+      "fnKey": "order.confirm",
+      "tabs": [
+        "주문상태"
+      ],
+      "category": "주문",
+      "nm": "발주 확인 처리",
+      "dir": "send",
+      "st": "ok",
+      "endpoint": "POST /external/v1/pay-order/seller/product-orders/confirm",
+      "req": {
+        "body": {
+          "productOrderIds": [
+            "20260710-0000001"
+          ]
+        }
+      },
+      "res": {
+        "data": {
+          "successProductOrderInfos": [
+            {
+              "productOrderId": "20260710-0000001"
+            }
+          ],
+          "failProductOrderInfos": []
+        }
+      },
+      "fields": [
+        {
+          "key": "data.successProductOrderInfos[]",
+          "meaning": "확정된 상품주문번호 — 이 목록이 유일한 성공 검증 신호",
+          "example": "20260710-0000001"
+        },
+        {
+          "key": "data.failProductOrderInfos[].code",
+          "meaning": "실패 코드 (104443=이미 발주확인=멱등 성공으로 처리)",
+          "example": "104443"
+        }
+      ],
+      "success": "HTTP200 이어도 개별 결과는 successProductOrderInfos 로 확인해야 함(거짓성공 금지) — 104443 코드는 이미 원하는 상태라 성공 취급",
+      "idTraps": [
+        "발주확인은 productOrderStatus(PAYED)를 바꾸지 않음 — 상태 되읽기로 검증 불가, 응답의 확정 목록만이 유일한 신호",
+        "실패 목록에 104443 아닌 코드가 있거나 확정 누락이 있으면 코드가 RuntimeError 로 즉시 실패시킴(조용한 실패 금지)"
+      ],
+      "persistIds": [],
+      "codeRef": "shared/platforms/smartstore/orders.py:confirm_orders"
+    },
+    {
+      "id": "smartstore.shipping.send_tracking",
+      "market": "smartstore",
+      "fnKey": "shipping.send_tracking",
+      "tabs": [
+        "배송·송장"
+      ],
+      "category": "주문",
+      "nm": "발송 처리",
+      "dir": "send",
+      "st": "code",
+      "endpoint": "POST /external/v1/pay-order/seller/product-orders/dispatch",
+      "req": {
+        "body": {
+          "dispatchProductOrders": [
+            {
+              "productOrderId": "20260710-0000001",
+              "deliveryMethod": "DELIVERY",
+              "deliveryCompanyCode": "LOGEN",
+              "trackingNumber": "123456789012",
+              "dispatchDate": "2026-07-16T10:00:00.000+09:00"
+            }
+          ]
+        }
+      },
+      "res": {
+        "success": true
+      },
+      "fields": [
+        {
+          "key": "deliveryCompanyCode",
+          "meaning": "네이버 택배사 코드(로젠=LOGEN — 쿠팡 KGB 와 다름)",
+          "example": "LOGEN"
+        }
+      ],
+      "success": "HTTP200",
+      "idTraps": [
+        "필드명은 deliveryCompanyCode(과거 shippingCompany 로 보내던 것은 필드명 오류 — 실전송 이력이 없어 드러나지 않았던 버그)",
+        "같은 송장번호 = 합포장 처리, 최대 30건 한번에",
+        "네이버 코드(로젠=LOGEN)를 쿠팡 코드(로젠=KGB)와 섞으면 실제와 다른 택배사 코드 전송 → 오류",
+        "★라이브 미검증 — 실계정 1건 전송으로 최종 확인 필요(코드 주석)"
+      ],
+      "persistIds": [],
+      "codeRef": "shared/platforms/smartstore/orders.py:send_tracking"
+    },
+    {
+      "id": "smartstore.주문.발송_지연_처리",
+      "market": "smartstore",
+      "fnKey": "주문.발송_지연_처리",
+      "tabs": [
+        "배송·송장"
+      ],
+      "category": "주문",
+      "nm": "발송 지연 처리",
+      "dir": "send",
+      "st": "off",
+      "endpoint": "seller-delay-dispatch-due-date-pay-order-seller",
+      "req": {},
+      "res": {},
+      "fields": [],
+      "success": "",
+      "idTraps": [],
+      "persistIds": [],
+      "codeRef": ""
+    },
+    {
+      "id": "smartstore.주문.배송_희망일_변경_처리",
+      "market": "smartstore",
+      "fnKey": "주문.배송_희망일_변경_처리",
+      "tabs": [
+        "배송·송장"
+      ],
+      "category": "주문",
+      "nm": "배송 희망일 변경 처리",
+      "dir": "send",
+      "st": "off",
+      "endpoint": "seller-change-hope-delivery-pay-order-seller",
+      "req": {},
+      "res": {},
+      "fields": [],
+      "success": "",
+      "idTraps": [],
+      "persistIds": [],
+      "codeRef": ""
+    },
+    {
+      "id": "smartstore.주문.취소_요청",
+      "market": "smartstore",
+      "fnKey": "주문.취소_요청",
+      "tabs": [
+        "클레임·CS"
+      ],
+      "category": "주문",
+      "nm": "취소 요청",
+      "dir": "send",
+      "st": "off",
+      "endpoint": "seller-request-cancel-pay-order-seller",
+      "req": {},
+      "res": {},
+      "fields": [],
+      "success": "",
+      "idTraps": [],
+      "persistIds": [],
+      "codeRef": ""
+    },
+    {
+      "id": "smartstore.주문.취소_요청_승인",
+      "market": "smartstore",
+      "fnKey": "주문.취소_요청_승인",
+      "tabs": [
+        "클레임·CS"
+      ],
+      "category": "주문",
+      "nm": "취소 요청 승인",
+      "dir": "send",
+      "st": "off",
+      "endpoint": "seller-approve-cancel-application-pay-order-seller",
+      "req": {},
+      "res": {},
+      "fields": [],
+      "success": "",
+      "idTraps": [],
+      "persistIds": [],
+      "codeRef": ""
+    },
+    {
+      "id": "smartstore.주문.반품_요청",
+      "market": "smartstore",
+      "fnKey": "주문.반품_요청",
+      "tabs": [
+        "클레임·CS"
+      ],
+      "category": "주문",
+      "nm": "반품 요청",
+      "dir": "send",
+      "st": "off",
+      "endpoint": "seller-request-return-pay-order-seller",
+      "req": {},
+      "res": {},
+      "fields": [],
+      "success": "",
+      "idTraps": [],
+      "persistIds": [],
+      "codeRef": ""
+    },
+    {
+      "id": "smartstore.claim.return.approve",
+      "market": "smartstore",
+      "fnKey": "claim.return.approve",
+      "tabs": [
+        "클레임·CS"
+      ],
+      "category": "주문",
+      "nm": "반품 승인",
+      "dir": "send",
+      "st": "code",
+      "endpoint": "POST /external/v1/pay-order/seller/product-orders/{productOrderId}/claim/return/approve",
+      "req": {
+        "path": {
+          "productOrderId": "20260710-0000001"
+        },
+        "body": {}
+      },
+      "res": {
+        "success": true
+      },
+      "fields": [
+        {
+          "key": "claim_type/action",
+          "meaning": "경로 파라미터 조합(cancel|return|exchange × request|approve|reject|withdraw)",
+          "example": "return/approve"
+        }
+      ],
+      "success": "HTTP200",
+      "idTraps": [
+        "reason_code/reason_text 는 optional(생략 시 body 빈 객체)",
+        "같은 함수(handle_claim)로 취소/반품/교환 3종 × 4개 action 조합을 전부 처리 — 이 항목은 그 중 return/approve 조합"
+      ],
+      "persistIds": [],
+      "codeRef": "shared/platforms/smartstore/orders.py:handle_claim(claim_type='return', action='approve')"
+    },
+    {
+      "id": "smartstore.주문.반품_보류",
+      "market": "smartstore",
+      "fnKey": "주문.반품_보류",
+      "tabs": [
+        "클레임·CS"
+      ],
+      "category": "주문",
+      "nm": "반품 보류",
+      "dir": "send",
+      "st": "off",
+      "endpoint": "seller-holdback-return-pay-order-seller",
+      "req": {},
+      "res": {},
+      "fields": [],
+      "success": "",
+      "idTraps": [],
+      "persistIds": [],
+      "codeRef": ""
+    },
+    {
+      "id": "smartstore.주문.반품_보류_해제",
+      "market": "smartstore",
+      "fnKey": "주문.반품_보류_해제",
+      "tabs": [
+        "클레임·CS"
+      ],
+      "category": "주문",
+      "nm": "반품 보류 해제",
+      "dir": "send",
+      "st": "off",
+      "endpoint": "seller-release-return-holdback-pay-order-seller",
+      "req": {},
+      "res": {},
+      "fields": [],
+      "success": "",
+      "idTraps": [],
+      "persistIds": [],
+      "codeRef": ""
+    },
+    {
+      "id": "smartstore.주문.반품_거부_철회",
+      "market": "smartstore",
+      "fnKey": "주문.반품_거부_철회",
+      "tabs": [
+        "클레임·CS"
+      ],
+      "category": "주문",
+      "nm": "반품 거부(철회)",
+      "dir": "send",
+      "st": "off",
+      "endpoint": "seller-reject-return-pay-order-seller",
+      "req": {},
+      "res": {},
+      "fields": [],
+      "success": "",
+      "idTraps": [],
+      "persistIds": [],
+      "codeRef": ""
+    },
+    {
+      "id": "smartstore.주문.교환_수거_완료",
+      "market": "smartstore",
+      "fnKey": "주문.교환_수거_완료",
+      "tabs": [
+        "클레임·CS"
+      ],
+      "category": "주문",
+      "nm": "교환 수거 완료",
+      "dir": "send",
+      "st": "off",
+      "endpoint": "seller-approve-collected-exchange-pay-order-seller",
+      "req": {},
+      "res": {},
+      "fields": [],
+      "success": "",
+      "idTraps": [],
+      "persistIds": [],
+      "codeRef": ""
+    },
+    {
+      "id": "smartstore.주문.교환_재배송_처리",
+      "market": "smartstore",
+      "fnKey": "주문.교환_재배송_처리",
+      "tabs": [
+        "클레임·CS"
+      ],
+      "category": "주문",
+      "nm": "교환 재배송 처리",
+      "dir": "send",
+      "st": "off",
+      "endpoint": "seller-re-delivery-exchange-pay-order-seller",
+      "req": {},
+      "res": {},
+      "fields": [],
+      "success": "",
+      "idTraps": [],
+      "persistIds": [],
+      "codeRef": ""
+    },
+    {
+      "id": "smartstore.주문.교환_보류",
+      "market": "smartstore",
+      "fnKey": "주문.교환_보류",
+      "tabs": [
+        "클레임·CS"
+      ],
+      "category": "주문",
+      "nm": "교환 보류",
+      "dir": "send",
+      "st": "off",
+      "endpoint": "seller-holdback-exchange-pay-order-seller",
+      "req": {},
+      "res": {},
+      "fields": [],
+      "success": "",
+      "idTraps": [],
+      "persistIds": [],
+      "codeRef": ""
+    },
+    {
+      "id": "smartstore.주문.교환_보류_해제",
+      "market": "smartstore",
+      "fnKey": "주문.교환_보류_해제",
+      "tabs": [
+        "클레임·CS"
+      ],
+      "category": "주문",
+      "nm": "교환 보류 해제",
+      "dir": "send",
+      "st": "off",
+      "endpoint": "seller-release-exchange-holdback-pay-order-seller",
+      "req": {},
+      "res": {},
+      "fields": [],
+      "success": "",
+      "idTraps": [],
+      "persistIds": [],
+      "codeRef": ""
+    },
+    {
+      "id": "smartstore.주문.교환_거부_철회",
+      "market": "smartstore",
+      "fnKey": "주문.교환_거부_철회",
+      "tabs": [
+        "클레임·CS"
+      ],
+      "category": "주문",
+      "nm": "교환 거부(철회)",
+      "dir": "send",
+      "st": "off",
+      "endpoint": "seller-reject-exchange-pay-order-seller",
+      "req": {},
+      "res": {},
+      "fields": [],
+      "success": "",
+      "idTraps": [],
+      "persistIds": [],
+      "codeRef": ""
+    },
+    {
+      "id": "smartstore.커머스솔루션.비즈월렛_결제_내역_조회",
+      "market": "smartstore",
+      "fnKey": "커머스솔루션.비즈월렛_결제_내역_조회",
+      "tabs": [
+        "정산"
+      ],
+      "category": "커머스솔루션",
+      "nm": "비즈월렛 결제 내역 조회",
+      "dir": "recv",
+      "st": "off",
+      "endpoint": "get-transactions-merchant",
+      "req": {},
+      "res": {},
+      "fields": [],
+      "success": "",
+      "idTraps": [],
+      "persistIds": [],
+      "codeRef": ""
+    },
+    {
+      "id": "smartstore.커머스솔루션.솔루션_사용_상태_조회",
+      "market": "smartstore",
+      "fnKey": "커머스솔루션.솔루션_사용_상태_조회",
+      "tabs": [
+        "정산"
+      ],
+      "category": "커머스솔루션",
+      "nm": "솔루션 사용 상태 조회",
+      "dir": "recv",
+      "st": "off",
+      "endpoint": "get-subscription-merchant",
+      "req": {},
+      "res": {},
+      "fields": [],
+      "success": "",
+      "idTraps": [],
+      "persistIds": [],
+      "codeRef": ""
+    },
+    {
+      "id": "smartstore.커머스솔루션.솔루션_사용_시작_승인",
+      "market": "smartstore",
+      "fnKey": "커머스솔루션.솔루션_사용_시작_승인",
+      "tabs": [
+        "정산"
+      ],
+      "category": "커머스솔루션",
+      "nm": "솔루션 사용 시작 승인",
+      "dir": "send",
+      "st": "off",
+      "endpoint": "approve-subscription-merchant",
+      "req": {},
+      "res": {},
+      "fields": [],
+      "success": "",
+      "idTraps": [],
+      "persistIds": [],
+      "codeRef": ""
+    },
+    {
+      "id": "smartstore.커머스솔루션.솔루션_사용_시작_거절",
+      "market": "smartstore",
+      "fnKey": "커머스솔루션.솔루션_사용_시작_거절",
+      "tabs": [
+        "정산"
+      ],
+      "category": "커머스솔루션",
+      "nm": "솔루션 사용 시작 거절",
+      "dir": "send",
+      "st": "off",
+      "endpoint": "reject-subscription-merchant",
+      "req": {},
+      "res": {},
+      "fields": [],
+      "success": "",
+      "idTraps": [],
+      "persistIds": [],
+      "codeRef": ""
+    },
+    {
+      "id": "smartstore.커머스솔루션.솔루션_사용_해지_승인",
+      "market": "smartstore",
+      "fnKey": "커머스솔루션.솔루션_사용_해지_승인",
+      "tabs": [
+        "정산"
+      ],
+      "category": "커머스솔루션",
+      "nm": "솔루션 사용 해지 승인",
+      "dir": "send",
+      "st": "off",
+      "endpoint": "approve-unsubscription-merchant",
+      "req": {},
+      "res": {},
+      "fields": [],
+      "success": "",
+      "idTraps": [],
+      "persistIds": [],
+      "codeRef": ""
+    },
+    {
+      "id": "smartstore.커머스솔루션.솔루션_사용_중지",
+      "market": "smartstore",
+      "fnKey": "커머스솔루션.솔루션_사용_중지",
+      "tabs": [
+        "정산"
+      ],
+      "category": "커머스솔루션",
+      "nm": "솔루션 사용 중지",
+      "dir": "send",
+      "st": "off",
+      "endpoint": "force-unsubscription-merchant",
+      "req": {},
+      "res": {},
+      "fields": [],
+      "success": "",
+      "idTraps": [],
+      "persistIds": [],
+      "codeRef": ""
+    },
+    {
+      "id": "smartstore.커머스솔루션.외부_개발사_자체_결제_내역_전송",
+      "market": "smartstore",
+      "fnKey": "커머스솔루션.외부_개발사_자체_결제_내역_전송",
+      "tabs": [
+        "정산"
+      ],
+      "category": "커머스솔루션",
+      "nm": "외부 개발사 자체 결제 내역 전송",
+      "dir": "send",
+      "st": "off",
+      "endpoint": "send-transaction-external-merchant",
+      "req": {},
+      "res": {},
+      "fields": [],
+      "success": "",
+      "idTraps": [],
+      "persistIds": [],
+      "codeRef": ""
+    },
+    {
+      "id": "smartstore.커머스솔루션.판매자_인증_JWE_해석",
+      "market": "smartstore",
+      "fnKey": "커머스솔루션.판매자_인증_JWE_해석",
+      "tabs": [
+        "정산"
+      ],
+      "category": "커머스솔루션",
+      "nm": "판매자 인증 JWE 해석",
+      "dir": "recv",
+      "st": "off",
+      "endpoint": "get-seller-info-by-token-merchant",
+      "req": {},
+      "res": {},
+      "fields": [],
+      "success": "",
+      "idTraps": [],
+      "persistIds": [],
+      "codeRef": ""
+    },
+    {
+      "id": "smartstore.판매자정보.계정_정보_조회",
+      "market": "smartstore",
+      "fnKey": "판매자정보.계정_정보_조회",
+      "tabs": [
+        "상품 관리"
+      ],
+      "category": "판매자정보",
+      "nm": "계정 정보 조회",
+      "dir": "recv",
+      "st": "off",
+      "endpoint": "get-account-info-by-account-no-sellers",
+      "req": {},
+      "res": {},
+      "fields": [],
+      "success": "",
+      "idTraps": [],
+      "persistIds": [],
+      "codeRef": ""
+    },
+    {
+      "id": "smartstore.판매자정보.계정으로_채널_정보_조회",
+      "market": "smartstore",
+      "fnKey": "판매자정보.계정으로_채널_정보_조회",
+      "tabs": [
+        "상품 관리"
+      ],
+      "category": "판매자정보",
+      "nm": "계정으로 채널 정보 조회",
+      "dir": "recv",
+      "st": "off",
+      "endpoint": "get-channels-by-account-no-sellers",
+      "req": {},
+      "res": {},
+      "fields": [],
+      "success": "",
+      "idTraps": [],
+      "persistIds": [],
+      "codeRef": ""
+    },
+    {
+      "id": "smartstore.판매자정보.물류사_연동_정보_조회",
+      "market": "smartstore",
+      "fnKey": "판매자정보.물류사_연동_정보_조회",
+      "tabs": [
+        "배송·송장"
+      ],
+      "category": "판매자정보",
+      "nm": "물류사 연동 정보 조회",
+      "dir": "recv",
+      "st": "off",
+      "endpoint": "get-logistics-companies-nfa",
+      "req": {},
+      "res": {},
+      "fields": [],
+      "success": "",
+      "idTraps": [],
+      "persistIds": [],
+      "codeRef": ""
+    },
+    {
+      "id": "smartstore.판매자정보.판매자_창고_정보_조회",
+      "market": "smartstore",
+      "fnKey": "판매자정보.판매자_창고_정보_조회",
+      "tabs": [
+        "배송·송장"
+      ],
+      "category": "판매자정보",
+      "nm": "판매자 창고 정보 조회",
+      "dir": "recv",
+      "st": "off",
+      "endpoint": "get-outbound-locations-nfa",
+      "req": {},
+      "res": {},
+      "fields": [],
+      "success": "",
+      "idTraps": [],
+      "persistIds": [],
+      "codeRef": ""
+    },
+    {
+      "id": "smartstore.판매자정보.오늘출발_설정_정보_조회",
+      "market": "smartstore",
+      "fnKey": "판매자정보.오늘출발_설정_정보_조회",
+      "tabs": [
+        "배송·송장"
+      ],
+      "category": "판매자정보",
+      "nm": "오늘출발 설정 정보 조회",
+      "dir": "recv",
+      "st": "off",
+      "endpoint": "get-today-dispatch-sellers",
+      "req": {},
+      "res": {},
+      "fields": [],
+      "success": "",
+      "idTraps": [],
+      "persistIds": [],
+      "codeRef": ""
+    },
+    {
+      "id": "smartstore.판매자정보.오늘출발_정보_설정",
+      "market": "smartstore",
+      "fnKey": "판매자정보.오늘출발_정보_설정",
+      "tabs": [
+        "배송·송장"
+      ],
+      "category": "판매자정보",
+      "nm": "오늘출발 정보 설정",
+      "dir": "send",
+      "st": "off",
+      "endpoint": "modify-today-dispatch-sellers",
+      "req": {},
+      "res": {},
+      "fields": [],
+      "success": "",
+      "idTraps": [],
+      "persistIds": [],
+      "codeRef": ""
+    },
+    {
+      "id": "smartstore.판매자정보.주소록_목록_조회",
+      "market": "smartstore",
+      "fnKey": "판매자정보.주소록_목록_조회",
+      "tabs": [
+        "배송·송장"
+      ],
+      "category": "판매자정보",
+      "nm": "주소록 목록 조회",
+      "dir": "recv",
+      "st": "off",
+      "endpoint": "get-page-addresses-sellers",
+      "req": {},
+      "res": {},
+      "fields": [],
+      "success": "",
+      "idTraps": [],
+      "persistIds": [],
+      "codeRef": ""
+    },
+    {
+      "id": "smartstore.판매자정보.주소록_단건_조회",
+      "market": "smartstore",
+      "fnKey": "판매자정보.주소록_단건_조회",
+      "tabs": [
+        "배송·송장"
+      ],
+      "category": "판매자정보",
+      "nm": "주소록 단건 조회",
+      "dir": "recv",
+      "st": "off",
+      "endpoint": "get-address-sellers",
+      "req": {},
+      "res": {},
+      "fields": [],
+      "success": "",
+      "idTraps": [],
+      "persistIds": [],
+      "codeRef": ""
+    }
+  ]
 }
