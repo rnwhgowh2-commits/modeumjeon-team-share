@@ -29,12 +29,36 @@ def _server_key_on() -> bool:
     return live_upload_enabled()
 
 
-def run(skus, *, want_live: bool, confirmed: bool, force: bool = False) -> dict:
+def scope_c_output_to_markets(c_output: dict, markets) -> dict:
+    """C 페이로드를 선택 마켓으로만 스코프(순수). 실제 전송도 선택 마켓에 한정.
+
+    markets 가 비었으면(None/[]) 원본 그대로. 아니면 'alerts' 키는 보존하고,
+    각 마켓 키는 markets 에 포함된 것만 payload 를 유지하고 나머지는 빈 dict {} 로
+    비운다 — run_uploader 는 c_output.get(market) 를 돌므로 빈 dict = 그 마켓 미전송.
+    원본 dict 는 변경하지 않는다(부작용 없음).
+    """
+    if not markets:
+        return c_output
+    keep = set(markets)
+    out: dict = {}
+    for key, val in c_output.items():
+        if key == "alerts":
+            out[key] = val                 # alerts 보존
+        elif key in keep:
+            out[key] = val                 # 선택 마켓 payload 유지
+        else:
+            out[key] = {}                  # 미선택 마켓 → 빈 dict(미전송)
+    return out
+
+
+def run(skus, *, want_live: bool, confirmed: bool, force: bool = False,
+        markets=None) -> dict:
     """스코프 원샷 전송. use_real 이면 실어댑터, 아니면 드라이런. 결과 dict 반환.
 
     지정 skus(canonical_sku)만 build_c_output(only_skus=)로 스코프 → 다른 상품은
-    후보에 들어가지 않는다. automation=None(변동종류 토글 미적용, 전량 후보).
-    persist=use_real — 드라이런은 커밋하지 않아 기준선 오염 없음.
+    후보에 들어가지 않는다. markets 를 주면(비었으면 전 마켓) 선택 마켓으로도 스코프해
+    실제 전송이 미선택 마켓으로 새지 않게 한다. automation=None(변동종류 토글 미적용,
+    전량 후보). persist=use_real — 드라이런은 커밋하지 않아 기준선 오염 없음.
     """
     from shared.db import SessionLocal
     from lemouton.uploader.runtime import select_adapters, build_sku_by_option
@@ -46,6 +70,7 @@ def run(skus, *, want_live: bool, confirmed: bool, force: bool = False) -> dict:
     session = SessionLocal()
     try:
         c_output = build_c_output(session, only_skus=list(skus))
+        c_output = scope_c_output_to_markets(c_output, markets)   # 선택 마켓으로도 스코프
         sku_by_option = build_sku_by_option(session)
         adapters = select_adapters(live=use_real)
         dlq_path = os.path.join(

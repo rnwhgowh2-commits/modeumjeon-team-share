@@ -90,7 +90,8 @@ def api_send():
 
     want_live 은 이 화면 성격상 항상 True(실전송 의도). confirmed 는 사용자 확인 체크,
     서버키는 배포 env — 셋 다 참일 때만 실어댑터. 그 외엔 안전하게 드라이런.
-    markets 는 결과 표시 필터(대상 SKU 스코프는 run 이 보장).
+    markets 는 run 에 전달해 대상 SKU + 선택 마켓 둘 다로 실제 전송을 스코프한다
+    (미선택 마켓으로 전송이 새지 않음).
     """
     payload = request.get_json(silent=True) or {}
     set_id = payload.get("set_id")
@@ -105,19 +106,12 @@ def api_send():
     finally:
         session.close()
 
-    out = run(skus, want_live=True, confirmed=confirmed)
-
-    # 결과 preview 를 선택 마켓으로만 필터(표시용). 대상 SKU 스코프는 run 이 이미 보장.
-    result = out["result"]
-    preview = result.get("preview") or {}
-    if markets:
-        preview = {m: v for m, v in preview.items() if m in set(markets)}
-    result = {**result, "preview": preview}
+    out = run(skus, want_live=True, confirmed=confirmed, markets=markets)
 
     return jsonify({
         "ok": True,
         "use_real": out["use_real"],
         "refusal": out["refusal"],
         "skus": out["skus"],
-        "result": result,
+        "result": out["result"],
     })

@@ -11,6 +11,7 @@ from shared.db import Base
 from lemouton.sets.models import ProductSet, SetProduct, SetOption
 from lemouton.uploader.scoped_send import (
     resolve_send_mode, skus_for_set, _keep_market, _preview_row,
+    scope_c_output_to_markets,
 )
 
 
@@ -72,6 +73,23 @@ def test_preview_row_unchanged_when_equal():
     u = {"market": "coupang", "canonical_sku": "SKU_B", "market_option_id": "opt2"}
     row = _preview_row(u, old_price=5000, old_stock=3, new_price=5000, new_stock=3)
     assert row["changed"] is False
+
+
+# ── scope_c_output_to_markets (순수) — 실제 전송도 선택 마켓으로 스코프 ──────────
+def test_scope_c_output_keeps_only_selected_markets():
+    c = {"smartstore": {"M": {}}, "coupang": {"M": {}}, "alerts": [1]}
+    out = scope_c_output_to_markets(c, ["smartstore"])
+    assert out["smartstore"] == {"M": {}}   # 선택 마켓 payload 유지
+    assert out["coupang"] == {}             # 미선택 마켓 → 빈 dict(그 마켓 미전송)
+    assert out["alerts"] == [1]             # alerts 는 보존
+    # 원본 불변(부작용 없음)
+    assert c["coupang"] == {"M": {}}
+
+
+def test_scope_c_output_empty_or_none_returns_original():
+    c = {"smartstore": {"M": {}}, "coupang": {"M": {}}, "alerts": [1]}
+    assert scope_c_output_to_markets(c, []) == c
+    assert scope_c_output_to_markets(c, None) == c
 
 
 # ── skus_for_set (얇은 DB) ───────────────────────────────────────────────────
