@@ -299,14 +299,34 @@ async function handleLotteonAutoLogin(payload) {
 }
 
 async function handleLotteonLogout() {
+  // ★확실한 로그아웃 = 롯데온 세션 쿠키 클리어(판매자센터 로그아웃 버튼은 WebSquare 내부이벤트라
+  //   DOM 조작으로 안 터진다). 쿠키 기반 세션이라 쿠키 제거 → 다음 요청 미인증 → 로그아웃.
+  let cleared = 0;
+  try {
+    const domains = ["lotteon.com", ".lotteon.com", "store.lotteon.com", "soapi.lotteon.com"];
+    const seen = new Set();
+    for (const d of domains) {
+      let list = [];
+      try { list = await chrome.cookies.getAll({ domain: d }); } catch (_) {}
+      for (const c of list) {
+        const host = c.domain.replace(/^\./, "");
+        const url = (c.secure ? "https://" : "http://") + host + (c.path || "/");
+        const key = url + "|" + c.name;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        try { await chrome.cookies.remove({ url: url, name: c.name }); cleared++; } catch (_) {}
+      }
+    }
+  } catch (e) { return { ok: false, error: "쿠키 클리어 실패: " + String(e) }; }
+  // 열린 탭이 있으면 로그인 페이지로 이동(세션 무효 반영)
   const tab = (await chrome.tabs.query({ url: "https://store.lotteon.com/*" }))[0];
-  if (!tab) return { ok: true, note: "열린 탭 없음(이미 로그아웃 상태로 간주)" };
-  // 로그아웃 링크 클릭 시도(MAIN) → 없으면 로그인 페이지로 이동(세션 종료 유도)
-  const r = await _loInject(tab.id, lotteonLogoutInPage, []);
-  try { await waitTabComplete(tab.id, 20000); } catch (_) {}
-  await new Promise((res) => setTimeout(res, 1000));
-  const st = await _loInject(tab.id, lotteonCheckStateInPage, []);
-  return { ok: true, loggedOut: !!(st && !st.loggedIn), clicked: !!(r && r.clicked) };
+  if (tab) {
+    try { await chrome.tabs.update(tab.id, { url: _LO_LOGIN_URL }); await waitTabComplete(tab.id, 20000); } catch (_) {}
+    await new Promise((res) => setTimeout(res, 800));
+    const st = await _loInject(tab.id, lotteonCheckStateInPage, []);
+    return { ok: true, cleared: cleared, loggedOut: !!(st && !st.loggedIn) };
+  }
+  return { ok: true, cleared: cleared, loggedOut: true };
 }
 
 // MAIN world — 로그인 상태 판정. 외부 스코프 참조 금지.
@@ -363,21 +383,6 @@ function lotteonFillLoginInPage(loginId, password) {
   } catch (e) { return { submitted: false, error: String(e) }; }
 }
 
-// MAIN world — 로그아웃 링크 클릭(있으면). 없으면 클릭 안 함(핸들러가 로그인 페이지로 유도).
-function lotteonLogoutInPage() {
-  try {
-    var cands = Array.prototype.slice.call(document.querySelectorAll("a,button,[onclick]"));
-    for (var i = 0; i < cands.length; i++) {
-      var t = (cands[i].textContent || "").trim();
-      if ((t === "로그아웃" || t === "LOGOUT" || t === "Logout") && cands[i].offsetParent !== null) {
-        cands[i].click(); return { clicked: true };
-      }
-    }
-    // 로그아웃 버튼 못 찾으면 로그인 페이지로 이동(세션 만료 유도)
-    location.href = "https://store.lotteon.com/cm/main/login_SO.wsp";
-    return { clicked: false };
-  } catch (e) { return { clicked: false, error: String(e) }; }
-}
 
 // ── [스파이크 2026-07-07] 무신사 창없는 재고·가격 probe (서비스워커 직접 fetch) ──
 //   목적: musinsaExtractor(탭 컨텍스트)와 동일한 API를 SW에서 호출해 200 되는지 실측.
