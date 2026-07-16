@@ -75,6 +75,20 @@ def acknowledge(claim_key, *, market="", order_no="", claim_type="", session=Non
             session.close()
 
 
+def unacknowledge(claim_key, *, market="", order_no="", claim_type="", session=None):
+    """「되돌리기」 — acknowledged_at 제거 → 대응중에서 다시 신규요청으로. 메모는 유지."""
+    own = session is None
+    session = session or SessionLocal()
+    try:
+        row = session.query(ClaimHandling).filter_by(claim_key=claim_key).one_or_none()
+        if row is not None and row.acknowledged_at is not None:
+            row.acknowledged_at = None
+            session.commit()
+    finally:
+        if own:
+            session.close()
+
+
 def save_memo(claim_key, memo, *, market="", order_no="", claim_type="", session=None):
     own = session is None
     session = session or SessionLocal()

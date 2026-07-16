@@ -56,6 +56,20 @@ def test_acknowledge_and_memo_upsert(session):
     assert session.query(ClaimHandling).filter_by(claim_key="롯데온:LO1:반품").count() == 1
 
 
+def test_unacknowledge_reverts_to_new(session):
+    """되돌리기 — acknowledged_at 제거로 대응중→신규요청 복귀, 메모는 유지."""
+    from lemouton.claims import service as sv
+    from lemouton.claims.models import ClaimHandling
+    sv.acknowledge("쿠팡:C1:반품", market="쿠팡", order_no="C1", claim_type="반품", session=session)
+    sv.save_memo("쿠팡:C1:반품", "메모유지", session=session)
+    assert session.query(ClaimHandling).filter_by(claim_key="쿠팡:C1:반품").one().acknowledged_at is not None
+    sv.unacknowledge("쿠팡:C1:반품", session=session)
+    got = session.query(ClaimHandling).filter_by(claim_key="쿠팡:C1:반품").one()
+    assert got.acknowledged_at is None and got.memo == "메모유지"       # 확인만 풀리고 메모 유지
+    assert sv.derive_stage({"주문상태": "반품요청"}, acknowledged=bool(got.acknowledged_at)) == "신규요청"
+    sv.unacknowledge("쿠팡:NOPE:반품", session=session)                 # 없는 키 = 조용히 무시(에러 없음)
+
+
 def test_list_claims_groups_and_counts(session, monkeypatch):
     from lemouton.claims import service as sv
     import datetime as dt
