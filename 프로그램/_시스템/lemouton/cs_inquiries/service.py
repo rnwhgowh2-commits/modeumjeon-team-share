@@ -23,8 +23,11 @@ from shared.platforms.lotteon.inquiries import (
     iter_product_qna as _lo_pdqna,
     iter_seller_inquiries as _lo_seller,
 )
+from shared.platforms.eleven11.inquiries import (
+    iter_product_qna as _e11_pdqna,
+)
 
-_SUPPORTED = {"coupang", "smartstore", "lotteon"}   # 실조회 코드 있음. 11번가=준비중
+_SUPPORTED = {"coupang", "smartstore", "lotteon", "eleven11"}   # 실조회 코드 있음
 _MK_KO = {"coupang": "쿠팡", "smartstore": "스마트스토어", "lotteon": "롯데온", "eleven11": "11번가"}
 
 
@@ -125,6 +128,19 @@ def _normalize_lotteon_seller_inq(it):
             "일시": _g(it, "accpDttm"),
             "상태": "답변완료" if st == "ANS" else "미답변",
             "답변내용": _g(it, "ansCnts"), "답변일": _g(it, "procDttm")}
+
+
+def _normalize_eleven11_qna(it):
+    """11번가 상품 QnA(상품문의). ★셀러 API 실측 필드(XML)."""
+    ttl = _g(it, "brdInfoSbjct")
+    body = _g(it, "brdInfoCont")
+    cat = _g(it, "qnaDtlsCdNm")
+    return {"마켓": "11번가", "문의형태": "상품문의", "문의ID": str(_g(it, "brdInfoNo")),
+            "고객": _g(it, "memNM", "memID"), "상품": _g(it, "prdNm", "brdInfoClfNo"),
+            "문의내용": (f"[{cat}] {ttl} · {body}" if ttl else (f"[{cat}] {body}" if cat else body)),
+            "일시": _g(it, "createDt"),
+            "상태": "답변완료" if _g(it, "answerYn") == "Y" else "미답변",
+            "답변내용": _g(it, "answerCont"), "답변일": _g(it, "answerDt")}
 
 
 def _acct_clients(market):
@@ -252,6 +268,14 @@ def _fetch_market(market, since, until, status):
             try:   # 판매자문의
                 out.extend(_normalize_lotteon_seller_inq(it) for it in _lo_seller(since, until, client=_cli))
             except Exception:   # noqa: BLE001
+                pass
+        return out
+    if market == "eleven11":
+        out = []
+        for _cli in _acct_clients("eleven11"):
+            try:   # 상품 QnA(상품문의). ★긴급문의·11톡은 스펙 확보 후 추가
+                out.extend(_normalize_eleven11_qna(it) for it in _e11_pdqna(since, until, client=_cli))
+            except Exception:   # noqa: BLE001 — 한 계정/종류 실패는 나머지 유지
                 pass
         return out
     raise RuntimeError(f"{_MK_KO.get(market, market)} 문의 연동 준비 중")
