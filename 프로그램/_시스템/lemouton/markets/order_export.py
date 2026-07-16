@@ -198,45 +198,30 @@ def smartstore_order_rows(since: _dt.datetime, until: _dt.datetime,
     #   창밖 여분 행은 하류 _filter_by_order_date(마진)·probe want 셋(검증)이 주문일로 되잘라낸다.
     fetch_until = _until_now(until)
     ids = iter_changed_product_order_ids(since, fetch_until, client=client)
+    detail = []
+    for i in range(0, len(ids), 300):
+        d = fetch_order_detail(ids[i:i + 300], client=client)
+        detail += (d.get("data", d) if isinstance(d, dict) else d) or []
 
-    # ── 병렬 조회(속도) — 상세(배치)와 정산(하루씩)은 서로 독립이라 한 스레드풀에서 동시에 쏜다.
-    #   스스 AdaptiveLimiter(스레드락 토큰버킷·429 응답 시 rate 반감)가 요청률을 자기조정하므로
-    #   바운드 4워커면 429 위험 없이 겹친 왕복만 줄인다. 결과 병합은 순차와 동일:
-    #   detail 은 배치 순서대로 concat, deliv_settle 은 날짜 무관 누산(가산·교환법칙).
-    #   정산(하루씩)이 넓은 조회창에서 타임아웃의 주원인 → 여기서 가장 크게 단축된다.
-    _id_batches = [ids[i:i + 300] for i in range(0, len(ids), 300)]
-    _settle_days = []
-    if include_settlement:
-        _d = since
-        while _d <= until:
-            _settle_days.append(_d)
-            _d += _dt.timedelta(days=1)
-
-    def _ss_detail(batch):
-        d = fetch_order_detail(batch, client=client)
-        return (d.get("data", d) if isinstance(d, dict) else d) or []
-
-    def _ss_settle_day(day):
+    # 정산(결제일 기준, 하루씩): 상품(productOrderId) + 배송비(DELIVERY→orderId) 별도 맵.
+    # include_settlement=False(배송검사 등 주문상태·송장만 필요) 면 이 하루씩 루프를 건너뛴다
+    # — 넓은 조회창에서 하루씩 정산 호출이 타임아웃의 원인.
+    # ⚠️ 스마트스토어는 병렬 조회 시 429(어댑티브 리미터·IP 기준)로 rate 가 반감돼 오히려 느려지고
+    #    다른 스스 작업까지 위협하는 전례가 있어(라이브 실측) 순차 유지. 속도개선은 서버 캐시(use_cache)
+    #    와 프론트 캐시·프리페치로 얻는다. 쿠팡은 단순 토큰버킷이라 병렬화 유지(별개).
+    prod_settle, deliv_settle = {}, {}
+    day = since
+    while include_settlement and day <= until:
         try:
-            return _settle.settle_expect_maps(
+            p, d = _settle.settle_expect_maps(
                 search_date=day.strftime("%Y-%m-%d"),
                 period_type="SETTLE_CASEBYCASE_PAY_DATE", client=client)
+            prod_settle.update(p)
+            for k, v in d.items():
+                deliv_settle[k] = deliv_settle.get(k, 0) + v
         except Exception:
-            return ({}, {})
-
-    detail = []
-    prod_settle, deliv_settle = {}, {}
-    if _id_batches or _settle_days:
-        with _ThreadPool(max_workers=4) as _ex:
-            _fut_detail = [_ex.submit(_ss_detail, b) for b in _id_batches]
-            _fut_days = [_ex.submit(_ss_settle_day, d) for d in _settle_days]
-            for _f in _fut_detail:                     # 배치 순서 보존 = 순차와 동일
-                detail += _f.result()
-            for _f in _fut_days:
-                p, d = _f.result()
-                prod_settle.update(p)
-                for k, v in d.items():
-                    deliv_settle[k] = deliv_settle.get(k, 0) + v
+            pass
+        day += _dt.timedelta(days=1)
 
     rows = []
     _deliv_used = set()   # 배송비 정산은 주문당 1회만 더함
