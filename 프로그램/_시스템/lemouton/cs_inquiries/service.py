@@ -43,10 +43,12 @@ def _g(d, *keys, default=""):
 def _normalize_coupang(it):
     answered = bool(_g(it, "answered", "answeredAt", default="")) or _g(it, "answeredType") == "ANSWERED"
     return {"마켓": "쿠팡", "문의형태": "온라인문의", "문의ID": str(_g(it, "inquiryId", "onlineInquiryId")),
-            "고객": _g(it, "buyerName", "memberId"), "상품": _g(it, "sellerProductName", "productName"),
-            "문의내용": _g(it, "content", "inquiryContent"), "일시": _g(it, "inquiryAt", "createdAt"),
+            "고객": _g(it, "buyerName", "orderer", "name", "writerName", "custName", "buyerEmail", "memberId"),
+            "상품": _g(it, "sellerProductName", "productName", "vendorItemName", "sellerItemName", "itemName", "sellerProductItemName"),
+            "문의내용": _g(it, "content", "inquiryContent", "question"), "일시": _g(it, "inquiryAt", "createdAt", "receiptDate"),
             "상태": "답변완료" if answered else "미답변", "답변내용": _g(it, "replyContent", "answerContent"),
-            "답변일": _g(it, "answeredAt", "replyAt")}
+            "답변일": _g(it, "answeredAt", "replyAt"),
+            "_ck": ",".join(sorted(it.keys())) if isinstance(it, dict) else ""}   # TEMP: 실제 응답 키 확인용(제거 예정)
 
 
 def _normalize_smartstore(it):
