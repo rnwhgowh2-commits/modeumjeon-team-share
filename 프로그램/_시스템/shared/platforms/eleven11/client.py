@@ -122,6 +122,10 @@ class Eleven11Client:
             self._limiter.acquire()
             url = self._url(path)
             headers = self._headers()
+            if body is None:
+                # 본문 없는 GET 에 요청 Content-Type 을 실으면 일부 서비스가 415 로 거부
+                # (예: prodqnaservices). GET 은 요청 Content-Type 이 무의미 → 제거.
+                headers.pop("Content-Type", None)
 
             try:
                 resp = requests.request(
