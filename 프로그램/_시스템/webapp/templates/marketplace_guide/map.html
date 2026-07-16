@@ -333,7 +333,7 @@ const MKT_CATS={
       {nm:'자동생성옵션 비활성화(전체단위)',dir:'send',st:'off',code:'27246230561177'},
     ]},
     {g:'배송·환불',items:[
-      {nm:'발주서 목록 조회(일단위)',dir:'recv',st:'code',code:'360033919573'},
+      {nm:'발주서 목록 조회(일단위)',dir:'recv',st:'ok',code:'360033919573 · coupang_order_rows (주문 라이브)'},
       {nm:'발주서 목록 조회(분단위)',dir:'recv',st:'code',code:'360033792774'},
       {nm:'발주서 단건 조회(shipmentBoxId)',dir:'recv',st:'code',code:'360033792854'},
       {nm:'발주서 단건 조회(orderId)',dir:'recv',st:'off',code:'360034320553'},
@@ -393,7 +393,7 @@ const MKT_CATS={
       {nm:'고객센터 문의확인',dir:'send',st:'off',code:'360034204013'},
     ]},
     {g:'정산',items:[
-      {nm:'매출내역 조회(정산금액)',dir:'recv',st:'code',code:'360033922413'},
+      {nm:'매출내역 조회(정산금액)',dir:'recv',st:'ok',code:'360033922413 · 정산 조인(주문내역 정산금액 라이브)'},
       {nm:'지급내역 조회',dir:'recv',st:'off',code:'360034152213'},
     ]},
     {g:'로켓그로스',items:[
@@ -458,7 +458,7 @@ const MKT_CATS={
       {nm:'(v2) 원상품 삭제',dir:'send',st:'code',code:'delete-origin-product-product'},
       {nm:'상품 옵션 재고 변경',dir:'send',st:'ok',code:'update-options-product'},
       {nm:'판매 상태 변경',dir:'send',st:'ok',code:'read-channel-product-product'},
-      {nm:'상품 목록 조회',dir:'recv',st:'code',code:'search-product'},
+      {nm:'상품 목록 조회',dir:'recv',st:'ok',code:'search-product · 상품 매칭·조회 라이브'},
       {nm:'멀티 상품 변경',dir:'send',st:'off',code:'update-multi-products-product'},
       {nm:'(v2) 채널 상품 조회',dir:'recv',st:'ok',code:'read-channel-product-1-product'},
       {nm:'(v2) 채널 상품 수정',dir:'send',st:'off',code:'update-channel-product-product'},
@@ -518,7 +518,7 @@ const MKT_CATS={
       {nm:'패션모델 삭제',dir:'send',st:'off',code:'delete-fashion-model-product'},
     ]},
     {g:'정산',items:[
-      {nm:'건별 정산 내역 조회(정산금액)',dir:'recv',st:'code',code:'find-settle-by-case-pay-settle'},
+      {nm:'건별 정산 내역 조회(정산금액)',dir:'recv',st:'ok',code:'find-settle-by-case-pay-settle · 스스 정산 라이브'},
       {nm:'수수료 상세 내역 조회',dir:'recv',st:'off',code:'find-commission-details-pay-settle'},
       {nm:'일별 정산 내역 조회',dir:'recv',st:'off',code:'find-daily-settle-pay-settle'},
       {nm:'건별 부가세 내역 조회',dir:'recv',st:'off',code:'find-vat-declaration-by-case-pay-settle'},
@@ -662,14 +662,14 @@ const MKT_CATS={
       {nm:'판매자 보상승인여부 등록',dir:'send',st:'off',code:'apiNo=218'},
     ]},
     {g:'배송',items:[
-      {nm:'출고/회수지시(주문정보) 조회',dir:'recv',st:'code',code:'apiNo=209'},
+      {nm:'출고/회수지시(주문정보) 조회',dir:'recv',st:'ok',code:'apiNo=209 · lotteon_order_rows (주문 라이브)'},
       {nm:'출고/회수지시 연동완료 통보',dir:'send',st:'off',code:'apiNo=210'},
       {nm:'배송상태 통보',dir:'send',st:'ok',code:'apiNo=137 · SellerDeliveryProgressStateInform · shipping.set_preparing(12상품준비=자동전환)·send_tracking(13발송)'},
       {nm:'배송상태 통보 V2',dir:'send',st:'off',code:'apiNo=298'},
       {nm:'발송약정일 통보',dir:'send',st:'off',code:'apiNo=138'},
       {nm:'운송장수정 통보',dir:'send',st:'off',code:'apiNo=139'},
       {nm:'회수예외 통보',dir:'send',st:'off',code:'apiNo=141'},
-      {nm:'롯데ON배송상태 조회',dir:'recv',st:'off',code:'apiNo=140'},
+      {nm:'롯데ON배송상태 조회',dir:'recv',st:'ok',code:'apiNo=140 · iter_progress_states (배송단계·송장 라이브)'},
       {nm:'e쿠폰 발송/재발송 목록 조회',dir:'recv',st:'off',code:'apiNo=163'},
       {nm:'e쿠폰 발송 결과 등록',dir:'send',st:'off',code:'apiNo=164'},
       {nm:'e쿠폰 사용/취소/불가 등록',dir:'send',st:'off',code:'apiNo=165'},
