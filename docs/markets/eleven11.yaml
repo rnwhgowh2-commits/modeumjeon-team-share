@@ -44,9 +44,15 @@ endpoints:
   fetch_orders:  "GET /rest/ordservices/complete/{start}/{end} (발송대기·결제완료, 구현됨) + GET /rest/ordservices/completed/{start}/{end} (구매확정, 구현됨) — 두 목록 병합"
   fetch_options: "TODO(조사필요 — 셀러 REST 상품/옵션 상세조회)"
   get_detail:    "TODO(조사필요 — 상품 상세조회)"
-  update_price:  "TODO(조사필요 — 가격 수정)"
-  update_stock:  "TODO(조사필요 — 재고 수정)"
+  # ★ 확보(콘솔 추출, 2026-07-16) — 구현됨. 성공 resultCode 정확값은 라이브(승인+IP) 확정 대상.
+  update_price:  "GET /rest/prodservices/product/price/{prdNo}/{selPrc} (구현됨 · 상품단위 · 본문없음 · 인상50%/인하80% 한도)"
+  update_stock:  "POST /rest/prodservices/updateProductOption/{prdNo} (구현됨 · 옵션 full-replace · 가격+재고)"
   register:      "TODO(조사필요, 나중 — 상품 등록)"
+  # 참고(미구현 — 주석 기록만):
+  #   가격+즉시할인  POST /rest/prodservices/product/priceCoupon/{prdNo}
+  #   상품 전체 수정 PUT  /rest/prodservices/product/{prdNo}
+  #   재고 조회      POST /rest/prodmarketservice/prodmarket/stocks
+  #   실시간 품절옵션 GET  /rest/prodservices/getRealTimeCheckSoldOutOpt/{startDt}/{endDt}
 
 # 발주확인(기간별 결제완료 목록조회) 요청/응답 — 개발가이드>주문>결제완료 실측(2026-07-07).
 fetch_orders_spec:
@@ -83,8 +89,18 @@ fields:
     - { name: product_id, type: string, required: true, source: 사용자입력(11번가 상품번호),
         note: "상세조회로 옵션·가격·재고 읽어 자동매칭. = SetChannel.market_product_id. 응답 필드명 TODO." }
   update:
-    update_price: "TODO(조사필요 — 가격수정 요청 XML 스키마)"
-    update_stock: "TODO(조사필요 — 재고수정 요청 XML 스키마)"
+    # ★ 확보(콘솔 추출) — 구현됨(shared/platforms/eleven11/prices.py·inventory.py).
+    update_price: >
+      GET /rest/prodservices/product/price/{prdNo}/{selPrc} — 경로 파라미터(본문 없음).
+      selPrc=새 판매가(원, 정수). 응답 <ClientMessage>: resultCode·message·productNo·
+      preSelPrc(수정전가)·selPrc·prdNo. 성공=resultCode∈{200,210}(보수적, 라이브 확정 대상).
+    update_stock: >
+      POST /rest/prodservices/updateProductOption/{prdNo} — 옵션 full-replace(가격+재고).
+      본문 <Product><ProductOption> 반복: colValue0(옵션값)·colOptPrice(옵션가 +/-)·
+      colCount(재고수량)·useYn(Y/N)·colSellerStockCd(선택)·optionMappingKey(선택). 값 XML 이스케이프.
+      응답 <ClientMessage> resultCode/message. 성공=resultCode∈{200,210}(보수적).
+      ⚠️ 단건 옵션 전송은 다른 옵션을 날릴 수 있어 inventory.update_stock(단건)은 막힘 →
+         상품 전체 옵션을 모아 update_option_stocks 로 호출(어댑터 배선은 후속).
   register: "TODO(조사필요, 나중) — 표준카테고리·상품정보제공고시·배송/반품 등 필드 방대."
 
 step4_form:
@@ -99,7 +115,10 @@ step4_form:
   register_mode: "TODO(나중)"
 
 response:
-  success: "TODO(조사필요 — 성공 판정 XML 필드/코드). 11번가 XML 응답의 결과코드·메시지 확인 후."
+  success: >
+    가격·옵션수정 응답 <ClientMessage> 의 resultCode 로 판정. 성공=resultCode∈{200,210}
+    (상품등록 선례 기반 보수적 기본). HTTP 2xx 만으로 성공 판정 금지(거짓 성공 방지).
+    ⚠️ 정확한 성공 코드값은 라이브(SellerAPI 승인+서버IP)에서 확정 — 확정 시 SUCCESS_CODES 갱신.
   errors:
     http:
       - "401 등록되지 않은 OpenAPI Key (키 확인)"
@@ -132,7 +151,7 @@ code_map:
   dispatcher_client: lemouton/auth/api_eleven11.py   # 계정→client 캐시 계층 (구현됨)
   fetch: shared/platforms/eleven11/products.py        # get_product_detail+extract_items (상품 스펙 확보 후)
   register: shared/platforms/eleven11/products.py     # 나중
-  update_price: shared/platforms/eleven11/prices.py   # 스펙 확보 후
-  update_stock: shared/platforms/eleven11/inventory.py # 스펙 확보 후
+  update_price: shared/platforms/eleven11/prices.py   # 구현됨 — GET price/{prdNo}/{selPrc}, resultCode∈{200,210}
+  update_stock: shared/platforms/eleven11/inventory.py # 구현됨 — POST updateProductOption/{prdNo}(옵션 full-replace)
   adapter: lemouton/uploader/adapters/eleven11.py     # Eleven11Adapter + MockEleven11Adapter (구현됨)
   secrets: lemouton/auth/secrets.py                    # Eleven11Credentials + MARKET_SCHEMAS (구현됨)
