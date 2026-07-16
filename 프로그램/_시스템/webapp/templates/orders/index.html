@@ -1481,6 +1481,236 @@
   })();
   </script>
 
+  {% elif tab == 'cs' %}
+  {# ══ CS — 반품·교환·취소 3열 칸반 (A1 상단 가로 마켓탭 + B5 로고배지) ══ #}
+  <style>
+    .cskb{--ink:#191F28;--sub:var(--n600,#6B7684);--sub2:var(--n500,#8B95A1);--line:var(--n200,#E5E8EB);
+      --bg:var(--n100,#F9FAFB);--blue:#3182F6;--blue-bg:#EAF2FE;--amber:#F08C00;--amber-bg:#FFF4E2;
+      --green:#12B886;--green-bg:#E6F7F0;--red:#F03E3E;--red-bg:#FDECEC;--violet:#7048E8;--violet-bg:#F0EBFC;}
+    .cskb .csswitch{display:inline-flex;background:#EEF1F4;border-radius:10px;padding:4px;gap:4px;margin-bottom:16px}
+    .cskb .csswitch button{padding:7px 16px;border-radius:7px;font-size:13px;color:var(--sub);font-weight:600;border:none;background:transparent;cursor:pointer;font-family:inherit}
+    .cskb .csswitch button.on{background:#fff;color:var(--ink);box-shadow:0 1px 3px rgba(0,0,0,.08)}
+    .cskb .csswitch button[disabled]{cursor:not-allowed;color:var(--sub2)}
+    .cskb .mtabs{display:flex;gap:6px;align-items:stretch;margin-bottom:16px;flex-wrap:wrap}
+    .cskb .mt{background:#fff;border:1px solid var(--line);border-radius:10px;padding:8px 14px;display:inline-flex;align-items:center;gap:8px;font-size:13px;font-weight:600;color:var(--sub);cursor:pointer;font-family:inherit}
+    .cskb .mt .lg{width:22px;height:22px;border-radius:6px;display:grid;place-items:center;font-size:12px;color:#fff;font-weight:700;flex:none}
+    .cskb .mt .n{font-variant-numeric:tabular-nums;background:var(--red-bg);color:var(--red);border-radius:20px;padding:1px 8px;font-size:11.5px;font-weight:700}
+    .cskb .mt.on{border-color:var(--blue);background:var(--blue-bg);color:var(--blue)}
+    .cskb .mt.on .n{background:#fff;color:var(--blue)}
+    .cskb .kb{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+    .cskb .kcol{background:var(--bg);border-radius:12px;padding:12px;min-height:160px}
+    .cskb .kh{display:flex;align-items:center;gap:9px;margin-bottom:12px;padding:2px 4px}
+    .cskb .kh .ic{width:26px;height:26px;border-radius:7px;display:grid;place-items:center;font-size:14px}
+    .cskb .kh .nm{font-weight:700;font-size:13.5px;color:var(--ink)}
+    .cskb .kh .cnt{margin-left:auto;font-variant-numeric:tabular-nums;font-weight:700;font-size:14px;color:var(--sub)}
+    .cskb .i-new{background:var(--amber-bg);color:var(--amber)}
+    .cskb .i-chk{background:var(--blue-bg);color:var(--blue)}
+    .cskb .i-done{background:var(--green-bg);color:var(--green)}
+    .cskb .kcard{background:#fff;border:1px solid var(--line);border-radius:10px;padding:11px 12px;margin-bottom:10px;box-shadow:0 1px 2px rgba(0,0,0,.03)}
+    .cskb .kcard .top{display:flex;align-items:center;gap:6px;margin-bottom:7px}
+    .cskb .kcard .nm{font-weight:600;font-size:12.5px;line-height:1.35;margin-bottom:4px;color:var(--ink)}
+    .cskb .kcard .meta{font-size:11.5px;color:var(--sub2);display:flex;gap:7px;flex-wrap:wrap}
+    .cskb .kcard .act{margin-top:9px;display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+    .cskb .tb{display:inline-flex;align-items:center;gap:5px;padding:3px 9px;border-radius:6px;font-size:12px;font-weight:600;white-space:nowrap}
+    .cskb .t-cancel{background:var(--amber-bg);color:var(--amber)}
+    .cskb .t-return{background:var(--red-bg);color:var(--red)}
+    .cskb .t-exch{background:var(--violet-bg);color:var(--violet)}
+    .cskb .mk{font-size:11.5px;color:var(--sub);background:var(--line);padding:2px 8px;border-radius:5px;display:inline-block}
+    .cskb .st{display:inline-flex;padding:3px 9px;border-radius:20px;font-size:11.5px;font-weight:600}
+    .cskb .s-done{background:var(--green-bg);color:var(--green)}
+    .cskb .s-wd{background:var(--line);color:var(--sub)}
+    .cskb .date{font-variant-numeric:tabular-nums;color:var(--sub2)}
+    .cskb .btn{background:var(--blue);color:#fff;border:none;border-radius:7px;padding:5px 12px;font-size:11.5px;font-weight:600;cursor:pointer;font-family:inherit}
+    .cskb .btn:disabled{opacity:.6;cursor:not-allowed}
+    .cskb .memoIn{border:1px solid var(--line);border-radius:6px;padding:4px 8px;font-size:11.5px;flex:1;min-width:100px;color:var(--ink);font-family:inherit}
+    .cskb .kempty{padding:22px 10px;text-align:center;color:var(--sub2);font-size:12px}
+    .cskb .cs-state{padding:40px 20px;text-align:center;color:var(--sub);font-size:13px;grid-column:1/-1}
+    .cskb .cs-banner{background:#FEF2F2;border:1px solid #FCA5A5;border-radius:10px;padding:10px 12px;font-size:12px;color:#991B1B;margin-bottom:14px}
+    .cskb .cs-banner a{color:#991B1B;font-weight:700}
+    .cskb .cs-banner.warn{background:#FFFBEB;border-color:#FCD34D;color:#78350F}
+  </style>
+  <div class="cskb" id="cskb">
+    <div class="csswitch">
+      <button type="button" class="on" data-div="claims">반품·교환·취소</button>
+      <button type="button" disabled title="준비 중">고객문의</button>
+    </div>
+    <div class="mtabs" id="cs-mtabs"></div>
+    <div class="cs-banner" id="cs-banner" style="display:none"></div>
+    <div class="kb" id="cs-board"><div class="cs-state">불러오는 중…</div></div>
+  </div>
+  <script>
+  (function(){
+    var MTABS=document.getElementById('cs-mtabs');
+    var BOARD=document.getElementById('cs-board');
+    var BANNER=document.getElementById('cs-banner');
+    if(!MTABS || !BOARD) return;
+    var MK=[['전체',''],['쿠팡','coupang'],['11번가','eleven11'],['롯데온','lotteon'],['스마트스토어','smartstore']];
+    var ALLMK=['coupang','eleven11','lotteon','smartstore'];
+    var LOGO={'쿠팡':['C','#FF5A5A'],'11번가':['11','#F43142'],'롯데온':['L','#DA0F31'],'스마트스토어':['N','#03C75A']};
+    var TYPE_CLS={'취소':'t-cancel','반품':'t-return','교환':'t-exch'};
+    var STAGES=[['신규요청','i-new','🆕'],['대응필요','i-chk','👀'],['대응완료','i-done','✅']];
+    var curMarket='';
+    var lastCounts={};
+
+    function esc(s){
+      return String(s==null?'':s).replace(/[&<>"']/g,function(c){
+        return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];
+      });
+    }
+
+    function renderTabs(){
+      MTABS.innerHTML='';
+      MK.forEach(function(m){
+        var label=m[0], key=m[1];
+        var lg=LOGO[label];
+        var n=lastCounts[label]||0;
+        var b=document.createElement('button');
+        b.type='button';
+        b.className='mt'+(key===curMarket?' on':'');
+        b.setAttribute('data-mk', key);
+        b.innerHTML=(lg?'<span class="lg" style="background:'+lg[1]+'">'+lg[0]+'</span>':'')
+          +esc(label)+'<span class="n">'+n+'</span>';
+        b.addEventListener('click',function(){
+          if(curMarket===key) return;
+          curMarket=key; renderTabs(); load();
+        });
+        MTABS.appendChild(b);
+      });
+    }
+
+    function marketsParam(){ return curMarket ? curMarket : ALLMK.join(','); }
+
+    function setLoadingState(){
+      BOARD.innerHTML='<div class="cs-state">불러오는 중…</div>';
+    }
+
+    function showBanner(msg, warn){
+      BANNER.style.display='block';
+      BANNER.className='cs-banner'+(warn?' warn':'');
+      if(warn){
+        BANNER.textContent='⚠ '+msg;
+      } else {
+        BANNER.innerHTML=esc(msg)+' · <a href="#" data-retry="1">다시 시도</a>';
+        var a=BANNER.querySelector('[data-retry]');
+        if(a) a.addEventListener('click',function(e){ e.preventDefault(); load(); });
+      }
+    }
+    function hideBanner(){ BANNER.style.display='none'; BANNER.innerHTML=''; }
+
+    function card(row, stage){
+      var tcls=TYPE_CLS[row['유형']]||'t-cancel';
+      var div=document.createElement('div');
+      div.className='kcard';
+      div.innerHTML=
+        '<div class="top"><span class="tb '+tcls+'">'+esc(row['유형'])+'</span><span class="mk">'+esc(row['판매처'])+'</span></div>'
+        +'<div class="nm">'+esc(row['상품명'])+'</div>'
+        +'<div class="meta"><span>'+esc(row['옵션'])+'</span><span>·</span><span>'+esc(row['수량'])+'개</span><span>·</span><span class="date">'+esc(row['변경일'])+'</span></div>'
+        +'<div class="meta" style="margin-top:3px">사유 · '+esc(row['사유'])+'</div>'
+        +'<div class="act"></div>';
+      var act=div.querySelector('.act');
+      if(stage==='대응완료'){
+        var wd=row['상태']==='철회';
+        var st=document.createElement('span');
+        st.className='st '+(wd?'s-wd':'s-done');
+        st.textContent=wd?'철회':(row['유형']||'')+'완료';
+        act.appendChild(st);
+      } else {
+        if(stage==='신규요청'){
+          var btn=document.createElement('button');
+          btn.type='button'; btn.className='btn'; btn.textContent='확인 ✓';
+          btn.addEventListener('click',function(){ ackClaim(row, btn); });
+          act.appendChild(btn);
+        }
+        var inp=document.createElement('input');
+        inp.type='text'; inp.className='memoIn'; inp.placeholder='메모…';
+        inp.value=row['메모']||'';
+        inp.addEventListener('blur',function(){ saveMemo(row, inp); });
+        inp.addEventListener('keydown',function(e){ if(e.key==='Enter'){ inp.blur(); } });
+        act.appendChild(inp);
+      }
+      return div;
+    }
+
+    function renderBoard(groups){
+      groups=groups||{};
+      var total=STAGES.reduce(function(n,s){ return n+((groups[s[0]]||[]).length); },0);
+      BOARD.innerHTML='';
+      if(!total){
+        BOARD.innerHTML='<div class="cs-state">이 기간 요청이 없어요</div>';
+        return;
+      }
+      STAGES.forEach(function(s){
+        var key=s[0], icls=s[1], icon=s[2];
+        var rows=groups[key]||[];
+        var col=document.createElement('div'); col.className='kcol';
+        var h=document.createElement('div'); h.className='kh';
+        h.innerHTML='<div class="ic '+icls+'">'+icon+'</div><div class="nm">'+key+'</div><div class="cnt">'+rows.length+'</div>';
+        col.appendChild(h);
+        if(!rows.length){
+          var e=document.createElement('div'); e.className='kempty'; e.textContent='—';
+          col.appendChild(e);
+        } else {
+          rows.forEach(function(r){ col.appendChild(card(r,key)); });
+        }
+        BOARD.appendChild(col);
+      });
+    }
+
+    function ackClaim(row, btn){
+      btn.disabled=true; btn.textContent='처리 중…';
+      fetch('/orders/cs/claims/ack',{method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({claim_key:row['claim_key'],market:row['판매처'],order_no:row['오픈마켓주문번호'],claim_type:row['유형']})})
+        .then(function(r){return r.json();})
+        .then(function(j){
+          if(!j.ok){ alert('확인 처리 실패: '+(j.error||'')); btn.disabled=false; btn.textContent='확인 ✓'; return; }
+          load();
+        })
+        .catch(function(){ alert('확인 처리 실패(네트워크)'); btn.disabled=false; btn.textContent='확인 ✓'; });
+    }
+
+    function saveMemo(row, inp){
+      var memo=inp.value;
+      if(memo===(row['메모']||'')) return;
+      fetch('/orders/cs/claims/memo',{method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({claim_key:row['claim_key'],memo:memo})})
+        .then(function(r){return r.json();})
+        .then(function(j){
+          if(!j.ok){ alert('메모 저장 실패: '+(j.error||'')); return; }
+          row['메모']=memo;
+        })
+        .catch(function(){ alert('메모 저장 실패(네트워크)'); });
+    }
+
+    function load(){
+      hideBanner();
+      setLoadingState();
+      fetch('/orders/cs/claims.json?markets='+encodeURIComponent(marketsParam()),{cache:'no-store'})
+        .then(function(r){return r.json();})
+        .then(function(j){
+          if(!j.ok){
+            lastCounts=j.market_counts||{}; renderTabs();
+            BOARD.innerHTML='<div class="cs-state">불러오지 못했어요</div>';
+            showBanner('불러오지 못했어요: '+(j.error||'알 수 없는 오류'), false);
+            return;
+          }
+          lastCounts=j.market_counts||{};
+          renderTabs();
+          renderBoard(j.groups||{});
+          if((j.warnings||[]).length){
+            showBanner(j.warnings.join(' · '), true);
+          }
+        })
+        .catch(function(){
+          BOARD.innerHTML='<div class="cs-state">불러오지 못했어요</div>';
+          showBanner('네트워크 오류로 불러오지 못했어요', false);
+        });
+    }
+
+    renderTabs();
+    load();
+  })();
+  </script>
+
   {% elif cfg %}
   <style>
     .ord5{--ink:#191F28;--sub:#8B95A1;--faint:#B0B8C1;--line:#F1F3F5;--line2:#E5E8EB;--bg:#F8FAFB;

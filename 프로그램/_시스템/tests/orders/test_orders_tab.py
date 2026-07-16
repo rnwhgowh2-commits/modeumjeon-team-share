@@ -82,16 +82,26 @@ def test_parse_range_absent_or_bad_is_none():
 
 @pytest.mark.parametrize("tab,kpi,col", [
     ("sales", "정산 예정", "정산 예정액"),
-    ("cs", "미답변 문의", "내용"),
     ("register", "등록 대기", "카테고리"),
 ])
 def test_tab_renders_layout(tab, kpi, col):
-    # list 는 7번(AJAX) 전용 레이아웃이라 별도 테스트. sales/cs/register 는 샘플 레이아웃 유지.
+    # list 는 7번(AJAX) 전용 레이아웃이라 별도 테스트. cs 는 실제 클레임 칸반 전용 레이아웃(아래
+    # test_cs_tab_renders_claims_kanban). sales/register 만 샘플 레이아웃 유지.
     html = _render(tab)
     assert kpi in html, kpi
     assert col in html, col
     assert "안전 OFF" in html                  # 게이트 OFF 배너
     assert "쿠팡" in html and "스마트스토어" in html
+
+
+def test_cs_tab_renders_claims_kanban():
+    # cs 탭은 샘플 표 대신 실제 반품·교환·취소 3열 칸반(claims.json 배선)을 렌더한다.
+    html = _render("cs")
+    assert 'id="cs-board"' in html and 'id="cs-mtabs"' in html
+    assert "/orders/cs/claims/ack" in html and "/orders/cs/claims/memo" in html
+    assert "/orders/cs/claims.json" in html
+    assert "반품·교환·취소" in html and "고객문의" in html
+    assert "미답변 문의" not in html            # 구 샘플 레이아웃(TAB_CONFIG['cs']) 미사용
 
 
 def test_action_button_disabled_when_off():
