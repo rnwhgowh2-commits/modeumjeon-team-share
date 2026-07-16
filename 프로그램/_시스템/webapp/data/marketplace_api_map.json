@@ -7512,6 +7512,397 @@
    "persistIds": [],
    "codeRef": "",
    "docApiNo": 111
+  },
+  {
+   "id": "lotteon.settlement.list",
+   "market": "lotteon",
+   "fnKey": "settlement.list",
+   "tabs": [
+    "정산"
+   ],
+   "category": "정산",
+   "nm": "상품별 주문내역(정산금액)",
+   "dir": "recv",
+   "st": "off",
+   "endpoint": "POST https://openapi.lotteon.com/v1/openapi/settle/v1/se/SettleProduct",
+   "req": {
+    "method": "POST",
+    "url": "https://openapi.lotteon.com/v1/openapi/settle/v1/se/SettleProduct",
+    "params": [
+     "startDate*(yyyymmdd)",
+     "endDate*(yyyymmdd)"
+    ]
+   },
+   "res": {
+    "note": "data[] 배열. 전체 롯데ON apiNo=43"
+   },
+   "fields": [
+    {
+     "key": "salesTypCd",
+     "meaning": "매출유형 A중개/B위탁/D직매입",
+     "example": ""
+    },
+    {
+     "key": "seStdDt",
+     "meaning": "정산기준일자",
+     "example": ""
+    },
+    {
+     "key": "odNo",
+     "meaning": "주문번호",
+     "example": ""
+    },
+    {
+     "key": "bizpRegNo",
+     "meaning": "사업자등록번호",
+     "example": ""
+    },
+    {
+     "key": "tdfDvsCd",
+     "meaning": "과면세 01과세/02면세/03영세/04해당없음",
+     "example": ""
+    },
+    {
+     "key": "trNm",
+     "meaning": "거래처명",
+     "example": ""
+    }
+   ],
+   "success": "returnCode=0000 & data 존재. HTTP 401=인증·403=IP·429=초과·500=오류 (HTTP200이어도 returnCode 확인)",
+   "idTraps": [],
+   "persistIds": [],
+   "codeRef": "",
+   "docApiNo": 43
+  },
+  {
+   "id": "lotteon.settlement.commission",
+   "market": "lotteon",
+   "fnKey": "settlement.commission",
+   "tabs": [
+    "정산"
+   ],
+   "category": "정산",
+   "nm": "상품별 수수료내역",
+   "dir": "recv",
+   "st": "off",
+   "endpoint": "POST https://openapi.lotteon.com/v1/openapi/settle/v1/se/SettleCommission",
+   "req": {
+    "method": "POST",
+    "url": "https://openapi.lotteon.com/v1/openapi/settle/v1/se/SettleCommission",
+    "params": [
+     "startDate*(yyyymmdd)",
+     "endDate*(yyyymmdd)"
+    ]
+   },
+   "res": {
+    "note": "data[] 배열. 전체 롯데ON apiNo=45"
+   },
+   "fields": [
+    {
+     "key": "bseCmsnAmt",
+     "meaning": "기본수수료금액",
+     "example": ""
+    },
+    {
+     "key": "pcsCmsnAmt",
+     "meaning": "PCS수수료(가격비교채널)",
+     "example": ""
+    },
+    {
+     "key": "dvCstCmsnAmt",
+     "meaning": "배송비수수료(고객결제배송비 발생분)",
+     "example": ""
+    },
+    {
+     "key": "salesTypCd",
+     "meaning": "매출유형",
+     "example": ""
+    },
+    {
+     "key": "odNo",
+     "meaning": "주문번호",
+     "example": ""
+    }
+   ],
+   "success": "returnCode=0000 & data 존재. HTTP 401=인증·403=IP·429=초과·500=오류 (HTTP200이어도 returnCode 확인)",
+   "idTraps": [],
+   "persistIds": [],
+   "codeRef": "",
+   "docApiNo": 45
+  },
+  {
+   "id": "lotteon.settlement.delivery",
+   "market": "lotteon",
+   "fnKey": "settlement.delivery",
+   "tabs": [
+    "정산"
+   ],
+   "category": "정산",
+   "nm": "상품별 배송비내역",
+   "dir": "recv",
+   "st": "off",
+   "endpoint": "POST https://openapi.lotteon.com/v1/openapi/settle/v1/se/SettleDelivery",
+   "req": {
+    "method": "POST",
+    "url": "https://openapi.lotteon.com/v1/openapi/settle/v1/se/SettleDelivery",
+    "params": [
+     "startDate*(yyyymmdd)",
+     "endDate*(yyyymmdd)"
+    ]
+   },
+   "res": {
+    "note": "data[] 배열. 전체 롯데ON apiNo=42"
+   },
+   "fields": [
+    {
+     "key": "odNo",
+     "meaning": "주문번호",
+     "example": ""
+    },
+    {
+     "key": "odSeq",
+     "meaning": "주문순번",
+     "example": ""
+    },
+    {
+     "key": "sitmNo",
+     "meaning": "판매자단품번호",
+     "example": ""
+    },
+    {
+     "key": "odTypCd",
+     "meaning": "주문유형코드",
+     "example": ""
+    },
+    {
+     "key": "salesTypCd",
+     "meaning": "매출유형",
+     "example": ""
+    }
+   ],
+   "success": "returnCode=0000 & data 존재. HTTP 401=인증·403=IP·429=초과·500=오류 (HTTP200이어도 returnCode 확인)",
+   "idTraps": [],
+   "persistIds": [],
+   "codeRef": "",
+   "docApiNo": 42
+  },
+  {
+   "id": "lotteon.settlement.subtraction",
+   "market": "lotteon",
+   "fnKey": "settlement.subtraction",
+   "tabs": [
+    "정산"
+   ],
+   "category": "정산",
+   "nm": "상품별 차감내역",
+   "dir": "recv",
+   "st": "off",
+   "endpoint": "POST https://openapi.lotteon.com/v1/openapi/settle/v1/se/SettleSubtraction",
+   "req": {
+    "method": "POST",
+    "url": "https://openapi.lotteon.com/v1/openapi/settle/v1/se/SettleSubtraction",
+    "params": [
+     "startDate*(yyyymmdd)",
+     "endDate*(yyyymmdd)"
+    ]
+   },
+   "res": {
+    "note": "data[] 배열. 전체 롯데ON apiNo=44"
+   },
+   "fields": [
+    {
+     "key": "sbtDvsCd",
+     "meaning": "차감구분코드",
+     "example": ""
+    },
+    {
+     "key": "sbtArtlCd",
+     "meaning": "차감항목코드",
+     "example": ""
+    },
+    {
+     "key": "odNo",
+     "meaning": "주문번호",
+     "example": ""
+    },
+    {
+     "key": "sitmNo",
+     "meaning": "판매자단품번호",
+     "example": ""
+    }
+   ],
+   "success": "returnCode=0000 & data 존재. HTTP 401=인증·403=IP·429=초과·500=오류 (HTTP200이어도 returnCode 확인)",
+   "idTraps": [],
+   "persistIds": [],
+   "codeRef": "",
+   "docApiNo": 44
+  },
+  {
+   "id": "lotteon.settlement.discount",
+   "market": "lotteon",
+   "fnKey": "settlement.discount",
+   "tabs": [
+    "정산"
+   ],
+   "category": "정산",
+   "nm": "상품별 할인내역",
+   "dir": "recv",
+   "st": "off",
+   "endpoint": "POST https://openapi.lotteon.com/v1/openapi/settle/v1/se/SettleDiscount",
+   "req": {
+    "method": "POST",
+    "url": "https://openapi.lotteon.com/v1/openapi/settle/v1/se/SettleDiscount",
+    "params": [
+     "startDate*(yyyymmdd)",
+     "endDate*(yyyymmdd)"
+    ]
+   },
+   "res": {
+    "note": "data[] 배열. 전체 롯데ON apiNo=46"
+   },
+   "fields": [
+    {
+     "key": "odNo",
+     "meaning": "주문번호",
+     "example": ""
+    },
+    {
+     "key": "odTypCd",
+     "meaning": "주문유형",
+     "example": ""
+    },
+    {
+     "key": "sitmNo",
+     "meaning": "판매자단품번호",
+     "example": ""
+    },
+    {
+     "key": "salesTypCd",
+     "meaning": "매출유형",
+     "example": ""
+    }
+   ],
+   "success": "returnCode=0000 & data 존재. HTTP 401=인증·403=IP·429=초과·500=오류 (HTTP200이어도 returnCode 확인)",
+   "idTraps": [],
+   "persistIds": [],
+   "codeRef": "",
+   "docApiNo": 46
+  },
+  {
+   "id": "lotteon.settlement.integrated",
+   "market": "lotteon",
+   "fnKey": "settlement.integrated",
+   "tabs": [
+    "정산"
+   ],
+   "category": "정산",
+   "nm": "중개셀러 통합정보",
+   "dir": "recv",
+   "st": "off",
+   "endpoint": "POST https://openapi.lotteon.com/v1/openapi/settle/v1/se/SettleItmdSales",
+   "req": {
+    "method": "POST",
+    "url": "https://openapi.lotteon.com/v1/openapi/settle/v1/se/SettleItmdSales",
+    "params": [
+     "startDate*(yyyymmdd)",
+     "endDate*(yyyymmdd)"
+    ]
+   },
+   "res": {
+    "note": "data[] 배열. 전체 롯데ON apiNo=279"
+   },
+   "fields": [
+    {
+     "key": "sbtAmt",
+     "meaning": "차감액",
+     "example": ""
+    },
+    {
+     "key": "crdayDpst",
+     "meaning": "당일입금",
+     "example": ""
+    },
+    {
+     "key": "fnlDpst",
+     "meaning": "최종입금",
+     "example": ""
+    },
+    {
+     "key": "odNo",
+     "meaning": "주문번호",
+     "example": ""
+    },
+    {
+     "key": "trNm",
+     "meaning": "거래처명",
+     "example": ""
+    }
+   ],
+   "success": "returnCode=0000 & data 존재. HTTP 401=인증·403=IP·429=초과·500=오류 (HTTP200이어도 returnCode 확인)",
+   "idTraps": [],
+   "persistIds": [],
+   "codeRef": "",
+   "docApiNo": 279
+  },
+  {
+   "id": "lotteon.order.benefit.list",
+   "market": "lotteon",
+   "fnKey": "order.benefit.list",
+   "tabs": [
+    "정산"
+   ],
+   "category": "주문",
+   "nm": "셀러 주문혜택 조회",
+   "dir": "recv",
+   "st": "off",
+   "endpoint": "POST https://openapi.lotteon.com/v1/openapi/order/v1/getSROrderList",
+   "req": {
+    "method": "POST",
+    "url": "https://openapi.lotteon.com/v1/openapi/order/v1/getSROrderList",
+    "params": [
+     "srchStrtDttm*(yyyymmddHHMMSS)",
+     "srchEndDttm*",
+     "odNo",
+     "odPrgsStepCd[03접수/05주문완료]",
+     "odIfPrgsStepCd[00연동전/03접수연동/05완료연동/90취소요청]",
+     "lrtrNo"
+    ]
+   },
+   "res": {
+    "note": "data[] 주문혜택. 전체 apiNo=245"
+   },
+   "fields": [
+    {
+     "key": "odFvrDvsCd",
+     "meaning": "주문혜택구분 DC할인/GF증정",
+     "example": ""
+    },
+    {
+     "key": "dcTnnoCd",
+     "meaning": "할인차수 1ST/2ND/…/DV_CST_INTG배송비통합",
+     "example": ""
+    },
+    {
+     "key": "fvrAmt",
+     "meaning": "혜택금액",
+     "example": ""
+    },
+    {
+     "key": "prTypCd",
+     "meaning": "프로모션유형 PRD_DC상품할인/DC_MBR회원/DC_CHL채널/DC_CPN쿠폰/ACM_PR적립/GIV_PR증정/CRD_PR카드",
+     "example": ""
+    },
+    {
+     "key": "prNm",
+     "meaning": "프로모션명",
+     "example": ""
+    }
+   ],
+   "success": "returnCode=0000 & data 존재. HTTP 401=인증·403=IP·429=초과·500=오류 (HTTP200이어도 returnCode 확인)",
+   "idTraps": [],
+   "persistIds": [],
+   "codeRef": "",
+   "docApiNo": 245
   }
  ]
 }
