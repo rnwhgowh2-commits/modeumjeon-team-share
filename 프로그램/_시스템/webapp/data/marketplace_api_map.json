@@ -7903,6 +7903,278 @@
    "persistIds": [],
    "codeRef": "",
    "docApiNo": 245
+  },
+  {
+   "id": "lotteon.claim.return.list",
+   "market": "lotteon",
+   "fnKey": "claim.return.list",
+   "tabs": [
+    "클레임·CS"
+   ],
+   "category": "클레임",
+   "nm": "반품요청/접수 목록조회",
+   "dir": "recv",
+   "st": "off",
+   "endpoint": "POST https://openapi.lotteon.com/v1/openapi/claim/v1/returningOpenApi/returnRequestSearch",
+   "req": {
+    "method": "POST",
+    "url": "https://openapi.lotteon.com/v1/openapi/claim/v1/returningOpenApi/returnRequestSearch",
+    "params": [
+     "srchStrtDttm*(yyyyMMddHHMMSS)",
+     "srchEndDttm*",
+     "odNo△",
+     "clmNo",
+     "odTypCd",
+     "odPrgsStepCd",
+     "odIfPrgsStepCd",
+     "lrtrNo"
+    ]
+   },
+   "res": {
+    "note": "전체 스펙 롯데ON apiNo=51"
+   },
+   "fields": [
+    {
+     "key": "clmNo",
+     "meaning": "클레임번호",
+     "example": ""
+    },
+    {
+     "key": "odNo",
+     "meaning": "주문번호",
+     "example": ""
+    },
+    {
+     "key": "odTypCd",
+     "meaning": "주문유형 40반품/50AS",
+     "example": ""
+    },
+    {
+     "key": "odPrgsStepCd",
+     "meaning": "진행단계 02요청/03접수/27반품완료",
+     "example": ""
+    }
+   ],
+   "success": "returnCode=0000 & data 존재. HTTP 401=인증·403=IP·429=초과·500=오류 (HTTP200이어도 returnCode 확인)",
+   "idTraps": [],
+   "persistIds": [],
+   "codeRef": "",
+   "docApiNo": 51
+  },
+  {
+   "id": "lotteon.claim.return.approve",
+   "market": "lotteon",
+   "fnKey": "claim.return.approve",
+   "tabs": [
+    "클레임·CS"
+   ],
+   "category": "클레임",
+   "nm": "반품요청 승인처리",
+   "dir": "send",
+   "st": "off",
+   "endpoint": "POST https://openapi.lotteon.com/v1/openapi/claim/v1/returningOpenApi/returnRequestApproval",
+   "req": {
+    "method": "POST",
+    "url": "https://openapi.lotteon.com/v1/openapi/claim/v1/returningOpenApi/returnRequestApproval",
+    "params": [
+     "odNo*",
+     "clmNo*",
+     "itemList[]"
+    ]
+   },
+   "res": {
+    "note": "전체 스펙 롯데ON apiNo=52"
+   },
+   "fields": [
+    {
+     "key": "returnCode",
+     "meaning": "결과코드",
+     "example": ""
+    }
+   ],
+   "success": "returnCode=0000 & data 존재. HTTP 401=인증·403=IP·429=초과·500=오류 (HTTP200이어도 returnCode 확인)",
+   "idTraps": [],
+   "persistIds": [],
+   "codeRef": "",
+   "docApiNo": 52
+  },
+  {
+   "id": "lotteon.claim.exchange.list",
+   "market": "lotteon",
+   "fnKey": "claim.exchange.list",
+   "tabs": [
+    "클레임·CS"
+   ],
+   "category": "클레임",
+   "nm": "교환요청/접수 목록조회",
+   "dir": "recv",
+   "st": "off",
+   "endpoint": "POST https://openapi.lotteon.com/v1/openapi/claim/v1/exchangeOpenApi/exchangeSearch",
+   "req": {
+    "method": "POST",
+    "url": "https://openapi.lotteon.com/v1/openapi/claim/v1/exchangeOpenApi/exchangeSearch",
+    "params": [
+     "srchStrtDttm*(yyyyMMddHHMMSS)",
+     "srchEndDttm*",
+     "odNo△",
+     "clmNo",
+     "odTypCd",
+     "odPrgsStepCd",
+     "odIfPrgsStepCd",
+     "lrtrNo"
+    ]
+   },
+   "res": {
+    "note": "전체 스펙 롯데ON apiNo=69"
+   },
+   "fields": [
+    {
+     "key": "clmNo",
+     "meaning": "클레임번호",
+     "example": ""
+    },
+    {
+     "key": "odTypCd",
+     "meaning": "주문유형 30교환/50AS",
+     "example": ""
+    },
+    {
+     "key": "odIfPrgsStepCd",
+     "meaning": "연동진행상태",
+     "example": ""
+    }
+   ],
+   "success": "returnCode=0000 & data 존재. HTTP 401=인증·403=IP·429=초과·500=오류 (HTTP200이어도 returnCode 확인)",
+   "idTraps": [],
+   "persistIds": [],
+   "codeRef": "",
+   "docApiNo": 69
+  },
+  {
+   "id": "lotteon.claim.exchange.approve",
+   "market": "lotteon",
+   "fnKey": "claim.exchange.approve",
+   "tabs": [
+    "클레임·CS"
+   ],
+   "category": "클레임",
+   "nm": "교환요청 승인처리",
+   "dir": "send",
+   "st": "off",
+   "endpoint": "POST https://openapi.lotteon.com/v1/openapi/claim/v1/exchangeOpenApi/exchangeRequestApproval",
+   "req": {
+    "method": "POST",
+    "url": "https://openapi.lotteon.com/v1/openapi/claim/v1/exchangeOpenApi/exchangeRequestApproval",
+    "params": [
+     "odNo*",
+     "clmNo*",
+     "itemList[]"
+    ]
+   },
+   "res": {
+    "note": "전체 스펙 롯데ON apiNo=71"
+   },
+   "fields": [
+    {
+     "key": "returnCode",
+     "meaning": "결과코드",
+     "example": ""
+    }
+   ],
+   "success": "returnCode=0000 & data 존재. HTTP 401=인증·403=IP·429=초과·500=오류 (HTTP200이어도 returnCode 확인)",
+   "idTraps": [],
+   "persistIds": [],
+   "codeRef": "",
+   "docApiNo": 71
+  },
+  {
+   "id": "lotteon.claim.cancel.list",
+   "market": "lotteon",
+   "fnKey": "claim.cancel.list",
+   "tabs": [
+    "클레임·CS"
+   ],
+   "category": "클레임",
+   "nm": "취소요청(완료) 조회",
+   "dir": "recv",
+   "st": "off",
+   "endpoint": "POST https://openapi.lotteon.com/v1/openapi/claim/v1/cancellationOpenApi/getCancellationRequestAndComplateList",
+   "req": {
+    "method": "POST",
+    "url": "https://openapi.lotteon.com/v1/openapi/claim/v1/cancellationOpenApi/getCancellationRequestAndComplateList",
+    "params": [
+     "srchStrtDttm*(yyyyMMddHHMMSS)",
+     "srchEndDttm*",
+     "odNo△",
+     "clmNo",
+     "odTypCd",
+     "odPrgsStepCd",
+     "odIfPrgsStepCd",
+     "lrtrNo"
+    ]
+   },
+   "res": {
+    "note": "전체 스펙 롯데ON apiNo=50"
+   },
+   "fields": [
+    {
+     "key": "clmNo",
+     "meaning": "클레임번호",
+     "example": ""
+    },
+    {
+     "key": "odTypCd",
+     "meaning": "주문유형 20주문취소/50AS",
+     "example": ""
+    },
+    {
+     "key": "odPrgsStepCd",
+     "meaning": "진행단계 02요청/21취소완료/22",
+     "example": ""
+    }
+   ],
+   "success": "returnCode=0000 & data 존재. HTTP 401=인증·403=IP·429=초과·500=오류 (HTTP200이어도 returnCode 확인)",
+   "idTraps": [],
+   "persistIds": [],
+   "codeRef": "",
+   "docApiNo": 50
+  },
+  {
+   "id": "lotteon.claim.cancel.approve",
+   "market": "lotteon",
+   "fnKey": "claim.cancel.approve",
+   "tabs": [
+    "클레임·CS"
+   ],
+   "category": "클레임",
+   "nm": "취소요청 승인처리",
+   "dir": "send",
+   "st": "off",
+   "endpoint": "POST https://openapi.lotteon.com/v1/openapi/claim/v1/cancellationOpenApi/cnclRequestApproval",
+   "req": {
+    "method": "POST",
+    "url": "https://openapi.lotteon.com/v1/openapi/claim/v1/cancellationOpenApi/cnclRequestApproval",
+    "params": [
+     "odNo*",
+     "clmNo*",
+     "itemList[]"
+    ]
+   },
+   "res": {
+    "note": "전체 스펙 롯데ON apiNo=60"
+   },
+   "fields": [
+    {
+     "key": "returnCode",
+     "meaning": "결과코드",
+     "example": ""
+    }
+   ],
+   "success": "returnCode=0000 & data 존재. HTTP 401=인증·403=IP·429=초과·500=오류 (HTTP200이어도 returnCode 확인)",
+   "idTraps": [],
+   "persistIds": [],
+   "codeRef": "",
+   "docApiNo": 60
   }
  ]
 }
