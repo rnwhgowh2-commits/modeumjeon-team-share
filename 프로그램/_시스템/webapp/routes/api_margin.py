@@ -539,7 +539,7 @@ def _probe_cp_refund():
             for order in (resp.get("data") or []):
                 out["n_orders"] += 1
                 items = order.get("items") or []
-                is_ref = any((it.get("saleType") == "REFUND") for it in items)
+                is_ref = (order.get("saleType") == "REFUND")
                 if is_ref:
                     out["n_refund_orders"] += 1
                     if len(out["raw_refund_orders"]) < 2:
