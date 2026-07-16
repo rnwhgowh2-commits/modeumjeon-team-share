@@ -197,6 +197,8 @@ def api_current():
         "ok": True, "market": market, "market_product_id": product_id,
         "options": options,
         "fetch_ok": bool(fr.success),
+        "account_key": ch.account_key,       # 진단: 채널 계정명
+        "env_prefix": env_prefix,            # 진단: 해석된 계정 prefix(None=매핑실패)
         "note": (None if fr.success else
                  f"현재값 조회 미지원/실패 — 값을 직접 입력하세요. ({fr.error or ''})"),
     })
