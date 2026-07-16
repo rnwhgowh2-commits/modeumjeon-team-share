@@ -1532,15 +1532,56 @@
     .cskb .cs-banner{background:#FEF2F2;border:1px solid #FCA5A5;border-radius:10px;padding:10px 12px;font-size:12px;color:#991B1B;margin-bottom:14px}
     .cskb .cs-banner a{color:#991B1B;font-weight:700}
     .cskb .cs-banner.warn{background:#FFFBEB;border-color:#FCD34D;color:#78350F}
+    /* ── 고객문의 인박스(시안3: 좌 목록·우 상세+답변) ── */
+    .cskb .stabs{display:flex;gap:8px;margin-bottom:14px}
+    .cskb .stab{background:#fff;border:1px solid var(--line);border-radius:10px;padding:9px 16px;display:inline-flex;align-items:center;gap:9px;font-size:13.5px;font-weight:600;color:var(--sub);cursor:pointer;font-family:inherit}
+    .cskb .stab .cnt{font-variant-numeric:tabular-nums;font-weight:700}
+    .cskb .stab.on{border-color:var(--blue);box-shadow:0 0 0 2px var(--blue-bg);color:var(--ink)}
+    .cskb .dot2{width:8px;height:8px;border-radius:50%;display:inline-block}
+    .cskb .ch{display:inline-flex;align-items:center;gap:4px;padding:2px 9px;border-radius:6px;font-size:11.5px;font-weight:600;white-space:nowrap}
+    .cskb .ch-talk{background:#E6FCF5;color:#0CA678}
+    .cskb .ch-prod{background:var(--violet-bg);color:var(--violet)}
+    .cskb .ch-online{background:var(--blue-bg);color:var(--blue)}
+    .cskb .ch-seller{background:#FFF0F6;color:#D6336C}
+    .cskb .ch-other{background:var(--line);color:var(--sub)}
+    .cskb .inbox{display:grid;grid-template-columns:340px 1fr;gap:14px;align-items:start}
+    .cskb .qlist{display:flex;flex-direction:column;gap:8px}
+    .cskb .qrow{background:#fff;border:1px solid var(--line);border-radius:10px;padding:11px 13px;cursor:pointer}
+    .cskb .qrow.on{border-color:var(--blue);background:var(--blue-bg)}
+    .cskb .qrow .top{display:flex;align-items:center;gap:6px;margin-bottom:5px;flex-wrap:wrap}
+    .cskb .qrow .who{font-weight:700;font-size:12px}
+    .cskb .qrow .when{margin-left:auto;font-size:11px;color:var(--sub2);font-variant-numeric:tabular-nums}
+    .cskb .qrow .prev{font-size:11.5px;color:var(--sub);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .cskb .detail{background:#fff;border:1px solid var(--line);border-radius:12px;padding:18px;min-height:200px}
+    .cskb .detail .q{font-size:13px;line-height:1.5;color:var(--ink);background:var(--bg);border-radius:8px;padding:9px 11px}
+    .cskb .detail .a{font-size:12.5px;line-height:1.5;color:#0b6b4f;background:var(--green-bg);border-radius:8px;padding:9px 11px;margin-top:9px}
+    .cskb .detail .a .lbl{font-weight:700;font-size:11px;color:var(--green);display:block;margin-bottom:2px}
+    .cskb .composer{margin-top:9px;border-top:1px dashed var(--line);padding-top:9px}
+    .cskb .composer textarea{width:100%;border:1px solid var(--line);border-radius:8px;padding:9px;font-family:inherit;font-size:12.5px;resize:vertical;height:64px;box-sizing:border-box}
+    .cskb .composer .row{display:flex;gap:7px;align-items:center;margin-top:7px;flex-wrap:wrap}
+    .cskb .composer .btn.g{background:#fff;color:var(--blue);border:1px solid var(--blue)}
+    .cskb .composer .btn.off{background:var(--line);color:var(--sub2);cursor:not-allowed}
+    .cskb .offnote{font-size:11px;color:var(--sub2)}
   </style>
   <div class="cskb" id="cskb">
     <div class="csswitch">
       <button type="button" class="on" data-div="claims">반품·교환·취소</button>
-      <button type="button" disabled title="준비 중">고객문의</button>
+      <button type="button" data-div="inquiries">고객문의</button>
     </div>
-    <div class="mtabs" id="cs-mtabs"></div>
-    <div class="cs-banner" id="cs-banner" style="display:none"></div>
-    <div class="kb" id="cs-board"><div class="cs-state">불러오는 중…</div></div>
+    <div class="csdiv" id="cs-div-claims">
+      <div class="mtabs" id="cs-mtabs"></div>
+      <div class="cs-banner" id="cs-banner" style="display:none"></div>
+      <div class="kb" id="cs-board"><div class="cs-state">불러오는 중…</div></div>
+    </div>
+    <div class="csdiv" id="cs-div-inquiries" style="display:none">
+      <div class="mtabs" id="cs-inq-mtabs"></div>
+      <div class="cs-banner" id="cs-inq-banner" style="display:none"></div>
+      <div class="stabs" id="cs-inq-stabs"></div>
+      <div class="inbox" id="cs-inq-inbox">
+        <div class="qlist" id="cs-inq-list"><div class="cs-state">불러오는 중…</div></div>
+        <div class="detail" id="cs-inq-detail"></div>
+      </div>
+    </div>
   </div>
   <script>
   (function(){
@@ -1752,6 +1793,244 @@
 
     renderTabs();
     load();
+  })();
+  </script>
+  <script>
+  (function(){
+    // ══ 고객문의 인박스(시안3) — #2 칸반(마켓탭·전마켓 페치·클라이언트 필터·esc·배너)와 동일 관행 ══
+    var MTABS=document.getElementById('cs-inq-mtabs');
+    var STAB=document.getElementById('cs-inq-stabs');
+    var LIST=document.getElementById('cs-inq-list');
+    var DETAIL=document.getElementById('cs-inq-detail');
+    var BANNER=document.getElementById('cs-inq-banner');
+    if(!MTABS || !LIST || !DETAIL) return;
+    var MK=[['전체',''],['쿠팡','coupang'],['11번가','eleven11'],['롯데온','lotteon'],['스마트스토어','smartstore']];
+    var ALLMK=['coupang','eleven11','lotteon','smartstore'];
+    var LOGO={'쿠팡':['C','#FF5A5A'],'11번가':['11','#F43142'],'롯데온':['L','#DA0F31'],'스마트스토어':['N','#03C75A']};
+    var KO2EN={'쿠팡':'coupang','스마트스토어':'smartstore','롯데온':'lotteon','11번가':'eleven11'};
+    var CH_CLS={'톡톡문의':'ch-talk','상품문의':'ch-prod','온라인문의':'ch-online','판매자QnA':'ch-seller','판매자문의':'ch-seller'};
+    // curMarket/curStatus = 클라이언트측 필터(''=전체마켓). 페치는 항상 전마켓·두 상태 모두 → 배지 정확.
+    var curMarket='';
+    var curStatus='미답변';
+    var selKey=null;
+    var lastCounts={};
+    var lastGroups={'미답변':[],'답변완료':[]};
+
+    function esc(s){
+      return String(s==null?'':s).replace(/[&<>"']/g,function(c){
+        return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];
+      });
+    }
+
+    function chBadge(type){
+      var cls=CH_CLS[type]||'ch-other';
+      return '<span class="ch '+cls+'">'+esc(type||'문의')+'</span>';
+    }
+
+    function selectedLabel(){
+      for(var i=0;i<MK.length;i++){ if(MK[i][1]===curMarket) return MK[i][0]; }
+      return '';
+    }
+
+    function renderTabs(){
+      MTABS.innerHTML='';
+      MK.forEach(function(m){
+        var label=m[0], key=m[1];
+        var lg=LOGO[label];
+        var n=lastCounts[label]||0;
+        var b=document.createElement('button');
+        b.type='button';
+        b.className='mt'+(key===curMarket?' on':'');
+        b.setAttribute('data-mk', key);
+        b.innerHTML=(lg?'<span class="lg" style="background:'+lg[1]+'">'+lg[0]+'</span>':'')
+          +esc(label)+'<span class="n">'+n+'</span>';
+        b.addEventListener('click',function(){
+          if(curMarket===key) return;
+          curMarket=key; selKey=null; renderTabs(); renderStabs(); renderInbox();
+        });
+        MTABS.appendChild(b);
+      });
+    }
+
+    function renderStabs(){
+      var label=selectedLabel();
+      function pickCount(arr){
+        arr=arr||[];
+        return (curMarket==='') ? arr.length : arr.filter(function(r){ return r['마켓']===label; }).length;
+      }
+      var waitN=pickCount(lastGroups['미답변']), doneN=pickCount(lastGroups['답변완료']);
+      STAB.innerHTML=
+        '<div class="stab'+(curStatus==='미답변'?' on':'')+'" data-st="미답변"><span class="dot2" style="background:var(--amber)"></span>미답변 <span class="cnt">'+waitN+'</span></div>'
+       +'<div class="stab'+(curStatus==='답변완료'?' on':'')+'" data-st="답변완료"><span class="dot2" style="background:var(--green)"></span>답변완료 <span class="cnt">'+doneN+'</span></div>';
+      [].slice.call(STAB.querySelectorAll('.stab')).forEach(function(el){
+        el.addEventListener('click',function(){
+          var st=el.getAttribute('data-st');
+          if(curStatus===st) return;
+          curStatus=st; selKey=null; renderStabs(); renderInbox();
+        });
+      });
+    }
+
+    function marketsParam(){ return ALLMK.join(','); }
+
+    function setLoadingState(){
+      LIST.innerHTML='<div class="cs-state">불러오는 중…</div>';
+      DETAIL.innerHTML='';
+    }
+
+    function showBanner(msg, warn){
+      BANNER.style.display='block';
+      BANNER.className='cs-banner'+(warn?' warn':'');
+      if(warn){
+        BANNER.textContent='⚠ '+msg;
+      } else {
+        BANNER.innerHTML=esc(msg)+' · <a href="#" data-retry="1">다시 시도</a>';
+        var a=BANNER.querySelector('[data-retry]');
+        if(a) a.addEventListener('click',function(e){ e.preventDefault(); load(); });
+      }
+    }
+    function hideBanner(){ BANNER.style.display='none'; BANNER.innerHTML=''; }
+
+    function renderDetail(row){
+      if(!row){ DETAIL.innerHTML='<div class="cs-state">선택된 문의가 없어요</div>'; return; }
+      var head='<div class="top" style="display:flex;gap:7px;align-items:center;margin-bottom:8px;flex-wrap:wrap">'
+        +chBadge(row['문의형태'])+'<span class="mk">'+esc(row['마켓'])+'</span><b>'+esc(row['고객'])+'</b>'
+        +'<span class="when" style="margin-left:auto;font-size:11.5px;color:var(--sub2)">'+esc(row['일시'])+'</span></div>';
+      var prod='<div class="prod" style="font-size:11.5px;color:var(--sub);margin-bottom:6px">📦 '+esc(row['상품'])+'</div>';
+      var q='<div class="q">'+esc(row['문의내용'])+'</div>';
+      var tail='';
+      if(row['상태']==='답변완료'){
+        tail='<div class="a"><span class="lbl">내 답변'+(row['답변일']?(' · '+esc(row['답변일'])):'')+'</span>'+esc(row['답변내용']||'')+'</div>'
+           +'<div class="composer"><div class="row"><button type="button" class="btn" style="background:#fff;color:var(--red);border:1px solid var(--red)" data-act="dismiss">삭제</button></div></div>';
+      } else {
+        tail='<div class="composer"><textarea placeholder="답변을 작성하세요…" id="cs-inq-reply-ta"></textarea>'
+           +'<div class="row"><button type="button" class="btn g" data-act="preview">미리보기</button>'
+           +'<button type="button" class="btn off" disabled title="전송은 마켓 검증 후 열립니다(준비 중)">전송 🔒</button>'
+           +'<span class="offnote">전송은 마켓 검증 후 열립니다(준비 중)</span></div>'
+           +'<div id="cs-inq-preview-out"></div></div>';
+      }
+      DETAIL.innerHTML=head+prod+q+tail;
+      var delBtn=DETAIL.querySelector('[data-act="dismiss"]');
+      if(delBtn) delBtn.addEventListener('click',function(){ dismissInquiry(row, delBtn); });
+      var pvBtn=DETAIL.querySelector('[data-act="preview"]');
+      if(pvBtn) pvBtn.addEventListener('click',function(){ previewReply(row, pvBtn); });
+    }
+
+    function renderInbox(){
+      var label=selectedLabel();
+      function pick(arr){
+        arr=arr||[];
+        return (curMarket==='') ? arr : arr.filter(function(r){ return r['마켓']===label; });
+      }
+      var rows=pick(lastGroups[curStatus]);
+      if(!rows.length){
+        LIST.innerHTML='<div class="cs-state">이 기간 문의가 없어요</div>';
+        DETAIL.innerHTML='';
+        selKey=null;
+        return;
+      }
+      if(!selKey || !rows.some(function(r){ return r.inquiry_key===selKey; })){
+        selKey=rows[0].inquiry_key;
+      }
+      LIST.innerHTML='';
+      rows.forEach(function(r){
+        var div=document.createElement('div');
+        div.className='qrow'+(r.inquiry_key===selKey?' on':'');
+        div.innerHTML='<div class="top">'+chBadge(r['문의형태'])+'<span class="who">'+esc(r['고객'])+'</span><span class="when">'+esc(r['일시'])+'</span></div>'
+          +'<div class="prev">'+esc(r['문의내용'])+'</div>';
+        div.addEventListener('click',function(){
+          if(selKey===r.inquiry_key) return;
+          selKey=r.inquiry_key; renderInbox();
+        });
+        LIST.appendChild(div);
+      });
+      var sel=null;
+      rows.forEach(function(r){ if(r.inquiry_key===selKey) sel=r; });
+      renderDetail(sel);
+    }
+
+    function previewReply(row, btn){
+      var ta=document.getElementById('cs-inq-reply-ta');
+      var content=((ta&&ta.value)||'').trim();
+      var out=document.getElementById('cs-inq-preview-out');
+      if(!content){
+        if(out) out.innerHTML='<div class="offnote" style="margin-top:6px">답변 내용을 입력하세요</div>';
+        return;
+      }
+      var en=KO2EN[row['마켓']]||row['마켓'];
+      btn.disabled=true; btn.textContent='확인 중…';
+      fetch('/orders/cs/inquiries/reply-preview',{method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({market:en, inquiry_id:row['문의ID'], content:content})})
+        .then(function(r){return r.json();})
+        .then(function(j){
+          btn.disabled=false; btn.textContent='미리보기';
+          if(!out) return;
+          if(!j.ok){ out.innerHTML='<div class="offnote" style="margin-top:6px;color:var(--red)">미리보기 실패: '+esc(j.error||'')+'</div>'; return; }
+          out.innerHTML='<div class="a"><span class="lbl">미리보기</span>'+esc(j.preview||'')+'</div>'
+            +(j.note?'<div class="offnote" style="margin-top:6px">'+esc(j.note)+'</div>':'');
+        })
+        .catch(function(){
+          btn.disabled=false; btn.textContent='미리보기';
+          if(out) out.innerHTML='<div class="offnote" style="margin-top:6px;color:var(--red)">네트워크 오류</div>';
+        });
+    }
+
+    function dismissInquiry(row, btn){
+      if(!confirm('목록에서 삭제할까요? 실제 마켓 데이터는 바뀌지 않고, 이 화면에서만 안 보이게 됩니다.')) return;
+      btn.disabled=true; btn.textContent='삭제 중…';
+      fetch('/orders/cs/inquiries/dismiss',{method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({inquiry_key:row.inquiry_key, market:row['마켓']})})
+        .then(function(r){return r.json();})
+        .then(function(j){
+          if(!j.ok){ alert('삭제 실패: '+(j.error||'')); btn.disabled=false; btn.textContent='삭제'; return; }
+          selKey=null; load();
+        })
+        .catch(function(){ alert('삭제 실패(네트워크)'); btn.disabled=false; btn.textContent='삭제'; });
+    }
+
+    function load(){
+      hideBanner();
+      setLoadingState();
+      fetch('/orders/cs/inquiries.json?markets='+encodeURIComponent(marketsParam()),{cache:'no-store'})
+        .then(function(r){return r.json();})
+        .then(function(j){
+          if(!j.ok){
+            lastCounts=j.market_counts||{}; lastGroups={'미답변':[],'답변완료':[]}; renderTabs(); renderStabs();
+            LIST.innerHTML='<div class="cs-state">불러오지 못했어요</div>'; DETAIL.innerHTML='';
+            showBanner('불러오지 못했어요: '+(j.error||'알 수 없는 오류'), false);
+            return;
+          }
+          lastCounts=j.market_counts||{};
+          lastGroups=j.groups||{'미답변':[],'답변완료':[]};
+          renderTabs(); renderStabs(); renderInbox();
+          if((j.warnings||[]).length){
+            showBanner(j.warnings.join(' · '), true);
+          }
+        })
+        .catch(function(){
+          LIST.innerHTML='<div class="cs-state">불러오지 못했어요</div>'; DETAIL.innerHTML='';
+          showBanner('네트워크 오류로 불러오지 못했어요', false);
+        });
+    }
+
+    renderTabs();
+    renderStabs();
+    load();
+  })();
+  </script>
+  <script>
+  (function(){
+    // 반품·교환·취소 ↔ 고객문의 division 전환(클라이언트측, 재페치 없음 — 두 division 모두 탭 진입 시 즉시 로드됨).
+    var btns=[].slice.call(document.querySelectorAll('#cskb .csswitch button[data-div]'));
+    var divs={claims:document.getElementById('cs-div-claims'), inquiries:document.getElementById('cs-div-inquiries')};
+    if(!btns.length) return;
+    btns.forEach(function(b){
+      b.addEventListener('click',function(){
+        var key=b.getAttribute('data-div');
+        btns.forEach(function(x){ x.classList.toggle('on', x===b); });
+        Object.keys(divs).forEach(function(k){ if(divs[k]) divs[k].style.display=(k===key)?'':'none'; });
+      });
+    });
   })();
   </script>
 
