@@ -43,6 +43,19 @@ def test_normalize_and_list(session, monkeypatch):
     assert any("연동 준비 중" in w for w in res["warnings"])   # lotteon 미지원
 
 
+def test_list_inquiries_defaults_window_when_no_dates(session, monkeypatch):
+    from lemouton.cs_inquiries import service as isv
+    seen = {}
+    def fake_fetch(market, since, until, status):
+        seen["since"], seen["until"] = since, until
+        return []
+    monkeypatch.setattr(isv, "_fetch_market", fake_fetch)
+    res = isv.list_inquiries(["coupang"], since=None, until=None, session=session)   # 크래시 없어야
+    assert res["groups"] == {"미답변": [], "답변완료": []}
+    assert seen["since"] is not None and seen["until"] is not None   # 기본 창 채워짐
+    assert (seen["until"] - seen["since"]).days == 7
+
+
 def test_dismiss_and_reply_preview(session, monkeypatch):
     from lemouton.cs_inquiries import service as isv
     from lemouton.cs_inquiries.models import InquiryHandling

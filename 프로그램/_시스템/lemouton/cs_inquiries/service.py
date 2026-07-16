@@ -9,6 +9,14 @@ import re as _re
 
 from shared.db import SessionLocal
 from lemouton.cs_inquiries.models import InquiryHandling
+from shared.platforms.coupang.inquiries import (
+    fetch_online_inquiries as _cp_fetch,
+    reply_online_inquiry as _cp_reply,
+)
+from shared.platforms.smartstore.orders import (
+    fetch_inquiries as _ss_fetch,
+    reply_inquiry as _ss_reply,
+)
 
 _SUPPORTED = {"coupang", "smartstore"}   # 실조회 코드 있음. 롯데온·11번가=준비중
 _MK_KO = {"coupang": "쿠팡", "smartstore": "스마트스토어", "lotteon": "롯데온", "eleven11": "11번가"}
@@ -53,12 +61,10 @@ def _normalize_smartstore(it):
 def _fetch_market(market, since, until, status):
     """마켓 어댑터 → 정규화 dict 리스트. ★필드명 라이브 보정 대상."""
     if market == "coupang":
-        from shared.platforms.coupang.inquiries import fetch_online_inquiries
-        raw = fetch_online_inquiries(since, until, answered_type="ALL")
+        raw = _cp_fetch(since, until, answered_type="ALL")
         return [_normalize_coupang(it) for it in (raw.get("data") or [])]
     if market == "smartstore":
-        from shared.platforms.smartstore.orders import fetch_inquiries
-        raw = fetch_inquiries(since, inquiry_status="ALL")
+        raw = _ss_fetch(since, inquiry_status="ALL")
         items = raw.get("contents") or raw.get("data") or []
         return [_normalize_smartstore(it) for it in items]
     raise RuntimeError(f"{_MK_KO.get(market, market)} 문의 연동 준비 중")
@@ -73,13 +79,16 @@ def list_inquiries(markets, *, since, until, now=None, session=None):
     session = session or SessionLocal()
     try:
         today = (now or _dt.datetime.now(_dt.timezone.utc)).date()
+        _KST = _dt.timezone(_dt.timedelta(hours=9))
+        _until = until or (now or _dt.datetime.now(_KST))
+        _since = since or (_until - _dt.timedelta(days=7))
         all_rows, warnings = [], []
         for mk in markets:
             if mk not in _SUPPORTED:
                 warnings.append(f"[{_MK_KO.get(mk, mk)}] 문의 연동 준비 중")
                 continue
             try:
-                all_rows.extend(_fetch_market(mk, since, until, "ALL"))
+                all_rows.extend(_fetch_market(mk, _since, _until, "ALL"))
             except Exception as e:   # noqa: BLE001
                 warnings.append(f"[{_MK_KO.get(mk, mk)}] 문의 조회 실패: {e}")
         keys = [inquiry_key_of(r) for r in all_rows]
@@ -128,11 +137,9 @@ def reply_preview(market, inquiry_id, content):
     if not _live_reply_on():
         return {"sent": False, "preview": content, "note": "전송 준비 중(검증 후 열림)"}
     if market == "coupang":
-        from shared.platforms.coupang.inquiries import reply_online_inquiry
-        reply_online_inquiry(inquiry_id, content)
+        _cp_reply(inquiry_id, content)
     elif market == "smartstore":
-        from shared.platforms.smartstore.orders import reply_inquiry
-        reply_inquiry(inquiry_id, content)
+        _ss_reply(inquiry_id, content)
     else:
         raise RuntimeError(f"{market} 답변 전송 미지원")
     return {"sent": True, "preview": content}
