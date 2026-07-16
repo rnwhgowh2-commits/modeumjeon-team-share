@@ -47,26 +47,40 @@ def _g(d, *keys, default=""):
 
 
 def _normalize_coupang(it):
-    answered = bool(_g(it, "answered", "answeredAt", default="")) or _g(it, "answeredType") == "ANSWERED"
-    return {"마켓": "쿠팡", "문의형태": "온라인문의", "문의ID": str(_g(it, "inquiryId", "onlineInquiryId")),
-            "고객": _g(it, "buyerName", "orderer", "name", "writerName", "custName", "buyerEmail", "memberId"),
-            "상품": _g(it, "sellerProductName", "productName", "vendorItemName", "sellerItemName", "itemName", "sellerProductItemName"),
-            "문의내용": _g(it, "content", "inquiryContent", "question"), "일시": _g(it, "inquiryAt", "createdAt", "receiptDate"),
-            "상태": "답변완료" if answered else "미답변", "답변내용": _g(it, "replyContent", "answerContent"),
-            "답변일": _g(it, "answeredAt", "replyAt")}
+    """쿠팡 온라인 고객문의(상품 상세 문의). ★라이브 실측 필드(2026-07-16).
+
+    응답에 구매자명·상품명 없음(productId/sellerProductId만) — 상품=판매자상품번호로 대체.
+    답변여부=commentDtoList(답변 목록) 비어있지 않으면 답변완료.
+    """
+    comments = it.get("commentDtoList")
+    answered = bool(comments) if isinstance(comments, list) else bool(_g(it, "answeredAt"))
+    return {"마켓": "쿠팡", "문의형태": "온라인문의", "문의ID": str(_g(it, "inquiryId")),
+            "고객": "",                                    # API 미제공
+            "상품": _g(it, "sellerProductId", "productId"),  # 상품명 없음 → 판매자상품번호
+            "문의내용": _g(it, "content"), "일시": _g(it, "inquiryAt"),
+            "상태": "답변완료" if answered else "미답변", "답변내용": "",
+            "답변일": _g(it, "answeredAt")}
 
 
 def _normalize_coupang_cc(it):
-    """쿠팡 고객센터 문의. ★필드명 라이브 보정 대상."""
-    status = _g(it, "partnerCounselingStatus", "counselingStatus")
-    answered = status == "ANSWER" or bool(_g(it, "answeredAt", "answered", default=""))
-    return {"마켓": "쿠팡", "문의형태": "고객센터문의", "문의ID": str(_g(it, "inquiryId", "counselingId", "callCenterInquiryId")),
-            "고객": _g(it, "buyerName", "orderer", "name", "custName", "buyerEmail"),
-            "상품": _g(it, "sellerProductName", "productName", "vendorItemName", "itemName"),
-            "문의내용": _g(it, "content", "inquiryContent", "counselingContent", "question"),
-            "일시": _g(it, "inquiryAt", "createdAt", "counselingAt"),
-            "상태": "답변완료" if answered else "미답변", "답변내용": _g(it, "replyContent", "answerContent"),
-            "답변일": _g(it, "answeredAt", "replyAt")}
+    """쿠팡 고객센터 문의(상담 경유). ★라이브 실측 필드(2026-07-16).
+
+    content 는 "상담이력" 고정 → receiptCategory(유형)로 대체. 상품=itemName(실명 있음).
+    고객=buyerEmail/buyerPhone(마스킹). 답변여부=csPartnerCounselingStatus/answeredAt.
+    """
+    st = str(_g(it, "csPartnerCounselingStatus", "inquiryStatus")).lower()
+    answered = bool(_g(it, "answeredAt")) or st in ("answered", "answer", "completed", "complete")
+    body = _g(it, "content")
+    cat = _g(it, "receiptCategory")
+    if body in ("", "상담이력"):
+        body = cat or "상담 문의"
+    return {"마켓": "쿠팡", "문의형태": "고객센터문의", "문의ID": str(_g(it, "inquiryId")),
+            "고객": _g(it, "buyerEmail", "buyerPhone"),
+            "상품": _g(it, "itemName", "vendorItemId"),
+            "문의내용": (f"[{cat}] {body}" if cat and body != cat else body),
+            "일시": _g(it, "inquiryAt", "orderDate"),
+            "상태": "답변완료" if answered else "미답변", "답변내용": "",
+            "답변일": _g(it, "answeredAt")}
 
 
 def _normalize_ss_customer(it):
@@ -316,38 +330,3 @@ def reply_preview(market, inquiry_id, content):
     else:
         raise RuntimeError(f"{market} 답변 전송 미지원")
     return {"sent": True, "preview": content}
-
-
-def _debug_coupang_raw(since, until):
-    """[임시 진단] 쿠팡 문의 원시응답의 필드명 확인용. 값은 마스킹(키 파악만).
-
-    고객명·상품명 필드명을 추측 없이 실측하기 위한 1회성. 확인 후 제거.
-    """
-    def _mask(v):
-        s = str(v)
-        if len(s) <= 4:
-            return s
-        return s[:2] + "…(" + str(len(s)) + ")"
-    def _shape(items, n=2):
-        out = []
-        for it in items[:n]:
-            if isinstance(it, dict):
-                out.append({k: _mask(v) for k, v in it.items() if not isinstance(v, (dict, list))})
-        return {"keys": sorted({k for it in items if isinstance(it, dict) for k in it.keys()}),
-                "sample": out, "count": len(items)}
-    res = {"online": {}, "callcenter": {}}
-    for _cli in _coupang_clients():
-        for _w0, _w1 in _cp_inq_windows(since, until):
-            try:
-                raw = _cp_fetch(_w0, _w1, client=_cli, answered_type="ALL", page_size=10, page_num=1)
-                res["online"] = _shape(_cp_items(raw))
-            except Exception as e:   # noqa: BLE001
-                res["online"] = {"error": str(e)}
-            try:
-                raw = _cp_cc_fetch(_w0, _w1, client=_cli, counseling_status="NONE", page_size=10, page_num=1)
-                res["callcenter"] = _shape(_cp_items(raw))
-            except Exception as e:   # noqa: BLE001
-                res["callcenter"] = {"error": str(e)}
-            if res["online"].get("count") or res["callcenter"].get("count"):
-                return res
-    return res
