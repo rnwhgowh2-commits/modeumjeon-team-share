@@ -1526,6 +1526,10 @@
     .cskb .s-wd{background:var(--line);color:var(--sub)}
     .cskb .date{font-variant-numeric:tabular-nums;color:var(--sub2)}
     .cskb .btn{background:var(--blue);color:#fff;border:none;border-radius:7px;padding:5px 12px;font-size:11.5px;font-weight:600;cursor:pointer;font-family:inherit}
+    /* 확인 버튼(신규요청) — 2줄: 「확인」 위, 「→ 대응중」 아래(누르면 대응중으로 이동) */
+    .cskb .btn-next{display:inline-flex;flex-direction:column;align-items:center;gap:0;line-height:1.15;padding:5px 13px;flex:0 0 auto;}
+    .cskb .btn-next .bn-hi{font-size:12px;font-weight:600;line-height:1.2;}
+    .cskb .btn-next .bn-lo{font-size:10px;font-weight:400;line-height:1.2;opacity:.9;}
     .cskb .btn:disabled{opacity:.6;cursor:not-allowed}
     .cskb .memoIn{border:1px solid var(--line);border-radius:6px;padding:4px 8px;font-size:11.5px;flex:1;min-width:100px;color:var(--ink);font-family:inherit}
     .cskb .memoRO{margin-top:8px;font-size:11px;color:var(--sub2);line-height:1.4;word-break:break-word}
@@ -1753,18 +1757,20 @@
           div.appendChild(m);
         }
       } else {
-        if(stage==='신규요청'){
-          var btn=document.createElement('button');
-          btn.type='button'; btn.className='btn'; btn.textContent='확인 ✓';
-          btn.addEventListener('click',function(){ ackClaim(row, btn); });
-          act.appendChild(btn);
-        }
+        // 메모(왼쪽·늘어남) → 확인 버튼(오른쪽) 순서. 신규요청만 버튼, 대응중은 메모만.
         var inp=document.createElement('input');
         inp.type='text'; inp.className='memoIn'; inp.placeholder='메모…';
         inp.value=row['메모']||'';
         inp.addEventListener('blur',function(){ saveMemo(row, inp); });
         inp.addEventListener('keydown',function(e){ if(e.key==='Enter'){ inp.blur(); } });
         act.appendChild(inp);
+        if(stage==='신규요청'){
+          var btn=document.createElement('button');
+          btn.type='button'; btn.className='btn btn-next';
+          btn.innerHTML='<span class="bn-hi">확인</span><span class="bn-lo">→ 대응중</span>';
+          btn.addEventListener('click',function(){ ackClaim(row, btn); });
+          act.appendChild(btn);
+        }
       }
       return div;
     }
@@ -1818,14 +1824,14 @@
         body:JSON.stringify({claim_key:row['claim_key'],market:row['판매처'],order_no:row['오픈마켓주문번호'],claim_type:row['유형']})})
         .then(function(r){return r.json();})
         .then(function(j){
-          if(!j.ok){ alert('확인 처리 실패: '+(j.error||'')); btn.disabled=false; btn.textContent='확인 ✓'; return; }
+          if(!j.ok){ alert('확인 처리 실패: '+(j.error||'')); btn.disabled=false; btn.innerHTML='<span class="bn-hi">확인</span><span class="bn-lo">→ 대응중</span>'; return; }
           // 전체 재조회(4마켓·수십초) 대신 화면만 즉시 갱신 — 신규요청 → 대응중 이동.
           removeFromGroups(row['claim_key']);
           row['단계']='대응중';
           (lastGroups['대응중']=lastGroups['대응중']||[]).push(row);
           renderBoard(lastGroups);   // 건수(마켓 배지) 불변 — 단계만 이동
         })
-        .catch(function(){ alert('확인 처리 실패(네트워크)'); btn.disabled=false; btn.textContent='확인 ✓'; });
+        .catch(function(){ alert('확인 처리 실패(네트워크)'); btn.disabled=false; btn.innerHTML='<span class="bn-hi">확인</span><span class="bn-lo">→ 대응중</span>'; });
     }
 
     function dismissClaim(row, btn){
