@@ -26,7 +26,7 @@ def _until_now(until):
 ALL_COLUMNS = ["주문일", "판매처", "주문상태", "상품명", "옵션", "수량",
                "수령자", "수령자전화번호", "주소", "우편번호", "배송메시지",
                "구매자", "구매자번호", "단가", "배송비", "상품금액", "주문금액",
-               "정산예정금액",
+               "정산예정금액", "판매경로",
                # 샵마인 대조로 추가(2026-07-08) — 판매처관리 계정명·주문번호·수수료·송장 등.
                "오픈마켓주문번호", "쇼핑몰별칭", "송장입력", "실결제금액",
                "총주문금액", "옵션추가금", "마켓수수료", "수수료율", "정산예정금(배송비포함)"]
@@ -46,6 +46,7 @@ COLUMN_META = {
     "상품금액":     {"kind": "calc", "desc": "단가 × 수량"},
     "주문금액":     {"kind": "calc", "desc": "상품금액 + 배송비"},
     "정산예정금액": {"kind": "calc", "desc": "상품정산 + 배송비정산(수수료 차감)"},
+    "판매경로":     {"kind": "api",  "desc": "롯데온 유입경로(제휴=상품가 2% 수수료 / 롯데ON=0). 크롤 1회 확정·재판단 없음"},
     "오픈마켓주문번호": {"kind": "api",  "desc": "마켓 주문번호(ordNo·odNo·orderId 등)"},
     "쇼핑몰별칭":   {"kind": "calc", "desc": "판매처관리 계정명(별칭)"},
     "송장입력":     {"kind": "api",  "desc": "송장번호(없으면 '송장미입력')"},
@@ -550,8 +551,40 @@ def lotteon_order_rows(since: _dt.datetime, until: _dt.datetime,
             itmd, aff_by_spd = _lo_settle.scan(since, _lo_fetch_until, client=client)
         except Exception:   # noqa: BLE001
             itmd, aff_by_spd = {}, {}
+
+    # ── 크롤 정산(판매자센터) 캐시 로드 — 라인별 실정산액(pymtTgtAmt)+판매경로(제휴 여부).
+    #    ★제휴 판단은 크롤로 1회 확정되면 sl_chnl 에 박혀 여기서 재사용(재판단·중복작업 불필요).
+    cmap, chnlmap = {}, {}
+    try:
+        from lemouton.sourcing.models_v2 import LotteonSettlement
+        from shared.db import SessionLocal as _SL
+        ods = {str(r.get("오픈마켓주문번호") or "") for r in rows}
+        ods.discard("")
+        if ods:
+            with _SL() as _s:
+                for x in _s.query(LotteonSettlement).filter(
+                        LotteonSettlement.od_no.in_(list(ods))).all():
+                    cmap[(x.od_no, str(x.od_seq))] = x.pymt_tgt_amt
+                    if x.sl_chnl:
+                        chnlmap[(x.od_no, str(x.od_seq))] = x.sl_chnl
+    except Exception:   # noqa: BLE001 — DB 없거나 조회 실패 시 추정 경로로 폴백(추측 폴백 아님)
+        cmap, chnlmap = {}, {}
+
+    def _lo_affiliate(r):
+        """제휴 여부 — 크롤 저장 판매경로(확정) 최우선, 없으면 상품별 이력(추정). (is_aff, 판매경로라벨)."""
+        key = (str(r.get("오픈마켓주문번호") or ""), str(r.get("_odseq") or "1"))
+        chnl = chnlmap.get(key)
+        if chnl is not None:
+            return ("제휴" in chnl), chnl                       # 확정(크롤 1회 판단)
+        aff = bool(aff_by_spd.get(str(r.get("_lo_spdno") or ""), False))
+        return aff, ("제휴" if aff else "롯데ON")               # 추정(상품별 이력)
+
     for r in rows:
         odno = str(r.get("오픈마켓주문번호") or "")
+        aff, chnl_label = _lo_affiliate(r)
+        r["판매경로"] = chnl_label                              # 표시용(제휴/롯데ON)
+        r["제휴수수료율"] = 2 if aff else 0                     # 제휴면 2%(표시)
+        r["_lo_is_affiliate"] = aff
         hit = itmd.get(odno)
         if hit:                                  # 구매확정 = 마켓 실지급액(정확)
             r["정산예정금액"] = hit["pymtAmt"]
@@ -560,34 +593,20 @@ def lotteon_order_rows(since: _dt.datetime, until: _dt.datetime,
         slamt = _to_int(r.get("_lo_slAmt"))
         if slamt is None:                        # 209 성분 없음(클레임행 등) → 유지
             continue
-        aff = bool(aff_by_spd.get(str(r.get("_lo_spdno") or ""), False))
         dvc = _to_int(r.get("_lo_dvcst"), 0) or 0
         r["정산예정금액"] = _lo_calc(
             slamt, dvc, dvc,
             _to_int(r.get("_lo_seller_dc"), 0) or 0,
             _to_int(r.get("_lo_platform_dc"), 0) or 0,
             aff)
-        r["_settle_source"] = "estimated"        # 구매확정 전 추정(제휴는 상품별 이력)
+        r["_settle_source"] = "estimated"        # 구매확정 전 추정(제휴는 크롤확정 or 상품별 이력)
 
     # ── 크롤 정산(판매자센터 pymtTgtAmt) 최우선 — 미정산 포함 오차0 ──
-    try:
-        from lemouton.sourcing.models_v2 import LotteonSettlement
-        from shared.db import SessionLocal as _SL
-        ods = {str(r.get("오픈마켓주문번호") or "") for r in rows}
-        ods.discard("")
-        cmap = {}
-        if ods:
-            with _SL() as _s:
-                for x in _s.query(LotteonSettlement).filter(
-                        LotteonSettlement.od_no.in_(list(ods))).all():
-                    cmap[(x.od_no, str(x.od_seq))] = x.pymt_tgt_amt
-        for r in rows:
-            v = cmap.get((str(r.get("오픈마켓주문번호") or ""), str(r.get("_odseq") or "1")))
-            if v is not None:
-                r["정산예정금액"] = v
-                r["_settle_source"] = "real"
-    except Exception:   # noqa: BLE001 — DB 없거나 조회 실패 시 기존값 유지(폴백 아님)
-        pass
+    for r in rows:
+        v = cmap.get((str(r.get("오픈마켓주문번호") or ""), str(r.get("_odseq") or "1")))
+        if v is not None:
+            r["정산예정금액"] = v
+            r["_settle_source"] = "real"
 
     # 회수·반품·취소 진행상태(209 경로)는 주문일이 회수지시 시각으로 오염됨 →
     #   실주문일 복원 + change 재분류(옛 주문이 '오늘 신규주문'에 새는 것 방지).
