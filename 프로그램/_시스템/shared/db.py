@@ -257,6 +257,8 @@ def _apply_lightweight_migrations() -> None:
         ("mango_orders", "market_shipped_at", "VARCHAR(32)"),
         ("mango_orders", "market_checked_at", "DATETIME"),
         ("mango_orders", "market_check_error", "VARCHAR(200)"),
+        # 2026-07-16: CS 대응완료 수기 삭제 플래그 (claim_handling 은 #2 로 이미 배포됨 → ALTER 보강)
+        ("claim_handling", "dismissed_at", "DATETIME"),
     ]
     inspector = inspect(engine)
     existing_tables = set(inspector.get_table_names())
