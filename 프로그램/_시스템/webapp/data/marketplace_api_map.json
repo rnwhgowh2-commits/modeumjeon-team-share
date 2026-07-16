@@ -8593,6 +8593,380 @@
    "persistIds": [],
    "codeRef": "",
    "docApiNo": 165
+  },
+  {
+   "id": "lotteon.cs.inquiry.list",
+   "market": "lotteon",
+   "fnKey": "cs.inquiry.list",
+   "tabs": [
+    "클레임·CS"
+   ],
+   "category": "고객센터",
+   "nm": "(일반Seller) 판매자 문의목록 조회",
+   "dir": "recv",
+   "st": "off",
+   "endpoint": "POST https://openapi.lotteon.com/v1/openapi/customer/v1/getSellerInquiryList",
+   "req": {
+    "method": "POST",
+    "url": "https://openapi.lotteon.com/v1/openapi/customer/v1/getSellerInquiryList",
+    "params": [
+     "scStrtDt*",
+     "scEndDt*",
+     "vocLcsfCd(문의분류)",
+     "slrInqProcStatCd(처리상태)",
+     "scKwd",
+     "spdNo",
+     "sitmNo"
+    ]
+   },
+   "res": {
+    "note": "전체 스펙 롯데ON apiNo=179"
+   },
+   "fields": [
+    {
+     "key": "slrInqNo",
+     "meaning": "판매자문의번호",
+     "example": ""
+    },
+    {
+     "key": "slrInqProcStatCd",
+     "meaning": "처리상태코드",
+     "example": ""
+    },
+    {
+     "key": "inqTtl",
+     "meaning": "문의제목",
+     "example": ""
+    },
+    {
+     "key": "inqCnts",
+     "meaning": "문의내용",
+     "example": ""
+    },
+    {
+     "key": "odNo",
+     "meaning": "주문번호",
+     "example": ""
+    }
+   ],
+   "success": "returnCode=0000 & data 존재. HTTP 401=인증·403=IP·429=초과·500=오류 (HTTP200이어도 returnCode 확인)",
+   "idTraps": [],
+   "persistIds": [],
+   "codeRef": "",
+   "docApiNo": 179
+  },
+  {
+   "id": "lotteon.cs.inquiry.detail",
+   "market": "lotteon",
+   "fnKey": "cs.inquiry.detail",
+   "tabs": [
+    "클레임·CS"
+   ],
+   "category": "고객센터",
+   "nm": "판매자 문의상세 조회",
+   "dir": "recv",
+   "st": "off",
+   "endpoint": "POST https://openapi.lotteon.com/v1/openapi/customer/v1/getSellerInquiryDetail",
+   "req": {
+    "method": "POST",
+    "url": "https://openapi.lotteon.com/v1/openapi/customer/v1/getSellerInquiryDetail",
+    "params": [
+     "slrInqNo*"
+    ]
+   },
+   "res": {
+    "note": "전체 스펙 롯데ON apiNo=180"
+   },
+   "fields": [],
+   "success": "returnCode=0000 & data 존재. HTTP 401=인증·403=IP·429=초과·500=오류 (HTTP200이어도 returnCode 확인)",
+   "idTraps": [],
+   "persistIds": [],
+   "codeRef": "",
+   "docApiNo": 180
+  },
+  {
+   "id": "lotteon.cs.inquiry.reply",
+   "market": "lotteon",
+   "fnKey": "cs.inquiry.reply",
+   "tabs": [
+    "클레임·CS"
+   ],
+   "category": "고객센터",
+   "nm": "판매자 문의답변 등록",
+   "dir": "send",
+   "st": "off",
+   "endpoint": "POST https://openapi.lotteon.com/v1/openapi/customer/v1/updateSellerInquiry",
+   "req": {
+    "method": "POST",
+    "url": "https://openapi.lotteon.com/v1/openapi/customer/v1/updateSellerInquiry",
+    "params": [
+     "slrInqNo*",
+     "ansCnts*(답변내용)"
+    ]
+   },
+   "res": {
+    "note": "전체 스펙 롯데ON apiNo=181"
+   },
+   "fields": [],
+   "success": "returnCode=0000 & data 존재. HTTP 401=인증·403=IP·429=초과·500=오류 (HTTP200이어도 returnCode 확인)",
+   "idTraps": [],
+   "persistIds": [],
+   "codeRef": "",
+   "docApiNo": 181
+  },
+  {
+   "id": "lotteon.cs.contact.list",
+   "market": "lotteon",
+   "fnKey": "cs.contact.list",
+   "tabs": [
+    "클레임·CS"
+   ],
+   "category": "고객센터",
+   "nm": "판매자 연락목록 조회",
+   "dir": "recv",
+   "st": "off",
+   "endpoint": "POST https://openapi.lotteon.com/v1/openapi/customer/v1/getSellerContactList",
+   "req": {
+    "method": "POST",
+    "url": "https://openapi.lotteon.com/v1/openapi/customer/v1/getSellerContactList",
+    "params": [
+     "scStrtDt*",
+     "scEndDt*",
+     "ctctCfmYn(확인여부)",
+     "scKwd",
+     "odNo",
+     "spdNo"
+    ]
+   },
+   "res": {
+    "note": "전체 스펙 롯데ON apiNo=144"
+   },
+   "fields": [],
+   "success": "returnCode=0000 & data 존재. HTTP 401=인증·403=IP·429=초과·500=오류 (HTTP200이어도 returnCode 확인)",
+   "idTraps": [],
+   "persistIds": [],
+   "codeRef": "",
+   "docApiNo": 144
+  },
+  {
+   "id": "lotteon.cs.contact.detail",
+   "market": "lotteon",
+   "fnKey": "cs.contact.detail",
+   "tabs": [
+    "클레임·CS"
+   ],
+   "category": "고객센터",
+   "nm": "판매자 연락상세 조회",
+   "dir": "recv",
+   "st": "off",
+   "endpoint": "POST https://openapi.lotteon.com/v1/openapi/customer/v1/getSellerContactDetail",
+   "req": {
+    "method": "POST",
+    "url": "https://openapi.lotteon.com/v1/openapi/customer/v1/getSellerContactDetail",
+    "params": [
+     "slrCtctGrpNo*"
+    ]
+   },
+   "res": {
+    "note": "전체 스펙 롯데ON apiNo=145"
+   },
+   "fields": [],
+   "success": "returnCode=0000 & data 존재. HTTP 401=인증·403=IP·429=초과·500=오류 (HTTP200이어도 returnCode 확인)",
+   "idTraps": [],
+   "persistIds": [],
+   "codeRef": "",
+   "docApiNo": 145
+  },
+  {
+   "id": "lotteon.cs.contact.reply",
+   "market": "lotteon",
+   "fnKey": "cs.contact.reply",
+   "tabs": [
+    "클레임·CS"
+   ],
+   "category": "고객센터",
+   "nm": "판매자 연락답변 등록",
+   "dir": "send",
+   "st": "off",
+   "endpoint": "POST https://openapi.lotteon.com/v1/openapi/customer/v1/updateSellerContact",
+   "req": {
+    "method": "POST",
+    "url": "https://openapi.lotteon.com/v1/openapi/customer/v1/updateSellerContact",
+    "params": [
+     "slrCtctGrpNo*",
+     "ctctTtl*",
+     "ctctCnts*"
+    ]
+   },
+   "res": {
+    "note": "전체 스펙 롯데ON apiNo=146"
+   },
+   "fields": [],
+   "success": "returnCode=0000 & data 존재. HTTP 401=인증·403=IP·429=초과·500=오류 (HTTP200이어도 returnCode 확인)",
+   "idTraps": [],
+   "persistIds": [],
+   "codeRef": "",
+   "docApiNo": 146
+  },
+  {
+   "id": "lotteon.cs.contact.confirm",
+   "market": "lotteon",
+   "fnKey": "cs.contact.confirm",
+   "tabs": [
+    "클레임·CS"
+   ],
+   "category": "고객센터",
+   "nm": "판매자 연락 수신확인 처리",
+   "dir": "send",
+   "st": "off",
+   "endpoint": "POST https://openapi.lotteon.com/v1/openapi/customer/v1/(apiNo=270 정확경로 재확인)",
+   "req": {
+    "method": "POST",
+    "url": "https://openapi.lotteon.com/v1/openapi/customer/v1/(apiNo=270 정확경로 재확인)",
+    "params": [
+     "slrCtctNo*"
+    ]
+   },
+   "res": {
+    "note": "전체 스펙 롯데ON apiNo=270"
+   },
+   "fields": [],
+   "success": "returnCode=0000 & data 존재. HTTP 401=인증·403=IP·429=초과·500=오류 (HTTP200이어도 returnCode 확인)",
+   "idTraps": [],
+   "persistIds": [],
+   "codeRef": "",
+   "docApiNo": 270
+  },
+  {
+   "id": "lotteon.cs.compensate.list",
+   "market": "lotteon",
+   "fnKey": "cs.compensate.list",
+   "tabs": [
+    "클레임·CS"
+   ],
+   "category": "고객센터",
+   "nm": "판매자 보상요청목록 조회",
+   "dir": "recv",
+   "st": "off",
+   "endpoint": "POST https://openapi.lotteon.com/v1/openapi/customer/v1/getSellerCompensateList",
+   "req": {
+    "method": "POST",
+    "url": "https://openapi.lotteon.com/v1/openapi/customer/v1/getSellerCompensateList",
+    "params": [
+     "scStrtDt*",
+     "scEndDt*",
+     "cpstReqAprvStatCd(보상승인상태)",
+     "odNo",
+     "spdNo"
+    ]
+   },
+   "res": {
+    "note": "전체 스펙 롯데ON apiNo=217"
+   },
+   "fields": [],
+   "success": "returnCode=0000 & data 존재. HTTP 401=인증·403=IP·429=초과·500=오류 (HTTP200이어도 returnCode 확인)",
+   "idTraps": [],
+   "persistIds": [],
+   "codeRef": "",
+   "docApiNo": 217
+  },
+  {
+   "id": "lotteon.cs.compensate.request",
+   "market": "lotteon",
+   "fnKey": "cs.compensate.request",
+   "tabs": [
+    "클레임·CS"
+   ],
+   "category": "고객센터",
+   "nm": "판매자 보상요청 등록",
+   "dir": "send",
+   "st": "off",
+   "endpoint": "POST https://openapi.lotteon.com/v1/openapi/customer/v1/updateSellerCompensate",
+   "req": {
+    "method": "POST",
+    "url": "https://openapi.lotteon.com/v1/openapi/customer/v1/updateSellerCompensate",
+    "params": [
+     "vocLcsfCd*",
+     "vocMcsfCd*",
+     "cpstReqRsnEpn*(보상요청사유)",
+     "odNo*",
+     "odSeq*",
+     "procSeq*"
+    ]
+   },
+   "res": {
+    "note": "전체 스펙 롯데ON apiNo=219"
+   },
+   "fields": [],
+   "success": "returnCode=0000 & data 존재. HTTP 401=인증·403=IP·429=초과·500=오류 (HTTP200이어도 returnCode 확인)",
+   "idTraps": [],
+   "persistIds": [],
+   "codeRef": "",
+   "docApiNo": 219
+  },
+  {
+   "id": "lotteon.cs.compensate.agree.list",
+   "market": "lotteon",
+   "fnKey": "cs.compensate.agree.list",
+   "tabs": [
+    "클레임·CS"
+   ],
+   "category": "고객센터",
+   "nm": "판매자 보상승인목록 조회",
+   "dir": "recv",
+   "st": "off",
+   "endpoint": "POST https://openapi.lotteon.com/v1/openapi/customer/v1/getCompensateAgreeList",
+   "req": {
+    "method": "POST",
+    "url": "https://openapi.lotteon.com/v1/openapi/customer/v1/getCompensateAgreeList",
+    "params": [
+     "scStrtDt*",
+     "scEndDt*",
+     "cpstAprvStatCd(승인상태)",
+     "odNo",
+     "spdNo"
+    ]
+   },
+   "res": {
+    "note": "전체 스펙 롯데ON apiNo=216"
+   },
+   "fields": [],
+   "success": "returnCode=0000 & data 존재. HTTP 401=인증·403=IP·429=초과·500=오류 (HTTP200이어도 returnCode 확인)",
+   "idTraps": [],
+   "persistIds": [],
+   "codeRef": "",
+   "docApiNo": 216
+  },
+  {
+   "id": "lotteon.cs.compensate.agree",
+   "market": "lotteon",
+   "fnKey": "cs.compensate.agree",
+   "tabs": [
+    "클레임·CS"
+   ],
+   "category": "고객센터",
+   "nm": "판매자 보상승인여부 등록",
+   "dir": "send",
+   "st": "off",
+   "endpoint": "POST https://openapi.lotteon.com/v1/openapi/customer/v1/updateCompensateAgree",
+   "req": {
+    "method": "POST",
+    "url": "https://openapi.lotteon.com/v1/openapi/customer/v1/updateCompensateAgree",
+    "params": [
+     "cpstAccpNo*",
+     "agrYn*(승인여부Y/N)",
+     "slrCpstProcMemoCnts(처리메모)"
+    ]
+   },
+   "res": {
+    "note": "전체 스펙 롯데ON apiNo=218"
+   },
+   "fields": [],
+   "success": "returnCode=0000 & data 존재. HTTP 401=인증·403=IP·429=초과·500=오류 (HTTP200이어도 returnCode 확인)",
+   "idTraps": [],
+   "persistIds": [],
+   "codeRef": "",
+   "docApiNo": 218
   }
  ]
 }
