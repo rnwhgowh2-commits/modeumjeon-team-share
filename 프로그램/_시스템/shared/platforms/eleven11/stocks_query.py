@@ -48,12 +48,14 @@ def _localname(tag: str) -> str:
 
 
 def _build_request_xml(product_id: str) -> str:
-    """조회 요청 XML(prdNo 포함, euc-kr 선언).
+    """조회 요청 XML(prdNo 만, euc-kr 선언).
 
-    ⚠️ 요청 루트 엘리먼트명(<ProductStocks>)은 라이브 확정 대상. prdNo 필드는 스펙 명시.
+    ★라이브 확정(2026-07-17): 요청 본문은 래퍼 없이 <prdNo>만. <ProductStocks> 래퍼로
+      감싸면 "재고 정보 조회 오류"를 반환하고, 래퍼 없이 <prdNo> 만 보내면 정상 조회된다.
+      (응답 래퍼는 ns2:ProductStockss — 파서는 localname 으로 ProductStock 만 순회.)
     """
     return ('<?xml version="1.0" encoding="euc-kr"?>'
-            f"<ProductStocks><prdNo>{product_id}</prdNo></ProductStocks>")
+            f"<prdNo>{product_id}</prdNo>")
 
 
 def _to_int(text: str) -> Optional[int]:
