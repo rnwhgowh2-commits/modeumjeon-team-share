@@ -970,7 +970,9 @@ function dmWorkTab(tab){
   return h;
 }
 function dmApiDetail(a){
-  if(!(a.st==='ok'||a.st==='code')||(!a.req&&!a.res)){
+  const hasReq=a.req&&(typeof a.req!=='object'||Object.keys(a.req).length);
+  const hasRes=a.res&&(typeof a.res!=='object'||Object.keys(a.res).length);
+  if(!hasReq&&!hasRes&&!(a.fields&&a.fields.length)){
     return `<div class="wd"><div class="todo">아직 실제 요청/응답이 안 채워졌어요. (상태: ${DM_LBL[a.st]||a.st}) — 이 마켓 API 문서를 주시면 채웁니다.</div></div>`;
   }
   let f='';
