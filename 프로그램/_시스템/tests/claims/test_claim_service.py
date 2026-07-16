@@ -40,3 +40,16 @@ def test_derive_helpers():
     assert sv.derive_stage(wd_lo, acknowledged=False) == "대응완료"
     assert sv.derive_stage(req, acknowledged=True) == "대응필요"
     assert sv.derive_stage(req, acknowledged=False) == "신규요청"
+
+
+def test_acknowledge_and_memo_upsert(session):
+    from lemouton.claims import service as sv
+    from lemouton.claims.models import ClaimHandling
+    sv.acknowledge("롯데온:LO1:반품", market="롯데온", order_no="LO1", claim_type="반품", session=session)
+    got = session.query(ClaimHandling).filter_by(claim_key="롯데온:LO1:반품").one()
+    assert got.acknowledged_at is not None
+    sv.save_memo("롯데온:LO1:반품", "전화완료·수거대기", session=session)
+    got2 = session.query(ClaimHandling).filter_by(claim_key="롯데온:LO1:반품").one()
+    assert got2.memo == "전화완료·수거대기" and got2.acknowledged_at is not None   # 확인 유지
+    sv.acknowledge("롯데온:LO1:반품", market="롯데온", order_no="LO1", claim_type="반품", session=session)
+    assert session.query(ClaimHandling).filter_by(claim_key="롯데온:LO1:반품").count() == 1
