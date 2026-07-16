@@ -191,6 +191,7 @@ function buildAdapters(){
   DATA.markets.forEach(m=>MKT_CATS_D[m.id]=[]);
   const byMkCat={};
   DATA.apis.forEach(a=>{
+    a.code = a.codeRef || a.endpoint || '';   // 기존 dmRowLux 가 it.code 를 쓰므로 매핑(undefined 방지)
     (byMkCat[a.market]=byMkCat[a.market]||{});
     (byMkCat[a.market][a.category]=byMkCat[a.market][a.category]||[]).push(a);
   });
