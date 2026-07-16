@@ -1735,6 +1735,19 @@
     @keyframes cs-sp{to{transform:rotate(360deg)}}
     .cskb .cs-prog-foot{margin-top:20px;border-top:1px solid var(--line);padding-top:13px;font-size:12.5px;color:var(--sub);display:flex;align-items:center;gap:6px}
     .cskb .cs-prog-foot .num{font-variant-numeric:tabular-nums}
+    /* 취소·반품·교환 유형 필터(드롭다운·모두 선택) */
+    .cskb .cs-filterbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+    .cskb .cs-typefilter{position:relative}
+    .cskb .tf-btn{font-size:12.5px;padding:6px 12px;border-radius:8px;border:1px solid var(--line);background:#fff;color:var(--ink);display:inline-flex;align-items:center;gap:7px;cursor:pointer;font-family:inherit}
+    .cskb .tf-btn .tf-cv{color:var(--sub2)}
+    .cskb .tf-btn.act{border-color:var(--blue);color:var(--blue)}
+    .cskb .tf-pop{position:absolute;top:calc(100% + 6px);left:0;z-index:30;width:190px;background:#fff;border:1px solid var(--line);border-radius:10px;box-shadow:0 6px 20px rgba(0,0,0,.12);padding:8px}
+    .cskb .tf-srch{width:100%;border:1px solid var(--line);border-radius:7px;padding:6px 9px;font-size:12px;margin-bottom:6px;font-family:inherit;color:var(--ink)}
+    .cskb .tf-pop label{display:flex;align-items:center;gap:8px;padding:5px 6px;font-size:12.5px;border-radius:6px;cursor:pointer;color:var(--ink)}
+    .cskb .tf-pop label:hover{background:var(--bg)}
+    .cskb .tf-pop label.tf-all{font-weight:700;border-bottom:1px solid var(--line);border-radius:0;margin-bottom:3px;padding-bottom:8px}
+    .cskb .tf-pop label .tf-c{margin-left:auto;color:var(--sub2);font-size:11.5px;font-variant-numeric:tabular-nums}
+    .cskb .tf-pop input[type=checkbox]{width:15px;height:15px;accent-color:var(--blue)}
   </style>
   <div class="cskb" id="cskb">
     <div class="csswitch">
@@ -1742,7 +1755,19 @@
       <button type="button" data-div="inquiries">고객문의</button>
     </div>
     <div class="csdiv" id="cs-div-claims">
-      <div class="mtabs" id="cs-mtabs"></div>
+      <div class="cs-filterbar">
+        <div class="mtabs" id="cs-mtabs"></div>
+        <div class="cs-typefilter" id="cs-typefilter">
+          <button type="button" class="tf-btn" id="tf-btn">유형 <span class="tf-cv" id="tf-cv">전체</span> ▾</button>
+          <div class="tf-pop" id="tf-pop" style="display:none">
+            <input class="tf-srch" id="tf-srch" placeholder="검색">
+            <label class="tf-all"><input type="checkbox" id="tf-all" checked> (모두 선택)</label>
+            <label class="tf-row" data-t="취소"><input type="checkbox" class="tf-ck" value="취소" checked> 취소 <span class="tf-c" data-t="취소">0</span></label>
+            <label class="tf-row" data-t="반품"><input type="checkbox" class="tf-ck" value="반품" checked> 반품 <span class="tf-c" data-t="반품">0</span></label>
+            <label class="tf-row" data-t="교환"><input type="checkbox" class="tf-ck" value="교환" checked> 교환 <span class="tf-c" data-t="교환">0</span></label>
+          </div>
+        </div>
+      </div>
       <div class="cs-banner" id="cs-banner" style="display:none"></div>
       <div id="cs-claims-progress" style="display:none"></div>
       <div class="kb" id="cs-board"><div class="cs-state">불러오는 중…</div></div>
@@ -1768,6 +1793,8 @@
     var ALLMK=['coupang','eleven11','lotteon','smartstore'];
     var LOGO={'쿠팡':['C','#FF5A5A'],'11번가':['11','#F43142'],'롯데온':['L','#DA0F31'],'스마트스토어':['N','#03C75A']};
     var TYPE_CLS={'취소':'t-cancel','반품':'t-return','교환':'t-exch'};
+    var TYPES=['취소','반품','교환'];
+    var selTypes={'취소':1,'반품':1,'교환':1};   // 유형 필터(기본 모두 선택)
     var STAGES=[['신규요청','i-new','🆕'],['대응중','i-chk','👀'],['대응완료','i-done','✅']];
     // curMarket = 클라이언트측 필터 선택(''=전체). 페치는 항상 전마켓 → 건수 배지는 항상 정확.
     var curMarket='';
@@ -1911,12 +1938,63 @@
       return '';
     }
 
+    // ── 취소·반품·교환 유형 필터(드롭다운·모두 선택) ──
+    function typeCounts(){
+      var c={'취소':0,'반품':0,'교환':0}, label=selectedLabel();
+      STAGE_KEYS.forEach(function(k){
+        (lastGroups[k]||[]).forEach(function(r){
+          if(curMarket!=='' && r['판매처']!==label) return;
+          if(c[r['유형']]!==undefined) c[r['유형']]++;
+        });
+      });
+      return c;
+    }
+    function typeSummary(){
+      var on=TYPES.filter(function(t){ return selTypes[t]; });
+      if(on.length===TYPES.length) return '전체';
+      if(on.length===0) return '없음';
+      return on.join('·');
+    }
+    function renderTypeFilter(){
+      var c=typeCounts();
+      TYPES.forEach(function(t){
+        var cel=document.querySelector('#tf-pop .tf-c[data-t="'+t+'"]'); if(cel) cel.textContent=c[t];
+        var ck=document.querySelector('#tf-pop .tf-ck[value="'+t+'"]'); if(ck) ck.checked=!!selTypes[t];
+      });
+      var allOn=TYPES.every(function(t){ return selTypes[t]; });
+      var allc=document.getElementById('tf-all'); if(allc) allc.checked=allOn;
+      var cv=document.getElementById('tf-cv'); if(cv) cv.textContent=typeSummary();
+      var btn=document.getElementById('tf-btn'); if(btn) btn.classList.toggle('act', !allOn);
+    }
+    function initTypeFilter(){
+      var btn=document.getElementById('tf-btn'), pop=document.getElementById('tf-pop');
+      if(!btn||!pop) return;
+      btn.addEventListener('click',function(e){ e.stopPropagation(); pop.style.display=(pop.style.display==='none'?'block':'none'); });
+      document.addEventListener('click',function(e){ if(pop.style.display!=='none' && !pop.contains(e.target) && !btn.contains(e.target)) pop.style.display='none'; });
+      document.getElementById('tf-all').addEventListener('change',function(){
+        var on=this.checked; TYPES.forEach(function(t){ selTypes[t]=on?1:0; }); renderBoard(lastGroups);
+      });
+      [].slice.call(document.querySelectorAll('#tf-pop .tf-ck')).forEach(function(ck){
+        ck.addEventListener('change',function(){ selTypes[ck.value]=ck.checked?1:0; renderBoard(lastGroups); });
+      });
+      document.getElementById('tf-srch').addEventListener('input',function(){
+        var q=this.value.trim();
+        [].slice.call(document.querySelectorAll('#tf-pop .tf-row')).forEach(function(row){
+          row.style.display=(!q || row.getAttribute('data-t').indexOf(q)>=0)?'':'none';
+        });
+      });
+      renderTypeFilter();
+    }
+
     function renderBoard(groups){
       groups=groups||{};
       var label=selectedLabel();
+      renderTypeFilter();   // 유형 필터 건수·요약 갱신
       function pick(arr){
-        arr=arr||[];
-        return (curMarket==='') ? arr : arr.filter(function(r){ return r['판매처']===label; });
+        return (arr||[]).filter(function(r){
+          if(curMarket!=='' && r['판매처']!==label) return false;
+          return !!selTypes[r['유형']];   // 취소·반품·교환 유형 필터
+        });
       }
       var total=STAGES.reduce(function(n,s){ return n+pick(groups[s[0]]).length; },0);
       BOARD.innerHTML='';
@@ -2068,6 +2146,7 @@
     }
 
     renderTabs();
+    initTypeFilter();
     load();
   })();
   </script>
