@@ -11,6 +11,7 @@ from shared.db import SessionLocal
 from lemouton.cs_inquiries.models import InquiryHandling
 from shared.platforms.coupang.inquiries import (
     fetch_online_inquiries as _cp_fetch,
+    fetch_call_center_inquiries as _cp_cc_fetch,
     reply_online_inquiry as _cp_reply,
 )
 from shared.platforms.smartstore.orders import (
@@ -46,6 +47,19 @@ def _normalize_coupang(it):
             "고객": _g(it, "buyerName", "orderer", "name", "writerName", "custName", "buyerEmail", "memberId"),
             "상품": _g(it, "sellerProductName", "productName", "vendorItemName", "sellerItemName", "itemName", "sellerProductItemName"),
             "문의내용": _g(it, "content", "inquiryContent", "question"), "일시": _g(it, "inquiryAt", "createdAt", "receiptDate"),
+            "상태": "답변완료" if answered else "미답변", "답변내용": _g(it, "replyContent", "answerContent"),
+            "답변일": _g(it, "answeredAt", "replyAt")}
+
+
+def _normalize_coupang_cc(it):
+    """쿠팡 고객센터 문의. ★필드명 라이브 보정 대상."""
+    status = _g(it, "partnerCounselingStatus", "counselingStatus")
+    answered = status == "ANSWER" or bool(_g(it, "answeredAt", "answered", default=""))
+    return {"마켓": "쿠팡", "문의형태": "고객센터문의", "문의ID": str(_g(it, "inquiryId", "counselingId", "callCenterInquiryId")),
+            "고객": _g(it, "buyerName", "orderer", "name", "custName", "buyerEmail"),
+            "상품": _g(it, "sellerProductName", "productName", "vendorItemName", "itemName"),
+            "문의내용": _g(it, "content", "inquiryContent", "counselingContent", "question"),
+            "일시": _g(it, "inquiryAt", "createdAt", "counselingAt"),
             "상태": "답변완료" if answered else "미답변", "답변내용": _g(it, "replyContent", "answerContent"),
             "답변일": _g(it, "answeredAt", "replyAt")}
 
@@ -117,10 +131,21 @@ def _fetch_market(market, since, until, status):
         for _cli in _coupang_clients():
             for _w0, _w1 in _cp_inq_windows(since, until):   # 쿠팡 문의 조회 최대 7일 → 6일 청크 분할
                 page = 1
-                for _ in range(30):   # 안전 상한
+                for _ in range(30):   # 온라인 고객문의(상품)
                     raw = _cp_fetch(_w0, _w1, client=_cli, answered_type="ALL", page_size=50, page_num=page)
                     items = _cp_items(raw)   # data 가 봉투(dict{content}) or 리스트 — 방어적 추출
                     out.extend(_normalize_coupang(it) for it in items if isinstance(it, dict))
+                    if len(items) < 50:
+                        break
+                    page += 1
+                page = 1
+                for _ in range(30):   # 고객센터 문의(상담 경유)
+                    try:
+                        raw = _cp_cc_fetch(_w0, _w1, client=_cli, counseling_status="NONE", page_size=50, page_num=page)
+                    except Exception:   # noqa: BLE001 — 고객센터 조회 실패는 온라인 문의 유지(부가)
+                        break
+                    items = _cp_items(raw)
+                    out.extend(_normalize_coupang_cc(it) for it in items if isinstance(it, dict))
                     if len(items) < 50:
                         break
                     page += 1
