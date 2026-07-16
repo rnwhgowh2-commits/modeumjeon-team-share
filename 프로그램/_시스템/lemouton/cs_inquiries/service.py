@@ -59,14 +59,27 @@ def _normalize_smartstore(it):
 
 
 def _fetch_market(market, since, until, status):
-    """마켓 어댑터 → 정규화 dict 리스트. ★필드명 라이브 보정 대상."""
+    """마켓 어댑터 → 정규화 dict 리스트. 페이지네이션(안전상한). ★필드명 라이브 보정 대상."""
     if market == "coupang":
-        raw = _cp_fetch(since, until, answered_type="ALL")
-        return [_normalize_coupang(it) for it in (raw.get("data") or [])]
+        out, page = [], 1
+        for _ in range(30):   # 안전 상한
+            raw = _cp_fetch(since, until, answered_type="ALL", page_size=50, page_num=page)
+            items = raw.get("data") or []
+            out.extend(_normalize_coupang(it) for it in items)
+            if len(items) < 50:
+                break
+            page += 1
+        return out
     if market == "smartstore":
-        raw = _ss_fetch(since, inquiry_status="ALL")
-        items = raw.get("contents") or raw.get("data") or []
-        return [_normalize_smartstore(it) for it in items]
+        out, page = [], 1
+        for _ in range(30):
+            raw = _ss_fetch(since, inquiry_status="ALL", page_size=100, page_number=page)
+            items = raw.get("contents") or raw.get("data") or []
+            out.extend(_normalize_smartstore(it) for it in items)
+            if len(items) < 100:
+                break
+            page += 1
+        return out
     raise RuntimeError(f"{_MK_KO.get(market, market)} 문의 연동 준비 중")
 
 
@@ -78,7 +91,7 @@ def list_inquiries(markets, *, since, until, now=None, session=None):
     own = session is None
     session = session or SessionLocal()
     try:
-        today = (now or _dt.datetime.now(_dt.timezone.utc)).date()
+        today = (now or _dt.datetime.now(_dt.timezone(_dt.timedelta(hours=9)))).date()
         _KST = _dt.timezone(_dt.timedelta(hours=9))
         _until = until or (now or _dt.datetime.now(_KST))
         _since = since or (_until - _dt.timedelta(days=7))

@@ -150,7 +150,7 @@ def list_claims(markets, *, since, until, now=None, session=None):
                    session.query(ClaimHandling).filter(ClaimHandling.claim_key.in_(keys or [""])).all()}
         groups = {s: [] for s in _STAGES}
         counts = {"전체": 0}
-        today = (now or _dt.datetime.now(_dt.timezone.utc)).date()
+        today = (now or _dt.datetime.now(_dt.timezone(_dt.timedelta(hours=9)))).date()
         for r in rows:
             ack = handled.get(claim_key_of(r))
             v = _claim_view(r, ack)

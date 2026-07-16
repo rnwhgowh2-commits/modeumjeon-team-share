@@ -56,6 +56,16 @@ def test_list_inquiries_defaults_window_when_no_dates(session, monkeypatch):
     assert (seen["until"] - seen["since"]).days == 7
 
 
+def test_fetch_market_paginates_coupang(monkeypatch):
+    from lemouton.cs_inquiries import service as isv
+    import datetime as dt
+    pages = {1: {"data": [{"inquiryId": str(i)} for i in range(50)]},
+             2: {"data": [{"inquiryId": "x"}]}}
+    monkeypatch.setattr(isv, "_cp_fetch", lambda since, until, **kw: pages[kw["page_num"]])
+    rows = isv._fetch_market("coupang", dt.datetime(2026,7,10), dt.datetime(2026,7,16), "ALL")
+    assert len(rows) == 51   # 50 + 1, stopped on short page
+
+
 def test_dismiss_and_reply_preview(session, monkeypatch):
     from lemouton.cs_inquiries import service as isv
     from lemouton.cs_inquiries.models import InquiryHandling
