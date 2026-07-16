@@ -53,3 +53,23 @@ def test_acknowledge_and_memo_upsert(session):
     assert got2.memo == "전화완료·수거대기" and got2.acknowledged_at is not None   # 확인 유지
     sv.acknowledge("롯데온:LO1:반품", market="롯데온", order_no="LO1", claim_type="반품", session=session)
     assert session.query(ClaimHandling).filter_by(claim_key="롯데온:LO1:반품").count() == 1
+
+
+def test_list_claims_groups_and_counts(session, monkeypatch):
+    from lemouton.claims import service as sv
+    import datetime as dt
+    KST = dt.timezone(dt.timedelta(hours=9))
+    change_rows = [
+        {"판매처": "롯데온", "오픈마켓주문번호": "LO1", "주문상태": "취소요청", "주문상태원본": "02",
+         "_change_date": "20260715120000", "상품명": "코트", "옵션": "블랙", "수량": 1, "배송메시지": "변심"},
+        {"판매처": "쿠팡", "오픈마켓주문번호": "CP1", "주문상태": "반품완료", "주문상태원본": "RETURNS_COMPLETED",
+         "_change_date": "20260715090000", "상품명": "니트", "옵션": "M", "수량": 1, "배송메시지": ""},
+    ]
+    monkeypatch.setattr(sv, "status_change_rows", lambda markets, **kw: change_rows)
+    sv.acknowledge("롯데온:LO1:취소", market="롯데온", order_no="LO1", claim_type="취소", session=session)
+    since = dt.datetime(2026, 7, 15, tzinfo=KST); until = dt.datetime(2026, 7, 15, 23, tzinfo=KST)
+    res = sv.list_claims(["lotteon", "coupang"], since=since, until=until, session=session)
+    assert [c["오픈마켓주문번호"] for c in res["groups"]["대응필요"]] == ["LO1"]
+    assert [c["오픈마켓주문번호"] for c in res["groups"]["대응완료"]] == ["CP1"]   # 완료=자동
+    assert res["groups"]["신규요청"] == []
+    assert res["market_counts"]["전체"] == 2

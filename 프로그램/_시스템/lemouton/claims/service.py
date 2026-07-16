@@ -6,6 +6,7 @@ import datetime as _dt
 
 from shared.db import SessionLocal
 from lemouton.claims.models import ClaimHandling
+from lemouton.markets.order_export import status_change_rows
 
 _TYPES = ("취소", "교환", "반품")
 
@@ -79,6 +80,48 @@ def save_memo(claim_key, memo, *, market="", order_no="", claim_type="", session
         row = _get_or_create(session, claim_key, market=market, order_no=order_no, claim_type=claim_type)
         row.memo = memo
         session.commit()
+    finally:
+        if own:
+            session.close()
+
+
+_STAGES = ("신규요청", "대응필요", "대응완료")
+
+
+def _claim_view(row, ack):
+    return {
+        "판매처": row.get("판매처", ""),
+        "오픈마켓주문번호": row.get("오픈마켓주문번호", ""),
+        "유형": claim_type_of(row),
+        "상태": claim_state_of(row),
+        "상품명": row.get("상품명", ""),
+        "옵션": row.get("옵션", ""),
+        "수량": row.get("수량", ""),
+        "사유": row.get("배송메시지", ""),
+        "변경일": row.get("_change_date", ""),
+        "claim_key": claim_key_of(row),
+        "메모": (ack.memo if ack else "") or "",
+        "단계": derive_stage(row, acknowledged=bool(ack and ack.acknowledged_at)),
+    }
+
+
+def list_claims(markets, *, since, until, session=None):
+    """status_change_rows + ClaimHandling 조인 → {groups:3단계, market_counts}."""
+    own = session is None
+    session = session or SessionLocal()
+    try:
+        rows = status_change_rows(markets, since=since, until=until)
+        keys = [claim_key_of(r) for r in rows]
+        handled = {h.claim_key: h for h in
+                   session.query(ClaimHandling).filter(ClaimHandling.claim_key.in_(keys or [""])).all()}
+        groups = {s: [] for s in _STAGES}
+        counts = {"전체": 0}
+        for r in rows:
+            v = _claim_view(r, handled.get(claim_key_of(r)))
+            groups[v["단계"]].append(v)
+            counts["전체"] += 1
+            counts[v["판매처"]] = counts.get(v["판매처"], 0) + 1
+        return {"groups": groups, "market_counts": counts}
     finally:
         if own:
             session.close()
