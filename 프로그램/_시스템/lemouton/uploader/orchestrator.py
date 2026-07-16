@@ -165,7 +165,10 @@ def run_uploader(
     pacer=None,
     automation: dict | None = None,
 ) -> dict:
-    """메인 진입점. force=True면 보류 무시하고 진행.
+    """메인 진입점. force=True면 드라이런 보류(자동 hold)와 변동감지 스킵을 둘 다 우회한다.
+
+    force 는 '변동감지 보류'만 우회할 뿐 어댑터 게이트(서버키·price_guard)는 못 우회한다.
+    직접 값 지정 전송(scoped_send.run_explicit)에서 '현재값과 같아도 반드시 전송'을 위해 쓴다.
 
     persist=True 면 종료 시 session.commit() 으로 MarketRegistration(변동감지 기준선)을
     영속한다. 이게 없으면 SessionLocal(autocommit=False)에서 등록이 롤백돼 detect_change 가
@@ -190,7 +193,10 @@ def run_uploader(
             canonical_sku=u["canonical_sku"], market=u["market"],
             new_price=u["new_price"], new_stock=u["new_stock"],
         )
-        if not change.has_change:
+        # force=True 는 변동감지 보류만 우회한다 — 명시값 전송(직접 값 지정 테스트)에서
+        #   '현재값과 같아도 반드시 전송'을 보장하기 위해 has_change 스킵도 건너뛴다.
+        #   (스케줄러·기본 경로는 force=False 라 현행 동작 완전 보존.)
+        if not change.has_change and not force:
             skipped += 1
             continue
         # 변동 종류 토글(소싱처 가격/재고) — automation 주면 필터. 없으면 현행대로 전량.
