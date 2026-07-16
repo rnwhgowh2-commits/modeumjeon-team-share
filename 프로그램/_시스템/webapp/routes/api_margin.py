@@ -584,3 +584,43 @@ def _probe_ss_raw():
         if found:
             out.append({"acct": name, "elements": found})
     return jsonify({"accounts": out})
+
+
+@bp.route("/_probe_11st_lines", methods=["POST"])
+def _probe_11st_lines():
+    """[임시진단] 특정 ordNo 의 settlementList 원본 라인(ordPrdSeq·stlAmt·selFee 등) 덤프 —
+    배송비 stlAmt 총액/순액 확인용. body{since,until,ordno}. 확인 후 제거."""
+    from shared.platforms.eleven11 import settlement as _s
+    from shared.platforms.eleven11.orders import _localname, _parse
+    from lemouton.markets.order_export import _account_client, _active_accounts
+    KST = _dt.timezone(_dt.timedelta(hours=9))
+    body = request.get_json(silent=True) or {}
+    ordno = str(body.get("ordno") or "")
+    try:
+        since = _dt.datetime.fromisoformat(body["since"]).replace(tzinfo=KST)
+        until = _dt.datetime.fromisoformat(body["until"]).replace(tzinfo=KST)
+    except Exception:
+        return jsonify({"error": "since/until"}), 400
+    out = []
+    for prefix, name in _active_accounts("eleven11"):
+        cli = _account_client("eleven11", prefix)
+        if cli is None:
+            continue
+        try:
+            for wf, wt in _s._windows(since, until):
+                raw = cli.request("GET", _s._PATH.format(s=_s._fmt(wf), e=_s._fmt(wt)))
+                root = _parse(raw) if isinstance(raw, str) else raw
+                if root is None:
+                    continue
+                for el in root.iter():
+                    entry = {}
+                    for ch in el:
+                        entry[_localname(ch.tag)] = (ch.text or "").strip()
+                    if entry.get("ordNo") == ordno and entry.get("stlAmt"):
+                        out.append({"acct": name, "seq": entry.get("ordPrdSeq"),
+                                    "stlAmt": entry.get("stlAmt"), "selFee": entry.get("selFee"),
+                                    "prdNo": entry.get("prdNo"), "selPrcAmt": entry.get("selPrcAmt"),
+                                    "keys": [k for k in entry.keys() if entry.get(k)][:30]})
+        except Exception as e:  # noqa: BLE001
+            out.append({"acct": name, "err": str(e)[:200]})
+    return jsonify({"lines": out})
