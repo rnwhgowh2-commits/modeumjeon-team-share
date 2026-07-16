@@ -122,6 +122,25 @@
   .dm2 .warnbox{background:#FFFBEB;border:1px solid #FDE68A;border-left:3px solid var(--code);border-radius:10px;padding:11px 14px;margin-top:13px;}
   .dm2 .warnbox .wt{font-size:11.5px;font-weight:800;color:#92400E;margin-bottom:7px;}
   .dm2 .warnbox .wr{display:flex;gap:8px;align-items:flex-start;font-size:11px;color:#7C4A03;line-height:1.55;padding:2px 0;}
+  /* 업무탭 — 기능×마켓 비교표(API 칩) + 줄 아래 상세 아코디언 (2026-07-16 Plan 2) */
+  .dm2 .wtbl{width:100%;border-collapse:collapse;font-size:12.5px;}
+  .dm2 .wtbl th,.dm2 .wtbl td{border-bottom:1px solid var(--line);padding:8px 9px;}
+  .dm2 .wtbl thead th{background:#F7F9FB;font-size:11px;color:var(--sub);font-weight:800;border-bottom:1px solid var(--line2);}
+  .dm2 .wtbl th.fn,.dm2 .wtbl td.fn{text-align:left;width:30%;font-weight:700;}
+  .dm2 .wtbl td.fn .dir{font-size:10px;font-weight:700;color:var(--faint);border:1px solid var(--line2);border-radius:4px;padding:0 5px;margin-right:6px;}
+  .dm2 .wtbl th.mk,.dm2 .wtbl td.mk{text-align:center;}
+  .dm2 .wchip{display:inline-block;font-family:var(--mono);font-size:10.5px;font-weight:600;border-radius:5px;padding:2px 7px;cursor:pointer;}
+  .dm2 .wchip.ok{background:var(--okb);color:var(--ok);} .dm2 .wchip.code{background:var(--codeb);color:var(--code);}
+  .dm2 .wchip.off{background:var(--offb);color:var(--off);} .dm2 .wchip.none{background:#F2F4F6;color:var(--faint);cursor:default;}
+  .dm2 .wdetail td{background:#FCFDFE;padding:0 6px 12px;}
+  .dm2 .wd{border:1px solid var(--line2);border-radius:9px;padding:13px 15px;}
+  .dm2 .wd .k{font-size:11px;font-weight:800;color:var(--sub);margin:9px 0 4px;text-transform:uppercase;}
+  .dm2 .wd pre{margin:0;background:#0F172A;color:#E2E8F0;border-radius:7px;padding:10px 12px;font-family:var(--mono);font-size:11px;line-height:1.55;overflow-x:auto;white-space:pre-wrap;}
+  .dm2 .wd table.f{width:100%;border-collapse:collapse;font-size:11.5px;}
+  .dm2 .wd table.f td,.dm2 .wd table.f th{border-bottom:1px solid var(--line);padding:5px 8px;text-align:left;}
+  .dm2 .wd table.f td.key{font-family:var(--mono);color:#0C447C;}
+  .dm2 .wd .succ{background:var(--okb);border:1px solid #BBE6C9;border-radius:7px;padding:8px 11px;font-size:12px;color:#14532D;margin-top:9px;}
+  .dm2 .wd .todo{color:var(--faint);font-size:12px;padding:6px 0;}
 </style>
 
 <div class="dm2">
@@ -925,6 +944,56 @@ function dmSettle(){
       +`<div class="stlnote">라인 매칭 키 = 마켓별 주문번호+순번: 쿠팡 <span class="cc">orderId+vendorItemId</span> · 스스 <span class="cc">productOrderId</span> · 롯데온 <span class="cc">odNo+odseq</span> · 11번가 <span class="cc">ordNo+ordPrdSeq</span>. 점선 항 = 별도 필드 없음(총액 흡수).</div>`;
   }
   return `<div class="favhead"><span class="ft">💰 정산 계산 항목 — API 필드 코드</span><span class="fs">각 항목이 어느 API 필드에서 오는지. 별도 필드 없는 항목은 「~에 포함」으로 흡수처 표시.</span></div>`+sub+bd;
+}
+function dmMkList(){return DATA.markets.map(m=>m.id);}
+function esc(v){return (typeof v==='string'?v:JSON.stringify(v,null,2)).replace(/&/g,'&amp;').replace(/</g,'&lt;');}
+function dmWorkTab(tab){
+  const list=DATA.apis.filter(a=>(a.tabs||[]).includes(tab));
+  // fnKey 로 묶기(대표 nm/dir = 첫 항목)
+  const byFn={}; list.forEach(a=>{(byFn[a.fnKey]=byFn[a.fnKey]||[]).push(a);});
+  const mks=dmMkList();
+  let h=`<div class="favhead"><span class="ft">${tab}</span><span class="fs">기능별로 마켓이 주는지(칩=실제 API 이름·색=상태) / 칸을 누르면 아래에 실제 요청·응답이 펼쳐집니다</span></div>`;
+  h+=`<table class="wtbl"><thead><tr><th class="fn">기능</th>`+mks.map(id=>`<th class="mk">${MK_META[id].label}</th>`).join('')+`</tr></thead><tbody>`;
+  Object.keys(byFn).forEach(fn=>{
+    const rep=byFn[fn][0];
+    let cells='';
+    mks.forEach(id=>{
+      const a=byFn[fn].find(x=>x.market===id);
+      if(!a){ cells+=`<td class="mk"><span class="wchip none">—</span></td>`; }
+      else{ const short=(a.endpoint||a.id).split(' ').pop().split('/').slice(-2).join('/');
+        cells+=`<td class="mk"><span class="wchip ${a.st}" data-id="${a.id}">${short}</span></td>`; }
+    });
+    h+=`<tr class="wrow" data-fn="${fn}"><td class="fn"><span class="dir">${rep.dir==='recv'?'받기':'보내기'}</span>${rep.nm}</td>${cells}</tr>`;
+  });
+  h+=`</tbody></table>`;
+  return h;
+}
+function dmApiDetail(a){
+  if(!(a.st==='ok'||a.st==='code')||(!a.req&&!a.res)){
+    return `<div class="wd"><div class="todo">아직 실제 요청/응답이 안 채워졌어요. (상태: ${DM_LBL[a.st]||a.st}) — 이 마켓 API 문서를 주시면 채웁니다.</div></div>`;
+  }
+  let f='';
+  (a.fields||[]).forEach(x=>f+=`<tr><td class="key">${x.key}</td><td>${x.meaning}</td><td class="key">${esc(x.example)}</td></tr>`);
+  return `<div class="wd">
+    <div class="k">실제 요청</div><pre>${a.endpoint||''}\n${esc(a.req)}</pre>
+    <div class="k">실제 응답</div><pre>${esc(a.res)}</pre>
+    ${f?`<div class="k">응답 필드 뜻</div><table class="f"><thead><tr><th>키</th><th>뜻</th><th>예시</th></tr></thead><tbody>${f}</tbody></table>`:''}
+    <div class="succ"><b>성공 판정</b> — ${a.success||'—'}</div>
+  </div>`;
+}
+function bindWorkRows(){
+  document.querySelectorAll('.dm2 .wchip[data-id]').forEach(ch=>ch.onclick=(e)=>{
+    e.stopPropagation();
+    const a=DATA.apis.find(x=>x.id===ch.dataset.id);
+    const tr=ch.closest('tr');
+    const nxt=tr.nextElementSibling;
+    if(nxt&&nxt.classList.contains('wdetail')){ nxt.remove(); if(nxt.dataset.id===a.id) return; }
+    document.querySelectorAll('.dm2 .wdetail').forEach(x=>x.remove());
+    const colspan=DATA.markets.length+1;
+    const drow=document.createElement('tr'); drow.className='wdetail'; drow.dataset.id=a.id;
+    drow.innerHTML=`<td colspan="${colspan}">${dmApiDetail(a)}</td>`;
+    tr.after(drow);
+  });
 }
 function dmRender(){
   // 상위탭(대분류)
