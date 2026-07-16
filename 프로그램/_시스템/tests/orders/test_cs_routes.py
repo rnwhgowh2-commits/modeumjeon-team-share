@@ -16,7 +16,7 @@ def _make_client():
 
 def test_claims_json_shape(monkeypatch):
     monkeypatch.setattr("webapp.routes.orders._claim_svc.list_claims",
-                        lambda markets, **kw: {"groups": {"신규요청": [{"오픈마켓주문번호": "A", "claim_key": "k"}], "대응필요": [], "대응완료": []},
+                        lambda markets, **kw: {"groups": {"신규요청": [{"오픈마켓주문번호": "A", "claim_key": "k"}], "대응중": [], "대응완료": []},
                                                "market_counts": {"전체": 1}, "warnings": []})
     c = _make_client()
     r = c.get("/orders/cs/claims.json?markets=lotteon&range=today")

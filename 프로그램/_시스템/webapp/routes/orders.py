@@ -171,7 +171,7 @@ def cs_claims():
     except Exception as e:   # noqa: BLE001
         import logging
         logging.getLogger(__name__).exception("cs claims failed markets=%s", markets)
-        return jsonify(ok=False, error=str(e), groups={"신규요청": [], "대응필요": [], "대응완료": []},
+        return jsonify(ok=False, error=str(e), groups={"신규요청": [], "대응중": [], "대응완료": []},
                        market_counts={"전체": 0})
 
 

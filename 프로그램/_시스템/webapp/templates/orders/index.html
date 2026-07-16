@@ -1623,7 +1623,7 @@
     var ALLMK=['coupang','eleven11','lotteon','smartstore'];
     var LOGO={'쿠팡':['C','#FF5A5A'],'11번가':['11','#F43142'],'롯데온':['L','#DA0F31'],'스마트스토어':['N','#03C75A']};
     var TYPE_CLS={'취소':'t-cancel','반품':'t-return','교환':'t-exch'};
-    var STAGES=[['신규요청','i-new','🆕'],['대응필요','i-chk','👀'],['대응완료','i-done','✅']];
+    var STAGES=[['신규요청','i-new','🆕'],['대응중','i-chk','👀'],['대응완료','i-done','✅']];
     // curMarket = 클라이언트측 필터 선택(''=전체). 페치는 항상 전마켓 → 건수 배지는 항상 정확.
     var curMarket='';
     var lastCounts={};
@@ -1805,6 +1805,13 @@
       });
     }
 
+    // 클레임 1건을 모든 단계 그룹에서 제거(claim_key 기준). 재조회 없이 화면만 갱신할 때 사용.
+    function removeFromGroups(ck){
+      STAGE_KEYS.forEach(function(k){
+        lastGroups[k]=(lastGroups[k]||[]).filter(function(r){ return r['claim_key']!==ck; });
+      });
+    }
+
     function ackClaim(row, btn){
       btn.disabled=true; btn.textContent='처리 중…';
       fetch('/orders/cs/claims/ack',{method:'POST',headers:{'Content-Type':'application/json'},
@@ -1812,7 +1819,11 @@
         .then(function(r){return r.json();})
         .then(function(j){
           if(!j.ok){ alert('확인 처리 실패: '+(j.error||'')); btn.disabled=false; btn.textContent='확인 ✓'; return; }
-          load();
+          // 전체 재조회(4마켓·수십초) 대신 화면만 즉시 갱신 — 신규요청 → 대응중 이동.
+          removeFromGroups(row['claim_key']);
+          row['단계']='대응중';
+          (lastGroups['대응중']=lastGroups['대응중']||[]).push(row);
+          renderBoard(lastGroups);   // 건수(마켓 배지) 불변 — 단계만 이동
         })
         .catch(function(){ alert('확인 처리 실패(네트워크)'); btn.disabled=false; btn.textContent='확인 ✓'; });
     }
@@ -1825,7 +1836,12 @@
         .then(function(r){return r.json();})
         .then(function(j){
           if(!j.ok){ alert('삭제 실패: '+(j.error||'')); btn.disabled=false; btn.textContent='삭제'; return; }
-          load();
+          // 전체 재조회 대신 즉시 제거 + 건수 감소.
+          removeFromGroups(row['claim_key']);
+          var ko=row['판매처'];
+          if(lastCounts[ko]) lastCounts[ko]=Math.max(0,lastCounts[ko]-1);
+          lastCounts['전체']=Math.max(0,(lastCounts['전체']||0)-1);
+          renderBoard(lastGroups); renderTabs();
         })
         .catch(function(){ alert('삭제 실패(네트워크)'); btn.disabled=false; btn.textContent='삭제'; });
     }
@@ -1851,14 +1867,14 @@
         .catch(function(){ return {mk:mk, http:false, j:{}}; });
     }
 
-    var STAGE_KEYS=['신규요청','대응필요','대응완료'];
+    var STAGE_KEYS=['신규요청','대응중','대응완료'];
 
     function load(){
       // 마켓 4곳을 동시에(병렬) 조회. 각 마켓이 끝나는 대로 스텝 도트·배지·건수를 갱신.
       // 같은 마켓 안 계정 여러 개는 서버가 순차 조회(429 방지) — 마켓끼리만 병렬.
       hideBanner();
       var mySeq=++claimSeq;
-      lastGroups={'신규요청':[],'대응필요':[],'대응완료':[]};
+      lastGroups={'신규요청':[],'대응중':[],'대응완료':[]};
       lastCounts={'전체':0};
       var warns=[];
       var settledN=0;
