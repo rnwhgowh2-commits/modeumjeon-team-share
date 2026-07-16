@@ -7,8 +7,9 @@
                ※ 조회 기준=변경 일시. 300개 초과 시 data.more(moreFrom·moreSequence)로 이어받기.
 - 주문 상세:   POST /v1/pay-order/seller/product-orders/query (productOrderIds[] 최대 300)
 - 발송/송장:   POST /v1/pay-order/seller/product-orders/dispatch (productOrderIds[], shippingCompany, trackingNumber)
-- 문의 목록:   GET  /v1/pay-user/inquiries (startDate/inquiryStatus/pageSize/pageNumber)
-- 문의 답변:   POST /v1/pay-merchant/inquiries/{inquiryNo}/answer (answerContent)
+- 고객문의:    GET  /v1/pay-user/inquiries (startSearchDate/endSearchDate yyyy-MM-dd·page·size·answered)
+- 상품Q&A:     GET  /v1/contents/qnas (fromDate/toDate ISO ...Z·page·size≤100·answered)
+- 문의 답변:   POST /v1/pay-merchant/inquiries/{inquiryNo}/answer (answerComment)
 - 클레임:      POST /v1/pay-order/seller/product-orders/{productOrderId}/claim/{type}/{action}
 
 인증·rate limit·재시도 는 SmartStoreClient 가 처리. 이 모듈은 body/query 매핑만.
@@ -17,7 +18,7 @@ from __future__ import annotations
 
 import logging
 import time
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Literal, Optional
 from urllib.parse import urlencode
 
@@ -203,33 +204,83 @@ def send_tracking(product_order_ids: list[str], delivery_company_code: str,
     )
 
 
-def fetch_inquiries(since: datetime,
+def _iso_z(d) -> str:
+    """datetime → 네이버 date-time(UTC, ...Z). tz-aware면 UTC로 변환, naive면 그대로."""
+    if isinstance(d, str):
+        return d
+    if d.tzinfo is not None:
+        d = d.astimezone(timezone.utc)
+    return d.strftime("%Y-%m-%dT%H:%M:%S.000Z")
+
+
+def fetch_inquiries(since: datetime, until: Optional[datetime] = None,
                      client: Optional[SmartStoreClient] = None,
-                     inquiry_status: str = "WAIT",
-                     page_size: int = 100,
+                     answered: Optional[bool] = None,
+                     page_size: int = 200,
                      page_number: int = 1) -> dict:
-    """고객 문의 조회. 기본 inquiryStatus=WAIT (답변 대기)."""
+    """고객 문의(주문·고객문의) 조회. GET /external/v1/pay-user/inquiries.
+
+    ★API 센터 실측(2026-07-16): 기간=startSearchDate/endSearchDate (yyyy-MM-dd, 필수),
+    페이지=page(1~)/size(10~200), answered(true/false) 생략=전체.
+    이전 startDate/inquiryStatus/pageSize 파라미터명은 HTTP 400 원인이었다.
+    응답 top-level ``content[]`` (고객 문의 내용 구조체) + totalPages·last.
+    """
     client = client or SmartStoreClient()
+    until = until or (since + timedelta(days=7))
+    params = {
+        "startSearchDate": since.strftime("%Y-%m-%d"),
+        "endSearchDate":   until.strftime("%Y-%m-%d"),
+        "page":            page_number,
+        "size":            min(max(page_size, 10), 200),
+    }
+    if answered is not None:
+        params["answered"] = "true" if answered else "false"
     return client.request(
         method="GET",
         path="/external/v1/pay-user/inquiries",
-        query=_q({
-            "startDate":     since.strftime("%Y-%m-%dT%H:%M:%S.000+09:00"),
-            "inquiryStatus": inquiry_status,
-            "pageSize":      page_size,
-            "pageNumber":    page_number,
-        }),
+        query=_q(params),
+    )
+
+
+def fetch_product_qnas(from_dt: datetime, to_dt: Optional[datetime] = None,
+                        client: Optional[SmartStoreClient] = None,
+                        answered: Optional[bool] = None,
+                        page_size: int = 100,
+                        page_number: int = 1) -> dict:
+    """상품 문의(상품Q&A) 목록 조회. GET /external/v1/contents/qnas.
+
+    ★API 센터 실측(2026-07-16): 기간=fromDate/toDate (ISO date-time ...Z, 필수),
+    page(1~)/size(≤100), answered(true/false) 생략=전체.
+    응답 top-level ``contents[]`` (상품 문의 내용 구조체) + totalPages·last.
+    """
+    client = client or SmartStoreClient()
+    to_dt = to_dt or (from_dt + timedelta(days=7))
+    params = {
+        "fromDate": _iso_z(from_dt),
+        "toDate":   _iso_z(to_dt),
+        "page":     page_number,
+        "size":     min(page_size, 100),
+    }
+    if answered is not None:
+        params["answered"] = "true" if answered else "false"
+    return client.request(
+        method="GET",
+        path="/external/v1/contents/qnas",
+        query=_q(params),
     )
 
 
 def reply_inquiry(inquiry_no: str, answer_content: str,
                    client: Optional[SmartStoreClient] = None) -> dict:
-    """문의 답변 등록."""
+    """고객 문의 답변 등록. POST /external/v1/pay-merchant/inquiries/{inquiryNo}/answer.
+
+    ★Body 는 ``answerComment`` (API 센터 실측). answerContent 아님.
+    """
     client = client or SmartStoreClient()
     return client.request(
         method="POST",
         path=f"/external/v1/pay-merchant/inquiries/{inquiry_no}/answer",
-        body={"answerContent": answer_content},
+        body={"answerComment": answer_content},
     )
 
 

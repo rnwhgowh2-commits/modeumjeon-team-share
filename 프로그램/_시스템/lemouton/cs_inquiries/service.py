@@ -16,6 +16,7 @@ from shared.platforms.coupang.inquiries import (
 )
 from shared.platforms.smartstore.orders import (
     fetch_inquiries as _ss_fetch,
+    fetch_product_qnas as _ss_qna,
     reply_inquiry as _ss_reply,
 )
 from shared.platforms.lotteon.inquiries import (
@@ -68,13 +69,25 @@ def _normalize_coupang_cc(it):
             "답변일": _g(it, "answeredAt", "replyAt")}
 
 
-def _normalize_smartstore(it):
-    answered = _g(it, "inquiryStatus") == "ANSWERED" or bool(_g(it, "answered", "answerContent", default=""))
-    return {"마켓": "스마트스토어", "문의형태": "상품문의", "문의ID": str(_g(it, "inquiryNo", "inquiryId")),
-            "고객": _g(it, "customerName", "buyerName", "writerName"), "상품": _g(it, "productName", "productOrderName"),
-            "문의내용": _g(it, "inquiryContent", "content", "question"), "일시": _g(it, "inquiryRegistrationDateTime", "createdAt"),
-            "상태": "답변완료" if answered else "미답변", "답변내용": _g(it, "answerContent", "replyContent"),
-            "답변일": _g(it, "answerDateTime", "answeredAt")}
+def _normalize_ss_customer(it):
+    """스스 고객 문의(주문·고객문의, pay-user/inquiries). ★API 센터 실측 필드."""
+    ttl = _g(it, "title")
+    body = _g(it, "inquiryContent")
+    return {"마켓": "스마트스토어", "문의형태": "주문고객문의", "문의ID": str(_g(it, "inquiryNo")),
+            "고객": _g(it, "customerName"), "상품": _g(it, "productName", "productOrderOption"),
+            "문의내용": (f"[{_g(it,'category')}] {ttl} · {body}" if ttl else body),
+            "일시": _g(it, "inquiryRegistrationDateTime"),
+            "상태": "답변완료" if bool(it.get("answered")) else "미답변",
+            "답변내용": _g(it, "answerContent"), "답변일": _g(it, "answerRegistrationDateTime")}
+
+
+def _normalize_ss_qna(it):
+    """스스 상품 문의(상품Q&A, contents/qnas). ★API 센터 실측 필드."""
+    return {"마켓": "스마트스토어", "문의형태": "상품문의", "문의ID": str(_g(it, "questionId")),
+            "고객": _g(it, "maskedWriterId"), "상품": _g(it, "productName"),
+            "문의내용": _g(it, "question"), "일시": _g(it, "createDate"),
+            "상태": "답변완료" if bool(it.get("answered")) else "미답변",
+            "답변내용": _g(it, "answer"), "답변일": ""}
 
 
 def _normalize_lotteon_pdqna(it):
@@ -194,13 +207,24 @@ def _fetch_market(market, since, until, status):
         return out
     if market == "smartstore":
         out = []
-        for st in ("WAIT", "ANSWERED"):   # 스스는 ALL 미지원(HTTP 400) → 미답변·답변완료 분리 조회
-            page = 1
+        for _cli in _acct_clients("smartstore"):
+            page = 1   # 고객문의(주문·고객) — content[] / last
             for _ in range(30):
-                raw = _ss_fetch(since, inquiry_status=st, page_size=100, page_number=page)
-                items = raw.get("contents") or raw.get("data") or []
-                out.extend(_normalize_smartstore(it) for it in items)
-                if len(items) < 100:
+                raw = _ss_fetch(since, until, client=_cli, page_size=200, page_number=page)
+                items = raw.get("content") or []
+                out.extend(_normalize_ss_customer(it) for it in items if isinstance(it, dict))
+                if raw.get("last") is True or len(items) < 200:
+                    break
+                page += 1
+            page = 1   # 상품Q&A — contents[] / last
+            for _ in range(30):
+                try:
+                    raw = _ss_qna(since, until, client=_cli, page_size=100, page_number=page)
+                except Exception:   # noqa: BLE001 — Q&A 실패는 고객문의 유지(부분성공)
+                    break
+                items = raw.get("contents") or []
+                out.extend(_normalize_ss_qna(it) for it in items if isinstance(it, dict))
+                if raw.get("last") is True or len(items) < 100:
                     break
                 page += 1
         return out
