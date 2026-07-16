@@ -38,8 +38,8 @@ def fetch_online_inquiries(since: datetime, until: datetime,
 
     answered_type: NOANSWER / ANSWERED / ALL
     """
-    vid = _vendor_id()
     client = client or CoupangClient()
+    vid = (getattr(client, "_cfg", {}) or {}).get("vendor_id") or _vendor_id()
     path = (f"/v2/providers/openapi/apis/api/v5/vendors/{vid}/onlineInquiries")
     params = {
         "vendorId":       vid,
@@ -61,9 +61,9 @@ def reply_online_inquiry(inquiry_id: str, content: str,
 
     body 필드는 공식 docs 에서 일부만 확인. 실 호출 실패 시 content 명 교정 필요.
     """
-    vid = _vendor_id()
-    user = vendor_user_id or os.getenv("COUPANG_VENDOR_USER_ID", "")
     client = client or CoupangClient()
+    vid = (getattr(client, "_cfg", {}) or {}).get("vendor_id") or _vendor_id()
+    user = vendor_user_id or os.getenv("COUPANG_VENDOR_USER_ID", "")
     path = (f"/v2/providers/openapi/apis/api/v4/vendors/{vid}"
             f"/callCenterInquiries/{inquiry_id}/replies")
     body = {
