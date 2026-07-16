@@ -6817,6 +6817,291 @@
    "persistIds": [],
    "codeRef": "",
    "docApiNo": 166
+  },
+  {
+   "id": "lotteon.contract.trader.update",
+   "market": "lotteon",
+   "fnKey": "contract.trader.update",
+   "tabs": [
+    "배송·송장"
+   ],
+   "category": "거래처",
+   "nm": "판매자 거래처 수정",
+   "dir": "send",
+   "st": "off",
+   "endpoint": "POST https://openapi.lotteon.com/v1/openapi/contract/v1/et/updateTraderSr",
+   "req": {
+    "method": "POST",
+    "url": "https://openapi.lotteon.com/v1/openapi/contract/v1/et/updateTraderSr",
+    "params": [
+     "afflTrCd*",
+     "rpbtrEmlAddr",
+     "rpbtrMphnNo",
+     "prstMsgUseYn(선물메시지Y/N)",
+     "dlvrMsgYn(배송메시지)",
+     "hpDvDdUseYn(희망일배송)",
+     "ovsDvYn(해외배송)",
+     "cnslAccpPdDealYn(상담접수상품)",
+     "stffEusePdDealYn(임직원전용)"
+    ]
+   },
+   "res": {
+    "note": "응답=returnCode/message(표준). 전체스펙 롯데ON apiNo=148"
+   },
+   "fields": [],
+   "success": "returnCode=0000 & data 존재. HTTP 401=인증·403=IP미등록·429=분당10000초과·500=오류 (HTTP200이어도 returnCode 확인)",
+   "idTraps": [],
+   "persistIds": [],
+   "codeRef": "",
+   "docApiNo": 148
+  },
+  {
+   "id": "lotteon.contract.subtrader.create",
+   "market": "lotteon",
+   "fnKey": "contract.subtrader.create",
+   "tabs": [
+    "배송·송장"
+   ],
+   "category": "거래처",
+   "nm": "판매자 하위거래처 등록",
+   "dir": "send",
+   "st": "off",
+   "endpoint": "POST https://openapi.lotteon.com/v1/openapi/contract/v1/lrtr/registLrTraderSr",
+   "req": {
+    "method": "POST",
+    "url": "https://openapi.lotteon.com/v1/openapi/contract/v1/lrtr/registLrTraderSr",
+    "params": [
+     "afflTrCd*",
+     "lrtrNm*",
+     "lrtrTxStatCd*(01거래중/02종료/03중지)",
+     "rprtStfNm*",
+     "rpbtrTelNo",
+     "rpbtrMphnNo",
+     "emlAddr*",
+     "tskStrtTm(업무시작HHMM)",
+     "tskEndTm"
+    ]
+   },
+   "res": {
+    "note": "응답=returnCode/message(표준). 전체스펙 롯데ON apiNo=149"
+   },
+   "fields": [],
+   "success": "returnCode=0000 & data 존재. HTTP 401=인증·403=IP미등록·429=분당10000초과·500=오류 (HTTP200이어도 returnCode 확인)",
+   "idTraps": [],
+   "persistIds": [],
+   "codeRef": "",
+   "docApiNo": 149
+  },
+  {
+   "id": "lotteon.contract.location.update",
+   "market": "lotteon",
+   "fnKey": "contract.location.update",
+   "tabs": [
+    "배송·송장"
+   ],
+   "category": "거래처",
+   "nm": "판매자 출고지/반품지 수정",
+   "dir": "send",
+   "st": "off",
+   "endpoint": "POST https://openapi.lotteon.com/v1/openapi/contract/v1/dvp/updateDvpSr",
+   "req": {
+    "method": "POST",
+    "url": "https://openapi.lotteon.com/v1/openapi/contract/v1/dvp/updateDvpSr",
+    "params": [
+     "dvpNo*",
+     "dvpTypCd*(회수지01/출고지02)",
+     "dvpNm",
+     "zipNo",
+     "zipAddr",
+     "dtlAddr",
+     "stnmZipAddr",
+     "rpbtrNm",
+     "mphnNo"
+    ]
+   },
+   "res": {
+    "note": "응답=returnCode/message(표준). 전체스펙 롯데ON apiNo=152"
+   },
+   "fields": [],
+   "success": "returnCode=0000 & data 존재. HTTP 401=인증·403=IP미등록·429=분당10000초과·500=오류 (HTTP200이어도 returnCode 확인)",
+   "idTraps": [],
+   "persistIds": [],
+   "codeRef": "",
+   "docApiNo": 152
+  },
+  {
+   "id": "lotteon.contract.location.delete",
+   "market": "lotteon",
+   "fnKey": "contract.location.delete",
+   "tabs": [
+    "배송·송장"
+   ],
+   "category": "거래처",
+   "nm": "판매자 출고지/반품지 삭제",
+   "dir": "send",
+   "st": "off",
+   "endpoint": "POST https://openapi.lotteon.com/v1/openapi/contract/v1/dvp/deleteDvpSr",
+   "req": {
+    "method": "POST",
+    "url": "https://openapi.lotteon.com/v1/openapi/contract/v1/dvp/deleteDvpSr",
+    "params": [
+     "afflTrCd*",
+     "dvpNo*",
+     "dvpTypCd*(회수지01/출고지02)"
+    ]
+   },
+   "res": {
+    "note": "응답=returnCode/message(표준). 전체스펙 롯데ON apiNo=153"
+   },
+   "fields": [],
+   "success": "returnCode=0000 & data 존재. HTTP 401=인증·403=IP미등록·429=분당10000초과·500=오류 (HTTP200이어도 returnCode 확인)",
+   "idTraps": [],
+   "persistIds": [],
+   "codeRef": "",
+   "docApiNo": 153
+  },
+  {
+   "id": "lotteon.contract.subtrader.update",
+   "market": "lotteon",
+   "fnKey": "contract.subtrader.update",
+   "tabs": [
+    "배송·송장"
+   ],
+   "category": "거래처",
+   "nm": "판매자 하위거래처 수정",
+   "dir": "send",
+   "st": "off",
+   "endpoint": "POST https://openapi.lotteon.com/v1/openapi/contract/v1/lrtr/updateLrTraderSr",
+   "req": {
+    "method": "POST",
+    "url": "https://openapi.lotteon.com/v1/openapi/contract/v1/lrtr/updateLrTraderSr",
+    "params": [
+     "afflLrtrCd*",
+     "afflTrCd*",
+     "lrtrNm*",
+     "lrtrTxStatCd*(01/02/03)",
+     "rprtStfNm*",
+     "rpbtrTelNo",
+     "rpbtrMphnNo"
+    ]
+   },
+   "res": {
+    "note": "응답=returnCode/message(표준). 전체스펙 롯데ON apiNo=155"
+   },
+   "fields": [],
+   "success": "returnCode=0000 & data 존재. HTTP 401=인증·403=IP미등록·429=분당10000초과·500=오류 (HTTP200이어도 returnCode 확인)",
+   "idTraps": [],
+   "persistIds": [],
+   "codeRef": "",
+   "docApiNo": 155
+  },
+  {
+   "id": "lotteon.contract.shipcost.create",
+   "market": "lotteon",
+   "fnKey": "contract.shipcost.create",
+   "tabs": [
+    "배송·송장"
+   ],
+   "category": "거래처",
+   "nm": "판매자 배송비정책 등록",
+   "dir": "send",
+   "st": "off",
+   "endpoint": "POST https://openapi.lotteon.com/v1/openapi/contract/v1/dvl/registDvCstSr",
+   "req": {
+    "method": "POST",
+    "url": "https://openapi.lotteon.com/v1/openapi/contract/v1/dvl/registDvCstSr",
+    "params": [
+     "aplyStrtDt*",
+     "aplyEndDt*",
+     "dvCstPolNm",
+     "ctrtTypCd*(중계A/위탁B/판매분매입C/직매입D)",
+     "dvTypCd*",
+     "dvProcTypCd*",
+     "dvCstTypCd*",
+     "dvCstDvsCd*",
+     "dvCst",
+     "rcst",
+     "cndlFreeStdAmt(조건부무료기준액)"
+    ]
+   },
+   "res": {
+    "note": "응답=returnCode/message(표준). 전체스펙 롯데ON apiNo=168"
+   },
+   "fields": [],
+   "success": "returnCode=0000 & data 존재. HTTP 401=인증·403=IP미등록·429=분당10000초과·500=오류 (HTTP200이어도 returnCode 확인)",
+   "idTraps": [],
+   "persistIds": [],
+   "codeRef": "",
+   "docApiNo": 168
+  },
+  {
+   "id": "lotteon.contract.shipcost.update",
+   "market": "lotteon",
+   "fnKey": "contract.shipcost.update",
+   "tabs": [
+    "배송·송장"
+   ],
+   "category": "거래처",
+   "nm": "판매자 배송비정책 수정",
+   "dir": "send",
+   "st": "off",
+   "endpoint": "POST https://openapi.lotteon.com/v1/openapi/contract/v1/dvl/updateDvCstSr",
+   "req": {
+    "method": "POST",
+    "url": "https://openapi.lotteon.com/v1/openapi/contract/v1/dvl/updateDvCstSr",
+    "params": [
+     "dvCstPolNo*",
+     "aplyStrtDt*",
+     "aplyEndDt*",
+     "dvCstPolNm",
+     "ctrtTypCd*",
+     "dvTypCd*",
+     "dvProcTypCd*",
+     "dvCstTypCd*",
+     "dvCstDvsCd*",
+     "dvCst",
+     "rcst"
+    ]
+   },
+   "res": {
+    "note": "응답=returnCode/message(표준). 전체스펙 롯데ON apiNo=169"
+   },
+   "fields": [],
+   "success": "returnCode=0000 & data 존재. HTTP 401=인증·403=IP미등록·429=분당10000초과·500=오류 (HTTP200이어도 returnCode 확인)",
+   "idTraps": [],
+   "persistIds": [],
+   "codeRef": "",
+   "docApiNo": 169
+  },
+  {
+   "id": "lotteon.contract.shipcost.delete",
+   "market": "lotteon",
+   "fnKey": "contract.shipcost.delete",
+   "tabs": [
+    "배송·송장"
+   ],
+   "category": "거래처",
+   "nm": "판매자 배송비정책 삭제",
+   "dir": "send",
+   "st": "off",
+   "endpoint": "POST https://openapi.lotteon.com/v1/openapi/contract/v1/dvl/deleteDvCstSr",
+   "req": {
+    "method": "POST",
+    "url": "https://openapi.lotteon.com/v1/openapi/contract/v1/dvl/deleteDvCstSr",
+    "params": [
+     "afflTrCd*",
+     "dvpNo*(=배송비정책번호)"
+    ]
+   },
+   "res": {
+    "note": "응답=returnCode/message(표준). 전체스펙 롯데ON apiNo=170"
+   },
+   "fields": [],
+   "success": "returnCode=0000 & data 존재. HTTP 401=인증·403=IP미등록·429=분당10000초과·500=오류 (HTTP200이어도 returnCode 확인)",
+   "idTraps": [],
+   "persistIds": [],
+   "codeRef": "",
+   "docApiNo": 170
   }
  ]
 }
