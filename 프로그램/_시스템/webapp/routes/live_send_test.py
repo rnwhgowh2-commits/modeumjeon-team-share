@@ -241,13 +241,22 @@ def api_send_explicit():
                             "error": "이 옵션은 매칭(matched) 상태가 아니에요."}), 400
         canonical_sku = sco.canonical_sku
         product_id = ch.market_product_id
-        out = run_explicit(
-            session,
-            canonical_sku=canonical_sku, market=market,
-            market_product_id=product_id, market_option_id=str(market_option_id),
-            new_price=price, new_stock=stock,
-            want_live=True, confirmed=confirmed,
-        )
+        try:
+            out = run_explicit(
+                session,
+                canonical_sku=canonical_sku, market=market,
+                market_product_id=product_id, market_option_id=str(market_option_id),
+                new_price=price, new_stock=stock,
+                want_live=True, confirmed=confirmed,
+            )
+        except Exception as e:   # 실전송 경로 예외를 화면에 정직히 표면화(500 팝업 방지)
+            import traceback, logging
+            logging.getLogger(__name__).exception("send-explicit 실패")
+            return jsonify({
+                "ok": False,
+                "error": f"전송 실패: {type(e).__name__}: {e}",
+                "detail": traceback.format_exc()[-1200:],
+            }), 200
     finally:
         session.close()
 
