@@ -13,7 +13,7 @@
 // [2026-07-07 화해] 리포 ↔ 데스크톱 로드본(v0.7.17) 동기화 완료 — 롯데온 익스트랙터
 //   (롯데오너스 lotte_member_discount_rate·재고 base/sitm 우선, 2026-07-03 fix Ⓑ·B) 이관.
 //   이제 리포가 원천. 데스크톱은 리포에서 동기화(통째복사 금지·패치만).
-const MOUM_EXT_VERSION = "0.7.34";  // 0.7.34 = winless 동시 레인 — fetch형 소싱처(SW: lemouton·ssf·hmall = 창0 / same-origin: ssg·lotteimall = 도메인탭1개)는 창을 URL마다 안 열고 탭 1개(또는 0개) 안에서 '동시 상한'개 동시 fetch. '동시 상한'=레인수(창수 아님). winless 레인은 fetchOnly(창 폴백 생략·정직 error). 렌더(무신사·롯데온)만 창=레인 유지. 0.7.33 = 소싱처별 동시상한 클램프 3→8. 0.7.26 = [E2] 마진계산기 소싱처 주문상태 확인(sourcing.check-order → 주문 URL 창 오픈+사이트별 파서 주입, 크롤=로컬). spike = 무신사 창없는 probe(진단 전용, 엔진 미배선). 0.7.17 = 실시간 집계(agg done/total) 브로드캐스트 → 자동화 링이 위젯과 동일. 0.7.16 = 상세 전체크롤 최우선. 0.7.6 = 자동화 워커 폴링 + 무신사 상품쿠폰(product_coupon_list) 전량수집 API우선+DOM폴백. 0.7.5 = manifest 버전동기화. 0.7.4 = content_mou 백그라운드 로그 중계. 0.7.3 = 현대H몰 sellGbcd 품절판정(S19). 0.6.x: 백그라운드 크롤 상태 영속+SW 자동재개
+const MOUM_EXT_VERSION = "0.7.35";  // 0.7.34 = winless 동시 레인 — fetch형 소싱처(SW: lemouton·ssf·hmall = 창0 / same-origin: ssg·lotteimall = 도메인탭1개)는 창을 URL마다 안 열고 탭 1개(또는 0개) 안에서 '동시 상한'개 동시 fetch. '동시 상한'=레인수(창수 아님). winless 레인은 fetchOnly(창 폴백 생략·정직 error). 렌더(무신사·롯데온)만 창=레인 유지. 0.7.33 = 소싱처별 동시상한 클램프 3→8. 0.7.26 = [E2] 마진계산기 소싱처 주문상태 확인(sourcing.check-order → 주문 URL 창 오픈+사이트별 파서 주입, 크롤=로컬). spike = 무신사 창없는 probe(진단 전용, 엔진 미배선). 0.7.17 = 실시간 집계(agg done/total) 브로드캐스트 → 자동화 링이 위젯과 동일. 0.7.16 = 상세 전체크롤 최우선. 0.7.6 = 자동화 워커 폴링 + 무신사 상품쿠폰(product_coupon_list) 전량수집 API우선+DOM폴백. 0.7.5 = manifest 버전동기화. 0.7.4 = content_mou 백그라운드 로그 중계. 0.7.3 = 현대H몰 sellGbcd 품절판정(S19). 0.6.x: 백그라운드 크롤 상태 영속+SW 자동재개
 
 // cascade 위치 시퀀서 — 창이 여러 개 열려도 서로 어긋나 보임
 let _winSeq = 0;
@@ -127,9 +127,110 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     return false;
   }
   if (type === "moum.auto-poll.stop") { moumAutoPollStop(); sendResponse({ ok: true }); return false; }
+  // ── [2026-07-16] 롯데온 정산 크롤: 로그인된 판매자센터 세션서 soapi selectBgt 페이징 수집 → 서버 push ──
+  if (type === "lotteon.settle.crawl") {
+    let base = "https://mou-m.com";
+    if (sender && sender.tab && sender.tab.url) { try { base = new URL(sender.tab.url).origin; } catch (_) {} }
+    handleLotteonSettleCrawl(msg.payload || {}, base)
+      .then((r) => sendResponse(r)).catch((e) => sendResponse({ ok: false, error: String(e) }));
+    return true;
+  }
   sendResponse({ error: "unknown type: " + type });
   return false;
 });
+
+// ── [2026-07-16] 롯데온 정산 크롤 — 로그인된 store.lotteon.com 세션서 soapi 페이징 수집 → 서버 push ──
+function _ymdOffset(days) {
+  const d = new Date(); d.setDate(d.getDate() + days);
+  return "" + d.getFullYear() + String(d.getMonth() + 1).padStart(2, "0") + String(d.getDate()).padStart(2, "0");
+}
+async function handleLotteonSettleCrawl(payload, base) {
+  const since = (payload.since || "").replace(/-/g, "") || _ymdOffset(-60);
+  const until = (payload.until || "").replace(/-/g, "") || _ymdOffset(0);
+  const trNo = payload.trNo || "";   // 판매자ID(예 LO10161082). 없으면 페이지 캡처값 시도.
+  // 1) 로그인된 store.lotteon.com 탭 확보(없으면 임시로 열고 크롤 후 닫음 — 쿠키 공유로 로그인됨)
+  let tab = (await chrome.tabs.query({ url: "https://store.lotteon.com/*" }))[0];
+  let opened = false;
+  if (!tab) {
+    tab = await chrome.tabs.create({ url: "https://store.lotteon.com/cm/main/index_SO.wsp", active: false });
+    opened = true;
+    try { await waitTabComplete(tab.id, 25000); } catch (_) {}
+  }
+  // 2) MAIN world 크롤(세션 토큰 읽어 selectBgt 페이징)
+  let res;
+  try {
+    const out = await chrome.scripting.executeScript({
+      target: { tabId: tab.id }, world: "MAIN",
+      func: lotteonSettleCrawlInPage, args: [since, until, trNo],
+    });
+    res = (out && out[0] && out[0].result) || { ok: false, error: "실행 결과 없음" };
+  } finally {
+    if (opened) { try { await chrome.tabs.remove(tab.id); } catch (_) {} }
+  }
+  if (!res.ok) return res;
+  // 3) 서버 push(POST /api/margin/lotteon-settlement)
+  try {
+    const pr = await fetch(base + "/api/margin/lotteon-settlement", {
+      method: "POST", credentials: "include",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify(res.rows),
+    }).then((r) => r.json());
+    return { ok: true, collected: res.rows.length, lines: res.lines, total: res.total,
+             upserted: (pr && pr.upserted) || 0, trNo: res.trNo };
+  } catch (e) { return { ok: false, error: "서버 push 실패: " + e, collected: res.rows.length }; }
+}
+// MAIN world 주입 — 페이지 컨텍스트(store.lotteon.com origin·세션쿠키)서 실행. 외부 스코프 참조 금지.
+function lotteonSettleCrawlInPage(sinceYMD, untilYMD, trNoArg) {
+  return new Promise(function (resolve) {
+    (async function () {
+      try {
+        var tok = null, hex = /[0-9a-f]{56}/;
+        for (var i = 0; i < sessionStorage.length; i++) {
+          var v = "" + (sessionStorage.getItem(sessionStorage.key(i)) || "");
+          var m = v.match(hex); if (m) { tok = m[0]; break; }
+        }
+        if (!tok) return resolve({ ok: false, error: "세션 토큰 없음 — 판매자센터 로그인 후 재시도" });
+        var trNo = trNoArg || (window.__H && window.__H.trNo) || "";
+        if (!trNo) return resolve({ ok: false, error: "trNo(판매자ID) 없음 — payload로 지정 필요" });
+        function get(p) {
+          return new Promise(function (res) {
+            var x = new XMLHttpRequest();
+            var qs = "strtDttm=" + sinceYMD + "&endDttm=" + untilYMD + "&trNo=" + encodeURIComponent(trNo) +
+                     "&lrtrNo=&inqDvsCd=&odSearchTypCd=01&odSearchTypNm=&pageNo=" + p + "&rowsPerPage=30";
+            x.open("GET", "https://soapi.lotteon.com/settle/v1/so/mediationSettleManagement/selectBgtSettleManagementList?" + qs);
+            x.setRequestHeader("authorization", "Bearer " + tok);
+            x.setRequestHeader("x-timezone", "GMT+09:00");
+            x.setRequestHeader("accept", "application/json");
+            x.withCredentials = true;
+            x.onload = function () { res({ s: x.status, t: x.responseText }); };
+            x.onerror = function () { res({ s: 0, t: "neterr" }); };
+            x.send();
+          });
+        }
+        var agg = {}, page = 1, total = null, lines = 0;
+        while (page <= 400) {
+          var r = await get(page);
+          if (r.s !== 200) return resolve({ ok: false, error: "HTTP " + r.s + " @page" + page, trNo: trNo });
+          var j = JSON.parse(r.t);
+          var d = (j && j.data) ? j.data : j;
+          var list = (d && d.mediationSettleList && d.mediationSettleList.dataList) || (d && d.dataList) || [];
+          if (total === null) total = (d && d.mediationSettleList && d.mediationSettleList.totalCount) || (d && d.totalCount) || null;
+          for (var k = 0; k < list.length; k++) {
+            var it = list[k], od = ("" + (it.odNo || "")).trim();
+            if (!od) continue;                 // ★요약행(빈 odNo) 제외
+            var seq = "" + (it.odSeq || "1"), key = od + "|" + seq;
+            if (!agg[key]) agg[key] = { odNo: od, odSeq: seq, pymtTgtAmt: 0, slChNo: it.slChNo || null, trNo: it.trNo || trNo };
+            agg[key].pymtTgtAmt += Math.round(parseFloat(it.pymtTgtAmt || 0));   // procSeq +X/-X 순액
+            lines++;
+          }
+          if (list.length < 30) break;
+          page++;
+        }
+        resolve({ ok: true, rows: Object.keys(agg).map(function (k) { return agg[k]; }), total: total, lines: lines, trNo: trNo });
+      } catch (e) { resolve({ ok: false, error: String(e) }); }
+    })();
+  });
+}
 
 // ── [스파이크 2026-07-07] 무신사 창없는 재고·가격 probe (서비스워커 직접 fetch) ──
 //   목적: musinsaExtractor(탭 컨텍스트)와 동일한 API를 SW에서 호출해 200 되는지 실측.
