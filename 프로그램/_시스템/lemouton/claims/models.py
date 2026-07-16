@@ -22,5 +22,6 @@ class ClaimHandling(Base):
     claim_type = Column(String(8))              # 취소/교환/반품
     acknowledged_at = Column(DateTime)          # 「확인」 누른 시각(있으면 대응필요)
     memo = Column(Text)                         # 간단메모
+    dismissed_at = Column(DateTime)             # 수기 삭제(있으면 목록서 숨김)
     created_at = Column(DateTime, default=_now)
     updated_at = Column(DateTime, default=_now, onupdate=_now)

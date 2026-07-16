@@ -3,6 +3,7 @@
 단계는 저장하지 않는다(스펙 §3). 종결(완료/철회)이면 항상 대응완료(확인 여부 무관 최우선).
 """
 import datetime as _dt
+import re as _re_cs
 
 from shared.db import SessionLocal
 from lemouton.claims.models import ClaimHandling
@@ -86,6 +87,30 @@ def save_memo(claim_key, memo, *, market="", order_no="", claim_type="", session
             session.close()
 
 
+def _ymd(s):
+    """'_change_date' 등 문자열에서 YYYY-MM-DD(구분자 유무 무관)를 뽑아 date로."""
+    m = _re_cs.search(r"(\d{4})[-./]?(\d{2})[-./]?(\d{2})", str(s or ""))
+    if not m:
+        return None
+    try:
+        return _dt.date(int(m.group(1)), int(m.group(2)), int(m.group(3)))
+    except ValueError:
+        return None
+
+
+def dismiss_claim(claim_key, *, market="", order_no="", claim_type="", session=None):
+    """수기 삭제 — dismissed_at 설정(upsert). 대응완료 목록서 숨김."""
+    own = session is None
+    session = session or SessionLocal()
+    try:
+        row = _get_or_create(session, claim_key, market=market, order_no=order_no, claim_type=claim_type)
+        row.dismissed_at = _dt.datetime.now(_dt.timezone.utc)
+        session.commit()
+    finally:
+        if own:
+            session.close()
+
+
 _STAGES = ("신규요청", "대응필요", "대응완료")
 
 
@@ -106,8 +131,15 @@ def _claim_view(row, ack):
     }
 
 
-def list_claims(markets, *, since, until, session=None):
-    """status_change_rows + ClaimHandling 조인 → {groups:3단계, market_counts}."""
+_RETENTION_DAYS = 7
+
+
+def list_claims(markets, *, since, until, now=None, session=None):
+    """status_change_rows + ClaimHandling 조인 → {groups:3단계, market_counts}.
+
+    대응완료(종결)는 완료일로부터 7일 이내 & 수기삭제(dismissed_at) 안 된 것만 노출.
+    신규요청/대응필요는 영향 없음.
+    """
     own = session is None
     session = session or SessionLocal()
     try:
@@ -118,8 +150,14 @@ def list_claims(markets, *, since, until, session=None):
                    session.query(ClaimHandling).filter(ClaimHandling.claim_key.in_(keys or [""])).all()}
         groups = {s: [] for s in _STAGES}
         counts = {"전체": 0}
+        today = (now or _dt.datetime.now(_dt.timezone.utc)).date()
         for r in rows:
-            v = _claim_view(r, handled.get(claim_key_of(r)))
+            ack = handled.get(claim_key_of(r))
+            v = _claim_view(r, ack)
+            if v["단계"] == "대응완료":
+                d = _ymd(r.get("_change_date"))
+                if (ack and ack.dismissed_at) or (d is not None and (today - d).days > _RETENTION_DAYS):
+                    continue
             groups[v["단계"]].append(v)
             counts["전체"] += 1
             counts[v["판매처"]] = counts.get(v["판매처"], 0) + 1

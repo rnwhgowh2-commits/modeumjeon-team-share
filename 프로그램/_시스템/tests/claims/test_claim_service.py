@@ -74,3 +74,22 @@ def test_list_claims_groups_and_counts(session, monkeypatch):
     assert [c["오픈마켓주문번호"] for c in res["groups"]["대응완료"]] == ["CP1"]   # 완료=자동
     assert res["groups"]["신규요청"] == []
     assert res["market_counts"]["전체"] == 2
+
+
+def test_done_retention_7days_and_dismiss(session, monkeypatch):
+    from lemouton.claims import service as sv
+    import datetime as dt
+    KST = dt.timezone(dt.timedelta(hours=9))
+    now = dt.datetime(2026, 7, 16, 12, tzinfo=KST)
+    rows = [
+        {"판매처": "롯데온", "오픈마켓주문번호": "D1", "주문상태": "취소완료", "주문상태원본": "21", "_change_date": "20260715120000"},  # 1일전=노출
+        {"판매처": "롯데온", "오픈마켓주문번호": "D8", "주문상태": "취소완료", "주문상태원본": "21", "_change_date": "20260706120000"},  # 10일전=숨김
+        {"판매처": "쿠팡", "오픈마켓주문번호": "D2", "주문상태": "취소완료", "주문상태원본": "RETURNS_COMPLETED", "_change_date": "20260716010000"},  # 오늘→삭제
+        {"판매처": "11번가", "오픈마켓주문번호": "N1", "주문상태": "취소요청", "주문상태원본": "02", "_change_date": "20260701000000"},  # 요청=항상노출
+    ]
+    monkeypatch.setattr(sv, "status_change_rows", lambda markets, **kw: rows)
+    sv.dismiss_claim("쿠팡:D2:취소", market="쿠팡", order_no="D2", claim_type="취소", session=session)
+    res = sv.list_claims(["lotteon","coupang","eleven11"], since=now, until=now, now=now, session=session)
+    done = {c["오픈마켓주문번호"] for c in res["groups"]["대응완료"]}
+    assert done == {"D1"}
+    assert {c["오픈마켓주문번호"] for c in res["groups"]["신규요청"]} == {"N1"}
