@@ -37,10 +37,10 @@ def test_normalize_and_list(session, monkeypatch):
                      "문의내용":"남녀공용?","일시":"2026-07-05 11:05","상태":"답변완료","답변내용":"네 공용입니다","답변일":"20260705"}]
         raise RuntimeError("미지원")
     monkeypatch.setattr(isv, "_fetch_market", fake_fetch)
-    res = isv.list_inquiries(["coupang","smartstore","lotteon"], since=now, until=now, now=now, session=session)
+    res = isv.list_inquiries(["coupang","smartstore","eleven11"], since=now, until=now, now=now, session=session)
     assert [q["문의ID"] for q in res["groups"]["미답변"]] == ["CQ1"]
     assert res["groups"]["답변완료"] == []   # SQ9 답변일 07-05 = 11일전 → 7일 필터 숨김
-    assert any("연동 준비 중" in w for w in res["warnings"])   # lotteon 미지원
+    assert any("연동 준비 중" in w for w in res["warnings"])   # eleven11 미지원
 
 
 def test_list_inquiries_defaults_window_when_no_dates(session, monkeypatch):
@@ -78,6 +78,24 @@ def test_coupang_fetch_includes_callcenter(monkeypatch):
     assert forms == {"온라인문의", "고객센터문의"}   # 두 종류 다 수집
     cc = [r for r in rows if r["문의형태"] == "고객센터문의"][0]
     assert cc["상태"] == "미답변" and cc["문의ID"] == "CC1"
+
+
+def test_lotteon_fetch_both_inquiry_types(monkeypatch):
+    from lemouton.cs_inquiries import service as isv
+    import datetime as dt
+    monkeypatch.setattr(isv, "_acct_clients", lambda m: [object()])
+    monkeypatch.setattr(isv, "_lo_pdqna", lambda since, until, **k: iter([
+        {"pdQnaNo": "Q1", "qstCnts": "사이즈 문의", "spdNo": "LO1", "qnaStatCd": "NPROC", "regDttm": "20260716120000"}]))
+    monkeypatch.setattr(isv, "_lo_seller", lambda since, until, **k: iter([
+        {"slrInqNo": 779, "inqCnts": "반품하려면?", "pdNm": "테스트상품", "slrInqProcStatCd": "ANS",
+         "ansCnts": "안내드립니다", "accpDttm": "20260716", "procDttm": "20260716"}]))
+    rows = isv._fetch_market("lotteon", dt.datetime(2026,7,10), dt.datetime(2026,7,16), "ALL")
+    forms = {r["문의형태"] for r in rows}
+    assert forms == {"상품문의", "판매자문의"}
+    qna = [r for r in rows if r["문의형태"] == "상품문의"][0]
+    assert qna["상태"] == "미답변" and qna["문의내용"] == "사이즈 문의"
+    seller = [r for r in rows if r["문의형태"] == "판매자문의"][0]
+    assert seller["상태"] == "답변완료" and seller["상품"] == "테스트상품" and seller["답변내용"] == "안내드립니다"
 
 
 def test_coupang_fetch_uses_account_clients(monkeypatch):

@@ -18,8 +18,12 @@ from shared.platforms.smartstore.orders import (
     fetch_inquiries as _ss_fetch,
     reply_inquiry as _ss_reply,
 )
+from shared.platforms.lotteon.inquiries import (
+    iter_product_qna as _lo_pdqna,
+    iter_seller_inquiries as _lo_seller,
+)
 
-_SUPPORTED = {"coupang", "smartstore"}   # 실조회 코드 있음. 롯데온·11번가=준비중
+_SUPPORTED = {"coupang", "smartstore", "lotteon"}   # 실조회 코드 있음. 11번가=준비중
 _MK_KO = {"coupang": "쿠팡", "smartstore": "스마트스토어", "lotteon": "롯데온", "eleven11": "11번가"}
 
 
@@ -71,6 +75,44 @@ def _normalize_smartstore(it):
             "문의내용": _g(it, "inquiryContent", "content", "question"), "일시": _g(it, "inquiryRegistrationDateTime", "createdAt"),
             "상태": "답변완료" if answered else "미답변", "답변내용": _g(it, "answerContent", "replyContent"),
             "답변일": _g(it, "answerDateTime", "answeredAt")}
+
+
+def _normalize_lotteon_pdqna(it):
+    """롯데온 상품QnA(상품문의). 응답에 고객명·상품명 없음(spdNo=판매자상품번호만)."""
+    st = _g(it, "qnaStatCd")
+    return {"마켓": "롯데온", "문의형태": "상품문의", "문의ID": str(_g(it, "pdQnaNo")),
+            "고객": "", "상품": _g(it, "spdNo"),
+            "문의내용": _g(it, "qstCnts"), "일시": _g(it, "regDttm"),
+            "상태": "미답변" if st == "NPROC" else "답변완료",   # PROC/CC_TCTL=처리됨
+            "답변내용": "", "답변일": ""}
+
+
+def _normalize_lotteon_seller_inq(it):
+    """롯데온 판매자문의. 상품명(pdNm)·답변(ansCnts) 있음."""
+    st = _g(it, "slrInqProcStatCd")
+    ttl = _g(it, "inqTtl")
+    body = _g(it, "inqCnts")
+    return {"마켓": "롯데온", "문의형태": "판매자문의", "문의ID": str(_g(it, "slrInqNo")),
+            "고객": "", "상품": _g(it, "pdNm", "spdNm"),
+            "문의내용": (f"{ttl} · {body}" if ttl else body),
+            "일시": _g(it, "accpDttm"),
+            "상태": "답변완료" if st == "ANS" else "미답변",
+            "답변내용": _g(it, "ansCnts"), "답변일": _g(it, "procDttm")}
+
+
+def _acct_clients(market):
+    """판매처관리 등록 계정별 설정 클라이언트(인증키·IP 포함). 없으면 대표계정 폴백."""
+    from lemouton.markets.order_export import _account_client, _active_accounts
+    out = []
+    for prefix, _name in _active_accounts(market):
+        c = _account_client(market, prefix)
+        if c is not None:
+            out.append(c)
+    if not out:
+        c = _account_client(market, None)
+        if c is not None:
+            out.append(c)
+    return out
 
 
 def _coupang_clients():
@@ -161,6 +203,18 @@ def _fetch_market(market, since, until, status):
                 if len(items) < 100:
                     break
                 page += 1
+        return out
+    if market == "lotteon":
+        out = []
+        for _cli in _acct_clients("lotteon"):
+            try:   # 상품QnA(상품문의)
+                out.extend(_normalize_lotteon_pdqna(it) for it in _lo_pdqna(since, until, client=_cli))
+            except Exception:   # noqa: BLE001 — 한 종류 실패는 다른 종류 유지
+                pass
+            try:   # 판매자문의
+                out.extend(_normalize_lotteon_seller_inq(it) for it in _lo_seller(since, until, client=_cli))
+            except Exception:   # noqa: BLE001
+                pass
         return out
     raise RuntimeError(f"{_MK_KO.get(market, market)} 문의 연동 준비 중")
 
