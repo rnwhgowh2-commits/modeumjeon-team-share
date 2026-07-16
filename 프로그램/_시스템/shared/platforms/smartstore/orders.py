@@ -100,49 +100,26 @@ def iter_changed_product_order_ids(since: datetime, until: datetime,
     ``data.more`` (moreFrom·moreSequence) 로 이어받는다. 폴백·추측 없음.
     """
     client = client or SmartStoreClient()
-
-    # 24h 윈도우는 서로 독립(각자 more 페이징) → 병렬로 스캔해 대기시간을 줄인다.
-    #  넓은 기간(주 단위)일수록 윈도우 수가 많아 순차 스캔이 스마트스토어 조회의 최대 병목이었다.
-    #  안전: 같은 client 를 여러 스레드가 써도 request()가 매 호출 새 requests.request +
-    #  AdaptiveLimiter(스레드락 토큰버킷·429 응답 시 rate 반감)로 요청률을 자기조정한다.
-    #  ★중복 제거·순서는 순차와 동일: 윈도우 순서대로(ex.map 순서 보존) 병합해 dict 로 dedup.
-    windows = []
+    seen: dict = {}
     win_start = since
     while win_start < until:
         win_end = min(win_start + timedelta(hours=window_hours), until)
-        windows.append((win_start, win_end))
-        win_start = win_end
-
-    def _scan_window(win):
-        w0, w1 = win
-        local, frm, more_seq = [], w0, None
+        frm, more_seq = win_start, None
         for _ in range(50):  # more 페이징 안전 상한
-            resp = fetch_orders(frm, w1, client=client,
+            resp = fetch_orders(frm, win_end, client=client,
                                 last_changed_type=last_changed_type,
                                 more_sequence=more_seq)
             data = resp.get("data") or {}
             for row in (data.get("lastChangeStatuses") or []):
                 poid = row.get("productOrderId")
                 if poid:
-                    local.append(poid)
+                    seen[poid] = None
             more = data.get("more") or {}
             if more.get("moreFrom"):
                 frm, more_seq = more["moreFrom"], more.get("moreSequence")
             else:
                 break
-        return local
-
-    seen: dict = {}
-    if len(windows) <= 1:
-        for win in windows:                         # 단일 윈도우는 스레드 오버헤드 회피
-            for poid in _scan_window(win):
-                seen[poid] = None
-    else:
-        from concurrent.futures import ThreadPoolExecutor
-        with ThreadPoolExecutor(max_workers=min(4, len(windows))) as _ex:
-            for local in _ex.map(_scan_window, windows):   # 윈도우 순서 보존 = 순차와 동일 dedup
-                for poid in local:
-                    seen[poid] = None
+        win_start = win_end
     return list(seen.keys())
 
 
