@@ -617,10 +617,9 @@ def _probe_11st_lines():
                     for ch in el:
                         entry[_localname(ch.tag)] = (ch.text or "").strip()
                     if entry.get("ordNo") == ordno and entry.get("stlAmt"):
-                        out.append({"acct": name, "seq": entry.get("ordPrdSeq"),
-                                    "stlAmt": entry.get("stlAmt"), "selFee": entry.get("selFee"),
-                                    "prdNo": entry.get("prdNo"), "selPrcAmt": entry.get("selPrcAmt"),
-                                    "keys": [k for k in entry.keys() if entry.get(k)][:30]})
+                        nums = {k: v for k, v in entry.items()
+                                if v and str(v).lstrip("-").replace(".", "").isdigit()}
+                        out.append({"acct": name, "seq": entry.get("ordPrdSeq"), "nums": nums})
         except Exception as e:  # noqa: BLE001
             out.append({"acct": name, "err": str(e)[:200]})
     return jsonify({"lines": out})
