@@ -15,10 +15,12 @@ from __future__ import annotations
 import datetime as _dt
 import re as _re
 import xml.etree.ElementTree as _ET
+from xml.sax.saxutils import escape as _xml_escape
 
 _MAX_WINDOW_DAYS = 7
 
 _PATH_PRODUCT_QNA = "/rest/prodqnaservices/prodqnalist/{s}/{e}/{status}"
+_PATH_PRODUCT_QNA_ANSWER = "/rest/prodqnaservices/prodqnaanswer/{brd}/{prd}"
 
 
 def _ymd(d: _dt.datetime) -> str:
@@ -77,3 +79,22 @@ def iter_product_qna(since: _dt.datetime, until: _dt.datetime, *, client,
             if key:
                 seen.add(key)
             yield row
+
+
+def answer_product_qna(brd_info_no: str, prd_no: str, answer_cont: str, *, client) -> dict:
+    """상품 QnA 답변 등록/수정. PUT /rest/prodqnaservices/prodqnaanswer/{brdInfoNo}/{prdNo}.
+
+    ★답변 완료 시 문의자에게 이메일 자동 발송(고객 대면 발신) → 전송 게이트(LIVE OFF) 필수.
+    body = <ProductQna><answerCont>...</answerCont></ProductQna> (XML euc-kr).
+    응답 <ClientMessage> resultCode=200 성공. 반환=파싱 dict.
+    """
+    path = _PATH_PRODUCT_QNA_ANSWER.format(brd=brd_info_no, prd=prd_no)
+    body = ('<?xml version="1.0" encoding="euc-kr"?>'
+            f"<ProductQna><answerCont>{_xml_escape(answer_cont or '')}</answerCont></ProductQna>")
+    xml_text = client.request("PUT", path, body=body)
+    root = _parse(xml_text)
+    out = {}
+    if root is not None:
+        for child in root:
+            out[_localname(child.tag)] = (child.text or "").strip()
+    return out
