@@ -43,18 +43,28 @@ def _resolve_env_prefix(session: Session, market: str, account_key: str):
     try:
         from lemouton.sourcing.models_v2 import UploadAccount
         q = session.query(UploadAccount).filter_by(market=market)
+        # 1) 정확 매칭(account_key → display_name).
         a = q.filter_by(account_key=account_key).first()
         if a is None and account_key:
-            # SetChannel 이 표시명(display_name)을 account_key 로 저장한 경우도 매칭.
             a = q.filter_by(display_name=account_key).first()
+        # 2) 마켓명 접미사·괄호·공백을 제거한 '기본 이름'으로 유일 매칭(오계정 방지 위해
+        #    정확히 1개일 때만). 예: SetChannel "브랜드마켓" ↔ 계정 "브랜드마켓쿠팡"/
+        #    "브랜드마켓(쿠팡)"(COUPANG_5). 부분일치가 아니라 정규화 후 '동일'만 허용.
         if a is None and account_key:
-            # 공백/정규화 차이 관용(예: "브랜드 마켓" vs "브랜드마켓").
-            norm = str(account_key).replace(" ", "")
-            for cand in q.all():
-                if norm in (str(cand.account_key).replace(" ", ""),
-                            str(cand.display_name or "").replace(" ", "")):
-                    a = cand
-                    break
+            _ko = {"coupang": "쿠팡", "smartstore": "스마트스토어", "lotteon": "롯데온",
+                   "eleven11": "11번가", "auction": "옥션", "gmarket": "G마켓"}.get(market, "")
+
+            def _norm(s):
+                s = str(s or "")
+                for t in (f"({_ko})", _ko, "(", ")", " "):
+                    if t:
+                        s = s.replace(t, "")
+                return s
+
+            target = _norm(account_key)
+            hits = [c for c in q.all()
+                    if target and target in (_norm(c.account_key), _norm(c.display_name))]
+            a = hits[0] if len(hits) == 1 else None   # 모호(0·복수)면 안전하게 미해석
         return a.env_prefix if a else None
     except Exception:  # noqa: BLE001 — 계정 미존재/모델 미로드 시 전역 폴백
         return None
