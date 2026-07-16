@@ -891,3 +891,36 @@ def _probe_market_rows():
         except Exception as e:  # noqa: BLE001
             errors.append({"acct": name, "err": str(e)[:250]})
     return jsonify({"rows": out, "errors": errors})
+
+
+@bp.route("/_probe_cp_revmap", methods=["POST"])
+def _probe_cp_revmap():
+    """[임시진단] 쿠팡 revenue-history 조인 실패 원인 규명. body{since,until,orders}.
+    각 계정의 _coupang_settle_map(item_map/deliv_map) 크기·샘플키·wanted 주문 oid 존재여부
+    반환 → 반환없음(창/인식일) vs oid부재 vs vid불일치 구분. 확인 후 제거."""
+    body = request.get_json(silent=True) or {}
+    try:
+        since = _dt.datetime.fromisoformat(body["since"])
+        until = _dt.datetime.fromisoformat(body["until"])
+    except Exception:
+        return jsonify({"error": "since/until 필요"}), 400
+    want = set(str(o) for o in (body.get("orders") or []))
+    from lemouton.markets.order_export import (_account_client, _active_accounts,
+                                               _coupang_settle_map, _until_now)
+    out = []
+    for prefix, name in _active_accounts("coupang"):
+        cli = _account_client("coupang", prefix)
+        if cli is None:
+            continue
+        try:
+            item_map, deliv_map = _coupang_settle_map(since, _until_now(until), cli)
+            item_oids = set(k[0] for k in item_map.keys())
+            sample = [{"oid": k[0], "vid": k[1], "amt": v} for k, v in list(item_map.items())[:10]]
+            out.append({"acct": name, "item_map_size": len(item_map),
+                        "deliv_map_size": len(deliv_map), "item_oids": len(item_oids),
+                        "sample": sample,
+                        "wanted_oid_in_revmap": {o: (o in item_oids) for o in want},
+                        "wanted_in_deliv": {o: (o in deliv_map) for o in want}})
+        except Exception as e:  # noqa: BLE001
+            out.append({"acct": name, "err": str(e)[:250]})
+    return jsonify({"accounts": out})
