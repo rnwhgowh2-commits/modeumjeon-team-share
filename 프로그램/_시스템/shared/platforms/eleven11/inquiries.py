@@ -21,6 +21,7 @@ _MAX_WINDOW_DAYS = 7
 
 _PATH_PRODUCT_QNA = "/rest/prodqnaservices/prodqnalist/{s}/{e}/{status}"
 _PATH_PRODUCT_QNA_ANSWER = "/rest/prodqnaservices/prodqnaanswer/{brd}/{prd}"
+_PATH_ALIMI = "/rest/alimi/getalimilist/{s}/{e}"   # 처리상태·주문번호 선택 → 전체는 2세그먼트
 
 
 def _ymd(d: _dt.datetime) -> str:
@@ -40,9 +41,9 @@ def _parse(xml_text: str):
     return _ET.fromstring(cleaned)
 
 
-def _windows(since: _dt.datetime, until: _dt.datetime):
+def _windows(since: _dt.datetime, until: _dt.datetime, days: int = _MAX_WINDOW_DAYS):
     cur = since
-    step = _dt.timedelta(days=_MAX_WINDOW_DAYS)
+    step = _dt.timedelta(days=days)
     if until <= since:
         yield since, until
         return
@@ -74,6 +75,42 @@ def iter_product_qna(since: _dt.datetime, until: _dt.datetime, *, client,
             for child in el:
                 row[_localname(child.tag)] = (child.text or "").strip()
             key = row.get("brdInfoNo")
+            if key and key in seen:
+                continue
+            if key:
+                seen.add(key)
+            yield row
+
+
+def iter_emergency(since: _dt.datetime, until: _dt.datetime, *, client):
+    """긴급알리미 조회(긴급문의·긴급알림톡). GET /rest/alimi/getalimilist/{s}/{e}.
+
+    처리상태·주문번호 경로 세그먼트는 선택 → 전체는 생략(2세그먼트). 최대 30일 윈도우.
+    ★답변 처리 API는 2024/02/14 중지 → 조회 전용.
+    응답 root <ns2:alimi> 하위 <ns2:alimListInfo> 반복. result_code=0 은 '결과 없음'(에러 아님).
+    yield = alimListInfo 필드 dict(emerNtceSeq·emerNtceClfNm1(긴급문의/긴급알림톡)·
+    emerNtceSubject·emerCtnt·prdNm·memNm·emerNtceCrntCd·emerReplyCtnt(답변) 등).
+    """
+    seen = set()
+    for w_from, w_to in _windows(since, until, days=30):
+        path = _PATH_ALIMI.format(s=_ymd(w_from), e=_ymd(w_to))
+        xml_text = client.request("GET", path)
+        root = _parse(xml_text)
+        if root is None:
+            continue
+        for el in root.iter():
+            if _localname(el.tag) != "alimListInfo":
+                continue
+            row = {}
+            for child in el:
+                ln = _localname(child.tag)
+                if ln == "emerReplyList":   # 답변 리스트(중첩) → 합쳐서 담기
+                    reps = [(_r.text or "").strip() for _r in child.iter()
+                            if _localname(_r.tag) == "emerReplyCtnt"]
+                    row["emerReplyCtnt"] = " / ".join([r for r in reps if r])
+                else:
+                    row[ln] = (child.text or "").strip()
+            key = row.get("emerNtceSeq")
             if key and key in seen:
                 continue
             if key:

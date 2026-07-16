@@ -25,6 +25,7 @@ from shared.platforms.lotteon.inquiries import (
 )
 from shared.platforms.eleven11.inquiries import (
     iter_product_qna as _e11_pdqna,
+    iter_emergency as _e11_alimi,
 )
 
 _SUPPORTED = {"coupang", "smartstore", "lotteon", "eleven11"}   # 실조회 코드 있음
@@ -141,6 +142,22 @@ def _normalize_eleven11_qna(it):
             "일시": _g(it, "createDt"),
             "상태": "답변완료" if _g(it, "answerYn") == "Y" else "미답변",
             "답변내용": _g(it, "answerCont"), "답변일": _g(it, "answerDt")}
+
+
+def _normalize_eleven11_alimi(it):
+    """11번가 긴급알리미(긴급문의·긴급알림톡). ★셀러 API 실측 필드(XML). 조회 전용(답변 API 중지)."""
+    kind = _g(it, "emerNtceClfNm1") or "긴급알리미"
+    subj = _g(it, "emerNtceSubject")
+    body = _g(it, "emerCtnt")
+    cat = "/".join([c for c in (_g(it, "emerNtceClfNm2"), _g(it, "emerNtceClfNm3")) if c])
+    dt = (_g(it, "createDt") + " " + _g(it, "createTm")).strip()
+    st = _g(it, "emerNtceCrntCd")   # 03답변완료·05재답변완료·06처리완료=처리됨
+    return {"마켓": "11번가", "문의형태": kind, "문의ID": str(_g(it, "emerNtceSeq")),
+            "고객": _g(it, "memNm", "memId"), "상품": _g(it, "prdNm"),
+            "문의내용": (f"[{cat}] {subj} · {body}" if subj else (f"[{cat}] {body}" if cat else body)),
+            "일시": dt,
+            "상태": "답변완료" if st in ("03", "05", "06") else "미답변",
+            "답변내용": _g(it, "emerReplyCtnt"), "답변일": ""}
 
 
 def _acct_clients(market):
@@ -277,9 +294,13 @@ def _fetch_market(market, since, until, status):
             if isinstance(cfg, dict):
                 cfg["request_timeout_sec"] = min(int(cfg.get("request_timeout_sec", 30) or 30), 10)
                 cfg["max_retries"] = 0
-            try:   # 상품 QnA(상품문의). ★긴급문의·11톡은 스펙 확보 후 추가
+            try:   # 상품 QnA(상품문의)
                 out.extend(_normalize_eleven11_qna(it) for it in _e11_pdqna(since, until, client=_cli))
-            except Exception as e:   # noqa: BLE001 — 한 계정 실패는 나머지 유지
+            except Exception as e:   # noqa: BLE001 — 한 계정/종류 실패는 나머지 유지
+                last_err = e
+            try:   # 긴급알리미(긴급문의·긴급알림톡=11톡). 조회 전용
+                out.extend(_normalize_eleven11_alimi(it) for it in _e11_alimi(since, until, client=_cli))
+            except Exception as e:   # noqa: BLE001
                 last_err = e
         if not out and last_err is not None:
             raise last_err   # 전부 실패 → list_inquiries가 warnings로 표면화(조용한 실패 금지)
