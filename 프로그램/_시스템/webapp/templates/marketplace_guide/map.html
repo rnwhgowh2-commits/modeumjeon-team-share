@@ -160,6 +160,39 @@
 </div>
 
 <script>
+// ── Plan 2: 단일 진실 원천 데이터 로드 ──
+let DATA=null;               // {markets, apis, unifiedStatuses, transitions, codes}
+let MK_META={};              // id → market meta
+let MKT_CATS_D={};           // id → [{g, items:[api...]}]  (마켓별 전체 API용)
+const WORK_TABS=["상품 조회","상품 관리","정산","배송·송장","클레임·CS","주문상태"];
+
+function buildAdapters(){
+  MK_META={}; DATA.markets.forEach(m=>MK_META[m.id]=m);
+  MKT_CATS_D={};
+  DATA.markets.forEach(m=>MKT_CATS_D[m.id]=[]);
+  const byMkCat={};
+  DATA.apis.forEach(a=>{
+    (byMkCat[a.market]=byMkCat[a.market]||{});
+    (byMkCat[a.market][a.category]=byMkCat[a.market][a.category]||[]).push(a);
+  });
+  for(const mk in byMkCat){
+    MKT_CATS_D[mk]=Object.keys(byMkCat[mk]).map(g=>({g, items:byMkCat[mk][g]}));
+  }
+}
+async function loadData(){
+  try{
+    const r=await fetch('/marketplace-guide/map-data.json',{credentials:'same-origin'});
+    if(!r.ok) throw new Error('HTTP '+r.status);
+    DATA=await r.json();
+    if(DATA.validation_errors && DATA.validation_errors.length)
+      console.warn('map-data 검증 오류', DATA.validation_errors);
+    buildAdapters();
+  }catch(e){
+    document.getElementById('dm-body').innerHTML=
+      `<div class="empty"><div class="big">⚠️</div>데이터를 불러오지 못했어요.<br><span style="font-size:11px;color:var(--faint)">${e.message}</span></div>`;
+    throw e;
+  }
+}
 const DM_MARKETS=[
   {id:'coupang',nm:'쿠팡',status:'ok',env:{인증:'HMAC-SHA256',API:'REST · WING Open API',문서:'wing.coupang.com',키:'ACCESS_KEY·SECRET_KEY·VENDOR_ID'}},
   {id:'smartstore',nm:'스마트스토어',status:'ok',env:{인증:'OAuth2 + bcrypt',API:'REST · 네이버 커머스',문서:'apicenter.commerce.naver.com',키:'CLIENT_ID·CLIENT_SECRET'}},
@@ -783,7 +816,7 @@ const API_CALLS={
 };
 const DM_KEY='moum_datamap_starred';
 let dmStar=new Set(); try{dmStar=new Set(JSON.parse(localStorage.getItem(DM_KEY)||'[]'));}catch(e){}
-let DM_TOP='all', DM_MK='coupang', DM_SUBG=0, DM_TSUB='summary', DM_STL='mtx';
+let DM_TOP='all', DM_MK=null, DM_SUBG=0, DM_TSUB='summary', DM_STL='mtx';
 // 자동전환 실배선 현황(V1 매트릭스). v: done=검증완료 / wait=검증대기.
 const TRANS=[
   {nm:'쿠팡',cls:'cp',api:'PUT …/ordersheets/acknowledgement',ids:'shipmentBoxId',v:'done'},
@@ -903,7 +936,10 @@ function dmRender(){
   // 하위탭(마켓)
   let sub='';
   if(DM_TOP==='all'){
-    sub=DM_MARKETS.map(m=>`<button class="mktab${m.id===DM_MK?' on':''}" data-m="${m.id}">${m.nm}<span class="mini">${m.status==='ok'?'연동완료':'준비중'}</span></button>`).join('');
+    sub=DATA.markets.map(m=>{
+      const done=DATA.apis.some(a=>a.market===m.id && a.st==='ok');
+      return `<button class="mktab${m.id===DM_MK?' on':''}" data-m="${m.id}">${m.label}<span class="mini">${done?'연동완료':'준비중'}</span></button>`;
+    }).join('');
   }
   const subEl=document.getElementById('dm-mktabs'); subEl.innerHTML=sub; subEl.style.display=(DM_TOP==='all')?'':'none';
   const leg=document.querySelector('.dm2 .legend'); if(leg)leg.style.display=(DM_TOP==='all')?'':'none';
@@ -915,9 +951,9 @@ function dmRender(){
   }else if(DM_TOP==='settle'){
     body.innerHTML=dmSettle();
   }else{
-    const m=DM_MARKETS.filter(x=>x.id===DM_MK)[0]; const cats=MKT_CATS[DM_MK]||[];
+    const m=MK_META[DM_MK]; const cats=MKT_CATS_D[DM_MK]||[];
     if(DM_SUBG>=cats.length) DM_SUBG=0;
-    let h=`<div class="env"><span class="k">인증</span><span class="v">${m.env.인증}</span><span class="k">API</span><span class="v">${m.env.API}</span><span class="k">문서</span><span class="v"><a href="#" onclick="return false">${m.env.문서}</a></span><span class="k">키</span><span class="v"><span class="mono">${m.env.키}</span></span></div>`;
+    let h=`<div class="env"><span class="k">인증</span><span class="v">${m.auth}</span><span class="k">base</span><span class="v"><span class="mono">${m.base_url}</span></span><span class="k">계정</span><span class="v"><span class="mono">${(m.env_prefixes||[]).join(', ')}</span></span><span class="k">병렬</span><span class="v">${m.concurrency||'—'}</span></div>`;
     const gr=cats[DM_SUBG]; const send=gr.items.filter(i=>i.dir==='send'),recv=gr.items.filter(i=>i.dir==='recv');
     let right;
     if(!gr.items.length){ right=`<div class="empty" style="padding:30px 20px;"><div style="font-size:24px">📄</div><b>${gr.g}</b> 카테고리의 API 항목은<br>공식 문서에서 가져오는 중이에요.<br><span style="font-size:11px;color:var(--faint)">이 카테고리 문서 화면을 주시면 채웁니다.</span></div>`; }
@@ -932,7 +968,7 @@ function dmRender(){
   document.querySelectorAll('.dm2 .stlsub button').forEach(b=>b.onclick=()=>{DM_STL=b.dataset.stl;dmRender();});
   document.querySelectorAll('.dm2 .star,.dm2 .lstar').forEach(s=>s.onclick=()=>{const k=s.dataset.k;dmStar.has(k)?dmStar.delete(k):dmStar.add(k);dmSave();dmRender();});
 }
-dmRender();
+loadData().then(()=>{ if(!DM_MK && DATA.markets[0]) DM_MK=DATA.markets[0].id; dmRender(); }).catch(()=>{});
 </script>
 {% endraw %}
 {% endblock %}
