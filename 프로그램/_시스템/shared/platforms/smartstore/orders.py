@@ -284,6 +284,21 @@ def reply_inquiry(inquiry_no: str, answer_content: str,
     )
 
 
+def reply_product_qna(question_id: str, comment_content: str,
+                       client: Optional[SmartStoreClient] = None) -> dict:
+    """상품 문의(상품Q&A) 답변 등록/수정. PUT /external/v1/contents/qnas/{questionId}.
+
+    ★고객문의(pay-merchant answer)와 별개 엔드포인트 — body 는 ``commentContent``.
+    전송 열 때 문의형태(상품문의=이 함수 / 주문고객문의=reply_inquiry)로 분기한다.
+    """
+    client = client or SmartStoreClient()
+    return client.request(
+        method="PUT",
+        path=f"/external/v1/contents/qnas/{question_id}",
+        body={"commentContent": comment_content},
+    )
+
+
 def handle_claim(product_order_id: str,
                   claim_type: Literal["cancel", "return", "exchange"],
                   action: Literal["request", "approve", "reject", "withdraw"],
