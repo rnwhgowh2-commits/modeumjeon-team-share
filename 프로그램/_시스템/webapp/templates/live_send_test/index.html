@@ -453,6 +453,33 @@
     $('lst-ex-editor').classList.remove('hidden');
     $('lst-ex-agree').checked = false; exSyncSend();
     exUpdateCmp();
+    // 재고를 옵션 조회에서 못 준 마켓(쿠팡)은 고른 옵션 1건만 온디맨드로 조회
+    if(o && o.cur_stock == null){ exFetchStock(oid, o); }
+  }
+
+  function exFetchStock(oid, o){
+    var market = $('lst-ex-market').value;
+    if(!state.set || !market) return;
+    $('lst-ex-curstock').textContent = '조회 중…';
+    fetch('/api/live-send-test/current-stock?set_id=' + encodeURIComponent(state.set.set_id) +
+          '&market=' + encodeURIComponent(market) + '&option=' + encodeURIComponent(oid),
+          {cache:'no-store'})
+      .then(function(r){ return r.json(); })
+      .then(function(body){
+        // 옵션이 바뀌었으면(다른 옵션 선택) 무시
+        if($('lst-ex-option').value !== oid) return;
+        if(body.ok && body.stock != null){
+          o.cur_stock = body.stock;                 // 캐시(되돌리기·비교에 사용)
+          $('lst-ex-curstock').textContent = num(body.stock);
+          if($('lst-ex-instock').value === '') $('lst-ex-instock').value = body.stock;
+          exUpdateCmp(); exSyncSend();
+        } else {
+          $('lst-ex-curstock').textContent = '조회 안됨';
+          if(body.note){ exNote(body.note); }
+        }
+      })
+      .catch(function(){ if($('lst-ex-option').value === oid){
+        $('lst-ex-curstock').textContent = '조회 안됨'; } });
   }
 
   function exNumOrNull(v){ v = String(v).trim(); if(v === '') return null; var n = Number(v);

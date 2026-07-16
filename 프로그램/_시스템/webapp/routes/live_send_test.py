@@ -212,6 +212,46 @@ def api_current():
     })
 
 
+@bp.get("/api/live-send-test/current-stock")
+def api_current_stock():
+    """선택한 옵션 1건의 현재 재고 조회(온디맨드). 쿠팡=vendorItemId inventories.
+
+    옵션 전량 조회는 느려서(상품당 수십~수백), 화면에서 고른 옵션 하나만 조회한다.
+    실패/미지원은 stock=null + note 로 안전 표면화(0 날조 금지).
+    """
+    try:
+        set_id = int(request.args.get("set_id"))
+    except (TypeError, ValueError):
+        return jsonify({"ok": False, "error": "set_id 필요"}), 400
+    market = (request.args.get("market") or "").strip()
+    option = (request.args.get("option") or "").strip()
+    if not market or not option:
+        return jsonify({"ok": False, "error": "market·option 필요"}), 400
+    session = SessionLocal()
+    try:
+        ch = _channel_for(session, set_id, market)
+        if ch is None:
+            return jsonify({"ok": False, "error": "연동된 채널이 없어요."}), 404
+        from lemouton.sets.set_link_service import _resolve_env_prefix
+        env_prefix = _resolve_env_prefix(session, market, ch.account_key)
+        stock, note = None, None
+        if market == "coupang":
+            try:
+                from lemouton.uploader.market_fetch import _coupang_client
+                from shared.platforms.coupang.inventory import get_quantity
+                stock = get_quantity(int(option), client=_coupang_client(env_prefix))
+                if stock is None:
+                    note = "재고를 가져오지 못했어요(값을 직접 입력하세요)."
+            except Exception as e:  # noqa: BLE001
+                note = f"재고 조회 실패: {e}"
+        else:
+            note = "이 마켓은 옵션 조회에서 이미 재고를 제공합니다."
+    finally:
+        session.close()
+    return jsonify({"ok": True, "market": market, "option": option,
+                    "stock": stock, "note": note})
+
+
 @bp.post("/api/live-send-test/send-explicit")
 def api_send_explicit():
     """지정 마켓·옵션 1건에 명시값 전송. want_live=True 고정(화면 성격), confirmed=body.

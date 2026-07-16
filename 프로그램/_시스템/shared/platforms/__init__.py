@@ -58,6 +58,11 @@ COUPANG: dict = {
             "/v2/providers/seller_api/apis/api/v1/marketplace"
             "/vendor-items/{vendorItemId}/quantities/{quantity}"
         ),
+        # 옵션(vendorItem) 현재 재고 조회 — {data:{amountInStock:N}}
+        "get_inventory": (
+            "/v2/providers/seller_api/apis/api/v1/marketplace"
+            "/vendor-items/{vendorItemId}/inventories"
+        ),
         "inflow_status": (
             "/v2/providers/seller_api/apis/api/v1/marketplace"
             "/seller-products/inflow-status"
