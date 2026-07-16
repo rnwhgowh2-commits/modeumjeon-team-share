@@ -1564,6 +1564,41 @@ def new_order_rows(markets, days: int = 7, now=None, use_cache: bool = False,
     return out
 
 
+def _change_date_of(r):
+    """행의 '_change_date'(변경일)에서 날짜(date) 추출. 컴팩트(YYYYMMDD…)·ISO 모두."""
+    m = _re.search(r"(\d{4})[-./]?(\d{2})[-./]?(\d{2})", str(r.get("_change_date") or ""))
+    if not m:
+        return None
+    try:
+        return _dt.date(int(m.group(1)), int(m.group(2)), int(m.group(3)))
+    except ValueError:
+        return None
+
+
+def status_change_rows(markets, days: int = 7, now=None,
+                       since=None, until=None, warnings=None) -> list:
+    """상태변경(취소/교환/반품) 이벤트만 — 변경일(_change_date) 기준 수집.
+
+    #1의 _kind='change' 태그 재사용. combined_order_rows는 주문일로 트리밍해 '옛 주문의
+    이번 기간 변경'을 놓치므로, 여기선 _fetch_combined(트리밍 전)에서 change 행만 뽑아
+    _change_date 로 트리밍한다.
+    """
+    rows = _fetch_combined(markets, days, now, since=since, until=until,
+                           include_settlement=False, warnings=warnings)
+    if not (since and until):
+        return [r for r in rows if r.get("_kind") == "change"]
+    lo, hi = since.date(), until.date()
+    out = []
+    for r in rows:
+        if r.get("_kind") != "change":
+            continue
+        d = _change_date_of(r)
+        if d is None or not (lo <= d <= hi):
+            continue
+        out.append(r)
+    return out
+
+
 def resolve_columns(columns=None) -> list:
     """사용자 지정 열(순서 유지)을 유효 열로 필터. 비면 기본 전체."""
     if not columns:
