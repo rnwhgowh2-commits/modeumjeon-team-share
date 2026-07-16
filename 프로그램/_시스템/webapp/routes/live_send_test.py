@@ -307,33 +307,25 @@ def api_e11_raw():
     from lemouton.uploader.market_fetch import _eleven11_client
     from shared.platforms.eleven11 import stocks_query as SQ
     pid = str(product_id)
-    hdr = '<?xml version="1.0" encoding="euc-kr"?>'
-    # 요청 XML 형식 후보(응답 래퍼 ProductStockss·오류메시지 기반 추정)
-    variants = {
-        "ProductStocks":  f"{hdr}<ProductStocks><prdNo>{pid}</prdNo></ProductStocks>",
-        "ProductStockss": f"{hdr}<ProductStockss><prdNo>{pid}</prdNo></ProductStockss>",
-        "ProductStock":   f"{hdr}<ProductStock><prdNo>{pid}</prdNo></ProductStock>",
-        "Product":        f"{hdr}<Product><prdNo>{pid}</prdNo></Product>",
-        "bare_prdNo":     f"{hdr}<prdNo>{pid}</prdNo>",
-    }
     out = {}
     try:
         client = _eleven11_client(env_prefix)
     except Exception as e:  # noqa: BLE001
         return jsonify({"ok": False, "error": f"client: {type(e).__name__}: {e}"}), 200
-    # POST 변형들
-    for name, body in variants.items():
+    P = SQ._PATH_STOCKS
+    trials = [
+        ("GET:path",        "GET",  f"{P}/{pid}", None),
+        ("GET:path_slash",  "GET",  f"{P}/{pid}/", None),
+        ("POST:path",       "POST", f"{P}/{pid}", None),
+        ("POST:bare",       "POST", P, f"<prdNo>{pid}</prdNo>"),
+    ]
+    for name, method, path, body in trials:
         try:
-            resp = client.request("POST", SQ._PATH_STOCKS, body)
-            out[f"POST:{name}"] = (resp or "")[:700]
+            resp = client.request(method, path, body) if body is not None \
+                else client.request(method, path)
+            out[name] = (resp or "")[:1500]
         except Exception as e:  # noqa: BLE001
-            out[f"POST:{name}"] = f"ERR {type(e).__name__}: {str(e)[:200]}"
-    # GET 변형(prdNo 쿼리)
-    try:
-        resp = client.request("GET", SQ._PATH_STOCKS + f"?prdNo={pid}")
-        out["GET:query"] = (resp or "")[:700]
-    except Exception as e:  # noqa: BLE001
-        out["GET:query"] = f"ERR {type(e).__name__}: {str(e)[:200]}"
+            out[name] = f"ERR {type(e).__name__}: {str(e)[:200]}"
     return jsonify({"ok": True, "product_id": pid, "results": out})
 
 
