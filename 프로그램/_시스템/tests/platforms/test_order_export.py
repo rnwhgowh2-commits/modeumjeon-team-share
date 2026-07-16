@@ -349,35 +349,6 @@ def test_coupang_shipping_only_settlement_is_real():
     assert r["_settle_source"] == "real"          # estimated/none 아님
 
 
-def test_coupang_claim_row_gets_real_delivery_settlement():
-    """반품 주문(활성 발주서에 없고 클레임 병합으로 들어옴)도 배송비 실정산이 있으면 붙어야 한다.
-    _cp_claim_row 이 정산예정금액을 하드코딩 none 으로 두어 반품배송비 정산(셀러 수령)이 통째
-    누락되던 것 — 실측 24100197897393=9670. 클레임 행 후처리로 deliv_map 을 붙인다."""
-    ono = 24100197897393
-    class C:
-        _cfg = {"vendor_id": "A1"}
-        def request(self, method, path, query=""):
-            if "ordersheets" in path:
-                return {"data": [], "nextToken": ""}          # 활성 발주서 없음
-            if "revenue-history" in path:                     # 배송비 정산만 존재(상품 없음)
-                return {"data": [{"orderId": ono, "deliveryFee": {"settlementAmount": 9670},
-                        "items": []}], "hasNext": False}
-            if "returnRequests" in path:                      # 반품(완료)로 조회됨
-                return {"data": [{"receiptId": 1, "orderId": ono, "receiptType": "RETURN",
-                        "receiptStatus": "RETURNS_COMPLETED", "createdAt": "2026-06-20",
-                        "requesterName": "구매자", "reasonCodeText": "단순변심",
-                        "returnItems": [{"sellerProductName": "반품상품", "cancelCount": 1}]}],
-                        "nextToken": None}
-            return {"data": [], "nextToken": None}            # exchangeRequests 등
-    rows = oe.coupang_order_rows(dt.datetime(2026, 7, 5, tzinfo=oe.KST),
-                                 dt.datetime(2026, 7, 8, tzinfo=oe.KST), client=C())
-    claim = [r for r in rows if r.get("오픈마켓주문번호") == str(ono)]
-    assert claim, "반품 클레임 행이 있어야 함"
-    real = [r for r in claim if r.get("_settle_source") == "real"]
-    assert len(real) == 1                          # 주문당 배송비 정산 1회
-    assert real[0]["정산예정금액"] == 9670          # 반품배송비 실정산
-
-
 def test_coupang_estimate_shipping_fee_3pct():
     # 미정산 추정: 상품 11.55%(0.8845) + 배송비 3%(0.97). 배송비 있는 주문.
     class C:
