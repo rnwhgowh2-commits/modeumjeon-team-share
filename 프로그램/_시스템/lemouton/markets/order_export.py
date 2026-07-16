@@ -190,9 +190,12 @@ def smartstore_order_rows(since: _dt.datetime, until: _dt.datetime,
     #   통째 누락·마진 마이너스(라이브 실측). 조회·정산 루프 모두 now 로 상한.
     if until > now:
         until = now
-    fetch_until = min(until + _dt.timedelta(days=3), now)
-    if fetch_until <= until or (fetch_until - since).days > 10:
-        fetch_until = until
+    # ★ 조회 끝은 now 까지 확장(_until_now = max(until, now) = now). last-changed 는 24h 윈도우로
+    #   끊어 호출하므로(orders.iter_changed_product_order_ids) 넓은 범위도 단일 호출 400 조회범위초과를
+    #   유발하지 않고, 미래일은 위 until>now 상한이 막는다. 소심한 +3일/10일 버퍼는 구매확정·반품 등
+    #   상태변경이 until+3 을 넘어간 주문(주문일은 창내)을 통째 누락시켜 정산 매칭 불가 → 제거.
+    #   창밖 여분 행은 하류 _filter_by_order_date(마진)·probe want 셋(검증)이 주문일로 되잘라낸다.
+    fetch_until = _until_now(until)
     ids = iter_changed_product_order_ids(since, fetch_until, client=client)
     detail = []
     for i in range(0, len(ids), 300):
@@ -585,7 +588,9 @@ def coupang_order_rows(since: _dt.datetime, until: _dt.datetime,
         item_settle, deliv_settle = {}, {}
     _deliv_used = set()
     for r in rows:
-        oid, vid = str(r.pop("_oid", "")), r.pop("_vid", None)
+        # vid 도 oid 처럼 str 정규화(양쪽 대칭). ordersheets(문자열)↔revenue-history(정수)
+        # vendorItemId 타입 불일치로 (oid,vid) 튜플키가 전량 미스→estimated 폴백하던 버그 수정.
+        oid, vid = str(r.pop("_oid", "")), str(r.pop("_vid", "") or "")
         ship = r.get("배송비") or 0
         actual = item_settle.get((oid, vid))
         if actual is not None:                        # 확정: 상품정산 + 배송비정산(주문당 1회)
@@ -735,8 +740,8 @@ def _coupang_settle_map(since, until, client):
                 except (TypeError, ValueError):
                     pass
             for it in (order.get("items") or []):
-                vid, amt = it.get("vendorItemId"), it.get("settlementAmount")
-                if amt is None:
+                vid, amt = str(it.get("vendorItemId") or ""), it.get("settlementAmount")
+                if amt is None or not vid:   # 빈 vid 는 조인 불가(빈키 "" 충돌 방지)
                     continue
                 try:
                     item_map[(oid, vid)] = item_map.get((oid, vid), 0) + int(amt)

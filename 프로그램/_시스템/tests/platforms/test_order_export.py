@@ -203,6 +203,32 @@ def test_coupang_settlement_join(monkeypatch):
     assert "_oid" not in rows[0] and "_vid" not in rows[0]   # 임시키 정리됨
 
 
+def test_coupang_settlement_join_vendorItemId_type_mismatch(monkeypatch):
+    """ordersheets(vendorItemId=문자열)↔revenue-history(vendorItemId=정수) 타입 불일치라도
+    조인돼야 한다. 수정 전엔 (oid,vid) 튜플키 전량 미스로 estimated 폴백하던 버그 회귀 방지."""
+    class C:
+        _cfg = {"vendor_id": "A00012345"}
+        def request(self, method, path, query=""):
+            if "ordersheets" in path:
+                if "nextToken" in query:
+                    return {"data": [], "nextToken": ""}
+                return {"data": [{"shipmentBoxId": 1, "orderId": 777, "status": "FINAL_DELIVERY",
+                        "orderer": {}, "receiver": {},
+                        "orderItems": [{"vendorItemId": "82914", "sellerProductName": "코트",  # 문자열
+                                        "shippingCount": 1, "salesPrice": {"units": 189000}}]}],
+                        "nextToken": ""}
+            if "revenue-history" in path:
+                return {"data": [{"orderId": 777, "items": [
+                        {"vendorItemId": 82914, "settlementAmount": 165155}]}], "hasNext": False}  # 정수
+            return {"data": []}
+    since = dt.datetime(2026, 7, 5, tzinfo=oe.KST)
+    until = dt.datetime(2026, 7, 8, tzinfo=oe.KST)
+    rows = oe.coupang_order_rows(since, until, client=C())
+    assert len(rows) == 1
+    assert rows[0]["정산예정금액"] == 165155
+    assert rows[0]["_settle_source"] == "real"   # estimated 아님
+
+
 
 def test_coupang_claims_merge():
     """returnRequests(취소/반품)+exchangeRequests(교환) 병합 (MCP 실측 스펙)."""
@@ -383,6 +409,26 @@ def test_smartstore_never_queries_future_dates(monkeypatch):
                              include_settlement=False)
     # 조회 끝(lastChangedTo)이 미래로 나가면 안 됨 — now 이하로 캡
     assert cap["until"] <= now + dt.timedelta(seconds=2)
+
+
+def test_smartstore_fetch_window_extends_to_now_when_until_past(monkeypatch):
+    """until 이 과거(마진 기간추론=max(주문일)+3일 < 오늘)이고 스팬>10일이어도, 상태변경
+    (구매확정·반품 등)이 until 이후로 드리프트한 주문을 잡으려면 조회 끝을 now 까지 확장해야 한다.
+    구 +3일/10일 버퍼는 until 로 되돌려 그 주문을 통째 누락(정산 매칭 불가)시켰다 → 회귀 방지."""
+    import shared.platforms.smartstore.orders as _sso
+    cap = {}
+    def fake_iter(since, until, client=None, **k):
+        cap["since"], cap["until"] = since, until
+        return []
+    monkeypatch.setattr(_sso, "iter_changed_product_order_ids", fake_iter)
+    now = dt.datetime.now(oe.KST)
+    past_until = now - dt.timedelta(days=5)          # 과거 period_to
+    since = now - dt.timedelta(days=20)              # 스팬 20일(>10 → 구 버퍼는 fetch_until=until)
+    oe.smartstore_order_rows(since, past_until, client=object(),
+                             include_settlement=False)
+    # 조회 끝이 until(과거)이 아니라 now 까지 확장돼야 함
+    assert cap["until"] >= now - dt.timedelta(seconds=2)
+    assert cap["until"] > past_until
 
 
 def test_order_rows_coerces_naive_dates_to_aware(monkeypatch):
